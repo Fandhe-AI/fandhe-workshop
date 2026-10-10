@@ -1,6 +1,7 @@
 {
   "Exclude": [
     "^\\.agents/skills/",
-    "^\\.claude/skills/"
+    "^\\.claude/skills/",
+    "^LICENSE-(APACHE|MIT)$"
   ]
 }
