@@ -13,3 +13,7 @@
 # 	path = docs/spec
 # 	url = https://github.com/Fandhe-AI/<repo>-spec.git
 # 	update = none
+[submodule "docs/spec"]
+	path = docs/spec
+	url = https://github.com/Fandhe-AI/fandhe-workshop-spec.git
+	update = none

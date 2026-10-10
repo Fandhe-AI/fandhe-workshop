@@ -1,8 +1,31 @@
-# template-dev
+# fandhe-workshop
 
-Fandhe-AI の開発リポジトリ用テンプレートです。言語に依存しない開発基盤
-（Claude Code / Codex のスキル体系・Git hooks・EditorConfig・Make の入口・環境変数の雛形）を提供し、
-派生リポジトリで言語固有の設定を追加して使います。
+体験型教材を作成・実行する汎用 OSS エンジンの実装リポジトリです。
+教材作成者が章・Step・入力条件・状態変化・完了条件・ヒントをデータとして書くと、
+ブラウザの中で、ターミナル風の操作に応じて成果物（ファイル・差分・Issue・PR／CI の状態など）が変わる教材として動くことを目指します。
+エンジンは特定の教材の知識を持たず、教材は別のリポジトリで作成します。
+
+開発基盤は [Fandhe-AI/template-dev](https://github.com/Fandhe-AI/template-dev) から作成しています。
+言語固有の設定・実装は、実装着手の指示後にタスクに沿って追加します。
+
+## 仕様（`docs/spec`）
+
+仕様・フェーズ文書は private リポジトリ `Fandhe-AI/fandhe-workshop-spec` を `docs/spec` に
+submodule として置いています（閲覧には権限が必要です）。
+
+認証の無い環境での clone が失敗しないよう `.gitmodules` で `update = none` を指定しているため、
+`git clone --recurse-submodules` や `git submodule update --init` では取得されません。
+spec リポジトリへの読み取り権限がある環境で、次のように明示的に取得します。
+
+```bash
+git -c submodule.docs/spec.update=checkout submodule update --init docs/spec
+```
+
+参照の更新は `update-external.yml` が日次で PR を作成します（後述の「CI」）。
+
+## ライセンス
+
+MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE-MIT) / [LICENSE-APACHE](./LICENSE-APACHE)）。
 
 ## 構成
 
@@ -13,11 +36,13 @@ Fandhe-AI の開発リポジトリ用テンプレートです。言語に依存�
 | `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check`）。Make なしでも直接実行できる |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
-| `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定 |
+| `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
 | `.shellcheckrc` | shellcheck が `source` 先（`scripts/lib.sh`）を追って検査するための設定 |
 | `.envrc`・`.env.example` | direnv による `.env` の読み込みと、その雛形 |
 | `.mcp.json` | Claude Code のプロジェクト共有 MCP サーバー定義（ベースは空） |
-| `.gitmodules` | submodule 定義（ベースは空。記入例をコメントで記載） |
+| `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
+| `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
+| `LICENSE-MIT`・`LICENSE-APACHE` | ライセンス（前述の「ライセンス」） |
 | `.github/workflows/` | CI・AI PR レビュー・外部ソース自動追従（後述の「CI」） |
 
 ## 必要なツール
