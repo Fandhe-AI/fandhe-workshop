@@ -1,0 +1,4 @@
+# `# shellcheck source=./lib.sh` をスクリプト自身のディレクトリ基準で解決し、
+# source 先（scripts/lib.sh）も追って検査する（`make check`・pre-commit・エディタで共通）。
+source-path=SCRIPTDIR
+external-sources=true

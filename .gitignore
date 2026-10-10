@@ -1,0 +1,31 @@
+# 秘密情報を含むローカル env（コミット禁止）。
+# 追跡対象の雛形は .env.example のみとし、実値は各環境の .env に置く。
+/.env
+/.env.*
+!/.env.example
+
+# direnv のローカル上書き・キャッシュ
+/.envrc.local
+/.direnv/
+
+# implement-issue-tree / create-plan 等のスキルが使うローカル状態ディレクトリ
+# （_/issue-trees/・_/local-plans/ 等。git 管理外）
+/_/
+
+# implement-issue-tree / Workflow が実装隔離に使う一時 git worktree の配置先
+/.claude/worktrees/
+
+# Claude Code の個人設定（共有設定は .claude/settings.json に置く）
+/.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ・IDE
+/.idea/
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/settings.json
+*.swp
+*~

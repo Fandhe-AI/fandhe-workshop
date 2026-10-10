@@ -1,0 +1,133 @@
+# ベース CI。
+#
+# ローカル（`make check`）・Git hooks（lefthook.yml）・CI が同じコマンド契約を共有する。
+# CI 側で独自のチェックを定義せず、scripts/ の実体を呼ぶ（make スキルの「入口は複数でも
+# 実処理の定義は一つ」）。言語固有のジョブ（fmt / lint / test / build 等）は派生リポジトリで
+# 本ファイルへ追加し、必ず ci-complete の needs にも追加すること。
+#
+# runner: public リポジトリのため GitHub ホステッド（ubuntu-latest）を使う。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 検査ツールの pin の正（単一宣言点）。SHA256 は GitHub リリース資産を実際にダウンロードして
+# 実測し、リリース API の digest と一致することを確認した値（2026-10-07）。
+# バンプ時は VERSION と SHA256 を必ず同時に更新する。ローカルの推奨版（README）も合わせる。
+env:
+  EDITORCONFIG_CHECKER_VERSION: "3.6.1"
+  EDITORCONFIG_CHECKER_SHA256: "cd32084fce5f3d49ba49697f362ac3a114989715c98819303247dd54c1f368b0"
+  SHELLCHECK_VERSION: "0.11.0"
+  SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+
+jobs:
+  check:
+    name: "make check (editorconfig-checker + shellcheck)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # actions/checkout v7.0.1（fandhe-frontend の ci.yml と同一 SHA に固定）
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned lint tools
+        # バージョン固定 + SHA256 検証済みのプリビルトバイナリを導入する。
+        # ubuntu-latest にはプリインストールの shellcheck があるため、導入先を
+        # GITHUB_PATH の先頭へ追加して pin 版を優先させる。
+        # editorconfig-checker の配布物は bin/ec-linux-amd64 のため、scripts/check.sh が
+        # 呼ぶコマンド名 editorconfig-checker へリネームして配置する。
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/lint-tools/bin"
+          work_dir="${RUNNER_TEMP}/lint-tools/work"
+          mkdir -p "${bin_dir}" "${work_dir}"
+          cd "${work_dir}"
+
+          ec_archive="ec-linux-amd64.tar.gz"
+          curl -fsSLo "${ec_archive}" \
+            "https://github.com/editorconfig-checker/editorconfig-checker/releases/download/v${EDITORCONFIG_CHECKER_VERSION}/${ec_archive}"
+          echo "${EDITORCONFIG_CHECKER_SHA256}  ${ec_archive}" | sha256sum -c -
+          tar -xzf "${ec_archive}" bin/ec-linux-amd64
+          install -m 0755 bin/ec-linux-amd64 "${bin_dir}/editorconfig-checker"
+
+          sc_archive="shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -fsSLo "${sc_archive}" \
+            "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${sc_archive}"
+          echo "${SHELLCHECK_SHA256}  ${sc_archive}" | sha256sum -c -
+          tar -xJf "${sc_archive}" "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          install -m 0755 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "${bin_dir}/shellcheck"
+
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
+
+      - name: Show tool versions
+        # pin 版が PATH 上で優先されていることを確認する（不一致は失敗させる）
+        run: |
+          set -euo pipefail
+          make --version | head -n1
+          editorconfig-checker --version
+          shellcheck --version
+          # リリースバイナリは `v3.6.1` のように v 接頭辞付きで出力する（Homebrew 版は付かない）
+          actual_ec="$(editorconfig-checker --version)"
+          actual_ec="${actual_ec#v}"
+          actual_sc="$(shellcheck --version | sed -n 's/^version: //p')"
+          [ "${actual_ec}" = "${EDITORCONFIG_CHECKER_VERSION}" ] || { echo "::error::editorconfig-checker ${actual_ec} != ${EDITORCONFIG_CHECKER_VERSION}"; exit 1; }
+          [ "${actual_sc}" = "${SHELLCHECK_VERSION}" ] || { echo "::error::shellcheck ${actual_sc} != ${SHELLCHECK_VERSION}"; exit 1; }
+
+      - name: make check
+        run: make check
+
+  # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
+  # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
+  # PR タイトルは任意文字列のため、${{ }} を run へ直接展開せず env 経由でファイルへ書き出す
+  # （シェルインジェクション防止）。push イベントでは skipped になる（ci-complete で明示許容）。
+  pr-title:
+    name: "PR title (Conventional Commits)"
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          msg_file="${RUNNER_TEMP}/pr-title.txt"
+          printf '%s\n' "${PR_TITLE}" > "${msg_file}"
+          bash scripts/hooks/commit-msg-check.sh "${msg_file}"
+
+  # 必須チェックの集約ジョブ。ruleset の required status checks には本ジョブのみを登録する。
+  # ジョブを追加したら必ず needs へも追加すること（漏れると未検査のままマージ可能になる）。
+  # fail-closed: success 以外は失敗とし、skipped は条件付きジョブ（pr-title）が
+  # 本来 skip されるべき状況（pull_request 以外のイベント）でのみ明示的に許容する。
+  ci-complete:
+    name: ci-complete
+    if: always()
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - check
+      - pr-title
+    steps:
+      - name: 全ジョブ結果の検証
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          echo "${RESULTS}" | jq -e --arg ev "${EVENT_NAME}" 'to_entries | map(select((.value.result == "success" or (.key == "pr-title" and .value.result == "skipped" and $ev != "pull_request")) | not)) | length == 0' > /dev/null

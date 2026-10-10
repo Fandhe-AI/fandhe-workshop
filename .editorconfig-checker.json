@@ -1,0 +1,6 @@
+{
+  "Exclude": [
+    "^\\.agents/skills/",
+    "^\\.claude/skills/"
+  ]
+}

@@ -1,0 +1,15 @@
+# submodule 定義（ベースは空）。派生リポジトリで `git submodule add` により追加する。
+#
+# update-external.yml（Fandhe-AI/actions の reusable workflow）が日次で submodule 参照の
+# 更新 PR を作成する。エントリが無い間は更新対象なしとして成功で終わる。
+#
+# private リポジトリを submodule にする場合は、認証の無い環境での clone / install が
+# submodule 取得で失敗しないよう `update = none` を付け、取得手順を README に書く。
+# `update = none` の submodule を update-external で追従させるには、update-external.yml の
+# `submodule-force-checkout: true` が必要（設定済み）。
+#
+# 記入例:
+# [submodule "docs/spec"]
+# 	path = docs/spec
+# 	url = https://github.com/Fandhe-AI/<repo>-spec.git
+# 	update = none

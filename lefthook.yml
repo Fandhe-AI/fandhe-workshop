@@ -1,0 +1,38 @@
+# lefthook（https://lefthook.dev）の Git hooks 定義。
+#
+# `make setup`（または `lefthook install`）を実行したローカル環境でのみ発火する。
+# 未導入環境では `.git/hooks/` が素のままで、`git commit` は本ファイルの影響を受けない。
+# CI 側の検査を代替するものではなく、ローカルでの早期検知が目的。
+# hooks の実体は scripts/hooks/ に置き、本ファイルは呼び出しのみを定義する。
+# `--no-verify` によるバイパスは行わない。
+
+pre-commit:
+  parallel: true
+  jobs:
+    # staged 差分の簡易シークレット検知（.env 系ファイル・トークン形式・ハードコード値）
+    - name: "security: staged diff secret scan"
+      run: bash scripts/hooks/secret-scan.sh
+
+    # staged ファイルの .editorconfig 準拠チェック（自動修正はしない）。
+    # 外部取得のスキル文書は .editorconfig-checker.json の Exclude と合わせて除外する。
+    - name: "style: editorconfig-checker (staged files)"
+      exclude:
+        - ".agents/skills/**"
+        - ".claude/skills/**"
+      run: editorconfig-checker {staged_files}
+
+    # staged のシェルスクリプトを shellcheck する
+    - name: "lint: shellcheck (staged *.sh)"
+      glob:
+        - "*.sh"
+        - "**/*.sh"
+      exclude:
+        - ".agents/skills/**"
+        - ".claude/skills/**"
+      run: shellcheck {staged_files}
+
+commit-msg:
+  jobs:
+    # Conventional Commits 形式の検証（npm 依存の commitlint は使わない）
+    - name: "commit-msg: conventional commits format"
+      run: bash scripts/hooks/commit-msg-check.sh {1}

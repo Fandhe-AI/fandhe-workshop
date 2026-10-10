@@ -1,0 +1,29 @@
+# EditorConfig（https://editorconfig.org）。
+#
+# エディタ間でインデント・改行・文字コードを統一するための宣言。
+# 言語固有のフォーマッタ（rustfmt・prettier 等）を導入した場合はそちらが最終的な正であり、
+# 本ファイルはエディタ入力時の初期値をフォーマッタと一致させる補助に位置付ける。
+# 既定は言語非依存のテンプレートとして 2 スペースとし、派生リポジトリで
+# 言語ごとのセクション（例: [*.rs] indent_size = 4）を追加する。
+# 準拠チェックは `make check`（editorconfig-checker）と pre-commit フックで行う。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown は行末スペース 2 つが強制改行の意味を持つため除去しない
+[*.md]
+trim_trailing_whitespace = false
+
+# Makefile はタブインデントが構文上必須
+[{Makefile,*.mk}]
+indent_style = tab
+
+# .gitmodules は git が書き込む形式（タブインデント）に合わせる
+[.gitmodules]
+indent_style = tab
