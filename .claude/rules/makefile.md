@@ -27,14 +27,14 @@ description: >
 1. `.PHONY` に追加・更新する
 2. ターゲット行末に `## 説明` コメントを付ける（`make help` はこのコメントから生成される）
 3. `scripts/help.sh` の一覧を同じ変更で更新する（自動同期の仕組みは無い）
-4. 呼び出し元を洗い出して更新する
-
-   ```bash
-   grep -rn "make " .github .claude/rules docs README.md CLAUDE.md AGENTS.md lefthook.yml scripts
-   ```
-
-   CI（`.github/workflows/ci.yml`）・lefthook・README のターゲット表が対象
+4. 呼び出し元を洗い出して更新する（CI の `ci.yml`・lefthook・README のターゲット表が対象。下記の grep を使う）
 5. `make help` と `make -n <target>` で確認し、`make check` を通す
+
+呼び出し元の洗い出し:
+
+```bash
+grep -rn "make " .github .claude/rules docs README.md CLAUDE.md AGENTS.md lefthook.yml scripts
+```
 
 既存のターゲット名・引数・環境変数・終了コードは呼び出し元が依存しているため、原則維持する。
 
