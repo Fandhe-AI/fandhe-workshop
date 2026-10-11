@@ -40,7 +40,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
 | `.shellcheckrc` | shellcheck が `source` 先（`scripts/lib.sh`）を追って検査するための設定 |
 | `.envrc`・`.env.example` | direnv による `.env` の読み込みと、その雛形 |
-| `.mcp.json` | Claude Code のプロジェクト共有 MCP サーバー定義（ベースは空） |
+| `.mcp.json` | Claude Code のプロジェクト共有 MCP サーバー定義（Playwright MCP。後述の「MCP サーバー」） |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
 | `LICENSE-MIT`・`LICENSE-APACHE` | ライセンス（前述の「ライセンス」） |
@@ -55,6 +55,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | [editorconfig-checker](https://github.com/editorconfig-checker/editorconfig-checker) | `.editorconfig` 準拠チェック | ✓ |
 | [ShellCheck](https://www.shellcheck.net/) | シェルスクリプトの lint | ✓ |
 | [direnv](https://direnv.net/) | `.env` の自動読み込み | 任意 |
+| [Node.js](https://nodejs.org/)（`npx`） | Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
 
 macOS（Homebrew）の例:
 
@@ -119,8 +120,17 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 ## MCP サーバー
 
-`.mcp.json` はベースとして空（`"mcpServers": {}`）にしてある。派生リポジトリで必要なサーバーを追加する。
-API キー等は値を直接書かず `"${EXAMPLE_API_KEY:-}"` のように環境変数参照とし、実値は `.env`（direnv 経由）に置く。
+`.mcp.json` に、Claude Code のプロジェクト共有 MCP サーバーを定義しています。
+
+| サーバー | 内容 |
+|---|---|
+| `playwright` | [Playwright MCP](https://github.com/microsoft/playwright-mcp)（`@playwright/mcp`、版は `.mcp.json` で固定）。エージェントがブラウザを操作して画面を確認する。`npx` で起動するため Node.js が必要 |
+
+- ブラウザは Playwright の chromium を使います。未導入の場合は `npx -y playwright install chromium` などで導入します
+- ブラウザのプロファイルは `_/playwright/profile`、スクリーンショット等の出力は `_/playwright/output` に置かれます（`_/` は git 管理外）
+- 初回は Claude Code がプロジェクトの MCP サーバーを使うかどうかの承認を求めます
+
+サーバーを追加する場合、API キー等は値を直接書かず `"${EXAMPLE_API_KEY:-}"` のように環境変数参照とし、実値は `.env`（direnv 経由）に置く。
 
 ## 環境変数
 

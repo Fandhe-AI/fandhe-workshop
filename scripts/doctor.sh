@@ -31,6 +31,7 @@ check_tool required lefthook lefthook version
 check_tool required editorconfig-checker editorconfig-checker --version
 check_tool required shellcheck sh -c 'shellcheck --version | grep "^version:"'
 check_tool optional direnv direnv version
+check_tool optional npx npx --version
 
 if [ -f "${ROOT_DIR}/.env" ]; then
   echo "ok   .env: present (values are not displayed)"
