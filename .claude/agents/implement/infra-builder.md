@@ -26,6 +26,8 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 - 渡された計画の範囲だけを実装する。範囲外の問題は直さず、報告に含める（`.claude/rules/out-of-scope-tracking.md`）
 - 同じ処理を CI・lefthook・Makefile に二重定義しない。処理の実体は `scripts/` に置く
 - ターゲット・ジョブを追加したら、ルールが定める連動箇所（`scripts/help.sh`・`ci-complete` の `needs`・README の表）も同じ変更で更新する
+- CI のジョブを追加・改名・削除する場合は、ruleset の必須チェックの更新が必要になる（`.claude/rules/github-actions.md` の
+  「必須チェック」）。ruleset は API の操作のため自分では変更せず、必要な変更内容を報告に含める
 - `.agents/skills/`・`.claude/skills/`・`docs/spec/` は編集しない
 - `.env` は読まない・出力しない
 - コミット・push は指示された場合のみ行う。`--no-verify`・`LEFTHOOK=0` は使わない
