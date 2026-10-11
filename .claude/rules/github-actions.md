@@ -88,9 +88,11 @@ description: >
   `key: ${{ steps.<id>.outputs.cache-primary-key }}` で保存する（`<id>` は restore ステップの `id`）
 - `actions/setup-node` の `cache: pnpm` など、`setup-*` 系 action の一体型キャッシュは PR でも保存する。使うなら
   保存を main に限れる restore / save の分離に置き換える
-- Rust を追加する場合: `Swatinem/rust-cache` なら `save-if: ${{ github.ref == 'refs/heads/main' }}` を渡す。
-  Fandhe-AI/actions の `rust-base-ci.yml` を `cache: true` で呼ぶなら `cache-save: ${{ github.ref == 'refs/heads/main' }}`
-  も渡す（共通側の `cache-save` の既定は true で、PR からも保存する）
+- Rust を追加する場合: `Swatinem/rust-cache` なら `save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}`
+  を渡す。Fandhe-AI/actions の `rust-base-ci.yml` を `cache: true` で呼ぶなら
+  `cache-save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}` も渡す（共通側の `cache-save` の
+  既定は true で、PR からも保存する）。どちらも `github.ref` だけの式は main 上の `schedule`・`workflow_dispatch`
+  でも保存するため、`github.event_name` も判定する
 
 ### キーの設計
 
