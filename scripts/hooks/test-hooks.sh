@@ -19,12 +19,13 @@
 # 検知されないようにする。
 set -euo pipefail
 
-if [ "$#" -ne 0 ]; then
-  echo "usage: $(basename "$0") (no arguments)" >&2
-  exit 2
-fi
-
 HOOKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 引数検証などの共通ヘルパー（scripts/*.sh と同じく scripts/lib.sh を source する）
+# shellcheck source=../lib.sh
+source "${HOOKS_DIR}/../lib.sh"
+
+reject_args "$(basename "$0")" "$@"
+
 SECRET_SCAN="${HOOKS_DIR}/secret-scan.sh"
 COMMIT_MSG_CHECK="${HOOKS_DIR}/commit-msg-check.sh"
 HOOK_BASH="${BASH}"
