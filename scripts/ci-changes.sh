@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# CI 用: 変更ファイルから test-hooks ジョブの対象 OS（matrix）を決め、GITHUB_OUTPUT へ書く。
+# CI 用: 変更ファイルから、フックの回帰テストを実行する OS を決め、GITHUB_OUTPUT へ書く
+# （ci.yml の changes ジョブから呼ばれる）。
+# 出力: test-hooks-os=<OS 名の JSON 配列文字列>（["ubuntu-latest"] か ["ubuntu-latest","macos-latest"]）。
+# ci.yml の test-hooks-macos ジョブの実行可否（if:）と、ci-complete が test-hooks-macos の skipped を
+# 許容するかの判定が、この出力を読む。キー名・形式は ci.yml との契約のため、変える場合は同時に直す。
 # macOS ランナーは起動待ちが長く課金も高いため、フック関連の変更が無い場合は ubuntu のみにする。
 # fail-safe: 差分を取得できない・判定できない場合は macOS も含める（検査を減らす側へ倒さない）。
 # 前提: actions/checkout を fetch-depth: 2 で実行済み（pull_request では merge commit の HEAD^1 = base）。

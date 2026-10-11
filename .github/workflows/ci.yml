@@ -3,11 +3,12 @@
 # ローカル（`make check`）・Git hooks（lefthook.yml）・CI が同じコマンド契約を共有する。
 # CI 側で独自のチェックを定義せず、scripts/ の実体を呼ぶ（make スキルの「入口は複数でも
 # 実処理の定義は一つ」）。言語固有のジョブ（fmt / lint / test / build 等）は派生リポジトリで
-# 本ファイルへ追加し、必ず ci-complete の needs にも追加すること。
+# 本ファイルへ追加し、必ず ci-complete の needs と ruleset の必須チェックにも追加すること。
 #
 # ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
 #
 # runner: public リポジトリのため GitHub ホステッド（ubuntu-latest）を使う。
+# macOS での検証が目的の test-hooks-macos だけ macos-latest を使う。
 name: CI
 
 on:
@@ -34,11 +35,13 @@ env:
   SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 
 jobs:
-  # 変更ファイルから test-hooks の対象 OS を決める。macOS ランナーは起動待ち（実測 約 2 分）が
-  # 支配的で課金も高いため、フック関連の変更が無い PR では ubuntu のみ（push は常に両 OS）にする。
-  # 判定不能時は macOS も含める（scripts/ci-changes.sh）。
+  # 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（scripts/ci-changes.sh）。
+  # macOS ランナーは起動待ち（実測 約 2 分）が支配的で課金も高いため、フック関連の変更が無い PR では
+  # ubuntu のみにする。push と判定不能時は macOS も含める。
+  # 出力 test-hooks-os（OS 名の JSON 配列文字列）は、test-hooks-macos の if: と、ci-complete が
+  # test-hooks-macos の skipped を許容するかの判定の両方が読む。キー名・形式を変える場合は 3 箇所を揃える。
   changes:
-    name: changes (test-hooks matrix)
+    name: "changes (test-hooks macOS)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -115,16 +118,35 @@ jobs:
 
   # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
   # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。
-  # 開発者の多くは macOS でフックを実行するため、BSD 系の挙動と macOS 標準の bash 3.2
-  # （lefthook は PATH 上の bash で起動する）でも検証する。
+  # ubuntu では常に実行する。macOS での検証は test-hooks-macos が担当する。
+  # チェック名は ruleset の必須チェックが参照するため、変える場合は ruleset も同時に更新する。
   test-hooks:
-    name: "hook script tests (${{ matrix.os }})"
+    name: "hook script tests (ubuntu-latest)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # 実行した bash のバージョンはテスト出力の先頭行に表示される
+      - name: make test-hooks
+        run: make test-hooks
+
+  # フックスクリプトの回帰テストの macOS 版。開発者の多くは macOS でフックを実行するため、BSD 系の
+  # 挙動と macOS 標準の bash 3.2（lefthook は PATH 上の bash で起動する）でも検証する。
+  # macOS ランナーを起動するのは、changes の出力に macos-latest が含まれる場合だけにする。
+  # 不要な場合もチェック自体は skipped として報告させる。ruleset の必須チェックに登録できるように
+  # するため（報告されないチェックを必須にすると、PR が待機のままマージできなくなる）。
+  # ubuntu と matrix にまとめない理由: matrix ジョブをジョブ単位の if: でスキップすると、チェック名の
+  # ${{ matrix.os }} が展開されず、必須チェックの名前と一致しない。静的な名前の別ジョブにする。
+  # skipped の扱いは ci-complete が changes の出力と突き合わせて判定する。
+  test-hooks-macos:
+    name: "hook script tests (macos-latest)"
     needs: changes
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(needs.changes.outputs.test-hooks-os) }}
-    runs-on: ${{ matrix.os }}
+    if: contains(fromJSON(needs.changes.outputs.test-hooks-os), 'macos-latest')
+    runs-on: macos-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -137,7 +159,6 @@ jobs:
         run: make test-hooks
 
       - name: test-hooks with macOS system bash 3.2
-        if: runner.os == 'macOS'
         run: /bin/bash scripts/hooks/test-hooks.sh
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
@@ -164,10 +185,20 @@ jobs:
           printf '%s\n' "${PR_TITLE}" > "${msg_file}"
           bash scripts/hooks/commit-msg-check.sh "${msg_file}"
 
-  # 必須チェックの集約ジョブ。ruleset の required status checks には本ジョブのみを登録する。
-  # ジョブを追加したら必ず needs へも追加すること（漏れると未検査のままマージ可能になる）。
-  # fail-closed: success 以外は失敗とし、skipped は条件付きジョブ（pr-title）が
-  # 本来 skip されるべき状況（pull_request 以外のイベント）でのみ明示的に許容する。
+  # 必須チェックの集約ジョブ。ruleset の必須チェックには、本ジョブを含め PR HEAD に報告される
+  # 全チェックを登録する（implement-issue-tree の自動マージの条件。詳細は
+  # .claude/rules/github-actions.md の「必須チェック」）。
+  # ジョブを追加・改名・削除したら、needs と ruleset の両方を同じタイミングで更新すること
+  # （needs から漏れると未検査のままマージ可能になる）。
+  # fail-closed: success 以外は失敗とし、skipped は条件付きジョブが本来 skip されるべき状況でのみ
+  # 明示的に許容する。
+  # - pr-title: pull_request 以外のイベント
+  # - test-hooks-macos: イベントが pull_request で、changes が success で、かつ出力 test-hooks-os を
+  #   JSON として解釈した値が ["ubuntu-latest"] と等しい場合。出力の欠落・不正な JSON・それ以外の値は
+  #   不合格にする。push では changes が必ず macOS を含めるため、skipped を許容しない
+  # test-hooks-macos の skipped の許容はゲートの弱体化ではない。同じ条件で macOS のジョブ自体が
+  # 生成されず未報告だったものを、skipped として報告させるだけで、許容する範囲は changes の出力と
+  # 突き合わせて「skip が正しい状況」に限定している。
   ci-complete:
     name: ci-complete
     if: always()
@@ -178,6 +209,7 @@ jobs:
       - changes
       - check
       - test-hooks
+      - test-hooks-macos
       - pr-title
     steps:
       - name: 全ジョブ結果の検証
@@ -185,4 +217,18 @@ jobs:
           RESULTS: ${{ toJSON(needs) }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "${RESULTS}" | jq -e --arg ev "${EVENT_NAME}" 'to_entries | map(select((.value.result == "success" or (.key == "pr-title" and .value.result == "skipped" and $ev != "pull_request")) | not)) | length == 0' > /dev/null
+          echo "${RESULTS}" | jq -e --arg ev "${EVENT_NAME}" '
+            . as $n
+            | (
+                $ev == "pull_request"
+                and $n.changes.result == "success"
+                and (try ($n.changes.outputs["test-hooks-os"] | fromjson) catch null) == ["ubuntu-latest"]
+              ) as $macos_skip_ok
+            | to_entries
+            | map(select((
+                .value.result == "success"
+                or (.key == "pr-title" and .value.result == "skipped" and $ev != "pull_request")
+                or (.key == "test-hooks-macos" and .value.result == "skipped" and $macos_skip_ok)
+              ) | not))
+            | length == 0
+          ' > /dev/null
