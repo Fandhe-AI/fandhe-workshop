@@ -1,3 +1,15 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.68",
+        "--browser",
+        "chromium",
+        "--user-data-dir=./_/playwright/profile",
+        "--output-dir=./_/playwright/output"
+      ]
+    }
+  }
 }
