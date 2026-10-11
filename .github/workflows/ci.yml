@@ -193,8 +193,9 @@ jobs:
   # fail-closed: success 以外は失敗とし、skipped は条件付きジョブが本来 skip されるべき状況でのみ
   # 明示的に許容する。
   # - pr-title: pull_request 以外のイベント
-  # - test-hooks-macos: changes が success で、かつ出力 test-hooks-os が ["ubuntu-latest"] と
-  #   完全一致する場合。出力の欠落・不正な JSON・それ以外の値は不合格にする
+  # - test-hooks-macos: イベントが pull_request で、changes が success で、かつ出力 test-hooks-os を
+  #   JSON として解釈した値が ["ubuntu-latest"] と等しい場合。出力の欠落・不正な JSON・それ以外の値は
+  #   不合格にする。push では changes が必ず macOS を含めるため、skipped を許容しない
   # test-hooks-macos の skipped の許容はゲートの弱体化ではない。同じ条件で macOS のジョブ自体が
   # 生成されず未報告だったものを、skipped として報告させるだけで、許容する範囲は changes の出力と
   # 突き合わせて「skip が正しい状況」に限定している。
@@ -219,7 +220,8 @@ jobs:
           echo "${RESULTS}" | jq -e --arg ev "${EVENT_NAME}" '
             . as $n
             | (
-                $n.changes.result == "success"
+                $ev == "pull_request"
+                and $n.changes.result == "success"
                 and (try ($n.changes.outputs["test-hooks-os"] | fromjson) catch null) == ["ubuntu-latest"]
               ) as $macos_skip_ok
             | to_entries
