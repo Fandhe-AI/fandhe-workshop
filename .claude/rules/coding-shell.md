@@ -22,7 +22,7 @@ description: >
 
 ## bash 3.2 互換
 
-macOS 標準の bash 3.2 でも動く書き方にする（CI の `test-hooks` が macOS で検証する）。
+macOS 標準の bash 3.2 でも動く書き方にする（CI の `test-hooks-macos` が macOS で検証する）。
 
 - 使わない: `mapfile` / `readarray`・連想配列（`declare -A`）・`${var,,}` / `${var^^}`・`&>>`・`coproc`
 - 空配列の `"${arr[@]}"` は `set -u` で未定義扱いになるため、要素数を確認してから展開する

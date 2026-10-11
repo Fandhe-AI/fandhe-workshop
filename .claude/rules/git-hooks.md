@@ -108,7 +108,7 @@ description: >
 3. CI へ置く場合は `ci.yml` にジョブを追加し、集約ジョブ `ci-complete` の `needs` にも必ず追加する
     - ツールの導入・バージョン固定は既存の `check` ジョブの方式（バージョン + SHA256 検証）に合わせる
 4. `scripts/hooks/` を変更した場合は `scripts/hooks/test-hooks.sh` に検出・許可（OK / NG）ケースを追加し、
-    `make test-hooks` を通す（Linux・macOS の検証は CI の `test-hooks` ジョブが行う）
+    `make test-hooks` を通す（Linux の検証は CI の `test-hooks`、macOS の検証は `test-hooks-macos` ジョブが行う）
 5. 編集後に以下を実行し、summary の合計時間をユーザーへ報告する（1 秒以上なら構成を見直す）
 
 ```bash

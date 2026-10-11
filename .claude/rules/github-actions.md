@@ -16,7 +16,7 @@ description: >
 ## runner 方針
 
 - 本リポジトリは **public**。runner は GitHub-hosted（`ubuntu-latest`）を使う（組織方針: Fandhe-AI/actions の `docs/runner-policy.md`）
-- OS 要件による例外: `ci.yml` の `test-hooks` は macOS（BSD 系コマンド・bash 3.2 の挙動検証が目的）で `macos-latest` を使う
+- OS 要件による例外: `ci.yml` の `test-hooks-macos` は macOS（BSD 系コマンド・bash 3.2 の挙動検証が目的）で `macos-latest` を使う
 - 例外: `ai-review.yml` の `codex / review` は reusable workflow 側が使う self-hosted の codex 専用 runner。
   fork PR は reusable workflow 側が fail-closed で拒否する前提で受容している
 - public リポジトリで self-hosted を新規に使わない。fork PR 経由で任意コードが実行されるリスクがある。
@@ -24,9 +24,19 @@ description: >
 
 ## 必須チェック
 
-- 2026-10-11 時点で ruleset / branch protection は未設定（API 空）。導入時は集約ジョブ `ci-complete`（と ai-review の `codex / *`）を required にする（`setup-repo-guards` スキルの手順）
+- 2026-10-11 時点で ruleset / branch protection は未設定（API 空）。導入時は下記の方針で必須チェックを登録する（`setup-repo-guards` スキルの手順）
 - ジョブ名（`name:`）を変えると required check の参照が切れて pending のままマージ不能になる。名前を変える場合は ruleset 側も同時に更新する
-- 個別ジョブ（`check` 等）は required にせず、`ci-complete` に集約する
+- implement-issue-tree の自動マージ（`autoMerge: true`）を使うため、ruleset の必須チェックには PR HEAD に報告される
+  全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を、発行元 App の `integration_id` を束縛して
+  登録する。自動マージの事前検証（G0）は、必須に無いチェックが HEAD に 1 件でもある場合と、必須のチェックが HEAD に
+  報告されない場合の両方で辞退するため。`ci-complete` は全ジョブの結果を集約する必須チェックとして残す
+- 条件付きのジョブは、ワークフロー単位の `paths` や動的 matrix ではなく、ジョブ単位の `if:` で制御し、チェック自体は
+  常に報告させる（不要時は skipped。例: `test-hooks-macos`）。matrix ジョブを `if:` でスキップするとチェック名の
+  `${{ matrix.* }}` が展開されないため、静的な名前の別ジョブにする
+- ジョブの追加・改名・削除は、`ci-complete` の `needs` と ruleset の必須チェックを同じタイミングで更新する。改名は
+  マージ前に ruleset を新しい名前へ更新する（旧名のままだと「Expected」のままマージできない）
+- `strict_required_status_checks_policy` は false にする（true だと 1 件マージするたびに他の open PR の base が古くなり、
+  並列実行が収束しない）
 
 ## 発火条件
 
@@ -34,15 +44,18 @@ description: >
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
-  （未実行の必須チェックが pending のままマージ不能になる）。変更検知はジョブ内で行い、
-  `ci-complete` で skipped を許容する（例: `changes` ジョブ + `scripts/ci-changes.sh`）
+  （未実行の必須チェックが pending のままマージ不能になる）。変更検知はジョブ内で行い、対象のジョブをジョブ単位の
+  `if:` でスキップして、`ci-complete` で skipped を許容する（例: `changes` ジョブが `scripts/ci-changes.sh` で出力
+  `test-hooks-os` を決め、`test-hooks-macos` の `if:` がそれを読む。`ci-complete` は同じ出力と突き合わせ、skip が
+  正しい場合だけ許容する）
 - draft PR をスキップする場合は `types` に `ready_for_review` を含める
 - `schedule` は必要最小限の頻度にする（`update-external.yml` は日次 1 回）
 
 ## ジョブ追加チェックリスト
 
 - [ ] 新しいワークフローを作らず、既存ワークフローへのジョブ追加を優先する
-- [ ] `ci-complete` の `needs` に追加した（漏れると未検査のままマージ可能になる）。skipped を許容する場合は jq の条件も更新する
+- [ ] `ci-complete` の `needs` と ruleset の必須チェックに追加した（`needs` から漏れると未検査のままマージ可能になり、
+      ruleset から漏れると自動マージが辞退する）。skipped を許容する場合は jq の条件も更新する
 - [ ] 実処理は `make <target>` / `scripts/*.sh` を呼ぶ（CI 独自にロジックを書かない）
 - [ ] lefthook と同じ検査を同じ範囲で重複させない（`git-hooks.md`）
 - [ ] 不要な `needs` を作らない（独立ジョブは並列に走らせる）。逆にセットアップ時間が支配的な小ジョブは統合する
@@ -51,7 +64,8 @@ description: >
 - [ ] キャッシュを使う場合は「キャッシュ方針」に従う（効果を実測し、保存は main への push のみ。`setup-*` 系 action の
       一体型キャッシュは PR でも保存するため使わない。確認結果を PR 本文に書く）
 - [ ] サードパーティ action は既存と同じピン止め方式（コミット SHA + バージョンコメント）。自組織の reusable workflow は `@latest`
-- [ ] macOS など高コスト runner は必要な変更時のみ実行する（`changes` ジョブの matrix 参照）
+- [ ] macOS など高コスト runner は必要な変更時のみ実行する（`changes` ジョブの出力と、`test-hooks-macos` のジョブ単位の
+      `if:` を参照。チェック自体は skipped として常に報告させる）
 - [ ] `timeout-minutes` を設定した
 - [ ] `actionlint` を通した
 
@@ -132,7 +146,7 @@ description: >
 ### サイズを抑える
 
 - 1 世代の合計が 10GB に余裕をもって収まるようにする。キャッシュの種類を増やすときは 1 件のサイズ × 種類 × OS
-  （本リポの `test-hooks` のような ubuntu / macOS の matrix）を見積もる
+  （本リポの `test-hooks`・`test-hooks-macos` のような ubuntu / macOS の組）を見積もる
 - ビルド成果物は保存前に自リポの成果物を除くなど必要な分だけに絞る（Rust なら workspace メンバーの成果物の prune、
   `CARGO_INCREMENTAL=0`、CI 限定の `CARGO_PROFILE_DEV_DEBUG=line-tables-only` 等）
 - 上限に達しても、毎回読まれる main の最新キャッシュは最後まで残る（LRU）。キーの切り替えで古い世代が追い出されても
@@ -174,4 +188,4 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
-施策: macOS の `test-hooks` はフック関連の変更時のみ実行（`changes` ジョブ）。main への push 実行は cancel しない。
+施策: macOS のフック回帰テスト（`test-hooks-macos`）はフック関連の変更時のみ実行（`changes` ジョブ。不要時は skipped として報告）。main への push 実行は cancel しない。

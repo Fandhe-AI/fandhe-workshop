@@ -108,20 +108,22 @@ hooks に引っかかった場合は原因を修正してから再コミット�
 （シークレット検知・コミットメッセージ）だけを置きます。テスト・ビルド・全体 lint など重い処理や CI と重複する検査は
 CI（`.github/workflows/ci.yml`）で行います。時間予算（pre-commit 合計 1 秒未満）と判断手順は `.claude/rules/git-hooks.md` に定義しています。
 
-フックスクリプト（`scripts/hooks/*.sh`）自体のテストもフックには置かず、CI の `test-hooks` ジョブ（`make test-hooks`）で
+フックスクリプト（`scripts/hooks/*.sh`）自体のテストもフックには置かず、CI の `test-hooks`・`test-hooks-macos` ジョブ（`make test-hooks`）で
 Linux・macOS（標準の bash 3.2 を含む）について実行します。`scripts/hooks/` を変更したらローカルでも `make test-hooks` を実行してください。
 
 ## CI
 
 | ワークフロー | 内容 |
 |---|---|
-| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。`changes`: 変更ファイルから `test-hooks` の対象 OS を決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest、フック関連の変更時は macos-latest も）。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約 |
+| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
 
-- ruleset の required status checks には `ci-complete`（と ai-review の `codex / *`）を登録する。
-  ruleset・マージ設定の導入は `setup-repo-guards` スキルの手順に従う
-- CI にジョブを追加したら `ci-complete` の `needs` にも必ず追加する
+- ruleset の必須チェック（required status checks）には、PR の HEAD に報告される全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を登録します。
+  `implement-issue-tree` の自動マージは、必須に無いチェックが HEAD に 1 件でもある場合と、必須のチェックが HEAD に報告されない場合に辞退するためです。
+  方針の詳細は `.claude/rules/github-actions.md` の「必須チェック」、ruleset・マージ設定の導入は `setup-repo-guards` スキルの手順に従います
+- 条件付きのジョブは、ジョブ単位の `if:` で制御し、不要な場合もチェック自体は skipped として報告させます（例: `test-hooks-macos`）
+- CI のジョブを追加・改名・削除したら、`ci-complete` の `needs` と ruleset の必須チェックを同じタイミングで更新します
 
 ## MCP サーバー
 

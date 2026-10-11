@@ -25,10 +25,10 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
-│   ├── ci-changes.sh         # CI の test-hooks 対象 OS の判定
+│   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
-│   ├── ci.yml                # check / test-hooks / pr-title / ci-complete
+│   ├── ci.yml                # changes / check / test-hooks / test-hooks-macos / pr-title / ci-complete
 │   ├── ai-review.yml         # codex による PR 自動レビュー
 │   └── update-external.yml   # スキル・submodule の日次追従 PR
 ├── .claude/
