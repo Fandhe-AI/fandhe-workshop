@@ -30,7 +30,7 @@ description: >
 ## 発火条件
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）
-- `concurrency` は `group` に workflow と ref を含め、`cancel-in-progress` は PR のみ true にする
+- `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
   （未実行の必須チェックが pending のままマージ不能になる）。変更検知はジョブ内で行い、

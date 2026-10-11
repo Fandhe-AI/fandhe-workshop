@@ -19,8 +19,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  # PR の古い実行だけ止める（main への push は止めず、全コミットの結果を残す）
+  # PR は ref 単位で古い実行を止める。それ以外は run_id で分け、待機中の実行が置き換えられないようにする
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  # PR の古い実行だけ止める（main への push は止めない）
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # 検査ツールの pin の正（単一宣言点）。SHA256 は GitHub リリース資産を実際にダウンロードして
@@ -34,7 +35,7 @@ env:
 
 jobs:
   # 変更ファイルから test-hooks の対象 OS を決める。macOS ランナーは起動待ち（実測 約 2 分）が
-  # 支配的で課金も高いため、フック関連の変更が無い PR / push では ubuntu のみにする。
+  # 支配的で課金も高いため、フック関連の変更が無い PR では ubuntu のみ（push は常に両 OS）にする。
   # 判定不能時は macOS も含める（scripts/ci-changes.sh）。
   changes:
     name: changes (test-hooks matrix)
@@ -51,6 +52,8 @@ jobs:
 
       - name: Detect changes
         id: detect
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
         run: bash scripts/ci-changes.sh
 
   check:
