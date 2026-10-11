@@ -5,6 +5,8 @@
 # CI 側の検査を代替するものではなく、ローカルでの早期検知が目的。
 # hooks の実体は scripts/hooks/ に置き、本ファイルは呼び出しのみを定義する。
 # `--no-verify` によるバイパスは行わない。
+# フックの追加・変更時は .claude/rules/git-hooks.md の方針（時間予算・CI との役割分担）に従う。
+# テスト・ビルド・全体 lint など重い処理や CI と重複する検査は CI（.github/workflows/ci.yml）側に置く。
 
 pre-commit:
   parallel: true
