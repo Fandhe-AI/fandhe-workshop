@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR の古い実行だけ止める（main への push は止めず、全コミットの結果を残す）
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # 検査ツールの pin の正（単一宣言点）。SHA256 は GitHub リリース資産を実際にダウンロードして
 # 実測し、リリース API の digest と一致することを確認した値（2026-10-07）。
@@ -30,6 +31,26 @@ env:
   SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
 
 jobs:
+  # 変更ファイルから test-hooks の対象 OS を決める。macOS ランナーは起動待ち（実測 約 2 分）が
+  # 支配的で課金も高いため、フック関連の変更が無い PR / push では ubuntu のみにする。
+  # 判定不能時は macOS も含める（scripts/ci-changes.sh）。
+  changes:
+    name: changes (test-hooks matrix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      test-hooks-os: ${{ steps.detect.outputs.test-hooks-os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Detect changes
+        id: detect
+        run: bash scripts/ci-changes.sh
+
   check:
     name: "make check (editorconfig-checker + shellcheck)"
     runs-on: ubuntu-latest
@@ -93,10 +114,11 @@ jobs:
   # （lefthook は PATH 上の bash で起動する）でも検証する。
   test-hooks:
     name: "hook script tests (${{ matrix.os }})"
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ fromJSON(needs.changes.outputs.test-hooks-os) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -148,6 +170,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
+      - changes
       - check
       - test-hooks
       - pr-title
