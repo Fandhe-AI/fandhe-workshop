@@ -5,6 +5,8 @@
 # 実処理の定義は一つ」）。言語固有のジョブ（fmt / lint / test / build 等）は派生リポジトリで
 # 本ファイルへ追加し、必ず ci-complete の needs にも追加すること。
 #
+# ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
+#
 # runner: public リポジトリのため GitHub ホステッド（ubuntu-latest）を使う。
 name: CI
 
