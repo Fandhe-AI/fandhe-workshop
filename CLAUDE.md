@@ -18,6 +18,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ```text
 .
 ├── CLAUDE.md                 # 本ファイル
+├── AGENTS.md                 # レビュー観点集（ai-review が PR の base コミットから読む。P0 / P1 / P2）
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）

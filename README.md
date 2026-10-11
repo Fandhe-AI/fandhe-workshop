@@ -34,6 +34,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `.agents/skills/`・`.claude/skills/` | エージェント用スキル（`skills-lock.json` で管理する外部取得物。`.claude/skills/` は `.agents/skills/` への symlink） |
 | `.claude/rules/` | Claude Code のルール（`git-hooks.md`: `lefthook.yml`・`scripts/hooks/` 編集時のみ読み込まれる、フックの時間予算と CI との役割分担、`makefile.md`: `Makefile`・`scripts/*.sh` 編集時のみ読み込まれる、薄い入口の方針とターゲット追加手順、`github-actions.md`: `.github/workflows/` 編集時のみ読み込まれる、runner 方針・必須チェック・発火条件・ジョブ追加チェックリスト・キャッシュ方針、`rust-build-profile.md`: `Cargo.toml`・`.cargo/`・`rust-toolchain.toml` 編集時のみ読み込まれる、Rust 導入時の dev プロファイル・`target/` の掃除・CI キャッシュへの影響。このほか、委譲・セキュリティ・日本語スタイル・Conventional Commits・スコープ外の追跡・シェルのコーディング規約・コメント規約の共通ルールがあり、一覧と読み込み条件は `CLAUDE.md` の「Rules」に記載） |
 | `CLAUDE.md` | Claude Code 向けの要約（構成・委譲方針・model 配分・Sub-agents／Rules／Skills の一覧） |
+| `AGENTS.md` | AI エージェントと PR 自動レビュー（ai-review）が共通で使うレビュー観点集（セキュリティ・設計整合・再利用の 3 観点と優先度 P0 / P1 / P2）。PR の base コミットの内容が基準になるため、変更はマージ後の次の PR から有効 |
 | `.claude/agents/` | Claude Code の Sub-agents 定義（`research` / `implement` / `testing` / `quality` / `docs` のカテゴリ別。一覧は `CLAUDE.md` の「Sub-agents」） |
 | `.claude/settings.json` | Claude Code のプロジェクト共有設定（SessionStart hook のリマインダー。個人設定は git 管理外の `.claude/settings.local.json`） |
 | `.claude/workflows/` | `implement-issue-tree` の workflow 定義（スキル側の実体への相対 symlink） |
