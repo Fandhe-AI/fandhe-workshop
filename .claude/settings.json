@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'fandhe-workshop: 日本語でやりとり / 作業は subagent へ委譲し main 消費を抑える (delegation.md, delegation-impl.md) / Conventional Commits 厳守 (--no-verify・LEFTHOOK=0 禁止) / implement-issue は計画承認後に実装 / .env は読まない'"
+          }
+        ]
+      }
+    ]
+  }
+}
