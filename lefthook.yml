@@ -6,6 +6,7 @@
 # hooks の実体は scripts/hooks/ に置き、本ファイルは呼び出しのみを定義する。
 # `--no-verify` によるバイパスは行わない。
 # フックの追加・変更時は .claude/rules/git-hooks.md の方針（時間予算・CI との役割分担）に従う。
+# scripts/hooks/ を変更したら `make test-hooks`（CI の test-hooks ジョブと同じ回帰テスト）を通す。
 # テスト・ビルド・全体 lint など重い処理や CI と重複する検査は CI（.github/workflows/ci.yml）側に置く。
 
 pre-commit:
