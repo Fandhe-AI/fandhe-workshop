@@ -24,7 +24,26 @@ description: >
 
 ## 必須チェック
 
-- 2026-10-11 時点で ruleset / branch protection は未設定（API 空）。導入時は下記の方針で必須チェックを登録する（`setup-repo-guards` スキルの手順）
+- 2026-10-11 に ruleset `main-protection`（id 24879606）を適用した。対象は既定ブランチ、enforcement は active、
+  bypass は無し。classic branch protection は使っていない。変更は `setup-repo-guards` スキルの手順に従う
+- ruleset の内容: ブランチの削除と force push の禁止、PR 必須（承認数 0・レビュースレッドの解決必須・マージ方式は
+  squash のみ）、必須チェック 10 件（下表）。`main` へ直接 push はできず、すべて PR を経由する
+- 承認数を 0 にしているのは、人の承認者を置かない運用のため。レビューのゲートは ai-review の必須チェック
+  （`codex / review` は P0・P1 の指摘で失敗する）と、レビュースレッドの解決必須で担保する
+
+| 必須チェック | 発行元 App（`integration_id`） |
+| --- | --- |
+| `ci-complete` | github-actions（15368） |
+| `changes (test-hooks macOS)` | github-actions（15368） |
+| `make check (editorconfig-checker + shellcheck)` | github-actions（15368） |
+| `hook script tests (ubuntu-latest)` | github-actions（15368） |
+| `hook script tests (macos-latest)` | github-actions（15368） |
+| `PR title (Conventional Commits)` | github-actions（15368） |
+| `codex / preflight` | github-actions（15368） |
+| `codex / review` | github-actions（15368） |
+| `codex / post_feedback` | github-actions（15368） |
+| `Cursor Bugbot` | cursor（1210556） |
+
 - ジョブ名（`name:`）を変えると required check の参照が切れて pending のままマージ不能になる。名前を変える場合は ruleset 側も同時に更新する
 - implement-issue-tree の自動マージ（`autoMerge: true`）を使うため、ruleset の必須チェックには PR HEAD に報告される
   全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を、発行元 App の `integration_id` を束縛して
@@ -37,6 +56,29 @@ description: >
   マージ前に ruleset を新しい名前へ更新する（旧名のままだと「Expected」のままマージできない）
 - `strict_required_status_checks_policy` は false にする（true だと 1 件マージするたびに他の open PR の base が古くなり、
   並列実行が収束しない）
+- ruleset を API の PUT で更新すると、必須チェックの一覧が丸ごと置き換わり、`integration_id` の束縛が落ちることがある。
+  GET した JSON の必須チェックだけを差し替えて送り、更新後に下記で未束縛が 0 件であることを確かめる
+
+```bash
+# 件数・strict・bypass・integration_id が未束縛の必須チェック（unbound は空配列であること）
+gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
+  enforcement, bypass: (.bypass_actors | length),
+  strict: ([.rules[] | select(.type=="required_status_checks") | .parameters.strict_required_status_checks_policy] | first),
+  total: ([.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[]] | length),
+  unbound: [.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | select(.integration_id == null) | .context]
+}'
+```
+
+## リポジトリ設定（2026-10-11 適用）
+
+ワークフローの書き方に影響する設定。変更は `setup-repo-guards` スキルの手順に従う。
+
+- `GITHUB_TOKEN` の既定権限は read。ワークフローはトップレベルで `permissions:` を明示し、書き込みが要るジョブだけ
+  ジョブ単位で付与する（明示が無いワークフローは、書き込みが必要な処理で失敗する）
+- Actions による PR の作成・承認は許可している（`update-external.yml` の日次の同期 PR のため）
+- マージ方式は squash のみ。squash のコミット件名は PR タイトル、本文は PR 本文になる。マージ後のブランチは自動で削除される
+- secret scanning と push protection、Dependabot の alerts と自動修正 PR、private vulnerability reporting が有効
+- wiki と projects は無効
 
 ## 発火条件
 

@@ -185,3 +185,19 @@ Agent の `model:` には、この表の alias だけを書く。最上位 tier 
   （`../skills/implement-issue-tree/scripts/implement-issue-tree.js`）への相対 symlink。コピーに置き換えない
   （スキルの更新が届かなくなる）
 - 一時 worktree は `.claude/worktrees/`、ツリーの状態は `_/issue-trees/` に置かれる（どちらも git 管理外）
+- 自動マージ（`autoMerge: true`）は、ruleset `main-protection` が PR HEAD の全チェックを必須にしていることを前提に
+  成立する（`.claude/rules/github-actions.md` の「必須チェック」）。起動時は外部 App のチェックを宣言する
+
+    ```json
+    { "parent": 42, "repo": "Fandhe-AI/fandhe-workshop", "autoMerge": true,
+      "externalChecks": [{ "app": "cursor", "context": "Cursor Bugbot" }] }
+    ```
+
+- CI のジョブを追加・改名・削除すると、必須チェックと HEAD のチェックがずれて自動マージが辞退する。ruleset を同じ
+  タイミングで更新する
+
+## main ブランチの保護
+
+- `main` へ直接 push はできない（ruleset `main-protection`）。変更は必ずブランチを切り、PR を経由する
+- マージは squash のみ。必須チェック 10 件の成功と、レビュースレッドの解決が条件（承認数は 0）
+- ruleset・リポジトリ設定の内容は `.claude/rules/github-actions.md`、変更手順は `setup-repo-guards` スキル

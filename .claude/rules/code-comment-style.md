@@ -64,7 +64,7 @@ set -euo pipefail
 ### YAML（`lefthook.yml`・`.github/workflows/**`）
 
 - ファイル冒頭に、役割と、従うルール（`.claude/rules/git-hooks.md`・`github-actions.md`）を書く
-- ジョブ・ステップには、存在理由と、変更時に連動して直す箇所を書く（例: `ci-complete` の `needs`）
+- ジョブ・ステップには、存在理由と、変更時に連動して直す箇所を書く（例: `ci-complete` の `needs`・ruleset の必須チェック）
 - 固定した版・SHA には、版を示すコメントを付ける（`# v7.0.1`）
 
 ### Rust（導入後）
