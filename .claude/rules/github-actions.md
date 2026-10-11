@@ -105,6 +105,27 @@ description: >
   `release`・`commit-hash`）を入れる。入れないと toolchain 更新後も古い成果物に exact hit し続け、exact hit では
   再保存されないため依存を毎回全再ビルドする（fandhe-db で依存 135 crate を毎回再ビルドしていた）
 - `restore-keys` で前方一致を許し、キーが変わっても cold にならないようにする
+- キーが捕捉しない変更で保存内容が変わるときは、キーの版セグメント（`-v2-` 等）を上げる。`restore-keys` の版も同時に
+  上げ、版セグメントが無ければ追加する。対象はルートの `Cargo.toml` の `[profile]`、`RUSTFLAGS`・`CARGO_PROFILE_*` 等の
+  env、`.cargo/config.toml`、ビルドコマンド・フラグなど（Rust の具体例は `.claude/rules/rust-build-profile.md`）。上げないと
+  ツールチェーンの版と同じく古い成果物に exact hit し続ける。キーが `Cargo.toml` を含んで変わる場合も、`restore-keys` で
+  旧世代を部分復元すると新旧の依存成果物が混ざった大きな初回保存になるため、版を上げて旧世代を拾わないようにする
+- `Swatinem/rust-cache` はキーに `CARGO`・`RUST` 等で始まる env（action を実行した時点の値）・`.cargo/config.toml`・
+  `rust-toolchain(.toml)`・**workspace メンバーの** `Cargo.toml` を含める（上流 `src/config.ts` は `cargo metadata --no-deps`
+  の packages の manifest だけをハッシュする）。ルートが仮想 manifest（`[package]` なし）だとルートの `Cargo.toml` は
+  ハッシュされず、ルートの `[profile]` の変更はキーに入らない。これや、後続のステップで設定する env・ビルドコマンドの
+  フラグを変えたときは、`prefix-key` の版（既定 `v0-rust`）を上げる（fandhe-edge-model #530）
+- Fandhe-AI/actions の `rust-base-ci.yml` を `cache: true` で呼ぶ場合、clippy・test のキーは
+  `<cache-key-prefix>-<OS>-{clippy,test}-v4-<rustc の版>-<Cargo.lock のハッシュ>`（`cache-key-prefix` の既定は `rust-base-ci`）で、
+  版セグメントは呼び出し側から変えられない（`cache-key-prefix` を変えると deny ジョブを含む全キャッシュが cold になる）。
+  キーに入らない変更をしたら、**マージ後に** main スコープの `<prefix>-<OS>-{clippy,test}-v4-*` を削除する。
+  マージ前に消すと、その間の main への push が旧設定の内容を同じキーで保存し直す
+
+    ```bash
+    # clippy・test それぞれ、OS（runner.os: Linux 等）ごとに一覧して id で消す
+    gh cache list -R Fandhe-AI/fandhe-workshop -L 100 --ref refs/heads/main --key <prefix>-Linux-clippy-v4- --json id,key
+    gh cache delete -R Fandhe-AI/fandhe-workshop <id>
+    ```
 
 ### サイズを抑える
 
