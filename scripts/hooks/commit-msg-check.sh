@@ -14,7 +14,14 @@
 #
 # Merge / Revert（git 既定文言）・fixup! / squash! は git 標準操作・作業中コミットを
 # 不必要に止めないため素通りさせる。
+#
+# 回帰テストは scripts/hooks/test-hooks.sh（CI の test-hooks ジョブ）。
 set -euo pipefail
+
+# パターンは ASCII のみ。UTF-8 ロケールのままだと件名に非 UTF-8 のバイト列（Latin-1 等）が
+# あると [[ =~ ]] の `.+` が一致せず、正しい形式の件名まで拒否されるため C ロケールで照合する
+# （C ロケールでも UTF-8 の日本語はバイト列として `.+` に一致する）。
+export LC_ALL=C
 
 msg_file="${1:-}"
 if [ -z "${msg_file}" ] || [ ! -f "${msg_file}" ]; then

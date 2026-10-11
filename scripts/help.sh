@@ -13,10 +13,11 @@ reject_args "$(basename "$0")" "$@"
 cat <<'EOF'
 このリポジトリの操作と、Make を使わずに直接実行する方法:
 
-  help     scripts/help.sh      この一覧を表示する
-  doctor   scripts/doctor.sh    開発環境を診断する（読み取りのみ。何も導入・修復しない）
-  setup    scripts/setup.sh     Git hooks 有効化と .env 雛形の配置（再実行しても安全）
-  check    scripts/check.sh     editorconfig-checker + shellcheck（ソースは変更しない）
+  help        scripts/help.sh                この一覧を表示する
+  doctor      scripts/doctor.sh              開発環境を診断する（読み取りのみ。何も導入・修復しない）
+  setup       scripts/setup.sh               Git hooks 有効化と .env 雛形の配置（再実行しても安全）
+  check       scripts/check.sh               editorconfig-checker + shellcheck（ソースは変更しない）
+  test-hooks  scripts/hooks/test-hooks.sh    フックスクリプト自体の回帰テスト（bash + git のみ）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

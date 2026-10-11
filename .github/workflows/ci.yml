@@ -87,6 +87,32 @@ jobs:
       - name: make check
         run: make check
 
+  # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
+  # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。
+  # 開発者の多くは macOS でフックを実行するため、BSD 系の挙動と macOS 標準の bash 3.2
+  # （lefthook は PATH 上の bash で起動する）でも検証する。
+  test-hooks:
+    name: "hook script tests (${{ matrix.os }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # 実行した bash のバージョンはテスト出力の先頭行に表示される
+      - name: make test-hooks
+        run: make test-hooks
+
+      - name: test-hooks with macOS system bash 3.2
+        if: runner.os == 'macOS'
+        run: /bin/bash scripts/hooks/test-hooks.sh
+
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
   # PR タイトルは任意文字列のため、${{ }} を run へ直接展開せず env 経由でファイルへ書き出す
@@ -123,6 +149,7 @@ jobs:
     timeout-minutes: 5
     needs:
       - check
+      - test-hooks
       - pr-title
     steps:
       - name: 全ジョブ結果の検証

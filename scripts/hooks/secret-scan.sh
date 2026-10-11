@@ -13,52 +13,95 @@
 # 検出時は値を端末・ログへ出さないよう、該当ファイル名のみを報告する。
 # 誤検知時はダミー値・環境変数参照へ書き換えるか、対象行をコミットから外す。
 # `--no-verify` によるバイパスは行わない。
+#
+# 終了コード: 0 = 検出なし / 1 = 検出（コミット拒否） / 2 = 検査を完了できない（fail-closed で拒否）。
+# 回帰テストは scripts/hooks/test-hooks.sh（CI の test-hooks ジョブ）。
 set -euo pipefail
+
+# パターンは ASCII のみ。UTF-8 ロケールのままだと非 UTF-8 のバイト列を含む行で bash の
+# [[ =~ ]] が一致しなくなり（macOS・glibc とも）、同じ行のトークンを見逃すため C ロケールで照合する。
+# bash は LC_ALL への代入時に setlocale し直すため、以降の照合すべてに効く。
+export LC_ALL=C
 
 high_pattern='sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35}|BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY|[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@'
 assign_pattern='(api[_-]?key|secret|token|password)[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9]{16,}'
 
-# looks_secret <line>: いずれかのパターンに一致すれば 0。
-# 判定は bash の [[ =~ ]]（POSIX ERE）で行い、grep の実装差・終了コードの取り違えによる
-# fail-open 経路を持たない。代入パターンのみ大文字小文字を区別しない。
+# looks_secret <line>: いずれかのパターンに一致すれば 0・どれにも一致しなければ 1。
+# 判定は bash の [[ =~ ]]（POSIX ERE）で行い、grep の実装差による fail-open 経路を持たない。
+# [[ =~ ]] の 2（正規表現のコンパイル失敗）を「一致なし」と同一視すると検査できないまま
+# 合格するため、その場で終了コード 2 で止める。代入パターンのみ大文字小文字を区別しない。
+# diff の追加行ごとに呼ばれるため、関数呼び出し・プロセス起動を増やさない。
 looks_secret() {
-  local line="$1" rc=1
-  if [[ "${line}" =~ ${high_pattern} ]]; then
-    return 0
-  fi
-  shopt -s nocasematch
-  if [[ "${line}" =~ ${assign_pattern} ]]; then
+  local rc=0
+  # shellcheck disable=SC2319 # 取りたいのは [[ =~ ]] 自体の終了状態（0 / 1 / 2）
+  [[ "$1" =~ ${high_pattern} ]] || rc=$?
+  if [ "${rc}" -eq 1 ]; then
     rc=0
+    shopt -s nocasematch
+    # shellcheck disable=SC2319 # 同上
+    [[ "$1" =~ ${assign_pattern} ]] || rc=$?
+    shopt -u nocasematch
   fi
-  shopt -u nocasematch
+  if [ "${rc}" -gt 1 ]; then
+    echo "secret-scan: regex evaluation failed (rc=${rc}); aborting" >&2
+    exit 2
+  fi
   return "${rc}"
 }
 
-# 自己テスト: 正規表現が実装差で機能しない環境では検査結果を信用できないため止める。
+# 自己テスト: 正規表現が実装差・ロケールで機能しない環境では検査結果を信用できないため止める。
 # 一致させたい例示値は実行時に組み立て、本ファイル自体のコミットが検知されないようにする。
-q='"' at='@' dash='-----'
+q='"' at='@' dash='-----' hi=$'\xe9'
 # shellcheck disable=SC2016 # ${DB_PASSWORD} は展開させない例示値
 if ! looks_secret "+password = ${q}Hunter2Hunter2Hunter2${q}" \
   || ! looks_secret "+API_KEY: ${q}abcdefghijklmnop1234${q}" \
   || ! looks_secret "+db: postgres://user:pass${at}host:5432/db" \
   || ! looks_secret "+${dash}BEGIN OPENSSH PRIVATE"" KEY${dash}" \
+  || ! looks_secret "+caf${hi} gh""p_abcdefghijklmnopqrstuvwx" \
   || looks_secret '+password = "${DB_PASSWORD}"' \
   || looks_secret '+see https://example.com/path'; then
-  echo "secret-scan: self-test failed (regex engine mismatch?); aborting" >&2
+  echo "secret-scan: self-test failed (regex engine / locale mismatch?); aborting" >&2
   exit 2
 fi
 
-# サブディレクトリから直接実行しても走査範囲が狭まらないよう、リポジトリルートで実行する
-cd "$(git rev-parse --show-toplevel)"
+# サブディレクトリから直接実行しても走査範囲が狭まらないよう、リポジトリルートで実行する。
+# rev-parse の失敗を `cd "$(...)"` に埋めると cd "" になり失敗が隠れるため、先に代入で受ける。
+if ! repo_root="$(git rev-parse --show-toplevel)" || [ -z "${repo_root}" ]; then
+  echo "secret-scan: not inside a git work tree; aborting" >&2
+  exit 2
+fi
+cd "${repo_root}"
 
-# 1. .env 系ファイル
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/secret-scan.XXXXXX")"
+trap 'rm -rf "${tmp_dir}"' EXIT
+
+# 利用者の git 設定で出力形式が変わると追加行・ファイル名を取りこぼすため固定する。
+#   --no-color: color.diff / color.ui = always で行頭に色コードが付き `+` 行を検出できなくなる
+#   --no-ext-diff / --no-textconv: diff.external・textconv ドライバが本文を差し替える
+#   --no-renames: リネームを削除 + 追加として扱い、移動先の全行を走査する（除外パスからの移動も含む）
+#   --src-prefix / --dst-prefix: diff.noprefix・diff.mnemonicPrefix でヘッダが `+++ b/` 以外になる
+staged_diff() {
+  git diff --cached --no-color --no-ext-diff --no-textconv --no-renames \
+    --src-prefix=a/ --dst-prefix=b/ "$@"
+}
+
+# git の出力は一度ファイルへ書き出してから読む。`done <<< "$(git ...)"` やパイプでは git の失敗が
+# set -e / pipefail に掛からず「対象なし」として合格してしまう（fail-open）。
+
+# 1. .env 系ファイル。-z で受け、非 ASCII を含むパスが core.quotePath で引用符付き・
+#    8 進エスケープになり末尾一致しなくなるのを防ぐ。
+if ! staged_diff --name-only -z --diff-filter=ACMR > "${tmp_dir}/names"; then
+  echo "secret-scan: failed to list staged files; aborting" >&2
+  exit 2
+fi
+
 env_files=""
-while IFS= read -r path; do
+while IFS= read -r -d '' path; do
   [ -z "${path}" ] && continue
   if [[ "${path}" =~ (^|/)\.env(\..+)?$ ]] && ! [[ "${path}" =~ \.(example|sample|template)$ ]]; then
     env_files+="  ${path}"$'\n'
   fi
-done <<< "$(git diff --cached --name-only --diff-filter=ACMR)"
+done < "${tmp_dir}/names"
 
 if [ -n "${env_files}" ]; then
   echo "commit blocked: .env-like file(s) staged for commit:" >&2
@@ -68,22 +111,54 @@ if [ -n "${env_files}" ]; then
 fi
 
 # 2・3. 追加行のみを走査する（削除行を対象にすると漏洩済み値の除去コミットを妨げる）
-diff_text="$(git diff --cached -U0 --diff-filter=ACMR -- . \
-  ':(exclude).agents/skills/**' ':(exclude).claude/skills/**' ':(exclude)*.lock')"
+if ! staged_diff -U0 --diff-filter=ACMR -- . \
+  ':(exclude).agents/skills/**' ':(exclude).claude/skills/**' ':(exclude)*.lock' \
+  > "${tmp_dir}/diff"; then
+  echo "secret-scan: failed to read staged diff; aborting" >&2
+  exit 2
+fi
 
+# `+++ b/<path>` のファイルヘッダは `diff --git` から最初の `@@` までの間でだけ解釈する。
+# hunk 内の追加行の本文が `++ b/...`・`++...` で始まると diff 上は `+++...` になるため、
+# 行頭だけで判定するとヘッダと誤認して走査から漏れる。ヘッダ区間以外の `+` 行はすべて走査する。
+in_header=0
 current_file=""
 flagged_files=""
-while IFS= read -r line; do
+while IFS= read -r line || [ -n "${line}" ]; do
   case "${line}" in
-    '+++ b/'*) current_file="${line#+++ b/}" ;;
-    '+++'*) ;;
+    'diff --git '*)
+      in_header=1
+      current_file=""
+      continue
+      ;;
+    '@@'*)
+      in_header=0
+      continue
+      ;;
+  esac
+  if [ "${in_header}" -eq 1 ]; then
+    case "${line}" in
+      '+++ "b/'*)
+        # 制御文字等を含むパスは git が二重引用符で囲む（表示用に外すのみ）
+        current_file="${line#+++ \"b/}"
+        current_file="${current_file%\"}"
+        ;;
+      '+++ b/'*)
+        # 空白を含むパスには git が末尾にタブを付ける
+        current_file="${line#+++ b/}"
+        current_file="${current_file%$'\t'}"
+        ;;
+    esac
+    continue
+  fi
+  case "${line}" in
     '+'*)
-      if looks_secret "${line}" && [[ "${flagged_files}" != *"  ${current_file}"$'\n'* ]]; then
-        flagged_files+="  ${current_file}"$'\n'
+      if looks_secret "${line}" && [[ "${flagged_files}" != *"  ${current_file:-(unknown)}"$'\n'* ]]; then
+        flagged_files+="  ${current_file:-(unknown)}"$'\n'
       fi
       ;;
   esac
-done <<< "${diff_text}"
+done < "${tmp_dir}/diff"
 
 if [ -n "${flagged_files}" ]; then
   echo "commit blocked: staged diff looks like it contains a hardcoded secret in:" >&2
