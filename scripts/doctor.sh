@@ -24,6 +24,10 @@ check_tool() {
   fi
 }
 
+# rust-toolchain.toml があると、cargo・rustc などの呼び出しが rustup 経由で固定 toolchain の
+# 自動導入を起動し得る。診断は何も導入しないため、Rust 系コマンドを呼ぶ前に全体で無効にする。
+export RUSTUP_AUTO_INSTALL=0
+
 echo "environment diagnosis for ${ROOT_DIR} (read-only, no changes made)"
 check_tool required git git --version
 check_tool required make make --version
@@ -38,8 +42,6 @@ check_tool optional direnv direnv version
 check_tool optional npx npx --version
 
 # 固定した版との照合（期待値は docs/toolchain.md の表。値の転記はしない）。
-# rust-toolchain.toml があると rustup が toolchain やターゲットを自動で導入し得るため、
-# RUSTUP_AUTO_INSTALL=0 を付けて「何も導入しない」を守る。
 TOOLCHAIN_DOC="${ROOT_DIR}/docs/toolchain.md"
 if ! want_rust="$(toolchain_value "${TOOLCHAIN_DOC}" rust)" ||
   ! want_target="$(toolchain_value "${TOOLCHAIN_DOC}" rust-target)" ||
@@ -48,7 +50,7 @@ if ! want_rust="$(toolchain_value "${TOOLCHAIN_DOC}" rust)" ||
   echo "miss docs/toolchain.md: cannot read the pinned versions table (required)"
   status=1
 else
-  have_rust="$(RUSTUP_AUTO_INSTALL=0 rustc --version 2>/dev/null | awk '{ print $2 }' || true)"
+  have_rust="$(rustc --version 2>/dev/null | awk '{ print $2 }' || true)"
   if [ "${have_rust}" = "${want_rust}" ]; then
     echo "ok   rustc ${want_rust}: matches docs/toolchain.md"
   else
@@ -56,14 +58,14 @@ else
     status=1
   fi
 
-  if command -v rustup >/dev/null 2>&1; then
-    installed_targets="$(RUSTUP_AUTO_INSTALL=0 rustup target list --installed 2>/dev/null || true)"
-    if printf '%s\n' "${installed_targets}" | grep -qx "${want_target}"; then
-      echo "ok   ${want_target}: installed"
-    else
-      echo "miss ${want_target}: not installed (required; \`make lint\` needs it. run \`rustup toolchain install\`)"
-      status=1
-    fi
+  # rustup の有無に依らず、有効な toolchain の sysroot にターゲットの標準ライブラリがあるかで判定する
+  # （Homebrew の rust など rustup が無い環境でも、make lint が要る wasm32 の欠落を検出するため）。
+  sysroot="$(rustc --print sysroot 2>/dev/null || true)"
+  if [ -n "${sysroot}" ] && [ -d "${sysroot}/lib/rustlib/${want_target}" ]; then
+    echo "ok   ${want_target}: installed"
+  else
+    echo "miss ${want_target}: not installed (required; \`make lint\` needs it. run \`rustup toolchain install\`)"
+    status=1
   fi
 
   if command -v wasm-bindgen >/dev/null 2>&1; then
