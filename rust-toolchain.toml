@@ -1,0 +1,7 @@
+# Rust ツールチェーンの固定。値の正は docs/toolchain.md であり、一致は `make check-toolchain` が検査する。
+# 版を上げるときは docs/toolchain.md・Cargo.lock の wasm-bindgen・CLI を同じ変更で揃える。
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

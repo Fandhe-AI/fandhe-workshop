@@ -25,6 +25,8 @@ cat <<'EOF'
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
   check-testdata  scripts/check-testdata-refs.sh  repo の外への相対参照が 0 件であることを検査する
   test-check-testdata  scripts/test-check-testdata-refs.sh  参照の検査自体の回帰テスト
+  check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
+  test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

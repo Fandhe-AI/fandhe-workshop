@@ -1,0 +1,13 @@
+{
+  "name": "fandhe-workshop-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ブラウザ試験の道具（Playwright）の版の固定。値の正は docs/toolchain.md",
+  "license": "MIT OR Apache-2.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

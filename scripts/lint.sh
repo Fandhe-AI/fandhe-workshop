@@ -3,7 +3,7 @@
 #
 # rustfmt の check、clippy（警告をエラー扱い）、web の wasm32 向け clippy（feature なしと test-hooks の 2 通り）を流す。
 # wasm32-unknown-unknown のターゲットが無いと cargo が失敗する。黙って skip せず、そのまま失敗させる
-# （ターゲットの導入と版の固定は TASK-25 / #79）。
+# （ターゲットと版は rust-toolchain.toml で固定する。docs/toolchain.md）。
 # 整形の自動修正は `make fmt`（ここでは何も書き換えない）。CI への組み込みは TASK-33 / TASK-80。
 #
 # 終了コード: 0 = 全検査が通過 / 1 = いずれかが失敗 / 2 = 誤用（引数あり）。

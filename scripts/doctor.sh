@@ -11,18 +11,35 @@ reject_args "$(basename "$0")" "$@"
 status=0
 
 # check_tool <required|optional> <name> <version-command...>
+# PATH 上にあるだけでなく、版コマンドが実際に成功するかで判定する
+# （rustup のシムは、固定 toolchain が未導入だと PATH 上にあっても失敗するため）。
 check_tool() {
-  local level="$1" name="$2"
+  local level="$1" name="$2" out
   shift 2
-  if command -v "${name}" >/dev/null 2>&1; then
-    echo "ok   ${name}: $("$@" 2>&1 | head -n1)"
+  if ! command -v "${name}" >/dev/null 2>&1; then
+    if [ "${level}" = "required" ]; then
+      echo "miss ${name}: not found on PATH (required)"
+      status=1
+    else
+      echo "skip ${name}: not found on PATH (optional)"
+    fi
+  elif out="$("$@" 2>&1)"; then
+    echo "ok   ${name}: $(printf '%s\n' "${out}" | head -n1)"
   elif [ "${level}" = "required" ]; then
-    echo "miss ${name}: not found on PATH (required)"
+    echo "miss ${name}: found on PATH but not runnable (required; pinned toolchain may be missing. run \`rustup toolchain install\`)"
     status=1
   else
-    echo "skip ${name}: not found on PATH (optional)"
+    echo "skip ${name}: found on PATH but not runnable (optional)"
   fi
 }
+
+# rust-toolchain.toml があると、cargo・rustc などの呼び出しが rustup 経由で固定 toolchain の
+# 自動導入を起動し得る。診断は何も導入しないため、Rust 系コマンドを呼ぶ前に全体で無効にする。
+export RUSTUP_AUTO_INSTALL=0
+
+# rustup は cwd から rust-toolchain.toml を探して toolchain を選ぶ。リポジトリ外から実行されても
+# 固定 toolchain を診断するため、Rust 系コマンドを呼ぶ前にルートへ移る（以降の検査はルート基準）。
+cd "${ROOT_DIR}"
 
 echo "environment diagnosis for ${ROOT_DIR} (read-only, no changes made)"
 check_tool required git git --version
@@ -37,13 +54,56 @@ check_tool required jq jq --version
 check_tool optional direnv direnv version
 check_tool optional npx npx --version
 
-# wasm32 のターゲットは rustup がある場合だけ確認する（導入と版の固定は TASK-25 / #79）
-if command -v rustup >/dev/null 2>&1; then
-  installed_targets="$(rustup target list --installed 2>/dev/null || true)"
-  if printf '%s\n' "${installed_targets}" | grep -qx 'wasm32-unknown-unknown'; then
-    echo "ok   wasm32-unknown-unknown: installed"
+# 固定した版との照合（期待値は docs/toolchain.md の表。値の転記はしない）。
+TOOLCHAIN_DOC="${ROOT_DIR}/docs/toolchain.md"
+if ! want_rust="$(toolchain_value "${TOOLCHAIN_DOC}" rust)" ||
+  ! want_target="$(toolchain_value "${TOOLCHAIN_DOC}" rust-target)" ||
+  ! want_wb="$(toolchain_value "${TOOLCHAIN_DOC}" wasm-bindgen)" ||
+  ! want_node="$(toolchain_value "${TOOLCHAIN_DOC}" node)"; then
+  echo "miss docs/toolchain.md: cannot read the pinned versions table (required)"
+  status=1
+else
+  have_rust="$(rustc --version 2>/dev/null | awk '{ print $2 }' || true)"
+  if [ "${have_rust}" = "${want_rust}" ]; then
+    echo "ok   rustc ${want_rust}: matches docs/toolchain.md"
   else
-    echo "skip wasm32-unknown-unknown: not installed (optional; \`make lint\` needs it)"
+    echo "miss rustc: '${have_rust:-none}' active, docs/toolchain.md pins ${want_rust} (run \`rustup toolchain install\`)"
+    status=1
+  fi
+
+  # rustup の有無に依らず、有効な toolchain の sysroot にターゲットの標準ライブラリがあるかで判定する
+  # （Homebrew の rust など rustup が無い環境でも、make lint が要る wasm32 の欠落を検出するため）。
+  sysroot="$(rustc --print sysroot 2>/dev/null || true)"
+  if [ -n "${sysroot}" ] && [ -d "${sysroot}/lib/rustlib/${want_target}" ]; then
+    echo "ok   ${want_target}: installed"
+  else
+    echo "miss ${want_target}: not installed (required; \`make lint\` needs it. run \`rustup toolchain install\`)"
+    status=1
+  fi
+
+  if command -v wasm-bindgen >/dev/null 2>&1; then
+    have_wb="$(wasm-bindgen --version 2>/dev/null | awk '{ print $2 }' || true)"
+    if [ "${have_wb}" = "${want_wb}" ]; then
+      echo "ok   wasm-bindgen ${want_wb}: matches docs/toolchain.md"
+    else
+      echo "warn wasm-bindgen: '${have_wb:-unknown}' installed, docs/toolchain.md pins ${want_wb} (optional until the web build)"
+    fi
+  else
+    echo "skip wasm-bindgen: not found on PATH (optional until the web build)"
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    have_node="$(node --version 2>/dev/null || true)"
+    node_major="${have_node#v}"
+    node_major="${node_major%%.*}"
+    # node の範囲（>=24 <25）の下限の major だけを見て、24 系かを確かめる
+    want_major="${want_node#>=}"
+    want_major="${want_major%% *}"
+    if [ "${node_major}" = "${want_major}" ]; then
+      echo "ok   node ${have_node}: within ${want_node}"
+    else
+      echo "warn node: '${have_node:-unknown}' installed, docs/toolchain.md pins ${want_node} (optional; browser tests)"
+    fi
   fi
 fi
 
