@@ -31,3 +31,13 @@ indent_style = tab
 # Rust は rustfmt の既定（4 スペース）に合わせる
 [*.rs]
 indent_size = 4
+
+# testdata/ は spec repo の試験データの写しで、バイト一致を保つ。
+# 改行・インデント・末尾の改行が試験の意図に含まれるため、保存時の自動整形をさせない
+[testdata/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset

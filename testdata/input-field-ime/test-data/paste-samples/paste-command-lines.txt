@@ -1,0 +1,2 @@
+/help
+/new-idea sample-name

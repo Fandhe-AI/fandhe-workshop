@@ -1,0 +1,241 @@
+# PoC-4 の試験用の教材パックの先頭の定義（形式 B: Markdown＋YAML）。語彙 v1＋v1.1＋v1.2。
+# `prototype/packs/bbs-tutorial/format-b/workshop.yaml`（PoC-3、c9291b9c8）を基にし、PoC-4 に要る差だけを足した。
+# 練習データは、教材用の模擬 PoC の架空の記録で、./fixtures/ にある（PoC-3 の練習データの写しと、PoC-4 で足した 2 つ）。
+
+pack:
+  id: bbs-tutorial
+  title: 掲示板教材（PoC-4 試験用。学習モジュール 2 つと 2 周）
+  version: 1.0.0
+  vocab: "1.2"
+  ir_format: 1
+  guidance: A
+  # 語彙 v1.1（EP-8）: 水準ごとに、本文と do に出してはいけない語。
+  guidance_levels:
+    B:
+      hide_command_kinds: [skill, flow]
+    C:
+      hide_command_kinds: [skill, flow]
+      hide_words: [実装 repo, 企画 repo]
+
+# 参照元の版。上流の文面は写さず、版つきのリンクで示す（D-11）。
+refs:
+  - name: agent-cli-skills
+    commit: 92c4fbaa271300e95b4a71579d7720e6fde8143e
+    link: https://github.com/Fandhe-AI/agent-cli-skills
+  - name: template-ideas
+    commit: 8511cbff34987591fa4bb1c3e89f669df888a120
+    link: https://github.com/Fandhe-AI/template-ideas
+
+commands:
+  help: builtin
+  new-idea: skill
+  advance-phase: flow
+  create-pr: skill
+  create-commit: skill
+  init-claude: skill
+  setup-repo-guards: skill
+  create-issue-tree: skill
+  implement-issue-tree: skill
+  update-claude: unsupported
+
+views:
+  v-files: { kind: file_tree }
+  v-doc: { kind: document }
+  v-diff: { kind: diff }
+  v-tasks: { kind: task_tree }
+  v-issue-tree: { kind: task_tree }
+  v-pr-cards: { kind: card_list }
+  v-checks: { kind: check_list }
+
+fixtures:
+  fx-kakuu-bbs-readme: { path: fixtures/kakuu-bbs-readme.md, kind: document }
+  fx-kakuu-brainstorm: { path: fixtures/kakuu-brainstorm.md, kind: document }
+  fx-kakuu-poc-plan: { path: fixtures/kakuu-poc-plan.md, kind: document }
+  fx-kakuu-poc-result-ok: { path: fixtures/kakuu-poc-result-ok.md, kind: document }
+  fx-kakuu-poc-result-miss: { path: fixtures/kakuu-poc-result-miss.md, kind: document }
+  fx-kakuu-poc-log: { path: fixtures/kakuu-poc-log.txt, kind: log }
+  fx-kakuu-behavior: { path: fixtures/kakuu-behavior-login.md, kind: document }
+  fx-kakuu-tasks: { path: fixtures/kakuu-tasks.md, kind: document }
+  fx-kakuu-roadmap: { path: fixtures/kakuu-roadmap.md, kind: document }
+  fx-kakuu-issue-root: { path: fixtures/kakuu-issue-root.md, kind: issue }
+  fx-kakuu-issue-child: { path: fixtures/kakuu-issue-child.md, kind: issue }
+  fx-kakuu-pr-card: { path: fixtures/kakuu-pr-card.md, kind: card }
+  fx-kakuu-launch-args: { path: fixtures/kakuu-launch-args.json, kind: data }
+  fx-kakuu-handoff-diff: { path: fixtures/kakuu-handoff-diff.md, kind: diff }
+  fx-kakuu-ci-checks: { path: fixtures/kakuu-ci-checks.txt, kind: log }
+  fx-kakuu-claude-md: { path: fixtures/kakuu-claude-md.md, kind: document }
+  fx-kakuu-repo-guards: { path: fixtures/kakuu-repo-guards.md, kind: document }
+
+# ヒント: 1 段目はどの repo・工程か、2 段目は skill 名、3 段目は完全なコマンド。
+hints:
+  h-1-4-1: { level: 1, text: 名前を入れずに送ると、何が起きるかを見る場面です。 }
+  h-1-4-2: { level: 2, text: 使う skill は new-idea です。 }
+  h-1-4-3: { level: 3, text: /new-idea とだけ入れて送ります。 }
+  h-2-1-1: { level: 1, text: 企画の repo で、新しい企画を作る工程です。 }
+  h-2-1-2: { level: 2, text: 使う skill は new-idea です。 }
+  h-2-1-3: { level: 3, text: /new-idea bbs-with-login }
+  h-2-3-1: { level: 1, text: ブレインストーミングの次の判定の場面です。 }
+  h-2-3-2: { level: 2, text: 判定は、承認の操作で進めます。 }
+  h-2-3-3: { level: 3, text: 「はい」を選ぶと Go になります。 }
+  h-4-1-1: { level: 1, text: 実装の repo で、設定を整える工程です。 }
+  h-5-1-1: { level: 1, text: 実装の repo で、ガードを入れる工程です。 }
+  h-6-1-1: { level: 1, text: 引き継いだファイルから、新しいルートの Issue のツリーを作る場面です。 }
+  h-7-1-1: { level: 1, text: 実装の repo で、Issue ツリーを実行する前の確認です。 }
+  h-7-1-2: { level: 2, text: 使う skill は implement-issue-tree です。 }
+  h-7-1-3: { level: 3, text: "/implement-issue-tree 42 --external-checks []" }
+  h-13-1-1: { level: 1, text: 引き継ぎ先は実装 repo です。 }
+  h-13-1-2: { level: 2, levels: [B, C], text: 変更分だけを選ぶ場面です。 }
+  h-13-2-1: { level: 1, text: 2 周目で、既存のツリーに継ぎ足す場面です。 }
+  h-13-2-2: { level: 2, levels: [B, C], text: 使う skill は create-issue-tree で、既存のルートを --root で指します。 }
+  h-13-2-3: { level: 3, levels: [B, C], text: /create-issue-tree search-diff.md --root 42 }
+
+# 拒否・注記の文面。分類はエンジンが持ち、文面だけを教材が持つ（C-4）。
+rejections:
+  rj-default-unknown-command:
+    category: unknown_command
+    message: "「{{input_head|入力した語}}」は、この教材の一覧にありません。"
+    next_action: "「{{nearest_command|/help}}」に直して、もう一度送ります。"
+  rj-default-wrong-order:
+    category: wrong_order
+    message: "「{{input_head|そのコマンド}}」を使うのは、まだ先です。"
+    next_action: "今の Step では、{{step_do}}。"
+  rj-default-missing-arg:
+    category: missing_arg
+    message: 必要な引数が足りません。
+    next_action: 足りない引数を足して、もう一度送ります。
+  rj-default-bad-arg-shape:
+    category: bad_arg_shape
+    message: 引数または入力の形が合っていません。
+    next_action: 形の規則を確かめて、直して送ります。
+  rj-default-busy:
+    category: busy
+    message: "「{{step_title}}」を処理中です。"
+    next_action: "あと {{remaining}} 回の進行（全 {{total}} 回）で終わります。終わると、次の入力を受け付けます。"
+  rj-default-not-in-this-step:
+    category: not_in_this_step
+    message: この Step では使いません。
+    next_action: 今の Step の目的を読み直し、ヒントを開きます。
+  rj-default-not-supported:
+    category: not_supported
+    message: "「{{input_head|その操作}}」は、実際の環境ではできますが、この教材では扱いません。"
+    next_action: 上流の説明へのリンクを読み、教材の操作に戻ります。
+  rj-default-free-text-note:
+    category: free_text_unjudged
+    message: 書いた内容の良し悪しは、この教材では判定しません。
+    next_action: 自分の文が、目的・対象・期待の 3 点を含むかを、自分で確かめます。
+  rj-miss-point:
+    category: not_in_this_step
+    message: そこは、変わった箇所ではありません。
+    next_action: 左の画面で、変化の印が付いた箇所を指します。
+  rj-wrong-answer:
+    category: not_in_this_step
+    message: その答えは、画面の内容と合いません。
+    next_action: 左の画面をもう一度見て、選び直します。
+  # 語彙 v1.1（EP-6）: 選択肢ごとの誤答の解説。
+  rj-1-4-expl-rejected:
+    category: not_in_this_step
+    message: 引数のない /new-idea は、拒否されません。名前を聞き返されます。
+    next_action: 聞き返しと拒否の違いを思い出して、選び直します。
+  rj-2-7-expl-login-2:
+    category: not_in_this_step
+    message: LOGIN-2 は TASK-2 の対象ビヘイビアです。
+    next_action: タスク一覧の TASK-1 の行を見直して、選び直します。
+  rj-7-1-expl-skip-ci:
+    category: not_in_this_step
+    message: 外部チェックの指定は、CI の確認を省くことではありません。
+    next_action: 外部チェックなしを明示する書き方を思い出して、選び直します。
+  rj-7-1-expl-all-checks:
+    category: not_in_this_step
+    message: すべてのチェック名を書く必要はありません。外部チェックが無ければ、空の一覧で足ります。
+    next_action: 外部チェックなしを表す書き方を選び直します。
+  rj-7-3-expl-same-args:
+    category: not_in_this_step
+    message: 今回の原因は引数の欠落です。同じ引数で再実行しても、同じ所で止まります。
+    next_action: 引数を足して再実行する選択肢を選び直します。
+  rj-7-3-expl-ci-failed:
+    category: not_in_this_step
+    message: CI は green です。止まった原因は CI の失敗ではありません。
+    next_action: 止まった原因をもう一度読み、選び直します。
+  rj-2-1-kebab:
+    category: bad_arg_shape
+    message: 名前は、小文字・数字・ハイフンだけで書く形（kebab-case）にします。
+    next_action: 小文字とハイフンで書き直して、もう一度送ります。
+  rj-2-3-nogo:
+    category: not_in_this_step
+    message: ここまでの根拠は、進めることを支持しています。
+    next_action: 根拠を読み直し、Go か保留から選びます。
+  rj-2-4-unrelated:
+    category: not_in_this_step
+    message: その候補は、ログインとは関係がありません。
+    next_action: ログインに関わる候補から選びます。
+  rj-2-5-go-on-miss:
+    category: not_in_this_step
+    message: 目安を外れた結果では、Go にできません。
+    next_action: 戻る工程を選びます。
+  rj-2-5-nogo:
+    category: not_in_this_step
+    message: No-Go にする根拠は、結果カードにありません。
+    next_action: 結果カードを読み直し、Go か戻る工程から選びます。
+  rj-2-5-back-on-ok:
+    category: not_in_this_step
+    message: 目安を満たしているので、戻る必要はありません。
+    next_action: Go を選びます。
+  rj-2-5-back-far:
+    category: not_in_this_step
+    message: 戻る先が遠すぎます。直す必要があるのは検証の計画です。
+    next_action: 検証計画の工程に戻ります。
+  rj-2-6-unfixed:
+    category: not_in_this_step
+    message: 曖昧な期待が残ったまま、承認はできません。
+    next_action: 期待の欄を、前提・操作・期待の形に直す差し戻しをします。
+  rj-2-6-wrong-target:
+    category: not_in_this_step
+    message: その箇所には、曖昧な語がありません。
+    next_action: 「すぐ表示される」を含む、期待の欄を指します。
+  rj-2-7-wrong-row:
+    category: not_in_this_step
+    message: その行は、今回確かめる対象ではありません。
+    next_action: TASK-1 の行を指します。
+  rj-7-1-missing-arg:
+    category: missing_arg
+    message: 起動の前に、外部チェックの扱いを決める必要があります。
+    next_action: "--external-checks に、[]（外部チェックなし）か、実際のチェック名を書いて送ります。"
+  rj-7-3-with-arg:
+    category: not_in_this_step
+    message: この分岐では、事前確認を飛ばした起動を試します。
+    next_action: --external-checks を付けずに送ります。
+  rj-6-1-missing-input:
+    category: missing_arg
+    message: 入力のファイルが指定されていません。
+    next_action: 引き継いだファイルを付けて、もう一度送ります。
+  rj-6-1-no-root-option:
+    category: not_in_this_step
+    message: この教材では、周回のたびに新しいルートを作ります。既存のルートを指す指定は使いません。
+    next_action: ルートの指定を外して、もう一度送ります。
+  rj-start-needs-previous-round:
+    category: wrong_order
+    message: 2 周目は、1 周目を終えてから始めます。
+    next_action: 1 周目の続きに戻り、実装の進行とマージまで終えます。
+  rj-13-1-everything:
+    category: not_in_this_step
+    message: 全部を引き継ぐ必要はありません。
+    next_action: 変更分だけを選びます。
+  rj-13-2x-wrong:
+    category: not_in_this_step
+    message: その片付け方では、重複が残ります。
+    next_action: 重複したルートを閉じる操作を選びます。
+
+clarifications:
+  cl-new-idea-name:
+    message: 名前が指定されていません。作る企画の名前を聞き返します。
+    how_to_answer: 名前を入力して送るか、Esc で取り消します。
+
+defaults:
+  unknown_command: rj-default-unknown-command
+  wrong_order: rj-default-wrong-order
+  missing_arg: rj-default-missing-arg
+  bad_arg_shape: rj-default-bad-arg-shape
+  busy: rj-default-busy
+  not_in_this_step: rj-default-not-in-this-step
+  not_supported: rj-default-not-supported
+  free_text_unjudged: rj-default-free-text-note

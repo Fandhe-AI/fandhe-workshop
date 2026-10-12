@@ -1,0 +1,23 @@
+# 模範解答の入力列（fandhe-pack test 用）。キーボードだけの完走（手順 4）の入力順と同じ。
+playthroughs:
+  - id: pt-ch1
+    end: complete
+    segments:
+      - start: s-1-1
+        steps:
+          - { cmd: /help, expect: accepted }
+          - { ui: v-cards cards/help-1, expect: achieved }
+          - { cmd: /help, expect: accepted }
+          - { text: "一行目\n二行目", expect: "accepted:free_text_unjudged" }
+          - { cmd: /new-idea, expect: clarified }
+          - { cmd: /advance-phase, expect: "rejected:wrong_order" }
+          - { cancel: true, expect: accepted }
+          - { choice: asked-back, expect: achieved }
+          - { cmd: /make-card sample, expect: accepted }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { ui: v-cards cards/sample, expect: achieved }
+          - { choice: opt-right, expect: accepted }
+          - { choice: ans-restored, expect: achieved }
