@@ -37,6 +37,10 @@ pulldown-cmark = { version = "0.13.4", default-features = false }
 # core 等の性質テスト用。dev-dependencies からのみ参照し、配信物（wasm）には入れない。
 # fork・timeout を外して依存の木を小さくする。
 proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+
+# wasm-bindgen CLI と完全一致させるため exact で固定する。版の正は docs/toolchain.md。
+wasm-bindgen = "=0.2.128"
+
 # 表示層の基盤（D-30 の採用版）。crates.io から取得するため認証情報は要らない。
 # feature は FEND-1 に従い action-keydown だけを明示する（既定の feature は持ち込まない）。
 # 推移的な core・interactive・wasm-client・headless-ui・app の版は Cargo.lock が固定する。
