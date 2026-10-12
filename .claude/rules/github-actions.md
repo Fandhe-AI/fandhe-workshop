@@ -44,21 +44,6 @@ description: >
 | `codex / post_feedback` | github-actions（15368） |
 | `Cursor Bugbot` | cursor（1210556） |
 
-### TASK-33 で追加するチェック（承認待ち・ruleset 未反映）
-
-2026-10-12 時点。`ci.yml` に `rust-lint`・`rust-test` を追加した。次の 2 件を必須チェックに加える案だが、人の承認を
-得ておらず、ruleset には反映していない（上の表の 10 件は適用済みの事実）。
-
-| 必須チェック（案） | 発行元 App（`integration_id`） |
-| --- | --- |
-| `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
-| `rust build + test (--workspace)` | github-actions（15368） |
-
-- `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
-- 反映はこの変更のマージ直後に行う。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で新しいチェックが
-  「Expected」のまま残りマージできなくなる。反映までの間も、`ci-complete` が新しいジョブを `needs` で集約するため
-  ゲートは効く。反映前の PR では HEAD に未登録のチェックが報告され、自動マージは辞退する（人がマージする）
-
 - ジョブ名（`name:`）を変えると required check の参照が切れて pending のままマージ不能になる。名前を変える場合は ruleset 側も同時に更新する
 - implement-issue-tree の自動マージ（`autoMerge: true`）を使うため、ruleset の必須チェックには PR HEAD に報告される
   全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を、発行元 App の `integration_id` を束縛して
@@ -83,6 +68,21 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
   unbound: [.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[] | select(.integration_id == null) | .context]
 }'
 ```
+
+### TASK-33 で追加するチェック（承認待ち・ruleset 未反映）
+
+2026-10-12 時点。`ci.yml` に `rust-lint`・`rust-test` を追加した。次の 2 件を必須チェックに加える案だが、人の承認を
+得ておらず、ruleset には反映していない（上の表の 10 件は適用済みの事実）。
+
+| 必須チェック（案） | 発行元 App（`integration_id`） |
+| --- | --- |
+| `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
+| `rust build + test (--workspace)` | github-actions（15368） |
+
+- `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
+- 反映はこの変更のマージ直後に行う。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で新しいチェックが
+  「Expected」のまま残りマージできなくなる。反映までの間も、`ci-complete` が新しいジョブを `needs` で集約するため
+  ゲートは効く。反映前の PR では HEAD に未登録のチェックが報告され、自動マージは辞退する（人がマージする）
 
 ## リポジトリ設定（2026-10-11 適用）
 
