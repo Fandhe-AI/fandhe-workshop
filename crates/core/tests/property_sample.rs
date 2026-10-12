@@ -6,8 +6,6 @@
 
 mod common;
 
-use std::cell::Cell;
-
 use common::property::{
     assert_replay_eq, check, op_sequence, parse_cases, parse_seed, runner_with, seed_hex,
     try_check_with, DEFAULT_CASES, DEFAULT_SEED,
@@ -95,45 +93,60 @@ fn any_op() -> impl Strategy<Value = Op> {
     ]
 }
 
+/// 操作列を流して不変条件を検査する。古い進行・復元に成功した回数・完了に達したかを返す。
+fn verify(ops: &[Op]) -> Result<(u64, u64, bool), TestCaseError> {
+    let mut model = Model::new();
+    let (mut stale, mut restored) = (0u64, 0u64);
+    for op in ops {
+        let before = model.clone();
+        let (was_stale, was_restored) = model.apply(op);
+        // 不変条件: 位置は範囲内で、完了は最終位置と一致する。
+        prop_assert!(model.step <= LAST);
+        prop_assert_eq!(model.completed, model.step == LAST);
+        if was_stale {
+            // 古い進行は状態を変えない。
+            prop_assert_eq!(&model, &before);
+            stale += 1;
+        }
+        if was_restored {
+            // 復元は、保存した時点の状態に一致する。
+            let (g, s, c) = model.saved.expect("restored implies saved");
+            prop_assert_eq!((model.generation, model.step, model.completed), (g, s, c));
+            restored += 1;
+        }
+    }
+    Ok((stale, restored, model.completed))
+}
+
 #[test]
 fn 乱数の入力列で状態が壊れない() {
-    // 統計は body の中で数え、終了後に空振りでないことを確かめる。
-    let stale = Cell::new(0u64);
-    let restored = Cell::new(0u64);
-    let completed = Cell::new(0u64);
+    // 成功条件は不変条件のみ。FANDHE_PROPTEST_CASES / SEED で探索を変えても、
+    // 操作の網羅性には依存しない（網羅性は下の固定列の試験で確かめる）。
     check(
         "sample-state-invariant",
         DEFAULT_CASES,
         op_sequence(any_op()),
-        |ops| {
-            let mut model = Model::new();
-            for op in &ops {
-                let before = model.clone();
-                let (was_stale, was_restored) = model.apply(op);
-                // 不変条件: 位置は範囲内で、完了は最終位置と一致する。
-                prop_assert!(model.step <= LAST);
-                prop_assert_eq!(model.completed, model.step == LAST);
-                if was_stale {
-                    // 古い進行は状態を変えない。
-                    prop_assert_eq!(&model, &before);
-                    stale.set(stale.get() + 1);
-                }
-                if was_restored {
-                    // 復元は、保存した時点の状態に一致する。
-                    let (g, s, c) = model.saved.expect("restored implies saved");
-                    prop_assert_eq!((model.generation, model.step, model.completed), (g, s, c));
-                    restored.set(restored.get() + 1);
-                }
-            }
-            if model.completed {
-                completed.set(completed.get() + 1);
-            }
-            Ok(())
-        },
+        |ops| verify(&ops).map(|_| ()),
     );
-    assert!(stale.get() > 0, "stale ops were never exercised");
-    assert!(restored.get() > 0, "restore was never exercised");
-    assert!(completed.get() > 0, "no sequence reached completion");
+}
+
+#[test]
+fn 固定列で古い進行と復元と完了を通る() {
+    // 環境変数の影響を受けない明示列。検査が空振りでないことを保証する。
+    let ops = [
+        Op::Advance,
+        Op::Save,
+        Op::Stale,
+        Op::Advance,
+        Op::Restore,
+        Op::Advance,
+        Op::Advance,
+        Op::Advance,
+    ];
+    let (stale, restored, completed) = verify(&ops).expect("invariants hold");
+    assert!(stale > 0, "stale ops were never exercised");
+    assert!(restored > 0, "restore was never exercised");
+    assert!(completed, "sequence did not reach completion");
 }
 
 #[test]
