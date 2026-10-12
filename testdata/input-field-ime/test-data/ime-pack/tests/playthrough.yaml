@@ -1,0 +1,7 @@
+playthroughs:
+  - id: pt-ime
+    end: complete
+    segments:
+      - start: s-1
+        steps:
+          - { text: テストの文, expect: "accepted:free_text_unjudged" }

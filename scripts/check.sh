@@ -2,6 +2,8 @@
 # 非破壊の静的チェック。ソース・設定は変更しない。
 # - editorconfig-checker: .editorconfig の宣言（改行・インデント・末尾空白等）への準拠
 # - shellcheck: scripts/ と tools/ 配下のシェルスクリプト
+# - check-testdata-refs.sh: repo の外（兄弟の 03-poc/・prototype/ 等）への相対参照が 0 件であること
+#   （testdata/ は写したデータのため、editorconfig-checker と shellcheck の対象外）
 # ツールが無い場合は「未検査で成功」にせず失敗させる。
 # 言語固有のチェック（fmt --check・lint・test 等）は派生リポジトリで追記する。
 set -euo pipefail
@@ -20,3 +22,5 @@ editorconfig-checker
 
 log "shellcheck scripts/**/*.sh tools/**/*.sh"
 find scripts tools -type f -name "*.sh" -print0 | xargs -0 shellcheck
+
+"${DIR}/check-testdata-refs.sh"

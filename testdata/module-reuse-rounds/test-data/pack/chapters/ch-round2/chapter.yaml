@@ -1,0 +1,62 @@
+# 2 周目（機能追加）: 同じ 2 つのモジュールを、実体 round2 として呼び出す。D-24: 閉じた 1 周目のルートを開き直さず、
+# 新しいルートを作る（成果物・完了済みタスク・環境は 1 周目から引き継ぐ）。
+# 1 周目との違いは、引数（題材の名前、成果物の経路、設定の 2 Step を省く、止まる場面を通らない、`do` の文）と、
+# 開始点の案内レベル B（案内レベルは引数でなく開始点で渡す）。
+id: ch-round2
+title: 2 周目
+
+starts:
+  # 1 周目に続けて始める。1 周目の実装・マージまでを終えていることが条件（語彙 v1.2 の EP-9）。
+  - id: s-r2
+    node: r2-idea
+    guidance: B
+    requires: { step: { step: r1-impl, state: achieved } }
+    unmet: rj-start-needs-previous-round
+  # 1 周目をしていない人が 2 周目から始める。開始用の世界状態は、1 周目の終了時の世界状態（引き継ぐ範囲）を
+  # 状態変化の語彙で明示したもの。
+  - id: s-r2-fresh
+    node: r2-idea
+    guidance: B
+    effects:
+      - put: { path: ideas/bbs-with-login/README.md, fixture: fx-kakuu-bbs-readme, attrs: { status: 着手判定済み } }
+      - put: { path: ideas/bbs-with-login/01-brainstorm.md, fixture: fx-kakuu-brainstorm, attrs: { sections: filled } }
+      - put: { path: ideas/bbs-with-login/02-poc-plan.md, fixture: fx-kakuu-poc-plan }
+      - put: { path: ideas/bbs-with-login/03-poc/login-session/result.md, fixture: fx-kakuu-poc-result-ok, attrs: { verdict: ok } }
+      - put: { path: ideas/bbs-with-login/04-behavior/screen-login.md, fixture: fx-kakuu-behavior }
+      - put: { path: ideas/bbs-with-login/05-tasks.md, fixture: fx-kakuu-tasks }
+      - put: { path: ideas/bbs-with-login/06-roadmap.md, fixture: fx-kakuu-roadmap }
+      - put: { path: impl/docs/behavior-bbs-with-login.md, fixture: fx-kakuu-handoff-diff }
+      - put: { path: impl/CLAUDE.md, fixture: fx-kakuu-claude-md }
+      - put: { path: impl/.guards.md, fixture: fx-kakuu-repo-guards }
+      - put: { path: issues/root-42, fixture: fx-kakuu-issue-root, attrs: { state: closed } }
+      - put: { path: issues/child-1, fixture: fx-kakuu-issue-child, attrs: { state: closed } }
+      - put: { path: prs/pr-1-a, fixture: fx-kakuu-pr-card, attrs: { state: merged } }
+
+steps:
+  - id: r2-idea
+    title: "2 周目: 企画 repo で題材の工程"
+    next: [{ to: r2-impl }]
+    use:
+      module: idea-cycle
+      instance: round2
+      args:
+        idea: bbs-search
+        do_new_idea: 企画の repo で、新しい企画を作る工程です
+
+  - id: r2-impl
+    title: "2 周目: 引き継ぎから Issue 化・実装・マージまで"
+    final: true
+    use:
+      module: issue-to-merge
+      instance: round2
+      args:
+        idea: bbs-search
+        setup: "false"
+        root: "43"
+        child: "9"
+        pr: pr-2
+        branch_demo: "false"
+        do_init: 実装の repo の Claude の設定を整える工程です
+        do_guards: 実装の repo のガードを整える工程です
+        do_tree: 引き継いだファイルから、新しいルートの Issue のツリーを作る工程です
+        do_launch: 親 Issue の番号と外部チェックの扱いを決めて、実装の進行を起動する工程です

@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-toolchain test-check-toolchain build-web test-build-web
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain build-web test-build-web
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -28,7 +28,7 @@ doctor: ## 開発環境を診断する（読み取りのみ・何も導入しな
 setup: ## Git hooks を有効化し .env を雛形から作成する（再実行可）。直接: scripts/setup.sh
 	@scripts/setup.sh
 
-check: ## editorconfig-checker + shellcheck（ソースは変更しない）。直接: scripts/check.sh
+check: ## editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない）。直接: scripts/check.sh
 	@scripts/check.sh
 
 test-hooks: ## scripts/hooks/ のフックスクリプト自体の回帰テスト（bash + git のみ）。直接: scripts/hooks/test-hooks.sh
@@ -48,6 +48,12 @@ check-deps: ## crate 間の依存の向きを cargo metadata で検査する。�
 
 test-check-deps: ## 依存の向きの検査自体の回帰テスト。直接: scripts/test-check-crate-deps.sh
 	@scripts/test-check-crate-deps.sh
+
+check-testdata: ## repo の外への相対参照が 0 件であることを検査する。直接: scripts/check-testdata-refs.sh
+	@scripts/check-testdata-refs.sh
+
+test-check-testdata: ## 参照の検査自体の回帰テスト。直接: scripts/test-check-testdata-refs.sh
+	@scripts/test-check-testdata-refs.sh
 
 check-toolchain: ## 固定ファイルの版と docs/toolchain.md の一致を検査する。直接: scripts/check-toolchain.sh
 	@scripts/check-toolchain.sh

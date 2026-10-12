@@ -1,0 +1,40 @@
+# 手順 5: 3 つ目の実体。既存のファイルを 1 つも変えず、このファイル 1 つを chapters/ch-round3/chapter.yaml として足すだけで、
+# 同じ 2 つのモジュールを 3 周目の実体 round3 として呼び出す。
+id: ch-round3
+title: 3 周目
+
+starts:
+  - id: s-r3
+    node: r3-idea
+    guidance: B
+    requires: { step: { step: r2-impl, state: achieved } }
+    unmet: rj-start-needs-previous-round
+
+steps:
+  - id: r3-idea
+    title: "3 周目: 企画 repo で題材の工程"
+    next: [{ to: r3-impl }]
+    use:
+      module: idea-cycle
+      instance: round3
+      args:
+        idea: bbs-notify
+        do_new_idea: 企画の repo で、新しい企画を作る工程です
+
+  - id: r3-impl
+    title: "3 周目: 引き継ぎから Issue 化・実装・マージまで"
+    final: true
+    use:
+      module: issue-to-merge
+      instance: round3
+      args:
+        idea: bbs-notify
+        setup: "false"
+        root: "44"
+        child: "12"
+        pr: pr-3
+        branch_demo: "false"
+        do_init: 実装の repo の Claude の設定を整える工程です
+        do_guards: 実装の repo のガードを整える工程です
+        do_tree: 引き継いだファイルから、新しいルートの Issue のツリーを作る工程です
+        do_launch: 親 Issue の番号と外部チェックの扱いを決めて、実装の進行を起動する工程です

@@ -16,13 +16,15 @@ cat <<'EOF'
   help        scripts/help.sh                この一覧を表示する
   doctor      scripts/doctor.sh              開発環境を診断する（読み取りのみ。何も導入・修復しない）
   setup       scripts/setup.sh               Git hooks 有効化と .env 雛形の配置（再実行しても安全）
-  check       scripts/check.sh               editorconfig-checker + shellcheck（ソースは変更しない）
+  check       scripts/check.sh               editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない）
   test-hooks  scripts/hooks/test-hooks.sh    フックスクリプト自体の回帰テスト（bash + git のみ）
   lint        scripts/lint.sh                Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）
   fmt         cargo fmt --all                Rust のソースを rustfmt で整形する（ソースを変更する）
   test        scripts/test.sh                Rust の native 試験（web を含む全 crate）
   check-deps  scripts/check-crate-deps.sh    crate 間の依存の向きを cargo metadata で検査する
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
+  check-testdata  scripts/check-testdata-refs.sh  repo の外への相対参照が 0 件であることを検査する
+  test-check-testdata  scripts/test-check-testdata-refs.sh  参照の検査自体の回帰テスト
   check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
   test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
   build-web   tools/build-web.sh             web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）

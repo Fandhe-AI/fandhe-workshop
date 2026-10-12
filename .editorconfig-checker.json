@@ -2,6 +2,7 @@
   "Exclude": [
     "^\\.agents/skills/",
     "^\\.claude/skills/",
-    "^LICENSE-(APACHE|MIT)$"
+    "^LICENSE-(APACHE|MIT)$",
+    "^testdata/"
   ]
 }

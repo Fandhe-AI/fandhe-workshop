@@ -34,6 +34,10 @@ serde_json = "1.0.151"
 toml = "1.1.6"
 yaml_serde = "0.10.7"
 pulldown-cmark = { version = "0.13.4", default-features = false }
+# core 等の性質テスト用。dev-dependencies からのみ参照し、配信物（wasm）には入れない。
+# fork・timeout を外して依存の木を小さくする。
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
+
 # wasm-bindgen CLI と完全一致させるため exact で固定する。版の正は docs/toolchain.md。
 wasm-bindgen = "=0.2.128"
 
