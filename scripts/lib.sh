@@ -44,3 +44,22 @@ reject_args() {
 log() {
   echo "[$(basename "$0")] $*" >&2
 }
+
+# toolchain_value <docs/toolchain.md のパス> <key>: 固定値の表（`| `key` | `値` | ...`）から値を 1 つ取り出す。
+# 固定した版の正は docs/toolchain.md であり、check-toolchain.sh と doctor.sh が同じ読み取りを共有する。
+# キーが 0 行・複数行・値が空のときは、何も出力せず非 0 を返す（fail-closed）。値は比較にだけ使い、実行しない。
+toolchain_value() {
+  local doc="$1" key="$2" out
+  [ -r "${doc}" ] || return 1
+  out="$(awk -F'|' -v key="${key}" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    NF >= 4 && trim($2) == "`" key "`" {
+      v = trim($3)
+      gsub(/`/, "", v)
+      print v
+    }
+  ' "${doc}")" || return 1
+  [ -n "${out}" ] || return 1
+  case "${out}" in *$'\n'*) return 1 ;; esac
+  printf '%s\n' "${out}"
+}

@@ -22,11 +22,15 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
 ├── crates/                   # contract / core / pack / web の 4 crate（骨格のみ）
+├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
+├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
+├── docs/toolchain.md         # 固定した版と前提の一か所の正（check-toolchain が一致を検査）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
+│   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
@@ -63,8 +67,10 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
+| `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
+| `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 
-build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。
+build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。版の固定ファイルを変えたら `make check-toolchain` も通す。
 
 ## 委譲方針（必読）
 

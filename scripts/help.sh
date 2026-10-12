@@ -23,6 +23,8 @@ cat <<'EOF'
   test        scripts/test.sh                Rust の native 試験（web を含む全 crate）
   check-deps  scripts/check-crate-deps.sh    crate 間の依存の向きを cargo metadata で検査する
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
+  check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
+  test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
