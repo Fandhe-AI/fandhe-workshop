@@ -35,3 +35,6 @@ Thumbs.db
 
 # Node の依存（package-lock.json から npm ci で再現する）
 /node_modules/
+
+# tools/build-web.sh の出力先（配信用・試験用の web 一式）
+/dist/

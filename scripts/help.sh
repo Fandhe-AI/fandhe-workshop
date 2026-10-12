@@ -25,6 +25,8 @@ cat <<'EOF'
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
   check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
   test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
+  build-web   tools/build-web.sh             web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
+  test-build-web  scripts/test-build-web.sh  build-web の受入基準を実ビルドで検査する
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
