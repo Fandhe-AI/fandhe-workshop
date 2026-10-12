@@ -11,22 +11,35 @@ reject_args "$(basename "$0")" "$@"
 status=0
 
 # check_tool <required|optional> <name> <version-command...>
+# PATH 上にあるだけでなく、版コマンドが実際に成功するかで判定する
+# （rustup のシムは、固定 toolchain が未導入だと PATH 上にあっても失敗するため）。
 check_tool() {
-  local level="$1" name="$2"
+  local level="$1" name="$2" out
   shift 2
-  if command -v "${name}" >/dev/null 2>&1; then
-    echo "ok   ${name}: $("$@" 2>&1 | head -n1)"
+  if ! command -v "${name}" >/dev/null 2>&1; then
+    if [ "${level}" = "required" ]; then
+      echo "miss ${name}: not found on PATH (required)"
+      status=1
+    else
+      echo "skip ${name}: not found on PATH (optional)"
+    fi
+  elif out="$("$@" 2>&1)"; then
+    echo "ok   ${name}: $(printf '%s\n' "${out}" | head -n1)"
   elif [ "${level}" = "required" ]; then
-    echo "miss ${name}: not found on PATH (required)"
+    echo "miss ${name}: found on PATH but not runnable (required; pinned toolchain may be missing. run \`rustup toolchain install\`)"
     status=1
   else
-    echo "skip ${name}: not found on PATH (optional)"
+    echo "skip ${name}: found on PATH but not runnable (optional)"
   fi
 }
 
 # rust-toolchain.toml があると、cargo・rustc などの呼び出しが rustup 経由で固定 toolchain の
 # 自動導入を起動し得る。診断は何も導入しないため、Rust 系コマンドを呼ぶ前に全体で無効にする。
 export RUSTUP_AUTO_INSTALL=0
+
+# rustup は cwd から rust-toolchain.toml を探して toolchain を選ぶ。リポジトリ外から実行されても
+# 固定 toolchain を診断するため、Rust 系コマンドを呼ぶ前にルートへ移る（以降の検査はルート基準）。
+cd "${ROOT_DIR}"
 
 echo "environment diagnosis for ${ROOT_DIR} (read-only, no changes made)"
 check_tool required git git --version
