@@ -1,0 +1,63 @@
+{
+  "table": "B",
+  "pack_title": "(B) title について、pack_title を別の言い回しにしたものです。長さも内容も A 表とは違います",
+  "step_titles": {
+    "main/st-1": "(B) main/st-1 について、step_title を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "main/st-2": "(B) main/st-2 について、step_title を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "main/st-3": "(B) main/st-3 について、step_title を別の言い回しにしたものです。長さも内容も A 表とは違います"
+  },
+  "option_labels": {
+    "opt-memo": "(B) opt-memo について、option を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "opt-todo": "(B) opt-todo について、option を別の言い回しにしたものです。長さも内容も A 表とは違います"
+  },
+  "hints": {
+    "h-1-1": "(B) h-1-1 について、hint を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "h-1-2": "(B) h-1-2 について、hint を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "h-1-3": "(B) h-1-3 について、hint を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "h-2-1": "(B) h-2-1 について、hint を別の言い回しにしたものです。長さも内容も A 表とは違います",
+    "h-3-1": "(B) h-3-1 について、hint を別の言い回しにしたものです。長さも内容も A 表とは違います"
+  },
+  "rejections": {
+    "rj-decline": {
+      "message": "(B) rj-decline について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-decline について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-bad-arg-shape": {
+      "message": "(B) rj-default-bad-arg-shape について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-bad-arg-shape について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-busy": {
+      "message": "(B) rj-default-busy について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-busy について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-free-text-note": {
+      "message": "(B) rj-default-free-text-note について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-free-text-note について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-missing-arg": {
+      "message": "(B) rj-default-missing-arg について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-missing-arg について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-not-in-this-step": {
+      "message": "(B) rj-default-not-in-this-step について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-not-in-this-step について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-not-supported": {
+      "message": "(B) rj-default-not-supported について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-not-supported について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-unknown-command": {
+      "message": "(B) rj-default-unknown-command について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-unknown-command について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-default-wrong-order": {
+      "message": "(B) rj-default-wrong-order について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-default-wrong-order について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    },
+    "rj-miss-point": {
+      "message": "(B) rj-miss-point について、rej_message を別の言い回しにしたものです。長さも内容も A 表とは違います",
+      "next_action": "(B) rj-miss-point について、rej_next を別の言い回しにしたものです。長さも内容も A 表とは違います"
+    }
+  },
+  "clarifications": {}
+}

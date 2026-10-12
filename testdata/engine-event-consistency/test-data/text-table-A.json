@@ -1,0 +1,63 @@
+{
+  "table": "A",
+  "pack_title": "【A表】pack_title／title の文言です",
+  "step_titles": {
+    "main/st-1": "【A表】step_title／main/st-1 の文言です",
+    "main/st-2": "【A表】step_title／main/st-2 の文言です",
+    "main/st-3": "【A表】step_title／main/st-3 の文言です"
+  },
+  "option_labels": {
+    "opt-memo": "【A表】option／opt-memo の文言です",
+    "opt-todo": "【A表】option／opt-todo の文言です"
+  },
+  "hints": {
+    "h-1-1": "【A表】hint／h-1-1 の文言です",
+    "h-1-2": "【A表】hint／h-1-2 の文言です",
+    "h-1-3": "【A表】hint／h-1-3 の文言です",
+    "h-2-1": "【A表】hint／h-2-1 の文言です",
+    "h-3-1": "【A表】hint／h-3-1 の文言です"
+  },
+  "rejections": {
+    "rj-decline": {
+      "message": "【A表】rej_message／rj-decline の文言です",
+      "next_action": "【A表】rej_next／rj-decline の文言です"
+    },
+    "rj-default-bad-arg-shape": {
+      "message": "【A表】rej_message／rj-default-bad-arg-shape の文言です",
+      "next_action": "【A表】rej_next／rj-default-bad-arg-shape の文言です"
+    },
+    "rj-default-busy": {
+      "message": "【A表】rej_message／rj-default-busy の文言です",
+      "next_action": "【A表】rej_next／rj-default-busy の文言です"
+    },
+    "rj-default-free-text-note": {
+      "message": "【A表】rej_message／rj-default-free-text-note の文言です",
+      "next_action": "【A表】rej_next／rj-default-free-text-note の文言です"
+    },
+    "rj-default-missing-arg": {
+      "message": "【A表】rej_message／rj-default-missing-arg の文言です",
+      "next_action": "【A表】rej_next／rj-default-missing-arg の文言です"
+    },
+    "rj-default-not-in-this-step": {
+      "message": "【A表】rej_message／rj-default-not-in-this-step の文言です",
+      "next_action": "【A表】rej_next／rj-default-not-in-this-step の文言です"
+    },
+    "rj-default-not-supported": {
+      "message": "【A表】rej_message／rj-default-not-supported の文言です",
+      "next_action": "【A表】rej_next／rj-default-not-supported の文言です"
+    },
+    "rj-default-unknown-command": {
+      "message": "【A表】rej_message／rj-default-unknown-command の文言です",
+      "next_action": "【A表】rej_next／rj-default-unknown-command の文言です"
+    },
+    "rj-default-wrong-order": {
+      "message": "【A表】rej_message／rj-default-wrong-order の文言です",
+      "next_action": "【A表】rej_next／rj-default-wrong-order の文言です"
+    },
+    "rj-miss-point": {
+      "message": "【A表】rej_message／rj-miss-point の文言です",
+      "next_action": "【A表】rej_next／rj-miss-point の文言です"
+    }
+  },
+  "clarifications": {}
+}

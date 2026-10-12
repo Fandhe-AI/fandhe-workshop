@@ -1,0 +1,26 @@
+{
+  "note": "手順 3 の入り口の試験のうち、xss-cases.md の 64 件に無い入り口の値（URL の各パラメータ・経路・ハッシュ）。実行の前に固定する。ペイロードは xss-cases.md の ID から取り、ここには入り口の位置だけを書く。",
+  "e6_positions": [
+    { "id": "E6-q-ir", "where": "query", "name": "ir", "note": "教材の IR を取りに行くファイル名。ペイロードをそのまま値にする" },
+    { "id": "E6-q-os", "where": "query", "name": "os", "note": "OS の表示の初期値" },
+    { "id": "E6-q-osmode", "where": "query", "name": "osmode" },
+    { "id": "E6-q-store", "where": "query", "name": "store" },
+    { "id": "E6-q-tick", "where": "query", "name": "tick" },
+    { "id": "E6-q-unknown", "where": "query", "name": "x", "note": "本体が読まない名前" },
+    { "id": "E6-hash", "where": "hash", "note": "ハッシュ（#…）。本体は読まないはずの位置" }
+  ],
+  "e6_payloads": ["XSS-13", "XSS-61", "XSS-62", "XSS-63", "XSS-64", "XSS-01", "XSS-07", "XSS-02"],
+  "ir_param_fixed": [
+    { "id": "IR-1", "value": "//example.invalid/XSS-IR1", "note": "スキーム相対。取りに行く先が配信元以外になるか" },
+    { "id": "IR-2", "value": "https://example.invalid/XSS-IR2", "note": "絶対 URL" },
+    { "id": "IR-3", "value": "../../XSS-IR3", "note": "パス遡り" },
+    { "id": "IR-4", "value": "javascript:__poc7_hit('XSS-IR4')", "note": "スキーム" },
+    { "id": "IR-5", "value": "min-3step.json%23x", "note": "エンコードされた区切り" }
+  ],
+  "e5_data_payload": {
+    "note": "data-payload を書き換えて click する操作。対象のボタンと、書き換える値",
+    "targets": ["submit-btn", "hint-btn", "offer-btn", "goto-btn", "restore-btn", "candidate-btn", "tick-trigger", "esc-trigger", "stop-btn", "save-btn"],
+    "values": ["XSS-01", "XSS-07", "XSS-13", "XSS-63", "XSS-53", "XSS-49"],
+    "raw_values": ["", "||", "0|none|0", "999999999999999999999|x|1", "-1|st|-1", "1|a|b|c", "{\"command\":\"/x\"}"]
+  }
+}

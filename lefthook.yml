@@ -17,11 +17,13 @@ pre-commit:
       run: bash scripts/hooks/secret-scan.sh
 
     # staged ファイルの .editorconfig 準拠チェック（自動修正はしない）。
-    # 外部取得のスキル文書は .editorconfig-checker.json の Exclude と合わせて除外する。
+    # 外部取得のスキル文書と、バイト一致で写した試験データ（testdata/）は、
+    # .editorconfig-checker.json の Exclude と合わせて除外する。
     - name: "style: editorconfig-checker (staged files)"
       exclude:
         - ".agents/skills/**"
         - ".claude/skills/**"
+        - "testdata/**"
       run: editorconfig-checker {staged_files}
 
     # staged のシェルスクリプトを shellcheck する
@@ -32,6 +34,7 @@ pre-commit:
       exclude:
         - ".agents/skills/**"
         - ".claude/skills/**"
+        - "testdata/**"
       run: shellcheck {staged_files}
 
 commit-msg:

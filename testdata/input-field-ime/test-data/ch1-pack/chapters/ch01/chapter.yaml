@@ -1,0 +1,164 @@
+# CH-1 操作練習（ST-1.1〜ST-1.6）。
+id: ch-1
+title: 操作練習
+
+starts:
+  - { id: s-1-1, node: st-1-1 }
+
+steps:
+  - id: st-1-1
+    title: /help を送る
+    do: /help を入力して送ります
+    body: st-1-1.md
+    lo: [LO-2]
+    views: [v-cards]
+    hints: [h-1-1]
+    next: [{ to: st-1-2 }]
+    input:
+      kind: command
+      name: help
+      args: []
+    rules:
+      - id: r-help
+        on: { command: help }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/help-1, attrs: { state: shown } }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-cards, path: cards/help-1 }]
+      on_miss: rj-miss-point
+
+  - id: st-1-2
+    title: Tab で補完する
+    do: /he まで打って Tab で補完し、送ります
+    body: st-1-2.md
+    lo: [LO-2]
+    views: [v-cards]
+    next: [{ to: st-1-3 }]
+    input:
+      kind: command
+      name: help
+      args: []
+    rules:
+      - id: r-help2
+        on: { command: help }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/help-2, attrs: { state: shown } }
+    confirm:
+      kind: none
+      reason: 補完して送った結果が左のカードにそのまま出るため、別の確認を置かない。
+
+  - id: st-1-3
+    title: 2 行のメモを送る
+    do: Shift+Enter で改行して 2 行のメモを書き、Enter で送ります
+    body: st-1-3.md
+    lo: [LO-2]
+    views: [v-cards]
+    next: [{ to: st-1-4 }]
+    input: { kind: text, min: 1, max: 20000 }
+    rules:
+      - id: r-memo
+        on: { text: true }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/memo, attrs: { state: shown } }
+    confirm:
+      kind: none
+      reason: 送った結果が左のメモのカードにそのまま出るため、別の確認を置かない。
+
+  - id: st-1-4
+    title: 引数なしの /new-idea と、順序違いの /advance-phase
+    do: 名前を付けずに /new-idea を送り、聞き返しを見ます
+    body: st-1-4.md
+    lo: [LO-3]
+    views: [v-cards]
+    next: [{ to: st-1-5 }]
+    input:
+      kind: command
+      name: new-idea
+      args:
+        - { name: name, positional: true, required: false, shape: kebab_case }
+    rules:
+      - id: r-ask-name
+        on: { command: new-idea, missing: [name] }
+        outcome: { kind: clarify, clarification: cl-new-idea-name }
+      - id: r-cancel
+        on: { cancel: true }
+        when: { clarifying: cl-new-idea-name }
+        outcome: { kind: accept, effects: [{ set_flag: cancelled }] }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: asked-back, correct: true }
+        - { id: rejected, correct: false }
+
+  - id: st-1-5
+    title: 処理中に Esc で止める
+    do: /make-card sample を送り、処理の途中で Esc で止めて、もう一度送って最後まで進めます
+    body: st-1-5.md
+    lo: [LO-3]
+    views: [v-cards]
+    hints: [h-1-5]
+    next: [{ to: st-1-6 }]
+    processing:
+      - { name: p1-prepare }
+      - name: p2-create
+        effects:
+          - put: { path: cards/sample, attrs: { state: building } }
+      - { name: p3-write }
+      - name: p4-save
+        effects:
+          - set_attr: { path: cards/sample, attr: state, value: saved }
+    input:
+      kind: command
+      name: make-card
+      args:
+        - { name: name, positional: true, required: true, shape: kebab_case }
+    rules:
+      - id: r-card
+        on: { command: make-card }
+        outcome:
+          kind: accept
+          effects: []
+    confirm:
+      kind: point_at
+      targets: [{ view: v-cards, path: cards/sample }]
+      on_miss: rj-miss-point
+
+  - id: st-1-6
+    title: チェックポイントに戻る
+    do: チェックポイントを保存し、わざと誤った選択肢を選んでから、保存した時点に戻ります
+    body: st-1-6.md
+    lo: [LO-3]
+    final: true
+    views: [v-cards]
+    input:
+      kind: choice
+      options:
+        - { id: opt-right, label: 正しい選択肢 }
+        - { id: opt-wrong, label: 誤った選択肢 }
+    rules:
+      - id: r-right
+        on: { option: opt-right }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/choice, attrs: { state: right } }
+      - id: r-wrong
+        on: { option: opt-wrong }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/choice, attrs: { state: wrong } }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: ans-restored, correct: true }
+        - { id: ans-reset, correct: false }
