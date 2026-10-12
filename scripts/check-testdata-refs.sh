@@ -20,6 +20,7 @@ source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
 require_cmd grep
+require_cmd find
 export LC_ALL=C
 
 cd "${ROOT_DIR}"
@@ -41,18 +42,17 @@ banned_b="proto""type"
 resolve_token() {
   local base="$1" token="$2" part
   local -a stack
-  local n=0 IFS_SAVE="${IFS}"
-  IFS='/'
-  # shellcheck disable=SC2206 # '/' 区切りの分割が目的
-  local -a base_parts=(${base})
-  # shellcheck disable=SC2206
-  local -a token_parts=(${token})
-  IFS="${IFS_SAVE}"
-  for part in "${base_parts[@]}"; do
+  local n=0
+  local -a base_parts=() token_parts=()
+  # read -a は '/' で分割するだけでパス名展開をしない（`../*/..` の `*` が cwd のファイル名に化けて
+  # 階層の深さが変わり、ルート脱出の判定をすり抜けるのを防ぐ）。
+  IFS='/' read -r -a base_parts <<<"${base}"
+  IFS='/' read -r -a token_parts <<<"${token}"
+  for part in ${base_parts[@]+"${base_parts[@]}"}; do
     stack[n]="${part}"
     n=$((n + 1))
   done
-  for part in "${token_parts[@]}"; do
+  for part in ${token_parts[@]+"${token_parts[@]}"}; do
     case "${part}" in
       '' | .) ;;
       ..)
@@ -74,19 +74,23 @@ resolve_token() {
 }
 
 # 規則 1: testdata/ のテキストファイルの `../` で始まるトークン。
-rc=0
-grep -rIoE --null -e '\.\./[^[:space:]"'"'"'`)<>]*' testdata >"${TMP_DIR}/tokens.bin" || rc=$?
-if [ "${rc}" -ge 2 ]; then
-  echo "error: grep failed while scanning testdata/ (exit ${rc})" >&2
-  exit 2
-fi
-while IFS= read -r -d '' file && IFS= read -r token; do
-  reason="$(resolve_token "$(dirname "${file}")" "${token}")"
-  if [ -n "${reason}" ]; then
-    echo "error: ${file}: ${token} (${reason})" >&2
-    violations=$((violations + 1))
+# GNU 専用の grep --null に頼らず、find -print0 でファイルを列挙してファイルごとに grep する（BSD grep 互換）。
+find testdata -type f -print0 >"${TMP_DIR}/files.bin"
+while IFS= read -r -d '' file; do
+  rc=0
+  grep -IoE -e '\.\./[^[:space:]"'"'"'`)<>]*' "${file}" >"${TMP_DIR}/tokens.txt" || rc=$?
+  if [ "${rc}" -ge 2 ]; then
+    echo "error: grep failed while scanning ${file} (exit ${rc})" >&2
+    exit 2
   fi
-done <"${TMP_DIR}/tokens.bin"
+  while IFS= read -r token; do
+    reason="$(resolve_token "$(dirname "${file}")" "${token}")"
+    if [ -n "${reason}" ]; then
+      echo "error: ${file}: ${token} (${reason})" >&2
+      violations=$((violations + 1))
+    fi
+  done <"${TMP_DIR}/tokens.txt"
+done <"${TMP_DIR}/files.bin"
 
 # 規則 2: コード側の相対参照。
 code_dirs=()

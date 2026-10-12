@@ -12,6 +12,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
+require_cmd grep
+require_cmd mktemp
+require_cmd cp
 
 CHECK_NAME="check-testdata-refs.sh"
 TMP_DIR="$(mktemp -d)"
@@ -67,6 +70,12 @@ tree="$(fresh_tree escape)"
 printf '{"ref": "../../../../../outside"}\n' >"${tree}/testdata/poc-a/test-data/sub/d.json"
 run_check "${tree}"
 expect "reference escaping the root is rejected" 1 "${RC}"
+
+# 3b. トークン中の `*` がパス名展開されず、ルート脱出の判定をすり抜けない
+tree="$(fresh_tree glob)"
+printf '{"ref": "../*/../../../../../outside"}\n' >"${tree}/testdata/poc-a/test-data/sub/e.json"
+run_check "${tree}"
+expect "glob character in a token does not hide a root escape" 1 "${RC}"
 
 # 4. コード側の相対参照は失敗する
 tree="$(fresh_tree code)"
