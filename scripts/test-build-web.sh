@@ -40,6 +40,15 @@ check_fails() {
   if "$@" >/dev/null 2>&1; then fail "${desc}"; else pass "${desc}"; fi
 }
 
+# check_status <説明> <期待する終了状態> <コマンド...>: 終了状態が期待と完全に一致することを確かめる。
+# grep の 1（不一致）と 2（ファイル欠落等の検査失敗）を区別するために使う。
+check_status() {
+  local desc="$1" want="$2" rc=0
+  shift 2
+  "$@" >/dev/null 2>&1 || rc=$?
+  if [ "${rc}" -eq "${want}" ]; then pass "${desc}"; else fail "${desc} (exit ${rc}, want ${want})"; fi
+}
+
 # wasm_exports <wasm>: 書き出し名を 1 行ずつ出す。
 wasm_exports() {
   node -e '
@@ -48,8 +57,22 @@ wasm_exports() {
     for (const e of WebAssembly.Module.exports(m)) console.log(e.name);
   ' "$1"
 }
-has_export() { wasm_exports "$2" | grep -q "$1"; }
-no_debug_export() { ! wasm_exports "$1" | grep -q '^debug_'; }
+# has_export <regex> <wasm>: 書き出しの取得に失敗したら失敗。取得できたうえで一致があれば成功。
+has_export() {
+  local exports rc=0
+  exports="$(wasm_exports "$2")" || return 1
+  printf '%s\n' "${exports}" | grep -q "$1" || rc=$?
+  [ "${rc}" -eq 0 ]
+}
+# no_debug_export <wasm>: 書き出しの取得に成功し、かつ debug_* が無い（grep の終了状態 1）ときだけ成功。
+# 取得失敗や grep の検査失敗（2 以上）を「該当なし」と読み替えない。
+no_debug_export() {
+  local exports rc=0
+  exports="$(wasm_exports "$1")" || return 1
+  [ -n "${exports}" ] || return 1
+  printf '%s\n' "${exports}" | grep -q '^debug_' || rc=$?
+  [ "${rc}" -eq 1 ]
+}
 
 DELIVERY="${TMP}/delivery"
 DELIVERY_IR="${TMP}/delivery-ir"
@@ -59,7 +82,8 @@ echo '{"ir":"sample"}' >"${TMP}/ir.json"
 log "building delivery config"
 OUT_DIR="${DELIVERY}" "${BUILD}" >/dev/null
 log "building delivery config with IR_FILE"
-OUT_DIR="${DELIVERY_IR}" IR_FILE="${TMP}/ir.json" "${BUILD}" >/dev/null
+# 相対パスの IR_FILE が、ビルド中の cd に影響されず呼び出し元の cwd 基準で解決されることも確かめる。
+(cd "${TMP}" && OUT_DIR="${DELIVERY_IR}" IR_FILE="ir.json" "${BUILD}" >/dev/null)
 log "building test config"
 OUT_DIR="${TESTCFG}" TEST_HOOKS=1 "${BUILD}" >/dev/null
 
@@ -68,15 +92,16 @@ WASM="wasm/fandhe_workshop_web_bg.wasm"
 echo "-- (a) delivery config" >&2
 check "mount_app is exported" has_export '^mount_app$' "${DELIVERY}/${WASM}"
 check "no debug_* export in wasm" no_debug_export "${DELIVERY}/${WASM}"
-check_fails "no debug_ in glue js" grep -q 'debug_' "${DELIVERY}/wasm/fandhe_workshop_web.js"
+check_status "no debug_ in glue js" 1 grep -q 'debug_' "${DELIVERY}/wasm/fandhe_workshop_web.js"
 check "no test-hooks.js" test ! -e "${DELIVERY}/test-hooks.js"
-check_fails "no fandhe-test-hooks meta" grep -q 'fandhe-test-hooks' "${DELIVERY}/index.html"
-check_fails "no test-hooks marker" grep -q 'fandhe:test-hooks' "${DELIVERY}/index.html"
+check_status "no fandhe-test-hooks meta" 1 grep -q 'fandhe-test-hooks' "${DELIVERY}/index.html"
+check_status "no test-hooks marker" 1 grep -q 'fandhe:test-hooks' "${DELIVERY}/index.html"
 check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
 check "no .d.ts" test -z "$(find "${DELIVERY}" -name '*.d.ts')"
 
 echo "-- (b) delivery config with IR_FILE" >&2
 check "ir/main.json matches IR_FILE" cmp -s "${TMP}/ir.json" "${DELIVERY_IR}/ir/main.json"
+check "mount_app is exported with IR_FILE" has_export '^mount_app$' "${DELIVERY_IR}/${WASM}"
 check "no debug_* export with IR_FILE" no_debug_export "${DELIVERY_IR}/${WASM}"
 
 echo "-- (c) test config" >&2
@@ -91,7 +116,12 @@ mkdir -p "${TMP}/nonempty"
 echo keep >"${TMP}/nonempty/file"
 check_fails "non-empty OUT_DIR outside dist/ is rejected" env OUT_DIR="${TMP}/nonempty" "${BUILD}"
 check "non-empty OUT_DIR is left intact" test -f "${TMP}/nonempty/file"
-check_fails "missing IR_FILE is rejected" env IR_FILE="${TMP}/missing.json" OUT_DIR="${TMP}/m3" "${BUILD}"
+check_status "empty OUT_DIR is rejected" 2 env OUT_DIR= "${BUILD}"
+mkdir -p "${TMP}/sub"
+check_status "OUT_DIR ending in .. is rejected" 2 env OUT_DIR="${TMP}/sub/.." "${BUILD}"
+check_status "OUT_DIR ending in . is rejected" 2 env OUT_DIR="${TMP}/sub/." "${BUILD}"
+check "dir behind .. is left intact" test -d "${TMP}/sub"
+check_status "missing IR_FILE is rejected" 2 env IR_FILE="${TMP}/missing.json" OUT_DIR="${TMP}/m3" "${BUILD}"
 
 if [ "${FAILURES}" -ne 0 ]; then
   echo "error: ${FAILURES} check(s) failed" >&2

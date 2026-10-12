@@ -43,20 +43,34 @@ case "${TEST_HOOKS:-}" in
     ;;
 esac
 
-OUT_DIR="${OUT_DIR:-${ROOT_DIR}/${DEFAULT_OUT}}"
+# 未設定のときだけ既定値を使う（:- だと OUT_DIR= の空値が既定値に化け、誤用を見逃す）。
+OUT_DIR="${OUT_DIR-${ROOT_DIR}/${DEFAULT_OUT}}"
 if [ -z "${OUT_DIR}" ]; then
   echo "error: OUT_DIR must not be empty" >&2
   exit 2
 fi
 
+# IR_FILE は呼び出し元の cwd 基準で確認し、以降の cd に影響されないよう絶対パスへ解決しておく。
 IR_FILE="${IR_FILE:-}"
-if [ -n "${IR_FILE}" ] && [ ! -f "${IR_FILE}" ]; then
-  echo "error: IR_FILE is not a regular file: ${IR_FILE}" >&2
-  exit 2
+IR_ABS=""
+if [ -n "${IR_FILE}" ]; then
+  if [ ! -f "${IR_FILE}" ]; then
+    echo "error: IR_FILE is not a regular file: ${IR_FILE}" >&2
+    exit 2
+  fi
+  IR_ABS="$(cd "$(dirname "${IR_FILE}")" && pwd -P)/$(basename "${IR_FILE}")"
 fi
 
 # 出力先は丸ごと消すため、消してよい場所に限る（fail-closed）。
 # 親を正規化してから判定し、.. や symlink で dist/ の外へ出る指定を通さない。
+OUT_BASE="$(basename "${OUT_DIR}")"
+# 末尾が . や .. だと親の正規化だけでは dist/ の外（dist/.. はリポジトリルート）を指すため拒否する。
+case "${OUT_BASE}" in
+  . | .. | /)
+    echo "error: OUT_DIR must not end with '.', '..' or '/': ${OUT_DIR}" >&2
+    exit 2
+    ;;
+esac
 OUT_PARENT="$(dirname "${OUT_DIR}")"
 # 既定の出力先の親（dist/）は無ければ作る。それ以外の親は作らない。
 if [ "${OUT_PARENT}" = "${ROOT_DIR}/dist" ]; then
@@ -66,7 +80,7 @@ if [ ! -d "${OUT_PARENT}" ]; then
   echo "error: parent of OUT_DIR does not exist: ${OUT_PARENT}" >&2
   exit 2
 fi
-OUT_ABS="$(cd "${OUT_PARENT}" && pwd -P)/$(basename "${OUT_DIR}")"
+OUT_ABS="$(cd "${OUT_PARENT}" && pwd -P)/${OUT_BASE}"
 ROOT_REAL="$(cd "${ROOT_DIR}" && pwd -P)"
 case "${OUT_ABS}" in
   "${ROOT_REAL}/dist/"?*) ;;
@@ -134,9 +148,9 @@ else
   rm -f "${OUT_ABS}"/wasm/*.d.ts
 fi
 
-if [ -n "${IR_FILE}" ]; then
+if [ -n "${IR_ABS}" ]; then
   mkdir -p "${OUT_ABS}/ir"
-  cp "${IR_FILE}" "${OUT_ABS}/ir/main.json"
+  cp "${IR_ABS}" "${OUT_ABS}/ir/main.json"
 fi
 
 WASM_OUT="${OUT_ABS}/wasm/fandhe_workshop_web_bg.wasm"
