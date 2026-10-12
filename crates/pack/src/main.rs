@@ -1,11 +1,19 @@
 //! `fandhe-pack` の入口。
 //!
-//! 現時点は骨格のみで、何も読まずに未実装の旨を返して終了する。実装は後続のタスクで追加する。
+//! lib の `cli::run` に引数と標準入出力を渡し、戻り値を終了コードに変えるだけにする。
 #![forbid(unsafe_code)]
 
+use std::io;
 use std::process::ExitCode;
 
+use fandhe_workshop_pack::cli;
+
 fn main() -> ExitCode {
-    eprintln!("error: fandhe-pack is not implemented yet");
-    ExitCode::from(2)
+    let mut out = io::stdout().lock();
+    let mut err = io::stderr().lock();
+    match cli::run(std::env::args_os().skip(1), &mut out, &mut err) {
+        Ok(code) => ExitCode::from(code),
+        // 出力できない以上、結果を伝えられない。成功(0)と取り違えられないよう 2 で終える。
+        Err(_) => ExitCode::from(cli::EXIT_USAGE),
+    }
 }
