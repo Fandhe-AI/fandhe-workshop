@@ -1,3 +1,4 @@
 //! ブラウザ向けの表示層の crate の入口。
 //!
 //! core・contract を呼んで DOM を更新する。現時点は骨格のみで、実装は後続のタスクで追加する。
+#![forbid(unsafe_code)]
