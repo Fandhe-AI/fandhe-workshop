@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps と、ワークフローの secret 参照の検査を持つ。build は TASK-27 以降で追加する。
+# Rust 向けの lint / fmt / test / check-deps / check-mutations と、ワークフローの secret 参照の検査を持つ。build は TASK-27 以降で追加する。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-mutations test-check-mutations
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -66,3 +66,8 @@ check-workflow-secrets: ## ci.yml が secret を参照していないことを�
 
 test-check-workflow-secrets: ## secret 参照の検査自体の回帰テスト。直接: scripts/test-check-workflow-secrets.sh
 	@scripts/test-check-workflow-secrets.sh
+check-mutations: ## 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）。直接: scripts/check-mutations.sh
+	@scripts/check-mutations.sh
+
+test-check-mutations: ## 変異注入の検査自体の回帰テスト。直接: scripts/test-check-mutations.sh
+	@scripts/test-check-mutations.sh

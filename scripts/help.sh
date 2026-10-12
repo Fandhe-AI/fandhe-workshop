@@ -29,6 +29,8 @@ cat <<'EOF'
   test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
   check-workflow-secrets  scripts/check-workflow-secrets.sh  ci.yml が secret を参照していないことを検査する
   test-check-workflow-secrets  scripts/test-check-workflow-secrets.sh  secret 参照の検査自体の回帰テスト
+  check-mutations  scripts/check-mutations.sh  変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
+  test-check-mutations  scripts/test-check-mutations.sh  変異注入の検査自体の回帰テスト
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
