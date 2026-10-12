@@ -8,6 +8,31 @@
 開発基盤は [Fandhe-AI/template-dev](https://github.com/Fandhe-AI/template-dev) から作成しています。
 言語固有の設定・実装は、実装着手の指示後にタスクに沿って追加します。
 
+## 概要
+
+教材作成者が書いたデータ（教材パック）を、ビルド時に IR へコンパイルし、実行時はエンジン（中核）が IR だけを読んで動かす 3 層の構成です。
+
+| 層 | 内容 |
+|---|---|
+| 教材パック | 章・Step・入力条件・状態変化・完了条件・ヒントを、Markdown と構造定義で書いたもの |
+| IR | 教材パックをビルド時に検証・コンパイルして作る JSON。実行時に読まれるのはこれだけ |
+| エンジン（中核） | IR を読み、ターミナル風の操作に応じて成果物の状態を進める。特定の教材の知識を持たない |
+
+用語は [用語集](./docs/glossary.md) にまとめています。
+2026-10-12 時点では、エンジンのコード（Rust）は未導入です。このリポジトリには開発基盤と構成設計（[docs/architecture.md](./docs/architecture.md)）だけがあります。
+
+## 仮称の一覧
+
+次の名前はすべて仮称です。確定した名前に変えるときは、この表と [docs/architecture.md](./docs/architecture.md) を同じ変更で直します。
+
+| 対象 | 仮称 | 状態（2026-10-12 時点） |
+|---|---|---|
+| エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
+| 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
+| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
+| crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | 未作成。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
+| 作成者向け CLI | `fandhe-pack` | pack crate に置く。外部仕様は未固定 |
+
 ## 仕様（`docs/spec`）
 
 仕様・フェーズ文書は private リポジトリ `Fandhe-AI/fandhe-workshop-spec` を `docs/spec` に
@@ -46,13 +71,31 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `.shellcheckrc` | shellcheck が `source` 先（`scripts/lib.sh`）を追って検査するための設定 |
 | `.envrc`・`.env.example` | direnv による `.env` の読み込みと、その雛形 |
 | `.mcp.json` | Claude Code のプロジェクト共有 MCP サーバー定義（Playwright MCP。後述の「MCP サーバー」） |
+| `CONTRIBUTING.md` | 貢献ガイド（開発の流れ・検査・コミット規約・セキュリティ・ライセンス） |
+| `docs/glossary.md` | 用語集（章・Step・IR・語彙など） |
 | `docs/architecture.md` | 実装 repo の構成設計（版 1）。crate の境界・依存の向き・公開 API の型の置き場・feature・試験データと雛形の置き場を固定する契約。crate 名は仮称 |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
 | `LICENSE-MIT`・`LICENSE-APACHE` | ライセンス（前述の「ライセンス」） |
 | `.github/workflows/` | CI・AI PR レビュー・外部ソース自動追従（後述の「CI」） |
 
-## 必要なツール
+## 前提
+
+### エンジンのビルドの前提
+
+Rust の導入前のため、版は未固定です（固定は実装着手時のタスクで行い、Issue 化したらここに番号を添えます）。固定した時点で、固定ファイルと一致する値を記入します（先に数値を書くと二重定義になるため、ここには書きません）。
+
+| 項目 | 版 | 備考 |
+|---|---|---|
+| Rust のツールチェーン | 未固定 | 導入時は `.claude/rules/rust-build-profile.md` に従い、`cargo sweep` による `target/` の掃除手順も書く |
+| `wasm32` ターゲット | 未固定 | ブラウザ向けのビルドに使う |
+| wasm-bindgen CLI | 未固定 | |
+| Node.js | 未固定 | ブラウザテストの実行に使う |
+| Playwright | 未固定 | ブラウザテストに使う |
+| Chrome または Chromium | 未固定 | ブラウザテストに使う |
+| 試験データの置き場所 | 方針は固定済み | 2 つ以上の crate が使うデータは `testdata/`、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。未決なのは、契約のサンプル・golden の配置の細目だけです |
+
+### 必要なツール
 
 | ツール | 用途 | 必須 |
 |---|---|---|
@@ -80,6 +123,29 @@ direnv allow  # direnv を使う場合のみ。.envrc の読み込みを許可�
 ```
 
 `make setup` は何度実行しても安全です（既存の `.env` は上書きしません）。
+
+## ビルドとテスト
+
+現在できる検査は `make check` と `make test-hooks` です。内容は次の「コマンド」の表を参照してください。
+
+エンジンのビルドとテストの手順は、Cargo ワークスペースの導入後に、次の順で書きます。コマンドは導入前に推測で書きません。
+手順の中身を整える作業は、後続のタスクで行います。
+
+### ビルド
+
+（Cargo ワークスペースの導入後に記入します。記入するタスクは、実装着手時に Issue 化して、ここに番号を添えます）
+
+### native のテスト
+
+（同上）
+
+### wasm32 のビルド
+
+（同上）
+
+### ブラウザテスト
+
+（同上）
 
 ## コマンド
 
@@ -156,3 +222,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 4. **EditorConfig**: 言語ごとのセクション（例: `[*.rs] indent_size = 4`）を `.editorconfig` に追加する
 5. **`.gitignore`**: ビルド成果物（`/target`・`/dist`・`node_modules/` 等）を追加する
 6. **Rust の導入**: `.claude/rules/rust-build-profile.md` に従い、ルートの `Cargo.toml` に依存クレートの debuginfo を行番号のみにする dev プロファイルを入れ、README のセットアップ節に `cargo sweep` による `target/` の掃除手順を書く。ビルド設定（`[profile]`・`RUSTFLAGS`・`CARGO_PROFILE_*` 等）を変えるときは CI キャッシュのキーへの影響を確認する（`.claude/rules/github-actions.md` の「キャッシュ方針」）
+
+## 貢献
+
+貢献の流れは [CONTRIBUTING.md](./CONTRIBUTING.md)、用語は [用語集](./docs/glossary.md) を参照してください。

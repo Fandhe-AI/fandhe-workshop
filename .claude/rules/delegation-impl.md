@@ -17,7 +17,7 @@ description: >
 | `.github/workflows/**` | `infra-builder` | `github-actions.md` |
 | `.editorconfig`・`.editorconfig-checker.json`・`.shellcheckrc`・`.gitignore`・`.gitmodules` | `infra-builder` | 各ファイル冒頭のコメント |
 | `.claude/rules/**`・`.claude/agents/**`・`.claude/settings.json`・`.mcp.json` | `dotclaude-author` | `security.md` |
-| `README.md`・`CLAUDE.md`・`docs/architecture.md` | `docs-writer` | `japanese-style.md` |
+| `README.md`・`CONTRIBUTING.md`・`CLAUDE.md`・`docs/architecture.md`・`docs/glossary.md` | `docs-writer` | `japanese-style.md` |
 | `Cargo.toml`・`**/*.rs` などエンジンの実装（未導入） | 専用の builder が未定義（下記） | `rust-build-profile.md` |
 
 ### エンジンの実装を始めるとき
