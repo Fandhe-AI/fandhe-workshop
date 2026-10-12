@@ -31,10 +31,13 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
+│   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
+│   ├── ci-rust-toolchain.sh  # CI で導入された rustc の版と docs/toolchain.md の照合
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
-│   ├── ci.yml                # changes / check / test-hooks / test-hooks-macos / pr-title / ci-complete
+│   ├── ci.yml                # changes / check / rust-lint / rust-test / test-hooks / test-hooks-macos / pr-title / ci-complete
+│   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・未実装で失敗。TASK-121 で実装）
 │   ├── ai-review.yml         # codex による PR 自動レビュー
 │   └── update-external.yml   # スキル・submodule の日次追従 PR
 ├── .claude/
@@ -69,6 +72,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
+| `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
+| `make test-check-workflow-secrets` | secret 参照の検査自体の回帰テスト |
 
 build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。版の固定ファイルを変えたら `make check-toolchain` も通す。
 

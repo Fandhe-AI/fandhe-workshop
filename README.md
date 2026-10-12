@@ -67,7 +67,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `crates/` | 4 crate（`contract`・`core`・`pack`・`web`）の骨格。`default-members` は `web` を含まない |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-toolchain` / `test-check-toolchain`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain`）。Make なしでも直接実行できる |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -180,6 +180,8 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
 | `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致を検査する |
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
+| `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
+| `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
 
 ## Git hooks
 
@@ -206,7 +208,8 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 | ワークフロー | 内容 |
 |---|---|
-| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain` と `make check-workflow-secrets`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブは `Swatinem/rust-cache` を使い、キャッシュの保存は main への push だけに限る。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
 
@@ -215,6 +218,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 - ruleset の必須チェック（required status checks）には、PR の HEAD に報告される全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を登録しています。
   `implement-issue-tree` の自動マージは、必須に無いチェックが HEAD に 1 件でもある場合と、必須のチェックが HEAD に報告されない場合に辞退するためです。
   方針の詳細は `.claude/rules/github-actions.md` の「必須チェック」、ruleset・マージ設定の導入は `setup-repo-guards` スキルの手順に従います
+- 承認待ち（2026-10-12 時点）: ruleset へ追加する必須チェックの案は `rust lint (fmt + clippy + check-deps)` と `rust build + test (--workspace)` の 2 件です（発行元は github-actions）。人の承認を得ていないため、ruleset にはまだ反映していません。`deploy.yml` の `deploy` は PR に報告されないため、必須に入れません。詳細は `.claude/rules/github-actions.md` の「必須チェック」です
 - 条件付きのジョブは、ジョブ単位の `if:` で制御し、不要な場合もチェック自体は skipped として報告させます（例: `test-hooks-macos`）
 - CI のジョブを追加・改名・削除したら、`ci-complete` の `needs` と ruleset の必須チェックを同じタイミングで更新します
 

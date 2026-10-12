@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps を持つ。build は TASK-27 以降で追加する。
+# Rust 向けの lint / fmt / test / check-deps と、ワークフローの secret 参照の検査を持つ。build は TASK-27 以降で追加する。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-toolchain test-check-toolchain
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -54,3 +54,9 @@ check-toolchain: ## 固定ファイルの版と docs/toolchain.md の一致を�
 
 test-check-toolchain: ## ツールチェーンの一致の検査自体の回帰テスト。直接: scripts/test-check-toolchain.sh
 	@scripts/test-check-toolchain.sh
+
+check-workflow-secrets: ## ci.yml が secret を参照していないことを検査する。直接: scripts/check-workflow-secrets.sh
+	@scripts/check-workflow-secrets.sh
+
+test-check-workflow-secrets: ## secret 参照の検査自体の回帰テスト。直接: scripts/test-check-workflow-secrets.sh
+	@scripts/test-check-workflow-secrets.sh

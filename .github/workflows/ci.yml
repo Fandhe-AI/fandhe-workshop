@@ -2,8 +2,12 @@
 #
 # ローカル（`make check`）・Git hooks（lefthook.yml）・CI が同じコマンド契約を共有する。
 # CI 側で独自のチェックを定義せず、scripts/ の実体を呼ぶ（make スキルの「入口は複数でも
-# 実処理の定義は一つ」）。言語固有のジョブ（fmt / lint / test / build 等）は派生リポジトリで
-# 本ファイルへ追加し、必ず ci-complete の needs と ruleset の必須チェックにも追加すること。
+# 実処理の定義は一つ」）。Rust のジョブ（rust-lint / rust-test）はこの骨格に載せ、後続タスクが
+# 足す検査（clippy の feature 網羅・wasm32 ビルド・ブラウザ試験等）も本ファイルへ追加する。
+# ジョブを足したら、必ず ci-complete の needs と ruleset の必須チェックにも追加すること。
+#
+# 本ファイルは pull_request で動くため、secret を一切参照しない（scripts/check-workflow-secrets.sh が
+# check ジョブで強制する）。配信（デプロイ）は PR の起点を持たない別ワークフロー deploy.yml に置く。
 #
 # ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
 #
@@ -59,6 +63,9 @@ jobs:
           CI_EVENT_NAME: ${{ github.event_name }}
         run: bash scripts/ci-changes.sh
 
+  # editorconfig-checker + shellcheck に加え、道具を要しない設定の検査も流す（make check-toolchain・
+  # make check-workflow-secrets とそれぞれの回帰テスト）。チェック名は ruleset の必須チェックが参照する
+  # ため、中身より狭くなっても変えない。
   check:
     name: "make check (editorconfig-checker + shellcheck)"
     runs-on: ubuntu-latest
@@ -104,6 +111,7 @@ jobs:
         run: |
           set -euo pipefail
           make --version | head -n1
+          jq --version
           editorconfig-checker --version
           shellcheck --version
           # リリースバイナリは `v3.6.1` のように v 接頭辞付きで出力する（Homebrew 版は付かない）
@@ -115,6 +123,18 @@ jobs:
 
       - name: make check
         run: make check
+
+      - name: make check-toolchain
+        run: |
+          set -euo pipefail
+          make check-toolchain
+          make test-check-toolchain
+
+      - name: make check-workflow-secrets
+        run: |
+          set -euo pipefail
+          make check-workflow-secrets
+          make test-check-workflow-secrets
 
   # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
   # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。
@@ -160,6 +180,91 @@ jobs:
 
       - name: test-hooks with macOS system bash 3.2
         run: /bin/bash scripts/hooks/test-hooks.sh
+
+  # Rust の lint 関門の骨格。中身は scripts/lint.sh（fmt check・clippy・web の wasm32 clippy）と
+  # scripts/check-crate-deps.sh で、ここにロジックを重ねて書かない。
+  # clippy の feature 網羅（hello を含む 5 通り）と関門の承認は TASK-80 が行う。同じジョブを取り合わない
+  # よう、拡張は scripts/lint.sh 側で行い、本ジョブの構造は変えない。
+  # needs を持たない（changes に依存させない）。骨格は常に実行し、判定できないときに検査を減らす側へ倒さない。
+  # チェック名は ruleset の必須チェックが参照する。追加・改名時は ruleset も同時に更新する。
+  # キャッシュ: ルートの Cargo.toml は仮想 manifest で [profile] はキーに入らない。[profile]・RUSTFLAGS・
+  # .cargo/config.toml・ビルドのフラグを変えたら、rust-cache の prefix-key の版を上げる
+  # （.claude/rules/rust-build-profile.md）。キーに入れたい CARGO_* の環境変数は、action 実行時点の
+  # 環境変数がハッシュされるため、ジョブの env に置く。
+  rust-lint:
+    name: "rust lint (fmt + clippy + check-deps)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        # rust-toolchain.toml の版・component・target を rustup が導入する（サードパーティ action は使わない）
+        run: rustup toolchain install
+
+      - name: Verify installed toolchain
+        run: bash scripts/ci-rust-toolchain.sh
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          # 保存は main への push だけにする。PR から保存すると main のキャッシュを追い出し、
+          # PR 側からキャッシュを汚染する経路にもなる
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - name: make lint
+        run: make lint
+
+      - name: make check-deps
+        run: |
+          set -euo pipefail
+          make check-deps
+          make test-check-deps
+
+  # Rust のビルドと試験の骨格。ネイティブのビルドは make test（cargo test --locked --workspace）が兼ねる。
+  # --workspace の枠は scripts/test.sh が持ち、web を含む全 crate を試験する（default-members は web を含まない）。
+  # wasm32 のビルド（tools/build-web.sh）は TASK-27、ブラウザ試験は TASK-28 が、本ジョブまたは別ジョブとして足す。
+  # secret を参照しない。配信は deploy.yml（別ワークフロー）。
+  # チェック名は ruleset の必須チェックが参照する。追加・改名時は ruleset も同時に更新する。
+  rust-test:
+    name: "rust build + test (--workspace)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        # rust-toolchain.toml の版・component・target を rustup が導入する（サードパーティ action は使わない）
+        run: rustup toolchain install
+
+      - name: Verify installed toolchain
+        run: bash scripts/ci-rust-toolchain.sh
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          # 保存は main への push だけにする。PR から保存すると main のキャッシュを追い出し、
+          # PR 側からキャッシュを汚染する経路にもなる
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
+      - name: make test
+        run: make test
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
@@ -208,6 +313,8 @@ jobs:
     needs:
       - changes
       - check
+      - rust-lint
+      - rust-test
       - test-hooks
       - test-hooks-macos
       - pr-title

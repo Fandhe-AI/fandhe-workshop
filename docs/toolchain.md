@@ -11,7 +11,7 @@
 - 本文書は、第三者や CI が同じ版でビルド・試験するために固定した道具の版と前提を、一か所にまとめる
 - 固定した版の唯一の正は本文書の表（第 2 節）である。固定ファイルとの一致は `make check-toolchain`
   （`scripts/check-toolchain.sh`）が検査する
-- 版を固定するだけで、CI への組み込みは TASK-33、ビルドスクリプトは TASK-27、ブラウザ試験は TASK-28 が扱う
+- 版を固定するだけで、CI への組み込みは TASK-33（`ci.yml` の `rust-lint`・`rust-test`。導入後の版は `scripts/ci-rust-toolchain.sh` が照合する）、ビルドスクリプトは TASK-27、ブラウザ試験は TASK-28 が扱う
 - 値は PoC-11（`third-party-build`）で動作を確かめたものに限る
 
 ## 2. 固定した版

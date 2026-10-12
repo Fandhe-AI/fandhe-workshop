@@ -25,6 +25,8 @@ cat <<'EOF'
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
   check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
   test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
+  check-workflow-secrets  scripts/check-workflow-secrets.sh  ci.yml が secret を参照していないことを検査する
+  test-check-workflow-secrets  scripts/test-check-workflow-secrets.sh  secret 参照の検査自体の回帰テスト
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
