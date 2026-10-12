@@ -34,6 +34,9 @@ serde_json = "1.0.151"
 toml = "1.1.6"
 yaml_serde = "0.10.7"
 pulldown-cmark = { version = "0.13.4", default-features = false }
+# core 等の性質テスト用。dev-dependencies からのみ参照し、配信物（wasm）には入れない。
+# fork・timeout を外して依存の木を小さくする。
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 
 # 公開 API の文書化と、unsafe・#[allow] の理由の明記を機械で強制する
 # （.claude/rules/code-comment-style.md）。make lint は -D warnings で流す。
