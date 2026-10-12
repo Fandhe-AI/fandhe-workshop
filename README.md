@@ -93,7 +93,7 @@ Rust の導入前のため、版は未固定です（固定は実装着手時の
 | Node.js | 未固定 | ブラウザテストの実行に使う |
 | Playwright | 未固定 | ブラウザテストに使う |
 | Chrome または Chromium | 未固定 | ブラウザテストに使う |
-| 試験データの置き場所 | 未固定 | [docs/architecture.md](./docs/architecture.md) の第 8 節の方針に従う |
+| 試験データの置き場所 | 方針は固定済み | 2 つ以上の crate が使うデータは `testdata/`、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。未決なのは、契約のサンプル・golden の配置の細目だけです |
 
 ### 必要なツール
 
