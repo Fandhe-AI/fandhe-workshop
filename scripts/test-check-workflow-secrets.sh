@@ -75,6 +75,16 @@ run_case "double-quoted secrets inherit is detected" 1 $'jobs:\n  a:\n    "secre
 run_case "quoted if key with github.token is detected" 1 $'jobs:\n  a:\n    \'if\': github.token != \'\''
 run_case "multi-line expression in bare if with secret after close is detected" 1 $'jobs:\n  a:\n    if: ${{ github.event_name == \'push\' &&\n      true }} && secrets.X != \'\'\n    steps: []'
 run_case "quoted if followed by sibling passes" 0 $'jobs:\n  a:\n    \'if\': always()\n    name: secrets rotation'
+run_case "secrets value on the next line is detected" 1 $'jobs:\n  a:\n    secrets:\n      inherit'
+run_case "secrets folded block scalar inherit is detected" 1 $'jobs:\n  a:\n    secrets: >-\n      inherit'
+run_case "secrets literal block scalar inherit is detected" 1 $'jobs:\n  a:\n    secrets: |\n      inherit'
+run_case "flow-style step if with github.token is detected" 1 $'jobs:\n  a:\n    steps:\n      - {if: "github.token != \'\'", run: echo ok}'
+run_case "flow-style job with quoted if and secrets is detected" 1 $'jobs:\n  a: {"if": "secrets.X != \'\'", steps: []}'
+run_case "flow-style if with github.event_name passes" 0 $'jobs:\n  a:\n    steps:\n      - {if: "github.event_name == \'push\'", run: echo ok}'
+run_case "explicit key if with github.token is detected" 1 $'jobs:\n  a:\n    ? if\n    : github.token != \'\''
+run_case "alias is rejected as unsupported (fail-closed)" 2 $'x: &a 1\ny: *a'
+run_case "unparseable YAML is rejected (fail-closed)" 2 $'jobs: [\n  a: {'
+run_case "non-scalar if is rejected (fail-closed)" 2 $'jobs:\n  a:\n    if: [always]'
 
 rc=0
 "${CHECK}" --file "${TMP_DIR}/missing.yml" >/dev/null 2>&1 || rc=$?

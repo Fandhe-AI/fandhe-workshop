@@ -11,6 +11,11 @@
 #   - `github.token`・`github['token']`（空白・大文字小文字を問わない）と、`toJSON(github)`・`github.*` のような github 全体の参照
 #   - `if:` の値（`${{ }}` を省略した形と、継続行を含む）。値全体を式として同じ規則で検査する
 # 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
+# 上の行ベースの検査に加え、ruby（Psych）で YAML を構文木に解析し、記法に依存せず次を検査する。
+#   - `secrets` キーのスカラー値（値を別行に置いた形・`>-` などのブロックスカラー・フロー形式を含む）
+#   - `if` キーの値（フロー形式 `{if: ...}` を含む）。行頭の `if:` の形に頼らず、キーと値の対として検査する
+# 解析できない YAML・エイリアス（`*name`。参照先を追わないため）・`if` のスカラーでない値は、検査を完了できない
+# ものとして終了コード 2 にする（fail-closed）。
 # コメント行も除外しない。YAML のコメントと、run のブロックスカラー（文字列。中の式は評価される）を
 # 行頭の `#` だけでは区別できないため、fail-closed で全行を対象にする。式の外の文章（`secrets を参照しない` 等）は対象外。
 #
@@ -32,6 +37,7 @@ elif [ "$#" -ne 0 ]; then
 fi
 
 require_cmd awk || exit 2
+require_cmd ruby || exit 2
 
 if [ ! -r "${TARGET}" ] || [ ! -f "${TARGET}" ]; then
   echo "error: cannot read ${TARGET}" >&2
@@ -103,11 +109,76 @@ END {
 }
 '
 
+# YAML を構文木にして、キーと値の対を検査する。出力は awk と同じ `行:本文`。
+# 引用符は \x27 / \x22 で書き、シェルのクォートと衝突させない。
+# shellcheck disable=SC2016 # ruby のプログラムなので、シェルに展開させない
+RUBY_PROG='
+require "psych"
+file = ARGV[0]
+begin
+  stream = Psych.parse_stream(File.read(file, mode: "rb").force_encoding("UTF-8"))
+rescue StandardError, Psych::SyntaxError => e
+  warn "error: cannot parse #{file} as YAML: #{e.message.lines.first}"
+  exit 2
+end
+risky = lambda do |v|
+  lb = v.downcase
+  lb =~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
+    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[[ \t]*[\x27\x22]token)/ ||
+    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/
+end
+hits = []
+unsupported = []
+walk = lambda do |node|
+  case node
+  when Psych::Nodes::Alias
+    unsupported << (node.start_line + 1)
+  when Psych::Nodes::Mapping
+    node.children.each_slice(2) do |k, v|
+      if k.is_a?(Psych::Nodes::Scalar)
+        key = k.value.strip.downcase
+        if key == "secrets" && v.is_a?(Psych::Nodes::Scalar)
+          hits << "#{k.start_line + 1}:secrets: #{v.value}"
+        elsif key == "if"
+          if !v.is_a?(Psych::Nodes::Scalar)
+            unsupported << (k.start_line + 1)
+          elsif risky.call(v.value)
+            hits << "#{k.start_line + 1}:if: #{v.value.strip}"
+          end
+        end
+      end
+      walk.call(k)
+      walk.call(v)
+    end
+  else
+    (node.children || []).each { |c| walk.call(c) }
+  end
+end
+walk.call(stream)
+unless unsupported.empty?
+  warn "error: #{file}: unsupported YAML notation (alias or non-scalar if) at line #{unsupported.sort.join(",")}"
+  exit 2
+end
+puts hits
+'
+
 rc=0
 hits="$(awk "${AWK_PROG}" "${TARGET}")" || rc=$?
 if [ "${rc}" -ne 0 ]; then
   echo "error: awk failed on ${TARGET}" >&2
   exit 2
+fi
+
+rc=0
+yaml_hits="$(ruby -e "${RUBY_PROG}" -- "${TARGET}")" || rc=$?
+if [ "${rc}" -ne 0 ] && [ -z "${hits}" ]; then
+  # 行ベースの検査で参照が見つかっていれば、そちらの失敗（1）を優先して報告する。
+  echo "error: YAML structural check failed on ${TARGET}" >&2
+  exit 2
+fi
+if [ -n "${yaml_hits}" ]; then
+  hits="${hits:+${hits}
+}${yaml_hits}"
 fi
 
 if [ -n "${hits}" ]; then
