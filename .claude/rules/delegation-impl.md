@@ -17,7 +17,7 @@ description: >
 | `.github/workflows/**` | `infra-builder` | `github-actions.md` |
 | `.editorconfig`・`.editorconfig-checker.json`・`.shellcheckrc`・`.gitignore`・`.gitmodules` | `infra-builder` | 各ファイル冒頭のコメント |
 | `.claude/rules/**`・`.claude/agents/**`・`.claude/settings.json`・`.mcp.json` | `dotclaude-author` | `security.md` |
-| `README.md`・`CLAUDE.md` | `docs-writer` | `japanese-style.md` |
+| `README.md`・`CLAUDE.md`・`docs/architecture.md` | `docs-writer` | `japanese-style.md` |
 | `Cargo.toml`・`**/*.rs` などエンジンの実装（未導入） | 専用の builder が未定義（下記） | `rust-build-profile.md` |
 
 ### エンジンの実装を始めるとき
@@ -47,7 +47,7 @@ builder Agent（例: `rust-builder`）・コーディング規約（例: `coding
     `make test-hooks` も依頼する
 2. **レビュー**: `reviewer` へ差分のレビューを依頼する（`implement-review`）
 3. **セキュリティ**: PR 作成前に `security-auditor` へ監査を依頼する。要修正があれば PR を作らない
-4. **ドキュメント**: 構成・コマンド・CI・ルール・Agent が変わった場合は `docs-writer` へ `README.md`・`CLAUDE.md`
+4. **ドキュメント**: 構成・コマンド・CI・ルール・Agent が変わった場合は `docs-writer` へ `README.md`・`CLAUDE.md`・`docs/architecture.md`
     の更新を依頼する（`update-docs`）
 5. **コミット・PR**: main が `create-commit`・`create-pr` で行う（`conventional-commits.md`）
 

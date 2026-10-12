@@ -40,6 +40,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── .agents/skills/           # スキルの実体（skills-lock.json で管理する外部取得物）
 ├── skills-lock.json
 ├── .mcp.json                 # プロジェクト共有 MCP サーバー（Playwright MCP）
+├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
 ├── docs/spec/                # 仕様（private submodule。update = none）
 └── _/                        # スキルが使うローカル状態（git 管理外。_/local-plans/ 等）
 ```
@@ -76,7 +77,7 @@ main のコンテキストは、対話・計画・判断のために残す。調
 | `lefthook.yml`・`scripts/hooks/**` | `explorer` | `infra-builder` | `git-hooks.md`・`coding-shell.md` |
 | `.github/workflows/**` | `explorer` | `infra-builder` | `github-actions.md` |
 | `.claude/rules/**`・`.claude/agents/**`・`.claude/settings.json`・`.mcp.json` | `explorer` | `dotclaude-author` | `delegation.md`・`security.md` |
-| `README.md`・`CLAUDE.md` | `explorer` | `docs-writer` | `japanese-style.md` |
+| `README.md`・`CLAUDE.md`・`docs/architecture.md` | `explorer` | `docs-writer` | `japanese-style.md` |
 | `Cargo.toml`・`**/*.rs`（未導入） | `explorer` | 未定義（着手時に `update-claude` で builder を追加） | `rust-build-profile.md` |
 | 外部仕様の確認 | `reference-researcher` | — | `.claude/skills/` のリファレンススキル |
 | `.agents/skills/**`・`.claude/skills/**` | — | 編集しない（`contribute-skill` で upstream へ） | — |
