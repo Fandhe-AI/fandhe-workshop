@@ -5,9 +5,10 @@
 # 理由: ci.yml は pull_request で動くため、secret を参照すると PR の起点から secret に届く経路になる。
 # secret を扱ってよいのは、PR の起点を持たない配信側（deploy.yml）だけにする（TASK-33）。
 #
-# 検出対象は、Actions 式 `${{ ... }}` の中（複数行にまたがる式を含む）にある次の参照と、`secrets: inherit`。
+# 検出対象は、Actions 式 `${{ ... }}` の中（複数行にまたがる式を含む）にある次の参照と、`secrets: inherit`
+# （キー・値を引用符で囲んだ形も含む。`if` キーの引用符付きも同様）。
 #   - `secrets` コンテキスト（`secrets.X`・`secrets['X']`・`secrets . X`・`toJSON(secrets)`。大文字小文字・空白を問わない）
-#   - `github.token`・`github['token']`（空白・大文字小文字を問わない）と、`toJSON(github)` のような github 全体の参照
+#   - `github.token`・`github['token']`（空白・大文字小文字を問わない）と、`toJSON(github)`・`github.*` のような github 全体の参照
 #   - `if:` の値（`${{ }}` を省略した形と、継続行を含む）。値全体を式として同じ規則で検査する
 # 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
 # コメント行も除外しない。YAML のコメントと、run のブロックスカラー（文字列。中の式は評価される）を
@@ -45,7 +46,7 @@ function check(body, start,    lb) {
   lb = tolower(body)
   if (lb ~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
       lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[[ \t]*[\047\042]token)/ ||
-      lb ~ /(^|[^a-z0-9_-])github[ \t]*([),]|$)/) {
+      lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/) {
     print start ":" body
   }
 }
@@ -55,17 +56,19 @@ function flush_if() {
 }
 {
   line = $0
-  if (tolower(line) ~ /secrets[ \t]*:[ \t]*inherit/) {
+  if (tolower(line) ~ /secrets[\047\042]?[ \t]*:[ \t]*[\047\042]?inherit/) {
     print NR ":" line
   }
   # `if:` の値は `${{ }}` を省略しても式として評価されるため、区切りの有無を問わず値全体を式として検査する。
   # 値は継続行（key より深いインデント）まで含める。
-  if (ifctx && !inexpr) {
-    if (match(line, /[^ \t]/) && RSTART - 1 <= ifind) flush_if()
+  # 式が開いたまま始まる行も値の一部なので、インデントでは終端せず必ず取り込む。
+  if (ifctx) {
+    if (!inexpr && match(line, /[^ \t]/) && RSTART - 1 <= ifind) flush_if()
     else ifbuf = ifbuf line " "
   }
-  if (!ifctx && !inexpr && match(line, /^[ \t]*(-[ \t]+)?if[ \t]*:/)) {
+  if (!ifctx && !inexpr && match(line, /^[ \t]*(-[ \t]+)?[\047\042]?if[\047\042]?[ \t]*:/)) {
     ifind = index(line, "if") - 1
+    if (substr(line, ifind, 1) ~ /[\047\042]/) ifind--
     ifbuf = substr(line, RLENGTH + 1) " "
     ifstart = NR
     ifctx = 1

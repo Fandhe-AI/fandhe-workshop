@@ -67,6 +67,15 @@ run_case "bare if in a block scalar is detected" 1 $'jobs:\n  a:\n    if: >-\n  
 run_case "bare if with github.event_name passes" 0 $'jobs:\n  a:\n    if: github.event_name == \'pull_request\'\n    steps: []'
 run_case "bare if followed by a sibling mentioning secrets text passes" 0 $'jobs:\n  a:\n    if: always()\n    name: secrets rotation'
 
+run_case "toJSON(github.*) is detected" 1 $'env:\n  T: ${{ toJSON(github.*) }}'
+run_case "github.* with spaces is detected" 1 $'env:\n  T: ${{ toJSON(github . *) }}'
+run_case "quoted secrets value inherit is detected" 1 $'jobs:\n  a:\n    secrets: \'inherit\''
+run_case "quoted secrets key inherit is detected" 1 $'jobs:\n  a:\n    \'secrets\': inherit'
+run_case "double-quoted secrets inherit is detected" 1 $'jobs:\n  a:\n    "secrets": "inherit"'
+run_case "quoted if key with github.token is detected" 1 $'jobs:\n  a:\n    \'if\': github.token != \'\''
+run_case "multi-line expression in bare if with secret after close is detected" 1 $'jobs:\n  a:\n    if: ${{ github.event_name == \'push\' &&\n      true }} && secrets.X != \'\'\n    steps: []'
+run_case "quoted if followed by sibling passes" 0 $'jobs:\n  a:\n    \'if\': always()\n    name: secrets rotation'
+
 rc=0
 "${CHECK}" --file "${TMP_DIR}/missing.yml" >/dev/null 2>&1 || rc=$?
 expect "missing file exits 2" 2 "${rc}"
