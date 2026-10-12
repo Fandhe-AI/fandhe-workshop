@@ -57,6 +57,15 @@ run_case "secrets.X is detected" 1 $'env:\n  T: ${{ secrets.TOKEN }}'
 run_case "secrets[...] is detected" 1 $'env:\n  T: ${{ secrets["TOKEN"] }}'
 run_case "secrets: inherit is detected" 1 $'jobs:\n  a:\n    secrets: inherit'
 run_case "github.token is detected" 1 $'env:\n  T: ${{ github.token }}'
+run_case "secrets after '}}' in a string literal is detected" 1 $'env:\n  T: ${{ \'}}\' != \'\' && secrets.TOKEN || \'\' }}'
+run_case "escaped quote then '}}' in a string literal is detected" 1 $'env:\n  T: ${{ \'it\'\'s }}\' != \'\' && secrets.TOKEN }}'
+run_case "'}}' in a string literal alone passes" 0 $'env:\n  T: ${{ \'}}\' != \'\' }}'
+run_case "bare if with github.token is detected" 1 $'jobs:\n  a:\n    if: github.token != \'\''
+run_case "bare if with toJSON(github) is detected" 1 $'jobs:\n  a:\n    steps:\n      - if: toJSON(github)\n        run: x'
+run_case "bare if with secrets is detected" 1 $'jobs:\n  a:\n    if: secrets.X != \'\''
+run_case "bare if in a block scalar is detected" 1 $'jobs:\n  a:\n    if: >-\n      github.event_name == \'push\' &&\n      github.token != \'\'\n    steps: []'
+run_case "bare if with github.event_name passes" 0 $'jobs:\n  a:\n    if: github.event_name == \'pull_request\'\n    steps: []'
+run_case "bare if followed by a sibling mentioning secrets text passes" 0 $'jobs:\n  a:\n    if: always()\n    name: secrets rotation'
 
 rc=0
 "${CHECK}" --file "${TMP_DIR}/missing.yml" >/dev/null 2>&1 || rc=$?

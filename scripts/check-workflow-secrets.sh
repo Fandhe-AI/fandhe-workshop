@@ -8,6 +8,8 @@
 # 検出対象は、Actions 式 `${{ ... }}` の中（複数行にまたがる式を含む）にある次の参照と、`secrets: inherit`。
 #   - `secrets` コンテキスト（`secrets.X`・`secrets['X']`・`secrets . X`・`toJSON(secrets)`。大文字小文字・空白を問わない）
 #   - `github.token`・`github['token']`（空白・大文字小文字を問わない）と、`toJSON(github)` のような github 全体の参照
+#   - `if:` の値（`${{ }}` を省略した形と、継続行を含む）。値全体を式として同じ規則で検査する
+# 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
 # コメント行も除外しない。YAML のコメントと、run のブロックスカラー（文字列。中の式は評価される）を
 # 行頭の `#` だけでは区別できないため、fail-closed で全行を対象にする。式の外の文章（`secrets を参照しない` 等）は対象外。
 #
@@ -47,31 +49,54 @@ function check(body, start,    lb) {
     print start ":" body
   }
 }
+function flush_if() {
+  if (ifctx) check(ifbuf, ifstart)
+  ifctx = 0
+}
 {
   line = $0
   if (tolower(line) ~ /secrets[ \t]*:[ \t]*inherit/) {
     print NR ":" line
   }
-  while (length(line) > 0) {
+  # `if:` の値は `${{ }}` を省略しても式として評価されるため、区切りの有無を問わず値全体を式として検査する。
+  # 値は継続行（key より深いインデント）まで含める。
+  if (ifctx && !inexpr) {
+    if (match(line, /[^ \t]/) && RSTART - 1 <= ifind) flush_if()
+    else ifbuf = ifbuf line " "
+  }
+  if (!ifctx && !inexpr && match(line, /^[ \t]*(-[ \t]+)?if[ \t]*:/)) {
+    ifind = index(line, "if") - 1
+    ifbuf = substr(line, RLENGTH + 1) " "
+    ifstart = NR
+    ifctx = 1
+  }
+  # 式の中の文字列リテラル（単一引用符。中の引用符は連続 2 個でエスケープ）にある `}}` は終端として扱わない。
+  n = length(line)
+  i = 1
+  while (i <= n) {
+    c = substr(line, i, 1)
     if (!inexpr) {
-      p = index(line, "${{")
-      if (p == 0) break
-      line = substr(line, p + 3)
-      inexpr = 1
-      buf = ""
-      start = NR
+      if (substr(line, i, 3) == "${{") { inexpr = 1; instr = 0; buf = ""; start = NR; i += 3 }
+      else i++
+    } else if (instr) {
+      buf = buf c
+      if (c == "\047") {
+        if (substr(line, i + 1, 1) == "\047") { buf = buf "\047"; i += 2 }
+        else { instr = 0; i++ }
+      } else i++
+    } else if (c == "\047") {
+      instr = 1; buf = buf c; i++
+    } else if (substr(line, i, 2) == "}}") {
+      inexpr = 0; check(buf, start); i += 2
     } else {
-      p = index(line, "}}")
-      if (p == 0) { buf = buf line " "; break }
-      buf = buf substr(line, 1, p - 1)
-      line = substr(line, p + 2)
-      inexpr = 0
-      check(buf, start)
+      buf = buf c; i++
     }
   }
+  if (inexpr) buf = buf " "
 }
 END {
   if (inexpr) check(buf, start)
+  flush_if()
 }
 '
 
