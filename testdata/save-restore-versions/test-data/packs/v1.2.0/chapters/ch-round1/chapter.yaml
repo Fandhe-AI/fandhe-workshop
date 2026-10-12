@@ -1,0 +1,30 @@
+# 1 周目: idea-cycle（企画 repo で題材の工程）と issue-to-merge（引き継ぎから Issue 化・実装・マージまで）を
+# それぞれ実体 round1 として呼び出す。案内レベルは教材の既定の A のまま。
+id: ch-round1
+title: 1 周目
+
+starts:
+  - { id: s-r1, node: r1-idea }
+
+steps:
+  - id: r1-idea
+    title: "1 周目: 企画 repo で題材の工程"
+    next: [{ to: r1-impl }]
+    use:
+      module: idea-cycle
+      instance: round1
+      args: {}
+
+  - id: r1-impl
+    title: "1 周目: 引き継ぎから Issue 化・実装・マージまで"
+    final: true
+    use:
+      module: issue-to-merge
+      instance: round1
+      args:
+        idea: bbs-with-login
+        setup: "true"
+        root: "42"
+        child: "1"
+        pr: pr-1
+        branch_demo: "true"

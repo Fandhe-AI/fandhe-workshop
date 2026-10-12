@@ -1,0 +1,55 @@
+# 教材テスト: 模範解答の完走と、誤入力の分類（fandhe-pack test 用）。
+[[playthroughs]]
+id = "pt-min"
+end = "complete"
+
+[[playthroughs.segments]]
+start = "s-1"
+steps = [
+  { cmd = "/make-note first-note", expect = "accepted" },
+  { tick = true, expect = "progress" },
+  { tick = true, expect = "progress" },
+  { tick = true, expect = "progress" },
+  { tick = true, expect = "progress" },
+  { tick = true, expect = "progress" },
+  { ui = "v-files notes/draft", expect = "achieved" },
+  { choice = "opt-memo", expect = "accepted" },
+  { approval = "approve", expect = "accepted" },
+  { approval = "approve", expect = "achieved" },
+]
+
+[[error_inputs]]
+id = "e-unknown"
+start = "s-1"
+input = { cmd = "/nothing", expect = "rejected:unknown_command" }
+
+[[error_inputs]]
+id = "e-wrong-order"
+start = "s-1"
+input = { cmd = "/publish-note", expect = "rejected:wrong_order" }
+
+[[error_inputs]]
+id = "e-missing-arg"
+start = "s-1"
+input = { cmd = "/make-note", expect = "rejected:missing_arg" }
+
+[[error_inputs]]
+id = "e-bad-shape"
+start = "s-1"
+input = { cmd = "/make-note Bad_Name", expect = "rejected:bad_arg_shape" }
+
+[[error_inputs]]
+id = "e-busy"
+start = "s-1"
+pre = [{ cmd = "/make-note first-note", expect = "accepted" }]
+input = { choice = "opt-memo", expect = "rejected:busy" }
+
+[[error_inputs]]
+id = "e-not-in-step"
+start = "s-1"
+input = { choice = "opt-memo", expect = "rejected:not_in_this_step" }
+
+[[error_inputs]]
+id = "e-not-supported"
+start = "s-1"
+input = { cmd = "/sync-cloud", expect = "rejected:not_supported" }

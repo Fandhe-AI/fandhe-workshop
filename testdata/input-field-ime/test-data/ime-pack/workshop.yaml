@@ -1,0 +1,80 @@
+# PoC-2 手順 5 のシミュレーター用の教材: 入力 1 件を受け付けて完了する 1 Step（確認は省く）。形式 B（D-20）、語彙 v1＋v1.1（D-21）。
+# 架空の題材で、上流の文面は含まない（D-11）。試作の `packs/` には置かない（PoC-1 の min-3step と同じ扱い）。
+pack:
+  id: ime-practice
+  title: 入力欄の試験（PoC-2 試験データ）
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+
+commands:
+  help: builtin
+  new-idea: skill
+  advance-phase: flow
+  create-pr: skill
+  make-card: skill
+  sync-cloud: unsupported
+
+views:
+  v-cards: { kind: card_list }
+
+hints:
+  h-1-1: { level: 1, text: 使えるコマンドの一覧を出す場面です。 }
+  h-1-5: { level: 1, text: カードを作る処理の途中で Esc を押すと止まります。 }
+
+clarifications:
+  cl-new-idea-name:
+    message: 名前が足りません。どんな名前にしますか。
+    how_to_answer: 名前を付けてもう一度送るか、Esc で取り消します。
+
+rejections:
+  rj-default-unknown-command:
+    category: unknown_command
+    message: そのコマンドは、この教材の一覧にありません。
+    next_action: つづりを確かめるか、/help で使えるコマンドを見ます。
+  rj-default-wrong-order:
+    category: wrong_order
+    message: このコマンドは、まだ使う順番ではありません。
+    next_action: 今の Step の目的を読み、示されたコマンドから始めます。
+  rj-default-missing-arg:
+    category: missing_arg
+    message: 必要な引数が足りません。
+    next_action: 足りない引数を足して、もう一度送ります。
+  rj-default-bad-arg-shape:
+    category: bad_arg_shape
+    message: 引数または入力の形が合っていません。
+    next_action: 小文字・数字・ハイフンだけで書き直して、もう一度送ります。
+  rj-default-busy:
+    category: busy
+    message: いまは処理中です。
+    next_action: 終わるまで待つか、Esc で止めます。
+  rj-default-not-in-this-step:
+    category: not_in_this_step
+    message: この Step では使いません。
+    next_action: 今の Step の目的を読み直します。
+  rj-default-not-supported:
+    category: not_supported
+    message: 実際の環境ではできますが、この教材では扱いません。
+    next_action: 教材の操作に戻ります。
+  rj-default-free-text-note:
+    category: free_text_unjudged
+    message: 書いた内容の良し悪しは、この教材では判定しません。
+    next_action: 自分の文を、自分で読み返します。
+  rj-miss-point:
+    category: not_in_this_step
+    message: そこは、変わった箇所ではありません。
+    next_action: 左の画面で、変化の印が付いた箇所を指します。
+  rj-wrong-answer:
+    category: not_in_this_step
+    message: その答えは、画面の内容と合いません。
+    next_action: 画面をもう一度見て、選び直します。
+
+defaults:
+  unknown_command: rj-default-unknown-command
+  wrong_order: rj-default-wrong-order
+  missing_arg: rj-default-missing-arg
+  bad_arg_shape: rj-default-bad-arg-shape
+  busy: rj-default-busy
+  not_in_this_step: rj-default-not-in-this-step
+  not_supported: rj-default-not-supported
+  free_text_unjudged: rj-default-free-text-note

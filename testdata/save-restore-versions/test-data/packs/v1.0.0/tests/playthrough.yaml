@@ -1,0 +1,194 @@
+# 教材テスト: 模範解答の入力列と、誤入力の期待する分類（PoC-4 の試験用）。
+# 1 周目（実体 round1）と 2 周目（実体 round2）で、同じ 2 つのモジュールを引数を変えて通る。
+
+playthroughs:
+  - id: pt-r1
+    end: complete
+    asserts:
+      - { scope: "issue-to-merge@round1", cond: { flag: stopped }, expect: true }
+      - { scope: "issue-to-merge@round1", cond: { step: { step: st-4-1, state: achieved } }, expect: true }
+    segments:
+      - start: s-r1
+        steps:
+          - { cmd: "/new-idea bbs-with-login", expect: accepted }
+          - { ui: "v-files ideas/bbs-with-login/README.md", expect: achieved }
+          - { text: ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい, expect: "accepted:free_text_unjudged" }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { choice: ans-login-first, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/README.md#status", expect: achieved }
+          - { choice: cand-session, expect: accepted }
+          - { choice: go, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/03-poc/login-session/result.md#verdict", expect: achieved }
+          - { approval: revise, target: expect, expect: accepted }
+          - { approval: approve, expect: achieved }
+          - { ui: v-tasks TASK-1, expect: accepted }
+          - { choice: ans-login-1, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/README.md#status", expect: achieved }
+          - { choice: diff-only, expect: accepted }
+          - { ui: "v-files impl/docs/behavior-bbs-with-login.md", expect: achieved }
+          - { cmd: /init-claude, expect: accepted }
+          - { cmd: /setup-repo-guards, expect: accepted }
+          - { cmd: "/create-issue-tree behavior-bbs-with-login.md", expect: accepted }
+          - { ui: "v-issue-tree issues/child-1", expect: achieved }
+          - { cmd: "/implement-issue-tree 42 --external-checks []", expect: accepted }
+          - { choice: ans-none-explicit, expect: achieved }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: accepted }
+          - { ui: "v-pr-cards prs/pr-1-a", expect: achieved }
+          - { cmd: "/implement-issue-tree 42", expect: accepted }
+          - { choice: ans-add-arg, expect: achieved }
+          - { ui: "v-pr-cards prs/pr-1-a#merge", expect: accepted }
+          - { ui: "v-issue-tree issues/child-1", expect: achieved }
+
+  # 1 周目から 2 周目へ続ける列（新しいルート。D-24）。実体ごとにフラグ・Step の状態が分かれる。
+  - id: pt-rounds
+    end: complete
+    asserts:
+      - { scope: "issue-to-merge@round1", cond: { flag: stopped }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { flag: stopped }, expect: false }
+      - { scope: "issue-to-merge@round1", cond: { step: { step: st-7-3, state: achieved } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-7-3, state: achieved } }, expect: false }
+      - { scope: "issue-to-merge@round1", cond: { step: { step: st-4-1, state: achieved } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-4-1, state: not_started } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-5-1, state: not_started } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-7-4, state: achieved } }, expect: true }
+      - { scope: "idea-cycle@round2", cond: { step: { step: st-2-8, state: achieved } }, expect: true }
+    segments:
+      - start: s-r1
+        steps:
+          - { cmd: "/new-idea bbs-with-login", expect: accepted }
+          - { ui: "v-files ideas/bbs-with-login/README.md", expect: achieved }
+          - { text: ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい, expect: "accepted:free_text_unjudged" }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { choice: ans-login-first, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/README.md#status", expect: achieved }
+          - { choice: cand-session, expect: accepted }
+          - { choice: go, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/03-poc/login-session/result.md#verdict", expect: achieved }
+          - { approval: revise, target: expect, expect: accepted }
+          - { approval: approve, expect: achieved }
+          - { ui: v-tasks TASK-1, expect: accepted }
+          - { choice: ans-login-1, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-with-login/README.md#status", expect: achieved }
+          - { choice: diff-only, expect: accepted }
+          - { ui: "v-files impl/docs/behavior-bbs-with-login.md", expect: achieved }
+          - { cmd: /init-claude, expect: accepted }
+          - { cmd: /setup-repo-guards, expect: accepted }
+          - { cmd: "/create-issue-tree behavior-bbs-with-login.md", expect: accepted }
+          - { ui: "v-issue-tree issues/child-1", expect: achieved }
+          - { cmd: "/implement-issue-tree 42 --external-checks []", expect: accepted }
+          - { choice: ans-none-explicit, expect: achieved }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: accepted }
+          - { ui: "v-pr-cards prs/pr-1-a", expect: achieved }
+          - { cmd: "/implement-issue-tree 42", expect: accepted }
+          - { choice: ans-add-arg, expect: achieved }
+          - { ui: "v-pr-cards prs/pr-1-a#merge", expect: accepted }
+          - { ui: "v-issue-tree issues/child-1", expect: achieved }
+      - start: s-r2
+        steps:
+          - { cmd: "/new-idea bbs-search", expect: accepted }
+          - { ui: "v-files ideas/bbs-search/README.md", expect: achieved }
+          - { text: ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい, expect: "accepted:free_text_unjudged" }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { choice: ans-login-first, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/README.md#status", expect: achieved }
+          - { choice: cand-session, expect: accepted }
+          - { choice: go, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/03-poc/login-session/result.md#verdict", expect: achieved }
+          - { approval: revise, target: expect, expect: accepted }
+          - { approval: approve, expect: achieved }
+          - { ui: v-tasks TASK-1, expect: accepted }
+          - { choice: ans-login-1, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/README.md#status", expect: achieved }
+          - { choice: diff-only, expect: accepted }
+          - { ui: "v-files impl/docs/behavior-bbs-search.md", expect: achieved }
+          - { cmd: "/create-issue-tree behavior-bbs-search.md", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+          - { cmd: "/implement-issue-tree 43 --external-checks []", expect: accepted }
+          - { choice: ans-none-explicit, expect: achieved }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: accepted }
+          - { ui: "v-pr-cards prs/pr-2-a", expect: achieved }
+          - { ui: "v-pr-cards prs/pr-2-a#merge", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+
+  # 1 周目をしていない人が 2 周目から始める（開始用の世界状態は 1 周目の終了時のもの）。
+  - id: pt-r2-fresh
+    end: complete
+    segments:
+      - start: s-r2-fresh
+        steps:
+          - { cmd: "/new-idea bbs-search", expect: accepted }
+          - { ui: "v-files ideas/bbs-search/README.md", expect: achieved }
+          - { text: ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい, expect: "accepted:free_text_unjudged" }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: progress }
+          - { choice: ans-login-first, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/README.md#status", expect: achieved }
+          - { choice: cand-session, expect: accepted }
+          - { choice: go, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/03-poc/login-session/result.md#verdict", expect: achieved }
+          - { approval: revise, target: expect, expect: accepted }
+          - { approval: approve, expect: achieved }
+          - { ui: v-tasks TASK-1, expect: accepted }
+          - { choice: ans-login-1, expect: achieved }
+          - { approval: approve, expect: accepted }
+          - { ui: "v-doc ideas/bbs-search/README.md#status", expect: achieved }
+          - { choice: diff-only, expect: accepted }
+          - { ui: "v-files impl/docs/behavior-bbs-search.md", expect: achieved }
+          - { cmd: "/create-issue-tree behavior-bbs-search.md", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+          - { cmd: "/implement-issue-tree 43 --external-checks []", expect: accepted }
+          - { choice: ans-none-explicit, expect: achieved }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: accepted }
+          - { ui: "v-pr-cards prs/pr-2-a", expect: achieved }
+          - { ui: "v-pr-cards prs/pr-2-a#merge", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+
+  # 2 周目の Issue 化から途中開始する（モジュールの starts を実体ごとに展開した開始）。飛ばした Step は省略。
+  - id: pt-r2-mid
+    end: complete
+    asserts:
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-3-2, state: skipped } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-4-1, state: skipped } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-5-1, state: skipped } }, expect: true }
+      - { scope: "issue-to-merge@round2", cond: { step: { step: st-6-1, state: achieved } }, expect: true }
+      - { scope: "issue-to-merge@round1", cond: { step: { step: st-3-2, state: not_started } }, expect: true }
+    segments:
+      - start: "issue-to-merge@round2#s-6-1"
+        steps:
+          - { cmd: "/create-issue-tree behavior-bbs-search.md", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+          - { cmd: "/implement-issue-tree 43 --external-checks []", expect: accepted }
+          - { choice: ans-none-explicit, expect: achieved }
+          - { tick: true, expect: progress }
+          - { tick: true, expect: accepted }
+          - { ui: "v-pr-cards prs/pr-2-a", expect: achieved }
+          - { ui: "v-pr-cards prs/pr-2-a#merge", expect: accepted }
+          - { ui: "v-issue-tree issues/child-9", expect: achieved }
+
+error_inputs:
+  - { id: e01, start: "issue-to-merge@round2#s-6-1", input: { cmd: "/create-issue-tree behavior-bbs-search.md --root 42", expect: "rejected:not_in_this_step" } }
+  - { id: e02, start: "issue-to-merge@round2#s-6-1", input: { cmd: /create-issue-tree, expect: "rejected:missing_arg" } }
+  - { id: e03, start: "issue-to-merge@round1#s-7-1", input: { cmd: "/implement-issue-tree 42", expect: "rejected:missing_arg" } }
+  - { id: e04, start: "issue-to-merge@round2#s-7-1", input: { cmd: "/implement-issue-tree 42 --external-checks []", expect: "rejected:not_in_this_step" } }
+  - { id: e05, start: "idea-cycle@round2#s-2-1", input: { cmd: "/new-idea bbs-with-login", expect: "rejected:not_in_this_step" } }
+  - { id: e06, start: "idea-cycle@round1#s-2-1", input: { cmd: "/new-idea bbs-search", expect: "rejected:not_in_this_step" } }
+  - { id: e07, start: "idea-cycle@round2#s-2-1", input: { cmd: "/new-idea BBS_Search", expect: "rejected:bad_arg_shape" } }
+  - { id: e08, start: "issue-to-merge@round1#s-6-1", input: { cmd: /advance-phase, expect: "rejected:wrong_order" } }

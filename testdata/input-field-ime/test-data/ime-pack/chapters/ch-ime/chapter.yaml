@@ -1,0 +1,23 @@
+id: ch-ime
+title: 入力欄の試験
+starts:
+  - { id: s-1, node: st-ime }
+steps:
+  - id: st-ime
+    title: 文を送る
+    do: 文を入力して送ります
+    body: st-ime.md
+    lo: [LO-2]
+    final: true
+    views: [v-cards]
+    input: { kind: text, min: 1, max: 20000 }
+    rules:
+      - id: r-text
+        on: { text: true }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: cards/sent, attrs: { state: shown } }
+    confirm:
+      kind: none
+      reason: 送った結果の確認は試験の側が送信の記録で行うため、別の確認を置かない。

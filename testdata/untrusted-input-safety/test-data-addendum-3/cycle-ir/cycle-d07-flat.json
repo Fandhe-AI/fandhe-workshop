@@ -1,0 +1,3009 @@
+{
+ "format_version": 1,
+ "pack": {
+  "id": "bbs-tutorial",
+  "title": "掲示板教材（PoC-3 試作。代表の章だけ）",
+  "version": "0.0.1",
+  "ir_format": 1,
+  "guidance": "A"
+ },
+ "refs": [
+  {
+   "name": "agent-cli-skills",
+   "commit": "92c4fbaa271300e95b4a71579d7720e6fde8143e",
+   "link": "https://github.com/Fandhe-AI/agent-cli-skills"
+  },
+  {
+   "name": "template-ideas",
+   "commit": "8511cbff34987591fa4bb1c3e89f669df888a120",
+   "link": "https://github.com/Fandhe-AI/template-ideas"
+  }
+ ],
+ "commands": {
+  "advance-phase": "flow",
+  "create-commit": "skill",
+  "create-issue-tree": "skill",
+  "create-pr": "skill",
+  "help": "builtin",
+  "implement-issue-tree": "skill",
+  "init-claude": "skill",
+  "new-idea": "skill",
+  "setup-repo-guards": "skill",
+  "update-claude": "unsupported"
+ },
+ "views": {
+  "v-checks": {
+   "kind": "check_list"
+  },
+  "v-diff": {
+   "kind": "diff"
+  },
+  "v-doc": {
+   "kind": "document"
+  },
+  "v-files": {
+   "kind": "file_tree"
+  },
+  "v-issue-tree": {
+   "kind": "task_tree"
+  },
+  "v-pr-cards": {
+   "kind": "card_list"
+  },
+  "v-tasks": {
+   "kind": "task_tree"
+  }
+ },
+ "fixtures": {
+  "fx-kakuu-bbs-readme": {
+   "path": "../fixtures/kakuu-bbs-readme.md",
+   "kind": "document"
+  },
+  "fx-kakuu-behavior": {
+   "path": "../fixtures/kakuu-behavior-login.md",
+   "kind": "document"
+  },
+  "fx-kakuu-brainstorm": {
+   "path": "../fixtures/kakuu-brainstorm.md",
+   "kind": "document"
+  },
+  "fx-kakuu-ci-checks": {
+   "path": "../fixtures/kakuu-ci-checks.txt",
+   "kind": "log"
+  },
+  "fx-kakuu-handoff-diff": {
+   "path": "../fixtures/kakuu-handoff-diff.md",
+   "kind": "diff"
+  },
+  "fx-kakuu-issue-child": {
+   "path": "../fixtures/kakuu-issue-child.md",
+   "kind": "issue"
+  },
+  "fx-kakuu-issue-root": {
+   "path": "../fixtures/kakuu-issue-root.md",
+   "kind": "issue"
+  },
+  "fx-kakuu-launch-args": {
+   "path": "../fixtures/kakuu-launch-args.json",
+   "kind": "data"
+  },
+  "fx-kakuu-poc-log": {
+   "path": "../fixtures/kakuu-poc-log.txt",
+   "kind": "log"
+  },
+  "fx-kakuu-poc-plan": {
+   "path": "../fixtures/kakuu-poc-plan.md",
+   "kind": "document"
+  },
+  "fx-kakuu-poc-result-miss": {
+   "path": "../fixtures/kakuu-poc-result-miss.md",
+   "kind": "document"
+  },
+  "fx-kakuu-poc-result-ok": {
+   "path": "../fixtures/kakuu-poc-result-ok.md",
+   "kind": "document"
+  },
+  "fx-kakuu-pr-card": {
+   "path": "../fixtures/kakuu-pr-card.md",
+   "kind": "card"
+  },
+  "fx-kakuu-roadmap": {
+   "path": "../fixtures/kakuu-roadmap.md",
+   "kind": "document"
+  },
+  "fx-kakuu-tasks": {
+   "path": "../fixtures/kakuu-tasks.md",
+   "kind": "document"
+  }
+ },
+ "hints": {
+  "h-1-4-1": {
+   "level": 1,
+   "text": "名前を入れずに送ると、何が起きるかを見る場面です。"
+  },
+  "h-1-4-2": {
+   "level": 2,
+   "text": "使う skill は new-idea です。"
+  },
+  "h-1-4-3": {
+   "level": 3,
+   "text": "/new-idea とだけ入れて送ります。"
+  },
+  "h-13-2-1": {
+   "level": 1,
+   "text": "2 周目で、既存のツリーに継ぎ足す場面です。"
+  },
+  "h-13-2-2": {
+   "level": 2,
+   "text": "使う skill は create-issue-tree で、既存のルートを --root で指します。"
+  },
+  "h-13-2-3": {
+   "level": 3,
+   "text": "/create-issue-tree search-diff.md --root 42"
+  },
+  "h-2-1-1": {
+   "level": 1,
+   "text": "企画の repo で、新しい企画を作る工程です。"
+  },
+  "h-2-1-2": {
+   "level": 2,
+   "text": "使う skill は new-idea です。"
+  },
+  "h-2-1-3": {
+   "level": 3,
+   "text": "/new-idea bbs-with-login"
+  },
+  "h-2-3-1": {
+   "level": 1,
+   "text": "ブレインストーミングの次の判定の場面です。"
+  },
+  "h-2-3-2": {
+   "level": 2,
+   "text": "判定は、承認の操作で進めます。"
+  },
+  "h-2-3-3": {
+   "level": 3,
+   "text": "「はい」を選ぶと Go になります。"
+  },
+  "h-7-1-1": {
+   "level": 1,
+   "text": "実装の repo で、Issue ツリーを実行する前の確認です。"
+  },
+  "h-7-1-2": {
+   "level": 2,
+   "text": "使う skill は implement-issue-tree です。"
+  },
+  "h-7-1-3": {
+   "level": 3,
+   "text": "/implement-issue-tree 42 --external-checks []"
+  }
+ },
+ "rejections": {
+  "rj-13-1-everything": {
+   "category": "not_in_this_step",
+   "message": "全部を引き継ぐ必要はありません。",
+   "next_action": "変更分だけを選びます。"
+  },
+  "rj-13-2x-wrong": {
+   "category": "not_in_this_step",
+   "message": "その片付け方では、重複が残ります。",
+   "next_action": "重複したルートを閉じる操作を選びます。"
+  },
+  "rj-2-1-kebab": {
+   "category": "bad_arg_shape",
+   "message": "名前は、小文字・数字・ハイフンだけで書く形（kebab-case）にします。",
+   "next_action": "小文字とハイフンで書き直して、もう一度送ります。"
+  },
+  "rj-2-3-nogo": {
+   "category": "not_in_this_step",
+   "message": "ここまでの根拠は、進めることを支持しています。",
+   "next_action": "根拠を読み直し、Go か保留から選びます。"
+  },
+  "rj-2-4-unrelated": {
+   "category": "not_in_this_step",
+   "message": "その候補は、ログインとは関係がありません。",
+   "next_action": "ログインに関わる候補から選びます。"
+  },
+  "rj-2-5-back-far": {
+   "category": "not_in_this_step",
+   "message": "戻る先が遠すぎます。直す必要があるのは検証の計画です。",
+   "next_action": "検証計画の工程に戻ります。"
+  },
+  "rj-2-5-back-on-ok": {
+   "category": "not_in_this_step",
+   "message": "目安を満たしているので、戻る必要はありません。",
+   "next_action": "Go を選びます。"
+  },
+  "rj-2-5-go-on-miss": {
+   "category": "not_in_this_step",
+   "message": "目安を外れた結果では、Go にできません。",
+   "next_action": "戻る工程を選びます。"
+  },
+  "rj-2-5-nogo": {
+   "category": "not_in_this_step",
+   "message": "No-Go にする根拠は、結果カードにありません。",
+   "next_action": "結果カードを読み直し、Go か戻る工程から選びます。"
+  },
+  "rj-2-6-unfixed": {
+   "category": "not_in_this_step",
+   "message": "曖昧な期待が残ったまま、承認はできません。",
+   "next_action": "期待の欄を、前提・操作・期待の形に直す差し戻しをします。"
+  },
+  "rj-2-6-wrong-target": {
+   "category": "not_in_this_step",
+   "message": "その箇所には、曖昧な語がありません。",
+   "next_action": "「すぐ表示される」を含む、期待の欄を指します。"
+  },
+  "rj-2-7-wrong-row": {
+   "category": "not_in_this_step",
+   "message": "その行は、今回確かめる対象ではありません。",
+   "next_action": "TASK-1 の行を指します。"
+  },
+  "rj-7-1-missing-arg": {
+   "category": "missing_arg",
+   "message": "起動の前に、外部チェックの扱いを決める必要があります。",
+   "next_action": "--external-checks に、[]（外部チェックなし）か、実際のチェック名を書いて送ります。"
+  },
+  "rj-7-3-with-arg": {
+   "category": "not_in_this_step",
+   "message": "この分岐では、事前確認を飛ばした起動を試します。",
+   "next_action": "--external-checks を付けずに送ります。"
+  },
+  "rj-default-bad-arg-shape": {
+   "category": "bad_arg_shape",
+   "message": "引数または入力の形が合っていません。",
+   "next_action": "形の規則を確かめて、直して送ります。"
+  },
+  "rj-default-busy": {
+   "category": "busy",
+   "message": "いまは処理中です。",
+   "next_action": "終わるまで待ちます。終わると、次の入力を受け付けます。"
+  },
+  "rj-default-free-text-note": {
+   "category": "free_text_unjudged",
+   "message": "書いた内容の良し悪しは、この教材では判定しません。",
+   "next_action": "自分の文が、目的・対象・期待の 3 点を含むかを、自分で確かめます。"
+  },
+  "rj-default-missing-arg": {
+   "category": "missing_arg",
+   "message": "必要な引数が足りません。",
+   "next_action": "足りない引数を足して、もう一度送ります。"
+  },
+  "rj-default-not-in-this-step": {
+   "category": "not_in_this_step",
+   "message": "この Step では使いません。",
+   "next_action": "今の Step の目的を読み直し、ヒントを開きます。"
+  },
+  "rj-default-not-supported": {
+   "category": "not_supported",
+   "message": "実際の環境ではできますが、この教材では扱いません。",
+   "next_action": "上流の説明へのリンクを読み、教材の操作に戻ります。"
+  },
+  "rj-default-unknown-command": {
+   "category": "unknown_command",
+   "message": "そのコマンドは、この教材の一覧にありません。",
+   "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+  },
+  "rj-default-wrong-order": {
+   "category": "wrong_order",
+   "message": "このコマンドは、まだ使う順番ではありません。",
+   "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+  },
+  "rj-miss-point": {
+   "category": "not_in_this_step",
+   "message": "そこは、変わった箇所ではありません。",
+   "next_action": "左の画面で、変化の印が付いた箇所を指します。"
+  },
+  "rj-wrong-answer": {
+   "category": "not_in_this_step",
+   "message": "その答えは、画面の内容と合いません。",
+   "next_action": "左の画面をもう一度見て、選び直します。"
+  }
+ },
+ "clarifications": {
+  "cl-new-idea-name": {
+   "message": "名前が指定されていません。作る企画の名前を聞き返します。",
+   "how_to_answer": "名前を入力して送るか、Esc で取り消します。"
+  }
+ },
+ "defaults": {
+  "bad_arg_shape": "rj-default-bad-arg-shape",
+  "busy": "rj-default-busy",
+  "free_text_unjudged": "rj-default-free-text-note",
+  "missing_arg": "rj-default-missing-arg",
+  "not_in_this_step": "rj-default-not-in-this-step",
+  "not_supported": "rj-default-not-supported",
+  "unknown_command": "rj-default-unknown-command",
+  "wrong_order": "rj-default-wrong-order"
+ },
+ "instances": [
+  {
+   "id": "main",
+   "module": null,
+   "args": {},
+   "caller": null
+  },
+  {
+   "id": "impl-run@round1",
+   "module": "impl-run",
+   "args": {
+    "branch_demo": "true",
+    "child": "1",
+    "pr": "pr-1"
+   },
+   "caller": "main/u-impl"
+  },
+  {
+   "id": "impl-run@round1/merge-gate@gate",
+   "module": "merge-gate",
+   "args": {
+    "child": "1",
+    "pr": "pr-1"
+   },
+   "caller": "impl-run@round1/u-merge"
+  },
+  {
+   "id": "impl-run@round2",
+   "module": "impl-run",
+   "args": {
+    "branch_demo": "false",
+    "child": "9",
+    "pr": "pr-2"
+   },
+   "caller": "main/st-13-3"
+  },
+  {
+   "id": "impl-run@round2/merge-gate@gate",
+   "module": "merge-gate",
+   "args": {
+    "child": "9",
+    "pr": "pr-2"
+   },
+   "caller": "impl-run@round2/u-merge"
+  }
+ ],
+ "nodes": [
+  {
+   "uid": "main/st-1-4",
+   "scope": "main",
+   "unit": "ch-1",
+   "step": {
+    "id": "st-1-4",
+    "title": "引数なしの /new-idea と、順序違いの /advance-phase",
+    "body": "st-1-4.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": true,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [],
+    "hints": [
+     "h-1-4-1",
+     "h-1-4-2",
+     "h-1-4-3"
+    ],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "new-idea",
+     "args": [
+      {
+       "name": "name",
+       "positional": true,
+       "required": false,
+       "shape": "kebab_case"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-ask-name",
+      "on": {
+       "command": "new-idea",
+       "missing": [
+        "name"
+       ],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "clarify",
+       "clarification": "cl-new-idea-name"
+      }
+     },
+     {
+      "id": "r-cancel",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": true
+      },
+      "when": {
+       "clarifying": "cl-new-idea-name"
+      },
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_flag": "cancelled"
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "asked-back",
+       "correct": true
+      },
+      {
+       "id": "rejected",
+       "correct": false
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [],
+    "next": [],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-1",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-1",
+    "title": "題材のアイデアを作る",
+    "body": "st-2-1.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-files"
+    ],
+    "fixtures": [
+     "fx-kakuu-bbs-readme"
+    ],
+    "hints": [
+     "h-2-1-1",
+     "h-2-1-2",
+     "h-2-1-3"
+    ],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "new-idea",
+     "args": [
+      {
+       "name": "name",
+       "positional": true,
+       "required": true,
+       "shape": "kebab_case"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-create",
+      "on": {
+       "command": "new-idea",
+       "missing": [],
+       "args": {
+        "name": "bbs-with-login"
+       },
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/README.md",
+          "fixture": "fx-kakuu-bbs-readme",
+          "attrs": {
+           "status": "ブレスト"
+          }
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {
+     "bad_arg_shape": "rj-2-1-kebab"
+    },
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-files",
+       "path": "ideas/bbs-with-login/README.md"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-2",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-2",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-2",
+    "title": "ブレインストーミングの工程",
+    "body": "st-2-2.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [
+     "fx-kakuu-brainstorm"
+    ],
+    "hints": [],
+    "on_enter": [
+     {
+      "clear_flag": "hold"
+     }
+    ],
+    "processing": [
+     {
+      "name": "gen-heading",
+      "effects": []
+     },
+     {
+      "name": "gen-body",
+      "effects": []
+     },
+     {
+      "name": "gen-done",
+      "effects": [
+       {
+        "set_attr": {
+         "path": "ideas/bbs-with-login/01-brainstorm.md",
+         "attr": "sections",
+         "value": "filled"
+        }
+       }
+      ]
+     }
+    ],
+    "input": {
+     "kind": "text",
+     "min": 10,
+     "max": 2000
+    },
+    "rules": [
+     {
+      "id": "r-write",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": true,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/01-brainstorm.md",
+          "fixture": "fx-kakuu-brainstorm",
+          "attrs": {
+           "sections": "drafting"
+          }
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "ans-login-first",
+       "correct": true
+      },
+      {
+       "id": "ans-search-first",
+       "correct": true
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-3",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-3",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-3",
+    "title": "追求判定",
+    "body": "st-2-3.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": false,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [],
+    "hints": [
+     "h-2-3-1",
+     "h-2-3-2",
+     "h-2-3-3"
+    ],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "approval"
+    },
+    "rules": [
+     {
+      "id": "r-go",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "approve",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "ideas/bbs-with-login/README.md",
+          "attr": "status",
+          "value": "PoC計画"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-nogo",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "reject",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-3-nogo"
+      }
+     },
+     {
+      "id": "r-hold",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "revise",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_flag": "hold"
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-doc",
+       "path": "ideas/bbs-with-login/README.md#status"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-2",
+      "when": {
+       "flag": "hold"
+      }
+     },
+     {
+      "to": "main/st-2-4",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-4",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-4",
+    "title": "検証計画の工程",
+    "body": "st-2-4.md",
+    "lo": [],
+    "final": false,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [
+     "fx-kakuu-poc-plan"
+    ],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "choice",
+     "options": [
+      {
+       "id": "cand-session",
+       "label": "ログイン状態の保持方式 A"
+      },
+      {
+       "id": "cand-token",
+       "label": "ログイン状態の保持方式 B"
+      },
+      {
+       "id": "cand-theme",
+       "label": "画面の配色"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-session",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "cand-session",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/02-poc-plan.md",
+          "fixture": "fx-kakuu-poc-plan",
+          "attrs": {}
+         }
+        },
+        {
+         "clear_flag": "variant_miss"
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-token",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "cand-token",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/02-poc-plan.md",
+          "fixture": "fx-kakuu-poc-plan",
+          "attrs": {}
+         }
+        },
+        {
+         "set_flag": "variant_miss"
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-theme",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "cand-theme",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-4-unrelated"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "none",
+     "reason": "候補を選ぶこと自体が目的で、左の変化を指す学習目標がない"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-5",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-5",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-5",
+    "title": "検証の結果を判断する",
+    "body": "st-2-5.md",
+    "lo": [
+     "LO-4"
+    ],
+    "final": false,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [
+     "fx-kakuu-poc-log"
+    ],
+    "hints": [],
+    "on_enter": [
+     {
+      "when": {
+       "flag": "variant_miss"
+      },
+      "put": {
+       "path": "03-poc/login-session/result.md",
+       "fixture": "fx-kakuu-poc-result-miss",
+       "attrs": {
+        "verdict": "miss"
+       }
+      }
+     },
+     {
+      "when": {
+       "not": {
+        "flag": "variant_miss"
+       }
+      },
+      "put": {
+       "path": "03-poc/login-session/result.md",
+       "fixture": "fx-kakuu-poc-result-ok",
+       "attrs": {
+        "verdict": "ok"
+       }
+      }
+     }
+    ],
+    "processing": [],
+    "input": {
+     "kind": "choice",
+     "options": [
+      {
+       "id": "go",
+       "label": "Go"
+      },
+      {
+       "id": "nogo",
+       "label": "No-Go"
+      },
+      {
+       "id": "back-brainstorm",
+       "label": "ブレインストーミングに戻る"
+      },
+      {
+       "id": "back-poc",
+       "label": "検証計画に戻る"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-go-ok",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "go",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": {
+       "world_attr": {
+        "path": "03-poc/login-session/result.md",
+        "attr": "verdict",
+        "eq": "ok"
+       }
+      },
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "ideas/bbs-with-login/README.md",
+          "attr": "status",
+          "value": "ビヘイビア定義"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-go-miss",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "go",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": {
+       "world_attr": {
+        "path": "03-poc/login-session/result.md",
+        "attr": "verdict",
+        "eq": "miss"
+       }
+      },
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-5-go-on-miss"
+      }
+     },
+     {
+      "id": "r-nogo",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "nogo",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-5-nogo"
+      }
+     },
+     {
+      "id": "r-back-poc-miss",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "back-poc",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": {
+       "world_attr": {
+        "path": "03-poc/login-session/result.md",
+        "attr": "verdict",
+        "eq": "miss"
+       }
+      },
+      "outcome": {
+       "kind": "accept",
+       "effects": []
+      }
+     },
+     {
+      "id": "r-back-poc-ok",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "back-poc",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": {
+       "world_attr": {
+        "path": "03-poc/login-session/result.md",
+        "attr": "verdict",
+        "eq": "ok"
+       }
+      },
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-5-back-on-ok"
+      }
+     },
+     {
+      "id": "r-back-brainstorm",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "back-brainstorm",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-5-back-far"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-doc",
+       "path": "03-poc/login-session/result.md#verdict"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-4",
+      "when": {
+       "chose": {
+        "step": "st-2-5",
+        "option": "back-poc"
+       }
+      }
+     },
+     {
+      "to": "main/st-2-6",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-6",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-6",
+    "title": "ビヘイビア定義の工程",
+    "body": "st-2-6.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [
+     "fx-kakuu-behavior"
+    ],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "approval"
+    },
+    "rules": [
+     {
+      "id": "r-revise-expect",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "revise",
+       "target": "expect",
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/04-behavior/screen-login.md",
+          "fixture": "fx-kakuu-behavior",
+          "attrs": {}
+         }
+        },
+        {
+         "set_flag": "revised"
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-revise-other",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "revise",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-6-wrong-target"
+      }
+     },
+     {
+      "id": "r-approve-early",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "approve",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-6-unfixed"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "approve"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-7",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-7",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-7",
+    "title": "タスク分解の工程",
+    "body": "st-2-7.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-tasks"
+    ],
+    "fixtures": [
+     "fx-kakuu-tasks"
+    ],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "ui_action",
+     "targets": [
+      {
+       "view": "v-tasks",
+       "path": "TASK-1"
+      },
+      {
+       "view": "v-tasks",
+       "path": "TASK-2"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-task1",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": {
+        "view": "v-tasks",
+        "path": "TASK-1"
+       },
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/05-tasks.md",
+          "fixture": "fx-kakuu-tasks",
+          "attrs": {}
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-task2",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": {
+        "view": "v-tasks",
+        "path": "TASK-2"
+       },
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-2-7-wrong-row"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "ans-login-1",
+       "correct": true
+      },
+      {
+       "id": "ans-login-2",
+       "correct": false
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-2-8",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-2-8",
+   "scope": "main",
+   "unit": "ch-2",
+   "step": {
+    "id": "st-2-8",
+    "title": "ロードマップの工程と着手判定",
+    "body": "st-2-8.md",
+    "lo": [],
+    "final": true,
+    "views": [
+     "v-doc"
+    ],
+    "fixtures": [
+     "fx-kakuu-roadmap"
+    ],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "approval"
+    },
+    "rules": [
+     {
+      "id": "r-approve",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": "approve",
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "ideas/bbs-with-login/06-roadmap.md",
+          "fixture": "fx-kakuu-roadmap",
+          "attrs": {}
+         }
+        },
+        {
+         "set_attr": {
+          "path": "ideas/bbs-with-login/README.md",
+          "attr": "status",
+          "value": "着手判定済み"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-doc",
+       "path": "ideas/bbs-with-login/README.md#status"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-7-1",
+   "scope": "main",
+   "unit": "ch-7",
+   "step": {
+    "id": "st-7-1",
+    "title": "起動の前の確認と、起動",
+    "body": "st-7-1.md",
+    "lo": [
+     "LO-1"
+    ],
+    "final": false,
+    "views": [
+     "v-issue-tree",
+     "v-checks"
+    ],
+    "fixtures": [
+     "fx-kakuu-launch-args"
+    ],
+    "hints": [
+     "h-7-1-1",
+     "h-7-1-2",
+     "h-7-1-3"
+    ],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "implement-issue-tree",
+     "args": [
+      {
+       "name": "parent",
+       "positional": true,
+       "required": true,
+       "shape": "digits"
+      },
+      {
+       "name": "external_checks",
+       "positional": false,
+       "required": true,
+       "shape": null
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-launch",
+      "on": {
+       "command": "implement-issue-tree",
+       "missing": [],
+       "args": {
+        "parent": "42"
+       },
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_flag": "precheck_ok"
+        },
+        {
+         "set_attr": {
+          "path": "issues/root-42",
+          "attr": "state",
+          "value": "running"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {
+     "missing_arg": "rj-7-1-missing-arg"
+    },
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "ans-none-explicit",
+       "correct": true
+      },
+      {
+       "id": "ans-skip-ci",
+       "correct": false
+      },
+      {
+       "id": "ans-all-checks",
+       "correct": false
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/u-impl",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/u-impl",
+   "scope": "main",
+   "unit": "ch-7",
+   "step": {
+    "id": "u-impl",
+    "title": "実装の進行（impl-run の 1 回目）",
+    "body": null,
+    "lo": [],
+    "final": true,
+    "views": [],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": null,
+    "rules": [],
+    "on_reject": {},
+    "confirm": null,
+    "on_achieved": [],
+    "next": [],
+    "use": {
+     "module": "impl-run",
+     "instance": "round1",
+     "args": {
+      "branch_demo": "true",
+      "child": "1",
+      "pr": "pr-1"
+     }
+    }
+   },
+   "enter": "impl-run@round1/st-7-2",
+   "exit_to": null
+  },
+  {
+   "uid": "impl-run@round1/st-7-2",
+   "scope": "impl-run@round1",
+   "unit": "impl-run",
+   "step": {
+    "id": "st-7-2",
+    "title": "子 Issue ごとの進行",
+    "body": "st-7-2.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-pr-cards",
+     "v-checks"
+    ],
+    "fixtures": [
+     "fx-kakuu-pr-card"
+    ],
+    "hints": [],
+    "on_enter": [
+     {
+      "put": {
+       "path": "prs/pr-1-a",
+       "fixture": "fx-kakuu-pr-card",
+       "attrs": {
+        "state": "open"
+       }
+      }
+     }
+    ],
+    "processing": [
+     {
+      "name": "pr-created",
+      "effects": [
+       {
+        "set_attr": {
+         "path": "prs/pr-1-a",
+         "attr": "state",
+         "value": "ci-running"
+        }
+       }
+      ]
+     },
+     {
+      "name": "ci-passed",
+      "effects": [
+       {
+        "set_attr": {
+         "path": "prs/pr-1-a",
+         "attr": "state",
+         "value": "ready"
+        }
+       }
+      ]
+     }
+    ],
+    "input": {
+     "kind": "wait"
+    },
+    "rules": [],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-pr-cards",
+       "path": "prs/pr-1-a"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "impl-run@round1/st-7-3",
+      "when": {
+       "param": {
+        "name": "branch_demo",
+        "eq": "true"
+       }
+      }
+     },
+     {
+      "to": "impl-run@round1/u-merge",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "main/u-impl"
+  },
+  {
+   "uid": "impl-run@round1/st-7-3",
+   "scope": "impl-run@round1",
+   "unit": "impl-run",
+   "step": {
+    "id": "st-7-3",
+    "title": "事前確認を飛ばした起動で止まる場面",
+    "body": "st-7-3.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": false,
+    "views": [
+     "v-issue-tree",
+     "v-checks"
+    ],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "implement-issue-tree",
+     "args": [
+      {
+       "name": "parent",
+       "positional": true,
+       "required": true,
+       "shape": "digits"
+      },
+      {
+       "name": "external_checks",
+       "positional": false,
+       "required": false,
+       "shape": null
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-blocked",
+      "on": {
+       "command": "implement-issue-tree",
+       "missing": [
+        "external_checks"
+       ],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "issues/root-42",
+          "attr": "state",
+          "value": "blocked"
+         }
+        },
+        {
+         "set_flag": "stopped"
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-with-arg",
+      "on": {
+       "command": "implement-issue-tree",
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-7-3-with-arg"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "ans-add-arg",
+       "correct": true
+      },
+      {
+       "id": "ans-same-args",
+       "correct": false
+      },
+      {
+       "id": "ans-ci-failed",
+       "correct": false
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [
+     {
+      "set_attr": {
+       "path": "issues/root-42",
+       "attr": "state",
+       "value": "running"
+      }
+     }
+    ],
+    "next": [
+     {
+      "to": "impl-run@round1/u-merge",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "main/u-impl"
+  },
+  {
+   "uid": "impl-run@round1/u-merge",
+   "scope": "impl-run@round1",
+   "unit": "impl-run",
+   "step": {
+    "id": "u-merge",
+    "title": "マージ（merge-gate の呼び出し）",
+    "body": null,
+    "lo": [],
+    "final": true,
+    "views": [],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": null,
+    "rules": [],
+    "on_reject": {},
+    "confirm": null,
+    "on_achieved": [],
+    "next": [],
+    "use": {
+     "module": "merge-gate",
+     "instance": "gate",
+     "args": {
+      "child": "1",
+      "pr": "pr-1"
+     }
+    }
+   },
+   "enter": "impl-run@round1/merge-gate@gate/st-7-4",
+   "exit_to": "main/u-impl"
+  },
+  {
+   "uid": "impl-run@round1/merge-gate@gate/st-7-4",
+   "scope": "impl-run@round1/merge-gate@gate",
+   "unit": "merge-gate",
+   "step": {
+    "id": "st-7-4",
+    "title": "自分でマージする",
+    "body": "st-7-4.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": true,
+    "views": [
+     "v-pr-cards",
+     "v-issue-tree"
+    ],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "ui_action",
+     "targets": [
+      {
+       "view": "v-pr-cards",
+       "path": "prs/pr-1-a#merge"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-merge",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": {
+        "view": "v-pr-cards",
+        "path": "prs/pr-1-a#merge"
+       },
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "prs/pr-1-a",
+          "attr": "state",
+          "value": "merged"
+         }
+        },
+        {
+         "set_attr": {
+          "path": "issues/child-1",
+          "attr": "state",
+          "value": "closed"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-issue-tree",
+       "path": "issues/child-1"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "impl-run@round1/merge-gate@gate/u-loop"
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "impl-run@round1/u-merge"
+  },
+  {
+   "uid": "main/st-13-1",
+   "scope": "main",
+   "unit": "ch-13",
+   "step": {
+    "id": "st-13-1",
+    "title": "変更分だけを引き継ぐ",
+    "body": "st-13-1.md",
+    "lo": [
+     "LO-1"
+    ],
+    "final": false,
+    "views": [
+     "v-files",
+     "v-diff"
+    ],
+    "fixtures": [
+     "fx-kakuu-handoff-diff"
+    ],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "choice",
+     "options": [
+      {
+       "id": "diff-only",
+       "label": "変更分だけ"
+      },
+      {
+       "id": "everything",
+       "label": "すべて"
+      },
+      {
+       "id": "nothing",
+       "label": "引き継がない"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-diff",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "diff-only",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "impl/docs/behavior-search-diff.md",
+          "fixture": "fx-kakuu-handoff-diff",
+          "attrs": {}
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-everything",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "everything",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-13-1-everything"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-files",
+       "path": "impl/docs/behavior-search-diff.md"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-13-2",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-13-2",
+   "scope": "main",
+   "unit": "ch-13",
+   "step": {
+    "id": "st-13-2",
+    "title": "既存のツリーへ継ぎ足す",
+    "body": "st-13-2.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": false,
+    "views": [
+     "v-issue-tree"
+    ],
+    "fixtures": [],
+    "hints": [
+     "h-13-2-1",
+     "h-13-2-2",
+     "h-13-2-3"
+    ],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "create-issue-tree",
+     "args": [
+      {
+       "name": "input",
+       "positional": true,
+       "required": true,
+       "shape": null
+      },
+      {
+       "name": "root",
+       "positional": false,
+       "required": false,
+       "shape": "digits"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-with-root",
+      "on": {
+       "command": "create-issue-tree",
+       "missing": [],
+       "args": {
+        "root": "42"
+       },
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "issues/child-9",
+          "fixture": "fx-kakuu-issue-child",
+          "attrs": {
+           "state": "open"
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-without-root",
+      "on": {
+       "command": "create-issue-tree",
+       "missing": [
+        "root"
+       ],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "put": {
+          "path": "issues/child-9",
+          "fixture": "fx-kakuu-issue-child",
+          "attrs": {
+           "state": "open"
+          }
+         }
+        },
+        {
+         "put": {
+          "path": "issues/root-43",
+          "fixture": "fx-kakuu-issue-root",
+          "attrs": {
+           "state": "open"
+          }
+         }
+        },
+        {
+         "set_flag": "dup_root"
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-issue-tree",
+       "path": "issues/child-9"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-13-2x",
+      "when": {
+       "count": {
+        "prefix": "issues/root-",
+        "where": {
+         "state": "open"
+        },
+        "op": ">=",
+        "n": 2
+       }
+      }
+     },
+     {
+      "to": "main/st-13-3",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-13-2x",
+   "scope": "main",
+   "unit": "ch-13",
+   "step": {
+    "id": "st-13-2x",
+    "title": "重複したルートを片付ける",
+    "body": "st-13-2x.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": false,
+    "views": [
+     "v-issue-tree"
+    ],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "choice",
+     "options": [
+      {
+       "id": "close-dup",
+       "label": "重複したルートを閉じる"
+      },
+      {
+       "id": "keep-both",
+       "label": "両方残す"
+      },
+      {
+       "id": "delete-all",
+       "label": "すべて消す"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-close",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "close-dup",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "issues/root-43",
+          "attr": "state",
+          "value": "closed"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-keep",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "keep-both",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-13-2x-wrong"
+      }
+     },
+     {
+      "id": "r-delete",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": "delete-all",
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-13-2x-wrong"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "approve"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "main/st-13-3",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": null
+  },
+  {
+   "uid": "main/st-13-3",
+   "scope": "main",
+   "unit": "ch-13",
+   "step": {
+    "id": "st-13-3",
+    "title": "実装の進行（impl-run の 2 回目）",
+    "body": null,
+    "lo": [],
+    "final": true,
+    "views": [],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": null,
+    "rules": [],
+    "on_reject": {},
+    "confirm": null,
+    "on_achieved": [],
+    "next": [],
+    "use": {
+     "module": "impl-run",
+     "instance": "round2",
+     "args": {
+      "branch_demo": "false",
+      "child": "9",
+      "pr": "pr-2"
+     }
+    }
+   },
+   "enter": "impl-run@round2/st-7-2",
+   "exit_to": null
+  },
+  {
+   "uid": "impl-run@round2/st-7-2",
+   "scope": "impl-run@round2",
+   "unit": "impl-run",
+   "step": {
+    "id": "st-7-2",
+    "title": "子 Issue ごとの進行",
+    "body": "st-7-2.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": false,
+    "views": [
+     "v-pr-cards",
+     "v-checks"
+    ],
+    "fixtures": [
+     "fx-kakuu-pr-card"
+    ],
+    "hints": [],
+    "on_enter": [
+     {
+      "put": {
+       "path": "prs/pr-2-a",
+       "fixture": "fx-kakuu-pr-card",
+       "attrs": {
+        "state": "open"
+       }
+      }
+     }
+    ],
+    "processing": [
+     {
+      "name": "pr-created",
+      "effects": [
+       {
+        "set_attr": {
+         "path": "prs/pr-2-a",
+         "attr": "state",
+         "value": "ci-running"
+        }
+       }
+      ]
+     },
+     {
+      "name": "ci-passed",
+      "effects": [
+       {
+        "set_attr": {
+         "path": "prs/pr-2-a",
+         "attr": "state",
+         "value": "ready"
+        }
+       }
+      ]
+     }
+    ],
+    "input": {
+     "kind": "wait"
+    },
+    "rules": [],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-pr-cards",
+       "path": "prs/pr-2-a"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [
+     {
+      "to": "impl-run@round2/st-7-3",
+      "when": {
+       "param": {
+        "name": "branch_demo",
+        "eq": "true"
+       }
+      }
+     },
+     {
+      "to": "impl-run@round2/u-merge",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "main/st-13-3"
+  },
+  {
+   "uid": "impl-run@round2/st-7-3",
+   "scope": "impl-run@round2",
+   "unit": "impl-run",
+   "step": {
+    "id": "st-7-3",
+    "title": "事前確認を飛ばした起動で止まる場面",
+    "body": "st-7-3.md",
+    "lo": [
+     "LO-3"
+    ],
+    "final": false,
+    "views": [
+     "v-issue-tree",
+     "v-checks"
+    ],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "command",
+     "name": "implement-issue-tree",
+     "args": [
+      {
+       "name": "parent",
+       "positional": true,
+       "required": true,
+       "shape": "digits"
+      },
+      {
+       "name": "external_checks",
+       "positional": false,
+       "required": false,
+       "shape": null
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-blocked",
+      "on": {
+       "command": "implement-issue-tree",
+       "missing": [
+        "external_checks"
+       ],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "issues/root-42",
+          "attr": "state",
+          "value": "blocked"
+         }
+        },
+        {
+         "set_flag": "stopped"
+        }
+       ]
+      }
+     },
+     {
+      "id": "r-with-arg",
+      "on": {
+       "command": "implement-issue-tree",
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": null,
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "reject",
+       "rejection": "rj-7-3-with-arg"
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "answer",
+     "options": [
+      {
+       "id": "ans-add-arg",
+       "correct": true
+      },
+      {
+       "id": "ans-same-args",
+       "correct": false
+      },
+      {
+       "id": "ans-ci-failed",
+       "correct": false
+      }
+     ],
+     "on_wrong": "rj-wrong-answer"
+    },
+    "on_achieved": [
+     {
+      "set_attr": {
+       "path": "issues/root-42",
+       "attr": "state",
+       "value": "running"
+      }
+     }
+    ],
+    "next": [
+     {
+      "to": "impl-run@round2/u-merge",
+      "when": null
+     }
+    ],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "main/st-13-3"
+  },
+  {
+   "uid": "impl-run@round2/u-merge",
+   "scope": "impl-run@round2",
+   "unit": "impl-run",
+   "step": {
+    "id": "u-merge",
+    "title": "マージ（merge-gate の呼び出し）",
+    "body": null,
+    "lo": [],
+    "final": true,
+    "views": [],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": null,
+    "rules": [],
+    "on_reject": {},
+    "confirm": null,
+    "on_achieved": [],
+    "next": [],
+    "use": {
+     "module": "merge-gate",
+     "instance": "gate",
+     "args": {
+      "child": "9",
+      "pr": "pr-2"
+     }
+    }
+   },
+   "enter": "impl-run@round2/merge-gate@gate/st-7-4",
+   "exit_to": "main/st-13-3"
+  },
+  {
+   "uid": "impl-run@round2/merge-gate@gate/st-7-4",
+   "scope": "impl-run@round2/merge-gate@gate",
+   "unit": "merge-gate",
+   "step": {
+    "id": "st-7-4",
+    "title": "自分でマージする",
+    "body": "st-7-4.md",
+    "lo": [
+     "LO-2"
+    ],
+    "final": true,
+    "views": [
+     "v-pr-cards",
+     "v-issue-tree"
+    ],
+    "fixtures": [],
+    "hints": [],
+    "on_enter": [],
+    "processing": [],
+    "input": {
+     "kind": "ui_action",
+     "targets": [
+      {
+       "view": "v-pr-cards",
+       "path": "prs/pr-2-a#merge"
+      }
+     ]
+    },
+    "rules": [
+     {
+      "id": "r-merge",
+      "on": {
+       "command": null,
+       "missing": [],
+       "args": {},
+       "option": null,
+       "approval": null,
+       "target": null,
+       "ui": {
+        "view": "v-pr-cards",
+        "path": "prs/pr-2-a#merge"
+       },
+       "text": null,
+       "cancel": null
+      },
+      "when": null,
+      "outcome": {
+       "kind": "accept",
+       "effects": [
+        {
+         "set_attr": {
+          "path": "prs/pr-2-a",
+          "attr": "state",
+          "value": "merged"
+         }
+        },
+        {
+         "set_attr": {
+          "path": "issues/child-9",
+          "attr": "state",
+          "value": "closed"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "on_reject": {},
+    "confirm": {
+     "kind": "point_at",
+     "targets": [
+      {
+       "view": "v-issue-tree",
+       "path": "issues/child-9"
+      }
+     ],
+     "on_miss": "rj-miss-point"
+    },
+    "on_achieved": [],
+    "next": [],
+    "use": null
+   },
+   "enter": null,
+   "exit_to": "impl-run@round2/u-merge"
+  },
+  {
+   "uid": "impl-run@round1/merge-gate@gate/u-loop",
+   "scope": "impl-run@round1/merge-gate@gate",
+   "unit": "merge-gate",
+   "step": {
+    "id": "u-loop",
+    "title": "u-loop",
+    "final": true,
+    "use": {
+     "module": "impl-run",
+     "instance": "loop",
+     "args": {}
+    }
+   },
+   "enter": "impl-run@round1/st-7-2",
+   "exit_to": "impl-run@round1/u-merge"
+  }
+ ],
+ "starts": [
+  {
+   "id": "s-1-4",
+   "node": "main/st-1-4",
+   "effects": []
+  },
+  {
+   "id": "s-2-1",
+   "node": "main/st-2-1",
+   "effects": []
+  },
+  {
+   "id": "s-2-2",
+   "node": "main/st-2-2",
+   "effects": []
+  },
+  {
+   "id": "s-2-3",
+   "node": "main/st-2-3",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "ブレスト"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/01-brainstorm.md",
+      "fixture": "fx-kakuu-brainstorm",
+      "attrs": {
+       "sections": "filled"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-2-4",
+   "node": "main/st-2-4",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "PoC計画"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/01-brainstorm.md",
+      "fixture": "fx-kakuu-brainstorm",
+      "attrs": {
+       "sections": "filled"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-2-5",
+   "node": "main/st-2-5",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "PoC計画"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/01-brainstorm.md",
+      "fixture": "fx-kakuu-brainstorm",
+      "attrs": {
+       "sections": "filled"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/02-poc-plan.md",
+      "fixture": "fx-kakuu-poc-plan",
+      "attrs": {}
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-2-6",
+   "node": "main/st-2-6",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "ビヘイビア定義"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/02-poc-plan.md",
+      "fixture": "fx-kakuu-poc-plan",
+      "attrs": {}
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-7-1",
+   "node": "main/st-7-1",
+   "effects": [
+    {
+     "put": {
+      "path": "issues/root-42",
+      "fixture": "fx-kakuu-issue-root",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "issues/child-1",
+      "fixture": "fx-kakuu-issue-child",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "checks/ci-main",
+      "fixture": "fx-kakuu-ci-checks",
+      "attrs": {
+       "state": "green"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-13-1",
+   "node": "main/st-13-1",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "着手判定済み"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "issues/root-42",
+      "fixture": "fx-kakuu-issue-root",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "issues/child-1",
+      "fixture": "fx-kakuu-issue-child",
+      "attrs": {
+       "state": "closed"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "prs/pr-1-a",
+      "fixture": "fx-kakuu-pr-card",
+      "attrs": {
+       "state": "merged"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-13-2",
+   "node": "main/st-13-2",
+   "effects": [
+    {
+     "put": {
+      "path": "ideas/bbs-with-login/README.md",
+      "fixture": "fx-kakuu-bbs-readme",
+      "attrs": {
+       "status": "着手判定済み"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "issues/root-42",
+      "fixture": "fx-kakuu-issue-root",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "issues/child-1",
+      "fixture": "fx-kakuu-issue-child",
+      "attrs": {
+       "state": "closed"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "impl/docs/behavior-search-diff.md",
+      "fixture": "fx-kakuu-handoff-diff",
+      "attrs": {}
+     }
+    }
+   ]
+  },
+  {
+   "id": "s-d07",
+   "node": "impl-run@round1/merge-gate@gate/st-7-4",
+   "effects": [
+    {
+     "put": {
+      "path": "issues/child-1",
+      "fixture": "fx-kakuu-issue-child",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    },
+    {
+     "put": {
+      "path": "prs/pr-1-a",
+      "fixture": "fx-kakuu-pr-card",
+      "attrs": {
+       "state": "open"
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

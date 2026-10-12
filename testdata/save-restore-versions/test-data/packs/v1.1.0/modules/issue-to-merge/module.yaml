@@ -1,0 +1,265 @@
+# 学習モジュール issue-to-merge: 引き継ぎ（ST-3.2）から、実装の repo の設定（ST-4.1、ST-5.1）、
+# Issue 化（ST-6.1）、実装の進行（ST-7.1〜7.3）、マージ（ST-7.4）まで。
+# 定義は PoC-3 の CH-7（ST-7.1）、impl-run（ST-7.2、7.3）、merge-gate（ST-7.4）、CH-13 の ST-13.1 を基にし、
+# 設定の 2 Step（ST-4.1、ST-5.1）と Issue 化（ST-6.1）を足した。周回ごとに実体化する（PoC-4）。
+# 実体ごとの違いは引数で渡す: setup（設定の 2 Step を通るか）、root・child・pr（成果物の経路）、
+# idea（引き継ぎ先の経路）、branch_demo（止まる場面を通るか）、do_*（`do` の文）。
+id: issue-to-merge
+title: 引き継ぎから Issue 化・実装・マージまで
+
+params:
+  idea: bbs-with-login
+  setup: "true"
+  root: "42"
+  child: "1"
+  pr: pr-1
+  branch_demo: "true"
+  do_init: /init-claude を送ります
+  do_guards: /setup-repo-guards を送ります
+  do_tree: /create-issue-tree に引き継いだファイルを付けて送ります
+  do_launch: /implement-issue-tree に親 Issue の番号と外部チェックの扱いを付けて送ります
+
+# 途中開始（モジュールの starts。語彙 v1。実体ごとに <実体 ID>#<開始 ID> として展開する）。
+starts:
+  - id: s-6-1
+    node: st-6-1
+    effects:
+      - put: { path: "impl/docs/behavior-${idea}.md", fixture: fx-kakuu-handoff-diff }
+  - id: s-7-1
+    node: st-7-1
+    effects:
+      - put: { path: "impl/docs/behavior-${idea}.md", fixture: fx-kakuu-handoff-diff }
+      - put: { path: "issues/root-${root}", fixture: fx-kakuu-issue-root, attrs: { state: open } }
+      - put: { path: "issues/child-${child}", fixture: fx-kakuu-issue-child, attrs: { state: open } }
+
+steps:
+  # ST-3.2 変更分だけを実装 repo へ引き継ぐ（設定の 2 Step は引数 setup が "true" の周回だけが通る）
+  - id: st-3-2
+    title: 変更分だけを引き継ぐ
+    do: 引き継ぐ範囲を、選択肢から選びます
+    body: st-3-2.md
+    lo: [LO-1]
+    views: [v-files, v-diff]
+    fixtures: [fx-kakuu-handoff-diff]
+    next:
+      - { to: st-4-1, when: { param: { name: setup, eq: "true" } } }
+      - { to: st-6-1 }
+    input:
+      kind: choice
+      options:
+        - { id: diff-only, label: 変更分だけ }
+        - { id: everything, label: すべて }
+        - { id: nothing, label: 引き継がない }
+    rules:
+      - id: r-diff
+        on: { option: diff-only }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: "impl/docs/behavior-${idea}.md", fixture: fx-kakuu-handoff-diff }
+      - id: r-everything
+        on: { option: everything }
+        outcome: { kind: reject, rejection: rj-13-1-everything }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-files, path: "impl/docs/behavior-${idea}.md" }]
+      on_miss: rj-miss-point
+
+  # ST-4.1 実装 repo の Claude の設定を整える（確認は省くと明示）
+  - id: st-4-1
+    title: 実装の repo の設定を整える
+    do: "${do_init}"
+    body: st-4-1.md
+    body_levels: { B: st-4-1.b.md }
+    lo: [LO-2]
+    views: [v-files]
+    fixtures: [fx-kakuu-claude-md]
+    hints: [h-4-1-1]
+    next: [{ to: st-5-1 }]
+    input: { kind: command, name: init-claude, args: [] }
+    rules:
+      - id: r-init
+        on: { command: init-claude }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: impl/CLAUDE.md, fixture: fx-kakuu-claude-md }
+    confirm:
+      kind: none
+      reason: 送ること自体が目的で、左の変化を指す学習目標がない
+
+  # ST-5.1 実装 repo にガードを入れる（確認は省くと明示）
+  - id: st-5-1
+    title: 実装の repo にガードを入れる
+    do: "${do_guards}"
+    body: st-5-1.md
+    body_levels: { B: st-5-1.b.md }
+    lo: [LO-2]
+    views: [v-files]
+    fixtures: [fx-kakuu-repo-guards]
+    hints: [h-5-1-1]
+    next: [{ to: st-6-1 }]
+    input: { kind: command, name: setup-repo-guards, args: [] }
+    rules:
+      - id: r-guards
+        on: { command: setup-repo-guards }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: impl/.guards.md, fixture: fx-kakuu-repo-guards }
+    confirm:
+      kind: none
+      reason: 送ること自体が目的で、左の変化を指す学習目標がない
+
+  # ST-6.1 Issue のツリーを作る。D-24: 2 周目は新しいルートを作る（既存のルートを指す --root は使わない）
+  - id: st-6-1
+    title: 引き継いだ内容を Issue のツリーにする
+    do: "${do_tree}"
+    body: st-6-1.md
+    body_levels: { B: st-6-1.b.md }
+    lo: [LO-3]
+    views: [v-issue-tree]
+    hints: [h-6-1-1]
+    on_reject: { missing_arg: rj-6-1-missing-input }
+    next: [{ to: st-7-1 }]
+    input:
+      kind: command
+      name: create-issue-tree
+      args:
+        - { name: input, positional: true, required: true }
+        - { name: root, required: false, shape: digits }
+    rules:
+      - id: r-new-root
+        on: { command: create-issue-tree, missing: [root] }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: "issues/root-${root}", fixture: fx-kakuu-issue-root, attrs: { state: open } }
+            - put: { path: "issues/child-${child}", fixture: fx-kakuu-issue-child, attrs: { state: open } }
+      - id: r-with-root
+        on: { command: create-issue-tree }
+        outcome: { kind: reject, rejection: rj-6-1-no-root-option }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-issue-tree, path: "issues/child-${child}" }]
+      on_miss: rj-miss-point
+
+  # ST-7.1 事前確認をしてから起動する（外部チェックの扱いを決めずに終えようとすると引数不足）
+  - id: st-7-1
+    title: 起動の前の確認と、起動
+    do: "${do_launch}"
+    body: st-7-1.md
+    body_levels: { B: st-7-1.b.md }
+    lo: [LO-1]
+    views: [v-issue-tree, v-checks]
+    fixtures: [fx-kakuu-launch-args]
+    hints: [h-7-1-1, h-7-1-2, h-7-1-3]
+    on_reject: { missing_arg: rj-7-1-missing-arg }
+    next: [{ to: st-7-2 }]
+    input:
+      kind: command
+      name: implement-issue-tree
+      args:
+        - { name: parent, positional: true, required: true, shape: digits }
+        - { name: external_checks, required: true }
+    rules:
+      - id: r-launch
+        on: { command: implement-issue-tree, args: { parent: "${root}" } }
+        outcome:
+          kind: accept
+          effects:
+            - set_flag: precheck_ok
+            - set_attr: { path: "issues/root-${root}", attr: state, value: running }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: ans-none-explicit, correct: true }
+        - { id: ans-skip-ci, correct: false, on_wrong: rj-7-1-expl-skip-ci }
+        - { id: ans-all-checks, correct: false, on_wrong: rj-7-1-expl-all-checks }
+
+  # ST-7.2 子 Issue ごとに PR・レビュー・CI が進む（待機。処理中の入力は受け付けない）
+  - id: st-7-2
+    title: 子 Issue ごとの進行
+    do: 進行が終わるまで待ち、PR カードの変化を指します
+    body: st-7-2.md
+    lo: [LO-2]
+    views: [v-pr-cards, v-checks]
+    fixtures: [fx-kakuu-pr-card]
+    on_enter:
+      - put: { path: "prs/${pr}-a", fixture: fx-kakuu-pr-card, attrs: { state: open } }
+    processing:
+      - name: pr-created
+        effects:
+          - set_attr: { path: "prs/${pr}-a", attr: state, value: ci-running }
+      - name: ci-passed
+        effects:
+          - set_attr: { path: "prs/${pr}-a", attr: state, value: ready }
+    next:
+      - { to: st-7-3, when: { param: { name: branch_demo, eq: "true" } } }
+      - { to: st-7-4 }
+    input: { kind: wait }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-pr-cards, path: "prs/${pr}-a" }]
+      on_miss: rj-miss-point
+
+  # ST-7.3（分岐）事前確認を飛ばして起動すると、CI が green でも止まる（上流どおり。拒否ではなく受付）
+  - id: st-7-3
+    title: 事前確認を飛ばした起動で止まる場面
+    do: 事前確認を飛ばした起動を試します
+    body: st-7-3.md
+    lo: [LO-3]
+    views: [v-issue-tree, v-checks]
+    on_achieved:
+      - set_attr: { path: "issues/root-${root}", attr: state, value: running }
+    next: [{ to: st-7-4 }]
+    input:
+      kind: command
+      name: implement-issue-tree
+      args:
+        - { name: parent, positional: true, required: true, shape: digits }
+        - { name: external_checks, required: false }
+    rules:
+      - id: r-blocked
+        on: { command: implement-issue-tree, missing: [external_checks] }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: "issues/root-${root}", attr: state, value: blocked }
+            - set_flag: stopped
+      - id: r-with-arg
+        on: { command: implement-issue-tree }
+        outcome: { kind: reject, rejection: rj-7-3-with-arg }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: ans-add-arg, correct: true }
+        - { id: ans-same-args, correct: false, on_wrong: rj-7-3-expl-same-args }
+        - { id: ans-ci-failed, correct: false, on_wrong: rj-7-3-expl-ci-failed }
+
+  # ST-7.4 受講者が自分で PR をマージする。子がすべて閉じると、ルートも閉じる（上流の記述。PoC-9 の発見事項 1）
+  - id: st-7-4
+    title: 自分でマージする
+    do: PR カードのマージの操作をします
+    body: st-7-4.md
+    lo: [LO-2]
+    final: true
+    views: [v-pr-cards, v-issue-tree]
+    input:
+      kind: ui_action
+      targets: [{ view: v-pr-cards, path: "prs/${pr}-a#merge" }]
+    rules:
+      - id: r-merge
+        on: { ui: { view: v-pr-cards, path: "prs/${pr}-a#merge" } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: "prs/${pr}-a", attr: state, value: merged }
+            - set_attr: { path: "issues/child-${child}", attr: state, value: closed }
+            - set_attr: { path: "issues/root-${root}", attr: state, value: closed }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-issue-tree, path: "issues/child-${child}" }]
+      on_miss: rj-miss-point

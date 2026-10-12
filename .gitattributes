@@ -1,0 +1,3 @@
+# 写した試験データは、改行を含めてバイト一致で保つ（testdata/README.md）。
+# core.autocrlf などの利用者設定で、CRLF の見本や .sha256 の manifest が変わるのを防ぐ。
+testdata/** -text

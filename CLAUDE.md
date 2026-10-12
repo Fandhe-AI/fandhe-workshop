@@ -22,6 +22,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
 ├── crates/                   # contract / core / pack / web の 4 crate（骨格のみ）
+├── testdata/                 # 試験データ（spec repo の写し。出所は testdata/README.md。整形ツールの対象外）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
 ├── scripts/
@@ -56,13 +57,15 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make help` | ターゲット一覧 |
 | `make doctor` | 開発環境の診断（読み取りのみ） |
 | `make setup` | Git hooks の有効化と `.env` の作成（再実行可） |
-| `make check` | editorconfig-checker + shellcheck（ソースは変更しない） |
+| `make check` | editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/` の回帰テスト |
 | `make lint` | Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない） |
 | `make fmt` | Rust の整形（ソースを変更する） |
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
+| `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
+| `make test-check-testdata` | 参照の検査自体の回帰テスト |
 
 build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。
 
