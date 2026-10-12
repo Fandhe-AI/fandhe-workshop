@@ -129,6 +129,16 @@ ln -s "${TMP}/inside/ir/main.json" "${TMP}/elsewhere/link.json"
 check_status "IR_FILE inside OUT_DIR is rejected" 2 env IR_FILE="${TMP}/inside/ir/main.json" OUT_DIR="${TMP}/inside" "${BUILD}"
 check_status "symlinked IR_FILE inside OUT_DIR is rejected" 2 env IR_FILE="${TMP}/elsewhere/link.json" OUT_DIR="${TMP}/inside" "${BUILD}"
 check "IR_FILE inside OUT_DIR is left intact" test -f "${TMP}/inside/ir/main.json"
+# IR_FILE と OUT_DIR が同一のファイルでも、削除前に拒否して入力を残す（dist/ 配下の出力先でも同じ）。
+echo '{"ir":"keep"}' >"${TMP}/same.json"
+check_status "IR_FILE equal to OUT_DIR is rejected" 2 env IR_FILE="${TMP}/same.json" OUT_DIR="${TMP}/same.json" "${BUILD}"
+check "IR_FILE equal to OUT_DIR is left intact" test -f "${TMP}/same.json"
+mkdir -p "${ROOT_DIR}/dist"
+SAME_DIST="${ROOT_DIR}/dist/same-ir-test.json"
+echo '{"ir":"keep"}' >"${SAME_DIST}"
+check_status "IR_FILE equal to OUT_DIR under dist/ is rejected" 2 env IR_FILE="${SAME_DIST}" OUT_DIR="${SAME_DIST}" "${BUILD}"
+check "IR_FILE equal to OUT_DIR under dist/ is left intact" test -f "${SAME_DIST}"
+rm -f "${SAME_DIST}"
 
 if [ "${FAILURES}" -ne 0 ]; then
   echo "error: ${FAILURES} check(s) failed" >&2

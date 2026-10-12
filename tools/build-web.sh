@@ -94,11 +94,16 @@ ROOT_REAL="$(cd "${ROOT_DIR}" && pwd -P)"
 # 出力先は丸ごと消すため、入力の IR が出力先の配下にあると削除で入力が消える。削除の前に拒否する。
 if [ -n "${IR_ABS}" ]; then
   case "${IR_ABS}" in
-    "${OUT_ABS}"/*)
-      echo "error: IR_FILE must not be inside OUT_DIR (it would be deleted): ${IR_ABS}" >&2
+    "${OUT_ABS}" | "${OUT_ABS}"/*)
+      echo "error: IR_FILE must not be OUT_DIR or inside it (it would be deleted): ${IR_ABS}" >&2
       exit 2
       ;;
   esac
+fi
+# 既存の通常ファイル（シンボリックリンクを含む）は出力ディレクトリにできない。dist/ 配下でも拒否する。
+if { [ -e "${OUT_ABS}" ] || [ -L "${OUT_ABS}" ]; } && [ ! -d "${OUT_ABS}" ]; then
+  echo "error: OUT_DIR exists and is not a directory: ${OUT_ABS}" >&2
+  exit 2
 fi
 case "${OUT_ABS}" in
   "${ROOT_REAL}/dist/"?*) ;;
