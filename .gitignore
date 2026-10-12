@@ -32,3 +32,6 @@ Thumbs.db
 
 # Cargo のビルド成果物
 /target/
+
+# Node の依存（package-lock.json から npm ci で再現する）
+/node_modules/

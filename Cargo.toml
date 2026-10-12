@@ -34,6 +34,9 @@ serde_json = "1.0.151"
 toml = "1.1.6"
 yaml_serde = "0.10.7"
 pulldown-cmark = { version = "0.13.4", default-features = false }
+# wasm-bindgen CLI と完全一致させるため exact で固定する。版の正は docs/toolchain.md。
+wasm-bindgen = "=0.2.128"
+
 # 表示層の基盤（D-30 の採用版）。crates.io から取得するため認証情報は要らない。
 # feature は FEND-1 に従い action-keydown だけを明示する（既定の feature は持ち込まない）。
 # 推移的な core・interactive・wasm-client・headless-ui・app の版は Cargo.lock が固定する。

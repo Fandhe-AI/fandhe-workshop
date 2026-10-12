@@ -19,6 +19,9 @@ fandhe-workshop-contract.workspace = true
 fandhe-workshop-core.workspace = true
 fandhe-frontend-wasm-full.workspace = true
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+
 [dev-dependencies]
 # 依存の向きの唯一の例外（docs/architecture.md 第 4 節）。試験専用で、normal 依存にはしない。
 fandhe-workshop-pack.workspace = true

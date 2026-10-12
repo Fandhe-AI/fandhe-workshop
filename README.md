@@ -65,8 +65,9 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `.claude/workflows/` | `implement-issue-tree` の workflow 定義（スキル側の実体への相対 symlink） |
 | `Cargo.toml`・`Cargo.lock` | Cargo ワークスペース（仮想 manifest。lint の設定・dev プロファイル・release プロファイルを持つ）と、固定した依存の版 |
 | `crates/` | 4 crate（`contract`・`core`・`pack`・`web`）の骨格。`default-members` は `web` を含まない |
+| `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-toolchain` / `test-check-toolchain`）。Make なしでも直接実行できる |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -76,6 +77,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `CONTRIBUTING.md` | 貢献ガイド（開発の流れ・検査・コミット規約・セキュリティ・ライセンス） |
 | `docs/glossary.md` | 用語集（章・Step・IR・語彙など） |
 | `docs/architecture.md` | 実装 repo の構成設計（版 1）。crate の境界・依存の向き・公開 API の型の置き場・feature・試験データと雛形の置き場を固定する契約。crate 名は仮称 |
+| `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
 | `LICENSE-MIT`・`LICENSE-APACHE` | ライセンス（前述の「ライセンス」） |
@@ -85,16 +87,16 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 
 ### エンジンのビルドの前提
 
-Rust の版は未固定です（固定は [#79](https://github.com/Fandhe-AI/fandhe-workshop/issues/79) TASK-25 で行います）。固定した時点で、固定ファイルと一致する値を記入します（先に数値を書くと二重定義になるため、ここには書きません）。
+ツールの版は固定済みです。固定した値の正は [docs/toolchain.md](./docs/toolchain.md) の一か所に置き、ここには転記しません（二重定義を避けるため）。固定ファイルとの一致は `make check-toolchain` が検査します。
 
-| 項目 | 版 | 備考 |
+| 項目 | 固定するファイル | 備考 |
 |---|---|---|
-| Rust のツールチェーン | 未固定（#79 TASK-25 で固定） | cargo・rustfmt・clippy を使います。`target/` の掃除手順は「セットアップ」に書いています |
-| `wasm32` ターゲット | 未固定（#79 TASK-25 で固定） | ブラウザ向けのビルドと、`make lint` の wasm32 向け clippy に使います |
-| wasm-bindgen CLI | 未固定 | |
-| Node.js | 未固定 | ブラウザテストの実行に使う |
-| Playwright | 未固定 | ブラウザテストに使う |
-| Chrome または Chromium | 未固定 | ブラウザテストに使う |
+| Rust のツールチェーン | `rust-toolchain.toml` | rustup が版・rustfmt・clippy を導入します。`target/` の掃除手順は「セットアップ」に書いています |
+| `wasm32` ターゲット | `rust-toolchain.toml` | ブラウザ向けのビルドと、`make lint` の wasm32 向け clippy に使います |
+| wasm-bindgen CLI | `Cargo.toml`・`Cargo.lock` の `wasm-bindgen` と同じ版 | ビルドスクリプト（TASK-27）から必須になります。現時点は任意です |
+| Node.js | `package.json` の `engines`・`.npmrc` | ブラウザテストの実行に使います |
+| Playwright | `package.json`・`package-lock.json` | ブラウザテストに使います |
+| Chrome または Chromium | 固定しません | Playwright が同梱する Chromium を使います（理由は docs/toolchain.md） |
 | 試験データの置き場所 | 方針は固定済み | 2 つ以上の crate が使うデータは `testdata/`、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。未決なのは、契約のサンプル・golden の配置の細目だけです |
 
 ### 必要なツール
@@ -105,10 +107,11 @@ Rust の版は未固定です（固定は [#79](https://github.com/Fandhe-AI/fan
 | [lefthook](https://lefthook.dev/) | Git hooks | ✓ |
 | [editorconfig-checker](https://github.com/editorconfig-checker/editorconfig-checker) | `.editorconfig` 準拠チェック | ✓ |
 | [ShellCheck](https://www.shellcheck.net/) | シェルスクリプトの lint | ✓ |
-| [Rust](https://www.rust-lang.org/)（cargo・rustfmt・clippy） | `make lint`・`make test`・`make fmt` | ✓ |
+| [rustup](https://rustup.rs/) 経由の [Rust](https://www.rust-lang.org/)（cargo・rustfmt・clippy・`wasm32` ターゲット） | `make lint`・`make test`・`make fmt`。`rust-toolchain.toml` を自動で読む | ✓ |
 | [jq](https://jqlang.github.io/jq/) | `make check-deps`（crate 間の依存の向きの検査） | ✓ |
 | [direnv](https://direnv.net/) | `.env` の自動読み込み | 任意 |
-| [Node.js](https://nodejs.org/)（`npx`） | Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
+| wasm-bindgen CLI | wasm のビルド（TASK-27 以降） | 任意 |
+| [Node.js](https://nodejs.org/) 24 系（`npm`・`npx`） | ブラウザテスト（Playwright）と Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
 
 macOS（Homebrew）の例:
 
@@ -122,6 +125,8 @@ brew install lefthook editorconfig-checker shellcheck direnv
 
 ```bash
 make doctor   # 必要なツールが揃っているか確認する
+rustup toolchain install   # rust-toolchain.toml の版・component・ターゲットを導入する
+npm ci        # ブラウザテストを使う場合のみ。package-lock.json の版を導入する
 make setup    # Git hooks を有効化し、.env が無ければ .env.example から作成する
 direnv allow  # direnv を使う場合のみ。.envrc の読み込みを許可する
 ```
@@ -173,6 +178,8 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 | `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
+| `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致を検査する |
+| `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 
 ## Git hooks
 
