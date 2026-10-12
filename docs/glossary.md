@@ -2,6 +2,7 @@
 
 fandhe-workshop の文書とコードで使う主な用語をまとめます。
 各用語は「定義」「補足（どこで使うか）」「関連語」の順で書いています。
+Step の状態・構造定義・教材パックの構成などは、private の仕様リポジトリ（`docs/spec`）の内容を要約したもので、仕様との一致は公開前にメンテナーが確認します。
 crate 名などの名前は仮称です（[`README.md`](../README.md) の「仮称の一覧」と [`docs/architecture.md`](./architecture.md) を参照）。
 
 ## 章
