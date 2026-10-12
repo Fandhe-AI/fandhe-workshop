@@ -1,0 +1,9 @@
+id: S1
+package: fandhe-workshop-core
+test: property_sample
+target: crates/core/tests/property_sample.rs
+find: Op::Stale => return (true, false),
+replace: Op::Stale => { self.step = 0; return (true, false); }
+expect-fail: 固定列で古い進行と復元と完了を通る
+expect-fail: 乱数の入力列で状態が壊れない
+note: 古い進行が状態を変えてしまう（位置を 0 に戻す）
