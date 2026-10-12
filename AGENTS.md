@@ -11,7 +11,8 @@ PR 自動レビュー（`.github/workflows/ai-review.yml`。Fandhe-AI/actions �
 避けて要点と参照だけをまとめる。本書と一次情報源が食い違う場合は、一次情報源を正とする。
 
 本リポジトリは public で、現時点の中身は開発基盤（Make・シェルスクリプト・lefthook・GitHub Actions）と Claude Code の
-設定である。エンジンの実装（言語固有のコード）は未導入のため、実装コードに関する観点は導入後に適用する。
+設定に加え、Cargo ワークスペースの骨格（Rust）である。エンジンの実装コードは骨格のみのため、実装コードに関する観点は
+実装が入るにつれて適用範囲が広がる。
 
 ## 優先度の定義
 
@@ -69,9 +70,18 @@ PR 自動レビュー（`.github/workflows/ai-review.yml`。Fandhe-AI/actions �
 - 利用者が決められる値・外部から取得した文字列を、`eval` やクォート無しの展開でコマンドに渡す: **P0**
 - 上記に当たらない未クォートの変数展開・`eval` の使用: **P1**
 
-### エンジンの実装（導入後に適用）
+### エンジンの実装（Rust）
 
-教材データは、エンジンから見て信頼できない入力として扱う。
+一次情報源は `.claude/rules/coding-rust.md`。教材データは、エンジンから見て信頼できない入力として扱う。
+
+- `unsafe` を理由（`// SAFETY:`）なしで書く、`#![forbid(unsafe_code)]` を外す: **P1**
+- `#[allow(...)]` を `reason` なしで書く、crate 単位の広い抑止を足す、`[lints] workspace = true` を外す・
+  ルートの `[workspace.lints]` を弱める: **P1**
+- 本番コードの `unwrap()` / `expect()` / `panic!` で、教材データ・利用者入力の不正を異常終了にする: **P1**
+- 教材データの読み込み失敗を握りつぶす（エラーに何が不正かを含めない・`Result` を捨てる）: **P1**
+- crate 間の依存の向き（`docs/architecture.md`）に反する依存の追加、`make check-deps` の検査の弱体化: **P1**
+- `core` に特定の教材の知識・実行環境（ブラウザ・ファイル I/O）への依存を持ち込む: **P1**
+- 公開 API に `///` が無い、crate の入口に `//!` が無い: **P2**
 
 - 教材データ・利用者入力を、エスケープせずに HTML・シェル・クエリへ埋め込む: **P0**
 - 教材データ中のパスで、意図した範囲の外を読み書きできる（パストラバーサル）: **P0**
@@ -173,7 +183,7 @@ PR 自動レビュー（`.github/workflows/ai-review.yml`。Fandhe-AI/actions �
 - `update-external.yml` が作る日次の同期 PR（ブランチ名が `chore/skills-update-`・`chore/submodule-update-` で始まる）は、
   上流の取り込みそのものでありこの PR では直せないため、ai-review の対象から外している
 - エンジンの実装言語を導入する PR では、コーディング規約（`.claude/rules/coding-<lang>.md`）の追加と同時に、
-  本書の「エンジンの実装」の項目を、その言語・構成に合わせて具体化する
+  本書の「エンジンの実装」の項目を、その言語・構成に合わせて具体化する（Rust は `coding-rust.md` と本書で実施済み）
 
 ## Fandhe-AI/actions の参照方式（`@latest`）
 

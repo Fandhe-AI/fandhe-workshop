@@ -18,6 +18,11 @@ cat <<'EOF'
   setup       scripts/setup.sh               Git hooks 有効化と .env 雛形の配置（再実行しても安全）
   check       scripts/check.sh               editorconfig-checker + shellcheck（ソースは変更しない）
   test-hooks  scripts/hooks/test-hooks.sh    フックスクリプト自体の回帰テスト（bash + git のみ）
+  lint        scripts/lint.sh                Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）
+  fmt         cargo fmt --all                Rust のソースを rustfmt で整形する（ソースを変更する）
+  test        scripts/test.sh                Rust の native 試験（web を含む全 crate）
+  check-deps  scripts/check-crate-deps.sh    crate 間の依存の向きを cargo metadata で検査する
+  test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

@@ -30,8 +30,22 @@ check_tool required make make --version
 check_tool required lefthook lefthook version
 check_tool required editorconfig-checker editorconfig-checker --version
 check_tool required shellcheck sh -c 'shellcheck --version | grep "^version:"'
+check_tool required cargo cargo --version
+check_tool required rustfmt rustfmt --version
+check_tool required cargo-clippy cargo-clippy --version
+check_tool required jq jq --version
 check_tool optional direnv direnv version
 check_tool optional npx npx --version
+
+# wasm32 のターゲットは rustup がある場合だけ確認する（導入と版の固定は TASK-25 / #79）
+if command -v rustup >/dev/null 2>&1; then
+  installed_targets="$(rustup target list --installed 2>/dev/null || true)"
+  if printf '%s\n' "${installed_targets}" | grep -qx 'wasm32-unknown-unknown'; then
+    echo "ok   wasm32-unknown-unknown: installed"
+  else
+    echo "skip wasm32-unknown-unknown: not installed (optional; \`make lint\` needs it)"
+  fi
+fi
 
 if [ -f "${ROOT_DIR}/.env" ]; then
   echo "ok   .env: present (values are not displayed)"

@@ -10,7 +10,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 操作に応じて成果物が変わる教材として動くことを目指す。エンジンは特定の教材の知識を持たない。
 
 - 開発基盤は `Fandhe-AI/template-dev` から作成した。現時点の中身は Make・シェルスクリプト・lefthook・GitHub Actions
-- **言語固有の設定・実装（Rust 等）は未導入**。実装着手の指示後に、タスクに沿って追加する
+- Cargo ワークスペースの骨格（4 crate。中身は空、2026-10-12 時点）を導入済み。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
 - 仕様は private の submodule `docs/spec`（`Fandhe-AI/fandhe-workshop-spec`）。取得手順は README の「仕様」
 
 ## Repository Structure
@@ -20,6 +20,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── CLAUDE.md                 # 本ファイル
 ├── AGENTS.md                 # レビュー観点集（ai-review が PR の base コミットから読む。P0 / P1 / P2）
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
+├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
+├── crates/                   # contract / core / pack / web の 4 crate（骨格のみ）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
 ├── scripts/
@@ -56,8 +58,13 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make setup` | Git hooks の有効化と `.env` の作成（再実行可） |
 | `make check` | editorconfig-checker + shellcheck（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/` の回帰テスト |
+| `make lint` | Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない） |
+| `make fmt` | Rust の整形（ソースを変更する） |
+| `make test` | Rust の native 試験（web を含む全 crate） |
+| `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
+| `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 
-build・test・lint など言語固有のターゲットはまだ無い。変更後は `make check` を通す。
+build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。
 
 ## 委譲方針（必読）
 
@@ -80,7 +87,7 @@ main のコンテキストは、対話・計画・判断のために残す。調
 | `.github/workflows/**` | `explorer` | `infra-builder` | `github-actions.md` |
 | `.claude/rules/**`・`.claude/agents/**`・`.claude/settings.json`・`.mcp.json` | `explorer` | `dotclaude-author` | `delegation.md`・`security.md` |
 | `README.md`・`CONTRIBUTING.md`・`CLAUDE.md`・`docs/architecture.md`・`docs/glossary.md` | `explorer` | `docs-writer` | `japanese-style.md` |
-| `Cargo.toml`・`**/*.rs`（未導入） | `explorer` | 未定義（着手時に `update-claude` で builder を追加） | `rust-build-profile.md` |
+| `Cargo.toml`・`**/*.rs` | `explorer` | 未定義（着手時に `update-claude` で builder を追加） | `coding-rust.md`・`rust-build-profile.md` |
 | 外部仕様の確認 | `reference-researcher` | — | `.claude/skills/` のリファレンススキル |
 | `.agents/skills/**`・`.claude/skills/**` | — | 編集しない（`contribute-skill` で upstream へ） | — |
 | `docs/spec/**` | `explorer` | 編集しない（spec リポジトリ側で変更） | — |
@@ -128,6 +135,7 @@ Agent の `model:` には、この表の alias だけを書く。最上位 tier 
 | `conventional-commits.md` | 常時 | コミット件名・PR タイトルの形式と検証の仕組み |
 | `out-of-scope-tracking.md` | 常時 | スコープ外の事項を Issue に記録する流れ |
 | `coding-shell.md` | `**/*.sh`・`.shellcheckrc` | bash 3.2 互換・クォート・エラー処理・shellcheck |
+| `coding-rust.md` | `**/*.rs`・`**/Cargo.toml` | workspace lint・unsafe と `#[allow]` の理由・エラー処理・依存の版固定と向き・検証コマンド |
 | `code-comment-style.md` | `**/*.sh`・`Makefile`・`lefthook.yml`・`.github/workflows/**`・`**/*.rs`・`**/*.toml` | コメントに残す内容とファイル種別ごとの形式 |
 | `makefile.md` | `Makefile`・`scripts/*.sh` | 薄い入口の方針・ターゲット追加手順・スクリプトの規約 |
 | `git-hooks.md` | `lefthook.yml`・`lefthook-local.yml`・`scripts/hooks/**` | フックの時間予算・CI との役割分担・fail-closed |

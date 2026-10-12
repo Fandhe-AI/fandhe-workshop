@@ -19,7 +19,7 @@
 | エンジン（中核） | IR を読み、ターミナル風の操作に応じて成果物の状態を進める。特定の教材の知識を持たない |
 
 用語は [用語集](./docs/glossary.md) にまとめています。
-2026-10-12 時点では、エンジンのコード（Rust）は未導入です。このリポジトリには開発基盤と構成設計（[docs/architecture.md](./docs/architecture.md)）だけがあります。
+2026-10-12 時点では、Cargo ワークスペースの骨格（4 crate。中身は空）を導入済みで、エンジンの実装はまだありません。このリポジトリには開発基盤・構成設計（[docs/architecture.md](./docs/architecture.md)）・ワークスペースの骨格があります。
 
 ## 仮称の一覧
 
@@ -30,7 +30,7 @@
 | エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
 | 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
 | 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
-| crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | 未作成。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
+| crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | 骨格のみ作成（`crates/` 配下。中身は空）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
 | 作成者向け CLI | `fandhe-pack` | pack crate に置く。外部仕様は未固定 |
 
 ## 仕様（`docs/spec`）
@@ -57,14 +57,16 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | パス | 役割 |
 |---|---|
 | `.agents/skills/`・`.claude/skills/` | エージェント用スキル（`skills-lock.json` で管理する外部取得物。`.claude/skills/` は `.agents/skills/` への symlink） |
-| `.claude/rules/` | Claude Code のルール（`git-hooks.md`: `lefthook.yml`・`scripts/hooks/` 編集時のみ読み込まれる、フックの時間予算と CI との役割分担、`makefile.md`: `Makefile`・`scripts/*.sh` 編集時のみ読み込まれる、薄い入口の方針とターゲット追加手順、`github-actions.md`: `.github/workflows/` 編集時のみ読み込まれる、runner 方針・必須チェック・発火条件・ジョブ追加チェックリスト・キャッシュ方針、`rust-build-profile.md`: `Cargo.toml`・`.cargo/`・`rust-toolchain.toml` 編集時のみ読み込まれる、Rust 導入時の dev プロファイル・`target/` の掃除・CI キャッシュへの影響。このほか、委譲・セキュリティ・日本語スタイル・Conventional Commits・スコープ外の追跡・シェルのコーディング規約・コメント規約の共通ルールがあり、一覧と読み込み条件は `CLAUDE.md` の「Rules」に記載） |
+| `.claude/rules/` | Claude Code のルール（`git-hooks.md`: `lefthook.yml`・`scripts/hooks/` 編集時のみ読み込まれる、フックの時間予算と CI との役割分担、`makefile.md`: `Makefile`・`scripts/*.sh` 編集時のみ読み込まれる、薄い入口の方針とターゲット追加手順、`github-actions.md`: `.github/workflows/` 編集時のみ読み込まれる、runner 方針・必須チェック・発火条件・ジョブ追加チェックリスト・キャッシュ方針、`rust-build-profile.md`: `Cargo.toml`・`.cargo/`・`rust-toolchain.toml` 編集時のみ読み込まれる、Rust 導入時の dev プロファイル・`target/` の掃除・CI キャッシュへの影響。このほか、委譲・セキュリティ・日本語スタイル・Conventional Commits・スコープ外の追跡・シェルと Rust（`coding-rust.md`: `**/*.rs`・`**/Cargo.toml` 編集時のみ読み込まれる）のコーディング規約・コメント規約の共通ルールがあり、一覧と読み込み条件は `CLAUDE.md` の「Rules」に記載） |
 | `CLAUDE.md` | Claude Code 向けの要約（構成・委譲方針・model 配分・Sub-agents／Rules／Skills の一覧） |
 | `AGENTS.md` | AI エージェントと PR 自動レビュー（ai-review）が共通で使うレビュー観点集（セキュリティ・設計整合・再利用の 3 観点と優先度 P0 / P1 / P2）。PR の base コミットの内容が基準になるため、変更はマージ後の次の PR から有効 |
 | `.claude/agents/` | Claude Code の Sub-agents 定義（`research` / `implement` / `testing` / `quality` / `docs` のカテゴリ別。一覧は `CLAUDE.md` の「Sub-agents」） |
 | `.claude/settings.json` | Claude Code のプロジェクト共有設定（SessionStart hook のリマインダー。個人設定は git 管理外の `.claude/settings.local.json`） |
 | `.claude/workflows/` | `implement-issue-tree` の workflow 定義（スキル側の実体への相対 symlink） |
+| `Cargo.toml`・`Cargo.lock` | Cargo ワークスペース（仮想 manifest。lint の設定・dev プロファイル・release プロファイルを持つ）と、固定した依存の版 |
+| `crates/` | 4 crate（`contract`・`core`・`pack`・`web`）の骨格。`default-members` は `web` を含まない |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps`）。Make なしでも直接実行できる |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -83,12 +85,12 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 
 ### エンジンのビルドの前提
 
-Rust の導入前のため、版は未固定です（固定は実装着手時のタスクで行い、Issue 化したらここに番号を添えます）。固定した時点で、固定ファイルと一致する値を記入します（先に数値を書くと二重定義になるため、ここには書きません）。
+Rust の版は未固定です（固定は [#79](https://github.com/Fandhe-AI/fandhe-workshop/issues/79) TASK-25 で行います）。固定した時点で、固定ファイルと一致する値を記入します（先に数値を書くと二重定義になるため、ここには書きません）。
 
 | 項目 | 版 | 備考 |
 |---|---|---|
-| Rust のツールチェーン | 未固定 | 導入時は `.claude/rules/rust-build-profile.md` に従い、`cargo sweep` による `target/` の掃除手順も書く |
-| `wasm32` ターゲット | 未固定 | ブラウザ向けのビルドに使う |
+| Rust のツールチェーン | 未固定（#79 TASK-25 で固定） | cargo・rustfmt・clippy を使います。`target/` の掃除手順は「セットアップ」に書いています |
+| `wasm32` ターゲット | 未固定（#79 TASK-25 で固定） | ブラウザ向けのビルドと、`make lint` の wasm32 向け clippy に使います |
 | wasm-bindgen CLI | 未固定 | |
 | Node.js | 未固定 | ブラウザテストの実行に使う |
 | Playwright | 未固定 | ブラウザテストに使う |
@@ -103,6 +105,8 @@ Rust の導入前のため、版は未固定です（固定は実装着手時の
 | [lefthook](https://lefthook.dev/) | Git hooks | ✓ |
 | [editorconfig-checker](https://github.com/editorconfig-checker/editorconfig-checker) | `.editorconfig` 準拠チェック | ✓ |
 | [ShellCheck](https://www.shellcheck.net/) | シェルスクリプトの lint | ✓ |
+| [Rust](https://www.rust-lang.org/)（cargo・rustfmt・clippy） | `make lint`・`make test`・`make fmt` | ✓ |
+| [jq](https://jqlang.github.io/jq/) | `make check-deps`（crate 間の依存の向きの検査） | ✓ |
 | [direnv](https://direnv.net/) | `.env` の自動読み込み | 任意 |
 | [Node.js](https://nodejs.org/)（`npx`） | Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
 
@@ -124,28 +128,36 @@ direnv allow  # direnv を使う場合のみ。.envrc の読み込みを許可�
 
 `make setup` は何度実行しても安全です（既存の `.env` は上書きしません）。
 
+`target/` は放置すると数十 GB になります。14 日以上使っていないビルド成果物は
+`cargo sweep --time 14` で削除してください（導入: `cargo install cargo-sweep`）。
+worktree はそれぞれ別の `target/` を持つため、不要になった worktree は `git worktree remove` で
+`target/` ごと消し、残している worktree は `cargo sweep -r --time 14 .claude/worktrees` でまとめて掃除します。
+
 ## ビルドとテスト
 
-現在できる検査は `make check` と `make test-hooks` です。内容は次の「コマンド」の表を参照してください。
+現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps` です。内容は次の「コマンド」の表を参照してください。
 
-エンジンのビルドとテストの手順は、Cargo ワークスペースの導入後に、次の順で書きます。コマンドは導入前に推測で書きません。
-手順の中身を整える作業は、後続のタスクで行います。
+Cargo ワークスペースは導入済みですが、中身は空の骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
 
 ### ビルド
 
-（Cargo ワークスペースの導入後に記入します。記入するタスクは、実装着手時に Issue 化して、ここに番号を添えます）
+ネイティブのビルドは `cargo build --locked` です（`default-members` の contract・core・pack だけを対象にします）。web を含めるときは `--workspace` を付けます。wasm32 向けのビルドは後述します。
 
 ### native のテスト
 
-（同上）
+- `make test`（`cargo test --locked --workspace`）: web を含む全 crate の native 試験を流します
+- `cargo test --locked`: `default-members` だけを流します（web は含みません）
+- `make lint`: `cargo fmt --check`・clippy（警告をエラー扱い）・web の wasm32 向け clippy（feature なしと `test-hooks` の 2 通り）を流します。ソースは変更しません
+- `make fmt`: rustfmt で整形します（ソースを変更します）
+- `make check-deps`: crate 間の依存の向きを `cargo metadata` で検査します。`make test-check-deps` は、その検査自体の回帰テストです
 
 ### wasm32 のビルド
 
-（同上）
+（後続のタスクで記入します）
 
 ### ブラウザテスト
 
-（同上）
+（後続のタスクで記入します）
 
 ## コマンド
 
@@ -156,6 +168,11 @@ direnv allow  # direnv を使う場合のみ。.envrc の読み込みを許可�
 | `make setup` | `scripts/setup.sh` | Git hooks 有効化と `.env` 雛形の配置 |
 | `make check` | `scripts/check.sh` | editorconfig-checker + shellcheck（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/test-hooks.sh` | フックスクリプト自体の回帰テスト（一時 git リポジトリで検出・許可ケースを検証。bash + git のみ） |
+| `make lint` | `scripts/lint.sh` | Rust の fmt check + clippy + web の wasm32 向け clippy（ソースは変更しない） |
+| `make fmt` | `cargo fmt --all` | Rust のソースを rustfmt で整形する（ソースを変更する） |
+| `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
+| `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |
+| `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
 
 ## Git hooks
 

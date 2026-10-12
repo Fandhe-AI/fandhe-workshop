@@ -1,0 +1,60 @@
+# fandhe-workshop の Cargo ワークスペース（仮想 manifest）。
+#
+# crate 構成と依存の向きの正は docs/architecture.md（構成設計の版 1）。
+# 依存の向きは `make check-deps`（scripts/check-crate-deps.sh）が機械で守る。
+[workspace]
+resolver = "2"
+members = [
+    "crates/contract",
+    "crates/core",
+    "crates/pack",
+    "crates/web",
+]
+# web を外すのは、wasm32 向けの依存を素の `cargo test` に引き込まないため。
+# web を含めるときは `--workspace` を付ける。
+default-members = [
+    "crates/contract",
+    "crates/core",
+    "crates/pack",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Fandhe-AI/fandhe-workshop"
+publish = false
+
+[workspace.dependencies]
+fandhe-workshop-contract = { path = "crates/contract" }
+fandhe-workshop-core = { path = "crates/core" }
+fandhe-workshop-pack = { path = "crates/pack" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+toml = "1.1.6"
+yaml_serde = "0.10.7"
+pulldown-cmark = { version = "0.13.4", default-features = false }
+
+# 公開 API の文書化と、unsafe・#[allow] の理由の明記を機械で強制する
+# （.claude/rules/code-comment-style.md）。make lint は -D warnings で流す。
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "warn"
+allow_attributes_without_reason = "warn"
+
+# 依存クレート（workspace メンバー以外）のデバッグ情報を行番号のみにする。
+# panic 位置・バックトレース・プロファイラの行番号は残り、失うのはデバッガで依存の
+# 変数・型を見る機能だけ。自分たちのクレートは full debuginfo のまま。
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
+# 配信する wasm の大きさを抑える設定。fandhe-frontend の glue と同じ値にする。
+# [profile] はワークスペースのルートにしか書けない（メンバーに書くと無視される）。
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
