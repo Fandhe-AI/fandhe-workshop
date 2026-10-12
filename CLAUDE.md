@@ -26,11 +26,13 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
 ├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
 ├── docs/toolchain.md         # 固定した版と前提の一か所の正（check-toolchain が一致を検査）
+├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
+│   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
@@ -72,6 +74,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
+| `make check-mutations` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
+| `make test-check-mutations` | 変異注入の検査自体の回帰テスト |
 
 build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。版の固定ファイルを変えたら `make check-toolchain` も通す。
 

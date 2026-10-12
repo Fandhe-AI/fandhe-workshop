@@ -1,0 +1,8 @@
+id: S2
+package: fandhe-workshop-core
+test: property_sample
+target: crates/core/tests/property_sample.rs
+find: if self.step < LAST {
+replace: if self.step <= LAST {
+expect-fail: 乱数の入力列で状態が壊れない
+note: 進行の上限を外す（最終位置を超えて進む）。固定列は上限を超えないので、性質テストだけが捉える
