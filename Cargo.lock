@@ -27,6 +27,69 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "fandhe-frontend-app"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64dc78600b2cb88c6d75f03c52554bacbd38ac5362dfc9d70a43c2fc9387c6e6"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-core"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d3bd01b7d85a02498dc7765758d4429e7cb1bac61d386d22ccdd3d84a432e64"
+
+[[package]]
+name = "fandhe-frontend-headless-ui"
+version = "0.69.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e37d1d4a247786e2104c01eae5828b06a7f1db99d8ac5ac1b23c3fa1d34ada59"
+dependencies = [
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+]
+
+[[package]]
+name = "fandhe-frontend-interactive"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ae9058e3ebba965618627ad4ccc57244b588dbcfcbba80268fa1c038fe5a679"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-client"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f91a9248b173e06943dd58e2c80ae0b1e33882402b6056ea6416f824e9d829b8"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-full"
+version = "0.46.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a77dd42dd9214e3f5851df234db557954b3e7adcf59dd56f8b570b4c93f29a48"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
+ "fandhe-frontend-interactive",
+ "fandhe-frontend-wasm-client",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "fandhe-workshop-contract"
 version = "0.0.0"
 dependencies = [
@@ -60,10 +123,35 @@ dependencies = [
 name = "fandhe-workshop-web"
 version = "0.0.0"
 dependencies = [
+ "fandhe-frontend-wasm-full",
  "fandhe-workshop-contract",
  "fandhe-workshop-core",
  "fandhe-workshop-pack",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "futures-core"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
+
+[[package]]
+name = "futures-task"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
+
+[[package]]
+name = "futures-util"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
+dependencies = [
+ "futures-core",
+ "futures-task",
+ "pin-project-lite",
+ "slab",
 ]
 
 [[package]]
@@ -89,6 +177,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "js-sys"
+version = "0.3.105"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce57d20d1ea864ce2ac172ab472d409214f4fd359f0b2a2775abdf522e2af99e"
+dependencies = [
+ "cfg-if",
+ "futures-util",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "libyaml-rs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -105,6 +204,12 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "pin-project-lite"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "proc-macro2"
@@ -198,6 +303,12 @@ checksum = "4e7523beb55eece201a2356bee0bbca0d1ab466c14c07703b2e0ee6d42cb0c2c"
 dependencies = [
  "serde_core",
 ]
+
+[[package]]
+name = "slab"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "syn"
@@ -304,6 +415,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81941cd78d0c92026c33e5e01312845a4cb1e9af3407f9134b100dd03144103e"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "web-sys"
+version = "0.3.105"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fbddc4a036f00ec4f18c83445bd3115cb306a91da554919a099d9222fe4a7f8"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]

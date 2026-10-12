@@ -17,6 +17,7 @@ test-hooks = []
 [dependencies]
 fandhe-workshop-contract.workspace = true
 fandhe-workshop-core.workspace = true
+fandhe-frontend-wasm-full.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen.workspace = true
