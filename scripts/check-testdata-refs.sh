@@ -7,7 +7,10 @@
 #   (a) repo のルートより上へ出る
 #   (b) 解決後の先頭の構成要素が 03-poc か prototype
 # 宛先が存在するかは見ない（md の記録上のリンクが多数あり、試験のデータ参照ではないため）。
-# コード側（crates/・scripts/・tools/）も同じ解決で判定する（(a) はディレクトリ名によらず拒否する）。
+# コード側（crates/・scripts/・tools/）は、読み込み処理ごとに基準が違う（Cargo のテストは CARGO_MANIFEST_DIR
+# = crate ルートを基準にできる）ため、ファイルの位置と crate ルート（最も近い Cargo.toml のあるディレクトリ）の
+# 両方から解決し、どちらかが違反なら拒否する。基準を一つに決められない参照を無条件に通さないための保守的な判定。
+# さらに、先頭の `../` の連なりの直後が 03-poc か prototype の参照は、基準によらず拒否する（字句検査）。
 # 自分自身の照合に一致しないよう、禁止語は実行時に組み立てる。
 #
 # 失敗時は `error: <path>: <token>` を標準エラーへ出す（本文は出さない）。
@@ -73,17 +76,54 @@ resolve_token() {
   fi
 }
 
-# scan_file <file>: ファイル中の `../` で始まるトークンを、そのファイルの位置から解決して判定する。
+# crate_root <dir>: dir から上へ辿り、最初に Cargo.toml のあるディレクトリ（repo ルート相対）を出力する。
+# 無ければ何も出力しない。
+crate_root() {
+  local d="$1"
+  while [ "${d}" != "." ] && [ "${d}" != "/" ] && [ -n "${d}" ]; do
+    if [ -f "${d}/Cargo.toml" ]; then
+      echo "${d}"
+      return 0
+    fi
+    d="$(dirname "${d}")"
+  done
+}
+
+# lexical_sibling <token>: 先頭の `../` の連なりの直後が禁止語なら理由を出力する。
+lexical_sibling() {
+  local rest="$1"
+  while [ "${rest#../}" != "${rest}" ]; do
+    rest="${rest#../}"
+  done
+  case "${rest}" in
+    "${banned_a}" | "${banned_a}"/* | "${banned_b}" | "${banned_b}"/*)
+      echo "points to a sibling directory (lexical)"
+      ;;
+  esac
+}
+
+# scan_file <file> <code>: ファイル中の `../` で始まるトークンを解決して判定する（code=1 はコード側）。
 # GNU 専用の grep --null に頼らず、ファイルごとに grep する（BSD grep 互換）。違反は violations に加算する。
 scan_file() {
-  local file="$1" rc=0 token reason
+  local file="$1" is_code="$2" rc=0 token reason fdir croot
+  fdir="$(dirname "${file}")"
+  croot=""
+  if [ "${is_code}" = 1 ]; then
+    croot="$(crate_root "${fdir}")"
+  fi
   grep -IoE -e '\.\./[^[:space:]"'"'"'`)<>]*' "${file}" >"${TMP_DIR}/tokens.txt" || rc=$?
   if [ "${rc}" -ge 2 ]; then
     echo "error: grep failed while scanning ${file} (exit ${rc})" >&2
     exit 2
   fi
   while IFS= read -r token; do
-    reason="$(resolve_token "$(dirname "${file}")" "${token}")"
+    reason="$(resolve_token "${fdir}" "${token}")"
+    if [ -z "${reason}" ] && [ -n "${croot}" ] && [ "${croot}" != "${fdir}" ]; then
+      reason="$(resolve_token "${croot}" "${token}")"
+    fi
+    if [ -z "${reason}" ] && [ "${is_code}" = 1 ]; then
+      reason="$(lexical_sibling "${token}")"
+    fi
     if [ -n "${reason}" ]; then
       echo "error: ${file}: ${token} (${reason})" >&2
       violations=$((violations + 1))
@@ -101,7 +141,10 @@ for d in crates scripts tools; do
 done
 find "${scan_dirs[@]}" -name target -prune -o -type f -print0 >"${TMP_DIR}/files.bin"
 while IFS= read -r -d '' file; do
-  scan_file "${file}"
+  case "${file}" in
+    testdata/*) scan_file "${file}" 0 ;;
+    *) scan_file "${file}" 1 ;;
+  esac
 done <"${TMP_DIR}/files.bin"
 
 if [ "${violations}" -ne 0 ]; then

@@ -42,6 +42,7 @@ expect() {
 fresh_tree() {
   local dest="${TMP_DIR}/$1"
   mkdir -p "${dest}/scripts" "${dest}/testdata/poc-a/test-data/sub" "${dest}/crates/pack/tests"
+  printf '[package]\nname = "pack"\n' >"${dest}/crates/pack/Cargo.toml"
   cp "${DIR}/lib.sh" "${DIR}/${CHECK_NAME}" "${dest}/scripts/"
   printf '{"ref": "../data.json"}\n' >"${dest}/testdata/poc-a/test-data/sub/a.json"
   printf 'fn main() {}\n' >"${dest}/crates/pack/tests/t.rs"
@@ -83,6 +84,18 @@ tree="$(fresh_tree code)"
 printf 'const P: &str = "%s/%s/%s/%s/x";\n' "${up}" "${up}" "${up}" "${sibling}" >"${tree}/crates/pack/tests/t.rs"
 run_check "${tree}"
 expect "sibling reference in code is rejected" 1 "${RC}"
+
+# 4a. crate ルート基準の典型的な兄弟参照（字句検査と crate ルート解決で拒否）
+tree="$(fresh_tree code-crate-sibling)"
+printf 'const P: &str = "%s/%s/%s/x";\n' "${up}" "${up}" "${sibling}" >"${tree}/crates/pack/tests/t.rs"
+run_check "${tree}"
+expect "crate-root sibling reference in code is rejected" 1 "${RC}"
+
+# 4a2. CARGO_MANIFEST_DIR（crates/pack）基準でルート外へ出る参照は、ファイル位置基準では repo 内でも拒否する
+tree="$(fresh_tree code-manifest-escape)"
+printf 'const P: &str = "%s/%s/%s/external/data.json";\n' "${up}" "${up}" "${up}" >"${tree}/crates/pack/tests/t.rs"
+run_check "${tree}"
+expect "manifest-dir root escape in code is rejected" 1 "${RC}"
 
 # 4b. コード側のルート外への参照は、ディレクトリ名によらず失敗する
 tree="$(fresh_tree code-escape)"
