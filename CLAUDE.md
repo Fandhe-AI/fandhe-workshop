@@ -10,7 +10,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 操作に応じて成果物が変わる教材として動くことを目指す。エンジンは特定の教材の知識を持たない。
 
 - 開発基盤は `Fandhe-AI/template-dev` から作成した。現時点の中身は Make・シェルスクリプト・lefthook・GitHub Actions
-- Cargo ワークスペースの骨格（4 crate。中身は空、2026-10-12 時点）を導入済み。エンジンの実装・Rust 向けの builder Agent・コーディング規約は、タスクに沿って追加する
+- Cargo ワークスペースの骨格（4 crate。中身は空、2026-10-12 時点）を導入済み。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
 - 仕様は private の submodule `docs/spec`（`Fandhe-AI/fandhe-workshop-spec`）。取得手順は README の「仕様」
 
 ## Repository Structure
@@ -87,7 +87,7 @@ main のコンテキストは、対話・計画・判断のために残す。調
 | `.github/workflows/**` | `explorer` | `infra-builder` | `github-actions.md` |
 | `.claude/rules/**`・`.claude/agents/**`・`.claude/settings.json`・`.mcp.json` | `explorer` | `dotclaude-author` | `delegation.md`・`security.md` |
 | `README.md`・`CONTRIBUTING.md`・`CLAUDE.md`・`docs/architecture.md`・`docs/glossary.md` | `explorer` | `docs-writer` | `japanese-style.md` |
-| `Cargo.toml`・`**/*.rs`（未導入） | `explorer` | 未定義（着手時に `update-claude` で builder を追加） | `rust-build-profile.md` |
+| `Cargo.toml`・`**/*.rs` | `explorer` | 未定義（着手時に `update-claude` で builder を追加） | `coding-rust.md`・`rust-build-profile.md` |
 | 外部仕様の確認 | `reference-researcher` | — | `.claude/skills/` のリファレンススキル |
 | `.agents/skills/**`・`.claude/skills/**` | — | 編集しない（`contribute-skill` で upstream へ） | — |
 | `docs/spec/**` | `explorer` | 編集しない（spec リポジトリ側で変更） | — |
@@ -135,6 +135,7 @@ Agent の `model:` には、この表の alias だけを書く。最上位 tier 
 | `conventional-commits.md` | 常時 | コミット件名・PR タイトルの形式と検証の仕組み |
 | `out-of-scope-tracking.md` | 常時 | スコープ外の事項を Issue に記録する流れ |
 | `coding-shell.md` | `**/*.sh`・`.shellcheckrc` | bash 3.2 互換・クォート・エラー処理・shellcheck |
+| `coding-rust.md` | `**/*.rs`・`**/Cargo.toml` | workspace lint・unsafe と `#[allow]` の理由・エラー処理・依存の版固定と向き・検証コマンド |
 | `code-comment-style.md` | `**/*.sh`・`Makefile`・`lefthook.yml`・`.github/workflows/**`・`**/*.rs`・`**/*.toml` | コメントに残す内容とファイル種別ごとの形式 |
 | `makefile.md` | `Makefile`・`scripts/*.sh` | 薄い入口の方針・ターゲット追加手順・スクリプトの規約 |
 | `git-hooks.md` | `lefthook.yml`・`lefthook-local.yml`・`scripts/hooks/**` | フックの時間予算・CI との役割分担・fail-closed |
