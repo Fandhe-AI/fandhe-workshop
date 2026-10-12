@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# 言語固有の build / test / fmt / lint 等は派生リポジトリで追加する。
+# Rust 向けの lint / fmt / test / check-deps を持つ。build は TASK-27 以降で追加する。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -33,3 +33,18 @@ check: ## editorconfig-checker + shellcheck（ソースは変更しない）。�
 
 test-hooks: ## scripts/hooks/ のフックスクリプト自体の回帰テスト（bash + git のみ）。直接: scripts/hooks/test-hooks.sh
 	@scripts/hooks/test-hooks.sh
+
+lint: ## Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）。直接: scripts/lint.sh
+	@scripts/lint.sh
+
+fmt: ## Rust のソースを rustfmt で整形する（ソースを変更する）。直接: cargo fmt --all
+	@cargo fmt --all
+
+test: ## Rust の native 試験（web を含む全 crate）。直接: scripts/test.sh
+	@scripts/test.sh
+
+check-deps: ## crate 間の依存の向きを cargo metadata で検査する。直接: scripts/check-crate-deps.sh
+	@scripts/check-crate-deps.sh
+
+test-check-deps: ## 依存の向きの検査自体の回帰テスト。直接: scripts/test-check-crate-deps.sh
+	@scripts/test-check-crate-deps.sh

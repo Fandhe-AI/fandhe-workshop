@@ -10,7 +10,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 操作に応じて成果物が変わる教材として動くことを目指す。エンジンは特定の教材の知識を持たない。
 
 - 開発基盤は `Fandhe-AI/template-dev` から作成した。現時点の中身は Make・シェルスクリプト・lefthook・GitHub Actions
-- **言語固有の設定・実装（Rust 等）は未導入**。実装着手の指示後に、タスクに沿って追加する
+- Cargo ワークスペースの骨格（4 crate。中身は空、2026-10-12 時点）を導入済み。エンジンの実装・Rust 向けの builder Agent・コーディング規約は、タスクに沿って追加する
 - 仕様は private の submodule `docs/spec`（`Fandhe-AI/fandhe-workshop-spec`）。取得手順は README の「仕様」
 
 ## Repository Structure
@@ -20,6 +20,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── CLAUDE.md                 # 本ファイル
 ├── AGENTS.md                 # レビュー観点集（ai-review が PR の base コミットから読む。P0 / P1 / P2）
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
+├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
+├── crates/                   # contract / core / pack / web の 4 crate（骨格のみ）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
 ├── scripts/
@@ -56,8 +58,13 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make setup` | Git hooks の有効化と `.env` の作成（再実行可） |
 | `make check` | editorconfig-checker + shellcheck（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/` の回帰テスト |
+| `make lint` | Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない） |
+| `make fmt` | Rust の整形（ソースを変更する） |
+| `make test` | Rust の native 試験（web を含む全 crate） |
+| `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
+| `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 
-build・test・lint など言語固有のターゲットはまだ無い。変更後は `make check` を通す。
+build の入口はまだ無い。変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。
 
 ## 委譲方針（必読）
 

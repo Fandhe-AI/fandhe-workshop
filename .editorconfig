@@ -27,3 +27,7 @@ indent_style = tab
 # .gitmodules は git が書き込む形式（タブインデント）に合わせる
 [.gitmodules]
 indent_style = tab
+
+# Rust は rustfmt の既定（4 スペース）に合わせる
+[*.rs]
+indent_size = 4

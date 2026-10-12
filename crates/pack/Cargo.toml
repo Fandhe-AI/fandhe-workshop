@@ -1,0 +1,24 @@
+[package]
+name = "fandhe-workshop-pack"
+description = "教材データを検証・変換する CLI（fandhe-pack）とそのライブラリ"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "fandhe-pack"
+path = "src/main.rs"
+
+[dependencies]
+fandhe-workshop-contract.workspace = true
+fandhe-workshop-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+yaml_serde.workspace = true
+pulldown-cmark.workspace = true
+
+[lints]
+workspace = true

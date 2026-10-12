@@ -29,3 +29,6 @@ Thumbs.db
 !/.vscode/settings.json
 *.swp
 *~
+
+# Cargo のビルド成果物
+/target/

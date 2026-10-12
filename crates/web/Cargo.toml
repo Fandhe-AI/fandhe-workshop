@@ -1,0 +1,26 @@
+[package]
+name = "fandhe-workshop-web"
+description = "ブラウザ向けの表示層（wasm32 で動く。DOM を扱う）"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# ブラウザ試験用の入口を公開する feature。既定は無効で、配信する設定では付けない。
+test-hooks = []
+
+[dependencies]
+fandhe-workshop-contract.workspace = true
+fandhe-workshop-core.workspace = true
+
+[dev-dependencies]
+# 依存の向きの唯一の例外（docs/architecture.md 第 4 節）。試験専用で、normal 依存にはしない。
+fandhe-workshop-pack.workspace = true
+
+[lints]
+workspace = true
