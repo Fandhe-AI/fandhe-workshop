@@ -16,7 +16,7 @@ description: >
 
 | 対象 | 文体 |
 |---|---|
-| ユーザーへの応答・`README.md` | です・ます調 |
+| ユーザーへの応答・`README.md`・`CONTRIBUTING.md`・`docs/glossary.md` | です・ます調 |
 | `CLAUDE.md`・`.claude/rules/`・`.claude/agents/`・コード内コメント | である調（体言止め・箇条書きを使ってよい） |
 | コミットメッセージ・PR タイトルの要約 | 日本語の「〜する」「〜を追加」など、簡潔な言い切り |
 | スクリプトのエラー・usage の出力 | 英語（`error: ...` / `usage: ...`） |
