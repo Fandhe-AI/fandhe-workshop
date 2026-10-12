@@ -122,6 +122,13 @@ check_status "OUT_DIR ending in .. is rejected" 2 env OUT_DIR="${TMP}/sub/.." "$
 check_status "OUT_DIR ending in . is rejected" 2 env OUT_DIR="${TMP}/sub/." "${BUILD}"
 check "dir behind .. is left intact" test -d "${TMP}/sub"
 check_status "missing IR_FILE is rejected" 2 env IR_FILE="${TMP}/missing.json" OUT_DIR="${TMP}/m3" "${BUILD}"
+# 出力先の配下にある IR（シンボリックリンク経由を含む）は、削除で入力が消えるため削除前に拒否する。
+mkdir -p "${TMP}/inside/ir" "${TMP}/elsewhere"
+echo '{"ir":"keep"}' >"${TMP}/inside/ir/main.json"
+ln -s "${TMP}/inside/ir/main.json" "${TMP}/elsewhere/link.json"
+check_status "IR_FILE inside OUT_DIR is rejected" 2 env IR_FILE="${TMP}/inside/ir/main.json" OUT_DIR="${TMP}/inside" "${BUILD}"
+check_status "symlinked IR_FILE inside OUT_DIR is rejected" 2 env IR_FILE="${TMP}/elsewhere/link.json" OUT_DIR="${TMP}/inside" "${BUILD}"
+check "IR_FILE inside OUT_DIR is left intact" test -f "${TMP}/inside/ir/main.json"
 
 if [ "${FAILURES}" -ne 0 ]; then
   echo "error: ${FAILURES} check(s) failed" >&2

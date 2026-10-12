@@ -58,7 +58,16 @@ if [ -n "${IR_FILE}" ]; then
     echo "error: IR_FILE is not a regular file: ${IR_FILE}" >&2
     exit 2
   fi
-  IR_ABS="$(cd "$(dirname "${IR_FILE}")" && pwd -P)/$(basename "${IR_FILE}")"
+  IR_ABS="${IR_FILE}"
+  # ファイル自体がシンボリックリンクなら実体まで辿る（出力先配下への迂回を見逃さないため）。
+  while [ -L "${IR_ABS}" ]; do
+    LINK_TARGET="$(readlink "${IR_ABS}")"
+    case "${LINK_TARGET}" in
+      /*) IR_ABS="${LINK_TARGET}" ;;
+      *) IR_ABS="$(dirname "${IR_ABS}")/${LINK_TARGET}" ;;
+    esac
+  done
+  IR_ABS="$(cd "$(dirname "${IR_ABS}")" && pwd -P)/$(basename "${IR_ABS}")"
 fi
 
 # 出力先は丸ごと消すため、消してよい場所に限る（fail-closed）。
@@ -82,6 +91,15 @@ if [ ! -d "${OUT_PARENT}" ]; then
 fi
 OUT_ABS="$(cd "${OUT_PARENT}" && pwd -P)/${OUT_BASE}"
 ROOT_REAL="$(cd "${ROOT_DIR}" && pwd -P)"
+# 出力先は丸ごと消すため、入力の IR が出力先の配下にあると削除で入力が消える。削除の前に拒否する。
+if [ -n "${IR_ABS}" ]; then
+  case "${IR_ABS}" in
+    "${OUT_ABS}"/*)
+      echo "error: IR_FILE must not be inside OUT_DIR (it would be deleted): ${IR_ABS}" >&2
+      exit 2
+      ;;
+  esac
+fi
 case "${OUT_ABS}" in
   "${ROOT_REAL}/dist/"?*) ;;
   *)
