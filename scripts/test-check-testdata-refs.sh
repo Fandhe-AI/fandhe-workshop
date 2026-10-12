@@ -21,7 +21,8 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 sibling="03-""poc"
-dots="../../../../"
+up=".."
+dots="${up}/${up}/${up}/${up}/"
 
 passed=0
 failed=0
@@ -55,7 +56,7 @@ run_check() {
 
 # 1. 正常なデータ（repo の内側へ解決する参照と、無関係なパス遡りの試験値）は通る
 tree="$(fresh_tree ok)"
-printf 'payload ../../../XSS-54/etc/passwd and ../../XSS-IR3\n' >"${tree}/testdata/poc-a/test-data/sub/b.md"
+printf 'payload %s/%s/%s/XSS-54/etc/passwd and %s/%s/XSS-IR3\n' "${up}" "${up}" "${up}" "${up}" "${up}" >"${tree}/testdata/poc-a/test-data/sub/b.md"
 run_check "${tree}"
 expect "valid testdata passes" 0 "${RC}"
 
@@ -67,21 +68,33 @@ expect "sibling reference in testdata is rejected" 1 "${RC}"
 
 # 3. repo のルートより上へ出る参照は失敗する
 tree="$(fresh_tree escape)"
-printf '{"ref": "../../../../../outside"}\n' >"${tree}/testdata/poc-a/test-data/sub/d.json"
+printf '{"ref": "%s%s/outside"}\n' "${dots}" "${up}" >"${tree}/testdata/poc-a/test-data/sub/d.json"
 run_check "${tree}"
 expect "reference escaping the root is rejected" 1 "${RC}"
 
 # 3b. トークン中の `*` がパス名展開されず、ルート脱出の判定をすり抜けない
 tree="$(fresh_tree glob)"
-printf '{"ref": "../*/../../../../../outside"}\n' >"${tree}/testdata/poc-a/test-data/sub/e.json"
+printf '{"ref": "%s*/%s%s/outside"}\n' "${up}/" "${dots}" "${up}" >"${tree}/testdata/poc-a/test-data/sub/e.json"
 run_check "${tree}"
 expect "glob character in a token does not hide a root escape" 1 "${RC}"
 
 # 4. コード側の相対参照は失敗する
 tree="$(fresh_tree code)"
-printf 'const P: &str = "../../%s/x";\n' "${sibling}" >"${tree}/crates/pack/tests/t.rs"
+printf 'const P: &str = "%s/%s/%s/%s/x";\n' "${up}" "${up}" "${up}" "${sibling}" >"${tree}/crates/pack/tests/t.rs"
 run_check "${tree}"
 expect "sibling reference in code is rejected" 1 "${RC}"
+
+# 4b. コード側のルート外への参照は、ディレクトリ名によらず失敗する
+tree="$(fresh_tree code-escape)"
+printf 'const P: &str = "%sexternal/data.json";\n' "${dots}" >"${tree}/crates/pack/tests/t.rs"
+run_check "${tree}"
+expect "root escape in code is rejected" 1 "${RC}"
+
+# 4c. コード側の repo 内へ解決する参照は通る
+tree="$(fresh_tree code-inside)"
+printf 'const P: &str = "%s/%s/testdata/a.json";\n' "${up}" "${up}" >"${tree}/crates/pack/tests/t.rs"
+run_check "${tree}"
+expect "inside reference in code passes" 0 "${RC}"
 
 # 5. testdata/ が無いときは成功にしない
 tree="$(fresh_tree missing)"

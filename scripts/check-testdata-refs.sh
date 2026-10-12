@@ -7,8 +7,8 @@
 #   (a) repo のルートより上へ出る
 #   (b) 解決後の先頭の構成要素が 03-poc か prototype
 # 宛先が存在するかは見ない（md の記録上のリンクが多数あり、試験のデータ参照ではないため）。
-# コード側（crates/・scripts/・tools/）は、`../` の連なりの後に 03-poc/・prototype/ が続く文字列を禁じる。
-# 自分自身の照合パターンに一致しないよう、禁止語は実行時に組み立てる。
+# コード側（crates/・scripts/・tools/）も同じ解決で判定する（(a) はディレクトリ名によらず拒否する）。
+# 自分自身の照合に一致しないよう、禁止語は実行時に組み立てる。
 #
 # 失敗時は `error: <path>: <token>` を標準エラーへ出す（本文は出さない）。
 # 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 検査を完了できない（fail-closed）または誤用。
@@ -73,11 +73,10 @@ resolve_token() {
   fi
 }
 
-# 規則 1: testdata/ のテキストファイルの `../` で始まるトークン。
-# GNU 専用の grep --null に頼らず、find -print0 でファイルを列挙してファイルごとに grep する（BSD grep 互換）。
-find testdata -type f -print0 >"${TMP_DIR}/files.bin"
-while IFS= read -r -d '' file; do
-  rc=0
+# scan_file <file>: ファイル中の `../` で始まるトークンを、そのファイルの位置から解決して判定する。
+# GNU 専用の grep --null に頼らず、ファイルごとに grep する（BSD grep 互換）。違反は violations に加算する。
+scan_file() {
+  local file="$1" rc=0 token reason
   grep -IoE -e '\.\./[^[:space:]"'"'"'`)<>]*' "${file}" >"${TMP_DIR}/tokens.txt" || rc=$?
   if [ "${rc}" -ge 2 ]; then
     echo "error: grep failed while scanning ${file} (exit ${rc})" >&2
@@ -90,26 +89,20 @@ while IFS= read -r -d '' file; do
       violations=$((violations + 1))
     fi
   done <"${TMP_DIR}/tokens.txt"
-done <"${TMP_DIR}/files.bin"
+}
 
-# 規則 2: コード側の相対参照。
-code_dirs=()
+# 規則 1: testdata/ のテキストファイル。規則 2: コード側（crates/・scripts/・tools/。target/ を除く）。
+# どちらも同じ解決で、repo のルート外・兄弟ディレクトリへの参照を拒否する（ディレクトリ名は問わない）。
+scan_dirs=(testdata)
 for d in crates scripts tools; do
   if [ -d "${d}" ]; then
-    code_dirs+=("${d}")
+    scan_dirs+=("${d}")
   fi
 done
-code_pattern='(\.\./)+('"${banned_a}"'|'"${banned_b}"')/'
-rc=0
-grep -rInE --exclude-dir=target --exclude-dir=.git -e "${code_pattern}" "${code_dirs[@]}" >"${TMP_DIR}/code.txt" || rc=$?
-if [ "${rc}" -ge 2 ]; then
-  echo "error: grep failed while scanning code (exit ${rc})" >&2
-  exit 2
-fi
-while IFS= read -r line; do
-  echo "error: ${line%%:*}: relative reference to a sibling directory" >&2
-  violations=$((violations + 1))
-done <"${TMP_DIR}/code.txt"
+find "${scan_dirs[@]}" -name target -prune -o -type f -print0 >"${TMP_DIR}/files.bin"
+while IFS= read -r -d '' file; do
+  scan_file "${file}"
+done <"${TMP_DIR}/files.bin"
 
 if [ "${violations}" -ne 0 ]; then
   echo "error: ${violations} reference(s) outside the repository" >&2
