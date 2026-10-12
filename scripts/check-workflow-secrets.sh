@@ -13,6 +13,7 @@
 # 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
 # 上の行ベースの検査に加え、ruby（Psych）で YAML を構文木に解析し、記法に依存せず次を検査する。
 #   - `secrets` キーのスカラー値（値を別行に置いた形・`>-` などのブロックスカラー・フロー形式を含む）
+#   - 全スカラーの復号後の値にある Actions 式（二重引用符内の `\x73ecrets` 等のエスケープ表記を復号して検査する）
 #   - `if` キーの値（フロー形式 `{if: ...}` を含む）。行頭の `if:` の形に頼らず、キーと値の対として検査する
 # 解析できない YAML・エイリアス（`*name`。参照先を追わないため）・`if` のスカラーでない値は、検査を完了できない
 # ものとして終了コード 2 にする（fail-closed）。
@@ -127,9 +128,62 @@ risky = lambda do |v|
     lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[[ \t]*[\x27\x22]token)/ ||
     lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/
 end
+# 復号後のスカラー値から Actions 式 `${{ ... }}` の本文を取り出す。awk と同じく、式の中の文字列リテラル
+# （単一引用符。中の引用符は連続 2 個でエスケープ）にある `}}` は終端として扱わない。閉じない式は残りを本文にする。
+expr_bodies = lambda do |s|
+  bodies = []
+  i = 0
+  n = s.length
+  while i < n
+    if s[i, 3] == "${{"
+      i += 3
+      buf = +""
+      instr = false
+      closed = false
+      while i < n
+        c = s[i]
+        if instr
+          buf << c
+          if c == "\x27"
+            if s[i + 1] == "\x27"
+              buf << "\x27"
+              i += 2
+            else
+              instr = false
+              i += 1
+            end
+          else
+            i += 1
+          end
+        elsif c == "\x27"
+          instr = true
+          buf << c
+          i += 1
+        elsif s[i, 2] == "}}"
+          closed = true
+          i += 2
+          break
+        else
+          buf << c
+          i += 1
+        end
+      end
+      bodies << buf
+    else
+      i += 1
+    end
+  end
+  bodies
+end
 hits = []
 unsupported = []
 walk = lambda do |node|
+  # 引用符内のエスケープ（\x73ecrets 等）は Psych が復号した値で見る。行ベースの検査が見逃す記法の受け皿になる。
+  if node.is_a?(Psych::Nodes::Scalar)
+    expr_bodies.call(node.value).each do |body|
+      hits << "#{node.start_line + 1}:expression: #{body.strip}" if risky.call(body)
+    end
+  end
   case node
   when Psych::Nodes::Alias
     unsupported << (node.start_line + 1)
