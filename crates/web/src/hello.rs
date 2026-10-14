@@ -83,4 +83,11 @@ mod tests {
     fn unknown_action_is_ignored() {
         assert!(HelloView::decode_action("click", "").is_none());
     }
+
+    #[test]
+    fn view_has_no_undefined_a11y_items() {
+        // 教材の画面に置き換わったら check_complete へ切り替える（TASK-517・TASK-450）。
+        let view = HelloView::new().view();
+        assert_eq!(crate::a11y::check_no_undefined(&view), Ok(()));
+    }
 }
