@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve test-browser check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve test-browser check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -92,3 +92,9 @@ measure-wasm-size: ## WASM の gzip -9 の大きさを基点つきで測り JSON
 
 test-measure-wasm-size: ## wasm-size の様式検証と実ビルドの回帰テスト（遅い）。直接: scripts/test-measure-wasm-size.sh
 	@scripts/test-measure-wasm-size.sh
+
+measure: ## 3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）。直接: tools/measure/all.sh
+	@tools/measure/all.sh
+
+test-measure: ## 一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）。直接: scripts/test-measure.sh
+	@scripts/test-measure.sh

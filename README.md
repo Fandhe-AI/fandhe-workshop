@@ -80,7 +80,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/glossary.md` | 用語集（章・Step・IR・語彙など） |
 | `docs/architecture.md` | 実装 repo の構成設計（版 1）。crate の境界・依存の向き・公開 API の型の置き場・feature・試験データと雛形の置き場を固定する契約。crate 名は仮称 |
 | `docs/testing.md` | 性質テストと変異注入の手順、変異注入の記録の様式。変異の定義は `crates/*/tests/mutations/`、検査は `make check-mutations` |
-| `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure-wasm-size` |
+| `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
@@ -207,6 +207,8 @@ make test-browser                   # web を一時ディレクトリへビル�
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
+| `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
+| `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 
 ## Git hooks
 
