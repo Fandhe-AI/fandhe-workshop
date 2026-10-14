@@ -20,8 +20,8 @@ description: >
 - 中身の無いターゲット（`@true` 等）は置かない（呼び出し元が終了コードを信用してしまう）
 - GNU Make 3.81（macOS 標準）互換を保つ。`.ONESHELL`・`.RECIPEPREFIX` 等の 3.82+ 専用機能は使わない
 - 同じ処理を CI・lefthook・Makefile に二重定義しない。CI も `make <target>` か `scripts/*.sh` を呼ぶ
-- 現在のターゲット: `make help` を参照（`build-web`・`test-build-web` を含む）
-- spec が置き場を指定したスクリプト（`tools/build-web.sh`）は `tools/` に置いてよい。規約・shellcheck は `scripts/` と同じで、`make check` が `scripts` と `tools` の両方を検査する
+- 現在のターゲット: `make help` を参照（`build-web`・`test-build-web`・`measure-wasm-size`・`test-measure-wasm-size` を含む）
+- spec が置き場を指定したスクリプト（`tools/build-web.sh`・`tools/measure/`）は `tools/` に置いてよい。規約・shellcheck は `scripts/` と同じで、`make check` が `scripts` と `tools` の両方を検査する
 
 ## ターゲットの追加・改名・削除の手順
 
