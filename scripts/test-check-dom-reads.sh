@@ -152,6 +152,12 @@ for api in 'text_content' 'inner_html' 'inner_text' 'outer_html' 'get_attribute'
   expect "API ${api} is rejected" 1 "${RC}"
 done
 
+# 11b. children の関連関数形式（レシーバを引数で渡す）も検出する
+tree="$(fresh_tree "children-assoc" 0)"
+printf 'fn a() { let _ = web_sys::Element::children(&el); }\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "Type::children(&el) form is rejected" 1 "${RC}"
+
 # 12. crates/web/src が無いときは成功にしない
 tree="$(fresh_tree nosrc 0)"
 rm -rf "${tree}/crates/web/src"

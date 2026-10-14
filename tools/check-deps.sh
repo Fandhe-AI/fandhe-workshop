@@ -231,10 +231,11 @@ fi
 B='(^|[^A-Za-z0-9_])'
 E='($|[^A-Za-z0-9_])'
 for pat in 'text_content' 'inner_html' 'inner_text' 'outer_html' 'get_attribute' 'get_element_by_id' \
-  'get_elements_by[A-Za-z0-9_]*' 'first_child' 'children()' 'dataset' 'closest(' 'get_computed_style' \
+  'get_elements_by[A-Za-z0-9_]*' 'first_child' 'children()' 'children(assoc)' 'dataset' 'closest(' 'get_computed_style' \
   'get_bounding_client_rect'; do
   case "${pat}" in
     'children()') rx="${B}children${WS}\\(${WS}\\)" ;;
+    'children(assoc)') rx="::${WS}children${WS}\\(" ;;
     'closest(') rx="${B}closest${WS}\\(" ;;
     *) rx="${B}${pat}${E}" ;;
   esac
