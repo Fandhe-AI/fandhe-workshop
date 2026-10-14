@@ -794,6 +794,143 @@ fn script_with_noise_keeps_both_providers_in_step() -> Result<(), String> {
     Ok(())
 }
 
+/// IR の効果の列を、手写しと同じ（`path.attr`、値）の組の列に直す。
+fn ir_effects(effects: Option<&serde_json::Value>) -> Result<Vec<(String, String)>, String> {
+    let list = effects
+        .and_then(serde_json::Value::as_array)
+        .ok_or("`effects` missing")?;
+    let text = |v: &serde_json::Value, key: &str| -> Result<String, String> {
+        v.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| format!("`{key}` missing"))
+    };
+    let mut out = Vec::new();
+    for effect in list {
+        if let Some(set) = effect.get("set_attr") {
+            out.push((
+                format!("{}.{}", text(set, "path")?, text(set, "attr")?),
+                text(set, "value")?,
+            ));
+        } else if let Some(put) = effect.get("put") {
+            let path = text(put, "path")?;
+            let attrs = put
+                .get("attrs")
+                .and_then(serde_json::Value::as_object)
+                .ok_or("`attrs` missing")?;
+            for (attr, value) in attrs {
+                let value = value.as_str().ok_or("attr value is not a string")?;
+                out.push((format!("{path}.{attr}"), value.to_string()));
+            }
+        } else {
+            return Err(format!("unsupported effect: {effect}"));
+        }
+    }
+    Ok(out)
+}
+
+fn own_effects(effects: &[Effect]) -> Vec<(String, String)> {
+    effects
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+        .collect()
+}
+
+/// 受理する規則（`on` の条件が合い、結果が `accept`）の効果を引く。
+fn accept_effects(
+    step: &serde_json::Value,
+    on_key: &str,
+    on_value: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let rules = step
+        .get("rules")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("`rules` missing")?;
+    let rule = rules
+        .iter()
+        .find(|r| {
+            r.get("on")
+                .and_then(|o| o.get(on_key))
+                .and_then(serde_json::Value::as_str)
+                == Some(on_value)
+                && r.get("outcome")
+                    .and_then(|o| o.get("kind"))
+                    .and_then(serde_json::Value::as_str)
+                    == Some("accept")
+        })
+        .ok_or_else(|| format!("no accept rule for {on_key}={on_value}"))?;
+    ir_effects(rule.get("outcome").and_then(|o| o.get("effects")))
+}
+
+/// 手写しの動作上の値（名前・選択肢 ID・確認先・各段と受理時の効果）を IR と照合する。
+fn check_behavior(step: &serde_json::Value, def: &StepDef) -> Result<(), String> {
+    let id = def.id;
+    let input = step.get("input").ok_or("`input` missing")?;
+    let str_of = |v: &serde_json::Value, key: &str| {
+        v.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_string)
+    };
+    match &def.input {
+        InputSpec::Command { name, effects } => {
+            assert_eq!(str_of(input, "name").as_deref(), Some(*name), "{id}");
+            assert_eq!(
+                accept_effects(step, "command", name)?,
+                own_effects(effects),
+                "{id}"
+            );
+        }
+        InputSpec::Choice { options } => {
+            let ir_ids: Vec<String> = input
+                .get("options")
+                .and_then(serde_json::Value::as_array)
+                .ok_or("`options` missing")?
+                .iter()
+                .filter_map(|o| str_of(o, "id"))
+                .collect();
+            let own_ids: Vec<String> = options.iter().map(|(o, _)| (*o).to_string()).collect();
+            assert_eq!(ir_ids, own_ids, "{id}");
+            for (opt, effects) in options {
+                assert_eq!(
+                    accept_effects(step, "option", opt)?,
+                    own_effects(effects),
+                    "{id}/{opt}"
+                );
+            }
+        }
+        InputSpec::Approval { effects } => {
+            assert_eq!(
+                accept_effects(step, "approval", "approve")?,
+                own_effects(effects),
+                "{id}"
+            );
+        }
+    }
+    let stages = step
+        .get("processing")
+        .and_then(serde_json::Value::as_array)
+        .ok_or("`processing` missing")?;
+    assert_eq!(stages.len(), def.processing.len(), "{id}");
+    for (n, (stage, own)) in stages.iter().zip(&def.processing).enumerate() {
+        assert_eq!(
+            ir_effects(stage.get("effects"))?,
+            own_effects(own),
+            "{id} stage {n}"
+        );
+    }
+    if let Confirm::PointAt { view, path } = &def.confirm {
+        let target = step
+            .get("confirm")
+            .and_then(|c| c.get("targets"))
+            .and_then(serde_json::Value::as_array)
+            .and_then(|t| t.first())
+            .ok_or("`confirm.targets` missing")?;
+        assert_eq!(str_of(target, "view").as_deref(), Some(*view), "{id}");
+        assert_eq!(str_of(target, "path").as_deref(), Some(*path), "{id}");
+    }
+    Ok(())
+}
+
 #[test]
 fn material_matches_the_ir_source() -> Result<(), String> {
     let path = testdata_root()?.join(TEST_DATA).join("min-3step.json");
@@ -854,6 +991,7 @@ fn material_matches_the_ir_source() -> Result<(), String> {
             "{}",
             def.id
         );
+        check_behavior(step, def)?;
     }
     Ok(())
 }
