@@ -38,6 +38,8 @@ cat <<'EOF'
   test-check-mutations  scripts/test-check-mutations.sh  変異注入の検査自体の回帰テスト
   measure-wasm-size  tools/measure/wasm-size.sh  WASM の gzip -9 の大きさを基点つきで測り JSON を出す
   test-measure-wasm-size  scripts/test-measure-wasm-size.sh  wasm-size の様式検証と実ビルドの回帰テスト（遅い）
+  measure     tools/measure/all.sh           3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）
+  test-measure  scripts/test-measure.sh      一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

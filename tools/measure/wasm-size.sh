@@ -12,7 +12,7 @@
 #   IR_FILE        呼び出し元の値を引き継がない（ビルド設定を一定にするため空で渡す）
 #
 # 終了コード: 0 = 成功 / 1 = ビルド・測定・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用（build-web.sh の終了コード 2 も引き継ぐ）。
-# build-web.sh のログ行（config / wasm-opt / wasm size）を解析する。各行が厳密に 1 行でなければ止まる（fail-closed）。
+# ビルドとログ解析（config / wasm-opt / wasm size。各行が厳密に 1 行でなければ止まる）は lib.sh の measure_build が行う。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../scripts/lib.sh
@@ -30,64 +30,19 @@ COMMIT_JSON="$(measure_commit_json)" || {
   echo "error: cannot determine the baseline commit" >&2
   exit 1
 }
-SHA_BEFORE="$(jq -r '.sha' <<<"${COMMIT_JSON}")"
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-measure.XXXXXX")"
 trap 'rm -rf "${TMP}"' EXIT
 
-log "building (release) via tools/build-web.sh"
+# build-web.sh の誤用（TEST_HOOKS=0 など）の 2 は 2 のまま返す。それ以外の失敗は 1。
 BUILD_RC=0
-OUT_DIR="${TMP}/web" IR_FILE="" "${ROOT_DIR}/tools/build-web.sh" release >"${TMP}/build.log" 2>&1 || BUILD_RC=$?
-if [ "${BUILD_RC}" -ne 0 ]; then
-  cat "${TMP}/build.log" >&2
-  echo "error: build-web.sh failed" >&2
-  # build-web.sh の誤用（TEST_HOOKS=0 など）の 2 は 2 のまま返す。それ以外の失敗は 1。
-  if [ "${BUILD_RC}" -eq 2 ]; then exit 2; fi
-  exit 1
-fi
-cat "${TMP}/build.log" >&2
-
-# one_line <prefix>: ログからその接頭辞で始まる行をちょうど 1 行取り出し、接頭辞を除いた残りを返す。
-one_line() {
-  local prefix="$1" n
-  n="$(grep -c -F -- "[build-web.sh] ${prefix}" "${TMP}/build.log" || true)"
-  if [ "${n}" != "1" ]; then
-    echo "error: expected exactly one '${prefix}' line in the build log (got ${n})" >&2
-    return 1
-  fi
-  grep -F -- "[build-web.sh] ${prefix}" "${TMP}/build.log" | sed -e "s/^\[build-web.sh\] ${prefix} *//"
-}
-
-CONFIG_LINE="$(one_line "config:")" || exit 1
-WASM_OPT_LINE="$(one_line "wasm-opt:")" || exit 1
-SIZE_LINE="$(one_line "wasm size:")" || exit 1
-
-# 選択（\|）は BSD sed（macOS 標準）の BRE で動かないため、case で完全一致を判定する。
-case "${CONFIG_LINE}" in
-  "delivery / profile: release") CONFIG="delivery" ;;
-  "test / profile: release") CONFIG="test" ;;
-  *)
-    echo "error: unexpected config line in the build log" >&2
-    exit 1
-    ;;
-esac
-
-case "${WASM_OPT_LINE}" in
-  "not applied ("*")") WASM_OPT_APPLIED=false; WASM_OPT_DETAIL="${WASM_OPT_LINE#not applied (}" ;;
-  "applied ("*")") WASM_OPT_APPLIED=true; WASM_OPT_DETAIL="${WASM_OPT_LINE#applied (}" ;;
-  *)
-    echo "error: unexpected wasm-opt line in the build log" >&2
-    exit 1
-    ;;
-esac
-WASM_OPT_DETAIL="${WASM_OPT_DETAIL%)}"
-
-LOG_RAW="$(sed -n 's/^raw \([0-9][0-9]*\) bytes, gzip -9 \([0-9][0-9]*\) bytes$/\1/p' <<<"${SIZE_LINE}")"
-LOG_GZ="$(sed -n 's/^raw \([0-9][0-9]*\) bytes, gzip -9 \([0-9][0-9]*\) bytes$/\2/p' <<<"${SIZE_LINE}")"
-if [ -z "${LOG_RAW}" ] || [ -z "${LOG_GZ}" ]; then
-  echo "error: unexpected wasm size line in the build log" >&2
-  exit 1
-fi
+measure_build "${TMP}" || BUILD_RC=$?
+if [ "${BUILD_RC}" -ne 0 ]; then exit "${BUILD_RC}"; fi
+CONFIG="${MEASURE_CONFIG}"
+WASM_OPT_APPLIED="${MEASURE_WASM_OPT_APPLIED}"
+WASM_OPT_DETAIL="${MEASURE_WASM_OPT_DETAIL}"
+LOG_RAW="${MEASURE_LOG_RAW}"
+LOG_GZ="${MEASURE_LOG_GZ}"
 
 # 自分でも測り、ログの値と突き合わせる（取り違えの検出）。
 WASM_REL="wasm/fandhe_workshop_web_bg.wasm"
@@ -103,23 +58,9 @@ if [ "${RAW}" != "${LOG_RAW}" ] || [ "${GZ}" != "${LOG_GZ}" ]; then
   exit 1
 fi
 
-# 測定中に commit と作業ツリーの状態（dirty）が動いていないことを確かめる。
-# 開始後の編集で、変更済みのソースに元の SHA と dirty:false が付くのを防ぐ。
-COMMIT_JSON_AFTER="$(measure_commit_json)" || COMMIT_JSON_AFTER=""
-if [ -z "${COMMIT_JSON_AFTER}" ] || [ "$(jq -r '.sha' <<<"${COMMIT_JSON_AFTER}")" != "${SHA_BEFORE}" ]; then
-  echo "error: HEAD moved during the measurement" >&2
-  exit 1
-fi
-if [ "$(jq -c . <<<"${COMMIT_JSON}")" != "$(jq -c . <<<"${COMMIT_JSON_AFTER}")" ]; then
-  echo "error: working tree state changed during the measurement" >&2
-  exit 1
-fi
+measure_assert_commit_unchanged "${COMMIT_JSON}" || exit 1
 
-if [ "${CONFIG}" = "test" ]; then
-  CARGO_FEATURES='["test-hooks"]'
-else
-  CARGO_FEATURES='[]'
-fi
+CARGO_FEATURES="$(measure_features_json "${CONFIG}")" || exit 1
 GZIP_IMPL="$(gzip --version 2>&1 | head -n 1)" || GZIP_IMPL=""
 RUSTC_V="$(rustc -V 2>/dev/null || true)"
 WBG_V="$(wasm-bindgen --version 2>/dev/null || true)"
