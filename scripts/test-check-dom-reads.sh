@@ -16,6 +16,11 @@ require_cmd grep
 require_cmd mktemp
 require_cmd cp
 require_cmd mv
+require_cmd rm
+require_cmd mkdir
+require_cmd chmod
+require_cmd cat
+require_cmd id
 
 CHECK_SRC="${DIR}/../tools/check-deps.sh"
 TMP_DIR="$(mktemp -d)"
@@ -158,6 +163,18 @@ tree="$(fresh_tree noglue 0)"
 rm -f "${tree}/crates/web/src/glue.rs"
 run_check "${tree}"
 expect "missing glue.rs fails closed" 2 "${RC}"
+
+# 13b. find が一部しか列挙できないとき（読めないサブディレクトリ）は成功にしない
+# root は権限を無視するため、この確認は非 root のときだけ行う
+if [ "$(id -u)" != "0" ]; then
+  tree="$(fresh_tree findfail 1)"
+  printf 'fn a() { let v = field.value(); }\n' >"${tree}/crates/web/src/glue.rs"
+  mkdir -p "${tree}/crates/web/src/locked"
+  chmod 000 "${tree}/crates/web/src/locked"
+  run_check "${tree}"
+  chmod 755 "${tree}/crates/web/src/locked"
+  expect "find failure fails closed" 2 "${RC}"
+fi
 
 # 14. 誤用
 tree="$(fresh_tree misuse 0)"

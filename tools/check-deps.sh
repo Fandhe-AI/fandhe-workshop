@@ -37,6 +37,11 @@ fi
 
 require_cmd awk || exit 2
 require_cmd find || exit 2
+require_cmd mktemp || exit 2
+require_cmd rm || exit 2
+require_cmd wc || exit 2
+require_cmd tr || exit 2
+require_cmd sed || exit 2
 
 # 例外: crates/web/src 直下の glue.rs にある `field.value()`（F-9）。サブディレクトリの同名ファイルは例外にしない。
 # 理由: 上流の Runtime の束縛は HtmlInputElement の value だけを書き、textarea の現在値を同期しない。
@@ -57,10 +62,18 @@ if [ ! -f "${GLUE}" ]; then
   exit 2
 fi
 
+# find の出力を一時ファイルへ受け、終了状態を検査してから読む。プロセス置換の中の失敗は errexit に伝わらず、
+# 一部しか列挙できないまま検査が成功する（fail-open）ため。
+LIST_FILE="$(mktemp)" || exit 2
+trap 'rm -f "${LIST_FILE}"' EXIT
+if ! find "${WEB_SRC}" -type f -name '*.rs' -print0 >"${LIST_FILE}"; then
+  echo "error: find failed under ${WEB_SRC}" >&2
+  exit 2
+fi
 FILES=()
 while IFS= read -r -d '' f; do
   FILES+=("${f}")
-done < <(find "${WEB_SRC}" -type f -name '*.rs' -print0)
+done <"${LIST_FILE}"
 if [ "${#FILES[@]}" -eq 0 ]; then
   echo "error: no .rs files under ${WEB_SRC}" >&2
   exit 2
