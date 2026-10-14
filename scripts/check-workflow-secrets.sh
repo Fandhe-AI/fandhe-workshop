@@ -8,7 +8,9 @@
 # 検出対象は、Actions 式 `${{ ... }}` の中（複数行にまたがる式を含む）にある次の参照と、`secrets: inherit`
 # （キー・値を引用符で囲んだ形も含む。`if` キーの引用符付きも同様）。
 #   - `secrets` コンテキスト（`secrets.X`・`secrets['X']`・`secrets . X`・`toJSON(secrets)`。大文字小文字・空白を問わない）
-#   - `github.token`・`github['token']`（空白・大文字小文字を問わない）と、`toJSON(github)`・`github.*` のような github 全体の参照
+#   - `github.token`・`github` への添字アクセス `github[...]`（中身を問わない。`github[env.KEY]` のように添字が動的な式で
+#     `token` を指せるため、`github['event_name']` も含めて拒否する）（空白・大文字小文字を問わない）と、
+#     `toJSON(github)`・`github.*` のような github 全体の参照
 #   - `if:` の値（`${{ }}` を省略した形と、継続行を含む）。値全体を式として同じ規則で検査する
 # 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
 # 上の行ベースの検査に加え、ruby（Psych）で YAML を構文木に解析し、記法に依存せず次を検査する。
@@ -52,7 +54,7 @@ AWK_PROG='
 function check(body, start,    lb) {
   lb = tolower(body)
   if (lb ~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
-      lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[[ \t]*[\047\042]token)/ ||
+      lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[)/ ||
       lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/) {
     print start ":" body
   }
@@ -125,7 +127,7 @@ end
 risky = lambda do |v|
   lb = v.downcase
   lb =~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
-    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[[ \t]*[\x27\x22]token)/ ||
+    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[)/ ||
     lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/
 end
 # 復号後のスカラー値から Actions 式 `${{ ... }}` の本文を取り出す。awk と同じく、式の中の文字列リテラル
