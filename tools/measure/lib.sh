@@ -28,8 +28,11 @@ measure_commit_json() {
 measure_validate() {
   local file="$1"
   [ -r "${file}" ] || return 1
-  jq -e '
+  # -s で入力全体を配列に受け、ちょうど 1 件であることを確かめてから検証する。jq -e は最後の出力値だけで
+  # 終了状態を決めるため、複数の JSON 値（基点の欠けた値の後ろに正常な値を連結した入力）が通るのを防ぐ。
+  jq -e -s '
     def nes: type == "string" and length > 0;
+    length == 1 and (.[0] |
     .schema == "fandhe-workshop/measure/v1"
     and (.measured_at | nes)
     and (.baseline.commit.sha | type == "string" and test("^[0-9a-f]{40}$"))
@@ -44,7 +47,7 @@ measure_validate() {
     and (.measurements | type == "array" and length >= 1)
     and (.measurements | all(
       (.name | nes) and (.file | nes) and (.unit | nes)
-      and (.value | type == "number" and . > 0 and . == floor)))
+      and (.value | type == "number" and . > 0 and . == floor))))
   ' "${file}" >/dev/null 2>&1
 }
 

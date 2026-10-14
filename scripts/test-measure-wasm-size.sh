@@ -90,9 +90,18 @@ bad "measurements is empty" '.measurements = []'
 bad "value is 0" '.measurements[0].value = 0'
 bad "schema differs" '.schema = "x"'
 
+# 複数の JSON 値の入力（基点の欠けた値の後ろに正常な値を連結）は、emit が何も出さず失敗する。
+MULTI="${TMP}/multi.json"
+{ jq 'del(.baseline.commit)' "${GOOD}"; jq . "${GOOD}"; } >"${MULTI}"
+check_fails "validate rejects: multiple JSON values (bad then good)" measure_validate "${MULTI}"
+MULTI_OUT="$(measure_emit "${MULTI}" 2>/dev/null || true)"
+if [ -z "${MULTI_OUT}" ]; then pass "emit prints nothing: multiple JSON values"; else fail "emit printed output: multiple JSON values"; fi
+{ jq . "${GOOD}"; jq . "${GOOD}"; } >"${MULTI}"
+check_fails "validate rejects: two valid JSON values" measure_validate "${MULTI}"
+
 # --- (b) 誤用 ---
 check "unknown argument exits 2" status_is 2 "${SCRIPT}" --unknown
-check_fails "TEST_HOOKS=0 is rejected" env TEST_HOOKS=0 "${SCRIPT}"
+check "TEST_HOOKS=0 exits 2" status_is 2 env TEST_HOOKS=0 "${SCRIPT}"
 
 # --- (c) 基点の欠落（git が失敗する。ビルド前に止まる） ---
 mkdir -p "${TMP}/stub"

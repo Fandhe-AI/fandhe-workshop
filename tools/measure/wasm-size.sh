@@ -11,7 +11,7 @@
 #   SKIP_WASM_OPT  1 なら wasm-opt を適用しない（build-web.sh へ渡す）
 #   IR_FILE        呼び出し元の値を引き継がない（ビルド設定を一定にするため空で渡す）
 #
-# 終了コード: 0 = 成功 / 1 = ビルド・測定・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用。
+# 終了コード: 0 = 成功 / 1 = ビルド・測定・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用（build-web.sh の終了コード 2 も引き継ぐ）。
 # build-web.sh のログ行（config / wasm-opt / wasm size）を解析する。各行が厳密に 1 行でなければ止まる（fail-closed）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,9 +36,13 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-measure.XXXXXX")"
 trap 'rm -rf "${TMP}"' EXIT
 
 log "building (release) via tools/build-web.sh"
-if ! OUT_DIR="${TMP}/web" IR_FILE="" "${ROOT_DIR}/tools/build-web.sh" release >"${TMP}/build.log" 2>&1; then
+BUILD_RC=0
+OUT_DIR="${TMP}/web" IR_FILE="" "${ROOT_DIR}/tools/build-web.sh" release >"${TMP}/build.log" 2>&1 || BUILD_RC=$?
+if [ "${BUILD_RC}" -ne 0 ]; then
   cat "${TMP}/build.log" >&2
   echo "error: build-web.sh failed" >&2
+  # build-web.sh の誤用（TEST_HOOKS=0 など）の 2 は 2 のまま返す。それ以外の失敗は 1。
+  if [ "${BUILD_RC}" -eq 2 ]; then exit 2; fi
   exit 1
 fi
 cat "${TMP}/build.log" >&2
