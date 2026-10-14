@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-mutations test-check-mutations
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve check-mutations test-check-mutations
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -71,6 +71,12 @@ build-web: ## web を wasm にビルドして dist/web に配る一式を作る�
 
 test-build-web: ## build-web の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する。直接: scripts/test-build-web.sh
 	@scripts/test-build-web.sh
+serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直接渡す）。直接: node tools/serve.mjs
+	@node tools/serve.mjs
+
+test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。直接: scripts/test-serve.sh
+	@scripts/test-serve.sh
+
 check-mutations: ## 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）。直接: scripts/check-mutations.sh
 	@scripts/check-mutations.sh
 
