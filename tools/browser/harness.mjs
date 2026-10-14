@@ -178,7 +178,8 @@ export async function waitMounted(page, { timeout = 30000 } = {}) {
 
 // 画面（body 配下）を走査して危険な要素・属性・URL を数える。head は対象外（meta・link は画面の一部ではない）。
 // 固定の関数だけを page.evaluate へ渡し、ペイロードから文字列でコードを組み立てない。
-// opts.entryScripts: 画面自身の script（baseURI 基準で解決した URL が一致するもの）を各 1 件まで除外する。
+// opts.entryScripts: 画面自身の script（baseURI 基準で解決した URL が一致するもの）を各 1 件まで danger の計数から除く。
+//   on* 属性・style 属性・URL 属性の検査と能動的な発火は、除いた script にも行う。
 //   2 件目以降は挿入された同名の script かもしれないため危険に数える。
 // opts.provoke: 数えた後で on* を持つ要素へ合成イベントを送る（onmouseover などを発火させる）。
 // 評価が失敗したときは 0 件にせず error を持つ結果を返す（safetyCounts が scanError に数える）。
@@ -194,16 +195,17 @@ export async function scanDom(page, { entryScripts = ['./app.js'], provoke = tru
       for (const el of document.body.querySelectorAll('*')) {
         out.elements += 1;
         const tag = el.localName.toLowerCase();
+        let isEntry = false;
         if (tag === 'script' && el.getAttribute('src') !== null) {
           let abs = null;
           try { abs = new URL(el.getAttribute('src'), document.baseURI).href; } catch (_e) { abs = null; }
           if (abs !== null && pending.has(abs)) {
             pending.delete(abs);
             out.excluded += 1;
-            continue;
+            isEntry = true;
           }
         }
-        if (dangerSet.has(tag)) out.dangerTags.push(tag);
+        if (!isEntry && dangerSet.has(tag)) out.dangerTags.push(tag);
         if (Array.from(el.attributes).some((a) => /^on/i.test(a.name))) {
           out.onAttrs += 1;
           withOn.push(el);
@@ -214,7 +216,7 @@ export async function scanDom(page, { entryScripts = ['./app.js'], provoke = tru
           if (v === null) continue;
           if (name === 'srcdoc') { out.nonHttp += 1; continue; }
           let u = null;
-          try { u = new URL(v, location.href); } catch (_e) { u = null; }
+          try { u = new URL(v, document.baseURI); } catch (_e) { u = null; }
           if (u === null || (u.protocol !== 'http:' && u.protocol !== 'https:')) {
             out.nonHttp += 1;
             if (tag === 'a' && name === 'href') nonHttpLinks.push(el);

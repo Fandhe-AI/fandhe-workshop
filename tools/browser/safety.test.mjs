@@ -43,6 +43,8 @@ before(async () => {
   write('entry1.html', doc('', '<script src="./app.js"></script>'));
   write('entry2.html', doc('', '<script src="./app.js"></script><script src="./app.js"></script>'));
   write('app.js', '\n');
+  write('entry-attrs.html', doc('', `<script src="./app.js" onmouseover="${HIT_FN}('e')" style="color:red"></script>`));
+  write('base.html', doc('<base href="https://example.invalid/">', '<a href="relative">r</a>'));
   write('provoke.html', doc('', `<p id="m" onmouseover="${HIT_FN}('m')">x</p>`));
   // index.html: CSP の meta とインラインの script。目印の要素は script が実行されたかと無関係に描かれる。
   write('index.html', doc(META, `<p id="mark">mark</p><script>window.${HIT_FN}('i')</script>`));
@@ -147,6 +149,19 @@ test('対照: 画面の走査が各区分を数える', async () => {
 test('除外の規則: 画面自身の script は 1 件だけ除外し、2 件目は危険に数える', async () => {
   assert.equal((await visit('entry1.html')).counts.danger, 0);
   assert.equal((await visit('entry2.html')).counts.danger, 1);
+});
+
+test('除外の規則: 除外した script の on* 属性・style 属性・発火は省略しない', async () => {
+  const { counts } = await visit('entry-attrs.html');
+  assert.equal(counts.danger, 0);
+  assert.equal(counts.onAttrs, 1);
+  assert.equal(counts.styleAttrs, 1);
+  assert.equal(counts.hits, 1);
+});
+
+test('URL 属性の相対 URL は document.baseURI 基準で解決する', async () => {
+  const { counts } = await visit('base.html');
+  assert.equal(counts.extHttp, 1);
 });
 
 test('能動の段: onmouseover が発火して記録される', async () => {
