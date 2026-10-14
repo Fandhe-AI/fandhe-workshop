@@ -162,6 +162,271 @@ fn constants_match_spec() {
     assert_eq!(ROLE_VALUES, ["status", "tablist", "tab", "tabpanel"]);
     assert!(A11Y_ATTRIBUTE_NAMES.contains(&"aria-live"));
     assert!(!A11Y_ATTRIBUTE_NAMES.contains(&"aria-hidden"));
+    let marks: Vec<_> = ChangeMark::ALL
+        .iter()
+        .map(|m| (m.data_value(), m.glyph(), m.text()))
+        .collect();
+    assert_eq!(
+        marks,
+        [
+            ("add", "+", "【追加】"),
+            ("remove", "-", "【削除】"),
+            ("change", "~", "【変更】")
+        ]
+    );
+    assert_eq!(unique(ChangeMark::ALL.iter().map(|m| m.data_value())), 3);
+    assert_eq!(unique(ChangeMark::ALL.iter().map(|m| m.glyph())), 3);
+    assert_eq!(unique(ChangeMark::ALL.iter().map(|m| m.text())), 3);
+    assert_eq!(MARK_ATTR, "data-mark");
+    assert_eq!(MARK_GLYPH_TESTID, "mark-glyph");
+    assert_eq!(MARK_TEXT_TESTID, "mark-text");
+    assert_eq!(MARK_NONE_VALUE, "");
+    assert_eq!(MIN_TARGET_SIZE_CSS_PX, 24);
+    assert_eq!(
+        TARGET_SIZE_SELECTOR,
+        "button, select, input:not([type=\"hidden\"]), [data-action]"
+    );
+    assert_eq!(LIVE_EXCLUDED_LINE_KINDS, ["received", "progress"]);
+}
+
+/// 印の行の見本。`m` が `None` なら印なし（記号・文字とも空）。
+fn mark_row(m: Option<ChangeMark>) -> Node {
+    let (value, glyph, label) = match m {
+        Some(m) => (m.data_value(), m.glyph(), m.text()),
+        None => (MARK_NONE_VALUE, "", ""),
+    };
+    el(
+        "li",
+        vec![(MARK_ATTR, value)],
+        vec![
+            el(
+                "span",
+                vec![(TESTID_ATTR, MARK_GLYPH_TESTID)],
+                vec![text(glyph)],
+            ),
+            el(
+                "span",
+                vec![(TESTID_ATTR, MARK_TEXT_TESTID)],
+                vec![text(label)],
+            ),
+            text("line"),
+        ],
+    )
+}
+
+fn mark_list() -> Node {
+    el(
+        "ul",
+        vec![],
+        vec![
+            mark_row(Some(ChangeMark::Add)),
+            mark_row(Some(ChangeMark::Remove)),
+            mark_row(Some(ChangeMark::Change)),
+            mark_row(None),
+        ],
+    )
+}
+
+#[test]
+fn change_marks_conform_in_three_ways() {
+    let v = with_children(|c| {
+        c[0] = el(
+            "section",
+            vec![("aria-label", Region::Artifacts.aria_label())],
+            vec![notice(StatusNotice::View), mark_list()],
+        )
+    });
+    assert_eq!(check_complete(&v), Ok(()));
+    assert_eq!(check_no_undefined(&v), Ok(()));
+    let html = render(&mark_row(Some(ChangeMark::Add)));
+    assert!(html.contains("data-mark=\"add\""), "{html}");
+    assert!(html.contains('+') && html.contains("【追加】"), "{html}");
+    assert_eq!(MarkValue::parse(""), Some(MarkValue::None));
+    assert_eq!(
+        MarkValue::parse("change"),
+        Some(MarkValue::Mark(ChangeMark::Change))
+    );
+    assert_eq!(MarkValue::parse("ADD"), None);
+}
+
+#[test]
+fn change_mark_violations_fail() {
+    let glyph = |t: &str| {
+        el(
+            "span",
+            vec![(TESTID_ATTR, MARK_GLYPH_TESTID)],
+            vec![text(t)],
+        )
+    };
+    let label = |t: &str| el("span", vec![(TESTID_ATTR, MARK_TEXT_TESTID)], vec![text(t)]);
+    let row = |v: &str, kids: Vec<Node>| el("li", vec![(MARK_ATTR, v)], kids);
+    let cases: Vec<(&str, Node, &str)> = vec![
+        (
+            "unknown value",
+            row("added", vec![]),
+            "undefined-mark-value",
+        ),
+        (
+            "upper-case value",
+            row("ADD", vec![]),
+            "undefined-mark-value",
+        ),
+        (
+            "glyph missing",
+            row("add", vec![label("【追加】")]),
+            "mark-glyph",
+        ),
+        (
+            "glyph duplicated",
+            row("add", vec![glyph("+"), glyph("+"), label("【追加】")]),
+            "mark-glyph",
+        ),
+        (
+            "glyph mismatch",
+            row("add", vec![glyph("-"), label("【追加】")]),
+            "mark-glyph",
+        ),
+        ("text missing", row("add", vec![glyph("+")]), "mark-text"),
+        (
+            "text mismatch",
+            row("add", vec![glyph("+"), label("【削除】")]),
+            "mark-text",
+        ),
+        (
+            "none with glyph",
+            row("", vec![glyph("+"), label("")]),
+            "mark-glyph",
+        ),
+        (
+            "none with text",
+            row("", vec![glyph(""), label("【追加】")]),
+            "mark-text",
+        ),
+        (
+            "part with element child",
+            row(
+                "add",
+                vec![
+                    el(
+                        "span",
+                        vec![(TESTID_ATTR, MARK_GLYPH_TESTID)],
+                        vec![el("b", vec![], vec![])],
+                    ),
+                    label("【追加】"),
+                ],
+            ),
+            "mark-part-children",
+        ),
+        ("glyph outside row", glyph("+"), "mark-part-outside-row"),
+        (
+            "glyph in grandchild",
+            row(
+                "add",
+                vec![
+                    glyph("+"),
+                    label("【追加】"),
+                    el("div", vec![], vec![label("【追加】")]),
+                ],
+            ),
+            "mark-part-outside-row",
+        ),
+        (
+            "bound mark",
+            el("li", vec![("data-bind-attr", "Data-Mark:x")], vec![]),
+            "bound-mark",
+        ),
+        (
+            "aria-hidden on glyph",
+            row(
+                "add",
+                vec![
+                    el(
+                        "span",
+                        vec![(TESTID_ATTR, MARK_GLYPH_TESTID), ("aria-hidden", "true")],
+                        vec![text("+")],
+                    ),
+                    label("【追加】"),
+                ],
+            ),
+            "undefined-attribute",
+        ),
+    ];
+    for (name, view, rule) in cases {
+        assert!(
+            rules(check_no_undefined(&view)).contains(&rule),
+            "{name}: expected {rule}"
+        );
+        assert!(
+            rules(check_complete(&view)).contains(&rule),
+            "{name}: complete expected {rule}"
+        );
+    }
+}
+
+#[test]
+fn mark_violation_does_not_echo_value() {
+    let v = el("li", vec![(MARK_ATTR, "secret-body")], vec![]);
+    let msg = check_no_undefined(&v).unwrap_err()[0].to_string();
+    assert!(msg.contains("undefined-mark-value"), "{msg}");
+    assert!(!msg.contains("secret-body"), "{msg}");
+}
+
+#[test]
+fn deep_mark_row_is_checked_linearly() {
+    let mut n = mark_row(Some(ChangeMark::Add));
+    for _ in 0..100_000 {
+        n = elem(vec![], vec![n]);
+    }
+    assert_eq!(check_no_undefined(&n), Ok(()));
+    let mut cur = n;
+    while let Node::Element { mut children, .. } = cur {
+        match children.pop() {
+            Some(c) => cur = c,
+            None => break,
+        }
+    }
+}
+
+#[test]
+fn target_size_boundaries() {
+    assert!(meets_target_size(24.0, 24.0));
+    assert!(meets_target_size(100.0, 24.0));
+    assert!(!meets_target_size(23.99, 24.0));
+    assert!(!meets_target_size(24.0, 23.99));
+    for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -24.0] {
+        assert!(!meets_target_size(bad, 24.0));
+        assert!(!meets_target_size(24.0, bad));
+    }
+}
+
+#[test]
+fn operation_targets_are_identified() {
+    let t =
+        |tag: &'static str, attrs: Vec<(&str, &str)>| is_operation_target(&el(tag, attrs, vec![]));
+    assert!(t("button", vec![]));
+    assert!(t("select", vec![]));
+    assert!(t("input", vec![]));
+    assert!(t("input", vec![("type", "text")]));
+    assert!(!t("input", vec![("type", "hidden")]));
+    assert!(!t("input", vec![("TYPE", "Hidden")]));
+    assert!(t("div", vec![("data-action", "x")]));
+    assert!(!t("div", vec![]));
+    assert!(!t("a", vec![]));
+    assert!(!is_operation_target(&text("x")));
+}
+
+#[test]
+fn live_update_units() {
+    assert_eq!(live_response_updates(&[]), 0);
+    assert_eq!(live_response_updates(&["received"]), 0);
+    assert_eq!(live_response_updates(&["progress", "progress"]), 0);
+    assert_eq!(live_response_updates(&["received", "response"]), 1);
+    assert_eq!(live_response_updates(&["response", "rejected"]), 1);
+    assert!(!counts_for_live_response("received"));
+    assert!(counts_for_live_response("Received"));
+    assert!(!live_left_should_update(0));
+    assert!(live_left_should_update(1));
+    assert!(live_left_should_update(3));
 }
 
 #[test]
