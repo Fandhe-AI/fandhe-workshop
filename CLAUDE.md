@@ -29,7 +29,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -76,6 +76,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
+| `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |
+| `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |

@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-mutations test-check-mutations
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-mutations test-check-mutations
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -54,6 +54,12 @@ check-testdata: ## repo の外への相対参照が 0 件であることを検�
 
 test-check-testdata: ## 参照の検査自体の回帰テスト。直接: scripts/test-check-testdata-refs.sh
 	@scripts/test-check-testdata-refs.sh
+
+check-dom-reads: ## web crate が DOM の値を読まないこと（例外は件数固定）を検査する。直接: tools/check-deps.sh
+	@tools/check-deps.sh
+
+test-check-dom-reads: ## DOM 読み取りの検査自体の回帰テスト。直接: scripts/test-check-dom-reads.sh
+	@scripts/test-check-dom-reads.sh
 
 check-toolchain: ## 固定ファイルの版と docs/toolchain.md の一致を検査する。直接: scripts/check-toolchain.sh
 	@scripts/check-toolchain.sh

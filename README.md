@@ -68,8 +68,8 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `testdata/` | 試験データの置き場。spec repo の試験データを出所付きで写したもの（出所・規則は `testdata/README.md`）。整形ツールの対象外 |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations`）。Make なしでも直接実行できる |
-| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`）。規約と shellcheck は `scripts/` と同じ |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations`）。Make なしでも直接実行できる |
+| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -143,7 +143,7 @@ worktree はそれぞれ別の `target/` を持つため、不要になった wo
 
 ## ビルドとテスト
 
-現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps` です。内容は次の「コマンド」の表を参照してください。
+現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads` です。内容は次の「コマンド」の表を参照してください。
 
 Cargo ワークスペースは導入済みですが、中身は空の骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
 
@@ -159,6 +159,7 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 - `make fmt`: rustfmt で整形します（ソースを変更します）
 - `make check-deps`: crate 間の依存の向きを `cargo metadata` で検査します。`make test-check-deps` は、その検査自体の回帰テストです
 - `make check-mutations`: 変異注入の検査です。作業ツリーは書き換えず、一時コピーに誤りを 1 つ入れて試験が失敗することを確かめます（手順と記録の様式は [docs/testing.md](./docs/testing.md)）。遅いため `make check` やフックには含めません。`make test-check-mutations` は、その検査自体の回帰テストです
+- `make check-dom-reads`: web crate のソースが DOM の値を読む API（`.value()`・`get_attribute`・`text_content` 等）を呼ばないことを `tools/check-deps.sh` で検査します。例外（`glue.rs` の `field.value()`）は件数を固定し、増減すると失敗します。crate 間の依存の向きを見る `make check-deps` とは別の検査です。`make test-check-dom-reads` は、その検査自体の回帰テストです
 - `make check-testdata`: repo の外（兄弟の `03-poc/`・`prototype/` など）への相対参照が 0 件であることを検査します（`make check` にも含まれます）。`make test-check-testdata` は、その検査自体の回帰テストです
 
 ### wasm32 のビルド
@@ -185,6 +186,8 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | `scripts/check-testdata-refs.sh` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
+| `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
+| `make test-check-dom-reads` | `scripts/test-check-dom-reads.sh` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致を検査する |
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
@@ -219,7 +222,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 | ワークフロー | 内容 |
 |---|---|
-| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain` と `make check-workflow-secrets`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain` と `make check-workflow-secrets`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
 | `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
