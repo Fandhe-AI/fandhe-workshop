@@ -3,7 +3,7 @@
 #
 # 確かめること: 配信する設定に試験用の口が入らないこと、IR_FILE を指定したときだけ ir/main.json が入ること、
 # 試験の設定には口が入ること（検査が空振りしていないことの対照）、誤用が非 0 で止まること。
-# 生成物は mktemp -d の一時ディレクトリにだけ書き、終了時に消す。
+# 生成物は mktemp -d の一時ディレクトリ（dist/ 配下のケースは dist/ に作る専用の一時ディレクトリ）にだけ書き、終了時に消す。
 #
 # 終了コード: 0 = すべて成功 / 1 = 失敗が 1 件以上 / 2 = 誤用。CI への組み込みは TASK-33。
 set -euo pipefail
@@ -17,7 +17,9 @@ require_cmd jq
 
 BUILD="${ROOT_DIR}/tools/build-web.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-test-build-web.XXXXXX")"
-trap 'rm -rf "${TMP}"' EXIT
+# dist/ 配下の出力先を試すケース用。既存の dist/ のファイルに触れないよう専用ディレクトリを確保し、それだけを消す。
+DIST_TMP=""
+trap 'rm -rf "${TMP}"; if [ -n "${DIST_TMP}" ]; then rm -rf "${DIST_TMP}"; fi' EXIT
 
 FAILURES=0
 fail() {
@@ -134,11 +136,11 @@ echo '{"ir":"keep"}' >"${TMP}/same.json"
 check_status "IR_FILE equal to OUT_DIR is rejected" 2 env IR_FILE="${TMP}/same.json" OUT_DIR="${TMP}/same.json" "${BUILD}"
 check "IR_FILE equal to OUT_DIR is left intact" test -f "${TMP}/same.json"
 mkdir -p "${ROOT_DIR}/dist"
-SAME_DIST="${ROOT_DIR}/dist/same-ir-test.json"
+DIST_TMP="$(mktemp -d "${ROOT_DIR}/dist/test-build-web.XXXXXX")"
+SAME_DIST="${DIST_TMP}/same.json"
 echo '{"ir":"keep"}' >"${SAME_DIST}"
 check_status "IR_FILE equal to OUT_DIR under dist/ is rejected" 2 env IR_FILE="${SAME_DIST}" OUT_DIR="${SAME_DIST}" "${BUILD}"
 check "IR_FILE equal to OUT_DIR under dist/ is left intact" test -f "${SAME_DIST}"
-rm -f "${SAME_DIST}"
 
 if [ "${FAILURES}" -ne 0 ]; then
   echo "error: ${FAILURES} check(s) failed" >&2
