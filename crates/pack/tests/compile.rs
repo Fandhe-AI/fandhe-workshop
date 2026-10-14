@@ -196,8 +196,11 @@ fn pack1_module_pack_loads_but_does_not_expand() {
         .count();
     assert_eq!(modules, 2);
     let d = compile(&pack).expect_err("use is not expanded");
-    assert!(d.iter().all(|x| x.code() == DiagCode::Structure));
-    assert!(!d.is_empty());
+    // `use` の Step は node にならないため、それへの遷移は E-REF-STEP としても報告される。
+    assert!(d
+        .iter()
+        .all(|x| matches!(x.code(), DiagCode::Structure | DiagCode::RefStep)));
+    assert!(d.iter().any(|x| x.code() == DiagCode::Structure));
 }
 
 #[test]
@@ -346,4 +349,58 @@ fn neg_diagnostics_do_not_contain_absolute_paths() {
     for d in diags(&t) {
         assert!(!d.to_string().contains(t.0.to_str().expect("utf8 path")));
     }
+}
+
+#[test]
+fn neg_transition_target_shows_original_id() {
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        CHAPTER.replace("to: b", "to: zz").as_bytes(),
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::RefStep]);
+    assert!(d[0].message().ends_with(": zz"), "{}", d[0].message());
+}
+
+#[test]
+fn neg_duplicate_step_blames_first_definition_file() {
+    let t = minimal();
+    // c1 の a は未定義の遷移先を持つ。c2 は同じ ID の a を重複して定義する。
+    t.put(
+        "chapters/c1/chapter.yaml",
+        CHAPTER.replace("to: b", "to: zz").as_bytes(),
+    );
+    t.put(
+        "chapters/c2/chapter.yaml",
+        b"id: c2\ntitle: C2\nsteps:\n  - {id: a, title: A, final: true}\n",
+    );
+    let d = diags(&t);
+    let r = d
+        .iter()
+        .find(|x| x.code() == DiagCode::RefStep)
+        .expect("ref-step");
+    assert_eq!(r.file(), "chapters/c1/chapter.yaml");
+}
+
+#[test]
+fn neg_use_step_is_not_a_resolved_target_and_is_checked() {
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        concat!(
+            "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
+            "  - {id: a, title: A, body: a.md, next: [{to: u}]}\n",
+            "  - {id: u, title: U, next: [{to: zz}], use: {module: m, instance: i, args: {}}}\n",
+        )
+        .as_bytes(),
+    );
+    let d = diags(&t);
+    let refs: Vec<&str> = d
+        .iter()
+        .filter(|x| x.code() == DiagCode::RefStep)
+        .map(Diagnostic::message)
+        .collect();
+    assert!(refs.iter().any(|m| m.ends_with(": u")), "{refs:?}");
+    assert!(refs.iter().any(|m| m.ends_with(": zz")), "{refs:?}");
 }

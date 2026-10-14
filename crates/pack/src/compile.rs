@@ -41,6 +41,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     let mut nodes: Vec<Node> = Vec::new();
     let mut starts: Vec<Start> = Vec::new();
     let mut uids: BTreeSet<String> = BTreeSet::new();
+    // 遷移先の検査対象。node 化しない `use` の Step も含める。file・item・書き換え前の遷移先 ID を保持する。
+    let mut checks: Vec<(String, String, Vec<String>)> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
 
@@ -58,6 +60,11 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 ));
                 continue;
             }
+            checks.push((
+                scope.file.clone(),
+                item.clone(),
+                step.next.iter().map(|t| t.to.clone()).collect(),
+            ));
             if step.use_module.is_some() {
                 diags.push(diag(
                     &scope.file,
@@ -104,34 +111,24 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         ));
     }
 
-    // 遷移先・開始の解決。診断の file には、その Step を定義した章の定義ファイルを示す。
-    let owner: BTreeMap<&str, &str> = pack
-        .scopes
-        .iter()
-        .filter(|s| s.kind == ScopeKind::Chapter)
-        .flat_map(|s| {
-            s.src
-                .steps
-                .iter()
-                .map(move |st| (st.id.as_str(), s.file.as_str()))
-        })
-        .collect();
-    for n in &nodes {
-        let file = owner.get(n.step.id.as_str()).copied().unwrap_or(".");
-        for t in &n.step.next {
-            if !uids.contains(&t.to) {
+    // 遷移先・開始の解決。解決先は実際に node 化した Step だけにする（`use` の Step は含めない）。
+    // 診断の file は、最初に定義した章の定義ファイル、遷移先は教材に書かれた元の ID で示す。
+    let defined: BTreeSet<&str> = nodes.iter().map(|n| n.uid.as_str()).collect();
+    for (file, item, targets) in &checks {
+        for to in targets {
+            if !defined.contains(format!("main/{to}").as_str()) {
                 diags.push(diag(
                     file,
-                    &format!("step:{}", n.step.id),
+                    item,
                     DiagCode::RefStep,
-                    format!("transition target is undefined: {}", t.to),
+                    format!("transition target is undefined: {to}"),
                 ));
             }
         }
     }
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         for st in &scope.src.starts {
-            if !uids.contains(&format!("main/{}", st.node)) {
+            if !defined.contains(format!("main/{}", st.node).as_str()) {
                 diags.push(diag(
                     &scope.file,
                     &format!("start:{}", st.id),
