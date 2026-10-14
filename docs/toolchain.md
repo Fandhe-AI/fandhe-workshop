@@ -39,7 +39,7 @@
 | rustfmt・clippy | 必須 | `rust-toolchain.toml` の `components` で導入される |
 | wasm-opt | 任意 | 配信物を小さくするときに使う |
 | Chrome または Chromium | 固定しない | Playwright 1.63.0 が同梱する Chromium 153.0.8010.12 を使う。Linux arm64 には Chrome の安定版が無い（PoC-11 F-2） |
-| Python | 不要と見込む | 試験用の配信は TASK-28 で決める |
+| Python | 不要 | 試験用の配信は Node の `tools/serve.mjs`（TASK-28）が担う |
 
 ## 4. 導入手順
 
@@ -73,3 +73,4 @@ npx playwright install chromium
 | 版 | 日付 | 内容 | タスク |
 |---|---|---|---|
 | 1 | 2026-10-12 | 初版。Rust・wasm-bindgen・Node・Playwright の版を固定 | TASK-25 |
+| 2 | 2026-10-14 | 試験用の配信を Node の `tools/serve.mjs` に確定（Python は不要）。固定する版は変えない | TASK-28 |
