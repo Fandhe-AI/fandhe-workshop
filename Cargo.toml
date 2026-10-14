@@ -43,9 +43,15 @@ wasm-bindgen = "=0.2.128"
 
 # 表示層の基盤（D-30 の採用版）。crates.io から取得するため認証情報は要らない。
 # feature は FEND-1 に従い action-keydown だけを明示する（既定の feature は持ち込まない）。
-# 推移的な core・interactive・wasm-client・headless-ui・app の版は Cargo.lock が固定する。
-# 版上げの運用は TASK-101 で扱う。
+# 推移的な headless-ui・app の版は Cargo.lock が固定する。版上げの運用は TASK-101 で扱う。
 fandhe-frontend-wasm-full = { version = "0.46.0", default-features = false, features = ["action-keydown"] }
+# wasm-full は次の 3 つを再エクスポートしない。Component・DirtyTracked・BindingSource を
+# 実装するために直接参照する。版は Cargo.lock の解決済みの版と同じにして、版を動かさない。
+# wasm-client の既定 feature（wasm-bindgen-exports）は、上流の mount・hydrate を書き出して
+# 名前の衝突と配信物の肥大を招くため、必ず無効にする。
+fandhe-frontend-core = "0.4.3"
+fandhe-frontend-interactive = "0.2.7"
+fandhe-frontend-wasm-client = { version = "0.6.1", default-features = false }
 
 # 公開 API の文書化と、unsafe・#[allow] の理由の明記を機械で強制する
 # （.claude/rules/code-comment-style.md）。make lint は -D warnings で流す。
