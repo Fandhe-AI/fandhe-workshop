@@ -13,7 +13,7 @@ use fandhe_workshop_contract::ir::{Ir, IR_FORMAT_VERSION};
 /// IR を読めない理由。メッセージには ID だけを含め、IR の本文は含めない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrLoadError {
-    /// JSON として解釈できない、または欄が合わない。
+    /// JSON として解釈できない、または欄が合わない（分類と位置だけで、入力値は含まない）。
     Json(String),
     /// `format_version` が未対応。
     FormatVersion(u32),
@@ -46,12 +46,25 @@ impl fmt::Display for IrLoadError {
 
 impl std::error::Error for IrLoadError {}
 
+/// 入力値を含まないメッセージにする。`serde_json` のエラー文字列には型が合わない入力値が入るため、
+/// 分類と位置（行・桁）だけを使う。
+fn json_failure(e: &serde_json::Error) -> String {
+    use serde_json::error::Category;
+    let class = match e.classify() {
+        Category::Io => "io error",
+        Category::Syntax => "syntax error",
+        Category::Data => "type or field mismatch",
+        Category::Eof => "unexpected end of input",
+    };
+    format!("{class} at line {} column {}", e.line(), e.column())
+}
+
 /// バイト列の IR を読み、版と参照の整合を確かめて返す。
 ///
 /// 拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
 /// `uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
-    let ir: Ir = serde_json::from_slice(bytes).map_err(|e| IrLoadError::Json(e.to_string()))?;
+    let ir: Ir = serde_json::from_slice(bytes).map_err(|e| IrLoadError::Json(json_failure(&e)))?;
     if ir.format_version != IR_FORMAT_VERSION {
         return Err(IrLoadError::FormatVersion(ir.format_version));
     }
@@ -147,5 +160,18 @@ mod tests {
             to: "b".into(),
         };
         assert_eq!(e.to_string(), "unresolved reference: a -> b");
+    }
+
+    #[test]
+    fn l8_json_error_has_no_input_value() {
+        let s = MIN.replacen(
+            "\"format_version\":1",
+            "\"format_version\":\"SECRET-VALUE\"",
+            1,
+        );
+        let Err(e) = load(&s) else {
+            panic!("must be rejected")
+        };
+        assert!(!e.to_string().contains("SECRET-VALUE"), "{e}");
     }
 }

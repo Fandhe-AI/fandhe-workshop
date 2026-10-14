@@ -26,8 +26,6 @@ const MAX_MARKDOWN_BYTES: u64 = 512 * 1024;
 const MAX_PACK_BYTES: u64 = 20 * 1024 * 1024;
 /// ディレクトリの入れ子の上限。仮の値（TASK-199 で固定）。
 const MAX_DEPTH: usize = 32;
-/// 診断に載せる構文エラーの文字数の上限。
-const MAX_PARSE_MESSAGE_CHARS: usize = 200;
 
 /// 人が書く形式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,10 +45,18 @@ impl Format {
         }
     }
 
+    /// 構文・型を確かめて読む。失敗は位置だけのメッセージにする。パーサーのエラー文字列には、ソースの行や
+    /// 型が合わない入力値が入るので、そのまま診断へ渡さない。
     fn parse<T: DeserializeOwned>(self, text: &str) -> Result<T, String> {
         match self {
-            Format::Toml => toml::from_str(text).map_err(|e| e.to_string()),
-            Format::Yaml => yaml_serde::from_str(text).map_err(|e| e.to_string()),
+            Format::Toml => toml::from_str(text).map_err(|e| {
+                let pos = e.span().map(|r| line_col(text, r.start));
+                parse_failure(pos)
+            }),
+            Format::Yaml => yaml_serde::from_str(text).map_err(|e| {
+                let pos = e.location().map(|l| (l.line(), l.column()));
+                parse_failure(pos)
+            }),
         }
     }
 }
@@ -164,6 +170,26 @@ pub struct LoadedPack {
     pub tests: Option<TestsSrc>,
 }
 
+/// バイト位置を 1 始まりの行・桁（文字数）にする。範囲外は末尾として扱う。
+fn line_col(text: &str, offset: usize) -> (usize, usize) {
+    let mut end = offset.min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &text[..end];
+    let line = before.matches('\n').count() + 1;
+    let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
+    (line, col)
+}
+
+/// 入力値を含まない構文エラーのメッセージ。位置が分かれば行と桁を添える。
+fn parse_failure(pos: Option<(usize, usize)>) -> String {
+    match pos {
+        Some((line, col)) => format!("invalid syntax or structure at line {line} column {col}"),
+        None => "invalid syntax or structure".to_string(),
+    }
+}
+
 /// 診断を作る。`file` が空のときは `.`（パックの根）に直す。直した後は必ず作れる。
 fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> Diagnostic {
     let file = if file.trim().is_empty() { "." } else { file };
@@ -238,6 +264,16 @@ fn is_plain_file_under(root_canon: &Path, path: &Path) -> bool {
     }
 }
 
+/// ディレクトリの走査に失敗したことの診断。握りつぶすと、教材の一部が欠けた IR が成功として返る。
+fn scan_failure(file: &str) -> Diagnostic {
+    diag(
+        file,
+        "file",
+        DiagCode::Structure,
+        "cannot scan directory or read entry metadata",
+    )
+}
+
 /// 中身を読む前の走査。シンボリックリンク・入れ子の深さ・Markdown の大きさ・パック全体の大きさを数える。
 /// リンクは辿らない。診断は相対パスの順に並べる。
 fn check_limits(root: &Path) -> Vec<Diagnostic> {
@@ -245,12 +281,29 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
     let mut total: u64 = 0;
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     while let Some((d, depth)) = stack.pop() {
-        let Ok(rd) = fs::read_dir(&d) else { continue };
-        for e in rd.filter_map(Result::ok) {
+        let rd = match fs::read_dir(&d) {
+            Ok(rd) => rd,
+            Err(_) => {
+                diags.push(scan_failure(&rel(root, &d)));
+                continue;
+            }
+        };
+        for e in rd {
+            let e = match e {
+                Ok(e) => e,
+                Err(_) => {
+                    diags.push(scan_failure(&rel(root, &d)));
+                    continue;
+                }
+            };
             let p = e.path();
             let file = rel(root, &p);
-            let Ok(md) = fs::symlink_metadata(&p) else {
-                continue;
+            let md = match fs::symlink_metadata(&p) {
+                Ok(md) => md,
+                Err(_) => {
+                    diags.push(scan_failure(&file));
+                    continue;
+                }
             };
             if md.file_type().is_symlink() {
                 diags.push(diag(
@@ -324,24 +377,36 @@ fn read_parse<T: DeserializeOwned>(
     match format.parse::<T>(&text) {
         Ok(v) => Some(v),
         Err(e) => {
-            let one_line = e.split_whitespace().collect::<Vec<_>>().join(" ");
-            let msg: String = one_line.chars().take(MAX_PARSE_MESSAGE_CHARS).collect();
-            diags.push(diag(file, item, DiagCode::Parse, msg));
+            diags.push(diag(file, item, DiagCode::Parse, e));
             None
         }
     }
 }
 
-/// 直下のディレクトリを名前の昇順で返す。無ければ空。
-fn sorted_subdirs(p: &Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = fs::read_dir(p)
-        .map(|rd| {
-            rd.filter_map(Result::ok)
-                .map(|e| e.path())
-                .filter(|p| fs::symlink_metadata(p).is_ok_and(|m| m.is_dir()))
-                .collect()
-        })
-        .unwrap_or_default();
+/// 直下のディレクトリを名前の昇順で返す。ディレクトリが無いこと（省略可能）は空とする。それ以外の
+/// I/O エラーは、走査できなかった相対パスを診断にして `diags` へ積む。
+fn sorted_subdirs(root: &Path, p: &Path, diags: &mut Vec<Diagnostic>) -> Vec<PathBuf> {
+    let rd = match fs::read_dir(p) {
+        Ok(rd) => rd,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Vec::new(),
+        Err(_) => {
+            diags.push(scan_failure(&rel(root, p)));
+            return Vec::new();
+        }
+    };
+    let mut v: Vec<PathBuf> = Vec::new();
+    for e in rd {
+        let Ok(e) = e else {
+            diags.push(scan_failure(&rel(root, p)));
+            continue;
+        };
+        let path = e.path();
+        match fs::symlink_metadata(&path) {
+            Ok(m) if m.is_dir() => v.push(path),
+            Ok(_) => {}
+            Err(_) => diags.push(scan_failure(&rel(root, &path))),
+        }
+    }
     v.sort();
     v
 }
@@ -494,7 +559,7 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
         ("chapters", "chapter", ScopeKind::Chapter),
         ("modules", "module", ScopeKind::Module),
     ] {
-        for d in sorted_subdirs(&dir.join(sub)) {
+        for d in sorted_subdirs(dir, &dir.join(sub), &mut diags) {
             let p = d.join(format!("{name}.{}", format.ext()));
             let dir_rel = rel(dir, &d);
             if !is_plain_file_under(&root_canon, &p) {
@@ -561,5 +626,35 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
             tests,
         }),
         _ => Err(diags),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_errors_do_not_echo_input_values() {
+        let toml_src = "[pack]\nid = 12345\ntitle = \"SECRET-VALUE\"\nbogus = SECRET-VALUE\n";
+        let e = Format::Toml.parse::<WorkshopSrc>(toml_src).unwrap_err();
+        assert!(!e.contains("SECRET-VALUE") && e.contains("line"), "{e}");
+        let yaml_src = "pack:\n  id: [SECRET-VALUE]\n";
+        let e = Format::Yaml.parse::<WorkshopSrc>(yaml_src).unwrap_err();
+        assert!(!e.contains("SECRET-VALUE"), "{e}");
+    }
+
+    #[test]
+    fn missing_optional_dir_is_empty_but_other_errors_are_diagnosed() {
+        let tmp = std::env::temp_dir().join(format!("fw-src-{}", std::process::id()));
+        fs::create_dir_all(&tmp).unwrap();
+        let mut diags = Vec::new();
+        assert!(sorted_subdirs(&tmp, &tmp.join("chapters"), &mut diags).is_empty());
+        assert!(diags.is_empty());
+        // ディレクトリでないパスは NotFound 以外のエラーになる。
+        fs::write(tmp.join("modules"), "x").unwrap();
+        assert!(sorted_subdirs(&tmp, &tmp.join("modules"), &mut diags).is_empty());
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].file(), "modules");
+        fs::remove_dir_all(&tmp).unwrap();
     }
 }
