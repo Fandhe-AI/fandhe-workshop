@@ -11,11 +11,25 @@ pub fn debug_state_json() -> String {
     let probe = crate::glue::keydown_probe_count()
         .map(|n| n.to_string())
         .unwrap_or_else(|| "null".to_string());
+    // 本文は JSON に入れない（エスケープを避ける）。照合は `debug_draft` で行う。
+    let (cps, over) = crate::glue::draft_snapshot()
+        .map(|(n, o, _)| (n.to_string(), o.to_string()))
+        .unwrap_or_else(|| ("null".to_string(), "null".to_string()));
     format!(
-        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{}}}",
+        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"draftCodePoints\":{},\"inputOverLimit\":{}}}",
         crate::glue::is_mounted(),
-        probe
+        probe,
+        cps,
+        over
     )
+}
+
+/// 状態の下書き本文を返す（読み取りのみ）。未マウントなら空文字列。
+#[wasm_bindgen]
+pub fn debug_draft() -> String {
+    crate::glue::draft_snapshot()
+        .map(|(_, _, d)| d)
+        .unwrap_or_default()
 }
 
 /// 画面を丸ごと再構築する（再描画の時間の測定用）。実行したら `true`、未マウントなどで何もしなかったら `false`。

@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -173,6 +173,22 @@ F1 は、`fandhe-frontend-wasm-full` の `action-keydown` を外す変異であ�
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
 | F1 | Cargo.toml: action-keydown の feature を外す（keydown の配線が黙って登録されなくなる） | wasm_full_は_既定_feature_なしで_action_keydown_を明示している | wasm_full_は_既定_feature_なしで_action_keydown_を明示している | DETECTED | - |
+
+### 5.3 入力欄の上限（TASK-158）
+
+L1 は、`crates/web/src/input_limit.rs` の上限の判定（`clamp_draft` の近道）を常に真にする変異である。外すとビルドは通り、
+20,001 文字目以降が黙って通る。native の統合試験 `input_limit` が検出する。切り詰めた値が欄へ戻ること・案内の表示と消去は、
+ブラウザの試験 `tools/browser/input-limit.test.mjs` が担う。
+
+```text
+実行日: 2026-10-14
+元にしたコミット: ab2a1df-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/L1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| L1 | crates/web/src/input_limit.rs: 上限の判定を外す（20,001 文字目以降が通ってしまう） | 一文字超過は先頭の上限までになり_超過の印が立つ | 一文字超過は先頭の上限までになり_超過の印が立つ, 空_ascii_結合文字の扱い, 十倍の貼り付けも上限になる, サロゲートペアの超過は文字の境界で切る | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
