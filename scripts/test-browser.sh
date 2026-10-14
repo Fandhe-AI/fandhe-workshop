@@ -3,6 +3,7 @@
 #
 # 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
 # tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
+# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action）を含む。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
 # CI へは未組み込み（ジョブの追加は必須チェックの更新と合わせて扱う）。
@@ -44,5 +45,6 @@ TEST_HOOKS=1 OUT_DIR="${TMP}/web-test" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-
 
 FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/harness.test.mjs" \
+  "${ROOT_DIR}/tools/browser/safety.test.mjs" \
   "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs"

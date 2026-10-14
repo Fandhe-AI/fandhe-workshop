@@ -2,11 +2,17 @@
 //
 // 役割: ブラウザの起動・通信の計数・CSP 違反の計数・ページ内エラーの収集を一か所に集め、
 // 後続の試験が同じ数え方で「0 件」を主張できるようにする。0 件が空振りでないことは harness.test.mjs の対照で示す。
-// 呼び出し元: tools/browser/*.test.mjs（TASK-28 2/2）。後続の TASK-94（Chrome 原本）・TASK-143（安全性の試験）も使う。
+// 安全性の試験（TASK-143）向けに、記録用の関数の呼び出し・ダイアログ・ポップアップ・タブの異常終了の計数、
+// 画面の走査（危険な要素・on* 属性・style 属性・http(s) 以外の URL・外部 http(s)）、CSP なしの写しでの配信を足してある。
+// 呼び出し元: tools/browser/*.test.mjs（TASK-28 2/2）。後続の TASK-94（Chrome 原本）・TASK-143 の対照（safety.test.mjs）・
+// TASK-144 以降の安全性の試験も使う。safetyCounts() のキー名は後続の試験との契約のため変えない。
 // 配信は tools/serve.mjs の startServer を再利用する。エンジンは配信先の名前を知らない。
 //
 // channel: 'chromium'（既定。Playwright 同梱の写し）または 'chrome'（Google Chrome の原本）。
 // それ以外は例外にする。Chrome を求められて無いときも Chromium へ黙って切り替えず、起動の失敗にする（fail-closed）。
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { chromium } from 'playwright';
 import { startServer } from '../serve.mjs';
 
@@ -42,11 +48,65 @@ export async function withServer({ dir, base }, fn) {
   }
 }
 
+// 記録用の関数の名前。試験データ（testdata/untrusted-input-safety/test-data/xss-cases.md）のペイロードが
+// この名前で呼ぶため、別名にすると実行されても数えられず空振りの 0 件になる。testdata は写しで書き換えられない。
+export const HIT_FN = '__poc7_hit';
+
+// 画面の走査で「危険」と数える要素。参考実装（POC7）と同じ集合で、img・script を含む。
+export const DANGER_TAGS = [
+  'script', 'iframe', 'object', 'embed', 'link', 'meta', 'style', 'form', 'svg', 'math', 'base',
+  'video', 'audio', 'source', 'img', 'frame', 'frameset', 'applet', 'template', 'noscript', 'canvas', 'picture',
+];
+
+// safetyCounts が返すキー（後続の試験との契約。名前を変えない）。
+export const SAFETY_KEYS = [
+  'hits', 'external', 'csp', 'dialogs', 'popups', 'crashed', 'pageErrors',
+  'danger', 'onAttrs', 'styleAttrs', 'nonHttp', 'extHttp', 'scanError',
+];
+
+const CSP_META_RE = /<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi;
+
+// HTML から CSP の meta を除去する純関数。除去した件数も返す。
+export function stripCspMeta(html) {
+  let removed = 0;
+  const out = String(html).replace(CSP_META_RE, () => {
+    removed += 1;
+    return '';
+  });
+  return { html: out, removed };
+}
+
+// CSP あり・なしの両方で同じ画面を開くための配信ディレクトリを fn に渡す。
+// csp: true は dir をそのまま渡す。false は index.html の CSP の meta だけを除いた一時の写しを渡し、成否にかかわらず消す。
+// route での本文の書き換えは使わない（配信は gzip で、見出しが引き継がれると画面が壊れて空振りの 0 件になりうるため）。
+// 除去の対象がちょうど 1 件でなければ例外（0 件だと CSP の有無を区別できず、2 件以上だと除去漏れの恐れがある）。
+export async function withCspMode({ dir, csp }, fn) {
+  if (typeof csp !== 'boolean') throw new Error(`csp must be a boolean: ${JSON.stringify(csp)}`);
+  if (csp) return fn(dir);
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-nocsp-'));
+  try {
+    fs.cpSync(dir, copy, { recursive: true });
+    const index = path.join(copy, 'index.html');
+    const { html, removed } = stripCspMeta(fs.readFileSync(index, 'utf8'));
+    if (removed !== 1) throw new Error(`expected exactly 1 CSP meta in index.html, found ${removed}`);
+    fs.writeFileSync(index, html);
+    return await fn(copy);
+  } finally {
+    fs.rmSync(copy, { recursive: true, force: true });
+  }
+}
+
 // page・context を作り、記録器 rec を付ける。配信元（origin）以外への要求はすべて abort し、external に数える。
 // CSP 違反は context.exposeBinding で Node 側へ送る。遷移しても失われず、ページのスクリプトより先に登録される。
 export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 } }) {
   const context = await browser.newContext({ viewport });
-  const rec = { requests: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [] };
+  const rec = { requests: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], hits: [], dialogs: [], popups: [], crashed: false };
+  await context.exposeBinding('__fandheHitRec', (_src, id) => {
+    rec.hits.push(String(id));
+  });
+  await context.addInitScript((name) => {
+    window[name] = (id) => window.__fandheHitRec(String(id));
+  }, HIT_FN);
   await context.exposeBinding('__fandheCsp', (_src, v) => {
     rec.csp.push({ violatedDirective: String(v.violatedDirective), blockedURI: String(v.blockedURI) });
   });
@@ -62,6 +122,18 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
     return route.abort();
   });
   const page = await context.newPage();
+  // ポップアップ（window.open・target=_blank）は URL を記録して閉じる。page 作成後に登録するため最初のページは対象外。
+  context.on('page', (p) => {
+    rec.popups.push(p.url());
+    p.close().catch(() => {});
+  });
+  page.on('dialog', (d) => {
+    rec.dialogs.push({ type: d.type(), message: d.message().slice(0, 60) });
+    d.dismiss().catch(() => {});
+  });
+  page.on('crash', () => {
+    rec.crashed = true;
+  });
   page.on('response', (res) => {
     const h = res.headers();
     rec.requests.push({
@@ -90,6 +162,10 @@ export function summarize(rec) {
     csp: rec.csp.length,
     pageErrors: rec.pageErrors.length,
     consoleErrors: rec.consoleErrors.length,
+    hits: rec.hits.length,
+    dialogs: rec.dialogs.length,
+    popups: rec.popups.length,
+    crashed: rec.crashed ? 1 : 0,
   };
 }
 
@@ -98,4 +174,103 @@ export async function waitMounted(page, { timeout = 30000 } = {}) {
   await page.waitForSelector('html[data-mounted]', { state: 'attached', timeout });
   const v = await page.evaluate(() => document.documentElement.getAttribute('data-mounted'));
   if (v !== 'true') throw new Error(`mount failed: data-mounted=${JSON.stringify(v)}`);
+}
+
+// 画面（body 配下）を走査して危険な要素・属性・URL を数える。head は対象外（meta・link は画面の一部ではない）。
+// 固定の関数だけを page.evaluate へ渡し、ペイロードから文字列でコードを組み立てない。
+// opts.entryScripts: 画面自身の script（baseURI 基準で解決した URL が一致するもの）を各 1 件まで danger の計数から除く。
+//   on* 属性・style 属性・URL 属性の検査と能動的な発火は、除いた script にも行う。
+//   2 件目以降は挿入された同名の script かもしれないため危険に数える。
+// opts.provoke: 数えた後で on* を持つ要素へ合成イベントを送る（onmouseover などを発火させる）。
+// 評価が失敗したときは 0 件にせず error を持つ結果を返す（safetyCounts が scanError に数える）。
+export async function scanDom(page, { entryScripts = ['./app.js'], provoke = true } = {}) {
+  try {
+    return await page.evaluate(({ tags, entries, provoke: doProvoke }) => {
+      const dangerSet = new Set(tags);
+      const URL_ATTRS = ['href', 'src', 'xlink:href', 'action', 'formaction', 'data', 'poster', 'srcdoc'];
+      const pending = new Set(entries.map((e) => new URL(e, document.baseURI).href));
+      const out = { elements: 0, dangerTags: [], onAttrs: 0, styleAttrs: 0, nonHttp: 0, extHttp: 0, excluded: 0 };
+      const withOn = [];
+      const nonHttpLinks = [];
+      for (const el of document.body.querySelectorAll('*')) {
+        out.elements += 1;
+        const tag = el.localName.toLowerCase();
+        let isEntry = false;
+        if (tag === 'script' && el.getAttribute('src') !== null) {
+          let abs = null;
+          try { abs = new URL(el.getAttribute('src'), document.baseURI).href; } catch (_e) { abs = null; }
+          if (abs !== null && pending.has(abs)) {
+            pending.delete(abs);
+            out.excluded += 1;
+            isEntry = true;
+          }
+        }
+        if (!isEntry && dangerSet.has(tag)) out.dangerTags.push(tag);
+        if (Array.from(el.attributes).some((a) => /^on/i.test(a.name))) {
+          out.onAttrs += 1;
+          withOn.push(el);
+        }
+        if (el.hasAttribute('style')) out.styleAttrs += 1;
+        for (const name of URL_ATTRS) {
+          const v = el.getAttribute(name);
+          if (v === null) continue;
+          if (name === 'srcdoc') { out.nonHttp += 1; continue; }
+          let u = null;
+          try { u = new URL(v, document.baseURI); } catch (_e) { u = null; }
+          if (u === null || (u.protocol !== 'http:' && u.protocol !== 'https:')) {
+            out.nonHttp += 1;
+            if (tag === 'a' && name === 'href') nonHttpLinks.push(el);
+          } else if (u.origin !== location.origin) {
+            out.extHttp += 1;
+          }
+        }
+      }
+      if (doProvoke) {
+        for (const el of withOn) {
+          for (const t of ['mouseover', 'mouseenter', 'focus', 'click', 'pointerdown']) {
+            try { el.dispatchEvent(new Event(t, { bubbles: true })); } catch (_e) { /* 発火の失敗は数えない */ }
+          }
+          try { el.focus(); } catch (_e) { /* 同上 */ }
+        }
+        for (const a of nonHttpLinks) {
+          try { a.click(); } catch (_e) { /* 同上 */ }
+        }
+      }
+      return out;
+    }, { tags: DANGER_TAGS, entries: entryScripts, provoke });
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+// 記録器 rec と走査結果 scan から、後続の試験が使う平坦な件数を作る。キー名は SAFETY_KEYS（契約）。
+export function safetyCounts(rec, scan) {
+  const failed = !scan || scan.error !== undefined;
+  return {
+    hits: rec.hits.length,
+    external: rec.external.length,
+    csp: rec.csp.length,
+    dialogs: rec.dialogs.length,
+    popups: rec.popups.length,
+    crashed: rec.crashed ? 1 : 0,
+    pageErrors: rec.pageErrors.length,
+    danger: failed ? 0 : scan.dangerTags.length,
+    onAttrs: failed ? 0 : scan.onAttrs,
+    styleAttrs: failed ? 0 : scan.styleAttrs,
+    nonHttp: failed ? 0 : scan.nonHttp,
+    extHttp: failed ? 0 : scan.extHttp,
+    scanError: failed ? 1 : 0,
+  };
+}
+
+// 0 でないキーの一覧。「全区分 0」を 1 行で主張し、失敗時に区分名を出せるようにする。
+export function nonZero(counts, keys = SAFETY_KEYS) {
+  return keys.filter((k) => counts[k] !== 0);
+}
+
+// 走査 → 能動の段で発火した記録が Node 側へ届くのを待つ → 集計（safetyCounts の戻り値）。
+export async function collectSafety(page, rec, { settleMs = 250, ...scanOpts } = {}) {
+  const scan = await scanDom(page, scanOpts);
+  await new Promise((resolve) => setTimeout(resolve, settleMs)); // 閉じたページでも待てるよう Node 側で待つ
+  return safetyCounts(rec, scan);
 }
