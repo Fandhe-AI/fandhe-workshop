@@ -124,11 +124,13 @@ rescue StandardError, Psych::SyntaxError => e
   warn "error: cannot parse #{file} as YAML: #{e.message.lines.first}"
   exit 2
 end
+# 復号後の値は改行・CR・タブを含み得る（二重引用符内の `\n` 等）。空白は `\s` で見る。`^`・`$` は行頭・行末でも一致し、
+# 検出が増えるだけで見逃しは増えない。ただし github 全体参照の末尾は、後続の `.event_name` を誤検出しないよう `\z` にする。
 risky = lambda do |v|
   lb = v.downcase
   lb =~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
-    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[)/ ||
-    lb =~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/
+    lb =~ /(^|[^a-z0-9_-])github\s*(\.\s*token|\[)/ ||
+    lb =~ /(^|[^a-z0-9_-])github\s*(\.\s*\*|[),]|\z)/
 end
 # 復号後のスカラー値から Actions 式 `${{ ... }}` の本文を取り出す。awk と同じく、式の中の文字列リテラル
 # （単一引用符。中の引用符は連続 2 個でエスケープ）にある `}}` は終端として扱わない。閉じない式は残りを本文にする。

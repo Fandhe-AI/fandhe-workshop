@@ -11,6 +11,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
+require_cmd mktemp
+require_cmd rm
 
 CHECK="${DIR}/check-workflow-secrets.sh"
 TMP_DIR="$(mktemp -d)"
@@ -99,6 +101,20 @@ run_case "double-quoted safe expression passes" 0 $'env:\n  T: "${{ github.event
 run_case "alias is rejected as unsupported (fail-closed)" 2 $'x: &a 1\ny: *a'
 run_case "unparseable YAML is rejected (fail-closed)" 2 $'jobs: [\n  a: {'
 run_case "non-scalar if is rejected (fail-closed)" 2 $'jobs:\n  a:\n    if: [always]'
+
+# 二重引用符内のエスケープ（\n・\t・\r\n）は Psych が改行・タブに復号する。復号後の空白として検出する。
+run_case "github.token with escaped newline in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ github\\n.token }}"'
+run_case "github.token with escaped tab in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ github\\t.\\ttoken }}"'
+run_case "github.token with escaped CRLF in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ github\\r\\n.token }}"'
+run_case "secrets with escaped newline in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ secrets\\n.X }}"'
+run_case "secrets with escaped CRLF subscript in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{\\r\\nsecrets\\r\\n[\'X\']\\r\\n}}"'
+run_case "github whole reference with escaped newline in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ github\\n.* }}"'
+run_case "github.token with escaped newline in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ github\\n.token != \'\' }}"'
+run_case "github.token with escaped tab in if value is detected" 1 $'jobs:\n  a:\n    if: "github\\t.token != \'\'"'
+run_case "github.token with escaped CRLF in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ github\\r\\n.token }}"'
+run_case "secrets with escaped newline in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ secrets\\n.X }}"'
+run_case "github whole reference with escaped newline in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ github\\n.* }}"'
+run_case "github.event_name with escaped newline passes" 0 $'jobs:\n  a:\n    if: "${{ github\\n.event_name == \'push\' }}"'
 
 rc=0
 "${CHECK}" --file "${TMP_DIR}/missing.yml" >/dev/null 2>&1 || rc=$?
