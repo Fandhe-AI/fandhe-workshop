@@ -5,7 +5,7 @@
 //! パスは安全な相対パス（`..`・絶対パス・`\` を含まない）に限り、(3) 読むときは上限 + 1 バイトで打ち切る。
 //! 診断のメッセージにはパスと ID だけを入れ、本文・練習データの中身は入れない。
 //!
-//! 上限の値（`MAX_*`）は PoC-7 の仮の値で、公開しない。値と拒否理由の契約は TASK-199 で固定する。
+//! 上限の値と拒否理由の文面は契約（TASK-199、`contract::limits`）の共有定数・`PackLimitCode` に従う。
 //! 形式 B の厳格化（文字列への型変換・重複キー・行と桁）は TASK-40、モジュールの展開は TASK-50 が扱う。
 
 use std::collections::BTreeMap;
@@ -14,18 +14,17 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use fandhe_workshop_contract::ir::{FixtureDef, PackInfo, Start, Step};
+use fandhe_workshop_contract::limits::{self, PackLimitCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
 
-/// Markdown 1 ファイルの上限（バイト）。仮の値（TASK-199 で固定）。
-const MAX_MARKDOWN_BYTES: u64 = 512 * 1024;
-/// パック全体の上限（バイト）。仮の値（TASK-199 で固定）。
-const MAX_PACK_BYTES: u64 = 20 * 1024 * 1024;
-/// ディレクトリの入れ子の上限。仮の値（TASK-199 で固定）。
-const MAX_DEPTH: usize = 32;
+/// 上限の値は契約（TASK-199）の共有定数を使い、独自に持たない。
+const MAX_MARKDOWN_BYTES: u64 = limits::MAX_MARKDOWN_BYTES;
+const MAX_PACK_BYTES: u64 = limits::MAX_PACK_BYTES;
+const MAX_DEPTH: usize = limits::MAX_PACK_DIR_DEPTH;
 
 /// 人が書く形式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -310,7 +309,7 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                     &file,
                     "file",
                     DiagCode::LimitSymlink,
-                    "symbolic links are not allowed",
+                    PackLimitCode::Symlink.message(),
                 ));
             } else if md.is_dir() {
                 if depth < MAX_DEPTH {
@@ -320,7 +319,7 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                         &file,
                         "file",
                         DiagCode::LimitDepth,
-                        format!("directory nesting exceeds {MAX_DEPTH} levels"),
+                        PackLimitCode::DirDepth.message(),
                     ));
                 }
             } else if md.is_file() {
@@ -330,10 +329,7 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                         &file,
                         "file",
                         DiagCode::LimitMdSize,
-                        format!(
-                            "markdown file exceeds {MAX_MARKDOWN_BYTES} bytes ({} bytes)",
-                            md.len()
-                        ),
+                        PackLimitCode::MdSize.message(),
                     ));
                 }
             }
@@ -344,7 +340,7 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
             ".",
             "pack",
             DiagCode::LimitPackSize,
-            format!("pack exceeds {MAX_PACK_BYTES} bytes ({total} bytes)"),
+            PackLimitCode::PackSize.message(),
         ));
     }
     diags.sort_by(|a, b| (a.file(), a.code().as_str()).cmp(&(b.file(), b.code().as_str())));
@@ -476,7 +472,7 @@ fn load_body(
             &key,
             "file",
             DiagCode::LimitMdSize,
-            format!("markdown file exceeds {MAX_MARKDOWN_BYTES} bytes"),
+            PackLimitCode::MdSize.message(),
         )),
         Err(ReadError::NotUtf8) => diags.push(diag(
             &key,

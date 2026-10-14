@@ -3,16 +3,19 @@
 //! 実行時のエンジンは IR だけを読み、構造定義や Markdown を読まない（PACK-1）。そのため入力は
 //! バイト列だけで、ファイルを扱う標準ライブラリの機能は使わない（結合試験が機械で確かめる）。
 //! web から呼ばれ、pack の `compile` が書き出した IR を受ける。
-//! IR の大きさ・入れ子の上限は TASK-199 の契約を待つ。
+//! 大きさ・入れ子の上限は契約（TASK-199、`contract::limits`）に従い、JSON の解釈より前に判定する。
 
 use std::collections::BTreeSet;
 use std::fmt;
 
 use fandhe_workshop_contract::ir::{Ir, IR_FORMAT_VERSION};
+use fandhe_workshop_contract::limits::{LimitReason, MAX_IR_BYTES, MAX_JSON_DEPTH};
 
 /// IR を読めない理由。メッセージには ID だけを含め、IR の本文は含めない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrLoadError {
+    /// 大きさまたは入れ子の上限を超えた（解析前に判定する）。
+    Limit(LimitReason),
     /// JSON として解釈できない、または欄が合わない（分類と位置だけで、入力値は含まない）。
     Json(String),
     /// `format_version` が未対応。
@@ -33,6 +36,7 @@ pub enum IrLoadError {
 impl fmt::Display for IrLoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            IrLoadError::Limit(r) => write!(f, "IR rejected: {r}"),
             IrLoadError::Json(m) => write!(f, "invalid IR JSON: {m}"),
             IrLoadError::FormatVersion(v) => write!(f, "unsupported format_version: {v}"),
             IrLoadError::PackIrFormat(v) => write!(f, "unsupported pack.ir_format: {v}"),
@@ -59,11 +63,47 @@ fn json_failure(e: &serde_json::Error) -> String {
     format!("{class} at line {} column {}", e.line(), e.column())
 }
 
+/// JSON の入れ子の最大の段数が上限を超えるかを、解析せずに数える（文字列の中の括弧は数えない）。
+fn exceeds_depth(bytes: &[u8]) -> bool {
+    let (mut depth, mut in_str, mut esc) = (0usize, false, false);
+    for &b in bytes {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if b == b'\\' {
+                esc = true;
+            } else if b == b'"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match b {
+            b'"' => in_str = true,
+            b'{' | b'[' => {
+                depth += 1;
+                if depth > MAX_JSON_DEPTH {
+                    return true;
+                }
+            }
+            b'}' | b']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    false
+}
+
 /// バイト列の IR を読み、版と参照の整合を確かめて返す。
 ///
+/// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。
 /// 拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
 /// `uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
+    if bytes.len() as u64 > MAX_IR_BYTES {
+        return Err(IrLoadError::Limit(LimitReason::TooLarge));
+    }
+    if exceeds_depth(bytes) {
+        return Err(IrLoadError::Limit(LimitReason::TooDeep));
+    }
     let ir: Ir = serde_json::from_slice(bytes).map_err(|e| IrLoadError::Json(json_failure(&e)))?;
     if ir.format_version != IR_FORMAT_VERSION {
         return Err(IrLoadError::FormatVersion(ir.format_version));
@@ -173,5 +213,33 @@ mod tests {
             panic!("must be rejected")
         };
         assert!(!e.to_string().contains("SECRET-VALUE"), "{e}");
+    }
+
+    #[test]
+    fn l9_rejects_too_large_before_parse() {
+        let v = vec![b' '; MAX_IR_BYTES as usize + 1];
+        assert_eq!(
+            load_ir(&v).unwrap_err(),
+            IrLoadError::Limit(LimitReason::TooLarge)
+        );
+        // ちょうどは大きさでは拒否しない（空白だけなので JSON エラーになる）。
+        let v = vec![b' '; MAX_IR_BYTES as usize];
+        assert!(matches!(load_ir(&v), Err(IrLoadError::Json(_))));
+    }
+
+    #[test]
+    fn l10_rejects_too_deep_before_parse() {
+        let nest = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        assert_eq!(
+            load(&nest(MAX_JSON_DEPTH + 1)).unwrap_err(),
+            IrLoadError::Limit(LimitReason::TooDeep)
+        );
+        assert!(matches!(
+            load(&nest(MAX_JSON_DEPTH)),
+            Err(IrLoadError::Json(_))
+        ));
+        // 文字列の中の括弧は数えない。
+        let s = format!("{{\"a\":\"{}\"}}", "[".repeat(100));
+        assert!(matches!(load(&s), Err(IrLoadError::Json(_))));
     }
 }
