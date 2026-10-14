@@ -2,7 +2,7 @@
 # Rust の native 試験を流す（`make test` から呼ばれる）。
 #
 # `--workspace` を付けて、既定では除外している web の native 試験も含める（default-members は web を含まない）。
-# wasm32 でのブラウザ試験はここに含まない（TASK-28）。CI への組み込みは TASK-33。
+# wasm32 でのブラウザ試験はここに含まない（TASK-28）。CI では ci.yml の rust-test ジョブが呼ぶ。
 #
 # 終了コード: 0 = 全試験が通過 / 1 = 失敗 / 2 = 誤用（引数あり）。
 set -euo pipefail

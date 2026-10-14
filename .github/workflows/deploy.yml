@@ -1,0 +1,40 @@
+# 配信（デプロイ）のワークフローの骨格（TASK-33）。中身は TASK-121 で作る。
+#
+# ci.yml に置かず別ワークフローにする理由:
+# - ci.yml は pull_request で動き、secret を参照しない（scripts/check-workflow-secrets.sh が強制する）。
+#   配信は secret・書き込み権限・environment を要するため、PR の起点から届かない場所に分ける
+# - ci.yml に置くと PR では skipped として報告され、ci-complete の skipped 許容条件か ruleset に
+#   影響する。workflow_dispatch だけにすれば、PR の HEAD にチェックは報告されない
+# - 書き込み権限を持つジョブを、pull_request で動くワークフローに置かない
+#
+# 発火の起点は workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
+# （fork や PR の内容が信頼された権限で動く経路になる。.claude/rules/security.md）。
+#
+# TASK-121 で足すもの: ビルドの成果物の受け取り、pages: write・id-token: write のジョブ単位での付与、
+# environment。配信の変更対象は教材の repo であり、本ファイルはエンジン repo 側の境界を示す骨格である。
+#
+# ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: deploy-${{ github.workflow }}
+  # 配信の途中で止めると中途半端な状態が残るため、実行中のものは止めない
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: "deploy (skeleton; TASK-121)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      # 成功で終わる空のジョブは置かない（呼び出し元が終了コードを信じてしまう）。失敗で止める
+      - name: Not implemented
+        run: |
+          echo "::error::deploy is not implemented yet (TASK-121)"
+          exit 1

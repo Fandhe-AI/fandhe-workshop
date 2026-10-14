@@ -69,6 +69,21 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 }'
 ```
 
+### TASK-33 で追加するチェック（承認待ち・ruleset 未反映）
+
+2026-10-12 時点。`ci.yml` に `rust-lint`・`rust-test` を追加した。次の 2 件を必須チェックに加える案だが、人の承認を
+得ておらず、ruleset には反映していない（上の表の 10 件は適用済みの事実）。
+
+| 必須チェック（案） | 発行元 App（`integration_id`） |
+| --- | --- |
+| `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
+| `rust build + test (--workspace)` | github-actions（15368） |
+
+- `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
+- 反映はこの変更のマージ直後に行う。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で新しいチェックが
+  「Expected」のまま残りマージできなくなる。反映までの間も、`ci-complete` が新しいジョブを `needs` で集約するため
+  ゲートは効く。反映前の PR では HEAD に未登録のチェックが報告され、自動マージは辞退する（人がマージする）
+
 ## リポジトリ設定（2026-10-11 適用）
 
 ワークフローの書き方に影響する設定。変更は `setup-repo-guards` スキルの手順に従う。
@@ -82,7 +97,8 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 ## 発火条件
 
-- `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）
+- `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
+- 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
@@ -113,9 +129,10 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 ## キャッシュ方針
 
-現状（2026-10-11）: 現在 GitHub Actions のキャッシュは使っていない（キャッシュは 0 件・0 バイト）。`ci.yml` は
-言語のツールチェーン・依存を導入しておらず、キャッシュする対象も無い。言語のツール・依存を追加してキャッシュを
-使う場合は本節に従う。
+現状（2026-10-12）: GitHub Actions のキャッシュは使っていない。`ci.yml` の `rust-lint`・`rust-test` もキャッシュなしで
+導入した。「入れる前に効果を測る」を満たすため、まずキャッシュなしの所要時間・依存のダウンロード件数・ビルド件数を
+計測する。キャッシュは、足す前後の復元秒数・ダウンロード件数・再ビルド数を比べて効果を確認できた後に、別の変更で
+追加する（`Swatinem/rust-cache` を使う場合は下記の保存条件とキーの設計に従う）。
 
 ### 前提（容量と課金）
 
@@ -227,6 +244,7 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | ワークフロー | ジョブ | 実測（直近の実行） |
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
+| `ci.yml` | rust-lint・rust-test | 未計測（初回の実行後に更新する） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
