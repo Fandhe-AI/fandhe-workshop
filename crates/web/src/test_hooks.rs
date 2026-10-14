@@ -8,9 +8,13 @@ use wasm_bindgen::prelude::*;
 /// 現在の画面の状態を JSON 文字列で返す（読み取りのみ）。
 #[wasm_bindgen]
 pub fn debug_state_json() -> String {
+    let probe = crate::glue::keydown_probe_count()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "null".to_string());
     format!(
-        "{{\"screen\":\"hello\",\"mounted\":{}}}",
-        crate::glue::is_mounted()
+        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{}}}",
+        crate::glue::is_mounted(),
+        probe
     )
 }
 

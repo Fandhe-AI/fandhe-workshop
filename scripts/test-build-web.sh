@@ -98,6 +98,8 @@ check_status "no debug_ in glue js" 1 grep -q 'debug_' "${DELIVERY}/wasm/fandhe_
 check "no test-hooks.js" test ! -e "${DELIVERY}/test-hooks.js"
 check_status "no fandhe-test-hooks meta" 1 grep -q 'fandhe-test-hooks' "${DELIVERY}/index.html"
 check_status "no test-hooks marker" 1 grep -q 'fandhe:test-hooks' "${DELIVERY}/index.html"
+check_status "no keydown-probe in wasm" 1 grep -aq 'keydown-probe' "${DELIVERY}/${WASM}"
+check_status "no keydown-probe in glue js" 1 grep -q 'keydown-probe' "${DELIVERY}/wasm/fandhe_workshop_web.js"
 check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
 check "no .d.ts" test -z "$(find "${DELIVERY}" -name '*.d.ts')"
 
@@ -110,6 +112,8 @@ echo "-- (c) test config" >&2
 check "debug_state_json is exported" has_export '^debug_state_json$' "${TESTCFG}/${WASM}"
 check "debug_rerender is exported" has_export '^debug_rerender$' "${TESTCFG}/${WASM}"
 check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
+# 配信設定の「keydown-probe が無い」検査が空振りしていないことの対照（試験の設定には有る）。
+check "keydown-probe is in the test config wasm" grep -aq 'keydown-probe' "${TESTCFG}/${WASM}"
 check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
 
 echo "-- (d) misuse" >&2
