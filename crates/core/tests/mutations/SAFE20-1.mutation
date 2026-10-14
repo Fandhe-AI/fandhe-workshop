@@ -1,0 +1,11 @@
+id: SAFE20-1
+package: fandhe-workshop-core
+test: load_order
+target: crates/core/src/load_gate.rs
+find:     check_json_depth(bytes).map_err(LoadError::Limit)?;
+replace:     let _ = check_json_depth(bytes);
+expect-fail: depth_is_decided_before_parse
+expect-fail: deep_valid_json_is_too_deep
+expect-fail: depth_check_precedes_serde_recursion_limit
+expect-fail: rejecting_stage_is_the_first_violated_in_contract_order
+note: 入れ子の深さの段を外す（解釈の前に深さで断らない）
