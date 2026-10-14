@@ -7,7 +7,9 @@
 use std::cell::RefCell;
 
 use fandhe_frontend_wasm_full::Runtime;
+use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 use crate::hello::HelloView;
 
@@ -31,6 +33,78 @@ pub(crate) fn keydown_probe_count() -> Option<u32> {
         let slot = cell.try_borrow().ok()?;
         slot.as_ref().map(|rt| rt.component().keydown_probe())
     })
+}
+
+/// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
+///
+/// 戻り値は（コードポイント数、超過の印、本文）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn draft_snapshot() -> Option<(usize, bool, String)> {
+    RUNTIME.with(|cell| {
+        let slot = cell.try_borrow().ok()?;
+        slot.as_ref().map(|rt| {
+            let c = rt.component();
+            (
+                c.draft().chars().count(),
+                c.over_limit(),
+                c.draft().to_owned(),
+            )
+        })
+    })
+}
+
+/// 状態の下書きを `<textarea>` へ書き戻す。値が同じなら書かない（書くとキャレットが末尾へ動くため）。
+///
+/// 上流の `wasm-client` の `value` 束縛は `HtmlInputElement` しか同期しない（PoC-2 の F-1）。
+/// 状態側で 20,000 コードポイントに切った後の値を欄に反映するには、この書き戻しが要る。
+/// 上流が `<textarea>` の同期に対応したら外す。要素が無い・借用中は何もしない（安全側）。
+fn sync_draft(root: &web_sys::Element) {
+    let Ok(Some(el)) = root.query_selector("[data-testid=\"draft-input\"]") else {
+        return;
+    };
+    let Ok(field) = el.dyn_into::<web_sys::HtmlTextAreaElement>() else {
+        return;
+    };
+    RUNTIME.with(|cell| {
+        let Ok(slot) = cell.try_borrow() else {
+            return;
+        };
+        let Some(rt) = slot.as_ref() else {
+            return;
+        };
+        let component = rt.component();
+        let draft = component.draft();
+        if field.value() != draft {
+            field.set_value(draft);
+        }
+    });
+}
+
+/// 書き戻しのリスナーを root に登録する。`mount_app` が成功した直後に 1 回だけ呼ぶ。
+///
+/// 上流の `input` の配線（`Runtime::mount` が先に root へ登録済み）の後に走るため、状態は更新済みである。
+/// 変換中（`InputEvent.isComposing`）は書き戻さず、`compositionend` で同期する（変換中の書き換えは入力を壊す）。
+/// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
+fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
+    let target = root.clone();
+    let on_input = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+        if ev
+            .dyn_ref::<web_sys::InputEvent>()
+            .is_some_and(|i| i.is_composing())
+        {
+            return;
+        }
+        sync_draft(&target);
+    });
+    root.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
+    on_input.forget();
+    let target = root.clone();
+    let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        sync_draft(&target);
+    });
+    root.add_event_listener_with_callback("compositionend", on_end.as_ref().unchecked_ref())?;
+    on_end.forget();
+    Ok(())
 }
 
 /// 画面を root 配下ごと再構築する。再描画の時間の測定（tools/measure/redraw.sh）が試験用の口経由で呼ぶ。
@@ -65,7 +139,9 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         if slot.is_some() {
             return Err(JsValue::from_str("already mounted"));
         }
-        *slot = Some(Runtime::mount(root_id, HelloView::new())?);
+        let runtime = Runtime::mount(root_id, HelloView::new())?;
+        wire_draft_sync(runtime.root())?;
+        *slot = Some(runtime);
         Ok(())
     })
 }

@@ -166,6 +166,7 @@ dependencies = [
  "fandhe-workshop-pack",
  "toml",
  "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
