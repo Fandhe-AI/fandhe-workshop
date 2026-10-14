@@ -8,9 +8,11 @@
 # 検出対象は、Actions 式 `${{ ... }}` の中（複数行にまたがる式を含む）にある次の参照と、`secrets: inherit`
 # （キー・値を引用符で囲んだ形も含む。`if` キーの引用符付きも同様）。
 #   - `secrets` コンテキスト（`secrets.X`・`secrets['X']`・`secrets . X`・`toJSON(secrets)`。大文字小文字・空白を問わない）
-#   - `github.token`・`github` への添字アクセス `github[...]`（中身を問わない。`github[env.KEY]` のように添字が動的な式で
-#     `token` を指せるため、`github['event_name']` も含めて拒否する）（空白・大文字小文字を問わない）と、
-#     `toJSON(github)`・`github.*` のような github 全体の参照
+#   - `github` の参照は許可リストで判定する。単語としての `github` の出現ごとに、直後（空白・改行を挟んでよい）が
+#     `.` + 識別子で、その識別子が `token` でない場合だけを許可する（`github.event_name`・`github.token_x` 等）。
+#     それ以外の後続はすべて検出する。例: `github.token`・`github[...]`（`github[env.KEY]` のように動的な添字で
+#     `token` を指せる）・`toJSON(github)`・`github.*`・`toJSON(github || null)`・`github == null`・`!github`。
+#     空白・大文字小文字は問わない
 #   - `if:` の値（`${{ }}` を省略した形と、継続行を含む）。値全体を式として同じ規則で検査する
 # 式の中の文字列リテラル（`'...'`。引用符は `''` でエスケープ）にある `}}` は終端として扱わない。
 # 上の行ベースの検査に加え、ruby（Psych）で YAML を構文木に解析し、記法に依存せず次を検査する。
@@ -51,11 +53,24 @@ fi
 # 引用符は八進エスケープ（\047 = ' / \042 = "）で書き、シェルのクォートと衝突させない。
 # shellcheck disable=SC2016 # awk のプログラムなので、シェルに展開させない
 AWK_PROG='
+# github 全体の参照を許可リストで判定する。単語としての `github` の出現ごとに、直後が `.` + 識別子で、
+# その識別子が `token` でない場合だけを許可する。それ以外の後続はすべて「検出」（1 を返す）。
+# awk には先読みが無いため、出現位置を match と substr で順に走査する。ruby 側（risky）と同じ規則にする。
+# awk は復号前の文字列を見るため、二重引用符内のエスケープ `\n`・`\t`・`\r` も空白として扱う。
+function gh_bad(lb,    rest, id) {
+  while (match(lb, /(^|[^a-z0-9_-])github/)) {
+    rest = substr(lb, RSTART + RLENGTH)
+    if (!match(rest, /^([ \t]|\\[ntr])*\.([ \t]|\\[ntr])*[a-z_][a-z0-9_-]*/)) return 1
+    id = substr(rest, 1, RLENGTH)
+    sub(/^([ \t]|\\[ntr])*\.([ \t]|\\[ntr])*/, "", id)
+    if (id == "token") return 1
+    lb = rest
+  }
+  return 0
+}
 function check(body, start,    lb) {
   lb = tolower(body)
-  if (lb ~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
-      lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*token|\[)/ ||
-      lb ~ /(^|[^a-z0-9_-])github[ \t]*(\.[ \t]*\*|[),]|$)/) {
+  if (lb ~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ || gh_bad(lb)) {
     print start ":" body
   }
 }
@@ -125,12 +140,18 @@ rescue StandardError, Psych::SyntaxError => e
   exit 2
 end
 # 復号後の値は改行・CR・タブを含み得る（二重引用符内の `\n` 等）。空白は `\s` で見る。`^`・`$` は行頭・行末でも一致し、
-# 検出が増えるだけで見逃しは増えない。ただし github 全体参照の末尾は、後続の `.event_name` を誤検出しないよう `\z` にする。
+# 検出が増えるだけで見逃しは増えない。
+# github は許可リストで判定する（awk の gh_bad と同じ規則）。単語としての `github` の出現ごとに、直後が `.` + 識別子で、
+# その識別子が `token` でない場合だけを許可し、それ以外の後続はすべて検出する。
+gh_bad = lambda do |lb|
+  lb.to_enum(:scan, /(?<![a-z0-9_-])github(?:\s*\.\s*([a-z_][a-z0-9_-]*))?/).any? do
+    id = Regexp.last_match[1]
+    id.nil? || id == "token"
+  end
+end
 risky = lambda do |v|
   lb = v.downcase
-  lb =~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ ||
-    lb =~ /(^|[^a-z0-9_-])github\s*(\.\s*token|\[)/ ||
-    lb =~ /(^|[^a-z0-9_-])github\s*(\.\s*\*|[),]|\z)/
+  lb =~ /(^|[^a-z0-9_-])secrets([^a-z0-9_-]|$)/ || gh_bad.call(lb)
 end
 # 復号後のスカラー値から Actions 式 `${{ ... }}` の本文を取り出す。awk と同じく、式の中の文字列リテラル
 # （単一引用符。中の引用符は連続 2 個でエスケープ）にある `}}` は終端として扱わない。閉じない式は残りを本文にする。

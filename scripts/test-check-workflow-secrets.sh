@@ -116,6 +116,20 @@ run_case "secrets with escaped newline in if value is detected" 1 $'jobs:\n  a:\
 run_case "github whole reference with escaped newline in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ github\\n.* }}"'
 run_case "github.event_name with escaped newline passes" 0 $'jobs:\n  a:\n    if: "${{ github\\n.event_name == \'push\' }}"'
 
+# github は許可リストで判定する。直後が `.` + `token` 以外の識別子のときだけ通し、演算子・関数の引数・式末尾などは検出する。
+for expr in "toJSON(github || null)" "toJSON(github && github)" "github == null" "!github" "format('{0}', github)" "github . token"; do
+  run_case "run with github allowlist violation is detected: ${expr}" 1 $'jobs:\n  a:\n    steps:\n      - run: echo "${{ '"${expr}"$' }}"'
+  run_case "if value with github allowlist violation is detected: ${expr}" 1 $'jobs:\n  a:\n    if: ${{ '"${expr}"$' }}'
+  run_case "bare if with github allowlist violation is detected: ${expr}" 1 $'jobs:\n  a:\n    if: '"${expr}"
+done
+run_case "github || null after escaped newlines in run-like value is detected" 1 $'jobs:\n  a:\n    steps:\n      - run: "echo ${{ toJSON(github\\n||\\nnull) }}"'
+run_case "github || null after escaped newlines in if value is detected" 1 $'jobs:\n  a:\n    if: "${{ toJSON(github\\n||\\nnull) }}"'
+for expr in "github.event_name" "github.ref == 'refs/heads/main'" "github.token_x" "github.tokens" "github.event.pull_request.head.sha"; do
+  run_case "run with allowed github property passes: ${expr}" 0 $'jobs:\n  a:\n    steps:\n      - run: echo "${{ '"${expr}"$' }}"'
+  run_case "if value with allowed github property passes: ${expr}" 0 $'jobs:\n  a:\n    if: ${{ '"${expr}"$' }}'
+  run_case "bare if with allowed github property passes: ${expr}" 0 $'jobs:\n  a:\n    if: '"${expr}"
+done
+
 rc=0
 "${CHECK}" --file "${TMP_DIR}/missing.yml" >/dev/null 2>&1 || rc=$?
 expect "missing file exits 2" 2 "${rc}"
