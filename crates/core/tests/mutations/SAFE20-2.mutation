@@ -1,0 +1,9 @@
+id: SAFE20-2
+package: fandhe-workshop-core
+test: load_order
+target: crates/core/src/load_gate.rs
+find:     if bytes.len() as u64 > max_bytes(entry) {
+replace:     if check_json_depth(bytes).is_err() { return Err(LoadError::Limit(LimitReason::TooDeep)); } if bytes.len() as u64 > max_bytes(entry) {
+expect-fail: size_is_decided_before_depth
+expect-fail: rejecting_stage_is_the_first_violated_in_contract_order
+note: 深さの段を大きさの段より先にする（判定の順序の入れ替え）

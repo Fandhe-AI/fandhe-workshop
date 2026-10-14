@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_check_json_depth } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_check_json_depth, debug_check_json_load } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -13,4 +13,9 @@ export function rerender() {
 // 入れ子の深さの検査（TASK-157）。固定形の JSON 文字列（ok / reason）を返す。
 export function checkJsonDepth(text) {
   return debug_check_json_depth(text);
+}
+
+// IR・履歴の読み込みの関門（TASK-157）。entry は "ir" か "history"。固定形の JSON 文字列（ok / stage / reason）を返す。
+export function checkJsonLoad(entry, text) {
+  return debug_check_json_load(entry, text);
 }

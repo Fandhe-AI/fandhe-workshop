@@ -37,3 +37,35 @@ pub fn debug_check_json_depth(text: &str) -> String {
         Err(reason) => format!("{{\"ok\":false,\"reason\":\"{}\"}}", reason.as_str()),
     }
 }
+
+/// IR・履歴の読み込みの関門（core の `parse_json_value`）の 3 段目までを呼び、固定形の JSON で結果を返す（読み取りのみ）。
+///
+/// `entry` は `"ir"` か `"history"`。それ以外は `unknown_entry` を返す。型・内容の段は `serde_json::Value` では
+/// 常に通るため、ここでは確かめない（native の `load_order` 試験が持つ）。入力の内容は返り値に含めない。
+#[wasm_bindgen]
+pub fn debug_check_json_load(entry: &str, text: &str) -> String {
+    use fandhe_workshop_contract::limits::{LoadEntry, LoadStage};
+    let entry = match entry {
+        "ir" => LoadEntry::Ir,
+        "history" => LoadEntry::History,
+        _ => return "{\"ok\":false,\"error\":\"unknown_entry\"}".to_string(),
+    };
+    match fandhe_workshop_core::load_gate::parse_json_value(entry, text.as_bytes()) {
+        Ok(_) => "{\"ok\":true}".to_string(),
+        Err(err) => {
+            let stage = match err.stage() {
+                LoadStage::Size => "size",
+                LoadStage::Depth => "depth",
+                LoadStage::JsonParse => "json_parse",
+                LoadStage::TypeAndContent => "type_and_content",
+            };
+            match err {
+                fandhe_workshop_core::load_gate::LoadError::Limit(reason) => format!(
+                    "{{\"ok\":false,\"stage\":\"{stage}\",\"reason\":\"{}\"}}",
+                    reason.as_str()
+                ),
+                _ => format!("{{\"ok\":false,\"stage\":\"{stage}\"}}"),
+            }
+        }
+    }
+}
