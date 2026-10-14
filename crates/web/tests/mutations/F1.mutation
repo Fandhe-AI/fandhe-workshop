@@ -1,0 +1,8 @@
+id: F1
+package: fandhe-workshop-web
+test: frontend_features
+target: Cargo.toml
+find: fandhe-frontend-wasm-full = { version = "0.46.0", default-features = false, features = ["action-keydown"] }
+replace: fandhe-frontend-wasm-full = { version = "0.46.0", default-features = false, features = [] }
+expect-fail: wasm_full_は_既定_feature_なしで_action_keydown_を明示している
+note: action-keydown の feature を外す（keydown の配線が黙って登録されなくなる）

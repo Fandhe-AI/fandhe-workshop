@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # ブラウザ試験（Playwright の共通ヘルパ）を流す（`make test-browser` から呼ばれる）。
 #
-# 配信設定の web を一時ディレクトリへビルドし（TEST_HOOKS なし）、tools/browser/*.test.mjs を node:test で実行する。
+# 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
+# tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
 # CI へは未組み込み（ジョブの追加は必須チェックの更新と合わせて扱う）。
@@ -38,6 +39,10 @@ log "building web into a temporary directory"
 # 親環境の TEST_HOOKS を継承すると試験設定が生成されるため、空にして配信設定へ固定する。
 TEST_HOOKS="" OUT_DIR="${TMP}/web" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
 
-FANDHE_WEB_DIR="${TMP}/web" node --test \
+log "building web (test hooks) into a temporary directory"
+TEST_HOOKS=1 OUT_DIR="${TMP}/web-test" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
+
+FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/harness.test.mjs" \
-  "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs"
+  "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs" \
+  "${ROOT_DIR}/tools/browser/keydown-action.test.mjs"
