@@ -329,6 +329,7 @@ struct Tally {
     labels: Vec<String>,
     live: Vec<String>,
     notice: Vec<String>,
+    log_lists: usize,
     tablists: usize,
     tabs: Vec<String>,
     /// role に関係なく、全要素から集めた予約 id（tab・tabpanel の `id`）。
@@ -500,6 +501,7 @@ fn check_element(
         }
     }
     if testid == Some(LOG_LIST_TESTID) {
+        tally.log_lists += 1;
         if ctx.in_live {
             bad(
                 "log-list-in-live",
@@ -666,6 +668,7 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
             n(&t.notice, s.testid()),
         );
     }
+    count("log-list".to_string(), 1, t.log_lists);
     count("tablist".to_string(), 1, t.tablists);
     for p in PaneTab::ALL {
         count(

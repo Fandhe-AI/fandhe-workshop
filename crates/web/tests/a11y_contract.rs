@@ -424,6 +424,23 @@ fn complete_checks_counts() {
 }
 
 #[test]
+fn complete_requires_exactly_one_log_list() {
+    let dup = with_children(|c| c.push(el("ul", vec![(TESTID_ATTR, LOG_LIST_TESTID)], vec![])));
+    assert_eq!(check_no_undefined(&dup), Ok(()));
+    assert!(rules(check_complete(&dup)).contains(&"count"));
+
+    let none = with_children(|c| {
+        c[1] = el(
+            "section",
+            vec![("aria-label", Region::GuideAndLog.aria_label())],
+            vec![notice(StatusNotice::Log)],
+        );
+    });
+    assert_eq!(check_no_undefined(&none), Ok(()));
+    assert!(rules(check_complete(&none)).contains(&"count"));
+}
+
+#[test]
 fn reserved_ids_are_checked_regardless_of_role() {
     for id in [
         "pane-ops",
