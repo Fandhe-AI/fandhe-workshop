@@ -424,6 +424,21 @@ fn complete_checks_counts() {
 }
 
 #[test]
+fn reserved_ids_are_checked_regardless_of_role() {
+    for id in [
+        "pane-ops",
+        "pane-artifacts",
+        "pane-tab-ops",
+        "pane-tab-artifacts",
+    ] {
+        let v = with_children(|c| c.insert(0, elem(vec![("id", id)], vec![])));
+        assert!(rules(check_no_undefined(&v)).contains(&"reserved-id-role"));
+        let r = rules(check_complete(&v));
+        assert!(r.contains(&"reserved-id-role") && r.contains(&"count"));
+    }
+}
+
+#[test]
 fn violation_display_is_english_and_carries_position() {
     let v = elem(vec![("aria-hidden", "true")], vec![]);
     let msg = check_no_undefined(&v).unwrap_err()[0].to_string();
@@ -458,6 +473,11 @@ fn tab_keys() {
     assert_eq!(t(TabKey::ArrowLeft, 1), Some(0));
     assert_eq!(t(TabKey::Home, 1), Some(0));
     assert_eq!(t(TabKey::End, 0), Some(1));
+    assert_eq!(tab_key_target(TabKey::ArrowLeft, 1, usize::MAX, m), Some(0));
+    assert_eq!(
+        tab_key_target(TabKey::ArrowLeft, 0, usize::MAX, m),
+        Some(usize::MAX - 1)
+    );
     assert_eq!(tab_key_target(TabKey::End, 0, 0, m), None);
     assert_eq!(tab_key_target(TabKey::Home, 2, 2, m), None);
     for mods in [

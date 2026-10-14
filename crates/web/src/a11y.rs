@@ -238,7 +238,14 @@ pub fn tab_key_target(
     }
     Some(match key {
         TabKey::ArrowRight => (current + 1) % len,
-        TabKey::ArrowLeft => (current + len - 1) % len,
+        // 加算を避ける（`current + len` は `usize` を超えうる）。
+        TabKey::ArrowLeft => {
+            if current == 0 {
+                len - 1
+            } else {
+                current - 1
+            }
+        }
         TabKey::Home => 0,
         TabKey::End => len - 1,
     })
@@ -324,7 +331,8 @@ struct Tally {
     notice: Vec<String>,
     tablists: usize,
     tabs: Vec<String>,
-    panels: Vec<String>,
+    /// role に関係なく、全要素から集めた予約 id（tab・tabpanel の `id`）。
+    reserved_ids: Vec<String>,
     selected: usize,
 }
 
@@ -428,6 +436,19 @@ fn check_element(
         }
     }
     let role = attr(attrs, "role");
+    // 予約 id は role に関係なく全要素で検査する（role なしの重複で対応が壊れるのを防ぐ）。
+    if let Some(id) = attr(attrs, "id") {
+        if let Some(t) = PaneTab::ALL
+            .iter()
+            .find(|t| t.tab_id() == id || t.panel_id() == id)
+        {
+            tally.reserved_ids.push(id.to_string());
+            let want = if t.tab_id() == id { "tab" } else { "tabpanel" };
+            if role != Some(want) {
+                bad("reserved-id-role", format!("id {id} requires role {want}"));
+            }
+        }
+    }
     if let Some(r) = role {
         if !ROLE_VALUES.contains(&r) {
             bad("undefined-role", r.to_string());
@@ -532,7 +553,6 @@ fn check_element(
     }
     if role == Some("tabpanel") {
         let id = attr(attrs, "id").unwrap_or("");
-        tally.panels.push(id.to_string());
         match PaneTab::ALL.iter().find(|t| t.panel_id() == id) {
             None => bad("tabpanel-id", "undefined id".to_string()),
             Some(t) => {
@@ -648,11 +668,15 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
     }
     count("tablist".to_string(), 1, t.tablists);
     for p in PaneTab::ALL {
-        count(format!("tab {}", p.tab_id()), 1, n(&t.tabs, p.tab_id()));
+        count(
+            format!("tab {}", p.tab_id()),
+            1,
+            n(&t.reserved_ids, p.tab_id()),
+        );
         count(
             format!("tabpanel {}", p.panel_id()),
             1,
-            n(&t.panels, p.panel_id()),
+            n(&t.reserved_ids, p.panel_id()),
         );
     }
     count("selected tab".to_string(), 1, t.selected);
