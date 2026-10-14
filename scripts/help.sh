@@ -33,6 +33,7 @@ cat <<'EOF'
   test-build-web  scripts/test-build-web.sh  build-web の受入基準を実ビルドで検査する
   serve       node tools/serve.mjs           dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）
   test-serve  scripts/test-serve.sh          配信サーバ（tools/serve.mjs）の試験（node:test）
+  test-browser  scripts/test-browser.sh      ブラウザ試験（Playwright の共通ヘルパ + 最小の画面。FANDHE_BROWSER_CHANNEL=chrome で原本）
   check-mutations  scripts/check-mutations.sh  変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
   test-check-mutations  scripts/test-check-mutations.sh  変異注入の検査自体の回帰テスト
 
