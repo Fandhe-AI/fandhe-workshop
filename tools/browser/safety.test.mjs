@@ -2,7 +2,7 @@
 //
 // 合成した静的ページで、各計数（記録用の関数・ダイアログ・ポップアップ・画面の走査・CSP の切り替え）が
 // 実際に 1 件以上数えられることを示す。後続の試験（TASK-144 以降・TASK-143 2/2）の「0 件」が空振りでないことの裏づけになる。
-// SAFE-8 の値との一致は TASK-143 2/2 が実際にビルドした画面で確かめる。Chromium は要るが、wasm のビルドは要らない。
+// SAFE-8 の値との一致は、実際にビルドした画面で safety-control.test.mjs（TASK-143 2/2）が確かめる。Chromium は要るが、wasm のビルドは要らない。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
