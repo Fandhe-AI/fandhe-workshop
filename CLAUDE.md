@@ -30,7 +30,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・serve.mjs・measure/。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・serve.mjs・browser/・measure/。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -79,6 +79,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
+| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）と最小の画面の試験（Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
