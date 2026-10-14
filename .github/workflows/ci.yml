@@ -3,7 +3,7 @@
 # ローカル（`make check`）・Git hooks（lefthook.yml）・CI が同じコマンド契約を共有する。
 # CI 側で独自のチェックを定義せず、scripts/ の実体を呼ぶ（make スキルの「入口は複数でも
 # 実処理の定義は一つ」）。Rust のジョブ（rust-lint / rust-test）はこの骨格に載せ、後続タスクが
-# 足す検査（clippy の feature 網羅・wasm32 ビルド・ブラウザ試験等）も本ファイルへ追加する。
+# 足す検査（wasm32 ビルド・ブラウザ試験等）も本ファイルへ追加する。
 # ジョブを足したら、必ず ci-complete の needs と ruleset の必須チェックにも追加すること。
 #
 # 本ファイルは pull_request で動くため、secret を一切参照しない（scripts/check-workflow-secrets.sh が
@@ -183,8 +183,8 @@ jobs:
 
   # Rust の lint 関門の骨格。中身は scripts/lint.sh（fmt check・clippy・web の wasm32 clippy）と
   # scripts/check-crate-deps.sh で、ここにロジックを重ねて書かない。
-  # clippy の feature 網羅（hello を含む 5 通り）と関門の承認は TASK-80 が行う。同じジョブを取り合わない
-  # よう、拡張は scripts/lint.sh 側で行い、本ジョブの構造は変えない。
+  # feature の網羅は scripts/lint.sh が web crate の宣言済み feature と照合して守る（ネイティブ 1 + wasm32 2。
+  # hello は docs/architecture.md 第 7 節により持ち込まない）。拡張は scripts/lint.sh 側で行い、本ジョブの構造は変えない。
   # needs を持たない（changes に依存させない）。骨格は常に実行し、判定できないときに検査を減らす側へ倒さない。
   # チェック名は ruleset の必須チェックが参照する。追加・改名時は ruleset も同時に更新する。
   # キャッシュは入れない。効果を実測してから足す（.claude/rules/github-actions.md の「入れる前に効果を測る」）。
