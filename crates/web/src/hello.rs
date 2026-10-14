@@ -17,17 +17,33 @@ use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 
 /// 固定の文言を描画するだけの画面。
+///
+/// 試験の設定（`test-hooks`）では、keydown の属性が届くことを確かめる受信回数を持つ（TASK-346）。
 #[derive(Debug, Default)]
-pub struct HelloView;
+pub struct HelloView {
+    /// keydown の probe が受け取った回数。配信する設定には存在しない。
+    #[cfg(feature = "test-hooks")]
+    keydown_probe: u32,
+}
 
-/// 値を持たないアクション。Hello は操作を受け付けない。
+/// アクション。配信する設定では値を持たず、Hello は操作を受け付けない。
 #[derive(Debug)]
-pub enum HelloAction {}
+pub enum HelloAction {
+    /// keydown の probe への入力（`data-action-keydown="keydown-probe"`）。試験の設定のみ。
+    #[cfg(feature = "test-hooks")]
+    KeydownProbe,
+}
 
 impl HelloView {
     /// 画面を作る。
     pub fn new() -> Self {
-        Self
+        Self::default()
+    }
+
+    /// keydown の probe が受け取った回数（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn keydown_probe(&self) -> u32 {
+        self.keydown_probe
     }
 }
 
@@ -35,22 +51,45 @@ impl Component for HelloView {
     type Action = HelloAction;
 
     fn update(&mut self, action: Self::Action) {
-        match action {}
+        match action {
+            #[cfg(feature = "test-hooks")]
+            HelloAction::KeydownProbe => {
+                self.keydown_probe = self.keydown_probe.saturating_add(1);
+            }
+        }
     }
 
     fn view(&self) -> Node {
-        el(
-            "main",
-            vec![("data-testid", "hello-root")],
-            vec![el(
-                "p",
-                vec![("data-testid", "message")],
-                vec![text("Hello")],
-            )],
-        )
+        #[cfg_attr(
+            not(feature = "test-hooks"),
+            allow(unused_mut, reason = "test-hooks のときだけ probe を足す")
+        )]
+        let mut children = vec![el(
+            "p",
+            vec![("data-testid", "message")],
+            vec![text("Hello")],
+        )];
+        // フォーカスできる要素にするのは、上流の配線が keydown の target から closest で属性を探すため。
+        // フォーカスが無いと target は body になり、何も起きない。
+        #[cfg(feature = "test-hooks")]
+        children.push(el(
+            "button",
+            vec![
+                ("type", "button"),
+                ("data-testid", "keydown-probe"),
+                ("data-action-keydown", "keydown-probe"),
+                ("data-keys", "Escape"),
+            ],
+            vec![text("probe")],
+        ));
+        el("main", vec![("data-testid", "hello-root")], children)
     }
 
     fn decode_action(_name: &str, _payload: &str) -> Option<Self::Action> {
+        #[cfg(feature = "test-hooks")]
+        if _name == "keydown-probe" {
+            return Some(HelloAction::KeydownProbe);
+        }
         None
     }
 }
@@ -77,6 +116,30 @@ mod tests {
         let html = render_component_html(&HelloView::new());
         assert!(html.contains("data-testid=\"hello-root\""), "{html}");
         assert!(html.contains("Hello"), "{html}");
+    }
+
+    #[cfg(not(feature = "test-hooks"))]
+    #[test]
+    fn 配信設定の描画には_keydown_の_probe_が入らない() {
+        let html = render_component_html(&HelloView::new());
+        assert!(!html.contains("data-action-keydown"), "{html}");
+        assert!(!html.contains("keydown-probe"), "{html}");
+        assert!(HelloView::decode_action("keydown-probe", "").is_none());
+    }
+
+    #[cfg(feature = "test-hooks")]
+    #[test]
+    fn 試験設定の_probe_は_keydown_の属性を持ち_受信回数を数える() {
+        let mut view = HelloView::new();
+        let html = render_component_html(&view);
+        assert!(
+            html.contains("data-action-keydown=\"keydown-probe\""),
+            "{html}"
+        );
+        assert!(html.contains("data-keys=\"Escape\""), "{html}");
+        let a = HelloView::decode_action("keydown-probe", "").expect("decoded");
+        view.update(a);
+        assert_eq!(view.keydown_probe(), 1);
     }
 
     #[test]

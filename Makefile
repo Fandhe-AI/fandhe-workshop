@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve test-browser check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -80,6 +80,9 @@ test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。�
 
 test-browser: ## 共通ヘルパで最小の画面をサブパス配信して確かめるブラウザ試験（Playwright）。直接: scripts/test-browser.sh
 	@scripts/test-browser.sh
+
+test-keydown-control: ## action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）。直接: scripts/test-keydown-control.sh
+	@scripts/test-keydown-control.sh
 
 check-mutations: ## 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）。直接: scripts/check-mutations.sh
 	@scripts/check-mutations.sh
