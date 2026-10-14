@@ -24,6 +24,10 @@
 //!   例外として `live-` で始まる識別子は予約空間とし、定義にない値は違反にする
 //!
 //! 意図して固定しないもの（決める前に固定しない）:
+//! - 属性名は HTML に合わせて大文字小文字を区別せずに照合する（`ARIA-LABEL` も `aria-label` と同じ扱い）
+//! - tab 以外の要素の静的な `tabindex`（例: `div` の `tabindex="0"`）と、aria・role・`tabindex` 以外の束縛
+//!   （`data-bind-class` など）は検査しない。版 1 が約束するのは、tab の `tabindex` と、束縛による
+//!   aria・role・`tabindex` の禁止だけである
 //! - 通知欄 3 つの識別子は試作 PoC-12 の値からの推論である（A11Y-7 は個数 3 だけを確定している）。
 //!   TASK-511 が枠の通知欄を 4 つ目として足す場合は、版上げを立てる
 //! - `aria-describedby`・`aria-hidden`、role の `group`・`list`・`listitem` は別タスクの決定の後に版を
@@ -324,10 +328,11 @@ struct Tally {
     selected: usize,
 }
 
+/// 属性名は HTML では大文字小文字を区別しないため、`name` との比較は ASCII の大文字小文字を無視する。
 fn attr<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
     attrs
         .iter()
-        .find(|(k, _)| k == name)
+        .find(|(k, _)| k.eq_ignore_ascii_case(name))
         .map(|(_, v)| v.as_str())
 }
 
@@ -335,12 +340,17 @@ fn walk(view: &Node) -> (Vec<Violation>, Tally) {
     let mut out = Vec::new();
     let mut tally = Tally::default();
     // 再帰しない。深い木でもスタックあふれを起こさないため。子は逆順に積み、文書順に処理する。
-    let mut stack: Vec<(&Node, Vec<usize>, Ctx)> = vec![(view, Vec::new(), Ctx::default())];
-    while let Some((node, path, ctx)) = stack.pop() {
+    // 位置は親への参照（親の番号と子の添字）の表で持ち、違反を報告するときだけ列に直す。
+    // 子ごとに親の列を複製すると、深さ n の鎖で O(n^2) になるため。
+    let mut links: Vec<(usize, usize)> = vec![(usize::MAX, 0)];
+    let mut stack: Vec<(&Node, usize, Ctx)> = vec![(view, 0, Ctx::default())];
+    while let Some((node, id, ctx)) = stack.pop() {
         let (tag, attrs, children) = match node {
             Node::Text(_) => continue,
             Node::RawHtml(_) => {
-                out.push(Violation::RawHtml { path });
+                out.push(Violation::RawHtml {
+                    path: path_of(&links, id),
+                });
                 continue;
             }
             Node::Element {
@@ -354,17 +364,28 @@ fn walk(view: &Node) -> (Vec<Violation>, Tally) {
             tag,
             attrs,
             children,
-            path: &path,
+            links: &links,
+            id,
             ctx,
         };
         check_element(&el, &mut child_ctx, &mut out, &mut tally);
         for (i, c) in children.iter().enumerate().rev() {
-            let mut p = path.clone();
-            p.push(i);
-            stack.push((c, p, child_ctx));
+            links.push((id, i));
+            stack.push((c, links.len() - 1, child_ctx));
         }
     }
     (out, tally)
+}
+
+/// 表の `id` の位置を、根からの子の添字の列に直す。
+fn path_of(links: &[(usize, usize)], mut id: usize) -> Vec<usize> {
+    let mut path = Vec::new();
+    while links[id].0 != usize::MAX {
+        path.push(links[id].1);
+        id = links[id].0;
+    }
+    path.reverse();
+    path
 }
 
 /// 1 要素の検査に渡す入力。
@@ -372,7 +393,8 @@ struct ElementCtx<'a> {
     tag: &'a str,
     attrs: &'a [(String, String)],
     children: &'a [Node],
-    path: &'a [usize],
+    links: &'a [(usize, usize)],
+    id: usize,
     ctx: Ctx,
 }
 
@@ -388,17 +410,20 @@ fn check_element(
     let who = testid.unwrap_or(el.tag).to_string();
     let mut bad = |rule: &'static str, detail: String| {
         out.push(Violation::Element {
-            path: el.path.to_vec(),
+            path: path_of(el.links, el.id),
             rule,
             detail: format!("{who}: {detail}"),
         });
     };
 
     for (i, (k, _)) in attrs.iter().enumerate() {
-        if attrs[..i].iter().any(|(p, _)| p == k) {
+        if attrs[..i].iter().any(|(p, _)| p.eq_ignore_ascii_case(k)) {
             bad("duplicate-attribute", k.clone());
         }
-        if (k.starts_with("aria-") || k == "role") && !A11Y_ATTRIBUTE_NAMES.contains(&k.as_str()) {
+        let lower = k.to_ascii_lowercase();
+        if (lower.starts_with("aria-") || lower == "role")
+            && !A11Y_ATTRIBUTE_NAMES.contains(&lower.as_str())
+        {
             bad("undefined-attribute", k.clone());
         }
     }
@@ -417,7 +442,7 @@ fn check_element(
     }
     if let Some(binds) = attr(attrs, "data-bind-attr") {
         for tok in binds.split_whitespace() {
-            let name = tok.split(':').next().unwrap_or(tok);
+            let name = tok.split(':').next().unwrap_or(tok).to_ascii_lowercase();
             if name.starts_with("aria-") || name == "role" || name == "tabindex" {
                 bad("bound-a11y-attribute", tok.to_string());
             }

@@ -190,6 +190,31 @@ fn unrelated_testid_is_out_of_scope() {
 fn undefined_items_fail() {
     let cases: Vec<(&str, Node, &str)> = vec![
         (
+            "upper-case aria-hidden",
+            elem(vec![("ARIA-HIDDEN", "true")], vec![]),
+            "undefined-attribute",
+        ),
+        (
+            "mixed-case role value",
+            elem(vec![("Role", "log")], vec![]),
+            "undefined-role",
+        ),
+        (
+            "mixed-case label",
+            elem(vec![("Aria-Label", "x")], vec![]),
+            "undefined-aria-label",
+        ),
+        (
+            "upper-case live on non-live",
+            elem(vec![("ARIA-LIVE", "assertive")], vec![]),
+            "live-attribute-on-non-live",
+        ),
+        (
+            "upper-case bound attribute",
+            elem(vec![("data-bind-attr", "ARIA-LABEL:x")], vec![]),
+            "bound-a11y-attribute",
+        ),
+        (
             "aria-hidden",
             elem(vec![("aria-hidden", "true")], vec![]),
             "undefined-attribute",
