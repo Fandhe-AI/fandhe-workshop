@@ -108,6 +108,7 @@ check "no debug_* export with IR_FILE" no_debug_export "${DELIVERY_IR}/${WASM}"
 
 echo "-- (c) test config" >&2
 check "debug_state_json is exported" has_export '^debug_state_json$' "${TESTCFG}/${WASM}"
+check "debug_rerender is exported" has_export '^debug_rerender$' "${TESTCFG}/${WASM}"
 check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
 check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
 
