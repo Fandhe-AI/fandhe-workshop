@@ -49,6 +49,11 @@ export function normalizeBase(input) {
   return `/${parts.join('/')}/`;
 }
 
+// 返却 URL 用に、base の各セグメントを URL エンコードする。
+function encodeBase(b) {
+  return b === '/' ? '/' : `/${b.split('/').filter((s) => s !== '').map(encodeURIComponent).join('/')}/`;
+}
+
 // エラー本文は固定文字列にし、要求のパスを反射させない。
 function sendText(res, status, text, extra = {}) {
   const body = Buffer.from(`${text}\n`);
@@ -80,11 +85,24 @@ function inside(root, p) {
 // 要求を root 配下の実ファイルへ解決する。返り値は { file, st } か { status }。
 function resolveRequest(rawUrl, base, root) {
   const pathname = rawUrl.split('?')[0].split('#')[0];
-  if (!pathname.startsWith(base)) return { status: 404 };
-  const rest = pathname.slice(base.length);
-  const trailingSlash = rest === '' || rest.endsWith('/');
-  const segments = rest === '' ? [] : rest.split('/');
-  if (trailingSlash && segments.length > 0) segments.pop();
+  if (!pathname.startsWith('/')) return { status: 404 };
+  // ブラウザは非 ASCII・空白を %エンコードして要求するため、base もセグメントごとに復号して比較する。
+  const rawSegs = pathname.slice(1).split('/');
+  const baseSegs = base.split('/').filter((s) => s !== '');
+  if (rawSegs.length <= baseSegs.length) return { status: 404 };
+  for (let i = 0; i < baseSegs.length; i += 1) {
+    let d;
+    try {
+      d = decodeURIComponent(rawSegs[i]);
+    } catch {
+      return { status: 400 };
+    }
+    if (d !== baseSegs[i]) return { status: 404 };
+  }
+  const rest = rawSegs.slice(baseSegs.length);
+  const trailingSlash = rest[rest.length - 1] === '';
+  const segments = rest.slice();
+  if (trailingSlash) segments.pop();
   const decoded = [];
   for (const seg of segments) {
     let d;
@@ -181,7 +199,7 @@ export async function startServer({ dir = DEFAULT_DIR, base = '/subpath/', port 
   const actual = server.address().port;
   const origin = `http://${HOST}:${actual}`;
   return {
-    url: `${origin}${normBase}`,
+    url: `${origin}${encodeBase(normBase)}`,
     origin,
     port: actual,
     base: normBase,

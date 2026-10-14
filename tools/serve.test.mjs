@@ -225,3 +225,20 @@ test('CLI: 誤用は終了コード 2 と usage', async () => {
     assert.match(err, /usage:/);
   }
 });
+
+test('非 ASCII・空白を含む base は %エンコードされた要求で配信し、url もエンコード済み', async () => {
+  for (const b of ['/教材/', '/my site/']) {
+    const s = await startServer({ dir: root, base: b });
+    try {
+      const enc = new URL(s.url).pathname;
+      assert.equal(s.base, b);
+      assert.equal(enc, b.split('/').map(encodeURIComponent).join('/'));
+      assert.equal((await get(s.origin, `${enc}app.js`)).status, 200, b);
+      assert.equal((await get(s.origin, enc)).status, 200, b);
+      assert.equal((await get(s.origin, '/other/app.js')).status, 404);
+      assert.equal((await get(s.origin, enc.slice(0, -1))).status, 404);
+    } finally {
+      await s.close();
+    }
+  }
+});
