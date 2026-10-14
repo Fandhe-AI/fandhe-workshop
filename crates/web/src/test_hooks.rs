@@ -25,3 +25,15 @@ pub fn debug_state_json() -> String {
 pub fn debug_rerender() -> bool {
     crate::glue::rerender()
 }
+
+/// 入れ子の深さの検査（core の `check_json_depth`）を呼び、固定形の JSON で結果を返す（読み取りのみ）。
+///
+/// 10,000 段でもスタックを使い切らず理由が返ることを、ブラウザ試験（TASK-157）が確かめるための口。
+/// 入力の内容は返り値に含めない。
+#[wasm_bindgen]
+pub fn debug_check_json_depth(text: &str) -> String {
+    match fandhe_workshop_core::json_depth::check_json_depth(text.as_bytes()) {
+        Ok(()) => "{\"ok\":true}".to_string(),
+        Err(reason) => format!("{{\"ok\":false,\"reason\":\"{}\"}}", reason.as_str()),
+    }
+}

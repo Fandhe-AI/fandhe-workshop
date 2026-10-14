@@ -57,7 +57,7 @@ test('最小の画面がサブパスで起動し、CSP 違反・ページ内エ�
 });
 
 // 実際の画面で、CSP あり・なしのどちらでも安全性の全区分が 0 件であること。
-// 走査が空振りでないことは safety.test.mjs の対照が示す。0 にならない区分は、値を合わせるのでなく除外の規則を直す。
+// 走査が空振りでないことは safety.test.mjs の対照（合成ページ）と safety-control.test.mjs の対照（この画面）が示す。0 にならない区分は、値を合わせるのでなく除外の規則を直す。
 for (const csp of [true, false]) {
   test(`最小の画面は CSP ${csp ? 'あり' : 'なし'}で安全性の全区分が 0 件`, async () => {
     await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
