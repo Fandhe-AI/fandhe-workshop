@@ -17,6 +17,8 @@ source "${ROOT_DIR}/tools/measure/lib.sh"
 reject_args "$(basename "$0")" "$@"
 require_cmd jq
 require_cmd git
+require_cmd mktemp
+require_cmd rm
 
 SCRIPT="${ROOT_DIR}/tools/measure/wasm-size.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-test-measure.XXXXXX")"

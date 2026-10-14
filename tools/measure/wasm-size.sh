@@ -58,9 +58,10 @@ CONFIG_LINE="$(one_line "config:")" || exit 1
 WASM_OPT_LINE="$(one_line "wasm-opt:")" || exit 1
 SIZE_LINE="$(one_line "wasm size:")" || exit 1
 
-CONFIG="$(sed -n 's#^\(delivery\|test\) / profile: release$#\1#p' <<<"${CONFIG_LINE}")"
-case "${CONFIG}" in
-  delivery | test) ;;
+# 選択（\|）は BSD sed（macOS 標準）の BRE で動かないため、case で完全一致を判定する。
+case "${CONFIG_LINE}" in
+  "delivery / profile: release") CONFIG="delivery" ;;
+  "test / profile: release") CONFIG="test" ;;
   *)
     echo "error: unexpected config line in the build log" >&2
     exit 1
@@ -98,10 +99,15 @@ if [ "${RAW}" != "${LOG_RAW}" ] || [ "${GZ}" != "${LOG_GZ}" ]; then
   exit 1
 fi
 
-# 測定中に commit が動いていないことを確かめる。
-SHA_AFTER="$(git -C "${ROOT_DIR}" rev-parse HEAD)" || SHA_AFTER=""
-if [ "${SHA_BEFORE}" != "${SHA_AFTER}" ]; then
+# 測定中に commit と作業ツリーの状態（dirty）が動いていないことを確かめる。
+# 開始後の編集で、変更済みのソースに元の SHA と dirty:false が付くのを防ぐ。
+COMMIT_JSON_AFTER="$(measure_commit_json)" || COMMIT_JSON_AFTER=""
+if [ -z "${COMMIT_JSON_AFTER}" ] || [ "$(jq -r '.sha' <<<"${COMMIT_JSON_AFTER}")" != "${SHA_BEFORE}" ]; then
   echo "error: HEAD moved during the measurement" >&2
+  exit 1
+fi
+if [ "$(jq -c . <<<"${COMMIT_JSON}")" != "$(jq -c . <<<"${COMMIT_JSON_AFTER}")" ]; then
+  echo "error: working tree state changed during the measurement" >&2
   exit 1
 fi
 
