@@ -37,6 +37,8 @@ cat <<'EOF'
   test-serve  scripts/test-serve.sh          配信サーバ（tools/serve.mjs）の試験（node:test）
   check-mutations  scripts/check-mutations.sh  変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
   test-check-mutations  scripts/test-check-mutations.sh  変異注入の検査自体の回帰テスト
+  measure-wasm-size  tools/measure/wasm-size.sh  WASM の gzip -9 の大きさを基点つきで測り JSON を出す
+  test-measure-wasm-size  scripts/test-measure-wasm-size.sh  wasm-size の様式検証と実ビルドの回帰テスト（遅い）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

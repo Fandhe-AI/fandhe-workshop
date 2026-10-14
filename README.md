@@ -69,7 +69,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
 | `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations`）。Make なしでも直接実行できる |
-| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`）。規約と shellcheck は `scripts/` と同じ |
+| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -80,6 +80,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/glossary.md` | 用語集（章・Step・IR・語彙など） |
 | `docs/architecture.md` | 実装 repo の構成設計（版 1）。crate の境界・依存の向き・公開 API の型の置き場・feature・試験データと雛形の置き場を固定する契約。crate 名は仮称 |
 | `docs/testing.md` | 性質テストと変異注入の手順、変異注入の記録の様式。変異の定義は `crates/*/tests/mutations/`、検査は `make check-mutations` |
+| `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure-wasm-size` |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
@@ -198,6 +199,8 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準を実ビルドで検査する |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
+| `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
+| `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 
 ## Git hooks
 
