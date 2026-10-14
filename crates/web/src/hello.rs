@@ -137,12 +137,12 @@ impl Component for HelloView {
         el("main", vec![("data-testid", "hello-root")], children)
     }
 
-    fn decode_action(_name: &str, _payload: &str) -> Option<Self::Action> {
-        if _name == "draft" {
-            return Some(HelloAction::SetDraft(_payload.to_owned()));
+    fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+        if name == "draft" {
+            return Some(HelloAction::SetDraft(payload.to_owned()));
         }
         #[cfg(feature = "test-hooks")]
-        if _name == "keydown-probe" {
+        if name == "keydown-probe" {
             return Some(HelloAction::KeydownProbe);
         }
         None
