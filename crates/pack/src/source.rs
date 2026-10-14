@@ -586,12 +586,33 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
     let tp = dir
         .join("tests")
         .join(format!("playthrough.{}", format.ext()));
-    let (tests_file, tests) = if is_plain_file_under(&root_canon, &tp) {
-        let f = rel(dir, &tp);
-        let t = read_parse::<TestsSrc>(format, &tp, &f, "tests", &mut diags);
-        (Some(f), t)
-    } else {
-        (None, None)
+    // 試験は省略できる。省略と認めるのは「存在しない」ときだけで、ディレクトリ・特殊ファイル・
+    // シンボリックリンク・NotFound 以外のメタデータ取得失敗は、読み込みの失敗として診断にする。
+    let tests_rel = rel(dir, &tp);
+    let (tests_file, tests) = match fs::symlink_metadata(&tp) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (None, None),
+        Err(_) => {
+            diags.push(diag(
+                &tests_rel,
+                "tests",
+                DiagCode::Structure,
+                "cannot read test file metadata",
+            ));
+            (None, None)
+        }
+        Ok(_) if !is_plain_file_under(&root_canon, &tp) => {
+            diags.push(diag(
+                &tests_rel,
+                "tests",
+                DiagCode::Structure,
+                "test file must be a regular file under the pack root",
+            ));
+            (None, None)
+        }
+        Ok(_) => {
+            let t = read_parse::<TestsSrc>(format, &tp, &tests_rel, "tests", &mut diags);
+            (Some(tests_rel), t)
+        }
     };
 
     let mut bodies = BTreeMap::new();

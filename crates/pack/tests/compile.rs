@@ -404,3 +404,20 @@ fn neg_use_step_is_not_a_resolved_target_and_is_checked() {
     assert!(refs.iter().any(|m| m.ends_with(": u")), "{refs:?}");
     assert!(refs.iter().any(|m| m.ends_with(": zz")), "{refs:?}");
 }
+
+#[test]
+fn tests_path_is_optional_only_when_absent() {
+    // 存在しないときだけ、教材テストの省略として成功する。
+    let t = minimal();
+    assert!(compile_dir(&t.0).is_ok());
+    // tests/playthrough.yaml がディレクトリなら、読み込みの失敗として診断する。
+    let t = minimal();
+    fs::create_dir_all(t.0.join("tests/playthrough.yaml")).expect("mkdir");
+    let d = diags(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].file(), "tests/playthrough.yaml");
+    // tests 自体が通常のファイルなら、NotFound ではないので診断する。
+    let t = minimal();
+    t.put("tests", b"x");
+    assert_eq!(diags(&t).len(), 1);
+}

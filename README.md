@@ -19,7 +19,7 @@
 | エンジン（中核） | IR を読み、ターミナル風の操作に応じて成果物の状態を進める。特定の教材の知識を持たない |
 
 用語は [用語集](./docs/glossary.md) にまとめています。
-2026-10-12 時点では、Cargo ワークスペースの骨格（4 crate。中身は空）を導入済みで、エンジンの実装はまだありません。このリポジトリには開発基盤・構成設計（[docs/architecture.md](./docs/architecture.md)）・ワークスペースの骨格があります。
+2026-10-14 時点では、Cargo ワークスペースの 4 crate のうち pack crate に、教材パックの読み込み層と `fandhe-pack compile <pack-dir>` を実装済みです（TASK-39）。エンジン（core）の実行側と web はまだ骨格です。このリポジトリには開発基盤・構成設計（[docs/architecture.md](./docs/architecture.md)）・ワークスペースがあります。
 
 ## 仮称の一覧
 
@@ -30,8 +30,8 @@
 | エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
 | 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
 | 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
-| crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | 骨格のみ作成（`crates/` 配下。中身は空）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
-| 作成者向け CLI | `fandhe-pack` | pack crate に置く。外部仕様は未固定 |
+| crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | `crates/` 配下。pack に読み込み層と `compile` を実装済みで、他は骨格中心（2026-10-14 時点）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
+| 作成者向け CLI | `fandhe-pack` | pack crate に置く。`compile <pack-dir>` のみ実装済み（IR の JSON を標準出力へ書く）。外部仕様は未固定 |
 
 ## 仕様（`docs/spec`）
 
@@ -146,7 +146,7 @@ worktree はそれぞれ別の `target/` を持つため、不要になった wo
 
 現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps` です。内容は次の「コマンド」の表を参照してください。
 
-Cargo ワークスペースは導入済みですが、中身は空の骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
+Cargo ワークスペースは導入済みです。pack crate は `compile <pack-dir>` を実装済みで、現在の制約は、出力先の `-o` が未実装（標準出力のみ）・`use` によるモジュール展開をしない・他のコマンド（`validate`・`test`・`compare`・`vocab`）が未実装であることです。それ以外の crate は骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
 
 ### ビルド
 
