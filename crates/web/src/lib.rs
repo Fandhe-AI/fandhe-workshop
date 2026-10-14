@@ -12,6 +12,8 @@
 pub mod a11y;
 mod hello;
 
+pub mod input_limit;
+
 #[cfg(target_arch = "wasm32")]
 mod glue;
 
