@@ -231,5 +231,5 @@ Agent の `model:` には、この表の alias だけを書く。最上位 tier 
 ## main ブランチの保護
 
 - `main` へ直接 push はできない（ruleset `main-protection`）。変更は必ずブランチを切り、PR を経由する
-- マージは squash のみ。必須チェック 10 件の成功と、レビュースレッドの解決が条件（承認数は 0）
+- マージは squash のみ。必須チェック 12 件の成功と、レビュースレッドの解決が条件（承認数は 0）
 - ruleset・リポジトリ設定の内容は `.claude/rules/github-actions.md`、変更手順は `setup-repo-guards` スキル

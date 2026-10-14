@@ -27,7 +27,7 @@ description: >
 - 2026-10-11 に ruleset `main-protection`（id 24879606）を適用した。対象は既定ブランチ、enforcement は active、
   bypass は無し。classic branch protection は使っていない。変更は `setup-repo-guards` スキルの手順に従う
 - ruleset の内容: ブランチの削除と force push の禁止、PR 必須（承認数 0・レビュースレッドの解決必須・マージ方式は
-  squash のみ）、必須チェック 10 件（下表）。`main` へ直接 push はできず、すべて PR を経由する
+  squash のみ）、必須チェック 12 件（下表）。`main` へ直接 push はできず、すべて PR を経由する
 - 承認数を 0 にしているのは、人の承認者を置かない運用のため。レビューのゲートは ai-review の必須チェック
   （`codex / review` は P0・P1 の指摘で失敗する）と、レビュースレッドの解決必須で担保する
 
@@ -42,6 +42,8 @@ description: >
 | `codex / preflight` | github-actions（15368） |
 | `codex / review` | github-actions（15368） |
 | `codex / post_feedback` | github-actions（15368） |
+| `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
+| `rust build + test (--workspace)` | github-actions（15368） |
 | `Cursor Bugbot` | cursor（1210556） |
 
 - ジョブ名（`name:`）を変えると required check の参照が切れて pending のままマージ不能になる。名前を変える場合は ruleset 側も同時に更新する
@@ -69,20 +71,14 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 }'
 ```
 
-### TASK-33 で追加するチェック（承認待ち・ruleset 未反映）
+### TASK-33 で追加したチェック（2026-10-14 に ruleset へ反映済み）
 
-2026-10-12 時点。`ci.yml` に `rust-lint`・`rust-test` を追加した。次の 2 件を必須チェックに加える案だが、人の承認を
-得ておらず、ruleset には反映していない（上の表の 10 件は適用済みの事実）。
-
-| 必須チェック（案） | 発行元 App（`integration_id`） |
-| --- | --- |
-| `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
-| `rust build + test (--workspace)` | github-actions（15368） |
+`ci.yml` に追加した `rust-lint`・`rust-test` の 2 件（上の表の `rust ...`）を、2026-10-14 に必須チェックへ加えた。
+必須チェックは 10 件から 12 件になった。strict は false、bypass は無しのまま、他の rule は変えていない。
 
 - `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
-- 反映はこの変更のマージ直後に行う。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で新しいチェックが
-  「Expected」のまま残りマージできなくなる。反映までの間も、`ci-complete` が新しいジョブを `needs` で集約するため
-  ゲートは効く。反映前の PR では HEAD に未登録のチェックが報告され、自動マージは辞退する（人がマージする）
+- 反映は、ジョブを追加した変更のマージ直後に行った。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で
+  新しいチェックが「Expected」のまま残りマージできなくなるため。今後ジョブを追加するときも同じ順序で行う
 
 ## リポジトリ設定（2026-10-11 適用）
 
