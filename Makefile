@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-mutations test-check-mutations
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -76,3 +76,9 @@ check-mutations: ## 変異注入の検査（誤りを入れると対応する試
 
 test-check-mutations: ## 変異注入の検査自体の回帰テスト。直接: scripts/test-check-mutations.sh
 	@scripts/test-check-mutations.sh
+
+measure-wasm-size: ## WASM の gzip -9 の大きさを基点つきで測り JSON を出す。直接: tools/measure/wasm-size.sh
+	@tools/measure/wasm-size.sh
+
+test-measure-wasm-size: ## wasm-size の様式検証と実ビルドの回帰テスト（遅い）。直接: scripts/test-measure-wasm-size.sh
+	@scripts/test-measure-wasm-size.sh
