@@ -180,6 +180,44 @@ printf 'fn a() {\n    let v = field.value(); // textarea の現在値\n}\n' >"${
 run_check "${tree}"
 expect "indented exception with trailing comment is counted" 0 "${RC}"
 
+# 16. 同じ行に field.value() が 2 件あっても、呼び出し単位で数えて固定値 1 を超えたら失敗する
+tree="$(fresh_tree sameline 1)"
+printf 'fn a() { let v = (field.value(), field.value()); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "two exception calls on one line exceed the fixed value" 1 "${RC}"
+
+# 17. 例外の呼び出しと同じ行にある別の .value() は例外にならない
+tree="$(fresh_tree mixedline 1)"
+printf 'fn a() { let v = (field.value(), other.value()); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "other .value() on the same line as the exception is rejected" 1 "${RC}"
+
+# 18. 空白・改行を含む value 呼び出しも検出する
+for call in 'el.value ()' 'el.value( )' 'el\n    .value(\n    )' 'el . value ( )'; do
+  tree="$(fresh_tree "ws-${#call}" 0)"
+  printf 'fn a() {\n  let v = %b;\n}\n' "${call}" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  expect "value call with whitespace is rejected: ${call}" 1 "${RC}"
+done
+
+# 19. 空白を含む例外の呼び出しは、例外として数える
+tree="$(fresh_tree wsexc 1)"
+printf 'fn a() {\n  let v = field\n    .value (\n    );\n}\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "exception call split across lines is counted" 0 "${RC}"
+
+# 20. setter は読み取りではないので失敗にしない
+tree="$(fresh_tree setters 0)"
+printf 'fn a() {\n  el.set_text_content(Some("x"));\n  el.set_inner_html("x");\n  el.set_value("x");\n  el.set_outer_html("x");\n  el.set_inner_text("x");\n}\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "setters are not rejected" 0 "${RC}"
+
+# 21. 空白を挟んだ getter 呼び出しは失敗にする
+tree="$(fresh_tree wsgetter 0)"
+printf 'fn a() { el . text_content ( ); }\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "spaced text_content getter is rejected" 1 "${RC}"
+
 echo "# passed: ${passed}, failed: ${failed}"
 if [ "${failed}" -ne 0 ]; then
   exit 1

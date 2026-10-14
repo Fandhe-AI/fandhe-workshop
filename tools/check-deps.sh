@@ -13,8 +13,11 @@
 #   textarea の現在値と状態の下書きを比べる sync_draft_to_dom を足す TASK-356（#964）が、同じ変更で 1 に上げる。
 #   上げるときは例外の理由の説明も実装に合わせて更新する。
 #
+# 照合の単位: 呼び出し 1 件ずつ（同じ行に複数あれば複数と数える）。空白・改行を挟んだ `.value ( )` も検出する。
+# getter だけを対象にし、`set_text_content` などの setter は名前の境界で区別して対象外にする。
+#
 # 検出の限界: 除くのは先頭が `//` の行（`///`・`//!` を含む）だけ。ブロックコメントや行末コメント内の一致は
-# 検出側に倒れる（誤検出はあり得るが、見逃しにはならない）。
+# 検出側に倒れる（誤検出はあり得るが、見逃しにはならない）。文字列リテラル内の一致も同様に検出側に倒れる。
 #
 # 使い方: tools/check-deps.sh [--root <dir>]（--root は回帰テスト用。既定はこのファイルの親の親）
 # 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 誤用、または検査を完了できない（対象が無い・awk の失敗）。
@@ -63,29 +66,58 @@ if [ "${#FILES[@]}" -eq 0 ]; then
   exit 2
 fi
 
-# scan <pattern> [<exclude-file> <exclude-pattern>]: コメント行を除く一致を `パス:行番号:本文` で出す。
-# exclude-file と同じパスの行のうち exclude-pattern に一致するものは出さない（例外の除外）。
+# scan <pattern> [<mode> <exclude-file> <prefix-pattern>]: コメント行を除いた各ファイルを 1 本の文字列にして、
+# パターンの一致を 1 件ずつ `パス:行番号:一致の周辺` で出す（呼び出し単位。空白・改行をまたぐ呼び出しも検出する）。
+# mode が `skip` のとき、exclude-file と同じパスで、一致の直前が prefix-pattern に合う一致を出さない（例外の除外）。
+# mode が `only` のときは逆に、その一致だけを出す（例外の件数）。mode が空なら全件を出す。
 # パターンは環境変数で渡し、awk の -v によるエスケープ解釈を避ける。awk の失敗は errexit で検査全体を止める。
 scan() {
-  SCAN_PAT="$1" SCAN_XFILE="${2:-}" SCAN_XPAT="${3:-}" awk '
-    BEGIN { pat = ENVIRON["SCAN_PAT"]; xf = ENVIRON["SCAN_XFILE"]; xp = ENVIRON["SCAN_XPAT"] }
-    /^[[:space:]]*\/\// { next }
-    $0 ~ pat {
-      if (xf != "" && FILENAME == xf && $0 ~ xp) next
-      printf "%s:%d:%s\n", FILENAME, FNR, $0
+  SCAN_PAT="$1" SCAN_MODE="${2:-}" SCAN_XFILE="${3:-}" SCAN_XPAT="${4:-}" awk '
+    function flush(   t, rest, off, n, pre, ln, snip, excepted, emit) {
+      if (name == "") return
+      t = text; rest = t; off = 0
+      while (match(rest, pat)) {
+        n = off + RSTART
+        pre = substr(t, (n > 200 ? n - 200 : 1), (n > 200 ? 200 : n - 1))
+        excepted = (mode != "" && name == xf && pre ~ xp)
+        emit = (mode == "" || (mode == "skip" && !excepted) || (mode == "only" && excepted))
+        if (emit) {
+          ln = split(substr(t, 1, n - 1), parts, "\n")
+          if (substr(t, n, 1) == "\n") ln++
+          snip = substr(t, 1, n - 1)
+          sub(/^.*\n/, "", snip)
+          snip = snip substr(t, n, RLENGTH + 20)
+          gsub(/\n/, " ", snip)
+          printf "%s:%d:%s\n", name, ln, snip
+        }
+        off = n + RLENGTH - 1
+        rest = substr(t, off + 1)
+      }
+      text = ""
     }
+    BEGIN { pat = ENVIRON["SCAN_PAT"]; mode = ENVIRON["SCAN_MODE"]; xf = ENVIRON["SCAN_XFILE"]; xp = ENVIRON["SCAN_XPAT"] }
+    FNR == 1 { flush(); name = FILENAME }
+    /^[[:space:]]*\/\// { text = text "\n"; next }
+    { text = text $0 "\n" }
+    END { flush() }
   ' "${FILES[@]}"
 }
+
+# 呼び出しの検出パターン。直前・直後が識別子の文字でないことを要求し、set_inner_html などの setter を拾わない。
+WS='[[:space:]]*'
+VALUE_CALL="\\.${WS}value${WS}\\(${WS}\\)"
+# 例外の呼び出しの直前（レシーバが `field` であること）
+EXC_PREFIX='(^|[^A-Za-z0-9_])field[[:space:]]*$'
 
 violations=0
 
 echo "DOM reads in crates/web/src ($(basename "$0"))"
 
 # 1. 例外の件数（増えても減っても失敗）
-exc_lines="$(scan "${EXC_PATTERN}")"
+exc_lines="$(scan "${VALUE_CALL}" only "${GLUE}" "${EXC_PREFIX}")"
 exc_hits=0
 if [ -n "${exc_lines}" ]; then
-  exc_hits="$(printf '%s\n' "${exc_lines}" | awk -v f="${GLUE}:" 'index($0, f) == 1' | wc -l | tr -d '[:space:]')"
+  exc_hits="$(printf '%s\n' "${exc_lines}" | wc -l | tr -d '[:space:]')"
 fi
 if [ "${exc_hits}" = "${EXC_N}" ]; then
   echo "  ok   exception ${EXC_FILE}: ${EXC_PATTERN} = ${exc_hits} (allowed ${EXC_N})"
@@ -95,7 +127,7 @@ else
 fi
 
 # 2. 例外以外の .value()
-other="$(scan '\.value\(\)' "${GLUE}" "${EXC_PATTERN}")"
+other="$(scan "${VALUE_CALL}" skip "${GLUE}" "${EXC_PREFIX}")"
 if [ -z "${other}" ]; then
   echo "  ok   .value() outside the exception = 0"
 else
@@ -105,10 +137,18 @@ else
 fi
 
 # 3. その他の DOM を読む API（例外なし）
+# 名前の境界で照合する（`set_text_content`・`set_inner_html` などの setter は別の名前なので対象外）。
+B='(^|[^A-Za-z0-9_])'
+E='($|[^A-Za-z0-9_])'
 for pat in 'text_content' 'inner_html' 'inner_text' 'outer_html' 'get_attribute' 'get_element_by_id' \
-  'get_elements_by' 'first_child' 'children\(\)' 'dataset' 'closest\(' 'get_computed_style' \
+  'get_elements_by[A-Za-z0-9_]*' 'first_child' 'children()' 'dataset' 'closest(' 'get_computed_style' \
   'get_bounding_client_rect'; do
-  hits="$(scan "${pat}")"
+  case "${pat}" in
+    'children()') rx="${B}children${WS}\\(${WS}\\)" ;;
+    'closest(') rx="${B}closest${WS}\\(" ;;
+    *) rx="${B}${pat}${E}" ;;
+  esac
+  hits="$(scan "${rx}")"
   if [ -z "${hits}" ]; then
     echo "  ok   ${pat} = 0"
   else
