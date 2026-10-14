@@ -16,8 +16,9 @@
 # 照合の単位: 呼び出し 1 件ずつ（同じ行に複数あれば複数と数える）。空白・改行を挟んだ `.value ( )` も検出する。
 # getter だけを対象にし、`set_text_content` などの setter は名前の境界で区別して対象外にする。
 #
-# 検出の限界: 除くのは先頭が `//` の行（`///`・`//!` を含む）だけ。ブロックコメントや行末コメント内の一致は
-# 検出側に倒れる（誤検出はあり得るが、見逃しにはならない）。文字列リテラル内の一致も同様に検出側に倒れる。
+# コメント: `//`（`///`・`//!` を含む）と `/* */`（入れ子を数える）を空白として扱ってから照合する。そのため
+# `el.value(/* x */)` や `el./* r */value()` も検出し、コメント内の一致は数えない。文字列・生文字列・文字リテラルの
+# 中の `//`・`/*` はコメントにしない。文字列リテラル内の一致は検出側に倒れる（誤検出はあり得るが、見逃しにはならない）。
 #
 # 使い方: tools/check-deps.sh [--root <dir>]（--root は回帰テスト用。既定はこのファイルの親の親）
 # 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 誤用、または検査を完了できない（対象が無い・awk の失敗）。
@@ -86,9 +87,74 @@ fi
 # パターンは環境変数で渡し、awk の -v によるエスケープ解釈を避ける。awk の失敗は errexit で検査全体を止める。
 scan() {
   SCAN_PAT="$1" SCAN_MODE="${2:-}" SCAN_XFILE="${3:-}" SCAN_XPAT="${4:-}" awk '
+    # Rust のコメントを空白に置き換える（改行は残して行番号を保つ）。文字列・生文字列・文字リテラルの中の `//` や `/*` は
+    # コメントとして扱わない（扱うと行の残りが隠れて見逃す）。ブロックコメントは入れ子を数える。
+    function strip(s,   out, i, n, c, d, j, k, h, hs, depth, p) {
+      n = length(s); out = ""; i = 1
+      while (i <= n) {
+        c = substr(s, i, 1); d = substr(s, i + 1, 1)
+        if (c == "/" && d == "/") {
+          j = index(substr(s, i), "\n")
+          out = out " "
+          if (j == 0) i = n + 1; else i = i + j - 1
+          continue
+        }
+        if (c == "/" && d == "*") {
+          depth = 1; i += 2; out = out " "
+          while (i <= n && depth > 0) {
+            p = substr(s, i, 2)
+            if (p == "/*") { depth++; i += 2 }
+            else if (p == "*/") { depth--; i += 2 }
+            else { if (substr(s, i, 1) == "\n") out = out "\n"; i++ }
+          }
+          continue
+        }
+        if (c == "r") {
+          p = (i > 1 ? substr(s, i - 1, 1) : "")
+          if (p !~ /[A-Za-z0-9_]/ || p == "b") {
+            k = i + 1
+            while (substr(s, k, 1) == "#") k++
+            if (substr(s, k, 1) == "\"") {
+              h = k - i - 1; hs = ""
+              for (j = 0; j < h; j++) hs = hs "#"
+              j = k + 1
+              while (j <= n) {
+                if (substr(s, j, 1) == "\"" && substr(s, j + 1, h) == hs) { j += 1 + h; break }
+                j++
+              }
+              out = out substr(s, i, j - i); i = j
+              continue
+            }
+          }
+        }
+        if (c == "\"") {
+          j = i + 1
+          while (j <= n) {
+            p = substr(s, j, 1)
+            if (p == "\\") { j += 2; continue }
+            if (p == "\"") { j++; break }
+            j++
+          }
+          out = out substr(s, i, j - i); i = j
+          continue
+        }
+        if (c == "\047") {
+          if (d == "\\") {
+            j = i + 3
+            while (j <= n && substr(s, j, 1) != "\047") j++
+            j++
+            out = out substr(s, i, j - i); i = j
+            continue
+          }
+          if (substr(s, i + 2, 1) == "\047") { out = out substr(s, i, 3); i += 3; continue }
+        }
+        out = out c; i++
+      }
+      return out
+    }
     function flush(   t, rest, off, n, pre, ln, snip, excepted, emit) {
       if (name == "") return
-      t = text; rest = t; off = 0
+      t = strip(text); rest = t; off = 0
       while (match(rest, pat)) {
         n = off + RSTART
         pre = substr(t, (n > 200 ? n - 200 : 1), (n > 200 ? 200 : n - 1))
@@ -110,7 +176,6 @@ scan() {
     }
     BEGIN { pat = ENVIRON["SCAN_PAT"]; mode = ENVIRON["SCAN_MODE"]; xf = ENVIRON["SCAN_XFILE"]; xp = ENVIRON["SCAN_XPAT"] }
     FNR == 1 { flush(); name = FILENAME }
-    /^[[:space:]]*\/\// { text = text "\n"; next }
     { text = text $0 "\n" }
     END { flush() }
   ' "${FILES[@]}"

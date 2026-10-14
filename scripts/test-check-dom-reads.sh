@@ -235,6 +235,38 @@ printf 'fn a() { el . text_content ( ); }\n' >"${tree}/crates/web/src/hello.rs"
 run_check "${tree}"
 expect "spaced text_content getter is rejected" 1 "${RC}"
 
+# 22. コメントを挟んだ value 呼び出しも検出する
+for call in 'el.value(/* current value */)' 'el./* read */value()' 'el.value(/* a\n b */)' 'el . /* r */ value ( // x\n )' 'el./* /* nested */ */value()'; do
+  tree="$(fresh_tree "cm-${#call}" 0)"
+  printf 'fn a() {\n  let v = %b;\n}\n' "${call}" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  expect "value call split by a comment is rejected: ${call}" 1 "${RC}"
+done
+
+# 23. ブロックコメント内・行末コメント内の呼び出しは数えない
+tree="$(fresh_tree incomment 0)"
+printf 'fn a() {\n  /* el.value() */\n  let x = 1; // el.value()\n  /*\n el.text_content\n */\n}\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "matches inside comments are ignored" 0 "${RC}"
+
+# 24. 文字列・生文字列・文字リテラルの中の // や /* はコメントではない（後続の呼び出しを隠さない）
+tree="$(fresh_tree strslash 0)"
+printf 'fn a() { let u = "http://x"; el.value(); }\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "// inside a string does not hide a later call" 1 "${RC}"
+tree="$(fresh_tree rawslash 0)"
+cat >"${tree}/crates/web/src/hello.rs" <<'EOF'
+fn a() { let u = r#"/* "#; el.value(); let c = '"'; }
+EOF
+run_check "${tree}"
+expect "raw string does not hide a later call" 1 "${RC}"
+tree="$(fresh_tree charquote 0)"
+cat >"${tree}/crates/web/src/hello.rs" <<'EOF'
+fn a() { let c = '"'; el.value(); }
+EOF
+run_check "${tree}"
+expect "quote char literal does not hide a later call" 1 "${RC}"
+
 echo "# passed: ${passed}, failed: ${failed}"
 if [ "${failed}" -ne 0 ]; then
   exit 1
