@@ -1,0 +1,8 @@
+id: L1
+package: fandhe-workshop-web
+test: input_limit
+target: crates/web/src/input_limit.rs
+find:     if value.len() <= MAX_INPUT_CODE_POINTS {
+replace:     if true {
+expect-fail: 一文字超過は先頭の上限までになり_超過の印が立つ
+note: 上限の判定を外す（20,001 文字目以降が通ってしまう）

@@ -3,7 +3,7 @@
 #
 # 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
 # tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
-# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・json-depth・json-load-order）、
+# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・input-limit・json-depth・json-load-order）、
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）を含む。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
@@ -50,5 +50,6 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/safety-control.test.mjs" \
   "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
+  "${ROOT_DIR}/tools/browser/input-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/json-depth.test.mjs" \
   "${ROOT_DIR}/tools/browser/json-load-order.test.mjs"
