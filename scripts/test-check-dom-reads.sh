@@ -243,6 +243,18 @@ for call in 'el.value(/* current value */)' 'el./* read */value()' 'el.value(/* 
   expect "value call split by a comment is rejected: ${call}" 1 "${RC}"
 done
 
+# 22b. 関連関数形式の value 読み取りも検出する（例外の field があっても許可しない）
+for call in 'web_sys::HtmlTextAreaElement::value(&field)' 'web_sys::HtmlInputElement::value(&el)' 'HtmlInputElement :: value ( &el )' 'web_sys::HtmlInputElement::/* r */value(&el)'; do
+  tree="$(fresh_tree "assoc-${#call}" 0)"
+  printf 'fn a() {\n  let v = %s;\n}\n' "${call}" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  expect "associated-function value call is rejected: ${call}" 1 "${RC}"
+done
+tree="$(fresh_tree assoc-glue 1)"
+printf 'fn a() { let v = field.value(); let w = web_sys::HtmlTextAreaElement::value(&field); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "associated-function value call in glue.rs is not an exception" 1 "${RC}"
+
 # 23. ブロックコメント内・行末コメント内の呼び出しは数えない
 tree="$(fresh_tree incomment 0)"
 printf 'fn a() {\n  /* el.value() */\n  let x = 1; // el.value()\n  /*\n el.text_content\n */\n}\n' >"${tree}/crates/web/src/hello.rs"

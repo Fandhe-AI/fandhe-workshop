@@ -184,6 +184,8 @@ scan() {
 # 呼び出しの検出パターン。直前・直後が識別子の文字でないことを要求し、set_inner_html などの setter を拾わない。
 WS='[[:space:]]*'
 VALUE_CALL="\\.${WS}value${WS}\\(${WS}\\)"
+# 関連関数形式（`web_sys::HtmlInputElement::value(&el)` など）。レシーバが引数なので例外の対象にしない。
+ASSOC_VALUE_CALL="::${WS}value${WS}\\("
 # 例外の呼び出しの直前（レシーバが `field` であること）
 EXC_PREFIX='(^|[^A-Za-z0-9_])field[[:space:]]*$'
 
@@ -211,6 +213,16 @@ if [ -z "${other}" ]; then
 else
   echo "  FAIL .value() outside the exception:"
   printf '%s\n' "${other}" | sed 's/^/    /'
+  violations=$((violations + 1))
+fi
+
+# 2b. 関連関数形式の value 読み取り（例外なし）
+assoc="$(scan "${ASSOC_VALUE_CALL}")"
+if [ -z "${assoc}" ]; then
+  echo "  ok   Type::value(&el) form = 0"
+else
+  echo "  FAIL Type::value(&el) form:"
+  printf '%s\n' "${assoc}" | sed 's/^/    /'
   violations=$((violations + 1))
 fi
 

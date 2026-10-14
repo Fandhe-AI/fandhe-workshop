@@ -78,6 +78,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
+| `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
+| `make test-serve` | 配信サーバの試験（`node:test`） |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
