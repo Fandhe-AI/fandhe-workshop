@@ -92,18 +92,27 @@ fn exceeds_depth(bytes: &[u8]) -> bool {
     false
 }
 
+/// IR のバイト列が大きさと入れ子の上限（契約の `MAX_IR_BYTES`・`MAX_JSON_DEPTH`）に収まるかを、解析せずに判定する。
+///
+/// `load_ir` が最初に行う判定そのもので、pack の `compile` が成功を返す前に同じ判定を使い、
+/// 「書き出せたが読めない IR」を作らないために公開する（上限の値は contract だけが持つ）。
+pub fn check_ir_limits(bytes: &[u8]) -> Result<(), LimitReason> {
+    if bytes.len() as u64 > MAX_IR_BYTES {
+        return Err(LimitReason::TooLarge);
+    }
+    if exceeds_depth(bytes) {
+        return Err(LimitReason::TooDeep);
+    }
+    Ok(())
+}
+
 /// バイト列の IR を読み、版と参照の整合を確かめて返す。
 ///
 /// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。
 /// 拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
 /// `uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
-    if bytes.len() as u64 > MAX_IR_BYTES {
-        return Err(IrLoadError::Limit(LimitReason::TooLarge));
-    }
-    if exceeds_depth(bytes) {
-        return Err(IrLoadError::Limit(LimitReason::TooDeep));
-    }
+    check_ir_limits(bytes).map_err(IrLoadError::Limit)?;
     let ir: Ir = serde_json::from_slice(bytes).map_err(|e| IrLoadError::Json(json_failure(&e)))?;
     if ir.format_version != IR_FORMAT_VERSION {
         return Err(IrLoadError::FormatVersion(ir.format_version));

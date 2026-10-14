@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use fandhe_workshop_contract::ir::{Instance, Ir, Node, Start, IR_FORMAT_VERSION};
+use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
 use crate::source::{self, LoadedPack, ScopeKind};
@@ -171,16 +172,57 @@ pub fn to_json(ir: &Ir) -> Result<Vec<u8>, serde_json::Error> {
     Ok(v)
 }
 
+/// 生成した IR のバイト列が、エンジンの `load_ir` の上限（大きさ・入れ子）に収まることを確かめる。
+///
+/// パック入力が上限以下でも、JSON のエスケープで出力が膨らむ・未型付けの値が深く入れ子になるなどで
+/// `load_ir` が拒否する IR ができうる。成功を返す前に、core の共有の判定で拒否する。
+fn check_output(bytes: &[u8], file: &str) -> Result<(), Vec<Diagnostic>> {
+    check_ir_limits(bytes).map_err(|reason| {
+        vec![diag(
+            file,
+            "pack",
+            DiagCode::Limit,
+            format!("generated IR exceeds the engine limit: {reason}"),
+        )]
+    })
+}
+
 /// ディレクトリのパックを読み、IR のバイト列にする。`load`・`compile`・`to_json` をまとめた入口。
+///
+/// 返すバイト列は `check_ir_limits` を通っており、`load_ir` が大きさ・深さで拒否することはない。
 pub fn compile_dir(dir: &Path) -> Result<Vec<u8>, Vec<Diagnostic>> {
     let pack = source::load(dir)?;
     let ir = compile(&pack)?;
-    to_json(&ir).map_err(|_| {
+    let bytes = to_json(&ir).map_err(|_| {
         vec![diag(
             &pack.workshop_file,
             "pack",
             DiagCode::Structure,
             "IR serialization failed",
         )]
-    })
+    })?;
+    check_output(&bytes, &pack.workshop_file)?;
+    Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fandhe_workshop_contract::limits::{MAX_IR_BYTES, MAX_JSON_DEPTH};
+
+    #[test]
+    fn check_output_rejects_too_large() {
+        let v = vec![b' '; MAX_IR_BYTES as usize + 1];
+        let d = check_output(&v, "workshop.yaml").unwrap_err();
+        assert_eq!(d[0].code(), DiagCode::Limit);
+        assert!(check_output(&vec![b' '; MAX_IR_BYTES as usize], "workshop.yaml").is_ok());
+    }
+
+    #[test]
+    fn check_output_rejects_too_deep() {
+        let nest = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        let d = check_output(nest(MAX_JSON_DEPTH + 1).as_bytes(), "workshop.yaml").unwrap_err();
+        assert_eq!(d[0].code(), DiagCode::Limit);
+        assert!(check_output(nest(MAX_JSON_DEPTH).as_bytes(), "workshop.yaml").is_ok());
+    }
 }

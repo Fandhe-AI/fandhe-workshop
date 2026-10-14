@@ -8,4 +8,4 @@
 pub mod ir_load;
 pub mod provider;
 
-pub use ir_load::{load_ir, IrLoadError};
+pub use ir_load::{check_ir_limits, load_ir, IrLoadError};

@@ -421,3 +421,20 @@ fn tests_path_is_optional_only_when_absent() {
     t.put("tests", b"x");
     assert_eq!(diags(&t).len(), 1);
 }
+
+#[test]
+fn escaped_output_over_ir_limit_is_a_diagnostic() {
+    // 入力は 20 MiB 以下でも、二重引用符は JSON で 2 バイトになり、出力が MAX_IR_BYTES を超える。
+    let t = Tmp::new("big-out");
+    let title = "\"".repeat(11 * 1024 * 1024);
+    t.put(
+        "workshop.yaml",
+        format!("pack: {{id: p, title: '{title}', version: '0', ir_format: 1, guidance: A}}\n")
+            .as_bytes(),
+    );
+    t.put("chapters/c1/chapter.yaml", CHAPTER.as_bytes());
+    t.put("chapters/c1/a.md", format!("# a\n{SECRET}\n").as_bytes());
+    let d = diags(&t);
+    assert_eq!(codes(&d), vec![DiagCode::Limit]);
+    assert_no_secret(&d);
+}
