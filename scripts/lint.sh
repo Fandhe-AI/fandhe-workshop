@@ -39,7 +39,7 @@ list_missing() {
   local want="$1" have="$2" f out=""
   while IFS= read -r f; do
     [[ -z "${f}" ]] && continue
-    if ! printf '%s\n' "${have}" | grep -qx -- "${f}"; then
+    if ! printf '%s\n' "${have}" | grep -Fqx -- "${f}"; then
       out="${out} ${f}"
     fi
   done < <(printf '%s\n' "${want}")
