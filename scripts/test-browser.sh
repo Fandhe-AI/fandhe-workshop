@@ -22,7 +22,9 @@ case "${FANDHE_BROWSER_CHANNEL:-}" in
     ;;
 esac
 
-require_cmd node cargo wasm-bindgen jq
+for cmd in node cargo wasm-bindgen jq mktemp rm; do
+  require_cmd "${cmd}"
+done
 
 if [[ ! -d "${ROOT_DIR}/node_modules/playwright" ]]; then
   echo "error: playwright is not installed; run npm ci && npx playwright install chromium" >&2
@@ -33,7 +35,8 @@ TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-test-browser.XXXXXX")"
 trap 'rm -rf "${TMP}"' EXIT
 
 log "building web into a temporary directory"
-OUT_DIR="${TMP}/web" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
+# 親環境の TEST_HOOKS を継承すると試験設定が生成されるため、空にして配信設定へ固定する。
+TEST_HOOKS="" OUT_DIR="${TMP}/web" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
 
 FANDHE_WEB_DIR="${TMP}/web" node --test \
   "${ROOT_DIR}/tools/browser/harness.test.mjs" \
