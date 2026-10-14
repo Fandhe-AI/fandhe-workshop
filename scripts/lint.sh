@@ -34,18 +34,19 @@ log "check web features are covered"
 declared="$(cargo metadata --no-deps --format-version 1 --locked |
   jq -r '.packages[] | select(.name == "fandhe-workshop-web") | .features | keys[] | select(. != "default")')"
 covered="$(printf '%s\n' "${WASM_FEATURE_SETS[@]}" | tr ',' '\n' | sed '/^$/d')"
-missing=""
-for f in ${declared}; do
-  if ! printf '%s\n' "${covered}" | grep -qx -- "${f}"; then
-    missing="${missing} ${f}"
-  fi
-done
-unknown=""
-for f in ${covered}; do
-  if ! printf '%s\n' "${declared}" | grep -qx -- "${f}"; then
-    unknown="${unknown} ${f}"
-  fi
-done
+# 一覧 $1 に含まれ、一覧 $2 に含まれない要素を空白区切りで出す（未クォート展開を避け 1 行ずつ読む）
+list_missing() {
+  local want="$1" have="$2" f out=""
+  while IFS= read -r f; do
+    [[ -z "${f}" ]] && continue
+    if ! printf '%s\n' "${have}" | grep -qx -- "${f}"; then
+      out="${out} ${f}"
+    fi
+  done < <(printf '%s\n' "${want}")
+  printf '%s' "${out}"
+}
+missing="$(list_missing "${declared}" "${covered}")"
+unknown="$(list_missing "${covered}" "${declared}")"
 if [[ -n "${missing}${unknown}" ]]; then
   echo "error: web features not covered by lint (update WASM_FEATURE_SETS):${missing}; undeclared in set:${unknown}" >&2
   exit 1
