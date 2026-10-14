@@ -71,6 +71,7 @@ build-web: ## web を wasm にビルドして dist/web に配る一式を作る�
 
 test-build-web: ## build-web の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する。直接: scripts/test-build-web.sh
 	@scripts/test-build-web.sh
+
 serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直接渡す）。直接: node tools/serve.mjs
 	@node tools/serve.mjs
 
