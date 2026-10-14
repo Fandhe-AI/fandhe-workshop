@@ -126,7 +126,8 @@ impl Component for HelloView {
                 ("data-testid", "draft-input"),
                 ("data-action-input", "draft"),
             ],
-            vec![],
+            // 再描画で欄が作り直されても、状態の下書きを初期内容として復元する。
+            vec![text(&self.draft)],
         ));
         children.push(bind_text(
             "p",
@@ -233,6 +234,14 @@ mod tests {
             v.bound_value("input_notice"),
             Some(BoundValue::Text(String::new()))
         );
+    }
+
+    #[test]
+    fn 入力欄は下書きを初期内容として描画する() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き<b>".to_owned()));
+        let html = render_component_html(&v);
+        assert!(html.contains("下書き&lt;b&gt;</textarea>"), "{html}");
     }
 
     #[test]

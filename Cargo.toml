@@ -43,7 +43,7 @@ wasm-bindgen = "=0.2.128"
 
 # 入力欄の値の書き戻し（crates/web の glue）に使う。版は Cargo.lock の解決済みの版と同じにして、版を動かさない。
 # feature は書き戻しに要る型（イベントの種別判定と textarea の値）に絞る。
-web-sys = { version = "0.3.105", default-features = false, features = ["Element", "Event", "EventTarget", "HtmlTextAreaElement", "InputEvent"] }
+web-sys = { version = "0.3.105", default-features = false, features = ["Element", "Event", "EventTarget", "HtmlTextAreaElement", "InputEvent", "Window"] }
 
 # 表示層の基盤（D-30 の採用版）。crates.io から取得するため認証情報は要らない。
 # feature は FEND-1 に従い action-keydown だけを明示する（既定の feature は持ち込まない）。

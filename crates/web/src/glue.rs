@@ -83,7 +83,7 @@ fn sync_draft(root: &web_sys::Element) {
 /// 書き戻しのリスナーを root に登録する。`mount_app` が成功した直後に 1 回だけ呼ぶ。
 ///
 /// 上流の `input` の配線（`Runtime::mount` が先に root へ登録済み）の後に走るため、状態は更新済みである。
-/// 変換中（`InputEvent.isComposing`）は書き戻さず、`compositionend` で同期する（変換中の書き換えは入力を壊す）。
+/// 変換中（`InputEvent.isComposing`）は書き戻さず、`compositionend` の次のタスクで同期する（変換中の書き換えは入力を壊す）。
 /// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
 fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     let target = root.clone();
@@ -98,9 +98,18 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     });
     root.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
     on_input.forget();
+    // Safari は確定の `input` より前に `compositionend` を発火する。その時点の状態は古いため、
+    // 同期で書き戻すと変換結果を消す。タスクを 1 つ送り、続く `input` が状態を更新した後に同期する
+    // （Chrome のように `compositionend` が後でも、状態は最新なので害はない）。
     let target = root.clone();
     let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
-        sync_draft(&target);
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let target = target.clone();
+        let deferred = Closure::once_into_js(move || sync_draft(&target));
+        let _ = window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(deferred.unchecked_ref(), 0);
     });
     root.add_event_listener_with_callback("compositionend", on_end.as_ref().unchecked_ref())?;
     on_end.forget();
