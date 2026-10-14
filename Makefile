@@ -78,7 +78,7 @@ serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直�
 test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。直接: scripts/test-serve.sh
 	@scripts/test-serve.sh
 
-test-browser: ## 共通ヘルパで最小の画面をサブパス配信して確かめるブラウザ試験（Playwright）。直接: scripts/test-browser.sh
+test-browser: ## 共通ヘルパで最小の画面をサブパス配信し、対照の自己確認も行うブラウザ試験（Playwright）。直接: scripts/test-browser.sh
 	@scripts/test-browser.sh
 
 check-mutations: ## 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）。直接: scripts/check-mutations.sh
