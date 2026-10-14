@@ -27,6 +27,8 @@ fandhe-frontend-wasm-client.workspace = true
 wasm-bindgen.workspace = true
 
 [dev-dependencies]
+# frontend_features の試験が manifest と Cargo.lock を読むため。配信物には入らない。
+toml.workspace = true
 # 依存の向きの唯一の例外（docs/architecture.md 第 4 節）。試験専用で、normal 依存にはしない。
 fandhe-workshop-pack.workspace = true
 

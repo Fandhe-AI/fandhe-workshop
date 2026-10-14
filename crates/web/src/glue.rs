@@ -21,6 +21,18 @@ pub(crate) fn is_mounted() -> bool {
     RUNTIME.with(|r| r.try_borrow().map(|r| r.is_some()).unwrap_or(false))
 }
 
+/// keydown の probe の受信回数。未マウント・借用中は `None`。
+///
+/// `Runtime::component()` は `RefCell` の借用を取る。update は同期で完了するため、JS から呼ばれる時点で
+/// 可変借用は残らない。念のため外側の借用は `try_borrow` で確かめる。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn keydown_probe_count() -> Option<u32> {
+    RUNTIME.with(|cell| {
+        let slot = cell.try_borrow().ok()?;
+        slot.as_ref().map(|rt| rt.component().keydown_probe())
+    })
+}
+
 /// 画面を root 配下ごと再構築する。再描画の時間の測定（tools/measure/redraw.sh）が試験用の口経由で呼ぶ。
 ///
 /// 戻り値は、再構築を実行したかどうか。未マウント、または他の借用中は何もせず `false` を返す
