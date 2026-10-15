@@ -377,11 +377,9 @@ pub(crate) fn check_expanded(
 ) -> Vec<Diagnostic> {
     let users = step_do_users(pack);
     let mut out = Vec::new();
-    if users.is_empty() {
-        return out;
-    }
     let mut seen = BTreeSet::new();
     for (node, text) in text_sites(nodes, starts, &pack.workshop.defaults) {
+        check_blank_title_next_action(pack, node, &text, &mut seen, &mut out);
         if !users.contains(&text) || has_do(&node.step) {
             continue;
         }
@@ -399,6 +397,63 @@ pub(crate) fn check_expanded(
         }
     }
     out
+}
+
+/// 展開の後の Step の題名が空・空白だけのとき、`step_title` だけの次の行動が空になる組を `E-EMPTY-NEXT-ACTION` にする。
+/// 文面の静的検査は仮の題名で差し込むため、題名が空の Step との組合せはここで見る。`do` は仮の値（`do` の欠落は
+/// `E-SLOT-NEEDS-DO` が報告する）。仮の題名では空にならない組だけを扱い、`check_one_text` の診断と二重にしない。
+fn check_blank_title_next_action(
+    pack: &LoadedPack,
+    node: &Node,
+    text: &TextRef,
+    seen: &mut BTreeSet<String>,
+    out: &mut Vec<Diagnostic>,
+) {
+    if !node.step.title.trim().is_empty() {
+        return;
+    }
+    let table = match text.kind {
+        TextKind::Rejection => &pack.workshop.rejections,
+        TextKind::Clarification => &pack.workshop.clarifications,
+    };
+    let Some(map) = table.get(&text.id).and_then(Value::as_object) else {
+        return;
+    };
+    let Some(next) = map.get(text.kind.next_field()).and_then(Value::as_str) else {
+        return;
+    };
+    let counted = text.kind == TextKind::Rejection
+        && map.get("category").and_then(Value::as_str) == Some(Category::Busy.as_str());
+    let is_empty = |title: &str| {
+        matches!(
+            substitute(next, &worst_case(title, Some("d"), counted)),
+            Ok(s) if s.trim().is_empty()
+        )
+    };
+    if is_empty("t") || !is_empty(&node.step.title) {
+        return;
+    }
+    let d = match pack.scopes.iter().find(|s| s.src.id == node.unit) {
+        Some(scope) => step_diag(
+            scope,
+            &node.step.id,
+            DiagCode::EmptyNextAction,
+            format!(
+                "{}: {} is empty when step_title is blank",
+                text.kind.noun(),
+                text.kind.next_field()
+            ),
+        ),
+        None => diag(
+            pack.workshop_file.as_str(),
+            &format!("step:{}", node.step.id),
+            DiagCode::EmptyNextAction,
+            "next action is empty when step_title is blank",
+        ),
+    };
+    if seen.insert(format!("{d:?}")) {
+        out.push(d);
+    }
 }
 
 fn needs_do_diag(scope: &LoadedScope, step_id: &str) -> Diagnostic {

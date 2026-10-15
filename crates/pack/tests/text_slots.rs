@@ -563,6 +563,38 @@ fn pack12_dynamic_detects_after_expansion() {
 }
 
 #[test]
+fn pack12_blank_step_title_makes_title_only_next_action_empty() {
+    // 次の行動が `{{step_title}}` だけの文面は、題名が空・空白の Step では空になる（静的検査の仮の題名では空にならない）。
+    let build = |arg: &str| {
+        let t = module_pack(arg);
+        t.put(
+            "workshop.yaml",
+            MODULE_WORKSHOP
+                .replace("'{{step_do}}'", "'{{step_title}}'")
+                .as_bytes(),
+        );
+        t.put(
+            "modules/m1/module.yaml",
+            MODULE_MODULE
+                .replace("title: MA", "title: '${what}'")
+                .replace("do: '${what}'", "do: x")
+                .as_bytes(),
+        );
+        t
+    };
+    let ok = build("'go'");
+    assert!(validate_dir(&ok.0).iter().all(|d| !is_slot_diag(d)));
+    for arg in ["''", "'   '"] {
+        both_only(
+            &build(arg),
+            DiagCode::EmptyNextAction,
+            "modules/m1/module.yaml",
+            "step:m-a",
+        );
+    }
+}
+
+#[test]
 fn pack16_needs_do_after_argument_substitution() {
     // モジュールの Step が `on_reject` を引数で受ける。置換の前は文面の ID が読めず、`do` も無いので展開の前の検査は
     // 飛ばすが、引数に `step_do` を使う文面を渡すと置換の後の Step が `do` を欠く。

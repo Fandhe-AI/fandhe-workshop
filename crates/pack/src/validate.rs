@@ -116,6 +116,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::NoConfirm
                     | DiagCode::Limit
                     | DiagCode::SlotNeedsDo
+                    | DiagCode::EmptyNextAction
             )
         })
         .filter(|d| seen.insert(format!("{d:?}")))
