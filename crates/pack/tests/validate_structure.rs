@@ -35,7 +35,7 @@ steps:
     title: A
     input: {kind: command, name: help}
     confirm: {kind: answer, options: [{id: o1, correct: true}, {id: o2, correct: false}], on_wrong: rj-a}
-    next: [{to: b}]
+    next: [{to: b}, {to: b2}]
 -   {id: b, title: B, final: true}
 -   {id: b2, title: B2, final: true}
 ";
@@ -43,6 +43,7 @@ steps:
 const CHAPTER_2: &str = "\
 id: c2
 title: C2
+starts: [{id: s2, node: c2z}]
 steps:
     - {id: c2z, title: Z, final: true}
 ";
@@ -51,7 +52,7 @@ const MODULE: &str = "\
 id: m1
 title: M
 steps:
-    - {id: m-a, title: MA, next: [{to: m-b}]}
+    - {id: m-a, title: MA, next: [{to: m-b}, {to: m-c}]}
     - {id: m-b, title: MB, final: true}
     - {id: m-c, title: MC, final: true}
 ";
@@ -105,8 +106,8 @@ fn cases() -> Vec<Case> {
         (
             "dup-step-across-chapters",
             C2,
-            "id: c2z",
-            "id: b",
+            "- {id: c2z, title: Z, final: true}",
+            "- {id: c2z, title: Z, next: [{to: b}]}\n    - {id: b, title: Z2, final: true}",
             DupId,
             C2,
             "step:b",
@@ -114,8 +115,8 @@ fn cases() -> Vec<Case> {
         (
             "dup-step-in-chapter",
             C1,
-            "{id: b2, title: B2,",
-            "{id: a, title: B2,",
+            "-   {id: b2, title: B2, final: true}",
+            "-   {id: b2, title: B2, final: true}\n-   {id: a, title: A2, final: true}",
             DupId,
             C1,
             "step:a",
@@ -123,8 +124,8 @@ fn cases() -> Vec<Case> {
         (
             "dup-step-in-module",
             M1,
-            "id: m-c,",
-            "id: m-a,",
+            "- {id: m-c, title: MC, final: true}",
+            "- {id: m-c, title: MC, final: true}\n    - {id: m-a, title: MX, final: true}",
             DupId,
             M1,
             "step:m-a",
@@ -132,8 +133,8 @@ fn cases() -> Vec<Case> {
         (
             "dup-start-across-chapters",
             C2,
-            "steps:",
-            "starts: [{id: s1, node: c2z}]\nsteps:",
+            "id: s2",
+            "id: s1",
             DupId,
             C2,
             "start:s1",
@@ -194,8 +195,18 @@ fn all_three_codes_are_covered() {
 #[test]
 fn unsafe_duplicate_id_is_not_echoed() {
     let t = base();
-    mutate(&t, C2, "id: c2z", "id: \"a b\"");
-    mutate(&t, C1, "{id: b2, title: B2,", "{id: \"a b\", title: B2,");
+    mutate(
+        &t,
+        C2,
+        "- {id: c2z, title: Z, final: true}",
+        "- {id: c2z, title: Z, final: true}\n    - {id: \"a b\", title: X, final: true}",
+    );
+    mutate(
+        &t,
+        C1,
+        "-   {id: b2, title: B2, final: true}",
+        "-   {id: b2, title: B2, final: true}\n-   {id: \"a b\", title: X, final: true}",
+    );
     let d = validate_dir(&t.0);
     let dup: Vec<_> = d.iter().filter(|d| d.code() == DiagCode::DupId).collect();
     assert_eq!(dup.len(), 1, "{d:?}");
