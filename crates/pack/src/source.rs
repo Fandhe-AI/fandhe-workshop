@@ -6,7 +6,9 @@
 //! 診断のメッセージにはパスと ID だけを入れ、本文・練習データの中身は入れない。
 //!
 //! 上限の値と拒否理由の文面は契約（TASK-199、`contract::limits`）の共有定数・`PackLimitCode` に従う。
-//! 形式 B の厳格化（文字列への型変換・重複キー・行と桁）は TASK-40、モジュールの展開は TASK-50 が扱う。
+//! 形式の判定（`workshop.yaml` と `workshop.toml` の両方・どちらも無いは拒否。PACK-2）と、語彙にない欄の
+//! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。文字列への型変換・重複キー・行と桁の厳格化（PACK-4）は
+//! TASK-40 の 2/2、モジュールの展開は TASK-50 が扱う。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -50,11 +52,11 @@ impl Format {
         match self {
             Format::Toml => toml::from_str(text).map_err(|e| {
                 let pos = e.span().map(|r| line_col(text, r.start));
-                parse_failure(pos)
+                classify_parse_error(e.message(), pos)
             }),
             Format::Yaml => yaml_serde::from_str(text).map_err(|e| {
                 let pos = e.location().map(|l| (l.line(), l.column()));
-                parse_failure(pos)
+                classify_parse_error(&e.to_string(), pos)
             }),
         }
     }
@@ -221,6 +223,52 @@ fn parse_failure(pos: Option<(usize, usize)>) -> String {
         Some((line, col)) => format!("invalid syntax or structure at line {line} column {col}"),
         None => "invalid syntax or structure".to_string(),
     }
+}
+
+/// パーサーの文言が serde の未知の欄（PACK-3）なら `unknown field` の診断文にし、それ以外は
+/// `parse_failure` にする。欄の名前は作成者が直す手がかりになるが任意の文字列になりうるため、短い識別子
+/// （`[A-Za-z0-9_.-]{1,64}`）のときだけ写す。入力の値は写さない。
+fn classify_parse_error(raw: &str, pos: Option<(usize, usize)>) -> String {
+    const MARK: &str = "unknown field `";
+    // 文言の全文から部分一致で探さない。型が合わない入力値（``invalid type: string "unknown field `x`..."``）
+    // にも同じ語が入りうるためである。未知の欄の文言は、先頭（または `パス: ` の直後）から始まるものだけを
+    // 認める。パスは `[A-Za-z0-9_.\[\]-]` だけで、それ以外が前に付くものは位置だけの診断に戻す。
+    let Some(start) = raw.find(MARK) else {
+        return parse_failure(pos);
+    };
+    let prefix = &raw[..start];
+    let path_ok = prefix.is_empty()
+        || prefix.strip_suffix(": ").is_some_and(|p| {
+            !p.is_empty()
+                && p.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-' | '[' | ']'))
+        });
+    if !path_ok {
+        return parse_failure(pos);
+    }
+    let start = start + MARK.len();
+    // serde の文言は ``unknown field `名前`, expected ...`` / ``..., there are no fields``。名前に
+    // バッククォートが入っても途中で切れないよう、後ろの区切りまで取り、見つからなければ写さない。
+    let rest = &raw[start..];
+    let end = ["`, expected", "`, there are no fields"]
+        .iter()
+        .filter_map(|d| rest.find(d))
+        .min();
+    let name = end.map_or("", |i| &rest[..i]);
+    let safe = !name.is_empty()
+        && name.len() <= 64
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
+    let mut msg = if safe {
+        format!("unknown field `{name}`")
+    } else {
+        "unknown field".to_string()
+    };
+    if let Some((line, col)) = pos {
+        msg.push_str(&format!(" at line {line} column {col}"));
+    }
+    msg
 }
 
 /// 診断を作る。`file` が空のときは `.`（パックの根）に直す。直した後は必ず作れる。
@@ -515,8 +563,21 @@ fn sorted_subdirs(root: &Path, p: &Path, diags: &mut Vec<Diagnostic>) -> Vec<Pat
 fn detect_format(root: &Path) -> Result<(Format, PathBuf), Vec<Diagnostic>> {
     let toml_p = root.join("workshop.toml");
     let yaml_p = root.join("workshop.yaml");
-    let exists = |p: &Path| fs::symlink_metadata(p).is_ok_and(|m| m.is_file());
+    // 種類が違うエントリ（ディレクトリなど）を「無い」と扱うと、もう片方の形式が黙って選ばれうる。
+    // 名前のエントリがあるかで判定し、通常のファイルでなければ拒否する。
+    let exists = |p: &Path| fs::symlink_metadata(p).is_ok();
+    let is_file = |p: &Path| fs::symlink_metadata(p).is_ok_and(|m| m.is_file());
+    let not_file = |name: &str| {
+        Err(vec![diag(
+            name,
+            "pack",
+            DiagCode::Parse,
+            format!("{name} is not a regular file"),
+        )])
+    };
     match (exists(&toml_p), exists(&yaml_p)) {
+        (true, false) if !is_file(&toml_p) => not_file("workshop.toml"),
+        (false, true) if !is_file(&yaml_p) => not_file("workshop.yaml"),
         (true, false) => Ok((Format::Toml, toml_p)),
         (false, true) => Ok((Format::Yaml, yaml_p)),
         (true, true) => Err(vec![diag(
@@ -526,7 +587,7 @@ fn detect_format(root: &Path) -> Result<(Format, PathBuf), Vec<Diagnostic>> {
             "both workshop.toml and workshop.yaml exist; use one format",
         )]),
         (false, false) => Err(vec![diag(
-            "workshop.toml",
+            "workshop.yaml",
             "pack",
             DiagCode::Parse,
             "neither workshop.toml nor workshop.yaml exists",
@@ -857,6 +918,43 @@ mod tests {
         let yaml_src = "pack:\n  id: [SECRET-VALUE]\n";
         let e = Format::Yaml.parse::<WorkshopSrc>(yaml_src).unwrap_err();
         assert!(!e.contains("SECRET-VALUE"), "{e}");
+    }
+
+    #[test]
+    fn classify_unknown_field_names() {
+        let p = Some((3, 5));
+        let raw = "unknown field `script`, expected one of `id`, `title`";
+        assert_eq!(
+            classify_parse_error(raw, p),
+            "unknown field `script` at line 3 column 5"
+        );
+        assert_eq!(
+            classify_parse_error("steps[0]: unknown field `exec`, expected `id`", None),
+            "unknown field `exec`"
+        );
+        let long = format!("unknown field `{}`, expected x", "a".repeat(65));
+        assert_eq!(
+            classify_parse_error(&long, p),
+            "unknown field at line 3 column 5"
+        );
+        assert_eq!(
+            classify_parse_error("unknown field `a b`, expected x", p),
+            "unknown field at line 3 column 5"
+        );
+        // 型の不一致のエラーに入った入力値は、未知の欄として写さない。
+        for raw in [
+            "pack: invalid type: string \"unknown field `SECRET-VALUE`, expected x\", expected struct",
+            "invalid type: string \"unknown field `SECRET-VALUE`, expected x\", expected a map",
+            "pack: \"unknown field `SECRET-VALUE`, expected x",
+        ] {
+            let m = classify_parse_error(raw, p);
+            assert!(!m.contains("SECRET-VALUE"), "{m}");
+            assert_eq!(m, "invalid syntax or structure at line 3 column 5");
+        }
+        assert_eq!(
+            classify_parse_error("invalid type: string", p),
+            "invalid syntax or structure at line 3 column 5"
+        );
     }
 
     #[test]

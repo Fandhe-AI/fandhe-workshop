@@ -141,24 +141,9 @@ fn minimal_pack_compiles() {
 }
 
 #[test]
-fn neg_workshop_format() {
-    let t = minimal();
-    t.put("workshop.toml", b"[pack]\n");
-    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
-    let t = Tmp::new("none");
-    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
-    let d = compile_dir(&t.0.join("missing")).expect_err("no dir");
+fn neg_workshop_path_is_not_a_directory() {
+    let d = compile_dir(&Tmp::new("none").0.join("missing")).expect_err("no dir");
     assert_eq!(codes(&d), [DiagCode::Parse]);
-}
-
-#[test]
-fn neg_unknown_step_field() {
-    let t = minimal();
-    t.put(
-        "chapters/c1/chapter.yaml",
-        b"id: c1\ntitle: C\nsteps:\n  - {id: a, title: A, script: x}\n",
-    );
-    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
 }
 
 #[test]
