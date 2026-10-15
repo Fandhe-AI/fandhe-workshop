@@ -3,7 +3,7 @@
 //! 欠陥を 1 つだけ入れた教材パックが、期待のコードで期待のファイル・項目に報告されること、条件つきの辺だけで
 //! つながる Step を到達可能と判定すること、参照切れでは `E-REF-STEP` だけが出て派生しないことを確かめる。
 //!
-//! 範囲外: `E-MODULE-CYCLE`・`E-NO-CONFIRM`（TASK-55 2/2）、CLI への接続（TASK-401・TASK-403）、
+//! 範囲外: `E-MODULE-CYCLE`・`E-NO-CONFIRM` は `validate_cycle_confirm.rs`、CLI への接続（TASK-401・TASK-403）、
 //! 欠陥パックの網羅（TASK-56）。
 
 mod common;
