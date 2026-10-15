@@ -24,6 +24,7 @@ use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::effect_check::check_effects;
 use crate::input;
 use crate::markdown;
 use crate::source::{self, LoadedPack, ScopeKind};
@@ -91,6 +92,15 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 ));
                 continue;
             }
+            // 状態変化の語彙（TASK-43 1/2）。`use` の Step は上で拒否済みなので検査しない。
+            for (field, list) in [
+                ("on_enter", &step.on_enter),
+                ("on_achieved", &step.on_achieved),
+            ] {
+                for (code, msg) in check_effects(list, field, &w.fixtures) {
+                    diags.push(diag(&scope.file, &item, code, msg));
+                }
+            }
             let mut s = step.clone();
             for t in &mut s.next {
                 t.to = format!("main/{}", t.to);
@@ -144,6 +154,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                     format!("duplicate start id: {}", st.id),
                 ));
                 continue;
+            }
+            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures) {
+                diags.push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
             }
             let mut s = st.clone();
             s.node = format!("main/{}", st.node);
