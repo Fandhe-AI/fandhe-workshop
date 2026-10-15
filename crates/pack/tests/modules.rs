@@ -1,6 +1,9 @@
-//! 学習モジュールの `use` の展開（PACK-19、TASK-50 1/2）の結合試験。
+//! 学習モジュールの `use` の展開（PACK-19、TASK-50 1/2・2/2）の結合試験。
 //!
-//! 受入基準は 2 つ。(a) 2 つの実体（`round1`・`round2`）が別の Step の実体になり、モジュールの定義の
+//! 2/2 の受入基準は、巡回（`defect-cycle.md` の C1〜C3）と 9 段の入れ子が `E-MODULE-CYCLE`、`use` と `input` の
+//! 同時指定と `params` に無い `args` が `E-STRUCTURE` になること（`neg_` の試験）。
+//!
+//! 1/2 の受入基準は 2 つ。(a) 2 つの実体（`round1`・`round2`）が別の Step の実体になり、モジュールの定義の
 //! 1 か所の修正が両方に反映される。(b) 3 周目の実体を、章の定義ファイルを 1 つ足すだけで書ける。
 //! `testdata/` の写しは書き換えず、一時ディレクトリへ写してから改変する。
 //! なお、spec の例の `impl-run` は、この testdata では `issue-to-merge` に当たる。
@@ -278,7 +281,7 @@ fn neg_module_and_instance_must_be_identifiers() {
 }
 
 #[test]
-fn neg_self_call_stops_at_the_depth_limit() {
+fn neg_self_call_is_a_cycle_not_a_depth_overflow() {
     let module = concat!(
         "id: m\ntitle: M\nsteps:\n",
         "  - {id: a, title: A, final: true, use: {module: m, instance: i}}\n",
@@ -286,6 +289,9 @@ fn neg_self_call_stops_at_the_depth_limit() {
     let t = mini(&chapter_using("{module: m, instance: i}"), module);
     let d = diags(&t);
     assert_eq!(codes(&d), [DiagCode::ModuleCycle]);
+    assert!(d[0].message().contains("m → m"), "{d:?}");
+    assert!(!d[0].message().contains("nesting exceeds"), "{d:?}");
+    assert_eq!(d[0].item(), "step:a");
 }
 
 /// `m1` から `m<n>` まで 1 段ずつ呼ぶ連鎖のパック。`m<n>` は呼ばない。
@@ -322,6 +328,7 @@ fn nesting_of_eight_levels_expands_and_nine_is_rejected() {
 
     let d = diags(&chain(9));
     assert_eq!(codes(&d), [DiagCode::ModuleCycle]);
+    assert!(d[0].message().contains("nesting exceeds"), "{d:?}");
 }
 
 #[test]
@@ -644,4 +651,103 @@ fn neg_a_module_step_with_both_use_and_input_is_reported_once() {
     let s = d[0].to_string();
     assert!(s.contains("step:a"), "{s}");
     assert!(!s.contains("shortname"), "{s}");
+}
+
+/// `module.yaml` の末尾（`steps:` が最後の欄）へ、改行を補ってから Step を足す。
+fn append(t: &Tmp, path: &str, snippet: &str) {
+    let full = t.0.join(path);
+    let mut s = fs::read_to_string(&full).expect("read module");
+    s.push('\n');
+    s.push_str(snippet);
+    fs::write(&full, s).expect("write module");
+}
+
+fn cycles(d: &[Diagnostic]) -> Vec<&Diagnostic> {
+    d.iter()
+        .filter(|x| x.code() == DiagCode::ModuleCycle)
+        .collect()
+}
+
+const I2M: &str = "modules/issue-to-merge/module.yaml";
+const IDEA: &str = "modules/idea-cycle/module.yaml";
+const CALL_IDEA: &str = "  - id: st-x-loop\n    title: x\n    final: true\n    use:\n      module: idea-cycle\n      instance: loop\n";
+const CALL_I2M: &str = "  - id: st-x-loop\n    title: x\n    final: true\n    use:\n      module: issue-to-merge\n      instance: loop\n";
+
+#[test]
+fn the_correct_pack_has_no_module_cycle() {
+    // 正しいパックは巡回を 1 件も出さない（`compile_dir` が成功する）。
+    ir_of(&testdata(PACK));
+}
+
+#[test]
+fn neg_c1_mutual_call_is_a_module_cycle_with_its_path() {
+    let t = copy_pack();
+    append(&t, I2M, CALL_IDEA);
+    append(&t, IDEA, CALL_I2M);
+    let d = diags(&t);
+    let c = cycles(&d);
+    assert!(!c.is_empty(), "{d:?}");
+    for x in c {
+        assert!([I2M, IDEA].iter().any(|p| x.file().ends_with(p)), "{x:?}");
+        assert_eq!(x.item(), "step:st-x-loop");
+        let m = x.message();
+        assert!(
+            m.contains("issue-to-merge → idea-cycle → issue-to-merge")
+                || m.contains("idea-cycle → issue-to-merge → idea-cycle"),
+            "{m}"
+        );
+    }
+}
+
+#[test]
+fn neg_c2_self_call_is_a_module_cycle_at_the_calling_step() {
+    let t = copy_pack();
+    append(&t, I2M, "  - id: st-x-self\n    title: x\n    final: true\n    use:\n      module: issue-to-merge\n      instance: self\n");
+    let d = diags(&t);
+    let c = cycles(&d);
+    assert!(!c.is_empty(), "{d:?}");
+    for x in c {
+        assert!(x.file().ends_with(I2M), "{x:?}");
+        assert_eq!(x.item(), "step:st-x-self");
+        assert!(x.message().contains("issue-to-merge → issue-to-merge"));
+    }
+}
+
+#[test]
+fn neg_c3_cycle_through_a_relay_module_is_detected() {
+    let t = copy_pack();
+    t.put(
+        "modules/relay/module.yaml",
+        "id: relay\ntitle: x\nsteps:\n  - id: st-x-back\n    title: x\n    final: true\n    use:\n      module: idea-cycle\n      instance: back\n"
+            .as_bytes(),
+    );
+    append(&t, IDEA, CALL_I2M);
+    append(&t, I2M, "  - id: st-x-relay\n    title: x\n    final: true\n    use:\n      module: relay\n      instance: r\n");
+    let d = diags(&t);
+    assert!(!cycles(&d).is_empty(), "{d:?}");
+}
+
+#[test]
+fn neg_a_cycle_reached_from_two_instances_is_reported_once() {
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, use: {module: m, instance: r1}, next: [{to: v}]}\n",
+        "  - {id: v, title: V, final: true, use: {module: m, instance: r2}}\n",
+    );
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: a, title: A, final: true, use: {module: m, instance: i}}\n";
+    let t = mini(chapter, module);
+    let d = diags(&t);
+    assert_eq!(cycles(&d).len(), 1, "{d:?}");
+}
+
+#[test]
+fn neg_a_cycle_through_an_argument_derived_module_name_hides_the_name() {
+    let module = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: A, final: true, use: {module: \"${x}\", instance: j}}\n";
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {x: m}}"),
+        module,
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::ModuleCycle], "{d:?}");
+    assert_eq!(d[0].message(), "module call cycle");
 }
