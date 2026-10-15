@@ -1,0 +1,8 @@
+id: SAFE9-2
+package: fandhe-workshop-web
+test: doc_links
+target: crates/web/src/doc_view.rs
+find:             prefix.eq_ignore_ascii_case("http") || prefix.eq_ignore_ascii_case("https")
+replace:             true
+expect-fail: 許可外のリンクは文字として出る
+note: スキームの許可リストを外して常に許可にする（javascript: と data: が a になる）

@@ -8,9 +8,11 @@
 //!
 //! アクセシビリティの構造の契約（TASK-366）は `a11y` に、受講者の文字列を非解釈で描く関数（SAFE-11）は
 //! `learner_text` に置く。
+//! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
+pub mod doc_view;
 mod hello;
 
 pub mod input_limit;
