@@ -300,12 +300,12 @@ fn 設定は境界を通して部品から読め_入力欄なしでは候補を�
 fn 接頭辞は文字のノードとして出る() {
     let h = host(DisplaySettings {
         profile: OperationProfile {
-            command_prefix: CommandPrefix::new("<b>").unwrap(),
+            command_prefix: CommandPrefix::new("<&>").unwrap(),
             input_field: InputField::Shown,
         },
         ..Default::default()
     });
     let html = render_component_html(&h);
-    assert!(html.contains("&lt;b&gt;"), "{html}");
-    assert!(!html.contains("<b>"), "{html}");
+    assert!(html.contains("&lt;&amp;&gt;"), "{html}");
+    assert!(!html.contains("<&>"), "{html}");
 }
