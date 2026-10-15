@@ -356,6 +356,139 @@ printf 'fn a() { let v = field.value(); let w = "field".value(); }\n' >"${tree}/
 run_check "${tree}"
 expect "receiver inside a string literal is not an exception" 1 "${RC}"
 
+# 27. 字句の形ごとに、字句の中の `/*`・`//`・`"` が後続の本物の呼び出しを隠さない（Rust Reference の Tokens に沿う）
+# 検出は呼び出し元が分かるよう、字句の中に .value() を置かず、受け手 zed の呼び出しで確かめる。
+lex_n=0
+# lex_detect <label> <source>: 一時ファイルに <source> を書き、zed.value() が違反として報告されることを確かめる。
+lex_detect() {
+  lex_n=$((lex_n + 1))
+  tree="$(fresh_tree "lex-${lex_n}" 0)"
+  printf '%s\n' "$2" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  case "${OUT}" in
+    *"zed.value()"*) expect "lexical form does not hide a later call: $1" 1 "${RC}" ;;
+    *) expect "lexical form does not hide a later call: $1" 1 0 ;;
+  esac
+}
+Y=' /* // '
+lex_detect 'plain string' "fn a() { let s = \"${Y}\"; zed.value(); }"
+lex_detect 'byte string' "fn a() { let s = b\"${Y}\"; zed.value(); }"
+lex_detect 'C string' "fn a() { let s = c\"${Y}\"; zed.value(); }"
+lex_detect 'escaped quote and backslash' "fn a() { let s = \"${Y} \\\" \\\\\"; zed.value(); }"
+lex_detect 'escaped quote in byte string' "fn a() { let s = b\"${Y} \\\" \"; zed.value(); }"
+lex_detect 'escaped quote in C string' "fn a() { let s = c\"${Y} \\\" \"; zed.value(); }"
+lex_detect 'line continuation in string' "$(printf 'fn a() { let s = "x \\\n  /* "; zed.value(); }')"
+lex_detect 'raw string' "fn a() { let s = r\"${Y}\"; zed.value(); }"
+lex_detect 'raw string with one hash' "fn a() { let s = r#\"${Y} \" \"#; zed.value(); }"
+lex_detect 'raw string with two hashes' "fn a() { let s = r##\"${Y} \"# \"##; zed.value(); }"
+lex_detect 'raw byte string' "fn a() { let s = br\"${Y}\"; zed.value(); }"
+lex_detect 'raw byte string with hash' "fn a() { let s = br#\"${Y} \" \"#; zed.value(); }"
+lex_detect 'raw byte string with two hashes' "fn a() { let s = br##\"${Y} \"# \"##; zed.value(); }"
+lex_detect 'raw C string' "fn a() { let s = cr\"${Y}\"; zed.value(); }"
+lex_detect 'raw C string with hash' "fn a() { let s = cr#\"${Y} \" \"#; zed.value(); }"
+lex_detect 'raw C string with two hashes' "fn a() { let s = cr##\"${Y} \"# \"##; zed.value(); }"
+lex_detect 'raw C string (review example)' 'let s = cr#" " /* "#; zed.value();'
+lex_detect 'char slash' "fn a() { let c = '/'; let d = '/'; zed.value(); }"
+lex_detect 'char double quote' "fn a() { let c = '\"'; zed.value(); }"
+lex_detect 'char single quote escape' "fn a() { let c = '\\''; zed.value(); }"
+lex_detect 'char backslash escape' "fn a() { let c = '\\\\'; let s = \"/*\"; zed.value(); }"
+lex_detect 'char unicode escape' "fn a() { let c = '\\u{1F600}'; let s = \"/*\"; zed.value(); }"
+lex_detect 'char multibyte' "fn a() { let c = 'あ'; let s = \"/*\"; zed.value(); }"
+lex_detect 'byte char' "fn a() { let c = b'/'; let s = \"/*\"; zed.value(); }"
+lex_detect 'byte double quote' "fn a() { let c = b'\"'; zed.value(); }"
+lex_detect 'byte single quote escape' "fn a() { let c = b'\\''; let s = \"/*\"; zed.value(); }"
+lex_detect 'lifetime then string' "fn a<'a>(x: &'a str) { let s = \"/*\"; zed.value(); }"
+lex_detect 'static lifetime then string' "fn a(x: &'static str) { let s = \"//\"; zed.value(); }"
+lex_detect 'label then string' "fn a() { 'outer: loop { let s = \"/*\"; break 'outer; } zed.value(); }"
+lex_detect 'char literal that looks like a lifetime' "fn a() { let c = 'a'; let s = \"/*\"; zed.value(); }"
+lex_detect 'doc comment with a quote' "$(printf '/// say "hi\nfn a() { zed.value(); }')"
+lex_detect 'inner doc comment with a block opener' "$(printf '//! /* open\nfn a() { zed.value(); }')"
+lex_detect 'outer block doc comment with a quote' '/** " */ fn a() { zed.value(); }'
+lex_detect 'inner block doc comment with a quote' "/*! ' */ fn a() { zed.value(); }"
+lex_detect 'empty block comment' 'fn a() { /**/ zed.value(); }'
+lex_detect 'nested block comment' 'fn a() { /* /* " */ " */ zed.value(); }'
+lex_detect 'raw identifier then string' "fn a() { let r#type = \"/*\"; zed.value(); }"
+lex_detect 'r b c as plain names' "fn a() { foo(r, b, c); let s = \"/*\"; zed.value(); }"
+lex_detect 'names ending in r b c before a space' "fn a() { let abc = \"/*\"; let bar = \"//\"; let cr = 1; zed.value(); }"
+lex_detect 'r as a name before a paren' "fn a() { let s = f(r) + \"/*\".len(); zed.value(); }"
+lex_detect 'number suffix then string' "fn a() { let s = 1u8; let t = \"/*\"; zed.value(); }"
+
+# 27b. 字句の中の field.value() は例外の件数を水増しせず（件数 1 のまま）、字句の外の本物の呼び出しは数える
+X=' /* // field.value() '
+lex_n=0
+for lit in "\"${X}\"" "b\"${X}\"" "c\"${X}\"" "r\"${X}\"" "r#\"${X} \" \"#" "r##\"${X} \"# \"##" "br\"${X}\"" \
+  "br#\"${X} \" \"#" "cr\"${X}\"" "cr#\"${X} \" \"#" "cr##\"${X} \"# \"##" "\"${X} \\\" \\\\\"" "c\"${X} \\\" \""; do
+  lex_n=$((lex_n + 1))
+  tree="$(fresh_tree "lexcnt-${lex_n}" 1)"
+  printf 'fn a() { let n = %s; let v = field.value(); }\n' "${lit}" >"${tree}/crates/web/src/glue.rs"
+  run_check "${tree}"
+  case "${OUT}" in
+    *"= 1 (allowed 1)"*) expect "literal does not inflate the exception count: ${lit}" 0 0 ;;
+    *) expect "literal does not inflate the exception count: ${lit}" 0 1 ;;
+  esac
+done
+
+# 27c. コメントだけの呼び出しは数えない（入れ子・doc コメント）
+tree="$(fresh_tree lex-comments-only 0)"
+cat >"${tree}/crates/web/src/hello.rs" <<'EOF'
+/// doc el.value()
+//! inner doc el.value()
+/** outer block doc el.value() */
+/*! inner block doc el.value() */
+fn a() { /* /* el.value() */ el.value() */ let s = 'a'; }
+EOF
+run_check "${tree}"
+expect "calls only inside comments are ignored" 0 "${RC}"
+
+# 28. 字句を判定できない入力は、成功にも通常の違反にもせず検査の失敗（終了コード 2）にする（fail-closed）
+lex_bad() {
+  lex_n=$((lex_n + 1))
+  tree="$(fresh_tree "lexbad-${lex_n}" 0)"
+  printf '%s\n' "$2" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  expect "undecidable source fails closed: $1" 2 "${RC}"
+}
+lex_bad 'unterminated string' 'fn a() { let s = "abc; }'
+lex_bad 'unterminated byte string' 'fn a() { let s = b"abc; }'
+lex_bad 'unterminated C string' 'fn a() { let s = c"abc; }'
+lex_bad 'string ending with an escape' "fn a() { let s = \"abc\\"
+lex_bad 'unterminated block comment' 'fn a() { /* open'
+lex_bad 'unterminated nested block comment' 'fn a() { /* /* inner */ still open'
+lex_bad 'unterminated doc block comment' '/** open'
+lex_bad 'slash star slash is not closed' 'fn a() { /*/ }'
+lex_bad 'unterminated raw string' 'fn a() { let s = r#"abc"; }'
+lex_bad 'raw string closed with too few hashes' 'fn a() { let s = r##"abc"#; }'
+lex_bad 'unterminated raw byte string' 'fn a() { let s = br#"abc"; }'
+lex_bad 'unterminated raw C string' 'fn a() { let s = cr"abc; }'
+lex_bad 'raw prefix without a quote' 'fn a() { let s = r#; }'
+lex_bad 'raw byte prefix without a quote' 'fn a() { let s = br#x; }'
+lex_bad 'raw identifier with two hashes' 'fn a() { let s = r##x; }'
+lex_bad 'unknown prefix foo' 'fn a() { let s = foo"x"; }'
+lex_bad 'unknown prefix bar' 'fn a() { let s = bar"x"; }'
+lex_bad 'unknown prefix abc' 'fn a() { let s = abc"x"; }'
+lex_bad 'unknown prefix rb' 'fn a() { let s = rb"x"; }'
+lex_bad 'unterminated char' "fn a() { let c = '"
+lex_bad 'unterminated escaped char' "fn a() { let c = '\\u{1F600; }"
+lex_bad 'empty char' "fn a() { let c = ''; }"
+lex_bad 'multi-character byte literal' "fn a() { let c = b'ab'; }"
+lex_bad 'quote followed by a digit' "fn a() { let c = '1x; }"
+lex_bad 'quote followed by a space' "fn a() { let c = ' x; }"
+# 判定できないファイルが 1 つでもあれば、例外の件数が合っていても成功にしない
+tree="$(fresh_tree lexbad-other-file 1)"
+printf 'fn a() { let v = field.value(); }\n' >"${tree}/crates/web/src/glue.rs"
+printf 'fn h() { let s = "open; }\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "undecidable file next to a satisfied exception fails closed" 2 "${RC}"
+tree="$(fresh_tree lexbad-glue 1)"
+printf 'fn a() { let v = field.value(); /* open\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "undecidable glue.rs fails closed" 2 "${RC}"
+if grep -q 'cannot lex Rust source' "${TMP_DIR}/stderr.txt" && grep -q 'glue.rs:1' "${TMP_DIR}/stderr.txt"; then
+  expect "undecidable source is reported with file and line" 0 0
+else
+  expect "undecidable source is reported with file and line" 0 1
+fi
+
 echo "# passed: ${passed}, failed: ${failed}"
 if [ "${failed}" -ne 0 ]; then
   exit 1
