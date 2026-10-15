@@ -1,0 +1,107 @@
+# 判定の分類の試験用の章（架空）。開始点を場面ごとに置く。
+id: "ch-judge"
+title: "判定の分類を確かめる"
+starts:
+  - {id: "s-clarify", node: "st-clarify"}
+  - {id: "s-two-args", node: "st-two-args"}
+  - {id: "s-one-arg", node: "st-one-arg"}
+  - {id: "s-text", node: "st-text"}
+  - {id: "s-choice", node: "st-choice"}
+  - {id: "s-approval", node: "st-approval"}
+steps:
+  - id: "st-clarify"
+    title: "名前を省いて送る"
+    body: "st-clarify.md"
+    next: [{to: "st-two-args"}]
+    input:
+      kind: "command"
+      name: "make-idea"
+      args:
+        - {name: "name", positional: true, required: false, shape: "kebab_case"}
+    rules:
+      - id: "r-ask-name"
+        on: {command: "make-idea", missing: ["name"]}
+        outcome: {kind: "clarify", clarification: "cl-idea-name"}
+      - id: "r-make"
+        on: {command: "make-idea"}
+        outcome: {kind: "accept", effects: [{set_flag: "idea-made"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "st-two-args"
+    title: "引数を 2 つ取るコマンド"
+    body: "st-two-args.md"
+    next: [{to: "st-one-arg"}]
+    input:
+      kind: "command"
+      name: "start-run"
+      args:
+        - {name: "run", positional: true, required: true, shape: "digits"}
+        - {name: "mode", positional: true, required: true, shape: "kebab_case"}
+    on_reject:
+      missing_arg: "rj-run-missing-mode"
+    rules:
+      - id: "r-start"
+        on: {command: "start-run"}
+        outcome: {kind: "accept", effects: [{set_flag: "run-started"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "st-one-arg"
+    title: "引数を 1 つ取るコマンド"
+    body: "st-one-arg.md"
+    next: [{to: "st-text"}]
+    input:
+      kind: "command"
+      name: "start-run"
+      args:
+        - {name: "run", positional: true, required: true, shape: "digits"}
+    rules:
+      - id: "r-start-one"
+        on: {command: "start-run"}
+        outcome: {kind: "accept", effects: [{set_flag: "run-started-one"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "st-text"
+    title: "自分の言葉で書く"
+    body: "st-text.md"
+    next: [{to: "st-choice"}]
+    input: {kind: "text", min: 1, max: 2000}
+    rules:
+      - id: "r-text"
+        on: {text: true}
+        outcome: {kind: "accept", effects: [{set_flag: "text-written"}]}
+    confirm:
+      kind: "none"
+      reason: "書いた内容は判定せず、送ったことだけで先へ進むため、別の確認を置かない。"
+  - id: "st-choice"
+    title: "種類を選ぶ"
+    body: "st-choice.md"
+    next: [{to: "st-approval"}]
+    input:
+      kind: "choice"
+      options:
+        - {id: "opt-a", label: "種類 A"}
+        - {id: "opt-b", label: "種類 B"}
+    rules:
+      - id: "r-a"
+        on: {option: "opt-a"}
+        outcome: {kind: "accept", effects: [{set_flag: "chose-a"}]}
+      - id: "r-b"
+        on: {option: "opt-b"}
+        outcome: {kind: "accept", effects: [{set_flag: "chose-b"}]}
+    confirm:
+      kind: "none"
+      reason: "選ぶことそのものが意思表示のため、別の確認を置かない。"
+  - id: "st-approval"
+    title: "承認する"
+    body: "st-approval.md"
+    final: true
+    input: {kind: "approval"}
+    rules:
+      - id: "r-approve"
+        on: {approval: "approve"}
+        outcome: {kind: "accept", effects: [{set_flag: "approved"}]}
+    confirm:
+      kind: "approve"
