@@ -511,14 +511,21 @@ fn pack12_dynamic_detects_after_expansion() {
     let tally = tally_empty_next_actions(&ir_of(&ok.0));
     assert_eq!((tally.checked, tally.empty), (1, 0));
 
-    // 引数が空だと、置換の後の `do` が空になる。置換前の `do` は空でないので静的検査は通り、動的な数え上げが捕まえる。
+    // 引数が空だと、置換の後の `do` が空になる。置換前の `do` は空でないので展開の前の検査は通るが、
+    // 展開の後の検査が `E-SLOT-NEEDS-DO` にする（モジュールを定義したファイルの Step）。
     let t = module_pack("''");
-    assert!(
-        validate_dir(&t.0).iter().all(|d| !is_slot_diag(d)),
-        "{:?}",
-        validate_dir(&t.0)
+    both_only(
+        &t,
+        DiagCode::SlotNeedsDo,
+        "modules/m1/module.yaml",
+        "step:m-a",
     );
-    let ir = ir_of(&t.0);
+
+    // 動的な数え上げは、`do` が無くなった展開後の node を空として数える。
+    let mut ir = ir_of(&ok.0);
+    for node in ir.nodes.iter_mut().filter(|n| n.uid == "m1@i1/m-a") {
+        node.step.do_ = None;
+    }
     let tally = tally_empty_next_actions(&ir);
     assert_eq!((tally.checked, tally.empty), (1, 1), "{tally:?}");
     assert_eq!(tally.findings[0].0, "m1@i1/m-a");
@@ -529,6 +536,82 @@ fn pack12_dynamic_detects_after_expansion() {
         WORKSHOP_FILE,
         "rejection:rj-wo",
     );
+}
+
+#[test]
+fn pack16_needs_do_after_argument_substitution() {
+    // モジュールの Step が `on_reject` を引数で受ける。置換の前は文面の ID が読めず、`do` も無いので展開の前の検査は
+    // 飛ばすが、引数に `step_do` を使う文面を渡すと置換の後の Step が `do` を欠く。
+    let t = Tmp::new("slots-arg");
+    t.put("workshop.yaml", MODULE_WORKSHOP.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        MODULE_CHAPTER.replace("what: ARG", "rj: rj-wo").as_bytes(),
+    );
+    t.put("chapters/c1/a.md", b"# a\n");
+    t.put(
+        "modules/m1/module.yaml",
+        MODULE_MODULE
+            .replace("params: {what: x}", "params: {rj: x}")
+            .replace(
+                "        do: '${what}'\n",
+                "        on_reject: {wrong_order: '${rj}'}\n",
+            )
+            .as_bytes(),
+    );
+    t.put("modules/m1/a.md", b"# a\n");
+    both_only(
+        &t,
+        DiagCode::SlotNeedsDo,
+        "modules/m1/module.yaml",
+        "step:m-a",
+    );
+}
+
+#[test]
+fn pack16_needs_do_for_start_unmet() {
+    // 開始点の `unmet` が `step_do` を使う文面を指し、開始先の Step に `do` が無い（入力が無いので既定の文面は出ない）。
+    let t = Tmp::new("slots-start");
+    t.put("workshop.yaml", MODULE_WORKSHOP.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a, unmet: rj-wo}]\nsteps:\n    - {id: a, title: A, body: a.md, next: [{to: b}]}\n    - {id: b, title: B, final: true}\n",
+    );
+    t.put("chapters/c1/a.md", b"# a\n");
+    both_only(&t, DiagCode::SlotNeedsDo, CHAPTER_FILE, "step:a");
+}
+
+#[test]
+fn pack12_dynamic_counts_unrenderable_text_as_empty() {
+    // 描画できない組（次の行動の欄が無い・文字列でない・文面が IR に無い）は、飛ばさず空として数える（fail-closed）。
+    let ok = module_pack("'go'");
+    for edit in ["missing", "non-string", "absent"] {
+        let mut ir = ir_of(&ok.0);
+        match edit {
+            "missing" => {
+                ir.rejections
+                    .get_mut("rj-wo")
+                    .and_then(Value::as_object_mut)
+                    .expect("rejection")
+                    .remove("next_action");
+            }
+            "non-string" => {
+                ir.rejections
+                    .get_mut("rj-wo")
+                    .and_then(Value::as_object_mut)
+                    .expect("rejection")
+                    .insert("next_action".to_string(), Value::from(1));
+            }
+            _ => {
+                ir.rejections.remove("rj-wo");
+            }
+        }
+        let tally = tally_empty_next_actions(&ir);
+        assert_eq!((tally.checked, tally.empty), (1, 1), "{edit}: {tally:?}");
+        let d = empty_next_action_diagnostics(&ir, WORKSHOP_FILE);
+        assert_eq!(d.len(), 1, "{edit}: {d:?}");
+        assert_eq!(d[0].code(), DiagCode::EmptyNextAction, "{edit}");
+    }
 }
 
 /// 誤入力の `start`・`cmd`・`text` を引く。

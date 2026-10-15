@@ -71,6 +71,9 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(crate::slot_check::check_texts(pack));
     out.extend(check_reachability(pack));
     out.extend(check_module_expansion(pack));
+    // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO` は、同じ内容のものを 1 件にする。
+    let mut seen = BTreeSet::new();
+    out.retain(|d| d.code() != DiagCode::SlotNeedsDo || seen.insert(format!("{d:?}")));
     out
 }
 
@@ -86,13 +89,33 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         ex.expand_chapter(scope);
     }
+    // 展開の後の Step と開始点で `step_do` を使う文面に `do` があるか（`E-SLOT-NEEDS-DO`）。
+    let mut starts: Vec<fandhe_workshop_contract::ir::Start> = Vec::new();
+    let mut start_ids: BTreeSet<String> = BTreeSet::new();
+    for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
+        for st in &scope.src.starts {
+            if start_ids.insert(st.id.clone()) {
+                let mut s = st.clone();
+                s.node = format!("main/{}", st.node);
+                starts.push(s);
+            }
+        }
+    }
+    let module_diags = std::mem::take(&mut ex.diags);
+    starts.extend(ex.module_starts(&mut start_ids));
+    ex.diags.splice(0..0, module_diags);
+    let needs_do = crate::slot_check::check_expanded(pack, &ex.nodes, &starts);
+    ex.diags.extend(needs_do);
     let mut seen = BTreeSet::new();
     ex.diags
         .into_iter()
         .filter(|d| {
             matches!(
                 d.code(),
-                DiagCode::ModuleCycle | DiagCode::NoConfirm | DiagCode::Limit
+                DiagCode::ModuleCycle
+                    | DiagCode::NoConfirm
+                    | DiagCode::Limit
+                    | DiagCode::SlotNeedsDo
             )
         })
         .filter(|d| seen.insert(format!("{d:?}")))

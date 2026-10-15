@@ -21,7 +21,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use fandhe_workshop_contract::ir::{Ir, Step};
+use fandhe_workshop_contract::ir::{Ir, Node, Start, Step};
 use fandhe_workshop_contract::judgment::Category;
 use fandhe_workshop_contract::slot::{
     parse_slots, substitute, SlotName, SlotValues, SubstituteError,
@@ -289,8 +289,8 @@ pub(crate) fn texts_at_step(step: &Step, defaults: &BTreeMap<String, String>) ->
     found
 }
 
-/// `E-SLOT-NEEDS-DO`: `step_do` を使う文面が出うるのに `do` の無い Step を、定義したファイルで報告する。
-fn check_needs_do(pack: &LoadedPack) -> Vec<Diagnostic> {
+/// `step_do` を使う文面（構文が正しいもの）の集合。
+fn step_do_users(pack: &LoadedPack) -> BTreeSet<TextRef> {
     let w = &pack.workshop;
     let mut users: BTreeSet<TextRef> = BTreeSet::new();
     for (kind, table) in [
@@ -306,6 +306,14 @@ fn check_needs_do(pack: &LoadedPack) -> Vec<Diagnostic> {
             }
         }
     }
+    users
+}
+
+/// `E-SLOT-NEEDS-DO`: `step_do` を使う文面が出うるのに `do` の無い Step を、定義したファイルで報告する。
+/// 展開の前の Step を見る。モジュールの引数を置換した後の Step は [`check_expanded`] が見る。
+fn check_needs_do(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let w = &pack.workshop;
+    let users = step_do_users(pack);
     let mut out = Vec::new();
     if users.is_empty() {
         return out;
@@ -322,6 +330,71 @@ fn check_needs_do(pack: &LoadedPack) -> Vec<Diagnostic> {
             {
                 out.push(needs_do_diag(scope, &step.id));
             }
+        }
+    }
+    out
+}
+
+/// 展開の後の node と開始点から、出うる（node, 文面）の組を決定的な順で重複なく返す。
+/// node ごとの [`texts_at_step`] に加え、開始点（章と展開後のモジュール）の `unmet` の文面を、開始先の node との組にする。
+fn text_sites<'a>(
+    nodes: &'a [Node],
+    starts: &[Start],
+    defaults: &BTreeMap<String, String>,
+) -> Vec<(&'a Node, TextRef)> {
+    let mut out: Vec<(&Node, TextRef)> = Vec::new();
+    for node in nodes {
+        for text in texts_at_step(&node.step, defaults) {
+            out.push((node, text));
+        }
+    }
+    for start in starts {
+        let Some(id) = start.unmet.as_ref().and_then(Value::as_str) else {
+            continue;
+        };
+        let Some(node) = nodes.iter().find(|n| n.uid == start.node) else {
+            continue;
+        };
+        let text = TextRef {
+            kind: TextKind::Rejection,
+            id: id.to_string(),
+        };
+        if !out.iter().any(|(n, t)| n.uid == node.uid && *t == text) {
+            out.push((node, text));
+        }
+    }
+    out
+}
+
+/// 展開の後（モジュールの引数の置換の後）の node と開始点を見る `E-SLOT-NEEDS-DO`。
+/// 引数で `step_do` を使う文面の ID を渡した場合や、`do` に空の引数が入った場合を捕まえる。
+/// 診断は、Step を定義した章・モジュールの定義ファイルに付ける。
+pub(crate) fn check_expanded(
+    pack: &LoadedPack,
+    nodes: &[Node],
+    starts: &[Start],
+) -> Vec<Diagnostic> {
+    let users = step_do_users(pack);
+    let mut out = Vec::new();
+    if users.is_empty() {
+        return out;
+    }
+    let mut seen = BTreeSet::new();
+    for (node, text) in text_sites(nodes, starts, &pack.workshop.defaults) {
+        if !users.contains(&text) || has_do(&node.step) {
+            continue;
+        }
+        let d = match pack.scopes.iter().find(|s| s.src.id == node.unit) {
+            Some(scope) => needs_do_diag(scope, &node.step.id),
+            None => diag(
+                pack.workshop_file.as_str(),
+                &format!("step:{}", node.step.id),
+                DiagCode::SlotNeedsDo,
+                "step_do is used by a text of this step but the step has no do",
+            ),
+        };
+        if seen.insert(format!("{d:?}")) {
+            out.push(d);
         }
     }
     out
@@ -380,27 +453,25 @@ pub struct NextActionTally {
 ///
 /// 最悪の場合の値: `input_head`・`nearest_command` は値なし、`step_title`・`step_do` は node の値
 /// （`do` が無ければ値なし）、`remaining`・`total` は拒否の分類が `busy` のときだけ値あり。モジュールの引数の
-/// 展開の後で `do` が空になる場合も、展開後の node を見るのでここで捕まる。構文の誤り・未知の名前で差し込めない
-/// 文面も空として数える（fail-closed）。
+/// 展開の後で `do` が空になる場合も、展開後の node を見るのでここで捕まる。開始点（`starts[].unmet`）の文面は、
+/// 開始先の node との組で数える。文面が IR に無い・次の行動の欄が無い・文字列でない・構文の誤りや未知の名前で
+/// 差し込めない組も、飛ばさず空として数える（fail-closed）。
 pub fn tally_empty_next_actions(ir: &Ir) -> NextActionTally {
     let mut tally = NextActionTally::default();
-    for node in &ir.nodes {
-        for text in texts_at_step(&node.step, &ir.defaults) {
-            let counted = text.kind == TextKind::Rejection
-                && ir
-                    .rejections
-                    .get(&text.id)
-                    .and_then(|v| v.get("category"))
-                    .and_then(Value::as_str)
-                    == Some(Category::Busy.as_str());
-            let values = worst_case(&node.step.title, node.step.do_.as_deref(), counted);
-            let Some(result) = render(ir, &text, &values) else {
-                continue;
-            };
-            tally.checked += 1;
-            if !matches!(&result, Ok(s) if !s.trim().is_empty()) {
-                tally.findings.push((node.uid.clone(), text));
-            }
+    for (node, text) in text_sites(&ir.nodes, &ir.starts, &ir.defaults) {
+        let counted = text.kind == TextKind::Rejection
+            && ir
+                .rejections
+                .get(&text.id)
+                .and_then(|v| v.get("category"))
+                .and_then(Value::as_str)
+                == Some(Category::Busy.as_str());
+        let values = worst_case(&node.step.title, node.step.do_.as_deref(), counted);
+        // 描画できない組（文面が IR に無い・次の行動の欄が無い・文字列でない・差し込めない）も空として数える。
+        let result = render(ir, &text, &values);
+        tally.checked += 1;
+        if !matches!(&result, Some(Ok(s)) if !s.trim().is_empty()) {
+            tally.findings.push((node.uid.clone(), text));
         }
     }
     tally.empty = tally.findings.len();
@@ -418,7 +489,11 @@ pub fn empty_next_action_diagnostics(ir: &Ir, file: &str) -> Vec<Diagnostic> {
                 file,
                 &item_of(text.kind, &text.id),
                 DiagCode::EmptyNextAction,
-                format!("{}: {} is empty", text.kind.noun(), text.kind.next_field()),
+                format!(
+                    "{}: {} is empty or cannot be rendered",
+                    text.kind.noun(),
+                    text.kind.next_field()
+                ),
             ));
         }
     }
