@@ -369,7 +369,12 @@ impl<'a> Expander<'a> {
                 unit: scope.src.id.clone(),
                 step: s,
                 enter: None,
-                exit_to: exit_to.map(str::to_string),
+                // 戻り先は実体の終端（`final`）の Step だけに持たせる。途中の Step の達成では実体を出ない。
+                exit_to: if step.is_final {
+                    exit_to.map(str::to_string)
+                } else {
+                    None
+                },
                 body_doc,
                 body_levels_doc,
             });
@@ -381,6 +386,7 @@ impl<'a> Expander<'a> {
                     item: &item,
                     node_idx: idx,
                     depth,
+                    redact: args.is_some(),
                 };
                 self.expand_use(&site, &u);
             }
@@ -455,21 +461,21 @@ impl<'a> Expander<'a> {
             return;
         }
         let Some(module) = self.modules.get(u.module.as_str()).copied() else {
-            self.diags.push(diag(
-                file,
-                item,
-                DiagCode::RefModule,
-                format!("module is undefined: {}", u.module),
-            ));
+            let msg = if site.redact {
+                "module is undefined".to_string()
+            } else {
+                format!("module is undefined: {}", u.module)
+            };
+            self.diags.push(diag(file, item, DiagCode::RefModule, msg));
             return;
         };
         let Some(first) = module.src.steps.first() else {
-            self.diags.push(diag(
-                file,
-                item,
-                DiagCode::Structure,
-                format!("module has no step: {}", u.module),
-            ));
+            let msg = if site.redact {
+                "module has no step".to_string()
+            } else {
+                format!("module has no step: {}", u.module)
+            };
+            self.diags.push(diag(file, item, DiagCode::Structure, msg));
             return;
         };
         let child = if site.inst == "main" {
@@ -478,12 +484,12 @@ impl<'a> Expander<'a> {
             format!("{}/{}@{}", site.inst, u.module, u.instance)
         };
         if !self.inst_ids.insert(child.clone()) {
-            self.diags.push(diag(
-                file,
-                item,
-                DiagCode::DupId,
-                format!("duplicate module instance: {}@{}", u.module, u.instance),
-            ));
+            let msg = if site.redact {
+                "duplicate module instance".to_string()
+            } else {
+                format!("duplicate module instance: {}@{}", u.module, u.instance)
+            };
+            self.diags.push(diag(file, item, DiagCode::DupId, msg));
             return;
         }
         // params に無い名前の引数は、綴り違いを黙って既定値に倒さないよう拒否する（PACK-19）。
@@ -603,6 +609,9 @@ struct UseSite<'s> {
     item: &'s str,
     node_idx: usize,
     depth: usize,
+    /// 引数を置換した後の `use` か（モジュールの中の呼び出し）。置換後のモジュール名・実体名は引数の値を
+    /// 含みうるため、真のときは診断に名前を入れない。
+    redact: bool,
 }
 
 #[cfg(test)]

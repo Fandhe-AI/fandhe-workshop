@@ -80,11 +80,15 @@ fn two_instances_become_distinct_nodes() {
     assert!(rules(node(&ir, "issue-to-merge@round1/st-6-1")).contains("issues/child-1\""));
     assert!(rules(node(&ir, "issue-to-merge@round2/st-6-1")).contains("issues/child-9\""));
 
-    // `use` の node の enter と、実体の node の exit_to が呼び出し元を結ぶ。
+    // `use` の node の enter と、実体の終端の node の exit_to が呼び出し元を結ぶ。途中の node は戻り先を持たない。
     let call = node(&ir, "main/r1-impl");
     assert_eq!(call.enter.as_deref(), Some("issue-to-merge@round1/st-3-2"));
-    assert_eq!(r1.exit_to.as_deref(), Some("main/r1-impl"));
-    assert_eq!(r2.exit_to.as_deref(), Some("main/r2-impl"));
+    assert_eq!(r1.exit_to, None);
+    assert_eq!(r2.exit_to, None);
+    let end1 = node(&ir, "issue-to-merge@round1/st-7-4");
+    let end2 = node(&ir, "issue-to-merge@round2/st-7-4");
+    assert_eq!(end1.exit_to.as_deref(), Some("main/r1-impl"));
+    assert_eq!(end2.exit_to.as_deref(), Some("main/r2-impl"));
     let inst = ir
         .instances
         .iter()
@@ -435,6 +439,54 @@ fn neg_post_expansion_diagnostics_do_not_carry_the_argument_value() {
         );
         let d = diags(&t);
         assert_eq!(codes(&d), [code]);
+        let s = d[0].to_string();
+        assert!(s.contains(needle), "{s}");
+        assert!(!s.contains("shortname"), "{s}");
+    }
+}
+
+#[test]
+fn exit_to_is_set_only_on_the_final_step_of_an_instance() {
+    // a → b（b が final）のモジュールでは、b だけが呼び出し元へ戻る。
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: a, title: A, next: [{to: b}]}\n  - {id: b, title: B, final: true}\n";
+    let t = mini(&chapter_using("{module: m, instance: i}"), module);
+    let ir = ir_of(&t.0);
+    assert_eq!(node(&ir, "m@i/a").exit_to, None);
+    assert_eq!(node(&ir, "m@i/b").exit_to.as_deref(), Some("main/u"));
+}
+
+#[test]
+fn neg_substituted_use_diagnostics_do_not_carry_the_argument_value() {
+    // モジュールの中の `use` も引数で置換される。置換後のモジュール名・実体名を診断に写さない。
+    let undefined = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: A, final: true, use: {module: \"${x}\", instance: i}}\n";
+    let empty = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: A, final: true, use: {module: \"e${x}\", instance: i}}\n";
+    let dup = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: A, use: {module: e, instance: \"${x}\"}, next: [{to: b}]}\n  - {id: b, title: B, final: true, use: {module: e, instance: \"${x}\"}}\n";
+    let target = "id: e\ntitle: E\nsteps:\n  - {id: z, title: Z, final: true}\n";
+    let empty_target = "id: eshortname\ntitle: E\nsteps: []\n";
+    for (module, extra, code, needle) in [
+        (undefined, None, DiagCode::RefModule, "module is undefined"),
+        (
+            empty,
+            Some(("modules/eshortname/module.yaml", empty_target)),
+            DiagCode::Structure,
+            "module has no step",
+        ),
+        (
+            dup,
+            Some(("modules/e/module.yaml", target)),
+            DiagCode::DupId,
+            "duplicate module instance",
+        ),
+    ] {
+        let t = mini(
+            &chapter_using("{module: m, instance: i, args: {x: shortname}}"),
+            module,
+        );
+        if let Some((path, body)) = extra {
+            t.put(path, body.as_bytes());
+        }
+        let d = diags(&t);
+        assert_eq!(codes(&d), [code], "{d:?}");
         let s = d[0].to_string();
         assert!(s.contains(needle), "{s}");
         assert!(!s.contains("shortname"), "{s}");
