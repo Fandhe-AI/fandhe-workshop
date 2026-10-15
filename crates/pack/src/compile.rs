@@ -24,7 +24,7 @@ use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::effect_check::check_effects;
+use crate::effect_check::{check_effects, check_processing};
 use crate::input;
 use crate::markdown;
 use crate::source::{self, LoadedPack, ScopeKind};
@@ -101,6 +101,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 for (code, msg) in check_effects(list, field, &w.fixtures) {
                     diags.push(diag(&scope.file, &item, code, msg));
                 }
+            }
+            for (code, msg) in check_processing(&step.processing, &w.fixtures) {
+                diags.push(diag(&scope.file, &item, code, msg));
             }
             let mut s = step.clone();
             for t in &mut s.next {

@@ -7,7 +7,7 @@
 //! 入力・イベント・Step の状態の型（[`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]、TASK-204 1/3）と、
 //! 実行環境 [`Session`]・遷移関数 [`apply`]・導出 [`Projection`]（[`session`]・[`projection`]、TASK-204 2/3）も持つ。
 //! 履歴の 4 軸の版の記録と欠落の検査（[`version_record`]、TASK-173 2/2）も持つ。
-//! 状態変化の語彙（要素・属性・フラグ）の 1 語ごとの適用（[`effect`]、TASK-43 1/2）も持つ。
+//! 状態変化の語彙（要素・属性・フラグ）の 1 語ごとの適用と、`when` つきの列・進行の順次適用（[`effect`]、TASK-43）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 

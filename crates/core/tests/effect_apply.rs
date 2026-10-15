@@ -202,3 +202,166 @@ fn pack9_apply_is_deterministic() {
     assert_eq!(r1, r2);
     assert_eq!(e1, e2);
 }
+
+// ---- when つきの列と進行（TASK-43 2/2） ----
+
+use fandhe_workshop_contract::effect::{EffectItem, ProcessingTick};
+use fandhe_workshop_core::effect::{apply_effects, apply_tick, ConditionEval, NoConditions};
+use serde_json::{json, Value};
+
+/// 試験専用の評価器。`{"flag": 名前}` を `main` の切り身で見るだけで、製品の条件の語彙ではない。
+struct FlagStub;
+impl ConditionEval for FlagStub {
+    fn eval(&self, when: &Value, run: &RunState, root: &Root) -> Option<bool> {
+        let name = when.get("flag")?.as_str()?;
+        Some(run.slices.get(root).is_some_and(|s| s.flags.contains(name)))
+    }
+}
+
+struct Fixed(Option<bool>);
+impl ConditionEval for Fixed {
+    fn eval(&self, _: &Value, _: &RunState, _: &Root) -> Option<bool> {
+        self.0
+    }
+}
+
+fn items(v: Value) -> Vec<EffectItem> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| EffectItem::from_value(x).unwrap())
+        .collect()
+}
+
+fn effects(run: &mut RunState, v: Value, cond: &dyn ConditionEval) -> Vec<Event> {
+    let root = Root("main".into());
+    apply_effects(run, &root, &items(v), &stamp(), Cause::Input, cond)
+}
+
+#[test]
+fn pack9_when_false_skips_without_change_or_event() {
+    let mut run = RunState::default();
+    let ev = effects(
+        &mut run,
+        json!([{"put": {"path": "a"}, "when": {"x": 1}}]),
+        &Fixed(Some(false)),
+    );
+    assert!(ev.is_empty());
+    assert_eq!(run, RunState::default());
+}
+
+#[test]
+fn pack9_when_true_and_absent_apply() {
+    let mut run = RunState::default();
+    let ev = effects(
+        &mut run,
+        json!([{"put": {"path": "a"}, "when": {"x": 1}}, {"put": {"path": "b"}}]),
+        &Fixed(Some(true)),
+    );
+    assert_eq!(ev.len(), 2);
+    assert!(run.world.contains_key("a") && run.world.contains_key("b"));
+}
+
+#[test]
+fn pack9_when_unevaluable_skips_with_one_warning() {
+    let mut run = RunState::default();
+    let ev = effects(
+        &mut run,
+        json!([{"put": {"path": "a"}, "when": {"SECRET-VALUE": 1}}]),
+        &Fixed(None),
+    );
+    assert!(run.world.is_empty());
+    match &ev[..] {
+        [Event::Warning { message, .. }] => assert!(!message.contains("SECRET-VALUE")),
+        e => panic!("{e:?}"),
+    }
+    // 既定の評価器では when つきの項目は適用されない。
+    let mut run = RunState::default();
+    let ev = effects(
+        &mut run,
+        json!([{"set_flag": "f", "when": {"flag": "g"}}]),
+        &NoConditions,
+    );
+    assert!(run.slices.is_empty());
+    assert!(matches!(&ev[..], [Event::Warning { .. }]));
+}
+
+#[test]
+fn pack9_when_sees_earlier_items_of_the_same_list() {
+    let mut run = RunState::default();
+    let ev = effects(
+        &mut run,
+        json!([
+            {"put": {"path": "no"}, "when": {"flag": "f"}},
+            {"set_flag": "f"},
+            {"put": {"path": "yes"}, "when": {"flag": "f"}}
+        ]),
+        &FlagStub,
+    );
+    assert!(!run.world.contains_key("no"));
+    assert!(run.world.contains_key("yes"));
+    assert_eq!(ev.len(), 2);
+}
+
+#[test]
+fn pack9_tick_emits_progress_then_effects_and_keeps_busy() {
+    let tick = ProcessingTick::from_value(&json!({"name": "scan", "effects": [
+        {"put": {"path": "a"}}, {"set_flag": "f"}
+    ]}))
+    .unwrap();
+    let mut run = RunState::default();
+    let root = Root("main".into());
+    let cond = NoConditions;
+    let ev = apply_tick(&mut run, &root, &tick, 0, 2, &stamp(), Cause::Input, &cond);
+    assert_eq!(
+        ev[0],
+        Event::Progress {
+            at: stamp(),
+            name: "scan".into(),
+            index: 0,
+            total: 2
+        }
+    );
+    assert!(matches!(&ev[1], Event::Changed { .. }));
+    assert!(matches!(&ev[2], Event::Flag { on: true, .. }));
+    assert_eq!(ev.len(), 3);
+    assert_eq!(run.busy, None);
+    // 空の effects でも Progress は 1 件。
+    let empty = ProcessingTick::from_value(&json!({"name": "n"})).unwrap();
+    let ev = apply_tick(&mut run, &root, &empty, 1, 2, &stamp(), Cause::Input, &cond);
+    assert!(matches!(&ev[..], [Event::Progress { index: 1, .. }]));
+}
+
+#[test]
+fn pack9_ticks_accumulate_and_are_deterministic() {
+    let ticks: Vec<ProcessingTick> = [
+        json!({"name": "a", "effects": [{"set_flag": "f"}]}),
+        json!({"name": "b", "effects": [{"put": {"path": "x"}, "when": {"flag": "f"}}]}),
+    ]
+    .iter()
+    .map(|v| ProcessingTick::from_value(v).unwrap())
+    .collect();
+    let root = Root("main".into());
+    let play = || {
+        let mut run = RunState::default();
+        let mut all = Vec::new();
+        for (i, t) in ticks.iter().enumerate() {
+            let at = stamp();
+            all.extend(apply_tick(
+                &mut run,
+                &root,
+                t,
+                i as u32,
+                2,
+                &at,
+                Cause::Input,
+                &FlagStub,
+            ));
+        }
+        (run, all)
+    };
+    let (r1, e1) = play();
+    let (r2, e2) = play();
+    assert!(r1.world.contains_key("x"));
+    assert_eq!((r1, e1), (r2, e2));
+}
