@@ -219,6 +219,14 @@ jobs:
           make check-deps
           make test-check-deps
 
+      # CI の関門（DOM 読み取りの例外件数の固定。仕様上の人間の承認点）。既存ジョブへの step 追加のため、
+      # ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-dom-reads
+        run: |
+          set -euo pipefail
+          make check-dom-reads
+          make test-check-dom-reads
+
   # Rust のビルドと試験の骨格。ネイティブのビルドは make test（cargo test --locked --workspace）が兼ねる。
   # --workspace の枠は scripts/test.sh が持ち、web を含む全 crate を試験する（default-members は web を含まない）。
   # wasm32 のビルド（tools/build-web.sh）は TASK-27、ブラウザ試験は TASK-28 が、本ジョブまたは別ジョブとして足す。

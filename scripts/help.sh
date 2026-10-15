@@ -25,6 +25,8 @@ cat <<'EOF'
   test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
   check-testdata  scripts/check-testdata-refs.sh  repo の外への相対参照が 0 件であることを検査する
   test-check-testdata  scripts/test-check-testdata-refs.sh  参照の検査自体の回帰テスト
+  check-dom-reads  tools/check-deps.sh  web crate が DOM の値を読まないこと（例外は件数固定）を検査する
+  test-check-dom-reads  scripts/test-check-dom-reads.sh  DOM 読み取りの検査自体の回帰テスト
   check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
   test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
   check-workflow-secrets  scripts/check-workflow-secrets.sh  ci.yml が secret を参照していないことを検査する
