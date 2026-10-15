@@ -10,8 +10,9 @@
 //! FEND-15・FEND-20（状態を変える経路はホストの `update` だけ）と、upstream-api の要約である。
 //! 部品のトレイトは `&self` だけを受け取り、状態を変える口を持たない。登録の不正は拒否し、登録しない。
 //!
-//! 3 分割の境界: 本モジュールは口の型・登録・振り分けまでを持つ。action の名前と宛先・操作プロファイルは
-//! TASK-343 2/3、glue の許される操作・keyed list の方針・契約の版番号・適合試験の仕上げは 3/3 で足す。
+//! 3 分割の境界: 本モジュールは口の型・登録・振り分けまでを持つ。action の名前と宛先（`action`）・操作
+//! プロファイルと設定の渡し方（`profile`）は 2/3 で足した。glue の許される操作・keyed list の方針・
+//! 契約の版番号・適合試験の仕上げは 3/3 で足す。
 //! 版番号の定数はこの段階では置かず、3/3 で付ける。
 //!
 //! 意図して固定しないもの（持ち主が別にあるため）:
@@ -25,6 +26,8 @@ use core::fmt;
 use std::collections::HashSet;
 
 use fandhe_frontend_core::Node;
+
+use crate::profile::DisplaySettings;
 
 pub use fandhe_frontend_interactive::{Component, DirtyTracked};
 pub use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
@@ -218,6 +221,15 @@ impl<M: ?Sized> PartRegistry<M> {
     pub fn views(&self, model: &M) -> Vec<(PartKind, Node)> {
         self.parts
             .iter()
+            .map(|p| (p.kind(), p.view(model)))
+            .collect()
+    }
+
+    /// 登録順の描画のうち、設定が出すとする種類だけ。入力欄なしのときは候補の一覧を描かない。
+    pub fn visible_views(&self, settings: &DisplaySettings, model: &M) -> Vec<(PartKind, Node)> {
+        self.parts
+            .iter()
+            .filter(|p| settings.shows_part(p.kind()))
             .map(|p| (p.kind(), p.view(model)))
             .collect()
     }

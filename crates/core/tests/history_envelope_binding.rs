@@ -63,6 +63,7 @@ fn state() -> SessionState {
         checkpoints,
         next_checkpoint: CheckpointId(2),
         drafts,
+        hints_opened: BTreeMap::new(),
     }
 }
 
@@ -113,7 +114,7 @@ fn log_order_and_positions_survive_roundtrip() {
 }
 
 #[test]
-fn snapshot_has_the_six_elements() {
+fn snapshot_has_the_seven_elements() {
     let v = serde_json::to_value(envelope()).unwrap();
     let snap = v["snapshot"].as_object().unwrap();
     let mut keys: Vec<&str> = snap.keys().map(String::as_str).collect();
@@ -124,6 +125,7 @@ fn snapshot_has_the_six_elements() {
             "checkpoints",
             "drafts",
             "entry",
+            "hints_opened",
             "log",
             "next_checkpoint",
             "run"

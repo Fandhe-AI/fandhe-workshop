@@ -1,6 +1,6 @@
 {
-  "sample_version": 1,
-  "contract_version": 1,
+  "sample_version": 2,
+  "contract_version": 2,
   "ir": "engine-event-consistency/test-data/min-3step.json",
   "initial": {
     "run": {
@@ -18,7 +18,8 @@
         }
       },
       "world": {},
-      "global_flags": []
+      "global_flags": [],
+      "guidance_level": "A"
     },
     "log": [],
     "entry": {
@@ -37,13 +38,15 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "log_len": 0
     },
     "checkpoints": {},
     "next_checkpoint": 1,
-    "drafts": {}
+    "drafts": {},
+    "hints_opened": {}
   },
   "entries": [
     {
@@ -73,7 +76,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 1,
@@ -90,7 +94,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -133,7 +138,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 1,
@@ -161,7 +167,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -241,7 +248,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 1,
@@ -269,7 +277,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -325,7 +334,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 1,
@@ -353,7 +363,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -409,7 +420,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 1,
@@ -437,7 +449,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -489,7 +502,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -506,7 +520,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -567,7 +582,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -584,7 +600,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -625,7 +642,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -653,7 +671,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -735,7 +754,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -763,7 +783,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -819,7 +840,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -847,7 +869,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -903,7 +926,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -931,7 +955,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1011,7 +1036,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -1039,7 +1065,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1095,7 +1122,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -1120,7 +1148,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1193,7 +1222,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -1218,7 +1248,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1272,7 +1303,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -1298,7 +1330,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1380,7 +1413,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 2,
@@ -1409,7 +1443,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1522,7 +1557,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 3,
@@ -1551,7 +1587,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1613,7 +1650,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 3,
@@ -1642,7 +1680,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1697,7 +1736,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 4,
@@ -1722,7 +1762,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1798,7 +1839,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 4,
@@ -1823,7 +1865,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {
@@ -1872,7 +1915,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "after": {
         "generation": 4,
@@ -1897,7 +1941,8 @@
             }
           }
         },
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "events": [
         {

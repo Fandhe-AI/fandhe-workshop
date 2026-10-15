@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_core::addr::{Generation, Root, StepUid, StepUidError, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{CheckpointId, Control, GenerationRule, Input, Op};
@@ -21,8 +22,8 @@ fn uid(s: &str) -> StepUid {
 }
 
 #[test]
-fn contract_version_is_one() {
-    assert_eq!(CONTRACT_VERSION, 1);
+fn contract_version_is_two() {
+    assert_eq!(CONTRACT_VERSION, 2);
 }
 
 #[test]
@@ -127,6 +128,11 @@ fn generation_rule_table() {
             Op::Control(Control::Begin("s".into())),
             GenerationRule::IncrementOnSuccess,
         ),
+        (Op::Control(Control::OpenHint), GenerationRule::Keep),
+        (
+            Op::Control(Control::SetGuidance(GuidanceLevel::C)),
+            GenerationRule::Keep,
+        ),
     ];
     for (op, rule) in cases {
         assert_eq!(op.generation_rule(), rule, "{op:?}");
@@ -147,6 +153,8 @@ fn default_state() {
     assert!(s.run.current.is_none());
     assert!(s.log.is_empty());
     assert!(s.checkpoints.is_empty());
+    assert_eq!(s.run.guidance_level, GuidanceLevel::A);
+    assert!(s.hints_opened.is_empty());
 }
 
 fn populated() -> SessionState {
@@ -156,6 +164,7 @@ fn populated() -> SessionState {
     slice.flags.insert("f".into());
     let mut run = RunState {
         current: Some(uid("main/a")),
+        guidance_level: GuidanceLevel::C,
         busy: Some(Busy { done: 1, total: 3 }),
         ..RunState::default()
     };
@@ -175,6 +184,8 @@ fn populated() -> SessionState {
     checkpoints.insert(CheckpointId(1), cp);
     let mut drafts = BTreeMap::new();
     drafts.insert(Root("main".into()), "draft".to_string());
+    let mut hints_opened = BTreeMap::new();
+    hints_opened.insert(uid("main/a"), 2);
     SessionState {
         run,
         log: Vec::new(),
@@ -182,6 +193,7 @@ fn populated() -> SessionState {
         checkpoints,
         next_checkpoint: CheckpointId(2),
         drafts,
+        hints_opened,
     }
 }
 

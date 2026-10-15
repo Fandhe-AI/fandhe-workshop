@@ -1,8 +1,8 @@
 # 公開 API の契約の文書
 
 ```text
-公開 API の契約の文書の版: 1
-対象の契約の版（CONTRACT_VERSION）: 1
+公開 API の契約の文書の版: 2
+対象の契約の版（CONTRACT_VERSION）: 2
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
@@ -25,13 +25,14 @@
 | モジュール | 主な型・関数 | 役割 | 主な呼び出し元 |
 |---|---|---|---|
 | `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
-| `input` | `Op`・`Input`・`Control`・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
-| `event` | `Event`・`IgnoreReason`・`RefuseReason`・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
+| `event` | `Event`（`HintOpened` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
-| `session` | `Session`・`SessionState`・`RunState`・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply` | 実行環境と遷移関数 | web・保存 |
+| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply` | 実行環境と遷移関数 | web・保存 |
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
+- 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
 - `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
 - 利用者由来の文字列（`Input` の文字列、`Changed` の値、`Warning::message`）は信頼できない。HTML へ埋め込むときのエスケープは web 層の責務であり、core は値を保持するだけである
 
@@ -56,6 +57,8 @@
 | 操作 | 規則 | EVT-6 | 世代が変わるときのイベント |
 |---|---|---|---|
 | `Op::Control(Control::Begin(_))` | `IncrementOnSuccess` | 範囲外（試作の設計） | `Begun` の `new_generation` |
+| `Op::Control(Control::OpenHint)` | `Keep` | 範囲外（GUIDE-17） | なし（`HintOpened` は `new_generation` を持たない） |
+| `Op::Control(Control::SetGuidance(_))` | `Keep` | 範囲外（GUIDE-3） | なし（イベントを出さない） |
 
 - `Op::Input` は連打（再送）でも 1 件ごとの `Op::Input` であり、`Keep` のままである
 - `Control::Stop` は処理中（`RunState.busy` が `Some`）のときだけ世代を上げる。処理中でない停止は `Input::Cancel` として扱い、世代を変えない（EVT-10）
@@ -71,20 +74,22 @@
 - `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
 - 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。照合の実装は TASK-210 が持つ
 
-## 5. 版 1 で固定しないもの
+## 5. 版 2 で固定しないもの
 
-次は意図して版 1 に含めない。足すときは版上げの契約タスクとする。
+次は意図して版 2 に含めない。足すときは版上げの契約タスクとする。
 
 - 早送りの入・切（EVT-27）
 - 判定結果（`Judged`、TASK-256）
-- ヒントと案内レベル（TASK-290）
+- 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
+- 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
+- ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
 - 下書きの操作と再読み込み（SAVE-4）。再読み込みで世代を上げる規則は、3 節の表に含まれない。`apply()` の `Op` には含めず、履歴の入力の列の型（`fandhe_workshop_contract::history::HistoryOp`、TASK-309）が持つ
 
 ## 6. 机上の照合の記録
 
 ```text
 照合日: 2026-10-15
-照合した main: 0e4f55f
+照合した main: 7b311a1
 照合した spec（submodule の記録）: 159702f
 ```
 
@@ -110,6 +115,10 @@
 | EVT-8 (b) 食い違いは状態を変えず「無視」を 1 件 | `Event::Ignored { at, reason }`・`IgnoreReason` | 型は許す・実装待ち | TASK-210 |
 | EVT-8 (b) の場合ごとの理由の割り当て | 古い世代・移動前の Step は `IgnoreReason::Stale` | 所見あり | 同じ番号の進行が二重に届いた場合の理由が、`Stale`（世代または Step が古い）の文言からは決まらない。EVT-8 は理由の値までは求めておらず、受け入れ条件は満たす。割り当ては TASK-210 で決めるか、版上げの契約タスクにする |
 | EVT-8 の判定順（宛先の照合を先に） | `TickAddr` と `IgnoreReason` の rustdoc | 読み取れる | 実装は TASK-210 |
+| GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 型は許す・実装待ち | TASK-295・TASK-297 |
+| GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 型は許す・実装待ち | TASK-295 |
+| GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
+| GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 
 ## 7. 契約適合試験とサンプル
 
@@ -146,5 +155,6 @@
 | 版 | 日付 | 変更 | 理由 |
 |---|---|---|---|
 | 1 | 2026-10-15 | 初版。型の一覧・世代の表・宛先の形・机上の照合の記録 | TASK-204 3/3 |
+| 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 
-- 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は 1 のまま据え置く（TASK-205 2/2）
+- 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）

@@ -15,7 +15,7 @@ use fandhe_workshop_core::{load_ir, CONTRACT_VERSION};
 #[test]
 fn versions_match_the_contract() {
     let s = load();
-    assert_eq!(s.sample_version, 1, "sample_version");
+    assert_eq!(s.sample_version, 2, "sample_version");
     assert_eq!(
         s.contract_version, CONTRACT_VERSION,
         "contract changed: update the sample and bump sample_version"

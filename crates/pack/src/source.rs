@@ -7,8 +7,8 @@
 //!
 //! 上限の値と拒否理由の文面は契約（TASK-199、`contract::limits`）の共有定数・`PackLimitCode` に従う。
 //! 形式の判定（`workshop.yaml` と `workshop.toml` の両方・どちらも無いは拒否。PACK-2）と、語彙にない欄の
-//! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。文字列への型変換・重複キー・行と桁の厳格化（PACK-4）は
-//! TASK-40 の 2/2、モジュールの展開は TASK-50 が扱う。
+//! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。引用符なしの値の文字列としての読み取り・重複キーの拒否・
+//! 構文エラーの行と桁（PACK-4）も本モジュールと `yaml_strict` が扱う。モジュールの展開は TASK-50 が扱う。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -22,6 +22,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::yaml_strict::{self, StrictError};
 
 /// 上限の値は契約（TASK-199）の共有定数を使い、独自に持たない。
 const MAX_MARKDOWN_BYTES: u64 = limits::MAX_MARKDOWN_BYTES;
@@ -52,12 +53,28 @@ impl Format {
         match self {
             Format::Toml => toml::from_str(text).map_err(|e| {
                 let pos = e.span().map(|r| line_col(text, r.start));
+                if e.message() == "duplicate key" {
+                    return duplicate_key_message(None, pos);
+                }
                 classify_parse_error(e.message(), pos)
             }),
-            Format::Yaml => yaml_serde::from_str(text).map_err(|e| {
-                let pos = e.location().map(|l| (l.line(), l.column()));
-                classify_parse_error(&e.to_string(), pos)
-            }),
+            Format::Yaml => {
+                // 型付きの読み込みの前に重複キーを拒否する（PACK-4）。重複のある文書は構文として信頼できない
+                // ので、`ir_format` の版の検査（`probe_format_version`）より前に `E-PARSE` で止まる。
+                match yaml_strict::check_duplicate_keys(text) {
+                    Ok(()) => {}
+                    Err(StrictError::Duplicate { name, pos }) => {
+                        return Err(duplicate_key_message(name.as_deref(), pos));
+                    }
+                    Err(StrictError::Other { raw, pos }) => {
+                        return Err(classify_parse_error(&raw, pos));
+                    }
+                }
+                yaml_serde::from_str(text).map_err(|e| {
+                    let pos = e.location().map(|l| (l.line(), l.column()));
+                    classify_parse_error(&e.to_string(), pos)
+                })
+            }
         }
     }
 }
@@ -225,6 +242,27 @@ fn parse_failure(pos: Option<(usize, usize)>) -> String {
     }
 }
 
+/// 欄・キーの名前を診断へ写してよいか。作成者の手がかりになるが任意の文字列になりうるため、短い識別子
+/// （`[A-Za-z0-9_.-]{1,64}`）のときだけ写す。未知の欄と重複キー（`yaml_strict`）で共有する。
+pub(crate) fn safe_ident(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
+}
+
+/// 重複キーの診断文。名前は呼び出し側が `safe_ident` を通したものだけを渡す。
+fn duplicate_key_message(name: Option<&str>, pos: Option<(usize, usize)>) -> String {
+    let mut msg = match name {
+        Some(n) => format!("duplicate key `{n}`"),
+        None => "duplicate key".to_string(),
+    };
+    if let Some((line, col)) = pos {
+        msg.push_str(&format!(" at line {line} column {col}"));
+    }
+    msg
+}
+
 /// パーサーの文言が serde の未知の欄（PACK-3）なら `unknown field` の診断文にし、それ以外は
 /// `parse_failure` にする。欄の名前は作成者が直す手がかりになるが任意の文字列になりうるため、短い識別子
 /// （`[A-Za-z0-9_.-]{1,64}`）のときだけ写す。入力の値は写さない。
@@ -255,11 +293,7 @@ fn classify_parse_error(raw: &str, pos: Option<(usize, usize)>) -> String {
         .filter_map(|d| rest.find(d))
         .min();
     let name = end.map_or("", |i| &rest[..i]);
-    let safe = !name.is_empty()
-        && name.len() <= 64
-        && name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
+    let safe = safe_ident(name);
     let mut msg = if safe {
         format!("unknown field `{name}`")
     } else {
@@ -488,6 +522,44 @@ fn read_parse<T: DeserializeOwned>(
 ) -> Option<T> {
     let text = read_diag_text(path, file, item, diags)?;
     parse_diag(format, &text, file, item, diags)
+}
+
+/// 章・モジュールの定義を読む。形式 B では、型付きの読み込みが `null`・`~` を `None` にしてしまう
+/// `body`・`do` を、同じテキストの文字列としての読み直しで補う（PACK-4）。読み直しに失敗した、または
+/// Step の件数が食い違うときは黙って飛ばさず `E-PARSE` にする（fail-closed）。
+fn read_scope(
+    format: Format,
+    path: &Path,
+    file: &str,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<ScopeSrc> {
+    let text = read_diag_text(path, file, "scope", diags)?;
+    let mut src = parse_diag::<ScopeSrc>(format, &text, file, "scope", diags)?;
+    if format == Format::Yaml {
+        match yaml_strict::string_probe(&text) {
+            Ok(strs) if strs.len() == src.steps.len() => {
+                for (step, s) in src.steps.iter_mut().zip(strs) {
+                    // 空の値（`do:` だけ）は型の変換ではないので省略のままにする。
+                    if step.body.is_none() {
+                        step.body = s.body.filter(|v| !v.is_empty());
+                    }
+                    if step.do_.is_none() {
+                        step.do_ = s.do_.filter(|v| !v.is_empty());
+                    }
+                }
+            }
+            _ => {
+                diags.push(diag(
+                    file,
+                    "scope",
+                    DiagCode::Parse,
+                    "string fields could not be re-read",
+                ));
+                return None;
+            }
+        }
+    }
+    Some(src)
 }
 
 /// 上限つきで読み、失敗は診断にする。
@@ -819,7 +891,7 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
                 continue;
             }
             let file = rel(dir, &p);
-            if let Some(src) = read_parse::<ScopeSrc>(format, &p, &file, "scope", &mut diags) {
+            if let Some(src) = read_scope(format, &p, &file, &mut diags) {
                 scopes.push(LoadedScope {
                     kind,
                     file,
