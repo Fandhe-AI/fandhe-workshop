@@ -27,7 +27,12 @@ fn contract_version_is_one() {
 
 #[test]
 fn step_uid_parse_accepts_valid() {
-    for s in ["main/st-1", "issue-to-merge@round1/st-7-2"] {
+    for s in [
+        "main/st-1",
+        "issue-to-merge@round1/st-7-2",
+        "impl-run@round1/merge-gate@gate/st-7-4",
+        "a@x/b@y/c@z/st",
+    ] {
         assert_eq!(StepUid::parse(s), Ok(uid(s)));
     }
 }
@@ -41,7 +46,9 @@ fn step_uid_parse_rejects_with_kind() {
         ("main/a\u{0}b".into(), StepUidError::InvalidChar),
         ("main/a b".into(), StepUidError::InvalidChar),
         ("main".into(), StepUidError::SlashCount),
-        ("main/a/b".into(), StepUidError::SlashCount),
+        ("main/a/b".into(), StepUidError::BadRoot),
+        ("a@x/plain/st".into(), StepUidError::BadRoot),
+        ("a@x//st".into(), StepUidError::BadRoot),
         ("/st".into(), StepUidError::EmptyPart),
         ("main/".into(), StepUidError::EmptyPart),
         ("a@b@c/st".into(), StepUidError::BadRoot),
@@ -65,6 +72,10 @@ fn step_uid_root() {
     assert_eq!(
         uid("issue-to-merge@round1/st-7-2").root(),
         Root("issue-to-merge@round1".to_string())
+    );
+    assert_eq!(
+        uid("impl-run@round1/merge-gate@gate/st-7-4").root(),
+        Root("impl-run@round1/merge-gate@gate".to_string())
     );
     assert_eq!(uid("main/st-1").root(), Root("main".to_string()));
     assert_eq!(uid("noslash").root(), Root("noslash".to_string()));

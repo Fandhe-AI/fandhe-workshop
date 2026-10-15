@@ -29,7 +29,7 @@ impl Generation {
     }
 }
 
-/// 実体の根。Step の実体 ID の最初の `/` までの部分で、`main` または `<モジュール ID>@<実体名>` である。
+/// 実体の根。Step の実体 ID の最後の `/` より前の部分で、`main`、`<モジュール ID>@<実体名>`、またはそれを `/` でつないだネストの形である。
 ///
 /// IR の `Instance.id` と一致する。状態の切り身（[`crate::session::Slice`]）と下書きの持ち主の鍵になる
 /// （MOD-3・MOD-4）。ファイルパスや URL には使わない。
@@ -37,7 +37,7 @@ impl Generation {
 #[serde(transparent)]
 pub struct Root(pub String);
 
-/// Step の実体 ID（`<モジュール ID>@<実体名>/<Step>`。章は `main/<Step>`）。IR の `Node::uid` と同じ値を持つ。
+/// Step の実体 ID（`<モジュール ID>@<実体名>/<Step>`。章は `main/<Step>`。ネストした実体は `<根>/<モジュール ID>@<実体名>/<Step>`）。IR の `Node::uid` と同じ値を持つ。
 ///
 /// 公開の欄は直列化と IR の値をそのまま持つための口で、組み立て時には書式を検査しない。
 /// 外から来た値は [`StepUid::parse`] で検査する。値は識別子として持つだけで、ファイル I/O や HTML には使わない。
@@ -55,11 +55,11 @@ pub enum StepUidError {
     TooLong,
     /// 制御文字または空白を含む。
     InvalidChar,
-    /// `/` がちょうど 1 つではない。
+    /// `/` が無い。
     SlashCount,
     /// 根または Step の部分が空である。
     EmptyPart,
-    /// 根が `main` でも `<モジュール ID>@<実体名>` でもない。
+    /// 根が `main` でも、`<モジュール ID>@<実体名>`（`/` でつないだネストを含む）でもない。
     BadRoot,
 }
 
@@ -69,7 +69,7 @@ impl fmt::Display for StepUidError {
             StepUidError::Empty => "step uid is empty",
             StepUidError::TooLong => "step uid is too long",
             StepUidError::InvalidChar => "step uid contains a control character or whitespace",
-            StepUidError::SlashCount => "step uid must contain exactly one '/'",
+            StepUidError::SlashCount => "step uid must contain a '/'",
             StepUidError::EmptyPart => "step uid has an empty root or step part",
             StepUidError::BadRoot => "step uid root must be 'main' or '<module>@<instance>'",
         };
@@ -82,7 +82,8 @@ impl std::error::Error for StepUidError {}
 impl StepUid {
     /// 実体 ID の構造を検査して作る。文字種は pack 側の規則に任せ、ここでは構造だけを確かめる。
     ///
-    /// 受理するのは `main/<Step>` と `<モジュール ID>@<実体名>/<Step>`。`/` と `@` の個数、空の部分、
+    /// 受理するのは `main/<Step>` と `<モジュール ID>@<実体名>/<Step>`、およびネストした
+    /// `<モジュール ID>@<実体名>/<モジュール ID>@<実体名>/<Step>`。根と Step は最後の `/` で分ける。`/` の有無、各段の `@` の個数、空の部分、
     /// 制御文字・空白、長さを見る。拒否は `Result` で返し、panic しない（安全側）。
     pub fn parse(s: &str) -> Result<StepUid, StepUidError> {
         if s.is_empty() {
@@ -94,18 +95,18 @@ impl StepUid {
         if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
             return Err(StepUidError::InvalidChar);
         }
-        if s.matches('/').count() != 1 {
-            return Err(StepUidError::SlashCount);
-        }
-        let (root, step) = s.split_once('/').ok_or(StepUidError::SlashCount)?;
+        // 最後の `/` で分ける。ネストした実体（`a@x/b@y/st`）は `/` を 2 つ以上含み、根はその前の全体になる。
+        let (root, step) = s.rsplit_once('/').ok_or(StepUidError::SlashCount)?;
         if root.is_empty() || step.is_empty() {
             return Err(StepUidError::EmptyPart);
         }
         if root != "main" {
-            let ok = root.matches('@').count() == 1
-                && root
-                    .split_once('@')
-                    .is_some_and(|(m, i)| !m.is_empty() && !i.is_empty());
+            let ok = root.split('/').all(|seg| {
+                seg.matches('@').count() == 1
+                    && seg
+                        .split_once('@')
+                        .is_some_and(|(m, i)| !m.is_empty() && !i.is_empty())
+            });
             if !ok {
                 return Err(StepUidError::BadRoot);
             }
@@ -113,9 +114,9 @@ impl StepUid {
         Ok(StepUid(s.to_string()))
     }
 
-    /// 最初の `/` までを根として返す（`/` が無ければ全体）。
+    /// 最後の `/` より前を根（`Instance.id`）として返す（`/` が無ければ全体）。ネストした実体でも根は親ではなく自身になる。
     pub fn root(&self) -> Root {
-        let root = self.0.split('/').next().unwrap_or_default();
+        let root = self.0.rsplit_once('/').map_or(self.0.as_str(), |(r, _)| r);
         Root(root.to_string())
     }
 }
