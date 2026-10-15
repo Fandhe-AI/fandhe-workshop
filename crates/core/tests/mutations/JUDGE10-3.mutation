@@ -2,7 +2,7 @@ id: JUDGE10-3
 package: fandhe-workshop-core
 test: revise_target
 target: crates/core/src/select_judge.rs
-find: if !targets.iter().any(|t| t == target) {
+find: if seen.insert(target) {
 replace: if true {
 expect-fail: revise_targets_lists_in_order_without_duplicates
 note: 対象の一覧で重複の除去を外す（同じ対象が複数回出る）
