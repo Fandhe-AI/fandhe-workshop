@@ -1,0 +1,11 @@
+id: c1
+title: 木の章
+starts: [{id: s1, node: a}]
+steps:
+  - id: a
+    title: A
+    body: a.md
+    body_levels: {B: a-b.md}
+    fixtures: [f-doc, f-log]
+    next: [{to: b}]
+  - {id: b, title: B, body: b.md, final: true}

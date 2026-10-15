@@ -1,4 +1,4 @@
-//! 実行時に読む IR（JSON）の型。`ir_format` 1 の契約である。
+//! 実行時に読む IR（JSON）の型。`ir_format` 1 と 2 の契約である。
 //!
 //! pack の `compile` が書き出し、core の `load_ir` が読む。両者が共有する置き場として contract に置く
 //! （`docs/architecture.md` 第 6 節の判定規則 1）。連想配列は `BTreeMap`（`serde_json::Value` の
@@ -17,7 +17,21 @@
 //!   明示した空の値と省略は同じバイト列になる
 //! - 読むときは `null` を `None` として受ける（試作の golden が `null` を含むため）。未知の欄は拒否する
 //! - 固定しないもの: 語彙の中身（[`serde_json::Value`] のまま通す欄。TASK-42 以降）、モジュールの展開
-//!   （TASK-50）、本文の木（TASK-60）
+//!   （TASK-50）
+//!
+//! # 版 2（TASK-60、D-51・D-52）
+//!
+//! 版 2 は、Step の本文（`body`・`body_levels`）と練習データの内容を、ビルド時に安全な木（[`crate::doc`]）に
+//! 変えて載せる。実行時に Markdown は解釈しない。木の欄は IR 専用の型だけに置く
+//! （[`Node::body_doc`]・[`Node::body_levels_doc`]・[`Ir::fixture_docs`]）。人が書く層と共有する
+//! [`Step`]・[`FixtureDef`] に置くと、作成者が変換器を通らない木を直接書けてしまうため。
+//!
+//! - 版 2 の欄はすべて空を既定値とし、空なら書き出さない。木を使わない教材パックは、版 1 とバイト単位で
+//!   同じ IR になる。`step.body`（参照の文字列）は残す
+//! - 変換器は、使った項目に足りる最小の `ir_format` を出す（[`Ir::required_ir_format`]）。`format_version` と
+//!   `pack.ir_format` は常に同じ値にする
+//! - エンジンは版 1 と 2 の両方を読む。版 1 と名乗りながら版 2 の欄を持つ IR は拒否する。版 1 の IR・履歴を
+//!   理由つきで断る扱いは TASK-60 の 2/2 が受け持つ
 //!
 //! 互換の向きは、旧 → 新は読める（任意の欄を使わない IR は加算の後の型でも同じバイト列に戻る）、
 //! 新 → 旧は読めない（型付きの項目の未知の欄は拒否し、黙って捨てない）である。`Value` で通す語彙の中身の
@@ -25,7 +39,8 @@
 //! `crates/pack/tests/ir_compat.rs`（エンジンの読み込み口 `load_ir`）に置く。
 //!
 //! 版 1 の出力は、エンジン repo の golden（`crates/contract/tests/data/ir_format_1/`・
-//! `crates/pack/tests/data/golden/`）とのバイト一致で固定する。golden の書き換えは契約の変更であり、
+//! `crates/pack/tests/data/ir_format_1/`）、版 2 の出力は `crates/contract/tests/data/ir_format_2/`・
+//! `crates/pack/tests/data/golden/` とのバイト一致で固定する。golden の書き換えは契約の変更であり、
 //! spec を先に直す。
 
 use std::collections::BTreeMap;
@@ -33,8 +48,21 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// 本リポジトリの IR が受け付ける `format_version`・`pack.ir_format`。両方がこの値でなければならない。
-pub const IR_FORMAT_VERSION: u32 = 1;
+use crate::doc::Doc;
+
+/// 版 1。本文は参照の文字列だけで、練習データの内容を持たない。
+pub const IR_FORMAT_V1: u32 = 1;
+
+/// 版 2。本文と練習データの内容を木で持つ（D-51）。
+pub const IR_FORMAT_V2: u32 = 2;
+
+/// 本リポジトリが読む `format_version`・`pack.ir_format`。
+pub const SUPPORTED_IR_FORMATS: [u32; 2] = [IR_FORMAT_V1, IR_FORMAT_V2];
+
+/// `v` が読める版か。pack の `compile` と core の `load_ir` がこの判定を共有する。
+pub fn is_supported_ir_format(v: u32) -> bool {
+    SUPPORTED_IR_FORMATS.contains(&v)
+}
 
 /// IR を出力のバイト列にする。整形した JSON に改行を 1 つ付ける。
 ///
@@ -81,7 +109,7 @@ pub struct PackInfo {
     pub left_pane: Option<Value>,
 }
 
-/// 練習データの宣言。中身は IR に載せない（載せるのは TASK-60）。
+/// 練習データの宣言。内容の木は [`Ir::fixture_docs`] に ID をキーとして載せる。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FixtureDef {
@@ -203,6 +231,12 @@ pub struct Node {
     /// モジュールの最後の Step が達成になったときの戻り先。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_to: Option<String>,
+    /// `step.body` の木（版 2）。本文が無いときは書き出さない。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_doc: Option<Doc>,
+    /// `step.body_levels` の木（版 2）。キーは `body_levels` と同じ。空なら書き出さない。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub body_levels_doc: BTreeMap<String, Doc>,
 }
 
 /// 章またはモジュールの実体。`main` は章の実体。
@@ -226,7 +260,7 @@ pub struct Instance {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ir {
-    /// IR の形式の版（[`IR_FORMAT_VERSION`]）。
+    /// IR の形式の版（[`IR_FORMAT_V1`]・[`IR_FORMAT_V2`]）。`pack.ir_format` と同じ値。
     pub format_version: u32,
     /// 教材の基本情報。
     pub pack: PackInfo,
@@ -261,6 +295,28 @@ pub struct Ir {
     pub nodes: Vec<Node>,
     /// 途中開始の一覧。
     pub starts: Vec<Start>,
+    /// 練習データの内容の木（版 2）。キーは `fixtures` の ID。空なら書き出さない。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fixture_docs: BTreeMap<String, Doc>,
+}
+
+impl Ir {
+    /// この IR を表すのに足りる最小の `ir_format`。版 2 の欄のどれかが空でなければ 2、それ以外は 1。
+    ///
+    /// pack の `compile` が出力の版を決め、core の `load_ir` が版と欄の整合を確かめるときに使う。
+    /// 判定の正はここ 1 か所に置く。
+    pub fn required_ir_format(&self) -> u32 {
+        let uses_v2 = !self.fixture_docs.is_empty()
+            || self
+                .nodes
+                .iter()
+                .any(|n| n.body_doc.is_some() || !n.body_levels_doc.is_empty());
+        if uses_v2 {
+            IR_FORMAT_V2
+        } else {
+            IR_FORMAT_V1
+        }
+    }
 }
 
 #[cfg(test)]
@@ -301,10 +357,10 @@ mod tests {
         assert!(s.use_module.is_none() && s.input.is_none() && !s.is_final);
         let n: Node = serde_json::from_str(
             r#"{"uid":"main/a","scope":"main","unit":"u","step":{"id":"a","title":"t"},
-            "enter":null,"exit_to":null}"#,
+            "enter":null,"exit_to":null,"body_doc":null}"#,
         )
         .unwrap();
-        assert!(n.enter.is_none() && n.exit_to.is_none());
+        assert!(n.enter.is_none() && n.exit_to.is_none() && n.body_doc.is_none());
     }
 
     #[test]

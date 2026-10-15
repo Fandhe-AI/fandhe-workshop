@@ -5,10 +5,13 @@
 //!
 //! - 旧 → 新: 任意の欄を使わない IR（compile の golden、`null` を含む試作の golden）を読め、同じ値に戻る。
 //! - 新 → 旧: 版 1 のまま型付きの項目に未知の欄を足した IR を拒否する。拒否の理由に入力値を含めない。
-//! - 版が 1 でない IR は、未知の欄を含んでいても「版が未対応」として断る（型の不一致にしない）。
+//! - 読めない版（3 など）の IR は、未知の欄を含んでいても「版が未対応」として断る（型の不一致にしない）。
+//! - 版 2（TASK-60）: 版 2 の golden を読め、同じバイト列に戻る。木に未知の種別・欄があれば拒否する。
 //!
-//! IR を読み書きする他タスクは、統合の完了条件としてこの試験を参照できる。範囲は版 1 だけで、
-//! 版 2 の受け入れは TASK-60 が扱う。型の水準の試験は `crates/contract/tests/ir_compat.rs`。
+//! 旧 → 新の読み先は、版 1 の golden を凍結した `tests/data/ir_format_1/`（TASK-60 の前の出力）。版 1 の
+//! IR・履歴を理由つきで断る扱いは TASK-60 の 2/2 が受け持つ。
+//! IR を読み書きする他タスクは、統合の完了条件としてこの試験を参照できる。
+//! 型の水準の試験は `crates/contract/tests/ir_compat.rs`。
 //! 限界: `Value` で通している語彙の中身（`input`・`confirm` 等）の中の未知の欄は現状では拒否されない
 //! （型付けは TASK-42 以降）。golden には `Instance`・`FixtureDef` が無いため、その位置は contract 側が受け持つ。
 //! golden は読むだけで書き換えない。試験では `unwrap` を使ってよい。
@@ -28,10 +31,65 @@ const SENTINEL_KEY: &str = "future_v1_x";
 const SENTINEL_VALUE: &str = "SECRET-VALUE";
 
 fn golden(name: &str) -> Vec<u8> {
+    golden_in("ir_format_1", name)
+}
+
+fn golden_in(dir: &str, name: &str) -> Vec<u8> {
     let p = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/golden")
+        .join("tests/data")
+        .join(dir)
         .join(format!("{name}.ir.json"));
-    fs::read(&p).unwrap_or_else(|_| panic!("cannot read golden {name}"))
+    fs::read(&p).unwrap_or_else(|_| panic!("cannot read golden {dir}/{name}"))
+}
+
+#[test]
+fn v2_goldens_load_and_roundtrip_byte_identical() {
+    for name in GOLDENS.into_iter().chain(["fixture-pack"]) {
+        let g = golden_in("golden", name);
+        let ir = load_ir(&g).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(ir.format_version, 2, "{name}");
+        assert_eq!(to_canonical_json(&ir).unwrap(), g, "{name}");
+    }
+}
+
+#[test]
+fn v2_tree_with_unknown_kind_or_field_is_rejected_without_echo() {
+    let base: Value = serde_json::from_slice(&golden_in("golden", "fixture-pack")).unwrap();
+    for ptr in [
+        "/nodes/0/body_doc",
+        "/fixture_docs/f-doc",
+        "/nodes/0/body_doc/blocks/0",
+    ] {
+        let mut v = base.clone();
+        inject(&mut v, ptr);
+        let Err(e) = load_ir(&bytes(&v)) else {
+            panic!("{ptr}: unknown field in a tree must be rejected")
+        };
+        assert!(matches!(e, IrLoadError::Json(_)), "{ptr}: {e}");
+        let s = e.to_string();
+        assert!(
+            !s.contains(SENTINEL_VALUE) && !s.contains(SENTINEL_KEY),
+            "{s}"
+        );
+    }
+    let mut v = base;
+    v["nodes"][0]["body_doc"]["blocks"][0] = json!({"t": "script", "text": SENTINEL_VALUE});
+    let Err(e) = load_ir(&bytes(&v)) else {
+        panic!("unknown block kind must be rejected")
+    };
+    assert!(matches!(e, IrLoadError::Json(_)));
+    assert!(!e.to_string().contains(SENTINEL_VALUE));
+}
+
+#[test]
+fn v1_declared_ir_with_trees_is_rejected() {
+    let mut v: Value = serde_json::from_slice(&golden_in("golden", "fixture-pack")).unwrap();
+    v["format_version"] = json!(1);
+    v["pack"]["ir_format"] = json!(1);
+    assert!(matches!(
+        load_ir(&bytes(&v)).unwrap_err(),
+        IrLoadError::FormatInconsistent { .. }
+    ));
 }
 
 fn bytes(v: &Value) -> Vec<u8> {
@@ -146,16 +204,16 @@ fn new_to_old_other_version_is_unsupported_even_with_unknown_fields() {
     inject(&mut base, "/nodes/0/step");
 
     let mut v = base.clone();
-    v["format_version"] = json!(2);
+    v["format_version"] = json!(3);
     assert_eq!(
         load_ir(&bytes(&v)).unwrap_err(),
-        IrLoadError::FormatVersion(2)
+        IrLoadError::FormatVersion(3)
     );
 
     let mut v = base;
-    v["pack"]["ir_format"] = json!(2);
+    v["pack"]["ir_format"] = json!(3);
     assert_eq!(
         load_ir(&bytes(&v)).unwrap_err(),
-        IrLoadError::PackIrFormat(2)
+        IrLoadError::PackIrFormat(3)
     );
 }

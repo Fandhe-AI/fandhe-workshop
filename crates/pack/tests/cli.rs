@@ -41,7 +41,8 @@ fn i4_compile_prints_ir() {
     assert!(o.stderr.is_empty());
     assert!(o.stdout.ends_with(b"}\n") && !o.stdout.ends_with(b"\n\n"));
     let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
-    assert_eq!(v["format_version"], 1);
+    // 本文を持つパックは、最小の版が 2 になる（TASK-60）。
+    assert_eq!(v["format_version"], 2);
 }
 
 #[test]

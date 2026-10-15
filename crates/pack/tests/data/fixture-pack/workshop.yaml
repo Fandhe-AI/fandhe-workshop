@@ -1,0 +1,5 @@
+# fixture-pack（形式 B）。本文の木と練習データの木の試験用で、架空の内容だけを持つ。
+pack: {id: fixture-pack, title: 木の試験, version: '0.0.1', ir_format: 1, guidance: A}
+fixtures:
+  f-doc: {path: fixtures/notes.md, kind: document}
+  f-log: {path: fixtures/run.txt, kind: log}
