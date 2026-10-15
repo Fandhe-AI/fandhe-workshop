@@ -604,3 +604,44 @@ fn neg_a_module_declaration_without_placeholders_is_reported_once() {
     let d = diags(&t);
     assert_eq!(codes(&d), [DiagCode::Parse, DiagCode::Parse], "{d:?}");
 }
+
+#[test]
+fn neg_a_chapter_step_with_both_use_and_input_is_a_structure_error() {
+    // `use` の Step は入力を持たない（PACK-19）。確認を持たない同時指定が、確認の検査の対象外のまま
+    // コンパイルを通らないことを確かめる。
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, final: true, use: {module: m, instance: i}, input: {kind: approval}}\n",
+    );
+    let t = mini(chapter, MOD_OK);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure], "{d:?}");
+    assert_eq!(d[0].file(), "chapters/c1/chapter.yaml");
+    assert!(d[0].to_string().contains("step:u"), "{}", d[0]);
+}
+
+#[test]
+fn neg_a_module_step_with_both_use_and_input_is_reported_once() {
+    // モジュールの中の同時指定も拒否する。`input` が `${` を含み置換前の入力の検査が飛ばす宣言でも、
+    // 同時指定は宣言の有無だけで決まるため見逃さない。2 つの実体から呼んでも診断は 1 件で、引数の値を写さない。
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, next: [{to: v}], use: {module: m, instance: r1, args: {x: shortname}}}\n",
+        "  - {id: v, title: V, final: true, use: {module: m, instance: r2, args: {x: shortname}}}\n",
+    );
+    let module = concat!(
+        "id: m\ntitle: M\nparams: {k: approval, x: d}\nsteps:\n",
+        "  - {id: a, title: \"A ${x}\", final: true, use: {module: e, instance: j}, input: {kind: \"${k}\"}}\n",
+    );
+    let t = mini(chapter, module);
+    t.put(
+        "modules/e/module.yaml",
+        b"id: e\ntitle: E\nsteps:\n  - {id: z, title: Z, final: true}\n",
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure], "{d:?}");
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+    let s = d[0].to_string();
+    assert!(s.contains("step:a"), "{s}");
+    assert!(!s.contains("shortname"), "{s}");
+}

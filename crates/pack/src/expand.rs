@@ -14,6 +14,9 @@
 //!
 //! 診断に引数の値・本文は入れない。名前は `safe_ident` を通るものだけを入れる。
 //!
+//! `use` と `input` を同時に持つ Step は、展開とは別に [`check_use_steps`] が章・モジュールの定義ごとに拒否する
+//! （PACK-19）。`expand_use` 自体は呼び出し元の Step の `input` を見ない。
+//!
 //! 置換前の値では検査できない宣言（`input`・`confirm` が `${` を含むモジュールの Step）は、置換後の Step を
 //! ここで検査する（入力方式・確認・操作プロファイル。PACK-10・PACK-13・PACK-20）。置換前の検査
 //! （`input::check_inputs`・`confirm::check_confirms`・`profile::check_profile_steps`）はその Step を飛ばすので、
@@ -617,6 +620,33 @@ impl<'a> Expander<'a> {
         }
         out
     }
+}
+
+/// 章・モジュールのすべての Step で、`use` と `input` の同時指定を `E-STRUCTURE` で拒否する（PACK-19）。
+/// `compile` が展開の結果を IR にする前に呼ぶ。`use` の Step は入力を持たないため、確認の検査
+/// （`confirm::check_confirms`・`check_step_confirm`）は `use` の Step を飛ばす。同時指定をここで拒否しないと、
+/// 確認の無い `input` を持つ Step が `E-NO-CONFIRM` を免れて IR に載る（PACK-13）。
+/// 判定は宣言の有無だけで行う。置換は値を変えても欄の有無を変えないため、`${` を含むモジュールの宣言も
+/// 置換前に判定でき、実体の数によらず定義ごとに 1 件になる。診断は固定文で、引数の値・宣言の中身を写さない。
+pub(crate) fn check_use_steps(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    scopes
+        .iter()
+        .flat_map(|scope| {
+            scope
+                .src
+                .steps
+                .iter()
+                .filter(|s| s.use_module.is_some() && s.input.is_some())
+                .map(move |s| {
+                    crate::input::diag(
+                        scope,
+                        &s.id,
+                        DiagCode::Structure,
+                        "a step cannot declare both `use` and `input`".to_string(),
+                    )
+                })
+        })
+        .collect()
 }
 
 /// `use` を持つ Step の位置。展開の文脈を 1 つにまとめて渡す。

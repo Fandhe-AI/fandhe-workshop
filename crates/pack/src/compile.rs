@@ -147,6 +147,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 接頭辞と入力欄の有無に反する入力・規則を検査する（TASK-52、PACK-20）。
     // モジュールの `input`・`confirm` が `${` を含む Step は、ここでは飛ばし、展開（`expand`）が引数を
     // 置換した後の Step を検査する（置換前は読めない・置換後に違反になりうるため）。
+    // `use` と `input` の同時指定を拒否する（PACK-19）。確認の検査は `use` の Step を飛ばすため、ここで
+    // 拒否しないと確認の無い入力が IR に載る。
+    diags.extend(crate::expand::check_use_steps(&pack.scopes));
     diags.extend(input::check_inputs(&pack.scopes));
     diags.extend(confirm::check_confirms(&pack.scopes));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
