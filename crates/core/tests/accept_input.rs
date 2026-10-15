@@ -85,6 +85,7 @@ fn kinds(events: &[Event]) -> Vec<&'static str> {
         .iter()
         .map(|e| match e {
             Event::InputReceived { .. } => "input_received",
+            Event::Judged { .. } => "judged",
             Event::Accepted { .. } => "accepted",
             Event::Changed { .. } => "changed",
             Event::Achieved { .. } => "achieved",
@@ -131,14 +132,17 @@ fn attr(s: &Session, key: &str) -> Option<String> {
 }
 
 fn only_input_received(events: &[Event]) {
-    assert_eq!(kinds(events), ["input_received"], "{events:?}");
+    assert_eq!(kinds(events), ["input_received", "judged"], "{events:?}");
 }
 
 #[test]
 fn command_accept_makes_step_accepted_not_achieved() {
     let mut s = session(ir(), "main/st-1");
     let events = send(&mut s, cmd("/make-note first-note"));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
     assert_eq!(attr(&s, "state").as_deref(), Some("created"));
     assert_eq!(attr(&s, "kind").as_deref(), Some("none"));
@@ -170,7 +174,10 @@ fn resend_after_accept_is_only_received() {
 fn choice_accept_records_choice() {
     let mut s = session(ir(), "main/st-2");
     let events = send(&mut s, Input::Choice("opt-memo".into()));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-2"), StepStatus::Accepted);
     assert_eq!(
         s.state().run.slices[&root()].choices.get(&uid("main/st-2")),
@@ -199,7 +206,10 @@ fn approval_accept_is_not_achievement() {
             target: None,
         },
     );
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-3"), StepStatus::Accepted);
     assert_eq!(attr(&s, "state").as_deref(), Some("published"));
     no_achieved(&s);
@@ -254,7 +264,10 @@ fn text_accept_is_not_achievement() {
     }
     let mut s = session(ir, "main/st-1");
     let events = send(&mut s, Input::Text("今日のメモ\n二行目".into()));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
     // processing を持つ Step なので処理中になる。
     assert_eq!(s.state().run.busy, Some(Busy { done: 0, total: 5 }));
@@ -329,7 +342,7 @@ fn invalid_rule_effects_warn_and_change_nothing() {
             target: None,
         },
     );
-    assert_eq!(kinds(&events), ["input_received", "warning"]);
+    assert_eq!(kinds(&events), ["input_received", "judged", "warning"]);
     assert_eq!(s.state().run, before);
 }
 
@@ -340,7 +353,7 @@ fn earlier_reject_rule_is_not_skipped_for_later_accept() {
         if n.uid == "main/st-1" {
             let accept = n.step.rules[0].clone();
             let mut reject = accept.clone();
-            reject["outcome"] = json!({ "kind": "reject" });
+            reject["outcome"] = json!({ "kind": "reject", "rejection": "rj-decline" });
             n.step.rules = vec![reject, accept];
         }
     }

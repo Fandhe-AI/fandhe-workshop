@@ -33,7 +33,6 @@
 //! - 確認の操作による達成と外れた指し先（TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
 //! - `confirm: none` の受付と同時の達成（TASK-208）、処理中の再送の `busy` 分類（TASK-209）
 //! - 進行 `Op::Tick` の照合と進め方（TASK-210）、処理中でない Esc の意味づけ（TASK-212）
-//! - `Judged` の発行とコマンドの規則の `on.args`・`on.missing` との照合（TASK-267）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! `Warning` の文面は固定文で、入力値・教材の値を埋め込まない。入力値は未信頼で、HTML への埋め込みの
@@ -48,9 +47,11 @@ use serde_json::Value;
 use crate::addr::{Root, Stamp, StepUid};
 use crate::command_judge::{command_spec, judge_command, CommandVerdict};
 use crate::command_lex::lex_command;
+use crate::command_rule::{judge_command_rules, CommandRuleVerdict};
 use crate::effect::{apply_effects, ConditionEval, NoConditions};
 use crate::event::{Cause, Event};
 use crate::input::Input;
+use crate::judge::{judge_input, judged_event};
 use crate::select_judge::{judge_select, SelectJudgeError, SelectVerdict};
 use crate::session::{Busy, RunState, SessionState};
 use crate::step_status::StepStatus;
@@ -90,6 +91,15 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         events.push(warning(&at));
         return events;
     };
+    // 判定結果は `InputReceived` の直後に 1 件だけ置く（TASK-267）。判定できない宣言は、固定文の `Warning` を
+    // 添えて状態を変えない（fail-closed）。
+    match judge_input(ir, &state.run, &input, &NoConditions) {
+        Ok(outcome) => events.push(judged_event(at.clone(), outcome.judgment)),
+        Err(_) => {
+            events.push(warning(&at));
+            return events;
+        }
+    }
     if !awaits_input(&state.run, &current) || matches!(input, Input::Cancel) {
         return events;
     }
@@ -151,7 +161,7 @@ fn is_blank(v: &Value) -> bool {
 }
 
 /// 規則の `on` から空の値の欄を、規則から `null` の `when` を取り除いた Step の写し。
-fn normalized(step: &Step) -> Step {
+pub(crate) fn normalized(step: &Step) -> Step {
     let mut s = step.clone();
     for rule in &mut s.rules {
         let Some(obj) = rule.as_object_mut() else {
@@ -196,8 +206,8 @@ fn decide(ir: &Ir, step: &Step, input: &Input, run: &RunState, root: &Root) -> D
     }
 }
 
-/// コマンド。受付は、判定が `Matched` で、`on` がちょうど `{ command: <名前> }` の受付の規則があるときだけである。
-/// 規則が無いときは受付にしない（`on.args`・`on.missing` との照合と見直しは TASK-267）。
+/// コマンド。受付は、判定が `Matched` で、上から最初に一致した規則が受付のときだけである。
+/// 規則が無いときは受付にしない。`on.args`・`on.missing` との照合は `command_rule` が持つ。
 fn decide_command(ir: &Ir, step: &Step, input: &Input, run: &RunState, root: &Root) -> Decision {
     let Input::Command(raw) = input else {
         return Decision::Reject;
@@ -211,37 +221,31 @@ fn decide_command(ir: &Ir, step: &Step, input: &Input, run: &RunState, root: &Ro
     let Ok(lexed) = lex_command(&profile.command_prefix, raw) else {
         return Decision::Reject;
     };
-    if !matches!(judge_command(&spec, &lexed), CommandVerdict::Matched(_)) {
+    let CommandVerdict::Matched(matched) = judge_command(&spec, &lexed) else {
         return Decision::Reject;
-    }
-    // 上から最初に `on` と `when` が一致した規則の outcome を採用する（`select_judge` と同じ契約）。
-    // 先の拒否・問い返しの規則を飛ばして、後の受付の規則に進まない。
-    let hit = step.rules.iter().find(|r| {
-        let on_ok = r.get("on").and_then(Value::as_object).is_some_and(|on| {
-            on.len() == 1 && on.get("command").and_then(Value::as_str) == Some(lexed.name.as_str())
-        });
-        // `when` は評価できないときも一致とみなさない（安全側）。
-        let when_ok = match r.get("when") {
-            None => true,
-            Some(w) => NoConditions.eval(w, run, root) == Some(true),
-        };
-        on_ok && when_ok
-    });
-    let hit = hit.filter(|r| {
-        r.get("outcome")
-            .and_then(|o| o.get("kind"))
-            .and_then(Value::as_str)
-            == Some("accept")
-    });
-    match hit {
-        None => Decision::Reject,
-        Some(rule) => match read_effects(rule) {
-            Some(effects) => Decision::Accept {
-                effects,
-                choice: None,
-            },
-            None => Decision::Invalid,
-        },
+    };
+    // 規則の照合は `command_rule` に集約する（`judge::judge_input` と同じ結果を得るため）。上から最初に一致した
+    // 規則の結果に従い、先の拒否・問い返しの規則を飛ばして後の受付の規則に進まない。
+    // `when` は評価できないときも一致とみなさない（安全側）。
+    let when = |w: &Value| {
+        if w.is_null() {
+            Some(true)
+        } else {
+            NoConditions.eval(w, run, root)
+        }
+    };
+    match judge_command_rules(step, &matched, &when) {
+        Ok(CommandRuleVerdict::Accepted { rule_index, .. }) => {
+            match step.rules.get(rule_index).and_then(read_effects) {
+                Some(effects) => Decision::Accept {
+                    effects,
+                    choice: None,
+                },
+                None => Decision::Invalid,
+            }
+        }
+        Ok(_) => Decision::Reject,
+        Err(_) => Decision::Invalid,
     }
 }
 

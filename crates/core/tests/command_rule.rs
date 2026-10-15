@@ -177,6 +177,22 @@ fn when_true_takes_rule_and_false_or_unknown_skips() {
 }
 
 #[test]
+fn on_args_matches_only_equal_values_and_unknown_keys_never_match() {
+    let rule_of = |name: &str, line: &str| match judge(&compact(name), line) {
+        Ok(CommandStepVerdict::Rule(r)) => r,
+        other => panic!("{other:?}"),
+    };
+    assert!(matches!(
+        rule_of("args_eq", "/x b"),
+        CommandRuleVerdict::Accepted { .. }
+    ));
+    for line in ["/x c", "/x"] {
+        assert_eq!(rule_of("args_eq", line), CommandRuleVerdict::NoRule);
+    }
+    assert_eq!(rule_of("unknown_key", "/x"), CommandRuleVerdict::NoRule);
+}
+
+#[test]
 fn invalid_declarations_fail_closed() {
     let cases = [
         ("bad_kind", "/x", CommandRuleError::InvalidDeclaration),
@@ -186,7 +202,12 @@ fn invalid_declarations_fail_closed() {
             "/x",
             CommandRuleError::InvalidDeclaration,
         ),
-        ("args_cond", "/x", CommandRuleError::UnsupportedCondition),
+        ("args_cond", "/x", CommandRuleError::InvalidDeclaration),
+        (
+            "args_not_string",
+            "/x",
+            CommandRuleError::UnsupportedCondition,
+        ),
         ("not_command", "/x", CommandRuleError::NotCommand),
     ];
     for (name, line, want) in cases {
