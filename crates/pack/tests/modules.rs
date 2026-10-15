@@ -383,3 +383,21 @@ fn neg_oversized_start_expansion_stops_all_instances_at_once() {
     let limits = codes(&d).iter().filter(|c| **c == DiagCode::Limit).count();
     assert_eq!(limits, 1, "{d:?}");
 }
+
+#[test]
+fn neg_input_emptied_by_an_argument_is_checked_after_expansion() {
+    let module = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: \"${x}\"}}\n";
+    let ok = mini(
+        &chapter_using("{module: m, instance: i, args: {x: ls}}"),
+        module,
+    );
+    assert!(compile_dir(&ok.0).is_ok());
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {x: \"\"}}"),
+        module,
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure]);
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+    assert!(d[0].to_string().contains("step:a"), "{}", d[0]);
+}

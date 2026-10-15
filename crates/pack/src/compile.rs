@@ -60,6 +60,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         )]);
     }
 
+    let (_profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
     let mut starts: Vec<Start> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
@@ -67,6 +68,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 展開が連鎖しても、確保が出力の上限を超えて増えないようにする（`check_output` は全部を作った後に
     // 走るため、それでは間に合わない）。
     let mut ex = Expander::new(pack, Budget::new(MAX_IR_BYTES));
+    ex.diags.extend(profile_diags);
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         chapters += 1;
@@ -138,11 +140,12 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     ex.diags = Vec::new();
     starts.extend(ex.module_starts(&mut start_ids));
     diags.append(&mut ex.diags);
+    // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
+    // 引数を置換した後の検査は、展開（`expand`）が Step ごとに行う。
+    diags.extend(input::check_inputs(&pack.scopes));
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
     let mut seen = BTreeSet::new();
     diags.retain(|d| seen.insert(format!("{d:?}")));
-    // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
-    diags.extend(input::check_inputs(&pack.scopes));
     if !diags.is_empty() {
         return Err(diags);
     }

@@ -12,6 +12,7 @@
 use fandhe_workshop_contract::input_spec::{
     ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec,
 };
+use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -99,6 +100,15 @@ fn check_input(input: &Value) -> Result<(), (DiagCode, String)> {
         InputKind::UiAction => check_one::<UiActionSpec>(rest, name, UiActionSpec::check),
         InputKind::Approval => check_one::<ApprovalSpec>(rest, name, |_| Ok(())),
     }
+}
+
+/// 引数を置換した後の Step の `input` を検査する。`use` の展開が `input` の値を変えうるため
+/// （例: コマンド名が空になる・選択肢の ID が重なる）、置換前の検査とは別に展開後にも行う。
+/// 診断は定義元の章・モジュールのファイルと Step に紐付ける。
+pub(crate) fn check_step_input(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
+    let input = step.input.as_ref()?;
+    let (code, msg) = check_input(input).err()?;
+    Some(diag(scope, &step.id, code, msg))
 }
 
 /// 章・モジュールのすべての Step の `input` を検査し、診断を集める。

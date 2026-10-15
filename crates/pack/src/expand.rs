@@ -319,6 +319,10 @@ impl<'a> Expander<'a> {
                 None => step.clone(),
             };
             if args.is_some() {
+                // 置換で input の値が変わりうるため、展開後の宣言を検査する。
+                if let Some(d) = crate::input::check_step_input(scope, &s) {
+                    self.diags.push(d);
+                }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
                 if !self.budget.take(size) {
