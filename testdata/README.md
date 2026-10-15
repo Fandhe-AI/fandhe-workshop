@@ -56,6 +56,14 @@
 `test-data-addendum-3.sha256` は、`make-addendum3.py` の 1 行（ハッシュ `3cc5d8ee...`）を除いた 5 行です。
 元の manifest（git オブジェクト `468b5152...`）は 6 行でした。
 
+## 本 repo で作ったデータ
+
+上の取り込みとは別に、本 repo で作ったデータです。
+
+| 行き先（`testdata/` の下） | 出所 | 作成日 | 用途 |
+|---|---|---|---|
+| `contract/` | 本 repo（TASK-205 1/2） | 2026-10-15 | 公開 API の契約のイベント列のサンプル。結線の合否の基準 |
+
 ## 種類から探す
 
 | 種類 | 場所 |
@@ -65,6 +73,7 @@
 | 版違いの履歴 | `save-restore-versions/test-data/packs/`（版違いのパック）、`save-restore-versions/test-data-addendum/histories/` |
 | 入力の試験文 | `untrusted-input-safety/` の各 `test-data*/`、`input-field-ime/test-data/paste-samples/` |
 | IME の試験文 | `input-field-ime/test-data/ime-sentences.{md,json}`、`key-procedures.md` |
+| 契約のサンプル | `contract/event-sequence.json`（説明は `contract/README.md`） |
 
 ## manifest の検証
 

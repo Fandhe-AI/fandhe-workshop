@@ -1,0 +1,1915 @@
+{
+  "sample_version": 1,
+  "contract_version": 1,
+  "ir": "engine-event-consistency/test-data/min-3step.json",
+  "initial": {
+    "run": {
+      "generation": 1,
+      "current": "main/st-1",
+      "busy": null,
+      "completed": false,
+      "slices": {
+        "main": {
+          "status": {
+            "main/st-1": "entered"
+          },
+          "choices": {},
+          "flags": []
+        }
+      },
+      "world": {},
+      "global_flags": []
+    },
+    "log": [],
+    "entry": {
+      "run": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "log_len": 0
+    },
+    "checkpoints": {},
+    "next_checkpoint": 1,
+    "drafts": {}
+  },
+  "entries": [
+    {
+      "id": "e01",
+      "kinds": [
+        "reject"
+      ],
+      "evt6": 1,
+      "note": "形の誤りによる拒否。版 1 に Judged は無いので InputReceived だけが出る。",
+      "op": {
+        "input": {
+          "command": "/make-note Bad_Name"
+        }
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "after": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "input": {
+              "command": "/make-note Bad_Name"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "e02",
+      "kinds": [
+        "accept"
+      ],
+      "evt6": 1,
+      "note": "コマンドを受け付け、下書きを置く。処理中になる。",
+      "op": {
+        "input": {
+          "command": "/make-note first-note"
+        }
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "after": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "input": {
+              "command": "/make-note first-note"
+            }
+          }
+        },
+        {
+          "accepted": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            }
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": null,
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "created"
+              }
+            },
+            "cause": "input"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e03",
+      "kinds": [
+        "reject"
+      ],
+      "evt6": 1,
+      "note": "処理中の再送は拒否する。",
+      "op": {
+        "input": {
+          "command": "/make-note first-note"
+        }
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "input": {
+              "command": "/make-note first-note"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "e04",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 1 つ目。",
+      "op": {
+        "tick": {
+          "generation": 1,
+          "step": "main/st-1",
+          "index": 0
+        }
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 1,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "name": "p1-prepare",
+            "index": 0,
+            "total": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "e05",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 2 つ目。",
+      "op": {
+        "tick": {
+          "generation": 1,
+          "step": "main/st-1",
+          "index": 1
+        }
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 1,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 2,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "name": "p2-create",
+            "index": 1,
+            "total": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "e06",
+      "kinds": [
+        "stop"
+      ],
+      "evt6": 3,
+      "note": "処理中の停止。世代が 1 つ増え、入口の写しへ戻る。",
+      "op": {
+        "control": "stop"
+      },
+      "before": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": {
+          "done": 2,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "events": [
+        {
+          "stopped": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "new_generation": 2
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "created"
+              }
+            },
+            "after": null,
+            "cause": "stop"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e07",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "古い世代の進行は無視する。",
+      "op": {
+        "tick": {
+          "generation": 1,
+          "step": "main/st-1",
+          "index": 2
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "events": [
+        {
+          "ignored": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "reason": "stale"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e08",
+      "kinds": [
+        "accept"
+      ],
+      "evt6": 1,
+      "note": "世代 2 で受け付け直す。",
+      "op": {
+        "input": {
+          "command": "/make-note first-note"
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "input": {
+              "command": "/make-note first-note"
+            }
+          }
+        },
+        {
+          "accepted": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            }
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": null,
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "created"
+              }
+            },
+            "cause": "input"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e09",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 1 つ目。",
+      "op": {
+        "tick": {
+          "generation": 2,
+          "step": "main/st-1",
+          "index": 0
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 0,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 1,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "name": "p1-prepare",
+            "index": 0,
+            "total": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "e10",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 2 つ目。",
+      "op": {
+        "tick": {
+          "generation": 2,
+          "step": "main/st-1",
+          "index": 1
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 1,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 2,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "name": "p2-create",
+            "index": 1,
+            "total": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "e11",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 3 つ目。",
+      "op": {
+        "tick": {
+          "generation": 2,
+          "step": "main/st-1",
+          "index": 2
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 2,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 3,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "name": "p3-write",
+            "index": 2,
+            "total": 5
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "created"
+              }
+            },
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "writing"
+              }
+            },
+            "cause": "input"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e12",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 4 つ目。",
+      "op": {
+        "tick": {
+          "generation": 2,
+          "step": "main/st-1",
+          "index": 3
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 3,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 4,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "name": "p4-check",
+            "index": 3,
+            "total": 5
+          }
+        }
+      ]
+    },
+    {
+      "id": "e13",
+      "kinds": [
+        "progress"
+      ],
+      "evt6": 2,
+      "note": "進行の 5 つ目。",
+      "op": {
+        "tick": {
+          "generation": 2,
+          "step": "main/st-1",
+          "index": 4
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": {
+          "done": 4,
+          "total": 5
+        },
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "progress": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "name": "p5-save",
+            "index": 4,
+            "total": 5
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "writing"
+              }
+            },
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "saved"
+              }
+            },
+            "cause": "input"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e14",
+      "kinds": [
+        "save"
+      ],
+      "evt6": 5,
+      "note": "チェックポイントを保存する。状態は変わらない。",
+      "op": {
+        "control": "save"
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "checkpoint_saved": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "id": 1,
+            "log_len": 20
+          }
+        }
+      ]
+    },
+    {
+      "id": "e15",
+      "kinds": [
+        "confirm",
+        "achieve"
+      ],
+      "evt6": 1,
+      "note": "確認の成立で達成し、次の Step へ進む。",
+      "op": {
+        "input": {
+          "ui": {
+            "view": "v-files",
+            "path": "notes/draft"
+          }
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-2",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "achieved",
+              "main/st-2": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "input": {
+              "ui": {
+                "view": "v-files",
+                "path": "notes/draft"
+              }
+            }
+          }
+        },
+        {
+          "achieved": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "explicit_skip": false
+          }
+        },
+        {
+          "transitioned": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "to": "main/st-2"
+          }
+        },
+        {
+          "entered": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "e16",
+      "kinds": [
+        "accept",
+        "achieve"
+      ],
+      "evt6": 1,
+      "note": "選択を受け付ける。確認なしなので同時に達成する。",
+      "op": {
+        "input": {
+          "choice": "opt-memo"
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-2",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "achieved",
+              "main/st-2": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 2,
+        "current": "main/st-3",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "achieved",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            },
+            "input": {
+              "choice": "opt-memo"
+            }
+          }
+        },
+        {
+          "accepted": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            }
+          }
+        },
+        {
+          "achieved": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            },
+            "explicit_skip": false
+          }
+        },
+        {
+          "transitioned": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            },
+            "to": "main/st-3"
+          }
+        },
+        {
+          "entered": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-3"
+            }
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            },
+            "path": "notes/draft",
+            "before": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "saved"
+              }
+            },
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "memo",
+                "state": "saved"
+              }
+            },
+            "cause": "input"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e17",
+      "kinds": [
+        "move"
+      ],
+      "evt6": 4,
+      "note": "指定の Step へ移る。世代が 1 つ増える。",
+      "op": {
+        "control": {
+          "go_to": "main/st-1"
+        }
+      },
+      "before": {
+        "generation": 2,
+        "current": "main/st-3",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "achieved",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 3,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "moved": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-3"
+            },
+            "to": "main/st-1",
+            "new_generation": 3
+          }
+        },
+        {
+          "entered": {
+            "at": {
+              "generation": 3,
+              "step": "main/st-1"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "e18",
+      "kinds": [
+        "move"
+      ],
+      "evt6": 4,
+      "note": "無い Step への移動は拒否し、世代を変えない。",
+      "op": {
+        "control": {
+          "go_to": "main/st-9"
+        }
+      },
+      "before": {
+        "generation": 3,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 3,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "refused": {
+            "at": {
+              "generation": 3,
+              "step": "main/st-1"
+            },
+            "op": "go_to",
+            "reason": "unknown_step",
+            "rejection": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "e19",
+      "kinds": [
+        "restore"
+      ],
+      "evt6": 6,
+      "note": "チェックポイントへ復帰する。世代だけは増える。",
+      "op": {
+        "control": {
+          "restore": 1
+        }
+      },
+      "before": {
+        "generation": 3,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered",
+              "main/st-2": "achieved",
+              "main/st-3": "entered"
+            },
+            "choices": {
+              "main/st-2": "opt-memo"
+            },
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 4,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "restored": {
+            "at": {
+              "generation": 3,
+              "step": "main/st-1"
+            },
+            "id": 1,
+            "new_generation": 4,
+            "log_len": 20,
+            "owner": "main/st-1"
+          }
+        },
+        {
+          "changed": {
+            "at": {
+              "generation": 4,
+              "step": "main/st-1"
+            },
+            "path": "notes/draft",
+            "before": {
+              "fixture": null,
+              "attrs": {
+                "kind": "memo",
+                "state": "saved"
+              }
+            },
+            "after": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "saved"
+              }
+            },
+            "cause": "restore"
+          }
+        }
+      ]
+    },
+    {
+      "id": "e20",
+      "kinds": [
+        "restore"
+      ],
+      "evt6": 6,
+      "note": "無い番号の復帰は拒否し、世代を変えない。",
+      "op": {
+        "control": {
+          "restore": 99
+        }
+      },
+      "before": {
+        "generation": 4,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 4,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "refused": {
+            "at": {
+              "generation": 4,
+              "step": "main/st-1"
+            },
+            "op": "restore",
+            "reason": "unknown_checkpoint",
+            "rejection": null
+          }
+        }
+      ]
+    },
+    {
+      "id": "e21",
+      "kinds": [
+        "stop"
+      ],
+      "evt6": 3,
+      "note": "処理中でない停止は取り消し入力として扱い、世代を変えない。",
+      "op": {
+        "control": "stop"
+      },
+      "before": {
+        "generation": 4,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "after": {
+        "generation": 4,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "accepted"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {
+          "notes/draft": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          }
+        },
+        "global_flags": []
+      },
+      "events": [
+        {
+          "input_received": {
+            "at": {
+              "generation": 4,
+              "step": "main/st-1"
+            },
+            "input": "cancel"
+          }
+        }
+      ]
+    }
+  ]
+}
