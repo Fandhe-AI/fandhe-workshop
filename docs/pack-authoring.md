@@ -66,7 +66,7 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 
 `wait` は受講者の入力を要さず、`processing` の進行の完了で受付になります。`processing` が無い待機は先へ進めない
 ため拒否します。この決定は、spec に明文がなく EP-1 の説明からの推定によります（2026-10-15。spec 側の確認が望ましい）。
-`processing` があって `wait` でない Step（`command` との併用など）は書けます。`processing` の中身は、ここでは検査しません。
+`processing` があって `wait` でない Step（`command` との併用など）は書けます。`processing` の欄は「処理中の進行（`processing`）」の節を見てください。
 
 取り消し（EP-2）は `input.kind` ではなく、規則の `on: { cancel: true }` で受けます。`kind: cancel` は未知の `kind` として
 `E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
@@ -91,6 +91,29 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 - `answer` の選択肢の `on_wrong`（EP-6）と `label`（v1.3）は、形として受け付けるだけです。意味の検査と表示は後続のタスクが受け持ちます
 - `on_miss`・`on_wrong` の参照先と `targets[].view` の解決は、参照検査（TASK-46）が受け持ち、ここでは検査しません
 
+## 処理中の進行（`processing`）
+
+`processing` の要素に書ける欄は、`name`（空でない文字列）と `effects`（効果の列）だけです。未知の欄は `E-PARSE`、空の名前は
+`E-STRUCTURE` で拒否します。
+
+**進行の間隔は宣言できません。** `processing` の要素にも、Step にも、`pack:` にも、間隔の欄はありません。書くと `E-PARSE`
+になります（PACK-44、D-43）。間隔はエンジンのビルド時の定数で、300ms です（D-47、EVT-18）。配信する設定では、教材からも URL からも
+変えられません。早送りの扱いはこの節の範囲外で、早送りの項目に任せます。
+
+処理中に受講者が Esc を押せる長さが要る Step は、進行の件数を増やして長さを稼いでください。長さはおおよそ「件数 × 300ms」で、
+20 件ならおよそ 6 秒です（ST-1.5 の規模）。効果を持たない進行（`name` だけ）を足して構いません。
+
+```yaml
+processing:
+  - {name: scan, effects: [{set_flag: scanning}]}
+  - {name: wait-1}
+  - {name: wait-2}
+  - {name: wait-3}
+```
+
+処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
+TERM-34 の担当で、2026-10-15 時点では済んでいません。
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -103,3 +126,4 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
 | `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22） |
+| `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |

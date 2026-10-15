@@ -305,6 +305,71 @@ fn pack9_format_a_processing_accepts_and_rejects() {
     );
 }
 
+// ---- 進行の間隔は宣言できない（PACK-44、D-43） ----
+// 間隔はエンジンのビルド時の定数で（D-47）、教材は変えられない。欄を足さない決定を、未知の欄の拒否として固定する。
+// 回避は進行の件数を増やすことである（docs/pack-authoring.md の「処理中の進行」）。
+
+#[test]
+fn pack44_interval_on_tick_is_e_parse() {
+    for key in ["interval", "interval_ms", "tick_ms"] {
+        let d = one(
+            &pack(
+                &format!(", processing: [{{name: n, {key}: {SECRET}}}]"),
+                "[]",
+            ),
+            DiagCode::Parse,
+        );
+        assert!(d.message().starts_with("processing[0]"), "{d}");
+        assert!(
+            d.message().contains(&format!("unknown field `{key}`")),
+            "{d}"
+        );
+    }
+}
+
+#[test]
+fn pack44_interval_on_step_is_e_parse() {
+    let d = one(
+        &pack(
+            &format!(", interval: {SECRET}, processing: [{{name: n}}]"),
+            "[]",
+        ),
+        DiagCode::Parse,
+    );
+    assert!(d.message().contains("unknown field `interval`"), "{d}");
+}
+
+#[test]
+fn pack44_more_ticks_is_the_workaround() {
+    let ticks: Vec<String> = (0..20).map(|i| format!("{{name: t{i}}}")).collect();
+    let t = pack(&format!(", processing: [{}]", ticks.join(", ")), "[]");
+    let ir = ir_of(&t);
+    let a = ir.nodes.iter().find(|n| n.uid == "main/a").expect("node a");
+    assert_eq!(a.step.processing.len(), 20);
+    for (i, v) in a.step.processing.iter().enumerate() {
+        assert_eq!(v["name"], format!("t{i}"));
+        let obj = v.as_object().expect("object");
+        assert!(obj.keys().all(|k| k == "name" || k == "effects"), "{v}");
+    }
+}
+
+#[test]
+fn pack44_format_a_interval_is_e_parse() {
+    let t = Tmp::new("interval-toml");
+    t.put(
+        "workshop.toml",
+        b"[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n",
+    );
+    t.put(
+        "chapters/c1/chapter.toml",
+        format!(
+            "id = \"c1\"\ntitle = \"C\"\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nfinal = true\nprocessing = [{{name = \"n\", interval = \"{SECRET}\"}}]\n"
+        )
+        .as_bytes(),
+    );
+    one(&t, DiagCode::Parse);
+}
+
 /// コードを書ける欄を作らない: 効果・進行・when の全位置に差し込んだコード欄はすべて拒否される。
 #[test]
 fn pack9_no_code_field_is_accepted_anywhere() {
