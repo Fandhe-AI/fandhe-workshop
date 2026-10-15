@@ -1,0 +1,9 @@
+id: JUDGE7-2
+package: fandhe-workshop-core
+test: command_accept
+target: crates/core/src/command_accept.rs
+find: apply_acceptance(run, uid, &accepted.effects, at, cond)
+replace: apply_acceptance(run, uid, &[], at, cond)
+expect-fail: st_7_3_same_input_is_accepted_and_stops_world
+expect-fail: st_7_1_and_st_7_3_differ
+note: 受付の効果を適用しない（受付になっても世界状態が止まらない）

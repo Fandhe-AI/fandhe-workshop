@@ -212,6 +212,18 @@ pub fn accept_text(
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
+    apply_acceptance(run, uid, &accepted.effects, at, cond)
+}
+
+/// 受付の適用の共通部分（自然文・コマンド入力で共用）。Step を `Accepted` にし、`Event::Accepted` に続けて
+/// `effects` の効果のイベントを `Cause::Input` で返す。修正が片方にだけ入らないよう、一か所に置く。
+pub(crate) fn apply_acceptance(
+    run: &mut RunState,
+    uid: &StepUid,
+    effects: &[EffectItem],
+    at: &Stamp,
+    cond: &dyn ConditionEval,
+) -> Vec<Event> {
     let root = uid.root();
     run.slices
         .entry(root.clone())
@@ -219,14 +231,7 @@ pub fn accept_text(
         .status
         .insert(uid.clone(), StepStatus::Accepted);
     let mut events = vec![Event::Accepted { at: at.clone() }];
-    events.extend(apply_effects(
-        run,
-        &root,
-        &accepted.effects,
-        at,
-        Cause::Input,
-        cond,
-    ));
+    events.extend(apply_effects(run, &root, effects, at, Cause::Input, cond));
     events
 }
 
