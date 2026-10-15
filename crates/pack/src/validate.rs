@@ -1,4 +1,4 @@
-//! `fandhe-pack validate` の静的検査を置くモジュール（TASK-54 1/2: 存在しない対象への参照）。
+//! `fandhe-pack validate` の静的検査を置くモジュール（TASK-54: 参照・ID の重複・形式の版・構造）。
 //!
 //! 読み込んだパック（`LoadedPack`）だけを見る純関数で、ファイルシステムには触れない（ディスクに触れるのは
 //! `source::load`）。`validate_dir` は読み込みに失敗したとき、その診断をそのまま返し、半端に読んだ
@@ -6,7 +6,15 @@
 //! 読み込みの層が検出するため、ここでは新しい論理を持たない。
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
-//! 持ち分である。`E-DUP-ID`・`E-FORMAT-VERSION`・`E-STRUCTURE` は TASK-54 2/2 が [`validate`] へ足す。
+//! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! 返す（`compile` と同じ fail-closed）。
+//!
+//! 構造の検査は、`expand::check_use_steps`（`use` と `input` の同時指定）・`input::check_inputs`・
+//! `confirm::check_confirms`（正答の無い `answer` は `E-STRUCTURE`）を再利用し、結果を絞らずに返す。絞ると
+//! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
+//! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。
+//! `E-PROFILE-*`・`E-UNREACHABLE` などの残りの検査は TASK-46・TASK-55・TASK-56 の持ち分である。
 //!
 //! 語彙の中身（`input`・`rules`・`confirm`・`on_enter` など）は `serde_json::Value` のまま通っているため、
 //! 参照を取り出す経路をここに集める。教材データは信頼しない入力として扱い、文字列でない参照は黙って
@@ -15,7 +23,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use fandhe_workshop_contract::ir::Step;
+use fandhe_workshop_contract::ir::{is_supported_ir_format, Step};
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
@@ -37,9 +45,120 @@ pub fn validate_dir(dir: &Path) -> Vec<Diagnostic> {
     }
 }
 
-/// 読み込んだパックの静的検査。当面は参照の検査だけで、TASK-54 2/2 が検査を足す。
+/// 読み込んだパックの静的検査。形式の版が不一致なら、その 1 件だけを返して残りを検査しない。
+/// 診断が 0 件なら空の Vec。
 pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
-    check_refs(pack)
+    if let Some(d) = check_format_version(pack) {
+        return vec![d];
+    }
+    let mut out = check_dup_ids(pack);
+    out.extend(check_refs(pack));
+    out.extend(check_structure(pack));
+    out
+}
+
+/// 診断の文面に写す ID。`safe_ident` を通らない ID は写さない（教材データは信頼しない入力）。
+fn shown(id: &str) -> &str {
+    if safe_ident(id) {
+        id
+    } else {
+        "(id not shown)"
+    }
+}
+
+/// IR の形式の版（`pack.ir_format`）が対応する版かを検査する（`E-FORMAT-VERSION`）。
+/// `validate_dir` の経路では読み込みの層が先に止めるため、メモリ上の `LoadedPack` を直接渡す呼び出し向けの判定。
+pub fn check_format_version(pack: &LoadedPack) -> Option<Diagnostic> {
+    let v = pack.workshop.pack.ir_format;
+    if is_supported_ir_format(v) {
+        return None;
+    }
+    Some(diag(
+        &pack.workshop_file,
+        "pack:ir_format",
+        DiagCode::FormatVersion,
+        format!("ir_format {v} is not supported (expected 1 or 2)"),
+    ))
+}
+
+/// ID の重複の検査（`E-DUP-ID`）。名前空間は `compile` に合わせる。章の Step・開始点は全章で 1 つ、
+/// モジュールの Step・開始点はモジュールごと、モジュールの ID は全モジュールで 1 つ。1 件目を通し、
+/// 2 件目以降を、その定義のファイルで報告する。呼ばれないモジュールも検査する。
+pub fn check_dup_ids(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    let mut chapter_steps: BTreeSet<&str> = BTreeSet::new();
+    let mut chapter_starts: BTreeSet<&str> = BTreeSet::new();
+    let mut module_ids: BTreeSet<&str> = BTreeSet::new();
+    for scope in &pack.scopes {
+        let is_module = scope.kind == ScopeKind::Module;
+        if is_module && !module_ids.insert(scope.src.id.as_str()) {
+            out.push(diag(
+                &scope.file,
+                "module",
+                DiagCode::DupId,
+                format!("duplicate module id: {}", shown(&scope.src.id)),
+            ));
+        }
+        let mut local_steps: BTreeSet<&str> = BTreeSet::new();
+        let mut local_starts: BTreeSet<&str> = BTreeSet::new();
+        let (steps, starts) = if is_module {
+            (&mut local_steps, &mut local_starts)
+        } else {
+            (&mut chapter_steps, &mut chapter_starts)
+        };
+        for start in &scope.src.starts {
+            if !starts.insert(start.id.as_str()) {
+                out.push(diag(
+                    &scope.file,
+                    &format!("start:{}", start.id),
+                    DiagCode::DupId,
+                    format!("duplicate start id: {}", shown(&start.id)),
+                ));
+            }
+        }
+        for step in &scope.src.steps {
+            if !steps.insert(step.id.as_str()) {
+                out.push(diag(
+                    &scope.file,
+                    &format!("step:{}", step.id),
+                    DiagCode::DupId,
+                    format!("duplicate step id: {}", shown(&step.id)),
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// 構造の検査（`E-STRUCTURE`）。章・開始点の有無は `compile` と同じ判定で、`use` と `input` の同時指定・
+/// 入力方式の宣言・確認の宣言（正答の無い `answer` を含む）は既存の検査を呼んで、結果を絞らずに返す。
+pub fn check_structure(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    let mut chapters = 0usize;
+    let mut starts = 0usize;
+    for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
+        chapters += 1;
+        starts += scope.src.starts.len();
+    }
+    if chapters == 0 {
+        out.push(diag(
+            "chapters",
+            "pack",
+            DiagCode::Structure,
+            "no chapter is defined",
+        ));
+    } else if starts == 0 {
+        out.push(diag(
+            "chapters",
+            "pack",
+            DiagCode::Structure,
+            "no start is defined",
+        ));
+    }
+    out.extend(crate::expand::check_use_steps(&pack.scopes));
+    out.extend(crate::input::check_inputs(&pack.scopes));
+    out.extend(crate::confirm::check_confirms(&pack.scopes));
+    out
 }
 
 /// 照合先の ID の集合。
@@ -134,12 +253,11 @@ fn check_id(
     if set.contains(id) || (site.in_module && id.contains("${")) {
         return;
     }
-    let shown = if safe_ident(id) { id } else { "(id not shown)" };
     out.push(diag(
         site.file,
         &site.item,
         kind.code(),
-        format!("undefined {}: {shown}", kind.noun()),
+        format!("undefined {}: {}", kind.noun(), shown(id)),
     ));
 }
 
@@ -418,6 +536,26 @@ mod tests {
         assert_eq!(d[0].message(), "undefined hint: (id not shown)");
         let d = run(Kind::Hint, Some(json!("h-x")), &[]);
         assert_eq!(d[0].message(), "undefined hint: h-x");
+    }
+
+    #[test]
+    fn unsafe_duplicate_id_is_not_shown() {
+        assert_eq!(shown("a b\nc"), "(id not shown)");
+        assert_eq!(shown("a-b"), "a-b");
+    }
+
+    #[test]
+    fn unsupported_format_version_returns_only_that_diagnostic() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/min-3step-pack-b");
+        let mut pack = source::load(&dir).expect("load");
+        assert!(validate(&pack).is_empty());
+        pack.workshop.pack.ir_format = 3;
+        pack.workshop.hints.clear();
+        let d = validate(&pack);
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert_eq!(d[0].code(), DiagCode::FormatVersion);
+        assert_eq!(d[0].item(), "pack:ir_format");
     }
 
     #[test]
