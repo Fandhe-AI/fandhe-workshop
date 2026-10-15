@@ -277,6 +277,15 @@ fn cases() -> Vec<(
             "defaults:unknown",
         ),
         (
+            "rule-on-command",
+            CHAPTER_FILE,
+            "command: help}",
+            "command: gone}",
+            RefCommand,
+            CHAPTER_FILE,
+            "step:a",
+        ),
+        (
             "input-name",
             CHAPTER_FILE,
             "name: help",

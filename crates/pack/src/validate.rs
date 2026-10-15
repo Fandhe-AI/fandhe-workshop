@@ -226,9 +226,17 @@ fn check_step(out: &mut Vec<Diagnostic>, scope: &LoadedScope, t: &Targets<'_>, s
     }
 
     for rule in &step.rules {
-        if let Some(ui) = get(rule, "on").and_then(|on| get(on, "ui")) {
+        let on = get(rule, "on");
+        if let Some(ui) = on.and_then(|on| get(on, "ui")) {
             check_value(out, &site, Kind::View, get(ui, "view"), &t.views);
         }
+        check_value(
+            out,
+            &site,
+            Kind::Command,
+            on.and_then(|on| get(on, "command")),
+            &t.commands,
+        );
         let Some(outcome) = get(rule, "outcome") else {
             continue;
         };
