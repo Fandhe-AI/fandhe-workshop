@@ -1,0 +1,9 @@
+id: JUDGE4-1
+package: fandhe-workshop-core
+test: command_class
+target: crates/core/src/command_class.rs
+find: if kind == CommandKind::Flow {
+replace: if kind == CommandKind::Unsupported {
+expect-fail: wrong_input_pairs_are_classified_100_percent
+expect-fail: other_flow_name_is_wrong_order_for_any_status
+note: flow の判定を外す（flow のコマンドが順序違いにならず未分類に落ちる）
