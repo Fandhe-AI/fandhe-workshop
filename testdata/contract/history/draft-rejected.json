@@ -1,0 +1,101 @@
+{
+  "format": "fandhe-workshop-history",
+  "history_format": 1,
+  "pack_id": "min-3step",
+  "versions": {
+    "engine": "0.0.0",
+    "ir_format": 1,
+    "vocab": "1.0",
+    "content": "0.0.1",
+    "content_hash": "311dcc8d1abb5937d3f8bdf0c6684116f6f6ae7a1e857845de91365d0edd144d",
+    "refs": {}
+  },
+  "start": "s-1",
+  "ops": [
+    {
+      "draft": "/make-note Bad_Name"
+    },
+    {
+      "submit": "/make-note Bad_Name"
+    },
+    {
+      "control": {
+        "restore": 99
+      }
+    },
+    {
+      "draft": "/make-note half-writ"
+    }
+  ],
+  "snapshot": {
+    "run": {
+      "generation": 1,
+      "current": "main/st-1",
+      "busy": null,
+      "completed": false,
+      "slices": {
+        "main": {
+          "status": {
+            "main/st-1": "entered"
+          },
+          "choices": {},
+          "flags": []
+        }
+      },
+      "world": {},
+      "global_flags": [],
+      "guidance_level": "A"
+    },
+    "log": [
+      {
+        "input_received": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "input": {
+            "command": "/make-note Bad_Name"
+          }
+        }
+      },
+      {
+        "refused": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "op": "restore",
+          "reason": "unknown_checkpoint",
+          "rejection": null
+        }
+      }
+    ],
+    "entry": {
+      "run": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": [],
+        "guidance_level": "A"
+      },
+      "log_len": 0
+    },
+    "checkpoints": {},
+    "next_checkpoint": 1,
+    "drafts": {
+      "main": "/make-note half-writ"
+    },
+    "hints_opened": {}
+  }
+}
