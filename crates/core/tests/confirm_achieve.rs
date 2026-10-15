@@ -78,6 +78,13 @@ fn approval(decision: Decision) -> Input {
     }
 }
 
+fn targeted_approval(decision: Decision) -> Input {
+    Input::Approval {
+        decision,
+        target: Some("t-1".into()),
+    }
+}
+
 fn names(events: &[Event]) -> Vec<&'static str> {
     events
         .iter()
@@ -186,6 +193,7 @@ fn approve_confirms_only_on_approve_and_stops_without_next() {
     assert_missed(&ir, &s, approval(Decision::Reject));
     assert_missed(&ir, &s, approval(Decision::Revise));
     assert_missed(&ir, &s, ui("v-files", "notes/draft"));
+    assert_missed(&ir, &s, targeted_approval(Decision::Approve));
     let (next, events) = send(&ir, s, approval(Decision::Approve));
     assert_eq!(names(&events), ["input_received", "achieved"]);
     assert_eq!(status(&next, "main/st-3"), StepStatus::Achieved);
@@ -255,6 +263,7 @@ fn missing_confirm_is_treated_as_approve() {
     let ir = with_step(|st| st.confirm = None);
     let s = at("main/st-1", StepStatus::Accepted);
     assert_missed(&ir, &s, ui("v-files", "notes/draft"));
+    assert_missed(&ir, &s, targeted_approval(Decision::Approve));
     let (next, _) = send(&ir, s, approval(Decision::Approve));
     assert_eq!(status(&next, "main/st-1"), StepStatus::Achieved);
 }

@@ -11,7 +11,7 @@
 //! 1. `confirm` が無ければ `approve` として扱う（`achievement(None)` と同じ安全側）
 //! 2. `point_at`: `Input::Ui` が `targets` のどれかと完全一致したときだけ成立する
 //! 3. `answer`: `Input::Choice` が `correct` の選択肢を指したときだけ成立する（誤答・未知の ID は外れ）
-//! 4. `approve`: `Input::Approval` の決定が承認のときだけ成立する（`target` は見ない）
+//! 4. `approve`: `Input::Approval` の決定が承認のときだけ成立する（`target` つきの承認は外れ。対象つきの「直す」等の経路は別）
 //! 5. `none`: 成立させない（受付と同時の達成は TASK-208）
 //! 6. 宣言が読めない・検査に通らない・`kind` が未知なら、固定文の `Warning` を足して状態を変えない（fail-closed）
 //! 7. 外れは状態を変えず、イベントも足さない（版 1 は `Judged` が無い。文面の発行は TASK-267 の後）
@@ -132,7 +132,7 @@ fn judge(confirm: Option<&Value>, input: &Input) -> Verdict {
             match input {
                 Input::Approval {
                     decision: Decision::Approve,
-                    ..
+                    target: None,
                 } => Verdict::Confirmed,
                 _ => Verdict::Missed,
             }
