@@ -10,7 +10,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use fandhe_workshop_contract::ir::{Ir, IR_FORMAT_VERSION};
+use fandhe_workshop_contract::ir::{is_supported_ir_format, Ir};
 use fandhe_workshop_contract::limits::{LimitReason, LoadEntry, MAX_IR_BYTES};
 
 use crate::json_depth::check_json_depth;
@@ -27,6 +27,14 @@ pub enum IrLoadError {
     FormatVersion(u32),
     /// `pack.ir_format` が未対応。
     PackIrFormat(u32),
+    /// 版の整合が取れていない（`format_version` と `pack.ir_format` が違う、または版 1 と名乗りながら
+    /// 版 2 の欄を持つ）。メッセージには版の数値だけを入れる。
+    FormatInconsistent {
+        /// `format_version`。
+        format_version: u32,
+        /// `pack.ir_format`。
+        pack_ir_format: u32,
+    },
     /// `nodes[].uid` が重複している。
     DuplicateUid(String),
     /// 開始または遷移の宛先が存在しない。
@@ -45,6 +53,13 @@ impl fmt::Display for IrLoadError {
             IrLoadError::Json(m) => write!(f, "invalid IR JSON: {m}"),
             IrLoadError::FormatVersion(v) => write!(f, "unsupported format_version: {v}"),
             IrLoadError::PackIrFormat(v) => write!(f, "unsupported pack.ir_format: {v}"),
+            IrLoadError::FormatInconsistent {
+                format_version,
+                pack_ir_format,
+            } => write!(
+                f,
+                "inconsistent IR format: format_version {format_version}, pack.ir_format {pack_ir_format}"
+            ),
             IrLoadError::DuplicateUid(u) => write!(f, "duplicate node uid: {u}"),
             IrLoadError::UnresolvedRef { from, to } => {
                 write!(f, "unresolved reference: {from} -> {to}")
@@ -85,7 +100,7 @@ pub fn check_ir_limits(bytes: &[u8]) -> Result<(), LimitReason> {
     check_json_depth(bytes)
 }
 
-/// 解釈済みの値から版を先読みし、版 1 でなければその理由を返す。
+/// 解釈済みの値から版を先読みし、読める版（1・2）でなければその理由を返す。
 ///
 /// 版が違う IR は、この版の知らない欄を持ちうる。型付きの変換の後に版を見ると、未知の欄の拒否が先に出て
 /// 「版が未対応」という分類が失われる（PACK-24）。そのため型付きの変換より前に見る。整数として読めて
@@ -96,11 +111,11 @@ fn probe_version(value: &serde_json::Value) -> Option<IrLoadError> {
         v.and_then(serde_json::Value::as_u64)
             .and_then(|n| u32::try_from(n).ok())
     };
-    if let Some(v) = version(value.get("format_version")).filter(|v| *v != IR_FORMAT_VERSION) {
+    if let Some(v) = version(value.get("format_version")).filter(|v| !is_supported_ir_format(*v)) {
         return Some(IrLoadError::FormatVersion(v));
     }
     if let Some(v) = version(value.get("pack").and_then(|p| p.get("ir_format")))
-        .filter(|v| *v != IR_FORMAT_VERSION)
+        .filter(|v| !is_supported_ir_format(*v))
     {
         return Some(IrLoadError::PackIrFormat(v));
     }
@@ -111,9 +126,9 @@ fn probe_version(value: &serde_json::Value) -> Option<IrLoadError> {
 ///
 /// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。最初の 3 段は共有の関門に任せ、
 /// 解釈と `Ir` への変換を分ける（`from_slice::<Ir>` の 1 回だと、構文の誤りより先に型の誤りが返りうる）。
-/// 型・内容の段の中では、版の先読み、型付きの変換、参照の整合の順に確かめる（先読みの理由は
-/// [`probe_version`]）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
-/// `uid` の重複・開始と遷移の宛先の解決である。
+/// 型・内容の段の中では、版の先読み、型付きの変換、版の整合、参照の整合の順に確かめる（先読みの理由は
+/// [`probe_version`]）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`（1 と 2 を読む。
+/// 2 つは同じ値で、版 2 の欄を使うなら 2）・`uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
     let value = parse_json_value(LoadEntry::Ir, bytes).map_err(from_gate)?;
     if let Some(e) = probe_version(&value) {
@@ -121,11 +136,19 @@ pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
     }
     let ir: Ir =
         serde_json::from_value(value).map_err(|_| IrLoadError::Json(TYPE_MISMATCH.to_owned()))?;
-    if ir.format_version != IR_FORMAT_VERSION {
+    if !is_supported_ir_format(ir.format_version) {
         return Err(IrLoadError::FormatVersion(ir.format_version));
     }
-    if ir.pack.ir_format != IR_FORMAT_VERSION {
+    if !is_supported_ir_format(ir.pack.ir_format) {
         return Err(IrLoadError::PackIrFormat(ir.pack.ir_format));
+    }
+    // 2 つの版は同じ値でなければならない。版 1 と名乗りながら版 2 の欄（本文・練習データの木）を持つ IR は、
+    // 版を偽っているので拒否する（安全側）。判定の正は `Ir::required_ir_format`。
+    if ir.format_version != ir.pack.ir_format || ir.pack.ir_format < ir.required_ir_format() {
+        return Err(IrLoadError::FormatInconsistent {
+            format_version: ir.format_version,
+            pack_ir_format: ir.pack.ir_format,
+        });
     }
     let mut uids = BTreeSet::new();
     for n in &ir.nodes {
@@ -190,10 +213,82 @@ mod tests {
 
     #[test]
     fn l4_rejects_versions() {
-        let s = MIN.replacen("\"format_version\":1", "\"format_version\":2", 1);
-        assert_eq!(load(&s).unwrap_err(), IrLoadError::FormatVersion(2));
-        let s = MIN.replacen("\"ir_format\":1", "\"ir_format\":2", 1);
-        assert_eq!(load(&s).unwrap_err(), IrLoadError::PackIrFormat(2));
+        let s = MIN.replacen("\"format_version\":1", "\"format_version\":3", 1);
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::FormatVersion(3));
+        let s = MIN.replacen("\"ir_format\":1", "\"ir_format\":3", 1);
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::PackIrFormat(3));
+    }
+
+    /// `MIN` を版 2 にする（`format_version` と `pack.ir_format` の両方）。
+    fn min_v2() -> String {
+        MIN.replacen("\"format_version\":1", "\"format_version\":2", 1)
+            .replacen("\"ir_format\":1", "\"ir_format\":2", 1)
+    }
+
+    /// 最初の Step の `uid` の直後（`step` を閉じた後）に、Node の欄を足す。
+    fn with_node_field(base: &str, field: &str) -> String {
+        base.replacen(
+            "}},{\"uid\":\"main/b\"",
+            &format!("}},{field}}},{{\"uid\":\"main/b\""),
+            1,
+        )
+    }
+
+    const BODY_DOC: &str = r#""body_doc":{"version":1,"blocks":[{"t":"rule"}]}"#;
+
+    #[test]
+    fn l16_accepts_version_two() {
+        assert_eq!(load(&min_v2()).unwrap().format_version, 2);
+        // 木を持つ版 2 の IR。
+        let ir = load(&with_node_field(&min_v2(), BODY_DOC)).unwrap();
+        assert!(ir.nodes[0].body_doc.is_some());
+    }
+
+    #[test]
+    fn l17_rejects_inconsistent_versions() {
+        let only_top = MIN.replacen("\"format_version\":1", "\"format_version\":2", 1);
+        assert_eq!(
+            load(&only_top).unwrap_err(),
+            IrLoadError::FormatInconsistent {
+                format_version: 2,
+                pack_ir_format: 1
+            }
+        );
+        let only_pack = MIN.replacen("\"ir_format\":1", "\"ir_format\":2", 1);
+        assert_eq!(
+            load(&only_pack).unwrap_err(),
+            IrLoadError::FormatInconsistent {
+                format_version: 1,
+                pack_ir_format: 2
+            }
+        );
+        // 版 1 と名乗りながら木を持つ IR。
+        assert!(matches!(
+            load(&with_node_field(MIN, BODY_DOC)),
+            Err(IrLoadError::FormatInconsistent { .. })
+        ));
+    }
+
+    #[test]
+    fn l18_inconsistent_message_has_numbers_only() {
+        let e = IrLoadError::FormatInconsistent {
+            format_version: 1,
+            pack_ir_format: 2,
+        };
+        assert_eq!(
+            e.to_string(),
+            "inconsistent IR format: format_version 1, pack.ir_format 2"
+        );
+    }
+
+    #[test]
+    fn l19_rejects_unknown_tree_content() {
+        let bad = r#""body_doc":{"version":1,"blocks":[{"t":"script","text":"SECRET-VALUE"}]}"#;
+        let Err(e) = load(&with_node_field(&min_v2(), bad)) else {
+            panic!("must be rejected")
+        };
+        assert_eq!(e, IrLoadError::Json(TYPE_MISMATCH.to_owned()));
+        assert!(!e.to_string().contains("SECRET-VALUE"));
     }
 
     #[test]
@@ -264,14 +359,14 @@ mod tests {
     fn l14_version_is_probed_before_unknown_fields() {
         let s = MIN.replacen(
             "\"format_version\":1",
-            "\"format_version\":2,\"future\":1",
+            "\"format_version\":3,\"future\":1",
             1,
         );
-        assert_eq!(load(&s).unwrap_err(), IrLoadError::FormatVersion(2));
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::FormatVersion(3));
         let s = MIN
-            .replacen("\"ir_format\":1", "\"ir_format\":2,\"future\":1", 1)
+            .replacen("\"ir_format\":1", "\"ir_format\":3,\"future\":1", 1)
             .replacen("\"id\":\"a\"", "\"id\":\"a\",\"future\":1", 1);
-        assert_eq!(load(&s).unwrap_err(), IrLoadError::PackIrFormat(2));
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::PackIrFormat(3));
         let s = MIN.replacen("\"nodes\"", "\"future\":1,\"nodes\"", 1);
         assert_eq!(
             load(&s).unwrap_err(),
@@ -281,7 +376,7 @@ mod tests {
 
     #[test]
     fn l15_unprobeable_versions_fall_through_to_type_mismatch() {
-        for v in ["4294967296", "-1", "1.5", "2.0"] {
+        for v in ["4294967296", "-1", "1.5", "3.0"] {
             let s = MIN.replacen(
                 "\"format_version\":1",
                 &format!("\"format_version\":{v}"),

@@ -1,10 +1,10 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "pack": {
     "id": "ime-practice",
     "title": "入力欄の試験（PoC-2 試験データ）",
     "version": "0.0.1",
-    "ir_format": 1,
+    "ir_format": 2,
     "guidance": "A"
   },
   "refs": [],
@@ -153,6 +153,30 @@
           "kind": "none",
           "reason": "送った結果の確認は試験の側が送信の記録で行うため、別の確認を置かない。"
         }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "入力欄の試験"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。"
+              }
+            ]
+          }
+        ]
       }
     }
   ],

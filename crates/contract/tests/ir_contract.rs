@@ -1,9 +1,10 @@
-//! IR の型（`ir_format` 1）の適合試験（TASK-41、04-behavior の PACK-24）。
+//! IR の型（`ir_format` 1・2）の適合試験（TASK-41・TASK-60、04-behavior の PACK-24）。
 //!
 //! 版の値、バイト列の形、任意の欄の既定値は書き出さない規則、版 1 の構造の欄は空でも書き出す規則、
 //! 未知の欄の拒否を、golden（`tests/data/ir_format_1/`）とのバイト一致で固定する。
 //! golden の書き換えは契約の変更であり、`ir_format` の版上げの判断が要る（spec を先に直す）。
 //! 試験は作業ツリーを書き換えない。golden のパスは `CARGO_MANIFEST_DIR` から固定で組み立てる。
+//! 版 2 は `tests/data/ir_format_2/` の golden で、木の欄を使うときだけ版が 2 になることを固定する。
 //! 新 → 旧の拒否と旧 → 新の読み込みの適合試験は `tests/ir_compat.rs`（型の水準）と
 //! `crates/pack/tests/ir_compat.rs`（`load_ir` の水準）が扱う。
 //! 試験では `unwrap` を使ってよい（失敗はそのまま試験の失敗になる）。
@@ -11,12 +12,18 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use fandhe_workshop_contract::doc::{Block, Doc, Inline, TREE_VERSION};
 use fandhe_workshop_contract::ir::*;
 use serde_json::{json, Value};
 
 fn golden(name: &str) -> Vec<u8> {
+    golden_in("ir_format_1", name)
+}
+
+fn golden_in(dir: &str, name: &str) -> Vec<u8> {
     let p = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/data/ir_format_1")
+        .join("tests/data")
+        .join(dir)
         .join(name);
     std::fs::read(&p).unwrap_or_else(|_| panic!("cannot read golden {name}"))
 }
@@ -26,7 +33,7 @@ fn pack() -> PackInfo {
         id: "p".into(),
         title: "題名".into(),
         version: "0.1.0".into(),
-        ir_format: IR_FORMAT_VERSION,
+        ir_format: IR_FORMAT_V1,
         guidance: "A".into(),
         vocab: None,
         guidance_levels: None,
@@ -42,7 +49,7 @@ fn step(id: &str) -> Step {
 
 fn minimal_ir() -> Ir {
     Ir {
-        format_version: IR_FORMAT_VERSION,
+        format_version: IR_FORMAT_V1,
         pack: pack(),
         refs: vec![],
         commands: BTreeMap::new(),
@@ -55,7 +62,79 @@ fn minimal_ir() -> Ir {
         instances: vec![],
         nodes: vec![],
         starts: vec![],
+        fixture_docs: BTreeMap::new(),
     }
+}
+
+fn text(t: &str) -> Inline {
+    Inline::Text { text: t.into() }
+}
+
+/// 版 2 の全種別の木。
+fn sample_doc() -> Doc {
+    Doc {
+        version: TREE_VERSION,
+        blocks: vec![
+            Block::Heading {
+                level: 1,
+                children: vec![text("見出し")],
+            },
+            Block::Paragraph {
+                children: vec![
+                    text("本文"),
+                    Inline::Code { text: "c".into() },
+                    Inline::Emph {
+                        children: vec![text("e")],
+                    },
+                    Inline::Strong {
+                        children: vec![text("s")],
+                    },
+                    Inline::Link {
+                        href: "https://example.com/".into(),
+                        children: vec![text("l")],
+                    },
+                    Inline::Image {
+                        src: "a.png".into(),
+                        alt: "a".into(),
+                    },
+                    Inline::Break,
+                ],
+            },
+            Block::Quote {
+                children: vec![Block::Rule],
+            },
+            Block::List {
+                ordered: true,
+                items: vec![vec![Block::Paragraph {
+                    children: vec![text("i")],
+                }]],
+            },
+            Block::Code {
+                lang: Some("rust".into()),
+                text: "fn main() {}".into(),
+            },
+            Block::Code {
+                lang: None,
+                text: "plain".into(),
+            },
+            Block::Table {
+                head: vec![vec![text("h")]],
+                rows: vec![vec![vec![text("r")]]],
+            },
+            Block::Rule,
+        ],
+    }
+}
+
+/// 版 1 の `full_ir()` に、版 2 の欄をすべて足したもの。
+fn full_ir_v2() -> Ir {
+    let mut ir = full_ir();
+    ir.format_version = IR_FORMAT_V2;
+    ir.pack.ir_format = IR_FORMAT_V2;
+    ir.nodes[0].body_doc = Some(sample_doc());
+    ir.nodes[0].body_levels_doc.insert("B".into(), sample_doc());
+    ir.fixture_docs.insert("f".into(), sample_doc());
+    ir
 }
 
 fn full_ir() -> Ir {
@@ -117,6 +196,8 @@ fn full_ir() -> Ir {
         step: s,
         enter: Some("m/x".into()),
         exit_to: Some("main/b".into()),
+        body_doc: None,
+        body_levels_doc: BTreeMap::new(),
     }];
     ir.starts = vec![Start {
         id: "s1".into(),
@@ -130,8 +211,50 @@ fn full_ir() -> Ir {
 }
 
 #[test]
-fn format_version_is_one() {
-    assert_eq!(IR_FORMAT_VERSION, 1);
+fn format_versions_are_one_and_two() {
+    assert_eq!(IR_FORMAT_V1, 1);
+    assert_eq!(IR_FORMAT_V2, 2);
+    assert_eq!(SUPPORTED_IR_FORMATS, [1, 2]);
+    assert!(is_supported_ir_format(1) && is_supported_ir_format(2));
+    assert!(!is_supported_ir_format(0) && !is_supported_ir_format(3));
+}
+
+#[test]
+fn required_ir_format_is_the_smallest_that_fits() {
+    assert_eq!(minimal_ir().required_ir_format(), IR_FORMAT_V1);
+    assert_eq!(full_ir().required_ir_format(), IR_FORMAT_V1);
+    assert_eq!(full_ir_v2().required_ir_format(), IR_FORMAT_V2);
+    let mut only_fixture = minimal_ir();
+    only_fixture.fixture_docs.insert("f".into(), sample_doc());
+    assert_eq!(only_fixture.required_ir_format(), IR_FORMAT_V2);
+    let mut only_levels = full_ir();
+    only_levels.nodes[0]
+        .body_levels_doc
+        .insert("B".into(), sample_doc());
+    assert_eq!(only_levels.required_ir_format(), IR_FORMAT_V2);
+}
+
+#[test]
+fn v2_golden_bytes_match_and_roundtrip() {
+    let ir = full_ir_v2();
+    let want = golden_in("ir_format_2", "full.json");
+    assert!(to_canonical_json(&ir).unwrap() == want, "bytes differ");
+    assert!(want.ends_with(b"}\n") && !want.ends_with(b"\n\n"));
+    assert!(!String::from_utf8(want.clone()).unwrap().contains("null"));
+    let read: Ir = serde_json::from_slice(&want).unwrap();
+    assert_eq!(read, ir);
+}
+
+#[test]
+fn v1_shape_is_unchanged_when_v2_fields_are_empty() {
+    // 版 2 の欄を除き、版を 1 に戻すと版 1 の golden と同じバイト列になる。
+    let mut ir = full_ir_v2();
+    ir.format_version = IR_FORMAT_V1;
+    ir.pack.ir_format = IR_FORMAT_V1;
+    ir.nodes[0].body_doc = None;
+    ir.nodes[0].body_levels_doc.clear();
+    ir.fixture_docs.clear();
+    assert!(to_canonical_json(&ir).unwrap() == golden("full.json"));
 }
 
 #[test]
@@ -228,7 +351,7 @@ fn explicit_defaults_equal_omitted() {
     assert_default_equiv::<Node>(
         json!({"uid": "main/a", "scope": "main", "unit": "u", "step": {"id": "a", "title": "t"}}),
         json!({"uid": "main/a", "scope": "main", "unit": "u", "step": {"id": "a", "title": "t"},
-            "enter": null, "exit_to": null}),
+            "enter": null, "exit_to": null, "body_doc": null, "body_levels_doc": {}}),
     );
     assert_default_equiv::<Start>(
         json!({"id": "s", "node": "n", "effects": []}),
@@ -275,4 +398,22 @@ fn unknown_fields_are_rejected_at_every_level() {
     assert!(serde_json::from_value::<Instance>(inst).is_err());
     let fx = json!({"path": "p", "kind": "k", "future": 1});
     assert!(serde_json::from_value::<FixtureDef>(fx).is_err());
+}
+
+#[test]
+fn v2_fields_reject_unknown_content() {
+    let node = |extra: Value| {
+        let mut v =
+            json!({"uid": "u", "scope": "s", "unit": "c", "step": {"id": "a", "title": "t"}});
+        v.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        serde_json::from_value::<Node>(v)
+    };
+    let ok = json!({"body_doc": {"version": 1, "blocks": [{"t": "rule"}]}});
+    assert!(node(ok).is_ok());
+    let bad_kind = json!({"body_doc": {"version": 1, "blocks": [{"t": "script", "text": "x"}]}});
+    assert!(node(bad_kind).is_err());
+    let bad_field = json!({"body_levels_doc": {"B": {"version": 1, "blocks": [], "x": 1}}});
+    assert!(node(bad_field).is_err());
 }

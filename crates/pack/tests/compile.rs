@@ -12,6 +12,7 @@ use std::fs;
 
 use common::{assert_no_secret, ch1, copy_dir, minimal, testdata, Tmp, CHAPTER, SECRET, WORKSHOP};
 
+use fandhe_workshop_contract::limits::MAX_MARKDOWN_BYTES;
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_pack::compile::{compile, compile_dir, to_json};
 use fandhe_workshop_pack::source::load;
@@ -230,9 +231,56 @@ fn neg_ir_format() {
     let t = minimal();
     t.put(
         "workshop.yaml",
-        WORKSHOP.replace("ir_format: 1", "ir_format: 2").as_bytes(),
+        WORKSHOP.replace("ir_format: 1", "ir_format: 3").as_bytes(),
     );
     assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion]);
+}
+
+/// PACK-24 の読み: `workshop.*` の `ir_format` は 1 と 2 を受け付ける。出力の版は使った項目で決まる。
+#[test]
+fn ir_format_two_is_accepted_and_output_version_follows_the_content() {
+    let t = minimal();
+    t.put(
+        "workshop.yaml",
+        WORKSHOP.replace("ir_format: 1", "ir_format: 2").as_bytes(),
+    );
+    let ir = load_ir(&compile_dir(&t.0).expect("ir_format 2 compiles")).expect("loads");
+    // `minimal` の本文は木になるので、宣言が 1 でも 2 でも出力は 2。
+    assert_eq!((ir.format_version, ir.pack.ir_format), (2, 2));
+    let t = minimal();
+    let ir = load_ir(&compile_dir(&t.0).expect("ir_format 1 compiles")).expect("loads");
+    assert_eq!((ir.format_version, ir.pack.ir_format), (2, 2));
+}
+
+/// 練習データの内容を読むときの診断に、内容を入れない。UTF-8 でない・上限を超える練習データは断る。
+#[test]
+fn neg_fixture_content_is_diagnosed_without_echo() {
+    let ws = format!("{WORKSHOP}fixtures:\n  f1: {{path: fixtures/x.md, kind: document}}\n");
+    let t = minimal();
+    t.put("workshop.yaml", ws.as_bytes());
+    let mut bad = SECRET.as_bytes().to_vec();
+    bad.push(0xff);
+    t.put("fixtures/x.md", &bad);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Parse]);
+    assert_no_secret(&d);
+
+    let t = minimal();
+    let ws = format!("{WORKSHOP}fixtures:\n  f1: {{path: fixtures/x.txt, kind: log}}\n");
+    t.put("workshop.yaml", ws.as_bytes());
+    t.put("fixtures/x.txt", &bad);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Parse]);
+    assert_no_secret(&d);
+
+    let t = minimal();
+    let ws = format!("{WORKSHOP}fixtures:\n  f1: {{path: fixtures/x.md, kind: document}}\n");
+    t.put("workshop.yaml", ws.as_bytes());
+    let big = vec![b'a'; usize::try_from(MAX_MARKDOWN_BYTES).expect("fits") + 1];
+    t.put("fixtures/x.md", &big);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::LimitMdSize]);
+    assert_no_secret(&d);
 }
 
 /// PACK-24: `pack.ir_format` が整数の 1 でなければ、型付きの読み込みより前に `E-FORMAT-VERSION` 1 件で止まる。
@@ -264,13 +312,13 @@ fn neg_ir_format_variants_are_format_version() {
     );
     assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion]);
 
-    // 版 2 と、版 1 の語彙にない欄の併存。残りを解釈せず、版の診断だけを返す。
+    // 未対応の版と、既知の語彙にない欄の併存。残りを解釈せず、版の診断だけを返す。
     let t = minimal();
     t.put(
         "workshop.yaml",
         format!(
             "{}future_table: {{x: 1}}\n",
-            WORKSHOP.replace("ir_format: 1", "ir_format: 2")
+            WORKSHOP.replace("ir_format: 1", "ir_format: 3")
         )
         .as_bytes(),
     );
