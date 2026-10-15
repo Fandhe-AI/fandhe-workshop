@@ -1,0 +1,8 @@
+id: GUIDE18-2
+package: fandhe-workshop-core
+test: lo_first_answer
+target: crates/core/src/lo_first_answer.rs
+find:             Reselection::Correct => FirstAnswerOutcome::Reselected {
+replace:             Reselection::Correct => FirstAnswerOutcome::SelfReliant, Reselection::None if false => FirstAnswerOutcome::Reselected {
+expect-fail: reselection_after_comparison_is_not_self_reliant_and_kept_apart
+note: 誤答の後の選び直しの正答を自力に数える（最初の回答の正答だけを自力に数える規則がつぶれる）
