@@ -28,7 +28,8 @@
         }
       },
       "world": {},
-      "global_flags": []
+      "global_flags": [],
+      "guidance_level": "A"
     },
     "log": [],
     "entry": {
@@ -47,12 +48,14 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "log_len": 0
     },
     "checkpoints": {},
     "next_checkpoint": 1,
-    "drafts": {}
+    "drafts": {},
+    "hints_opened": {}
   }
 }

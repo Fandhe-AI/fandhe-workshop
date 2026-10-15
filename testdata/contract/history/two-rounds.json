@@ -185,7 +185,8 @@
           }
         }
       },
-      "global_flags": []
+      "global_flags": [],
+      "guidance_level": "A"
     },
     "log": [
       {
@@ -879,7 +880,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "log_len": 0
     },
@@ -908,7 +910,8 @@
               }
             }
           },
-          "global_flags": []
+          "global_flags": [],
+          "guidance_level": "A"
         },
         "entry": {
           "run": {
@@ -926,7 +929,8 @@
               }
             },
             "world": {},
-            "global_flags": []
+            "global_flags": [],
+            "guidance_level": "A"
           },
           "log_len": 0
         },
@@ -957,7 +961,8 @@
               }
             }
           },
-          "global_flags": []
+          "global_flags": [],
+          "guidance_level": "A"
         },
         "entry": {
           "run": {
@@ -975,7 +980,8 @@
               }
             },
             "world": {},
-            "global_flags": []
+            "global_flags": [],
+            "guidance_level": "A"
           },
           "log_len": 30
         },
@@ -984,6 +990,7 @@
       }
     },
     "next_checkpoint": 3,
-    "drafts": {}
+    "drafts": {},
+    "hints_opened": {}
   }
 }

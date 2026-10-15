@@ -210,6 +210,7 @@ fn build(kinds: &[u8]) -> H {
         checkpoints,
         next_checkpoint: CheckpointId(next),
         drafts: BTreeMap::new(),
+        hints_opened: BTreeMap::new(),
     };
     let base = load("empty");
     H::new(base.pack_id, base.versions, base.start, ops, snapshot)

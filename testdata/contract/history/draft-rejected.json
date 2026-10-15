@@ -43,7 +43,8 @@
         }
       },
       "world": {},
-      "global_flags": []
+      "global_flags": [],
+      "guidance_level": "A"
     },
     "log": [
       {
@@ -85,7 +86,8 @@
           }
         },
         "world": {},
-        "global_flags": []
+        "global_flags": [],
+        "guidance_level": "A"
       },
       "log_len": 0
     },
@@ -93,6 +95,7 @@
     "next_checkpoint": 1,
     "drafts": {
       "main": "/make-note half-writ"
-    }
+    },
+    "hints_opened": {}
   }
 }

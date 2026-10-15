@@ -72,7 +72,7 @@
 //! | `versions` | 版の欄 | 必須 | `engine`・`ir_format`・`vocab`・`content`・`content_hash`・`refs`。`refs` は空でも `{}` |
 //! | `start` | 文字列 | 必須 | 最初の開始点の ID。例 `"s-1"` |
 //! | `ops` | 配列 | 必須 | 空でもよい。要素は `{"submit":"…"}`・`{"draft":"…"}`・`"reload"`・`{"input":…}`・`{"tick":…}`・`{"control":…}` の 6 種 |
-//! | `snapshot` | 写し | 必須 | core の `SessionState`（`run`・`log`・`entry`・`checkpoints`・`next_checkpoint`・`drafts`）。欠落は拒否 |
+//! | `snapshot` | 写し | 必須 | core の `SessionState`（`run`・`log`・`entry`・`checkpoints`・`next_checkpoint`・`drafts`・`hints_opened`。`run` 内の `RunState` には `guidance_level`）。欠落は拒否 |
 //!
 //! 最上位に未知の欄は無い（あれば拒否）。`ops` に無いもの: Enter 専用の送信・早送りの入切・`ops` だけの包み。
 //! サンプルは `testdata/contract/history/`（説明は同じ場所の `README.md`）にある。
