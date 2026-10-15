@@ -125,7 +125,8 @@ fn check_input(
 }
 
 /// 引数を置換した後の Step の `input` を検査する。`use` の展開が `input` の値を変えうるため
-/// （例: コマンド名が空になる・選択肢の ID が重なる）、置換前の検査とは別に展開後にも行う。
+/// （例: コマンド名が空になる・選択肢の ID が重なる）、置換前の `input` が `${` を含む Step について
+/// 展開が呼ぶ（含まない Step は置換前の検査だけで足り、同じ違反を 2 回報告しない）。
 /// 診断は定義元の章・モジュールのファイルと Step に紐付ける。
 pub(crate) fn check_step_input(
     scope: &LoadedScope,
@@ -158,9 +159,10 @@ fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
         .collect()
 }
 
-/// `input` の宣言が引数の置換記号 `${` を含むか。
-fn has_placeholder(input: &Option<Value>) -> bool {
-    input.as_ref().is_some_and(|v| v.to_string().contains("${"))
+/// 宣言（`input`・`confirm`）が引数の置換記号 `${` を含むか。含まない宣言は置換で変わらないので、
+/// 置換前の検査の結果が置換後にもそのまま当てはまる。
+pub(crate) fn has_placeholder(decl: &Option<Value>) -> bool {
+    decl.as_ref().is_some_and(|v| v.to_string().contains("${"))
 }
 
 /// 章・モジュールのすべての Step の `input` を検査し、診断を集める。

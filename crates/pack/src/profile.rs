@@ -15,6 +15,7 @@
 //! どちらも、読めない `pack.profile` は既定値に倒れて新しい診断を出さない（`check_profile` が 1 回だけ報告する）。
 
 use fandhe_workshop_contract::input_spec::InputKind;
+use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::profile::{
     classify_input, is_typable_without_prefix, read_profile, InputClass, InputFieldMode,
     PrefixError, ProfileReadError, ProfileSetting,
@@ -22,7 +23,8 @@ use fandhe_workshop_contract::profile::{
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::{safe_ident, LoadedPack, LoadedScope, TestsSrc, WorkshopSrc};
+use crate::input::has_placeholder;
+use crate::source::{safe_ident, LoadedPack, LoadedScope, ScopeKind, TestsSrc, WorkshopSrc};
 
 fn mk(file: &str, item: &str, code: DiagCode, message: String) -> Option<Diagnostic> {
     let file = if file.trim().is_empty() { "." } else { file };
@@ -126,43 +128,61 @@ fn is_command_rule(rule: &Value) -> bool {
 ///
 /// 1 Step につき各コードは最大 1 件。型で読めない `input` は `input::check_inputs` が `E-PARSE` にするので、
 /// ここでは該当なしとして扱う。診断の文面には入力の値・接頭辞を写さない。
+/// モジュールの `input` が引数の置換記号 `${` を含む Step は、置換前の `input.kind` が置換後と違いうる
+/// （例: `kind: "${k}"` が `text` になる）ため、ここでは飛ばし、展開（`expand`）が置換後の Step を
+/// [`check_profile_step`] で検査する。規則の `on.text`（真偽値）・`on.command`（キーの有無）は置換で変わらない。
 pub fn check_profile_steps(setting: &ProfileSetting, scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for step in &scope.src.steps {
+            if scope.kind == ScopeKind::Module && has_placeholder(&step.input) {
+                continue;
+            }
+            out.extend(check_profile_step(setting, scope, step));
+        }
+    }
+    out
+}
+
+/// 1 つの Step を接頭辞と `input_field` に照らして検査する。展開が、引数を置換した後の Step にも使う。
+/// 診断は定義元の章・モジュールのファイルと Step に紐付け、文面は値を含まない固定文にする。
+pub(crate) fn check_profile_step(
+    setting: &ProfileSetting,
+    scope: &LoadedScope,
+    step: &Step,
+) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     let empty_prefix = setting.command_prefix.is_empty();
     let hidden = setting.input_field == InputFieldMode::Hidden;
     if !empty_prefix && !hidden {
         return out;
     }
-    for scope in scopes {
-        for step in &scope.src.steps {
-            let kind = input_kind(step.input.as_ref());
-            let text_rule = step.rules.iter().any(is_text_rule);
-            let command_rule = step.rules.iter().any(is_command_rule);
-            let item = if safe_ident(&step.id) {
-                format!("step:{}", step.id)
-            } else {
-                "pack".to_string()
-            };
-            if empty_prefix && (kind == Some(InputKind::Text) || text_rule) {
-                out.extend(mk(
-                    &scope.file,
-                    &item,
-                    DiagCode::ProfileText,
-                    "natural-language input or rule is not allowed when the command prefix is empty"
-                        .to_string(),
-                ));
-            }
-            let typing = matches!(kind, Some(InputKind::Command | InputKind::Text));
-            if hidden && (typing || command_rule || text_rule) {
-                out.extend(mk(
-                    &scope.file,
-                    &item,
-                    DiagCode::ProfileNoInput,
-                    "command or natural-language input or rule is not allowed when input_field is hidden"
-                        .to_string(),
-                ));
-            }
-        }
+    let kind = input_kind(step.input.as_ref());
+    let text_rule = step.rules.iter().any(is_text_rule);
+    let command_rule = step.rules.iter().any(is_command_rule);
+    let item = if safe_ident(&step.id) {
+        format!("step:{}", step.id)
+    } else {
+        "pack".to_string()
+    };
+    if empty_prefix && (kind == Some(InputKind::Text) || text_rule) {
+        out.extend(mk(
+            &scope.file,
+            &item,
+            DiagCode::ProfileText,
+            "natural-language input or rule is not allowed when the command prefix is empty"
+                .to_string(),
+        ));
+    }
+    let typing = matches!(kind, Some(InputKind::Command | InputKind::Text));
+    if hidden && (typing || command_rule || text_rule) {
+        out.extend(mk(
+            &scope.file,
+            &item,
+            DiagCode::ProfileNoInput,
+            "command or natural-language input or rule is not allowed when input_field is hidden"
+                .to_string(),
+        ));
     }
     out
 }

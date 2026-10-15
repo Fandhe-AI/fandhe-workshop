@@ -17,6 +17,7 @@
 //! モジュールは `<モジュール ID>@<実体名>` の実体で、Step の `uid` は `<実体 ID>/<Step ID>` になる。遷移先と
 //! 開始の解決は、実体からの相対で行う。呼ばれないモジュールは IR に出さず、中身も検査しない。
 //! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
+//! モジュールの宣言が `${` を含む場合は、引数を置換した後の値を [`crate::expand`] が検査する。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -68,7 +69,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 木にする本文・練習データ・展開した Step の元の量の合計。同じ本文を多数の Step が参照しても、
     // 展開が連鎖しても、確保が出力の上限を超えて増えないようにする（`check_output` は全部を作った後に
     // 走るため、それでは間に合わない）。
-    let mut ex = Expander::new(pack, Budget::new(MAX_IR_BYTES));
+    let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
     ex.diags.extend(profile_diags);
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
@@ -142,9 +143,11 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     starts.extend(ex.module_starts(&mut start_ids));
     diags.append(&mut ex.diags);
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
-    // 引数を置換した後の検査は、展開（`expand`）が Step ごとに行う。
-    diags.extend(input::check_inputs(&pack.scopes));
     // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
+    // 接頭辞と入力欄の有無に反する入力・規則を検査する（TASK-52、PACK-20）。
+    // モジュールの `input`・`confirm` が `${` を含む Step は、ここでは飛ばし、展開（`expand`）が引数を
+    // 置換した後の Step を検査する（置換前は読めない・置換後に違反になりうるため）。
+    diags.extend(input::check_inputs(&pack.scopes));
     diags.extend(confirm::check_confirms(&pack.scopes));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。

@@ -492,3 +492,115 @@ fn neg_substituted_use_diagnostics_do_not_carry_the_argument_value() {
         assert!(!s.contains("shortname"), "{s}");
     }
 }
+
+#[test]
+fn neg_confirm_reason_emptied_by_an_argument_is_no_confirm() {
+    // 置換前は理由ありに見える `reason: "${why}"` も、空文字で置換されると理由つきの省略にならない（PACK-13）。
+    let module = "id: m\ntitle: M\nparams: {why: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: approval}, confirm: {kind: none, reason: \"${why}\"}}\n";
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {why: \"\"}}"),
+        module,
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::NoConfirm], "{d:?}");
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+    assert!(d[0].to_string().contains("step:a"), "{}", d[0]);
+    // 空白だけの理由も同じく拒否する。理由が入れば通る。
+    let blank = mini(
+        &chapter_using("{module: m, instance: i, args: {why: \"  \"}}"),
+        module,
+    );
+    assert_eq!(codes(&diags(&blank)), [DiagCode::NoConfirm]);
+    let ok = mini(
+        &chapter_using("{module: m, instance: i, args: {why: tutorial}}"),
+        module,
+    );
+    let d = compile_dir(&ok.0).err().unwrap_or_default();
+    assert!(d.is_empty(), "{d:?}");
+}
+
+#[test]
+fn neg_answer_options_broken_by_an_argument_are_structure_errors() {
+    // 置換後に選択肢の id が重なる・label が空になる宣言は、展開後の検査で E-STRUCTURE になる。
+    let module = "id: m\ntitle: M\nparams: {o: d, l: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: approval}, confirm: {kind: answer, on_wrong: w, options: [{id: x, correct: true}, {id: \"${o}\", correct: false, label: \"${l}\"}]}}\n";
+    for args in ["{o: x, l: L}", "{o: y, l: \" \"}"] {
+        let t = mini(
+            &chapter_using(&format!("{{module: m, instance: i, args: {args}}}")),
+            module,
+        );
+        assert_eq!(codes(&diags(&t)), [DiagCode::Structure], "{args}");
+    }
+}
+
+/// `pack.profile` を持つ `workshop.yaml` に差し替える。
+fn with_profile(t: &Tmp, profile: &str) {
+    let w = format!(
+        "pack: {{id: p, title: t, version: '0', ir_format: 1, guidance: A, profile: {profile}}}\n"
+    );
+    t.put("workshop.yaml", w.as_bytes());
+}
+
+#[test]
+fn neg_input_kind_substituted_to_text_is_checked_against_the_profile() {
+    // `kind: "${k}"` が `text` に置換されると、接頭辞が空のパックでは E-PROFILE-TEXT になる。
+    let module = "id: m\ntitle: M\nparams: {k: command}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: \"${k}\", min: 1, max: 9}, confirm: {kind: approve}}\n";
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {k: text}}"),
+        module,
+    );
+    with_profile(&t, "{command_prefix: \"\"}");
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::ProfileText], "{d:?}");
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+    // 入力欄が無いパックでは、同じ置換が E-PROFILE-NO-INPUT になる。
+    with_profile(&t, "{input_field: hidden}");
+    assert_eq!(codes(&diags(&t)), [DiagCode::ProfileNoInput]);
+}
+
+#[test]
+fn a_confirm_kind_placeholder_compiles_after_substitution() {
+    // 置換前の `${k}` は確認の kind として読めない。モジュールの confirm は展開後だけで検査する。
+    let module = "id: m\ntitle: M\nparams: {k: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: approval}, confirm: {kind: \"${k}\"}}\n";
+    let ok = mini(
+        &chapter_using("{module: m, instance: i, args: {k: approve}}"),
+        module,
+    );
+    let d = compile_dir(&ok.0).err().unwrap_or_default();
+    assert!(d.is_empty(), "{d:?}");
+    // 展開後に未知の kind になる場合は、展開後の検査で E-PARSE が 1 件だけ出る。
+    let bad = mini(
+        &chapter_using("{module: m, instance: i, args: {k: nonsense}}"),
+        module,
+    );
+    assert_eq!(codes(&diags(&bad)), [DiagCode::Parse]);
+}
+
+#[test]
+fn neg_post_expansion_confirm_diagnostics_do_not_carry_the_argument_value() {
+    // 展開後の確認の検査の診断に、引数の値を写さない（未知の kind・置換後の理由の欠け）。
+    let kind = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: approval}, confirm: {kind: \"${x}\"}}\n";
+    let unknown_field = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: approval}, confirm: {kind: approve, note: \"${x}\"}}\n";
+    for (module, code, needle) in [
+        (kind, DiagCode::Parse, "unknown kind"),
+        (unknown_field, DiagCode::Parse, "unknown field note"),
+    ] {
+        let t = mini(
+            &chapter_using("{module: m, instance: i, args: {x: shortname}}"),
+            module,
+        );
+        let d = diags(&t);
+        assert_eq!(codes(&d), [code], "{d:?}");
+        let s = d[0].to_string();
+        assert!(s.contains(needle), "{s}");
+        assert!(!s.contains("shortname"), "{s}");
+    }
+}
+
+#[test]
+fn neg_a_module_declaration_without_placeholders_is_reported_once() {
+    // 置換記号を含まない宣言は置換で変わらないため、置換前の検査だけが報告する（同じ違反を 2 件にしない）。
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: a, title: T, final: true, input: {kind: foo}, confirm: {kind: bar}}\n";
+    let t = mini(&chapter_using("{module: m, instance: i}"), module);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Parse, DiagCode::Parse], "{d:?}");
+}

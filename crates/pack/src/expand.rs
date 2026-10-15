@@ -13,18 +13,25 @@
 //!   置換しない（構造の識別子と本文の参照を、引数で書き換えさせない）。
 //!
 //! 診断に引数の値・本文は入れない。名前は `safe_ident` を通るものだけを入れる。
+//!
+//! 置換前の値では検査できない宣言（`input`・`confirm` が `${` を含むモジュールの Step）は、置換後の Step を
+//! ここで検査する（入力方式・確認・操作プロファイル。PACK-10・PACK-13・PACK-20）。置換前の検査
+//! （`input::check_inputs`・`confirm::check_confirms`・`profile::check_profile_steps`）はその Step を飛ばすので、
+//! 同じ違反は 1 回だけ報告される。`${` を含まない宣言は置換で変わらないため、置換後には検査しない。
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use fandhe_workshop_contract::doc::Doc;
 use fandhe_workshop_contract::ir::{Instance, Node, Start, Step};
 use fandhe_workshop_contract::limits::MAX_COLLECTION_ELEMENTS;
+use fandhe_workshop_contract::profile::ProfileSetting;
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::compile::{body_len, body_tree, diag, Budget};
 use crate::diag::{DiagCode, Diagnostic};
 use crate::effect_check::{check_effects, check_processing};
+use crate::input::has_placeholder;
 use crate::source::{safe_ident, LoadedPack, LoadedScope, ScopeKind};
 
 /// モジュールの入れ子の深さの上限。章を深さ 0 とし、深さ 8 の実体の中の `use` は展開しない。
@@ -220,6 +227,8 @@ struct PendingStarts<'a> {
 /// 章とモジュールを実体に展開し、node・実体・遷移の検査対象を集める。`compile` が章ごとに呼ぶ。
 pub(crate) struct Expander<'a> {
     pack: &'a LoadedPack,
+    /// 置換後の Step の操作プロファイルの検査に使う設定（読めない `pack.profile` は既定値）。
+    profile: &'a ProfileSetting,
     modules: BTreeMap<&'a str, &'a LoadedScope>,
     pub nodes: Vec<Node>,
     pub instances: Vec<Instance>,
@@ -234,7 +243,7 @@ pub(crate) struct Expander<'a> {
 }
 
 impl<'a> Expander<'a> {
-    pub(crate) fn new(pack: &'a LoadedPack, budget: Budget) -> Self {
+    pub(crate) fn new(pack: &'a LoadedPack, profile: &'a ProfileSetting, budget: Budget) -> Self {
         let mut diags = Vec::new();
         let mut modules: BTreeMap<&str, &LoadedScope> = BTreeMap::new();
         for s in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Module) {
@@ -249,6 +258,7 @@ impl<'a> Expander<'a> {
         }
         Expander {
             pack,
+            profile,
             modules,
             nodes: Vec::new(),
             instances: Vec::new(),
@@ -319,9 +329,17 @@ impl<'a> Expander<'a> {
                 None => step.clone(),
             };
             if args.is_some() {
-                // 置換で input の値が変わりうるため、展開後の宣言を検査する。
-                if let Some(d) = crate::input::check_step_input(scope, &s, true) {
-                    self.diags.push(d);
+                // 置換で input・confirm の値が変わりうるため、置換前に `${` を含んでいた宣言は展開後に検査する。
+                // 置換前の検査はこれらを飛ばしている。含まない宣言は置換で変わらず、置換前の検査で足りる。
+                if has_placeholder(&step.input) {
+                    self.diags
+                        .extend(crate::input::check_step_input(scope, &s, true));
+                    self.diags
+                        .extend(crate::profile::check_profile_step(self.profile, scope, &s));
+                }
+                if has_placeholder(&step.confirm) {
+                    self.diags
+                        .extend(crate::confirm::check_step_confirm(scope, &s));
                 }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
