@@ -1,0 +1,40 @@
+# 差し込みの枠の試験用の章（架空）。入力を持つ Step は do を持ち、最後の Step は入力を持たない。
+id: "c1"
+title: "差し込みを確かめる"
+starts:
+  - {id: "s1", node: "a"}
+  - {id: "s2", node: "b"}
+steps:
+  - id: "a"
+    title: "ヘルプを開く"
+    body: "a.md"
+    do: "/help を送ってコマンドの一覧を開く"
+    next: [{to: "b"}]
+    input:
+      kind: "command"
+      name: "help"
+      args:
+        - {name: "topic", positional: true, required: false, shape: "kebab_case"}
+    rules:
+      - id: "r-ask"
+        on: {command: "help", missing: ["topic"]}
+        outcome: {kind: "clarify", clarification: "cl-ask"}
+      - id: "r-help"
+        on: {command: "help"}
+        outcome: {kind: "accept", effects: [{set_flag: "helped"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "b"
+    title: "自分の言葉で書く"
+    body: "b.md"
+    do: "ここまでの感想を自分の言葉で書く"
+    next: [{to: "c"}]
+    input: {kind: "text", min: 1, max: 2000}
+    confirm:
+      kind: "none"
+      reason: "書いた内容は判定せず、送ったことだけで先へ進むため、別の確認を置かない。"
+  - id: "c"
+    title: "おわり"
+    body: "c.md"
+    final: true

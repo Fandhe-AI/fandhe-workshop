@@ -1,0 +1,8 @@
+id: PACK16-6
+package: fandhe-workshop-contract
+test: slot_contract
+target: crates/contract/src/slot.rs
+find:             Some(value) => out.push_str(&value),
+replace:             Some(value) => out.push_str(&substitute(&value, v)?),
+expect-fail: pack16_substitute_does_not_rescan_inserted_values
+note: 差し込んだ値を再び走査する（受講者の入力に混ぜた {{...}} が展開される）

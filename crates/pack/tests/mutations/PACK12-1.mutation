@@ -1,0 +1,8 @@
+id: PACK12-1
+package: fandhe-workshop-pack
+test: text_slots
+target: crates/pack/src/slot_check.rs
+find:             if matches!(&rendered, Ok(s) if s.trim().is_empty()) {
+replace:             if false && matches!(&rendered, Ok(s) if s.trim().is_empty()) {
+expect-fail: pack12_static_empty_next_action
+note: 静的な次の行動の空の検査を外す（空の next_action・how_to_answer が通る）

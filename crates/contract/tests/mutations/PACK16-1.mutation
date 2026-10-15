@@ -1,0 +1,8 @@
+id: PACK16-1
+package: fandhe-workshop-contract
+test: slot_contract
+target: crates/contract/src/slot.rs
+find:         return Err(SlotSyntaxError::Unclosed);
+replace:         return Ok((SlotRef { name: after_open, fallback: None }, ""));
+expect-fail: pack16_parse_rejects_unclosed
+note: 閉じていない枠の検出を外す（{{ が閉じていない文面が枠として通ってしまう）

@@ -155,6 +155,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     diags.extend(confirm::check_confirms(&pack.scopes));
     // 拒否の分類の語（`rejections`・`defaults`・`on_reject`）を contract の 8 語で検査する（TASK-45）。
     diags.extend(crate::rejection::check_categories(pack));
+    // 差し込みの枠と次の行動（TASK-46）。不正な枠を含む IR を出さない（fail-closed）。
+    diags.extend(crate::slot_check::check_texts(pack));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
     let mut seen = BTreeSet::new();

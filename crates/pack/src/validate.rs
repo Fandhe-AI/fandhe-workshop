@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input` の同時指定）・`input::check_inputs`・
@@ -68,6 +68,7 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut out = check_dup_ids(pack);
     out.extend(check_refs(pack));
     out.extend(check_structure(pack));
+    out.extend(crate::slot_check::check_texts(pack));
     out.extend(check_reachability(pack));
     out.extend(check_module_expansion(pack));
     out

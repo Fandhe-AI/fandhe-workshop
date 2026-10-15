@@ -1,0 +1,8 @@
+id: PACK16-5
+package: fandhe-workshop-pack
+test: text_slots
+target: crates/pack/src/slot_check.rs
+find:             if step.use_module.is_some() || has_do(step) {
+replace:             if step.use_module.is_some() || true {
+expect-fail: pack16_needs_do
+note: step_do の使用に do を要求する検査を外す（do の無い Step で step_do の文面が出る）
