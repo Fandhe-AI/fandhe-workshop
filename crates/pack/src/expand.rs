@@ -320,7 +320,7 @@ impl<'a> Expander<'a> {
             };
             if args.is_some() {
                 // 置換で input の値が変わりうるため、展開後の宣言を検査する。
-                if let Some(d) = crate::input::check_step_input(scope, &s) {
+                if let Some(d) = crate::input::check_step_input(scope, &s, true) {
                     self.diags.push(d);
                 }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。
@@ -340,11 +340,15 @@ impl<'a> Expander<'a> {
             }
             // 状態変化の語彙（TASK-43 1/2）。置換後の値を検査する。
             for (field, list) in [("on_enter", &s.on_enter), ("on_achieved", &s.on_achieved)] {
-                for (code, msg) in check_effects(list, field, &self.pack.workshop.fixtures) {
+                for (code, msg) in
+                    check_effects(list, field, &self.pack.workshop.fixtures, args.is_some())
+                {
                     self.diags.push(diag(&scope.file, &item, code, msg));
                 }
             }
-            for (code, msg) in check_processing(&s.processing, &self.pack.workshop.fixtures) {
+            for (code, msg) in
+                check_processing(&s.processing, &self.pack.workshop.fixtures, args.is_some())
+            {
                 self.diags.push(diag(&scope.file, &item, code, msg));
             }
             self.checks.push(Check {
@@ -562,7 +566,7 @@ impl<'a> Expander<'a> {
                     continue;
                 }
                 for (code, msg) in
-                    check_effects(&s.effects, "effects", &self.pack.workshop.fixtures)
+                    check_effects(&s.effects, "effects", &self.pack.workshop.fixtures, true)
                 {
                     self.diags.push(diag(&p.scope.file, &item, code, msg));
                 }

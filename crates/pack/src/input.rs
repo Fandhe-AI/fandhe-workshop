@@ -73,7 +73,11 @@ fn check_one<T: DeserializeOwned>(
     check(&spec).map_err(|e| (DiagCode::Structure, format!("input ({kind}): {e}")))
 }
 
-fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, String)> {
+fn check_input(
+    input: &Value,
+    has_processing: bool,
+    redact: bool,
+) -> Result<(), (DiagCode, String)> {
     let Some(obj) = input.as_object() else {
         return Err((DiagCode::Parse, "input: must be a mapping".to_string()));
     };
@@ -84,7 +88,7 @@ fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, Str
         ));
     };
     let Some(k) = InputKind::from_str_opt(kind) else {
-        let msg = if safe_ident(kind) {
+        let msg = if !redact && safe_ident(kind) {
             format!("input: unknown kind {kind}")
         } else {
             "input: unknown kind".to_string()
@@ -118,9 +122,13 @@ fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, Str
 /// 引数を置換した後の Step の `input` を検査する。`use` の展開が `input` の値を変えうるため
 /// （例: コマンド名が空になる・選択肢の ID が重なる）、置換前の検査とは別に展開後にも行う。
 /// 診断は定義元の章・モジュールのファイルと Step に紐付ける。
-pub(crate) fn check_step_input(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
+pub(crate) fn check_step_input(
+    scope: &LoadedScope,
+    step: &Step,
+    redact: bool,
+) -> Option<Diagnostic> {
     let input = step.input.as_ref()?;
-    let (code, msg) = check_input(input, !step.processing.is_empty()).err()?;
+    let (code, msg) = check_input(input, !step.processing.is_empty(), redact).err()?;
     Some(diag(scope, &step.id, code, msg))
 }
 
@@ -159,7 +167,8 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
             // その宣言は検査せず、展開後の宣言を `check_step_input` が検査する。
             if scope.kind == ScopeKind::Chapter || !has_placeholder(&step.input) {
                 if let Some(input) = &step.input {
-                    if let Err((code, msg)) = check_input(input, !step.processing.is_empty()) {
+                    if let Err((code, msg)) = check_input(input, !step.processing.is_empty(), false)
+                    {
                         out.push(diag(scope, &step.id, code, msg));
                     }
                 }

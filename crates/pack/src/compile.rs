@@ -83,7 +83,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 ));
                 continue;
             }
-            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures) {
+            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures, false) {
                 ex.diags
                     .push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
             }

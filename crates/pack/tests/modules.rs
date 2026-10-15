@@ -419,3 +419,24 @@ fn an_arg_shape_placeholder_in_a_module_input_compiles_after_substitution() {
     );
     assert_eq!(codes(&diags(&bad)), [DiagCode::Parse]);
 }
+
+#[test]
+fn neg_post_expansion_diagnostics_do_not_carry_the_argument_value() {
+    // 展開後の検査（未定義の fixture・未知の input の kind）の診断に、引数の値を写さない。
+    let fixture = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, on_enter: [{put: {path: p, fixture: \"${x}\"}}]}\n";
+    let kind = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: \"${x}\"}}\n";
+    for (module, code, needle) in [
+        (fixture, DiagCode::RefFixture, "fixture is undefined"),
+        (kind, DiagCode::Parse, "unknown kind"),
+    ] {
+        let t = mini(
+            &chapter_using("{module: m, instance: i, args: {x: shortname}}"),
+            module,
+        );
+        let d = diags(&t);
+        assert_eq!(codes(&d), [code]);
+        let s = d[0].to_string();
+        assert!(s.contains(needle), "{s}");
+        assert!(!s.contains("shortname"), "{s}");
+    }
+}
