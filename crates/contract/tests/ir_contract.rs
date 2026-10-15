@@ -4,7 +4,8 @@
 //! 未知の欄の拒否を、golden（`tests/data/ir_format_1/`）とのバイト一致で固定する。
 //! golden の書き換えは契約の変更であり、`ir_format` の版上げの判断が要る（spec を先に直す）。
 //! 試験は作業ツリーを書き換えない。golden のパスは `CARGO_MANIFEST_DIR` から固定で組み立てる。
-//! 新 → 旧の拒否と旧 → 新の読み込みの適合試験は TASK-41 の 2/2（#101）が扱う。
+//! 新 → 旧の拒否と旧 → 新の読み込みの適合試験は `tests/ir_compat.rs`（型の水準）と
+//! `crates/pack/tests/ir_compat.rs`（`load_ir` の水準）が扱う。
 //! 試験では `unwrap` を使ってよい（失敗はそのまま試験の失敗になる）。
 
 use std::collections::BTreeMap;

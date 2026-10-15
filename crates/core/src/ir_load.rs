@@ -85,14 +85,40 @@ pub fn check_ir_limits(bytes: &[u8]) -> Result<(), LimitReason> {
     check_json_depth(bytes)
 }
 
+/// 解釈済みの値から版を先読みし、版 1 でなければその理由を返す。
+///
+/// 版が違う IR は、この版の知らない欄を持ちうる。型付きの変換の後に版を見ると、未知の欄の拒否が先に出て
+/// 「版が未対応」という分類が失われる（PACK-24）。そのため型付きの変換より前に見る。整数として読めて
+/// `u32` に収まる値だけを判定し、それ以外（欠落・非整数・範囲外）は型付きの変換に任せて拒否させる。
+/// 範囲外の値を切り詰めて別の版として報告しない。
+fn probe_version(value: &serde_json::Value) -> Option<IrLoadError> {
+    let version = |v: Option<&serde_json::Value>| {
+        v.and_then(serde_json::Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok())
+    };
+    if let Some(v) = version(value.get("format_version")).filter(|v| *v != IR_FORMAT_VERSION) {
+        return Some(IrLoadError::FormatVersion(v));
+    }
+    if let Some(v) = version(value.get("pack").and_then(|p| p.get("ir_format")))
+        .filter(|v| *v != IR_FORMAT_VERSION)
+    {
+        return Some(IrLoadError::PackIrFormat(v));
+    }
+    None
+}
+
 /// バイト列の IR を読み、版と参照の整合を確かめて返す。
 ///
 /// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。最初の 3 段は共有の関門に任せ、
 /// 解釈と `Ir` への変換を分ける（`from_slice::<Ir>` の 1 回だと、構文の誤りより先に型の誤りが返りうる）。
-/// 拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
+/// 型・内容の段の中では、版の先読み、型付きの変換、参照の整合の順に確かめる（先読みの理由は
+/// [`probe_version`]）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
 /// `uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
     let value = parse_json_value(LoadEntry::Ir, bytes).map_err(from_gate)?;
+    if let Some(e) = probe_version(&value) {
+        return Err(e);
+    }
     let ir: Ir =
         serde_json::from_value(value).map_err(|_| IrLoadError::Json(TYPE_MISMATCH.to_owned()))?;
     if ir.format_version != IR_FORMAT_VERSION {
@@ -232,6 +258,50 @@ mod tests {
         // 文字列の中の括弧は数えない。
         let s = format!("{{\"a\":\"{}\"}}", "[".repeat(100));
         assert!(matches!(load(&s), Err(IrLoadError::Json(_))));
+    }
+
+    #[test]
+    fn l14_version_is_probed_before_unknown_fields() {
+        let s = MIN.replacen(
+            "\"format_version\":1",
+            "\"format_version\":2,\"future\":1",
+            1,
+        );
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::FormatVersion(2));
+        let s = MIN
+            .replacen("\"ir_format\":1", "\"ir_format\":2,\"future\":1", 1)
+            .replacen("\"id\":\"a\"", "\"id\":\"a\",\"future\":1", 1);
+        assert_eq!(load(&s).unwrap_err(), IrLoadError::PackIrFormat(2));
+        let s = MIN.replacen("\"nodes\"", "\"future\":1,\"nodes\"", 1);
+        assert_eq!(
+            load(&s).unwrap_err(),
+            IrLoadError::Json(TYPE_MISMATCH.to_owned())
+        );
+    }
+
+    #[test]
+    fn l15_unprobeable_versions_fall_through_to_type_mismatch() {
+        for v in ["4294967296", "-1", "1.5", "2.0"] {
+            let s = MIN.replacen(
+                "\"format_version\":1",
+                &format!("\"format_version\":{v}"),
+                1,
+            );
+            assert_eq!(
+                load(&s).unwrap_err(),
+                IrLoadError::Json(TYPE_MISMATCH.to_owned()),
+                "{v}"
+            );
+        }
+        for s in [
+            r#"{"format_version":1}"#,
+            r#"{"format_version":1,"pack":[]}"#,
+        ] {
+            assert_eq!(
+                load(s).unwrap_err(),
+                IrLoadError::Json(TYPE_MISMATCH.to_owned())
+            );
+        }
     }
 
     /// 拒否した段。`Json` は分類の文字列で解釈の段と型・内容の段を分ける。

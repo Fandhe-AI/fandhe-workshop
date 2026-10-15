@@ -19,6 +19,11 @@
 //! - 固定しないもの: 語彙の中身（[`serde_json::Value`] のまま通す欄。TASK-42 以降）、モジュールの展開
 //!   （TASK-50）、本文の木（TASK-60）
 //!
+//! 互換の向きは、旧 → 新は読める（任意の欄を使わない IR は加算の後の型でも同じバイト列に戻る）、
+//! 新 → 旧は読めない（型付きの項目の未知の欄は拒否し、黙って捨てない）である。`Value` で通す語彙の中身の
+//! 中の未知の欄は現状では拒否されない（TASK-42 以降）。適合試験は `tests/ir_compat.rs` と
+//! `crates/pack/tests/ir_compat.rs`（エンジンの読み込み口 `load_ir`）に置く。
+//!
 //! 版 1 の出力は、エンジン repo の golden（`crates/contract/tests/data/ir_format_1/`・
 //! `crates/pack/tests/data/golden/`）とのバイト一致で固定する。golden の書き換えは契約の変更であり、
 //! spec を先に直す。
