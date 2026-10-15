@@ -70,7 +70,7 @@ fn mark(path: &str, kind: MarkKind) -> Mark {
 }
 
 fn review_of<'a>(p: &'a Projection, step: &str) -> Option<&'a ReviewItem> {
-    p.review().iter().find(|r| r.step.0 == step)
+    p.review().iter().find(|r| r.step.0 == step).map(|v| &**v)
 }
 
 #[test]
@@ -589,7 +589,7 @@ fn run_property(ops: Vec<Op>) -> Result<(), TestCaseError> {
         if let Some((len, owner)) = restore {
             let own = root_of(owner);
             let from_prefix = Projection::from_events(&log[..*len]);
-            let mut expected_review: Vec<ReviewItem> = from_prefix
+            let mut expected_review: Vec<std::sync::Arc<ReviewItem>> = from_prefix
                 .review()
                 .iter()
                 .filter(|r| r.step.root() == own)

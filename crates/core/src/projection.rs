@@ -28,6 +28,7 @@
 //! 確認の欄は判定の型（TASK-256）の後の版上げで足す。
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
@@ -100,11 +101,13 @@ pub struct Projection {
     consumed: usize,
     log: Vec<LogRow>,
     marks: Vec<Mark>,
-    review: Vec<ReviewItem>,
+    /// 復習の項目。項目を `Arc` で持ち、保存の控えと共有する（保存ごとに全体を複製しない）。
+    review: Vec<Arc<ReviewItem>>,
     /// 変化の印の元。基準点からの経路ごとの（最初の変更前, 最後の変更後）。
     pending: BTreeMap<String, (Option<Element>, Option<Element>)>,
-    /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。
-    saved_review: BTreeMap<usize, Vec<ReviewItem>>,
+    /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。項目は現在の復習と共有し、
+    /// 保存ごとの増分は項目数分の参照に限る（保存回数×復習全体の複製にしない）。
+    saved_review: BTreeMap<usize, Vec<Arc<ReviewItem>>>,
 }
 
 /// 変化の印の種類を（最初の変更前, 最後の変更後）から決める。
@@ -215,6 +218,7 @@ impl Projection {
                 self.push_row(i, event);
                 self.pending.clear();
                 if let Some(item) = self.review.iter_mut().find(|r| r.step == at.step) {
+                    let item = Arc::make_mut(item);
                     item.changes.clear();
                     item.achieved = false;
                     item.skipped = false;
@@ -250,16 +254,16 @@ impl Projection {
         let pos = match self.review.iter().position(|r| &r.step == step) {
             Some(pos) => pos,
             None => {
-                self.review.push(ReviewItem {
+                self.review.push(Arc::new(ReviewItem {
                     step: step.clone(),
                     changes: Vec::new(),
                     achieved: false,
                     skipped: false,
-                });
+                }));
                 self.review.len() - 1
             }
         };
-        &mut self.review[pos]
+        Arc::make_mut(&mut self.review[pos])
     }
 
     /// 学習者の変化を印の元と復習へ併合する。最初の変更前・最後の変更後を保つ。
@@ -295,7 +299,7 @@ impl Projection {
             .ok()
             .filter(|at| *at < i)
             .and_then(|at| self.saved_review.get(&at));
-        let mut restored: Vec<ReviewItem> = saved
+        let mut restored: Vec<Arc<ReviewItem>> = saved
             .map(|items| {
                 items
                     .iter()
@@ -324,7 +328,7 @@ impl Projection {
     }
 
     /// 復習の項目。
-    pub fn review(&self) -> &[ReviewItem] {
+    pub fn review(&self) -> &[Arc<ReviewItem>] {
         &self.review
     }
 }
