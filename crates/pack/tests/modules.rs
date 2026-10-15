@@ -1,0 +1,352 @@
+//! 学習モジュールの `use` の展開（PACK-19、TASK-50 1/2）の結合試験。
+//!
+//! 受入基準は 2 つ。(a) 2 つの実体（`round1`・`round2`）が別の Step の実体になり、モジュールの定義の
+//! 1 か所の修正が両方に反映される。(b) 3 周目の実体を、章の定義ファイルを 1 つ足すだけで書ける。
+//! `testdata/` の写しは書き換えず、一時ディレクトリへ写してから改変する。
+//! なお、spec の例の `impl-run` は、この testdata では `issue-to-merge` に当たる。
+
+mod common;
+
+use std::fs;
+use std::path::Path;
+
+use common::{copy_dir, testdata, Tmp, WORKSHOP};
+
+use fandhe_workshop_contract::ir::{Ir, Node};
+use fandhe_workshop_core::load_ir;
+use fandhe_workshop_pack::compile::compile_dir;
+use fandhe_workshop_pack::{DiagCode, Diagnostic};
+
+const PACK: &str = "module-reuse-rounds/test-data/pack";
+const MODULE_YAML: &str = "modules/issue-to-merge/module.yaml";
+/// 手順 4（`step4-edit.md`）が直す行。行頭の空白が 12 個の行だけが `st-6-1` の規則の行である。
+const EDIT_FROM: &str = "\n            - put: { path: \"issues/child-${child}\", fixture: fx-kakuu-issue-child, attrs: { state: open } }";
+const EDIT_TO: &str = "\n            - put: { path: \"issues/child-${child}\", fixture: fx-kakuu-issue-child, attrs: { state: open, label: tracked } }";
+
+fn ir_of(dir: &Path) -> Ir {
+    let bytes = compile_dir(dir).expect("compile");
+    load_ir(&bytes).expect("load_ir")
+}
+
+fn node<'a>(ir: &'a Ir, uid: &str) -> &'a Node {
+    ir.nodes
+        .iter()
+        .find(|n| n.uid == uid)
+        .unwrap_or_else(|| panic!("node {uid} not found"))
+}
+
+fn copy_pack() -> Tmp {
+    let t = Tmp::new("mod");
+    copy_dir(&testdata(PACK), &t.0);
+    t
+}
+
+fn diags(t: &Tmp) -> Vec<Diagnostic> {
+    compile_dir(&t.0).expect_err("expected diagnostics")
+}
+
+fn codes(d: &[Diagnostic]) -> Vec<DiagCode> {
+    d.iter().map(Diagnostic::code).collect()
+}
+
+#[test]
+fn two_instances_become_distinct_nodes() {
+    let dir = testdata(PACK);
+    let ir = ir_of(&dir);
+    assert_eq!(ir.nodes.len(), 36);
+    assert_eq!(ir.instances.len(), 5);
+    assert_eq!(ir.starts.len(), 19);
+
+    let ids: Vec<&str> = ir.instances.iter().map(|i| i.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "main",
+            "idea-cycle@round1",
+            "issue-to-merge@round1",
+            "idea-cycle@round2",
+            "issue-to-merge@round2"
+        ]
+    );
+    let r1 = node(&ir, "issue-to-merge@round1/st-7-2");
+    let r2 = node(&ir, "issue-to-merge@round2/st-7-2");
+    assert_eq!(r1.scope, "issue-to-merge@round1");
+    assert_eq!(r2.scope, "issue-to-merge@round2");
+    assert_eq!(r1.unit, "issue-to-merge");
+    assert_eq!(r2.unit, "issue-to-merge");
+
+    // 引数の置換の結果が実体ごとに違う。
+    let rules = |n: &Node| serde_json::to_string(&n.step.rules).expect("json");
+    assert!(rules(node(&ir, "issue-to-merge@round1/st-6-1")).contains("issues/child-1\""));
+    assert!(rules(node(&ir, "issue-to-merge@round2/st-6-1")).contains("issues/child-9\""));
+
+    // `use` の node の enter と、実体の node の exit_to が呼び出し元を結ぶ。
+    let call = node(&ir, "main/r1-impl");
+    assert_eq!(call.enter.as_deref(), Some("issue-to-merge@round1/st-3-2"));
+    assert_eq!(r1.exit_to.as_deref(), Some("main/r1-impl"));
+    assert_eq!(r2.exit_to.as_deref(), Some("main/r2-impl"));
+    let inst = ir
+        .instances
+        .iter()
+        .find(|i| i.id == "issue-to-merge@round2")
+        .expect("instance");
+    assert_eq!(inst.caller.as_deref(), Some("main/r2-impl"));
+    assert_eq!(inst.module.as_deref(), Some("issue-to-merge"));
+    assert_eq!(inst.args["child"], "9");
+
+    // モジュールの開始は実体ごとに展開する。置換するのは effects だけで、node は実体の中を指す。
+    let s = ir
+        .starts
+        .iter()
+        .find(|s| s.id == "issue-to-merge@round2#s-6-1")
+        .expect("module start");
+    assert_eq!(s.node, "issue-to-merge@round2/st-6-1");
+
+    // 2 回の compile でバイト列が同じ。
+    assert_eq!(compile_dir(&dir).expect("a"), compile_dir(&dir).expect("b"));
+}
+
+#[test]
+fn one_edit_in_the_module_reaches_both_instances() {
+    let before = ir_of(&testdata(PACK));
+    let t = copy_pack();
+    let p = t.0.join(MODULE_YAML);
+    let text = fs::read_to_string(&p).expect("read");
+    assert_eq!(text.matches(EDIT_FROM).count(), 1, "edit target is unique");
+    fs::write(&p, text.replacen(EDIT_FROM, EDIT_TO, 1)).expect("write");
+    let after = ir_of(&t.0);
+
+    let changed: Vec<&str> = after
+        .nodes
+        .iter()
+        .zip(&before.nodes)
+        .filter(|(a, b)| a != b)
+        .map(|(a, _)| a.uid.as_str())
+        .collect();
+    assert_eq!(
+        changed,
+        [
+            "issue-to-merge@round1/st-6-1",
+            "issue-to-merge@round2/st-6-1"
+        ]
+    );
+    assert_eq!(after.nodes.len(), before.nodes.len());
+    assert_eq!(after.instances, before.instances);
+    assert_eq!(after.starts, before.starts);
+}
+
+fn all_files(root: &Path, dir: &Path, out: &mut Vec<String>) {
+    for e in fs::read_dir(dir).expect("read_dir").flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            all_files(root, &p, out);
+        } else {
+            let rel = p.strip_prefix(root).expect("prefix");
+            out.push(rel.to_string_lossy().replace('\\', "/"));
+        }
+    }
+}
+
+#[test]
+fn a_third_round_is_added_by_adding_one_file() {
+    let before = ir_of(&testdata(PACK));
+    let t = copy_pack();
+    let add = testdata("module-reuse-rounds/test-data/step5/ch-round3.chapter.yaml");
+    t.put(
+        "chapters/ch-round3/chapter.yaml",
+        &fs::read(&add).expect("read step5"),
+    );
+
+    // 既存のファイルは 1 バイトも変えていない（追加だけ）。
+    let src = testdata(PACK);
+    let mut files = Vec::new();
+    all_files(&src, &src, &mut files);
+    for f in &files {
+        assert_eq!(
+            fs::read(src.join(f)).expect("src"),
+            fs::read(t.0.join(f)).expect("copy"),
+            "{f}"
+        );
+    }
+
+    let after = ir_of(&t.0);
+    assert_eq!(after.nodes.len(), 36 + 2 + 8 + 8);
+    assert_eq!(after.instances.len(), 7);
+    for n in &before.nodes {
+        assert_eq!(node(&after, &n.uid), n, "{}", n.uid);
+    }
+    assert!(after
+        .instances
+        .iter()
+        .any(|i| i.id == "issue-to-merge@round3"));
+    // `requires`・`unmet` は値として通す（評価は TASK-51）。
+    let s = after
+        .starts
+        .iter()
+        .find(|s| s.id == "s-r3")
+        .expect("s-r3 start");
+    assert!(s.requires.is_some() && s.unmet.is_some());
+    assert_eq!(s.node, "main/r3-idea");
+}
+
+const MOD_OK: &str =
+    "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: \"T ${x}\", final: true}\n";
+
+fn chapter_using(use_: &str) -> String {
+    format!(
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: u}}]\nsteps:\n  - {{id: u, title: U, final: true, use: {use_}}}\n"
+    )
+}
+
+fn mini(chapter: &str, module: &str) -> Tmp {
+    let t = Tmp::new("modneg");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
+    t.put("modules/m/module.yaml", module.as_bytes());
+    t
+}
+
+#[test]
+fn neg_non_string_arg_is_a_parse_error() {
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {x: 5}}"),
+        MOD_OK,
+    );
+    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
+}
+
+#[test]
+fn neg_unknown_use_field_is_a_parse_error() {
+    let t = mini(&chapter_using("{module: m, instance: i, extra: 1}"), MOD_OK);
+    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
+}
+
+#[test]
+fn neg_undefined_argument_names_the_name_but_not_the_value() {
+    let module = MOD_OK.replace("T ${x}", "T ${nope}");
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {x: SECRET-ARG-VALUE}}"),
+        &module,
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure]);
+    let s = d[0].to_string();
+    assert!(s.contains("nope"), "{s}");
+    assert!(!s.contains("SECRET-ARG-VALUE"), "{s}");
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+}
+
+#[test]
+fn neg_unterminated_placeholder_is_a_structure_error() {
+    let module = MOD_OK.replace("T ${x}", "T ${x");
+    let t = mini(&chapter_using("{module: m, instance: i}"), &module);
+    assert_eq!(codes(&diags(&t)), [DiagCode::Structure]);
+}
+
+#[test]
+fn neg_undefined_module_is_ref_module() {
+    let t = mini(&chapter_using("{module: zz, instance: i}"), MOD_OK);
+    assert_eq!(codes(&diags(&t)), [DiagCode::RefModule]);
+}
+
+#[test]
+fn neg_same_instance_twice_is_a_duplicate() {
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, next: [{to: v}], use: {module: m, instance: i}}\n",
+        "  - {id: v, title: V, final: true, use: {module: m, instance: i}}\n",
+    );
+    let t = mini(chapter, MOD_OK);
+    assert_eq!(codes(&diags(&t)), [DiagCode::DupId]);
+}
+
+#[test]
+fn neg_module_and_instance_must_be_identifiers() {
+    for bad in [
+        "{module: m, instance: \"a@b\"}",
+        "{module: m, instance: \"a/b\"}",
+        "{module: \"m/x\", instance: i}",
+        "{module: m, instance: \"a b\"}",
+    ] {
+        let t = mini(&chapter_using(bad), MOD_OK);
+        assert_eq!(codes(&diags(&t)), [DiagCode::Structure], "{bad}");
+    }
+}
+
+#[test]
+fn neg_self_call_stops_at_the_depth_limit() {
+    let module = concat!(
+        "id: m\ntitle: M\nsteps:\n",
+        "  - {id: a, title: A, final: true, use: {module: m, instance: i}}\n",
+    );
+    let t = mini(&chapter_using("{module: m, instance: i}"), module);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::ModuleCycle]);
+}
+
+/// `m1` から `m<n>` まで 1 段ずつ呼ぶ連鎖のパック。`m<n>` は呼ばない。
+fn chain(n: usize) -> Tmp {
+    let t = Tmp::new("modchain");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        chapter_using("{module: m1, instance: i}").as_bytes(),
+    );
+    for k in 1..=n {
+        let call = if k < n {
+            format!(", use: {{module: m{}, instance: i}}", k + 1)
+        } else {
+            String::new()
+        };
+        t.put(
+            &format!("modules/m{k}/module.yaml"),
+            format!("id: m{k}\ntitle: M\nsteps:\n  - {{id: a, title: A, final: true{call}}}\n")
+                .as_bytes(),
+        );
+    }
+    t
+}
+
+#[test]
+fn nesting_of_eight_levels_expands_and_nine_is_rejected() {
+    let ok = chain(8);
+    let ir = ir_of(&ok.0);
+    assert_eq!(ir.instances.len(), 9);
+    assert!(ir.nodes.iter().any(|n| n.uid.ends_with("m8@i/a")));
+    let deepest = ir.instances.last().expect("instance");
+    assert_eq!(deepest.id.matches('@').count(), 8);
+
+    let d = diags(&chain(9));
+    assert_eq!(codes(&d), [DiagCode::ModuleCycle]);
+}
+
+#[test]
+fn an_inserted_value_is_not_substituted_again_and_chapters_are_literal() {
+    let chapter = concat!(
+        "id: c1\ntitle: \"${keep}\"\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: \"${keep}\", final: true, use: {module: m, instance: i, args: {x: \"${y}\"}}}\n",
+    );
+    let t = mini(chapter, MOD_OK);
+    let ir = ir_of(&t.0);
+    assert_eq!(node(&ir, "m@i/a").step.title, "T ${y}");
+    assert_eq!(node(&ir, "main/u").step.title, "${keep}");
+}
+
+#[test]
+fn neg_module_start_pointing_outside_the_instance_is_ref_step() {
+    let module = format!("{MOD_OK}starts:\n  - {{id: ms, node: nowhere}}\n");
+    let t = mini(&chapter_using("{module: m, instance: i}"), &module);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::RefStep]);
+    assert_eq!(d[0].item(), "start:ms");
+}
+
+#[test]
+fn neg_transition_inside_a_module_is_checked_against_its_own_instance() {
+    // 章の Step `a` と同名の Step がモジュールに無くても、モジュールの遷移先は章では解決しない。
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: z, title: Z, final: true, next: [{to: u}]}\n";
+    let t = mini(&chapter_using("{module: m, instance: i}"), module);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::RefStep]);
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+}
