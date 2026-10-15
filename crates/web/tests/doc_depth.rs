@@ -3,12 +3,18 @@
 //! 引用・リスト・強調の入れ子が 32 段で省略の文言になること、木を単独で読む経路（`serde_json` の再帰の上限 128）が
 //! 深い木をスタックを使い切らずに拒否すること、T-09 の言語名が属性を注入できないことを確かめる。
 //! 製品の読み込みの経路では、JSON の深さ 64 の関門が 50・60 段の引用を先に拒否する（`core` の `doc_load` 試験）。
+//! 3/3 では、IR の経路で読める最も深い木が描画の上限（32 段）に届かず省略にならないこと、compile した教材パックの
+//! 木が省略なしで描けることを確かめる。
 //! 試験では `unwrap`・`expect` を使ってよい（失敗はそのまま試験の失敗になる）。
 
 use fandhe_frontend_core::render;
 use fandhe_workshop_contract::doc::{Block, Doc, Inline, MAX_DOC_DEPTH, TREE_VERSION};
+use fandhe_workshop_contract::limits::{LoadEntry, MAX_JSON_DEPTH};
+use fandhe_workshop_core::json_depth::json_depth;
+use fandhe_workshop_core::load_gate::load_json;
+use fandhe_workshop_core::load_ir;
 use fandhe_workshop_web::doc_view::{
-    lang_class, render_doc_node, DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH,
+    lang_class, render_doc_node, DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH, VERSION_REJECTED_TEXT,
 };
 use serde_json::Value;
 use std::path::PathBuf;
@@ -280,4 +286,150 @@ fn class_付きの_code_は_a11y_の未定義の項目を持たない() {
         fandhe_workshop_web::a11y::check_no_undefined(&render_doc_node(&doc)),
         Ok(())
     );
+}
+
+/// 木が載る IR の 3 か所。
+#[derive(Clone, Copy, Debug)]
+enum Site {
+    BodyDoc,
+    BodyLevelsDoc,
+    FixtureDocs,
+}
+
+const SITES: [Site; 3] = [Site::BodyDoc, Site::BodyLevelsDoc, Site::FixtureDocs];
+
+/// 契約の試験データの IR の `site` の木を `doc` に差し替えたバイト列。
+/// `core` の `doc_load` 試験の `full_ir` と同じ処理の複製（試験のヘルパは crate をまたいで使えないため）。
+fn ir_bytes_with(site: Site, doc: &Doc) -> Vec<u8> {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../contract/tests/data/ir_format_2/full.json");
+    let mut ir: Value =
+        serde_json::from_str(&std::fs::read_to_string(path).expect("read ir")).expect("parse ir");
+    // 契約の試験データは参照先の節が 1 つ足りない。参照を自身に向けて、読み込める IR にする。
+    ir["nodes"][0]["step"]["next"][0]["to"] = Value::from("main/a");
+    let mark = Value::from("@@TREE@@");
+    match site {
+        Site::BodyDoc => ir["nodes"][0]["body_doc"] = mark,
+        Site::BodyLevelsDoc => {
+            *ir["nodes"][0]["body_levels_doc"]
+                .as_object_mut()
+                .expect("levels")
+                .values_mut()
+                .next()
+                .expect("one") = mark;
+        }
+        Site::FixtureDocs => {
+            *ir["fixture_docs"]
+                .as_object_mut()
+                .expect("fixtures")
+                .values_mut()
+                .next()
+                .expect("one") = mark;
+        }
+    }
+    // 深い木は `Value` を経由せず文字列で差し込む（直列化は再帰の上限に掛からない）。
+    ir.to_string()
+        .replace(
+            "\"@@TREE@@\"",
+            &serde_json::to_string(doc).expect("serialize"),
+        )
+        .into_bytes()
+}
+
+fn tree_at(ir: &fandhe_workshop_contract::ir::Ir, site: Site) -> Doc {
+    match site {
+        Site::BodyDoc => ir.nodes[0].body_doc.clone().expect("body_doc"),
+        Site::BodyLevelsDoc => ir.nodes[0]
+            .body_levels_doc
+            .values()
+            .next()
+            .expect("level")
+            .clone(),
+        Site::FixtureDocs => ir.fixture_docs.values().next().expect("fixture").clone(),
+    }
+}
+
+/// IR の JSON の深さが上限に収まる最大の `n` で `make(n)` の木を作る。
+fn max_fit(site: Site, make: impl Fn(usize) -> Doc) -> usize {
+    let mut n = 0;
+    while json_depth(&ir_bytes_with(site, &make(n + 1))) <= MAX_JSON_DEPTH {
+        n += 1;
+    }
+    n
+}
+
+fn list_nest_doc(n: usize) -> Doc {
+    let mut blocks = Vec::new();
+    for _ in 0..n {
+        blocks = vec![Block::List {
+            ordered: false,
+            items: vec![blocks],
+        }];
+    }
+    doc(blocks)
+}
+
+fn emph_nest_doc(n: usize) -> Doc {
+    let mut inlines = vec![Inline::Text { text: "x".into() }];
+    for _ in 0..n {
+        inlines = vec![Inline::Emph { children: inlines }];
+    }
+    doc(vec![Block::Paragraph { children: inlines }])
+}
+
+#[test]
+fn ir_から読める最も深い引用は描画の上限に届かない() {
+    for site in SITES {
+        let n = max_fit(site, quote_nest_doc);
+        assert!(n > 0 && n < MAX_RENDER_DEPTH, "{site:?}: n={n}");
+        let ir = load_ir(&ir_bytes_with(site, &quote_nest_doc(n))).expect("loads");
+        let html = html_of(&tree_at(&ir, site));
+        assert_eq!(count(&html, "<blockquote>"), n, "{site:?}");
+        assert_eq!(count(&html, DEPTH_OMITTED_TEXT), 0, "{site:?}");
+    }
+}
+
+#[test]
+fn ir_から読める木は構造の種類によらず描画の深さが上限未満() {
+    // 最も浅い位置（fixture_docs）で、リストと強調の最大の入れ子を調べる。
+    let site = Site::FixtureDocs;
+    let lists = max_fit(site, list_nest_doc);
+    let emphs = max_fit(site, emph_nest_doc);
+    assert!(lists > 0 && lists < MAX_RENDER_DEPTH, "lists={lists}");
+    assert!(emphs > 0 && emphs < MAX_RENDER_DEPTH, "emphs={emphs}");
+    for (name, n, make, tag) in [
+        ("list", lists, list_nest_doc as fn(usize) -> Doc, "<ul>"),
+        ("emph", emphs, emph_nest_doc as fn(usize) -> Doc, "<em>"),
+    ] {
+        let ir = load_ir(&ir_bytes_with(site, &make(n))).expect("loads");
+        let html = html_of(&tree_at(&ir, site));
+        assert_eq!(count(&html, tag), n, "{name}");
+        assert_eq!(count(&html, DEPTH_OMITTED_TEXT), 0, "{name}");
+        // 1 段多いと IR の深さの段で拒否される。
+        assert!(
+            json_depth(&ir_bytes_with(site, &make(n + 1))) > MAX_JSON_DEPTH,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn compile_した教材パックの木は単独の関門も通り省略なしで描ける() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../pack/tests/data/fixture-pack");
+    let bytes = fandhe_workshop_pack::compile::compile_dir(&dir).expect("compiles");
+    let ir = load_ir(&bytes).expect("loads");
+    let mut docs: Vec<Doc> = Vec::new();
+    for n in &ir.nodes {
+        docs.extend(n.body_doc.clone());
+        docs.extend(n.body_levels_doc.values().cloned());
+    }
+    docs.extend(ir.fixture_docs.values().cloned());
+    assert!(!docs.is_empty());
+    for d in &docs {
+        let json = serde_json::to_vec(d).expect("serialize");
+        load_json::<Doc>(LoadEntry::Ir, &json).expect("passes the gate on its own");
+        let html = html_of(d);
+        assert!(!html.contains(DEPTH_OMITTED_TEXT), "{html}");
+        assert!(!html.contains(VERSION_REJECTED_TEXT), "{html}");
+    }
 }
