@@ -180,6 +180,53 @@ fn pack23_answer_spec_of_reads_only_answer() {
 }
 
 #[test]
-fn pack23_contract_version_is_2() {
-    assert_eq!(CONFIRM_SPEC_CONTRACT_VERSION, 2);
+fn confirm_spec_contract_version_is_3() {
+    assert_eq!(CONFIRM_SPEC_CONTRACT_VERSION, 3);
+}
+
+fn answer_with(options: serde_json::Value) -> AnswerSpec {
+    serde_json::from_value(json!({"on_wrong": "rj", "options": options})).unwrap()
+}
+
+#[test]
+fn pack15_on_wrong_on_correct_option_is_rejected() {
+    let a = answer_with(json!([{"id": "a", "correct": true, "on_wrong": "rj2"}]));
+    assert_eq!(a.check(), Err(ConfirmSpecError::OnWrongOnCorrectOption));
+}
+
+#[test]
+fn pack15_on_wrong_on_wrong_option_and_null_are_accepted() {
+    let a = answer_with(json!([
+        {"id": "a", "correct": true, "on_wrong": null},
+        {"id": "b", "correct": false, "on_wrong": "rj2"},
+        {"id": "c", "correct": false}
+    ]));
+    assert_eq!(a.check(), Ok(()));
+}
+
+#[test]
+fn pack15_blank_option_on_wrong_is_empty_name() {
+    let a = answer_with(json!([
+        {"id": "a", "correct": true},
+        {"id": "b", "correct": false, "on_wrong": "  "}
+    ]));
+    assert_eq!(a.check(), Err(ConfirmSpecError::EmptyName));
+}
+
+#[test]
+fn pack15_first_error_is_deterministic() {
+    // 重複 ID と正答の on_wrong が両方あるとき、先に見る重複が返る。
+    let a = answer_with(json!([
+        {"id": "a", "correct": false},
+        {"id": "a", "correct": true, "on_wrong": "rj2"}
+    ]));
+    assert_eq!(a.check(), Err(ConfirmSpecError::Duplicate));
+}
+
+#[test]
+fn pack15_error_display_has_no_input_value() {
+    let a = answer_with(json!([{"id": "a", "correct": true, "on_wrong": "SECRET-ID"}]));
+    let msg = a.check().unwrap_err().to_string();
+    assert_eq!(msg, "on_wrong on a correct option");
+    assert!(!msg.contains("SECRET"));
 }

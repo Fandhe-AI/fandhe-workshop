@@ -1,0 +1,8 @@
+id: PACK15-1
+package: fandhe-workshop-contract
+test: confirm_spec_contract
+target: crates/contract/src/confirm_spec.rs
+find:                 if o.correct {
+replace:                 if o.correct && false {
+expect-fail: pack15_on_wrong_on_correct_option_is_rejected
+note: 正答の選択肢の on_wrong を拒否する検査を外す（正答に誤答の文面が付いたまま通る）
