@@ -401,3 +401,21 @@ fn neg_input_emptied_by_an_argument_is_checked_after_expansion() {
     assert_eq!(d[0].file(), "modules/m/module.yaml");
     assert!(d[0].to_string().contains("step:a"), "{}", d[0]);
 }
+
+#[test]
+fn an_arg_shape_placeholder_in_a_module_input_compiles_after_substitution() {
+    // 置換前の `${shape}` は ArgShape として読めない。モジュールの input は展開後だけで検査する。
+    let module = "id: m\ntitle: M\nparams: {shape: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: x, args: [{name: n, shape: \"${shape}\"}]}}\n";
+    let ok = mini(
+        &chapter_using("{module: m, instance: i, args: {shape: digits}}"),
+        module,
+    );
+    let d = compile_dir(&ok.0).err().unwrap_or_default();
+    assert!(d.is_empty(), "{d:?}");
+    // 展開後に不正な値になる場合は、展開後の検査で E-PARSE になる。
+    let bad = mini(
+        &chapter_using("{module: m, instance: i, args: {shape: nonsense}}"),
+        module,
+    );
+    assert_eq!(codes(&diags(&bad)), [DiagCode::Parse]);
+}

@@ -1,6 +1,6 @@
 //! 入力方式の語と、語彙の文書（`docs/vocabulary/vocabulary.md` 7 節）の一致の検査（TASK-44）。
 //!
-//! 文書を読むだけで作業ツリーへは書き込まない。`wait`・`cancel` は別タスク（EP-1・EP-2）が型を足すため除く。
+//! 文書を読むだけで作業ツリーへは書き込まない。`cancel`（EP-2）は規則の `on` の語で `input.kind` ではないため除く。`wait`（EP-1）は `InputKind` に含む。
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -44,9 +44,11 @@ fn input_terms() -> BTreeSet<String> {
 }
 
 #[test]
-fn input_kinds_match_the_vocabulary_document_except_wait_and_cancel() {
+fn input_kinds_match_the_vocabulary_document_except_cancel() {
     let mut doc = input_terms();
-    assert!(doc.remove("wait") && doc.remove("cancel"));
+    // cancel は EP-2 の規則の語で、kind として宣言できない。
+    assert!(doc.remove("cancel"));
+    assert!(doc.contains("wait"));
     let ours: BTreeSet<String> = InputKind::ALL
         .iter()
         .map(|k| k.as_str().to_string())

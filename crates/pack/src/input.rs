@@ -1,4 +1,4 @@
-//! Step の `input`（入力方式 5 種）の宣言を検査する（TASK-44、PACK-10）。
+//! Step の `input`（入力方式 5 種と待機）の宣言と、規則の `on.cancel` を検査する（TASK-44、PACK-10）。
 //!
 //! `compile` から 1 回だけ呼ばれる。IR の `Step.input` は未型付けの値のまま出す（golden のバイト一致を
 //! 保つため）ので、ここでは型で読めるかと意味の制約だけを確かめ、値は変えない。型は contract の
@@ -7,17 +7,22 @@
 //! 診断のコードは新設しない。型で読めない場合（未知の欄・未知の `kind`・欄の欠け・型の違い）は
 //! `E-PARSE`、意味の制約の違反は `E-STRUCTURE` にする。メッセージには、短い識別子として安全な
 //! 欄・`kind` の名前だけを写し、入力の値と serde の元の文言（値を含みうる）は写さない。
-//! `wait`（EP-1）は受け付けて欄を検査しない（型は別タスク）。
+//! `wait`（EP-1）は欄を持たず、Step の `processing` が空だと進行の完了で受付になれず先へ進めないので
+//! `E-STRUCTURE` にする（向きは片方だけで、`processing` があって `wait` でない Step は許す）。`processing` の
+//! 中身は TASK-43 の担当で、ここでは件数だけを見る。取り消し（EP-2）は `input.kind` ではなく規則の
+//! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` の他のキーとの
+//! 組み合わせ・入力方式との整合は TASK-45 が受け持つ。
 
 use fandhe_workshop_contract::input_spec::{
-    ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec,
+    ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec, WaitSpec,
+    CANCEL_RULE_KEY,
 };
 use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::{safe_ident, LoadedScope};
+use crate::source::{safe_ident, LoadedScope, ScopeKind};
 
 fn diag(scope: &LoadedScope, step_id: &str, code: DiagCode, message: String) -> Diagnostic {
     let item = format!("step:{step_id}");
@@ -68,7 +73,7 @@ fn check_one<T: DeserializeOwned>(
     check(&spec).map_err(|e| (DiagCode::Structure, format!("input ({kind}): {e}")))
 }
 
-fn check_input(input: &Value) -> Result<(), (DiagCode, String)> {
+fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, String)> {
     let Some(obj) = input.as_object() else {
         return Err((DiagCode::Parse, "input: must be a mapping".to_string()));
     };
@@ -78,9 +83,6 @@ fn check_input(input: &Value) -> Result<(), (DiagCode, String)> {
             "input: kind is missing or not a string".to_string(),
         ));
     };
-    if kind == "wait" {
-        return Ok(());
-    }
     let Some(k) = InputKind::from_str_opt(kind) else {
         let msg = if safe_ident(kind) {
             format!("input: unknown kind {kind}")
@@ -99,6 +101,17 @@ fn check_input(input: &Value) -> Result<(), (DiagCode, String)> {
         InputKind::Choice => check_one::<ChoiceSpec>(rest, name, ChoiceSpec::check),
         InputKind::UiAction => check_one::<UiActionSpec>(rest, name, UiActionSpec::check),
         InputKind::Approval => check_one::<ApprovalSpec>(rest, name, |_| Ok(())),
+        InputKind::Wait => {
+            check_one::<WaitSpec>(rest, name, |_| Ok(()))?;
+            if has_processing {
+                Ok(())
+            } else {
+                Err((
+                    DiagCode::Structure,
+                    "input (wait): processing is required".to_string(),
+                ))
+            }
+        }
     }
 }
 
@@ -107,8 +120,34 @@ fn check_input(input: &Value) -> Result<(), (DiagCode, String)> {
 /// 診断は定義元の章・モジュールのファイルと Step に紐付ける。
 pub(crate) fn check_step_input(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
     let input = step.input.as_ref()?;
-    let (code, msg) = check_input(input).err()?;
+    let (code, msg) = check_input(input, !step.processing.is_empty()).err()?;
     Some(diag(scope, &step.id, code, msg))
+}
+
+/// 規則の `on.cancel`（EP-2）の値だけを検査する。メッセージに規則の ID・値は写さない。
+fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
+    rules
+        .iter()
+        .filter_map(|r| {
+            let v = r.get("on")?.as_object()?.get(CANCEL_RULE_KEY)?;
+            match v.as_bool() {
+                Some(true) => None,
+                Some(false) => Some((
+                    DiagCode::Structure,
+                    "rule (cancel): on.cancel must be true".to_string(),
+                )),
+                None => Some((
+                    DiagCode::Parse,
+                    "rule (cancel): on.cancel must be a boolean".to_string(),
+                )),
+            }
+        })
+        .collect()
+}
+
+/// `input` の宣言が引数の置換記号 `${` を含むか。
+fn has_placeholder(input: &Option<Value>) -> bool {
+    input.as_ref().is_some_and(|v| v.to_string().contains("${"))
 }
 
 /// 章・モジュールのすべての Step の `input` を検査し、診断を集める。
@@ -116,8 +155,16 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for scope in scopes {
         for step in &scope.src.steps {
-            let Some(input) = &step.input else { continue };
-            if let Err((code, msg)) = check_input(input) {
+            // モジュールの `input` が `${...}` を含むときは、置換前の値が語彙として読めないことがある。
+            // その宣言は検査せず、展開後の宣言を `check_step_input` が検査する。
+            if scope.kind == ScopeKind::Chapter || !has_placeholder(&step.input) {
+                if let Some(input) = &step.input {
+                    if let Err((code, msg)) = check_input(input, !step.processing.is_empty()) {
+                        out.push(diag(scope, &step.id, code, msg));
+                    }
+                }
+            }
+            for (code, msg) in check_cancel_rules(&step.rules) {
                 out.push(diag(scope, &step.id, code, msg));
             }
         }

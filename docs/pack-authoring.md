@@ -67,9 +67,8 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 
 ## 入力方式（`input`）
 
-Step の `input` は、`kind` で 5 方式から選びます（PACK-10）。ここに書けるのは次の欄だけで、未知の欄・未知の `kind` は
-`E-PARSE`、意味の制約に反する宣言は `E-STRUCTURE` になります。`wait` は今は欄を検査せずに通し、`wait` と規則の
-`on.cancel` は別の節で足します。
+Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びます（PACK-10）。ここに書けるのは次の欄だけで、未知の欄・
+未知の `kind` は `E-PARSE`、意味の制約に反する宣言は `E-STRUCTURE` になります。
 
 | `kind` | 欄 | 意味の制約 |
 |---|---|---|
@@ -78,6 +77,7 @@ Step の `input` は、`kind` で 5 方式から選びます（PACK-10）。こ�
 | `choice` | `options`（各要素は `id`・`label`） | 1 件以上で、`id` は重複しない |
 | `ui_action` | `targets`（各要素は `view`・`path`） | 1 件以上で、どれも空でない |
 | `approval` | なし | 欄を足すと `E-PARSE` |
+| `wait`（EP-1） | なし | 欄を足すと `E-PARSE`。Step の `processing` が 1 件以上でないと `E-STRUCTURE` |
 
 `text` が判定するのは、空でないことと文字数だけです。内容の良し悪しを判定する欄は書けません（`contains` や
 `pattern` は `E-PARSE`）。受け付けた入力の分類は `free_text_unjudged`、範囲外は `bad_arg_shape` で拒否します。
@@ -86,6 +86,14 @@ Step の `input` は、`kind` で 5 方式から選びます（PACK-10）。こ�
 - 前後の空白は数えません。空白だけの入力は空として常に拒否します（`min: 0` でも同じです）。この扱いは、spec が
   「空でないこと」としか書いていないことからの推定による決定です（2026-10-15）
 - 下限・上限はどちらも含みます
+
+`wait` は受講者の入力を要さず、`processing` の進行の完了で受付になります。`processing` が無い待機は先へ進めない
+ため拒否します。この決定は、spec に明文がなく EP-1 の説明からの推定によります（2026-10-15。spec 側の確認が望ましい）。
+`processing` があって `wait` でない Step（`command` との併用など）は書けます。`processing` の中身は、ここでは検査しません。
+
+取り消し（EP-2）は `input.kind` ではなく、規則の `on: { cancel: true }` で受けます。`kind: cancel` は未知の `kind` として
+`E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
+`E-PARSE`、`false` は `E-STRUCTURE` です。`on` の他のキーとの組み合わせや入力方式との整合は、ここでは検査しません。
 
 ## 根拠となる試験
 
@@ -96,5 +104,5 @@ Step の `input` は、`kind` で 5 方式から選びます（PACK-10）。こ�
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・入れ子の上限と不正な呼び出し（PACK-19） |
-| `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
+| `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |

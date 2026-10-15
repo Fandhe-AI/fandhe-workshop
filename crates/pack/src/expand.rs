@@ -24,7 +24,7 @@ use serde_json::Value;
 
 use crate::compile::{body_len, body_tree, diag, Budget};
 use crate::diag::{DiagCode, Diagnostic};
-use crate::effect_check::check_effects;
+use crate::effect_check::{check_effects, check_processing};
 use crate::source::{safe_ident, LoadedPack, LoadedScope, ScopeKind};
 
 /// モジュールの入れ子の深さの上限。章を深さ 0 とし、深さ 8 の実体の中の `use` は展開しない。
@@ -343,6 +343,9 @@ impl<'a> Expander<'a> {
                 for (code, msg) in check_effects(list, field, &self.pack.workshop.fixtures) {
                     self.diags.push(diag(&scope.file, &item, code, msg));
                 }
+            }
+            for (code, msg) in check_processing(&s.processing, &self.pack.workshop.fixtures) {
+                self.diags.push(diag(&scope.file, &item, code, msg));
             }
             self.checks.push(Check {
                 file: scope.file.clone(),
