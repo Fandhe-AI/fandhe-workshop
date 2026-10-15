@@ -24,7 +24,7 @@
 //!
 //! - 章の完了（`ChapterCompleted`・`completed`）、`exit_to`・`use` への遷移（TASK-233 以降）
 //! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-211・213・217）
-//! - `on_miss`・`on_wrong` の文面の発行と `Judged`（TASK-267）、`busy` の分類（TASK-209）
+//! - `on_miss`・`on_wrong` の文面の発行と `Judged`（TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）は受付の分岐が先に行い、`Judged` の発行は TASK-267
 //! - `processing` を持つ Step の省略の達成（進行の完了で達成にする。TASK-210）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は 1 操作で
