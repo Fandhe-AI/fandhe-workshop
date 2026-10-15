@@ -1,0 +1,9 @@
+id: JUDGE1-3
+package: fandhe-workshop-core
+test: command_judge
+target: crates/core/src/command_judge.rs
+find: key.replace('-', "_")
+replace: key.to_string()
+expect-fail: poc3_pairs
+expect-fail: named_key_normalization
+note: 名前つき引数の名前の `-`／`_` の同一視を外す（`--external-checks` が宣言の `external_checks` に当たらない）

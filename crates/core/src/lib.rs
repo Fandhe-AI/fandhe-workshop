@@ -9,10 +9,12 @@
 //! 履歴の 4 軸の版の記録と欠落の検査（[`version_record`]、TASK-173 2/2）も持つ。
 //! 状態変化の語彙（要素・属性・フラグ）の 1 語ごとの適用と、`when` つきの列・進行の順次適用（[`effect`]、TASK-43）も持つ。
 //! 受講者の 1 行をコマンド名と引数に分ける字句化（[`command_lex`]、TASK-262 1/2）も持つ。
+//! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
 pub mod addr;
+pub mod command_judge;
 pub mod command_lex;
 pub mod effect;
 pub mod event;

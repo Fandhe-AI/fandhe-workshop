@@ -1,0 +1,10 @@
+id: JUDGE1-4
+package: fandhe-workshop-core
+test: command_judge
+target: crates/core/src/command_judge.rs
+find: return CommandVerdict::MissingArg;
+replace: let _ = 0;
+expect-fail: poc3_pairs
+expect-fail: positional_resolution
+expect-fail: judging_properties
+note: 必須の引数が無いときに拒否せず通す（必須の検査を外す）
