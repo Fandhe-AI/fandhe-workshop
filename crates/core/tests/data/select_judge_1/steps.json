@@ -69,6 +69,14 @@
     "input": { "kind": "choice", "options": [], "surprise": 1 },
     "rules": []
   },
+  "bad_approval_input": {
+    "id": "st-bad4",
+    "title": "不正（承認）",
+    "input": { "kind": "approval", "surprise": 1 },
+    "rules": [
+      { "id": "r-approve", "on": { "approval": "approve" }, "outcome": { "kind": "accept" } }
+    ]
+  },
   "text_step": {
     "id": "st-text",
     "title": "自然文",

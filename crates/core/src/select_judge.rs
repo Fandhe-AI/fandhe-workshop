@@ -40,7 +40,7 @@ use std::fmt;
 use fandhe_workshop_contract::confirm_spec::{
     answer_spec_of, ApproveSpec, ConfirmKind, NoneSpec, PointAtSpec,
 };
-use fandhe_workshop_contract::input_spec::{ChoiceSpec, InputKind, UiActionSpec};
+use fandhe_workshop_contract::input_spec::{ApprovalSpec, ChoiceSpec, InputKind, UiActionSpec};
 use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{JudgmentKind, RejectCategory};
 use serde::de::DeserializeOwned;
@@ -231,7 +231,10 @@ fn declared(step: &Step, input: &Input) -> Result<bool, SelectJudgeError> {
                 .iter()
                 .any(|t| t.view == *view && t.path == *path))
         }
-        (InputKind::Approval, Input::Approval { .. }) => Ok(true),
+        (InputKind::Approval, Input::Approval { .. }) => {
+            read_spec::<ApprovalSpec>(decl).ok_or(SelectJudgeError::InvalidDeclaration)?;
+            Ok(true)
+        }
         _ => Ok(false),
     }
 }

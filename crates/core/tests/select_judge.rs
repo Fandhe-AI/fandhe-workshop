@@ -189,6 +189,8 @@ fn invalid_declarations_never_accept() {
     assert_eq!(sel("bad_outcome", &i), invalid);
     assert_eq!(sel("bad_reject", &i), invalid);
     assert_eq!(sel("bad_input", &choice("a")), invalid);
+    // approval も未知の欄を含む宣言を読めないものとして扱い、一致する規則があっても受付にしない。
+    assert_eq!(sel("bad_approval_input", &i), invalid);
     assert_eq!(
         conf("confirm_bad", &i),
         Err(SelectJudgeError::InvalidDeclaration)
