@@ -120,9 +120,41 @@
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
 | GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 
-## 7. 変更履歴
+## 7. 契約適合試験とサンプル
+
+表示・保存・入力判定・案内の担当が `apply()` へ結線するときの合否の基準である（TASK-205）。次のものから成る。
+
+| 物 | 置き場 | 役割 |
+|---|---|---|
+| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 1、対象は `CONTRACT_VERSION` 1） | 21 件の操作の前後の状態と期待のイベント列 |
+| サンプルの説明 | `testdata/contract/README.md` | 欄の意味・版の規則 |
+| 形の試験 | `crates/core/tests/contract_sample.rs` | サンプルが core の型で読めること、連なり、網羅 |
+| 適合試験 | `crates/core/tests/contract_conformance.rs` | 下表の 3 層 |
+| 読む部品 | `crates/core/tests/common/contract_sample.rs` | サンプルを core の型で読む |
+
+適合試験は 3 層に分ける。`apply()` が骨格の間も意味のある層と、結線の合否を決める厳密な層を分け、厳密な層の判定を弱めて通すことはしない。
+
+| 層 | 確かめること | 現在 | CI |
+|---|---|---|---|
+| サンプルと規則の表 | サンプルの世代の差が 3 節の表と EVT-6 の (1)〜(6) に合う | 通る | 載る |
+| 実際の `apply()` の不変条件 | EVT-22（同じ入力列で状態とイベント列が一致）、3 つの入口の一致、世代が減らない・増分は 1 まで | 通る | 載る |
+| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 骨格のため `e01` で失敗するので `#[ignore]` | 載らない |
+| 比較器の自己確認 | 期待どおりの提供元は合格、1 か所壊した提供元は最初の食い違いの操作 ID で失敗する | 通る | 載る |
+
+実行コマンド:
+
+- 通常: `make test`（CI の `rust-test` が流す）
+- 結線の確認: `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored`
+
+統合するタスクの完了条件には、「`contract_conformance` が `--include-ignored` で通る」と書く。`apply()` の最後の分岐
+（TASK-207・210・211・213・214・215）を埋めるタスクが、`sample_replay_matches_apply` の `#[ignore]` を外す。
+サンプルの版の規則（契約を変えたら版を上げる）は `testdata/contract/README.md` の「版の規則」に従う。
+
+## 8. 変更履歴
 
 | 版 | 日付 | 変更 | 理由 |
 |---|---|---|---|
 | 1 | 2026-10-15 | 初版。型の一覧・世代の表・宛先の形・机上の照合の記録 | TASK-204 3/3 |
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
+
+- 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
