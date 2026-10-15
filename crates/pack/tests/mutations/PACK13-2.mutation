@@ -1,0 +1,8 @@
+id: PACK13-2
+package: fandhe-workshop-pack
+test: confirm_vocabulary
+target: crates/pack/src/confirm.rs
+find:             if spec.has_reason() {
+replace:             if true {
+expect-fail: pack13_none_without_reason_is_no_confirm
+note: none の理由の有無の判定を外す（理由の無い確認の省略が、検証を通ってしまう）

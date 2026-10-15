@@ -23,7 +23,12 @@ use serde_json::Value;
 use crate::diag::{DiagCode, Diagnostic};
 use crate::source::{safe_ident, LoadedScope};
 
-fn diag(scope: &LoadedScope, step_id: &str, code: DiagCode, message: String) -> Diagnostic {
+pub(crate) fn diag(
+    scope: &LoadedScope,
+    step_id: &str,
+    code: DiagCode,
+    message: String,
+) -> Diagnostic {
     let item = format!("step:{step_id}");
     let file = if scope.file.trim().is_empty() {
         "."

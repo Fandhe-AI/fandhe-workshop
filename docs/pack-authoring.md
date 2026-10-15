@@ -72,6 +72,25 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 `E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
 `E-PARSE`、`false` は `E-STRUCTURE` です。`on` の他のキーとの組み合わせや入力方式との整合は、ここでは検査しません。
 
+## 確認（`confirm`）
+
+入力を持つ Step は、受け付けただけでは達成にならず、受講者の確認の操作で初めて達成になります（PACK-13、R-22）。
+確認を省けるのは、理由を添えて `kind: none` と明示した Step だけです。入力を持つ Step が確認も理由つきの省略も持たない場合は
+`E-NO-CONFIRM` で拒否します（`wait` の Step も入力を持つ Step です）。`use` を持つ Step は、展開（TASK-50）まで検査しません。
+
+| `kind` | 欄 | 意味の制約 |
+|---|---|---|
+| `point_at` | `targets`（各要素は `view`・`path`）、`on_miss`（任意） | `targets` は 1 件以上で、どれも空でない |
+| `answer` | `options`（各要素は `id`・`correct`、任意で `on_wrong`・`label`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない |
+| `approve` | なし | 欄を足すと `E-PARSE` |
+| `none` | `reason` | `reason` が前後の空白を除いて空でないこと。無い・空・空白だけは `E-NO-CONFIRM` |
+
+- 未知の欄・未知の `kind`・欄の欠け・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE` です
+- `none` の理由の欠けを `E-PARSE` でなく `E-NO-CONFIRM` にするのは、PACK-13 の「理由つき」の違反として扱うためです（2026-10-15 の決定）
+- 入力の無い Step に `confirm` を書いても、形が正しければ診断しません。該当する診断コードが spec に無いためで、spec 側の判断が要ります（2026-10-15）
+- `answer` の選択肢の `on_wrong`（EP-6）と `label`（v1.3）は、形として受け付けるだけです。意味の検査と表示は後続のタスクが受け持ちます
+- `on_miss`・`on_wrong` の参照先と `targets[].view` の解決は、参照検査（TASK-46）が受け持ち、ここでは検査しません
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -82,3 +101,5 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
+| `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
+| `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22） |

@@ -26,7 +26,7 @@ fn diags_for_input(input: &str) -> Vec<Diagnostic> {
     let t = Tmp::new("input");
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     let chapter = format!(
-        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, input: {input}, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, input: {input}, confirm: {{kind: approve}}, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
     );
     t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
     match compile_dir(&t.0) {
@@ -40,7 +40,7 @@ fn diags_for_step(input: &str, extra: &str) -> Vec<Diagnostic> {
     let t = Tmp::new("step");
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     let chapter = format!(
-        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, input: {input}, {extra} next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, input: {input}, confirm: {{kind: approve}}, {extra} next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
     );
     t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
     match compile_dir(&t.0) {
@@ -101,8 +101,8 @@ fn pack10_five_kinds_validate_in_format_a() {
     );
     let chapter = concat!(
         "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
-        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"text\", min = 1, max = 10 }\nnext = [{ to = \"b\" }]\n",
-        "[[steps]]\nid = \"b\"\ntitle = \"B\"\ninput = { kind = \"approval\" }\nnext = [{ to = \"c\" }]\n",
+        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"text\", min = 1, max = 10 }\nconfirm = { kind = \"approve\" }\nnext = [{ to = \"b\" }]\n",
+        "[[steps]]\nid = \"b\"\ntitle = \"B\"\ninput = { kind = \"approval\" }\nconfirm = { kind = \"approve\" }\nnext = [{ to = \"c\" }]\n",
         "[[steps]]\nid = \"c\"\ntitle = \"C\"\nfinal = true\n",
     );
     t.put("chapters/c1/chapter.toml", chapter.as_bytes());
@@ -231,7 +231,7 @@ fn pack10_wait_and_cancel_in_format_a() {
     );
     let chapter = concat!(
         "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
-        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"wait\" }\nprocessing = [{ name = \"p1\" }]\n",
+        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"wait\" }\nconfirm = { kind = \"approve\" }\nprocessing = [{ name = \"p1\" }]\n",
         "rules = [{ id = \"r\", on = { cancel = true }, outcome = { kind = \"accept\" } }]\nnext = [{ to = \"b\" }]\n",
         "[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n",
     );
