@@ -235,6 +235,78 @@ fn neg_ir_format() {
     assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion]);
 }
 
+/// PACK-24: `pack.ir_format` が整数の 1 でなければ、型付きの読み込みより前に `E-FORMAT-VERSION` 1 件で止まる。
+#[test]
+fn neg_ir_format_variants_are_format_version() {
+    let variants = [
+        "ir_format: 0",
+        "ir_format: -1",
+        "ir_format: '1'",
+        "ir_format: 1.0",
+        "ir_format: 4294967296",
+        "ir_format: null",
+        "ir_format: [1]",
+    ];
+    for v in variants {
+        let t = minimal();
+        t.put(
+            "workshop.yaml",
+            WORKSHOP.replace("ir_format: 1", v).as_bytes(),
+        );
+        assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion], "{v}");
+    }
+
+    // 欠落。
+    let t = minimal();
+    t.put(
+        "workshop.yaml",
+        b"pack: {id: p, title: t, version: '0', guidance: A}\n",
+    );
+    assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion]);
+
+    // 版 2 と、版 1 の語彙にない欄の併存。残りを解釈せず、版の診断だけを返す。
+    let t = minimal();
+    t.put(
+        "workshop.yaml",
+        format!(
+            "{}future_table: {{x: 1}}\n",
+            WORKSHOP.replace("ir_format: 1", "ir_format: 2")
+        )
+        .as_bytes(),
+    );
+    t.put(
+        "chapters/c1/chapter.yaml",
+        CHAPTER
+            .replace("title: A,", "title: A, future: 1,")
+            .as_bytes(),
+    );
+    assert_eq!(codes(&diags(&t)), [DiagCode::FormatVersion]);
+
+    // 構文の誤りと、pack の表が無いものは従来どおり E-PARSE。
+    let t = minimal();
+    t.put("workshop.yaml", b"pack: {id: p\n");
+    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
+    let t = minimal();
+    t.put("workshop.yaml", b"refs: []\n");
+    assert_eq!(codes(&diags(&t)), [DiagCode::Parse]);
+}
+
+/// 形式 A（TOML）でも版を先に判定する。診断の文面に入力値を写さない。
+#[test]
+fn neg_ir_format_toml_and_no_echo() {
+    let t = Tmp::new("fmt-toml");
+    t.put(
+        "workshop.toml",
+        format!(
+            "[pack]\nid = \"p\"\ntitle = \"{SECRET}\"\nversion = \"0\"\nir_format = \"{SECRET}\"\nguidance = \"A\"\n"
+        )
+        .as_bytes(),
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::FormatVersion]);
+    assert_no_secret(&d);
+}
+
 #[test]
 fn neg_unresolved_refs_and_duplicates() {
     let t = minimal();

@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "p",
+    "title": "題名",
+    "version": "0.1.0",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [],
+  "nodes": [],
+  "starts": []
+}

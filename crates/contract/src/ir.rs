@@ -1,23 +1,45 @@
-//! 実行時に読む IR（JSON）の型。**仮の版**である。
-//!
-//! 型・スキーマ・加算の規則は TASK-41（#100）で固定する。ここでは、構造に関わる欄（ID・本文の参照・
-//! 遷移先・開始）だけに型を付け、語彙の中身（`rules`・`input`・`confirm`・効果・条件など）は
-//! [`serde_json::Value`] のまま通す。語彙の型は TASK-42 以降が持つ。
+//! 実行時に読む IR（JSON）の型。`ir_format` 1 の契約である。
 //!
 //! pack の `compile` が書き出し、core の `load_ir` が読む。両者が共有する置き場として contract に置く
 //! （`docs/architecture.md` 第 6 節の判定規則 1）。連想配列は `BTreeMap`（`serde_json::Value` の
 //! `Object` も同様）で、キーの順が決定的になる。これが、同じ教材から同じバイト列を作る前提である。
+//! バイト列の形（整形した JSON と末尾の改行 1 つ）は [`to_canonical_json`] が持つ。
 //!
-//! 欄の既定値（空・`None`・`false`）は書き出さない。読むときは `null` も `None` として受ける
-//! （試作の golden が `null` を含むため）。未知の欄は拒否する。
+//! # 版 1 の固定（TASK-41、PACK-24）
+//!
+//! `ir_format` は 1 のまま保ち、語彙の追加（v1.1〜v1.3）は任意の欄の加算だけで行う。
+//!
+//! - 版 1 の後に足す欄は、`Option` か空を既定値とする型にし、`#[serde(default, skip_serializing_if = ...)]`
+//!   を付ける。既定値のときは書き出さない。新しい項目を使わない教材パックは、バイト単位で同じ IR になる
+//! - 既存の欄の名前・型・意味・必須かどうかは変えない。消す・改名する・必須にする変更は
+//!   `ir_format` の版上げ（TASK-60）として扱う
+//! - 版 1 の構造の欄は、空でも常に書き出す（`Ir` の最上位の表・`Start::effects`・`Instance::args`）。
+//!   明示した空の値と省略は同じバイト列になる
+//! - 読むときは `null` を `None` として受ける（試作の golden が `null` を含むため）。未知の欄は拒否する
+//! - 固定しないもの: 語彙の中身（[`serde_json::Value`] のまま通す欄。TASK-42 以降）、モジュールの展開
+//!   （TASK-50）、本文の木（TASK-60）
+//!
+//! 版 1 の出力は、エンジン repo の golden（`crates/contract/tests/data/ir_format_1/`・
+//! `crates/pack/tests/data/golden/`）とのバイト一致で固定する。golden の書き換えは契約の変更であり、
+//! spec を先に直す。
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// 本リポジトリの IR が受け付ける `format_version`・`pack.ir_format`。
+/// 本リポジトリの IR が受け付ける `format_version`・`pack.ir_format`。両方がこの値でなければならない。
 pub const IR_FORMAT_VERSION: u32 = 1;
+
+/// IR を出力のバイト列にする。整形した JSON に改行を 1 つ付ける。
+///
+/// pack の `compile`・`compare` が書き出す形の正で、golden とのバイト一致の対象である。
+/// I/O・時刻・乱数を持たない純関数で、同じ `Ir` からは常に同じバイト列を返す。
+pub fn to_canonical_json(ir: &Ir) -> Result<Vec<u8>, serde_json::Error> {
+    let mut v = serde_json::to_vec_pretty(ir)?;
+    v.push(b'\n');
+    Ok(v)
+}
 
 fn is_false(b: &bool) -> bool {
     !*b
@@ -144,7 +166,7 @@ pub struct Start {
     pub id: String,
     /// 開始する Step（人が書く層では Step の ID、IR では `uid`）。
     pub node: String,
-    /// 開始用の世界状態を作る効果。
+    /// 開始用の世界状態を作る効果。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub effects: Vec<Value>,
     /// 案内の水準。
@@ -187,7 +209,7 @@ pub struct Instance {
     /// モジュールの ID（章の実体は `None`）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<String>,
-    /// 既定値を重ねた引数。
+    /// 既定値を重ねた引数。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub args: BTreeMap<String, String>,
     /// 呼び出した `use` の Step の `uid`。
@@ -199,35 +221,35 @@ pub struct Instance {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Ir {
-    /// IR の形式の版。
+    /// IR の形式の版（[`IR_FORMAT_VERSION`]）。
     pub format_version: u32,
     /// 教材の基本情報。
     pub pack: PackInfo,
-    /// 参照元の版（語彙の中身は通す）。
+    /// 参照元の版（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub refs: Vec<Value>,
-    /// コマンドの表（語彙の中身は通す）。
+    /// コマンドの表（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub commands: BTreeMap<String, Value>,
-    /// ビューの表（語彙の中身は通す）。
+    /// ビューの表（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub views: BTreeMap<String, Value>,
-    /// 練習データの宣言。
+    /// 練習データの宣言。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub fixtures: BTreeMap<String, FixtureDef>,
-    /// ヒントの表（語彙の中身は通す）。
+    /// ヒントの表（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub hints: BTreeMap<String, Value>,
-    /// 拒否の文面の表（語彙の中身は通す）。
+    /// 拒否の文面の表（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub rejections: BTreeMap<String, Value>,
-    /// 問い返しの文面の表（語彙の中身は通す）。
+    /// 問い返しの文面の表（語彙の中身は通す）。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub clarifications: BTreeMap<String, Value>,
-    /// 拒否の分類ごとの既定の文面の ID。
+    /// 拒否の分類ごとの既定の文面の ID。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub defaults: BTreeMap<String, String>,
-    /// 実体の一覧。
+    /// 実体の一覧。版 1 の構造の欄で、空でも書き出す。
     #[serde(default)]
     pub instances: Vec<Instance>,
     /// Step の実体の一覧。
@@ -238,6 +260,7 @@ pub struct Ir {
 
 #[cfg(test)]
 mod tests {
+    //! 版 1 の契約適合は `tests/ir_contract.rs` を正とする。ここは型の基本の挙動だけを確かめる。
     use super::*;
 
     fn step(id: &str) -> Step {
