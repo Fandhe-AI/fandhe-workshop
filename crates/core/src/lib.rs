@@ -15,6 +15,7 @@
 //! 承認の「直す」の対象の一覧と対象なしの規則（[`select_judge::revise_targets`]）、拒否の文面の解決と
 //! 空でない次の行動（[`rejection_text`]、TASK-264）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
+//! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -22,6 +23,7 @@ pub mod addr;
 pub mod changed;
 pub mod command_judge;
 pub mod command_lex;
+pub mod command_rule;
 pub mod effect;
 pub mod event;
 pub mod history_size;

@@ -23,7 +23,8 @@
 //! # 扱わないこと
 //!
 //! - `wrong_order`・`not_in_this_step`・`not_supported` の分類（IR の `commands` の値の解釈は TASK-268・TASK-269）
-//! - 規則（`on.args`・`on.missing`）との照合、問い返し、拒否の文面（TASK-267）
+//! - 規則の `on.missing` との照合と問い返し（[`crate::command_rule`]、TASK-272）
+//! - 規則の `on.args` との照合、拒否の文面（TASK-267）
 //! - `--flag` の直後の位置引数の読み替え（`ArgSpec` に値を取らない引数の欄が無いため、字句化の結果のまま使う）
 //! - 正規表現・候補の一覧の形（契約版 1 の `ArgShape` に無い）
 
