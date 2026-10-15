@@ -51,7 +51,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         )]);
     }
 
-    let (_profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
+    let (profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
     let mut diags = profile_diags;
     let mut nodes: Vec<Node> = Vec::new();
     let mut starts: Vec<Start> = Vec::new();
@@ -214,6 +214,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     }
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
     diags.extend(input::check_inputs(&pack.scopes));
+    diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     if !diags.is_empty() {
         return Err(diags);
     }

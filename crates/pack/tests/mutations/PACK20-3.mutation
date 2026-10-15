@@ -1,0 +1,8 @@
+id: PACK20-3
+package: fandhe-workshop-pack
+test: profile_input
+target: crates/pack/src/profile.rs
+find:         if classify_play_input(setting, text) == InputClass::Command {
+replace:         if classify_play_input(setting, text) != InputClass::Command {
+expect-fail: play_class_dollar
+note: 教材テストの text: の判定を反転する（接頭辞で始まる text: を見逃し、始まらない text: を誤って報告する）
