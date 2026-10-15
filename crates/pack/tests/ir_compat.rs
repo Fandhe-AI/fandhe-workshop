@@ -8,9 +8,12 @@
 //! - 読めない版（3 など）の IR は、未知の欄を含んでいても「版が未対応」として断る（型の不一致にしない）。
 //! - 版 2（TASK-60）: 版 2 の golden を読め、同じバイト列に戻る。木に未知の種別・欄があれば拒否する。
 //!
-//! 旧 → 新の読み先は、版 1 の golden を凍結した `tests/data/ir_format_1/`（TASK-60 の前の出力）。版 1 の
-//! IR・履歴を理由つきで断る扱いは TASK-60 の 2/2 が受け持つ。
-//! IR を読み書きする他タスクは、統合の完了条件としてこの試験を参照できる。
+//! 旧 → 新の読み先は、版 1 の golden を凍結した `tests/data/ir_format_1/`（TASK-60 の前の出力）。
+//!
+//! 版 1 の IR の扱い（TASK-60 の 2/2、D-52・D-59、PACK-24）: 版 2 の欄を持たない版 1 の IR は変換せずそのまま
+//! 読む（木を補わない）。版 1 と名乗る木つきの IR・版の食い違い・未対応の版は理由つきで拒否する。
+//! 版 1 の履歴の扱いは TASK-174・TASK-310 が受け持つ。本文を表示するタスクと、IR を読み書きする他タスクは、
+//! 統合の完了条件としてこの試験と `crates/contract/tests/ir_v1_handling.rs` を参照する。
 //! 型の水準の試験は `crates/contract/tests/ir_compat.rs`。
 //! 限界: `Value` で通している語彙の中身（`input`・`confirm` 等）の中の未知の欄は現状では拒否されない
 //! （型付けは TASK-42 以降）。golden には `Instance`・`FixtureDef` が無いため、その位置は contract 側が受け持つ。
@@ -102,7 +105,77 @@ fn old_to_new_compile_goldens_roundtrip_byte_identical() {
         let g = golden(name);
         let ir = load_ir(&g).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(to_canonical_json(&ir).unwrap(), g, "{name}");
+        // 読むときに版 2 へ変換しない（木を補わない）。
+        assert_eq!(ir.format_version, 1, "{name}");
+        assert!(ir.fixture_docs.is_empty(), "{name}");
+        assert!(
+            ir.nodes
+                .iter()
+                .all(|n| n.body_doc.is_none() && n.body_levels_doc.is_empty()),
+            "{name}"
+        );
     }
+}
+
+#[test]
+fn v1_declared_ir_with_each_v2_field_is_rejected_without_echo() {
+    let v2: Value = serde_json::from_slice(&golden_in("golden", "fixture-pack")).unwrap();
+    for name in GOLDENS {
+        let base: Value = serde_json::from_slice(&golden(name)).unwrap();
+        for field in ["body_doc", "body_levels_doc", "fixture_docs"] {
+            let mut v = base.clone();
+            if field == "fixture_docs" {
+                v[field] = v2[field].clone();
+            } else {
+                v["nodes"][0][field] = v2["nodes"][0][field].clone();
+            }
+            let Err(e) = load_ir(&bytes(&v)) else {
+                panic!("{name}/{field}: a v1 IR with a v2 field must be rejected")
+            };
+            assert!(
+                matches!(
+                    e,
+                    IrLoadError::FormatInconsistent {
+                        format_version: 1,
+                        pack_ir_format: 1
+                    }
+                ),
+                "{name}/{field}: {e}"
+            );
+        }
+    }
+}
+
+#[test]
+fn v1_golden_with_mismatched_versions_is_rejected() {
+    let base: Value = serde_json::from_slice(&golden("min-3step-pack")).unwrap();
+    let mut a = base.clone();
+    a["format_version"] = json!(2);
+    let mut b = base;
+    b["pack"]["ir_format"] = json!(2);
+    for v in [a, b] {
+        assert!(matches!(
+            load_ir(&bytes(&v)).unwrap_err(),
+            IrLoadError::FormatInconsistent { .. }
+        ));
+    }
+}
+
+#[test]
+fn version_zero_is_unsupported() {
+    let base: Value = serde_json::from_slice(&golden("min-3step-pack")).unwrap();
+    let mut a = base.clone();
+    a["format_version"] = json!(0);
+    assert!(matches!(
+        load_ir(&bytes(&a)).unwrap_err(),
+        IrLoadError::FormatVersion(0)
+    ));
+    let mut b = base;
+    b["pack"]["ir_format"] = json!(0);
+    assert!(matches!(
+        load_ir(&bytes(&b)).unwrap_err(),
+        IrLoadError::PackIrFormat(0)
+    ));
 }
 
 #[test]
