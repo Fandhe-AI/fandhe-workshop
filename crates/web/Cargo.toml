@@ -30,6 +30,8 @@ web-sys.workspace = true
 [dev-dependencies]
 # frontend_features の試験が manifest と Cargo.lock を読むため。配信物には入らない。
 toml.workspace = true
+# doc_links の試験が、手作りの木の試験データ（JSON）を読むため。配信物には入らない。
+serde_json.workspace = true
 # 依存の向きの唯一の例外（docs/architecture.md 第 4 節）。試験専用で、normal 依存にはしない。
 fandhe-workshop-pack.workspace = true
 

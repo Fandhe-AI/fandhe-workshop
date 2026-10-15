@@ -2,7 +2,7 @@
 # 変異注入の検査: 実装に誤りを 1 つ入れると、対応する試験が失敗することを機械で確かめる（`make check-mutations` から呼ばれる）。
 #
 # 変異の定義は crates/<crate>/tests/mutations/<ID>.mutation（形式・手順・記録の様式は docs/testing.md）。
-# 作業ツリーは書き換えない。Cargo.toml・Cargo.lock・rust-toolchain.toml・crates/ を mktemp -d の一時ディレクトリへ写し、
+# 作業ツリーは書き換えない。Cargo.toml・Cargo.lock・rust-toolchain.toml・crates/（あれば testdata/ も）を mktemp -d の一時ディレクトリへ写し、
 # 写しの中で 1 か所を置換してから cargo test を流す。変異の find / replace は「データ」として扱い、
 # awk の ENVIRON と index() による文字どおりの一致だけで置換する（sed の式・eval・bash のパターン置換は使わない）。
 #
@@ -218,6 +218,11 @@ for item in Cargo.toml Cargo.lock rust-toolchain.toml crates; do
   [ -e "${REAL_ROOT}/${item}" ] || die "missing in repository root: ${item}"
   cp -R "${REAL_ROOT}/${item}" "${BASE}/${item}"
 done
+# testdata/ は試験の入力（spec の写し）。読む試験（web の doc_links 等）が写しの中でも通るよう、あれば写す。
+# 無い repo（回帰テストの擬似 repo）では写さない。変異の対象にはならない。
+if [ -d "${REAL_ROOT}/testdata" ]; then
+  cp -R "${REAL_ROOT}/testdata" "${BASE}/testdata"
+fi
 
 # 全定義を先に検査する。不正な定義があれば、試験を流す前に止める。
 for def in "${DEFS[@]}"; do

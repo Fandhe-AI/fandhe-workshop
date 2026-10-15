@@ -83,3 +83,38 @@ pub fn debug_check_json_load(entry: &str, text: &str) -> String {
         }
     }
 }
+
+/// 本文の木の読み込み（core の `load_json::<Doc>`）を呼び、固定形の JSON で結果を返す（読み取りのみ）。
+///
+/// 手作りの木が関門のどの段で止まるかを、ブラウザ試験（TASK-149）が確かめるための口。
+/// 入力の内容は返り値に含めない。
+#[wasm_bindgen]
+pub fn debug_check_doc(text: &str) -> String {
+    use fandhe_workshop_contract::doc::Doc;
+    use fandhe_workshop_contract::limits::{LoadEntry, LoadStage};
+    match fandhe_workshop_core::load_gate::load_json::<Doc>(LoadEntry::Ir, text.as_bytes()) {
+        Ok(_) => "{\"ok\":true}".to_string(),
+        Err(err) => {
+            let stage = match err.stage() {
+                LoadStage::Size => "size",
+                LoadStage::Depth => "depth",
+                LoadStage::JsonParse => "json_parse",
+                LoadStage::TypeAndContent => "type_and_content",
+            };
+            format!("{{\"ok\":false,\"stage\":\"{stage}\"}}")
+        }
+    }
+}
+
+/// 本文の木を関門に通し、通れば描画した HTML 文字列を返す（読み取りのみ）。拒否なら空文字列。
+///
+/// 本体のマウントと同じ「`render` の文字列 → innerHTML」の経路を、試験が `#app` の外の容器で再現するための口。
+#[wasm_bindgen]
+pub fn debug_render_doc(text: &str) -> String {
+    use fandhe_workshop_contract::doc::Doc;
+    use fandhe_workshop_contract::limits::LoadEntry;
+    match fandhe_workshop_core::load_gate::load_json::<Doc>(LoadEntry::Ir, text.as_bytes()) {
+        Ok(doc) => fandhe_frontend_core::render(&crate::doc_view::render_doc_node(&doc)),
+        Err(_) => String::new(),
+    }
+}

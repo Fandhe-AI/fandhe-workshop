@@ -7,9 +7,11 @@
 //! JS の glue に変換して配る。試験用の口は feature `test-hooks` の背後にだけ置く。
 //!
 //! アクセシビリティの構造の契約（TASK-366）は `a11y` に置く。
+//! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
+pub mod doc_view;
 mod hello;
 
 pub mod input_limit;
