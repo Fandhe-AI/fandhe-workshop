@@ -468,6 +468,22 @@ impl<'a> Expander<'a> {
             ));
             return;
         }
+        // params に無い名前の引数は、綴り違いを黙って既定値に倒さないよう拒否する（PACK-19）。
+        let mut unknown = false;
+        for k in u.args.keys() {
+            if !module.src.params.contains_key(k) {
+                unknown = true;
+                let msg = if safe_ident(k) {
+                    format!("argument is not declared in module params: {k}")
+                } else {
+                    "argument is not declared in module params".to_string()
+                };
+                self.diags.push(diag(file, item, DiagCode::Structure, msg));
+            }
+        }
+        if unknown {
+            return;
+        }
         let mut args = module.src.params.clone();
         args.extend(u.args);
         let args_size: usize = args.iter().map(|(k, v)| k.len() + v.len()).sum();
@@ -495,7 +511,7 @@ impl<'a> Expander<'a> {
     pub(crate) fn module_starts(&mut self, start_ids: &mut BTreeSet<String>) -> Vec<Start> {
         let mut out = Vec::new();
         let pending = std::mem::take(&mut self.pending);
-        for p in &pending {
+        'all: for p in &pending {
             for st in &p.scope.src.starts {
                 let item = format!("start:{}", st.id);
                 let id = format!("{}#{}", p.inst, st.id);
@@ -522,18 +538,23 @@ impl<'a> Expander<'a> {
                     }
                 }
                 if let Err(e) = r {
+                    // 上限超過は残り全部の開始を打ち切る（同じ巨大な置換を実体ごとに繰り返させない）。
+                    let too_large = e == SubstError::TooLarge;
                     self.diags.push(e.into_diag(&p.scope.file, &item));
+                    if too_large {
+                        self.halted = true;
+                        break 'all;
+                    }
                     continue;
                 }
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
                 if !self.budget.take(size) || out.len() >= MAX_COLLECTION_ELEMENTS {
-                    self.diags.push(diag(
+                    self.limit(
                         &p.scope.file,
                         &item,
-                        DiagCode::Limit,
                         "expanded starts exceed the IR size limit",
-                    ));
-                    break;
+                    );
+                    break 'all;
                 }
                 if !self.uids.contains(&s.node) {
                     self.diags.push(diag(

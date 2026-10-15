@@ -350,3 +350,36 @@ fn neg_transition_inside_a_module_is_checked_against_its_own_instance() {
     assert_eq!(codes(&d), [DiagCode::RefStep]);
     assert_eq!(d[0].file(), "modules/m/module.yaml");
 }
+
+#[test]
+fn neg_argument_not_declared_in_params_is_a_structure_error() {
+    let t = mini(
+        &chapter_using("{module: m, instance: i, args: {typo: SECRET-ARG-VALUE}}"),
+        MOD_OK,
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure]);
+    let s = d[0].to_string();
+    assert!(s.contains("typo"), "{s}");
+    assert!(!s.contains("SECRET-ARG-VALUE"), "{s}");
+}
+
+#[test]
+fn neg_oversized_start_expansion_stops_all_instances_at_once() {
+    // 小さな入力が実体ごとに巨大な置換になる。最初の超過で全体を打ち切り、実体の数だけ繰り返さない。
+    let refs = vec!["${x}"; 300].join(",");
+    let module = format!(
+        "id: m\ntitle: M\nparams: {{x: d}}\nsteps:\n  - {{id: a, title: A, final: true}}\nstarts:\n  - {{id: ms, node: a, effects: [{{put: \"{refs}\"}}]}}\n"
+    );
+    let big = "a".repeat(100_000);
+    let mut chapter = String::from("id: c1\ntitle: C\nstarts: [{id: s1, node: u0}]\nsteps:\n");
+    for k in 0..6 {
+        chapter.push_str(&format!(
+            "  - {{id: u{k}, title: U, final: true, use: {{module: m, instance: i{k}, args: {{x: {big}}}}}}}\n"
+        ));
+    }
+    let t = mini(&chapter, &module);
+    let d = diags(&t);
+    let limits = codes(&d).iter().filter(|c| **c == DiagCode::Limit).count();
+    assert_eq!(limits, 1, "{d:?}");
+}
