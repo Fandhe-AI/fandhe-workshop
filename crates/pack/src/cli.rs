@@ -1,11 +1,15 @@
 //! `fandhe-pack` のサブコマンドの枠と終了コード。
 //!
-//! 枠だけを置く。各コマンドの中身は後続のタスク（TASK-39・TASK-401〜TASK-408）で作る。
+//! `compile <pack-dir>` だけを実装している（TASK-39）。他のコマンドの中身は後続のタスク（TASK-401〜TASK-408）で作る。
+//! `compile` の出力先（`-o`）と末尾の扱いは TASK-407、診断の出し先は TASK-399 で固定する。
 //! 外部仕様（コマンド一覧・引数・usage の文言・終了コード）の正は TASK-399（#470）で、固定されたら直す。
-//! `main.rs` から呼ばれ、ファイルシステムには触れない。
+//! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile` 経由）だけである。
 
 use std::ffi::OsString;
 use std::io::{self, Write};
+
+use crate::compile::compile_dir;
+use crate::diag::write_diagnostics;
 
 /// 成功（診断なし）。TASK-399 で固定する。
 pub const EXIT_OK: u8 = 0;
@@ -76,9 +80,10 @@ pub fn usage() -> String {
 
 /// 引数（実行ファイル名を除く）を解釈して実行し、終了コードを返す。
 ///
-/// 骨格では全コマンドが未実装で `EXIT_USAGE` を返す。`out` は後続のタスクが診断と最終行を出す場所で、
-/// 今は何も書かない。2 つ目以降の引数は読まない。
-pub fn run<I, O, E>(args: I, _out: &mut O, err: &mut E) -> io::Result<u8>
+/// `compile` は `<pack-dir>` を 1 つだけ受け、IR（JSON）を `out` に書く。診断があれば `out` に 1 件 1 行で
+/// 書いて `EXIT_DIAGNOSTICS` を返す（診断の出し先は仮で、TASK-399 で固定する）。`-o` や余分な引数は
+/// 未実装として `EXIT_USAGE` を返す。他のコマンドは未実装で `EXIT_USAGE` を返し、2 つ目以降の引数は読まない。
+pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: IntoIterator<Item = OsString>,
     O: Write,
@@ -90,6 +95,7 @@ where
         return Ok(EXIT_USAGE);
     };
     match first.to_str().and_then(Subcommand::from_name) {
+        Some(Subcommand::Compile) => return run_compile(args, out, err),
         Some(cmd) => {
             writeln!(
                 err,
@@ -103,6 +109,33 @@ where
         }
     }
     Ok(EXIT_USAGE)
+}
+
+/// `compile` の実行。引数は `<pack-dir>` ちょうど 1 つ。
+fn run_compile<I, O, E>(mut args: I, out: &mut O, err: &mut E) -> io::Result<u8>
+where
+    I: Iterator<Item = OsString>,
+    O: Write,
+    E: Write,
+{
+    let Some(dir) = args.next() else {
+        write!(err, "{}", usage())?;
+        return Ok(EXIT_USAGE);
+    };
+    if args.next().is_some() {
+        writeln!(
+            err,
+            "error: fandhe-pack compile accepts only <pack-dir>; -o is not implemented yet"
+        )?;
+        return Ok(EXIT_USAGE);
+    }
+    match compile_dir(std::path::Path::new(&dir)) {
+        Ok(bytes) => {
+            out.write_all(&bytes)?;
+            Ok(EXIT_OK)
+        }
+        Err(diags) => write_diagnostics(out, &diags),
+    }
 }
 
 #[cfg(test)]
@@ -121,14 +154,34 @@ mod tests {
     }
 
     #[test]
-    fn c1_all_subcommands_not_implemented() {
+    fn c1_unimplemented_subcommands_report_so() {
         for c in Subcommand::ALL {
+            if c == Subcommand::Compile {
+                continue;
+            }
             let (code, out, err) = run_args(&[c.name(), "x"]);
             assert_eq!(code, EXIT_USAGE);
             assert!(out.is_empty());
             assert!(err.contains("not implemented"));
             assert!(err.contains(c.name()));
         }
+    }
+
+    #[test]
+    fn c6_compile_argument_errors() {
+        let (code, out, err) = run_args(&["compile"]);
+        assert_eq!(code, EXIT_USAGE);
+        assert!(out.is_empty() && err.starts_with("usage: fandhe-pack"));
+        let (code, out, err) = run_args(&["compile", "x", "-o", "y"]);
+        assert_eq!(code, EXIT_USAGE);
+        assert!(out.is_empty() && err.contains("not implemented yet"));
+    }
+
+    #[test]
+    fn c7_compile_missing_dir_is_diagnostic() {
+        let (code, out, err) = run_args(&["compile", "/nonexistent/fandhe-pack-dir"]);
+        assert_eq!(code, EXIT_DIAGNOSTICS);
+        assert!(out.contains("E-PARSE") && err.is_empty());
     }
 
     #[test]
