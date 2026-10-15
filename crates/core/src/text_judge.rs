@@ -177,7 +177,7 @@ pub fn judge_text(
         .iter()
         .filter(|r| is_text_accept_rule(r))
         .find(|r| match r.get("when") {
-            None => true,
+            None | Some(Value::Null) => true,
             Some(when) => cond.eval(when, run, root) == Some(true),
         });
     let mut accepted = AcceptedText {
