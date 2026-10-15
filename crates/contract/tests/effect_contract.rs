@@ -121,6 +121,16 @@ fn pack9_empty_names_are_rejected() {
 }
 
 #[test]
+fn pack9_empty_attr_keys_in_put_and_replace_are_rejected() {
+    for word in ["put", "replace"] {
+        assert_eq!(
+            parse(json!({word: {"path": "a", "attrs": {"": "v"}}})).unwrap_err(),
+            EffectParseError::EmptyName("attr")
+        );
+    }
+}
+
+#[test]
 fn pack9_when_is_kept_as_value() {
     let w = json!({"flag": "x"});
     let item = parse(json!({"set_flag": "f", "when": w})).unwrap();

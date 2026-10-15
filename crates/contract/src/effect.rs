@@ -164,6 +164,16 @@ fn non_empty(s: &str, what: &'static str) -> Result<(), EffectParseError> {
     }
 }
 
+/// `put`・`replace` の `attrs` のキーを `set_attr` の `attr` と同じ規則（空文字の拒否）で検査する。
+fn non_empty_attr_keys(
+    attrs: &std::collections::BTreeMap<String, String>,
+) -> Result<(), EffectParseError> {
+    if attrs.contains_key("") {
+        return Err(EffectParseError::EmptyName("attr"));
+    }
+    Ok(())
+}
+
 impl EffectItem {
     /// `Value` から項目を解釈する。語はちょうど 1 つで、語彙にない欄は拒否する。
     pub fn from_value(v: &Value) -> Result<EffectItem, EffectParseError> {
@@ -196,9 +206,11 @@ impl EffectItem {
         }
         let effect = if let Some(p) = raw.put {
             non_empty(&p.path, "path")?;
+            non_empty_attr_keys(&p.attrs)?;
             Effect::Put(p)
         } else if let Some(p) = raw.replace {
             non_empty(&p.path, "path")?;
+            non_empty_attr_keys(&p.attrs)?;
             Effect::Replace(p)
         } else if let Some(p) = raw.remove {
             non_empty(&p, "path")?;
