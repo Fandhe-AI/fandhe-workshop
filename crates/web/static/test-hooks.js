@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -33,4 +33,9 @@ export function checkDoc(text) {
 // 本文の木を関門に通して描画した HTML 文字列を返す。拒否なら空文字列。
 export function renderDoc(text) {
   return debug_render_doc(text);
+}
+
+// 引用を n 段入れ子にした木を Rust で組み立てて描画した HTML 文字列を返す（関門を通さない。n は 200 まで）。
+export function renderQuoteNest(n) {
+  return debug_render_quote_nest(n);
 }

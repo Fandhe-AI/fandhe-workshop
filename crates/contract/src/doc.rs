@@ -7,12 +7,12 @@
 //! テキストにする）。
 //!
 //! 出力に `null` を入れない（`Block::Code` の `lang` は無いとき書き出さない。IR 版 2 の golden が `null` を
-//! 含まない形を固定する）。木の版の検査・描画の深さの上限・URL の検査は、読み込み側の後続タスク
-//! （TASK-149・TASK-150）が受け持つ。
+//! 含まない形を固定する）。木の版は逆直列化の段で検査する（[`Doc::version`]）。描画の深さの上限と URL の
+//! 検査は、描画側（web の `doc_view`）が受け持つ。
 
 use serde::{Deserialize, Serialize};
 
-/// 木の版。実行時に読む IR は未信頼の入力なので、版も検査する（検査は TASK-150）。
+/// 木の版。実行時に読む IR は未信頼の入力なので、版も検査する（逆直列化の段で `Doc` が拒否する）。
 pub const TREE_VERSION: u32 = 1;
 
 /// 変換器が木に入れる入れ子の深さの上限。超えた部分は構造を捨て、テキストだけの段落にする。
@@ -23,14 +23,33 @@ pub const TREE_VERSION: u32 = 1;
 /// 7 + 4 * 12 + 余り 2（葉のインライン）= 57 が 64 以下に収まる。13 以上だと最悪の形で 64 を超えうる。
 /// 超えると `compile` の出力検査が `E-LIMIT` にするため、12 とする。
 ///
-/// 描画側の深さの上限（SAFE-10 の 32 段）とは別の値で、描画側の検査は TASK-150 が持つ。
+/// 描画側の深さの上限（web の `MAX_RENDER_DEPTH` = 32 段。SAFE-12）とは別の値で、描画側が自分で検査する。
 pub const MAX_DOC_DEPTH: usize = 12;
+
+/// 木の版を読み、[`TREE_VERSION`] 以外なら拒否する（`Doc::version` の逆直列化）。
+fn deserialize_tree_version<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v = u32::deserialize(deserializer)?;
+    if v == TREE_VERSION {
+        Ok(v)
+    } else {
+        Err(serde::de::Error::custom("unsupported tree version"))
+    }
+}
 
 /// 本文または練習データの内容の木。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Doc {
-    /// 木の版（[`TREE_VERSION`]）。
+    /// 木の版（[`TREE_VERSION`]）。違う値は逆直列化の段で拒否する。
+    ///
+    /// `Doc` の型に置くのは、`load_json::<Doc>`・`load_ir`（`body_doc`・`body_levels_doc`・`fixture_docs`）など
+    /// 木を読むすべての口に、呼び出し箇所を足さずに効かせるため（取りこぼしを作らない。fail-closed）。
+    /// 拒否の分類は型・内容の不一致（`LoadError::Malformed`・`IrLoadError::Json`）で、版専用の分類は作らない。
+    /// 診断の細かさより網羅性を取り、公開の型も変えない。エラーの文言に入力の値は含めない。
+    #[serde(deserialize_with = "deserialize_tree_version")]
     pub version: u32,
     /// 最上位のブロック。
     pub blocks: Vec<Block>,
@@ -137,6 +156,24 @@ mod tests {
         assert!(serde_json::from_str::<Doc>(bad2).is_err());
         let bad3 = r#"{"version":1,"blocks":[],"onclick":"x"}"#;
         assert!(serde_json::from_str::<Doc>(bad3).is_err());
+    }
+
+    #[test]
+    fn tree_version_other_than_current_is_rejected() {
+        for v in [
+            "0",
+            "2",
+            "4294967295",
+            "4294967296",
+            "-1",
+            "1.5",
+            "\"1\"",
+            "null",
+        ] {
+            let json = format!(r#"{{"version":{v},"blocks":[]}}"#);
+            assert!(serde_json::from_str::<Doc>(&json).is_err(), "{v}");
+        }
+        assert!(serde_json::from_str::<Doc>(r#"{"version":1,"blocks":[]}"#).is_ok());
     }
 
     #[test]

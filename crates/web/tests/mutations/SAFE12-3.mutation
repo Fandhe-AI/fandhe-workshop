@@ -1,0 +1,9 @@
+id: SAFE12-3
+package: fandhe-workshop-web
+test: doc_depth
+target: crates/web/src/doc_view.rs
+find:             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '.' | '-'));
+replace:             .all(|_| true);
+expect-fail: 任意の言語名で_class_が無いか安全な形になる
+expect-fail: 言語名は安全な文字だけのとき_class_になる
+note: 言語名の文字の許可リストを外す（任意の文字列が class に入る）
