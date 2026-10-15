@@ -1,0 +1,10 @@
+[
+  "unknown_command",
+  "wrong_order",
+  "missing_arg",
+  "bad_arg_shape",
+  "busy",
+  "not_in_this_step",
+  "not_supported",
+  "free_text_unjudged"
+]
