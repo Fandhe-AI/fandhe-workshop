@@ -4,85 +4,18 @@
 //! `testdata/` の実パックと、一時ディレクトリに作る最小パックで確かめる。負の試験は、パックの外に
 //! 置いた目印のファイルが読まれないこと、診断に本文の中身が出ないことも確かめる。
 //! 一時ディレクトリは `CARGO_TARGET_TMPDIR` の下に作り、終わったら消す。作業ツリーは書き換えない。
-//! `compare` とバイト一致の本格的な試験は #98。
+//! `compare` とバイト一致の試験は `tests/compare.rs`。
+
+mod common;
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+use common::{assert_no_secret, ch1, copy_dir, minimal, testdata, Tmp, CHAPTER, SECRET, WORKSHOP};
 
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_pack::compile::{compile, compile_dir, to_json};
 use fandhe_workshop_pack::source::load;
 use fandhe_workshop_pack::{DiagCode, Diagnostic};
-
-const SECRET: &str = "SECRET-BODY-MARKER-4711";
-
-fn testdata(rel: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../testdata")
-        .join(rel)
-}
-
-fn ch1() -> PathBuf {
-    testdata("input-field-ime/test-data/ch1-pack")
-}
-
-/// 一意な一時ディレクトリ。Drop で消す。
-struct Tmp(PathBuf);
-
-impl Tmp {
-    fn new(tag: &str) -> Tmp {
-        static N: AtomicUsize = AtomicUsize::new(0);
-        let p = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
-            "compile-{tag}-{}-{}",
-            std::process::id(),
-            N.fetch_add(1, Ordering::SeqCst)
-        ));
-        let _ = fs::remove_dir_all(&p);
-        fs::create_dir_all(&p).expect("create tmp dir");
-        Tmp(p)
-    }
-
-    fn put(&self, rel: &str, content: &[u8]) {
-        let p = self.0.join(rel);
-        fs::create_dir_all(p.parent().expect("parent")).expect("mkdir");
-        fs::write(p, content).expect("write");
-    }
-}
-
-impl Drop for Tmp {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
-
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).expect("mkdir");
-    for e in fs::read_dir(from).expect("read_dir").flatten() {
-        let (src, dst) = (e.path(), to.join(e.file_name()));
-        if src.is_dir() {
-            copy_dir(&src, &dst);
-        } else {
-            fs::copy(&src, &dst).expect("copy");
-        }
-    }
-}
-
-const WORKSHOP: &str = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\n";
-const CHAPTER: &str = concat!(
-    "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-    "  - {id: a, title: A, body: a.md, next: [{to: b}]}\n",
-    "  - {id: b, title: B, final: true}\n",
-);
-
-/// 正しい最小パック（形式 B）。
-fn minimal() -> Tmp {
-    let t = Tmp::new("min");
-    t.put("workshop.yaml", WORKSHOP.as_bytes());
-    t.put("chapters/c1/chapter.yaml", CHAPTER.as_bytes());
-    t.put("chapters/c1/a.md", format!("# a\n{SECRET}\n").as_bytes());
-    t
-}
 
 fn diags(t: &Tmp) -> Vec<Diagnostic> {
     match compile_dir(&t.0) {
@@ -93,13 +26,6 @@ fn diags(t: &Tmp) -> Vec<Diagnostic> {
 
 fn codes(d: &[Diagnostic]) -> Vec<DiagCode> {
     d.iter().map(Diagnostic::code).collect()
-}
-
-fn assert_no_secret(d: &[Diagnostic]) {
-    for x in d {
-        let s = x.to_string();
-        assert!(!s.contains(SECRET), "diagnostic leaks body: {s}");
-    }
 }
 
 #[test]
