@@ -118,3 +118,28 @@ pub fn debug_render_doc(text: &str) -> String {
         Err(_) => String::new(),
     }
 }
+
+/// `debug_render_quote_nest` が受け付ける段数の上限。`Doc` の生成と破棄は段数分だけ再帰するため、試験の設定でも
+/// 無制限の段数を Rust 側で組み立てない。
+const MAX_QUOTE_NEST_FOR_HOOK: u32 = 200;
+
+/// 引用を `n` 段入れ子にした木を Rust で組み立てて描画し、HTML 文字列を返す（読み取りのみ）。
+///
+/// 関門（JSON の深さ 64）は 50・60 段の木を描画まで通さないため、描画の深さの上限（SAFE-12）を
+/// ブラウザで確かめるには関門を通さずに木を作る口が要る。`n` が上限を超えたときは空文字列を返す。
+#[wasm_bindgen]
+pub fn debug_render_quote_nest(n: u32) -> String {
+    use fandhe_workshop_contract::doc::{Block, Doc, TREE_VERSION};
+    if n > MAX_QUOTE_NEST_FOR_HOOK {
+        return String::new();
+    }
+    let mut blocks: Vec<Block> = Vec::new();
+    for _ in 0..n {
+        blocks = vec![Block::Quote { children: blocks }];
+    }
+    let doc = Doc {
+        version: TREE_VERSION,
+        blocks,
+    };
+    fandhe_frontend_core::render(&crate::doc_view::render_doc_node(&doc))
+}

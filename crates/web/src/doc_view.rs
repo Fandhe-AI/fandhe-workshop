@@ -12,12 +12,43 @@
 //! - 画像は [`is_allowed_image_src`] を通ったとき（教材に同梱する相対のパス）だけ `img` と代替文にする。通らない
 //!   （外部ホスト・危険なスキーム）ときは `img` を作らず、代替の文字だけを `span` に出す。src は画面に出さない
 //!   （fail-closed）。外部の画像は表示するだけで外部への通信になるため（SAFE-10。TASK-149 2/2）。
-//! - コードブロックの言語名は `class` に出さない。無害化した `class` は TASK-150 で入れる。
-//! - 木の版の検査と描画の深さの上限は TASK-150 の範囲。再帰の深さは、読み込みの関門（JSON の深さ 64）が
-//!   与える上限に頼る。関門を通さずにこの関数へ木を渡さないこと。
+//! - コードブロックの言語名は、許可した文字だけから成るときに限り `class="language-…"` に出す（[`lang_class`]）。
+//!   そうでなければ `class` を付けない（属性の注入の面を作らない）。
+//! - 描画の再帰は [`MAX_RENDER_DEPTH`] 段で止め、それより深い部分は [`DEPTH_OMITTED_TEXT`] の文字にする（SAFE-12）。
+//!   読み込みの関門（JSON の深さ 64）に頼らず、この関数自身が深さを抑える（多層防御）。
+//! - 木の版が [`TREE_VERSION`] と違う `Doc` は描画せず、固定の文言だけを出す。読み込みの段で拒否されるので、
+//!   Rust から直接作った木が渡されたときの 2 段目の守りである。
 
 use fandhe_frontend_core::{el, text, Node};
-use fandhe_workshop_contract::doc::{Block, Doc, Inline};
+use fandhe_workshop_contract::doc::{Block, Doc, Inline, TREE_VERSION};
+
+/// 描画の再帰の深さの上限。最上位のブロック列を 0 段とし、引用の子・リストの項目・強調やリンクの子へ
+/// 入るたびに 1 段増やす。上限に達した列は、子を描かず省略の文言だけを出す。
+///
+/// 変換器の上限（contract の `MAX_DOC_DEPTH` = 12）より大きいので、変換器の出力は省略にならない。
+pub const MAX_RENDER_DEPTH: usize = 32;
+
+/// 深さの上限で省略した部分に出す文言。
+pub const DEPTH_OMITTED_TEXT: &str = "（入れ子が深すぎるため省略）";
+
+/// 未対応の版の木の代わりに出す文言。
+pub const VERSION_REJECTED_TEXT: &str = "（未対応の版の本文のため表示しません）";
+
+/// コードの言語名の長さの上限（バイト）。
+const MAX_LANG_LEN: usize = 32;
+
+/// コードの言語名から `class` の値を作る。許可した文字だけから成るときに限り `language-<lang>` を返す。
+///
+/// 許可するのは ASCII の英数字と `_`・`+`・`.`・`-`、1〜32 バイト。1 文字でも外れれば `None`（文字を
+/// 間引いて残さない）。`class` の値はさらに表示基盤の既定のエスケープを通る。
+pub fn lang_class(lang: &str) -> Option<String> {
+    let ok = !lang.is_empty()
+        && lang.len() <= MAX_LANG_LEN
+        && lang
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '.' | '-'));
+    ok.then(|| format!("language-{lang}"))
+}
 
 /// 本文のリンクの href を許可するか。許可するのは `http`・`https`・スキームなし（相対）だけ。
 ///
@@ -77,7 +108,10 @@ pub fn is_allowed_image_src(src: &str) -> bool {
 
 /// 木を画面の部品の列へ変える。
 pub fn render_doc(doc: &Doc) -> Vec<Node> {
-    doc.blocks.iter().map(render_block).collect()
+    if doc.version != TREE_VERSION {
+        return vec![el("p", vec![], vec![text(VERSION_REJECTED_TEXT)])];
+    }
+    render_blocks(&doc.blocks, 0)
 }
 
 /// 木を 1 つの `div` に包んで返す。試験用の口が `render` へ渡す単位で、画面に差し込む単位でもある。
@@ -85,15 +119,24 @@ pub fn render_doc_node(doc: &Doc) -> Node {
     el("div", vec![("data-testid", "doc")], render_doc(doc))
 }
 
-fn render_blocks(blocks: &[Block]) -> Vec<Node> {
-    blocks.iter().map(render_block).collect()
+/// ブロックの列を描く。`depth` が上限に達していれば、省略の段落を 1 つだけ返す。
+fn render_blocks(blocks: &[Block], depth: usize) -> Vec<Node> {
+    if depth >= MAX_RENDER_DEPTH {
+        return vec![el("p", vec![], vec![text(DEPTH_OMITTED_TEXT)])];
+    }
+    blocks.iter().map(|b| render_block(b, depth)).collect()
 }
 
-fn render_inlines(inlines: &[Inline]) -> Vec<Node> {
-    inlines.iter().map(render_inline).collect()
+/// インラインの列を描く。`depth` が上限に達していれば、省略の文字を 1 つだけ返す。
+fn render_inlines(inlines: &[Inline], depth: usize) -> Vec<Node> {
+    if depth >= MAX_RENDER_DEPTH {
+        return vec![text(DEPTH_OMITTED_TEXT)];
+    }
+    inlines.iter().map(|i| render_inline(i, depth)).collect()
 }
 
-fn render_block(block: &Block) -> Node {
+/// `depth` はこのブロックが並ぶ列の深さ。見出し・段落・表のセルのインラインも同じ深さから始める。
+fn render_block(block: &Block, depth: usize) -> Node {
     match block {
         Block::Heading { level, children } => {
             let tag = match level {
@@ -104,20 +147,25 @@ fn render_block(block: &Block) -> Node {
                 5 => "h5",
                 _ => "h6",
             };
-            el(tag, vec![], render_inlines(children))
+            el(tag, vec![], render_inlines(children, depth))
         }
-        Block::Paragraph { children } => el("p", vec![], render_inlines(children)),
-        Block::Quote { children } => el("blockquote", vec![], render_blocks(children)),
+        Block::Paragraph { children } => el("p", vec![], render_inlines(children, depth)),
+        Block::Quote { children } => el("blockquote", vec![], render_blocks(children, depth + 1)),
         Block::List { ordered, items } => {
             let lis = items
                 .iter()
-                .map(|item| el("li", vec![], render_blocks(item)))
+                .map(|item| el("li", vec![], render_blocks(item, depth + 1)))
                 .collect();
             el(if *ordered { "ol" } else { "ul" }, vec![], lis)
         }
-        // 言語名は class に出さない（属性の注入の面を作らない）。
-        Block::Code { text: body, .. } => {
-            el("pre", vec![], vec![el("code", vec![], vec![text(body)])])
+        // 言語名は許可した文字だけのときに限り class に出す（属性の注入の面を作らない）。
+        Block::Code { lang, text: body } => {
+            let class = lang.as_deref().and_then(lang_class);
+            let attrs = match class.as_deref() {
+                Some(c) => vec![("class", c)],
+                None => vec![],
+            };
+            el("pre", vec![], vec![el("code", attrs, vec![text(body)])])
         }
         Block::Table { head, rows } => {
             let cells = |tag: &'static str, row: &[Vec<Inline>]| -> Node {
@@ -125,7 +173,7 @@ fn render_block(block: &Block) -> Node {
                     "tr",
                     vec![],
                     row.iter()
-                        .map(|cell| el(tag, vec![], render_inlines(cell)))
+                        .map(|cell| el(tag, vec![], render_inlines(cell, depth)))
                         .collect(),
                 )
             };
@@ -146,22 +194,23 @@ fn render_block(block: &Block) -> Node {
     }
 }
 
-fn render_inline(inline: &Inline) -> Node {
+/// `depth` はこのインラインが並ぶ列の深さ。強調・リンクの子は 1 段深くする。
+fn render_inline(inline: &Inline, depth: usize) -> Node {
     match inline {
         Inline::Text { text: t } => text(t),
         Inline::Code { text: t } => el("code", vec![], vec![text(t)]),
-        Inline::Emph { children } => el("em", vec![], render_inlines(children)),
-        Inline::Strong { children } => el("strong", vec![], render_inlines(children)),
+        Inline::Emph { children } => el("em", vec![], render_inlines(children, depth + 1)),
+        Inline::Strong { children } => el("strong", vec![], render_inlines(children, depth + 1)),
         Inline::Link { href, children } => {
             if is_allowed_link_href(href) {
                 // target は付けない。別タブを開かず、opener も渡さない。
                 el(
                     "a",
                     vec![("href", href), ("rel", "noopener noreferrer")],
-                    render_inlines(children),
+                    render_inlines(children, depth + 1),
                 )
             } else {
-                el("span", vec![], render_inlines(children))
+                el("span", vec![], render_inlines(children, depth + 1))
             }
         }
         // 相対のパスだけ img にする。それ以外は要素も通信も作らず、代替の文字だけを出す（src は出さない）。
