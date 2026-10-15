@@ -1,0 +1,9 @@
+id: JUDGE2-1
+package: fandhe-workshop-core
+test: text_judge
+target: crates/core/src/text_judge.rs
+find: .insert(uid.clone(), StepStatus::Accepted);
+replace: .insert(uid.clone(), StepStatus::Achieved);
+expect-fail: accept_reflects_into_world_without_achieving
+expect-fail: judging_properties
+note: 受付の適用で Step を達成にする（受付だけでは達成にならない、が崩れる）
