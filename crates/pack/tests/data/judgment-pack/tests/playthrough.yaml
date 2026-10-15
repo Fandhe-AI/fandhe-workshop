@@ -1,0 +1,30 @@
+# 誤入力の分類の試験（形式 B）。架空の教材で、20 件の内訳は試験側が固定する。
+error_inputs:
+  - {id: "e-clarify", start: "s-clarify", input: {cmd: "/make-idea", expect: "clarified"}}
+  - {id: "e-missing-arg", start: "s-two-args", input: {cmd: "/start-run 42", expect: "rejected:missing_arg"}}
+  - {id: "e-accepted", start: "s-one-arg", input: {cmd: "/start-run 42", expect: "accepted"}}
+  - {id: "e-free-text", start: "s-text", input: {text: "ここに自分の言葉を書く", expect: "accepted:free_text_unjudged"}}
+  - {id: "e-unknown-1", start: "s-clarify", input: {cmd: "/nothing", expect: "rejected:unknown_command"}}
+  - {id: "e-unknown-2", start: "s-two-args", input: {cmd: "/mk-idea", expect: "rejected:unknown_command"}}
+  - {id: "e-unknown-3", start: "s-one-arg", input: {cmd: "/start", expect: "rejected:unknown_command"}}
+  - {id: "e-order-1", start: "s-clarify", input: {cmd: "/publish-run", expect: "rejected:wrong_order"}}
+  - {id: "e-order-2", start: "s-two-args", input: {cmd: "/publish-run", expect: "rejected:wrong_order"}}
+  - {id: "e-shape-1", start: "s-clarify", input: {cmd: "/make-idea Bad_Name", expect: "rejected:bad_arg_shape"}}
+  - {id: "e-shape-2", start: "s-one-arg", input: {cmd: "/start-run abc", expect: "rejected:bad_arg_shape"}}
+  - id: "e-busy-1"
+    start: "s-clarify"
+    pre:
+      - {cmd: "/make-idea first-idea", expect: "accepted"}
+    input: {cmd: "/make-idea second-idea", expect: "rejected:busy"}
+  - id: "e-busy-2"
+    start: "s-one-arg"
+    pre:
+      - {cmd: "/start-run 42", expect: "accepted"}
+    input: {cmd: "/start-run 43", expect: "rejected:busy"}
+  - {id: "e-nits-1", start: "s-clarify", input: {cmd: "/start-run 42", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-2", start: "s-text", input: {cmd: "/make-idea first-idea", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-3", start: "s-choice", input: {cmd: "/start-run 42", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-4", start: "s-approval", input: {cmd: "/make-idea first-idea", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-5", start: "s-approval", input: {text: "承認の代わりに文を書く", expect: "rejected:not_in_this_step"}}
+  - {id: "e-unsupported-1", start: "s-clarify", input: {cmd: "/sync-cloud", expect: "rejected:not_supported"}}
+  - {id: "e-unsupported-2", start: "s-text", input: {cmd: "/sync-cloud", expect: "rejected:not_supported"}}
