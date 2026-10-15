@@ -1,0 +1,8 @@
+id: PACK23-1
+package: fandhe-workshop-contract
+test: confirm_spec_contract
+target: crates/contract/src/confirm_spec.rs
+find:             Some(l) if !l.trim().is_empty() => l,
+replace:             Some(_) if true => &self.id,
+expect-fail: pack23_label_is_displayed_and_missing_label_falls_back_to_id
+note: 表示名の解決で label を無視し常に ID を返す（label を書いた選択肢が画面と操作のログで表示名にならない）

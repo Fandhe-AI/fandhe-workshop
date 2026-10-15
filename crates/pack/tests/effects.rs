@@ -177,3 +177,249 @@ fn pack9_format_a_accepts_and_rejects() {
     let t = toml(&format!("[{{set_flag = \"f\", script = \"{SECRET}\"}}]"));
     one(&t, DiagCode::Parse);
 }
+
+// ---- 進行（processing）と when（TASK-43 2/2） ----
+
+use fandhe_workshop_contract::effect::ProcessingTick;
+use fandhe_workshop_core::effect::{apply_tick, ConditionEval};
+
+/// 9 語（7 語と `processing`・`when`）をすべて使う Step の欄。
+const NINE: &str = concat!(
+    ", on_enter: [{put: {path: panel, fixture: f1, attrs: {k: v}}}, {set_attr: {path: panel, attr: k, value: w}},",
+    " {set_flag: f}, {clear_flag: f}, {set_flag_global: g}],",
+    " on_achieved: [{replace: {path: panel, attrs: {z: y}}}, {remove: panel}],",
+    " processing: [{name: scan, effects: [{set_flag: ready}, {put: {path: out, attrs: {s: done}}, when: {flag: ready}}]},",
+    " {name: idle}]"
+);
+
+/// 試験専用の評価器。`{flag: 名前}` を `main` の切り身で見るだけ。
+struct FlagStub;
+impl ConditionEval for FlagStub {
+    fn eval(&self, when: &serde_json::Value, run: &RunState, root: &Root) -> Option<bool> {
+        let name = when.get("flag")?.as_str()?;
+        Some(run.slices.get(root).is_some_and(|s| s.flags.contains(name)))
+    }
+}
+
+#[test]
+fn pack9_nine_words_compile_and_apply_through_ir() {
+    let t = pack(NINE, "[]");
+    let ir = ir_of(&t);
+    let a = ir.nodes.iter().find(|n| n.uid == "main/a").expect("node a");
+    assert_eq!(a.step.processing.len(), 2);
+    assert_eq!(a.step.processing[0]["name"], "scan");
+    assert_eq!(a.step.processing[0]["effects"][1]["when"]["flag"], "ready");
+    let at = Stamp {
+        generation: Generation::INITIAL,
+        step: StepUid("main/a".into()),
+    };
+    let root = Root("main".into());
+    let mut run = RunState::default();
+    let total = a.step.processing.len() as u32;
+    for (i, v) in a.step.processing.iter().enumerate() {
+        let tick = ProcessingTick::from_value(v).expect("parse");
+        let ev = apply_tick(
+            &mut run,
+            &root,
+            &tick,
+            i as u32,
+            total,
+            &at,
+            Cause::Input,
+            &FlagStub,
+        );
+        assert!(
+            matches!(&ev[0], fandhe_workshop_core::event::Event::Progress { index, .. } if *index == i as u32)
+        );
+    }
+    assert!(run.slices[&root].flags.contains("ready"));
+    assert_eq!(run.world["out"].attrs["s"], "done");
+}
+
+#[test]
+fn pack9_processing_diagnostics() {
+    let d = one(
+        &pack(", processing: [{name: n, script: x}]", "[]"),
+        DiagCode::Parse,
+    );
+    assert!(d.message().starts_with("processing[0]"), "{d}");
+    assert!(d.message().contains("unknown field `script`"), "{d}");
+    assert_eq!(d.item(), "step:a");
+
+    let d = one(
+        &pack(
+            &format!(", processing: [{{name: n, effects: [{{set_flag: f}}, {{put: {{path: a}}, script: {SECRET}}}]}}]"),
+            "[]",
+        ),
+        DiagCode::Parse,
+    );
+    assert!(d.message().starts_with("processing[0].effects[1]"), "{d}");
+
+    one(
+        &pack(", processing: [{name: ''}]", "[]"),
+        DiagCode::Structure,
+    );
+    one(
+        &pack(
+            ", processing: [{name: n, effects: [{put: {path: a, fixture: nope}}]}]",
+            "[]",
+        ),
+        DiagCode::RefFixture,
+    );
+    for w in ["1", "x", "[a]"] {
+        one(
+            &pack(
+                &format!(", processing: [{{name: n, effects: [{{set_flag: f, when: {w}}}]}}]"),
+                "[]",
+            ),
+            DiagCode::Parse,
+        );
+    }
+    one(&pack(", processing: [1]", "[]"), DiagCode::Parse);
+}
+
+#[test]
+fn pack9_format_a_processing_accepts_and_rejects() {
+    let toml = |tick: &str| {
+        let t = Tmp::new("processing-toml");
+        t.put(
+            "workshop.toml",
+            b"[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n",
+        );
+        t.put(
+            "chapters/c1/chapter.toml",
+            format!(
+                "id = \"c1\"\ntitle = \"C\"\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nfinal = true\nprocessing = [{tick}]\n"
+            )
+            .as_bytes(),
+        );
+        t
+    };
+    assert!(compile_dir(
+        &toml("{name = \"n\", effects = [{set_flag = \"f\", when = {flag = \"f\"}}]}").0
+    )
+    .is_ok());
+    one(
+        &toml(&format!("{{name = \"n\", script = \"{SECRET}\"}}")),
+        DiagCode::Parse,
+    );
+}
+
+// ---- 進行の間隔は宣言できない（PACK-44、D-43） ----
+// 間隔はエンジンのビルド時の定数で（D-47）、教材は変えられない。欄を足さない決定を、未知の欄の拒否として固定する。
+// 回避は進行の件数を増やすことである（docs/pack-authoring.md の「処理中の進行」）。
+
+#[test]
+fn pack44_interval_on_tick_is_e_parse() {
+    for key in ["interval", "interval_ms", "tick_ms"] {
+        let d = one(
+            &pack(
+                &format!(", processing: [{{name: n, {key}: {SECRET}}}]"),
+                "[]",
+            ),
+            DiagCode::Parse,
+        );
+        assert!(d.message().starts_with("processing[0]"), "{d}");
+        assert!(
+            d.message().contains(&format!("unknown field `{key}`")),
+            "{d}"
+        );
+    }
+}
+
+#[test]
+fn pack44_interval_on_step_is_e_parse() {
+    let d = one(
+        &pack(
+            &format!(", interval: {SECRET}, processing: [{{name: n}}]"),
+            "[]",
+        ),
+        DiagCode::Parse,
+    );
+    assert!(d.message().contains("unknown field `interval`"), "{d}");
+}
+
+#[test]
+fn pack44_more_ticks_is_the_workaround() {
+    let ticks: Vec<String> = (0..20).map(|i| format!("{{name: t{i}}}")).collect();
+    let t = pack(&format!(", processing: [{}]", ticks.join(", ")), "[]");
+    let ir = ir_of(&t);
+    let a = ir.nodes.iter().find(|n| n.uid == "main/a").expect("node a");
+    assert_eq!(a.step.processing.len(), 20);
+    for (i, v) in a.step.processing.iter().enumerate() {
+        assert_eq!(v["name"], format!("t{i}"));
+        let obj = v.as_object().expect("object");
+        assert!(obj.keys().all(|k| k == "name" || k == "effects"), "{v}");
+    }
+}
+
+#[test]
+fn pack44_format_a_interval_is_e_parse() {
+    let t = Tmp::new("interval-toml");
+    t.put(
+        "workshop.toml",
+        b"[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n",
+    );
+    t.put(
+        "chapters/c1/chapter.toml",
+        format!(
+            "id = \"c1\"\ntitle = \"C\"\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nfinal = true\nprocessing = [{{name = \"n\", interval = \"{SECRET}\"}}]\n"
+        )
+        .as_bytes(),
+    );
+    one(&t, DiagCode::Parse);
+}
+
+/// コードを書ける欄を作らない: 効果・進行・when の全位置に差し込んだコード欄はすべて拒否される。
+#[test]
+fn pack9_no_code_field_is_accepted_anywhere() {
+    for key in ["script", "code", "eval", "exec", "expr", "js"] {
+        let val = format!("{key}: {SECRET}");
+        let cases = [
+            (
+                format!(", on_enter: [{{set_flag: f, {val}}}]"),
+                "[]".to_string(),
+            ),
+            (
+                format!(", on_achieved: [{{set_flag: f, {val}}}]"),
+                "[]".to_string(),
+            ),
+            ("".to_string(), format!("[{{set_flag: f, {val}}}]")),
+            (
+                format!(", processing: [{{name: n, {val}}}]"),
+                "[]".to_string(),
+            ),
+            (
+                format!(", processing: [{{name: n, effects: [{{set_flag: f, {val}}}]}}]"),
+                "[]".to_string(),
+            ),
+        ];
+        for (extra, starts) in cases {
+            let d = diags(&pack(&extra, &starts));
+            assert!(
+                d.iter().all(|x| x.code() == DiagCode::Parse) && !d.is_empty(),
+                "{key}: {d:?}"
+            );
+            assert_no_secret(&d);
+        }
+    }
+}
+
+/// 9 語を使ったパックの IR に、コードを意味する鍵が 0 件であること。
+#[test]
+fn pack9_compiled_ir_has_no_code_keys() {
+    fn has_code(v: &serde_json::Value) -> bool {
+        const KEYS: [&str; 6] = ["script", "code", "eval", "exec", "expr", "js"];
+        match v {
+            serde_json::Value::Object(m) => m
+                .iter()
+                .any(|(k, v)| KEYS.contains(&k.as_str()) || has_code(v)),
+            serde_json::Value::Array(a) => a.iter().any(has_code),
+            _ => false,
+        }
+    }
+    let t = pack(NINE, "[{put: {path: seed}}]");
+    let bytes = compile_dir(&t.0).expect("compile");
+    let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+    assert!(!has_code(&v));
+}

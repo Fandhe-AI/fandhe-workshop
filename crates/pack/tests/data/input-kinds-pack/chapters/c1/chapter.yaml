@@ -2,9 +2,10 @@ id: c1
 title: C
 starts: [{id: s1, node: s-command}]
 steps:
-  - {id: s-command, title: Command, body: a.md, input: {kind: command, name: init-claude, args: [{name: target, positional: true, required: true, shape: kebab_case}]}, next: [{to: s-text}]}
-  - {id: s-text, title: Text, body: a.md, input: {kind: text, min: 1, max: 100}, next: [{to: s-choice}]}
-  - {id: s-choice, title: Choice, body: a.md, input: {kind: choice, options: [{id: a, label: A}, {id: b, label: B}]}, next: [{to: s-ui}]}
-  - {id: s-ui, title: Ui, body: a.md, input: {kind: ui_action, targets: [{view: files, path: src/main.rs}]}, next: [{to: s-approval}]}
-  - {id: s-approval, title: Approval, body: a.md, input: {kind: approval}, next: [{to: s-end}]}
+  - {id: s-command, title: Command, body: a.md, input: {kind: command, name: init-claude, args: [{name: target, positional: true, required: true, shape: kebab_case}]}, confirm: {kind: approve}, next: [{to: s-text}]}
+  - {id: s-text, title: Text, body: a.md, input: {kind: text, min: 1, max: 100}, rules: [{id: r-cancel, on: {cancel: true}, outcome: {kind: accept}}], confirm: {kind: approve}, next: [{to: s-choice}]}
+  - {id: s-choice, title: Choice, body: a.md, input: {kind: choice, options: [{id: a, label: A}, {id: b, label: B}]}, confirm: {kind: approve}, next: [{to: s-ui}]}
+  - {id: s-ui, title: Ui, body: a.md, input: {kind: ui_action, targets: [{view: files, path: src/main.rs}]}, confirm: {kind: approve}, next: [{to: s-approval}]}
+  - {id: s-approval, title: Approval, body: a.md, input: {kind: approval}, confirm: {kind: approve}, next: [{to: s-wait}]}
+  - {id: s-wait, title: Wait, body: a.md, input: {kind: wait}, processing: [{name: p1}, {name: p2}], confirm: {kind: approve}, next: [{to: s-end}]}
   - {id: s-end, title: End, final: true}
