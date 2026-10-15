@@ -1,0 +1,9 @@
+id: EVT3-2
+package: fandhe-workshop-core
+test: confirm_before_achieve
+target: crates/core/src/accept.rs
+find:         StepStatus::Entered => Phase::AwaitInput,
+replace:         StepStatus::Entered => Phase::AwaitConfirm,
+expect-fail: p3_no_achievement_before_confirmation
+expect-fail: p3_fixed_sequence_confirms_all_three_kinds
+note: 受付の前（入力待ち）の Step の入力を確認の判定に渡す（受付なしで確認の操作が達成になる）
