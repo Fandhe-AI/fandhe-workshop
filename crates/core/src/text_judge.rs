@@ -17,7 +17,7 @@
 //!    `when` があれば評価器で `Some(true)` のときだけ選ぶ（`Some(false)`・`None` は次へ進む）。
 //!    当たる規則が無くても受付で、効果は空
 //! 4. 選んだ規則の `effects` が 1 項目でも語彙として読めなければ [`TextDeclError::InvalidEffect`] にする
-//!    （一部だけ適用する状態を作らない）
+//!    （一部だけ適用する状態を作らない）。`effects` が配列でなければ [`TextDeclError::InvalidEffects`]（省略は効果なし）
 //! 5. 受付の結果は受講者の文を原文のまま（`trim`・正規化をせず、改行を含めて）保つ
 //!
 //! # 「成果物への反映」の解釈（PACK-39、D-50）
@@ -108,6 +108,8 @@ pub enum TextDeclError {
         /// 当たった規則の `effects` の添字（0 始まり）。
         item: usize,
     },
+    /// 当たった規則の `effects` が配列ではない（オブジェクト・文字列・`null` など）。省略とは区別する。
+    InvalidEffects,
 }
 
 impl std::fmt::Display for TextDeclError {
@@ -118,6 +120,7 @@ impl std::fmt::Display for TextDeclError {
             Self::InvalidEffect { item } => {
                 write!(f, "rule effect at index {item} is not a valid effect")
             }
+            Self::InvalidEffects => f.write_str("rule effects is not an array"),
         }
     }
 }
@@ -184,11 +187,9 @@ pub fn judge_text(
     };
     if let Some(rule) = hit {
         accepted.rule_id = rule.get("id").and_then(Value::as_str).map(str::to_string);
-        if let Some(items) = rule
-            .get("outcome")
-            .and_then(|o| o.get("effects"))
-            .and_then(Value::as_array)
-        {
+        // `effects` の省略は効果なしの正常な宣言。キーがあって配列でなければ宣言の誤りで、握りつぶさない。
+        if let Some(raw) = rule.get("outcome").and_then(|o| o.get("effects")) {
+            let items = raw.as_array().ok_or(TextDeclError::InvalidEffects)?;
             for (item, v) in items.iter().enumerate() {
                 let e =
                     EffectItem::from_value(v).map_err(|_| TextDeclError::InvalidEffect { item })?;

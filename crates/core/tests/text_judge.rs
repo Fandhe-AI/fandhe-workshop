@@ -212,6 +212,22 @@ fn declaration_errors() {
         judge(&s, "x").err(),
         Some(TextDeclError::InvalidEffect { item: 1 })
     );
+    // 配列でない effects は宣言の誤りで、空の受付にしない。省略は正常。
+    for bad_effects in [json!({ "set_flag": "done" }), json!("x"), json!(null)] {
+        let rules = json!([{ "on": { "text": true },
+            "outcome": { "kind": "accept", "effects": bad_effects } }]);
+        let s = text_step(1, 5, rules);
+        assert_eq!(judge(&s, "x").err(), Some(TextDeclError::InvalidEffects));
+    }
+    let omitted = text_step(
+        1,
+        5,
+        json!([{ "on": { "text": true }, "outcome": { "kind": "accept" } }]),
+    );
+    assert!(matches!(
+        judge(&omitted, "x"),
+        Ok(TextJudgment::Accepted(_))
+    ));
     // 範囲外の入力では規則を読まないため、効果が不正でも拒否を返す。
     assert!(matches!(judge(&s, ""), Ok(TextJudgment::Rejected(_))));
 }
