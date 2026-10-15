@@ -8,7 +8,7 @@ fn bin() -> Command {
 
 #[test]
 fn i1_subcommands_start() {
-    for name in ["validate", "test", "compare", "vocab"] {
+    for name in ["validate", "test", "vocab"] {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
         let err = String::from_utf8_lossy(&o.stderr);
@@ -62,6 +62,76 @@ fn i6_compile_argument_errors() {
         .arg("compile")
         .arg(ch1_pack())
         .args(["-o", "x"])
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert!(o.stdout.is_empty());
+}
+
+fn min_3step_a() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testdata/engine-event-consistency/test-data/min-3step-pack")
+}
+
+fn min_3step_b() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/min-3step-pack-b")
+}
+
+#[test]
+fn i7_compare_same_content_is_ok() {
+    let o = bin()
+        .arg("compare")
+        .arg(min_3step_a())
+        .arg(min_3step_b())
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0));
+    assert!(o.stderr.is_empty());
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.starts_with("OK: IR matches ("), "{out}");
+}
+
+#[test]
+fn i8_compare_different_packs_is_ng() {
+    let o = bin()
+        .arg("compare")
+        .arg(ch1_pack())
+        .arg(min_3step_a())
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.starts_with("NG: IR differs at line "), "{out}");
+}
+
+#[test]
+fn i9_compare_missing_dir_is_diagnostic_not_verdict() {
+    let o = bin()
+        .arg("compare")
+        .arg(ch1_pack())
+        .arg("/nonexistent/path")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-PARSE"), "{out}");
+    assert!(!out.contains("OK:") && !out.contains("NG:"), "{out}");
+}
+
+#[test]
+fn i10_compare_argument_errors() {
+    let a = ch1_pack();
+    assert_eq!(
+        bin().arg("compare").output().unwrap().status.code(),
+        Some(2)
+    );
+    let o = bin().arg("compare").arg(&a).output().unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    let o = bin()
+        .arg("compare")
+        .arg(&a)
+        .arg(&a)
+        .arg(&a)
         .output()
         .unwrap();
     assert_eq!(o.status.code(), Some(2));
