@@ -66,11 +66,34 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 
 `wait` は受講者の入力を要さず、`processing` の進行の完了で受付になります。`processing` が無い待機は先へ進めない
 ため拒否します。この決定は、spec に明文がなく EP-1 の説明からの推定によります（2026-10-15。spec 側の確認が望ましい）。
-`processing` があって `wait` でない Step（`command` との併用など）は書けます。`processing` の中身は、ここでは検査しません。
+`processing` があって `wait` でない Step（`command` との併用など）は書けます。`processing` の欄は「処理中の進行（`processing`）」の節を見てください。
 
 取り消し（EP-2）は `input.kind` ではなく、規則の `on: { cancel: true }` で受けます。`kind: cancel` は未知の `kind` として
 `E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
 `E-PARSE`、`false` は `E-STRUCTURE` です。`on` の他のキーとの組み合わせや入力方式との整合は、ここでは検査しません。
+
+## 処理中の進行（`processing`）
+
+`processing` の要素に書ける欄は、`name`（空でない文字列）と `effects`（効果の列）だけです。未知の欄は `E-PARSE`、空の名前は
+`E-STRUCTURE` で拒否します。
+
+**進行の間隔は宣言できません。** `processing` の要素にも、Step にも、`pack:` にも、間隔の欄はありません。書くと `E-PARSE`
+になります（PACK-44、D-43）。間隔はエンジンのビルド時の定数で、300ms です（D-47、EVT-18）。配信する設定では、教材からも URL からも
+変えられません。早送りの扱いはこの節の範囲外で、早送りの項目に任せます。
+
+処理中に受講者が Esc を押せる長さが要る Step は、進行の件数を増やして長さを稼いでください。長さはおおよそ「件数 × 300ms」で、
+20 件ならおよそ 6 秒です（ST-1.5 の規模）。効果を持たない進行（`name` だけ）を足して構いません。
+
+```yaml
+processing:
+  - {name: scan, effects: [{set_flag: scanning}]}
+  - {name: wait-1}
+  - {name: wait-2}
+  - {name: wait-3}
+```
+
+処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
+TERM-34 の担当で、2026-10-15 時点では済んでいません。
 
 ## 根拠となる試験
 
@@ -82,3 +105,4 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
+| `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
