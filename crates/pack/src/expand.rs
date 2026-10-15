@@ -86,11 +86,12 @@ impl SubstError {
 }
 
 /// 文字列の `${名前}` を引数で 1 回だけ置き換える。差し込んだ値の中の `${` は再び置換しない。
-/// 出力が `limit` バイトを超えたら、巨大な確保をする前に打ち切る。
+/// 出力の大きさを `left`（残りの量）から引き、足りなければ巨大な確保をする前に打ち切る。
+/// 呼び出し側は同じ Step・Start の全置換で `left` を共有し、置換をまたいだ累積を抑える。
 pub(crate) fn substitute(
     s: &str,
     args: &BTreeMap<String, String>,
-    limit: u64,
+    left: &mut u64,
 ) -> Result<String, SubstError> {
     if !s.contains("${") {
         return Ok(s.to_string());
@@ -98,6 +99,7 @@ pub(crate) fn substitute(
     let mut out = String::new();
     let mut rest = s;
     while let Some(i) = rest.find("${") {
+        take_left(left, i as u64)?;
         out.push_str(&rest[..i]);
         let after = &rest[i + 2..];
         let Some(j) = after.find('}') else {
@@ -106,9 +108,7 @@ pub(crate) fn substitute(
         let name = &after[..j];
         match args.get(name) {
             Some(v) => {
-                if (out.len() as u64).saturating_add(v.len() as u64) > limit {
-                    return Err(SubstError::TooLarge);
-                }
+                take_left(left, v.len() as u64)?;
                 out.push_str(v);
             }
             None => {
@@ -119,29 +119,36 @@ pub(crate) fn substitute(
         }
         rest = &after[j + 1..];
     }
+    take_left(left, rest.len() as u64)?;
     out.push_str(rest);
-    if out.len() as u64 > limit {
+    Ok(out)
+}
+
+/// 残りの量から `n` バイトを引く。足りなければ残りを変えずに `TooLarge`。
+fn take_left(left: &mut u64, n: u64) -> Result<(), SubstError> {
+    if n > *left {
         return Err(SubstError::TooLarge);
     }
-    Ok(out)
+    *left -= n;
+    Ok(())
 }
 
 /// 値の中の文字列をすべて置換する。連想配列のキーは置換しない。
 pub(crate) fn subst_value(
     v: &mut Value,
     args: &BTreeMap<String, String>,
-    limit: u64,
+    left: &mut u64,
 ) -> Result<(), SubstError> {
     match v {
-        Value::String(s) => *s = substitute(s, args, limit)?,
+        Value::String(s) => *s = substitute(s, args, left)?,
         Value::Array(a) => {
             for x in a {
-                subst_value(x, args, limit)?;
+                subst_value(x, args, left)?;
             }
         }
         Value::Object(m) => {
             for (_, x) in m.iter_mut() {
-                subst_value(x, args, limit)?;
+                subst_value(x, args, left)?;
             }
         }
         _ => {}
@@ -153,7 +160,7 @@ pub(crate) fn subst_value(
 fn subst_step(
     step: &Step,
     args: &BTreeMap<String, String>,
-    limit: u64,
+    left: &mut u64,
 ) -> Option<Result<Step, SubstError>> {
     let mut v = serde_json::to_value(step).ok()?;
     if let Value::Object(m) = &mut v {
@@ -162,9 +169,9 @@ fn subst_step(
                 continue;
             }
             let r = if k == "next" {
-                subst_next(x, args, limit)
+                subst_next(x, args, left)
             } else {
-                subst_value(x, args, limit)
+                subst_value(x, args, left)
             };
             if let Err(e) = r {
                 return Some(Err(e));
@@ -178,14 +185,14 @@ fn subst_step(
 fn subst_next(
     v: &mut Value,
     args: &BTreeMap<String, String>,
-    limit: u64,
+    left: &mut u64,
 ) -> Result<(), SubstError> {
     if let Value::Array(a) = v {
         for t in a {
             if let Value::Object(m) = t {
                 for (k, x) in m.iter_mut() {
                     if k != "to" {
-                        subst_value(x, args, limit)?;
+                        subst_value(x, args, left)?;
                     }
                 }
             }
@@ -291,7 +298,7 @@ impl<'a> Expander<'a> {
                 continue;
             }
             let mut s = match args {
-                Some(a) => match subst_step(step, a, self.budget.left()) {
+                Some(a) => match subst_step(step, a, &mut self.budget.left()) {
                     Some(Ok(s)) => s,
                     Some(Err(e)) => {
                         self.halted |= e == SubstError::TooLarge;
@@ -504,14 +511,14 @@ impl<'a> Expander<'a> {
                 let mut s = st.clone();
                 s.id = id;
                 s.node = format!("{}/{}", p.inst, st.node);
-                let limit = self.budget.left();
+                let mut left = self.budget.left();
                 let mut r = s
                     .effects
                     .iter_mut()
-                    .try_for_each(|v| subst_value(v, &p.args, limit));
+                    .try_for_each(|v| subst_value(v, &p.args, &mut left));
                 if r.is_ok() {
                     if let Some(v) = s.requires.as_mut() {
-                        r = subst_value(v, &p.args, limit);
+                        r = subst_value(v, &p.args, &mut left);
                     }
                 }
                 if let Err(e) = r {
@@ -567,26 +574,48 @@ mod tests {
     #[test]
     fn substitutes_once_and_keeps_literal_text() {
         let a = args(&[("x", "${y}"), ("y", "Y")]);
-        assert_eq!(substitute("a-${x}-b", &a, 100).unwrap(), "a-${y}-b");
-        assert_eq!(substitute("plain", &a, 100).unwrap(), "plain");
-        assert_eq!(substitute("${x}${y}", &a, 100).unwrap(), "${y}Y");
+        assert_eq!(substitute("a-${x}-b", &a, &mut 100).unwrap(), "a-${y}-b");
+        assert_eq!(substitute("plain", &a, &mut 100).unwrap(), "plain");
+        assert_eq!(substitute("${x}${y}", &a, &mut 100).unwrap(), "${y}Y");
     }
 
     #[test]
     fn rejects_undefined_unterminated_and_oversize() {
         let a = args(&[("x", "12345")]);
         assert_eq!(
-            substitute("${zz}", &a, 100),
+            substitute("${zz}", &a, &mut 100),
             Err(SubstError::Undefined(Some("zz".into())))
         );
         // 名前が識別子として安全でないときは、名前を持たない。
         assert_eq!(
-            substitute("${a b}", &a, 100),
+            substitute("${a b}", &a, &mut 100),
             Err(SubstError::Undefined(None))
         );
-        assert_eq!(substitute("${x", &a, 100), Err(SubstError::Unterminated));
-        assert_eq!(substitute("${x}", &a, 4), Err(SubstError::TooLarge));
-        assert!(substitute("${x}", &a, 5).is_ok());
+        assert_eq!(
+            substitute("${x", &a, &mut 100),
+            Err(SubstError::Unterminated)
+        );
+        assert_eq!(substitute("${x}", &a, &mut 4), Err(SubstError::TooLarge));
+        assert!(substitute("${x}", &a, &mut 5).is_ok());
+    }
+
+    #[test]
+    fn substitution_budget_accumulates_across_strings() {
+        // 1 文字列では収まる引数も、同じ予算を共有する複数の文字列では累積して超える。
+        let a = args(&[("x", "1234567890")]);
+        let mut left = 25;
+        assert!(substitute("${x}", &a, &mut left).is_ok());
+        assert!(substitute("${x}", &a, &mut left).is_ok());
+        assert_eq!(left, 5);
+        assert_eq!(substitute("${x}", &a, &mut left), Err(SubstError::TooLarge));
+        // 小さな入力が、1 つの値の中の多数の参照で巨大に展開する場合も打ち切る。
+        let big = args(&[("x", &"a".repeat(10_000))]);
+        let mut v = serde_json::json!({"rules": vec!["${x}"; 1_000]});
+        let mut left = 100_000;
+        assert_eq!(
+            subst_value(&mut v, &big, &mut left),
+            Err(SubstError::TooLarge)
+        );
     }
 
     #[test]
@@ -599,7 +628,7 @@ mod tests {
             "rules": [{"k": "${x}"}]
         }))
         .unwrap();
-        let s = subst_step(&step, &a, 1000).unwrap().unwrap();
+        let s = subst_step(&step, &a, &mut 1000).unwrap().unwrap();
         assert_eq!(s.id, "s-${x}");
         assert_eq!(s.title, "t X");
         assert_eq!(s.body.as_deref(), Some("b-${x}.md"));
