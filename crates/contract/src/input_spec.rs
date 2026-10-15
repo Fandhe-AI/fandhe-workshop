@@ -212,7 +212,10 @@ impl TextSpec {
         if t.is_empty() {
             return TextVerdict::Empty;
         }
-        let n = t.chars().take(self.max as usize + 1).count();
+        let n = t
+            .chars()
+            .take((self.max as usize).saturating_add(1))
+            .count();
         if n < self.min as usize {
             TextVerdict::TooShort
         } else if n > self.max as usize {
@@ -316,5 +319,16 @@ mod tests {
         assert_eq!(t.judge("ab"), TextVerdict::Accepted);
         assert_eq!(t.judge("abc"), TextVerdict::Accepted);
         assert_eq!(t.judge("abcd"), TextVerdict::TooLong);
+    }
+
+    /// `max` が `u32::MAX` でも、32 ビットの `usize`（wasm32）で計数上限が溢れず正しく判定する。
+    #[test]
+    fn judge_max_u32_max() {
+        let t = TextSpec {
+            min: 1,
+            max: u32::MAX,
+        };
+        assert_eq!(t.judge("a"), TextVerdict::Accepted);
+        assert_eq!(t.judge("   "), TextVerdict::Empty);
     }
 }
