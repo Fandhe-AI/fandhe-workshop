@@ -336,3 +336,32 @@ fn diagnostics_order_is_deterministic() {
     let t = nested(10);
     assert_eq!(validate_dir(&t.0), validate_dir(&t.0));
 }
+
+// ---- E-LIMIT（展開の打ち切りは検査の未完了として返す） ----
+
+#[test]
+fn expansion_halted_by_the_limit_is_not_reported_as_clean() {
+    // 先行する実体のファンアウトで予算を使い切ると、後続の巡回・確認の欠落は検査されない。
+    // その場合に診断なしを返さず、E-LIMIT を返す。
+    let refs = vec!["${x}"; 300].join(",");
+    let m1 = format!(
+        "id: m1\ntitle: M\nparams: {{x: d}}\nsteps:\n  - {{id: a, title: \"{refs}\", final: true}}\n"
+    );
+    let big = "a".repeat(100_000);
+    let mut chapter = String::from("id: c1\ntitle: C\nstarts: [{id: s1, node: u0}]\nsteps:\n");
+    for k in 0..6 {
+        chapter.push_str(&format!(
+            "  - {{id: u{k}, title: U, final: true, use: {{module: m1, instance: i{k}, args: {{x: {big}}}}}}}\n"
+        ));
+    }
+    // 巡回は章 c2 にあり、c1 の開始の展開で打ち切られた後には展開されない。
+    let c2 = format!("id: c2\ntitle: C2\nsteps:\n{}\n", call("m2", "j"));
+    let t = Tmp::new("limit-halt");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    t.put(C1, chapter.as_bytes());
+    t.put(M1, m1.as_bytes());
+    t.put("chapters/c2/chapter.yaml", c2.as_bytes());
+    put_module(&t, M2, "m2", &call("m2", "k"));
+    let d = validate_dir(&t.0);
+    assert!(d.iter().any(|d| d.code() == DiagCode::Limit), "{d:?}");
+}

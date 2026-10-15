@@ -17,7 +17,7 @@
 //! 到達性（`E-UNREACHABLE`）・行き止まり（`E-DEAD-END`）は `reach` が受け持つ（TASK-55 1/2）。
 //! モジュール呼び出しの巡回（`E-MODULE-CYCLE`）と、引数の置換後に判明する確認の欠落（`E-NO-CONFIRM`）は、
 //! 宛先も `confirm` の中身も置換後でないと決まらないため、`compile` と同じ `expand::Expander` を走らせて
-//! その 2 コードだけを採る（TASK-55 2/2）。展開由来の他の診断（`E-REF-MODULE`・`E-DUP-ID`・`E-PARSE` など）は、
+//! その 2 コードと、展開の打ち切り（`E-LIMIT`）だけを採る（TASK-55 2/2）。展開由来の他の診断（`E-REF-MODULE`・`E-DUP-ID`・`E-PARSE` など）は、
 //! 既存の検査と文面の違う二重報告になるか本タスクの範囲外のため採らない。呼ばれないモジュールは展開されず、
 //! その中の巡回は `compile` と同じく報告しない。`E-PROFILE-*` は TASK-46、網羅は TASK-56 の持ち分である。
 //!
@@ -73,7 +73,9 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     out
 }
 
-/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE` と `E-NO-CONFIRM` だけを返す。
+/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM` と、展開の打ち切りを示す
+/// `E-LIMIT` だけを返す。`E-LIMIT` を捨てると、打ち切られた後ろの巡回・確認の欠落を検査しないまま
+/// 診断なしで成功に見えるため、検査が未完了であることを示すものとして必ず残す（fail-closed）。
 /// `E-NO-CONFIRM` は、`check_confirms` が飛ばす `${` を含む `confirm` の置換後の検査でだけ出るため、
 /// `check_structure` の報告と重ならない。同一内容の診断は 1 件にまとめる（`compile` と同じ）。
 pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
@@ -86,7 +88,12 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut seen = BTreeSet::new();
     ex.diags
         .into_iter()
-        .filter(|d| matches!(d.code(), DiagCode::ModuleCycle | DiagCode::NoConfirm))
+        .filter(|d| {
+            matches!(
+                d.code(),
+                DiagCode::ModuleCycle | DiagCode::NoConfirm | DiagCode::Limit
+            )
+        })
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()
 }
