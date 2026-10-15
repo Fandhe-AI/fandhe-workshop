@@ -2,8 +2,9 @@
 //!
 //! 教材が宣言した入力方式のうち `choice`・`ui_action`・`approval` は、LLM を使わずに Step の宣言
 //! （`input`・`rules`・`confirm`）との照合だけで判定できる。本モジュールはその照合の純関数を置く。
-//! 呼び出し元は、受付・達成の遷移（TASK-207）、`Judged` の発行（TASK-267）、対象つきの「直す」（TASK-264）、
+//! 呼び出し元は、受付・達成の遷移（TASK-207）、`Judged` の発行（TASK-267）、
 //! 誤答の文面の差し込み（TASK-274）、画面（web、TASK-445・TASK-447）である。
+//! 承認の「直す」の対象つき入力（JUDGE-10、TASK-264）の判定もここに置く。
 //! 結果の型の語彙は `fandhe_workshop_contract::judgment`、入力・確認の宣言の型は `input_spec`・`confirm_spec`
 //! が正で、ここでは再定義しない。
 //!
@@ -19,7 +20,12 @@
 //!   それを指す規則があっても受付にしない
 //! - 規則の `on` のキーは、その方式の照合キーとちょうど一致するものだけを一致とする。余分なキーのある規則は一致しない
 //! - 承認の `target` は完全一致で、規則に無ければ入力も `None` でなければならない（対象つきの規則に
-//!   対象なしの入力を一致させない。広げるのは TASK-264）
+//!   対象なしの入力を一致させない）。宣言に無い対象を受付にしないため、対象なしの規則を任意の対象に
+//!   当てる照合（試作の挙動）は採らない
+//! - 対象つきの「直す」の規則が 1 つでもある Step では、対象なしの「直す」を受付・問い返しにしない
+//!   （[`revise_targets`]）。対象なしの規則のうち拒否だけを採り、無ければ `not_in_this_step` の分類による拒否にする。
+//!   この判定のため、対象なしの「直す」では規則の全件を先に走査し、一致より後ろの不正な規則も
+//!   `InvalidDeclaration` にする（安全側）
 //! - 文字列の比較は大文字小文字を区別する完全一致である。trim・Unicode の正規化はしない
 //! - 宣言が読めない場合は [`SelectJudgeError::InvalidDeclaration`] にし、受付へは倒さない
 //!
@@ -30,7 +36,8 @@
 //! # 扱わないこと
 //!
 //! - 状態の変更・`Session::apply` への組み込み・`Judged` の発行（TASK-207・TASK-267）
-//! - 文面の解決・差し込み・`NextAction` の生成（本モジュールは文面の ID だけを返す）
+//! - 文面の解決・差し込み・`NextAction` の生成（本モジュールは文面の ID だけを返す。解決は
+//!   [`crate::rejection_text`]、差し込みは TASK-274）
 //! - 規則の `on` の組み合わせの静的な検査（TASK-45）
 //! - `rejections[id].category` の解決（規則による拒否の分類は呼び出し側）
 //! - コマンド・自然文の判定（[`crate::command_lex`]・`TextSpec::judge`）
@@ -167,7 +174,9 @@ fn decision_word(d: Decision) -> &'static str {
 }
 
 /// 承認の対象の照合。完全一致で、規則に無ければ入力も `None` でなければならない。
-/// 対象の扱いを広げる TASK-264 は、この 1 か所を変える。
+///
+/// 試作のように対象なしの規則を任意の対象に当てると、宣言に無い対象つきの入力が受付になるため、
+/// 完全一致のままにする（TASK-264 の判断）。誤った対象の候補の判定は TASK-265 が決める。
 fn approval_target_matches(rule_target: Option<&str>, input_target: Option<&str>) -> bool {
     rule_target == input_target
 }
@@ -204,6 +213,38 @@ fn on_matches(on: &Map<String, Value>, input: &Input) -> bool {
         }
         Input::Command(_) | Input::Text(_) | Input::Cancel => false,
     }
+}
+
+/// Step の規則が「直す」に対して宣言した対象の一覧（`on: { approval: revise, target: … }` の `target`）。
+///
+/// 規則の並び順で、重複は除く。`when` は見ず、静的な宣言だけで決める（決定的）。画面（TASK-447）が
+/// 「直す（対象: …）」の操作を出すときの正で、web に規則の JSON を読ませないために core が返す。
+/// 規則・`on` が object でない場合と、`target` が文字列でない場合は [`SelectJudgeError::InvalidDeclaration`]。
+pub fn revise_targets(step: &Step) -> Result<Vec<String>, SelectJudgeError> {
+    let mut targets: Vec<String> = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for rule in &step.rules {
+        let rule = rule
+            .as_object()
+            .ok_or(SelectJudgeError::InvalidDeclaration)?;
+        let on = rule
+            .get("on")
+            .and_then(Value::as_object)
+            .ok_or(SelectJudgeError::InvalidDeclaration)?;
+        if on.get("approval").and_then(Value::as_str) != Some("revise") {
+            continue;
+        }
+        let Some(target) = on.get("target") else {
+            continue;
+        };
+        let target = target
+            .as_str()
+            .ok_or(SelectJudgeError::InvalidDeclaration)?;
+        if seen.insert(target) {
+            targets.push(target.to_string());
+        }
+    }
+    Ok(targets)
 }
 
 /// 宣言の方式と入力の種類が合い、宣言にある値なら `Ok(true)`。方式違い・宣言に無い値は `Ok(false)`。
@@ -255,6 +296,14 @@ pub fn judge_select(
     if !declared(step, input)? {
         return Ok(SelectVerdict::Rejected(RejectCategory::NotInThisStep));
     }
+    // 対象つきの「直す」の規則がある Step では、対象なしの「直す」に対して拒否の規則だけを採る（JUDGE-10）。
+    let revise_without_target = matches!(
+        input,
+        Input::Approval {
+            decision: Decision::Revise,
+            target: None
+        }
+    ) && !revise_targets(step)?.is_empty();
     for (rule_index, rule) in step.rules.iter().enumerate() {
         let rule = rule
             .as_object()
@@ -287,7 +336,11 @@ pub fn judge_select(
                 .ok_or(SelectJudgeError::InvalidDeclaration)
         };
         let rule_id = rule_id.to_string();
-        return match outcome.get("kind").and_then(Value::as_str) {
+        let kind = outcome.get("kind").and_then(Value::as_str);
+        if revise_without_target && matches!(kind, Some("accept" | "clarify")) {
+            continue;
+        }
+        return match kind {
             Some("accept") => Ok(SelectVerdict::Accepted {
                 rule_index,
                 rule_id,
