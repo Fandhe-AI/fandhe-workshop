@@ -1,0 +1,9 @@
+id: JUDGE1-2
+package: fandhe-workshop-core
+test: command_lex
+target: crates/core/src/command_lex.rs
+find: Some(next.to_string())
+replace: Some(format!("{next} "))
+expect-fail: golden_is_reproduced
+expect-fail: normal_cases
+note: 名前つき引数の値を書かれたとおりに保たない（値に余計な文字が付く）
