@@ -1,0 +1,30 @@
+id: c1
+title: C
+starts: [{id: s1, node: s-point}]
+steps:
+  - id: s-point
+    title: Point
+    body: a.md
+    views: [v-files]
+    input: {kind: approval}
+    confirm: {kind: point_at, targets: [{view: v-files, path: src/main.rs}], on_miss: rj-miss-point}
+    next: [{to: s-answer}]
+  - id: s-answer
+    title: Answer
+    body: a.md
+    input: {kind: choice, options: [{id: a, label: A}, {id: b, label: B}]}
+    confirm: {kind: answer, options: [{id: a, correct: true, label: A}, {id: b, correct: false, on_wrong: rj-wrong-answer}], on_wrong: rj-wrong-answer}
+    next: [{to: s-approve}]
+  - id: s-approve
+    title: Approve
+    body: a.md
+    input: {kind: approval}
+    confirm: {kind: approve}
+    next: [{to: s-none}]
+  - id: s-none
+    title: None
+    body: a.md
+    input: {kind: approval}
+    confirm: {kind: none, reason: Nothing to verify after this step.}
+    next: [{to: s-end}]
+  - {id: s-end, title: End, final: true}

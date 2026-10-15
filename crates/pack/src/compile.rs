@@ -12,7 +12,7 @@
 //! 出力の `ir_format` は、宣言した値ではなく、使った項目に足りる最小の版（[`Ir::required_ir_format`]）にする
 //! （D-52）。木を使わない教材パックは版 1 のまま、版 1 とバイト単位で同じ IR になる。`workshop.*` に書ける
 //! `ir_format` は 1 か 2（PACK-24 の読み）で、それ以外は `E-FORMAT-VERSION` で止める。
-//! Step の `input` の宣言は [`crate::input`] が検査する（IR には宣言の値をそのまま載せる）。
+//! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
 //! モジュールの展開は TASK-50 が扱うため、`use` を持つ Step は拒否する。
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -23,6 +23,7 @@ use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Node, S
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
+use crate::confirm;
 use crate::diag::{DiagCode, Diagnostic};
 use crate::effect_check::{check_effects, check_processing};
 use crate::input;
@@ -214,6 +215,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     }
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
     diags.extend(input::check_inputs(&pack.scopes));
+    // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
+    diags.extend(confirm::check_confirms(&pack.scopes));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     if !diags.is_empty() {
         return Err(diags);

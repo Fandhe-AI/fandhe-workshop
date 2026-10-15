@@ -101,6 +101,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | キー判定表 `decide` の入出力と表 | contract | TASK-257・TASK-281 |
 | 案内レベルとヒントの値の型（`Control::OpenHint`・`HintOpened` は core） | contract | TASK-290 |
 | 入力方式 5 種と待機（`wait`）の宣言の型と `text` の判定の純関数（実行時の判定は core が呼ぶ。診断は pack） | contract | TASK-44 |
+| 確認 4 種の宣言の型と、受付と達成の分け方の純関数（実行時の判定は core、診断は pack、表示は web） | contract | TASK-47 |
 | 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
 | 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |

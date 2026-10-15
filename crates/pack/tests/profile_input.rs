@@ -25,7 +25,7 @@ fn chapter_pack(profile: &str, steps: &str, tests: Option<&str>) -> Tmp {
 }
 
 const TEXT_STEP: &str =
-    "  - {id: a, title: A, body: a.md, input: {kind: text, min: 1, max: 100}, final: true}\n";
+    "  - {id: a, title: A, body: a.md, input: {kind: text, min: 1, max: 100}, confirm: {kind: approve}, final: true}\n";
 
 fn diags(t: &Tmp) -> Vec<String> {
     let lp = source::load(&t.0).expect("load");
@@ -55,7 +55,7 @@ fn text_step_with_empty_prefix() {
 fn text_rule_with_empty_prefix_but_not_false() {
     let rule = |v: &str| {
         format!(
-            "  - {{id: a, title: A, body: a.md, final: true, input: {{kind: command}}, rules: [{{id: r, on: {{text: {v}}}, outcome: {{kind: accept}}}}]}}\n"
+            "  - {{id: a, title: A, body: a.md, final: true, input: {{kind: command}}, confirm: {{kind: approve}}, rules: [{{id: r, on: {{text: {v}}}, outcome: {{kind: accept}}}}]}}\n"
         )
     };
     let t = chapter_pack("{command_prefix: \"\"}", &rule("true"), None);
@@ -75,8 +75,8 @@ fn text_allowed_with_other_prefix() {
 #[test]
 fn hidden_rejects_command_and_text() {
     let steps = concat!(
-        "  - {id: a, title: A, body: a.md, input: {kind: command}, next: [{to: b}]}\n",
-        "  - {id: b, title: B, input: {kind: text, min: 1, max: 9}, next: [{to: c}]}\n",
+        "  - {id: a, title: A, body: a.md, input: {kind: command}, confirm: {kind: approve}, next: [{to: b}]}\n",
+        "  - {id: b, title: B, input: {kind: text, min: 1, max: 9}, confirm: {kind: approve}, next: [{to: c}]}\n",
         "  - {id: c, title: C, rules: [{id: r, on: {command: x}, outcome: {kind: accept}}], next: [{to: d}]}\n",
         "  - {id: d, title: D, rules: [{id: r, on: {text: true}, outcome: {kind: accept}}], final: true}\n",
     );
@@ -92,8 +92,8 @@ fn hidden_rejects_command_and_text() {
 #[test]
 fn hidden_allows_non_typing_inputs() {
     let steps = concat!(
-        "  - {id: a, title: A, body: a.md, input: {kind: approval}, next: [{to: b}]}\n",
-        "  - {id: b, title: B, input: {kind: wait}, processing: [{wait: 1}], final: true}\n",
+        "  - {id: a, title: A, body: a.md, input: {kind: approval}, confirm: {kind: approve}, next: [{to: b}]}\n",
+        "  - {id: b, title: B, input: {kind: wait}, confirm: {kind: approve}, processing: [{wait: 1}], final: true}\n",
     );
     let t = chapter_pack("{input_field: hidden}", steps, None);
     assert!(with_code(&t, "E-PROFILE").is_empty(), "{:?}", diags(&t));
