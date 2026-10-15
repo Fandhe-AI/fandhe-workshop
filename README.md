@@ -255,7 +255,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 - ruleset の必須チェック（required status checks）には、PR の HEAD に報告される全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を登録しています。
   `implement-issue-tree` の自動マージは、必須に無いチェックが HEAD に 1 件でもある場合と、必須のチェックが HEAD に報告されない場合に辞退するためです。
   方針の詳細は `.claude/rules/github-actions.md` の「必須チェック」、ruleset・マージ設定の導入は `setup-repo-guards` スキルの手順に従います
-- 承認待ち（2026-10-12 時点）: ruleset へ追加する必須チェックの案は `rust lint (fmt + clippy + check-deps)` と `rust build + test (--workspace)` の 2 件です（発行元は github-actions）。人の承認を得ていないため、ruleset にはまだ反映していません。`deploy.yml` の `deploy` は PR に報告されないため、必須に入れません。詳細は `.claude/rules/github-actions.md` の「必須チェック」です
+- 2026-10-14 に、`rust lint (fmt + clippy + check-deps)` と `rust build + test (--workspace)` の 2 件（発行元は github-actions）を必須チェックに加え、合計 12 件にしました。`deploy.yml` の `deploy` は PR に報告されないため、必須に入れません。詳細は `.claude/rules/github-actions.md` の「必須チェック」です
 - 条件付きのジョブは、ジョブ単位の `if:` で制御し、不要な場合もチェック自体は skipped として報告させます（例: `test-hooks-macos`）
 - CI のジョブを追加・改名・削除したら、`ci-complete` の `needs` と ruleset の必須チェックを同じタイミングで更新します
 
