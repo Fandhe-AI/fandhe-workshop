@@ -13,7 +13,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
-use fandhe_workshop_contract::ir::{FixtureDef, PackInfo, Start, Step};
+use fandhe_workshop_contract::ir::{FixtureDef, PackInfo, Start, Step, IR_FORMAT_VERSION};
 use fandhe_workshop_contract::limits::{self, PackLimitCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -90,6 +90,40 @@ pub struct WorkshopSrc {
     /// 拒否の分類ごとの既定の文面の ID。
     #[serde(default)]
     pub defaults: BTreeMap<String, String>,
+}
+
+/// `workshop.*` から `pack.ir_format` だけを先に読むための型。`deny_unknown_fields` を付けない。
+///
+/// 版が違う教材パックは、版 1 の語彙で解釈すると `E-PARSE` などの別の診断に化ける。版を最初に
+/// 判定し、1 でなければ残りを解釈せずに止める（失敗を安全側へ倒す）。
+#[derive(Deserialize)]
+struct VersionProbe {
+    pack: Option<PackProbe>,
+}
+
+#[derive(Deserialize)]
+struct PackProbe {
+    ir_format: Option<Value>,
+}
+
+/// `pack.ir_format` が整数の 1 でないときの診断。構文として読めない・`pack` が無いときは `None`
+/// （型付きの読み込みが `E-PARSE` にする）。診断に入力値は写さず、整数として読めたときだけ値を出す。
+fn probe_format_version(format: Format, text: &str, file: &str) -> Option<Diagnostic> {
+    let probe = format.parse::<VersionProbe>(text).ok()?;
+    let pack = probe.pack?;
+    let message = match pack.ir_format.as_ref().and_then(Value::as_i64) {
+        Some(v) if v == i64::from(IR_FORMAT_VERSION) => return None,
+        Some(v) => format!("ir_format {v} is not supported (expected {IR_FORMAT_VERSION})"),
+        None => {
+            format!("ir_format must be the integer {IR_FORMAT_VERSION} (missing or not an integer)")
+        }
+    };
+    Some(diag(
+        file,
+        "pack:ir_format",
+        DiagCode::FormatVersion,
+        message,
+    ))
 }
 
 /// 章またはモジュールの定義ファイルの内容。
@@ -404,22 +438,43 @@ fn read_parse<T: DeserializeOwned>(
     item: &str,
     diags: &mut Vec<Diagnostic>,
 ) -> Option<T> {
-    let text = match read_text(path, MAX_PACK_BYTES) {
-        Ok(t) => t,
+    let text = read_diag_text(path, file, item, diags)?;
+    parse_diag(format, &text, file, item, diags)
+}
+
+/// 上限つきで読み、失敗は診断にする。
+fn read_diag_text(
+    path: &Path,
+    file: &str,
+    item: &str,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<String> {
+    match read_text(path, MAX_PACK_BYTES) {
+        Ok(t) => Some(t),
         Err(ReadError::NotUtf8) => {
             diags.push(diag(file, item, DiagCode::Parse, "file is not valid UTF-8"));
-            return None;
+            None
         }
         Err(ReadError::TooLarge) => {
             diags.push(diag(file, item, DiagCode::Parse, "file is too large"));
-            return None;
+            None
         }
         Err(ReadError::Io) => {
             diags.push(diag(file, item, DiagCode::Parse, "cannot read file"));
-            return None;
+            None
         }
-    };
-    match format.parse::<T>(&text) {
+    }
+}
+
+/// 読んだ文字列を型付きで読み、失敗は診断にする。
+fn parse_diag<T: DeserializeOwned>(
+    format: Format,
+    text: &str,
+    file: &str,
+    item: &str,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<T> {
+    match format.parse::<T>(text) {
         Ok(v) => Some(v),
         Err(e) => {
             diags.push(diag(file, item, DiagCode::Parse, e));
@@ -596,8 +651,13 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
 
     let mut diags = Vec::new();
     let workshop_file = rel(dir, &wpath);
-    let workshop: Option<WorkshopSrc> =
-        read_parse(format, &wpath, &workshop_file, "pack", &mut diags);
+    let mut workshop: Option<WorkshopSrc> = None;
+    if let Some(text) = read_diag_text(&wpath, &workshop_file, "pack", &mut diags) {
+        if let Some(d) = probe_format_version(format, &text, &workshop_file) {
+            return Err(vec![d]);
+        }
+        workshop = parse_diag(format, &text, &workshop_file, "pack", &mut diags);
+    }
 
     let mut scopes = Vec::new();
     for (sub, name, kind) in [

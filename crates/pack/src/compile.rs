@@ -174,11 +174,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     })
 }
 
-/// IR を出力のバイト列にする。整形した JSON に改行を 1 つ付ける。`compare` と共通の関数。
+/// IR を出力のバイト列にする。形の正は契約の `to_canonical_json`。`compare` と共通の関数。
 pub fn to_json(ir: &Ir) -> Result<Vec<u8>, serde_json::Error> {
-    let mut v = serde_json::to_vec_pretty(ir)?;
-    v.push(b'\n');
-    Ok(v)
+    fandhe_workshop_contract::ir::to_canonical_json(ir)
 }
 
 /// 生成した IR のバイト列が、エンジンの `load_ir` の上限（大きさ・入れ子）に収まることを確かめる。
