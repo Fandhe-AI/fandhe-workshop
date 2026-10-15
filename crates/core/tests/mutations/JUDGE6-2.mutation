@@ -1,0 +1,9 @@
+id: JUDGE6-2
+package: fandhe-workshop-core
+test: command_rule
+target: crates/core/src/command_rule.rs
+find: Self::Clarified { .. } => Some(JudgmentKind::Clarified),
+replace: Self::Clarified { .. } => Some(JudgmentKind::Rejected),
+expect-fail: clarify_is_not_counted_as_rejection
+expect-fail: clarify_on_missing_name_ch1_pack
+note: 問い返しを拒否の種類に写す（問い返しが拒否の件数に数えられる）

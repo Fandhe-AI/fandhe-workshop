@@ -1,0 +1,10 @@
+id: JUDGE6-1
+package: fandhe-workshop-core
+test: command_rule
+target: crates/core/src/command_rule.rs
+find: if !matches!(resolved, Some(a) if a.value.is_none()) {
+replace: if !matches!(resolved, Some(a) if a.value.is_some()) {
+expect-fail: clarify_on_missing_name_ch1_pack
+expect-fail: clarify_on_missing_name_compact
+expect-fail: clarify_properties
+note: on.missing の照合を反転する（値のある引数で問い返しになり、値なしでは問い返しにならない）

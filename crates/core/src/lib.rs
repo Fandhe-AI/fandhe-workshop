@@ -14,6 +14,7 @@
 //! 選択肢・画面操作・承認の判定（[`select_judge`]、TASK-263）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 判定結果の統合と `Judged` の材料（[`judge`]、TASK-267）も持つ。
+//! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -21,6 +22,7 @@ pub mod addr;
 pub mod changed;
 pub mod command_judge;
 pub mod command_lex;
+pub mod command_rule;
 pub mod effect;
 pub mod event;
 pub mod history_size;

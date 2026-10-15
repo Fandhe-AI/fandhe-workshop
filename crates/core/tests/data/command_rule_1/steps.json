@@ -1,0 +1,72 @@
+{
+  "ask": {
+    "id": "st-1-4",
+    "title": "引数なしの問い返し",
+    "input": {
+      "kind": "command",
+      "name": "new-idea",
+      "args": [{ "name": "name", "positional": true, "required": false, "shape": "kebab_case" }]
+    },
+    "rules": [
+      { "id": "r-ask-name", "on": { "command": "new-idea", "missing": ["name"] }, "outcome": { "kind": "clarify", "clarification": "cl-new-idea-name" } },
+      { "id": "r-cancel", "on": { "cancel": true }, "when": { "clarifying": "cl-new-idea-name" }, "outcome": { "kind": "accept" } }
+    ]
+  },
+  "required": {
+    "id": "st-req",
+    "title": "名前が必須",
+    "input": {
+      "kind": "command",
+      "name": "new-idea",
+      "args": [{ "name": "name", "positional": true, "required": true, "shape": "kebab_case" }]
+    },
+    "rules": [
+      { "id": "r-ask-name", "on": { "command": "new-idea", "missing": ["name"] }, "outcome": { "kind": "clarify", "clarification": "cl-new-idea-name" } }
+    ]
+  },
+  "order": {
+    "id": "st-order",
+    "title": "最初に当たった規則が勝つ",
+    "input": {
+      "kind": "command",
+      "name": "new-idea",
+      "args": [{ "name": "name", "positional": true, "required": false, "shape": "kebab_case" }]
+    },
+    "rules": [
+      { "id": "r-cond", "on": { "command": "new-idea" }, "when": { "flag": "ready" }, "outcome": { "kind": "accept" } },
+      { "id": "r-other-name", "on": { "command": "other", "missing": ["name"] }, "outcome": { "kind": "accept" } },
+      { "id": "r-with-name", "on": { "command": "new-idea", "missing": [], "args": {} }, "when": null, "outcome": { "kind": "reject", "rejection": "rj-any" } },
+      { "id": "r-late", "on": { "command": "new-idea", "missing": ["name"] }, "outcome": { "kind": "clarify", "clarification": "cl-late" } }
+    ]
+  },
+  "bad_kind": {
+    "id": "st-bad-kind",
+    "title": "未知の outcome.kind",
+    "input": { "kind": "command", "name": "x", "args": [{ "name": "a", "positional": true, "required": false, "shape": "any" }] },
+    "rules": [{ "id": "r", "on": { "command": "x" }, "outcome": { "kind": "defer" } }]
+  },
+  "bad_missing": {
+    "id": "st-bad-missing",
+    "title": "宣言に無い名前を指す missing",
+    "input": { "kind": "command", "name": "x", "args": [{ "name": "a", "positional": true, "required": false, "shape": "any" }] },
+    "rules": [{ "id": "r", "on": { "command": "x", "missing": ["ghost"] }, "outcome": { "kind": "accept" } }]
+  },
+  "bad_clarification": {
+    "id": "st-bad-cl",
+    "title": "clarification の欠け",
+    "input": { "kind": "command", "name": "x", "args": [] },
+    "rules": [{ "id": "r", "on": { "command": "x" }, "outcome": { "kind": "clarify" } }]
+  },
+  "args_cond": {
+    "id": "st-args",
+    "title": "中身のある on.args",
+    "input": { "kind": "command", "name": "x", "args": [] },
+    "rules": [{ "id": "r", "on": { "command": "x", "args": { "a": "b" } }, "outcome": { "kind": "accept" } }]
+  },
+  "not_command": {
+    "id": "st-choice",
+    "title": "コマンドではない",
+    "input": { "kind": "choice", "options": [{ "id": "a", "label": "A" }] },
+    "rules": []
+  }
+}
