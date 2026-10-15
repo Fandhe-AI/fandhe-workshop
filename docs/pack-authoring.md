@@ -158,6 +158,25 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - 診断には、識別子として安全な語だけを写し、値そのものは写しません
 - `defaults` が 8 分類を網羅すること、キーと参照先の文面の `category` の一致、`next_action` の空は、この検査では見ません。診断コードの条件に無いためで、`next_action` は TASK-46 が受け持ちます（2026-10-15）
 
+## 教材テストの誤入力の期待（`expect`）
+
+教材テストの `error_inputs[].input.expect` は、誤入力に対する判定の結果を書く欄です（PACK-11）。書き方は 3 つの結果（4 通りの書き方）に分かれます。
+
+| 書き方 | 意味 |
+|---|---|
+| `accepted` | 受付 |
+| `accepted:free_text_unjudged` | 自然文の受付（内容は判定しない注記が付く） |
+| `rejected:<分類>` | 拒否。分類は `unknown_command`・`wrong_order`・`missing_arg`・`bad_arg_shape`・`busy`・`not_in_this_step`・`not_supported` の 7 語 |
+| `clarified` | 問い返し |
+
+- `rejected` は分類が必須です。分類を省くと別の拒否でも通ってしまい、誤入力の分類を確かめるという目的が果たせないためです
+- `rejected:free_text_unjudged` は書けません。`free_text_unjudged` は受付に付く分類で、拒否ではありません
+- `accepted` に付けられる分類は `free_text_unjudged` だけで、`clarified` には分類を付けません
+- `confirmed`・`progressed`・`ignored` は語彙ではないため書けません。大文字小文字や前後の空白の揺れも受けません
+- 読めない `expect` は `E-PARSE` で拒否します。診断には `expect` の値を写しません
+- 読むのは `error_inputs[].input.expect` だけです。`pre[].expect`・`playthroughs` の期待は `fandhe-pack test`（TASK-404）が読みます
+- エンジンで実際に判定して期待と比べる実行は、入力の判定の実装（TASK-267）と TASK-404 の後になります（2026-10-15 時点）。いまの試験は、期待の読み取りと、拒否の文面・次の行動が空でないことの静的な確認までです
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -174,3 +193,4 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
 | `crates/pack/tests/judgment_vocabulary.rs` の `pack11_` | 語彙の `result`・`rejection` の語が contract の型と一致すること、`category`・`defaults`・`on_reject` の語彙にない語が `E-PARSE` になり値を出さないこと（PACK-11） |
+| `crates/pack/tests/error_input_expect.rs` の `pack11_` | 誤入力の期待の 3 形の読み取りと不正な書き方の拒否、架空の教材の誤入力 20 件の分類、3 場面の区別、拒否の文面と次の行動が空でないこと（PACK-11） |
