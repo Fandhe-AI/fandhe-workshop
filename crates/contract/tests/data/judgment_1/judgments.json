@@ -1,0 +1,27 @@
+[
+  {
+    "accepted": null
+  },
+  {
+    "accepted": {
+      "text": "free-text-note",
+      "next_action": "次は ls を実行してください"
+    }
+  },
+  {
+    "rejected": {
+      "category": "unknown_command",
+      "text": "unknown-command",
+      "next_action": "help と入力すると一覧が出ます"
+    }
+  },
+  {
+    "clarified": {
+      "text": "which-file",
+      "next_action": "対象のファイル名を指定してください"
+    }
+  },
+  "confirmed",
+  "progressed",
+  "ignored"
+]

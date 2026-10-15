@@ -1,0 +1,43 @@
+[
+  {
+    "name": "ls",
+    "args": []
+  },
+  {
+    "name": "cat",
+    "args": [
+      {
+        "positional": "a.txt"
+      },
+      {
+        "positional": "b.txt"
+      }
+    ]
+  },
+  {
+    "name": "build",
+    "args": [
+      {
+        "named": {
+          "key": "out",
+          "value": "dist"
+        }
+      },
+      {
+        "named": {
+          "key": "verbose",
+          "value": null
+        }
+      },
+      {
+        "named": {
+          "key": "out",
+          "value": "other"
+        }
+      },
+      {
+        "positional": "x"
+      }
+    ]
+  }
+]

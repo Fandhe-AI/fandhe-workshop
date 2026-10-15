@@ -1,0 +1,9 @@
+id: J1
+package: fandhe-workshop-contract
+test: judgment_contract
+target: crates/contract/src/judgment.rs
+find:         if s.trim().is_empty() {
+replace:         if false {
+expect-fail: next_action_new_rejects_empty_and_whitespace
+expect-fail: deserialization_rejects_empty_next_action
+note: 次の行動の空の検査を外す（空の次の行動を持つ拒否が作れてしまう）
