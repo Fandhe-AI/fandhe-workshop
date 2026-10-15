@@ -1,0 +1,8 @@
+id: JUDGE1-N2
+package: fandhe-workshop-core
+test: judge
+target: crates/core/src/judge.rs
+find: let mut found = m.args.iter().filter(|a| normalize_key(&a.name) == key);
+replace: let mut found = m.args.iter().filter(|_| true);
+expect-fail: wrong_command_conditions_fail_closed_and_never_reach_later_accept
+note: 未宣言の引数名を宣言の誤りにせず先頭の引数に当てる（後続の受付へ進む）

@@ -58,7 +58,7 @@ use fandhe_workshop_contract::profile::read_profile;
 use serde_json::{Map, Value};
 
 use crate::addr::{Root, Stamp, TickAddr};
-use crate::command_judge::{judge_command, CommandVerdict, MatchedCommand};
+use crate::command_judge::{judge_command, CommandVerdict, MatchedCommand, ResolvedArg};
 use crate::command_lex::{lex_command, CommandLexError};
 use crate::effect::ConditionEval;
 use crate::event::{Event, IgnoreReason};
@@ -435,7 +435,7 @@ impl Ctx<'_> {
                     let Some(on) = rule.get("on").and_then(Value::as_object) else {
                         return Err(JudgeError::InvalidDeclaration);
                     };
-                    if !command_rule_matches(on, &spec.name, &m) || !self.when_ok_obj(rule) {
+                    if !command_rule_matches(on, &spec.name, &m)? || !self.when_ok_obj(rule) {
                         continue;
                     }
                     return self.judge_by_rule(rule_outcome(rule)?, rule_id_of(rule));
@@ -564,10 +564,31 @@ fn normalize_key(key: &str) -> String {
     key.replace('-', "_")
 }
 
-/// `on` が `null` の欄・空の `missing`・空の `args` を「無い」とみなして、コマンドに一致するか。
+/// `on` に書かれた引数名を、宣言済みの引数へ解決する。宣言名との完全一致を先に取り、
+/// 無ければ `-` と `_` の違いだけで一致する宣言がちょうど 1 つのときに限りそれを採る。
+/// 未宣言・曖昧な名前は宣言の誤りとし、`a-b` と `a_b` を取り違えて別の引数に当てない。
+fn resolve_declared<'a>(m: &'a MatchedCommand, arg: &str) -> Result<&'a ResolvedArg, JudgeError> {
+    if let Some(a) = m.args.iter().find(|a| a.name == arg) {
+        return Ok(a);
+    }
+    let key = normalize_key(arg);
+    let mut found = m.args.iter().filter(|a| normalize_key(&a.name) == key);
+    match (found.next(), found.next()) {
+        (Some(a), None) => Ok(a),
+        _ => Err(JudgeError::InvalidDeclaration),
+    }
+}
+
+/// `on` が `null` の欄を「無い」とみなして、コマンドに一致するか。
 /// 解釈するキーは `command`・`args`・`missing` だけで、ほかに値のあるキーがあれば一致しない。
-fn command_rule_matches(on: &Map<String, Value>, name: &str, m: &MatchedCommand) -> bool {
+/// 型違い・未宣言の引数名は不一致に丸めず `InvalidDeclaration` にし、後続の受付の規則へ進ませない。
+fn command_rule_matches(
+    on: &Map<String, Value>,
+    name: &str,
+    m: &MatchedCommand,
+) -> Result<bool, JudgeError> {
     let mut command_ok = false;
+    let mut matched = true;
     for (k, v) in on {
         if v.is_null() {
             continue;
@@ -575,44 +596,29 @@ fn command_rule_matches(on: &Map<String, Value>, name: &str, m: &MatchedCommand)
         match k.as_str() {
             "command" => match v.as_str() {
                 Some(c) if c == name => command_ok = true,
-                _ => return false,
+                Some(_) => matched = false,
+                None => return Err(JudgeError::InvalidDeclaration),
             },
             "args" => {
-                let Some(map) = v.as_object() else {
-                    return false;
-                };
+                let map = v.as_object().ok_or(JudgeError::InvalidDeclaration)?;
                 for (arg, want) in map {
-                    let key = normalize_key(arg);
-                    let got = m
-                        .args
-                        .iter()
-                        .find(|a| normalize_key(&a.name) == key)
-                        .and_then(|a| a.value.as_deref());
-                    if want.as_str().is_none() || got != want.as_str() {
-                        return false;
+                    let want = want.as_str().ok_or(JudgeError::InvalidDeclaration)?;
+                    if resolve_declared(m, arg)?.value.as_deref() != Some(want) {
+                        matched = false;
                     }
                 }
             }
             "missing" => {
-                let Some(list) = v.as_array() else {
-                    return false;
-                };
+                let list = v.as_array().ok_or(JudgeError::InvalidDeclaration)?;
                 for item in list {
-                    let Some(arg) = item.as_str() else {
-                        return false;
-                    };
-                    let key = normalize_key(arg);
-                    let declared_absent = m
-                        .args
-                        .iter()
-                        .any(|a| normalize_key(&a.name) == key && a.value.is_none());
-                    if !declared_absent {
-                        return false;
+                    let arg = item.as_str().ok_or(JudgeError::InvalidDeclaration)?;
+                    if resolve_declared(m, arg)?.value.is_some() {
+                        matched = false;
                     }
                 }
             }
-            _ => return false,
+            _ => matched = false,
         }
     }
-    command_ok
+    Ok(matched && command_ok)
 }

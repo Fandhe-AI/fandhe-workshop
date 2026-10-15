@@ -529,3 +529,125 @@ fn well_formed_steps_never_error_for_entered_commands() {
         }
     }
 }
+
+/// `st-bad-rule` の `input`・`rules` を差し替えた IR。コマンド条件の照合の試験に使う。
+fn ir_with_step(input: Value, rules: Value) -> Ir {
+    fn walk(v: &mut Value, input: &Value, rules: &Value) -> bool {
+        match v {
+            Value::Object(o) => {
+                if o.get("id").and_then(Value::as_str) == Some("st-bad-rule") {
+                    o.insert("input".to_string(), input.clone());
+                    o.insert("rules".to_string(), rules.clone());
+                    return true;
+                }
+                o.values_mut().any(|c| walk(c, input, rules))
+            }
+            Value::Array(a) => a.iter_mut().any(|c| walk(c, input, rules)),
+            _ => false,
+        }
+    }
+    let mut v = serde_json::to_value(ir()).unwrap();
+    assert!(walk(&mut v, &input, &rules));
+    serde_json::from_value(v).unwrap()
+}
+
+fn two_optional_args() -> Value {
+    serde_json::json!({
+        "kind": "command",
+        "name": "new-idea",
+        "args": [
+            {"name": "a-b", "positional": true, "required": false, "shape": "kebab_case"},
+            {"name": "a_b", "positional": true, "required": false, "shape": "kebab_case"}
+        ]
+    })
+}
+
+fn rule(on: Value, outcome: Value) -> Value {
+    serde_json::json!({"id": "r", "on": on, "outcome": outcome})
+}
+
+fn reject_outcome() -> Value {
+    serde_json::json!({"kind": "reject", "rejection": "rj-rule-bad-shape"})
+}
+
+fn accept_rule() -> Value {
+    rule(
+        serde_json::json!({"command": "new-idea"}),
+        serde_json::json!({"kind": "accept"}),
+    )
+}
+
+fn judge_in(ir: &Ir, line: &str) -> Result<Judgment, JudgeError> {
+    judge_input(ir, &entered("st-bad-rule"), &cmd(line), &NoConditions).map(|o| o.judgment)
+}
+
+#[test]
+fn hyphen_and_underscore_declared_names_are_not_confused() {
+    // 位置引数 a-b=foo・a_b=bar。`on.args` は宣言名で完全一致させる。
+    let on = |args: Value| serde_json::json!({"command": "new-idea", "args": args});
+    let ir = ir_with_step(
+        two_optional_args(),
+        serde_json::json!([
+            rule(on(serde_json::json!({"a_b": "foo"})), reject_outcome()),
+            accept_rule()
+        ]),
+    );
+    assert_eq!(
+        judge_in(&ir, "/new-idea foo bar").unwrap(),
+        Judgment::Accepted(None)
+    );
+    let ir = ir_with_step(
+        two_optional_args(),
+        serde_json::json!([
+            rule(on(serde_json::json!({"a_b": "bar"})), reject_outcome()),
+            accept_rule()
+        ]),
+    );
+    let j = judge_in(&ir, "/new-idea foo bar").unwrap();
+    assert_eq!(rejected(&j).0, RejectCategory::BadArgShape);
+    // `missing` も別の引数の欠落を拾わない（a_b だけが無い）。
+    let miss = |name: &str| serde_json::json!({"command": "new-idea", "missing": [name]});
+    let ir = ir_with_step(
+        two_optional_args(),
+        serde_json::json!([rule(miss("a-b"), reject_outcome()), accept_rule()]),
+    );
+    assert_eq!(
+        judge_in(&ir, "/new-idea foo").unwrap(),
+        Judgment::Accepted(None)
+    );
+    let ir = ir_with_step(
+        two_optional_args(),
+        serde_json::json!([rule(miss("a_b"), reject_outcome()), accept_rule()]),
+    );
+    let j = judge_in(&ir, "/new-idea foo").unwrap();
+    assert_eq!(rejected(&j).0, RejectCategory::BadArgShape);
+}
+
+#[test]
+fn wrong_command_conditions_fail_closed_and_never_reach_later_accept() {
+    let input = serde_json::json!({
+        "kind": "command",
+        "name": "new-idea",
+        "args": [{"name": "name", "positional": true, "required": false, "shape": "kebab_case"}]
+    });
+    let bad_ons = [
+        serde_json::json!({"command": "new-idea", "missing": "name"}),
+        serde_json::json!({"command": "new-idea", "missing": ["nope"]}),
+        serde_json::json!({"command": "new-idea", "missing": [1]}),
+        serde_json::json!({"command": "new-idea", "args": {"nope": "x"}}),
+        serde_json::json!({"command": "new-idea", "args": {"name": 1}}),
+        serde_json::json!({"command": "new-idea", "args": ["name"]}),
+        serde_json::json!({"command": 1}),
+    ];
+    for on in bad_ons {
+        let ir = ir_with_step(
+            input.clone(),
+            serde_json::json!([rule(on.clone(), reject_outcome()), accept_rule()]),
+        );
+        assert_eq!(
+            judge_in(&ir, "/new-idea foo").unwrap_err(),
+            JudgeError::InvalidDeclaration,
+            "{on}"
+        );
+    }
+}
