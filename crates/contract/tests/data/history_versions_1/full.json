@@ -1,0 +1,11 @@
+{
+  "engine": "1.2.3",
+  "ir_format": 1,
+  "vocab": "1.3",
+  "content": "2.0.1",
+  "content_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "refs": {
+    "repo-a": "0123456789abcdef0123456789abcdef01234567",
+    "repo-b": "fedcba9876543210fedcba9876543210fedcba98"
+  }
+}
