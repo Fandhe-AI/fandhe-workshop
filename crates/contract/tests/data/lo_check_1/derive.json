@@ -1,0 +1,447 @@
+[
+  {
+    "name": "a",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "b",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 1
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 2
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 2
+      }
+    ]
+  },
+  {
+    "name": "c",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 1
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 3
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 2
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 3
+      }
+    ]
+  },
+  {
+    "name": "d",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-2"
+        ],
+        "method": "point_at"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "s",
+          "correct": false
+        }
+      },
+      {
+        "comparison_shown": {
+          "step": "s"
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-2"
+        ],
+        "method": "point_at",
+        "first_answer": "wrong",
+        "reselection": "correct",
+        "after_comparison": true,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "e",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "s",
+          "correct": false
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 1
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "wrong",
+        "reselection": "not_correct",
+        "after_comparison": false,
+        "max_hint": 1
+      }
+    ]
+  },
+  {
+    "name": "f",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "unanswered",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "g",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "h",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 1
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "s",
+          "opened": 3
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": false
+        }
+      },
+      {
+        "comparison_shown": {
+          "step": "s"
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 1
+      }
+    ]
+  },
+  {
+    "name": "i",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "x",
+          "correct": false
+        }
+      },
+      {
+        "hint_opened": {
+          "step": "x",
+          "opened": 3
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "j",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-3"
+        ],
+        "method": "approve"
+      }
+    ],
+    "observations": [
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-3"
+        ],
+        "method": "approve",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  },
+  {
+    "name": "k",
+    "targets": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer"
+      }
+    ],
+    "observations": [
+      {
+        "comparison_shown": {
+          "step": "s"
+        }
+      },
+      {
+        "answered": {
+          "step": "s",
+          "correct": true
+        }
+      }
+    ],
+    "expected": [
+      {
+        "step": "s",
+        "lo": [
+          "LO-1"
+        ],
+        "method": "answer",
+        "first_answer": "correct",
+        "reselection": "none",
+        "after_comparison": false,
+        "max_hint": 0
+      }
+    ]
+  }
+]
