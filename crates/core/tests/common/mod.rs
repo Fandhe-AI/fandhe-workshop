@@ -6,5 +6,6 @@
 #![allow(dead_code, reason = "試験ファイルごとに使う共通部品が異なるため")]
 
 pub mod contract_sample;
+pub mod history_sample;
 pub mod json_input;
 pub mod property;
