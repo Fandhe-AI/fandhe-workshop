@@ -11,6 +11,7 @@
 //! 操作 1 件の世界状態の差分から変更前の値つきの `Changed` を作る記録（[`changed`]、TASK-215 1/2）も持つ。
 //! 受講者の 1 行をコマンド名と引数に分ける字句化（[`command_lex`]、TASK-262 1/2）も持つ。
 //! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
+//! 選択肢・画面操作・承認の判定（[`select_judge`]、TASK-263）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -27,6 +28,7 @@ pub mod json_depth;
 pub mod load_gate;
 pub mod projection;
 pub mod provider;
+pub mod select_judge;
 pub mod session;
 pub mod step_status;
 pub mod version_record;
