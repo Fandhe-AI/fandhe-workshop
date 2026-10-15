@@ -3,7 +3,7 @@
 //! `E-DUP-ID`・`E-FORMAT-VERSION`・`E-STRUCTURE`（正答の無い `answer` を含む）のそれぞれについて、欠陥を
 //! 1 つだけ入れた教材パックが、期待のコードで期待のファイル・項目に報告されることを確かめる。
 //!
-//! 範囲外: CLI の `validate` への接続（TASK-401・TASK-403）、`E-NO-CONFIRM` などの受入試験（TASK-55）、
+//! 範囲外: CLI の `validate` への接続（TASK-401・TASK-403）、`E-NO-CONFIRM`・`E-MODULE-CYCLE` の受入試験は `validate_cycle_confirm.rs`、
 //! 欠陥パック 35 種・両形式の網羅（TASK-56）。
 
 mod common;
