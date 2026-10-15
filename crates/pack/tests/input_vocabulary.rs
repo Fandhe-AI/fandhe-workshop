@@ -1,6 +1,6 @@
-//! 入力方式 5 種の宣言と `text` の判定の結合試験（PACK-10、TASK-44 の 1/2）。
+//! 入力方式 5 種と待機・取り消しの宣言と `text` の判定の結合試験（PACK-10、TASK-44）。
 //!
-//! 5 方式を宣言した教材パックが検証（`compile_dir`）を通ること、型で読めない宣言・意味の制約に反する宣言が
+//! 5 方式と `wait`・`cancel` を宣言した教材パックが検証（`compile_dir`）を通ること、型で読めない宣言・意味の制約に反する宣言が
 //! 診断になること、診断に入力の値が出ないことを確かめる。`text` の判定そのものは contract の適合試験が持つ。
 //! `fandhe-pack validate` の CLI の振り分けは TASK-401 が受け持つため、ここではライブラリの経路を確かめる。
 //! `wait`・`cancel` は #116（TASK-44 の 2/2）が扱う。一時ディレクトリは `CARGO_TARGET_TMPDIR` の下に作る。
@@ -35,13 +35,27 @@ fn diags_for_input(input: &str) -> Vec<Diagnostic> {
     }
 }
 
+/// 1 Step が任意の追加欄（`processing`・`rules` など）を持つ最小パックの診断を返す。
+fn diags_for_step(input: &str, extra: &str) -> Vec<Diagnostic> {
+    let t = Tmp::new("step");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    let chapter = format!(
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, input: {input}, {extra} next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+    );
+    t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
+    match compile_dir(&t.0) {
+        Ok(_) => Vec::new(),
+        Err(d) => d,
+    }
+}
+
 fn only_code(d: &[Diagnostic]) -> DiagCode {
     assert_eq!(d.len(), 1, "{d:?}");
     d[0].code()
 }
 
 #[test]
-fn pack10_five_kinds_pack_validates() {
+fn pack10_all_kinds_with_wait_and_cancel_validate() {
     let bytes = compile_dir(&five_kinds()).expect("five kinds validate");
     let ir = load_ir(&bytes).expect("load_ir");
     let kinds: Vec<&str> = ir
@@ -51,8 +65,15 @@ fn pack10_five_kinds_pack_validates() {
         .collect();
     assert_eq!(
         kinds,
-        ["command", "text", "choice", "ui_action", "approval"]
+        ["command", "text", "choice", "ui_action", "approval", "wait"]
     );
+    let rule = ir
+        .nodes
+        .iter()
+        .find(|n| n.step.id == "s-text")
+        .and_then(|n| n.step.rules.first().cloned())
+        .expect("cancel rule");
+    assert_eq!(rule["on"], serde_json::json!({"cancel": true}));
 }
 
 #[test]
@@ -138,9 +159,84 @@ fn pack10_semantic_violations_are_structure_errors() {
 }
 
 #[test]
-fn pack10_wait_is_still_accepted() {
-    // wait の型は #116 が足す。1/2 の時点では今までどおり通す。
-    assert!(diags_for_input("{kind: wait}").is_empty());
+fn pack10_wait_with_processing_validates() {
+    assert!(diags_for_step("{kind: wait}", "processing: [{name: p1}],").is_empty());
+}
+
+#[test]
+fn pack10_wait_requires_processing() {
+    assert_eq!(
+        only_code(&diags_for_input("{kind: wait}")),
+        DiagCode::Structure
+    );
+    assert_eq!(
+        only_code(&diags_for_step("{kind: wait}", "processing: [],")),
+        DiagCode::Structure
+    );
+}
+
+#[test]
+fn pack10_wait_has_no_fields() {
+    let d = diags_for_step("{kind: wait, extra: 1}", "processing: [{name: p1}],");
+    assert_eq!(only_code(&d), DiagCode::Parse);
+    assert!(d[0].to_string().contains("extra"), "{}", d[0]);
+}
+
+#[test]
+fn pack10_processing_without_wait_is_allowed() {
+    let d = diags_for_step("{kind: command, name: x}", "processing: [{name: p1}],");
+    assert!(d.is_empty(), "{d:?}");
+}
+
+#[test]
+fn pack10_cancel_is_not_an_input_kind() {
+    assert_eq!(
+        only_code(&diags_for_input("{kind: cancel}")),
+        DiagCode::Parse
+    );
+}
+
+#[test]
+fn pack10_cancel_rule_validates_on_any_kind() {
+    let rule = "rules: [{id: r, on: {cancel: true}, outcome: {kind: accept}}],";
+    for (input, extra) in [
+        ("{kind: text, min: 1, max: 5}", String::new()),
+        ("{kind: command, name: x}", String::new()),
+        ("{kind: wait}", "processing: [{name: p1}],".to_string()),
+    ] {
+        let d = diags_for_step(input, &format!("{rule} {extra}"));
+        assert!(d.is_empty(), "{input}: {d:?}");
+    }
+}
+
+#[test]
+fn pack10_cancel_rule_value_must_be_true() {
+    let input = "{kind: text, min: 1, max: 5}";
+    for (v, code) in [
+        ("'yes'", DiagCode::Parse),
+        ("1", DiagCode::Parse),
+        ("false", DiagCode::Structure),
+    ] {
+        let extra = format!("rules: [{{id: r, on: {{cancel: {v}}}, outcome: {{kind: accept}}}}],");
+        assert_eq!(only_code(&diags_for_step(input, &extra)), code, "{v}");
+    }
+}
+
+#[test]
+fn pack10_wait_and_cancel_in_format_a() {
+    let t = Tmp::new("input-wait-a");
+    t.put(
+        "workshop.toml",
+        b"[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n",
+    );
+    let chapter = concat!(
+        "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
+        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"wait\" }\nprocessing = [{ name = \"p1\" }]\n",
+        "rules = [{ id = \"r\", on = { cancel = true }, outcome = { kind = \"accept\" } }]\nnext = [{ to = \"b\" }]\n",
+        "[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n",
+    );
+    t.put("chapters/c1/chapter.toml", chapter.as_bytes());
+    compile_dir(&t.0).expect("wait and cancel validate in format A");
 }
 
 #[test]
@@ -174,6 +270,14 @@ fn pack10_diagnostics_do_not_leak_values() {
         assert!(!d.is_empty(), "{c}");
         assert_no_secret(&d);
     }
+    for extra in [
+        format!("rules: [{{id: {SECRET}, on: {{cancel: {SECRET}}}}}],"),
+        format!("rules: [{{id: {SECRET}, on: {{cancel: false}}}}],"),
+    ] {
+        let d = diags_for_step("{kind: approval}", &extra);
+        assert!(!d.is_empty(), "{extra}");
+        assert_no_secret(&d);
+    }
     // 識別子として安全でない欄の名前は写さない。
     let d = diags_for_input("{kind: text, min: 1, max: 10, \"SECRET BODY\": 1}");
     assert_eq!(only_code(&d), DiagCode::Parse);
@@ -197,4 +301,9 @@ fn pack10_kinds_are_in_vocabulary() {
             .any(|t| t.kind == "input" && t.term == k.as_str());
         assert!(hit, "{} is not in the vocabulary table", k.as_str());
     }
+    // cancel は規則の語で、kind には含めない（EP-2）。
+    assert!(TERMS
+        .iter()
+        .any(|t| t.kind == "input" && t.term == "cancel"));
+    assert_eq!(InputKind::from_str_opt("cancel"), None);
 }
