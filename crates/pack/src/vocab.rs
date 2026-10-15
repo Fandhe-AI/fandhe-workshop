@@ -4,6 +4,11 @@
 //! `fandhe-pack vocab`（TASK-408）の数え上げと、宣言と使用の一致の検査（TASK-59）が、
 //! 語ごとの語彙の版を引くために使う。文書と本表の一致は `tests/vocabulary_terms.rs` が確かめる。
 //! 純粋な定数の表で、I/O も panic も持たない。
+//!
+//! `result`・`rejection` の語は、contract の [`JudgmentKind`]・[`Category`]（TASK-256）への写し
+//! （[`result_kind`]・[`rejection_category`]）を持つ。判定結果と拒否分類の型は contract が正で、pack は別に定義しない（TASK-45）。
+
+use fandhe_workshop_contract::judgment::{Category, JudgmentKind};
 
 /// 語彙の版（語ごとの版）。文書の版や IR の形式の版 `ir_format` とは別に管理する。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -642,3 +647,27 @@ pub const TERMS: &[VocabTerm] = &[
         extension_point: None,
     },
 ];
+
+/// 表に（`kind`, `term`）の組があるか。
+fn has_term(kind: &str, term: &str) -> bool {
+    TERMS.iter().any(|t| t.kind == kind && t.term == term)
+}
+
+/// 語彙の `result` の語を判定結果の種類に写す。語彙にある 3 語（`accepted`・`rejected`・`clarified`）だけを受ける。
+/// `confirmed`・`progressed`・`ignored` はエンジン側の名前で語彙ではないため `None` を返す。
+/// 教材テストの期待の読み取り（TASK-45 2/2）が呼ぶ。
+pub fn result_kind(term: &str) -> Option<JudgmentKind> {
+    if !has_term("result", term) {
+        return None;
+    }
+    JudgmentKind::ALL.into_iter().find(|k| k.as_str() == term)
+}
+
+/// 語彙の `rejection` の語を分類に写す。8 語を受け、`free_text_unjudged` は [`Category::is_rejection`] が偽になる。
+/// 大文字・空白・未知の語は `None`。
+pub fn rejection_category(term: &str) -> Option<Category> {
+    if !has_term("rejection", term) {
+        return None;
+    }
+    Category::from_str_opt(term)
+}
