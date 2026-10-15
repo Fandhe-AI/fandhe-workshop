@@ -145,6 +145,17 @@ fn unknown_field_name(msg: &str) -> Option<String> {
     ok.then(|| name.to_string())
 }
 
+/// 効果の語の欄。
+const WORDS: &[&str] = &[
+    "put",
+    "remove",
+    "replace",
+    "set_attr",
+    "set_flag",
+    "clear_flag",
+    "set_flag_global",
+];
+
 fn non_empty(s: &str, what: &'static str) -> Result<(), EffectParseError> {
     if s.is_empty() {
         Err(EffectParseError::EmptyName(what))
@@ -156,22 +167,30 @@ fn non_empty(s: &str, what: &'static str) -> Result<(), EffectParseError> {
 impl EffectItem {
     /// `Value` から項目を解釈する。語はちょうど 1 つで、語彙にない欄は拒否する。
     pub fn from_value(v: &Value) -> Result<EffectItem, EffectParseError> {
+        // serde の構造体は位置指定の配列も受理し、`Option` は null を未指定として扱う。
+        // 未信頼の教材入力のため、構造体へ入れる前に元のオブジェクトの形を検査する。
+        let obj = v.as_object().ok_or(EffectParseError::Shape {
+            unknown_field: None,
+        })?;
+        let mut count = 0;
+        for word in WORDS {
+            if let Some(val) = obj.get(*word) {
+                let shape_ok = match *word {
+                    "put" | "replace" | "set_attr" => val.is_object(),
+                    _ => val.is_string(),
+                };
+                if !shape_ok {
+                    return Err(EffectParseError::Shape {
+                        unknown_field: None,
+                    });
+                }
+                count += 1;
+            }
+        }
         let raw: EffectRaw =
             serde_json::from_value(v.clone()).map_err(|e| EffectParseError::Shape {
                 unknown_field: unknown_field_name(&e.to_string()),
             })?;
-        let count = [
-            raw.put.is_some(),
-            raw.remove.is_some(),
-            raw.replace.is_some(),
-            raw.set_attr.is_some(),
-            raw.set_flag.is_some(),
-            raw.clear_flag.is_some(),
-            raw.set_flag_global.is_some(),
-        ]
-        .iter()
-        .filter(|b| **b)
-        .count();
         if count != 1 {
             return Err(EffectParseError::WordCount(count));
         }

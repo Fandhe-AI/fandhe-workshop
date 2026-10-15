@@ -135,3 +135,30 @@ fn pack9_errors_do_not_carry_input_values() {
     let e = parse(json!({"put": {"path": "a"}, "sec ret `x": "SECRET-VALUE"})).unwrap_err();
     assert!(!format!("{e:?} {e}").contains("SECRET-VALUE"));
 }
+
+#[test]
+fn pack9_positional_array_forms_are_rejected() {
+    for v in [
+        json!(["put"]),
+        json!({"put": ["a", null, {}]}),
+        json!({"replace": ["a", null, {}]}),
+        json!({"set_attr": ["a", "b", "c"]}),
+    ] {
+        assert!(
+            matches!(parse(v.clone()), Err(EffectParseError::Shape { .. })),
+            "{v}"
+        );
+    }
+}
+
+#[test]
+fn pack9_null_word_is_not_treated_as_unspecified() {
+    assert!(matches!(
+        parse(json!({"put": {"path": "a"}, "remove": null})),
+        Err(EffectParseError::Shape { .. })
+    ));
+    assert!(matches!(
+        parse(json!({"remove": null})),
+        Err(EffectParseError::Shape { .. })
+    ));
+}
