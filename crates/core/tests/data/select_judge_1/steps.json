@@ -1,0 +1,121 @@
+{
+  "choice": {
+    "id": "st-choice",
+    "title": "選択肢",
+    "input": {
+      "kind": "choice",
+      "options": [
+        { "id": "opt-memo", "label": "メモ" },
+        { "id": "opt-todo", "label": "ToDo" },
+        { "id": "opt-ask", "label": "どちらでもない" },
+        { "id": "opt-when", "label": "条件つき" }
+      ]
+    },
+    "rules": [
+      { "id": "r-ghost", "on": { "option": "ghost" }, "outcome": { "kind": "accept" } },
+      { "id": "r-extra", "on": { "option": "opt-todo", "approval": "approve" }, "outcome": { "kind": "accept" } },
+      { "id": "r-memo", "on": { "option": "opt-memo" }, "outcome": { "kind": "accept" } },
+      { "id": "r-todo", "on": { "option": "opt-todo" }, "outcome": { "kind": "reject", "rejection": "rj-todo" } },
+      { "id": "r-ask", "on": { "option": "opt-ask" }, "outcome": { "kind": "clarify", "clarification": "cl-ask" } },
+      { "id": "r-when", "on": { "option": "opt-when" }, "when": { "flag": "ready" }, "outcome": { "kind": "accept" } },
+      { "id": "r-when-fallback", "on": { "option": "opt-when" }, "outcome": { "kind": "reject", "rejection": "rj-when" } }
+    ]
+  },
+  "ui": {
+    "id": "st-ui",
+    "title": "画面操作",
+    "input": {
+      "kind": "ui_action",
+      "targets": [
+        { "view": "tree", "path": "notes/a" },
+        { "view": "tree", "path": "notes/b" }
+      ]
+    },
+    "rules": [
+      { "id": "r-b-extra", "on": { "ui": { "view": "tree", "path": "notes/b" }, "option": "x" }, "outcome": { "kind": "accept" } },
+      { "id": "r-a", "on": { "ui": { "view": "tree", "path": "notes/a" } }, "outcome": { "kind": "accept" } },
+      { "id": "r-c", "on": { "ui": { "view": "tree", "path": "notes/c" } }, "outcome": { "kind": "accept" } }
+    ]
+  },
+  "approval": {
+    "id": "st-approval",
+    "title": "承認",
+    "input": { "kind": "approval" },
+    "rules": [
+      { "id": "r-revise-x", "on": { "approval": "revise", "target": "X" }, "outcome": { "kind": "accept" } },
+      { "id": "r-approve", "on": { "approval": "approve" }, "outcome": { "kind": "accept" } },
+      { "id": "r-decline", "on": { "approval": "reject" }, "outcome": { "kind": "reject", "rejection": "rj-decline" } }
+    ]
+  },
+  "bad_outcome": {
+    "id": "st-bad",
+    "title": "不正",
+    "input": { "kind": "approval" },
+    "rules": [
+      { "id": "r-bad", "on": { "approval": "approve" }, "outcome": { "kind": "teleport" } }
+    ]
+  },
+  "bad_reject": {
+    "id": "st-bad2",
+    "title": "不正",
+    "input": { "kind": "approval" },
+    "rules": [
+      { "id": "r-bad", "on": { "approval": "approve" }, "outcome": { "kind": "reject" } }
+    ]
+  },
+  "bad_input": {
+    "id": "st-bad3",
+    "title": "不正",
+    "input": { "kind": "choice", "options": [], "surprise": 1 },
+    "rules": []
+  },
+  "bad_approval_input": {
+    "id": "st-bad4",
+    "title": "不正（承認）",
+    "input": { "kind": "approval", "surprise": 1 },
+    "rules": [
+      { "id": "r-approve", "on": { "approval": "approve" }, "outcome": { "kind": "accept" } }
+    ]
+  },
+  "text_step": {
+    "id": "st-text",
+    "title": "自然文",
+    "input": { "kind": "text", "min": 1, "max": 10 },
+    "rules": []
+  },
+  "no_input": { "id": "st-none", "title": "入力なし" },
+  "confirm_answer": {
+    "id": "st-ans",
+    "title": "答える",
+    "confirm": {
+      "kind": "answer",
+      "on_wrong": "w-default",
+      "options": [
+        { "id": "right", "correct": true },
+        { "id": "wrong-own", "correct": false, "on_wrong": "w-own" },
+        { "id": "wrong-default", "correct": false }
+      ]
+    }
+  },
+  "confirm_point": {
+    "id": "st-point",
+    "title": "指す",
+    "confirm": {
+      "kind": "point_at",
+      "targets": [{ "view": "tree", "path": "notes/a" }],
+      "on_miss": "m-miss"
+    }
+  },
+  "confirm_point_nomiss": {
+    "id": "st-point2",
+    "title": "指す",
+    "confirm": {
+      "kind": "point_at",
+      "targets": [{ "view": "tree", "path": "notes/a" }]
+    }
+  },
+  "confirm_approve": { "id": "st-ap", "title": "承認", "confirm": { "kind": "approve" } },
+  "confirm_none": { "id": "st-no", "title": "省略", "confirm": { "kind": "none", "reason": "確認は要らない" } },
+  "confirm_missing": { "id": "st-miss", "title": "確認なし" },
+  "confirm_bad": { "id": "st-cb", "title": "不正", "confirm": { "kind": "mystery" } }
+}

@@ -1,0 +1,8 @@
+id: JUDGE1-U1
+package: fandhe-workshop-core
+test: select_judge
+target: crates/core/src/select_judge.rs
+find: .any(|t| t.view == *view && t.path == *path))
+replace: .any(|t| t.view == *view))
+expect-fail: ui_action_rejects_other_path
+note: 画面操作の宣言の照合で path の比較を外す（view が同じなら宣言に無い path も通る）
