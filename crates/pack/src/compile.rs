@@ -12,25 +12,35 @@
 //! 出力の `ir_format` は、宣言した値ではなく、使った項目に足りる最小の版（[`Ir::required_ir_format`]）にする
 //! （D-52）。木を使わない教材パックは版 1 のまま、版 1 とバイト単位で同じ IR になる。`workshop.*` に書ける
 //! `ir_format` は 1 か 2（PACK-24 の読み）で、それ以外は `E-FORMAT-VERSION` で止める。
+//!
+//! モジュールの `use` は [`crate::expand`] が実体に展開する（TASK-50 1/2）。章は実体 `main`、呼ばれた
+//! モジュールは `<モジュール ID>@<実体名>` の実体で、Step の `uid` は `<実体 ID>/<Step ID>` になる。遷移先と
+//! 開始の解決は、実体からの相対で行う。呼ばれないモジュールは IR に出さず、中身も検査しない。
 //! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
-//! モジュールの展開は TASK-50 が扱うため、`use` を持つ Step は拒否する。
+//! モジュールの宣言が `${` を含む場合は、引数を置換した後の値を [`crate::expand`] が検査する。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use fandhe_workshop_contract::doc::Doc;
-use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Node, Start};
+use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Start};
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::confirm;
 use crate::diag::{DiagCode, Diagnostic};
-use crate::effect_check::{check_effects, check_processing};
+use crate::effect_check::check_effects;
+use crate::expand::Expander;
 use crate::input;
 use crate::markdown;
 use crate::source::{self, LoadedPack, ScopeKind};
 
-fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> Diagnostic {
+pub(crate) fn diag(
+    file: &str,
+    item: &str,
+    code: DiagCode,
+    message: impl Into<String>,
+) -> Diagnostic {
     let file = if file.trim().is_empty() { "." } else { file };
     let item = if item.trim().is_empty() { "pack" } else { item };
     // file と item を空でない値に直したので、Diagnostic::new は失敗しない。
@@ -53,106 +63,21 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     }
 
     let (profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
-    let mut diags = profile_diags;
-    let mut nodes: Vec<Node> = Vec::new();
     let mut starts: Vec<Start> = Vec::new();
-    let mut uids: BTreeSet<String> = BTreeSet::new();
-    // 遷移先の検査対象。node 化しない `use` の Step も含める。file・item・書き換え前の遷移先 ID を保持する。
-    let mut checks: Vec<(String, String, Vec<String>)> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
-    // 木にする本文・練習データの元の量の合計。同じ本文を多数の Step が参照しても、木の確保が出力の
-    // 上限を超えて増えないようにする（`check_output` は全部を作った後に走るため、それでは間に合わない）。
-    let mut budget = Budget::new(MAX_IR_BYTES);
-    let mut over_budget = false;
+    // 木にする本文・練習データ・展開した Step の元の量の合計。同じ本文を多数の Step が参照しても、
+    // 展開が連鎖しても、確保が出力の上限を超えて増えないようにする（`check_output` は全部を作った後に
+    // 走るため、それでは間に合わない）。
+    let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    ex.diags.extend(profile_diags);
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         chapters += 1;
-        for step in &scope.src.steps {
-            let item = format!("step:{}", step.id);
-            let uid = format!("main/{}", step.id);
-            if !uids.insert(uid.clone()) {
-                diags.push(diag(
-                    &scope.file,
-                    &item,
-                    DiagCode::DupId,
-                    format!("duplicate step id: {}", step.id),
-                ));
-                continue;
-            }
-            checks.push((
-                scope.file.clone(),
-                item.clone(),
-                step.next.iter().map(|t| t.to.clone()).collect(),
-            ));
-            if step.use_module.is_some() {
-                diags.push(diag(
-                    &scope.file,
-                    &item,
-                    DiagCode::Structure,
-                    "module expansion is not implemented yet (TASK-50)",
-                ));
-                continue;
-            }
-            // 状態変化の語彙（TASK-43 1/2）。`use` の Step は上で拒否済みなので検査しない。
-            for (field, list) in [
-                ("on_enter", &step.on_enter),
-                ("on_achieved", &step.on_achieved),
-            ] {
-                for (code, msg) in check_effects(list, field, &w.fixtures) {
-                    diags.push(diag(&scope.file, &item, code, msg));
-                }
-            }
-            for (code, msg) in check_processing(&step.processing, &w.fixtures) {
-                diags.push(diag(&scope.file, &item, code, msg));
-            }
-            let mut s = step.clone();
-            for t in &mut s.next {
-                t.to = format!("main/{}", t.to);
-            }
-            // 木を作る前に、積み上げる本文の量を予算と照らす。超えたら以降の木は作らない。
-            let mut body_doc = None;
-            let mut body_levels_doc = BTreeMap::new();
-            if !over_budget {
-                for b in step.body.iter().chain(step.body_levels.values()) {
-                    let len = body_len(pack, &scope.dir, b);
-                    if !budget.take(len) {
-                        over_budget = true;
-                        diags.push(diag(
-                            &scope.file,
-                            &item,
-                            DiagCode::Limit,
-                            "bodies to embed exceed the IR size limit",
-                        ));
-                        break;
-                    }
-                }
-            }
-            if !over_budget {
-                body_doc = step
-                    .body
-                    .as_deref()
-                    .and_then(|b| body_tree(pack, &scope.dir, b));
-                body_levels_doc = step
-                    .body_levels
-                    .iter()
-                    .filter_map(|(level, b)| Some((level.clone(), body_tree(pack, &scope.dir, b)?)))
-                    .collect();
-            }
-            nodes.push(Node {
-                uid,
-                scope: "main".to_string(),
-                unit: scope.src.id.clone(),
-                step: s,
-                enter: None,
-                exit_to: None,
-                body_doc,
-                body_levels_doc,
-            });
-        }
+        ex.expand_chapter(scope);
         for st in &scope.src.starts {
             if !start_ids.insert(st.id.clone()) {
-                diags.push(diag(
+                ex.diags.push(diag(
                     &scope.file,
                     &format!("start:{}", st.id),
                     DiagCode::DupId,
@@ -160,8 +85,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 ));
                 continue;
             }
-            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures) {
-                diags.push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
+            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures, false) {
+                ex.diags
+                    .push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
             }
             let mut s = st.clone();
             s.node = format!("main/{}", st.node);
@@ -169,7 +95,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         }
     }
     if chapters == 0 {
-        diags.push(diag(
+        ex.diags.push(diag(
             "chapters",
             "pack",
             DiagCode::Structure,
@@ -178,7 +104,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     } else if starts.is_empty() {
         // 開始点が 0 件の IR は、エンジンが開始できない（PACK-25、D-43 で拒否と決定）。Step が空の章だけの
         // パックもここに当たる（開始点を書けば、宛先の Step が無いことで E-REF-STEP になる）。
-        diags.push(diag(
+        ex.diags.push(diag(
             "chapters",
             "pack",
             DiagCode::Structure,
@@ -186,15 +112,15 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         ));
     }
 
-    // 遷移先・開始の解決。解決先は実際に node 化した Step だけにする（`use` の Step は含めない）。
-    // 診断の file は、最初に定義した章の定義ファイル、遷移先は教材に書かれた元の ID で示す。
-    let defined: BTreeSet<&str> = nodes.iter().map(|n| n.uid.as_str()).collect();
-    for (file, item, targets) in &checks {
-        for to in targets {
-            if !defined.contains(format!("main/{to}").as_str()) {
+    // 遷移先・開始の解決。解決先は展開した実体の node（`use` の Step も node である）。
+    // 診断の file は、Step を定義した章・モジュールの定義ファイル、遷移先は教材に書かれた元の ID で示す。
+    let mut diags = std::mem::take(&mut ex.diags);
+    for c in &ex.checks {
+        for to in &c.targets {
+            if !ex.uids.contains(&format!("{}/{to}", c.inst)) {
                 diags.push(diag(
-                    file,
-                    item,
+                    &c.file,
+                    &c.item,
                     DiagCode::RefStep,
                     format!("transition target is undefined: {to}"),
                 ));
@@ -203,7 +129,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     }
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         for st in &scope.src.starts {
-            if !defined.contains(format!("main/{}", st.node).as_str()) {
+            if !ex.uids.contains(&format!("main/{}", st.node)) {
                 diags.push(diag(
                     &scope.file,
                     &format!("start:{}", st.id),
@@ -213,14 +139,32 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
             }
         }
     }
+    ex.diags = Vec::new();
+    starts.extend(ex.module_starts(&mut start_ids));
+    diags.append(&mut ex.diags);
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
-    diags.extend(input::check_inputs(&pack.scopes));
     // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
+    // 接頭辞と入力欄の有無に反する入力・規則を検査する（TASK-52、PACK-20）。
+    // モジュールの `input`・`confirm` が `${` を含む Step は、ここでは飛ばし、展開（`expand`）が引数を
+    // 置換した後の Step を検査する（置換前は読めない・置換後に違反になりうるため）。
+    // `use` と `input` の同時指定を拒否する（PACK-19）。確認の検査は `use` の Step を飛ばすため、ここで
+    // 拒否しないと確認の無い入力が IR に載る。
+    diags.extend(crate::expand::check_use_steps(&pack.scopes));
+    diags.extend(input::check_inputs(&pack.scopes));
     diags.extend(confirm::check_confirms(&pack.scopes));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
+    // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
+    let mut seen = BTreeSet::new();
+    diags.retain(|d| seen.insert(format!("{d:?}")));
     if !diags.is_empty() {
         return Err(diags);
     }
+    let Expander {
+        nodes,
+        instances: child_instances,
+        mut budget,
+        ..
+    } = ex;
 
     for id in w.fixtures.keys() {
         let len = pack.fixture_texts.get(id).map_or(0, |t| t.len() as u64);
@@ -250,6 +194,13 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         })
         .collect();
 
+    let mut instances = vec![Instance {
+        id: "main".to_string(),
+        module: None,
+        args: BTreeMap::new(),
+        caller: None,
+    }];
+    instances.extend(child_instances);
     let mut ir = Ir {
         format_version: w.pack.ir_format,
         pack: w.pack.clone(),
@@ -261,12 +212,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         rejections: w.rejections.clone(),
         clarifications: w.clarifications.clone(),
         defaults: w.defaults.clone(),
-        instances: vec![Instance {
-            id: "main".to_string(),
-            module: None,
-            args: BTreeMap::new(),
-            caller: None,
-        }],
+        instances,
         nodes,
         starts,
         fixture_docs,
@@ -279,17 +225,22 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
 }
 
 /// 木にする元の量の予算。
-struct Budget {
+pub(crate) struct Budget {
     left: u64,
 }
 
 impl Budget {
-    fn new(limit: u64) -> Self {
+    pub(crate) fn new(limit: u64) -> Self {
         Budget { left: limit }
     }
 
+    /// 残りのバイト数。
+    pub(crate) fn left(&self) -> u64 {
+        self.left
+    }
+
     /// `n` バイトを使う。足りなければ何も使わず `false`。
-    fn take(&mut self, n: u64) -> bool {
+    pub(crate) fn take(&mut self, n: u64) -> bool {
         match self.left.checked_sub(n) {
             Some(rest) => {
                 self.left = rest;
@@ -301,7 +252,7 @@ impl Budget {
 }
 
 /// 本文の参照が指す本文のバイト数。無ければ 0。
-fn body_len(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> u64 {
+pub(crate) fn body_len(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> u64 {
     pack.bodies
         .get(&format!("{scope_dir}/{body_ref}"))
         .map_or(0, |t| t.len() as u64)
@@ -309,7 +260,7 @@ fn body_len(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> u64 {
 
 /// 本文の参照から木を作る。`source::load` が読んだ本文だけを見る。無ければ `None`
 /// （`load` は参照の欠けを診断にするので、成功した `LoadedPack` では通常は起きない）。
-fn body_tree(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> Option<Doc> {
+pub(crate) fn body_tree(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> Option<Doc> {
     pack.bodies
         .get(&format!("{scope_dir}/{body_ref}"))
         .map(|text| markdown::parse(text))

@@ -17,11 +17,12 @@ use fandhe_workshop_contract::input_spec::{
     ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec, WaitSpec,
     CANCEL_RULE_KEY,
 };
+use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::{safe_ident, LoadedScope};
+use crate::source::{safe_ident, LoadedScope, ScopeKind};
 
 pub(crate) fn diag(
     scope: &LoadedScope,
@@ -77,7 +78,11 @@ fn check_one<T: DeserializeOwned>(
     check(&spec).map_err(|e| (DiagCode::Structure, format!("input ({kind}): {e}")))
 }
 
-fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, String)> {
+fn check_input(
+    input: &Value,
+    has_processing: bool,
+    redact: bool,
+) -> Result<(), (DiagCode, String)> {
     let Some(obj) = input.as_object() else {
         return Err((DiagCode::Parse, "input: must be a mapping".to_string()));
     };
@@ -88,7 +93,7 @@ fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, Str
         ));
     };
     let Some(k) = InputKind::from_str_opt(kind) else {
-        let msg = if safe_ident(kind) {
+        let msg = if !redact && safe_ident(kind) {
             format!("input: unknown kind {kind}")
         } else {
             "input: unknown kind".to_string()
@@ -119,6 +124,20 @@ fn check_input(input: &Value, has_processing: bool) -> Result<(), (DiagCode, Str
     }
 }
 
+/// 引数を置換した後の Step の `input` を検査する。`use` の展開が `input` の値を変えうるため
+/// （例: コマンド名が空になる・選択肢の ID が重なる）、置換前の `input` が `${` を含む Step について
+/// 展開が呼ぶ（含まない Step は置換前の検査だけで足り、同じ違反を 2 回報告しない）。
+/// 診断は定義元の章・モジュールのファイルと Step に紐付ける。
+pub(crate) fn check_step_input(
+    scope: &LoadedScope,
+    step: &Step,
+    redact: bool,
+) -> Option<Diagnostic> {
+    let input = step.input.as_ref()?;
+    let (code, msg) = check_input(input, !step.processing.is_empty(), redact).err()?;
+    Some(diag(scope, &step.id, code, msg))
+}
+
 /// 規則の `on.cancel`（EP-2）の値だけを検査する。メッセージに規則の ID・値は写さない。
 fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
     rules
@@ -140,14 +159,25 @@ fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
         .collect()
 }
 
+/// 宣言（`input`・`confirm`）が引数の置換記号 `${` を含むか。含まない宣言は置換で変わらないので、
+/// 置換前の検査の結果が置換後にもそのまま当てはまる。
+pub(crate) fn has_placeholder(decl: &Option<Value>) -> bool {
+    decl.as_ref().is_some_and(|v| v.to_string().contains("${"))
+}
+
 /// 章・モジュールのすべての Step の `input` を検査し、診断を集める。
 pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for scope in scopes {
         for step in &scope.src.steps {
-            if let Some(input) = &step.input {
-                if let Err((code, msg)) = check_input(input, !step.processing.is_empty()) {
-                    out.push(diag(scope, &step.id, code, msg));
+            // モジュールの `input` が `${...}` を含むときは、置換前の値が語彙として読めないことがある。
+            // その宣言は検査せず、展開後の宣言を `check_step_input` が検査する。
+            if scope.kind == ScopeKind::Chapter || !has_placeholder(&step.input) {
+                if let Some(input) = &step.input {
+                    if let Err((code, msg)) = check_input(input, !step.processing.is_empty(), false)
+                    {
+                        out.push(diag(scope, &step.id, code, msg));
+                    }
                 }
             }
             for (code, msg) in check_cancel_rules(&step.rules) {

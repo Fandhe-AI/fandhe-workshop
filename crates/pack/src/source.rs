@@ -8,7 +8,7 @@
 //! 上限の値と拒否理由の文面は契約（TASK-199、`contract::limits`）の共有定数・`PackLimitCode` に従う。
 //! 形式の判定（`workshop.yaml` と `workshop.toml` の両方・どちらも無いは拒否。PACK-2）と、語彙にない欄の
 //! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。引用符なしの値の文字列としての読み取り・重複キーの拒否・
-//! 構文エラーの行と桁（PACK-4）も本モジュールと `yaml_strict` が扱う。モジュールの展開は TASK-50 が扱う。
+//! 構文エラーの行と桁（PACK-4）も本モジュールと `yaml_strict` が扱う。モジュールの展開は `compile`（`expand`）が行う。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};

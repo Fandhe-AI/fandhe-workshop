@@ -20,11 +20,13 @@ use crate::diag::DiagCode;
 /// `list`（欄名 `field`）の各項目を検査し、誤りごとに `(コード, 文面)` を返す。
 ///
 /// 文面は `field[添字]: ...` の形。`fixtures` は `workshop.fixtures` で、`put`・`replace` の `fixture` の
-/// 参照を解決する。
+/// 参照を解決する。`redact` が真のとき（`use` の引数を置換した後の検査）は、置換で入りうる値を文面に
+/// 入れない。
 pub(crate) fn check_effects(
     list: &[Value],
     field: &str,
     fixtures: &BTreeMap<String, FixtureDef>,
+    redact: bool,
 ) -> Vec<(DiagCode, String)> {
     let mut out = Vec::new();
     for (i, v) in list.iter().enumerate() {
@@ -41,10 +43,12 @@ pub(crate) fn check_effects(
                 if let Effect::Put(p) | Effect::Replace(p) = &item.effect {
                     if let Some(f) = &p.fixture {
                         if !fixtures.contains_key(f) {
-                            out.push((
-                                DiagCode::RefFixture,
-                                format!("{prefix}: fixture is undefined: {f}"),
-                            ));
+                            let msg = if redact {
+                                format!("{prefix}: fixture is undefined")
+                            } else {
+                                format!("{prefix}: fixture is undefined: {f}")
+                            };
+                            out.push((DiagCode::RefFixture, msg));
                         }
                     }
                 }
@@ -61,6 +65,7 @@ pub(crate) fn check_effects(
 pub(crate) fn check_processing(
     list: &[Value],
     fixtures: &BTreeMap<String, FixtureDef>,
+    redact: bool,
 ) -> Vec<(DiagCode, String)> {
     let mut out = Vec::new();
     for (i, v) in list.iter().enumerate() {
@@ -77,6 +82,7 @@ pub(crate) fn check_processing(
                     &effects,
                     &format!("processing[{i}].effects"),
                     fixtures,
+                    redact,
                 ));
             }
         }

@@ -113,7 +113,7 @@ fn pack24_map_keys_are_sorted_in_output() {
 }
 
 #[test]
-fn pack1_module_pack_loads_but_does_not_expand() {
+fn pack19_module_pack_expands() {
     let dir = testdata("module-reuse-rounds/test-data/pack");
     let pack = load(&dir).expect("load");
     let modules = pack
@@ -122,12 +122,9 @@ fn pack1_module_pack_loads_but_does_not_expand() {
         .filter(|s| s.kind == fandhe_workshop_pack::source::ScopeKind::Module)
         .count();
     assert_eq!(modules, 2);
-    let d = compile(&pack).expect_err("use is not expanded");
-    // `use` の Step は node にならないため、それへの遷移は E-REF-STEP としても報告される。
-    assert!(d
-        .iter()
-        .all(|x| matches!(x.code(), DiagCode::Structure | DiagCode::RefStep)));
-    assert!(d.iter().any(|x| x.code() == DiagCode::Structure));
+    let ir = compile(&pack).expect("module pack expands");
+    assert_eq!(ir.nodes.len(), 36);
+    assert_eq!(ir.instances.len(), 5);
 }
 
 #[test]
@@ -446,7 +443,7 @@ fn neg_duplicate_step_blames_first_definition_file() {
 }
 
 #[test]
-fn neg_use_step_is_not_a_resolved_target_and_is_checked() {
+fn neg_use_of_undefined_module_is_reported_and_other_targets_are_checked() {
     let t = minimal();
     t.put(
         "chapters/c1/chapter.yaml",
@@ -458,13 +455,15 @@ fn neg_use_step_is_not_a_resolved_target_and_is_checked() {
         .as_bytes(),
     );
     let d = diags(&t);
+    // `use` の Step は node になるので、`u` への遷移は解決する。未定義なのはモジュール `m` と遷移先 `zz`。
+    assert!(d.iter().any(|x| x.code() == DiagCode::RefModule), "{d:?}");
     let refs: Vec<&str> = d
         .iter()
         .filter(|x| x.code() == DiagCode::RefStep)
         .map(Diagnostic::message)
         .collect();
-    assert!(refs.iter().any(|m| m.ends_with(": u")), "{refs:?}");
-    assert!(refs.iter().any(|m| m.ends_with(": zz")), "{refs:?}");
+    assert_eq!(refs.len(), 1, "{refs:?}");
+    assert!(refs[0].ends_with(": zz"), "{refs:?}");
 }
 
 #[test]

@@ -13,7 +13,12 @@
 //! 決定事項（2026-10-15）:
 //! - `none` の `reason` の欠け・空・空白だけは、PACK-13 の「理由つき」の違反として `E-NO-CONFIRM` にする
 //!   （`E-PARSE` にしない）
-//! - `use` を持つ Step は検査しない（展開は TASK-50 の担当）
+//! - `use` を持つ Step は検査しない（入力を持たず、確認を要さない。`use` と `input` の同時指定は
+//!   `expand::check_use_steps` が `E-STRUCTURE` で拒否する）
+//! - モジュールの `confirm` が引数の置換記号 `${` を含むときは、置換前の値を検査しない。置換前は語彙として読めず
+//!   （例: `kind: "${k}"`）、置換後に違反になりうる（例: `reason: "${why}"` に空文字）ため、展開（`expand`）が
+//!   置換後の Step を [`check_step_confirm`] で検査する（2026-10-15。`input` と同じ扱い）。置換後の診断には、
+//!   引数の値を含みうる `kind` の名前を写さない
 //! - 入力の無い Step の `confirm` は、形だけを検査し、それ自体は診断にしない（該当する診断コードが spec に無い）
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
@@ -24,12 +29,13 @@
 use fandhe_workshop_contract::confirm_spec::{
     AnswerSpec, ApproveSpec, ConfirmKind, ConfirmSpecError, NoneSpec, PointAtSpec,
 };
+use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::input::diag;
-use crate::source::{safe_ident, LoadedScope};
+use crate::input::{diag, has_placeholder};
+use crate::source::{safe_ident, LoadedScope, ScopeKind};
 
 /// serde の失敗を、値を含まない固定文にする。欄の名前は識別子として安全なときだけ写す。
 fn parse_message(kind: &str, err: &serde_json::Error) -> String {
@@ -64,8 +70,9 @@ fn check_one<T: DeserializeOwned>(
     check(&spec).map_err(|e| (DiagCode::Structure, format!("confirm ({kind}): {e}")))
 }
 
-/// `confirm` を検査する。`Err` は (コード, メッセージ)。
-fn check_confirm(confirm: &Value) -> Result<(), (DiagCode, String)> {
+/// `confirm` を検査する。`Err` は (コード, メッセージ)。`redact` が真（引数の置換後）のときは、
+/// 未知の `kind` の名前もメッセージに写さない（引数の値を含みうるため）。
+fn check_confirm(confirm: &Value, redact: bool) -> Result<(), (DiagCode, String)> {
     let Some(obj) = confirm.as_object() else {
         return Err((DiagCode::Parse, "confirm: must be a mapping".to_string()));
     };
@@ -76,7 +83,7 @@ fn check_confirm(confirm: &Value) -> Result<(), (DiagCode, String)> {
         ));
     };
     let Some(k) = ConfirmKind::from_str_opt(kind) else {
-        let msg = if safe_ident(kind) {
+        let msg = if !redact && safe_ident(kind) {
             format!("confirm: unknown kind {kind}")
         } else {
             "confirm: unknown kind".to_string()
@@ -105,24 +112,48 @@ fn check_confirm(confirm: &Value) -> Result<(), (DiagCode, String)> {
     }
 }
 
-/// 章・モジュールのすべての Step の `confirm` を検査し、診断を集める。
+/// 1 つの Step の確認を検査する。`use` を持つ Step は対象外。入力を持つのに `confirm` が無ければ `E-NO-CONFIRM`。
+fn check_one_step(
+    confirm: Option<&Value>,
+    has_input: bool,
+    redact: bool,
+) -> Result<(), (DiagCode, String)> {
+    match (confirm, has_input) {
+        (Some(confirm), _) => check_confirm(confirm, redact),
+        (None, true) => Err((
+            DiagCode::NoConfirm,
+            "confirm is missing; declare a confirmation or confirm: { kind: none } with a reason"
+                .to_string(),
+        )),
+        (None, false) => Ok(()),
+    }
+}
+
+/// 引数を置換した後の Step の `confirm` を検査する（展開が、置換前の `confirm` が `${` を含む Step に対して呼ぶ）。
+/// 置換で `reason` が空になる・選択肢の ID が重なるなど、置換前の検査では見えない違反を拾う。
+/// 診断は定義元のモジュールのファイルと Step に紐付け、引数の値は写さない。
+pub(crate) fn check_step_confirm(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
+    if step.use_module.is_some() {
+        return None;
+    }
+    let (code, msg) = check_one_step(step.confirm.as_ref(), step.input.is_some(), true).err()?;
+    Some(diag(scope, &step.id, code, msg))
+}
+
+/// 章・モジュールのすべての Step の `confirm` を検査し、診断を集める。モジュールの `confirm` が `${` を含む
+/// Step は、置換後に [`check_step_confirm`] が検査するのでここでは飛ばす（同じ違反を 2 回報告しない）。
 pub(crate) fn check_confirms(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for scope in scopes {
         for step in &scope.src.steps {
-            if step.use_module.is_some() {
+            if step.use_module.is_some()
+                || (scope.kind == ScopeKind::Module && has_placeholder(&step.confirm))
+            {
                 continue;
             }
-            let result = match (&step.confirm, &step.input) {
-                (Some(confirm), _) => check_confirm(confirm),
-                (None, Some(_)) => Err((
-                    DiagCode::NoConfirm,
-                    "confirm is missing; declare a confirmation or confirm: { kind: none } with a reason"
-                        .to_string(),
-                )),
-                (None, None) => Ok(()),
-            };
-            if let Err((code, msg)) = result {
+            if let Err((code, msg)) =
+                check_one_step(step.confirm.as_ref(), step.input.is_some(), false)
+            {
                 out.push(diag(scope, &step.id, code, msg));
             }
         }
