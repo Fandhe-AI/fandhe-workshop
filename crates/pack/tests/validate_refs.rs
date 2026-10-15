@@ -41,28 +41,28 @@ id: c1
 title: C
 starts: [{id: s1, node: a, unmet: rj-start, effects: [{put: {path: x, fixture: fx-start}}]}]
 steps:
-    - id: a
-        title: A
-        body: a.md
-        views: [v-step]
-        fixtures: [fx-step]
-        hints: [h-a]
-        on_reject: {unknown: rj-reject}
-        input: {kind: command, name: help}
-        rules:
-            - id: r1
-                on: {ui: {view: v-rule, path: x}}
-                outcome: {kind: clarify, clarification: cl-a}
-            - id: r2
-                on: {command: help}
-                outcome: {kind: reject, rejection: rj-rule, effects: [{put: {path: x, fixture: fx-rule}}]}
-        confirm: {kind: point_at, targets: [{view: v-conf, path: x}], on_miss: rj-miss}
-        next: [{to: u}]
-    - id: u
-        title: U
-        use: {module: m1, instance: i1, args: {}}
-        next: [{to: z}]
-    - {id: z, title: Z, final: true}
+-   id: a
+    title: A
+    body: a.md
+    views: [v-step]
+    fixtures: [fx-step]
+    hints: [h-a]
+    on_reject: {unknown: rj-reject}
+    input: {kind: command, name: help}
+    rules:
+        -   id: r1
+            on: {ui: {view: v-rule, path: x}}
+            outcome: {kind: clarify, clarification: cl-a}
+        -   id: r2
+            on: {command: help}
+            outcome: {kind: reject, rejection: rj-rule, effects: [{put: {path: x, fixture: fx-rule}}]}
+    confirm: {kind: point_at, targets: [{view: v-conf, path: x}], on_miss: rj-miss}
+    next: [{to: u}]
+-   id: u
+    title: U
+    use: {module: m1, instance: i1, args: {}}
+    next: [{to: z}]
+-   {id: z, title: Z, final: true}
 ";
 
 const MODULE: &str = "\
