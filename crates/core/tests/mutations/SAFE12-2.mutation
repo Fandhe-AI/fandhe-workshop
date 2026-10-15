@@ -1,0 +1,9 @@
+id: SAFE12-2
+package: fandhe-workshop-core
+test: doc_load
+target: crates/contract/src/doc.rs
+find:     if v == TREE_VERSION {
+replace:     if true {
+expect-fail: 語彙の外の種別と未知の項目と木の版の違いは型の段で拒否される
+expect-fail: ir_のどの木の版が違っても_load_ir_が拒否する
+note: 木の版の検査を外す（版 2 の木が読み込みを通る）

@@ -1,0 +1,10 @@
+id: SAFE12-1
+package: fandhe-workshop-web
+test: doc_depth
+target: crates/web/src/doc_view.rs
+find: pub const MAX_RENDER_DEPTH: usize = 32;
+replace: pub const MAX_RENDER_DEPTH: usize = 10000;
+expect-fail: 引用の入れ子は_32_段で省略になる
+expect-fail: リストの入れ子も_32_段で省略になる
+expect-fail: 強調の入れ子は上限でインラインの文字が省略になる
+note: 描画の深さの上限を事実上なくす（深い入れ子を省略せず描く）

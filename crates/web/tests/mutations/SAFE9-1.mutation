@@ -1,0 +1,8 @@
+id: SAFE9-1
+package: fandhe-workshop-web
+test: doc_links
+target: crates/web/src/doc_view.rs
+find:     if s.starts_with("//") || s.starts_with("/\\") || s.starts_with('\\') {
+replace:     if false {
+expect-fail: 許可外のリンクは文字として出る
+note: スキーム相対（// と \ 始まり）の拒否を外す（外部ホストへのリンクが a になる）

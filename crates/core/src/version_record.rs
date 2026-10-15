@@ -15,7 +15,7 @@
 //! [`check_versions_present`] は、`load_gate::parse_json_value` の後、型の変換の前に呼ぶ。
 //!
 //! 境界（ここで扱わないもの）:
-//! - `content_hash` の求め方（TASK-180）。書く関数は検査済みの `ContentHash` を引数で受ける
+//! - `content_hash` の求め方（TASK-180）。呼び出し側が `contract::content_hash::content_hash` で求め、検査済みの `ContentHash` を引数で渡す
 //! - 履歴の包み（`format`・`history_format`・`pack_id`・`ops`・`snapshot`）の検査（TASK-309）
 //! - 理由コードの文字列と判定の全体の順序（TASK-310）、開く可否の判定（TASK-174）
 
