@@ -67,6 +67,21 @@ T="$(copy_tree with-dts)"
 echo 'export {};' >"${T}/wasm/extra.d.ts"
 expect "added .d.ts is detected" 1 "${CHECK}" "${T}"
 
+T="$(copy_tree with-link-hooks-js)"
+echo '// hooks' >"${TMP_DIR}/link-target.js"
+ln -s "${TMP_DIR}/link-target.js" "${T}/test-hooks.js"
+expect "symlinked test-hooks.js is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-link-dts)"
+echo 'export {};' >"${TMP_DIR}/link-target.d.ts"
+ln -s "${TMP_DIR}/link-target.d.ts" "${T}/wasm/extra.d.ts"
+expect "symlinked .d.ts is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-link-dir)"
+mkdir "${TMP_DIR}/link-dir"
+ln -s "${TMP_DIR}/link-dir" "${T}/linked"
+expect "symlinked directory is detected" 1 "${CHECK}" "${T}"
+
 T="$(copy_tree with-meta)"
 echo '<meta name="fandhe-test-hooks" content="1">' >>"${T}/index.html"
 expect "added test-hooks meta is detected" 1 "${CHECK}" "${T}"

@@ -13,6 +13,8 @@
 #   5. test-hooks.js が配信物に無い
 #   6. 配信物のどこにも *.d.ts が無い
 #   7. WASM のバイト列に debug_ と raw-trigger が無い
+#   8. 配信物の中にシンボリックリンクが無い（find -type f はリンクを列挙せず、名前の検査（5・6）をすり抜けるため。
+#      tools/serve.mjs は配信ルート内のリンク先を配信するので、リンクは到達可能な経路になる）
 # 7 は 2026-10-15 に配信する設定の release wasm で実測し、どちらも 0 件だった（std・依存由来の文字列も残らない）。
 # 将来 0 件でなくなった場合は、試験の設定との対照つきの検査（TASK-82）へ移す。
 #
@@ -120,6 +122,15 @@ no_match "no fandhe-test-hooks meta in index.html" -q 'fandhe-test-hooks' "${IND
 no_match "no test-hooks marker in index.html" -q 'fandhe:test-hooks' "${INDEX}"
 no_match "no debug_ bytes in wasm" -aq 'debug_' "${WASM}"
 no_match "no raw-trigger bytes in wasm" -aq 'raw-trigger' "${WASM}"
+
+# シンボリックリンクは名前の検査をすり抜けるため、1 件でもあれば失敗にする（リンクを辿らない）。
+LINKS_ERR=0
+LINKS="$(cd "${DIST}" && find . -type l | LC_ALL=C sort)" || LINKS_ERR=$?
+if [ "${LINKS_ERR}" -ne 0 ]; then
+  echo "error: could not search symlinks under ${DIST}" >&2
+  exit 2
+fi
+if [ -z "${LINKS}" ]; then ok "no symlink"; else violation "symlink found: $(printf '%s' "${LINKS}" | tr '\n' ' ')"; fi
 
 # 配信物の一覧は find の出力を変数へ受けて終了状態を確かめる。名前の検査は一覧に対して行う。
 FILES_ERR=0
