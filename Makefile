@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
 
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
@@ -77,6 +77,12 @@ build-web: ## web を wasm にビルドして dist/web に配る一式を作る�
 
 test-build-web: ## build-web の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する。直接: scripts/test-build-web.sh
 	@scripts/test-build-web.sh
+
+check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh
+	@tools/check-delivery.sh
+
+test-check-delivery: ## 配信検査自体の回帰テスト（実ビルドを行うため遅い）。直接: scripts/test-check-delivery.sh
+	@scripts/test-check-delivery.sh
 
 serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直接渡す）。直接: node tools/serve.mjs
 	@node tools/serve.mjs

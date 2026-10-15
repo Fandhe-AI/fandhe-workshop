@@ -1,0 +1,8 @@
+id: G2
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/glue.rs
+find: field.set_value(draft);
+replace: field.set_value(draft); rt.dispatch_action(());
+expect-fail: glue_は状態を変える呼び出しを持たない
+note: glue から状態を変える呼び出しを足す（描画の結果から状態へ流す経路が黙って入る）

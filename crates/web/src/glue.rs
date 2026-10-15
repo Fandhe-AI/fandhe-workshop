@@ -23,16 +23,25 @@ pub(crate) fn is_mounted() -> bool {
     RUNTIME.with(|r| r.try_borrow().map(|r| r.is_some()).unwrap_or(false))
 }
 
-/// keydown の probe の受信回数。未マウント・借用中は `None`。
+/// App（`HelloView`）を読み取り専用で借りて `f` を呼ぶ。glue が App に触れる唯一の口。
 ///
+/// 状態を変える経路（`update`・`dispatch_action`）をここから作らせないため、閉じ込めは共有参照だけにする。
+/// `tests/state_paths.rs` が、`component()` の呼び出しがこの関数の本体の 1 箇所だけであることを固定する。
 /// `Runtime::component()` は `RefCell` の借用を取る。update は同期で完了するため、JS から呼ばれる時点で
-/// 可変借用は残らない。念のため外側の借用は `try_borrow` で確かめる。
-#[cfg(feature = "test-hooks")]
-pub(crate) fn keydown_probe_count() -> Option<u32> {
+/// 可変借用は残らない。念のため外側の借用は `try_borrow` で確かめ、未マウント・借用中は `None`（安全側）を返す。
+fn with_app<T>(f: impl FnOnce(&HelloView) -> T) -> Option<T> {
     RUNTIME.with(|cell| {
         let slot = cell.try_borrow().ok()?;
-        slot.as_ref().map(|rt| rt.component().keydown_probe())
+        let rt = slot.as_ref()?;
+        let app = rt.component();
+        Some(f(&app))
     })
+}
+
+/// keydown の probe の受信回数。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn keydown_probe_count() -> Option<u32> {
+    with_app(|app| app.keydown_probe())
 }
 
 /// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
@@ -40,16 +49,12 @@ pub(crate) fn keydown_probe_count() -> Option<u32> {
 /// 戻り値は（コードポイント数、超過の印、本文）。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn draft_snapshot() -> Option<(usize, bool, String)> {
-    RUNTIME.with(|cell| {
-        let slot = cell.try_borrow().ok()?;
-        slot.as_ref().map(|rt| {
-            let c = rt.component();
-            (
-                c.draft().chars().count(),
-                c.over_limit(),
-                c.draft().to_owned(),
-            )
-        })
+    with_app(|app| {
+        (
+            app.draft().chars().count(),
+            app.over_limit(),
+            app.draft().to_owned(),
+        )
     })
 }
 
@@ -65,15 +70,8 @@ fn sync_draft(root: &web_sys::Element) {
     let Ok(field) = el.dyn_into::<web_sys::HtmlTextAreaElement>() else {
         return;
     };
-    RUNTIME.with(|cell| {
-        let Ok(slot) = cell.try_borrow() else {
-            return;
-        };
-        let Some(rt) = slot.as_ref() else {
-            return;
-        };
-        let component = rt.component();
-        let draft = component.draft();
+    with_app(|app| {
+        let draft = app.draft();
         if field.value() != draft {
             field.set_value(draft);
         }
