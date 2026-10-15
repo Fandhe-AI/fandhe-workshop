@@ -1,0 +1,8 @@
+id: PACK15-2
+package: fandhe-workshop-pack
+test: confirm_on_wrong
+target: crates/pack/src/validate.rs
+find:         for option in elements(get(confirm, "options")) {
+replace:         for option in elements(get(confirm, "options")).iter().take(0) {
+expect-fail: pack15_undefined_option_on_wrong_is_ref_rejection
+note: 選択肢の on_wrong の参照先の検査を外す（存在しない文面を指しても通る）

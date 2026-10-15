@@ -9,8 +9,11 @@
 //! 判定で読むときだけ使う。`kind` は呼び出し側が取り除いてから、種類ごとの型で読む（`input_spec` と同じ方式）。
 //! どの型も未知の欄を拒否する（失敗を拒否に倒す）。エラーの `Display` は入力値を埋め込まない固定文にする。
 //!
-//! `answer` の選択肢の `on_wrong`（EP-6）は語彙で固定済みの欄なので形として受け付けるが、意味の検査は後続の
-//! タスクの担当である。`label`（v1.3）は表示名として解決する規則（PACK-23、TERM-24・TERM-25）を持つ。
+//! `answer` の選択肢の `on_wrong`（EP-6）は誤答のときの文面で、正答の選択肢には書けない（PACK-15）。
+//! 参照先の存在は pack の `validate` が検査する。`label`（v1.3）は表示名として解決する規則（PACK-23、TERM-24・TERM-25）を持つ。
+//!
+//! 版 3（2026-10-15、TASK-46 1/2）: 正答の選択肢の `on_wrong` を `OnWrongOnCorrectOption` で、空白だけの
+//! `on_wrong` を `EmptyName` で拒否する。
 //!
 //! 版 2（2026-10-15、TASK-47 2/2）: `label` が空白だけの選択肢を `EmptyName` で拒否する。表示名の解決
 //! （[`AnswerOption::display_name`]）・操作のログの文面（[`selection_log_text`]）・履歴に残す値
@@ -24,7 +27,7 @@ use std::collections::BTreeSet;
 pub use crate::input_spec::UiTarget;
 
 /// この契約の版。欄・規則を変えたら上げる。
-pub const CONFIRM_SPEC_CONTRACT_VERSION: u32 = 2;
+pub const CONFIRM_SPEC_CONTRACT_VERSION: u32 = 3;
 
 /// 確認の種類。語彙の文書 7 節の `confirm` の 4 語。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,6 +73,8 @@ pub enum ConfirmSpecError {
     EmptyList,
     /// 正答の選択肢が 1 件も無い。
     NoCorrectOption,
+    /// 正答の選択肢に `on_wrong` が書かれている（誤答の文面は誤答にだけ付く）。
+    OnWrongOnCorrectOption,
 }
 
 impl fmt::Display for ConfirmSpecError {
@@ -79,6 +84,7 @@ impl fmt::Display for ConfirmSpecError {
             Self::Duplicate => "duplicate name",
             Self::EmptyList => "empty list",
             Self::NoCorrectOption => "no correct option",
+            Self::OnWrongOnCorrectOption => "on_wrong on a correct option",
         })
     }
 }
@@ -126,7 +132,7 @@ pub struct AnswerOption {
     pub id: String,
     /// 正答か。
     pub correct: bool,
-    /// この選択肢の誤答の文面（EP-6）。意味の検査は TASK-46 の担当。
+    /// この選択肢の誤答の文面（EP-6）。書くなら空白だけにせず、正答の選択肢には書けない（`check` が拒否する）。
     #[serde(default)]
     pub on_wrong: Option<String>,
     /// 表示名（v1.3）。書かなければ ID を表示する。書くなら空白だけにしない（`check` が拒否する）。
@@ -207,6 +213,12 @@ impl AnswerSpec {
             }
             if let Some(label) = &o.label {
                 non_empty(label)?;
+            }
+            if let Some(text) = &o.on_wrong {
+                non_empty(text)?;
+                if o.correct {
+                    return Err(ConfirmSpecError::OnWrongOnCorrectOption);
+                }
             }
         }
         if !self.options.iter().any(|o| o.correct) {
