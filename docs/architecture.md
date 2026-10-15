@@ -145,8 +145,8 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
   Cargo 標準の `src/`・`tests/` とする
 - `testdata/`: 2 つ以上の crate が使う試験データと、`prototype/`・`03-poc/` から写した試験データを置く。
   出所を `testdata/README.md` に記録する（TASK-38）。リポジトリの外への相対参照を持たない（BUILD-14 の前提）。
-  1 つの crate だけが使う小さな入力は、その crate の `tests/` に置いてよい。契約のサンプル・golden の置き場の
-  細目は TASK-38・TASK-205 が決める
+  1 つの crate だけが使う小さな入力は、その crate の `tests/` に置いてよい。契約のサンプルは `testdata/contract/` に置く
+  （TASK-205。参照先は `docs/engine-api.md` の 7 節）。golden の置き場の細目は TASK-38 が決める
 - `template-workshop/`: 雛形はエンジン repo 内のディレクトリである（`D-4`）。構成の定義と適合の検査は TASK-769 が
   固定する。3 repo への移行の時期は未回答（`Q-24`）で、本文書では決めない
 - シェルの処理は既存規約どおり `scripts/` に置く（`.claude/rules/makefile.md`）
@@ -210,3 +210,4 @@ TASK-204 のとおり `core` に置く。
 | 1 | 2026-10-12 | 初版 | TASK-23。crate の境界・依存の向き・型の置き場を契約として固定する |
 
 - 2026-10-15: 第 6 節・第 12 節の `content_hash` の寄せ先を、未決から contract に確定した。第 12 節が TASK-180 に委ねた未決事項の確定で、境界・依存の向き・外部依存は変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-15: 第 8 節が TASK-205 に委ねた契約のサンプルの置き場を `testdata/contract/` に確定した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

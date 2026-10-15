@@ -6,7 +6,7 @@
 - サンプル: `event-sequence.json`（版 1）
 - 読む部品: `crates/core/tests/common/contract_sample.rs`
 - 形の試験: `crates/core/tests/contract_sample.rs`（TASK-205 1/2）
-- 適合試験: サンプルを使い、EVT-22 の決定性と EVT-6 の世代を確かめる（TASK-205 2/2。別 Issue）
+- 適合試験: `crates/core/tests/contract_conformance.rs`（TASK-205 2/2）。EVT-22 の決定性と EVT-6 の世代を確かめます。サンプルを連鎖して流す厳密な照合は、`apply()` が骨格の間は失敗するため `#[ignore]` で、結線の確認は `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored` で行います（`docs/engine-api.md` の 7 節）
 
 spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・TASK-205）で参照します。
 
