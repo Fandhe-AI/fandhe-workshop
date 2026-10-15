@@ -6,8 +6,10 @@
 //! で、core の `StepUid` の形に合わせてある。
 //!
 //! 展開は教材データを信頼しない入力として扱い、fail-closed にする。
+//! - 巡回（展開中の経路にあるモジュールを再び呼ぶ）は、巡回を閉じる `use` の Step に経路つきで
+//!   `E-MODULE-CYCLE` を付け、実体を作らず再帰しない（TASK-50 2/2）。
 //! - 入れ子は [`MAX_MODULE_DEPTH`] 段まで。それを超える呼び出しは展開せず `E-MODULE-CYCLE` にする
-//!   （巡回は必ずこの上限で止まる。巡回の場所つきの報告は TASK-50 2/2）。
+//!   （巡回は上限の前に止まるため、この上限は巡回しない深い入れ子にだけ効く）。
 //! - 展開した Step の大きさを、`compile` の予算（`MAX_IR_BYTES`）から引く。足りなければ `E-LIMIT` で止める。
 //! - `${名前}` の置換は 1 回だけで、差し込んだ値を再び展開しない。`id`・`body`・`body_levels`・`next[].to` は
 //!   置換しない（構造の識別子と本文の参照を、引数で書き換えさせない）。
@@ -243,6 +245,8 @@ pub(crate) struct Expander<'a> {
     halted: bool,
     inst_ids: BTreeSet<String>,
     pending: Vec<PendingStarts<'a>>,
+    /// 今展開している経路のモジュール（宣言された ID、呼び出しのモジュール名が引数に由来したか）。章は積まない。
+    module_stack: Vec<(String, bool)>,
 }
 
 impl<'a> Expander<'a> {
@@ -273,6 +277,7 @@ impl<'a> Expander<'a> {
             halted: false,
             inst_ids: BTreeSet::new(),
             pending: Vec::new(),
+            module_stack: Vec::new(),
         }
     }
 
@@ -408,6 +413,13 @@ impl<'a> Expander<'a> {
                     node_idx: idx,
                     depth,
                     redact: args.is_some(),
+                    // 置換前の Step で判定する（`s` は置換後）。
+                    module_from_arg: step
+                        .use_module
+                        .as_ref()
+                        .and_then(|v| v.get("module"))
+                        .and_then(Value::as_str)
+                        .is_some_and(|m| m.contains("${")),
                 };
                 self.expand_use(&site, &u);
             }
@@ -470,6 +482,12 @@ impl<'a> Expander<'a> {
                 DiagCode::Structure,
                 "`use` module and instance must be short identifiers ([A-Za-z0-9_.-])",
             ));
+            return;
+        }
+        if let Some(pos) = self.module_stack.iter().position(|(m, _)| *m == u.module) {
+            let msg = cycle_message(&self.module_stack[pos..], &u.module, site.module_from_arg);
+            self.diags
+                .push(diag(file, item, DiagCode::ModuleCycle, msg));
             return;
         }
         if site.depth >= MAX_MODULE_DEPTH {
@@ -548,7 +566,10 @@ impl<'a> Expander<'a> {
             scope: module,
             args: args.clone(),
         });
+        self.module_stack
+            .push((module.src.id.clone(), site.module_from_arg));
         self.expand_scope(&child, module, Some(&args), site.depth + 1, Some(site.uid));
+        self.module_stack.pop();
     }
 
     /// 展開した実体ごとに、モジュールの途中開始を `<実体 ID>#<開始 ID>` として作る。
@@ -660,6 +681,22 @@ struct UseSite<'s> {
     /// 引数を置換した後の `use` か（モジュールの中の呼び出し）。置換後のモジュール名・実体名は引数の値を
     /// 含みうるため、真のときは診断に名前を入れない。
     redact: bool,
+    /// 置換前の `use.module` が `${` を含むか。真のとき、巡回の経路は引数の値を含みうるため診断に出さない。
+    module_from_arg: bool,
+}
+
+/// 巡回の診断の文面。経路は教材に書かれた（置換前の）モジュール ID だけで作る。経路の段や閉じる呼び出しが
+/// 引数に由来するとき、または ID が `safe_ident` を通らないときは、固定文に倒す（引数の値を写さない）。
+fn cycle_message(path: &[(String, bool)], closing: &str, closing_from_arg: bool) -> String {
+    let safe = !closing_from_arg
+        && path.iter().all(|(m, from_arg)| !from_arg && safe_ident(m))
+        && safe_ident(closing);
+    if !safe {
+        return "module call cycle".to_string();
+    }
+    let mut route: Vec<&str> = path.iter().map(|(m, _)| m.as_str()).collect();
+    route.push(closing);
+    format!("module call cycle: {}", route.join(" → "))
 }
 
 #[cfg(test)]
@@ -750,5 +787,34 @@ mod tests {
         ] {
             assert!(serde_json::from_value::<UseSrc>(bad).is_err());
         }
+    }
+
+    fn stack(v: &[(&str, bool)]) -> Vec<(String, bool)> {
+        v.iter().map(|(m, f)| ((*m).to_string(), *f)).collect()
+    }
+
+    #[test]
+    fn cycle_message_shows_the_route_only_for_authored_ids() {
+        assert_eq!(
+            cycle_message(&stack(&[("a", false), ("b", false)]), "a", false),
+            "module call cycle: a → b → a"
+        );
+        assert_eq!(
+            cycle_message(&stack(&[("a", false)]), "a", false),
+            "module call cycle: a → a"
+        );
+        // 引数に由来する段・閉じる呼び出し、`safe_ident` を通らない ID は固定文にする。
+        assert_eq!(
+            cycle_message(&stack(&[("a", true)]), "a", false),
+            "module call cycle"
+        );
+        assert_eq!(
+            cycle_message(&stack(&[("a", false)]), "a", true),
+            "module call cycle"
+        );
+        assert_eq!(
+            cycle_message(&stack(&[("a b", false)]), "a b", false),
+            "module call cycle"
+        );
     }
 }

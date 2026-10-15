@@ -1,0 +1,11 @@
+id: EVT13-1
+package: fandhe-workshop-core
+test: changed_record
+target: crates/core/src/changed.rs
+find:         if b != a {
+replace:         if true {
+expect-fail: evt13_world_diff_covers_add_remove_change_and_equal
+expect-fail: evt13_put_then_remove_and_same_value_put_record_nothing
+expect-fail: p1b_effects_only
+expect-fail: p1b_with_whole_world_replacement
+note: 差分の比較を常に真にする（値が変わっていない経路にも Changed が出る）

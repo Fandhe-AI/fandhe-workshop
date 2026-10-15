@@ -63,7 +63,8 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - `module` と `instance` は `[A-Za-z0-9_.-]` の短い識別子にします（`@`・`/` は使えません）。
 - `use` を持つ Step には `input` を書けません。同時に書くと `E-STRUCTURE` です（章の Step・モジュールの中の Step のどちらも）。
 - モジュールの `starts` は、実体ごとに `<実体 ID>#<開始 ID>` として展開します。置き換えるのは `effects` と `requires` だけです。
-- 入れ子は 8 段までです。9 段目の呼び出しは展開せず `E-MODULE-CYCLE` にします。未定義のモジュールは `E-REF-MODULE`、未定義の `${名前}` は `E-STRUCTURE` です。
+- 展開中の経路にあるモジュールを再び呼ぶ巡回（自分を呼ぶ場合を含む）は `E-MODULE-CYCLE` です。巡回を閉じる `use` の Step に `a → b → a` の形の経路つきで付きます。モジュール名が `${名前}` に由来する場合は、引数の値を出さないため経路は付きません。
+- 入れ子は 8 段までです。9 段目の呼び出しは展開せず `E-MODULE-CYCLE` にします。これは巡回とは別の検査で、巡回しない深い入れ子にだけ効きます。未定義のモジュールは `E-REF-MODULE`、未定義の `${名前}` は `E-STRUCTURE` です。
 - 呼ばれないモジュールは IR に出ません。
 - モジュールの `input`・`confirm` が `${名前}` を含む場合は、置き換えた後の宣言を、入力方式・確認・操作プロファイル（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`）の規則で検査します。置き換える前の宣言は検査しないので、`kind: "${k}"` のように書けます。診断はモジュールの定義ファイルと Step で示し、引数の値は含めません。
 
@@ -143,6 +144,20 @@ processing:
 処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
 TERM-34 の担当で、2026-10-15 時点では済んでいません。
 
+## 拒否の分類（`category`・`defaults`・`on_reject`）
+
+拒否の分類は 8 語（`unknown_command`・`wrong_order`・`missing_arg`・`bad_arg_shape`・`busy`・`not_in_this_step`・`not_supported`・`free_text_unjudged`）で、
+型の正は contract の `judgment` です（PACK-11）。次の 3 か所の分類の語は、この 8 語で読めなければ `E-PARSE` で拒否します。
+
+- `workshop.*` の `rejections.<id>.category`（欠け・文字列でない・語彙にない語）
+- `workshop.*` の `defaults` のキー
+- 章・モジュールの Step の `on_reject` のキー
+
+- 大文字小文字や前後の空白の揺れは受けません
+- `free_text_unjudged` は受付に付く語で、3 か所とも書けます
+- 診断には、識別子として安全な語だけを写し、値そのものは写しません
+- `defaults` が 8 分類を網羅すること、キーと参照先の文面の `category` の一致、`next_action` の空は、この検査では見ません。診断コードの条件に無いためで、`next_action` は TASK-46 が受け持ちます（2026-10-15）
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -151,10 +166,11 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
-| `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・入れ子の上限と不正な呼び出し（PACK-19） |
+| `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
 | `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22）。`pack23_` は選択肢の表示名の解決・ログの文面・履歴に残す値が ID であること・空白だけの `label` の拒否（PACK-23） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
+| `crates/pack/tests/judgment_vocabulary.rs` の `pack11_` | 語彙の `result`・`rejection` の語が contract の型と一致すること、`category`・`defaults`・`on_reject` の語彙にない語が `E-PARSE` になり値を出さないこと（PACK-11） |

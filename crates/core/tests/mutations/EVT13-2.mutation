@@ -1,0 +1,10 @@
+id: EVT13-2
+package: fandhe-workshop-core
+test: changed_record
+target: crates/core/src/changed.rs
+find:             before: b,
+replace:             before: a.clone(),
+expect-fail: evt13_same_path_changed_twice_is_one_change_with_original_before
+expect-fail: p1b_effects_only
+expect-fail: p1b_with_whole_world_replacement
+note: Changed の変更前を変更後の値にする（変更前の値が操作前の値でなくなる）
