@@ -1,0 +1,8 @@
+id: G1
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/glue.rs
+find: let app = rt.component();
+replace: let app = rt.component(); let _again = rt.component();
+expect-fail: app_に触れるのは_with_app_の_component_の1箇所だけ
+note: App に触れる口を 2 箇所にする（glue が App を読む経路が増えても気づけなくなる）

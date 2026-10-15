@@ -5,6 +5,9 @@
 # 試験の設定には口が入ること（検査が空振りしていないことの対照）、誤用が非 0 で止まること。
 # 生成物は mktemp -d の一時ディレクトリ（dist/ 配下のケースは dist/ に作る専用の一時ディレクトリ）にだけ書き、終了時に消す。
 #
+# (a) の配信物の検査は tools/check-delivery.sh（make check-delivery）と同種の項目を持つ。こちらは build-web 固有の
+# 受入基準（keydown-probe・ir/ の有無・誤用）も確かめる。検査の一本化は TASK-82 の拡張時に行う。
+#
 # 終了コード: 0 = すべて成功 / 1 = 失敗が 1 件以上 / 2 = 誤用。CI への組み込みは TASK-33。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
