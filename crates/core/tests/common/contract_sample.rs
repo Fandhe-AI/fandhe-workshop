@@ -1,6 +1,6 @@
 //! 契約のサンプル（`testdata/contract/event-sequence.json`、TASK-205）を core の型で読む部品。
 //!
-//! 呼び出し元は、サンプルの形を確かめる `contract_sample.rs` と、サンプルを使う適合試験（#170）。
+//! 呼び出し元は、サンプルの形を確かめる `contract_sample.rs` と、サンプルを使う適合試験（`contract_conformance.rs`、TASK-205 2/2）。
 //! 型は core の公開型をそのまま使う。契約の型を変えるとサンプルが読めなくなり、サンプルの版上げを強制できる。
 //! 試験の部品なので、読めない場合は理由を添えて panic する。
 
