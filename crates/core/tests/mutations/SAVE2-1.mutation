@@ -1,0 +1,10 @@
+id: SAVE2-1
+package: fandhe-workshop-core
+test: history_envelope_conformance
+target: crates/core/tests/common/history_sample.rs
+find: let envelope: H = serde_json::from_slice(bytes)?;
+replace: let mut envelope: H = serde_json::from_slice(bytes)?; if envelope.snapshot.log.len() >= 2 { envelope.snapshot.log.swap(0, 1); }
+expect-fail: samples_roundtrip_preserves_log_order_and_positions
+expect-fail: samples_are_byte_identical_after_roundtrip
+expect-fail: property_roundtrip_preserves_log_order
+note: 読み込みでログの先頭の 2 件を入れ替える（PoC-6 の X-6 に当たるログの並びの誤り）

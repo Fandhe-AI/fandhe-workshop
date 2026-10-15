@@ -1,0 +1,996 @@
+{
+  "format": "fandhe-workshop-history",
+  "history_format": 1,
+  "pack_id": "min-3step",
+  "versions": {
+    "engine": "0.0.0",
+    "ir_format": 1,
+    "vocab": "1.0",
+    "content": "0.0.1",
+    "content_hash": "311dcc8d1abb5937d3f8bdf0c6684116f6f6ae7a1e857845de91365d0edd144d",
+    "refs": {}
+  },
+  "start": "s-1",
+  "ops": [
+    {
+      "draft": "/make-note first-note"
+    },
+    {
+      "submit": "/make-note first-note"
+    },
+    {
+      "tick": {
+        "generation": 1,
+        "step": "main/st-1",
+        "index": 0
+      }
+    },
+    {
+      "tick": {
+        "generation": 1,
+        "step": "main/st-1",
+        "index": 1
+      }
+    },
+    {
+      "control": "stop"
+    },
+    {
+      "draft": "/make-note first-note"
+    },
+    {
+      "submit": "/make-note first-note"
+    },
+    {
+      "tick": {
+        "generation": 2,
+        "step": "main/st-1",
+        "index": 0
+      }
+    },
+    {
+      "tick": {
+        "generation": 2,
+        "step": "main/st-1",
+        "index": 1
+      }
+    },
+    {
+      "tick": {
+        "generation": 2,
+        "step": "main/st-1",
+        "index": 2
+      }
+    },
+    {
+      "tick": {
+        "generation": 2,
+        "step": "main/st-1",
+        "index": 3
+      }
+    },
+    {
+      "tick": {
+        "generation": 2,
+        "step": "main/st-1",
+        "index": 4
+      }
+    },
+    {
+      "control": "save"
+    },
+    {
+      "input": {
+        "ui": {
+          "view": "v-files",
+          "path": "notes/draft"
+        }
+      }
+    },
+    {
+      "input": {
+        "choice": "opt-memo"
+      }
+    },
+    {
+      "control": {
+        "begin": "s-1"
+      }
+    },
+    "reload",
+    {
+      "draft": "/make-note first-note"
+    },
+    {
+      "submit": "/make-note first-note"
+    },
+    {
+      "tick": {
+        "generation": 3,
+        "step": "main/st-1",
+        "index": 0
+      }
+    },
+    {
+      "tick": {
+        "generation": 3,
+        "step": "main/st-1",
+        "index": 1
+      }
+    },
+    {
+      "tick": {
+        "generation": 3,
+        "step": "main/st-1",
+        "index": 2
+      }
+    },
+    {
+      "tick": {
+        "generation": 3,
+        "step": "main/st-1",
+        "index": 3
+      }
+    },
+    {
+      "tick": {
+        "generation": 3,
+        "step": "main/st-1",
+        "index": 4
+      }
+    },
+    {
+      "control": "save"
+    },
+    {
+      "input": {
+        "ui": {
+          "view": "v-files",
+          "path": "notes/draft"
+        }
+      }
+    },
+    {
+      "input": {
+        "choice": "opt-memo"
+      }
+    },
+    {
+      "control": {
+        "restore": 1
+      }
+    }
+  ],
+  "snapshot": {
+    "run": {
+      "generation": 4,
+      "current": "main/st-1",
+      "busy": null,
+      "completed": false,
+      "slices": {
+        "main": {
+          "status": {
+            "main/st-1": "accepted"
+          },
+          "choices": {},
+          "flags": []
+        }
+      },
+      "world": {
+        "notes/draft": {
+          "fixture": null,
+          "attrs": {
+            "kind": "none",
+            "state": "saved"
+          }
+        }
+      },
+      "global_flags": [],
+      "guidance_level": "A"
+    },
+    "log": [
+      {
+        "input_received": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "input": {
+            "command": "/make-note first-note"
+          }
+        }
+      },
+      {
+        "accepted": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          }
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": null,
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "name": "p1-prepare",
+          "index": 0,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "name": "p2-create",
+          "index": 1,
+          "total": 5
+        }
+      },
+      {
+        "stopped": {
+          "at": {
+            "generation": 1,
+            "step": "main/st-1"
+          },
+          "new_generation": 2
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "after": null,
+          "cause": "stop"
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "input": {
+            "command": "/make-note first-note"
+          }
+        }
+      },
+      {
+        "accepted": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          }
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": null,
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "name": "p1-prepare",
+          "index": 0,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "name": "p2-create",
+          "index": 1,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "name": "p3-write",
+          "index": 2,
+          "total": 5
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "name": "p4-check",
+          "index": 3,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "name": "p5-save",
+          "index": 4,
+          "total": 5
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "checkpoint_saved": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "id": 1,
+          "log_len": 17
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "input": {
+            "ui": {
+              "view": "v-files",
+              "path": "notes/draft"
+            }
+          }
+        }
+      },
+      {
+        "achieved": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "explicit_skip": false
+        }
+      },
+      {
+        "transitioned": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-1"
+          },
+          "to": "main/st-2"
+        }
+      },
+      {
+        "entered": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          }
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          },
+          "input": {
+            "choice": "opt-memo"
+          }
+        }
+      },
+      {
+        "accepted": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          }
+        }
+      },
+      {
+        "achieved": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          },
+          "explicit_skip": false
+        }
+      },
+      {
+        "transitioned": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          },
+          "to": "main/st-3"
+        }
+      },
+      {
+        "entered": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-3"
+          }
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-2"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "chapter_completed": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-3"
+          }
+        }
+      },
+      {
+        "begun": {
+          "at": {
+            "generation": 2,
+            "step": "main/st-3"
+          },
+          "start": "s-1",
+          "new_generation": 3
+        }
+      },
+      {
+        "entered": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          }
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "input": {
+            "command": "/make-note first-note"
+          }
+        }
+      },
+      {
+        "accepted": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          }
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": null,
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "name": "p1-prepare",
+          "index": 0,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "name": "p2-create",
+          "index": 1,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "name": "p3-write",
+          "index": 2,
+          "total": 5
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "created"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "name": "p4-check",
+          "index": 3,
+          "total": 5
+        }
+      },
+      {
+        "progress": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "name": "p5-save",
+          "index": 4,
+          "total": 5
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "writing"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "checkpoint_saved": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "id": 2,
+          "log_len": 41
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "input": {
+            "ui": {
+              "view": "v-files",
+              "path": "notes/draft"
+            }
+          }
+        }
+      },
+      {
+        "achieved": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "explicit_skip": false
+        }
+      },
+      {
+        "transitioned": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-1"
+          },
+          "to": "main/st-2"
+        }
+      },
+      {
+        "entered": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          }
+        }
+      },
+      {
+        "input_received": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          },
+          "input": {
+            "choice": "opt-memo"
+          }
+        }
+      },
+      {
+        "accepted": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          }
+        }
+      },
+      {
+        "achieved": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          },
+          "explicit_skip": false
+        }
+      },
+      {
+        "transitioned": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          },
+          "to": "main/st-3"
+        }
+      },
+      {
+        "entered": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-3"
+          }
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-2"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          },
+          "cause": "input"
+        }
+      },
+      {
+        "chapter_completed": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-3"
+          }
+        }
+      },
+      {
+        "restored": {
+          "at": {
+            "generation": 3,
+            "step": "main/st-3"
+          },
+          "id": 1,
+          "new_generation": 4,
+          "log_len": 17,
+          "owner": "main/st-1"
+        }
+      },
+      {
+        "changed": {
+          "at": {
+            "generation": 4,
+            "step": "main/st-1"
+          },
+          "path": "notes/draft",
+          "before": {
+            "fixture": null,
+            "attrs": {
+              "kind": "memo",
+              "state": "saved"
+            }
+          },
+          "after": {
+            "fixture": null,
+            "attrs": {
+              "kind": "none",
+              "state": "saved"
+            }
+          },
+          "cause": "restore"
+        }
+      }
+    ],
+    "entry": {
+      "run": {
+        "generation": 1,
+        "current": "main/st-1",
+        "busy": null,
+        "completed": false,
+        "slices": {
+          "main": {
+            "status": {
+              "main/st-1": "entered"
+            },
+            "choices": {},
+            "flags": []
+          }
+        },
+        "world": {},
+        "global_flags": [],
+        "guidance_level": "A"
+      },
+      "log_len": 0
+    },
+    "checkpoints": {
+      "1": {
+        "run": {
+          "generation": 2,
+          "current": "main/st-1",
+          "busy": null,
+          "completed": false,
+          "slices": {
+            "main": {
+              "status": {
+                "main/st-1": "accepted"
+              },
+              "choices": {},
+              "flags": []
+            }
+          },
+          "world": {
+            "notes/draft": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "saved"
+              }
+            }
+          },
+          "global_flags": [],
+          "guidance_level": "A"
+        },
+        "entry": {
+          "run": {
+            "generation": 1,
+            "current": "main/st-1",
+            "busy": null,
+            "completed": false,
+            "slices": {
+              "main": {
+                "status": {
+                  "main/st-1": "entered"
+                },
+                "choices": {},
+                "flags": []
+              }
+            },
+            "world": {},
+            "global_flags": [],
+            "guidance_level": "A"
+          },
+          "log_len": 0
+        },
+        "log_len": 17,
+        "owner": "main"
+      },
+      "2": {
+        "run": {
+          "generation": 3,
+          "current": "main/st-1",
+          "busy": null,
+          "completed": false,
+          "slices": {
+            "main": {
+              "status": {
+                "main/st-1": "accepted"
+              },
+              "choices": {},
+              "flags": []
+            }
+          },
+          "world": {
+            "notes/draft": {
+              "fixture": null,
+              "attrs": {
+                "kind": "none",
+                "state": "saved"
+              }
+            }
+          },
+          "global_flags": [],
+          "guidance_level": "A"
+        },
+        "entry": {
+          "run": {
+            "generation": 3,
+            "current": "main/st-1",
+            "busy": null,
+            "completed": false,
+            "slices": {
+              "main": {
+                "status": {
+                  "main/st-1": "entered"
+                },
+                "choices": {},
+                "flags": []
+              }
+            },
+            "world": {},
+            "global_flags": [],
+            "guidance_level": "A"
+          },
+          "log_len": 30
+        },
+        "log_len": 41,
+        "owner": "main"
+      }
+    },
+    "next_checkpoint": 3,
+    "drafts": {},
+    "hints_opened": {}
+  }
+}
