@@ -16,10 +16,13 @@
 
 use core::fmt;
 
+pub use fandhe_workshop_contract::profile::InputClass;
+use fandhe_workshop_contract::profile::{check_command_prefix, classify_input};
+
 use crate::parts::PartKind;
 
 /// 接頭辞の最大の文字数。
-pub const MAX_PREFIX_CHARS: usize = 4;
+pub const MAX_PREFIX_CHARS: usize = fandhe_workshop_contract::profile::MAX_COMMAND_PREFIX_CHARS;
 
 /// 設定の拒否の理由。文面は固定で、入力値を埋め込まない。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,19 +41,21 @@ impl fmt::Display for ProfileError {
 
 impl std::error::Error for ProfileError {}
 
-/// コマンド接頭辞。`""`（接頭辞なし）か 1〜4 文字で、制御文字・空白を含まない。
+/// コマンド接頭辞。`""`（接頭辞なし）か 1〜4 文字で、制御文字・空白・ASCII の英数字を含まず、`-` で始まらない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandPrefix(String);
 
 impl CommandPrefix {
     /// 検査して作る。
     pub fn new(s: &str) -> Result<Self, ProfileError> {
-        if s.chars().count() > MAX_PREFIX_CHARS
-            || s.chars().any(|c| c.is_control() || c.is_whitespace())
-        {
-            return Err(ProfileError::InvalidPrefix);
-        }
+        // 規則の正は contract にあり、教材の読み込み側（pack）と同じ検査を通す（TASK-52）。
+        check_command_prefix(s).map_err(|_| ProfileError::InvalidPrefix)?;
         Ok(Self(s.to_owned()))
+    }
+
+    /// 入力をコマンドと自然文に分ける。画面の送信経路（TASK-275）は、教材テストと同じこの分けを使う。
+    pub fn classify(&self, raw: &str) -> InputClass {
+        classify_input(&self.0, raw)
     }
 
     /// 接頭辞の文字列。画面に出す場合は文字のノードだけにする（属性・HTML に埋め込まない）。
@@ -252,7 +257,12 @@ mod tests {
     fn 接頭辞の境界() {
         assert!(CommandPrefix::new("").unwrap().is_none());
         assert!(CommandPrefix::new("/").is_ok());
-        assert!(CommandPrefix::new("abcd").is_ok());
+        assert!(CommandPrefix::new("abcd").is_err());
+        assert!(CommandPrefix::new("-x").is_err());
+        assert!(CommandPrefix::new("::").is_ok());
+        assert!(CommandPrefix::new("＄").is_ok());
+        assert!(CommandPrefix::new("!!!!").is_ok());
+        assert!(CommandPrefix::new("!!!!!").is_err());
         assert!(CommandPrefix::new("あいうえ").is_ok());
         assert!(CommandPrefix::new("abcde").is_err());
         assert!(CommandPrefix::new("a b").is_err());

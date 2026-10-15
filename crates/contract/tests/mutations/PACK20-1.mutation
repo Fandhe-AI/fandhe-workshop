@@ -1,0 +1,8 @@
+id: PACK20-1
+package: fandhe-workshop-contract
+test: profile_contract
+target: crates/contract/src/profile.rs
+find:     if prefix.is_empty() || trimmed.starts_with(prefix) {
+replace:     if prefix.is_empty() || trimmed.starts_with(prefix) || true {
+expect-fail: input_split_table
+note: 入力の分けで、接頭辞で始まらない自然文もコマンドにする（画面と教材テストが共有する分けの核が壊れる）
