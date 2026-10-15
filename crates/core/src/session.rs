@@ -6,9 +6,9 @@
 //! [`SessionState`]・[`Op`]・[`Event`] に束縛する。
 //!
 //! 本件が固定するのは型・署名・純粋な補助関数・規則の表までで、状態機械の各分岐は実装しない。
-//! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが埋めた。
+//! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが、受付済みへの確認の操作による達成（TASK-207 2/3）は `confirm` モジュールが埋めた。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （確認による達成 TASK-207 2/3、世代と進行の照合 TASK-210、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
+//! （世代と進行の照合 TASK-210、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -157,7 +157,7 @@ impl Default for SessionState {
 /// 状態に操作を適用し、新しい状態とイベント列を返す純粋な関数（EXT-4）。
 ///
 /// 全域で決定的であり、教材 `ir` は読むだけである。戻りのイベント列は新しい状態の `log` の末尾に
-/// 足された分と一致する。入力の分岐は受付まで実装済み（TASK-207 1/3）で、ほかの分岐は契約だけの骨格のまま、
+/// 足された分と一致する。入力の分岐は受付と確認による達成まで実装済み（TASK-207 1/3・2/3）で、ほかの分岐は契約だけの骨格のまま、
 /// 状態を変えずイベントも返さない。
 pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>) {
     let mut state = state;
@@ -182,7 +182,7 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
 /// 操作 1 件の遷移。返したイベント列は呼び出し側 [`apply`] がログへ足す。
 fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
     match op {
-        // 入力の受付は `accept`（TASK-207 1/3）。確認の操作による達成は TASK-207 2/3、世代と宛先の照合は TASK-210。
+        // 入力の受付は `accept`（TASK-207 1/3）、確認の操作による達成は `confirm`（TASK-207 2/3）。世代と宛先の照合は TASK-210。
         Op::Input(input) => accept::on_input(ir, state, input),
         // TASK-210: 宛先つきの進行。
         Op::Tick(_) => Vec::new(),

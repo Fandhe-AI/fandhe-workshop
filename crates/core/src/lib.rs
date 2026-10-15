@@ -16,6 +16,7 @@
 //! 空でない次の行動（[`rejection_text`]、TASK-264）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 入力の受付の分岐（`accept`、TASK-207 1/3。公開しない）も持つ。
+//! 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3。公開しない）も持つ。
 //! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
 //! 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（[`lo_first_answer`]、TASK-305、GUIDE-18）も持つ。
 //! コマンド入力の規則による受付の効果の適用（受け付けたうえで止まる場面、[`command_accept`]、TASK-273）も持つ。
@@ -29,6 +30,7 @@ pub mod command_accept;
 pub mod command_judge;
 pub mod command_lex;
 pub mod command_rule;
+mod confirm;
 pub mod effect;
 pub mod event;
 pub mod history_size;

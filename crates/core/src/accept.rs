@@ -1,8 +1,9 @@
 //! 入力の受付の分岐（TASK-207 1/3、EVT-3 の (a)）。
 //!
 //! 入力が現在の Step の入力条件に合い、受付の規則に当たったら、Step を受付済み（`StepStatus::Accepted`）にして
-//! 規則の効果を世界状態へ適用する。受付は達成ではない。達成は確認の操作の後（TASK-207 2/3）であり、
-//! 本モジュールは `StepStatus::Achieved` を書かず、`Achieved`・`Transitioned`・`Entered`・`ChapterCompleted` を出さない。
+//! 規則の効果を世界状態へ適用する。受付は達成ではない。達成は確認の操作の後で、受付済みの Step への入力は
+//! [`crate::confirm`]（TASK-207 2/3）が持つ。本モジュールは `StepStatus::Achieved` を書かず、
+//! `Achieved`・`Transitioned`・`Entered`・`ChapterCompleted` を出さない。
 //! 呼び出し元は [`crate::session::apply`] だけで、公開 API には含めない（契約の対象外）。
 //! 判定の部品は [`crate::command_lex`]・[`crate::command_judge`]・[`crate::select_judge`]・[`crate::text_judge`]、
 //! 効果の適用は [`crate::effect`] が持つ。本モジュールはそれらをつなぐだけで、判定の規則は再実装しない。
@@ -12,10 +13,11 @@
 //! 1. 現在の Step が無ければ、状態を変えず空のイベント列を返す（`Stamp` が作れない。TASK-217 が決める）
 //! 2. 以降は必ず先頭に `InputReceived`（入力は原文のまま）を出す
 //! 3. 現在の Step が IR に無ければ、固定文の `Warning` を添えて状態を変えない
-//! 4. Step が `Entered` でない、または処理中（`busy`）なら `InputReceived` だけを出す
-//!    （受付済みへの再入力と処理中の再送。確認の操作は TASK-207 2/3、`busy` の分類は TASK-209 が担う）
-//! 5. `Input::Cancel` は `InputReceived` だけ（意味づけは TASK-212）
-//! 6. 入力方式で振り分ける。受付は「受付の規則に一致したとき」だけで、宣言の不正・未知の `kind`・
+//! 4. `Input::Cancel` は `InputReceived` だけ（意味づけは TASK-212）
+//! 5. Step が `Accepted` で処理中でなければ、確認の判定（[`crate::confirm`]）に渡す
+//! 6. Step が `Entered` でない、または処理中（`busy`）なら `InputReceived` だけを出す
+//!    （処理中の再送と、達成済みなどへの入力。`busy` の分類は TASK-209 が担う）
+//! 7. 入力方式で振り分ける。受付は「受付の規則に一致したとき」だけで、宣言の不正・未知の `kind`・
 //!    読めない効果は受付に倒さず、拒否（宣言の不正には固定文の `Warning` を添える）にする（fail-closed）
 //!
 //! 受付のイベントの順は `InputReceived` → `Accepted` → 効果のイベント → `Changed`。
@@ -30,7 +32,7 @@
 //!
 //! # 扱わないこと
 //!
-//! - 確認の操作による達成と外れた指し先（TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
+//! - 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
 //! - `confirm: none` の受付と同時の達成（TASK-208）、処理中の再送の `busy` 分類（TASK-209）
 //! - 進行 `Op::Tick` の照合と進め方（TASK-210）、処理中でない Esc の意味づけ（TASK-212）
 //! - `Judged` の発行とコマンドの規則の `on.args`・`on.missing` との照合（TASK-267）
@@ -48,6 +50,7 @@ use serde_json::Value;
 use crate::addr::{Root, Stamp, StepUid};
 use crate::command_judge::{command_spec, judge_command, CommandVerdict};
 use crate::command_lex::lex_command;
+use crate::confirm;
 use crate::effect::{apply_effects, ConditionEval, NoConditions};
 use crate::event::{Cause, Event};
 use crate::input::Input;
@@ -90,8 +93,16 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         events.push(warning(&at));
         return events;
     };
-    if !awaits_input(&state.run, &current) || matches!(input, Input::Cancel) {
+    if matches!(input, Input::Cancel) {
         return events;
+    }
+    match phase(&state.run, &current) {
+        Phase::Idle => return events,
+        Phase::AwaitConfirm => {
+            events.extend(confirm::on_confirm(ir, state, node, &at, &input));
+            return events;
+        }
+        Phase::AwaitInput => {}
     }
     let step = normalized(&node.step);
     let root = current.root();
@@ -112,19 +123,31 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
     events
 }
 
-/// 受付の前提。Step が入力を待ち（`Entered`）、処理中でないこと。
-///
-/// 受付済みの Step への確認の操作（TASK-207 2/3）は、この条件が「`Accepted` かつ処理中でない」のときの
-/// 分岐として足す継ぎ目である。
-fn awaits_input(run: &RunState, uid: &StepUid) -> bool {
-    run.busy.is_none()
-        && run
-            .slices
-            .get(&uid.root())
-            .and_then(|s| s.status.get(uid))
-            .copied()
-            .unwrap_or_default()
-            == StepStatus::Entered
+/// 入力を受けたときの Step の段階。
+enum Phase {
+    /// 入力を待つ（`Entered` で処理中でない）。受付の判定に進む。
+    AwaitInput,
+    /// 受付済みで処理中でない。確認の判定に進む（TASK-207 2/3）。
+    AwaitConfirm,
+    /// 上のどちらでもない（処理中・達成済みなど）。`InputReceived` だけを出す。
+    Idle,
+}
+
+fn phase(run: &RunState, uid: &StepUid) -> Phase {
+    if run.busy.is_some() {
+        return Phase::Idle;
+    }
+    let status = run
+        .slices
+        .get(&uid.root())
+        .and_then(|s| s.status.get(uid))
+        .copied()
+        .unwrap_or_default();
+    match status {
+        StepStatus::Entered => Phase::AwaitInput,
+        StepStatus::Accepted => Phase::AwaitConfirm,
+        _ => Phase::Idle,
+    }
 }
 
 fn warning(at: &Stamp) -> Event {
