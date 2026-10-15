@@ -167,3 +167,46 @@ fn unknown_field_and_variant_are_rejected() {
     let bad_approval = r#"{"approval":{"decision":"approve","target":null,"extra":1}}"#;
     assert!(serde_json::from_str::<Input>(bad_approval).is_err());
 }
+
+#[test]
+fn judged_event_shape_and_roundtrip_for_all_six_kinds() {
+    use fandhe_workshop_contract::judgment::{
+        Clarification, Judgment, JudgmentKind, NextAction, RejectCategory, Rejection,
+    };
+    let na = |s: &str| NextAction::new(s).expect("non-empty");
+    let judgments = [
+        Judgment::Accepted(None),
+        Judgment::Rejected(Rejection {
+            category: RejectCategory::Busy,
+            text: "rj-default-busy".to_string(),
+            next_action: na("待つ"),
+        }),
+        Judgment::Clarified(Clarification {
+            text: "cl-x".to_string(),
+            next_action: na("答える"),
+        }),
+        Judgment::Confirmed,
+        Judgment::Progressed,
+        Judgment::Ignored,
+    ];
+    let kinds: Vec<JudgmentKind> = judgments.iter().map(Judgment::kind).collect();
+    assert_eq!(kinds, JudgmentKind::ALL);
+    for judgment in judgments {
+        roundtrip(&Event::Judged {
+            at: stamp(),
+            judgment,
+        });
+    }
+    let v = serde_json::to_value(Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Confirmed,
+    })
+    .expect("serialize");
+    assert_eq!(
+        v,
+        serde_json::json!({"judged": {"at": {"generation": 3, "step": "main/s1"}, "judgment": "confirmed"}})
+    );
+    // 未知の欄は拒否する。
+    let bad = r#"{"judged":{"at":{"generation":3,"step":"main/s1"},"judgment":"confirmed","x":1}}"#;
+    assert!(serde_json::from_str::<Event>(bad).is_err());
+}

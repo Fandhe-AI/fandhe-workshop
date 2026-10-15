@@ -13,7 +13,7 @@
 //!
 //! 拒否・問い返し・受付の注記には、空でない次の行動 [`NextAction`] が必ず付く（JUDGE-4）。空の値は
 //! [`NextAction::new`] でも逆直列化でも作れない。`next_action` は教材の差し込み（EP-7）を済ませた後の値で、
-//! 差し込みと文面の解決は core（TASK-267）が行う。
+//! 文面の解決は core の `judge`（TASK-267）が行い、実行時の差し込みは TASK-274 が担う。
 //!
 //! 直列化は外部タグ（`snake_case`）で、core の `Event` と形をそろえる。未知の欄・未知の分類・
 //! 未知の種類は逆直列化の失敗にする（失敗を拒否に倒す）。欄の順は `tests/data/judgment_1/` の golden で固定する。
@@ -23,10 +23,10 @@
 //! ここでは検査しない。エラーの `Display` は入力値を埋め込まない固定文にする。
 //!
 //! 境界（本契約が定義しないもの）:
-//! - core の `Event::Judged` の追加と、`Event::Refused.rejection` の型への置き換え（TASK-204 の版上げと TASK-267）
+//! - `Event::Refused.rejection` の型への置き換え（次の core の契約の版上げ）。core の `Event::Judged` は契約の版 3（TASK-267）で追加済み
 //! - `Ignored` の理由（`IgnoreReason`）は core の `Event::Ignored` が正で、contract は core に依存できないため持たない
 //! - 字句化の処理・接頭辞（EP-10・PACK-20）の除去・個数と形の判定は TASK-262 と TASK-44
-//! - 文面の本文・差し込み・既定の文面の解決は TASK-267 と pack。キー判定表は TASK-257
+//! - 文面の本文・実行時の差し込み（TASK-274）・既定の文面の登録の検査は pack。キー判定表は TASK-257
 //! - 引用符で空白を含む引数は版 1 では扱わない（必要になれば版上げ）
 //!
 //! 変更する場合は、先に spec（JUDGE-3・JUDGE-4・PACK-11）を直し、[`JUDGMENT_CONTRACT_VERSION`] を上げる。

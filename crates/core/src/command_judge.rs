@@ -2,7 +2,7 @@
 //!
 //! 字句化の結果（[`LexedCommand`]、`command_lex::lex_command` が作る）を、Step の宣言
 //! （[`CommandSpec`]）と照らし、名前の一致・必須引数の有無・引数の形を決定的に判定する純関数を置く。
-//! 呼び出し元は、規則の照合と拒否の組み立て（TASK-267）・教材テスト（TASK-404、pack）である。
+//! 呼び出し元は、規則の照合と拒否の組み立てを行う [`crate::judge`]（TASK-267）・教材テスト（TASK-404、pack）である。
 //! 宣言と形の型は contract の `input_spec` が正で、ここでは再定義しない。
 //!
 //! # 規則（順に評価し、最初に当たったものを返す）
@@ -23,7 +23,7 @@
 //! # 扱わないこと
 //!
 //! - `wrong_order`・`not_in_this_step`・`not_supported` の分類（IR の `commands` の値の解釈は TASK-268・TASK-269）
-//! - 規則（`on.args`・`on.missing`）との照合、問い返し、拒否の文面（TASK-267）
+//! - 規則（`on.args`・`on.missing`）との照合、問い返し、拒否の文面の解決（[`crate::judge`]、TASK-267）
 //! - `--flag` の直後の位置引数の読み替え（`ArgSpec` に値を取らない引数の欄が無いため、字句化の結果のまま使う）
 //! - 正規表現・候補の一覧の形（契約版 1 の `ArgShape` に無い）
 

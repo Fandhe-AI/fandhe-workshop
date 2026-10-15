@@ -127,6 +127,7 @@ fn stamp_of(event: &Event) -> &Stamp {
         | Event::ModuleExited { at, .. }
         | Event::InputReceived { at, .. }
         | Event::Progress { at, .. }
+        | Event::Judged { at, .. }
         | Event::Accepted { at }
         | Event::Achieved { at, .. }
         | Event::Skipped { at }
@@ -191,6 +192,7 @@ impl Projection {
             | Event::ModuleExited { .. }
             | Event::InputReceived { .. }
             | Event::Progress { .. }
+            | Event::Judged { .. }
             | Event::Accepted { .. }
             | Event::Transitioned { .. }
             | Event::ChapterCompleted { .. }

@@ -1,8 +1,8 @@
 # 公開 API の契約の文書
 
 ```text
-公開 API の契約の文書の版: 2
-対象の契約の版（CONTRACT_VERSION）: 2
+公開 API の契約の文書の版: 3
+対象の契約の版（CONTRACT_VERSION）: 3
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
@@ -28,7 +28,8 @@
 |---|---|---|---|
 | `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
 | `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
-| `event` | `Event`（`HintOpened` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `event` | `Event`（`HintOpened`・`Judged` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（結線は TASK-207・TASK-210） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
 | `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply` | 実行環境と遷移関数 | web・保存 |
@@ -76,15 +77,17 @@
 - `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
 - 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。照合の実装は TASK-210 が持つ
 
-## 5. 版 2 で固定しないもの
+## 5. 版 3 で固定しないもの
 
-次は意図して版 2 に含めない。足すときは版上げの契約タスクとする。
+次は意図して版 3 に含めない。足すときは版上げの契約タスクとする。
 
 - 早送りの入・切（EVT-27）
-- 判定結果（`Judged`、TASK-256）
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
 - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
 - ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
+- `Op::Tick` での `Judged`（進行・無視）の発行位置。EVT-8 は宛先の食い違いを「無視を 1 件だけ」と定めるため、`Judged{ignored}` と `Event::Ignored` を両方出すかは TASK-210 が決める。`judge::judge_tick` は純関数だけを置く。版 3 のサンプルの `Tick` の項目は変えない
+- `Event::Refused.rejection`（`Option<String>`）の型の置き換えと、問い返しの待ちの状態（EP-4 `clarifying`）。足すときは版上げにする
+- `wrong_order`・`not_supported` の分類の見分けと、処理中の入力の扱いの精緻化（TASK-268・TASK-269）。版 3 は、未知の名前を `unknown_command`、使わない入力を `not_in_this_step`、処理中を `busy` に暫定で割り当てる
 - 下書きの操作と再読み込み（SAVE-4）。再読み込みで世代を上げる規則は、3 節の表に含まれない。`apply()` の `Op` には含めず、履歴の入力の列の型（`fandhe_workshop_contract::history::HistoryOp`、TASK-309）が持つ
 
 ## 6. 机上の照合の記録
@@ -120,6 +123,7 @@
 | GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 型は許す・実装待ち | TASK-295・TASK-297 |
 | GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 型は許す・実装待ち | TASK-295 |
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
+| JUDGE-3 入力 1 件の判定結果は 6 種のどれか 1 つで、`Judged` として出る | `Event::Judged { at, judgment }`・contract の `Judgment::kind()`（全域）・`judge::judge_input` | 読み取れる（型と純関数）。`apply()` への結線は型は許す・実装待ち | 発行位置は `InputReceived` の直後（`Op::Input`）。結線は TASK-207。進行の位置は TASK-210 |
 | GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 
 ## 7. 契約適合試験とサンプル
@@ -128,7 +132,7 @@
 
 | 物 | 置き場 | 役割 |
 |---|---|---|
-| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 1、対象は `CONTRACT_VERSION` 1） | 21 件の操作の前後の状態と期待のイベント列 |
+| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 3、対象は `CONTRACT_VERSION` 3） | 21 件の操作の前後の状態と期待のイベント列 |
 | サンプルの説明 | `testdata/contract/README.md` | 欄の意味・版の規則 |
 | 形の試験 | `crates/core/tests/contract_sample.rs` | サンプルが core の型で読めること、連なり、網羅 |
 | 適合試験 | `crates/core/tests/contract_conformance.rs` | 下表の 3 層 |
@@ -158,6 +162,7 @@
 |---|---|---|---|
 | 1 | 2026-10-15 | 初版。型の一覧・世代の表・宛先の形・机上の照合の記録 | TASK-204 3/3 |
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
+| 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
 - 2026-10-15: `Projection` の導出の中身（ログ行・変化の印・復習・復帰の復習）を実装した。公開の型・署名・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-215 2/2）

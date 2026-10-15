@@ -13,6 +13,7 @@
 //! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
 //! 選択肢・画面操作・承認の判定（[`select_judge`]、TASK-263）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
+//! 判定結果の統合と `Judged` の材料（[`judge`]、TASK-267）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -26,6 +27,7 @@ pub mod history_size;
 pub mod input;
 pub mod ir_load;
 pub mod json_depth;
+pub mod judge;
 pub mod load_gate;
 pub mod projection;
 pub mod provider;
@@ -40,7 +42,7 @@ pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
 pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
 
-/// 公開 API の契約の版（TASK-204・TASK-290、版 2）。
+/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267、版 3）。
 ///
 /// 覆う範囲は [`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]・[`session`]・[`projection`] の
 /// 公開の型と署名、および [`input::GenerationRule`] の表である。次のいずれかを変えたら上げる。
@@ -52,9 +54,11 @@ pub use session::{apply, Session, SessionState};
 /// （`Event::HintOpened`・`RefuseReason::NoHint`・`ControlKind::OpenHint`）、`RunState.guidance_level`、
 /// `SessionState.hints_opened`。案内レベルの値の型は `fandhe_workshop_contract::guidance` にある。
 ///
+/// 版 3 で足したもの: 判定結果のイベント `Event::Judged`（JUDGE-3）。`Op::Input` では `InputReceived` の直後に 1 件置く。
+///
 /// 意図して含めないもの（版上げで足す）。
-/// - 早送りの入・切（EVT-27）、判定結果（`Judged`、TASK-256）
+/// - 早送りの入・切（EVT-27）
 /// - 下書きの操作と再読み込み（SAVE-4）
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 2;
+pub const CONTRACT_VERSION: u32 = 3;

@@ -5,7 +5,6 @@
 //! `new_generation` を持つ（EVT-6 の (3)(4)(6)。表は [`crate::input::GenerationRule`]）。契約の版は [`crate::CONTRACT_VERSION`]。
 //!
 //! 意図して固定しないもの（版上げで足す）。
-//! - 判定結果（`Judged`）。型は TASK-256 の contract が持つ。位置づけは `InputReceived` の後に置く
 //! - 再読み込み（SAVE-4）
 //! - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16。TASK-307・TASK-308 が決める。`Control::SetGuidance` はイベントを出さない）
 //!
@@ -13,6 +12,8 @@
 //! エスケープは web 層の責務である。`Warning` の文面に利用者の入力値を埋め込まない。
 
 use serde::{Deserialize, Serialize};
+
+use fandhe_workshop_contract::judgment::Judgment;
 
 use crate::addr::{Generation, Stamp, StepUid};
 use crate::input::{CheckpointId, Input};
@@ -125,6 +126,17 @@ pub enum Event {
         index: u32,
         /// 進行の総数。
         total: u32,
+    },
+    /// 入力の判定結果（JUDGE-3、TASK-267）。受付・拒否・問い返し・確認・進行・無視の 6 種のどれか 1 つで、
+    /// `Op::Input` では `InputReceived` の直後（`Accepted`・効果・`Achieved` より前）に 1 件だけ置く。
+    ///
+    /// 結果の型は contract の `judgment::Judgment` が正である。文面の ID・次の行動は教材由来の未信頼の
+    /// 文字列で、core は保持するだけである。HTML へのエスケープは web 層の責務とする。
+    Judged {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 判定結果。
+        judgment: Judgment,
     },
     /// 入力を受け付けた。
     Accepted {
