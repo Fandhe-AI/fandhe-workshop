@@ -17,6 +17,7 @@
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 判定結果の統合と `Judged` の材料（[`judge`]、TASK-267）も持つ。
 //! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
+//! 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（[`lo_first_answer`]、TASK-305、GUIDE-18）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -32,6 +33,7 @@ pub mod input;
 pub mod ir_load;
 pub mod json_depth;
 pub mod judge;
+pub mod lo_first_answer;
 pub mod load_gate;
 pub mod projection;
 pub mod provider;
