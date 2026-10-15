@@ -14,10 +14,16 @@
 #
 # 照合の単位: 呼び出し 1 件ずつ（同じ行に複数あれば複数と数える）。空白・改行を挟んだ `.value ( )` も検出する。
 # getter だけを対象にし、`set_text_content` などの setter は名前の境界で区別して対象外にする。
+# 呼び出し名の前の raw identifier（`el.r#value()`・`::r#children(`）は、通常の名前と同じ呼び出しとして検出する。
+#
+# 例外の計数: 実際のコードの呼び出しだけを数える。一致の全体（レシーバ `field` を含む）が文字列・生文字列・文字リテラルに
+# かかるものは数えない（`let note = "field.value()";` で件数を水増しできない）。`field.r#value()` も保守的に数えない
+# （例外外の違反として報告し、件数も満たさない）。
 #
 # コメント: `//`（`///`・`//!` を含む）と `/* */`（入れ子を数える）を空白として扱ってから照合する。そのため
 # `el.value(/* x */)` や `el./* r */value()` も検出し、コメント内の一致は数えない。文字列・生文字列・文字リテラルの
 # 中の `//`・`/*` はコメントにしない。文字列リテラル内の一致は検出側に倒れる（誤検出はあり得るが、見逃しにはならない）。
+# 例外の対象外にもなるため、glue.rs の文字列に `field.value()` を書くと違反として報告される。
 #
 # 使い方: tools/check-deps.sh [--root <dir>]（--root は回帰テスト用。既定はこのファイルの親の親）
 # 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 誤用、または検査を完了できない（対象が無い・awk の失敗）。
@@ -88,23 +94,23 @@ scan() {
   SCAN_PAT="$1" SCAN_MODE="${2:-}" SCAN_XFILE="${3:-}" SCAN_XPAT="${4:-}" awk '
     # Rust のコメントを空白に置き換える（改行は残して行番号を保つ）。文字列・生文字列・文字リテラルの中の `//` や `/*` は
     # コメントとして扱わない（扱うと行の残りが隠れて見逃す）。ブロックコメントは入れ子を数える。
-    function strip(s,   out, i, n, c, d, j, k, h, hs, depth, p) {
-      n = length(s); out = ""; i = 1
+    function strip(s,   out, msk, i, n, c, d, j, k, h, hs, depth, p, lit) {
+      n = length(s); out = ""; msk = ""; i = 1
       while (i <= n) {
         c = substr(s, i, 1); d = substr(s, i + 1, 1)
         if (c == "/" && d == "/") {
           j = index(substr(s, i), "\n")
-          out = out " "
+          out = out " "; msk = msk "c"
           if (j == 0) i = n + 1; else i = i + j - 1
           continue
         }
         if (c == "/" && d == "*") {
-          depth = 1; i += 2; out = out " "
+          depth = 1; i += 2; out = out " "; msk = msk "c"
           while (i <= n && depth > 0) {
             p = substr(s, i, 2)
             if (p == "/*") { depth++; i += 2 }
             else if (p == "*/") { depth--; i += 2 }
-            else { if (substr(s, i, 1) == "\n") out = out "\n"; i++ }
+            else { if (substr(s, i, 1) == "\n") { out = out "\n"; msk = msk "c" }; i++ }
           }
           continue
         }
@@ -121,7 +127,7 @@ scan() {
                 if (substr(s, j, 1) == "\"" && substr(s, j + 1, h) == hs) { j += 1 + h; break }
                 j++
               }
-              out = out substr(s, i, j - i); i = j
+              lit = substr(s, i, j - i); out = out lit; msk = msk rep("s", length(lit)); i = j
               continue
             }
           }
@@ -134,7 +140,7 @@ scan() {
             if (p == "\"") { j++; break }
             j++
           }
-          out = out substr(s, i, j - i); i = j
+          lit = substr(s, i, j - i); out = out lit; msk = msk rep("s", length(lit)); i = j
           continue
         }
         if (c == "\047") {
@@ -142,33 +148,48 @@ scan() {
             j = i + 3
             while (j <= n && substr(s, j, 1) != "\047") j++
             j++
-            out = out substr(s, i, j - i); i = j
+            lit = substr(s, i, j - i); out = out lit; msk = msk rep("s", length(lit)); i = j
             continue
           }
-          if (substr(s, i + 2, 1) == "\047") { out = out substr(s, i, 3); i += 3; continue }
+          if (substr(s, i + 2, 1) == "\047") { out = out substr(s, i, 3); msk = msk "sss"; i += 3; continue }
         }
-        out = out c; i++
+        out = out c; msk = msk "c"; i++
       }
+      MASK = msk
       return out
     }
-    function flush(   t, rest, off, n, pre, ln, snip, excepted, emit) {
+    # rep(c, n): 文字 c を n 個並べた文字列。
+    function rep(c, n,   r) {
+      r = ""
+      while (n-- > 0) r = r c
+      return r
+    }
+    function flush(   t, m, rest, off, n, mlen, pre, ps, from, ln, snip, excepted, emit) {
       if (name == "") return
-      t = strip(text); rest = t; off = 0
+      t = strip(text); m = MASK; rest = t; off = 0
       while (match(rest, pat)) {
-        n = off + RSTART
+        n = off + RSTART; mlen = RLENGTH
         pre = substr(t, (n > 200 ? n - 200 : 1), (n > 200 ? 200 : n - 1))
-        excepted = (mode != "" && name == xf && pre ~ xp)
+        # 例外は、レシーバ `field` から呼び出しの末尾までがすべて実際のコード（文字列・文字リテラルの外）で、
+        # 呼び出し名が raw identifier でないときだけ成り立つ。判定が曖昧なら例外にしない（違反または件数の不一致になる）。
+        excepted = 0
+        if (mode != "" && name == xf && pre ~ xp && substr(t, n, mlen) !~ /r#/) {
+          ps = (n > 200 ? n - 200 : 1)
+          match(pre, xp)
+          from = ps + RSTART - 1
+          if (index(substr(m, from, n + mlen - from), "s") == 0) excepted = 1
+        }
         emit = (mode == "" || (mode == "skip" && !excepted) || (mode == "only" && excepted))
         if (emit) {
           ln = split(substr(t, 1, n - 1), parts, "\n")
           if (substr(t, n, 1) == "\n") ln++
           snip = substr(t, 1, n - 1)
           sub(/^.*\n/, "", snip)
-          snip = snip substr(t, n, RLENGTH + 20)
+          snip = snip substr(t, n, mlen + 20)
           gsub(/\n/, " ", snip)
           printf "%s:%d:%s\n", name, ln, snip
         }
-        off = n + RLENGTH - 1
+        off = n + mlen - 1
         rest = substr(t, off + 1)
       }
       text = ""
@@ -181,10 +202,12 @@ scan() {
 }
 
 # 呼び出しの検出パターン。直前・直後が識別子の文字でないことを要求し、set_inner_html などの setter を拾わない。
+# raw identifier の `r#` は識別子の文字ではないので、名前の境界の照合（B）がそのまま通す。value と children の
+# `.`・`::` 直後の形だけ、`(r#)?` を明示する。
 WS='[[:space:]]*'
-VALUE_CALL="\\.${WS}value${WS}\\(${WS}\\)"
+VALUE_CALL="\\.${WS}(r#)?value${WS}\\(${WS}\\)"
 # 関連関数形式（`web_sys::HtmlInputElement::value(&el)` など）。レシーバが引数なので例外の対象にしない。
-ASSOC_VALUE_CALL="::${WS}value${WS}\\("
+ASSOC_VALUE_CALL="::${WS}(r#)?value${WS}\\("
 # 例外の呼び出しの直前（レシーバが `field` であること）
 EXC_PREFIX='(^|[^A-Za-z0-9_])field[[:space:]]*$'
 
@@ -234,7 +257,7 @@ for pat in 'text_content' 'inner_html' 'inner_text' 'outer_html' 'get_attribute'
   'get_bounding_client_rect'; do
   case "${pat}" in
     'children()') rx="${B}children${WS}\\(${WS}\\)" ;;
-    'children(assoc)') rx="::${WS}children${WS}\\(" ;;
+    'children(assoc)') rx="::${WS}(r#)?children${WS}\\(" ;;
     'closest(') rx="${B}closest${WS}\\(" ;;
     *) rx="${B}${pat}${E}" ;;
   esac

@@ -280,6 +280,82 @@ EOF
 run_check "${tree}"
 expect "quote char literal does not hide a later call" 1 "${RC}"
 
+# 25. raw identifier（r#）つきの呼び出しも通常の名前と同じに検出する（メソッド形式・関連関数形式）
+for call in 'el.r#value()' 'el . r#value ( )' 'web_sys::HtmlInputElement::r#value(&el)' 'el.r#children()' \
+  'web_sys::Element::r#children(&el)' 'el.r#closest("x")' 'el.r#text_content()' 'web_sys::Node::r#text_content(&el)' \
+  'el.r#get_attribute("a")'; do
+  tree="$(fresh_tree "raw-${#call}-${call%%[!a-z]*}" 0)"
+  printf 'fn a() {\n  let v = %s;\n}\n' "${call}" >"${tree}/crates/web/src/hello.rs"
+  run_check "${tree}"
+  expect "raw identifier call is rejected: ${call}" 1 "${RC}"
+done
+
+# 25b. raw identifier の setter・別名は誤検出しない
+tree="$(fresh_tree raw-setters 0)"
+printf 'fn a() {\n  el.r#set_text_content(Some("x"));\n  el.r#set_inner_html("x");\n  el.r#set_value("x");\n  let r#valuex = 1;\n}\n' >"${tree}/crates/web/src/hello.rs"
+run_check "${tree}"
+expect "raw identifier setters are not rejected" 0 "${RC}"
+
+# 25c. glue.rs の field.r#value() は例外として数えない（保守的に違反）
+tree="$(fresh_tree raw-exc 1)"
+printf 'fn a() { let v = field.value(); let w = field.r#value(); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "field.r#value() is not an exception" 1 "${RC}"
+tree="$(fresh_tree raw-exc-only 1)"
+printf 'fn a() { let w = field.r#value(); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "field.r#value() alone does not satisfy the exception count" 1 "${RC}"
+
+# 26. 文字列の中の field.value() は例外の件数に数えない（本物の呼び出しが無ければ件数の不一致で失敗）
+tree="$(fresh_tree str-only 1)"
+printf 'fn a() { let note = "field.value()"; }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "field.value() only inside a string does not satisfy the count" 1 "${RC}"
+case "${OUT}" in
+  *"FAIL exception glue.rs"*"= 0 (allowed 1)"*) expect "string match is reported as count 0" 0 0 ;;
+  *) expect "string match is reported as count 0" 0 1 ;;
+esac
+
+# 26b. 本物の呼び出し 1 件と文字列内の一致があっても、文字列は数えず水増しされない（件数 1 のまま、文字列は違反側）
+tree="$(fresh_tree str-plus 1)"
+printf 'fn a() { let v = field.value(); let note = "field.value()"; }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+case "${OUT}" in
+  *"= 1 (allowed 1)"*) expect "real call is counted once next to a string match" 0 0 ;;
+  *) expect "real call is counted once next to a string match" 0 1 ;;
+esac
+expect "string match next to the real call is reported" 1 "${RC}"
+
+# 26c. 生文字列・エスケープした引用符を含む文字列・バイト文字列の中の一致も数えない
+tree="$(fresh_tree str-raw 1)"
+cat >"${tree}/crates/web/src/glue.rs" <<'EOF'
+fn a() { let n = r"field.value()"; }
+fn b() { let n = r#"x "quoted" field.value()"#; }
+fn c() { let n = "say \"hi\" field.value()"; }
+fn d() { let n = b"field.value()"; }
+fn e() { let n = br#"field.value()"#; }
+EOF
+run_check "${tree}"
+case "${OUT}" in
+  *"= 0 (allowed 1)"*) expect "literal matches are not counted" 0 0 ;;
+  *) expect "literal matches are not counted" 0 1 ;;
+esac
+expect "literal-only exception is rejected" 1 "${RC}"
+
+# 26d. エスケープした引用符の直後の本物の呼び出しは数える（文字列の終わりを取り違えない）
+tree="$(fresh_tree str-escape 1)"
+cat >"${tree}/crates/web/src/glue.rs" <<'EOF'
+fn a() { let n = "a \" b \\"; let v = field.value(); }
+EOF
+run_check "${tree}"
+expect "real call after an escaped-quote string is counted" 0 "${RC}"
+
+# 26e. 文字列の直後の .value()（レシーバが文字列）は例外にならない
+tree="$(fresh_tree str-recv 1)"
+printf 'fn a() { let v = field.value(); let w = "field".value(); }\n' >"${tree}/crates/web/src/glue.rs"
+run_check "${tree}"
+expect "receiver inside a string literal is not an exception" 1 "${RC}"
+
 echo "# passed: ${passed}, failed: ${failed}"
 if [ "${failed}" -ne 0 ]; then
   exit 1
