@@ -1,0 +1,8 @@
+id: JUDGE1-A1
+package: fandhe-workshop-core
+test: select_judge
+target: crates/core/src/select_judge.rs
+find: rule_target == input_target
+replace: rule_target == input_target || true
+expect-fail: approval_revise_without_rule_rejects
+note: 承認の対象の比較を外す（対象なしの「直す」が対象つきの規則に一致する）

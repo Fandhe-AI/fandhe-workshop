@@ -1,0 +1,8 @@
+id: JUDGE1-C1
+package: fandhe-workshop-core
+test: select_judge
+target: crates/core/src/select_judge.rs
+find: Ok(spec.options.iter().any(|o| o.id == *id))
+replace: Ok(spec.options.iter().any(|o| o.id == *id) || true)
+expect-fail: choice_rejects_undeclared_option
+note: 選択肢の、宣言にあるかの検査を外す（宣言に無い ID を指す規則が受付になる）
