@@ -1,0 +1,10 @@
+id: EVT13-3
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:                 if *cause == Cause::Input {
+replace:                 if true {
+expect-fail: evt13_non_input_changes_are_not_marked_or_reviewed
+expect-fail: p1c_p1d_without_restore
+expect-fail: p1c_p1d_with_save_restore
+note: 変化の原因が Input かの絞り込みを外す（停止・移動・復帰・開始の巻き戻しも印・復習に入る）
