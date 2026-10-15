@@ -1,0 +1,9 @@
+id: T1
+package: fandhe-workshop-contract
+test: input_spec_contract
+target: crates/contract/src/input_spec.rs
+find:         if n < self.min as usize {
+replace:         if n <= self.min as usize {
+expect-fail: lower_and_upper_bounds_are_inclusive
+expect-fail: min_equals_max
+note: text の下限の比較を両端を含まない形に変える（下限ちょうどの入力が拒否される）
