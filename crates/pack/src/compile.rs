@@ -51,7 +51,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         )]);
     }
 
-    let mut diags = Vec::new();
+    let (_profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
+    let mut diags = profile_diags;
     let mut nodes: Vec<Node> = Vec::new();
     let mut starts: Vec<Start> = Vec::new();
     let mut uids: BTreeSet<String> = BTreeSet::new();
