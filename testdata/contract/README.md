@@ -10,6 +10,8 @@
 
 spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・TASK-205）で参照します。
 
+履歴の包み（`HistoryEnvelope`）のサンプルは `history/` にあります（説明は `history/README.md`、TASK-309 3/3）。
+
 ## 構成
 
 教材は `engine-event-consistency/test-data/min-3step.json`（最小 3 Step の IR）です。`ir` 欄に、`testdata/` からの
