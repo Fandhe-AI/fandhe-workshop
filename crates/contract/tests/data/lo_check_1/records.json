@@ -1,0 +1,5 @@
+[
+  {"step":"main/s1","lo":["LO-1"],"method":"answer","first_answer":"correct","reselection":"none","after_comparison":false,"max_hint":0},
+  {"step":"main/s2","lo":["LO-2"],"method":"point_at","first_answer":"wrong","reselection":"correct","after_comparison":true,"max_hint":1},
+  {"step":"main/s3","lo":["LO-3"],"method":"approve","first_answer":"unanswered","reselection":"none","after_comparison":false,"max_hint":0}
+]
