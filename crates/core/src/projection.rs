@@ -101,13 +101,13 @@ pub struct Projection {
     consumed: usize,
     log: Vec<LogRow>,
     marks: Vec<Mark>,
-    /// 復習の項目。項目を `Arc` で持ち、保存の控えと共有する（保存ごとに全体を複製しない）。
-    review: Vec<Arc<ReviewItem>>,
+    /// 復習の項目。全体を `Arc` で持ち、保存の控えと共有する（保存は参照の複製だけで、変更時に初めて複製する）。
+    review: Arc<Vec<ReviewItem>>,
     /// 変化の印の元。基準点からの経路ごとの（最初の変更前, 最後の変更後）。
     pending: BTreeMap<String, (Option<Element>, Option<Element>)>,
-    /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。項目は現在の復習と共有し、
-    /// 保存ごとの増分は項目数分の参照に限る（保存回数×復習全体の複製にしない）。
-    saved_review: BTreeMap<usize, Vec<Arc<ReviewItem>>>,
+    /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。現在の復習と共有し、
+    /// 保存そのものは参照の複製に限る（復習を変えない保存の連続で全体を複製しない）。
+    saved_review: BTreeMap<usize, Arc<Vec<ReviewItem>>>,
 }
 
 /// 変化の印の種類を（最初の変更前, 最後の変更後）から決める。
@@ -217,8 +217,10 @@ impl Projection {
             Event::Stopped { at, .. } => {
                 self.push_row(i, event);
                 self.pending.clear();
-                if let Some(item) = self.review.iter_mut().find(|r| r.step == at.step) {
-                    let item = Arc::make_mut(item);
+                if let Some(item) = Arc::make_mut(&mut self.review)
+                    .iter_mut()
+                    .find(|r| r.step == at.step)
+                {
                     item.changes.clear();
                     item.achieved = false;
                     item.skipped = false;
@@ -251,19 +253,20 @@ impl Projection {
 
     /// `step` の復習の項目を返す。無ければ末尾に作る（項目の順は最初に現れた順）。
     fn review_item_mut(&mut self, step: &StepUid) -> &mut ReviewItem {
-        let pos = match self.review.iter().position(|r| &r.step == step) {
+        let items = Arc::make_mut(&mut self.review);
+        let pos = match items.iter().position(|r| &r.step == step) {
             Some(pos) => pos,
             None => {
-                self.review.push(Arc::new(ReviewItem {
+                items.push(ReviewItem {
                     step: step.clone(),
                     changes: Vec::new(),
                     achieved: false,
                     skipped: false,
-                }));
-                self.review.len() - 1
+                });
+                items.len() - 1
             }
         };
-        Arc::make_mut(&mut self.review[pos])
+        &mut items[pos]
     }
 
     /// 学習者の変化を印の元と復習へ併合する。最初の変更前・最後の変更後を保つ。
@@ -299,7 +302,7 @@ impl Projection {
             .ok()
             .filter(|at| *at < i)
             .and_then(|at| self.saved_review.get(&at));
-        let mut restored: Vec<Arc<ReviewItem>> = saved
+        let mut restored: Vec<ReviewItem> = saved
             .map(|items| {
                 items
                     .iter()
@@ -308,8 +311,13 @@ impl Projection {
                     .collect()
             })
             .unwrap_or_default();
-        restored.extend(self.review.drain(..).filter(|r| &r.step.root() != own));
-        self.review = restored;
+        restored.extend(
+            self.review
+                .iter()
+                .filter(|r| &r.step.root() != own)
+                .cloned(),
+        );
+        self.review = Arc::new(restored);
     }
 
     /// 処理済みのイベント数。
@@ -328,7 +336,7 @@ impl Projection {
     }
 
     /// 復習の項目。
-    pub fn review(&self) -> &[Arc<ReviewItem>] {
+    pub fn review(&self) -> &[ReviewItem] {
         &self.review
     }
 }
