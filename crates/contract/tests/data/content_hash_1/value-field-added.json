@@ -1,0 +1,530 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "p",
+    "title": "題名",
+    "version": "0.1.0",
+    "ir_format": 2,
+    "guidance": "A",
+    "vocab": {
+      "v": 1
+    },
+    "guidance_levels": {
+      "A": {}
+    },
+    "profile": {
+      "ime": true
+    },
+    "appearance": {
+      "theme": "dark"
+    },
+    "left_pane": {
+      "tabs": []
+    }
+  },
+  "refs": [
+    {
+      "name": "r"
+    }
+  ],
+  "commands": {
+    "help": "builtin"
+  },
+  "views": {
+    "v": {
+      "kind": "file_tree",
+      "label": "追加した欄"
+    }
+  },
+  "fixtures": {
+    "f": {
+      "path": "fixtures/f.txt",
+      "kind": "text"
+    }
+  },
+  "hints": {
+    "h": {
+      "level": 1
+    }
+  },
+  "rejections": {
+    "rj": {
+      "message": "m"
+    }
+  },
+  "clarifications": {
+    "c": {
+      "text": "t"
+    }
+  },
+  "defaults": {
+    "busy": "rj"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "module": "m",
+      "args": {
+        "k": "v"
+      },
+      "caller": "main/a"
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/a",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "a",
+        "title": "t",
+        "body": "a.md",
+        "body_levels": {
+          "B": "b.md"
+        },
+        "do": "やること",
+        "lo": [
+          "lo-1"
+        ],
+        "final": true,
+        "views": [
+          "v"
+        ],
+        "fixtures": [
+          "f"
+        ],
+        "hints": [
+          "h"
+        ],
+        "on_enter": [
+          {
+            "op": "x"
+          }
+        ],
+        "processing": [
+          {
+            "op": "y"
+          }
+        ],
+        "input": {
+          "kind": "text"
+        },
+        "rules": [
+          {
+            "when": "z"
+          }
+        ],
+        "on_reject": {
+          "busy": "rj"
+        },
+        "confirm": {
+          "kind": "yes_no"
+        },
+        "on_achieved": [
+          {
+            "op": "w"
+          }
+        ],
+        "next": [
+          {
+            "to": "main/b",
+            "when": {
+              "all": []
+            }
+          }
+        ],
+        "use": {
+          "module": "m"
+        }
+      },
+      "enter": "m/x",
+      "exit_to": "main/b",
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "見出し"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "本文"
+              },
+              {
+                "t": "code",
+                "text": "c"
+              },
+              {
+                "t": "emph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "e"
+                  }
+                ]
+              },
+              {
+                "t": "strong",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "s"
+                  }
+                ]
+              },
+              {
+                "t": "link",
+                "href": "https://example.com/",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "l"
+                  }
+                ]
+              },
+              {
+                "t": "image",
+                "src": "a.png",
+                "alt": "a"
+              },
+              {
+                "t": "break"
+              }
+            ]
+          },
+          {
+            "t": "quote",
+            "children": [
+              {
+                "t": "rule"
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "ordered": true,
+            "items": [
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "i"
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "t": "code",
+            "lang": "rust",
+            "text": "fn main() {}"
+          },
+          {
+            "t": "code",
+            "text": "plain"
+          },
+          {
+            "t": "table",
+            "head": [
+              [
+                {
+                  "t": "text",
+                  "text": "h"
+                }
+              ]
+            ],
+            "rows": [
+              [
+                [
+                  {
+                    "t": "text",
+                    "text": "r"
+                  }
+                ]
+              ]
+            ]
+          },
+          {
+            "t": "rule"
+          }
+        ]
+      },
+      "body_levels_doc": {
+        "B": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "heading",
+              "level": 1,
+              "children": [
+                {
+                  "t": "text",
+                  "text": "見出し"
+                }
+              ]
+            },
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "本文"
+                },
+                {
+                  "t": "code",
+                  "text": "c"
+                },
+                {
+                  "t": "emph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "e"
+                    }
+                  ]
+                },
+                {
+                  "t": "strong",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "s"
+                    }
+                  ]
+                },
+                {
+                  "t": "link",
+                  "href": "https://example.com/",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "l"
+                    }
+                  ]
+                },
+                {
+                  "t": "image",
+                  "src": "a.png",
+                  "alt": "a"
+                },
+                {
+                  "t": "break"
+                }
+              ]
+            },
+            {
+              "t": "quote",
+              "children": [
+                {
+                  "t": "rule"
+                }
+              ]
+            },
+            {
+              "t": "list",
+              "ordered": true,
+              "items": [
+                [
+                  {
+                    "t": "paragraph",
+                    "children": [
+                      {
+                        "t": "text",
+                        "text": "i"
+                      }
+                    ]
+                  }
+                ]
+              ]
+            },
+            {
+              "t": "code",
+              "lang": "rust",
+              "text": "fn main() {}"
+            },
+            {
+              "t": "code",
+              "text": "plain"
+            },
+            {
+              "t": "table",
+              "head": [
+                [
+                  {
+                    "t": "text",
+                    "text": "h"
+                  }
+                ]
+              ],
+              "rows": [
+                [
+                  [
+                    {
+                      "t": "text",
+                      "text": "r"
+                    }
+                  ]
+                ]
+              ]
+            },
+            {
+              "t": "rule"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/a",
+      "effects": [
+        {
+          "op": "e"
+        }
+      ],
+      "guidance": "B",
+      "requires": {
+        "k": 1
+      },
+      "unmet": "rj"
+    }
+  ],
+  "fixture_docs": {
+    "f": {
+      "version": 1,
+      "blocks": [
+        {
+          "t": "heading",
+          "level": 1,
+          "children": [
+            {
+              "t": "text",
+              "text": "見出し"
+            }
+          ]
+        },
+        {
+          "t": "paragraph",
+          "children": [
+            {
+              "t": "text",
+              "text": "本文"
+            },
+            {
+              "t": "code",
+              "text": "c"
+            },
+            {
+              "t": "emph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "e"
+                }
+              ]
+            },
+            {
+              "t": "strong",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "s"
+                }
+              ]
+            },
+            {
+              "t": "link",
+              "href": "https://example.com/",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "l"
+                }
+              ]
+            },
+            {
+              "t": "image",
+              "src": "a.png",
+              "alt": "a"
+            },
+            {
+              "t": "break"
+            }
+          ]
+        },
+        {
+          "t": "quote",
+          "children": [
+            {
+              "t": "rule"
+            }
+          ]
+        },
+        {
+          "t": "list",
+          "ordered": true,
+          "items": [
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "i"
+                  }
+                ]
+              }
+            ]
+          ]
+        },
+        {
+          "t": "code",
+          "lang": "rust",
+          "text": "fn main() {}"
+        },
+        {
+          "t": "code",
+          "text": "plain"
+        },
+        {
+          "t": "table",
+          "head": [
+            [
+              {
+                "t": "text",
+                "text": "h"
+              }
+            ]
+          ],
+          "rows": [
+            [
+              [
+                {
+                  "t": "text",
+                  "text": "r"
+                }
+              ]
+            ]
+          ]
+        },
+        {
+          "t": "rule"
+        }
+      ]
+    }
+  }
+}
