@@ -17,7 +17,8 @@
 //! 2. 以降は必ず先頭に `InputReceived`（入力は原文のまま）を出す
 //! 3. 現在の Step が IR に無ければ、固定文の `Warning` を添えて状態を変えない
 //! 4. 判定できない宣言（`judge_input` の誤り）は、`Judged` を置かず固定文の `Warning` を添えて状態を変えない
-//! 5. `Input::Cancel` は `Judged` だけ（意味づけは TASK-212）
+//! 5. `Input::Cancel` は状態を変えない（意味づけは TASK-212）。拒否・問い返しは `Judged` だけを出す。
+//!    `on.cancel` の受付の規則に当たったときは、受付の処理が未結線なので `Judged` を置かず固定文の `Warning` だけを出す
 //! 6. 処理中（`busy`。[`crate::busy_class::classify_busy`] が決める）なら、状態に依らず `Judged`（拒否 `busy`）だけを
 //!    出す（処理中の再送。受付は（世代, Step）につき 1 回で、2 回目以降は処理中の拒否になる。EVT-7）。
 //!    Step が `Entered`・`Accepted` でない（達成済みなど）ときも `Judged` だけを出す
@@ -70,6 +71,9 @@ use crate::step_status::StepStatus;
 const INVALID_DECLARATION: &str =
     "input declaration or rule effects could not be read; input rejected";
 
+/// 取り消しの受付の規則に当たったときの固定文（受付の処理は TASK-212 まで結線しない）。規則の ID・入力値を含めない。
+const UNSUPPORTED_CANCEL: &str = "cancel acceptance is not supported yet; input ignored";
+
 /// 確認を省く宣言が不正なときの固定文。理由・入力値・教材の値を含めない。
 const INVALID_SKIP: &str = "confirm none declaration could not be read; input rejected";
 
@@ -101,7 +105,17 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
     };
     let judged = judged_event(at.clone(), outcome.judgment.clone());
     if matches!(input, Input::Cancel) {
-        events.push(judged);
+        // 取り消しの受付の意味づけ（`on.cancel` の受付の規則の遷移と効果）は TASK-212 が持ち、まだ結線しない。
+        // それまでは受付の `Judged` を出さず、固定文の `Warning` だけにして状態を変えない（受付と判定したのに
+        // 遷移が無い食い違いを作らない。fail-closed）。拒否・問い返しは `Judged` だけで、状態を変えない。
+        if matches!(outcome.judgment, Judgment::Accepted(_)) {
+            events.push(Event::Warning {
+                at: at.clone(),
+                message: UNSUPPORTED_CANCEL.to_string(),
+            });
+        } else {
+            events.push(judged);
+        }
         return events;
     }
     match phase(&state.run, &current, &input) {

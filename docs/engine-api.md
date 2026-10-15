@@ -123,7 +123,7 @@
 | GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 型は許す・実装待ち | TASK-295・TASK-297 |
 | GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 型は許す・実装待ち | TASK-295 |
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
-| JUDGE-3 入力 1 件の判定結果は 6 種のどれか 1 つで、`Judged` として出る | `Event::Judged { at, judgment }`・contract の `Judgment::kind()`（全域）・`judge::judge_input` | 読み取れる（型と純関数）。`Op::Input` は `apply()` に結線済み | 発行位置は `InputReceived` の直後（`Op::Input`）。`apply()` は判定を 1 回だけ行い、その結果に従って状態を変える（拒否・問い返しは状態を変えない）。判定できない宣言と、受付・確認の判定の後に遷移が続かない場合は `Judged` を置かず `Warning` を出す。進行の位置は TASK-210 |
+| JUDGE-3 入力 1 件の判定結果は 6 種のどれか 1 つで、`Judged` として出る | `Event::Judged { at, judgment }`・contract の `Judgment::kind()`（全域）・`judge::judge_input` | 読み取れる（型と純関数）。`Op::Input` は `apply()` に結線済み | 発行位置は `InputReceived` の直後（`Op::Input`）。`apply()` は判定を 1 回だけ行い、その結果に従って状態を変える（拒否・問い返しは状態を変えない）。判定できない宣言と、受付・確認の判定の後に遷移が続かない場合は `Judged` を置かず `Warning` を出す。取り消しの受付の規則（`on.cancel`）は、受付の処理を TASK-212 が結線するまで同じく `Warning` だけにする。進行の位置は TASK-210 |
 | GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 
 ## 7. 契約適合試験とサンプル

@@ -491,3 +491,42 @@ fn text_accept_rule_applies_effects_of_judged_rule() {
         Some("written")
     );
 }
+
+/// st-1 に、取り消しを受け付ける規則（`judge` の試験データの `st-cancel` と同じ形）を足した教材。
+fn cancel_accept_ir() -> Ir {
+    let mut ir = ir();
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-1" {
+            n.step.rules.insert(
+                0,
+                json!({ "id": "r-cancel", "on": { "cancel": true }, "outcome": { "kind": "accept" } }),
+            );
+        }
+    }
+    ir
+}
+
+#[test]
+fn cancel_accept_rule_is_not_recorded_as_accepted_until_wired() {
+    // 取り消しの受付の意味づけ（TASK-212）が入るまでは、受付の `Judged` を出さず、固定文の `Warning` だけにして
+    // 状態を変えない（受付と判定したのに遷移が無い食い違いを作らない。fail-closed）。
+    for status in [StepStatus::Entered, StepStatus::Accepted] {
+        let mut state = entered("main/st-1");
+        for sl in state.run.slices.values_mut() {
+            sl.status.insert(uid("main/st-1"), status);
+        }
+        let mut s = Session::from_state(cancel_accept_ir(), state);
+        let before = s.state().run.clone();
+        let events = send(&mut s, Input::Cancel);
+        assert_eq!(
+            kinds(&events),
+            ["input_received", "warning"],
+            "{status:?}: {events:?}"
+        );
+        assert!(!events.iter().any(|e| matches!(e, Event::Judged { .. })));
+        if let Event::Warning { message, .. } = &events[1] {
+            assert!(!message.contains("r-cancel"));
+        }
+        assert_eq!(s.state().run, before, "{status:?}");
+    }
+}
