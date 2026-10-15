@@ -7,14 +7,15 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 到達性・行き止まりの順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input` の同時指定）・`input::check_inputs`・
 //! `confirm::check_confirms`（正答の無い `answer` は `E-STRUCTURE`）を再利用し、結果を絞らずに返す。絞ると
 //! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
 //! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。
-//! `E-PROFILE-*`・`E-UNREACHABLE` などの残りの検査は TASK-46・TASK-55・TASK-56 の持ち分である。
+//! 到達性（`E-UNREACHABLE`）・行き止まり（`E-DEAD-END`）は `reach` が受け持つ（TASK-55 1/2）。
+//! `E-MODULE-CYCLE`・`E-NO-CONFIRM` の受け入れは TASK-55 2/2、`E-PROFILE-*` は TASK-46、網羅は TASK-56 の持ち分である。
 //!
 //! 語彙の中身（`input`・`rules`・`confirm`・`on_enter` など）は `serde_json::Value` のまま通っているため、
 //! 参照を取り出す経路をここに集める。教材データは信頼しない入力として扱い、文字列でない参照は黙って
@@ -29,7 +30,12 @@ use serde_json::Value;
 use crate::diag::{DiagCode, Diagnostic};
 use crate::source::{self, safe_ident, LoadedPack, LoadedScope, ScopeKind};
 
-fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> Diagnostic {
+pub(crate) fn diag(
+    file: &str,
+    item: &str,
+    code: DiagCode,
+    message: impl Into<String>,
+) -> Diagnostic {
     let file = if file.trim().is_empty() { "." } else { file };
     let item = if item.trim().is_empty() { "pack" } else { item };
     // file と item を空でない値に直したので、Diagnostic::new は失敗しない。
@@ -54,11 +60,17 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut out = check_dup_ids(pack);
     out.extend(check_refs(pack));
     out.extend(check_structure(pack));
+    out.extend(check_reachability(pack));
     out
 }
 
+/// 到達性（`E-UNREACHABLE`）と行き止まり（`E-DEAD-END`）の検査。意味論は `reach` のモジュール文書を参照。
+pub fn check_reachability(pack: &LoadedPack) -> Vec<Diagnostic> {
+    crate::reach::check_reach(pack)
+}
+
 /// 診断の文面に写す ID。`safe_ident` を通らない ID は写さない（教材データは信頼しない入力）。
-fn shown(id: &str) -> &str {
+pub(crate) fn shown(id: &str) -> &str {
     if safe_ident(id) {
         id
     } else {
