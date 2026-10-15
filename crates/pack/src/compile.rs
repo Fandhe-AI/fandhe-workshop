@@ -16,6 +16,7 @@
 //! モジュールの `use` は [`crate::expand`] が実体に展開する（TASK-50 1/2）。章は実体 `main`、呼ばれた
 //! モジュールは `<モジュール ID>@<実体名>` の実体で、Step の `uid` は `<実体 ID>/<Step ID>` になる。遷移先と
 //! 開始の解決は、実体からの相対で行う。呼ばれないモジュールは IR に出さず、中身も検査しない。
+//! Step の `input` の宣言は [`crate::input`] が検査する（IR には宣言の値をそのまま載せる）。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -26,7 +27,9 @@ use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::effect_check::check_effects;
 use crate::expand::Expander;
+use crate::input;
 use crate::markdown;
 use crate::source::{self, LoadedPack, ScopeKind};
 
@@ -77,6 +80,10 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                     format!("duplicate start id: {}", st.id),
                 ));
                 continue;
+            }
+            for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures) {
+                ex.diags
+                    .push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
             }
             let mut s = st.clone();
             s.node = format!("main/{}", st.node);
@@ -134,6 +141,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
     let mut seen = BTreeSet::new();
     diags.retain(|d| seen.insert(format!("{d:?}")));
+    // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
+    diags.extend(input::check_inputs(&pack.scopes));
     if !diags.is_empty() {
         return Err(diags);
     }

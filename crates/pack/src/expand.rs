@@ -24,6 +24,7 @@ use serde_json::Value;
 
 use crate::compile::{body_len, body_tree, diag, Budget};
 use crate::diag::{DiagCode, Diagnostic};
+use crate::effect_check::check_effects;
 use crate::source::{safe_ident, LoadedPack, LoadedScope, ScopeKind};
 
 /// モジュールの入れ子の深さの上限。章を深さ 0 とし、深さ 8 の実体の中の `use` は展開しない。
@@ -333,6 +334,12 @@ impl<'a> Expander<'a> {
                 self.limit(&scope.file, &item, "too many expanded steps");
                 return;
             }
+            // 状態変化の語彙（TASK-43 1/2）。置換後の値を検査する。
+            for (field, list) in [("on_enter", &s.on_enter), ("on_achieved", &s.on_achieved)] {
+                for (code, msg) in check_effects(list, field, &self.pack.workshop.fixtures) {
+                    self.diags.push(diag(&scope.file, &item, code, msg));
+                }
+            }
             self.checks.push(Check {
                 file: scope.file.clone(),
                 item: item.clone(),
@@ -546,6 +553,11 @@ impl<'a> Expander<'a> {
                         break 'all;
                     }
                     continue;
+                }
+                for (code, msg) in
+                    check_effects(&s.effects, "effects", &self.pack.workshop.fixtures)
+                {
+                    self.diags.push(diag(&p.scope.file, &item, code, msg));
                 }
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
                 if !self.budget.take(size) || out.len() >= MAX_COLLECTION_ELEMENTS {
