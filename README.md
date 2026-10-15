@@ -80,7 +80,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/glossary.md` | 用語集（章・Step・IR・語彙など） |
 | `docs/architecture.md` | 実装 repo の構成設計（版 1）。crate の境界・依存の向き・公開 API の型の置き場・feature・試験データと雛形の置き場を固定する契約。crate 名は仮称 |
 | `docs/testing.md` | 性質テストと変異注入の手順、変異注入の記録の様式。変異の定義は `crates/*/tests/mutations/`、検査は `make check-mutations` |
-| `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure-wasm-size` |
+| `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
@@ -169,12 +169,12 @@ Cargo ワークスペースは導入済みですが、中身は空の骨格で�
 
 ### ブラウザテスト
 
-共通ヘルパ（`tools/browser/harness.mjs`）は、ブラウザの起動・通信の計数・CSP 違反の計数・ページ内エラーの収集を担います。
+共通ヘルパ（`tools/browser/harness.mjs`）は、ブラウザの起動・通信の計数・CSP 違反の計数・ページ内エラーの収集を担います。安全性の試験（TASK-143）向けに、記録用の関数（`__poc7_hit`）の呼び出し・ダイアログ・ポップアップ・タブの異常終了の計数、画面の走査（危険な要素・`on*` 属性・`style` 属性・http(s) 以外の URL・外部 http(s)）、CSP の meta だけを除いた一時の写しでの配信（CSP なし）も担います。計数のキー名は `safetyCounts()` が返す固定のもので、後続の安全性の試験がそのまま使います。
 
 ```bash
 npm ci                              # package-lock.json の版を導入する
 npx playwright install chromium     # 同梱の Chromium を導入する
-make test-browser                   # web を一時ディレクトリへビルドし、試験を流す
+make test-browser                   # web（配信設定と試験の設定）を一時ディレクトリへビルドし、試験を流す
 ```
 
 既定は Playwright 同梱の Chromium です。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome make test-browser` とします（値は `chromium` か `chrome` だけです。Chrome が無い場合は Chromium へ切り替えず失敗します）。
@@ -203,13 +203,16 @@ make test-browser                   # web を一時ディレクトリへビル�
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
 | `make test-serve` | `scripts/test-serve.sh` | 配信サーバの試験（Node の `node:test`） |
-| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験と、配信設定の web をサブパス配信した最小の画面の試験（Playwright）。CI には未組み込みです |
+| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験（Playwright）。CI には未組み込みです |
+| `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
 | `make build-web` | `tools/build-web.sh` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定、`IR_FILE` で IR を同梱） |
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準を実ビルドで検査する |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
+| `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
+| `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 
 ## Git hooks
 

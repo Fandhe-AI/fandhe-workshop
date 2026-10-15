@@ -9,9 +9,8 @@
 # scripts/check-crate-deps.sh（`make check-deps`）が持つ。同じ不変条件を二重に定義しない。
 #
 # 例外は 1 種類だけ（下の EXC_*）。glue.rs 直下の `field.value()` で、ファイル・パターン・件数の 3 つで限定する。
-# 件数は増えても減っても失敗する。固定値は現在のコードの実数であり、仕様上の最終値 1 ではない:
-#   textarea の現在値と状態の下書きを比べる sync_draft_to_dom を足す TASK-356（#964）が、同じ変更で 1 に上げる。
-#   上げるときは例外の理由の説明も実装に合わせて更新する。
+# 件数は増えても減っても失敗する。固定値 1 は glue.rs の sync_draft にある textarea の現在値の読み取り（TASK-158）。
+# 件数を変えるときは、例外の理由の説明も実装に合わせて更新する。
 #
 # 照合の単位: 呼び出し 1 件ずつ（同じ行に複数あれば複数と数える）。空白・改行を挟んだ `.value ( )` も検出する。
 # getter だけを対象にし、`set_text_content` などの setter は名前の境界で区別して対象外にする。
@@ -50,7 +49,7 @@ require_cmd sed || exit 2
 # 読んだ値は状態に入れない。
 EXC_FILE="glue.rs"
 EXC_PATTERN='field\.value\(\)'
-EXC_N=0
+EXC_N=1
 
 WEB_SRC="${ROOT}/crates/web/src"
 if [ ! -d "${WEB_SRC}" ]; then

@@ -41,26 +41,21 @@ expect() {
 }
 
 # fresh_tree <name> <exc_n>: 最小の repo 構成を作り、そのパスを出力する。
-# exc_n が 1 のときは写しの EXC_N=0 を EXC_N=1 に置き換える（sed -i は GNU/BSD で引数が違うので使わない）。
+# 写しの `EXC_N=<数字>` の行を `EXC_N=<exc_n>` に置き換える（本体の固定値に試験を依存させない。sed -i は GNU/BSD で引数が違うので使わない）。
 fresh_tree() {
   local dest="${TMP_DIR}/$1" exc_n="$2"
   mkdir -p "${dest}/tools" "${dest}/scripts" "${dest}/crates/web/src"
   cp "${DIR}/lib.sh" "${dest}/scripts/lib.sh"
-  if [ "${exc_n}" = "1" ]; then
-    while IFS= read -r line || [ -n "${line}" ]; do
-      if [ "${line}" = "EXC_N=0" ]; then
-        printf '%s\n' "EXC_N=1"
-      else
-        printf '%s\n' "${line}"
-      fi
-    done <"${CHECK_SRC}" >"${dest}/tools/check-deps.sh.tmp"
-    mv "${dest}/tools/check-deps.sh.tmp" "${dest}/tools/check-deps.sh"
-    if ! grep -qx 'EXC_N=1' "${dest}/tools/check-deps.sh"; then
-      echo "not ok - fixture setup: EXC_N was not rewritten" >&2
-      exit 1
-    fi
-  else
-    cp "${CHECK_SRC}" "${dest}/tools/check-deps.sh"
+  while IFS= read -r line || [ -n "${line}" ]; do
+    case "${line}" in
+      EXC_N=[0-9]*) printf '%s\n' "EXC_N=${exc_n}" ;;
+      *) printf '%s\n' "${line}" ;;
+    esac
+  done <"${CHECK_SRC}" >"${dest}/tools/check-deps.sh.tmp"
+  mv "${dest}/tools/check-deps.sh.tmp" "${dest}/tools/check-deps.sh"
+  if ! grep -qx "EXC_N=${exc_n}" "${dest}/tools/check-deps.sh"; then
+    echo "not ok - fixture setup: EXC_N was not rewritten" >&2
+    exit 1
   fi
   chmod 755 "${dest}/tools/check-deps.sh"
   printf 'pub fn run() {}\n' >"${dest}/crates/web/src/glue.rs"
