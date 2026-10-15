@@ -1,7 +1,7 @@
 id: JUDGE7-1
 package: fandhe-workshop-core
 test: command_accept
-target: crates/core/src/command_accept.rs
+target: crates/core/src/text_judge.rs
 find: .insert(uid.clone(), StepStatus::Accepted);
 replace: .insert(uid.clone(), StepStatus::Achieved);
 expect-fail: st_7_3_same_input_is_accepted_and_stops_world

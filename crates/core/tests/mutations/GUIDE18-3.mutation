@@ -1,0 +1,8 @@
+id: GUIDE18-3
+package: fandhe-workshop-core
+test: lo_first_answer
+target: crates/core/src/lo_first_answer.rs
+find:         if !rec.lo.iter().any(|l| l == lo) {
+replace:         if false && !rec.lo.iter().any(|l| l == lo) {
+expect-fail: tally_counts_only_the_designated_lo
+note: 集計の LO の絞り込みを外す（指定した LO 以外の最初の回答の正答も自力に数える。他の LO へ一般化しない規則がつぶれる）
