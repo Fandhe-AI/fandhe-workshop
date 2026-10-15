@@ -1,0 +1,8 @@
+id: JUDGE4-3
+package: fandhe-workshop-core
+test: command_class
+target: crates/core/src/command_class.rs
+find: if status != StepStatus::Entered {
+replace: if status == StepStatus::NotStarted {
+expect-fail: flow_command_depends_on_status
+note: 受け付けるかの判定から状態 Entered の条件を外す（受付済みの再送が受付になる）
