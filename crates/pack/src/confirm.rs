@@ -17,7 +17,8 @@
 //! - 入力の無い Step の `confirm` は、形だけを検査し、それ自体は診断にしない（該当する診断コードが spec に無い）
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
-//! `answer` の選択肢の `on_wrong`・`label` は形として受け付けるだけで、意味の検査は TASK-46・TASK-47 の 2/2 が持つ。
+//! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、
+//! `E-STRUCTURE` の固定文になる（2026-10-15、TASK-47 2/2）。`on_wrong` は形として受け付けるだけで、意味の検査は TASK-46 が持つ。
 //! `on_miss`・`on_wrong` の参照先の解決は参照検査（TASK-46・PACK-28）の担当である。
 
 use fandhe_workshop_contract::confirm_spec::{

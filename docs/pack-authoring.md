@@ -81,14 +81,17 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `kind` | 欄 | 意味の制約 |
 |---|---|---|
 | `point_at` | `targets`（各要素は `view`・`path`）、`on_miss`（任意） | `targets` は 1 件以上で、どれも空でない |
-| `answer` | `options`（各要素は `id`・`correct`、任意で `on_wrong`・`label`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない |
+| `answer` | `options`（各要素は `id`・`correct`、任意で `on_wrong`・`label`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない。`label` は書くなら空でない |
 | `approve` | なし | 欄を足すと `E-PARSE` |
 | `none` | `reason` | `reason` が前後の空白を除いて空でないこと。無い・空・空白だけは `E-NO-CONFIRM` |
 
 - 未知の欄・未知の `kind`・欄の欠け・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE` です
 - `none` の理由の欠けを `E-PARSE` でなく `E-NO-CONFIRM` にするのは、PACK-13 の「理由つき」の違反として扱うためです（2026-10-15 の決定）
 - 入力の無い Step に `confirm` を書いても、形が正しければ診断しません。該当する診断コードが spec に無いためで、spec 側の判断が要ります（2026-10-15）
-- `answer` の選択肢の `on_wrong`（EP-6）と `label`（v1.3）は、形として受け付けるだけです。意味の検査と表示は後続のタスクが受け持ちます
+- `answer` の選択肢の `on_wrong`（EP-6）は、形として受け付けるだけです。意味の検査は後続のタスクが受け持ちます
+- `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。省略すると ID がそのまま出ます。前後の空白を除いて空になる `label` は `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
+- 履歴に残る値は選択肢の ID で、表示名ではありません。`label` を後で直しても、記録した履歴の再生は変わりません
+- 確認の `options[].label` は、入力方式 `choice` の `options[].label`（必須）とは別の欄です。表示名の解決は 1 つの Step の確認の選択肢の中だけで行い、入力方式 `choice` の `label` へは落ちません
 - `on_miss`・`on_wrong` の参照先と `targets[].view` の解決は、参照検査（TASK-46）が受け持ち、ここでは検査しません
 
 ## 処理中の進行（`processing`）
@@ -125,5 +128,6 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
-| `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22） |
+| `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22）。`pack23_` は選択肢の表示名の解決・ログの文面・履歴に残す値が ID であること・空白だけの `label` の拒否（PACK-23） |
+| `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |

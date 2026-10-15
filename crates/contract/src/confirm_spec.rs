@@ -1,4 +1,4 @@
-//! Step の確認（`confirm`）4 種の宣言の型と、受付と達成の分け方の純関数（TASK-47、版 1）。
+//! Step の確認（`confirm`）4 種の宣言の型と、受付と達成の分け方の純関数（TASK-47、版 2）。
 //!
 //! 入力を受け付けただけでは Step を達成にせず、受講者の確認の操作（左の変化を指す・問いに答える・承認する）で
 //! 初めて達成にする（R-22、PACK-13）。確認を省けるのは、理由を添えて `none` と明示した Step だけである。
@@ -9,8 +9,13 @@
 //! 判定で読むときだけ使う。`kind` は呼び出し側が取り除いてから、種類ごとの型で読む（`input_spec` と同じ方式）。
 //! どの型も未知の欄を拒否する（失敗を拒否に倒す）。エラーの `Display` は入力値を埋め込まない固定文にする。
 //!
-//! `answer` の選択肢の `on_wrong`（EP-6）と `label`（v1.3）は語彙で固定済みの欄なので形として受け付けるが、
-//! 意味の検査と表示は後続のタスクの担当である。
+//! `answer` の選択肢の `on_wrong`（EP-6）は語彙で固定済みの欄なので形として受け付けるが、意味の検査は後続の
+//! タスクの担当である。`label`（v1.3）は表示名として解決する規則（PACK-23、TERM-24・TERM-25）を持つ。
+//!
+//! 版 2（2026-10-15、TASK-47 2/2）: `label` が空白だけの選択肢を `EmptyName` で拒否する。表示名の解決
+//! （[`AnswerOption::display_name`]）・操作のログの文面（[`selection_log_text`]）・履歴に残す値
+//! （[`AnswerSpec::recorded_value`]）は、pack・core・web が同じ規則を共有するための純関数である。
+//! 表示名は 1 つの Step の選択肢の中だけで解決し、入力方式 `choice` の `label` とは別の欄として扱う。
 
 use core::fmt;
 use serde::{Deserialize, Serialize};
@@ -19,7 +24,7 @@ use std::collections::BTreeSet;
 pub use crate::input_spec::UiTarget;
 
 /// この契約の版。欄・規則を変えたら上げる。
-pub const CONFIRM_SPEC_CONTRACT_VERSION: u32 = 1;
+pub const CONFIRM_SPEC_CONTRACT_VERSION: u32 = 2;
 
 /// 確認の種類。語彙の文書 7 節の `confirm` の 4 語。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -124,9 +129,37 @@ pub struct AnswerOption {
     /// この選択肢の誤答の文面（EP-6）。意味の検査は TASK-46 の担当。
     #[serde(default)]
     pub on_wrong: Option<String>,
-    /// 表示名（v1.3）。表示は TASK-47 の 2/2 の担当。
+    /// 表示名（v1.3）。書かなければ ID を表示する。書くなら空白だけにしない（`check` が拒否する）。
     #[serde(default)]
     pub label: Option<String>,
+}
+
+impl AnswerOption {
+    /// 画面と操作のログに出す表示名。`label` が空白以外を含めばそれ、無ければ ID。
+    /// 検証（`check`）は空白だけの `label` を拒否するが、検証を経ない呼び出し元でも空の表示を出さないよう ID に倒す。
+    pub fn display_name(&self) -> &str {
+        match self.label.as_deref() {
+            Some(l) if !l.trim().is_empty() => l,
+            _ => &self.id,
+        }
+    }
+}
+
+/// 操作のログの「選択: …」の文面。`display` は [`AnswerOption::display_name`] の値を渡す。
+/// 値は書式ではなく文字列として連結する。
+pub fn selection_log_text(display: &str) -> String {
+    let mut s = String::from("選択: ");
+    s.push_str(display);
+    s
+}
+
+/// IR の未型付けの `confirm` から `answer` の宣言を読む。`kind` が `answer` でなければ、または読めなければ `None`。
+pub fn answer_spec_of(confirm: &serde_json::Value) -> Option<AnswerSpec> {
+    let mut map = confirm.as_object()?.clone();
+    if map.remove("kind")?.as_str()? != ConfirmKind::Answer.as_str() {
+        return None;
+    }
+    serde_json::from_value(serde_json::Value::Object(map)).ok()
 }
 
 /// `answer` の宣言。
@@ -140,6 +173,26 @@ pub struct AnswerSpec {
 }
 
 impl AnswerSpec {
+    /// ID から選択肢を引く。この Step の選択肢の中だけを探す。
+    pub fn option(&self, id: &str) -> Option<&AnswerOption> {
+        self.options.iter().find(|o| o.id == id)
+    }
+
+    /// ID の選択肢の表示名。未知の ID は `None`。
+    pub fn display_name(&self, id: &str) -> Option<&str> {
+        self.option(id).map(AnswerOption::display_name)
+    }
+
+    /// ID の選択肢を選んだときの、操作のログの文面。未知の ID は `None`。
+    pub fn selection_log_text(&self, id: &str) -> Option<String> {
+        self.display_name(id).map(selection_log_text)
+    }
+
+    /// 履歴（`ops`）に残す値。選択肢の ID であり、表示名ではない（教材の `label` を後で変えても再生が変わらない）。
+    pub fn recorded_value(&self, id: &str) -> Option<&str> {
+        self.option(id).map(|o| o.id.as_str())
+    }
+
     /// 意味の制約を検査する。
     pub fn check(&self) -> Result<(), ConfirmSpecError> {
         if self.options.is_empty() {
@@ -151,6 +204,9 @@ impl AnswerSpec {
             non_empty(&o.id)?;
             if !seen.insert(o.id.as_str()) {
                 return Err(ConfirmSpecError::Duplicate);
+            }
+            if let Some(label) = &o.label {
+                non_empty(label)?;
             }
         }
         if !self.options.iter().any(|o| o.correct) {

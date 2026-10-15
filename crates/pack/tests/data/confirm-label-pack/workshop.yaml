@@ -1,0 +1,7 @@
+# 確認 answer の選択肢の表示名 label を持つ最小の教材パック（PACK-23、TASK-47）。架空の内容だけを置く。
+pack: {id: confirm-label, title: Confirm label, version: '0', ir_format: 1, guidance: A}
+rejections:
+  rj-wrong:
+    category: not_in_this_step
+    message: Not that one.
+    next_action: Choose again.
