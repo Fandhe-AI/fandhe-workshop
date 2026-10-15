@@ -1,0 +1,145 @@
+//! TASK-204 1/3 の型の公開パスと直列化の形の試験。
+
+use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
+use fandhe_workshop_core::event::{Cause, ControlKind, Event, IgnoreReason, RefuseReason};
+use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
+use fandhe_workshop_core::step_status::StepStatus;
+use fandhe_workshop_core::world::Element;
+use serde::{de::DeserializeOwned, Serialize};
+
+fn stamp() -> Stamp {
+    Stamp {
+        generation: Generation(3),
+        step: StepUid("main/s1".to_string()),
+    }
+}
+
+fn roundtrip<T: Serialize + DeserializeOwned + PartialEq + std::fmt::Debug>(v: &T) {
+    let a = serde_json::to_string(v).expect("serialize");
+    let back: T = serde_json::from_str(&a).expect("deserialize");
+    assert_eq!(&back, v);
+    assert_eq!(a, serde_json::to_string(&back).expect("serialize again"));
+}
+
+#[test]
+fn step_status_values_and_default() {
+    let cases = [
+        (StepStatus::NotStarted, "\"not_started\""),
+        (StepStatus::Entered, "\"entered\""),
+        (StepStatus::Accepted, "\"accepted\""),
+        (StepStatus::Achieved, "\"achieved\""),
+        (StepStatus::Skipped, "\"skipped\""),
+    ];
+    for (v, s) in cases {
+        assert_eq!(serde_json::to_string(&v).expect("serialize"), s);
+        roundtrip(&v);
+    }
+    assert_eq!(StepStatus::default(), StepStatus::NotStarted);
+}
+
+#[test]
+fn tick_addr_has_three_elements() {
+    let t = TickAddr {
+        generation: Generation(1),
+        step: StepUid("main/s1".to_string()),
+        index: 2,
+    };
+    let v = serde_json::to_value(&t).expect("serialize");
+    let obj = v.as_object().expect("object");
+    assert_eq!(obj.len(), 3);
+    for k in ["generation", "step", "index"] {
+        assert!(obj.contains_key(k), "missing {k}");
+    }
+    roundtrip(&t);
+}
+
+#[test]
+fn ops_roundtrip() {
+    let ops = [
+        Op::Input(Input::Command("run".to_string())),
+        Op::Input(Input::Cancel),
+        Op::Input(Input::Approval {
+            decision: Decision::Revise,
+            target: None,
+        }),
+        Op::Tick(TickAddr {
+            generation: Generation(0),
+            step: StepUid("m@a/s".to_string()),
+            index: 0,
+        }),
+        Op::Control(Control::Stop),
+        Op::Control(Control::GoTo(StepUid("main/s2".to_string()))),
+        Op::Control(Control::Save),
+        Op::Control(Control::Restore(CheckpointId(1))),
+        Op::Control(Control::Begin("start".to_string())),
+    ];
+    for op in &ops {
+        roundtrip(op);
+    }
+}
+
+#[test]
+fn events_roundtrip() {
+    let mut el = Element::default();
+    el.attrs.insert("b".to_string(), "2".to_string());
+    el.attrs.insert("a".to_string(), "1".to_string());
+    let events = [
+        Event::Changed {
+            at: stamp(),
+            path: "x/y".to_string(),
+            before: None,
+            after: Some(el),
+            cause: Cause::Input,
+        },
+        Event::Restored {
+            at: stamp(),
+            id: CheckpointId(1),
+            new_generation: Generation(4),
+            log_len: 2,
+            owner: StepUid("main/s1".to_string()),
+        },
+        Event::Skipped { at: stamp() },
+        Event::Refused {
+            at: stamp(),
+            op: ControlKind::GoTo,
+            reason: RefuseReason::UnknownStep,
+            rejection: None,
+        },
+        Event::Ignored {
+            at: stamp(),
+            reason: IgnoreReason::Stale,
+        },
+        Event::Warning {
+            at: stamp(),
+            message: "m".to_string(),
+        },
+        Event::Stopped {
+            at: stamp(),
+            new_generation: Generation(4),
+        },
+        Event::Moved {
+            at: stamp(),
+            to: StepUid("main/s2".to_string()),
+            new_generation: Generation(4),
+        },
+        Event::Begun {
+            at: stamp(),
+            start: "start".to_string(),
+            new_generation: Generation(4),
+        },
+    ];
+    for e in &events {
+        roundtrip(e);
+    }
+    let v = serde_json::to_value(&events[6]).expect("serialize");
+    assert!(v["stopped"]["new_generation"].is_number());
+}
+
+#[test]
+fn unknown_field_and_variant_are_rejected() {
+    let bad_field = r#"{"generation":1,"step":"s","index":0,"extra":1}"#;
+    assert!(serde_json::from_str::<TickAddr>(bad_field).is_err());
+    assert!(serde_json::from_str::<StepStatus>("\"unknown\"").is_err());
+    assert!(serde_json::from_str::<Op>(r#"{"nope":1}"#).is_err());
+    assert!(serde_json::from_str::<Event>(r#"{"nope":{}}"#).is_err());
+}

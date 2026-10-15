@@ -1,0 +1,249 @@
+//! `apply()` が返すイベントの型（TASK-204 1/3）。
+//!
+//! 表示・保存・案内の担当が 1 つの型だけを見ればよいよう、エンジンのイベントと実行環境のイベントを
+//! [`Event`] 1 本にまとめる。すべての variant が [`Stamp`]（`at`）を持つ。世代が変わる variant は
+//! `new_generation` を持つ（EVT-6 の (3)(4)(6)）。版は 2/3 で付ける。
+//!
+//! 意図して固定しないもの（版上げで足す）。
+//! - 判定結果（`Judged`）。型は TASK-256 の contract が持つ。位置づけは `InputReceived` の後に置く
+//! - ヒントを開く（TASK-290）、再読み込み（SAVE-4）
+//!
+//! 文字列（`Warning::message`、`Changed` の値）は教材・利用者由来を含みうる。HTML へ埋め込む際の
+//! エスケープは web 層の責務である。`Warning` の文面に利用者の入力値を埋め込まない。
+
+use serde::{Deserialize, Serialize};
+
+use crate::addr::{Generation, Stamp, StepUid};
+use crate::input::{CheckpointId, Input};
+use crate::world::Element;
+
+/// 世界状態の変更の原因。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Cause {
+    /// 学習者の入力。
+    Input,
+    /// 停止。
+    Stop,
+    /// 移動。
+    Move,
+    /// 復帰。
+    Restore,
+    /// 周回の開始。
+    Start,
+}
+
+/// 実行環境の操作の種類（拒否の対象を示す）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ControlKind {
+    /// 停止。
+    Stop,
+    /// 移動。
+    GoTo,
+    /// 保存。
+    Save,
+    /// 復帰。
+    Restore,
+    /// 周回の開始。
+    Begin,
+}
+
+/// 操作を拒否した理由。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum RefuseReason {
+    /// 無いチェックポイント。
+    UnknownCheckpoint,
+    /// 無い Step。
+    UnknownStep,
+    /// 開始の条件を満たさない。
+    StartUnmet,
+    /// 無い開始 ID。
+    UnknownStart,
+}
+
+/// 入力・進行を無視した理由。宛先の食い違いはコマンドの分類より先に判定する（EVT-8）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum IgnoreReason {
+    /// 世代または Step が古い。
+    Stale,
+    /// 現在の Step が無い。
+    NoCurrent,
+    /// 処理中でない。
+    NoProcessing,
+}
+
+/// イベント。`apply()` の戻りのイベント列の 1 件である。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Event {
+    /// Step に入った。
+    Entered {
+        /// その時点の世代と Step。
+        at: Stamp,
+    },
+    /// モジュールに入った。
+    ModuleEntered {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// モジュールの実体名。
+        instance: String,
+    },
+    /// モジュールを出た。
+    ModuleExited {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// モジュールの実体名。
+        instance: String,
+    },
+    /// 学習者の入力を受け取った。
+    InputReceived {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 受け取った入力。
+        input: Input,
+    },
+    /// 進行が 1 つ進んだ。
+    Progress {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// IR の進行の名前。
+        name: String,
+        /// 何番目の進行か（0 始まり）。
+        index: usize,
+        /// 進行の総数。
+        total: usize,
+    },
+    /// 入力を受け付けた。
+    Accepted {
+        /// その時点の世代と Step。
+        at: Stamp,
+    },
+    /// 完了条件を満たした。
+    Achieved {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 学習者が明示的に省略して達成としたか。
+        explicit_skip: bool,
+    },
+    /// Step を省略した。
+    Skipped {
+        /// その時点の世代と Step。
+        at: Stamp,
+    },
+    /// 次の Step へ遷移した。
+    Transitioned {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 遷移先。
+        to: StepUid,
+    },
+    /// 章を完了した。
+    ChapterCompleted {
+        /// その時点の世代と Step。
+        at: Stamp,
+    },
+    /// フラグが変わった。
+    Flag {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// フラグの範囲。
+        scope: String,
+        /// フラグの名前。
+        name: String,
+        /// 入か切か。
+        on: bool,
+    },
+    /// 世界状態が変わった（1 経路 1 件。EVT-13）。
+    Changed {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 変わった経路。
+        path: String,
+        /// 変更前（無ければ `None`）。
+        before: Option<Element>,
+        /// 変更後（無くなれば `None`）。
+        after: Option<Element>,
+        /// 変更の原因。
+        cause: Cause,
+    },
+    /// 停止した。
+    Stopped {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 停止後の世代。
+        new_generation: Generation,
+    },
+    /// 指定の Step へ移った。
+    Moved {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 移動先。
+        to: StepUid,
+        /// 移動後の世代。
+        new_generation: Generation,
+    },
+    /// チェックポイントを保存した。
+    CheckpointSaved {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 保存したチェックポイント。
+        id: CheckpointId,
+        /// 保存時点のログの長さ。
+        log_len: usize,
+    },
+    /// チェックポイントへ復帰した（EVT-12・EVT-14）。
+    Restored {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 復帰したチェックポイント。
+        id: CheckpointId,
+        /// 復帰後の世代。
+        new_generation: Generation,
+        /// 復帰時点のログの長さ。
+        log_len: usize,
+        /// 復帰後の現在の Step。
+        owner: StepUid,
+    },
+    /// 周回を開始した。
+    Begun {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 開始 ID。
+        start: String,
+        /// 開始後の世代。
+        new_generation: Generation,
+    },
+    /// 操作を拒否した。
+    Refused {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 拒否した操作の種類。
+        op: ControlKind,
+        /// 拒否の理由。
+        reason: RefuseReason,
+        /// 拒否の分類（TASK-256 の型ができるまでの識別子。無ければ `None`）。
+        rejection: Option<String>,
+    },
+    /// 入力・進行を無視した。状態は変えず 1 件だけ記録する。
+    Ignored {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 無視した理由。
+        reason: IgnoreReason,
+    },
+    /// 教材の定義の誤りの診断。作成者向けで、状態・イベントの決定には使わない。
+    Warning {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 診断の文面。
+        message: String,
+    },
+}
