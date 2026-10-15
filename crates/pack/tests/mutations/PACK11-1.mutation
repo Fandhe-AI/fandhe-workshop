@@ -1,0 +1,8 @@
+id: PACK11-1
+package: fandhe-workshop-pack
+test: error_input_expect
+target: crates/pack/src/play_expect.rs
+find:             let category = rejection_category(t).ok_or(ExpectError::UnknownCategory)?;
+replace:             let category = rejection_category(t).ok_or(ExpectError::UnknownCategory)?; let category = if category == Category::FreeTextUnjudged { Category::Busy } else { category };
+expect-fail: pack11_expect_grammar_rejects_malformed
+note: rejected:free_text_unjudged を別の拒否の分類に読み替える（受付に付く分類が拒否の期待として通ってしまう）
