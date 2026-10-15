@@ -172,3 +172,79 @@ fn pack9_null_word_is_not_treated_as_unspecified() {
         Err(EffectParseError::Shape { .. })
     ));
 }
+
+// ---- 進行（processing）と when の形（TASK-43 2/2） ----
+
+use fandhe_workshop_contract::effect::{ProcessingParseError, ProcessingTick};
+
+fn tick(v: serde_json::Value) -> Result<ProcessingTick, ProcessingParseError> {
+    ProcessingTick::from_value(&v)
+}
+
+#[test]
+fn pack9_processing_tick_parses_with_when() {
+    let t = tick(json!({"name": "scan", "effects": [
+        {"set_flag": "f"},
+        {"put": {"path": "a"}, "when": {"flag": "f"}}
+    ]}))
+    .unwrap();
+    assert_eq!(t.name, "scan");
+    assert_eq!(t.effects.len(), 2);
+    assert_eq!(t.effects[1].when, Some(json!({"flag": "f"})));
+    // effects 省略は空列。
+    assert!(tick(json!({"name": "n"})).unwrap().effects.is_empty());
+}
+
+#[test]
+fn pack9_processing_tick_rejects_bad_shapes() {
+    assert_eq!(
+        tick(json!({"name": "n", "script": "x"})),
+        Err(ProcessingParseError::Shape {
+            unknown_field: Some("script".into())
+        })
+    );
+    for v in [
+        json!("s"),
+        json!([1]),
+        json!({"effects": []}),
+        json!({"name": 1}),
+        json!({"name": "n", "effects": {"a": 1}}),
+    ] {
+        assert_eq!(
+            tick(v),
+            Err(ProcessingParseError::Shape {
+                unknown_field: None
+            })
+        );
+    }
+    assert_eq!(
+        tick(json!({"name": ""})),
+        Err(ProcessingParseError::EmptyName("name"))
+    );
+    assert!(matches!(
+        tick(json!({"name": "n", "effects": [{"set_flag": "f"}, {}]})),
+        Err(ProcessingParseError::Effect { index: 1, .. })
+    ));
+}
+
+#[test]
+fn pack9_when_must_be_a_table() {
+    for w in [json!("x"), json!(1), json!([1]), json!(null)] {
+        assert_eq!(
+            parse(json!({"set_flag": "f", "when": w})),
+            Err(EffectParseError::Shape {
+                unknown_field: None
+            })
+        );
+    }
+    assert!(parse(json!({"set_flag": "f", "when": {"any": 1}})).is_ok());
+}
+
+#[test]
+fn pack9_processing_errors_do_not_echo_input() {
+    let e = tick(json!({"name": "SECRET-VALUE", "effects": 1})).unwrap_err();
+    assert!(!format!("{e:?}{e}").contains("SECRET-VALUE"));
+    let e = tick(json!({"name": "n", "effects": [{"set_flag": 1, "when": "SECRET-VALUE"}]}))
+        .unwrap_err();
+    assert!(!format!("{e:?}{e}").contains("SECRET-VALUE"));
+}

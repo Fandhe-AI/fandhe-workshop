@@ -2,9 +2,10 @@
 //!
 //! 型は contract の [`fandhe_workshop_contract::effect`] が持ち、本モジュールは [`RunState`] を変える
 //! 純関数だけを持つ。呼び出し元は、後続のタスクで `Session::apply` の受付・達成・途中開始の分岐
-//! （TASK-207・TASK-215・TASK-217）と、`when` の評価と項目の列の順次適用（TASK-43 2/2）になる。
-//! 本件は 1 つの語だけを適用し、`when` は評価しない。`when` を無視して列を流す関数は、条件つきの項目を
-//! 無条件に適用してしまうため作らない。
+//! （TASK-207・TASK-215・TASK-217）になる。[`apply_effect`] は 1 つの語を適用する。[`apply_effects`] は
+//! 項目の列を順に適用し、`when` を [`ConditionEval`] で評価して飛ばす（TASK-43 2/2）。`when` を無視して
+//! 列を流す関数は、条件つきの項目を無条件に適用してしまうため作らない。条件の語彙（TASK-42）は持たず、
+//! 評価器を注入する。[`apply_tick`] は進行 1 つを適用する。
 //!
 //! 不変条件: 全域（panic しない）で決定的。I/O・時刻・乱数を使わない。`Changed` は 1 経路につき 1 件（EVT-13）。
 //! 不在の対象への `remove`・`set_attr` は状態を変えず [`Event::Warning`] に倒す。`Warning` の文面には経路・
@@ -13,7 +14,8 @@
 //! `path` は世界状態の鍵で、ファイルパス・URL ではない。値は教材由来で、HTML への埋め込みの
 //! エスケープは web 層の責務である。
 
-use fandhe_workshop_contract::effect::{Effect, PutEffect};
+use fandhe_workshop_contract::effect::{Effect, EffectItem, ProcessingTick, PutEffect};
+use serde_json::Value;
 
 use crate::addr::{Root, Stamp};
 use crate::event::{Cause, Event};
@@ -111,4 +113,82 @@ pub fn apply_effect(
             message: "unsupported effect word".to_string(),
         }],
     }
+}
+
+/// `when` の評価器。条件の語彙（TASK-42）が実体を与える。純関数であること（I/O・時刻・乱数を持たない）。
+pub trait ConditionEval {
+    /// `Some(true)` で適用、`Some(false)` で飛ばす。`None` は評価できない（未知の語など）。
+    fn eval(&self, when: &Value, run: &RunState, root: &Root) -> Option<bool>;
+}
+
+/// 条件の語彙が入るまでの既定。常に `None` を返すため、`when` つきの項目は適用されない。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoConditions;
+
+impl ConditionEval for NoConditions {
+    fn eval(&self, _when: &Value, _run: &RunState, _root: &Root) -> Option<bool> {
+        None
+    }
+}
+
+/// 効果の列を上から順に適用し、出たイベントを返す。
+///
+/// `when` が無い項目は無条件に適用する。`when` は、その項目の直前までを適用した後の状態で評価する
+/// （同じ列の先の `set_flag` を後の項目の `when` が見られる）。評価できない（`None`）項目は、真とみなさず
+/// 適用しない側に倒し、[`Event::Warning`] を 1 件出す。文面は添字だけで、条件の値は入れない。
+pub fn apply_effects(
+    run: &mut RunState,
+    root: &Root,
+    items: &[EffectItem],
+    at: &Stamp,
+    cause: Cause,
+    cond: &dyn ConditionEval,
+) -> Vec<Event> {
+    let mut events = Vec::new();
+    for (i, item) in items.iter().enumerate() {
+        if let Some(when) = &item.when {
+            match cond.eval(when, run, root) {
+                Some(true) => {}
+                Some(false) => continue,
+                None => {
+                    events.push(Event::Warning {
+                        at: at.clone(),
+                        message: format!("effects[{i}]: `when` could not be evaluated; skipped"),
+                    });
+                    continue;
+                }
+            }
+        }
+        events.extend(apply_effect(run, root, &item.effect, at, cause));
+    }
+    events
+}
+
+/// 進行 1 つを適用する。先に [`Event::Progress`] を出し、続けて効果の列（[`apply_effects`]）のイベントを並べる。
+///
+/// `index` は、いま適用した進行の 0 始まりの番号（`Event::Progress::index` と同じ）。`total` は進行の総数。
+/// `run.busy` は変えない。宛先の照合・`busy` の進め方・`wait` の受付・`Op::Tick` の分岐は TASK-210・
+/// TASK-207 の責務である。`name` は教材由来の表示名で、HTML への埋め込みのエスケープは web 層の責務である。
+#[allow(
+    clippy::too_many_arguments,
+    reason = "apply_effect と同じ並びの引数（状態・根・宛先・原因）に評価器を足した公開 API。束ねる型は TASK-210 で判断する"
+)]
+pub fn apply_tick(
+    run: &mut RunState,
+    root: &Root,
+    tick: &ProcessingTick,
+    index: u32,
+    total: u32,
+    at: &Stamp,
+    cause: Cause,
+    cond: &dyn ConditionEval,
+) -> Vec<Event> {
+    let mut events = vec![Event::Progress {
+        at: at.clone(),
+        name: tick.name.clone(),
+        index,
+        total,
+    }];
+    events.extend(apply_effects(run, root, &tick.effects, at, cause, cond));
+    events
 }
