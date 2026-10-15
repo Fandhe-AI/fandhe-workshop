@@ -17,8 +17,9 @@
 //! 3. 現在の Step が IR に無ければ、固定文の `Warning` を添えて状態を変えない
 //! 4. `Input::Cancel` は `InputReceived` だけ（意味づけは TASK-212）
 //! 5. Step が `Accepted` で処理中でなければ、確認の判定（[`crate::confirm`]）に渡す
-//! 6. Step が `Entered` でない、または処理中（`busy`）なら `InputReceived` だけを出す
-//!    （処理中の再送と、達成済みなどへの入力。`busy` の分類は TASK-209 が担う）
+//! 6. 処理中（`busy`。[`crate::busy_class::classify_busy`] が決める）なら、状態に依らず `InputReceived` だけを出す
+//!    （処理中の再送。受付は（世代, Step）につき 1 回で、2 回目以降は処理中の拒否になる。EVT-7）。
+//!    Step が `Entered` でない（達成済みなど）ときも `InputReceived` だけを出す
 //! 7. 入力方式で振り分ける。受付は「受付の規則に一致したとき」だけで、宣言の不正・未知の `kind`・
 //!    読めない効果は受付に倒さず、拒否（宣言の不正には固定文の `Warning` を添える）にする（fail-closed）
 //!
@@ -37,7 +38,7 @@
 //! # 扱わないこと
 //!
 //! - 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
-//! - 処理中の再送の `busy` 分類（TASK-209）、`processing` を持つ省略の Step の達成（TASK-210）
+//! - `busy` の `Judged` の発行と文面（TASK-267）、残り続けるボタンへの連打（TASK-209 2/2）、`processing` を持つ省略の Step の達成（TASK-210）
 //! - 進行 `Op::Tick` の照合と進め方（TASK-210）、処理中でない Esc の意味づけ（TASK-212）
 //! - `Judged` の発行とコマンドの規則の `on.args`・`on.missing` との照合（TASK-267）
 //!
@@ -52,6 +53,7 @@ use fandhe_workshop_contract::profile::read_profile;
 use serde_json::Value;
 
 use crate::addr::{Root, Stamp, StepUid};
+use crate::busy_class::classify_busy;
 use crate::command_judge::{command_spec, judge_command, CommandVerdict};
 use crate::command_lex::lex_command;
 use crate::confirm;
@@ -103,8 +105,8 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
     if matches!(input, Input::Cancel) {
         return events;
     }
-    match phase(&state.run, &current) {
-        Phase::Idle => return events,
+    match phase(&state.run, &current, &input) {
+        Phase::Busy | Phase::Idle => return events,
         Phase::AwaitConfirm => {
             events.extend(confirm::on_confirm(ir, state, node, &at, &input));
             return events;
@@ -152,13 +154,16 @@ enum Phase {
     AwaitInput,
     /// 受付済みで処理中でない。確認の判定に進む（TASK-207 2/3）。
     AwaitConfirm,
-    /// 上のどちらでもない（処理中・達成済みなど）。`InputReceived` だけを出す。
+    /// 処理中（`busy`）。`InputReceived` だけを出し、状態を変えない（EVT-7）。
+    Busy,
+    /// 上のいずれでもない（達成済みなど）。`InputReceived` だけを出す。
     Idle,
 }
 
-fn phase(run: &RunState, uid: &StepUid) -> Phase {
-    if run.busy.is_some() {
-        return Phase::Idle;
+fn phase(run: &RunState, uid: &StepUid, input: &Input) -> Phase {
+    // 処理中の判定の正は `busy_class` の 1 か所にし、受付・確認の分類より先に評価する（JUDGE-5）。
+    if classify_busy(run, input).is_some() {
+        return Phase::Busy;
     }
     let status = run
         .slices

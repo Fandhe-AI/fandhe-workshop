@@ -21,11 +21,13 @@
 //! 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（[`lo_first_answer`]、TASK-305、GUIDE-18）も持つ。
 //! コマンド入力の規則による受付の効果の適用（受け付けたうえで止まる場面、[`command_accept`]、TASK-273）も持つ。
 //! コマンドの表による未知のコマンドと順序違いの分類（[`command_class`]、TASK-268 1/2）も持つ。
+//! 処理中の入力の `busy` の分類（[`busy_class`]、TASK-209 1/2）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
 mod accept;
 pub mod addr;
+pub mod busy_class;
 pub mod changed;
 pub mod command_accept;
 pub mod command_class;

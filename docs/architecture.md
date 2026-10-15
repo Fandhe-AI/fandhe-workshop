@@ -117,6 +117,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（`lo_first_answer`。GUIDE-18。型は contract の `lo_check`。履歴から観測への写像と他の LO の数え方は含まない） | core | TASK-305 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表による未知のコマンドと順序違いの分類（`command_class`。`not_in_this_step`・`not_supported`・`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-268 |
+| 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |

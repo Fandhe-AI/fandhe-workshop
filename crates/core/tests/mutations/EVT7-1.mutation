@@ -1,0 +1,10 @@
+id: EVT7-1
+package: fandhe-workshop-core
+test: busy_resend
+target: crates/core/src/busy_class.rs
+find:     run.busy.clone().map(|busy| BusyRejection { busy })
+replace:     run.busy.clone().and_then(|_busy| None::<BusyRejection>)
+expect-fail: burst_of_20_accepts_once_and_rejects_19_as_busy
+expect-fail: busy_applies_to_every_input_kind
+expect-fail: p6_random_inputs_keep_invariants
+note: 処理中でも busy に分類しない（処理中の入力が確認の判定へ流れる）

@@ -1,0 +1,9 @@
+id: EVT7-2
+package: fandhe-workshop-core
+test: busy_resend
+target: crates/core/src/accept.rs
+find:     if !step.processing.is_empty() {
+replace:     if false && !step.processing.is_empty() {
+expect-fail: burst_of_20_accepts_once_and_rejects_19_as_busy
+expect-fail: p6_burst_accepts_once
+note: 受付で processing を持つ Step を処理中にしない（run.busy を立てない）
