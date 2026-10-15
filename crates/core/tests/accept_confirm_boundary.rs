@@ -4,8 +4,9 @@
 //! 達成の記録（`Event::Achieved`・`StepStatus::Achieved`・章の完了）が 0 件であることを、入力の受付
 //! （`session::apply`）・受け付けて止まる場面（`command_accept`、JUDGE-7）・学習目標の確認の記録
 //! （contract の `derive_records` と `lo_first_answer`、TASK-291・TASK-305）をつないで確かめる。
-//! 確認の操作による達成の遷移は TASK-207 2/3、`confirm: none` の受付と同時の達成は TASK-208 の担当で、
-//! それらが入った後も本試験が崩れないよう、`none` と「確認の操作が達成にする」側は断定しない。
+//! 確認の操作による達成の遷移は TASK-207 2/3 で入った。その正の側（確認の操作で達成になる・自力は確認の記録から
+//! 導出する）は `confirm_record_boundary.rs` が持ち、本試験は「確認の操作を経ない達成が 0 件」だけを断定する。
+//! `confirm: none` の受付と同時の達成は TASK-208 の担当で、断定しない。
 //! 呼び出し元は CI の `make test` のみである。
 
 use std::collections::BTreeMap;
@@ -169,7 +170,9 @@ fn confirmation_style_inputs_without_acceptance_do_not_achieve() {
 }
 
 #[test]
-fn every_input_kind_in_any_step_yields_zero_achievements() {
+fn inputs_that_skip_confirmation_yield_zero_achievements() {
+    // 承認（`approve()`）は `approve` の確認を成立させうる入力なので、列から除く。確認の操作が達成にする側は
+    // `confirm_record_boundary.rs` が断定する。ここでは、それ以外の入力だけでは何度流しても達成にならないことを見る。
     let inputs = || {
         vec![
             cmd("/make-note first-note"),
@@ -177,7 +180,6 @@ fn every_input_kind_in_any_step_yields_zero_achievements() {
             cmd("/nothing"),
             Input::Choice("opt-memo".into()),
             Input::Choice("opt-ghost".into()),
-            approve(),
             Input::Text("文章".into()),
             Input::Cancel,
         ]
