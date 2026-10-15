@@ -1,0 +1,8 @@
+id: JUDGE1-Q1
+package: fandhe-workshop-core
+test: select_judge
+target: crates/core/src/select_judge.rs
+find: Some(o) if o.correct => ConfirmVerdict::Confirmed,
+replace: Some(o) if o.correct || !o.correct => ConfirmVerdict::Confirmed,
+expect-fail: confirm_answer
+note: answer の correct の判定を外す（誤答でも確認になる）
