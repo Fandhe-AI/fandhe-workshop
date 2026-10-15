@@ -164,6 +164,7 @@ dependencies = [
  "fandhe-workshop-contract",
  "fandhe-workshop-core",
  "fandhe-workshop-pack",
+ "serde_json",
  "toml",
  "wasm-bindgen",
  "web-sys",

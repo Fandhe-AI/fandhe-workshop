@@ -1,0 +1,9 @@
+id: SAFE10-1
+package: fandhe-workshop-web
+test: doc_links
+target: crates/web/src/doc_view.rs
+find:         Some(i) => s[..i].contains(['/', '?', '#', '\\']),
+replace:         Some(_) => true,
+expect-fail: 外部と危険な画像は_img_を作らず代替の文字を出す
+expect-fail: 変換器を通した経路でも外部の画像は_img_にならない
+note: 画像のスキームの拒否を外す（https の外部画像が img になる）

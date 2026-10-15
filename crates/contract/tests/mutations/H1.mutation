@@ -1,0 +1,9 @@
+id: H1
+package: fandhe-workshop-contract
+test: content_hash_contract
+target: crates/contract/src/content_hash.rs
+find:         node.body_doc = None;
+replace:         let _ = &node.body_doc;
+expect-fail: body_only_edit_keeps_the_hash
+expect-fail: hash_equals_the_hash_of_the_ir_without_body_trees
+note: 本文の木を除く処理を 1 つ外す（本文だけの修正でハッシュが変わる）

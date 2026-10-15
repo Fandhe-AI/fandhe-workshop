@@ -30,7 +30,7 @@
 
 | crate（仮称） | 種別 | 役割 | 外部依存（版は TASK-24・TASK-26 が固定する） |
 |---|---|---|---|
-| `fandhe-workshop-contract` | lib | 責務をまたぐ共有の契約。データ型・定数・版・スキーマ・サンプル・純粋な表。I/O・状態遷移・時刻・乱数を持たない | `serde`・`serde_json` のみ |
+| `fandhe-workshop-contract` | lib | 責務をまたぐ共有の契約。データ型・定数・版・スキーマ・サンプル・純粋な表・純関数。I/O・状態遷移・時刻・乱数を持たない | `serde`・`serde_json` のみ |
 | `fandhe-workshop-core` | lib | DOM 非依存の純 Rust の中核。`Session`・`apply`・入力・イベント・Step の状態・`Projection`・進行管理・周回・停止・チェックポイント・保存復元の処理・状態変化の提供元の境界 | contract、`serde`・`serde_json` |
 | `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`pulldown-cmark`（native のみ） |
 | `fandhe-workshop-web` | lib（`cdylib`・`rlib`） | `fandhe-frontend` の Component 実装と glue。wasm32 向け。native でも `rlib` として試験できる | core、contract、`fandhe-frontend-*`（wasm-full 0.46.0。TASK-26）、`wasm-bindgen`、`web-sys`（`cfg(target_arch = "wasm32")` のみ） |
@@ -103,7 +103,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 学習目標の確認の記録の型 | contract | TASK-291 |
 | 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
-| `content_hash` の求め方の仕様とサンプル | contract（計算の実体は TASK-180 の記述どおり pack。実行時に core が再計算を要する場合の寄せ先は未決） | TASK-180 |
+| `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
 
@@ -198,7 +198,7 @@ TASK-204 のとおり `core` に置く。
 - 第 11 節の採否は、spec の記述からの推論を含む。推論であり、レビューでの採否確認を求める（TASK-23 の承認点）
 - `default-members`: TASK-24・BUILD-1 は「core・pack」と書くが、本文書は contract を加える。contract の試験を素の
   `cargo test` で流すためである。spec の文言との意図的な差分で、spec 側を「web を除く全 crate」と読み替える修正を提案する
-- `content_hash`: 実行時に core が再計算を要する場合の寄せ先は、TASK-180 で決める
+- `content_hash`: 計算の寄せ先は contract に確定した（2026-10-15、TASK-180 1/2）。TASK-180 の本文の「pack 系 crate」との差を、spec 側で読み替える修正を提案する。SHA-256 は contract の中の小さな実装で、外部依存は足していない（第 3 節は不変）
 - ブラウザ試験（Node）の置き場は本文書で固定せず、TASK-25 以降に委ねる
 - 3 repo への移行の時期は未回答（`Q-24`）
 - 依存の向きの機械検査は、この版では未実装である（TASK-24 が実装する。Rust 未導入のため実行していない）
@@ -208,3 +208,5 @@ TASK-204 のとおり `core` に置く。
 | 版 | 日付 | 変更 | 理由 |
 |---|---|---|---|
 | 1 | 2026-10-12 | 初版 | TASK-23。crate の境界・依存の向き・型の置き場を契約として固定する |
+
+- 2026-10-15: 第 6 節・第 12 節の `content_hash` の寄せ先を、未決から contract に確定した。第 12 節が TASK-180 に委ねた未決事項の確定で、境界・依存の向き・外部依存は変わらないため、構成設計の版は 1 のまま据え置く

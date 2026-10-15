@@ -236,3 +236,40 @@ fn t10_round_trip() {
     let bytes = serde_json::to_vec(&json!({ "versions": v })).unwrap();
     assert_eq!(load_versions(&bytes).unwrap(), v);
 }
+
+/// TASK-180: 仕様で求めたハッシュを版の記録に渡すと、サンプルの期待と一致し、版の書式の検査を通る。
+#[test]
+fn record_versions_accepts_the_spec_content_hash() {
+    let path = root().join("crates/contract/tests/data/ir_format_1/minimal.json");
+    let ir: Ir = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    let h = fandhe_workshop_contract::content_hash::content_hash(&ir).unwrap();
+    assert_eq!(
+        h.as_str(),
+        "87ba748bbe525761ca30428d0834dcafbf6cfa3962157da260ce8840bfb51834"
+    );
+    let v = record_versions_with(&ir, engine("1.2.3"), &h).unwrap();
+    assert_eq!(v.content_hash, h.as_str());
+    assert_eq!(v.parse().unwrap().content_hash, h);
+}
+
+/// TASK-180: 本文の木だけを直した IR は `content_hash` が変わらず、履歴の版の記録も同じになる（D-51）。
+/// 主版を上げ忘れた本文の修正が版の判定に現れないこと（VER-12）の根拠で、`docs/pack-authoring.md` が参照する。
+#[test]
+fn body_only_edit_yields_the_same_version_record() {
+    let read = |rel: &str| -> Ir {
+        let p = root().join("crates/contract/tests/data").join(rel);
+        serde_json::from_slice(&fs::read(p).unwrap()).unwrap()
+    };
+    let before = read("ir_format_2/full.json");
+    let after = read("content_hash_1/body-edited.json");
+    assert_ne!(before, after);
+    // golden の `pack.vocab`・`refs` は版の記録の書式に合わないため、取り除いて揃える（本文には無関係）。
+    let record = |ir: &Ir| {
+        let h = fandhe_workshop_contract::content_hash::content_hash(ir).unwrap();
+        let mut ir = ir.clone();
+        ir.pack.vocab = None;
+        ir.refs.clear();
+        record_versions_with(&ir, engine("1.2.3"), &h).unwrap()
+    };
+    assert_eq!(record(&before), record(&after));
+}
