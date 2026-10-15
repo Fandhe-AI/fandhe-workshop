@@ -63,6 +63,7 @@
 | 行き先（`testdata/` の下） | 出所 | 作成日 | 用途 |
 |---|---|---|---|
 | `contract/` | 本 repo（TASK-205 1/2） | 2026-10-15 | 公開 API の契約のイベント列のサンプル。結線の合否の基準 |
+| `contract/history/` | 本 repo（TASK-309 3/3） | 2026-10-15 | 履歴の包みのサンプル 3 本（空・2 周分・下書きと拒否）。往復の適合試験の基準 |
 
 ## 種類から探す
 
@@ -74,6 +75,7 @@
 | 入力の試験文 | `untrusted-input-safety/` の各 `test-data*/`、`input-field-ime/test-data/paste-samples/` |
 | IME の試験文 | `input-field-ime/test-data/ime-sentences.{md,json}`、`key-procedures.md` |
 | 契約のサンプル | `contract/event-sequence.json`（説明は `contract/README.md`） |
+| 履歴の包みのサンプル | `contract/history/*.json`（説明は `contract/history/README.md`） |
 
 ## manifest の検証
 

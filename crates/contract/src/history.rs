@@ -62,8 +62,24 @@
 //! 注意: `S` に `Option<_>` を束縛してはならない。serde は欠落した欄を `Option` なら `None` で受けるため、
 //! `snapshot` の欠落（`ops` だけの包み）が通ってしまう。
 //!
+//! JSON の形（版 1。スキーマはこの表・型の `deny_unknown_fields`・サンプルとのバイト一致で固定する）:
+//!
+//! | 欄 | 型 | 必須 | 制約・例 |
+//! |---|---|---|---|
+//! | `format` | 文字列 | 必須 | 書くときは `"fandhe-workshop-history"` |
+//! | `history_format` | 整数 | 必須 | 書くときは `1` |
+//! | `pack_id` | 文字列 | 必須 | 教材の ID。例 `"min-3step"` |
+//! | `versions` | 版の欄 | 必須 | `engine`・`ir_format`・`vocab`・`content`・`content_hash`・`refs`。`refs` は空でも `{}` |
+//! | `start` | 文字列 | 必須 | 最初の開始点の ID。例 `"s-1"` |
+//! | `ops` | 配列 | 必須 | 空でもよい。要素は `{"submit":"…"}`・`{"draft":"…"}`・`"reload"`・`{"input":…}`・`{"tick":…}`・`{"control":…}` の 6 種 |
+//! | `snapshot` | 写し | 必須 | core の `SessionState`（`run`・`log`・`entry`・`checkpoints`・`next_checkpoint`・`drafts`・`hints_opened`。`run` 内の `RunState` には `guidance_level`）。欠落は拒否 |
+//!
+//! 最上位に未知の欄は無い（あれば拒否）。`ops` に無いもの: Enter 専用の送信・早送りの入切・`ops` だけの包み。
+//! サンプルは `testdata/contract/history/`（説明は同じ場所の `README.md`）にある。
+//!
 //! 境界（本契約が定義しないもの）:
-//! - スキーマ・サンプル・往復の位置の照合・変異は TASK-309 3/3
+//! - サンプル（`testdata/contract/history/`）・契約適合試験（core の `history_envelope_conformance`）・
+//!   ログの並びを変える変異（`SAVE2-1`）は TASK-309 3/3 で置いた。`ops` を適用し直した結果と写しの一致は含まない
 //! - 保存先の口・鍵・拒否理由コードと判定の順序は TASK-310。早送り・案内レベルの操作の追加は版上げで行う
 //! - core 側の公開の別名と `ops` への記録は TASK-315
 //!
