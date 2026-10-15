@@ -1,0 +1,14 @@
+# 教材テスト（形式 B）。IR には載らない。min-3step-pack の通し試験の要点だけを写した架空のもの。
+playthroughs:
+  - id: "pt-min"
+    end: "complete"
+    segments:
+      - start: "s-1"
+        steps:
+          - {cmd: "/make-note first-note", expect: "accepted"}
+          - {choice: "opt-memo", expect: "accepted"}
+          - {approval: "approve", expect: "accepted"}
+error_inputs:
+  - id: "e-unknown"
+    start: "s-1"
+    input: {cmd: "/nothing", expect: "rejected:unknown_command"}

@@ -1,6 +1,6 @@
 //! `fandhe-pack` のサブコマンドの枠と終了コード。
 //!
-//! `compile <pack-dir>` だけを実装している（TASK-39）。他のコマンドの中身は後続のタスク（TASK-401〜TASK-408）で作る。
+//! `compile <pack-dir>` と `compare <pack-dir-a> <pack-dir-b>` を実装している（TASK-39）。他のコマンドの中身は後続のタスク（TASK-401〜TASK-408）で作る。
 //! `compile` の出力先（`-o`）と末尾の扱いは TASK-407、診断の出し先は TASK-399 で固定する。
 //! 外部仕様（コマンド一覧・引数・usage の文言・終了コード）の正は TASK-399（#470）で、固定されたら直す。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile` 経由）だけである。
@@ -8,6 +8,7 @@
 use std::ffi::OsString;
 use std::io::{self, Write};
 
+use crate::compare::{compare_dirs, Outcome};
 use crate::compile::compile_dir;
 use crate::diag::write_diagnostics;
 
@@ -96,6 +97,7 @@ where
     };
     match first.to_str().and_then(Subcommand::from_name) {
         Some(Subcommand::Compile) => return run_compile(args, out, err),
+        Some(Subcommand::Compare) => return run_compare(args, out, err),
         Some(cmd) => {
             writeln!(
                 err,
@@ -138,6 +140,46 @@ where
     }
 }
 
+/// `compare` の実行。引数は `<pack-dir-a> <pack-dir-b>` ちょうど 2 つ。
+///
+/// 一致は `OK: IR matches (<len> bytes)` で `EXIT_OK`、不一致は `NG: IR differs at line <line> (byte <offset>)`
+/// で `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断を書いて `EXIT_DIAGNOSTICS` を返し、
+/// 判定の行は出さない（失敗を一致とみなさない）。最終行の形と、診断がどちらのパックのものかの表し方は、
+/// 仮のもので TASK-399 で固定する。
+fn run_compare<I, O, E>(mut args: I, out: &mut O, err: &mut E) -> io::Result<u8>
+where
+    I: Iterator<Item = OsString>,
+    O: Write,
+    E: Write,
+{
+    let (Some(a), Some(b)) = (args.next(), args.next()) else {
+        write!(err, "{}", usage())?;
+        return Ok(EXIT_USAGE);
+    };
+    if args.next().is_some() {
+        writeln!(
+            err,
+            "error: fandhe-pack compare accepts exactly <pack-dir-a> <pack-dir-b>"
+        )?;
+        return Ok(EXIT_USAGE);
+    }
+    match compare_dirs(std::path::Path::new(&a), std::path::Path::new(&b)) {
+        Ok(Outcome::Same { len }) => {
+            writeln!(out, "OK: IR matches ({len} bytes)")?;
+            Ok(EXIT_OK)
+        }
+        Ok(Outcome::Differ { offset, line }) => {
+            writeln!(out, "NG: IR differs at line {line} (byte {offset})")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        Err(e) => {
+            write_diagnostics(out, &e.a)?;
+            write_diagnostics(out, &e.b)?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,7 +198,7 @@ mod tests {
     #[test]
     fn c1_unimplemented_subcommands_report_so() {
         for c in Subcommand::ALL {
-            if c == Subcommand::Compile {
+            if matches!(c, Subcommand::Compile | Subcommand::Compare) {
                 continue;
             }
             let (code, out, err) = run_args(&[c.name(), "x"]);
@@ -175,6 +217,18 @@ mod tests {
         let (code, out, err) = run_args(&["compile", "x", "-o", "y"]);
         assert_eq!(code, EXIT_USAGE);
         assert!(out.is_empty() && err.contains("not implemented yet"));
+    }
+
+    #[test]
+    fn c8_compare_argument_errors() {
+        for args in [&["compare"][..], &["compare", "x"]] {
+            let (code, out, err) = run_args(args);
+            assert_eq!(code, EXIT_USAGE);
+            assert!(out.is_empty() && err.starts_with("usage: fandhe-pack"));
+        }
+        let (code, out, err) = run_args(&["compare", "x", "y", "z"]);
+        assert_eq!(code, EXIT_USAGE);
+        assert!(out.is_empty() && err.contains("exactly"));
     }
 
     #[test]

@@ -1,0 +1,94 @@
+# min-3step-pack の章（形式 A）と同じ内容を形式 B で書き直したもの。架空の教材（D-11）。
+id: "ch-min"
+title: "ノートを作って公開する（最小）"
+starts:
+  - id: "s-1"
+    node: "st-1"
+steps:
+  - id: "st-1"
+    title: "ノートを作る"
+    body: "st-1.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    hints: ["h-1-1", "h-1-2", "h-1-3"]
+    next:
+      - to: "st-2"
+    processing:
+      - name: "p1-prepare"
+      - name: "p2-create"
+      - name: "p3-write"
+        effects:
+          - set_attr: {path: "notes/draft", attr: "state", value: "writing"}
+      - name: "p4-check"
+      - name: "p5-save"
+        effects:
+          - set_attr: {path: "notes/draft", attr: "state", value: "saved"}
+    input:
+      kind: "command"
+      name: "make-note"
+      args:
+        - {name: "name", positional: true, required: true, shape: "kebab_case"}
+    rules:
+      - id: "r-make"
+        on: {command: "make-note"}
+        outcome:
+          kind: "accept"
+          effects:
+            - put: {path: "notes/draft", attrs: {state: "created", kind: "none"}}
+    confirm:
+      kind: "point_at"
+      on_miss: "rj-miss-point"
+      targets:
+        - {view: "v-files", path: "notes/draft"}
+  - id: "st-2"
+    title: "ノートの種類を選ぶ"
+    body: "st-2.md"
+    lo: ["LO-2"]
+    views: ["v-files"]
+    hints: ["h-2-1"]
+    next:
+      - to: "st-3"
+    input:
+      kind: "choice"
+      options:
+        - {id: "opt-memo", label: "メモ"}
+        - {id: "opt-todo", label: "やること"}
+    rules:
+      - id: "r-memo"
+        on: {option: "opt-memo"}
+        outcome:
+          kind: "accept"
+          effects:
+            - set_attr: {path: "notes/draft", attr: "kind", value: "memo"}
+      - id: "r-todo"
+        on: {option: "opt-todo"}
+        outcome:
+          kind: "accept"
+          effects:
+            - set_attr: {path: "notes/draft", attr: "kind", value: "todo"}
+    confirm:
+      kind: "none"
+      reason: "選択そのものが意思表示で、選んだ結果は左の画面にすぐ出るため、別の確認を置かない。"
+  - id: "st-3"
+    title: "ノートを公開する"
+    body: "st-3.md"
+    lo: ["LO-3"]
+    final: true
+    views: ["v-files"]
+    hints: ["h-3-1"]
+    input:
+      kind: "approval"
+    rules:
+      - id: "r-approve"
+        on: {approval: "approve"}
+        outcome:
+          kind: "accept"
+          effects:
+            - set_attr: {path: "notes/draft", attr: "state", value: "published"}
+      - id: "r-decline"
+        on: {approval: "reject"}
+        outcome:
+          kind: "reject"
+          rejection: "rj-decline"
+    confirm:
+      kind: "approve"
