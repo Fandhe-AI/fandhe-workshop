@@ -143,8 +143,8 @@ pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
         return Err(IrLoadError::PackIrFormat(ir.pack.ir_format));
     }
     // 2 つの版は同じ値でなければならない。版 1 と名乗りながら版 2 の欄（本文・練習データの木）を持つ IR は、
-    // 版を偽っているので拒否する（安全側）。判定の正は `Ir::required_ir_format`。
-    if ir.format_version != ir.pack.ir_format || ir.pack.ir_format < ir.required_ir_format() {
+    // 版を偽っているので拒否する（安全側）。判定の正は `Ir::has_consistent_format`。
+    if !ir.has_consistent_format() {
         return Err(IrLoadError::FormatInconsistent {
             format_version: ir.format_version,
             pack_ir_format: ir.pack.ir_format,

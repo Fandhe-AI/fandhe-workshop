@@ -30,8 +30,21 @@
 //!   同じ IR になる。`step.body`（参照の文字列）は残す
 //! - 変換器は、使った項目に足りる最小の `ir_format` を出す（[`Ir::required_ir_format`]）。`format_version` と
 //!   `pack.ir_format` は常に同じ値にする
-//! - エンジンは版 1 と 2 の両方を読む。版 1 と名乗りながら版 2 の欄を持つ IR は拒否する。版 1 の IR・履歴を
-//!   理由つきで断る扱いは TASK-60 の 2/2 が受け持つ
+//! - エンジンは版 1 と 2 の両方を読む（次節）
+//!
+//! # 版 1 の IR の扱い（TASK-60 の 2/2、D-52・D-59、PACK-24）
+//!
+//! - 版 2 の欄を持たない版 1 の IR は、変換せずそのまま読む（加算の旧 → 新と同じ）。木を補わず、
+//!   `step.body`（参照の文字列）を実行時に解釈しない。`format_version`・`pack.ir_format` は 1 のまま、
+//!   書き戻すとバイト列が一致する。本文も練習データも持たない教材は、今も版 1 で出力される
+//! - 版 1 と名乗りながら版 2 の欄を持つ IR、`format_version` と `pack.ir_format` が食い違う IR は、
+//!   版を偽る入力として理由つきで拒否する（判定は [`Ir::has_consistent_format`]）
+//! - 1 でも 2 でもない版（0・3 など）は、未知の欄より先に版が未対応として拒否する
+//! - 版 1 の履歴を版 2 の IR で開く扱い（表示だけ・開かない）は、判定を TASK-174、理由コードの契約を
+//!   TASK-310 が受け持つ。ここでは扱わない
+//!
+//! 型の水準の適合試験は `tests/ir_v1_handling.rs`、読み込み口 `load_ir` の水準は
+//! `crates/pack/tests/ir_compat.rs`。本文を表示するタスクは、統合の完了条件としてこの 2 つを参照する。
 //!
 //! 互換の向きは、旧 → 新は読める（任意の欄を使わない IR は加算の後の型でも同じバイト列に戻る）、
 //! 新 → 旧は読めない（型付きの項目の未知の欄は拒否し、黙って捨てない）である。`Value` で通す語彙の中身の
@@ -316,6 +329,16 @@ impl Ir {
         } else {
             IR_FORMAT_V1
         }
+    }
+
+    /// `format_version` と `pack.ir_format` が、読める版で、同じ値で、かつ使っている欄に足りるか。
+    ///
+    /// 偽りの版（版 1 と名乗る木つきの IR など）を弾く判定の正はここ 1 か所に置き、pack の `compile` と
+    /// core の `load_ir` が共有する。I/O を持たない純関数。
+    pub fn has_consistent_format(&self) -> bool {
+        self.format_version == self.pack.ir_format
+            && is_supported_ir_format(self.pack.ir_format)
+            && self.pack.ir_format >= self.required_ir_format()
     }
 }
 
