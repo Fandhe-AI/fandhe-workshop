@@ -659,18 +659,19 @@ EVT13-1 は差分の比較を常に真にし、EVT13-2 は変更前を変更後�
 
 ### 5.24 確認前の達成 0 件（TASK-207 3/3）
 
-受付で Step の状態を達成にする誤り（EVT3-1）と、受付の前の入力を確認の判定に渡す誤り（EVT3-2）を入れ、確認前の達成の性質テスト（P-3）と固定列の試験が検出することを確かめる。
+受付で Step の状態を達成にする誤り（EVT3-1）と、受付の前の入力を確認の段に渡す誤り（EVT3-2）を入れ、確認前の達成の性質テスト（P-3）と固定列の試験が検出することを確かめる。
+判定結果の発行（TASK-267）の後は、達成は判定が確認のときだけになる。そのため EVT3-2 は受付なしの達成にならず、受付が起きない誤りとして固定列の試験が検出する。確認前の達成 0 件の性質テストは EVT3-1 が検出する。
 
 ```text
 実行日: 2026-10-15
-元にしたコミット: cb33f9f-dirty（本変更を含む作業ツリー）
-コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT3-1.mutation crates/core/tests/mutations/EVT3-2.mutation
+元にしたコミット: 93cc1c2-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT3-2.mutation crates/core/tests/mutations/EVT3-1.mutation
 ```
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
 | EVT3-1 | crates/core/src/accept.rs: 受付で Step の状態を達成にする（受付と達成の分離がつぶれ、状態とログが食い違う） | p3_no_achievement_before_confirmation, p3_fixed_sequence_confirms_all_three_kinds | p3_fixed_sequence_confirms_all_three_kinds, p3_missing_confirm_needs_approval_and_none_is_excluded, p3_no_achievement_before_confirmation | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([PointAt, PointAt, PointAt], 0, [Apply(Command("/make-note first-note"))]) |
-| EVT3-2 | crates/core/src/accept.rs: 受付の前（入力待ち）の Step の入力を確認の判定に渡す（受付なしで確認の操作が達成になる） | p3_no_achievement_before_confirmation, p3_fixed_sequence_confirms_all_three_kinds | p3_missing_confirm_needs_approval_and_none_is_excluded, p3_fixed_sequence_confirms_all_three_kinds, p3_no_achievement_before_confirmation | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([PointAt, PointAt, PointAt], 0, [Apply(Ui { view: "v-files", path: "notes/draft" })]) |
+| EVT3-2 | crates/core/src/accept.rs: 受付の前（入力待ち）の Step の入力を確認の段に渡す（受付が起きなくなる。達成は判定が確認のときだけなので、受付なしの達成にはならない） | p3_fixed_sequence_confirms_all_three_kinds, p3_missing_confirm_needs_approval_and_none_is_excluded | p3_missing_confirm_needs_approval_and_none_is_excluded, p3_fixed_sequence_confirms_all_three_kinds | DETECTED | - |
 
 ### 5.25 未知のコマンドと順序違いの分類（TASK-268 1/2）
 
