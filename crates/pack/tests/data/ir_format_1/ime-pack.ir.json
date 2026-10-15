@@ -1,0 +1,166 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "ime-practice",
+    "title": "入力欄の試験（PoC-2 試験データ）",
+    "version": "0.0.1",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "advance-phase": "flow",
+    "create-pr": "skill",
+    "help": "builtin",
+    "make-card": "skill",
+    "new-idea": "skill",
+    "sync-cloud": "unsupported"
+  },
+  "views": {
+    "v-cards": {
+      "kind": "card_list"
+    }
+  },
+  "fixtures": {},
+  "hints": {
+    "h-1-1": {
+      "level": 1,
+      "text": "使えるコマンドの一覧を出す場面です。"
+    },
+    "h-1-5": {
+      "level": 1,
+      "text": "カードを作る処理の途中で Esc を押すと止まります。"
+    }
+  },
+  "rejections": {
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "引数または入力の形が合っていません。",
+      "next_action": "小文字・数字・ハイフンだけで書き直して、もう一度送ります。"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "いまは処理中です。",
+      "next_action": "終わるまで待つか、Esc で止めます。"
+    },
+    "rj-default-free-text-note": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容の良し悪しは、この教材では判定しません。",
+      "next_action": "自分の文を、自分で読み返します。"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "必要な引数が足りません。",
+      "next_action": "足りない引数を足して、もう一度送ります。"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直します。"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "実際の環境ではできますが、この教材では扱いません。",
+      "next_action": "教材の操作に戻ります。"
+    },
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "そのコマンドは、この教材の一覧にありません。",
+      "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "このコマンドは、まだ使う順番ではありません。",
+      "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+    },
+    "rj-miss-point": {
+      "category": "not_in_this_step",
+      "message": "そこは、変わった箇所ではありません。",
+      "next_action": "左の画面で、変化の印が付いた箇所を指します。"
+    },
+    "rj-wrong-answer": {
+      "category": "not_in_this_step",
+      "message": "その答えは、画面の内容と合いません。",
+      "next_action": "画面をもう一度見て、選び直します。"
+    }
+  },
+  "clarifications": {
+    "cl-new-idea-name": {
+      "how_to_answer": "名前を付けてもう一度送るか、Esc で取り消します。",
+      "message": "名前が足りません。どんな名前にしますか。"
+    }
+  },
+  "defaults": {
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "free_text_unjudged": "rj-default-free-text-note",
+    "missing_arg": "rj-default-missing-arg",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-ime",
+      "scope": "main",
+      "unit": "ch-ime",
+      "step": {
+        "id": "st-ime",
+        "title": "文を送る",
+        "body": "st-ime.md",
+        "do": "文を入力して送ります",
+        "lo": [
+          "LO-2"
+        ],
+        "final": true,
+        "views": [
+          "v-cards"
+        ],
+        "input": {
+          "kind": "text",
+          "max": 20000,
+          "min": 1
+        },
+        "rules": [
+          {
+            "id": "r-text",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "put": {
+                    "attrs": {
+                      "state": "shown"
+                    },
+                    "path": "cards/sent"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果の確認は試験の側が送信の記録で行うため、別の確認を置かない。"
+        }
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-1",
+      "node": "main/st-ime",
+      "effects": []
+    }
+  ]
+}

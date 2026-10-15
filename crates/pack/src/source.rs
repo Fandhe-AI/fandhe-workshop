@@ -1,4 +1,4 @@
-//! 教材パックのディレクトリを読み込む層（構造定義・本文・練習データの確認）。
+//! 教材パックのディレクトリを読み込む層（構造定義・本文・練習データの内容）。
 //!
 //! `compile`（`crate::compile`）の前段で、ディスクに触れるのはここだけである。教材データは信頼しない
 //! 入力として扱い、(1) 中身を読む前に上限・シンボリックリンク・入れ子の深さを確かめ、(2) 本文と練習データの
@@ -13,7 +13,7 @@ use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
-use fandhe_workshop_contract::ir::{FixtureDef, PackInfo, Start, Step, IR_FORMAT_VERSION};
+use fandhe_workshop_contract::ir::{is_supported_ir_format, FixtureDef, PackInfo, Start, Step};
 use fandhe_workshop_contract::limits::{self, PackLimitCode};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -106,17 +106,15 @@ struct PackProbe {
     ir_format: Option<Value>,
 }
 
-/// `pack.ir_format` が整数の 1 でないときの診断。構文として読めない・`pack` が無いときは `None`
+/// `pack.ir_format` が整数の 1 または 2 でないときの診断。構文として読めない・`pack` が無いときは `None`
 /// （型付きの読み込みが `E-PARSE` にする）。診断に入力値は写さず、整数として読めたときだけ値を出す。
 fn probe_format_version(format: Format, text: &str, file: &str) -> Option<Diagnostic> {
     let probe = format.parse::<VersionProbe>(text).ok()?;
     let pack = probe.pack?;
     let message = match pack.ir_format.as_ref().and_then(Value::as_i64) {
-        Some(v) if v == i64::from(IR_FORMAT_VERSION) => return None,
-        Some(v) => format!("ir_format {v} is not supported (expected {IR_FORMAT_VERSION})"),
-        None => {
-            format!("ir_format must be the integer {IR_FORMAT_VERSION} (missing or not an integer)")
-        }
+        Some(v) if u32::try_from(v).is_ok_and(is_supported_ir_format) => return None,
+        Some(v) => format!("ir_format {v} is not supported (expected 1 or 2)"),
+        None => "ir_format must be the integer 1 or 2 (missing or not an integer)".to_string(),
     };
     Some(diag(
         file,
@@ -197,6 +195,8 @@ pub struct LoadedPack {
     pub scopes: Vec<LoadedScope>,
     /// 本文。キーはパック根からの相対パス。
     pub bodies: BTreeMap<String, String>,
+    /// 練習データの内容。キーは `workshop.fixtures` の ID。`compile` が木にする（TASK-60）。
+    pub fixture_texts: BTreeMap<String, String>,
     /// 教材テストのパック根からの相対パス。
     pub tests_file: Option<String>,
     /// 教材テストの内容。
@@ -593,12 +593,17 @@ fn load_body(
     }
 }
 
-/// 練習データの宣言を確かめる。中身は読まない。
+/// 練習データの宣言を確かめ、内容を読んで `texts` に入れる。
+///
+/// 読むのは、安全な相対パス・`fixtures/` の下・通常のファイル（シンボリックリンクとパック根の外を除く）を
+/// 通ったものだけである。上限は拡張子が `.md` なら本文と同じ `MAX_MARKDOWN_BYTES`、それ以外は
+/// `MAX_PACK_BYTES` で、上限 + 1 バイトで打ち切って読む。診断には ID とパスだけを入れ、内容は入れない。
 fn check_fixtures(
     root_canon: &Path,
     root: &Path,
     workshop_file: &str,
     ws: &WorkshopSrc,
+    texts: &mut BTreeMap<String, String>,
     diags: &mut Vec<Diagnostic>,
 ) {
     for (id, f) in &ws.fixtures {
@@ -618,6 +623,46 @@ fn check_fixtures(
                 DiagCode::RefFixture,
                 format!("fixture path is invalid or missing: {}", f.path),
             ));
+            continue;
+        }
+        let is_md = Path::new(&f.path)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("md"));
+        match read_text(
+            &root.join(&f.path),
+            if is_md {
+                MAX_MARKDOWN_BYTES
+            } else {
+                MAX_PACK_BYTES
+            },
+        ) {
+            Ok(t) => {
+                texts.insert(id.clone(), t);
+            }
+            Err(ReadError::TooLarge) if is_md => diags.push(diag(
+                &f.path,
+                "file",
+                DiagCode::LimitMdSize,
+                PackLimitCode::MdSize.message(),
+            )),
+            Err(ReadError::TooLarge) => diags.push(diag(
+                &f.path,
+                &item,
+                DiagCode::Parse,
+                "fixture is too large",
+            )),
+            Err(ReadError::NotUtf8) => diags.push(diag(
+                &f.path,
+                &item,
+                DiagCode::Parse,
+                "fixture is not valid UTF-8",
+            )),
+            Err(ReadError::Io) => diags.push(diag(
+                workshop_file,
+                &item,
+                DiagCode::RefFixture,
+                format!("cannot read fixture: {}", f.path),
+            )),
         }
     }
 }
@@ -737,8 +782,16 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
             }
         }
     }
+    let mut fixture_texts = BTreeMap::new();
     if let Some(ws) = &workshop {
-        check_fixtures(&root_canon, dir, &workshop_file, ws, &mut diags);
+        check_fixtures(
+            &root_canon,
+            dir,
+            &workshop_file,
+            ws,
+            &mut fixture_texts,
+            &mut diags,
+        );
     }
 
     match workshop {
@@ -748,6 +801,7 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
             workshop,
             scopes,
             bodies,
+            fixture_texts,
             tests_file,
             tests,
         }),

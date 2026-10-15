@@ -1,10 +1,10 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "pack": {
     "id": "min-3step",
     "title": "最小 3 Step 教材（PoC-1 試験データ）",
     "version": "0.0.1",
-    "ir_format": 1,
+    "ir_format": 2,
     "guidance": "A"
   },
   "refs": [],
@@ -215,6 +215,20 @@
             "to": "main/st-2"
           }
         ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "最小 3 Step 教材の Step 1 の本文（PoC-1 の試験データ。表示には使わない）。"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -294,6 +308,20 @@
             "to": "main/st-3"
           }
         ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "最小 3 Step 教材の Step 2 の本文（PoC-1 の試験データ。表示には使わない）。"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -350,6 +378,20 @@
         "confirm": {
           "kind": "approve"
         }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "最小 3 Step 教材の Step 3 の本文（PoC-1 の試験データ。表示には使わない）。"
+              }
+            ]
+          }
+        ]
       }
     }
   ],

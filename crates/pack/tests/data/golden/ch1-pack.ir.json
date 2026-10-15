@@ -1,10 +1,10 @@
 {
-  "format_version": 1,
+  "format_version": 2,
   "pack": {
     "id": "ch1-practice",
     "title": "操作練習（PoC-2 試験データ）",
     "version": "0.0.1",
-    "ir_format": 1,
+    "ir_format": 2,
     "guidance": "A"
   },
   "refs": [],
@@ -166,6 +166,38 @@
             "to": "main/st-1-2"
           }
         ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.1"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -218,6 +250,38 @@
             "to": "main/st-1-3"
           }
         ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.2"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -268,6 +332,38 @@
         "next": [
           {
             "to": "main/st-1-4"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.3"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
           }
         ]
       }
@@ -348,6 +444,38 @@
         "next": [
           {
             "to": "main/st-1-5"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.4"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
           }
         ]
       }
@@ -442,6 +570,38 @@
             "to": "main/st-1-6"
           }
         ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.5"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -527,6 +687,38 @@
             }
           ]
         }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "操作練習 ST-1.6"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "PoC-2 の試験用の本文です。操作は "
+              },
+              {
+                "t": "code",
+                "text": "do"
+              },
+              {
+                "t": "text",
+                "text": " の文のとおりです。（架空の教材。上流の文面は含みません）"
+              }
+            ]
+          }
+        ]
       }
     }
   ],

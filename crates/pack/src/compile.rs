@@ -4,16 +4,25 @@
 //! `source::load`）。出力は決定的である。連想配列は `BTreeMap`、章は名前の昇順、Step はファイルの中の順で
 //! 並べ、絶対パス・時刻・乱数を入れない。`compare` が同じ `compile_dir` のバイト列を比べる。
 //!
-//! この版で作る IR は `ir_format` 1 の形（`body` は参照の文字列のまま）である。モジュールの展開は
-//! TASK-50、本文の木と練習データの中身は TASK-60 が扱うため、`use` を持つ Step は拒否する。
+//! 本文（`body`・`body_levels`）と練習データの内容は、Markdown から安全な木（[`crate::markdown`]）にして
+//! IR に載せる（TASK-60、方式 (c)）。`.md` の練習データは Markdown として、それ以外は解釈せずに全文を
+//! 1 つのコードブロックにする（`kind` は語彙として開いているため、拡張子で分ける）。`step.body`（参照の
+//! 文字列）は残す。
+//!
+//! 出力の `ir_format` は、宣言した値ではなく、使った項目に足りる最小の版（[`Ir::required_ir_format`]）にする
+//! （D-52）。木を使わない教材パックは版 1 のまま、版 1 とバイト単位で同じ IR になる。`workshop.*` に書ける
+//! `ir_format` は 1 か 2（PACK-24 の読み）で、それ以外は `E-FORMAT-VERSION` で止める。
+//! モジュールの展開は TASK-50 が扱うため、`use` を持つ Step は拒否する。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use fandhe_workshop_contract::ir::{Instance, Ir, Node, Start, IR_FORMAT_VERSION};
+use fandhe_workshop_contract::doc::Doc;
+use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Node, Start};
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::markdown;
 use crate::source::{self, LoadedPack, ScopeKind};
 
 fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> Diagnostic {
@@ -26,13 +35,13 @@ fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> D
 /// 読み込んだパックを IR にする。診断が 1 件でもあれば IR は返さない。
 pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     let w = &pack.workshop;
-    if w.pack.ir_format != IR_FORMAT_VERSION {
+    if !is_supported_ir_format(w.pack.ir_format) {
         return Err(vec![diag(
             &pack.workshop_file,
             "pack:ir_format",
             DiagCode::FormatVersion,
             format!(
-                "ir_format {} is not supported (expected {IR_FORMAT_VERSION})",
+                "ir_format {} is not supported (expected 1 or 2)",
                 w.pack.ir_format
             ),
         )]);
@@ -79,6 +88,15 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
             for t in &mut s.next {
                 t.to = format!("main/{}", t.to);
             }
+            let body_doc = step
+                .body
+                .as_deref()
+                .and_then(|b| body_tree(pack, &scope.dir, b));
+            let body_levels_doc = step
+                .body_levels
+                .iter()
+                .filter_map(|(level, b)| Some((level.clone(), body_tree(pack, &scope.dir, b)?)))
+                .collect();
             nodes.push(Node {
                 uid,
                 scope: "main".to_string(),
@@ -86,6 +104,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 step: s,
                 enter: None,
                 exit_to: None,
+                body_doc,
+                body_levels_doc,
             });
         }
         for st in &scope.src.starts {
@@ -152,8 +172,25 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         return Err(diags);
     }
 
-    Ok(Ir {
-        format_version: IR_FORMAT_VERSION,
+    let fixture_docs = w
+        .fixtures
+        .iter()
+        .filter_map(|(id, f)| {
+            let text = pack.fixture_texts.get(id)?;
+            let is_md = std::path::Path::new(&f.path)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("md"));
+            let doc = if is_md {
+                markdown::parse(text)
+            } else {
+                markdown::plain_text(text)
+            };
+            Some((id.clone(), doc))
+        })
+        .collect();
+
+    let mut ir = Ir {
+        format_version: w.pack.ir_format,
         pack: w.pack.clone(),
         refs: w.refs.clone(),
         commands: w.commands.clone(),
@@ -171,7 +208,21 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         }],
         nodes,
         starts,
-    })
+        fixture_docs,
+    };
+    // 出力の版は、使った項目に足りる最小の版にする。2 つの版は常に同じ値である。
+    let format = ir.required_ir_format();
+    ir.format_version = format;
+    ir.pack.ir_format = format;
+    Ok(ir)
+}
+
+/// 本文の参照から木を作る。`source::load` が読んだ本文だけを見る。無ければ `None`
+/// （`load` は参照の欠けを診断にするので、成功した `LoadedPack` では通常は起きない）。
+fn body_tree(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> Option<Doc> {
+    pack.bodies
+        .get(&format!("{scope_dir}/{body_ref}"))
+        .map(|text| markdown::parse(text))
 }
 
 /// IR を出力のバイト列にする。形の正は契約の `to_canonical_json`。`compare` と共通の関数。
