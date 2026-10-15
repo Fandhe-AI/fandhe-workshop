@@ -111,6 +111,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | コマンドの字句化の処理と宣言との照合（`command_lex::lex_command`・`command_judge::judge_command`。結果の型は contract の `judgment`、接頭辞の分けは contract の `profile`、宣言の型は contract の `input_spec`） | core | TASK-262 |
 | 選択肢・画面操作・承認の判定の処理（`select_judge::judge_select`・`judge_confirm`。LLM なし。状態の変更と `Judged` の発行は含まない） | core | TASK-263 |
 | コマンド入力の規則の照合と問い返しの判定（`command_rule`。状態の変更・`Judged` の発行・問い返しの待ちの保持は含まない） | core | TASK-272 |
+| 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
 

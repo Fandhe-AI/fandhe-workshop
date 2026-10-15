@@ -1,0 +1,9 @@
+id: JUDGE7-1
+package: fandhe-workshop-core
+test: command_accept
+target: crates/core/src/command_accept.rs
+find: .insert(uid.clone(), StepStatus::Accepted);
+replace: .insert(uid.clone(), StepStatus::Achieved);
+expect-fail: st_7_3_same_input_is_accepted_and_stops_world
+expect-fail: accept_properties
+note: 受付の適用で Step を達成にする（受付で止まらず、達成に進んでしまう）

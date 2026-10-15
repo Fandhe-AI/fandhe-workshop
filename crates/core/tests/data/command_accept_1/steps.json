@@ -1,0 +1,49 @@
+{
+  "st-7-1": {
+    "id": "st-7-1",
+    "title": "起動の前の確認と、起動",
+    "input": {
+      "kind": "command",
+      "name": "implement-issue-tree",
+      "args": [
+        { "name": "parent", "positional": true, "required": true, "shape": "digits" },
+        { "name": "external_checks", "required": true }
+      ]
+    },
+    "rules": [
+      { "id": "r-launch", "on": { "command": "implement-issue-tree", "args": { "parent": "42" } }, "outcome": { "kind": "accept", "effects": [{ "set_flag": "precheck_ok" }, { "set_attr": { "path": "issues/root-42", "attr": "state", "value": "running" } }] } }
+    ]
+  },
+  "st-7-3": {
+    "id": "st-7-3",
+    "title": "事前確認を飛ばした起動で止まる場面",
+    "input": {
+      "kind": "command",
+      "name": "implement-issue-tree",
+      "args": [
+        { "name": "parent", "positional": true, "required": true, "shape": "digits" },
+        { "name": "external_checks", "required": false }
+      ]
+    },
+    "rules": [
+      { "id": "r-blocked", "on": { "command": "implement-issue-tree", "missing": ["external_checks"] }, "outcome": { "kind": "accept", "effects": [{ "set_attr": { "path": "issues/root-42", "attr": "state", "value": "blocked" } }, { "set_flag": "stopped" }] } },
+      { "id": "r-with-arg", "on": { "command": "implement-issue-tree" }, "outcome": { "kind": "reject", "rejection": "rj-7-3-with-arg" } }
+    ]
+  },
+  "bad_effects_unknown": {
+    "id": "st-bad-1",
+    "title": "未知の語を含む効果",
+    "input": { "kind": "command", "name": "x", "args": [] },
+    "rules": [
+      { "id": "r", "on": { "command": "x" }, "outcome": { "kind": "accept", "effects": [{ "set_flag": "ok" }, { "unknown_word": 1 }] } }
+    ]
+  },
+  "bad_effects_shape": {
+    "id": "st-bad-2",
+    "title": "配列でない効果",
+    "input": { "kind": "command", "name": "x", "args": [] },
+    "rules": [
+      { "id": "r", "on": { "command": "x" }, "outcome": { "kind": "accept", "effects": { "set_flag": "done" } } }
+    ]
+  }
+}
