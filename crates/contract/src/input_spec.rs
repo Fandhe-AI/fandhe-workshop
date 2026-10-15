@@ -1,11 +1,14 @@
-//! 入力方式 5 種の宣言の型と、`text` の判定の純関数（TASK-44、版 1）。
+//! 入力方式 5 種と待機（`wait`）の宣言の型と、`text` の判定の純関数（TASK-44、版 1）。
 //!
-//! Step の `input`（PACK-10）は、`command`・`text`・`choice`・`ui_action`・`approval` の 5 方式で宣言する。
+//! Step の `input`（PACK-10）は、`command`・`text`・`choice`・`ui_action`・`approval` の 5 方式と、
+//! 拡張点 EP-1 の `wait` で宣言する。`wait` は受講者の入力を要さず、Step の `processing`（進行イベント）の
+//! 完了で受付になる。取り消し（`cancel`、EP-2）は `input.kind` ではなく規則の `on: { cancel: true }` で
+//! 受ける語なので、ここでは [`CANCEL_RULE_KEY`] として名前だけを持ち、`InputKind` には含めない。
 //! 呼び出し元は、宣言を検査する pack（TASK-44）と、実行時に `text` を判定する core（TASK-262・TASK-267）である。
 //! core は pack に依存できないため、両方が使う型と判定は contract に置く（`docs/architecture.md` 第 6 節）。
 //!
 //! IR の `Step.input` は未型付けの値のまま保たれ（golden のバイト一致のため）、この型は検査と実行時の
-//! 判定で読むときだけ使う。どの型も未知の欄を拒否する（失敗を拒否に倒す）。`wait`（EP-1）は別タスクで足す。
+//! 判定で読むときだけ使う。どの型も未知の欄を拒否する（失敗を拒否に倒す）。
 //!
 //! `text` が判定するのは、空でないこと・文字数の下限と上限だけで、内容の良し悪しは判定しない。
 //! 受け付けた入力の分類は `free_text_unjudged` で、範囲外は `bad_arg_shape` で拒否する。
@@ -18,10 +21,15 @@ use std::collections::BTreeSet;
 
 use crate::judgment::{Category, JudgmentKind};
 
-/// この契約の版。欄・判定の規則を変えたら上げる。
+/// この契約の版。欄・判定の規則を変えたら上げる。`wait` は同じ TASK-44 の 2/2 で足した版 1 の範囲の
+/// 完成であり、利用者（core）がまだ型を読んでいないため、版は上げない。
 pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 1;
 
-/// 入力方式の種類。`wait`（EP-1）は別タスクで足す。
+/// 取り消し（EP-2）を受ける規則の `on` のキー。`input.kind` の語ではない。
+/// 意味を持つのは、この規則を書いた Step だけである。検査は pack が行う。
+pub const CANCEL_RULE_KEY: &str = "cancel";
+
+/// 入力方式の種類。5 方式と、拡張点 EP-1 の待機。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum InputKind {
     /// コマンドと引数。
@@ -34,16 +42,19 @@ pub enum InputKind {
     UiAction,
     /// 承認・差し戻し。
     Approval,
+    /// 待機（EP-1）。進行イベントの完了で受付になる。
+    Wait,
 }
 
 impl InputKind {
-    /// 全 5 方式。
-    pub const ALL: [InputKind; 5] = [
+    /// 全方式（5 方式と待機）。
+    pub const ALL: [InputKind; 6] = [
         Self::Command,
         Self::Text,
         Self::Choice,
         Self::UiAction,
         Self::Approval,
+        Self::Wait,
     ];
 
     /// 教材に書く `kind` の語。
@@ -54,6 +65,15 @@ impl InputKind {
             Self::Choice => "choice",
             Self::UiAction => "ui_action",
             Self::Approval => "approval",
+            Self::Wait => "wait",
+        }
+    }
+
+    /// 拡張点の語なら、その ID。5 方式は `None`。
+    pub fn extension_point(self) -> Option<&'static str> {
+        match self {
+            Self::Wait => Some("EP-1"),
+            _ => None,
         }
     }
 
@@ -299,6 +319,11 @@ impl UiActionSpec {
 #[serde(deny_unknown_fields)]
 pub struct ApprovalSpec {}
 
+/// `wait` の宣言。欄を持たない。進行は Step の `processing` が表す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WaitSpec {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -308,7 +333,8 @@ mod tests {
         for k in InputKind::ALL {
             assert_eq!(InputKind::from_str_opt(k.as_str()), Some(k));
         }
-        assert_eq!(InputKind::from_str_opt("wait"), None);
+        assert_eq!(InputKind::from_str_opt("wait"), Some(InputKind::Wait));
+        assert_eq!(InputKind::from_str_opt("cancel"), None);
     }
 
     #[test]

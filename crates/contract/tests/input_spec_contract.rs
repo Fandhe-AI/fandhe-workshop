@@ -212,3 +212,18 @@ fn spec_errors_are_fixed_sentences() {
         assert!(!e.to_string().is_empty());
     }
 }
+
+#[test]
+fn wait_spec_has_no_fields() {
+    assert!(serde_json::from_value::<WaitSpec>(json!({})).is_ok());
+    assert!(serde_json::from_value::<WaitSpec>(json!({"extra": 1})).is_err());
+}
+
+#[test]
+fn only_wait_is_an_extension_point() {
+    assert_eq!(InputKind::Wait.extension_point(), Some("EP-1"));
+    for k in InputKind::ALL.into_iter().filter(|k| *k != InputKind::Wait) {
+        assert_eq!(k.extension_point(), None, "{}", k.as_str());
+    }
+    assert_eq!(CANCEL_RULE_KEY, "cancel");
+}
