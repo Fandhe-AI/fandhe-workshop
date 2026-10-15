@@ -11,5 +11,6 @@ pub mod diag;
 pub mod markdown;
 pub mod source;
 pub mod vocab;
+mod yaml_strict;
 
 pub use diag::{DiagCode, Diagnostic, DiagnosticError};

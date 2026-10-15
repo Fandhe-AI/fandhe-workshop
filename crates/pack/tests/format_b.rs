@@ -2,11 +2,12 @@
 //!
 //! 04-behavior の PACK-2（`workshop.yaml` と `workshop.toml` が両方ある・どちらも無いは `E-PARSE`）と
 //! PACK-3（構造定義に語彙にない欄を足すと `unknown field`（`E-PARSE`）で拒否する）の前提・操作・期待を
-//! 確かめる。試験名の `pack2_`・`pack3_` で 04 の ID を追える。
+//! 確かめる。PACK-4（値の読み方と構文エラー）は末尾の `pack4_` の試験が確かめる。試験名の `pack2_`・`pack3_`・
+//! `pack4_` で 04 の ID を追える。
 //!
 //! 範囲外: `commands`・`views`・`hints` など `serde_json::Value` で通す欄の中の未知の欄は、語彙の型付け
 //! （TASK-42〜TASK-47）が入るまで拒否されない。ここでは「拒否される」とも「通る」とも固定しない。
-//! 文字列への型変換・重複キー・行と桁の厳格化（PACK-4）は TASK-40 の 2/2 が扱う。
+//! 同じ理由で、`Value` の欄の中の引用符なしの値は文字列にならない（重複キーの拒否だけが及ぶ）。
 
 mod common;
 
@@ -211,5 +212,265 @@ fn pack3_unknown_field_name_is_not_echoed_when_unsafe() {
         let s = one_parse(&t).to_string();
         assert!(s.contains("unknown field at line"), "{s}");
         assert!(!s.contains(field) && !s.contains(SECRET), "{s}");
+    }
+}
+
+// ---- PACK-4: 値の読み方と構文エラー ----
+
+/// 引用符なしだと YAML が別の型にしうる値。
+const CONVERTIBLE: [&str; 5] = ["true", "no", "1.10", "010", "null"];
+
+/// 文字列の欄すべてに、引用符なしの変換されうる値を書いた形式 B のパックを作る。
+fn convertible_pack() -> Tmp {
+    let t = Tmp::new("f4-convertible");
+    t.put(
+        "workshop.yaml",
+        b"pack: {id: true, title: no, version: 1.10, ir_format: 1, guidance: A}\n",
+    );
+    t.put(
+        "chapters/c1/chapter.yaml",
+        concat!(
+            "id: 010\ntitle: null\nparams: {k: true, n: 1.10}\n",
+            "starts: [{id: no, node: true}]\nsteps:\n",
+            "  - id: true\n    title: 1.10\n    do: null\n    lo: [010, null]\n    hints: [no]\n",
+            "    body_levels: {A: 010}\n    next: [{to: no}]\n",
+            "  - {id: no, title: 010, final: true}\n",
+        )
+        .as_bytes(),
+    );
+    t
+}
+
+#[test]
+fn pack4_premise_unquoted_convertible_values_are_written_in_string_fields() {
+    let t = convertible_pack();
+    let ws = fs::read_to_string(t.0.join("workshop.yaml")).expect("read");
+    let ch = fs::read_to_string(t.0.join("chapters/c1/chapter.yaml")).expect("read");
+    let text = format!("{ws}{ch}");
+    for v in CONVERTIBLE {
+        assert!(text.contains(v), "{v}");
+    }
+    assert!(!text.contains(['\'', '"']));
+}
+
+#[test]
+fn pack4_expect_unquoted_convertible_values_are_read_as_strings() {
+    let t = convertible_pack();
+    t.put("chapters/c1/010", b"# x\n");
+    let p = load(&t.0).expect("load");
+    assert_eq!(p.workshop.pack.id, "true");
+    assert_eq!(p.workshop.pack.title, "no");
+    // `1.10` が `1.1` に、`010` が `10`・`8` にならない。
+    assert_eq!(p.workshop.pack.version, "1.10");
+    let s = &p.scopes[0].src;
+    assert_eq!(s.id, "010");
+    assert_eq!(s.title, "null");
+    assert_eq!(s.params["k"], "true");
+    assert_eq!(s.params["n"], "1.10");
+    assert_eq!(s.starts[0].id, "no");
+    assert_eq!(s.starts[0].node, "true");
+    let st = &s.steps[0];
+    assert_eq!(st.id, "true");
+    assert_eq!(st.title, "1.10");
+    assert_eq!(st.do_.as_deref(), Some("null"));
+    assert_eq!(st.lo, ["010", "null"]);
+    assert_eq!(st.hints, ["no"]);
+    assert_eq!(st.body_levels["A"], "010");
+    assert_eq!(st.next[0].to, "no");
+    assert_eq!(s.steps[1].title, "010");
+}
+
+#[test]
+fn pack4_expect_bare_null_in_optional_string_fields_is_text() {
+    let cases = [
+        ("do: null", Some("null")),
+        ("do: ~", Some("~")),
+        ("do: 'null'", Some("null")),
+        ("do:", None),
+        ("lo: []", None),
+    ];
+    for (field, want) in cases {
+        let t = minimal();
+        t.put(
+            "chapters/c1/chapter.yaml",
+            format!(
+                "id: c1\ntitle: C\nsteps:\n  - id: a\n    title: A\n    {field}\n    final: true\n"
+            )
+            .as_bytes(),
+        );
+        let p = load(&t.0).expect("load");
+        assert_eq!(p.scopes[0].src.steps[0].do_.as_deref(), want, "{field}");
+    }
+    // `body: null` は未設定ではなく、`null` という名前の本文の参照になる。
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nsteps:\n  - {id: a, title: A, body: null, final: true}\n",
+    );
+    let d = diags(&t);
+    assert_no_secret(&d);
+    assert!(d.iter().any(|x| x.to_string().contains("null")), "{d:?}");
+}
+
+/// 重複キーの場所ごとの試験。`(名前, 相対パス, 内容, 期待する行, 期待する桁)`。
+fn duplicate_cases() -> Vec<(&'static str, &'static str, String, usize, usize)> {
+    let ch = |body: &str| format!("id: c1\ntitle: C\n{body}");
+    vec![
+        (
+            "workshop-top",
+            "workshop.yaml",
+            format!("{WORKSHOP}pack: {{}}\n"),
+            2,
+            1,
+        ),
+        (
+            "pack",
+            "workshop.yaml",
+            "pack:\n  id: p\n  title: t\n  id: q\n".to_string(),
+            4,
+            3,
+        ),
+        (
+            "commands-table",
+            "workshop.yaml",
+            format!("{WORKSHOP}commands:\n  ls: {{}}\n  ls: {{}}\n"),
+            4,
+            3,
+        ),
+        (
+            "value-inside-commands",
+            "workshop.yaml",
+            format!("{WORKSHOP}commands:\n  ls:\n    a: 1\n    a: 2\n"),
+            5,
+            5,
+        ),
+        (
+            "chapter-top",
+            "chapters/c1/chapter.yaml",
+            ch("title: D\nsteps: []\n"),
+            3,
+            1,
+        ),
+        (
+            "step",
+            "chapters/c1/chapter.yaml",
+            ch("steps:\n  - id: a\n    title: A\n    id: b\n"),
+            6,
+            5,
+        ),
+        (
+            "params",
+            "chapters/c1/chapter.yaml",
+            ch("params:\n  k: 1\n  k: 2\nsteps: []\n"),
+            5,
+            3,
+        ),
+        (
+            "on-reject",
+            "chapters/c1/chapter.yaml",
+            ch("steps:\n  - id: a\n    title: A\n    on_reject:\n      r: x\n      r: y\n"),
+            8,
+            7,
+        ),
+        (
+            "playthrough",
+            "tests/playthrough.yaml",
+            "playthroughs: []\nplaythroughs: []\n".to_string(),
+            2,
+            1,
+        ),
+    ]
+}
+
+#[test]
+fn pack4_expect_duplicate_keys_are_rejected_with_e_parse() {
+    for (name, path, content, line, col) in duplicate_cases() {
+        let t = minimal();
+        t.put(path, content.as_bytes());
+        let s = one_parse(&t).to_string();
+        assert!(s.contains("duplicate key"), "{name}: {s}");
+        assert!(
+            s.contains(&format!("at line {line} column {col}")),
+            "{name}: {s}"
+        );
+    }
+}
+
+#[test]
+fn pack4_expect_duplicate_key_name_is_not_echoed_unless_identifier() {
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        format!("id: c1\ntitle: C\nparams:\n  \"a {SECRET}\": 1\n  \"a {SECRET}\": 2\nsteps: []\n")
+            .as_bytes(),
+    );
+    let s = one_parse(&t).to_string();
+    assert!(s.contains("duplicate key at line 5 column 3"), "{s}");
+    assert!(!s.contains("SECRET"), "{s}");
+
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nparams:\n  k.v-1: 1\n  k.v-1: 2\nsteps: []\n",
+    );
+    let s = one_parse(&t).to_string();
+    assert!(s.contains("duplicate key `k.v-1` at line 5"), "{s}");
+}
+
+#[test]
+fn pack4_expect_duplicate_keys_differing_only_in_quoting_are_rejected() {
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nparams:\n  true: 1\n  'true': 2\nsteps: []\n",
+    );
+    let s = one_parse(&t).to_string();
+    assert!(s.contains("duplicate key `true` at line 5"), "{s}");
+}
+
+#[test]
+fn pack4_expect_syntax_errors_carry_line_and_column() {
+    let bad = [
+        ("unclosed-flow", "id: c1\ntitle: [C\nsteps: []\n"),
+        ("unclosed-quote", "id: c1\ntitle: \"C\nsteps: []\n"),
+        (
+            "bad-indent",
+            "id: c1\ntitle: C\nsteps:\n  - id: a\n   title: A\n",
+        ),
+        ("tab", "id: c1\ntitle: C\nsteps:\n\t- id: a\n"),
+    ];
+    for (name, content) in bad {
+        for path in ["workshop.yaml", "chapters/c1/chapter.yaml"] {
+            let t = minimal();
+            t.put(path, content.as_bytes());
+            let s = one_parse(&t).to_string();
+            assert!(
+                s.contains("invalid syntax or structure at line "),
+                "{name} {path}: {s}"
+            );
+            assert!(s.contains(" column "), "{name} {path}: {s}");
+        }
+    }
+}
+
+#[test]
+fn pack4_expect_multiple_documents_are_rejected_without_position() {
+    // 複数文書は yaml_serde 0.10.7 が位置を返さない。既知の制約として `E-PARSE` であることだけを固定する。
+    let t = minimal();
+    t.put(
+        "workshop.yaml",
+        format!("{WORKSHOP}---\n{WORKSHOP}").as_bytes(),
+    );
+    one_parse(&t);
+}
+
+#[test]
+fn pack4_operation_testdata_packs_still_load() {
+    for rel in [
+        "input-field-ime/test-data/ime-pack",
+        "input-field-ime/test-data/ch1-pack",
+    ] {
+        let p = load(&testdata(rel)).expect(rel);
+        assert_eq!(p.format, Format::Yaml, "{rel}");
     }
 }
