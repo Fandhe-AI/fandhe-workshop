@@ -1,0 +1,8 @@
+id: PACK16-3
+package: fandhe-workshop-pack
+test: text_slots
+target: crates/pack/src/slot_check.rs
+find:             if actual != Some(only) {
+replace:             if actual != Some(only) && false {
+expect-fail: pack16_context_rejection_and_clarification
+note: 分類の制限の検査を外す（busy だけの枠が別の分類・問い返しで通る）

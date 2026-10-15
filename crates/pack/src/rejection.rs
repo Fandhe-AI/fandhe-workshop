@@ -11,7 +11,7 @@
 //! `on_reject` のキーは引数の置換の対象外なので、展開前の宣言を 1 回だけ検査すれば足りる。
 //!
 //! 扱わないこと（`docs/diagnostics.md` 版 1 の `E-STRUCTURE` の条件に無いため）: `defaults` が 8 分類を網羅すること、
-//! `defaults`・`on_reject` のキーと参照先の文面の `category` の一致、`next_action` の空（TASK-46）、`validate` への組み込み。
+//! `defaults`・`on_reject` のキーと参照先の文面の `category` の一致、`next_action` の空と差し込みの枠（`slot_check`、TASK-46 2/2）、`validate` への組み込み。
 //! メッセージに写すのは `safe_ident` を通った識別子だけで、値そのものは写さない。
 
 use serde_json::Value;

@@ -156,7 +156,42 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - 大文字小文字や前後の空白の揺れは受けません
 - `free_text_unjudged` は受付に付く語で、3 か所とも書けます
 - 診断には、識別子として安全な語だけを写し、値そのものは写しません
-- `defaults` が 8 分類を網羅すること、キーと参照先の文面の `category` の一致、`next_action` の空は、この検査では見ません。診断コードの条件に無いためで、`next_action` は TASK-46 が受け持ちます（2026-10-15）
+- `defaults` が 8 分類を網羅すること、キーと参照先の文面の `category` の一致は、この検査では見ません。診断コードの条件に無いためです。`next_action` の空と差し込みの枠は、次の節の検査が見ます（2026-10-15）
+
+## 差し込みの枠（`{{...}}`）と次の行動
+
+拒否・問い返しの文面には、受講者が次にすべきこと（次の行動）が必ず要ります（R-21、PACK-12）。次の行動を書く欄は、拒否（`rejections`）では
+`next_action`、問い返し（`clarifications`）では `how_to_answer` です。文面の `message` と次の行動の欄には、値を差し込む枠を書けます（語彙 v1.1 の EP-7、PACK-16）。
+
+枠は `{{名前}}` か `{{名前|代替の文}}` の形です。名前は次の 6 語に限られ、式・スクリプト・入れ子は書けません。
+
+| 名前 | 差し込む値 | 空になりうるか | 使える文面 |
+|---|---|---|---|
+| `input_head` | 受講者の入力の先頭の語 | なりうる（代替の文が要る） | すべて |
+| `nearest_command` | 近いコマンド | なりうる（代替の文が要る） | 分類が `unknown_command` の拒否だけ |
+| `step_title` | 今の Step の `title` | ならない | すべて |
+| `step_do` | 今の Step の `do` | ならない（Step に `do` が要る） | すべて |
+| `remaining` | 処理中の残りの回数 | ならない | 分類が `busy` の拒否だけ |
+| `total` | 処理中の全体の回数 | ならない | 分類が `busy` の拒否だけ |
+
+- 分類が限られた枠は、分類を持たない問い返しの文面では使えません
+- 代替の文は、値が無い（または空白だけの）ときに使われます。空になりうる枠に代替の文が無い、または空白だけの場合は拒否します
+- 差し込んだ値の中の `{{...}}` は展開されません。受講者の入力に枠の形が混ざっても、そのまま文字として表示されます
+- 枠を含む値は、YAML で必ず引用符で囲みます。flow 形式（`{...}`）の中で、引用符なしの `{{` は `E-PARSE` になります（AUTHOR-13）
+
+| 診断 | 条件 | ファイル・項目 |
+|---|---|---|
+| `E-SLOT-SYNTAX` | `{{` が閉じていない・名前が空・枠が入れ子になっている | `workshop.*`・`rejection:<id>` または `clarification:<id>` |
+| `E-SLOT-UNKNOWN` | 名前が 6 語にない | 同上 |
+| `E-SLOT-CONTEXT` | その分類の文面では使えない枠 | 同上 |
+| `E-SLOT-NO-FALLBACK` | 空になりうる枠に代替の文が無い | 同上 |
+| `E-SLOT-NEEDS-DO` | `step_do` を使う文面が出うる Step に `do` が無い（空白だけを含む） | その Step を定義した章・モジュールのファイル・`step:<id>` |
+| `E-EMPTY-NEXT-ACTION` | 次の行動の欄が空、または空になりうる枠を値なしで差し込むと空になる | `workshop.*`・`rejection:<id>` または `clarification:<id>` |
+
+- `step_do` の検査で「出うる文面」は、Step の `on_reject`、入力を持つ Step では `on_reject` に無い分類の `defaults`、規則の `reject`・`clarify`、確認の `on_wrong`・`on_miss`・選択肢の `on_wrong` が指す文面です
+- 欄が無い・文字列でない場合は `E-PARSE` です。診断には、本文・代替の文の値を写しません
+- `validate` と `compile` の両方がこの検査を行います。枠に誤りのある教材は IR を出しません
+- モジュールの引数の展開の後で `do` が空になる場合は、静的には見えません。展開後の IR を総なめにする `slot_check::tally_empty_next_actions` が数えます。`fandhe-pack test` への結線は TASK-404、実行時の値の組み立てと差し込みは TASK-267 の担当で、2026-10-15 時点では、純関数と値の組を手で作る試験までです
 
 ## 教材テストの誤入力の期待（`expect`）
 
@@ -195,3 +230,5 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
 | `crates/pack/tests/judgment_vocabulary.rs` の `pack11_` | 語彙の `result`・`rejection` の語が contract の型と一致すること、`category`・`defaults`・`on_reject` の語彙にない語が `E-PARSE` になり値を出さないこと（PACK-11） |
 | `crates/pack/tests/error_input_expect.rs` の `pack11_` | 誤入力の期待の 3 形の読み取りと不正な書き方の拒否、架空の教材の誤入力 20 件の分類、3 場面の区別、拒否の文面と次の行動が空でないこと（PACK-11） |
+| `crates/pack/tests/text_slots.rs` の `pack16_`・`pack12_` | 5 つの `E-SLOT-*` が期待のファイル・項目で出ること、次の行動の空が静的・動的の両方で 0 件になること、公開の試験データで診断が 0 件であること（PACK-12、PACK-16） |
+| `crates/contract/tests/slot_contract.rs` の `pack16_` | 枠の構文・差し込みの再走査をしない性質・エラーの固定文（PACK-16） |

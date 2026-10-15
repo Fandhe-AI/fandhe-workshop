@@ -11,7 +11,7 @@
 //! - 誤入力をエンジンへ流して実際の判定と期待を比べる実行系（TASK-404。core の入力の判定は TASK-267 待ち）。
 //!   [`ResultExpect::matches`] は、その比較で使う照合の規則だけを持つ
 //! - `pre[].expect`・`playthroughs` の期待（`progress`・`achieved` など語彙外の書き方を含む。TASK-404）
-//! - `next_action` が空の拒否・問い返しの診断（`E-EMPTY-NEXT-ACTION`。TASK-46）
+//! - `next_action` が空の拒否・問い返しの診断（`E-EMPTY-NEXT-ACTION`。`slot_check`、TASK-46 2/2 が `validate`・`compile` で行う）
 //!
 //! 語彙の違反は `E-PARSE` にする（`rejection.rs` と同じ。`docs/diagnostics.md` 版 1 は
 //! `E-PLAY-CATEGORY-MISMATCH` を固定しない）。診断の文面は固定文で、`expect` の値は写さない。
@@ -196,7 +196,7 @@ pub fn check_error_input_expects(pack: &LoadedPack) -> Vec<Diagnostic> {
 /// `rejections` を引く。どこかで見つからなければ `None`。
 ///
 /// 開始 ID は章の `s-1` もモジュールの `<実体>#<ID>` も `ir.starts` で引ける。実行時の差し込み（EP-7）は
-/// 行わない（TASK-267・TASK-46）。
+/// 行わない（実行時の値の組み立ては TASK-267、純関数は contract の `slot`・`slot_check::rendered_next_action`）。
 pub fn resolve_rejection<'a>(
     ir: &'a Ir,
     start_id: &str,
