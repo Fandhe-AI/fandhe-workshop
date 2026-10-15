@@ -12,6 +12,8 @@
 //! 受講者の 1 行をコマンド名と引数に分ける字句化（[`command_lex`]、TASK-262 1/2）も持つ。
 //! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
 //! 選択肢・画面操作・承認の判定（[`select_judge`]、TASK-263）も持つ。
+//! 承認の「直す」の対象の一覧と対象なしの規則（[`select_judge::revise_targets`]）、拒否の文面の解決と
+//! 空でない次の行動（[`rejection_text`]、TASK-264）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 入力の受付の分岐（`accept`、TASK-207 1/3。公開しない）も持つ。
 //! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
@@ -33,6 +35,7 @@ pub mod json_depth;
 pub mod load_gate;
 pub mod projection;
 pub mod provider;
+pub mod rejection_text;
 pub mod select_judge;
 pub mod session;
 pub mod step_status;
