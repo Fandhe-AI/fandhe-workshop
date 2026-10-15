@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -142,3 +142,134 @@ S1 は固定列の試験と性質テストの両方が、S2 は性質テスト�
 |---|---|---|---|---|---|
 | S1 | crates/core/tests/property_sample.rs: 古い進行が状態を変えてしまう（位置を 0 に戻す） | 固定列で古い進行と復元と完了を通る, 乱数の入力列で状態が壊れない | 固定列で古い進行と復元と完了を通る, 乱数の入力列で状態が壊れない | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Advance, Stale] |
 | S2 | crates/core/tests/property_sample.rs: 進行の上限を外す（最終位置を超えて進む）。固定列は上限を超えないので、性質テストだけが捉える | 乱数の入力列で状態が壊れない | 乱数の入力列で状態が壊れない | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Advance, Advance, Advance, Advance, Advance] |
+
+### 5.1.1 履歴ファイルの大きさの上限（TASK-155）
+
+ちょうど上限を断る誤りを、境界の試験と性質テストが検出する。一様な `u64` では境界に当たらないため、性質テストは境界付近を混ぜた入力から引く。
+
+```text
+実行日: 2026-10-14
+元にしたコミット: ab2a1df-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| SAFE18-1 | crates/core/src/history_size.rs: ちょうど 10MB を断る誤り | exact_limit_is_not_rejected_by_size, limit_neighborhood_is_judged_exactly, bytes_are_judged_by_length_without_reading_content, size_rule_holds_for_any_length | exact_limit_is_not_rejected_by_size, limit_neighborhood_is_judged_exactly, size_rule_holds_for_any_length, bytes_are_judged_by_length_without_reading_content | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: 10485760 |
+
+### 5.2 採用する版の feature の宣言（TASK-346）
+
+F1 は、`fandhe-frontend-wasm-full` の `action-keydown` を外す変異である。外してもビルドは通り、`data-action-keydown` と
+`data-keys` の属性が黙って効かなくなる。native の試験 `frontend_features` が宣言を検査して検出する。
+動作の検出は、ブラウザの試験 `tools/browser/keydown-action.test.mjs` と、feature を外した写しで流す対照の検査
+`make test-keydown-control` が担う（第 6 節）。
+
+```text
+実行日: 2026-10-14
+元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| F1 | Cargo.toml: action-keydown の feature を外す（keydown の配線が黙って登録されなくなる） | wasm_full_は_既定_feature_なしで_action_keydown_を明示している | wasm_full_は_既定_feature_なしで_action_keydown_を明示している | DETECTED | - |
+
+### 5.3 入力欄の上限（TASK-158）
+
+L1 は、`crates/web/src/input_limit.rs` の上限の判定（`clamp_draft` の近道）を常に真にする変異である。外すとビルドは通り、
+20,001 文字目以降が黙って通る。native の統合試験 `input_limit` が検出する。切り詰めた値が欄へ戻ること・案内の表示と消去は、
+ブラウザの試験 `tools/browser/input-limit.test.mjs` が担う。
+
+```text
+実行日: 2026-10-14
+元にしたコミット: ab2a1df-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/L1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| L1 | crates/web/src/input_limit.rs: 上限の判定を外す（20,001 文字目以降が通ってしまう） | 一文字超過は先頭の上限までになり_超過の印が立つ | 一文字超過は先頭の上限までになり_超過の印が立つ, 空_ascii_結合文字の扱い, 十倍の貼り付けも上限になる, サロゲートペアの超過は文字の境界で切る | DETECTED | - |
+
+### 5.4 判定の順序（TASK-157）
+
+SAFE20-1 は深さの段を外し、SAFE20-2 は深さの段を大きさの段より前に入れ替える。どちらも `tests/load_order.rs` が検出する。
+
+```text
+実行日: 2026-10-14
+元にしたコミット: ad0b271-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| SAFE20-1 | crates/core/src/load_gate.rs: 入れ子の深さの段を外す（解釈の前に深さで断らない） | depth_is_decided_before_parse, deep_valid_json_is_too_deep, depth_check_precedes_serde_recursion_limit, rejecting_stage_is_the_first_violated_in_contract_order | deep_valid_json_is_too_deep, depth_is_decided_before_parse, depth_check_precedes_serde_recursion_limit, rejecting_stage_is_the_first_violated_in_contract_order | DETECTED | - |
+| SAFE20-2 | crates/core/src/load_gate.rs: 深さの段を大きさの段より先にする（判定の順序の入れ替え） | size_is_decided_before_depth, rejecting_stage_is_the_first_violated_in_contract_order | size_is_decided_before_depth, rejecting_stage_is_the_first_violated_in_contract_order | DETECTED | - |
+
+## 6. 既存の自動テストの件数の基準値（TASK-346）
+
+採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
+本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
+PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
+
+```text
+計測日: 2026-10-14
+元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+```
+
+### 6.1 採用した版（Cargo.lock の解決済みの版）
+
+| crate | 版 |
+|---|---|
+| `fandhe-frontend-core` | 0.4.3 |
+| `fandhe-frontend-interactive` | 0.2.7 |
+| `fandhe-frontend-wasm-client` | 0.6.1 |
+| `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
+| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
+
+版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
+
+### 6.2 ビルドと lint
+
+| 確認 | コマンド | 結果 |
+|---|---|---|
+| native のビルド | `cargo build --locked --workspace` | 成功 |
+| wasm32 の release（配信設定） | `SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| wasm32 の release + `test-hooks` | `TEST_HOOKS=1 SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| fmt・clippy（`-D warnings`。native と wasm32 の feature なし・`test-hooks`） | `make lint` | 成功 |
+
+### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
+
+| 試験のバイナリ | passed | failed | ignored |
+|---|---|---|---|
+| contract（unittests） | 0 | 0 | 0 |
+| contract（limits_contract） | 8 | 0 | 0 |
+| core（unittests） | 0 | 0 | 0 |
+| core（property_sample） | 6 | 0 | 0 |
+| core（provider_contract） | 4 | 0 | 0 |
+| pack（unittests lib） | 12 | 0 | 0 |
+| pack（unittests bin） | 0 | 0 | 0 |
+| pack（cli） | 3 | 0 | 0 |
+| pack（testdata_min_3step） | 3 | 0 | 0 |
+| web（unittests） | 3 | 0 | 0 |
+| web（frontend_features） | 3 | 0 | 0 |
+| doctest（contract・core・pack・web） | 0 | 0 | 0 |
+| 合計 | 42 | 0 | 0 |
+
+`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
+`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
+
+### 6.4 node:test の件数
+
+| 対象 | tests | pass | fail | skipped |
+|---|---|---|---|---|
+| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
+| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
+| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
+
+`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
+`make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
+
+### 6.5 未計測のもの
+
+- CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
+- `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数

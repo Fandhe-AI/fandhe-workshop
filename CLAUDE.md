@@ -34,6 +34,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
+│   ├── test-keydown-control.sh # action-keydown を外した対照の検査（make test-keydown-control）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -79,7 +80,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
-| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）と最小の画面の試験（Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
+| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・対照の自己確認（SAFE-8。CSP あり・なし。Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
+| `make test-keydown-control` | `action-keydown` を外した写しで keydown の試験が正しい理由で失敗することの対照（遅く、CI・フックには入れない） |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
