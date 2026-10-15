@@ -14,7 +14,7 @@
 //! 4. `approve`: `Input::Approval` の決定が承認のときだけ成立する（`target` つきの承認は外れ。対象つきの「直す」等の経路は別）
 //! 5. `none`: 確認の操作では成立させない。理由つきの省略は受付と同時に達成になる（[`crate::accept`]、TASK-208）
 //! 6. 宣言が読めない・検査に通らない・`kind` が未知なら、固定文の `Warning` を足して状態を変えない（fail-closed）
-//! 7. 外れは状態を変えず、イベントも足さない（版 1 は `Judged` が無い。文面の発行は TASK-267 の後）
+//! 7. 外れは状態を変えず、イベントも足さない（判定結果の `Judged` は `accept` が先に置く。TASK-267）
 //!
 //! 成立したときの順は `Achieved` → 達成の効果のイベント → `Transitioned` → `Entered`。達成の効果が 1 件でも
 //! 読めなければ、達成にせず `Warning` だけを返す（一部だけ適用しない）。遷移は `when` の無い（`null` を含む）
@@ -24,7 +24,8 @@
 //!
 //! - 章の完了（`ChapterCompleted`・`completed`）、`exit_to`・`use` への遷移（TASK-233 以降）
 //! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-211・213・217）
-//! - `on_miss`・`on_wrong` の文面の発行と `Judged`（TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）は受付の分岐が先に行い、`Judged` の発行は TASK-267
+//! - `on_miss`・`on_wrong` の文面の解決と `Judged` の発行（`crate::judge`、TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）。
+//!   どちらも受付の分岐が先に行い、本モジュールは判定が確認のときだけ呼ばれる
 //! - `processing` を持つ Step の省略の達成（進行の完了で達成にする。TASK-210）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は 1 操作で

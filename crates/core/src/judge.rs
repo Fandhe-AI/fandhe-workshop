@@ -14,7 +14,8 @@
 //! # 判定の順序（最初に当たったものを返す）
 //!
 //! 1. 現在の Step が無い、または IR で引けない: 無視（[`IgnoreReason::NoCurrent`]）
-//! 2. 処理中（`run.busy`）: 拒否 `busy`（暫定。精緻化は TASK-269、JUDGE-5）
+//! 2. 処理中（[`crate::busy_class::classify_busy`] が `Some`。取り消しは処理中に数えない）: 拒否 `busy`
+//!    （受付の分岐 `accept` と同じ 1 か所で決める。精緻化は TASK-269、JUDGE-5）
 //! 3. コマンドで、教材のコマンドの表に名前が無い: 拒否 `unknown_command`
 //! 4. Step の状態で段を分ける。`Entered` は入力の段、`Accepted` は確認の段、それ以外は拒否 `not_in_this_step`
 //!
@@ -42,8 +43,10 @@
 //!
 //! - 受付・達成の遷移（TASK-207）。`Op::Input` の `InputReceived` の直後の `Judged` は `accept::on_input` が置く。
 //!   判定できない宣言（[`JudgeError`]）は `Judged` を置かず、固定文の `Warning` を添えて状態を変えない。
-//!   コマンド規則の照合（`on.args`・`on.missing`）は [`crate::command_rule`]、`accept` の受付の分岐も同じ関数を使う
-//!   （`Judged` と受付の結果を食い違わせない）。無視のときに続けて `Event::Ignored` を置くかは TASK-207 が決める
+//!   `accept::on_input` は規則を判定し直さず、受付のときだけ [`JudgeDetail`] の規則（添字）・自然文の効果を
+//!   適用する（`Judged` と遷移を食い違わせない。規則の `when` の評価は 1 件の入力につき各規則 1 回まで）。
+//!   コマンド規則の照合（`on.args`・`on.missing`）は [`crate::command_rule`] が持つ。
+//!   無視のときに続けて `Event::Ignored` を置くかは TASK-207 が決める
 //! - 進行（`Op::Tick`）での `Judged` の発行位置。EVT-8 は宛先の食い違いを「無視を 1 件だけ記録」とするため、
 //!   `Judged{ignored}` と `Ignored` を両方出すかは TASK-210 が決める。ここは [`judge_tick`] の純関数だけを置く
 //! - `Event::Refused.rejection` の型の置き換え、問い返しの待ちの状態
@@ -60,6 +63,7 @@ use fandhe_workshop_contract::profile::read_profile;
 use serde_json::{Map, Value};
 
 use crate::addr::{Root, Stamp, TickAddr};
+use crate::busy_class::classify_busy;
 use crate::command_judge::{judge_command, CommandVerdict};
 use crate::command_lex::{lex_command, CommandLexError};
 use crate::command_rule::{judge_command_rules, CommandRuleError, CommandRuleVerdict};
@@ -71,7 +75,7 @@ use crate::select_judge::{
 };
 use crate::session::RunState;
 use crate::step_status::StepStatus;
-use crate::text_judge::{judge_text, text_spec, AcceptedText, TextDeclError, TextJudgment};
+use crate::text_judge::{accepted_by, text_spec, AcceptedText, TextDeclError};
 
 /// 判定できない理由。`Display` は入力値・宣言の値を埋め込まない固定の英文である。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,6 +118,9 @@ pub enum JudgeDetail {
     None,
     /// 受付をもたらした規則。効果の適用は呼び出し側（TASK-207）。
     Rule {
+        /// 一致した規則の `Step.rules` での添字。呼び出し側はこの規則の `outcome.effects` を適用する
+        /// （`id` は一意とは限らないため、規則は添字で引く）。
+        rule_index: usize,
         /// 一致した規則の `id`（文字列でなければ `None`）。
         rule_id: Option<String>,
     },
@@ -191,7 +198,7 @@ pub fn judge_input(
         cond,
     };
 
-    if run.busy.is_some() {
+    if classify_busy(run, input).is_some() {
         return ctx.reject(RejectCategory::Busy);
     }
 
@@ -341,12 +348,16 @@ impl Ctx<'_> {
     fn judge_by_rule(
         &self,
         outcome: RuleOutcome,
+        rule_index: usize,
         rule_id: Option<String>,
     ) -> Result<JudgeOutcome, JudgeError> {
         match outcome {
             RuleOutcome::Accept => Ok(JudgeOutcome::new(
                 Judgment::Accepted(None),
-                JudgeDetail::Rule { rule_id },
+                JudgeDetail::Rule {
+                    rule_index,
+                    rule_id,
+                },
             )),
             RuleOutcome::Reject(id) => self.reject_by_id(&id),
             RuleOutcome::Clarify(id) => self.clarify_by_id(&id),
@@ -373,9 +384,13 @@ impl Ctx<'_> {
                     }
                 };
                 match judge_select(self.step, input, &when).map_err(select_err)? {
-                    SelectVerdict::Accepted { rule_id, .. } => Ok(JudgeOutcome::new(
+                    SelectVerdict::Accepted {
+                        rule_index,
+                        rule_id,
+                    } => Ok(JudgeOutcome::new(
                         Judgment::Accepted(None),
                         JudgeDetail::Rule {
+                            rule_index,
                             rule_id: Some(rule_id),
                         },
                     )),
@@ -442,9 +457,13 @@ impl Ctx<'_> {
                     }
                 };
                 match judge_command_rules(self.step, &m, &when).map_err(rule_err)? {
-                    CommandRuleVerdict::Accepted { rule_id, .. } => Ok(JudgeOutcome::new(
+                    CommandRuleVerdict::Accepted {
+                        rule_index,
+                        rule_id,
+                    } => Ok(JudgeOutcome::new(
                         Judgment::Accepted(None),
                         JudgeDetail::Rule {
+                            rule_index,
                             rule_id: Some(rule_id),
                         },
                     )),
@@ -469,24 +488,23 @@ impl Ctx<'_> {
         if spec.judge(text) != TextVerdict::Accepted {
             return self.reject(RejectCategory::BadArgShape);
         }
-        // 最初に当たった `on.text` の規則が拒否・問い返しならそれに従う。受付なら下の自然文の受付へ進む。
-        for rule in &self.step.rules {
+        // 最初に当たった `on.text` の規則に従う。拒否・問い返しならその結果、受付ならその規則の効果で受け付ける。
+        // 当たった規則をそのまま使い、`when` を評価し直さない（`text_judge::judge_text` を呼び直さない）。
+        let mut hit = None;
+        for (rule_index, rule) in self.step.rules.iter().enumerate() {
             if !is_text_rule(rule) || !self.when_ok(rule) {
                 continue;
             }
-            let rule = rule.as_object().ok_or(JudgeError::InvalidDeclaration)?;
-            match rule_outcome(rule)? {
-                RuleOutcome::Accept => break,
-                other => return self.judge_by_rule(other, rule_id_of(rule)),
+            let obj = rule.as_object().ok_or(JudgeError::InvalidDeclaration)?;
+            match rule_outcome(obj)? {
+                RuleOutcome::Accept => {
+                    hit = Some(rule);
+                    break;
+                }
+                other => return self.judge_by_rule(other, rule_index, rule_id_of(obj)),
             }
         }
-        let accepted = match judge_text(self.step, text, self.run, self.root, self.cond)
-            .map_err(|_| JudgeError::InvalidDeclaration)?
-        {
-            TextJudgment::Accepted(a) => a,
-            // 範囲は上で確かめ済みで、ここには来ない。来た場合も受付には倒さない。
-            TextJudgment::Rejected(_) => return self.reject(RejectCategory::BadArgShape),
-        };
+        let accepted = accepted_by(text, hit).map_err(|_| JudgeError::InvalidDeclaration)?;
         Ok(JudgeOutcome::new(
             Judgment::Accepted(self.free_text_note()),
             JudgeDetail::Text(accepted),
@@ -510,7 +528,7 @@ impl Ctx<'_> {
     }
 
     fn cancel_stage(&self) -> Result<JudgeOutcome, JudgeError> {
-        for rule in &self.step.rules {
+        for (rule_index, rule) in self.step.rules.iter().enumerate() {
             let is_cancel = rule
                 .get("on")
                 .and_then(Value::as_object)
@@ -519,7 +537,7 @@ impl Ctx<'_> {
                 continue;
             }
             let rule = rule.as_object().ok_or(JudgeError::InvalidDeclaration)?;
-            return self.judge_by_rule(rule_outcome(rule)?, rule_id_of(rule));
+            return self.judge_by_rule(rule_outcome(rule)?, rule_index, rule_id_of(rule));
         }
         self.reject(RejectCategory::NotInThisStep)
     }

@@ -127,6 +127,7 @@ fn three_scenes_are_distinct_outcomes() {
     assert_eq!(
         out.detail,
         JudgeDetail::Rule {
+            rule_index: 0,
             rule_id: Some("r-impl-blocked".to_string())
         }
     );
@@ -294,6 +295,7 @@ fn cancel_follows_rule_or_is_not_in_this_step() {
     assert_eq!(
         out.detail,
         JudgeDetail::Rule {
+            rule_index: 0,
             rule_id: Some("r-cancel".to_string())
         }
     );
@@ -650,4 +652,56 @@ fn wrong_command_conditions_fail_closed_and_never_reach_later_accept() {
             "{on}"
         );
     }
+}
+
+/// `when` の評価の回数を数え、常に真を返す評価器。
+#[derive(Default)]
+struct CountingTrue(std::cell::Cell<usize>);
+
+impl ConditionEval for CountingTrue {
+    fn eval(&self, _when: &Value, _run: &RunState, _root: &Root) -> Option<bool> {
+        self.0.set(self.0.get() + 1);
+        Some(true)
+    }
+}
+
+#[test]
+fn each_rule_condition_is_evaluated_once() {
+    let when = serde_json::json!({"flag": "x"});
+    let with_when = |mut r: Value| {
+        r["when"] = when.clone();
+        r
+    };
+    // 自然文: 受付の規則の `when` は 1 回だけ評価し、受付の効果は当たった規則から読む（規則を読み直さない）。
+    let ir = ir_with_step(
+        serde_json::json!({"kind": "text", "min": 1, "max": 20}),
+        serde_json::json!([with_when(rule(
+            serde_json::json!({"text": true}),
+            serde_json::json!({"kind": "accept", "effects": [{"set_flag": "done"}]})
+        ))]),
+    );
+    let cond = CountingTrue::default();
+    let out = judge_input(&ir, &entered("st-bad-rule"), &txt("hello"), &cond).unwrap();
+    assert!(matches!(out.judgment, Judgment::Accepted(_)));
+    match &out.detail {
+        JudgeDetail::Text(t) => {
+            assert_eq!(t.rule_id.as_deref(), Some("r"));
+            assert_eq!(t.effects.len(), 1);
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(cond.0.get(), 1);
+    // コマンド: 先頭の規則が当たれば、その `when` の 1 回だけ。
+    let ir = ir_with_step(
+        serde_json::json!({
+            "kind": "command",
+            "name": "new-idea",
+            "args": [{"name": "name", "positional": true, "required": false, "shape": "kebab_case"}]
+        }),
+        serde_json::json!([with_when(accept_rule()), with_when(accept_rule())]),
+    );
+    let cond = CountingTrue::default();
+    let out = judge_input(&ir, &entered("st-bad-rule"), &cmd("/new-idea foo"), &cond).unwrap();
+    assert_eq!(out.judgment, Judgment::Accepted(None));
+    assert_eq!(cond.0.get(), 1);
 }

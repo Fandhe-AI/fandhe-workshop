@@ -363,6 +363,9 @@ pub fn judge_select(
 
 /// 確認の段の判定。`Step.confirm` に照らす。`confirm` が無い Step は `approve` として扱う
 /// （`confirm_spec::achievement(None)` と同じ安全側）。
+///
+/// 宣言の検査（`check`）は `crate::confirm` の達成の判定と同じにする。検査に通らない宣言は宣言の誤りで、
+/// 確認・外れの `Judged` を出さない（`Judged` と達成の遷移を食い違わせない）。
 pub fn judge_confirm(step: &Step, input: &Input) -> Result<ConfirmVerdict, SelectJudgeError> {
     if !is_select_input(input) {
         return Err(SelectJudgeError::NotSelectInput);
@@ -381,7 +384,9 @@ pub fn judge_confirm(step: &Step, input: &Input) -> Result<ConfirmVerdict, Selec
         .ok_or(SelectJudgeError::InvalidDeclaration)?;
     match kind {
         ConfirmKind::Answer => {
-            let spec = answer_spec_of(confirm).ok_or(SelectJudgeError::InvalidDeclaration)?;
+            let spec = answer_spec_of(confirm)
+                .filter(|s| s.check().is_ok())
+                .ok_or(SelectJudgeError::InvalidDeclaration)?;
             let Input::Choice(id) = input else {
                 return Ok(rejected);
             };
@@ -395,7 +400,9 @@ pub fn judge_confirm(step: &Step, input: &Input) -> Result<ConfirmVerdict, Selec
             })
         }
         ConfirmKind::PointAt => {
-            let spec: PointAtSpec = read_spec(decl).ok_or(SelectJudgeError::InvalidDeclaration)?;
+            let spec: PointAtSpec = read_spec(decl)
+                .filter(|s: &PointAtSpec| s.check().is_ok())
+                .ok_or(SelectJudgeError::InvalidDeclaration)?;
             let Input::Ui { view, path } = input else {
                 return Ok(rejected);
             };

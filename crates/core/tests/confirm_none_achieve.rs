@@ -76,6 +76,7 @@ fn kinds(events: &[Event]) -> Vec<&'static str> {
         .iter()
         .map(|e| match e {
             Event::InputReceived { .. } => "input_received",
+            Event::Judged { .. } => "judged",
             Event::Accepted { .. } => "accepted",
             Event::Achieved { .. } => "achieved",
             Event::Transitioned { .. } => "transitioned",
@@ -115,6 +116,7 @@ fn explicit_skip_achieves_on_accept_and_transitions() {
         kinds(&events),
         [
             "input_received",
+            "judged",
             "accepted",
             "achieved",
             "transitioned",
@@ -186,7 +188,7 @@ fn non_matching_input_does_not_achieve() {
         ir_with(|st| st.confirm = Some(skip(json!("ok")))),
         Input::Choice("opt-ghost".into()),
     );
-    assert_eq!(kinds(&events), ["input_received"], "{events:?}");
+    assert_eq!(kinds(&events), ["input_received", "judged"], "{events:?}");
     assert_eq!(status(&s, "main/st-2"), StepStatus::Entered);
 }
 

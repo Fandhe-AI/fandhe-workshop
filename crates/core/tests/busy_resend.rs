@@ -1,9 +1,9 @@
 //! 受付の一回性と処理中の拒否 `busy` の試験（TASK-209 1/2、仕様 EVT-7 と性質テスト P-6）。
 //!
 //! 受付は（世代, Step）につき 1 回だけで、処理中の Step への同じ入力の連打は 2 回目以降が `busy` になり、
-//! 状態が変わらない。`busy` はイベントに分類が載らない（契約の版 2 は `Judged` を含めない）ため、
-//! 各送信の直前の状態で [`classify_busy`] が `Some` を返した回数で数え、あわせてその送信の結果が
-//! `InputReceived` だけであることを確かめる。連打の場面は `processing` を持つ st-1 で行う
+//! 状態が変わらない。各送信の直前の状態で [`classify_busy`] が `Some` を返した回数で数え、あわせてその送信の
+//! 結果が `InputReceived` と拒否 `busy` の `Judged` だけであること（分類とイベントが一致すること）を確かめる。
+//! 連打の場面は `processing` を持つ st-1 で行う
 //! （st-2・st-3 は処理中にならず、2 回目の入力は確認の判定に回る）。
 //!
 //! 擬似操作 `FinishProcessing` は、処理中（`run.busy`）を畳む進行の照合（TASK-210）の代わりである。
@@ -18,7 +18,7 @@ use std::path::PathBuf;
 
 use common::property::{check, op_sequence, DEFAULT_CASES, MAX_OPS};
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_contract::judgment::RejectCategory;
+use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::addr::{Generation, StepUid};
 use fandhe_workshop_core::busy_class::classify_busy;
 use fandhe_workshop_core::event::Event;
@@ -91,8 +91,24 @@ fn first_note() -> Input {
     Input::Command("/make-note first-note".into())
 }
 
-fn is_input_received_only(events: &[Event]) -> bool {
-    matches!(events, [Event::InputReceived { .. }])
+/// `InputReceived` と、拒否 `busy` の `Judged` だけか。
+fn is_busy_rejection_only(events: &[Event]) -> bool {
+    matches!(
+        events,
+        [Event::InputReceived { .. }, Event::Judged { judgment: Judgment::Rejected(r), .. }]
+            if r.category == RejectCategory::Busy
+    )
+}
+
+/// `InputReceived` と、`busy` でない `Judged` だけか。
+fn is_judged_not_busy_only(events: &[Event]) -> bool {
+    match events {
+        [Event::InputReceived { .. }, Event::Judged { judgment, .. }] => !matches!(
+            judgment,
+            Judgment::Rejected(r) if r.category == RejectCategory::Busy
+        ),
+        _ => false,
+    }
 }
 
 fn accepted_count(state: &SessionState) -> usize {
@@ -154,11 +170,11 @@ fn burst_of_20_accepts_once_and_rejects_19_as_busy() {
         .iter()
         .any(|e| matches!(e, Event::Accepted { .. })));
     for r in &b.results[1..] {
-        assert!(is_input_received_only(r), "{r:?}");
+        assert!(is_busy_rejection_only(r), "{r:?}");
     }
     assert_eq!(b.after_first.run.busy, Some(Busy { done: 0, total: 5 }));
     assert_eq!(state.run, b.after_first.run);
-    assert_eq!(state.log.len(), b.after_first.log.len() + 19);
+    assert_eq!(state.log.len(), b.after_first.log.len() + 19 * 2);
     assert_eq!(state.run.generation, Generation(1));
     assert_eq!(b.after_first.run.generation, Generation(1));
 }
@@ -191,9 +207,9 @@ fn busy_applies_to_every_input_kind() {
         let before = session.state().clone();
         let (busy, events) = send(&mut session, input);
         assert!(busy, "{input:?}");
-        assert!(is_input_received_only(&events), "{input:?}: {events:?}");
+        assert!(is_busy_rejection_only(&events), "{input:?}: {events:?}");
         assert_eq!(session.state().run, before.run, "{input:?}");
-        assert_eq!(session.state().log.len(), before.log.len() + 1);
+        assert_eq!(session.state().log.len(), before.log.len() + 2);
     }
 }
 
@@ -204,7 +220,7 @@ fn cancel_is_never_busy() {
     let before = session.state().run.clone();
     let (busy, events) = send(&mut session, &Input::Cancel);
     assert!(!busy);
-    assert!(is_input_received_only(&events));
+    assert!(is_judged_not_busy_only(&events), "{events:?}");
     assert_eq!(session.state().run, before);
 }
 
@@ -298,10 +314,10 @@ fn p6_random_inputs_keep_invariants() {
                         // I3: 分類は処理中かつ現在の Step があり、取り消しでないときだけ。
                         prop_assert_eq!(busy, expect, "I3 op#{}", n);
                         if busy {
-                            // I2: 処理中の拒否は状態を変えず、ログは 1 件だけ増える。
-                            prop_assert!(is_input_received_only(&events), "I2 op#{}", n);
+                            // I2: 処理中の拒否は状態を変えず、ログは `InputReceived` と `Judged` の 2 件だけ増える。
+                            prop_assert!(is_busy_rejection_only(&events), "I2 op#{}", n);
                             prop_assert_eq!(&after.run, &before.run, "I2 op#{}", n);
-                            prop_assert_eq!(after.log.len(), before.log.len() + 1);
+                            prop_assert_eq!(after.log.len(), before.log.len() + 2);
                         }
                     }
                 }
