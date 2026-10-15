@@ -100,7 +100,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
 | キー判定表 `decide` の入出力と表 | contract | TASK-257・TASK-281 |
 | 案内レベルとヒントの値の型（`Control::OpenHint`・`HintOpened` は core） | contract | TASK-290 |
-| 学習目標の確認の記録の型 | contract | TASK-291 |
+| 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
 | 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |

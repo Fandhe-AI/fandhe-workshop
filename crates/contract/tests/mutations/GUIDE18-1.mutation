@@ -1,0 +1,8 @@
+id: GUIDE18-1
+package: fandhe-workshop-contract
+test: lo_check_contract
+target: crates/contract/src/lo_check.rs
+find:                        rec.reselection = Reselection::Correct;
+replace:                        rec.first_answer = FirstAnswer::Correct;
+expect-fail: reselection_after_comparison_is_kept_apart_from_first_answer
+note: 誤答の後の正答を最初の回答の正答として扱う（選び直しの正答と最初の回答の区別がつぶれる）
