@@ -2,8 +2,8 @@ id: JUDGE6-1
 package: fandhe-workshop-core
 test: command_rule
 target: crates/core/src/command_rule.rs
-find: if !matches!(resolved, Some(a) if a.value.is_none()) {
-replace: if !matches!(resolved, Some(a) if a.value.is_some()) {
+find: if resolve_declared(matched, n)?.value.is_some() {
+replace: if resolve_declared(matched, n)?.value.is_none() {
 expect-fail: clarify_on_missing_name_ch1_pack
 expect-fail: clarify_on_missing_name_compact
 expect-fail: clarify_properties

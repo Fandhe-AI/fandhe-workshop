@@ -1,8 +1,8 @@
 id: JUDGE1-N1
 package: fandhe-workshop-core
 test: judge
-target: crates/core/src/judge.rs
-find: if let Some(a) = m.args.iter().find(|a| a.name == arg) {
-replace: if let Some(a) = m.args.iter().find(|a| a.name == "\u{0}") {
+target: crates/core/src/command_rule.rs
+find: if let Some(a) = matched.args.iter().find(|a| a.name == name) {
+replace: if let Some(a) = matched.args.iter().find(|a| a.name == "\u{0}") {
 expect-fail: hyphen_and_underscore_declared_names_are_not_confused
 note: on の引数名を宣言名の完全一致で解決せず、正規化だけで引く（a-b と a_b を取り違える）

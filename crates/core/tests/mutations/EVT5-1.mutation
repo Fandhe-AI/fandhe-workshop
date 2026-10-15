@@ -2,8 +2,8 @@ id: EVT5-1
 package: fandhe-workshop-core
 test: confirm_none_achieve
 target: crates/core/src/accept.rs
-find:                 events.extend(confirm::achieve_with(ir, state, node, &at, &items));
-replace:                 let _ = (ir, &node, &items);
+find:         events.extend(confirm::achieve_with(ir, state, node, &at, &items));
+replace:         let _ = (ir, &node, &items);
 expect-fail: explicit_skip_achieves_on_accept_and_transitions
 expect-fail: unknown_transition_target_warns_after_achieved
 note: 受付と同時の達成の呼び出しを外す（省略を明示した Step が受付済みで止まる）
