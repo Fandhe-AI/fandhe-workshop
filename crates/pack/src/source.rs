@@ -606,6 +606,30 @@ fn check_fixtures(
     texts: &mut BTreeMap<String, String>,
     diags: &mut Vec<Diagnostic>,
 ) {
+    check_fixtures_with(
+        root_canon,
+        root,
+        workshop_file,
+        ws,
+        texts,
+        diags,
+        limits::MAX_IR_BYTES,
+    );
+}
+
+/// `check_fixtures` の本体。保持する内容の合計の上限を引数で受け、試験で小さな値を渡せるようにする。
+fn check_fixtures_with(
+    root_canon: &Path,
+    root: &Path,
+    workshop_file: &str,
+    ws: &WorkshopSrc,
+    texts: &mut BTreeMap<String, String>,
+    diags: &mut Vec<Diagnostic>,
+    max_retained: u64,
+) {
+    // 保持する内容の累積量。異なる ID が同じファイルを指しても ID ごとに別の String を持つので、
+    // 実ファイルの大きさ（パック全体の上限）では増幅を防げない。読む前に数えて、超える前に打ち切る。
+    let mut retained: u64 = 0;
     for (id, f) in &ws.fixtures {
         let item = format!("fixture:{id}");
         let under_fixtures = Path::new(&f.path)
@@ -624,6 +648,18 @@ fn check_fixtures(
                 format!("fixture path is invalid or missing: {}", f.path),
             ));
             continue;
+        }
+        // `ok` で取得に成功しているので、読む前の大きさを累積量に足す。
+        let size = fs::metadata(root.join(&f.path)).map_or(0, |m| m.len());
+        retained = retained.saturating_add(size);
+        if retained > max_retained {
+            diags.push(diag(
+                workshop_file,
+                &item,
+                DiagCode::Limit,
+                "fixtures to load exceed the total size limit",
+            ));
+            return;
         }
         let is_md = Path::new(&f.path)
             .extension()
@@ -879,6 +915,47 @@ mod tests {
             std::os::unix::fs::symlink("nowhere", tmp.join(format!("m{i}"))).unwrap();
         }
         assert_eq!(check_limits(&tmp).len(), MAX_SCAN_DIAGS);
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[test]
+    fn fixtures_sharing_one_file_are_capped_before_reading_all() {
+        let tmp = scan_tmp("fixtures");
+        fs::create_dir_all(tmp.join("fixtures")).unwrap();
+        fs::write(tmp.join("fixtures/a.txt"), vec![b'x'; 100]).unwrap();
+        let yaml = "pack: {id: p, title: t, version: '1', ir_format: 1, guidance: A}\nfixtures:\n"
+            .to_string()
+            + &(0..10)
+                .map(|i| format!("  f{i}: {{path: fixtures/a.txt, kind: text}}\n"))
+                .collect::<String>();
+        let ws: WorkshopSrc = yaml_serde::from_str(&yaml).unwrap();
+        let root = tmp.canonicalize().unwrap();
+        let (mut texts, mut diags) = (BTreeMap::new(), Vec::new());
+        check_fixtures_with(
+            &root,
+            &tmp,
+            "workshop.yaml",
+            &ws,
+            &mut texts,
+            &mut diags,
+            350,
+        );
+        // 3 件（300 バイト）まで読み、4 件目で打ち切る。
+        assert_eq!(texts.len(), 3);
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].code(), DiagCode::Limit);
+        let (mut texts, mut diags) = (BTreeMap::new(), Vec::new());
+        check_fixtures_with(
+            &root,
+            &tmp,
+            "workshop.yaml",
+            &ws,
+            &mut texts,
+            &mut diags,
+            1000,
+        );
+        assert_eq!(texts.len(), 10);
+        assert!(diags.is_empty());
         fs::remove_dir_all(&tmp).unwrap();
     }
 }

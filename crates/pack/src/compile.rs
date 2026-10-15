@@ -19,6 +19,7 @@ use std::path::Path;
 
 use fandhe_workshop_contract::doc::Doc;
 use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Node, Start};
+use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
 use crate::diag::{DiagCode, Diagnostic};
@@ -55,6 +56,10 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     let mut checks: Vec<(String, String, Vec<String>)> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
+    // 木にする本文・練習データの元の量の合計。同じ本文を多数の Step が参照しても、木の確保が出力の
+    // 上限を超えて増えないようにする（`check_output` は全部を作った後に走るため、それでは間に合わない）。
+    let mut budget = Budget::new(MAX_IR_BYTES);
+    let mut over_budget = false;
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         chapters += 1;
@@ -88,15 +93,35 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
             for t in &mut s.next {
                 t.to = format!("main/{}", t.to);
             }
-            let body_doc = step
-                .body
-                .as_deref()
-                .and_then(|b| body_tree(pack, &scope.dir, b));
-            let body_levels_doc = step
-                .body_levels
-                .iter()
-                .filter_map(|(level, b)| Some((level.clone(), body_tree(pack, &scope.dir, b)?)))
-                .collect();
+            // 木を作る前に、積み上げる本文の量を予算と照らす。超えたら以降の木は作らない。
+            let mut body_doc = None;
+            let mut body_levels_doc = BTreeMap::new();
+            if !over_budget {
+                for b in step.body.iter().chain(step.body_levels.values()) {
+                    let len = body_len(pack, &scope.dir, b);
+                    if !budget.take(len) {
+                        over_budget = true;
+                        diags.push(diag(
+                            &scope.file,
+                            &item,
+                            DiagCode::Limit,
+                            "bodies to embed exceed the IR size limit",
+                        ));
+                        break;
+                    }
+                }
+            }
+            if !over_budget {
+                body_doc = step
+                    .body
+                    .as_deref()
+                    .and_then(|b| body_tree(pack, &scope.dir, b));
+                body_levels_doc = step
+                    .body_levels
+                    .iter()
+                    .filter_map(|(level, b)| Some((level.clone(), body_tree(pack, &scope.dir, b)?)))
+                    .collect();
+            }
             nodes.push(Node {
                 uid,
                 scope: "main".to_string(),
@@ -172,6 +197,17 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         return Err(diags);
     }
 
+    for id in w.fixtures.keys() {
+        let len = pack.fixture_texts.get(id).map_or(0, |t| t.len() as u64);
+        if !budget.take(len) {
+            return Err(vec![diag(
+                &pack.workshop_file,
+                &format!("fixture:{id}"),
+                DiagCode::Limit,
+                "fixtures to embed exceed the IR size limit",
+            )]);
+        }
+    }
     let fixture_docs = w
         .fixtures
         .iter()
@@ -215,6 +251,35 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     ir.format_version = format;
     ir.pack.ir_format = format;
     Ok(ir)
+}
+
+/// 木にする元の量の予算。
+struct Budget {
+    left: u64,
+}
+
+impl Budget {
+    fn new(limit: u64) -> Self {
+        Budget { left: limit }
+    }
+
+    /// `n` バイトを使う。足りなければ何も使わず `false`。
+    fn take(&mut self, n: u64) -> bool {
+        match self.left.checked_sub(n) {
+            Some(rest) => {
+                self.left = rest;
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+/// 本文の参照が指す本文のバイト数。無ければ 0。
+fn body_len(pack: &LoadedPack, scope_dir: &str, body_ref: &str) -> u64 {
+    pack.bodies
+        .get(&format!("{scope_dir}/{body_ref}"))
+        .map_or(0, |t| t.len() as u64)
 }
 
 /// 本文の参照から木を作る。`source::load` が読んだ本文だけを見る。無ければ `None`
@@ -266,7 +331,7 @@ pub fn compile_dir(dir: &Path) -> Result<Vec<u8>, Vec<Diagnostic>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fandhe_workshop_contract::limits::{MAX_IR_BYTES, MAX_JSON_DEPTH};
+    use fandhe_workshop_contract::limits::MAX_JSON_DEPTH;
 
     #[test]
     fn check_output_rejects_too_large() {
@@ -282,5 +347,50 @@ mod tests {
         let d = check_output(nest(MAX_JSON_DEPTH + 1).as_bytes(), "workshop.yaml").unwrap_err();
         assert_eq!(d[0].code(), DiagCode::Limit);
         assert!(check_output(nest(MAX_JSON_DEPTH).as_bytes(), "workshop.yaml").is_ok());
+    }
+
+    /// 同じ本文を多数の Step が参照しても、木の確保が出力の上限を超える前に E-LIMIT で止まる。
+    #[test]
+    fn many_steps_sharing_one_body_stop_at_the_budget() {
+        use crate::source::{LoadedScope, WorkshopSrc};
+        let workshop: WorkshopSrc = yaml_serde::from_str(
+            "pack: {id: p, title: t, version: '1', ir_format: 1, guidance: A}\n",
+        )
+        .unwrap();
+        let body = "a".repeat(500_000);
+        let n = (MAX_IR_BYTES / body.len() as u64) as usize + 2;
+        let steps: String = (0..n)
+            .map(|i| format!("  - {{id: s{i}, title: t, body: b.md}}\n"))
+            .collect();
+        let scope = yaml_serde::from_str(&format!("id: c\ntitle: c\nsteps:\n{steps}")).unwrap();
+        let pack = LoadedPack {
+            format: source::Format::Yaml,
+            workshop_file: "workshop.yaml".to_string(),
+            workshop,
+            scopes: vec![LoadedScope {
+                kind: ScopeKind::Chapter,
+                file: "chapters/c/chapter.yaml".to_string(),
+                dir: "chapters/c".to_string(),
+                src: scope,
+            }],
+            bodies: BTreeMap::from([("chapters/c/b.md".to_string(), body)]),
+            fixture_texts: BTreeMap::new(),
+            tests_file: None,
+            tests: None,
+        };
+        let d = compile(&pack).unwrap_err();
+        assert_eq!(
+            d.iter().filter(|x| x.code() == DiagCode::Limit).count(),
+            1,
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn budget_takes_exactly_up_to_the_limit() {
+        let mut b = Budget::new(10);
+        assert!(b.take(10));
+        assert!(b.take(0));
+        assert!(!b.take(1));
     }
 }
