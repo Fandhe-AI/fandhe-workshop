@@ -180,18 +180,19 @@ fn check_targets(out: &mut Vec<Diagnostic>, site: &Site<'_>, t: &Targets<'_>, v:
     }
 }
 
-fn check_step(out: &mut Vec<Diagnostic>, scope: &LoadedScope, t: &Targets<'_>, step: &Step) {
+/// `step_set` は、スコープの Step の参照先の集合（章は全章、モジュールは自分の中）。スコープごとに 1 回だけ組む。
+fn check_step(
+    out: &mut Vec<Diagnostic>,
+    scope: &LoadedScope,
+    t: &Targets<'_>,
+    step_set: &BTreeSet<&str>,
+    step: &Step,
+) {
     let in_module = scope.kind == ScopeKind::Module;
     let site = Site {
         file: &scope.file,
         item: format!("step:{}", step.id),
         in_module,
-    };
-    let local_steps: BTreeSet<&str> = scope.src.steps.iter().map(|s| s.id.as_str()).collect();
-    let step_set = if in_module {
-        &local_steps
-    } else {
-        &t.main_steps
     };
 
     for next in &step.next {
@@ -343,8 +344,14 @@ pub fn check_refs(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for scope in &pack.scopes {
         check_starts(&mut out, scope, &t);
+        let local_steps: BTreeSet<&str> = scope.src.steps.iter().map(|s| s.id.as_str()).collect();
+        let step_set = if scope.kind == ScopeKind::Module {
+            &local_steps
+        } else {
+            &t.main_steps
+        };
         for step in &scope.src.steps {
-            check_step(&mut out, scope, &t, step);
+            check_step(&mut out, scope, &t, step_set, step);
         }
     }
     for (class, id) in &w.defaults {
