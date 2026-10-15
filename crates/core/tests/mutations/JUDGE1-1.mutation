@@ -1,0 +1,9 @@
+id: JUDGE1-1
+package: fandhe-workshop-core
+test: command_lex
+target: crates/core/src/command_lex.rs
+find: lexed.validate().map_err(CommandLexError::Malformed)?;
+replace: let _ = &lexed;
+expect-fail: failure_cases
+expect-fail: lexing_properties
+note: 結果を契約の不変条件に通さない（`--` だけの字句と `---x` が通ってしまう）
