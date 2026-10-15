@@ -138,3 +138,23 @@ fn i10_compare_argument_errors() {
     assert_eq!(o.status.code(), Some(2));
     assert!(o.stdout.is_empty());
 }
+
+/// PACK-2: 両方ある・どちらも無いは終了コード 1 で `E-PARSE` を出す。
+#[test]
+fn pack2_cli_exit_code_for_both_and_neither() {
+    let base = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("pack2-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let both = base.join("both");
+    let none = base.join("none");
+    std::fs::create_dir_all(&both).unwrap();
+    std::fs::create_dir_all(&none).unwrap();
+    std::fs::write(both.join("workshop.yaml"), "pack: {}\n").unwrap();
+    std::fs::write(both.join("workshop.toml"), "[pack]\n").unwrap();
+    for dir in [&both, &none] {
+        let o = bin().arg("compile").arg(dir).output().unwrap();
+        assert_eq!(o.status.code(), Some(1), "{}", dir.display());
+        assert!(String::from_utf8_lossy(&o.stdout).contains("E-PARSE"));
+    }
+    let _ = std::fs::remove_dir_all(&base);
+}
