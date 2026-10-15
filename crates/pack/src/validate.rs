@@ -290,14 +290,14 @@ fn check_step(
     }
 }
 
-fn check_starts(out: &mut Vec<Diagnostic>, scope: &LoadedScope, t: &Targets<'_>) {
+/// `step_set` は `check_step` と同じ、スコープの Step の参照先の集合。
+fn check_starts(
+    out: &mut Vec<Diagnostic>,
+    scope: &LoadedScope,
+    t: &Targets<'_>,
+    step_set: &BTreeSet<&str>,
+) {
     let in_module = scope.kind == ScopeKind::Module;
-    let local_steps: BTreeSet<&str> = scope.src.steps.iter().map(|s| s.id.as_str()).collect();
-    let step_set = if in_module {
-        &local_steps
-    } else {
-        &t.main_steps
-    };
     for start in &scope.src.starts {
         let site = Site {
             file: &scope.file,
@@ -343,13 +343,15 @@ pub fn check_refs(pack: &LoadedPack) -> Vec<Diagnostic> {
 
     let mut out = Vec::new();
     for scope in &pack.scopes {
-        check_starts(&mut out, scope, &t);
-        let local_steps: BTreeSet<&str> = scope.src.steps.iter().map(|s| s.id.as_str()).collect();
+        // 章は全章の集合 `main_steps` を共有し、モジュールだけ自分の Step の集合をここで 1 回組む。
+        let local_steps: BTreeSet<&str>;
         let step_set = if scope.kind == ScopeKind::Module {
+            local_steps = scope.src.steps.iter().map(|s| s.id.as_str()).collect();
             &local_steps
         } else {
             &t.main_steps
         };
+        check_starts(&mut out, scope, &t, step_set);
         for step in &scope.src.steps {
             check_step(&mut out, scope, &t, step_set, step);
         }
