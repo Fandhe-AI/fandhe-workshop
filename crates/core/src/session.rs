@@ -6,8 +6,9 @@
 //! [`SessionState`]・[`Op`]・[`Event`] に束縛する。
 //!
 //! 本件が固定するのは型・署名・純粋な補助関数・規則の表までで、状態機械の各分岐は実装しない。
-//! [`apply`] の本体は契約だけの骨格で、状態を変えずイベントも返さない。各分岐は担当タスク
-//! （受付・達成 TASK-207、世代と進行の照合 TASK-210、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
+//! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが埋めた。
+//! 残りの分岐は状態を変えずイベントも返さず、担当タスク
+//! （確認による達成 TASK-207 2/3、世代と進行の照合 TASK-210、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -25,6 +26,7 @@ use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_contract::ir::Ir;
 use serde::{Deserialize, Serialize};
 
+use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
 use crate::changed;
 use crate::event::Event;
@@ -155,17 +157,16 @@ impl Default for SessionState {
 /// 状態に操作を適用し、新しい状態とイベント列を返す純粋な関数（EXT-4）。
 ///
 /// 全域で決定的であり、教材 `ir` は読むだけである。戻りのイベント列は新しい状態の `log` の末尾に
-/// 足された分と一致する。現時点は契約だけの骨格で、状態を変えずイベントも返さない。
+/// 足された分と一致する。入力の分岐は受付まで実装済み（TASK-207 1/3）で、ほかの分岐は契約だけの骨格のまま、
+/// 状態を変えずイベントも返さない。
 pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>) {
-    // 骨格のため教材はまだ読まない。分岐を埋めるタスクが読む。
-    let _ = ir;
     let mut state = state;
     // 操作 1 件の `Changed` は、前後の世界状態の差分から作る（EVT-13、TASK-215）。各分岐が語レベルの
     // `Changed` を出しても、ここで経路ごとに 1 件・変更前は操作前の値に置き換わる。
     let world_before = state.run.world.clone();
     let current_before = state.run.current.clone();
     let cause = changed::cause_of(&op);
-    let events = step(&mut state, op);
+    let events = step(ir, &mut state, op);
     // 宛先の既定は操作後の世代と Step。各分岐のタスクが見直してよい初版の規則である。
     let default_at = changed::default_stamp(
         state.run.generation,
@@ -179,11 +180,10 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
 }
 
 /// 操作 1 件の遷移。返したイベント列は呼び出し側 [`apply`] がログへ足す。
-fn step(state: &mut SessionState, op: Op) -> Vec<Event> {
-    let _ = state;
+fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
     match op {
-        // TASK-207: 入力の受付と達成。TASK-210: 世代と宛先の照合。
-        Op::Input(_) => Vec::new(),
+        // 入力の受付は `accept`（TASK-207 1/3）。確認の操作による達成は TASK-207 2/3、世代と宛先の照合は TASK-210。
+        Op::Input(input) => accept::on_input(ir, state, input),
         // TASK-210: 宛先つきの進行。
         Op::Tick(_) => Vec::new(),
         // TASK-211 停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。

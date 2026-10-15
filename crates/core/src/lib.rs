@@ -16,11 +16,13 @@
 //! 空でない次の行動（[`rejection_text`]、TASK-264）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 判定結果の統合と `Judged` の材料（[`judge`]、TASK-267）も持つ。
+//! 入力の受付の分岐（`accept`、TASK-207 1/3。公開しない）も持つ。
 //! コマンド入力の規則の照合と問い返しの判定（[`command_rule`]、TASK-272）も持つ。
 //! 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（[`lo_first_answer`]、TASK-305、GUIDE-18）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
+mod accept;
 pub mod addr;
 pub mod changed;
 pub mod command_judge;
