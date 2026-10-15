@@ -1,4 +1,4 @@
-//! 本文リンクの許可スキーム（SAFE-9。TASK-149 1/2）の適合試験。
+//! 本文リンクの許可スキーム（SAFE-9。TASK-149 1/2）と画像の src の許可（SAFE-10。TASK-149 2/2）の適合試験。
 //!
 //! 変換器を通さずに手作りした木 16 件（T-01〜T-16。試験データは spec の写し）を、読み込みの関門に通してから
 //! 描画し、許可外のスキームがリンクにならず文字として出ることと、危険な要素が出ないことを確かめる。
@@ -121,7 +121,7 @@ fn テキストのタグは文字として出る() {
 }
 
 #[test]
-fn 画像は_img_を作らず代替の文字だけを出す() {
+fn 外部と危険な画像は_img_を作らず代替の文字を出す() {
     for want in ["T-03", "T-04"] {
         let (id, json) = cases().into_iter().find(|(id, _)| id == want).unwrap();
         let html = html_of(&load(&json).unwrap());
@@ -131,6 +131,86 @@ fn 画像は_img_を作らず代替の文字だけを出す() {
         );
         assert!(html.contains(">x</span>"), "{id}: {html}");
     }
+}
+
+fn image_doc(src: &str, alt: &str) -> Doc {
+    let json = format!(
+        "{{\"version\":1,\"blocks\":[{{\"t\":\"paragraph\",\"children\":[{{\"t\":\"image\",\"src\":{},\"alt\":{}}}]}}]}}",
+        Value::String(src.to_owned()),
+        Value::String(alt.to_owned())
+    );
+    load(&json).unwrap()
+}
+
+#[test]
+fn 相対のパスの画像は_img_と代替文になる() {
+    let doc = image_doc("./img/a.png", "図 \"A\"");
+    let html = html_of(&doc);
+    assert_eq!(html.matches("<img ").count(), 1, "{html}");
+    assert!(
+        html.contains("<img src=\"./img/a.png\" alt=\"図 &quot;A&quot;\">"),
+        "{html}"
+    );
+    assert!(!html.contains("</img>"), "{html}");
+    assert!(!html.contains("data-image-blocked"), "{html}");
+    assert_eq!(
+        fandhe_workshop_web::a11y::check_no_undefined(&render_doc_node(&doc)),
+        Ok(())
+    );
+    let html = html_of(&image_doc("/img/b.png", "図"));
+    assert!(
+        html.contains("<img src=\"/img/b.png\" alt=\"図\">"),
+        "{html}"
+    );
+}
+
+#[test]
+fn スキーム相対の画像は_img_を作らない() {
+    for src in [
+        "//example.invalid/x.png",
+        "\\\\example.invalid\\x.png",
+        "/\\example.invalid/x.png",
+        "\t//example.invalid/x.png",
+    ] {
+        let html = html_of(&image_doc(src, "x"));
+        assert!(!html.contains("<img"), "{src:?}: {html}");
+        assert_eq!(
+            html.matches("data-image-blocked").count(),
+            1,
+            "{src:?}: {html}"
+        );
+    }
+}
+
+#[test]
+fn 変換器を通した経路でも外部の画像は_img_にならない() {
+    // XSS-20・23・26 の画像側。
+    for src in [
+        "![画像](https://example.invalid/XSS-20)",
+        "![画像](javascript:__poc7_hit('XSS-23'))",
+        "![a](//example.invalid/XSS-26.png)",
+    ] {
+        let html = html_of(&markdown::parse(src));
+        assert!(!html.contains("<img"), "{src:?}: {html}");
+    }
+    // XSS-21: 解釈の仕方によらず、onerror が属性として出ない。
+    let html = html_of(&markdown::parse(
+        "![画像](x\" onerror=\"__poc7_hit('XSS-21'))",
+    ));
+    for tag in html.split('<').skip(1) {
+        let tag = tag.split('>').next().unwrap_or("");
+        assert!(!tag.contains(" on"), "{html}");
+    }
+    // 対照: 相対の画像は img になる（常に 0 件の空振りでないことの確認）。
+    let html = html_of(&markdown::parse("![a](./img/a.png)"));
+    assert_eq!(html.matches("<img ").count(), 1, "{html}");
+    let sample = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testdata/untrusted-input-safety/test-data-addendum/display-sample.md"),
+    )
+    .unwrap();
+    let html = html_of(&markdown::parse(&sample));
+    assert!(html.contains("<img "), "{html}");
 }
 
 #[test]

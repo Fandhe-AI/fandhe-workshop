@@ -1,0 +1,9 @@
+id: SAFE10-2
+package: fandhe-workshop-web
+test: doc_links
+target: crates/web/src/doc_view.rs
+find:     if s.is_empty() || !is_allowed_link_href(s) {
+replace:     if s.is_empty() {
+expect-fail: スキーム相対の画像は_img_を作らない
+expect-fail: 変換器を通した経路でも外部の画像は_img_にならない
+note: 画像のスキーム相対の拒否を外す（//host の外部画像が img になる）

@@ -9,8 +9,9 @@
 //! - 表示基盤の `is_safe_url` は `//host` と `\\host` を通すため、ここでは独自の許可リストを先に掛ける。
 //!   `is_safe_url` は 2 段目の守りとして残る。
 //! - 属性値とテキストは表示基盤の既定のエスケープを通る。`RawHtml` は使わない。
-//! - 画像は、この段階（TASK-149 の 1/2）では `img` を作らず、代替の文字だけを出す。相対のパスの画像の表示は
-//!   2/2（Issue #143）がこの既定を置き換える。
+//! - 画像は [`is_allowed_image_src`] を通ったとき（教材に同梱する相対のパス）だけ `img` と代替文にする。通らない
+//!   （外部ホスト・危険なスキーム）ときは `img` を作らず、代替の文字だけを `span` に出す。src は画面に出さない
+//!   （fail-closed）。外部の画像は表示するだけで外部への通信になるため（SAFE-10。TASK-149 2/2）。
 //! - コードブロックの言語名は `class` に出さない。無害化した `class` は TASK-150 で入れる。
 //! - 木の版の検査と描画の深さの上限は TASK-150 の範囲。再帰の深さは、読み込みの関門（JSON の深さ 64）が
 //!   与える上限に頼る。関門を通さずにこの関数へ木を渡さないこと。
@@ -45,6 +46,32 @@ pub fn is_allowed_link_href(href: &str) -> bool {
             }
             prefix.eq_ignore_ascii_case("http") || prefix.eq_ignore_ascii_case("https")
         }
+    }
+}
+
+/// 本文の画像の src を許可するか。許可するのは空でない相対のパスだけ。
+///
+/// 外部ホストの画像は、表示するだけで外部への通信（追跡・情報の持ち出しの経路）になるため許可しない
+/// （SAFE-10）。外部画像を許す設定は SAFE-36（TASK-172・200）の範囲で、ここでは扱わない。
+///
+/// 手順:
+/// 1. リンクと同じ正規化（`\t`・`\n`・`\r` を除き、先頭の C0 制御文字と空白を除く）をする。
+/// 2. 空なら拒否する（空の src は文書自身を指し、意味がない）。
+/// 3. [`is_allowed_link_href`] が拒否するもの（スキーム相対・`http`・`https` 以外のスキーム）を拒否する。
+///    判定を 2 か所に分けないよう、リンクの規則を流用する。
+/// 4. スキームを持つもの（最初の `:` より前に `/`・`?`・`#`・`\` が無い）を拒否する。`http`・`https` の外部画像はここで落ちる。
+pub fn is_allowed_image_src(src: &str) -> bool {
+    let cleaned: String = src
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .collect();
+    let s = cleaned.trim_start_matches(|c: char| c <= ' ');
+    if s.is_empty() || !is_allowed_link_href(s) {
+        return false;
+    }
+    match s.find(':') {
+        None => true,
+        Some(i) => s[..i].contains(['/', '?', '#', '\\']),
     }
 }
 
@@ -137,8 +164,14 @@ fn render_inline(inline: &Inline) -> Node {
                 el("span", vec![], render_inlines(children))
             }
         }
-        // src は読まない。通信も要素も作らない（2/2 で相対のパスだけ表示する）。
-        Inline::Image { alt, .. } => el("span", vec![("data-image-blocked", "1")], vec![text(alt)]),
+        // 相対のパスだけ img にする。それ以外は要素も通信も作らず、代替の文字だけを出す（src は出さない）。
+        Inline::Image { src, alt } => {
+            if is_allowed_image_src(src) {
+                el("img", vec![("src", src), ("alt", alt)], vec![])
+            } else {
+                el("span", vec![("data-image-blocked", "1")], vec![text(alt)])
+            }
+        }
         Inline::Break => el("br", vec![], vec![]),
     }
 }
@@ -194,5 +227,47 @@ mod tests {
     fn 表示基盤の検査は_スキーム相対を通す_だから独自の許可リストが先に要る() {
         assert!(fandhe_frontend_core::is_safe_url("//example.invalid/x"));
         assert!(!is_allowed_link_href("//example.invalid/x"));
+    }
+
+    #[test]
+    fn 許可される画像の_src() {
+        for h in [
+            "./img/a.png",
+            "/img/a.png",
+            "img/a.png",
+            "../a.png",
+            "/a:b.png",
+            "a.png?x=1",
+        ] {
+            assert!(is_allowed_image_src(h), "{h:?}");
+        }
+    }
+
+    #[test]
+    fn 拒否される画像の_src() {
+        for h in [
+            "https://example.invalid/a.png",
+            "http://x/a.png",
+            "HTTPS://X/a.png",
+            "//example.invalid/a.png",
+            "\\\\example.invalid\\a.png",
+            "/\\example.invalid/a.png",
+            "\t//example.invalid/a.png",
+            "data:image/png;base64,AAAA",
+            "javascript:x",
+            "java\tscript:x",
+            "  javascript:x",
+            "\u{1}javascript:x",
+            "",
+            "   ",
+        ] {
+            assert!(!is_allowed_image_src(h), "{h:?}");
+        }
+    }
+
+    #[test]
+    fn 表示基盤の検査は_スキーム相対の画像も通す() {
+        assert!(fandhe_frontend_core::is_safe_url("//example.invalid/a.png"));
+        assert!(!is_allowed_image_src("//example.invalid/a.png"));
     }
 }
