@@ -1,0 +1,8 @@
+id: PACK20-2
+package: fandhe-workshop-web
+test: input_class_shared
+target: crates/contract/src/profile.rs
+find:     if prefix.is_empty() || trimmed.starts_with(prefix) {
+replace:     if prefix.is_empty() || trimmed.starts_with(prefix) || true {
+expect-fail: screen_and_play_agree
+note: 共有の分けを壊すと、画面側と教材テスト側の両方の入口が同時に壊れる（両方が同じ関数を通っている確認）
