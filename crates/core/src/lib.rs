@@ -5,6 +5,7 @@
 //! 履歴ファイルの大きさの検査（[`history_size`]、TASK-155）、解釈の前の入れ子の深さの検査
 //! （[`json_depth`]、TASK-157）、それを含む判定の順序の関門（[`load_gate`]、TASK-157）を持つ。
 //! 入力・イベント・Step の状態の型（[`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]、TASK-204 1/3）も持つ。
+//! 履歴の 4 軸の版の記録と欠落の検査（[`version_record`]、TASK-173 2/2）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -17,6 +18,7 @@ pub mod json_depth;
 pub mod load_gate;
 pub mod provider;
 pub mod step_status;
+pub mod version_record;
 pub mod world;
 
 pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
