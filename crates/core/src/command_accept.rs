@@ -37,10 +37,10 @@ use serde_json::Value;
 
 use crate::addr::{Stamp, StepUid};
 use crate::command_rule::CommandRuleVerdict;
-use crate::effect::{apply_effects, ConditionEval};
-use crate::event::{Cause, Event};
+use crate::effect::ConditionEval;
+use crate::event::Event;
 use crate::session::RunState;
-use crate::step_status::StepStatus;
+use crate::text_judge::apply_acceptance;
 
 /// 規則が受け付けた入力。適用する効果を型にして持つ。
 #[derive(Debug, Clone, PartialEq)]
@@ -134,20 +134,5 @@ pub fn accept_command(
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
-    let root = uid.root();
-    run.slices
-        .entry(root.clone())
-        .or_default()
-        .status
-        .insert(uid.clone(), StepStatus::Accepted);
-    let mut events = vec![Event::Accepted { at: at.clone() }];
-    events.extend(apply_effects(
-        run,
-        &root,
-        &accepted.effects,
-        at,
-        Cause::Input,
-        cond,
-    ));
-    events
+    apply_acceptance(run, uid, &accepted.effects, at, cond)
 }
