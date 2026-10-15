@@ -1,0 +1,10 @@
+# 差し込みの試験用の誤入力（形式 B）。架空の教材で、拒否の分類ごとに 1 件以上置く。
+error_inputs:
+  - {id: "e-unknown", start: "s1", input: {cmd: "/hlep", expect: "rejected:unknown_command"}}
+  - {id: "e-order", start: "s1", input: {cmd: "/publish", expect: "rejected:wrong_order"}}
+  - {id: "e-missing", start: "s1", input: {cmd: "/help", expect: "rejected:missing_arg"}}
+  - {id: "e-shape", start: "s1", input: {cmd: "/help Bad_Name", expect: "rejected:bad_arg_shape"}}
+  - {id: "e-busy", start: "s1", input: {cmd: "/help", expect: "rejected:busy"}}
+  - {id: "e-nits", start: "s2", input: {cmd: "/help", expect: "rejected:not_in_this_step"}}
+  - {id: "e-unsupported", start: "s2", input: {cmd: "/sync-cloud", expect: "rejected:not_supported"}}
+  - {id: "e-free", start: "s2", input: {text: "感想を書く", expect: "accepted:free_text_unjudged"}}

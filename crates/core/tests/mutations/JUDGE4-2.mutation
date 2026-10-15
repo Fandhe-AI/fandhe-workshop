@@ -1,0 +1,9 @@
+id: JUDGE4-2
+package: fandhe-workshop-core
+test: command_class
+target: crates/core/src/command_class.rs
+find: return Ok(CommandClass::Unknown);
+replace: return Ok(CommandClass::WrongOrder);
+expect-fail: wrong_input_pairs_are_classified_100_percent
+expect-fail: unknown_name_is_unknown_for_any_step_and_status
+note: 表に無い名前を未知のコマンドにしない（順序違いに倒す）

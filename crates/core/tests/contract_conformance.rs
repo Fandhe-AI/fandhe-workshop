@@ -374,6 +374,47 @@ fn sample_replay_prefix_matches_apply() {
     }
 }
 
+/// 確認の操作による達成（TASK-207 2/3）の単独の照合。サンプルの e15（受付済みの Step を指して達成し、次の Step に
+/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖では
+/// e04（最初の Tick、TASK-210）で止まり e15 に届かないため、前の状態から直接始める。
+#[test]
+fn sample_confirm_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let e = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e15")
+        .expect("sample has e15");
+    let state = SessionState {
+        run: e.before.clone(),
+        ..SessionState::default()
+    };
+    let (next, events) = apply(&ir, state, e.op.clone());
+    assert_eq!(events, e.events, "e15: events");
+    assert_eq!(next.run, e.after, "e15: after");
+}
+
+/// 確認を省く明示の Step の受付と同時の達成（TASK-208）の単独の照合。サンプルの e16 を、その前の状態から
+/// 1 件だけ流して、イベント列と後の状態が一致することを確かめる（e15 と同じ理由で連鎖では届かない）。
+#[test]
+fn sample_skip_confirm_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let e = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e16")
+        .expect("sample has e16");
+    let state = SessionState {
+        run: e.before.clone(),
+        ..SessionState::default()
+    };
+    let (next, events) = apply(&ir, state, e.op.clone());
+    assert_eq!(events, e.events, "e16: events");
+    assert_eq!(next.run, e.after, "e16: after");
+}
+
 #[test]
 #[ignore = "apply() の各分岐（TASK-207・210・211・213・214・215）の結線後に外す。結線の確認は --include-ignored で流す"]
 fn sample_replay_matches_apply() {

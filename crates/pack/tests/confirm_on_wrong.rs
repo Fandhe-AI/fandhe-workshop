@@ -19,9 +19,9 @@ use fandhe_workshop_pack::{DiagCode, Diagnostic};
 const WORKSHOP: &str = "\
 pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}
 rejections:
-    rj-default: {category: not_in_this_step, message: m}
-    rj-own: {category: not_in_this_step, message: m}
-    rj-other: {category: not_in_this_step, message: m}
+    rj-default: {category: not_in_this_step, message: m, next_action: n}
+    rj-own: {category: not_in_this_step, message: m, next_action: n}
+    rj-other: {category: not_in_this_step, message: m, next_action: n}
 ";
 
 const OPTIONS: &str = "{id: ok, correct: true}, {id: wrong-own, correct: false, on_wrong: rj-own}, {id: wrong-default, correct: false}";

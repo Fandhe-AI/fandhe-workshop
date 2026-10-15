@@ -31,8 +31,8 @@ fixtures:
     fx-start: {path: fixtures/a.md, kind: doc}
     fx-rule: {path: fixtures/a.md, kind: doc}
 hints: {h-a: {text: x}}
-rejections: {rj-reject: {text: x}, rj-miss: {text: x}, rj-start: {text: x}, rj-default: {text: x}, rj-rule: {text: x}}
-clarifications: {cl-a: {text: x}}
+rejections: {rj-reject: {category: not_in_this_step, message: m, next_action: n}, rj-miss: {category: not_in_this_step, message: m, next_action: n}, rj-start: {category: not_in_this_step, message: m, next_action: n}, rj-default: {category: not_in_this_step, message: m, next_action: n}, rj-rule: {category: not_in_this_step, message: m, next_action: n}}
+clarifications: {cl-a: {message: m, how_to_answer: n}}
 defaults: {unknown: rj-default}
 ";
 

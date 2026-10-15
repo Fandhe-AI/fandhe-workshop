@@ -1,0 +1,9 @@
+id: EVT3-1
+package: fandhe-workshop-core
+test: confirm_before_achieve
+target: crates/core/src/accept.rs
+find:     slice.status.insert(uid.clone(), StepStatus::Accepted);
+replace:     slice.status.insert(uid.clone(), StepStatus::Achieved);
+expect-fail: p3_no_achievement_before_confirmation
+expect-fail: p3_fixed_sequence_confirms_all_three_kinds
+note: 受付で Step の状態を達成にする（受付と達成の分離がつぶれ、状態とログが食い違う）

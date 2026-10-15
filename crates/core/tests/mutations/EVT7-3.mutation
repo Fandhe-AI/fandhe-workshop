@@ -1,0 +1,9 @@
+id: EVT7-3
+package: fandhe-workshop-core
+test: busy_resend
+target: crates/core/src/busy_class.rs
+find:     if matches!(input, Input::Cancel) {
+replace:     if false && matches!(input, Input::Cancel) {
+expect-fail: cancel_is_never_busy
+expect-fail: p6_random_inputs_keep_invariants
+note: Cancel を busy に分類する

@@ -1,0 +1,8 @@
+id: PACK12-2
+package: fandhe-workshop-pack
+test: text_slots
+target: crates/pack/src/slot_check.rs
+find:         if !matches!(&result, Some(Ok(s)) if !s.trim().is_empty()) {
+replace:         if false && !matches!(&result, Some(Ok(s)) if !s.trim().is_empty()) {
+expect-fail: pack12_dynamic_detects_after_expansion
+note: 差し込みの後の空の数え上げを外す（展開の後に do が空になる Step が 0 件と数えられる）

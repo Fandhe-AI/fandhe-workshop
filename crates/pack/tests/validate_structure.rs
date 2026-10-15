@@ -23,7 +23,7 @@ const M1: &str = "modules/m1/module.yaml";
 const WORKSHOP: &str = "\
 pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}
 commands: {help: {description: d}}
-rejections: {rj-a: {text: x}}
+rejections: {rj-a: {category: not_in_this_step, message: m, next_action: n}}
 ";
 
 const CHAPTER_1: &str = "\
