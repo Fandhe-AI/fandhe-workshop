@@ -28,7 +28,49 @@
 //! - 正規表現・候補の一覧の形（契約版 1 の `ArgShape` に無い）
 
 use fandhe_workshop_contract::input_spec::{ArgShape, CommandSpec};
+use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{LexedArg, LexedCommand, RejectCategory};
+use serde_json::Value;
+
+/// Step の宣言を `CommandSpec` として読めない（IR の不正）。表示は固定文で、教材・受講者の値を含めない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CommandDeclError {
+    /// Step の入力方式が `command` ではない。
+    NotCommand,
+    /// `input` が `CommandSpec` として読めない、または検査に反する。
+    InvalidSpec,
+}
+
+impl std::fmt::Display for CommandDeclError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotCommand => f.write_str("step input is not a command input"),
+            Self::InvalidSpec => f.write_str("command input declaration is invalid"),
+        }
+    }
+}
+
+impl std::error::Error for CommandDeclError {}
+
+/// Step の `input` を `CommandSpec` として読む。`kind` が `command` のオブジェクトだけを受ける
+/// （`text_judge::text_spec` と対称）。呼び出し元は入力の受付の分岐（TASK-207）である。
+pub fn command_spec(step: &Step) -> Result<CommandSpec, CommandDeclError> {
+    let obj = step
+        .input
+        .as_ref()
+        .and_then(Value::as_object)
+        .ok_or(CommandDeclError::NotCommand)?;
+    if obj.get("kind").and_then(Value::as_str) != Some("command") {
+        return Err(CommandDeclError::NotCommand);
+    }
+    let mut rest = obj.clone();
+    rest.remove("kind");
+    let spec: CommandSpec =
+        serde_json::from_value(Value::Object(rest)).map_err(|_| CommandDeclError::InvalidSpec)?;
+    spec.check().map_err(|_| CommandDeclError::InvalidSpec)?;
+    Ok(spec)
+}
 
 /// 解決した引数 1 つ。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,4 +193,40 @@ pub fn judge_command(spec: &CommandSpec, lexed: &LexedCommand) -> CommandVerdict
         });
     }
     CommandVerdict::Matched(MatchedCommand { args: resolved })
+}
+
+#[cfg(test)]
+mod spec_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn step(input: Option<Value>) -> Step {
+        let mut v = json!({ "id": "s", "title": "t" });
+        if let Some(i) = input {
+            v["input"] = i;
+        }
+        serde_json::from_value(v).expect("step")
+    }
+
+    #[test]
+    fn reads_command_spec() {
+        let s = step(Some(json!({
+            "kind": "command", "name": "make-note",
+            "args": [{ "name": "name", "positional": true, "required": true, "shape": "kebab_case" }]
+        })));
+        let spec = command_spec(&s).expect("spec");
+        assert_eq!(spec.name, "make-note");
+        assert_eq!(spec.args.len(), 1);
+    }
+
+    #[test]
+    fn rejects_wrong_kind_unknown_field_and_empty_name() {
+        assert_eq!(command_spec(&step(None)), Err(CommandDeclError::NotCommand));
+        let other = step(Some(json!({ "kind": "text", "min": 1, "max": 2 })));
+        assert_eq!(command_spec(&other), Err(CommandDeclError::NotCommand));
+        let unknown = step(Some(json!({ "kind": "command", "name": "a", "zzz": 1 })));
+        assert_eq!(command_spec(&unknown), Err(CommandDeclError::InvalidSpec));
+        let empty = step(Some(json!({ "kind": "command", "name": "" })));
+        assert_eq!(command_spec(&empty), Err(CommandDeclError::InvalidSpec));
+    }
 }
