@@ -1,9 +1,10 @@
 //! 教材データ・イベント・成果物の契約型を置く crate の入口。
 //!
 //! core と web が共有する型の置き場で、表示基盤にも core にも依存しない。
-//! 現時点は IR の型と `ir_format` 1 の契約（`ir`、TASK-41）と、未信頼入力の上限の契約（[`limits`]、TASK-199）を持つ。
+//! 現時点は IR の型と `ir_format` 1 の契約（`ir`、TASK-41）、未信頼入力の上限の契約（[`limits`]、TASK-199）、履歴の版と判定結果の契約（[`history_version`]、TASK-173）を持つ。
 //! ほかの型は後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
+pub mod history_version;
 pub mod ir;
 pub mod limits;
