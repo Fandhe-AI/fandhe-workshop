@@ -15,7 +15,7 @@ commands:
 clarifications:
   cl-idea-name:
     message: "アイデアの名前が足りません。どんな名前にしますか。"
-    next_action: "名前を付けて、もう一度送ります。"
+    how_to_answer: "名前を付けて、もう一度送ります。"
 rejections:
   rj-default-unknown-command:
     category: "unknown_command"

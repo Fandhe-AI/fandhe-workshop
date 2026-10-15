@@ -1,0 +1,8 @@
+id: PACK16-4
+package: fandhe-workshop-pack
+test: text_slots
+target: crates/pack/src/slot_check.rs
+find:         if name.may_be_empty() && slot.fallback.is_none_or(|f| f.trim().is_empty()) {
+replace:         if name.may_be_empty() && slot.fallback.is_none_or(|f| f.trim().is_empty()) && false {
+expect-fail: pack16_no_fallback
+note: 空になりうる枠の代替の文の要求を外す（値が無いとき文面が欠ける）
