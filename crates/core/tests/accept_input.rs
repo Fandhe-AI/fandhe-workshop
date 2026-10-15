@@ -2,8 +2,8 @@
 //!
 //! 3 Step の教材（`min-3step.json`。コマンド＋引数・選択・承認）で、入力が受付の規則に当たると Step が
 //! 受付済みになり、達成にはならないことを確かめる。呼び出し元は CI の `make test` のみである。
-//! st-2 の `confirm: none` は TASK-208 で受付と同時の達成になるため、試験は写しの `confirm` を
-//! `approve` に置き換えて使い、TASK-208 の実装後も壊れないようにする。
+//! st-2 の `confirm: none` は受付と同時の達成になる（TASK-208。試験は `confirm_none_achieve`）ため、試験は
+//! 写しの `confirm` を `approve` に置き換えて使い、受付だけの段階を確かめる。
 
 mod common;
 

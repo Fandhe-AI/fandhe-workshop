@@ -2,8 +2,10 @@
 //!
 //! 入力が現在の Step の入力条件に合い、受付の規則に当たったら、Step を受付済み（`StepStatus::Accepted`）にして
 //! 規則の効果を世界状態へ適用する。受付は達成ではない。達成は確認の操作の後で、受付済みの Step への入力は
-//! [`crate::confirm`]（TASK-207 2/3）が持つ。本モジュールは `StepStatus::Achieved` を書かず、
-//! `Achieved`・`Transitioned`・`Entered`・`ChapterCompleted` を出さない。
+//! [`crate::confirm`]（TASK-207 2/3）が持つ。例外は、教材が理由を添えて確認を省くと明示した Step
+//! （`confirm: none`、EVT-5、TASK-208）で、受付と同時に [`crate::confirm`] の達成の処理を呼ぶ。
+//! `processing` を持つ Step は除く（進行の完了で達成にする。TASK-210）。
+//! 本モジュール自身は `StepStatus::Achieved` を書かず、`ChapterCompleted` を出さない。
 //! 呼び出し元は [`crate::session::apply`] だけで、公開 API には含めない（契約の対象外）。
 //! 判定の部品は [`crate::command_lex`]・[`crate::command_judge`]・[`crate::select_judge`]・[`crate::text_judge`]、
 //! 効果の適用は [`crate::effect`] が持つ。本モジュールはそれらをつなぐだけで、判定の規則は再実装しない。
@@ -20,7 +22,9 @@
 //! 7. 入力方式で振り分ける。受付は「受付の規則に一致したとき」だけで、宣言の不正・未知の `kind`・
 //!    読めない効果は受付に倒さず、拒否（宣言の不正には固定文の `Warning` を添える）にする（fail-closed）
 //!
-//! 受付のイベントの順は `InputReceived` → `Accepted` → 効果のイベント → `Changed`。
+//! 受付のイベントの順は `InputReceived` → `Accepted` → 効果のイベント → `Changed`。省略を明示した Step では
+//! `Accepted` と効果のイベントの後に `Achieved` → 達成の効果 → `Transitioned` → `Entered` が続く。
+//! 省略の宣言が不正（理由が無い等）なら受け付けず、固定文の `Warning` を足して状態を変えない（fail-closed）。
 //! `Changed` は [`crate::session::apply`] が経路ごと 1 件へ集約して末尾に足す。
 //!
 //! # IR の形の正規化
@@ -33,7 +37,7 @@
 //! # 扱わないこと
 //!
 //! - 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
-//! - `confirm: none` の受付と同時の達成（TASK-208）、処理中の再送の `busy` 分類（TASK-209）
+//! - 処理中の再送の `busy` 分類（TASK-209）、`processing` を持つ省略の Step の達成（TASK-210）
 //! - 進行 `Op::Tick` の照合と進め方（TASK-210）、処理中でない Esc の意味づけ（TASK-212）
 //! - `Judged` の発行とコマンドの規則の `on.args`・`on.missing` との照合（TASK-267）
 //!
@@ -62,6 +66,9 @@ use crate::text_judge::{judge_text, TextJudgment};
 /// 宣言が読めなかったときの固定文。入力値・教材の値を含めない。
 const INVALID_DECLARATION: &str =
     "input declaration or rule effects could not be read; input rejected";
+
+/// 確認を省く宣言が不正なときの固定文。理由・入力値・教材の値を含めない。
+const INVALID_SKIP: &str = "confirm none declaration could not be read; input rejected";
 
 /// 判定の結果。
 enum Decision {
@@ -110,6 +117,18 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         Decision::Reject => {}
         Decision::Invalid => events.push(warning(&at)),
         Decision::Accept { effects, choice } => {
+            // 確認を省くと明示した Step だけが、受付と同時に達成になる（EVT-5、TASK-208）。
+            let items = match confirm::on_accept_mode(&node.step) {
+                confirm::OnAccept::Invalid => {
+                    events.push(Event::Warning {
+                        at: at.clone(),
+                        message: INVALID_SKIP.to_string(),
+                    });
+                    return events;
+                }
+                confirm::OnAccept::AwaitConfirm => None,
+                confirm::OnAccept::Achieve(items) => Some(items),
+            };
             events.extend(accept(
                 &mut state.run,
                 &current,
@@ -118,6 +137,10 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
                 choice,
                 &at,
             ));
+            // 処理中の Step は、進行の完了で達成にする（TASK-210）。`busy` と `current` を食い違わせない。
+            if let Some(items) = items.filter(|_| step.processing.is_empty()) {
+                events.extend(confirm::achieve_with(ir, state, node, &at, &items));
+            }
         }
     }
     events

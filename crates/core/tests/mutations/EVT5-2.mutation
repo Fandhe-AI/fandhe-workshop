@@ -1,0 +1,8 @@
+id: EVT5-2
+package: fandhe-workshop-core
+test: confirm_none_achieve
+target: crates/core/src/confirm.rs
+find:         .is_some_and(|s| s.has_reason());
+replace:         .is_some();
+expect-fail: skip_without_reason_is_rejected_without_state_change
+note: 省略の理由の有無の判定を外す（理由の無い省略が受付と同時の達成になる）

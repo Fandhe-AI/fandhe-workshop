@@ -12,7 +12,7 @@
 //! 2. `point_at`: `Input::Ui` が `targets` のどれかと完全一致したときだけ成立する
 //! 3. `answer`: `Input::Choice` が `correct` の選択肢を指したときだけ成立する（誤答・未知の ID は外れ）
 //! 4. `approve`: `Input::Approval` の決定が承認のときだけ成立する（`target` つきの承認は外れ。対象つきの「直す」等の経路は別）
-//! 5. `none`: 成立させない（受付と同時の達成は TASK-208）
+//! 5. `none`: 確認の操作では成立させない。理由つきの省略は受付と同時に達成になる（[`crate::accept`]、TASK-208）
 //! 6. 宣言が読めない・検査に通らない・`kind` が未知なら、固定文の `Warning` を足して状態を変えない（fail-closed）
 //! 7. 外れは状態を変えず、イベントも足さない（版 1 は `Judged` が無い。文面の発行は TASK-267 の後）
 //!
@@ -25,15 +25,16 @@
 //! - 章の完了（`ChapterCompleted`・`completed`）、`exit_to`・`use` への遷移（TASK-233 以降）
 //! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-211・213・217）
 //! - `on_miss`・`on_wrong` の文面の発行と `Judged`（TASK-267）、`busy` の分類（TASK-209）
+//! - `processing` を持つ Step の省略の達成（進行の完了で達成にする。TASK-210）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は 1 操作で
 //! 高々 1 回。`Warning` の文面は固定文で、入力値・教材の値を埋め込まない。
 
 use fandhe_workshop_contract::confirm_spec::{
-    answer_spec_of, ApproveSpec, ConfirmKind, PointAtSpec,
+    achievement, answer_spec_of, Achievement, ApproveSpec, ConfirmKind, NoneSpec, PointAtSpec,
 };
 use fandhe_workshop_contract::effect::EffectItem;
-use fandhe_workshop_contract::ir::{Ir, Node};
+use fandhe_workshop_contract::ir::{Ir, Node, Step};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -59,6 +60,50 @@ enum Verdict {
     Missed,
     /// 宣言の不正。
     Invalid,
+}
+
+/// 受付の時点での達成の扱い（EVT-5）。
+pub(crate) enum OnAccept {
+    /// 確認の操作を待つ（受付済みで止まる）。
+    AwaitConfirm,
+    /// 受付と同時に達成にする。読めた `on_achieved` の効果を持つ。
+    Achieve(Vec<EffectItem>),
+    /// 省略の宣言が不正（理由が無い・空白だけ・読めない欄・読めない `on_achieved`）。受け付けない。
+    Invalid,
+}
+
+/// Step の `confirm` から、受付と同時に達成にするかを決める。
+///
+/// 呼び出し元は [`crate::accept::on_input`] だけ。教材が理由を添えて確認を省くと明示した Step（`none`）だけが
+/// `Achieve` になる。`kind` が未知・読めないものは `AwaitConfirm` に倒し、受付後の確認の判定（規則 6）が
+/// `Warning` を出す。理由は読むだけで、返さず、文面にも出さない。
+pub(crate) fn on_accept_mode(step: &Step) -> OnAccept {
+    let kind = match step.confirm.as_ref() {
+        None => None,
+        Some(decl) => match decl
+            .get("kind")
+            .and_then(Value::as_str)
+            .and_then(ConfirmKind::from_str_opt)
+        {
+            Some(k) => Some(k),
+            None => return OnAccept::AwaitConfirm,
+        },
+    };
+    if achievement(kind) != Achievement::OnAccept {
+        return OnAccept::AwaitConfirm;
+    }
+    let reason_ok = step
+        .confirm
+        .as_ref()
+        .and_then(read_spec::<NoneSpec>)
+        .is_some_and(|s| s.has_reason());
+    if !reason_ok {
+        return OnAccept::Invalid;
+    }
+    match read_achieved_effects(step) {
+        Some(items) => OnAccept::Achieve(items),
+        None => OnAccept::Invalid,
+    }
 }
 
 /// 受付済みの Step への入力の分岐。`InputReceived` の後に続くイベントだけを返し、成立なら `state` を更新する。
@@ -150,15 +195,28 @@ fn warning(at: &Stamp, message: &str) -> Event {
 
 /// 達成の処理。効果が読めなければ達成にせず `Warning` だけを返す。
 fn achieve(ir: &Ir, state: &mut SessionState, node: &Node, at: &Stamp) -> Vec<Event> {
-    let Some(items) = node
-        .step
-        .on_achieved
-        .iter()
-        .map(|v| EffectItem::from_value(v).ok())
-        .collect::<Option<Vec<_>>>()
-    else {
+    let Some(items) = read_achieved_effects(&node.step) else {
         return vec![warning(at, INVALID_DECLARATION)];
     };
+    achieve_with(ir, state, node, at, &items)
+}
+
+/// `on_achieved` を全件読む。1 件でも読めなければ `None`（一部だけ適用しない）。
+fn read_achieved_effects(step: &Step) -> Option<Vec<EffectItem>> {
+    step.on_achieved
+        .iter()
+        .map(|v| EffectItem::from_value(v).ok())
+        .collect()
+}
+
+/// 読めた効果で達成にし、効果を適用し、最小の遷移を行う。確認の経路と受付と同時の達成の経路が共有する。
+pub(crate) fn achieve_with(
+    ir: &Ir,
+    state: &mut SessionState,
+    node: &Node,
+    at: &Stamp,
+    items: &[EffectItem],
+) -> Vec<Event> {
     let uid = at.step.clone();
     let root = uid.root();
     state
@@ -175,7 +233,7 @@ fn achieve(ir: &Ir, state: &mut SessionState, node: &Node, at: &Stamp) -> Vec<Ev
     events.extend(apply_effects(
         &mut state.run,
         &root,
-        &items,
+        items,
         at,
         Cause::Input,
         &NoConditions,
