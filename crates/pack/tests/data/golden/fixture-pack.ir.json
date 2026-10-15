@@ -1,0 +1,403 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "fixture-pack",
+    "title": "木の試験",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {
+    "f-doc": {
+      "path": "fixtures/notes.md",
+      "kind": "document"
+    },
+    "f-log": {
+      "path": "fixtures/run.txt",
+      "kind": "log"
+    }
+  },
+  "hints": {},
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/a",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "a",
+        "title": "A",
+        "body": "a.md",
+        "body_levels": {
+          "B": "a-b.md"
+        },
+        "fixtures": [
+          "f-doc",
+          "f-log"
+        ],
+        "next": [
+          {
+            "to": "main/b"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "木の見出し"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "最初の行"
+              },
+              {
+                "t": "text",
+                "text": "\n"
+              },
+              {
+                "t": "text",
+                "text": "次の行です。日本語の"
+              },
+              {
+                "t": "text",
+                "text": "\n"
+              },
+              {
+                "t": "text",
+                "text": "行の途中の改行も、そのまま残ります。"
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "ordered": false,
+            "items": [
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "項目 1"
+                    }
+                  ]
+                },
+                {
+                  "t": "list",
+                  "ordered": false,
+                  "items": [
+                    [
+                      {
+                        "t": "paragraph",
+                        "children": [
+                          {
+                            "t": "text",
+                            "text": "入れ子の項目 "
+                          },
+                          {
+                            "t": "strong",
+                            "children": [
+                              {
+                                "t": "text",
+                                "text": "強調"
+                              }
+                            ]
+                          },
+                          {
+                            "t": "text",
+                            "text": " と "
+                          },
+                          {
+                            "t": "emph",
+                            "children": [
+                              {
+                                "t": "text",
+                                "text": "斜体"
+                              }
+                            ]
+                          },
+                          {
+                            "t": "text",
+                            "text": " と "
+                          },
+                          {
+                            "t": "code",
+                            "text": "code"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ],
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "項目 2"
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "t": "list",
+            "ordered": true,
+            "items": [
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "番号つき"
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "t": "quote",
+            "children": [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "引用の文です。"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "code",
+            "lang": "rust",
+            "text": "fn main() {}\n"
+          },
+          {
+            "t": "code",
+            "text": "言語名の無いコード\n"
+          },
+          {
+            "t": "table",
+            "head": [
+              [
+                {
+                  "t": "text",
+                  "text": "名前"
+                }
+              ],
+              [
+                {
+                  "t": "text",
+                  "text": "値"
+                }
+              ]
+            ],
+            "rows": [
+              [
+                [
+                  {
+                    "t": "text",
+                    "text": "a"
+                  }
+                ],
+                [
+                  {
+                    "t": "text",
+                    "text": "1"
+                  }
+                ]
+              ]
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "link",
+                "href": "https://example.com/",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "リンク"
+                  }
+                ]
+              },
+              {
+                "t": "text",
+                "text": " と "
+              },
+              {
+                "t": "image",
+                "src": "img/a.png",
+                "alt": "画像"
+              }
+            ]
+          },
+          {
+            "t": "rule"
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "<script>alert(1)</script>\n"
+              }
+            ]
+          }
+        ]
+      },
+      "body_levels_doc": {
+        "B": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "heading",
+              "level": 1,
+              "children": [
+                {
+                  "t": "text",
+                  "text": "水準 B の本文"
+                }
+              ]
+            },
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "やさしい説明です。"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "uid": "main/b",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "b",
+        "title": "B",
+        "body": "b.md",
+        "final": true
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "最後"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "おわりです。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/a",
+      "effects": []
+    }
+  ],
+  "fixture_docs": {
+    "f-doc": {
+      "version": 1,
+      "blocks": [
+        {
+          "t": "heading",
+          "level": 1,
+          "children": [
+            {
+              "t": "text",
+              "text": "練習データ"
+            }
+          ]
+        },
+        {
+          "t": "list",
+          "ordered": false,
+          "items": [
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "メモ 1"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "メモ 2"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    "f-log": {
+      "version": 1,
+      "blocks": [
+        {
+          "t": "code",
+          "text": "# これは見出しではない\nok: 1\n{\"k\": \"v\"}\n"
+        }
+      ]
+    }
+  }
+}
