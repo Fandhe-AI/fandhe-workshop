@@ -1,0 +1,118 @@
+# 公開 API の契約の文書
+
+```text
+公開 API の契約の文書の版: 1
+対象の契約の版（CONTRACT_VERSION）: 1
+決定日: 2026-10-15
+状態: 固定（契約）
+```
+
+## 1. 位置づけと版
+
+- 本文書は、core crate（`fandhe_workshop_core`）の公開 API（`Session`・`apply()`・入力・イベント・Step の状態・`Projection`・宛先）の契約を、一か所で見られるようにした一覧と、机上の照合の記録である（TASK-204 3/3）。表示・保存・入力判定・案内の担当が、rustdoc を順に読まなくても全体をつかめるようにする
+- 正は Rust の型と rustdoc である。本文書は一覧であり、欄や variant の詳細は再定義しない。食い違いを見つけたら、型を正として本文書を直す
+- 「公開 API の契約の文書の版」は本文書の版（整数）である。型の版 `CONTRACT_VERSION`（`crates/core/src/lib.rs`）とは別に管理し、冒頭の囲みに両方を書く
+- 型の欄・variant、関数の署名、世代の規則の表を変えたら、`CONTRACT_VERSION` を上げる（`lib.rs` の rustdoc と同じ規則）。そのときは本文書の版も上げ、変更履歴に記録する
+- 変更が要るときは、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
+- 仕様は private のため、本文を転記せず ID（EVT-6、EVT-8 など）で参照する
+- 状態変化の提供元の境界の版（`provider::PROVIDER_CONTRACT_VERSION`）は別に管理する。本文書の対象外である
+- 冒頭の版と世代の表（3 節）は、`crates/core/tests/engine_api_doc.rs` が型と照合する
+
+## 2. 型の一覧
+
+型は `fandhe_workshop_core::<モジュール>::<型>` で参照する。crate 直下には `Session`・`SessionState`・`apply`・`Projection`・`CONTRACT_VERSION` を再エクスポートしている。
+
+| モジュール | 主な型・関数 | 役割 | 主な呼び出し元 |
+|---|---|---|---|
+| `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
+| `input` | `Op`・`Input`・`Control`・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
+| `event` | `Event`・`IgnoreReason`・`RefuseReason`・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
+| `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
+| `session` | `Session`・`SessionState`・`RunState`・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply` | 実行環境と遷移関数 | web・保存 |
+| `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
+
+- `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
+- 利用者由来の文字列（`Input` の文字列、`Changed` の値、`Warning::message`）は信頼できない。HTML へ埋め込むときのエスケープは web 層の責務であり、core は値を保持するだけである
+
+## 3. 世代の変わり方の表
+
+世代は `Generation` で表し、初期値は `Generation::INITIAL`（1）である。減らない。`Generation::next` はあふれたとき `None` を返し、panic しない（呼び出し側は世代を変えない側に倒す）。
+
+次の表は `Op::generation_rule()` の戻り値を、EVT-6 の (1)〜(6) と対応づけたものである。第 1 列は固定の記法で書いており、試験が読む。同じ行頭の記法の表を、ほかに置かない。
+
+| 操作 | 規則 | EVT-6 | 世代が変わるときのイベント |
+|---|---|---|---|
+| `Op::Input(_)` | `Keep` | (1) | なし |
+| `Op::Input(Input::Cancel)` | `Keep` | (1) | なし |
+| `Op::Tick(_)` | `Keep` | (2) | なし |
+| `Op::Control(Control::Stop)` | `IncrementIfProcessing` | (3) | `Stopped` の `new_generation` |
+| `Op::Control(Control::GoTo(_))` | `IncrementOnSuccess` | (4) | `Moved` の `new_generation` |
+| `Op::Control(Control::Save)` | `Keep` | (5) | なし（`CheckpointSaved` は `new_generation` を持たない） |
+| `Op::Control(Control::Restore(_))` | `IncrementOnSuccess` | (6) | `Restored` の `new_generation` |
+
+脚注の操作（EVT-6 の 6 項目の外）。
+
+| 操作 | 規則 | EVT-6 | 世代が変わるときのイベント |
+|---|---|---|---|
+| `Op::Control(Control::Begin(_))` | `IncrementOnSuccess` | 範囲外（試作の設計） | `Begun` の `new_generation` |
+
+- `Op::Input` は連打（再送）でも 1 件ごとの `Op::Input` であり、`Keep` のままである
+- `Control::Stop` は処理中（`RunState.busy` が `Some`）のときだけ世代を上げる。処理中でない停止は `Input::Cancel` として扱い、世代を変えない（EVT-10）
+- `IncrementOnSuccess` は、拒否（`Event::Refused`）や無視（`Event::Ignored`）では変えない
+- 実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ
+
+## 4. 宛先の形
+
+- `Generation`: `u64` の新しい型。直列化は透過（数値そのもの）
+- `StepUid`: `main/<Step>`（章）、`<モジュール ID>@<実体名>/<Step>`、ネストした `<根>/<モジュール ID>@<実体名>/<Step>`。根と Step は最後の `/` で分ける。`Root` は `StepUid::root()` で取り出す
+- `StepUid::parse` は外から来た値の検査口であり、拒否を `Result` で返して panic しない。拒否の種類は `Empty`・`TooLong`・`InvalidChar`・`SlashCount`・`EmptyPart`・`BadRoot` の 6 種である。`StepUidError` の文面は固定で、入力値を埋め込まない
+- `Stamp { generation, step }`: すべてのイベントが `at` に持つ、その時点の世代と Step
+- `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
+- 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。照合の実装は TASK-210 が持つ
+
+## 5. 版 1 で固定しないもの
+
+次は意図して版 1 に含めない。足すときは版上げの契約タスクとする。
+
+- 早送りの入・切（EVT-27）
+- 判定結果（`Judged`、TASK-256）
+- ヒントと案内レベル（TASK-290）
+- 下書きの操作と再読み込み（SAVE-4）。再読み込みで世代を上げる規則は、3 節の表に含まれない
+
+## 6. 机上の照合の記録
+
+```text
+照合日: 2026-10-15
+照合した main: 0e4f55f
+照合した spec（submodule の記録）: 159702f
+```
+
+型・rustdoc・規則の表を読んで、受け入れ条件（EVT-6 の (1)〜(6) と EVT-8 の 3 要素が型から読み取れること）を照合した。spec の本文は private のため、本記録は ID と要旨のみで書いている。実行して確かめたものではなく、読んだ結果である。
+
+「結果」は次の 3 値に限る。
+
+- `読み取れる`: 型・rustdoc・規則の表だけで要件が分かる
+- `型は許す・実装待ち`: 型は要件を表せるが、振る舞いは担当タスクが実装する
+- `所見あり`: 型からは読み取れない、またはあいまい。対処は本件の範囲外である
+
+| 項目 | 型から読み取れる場所 | 結果 | 補足 |
+|---|---|---|---|
+| EVT-6 (1) 学習者の入力は世代を変えない | `Op::Input(_)` が `Keep`（`input.rs`）。`Input::Cancel` も同じ | 読み取れる | 連打も 1 件ごとの `Op::Input` で、`Keep` のままである |
+| EVT-6 (2) 進行は世代を変えない | `Op::Tick(_)` が `Keep` | 読み取れる | |
+| EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 読み取れる | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10） |
+| EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 読み取れる | |
+| EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 読み取れる | |
+| EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
+| EVT-6 の外: 周回の開始 | `Control::Begin` が `IncrementOnSuccess`。`Event::Begun.new_generation` | 読み取れる | 6 項目に数えない（試作の設計）。3 節の脚注の表で分けた |
+| EVT-8 の 3 要素 | `TickAddr { generation, step, index }`（`addr.rs`）。現在の側は `RunState.generation`・`RunState.current`・`Busy.done` | 読み取れる | |
+| EVT-8 (a) 一致したら進行が 1 つ進む | `Event::Progress { index, total }`・`Busy.done` | 型は許す・実装待ち | TASK-210 |
+| EVT-8 (b) 食い違いは状態を変えず「無視」を 1 件 | `Event::Ignored { at, reason }`・`IgnoreReason` | 型は許す・実装待ち | TASK-210 |
+| EVT-8 (b) の場合ごとの理由の割り当て | 古い世代・移動前の Step は `IgnoreReason::Stale` | 所見あり | 同じ番号の進行が二重に届いた場合の理由が、`Stale`（世代または Step が古い）の文言からは決まらない。EVT-8 は理由の値までは求めておらず、受け入れ条件は満たす。割り当ては TASK-210 で決めるか、版上げの契約タスクにする |
+| EVT-8 の判定順（宛先の照合を先に） | `TickAddr` と `IgnoreReason` の rustdoc | 読み取れる | 実装は TASK-210 |
+
+## 7. 変更履歴
+
+| 版 | 日付 | 変更 | 理由 |
+|---|---|---|---|
+| 1 | 2026-10-15 | 初版。型の一覧・世代の表・宛先の形・机上の照合の記録 | TASK-204 3/3 |
