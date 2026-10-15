@@ -1,5 +1,6 @@
 //! TASK-204 1/3 の型の公開パスと直列化の形の試験。
 
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
 use fandhe_workshop_core::event::{Cause, ControlKind, Event, IgnoreReason, RefuseReason};
 use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
@@ -72,6 +73,8 @@ fn ops_roundtrip() {
         Op::Control(Control::Save),
         Op::Control(Control::Restore(CheckpointId(1))),
         Op::Control(Control::Begin("start".to_string())),
+        Op::Control(Control::OpenHint),
+        Op::Control(Control::SetGuidance(GuidanceLevel::C)),
     ];
     for op in &ops {
         roundtrip(op);
@@ -126,6 +129,17 @@ fn events_roundtrip() {
             at: stamp(),
             start: "start".to_string(),
             new_generation: Generation(4),
+        },
+        Event::HintOpened {
+            at: stamp(),
+            opened: 1,
+            total: 2,
+        },
+        Event::Refused {
+            at: stamp(),
+            op: ControlKind::OpenHint,
+            reason: RefuseReason::NoHint,
+            rejection: None,
         },
     ];
     for e in &events {

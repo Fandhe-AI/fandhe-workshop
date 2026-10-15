@@ -1,0 +1,59 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "p",
+    "title": "題名",
+    "version": "0.1.0",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {},
+  "hints": {
+    "h-all": {
+      "text": "水準を問わず出す"
+    },
+    "h-a": {
+      "levels": [
+        "A"
+      ],
+      "text": "A だけ"
+    },
+    "h-bc": {
+      "levels": [
+        "B",
+        "C"
+      ],
+      "text": "B と C だけ"
+    },
+    "h-bad": {
+      "levels": "B",
+      "text": "levels が配列でない"
+    }
+  },
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [],
+  "nodes": [
+    {
+      "uid": "main/s1",
+      "scope": "main",
+      "unit": "ch1",
+      "step": {
+        "id": "s1",
+        "title": "t",
+        "hints": [
+          "h-all",
+          "h-a",
+          "h-bc",
+          "h-missing",
+          "h-bad"
+        ]
+      }
+    }
+  ],
+  "starts": []
+}

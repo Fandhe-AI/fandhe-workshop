@@ -1,0 +1,31 @@
+{
+  "hint_opened": {
+    "hint_opened": {
+      "at": {
+        "generation": 3,
+        "step": "main/s1"
+      },
+      "opened": 1,
+      "total": 2
+    }
+  },
+  "open_hint_op": {
+    "control": "open_hint"
+  },
+  "refused_no_hint": {
+    "refused": {
+      "at": {
+        "generation": 3,
+        "step": "main/s1"
+      },
+      "op": "open_hint",
+      "reason": "no_hint",
+      "rejection": null
+    }
+  },
+  "set_guidance_op": {
+    "control": {
+      "set_guidance": "C"
+    }
+  }
+}

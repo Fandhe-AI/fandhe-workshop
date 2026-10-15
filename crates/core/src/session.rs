@@ -20,6 +20,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_contract::ir::Ir;
 use serde::{Deserialize, Serialize};
 
@@ -70,6 +71,9 @@ pub struct RunState {
     pub world: World,
     /// 根をまたぐフラグ。
     pub global_flags: BTreeSet<String>,
+    /// 案内レベル。実行全体で 1 つで、切り身（[`Slice`]）には置かない（GUIDE-3・GUIDE-13、D-55）。
+    /// 既定は A で、実際の開始値は開始時に IR から決める（TASK-294）。切り替えは `Control::SetGuidance`。
+    pub guidance_level: GuidanceLevel,
 }
 
 impl Default for RunState {
@@ -82,6 +86,7 @@ impl Default for RunState {
             slices: BTreeMap::new(),
             world: World::new(),
             global_flags: BTreeSet::new(),
+            guidance_level: GuidanceLevel::A,
         }
     }
 }
@@ -126,6 +131,9 @@ pub struct SessionState {
     pub next_checkpoint: CheckpointId,
     /// 根ごとの下書き。停止・復帰で戻さない（MOD-4・MOD-9）。下書きを変える操作は版 1 では固定しない。
     pub drafts: BTreeMap<Root, String>,
+    /// Step の実体ごとに開いたヒントの段数。停止・復帰で戻さない（GUIDE-7）ため、`run` の外に置く。
+    /// 増やす処理と周回をまたぐ合計は TASK-295・TASK-297 が実装する。
+    pub hints_opened: BTreeMap<StepUid, u32>,
 }
 
 impl Default for SessionState {
@@ -137,6 +145,7 @@ impl Default for SessionState {
             checkpoints: BTreeMap::new(),
             next_checkpoint: CheckpointId(1),
             drafts: BTreeMap::new(),
+            hints_opened: BTreeMap::new(),
         }
     }
 }

@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::Path;
 
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::input::{CheckpointId, Control, GenerationRule, Input, Op};
 use fandhe_workshop_core::CONTRACT_VERSION;
@@ -43,6 +44,10 @@ fn representative(key: &str) -> Op {
         "Op::Control(Control::Save)" => Op::Control(Control::Save),
         "Op::Control(Control::Restore(_))" => Op::Control(Control::Restore(CheckpointId(1))),
         "Op::Control(Control::Begin(_))" => Op::Control(Control::Begin("s".into())),
+        "Op::Control(Control::OpenHint)" => Op::Control(Control::OpenHint),
+        "Op::Control(Control::SetGuidance(_))" => {
+            Op::Control(Control::SetGuidance(GuidanceLevel::A))
+        }
         other => panic!("文書の表に未知の操作の記法がある: {other}"),
     }
 }
@@ -84,13 +89,25 @@ fn doc_generation_table_matches_generation_rule() {
         .filter(|l| l.starts_with("| `Op::"))
         .map(cells)
         .collect();
-    // EVT-6 の 6 項目に当たる 7 行（Input と Cancel を分けて書く）と、範囲外の Begin の 1 行。
-    assert_eq!(rows.len(), 8, "世代の表の行数が違う");
+    // EVT-6 の 6 項目に当たる 7 行（Input と Cancel を分けて書く）と、範囲外の Begin・OpenHint・SetGuidance の 3 行。
+    assert_eq!(rows.len(), 10, "世代の表の行数が違う");
     for row in &rows {
         let op = representative(&row[0]);
         assert_eq!(op.generation_rule(), rule(&row[1]), "{}", row[0]);
     }
-    let outside: Vec<&Vec<String>> = rows.iter().filter(|r| r[2].starts_with("範囲外")).collect();
-    assert_eq!(outside.len(), 1, "EVT-6 の外の行は Begin の 1 行だけである");
-    assert_eq!(outside[0][0], "Op::Control(Control::Begin(_))");
+    let mut outside: Vec<&str> = rows
+        .iter()
+        .filter(|r| r[2].starts_with("範囲外"))
+        .map(|r| r[0].as_str())
+        .collect();
+    outside.sort_unstable();
+    assert_eq!(
+        outside,
+        [
+            "Op::Control(Control::Begin(_))",
+            "Op::Control(Control::OpenHint)",
+            "Op::Control(Control::SetGuidance(_))",
+        ],
+        "EVT-6 の外の行は Begin・OpenHint・SetGuidance の 3 行だけである"
+    );
 }
