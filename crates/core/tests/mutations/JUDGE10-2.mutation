@@ -1,0 +1,8 @@
+id: JUDGE10-2
+package: fandhe-workshop-core
+test: revise_target
+target: crates/core/src/rejection_text.rs
+find: let on_reject = step.on_reject.get(key);
+replace: let on_reject: Option<&String> = None;
+expect-fail: on_reject_overrides_default_text
+note: 拒否の文面の解決で Step の on_reject の参照を外す（既定の文面だけを引く）
