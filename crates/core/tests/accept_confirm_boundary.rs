@@ -6,7 +6,7 @@
 //! （contract の `derive_records` と `lo_first_answer`、TASK-291・TASK-305）をつないで確かめる。
 //! 確認の操作による達成の遷移は TASK-207 2/3 で入った。その正の側（確認の操作で達成になる・自力は確認の記録から
 //! 導出する）は `confirm_record_boundary.rs` が持ち、本試験は「確認の操作を経ない達成が 0 件」だけを断定する。
-//! `confirm: none` の受付と同時の達成は TASK-208 の担当で、断定しない。
+//! `confirm: none` の受付と同時の達成は `confirm_none_achieve`（TASK-208）の担当で、本試験は断定しない。
 //! 呼び出し元は CI の `make test` のみである。
 
 use std::collections::BTreeMap;
@@ -117,7 +117,7 @@ fn approve() -> Input {
 #[test]
 fn accept_alone_never_achieves_for_every_confirming_kind() {
     for kind in ConfirmKind::ALL {
-        // 受付と同時の達成は `none` だけ（TASK-208）。確認を要する 3 種で、受付だけの段階の 0 件を確かめる。
+        // 受付と同時の達成は理由つきの `none` だけ（TASK-208）。確認を要する 3 種で、受付だけの段階の 0 件を確かめる。
         if achievement(Some(kind)) == Achievement::OnAccept {
             continue;
         }

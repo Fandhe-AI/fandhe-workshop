@@ -1,0 +1,8 @@
+id: EVT5-3
+package: fandhe-workshop-core
+test: confirm_none_achieve
+target: crates/core/src/confirm.rs
+find:     if achievement(kind) != Achievement::OnAccept {
+replace:     if achievement(kind) == Achievement::OnAccept && false {
+expect-fail: undeclared_steps_never_achieve_on_accept
+note: 明示の無い Step を省略の宣言として扱う（確認の操作の前に Step が止まらなくなる）

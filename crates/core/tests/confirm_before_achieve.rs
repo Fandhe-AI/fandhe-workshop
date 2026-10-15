@@ -11,7 +11,7 @@
 //! - I3: `Achieved` の前のログに、同じ Step・同じ世代の `Accepted` がある
 //! - I4: 操作の後で `Achieved` になっている確認を要する Step には、ログに `Achieved` がある
 //!
-//! `none` の Step は検査の対象外にする。受付と同時の達成（TASK-208）が入っても本試験は崩れない。
+//! `none` の Step は検査の対象外にする（受付と同時の達成は `confirm_none_achieve`、TASK-208）。
 //! 確認を要する Step の `explicit_skip: true` は現状の経路では出ない。出た場合も同じ規則で検査し、
 //! 学習者による明示の省略を導入するタスクが本試験を見直す。
 //!
@@ -76,7 +76,7 @@ impl ConfirmChoice {
             })),
             ConfirmChoice::Approve => Some(json!({"kind": "approve"})),
             ConfirmChoice::Unset => None,
-            ConfirmChoice::Skip => Some(json!({"kind": "none"})),
+            ConfirmChoice::Skip => Some(json!({"kind": "none", "reason": "skip"})),
         }
     }
 }
