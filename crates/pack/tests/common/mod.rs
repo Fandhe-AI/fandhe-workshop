@@ -1,6 +1,6 @@
 //! 結合試験で共有する部品（一時ディレクトリ・試験データの場所・最小パック）。
 //!
-//! `tests/compile.rs` と `tests/compare.rs` が `mod common;` で取り込む。ファイルごとに使う部品が
+//! `tests/compile.rs`・`tests/compare.rs`・`tests/format_b.rs` が `mod common;` で取り込む。ファイルごとに使う部品が
 //! 異なるため、未使用の警告だけをここで抑える。
 
 #![allow(dead_code, reason = "試験ファイルごとに使う共通部品が異なるため")]
