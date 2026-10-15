@@ -238,7 +238,9 @@ impl CheckObservation {
 
 /// 履歴の観測から記録を導く。純粋で全域（panic しない）。
 ///
-/// - 出力は `targets` 1 件につき 1 件で、`targets` の順に並ぶ
+/// - 出力は有効な `targets` 1 件につき 1 件で、`targets` の順に並ぶ
+/// - `step` が空または `lo` が空の対象は飛ばす。記録の不変条件（[`LoCheckError::EmptyStep`]・
+///   [`LoCheckError::EmptyLo`]）を満たさず、直列化しても読み戻せないためである
 /// - 対象の外の Step の観測は捨てる
 /// - 最初の `Answered` で最初の回答が決まる。正答ならそこで確定する
 /// - 誤答なら選び直しは `NotCorrect` で、後の正答の `Answered` で `Correct` になり確定する。
@@ -256,6 +258,7 @@ pub fn derive_records(
 ) -> Vec<LoCheckRecord> {
     targets
         .iter()
+        .filter(|t| !t.step.is_empty() && !t.lo.is_empty())
         .map(|t| derive_one(t, observations))
         .collect()
 }

@@ -204,3 +204,33 @@ fn check_method_all_and_as_str_roundtrip() {
         assert_eq!(serde_json::from_value::<CheckMethod>(v).unwrap(), m);
     }
 }
+
+#[test]
+fn derive_skips_targets_that_would_make_invalid_records() {
+    let targets = [
+        CheckTarget {
+            step: String::new(),
+            lo: vec!["LO-1".into()],
+            method: CheckMethod::Answer,
+        },
+        CheckTarget {
+            step: "s".into(),
+            lo: vec!["LO-1".into()],
+            method: CheckMethod::Answer,
+        },
+        CheckTarget {
+            step: "t".into(),
+            lo: vec![],
+            method: CheckMethod::Approve,
+        },
+    ];
+    let out = derive_records(&targets, &[]);
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].step, "s");
+    for r in &out {
+        r.validate().unwrap();
+        let json = serde_json::to_string(r).unwrap();
+        let back: LoCheckRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(&back, r);
+    }
+}
