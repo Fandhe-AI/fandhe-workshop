@@ -81,7 +81,7 @@ pub enum IgnoreReason {
 
 /// イベント。`apply()` の戻りのイベント列の 1 件である。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[non_exhaustive]
 pub enum Event {
     /// Step に入った。
@@ -117,9 +117,9 @@ pub enum Event {
         /// IR の進行の名前。
         name: String,
         /// 何番目の進行か（0 始まり）。
-        index: usize,
+        index: u32,
         /// 進行の総数。
-        total: usize,
+        total: u32,
     },
     /// 入力を受け付けた。
     Accepted {
@@ -197,7 +197,7 @@ pub enum Event {
         /// 保存したチェックポイント。
         id: CheckpointId,
         /// 保存時点のログの長さ。
-        log_len: usize,
+        log_len: u32,
     },
     /// チェックポイントへ復帰した（EVT-12・EVT-14）。
     Restored {
@@ -208,7 +208,7 @@ pub enum Event {
         /// 復帰後の世代。
         new_generation: Generation,
         /// 復帰時点のログの長さ。
-        log_len: usize,
+        log_len: u32,
         /// 復帰後の現在の Step。
         owner: StepUid,
     },

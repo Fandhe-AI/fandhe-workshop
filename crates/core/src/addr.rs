@@ -39,5 +39,5 @@ pub struct TickAddr {
     /// Step の実体 ID。
     pub step: StepUid,
     /// その Step の何番目の進行か（0 始まり）。
-    pub index: usize,
+    pub index: u32,
 }

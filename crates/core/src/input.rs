@@ -33,7 +33,7 @@ pub struct CheckpointId(pub u32);
 
 /// 学習者の入力（教材の語彙の入力方式に対応する）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum Input {
     /// コマンドの 1 行。
     Command(String),

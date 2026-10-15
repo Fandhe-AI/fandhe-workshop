@@ -142,4 +142,14 @@ fn unknown_field_and_variant_are_rejected() {
     assert!(serde_json::from_str::<StepStatus>("\"unknown\"").is_err());
     assert!(serde_json::from_str::<Op>(r#"{"nope":1}"#).is_err());
     assert!(serde_json::from_str::<Event>(r#"{"nope":{}}"#).is_err());
+    // 構造体 variant の余分なキーも拒否する（履歴の ops・保存イベントは信頼できない入力）。
+    let bad_event =
+        r#"{"stopped":{"at":{"generation":1,"step":"s"},"new_generation":1,"extra":1}}"#;
+    assert!(serde_json::from_str::<Event>(bad_event).is_err());
+    let ok_event = bad_event.replace(r#","extra":1"#, "");
+    assert!(serde_json::from_str::<Event>(&ok_event).is_ok());
+    let bad_ui = r#"{"ui":{"view":"v","path":"p","extra":1}}"#;
+    assert!(serde_json::from_str::<Input>(bad_ui).is_err());
+    let bad_approval = r#"{"approval":{"decision":"approve","target":null,"extra":1}}"#;
+    assert!(serde_json::from_str::<Input>(bad_approval).is_err());
 }
