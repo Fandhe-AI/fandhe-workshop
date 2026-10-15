@@ -334,13 +334,13 @@ fn check<T: PartialEq + std::fmt::Debug>(
     })
 }
 
-/// サンプルを連鎖して流し、各操作の前後の状態・イベント列・ログの末尾を照合する。
-fn replay_against<P>(provider: &P, s: &Sample) -> Result<(), Mismatch>
+/// サンプルの先頭 `upto` 件を連鎖して流し、各操作の前後の状態・イベント列・ログの末尾を照合する。
+fn replay_against_upto<P>(provider: &P, s: &Sample, upto: usize) -> Result<(), Mismatch>
 where
     P: StateChangeProvider<State = SessionState, Input = Op, Event = Event>,
 {
     let mut state = s.initial.clone();
-    for e in &s.entries {
+    for e in s.entries.iter().take(upto) {
         check(e, "before", &e.before, &state.run)?;
         let len = state.log.len();
         let (next, events) = provider.apply(state, e.op.clone());
@@ -350,6 +350,28 @@ where
         state = next;
     }
     Ok(())
+}
+
+/// サンプルの全件を照合する。
+fn replay_against<P>(provider: &P, s: &Sample) -> Result<(), Mismatch>
+where
+    P: StateChangeProvider<State = SessionState, Input = Op, Event = Event>,
+{
+    replay_against_upto(provider, s, s.entries.len())
+}
+
+/// 入力の受付（TASK-207 1/3）まで結線した範囲の照合。先頭 3 件（e01 拒否・e02 受付・e03 再送の拒否）は
+/// 実際の `apply()` と一致する。最初の食い違いは e04（最初の Tick、TASK-210）で、全件の照合は下の `#[ignore]` の試験が受け持つ。
+#[test]
+fn sample_replay_prefix_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 3) {
+        panic!(
+            "{}: {} differs ({})\nexpected: {}\nactual: {}",
+            m.id, m.what, m.note, m.expected, m.actual
+        );
+    }
 }
 
 #[test]
