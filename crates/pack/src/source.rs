@@ -230,9 +230,23 @@ fn parse_failure(pos: Option<(usize, usize)>) -> String {
 /// （`[A-Za-z0-9_.-]{1,64}`）のときだけ写す。入力の値は写さない。
 fn classify_parse_error(raw: &str, pos: Option<(usize, usize)>) -> String {
     const MARK: &str = "unknown field `";
-    let Some(start) = raw.find(MARK).map(|i| i + MARK.len()) else {
+    // 文言の全文から部分一致で探さない。型が合わない入力値（``invalid type: string "unknown field `x`..."``）
+    // にも同じ語が入りうるためである。未知の欄の文言は、先頭（または `パス: ` の直後）から始まるものだけを
+    // 認める。パスは `[A-Za-z0-9_.\[\]-]` だけで、それ以外が前に付くものは位置だけの診断に戻す。
+    let Some(start) = raw.find(MARK) else {
         return parse_failure(pos);
     };
+    let prefix = &raw[..start];
+    let path_ok = prefix.is_empty()
+        || prefix.strip_suffix(": ").is_some_and(|p| {
+            !p.is_empty()
+                && p.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-' | '[' | ']'))
+        });
+    if !path_ok {
+        return parse_failure(pos);
+    }
+    let start = start + MARK.len();
     // serde の文言は ``unknown field `名前`, expected ...`` / ``..., there are no fields``。名前に
     // バッククォートが入っても途中で切れないよう、後ろの区切りまで取り、見つからなければ写さない。
     let rest = &raw[start..];
@@ -927,6 +941,16 @@ mod tests {
             classify_parse_error("unknown field `a b`, expected x", p),
             "unknown field at line 3 column 5"
         );
+        // 型の不一致のエラーに入った入力値は、未知の欄として写さない。
+        for raw in [
+            "pack: invalid type: string \"unknown field `SECRET-VALUE`, expected x\", expected struct",
+            "invalid type: string \"unknown field `SECRET-VALUE`, expected x\", expected a map",
+            "pack: \"unknown field `SECRET-VALUE`, expected x",
+        ] {
+            let m = classify_parse_error(raw, p);
+            assert!(!m.contains("SECRET-VALUE"), "{m}");
+            assert_eq!(m, "invalid syntax or structure at line 3 column 5");
+        }
         assert_eq!(
             classify_parse_error("invalid type: string", p),
             "invalid syntax or structure at line 3 column 5"
