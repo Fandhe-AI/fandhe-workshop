@@ -111,6 +111,8 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | コマンドの字句化の処理と宣言との照合（`command_lex::lex_command`・`command_judge::judge_command`。結果の型は contract の `judgment`、接頭辞の分けは contract の `profile`、宣言の型は contract の `input_spec`） | core | TASK-262 |
 | 選択肢・画面操作・承認の判定の処理（`select_judge::judge_select`・`judge_confirm`。LLM なし。状態の変更と `Judged` の発行は含まない） | core | TASK-263 |
 | 入力・進行の判定結果の統合と `Judged` の材料（`judge::judge_input`・`judge_tick`・`judged_event`。拒否・問い返しの文面の ID と次の行動を IR から解決する。結果の型は contract の `judgment`。`apply` への結線は含まない） | core | TASK-267 |
+| 承認の「直す」の対象の一覧と、対象なしの「直す」の規則（`select_judge::revise_targets`） | core | TASK-264 |
+| 拒否の文面の解決と空でない次の行動（`rejection_text::resolve_rejection`・`rejection_of`。差し込みは含まない） | core | TASK-264 |
 | コマンド入力の規則の照合と問い返しの判定（`command_rule`。状態の変更・`Judged` の発行・問い返しの待ちの保持は含まない） | core | TASK-272 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
@@ -225,4 +227,5 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-15: 第 6 節に、コマンドの字句化（TASK-262 1/2）の処理の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-15: 第 6 節に、選択肢・画面操作・承認の判定（TASK-263）の処理の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-15: 第 6 節に、判定結果の統合と `Judged` の材料（TASK-267）の処理の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-15: 第 6 節に、承認の「直す」の対象と拒否の文面の解決（TASK-264）の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-15: 第 6 節に、コマンド入力の規則の照合と問い返しの判定（TASK-272）の処理の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

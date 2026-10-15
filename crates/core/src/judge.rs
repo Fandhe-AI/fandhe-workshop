@@ -360,7 +360,14 @@ impl Ctx<'_> {
             (Input::Text(text), _) => self.text_stage(text),
             (Input::Cancel, _) => self.cancel_stage(),
             (Input::Choice(_) | Input::Ui { .. } | Input::Approval { .. }, _) => {
-                let when = |w: &Value| self.cond.eval(w, self.run, self.root);
+                // `when: null` は条件なし（command・text・cancel の `when_ok` と同じ）。
+                let when = |w: &Value| {
+                    if w.is_null() {
+                        Some(true)
+                    } else {
+                        self.cond.eval(w, self.run, self.root)
+                    }
+                };
                 match judge_select(self.step, input, &when).map_err(select_err)? {
                     SelectVerdict::Accepted { rule_id, .. } => Ok(JudgeOutcome::new(
                         Judgment::Accepted(None),
