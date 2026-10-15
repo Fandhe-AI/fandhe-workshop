@@ -23,8 +23,8 @@
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
 //! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、
-//! `E-STRUCTURE` の固定文になる（2026-10-15、TASK-47 2/2）。`on_wrong` は形として受け付けるだけで、意味の検査は TASK-46 が持つ。
-//! `on_miss`・`on_wrong` の参照先の解決は参照検査（TASK-46・PACK-28）の担当である。
+//! `E-STRUCTURE` の固定文になる（2026-10-15、TASK-47 2/2）。選択肢の `on_wrong` が空白だけの場合と、正答の選択肢に書かれた場合も同じ `AnswerSpec::check` が拒否する（TASK-46 1/2）。
+//! `on_miss`・`on_wrong` の参照先の解決は `validate` の参照検査（`E-REF-REJECTION`）の担当である。
 
 use fandhe_workshop_contract::confirm_spec::{
     AnswerSpec, ApproveSpec, ConfirmKind, ConfirmSpecError, NoneSpec, PointAtSpec,
