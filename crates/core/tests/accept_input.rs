@@ -334,6 +334,37 @@ fn invalid_rule_effects_warn_and_change_nothing() {
 }
 
 #[test]
+fn earlier_reject_rule_is_not_skipped_for_later_accept() {
+    let mut ir = ir();
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-1" {
+            let accept = n.step.rules[0].clone();
+            let mut reject = accept.clone();
+            reject["outcome"] = json!({ "kind": "reject" });
+            n.step.rules = vec![reject, accept];
+        }
+    }
+    let mut s = session(ir, "main/st-1");
+    only_input_received(&send(&mut s, cmd("/make-note first-note")));
+    assert_eq!(status(&s, "main/st-1"), StepStatus::Entered);
+}
+
+#[test]
+fn unknown_empty_on_key_is_kept_and_rule_does_not_match() {
+    let mut ir = ir();
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-1" {
+            if let Some(Value::Object(o)) = n.step.rules.get_mut(0) {
+                o["on"]["unknown"] = json!({});
+            }
+        }
+    }
+    let mut s = session(ir, "main/st-1");
+    only_input_received(&send(&mut s, cmd("/make-note first-note")));
+    assert_eq!(status(&s, "main/st-1"), StepStatus::Entered);
+}
+
+#[test]
 fn rule_with_extra_args_key_does_not_match_command() {
     let mut ir = ir();
     for n in &mut ir.nodes {

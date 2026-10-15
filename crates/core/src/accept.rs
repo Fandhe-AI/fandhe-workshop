@@ -25,8 +25,8 @@
 //!
 //! コンパイル済みの IR は、規則の `on` に使わない照合キーを `null`・空の配列・空の表で持ち、`when` も
 //! `null` で持つことがある。判定の部品は「余分なキーのある規則は一致しない」ため、規則を読む前に
-//! それらの空の値だけを取り除いた写しを作る（`normalized`）。値のある余分なキーは残るので、
-//! 余分なキーの規則が一致しない性質は保たれる。
+//! 既知の照合キー（`KNOWN_ON_KEYS`）の空の値だけを取り除いた写しを作る（`normalized`）。未知のキーは
+//! 値が空でも残るので、余分なキーの規則が一致しない性質は保たれる。
 //!
 //! # 扱わないこと
 //!
@@ -134,6 +134,12 @@ fn warning(at: &Stamp) -> Event {
     }
 }
 
+/// 規則の `on` に現れうる既知の照合キー。空の値を取り除くのはこれらだけで、未知のキーは空でも残す
+/// （余分なキーのある規則が一致しない防御を、正規化で失わないため）。
+const KNOWN_ON_KEYS: [&str; 9] = [
+    "command", "args", "missing", "option", "ui", "approval", "target", "text", "cancel",
+];
+
 /// 空の値（`null`・空の配列・空の表）か。
 fn is_blank(v: &Value) -> bool {
     match v {
@@ -155,7 +161,7 @@ fn normalized(step: &Step) -> Step {
             obj.remove("when");
         }
         if let Some(on) = obj.get_mut("on").and_then(Value::as_object_mut) {
-            on.retain(|_, v| !is_blank(v));
+            on.retain(|k, v| !(KNOWN_ON_KEYS.contains(&k.as_str()) && is_blank(v)));
         }
     }
     s
@@ -208,21 +214,24 @@ fn decide_command(ir: &Ir, step: &Step, input: &Input, run: &RunState, root: &Ro
     if !matches!(judge_command(&spec, &lexed), CommandVerdict::Matched(_)) {
         return Decision::Reject;
     }
+    // 上から最初に `on` と `when` が一致した規則の outcome を採用する（`select_judge` と同じ契約）。
+    // 先の拒否・問い返しの規則を飛ばして、後の受付の規則に進まない。
     let hit = step.rules.iter().find(|r| {
         let on_ok = r.get("on").and_then(Value::as_object).is_some_and(|on| {
             on.len() == 1 && on.get("command").and_then(Value::as_str) == Some(lexed.name.as_str())
         });
-        let accepts = r
-            .get("outcome")
-            .and_then(|o| o.get("kind"))
-            .and_then(Value::as_str)
-            == Some("accept");
-        // `when` は評価できないときも飛ばす（安全側）。
+        // `when` は評価できないときも一致とみなさない（安全側）。
         let when_ok = match r.get("when") {
             None => true,
             Some(w) => NoConditions.eval(w, run, root) == Some(true),
         };
-        on_ok && accepts && when_ok
+        on_ok && when_ok
+    });
+    let hit = hit.filter(|r| {
+        r.get("outcome")
+            .and_then(|o| o.get("kind"))
+            .and_then(Value::as_str)
+            == Some("accept")
     });
     match hit {
         None => Decision::Reject,
