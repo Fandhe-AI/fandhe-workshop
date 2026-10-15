@@ -16,7 +16,7 @@
 //! モジュールの `use` は [`crate::expand`] が実体に展開する（TASK-50 1/2）。章は実体 `main`、呼ばれた
 //! モジュールは `<モジュール ID>@<実体名>` の実体で、Step の `uid` は `<実体 ID>/<Step ID>` になる。遷移先と
 //! 開始の解決は、実体からの相対で行う。呼ばれないモジュールは IR に出さず、中身も検査しない。
-//! Step の `input` の宣言は [`crate::input`] が検査する（IR には宣言の値をそのまま載せる）。
+//! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -26,6 +26,7 @@ use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Start};
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
+use crate::confirm;
 use crate::diag::{DiagCode, Diagnostic};
 use crate::effect_check::check_effects;
 use crate::expand::Expander;
@@ -60,7 +61,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
         )]);
     }
 
-    let (_profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
+    let (profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
     let mut starts: Vec<Start> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
@@ -143,6 +144,9 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
     // 引数を置換した後の検査は、展開（`expand`）が Step ごとに行う。
     diags.extend(input::check_inputs(&pack.scopes));
+    // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
+    diags.extend(confirm::check_confirms(&pack.scopes));
+    diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
     let mut seen = BTreeSet::new();
     diags.retain(|d| seen.insert(format!("{d:?}")));

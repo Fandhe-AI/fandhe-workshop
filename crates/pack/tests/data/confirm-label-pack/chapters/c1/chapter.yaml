@@ -1,0 +1,11 @@
+id: c1
+title: C
+starts: [{id: s1, node: s-answer}]
+steps:
+  - id: s-answer
+    title: Answer
+    body: a.md
+    input: {kind: choice, options: [{id: ok, label: INPUT-CHOICE-OK}, {id: asked-back, label: INPUT-CHOICE-ASKED}]}
+    confirm: {kind: answer, options: [{id: ok, correct: true, label: 正しい手順}, {id: asked-back, correct: false}], on_wrong: rj-wrong}
+    next: [{to: s-end}]
+  - {id: s-end, title: End, final: true}

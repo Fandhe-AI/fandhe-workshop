@@ -1,0 +1,15 @@
+# 確認 4 種（point_at・answer・approve・none）を 1 Step ずつ持つ最小の教材パック（PACK-13、TASK-47）。架空の内容だけを置く。
+# on_miss・on_wrong の参照先の解決は未実装だが、後続の検査で壊れないよう rejections に同じ ID を定義しておく。
+pack: {id: confirm-kinds, title: Confirm kinds, version: '0', ir_format: 1, guidance: A}
+views:
+  v-files:
+    kind: file_tree
+rejections:
+  rj-miss-point:
+    category: not_in_this_step
+    message: Not the changed spot.
+    next_action: Point at the marked spot.
+  rj-wrong-answer:
+    category: not_in_this_step
+    message: Not that one.
+    next_action: Choose again.

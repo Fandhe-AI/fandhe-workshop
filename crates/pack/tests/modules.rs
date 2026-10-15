@@ -386,7 +386,7 @@ fn neg_oversized_start_expansion_stops_all_instances_at_once() {
 
 #[test]
 fn neg_input_emptied_by_an_argument_is_checked_after_expansion() {
-    let module = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: \"${x}\"}}\n";
+    let module = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: \"${x}\"}, confirm: {kind: approve}}\n";
     let ok = mini(
         &chapter_using("{module: m, instance: i, args: {x: ls}}"),
         module,
@@ -405,7 +405,7 @@ fn neg_input_emptied_by_an_argument_is_checked_after_expansion() {
 #[test]
 fn an_arg_shape_placeholder_in_a_module_input_compiles_after_substitution() {
     // 置換前の `${shape}` は ArgShape として読めない。モジュールの input は展開後だけで検査する。
-    let module = "id: m\ntitle: M\nparams: {shape: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: x, args: [{name: n, shape: \"${shape}\"}]}}\n";
+    let module = "id: m\ntitle: M\nparams: {shape: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: command, name: x, args: [{name: n, shape: \"${shape}\"}]}, confirm: {kind: approve}}\n";
     let ok = mini(
         &chapter_using("{module: m, instance: i, args: {shape: digits}}"),
         module,
@@ -424,7 +424,7 @@ fn an_arg_shape_placeholder_in_a_module_input_compiles_after_substitution() {
 fn neg_post_expansion_diagnostics_do_not_carry_the_argument_value() {
     // 展開後の検査（未定義の fixture・未知の input の kind）の診断に、引数の値を写さない。
     let fixture = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, on_enter: [{put: {path: p, fixture: \"${x}\"}}]}\n";
-    let kind = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: \"${x}\"}}\n";
+    let kind = "id: m\ntitle: M\nparams: {x: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: \"${x}\"}, confirm: {kind: approve}}\n";
     for (module, code, needle) in [
         (fixture, DiagCode::RefFixture, "fixture is undefined"),
         (kind, DiagCode::Parse, "unknown kind"),
