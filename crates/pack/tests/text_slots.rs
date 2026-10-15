@@ -163,6 +163,30 @@ fn pack16_context_rejection_and_clarification() {
     );
 }
 
+/// 分類を読めない拒否は `E-PARSE` だけにし、問い返しと取り違えて分類の制限（`E-SLOT-CONTEXT`）を重ねない。
+#[test]
+fn pack16_unreadable_category_does_not_add_slot_context() {
+    let t = copy();
+    replace(
+        &t,
+        WORKSHOP_FILE,
+        "category: \"wrong_order\"",
+        "category: \"typo\"",
+    );
+    replace(
+        &t,
+        WORKSHOP_FILE,
+        "今の Step では、{{step_do}}。",
+        "今の Step では、{{step_do}}。残り {{remaining}}。",
+    );
+    let (v, c) = both(&t);
+    for d in [&v, &c] {
+        assert!(d.iter().all(|x| x.code() != DiagCode::SlotContext), "{d:?}");
+    }
+    // 分類の語の検査は compile の側が `E-PARSE` にする。
+    assert!(c.iter().any(|x| x.code() == DiagCode::Parse), "{c:?}");
+}
+
 #[test]
 fn pack16_no_fallback() {
     for to in ["{{nearest_command}}", "{{nearest_command| }}"] {

@@ -110,7 +110,8 @@ fn check_one_text(out: &mut Vec<Diagnostic>, file: &str, kind: TextKind, id: &st
         TextKind::Rejection => map
             .get("category")
             .and_then(Value::as_str)
-            .map(rejection_category),
+            .and_then(rejection_category)
+            .map(Some),
         TextKind::Clarification => Some(None),
     };
     for field in ["message", kind.next_field()] {
