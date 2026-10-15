@@ -1,0 +1,9 @@
+id: EVT13-5
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:         for i in self.consumed..events.len() {
+replace:         for i in self.consumed.saturating_sub(1)..events.len() {
+expect-fail: p1c_p1d_without_restore
+expect-fail: p1c_p1d_with_save_restore
+note: extend の開始位置を 1 つ戻す（増分だけで直前の 1 件を二重に処理し、一括と食い違う）

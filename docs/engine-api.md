@@ -160,3 +160,4 @@
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
+- 2026-10-15: `Projection` の導出の中身（ログ行・変化の印・復習・復帰の復習）を実装した。公開の型・署名・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-215 2/2）
