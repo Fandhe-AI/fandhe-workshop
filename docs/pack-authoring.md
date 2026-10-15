@@ -143,6 +143,20 @@ processing:
 処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
 TERM-34 の担当で、2026-10-15 時点では済んでいません。
 
+## 拒否の分類（`category`・`defaults`・`on_reject`）
+
+拒否の分類は 8 語（`unknown_command`・`wrong_order`・`missing_arg`・`bad_arg_shape`・`busy`・`not_in_this_step`・`not_supported`・`free_text_unjudged`）で、
+型の正は contract の `judgment` です（PACK-11）。次の 3 か所の分類の語は、この 8 語で読めなければ `E-PARSE` で拒否します。
+
+- `workshop.*` の `rejections.<id>.category`（欠け・文字列でない・語彙にない語）
+- `workshop.*` の `defaults` のキー
+- 章・モジュールの Step の `on_reject` のキー
+
+- 大文字小文字や前後の空白の揺れは受けません
+- `free_text_unjudged` は受付に付く語で、3 か所とも書けます
+- 診断には、識別子として安全な語だけを写し、値そのものは写しません
+- `defaults` が 8 分類を網羅すること、キーと参照先の文面の `category` の一致、`next_action` の空は、この検査では見ません。診断コードの条件に無いためで、`next_action` は TASK-46 が受け持ちます（2026-10-15）
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -158,3 +172,4 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22）。`pack23_` は選択肢の表示名の解決・ログの文面・履歴に残す値が ID であること・空白だけの `label` の拒否（PACK-23） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
+| `crates/pack/tests/judgment_vocabulary.rs` の `pack11_` | 語彙の `result`・`rejection` の語が contract の型と一致すること、`category`・`defaults`・`on_reject` の語彙にない語が `E-PARSE` になり値を出さないこと（PACK-11） |
