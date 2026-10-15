@@ -1,7 +1,7 @@
 //! `apply()` が受け取る入力（`Op`）の型（TASK-204 1/3）。
 //!
 //! 学習者の入力（[`Input`]）、実行環境の操作（[`Control`]）、宛先つきの進行（`Tick`）を [`Op`] にまとめる。
-//! 呼び出し元は web（入力の受け口）・保存（履歴の `ops`）。版は 2/3 で付ける。
+//! 呼び出し元は web（入力の受け口）・保存（履歴の `ops`）。世代の規則の表は [`GenerationRule`]、契約の版は [`crate::CONTRACT_VERSION`]。
 //!
 //! 意図して固定しないもの（版上げで足す）。
 //! - 案内レベルとヒントの操作（TASK-290）
@@ -76,6 +76,31 @@ pub enum Control {
     Begin(String),
 }
 
+/// 操作が世代をどう変えるか。EVT-6 の (1)〜(6) を型から読めるようにした表である。
+///
+/// | 操作 | 規則 | EVT-6 |
+/// |---|---|---|
+/// | `Op::Input(_)`（`Cancel` を含む） | [`GenerationRule::Keep`] | (1) |
+/// | `Op::Tick(_)` | [`GenerationRule::Keep`] | (2) |
+/// | `Control::Stop` | [`GenerationRule::IncrementIfProcessing`] | (3) |
+/// | `Control::GoTo(_)` | [`GenerationRule::IncrementOnSuccess`] | (4) |
+/// | `Control::Save` | [`GenerationRule::Keep`] | (5) |
+/// | `Control::Restore(_)` | [`GenerationRule::IncrementOnSuccess`] | (6) |
+/// | `Control::Begin(_)` | [`GenerationRule::IncrementOnSuccess`] | 試作の設計 |
+///
+/// 世代が変わるイベント（`Stopped`・`Moved`・`Restored`・`Begun`）が `new_generation` を持つ。
+/// 世代は減らない。実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GenerationRule {
+    /// 世代を変えない。
+    Keep,
+    /// 処理中のときだけ 1 つ増やす（処理中でなければ変えない）。
+    IncrementIfProcessing,
+    /// 成功したときだけ 1 つ増やす（拒否・無視では変えない）。
+    IncrementOnSuccess,
+}
+
 /// `apply()` が受け取る 1 件。履歴の `ops` の 1 件に当たる。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -87,4 +112,18 @@ pub enum Op {
     Tick(TickAddr),
     /// 実行環境の操作。
     Control(Control),
+}
+
+impl Op {
+    /// この操作の世代の規則（[`GenerationRule`] の表）。
+    pub fn generation_rule(&self) -> GenerationRule {
+        match self {
+            Op::Input(_) | Op::Tick(_) => GenerationRule::Keep,
+            Op::Control(Control::Stop) => GenerationRule::IncrementIfProcessing,
+            Op::Control(Control::Save) => GenerationRule::Keep,
+            Op::Control(Control::GoTo(_) | Control::Restore(_) | Control::Begin(_)) => {
+                GenerationRule::IncrementOnSuccess
+            }
+        }
+    }
 }

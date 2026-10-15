@@ -2,7 +2,7 @@
 //!
 //! 表示・保存・案内の担当が 1 つの型だけを見ればよいよう、エンジンのイベントと実行環境のイベントを
 //! [`Event`] 1 本にまとめる。すべての variant が [`Stamp`]（`at`）を持つ。世代が変わる variant は
-//! `new_generation` を持つ（EVT-6 の (3)(4)(6)）。版は 2/3 で付ける。
+//! `new_generation` を持つ（EVT-6 の (3)(4)(6)。表は [`crate::input::GenerationRule`]）。契約の版は [`crate::CONTRACT_VERSION`]。
 //!
 //! 意図して固定しないもの（版上げで足す）。
 //! - 判定結果（`Judged`）。型は TASK-256 の contract が持つ。位置づけは `InputReceived` の後に置く

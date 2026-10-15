@@ -1,4 +1,4 @@
-//! Step の状態の型（TASK-204 1/3）。呼び出し元は表示・保存・案内の担当。版は 2/3 で付ける。
+//! Step の状態の型（TASK-204 1/3）。呼び出し元は表示・保存・案内の担当。契約の版は [`crate::CONTRACT_VERSION`]。
 
 use serde::{Deserialize, Serialize};
 
