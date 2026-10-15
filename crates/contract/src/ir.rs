@@ -333,8 +333,8 @@ impl Ir {
 
     /// `format_version` と `pack.ir_format` が、読める版で、同じ値で、かつ使っている欄に足りるか。
     ///
-    /// 偽りの版（版 1 と名乗る木つきの IR など）を弾く判定の正はここ 1 か所に置き、pack の `compile` と
-    /// core の `load_ir` が共有する。I/O を持たない純関数。
+    /// 偽りの版（版 1 と名乗る木つきの IR など）を弾く判定の正はここ 1 か所に置き、core の `load_ir` が使う。
+    /// I/O を持たない純関数。
     pub fn has_consistent_format(&self) -> bool {
         self.format_version == self.pack.ir_format
             && is_supported_ir_format(self.pack.ir_format)
