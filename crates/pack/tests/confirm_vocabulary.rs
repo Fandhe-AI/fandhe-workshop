@@ -13,7 +13,10 @@ use std::path::{Path, PathBuf};
 
 use common::{assert_no_secret, ch1, testdata, Tmp, SECRET, WORKSHOP};
 
-use fandhe_workshop_contract::confirm_spec::{achievement, Achievement, ConfirmKind, NoneSpec};
+use fandhe_workshop_contract::confirm_spec::{
+    achievement, answer_spec_of, Achievement, AnswerSpec, ConfirmKind, NoneSpec,
+};
+use fandhe_workshop_core::input::{Input, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_pack::compile::compile_dir;
 use fandhe_workshop_pack::{DiagCode, Diagnostic};
@@ -244,3 +247,84 @@ fn pack13_no_step_achieves_without_confirmation() {
 const COUNT_MIN3: (usize, usize) = (2, 1);
 const COUNT_CH1: (usize, usize) = (4, 2);
 const COUNT_IME: (usize, usize) = (0, 1);
+
+/// `confirm-label-pack` の `answer` の宣言（コンパイル後の IR から読む）。
+fn label_pack_spec() -> (serde_json::Value, AnswerSpec) {
+    let bytes = compile_dir(&pack_dir("confirm-label-pack")).expect("compile");
+    let ir = load_ir(&bytes).expect("load_ir");
+    let confirm = ir
+        .nodes
+        .iter()
+        .find(|n| n.step.id == "s-answer")
+        .and_then(|n| n.step.confirm.clone())
+        .expect("confirm");
+    let spec = answer_spec_of(&confirm).expect("answer");
+    (confirm, spec)
+}
+
+#[test]
+fn pack23_label_validates_and_is_carried_into_the_ir() {
+    let (confirm, _) = label_pack_spec();
+    assert_eq!(confirm["options"][0]["label"], "正しい手順");
+    assert!(confirm["options"][1].get("label").is_none());
+}
+
+#[test]
+fn pack23_display_names_from_compiled_ir() {
+    let (_, spec) = label_pack_spec();
+    let names: Vec<&str> = spec.options.iter().map(|o| o.display_name()).collect();
+    assert_eq!(names, ["正しい手順", "asked-back"]);
+    assert_eq!(
+        spec.selection_log_text("ok").as_deref(),
+        Some("選択: 正しい手順")
+    );
+    assert_eq!(
+        spec.selection_log_text("asked-back").as_deref(),
+        Some("選択: asked-back")
+    );
+    // 入力方式 choice の label は別の欄であり、確認の表示名には出ない。
+    for o in &spec.options {
+        assert!(!o.display_name().contains("INPUT-CHOICE"));
+    }
+}
+
+#[test]
+fn pack23_history_records_the_id() {
+    let (_, spec) = label_pack_spec();
+    let value = spec.recorded_value("ok").expect("known id");
+    let op = Op::Input(Input::Choice(value.to_string()));
+    let json = serde_json::to_string(&op).expect("serialize");
+    assert!(json.contains("\"ok\""), "{json}");
+    assert!(!json.contains("正しい手順"), "{json}");
+}
+
+#[test]
+fn pack23_blank_label_is_structure_error() {
+    for label in ["''", "'   '"] {
+        let d = diags_for_confirm(&format!(
+            "{{kind: answer, options: [{{id: {SECRET}, correct: true, label: {label}}}], on_wrong: w}}"
+        ));
+        only(&d, DiagCode::Structure);
+        assert_no_secret(&d);
+    }
+    let d = diags_for_confirm(
+        "{kind: answer, options: [{id: a, correct: true, label: LBL-VALUE}], on_wrong: w}",
+    );
+    assert!(d.is_empty(), "{d:?}");
+}
+
+#[test]
+fn pack23_label_validates_in_format_a() {
+    let t = Tmp::new("confirm-label-a");
+    t.put(
+        "workshop.toml",
+        b"[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n",
+    );
+    let chapter = concat!(
+        "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
+        "[[steps]]\nid = \"a\"\ntitle = \"A\"\ninput = { kind = \"approval\" }\nconfirm = { kind = \"answer\", options = [{ id = \"x\", correct = true, label = \"X\" }], on_wrong = \"w\" }\nnext = [{ to = \"b\" }]\n",
+        "[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n",
+    );
+    t.put("chapters/c1/chapter.toml", chapter.as_bytes());
+    compile_dir(&t.0).expect("format A validates");
+}
