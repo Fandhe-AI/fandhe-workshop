@@ -3,20 +3,25 @@
 //! 実行時のエンジンは IR だけを読み、構造定義や Markdown を読まない（PACK-1）。そのため入力は
 //! バイト列だけで、ファイルを扱う標準ライブラリの機能は使わない（結合試験が機械で確かめる）。
 //! web から呼ばれ、pack の `compile` が書き出した IR を受ける。
-//! 大きさ・入れ子の上限は契約（TASK-199、`contract::limits`）に従い、JSON の解釈より前に判定する。
+//! 大きさ・入れ子の上限は契約（TASK-199、`contract::limits`）に従う。判定の順序（大きさ、入れ子の深さ、
+//! JSON の解釈、型・内容）は contract の `LOAD_STAGE_ORDER` が正で、最初の 3 段と型の段の分離は
+//! 共有の関門（[`crate::load_gate`]）が持つ。ここでは関門の後ろで、版と参照の整合だけを確かめる。
 
 use std::collections::BTreeSet;
 use std::fmt;
 
 use fandhe_workshop_contract::ir::{Ir, IR_FORMAT_VERSION};
-use fandhe_workshop_contract::limits::{LimitReason, MAX_IR_BYTES, MAX_JSON_DEPTH};
+use fandhe_workshop_contract::limits::{LimitReason, LoadEntry, MAX_IR_BYTES};
+
+use crate::json_depth::check_json_depth;
+use crate::load_gate::{parse_json_value, LoadError};
 
 /// IR を読めない理由。メッセージには ID だけを含め、IR の本文は含めない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrLoadError {
     /// 大きさまたは入れ子の上限を超えた（解析前に判定する）。
     Limit(LimitReason),
-    /// JSON として解釈できない、または欄が合わない（分類と位置だけで、入力値は含まない）。
+    /// JSON として解釈できない、または欄が合わない（分類だけで、入力値・位置は含まない）。
     Json(String),
     /// `format_version` が未対応。
     FormatVersion(u32),
@@ -50,70 +55,46 @@ impl fmt::Display for IrLoadError {
 
 impl std::error::Error for IrLoadError {}
 
-/// 入力値を含まないメッセージにする。`serde_json` のエラー文字列には型が合わない入力値が入るため、
-/// 分類と位置（行・桁）だけを使う。
-fn json_failure(e: &serde_json::Error) -> String {
-    use serde_json::error::Category;
-    let class = match e.classify() {
-        Category::Io => "io error",
-        Category::Syntax => "syntax error",
-        Category::Data => "type or field mismatch",
-        Category::Eof => "unexpected end of input",
-    };
-    format!("{class} at line {} column {}", e.line(), e.column())
-}
+/// 関門の解釈の段の失敗（`NotJson`）を表す分類。
+const SYNTAX_ERROR: &str = "syntax error";
+/// 型・内容の段の失敗（関門の `Malformed`、または `Ir` への変換の失敗）を表す分類。
+const TYPE_MISMATCH: &str = "type or field mismatch";
 
-/// JSON の入れ子の最大の段数が上限を超えるかを、解析せずに数える（文字列の中の括弧は数えない）。
-fn exceeds_depth(bytes: &[u8]) -> bool {
-    let (mut depth, mut in_str, mut esc) = (0usize, false, false);
-    for &b in bytes {
-        if in_str {
-            if esc {
-                esc = false;
-            } else if b == b'\\' {
-                esc = true;
-            } else if b == b'"' {
-                in_str = false;
-            }
-            continue;
-        }
-        match b {
-            b'"' => in_str = true,
-            b'{' | b'[' => {
-                depth += 1;
-                if depth > MAX_JSON_DEPTH {
-                    return true;
-                }
-            }
-            b'}' | b']' => depth = depth.saturating_sub(1),
-            _ => {}
-        }
+/// 関門の理由を IR の読み込みの理由へ写す。`serde_json` のエラー文は入力値を含みうるため使わない。
+fn from_gate(e: LoadError) -> IrLoadError {
+    match e {
+        LoadError::Limit(r) => IrLoadError::Limit(r),
+        LoadError::NotJson => IrLoadError::Json(SYNTAX_ERROR.to_owned()),
+        LoadError::Malformed => IrLoadError::Json(TYPE_MISMATCH.to_owned()),
     }
-    false
 }
 
 /// IR のバイト列が大きさと入れ子の上限（契約の `MAX_IR_BYTES`・`MAX_JSON_DEPTH`）に収まるかを、解析せずに判定する。
 ///
-/// `load_ir` が最初に行う判定そのもので、pack の `compile` が成功を返す前に同じ判定を使い、
-/// 「書き出せたが読めない IR」を作らないために公開する（上限の値は contract だけが持つ）。
+/// `load_ir` が通す関門（`load_gate::parse_json_value` の `LoadEntry::Ir`）の最初の 2 段と同じ判定で、
+/// pack の `compile` が成功を返す前に使い、「書き出せたが読めない IR」を作らないために公開する
+/// （上限の値は contract だけが持ち、深さの数え方は `json_depth` だけが持つ）。両者の一致は試験で確かめる。
+///
+/// # Errors
+///
+/// 大きさが `MAX_IR_BYTES` を超えれば `TooLarge`、入れ子が `MAX_JSON_DEPTH` を超えれば `TooDeep`。
 pub fn check_ir_limits(bytes: &[u8]) -> Result<(), LimitReason> {
     if bytes.len() as u64 > MAX_IR_BYTES {
         return Err(LimitReason::TooLarge);
     }
-    if exceeds_depth(bytes) {
-        return Err(LimitReason::TooDeep);
-    }
-    Ok(())
+    check_json_depth(bytes)
 }
 
 /// バイト列の IR を読み、版と参照の整合を確かめて返す。
 ///
-/// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。
+/// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。最初の 3 段は共有の関門に任せ、
+/// 解釈と `Ir` への変換を分ける（`from_slice::<Ir>` の 1 回だと、構文の誤りより先に型の誤りが返りうる）。
 /// 拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`・
 /// `uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
-    check_ir_limits(bytes).map_err(IrLoadError::Limit)?;
-    let ir: Ir = serde_json::from_slice(bytes).map_err(|e| IrLoadError::Json(json_failure(&e)))?;
+    let value = parse_json_value(LoadEntry::Ir, bytes).map_err(from_gate)?;
+    let ir: Ir =
+        serde_json::from_value(value).map_err(|_| IrLoadError::Json(TYPE_MISMATCH.to_owned()))?;
     if ir.format_version != IR_FORMAT_VERSION {
         return Err(IrLoadError::FormatVersion(ir.format_version));
     }
@@ -150,6 +131,7 @@ pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fandhe_workshop_contract::limits::{LoadStage, LOAD_STAGE_ORDER, MAX_JSON_DEPTH};
 
     const MIN: &str = concat!(
         r#"{"format_version":1,"#,
@@ -250,5 +232,111 @@ mod tests {
         // 文字列の中の括弧は数えない。
         let s = format!("{{\"a\":\"{}\"}}", "[".repeat(100));
         assert!(matches!(load(&s), Err(IrLoadError::Json(_))));
+    }
+
+    /// 拒否した段。`Json` は分類の文字列で解釈の段と型・内容の段を分ける。
+    fn stage_of(e: &IrLoadError) -> LoadStage {
+        match e {
+            IrLoadError::Limit(r) => r.stage(),
+            IrLoadError::Json(m) if m == SYNTAX_ERROR => LoadStage::JsonParse,
+            _ => LoadStage::TypeAndContent,
+        }
+    }
+
+    fn max_ir_len() -> usize {
+        usize::try_from(MAX_IR_BYTES).expect("limit fits usize")
+    }
+
+    /// 末尾を空白で埋めて `len` バイトにする（空白は JSON として意味を変えない）。
+    fn pad_to(s: &str, len: usize) -> Vec<u8> {
+        let mut v = s.as_bytes().to_vec();
+        v.resize(len.max(v.len()), b' ');
+        v
+    }
+
+    #[test]
+    fn l11_syntax_error_precedes_type_mismatch() {
+        // 前半（`format_version`）に型の不一致、後半（末尾の `}` の欠落）に構文の誤りがある。
+        let s = MIN.replacen("\"format_version\":1", "\"format_version\":\"x\"", 1);
+        let s = s.strip_suffix('}').expect("MIN ends with }");
+        // `from_slice::<Ir>` の 1 回では、構文の誤りより先に型の誤りが返る（直した不具合の再現）。
+        assert_eq!(
+            serde_json::from_slice::<Ir>(s.as_bytes())
+                .unwrap_err()
+                .classify(),
+            serde_json::error::Category::Data
+        );
+        let e = load(s).unwrap_err();
+        assert_eq!(e, IrLoadError::Json(SYNTAX_ERROR.to_owned()));
+        assert_eq!(stage_of(&e), LoadStage::JsonParse);
+        // 構文が正しければ、同じ型の不一致は型・内容の段で断る。
+        let s = MIN.replacen("\"format_version\":1", "\"format_version\":\"x\"", 1);
+        let e = load(&s).unwrap_err();
+        assert_eq!(e, IrLoadError::Json(TYPE_MISMATCH.to_owned()));
+        assert_eq!(stage_of(&e), LoadStage::TypeAndContent);
+    }
+
+    /// 違反の組み合わせごとに、返る段は違反した段のうち契約の順で最も前のものになる。
+    /// 型の不一致は常に入れ、それより前の段の違反を足し引きする。
+    #[test]
+    fn l12_rejecting_stage_is_the_first_violated_in_contract_order() {
+        let typed = MIN.replacen("\"format_version\":1", "\"format_version\":\"x\"", 1);
+        let deep = format!(
+            "{{\"format_version\":\"x\",\"pack\":{}{}}}",
+            "[".repeat(MAX_JSON_DEPTH + 1),
+            "]".repeat(MAX_JSON_DEPTH + 1)
+        );
+        for size in [false, true] {
+            for is_deep in [false, true] {
+                for broken in [false, true] {
+                    let base = if is_deep { &deep } else { &typed };
+                    let text = if broken {
+                        base.strip_suffix('}').expect("ends with }")
+                    } else {
+                        base.as_str()
+                    };
+                    let bytes = if size {
+                        pad_to(text, max_ir_len() + 1)
+                    } else {
+                        text.as_bytes().to_vec()
+                    };
+                    let violated = |s: LoadStage| match s {
+                        LoadStage::Size => size,
+                        LoadStage::Depth => is_deep,
+                        LoadStage::JsonParse => broken,
+                        LoadStage::TypeAndContent => true,
+                    };
+                    let expected = LOAD_STAGE_ORDER.into_iter().find(|s| violated(*s));
+                    let got = stage_of(&load_ir(&bytes).unwrap_err());
+                    assert_eq!(
+                        Some(got),
+                        expected,
+                        "size={size} deep={is_deep} broken={broken}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// `check_ir_limits` は、`load_ir` が大きさ・深さで断る入力とちょうど同じものを断る。
+    #[test]
+    fn l13_check_ir_limits_agrees_with_load_ir() {
+        let nest = |n: usize| format!("{}{}", "[".repeat(n), "]".repeat(n));
+        let inputs = [
+            MIN.as_bytes().to_vec(),
+            b"{".to_vec(),
+            pad_to(MIN, max_ir_len()),
+            pad_to(MIN, max_ir_len() + 1),
+            nest(MAX_JSON_DEPTH).into_bytes(),
+            nest(MAX_JSON_DEPTH + 1).into_bytes(),
+            pad_to(&nest(MAX_JSON_DEPTH + 1), max_ir_len() + 1),
+        ];
+        for b in &inputs {
+            let by_load = match load_ir(b) {
+                Err(IrLoadError::Limit(r)) => Some(r),
+                _ => None,
+            };
+            assert_eq!(check_ir_limits(b).err(), by_load, "len={}", b.len());
+        }
     }
 }
