@@ -1,20 +1,28 @@
-//! 名前つき拡張点 EP-1〜EP-5 の固定と、汎用名の検査（TASK-48、PACK-14）。
+//! 名前つき拡張点 EP-1〜EP-12 の固定と、汎用名の検査（TASK-48、PACK-14）。
 //!
 //! 正は `docs/vocabulary/vocabulary.md`。この試験は、文書の表が期待どおりの名前・種別・語彙の版を
 //! 持つことと、名前が付録 A の固有の語を含まないことを、文書を読んで確かめる。
 //! 名前の期待値を変えるのは契約の版上げであり、文書の版・変更履歴と同じ変更で行う。
+//! 名前の形は版 2 で 2 段以上に広げた（EP-6 が 3 段のため）。
 //! 固有の語の一覧は文書側に置き、試験は読むだけにする（正を 2 つにしないため）。
 
 use std::fs;
 use std::path::Path;
 
 /// 期待する公開の一覧（ID、名前、種別、語彙の版）。
-const EXPECTED: [(&str, &str, &str, &str); 5] = [
+const EXPECTED: [(&str, &str, &str, &str); 12] = [
     ("EP-1", "input.wait", "input", "v1"),
     ("EP-2", "input.cancel", "input", "v1"),
     ("EP-3", "condition.param", "condition", "v1"),
     ("EP-4", "condition.clarifying", "condition", "v1"),
     ("EP-5", "view.card_list", "view", "v1"),
+    ("EP-6", "confirm.answer.option_on_wrong", "confirm", "v1.1"),
+    ("EP-7", "text.slot", "text", "v1.1"),
+    ("EP-8", "guidance.variant", "guidance", "v1.1"),
+    ("EP-9", "starts.requires", "starts", "v1.2"),
+    ("EP-10", "pack.profile", "pack", "v1.3"),
+    ("EP-11", "pack.appearance", "pack", "v1.3"),
+    ("EP-12", "pack.left_pane", "pack", "v1.3"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -127,7 +135,11 @@ fn names_have_generic_shape() {
     for row in ep_rows(&doc()) {
         let name = &row[1];
         let parts: Vec<&str> = name.split('.').collect();
-        assert_eq!(parts.len(), 2, "{}: 名前は <種別>.<語>: {name}", row[0]);
+        assert!(
+            parts.len() >= 2,
+            "{}: 名前は <種別>.<語>[.<語>…]: {name}",
+            row[0]
+        );
         assert_eq!(parts[0], row[2], "{}: 種別の列と名前の先頭が一致", row[0]);
         assert!(
             parts.iter().all(|p| !p.is_empty()
@@ -180,7 +192,12 @@ fn check_rejects_specific_names() {
     ] {
         assert!(!violations(bad, &terms).is_empty(), "検出されない: {bad}");
     }
-    for ok in ["input.wait", "view.card_list", "condition.repository_count"] {
+    for ok in [
+        "input.wait",
+        "view.card_list",
+        "condition.repository_count",
+        "confirm.answer.option_on_wrong",
+    ] {
         assert!(violations(ok, &terms).is_empty(), "誤検出: {ok}");
     }
 }
