@@ -28,10 +28,10 @@
 //! - `--flag` の直後の位置引数の読み替え（`ArgSpec` に値を取らない引数の欄が無いため、字句化の結果のまま使う）
 //! - 正規表現・候補の一覧の形（契約版 1 の `ArgShape` に無い）
 
+use crate::command_rule::{command_spec as rule_command_spec, CommandRuleError};
 use fandhe_workshop_contract::input_spec::{ArgShape, CommandSpec};
 use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{LexedArg, LexedCommand, RejectCategory};
-use serde_json::Value;
 
 /// Step の宣言を `CommandSpec` として読めない（IR の不正）。表示は固定文で、教材・受講者の値を含めない。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,23 +54,14 @@ impl std::fmt::Display for CommandDeclError {
 
 impl std::error::Error for CommandDeclError {}
 
-/// Step の `input` を `CommandSpec` として読む。`kind` が `command` のオブジェクトだけを受ける
-/// （`text_judge::text_spec` と対称）。呼び出し元は入力の受付の分岐（TASK-207）である。
+/// Step の `input` を `CommandSpec` として読む。読み取りと検査は [`crate::command_rule::command_spec`] に集約し、
+/// ここでは判定側のエラー型へ変換するだけである（宣言の検証を 2 か所に持たない）。
+/// 呼び出し元は入力の受付の分岐（TASK-207）である。
 pub fn command_spec(step: &Step) -> Result<CommandSpec, CommandDeclError> {
-    let obj = step
-        .input
-        .as_ref()
-        .and_then(Value::as_object)
-        .ok_or(CommandDeclError::NotCommand)?;
-    if obj.get("kind").and_then(Value::as_str) != Some("command") {
-        return Err(CommandDeclError::NotCommand);
-    }
-    let mut rest = obj.clone();
-    rest.remove("kind");
-    let spec: CommandSpec =
-        serde_json::from_value(Value::Object(rest)).map_err(|_| CommandDeclError::InvalidSpec)?;
-    spec.check().map_err(|_| CommandDeclError::InvalidSpec)?;
-    Ok(spec)
+    rule_command_spec(step).map_err(|e| match e {
+        CommandRuleError::NotCommand => CommandDeclError::NotCommand,
+        _ => CommandDeclError::InvalidSpec,
+    })
 }
 
 /// 解決した引数 1 つ。
@@ -199,7 +190,7 @@ pub fn judge_command(spec: &CommandSpec, lexed: &LexedCommand) -> CommandVerdict
 #[cfg(test)]
 mod spec_tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     fn step(input: Option<Value>) -> Step {
         let mut v = json!({ "id": "s", "title": "t" });
