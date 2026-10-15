@@ -1,0 +1,29 @@
+{
+  "spec_version": 1,
+  "samples": [
+    {
+      "ir": "ir_format_1/minimal.json",
+      "content_hash": "87ba748bbe525761ca30428d0834dcafbf6cfa3962157da260ce8840bfb51834"
+    },
+    {
+      "ir": "ir_format_1/full.json",
+      "content_hash": "d8db25f8fd665b8c819916be5235f814da7136659582b43eb15e5e10906b750a"
+    },
+    {
+      "ir": "ir_format_2/full.json",
+      "content_hash": "d6b06632301496342caf85e699b26d3fea07ebe1262e39db93c661821bd96d61"
+    },
+    {
+      "ir": "content_hash_1/body-edited.json",
+      "content_hash": "d6b06632301496342caf85e699b26d3fea07ebe1262e39db93c661821bd96d61"
+    },
+    {
+      "ir": "content_hash_1/value-field-added.json",
+      "content_hash": "8d5062ddf6044096415f1cd2f67262bf91d6a35b8665f9a57518fac0f27f18c9"
+    },
+    {
+      "ir": "content_hash_1/fixture-doc-edited.json",
+      "content_hash": "2988d5f76639230949789162b6592f2c78845a1bdfdae3750736c12bba2ed955"
+    }
+  ]
+}

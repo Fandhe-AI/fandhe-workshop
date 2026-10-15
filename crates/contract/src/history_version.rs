@@ -17,7 +17,7 @@
 //! - 理由コードの名前（`missing_version` など）と順序は TASK-310。[`Verdict`] は理由コードの型を
 //!   [`ReasonCode`] として外から受け取り、本契約の分類 [`ReasonKind`] との対応は TASK-310 が付ける
 //! - 履歴の包み（`format`・`pack_id`・`start`・`ops`・`snapshot`）は TASK-309
-//! - `content_hash` の求め方（本文の木を除いた IR の SHA-256、D-51）は TASK-180。ここは書式だけを検査する
+//! - `content_hash` の求め方（本文の木を除いた IR の SHA-256、D-51）は [`crate::content_hash`]（TASK-180）。ここは書式だけを検査する
 //! - 開く側の上限（`ir_format` の最大・語彙・エンジンの版）は判定（TASK-174）が持つ
 //! - どの理由がどの [`Disposition`] になるかの線引き（D-52・D-59）と、理由ごとの文面（D-57 で未決）
 //! - [`Verdict`] の直列化（外へ出す JSON の形が決まっていない）
@@ -44,7 +44,7 @@ pub struct HistoryVersions {
     pub vocab: String,
     /// 教材の版（`pack.version`、`主.副.修`）。
     pub content: String,
-    /// IR の SHA-256（小文字 16 進 64 文字。本文の木を除く。求め方は TASK-180）。
+    /// IR の SHA-256（小文字 16 進 64 文字。本文の木を除く。求め方は [`crate::content_hash`]）。
     pub content_hash: String,
     /// 参照元の名前から commit への表。空でも `{}` を書く。
     pub refs: BTreeMap<String, String>,
@@ -173,6 +173,11 @@ impl ContentHash {
     pub fn parse(s: &str) -> Option<Self> {
         let ok = s.len() == 64 && s.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f'));
         ok.then(|| Self(s.to_owned()))
+    }
+
+    /// SHA-256 の 32 バイトから作る。`content_hash` モジュールだけが使う生成口で、`parse` と同じ不変条件を満たす。
+    pub(crate) fn from_digest(digest: &[u8; 32]) -> Self {
+        Self(digest.iter().map(|b| format!("{b:02x}")).collect())
     }
 
     /// 正規の表記。
