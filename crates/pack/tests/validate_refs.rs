@@ -347,7 +347,8 @@ fn all_eight_codes_are_covered() {
 #[test]
 fn non_string_reference_is_reported() {
     let t = base();
-    mutate(&t, CHAPTER_FILE, "name: help", "name: 7");
+    // `input` の宣言を壊すと入力方式の検査（E-PARSE）も重なるため、`rules` の参照を壊す。
+    mutate(&t, CHAPTER_FILE, "on: {command: help}", "on: {command: 7}");
     let d = validate_dir(&t.0);
     only(&d, DiagCode::RefCommand, CHAPTER_FILE, "step:a");
     assert!(d[0].message().contains("string ID"), "{d:?}");
