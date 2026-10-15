@@ -343,6 +343,37 @@ fn neg_chapter_without_definition() {
 }
 
 #[test]
+fn neg_chapter_without_steps_and_starts() {
+    // Step も開始点も無い章だけでは、nodes・starts が空の、開始できない IR になる（PACK-25）。
+    let t = minimal();
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nstarts: []\nsteps: []\n",
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure]);
+    assert_eq!(d[0].file(), "chapters");
+
+    // 開始点だけを書くと、宛先の Step が無いことの診断だけになり、開始点 0 件とは重ねない。
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps: []\n",
+    );
+    assert_eq!(codes(&diags(&t)), [DiagCode::RefStep]);
+}
+
+#[test]
+fn empty_chapter_beside_a_runnable_chapter_compiles() {
+    // Step の無い章があっても、別の章に開始点があれば開始できる。章ごとに Step を求める規則は spec に無い。
+    let t = minimal();
+    t.put(
+        "chapters/c2/chapter.yaml",
+        b"id: c2\ntitle: C2\nsteps: []\n",
+    );
+    assert!(compile_dir(&t.0).is_ok());
+}
+
+#[test]
 fn neg_diagnostics_do_not_contain_absolute_paths() {
     let t = minimal();
     t.put("chapters/c1/a.md", &[0xff]);

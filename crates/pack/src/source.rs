@@ -273,13 +273,51 @@ fn scan_failure(file: &str) -> Diagnostic {
     )
 }
 
+/// 走査するエントリ（ファイル・ディレクトリ・リンクなど、種類を問わない）の数の上限。
+///
+/// 0 バイトのファイル・ディレクトリ・リンクはパック全体の大きさを増やさないため、大きさの予算だけでは
+/// 走査の量と診断の確保が入力の幅に比例して増える。spec（SAFE-22・SAFE-43）と契約は件数の上限を
+/// 定めていないので、契約で唯一の要素数の上限（`MAX_COLLECTION_ELEMENTS`。SAFE-25・D-45 の、IR の
+/// 1 つのコレクションの要素数）を流用した仮の値とする。教材パックの件数としての根拠は無く、spec・契約に
+/// 値が入ったら置き換える。testdata の教材パックは 1 つあたり 60 エントリ未満（2026-10-15 計測）である。
+const MAX_SCAN_ENTRIES: usize = limits::MAX_COLLECTION_ELEMENTS;
+
+/// 中身を読む前の走査で積む診断の数の上限。達したら走査をやめる。
+///
+/// 上限の診断は 1 件でもあればパックを読まずに拒否するので、すべてを数え上げる必要は無い。spec に値が無く、
+/// 作成者が 1 回の実行で直せる量として 100 件にした仮の値である。
+const MAX_SCAN_DIAGS: usize = 100;
+
 /// 中身を読む前の走査。シンボリックリンク・入れ子の深さ・Markdown の大きさ・パック全体の大きさを数える。
 /// リンクは辿らない。診断は相対パスの順に並べる。
 fn check_limits(root: &Path) -> Vec<Diagnostic> {
+    check_limits_with(root, MAX_SCAN_ENTRIES, MAX_SCAN_DIAGS)
+}
+
+/// エントリ数が多すぎることの診断。
+fn too_many_entries(max_entries: usize) -> Diagnostic {
+    diag(
+        ".",
+        "pack",
+        DiagCode::Limit,
+        format!("pack has more than {max_entries} files and directories"),
+    )
+}
+
+/// `check_limits` の本体。上限を引数で受け、試験で小さな値を渡せるようにする。
+///
+/// エントリ数が `max_entries` を超えたら、その時点で上限超過の診断 1 件だけを返す。診断が `max_diags` 件に
+/// 達したら走査をやめる。どちらで打ち切っても結果がファイルシステムの列挙順に依らないよう、各ディレクトリの
+/// エントリは名前の順に処理する。
+fn check_limits_with(root: &Path, max_entries: usize, max_diags: usize) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let mut total: u64 = 0;
+    let mut seen = 0usize;
     let mut stack = vec![(root.to_path_buf(), 0usize)];
-    while let Some((d, depth)) = stack.pop() {
+    'walk: while let Some((d, depth)) = stack.pop() {
+        if diags.len() >= max_diags {
+            break;
+        }
         let rd = match fs::read_dir(&d) {
             Ok(rd) => rd,
             Err(_) => {
@@ -287,15 +325,24 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                 continue;
             }
         };
+        // 確保の前に数えるので、1 つのディレクトリが巨大でも `max_entries` を超えて確保しない。
+        let mut entries = Vec::new();
         for e in rd {
-            let e = match e {
-                Ok(e) => e,
-                Err(_) => {
-                    diags.push(scan_failure(&rel(root, &d)));
-                    continue;
-                }
-            };
-            let p = e.path();
+            seen += 1;
+            if seen > max_entries {
+                return vec![too_many_entries(max_entries)];
+            }
+            match e {
+                Ok(e) => entries.push(e.path()),
+                Err(_) => diags.push(scan_failure(&rel(root, &d))),
+            }
+        }
+        entries.sort();
+        let mut subdirs = Vec::new();
+        for p in entries {
+            if diags.len() >= max_diags {
+                break 'walk;
+            }
             let file = rel(root, &p);
             let md = match fs::symlink_metadata(&p) {
                 Ok(md) => md,
@@ -313,7 +360,7 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                 ));
             } else if md.is_dir() {
                 if depth < MAX_DEPTH {
-                    stack.push((p, depth + 1));
+                    subdirs.push((p, depth + 1));
                 } else {
                     diags.push(diag(
                         &file,
@@ -334,8 +381,10 @@ fn check_limits(root: &Path) -> Vec<Diagnostic> {
                 }
             }
         }
+        // 名前の順に辿るため、逆順に積む。
+        stack.extend(subdirs.into_iter().rev());
     }
-    if total > MAX_PACK_BYTES {
+    if total > MAX_PACK_BYTES && diags.len() < max_diags {
         diags.push(diag(
             ".",
             "pack",
@@ -672,6 +721,50 @@ mod tests {
         assert!(sorted_subdirs(&tmp, &tmp.join("modules"), &mut diags).is_empty());
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].file(), "modules");
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    /// 試験ごとの一時ディレクトリ（空で作る）。
+    fn scan_tmp(tag: &str) -> PathBuf {
+        let tmp = std::env::temp_dir().join(format!("fw-scan-{tag}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        tmp
+    }
+
+    #[test]
+    fn scan_stops_at_entry_budget_even_for_empty_files_and_dirs() {
+        // 0 バイトのファイルと空のディレクトリは大きさを増やさないが、件数には数える。
+        let tmp = scan_tmp("entries");
+        fs::create_dir_all(tmp.join("d")).unwrap();
+        for i in 0..4 {
+            fs::write(tmp.join(format!("d/e{i}")), b"").unwrap();
+        }
+        // d と e0〜e3 の 5 件。ちょうどは通し、1 件少ない上限では断る。
+        assert!(check_limits_with(&tmp, 5, MAX_SCAN_DIAGS).is_empty());
+        let d = check_limits_with(&tmp, 4, MAX_SCAN_DIAGS);
+        assert_eq!(d.len(), 1);
+        assert_eq!(d[0].code(), DiagCode::Limit);
+        assert_eq!(d[0].file(), ".");
+        fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_caps_diagnostics_and_keeps_the_first_by_name() {
+        let tmp = scan_tmp("links");
+        for i in 0..10 {
+            std::os::unix::fs::symlink("nowhere", tmp.join(format!("l{i}"))).unwrap();
+        }
+        let d = check_limits_with(&tmp, MAX_SCAN_ENTRIES, 3);
+        let files: Vec<&str> = d.iter().map(Diagnostic::file).collect();
+        assert_eq!(files, ["l0", "l1", "l2"]);
+        assert!(d.iter().all(|x| x.code() == DiagCode::LimitSymlink));
+        // 既定の上限でも、リンクの数だけ診断を積み続けない。
+        for i in 10..(MAX_SCAN_DIAGS + 10) {
+            std::os::unix::fs::symlink("nowhere", tmp.join(format!("m{i}"))).unwrap();
+        }
+        assert_eq!(check_limits(&tmp).len(), MAX_SCAN_DIAGS);
         fs::remove_dir_all(&tmp).unwrap();
     }
 }

@@ -110,6 +110,15 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
             DiagCode::Structure,
             "no chapter is defined",
         ));
+    } else if starts.is_empty() {
+        // 開始点が 0 件の IR は、エンジンが開始できない（PACK-25、D-43 で拒否と決定）。Step が空の章だけの
+        // パックもここに当たる（開始点を書けば、宛先の Step が無いことで E-REF-STEP になる）。
+        diags.push(diag(
+            "chapters",
+            "pack",
+            DiagCode::Structure,
+            "no start is defined",
+        ));
     }
 
     // 遷移先・開始の解決。解決先は実際に node 化した Step だけにする（`use` の Step は含めない）。
