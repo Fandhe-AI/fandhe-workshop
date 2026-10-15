@@ -547,7 +547,7 @@
       "note": "古い世代の進行は無視する。",
       "op": {
         "tick": {
-          "generation": 2,
+          "generation": 1,
           "step": "main/st-1",
           "index": 2
         }
@@ -1437,7 +1437,7 @@
               "generation": 2,
               "step": "main/st-2"
             },
-            "explicit_skip": true
+            "explicit_skip": false
           }
         },
         {
