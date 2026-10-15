@@ -1,7 +1,7 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
-//! 骨格として置く仮の形である。コードの一覧は TASK-195（#107）、出力形と終了コードは TASK-399
-//! （#469〜#471）の契約で固定し、そのときに本ファイルを直す。`cli` の各コマンドが診断を集め、
+//! コードの一覧は `docs/diagnostics.md`（一覧の版 1、TASK-195）で固定した。出力形と終了コードは
+//! TASK-399（#469〜#471）の契約で固定する（未了）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
 use std::fmt;
@@ -9,17 +9,18 @@ use std::io;
 
 use crate::cli::{EXIT_DIAGNOSTICS, EXIT_OK};
 
-/// 診断コード（`E-` で始まる）。仮の一覧で、TASK-195（#107）で固定する。
+/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 1）である。
 ///
-/// `E-LIMIT-*` の拒否理由の型は contract（TASK-199）が持ち、固定後の一覧には参照だけを置く予定である。
+/// 一覧と本列挙の一致の自動検査は TASK-400 が持つ。`E-LIMIT-*` の拒否理由の型は contract
+/// （TASK-199 の `PackLimitCode`）が持ち、一覧には参照だけを置く。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DiagCode {
     /// 構文として読めない。
     Parse,
-    /// 形式の版が未対応。
+    /// `pack.ir_format` が、エンジンの読める版（1 と 2）のどちらでもない。
     FormatVersion,
-    /// 必須の構造が欠けている。
+    /// 構造の誤り（片方だけの指定・排他の違反・正答の無い選択式など）。
     Structure,
     /// 未定義の Step を参照している。
     RefStep,
@@ -43,11 +44,11 @@ pub enum DiagCode {
     Unreachable,
     /// 行き止まりの Step がある。
     DeadEnd,
-    /// モジュールが循環している。
+    /// モジュールの呼び出しが巡回している、または入れ子が 8 段を超える。
     ModuleCycle,
-    /// 次の行動が空である。
+    /// 拒否・問い返しの文面で「次の行動」が空になる。
     EmptyNextAction,
-    /// 確認がない。
+    /// 入力を持つ Step が、確認も理由つきの省略の明示も持たない。
     NoConfirm,
     /// 差し込みの構文が不正。
     SlotSyntax,
@@ -59,39 +60,39 @@ pub enum DiagCode {
     SlotNeedsDo,
     /// 差し込みに代替がない。
     SlotNoFallback,
-    /// 案内に答えが漏れている。
+    /// 隠すと宣言した語が、その水準の本文または `do` に含まれている。
     GuidanceLeak,
-    /// 隠すべきヒントが見えている。
+    /// ヒントを持つ Step が、ある案内レベルでヒントを 1 つも出さない。
     HintHidden,
     /// プロファイルの接頭辞が不正。
     ProfilePrefix,
     /// プロファイルのコマンド名が不正。
     ProfileCommandName,
-    /// プロファイルの文言が不正。
+    /// 接頭辞なしの設定で、自然文の入力・規則がある。
     ProfileText,
-    /// プロファイルに入力がない。
+    /// 入力欄なしの設定で、コマンド・自然文の入力・規則がある。
     ProfileNoInput,
-    /// 通し試験の入力の分類が不正。
+    /// `test` で、教材テストの入力の種類が画面での分類と異なる。
     PlayInputClass,
-    /// 通し試験が完了していない。
+    /// 通し試験が完了していない。一覧の版 1 の本表外（04 に出所が無い）。
     PlayIncomplete,
-    /// 通し試験の分類が一致しない。
+    /// 通し試験の分類が一致しない。一覧の版 1 の本表外（04 に出所が無い）。
     PlayCategoryMismatch,
-    /// 左側が複数ビューを指している。
+    /// `view_tabs: hidden` で 2 つ以上のビューを宣言した Step がある。
     LeftMultiView,
-    /// 左側の対象行が不正。
+    /// 宛先の経路が行にならない（静的な近似）。
     LeftTargetRow,
-    /// 左側の対象ビューが不正。
+    /// 宛先のビューが、その Step の画面に出ない。
     LeftTargetView,
-    /// 上限を超えている。
+    /// 上限を超えている。正は contract の `PackLimitCode` と engine-safety で、一覧は参照のみ。
     Limit,
-    /// 深さの上限を超えている。
+    /// 深さの上限を超えている（SAFE-43）。正は contract の `PackLimitCode`。
     LimitDepth,
-    /// Markdown の大きさの上限を超えている。
+    /// Markdown の大きさの上限を超えている（SAFE-22）。正は contract の `PackLimitCode`。
     LimitMdSize,
-    /// パック全体の大きさの上限を超えている。
+    /// パック全体の大きさの上限を超えている（SAFE-22）。正は contract の `PackLimitCode`。
     LimitPackSize,
-    /// シンボリックリンクが含まれている。
+    /// シンボリックリンクが含まれている（SAFE-43）。正は contract の `PackLimitCode`。
     LimitSymlink,
 }
 
