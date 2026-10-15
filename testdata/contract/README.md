@@ -1,9 +1,9 @@
 # contract
 
-公開 API の契約（`CONTRACT_VERSION` = 1）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
+公開 API の契約（`CONTRACT_VERSION` = 2）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
 `apply()` へ結線するときの合否の基準になります（TASK-205）。JSON はコメントを書けないため、説明は本ファイルに置きます。
 
-- サンプル: `event-sequence.json`（版 1）
+- サンプル: `event-sequence.json`（版 2）
 - 読む部品: `crates/core/tests/common/contract_sample.rs`
 - 形の試験: `crates/core/tests/contract_sample.rs`（TASK-205 1/2）
 - 適合試験: `crates/core/tests/contract_conformance.rs`（TASK-205 2/2）。EVT-22 の決定性と EVT-6 の世代を確かめます。サンプルを連鎖して流す厳密な照合は、`apply()` が骨格の間は失敗するため `#[ignore]` で、結線の確認は `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored` で行います（`docs/engine-api.md` の 7 節）
@@ -60,3 +60,4 @@ spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・T
 | サンプルの版 | 日付 | 内容 |
 |---|---|---|
 | 1 | 2026-10-15 | 新規（TASK-205 1/2）。21 操作で 9 種と EVT-6 の (1)〜(6) を覆う |
+| 2 | 2026-10-15 | `CONTRACT_VERSION` 2 に追従（TASK-290）。`RunState.guidance_level`（全件 `A`）と `SessionState.hints_opened`（空）を足した。操作・イベントは変えない |

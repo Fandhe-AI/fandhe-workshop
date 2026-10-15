@@ -4,13 +4,14 @@
 //! 呼び出し元は web（入力の受け口）・保存（履歴の `ops`）。世代の規則の表は [`GenerationRule`]、契約の版は [`crate::CONTRACT_VERSION`]。
 //!
 //! 意図して固定しないもの（版上げで足す）。
-//! - 案内レベルとヒントの操作（TASK-290）
 //! - 下書きの置き換え・送信・再読み込み（入力欄・保存の契約、SAVE-4）
 //! - 早送りの入・切（EVT-27。TASK-15 の決定後）
 //!
 //! 文字列は利用者由来で信頼できない。長さの上限の判定は各読み込み口の責務で、本型は値を保持するだけである。
 
 use serde::{Deserialize, Serialize};
+
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 
 use crate::addr::{StepUid, TickAddr};
 
@@ -74,6 +75,11 @@ pub enum Control {
     Restore(CheckpointId),
     /// 周回を開始する（開始 ID）。
     Begin(String),
+    /// 現在の Step のヒントを 1 段開く（GUIDE-17）。開ける段が無い、または現在の Step が無ければ
+    /// `RefuseReason::NoHint` で拒否し、世代は変えない。
+    OpenHint,
+    /// 受講者が案内レベルを切り替える（GUIDE-3）。世代を変えず、イベントも出さない（履歴の `ops` にだけ残る）。
+    SetGuidance(GuidanceLevel),
 }
 
 /// 操作が世代をどう変えるか。EVT-6 の (1)〜(6) を型から読めるようにした表である。
@@ -87,6 +93,8 @@ pub enum Control {
 /// | `Control::Save` | [`GenerationRule::Keep`] | (5) |
 /// | `Control::Restore(_)` | [`GenerationRule::IncrementOnSuccess`] | (6) |
 /// | `Control::Begin(_)` | [`GenerationRule::IncrementOnSuccess`] | 試作の設計 |
+/// | `Control::OpenHint` | [`GenerationRule::Keep`] | GUIDE-17 |
+/// | `Control::SetGuidance(_)` | [`GenerationRule::Keep`] | GUIDE-3 |
 ///
 /// 世代が変わるイベント（`Stopped`・`Moved`・`Restored`・`Begun`）が `new_generation` を持つ。
 /// 世代は減らない。実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ。
@@ -120,7 +128,9 @@ impl Op {
         match self {
             Op::Input(_) | Op::Tick(_) => GenerationRule::Keep,
             Op::Control(Control::Stop) => GenerationRule::IncrementIfProcessing,
-            Op::Control(Control::Save) => GenerationRule::Keep,
+            Op::Control(Control::Save | Control::OpenHint | Control::SetGuidance(_)) => {
+                GenerationRule::Keep
+            }
             Op::Control(Control::GoTo(_) | Control::Restore(_) | Control::Begin(_)) => {
                 GenerationRule::IncrementOnSuccess
             }

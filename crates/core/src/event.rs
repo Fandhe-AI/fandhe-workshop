@@ -6,7 +6,8 @@
 //!
 //! 意図して固定しないもの（版上げで足す）。
 //! - 判定結果（`Judged`）。型は TASK-256 の contract が持つ。位置づけは `InputReceived` の後に置く
-//! - ヒントを開く（TASK-290）、再読み込み（SAVE-4）
+//! - 再読み込み（SAVE-4）
+//! - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16。TASK-307・TASK-308 が決める。`Control::SetGuidance` はイベントを出さない）
 //!
 //! 文字列（`Warning::message`、`Changed` の値）は教材・利用者由来を含みうる。HTML へ埋め込む際の
 //! エスケープは web 層の責務である。`Warning` の文面に利用者の入力値を埋め込まない。
@@ -49,6 +50,8 @@ pub enum ControlKind {
     Restore,
     /// 周回の開始。
     Begin,
+    /// ヒントを開く。
+    OpenHint,
 }
 
 /// 操作を拒否した理由。
@@ -64,6 +67,8 @@ pub enum RefuseReason {
     StartUnmet,
     /// 無い開始 ID。
     UnknownStart,
+    /// 開けるヒントの段が無い、または現在の Step が無い（GUIDE-17）。
+    NoHint,
 }
 
 /// 入力・進行を無視した理由。宛先の食い違いはコマンドの分類より先に判定する（EVT-8）。
@@ -220,6 +225,15 @@ pub enum Event {
         start: String,
         /// 開始後の世代。
         new_generation: Generation,
+    },
+    /// ヒントを 1 段開いた（GUIDE-17）。世代は変わらない。
+    HintOpened {
+        /// その時点の世代と Step。
+        at: Stamp,
+        /// 開いた後の段数。
+        opened: u32,
+        /// その時点で出せる段数（`fandhe_workshop_contract::guidance::visible_hints` の数）。
+        total: u32,
     },
     /// 操作を拒否した。
     Refused {

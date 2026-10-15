@@ -1,0 +1,8 @@
+id: GUIDE17-1
+package: fandhe-workshop-contract
+test: guidance_contract
+target: crates/contract/src/guidance.rs
+find:     if arr.is_empty() {
+replace:     if arr.is_empty() && false {
+expect-fail: empty_levels_means_all_levels
+note: levels が空の配列のとき全水準で出す分岐を外す（空の levels のヒントが誰にも出なくなる）

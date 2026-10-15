@@ -28,7 +28,7 @@ pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
 pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
 
-/// 公開 API の契約の版（TASK-204、版 1）。
+/// 公開 API の契約の版（TASK-204・TASK-290、版 2）。
 ///
 /// 覆う範囲は [`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]・[`session`]・[`projection`] の
 /// 公開の型と署名、および [`input::GenerationRule`] の表である。次のいずれかを変えたら上げる。
@@ -36,10 +36,13 @@ pub use session::{apply, Session, SessionState};
 /// - 関数・メソッドの署名
 /// - 世代の規則の表
 ///
+/// 版 2 で足したもの: 案内レベルとヒントの操作（`Control::OpenHint`・`Control::SetGuidance`）、イベント
+/// （`Event::HintOpened`・`RefuseReason::NoHint`・`ControlKind::OpenHint`）、`RunState.guidance_level`、
+/// `SessionState.hints_opened`。案内レベルの値の型は `fandhe_workshop_contract::guidance` にある。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）、判定結果（`Judged`、TASK-256）
-/// - ヒントと案内レベル（TASK-290）
 /// - 下書きの操作と再読み込み（SAVE-4）
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 1;
+pub const CONTRACT_VERSION: u32 = 2;
