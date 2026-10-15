@@ -1,0 +1,9 @@
+id: JUDGE2-2
+package: fandhe-workshop-core
+test: text_judge
+target: crates/core/src/text_judge.rs
+find: text: text.to_string(),
+replace: text: text.trim().to_string(),
+expect-fail: text_is_kept_verbatim
+expect-fail: judging_properties
+note: 受付で保持する文を trim 後の値にする（受講者の文が原文のまま残らない）

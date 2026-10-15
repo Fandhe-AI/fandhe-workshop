@@ -222,6 +222,7 @@ fn on_matches(on: &Map<String, Value>, input: &Input) -> bool {
 /// 規則・`on` が object でない場合と、`target` が文字列でない場合は [`SelectJudgeError::InvalidDeclaration`]。
 pub fn revise_targets(step: &Step) -> Result<Vec<String>, SelectJudgeError> {
     let mut targets: Vec<String> = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for rule in &step.rules {
         let rule = rule
             .as_object()
@@ -239,7 +240,7 @@ pub fn revise_targets(step: &Step) -> Result<Vec<String>, SelectJudgeError> {
         let target = target
             .as_str()
             .ok_or(SelectJudgeError::InvalidDeclaration)?;
-        if !targets.iter().any(|t| t == target) {
+        if seen.insert(target) {
             targets.push(target.to_string());
         }
     }

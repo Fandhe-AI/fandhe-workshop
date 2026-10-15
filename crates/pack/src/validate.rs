@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 到達性・行き止まりの順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input` の同時指定）・`input::check_inputs`・
@@ -15,7 +15,11 @@
 //! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
 //! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。
 //! 到達性（`E-UNREACHABLE`）・行き止まり（`E-DEAD-END`）は `reach` が受け持つ（TASK-55 1/2）。
-//! `E-MODULE-CYCLE`・`E-NO-CONFIRM` の受け入れは TASK-55 2/2、`E-PROFILE-*` は TASK-46、網羅は TASK-56 の持ち分である。
+//! モジュール呼び出しの巡回（`E-MODULE-CYCLE`）と、引数の置換後に判明する確認の欠落（`E-NO-CONFIRM`）は、
+//! 宛先も `confirm` の中身も置換後でないと決まらないため、`compile` と同じ `expand::Expander` を走らせて
+//! その 2 コードと、展開の打ち切り（`E-LIMIT`）だけを採る（TASK-55 2/2）。展開由来の他の診断（`E-REF-MODULE`・`E-DUP-ID`・`E-PARSE` など）は、
+//! 既存の検査と文面の違う二重報告になるか本タスクの範囲外のため採らない。呼ばれないモジュールは展開されず、
+//! その中の巡回は `compile` と同じく報告しない。`E-PROFILE-*` は TASK-46、網羅は TASK-56 の持ち分である。
 //!
 //! 語彙の中身（`input`・`rules`・`confirm`・`on_enter` など）は `serde_json::Value` のまま通っているため、
 //! 参照を取り出す経路をここに集める。教材データは信頼しない入力として扱い、文字列でない参照は黙って
@@ -27,7 +31,11 @@ use std::path::Path;
 use fandhe_workshop_contract::ir::{is_supported_ir_format, Step};
 use serde_json::Value;
 
+use fandhe_workshop_contract::limits::MAX_IR_BYTES;
+
+use crate::compile::Budget;
 use crate::diag::{DiagCode, Diagnostic};
+use crate::expand::Expander;
 use crate::source::{self, safe_ident, LoadedPack, LoadedScope, ScopeKind};
 
 pub(crate) fn diag(
@@ -61,7 +69,33 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(check_refs(pack));
     out.extend(check_structure(pack));
     out.extend(check_reachability(pack));
+    out.extend(check_module_expansion(pack));
     out
+}
+
+/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM` と、展開の打ち切りを示す
+/// `E-LIMIT` だけを返す。`E-LIMIT` を捨てると、打ち切られた後ろの巡回・確認の欠落を検査しないまま
+/// 診断なしで成功に見えるため、検査が未完了であることを示すものとして必ず残す（fail-closed）。
+/// `E-NO-CONFIRM` は、`check_confirms` が飛ばす `${` を含む `confirm` の置換後の検査でだけ出るため、
+/// `check_structure` の報告と重ならない。同一内容の診断は 1 件にまとめる（`compile` と同じ）。
+pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
+    // `E-PROFILE-*` は TASK-46 の持ち分のため、設定だけ取り出して診断は捨てる。
+    let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
+    let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
+        ex.expand_chapter(scope);
+    }
+    let mut seen = BTreeSet::new();
+    ex.diags
+        .into_iter()
+        .filter(|d| {
+            matches!(
+                d.code(),
+                DiagCode::ModuleCycle | DiagCode::NoConfirm | DiagCode::Limit
+            )
+        })
+        .filter(|d| seen.insert(format!("{d:?}")))
+        .collect()
 }
 
 /// 到達性（`E-UNREACHABLE`）と行き止まり（`E-DEAD-END`）の検査。意味論は `reach` のモジュール文書を参照。
