@@ -53,6 +53,10 @@ pub enum RecordError {
         /// 重複した側の要素の位置。
         index: usize,
     },
+    /// 書いた版が読み側の検査（`HistoryVersions::parse`）を通らない。
+    /// 各欄を検証済みなら到達しないが、contract の検査が増えたときに別の欄の不備を
+    /// 誤った欄の名前で報告しないための受け皿である。
+    Unreadable,
 }
 
 impl fmt::Display for RecordError {
@@ -66,6 +70,7 @@ impl fmt::Display for RecordError {
             RecordError::Content => write!(f, "invalid pack.version"),
             RecordError::Ref { index } => write!(f, "invalid refs[{index}]"),
             RecordError::DuplicateRef { index } => write!(f, "duplicate name in refs[{index}]"),
+            RecordError::Unreadable => write!(f, "recorded versions are unreadable"),
         }
     }
 }
@@ -126,7 +131,7 @@ pub fn record_versions_with(
         refs,
     };
     // 書いた版が読み側の検査を通ることを保証する（読めない履歴を作らない）。
-    versions.parse().map_err(|_| RecordError::Engine)?;
+    versions.parse().map_err(|_| RecordError::Unreadable)?;
     Ok(versions)
 }
 
