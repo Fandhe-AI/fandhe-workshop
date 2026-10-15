@@ -6,13 +6,15 @@
 //! wasm 側の入口は `glue`（`mount_app`）で、`tools/build-web.sh` が wasm-bindgen で
 //! JS の glue に変換して配る。試験用の口は feature `test-hooks` の背後にだけ置く。
 //!
-//! アクセシビリティの構造の契約（TASK-366）は `a11y` に置く。
+//! アクセシビリティの構造の契約（TASK-366）は `a11y` に、受講者の文字列を非解釈で描く関数（SAFE-11）は
+//! `learner_text` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
 mod hello;
 
 pub mod input_limit;
+pub mod learner_text;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
