@@ -15,7 +15,7 @@
 //! | 枠 | 値 |
 //! |---|---|
 //! | `input_head` | コマンドとして字句化できた入力だけ、教材の接頭辞とコマンド名。それ以外は値なし（代替の文） |
-//! | `nearest_command` | 分類が `unknown_command` のときだけ。`commands` の名前から、編集距離（隣り合う 2 文字の入れ替えを 1 と数える）が [`NEAREST_MAX_DISTANCE`] 以下で最小のもの。`unsupported` と読めない値は除く。同じ距離なら名前の辞書順の先頭。接頭辞を付ける |
+//! | `nearest_command` | 分類が `unknown_command` のときだけ。`commands` の名前から、編集距離（隣り合う 2 文字の入れ替えを 1 と数える）が [`NEAREST_MAX_DISTANCE`] 以下で最小のもの。`unsupported` と読めない値は除く。同じ距離なら名前の辞書順の先頭。接頭辞を付ける。[`NEAREST_MAX_NAME_CHARS`] 文字を超える入力・候補は計算せず候補なしにする |
 //! | `step_title` | 現在の Step の題名 |
 //! | `step_do` | 現在の Step の `do`。無ければ値なし（題名で代えない） |
 //! | `remaining` | 処理中の残りの回数。処理中でなければ値なし |
@@ -48,6 +48,10 @@ use crate::session::RunState;
 
 /// 近いコマンドとみなす編集距離の上限。これを超える候補は選ばない（代替の文が出る）。
 pub const NEAREST_MAX_DISTANCE: usize = 2;
+
+/// 近いコマンドの探索で距離を計算する名前の最大文字数。超える入力・候補は計算せず候補なしとして扱う。
+/// 教材の名前は未信頼で長さを縛られていないので、計算量の上限をここで固定する。
+pub const NEAREST_MAX_NAME_CHARS: usize = 64;
 
 /// 充填できない理由。`Display` は入力値・教材の値・ID を埋め込まない固定の英文。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,12 +110,57 @@ pub fn osa_distance(a: &str, b: &str) -> usize {
     prev[b.len()]
 }
 
+/// 距離が `max` 以下のときだけその値を返す、帯状の編集距離（OSA）。計算量は O(長さ × (2 × max + 1))。
+///
+/// 帯（`|i - j| <= max`）の外は距離が `max` を超えるので計算しない。行の最小値が `max` を超えたら打ち切る。
+pub fn osa_distance_within(a: &str, b: &str, max: usize) -> Option<usize> {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let (n, m) = (a.len(), b.len());
+    if n.abs_diff(m) > max {
+        return None;
+    }
+    const INF: usize = usize::MAX / 2;
+    let mut prev2 = vec![INF; m + 1];
+    let mut prev = vec![INF; m + 1];
+    for (j, cell) in prev.iter_mut().enumerate().take(max.min(m) + 1) {
+        *cell = j;
+    }
+    for i in 1..=n {
+        let mut cur = vec![INF; m + 1];
+        let lo = i.saturating_sub(max);
+        let hi = (i + max).min(m);
+        if lo == 0 {
+            cur[0] = i;
+        }
+        let mut row_min = if lo == 0 { i } else { INF };
+        for j in lo.max(1)..=hi {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            let mut d = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                d = d.min(prev2[j - 2] + 1);
+            }
+            cur[j] = d;
+            row_min = row_min.min(d);
+        }
+        if row_min > max {
+            return None;
+        }
+        prev2 = prev;
+        prev = cur;
+    }
+    (prev[m] <= max).then_some(prev[m])
+}
+
 /// 表にない名前 `name` に近いコマンドを選ぶ。接頭辞を付けて返す。候補が無ければ `None`。
 ///
 /// `unsupported` の名前と、種類を読めない値の名前は候補にしない（エラーにもしない）。同じ距離のときは、
 /// 厳密に小さいときだけ更新するので、`BTreeMap` の順（名前の辞書順）の先頭が残る。
 pub fn nearest_command(ir: &Ir, prefix: &str, name: &str) -> Option<String> {
     let len = name.chars().count();
+    if len > NEAREST_MAX_NAME_CHARS {
+        return None;
+    }
     let mut best: Option<(usize, &str)> = None;
     for (cand, kind) in &ir.commands {
         if matches!(
@@ -120,13 +169,13 @@ pub fn nearest_command(ir: &Ir, prefix: &str, name: &str) -> Option<String> {
         ) {
             continue;
         }
-        if cand.chars().count().abs_diff(len) > NEAREST_MAX_DISTANCE {
+        let cand_len = cand.chars().count();
+        if cand_len > NEAREST_MAX_NAME_CHARS || cand_len.abs_diff(len) > NEAREST_MAX_DISTANCE {
             continue;
         }
-        let d = osa_distance(name, cand);
-        if d > NEAREST_MAX_DISTANCE {
+        let Some(d) = osa_distance_within(name, cand, NEAREST_MAX_DISTANCE) else {
             continue;
-        }
+        };
         if best.is_none_or(|(bd, _)| d < bd) {
             best = Some((d, cand));
         }
@@ -238,6 +287,42 @@ mod tests {
         assert_eq!(osa_distance("", "ab"), 2);
         assert_eq!(osa_distance("abc", "xyz"), 3);
         assert_eq!(osa_distance("日本語", "日本"), 1);
+    }
+
+    #[test]
+    fn banded_matches_full_within_limit() {
+        let words = [
+            "",
+            "a",
+            "ab",
+            "ba",
+            "help",
+            "hlep",
+            "hep",
+            "helpp",
+            "xyz",
+            "abcd",
+            "badc",
+            "日本語",
+            "日本",
+        ];
+        for a in words {
+            for b in words {
+                let full = osa_distance(a, b);
+                let got = osa_distance_within(a, b, 2);
+                assert_eq!(got, (full <= 2).then_some(full), "{a:?} {b:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn long_inputs_are_bounded() {
+        let long = "a".repeat(20_000);
+        let other = "b".repeat(20_000);
+        assert_eq!(osa_distance_within(&long, &other, 2), None);
+        let ir = ir_with(&[(other.as_str(), "builtin")]);
+        assert_eq!(nearest_command(&ir, "/", &long), None);
+        assert_eq!(nearest_command(&ir, "/", &other), None);
     }
 
     fn ir_with(commands: &[(&str, &str)]) -> Ir {
