@@ -5,6 +5,8 @@
 //! `debug_storage_write`・`debug_storage_state` を除き、状態は変更しない。
 //! `debug_request_complete` は、配信と同じ配送の口（`set_timeout` → `dispatch_action`）で補完を届けるだけである。
 //! `debug_storage_open` と `debug_storage_write` は、試験用の保存先（`STORAGE`）を開く・書くだけで、画面の状態には触れない。
+//! `debug_view_fixture_mount` と `debug_view_fixture_dispatch` は、`#app` の外の別の root に代役の部品（`view_fixture`）を
+//! マウントして action を届けるだけで、本体の画面の状態には触れない。`debug_view_fixture_state` は読み取りのみ。
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
 
 use wasm_bindgen::prelude::*;
@@ -291,4 +293,79 @@ pub fn debug_next_tick() -> String {
 #[wasm_bindgen]
 pub fn debug_request_complete() {
     crate::glue::request_complete();
+}
+
+thread_local! {
+    /// 代役の部品の Runtime。本体の `RUNTIME`（`glue`）とは別に持ち、状態を共有しない。
+    static VIEW_FIXTURE: std::cell::RefCell<Option<fandhe_frontend_wasm_full::Runtime<crate::view_fixture::ViewFixture>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// 左のビューの共通の検査器（TASK-471 2/3）が使う代役の部品を、`root_id` の要素にマウントする。
+///
+/// 本体の `#app` ではなく、試験が作った別の root を渡す。返り値は固定形の JSON で、成功は `{"ok":true}`、
+/// 失敗は `{"ok":false,"error":"already_mounted"|"busy"|"data"|"mount"}`。2 回目のマウントは拒否する。
+#[wasm_bindgen]
+pub fn debug_view_fixture_mount(root_id: &str) -> String {
+    use crate::view_fixture::ViewFixture;
+    VIEW_FIXTURE.with(|cell| {
+        let Ok(mut slot) = cell.try_borrow_mut() else {
+            return "{\"ok\":false,\"error\":\"busy\"}".to_string();
+        };
+        if slot.is_some() {
+            return "{\"ok\":false,\"error\":\"already_mounted\"}".to_string();
+        }
+        let Ok(fixture) = ViewFixture::load() else {
+            return "{\"ok\":false,\"error\":\"data\"}".to_string();
+        };
+        match fandhe_frontend_wasm_full::Runtime::mount(root_id, fixture) {
+            Ok(rt) => {
+                *slot = Some(rt);
+                "{\"ok\":true}".to_string()
+            }
+            Err(_) => "{\"ok\":false,\"error\":\"mount\"}".to_string(),
+        }
+    })
+}
+
+/// 代役の部品へ action を届ける（`Runtime::dispatch_action`）。結果は固定形の JSON で返す。
+///
+/// `outcome` は `applied`（受理）・`rejected`（未知の名前・不正な payload・許されない変種。状態も画面も変わらない）・
+/// `dropped`（再入）・`not_mounted`。
+#[wasm_bindgen]
+pub fn debug_view_fixture_dispatch(name: &str, payload: &str) -> String {
+    use crate::action::{dispatch_effect, DispatchEffect};
+    VIEW_FIXTURE.with(|cell| {
+        let outcome = match cell.try_borrow().ok().as_deref().and_then(Option::as_ref) {
+            None => "not_mounted",
+            Some(rt) => match dispatch_effect(rt.dispatch_action(name, payload)) {
+                DispatchEffect::Applied => "applied",
+                DispatchEffect::Rejected => "rejected",
+                DispatchEffect::Dropped => "dropped",
+            },
+        };
+        format!("{{\"outcome\":\"{outcome}\"}}")
+    })
+}
+
+/// 代役の部品の状態（選ばれたビュー・変種・前後）を固定形の JSON で返す（読み取りのみ）。未マウントは `null`。
+#[wasm_bindgen]
+pub fn debug_view_fixture_state() -> String {
+    use crate::artifact_view::Phase;
+    VIEW_FIXTURE.with(|cell| {
+        let Ok(slot) = cell.try_borrow() else {
+            return "null".to_string();
+        };
+        let Some(rt) = slot.as_ref() else {
+            return "null".to_string();
+        };
+        // `component()` は借用を取る。update は同期で完了するため、JS から呼ばれる時点では借用は解けている。
+        let f = rt.component();
+        serde_json::json!({
+            "selected": f.selected().as_str(),
+            "variant": f.variant().as_str(),
+            "phase": match f.phase() { Phase::Before => "before", Phase::After => "after" },
+        })
+        .to_string()
+    })
 }

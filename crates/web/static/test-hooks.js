@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -79,4 +79,18 @@ export function nextTick() {
 // 補完の action を配信と同じ配送の口（set_timeout → dispatch_action）で届ける（TASK-349）。
 export function requestComplete() {
   debug_request_complete();
+}
+
+// 左のビューの共通の検査器（TASK-471 2/3）が使う代役の部品。#app の外の root の id を渡してマウントする。
+// 返り値は固定形の JSON 文字列（mount: ok / error、dispatch: outcome、state: selected / variant / phase か "null"）。
+export function viewFixtureMount(rootId) {
+  return debug_view_fixture_mount(rootId);
+}
+
+export function viewFixtureDispatch(name, payload) {
+  return debug_view_fixture_dispatch(name, payload);
+}
+
+export function viewFixtureState() {
+  return debug_view_fixture_state();
 }
