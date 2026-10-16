@@ -2,7 +2,11 @@
 //!
 //! 3 Step の教材（`min-3step.json`）の st-1 を受け付けて処理中にし、再読み込みしても処理中のまま続き、
 //! 世代が +1（2 回なら +2）になり、ログと `ops` に `Reloaded`・`reload` が残ることを確かめる。
-//! 入口の写しは作り直さない。再読み込みの前の宛先の進行の無視と、その後の停止の戻り先は TASK-320 2/2 の範囲である。
+//! 入口の写しは作り直さない。
+//!
+//! TASK-320 2/2 として、再読み込みの前に予約された宛先の進行が後から届いても状態が変わらず `Ignored(Stale)` が
+//! 1 件だけ増えること（再読み込みを 2 回挟んでも同じ）と、再読み込みの後の停止が Step の入口へ戻ることを固定する。
+//! 性質テスト H-6 は `history_verify.rs` の `reload_at_any_point` が持つ。
 
 mod common;
 
@@ -11,8 +15,8 @@ use common::record_path::RecordPath;
 use common::tick::next_tick;
 use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
-use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
+use fandhe_workshop_core::event::{Event, IgnoreReason};
 use fandhe_workshop_core::history_envelope::build_envelope;
 use fandhe_workshop_core::history_replay::verify_envelope;
 use fandhe_workshop_core::input::{Control, Input, Op};
@@ -216,4 +220,123 @@ fn recorded_reload_replays_to_the_same_state() {
     assert_eq!(reloads, 1);
     let env = build_envelope(&ir, "s-1", rec.into_ops(), state.clone()).expect("build");
     assert_eq!(verify_envelope(&ir, load().initial, &env), Ok(state));
+}
+
+/// 古い宛先を送り、`Ignored(Stale)` がちょうど 1 件で、ログ以外の状態が変わらないことを確かめて新しい状態を返す。
+fn assert_stale_ignored(ir: &Ir, state: SessionState, old: TickAddr) -> SessionState {
+    let (after, events) = apply(ir, state.clone(), Op::Tick(old));
+    // `at` は操作前の状態から作り、外から来た宛先の世代を写さない。
+    let step = state.run.current.clone().expect("current");
+    assert_eq!(
+        events,
+        [Event::Ignored {
+            at: Stamp {
+                generation: state.run.generation,
+                step,
+            },
+            reason: IgnoreReason::Stale
+        }]
+    );
+    assert_eq!(after.log.len(), state.log.len() + 1);
+    assert_eq!(after.log.get(state.log.len()..), Some(events.as_slice()));
+    let mut expected = state;
+    expected.log = after.log.clone();
+    assert_eq!(after, expected);
+    after
+}
+
+#[test]
+fn stale_tick_after_reload_is_ignored_once() {
+    let ir = ir();
+    let before = busy_state(&ir, 2);
+    let old = next_tick(&before).expect("next tick");
+    assert_eq!(old.generation, Generation(1));
+    let (reloaded, _) = reload(before);
+    let after = assert_stale_ignored(&ir, reloaded.clone(), old);
+    assert_eq!(after.run.generation, Generation(2));
+    assert_eq!(after.run.busy, reloaded.run.busy);
+    // 古い進行が効いていなければ、新しい宛先で最後まで流した結果は再読み込みなしの経路と同じになる。
+    let plain = run_to_end(&ir, busy_state(&ir, 2));
+    let done = run_to_end(&ir, after);
+    assert_eq!(done.run.busy, None);
+    assert_eq!(done.run.world, plain.run.world);
+    assert_eq!(done.run.slices, plain.run.slices);
+    assert_eq!(done.run.completed, plain.run.completed);
+}
+
+#[test]
+fn stale_ticks_from_before_two_reloads_are_each_ignored() {
+    let ir = ir();
+    for between in [false, true] {
+        let mut state = busy_state(&ir, 1);
+        let old0 = next_tick(&state).expect("next tick");
+        state = reload(state).0;
+        if between {
+            let addr = next_tick(&state).expect("next tick");
+            state = apply(&ir, state, Op::Tick(addr)).0;
+        }
+        let old1 = next_tick(&state).expect("next tick");
+        state = reload(state).0;
+        assert!(state.run.generation.0 >= 3, "between={between}");
+        let start = state.log.len();
+        state = assert_stale_ignored(&ir, state, old0);
+        state = assert_stale_ignored(&ir, state, old1);
+        assert_eq!(state.log.len(), start + 2, "between={between}");
+    }
+}
+
+#[test]
+fn stale_tick_after_reload_when_not_busy_is_stale() {
+    let ir = ir();
+    let busy = busy_state(&ir, 1);
+    let old = next_tick(&busy).expect("next tick");
+    let done = run_to_end(&ir, busy);
+    assert_eq!(done.run.busy, None);
+    let (reloaded, _) = reload(done);
+    assert_stale_ignored(&ir, reloaded, old);
+}
+
+#[test]
+fn stop_after_reload_returns_to_step_entry() {
+    let ir = ir();
+    let before = busy_state(&ir, 2);
+    let entry = before.entry.clone().expect("entry");
+    let old0 = next_tick(&before).expect("next tick");
+    let (reloaded, _) = reload(before);
+    let old1 = next_tick(&reloaded).expect("next tick");
+    let (stopped, events) = apply(&ir, reloaded, Op::Control(Control::Stop));
+    assert!(matches!(
+        events.first(),
+        Some(Event::Stopped { at, new_generation })
+            if *at == stamp(2) && *new_generation == Generation(3)
+    ));
+    // 入口の写しは再読み込みで作り直されないので、停止は再読み込みの前の入口へ戻る。
+    assert_eq!(stopped.entry, Some(entry.clone()));
+    let mut expected = entry.run;
+    expected.generation = Generation(3);
+    expected.busy = None;
+    assert_eq!(stopped.run, expected);
+    // 停止の前の宛先は、再読み込みの前のものも後のものも無視される。
+    let s = assert_stale_ignored(&ir, stopped, old0);
+    assert_stale_ignored(&ir, s, old1);
+}
+
+#[test]
+fn session_reload_then_apply_ignores_stale_tick() {
+    let ir = ir();
+    let before = busy_state(&ir, 2);
+    let old = next_tick(&before).expect("next tick");
+    let (pure_state, _) = reload(before.clone());
+    let expected = assert_stale_ignored(&ir, pure_state, old.clone());
+    let mut session = Session::from_state(ir, before);
+    session.reload();
+    let events = session.apply(Op::Tick(old)).to_vec();
+    assert!(matches!(
+        events.as_slice(),
+        [Event::Ignored {
+            reason: IgnoreReason::Stale,
+            ..
+        }]
+    ));
+    assert_eq!(session.state(), &expected);
 }

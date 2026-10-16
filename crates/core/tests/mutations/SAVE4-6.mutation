@@ -1,0 +1,8 @@
+id: SAVE4-6
+package: fandhe-workshop-core
+test: reload_busy
+target: crates/core/src/reload.rs
+find:     state.run.generation = next;
+replace:     state.run.generation = next; state.entry = Some(crate::session::EntryCopy { run: state.run.clone(), log_len: 0 });
+expect-fail: stop_after_reload_returns_to_step_entry
+note: 再読み込みで入口の写しを作り直す。停止の戻り先が再読み込みの時点になる
