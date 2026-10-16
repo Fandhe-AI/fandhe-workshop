@@ -1,4 +1,4 @@
-//! 履歴の読み込みの拒否理由コードの一覧（TASK-310 2/3、保存先の契約の版 1 の範囲）。
+//! 履歴の読み込みの拒否理由コードの一覧と判定の順序（TASK-310 2/3・3/3、保存先の契約の版 1 の範囲）。
 //!
 //! 履歴の読み込みで「開かない」「表示だけ」になる理由の名前を、この 1 か所だけに定義する。
 //! 呼び出し元は、読み込みの段を実装する core（TASK-331）、版の判定（TASK-146・TASK-155・TASK-169・
@@ -27,19 +27,125 @@
 //! - `bad_version`（版の文字列が読めない。[`ReasonKind::UnreadableVersion`] に対応）
 //! - `start_missing`（履歴の起点が教材に無い）
 //!
+//! 判定の順序（TASK-310 3/3）:
+//!
+//! 順序の正は [`HISTORY_LOAD_ORDER`]（上から判定し、最初に当たった理由で結果が決まる）である。
+//! 各理由が属する段は [`LoadReason::stage`]、段の並びは [`HistoryLoadStage::ALL`] が表す。
+//! 呼び出し元は、読み込みの経路を実装する core（TASK-331）と、版の違う履歴の判定（TASK-174）である。
+//! どちらもこの順序に従い、別の並びを作らない。どの段の拒否も副作用を持たない（SAVE-19）。
+//!
+//! | 段 | 段の名前 | 理由コード |
+//! |---|---|---|
+//! | 1 | [`HistoryLoadStage::Size`] | `too_large` |
+//! | 2 | [`HistoryLoadStage::Depth`] | `too_deep` |
+//! | 3 | [`HistoryLoadStage::Json`] | `truncated`・`not_json` |
+//! | 4 | [`HistoryLoadStage::VersionField`] | `missing_version` |
+//! | 5 | [`HistoryLoadStage::Type`] | `malformed`・`too_many_ops`・`history_format_newer`・`other_pack` |
+//! | 6 | [`HistoryLoadStage::VersionJudgment`] | `bad_version`・`format_newer`・`vocab_newer`・`engine_newer`・`format_older`・`engine_major`・`content_major` |
+//! | 7 | [`HistoryLoadStage::Replay`] | `start_missing` |
+//! | 8 | [`HistoryLoadStage::SnapshotMatch`] | `replay_mismatch`・`replay_diverged` |
+//!
+//! 【推論】次の位置は SAVE-19 に記録が無く、試作の判定順（`open_history`）に合わせて仮に置いた。
+//! - `truncated` は Json 段に置く。SAVE-19 は位置を未確認とし、TASK-331 が実装で確かめて記録する。
+//!   結果が違えば [`crate::storage::STORAGE_CONTRACT_VERSION`] を上げて直す
+//! - `history_format_newer`・`other_pack` は Type 段に置く。どちらも 4 軸の版の理由ではなく（[`ReasonCode::kind`] が `None`）、
+//!   試作では `malformed`・`too_many_ops` の後、`bad_version` の前にある
+//! - `too_many_ops` は Type 段に置く。上限の契約（[`LimitReason::stage`]）の「型の後・適用し直しの前」に合わせる
+//! - `start_missing` は Replay 段に置く。試作は、起点が教材に無いことを適用し直しの失敗として判定する
+//!
+//! 同じ段の中で条件が排他な組（`truncated` と `not_json`、`replay_mismatch` と `replay_diverged`）は、
+//! 並びの前後に意味が無い。順序を変える場合は、先に spec を直し、保存先の契約の版を上げる。
+//!
 //! 定義しないもの:
-//! - 判定の順序と段への対応（TASK-310 3/3）。[`LoadReason::ALL`] の並びは試作の判定順に合わせたが、順序の契約ではない
 //! - どの理由が表示だけ・開かないになるかの線引き（[`crate::history_version::Disposition`]。TASK-174）
 //! - 受講者向けの文面（D-57・SHELL-36 が未決。TASK-532）
-//! - `truncated` の意味の食い違い（SAVE-19 は UTF-8 の途中切れ、試作は JSON が入力の終わりで途切れたもの）と、
-//!   判定の列の中での位置。名前だけを固定し、未確認として TASK-310 3/3 で決める
+//! - `truncated` の意味の食い違い（SAVE-19 は UTF-8 の途中切れ、試作は JSON が入力の終わりで途切れたもの）。
+//!   位置は上の【推論】のとおり仮置きで、TASK-331 が確かめる
 //! - core の `LoadError`・`MissingVersion` からの対応づけ（contract は core に依存できない。TASK-331・TASK-174）
 //!
 //! 理由コードは固定の `&'static str` だけで、読み込んだ内容を含めない（SAFE-40）。
 
 use crate::history_version::{ReasonCode, ReasonKind, VersionAxis};
-use crate::limits::LimitReason;
+use crate::limits::{LimitReason, LoadStage};
 use core::fmt;
+
+/// 履歴の読み込みの判定の段（SAVE-19 の 8 段）。小さい順に判定し、どの段の拒否も副作用を持たない。
+///
+/// IR と履歴に共通の粗い 4 段（[`LoadStage`]）は [`HistoryLoadStage::coarse`] で得る。
+/// 呼び出し元は core の読み込みの経路（TASK-331）と版の判定（TASK-174）である。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum HistoryLoadStage {
+    /// 大きさ。
+    Size,
+    /// 入れ子の深さ。
+    Depth,
+    /// JSON の解釈。
+    Json,
+    /// 版の欄の有無。
+    VersionField,
+    /// 型・内容の検査。
+    Type,
+    /// 版の判定（VER-2〜VER-7）。
+    VersionJudgment,
+    /// 適用し直し。
+    Replay,
+    /// 写しとの照合。
+    SnapshotMatch,
+}
+
+impl HistoryLoadStage {
+    /// すべての段。判定の順。
+    pub const ALL: [HistoryLoadStage; 8] = [
+        HistoryLoadStage::Size,
+        HistoryLoadStage::Depth,
+        HistoryLoadStage::Json,
+        HistoryLoadStage::VersionField,
+        HistoryLoadStage::Type,
+        HistoryLoadStage::VersionJudgment,
+        HistoryLoadStage::Replay,
+        HistoryLoadStage::SnapshotMatch,
+    ];
+
+    /// SAFE-20 の粗い 4 段への対応。大きさ・深さ・JSON の後は、すべて型・内容の段に含める。
+    pub const fn coarse(self) -> LoadStage {
+        match self {
+            HistoryLoadStage::Size => LoadStage::Size,
+            HistoryLoadStage::Depth => LoadStage::Depth,
+            HistoryLoadStage::Json => LoadStage::JsonParse,
+            HistoryLoadStage::VersionField
+            | HistoryLoadStage::Type
+            | HistoryLoadStage::VersionJudgment
+            | HistoryLoadStage::Replay
+            | HistoryLoadStage::SnapshotMatch => LoadStage::TypeAndContent,
+        }
+    }
+}
+
+/// 判定の順序の契約の正。上から判定し、最初に当たった理由で結果が決まる。
+///
+/// 同じ段の排他な組（`truncated`・`not_json`、`replay_mismatch`・`replay_diverged`）は条件で分かれ、
+/// 並びの前後に意味が無い。変えるときは保存先の契約の版（[`crate::storage::STORAGE_CONTRACT_VERSION`]）を上げる。
+pub const HISTORY_LOAD_ORDER: [LoadReason; 19] = [
+    LoadReason::TooLarge,           // 1 大きさ
+    LoadReason::TooDeep,            // 2 入れ子の深さ
+    LoadReason::Truncated,          // 3 JSON の解釈（仮置き）
+    LoadReason::NotJson,            // 3 JSON の解釈
+    LoadReason::MissingVersion,     // 4 版の欄
+    LoadReason::Malformed,          // 5 型
+    LoadReason::TooManyOps,         // 5 型（件数）
+    LoadReason::HistoryFormatNewer, // 5 型（包みの形式）
+    LoadReason::OtherPack,          // 5 型（別の教材）
+    LoadReason::BadVersion,         // 6 版の判定（読めない版）
+    LoadReason::FormatNewer,        // 6 版の判定（構造が新しい）
+    LoadReason::VocabNewer,         // 6 版の判定（語彙が新しい）
+    LoadReason::EngineNewer,        // 6 版の判定（エンジンが新しい）
+    LoadReason::FormatOlder,        // 6 版の判定（構造が古い）
+    LoadReason::EngineMajor,        // 6 版の判定（エンジンの主版）
+    LoadReason::ContentMajor,       // 6 版の判定（教材の主版）
+    LoadReason::StartMissing,       // 7 適用し直し
+    LoadReason::ReplayMismatch,     // 8 写しとの照合（壊れた履歴）
+    LoadReason::ReplayDiverged,     // 8 写しとの照合（版の違い）
+];
 
 /// 読み込みの拒否理由コード（19 種）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -85,7 +191,7 @@ pub enum LoadReason {
 }
 
 impl LoadReason {
-    /// すべての理由。並びは試作の判定順に合わせたが、判定の順序の契約ではない。
+    /// すべての理由。並びは試作の `Code` の宣言順で、判定の順序の契約ではない（判定の順序は [`HISTORY_LOAD_ORDER`]）。
     pub const ALL: [LoadReason; 19] = [
         LoadReason::TooLarge,
         LoadReason::TooDeep,
@@ -136,6 +242,31 @@ impl LoadReason {
     /// 正規の文字列だけを受ける。大文字・空白つき・未知の文字列は `None`（既定値へ倒さない）。
     pub fn parse(s: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|r| r.as_str() == s)
+    }
+
+    /// この理由を判定する段。判定の順序は [`HISTORY_LOAD_ORDER`] が正で、段は常にその順に沿って減らない。
+    pub const fn stage(self) -> HistoryLoadStage {
+        match self {
+            LoadReason::TooLarge => HistoryLoadStage::Size,
+            LoadReason::TooDeep => HistoryLoadStage::Depth,
+            LoadReason::Truncated => HistoryLoadStage::Json,
+            LoadReason::NotJson => HistoryLoadStage::Json,
+            LoadReason::MissingVersion => HistoryLoadStage::VersionField,
+            LoadReason::Malformed => HistoryLoadStage::Type,
+            LoadReason::TooManyOps => HistoryLoadStage::Type,
+            LoadReason::HistoryFormatNewer => HistoryLoadStage::Type,
+            LoadReason::OtherPack => HistoryLoadStage::Type,
+            LoadReason::BadVersion => HistoryLoadStage::VersionJudgment,
+            LoadReason::FormatNewer => HistoryLoadStage::VersionJudgment,
+            LoadReason::VocabNewer => HistoryLoadStage::VersionJudgment,
+            LoadReason::EngineNewer => HistoryLoadStage::VersionJudgment,
+            LoadReason::FormatOlder => HistoryLoadStage::VersionJudgment,
+            LoadReason::EngineMajor => HistoryLoadStage::VersionJudgment,
+            LoadReason::ContentMajor => HistoryLoadStage::VersionJudgment,
+            LoadReason::StartMissing => HistoryLoadStage::Replay,
+            LoadReason::ReplayMismatch => HistoryLoadStage::SnapshotMatch,
+            LoadReason::ReplayDiverged => HistoryLoadStage::SnapshotMatch,
+        }
     }
 
     /// 上限に関わる理由なら、対応する [`LimitReason`]。
