@@ -262,7 +262,7 @@ impl EngineHost {
     /// 3 つの表示の照合用の状態を JSON 文字列で返す（読み取りのみ。試験の設定だけ）。
     ///
     /// 表示の導出（増分）とは別に、ログの全体から一括で導いた値を出す。ブラウザ試験が、DOM がこの値と
-    /// 一致することを確かめる。文字列のエスケープは `serde_json` に任せる。
+    /// 一致することを確かめる。拒否の分類（`judgedCategories`）は、`busy` の回数を数えるために足した（TASK-222）。文字列のエスケープは `serde_json` に任せる。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn engine_snapshot_json(&self) -> String {
         use crate::engine_parts::{artifact_rows, event_kind_name};
@@ -307,9 +307,29 @@ impl EngineHost {
                 })
             })
             .collect();
+        // 拒否の `Judged` だけの分類。EVT-7 の `busy` の回数をブラウザ試験が数える（TASK-222）。
+        // ログ行の欄は DOM の照合（three-views）が使うため、増やさずここへ分けて置く。
+        let judged_categories: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                fandhe_workshop_core::event::Event::Judged {
+                    at,
+                    judgment: fandhe_workshop_contract::judgment::Judgment::Rejected(r),
+                    ..
+                } => Some(json!({
+                    "event": i,
+                    "generation": at.generation.0,
+                    "step": at.step.0,
+                    "category": r.category.as_str(),
+                })),
+                _ => None,
+            })
+            .collect();
         json!({
             "irLoaded": true,
             "logLen": log.len(),
+            "judgedCategories": judged_categories,
             "consumed": bulk.consumed(),
             "generation": session.generation().0,
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
