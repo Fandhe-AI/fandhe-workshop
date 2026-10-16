@@ -1,0 +1,8 @@
+id: VER7-1
+package: fandhe-workshop-contract
+test: load_reason_contract
+target: crates/contract/src/load_reason.rs
+find:             LoadReason::ContentMajor => Some(ReasonKind::MajorDiffers(VersionAxis::Content)),
+replace:             LoadReason::ContentMajor => None,
+expect-fail: reason_kind_mapping
+note: content_major の分類を落とす（Verdict の版に関わる分類が失われる）

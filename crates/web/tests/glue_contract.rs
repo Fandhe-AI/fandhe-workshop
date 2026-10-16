@@ -80,6 +80,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "draft",
     "over_limit",
     "keydown_probe",
+    "esc_count",
     "rerender",
     "flatten",
     "and_then",

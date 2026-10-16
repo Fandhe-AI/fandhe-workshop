@@ -105,7 +105,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 差し込みの枠の閉じた集合・構文の読み取り・差し込みの純関数（`slot`。実行時の値の組み立ては core〔TASK-267〕、診断と IR を総なめにする数え上げは pack） | contract | TASK-46 |
 | 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
 | 保存先の口 `HistoryStore`・配信の区間・履歴の鍵の生成規則と読み戻し（`storage`。鍵に教材の版・内容を混ぜない） | contract | TASK-310 |
-| 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード | contract | TASK-173・TASK-309・TASK-310 |
+| 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード（`load_reason`） | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈は contract、1 語ごとの適用は core、読み込み時の検査と診断は pack（spec の TASK-43 は「pack crate」と書くが、判定規則に従い分ける。IR の型は `Value` のまま変えない。進行 `processing` は contract が解釈し core が適用、`when` は core に評価器を注入する形で条件の語彙は TASK-42 が与える。TASK-43 2/2） | contract・core・pack | TASK-43 |
@@ -126,6 +126,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
 | 受講者の操作を履歴の `ops` に追記する記録（`ops_record`。`SessionOp` は contract の `HistoryOp<Op>` の別名。契約の版の対象外。再読み込みは含まない） | core | TASK-315 |
 | `ops`・写し・4 軸の版を履歴の包み（`SessionEnvelope` = contract の `HistoryEnvelope<Op, SessionState>`）に組み立てる処理と、下書きの記録と写しの `drafts` の同期（`history_envelope`。契約の版の対象外。適用し直しによる復元・読み込み・書き出しは含まない） | core | TASK-315 |
+| `ops` を初期状態に順に適用し直す復元と送信の分類（`history_replay`。契約の版の対象外。写しとの照合・`replay_mismatch`・再読み込みは含まない） | core | TASK-316 |
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |

@@ -16,6 +16,7 @@
 //! 境界（本契約が定義しないもの）:
 //! - 理由コードの名前（`missing_version` など）と順序は TASK-310。[`Verdict`] は理由コードの型を
 //!   [`ReasonCode`] として外から受け取り、本契約の分類 [`ReasonKind`] との対応は TASK-310 が付ける
+//!   （実装は [`crate::load_reason::LoadReason`]）
 //! - 履歴の包み（`format`・`pack_id`・`start`・`ops`・`snapshot`）は [`crate::history::HistoryEnvelope`]（TASK-309）。`ops` の 1 件の型も [`crate::history`]
 //! - `content_hash` の求め方（本文の木を除いた IR の SHA-256、D-51）は [`crate::content_hash`]（TASK-180）。ここは書式だけを検査する
 //! - 開く側の上限（`ir_format` の最大・語彙・エンジンの版）は判定（TASK-174）が持つ

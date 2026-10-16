@@ -13,11 +13,11 @@ use wasm_bindgen::JsCast;
 
 use fandhe_workshop_contract::key_decide::{decide, KeyInput};
 
-use crate::hello::HelloView;
+use crate::host::EngineHost;
 use crate::key_route::{effect_for, field_state};
 
 thread_local! {
-    static RUNTIME: RefCell<Option<Runtime<HelloView>>> = const { RefCell::new(None) };
+    static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -26,13 +26,13 @@ pub(crate) fn is_mounted() -> bool {
     RUNTIME.with(|r| r.try_borrow().map(|r| r.is_some()).unwrap_or(false))
 }
 
-/// App（`HelloView`）を読み取り専用で借りて `f` を呼ぶ。glue が App に触れる唯一の口。
+/// App（`EngineHost`）を読み取り専用で借りて `f` を呼ぶ。glue が App に触れる唯一の口。
 ///
 /// 状態を変える経路（`update`・`dispatch_action`）をここから作らせないため、閉じ込めは共有参照だけにする。
 /// `tests/state_paths.rs` が、`component()` の呼び出しがこの関数の本体の 1 箇所だけであることを固定する。
 /// `Runtime::component()` は `RefCell` の借用を取る。update は同期で完了するため、JS から呼ばれる時点で
 /// 可変借用は残らない。念のため外側の借用は `try_borrow` で確かめ、未マウント・借用中は `None`（安全側）を返す。
-fn with_app<T>(f: impl FnOnce(&HelloView) -> T) -> Option<T> {
+fn with_app<T>(f: impl FnOnce(&EngineHost) -> T) -> Option<T> {
     RUNTIME.with(|cell| {
         let slot = cell.try_borrow().ok()?;
         let rt = slot.as_ref()?;
@@ -45,6 +45,12 @@ fn with_app<T>(f: impl FnOnce(&HelloView) -> T) -> Option<T> {
 #[cfg(feature = "test-hooks")]
 pub(crate) fn keydown_probe_count() -> Option<u32> {
     with_app(|app| app.keydown_probe())
+}
+
+/// root の中の Esc の受信回数。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn esc_count() -> Option<u32> {
+    with_app(|app| app.esc_count())
 }
 
 /// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
@@ -198,7 +204,7 @@ pub(crate) fn rerender() -> bool {
     })
 }
 
-/// `root_id` の要素に Hello をマウントする。2 回目以降は拒否する。
+/// `root_id` の要素にホストをマウントする。2 回目以降は拒否する。
 ///
 /// # Errors
 ///
@@ -212,7 +218,7 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         if slot.is_some() {
             return Err(JsValue::from_str("already mounted"));
         }
-        let runtime = Runtime::mount(root_id, HelloView::new())?;
+        let runtime = Runtime::mount(root_id, EngineHost::new())?;
         let root = runtime.root();
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;

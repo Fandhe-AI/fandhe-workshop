@@ -11,14 +11,18 @@ pub fn debug_state_json() -> String {
     let probe = crate::glue::keydown_probe_count()
         .map(|n| n.to_string())
         .unwrap_or_else(|| "null".to_string());
+    let esc = crate::glue::esc_count()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "null".to_string());
     // 本文は JSON に入れない（エスケープを避ける）。照合は `debug_draft` で行う。
     let (cps, over) = crate::glue::draft_snapshot()
         .map(|(n, o, _)| (n.to_string(), o.to_string()))
         .unwrap_or_else(|| ("null".to_string(), "null".to_string()));
     format!(
-        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"draftCodePoints\":{},\"inputOverLimit\":{}}}",
+        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"escCount\":{},\"draftCodePoints\":{},\"inputOverLimit\":{}}}",
         crate::glue::is_mounted(),
         probe,
+        esc,
         cps,
         over
     )

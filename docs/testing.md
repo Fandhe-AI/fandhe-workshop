@@ -44,6 +44,9 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   `properties_p1_to_p6_hold_with_guided_sequences` と `op_sequence_replay.rs` の
   `replay_from_start_matches_after_every_op_with_guided_sequences` が、固定の生成と同じく 1,000 通り流す。誘導つきの 1,000 通りの実測は
   dev プロファイルで約 2〜3 秒（2026-10-16）
+- 適用し直しによる復元の一致（TASK-316 1/3、SAVE-1）は `crates/core/tests/history_replay.rs` にある。下書きを挟んだ記録の経路で得た写しと、
+  その `ops` を初期状態に適用し直した状態が一致することを、固定・誘導つきの生成で各 1,000 通り確かめる。2 本あわせた実測は
+  dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
 - `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
   （環境変数を受けない）。実測（2026-10-16、1,000 通り）は、確認による達成が固定 29 件・誘導 1,075 件、最後の Step（`main/st-3`）が
   達成まで届いた列が固定 28 通り・誘導 509 通り、達成の直後に同じ操作で次の Step へ入った件数が固定 150 件・誘導 1,083 件。章の完了
@@ -1303,6 +1306,24 @@ JUDGE22-3 は `key_route::effect_for` の `Nothing` の腕を送信にする変�
 | JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたまま | 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる | 同左を含む 2 件 | DETECTED | - |
 | JUDGE19-2 | crates/web/src/key_route.rs: 候補が開いて文字があっても Tab を止めない | tab_は候補が開いていて文字があるときだけ_prevent_default_する | 同左 | DETECTED | - |
 | JUDGE21-2 | crates/web/src/key_route.rs: 末尾の候補で補完する | 補完は先頭の候補を選ぶ | 同左 | DETECTED | - |
+
+### 5.56 読み込みの拒否理由コード（TASK-310 2/3）
+
+SAVE20-1 は `other_pack` の文字列を `malformed` に重ねる変異で、理由コードの名前の重複を作る。検出先は契約試験 `load_reason_contract` の `codes_are_unique` である。
+SAVE20-2 は `too_large` を `LimitReason` に委ねず文字列で再定義する変異で、上限の契約とのずれを作る。検出先は `limit_codes_delegate_to_limit_reason` である。
+VER7-1 は `content_major` の `ReasonKind` への対応を落とす変異で、検出先は `reason_kind_mapping` である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e9306ca-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/contract/tests/mutations/SAVE20-1.mutation crates/contract/tests/mutations/SAVE20-2.mutation crates/contract/tests/mutations/VER7-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| SAVE20-1 | crates/contract/src/load_reason.rs: 拒否理由コードの名前を重複させる | codes_are_unique | codes_are_unique を含む 4 件 | DETECTED | - |
+| SAVE20-2 | crates/contract/src/load_reason.rs: 上限の理由コードを委ねずに再定義する | limit_codes_delegate_to_limit_reason | 同左を含む 3 件 | DETECTED | - |
+| VER7-1 | crates/contract/src/load_reason.rs: content_major の分類を落とす | reason_kind_mapping | 同左を含む 2 件 | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
