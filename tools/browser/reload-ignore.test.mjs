@@ -150,7 +150,7 @@ test('R-1 再読み込みの前に予約された実タイマーは、後から�
     const { before, afters: [reloaded] } = await actWhenTicks(page, 2, [{ reload: true }]);
     assert.equal(reloaded.generation, 2);
     assert.equal(reloaded.current, ST1);
-    // `Reloaded` は行にしないイベントのため、log の行ではなく logLen の増分（1 件）で数える。
+    // `Reloaded` は右のログの行になる（SAVE-6。行の数は reload-notice.test.mjs が見る）。ここでは logLen の増分（1 件）で見る。
     assert.equal(reloaded.logLen - before.logLen, 1);
     assert.deepEqual(withoutGeneration(reloaded), withoutGeneration(before), '再読み込みで世代以外が変わった');
     assert.deepEqual(await nextTick(page), { generation: 2, step: ST1, index: 2 });

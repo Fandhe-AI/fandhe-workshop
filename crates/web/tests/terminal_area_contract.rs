@@ -241,7 +241,7 @@ fn one_line(l: Node) -> Node {
 
 #[test]
 fn version_and_values_are_fixed() {
-    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 1);
+    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 2);
     let kinds: Vec<_> = LineKind::ALL.iter().map(|k| k.as_str()).collect();
     assert_eq!(
         kinds,
@@ -251,7 +251,8 @@ fn version_and_values_are_fixed() {
             "rejected",
             "clarified",
             "progress",
-            "stopped"
+            "stopped",
+            "reloaded"
         ]
     );
     let inputs: Vec<_> = InputMethod::ALL.iter().map(|k| k.as_str()).collect();
