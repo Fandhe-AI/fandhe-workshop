@@ -2,10 +2,12 @@
 //! 教材は `min-3step.json`（`help`・`make-note`・`publish-note` と、`unsupported` の `sync-cloud`）。
 //! 試験では `unwrap` を使ってよい。
 
+use std::cell::Cell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use fandhe_frontend_core::Node;
-use fandhe_frontend_interactive::Component;
+use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::engine_parts::standard_registry;
@@ -152,4 +154,90 @@ fn コマンド表の無いホストでは開かない() {
     let mut h = EngineHost::new();
     act(&mut h, "draft", "/he");
     assert_eq!(state(&h), (true, vec![]));
+}
+
+// ---- Tab の補完（TASK-440 2/2。TERM-11・D-60・TERM-42）----
+
+/// 書き戻しの通知の回数を数える口を付ける。
+fn with_sync(mut h: EngineHost) -> (EngineHost, Rc<Cell<u32>>) {
+    let n = Rc::new(Cell::new(0));
+    let c = Rc::clone(&n);
+    h.set_draft_sync_request(Box::new(move || c.set(c.get() + 1)));
+    (h, n)
+}
+
+fn complete(h: &mut EngineHost) {
+    act(h, "complete", "");
+}
+
+#[test]
+fn 補完は先頭の候補に置き換え_一覧を閉じ_書き戻しを一度だけ頼む() {
+    let (mut h, sync) = with_sync(host());
+    let log = h.model().session().unwrap().log().len();
+    let projection = h.model().projection().clone();
+    act(&mut h, "draft", "/he");
+    complete(&mut h);
+    assert_eq!(h.draft(), "/help");
+    assert_eq!(h.dirty_fields(), ["input_candidates"]);
+    assert_eq!(state(&h), (true, vec![]));
+    assert_eq!(sync.get(), 1);
+    assert_eq!(h.model().session().unwrap().log().len(), log);
+    assert_eq!(h.model().projection(), &projection);
+}
+
+#[test]
+fn 複数の候補があれば名前順の先頭で補完し_unsupported_は選ばない() {
+    for (draft, want) in [
+        ("/", "/help"),
+        ("/m", "/make-note"),
+        ("/p", "/publish-note"),
+    ] {
+        let mut h = host();
+        act(&mut h, "draft", draft);
+        complete(&mut h);
+        assert_eq!(h.draft(), want, "{draft}");
+    }
+}
+
+#[test]
+fn 補完しない場面では下書きも_dirty_も書き戻しも変えない() {
+    // `/s` は unsupported の `sync-cloud` だけに前方一致する（候補に出ないため開かない）。
+    for d in ["/s", "/help", "/zzz", "", "he", "/he lp"] {
+        let (mut h, sync) = with_sync(host());
+        act(&mut h, "draft", d);
+        complete(&mut h);
+        assert_eq!(h.draft(), d, "{d:?}");
+        assert!(h.dirty_fields().is_empty(), "{d:?}");
+        assert_eq!(sync.get(), 0, "{d:?}");
+    }
+}
+
+#[test]
+fn esc_で閉じた一覧は補完しない() {
+    let (mut h, sync) = with_sync(host());
+    act(&mut h, "draft", "/he");
+    act(&mut h, "esc", "Escape");
+    complete(&mut h);
+    assert_eq!(h.draft(), "/he");
+    assert_eq!(sync.get(), 0);
+}
+
+#[test]
+fn 補完の後の_esc_はログを変えない() {
+    let mut h = host();
+    let log = h.model().session().unwrap().log().len();
+    act(&mut h, "draft", "/he");
+    complete(&mut h);
+    act(&mut h, "esc", "Escape");
+    assert_eq!(h.draft(), "/help");
+    assert_eq!(h.model().session().unwrap().log().len(), log);
+}
+
+#[test]
+fn コマンド表の無いホストでは補完しない() {
+    let (mut h, sync) = with_sync(EngineHost::new());
+    act(&mut h, "draft", "/he");
+    complete(&mut h);
+    assert_eq!(h.draft(), "/he");
+    assert_eq!(sync.get(), 0);
 }

@@ -109,7 +109,7 @@ pub enum HostAction {
     Input(HelloAction),
     /// core への操作。
     Engine(Op),
-    /// 補完（FEND-4）。挿入は TASK-440 2/2（#332）が足すまで、状態を変えない。
+    /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
     ///
@@ -412,6 +412,11 @@ impl EngineHost {
     /// 入力欄の値。glue が DOM へ書き戻すために読む。
     pub fn draft(&self) -> &str {
         self.input.draft()
+    }
+
+    /// 候補の一覧が開いているか。glue が Tab の判定（補完か通常のフォーカス移動か）に使う（TERM-42）。
+    pub fn candidates_open(&self) -> bool {
+        self.input.candidates_open()
     }
 
     /// 直近の入力で切り捨てが起きたか（試験用の口が読む）。
@@ -814,11 +819,18 @@ impl Component for EngineHost {
             HostAction::OpenHistory(text) => {
                 self.last_import = Some(self.open_history(text.as_bytes()));
             }
-            // 補完の挿入は TASK-440 2/2（#332）の担当。ここでは状態もログも変えず、dirty も積まない。
+            // 補完は入力欄だけの操作で、エンジンへは何も渡さない（ログ・世代・projection は変わらない）。
+            // 下書きが変わったときだけ、`<textarea>` への書き戻しを頼む（上流は値を同期しない）。
             HostAction::Complete => {
                 #[cfg(feature = "test-hooks")]
                 {
                     self.complete_count = self.complete_count.saturating_add(1);
+                }
+                if self.input.complete() {
+                    self.extend_input_dirty();
+                    if let Some(f) = self.draft_sync_request.as_ref() {
+                        f();
+                    }
                 }
             }
         }

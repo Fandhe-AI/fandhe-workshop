@@ -24,7 +24,9 @@ use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::candidates::CommandTable;
 use crate::input_limit::{clamp_draft, notice_for};
-use crate::key_route::{after_esc, esc_input, esc_route, field_state, EscRoute};
+use crate::key_route::{
+    after_esc, completion_choice, esc_input, esc_route, field_state, tab_input, EscRoute,
+};
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
@@ -173,9 +175,8 @@ impl HelloView {
         // `update` と同じく前の操作の dirty を引き継がない（今回変わった field だけを載せる）。
         self.dirty.clear();
         let state = FieldState {
-            candidates_open: self.candidates_open(),
             busy,
-            ..field_state(!self.draft.is_empty())
+            ..field_state(!self.draft.is_empty(), self.candidates_open())
         };
         let route = esc_route(decide(&esc_input(), &state));
         if state.candidates_open && !after_esc(state, &route).candidates_open {
@@ -187,6 +188,47 @@ impl HelloView {
             self.esc_count = self.esc_count.saturating_add(1);
         }
         route
+    }
+
+    /// Tab の補完を 1 回受け取り、下書きが変わったかを返す（TERM-11・D-60）。
+    ///
+    /// 呼び出し元はホストの `HostAction::Complete`（配送はタイマーの予約を通るため、keydown の時点から状態が
+    /// 変わりうる）。配送の時点の状態で判定をやり直し、一覧が閉じている・文字が無い・候補が無いときは何もしない。
+    /// 候補は `visible_candidates`（`unsupported` は表に入っていない。TERM-42）で、選び方は契約の
+    /// `first_completion`（先頭）に任せる。DOM には触れない。書き戻しはホストが `draft_sync_request` で頼む。
+    pub(crate) fn complete(&mut self) -> bool {
+        // `update` と同じく前の操作の dirty を引き継がない。
+        self.dirty.clear();
+        let shown = self.visible_candidates();
+        let state = field_state(!self.draft.is_empty(), !shown.is_empty());
+        let Some(choice) = completion_choice(decide(&tab_input(), &state), &shown) else {
+            return false;
+        };
+        let choice = choice.clone();
+        let changed = self.draft != choice;
+        self.replace_draft(&choice);
+        changed
+    }
+
+    /// 下書きを置き換える。上限・案内・閉じた印・候補の変化の dirty を積む（`SetDraft` と補完が共有する）。
+    fn replace_draft(&mut self, value: &str) {
+        let before = self.visible_candidates();
+        let (clamped, over) = clamp_draft(value);
+        if over != self.over_limit {
+            self.dirty.push(FIELD_NOTICE);
+        }
+        self.over_limit = over;
+        // 値が変わらない入力でも、上限で切った値の書き戻しは glue が毎回確かめる。
+        if self.draft != clamped {
+            self.draft = clamped.to_owned();
+        }
+        // 閉じた下書きから変わったら、閉じた印を外す（再び開けるようにする）。
+        if self.closed_for.as_deref() != Some(self.draft.as_str()) {
+            self.closed_for = None;
+        }
+        if self.visible_candidates() != before {
+            self.dirty.push(FIELD_CANDIDATES);
+        }
     }
 
     /// root の中の Esc を受け取った回数（試験用の口が読む）。
@@ -202,25 +244,7 @@ impl Component for HelloView {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
-            HelloAction::SetDraft(value) => {
-                let before = self.visible_candidates();
-                let (clamped, over) = clamp_draft(&value);
-                if over != self.over_limit {
-                    self.dirty.push(FIELD_NOTICE);
-                }
-                self.over_limit = over;
-                // 値が変わらない入力でも、上限で切った値の書き戻しは glue が毎回確かめる。
-                if self.draft != clamped {
-                    self.draft = clamped.to_owned();
-                }
-                // 閉じた下書きから変わったら、閉じた印を外す（再び開けるようにする）。
-                if self.closed_for.as_deref() != Some(self.draft.as_str()) {
-                    self.closed_for = None;
-                }
-                if self.visible_candidates() != before {
-                    self.dirty.push(FIELD_CANDIDATES);
-                }
-            }
+            HelloAction::SetDraft(value) => self.replace_draft(&value),
             HelloAction::Submit => {
                 if self.draft.is_empty() {
                     return;
@@ -386,6 +410,38 @@ impl BindingSource for HelloView {
 mod tests {
     use super::*;
     use fandhe_frontend_wasm_full::render_component_html;
+
+    fn table(names: &[&str]) -> CommandTable {
+        CommandTable::new("/", names.iter().map(|n| (*n).to_owned()))
+    }
+
+    #[test]
+    fn complete_は先頭の候補に置き換える() {
+        let mut v = HelloView::new();
+        v.set_command_table(table(&["make-note", "help"]));
+        v.update(HelloAction::SetDraft("/".to_owned()));
+        assert!(v.complete());
+        assert_eq!(v.draft(), "/help");
+        assert!(!v.candidates_open());
+        assert_eq!(v.dirty_fields(), [FIELD_CANDIDATES]);
+    }
+
+    #[test]
+    fn complete_は閉じた一覧と候補の無い下書きでは何もしない() {
+        let mut v = HelloView::new();
+        v.set_command_table(table(&["help"]));
+        v.update(HelloAction::SetDraft("/he".to_owned()));
+        v.esc(false);
+        assert!(!v.complete());
+        assert_eq!(v.draft(), "/he");
+        assert!(v.dirty_fields().is_empty());
+        v.update(HelloAction::SetDraft("/zzz".to_owned()));
+        assert!(!v.complete());
+        // コマンド表が空なら一覧は開かず、補完もしない。
+        let mut empty = HelloView::new();
+        empty.update(HelloAction::SetDraft("/he".to_owned()));
+        assert!(!empty.complete());
+    }
 
     #[test]
     fn renders_hello_message() {
