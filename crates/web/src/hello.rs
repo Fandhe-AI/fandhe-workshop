@@ -1,8 +1,7 @@
-//! 最小の画面（Hello）。マウントの経路が通ることを示すためだけに存在する。
+//! ホストの入力欄（Hello）。ホスト（`host::EngineHost`）が内包し、`glue::mount_app` 経由で mount される。
 //!
-//! `glue::mount_app` が `Runtime::mount` に渡す。教材の画面に置き換えられるまでの足場で、
-//! 入力欄の上限（SAFE-21。TASK-158）の受け口と、送信と送信済みの一覧（受講者の文字列の非解釈の表示。
-//! SAFE-11。TASK-150）の足場だけを持つ。core・contract に型を足さず、この crate の中で閉じる。
+//! 単体の Component としても動く（既存の試験が使う）。入力欄の上限（SAFE-21。TASK-158）の受け口と、
+//! 送信と送信済みの一覧（受講者の文字列の非解釈の表示。SAFE-11。TASK-150）の足場だけを持つ。core・contract に型を足さず、この crate の中で閉じる。
 
 // native ビルドでは glue が無く、試験以外から使われない。
 #![cfg_attr(
@@ -29,6 +28,9 @@ const FIELD_NOTICE: &str = "input_notice";
 
 /// 送信済みの一覧が束縛される field 名（`keyed_list` の差分更新の対象）。
 const FIELD_LOG: &str = "learner_log";
+
+/// この入力欄が持つ field 名。ホストが、部品の field との衝突の検査に使う。
+pub(crate) const HELLO_FIELDS: [&str; 2] = [FIELD_NOTICE, FIELD_LOG];
 
 /// 送信済みの一覧に残す最大の件数。超えたら古い順に捨てる。
 /// `keyed_list` の上限（4,096 件）に届かない値にして、`Err` を通常の経路にしない。
