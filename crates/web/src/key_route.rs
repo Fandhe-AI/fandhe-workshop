@@ -66,9 +66,9 @@ impl KeydownEffect {
 /// - `composing_marker`: 自前の変換中の印は TASK-276 の担当。印が無くても、`isComposing`・keyCode 229・
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
 /// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）。差し替えるまで `esc_route` の停止の行には画面から到達しない
-/// - `candidates_open`: 補完の候補の一覧が未実装。TASK-440 が本関数の 1 か所で差し替える。
-///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる。
-///   差し替えた後は、Esc の後に `after_esc` で状態を進める（JUDGE-18 の 2 回目の Esc を作るため）
+/// - `candidates_open`: Esc の経路は入力欄（`hello`）が一覧の開閉の状態から組み、`after_esc` で状態を進める（TASK-440 1/2）。
+///   Tab の経路（glue）は未結線で、TASK-440 2/2（#332）が本関数の 1 か所で差し替える。
+///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる
 pub fn field_state(has_text: bool) -> FieldState {
     FieldState {
         composing_marker: false,
@@ -171,7 +171,7 @@ pub fn esc_input() -> KeyInput {
 /// (3) どちらでもなければ取り消しの入力にする（規則が無い Step では core が拒否として記録する）。
 /// 優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
 ///
-/// 画面から (2) に届くのは候補の一覧が結ばれる TASK-440 の後、(1)・(3) が Session に届くのは TASK-347 の後である。
+/// 画面から (2) に届くのは候補の一覧が結ばれた TASK-440 1/2 の後、(1)・(3) が Session に届くのは TASK-347 の後である。
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn esc_route(decision: Decision) -> EscRoute {
     match decision {
