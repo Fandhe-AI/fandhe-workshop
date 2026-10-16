@@ -1,0 +1,9 @@
+id: JUDGE4-4
+package: fandhe-workshop-pack
+test: reject_four_scenes
+target: crates/core/src/command_judge.rs
+find: return CommandVerdict::MissingArg;
+replace: return CommandVerdict::BadArgShape;
+expect-fail: four_scenes_are_classified_100_percent
+expect-fail: missing_and_shape_go_through_judge_input
+note: 必須引数の不足を引数の形の違いに化けさせる（missing_arg が bad_arg_shape で返る）
