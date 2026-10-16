@@ -287,6 +287,20 @@ fn fail_closed_for_versions_that_must_not_open() {
 }
 
 #[test]
+fn history_ir_format_newer_than_opening_pack_is_refused() {
+    // 履歴が format 2、開く教材が format 1 の場合は、変換に進まず閉じたままにする。
+    let mut ir = ir_of(&base_json());
+    let mut h = envelope(&ir, within_st1(&ir));
+    h.versions.ir_format = 2;
+    ir.format_version = 1;
+    assert_closed(
+        &open(&ir, &h),
+        Disposition::Refused,
+        LoadReason::FormatNewer,
+    );
+}
+
+#[test]
 fn envelope_level_refusals_and_missing_start() {
     let ir = ir_of(&base_json());
     let base = envelope(&ir, within_st1(&ir));

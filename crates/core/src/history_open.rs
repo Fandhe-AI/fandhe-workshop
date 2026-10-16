@@ -134,7 +134,9 @@ pub fn open_history(
         return refuse(LoadReason::BadVersion);
     };
     let hv = &history.versions;
-    if hv.ir_format > caps.ir_format_max {
+    // 履歴の版は、エンジンが読める最大版だけでなく、開く教材の IR の版とも比べる（VER-4 は ir_format の差を
+    // 変換の対象に含めないため、新しい側は閉じる）。
+    if hv.ir_format > caps.ir_format_max || hv.ir_format > ir.format_version {
         return refuse(LoadReason::FormatNewer);
     }
     if h.vocab > caps.vocab_max || o.vocab > caps.vocab_max {
