@@ -224,12 +224,6 @@ impl EngineHost {
         self.input.over_limit()
     }
 
-    /// root の中の Esc を受け取った回数（試験用の口が読む）。
-    #[cfg(feature = "test-hooks")]
-    pub(crate) fn esc_count(&self) -> u32 {
-        self.input.esc_count()
-    }
-
     /// 3 つの表示の照合用の状態を JSON 文字列で返す（読み取りのみ。試験の設定だけ）。
     ///
     /// 表示の導出（増分）とは別に、ログの全体から一括で導いた値を出す。ブラウザ試験が、DOM がこの値と
