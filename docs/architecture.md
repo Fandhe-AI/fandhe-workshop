@@ -118,7 +118,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | コマンド入力の規則の照合と問い返しの判定（`command_rule`。状態の変更・`Judged` の発行・問い返しの待ちの保持は含まない） | core | TASK-272 |
 | 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（`lo_first_answer`。GUIDE-18。型は contract の `lo_check`。履歴から観測への写像と他の LO の数え方は含まない） | core | TASK-305 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
-| コマンドの表による未知のコマンドと順序違いの分類（`command_class`。`not_in_this_step`・`not_supported`・`Judged` の発行・`session::apply` への結線は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268 |
+| コマンドの表と Step の状態によるコマンドの拒否の分類（`command_class`。未知・順序違い・教材未対応・この Step では使わない。`judge::judge_input` が結線して使う。`Judged` の発行は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268・TASK-269 |
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
 | 受講者の操作を履歴の `ops` に追記する記録（`ops_record`。`SessionOp` は contract の `HistoryOp<Op>` の別名。契約の版の対象外。再読み込みは含まない） | core | TASK-315 |
 | `ops`・写し・4 軸の版を履歴の包み（`SessionEnvelope` = contract の `HistoryEnvelope<Op, SessionState>`）に組み立てる処理と、下書きの記録と写しの `drafts` の同期（`history_envelope`。契約の版の対象外。適用し直しによる復元・読み込み・書き出しは含まない） | core | TASK-315 |

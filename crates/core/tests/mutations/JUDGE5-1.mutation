@@ -1,0 +1,9 @@
+id: JUDGE5-1
+package: fandhe-workshop-core
+test: reject_scene
+target: crates/core/src/command_class.rs
+find:         return Ok(CommandClass::NotSupported);
+replace:         return Ok(CommandClass::NotInThisStep(kind));
+expect-fail: playthrough_pairs_are_classified_100_percent
+expect-fail: not_supported_in_every_status_even_when_the_step_declares_it
+note: unsupported を not_in_this_step に倒す（教材未対応が見分けられない）

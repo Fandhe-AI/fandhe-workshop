@@ -1,9 +1,9 @@
-//! コマンドの表と Step の状態による、未知のコマンドと順序違いの分類（JUDGE-4、TASK-268 1/2）。
+//! コマンドの表と Step の状態による、コマンドの拒否の分類（JUDGE-4・JUDGE-5、TASK-268 1/2・TASK-269）。
 //!
-//! JUDGE-4 は、受け付けない入力にエンジンが持つ分類 1 つを付けることを求める。本モジュールは 7 場面のうち
-//! `unknown_command` と `wrong_order` の 2 場面を、IR の `commands`（コマンドの表）と Step の状態から決める
-//! 純関数を置く。呼び出し元は、`Judged` の発行（TASK-267）・教材テスト（TASK-404、pack）・後続の
-//! TASK-269 である。引数不足と引数の形（TASK-268 2/2）は [`crate::command_judge`] が返し、4 場面の教材テストは
+//! JUDGE-4 は、受け付けない入力にエンジンが持つ分類 1 つを付けることを求める。本モジュールは
+//! `unknown_command`・`wrong_order`・`not_supported`・`not_in_this_step`（コマンドの表と Step の状態で決まる
+//! 4 場面）を決める純関数を置く。呼び出し元は、`Judged` の発行（[`crate::judge`]、TASK-267）と教材テスト
+//! （TASK-404、pack）である。引数不足と引数の形（TASK-268 2/2）は [`crate::command_judge`] が返し、4 場面の教材テストは
 //! pack の結合試験 `reject_four_scenes` が持つ。文面の解決と空でない次の行動は [`crate::rejection_text`] が持つ。
 //!
 //! # 規則（上から順に評価し、最初に当たったものを返す）
@@ -13,21 +13,22 @@
 //! 1. 名前が `commands` のキーに無ければ [`CommandClass::Unknown`]（大文字小文字を区別する完全一致）
 //! 2. 表の値を [`CommandKind`]（閉じた 4 語の文字列）として読む。読めなければ [`CommandClassError::InvalidKind`]
 //!    （受付にも別の分類にも倒さない。引いた 1 件だけを読み、他の行の不正には影響されない）
-//! 3. 種類が `unsupported` なら [`CommandClass::Unclassified`]。判定順は「この Step が受け付けるか」より前に置き、
-//!    `unsupported` が順序違いや受付に落ちないようにする（`not_supported` は TASK-269）
+//! 3. 種類が `unsupported` なら [`CommandClass::NotSupported`]。判定順は「この Step が受け付けるか」より前に置き、
+//!    `unsupported` が順序違いや受付に落ちないようにする（Step の段階に関係なく返す）
 //! 4. 状態が `Entered` で、`Step.input` がコマンドの宣言で、その名前が入力と一致すれば [`CommandClass::Accepting`]。
 //!    宣言は `Entered` のときだけ読む。宣言が読めなければ [`CommandClassError::InvalidStep`]
 //!    （`Step.input` がコマンドでない場合は「受け付けない」でありエラーにしない）
 //! 5. 種類が `flow` なら [`CommandClass::WrongOrder`]（確認待ちの `Accepted` での再送も同じ）
-//! 6. 残り（`builtin`・`skill`）は [`CommandClass::Unclassified`]（`not_in_this_step` は TASK-269）
+//! 6. 残り（`builtin`・`skill`）は [`CommandClass::NotInThisStep`]
 //!
 //! コマンドの種類の 4 語は、現行の `docs/vocabulary/vocabulary.md` に無い。語彙への取り込みは別の作業で扱う。
 //!
 //! # 扱わないこと
 //!
-//! - `not_in_this_step`・`not_supported`・`busy`・`missing_arg`・`bad_arg_shape` の結線
-//!   （後者 2 つは [`crate::command_judge`] が持つ）
-//! - 接頭辞の無い行と字句の不正（[`crate::command_lex`] のエラー）の分類。呼び出し側が決める（TASK-269）
+//! - `busy`・`missing_arg`・`bad_arg_shape` の分類（`busy` は [`crate::busy_class`]、後者 2 つは
+//!   [`crate::command_judge`] が持つ）
+//! - 接頭辞の無い行と字句の不正（[`crate::command_lex`] のエラー）の分類。呼び出し側（[`crate::judge`]）が
+//!   `not_in_this_step` にする
 //! - 文面の解決と差し込み（[`crate::rejection_text`]・TASK-274）、状態の変更、`Judged` の発行
 //!
 //! 外部への呼び出し・正規表現の評価は持たない。全域（panic しない）で決定的で、計算量は表を 1 件引くことと
@@ -77,17 +78,22 @@ pub enum CommandClass {
     WrongOrder,
     /// この Step が今受け付けるコマンド。宣言との照合へ進む。
     Accepting,
-    /// 表にあるが本モジュールでは分類しない（`builtin`・`skill`・`unsupported`。TASK-269 が分類を決める）。
-    Unclassified(CommandKind),
+    /// 種類が `unsupported`（`not_supported`）。Step の段階に関係なく、受付の判定より先に決まる。
+    NotSupported,
+    /// 種類が `builtin`・`skill` で、この Step・この段階では受け付けない（`not_in_this_step`）。
+    /// 種類は試験と記録のために持つ。
+    NotInThisStep(CommandKind),
 }
 
 impl CommandClass {
-    /// 拒否の分類。[`Self::Unknown`] と [`Self::WrongOrder`] だけが `Some`。
+    /// 拒否の分類。[`Self::Accepting`] だけが `None`（受付の判定へ進む）。
     pub fn category(&self) -> Option<RejectCategory> {
         match self {
             Self::Unknown => Some(RejectCategory::UnknownCommand),
             Self::WrongOrder => Some(RejectCategory::WrongOrder),
-            Self::Accepting | Self::Unclassified(_) => None,
+            Self::NotSupported => Some(RejectCategory::NotSupported),
+            Self::NotInThisStep(_) => Some(RejectCategory::NotInThisStep),
+            Self::Accepting => None,
         }
     }
 }
@@ -138,7 +144,7 @@ pub fn classify_command(
     };
     let kind = CommandKind::from_value(entry).ok_or(CommandClassError::InvalidKind)?;
     if kind == CommandKind::Unsupported {
-        return Ok(CommandClass::Unclassified(kind));
+        return Ok(CommandClass::NotSupported);
     }
     if accepts(step, status, &lexed.name)? {
         return Ok(CommandClass::Accepting);
@@ -146,5 +152,5 @@ pub fn classify_command(
     if kind == CommandKind::Flow {
         return Ok(CommandClass::WrongOrder);
     }
-    Ok(CommandClass::Unclassified(kind))
+    Ok(CommandClass::NotInThisStep(kind))
 }

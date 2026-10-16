@@ -362,3 +362,16 @@ fn pack11_no_tests_file_is_empty() {
     assert!(check_error_input_expects(&lp).is_empty());
     assert_eq!(read_error_input_expects(&lp), Ok(Vec::new()));
 }
+
+/// core の試験データ（拒否の場面の判定、TASK-269）が、judgment-pack の compile の結果と食い違わないこと。
+/// core は pack に依存できないため写しを持つ。写しがずれると core の試験が古い宣言を見続けるので、ここで検出する。
+#[test]
+fn core_reject_scene_copy_matches_compile_output() {
+    let bytes = compile_dir(&judgment_pack()).expect("compile");
+    let compiled: Value = serde_json::from_slice(&bytes).expect("json");
+    let copy_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../core/tests/data/reject_scene_1/judgment-ir.json");
+    let copy: Value =
+        serde_json::from_slice(&std::fs::read(copy_path).expect("read copy")).expect("json");
+    assert_eq!(compiled, copy);
+}

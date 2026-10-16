@@ -20,7 +20,7 @@
 //!
 //! - 受付済み（`Accepted`）で処理中でない Step への再送。確認の判定であり `busy` ではない
 //!   （flow のコマンドは `command_class` の `wrong_order`、残り続けるボタンは規則による拒否で、試験は `tests/button_burst.rs`）
-//! - 達成済み・開始前の Step への入力（`not_in_this_step` は TASK-269）
+//! - 達成済み・開始前の Step への入力（`not_in_this_step` は [`crate::judge`] が決める）
 //! - 現在の Step が IR に無い場合の扱い（`accept` が先に固定文の `Warning` を出す。本関数は IR を読まない）
 //! - `Judged` の発行・文面の解決と差し込み（TASK-267・TASK-274）
 //!

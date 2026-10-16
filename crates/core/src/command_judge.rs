@@ -22,7 +22,7 @@
 //!
 //! # 扱わないこと
 //!
-//! - `unknown_command`・`wrong_order` の分類（[`crate::command_class`]、TASK-268 1/2）と、`not_in_this_step`・`not_supported` の分類（TASK-269）
+//! - `unknown_command`・`wrong_order`・`not_supported`・`not_in_this_step` の分類（[`crate::command_class`]、TASK-268・TASK-269）
 //! - 規則の `on.missing` との照合と問い返し（[`crate::command_rule`]、TASK-272）
 //! - 規則の `on.args` との照合、拒否の文面の解決（[`crate::judge`]、TASK-267）
 //! - `--flag` の直後の位置引数の読み替え（`ArgSpec` に値を取らない引数の欄が無いため、字句化の結果のまま使う）
@@ -85,7 +85,7 @@ pub struct MatchedCommand {
 pub enum CommandVerdict {
     /// 宣言に合う。
     Matched(MatchedCommand),
-    /// 名前が宣言と違う。拒否の分類は [`crate::command_class`] が決める（`not_in_this_step`・`not_supported` は TASK-269）。
+    /// 名前が宣言と違う。拒否の分類は [`crate::command_class`] が決める（宣言と食い違う名前は `command_class` が先に分類するため、通常は到達しない）。
     NameMismatch,
     /// 必須の引数が無い。
     MissingArg,
