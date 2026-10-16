@@ -13,8 +13,16 @@
 //! 3 つの表示（ログ・左の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
 //! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。`tick`・`complete` の action は
 //! `Runtime::dispatch_action` から届く（TASK-349。`decode_action` が `action::RuntimeAction` の検査を通す）。
+//! 送信（Enter・送信ボタン。TASK-438）は、入力欄の一覧に積んだ後、操作プロファイルの接頭辞で分類して
+//! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への
+//! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
-//! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）を持つ（BUILD-27・SHELL-35）。
+//! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
+//! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）を持つ（BUILD-27・SHELL-35）。
+//!
+//! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
+//! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
+//! Rust ではなく試験の設定だけの `static/test-hooks.js` が行う（`make check-dom-reads`）。可視の画面は TASK-531 の担当である。
 //!
 //! [`DisplayPart`]: crate::parts::DisplayPart
 
@@ -34,14 +42,26 @@ use fandhe_frontend_core::text;
 use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
+use fandhe_workshop_contract::content_hash::content_hash;
+#[cfg(feature = "test-hooks")]
+use fandhe_workshop_contract::history_version::ReasonCode;
+use fandhe_workshop_contract::history_version::Verdict;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
+use fandhe_workshop_contract::load_reason::LoadReason;
 use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
-use fandhe_workshop_core::input::Op;
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::history_load::load_session;
+use fandhe_workshop_core::history_open::OpeningCaps;
+use fandhe_workshop_core::history_replay::submit_input;
+use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
-use fandhe_workshop_core::{Projection, Session};
+use fandhe_workshop_core::{Projection, Session, SessionState};
 
 use crate::action::RuntimeAction;
+use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
@@ -89,14 +109,119 @@ pub enum HostAction {
     Input(HelloAction),
     /// core への操作。
     Engine(Op),
-    /// 補完（FEND-4）。候補の一覧と挿入は TASK-440 が足すまで、状態を変えない。
+    /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
+    /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
+    ///
+    /// `Session::apply` 以外で状態を変える唯一の経路であり、配信する設定には入らない。web 本来の再読み込み
+    /// （保存した状態の復元）の結線は TASK-319 の担当である。
+    #[cfg(feature = "test-hooks")]
+    Reload,
+    /// 履歴ファイルの読み込み（試験の設定だけ。本文は未検査の文字列で、`open_history` の段 1〜8 が断る）。
+    ///
+    /// 状態を変える口は `Session::apply` と再読み込みの模擬に加え、開いたときの `Session` の差し替えだけである。
+    /// 選んだファイルの読み取りは試験の設定の `test-hooks.js` が行い、この action で届ける。
+    #[cfg(feature = "test-hooks")]
+    OpenHistory(String),
+}
+
+/// `raw` の action で再読み込みの模擬を指す固定の合図（試験の設定だけ）。
+///
+/// 完全に一致したときだけ [`HostAction::Reload`] になる。`Op` の JSON としては復号できない形のため、
+/// `Op` との衝突は無い（`tests/host_contract.rs` が固定する）。新しい隠し要素は足さず、`raw-trigger` を使う。
+#[cfg(feature = "test-hooks")]
+pub const RAW_RELOAD: &str = "{\"reload\":{}}";
+
+/// `raw` の action で履歴ファイルの読み込みを指す固定の接頭辞（試験の設定だけ）。
+///
+/// 接頭辞が一致したときだけ、後ろの本文を [`HostAction::OpenHistory`] として届ける。`Op` の JSON は `{` か `[` で
+/// 始まるため衝突しない。`RuntimeAction`（版つきの契約）は変えず、新しい隠し要素も足さない。
+#[cfg(feature = "test-hooks")]
+pub const RAW_OPEN_HISTORY: &str = "open-history:";
+
+/// 履歴ファイルの読み込みの結果（TASK-330 2/2）。理由は固定のコードだけで、ファイルの内容を含めない（SAFE-40）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImportOutcome {
+    /// 変換なしで開いた。
+    Open,
+    /// 変換して開いた。
+    Converted,
+    /// 表示だけ。状態は変えない。
+    ViewOnly(LoadReason),
+    /// 開かない。状態は変えない。
+    Refused(LoadReason),
+    /// 開く側の条件（実行環境・開始時の状態・開く側の版）が無く、判定できなかった。状態は変えない。
+    Unavailable,
+}
+
+impl ImportOutcome {
+    /// 結果の種類を表す固定の名前。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ImportOutcome::Open => "open",
+            ImportOutcome::Converted => "converted",
+            ImportOutcome::ViewOnly(_) => "view_only",
+            ImportOutcome::Refused(_) => "refused",
+            ImportOutcome::Unavailable => "unavailable",
+        }
+    }
+
+    /// 開かなかったときの理由コード。
+    pub fn reason(self) -> Option<LoadReason> {
+        match self {
+            ImportOutcome::ViewOnly(c) | ImportOutcome::Refused(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    /// 状態を差し替えたか。
+    pub fn is_loaded(self) -> bool {
+        matches!(self, ImportOutcome::Open | ImportOutcome::Converted)
+    }
+}
+
+/// `Session` から導く表示用の値。`with_session` と読み込みの差し替えが同じ導出を使う。
+struct Derived {
+    projection: Projection,
+    world: World,
+    world_consumed: usize,
+    command_prefix: Option<String>,
+}
+
+/// ログ全体から表示用の値を導く。
+fn derive(session: &Session) -> Derived {
+    let projection = Projection::from_events(session.log());
+    let mut world = World::new();
+    replay_changes(&mut world, session.log());
+    let command_prefix =
+        fandhe_workshop_contract::profile::read_profile(session.ir().pack.profile.as_ref())
+            .ok()
+            .map(|p| p.command_prefix);
+    Derived {
+        projection,
+        world,
+        world_consumed: session.log().len(),
+        command_prefix,
+    }
 }
 
 /// 次の進行の宛先の通知先。`apply_engine` の後に、次に届けるべき進行（無ければ `None`）を渡す。
 ///
 /// glue が `set_timeout` の予約に使う。ホストは予約の状態を持たず、重複の抑止も glue が受け持つ。
 pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
+
+/// 下書きの書き戻しの要求の通知先。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+///
+/// glue が `<textarea>` の値の同期（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
+pub type DraftSyncRequest = Box<dyn Fn()>;
+
+/// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
+///
+/// 問い返しの後の扱いは JUDGE-27・TERM-22（検討中）に属するため、ここでは固定しない。
+/// 拒否でなければ空にする。
+pub(crate) fn keeps_draft(rejected: bool) -> bool {
+    rejected
+}
 
 /// 構築の拒否の理由。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,6 +252,20 @@ pub struct EngineHost {
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
     tick_request: Option<TickRequest>,
+    /// 履歴の差し替えのとき、これまでの進行のタイマーを無効にさせる通知先（表示側が登録する）。
+    tick_reset: Option<Box<dyn Fn()>>,
+    /// 下書きの書き戻しの通知先。未設定なら通知しない。
+    draft_sync_request: Option<DraftSyncRequest>,
+    /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
+    command_prefix: Option<String>,
+    /// 開始時の状態の控え。履歴ファイルを適用し直す出発点になる。session が無ければ `None`。
+    ///
+    /// 【推論】`Control::Begin` と `start` からの初期状態の構築（TASK-217・TASK-294）が入るまでは、
+    /// 組み立て時の状態を出発点にする。
+    initial: Option<SessionState>,
+    /// 直近の読み込みの結果（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    last_import: Option<ImportOutcome>,
     /// 補完の action を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     complete_count: u32,
@@ -162,6 +301,12 @@ impl EngineHost {
             input: HelloView::new(),
             dirty: Vec::new(),
             tick_request: None,
+            tick_reset: None,
+            draft_sync_request: None,
+            command_prefix: None,
+            initial: None,
+            #[cfg(feature = "test-hooks")]
+            last_import: None,
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         }
@@ -179,21 +324,27 @@ impl EngineHost {
         if let Some(f) = registry.fields().find(|f| HELLO_FIELDS.contains(&f.name)) {
             return Err(HostError::FieldCollision(f.name));
         }
-        let projection = Projection::from_events(session.log());
-        let mut world = World::new();
-        replay_changes(&mut world, session.log());
-        let world_consumed = session.log().len();
+        let mut input = HelloView::new();
+        input.set_command_table(candidates::command_table(session.ir()));
+        let initial = Some(session.state().clone());
+        let d = derive(&session);
         Ok(Self {
             model: HostModel {
                 session: Some(session),
-                projection,
-                world,
-                world_consumed,
+                projection: d.projection,
+                world: d.world,
+                world_consumed: d.world_consumed,
             },
             registry,
-            input: HelloView::new(),
+            input,
             dirty: Vec::new(),
             tick_request: None,
+            tick_reset: None,
+            draft_sync_request: None,
+            command_prefix: d.command_prefix,
+            initial,
+            #[cfg(feature = "test-hooks")]
+            last_import: None,
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         })
@@ -230,12 +381,22 @@ impl EngineHost {
         self.model.session().and_then(next_tick)
     }
 
+    /// 履歴の差し替えで進行のタイマーを無効にする通知先を結ぶ。通知先は Runtime にも App にも触れてはならない。
+    pub fn set_tick_reset(&mut self, f: Box<dyn Fn()>) {
+        self.tick_reset = Some(f);
+    }
+
     /// 進行の宛先の通知先を結ぶ。結んだ時点で、現在の宛先を 1 回通知する（開始時にすでに処理中の場合に備える）。
     ///
     /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れてはならない（再入になる）。
     pub fn set_tick_request(&mut self, f: TickRequest) {
         f(self.next_tick());
         self.tick_request = Some(f);
+    }
+
+    /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+    pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
+        self.draft_sync_request = Some(f);
     }
 
     /// 部品が読む値。
@@ -249,8 +410,13 @@ impl EngineHost {
     }
 
     /// 入力欄の値。glue が DOM へ書き戻すために読む。
-    pub(crate) fn draft(&self) -> &str {
+    pub fn draft(&self) -> &str {
         self.input.draft()
+    }
+
+    /// 候補の一覧が開いているか。glue が Tab の判定（補完か通常のフォーカス移動か）に使う（TERM-42）。
+    pub fn candidates_open(&self) -> bool {
+        self.input.candidates_open()
     }
 
     /// 直近の入力で切り捨てが起きたか（試験用の口が読む）。
@@ -273,7 +439,7 @@ impl EngineHost {
         use serde_json::json;
 
         let Some(session) = self.model.session() else {
-            return json!({ "irLoaded": false }).to_string();
+            return json!({ "irLoaded": false, "lastImport": self.last_import_json() }).to_string();
         };
         let log = session.log();
         let bulk = Projection::from_events(log);
@@ -335,6 +501,19 @@ impl EngineHost {
                 _ => None,
             })
             .collect();
+        // 受け付けた入力の本文（TASK-438）。Enter と送信ボタンが同じ記録になること、改行が保たれることを
+        // ブラウザ試験が照合する。ログ行の欄は DOM の照合が使うため、増やさず別のキーに置く。
+        let received: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                Event::InputReceived { input, .. } => Some(json!({
+                    "event": i,
+                    "input": serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
+                })),
+                _ => None,
+            })
+            .collect();
         // 無視の理由は `IgnoreReason`（non_exhaustive）の serde の表記に任せる。
         let ignored_reasons: Vec<_> = log
             .iter()
@@ -357,13 +536,17 @@ impl EngineHost {
         }
         json!({
             "irLoaded": true,
+            "lastImport": self.last_import_json(),
             "logLen": log.len(),
             "judgedCategories": judged_categories,
+            "received": received,
             "ignoredReasons": ignored_reasons,
             "stateWithoutLog": state_without_log,
             "consumed": bulk.consumed(),
             "generation": session.generation().0,
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
+            // DOM の `run-status` の `data-state` と照合する（TASK-436）。
+            "runStatus": crate::run_status::run_status(Some(session)).data_state(),
             "log": rows,
             "artifacts": artifacts,
             "review": review,
@@ -380,6 +563,86 @@ impl EngineHost {
             "incrementalMatches": &bulk == self.model.projection() && world == self.model.world,
         })
         .to_string()
+    }
+
+    /// 履歴ファイルのバイト列を読み込み、開いたときだけ `Session` を差し替える（SAVE-16・SAVE-19）。
+    ///
+    /// 判定は core の `load_session`（段 1〜8）に任せ、条件は複製しない。開く側の版は、いま載せている教材の IR から求める。
+    /// 実行環境・開始時の状態・開く側の版のどれかが無ければ、何も変えずに `Unavailable` を返す（開けない側に倒す）。
+    /// 開かない（表示だけ・開かない）ときも、状態・導出した値・dirty のどれにも触れない。
+    /// 差し替えでは、導出した値を作り直し、全 field を dirty に積み、次の進行の宛先を通知する。
+    /// 保存先へは書かない（保存の結線は TASK-319）。入力欄の下書きも変えない（SHELL-22・TASK-531）。
+    pub fn open_history(&mut self, bytes: &[u8]) -> ImportOutcome {
+        let (Some(session), Some(initial)) = (self.model.session.as_ref(), self.initial.as_ref())
+        else {
+            return ImportOutcome::Unavailable;
+        };
+        let ir = session.ir().clone();
+        let Ok(hash) = content_hash(&ir) else {
+            return ImportOutcome::Unavailable;
+        };
+        let Ok(opening) = record_versions(&ir, &hash) else {
+            return ImportOutcome::Unavailable;
+        };
+        match load_session(
+            bytes,
+            ir,
+            &opening,
+            &OpeningCaps::current(),
+            initial.clone(),
+        ) {
+            Ok(loaded) => {
+                let outcome = if loaded.notes.is_some() {
+                    ImportOutcome::Converted
+                } else {
+                    ImportOutcome::Open
+                };
+                self.install_session(loaded.session);
+                outcome
+            }
+            Err(Verdict::ViewOnly { code }) => ImportOutcome::ViewOnly(code),
+            Err(Verdict::Refused { code }) => ImportOutcome::Refused(code),
+            // `load_session` は開く 2 種を `Err` にしない。来ても開かない側に倒す。
+            Err(_) => ImportOutcome::Unavailable,
+        }
+    }
+
+    /// 開いた履歴の `Session` に差し替え、導出した値・dirty・進行の宛先を作り直す。
+    fn install_session(&mut self, session: Session) {
+        let d = derive(&session);
+        self.model.session = Some(session);
+        self.model.projection = d.projection;
+        self.model.world = d.world;
+        self.model.world_consumed = d.world_consumed;
+        self.command_prefix = d.command_prefix;
+        self.dirty = self.registry.fields().map(|f| f.name).collect();
+        // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
+        if let Some(reset) = self.tick_reset.as_ref() {
+            reset();
+        }
+        if let (Some(notify), Some(session)) =
+            (self.tick_request.as_ref(), self.model.session.as_ref())
+        {
+            notify(next_tick(session));
+        }
+    }
+
+    /// 直近の読み込みの結果（試験の設定だけ）。まだ読み込んでいなければ `None`。
+    #[cfg(feature = "test-hooks")]
+    pub fn last_import(&self) -> Option<ImportOutcome> {
+        self.last_import
+    }
+
+    /// 直近の読み込みの結果を JSON にする（種類と理由のコードだけ。内容は含めない）。
+    #[cfg(feature = "test-hooks")]
+    fn last_import_json(&self) -> serde_json::Value {
+        match self.last_import {
+            None => serde_json::Value::Null,
+            Some(o) => serde_json::json!({
+                "verdict": o.as_str(),
+                "reason": o.reason().map(|r| ReasonCode::as_str(&r)),
+            }),
+        }
     }
 
     /// keydown の probe が受け取った回数（試験用の口が読む）。
@@ -410,16 +673,33 @@ impl EngineHost {
     }
 
     /// core への操作を適用し、変わった field を dirty に積む。未読込なら何もしない。
-    fn apply_engine(&mut self, op: Op) {
+    ///
+    /// 戻りは、今回の操作で拒否の判定（`Judged` の `Rejected`）が出たか。送信の後に下書きを残すかの判断に使う。
+    fn apply_engine(&mut self, op: Op) -> bool {
+        self.step_engine(|session| events_summary(session.apply(op)))
+    }
+
+    /// 再読み込みの模擬（試験の設定だけ）。`apply_engine` と同じ後処理を行い、新しい世代の宛先を通知する。
+    ///
+    /// 再読み込みの前に glue が予約したタイマーは取り消されず、古い宛先のまま後から届く。届いた分は core が
+    /// `Ignored(Stale)` として記録する（EVT-6・EVT-8・EVT-12）。
+    #[cfg(feature = "test-hooks")]
+    fn reload_engine(&mut self) {
+        self.step_engine(|session| events_summary(session.reload()));
+    }
+
+    /// `Session` を 1 段進める共通の後処理。`f` が返したイベント列を使い、projection・world・dirty・宛先の通知を更新する。
+    /// 状態を変える口（`apply_engine`・`reload_engine`）だけが呼ぶ。未読込なら何もしない。戻りは拒否の判定が出たか。
+    fn step_engine(&mut self, f: impl FnOnce(&mut Session) -> (usize, bool)) -> bool {
         if self.model.session.is_none() {
-            return;
+            return false;
         }
         let before = self.bound_snapshot();
         let Some(session) = self.model.session.as_mut() else {
-            return;
+            return false;
         };
         let len_before = session.log().len();
-        let returned = session.apply(op).len();
+        let (returned, rejected) = f(session);
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
         self.model.projection.extend(log);
@@ -434,9 +714,10 @@ impl EngineHost {
             }
         }
         // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
-        if let (Some(f), Some(session)) = (self.tick_request.as_ref(), self.model.session.as_ref())
+        if let (Some(notify), Some(session)) =
+            (self.tick_request.as_ref(), self.model.session.as_ref())
         {
-            f(next_tick(session));
+            notify(next_tick(session));
         }
         if changed {
             let lists = self
@@ -445,6 +726,61 @@ impl EngineHost {
                 .filter(|f| f.kind == FieldKind::KeyedList)
                 .map(|f| f.name);
             self.dirty.extend(lists);
+        }
+        rejected
+    }
+
+    /// 処理中の Step があるか（Esc・停止ボタンが停止を送るかの判断に使う）。
+    fn is_busy(&self) -> bool {
+        self.model
+            .session()
+            .is_some_and(|s| s.state().run.busy.is_some())
+    }
+
+    /// 入力欄の dirty を、既に積んだ分と重複させずに足す。
+    fn extend_input_dirty(&mut self) {
+        for f in self.input.dirty_fields() {
+            if !self.dirty.contains(f) {
+                self.dirty.push(f);
+            }
+        }
+    }
+
+    /// 送信を受ける（Enter・送信ボタン）。入力欄の一覧に積み、エンジンへ渡し、必要なら下書きを空にする。
+    ///
+    /// 本文は加工しない（trim も分割もしない。改行は保つ）。空白だけの本文はエンジンへ送らない
+    /// （後から適用し直す処理が空白だけの送信を拒否するのと同じ基準）。接頭辞を読めない・session が無い
+    /// 場合はエンジンへ送らず、読めないときは入力を失わないよう下書きを残す。
+    fn submit(&mut self) {
+        let text = self.input.draft().to_owned();
+        if text.is_empty() {
+            return;
+        }
+        self.input.update(HelloAction::Submit);
+        let mut clear = true;
+        if self.model.session.is_some() {
+            match self.command_prefix.clone() {
+                None => clear = false,
+                Some(prefix) if !text.trim().is_empty() => {
+                    let rejected = self.apply_engine(Op::Input(submit_input(&prefix, text)));
+                    clear = !keeps_draft(rejected);
+                }
+                Some(_) => {}
+            }
+        }
+        // apply_engine は dirty を積むので、入力欄の分はその後に足す。
+        self.dirty.extend_from_slice(self.input.dirty_fields());
+        if clear {
+            self.input.clear_draft();
+            let from = self.input.dirty_fields();
+            for f in from {
+                if !self.dirty.contains(f) {
+                    self.dirty.push(f);
+                }
+            }
+            if let Some(f) = self.draft_sync_request.as_ref() {
+                f();
+            }
         }
     }
 }
@@ -455,16 +791,46 @@ impl Component for EngineHost {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
+            HostAction::Input(HelloAction::Submit) => self.submit(),
+            HostAction::Input(HelloAction::Esc) => {
+                let busy = self.is_busy();
+                let route = self.input.esc(busy);
+                // 結ぶのは処理中の停止だけ。待機中の Esc は候補を閉じるだけで、ログを増やさない。
+                if let Some(op @ Op::Control(Control::Stop)) = route.op {
+                    self.apply_engine(op);
+                }
+                self.extend_input_dirty();
+            }
+            HostAction::Input(HelloAction::Stop) => {
+                if self.is_busy() {
+                    self.apply_engine(Op::Control(Control::Stop));
+                }
+            }
             HostAction::Input(a) => {
                 self.input.update(a);
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
-            HostAction::Engine(op) => self.apply_engine(op),
-            // 候補の一覧と挿入は TASK-440 の担当。ここでは状態もログも変えず、dirty も積まない。
+            HostAction::Engine(op) => {
+                self.apply_engine(op);
+            }
+            #[cfg(feature = "test-hooks")]
+            HostAction::Reload => self.reload_engine(),
+            #[cfg(feature = "test-hooks")]
+            HostAction::OpenHistory(text) => {
+                self.last_import = Some(self.open_history(text.as_bytes()));
+            }
+            // 補完は入力欄だけの操作で、エンジンへは何も渡さない（ログ・世代・projection は変わらない）。
+            // 下書きが変わったときだけ、`<textarea>` への書き戻しを頼む（上流は値を同期しない）。
             HostAction::Complete => {
                 #[cfg(feature = "test-hooks")]
                 {
                     self.complete_count = self.complete_count.saturating_add(1);
+                }
+                if self.input.complete() {
+                    self.extend_input_dirty();
+                    if let Some(f) = self.draft_sync_request.as_ref() {
+                        f();
+                    }
                 }
             }
         }
@@ -506,6 +872,14 @@ impl Component for EngineHost {
         #[cfg(feature = "test-hooks")]
         if name == "raw" {
             use fandhe_workshop_contract::limits::LoadEntry;
+            // 再読み込みの模擬の合図は完全一致だけ。これ以外は `Op` として復号する。
+            if payload == RAW_RELOAD {
+                return Some(HostAction::Reload);
+            }
+            // 履歴ファイルの読み込みは接頭辞が一致したときだけ。本文の大きさ・深さ・JSON は `open_history` の段 1〜3 が断る。
+            if let Some(body) = payload.strip_prefix(RAW_OPEN_HISTORY) {
+                return Some(HostAction::OpenHistory(body.to_owned()));
+            }
             return fandhe_workshop_core::load_gate::load_json::<Op>(
                 LoadEntry::History,
                 payload.as_bytes(),
@@ -538,4 +912,18 @@ impl BindingSource for EngineHost {
         }
         self.registry.bound_value(field, &self.model)
     }
+}
+
+/// 返ったイベントの列から、件数と、拒否の判定（`Judged` の `Rejected`）が含まれるかを求める。
+fn events_summary(events: &[Event]) -> (usize, bool) {
+    let rejected = events.iter().any(|e| {
+        matches!(
+            e,
+            Event::Judged {
+                judgment: Judgment::Rejected(_),
+                ..
+            }
+        )
+    });
+    (events.len(), rejected)
 }

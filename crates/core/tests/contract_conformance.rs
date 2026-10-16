@@ -106,7 +106,8 @@ fn generation_event(id: &str, events: &[Event]) -> Option<Generation> {
         Event::Stopped { new_generation, .. }
         | Event::Moved { new_generation, .. }
         | Event::Restored { new_generation, .. }
-        | Event::Begun { new_generation, .. } => Some(*new_generation),
+        | Event::Begun { new_generation, .. }
+        | Event::Reloaded { new_generation, .. } => Some(*new_generation),
         _ => None,
     });
     let first = found.next();

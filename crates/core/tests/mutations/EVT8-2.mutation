@@ -1,0 +1,10 @@
+id: EVT8-2
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/reload.rs
+find:     state.run.generation = next;
+replace:     let _ = next;
+expect-fail: properties_p1_to_p6_hold_with_reload_sequences
+expect-fail: properties_p1_to_p6_hold_with_guided_reload_sequences
+expect-fail: stale_ticks_after_reload_in_sequences_are_ignored
+note: 再読み込みで世代を上げない。イベントの new_generation だけが進み、P-4 が不一致を検出する

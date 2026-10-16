@@ -1,0 +1,8 @@
+id: SAVE5-3
+package: fandhe-workshop-core
+test: reload_after_control
+target: crates/core/src/reload.rs
+find:     state.run.generation = next;
+replace:     state.run.generation = next; state.checkpoints.clear();
+expect-fail: reload_right_after_restore_restores_the_restored_state
+note: 再読み込みでチェックポイントの一覧を消す。復帰の直後の一覧が再読み込みの後に残らない

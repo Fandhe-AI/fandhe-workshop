@@ -177,6 +177,43 @@ fn evt1_boundary_events_clear_marks() {
 }
 
 #[test]
+fn reloaded_adds_one_row_and_keeps_marks() {
+    let a = "main/a";
+    let reloaded = |g: u64| Event::Reloaded {
+        at: Stamp {
+            generation: Generation(g),
+            step: StepUid(a.to_string()),
+        },
+        new_generation: Generation(g + 1),
+    };
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        reloaded(1),
+        reloaded(2),
+    ];
+    let without = Projection::from_events(&events[..2]);
+    let one = Projection::from_events(&events[..3]);
+    let two = Projection::from_events(&events);
+    // 再読み込み 1 回につき 1 行（SAVE-6・D-57）。行は `Reloaded` の位置と前の世代を指す。
+    assert_eq!(one.log().len(), without.log().len() + 1);
+    assert_eq!(two.log().len(), without.log().len() + 2);
+    let last = two.log().last().expect("row");
+    assert_eq!(last.event, 3);
+    assert_eq!(last.at.generation, Generation(2));
+    // 処理が続くので変化の印は消さない（SAVE-4）。
+    assert_eq!(two.marks(), without.marks());
+    assert!(!two.marks().is_empty());
+    assert_eq!(two.consumed(), events.len());
+    // 増分と一括は一致する。
+    let mut inc = Projection::new();
+    for n in 1..=events.len() {
+        inc.extend(&events[..n]);
+    }
+    assert_eq!(inc, two);
+}
+
+#[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";
     let events: Vec<Event> = [Cause::Stop, Cause::Move, Cause::Restore, Cause::Start]

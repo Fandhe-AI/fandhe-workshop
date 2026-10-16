@@ -1,0 +1,8 @@
+id: SAVE16-1
+package: fandhe-workshop-web
+test: history_import
+target: crates/web/src/host.rs
+find:         self.model.projection = d.projection;
+replace:         let _ = &d.projection;
+expect-fail: open_replaces_the_session_with_the_snapshot_and_rederives_views
+note: 読み込みで projection を作り直さない（画面の復習・ログが読み込み前のまま残る）

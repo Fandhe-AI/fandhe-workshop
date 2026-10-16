@@ -1,0 +1,8 @@
+id: TERM33-2
+package: fandhe-workshop-web
+test: run_status_contract
+target: crates/web/src/run_status.rs
+find: Event::Stopped { .. } => return RunStatus::Stopped,
+replace: Event::Stopped { .. } => return RunStatus::Idle,
+expect-fail: 処理中の停止で_停止_になり_古い進行が届いても保たれる
+note: 停止の分岐を潰す（停止しても「待機中」のままになる。TERM-33）

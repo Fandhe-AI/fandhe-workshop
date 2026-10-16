@@ -1,6 +1,6 @@
 {
-  "sample_version": 3,
-  "contract_version": 3,
+  "sample_version": 4,
+  "contract_version": 4,
   "ir": "engine-event-consistency/test-data/min-3step.json",
   "initial": {
     "run": {

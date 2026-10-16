@@ -7,14 +7,15 @@
 //! `learner_text::learner_part` の文字ノードだけで描く。属性値には enum の固定の語と 10 進の数字だけを入れる
 //! （SAFE-11。HTML 風の文字列が要素にならないことは `tests/log_lines_contract.rs` が木の上で確かめる）。
 //!
-//! 結線の範囲（1/2）: `InputReceived`（`received`）・`Progress`（`progress`）・`Stopped`（`stopped`）だけ。
+//! 結線の範囲（1/2）: `InputReceived`（`received`）・`Progress`（`progress`）・`Stopped`（`stopped`）・`Reloaded`（`reloaded`。TASK-322）だけ。
 //! `Judged`（拒否・問い返し・応答）は IR の文面の ID の解決が要るため結線せず `None` に倒す。
 //! 拡張点: 拒否・問い返し・応答の行は TASK-435・TASK-437 が `line_from_event` に足す。型 [`LogLine`] は
 //! 6 種すべてを表せる。
 //!
 //! 親の識別子 `log-list` は引き継がない。`hello.rs` の送信済みの一覧が使っており、ブラウザ試験が数えているため、
 //! `LogPart` の親は仮の `part-log-list` のままにする。引き継ぎ（hello の一覧の退役と `part-log*` の仮の識別子の
-//! 撤去）は TASK-438（送信の結線）または TASK-517（配置）で行う。適合は、`log-list` の親に載せ替えた木で
+//! 撤去）は TASK-517（配置）で行う。TASK-438 では引き継がない。配信設定には教材（IR）が無く、エンジンのログが空に
+//! なるため、`log-list` を数える配信設定の試験が壊れる。画面からの送信は TASK-438 の結線で `received` の行に出る。適合は、`log-list` の親に載せ替えた木で
 //! `terminal_area::check_area` が確かめる。
 //!
 //! 世代は 10 進の数字で出す。`terminal_area` は 18 桁までを受け付ける。
@@ -36,6 +37,10 @@ use crate::terminal_area::{
 
 /// 停止の行の固定の文言。行の文言は TASK-434 の持ち分で、教材の値は含めない。
 pub const STOPPED_TEXT: &str = "停止しました";
+
+/// 再読み込みの行の固定の文言（SAVE-6・D-57）。決まっているのは「再読み込みしました」の趣旨だけで、
+/// 言い回しは未決。変えるときはこの定数だけを直す。教材・受講者の値は含めない。
+pub const RELOADED_TEXT: &str = "再読み込みしました";
 
 /// ログの 1 行。種類ごとに、TASK-431 が定める部品だけを持つ。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +93,8 @@ pub enum LogLine {
     },
     /// 停止。
     Stopped,
+    /// 再読み込みの告知。
+    Reloaded,
 }
 
 impl LogLine {
@@ -100,6 +107,7 @@ impl LogLine {
             LogLine::Clarified { .. } => LineKind::Clarified,
             LogLine::Progress { .. } => LineKind::Progress,
             LogLine::Stopped => LineKind::Stopped,
+            LogLine::Reloaded => LineKind::Reloaded,
         }
     }
 }
@@ -135,6 +143,7 @@ pub fn line_from_event(event: &Event) -> Option<LogLine> {
             total: *total,
         }),
         Event::Stopped { .. } => Some(LogLine::Stopped),
+        Event::Reloaded { .. } => Some(LogLine::Reloaded),
         _ => None,
     }
 }
@@ -203,6 +212,7 @@ pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
             children.push(learner_part(LINE_STAGE_TESTID, stage));
         }
         LogLine::Stopped => children.push(learner_part(LINE_BODY_TESTID, STOPPED_TEXT)),
+        LogLine::Reloaded => children.push(learner_part(LINE_BODY_TESTID, RELOADED_TEXT)),
     }
     Some(el("li", attrs, children))
 }

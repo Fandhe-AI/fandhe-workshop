@@ -9,6 +9,7 @@
 //!   ログは追記だけで、復帰でも行を消さない。`Skipped`・`Flag`・`Begun`・`HintOpened` と `Changed` は行にしない
 //!   （版 1 の画面に出さない・左の印で表す・状態であり出来事ではない）。`Accepted` は `Judged`（TASK-256）が
 //!   未導入のため行にする。`Judged` を足す版上げのときに TASK-256 が見直す
+//!   `Reloaded` は再読み込み 1 回につき 1 行にする（SAVE-6・D-57）。処理が続くので変化の印は消さない
 //! - 変化の印: 基準点（`Entered`・`Stopped`・`Moved`・`Restored`・`Begun`）の後に、原因が `Input` の `Changed` が触れた
 //!   経路を、（最初の変更前, 最後の変更後）から種類を決めて出す。最後の変化が削除なら `Removed` に倒す
 //! - 復習: Step ごとに最初に現れた順で並べ、経路ごとに最初の変更前・最後の変更後を持つ。原因が `Input` でない
@@ -142,6 +143,7 @@ fn stamp_of(event: &Event) -> &Stamp {
         | Event::Restored { at, .. }
         | Event::Begun { at, .. }
         | Event::HintOpened { at, .. }
+        | Event::Reloaded { at, .. }
         | Event::Refused { at, .. }
         | Event::Ignored { at, .. }
         | Event::Warning { at, .. } => at,
@@ -199,7 +201,8 @@ impl Projection {
             | Event::ChapterCompleted { .. }
             | Event::Refused { .. }
             | Event::Ignored { .. }
-            | Event::Warning { .. } => self.push_row(i, event),
+            | Event::Warning { .. }
+            | Event::Reloaded { .. } => self.push_row(i, event),
             Event::Achieved { at, .. } => {
                 self.push_row(i, event);
                 self.review_item_mut(&at.step).achieved = true;

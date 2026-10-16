@@ -1,0 +1,8 @@
+id: TERM2-1
+package: fandhe-workshop-web
+test: submit_wiring
+target: crates/web/src/host.rs
+find: submit_input(&prefix, text)
+replace: submit_input(&prefix, text.replace('\n', " "))
+expect-fail: 複数行の本文は改行を保った_1_件として記録され_ログの行にも保たれる
+note: 送信の本文の改行を潰す（複数行が 1 行になる）

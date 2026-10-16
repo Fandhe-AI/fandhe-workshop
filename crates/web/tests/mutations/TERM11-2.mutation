@@ -1,0 +1,8 @@
+id: TERM11-2
+package: fandhe-workshop-web
+test: candidates_contract
+target: crates/web/src/hello.rs
+find:         let Some(choice) = completion_choice(decide(&tab_input(), &state), &shown) else {
+replace:         let Some(choice) = completion_choice(decide(&tab_input(), &state), &shown).and(shown.last()) else {
+expect-fail: 複数の候補があれば名前順の先頭で補完し_unsupported_は選ばない
+note: 先頭ではなく末尾の候補を挿入する

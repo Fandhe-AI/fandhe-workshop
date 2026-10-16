@@ -1,0 +1,8 @@
+id: SAVE16-3
+package: fandhe-workshop-web
+test: history_import
+target: crates/web/src/host.rs
+find:         self.dirty = self.registry.fields().map(|f| f.name).collect();
+replace:         self.dirty = Vec::new();
+expect-fail: open_marks_every_field_dirty_and_notifies_the_next_tick
+note: 読み込みの後に field を dirty に積まない（画面が再描画されない）

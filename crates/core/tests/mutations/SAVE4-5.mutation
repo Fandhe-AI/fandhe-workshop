@@ -1,0 +1,9 @@
+id: SAVE4-5
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: property_reload_at_any_point_fixed
+expect-fail: property_reload_at_any_point_guided
+note: SAVE4-4 と同じ置換。性質テスト H-6 の探りが生きていることの確認

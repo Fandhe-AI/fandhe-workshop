@@ -32,7 +32,7 @@ fn shift_enter_は_prevent_default_せず送信もしない() {
         meta: false,
     };
     for has_text in [true, false] {
-        let effect = effect_for(decide(&input, &field_state(has_text)));
+        let effect = effect_for(decide(&input, &field_state(has_text, false)));
         assert!(!effect.prevent_default, "has_text={has_text}");
         assert!(!effect.click_submit, "has_text={has_text}");
     }
@@ -52,7 +52,7 @@ fn ctrl_v_と_meta_v_は_prevent_default_せず送信もしない() {
             meta,
         };
         for has_text in [true, false] {
-            let effect = effect_for(decide(&input, &field_state(has_text)));
+            let effect = effect_for(decide(&input, &field_state(has_text, false)));
             assert!(
                 !effect.prevent_default,
                 "ctrl={ctrl} meta={meta} has_text={has_text}"
@@ -87,7 +87,7 @@ fn judge22_修飾キー付きの_enter_は送信も_prevent_default_もしない
                             alt: mask & 2 != 0,
                             meta: mask & 4 != 0,
                         };
-                        let mut state = field_state(has_text);
+                        let mut state = field_state(has_text, false);
                         state.candidates_open = candidates_open;
                         state.busy = busy;
                         let cell = format!(
@@ -131,7 +131,7 @@ fn tab_は候補が開いていて文字があるときだけ_prevent_default_�
             for candidates_open in [false, true] {
                 for has_text in [false, true] {
                     let input = tab(shift, modifier == 1, modifier == 2, modifier == 3);
-                    let mut state = field_state(has_text);
+                    let mut state = field_state(has_text, false);
                     state.candidates_open = candidates_open;
                     let effect = effect_for(decide(&input, &state));
                     let cell = format!(
@@ -159,7 +159,7 @@ fn 変換中の_tab_は候補が開いていても_prevent_default_しない() {
     composing.is_composing = true;
     let mut code_229 = tab(false, false, false, false);
     code_229.key_code = 229;
-    let mut state = field_state(true);
+    let mut state = field_state(true, false);
     state.candidates_open = true;
     for input in [composing, code_229] {
         let effect = effect_for(decide(&input, &state));
@@ -179,7 +179,7 @@ fn shift_tab_は候補が開いていて文字があっても_prevent_default_�
         for candidates_open in [false, true] {
             for has_text in [false, true] {
                 let input = tab(true, modifier == 1, modifier == 2, modifier == 3);
-                let mut state = field_state(has_text);
+                let mut state = field_state(has_text, false);
                 state.candidates_open = candidates_open;
                 let cell = format!(
                     "modifier={modifier} candidates_open={candidates_open} has_text={has_text}"
@@ -210,7 +210,7 @@ fn shift_tab_は候補が開いていて文字があっても_prevent_default_�
 fn 処理中の_esc_は候補が開いていても停止になり候補も閉じる() {
     for candidates_open in [false, true] {
         for has_text in [false, true] {
-            let mut state = field_state(has_text);
+            let mut state = field_state(has_text, false);
             state.busy = true;
             state.candidates_open = candidates_open;
             let decision = decide(&esc_input(), &state);
@@ -230,7 +230,7 @@ fn 処理中の_esc_は候補が開いていても停止になり候補も閉じ
 fn 処理中でない_esc_は停止にならない() {
     for candidates_open in [false, true] {
         for has_text in [false, true] {
-            let mut state = field_state(has_text);
+            let mut state = field_state(has_text, false);
             state.busy = false;
             state.candidates_open = candidates_open;
             let route = esc_route(decide(&esc_input(), &state));
@@ -254,7 +254,7 @@ fn 変換中の_esc_は処理中でも停止にならない() {
         ("key_code", code_229, false),
         ("marker", esc_input(), true),
     ] {
-        let mut state = field_state(true);
+        let mut state = field_state(true, false);
         state.busy = true;
         state.candidates_open = true;
         state.composing_marker = marker;
@@ -271,7 +271,7 @@ fn idle_state(
     has_text: bool,
     candidates_open: bool,
 ) -> fandhe_workshop_contract::key_decide::FieldState {
-    let mut state = field_state(has_text);
+    let mut state = field_state(has_text, false);
     state.busy = false;
     state.candidates_open = candidates_open;
     state
@@ -338,7 +338,7 @@ fn 取り消しの入力は規則の無い_step_で拒否として記録され�
     let ir_path = sample["ir"].as_str().expect("ir path");
     let ir = load_ir(&std::fs::read(testdata.join(ir_path)).expect("read ir")).expect("load ir");
 
-    let route = esc_route(decide(&esc_input(), &field_state(false)));
+    let route = esc_route(decide(&esc_input(), &field_state(false, false)));
     let op = route.op.expect("取り消しの入力が出るはず");
     let (next, events) = apply(&ir, before.clone(), op);
     match events.as_slice() {
@@ -368,11 +368,11 @@ fn judge23_上限ちょうどの下書きでも文字キーは止めず_enter_�
         alt: false,
         meta: false,
     };
-    let effect = effect_for(decide(&key("x"), &field_state(true)));
+    let effect = effect_for(decide(&key("x"), &field_state(true, false)));
     assert!(!effect.prevent_default);
     assert!(!effect.click_submit);
 
-    let effect = effect_for(decide(&key("Enter"), &field_state(true)));
+    let effect = effect_for(decide(&key("Enter"), &field_state(true, false)));
     assert!(effect.prevent_default);
     assert!(effect.click_submit);
 }

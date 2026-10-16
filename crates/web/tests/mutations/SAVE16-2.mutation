@@ -1,0 +1,8 @@
+id: SAVE16-2
+package: fandhe-workshop-web
+test: history_import
+target: crates/web/src/host.rs
+find:             initial.clone(),
+replace:             SessionState::default(),
+expect-fail: open_replaces_the_session_with_the_snapshot_and_rederives_views
+note: 適用し直しの出発点を開始時の状態ではなく既定値にする（開ける履歴が開かない）

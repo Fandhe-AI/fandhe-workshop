@@ -1,0 +1,10 @@
+id: SAVE4-4
+package: fandhe-workshop-core
+test: reload_busy
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: stale_tick_after_reload_is_ignored_once
+expect-fail: stale_ticks_from_before_two_reloads_are_each_ignored
+expect-fail: session_reload_then_apply_ignores_stale_tick
+note: 進行の照合から世代を外す。再読み込みの前の宛先が通り、状態が変わる（EVT11-7 と同じ置換を再読み込みの側から）

@@ -11,6 +11,8 @@
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
 //! `debug_save_flush`）だけで、保存の遅延のタイマーは置かない（値が残ったのが `pagehide` の書き込みによることを試験で示すため）。
+//! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
+//! 状態は変えない。取り込みはファイルの選択（`static/test-hooks.js`）から `raw-trigger` 経由でホストの `open_history` に届く。
 
 use wasm_bindgen::prelude::*;
 
@@ -308,7 +310,7 @@ pub fn debug_next_tick() -> String {
 
 /// 補完の action を、配信と同じ配送の口で届ける（タイマーの予約を通す）。
 ///
-/// 画面の Tab は候補の一覧が未実装のため補完に届かない（TASK-440）。配送の口そのものを確かめるための口である。
+/// 画面の Tab は一覧が開いていて文字があるときだけ補完に届く。この口は、その条件によらず配送の口そのものを確かめるためのものである。
 #[wasm_bindgen]
 pub fn debug_request_complete() {
     crate::glue::request_complete();
@@ -428,4 +430,67 @@ pub fn debug_save_flush() -> String {
             )
         }
     }
+}
+
+thread_local! {
+    /// 書き出しの試験用の `blob:` URL の保持（`debug_export_prepare` が入れ、`debug_export_revoke` が破棄する）。
+    static EXPORT_URL: std::cell::RefCell<Option<crate::history_download::ExportUrl>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// 契約の試料（2 周分）の包みを書き出し、`blob:` URL を作って保持する（TASK-330 1/2）。固定形の JSON を返す。
+///
+/// 返すのは `url`・`name`・`bytes` だけで、履歴の中身は返さない。前の URL が残っていれば先に破棄する。
+/// 失敗は `{"ok":false}`（理由の文は読まない）。ダウンロードの click は `static/test-hooks.js` が行う。
+#[wasm_bindgen]
+pub fn debug_export_prepare() -> String {
+    export_prepare(crate::test_fixture::two_rounds_envelope())
+}
+
+/// 開ける包み（`loadable_envelope`）を書き出し、`blob:` URL を作って保持する（TASK-330 2/2）。戻りは `debug_export_prepare` と同じ形。
+///
+/// 別のオリジンで読み込む試験が、ダウンロードしたファイルを `setInputFiles` で選ぶために使う。
+#[wasm_bindgen]
+pub fn debug_export_prepare_loadable() -> String {
+    export_prepare(crate::test_fixture::loadable_envelope())
+}
+
+/// 開ける包みの JSON 文字列を返す（読み取りのみ）。ファイルを経ずに同じ取り込みの経路へ入れ、基準の状態を作るための口。
+///
+/// 試料を適用し直したもので、受講者のデータではない。試験の出力・失敗の文には出さない。作れなければ空文字列。
+#[wasm_bindgen]
+pub fn debug_loadable_history_text() -> String {
+    crate::test_fixture::loadable_envelope()
+        .and_then(|env| fandhe_workshop_core::history_export::export_bytes(&env).ok())
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_default()
+}
+
+/// 包みを書き出して `blob:` URL を作り、保持して、固定形の JSON を返す共通の実体。
+fn export_prepare(env: Option<fandhe_workshop_core::history_envelope::SessionEnvelope>) -> String {
+    let Some(env) = env else {
+        return "{\"ok\":false}".to_string();
+    };
+    let Ok(bytes) = fandhe_workshop_core::history_export::export_bytes(&env) else {
+        return "{\"ok\":false}".to_string();
+    };
+    EXPORT_URL.with(|u| u.borrow_mut().take());
+    let Ok(url) = crate::history_download::object_url(&bytes) else {
+        return "{\"ok\":false}".to_string();
+    };
+    let json = serde_json::json!({
+        "ok": true,
+        "url": url.as_str(),
+        "name": crate::history_export::file_name(&env.pack_id),
+        "bytes": bytes.len(),
+    })
+    .to_string();
+    EXPORT_URL.with(|u| *u.borrow_mut() = Some(url));
+    json
+}
+
+/// 保持している書き出しの URL を破棄する。破棄したら `true`、保持が無ければ `false`。
+#[wasm_bindgen]
+pub fn debug_export_revoke() -> bool {
+    EXPORT_URL.with(|u| u.borrow_mut().take()).is_some()
 }

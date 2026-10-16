@@ -1,9 +1,9 @@
 // Tab の補完の条件のうち、今の画面で観察できる行の試験（TASK-278 1/3。JUDGE-19・FEND-21・D-42）。
 //
 // 候補の一覧が開いていて欄に文字があるときだけ、Tab は補完として preventDefault される。それ以外の Tab は
-// preventDefault されず、ブラウザの通常のフォーカス移動になる。候補の一覧の部品は TASK-440 が入れるまで画面に無く、
-// 「候補が開いている」行はここでは観察できない。その行は native の key_route_contract が固定する。
-// ここでは、候補が無い画面で Tab が欄に文字があってもなくても preventDefault されず、
+// preventDefault されず、ブラウザの通常のフォーカス移動になる。配信設定は IR を読み込まず一覧が開かないため、
+// 「候補が開いている」行はここでは観察できない。その行は candidates.test.mjs（試験の設定）が確かめ、
+// native の key_route_contract も固定する。ここでは、候補が無い画面で Tab が欄に文字があってもなくても preventDefault されず、
 // フォーカスが送信ボタンへ移り、欄の値が変わらない（タブ文字が入らない）ことを確かめる。
 // Shift+Tab の確認は shift-tab.test.mjs、Tab の一巡・罠 0 件は tab-cycle.test.mjs が確かめる。
 //

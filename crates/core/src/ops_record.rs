@@ -10,13 +10,13 @@
 //!    （[`OpsRecorder::submit`]、SAVE-24。20,000 文字の送信は 20,000 文字のまま残る）
 //! 3. エンジンの操作は結果（受付・拒否・無視）にかかわらず追記する（状態を変えうるため。[`OpsRecorder::engine`]）
 //! 4. 並びは操作の順のまま変えない
+//! 5. 再読み込み（SAVE-4）は結果にかかわらず `Reload` として 1 件追記する。下書きは畳まない（[`OpsRecorder::reload`]、[`reload_recorded`]）
 //!
 //! Enter 専用の記録は作らない。送信の入口は [`OpsRecorder::submit`] の 1 つで、送信の経路（キー・ボタン）を
 //! 引数に取らない。記録の種類は contract の `HistoryOp` が決め、Enter に当たる種類は無い。
 //!
 //! 境界（含まないもの）。
 //! - 包みの組み立てと、写しの `drafts` との同期（[`crate::history_envelope`]、TASK-315 2/2）
-//! - 再読み込み（SAVE-4。世代と `Reloaded` の変化を伴うため、記録だけを先に足さない）
 //! - 送信の分類（コマンドか自然文か）と適用（[`crate::history_replay::submit_input`]、TASK-275・TASK-316。操作プロファイルで行う）
 //! - 件数・長さの上限の検査（読み込み口の責務。記録で切り詰めると SAVE-24 に反する）
 //!
@@ -28,7 +28,7 @@ use fandhe_workshop_contract::ir::Ir;
 
 use crate::event::Event;
 use crate::input::Op;
-use crate::session::{apply, SessionState};
+use crate::session::{apply, reload, SessionState};
 
 /// core の [`Op`] を束縛した履歴の入力の列の 1 件（仕様の `SessionOp`）。
 pub type SessionOp = HistoryOp<Op>;
@@ -70,6 +70,11 @@ impl OpsRecorder {
         self.ops.push(HistoryOp::Engine(op));
     }
 
+    /// 再読み込みを記録する（SAVE-4）。直前が `Draft` でも畳まず、結果を見ない。
+    pub fn reload(&mut self) {
+        self.ops.push(HistoryOp::Reload);
+    }
+
     /// 記録済みの列。
     pub fn ops(&self) -> &[SessionOp] {
         &self.ops
@@ -102,4 +107,15 @@ pub fn apply_recorded(
 ) -> (SessionState, Vec<Event>) {
     recorder.engine(op.clone());
     apply(ir, state, op)
+}
+
+/// 再読み込みを記録してから [`reload`] する。記録は結果（無変化・`Warning`）に左右されない。
+///
+/// 適用し直し（[`crate::history_replay::replay`]）が同じ [`reload`] を通るので、結果は決定的に一致する。
+pub fn reload_recorded(
+    state: SessionState,
+    recorder: &mut OpsRecorder,
+) -> (SessionState, Vec<Event>) {
+    recorder.reload();
+    reload(state)
 }

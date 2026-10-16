@@ -1,0 +1,9 @@
+id: SAVE4-2
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/history_replay.rs
+find:             HistoryOp::Reload => state = reload(state).0,
+replace:             HistoryOp::Reload => {}
+expect-fail: property_reload_at_any_point_fixed
+expect-fail: property_reload_at_any_point_guided
+note: 適用し直しで Reload を飛ばす。再読み込みを含む全体の包みの照合が写しと食い違う（未使用の import は警告にとどまる）

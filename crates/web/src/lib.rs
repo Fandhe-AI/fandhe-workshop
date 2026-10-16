@@ -21,18 +21,23 @@
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
+//! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 //! 未保存の変更の保留と同期の書き出し（TASK-317 2/2。SAVE-9）は `save_pending` に、`pagehide` で書き出すリスナー（wasm のみ）は `leave_flush` に置く。
+//! 候補の一覧の開閉の規則とコマンド表（TASK-440）は `candidates` に置く。
+//! 履歴の書き出しファイルの名前と種類（TASK-330 1/2。SAVE-16）は `history_export` に、書き出しのバイト列から `blob:` URL を作る処理（wasm のみ）は `history_download` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
 pub mod action;
 pub mod artifact_view;
+pub mod candidates;
 pub mod doc_view;
 pub mod engine_parts;
 pub mod glue_ops;
 mod hello;
+pub mod history_export;
 pub mod host;
 
 pub mod input_limit;
@@ -42,6 +47,7 @@ pub mod list_policy;
 pub mod log_lines;
 pub mod parts;
 pub mod profile;
+pub mod run_status;
 pub mod save_pending;
 pub mod storage_select;
 pub mod terminal_area;
@@ -52,6 +58,8 @@ pub mod tree_attrs;
 #[cfg(target_arch = "wasm32")]
 mod glue;
 
+#[cfg(target_arch = "wasm32")]
+pub mod history_download;
 #[cfg(target_arch = "wasm32")]
 pub mod leave_flush;
 #[cfg(target_arch = "wasm32")]

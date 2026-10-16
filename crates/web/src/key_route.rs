@@ -24,8 +24,8 @@
 //! （TASK-282 1/2。JUDGE-18・JUDGE-21・D-60）。矢印キーで候補を選ぶ操作は無い（複数行の下書きでのキャレット移動と衝突するため）。
 //!
 //! Tab の補完は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` を呼ぶ（TASK-278 1/3）。
-//! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは TASK-440 2/2 の担当で、
-//! ここでは行わない。
+//! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは `HelloView::complete` が持つ
+//! （TASK-440 2/2）。ここでは行わない。
 
 use fandhe_workshop_contract::key_decide::{
     first_completion, Decision, FieldState, KeyAction, KeyDecision, KeyInput,
@@ -65,16 +65,33 @@ impl KeydownEffect {
 /// 他の値は、対応する状態がまだ存在しないため偽にする。状態が加わるタスクが、この関数の 1 か所を差し替える。
 /// - `composing_marker`: 自前の変換中の印は TASK-276 の担当。印が無くても、`isComposing`・keyCode 229・
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
-/// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）。差し替えるまで `esc_route` の停止の行には画面から到達しない
-/// - `candidates_open`: 補完の候補の一覧が未実装。TASK-440 が本関数の 1 か所で差し替える。
-///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる。
-///   差し替えた後は、Esc の後に `after_esc` で状態を進める（JUDGE-18 の 2 回目の Esc を作るため）
-pub fn field_state(has_text: bool) -> FieldState {
+/// - `busy`: Esc の経路ではホストが Session から取って差し替える（TASK-436 2/2）。glue の Enter・Tab の経路では偽のままでよい
+///   （処理中の送信は core が EVT-7 の busy で拒否する）
+/// - `candidates_open`: 呼び出し元が一覧の開閉の状態（`HelloView::candidates_open`）から渡す。
+///   Tab の経路（glue）と、補完の挿入（`HelloView::complete`）と、Esc の経路（`hello`。`after_esc` で状態を進める）が
+///   同じ値を使う（TASK-440）
+pub fn field_state(has_text: bool, candidates_open: bool) -> FieldState {
     FieldState {
         composing_marker: false,
         busy: false,
-        candidates_open: false,
+        candidates_open,
         has_text,
+    }
+}
+
+/// Tab の判定の入力（修飾なし・変換中でない）。
+///
+/// 補完の配送の時点で判定をやり直すための入力である（`HelloView::complete`）。glue は keydown の時点で
+/// 実イベントから判定しており、変換中・Shift 付きの Tab は配送まで届かない（JUDGE-19）。
+pub fn tab_input() -> KeyInput {
+    KeyInput {
+        key: "Tab".to_owned(),
+        key_code: 0,
+        is_composing: false,
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
     }
 }
 
@@ -171,7 +188,8 @@ pub fn esc_input() -> KeyInput {
 /// (3) どちらでもなければ取り消しの入力にする（規則が無い Step では core が拒否として記録する）。
 /// 優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
 ///
-/// 画面から (2) に届くのは候補の一覧が結ばれる TASK-440 の後、(1)・(3) が Session に届くのは TASK-347 の後である。
+/// 画面から (2) に届くのは候補の一覧が結ばれた TASK-440 1/2 の後、(1) がホストから Session に届くのは TASK-436 2/2 の後である。
+/// (3) の Session への適用は未結線で、待機中の Esc はログを変えない。
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn esc_route(decision: Decision) -> EscRoute {
     match decision {
@@ -205,7 +223,7 @@ pub fn after_esc(state: FieldState, route: &EscRoute) -> FieldState {
 /// Tab の補完に使う候補を選ぶ（JUDGE-21・D-60）。判定が `Complete` のときだけ先頭の候補を返し、他は `None`。
 ///
 /// 矢印キーで候補を選ぶ操作は無く（TERM-26 は将来の拡張）、選択の状態も持たない。どの候補かは契約の
-/// `first_completion` が決める。下書きへの挿入そのものは TASK-440 2/2（#332）の担当で、ここでは行わない。
+/// `first_completion` が決める。下書きへの挿入そのものは `HelloView::complete` が持ち、ここでは行わない。
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn completion_choice<T>(decision: Decision, candidates: &[T]) -> Option<&T> {
     match decision {
@@ -241,7 +259,7 @@ mod tests {
     }
 
     fn effect(input: &KeyInput, has_text: bool) -> KeydownEffect {
-        effect_for(decide(input, &field_state(has_text)))
+        effect_for(decide(input, &field_state(has_text, false)))
     }
 
     const SUBMIT: KeydownEffect = KeydownEffect {
@@ -266,7 +284,7 @@ mod tests {
             prevent_default: false,
         });
         for has_text in [true, false] {
-            assert_eq!(decide(&k, &field_state(has_text)), newline);
+            assert_eq!(decide(&k, &field_state(has_text, false)), newline);
             assert_eq!(effect(&k, has_text), KeydownEffect::NONE);
         }
     }
@@ -295,7 +313,7 @@ mod tests {
             assert_eq!(effect(&k, true), KeydownEffect::NONE, "{k:?}");
         }
         // 自前の印だけが立っている場合（TASK-276 が結線した後の形）。
-        let mut state = field_state(true);
+        let mut state = field_state(true, false);
         state.composing_marker = true;
         assert_eq!(
             effect_for(decide(&key("Enter"), &state)),
@@ -349,10 +367,27 @@ mod tests {
     }
 
     #[test]
-    fn 状態の既定は処理中と候補と印が偽() {
-        let s = field_state(true);
+    fn 状態は候補の開閉を引数どおりに返し処理中と印は偽() {
+        let s = field_state(true, false);
         assert!(s.has_text && !s.busy && !s.candidates_open && !s.composing_marker);
-        assert!(!field_state(false).has_text);
+        assert!(!field_state(false, false).has_text);
+        let open = field_state(true, true);
+        assert!(open.candidates_open && !open.busy && !open.composing_marker);
+    }
+
+    #[test]
+    fn tab_は候補が開いていて文字があるときだけ補完になる() {
+        let complete = Decision::Defined(KeyDecision {
+            action: KeyAction::Complete,
+            prevent_default: true,
+        });
+        assert_eq!(decide(&tab_input(), &field_state(true, true)), complete);
+        for (t, o) in [(true, false), (false, true), (false, false)] {
+            assert!(
+                completion_choice(decide(&tab_input(), &field_state(t, o)), &["a"]).is_none(),
+                "{t} {o}"
+            );
+        }
     }
 
     #[test]

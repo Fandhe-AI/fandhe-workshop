@@ -16,7 +16,7 @@
 //! | `Engine(op)` | [`apply`]（記録側の [`crate::ops_record::apply_recorded`] と同じ遷移） |
 //! | `Draft(text)` | [`record_draft`]。`apply` は呼ばず、現在の根の `drafts` だけを更新する |
 //! | `Submit(text)` | [`record_submit`] で現在の根の下書きを除いてから、[`submit_input`] で分類した入力を `apply` する |
-//! | `Reload` | [`ReplayError::UnsupportedReload`] で拒否する（意味の実装は TASK-320） |
+//! | `Reload` | [`reload`]（世代 +1・`Reloaded`。記録側の [`crate::ops_record::reload_recorded`] と同じ遷移。TASK-320） |
 //!
 //! 下書きの同期は記録側と同じ関数を通す。作業用の [`OpsRecorder`] を 1 つ持つのは、そのためだけである
 //! （規則を二重に定義しない）。
@@ -25,14 +25,13 @@
 //! 1. 全域で panic しない。決定的で、I/O を持たない
 //! 2. `ops` の文字列は、送信の分類（接頭辞で始まるか）以外で解釈しない。`Input` には受け取った値のまま入れる
 //!    （試作は trim してから入れていたが、現行の core は受講者の文を原文のまま保つ。SAVE-24）
-//! 3. 適用し直せない `ops`（読めない操作プロファイル・記録側が残さない空白だけの送信・未実装の再読み込み）は、
+//! 3. 適用し直せない `ops`（読めない操作プロファイル・記録側が残さない空白だけの送信）は、
 //!    黙って飛ばさず型つきのエラーで拒否する（fail-closed）。エラーは位置だけを持ち、利用者由来の文字列を持たない
 //! 4. 連続する `Draft` は記録側が畳むため通常は現れない。あっても状態は最後の値と同じになるので拒否しない
 //!
 //! 境界（含まないもの）。
 //! - 版の軸が違う場合の `replay_diverged`（表示だけ）への読み替えと、どの理由が表示だけになるかの線引き（TASK-174）
 //! - 読み込みの全段の順序（TASK-310 3/3・TASK-331）。`pack_id`・`versions`・`start`・`format` は見ない
-//! - 再読み込みの意味（世代 +1・`Reloaded`。TASK-320）
 //! - 開始点 `start` からの初期状態の構築（`Control::Begin`。TASK-217・TASK-294）。初期状態は引数で受ける
 //! - 件数・長さ・入れ子の上限の検査（`history_size`・`json_depth`・`load_gate`）。呼び出し側が検査済みの `ops` を渡す
 
@@ -48,7 +47,7 @@ use fandhe_workshop_contract::profile::{
 use crate::history_envelope::{record_draft, record_submit, SessionEnvelope};
 use crate::input::{Input, Op};
 use crate::ops_record::{OpsRecorder, SessionOp};
-use crate::session::{apply, SessionState};
+use crate::session::{apply, reload, SessionState};
 
 /// 適用し直せなかった理由。位置（`ops` の添字）だけを持ち、利用者由来の文字列は持たない。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,11 +60,6 @@ pub enum ReplayError {
         /// `ops` の添字。
         index: usize,
     },
-    /// 再読み込み。意味の実装は TASK-320 で、それまでは誤った状態を返さないよう拒否する。
-    UnsupportedReload {
-        /// `ops` の添字。
-        index: usize,
-    },
 }
 
 impl fmt::Display for ReplayError {
@@ -73,9 +67,6 @@ impl fmt::Display for ReplayError {
         match self {
             ReplayError::Profile(_) => f.write_str("pack profile is not readable"),
             ReplayError::BlankSubmit { index } => write!(f, "blank submit at ops[{index}]"),
-            ReplayError::UnsupportedReload { index } => {
-                write!(f, "reload at ops[{index}] is not supported yet")
-            }
         }
     }
 }
@@ -97,7 +88,7 @@ pub fn submit_input(prefix: &str, text: String) -> Input {
 ///
 /// # Errors
 ///
-/// [`ReplayError`]。`pack.profile` を読めないとき、空白だけの送信・再読み込みを含むとき。
+/// [`ReplayError`]。`pack.profile` を読めないとき、空白だけの送信を含むとき。
 pub fn replay(
     ir: &Ir,
     initial: SessionState,
@@ -118,7 +109,7 @@ pub fn replay(
                 let input = submit_input(&prefix, text.clone());
                 state = apply(ir, state, Op::Input(input)).0;
             }
-            HistoryOp::Reload => return Err(ReplayError::UnsupportedReload { index }),
+            HistoryOp::Reload => state = reload(state).0,
         }
     }
     Ok(state)
@@ -194,7 +185,7 @@ impl VerifyError {
     /// 版の軸がすべて同じ場合の読み込みの理由。
     ///
     /// 食い違いと、記録側が残さない空白だけの送信は、書き換え・壊れとして `replay_mismatch` にする。
-    /// 教材側の不備（読めない操作プロファイル）と、未実装の再読み込み（TASK-320）は `None` で、
+    /// 教材側の不備（読めない操作プロファイル）は `None` で、
     /// 呼び出し元は開かない（fail-closed）。版の軸が違う場合の `replay_diverged` への読み替えは TASK-174 の責務。
     pub fn load_reason(&self) -> Option<LoadReason> {
         match self {

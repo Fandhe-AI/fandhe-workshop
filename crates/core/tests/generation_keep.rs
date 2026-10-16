@@ -72,7 +72,11 @@ fn tick(generation: u64, step: &str, index: u32) -> Op {
 fn carries_generation(e: &Event) -> bool {
     matches!(
         e,
-        Event::Stopped { .. } | Event::Moved { .. } | Event::Restored { .. } | Event::Begun { .. }
+        Event::Stopped { .. }
+            | Event::Moved { .. }
+            | Event::Restored { .. }
+            | Event::Begun { .. }
+            | Event::Reloaded { .. }
     )
 }
 

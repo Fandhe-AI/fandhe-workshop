@@ -149,7 +149,13 @@ fn mount_できる境界を満たす() {
 fn 既定のホストの描画に入力欄の_testid_が揃い_a11y_を満たす() {
     let host = EngineHost::new();
     let h = html(&host);
-    for id in ["hello-root", "draft-input", "submit-input", "input-notice"] {
+    for id in [
+        "hello-root",
+        "draft-input",
+        "submit-input",
+        "stop-btn",
+        "input-notice",
+    ] {
         assert!(h.contains(&format!("data-testid=\"{id}\"")), "{id}: {h}");
     }
     assert!(h.contains("data-testid=\"workshop-root\""), "{h}");
@@ -310,7 +316,7 @@ fn consumed_of(host: &EngineHost, field: &str) -> String {
 fn 標準の登録簿は_3_部品で_入力欄の_field_と衝突しない() {
     let r = standard_registry();
     assert_eq!(r.len(), 3);
-    assert_eq!(r.fields().count(), 6);
+    assert_eq!(r.fields().count(), 8);
     assert!(r
         .fields()
         .all(|f| !["input_notice", "learner_log"].contains(&f.name)));
@@ -539,4 +545,239 @@ fn 停止の後の古い宛先は_ignored_1件で状態を変えず_再入力で
     );
     host.update(make_note());
     assert_eq!(seen.borrow().last(), Some(&Some(addr(2, "main/st-1", 0))));
+}
+
+// ---- TASK-221 2/2: 再読み込みの後に届く古い宛先（EVT-6・EVT-8・EVT-12。試験の設定だけ） ----
+
+#[cfg(feature = "test-hooks")]
+mod reload_stale {
+    use super::*;
+    use fandhe_workshop_web::host::RAW_RELOAD;
+
+    fn reload_action() -> HostAction {
+        EngineHost::decode_action("raw", RAW_RELOAD).unwrap()
+    }
+
+    fn generation(host: &EngineHost) -> Generation {
+        host.model().session().unwrap().generation()
+    }
+
+    fn reloaded_count(host: &EngineHost) -> usize {
+        host.model()
+            .session()
+            .unwrap()
+            .log()
+            .iter()
+            .filter(|e| event_kind_name(e) == "reloaded")
+            .count()
+    }
+
+    /// 世代ごとの Progress の番号（ログの順）。
+    fn progress_of(host: &EngineHost, generation: u64) -> Vec<u32> {
+        host.model()
+            .session()
+            .unwrap()
+            .log()
+            .iter()
+            .filter_map(|e| match e {
+                fandhe_workshop_core::event::Event::Progress { at, index, .. }
+                    if at.generation.0 == generation =>
+                {
+                    Some(*index)
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// make-note を送り、進行を 2 段進めたホストと通知の記録。
+    fn two_ticks() -> (EngineHost, Rc<RefCell<Vec<Option<TickAddr>>>>) {
+        let (mut host, seen) = recording_host();
+        host.update(make_note());
+        for i in 0..2 {
+            host.update(HostAction::Engine(Op::Tick(addr(1, "main/st-1", i))));
+        }
+        (host, seen)
+    }
+
+    #[test]
+    fn 合図は完全一致だけが_reload_になり_op_としては復号できない() {
+        assert!(matches!(
+            EngineHost::decode_action("raw", RAW_RELOAD),
+            Some(HostAction::Reload)
+        ));
+        for near in [
+            "{\"reload\": {}}",
+            "{\"reload\":null}",
+            " {\"reload\":{}}",
+            "{\"reload\":{}} ",
+            "\"reload\"",
+            "reload",
+            "",
+        ] {
+            assert!(
+                !matches!(
+                    EngineHost::decode_action("raw", near),
+                    Some(HostAction::Reload)
+                ),
+                "{near:?}"
+            );
+        }
+        // 合図は Op ではない（衝突しない）。
+        assert!(serde_json::from_str::<Op>(RAW_RELOAD).is_err());
+        // 合図は raw だけで有効。
+        assert!(!matches!(
+            EngineHost::decode_action("tick", RAW_RELOAD),
+            Some(HostAction::Reload)
+        ));
+    }
+
+    #[test]
+    fn 再読み込みで新しい世代の宛先が通知され_状態は世代以外変わらない() {
+        let (mut host, seen) = two_ticks();
+        let before = host.model().session().unwrap().state().clone();
+        assert_eq!(seen.borrow().last(), Some(&Some(addr(1, "main/st-1", 2))));
+        host.update(reload_action());
+        assert_eq!(seen.borrow().last(), Some(&Some(addr(2, "main/st-1", 2))));
+        assert_eq!(host.next_tick(), Some(addr(2, "main/st-1", 2)));
+        let after = host.model().session().unwrap().state();
+        assert_eq!(generation(&host), Generation(2));
+        assert_eq!(after.run.busy, before.run.busy);
+        assert_eq!(after.run.world, before.run.world);
+        assert_eq!(after.run.current, before.run.current);
+        assert_eq!(reloaded_count(&host), 1);
+        assert_eq!(
+            host.model().projection(),
+            &Projection::from_events(host.model().session().unwrap().log())
+        );
+    }
+
+    #[test]
+    fn 古い宛先は_ignored_を_1件だけ増やし_状態を変えず_二重に届いても同じ() {
+        let (mut host, seen) = two_ticks();
+        host.update(reload_action());
+        let run_before = host.model().session().unwrap().state().run.clone();
+        let ignored_before = ignored_count(&host);
+        let stale = addr(1, "main/st-1", 2);
+        host.update(HostAction::Engine(Op::Tick(stale.clone())));
+        assert_eq!(ignored_count(&host), ignored_before + 1);
+        assert_eq!(host.model().session().unwrap().state().run, run_before);
+        assert_eq!(seen.borrow().last(), Some(&Some(addr(2, "main/st-1", 2))));
+        host.update(HostAction::Engine(Op::Tick(stale)));
+        assert_eq!(ignored_count(&host), ignored_before + 2);
+        assert_eq!(host.model().session().unwrap().state().run, run_before);
+        assert_eq!(seen.borrow().last(), Some(&Some(addr(2, "main/st-1", 2))));
+    }
+
+    #[test]
+    fn 再読み込みの後は新しい世代の宛先で完走し_再読み込みしない経路と世界が一致する() {
+        let (mut host, seen) = two_ticks();
+        host.update(reload_action());
+        host.update(HostAction::Engine(Op::Tick(addr(1, "main/st-1", 2))));
+        for i in 2..5 {
+            let next = host.next_tick().expect("処理中のはず");
+            assert_eq!(next, addr(2, "main/st-1", i));
+            host.update(HostAction::Engine(Op::Tick(next)));
+        }
+        assert_eq!(host.next_tick(), None);
+        assert_eq!(seen.borrow().last(), Some(&None));
+        assert_eq!(progress_of(&host, 1), vec![0, 1]);
+        assert_eq!(progress_of(&host, 2), vec![2, 3, 4]);
+        // 再読み込みしない経路の結果。
+        let (mut plain, _) = recording_host();
+        plain.update(make_note());
+        for i in 0..5 {
+            plain.update(HostAction::Engine(Op::Tick(addr(1, "main/st-1", i))));
+        }
+        let (a, b) = (
+            host.model().session().unwrap().state(),
+            plain.model().session().unwrap().state(),
+        );
+        assert!(a.run.busy.is_none());
+        assert_eq!(a.run.world, b.run.world);
+        assert_eq!(a.run.completed, b.run.completed);
+        assert_eq!(a.run.current, b.run.current);
+    }
+
+    #[test]
+    fn 再読み込みを2回続けると世代は3で_古い宛先はどちらも_1件ずつ無視される() {
+        let (mut host, seen) = two_ticks();
+        host.update(reload_action());
+        host.update(reload_action());
+        assert_eq!(generation(&host), Generation(3));
+        assert_eq!(reloaded_count(&host), 2);
+        assert_eq!(seen.borrow().last(), Some(&Some(addr(3, "main/st-1", 2))));
+        let run_before = host.model().session().unwrap().state().run.clone();
+        let ignored_before = ignored_count(&host);
+        for g in [1, 2] {
+            host.update(HostAction::Engine(Op::Tick(addr(g, "main/st-1", 2))));
+        }
+        assert_eq!(ignored_count(&host), ignored_before + 2);
+        assert_eq!(host.model().session().unwrap().state().run, run_before);
+    }
+
+    #[test]
+    fn 再読み込みの後の停止は入口へ戻り_世代1と2の宛先はどちらも無視される() {
+        let (mut host, seen) = two_ticks();
+        let initial_world = begun_host()
+            .model()
+            .session()
+            .unwrap()
+            .state()
+            .run
+            .world
+            .clone();
+        host.update(reload_action());
+        host.update(HostAction::Engine(Op::Control(Control::Stop)));
+        assert_eq!(generation(&host), Generation(3));
+        assert_eq!(seen.borrow().last(), Some(&None));
+        let run = host.model().session().unwrap().state().run.clone();
+        assert!(run.busy.is_none());
+        assert_eq!(run.world, initial_world);
+        let ignored_before = ignored_count(&host);
+        for g in [1, 2] {
+            host.update(HostAction::Engine(Op::Tick(addr(g, "main/st-1", 2))));
+        }
+        assert_eq!(ignored_count(&host), ignored_before + 2);
+        assert_eq!(host.model().session().unwrap().state().run, run);
+    }
+
+    #[test]
+    fn 停止の後の再読み込みは世代以外が停止の直後と一致する() {
+        let (mut host, seen) = two_ticks();
+        host.update(HostAction::Engine(Op::Control(Control::Stop)));
+        let stopped = host.model().session().unwrap().state().run.clone();
+        host.update(reload_action());
+        let run = host.model().session().unwrap().state().run.clone();
+        assert_eq!(generation(&host), Generation(3));
+        assert_eq!(run.generation, Generation(stopped.generation.0 + 1));
+        assert_eq!(run.busy, stopped.busy);
+        assert_eq!(run.world, stopped.world);
+        assert_eq!(run.current, stopped.current);
+        assert_eq!(seen.borrow().last(), Some(&None));
+    }
+
+    #[test]
+    fn 処理中でないときの再読み込みは通知が_none_で世代だけが_1_上がる() {
+        let (mut host, seen) = recording_host();
+        let g = generation(&host).0;
+        host.update(reload_action());
+        assert_eq!(generation(&host), Generation(g + 1));
+        assert_eq!(seen.borrow().last(), Some(&None));
+        assert!(host.model().session().unwrap().state().run.busy.is_none());
+    }
+
+    #[test]
+    fn 未読込のホストへの再読み込みは何もしない() {
+        let mut host = EngineHost::new();
+        host.update(reload_action());
+        assert!(host.model().session().is_none());
+        assert!(host.dirty_fields().is_empty());
+    }
+}
+
+#[cfg(not(feature = "test-hooks"))]
+#[test]
+fn 配信する設定では再読み込みの合図を復号しない() {
+    assert!(EngineHost::decode_action("raw", "{\"reload\":{}}").is_none());
 }

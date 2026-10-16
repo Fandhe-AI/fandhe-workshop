@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_export_prepare, debug_export_prepare_loadable, debug_loadable_history_text, debug_export_revoke } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -79,6 +79,26 @@ export function saveFlush() {
   return debug_save_flush();
 }
 
+// 履歴の書き出し（TASK-330 1/2）。exportPrepare は契約の試料（2 周分）の blob: URL を作り、JSON（ok / url / name / bytes）を返す。中身は返さない。
+export function exportPrepare() {
+  return debug_export_prepare();
+}
+
+// 保持している blob: URL を破棄する。破棄したら true。
+export function exportRevoke() {
+  return debug_export_revoke();
+}
+
+// ダウンロードの click は配信の本体に置かない（no_hidden_triggers が禁止）。試験の設定のこのファイルだけが <a download> を作って click し、すぐ外す。
+export function exportClick(url, name) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 // ツリーの試料を後の状態で描いた HTML 文字列を返す（TASK-472）。kind は "file_tree" か "task_tree"、variant は "a" か "b"。範囲外は空文字列。
 export function renderTree(kind, variant) {
   return debug_render_tree(kind, variant);
@@ -106,4 +126,47 @@ export function viewFixtureDispatch(name, payload) {
 
 export function viewFixtureState() {
   return debug_view_fixture_state();
+}
+
+// 開ける履歴の包み（TASK-330 2/2）。契約の試料の ops を適用し直したもので、受講中の記録ではない。
+// exportPrepareLoadable は exportPrepare と同じ形（ok / url / name / bytes）の JSON を返す。
+export function exportPrepareLoadable() {
+  return debug_export_prepare_loadable();
+}
+
+// 開ける包みの JSON 文字列。importText に渡して基準の状態を作る。中身は試験の出力に出さない。
+export function loadableHistoryText() {
+  return debug_loadable_history_text();
+}
+
+// 履歴ファイルを選ぶ要素（TASK-330 2/2）。ファイルの選択と読み取りは DOM の値を読むため、Rust ではなくこのファイルが行う（check-dom-reads）。
+// 選ばれたファイルの本文を、固定の接頭辞つきで見えない raw-trigger に載せて click する。結果は stateJson().engine.lastImport で読む。
+const OPEN_HISTORY_PREFIX = 'open-history:';
+
+function sendRaw(payload) {
+  const trigger = document.querySelector('[data-testid="raw-trigger"]');
+  if (!trigger) return false;
+  trigger.setAttribute('data-payload', payload);
+  trigger.click();
+  trigger.setAttribute('data-payload', '');
+  return true;
+}
+
+export function importInstall() {
+  if (document.querySelector('[data-testid="history-file"]')) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.hidden = true;
+  input.setAttribute('data-testid', 'history-file');
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    sendRaw(OPEN_HISTORY_PREFIX + (await file.text()));
+  });
+  document.body.appendChild(input);
+}
+
+// ファイルを経ずに同じ raw の経路で取り込む。基準の状態を作るために使う。
+export function importText(text) {
+  return sendRaw(OPEN_HISTORY_PREFIX + text);
 }
