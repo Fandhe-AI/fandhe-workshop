@@ -1,0 +1,9 @@
+id: SAVE24-6
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/history_envelope.rs
+find:     Ok(HistoryEnvelope::new(
+replace:     let mut snapshot = snapshot; for e in &mut snapshot.log { if let crate::event::Event::Restored { log_len, .. } = e { *log_len += 1; } } Ok(HistoryEnvelope::new(
+expect-fail: samples_are_rebuilt_byte_for_byte
+expect-fail: sample_rebuild_roundtrips_and_keeps_positions
+note: 包む直前に Restored.log_len を 1 ずらす（SAVE-2、PoC-6 の X-6 の定義どおり）
