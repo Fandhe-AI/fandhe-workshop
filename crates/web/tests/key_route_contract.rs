@@ -7,7 +7,7 @@
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
-use fandhe_workshop_contract::key_decide::{decide, KeyInput};
+use fandhe_workshop_contract::key_decide::{decide, Decision, KeyAction, KeyDecision, KeyInput};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
@@ -97,6 +97,36 @@ fn 変換中の_tab_は候補が開いていても_prevent_default_しない() {
     state.composing_marker = true;
     let effect = effect_for(decide(&tab(false, false, false, false), &state));
     assert!(!effect.prevent_default);
+}
+
+// ---- Shift+Tab の逆向きのフォーカス移動（TASK-278 2/3。JUDGE-19・D-40） ----
+
+#[test]
+fn shift_tab_は候補が開いていて文字があっても_prevent_default_せず送信もしない() {
+    for modifier in 0..4 {
+        for candidates_open in [false, true] {
+            for has_text in [false, true] {
+                let input = tab(true, modifier == 1, modifier == 2, modifier == 3);
+                let mut state = field_state(has_text);
+                state.candidates_open = candidates_open;
+                let cell = format!(
+                    "modifier={modifier} candidates_open={candidates_open} has_text={has_text}"
+                );
+                let decision = decide(&input, &state);
+                assert_eq!(
+                    decision,
+                    Decision::Defined(KeyDecision {
+                        action: KeyAction::Nothing,
+                        prevent_default: false,
+                    }),
+                    "{cell}"
+                );
+                let effect = effect_for(decision);
+                assert!(!effect.prevent_default, "{cell}");
+                assert!(!effect.click_submit, "{cell}");
+            }
+        }
+    }
 }
 
 // ---- 処理中の Esc の停止（TASK-277 1/2。JUDGE-17 (1)・TERM-7・D-22） ----
