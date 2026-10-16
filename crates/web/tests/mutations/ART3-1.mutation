@@ -1,0 +1,8 @@
+id: ART3-1
+package: fandhe-workshop-web
+test: artifact_view_contract
+target: crates/web/src/artifact_view.rs
+find:         MarkKind::Put => Some(ChangeMark::Add),
+replace:         MarkKind::Put => Some(ChangeMark::Remove),
+expect-fail: change_mark_of_の対応表
+note: 置かれた印を削除に対応させる（追加が削除の印で出る）
