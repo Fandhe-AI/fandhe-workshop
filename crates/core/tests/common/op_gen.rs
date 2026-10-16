@@ -1,0 +1,363 @@
+//! 任意の操作列の生成器と、抽象的な操作を具体の `Op` に解決して流すハーネス（TASK-219 1/3）。
+//!
+//! 呼び出し元は `op_sequence_replay.rs`（流し直しの一致）。後続の #207（性質 P-1〜P-6 の検査）と
+//! #208（現在の状態での正しい次の操作に誘導する生成）が同じ部品を拡張する。
+//!
+//! # 定義の出所
+//!
+//! 操作の種類・重み・値の表は `testdata/engine-event-consistency/test-data/property-test.md`（PoC-1 で固定）と同じである。
+//! 生成の段階では状態を見ない抽象的な [`OpSpec`] だけを作り、[`Harness::resolve`] が操作の直前の状態から
+//! 具体の `Op` に解決する。進行の宛先が「現在」「直前に届いたもの」「過去に出たもの」などの相対指定のため、
+//! 具体の値は状態に依存するからである。
+//!
+//! # 決定性
+//!
+//! 解決は、現在の状態と、ハーネスが持つ履歴（届いた宛先）だけで決まる。乱数・時刻・I/O を使わない。
+//! 同じ [`OpSpec`] 列を同じ初期状態から流せば、同じ `Op` 列と同じ状態になる。
+//!
+//! # 拡張点
+//!
+//! - #207: [`run_with`] の検査フック（操作前・操作後・イベント列を受ける）に P-1〜P-6 の検査を渡す
+//! - #208: [`OpSpec`] に誘導の variant を足し、[`Harness::resolve`] の中で現在の状態から解決する
+//!   （`resolve` は `&self` で状態を読む形を保つ）
+//!
+//! # 空列の扱い
+//!
+//! 連打は直前の学習者の入力が無いと捨てるため、展開後が空になりうる。この場合は先頭に
+//! `OpSpec::Cmd(0)`（`/make-note first-note`）を 1 件置き、列を 1 件以上にそろえる。
+
+use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
+use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::{apply, Session};
+use proptest::prelude::*;
+use proptest::test_runner::TestCaseError;
+
+use super::property::{op_sequence, MAX_OPS};
+use super::tick::next_tick;
+
+/// コマンドの表。
+pub const CMDS: [&str; 7] = [
+    "/make-note first-note",
+    "/make-note",
+    "/make-note Bad_Name",
+    "/publish-note",
+    "/sync-cloud",
+    "/nothing",
+    "/help",
+];
+/// 選択の表（`opt-none` は存在しない選択肢）。
+pub const CHOICES: [&str; 3] = ["opt-memo", "opt-todo", "opt-none"];
+/// 画面操作の対象（`v-files` の path）。
+pub const PATHS: [&str; 2] = ["notes/draft", "notes/other"];
+/// Step の表。
+pub const NODES: [&str; 3] = ["main/st-1", "main/st-2", "main/st-3"];
+/// 承認の表。
+pub const DECISIONS: [Decision; 3] = [Decision::Approve, Decision::Reject, Decision::Revise];
+/// 自然文の固定の文。
+pub const TEXT: &str = "ノートを作りたい";
+
+/// 進行の宛先の選び方。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Which {
+    /// 現在の世代・Step・番号。
+    Current,
+    /// 直前に届いたものと同じ宛先。
+    Dup,
+    /// 1 つ前の世代。
+    StaleGen,
+    /// 現在と異なる Step。
+    StaleNode,
+    /// 過去に出た宛先から、添字で選ぶ 1 つ。
+    StaleAny(usize),
+}
+
+/// 抽象的な操作（状態に解決する前）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpSpec {
+    /// コマンド（`CMDS` の添字）。
+    Cmd(usize),
+    /// 選択（`CHOICES` の添字）。
+    Choice(usize),
+    /// 画面操作（`PATHS` の添字）。
+    Ui(usize),
+    /// 承認（`DECISIONS` の添字）。
+    Approval(usize),
+    /// 自然文。
+    Text,
+    /// 取り消し。
+    Cancel,
+    /// 進行。
+    Tick(Which),
+    /// 停止（処理中でなければ取り消しとして扱う）。
+    Stop,
+    /// Step 移動（`NODES` の添字）。
+    GoTo(usize),
+    /// チェックポイント保存。
+    Save,
+    /// チェックポイント復帰（番号 1〜4）。
+    Restore(u32),
+}
+
+impl OpSpec {
+    /// 学習者の入力か。連打の複製の対象になる。
+    pub fn is_learner_input(&self) -> bool {
+        matches!(
+            self,
+            OpSpec::Cmd(_)
+                | OpSpec::Choice(_)
+                | OpSpec::Ui(_)
+                | OpSpec::Approval(_)
+                | OpSpec::Text
+                | OpSpec::Cancel
+        )
+    }
+}
+
+/// 生成の段階の操作。連打は展開の前の形で持つ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RawSpec {
+    /// 通常の操作。
+    One(OpSpec),
+    /// 直前の学習者の入力を、この回数だけ繰り返す。
+    Burst(usize),
+}
+
+fn which_from(kind: u8, k: usize) -> Which {
+    match kind {
+        0..=1 => Which::Current,
+        2 => Which::Dup,
+        3 => Which::StaleGen,
+        _ => {
+            if k.is_multiple_of(2) {
+                Which::StaleNode
+            } else {
+                Which::StaleAny(k)
+            }
+        }
+    }
+}
+
+/// `property-test.md` の重みを付けた操作の戦略。
+pub fn spec_strategy() -> impl Strategy<Value = RawSpec> {
+    prop_oneof![
+        6 => (0..CMDS.len()).prop_map(|i| RawSpec::One(OpSpec::Cmd(i))),
+        4 => (0..CHOICES.len()).prop_map(|i| RawSpec::One(OpSpec::Choice(i))),
+        4 => (0..PATHS.len()).prop_map(|i| RawSpec::One(OpSpec::Ui(i))),
+        3 => (0..DECISIONS.len()).prop_map(|i| RawSpec::One(OpSpec::Approval(i))),
+        1 => Just(RawSpec::One(OpSpec::Text)),
+        1 => Just(RawSpec::One(OpSpec::Cancel)),
+        9 => (0u8..5, 0usize..64)
+            .prop_map(|(kind, k)| RawSpec::One(OpSpec::Tick(which_from(kind, k)))),
+        2 => Just(RawSpec::One(OpSpec::Stop)),
+        2 => (0..NODES.len()).prop_map(|i| RawSpec::One(OpSpec::GoTo(i))),
+        2 => Just(RawSpec::One(OpSpec::Save)),
+        2 => (1u32..=4).prop_map(|n| RawSpec::One(OpSpec::Restore(n))),
+        2 => (2usize..=20).prop_map(RawSpec::Burst),
+    ]
+}
+
+/// 連打を学習者の入力の複製に展開し、[`MAX_OPS`] で打ち切る。直前の入力が無い連打は捨てる。
+pub fn expand(raw: &[RawSpec]) -> Vec<OpSpec> {
+    let mut out: Vec<OpSpec> = Vec::new();
+    let mut last_input: Option<OpSpec> = None;
+    for r in raw {
+        match r {
+            RawSpec::One(spec) => {
+                if spec.is_learner_input() {
+                    last_input = Some(*spec);
+                }
+                out.push(*spec);
+            }
+            RawSpec::Burst(n) => {
+                if let Some(spec) = last_input {
+                    out.extend(std::iter::repeat_n(spec, *n));
+                }
+            }
+        }
+    }
+    out.truncate(MAX_OPS);
+    if out.is_empty() {
+        out.push(OpSpec::Cmd(0));
+    }
+    out
+}
+
+/// 1〜[`MAX_OPS`] 個の操作列の戦略（連打は展開済み）。
+pub fn op_specs() -> impl Strategy<Value = Vec<OpSpec>> {
+    op_sequence(spec_strategy()).prop_map(|raw| expand(&raw))
+}
+
+/// 1 操作の結果。
+#[derive(Debug, Clone, PartialEq)]
+pub struct Applied {
+    /// 解決した具体の操作。
+    pub op: Op,
+    /// 操作前の状態。
+    pub before: SessionState,
+    /// 操作後の状態。
+    pub after: SessionState,
+    /// 今回足されたイベント。
+    pub events: Vec<Event>,
+}
+
+/// 状態を進める経路。
+enum Route {
+    /// 純粋関数 `apply` を直接呼ぶ。
+    Pure,
+    /// web が使う `Session` の経路。
+    Session(Box<Session>),
+}
+
+/// 抽象的な操作を、現在の状態から具体の `Op` に解決して流すハーネス。
+pub struct Harness<'a> {
+    ir: &'a Ir,
+    state: SessionState,
+    seen: Vec<TickAddr>,
+    last_tick: Option<TickAddr>,
+    route: Route,
+}
+
+impl<'a> Harness<'a> {
+    /// 純粋関数 `apply` の経路で作る。
+    pub fn pure(ir: &'a Ir, initial: SessionState) -> Self {
+        Harness {
+            ir,
+            state: initial,
+            seen: Vec::new(),
+            last_tick: None,
+            route: Route::Pure,
+        }
+    }
+
+    /// `Session::apply` の経路で作る。
+    pub fn via_session(ir: &'a Ir, initial: SessionState) -> Self {
+        Harness {
+            ir,
+            state: initial.clone(),
+            seen: Vec::new(),
+            last_tick: None,
+            route: Route::Session(Box::new(Session::from_state(ir.clone(), initial))),
+        }
+    }
+
+    /// 現在の状態。
+    pub fn state(&self) -> &SessionState {
+        &self.state
+    }
+
+    fn tick_addr(&self, which: Which) -> TickAddr {
+        let step = self
+            .state
+            .run
+            .current
+            .clone()
+            .unwrap_or_else(|| StepUid(NODES[0].to_string()));
+        let generation = self.state.run.generation;
+        let current = next_tick(&self.state).unwrap_or(TickAddr {
+            generation,
+            step: step.clone(),
+            index: 0,
+        });
+        match which {
+            Which::Current => current,
+            Which::Dup => self.last_tick.clone().unwrap_or(current),
+            Which::StaleGen => TickAddr {
+                generation: Generation(generation.0.saturating_sub(1)),
+                ..current
+            },
+            Which::StaleNode => {
+                let other = NODES
+                    .iter()
+                    .find(|n| **n != step.0)
+                    .unwrap_or(&NODES[0])
+                    .to_string();
+                TickAddr {
+                    step: StepUid(other),
+                    ..current
+                }
+            }
+            Which::StaleAny(k) => match self.seen.len() {
+                0 => current,
+                len => self.seen[k % len].clone(),
+            },
+        }
+    }
+
+    /// 現在の状態から、抽象的な操作を具体の `Op` に解決する。
+    pub fn resolve(&self, spec: &OpSpec) -> Op {
+        let cancel = || Op::Input(Input::Cancel);
+        match *spec {
+            OpSpec::Cmd(i) => Op::Input(Input::Command(CMDS[i % CMDS.len()].to_string())),
+            OpSpec::Choice(i) => Op::Input(Input::Choice(CHOICES[i % CHOICES.len()].to_string())),
+            OpSpec::Ui(i) => Op::Input(Input::Ui {
+                view: "v-files".to_string(),
+                path: PATHS[i % PATHS.len()].to_string(),
+            }),
+            OpSpec::Approval(i) => Op::Input(Input::Approval {
+                decision: DECISIONS[i % DECISIONS.len()],
+                target: None,
+            }),
+            OpSpec::Text => Op::Input(Input::Text(TEXT.to_string())),
+            OpSpec::Cancel => cancel(),
+            OpSpec::Tick(which) => Op::Tick(self.tick_addr(which)),
+            OpSpec::Stop if self.state.run.busy.is_some() => Op::Control(Control::Stop),
+            OpSpec::Stop => cancel(),
+            OpSpec::GoTo(i) => {
+                Op::Control(Control::GoTo(StepUid(NODES[i % NODES.len()].to_string())))
+            }
+            OpSpec::Save => Op::Control(Control::Save),
+            OpSpec::Restore(n) => Op::Control(Control::Restore(CheckpointId(n))),
+        }
+    }
+
+    /// 操作を解決して流し、状態と履歴を更新する。
+    pub fn step(&mut self, spec: &OpSpec) -> Applied {
+        let op = self.resolve(spec);
+        if let Op::Tick(addr) = &op {
+            if !self.seen.contains(addr) {
+                self.seen.push(addr.clone());
+            }
+            self.last_tick = Some(addr.clone());
+        }
+        let before = self.state.clone();
+        let events = match &mut self.route {
+            Route::Pure => {
+                let (after, events) = apply(self.ir, before.clone(), op.clone());
+                self.state = after;
+                events
+            }
+            Route::Session(session) => {
+                let events = session.apply(op.clone()).to_vec();
+                self.state = session.state().clone();
+                events
+            }
+        };
+        Applied {
+            op,
+            before,
+            after: self.state.clone(),
+            events,
+        }
+    }
+}
+
+/// 純粋関数の経路で列を流し、各操作の後に `check` を呼ぶ。#207 が検査を渡す入口。
+pub fn run_with<F>(
+    ir: &Ir,
+    initial: SessionState,
+    specs: &[OpSpec],
+    mut check: F,
+) -> Result<SessionState, TestCaseError>
+where
+    F: FnMut(usize, &Applied) -> Result<(), TestCaseError>,
+{
+    let mut harness = Harness::pure(ir, initial);
+    for (i, spec) in specs.iter().enumerate() {
+        let applied = harness.step(spec);
+        check(i, &applied)?;
+    }
+    Ok(harness.state().clone())
+}
