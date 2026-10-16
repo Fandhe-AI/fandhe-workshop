@@ -1,0 +1,8 @@
+id: EVT18-1
+package: fandhe-workshop-web
+test: tick_interval
+target: crates/web/src/tick_interval.rs
+find: pub const TICK_INTERVAL_MS: u32 = 300;
+replace: pub const TICK_INTERVAL_MS: u32 = 5;
+expect-fail: 進行の間隔は_300ms_の定数である
+note: 間隔を試作の試験の値（tick=5）にする（配信する設定の間隔が 300ms でなくなっても気づけなくなる）

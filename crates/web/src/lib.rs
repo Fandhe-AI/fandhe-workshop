@@ -12,6 +12,7 @@
 //! 操作プロファイル・外観・左エリアの設定の渡し方は `profile` に置く。
 //! glue の許される操作は `glue_ops` に、keyed list の親の属性と項目数の方針は `list_policy` に置く。
 //! これら TASK-343 の契約の版は `parts::PARTS_CONTRACT_VERSION` が持つ。
+//! 進行の間隔の定数（TASK-229。D-47）は `tick_interval` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 #![forbid(unsafe_code)]
 
@@ -26,6 +27,7 @@ pub mod learner_text;
 pub mod list_policy;
 pub mod parts;
 pub mod profile;
+pub mod tick_interval;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
