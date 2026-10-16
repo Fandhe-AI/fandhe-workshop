@@ -11,8 +11,9 @@
 //! dirty field の求め方は、束縛点（Bound）は操作の前後で値が変わったものだけ、keyed list は
 //! イベントが返った（またはログの長さが変わった）ときだけである（FEND-3）。
 //! 3 つの表示（ログ・左の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
-//! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。action から `Op` を作る経路は後続の
-//! タスクが足す。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
+//! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。`tick`・`complete` の action は
+//! `Runtime::dispatch_action` から届く（TASK-349。`decode_action` が `action::RuntimeAction` の検査を通す）。
+//! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）を持つ（BUILD-27・SHELL-35）。
 //!
 //! [`DisplayPart`]: crate::parts::DisplayPart
@@ -34,14 +35,17 @@ use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::input::Op;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session};
 
+use crate::action::RuntimeAction;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
+use crate::tick_schedule::next_tick;
 
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
@@ -85,7 +89,14 @@ pub enum HostAction {
     Input(HelloAction),
     /// core への操作。
     Engine(Op),
+    /// 補完（FEND-4）。候補の一覧と挿入は TASK-440 が足すまで、状態を変えない。
+    Complete,
 }
+
+/// 次の進行の宛先の通知先。`apply_engine` の後に、次に届けるべき進行（無ければ `None`）を渡す。
+///
+/// glue が `set_timeout` の予約に使う。ホストは予約の状態を持たず、重複の抑止も glue が受け持つ。
+pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
 
 /// 構築の拒否の理由。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,6 +125,11 @@ pub struct EngineHost {
     input: HelloView,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
+    /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
+    tick_request: Option<TickRequest>,
+    /// 補完の action を受け取った回数（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    complete_count: u32,
 }
 
 impl fmt::Debug for EngineHost {
@@ -145,6 +161,9 @@ impl EngineHost {
             registry: standard_registry(),
             input: HelloView::new(),
             dirty: Vec::new(),
+            tick_request: None,
+            #[cfg(feature = "test-hooks")]
+            complete_count: 0,
         }
     }
 
@@ -174,6 +193,9 @@ impl EngineHost {
             registry,
             input: HelloView::new(),
             dirty: Vec::new(),
+            tick_request: None,
+            #[cfg(feature = "test-hooks")]
+            complete_count: 0,
         })
     }
 
@@ -201,6 +223,19 @@ impl EngineHost {
             }
         }
         Self::new()
+    }
+
+    /// 次に届けるべき進行の宛先。処理中でなければ・未読込なら `None`。
+    pub fn next_tick(&self) -> Option<TickAddr> {
+        self.model.session().and_then(next_tick)
+    }
+
+    /// 進行の宛先の通知先を結ぶ。結んだ時点で、現在の宛先を 1 回通知する（開始時にすでに処理中の場合に備える）。
+    ///
+    /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れてはならない（再入になる）。
+    pub fn set_tick_request(&mut self, f: TickRequest) {
+        f(self.next_tick());
+        self.tick_request = Some(f);
     }
 
     /// 部品が読む値。
@@ -281,6 +316,15 @@ impl EngineHost {
             "log": rows,
             "artifacts": artifacts,
             "review": review,
+            "ticks": log
+                .iter()
+                .filter_map(|e| match e {
+                    fandhe_workshop_core::event::Event::Progress { at, index, .. } => {
+                        Some((at.generation.0, *index))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>(),
             "worldMatchesState": world == session.state().run.world,
             "incrementalMatches": &bulk == self.model.projection() && world == self.model.world,
         })
@@ -297,6 +341,12 @@ impl EngineHost {
     #[cfg(feature = "test-hooks")]
     pub(crate) fn esc_count(&self) -> u32 {
         self.input.esc_count()
+    }
+
+    /// 補完の action を受け取った回数（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn complete_count(&self) -> u32 {
+        self.complete_count
     }
 
     /// 登録済みの束縛点の現在値を、field 名と組で控える。
@@ -332,6 +382,11 @@ impl EngineHost {
                 self.dirty.push(name);
             }
         }
+        // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
+        if let (Some(f), Some(session)) = (self.tick_request.as_ref(), self.model.session.as_ref())
+        {
+            f(next_tick(session));
+        }
         if changed {
             let lists = self
                 .registry
@@ -354,6 +409,13 @@ impl Component for EngineHost {
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
             HostAction::Engine(op) => self.apply_engine(op),
+            // 候補の一覧と挿入は TASK-440 の担当。ここでは状態もログも変えず、dirty も積まない。
+            HostAction::Complete => {
+                #[cfg(feature = "test-hooks")]
+                {
+                    self.complete_count = self.complete_count.saturating_add(1);
+                }
+            }
         }
     }
 
@@ -400,7 +462,15 @@ impl Component for EngineHost {
             .ok()
             .map(HostAction::Engine);
         }
-        HelloView::decode_action(name, payload).map(HostAction::Input)
+        // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
+        // `esc` と未知の名前は、これまでどおり入力欄に委ねる。
+        match RuntimeAction::decode(name, payload) {
+            Some(RuntimeAction::Tick(addr)) => Some(HostAction::Engine(Op::Tick(addr))),
+            Some(RuntimeAction::Complete) => Some(HostAction::Complete),
+            Some(RuntimeAction::Esc) | None => {
+                HelloView::decode_action(name, payload).map(HostAction::Input)
+            }
+        }
     }
 }
 

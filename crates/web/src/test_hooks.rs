@@ -1,7 +1,8 @@
 //! ブラウザ試験用の口。feature `test-hooks` のときだけ組み込まれる。
 //!
 //! 配信する設定には入れない。`static/test-hooks.js` がここの関数を JS へ橋渡しし、
-//! TASK-28 以降のブラウザ試験が状態を読む。`debug_rerender` を除き、状態は変更しない。
+//! TASK-28 以降のブラウザ試験が状態を読む。`debug_rerender` と `debug_request_complete` を除き、状態は変更しない。
+//! `debug_request_complete` は、配信と同じ配送の口（`set_timeout` → `dispatch_action`）で補完を届けるだけである。
 
 use wasm_bindgen::prelude::*;
 
@@ -20,11 +21,15 @@ pub fn debug_state_json() -> String {
         .unwrap_or_else(|| ("null".to_string(), "null".to_string()));
     // 3 つの表示の照合用の状態（TASK-347 2/2）。未マウントなら null。中身の組み立ては `EngineHost` が持つ。
     let engine = crate::glue::engine_snapshot().unwrap_or_else(|| "null".to_string());
+    let complete = crate::glue::complete_count()
+        .map(|n| n.to_string())
+        .unwrap_or_else(|| "null".to_string());
     format!(
-        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"escCount\":{},\"draftCodePoints\":{},\"inputOverLimit\":{},\"engine\":{}}}",
+        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"escCount\":{},\"completeCount\":{},\"draftCodePoints\":{},\"inputOverLimit\":{},\"engine\":{}}}",
         crate::glue::is_mounted(),
         probe,
         esc,
+        complete,
         cps,
         over,
         engine
@@ -158,4 +163,28 @@ pub fn debug_render_quote_nest(n: u32) -> String {
 #[wasm_bindgen]
 pub fn debug_tick_interval_ms() -> u32 {
     crate::tick_interval::TICK_INTERVAL_MS
+}
+
+/// 予約済みの次の進行の宛先を JSON 文字列で返す（読み取りのみ）。無ければ `null`。
+///
+/// 形は `{"generation":..,"step":"..","index":..}`。Step の実体 ID の文字列は `serde_json` でエスケープする。
+#[wasm_bindgen]
+pub fn debug_next_tick() -> String {
+    match crate::glue::scheduled_tick() {
+        Some(a) => serde_json::json!({
+            "generation": a.generation.0,
+            "step": a.step.0,
+            "index": a.index,
+        })
+        .to_string(),
+        None => "null".to_string(),
+    }
+}
+
+/// 補完の action を、配信と同じ配送の口で届ける（タイマーの予約を通す）。
+///
+/// 画面の Tab は候補の一覧が未実装のため補完に届かない（TASK-440）。配送の口そのものを確かめるための口である。
+#[wasm_bindgen]
+pub fn debug_request_complete() {
+    crate::glue::request_complete();
 }
