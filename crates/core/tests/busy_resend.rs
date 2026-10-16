@@ -6,9 +6,8 @@
 //! 連打の場面は `processing` を持つ st-1 で行う
 //! （st-2・st-3 は処理中にならず、2 回目の入力は確認の判定に回る）。
 //!
-//! 擬似操作 `FinishProcessing` は、処理中（`run.busy`）を畳む進行の照合（TASK-210）の代わりである。
-//! `Op::Tick` が処理を進めるようになった後は、これを `Op::Tick` に置き換えてよい。
-//! `Op::Control`・`Op::Tick` は列に入れない（世代を動かす経路を作らず、P-6 の前提を保つ）。
+//! 操作 `Tick` は、次の進行の宛先（`common::tick::next_tick`）を送って処理中を畳む（TASK-210 2/3）。
+//! `Tick` の世代の規則は `Keep` で、世代を動かさないため P-6 の前提を壊さない。`Op::Control` は列に入れない。
 //! 残り続けるボタンへの連打とログの増え方は `button_burst.rs`（TASK-209 2/2）が扱う。呼び出し元は CI の `make test` のみである。
 
 mod common;
@@ -17,6 +16,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use common::property::{check, op_sequence, DEFAULT_CASES, MAX_OPS};
+use common::tick::next_tick;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::addr::{Generation, StepUid};
@@ -249,8 +249,8 @@ fn busy_rejection_carries_progress() {
 #[derive(Debug, Clone)]
 enum TestOp {
     Apply(Input),
-    /// 進行の照合（TASK-210）の代わりに処理中を畳む擬似操作。
-    FinishProcessing,
+    /// 次の進行の宛先を送る（処理中でなければ何もしない）。
+    Tick,
 }
 
 fn input_strategy() -> impl Strategy<Value = Input> {
@@ -271,7 +271,7 @@ fn input_strategy() -> impl Strategy<Value = Input> {
 fn op_strategy() -> impl Strategy<Value = TestOp> {
     prop_oneof![
         10 => input_strategy().prop_map(TestOp::Apply),
-        2 => Just(TestOp::FinishProcessing),
+        2 => Just(TestOp::Tick),
     ]
 }
 
@@ -298,11 +298,10 @@ fn p6_random_inputs_keep_invariants() {
             let mut session = Session::from_state(base_ir(), entered());
             for (n, op) in ops.iter().enumerate() {
                 match op {
-                    TestOp::FinishProcessing => {
-                        let ir = session.ir().clone();
-                        let mut state = session.into_state();
-                        state.run.busy = None;
-                        session = Session::from_state(ir, state);
+                    TestOp::Tick => {
+                        if let Some(addr) = next_tick(session.state()) {
+                            session.apply(Op::Tick(addr));
+                        }
                     }
                     TestOp::Apply(input) => {
                         let before = session.state().clone();

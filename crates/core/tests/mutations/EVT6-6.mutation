@@ -1,0 +1,8 @@
+id: EVT6-6
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:         addr.index,
+replace:         next_done,
+expect-fail: fixed_sequence_matches_sample_shape
+note: Progress の番号に進めた後の値を渡す（0 始まりが 1 ずれる）

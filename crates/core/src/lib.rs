@@ -24,6 +24,7 @@
 //! コマンドの表による未知のコマンドと順序違いの分類（[`command_class`]、TASK-268 1/2）も持つ。
 //! 処理中の入力の `busy` の分類（[`busy_class`]、TASK-209 1/2）も持つ。
 //! 受講者の操作を履歴の `ops` に追記する記録（[`ops_record`]、TASK-315 1/2）も持つ。
+//! 宛先が一致する進行の分岐（`tick`、TASK-210 2/3。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -54,6 +55,7 @@ pub mod select_judge;
 pub mod session;
 pub mod step_status;
 pub mod text_judge;
+mod tick;
 pub mod version_record;
 pub mod world;
 

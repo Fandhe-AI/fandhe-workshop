@@ -29,7 +29,7 @@
 | `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
 | `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
 | `event` | `Event`（`HintOpened`・`Judged` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
-| `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` の結線は TASK-210） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
+| `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` は宛先が一致する進行を TASK-210 2/3 が結線済みで、食い違いの無視の記録は 3/3） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
 | `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply` | 実行環境と遷移関数 | web・保存 |
@@ -86,7 +86,7 @@
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
 - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
 - ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
-- `Op::Tick` での `Judged`（進行・無視）の発行位置。EVT-8 は宛先の食い違いを「無視を 1 件だけ」と定めるため、`Judged{ignored}` と `Event::Ignored` を両方出すかは TASK-210 が決める。`judge::judge_tick` は純関数だけを置く。版 3 のサンプルの `Tick` の項目は変えない
+- `Op::Tick` での `Judged`（進行・無視）の発行位置。宛先が一致する進行は `Judged` を出さず `Progress` だけを出すと決めた（TASK-210 2/3、版 3 のサンプルの形に一致し、`CONTRACT_VERSION` を上げずに済む）。宛先の食い違いで `Judged{ignored}` と `Event::Ignored` を両方出すかは TASK-210 3/3 が決める。`judge::judge_tick` は純関数だけを置く
 - `Event::Refused.rejection`（`Option<String>`）の型の置き換えと、問い返しの待ちの状態（EP-4 `clarifying`）。足すときは版上げにする
 - `wrong_order`・`not_supported` の分類の見分けと、処理中の入力の扱いの精緻化（TASK-268・TASK-269）。版 3 は、未知の名前を `unknown_command`、使わない入力を `not_in_this_step`、処理中を `busy` に暫定で割り当てる
 - 下書きの操作と再読み込み（SAVE-4）。再読み込みで世代を上げる規則は、3 節の表に含まれない。`apply()` の `Op` には含めず、履歴の入力の列の型（`fandhe_workshop_contract::history::HistoryOp`、TASK-309）が持つ
@@ -117,7 +117,7 @@
 | EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
 | EVT-6 の外: 周回の開始 | `Control::Begin` が `IncrementOnSuccess`。`Event::Begun.new_generation` | 読み取れる | 6 項目に数えない（試作の設計）。3 節の脚注の表で分けた |
 | EVT-8 の 3 要素 | `TickAddr { generation, step, index }`（`addr.rs`）。現在の側は `RunState.generation`・`RunState.current`・`Busy.done` | 読み取れる | |
-| EVT-8 (a) 一致したら進行が 1 つ進む | `Event::Progress { index, total }`・`Busy.done` | 型は許す・実装待ち | TASK-210 |
+| EVT-8 (a) 一致したら進行が 1 つ進む | `Event::Progress { index, total }`・`Busy.done` | 実装済み（`tick` モジュール、TASK-210 2/3）。同じ操作の列から同じ状態とイベント列が再現される（EVT-16、`tick_progress` の `p16_replay_is_deterministic`） | |
 | EVT-8 (b) 食い違いは状態を変えず「無視」を 1 件 | `Event::Ignored { at, reason }`・`IgnoreReason` | 型は許す・実装待ち | TASK-210 |
 | EVT-8 (b) の場合ごとの理由の割り当て | 古い世代・移動前の Step は `IgnoreReason::Stale` | 所見あり | 同じ番号の進行が二重に届いた場合の理由が、`Stale`（世代または Step が古い）の文言からは決まらない。EVT-8 は理由の値までは求めておらず、受け入れ条件は満たす。割り当ては TASK-210 で決めるか、版上げの契約タスクにする |
 | EVT-8 の判定順（宛先の照合を先に） | `TickAddr` と `IgnoreReason` の rustdoc | 読み取れる | 実装は TASK-210 |
@@ -145,7 +145,7 @@
 |---|---|---|---|
 | サンプルと規則の表 | サンプルの世代の差が 3 節の表と EVT-6 の (1)〜(6) に合う | 通る | 載る |
 | 実際の `apply()` の不変条件 | EVT-22（同じ入力列で状態とイベント列が一致）、3 つの入口の一致、世代が減らない・増分は 1 まで | 通る | 載る |
-| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 3 件（e01〜e03、入力の受付）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。全件は最初の食い違いが e04（Tick、TASK-210）で `#[ignore]`。連鎖で届かない e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る） | 先頭 3 件と e15・e16 の単独照合が載る |
+| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 5 件（e01〜e05、入力の受付と一致する進行）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。全件は最初の食い違いが e06（停止、TASK-211）で `#[ignore]`。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る） | 先頭 5 件と e09〜e13・e15・e16 の単独照合が載る |
 | 比較器の自己確認 | 期待どおりの提供元は合格、1 か所壊した提供元は最初の食い違いの操作 ID で失敗する | 通る | 載る |
 
 実行コマンド:
@@ -168,4 +168,5 @@
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
 - 2026-10-15: `Projection` の導出の中身（ログ行・変化の印・復習・復帰の復習）を実装した。公開の型・署名・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-215 2/2）
 - 2026-10-15: e16 の単独照合を追加した。型・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-208）
+- 2026-10-16: 宛先が一致する進行 `Op::Tick` を `apply()` に結線した（`tick` モジュール）。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 2/3）
 - 2026-10-16: 世代の表を `session::apply` の関門で強制した。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 1/3）

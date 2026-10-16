@@ -1,0 +1,10 @@
+id: EVT6-4
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:             b.done = next_done;
+replace:             b.done = b.done;
+expect-fail: fixed_sequence_matches_sample_shape
+expect-fail: matching_tick_advances_once
+expect-fail: duplicate_index_advances_once
+note: 進行の番号を進めない（同じ進行が繰り返し効く）
