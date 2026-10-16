@@ -26,9 +26,18 @@ const DB_NAME: &str = "fandhe-workshop";
 const DB_VERSION: u32 = 1;
 const STORE: &str = "history";
 
-/// 開いた IndexedDB の包み。
+/// 開いた IndexedDB の包み。接続はこの包みだけが持ち（`Clone` にしない）、破棄のときに閉じる（[`Drop`]）。
 pub struct IdbStore {
     db: IdbDatabase,
+}
+
+/// `IdbDatabase` は破棄では閉じないため、包みの破棄で明示的に閉じる。開き直し（試験用の口の `debug_storage_open` が
+/// 前の保持を捨てる等）で旧い接続が残ると、将来の版上げの `versionchange` が `blocked` になる。
+/// `close()` は発行済みのトランザクションの完了を待ってから接続を閉じるため、確定前の put・delete は失われない。
+impl Drop for IdbStore {
+    fn drop(&mut self) {
+        self.db.close();
+    }
 }
 
 /// 1 回だけ呼ぶ通知を、複数のイベントから共有するための入れ物。
@@ -150,7 +159,7 @@ pub type OpenedStorage = HistoryStorage<LocalStore, IdbStore>;
 
 type Ready = Rc<RefCell<Option<Box<dyn FnOnce(OpenedStorage)>>>>;
 
-/// 準備完了の合図を出す（2 回目以降は何もしない）。合図を出した後に開けた接続が届いたら、閉じて残さない。
+/// 準備完了の合図を出す（2 回目以降は何もしない）。合図を出した後に開けた接続が届いたら、破棄して（[`Drop`] で閉じて）残さない。
 fn finish(ready: &Ready, idb: Option<(IdbStore, BTreeMap<String, String>)>) {
     let taken = ready.borrow_mut().take();
     match (taken, idb) {
@@ -162,7 +171,7 @@ fn finish(ready: &Ready, idb: Option<(IdbStore, BTreeMap<String, String>)>) {
             None,
             BTreeMap::new(),
         )),
-        (None, Some((store, _))) => store.db.close(),
+        (None, Some((store, _))) => drop(store),
         (None, None) => {}
     }
 }

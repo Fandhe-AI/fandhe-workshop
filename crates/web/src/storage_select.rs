@@ -230,6 +230,10 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
 }
 
 impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
+    /// このセッションの保存先。状態は変えない。
+    ///
+    /// IndexedDB にある鍵があっても、その鍵で [`HistoryStorage::kind_for`] か `write` を呼ぶまでは
+    /// [`StorageKind::LocalStorage`] を返す（切り替えはこの 2 つだけが行う）。
     fn kind(&self) -> StorageKind {
         self.active.get()
     }
@@ -290,6 +294,10 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
         self.shared.local.get(&k)
     }
 
+    /// 鍵を両方の保存先から消す。IndexedDB の delete は確定を待たずに発行する。
+    ///
+    /// 設計上の限界: 手元の写しの削除と IndexedDB の delete を発行した後で localStorage の削除が失敗すると `Err` を返すが、
+    /// IndexedDB 側は削除済み（または削除の途中）のまま元へ戻さない（`Err` は何も消えていないことを意味しない）。
     fn remove(&self, key: &HistoryKey) -> Result<(), StorageError> {
         let k = key.render();
         if let Some(idb) = &self.idb {
