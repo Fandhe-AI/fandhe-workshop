@@ -2,7 +2,7 @@
 // IndexedDB へ切り替わり、確定の後に localStorage の写しが消え、再読み込みの後は IndexedDB が正になることを確かめる。
 //
 // 入力: FANDHE_WEB_TEST_DIR（試験の設定。`debug_storage_*` を持つ）。未設定・不在は skip にせず失敗にする。
-// 限界: 確定を待たずに離れる場合（pagehide の書き込み）は TASK-317 2/2 の範囲で、ここでは確かめない。
+// 限界: 確定を待たずに離れる場合（pagehide の書き込み）は storage-leave.test.mjs（TASK-317 2/2）が確かめ、ここでは確かめない。
 //       localStorage の上限（5,242,877）は Chrome での実測で、別のブラウザでは確かめていない。
 // 試験の出力・失敗の文に、保存した値を出さない（履歴は受講者のデータのため。長さと真偽だけを比べる）。
 import { test, before, after } from 'node:test';

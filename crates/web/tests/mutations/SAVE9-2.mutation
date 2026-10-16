@@ -1,0 +1,8 @@
+id: SAVE9-2
+package: fandhe-workshop-web
+test: save_pending
+target: crates/web/src/save_pending.rs
+find:                     self.pending.borrow_mut().entry(key).or_insert(value);
+replace:                     let _ = (key, value);
+expect-fail: 書き込みの失敗では保留に残り再びの_flush_で書ける
+note: 書けなかった鍵も保留から外す（失敗した未保存の値が失われる）
