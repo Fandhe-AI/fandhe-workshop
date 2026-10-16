@@ -1,0 +1,8 @@
+id: VER7-5
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if h.vocab > caps.vocab_max || o.vocab > caps.vocab_max {
+replace: if false {
+expect-fail: ver7_vocab_newer_is_refused
+note: 語彙が新しい履歴を拒否しない

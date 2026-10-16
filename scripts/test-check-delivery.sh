@@ -94,6 +94,45 @@ T="$(copy_tree with-debug-js)"
 echo '// debug_state_json' >>"${T}/wasm/fandhe_workshop_web.js"
 expect "added debug_ in glue js is detected" 1 "${CHECK}" "${T}"
 
+# inject_wasm <wasm> <文字列>: 末尾にカスタムセクション（id 0）を足す。単なる追記だと解析に失敗して exit 2 になり、
+# 文字列の検出（exit 1）を確かめられないため、正しいセクションにする。パスと文字列は process.argv で渡す。
+inject_wasm() {
+  node -e '
+    const fs = require("fs");
+    const leb = (n) => { const o = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; o.push(b); } while (n); return o; };
+    const name = Buffer.from("probe");
+    const body = Buffer.from(process.argv[2]);
+    const payload = Buffer.concat([Buffer.from(leb(name.length)), name, body]);
+    const sec = Buffer.concat([Buffer.from([0]), Buffer.from(leb(payload.length)), payload]);
+    fs.appendFileSync(process.argv[1], sec);
+  ' "$1" "$2"
+}
+
+T="$(copy_tree wasm-control)"
+inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "plain-marker"
+expect "wasm with a valid custom section still passes" 0 "${CHECK}" "${T}"
+for name in raw-trigger tick-trigger esc-trigger complete-trigger; do
+  T="$(copy_tree "wasm-${name}")"
+  inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "${name}"
+  expect "added ${name} in wasm is detected" 1 "${CHECK}" "${T}"
+done
+
+T="$(copy_tree with-payload-glue)"
+echo '// data-payload' >>"${T}/wasm/fandhe_workshop_web.js"
+expect "added data-payload in glue js is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-payload-app)"
+echo '// data-payload' >>"${T}/app.js"
+expect "added data-payload in app.js is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-trigger-html)"
+echo '<button data-testid="tick-trigger"></button>' >>"${T}/index.html"
+expect "added tick-trigger in index.html is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree without-app-js)"
+rm -f "${T}/app.js"
+expect "missing app.js is exit 2" 2 "${CHECK}" "${T}"
+
 expect "missing directory is exit 2" 2 "${CHECK}" "${TMP_DIR}/missing"
 echo plain >"${TMP_DIR}/file"
 expect "regular file is exit 2" 2 "${CHECK}" "${TMP_DIR}/file"

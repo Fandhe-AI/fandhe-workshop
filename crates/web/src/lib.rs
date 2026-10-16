@@ -14,10 +14,11 @@
 //! glue の許される操作は `glue_ops` に、keyed list の親の属性と項目数の方針は `list_policy` に置く。
 //! これら TASK-343 の契約の版は `parts::PARTS_CONTRACT_VERSION` が持つ。
 //! keydown の判定結果を glue の効果と Esc の行き先（停止・候補を閉じる・取り消し）へ変える純関数（TASK-275・TASK-277）、Esc の後の状態遷移と補完に使う候補の選択（TASK-282）は `key_route` に置く。
-//! 進行の間隔の定数（TASK-229。D-47）は `tick_interval` に置く。
-//! エンジン（core の `Session`）を持ち、`Runtime::mount` に渡すホストの Component と、表示部品の振り分け（TASK-347）は `host` に置く。
+//! 進行の間隔の定数（TASK-229。D-47）は `tick_interval` に、次の進行の宛先を組み立てる純関数（TASK-349）は `tick_schedule` に置く。
+//! エンジン（core の `Session`）を持ち、`Runtime::mount` に渡すホストの Component と、表示部品の振り分け（TASK-347）は `host` に、3 つの表示（ログ・左の成果物・復習）の部品（TASK-347 2/2）は `engine_parts` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
-//! 左の成果物ビューの共通の型と変化の印の対応（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
+//! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
+//! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 #![forbid(unsafe_code)]
@@ -26,6 +27,7 @@ pub mod a11y;
 pub mod action;
 pub mod artifact_view;
 pub mod doc_view;
+pub mod engine_parts;
 pub mod glue_ops;
 mod hello;
 pub mod host;
@@ -39,6 +41,8 @@ pub mod profile;
 pub mod storage_select;
 pub mod terminal_area;
 pub mod tick_interval;
+pub mod tick_schedule;
+pub mod tree_attrs;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
@@ -50,3 +54,6 @@ pub mod storage_local;
 
 #[cfg(all(target_arch = "wasm32", feature = "test-hooks"))]
 mod test_hooks;
+
+#[cfg(feature = "test-hooks")]
+mod test_fixture;

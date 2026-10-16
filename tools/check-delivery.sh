@@ -15,8 +15,17 @@
 #   7. WASM のバイト列に debug_ と raw-trigger が無い
 #   8. 配信物の中にシンボリックリンクが無い（find -type f はリンクを列挙せず、名前の検査（5・6）をすり抜けるため。
 #      tools/serve.mjs は配信ルート内のリンク先を配信するので、リンクは到達可能な経路になる）
+#   9. WASM のバイト列に隠し要素の名前 tick-trigger・esc-trigger・complete-trigger が無い（TASK-349 2/2）
+#  10. 配信する JS・HTML（glue の JS・app.js・index.html）に、上の 3 名と data-payload が無い（TASK-349 2/2）
 # 7 は 2026-10-15 に配信する設定の release wasm で実測し、どちらも 0 件だった（std・依存由来の文字列も残らない）。
 # 将来 0 件でなくなった場合は、試験の設定との対照つきの検査（TASK-82）へ移す。
+# 9・10 は 2026-10-16 に配信する設定の release 一式で実測し、いずれも 0 件だった（WASM の data-payload は 1 件）。
+#
+# data-payload を WASM のバイト列で数えない理由（TASK-349 の「data-payload の経路 0 件」の解釈）: 左の成果物の指せる行
+# （data-action="ui"。artifact_view の PAYLOAD_ATTR）が正当に出力する属性名であり、同じ文字列リテラルは 1 つに
+# まとめられるため、件数では新しい経路を検出できない。「経路」は、進行の宛先（tick・complete・esc）を data-payload に
+# 書いて click する形と定義し、WASM の外の層で塞ぐ。配信する JS・HTML は 10 で 0 件にし、ソースは
+# crates/web/tests/no_hidden_triggers.rs（native の静的検査）が、許可した箇所の件数固定で守る。
 #
 # 範囲: 試験の設定との対照、試験用クエリ、Action::Raw、試験用 IR の検査は TASK-82 が拡張する。
 # scripts/test-build-web.sh の (a) も同種の項目を持つ。一本化は TASK-82 で行う。
@@ -47,7 +56,8 @@ fi
 WASM="${DIST}/wasm/fandhe_workshop_web_bg.wasm"
 GLUE_JS="${DIST}/wasm/fandhe_workshop_web.js"
 INDEX="${DIST}/index.html"
-for f in "${WASM}" "${GLUE_JS}" "${INDEX}"; do
+APP_JS="${DIST}/app.js"
+for f in "${WASM}" "${GLUE_JS}" "${INDEX}" "${APP_JS}"; do
   if [ ! -f "${f}" ]; then
     echo "error: required file not found: ${f} (run \`make build-web\` first)" >&2
     exit 2
@@ -122,6 +132,16 @@ no_match "no fandhe-test-hooks meta in index.html" -q 'fandhe-test-hooks' "${IND
 no_match "no test-hooks marker in index.html" -q 'fandhe:test-hooks' "${INDEX}"
 no_match "no debug_ bytes in wasm" -aq 'debug_' "${WASM}"
 no_match "no raw-trigger bytes in wasm" -aq 'raw-trigger' "${WASM}"
+no_match "no tick-trigger bytes in wasm" -aq 'tick-trigger' "${WASM}"
+no_match "no esc-trigger bytes in wasm" -aq 'esc-trigger' "${WASM}"
+no_match "no complete-trigger bytes in wasm" -aq 'complete-trigger' "${WASM}"
+
+# 配信する JS・HTML には、隠し要素の名前も data-payload も正当な利用が無い（WASM との違いは冒頭のコメント）。
+for f in "${GLUE_JS}" "${APP_JS}" "${INDEX}"; do
+  for pat in tick-trigger esc-trigger complete-trigger data-payload; do
+    no_match "no ${pat} in $(basename "${f}")" -q "${pat}" "${f}"
+  done
+done
 
 # シンボリックリンクは名前の検査をすり抜けるため、1 件でもあれば失敗にする（リンクを辿らない）。
 LINKS_ERR=0

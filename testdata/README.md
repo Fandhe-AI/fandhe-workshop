@@ -56,6 +56,33 @@
 `test-data-addendum-3.sha256` は、`make-addendum3.py` の 1 行（ハッシュ `3cc5d8ee...`）を除いた 5 行です。
 元の manifest（git オブジェクト `468b5152...`）は 6 行でした。
 
+## 左の成果物ビューの固定データ（TASK-471）
+
+架空のメモ帳アプリ `memo-app` を題材にした、左の成果物ビュー 7 種ぶんの sample と、escape の行です。
+上の 17 path とは別のコミットから、別の日に取り込みました。
+
+| 項目 | 内容 |
+|---|---|
+| 取り込み元 | `Fandhe-AI/fandhe-workshop-spec`（private） |
+| コミット | `f8a168643c6f92088dbf192373996b19e75e9adf` |
+| 取り込み日 | 2026-10-16 |
+| 取り込み元の path | `03-poc/artifact-view-parts/` の下の 4 path（下表） |
+| 方針 | 読むだけ・移さずに写す・バイト一致 |
+| 用途 | TASK-471 の検査器と、TASK-468〜TASK-473 などの左のビューの試験 |
+
+配置は上と同じく、先頭の `03-poc/` だけを外した `testdata/artifact-view-parts/` です。
+
+| # | 行き先（`testdata/artifact-view-parts/` の下） | 種別 | ファイル数 | git オブジェクト | 内容 |
+|---|---|---|---|---|---|
+| 1 | `test-data` | ディレクトリ | 10 | cdb08309 | 形式・印の規則・計測の定義（`README.md`）、大きな入力の生成器、`sample/` の 8 ファイル |
+| 2 | `test-data-addendum` | ディレクトリ | 2 | 7a5cd63d | escape の行（`escape-rows.json`）、差分の行数を変える生成器 |
+| 3 | `test-data.sha256` | ファイル | 1 | 87da4817 | manifest（PoC のディレクトリから検証） |
+| 4 | `test-data-addendum.sha256` | ファイル | 1 | fedbba35 | manifest（PoC のディレクトリから検証） |
+
+合計は 14 ファイルです。4 path とも、写した後も同じ ID になります。
+取り込まなかった試験データはありません。PoC の `README.md`・`env.md`・`logs/`・`measurements/`・`screenshots/` は
+試験データではないため、対象外です。
+
 ## 本 repo で作ったデータ
 
 上の取り込みとは別に、本 repo で作ったデータです。
@@ -76,6 +103,8 @@
 | IME の試験文 | `input-field-ime/test-data/ime-sentences.{md,json}`、`key-procedures.md` |
 | 契約のサンプル | `contract/event-sequence.json`（説明は `contract/README.md`） |
 | 履歴の包みのサンプル | `contract/history/*.json`（説明は `contract/history/README.md`） |
+| 左の成果物ビューの sample（7 種） | `artifact-view-parts/test-data/sample/`（説明は `artifact-view-parts/test-data/README.md`） |
+| escape の行 | `artifact-view-parts/test-data-addendum/escape-rows.json` |
 
 ## manifest の検証
 
@@ -88,6 +117,9 @@
 
 # untrusted-input-safety: PoC のディレクトリから流す
 (cd testdata/untrusted-input-safety && for f in *.sha256; do shasum -a 256 -c "$f"; done)
+
+# artifact-view-parts: PoC のディレクトリから流す
+(cd testdata/artifact-view-parts && shasum -a 256 -c test-data.sha256 && shasum -a 256 -c test-data-addendum.sha256)
 ```
 
 ## 規則
@@ -110,6 +142,13 @@
   試験のコードでパスとして辿らないでください。
 - `make-variants.py`・`make-paste-samples.py`・`oversize/generate.sh` は、データを作り直すための記録・生成器です。
   `make test` からは実行しません。
+- `artifact-view-parts/test-data/README.md` と `generate-sweep.mjs` の `../env.md`・`../README.md` は、spec repo 側の
+  記録上のリンクです。本 repo に宛先はなく、試験も読みません。
+- `artifact-view-parts/test-data/README.md` の `prototype/...`・`03-poc/...` は字句上の言及で、参照ではありません。
+- `generate.mjs`・`generate-sweep.mjs` は、大きな入力を作り直すための生成器です。`make test` からは実行しません。
+- `escape-rows.json` の `"__VIEW__"` はビューごとに置き換える値、`window.__escape_hit` は実行の検出の名前です。
+  データは書き換えられないため、検査器側がこの名前に合わせます。
+- `escape-rows.json` の値は、XSS・属性注入の試験値です。表示側で HTML として解釈しないでください。
 - 種類別の再配置（`testdata/ime/` など）は、後続のタスクで決めます。
 
 ## 公開の扱い
@@ -120,4 +159,6 @@
 - 2026-10-12 に、取り込み元の 17 path（402 ファイル）を機械で走査しました。秘密情報の検知パターン、
   `fandhe.com`・個人のパスの文字列は 0 件でした。URL のホストは `example.invalid`・`example.com`・
   `github.com`・`localhost`・`127.0.0.1` だけでした。
+- 2026-10-16 に、左の成果物ビューの 14 ファイルを機械で走査しました。秘密情報の検知パターン・`fandhe.com`・
+  個人のパス・URL は 0 件でした。題材は架空の `memo-app` です。この走査の分について、人の確認・承認は得ていません。
 - 公開前の人の確認の方法は TASK-14 で決めます。2026-10-12 時点で未決定のため、人の確認・承認は得ていません。

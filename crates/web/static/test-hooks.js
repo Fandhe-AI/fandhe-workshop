@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -64,4 +64,19 @@ export function storageRead(packId, startId) {
 
 export function storageState(packId, startId) {
   return debug_storage_state(packId, startId);
+}
+
+// ツリーの試料を後の状態で描いた HTML 文字列を返す（TASK-472）。kind は "file_tree" か "task_tree"、variant は "a" か "b"。範囲外は空文字列。
+export function renderTree(kind, variant) {
+  return debug_render_tree(kind, variant);
+}
+
+// 予約済みの次の進行の宛先（TASK-349）。JSON 文字列（generation / step / index）か "null"。読み取りのみ。
+export function nextTick() {
+  return debug_next_tick();
+}
+
+// 補完の action を配信と同じ配送の口（set_timeout → dispatch_action）で届ける（TASK-349）。
+export function requestComplete() {
+  debug_request_complete();
 }

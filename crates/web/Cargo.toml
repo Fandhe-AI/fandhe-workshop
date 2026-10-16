@@ -13,7 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [features]
 # ブラウザ試験用の入口（debug_* の書き出しと test-hooks.js）を公開する feature。
 # 既定は無効で、配信する設定（tools/build-web.sh の既定）では付けない。
-test-hooks = []
+test-hooks = ["dep:serde_json"]
 
 [dependencies]
 fandhe-workshop-contract.workspace = true
@@ -22,6 +22,8 @@ fandhe-frontend-wasm-full.workspace = true
 fandhe-frontend-core.workspace = true
 fandhe-frontend-interactive.workspace = true
 fandhe-frontend-wasm-client.workspace = true
+# 試験の設定の状態の書き出し（engine_snapshot_json）の文字列のエスケープを手書きしないため。配信物には入らない。
+serde_json = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen.workspace = true

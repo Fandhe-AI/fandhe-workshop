@@ -1,0 +1,10 @@
+id: SAVE1-2
+package: fandhe-workshop-core
+test: history_replay
+target: crates/core/src/history_replay.rs
+find:         HistoryOp::Engine(op) => state = apply(ir, state, op.clone()).0,
+replace:         HistoryOp::Engine(op) => if !matches!(op, Op::Control(_)) { state = apply(ir, state, op.clone()).0 },
+expect-fail: scripted_history_replays_to_snapshot
+expect-fail: property_replay_matches_snapshot_fixed
+expect-fail: property_replay_matches_snapshot_guided
+note: 適用し直しで Control の操作を適用しない（試作の X-3 相当。記録側と適用し直しの遷移が食い違う）

@@ -1,0 +1,8 @@
+id: VER6-3
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if !h.content.same_major(&o.content) {
+replace: if h.content.major < o.content.major {
+expect-fail: ver6_content_major_boundaries
+note: 教材の主版の違いを片方向（履歴が古い向き）だけ見る

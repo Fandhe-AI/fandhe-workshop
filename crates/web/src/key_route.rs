@@ -39,19 +39,23 @@ pub struct KeydownEffect {
     pub prevent_default: bool,
     /// 送信ボタンへ click を送るか。
     pub click_submit: bool,
+    /// 補完の action を Runtime の口で届けるか（FEND-4。TASK-349）。
+    pub deliver_complete: bool,
 }
 
 impl KeydownEffect {
     const NONE: Self = Self {
         prevent_default: false,
         click_submit: false,
+        deliver_complete: false,
     };
 
-    /// click を伴わず、`preventDefault` だけを判定のとおりに行う効果（Tab の補完）。
-    const fn prevent_only(prevent_default: bool) -> Self {
+    /// click を伴わず、`preventDefault` と補完の action の配送を行う効果（Tab の補完）。
+    const fn complete(prevent_default: bool) -> Self {
         Self {
             prevent_default,
             click_submit: false,
+            deliver_complete: true,
         }
     }
 }
@@ -74,7 +78,7 @@ pub fn field_state(has_text: bool) -> FieldState {
     }
 }
 
-/// 判定結果から効果を求める。`Submit` は click と `preventDefault`、`Complete` は `preventDefault` だけを返す。
+/// 判定結果から効果を求める。`Submit` は click と `preventDefault`、`Complete` は `preventDefault` と補完の配送を返す。
 /// それ以外はすべて何もしない。
 ///
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
@@ -87,11 +91,12 @@ pub fn effect_for(decision: Decision) -> KeydownEffect {
             KeyAction::Submit => KeydownEffect {
                 prevent_default,
                 click_submit: true,
+                deliver_complete: false,
             },
             // JUDGE-13: Shift+Enter は送信せず、既定の動作（欄への改行）を妨げない。
             KeyAction::Newline => KeydownEffect::NONE,
             // JUDGE-19: Tab は候補が開いていて文字があるときだけ補完。判定が `preventDefault` を求める。
-            KeyAction::Complete => KeydownEffect::prevent_only(prevent_default),
+            KeyAction::Complete => KeydownEffect::complete(prevent_default),
             // TASK-277: 停止は上流の `esc` 属性で Component に届き、`esc_route` が結ぶ。glue では重ねて届けない。
             KeyAction::Stop => KeydownEffect::NONE,
             KeyAction::CloseCandidates
@@ -242,6 +247,7 @@ mod tests {
     const SUBMIT: KeydownEffect = KeydownEffect {
         prevent_default: true,
         click_submit: true,
+        deliver_complete: false,
     };
 
     #[test]
@@ -322,6 +328,11 @@ mod tests {
                 prevent_default: true,
             }));
             assert_eq!(e.click_submit, action == KeyAction::Submit, "{action:?}");
+            assert_eq!(
+                e.deliver_complete,
+                action == KeyAction::Complete,
+                "{action:?}"
+            );
             assert_eq!(
                 e.prevent_default,
                 matches!(action, KeyAction::Submit | KeyAction::Complete),

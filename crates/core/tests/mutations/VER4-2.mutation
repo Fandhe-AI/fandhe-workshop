@@ -1,0 +1,8 @@
+id: VER4-2
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if same_version {
+replace: if same_version && false {
+expect-fail: replay_mismatch_is_separated_from_diverged
+note: 同一の版で写しが一致しない履歴を replay_mismatch にせず、常に replay_diverged にする

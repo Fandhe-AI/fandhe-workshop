@@ -1,0 +1,6 @@
+{"view":"cards","title":"プルリクエスト（架空）","rows":[
+{"id":"pr1","depth":0,"kind":"card","before":{"label":"#10 メモの保存を追加","detail":"feat/save → main / 受講者","state":"draft","tags":["保存"]},"after":{"label":"#10 メモの保存を追加","detail":"feat/save → main / 受講者","state":"open","tags":["保存","レビュー待ち"]}},
+{"id":"pr2","depth":0,"kind":"card","before":{"label":"#9 README の誤字を直す","detail":"fix/readme → main / AI","state":"open","tags":["文書"]},"after":{"label":"#9 README の誤字を直す","detail":"fix/readme → main / AI","state":"merged","tags":["文書"]}},
+{"id":"pr3","depth":0,"kind":"card","before":null,"after":{"label":"#11 一覧の表示を追加","detail":"feat/list → main / AI","state":"draft","tags":["一覧"]}},
+{"id":"pr4","depth":0,"kind":"card","before":{"label":"#8 古い設定を消す","detail":"chore/cleanup → main / 受講者","state":"open","tags":[]},"after":null}
+]}

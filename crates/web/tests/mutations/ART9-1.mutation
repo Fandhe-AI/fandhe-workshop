@@ -1,0 +1,9 @@
+id: ART9-1
+package: fandhe-workshop-web
+test: tree_attrs_contract
+target: crates/web/src/tree_attrs.rs
+find:         posinset.push(child_count[slot]);
+replace:         posinset.push(1);
+expect-fail: 試作の正解値と一致する
+expect-fail: 全数照合_素朴な数え方と一致する
+note: 兄弟の中の位置を常に 1 にする（aria-posinset が壊れ、支援技術が項目の順を読めない。ART-9）

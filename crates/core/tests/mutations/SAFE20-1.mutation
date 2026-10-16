@@ -2,7 +2,7 @@ id: SAFE20-1
 package: fandhe-workshop-core
 test: load_order
 target: crates/core/src/load_gate.rs
-find:     check_json_depth(bytes).map_err(LoadError::Limit)?;
+find:     check_json_depth(bytes)?;
 replace:     let _ = check_json_depth(bytes);
 expect-fail: depth_is_decided_before_parse
 expect-fail: deep_valid_json_is_too_deep

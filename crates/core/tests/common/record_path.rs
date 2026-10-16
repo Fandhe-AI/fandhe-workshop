@@ -1,4 +1,4 @@
-//! 「記録の経路」の試験用の部品（`history_replay`・`history_verify` の試験が共有する）。
+//! 「記録の経路」の試験用の部品（`history_replay`・`history_verify`・`history_open` の試験が共有する）。
 //!
 //! 下書きと送信を記録しながら `apply` で状態を進める。実行時の入力欄が通る道に当たり、適用し直し
 //! （[`fandhe_workshop_core::history_replay::replay`]）の結果と比べる側の基準になる。

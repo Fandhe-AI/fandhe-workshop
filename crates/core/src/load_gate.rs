@@ -2,7 +2,8 @@
 //!
 //! 読み込み口（TASK-154・155・331・545）が、IR・履歴の読み込みでここを呼ぶ。順序の正は SAFE-20 と
 //! contract の `LOAD_STAGE_ORDER` である。入力は未信頼として扱い、`serde_json` の解釈の前に大きさと深さで断つ。
-//! `serde_json` の再帰の上限（128 段）は、深さの検査の後ろの保険として残る。
+//! 大きさ → 深さの 2 段は [`check_limits`] にあり、IR（`check_ir_limits`）・履歴（`check_history_size`）・
+//! この関門がそこを呼ぶ。`serde_json` の再帰の上限（128 段）は、深さの検査の後ろの保険として残る。
 //!
 //! 意図して固定しないもの: UTF-8 の検査の位置（不正な UTF-8 は現状は解釈の段の失敗になるが、契約ではない）、
 //! 履歴の件数の判定（`TooManyOps`。型・内容の段で後続が行う）、受講者向けの文面の選択
@@ -40,13 +41,39 @@ impl LoadError {
 }
 
 /// 入口ごとの大きさの上限。
-///
-/// 履歴の大きさの純関数（TASK-155）との一本化は後続（TASK-154・155）が行う。
 const fn max_bytes(entry: LoadEntry) -> u64 {
     match entry {
         LoadEntry::Ir => MAX_IR_BYTES,
         LoadEntry::History => MAX_HISTORY_BYTES,
     }
+}
+
+/// 大きさの段。core の中で大きさを上限と比べるのはここだけで、履歴の純関数（`check_history_size`）も
+/// ここを呼ぶ。長さだけを見て中身は読まない。ちょうど上限は通し、超えたら `TooLarge`。
+///
+/// # Errors
+///
+/// `len` が入口の上限を超えるとき `LimitReason::TooLarge`。
+pub const fn check_size(entry: LoadEntry, len: u64) -> Result<(), LimitReason> {
+    if len > max_bytes(entry) {
+        Err(LimitReason::TooLarge)
+    } else {
+        Ok(())
+    }
+}
+
+/// 大きさ → 入れ子の深さの 2 段（解釈の前に断る段）。
+///
+/// IR の読み込み（`parse_json_value`）と pack の `compile` が使う `check_ir_limits` が、同じ判定を
+/// 共有するための唯一の実装である。片方だけを直して判定が食い違うことを防ぐ。
+///
+/// # Errors
+///
+/// 大きさの超過は `TooLarge`、入れ子の超過は `TooDeep`。大きさを先に判定する。
+pub fn check_limits(entry: LoadEntry, bytes: &[u8]) -> Result<(), LimitReason> {
+    check_size(entry, bytes.len() as u64)?;
+    check_json_depth(bytes)?;
+    Ok(())
 }
 
 /// 大きさ → 入れ子の深さ → JSON の解釈の 3 段を順に通し、`serde_json::Value` を返す。
@@ -57,10 +84,7 @@ const fn max_bytes(entry: LoadEntry) -> u64 {
 ///
 /// 最初に違反した段の `LoadError`。大きさ・深さは `Limit`、解釈の失敗は `NotJson`。
 pub fn parse_json_value(entry: LoadEntry, bytes: &[u8]) -> Result<serde_json::Value, LoadError> {
-    if bytes.len() as u64 > max_bytes(entry) {
-        return Err(LoadError::Limit(LimitReason::TooLarge));
-    }
-    check_json_depth(bytes).map_err(LoadError::Limit)?;
+    check_limits(entry, bytes).map_err(LoadError::Limit)?;
     serde_json::from_slice::<serde_json::Value>(bytes).map_err(|_| LoadError::NotJson)
 }
 

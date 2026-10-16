@@ -26,6 +26,8 @@
 //! 受講者の操作を履歴の `ops` に追記する記録（[`ops_record`]、TASK-315 1/2）も持つ。
 //! `ops`・写し・版の欄を履歴の包みに組み立てる処理と下書きの同期（[`history_envelope`]、TASK-315 2/2）も持つ。
 //! `ops` を初期状態に順に適用し直す復元と送信の分類（[`history_replay`]、TASK-316 1/3）も持つ。
+//! 履歴の読み込みの段 1〜3（大きさ・深さ・JSON。`truncated` の判定を含む。[`history_load`]、TASK-331 1/3）も持つ。
+//! 履歴を開く側の版と突き合わせて開く可否を判定する処理（[`history_open`]、TASK-174）も持つ。
 //! 拒否・問い返し・注記の文面への実行時の値の差し込み（[`text_fill`]、TASK-274）も持つ。
 //! 宛先が一致する進行の前進と食い違う進行の無視の記録（`tick`、TASK-210 2/3・3/3。公開しない）も持つ。
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
@@ -49,6 +51,8 @@ pub mod effect;
 pub mod event;
 mod go_to;
 pub mod history_envelope;
+pub mod history_load;
+pub mod history_open;
 pub mod history_replay;
 pub mod history_size;
 pub mod input;

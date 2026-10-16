@@ -1,0 +1,9 @@
+id: SAVE19-4
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     if e.error_len().is_none() {
+replace:     if false {
+expect-fail: cut_inside_multibyte_char_is_truncated
+expect-fail: utf8_precedes_parse
+note: 文字の途中で切れた入力を truncated ではなく not_json にする（UTF-8 の段の誤り）

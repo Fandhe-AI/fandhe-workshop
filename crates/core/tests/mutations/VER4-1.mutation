@@ -1,0 +1,9 @@
+id: VER4-1
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if state == history.snapshot {
+replace: if true {
+expect-fail: ver5_step_added_by_minor_keeps_early_history_and_diverges_after
+expect-fail: replay_mismatch_is_separated_from_diverged
+note: 写しとの一致の判定を常に真にする（適用し直しの結果を検証せず開く）

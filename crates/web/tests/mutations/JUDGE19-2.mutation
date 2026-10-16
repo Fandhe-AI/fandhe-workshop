@@ -2,7 +2,7 @@ id: JUDGE19-2
 package: fandhe-workshop-web
 test: key_route_contract
 target: crates/web/src/key_route.rs
-find: KeyAction::Complete => KeydownEffect::prevent_only(prevent_default),
+find: KeyAction::Complete => KeydownEffect::complete(prevent_default),
 replace: KeyAction::Complete => KeydownEffect::NONE,
 expect-fail: tab_は候補が開いていて文字があるときだけ_prevent_default_する
 note: 候補が開いて文字があっても Tab の既定動作を止めず、補完の代わりにフォーカスが移る

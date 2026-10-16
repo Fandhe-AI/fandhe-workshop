@@ -1,0 +1,11 @@
+{"view":"diff","title":"src/main.rs の差分（架空）","rows":[
+{"id":"h1","depth":0,"kind":"hunk","before":{"label":"@@ -1,6 +1,6 @@ fn main","detail":"","state":"hunk","tags":[]},"after":{"label":"@@ -1,6 +1,8 @@ fn main","detail":"","state":"hunk","tags":[]}},
+{"id":"l1","depth":0,"kind":"line","before":{"label":"use std::io;","detail":"1:1","state":"ctx","tags":[]},"after":{"label":"use std::io;","detail":"1:1","state":"ctx","tags":[]}},
+{"id":"l2","depth":0,"kind":"line","before":{"label":"","detail":"2:2","state":"ctx","tags":[]},"after":{"label":"","detail":"2:2","state":"ctx","tags":[]}},
+{"id":"l3","depth":0,"kind":"line","before":{"label":"fn main() {","detail":"3:3","state":"ctx","tags":[]},"after":{"label":"fn main() {","detail":"3:3","state":"ctx","tags":[]}},
+{"id":"l4","depth":0,"kind":"line","before":{"label":"    println!(\"メモ帳\");","detail":"4:","state":"del","tags":[]},"after":{"label":"    println!(\"メモ帳 v2\");","detail":":4","state":"add","tags":[]}},
+{"id":"l5","depth":0,"kind":"line","before":null,"after":{"label":"    let notes = store::load();","detail":":5","state":"add","tags":[]}},
+{"id":"l6","depth":0,"kind":"line","before":null,"after":{"label":"    show(&notes);","detail":":6","state":"add","tags":[]}},
+{"id":"l7","depth":0,"kind":"line","before":{"label":"    old_menu();","detail":"5:","state":"del","tags":[]},"after":null},
+{"id":"l8","depth":0,"kind":"line","before":{"label":"}","detail":"6:7","state":"ctx","tags":[]},"after":{"label":"}","detail":"7:8","state":"ctx","tags":[]}}
+]}

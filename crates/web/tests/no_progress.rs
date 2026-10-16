@@ -48,6 +48,10 @@ const FORBIDDEN: &[(&str, &str)] = &[
 const APPLY_FILE: &str = "host.rs";
 const APPLY_FN: &str = "apply_engine";
 
+/// `Session::from_state` が 1 箇所だけ許されるファイル（試験の設定だけの開始状態。`lib.rs` が feature で囲む）。
+const FROM_STATE_FILE: &str = "test_fixture.rs";
+const FROM_STATE_PAT: &str = "Session::from_state";
+
 /// `.` の付かない `apply(`（純関数の直接の呼び出し）の数。
 fn bare_apply_calls(code: &str) -> usize {
     code.match_indices("apply(")
@@ -71,7 +75,10 @@ fn violations(files: &[(String, String)]) -> Vec<String> {
     for (name, src) in files {
         let code = glue_code(src);
         for (pat, why) in FORBIDDEN {
-            let n = count(&code, pat);
+            let mut n = count(&code, pat);
+            if *pat == FROM_STATE_PAT && name == FROM_STATE_FILE && n == 1 {
+                n = 0;
+            }
             if n != 0 {
                 v.push(format!("{name}: {pat} が {n} 箇所（{why}）"));
             }
@@ -106,6 +113,22 @@ fn files(items: &[(&str, &str)]) -> Vec<(String, String)> {
         .iter()
         .map(|(n, s)| ((*n).to_owned(), (*s).to_owned()))
         .collect()
+}
+
+#[test]
+fn 開始状態のファイルは_feature_で囲まれている() {
+    let found = web_src_sources();
+    let lib = found.iter().find(|(n, _)| n == "lib.rs").unwrap();
+    assert!(glue_code(&lib.1).contains("#[cfg(feature=\"test-hooks\")]modtest_fixture;"));
+}
+
+#[test]
+fn 負例_from_state_は例外のファイルの_1_箇所だけ許す() {
+    let one = "fn s() { Session::from_state(ir, st) }";
+    let two = "fn s() { Session::from_state(a, b); Session::from_state(c, d) }";
+    assert!(violations(&files(&[("host.rs", GOOD_HOST), ("test_fixture.rs", one)])).is_empty());
+    assert!(!violations(&files(&[("host.rs", GOOD_HOST), ("test_fixture.rs", two)])).is_empty());
+    assert!(!violations(&files(&[("host.rs", GOOD_HOST), ("a.rs", one)])).is_empty());
 }
 
 #[test]
