@@ -2,7 +2,7 @@
 //!
 //! 順序の正は contract の `HISTORY_LOAD_ORDER`。2 つの段に同時に違反する入力で、前の段の理由が返ることを固定する。
 //! 100MB の実バッファは作らず、長さだけを見る判定は `history_size` の試験に任せる（本試験は 1 バイト超過と 2 倍で確かめる）。
-//! 画面の状態（DOM・`localStorage`）は core では観測できない。`tools/browser/history-load.test.mjs` が持つ。
+//! 画面の状態（DOM・`localStorage`）は core では観測できない。ブラウザでの確認は後続で扱う（未作成）。
 
 mod common;
 
