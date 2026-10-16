@@ -329,6 +329,19 @@ mod tests {
     }
 
     #[test]
+    fn 貼り付けた複数行の下書きは改行を保ち_貼り付けだけでは一覧が増えない() {
+        // JUDGE-25: 貼り付けは input 経由の SetDraft で入る。値は加工されず、送信は Submit だけが起こす。
+        for body in ["a\nb\nc\n", "x\ty\n\tz", "/help\n/list\n/quit"] {
+            let mut v = HelloView::new();
+            v.update(HelloAction::SetDraft(body.to_owned()));
+            assert!(v.entries.is_empty(), "{body:?}");
+            v.update(HelloAction::Submit);
+            assert_eq!(v.entries.len(), 1);
+            assert_eq!(v.entries.back().map(|e| e.1.as_str()), Some(body));
+        }
+    }
+
+    #[test]
     fn 一覧は上限を超えると古い順に捨て_キーは重複しない() {
         let mut v = HelloView::new();
         v.update(HelloAction::SetDraft("a".to_owned()));
