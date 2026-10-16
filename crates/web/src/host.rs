@@ -18,7 +18,8 @@
 //! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
-//! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）を持つ（BUILD-27・SHELL-35）。
+//! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）・試験用の教材への差し替え（`raw` の固定の接頭辞 `load-fixture:`。TASK-445 2/2）を持つ（BUILD-27・SHELL-35）。
+//! 選択肢のクリック（`choose`）は配信する設定にも入り、`decode_action` が `Op::Input(Input::Choice)` に変える。
 //!
 //! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
 //! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
@@ -56,7 +57,7 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::history_replay::submit_input;
-use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
@@ -137,7 +138,26 @@ pub enum HostAction {
     /// 選んだファイルの読み取りは試験の設定の `test-hooks.js` が行い、この action で届ける。
     #[cfg(feature = "test-hooks")]
     OpenHistory(String),
+    /// 試験用の教材への差し替え（試験の設定だけ。TASK-445 2/2）。名前は固定の一覧（[`FixtureName`]）だけ。
+    ///
+    /// 開始の状態・補完表・導出した値を新しい教材から作り直す。作れなければ何もしない。
+    #[cfg(feature = "test-hooks")]
+    LoadFixture(FixtureName),
 }
+
+/// 差し替えられる試験用の教材の名前（試験の設定だけ）。未知の名前は復号の時点で断る。
+#[cfg(feature = "test-hooks")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FixtureName {
+    /// 確認が `answer` の Step を持つ教材（選択肢のボタンの試験）。
+    Answer,
+}
+
+/// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
+///
+/// 後ろは [`FixtureName`] の名前（`answer`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
+#[cfg(feature = "test-hooks")]
+pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 
 /// `raw` の action で再読み込みの模擬を指す固定の合図（試験の設定だけ）。
 ///
@@ -891,6 +911,15 @@ impl Component for EngineHost {
             HostAction::OpenHistory(text) => {
                 self.last_import = Some(self.open_history(text.as_bytes()));
             }
+            #[cfg(feature = "test-hooks")]
+            HostAction::LoadFixture(FixtureName::Answer) => {
+                if let Some(session) = crate::test_fixture::answer_session() {
+                    self.initial = Some(session.state().clone());
+                    self.input
+                        .set_command_table(candidates::command_table(session.ir()));
+                    self.install_session(session);
+                }
+            }
             // 補完は入力欄だけの操作で、エンジンへは何も渡さない（ログ・世代・projection は変わらない）。
             // 下書きが変わったときだけ、`<textarea>` への書き戻しを頼む（上流は値を同期しない）。
             HostAction::Complete => {
@@ -952,12 +981,24 @@ impl Component for EngineHost {
             if let Some(body) = payload.strip_prefix(RAW_OPEN_HISTORY) {
                 return Some(HostAction::OpenHistory(body.to_owned()));
             }
+            // 試験用の教材の差し替えは接頭辞が一致したときだけ。未知の名前は何もしない。
+            if let Some(name) = payload.strip_prefix(RAW_LOAD_FIXTURE) {
+                return match name {
+                    "answer" => Some(HostAction::LoadFixture(FixtureName::Answer)),
+                    _ => None,
+                };
+            }
             return fandhe_workshop_core::load_gate::load_json::<Op>(
                 LoadEntry::History,
                 payload.as_bytes(),
             )
             .ok()
             .map(HostAction::Engine);
+        }
+        // 選択肢のクリック（TASK-445 2/2）。payload は選択肢の ID で、照合と判定は core に任せる。空は何もしない。
+        if name == crate::offers::ACTION_CHOOSE {
+            return (!payload.is_empty())
+                .then(|| HostAction::Engine(Op::Input(Input::Choice(payload.to_owned()))));
         }
         // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
         // `esc` と未知の名前は、これまでどおり入力欄に委ねる。

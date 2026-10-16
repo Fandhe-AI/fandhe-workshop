@@ -1,0 +1,8 @@
+id: TERM24-1
+package: fandhe-workshop-web
+test: choice_answer
+target: crates/web/src/host.rs
+find:         if name == crate::offers::ACTION_CHOOSE {
+replace:         if name == crate::offers::ACTION_CHOOSE && payload.is_empty() {
+expect-fail: choose_は_id_を_choice_の_op_にし_空の_payload_は何もしない
+note: choose の変換を無効にする（ボタンを押しても core へ届かず、誤答も正答も起きない。TERM-24）

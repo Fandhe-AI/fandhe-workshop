@@ -6,6 +6,7 @@
 //! 開始（`Control::Begin`）はまだ core が実装していないため、契約の試料（`event-sequence.json`）が持つ
 //! 開始直後の状態から始める。状態からの `Session` の再構築は、表示層で他に許されない操作（`tests/no_progress.rs`）で、
 //! このファイルの 1 箇所だけを例外にしている。教材と状態は埋め込みの試験データで、外から入らない。
+//! 確認が `answer` の教材への差し替え（`answer_session`）は、`load-fixture:answer` の合図で使う（TASK-445 2/2）。
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 
 use fandhe_workshop_core::{load_ir, Session, SessionState};
@@ -21,8 +22,40 @@ const SAMPLE: &[u8] = include_bytes!(concat!(
 
 /// 試験用の教材と開始直後の状態から実行環境を作る。読めなければ `None`（呼び出し側は session なしに倒す）。
 pub(crate) fn start_session() -> Option<Session> {
-    let ir = load_ir(IR).ok()?;
+    session_of(IR)
+}
+
+/// 教材のバイト列と開始直後の状態から実行環境を作る。`Session::from_state` の唯一の呼び出し（`tests/no_progress.rs`）。
+fn session_of(ir_bytes: &[u8]) -> Option<Session> {
+    let ir = load_ir(ir_bytes).ok()?;
     Some(Session::from_state(ir, start_state()?))
+}
+
+/// 確認が `answer` の Step を持つ試験用の実行環境（TASK-445 2/2。`load-fixture:answer` が差し替える）。
+///
+/// 埋め込みの教材の `main/st-1` の確認を、選択肢 2 件（誤り・正解）の `answer` に置き換える。誤答の文面は教材が
+/// もともと持つ `rj-decline` を指す。mount の教材（`start_session`）は、st-1 の `point_at` に依る既存の試験のため変えない。
+/// 読めない・節点が無い・`load_ir` を通らないときは `None`（呼び出し側は何もしない）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn answer_session() -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let node = value
+        .get_mut("nodes")?
+        .as_array_mut()?
+        .iter_mut()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-1"))?;
+    node.get_mut("step")?.as_object_mut()?.insert(
+        "confirm".to_owned(),
+        serde_json::json!({
+            "kind": "answer",
+            "options": [
+                { "id": "opt-wrong", "correct": false, "label": "誤った案" },
+                { "id": "opt-right", "correct": true, "label": "正しい案" }
+            ],
+            "on_wrong": "rj-decline"
+        }),
+    );
+    session_of(&serde_json::to_vec(&value).ok()?)
 }
 
 /// 試験の開始直後の状態（契約の試料の `initial`）。

@@ -1,7 +1,7 @@
 //! `answer` の選択肢のボタン（`offers`。TASK-445 1/2。TERM-24）の契約の試験。
 //!
 //! 確認待ちのときだけ、表示名（`label`、無ければ ID）を文字にしたボタンが出ること、それ以外では出ないこと
-//! （fail-closed）、教材由来の文字列がエスケープされることを固定する。クリックの結線は TASK-445 2/2 の範囲である。
+//! （fail-closed）、教材由来の文字列がエスケープされることを固定する。クリックの結線は `choice_answer.rs` が確かめる（TASK-445 2/2）。
 //! 試験では `unwrap` を使ってよい。
 
 use std::path::PathBuf;
@@ -129,8 +129,11 @@ fn ボタンの文字は表示名で_label_があれば_id_を文字として出
     assert!(out.contains(">間違いの案<") && out.contains(">正しい案<"));
     // label の無い選択肢は ID がそのまま見える（contract の規則）。
     assert!(out.contains(">opt-plain<"), "{out}");
-    // クリックの結線は 2/2 の範囲で、ここでは付けない。
-    assert!(!out.contains("data-payload"), "{out}");
+    // クリックの結線（2/2）: ID は属性値にだけ入る。
+    for id in ["opt-wrong", "opt-right"] {
+        assert!(out.contains(&format!("data-payload=\"{id}\"")), "{out}");
+    }
+    assert_eq!(out.matches("data-action=\"choose\"").count(), 4, "{out}");
 }
 
 #[test]
