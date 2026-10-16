@@ -165,11 +165,14 @@ pub fn open_history(
             };
         }
     }
-    // 版の違いで説明できない不一致は、書き換え・壊れとみなして開かない。
+    // 版の違いで説明できない不一致は、書き換え・壊れとみなして開かない。比べるのは 6 欄すべてで、
+    // 参照元の commit（`refs`）だけの違いも版の違いに数える（冒頭の VER-4 と同じ線引き）。
     let same_version = hv.content_hash == opening.content_hash
+        && hv.content == opening.content
         && hv.engine == opening.engine
         && hv.ir_format == opening.ir_format
-        && hv.vocab == opening.vocab;
+        && hv.vocab == opening.vocab
+        && hv.refs == opening.refs;
     if same_version {
         refuse(LoadReason::ReplayMismatch)
     } else {

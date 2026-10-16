@@ -253,6 +253,12 @@ fn replay_mismatch_is_separated_from_diverged() {
         Disposition::ViewOnly,
         LoadReason::ReplayDiverged,
     );
+
+    // 参照元の commit だけが違い、写しも一致しないときも、版の違いで説明できるので表示だけ。
+    let mut opening = versions_of(&ir);
+    opening.refs.insert("x".to_owned(), "bbb".to_owned());
+    let o = open_history(&ir, &opening, &caps(), initial(), &h);
+    assert_closed(&o, Disposition::ViewOnly, LoadReason::ReplayDiverged);
 }
 
 #[test]
