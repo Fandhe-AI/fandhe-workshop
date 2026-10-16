@@ -11,4 +11,5 @@ pub mod json_input;
 pub mod op_gen;
 pub mod op_props;
 pub mod property;
+pub mod record_path;
 pub mod tick;
