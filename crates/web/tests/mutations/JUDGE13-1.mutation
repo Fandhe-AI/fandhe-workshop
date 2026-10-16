@@ -1,0 +1,8 @@
+id: JUDGE13-1
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: KeyAction::Newline => KeydownEffect::NONE,
+replace: KeyAction::Newline => KeydownEffect { prevent_default: true, click_submit: true },
+expect-fail: shift_enter_は_prevent_default_せず送信もしない
+note: Shift+Enter が改行を奪って送信になる（複数行の下書きを書けなくなる）

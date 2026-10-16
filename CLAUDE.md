@@ -86,7 +86,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
-| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信の試験・対照の自己確認（SAFE-8。CSP あり・なし。Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
+| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・対照の自己確認（SAFE-8。CSP あり・なし。Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
 | `make test-keydown-control` | `action-keydown` を外した写しで keydown の試験が正しい理由で失敗することの対照（遅く、CI・フックには入れない） |
 | `make check-toolchain` | 固定ファイルの版と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |

@@ -1,4 +1,4 @@
-//! keydown の判定結果を、glue が行う効果へ変える純関数（TASK-275 1/2。JUDGE-12・FEND-14・D-42）。
+//! keydown の判定結果を、glue が行う効果へ変える純関数（TASK-275。JUDGE-12・JUDGE-13・FEND-14・D-42）。
 //!
 //! 呼び出し元は `glue` の keydown リスナーだけである。判定表 `decide`（TASK-257）の結果のうち、
 //! 修飾なしの Enter（`Submit`）だけを「送信ボタンへの click」に結ぶ。click は上流の Runtime の配線を通り、
@@ -7,7 +7,7 @@
 //! この層は DOM に触れない。wasm 専用にしないのは、native の試験で行ごとの効果を固定するためである。
 //!
 //! 受け持たない行（glue は何もしない）と担当:
-//! - `Newline`: textarea の既定動作に任せる。改行の試験は TASK-275 2/2
+//! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
 //! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
 //! - `Pending(_)`: 修飾キー付き Enter（JUDGE-22）などは版 1 で未決。送信も `preventDefault` もしない（版 2 は TASK-281）
 //! - `Complete`・`CloseCandidates`・`Stop`・`CancelInput`・`Nothing`: TASK-276・TASK-277・TASK-347
@@ -59,8 +59,9 @@ pub fn effect_for(decision: Decision) -> KeydownEffect {
                 prevent_default,
                 click_submit: true,
             },
-            KeyAction::Newline
-            | KeyAction::Complete
+            // JUDGE-13: Shift+Enter は送信せず、既定の動作（欄への改行）を妨げない。
+            KeyAction::Newline => KeydownEffect::NONE,
+            KeyAction::Complete
             | KeyAction::CloseCandidates
             | KeyAction::Stop
             | KeyAction::CancelInput
@@ -108,7 +109,14 @@ mod tests {
     fn shift_enter_は何もしない() {
         let mut k = key("Enter");
         k.shift = true;
-        assert_eq!(effect(&k, true), KeydownEffect::NONE);
+        let newline = Decision::Defined(KeyDecision {
+            action: KeyAction::Newline,
+            prevent_default: false,
+        });
+        for has_text in [true, false] {
+            assert_eq!(decide(&k, &field_state(has_text)), newline);
+            assert_eq!(effect(&k, has_text), KeydownEffect::NONE);
+        }
     }
 
     #[test]
