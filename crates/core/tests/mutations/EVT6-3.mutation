@@ -2,9 +2,9 @@ id: EVT6-3
 package: fandhe-workshop-core
 test: tick_progress
 target: crates/core/src/tick.rs
-find:     if judge_tick(&state.run, &addr).judgment != Judgment::Progressed {
-replace:     if judge_tick(&state.run, &addr).judgment != Judgment::Progressed && false {
-expect-fail: mismatched_tick_changes_nothing
+find:     if outcome.judgment != Judgment::Progressed {
+replace:     if outcome.judgment != Judgment::Progressed && false {
+expect-fail: mismatched_tick_records_one_ignored
 expect-fail: duplicate_index_advances_once
 expect-fail: p2_mismatched_tick_keeps_run
 note: 宛先の照合結果を見ずに常に進める（食い違う宛先の進行が効く）

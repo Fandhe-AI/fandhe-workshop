@@ -2,7 +2,7 @@
 //!
 //! 3 Step の教材（`min-3step.json`）の st-1（進行 5 つ）で、宛先が一致した進行が 1 つずつ進み、
 //! 食い違う宛先が状態を変えず、進行の宣言が誤っていれば `Warning` だけで倒れることを確かめる。
-//! 食い違いの `Ignored` の記録は TASK-210 3/3 の範囲で、ここでは確かめない。呼び出し元は CI の `make test` のみである。
+//! 食い違う宛先は状態を変えず `Ignored` を 1 件だけ記録する（TASK-210 3/3）。呼び出し元は CI の `make test` のみである。
 
 mod common;
 
@@ -12,8 +12,8 @@ use common::property::{assert_replay_eq, check, op_sequence, DEFAULT_CASES};
 use common::tick::next_tick;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
-use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
-use fandhe_workshop_core::event::{Cause, Event};
+use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
+use fandhe_workshop_core::event::{Cause, Event, IgnoreReason};
 use fandhe_workshop_core::input::{Decision, Input, Op};
 use fandhe_workshop_core::judge::judge_tick;
 use fandhe_workshop_core::session::{Busy, RunState, SessionState, Slice};
@@ -78,6 +78,24 @@ fn progress_count(events: &[Event]) -> usize {
         .iter()
         .filter(|e| matches!(e, Event::Progress { .. }))
         .count()
+}
+
+fn ignored_reasons(events: &[Event]) -> Vec<IgnoreReason> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Ignored { reason, .. } => Some(*reason),
+            _ => None,
+        })
+        .collect()
+}
+
+/// 操作前の状態の世代と現在の Step の `Stamp`。
+fn stamp_of(run: &RunState) -> Stamp {
+    Stamp {
+        generation: run.generation,
+        step: run.current.clone().expect("current"),
+    }
 }
 
 fn status(s: &Session, step: &str) -> StepStatus {
@@ -149,16 +167,35 @@ fn duplicate_index_advances_once() {
     let addr = next_tick(s.state()).expect("next");
     s.apply(Op::Tick(addr.clone()));
     let before = s.state().run.clone();
+    let log_len = s.state().log.len();
     let events = s.apply(Op::Tick(addr)).to_vec();
     assert_eq!(progress_count(&events), 0);
+    assert_eq!(ignored_reasons(&events), vec![IgnoreReason::Stale]);
+    assert_eq!(events.len(), 1);
     assert_eq!(s.state().run, before);
+    assert_eq!(s.state().log.len(), log_len + 1);
     assert_eq!(s.state().run.busy, Some(Busy { done: 1, total: 5 }));
 }
 
 #[test]
-fn mismatched_tick_changes_nothing() {
-    let good = next_tick(busy_session(base_ir()).state()).expect("next");
-    let variants = [
+fn duplicate_of_last_tick_is_no_processing() {
+    let mut s = busy_session(base_ir());
+    let mut last = None;
+    for _ in 0..5 {
+        last = next_tick(s.state());
+        tick(&mut s);
+    }
+    assert_eq!(s.state().run.busy, None);
+    let before = s.state().run.clone();
+    let events = s.apply(Op::Tick(last.expect("last"))).to_vec();
+    assert_eq!(ignored_reasons(&events), vec![IgnoreReason::NoProcessing]);
+    assert_eq!(events.len(), 1);
+    assert_eq!(s.state().run, before);
+}
+
+fn mismatched_variants(good: &TickAddr) -> Vec<TickAddr> {
+    vec![
+        // 古い世代・新しすぎる世代。
         TickAddr {
             generation: Generation(0),
             ..good.clone()
@@ -167,36 +204,76 @@ fn mismatched_tick_changes_nothing() {
             generation: Generation(2),
             ..good.clone()
         },
+        // 移動前の Step 宛て（移動の操作は TASK-213。ここでは宛先の Step を変えて代替する）。
         TickAddr {
             step: uid("main/st-2"),
             ..good.clone()
         },
+        // 同じ番号の二重の届き相当（番号が合わない）。
         TickAddr {
             index: 1,
             ..good.clone()
         },
-    ];
-    for addr in variants {
+    ]
+}
+
+#[test]
+fn mismatched_tick_records_one_ignored() {
+    let good = next_tick(busy_session(base_ir()).state()).expect("next");
+    for addr in mismatched_variants(&good) {
         let mut s = busy_session(base_ir());
         let before = s.state().run.clone();
+        let log_len = s.state().log.len();
         let events = s.apply(Op::Tick(addr.clone())).to_vec();
+        assert_eq!(
+            events,
+            vec![Event::Ignored {
+                at: stamp_of(&before),
+                reason: IgnoreReason::Stale
+            }],
+            "{addr:?}"
+        );
         assert_eq!(progress_count(&events), 0, "{addr:?}");
         assert_eq!(s.state().run, before, "{addr:?}");
+        assert_eq!(s.state().log.len(), log_len + 1, "{addr:?}");
     }
     // 処理中でない。
     let mut s = Session::from_state(base_ir(), entered());
     let before = s.state().run.clone();
     let events = s.apply(Op::Tick(good.clone())).to_vec();
-    assert_eq!(progress_count(&events), 0);
+    assert_eq!(
+        events,
+        vec![Event::Ignored {
+            at: stamp_of(&before),
+            reason: IgnoreReason::NoProcessing
+        }]
+    );
     assert_eq!(s.state().run, before);
-    // 現在の Step が無い。
+    // 現在の Step が無い（`Stamp` を作れないので記録しない）。
     let mut none = SessionState::default();
     none.run.busy = Some(Busy { done: 0, total: 5 });
     let mut s = Session::from_state(base_ir(), none);
     let before = s.state().run.clone();
     let events = s.apply(Op::Tick(good)).to_vec();
-    assert_eq!(progress_count(&events), 0);
+    assert!(events.is_empty(), "{events:?}");
     assert_eq!(s.state().run, before);
+}
+
+#[test]
+fn mismatch_is_checked_before_processing_declaration() {
+    let mut ir = base_ir();
+    if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == ST1) {
+        n.step.processing = vec![json!({ "label": "SECRET-MARK" }); 5];
+    }
+    let mut s = busy_session(ir);
+    let good = next_tick(s.state()).expect("next");
+    let before = s.state().run.clone();
+    for addr in mismatched_variants(&good) {
+        let events = s.apply(Op::Tick(addr)).to_vec();
+        assert_eq!(ignored_reasons(&events), vec![IgnoreReason::Stale]);
+        assert_eq!(events.len(), 1);
+        assert_eq!(s.state().run, before);
+    }
 }
 
 fn only_warning(events: &[Event]) -> bool {
@@ -305,10 +382,16 @@ fn p2_mismatched_tick_keeps_run() {
                     Op::Tick(a) if judge_tick(&state.run, a).judgment == Judgment::Ignored
                 );
                 let before = state.run.clone();
+                let log_len = state.log.len();
                 let (next, events) = apply(&ir, state, o);
                 if ignored {
                     prop_assert_eq!(&next.run, &before);
                     prop_assert_eq!(progress_count(&events), 0);
+                    if before.current.is_some() {
+                        prop_assert_eq!(events.len(), 1);
+                        prop_assert_eq!(ignored_reasons(&events).len(), 1);
+                        prop_assert_eq!(next.log.len(), log_len + 1);
+                    }
                 }
                 state = next;
             }
