@@ -3,7 +3,7 @@
 //! `storage_select::HistoryStorage` が [`IdbBackend`] として使う薄い包み。DB 名 `fandhe-workshop`・版 1・
 //! object store `history`（鍵は `HistoryKey::render()` の文字列）。選択の規則は `storage_select` が持つ。
 //! [`open_history_storage`] は、開いて全件を手元の写しへ読み込んだ後に `on_ready` を呼ぶ。これが準備完了の合図で、
-//! 復元の経路（TASK-319・TASK-331）と離れる直前の書き込み（TASK-317 2/2）はこの合図の後に使う。
+//! 復元の経路（TASK-319・TASK-331）と離れる直前の書き込み（TASK-317 2/2。`save_pending`・`leave_flush`）はこの合図の後に使う。
 //! 開けない（`indexedDB` が無い・エラー・他のタブに塞がれた）ときは、IndexedDB 無しで `on_ready` を呼ぶ（localStorage だけで動く）。
 //!
 //! 完了・失敗の通知は JS のイベントで届く。ハンドラは `Closure::new` で作って `Handlers` に持ち、確定のときに

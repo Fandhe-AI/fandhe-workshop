@@ -1,0 +1,8 @@
+id: SAVE9-3
+package: fandhe-workshop-web
+test: save_pending
+target: crates/web/src/save_pending.rs
+find:                 Ok(()) => outcome.written += 1,
+replace:                 Ok(()) => { outcome.written += 1; self.pending.borrow_mut().insert(key, value); }
+expect-fail: flush_の後に保留は空になり_2_回目は書かない
+note: 書けた鍵を保留から外さない（二重に書く）
