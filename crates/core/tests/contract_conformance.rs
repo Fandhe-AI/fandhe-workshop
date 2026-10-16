@@ -360,14 +360,14 @@ where
     replay_against_upto(provider, s, s.entries.len())
 }
 
-/// 入力の受付（TASK-207 1/3）と一致する進行（TASK-210 2/3）まで結線した範囲の照合。先頭 5 件（e01 拒否・e02 受付・
-/// e03 再送の拒否・e04 と e05 の進行）は実際の `apply()` と一致する。最初の食い違いは e06（停止、TASK-211）で、
-/// 全件の照合は下の `#[ignore]` の試験が受け持つ。
+/// 入力の受付（TASK-207 1/3）・一致する進行（TASK-210 2/3）・処理中の停止（TASK-211 1/2）まで結線した範囲の照合。
+/// 先頭 6 件（e01 拒否・e02 受付・e03 再送の拒否・e04 と e05 の進行・e06 停止）は実際の `apply()` と一致する。
+/// 連鎖の照合は先頭 6 件まで。e07・e08 の連鎖は TASK-211 2/2 で、全件の照合は下の `#[ignore]` の試験が受け持つ。
 #[test]
 fn sample_replay_prefix_matches_apply() {
     let s = load();
     let ir = sample_ir(&s);
-    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 5) {
+    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 6) {
         panic!(
             "{}: {} differs ({})\nexpected: {}\nactual: {}",
             m.id, m.what, m.note, m.expected, m.actual
@@ -376,8 +376,8 @@ fn sample_replay_prefix_matches_apply() {
 }
 
 /// 確認の操作による達成（TASK-207 2/3）の単独の照合。サンプルの e15（受付済みの Step を指して達成し、次の Step に
-/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖では
-/// e06（停止、TASK-211）で止まり e15 に届かないため、前の状態から直接始める。
+/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖は先頭 6 件までで
+/// e15 に届かないため、前の状態から直接始める。
 #[test]
 fn sample_confirm_entry_matches_apply() {
     let s = load();
@@ -398,7 +398,7 @@ fn sample_confirm_entry_matches_apply() {
 
 /// 一致する進行（TASK-210 2/3）の単独の照合。サンプルの e09〜e13（世代 2 の st-1 の進行 5 つ。最後の進行で
 /// 処理中が解け、達成はしない）を、e09 の前の状態から連鎖して流し、各操作のイベント列と後の状態が一致することを
-/// 確かめる。連鎖では e06（停止、TASK-211）で止まり届かないため、前の状態から直接始める。
+/// 確かめる。連鎖は先頭 6 件までで届かないため、前の状態から直接始める。
 #[test]
 fn sample_ticks_entry_matches_apply() {
     let s = load();
@@ -449,7 +449,7 @@ fn sample_skip_confirm_entry_matches_apply() {
 }
 
 /// 古い世代の進行の無視（TASK-210 3/3）の単独の照合。サンプルの e07 を、その前の状態から 1 件だけ流して、
-/// `Ignored` 1 件だけのイベント列と変わらない状態がサンプルと一致することを確かめる（連鎖は e06 で止まる）。
+/// `Ignored` 1 件だけのイベント列と変わらない状態がサンプルと一致することを確かめる（連鎖は先頭 6 件まで。e07 の連鎖は TASK-211 2/2）。
 #[test]
 fn sample_stale_tick_entry_matches_apply() {
     let s = load();
@@ -466,6 +466,27 @@ fn sample_stale_tick_entry_matches_apply() {
     let (next, events) = apply(&ir, state, e.op.clone());
     assert_eq!(events, e.events, "e07: events");
     assert_eq!(next.run, e.after, "e07: after");
+}
+
+/// 処理中の停止（TASK-211 1/2）の単独の照合。サンプルの e06 を、その前の状態に入口の写し（`initial.entry`）を
+/// 添えて 1 件だけ流し、イベント列（`Stopped` と `Changed`）と後の状態がサンプルと一致することを確かめる。
+#[test]
+fn sample_stop_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let e = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e06")
+        .expect("sample has e06");
+    let state = SessionState {
+        run: e.before.clone(),
+        entry: s.initial.entry.clone(),
+        ..SessionState::default()
+    };
+    let (next, events) = apply(&ir, state, e.op.clone());
+    assert_eq!(events, e.events, "e06: events");
+    assert_eq!(next.run, e.after, "e06: after");
 }
 
 #[test]

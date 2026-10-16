@@ -1,0 +1,10 @@
+id: EVT9-2
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/stop.rs
+find:     run.generation = next;
+replace:     run.generation = entry.run.generation;
+expect-fail: stop_after_two_ticks_removes_draft
+expect-fail: stop_matches_sample_e06
+expect-fail: p4_stop_returns_to_entry
+note: 世代を +1 せず写しの世代のままにする（関門が戻すため状態の世代は据え置きになる）

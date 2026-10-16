@@ -43,7 +43,7 @@ pub fn world_diff(before: &World, after: &World) -> Vec<PathChange> {
 /// 操作から `Changed` の原因を決める。
 ///
 /// `Save`・`OpenHint`・`SetGuidance` は世界状態を変えず差分が空になるため、原因は使われない（`Input` を返す）。
-/// 処理中でない停止を取消として扱う場合の原因の細分は、停止の担当（TASK-211）が見直す。
+/// 処理中でない停止を取消として扱う場合の原因の細分は、取消の担当（TASK-212）が見直す。
 pub fn cause_of(op: &Op) -> Cause {
     match op {
         Op::Input(_) | Op::Tick(_) => Cause::Input,

@@ -9,8 +9,9 @@
 //! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが、受付済みへの確認の操作による達成（TASK-207 2/3）は `confirm` モジュールが埋めた。
 //! 世代の規則の表（[`GenerationRule`]）は、[`apply`] が分岐の後に強制する（TASK-210 1/3、EVT-6）。
 //! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進め、食い違う進行は `Ignored` 1 件で記録する（TASK-210 2/3・3/3、EVT-8・EVT-16）。
+//! 処理中の停止は `stop` モジュールが入口の写しへ戻す（TASK-211 1/2、EVT-9）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
+//! （処理中でない停止 TASK-212、移動 TASK-213、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -32,9 +33,10 @@ use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
 use crate::changed;
 use crate::event::Event;
-use crate::input::{CheckpointId, GenerationRule, Op};
+use crate::input::{CheckpointId, Control, GenerationRule, Op};
 use crate::provider::StateChangeProvider;
 use crate::step_status::StepStatus;
+use crate::stop;
 use crate::tick;
 use crate::world::World;
 
@@ -160,7 +162,7 @@ impl Default for SessionState {
 /// 状態に操作を適用し、新しい状態とイベント列を返す純粋な関数（EXT-4）。
 ///
 /// 全域で決定的であり、教材 `ir` は読むだけである。戻りのイベント列は新しい状態の `log` の末尾に
-/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は一致の前進と食い違いの無視の記録まで（TASK-210 2/3・3/3）実装済みで、ほかの分岐は契約だけの骨格のまま、
+/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は一致の前進と食い違いの無視の記録まで（TASK-210 2/3・3/3）、処理中の停止は入口の写しへの復帰まで（TASK-211 1/2）実装済みで、ほかの分岐は契約だけの骨格のまま、
 /// 状態を変えずイベントも返さない。
 pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>) {
     let mut state = state;
@@ -226,7 +228,9 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         Op::Input(input) => accept::on_input(ir, state, input),
         // 宛先が一致する進行の前進と食い違う進行の無視の記録は `tick`（TASK-210 2/3・3/3）。世代は変えない（1/3、`apply` の関門）。
         Op::Tick(addr) => tick::on_tick(ir, state, addr),
-        // TASK-211 停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
+        // 処理中の停止と入口の写しへの復帰は `stop`（TASK-211 1/2）。世代は +1 になる（`apply` の関門が上限を守る）。
+        Op::Control(Control::Stop) => stop::on_stop(state),
+        // TASK-212 処理中でない停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),
     }
 }

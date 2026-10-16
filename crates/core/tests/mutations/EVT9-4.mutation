@@ -1,0 +1,8 @@
+id: EVT9-4
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/stop.rs
+find:         .filter(|e| e.run.current.as_ref() == Some(&current))
+replace:         .filter(|_| true)
+expect-fail: stop_with_other_step_entry_warns_only
+note: 写しの Step と現在の Step の照合を外す（別の Step の写しへ戻る）

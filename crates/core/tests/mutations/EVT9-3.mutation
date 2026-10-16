@@ -1,0 +1,9 @@
+id: EVT9-3
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/stop.rs
+find:     vec![Event::Stopped {
+replace:     let at = Stamp { generation: next, step: at.step.clone() };vec![Event::Stopped {
+expect-fail: stop_after_two_ticks_removes_draft
+expect-fail: stop_matches_sample_e06
+note: Stopped.at に操作後の世代を使う
