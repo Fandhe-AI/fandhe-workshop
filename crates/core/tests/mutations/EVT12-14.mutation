@@ -1,0 +1,9 @@
+id: EVT12-14
+package: fandhe-workshop-core
+test: restore_resume
+target: crates/core/src/checkpoint.rs
+find:     run.generation = next;
+replace:     run.generation = next; if let Some(b) = run.busy.as_mut() { b.done = 0; }
+expect-fail: restore_resumes_progress_in_new_generation
+expect-fail: p4_restore_resumes_from_saved_done
+note: 復帰で処理中の番号を写しの値にしない（再開が保存時点の番号でなく先頭からになる）。EVT12-5（処理中を解く）とは別の誤り
