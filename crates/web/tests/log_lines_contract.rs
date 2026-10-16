@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use fandhe_frontend_core::{el, render, text, Node};
-use fandhe_workshop_contract::judgment::{NextAction, RejectCategory};
+use fandhe_workshop_contract::judgment::{Judgment, NextAction, RejectCategory, Rejection};
 use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Decision, Input, Op};
@@ -198,7 +198,9 @@ fn 操作列の実出力の行を_log_list_へ載せ替えても適合し_行数
             .projection()
             .log()
             .iter()
-            .filter(|r| line_from_event(&log[r.event as usize]).is_some())
+            .filter(|r| {
+                line_from_event(&log[r.event as usize], host.model().judged_text(r.event)).is_some()
+            })
             .count();
         assert_eq!(lis.len(), expected);
         seen = seen.max(lis.len());
@@ -229,17 +231,17 @@ fn イベントから行への写しは表のとおりで_写さないものは_
         ),
     ];
     for (input, method) in inputs {
-        let line = line_from_event(&Event::InputReceived { at: stamp(), input }).unwrap();
+        let line = without_text(&Event::InputReceived { at: stamp(), input }).unwrap();
         assert_eq!(line.kind(), LineKind::Received);
         let n = line_node(1, &line).unwrap();
         assert_eq!(attr(&n, "data-input"), Some(method));
     }
-    assert!(line_from_event(&Event::InputReceived {
+    assert!(without_text(&Event::InputReceived {
         at: stamp(),
         input: Input::Cancel
     })
     .is_none());
-    let p = line_from_event(&Event::Progress {
+    let p = without_text(&Event::Progress {
         at: stamp(),
         name: "n".into(),
         index: 0,
@@ -248,7 +250,7 @@ fn イベントから行への写しは表のとおりで_写さないものは_
     .unwrap();
     assert_eq!(p.kind(), LineKind::Progress);
     // 契約に違反する進行（index >= total）は行にしない。
-    assert!(line_from_event(&Event::Progress {
+    assert!(without_text(&Event::Progress {
         at: stamp(),
         name: "n".into(),
         index: 2,
@@ -264,14 +266,45 @@ fn イベントから行への写しは表のとおりで_写さないものは_
         }
     )
     .is_none());
-    let s = line_from_event(&Event::Stopped {
+    let s = without_text(&Event::Stopped {
         at: stamp(),
         new_generation: Generation(2),
     })
     .unwrap();
     assert_eq!(s, LogLine::Stopped);
     assert!(render(&line_node(1, &s).unwrap()).contains(STOPPED_TEXT));
-    assert!(line_from_event(&Event::Accepted { at: stamp() }).is_none());
+    assert!(without_text(&Event::Accepted { at: stamp() }).is_none());
+}
+
+/// 文面を渡さない呼び出し（拒否以外のイベントは文面を読まない）。
+fn without_text(e: &Event) -> Option<LogLine> {
+    line_from_event(e, None)
+}
+
+#[test]
+fn 拒否は文面が渡されたときだけ行になり_問い返しは写さない() {
+    let na = NextAction::new("ls を打つ").expect("next action");
+    let j = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Rejected(Rejection {
+            category: RejectCategory::UnknownCommand,
+            text: "r-1".into(),
+            next_action: na.clone(),
+        }),
+    };
+    let line = line_from_event(&j, Some("そのコマンドはありません")).unwrap();
+    assert_eq!(
+        line,
+        LogLine::Rejected {
+            category: RejectCategory::UnknownCommand,
+            reason: "そのコマンドはありません".into(),
+            next_action: na,
+        }
+    );
+    assert_eq!(line.kind(), LineKind::Rejected);
+    // 文面が無い・空白だけなら行にしない（文面を作らない）。
+    assert!(line_from_event(&j, None).is_none());
+    assert!(line_from_event(&j, Some("  ")).is_none());
 }
 
 #[test]

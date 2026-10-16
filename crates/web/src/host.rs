@@ -28,6 +28,7 @@
 )]
 
 use core::fmt;
+use std::collections::BTreeMap;
 
 #[cfg(feature = "test-hooks")]
 use fandhe_frontend_core::text;
@@ -35,9 +36,12 @@ use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
+use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::Op;
+use fandhe_workshop_core::text_fill::filled_text;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session};
 
@@ -58,9 +62,20 @@ pub struct HostModel {
     world: World,
     /// `world` が読み終えたログの長さ。
     world_consumed: usize,
+    /// 拒否の `Judged` ごとの、充填済みの理由の文面（キーはイベントの位置）。
+    ///
+    /// 文面は IR の文面の ID の解決と実行時の値の差し込みが要り、拒否を適用した直後の状態でしか作れない
+    /// （後の操作で状態が進むため）。そのため `apply_engine` が適用の直後に 1 度だけ作って控える。
+    /// 作れなかった拒否（文面の解決の失敗）は控えず、行を出さない（fail-closed）。
+    judged_texts: BTreeMap<u32, String>,
 }
 
 impl HostModel {
+    /// 位置 `event` の拒否の理由の文面（core の `filled_text` が返した値）。控えが無ければ `None`。
+    pub fn judged_text(&self, event: u32) -> Option<&str> {
+        self.judged_texts.get(&event).map(String::as_str)
+    }
+
     /// 実行環境。未読込なら `None`。
     pub fn session(&self) -> Option<&Session> {
         self.session.as_ref()
@@ -157,6 +172,7 @@ impl EngineHost {
                 projection: Projection::new(),
                 world: World::new(),
                 world_consumed: 0,
+                judged_texts: BTreeMap::new(),
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -189,6 +205,7 @@ impl EngineHost {
                 projection,
                 world,
                 world_consumed,
+                judged_texts: BTreeMap::new(),
             },
             registry,
             input: HelloView::new(),
@@ -291,7 +308,9 @@ impl EngineHost {
                     // DOM の `data-kind`（行の種類）と照合する。行にしないイベントは null（DOM に行が無い）。
                     "line": log
                         .get(r.event as usize)
-                        .and_then(crate::log_lines::line_from_event)
+                        .and_then(|e| {
+                        crate::log_lines::line_from_event(e, self.model.judged_text(r.event))
+                    })
                         .map(|l| l.kind().as_str()),
                 })
             })
@@ -331,6 +350,9 @@ impl EngineHost {
                     "generation": at.generation.0,
                     "step": at.step.0,
                     "category": r.category.as_str(),
+                    // 画面の理由・次の行動との照合用（TASK-437）。控えが無ければ null。
+                    "reason": self.model.judged_text(i as u32),
+                    "nextAction": r.next_action.as_str(),
                 })),
                 _ => None,
             })
@@ -424,6 +446,8 @@ impl EngineHost {
         let log = session.log();
         self.model.projection.extend(log);
         let changed = returned > 0 || log.len() != len_before;
+        // 拒否の理由の文面は、適用の直後（拒否は状態を変えないため、判定の直前と同じ状態）でだけ作れる。
+        record_judged_texts(&mut self.model.judged_texts, session, len_before);
         // 世界状態も同じ列から、未処理の分だけ導く。session の借用中のため、欄ごとに触る。
         let from = self.model.world_consumed.min(log.len());
         replay_changes(&mut self.model.world, &log[from..]);
@@ -445,6 +469,33 @@ impl EngineHost {
                 .filter(|f| f.kind == FieldKind::KeyedList)
                 .map(|f| f.name);
             self.dirty.extend(lists);
+        }
+    }
+}
+
+/// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否の `Judged` について文面を充填して控える。
+///
+/// 充填に失敗した（`Err`・`None`）拒否は控えない。エラーは文面も入力値も含まないが、ここでは出力しない。
+fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, from: usize) {
+    let log = session.log();
+    for i in from..log.len() {
+        let (Some(Event::InputReceived { input, .. }), Some(judged)) =
+            (i.checked_sub(1).and_then(|p| log.get(p)), log.get(i))
+        else {
+            continue;
+        };
+        let Event::Judged {
+            judgment: judgment @ Judgment::Rejected(_),
+            ..
+        } = judged
+        else {
+            continue;
+        };
+        let Ok(key) = u32::try_from(i) else {
+            continue;
+        };
+        if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment) {
+            texts.insert(key, f.message);
         }
     }
 }

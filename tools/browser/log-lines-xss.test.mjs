@@ -9,8 +9,9 @@
 // 注入の口: 入力欄からエンジンへの結線は TASK-438 が持つ。それまでは、試験の設定（TEST_HOOKS=1）の見えない `raw-trigger` へ
 // `Op` の JSON を書いて click する（three-views.test.mjs と同じ口）。口は sendPayload の 1 か所にまとめてあり、TASK-438 の後は
 // ここを draft-input + submit-input の操作へ差し替える。
-// 範囲: 今の結線は受付の行（InputReceived）だけ。拒否・問い返し（`{{input_head}}` の差し込みの経路）は TASK-437 の結線の後に、
-// 観察の対象へ足す。教材の文面（進行の名前・拒否の理由など）の網羅は E2 の担当（TASK-146 系）で、全 6 種の行を文字ノードで
+// 範囲: 受付の行（InputReceived）と、それに続く拒否の行（TASK-437 1/2。理由に `{{input_head}}` として入力が差し込まれる経路）。
+// 拒否の行は、子が `line-reason`・`line-next-action` の文字ノードだけで、危険な要素が 0 件であることを観察する。
+// 問い返しの行は TASK-437 2/2 の結線の後に足す。教材の文面（進行の名前・拒否の理由など）の網羅は E2 の担当（TASK-146 系）で、全 6 種の行を文字ノードで
 // 描くことは native の crates/web/tests/log_lines_contract.rs が代わる。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_DIR（配信設定。口が無いことの確認と CSP の試験）。どちらも未設定・
@@ -27,6 +28,7 @@ const BASE = '/fandhe-log-lines-xss/';
 const RAW = '[data-testid="raw-trigger"]';
 const LOG = '[data-testid="part-log-list"]';
 const ITEMS = `${LOG} > li`;
+const RECEIVED = `${ITEMS}[data-kind="received"]`;
 const BODY = '[data-testid="line-body"]';
 // ログの行の中にあってはならない要素。
 const FORBIDDEN = [
@@ -71,22 +73,28 @@ async function sendPayload(page, input) {
   }, [RAW, JSON.stringify({ input })]);
 }
 
-// 末尾の行を調べる。DOM と状態は 1 回の evaluate で読む（進行のタイマーが間に入らない）。
-async function lastItem(page) {
-  return page.evaluate(([items, body, forbidden]) => {
-    const lis = [...document.querySelectorAll(items)];
-    const li = lis[lis.length - 1];
-    const b = li ? li.querySelector(body) : null;
-    return {
-      count: lis.length,
-      kind: li?.dataset.kind ?? null,
-      input: li?.dataset.input ?? null,
-      children: li ? [...li.children].map((c) => c.dataset.testid) : [],
-      bodyKinds: b ? [...b.childNodes].map((n) => n.nodeType) : [],
-      text: b ? b.textContent : null,
-      forbidden: li ? li.querySelectorAll(forbidden).length : -1,
+// 最後の受付の行と、その直後の行（あれば）を調べる。DOM と状態は 1 回の evaluate で読む（進行のタイマーが間に入らない）。
+// 1 回の送信で行は増えるが（受付の行と、拒否の行）、受付の行は 1 件だけ増える。
+async function lastReceived(page) {
+  return page.evaluate(([items, received, body, forbidden]) => {
+    const describe = (li) => {
+      if (!li) return null;
+      const b = li.querySelector(body);
+      return {
+        kind: li.dataset.kind,
+        input: li.dataset.input ?? null,
+        children: [...li.children].map((c) => c.dataset.testid),
+        childKinds: [...li.children].map((c) => [...c.childNodes].map((n) => n.nodeType)),
+        bodyKinds: b ? [...b.childNodes].map((n) => n.nodeType) : [],
+        text: b ? b.textContent : null,
+        forbidden: li.querySelectorAll(forbidden).length,
+      };
     };
-  }, [ITEMS, BODY, FORBIDDEN]);
+    const lis = [...document.querySelectorAll(items)];
+    const recs = [...document.querySelectorAll(received)];
+    const li = recs[recs.length - 1];
+    return { received: recs.length, line: describe(li), next: describe(li ? li.nextElementSibling : null) };
+  }, [ITEMS, RECEIVED, BODY, FORBIDDEN]);
 }
 
 function assertLine(it, expected, input, detail) {
@@ -98,15 +106,31 @@ function assertLine(it, expected, input, detail) {
   assert.equal(it.forbidden, 0, detail);
 }
 
+// 受付の行に続く拒否の行（あれば）は、理由と次の行動の文字ノードだけを持つ。入力は理由に差し込まれうる。
+function assertNext(next, detail) {
+  if (next === null || next.kind !== 'rejected') return;
+  assert.deepEqual(next.children, ['line-reason', 'line-next-action'], detail);
+  assert.deepEqual(next.childKinds, [[3], [3]], detail);
+  assert.equal(next.forbidden, 0, detail);
+}
+
 async function sendAll(page, rec) {
-  let n = (await lastItem(page)).count;
+  let n = (await lastReceived(page)).received;
   for (const c of cases) {
     for (const m of MODES) {
       await sendPayload(page, m.make(c.payload));
       n += 1;
-      await page.waitForFunction(([sel, want]) => document.querySelectorAll(sel).length === want, [ITEMS, n]);
+      await page.waitForFunction(([sel, want]) => document.querySelectorAll(sel).length === want, [RECEIVED, n]);
+      // 続く拒否の行は同じ更新で描かれるが、受付の行の件数の待ちだけでは取りこぼしうるため、状態の行数と DOM の一致も待つ。
+      await page.waitForFunction((items) => {
+        const log = JSON.parse(window.__fandheTest.stateJson()).engine.log;
+        return document.querySelectorAll(items).length === log.filter((e) => e.line !== null && e.line !== undefined).length;
+      }, ITEMS);
+      const detail = `${c.id} ${m.name} ${JSON.stringify(rec.hits)}`;
       const expected = m.make(c.payload)[m.input];
-      assertLine(await lastItem(page), expected, m.input, `${c.id} ${m.name} ${JSON.stringify(rec.hits)}`);
+      const got = await lastReceived(page);
+      assertLine(got.line, expected, m.input, detail);
+      assertNext(got.next, detail);
       assert.deepEqual(rec.hits, [], `executed at ${c.id} ${m.name}`);
     }
   }
@@ -163,11 +187,22 @@ test('再描画（HTML の文字列からの作り直し）の後も文字のま
     const { page, context, rec } = await startedPage(srv);
     await sendAll(page, rec);
     assert.equal(await page.evaluate(() => window.__fandheTest.rerender()), true);
-    const items = await page.$$eval(ITEMS, (lis, [body, forbidden]) => lis.map((li) => {
+    const items = await page.$$eval(RECEIVED, (lis, [body, forbidden]) => lis.map((li) => {
       const b = li.querySelector(body);
       return { kind: li.dataset.kind, text: b.textContent, kinds: [...b.childNodes].map((n) => n.nodeType), forbidden: li.querySelectorAll(forbidden).length };
     }), [BODY, FORBIDDEN]);
     assert.equal(items.length, cases.length * MODES.length);
+    // 拒否の行も、作り直しの後に子が文字ノードだけで、危険な要素が 0 件である。
+    const rejected = await page.$$eval(`${ITEMS}[data-kind="rejected"]`, (lis, forbidden) => lis.map((li) => ({
+      children: [...li.children].map((c) => c.dataset.testid),
+      kinds: [...li.children].map((c) => [...c.childNodes].map((n) => n.nodeType)),
+      forbidden: li.querySelectorAll(forbidden).length,
+    })), FORBIDDEN);
+    for (const r of rejected) {
+      assert.deepEqual(r.children, ['line-reason', 'line-next-action']);
+      assert.deepEqual(r.kinds, [[3], [3]]);
+      assert.equal(r.forbidden, 0);
+    }
     let i = 0;
     for (const c of cases) {
       for (const m of MODES) {

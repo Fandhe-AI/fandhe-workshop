@@ -194,7 +194,10 @@ impl DisplayPart<HostModel> for LogPart {
             .log()
             .iter()
             .filter_map(|row| {
-                let line = line_from_event(events.get(row.event as usize)?)?;
+                let line = line_from_event(
+                    events.get(row.event as usize)?,
+                    model.judged_text(row.event),
+                )?;
                 let node = line_node(row.at.generation.0, &line)?;
                 Some((
                     format!("r{}", row.event),

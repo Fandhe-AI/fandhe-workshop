@@ -1,0 +1,8 @@
+id: TERM32-1
+package: fandhe-workshop-web
+test: reject_lines
+target: crates/web/src/host.rs
+find:             texts.insert(key, f.message);
+replace:             drop((texts.len(), key, f.message));
+expect-fail: 誤入力の拒否は理由と空でない次の行動の行として出る
+note: 拒否の理由の控えを作らない（行が出ない）

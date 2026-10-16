@@ -247,7 +247,7 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
 - 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
-- 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
+- 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は TASK-437 2/2 の後に足す
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
 ```text
@@ -260,6 +260,28 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 |---|---|---|---|---|---|
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
 | TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
+
+### 5.3.1b 拒否の理由と次の行動が右のログに出ること（TASK-437 1/2）
+
+TERM32-1 は、`crates/web/src/host.rs` の `record_judged_texts` が拒否の理由の文面を控える処理を無効にする変異である。
+理由の行が出なくなり、native の `crates/web/tests/reject_lines.rs` が検出する。
+
+誤入力の出どころは、spec の「47 件」（private の試作パック）ではなく、repo 内のパックの `error_inputs`（期待が `rejected:*` のもの）である。
+試作パックは公開の可否（D-11・TASK-14）が未決で、`testdata/README.md` のとおり取り込んでいない。native の試験は
+`min-3step` 7 件・`judgment` 17 件・`module-reuse` 8 件の計 32 件（件数は定数で固定）と、`fill-pack` の `text_checks` のうち拒否のもの
+（期待の文面と次の行動つき）を `EngineHost` に流す。`slot-pack` の誤入力は静的な検査用で、実行して期待の分類にならないため使わない。
+ブラウザ試験 `tools/browser/reject-lines.test.mjs` は `min-3step-pack` の 7 件を、CSP あり・なしで流す。
+いずれも、拒否 1 件につき `rejected` の行が 1 件、理由と次の行動が空でなく、表示がエンジンの値と一致することを確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 0fa720e-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM32-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM32-1 | crates/web/src/host.rs: 拒否の理由の控えを作らない（行が出ない） | 誤入力の拒否は理由と空でない次の行動の行として出る | 左の 1 件に加え、fill_pack_の拒否は期待の文面と次の行動のとおりに出る | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
