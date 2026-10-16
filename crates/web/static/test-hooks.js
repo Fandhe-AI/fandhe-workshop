@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -64,6 +64,19 @@ export function storageRead(packId, startId) {
 
 export function storageState(packId, startId) {
   return debug_storage_state(packId, startId);
+}
+
+// 離れる直前の書き出し（TASK-317 2/2）。saveStage は保留へ積むだけで書かない。書き出しの経路は pagehide（saveInstallPagehide で付ける）と saveFlush だけ。
+export function saveStage(packId, startId, value) {
+  return debug_save_stage(packId, startId, value);
+}
+
+export function saveInstallPagehide() {
+  return debug_save_install_pagehide();
+}
+
+export function saveFlush() {
+  return debug_save_flush();
 }
 
 // ツリーの試料を後の状態で描いた HTML 文字列を返す（TASK-472）。kind は "file_tree" か "task_tree"、variant は "a" か "b"。範囲外は空文字列。

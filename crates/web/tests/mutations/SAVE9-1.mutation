@@ -1,0 +1,8 @@
+id: SAVE9-1
+package: fandhe-workshop-web
+test: save_pending
+target: crates/web/src/save_pending.rs
+find:         self.pending.borrow_mut().insert(key, value);
+replace:         self.pending.borrow_mut().entry(key).or_insert(value);
+expect-fail: 同じ鍵に_2_回積むと最後の値だけを_1_回書く
+note: 同じ鍵の値を置き換えず、最初の値を残す（離れる直前の最新の変更が落ちる）
