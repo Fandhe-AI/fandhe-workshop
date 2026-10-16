@@ -360,14 +360,15 @@ where
     replay_against_upto(provider, s, s.entries.len())
 }
 
-/// 入力の受付（TASK-207 1/3）・一致する進行（TASK-210 2/3）・処理中の停止（TASK-211 1/2）まで結線した範囲の照合。
-/// 先頭 6 件（e01 拒否・e02 受付・e03 再送の拒否・e04 と e05 の進行・e06 停止）は実際の `apply()` と一致する。
-/// 連鎖の照合は先頭 6 件まで。e07・e08 の連鎖は TASK-211 2/2 で、全件の照合は下の `#[ignore]` の試験が受け持つ。
+/// 入力の受付（TASK-207 1/3）・一致する進行（TASK-210 2/3）・処理中の停止（TASK-211）まで結線した範囲の照合。
+/// 先頭 13 件（e01 拒否・e02 受付・e03 再送の拒否・e04 と e05 の進行・e06 停止・e07 古い世代の進行の無視・
+/// e08 停止後の受付・e09〜e13 の進行）は実際の `apply()` と一致する。
+/// 連鎖の照合は先頭 13 件まで。e14（保存）以降は TASK-214 などの担当で、全件の照合は下の `#[ignore]` の試験が受け持つ。
 #[test]
 fn sample_replay_prefix_matches_apply() {
     let s = load();
     let ir = sample_ir(&s);
-    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 6) {
+    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 13) {
         panic!(
             "{}: {} differs ({})\nexpected: {}\nactual: {}",
             m.id, m.what, m.note, m.expected, m.actual
@@ -376,7 +377,7 @@ fn sample_replay_prefix_matches_apply() {
 }
 
 /// 確認の操作による達成（TASK-207 2/3）の単独の照合。サンプルの e15（受付済みの Step を指して達成し、次の Step に
-/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖は先頭 6 件までで
+/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖は先頭 13 件までで
 /// e15 に届かないため、前の状態から直接始める。
 #[test]
 fn sample_confirm_entry_matches_apply() {
@@ -398,7 +399,7 @@ fn sample_confirm_entry_matches_apply() {
 
 /// 一致する進行（TASK-210 2/3）の単独の照合。サンプルの e09〜e13（世代 2 の st-1 の進行 5 つ。最後の進行で
 /// 処理中が解け、達成はしない）を、e09 の前の状態から連鎖して流し、各操作のイベント列と後の状態が一致することを
-/// 確かめる。連鎖は先頭 6 件までで届かないため、前の状態から直接始める。
+/// 確かめる（連鎖の照合にも含まれるが、前の状態から直接始める単独の照合として残す）。
 #[test]
 fn sample_ticks_entry_matches_apply() {
     let s = load();
@@ -449,7 +450,7 @@ fn sample_skip_confirm_entry_matches_apply() {
 }
 
 /// 古い世代の進行の無視（TASK-210 3/3）の単独の照合。サンプルの e07 を、その前の状態から 1 件だけ流して、
-/// `Ignored` 1 件だけのイベント列と変わらない状態がサンプルと一致することを確かめる（連鎖は先頭 6 件まで。e07 の連鎖は TASK-211 2/2）。
+/// `Ignored` 1 件だけのイベント列と変わらない状態がサンプルと一致することを確かめる（連鎖の照合にも含まれるが、単独の照合として残す）。
 #[test]
 fn sample_stale_tick_entry_matches_apply() {
     let s = load();
