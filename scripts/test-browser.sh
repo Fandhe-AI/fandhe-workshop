@@ -52,6 +52,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/input-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/learner-text.test.mjs" \
+  "${ROOT_DIR}/tools/browser/enter-submit.test.mjs" \
   "${ROOT_DIR}/tools/browser/json-depth.test.mjs" \
   "${ROOT_DIR}/tools/browser/json-load-order.test.mjs" \
   "${ROOT_DIR}/tools/browser/doc-links.test.mjs" \
