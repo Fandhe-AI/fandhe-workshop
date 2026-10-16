@@ -29,6 +29,7 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
     ("ctrl_key", GlueOp::KeydownReceive),
     ("alt_key", GlueOp::KeydownReceive),
     ("meta_key", GlueOp::KeydownReceive),
+    ("repeat", GlueOp::KeydownReceive),
     ("target", GlueOp::KeydownReceive),
     ("prevent_default", GlueOp::KeydownReceive),
     ("window", GlueOp::Timer),
