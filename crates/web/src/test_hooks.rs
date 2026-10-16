@@ -18,13 +18,16 @@ pub fn debug_state_json() -> String {
     let (cps, over) = crate::glue::draft_snapshot()
         .map(|(n, o, _)| (n.to_string(), o.to_string()))
         .unwrap_or_else(|| ("null".to_string(), "null".to_string()));
+    // 3 つの表示の照合用の状態（TASK-347 2/2）。未マウントなら null。中身の組み立ては `EngineHost` が持つ。
+    let engine = crate::glue::engine_snapshot().unwrap_or_else(|| "null".to_string());
     format!(
-        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"escCount\":{},\"draftCodePoints\":{},\"inputOverLimit\":{}}}",
+        "{{\"screen\":\"hello\",\"mounted\":{},\"keydownProbe\":{},\"escCount\":{},\"draftCodePoints\":{},\"inputOverLimit\":{},\"engine\":{}}}",
         crate::glue::is_mounted(),
         probe,
         esc,
         cps,
-        over
+        over,
+        engine
     )
 }
 

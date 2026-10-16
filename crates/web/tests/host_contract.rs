@@ -8,10 +8,13 @@ use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{bind_text, el, text, Node};
 use fandhe_frontend_wasm_full::render_component_html;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::{apply, SessionState};
+use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{load_ir, Projection, Session};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::engine_parts::{event_kind_name, standard_registry};
 use fandhe_workshop_web::host::{EngineHost, HostAction, HostError, HostModel};
 use fandhe_workshop_web::parts::*;
 
@@ -273,4 +276,130 @@ fn ホストの結果は_core_の純関数の畳み込みと一致する() {
         host.model().projection(),
         &Projection::from_events(&state.log)
     );
+}
+
+// ---- TASK-347 2/2: 3 つの表示が同じイベント列から導かれること ----
+
+fn begun_host() -> EngineHost {
+    let state: SessionState = serde_json::from_value(sample()["initial"].clone()).unwrap();
+    let session = Session::from_state(load_min_ir(), state);
+    EngineHost::with_session(session, standard_registry()).unwrap()
+}
+
+fn sample_ops() -> Vec<Op> {
+    sample()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| serde_json::from_value(e["op"].clone()).unwrap())
+        .collect()
+}
+
+fn consumed_of(host: &EngineHost, field: &str) -> String {
+    match host.bound_value(field) {
+        Some(BoundValue::Text(s)) => s,
+        other => panic!("{field}: {other:?}"),
+    }
+}
+
+#[test]
+fn 標準の登録簿は_3_部品で_入力欄の_field_と衝突しない() {
+    let r = standard_registry();
+    assert_eq!(r.len(), 3);
+    assert_eq!(r.fields().count(), 6);
+    assert!(r
+        .fields()
+        .all(|f| !["input_notice", "learner_log"].contains(&f.name)));
+    assert!(EngineHost::with_ir(load_min_ir(), standard_registry()).is_ok());
+}
+
+#[test]
+fn 操作のたびに_3_つの表示の元が同じイベント列から導かれ_consumed_が揃う() {
+    let mut host = begun_host();
+    let mut kinds = std::collections::BTreeSet::new();
+    for op in sample_ops() {
+        host.update(HostAction::Engine(op));
+        let session = host.model().session().unwrap();
+        let log = session.log();
+        // 増分と一括の一致（EVT-1）。
+        assert_eq!(host.model().projection(), &Projection::from_events(log));
+        // 左はイベント列だけから導け、core の状態の世界と一致する（P-1b）。
+        let mut replayed = World::new();
+        replay_changes(&mut replayed, log);
+        assert_eq!(host.model().world(), &replayed);
+        assert_eq!(host.model().world(), &session.state().run.world);
+        // 3 部品の consumed は、どれもログの長さと等しい。
+        let n = log.len().to_string();
+        for f in [
+            "engine_log_consumed",
+            "artifact_consumed",
+            "review_consumed",
+        ] {
+            assert_eq!(consumed_of(&host, f), n, "{f}");
+        }
+        for e in log {
+            kinds.insert(event_kind_name(e));
+        }
+        let h = html(&host);
+        assert!(check_no_undefined(&host.view()).is_ok(), "{h}");
+        // ログの行は Changed を持たない（変化は印と復習へ回る）ため、行数は一括で導いた行数と比べる。
+        assert_eq!(
+            h.matches("data-event=").count(),
+            Projection::from_events(log).log().len(),
+            "{h}"
+        );
+    }
+    eprintln!("出たイベントの種類: {kinds:?}");
+    assert!(kinds.contains("changed"), "{kinds:?}");
+}
+
+#[test]
+fn 復習のうち現在の世界に残る経路は成果物の部品にも出る() {
+    let mut host = begun_host();
+    for op in sample_ops() {
+        host.update(HostAction::Engine(op));
+    }
+    let h = html(&host);
+    let world = host.model().world();
+    for item in host.model().projection().review() {
+        for c in &item.changes {
+            if c.after.is_some() && world.contains_key(&c.path) {
+                assert!(h.contains(&format!("data-path=\"{}\"", c.path)), "{h}");
+            }
+        }
+    }
+}
+
+#[test]
+fn 未読込のホストでも標準の部品は空の表示で描かれる() {
+    let host = EngineHost::new();
+    let h = html(&host);
+    for id in ["part-log", "part-artifact-view", "part-review"] {
+        assert!(h.contains(&format!("data-testid=\"{id}\"")), "{h}");
+    }
+    assert!(!h.contains("data-event="), "{h}");
+    assert!(check_no_undefined(&host.view()).is_ok());
+}
+
+#[cfg(feature = "test-hooks")]
+#[test]
+fn raw_は_op_の_json_を復号し_壊れた_payload_は_none() {
+    let ok = EngineHost::decode_action("raw", "{\"control\":{\"begin\":\"s-1\"}}");
+    assert!(matches!(
+        ok,
+        Some(HostAction::Engine(Op::Control(Control::Begin(ref s)))) if s == "s-1"
+    ));
+    for bad in ["", "{", "{\"control\":\"nope\"}", "[]"] {
+        assert!(EngineHost::decode_action("raw", bad).is_none(), "{bad}");
+    }
+    let h = html(&EngineHost::new());
+    assert!(h.contains("data-testid=\"raw-trigger\""), "{h}");
+    assert!(h.contains("data-action=\"raw\""), "{h}");
+}
+
+#[cfg(not(feature = "test-hooks"))]
+#[test]
+fn 配信する設定では_raw_を復号せず_raw_trigger_も描かない() {
+    assert!(EngineHost::decode_action("raw", "{\"control\":{\"begin\":\"s-1\"}}").is_none());
+    assert!(!html(&EngineHost::new()).contains("raw-trigger"));
 }
