@@ -67,6 +67,7 @@ pub struct HostModel {
     /// 文面は IR の文面の ID の解決と実行時の値の差し込みが要り、拒否を適用した直後の状態でしか作れない
     /// （後の操作で状態が進むため）。そのため `apply_engine` が適用の直後に 1 度だけ作って控える。
     /// 作れなかった拒否（文面の解決の失敗）は控えず、行を出さない（fail-closed）。
+    /// 復元（`with_session`）では、状態を変えないイベントだけが続く末尾の範囲に限って作り直す。
     judged_texts: BTreeMap<u32, String>,
 }
 
@@ -199,13 +200,15 @@ impl EngineHost {
         let mut world = World::new();
         replay_changes(&mut world, session.log());
         let world_consumed = session.log().len();
+        let mut judged_texts = BTreeMap::new();
+        record_judged_texts(&mut judged_texts, &session, restorable_from(session.log()));
         Ok(Self {
             model: HostModel {
                 session: Some(session),
                 projection,
                 world,
                 world_consumed,
-                judged_texts: BTreeMap::new(),
+                judged_texts,
             },
             registry,
             input: HelloView::new(),
@@ -309,8 +312,8 @@ impl EngineHost {
                     "line": log
                         .get(r.event as usize)
                         .and_then(|e| {
-                        crate::log_lines::line_from_event(e, self.model.judged_text(r.event))
-                    })
+                            crate::log_lines::line_from_event(e, self.model.judged_text(r.event))
+                        })
                         .map(|l| l.kind().as_str()),
                 })
             })
@@ -471,6 +474,22 @@ impl EngineHost {
             self.dirty.extend(lists);
         }
     }
+}
+
+/// 復元で拒否の文面を作り直せる先頭の位置。
+///
+/// 文面は判定の直前の状態で充填する値が要る。復元では現在の状態しか無いため、状態を変えないイベント
+/// （`InputReceived`・拒否と問い返しの `Judged`）だけが末尾に続く範囲に限る。それより前の拒否は文面を
+/// 作らず、行を出さない（fail-closed。誤った文面を出すより出さない）。
+fn restorable_from(log: &[Event]) -> usize {
+    let stateless = |e: &Event| match e {
+        Event::InputReceived { .. } => true,
+        Event::Judged { judgment, .. } => {
+            matches!(judgment, Judgment::Rejected(_) | Judgment::Clarified(_))
+        }
+        _ => false,
+    };
+    log.iter().rposition(|e| !stateless(e)).map_or(0, |p| p + 1)
 }
 
 /// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否の `Judged` について文面を充填して控える。

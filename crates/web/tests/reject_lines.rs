@@ -337,6 +337,31 @@ fn run_case(ir: &Ir, c: &Case) -> (usize, usize) {
         assert_eq!(next, want, "{}: expect_next_action", c.id);
     }
 
+    // 復元（既存のログを持つ Session からの再構築）でも、同じ理由の文面と行が残る。
+    let restored = EngineHost::with_session(
+        Session::from_state(ir.clone(), host.model().session().unwrap().state().clone()),
+        standard_registry(),
+    )
+    .unwrap();
+    let last = u32::try_from(
+        log.iter()
+            .rposition(|e| matches!(e, Event::Judged { .. }))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        restored.model().judged_text(last),
+        host.model().judged_text(last),
+        "{}: 復元後の理由の文面",
+        c.id
+    );
+    assert_eq!(
+        rejected_rows(&restored),
+        rejected_rows(&host),
+        "{}: 復元後の rejected の行",
+        c.id
+    );
+
     // `log-list` の親に載せ替えても適合する。
     check_area(&area_of(lis.to_vec())).unwrap_or_else(|v| panic!("{}: {v:?}", c.id));
 
