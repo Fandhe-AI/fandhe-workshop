@@ -39,6 +39,16 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   `crates/core/tests/op_sequence_replay.rs` にある。1,000 通りの実測は dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
 - 各操作の後の性質 P-1a〜P-1d・P-2・P-3・P-4・P-6（TASK-219 2/3）は `crates/core/tests/op_sequence_properties.rs`、検査器は
   `crates/core/tests/common/op_props.rs` にある。1,000 通りの実測は dev プロファイルで約 2 秒（2026-10-16、`cargo test` の試験の所要時間）
+- 誘導つきの生成（TASK-219 3/3）は `op_gen.rs` の `guided_op_specs`（操作の 40% を `OpSpec::Guided`＝現在の状態での正しい次の操作に
+  する。固定の生成では深い状態に届く列が少ない、という PoC-1 の発見事項 F-11 への対応）。`op_sequence_properties.rs` の
+  `properties_p1_to_p6_hold_with_guided_sequences` と `op_sequence_replay.rs` の
+  `replay_from_start_matches_after_every_op_with_guided_sequences` が、固定の生成と同じく 1,000 通り流す。誘導つきの 1,000 通りの実測は
+  dev プロファイルで約 2〜3 秒（2026-10-16）
+- `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
+  （環境変数を受けない）。実測（2026-10-16、1,000 通り）は、確認による達成が固定 29 件・誘導 1,075 件、最後の Step（`main/st-3`）が
+  達成まで届いた列が固定 28 通り・誘導 509 通り、達成の直後に同じ操作で次の Step へ入った件数が固定 150 件・誘導 1,083 件。章の完了
+  （`ChapterCompleted`）はエンジンが未実装（TASK-233 以降）のため、代わりに最後の Step の達成を指標にした。下限は
+  確認による達成 500 件超・最後の Step の達成 200 通り超
 
 ## 3. 変異注入の手順
 

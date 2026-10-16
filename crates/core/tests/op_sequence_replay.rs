@@ -7,12 +7,13 @@
 //!
 //! 性質テストの成功条件は不変条件（一致）だけにする。操作の網羅性は固定列の試験
 //! （`scripted_sequence_replays_and_covers_all_kinds`）と生成器の自己確認で確かめ、統計は出力するだけで assert しない
-//! （`docs/testing.md` 第 2 節）。P-1〜P-6 の検査は #207、誘導つきの生成は #208、変異注入は TASK-220 が扱う。
+//! （`docs/testing.md` 第 2 節）。P-1〜P-6 の検査は `op_sequence_properties.rs`、変異注入は TASK-220 が扱う。誘導つきの生成（操作の 40% を現在の状態での
+//! 正しい次の操作にする。TASK-219 3/3）でも同じ一致を 1,000 通り確かめる。
 
 mod common;
 
 use common::contract_sample::{load, testdata_dir};
-use common::op_gen::{op_specs, script_specs, Applied, Harness, OpSpec, Which};
+use common::op_gen::{guided_op_specs, op_specs, script_specs, Applied, Harness, OpSpec, Which};
 use common::property::{check, try_check_with, DEFAULT_SEED, MAX_OPS};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -116,15 +117,15 @@ impl Stats {
     }
 }
 
-#[test]
-fn replay_from_start_matches_after_every_op() {
+/// 戦略を 1,000 通り流し、2 経路の一致を確かめる。
+fn run_replay_property<S>(name: &str, strategy: S)
+where
+    S: Strategy<Value = Vec<OpSpec>>,
+{
     let (ir, initial) = load_min_ir();
     let stats = RefCell::new(Stats::default());
-    check(
-        "op-sequence-replay",
-        1_000,
-        op_specs(),
-        |specs| match replay_matches(&ir, &initial, &specs) {
+    check(name, 1_000, strategy, |specs| {
+        match replay_matches(&ir, &initial, &specs) {
             Ok(applied) => {
                 stats.borrow_mut().add(&applied);
                 Ok(())
@@ -133,9 +134,19 @@ fn replay_from_start_matches_after_every_op() {
                 prop_assert!(false, "{message}");
                 Ok(())
             }
-        },
-    );
+        }
+    });
     println!("PROPERTY-TEST stats={:?}", stats.borrow().counts);
+}
+
+#[test]
+fn replay_from_start_matches_after_every_op() {
+    run_replay_property("op-sequence-replay", op_specs());
+}
+
+#[test]
+fn replay_from_start_matches_after_every_op_with_guided_sequences() {
+    run_replay_property("op-sequence-replay-guided", guided_op_specs());
 }
 
 fn any_event(applied: &[Applied], pred: impl Fn(&Event) -> bool) -> bool {

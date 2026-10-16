@@ -9,7 +9,11 @@
 //! 検査器の感度の試験は、実際に流した結果を 1 か所だけ壊し、対応する性質が違反を検出することを確かめる
 //! （変異注入 TASK-220 までの代わり）。
 //!
-//! 範囲外: P-5（流し直しの一致）は `op_sequence_replay.rs`、誘導つきの生成は #208、変異注入は TASK-220。
+//! 誘導つきの生成（操作の 40% を現在の状態での正しい次の操作にする。TASK-219 3/3）でも同じ検査を 1,000 通り流す。
+//! 固定の生成は深い状態（確認による達成・最後の Step の達成）に届く列が少ないため、誘導つきの生成がそれを補うことを、
+//! 既定の種に固定した比較の試験で確かめる（PoC-1 の発見事項 F-11）。
+//!
+//! 範囲外: P-5（流し直しの一致）は `op_sequence_replay.rs`、変異注入は TASK-220。
 //! 呼び出し元は CI の `make test` のみ。
 
 mod common;
@@ -17,9 +21,11 @@ mod common;
 use std::cell::RefCell;
 
 use common::contract_sample::{load, testdata_dir};
-use common::op_gen::{op_specs, run_with, script_specs, Applied, Harness, OpSpec, Which};
+use common::op_gen::{
+    guided_op_specs, op_specs, run_with, script_specs, Applied, Harness, OpSpec, Which, NODES,
+};
 use common::op_props::{PropChecker, PropStats};
-use common::property::check;
+use common::property::{check, try_check_with, DEFAULT_SEED};
 use common::tick::next_tick;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
@@ -27,6 +33,7 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::session::SessionState;
+use proptest::prelude::*;
 use proptest::test_runner::TestCaseError;
 
 /// 教材（IR）を読む。ケースごとではなく、試験の先頭で 1 回だけ呼ぶ。
@@ -53,11 +60,14 @@ fn run_checked(
     Ok((all, checker.stats))
 }
 
-#[test]
-fn properties_p1_to_p6_hold_after_every_op() {
+/// 戦略を 1,000 通り流し、操作のたびに性質を検査する。統計は出力するだけである。
+fn run_property_test<S>(name: &str, strategy: S)
+where
+    S: Strategy<Value = Vec<OpSpec>>,
+{
     let (ir, initial) = load_min_ir();
     let stats = RefCell::new(PropStats::default());
-    check("op-sequence-properties", 1_000, op_specs(), |specs| {
+    check(name, 1_000, strategy, |specs| {
         let mut checker = PropChecker::new(&ir, &initial);
         run_with(&ir, initial.clone(), &specs, |i, a| {
             checker.check(i, a).map_err(TestCaseError::fail)
@@ -69,6 +79,101 @@ fn properties_p1_to_p6_hold_after_every_op() {
     println!(
         "PROPERTY-TEST stats={:?} max_log={}",
         stats.counts, stats.max_log
+    );
+}
+
+#[test]
+fn properties_p1_to_p6_hold_after_every_op() {
+    run_property_test("op-sequence-properties", op_specs());
+}
+
+#[test]
+fn properties_p1_to_p6_hold_with_guided_sequences() {
+    run_property_test("op-sequence-properties-guided", guided_op_specs());
+}
+
+/// 深さの指標（1,000 通りの合計）。
+#[derive(Default, Debug)]
+struct Depth {
+    /// 確認の成立による達成の件数。
+    achieved_by_confirm: u64,
+    /// 確認を省く Step の達成の件数。
+    achieved_by_none: u64,
+    /// 最後の Step（`main/st-3`）が達成まで届いた列の数。章の完了（`ChapterCompleted`・`run.completed`）は
+    /// エンジンが未実装（TASK-233 以降）のため、代わりにここを章の終わりへの深さの指標にする。
+    reached_last_step_runs: u64,
+    /// 達成の直後に同じ操作で次の Step へ入った件数（変化の印を持ったままの Step の移り）。
+    achieved_then_entered: u64,
+}
+
+/// 既定の種に固定して 1,000 通りを流し、性質を検査しながら深さを集計する。
+fn depth_stats<S>(ir: &Ir, initial: &SessionState, name: &str, strategy: &S) -> Depth
+where
+    S: Strategy<Value = Vec<OpSpec>>,
+{
+    let depth = RefCell::new(Depth::default());
+    try_check_with(name, &DEFAULT_SEED, 1_000, strategy, |specs| {
+        let mut checker = PropChecker::new(ir, initial);
+        let mut chained = 0;
+        let mut last_step = false;
+        run_with(ir, initial.clone(), &specs, |i, a| {
+            if let Some(p) = a
+                .events
+                .iter()
+                .position(|e| matches!(e, Event::Achieved { .. }))
+            {
+                if a.events[p + 1..]
+                    .iter()
+                    .any(|e| matches!(e, Event::Entered { .. }))
+                {
+                    chained += 1;
+                }
+            }
+            last_step |= a
+                .events
+                .iter()
+                .any(|e| matches!(e, Event::Achieved { at, .. } if at.step.0 == NODES[2]));
+            checker.check(i, a).map_err(TestCaseError::fail)
+        })?;
+        let mut d = depth.borrow_mut();
+        d.achieved_by_confirm += checker.stats.get("achieved_by_confirm");
+        d.achieved_by_none += checker.stats.get("achieved_by_none");
+        d.reached_last_step_runs += u64::from(last_step);
+        d.achieved_then_entered += chained;
+        Ok(())
+    })
+    .expect("properties hold");
+    depth.into_inner()
+}
+
+/// 誘導つきの生成は、固定の生成で足りない深い状態（確認による達成・最後の Step の達成・達成の直後の Step の移り）を補う。
+/// 網羅性の確認なので、種と件数を既定に固定して環境変数の上書きを受けない。
+#[test]
+fn guided_generation_reaches_deeper_states_than_fixed_generation() {
+    let (ir, initial) = load_min_ir();
+    let fixed = depth_stats(&ir, &initial, "depth-fixed", &op_specs());
+    let guided = depth_stats(&ir, &initial, "depth-guided", &guided_op_specs());
+    println!("DEPTH fixed={fixed:?}\nDEPTH guided={guided:?}");
+    let both = format!("fixed={fixed:?} guided={guided:?}");
+    assert!(
+        guided.achieved_by_confirm > fixed.achieved_by_confirm,
+        "achieved_by_confirm: {both}"
+    );
+    assert!(
+        guided.reached_last_step_runs > fixed.reached_last_step_runs,
+        "reached_last_step_runs: {both}"
+    );
+    assert!(
+        guided.achieved_then_entered > fixed.achieved_then_entered,
+        "achieved_then_entered: {both}"
+    );
+    assert!(
+        guided.achieved_by_confirm > 500,
+        "guided achieved_by_confirm floor: {both}"
+    );
+    assert!(
+        guided.reached_last_step_runs > 200,
+        "guided reached_last_step_runs floor: {both}"
     );
 }
 
