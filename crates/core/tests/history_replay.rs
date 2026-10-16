@@ -15,17 +15,18 @@ use std::collections::BTreeMap;
 
 use common::contract_sample::{load, testdata_dir};
 use common::history_sample;
-use common::op_gen::{guided_op_specs, op_specs, Harness, OpSpec, Which};
+use common::op_gen::{guided_op_specs, op_specs, OpSpec, Which};
 use common::property::{check, MAX_OPS};
+use common::record_path::RecordPath;
 use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::event::Event;
-use fandhe_workshop_core::history_envelope::{build_envelope, record_draft, record_submit};
+use fandhe_workshop_core::history_envelope::build_envelope;
 use fandhe_workshop_core::history_replay::{replay, submit_input, ReplayError};
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::load_ir;
-use fandhe_workshop_core::ops_record::{apply_recorded, OpsRecorder, SessionOp};
-use fandhe_workshop_core::session::{apply, SessionState};
+use fandhe_workshop_core::ops_record::SessionOp;
+use fandhe_workshop_core::session::SessionState;
 use proptest::collection::vec;
 use proptest::prelude::*;
 
@@ -44,51 +45,6 @@ fn draft_text(kind: u8) -> Option<&'static str> {
         2 => Some(" \u{3000}"),
         3 => Some("ノートを作りたい"),
         _ => Some("/make-note first-note"),
-    }
-}
-
-/// 記録の経路。下書きと送信を記録しながら `apply` で状態を進める（実行時の入力欄が通る道に当たる）。
-/// 操作の解決（進行の宛先など）は、同じ列を流す `Harness` に任せる。
-struct RecordPath<'a> {
-    ir: &'a Ir,
-    harness: Harness<'a>,
-    state: SessionState,
-    rec: OpsRecorder,
-}
-
-impl<'a> RecordPath<'a> {
-    fn new(ir: &'a Ir, initial: &SessionState) -> Self {
-        RecordPath {
-            ir,
-            harness: Harness::pure(ir, initial.clone()),
-            state: initial.clone(),
-            rec: OpsRecorder::new(),
-        }
-    }
-
-    fn draft(&mut self, text: &str) {
-        record_draft(&mut self.state, &mut self.rec, text.to_owned());
-    }
-
-    /// 抽象の操作を解決して記録しながら進める。入力は下書き→送信→適用の順にする。
-    fn spec(&mut self, spec: &OpSpec) {
-        let applied = self.harness.step(spec);
-        self.op(applied.op);
-    }
-
-    /// 解決済みの操作を記録しながら進める。解決済みの `Op` をそのまま使い、分類し直さない。
-    fn op(&mut self, op: Op) {
-        match &op {
-            Op::Input(Input::Command(s) | Input::Text(s)) => {
-                record_draft(&mut self.state, &mut self.rec, s.clone());
-                assert!(record_submit(&mut self.state, &mut self.rec, s.clone()));
-                self.state = apply(self.ir, self.state.clone(), op).0;
-            }
-            _ => {
-                let (state, _) = apply_recorded(self.ir, self.state.clone(), &mut self.rec, op);
-                self.state = state;
-            }
-        }
     }
 }
 

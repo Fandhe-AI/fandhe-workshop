@@ -1,0 +1,8 @@
+id: VER7-1
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if hv.ir_format > caps.ir_format_max {
+replace: if false {
+expect-fail: fail_closed_for_versions_that_must_not_open
+note: 新しい IR の構造の版の履歴を拒否しない

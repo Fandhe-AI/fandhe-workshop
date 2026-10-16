@@ -1,0 +1,8 @@
+id: VER3-1
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: None => Opened::Open { state },
+replace: None => return view_only(LoadReason::ReplayDiverged),
+expect-fail: ver3_same_versions_open_without_conversion
+note: 同一の版の履歴を開かない（Open の枝を消す）
