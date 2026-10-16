@@ -61,3 +61,30 @@ for (const csp of [true, false]) {
     });
   }
 }
+
+// TASK-350・FEND-5: root（main）が Esc の属性を持ち、prevent-default・ignore-repeat は持たない。
+for (const csp of [true, false]) {
+  test(`main は Esc の keydown の属性だけを持つ（CSP ${csp ? 'あり' : 'なし'}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await openPage(browser, { origin: srv.origin });
+      await page.goto(srv.url);
+      await waitMounted(page);
+      const attrs = await page.evaluate(() => {
+        const m = document.querySelector('main[data-testid="hello-root"]');
+        return {
+          action: m.getAttribute('data-action-keydown'),
+          keys: m.getAttribute('data-keys'),
+          prevent: m.hasAttribute('data-keydown-prevent-default'),
+          repeat: m.hasAttribute('data-keydown-ignore-repeat'),
+        };
+      });
+      assert.deepEqual(attrs, { action: 'esc', keys: 'Escape', prevent: false, repeat: false });
+      const s = summarize(rec);
+      const detail = JSON.stringify(rec);
+      assert.equal(s.csp, 0, detail);
+      assert.equal(s.pageErrors, 0, detail);
+      assert.equal(s.consoleErrors, 0, detail);
+      await context.close();
+    }));
+  });
+}

@@ -47,6 +47,12 @@ pub(crate) fn keydown_probe_count() -> Option<u32> {
     with_app(|app| app.keydown_probe())
 }
 
+/// root の中の Esc の受信回数。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn esc_count() -> Option<u32> {
+    with_app(|app| app.esc_count())
+}
+
 /// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
 ///
 /// 戻り値は（コードポイント数、超過の印、本文）。
