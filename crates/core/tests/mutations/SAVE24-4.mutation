@@ -1,0 +1,9 @@
+id: SAVE24-4
+package: fandhe-workshop-core
+test: ops_record
+target: crates/core/src/ops_record.rs
+find:         self.ops.push(HistoryOp::Engine(op));
+replace:         self.ops.insert(0, HistoryOp::Engine(op));
+expect-fail: property_ops_follow_call_order
+expect-fail: refused_and_ignored_engine_ops_are_recorded
+note: エンジンの操作を先頭に挿入する（PoC-6 の X-6 に当たる並びの誤りの記録側）
