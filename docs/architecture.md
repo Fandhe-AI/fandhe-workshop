@@ -96,7 +96,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 |---|---|---|
 | `Session`、`apply(状態, 入力) → (新しい状態, イベント列)`、`Input`・`Control`・イベント（`Changed`・`Refused`・`Judged`・`HintOpened` など）、Step の状態、`Projection`、宛先、世代、`RunState` | core | TASK-204 |
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
-| 履歴の読み込みの段 1〜6 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 6 は `open_history` を呼ぶ） | core | TASK-331 |
+| 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
 | 履歴を開く可否の判定（`history_open::open_history`）・開く側の上限 `OpeningCaps`・エンジンが読める語彙の上限 `VOCAB_MAX`（pack の `vocab::LATEST` との一致は pack の試験が見る） | core | TASK-174 |
 | IR の型、`ir_format`、加算の規則 | contract | TASK-41・TASK-60 |
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
