@@ -1073,6 +1073,7 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 |---|---|---|---|---|---|
 | EVT12-13 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す | pre_restore_tick_with_saved_index_is_ignored, p2_pre_restore_ticks_never_change_run | pre_restore_tick_with_saved_index_is_ignored, restore_to_idle_checkpoint_ignores_pre_restore_ticks, pre_restore_tick_after_go_to_and_restore_is_ignored, each_generation_index_progresses_once, restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, p2_pre_restore_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (3, [Next, Stop], [Old(15)]) |
 | EVT12-14 | crates/core/src/checkpoint.rs: 復帰で処理中の番号を保存時点の値にしない（再開が先頭からになる） | restore_resumes_progress_in_new_generation, p4_restore_resumes_from_saved_done | restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, pre_restore_tick_with_saved_index_is_ignored, each_generation_index_progresses_once, pre_restore_tick_after_go_to_and_restore_is_ignored, p4_restore_resumes_from_saved_done | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (1, [Next]) |
+
 ### 5.47 状態・イベントの変異注入（TASK-220 1/2）
 
 状態・イベントの実装を 7 か所壊した変異を、`op_sequence_properties`（TASK-219 の性質テスト）が検出することを確かめた。
