@@ -1,0 +1,9 @@
+id: SAVE24-3
+package: fandhe-workshop-core
+test: ops_record
+target: crates/core/src/ops_record.rs
+find:     recorder.engine(op.clone());
+replace:     let _ = &recorder;
+expect-fail: refused_and_ignored_engine_ops_are_recorded
+expect-fail: apply_recorded_matches_apply
+note: apply_recorded が操作を記録しない（拒否・無視も残す規則に反する）
