@@ -1,0 +1,8 @@
+id: JUDGE17-4
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: KeyAction::CancelInput => EscRoute::cancel_input(),
+replace: KeyAction::CancelInput => EscRoute::NONE,
+expect-fail: 処理中でなく候補が閉じている_esc_は取り消しの入力になる
+note: 取り消しの入力がエンジンへ届かず、規則が無い Step の拒否も記録されない

@@ -12,7 +12,7 @@
 //! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
 //! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
 //! - `Pending(_)`: 修飾キー付き Enter（JUDGE-22）などは版 1 で未決。送信も `preventDefault` もしない（版 2 は TASK-281）
-//! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求め、この 2 行は #287（TASK-277 2/2）の担当
+//! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求める（候補を閉じる・取り消しの入力。TASK-277 2/2）
 //! - `Stop`: `effect_for` では何もしない。root の中の Esc は上流の `esc` 属性で Component に届くため、glue で重ねて
 //!   届けない（FEND-5・FEND-6）。停止への結び付けは `esc_route` が受け持つ（TASK-277 1/2）
 //! - `Nothing`: 何もしない
@@ -24,7 +24,7 @@
 use fandhe_workshop_contract::key_decide::{
     Decision, FieldState, KeyAction, KeyDecision, KeyInput,
 };
-use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::input::{Control, Input, Op};
 
 /// glue が keydown に対して行う効果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +122,22 @@ impl EscRoute {
             close_candidates: true,
         }
     }
+
+    /// 候補の一覧を閉じるだけの行き先。エンジンへは何も渡さないため、ログも拒否も生まない。
+    fn close_candidates() -> Self {
+        Self {
+            op: None,
+            close_candidates: true,
+        }
+    }
+
+    /// 取り消しの入力の行き先。規則が無い Step での拒否と記録は core（EVT-10・TASK-212）が持つ。
+    fn cancel_input() -> Self {
+        Self {
+            op: Some(Op::Input(Input::Cancel)),
+            close_candidates: false,
+        }
+    }
 }
 
 /// Esc の判定の入力。上流が `isComposing`・229 を除外して届けるため、変換中の信号は持たせない。
@@ -137,16 +153,20 @@ pub fn esc_input() -> KeyInput {
     }
 }
 
-/// 判定結果から Esc の行き先を求める。処理中の Esc は候補が開いていても必ず停止にし、候補も閉じる
-/// （JUDGE-17 (1)・TERM-7）。優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
+/// 判定結果から Esc の行き先を求める（JUDGE-17）。
+/// (1) 処理中は候補が開いていても必ず停止にし、候補も閉じる（TERM-7）。
+/// (2) 処理中でなく候補が開いていれば、候補を閉じるだけにする（エンジンへは何も渡さない）。
+/// (3) どちらでもなければ取り消しの入力にする（規則が無い Step では core が拒否として記録する）。
+/// 優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
 ///
-/// `CloseCandidates`・`CancelInput` は #287（TASK-277 2/2）が埋めるまで何もしない。
+/// 画面から (2) に届くのは候補の一覧が結ばれる TASK-440 の後、(1)・(3) が Session に届くのは TASK-347 の後である。
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn esc_route(decision: Decision) -> EscRoute {
     match decision {
         Decision::Defined(KeyDecision { action, .. }) => match action {
             KeyAction::Stop => EscRoute::stop(),
-            KeyAction::CloseCandidates | KeyAction::CancelInput => EscRoute::NONE,
+            KeyAction::CloseCandidates => EscRoute::close_candidates(),
+            KeyAction::CancelInput => EscRoute::cancel_input(),
             KeyAction::Submit
             | KeyAction::Newline
             | KeyAction::Complete
@@ -284,24 +304,30 @@ mod tests {
     }
 
     #[test]
-    fn esc_の行き先は_stop_だけが操作と候補閉じを持つ() {
-        let actions = [
+    fn esc_の行き先は判定の行ごとに決まる() {
+        let decide_row = |action| {
+            esc_route(Decision::Defined(KeyDecision {
+                action,
+                prevent_default: false,
+            }))
+        };
+        let stop = decide_row(KeyAction::Stop);
+        assert_eq!(stop.op, Some(Op::Control(Control::Stop)));
+        assert!(stop.close_candidates);
+        let close = decide_row(KeyAction::CloseCandidates);
+        assert_eq!(close.op, None);
+        assert!(close.close_candidates);
+        let cancel = decide_row(KeyAction::CancelInput);
+        assert_eq!(cancel.op, Some(Op::Input(Input::Cancel)));
+        assert!(!cancel.close_candidates);
+        for action in [
             KeyAction::Submit,
             KeyAction::Newline,
             KeyAction::Complete,
-            KeyAction::CloseCandidates,
-            KeyAction::Stop,
-            KeyAction::CancelInput,
             KeyAction::DelegateToIme,
             KeyAction::Nothing,
-        ];
-        for action in actions {
-            let r = esc_route(Decision::Defined(KeyDecision {
-                action,
-                prevent_default: false,
-            }));
-            assert_eq!(r.op.is_some(), action == KeyAction::Stop, "{action:?}");
-            assert_eq!(r.close_candidates, action == KeyAction::Stop, "{action:?}");
+        ] {
+            assert_eq!(decide_row(action), EscRoute::NONE, "{action:?}");
         }
         for row in PENDING_ROWS {
             assert_eq!(esc_route(Decision::Pending(row)), EscRoute::NONE);

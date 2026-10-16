@@ -1,0 +1,8 @@
+id: JUDGE17-3
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: KeyAction::CloseCandidates => EscRoute::close_candidates(),
+replace: KeyAction::CloseCandidates => EscRoute::NONE,
+expect-fail: 処理中でなく候補が開いている_esc_は候補を閉じるだけで操作を出さない
+note: 処理中でなく候補が開いていても、Esc で候補が閉じない
