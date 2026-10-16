@@ -7,7 +7,7 @@
 // 配信設定の画面で、Playwright の信頼入力（page.keyboard.press）を使って確かめる。
 // 本格的な IME の模擬（CDP・試験文 30 文）は TASK-276 の担当で、
 // ここでは変換中の Enter が送信にならないことの最小の確認だけを持つ。
-// 送信後の下書きの値（残る／空になる）は確かめない。空にするのは TASK-438 の担当で、固定すると後続を壊すため。
+// 送信後の下書きは空になる（TERM-1。TASK-438）。書き戻しは非同期のため、空になるのを待って確かめる。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。入力は試験の中で組み立てる。
 import { test, before, after } from 'node:test';
@@ -60,6 +60,7 @@ async function sendAll(page, how) {
     if (how === 'click') await page.click(SUBMIT);
     else await page.keyboard.press('Enter');
     await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length === n, [ITEMS, i + 1]);
+    await page.waitForFunction((sel) => document.querySelector(sel).value === '', INPUT);
   }
 }
 
@@ -75,8 +76,8 @@ for (const csp of [true, false]) {
       const viaEnter = await lines(b.page);
       assert.deepEqual(viaClick, CASES);
       assert.deepEqual(viaEnter, viaClick);
-      // preventDefault が効き、欄に改行が入らない。
-      assert.equal(await b.page.inputValue(INPUT), CASES[CASES.length - 1]);
+      // preventDefault が効き、欄に改行が入らない。送信の後は空になる。
+      assert.equal(await b.page.inputValue(INPUT), '');
       for (const { rec } of [a, b]) {
         const s = summarize(rec);
         const detail = JSON.stringify(rec);

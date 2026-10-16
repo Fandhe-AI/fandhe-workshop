@@ -250,7 +250,7 @@ native の適合試験 `log_lines_contract` が検出する。同じ修正で、
 CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
-- 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
+- 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
 - 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
@@ -264,6 +264,31 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 |---|---|---|---|---|---|
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
 | TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
+
+### 5.3.1b 送信の結線（TASK-438。TERM-1・TERM-2）
+
+TERM1-1 は `crates/web/src/host.rs` の送信で下書きを空にする呼び出しを消す変異、TERM2-1 は送信の本文の改行を潰す変異である。
+native の適合試験 `submit_wiring` が検出する。
+
+実ブラウザでの確認は `tools/browser/submit-wiring.test.mjs` が担う。Enter と送信ボタンの click が、エンジンの記録（本文つきの
+`InputReceived`）と右のログの行で一致すること、拒否のときだけ下書きが残ること、Shift+Enter が送信せず改行を入れること、
+最後の Enter で改行を保った 1 件になり、ログの本文が文字ノード 1 つのまま改行を保つことを、CSP あり・なしで確かめる。
+`<textarea>` への書き戻しは非同期（`set_timeout` の 0 ミリ秒）のため、欄の値は空になるのを待って読む。
+
+- hello の `log-list` の退役は TASK-517 に回した（配信設定には教材が無く、エンジンのログが空のため）
+- 問い返しの後の欄の扱いは JUDGE-27・TERM-22（検討中）に属し、固定しない（拒否のときだけ残す）
+- IME の模擬（試験文 30 文）は TASK-276・TASK-439 の担当
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM1-1.mutation crates/web/tests/mutations/TERM2-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM1-1 | crates/web/src/host.rs: 送信を受け入れた後に下書きを空にしない | 拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される | 左の 1 件に加え、session なし・空白だけの 2 件 | DETECTED | - |
+| TERM2-1 | crates/web/src/host.rs: 送信の本文の改行を潰す | 複数行の本文は改行を保った_1_件として記録され_ログの行にも保たれる | 左の 1 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 

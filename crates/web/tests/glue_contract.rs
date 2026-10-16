@@ -89,6 +89,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "complete_count",
     "scheduled_tick",
     "set_tick_request",
+    "set_draft_sync_request",
     "engine_snapshot_json",
     "for_mount",
     "rerender",
