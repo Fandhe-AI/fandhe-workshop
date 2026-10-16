@@ -203,6 +203,12 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
         kind
     }
 
+    /// IndexedDB へ書く。put の確定を待たずに手元の写しを更新して `Ok` を返す（口の [`HistoryStore::write`] が同期のため）。
+    ///
+    /// put が後から失敗したときの状態（設計上の限界）: 手元の写しは未保存の値を持ち、このセッションの `read` は
+    /// その値（メモリ上の最新の状態と同じ）を返す。localStorage の写しは消さずに残す（既存の保存を壊さない）。
+    /// 失敗の種類は `last_async_error` に残る。再読み込みすると、IndexedDB・localStorage に残った旧い値が復元される。
+    /// 失敗の利用者への表示と、写しと保存先のずれの扱いは TASK-323（保存の失敗）の責務で、ここでは扱わない。
     fn write_idb(&self, idb: &I, k: &str, value: &str) -> Result<(), StorageError> {
         self.active.set(StorageKind::IndexedDb);
         // 順序: 手元の写しを更新 → put を発行 → 確定の通知で localStorage の写しを消す。
@@ -287,6 +293,7 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
     fn remove(&self, key: &HistoryKey) -> Result<(), StorageError> {
         let k = key.render();
         if let Some(idb) = &self.idb {
+            // write_idb と同じく、delete の確定を待たずに手元の写しから消す。失敗は種類だけを last_async_error に残す。
             self.mirror.borrow_mut().remove(&k);
             let shared = Rc::clone(&self.shared);
             idb.delete(

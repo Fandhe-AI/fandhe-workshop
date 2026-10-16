@@ -6,8 +6,10 @@
 //! 復元の経路（TASK-319・TASK-331）と離れる直前の書き込み（TASK-317 2/2）はこの合図の後に使う。
 //! 開けない（`indexedDB` が無い・エラー・他のタブに塞がれた）ときは、IndexedDB 無しで `on_ready` を呼ぶ（localStorage だけで動く）。
 //!
-//! 完了・失敗の通知は JS のイベントで届く。ハンドラは `Closure::once_into_js`（1 回呼ばれると自分で解放される形）で作る。
-//! 同じ通知を複数のイベントに掛けるため、呼ばれなかった側は要求の寿命の間だけ残る（小さく、要求とともに GC される）。
+//! 完了・失敗の通知は JS のイベントで届く。ハンドラは `Closure::new` で作って `Handlers` に持ち、確定のときに
+//! 要求・トランザクションから外して Rust 側のクロージャを解放する（`release`）。`Closure::once_into_js` は呼ばれない限り
+//! 解放されず、書き込みごとに呼ばれなかった側が残るため使わない。確定しないまま残るのは、他のタブに塞がれたまま
+//! 開けない要求のハンドラ（1 セッションに 1 組・定数個）だけである。
 //! 例外の文は読まない・記録しない。DOM の値は読まない（`DomException::name` と要求の結果だけを使う）。
 
 use crate::storage_local::LocalStore;
@@ -18,7 +20,7 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 use web_sys::js_sys::{Array, Function};
-use web_sys::{IdbDatabase, IdbRequest, IdbTransaction, IdbTransactionMode};
+use web_sys::{IdbDatabase, IdbOpenDbRequest, IdbRequest, IdbTransaction, IdbTransactionMode};
 
 const DB_NAME: &str = "fandhe-workshop";
 const DB_VERSION: u32 = 1;
@@ -32,6 +34,10 @@ pub struct IdbStore {
 /// 1 回だけ呼ぶ通知を、複数のイベントから共有するための入れ物。
 type OnceCell = Rc<RefCell<Option<Done>>>;
 
+/// ハンドラの持ち主。確定のときに [`release`] で空にする。各ハンドラはこの `Rc` を捕まえるため循環するが、
+/// 空にした時点で循環は切れる。
+type Handlers = Rc<RefCell<Vec<Closure<dyn FnMut()>>>>;
+
 fn fire(cell: &OnceCell, r: Result<(), StorageError>) {
     let taken = cell.borrow_mut().take();
     if let Some(done) = taken {
@@ -39,39 +45,61 @@ fn fire(cell: &OnceCell, r: Result<(), StorageError>) {
     }
 }
 
-fn handler(f: impl FnOnce() + 'static) -> JsValue {
-    Closure::once_into_js(f)
+/// `f` を 1 回だけ呼ぶハンドラを作り、`keep` に持たせて JS の関数を返す。2 回目以降の呼び出しは何もしない。
+fn handler(keep: &Handlers, f: impl FnOnce() + 'static) -> Function {
+    let mut f = Some(f);
+    let c = Closure::<dyn FnMut()>::new(move || {
+        if let Some(f) = f.take() {
+            f();
+        }
+    });
+    let js: Function = c.as_ref().unchecked_ref::<Function>().clone();
+    keep.borrow_mut().push(c);
+    js
 }
 
-fn as_fn(v: &JsValue) -> &Function {
-    v.unchecked_ref()
+/// 持っているハンドラを解放する。呼ぶ前に、要求・トランザクションのハンドラを `None` に外しておく
+/// （外さずに解放すると、後から届いたイベントが解放済みのクロージャを呼んで JS の例外になる）。
+/// 実行中のハンドラ自身を解放してもよい（wasm-bindgen は呼び出しが戻るまで解放を遅らせる）。
+fn release(keep: &Handlers) {
+    // 借用を返してから解放する（解放の途中で同じ入れ物を借りても衝突しない）。
+    let taken = keep.take();
+    drop(taken);
 }
 
-/// トランザクションの完了・失敗・中断を `done` へ流す。中断は例外の `name` で上限超過かを見分ける。
+/// トランザクションの完了・中断を `done` へ流し、確定のときにハンドラを外して解放する。
+///
+/// 失敗は `abort` だけで確定する。要求の失敗（上限超過を含む）は、要求の `error` イベントがトランザクションの
+/// `error` へバブリングして先に届き、既定の動作（`preventDefault` しない）でトランザクションが中断されて後から `abort` が届く。
+/// 中断の理由（要求の例外）は `abort` の時点で `tx.error()` に入るため、`error` では確定せず、`abort` で `name` を見て
+/// 上限超過（`QuotaExceededError`）かを見分ける。`error` のハンドラを足すと、上限超過を `Failed` に誤分類する。
 fn watch(tx: &IdbTransaction, done: Done) {
     let cell: OnceCell = Rc::new(RefCell::new(Some(done)));
-    let c = Rc::clone(&cell);
-    tx.set_oncomplete(Some(as_fn(&handler(move || fire(&c, Ok(()))))));
-    let c = Rc::clone(&cell);
-    tx.set_onerror(Some(as_fn(&handler(move || {
-        fire(&c, Err(StorageError::Failed))
-    }))));
-    let c = Rc::clone(&cell);
+    let keep: Handlers = Rc::default();
+    let settle = {
+        let (tx, keep) = (tx.clone(), Rc::clone(&keep));
+        move |r: Result<(), StorageError>| {
+            tx.set_oncomplete(None);
+            tx.set_onabort(None);
+            release(&keep);
+            fire(&cell, r);
+        }
+    };
+    let settle = Rc::new(settle);
+    let s = Rc::clone(&settle);
+    tx.set_oncomplete(Some(&handler(&keep, move || s(Ok(())))));
     let tx2 = tx.clone();
-    tx.set_onabort(Some(as_fn(&handler(move || {
+    tx.set_onabort(Some(&handler(&keep, move || {
         let quota = tx2
             .error()
             .map(|e| e.name() == "QuotaExceededError")
             .unwrap_or(false);
-        fire(
-            &c,
-            Err(if quota {
-                StorageError::QuotaExceeded
-            } else {
-                StorageError::Failed
-            }),
-        )
-    }))));
+        settle(Err(if quota {
+            StorageError::QuotaExceeded
+        } else {
+            StorageError::Failed
+        }))
+    })));
 }
 
 impl IdbStore {
@@ -122,14 +150,20 @@ pub type OpenedStorage = HistoryStorage<LocalStore, IdbStore>;
 
 type Ready = Rc<RefCell<Option<Box<dyn FnOnce(OpenedStorage)>>>>;
 
+/// 準備完了の合図を出す（2 回目以降は何もしない）。合図を出した後に開けた接続が届いたら、閉じて残さない。
 fn finish(ready: &Ready, idb: Option<(IdbStore, BTreeMap<String, String>)>) {
     let taken = ready.borrow_mut().take();
-    if let Some(f) = taken {
-        let storage = match idb {
-            Some((store, initial)) => HistoryStorage::new(LocalStore::new(), Some(store), initial),
-            None => HistoryStorage::new(LocalStore::new(), None, BTreeMap::new()),
-        };
-        f(storage);
+    match (taken, idb) {
+        (Some(f), Some((store, initial))) => {
+            f(HistoryStorage::new(LocalStore::new(), Some(store), initial))
+        }
+        (Some(f), None) => f(HistoryStorage::new(
+            LocalStore::new(),
+            None,
+            BTreeMap::new(),
+        )),
+        (None, Some((store, _))) => store.db.close(),
+        (None, None) => {}
     }
 }
 
@@ -150,8 +184,20 @@ fn collect(keys: &IdbRequest, values: &IdbRequest) -> BTreeMap<String, String> {
     out
 }
 
+/// 開く要求のハンドラを外して解放する。`success` か `error` の後にだけ呼ぶ（`blocked` の後は、遅れて
+/// `success` が届いたときに接続を閉じるため残す）。
+fn detach_open(req: &IdbOpenDbRequest, keep: &Handlers) {
+    req.set_onupgradeneeded(None);
+    req.set_onblocked(None);
+    req.set_onerror(None);
+    req.set_onsuccess(None);
+    release(keep);
+}
+
 /// 非同期に IndexedDB を開き、全件を手元の写しへ読んでから `on_ready` を呼ぶ（準備完了の合図）。
-/// 開けないときは IndexedDB 無しの保存先（localStorage だけ）で呼ぶ。`on_ready` は必ず 1 回だけ呼ばれる。
+/// 開けないときは IndexedDB 無しの保存先（localStorage だけ）で呼ぶ。`on_ready` は必ず 1 回だけ呼ばれる
+/// （開く要求の `error`・`blocked`・`success` と、全件の読み取りの完了・中断のどの経路でも）。
+/// 他のタブに塞がれて（`blocked`）合図を出した後に遅れて開けたとき、および全件を読めなかったときは、接続を閉じる。
 pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
     let ready: Ready = Rc::new(RefCell::new(Some(Box::new(on_ready))));
     let factory = web_sys::window().and_then(|w| w.indexed_db().ok().flatten());
@@ -163,41 +209,58 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
         finish(&ready, None);
         return;
     };
+    let keep: Handlers = Rc::default();
 
     let req_up = req.clone();
-    req.set_onupgradeneeded(Some(as_fn(&handler(move || {
+    req.set_onupgradeneeded(Some(&handler(&keep, move || {
         if let Ok(db) = req_up.result().and_then(|r| r.dyn_into::<IdbDatabase>()) {
             // 版 1 の作成時だけ呼ばれる。失敗は後続の transaction の失敗として現れる。
             let _ = db.create_object_store(STORE);
         }
-    }))));
+    })));
 
+    let (r, k, req_err) = (Rc::clone(&ready), Rc::clone(&keep), req.clone());
+    req.set_onerror(Some(&handler(&keep, move || {
+        detach_open(&req_err, &k);
+        finish(&r, None);
+    })));
     let r = Rc::clone(&ready);
-    req.set_onerror(Some(as_fn(&handler(move || finish(&r, None)))));
-    let r = Rc::clone(&ready);
-    req.set_onblocked(Some(as_fn(&handler(move || finish(&r, None)))));
+    req.set_onblocked(Some(&handler(&keep, move || finish(&r, None))));
 
-    let r = Rc::clone(&ready);
-    let req_ok = req.clone();
-    req.set_onsuccess(Some(as_fn(&handler(move || {
+    let (r, k, req_ok) = (Rc::clone(&ready), Rc::clone(&keep), req.clone());
+    req.set_onsuccess(Some(&handler(&keep, move || {
+        detach_open(&req_ok, &k);
         let Ok(db) = req_ok.result().and_then(|v| v.dyn_into::<IdbDatabase>()) else {
             finish(&r, None);
             return;
         };
+        if r.borrow().is_none() {
+            // 塞がれて合図を出した後に遅れて開けた。読まずに閉じる。
+            db.close();
+            return;
+        }
         let reads = db
             .transaction_with_str(STORE)
             .and_then(|tx| tx.object_store(STORE).map(|s| (tx, s)))
             .and_then(|(tx, s)| Ok((tx, s.get_all_keys()?, s.get_all()?)));
         let Ok((tx, keys, values)) = reads else {
+            db.close();
             finish(&r, None);
             return;
         };
-        let (r_done, r_fail) = (Rc::clone(&r), Rc::clone(&r));
-        let db_done = db.clone();
-        tx.set_oncomplete(Some(as_fn(&handler(move || {
-            let initial = collect(&keys, &values);
-            finish(&r_done, Some((IdbStore { db: db_done }, initial)));
-        }))));
-        tx.set_onerror(Some(as_fn(&handler(move || finish(&r_fail, None)))));
-    }))));
+        // 完了・中断のどちらでも合図を出す（watch は abort でも確定する）。
+        watch(
+            &tx,
+            Box::new(move |res| match res {
+                Ok(()) => {
+                    let initial = collect(&keys, &values);
+                    finish(&r, Some((IdbStore { db }, initial)));
+                }
+                Err(_) => {
+                    db.close();
+                    finish(&r, None);
+                }
+            }),
+        );
+    })));
 }
