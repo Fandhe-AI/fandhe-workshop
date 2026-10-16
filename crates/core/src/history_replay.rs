@@ -2,8 +2,11 @@
 //!
 //! 履歴の復元の主は、初期状態に入力の列 `ops` を適用し直すことである。包みの写し（`snapshot`）は照合と
 //! 表示だけの元で、写しだけを信じて開かない。右のログ（結果のイベント）だけでは、停止・移動・下書きを
-//! 一意に戻せないためである。呼び出し元は、写しとの照合（TASK-316 2/3）、版の判定（TASK-174）、読み込み
-//! （TASK-310）、入力欄の結線（TASK-275・TASK-347。送信の分類に [`submit_input`] を使う）である。
+//! 一意に戻せないためである。[`verify_envelope`] が適用し直した結果を写しと照合し、一致したときだけ
+//! 適用し直した状態（写しではない）を返す。食い違いは書き換え・壊れとして [`VerifyError::load_reason`] が
+//! `replay_mismatch` に対応づける。「表示だけ」で開く場合の元は [`view_only_source`] が写しを読み取り専用で渡す。
+//! 呼び出し元は、版の判定（TASK-174）、読み込み（TASK-310）、入力欄の結線（TASK-275・TASK-347。送信の分類に
+//! [`submit_input`] を使う）である。
 //! I/O・時刻・乱数を持たない純関数だけを置く。契約の版（`CONTRACT_VERSION`）の対象外。
 //!
 //! 適用し直しの規則（`ops` の 1 件ごと）。
@@ -27,7 +30,8 @@
 //! 4. 連続する `Draft` は記録側が畳むため通常は現れない。あっても状態は最後の値と同じになるので拒否しない
 //!
 //! 境界（含まないもの）。
-//! - 写しとの照合、`replay_mismatch`、書き出し→読み込みの一致（TASK-316 2/3）
+//! - 版の軸が違う場合の `replay_diverged`（表示だけ）への読み替えと、どの理由が表示だけになるかの線引き（TASK-174）
+//! - 読み込みの全段の順序（TASK-310 3/3・TASK-331）。`pack_id`・`versions`・`start`・`format` は見ない
 //! - 再読み込みの意味（世代 +1・`Reloaded`。TASK-320）
 //! - 開始点 `start` からの初期状態の構築（`Control::Begin`。TASK-217・TASK-294）。初期状態は引数で受ける
 //! - 件数・長さ・入れ子の上限の検査（`history_size`・`json_depth`・`load_gate`）。呼び出し側が検査済みの `ops` を渡す
@@ -36,11 +40,12 @@ use std::fmt;
 
 use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::load_reason::LoadReason;
 use fandhe_workshop_contract::profile::{
     classify_input, read_profile, InputClass, ProfileReadError,
 };
 
-use crate::history_envelope::{record_draft, record_submit};
+use crate::history_envelope::{record_draft, record_submit, SessionEnvelope};
 use crate::input::{Input, Op};
 use crate::ops_record::{OpsRecorder, SessionOp};
 use crate::session::{apply, SessionState};
@@ -117,4 +122,139 @@ pub fn replay(
         }
     }
     Ok(state)
+}
+
+/// 写しと食い違った最初の欄。欄の名前だけを持ち、値（ログ・下書きの文字列）は持たない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SnapshotField {
+    /// 実行の位置（`run`）。
+    Run,
+    /// ログ（`log`）。
+    Log,
+    /// 入力欄の状態（`entry`）。
+    Entry,
+    /// チェックポイント（`checkpoints`）。
+    Checkpoints,
+    /// 次のチェックポイントの番号（`next_checkpoint`）。
+    NextCheckpoint,
+    /// 下書き（`drafts`）。
+    Drafts,
+    /// 開いたヒント（`hints_opened`）。
+    HintsOpened,
+}
+
+/// 2 つの状態で最初に食い違う欄を固定の順で返す。一致すれば `None`。
+///
+/// 全欄を網羅の分割代入で受けるため、[`SessionState`] に欄が増えると、ここでコンパイルエラーになり
+/// 照合の抜けに気付ける。
+pub fn first_difference(a: &SessionState, b: &SessionState) -> Option<SnapshotField> {
+    let SessionState {
+        run,
+        log,
+        entry,
+        checkpoints,
+        next_checkpoint,
+        drafts,
+        hints_opened,
+    } = a;
+    if *run != b.run {
+        Some(SnapshotField::Run)
+    } else if *log != b.log {
+        Some(SnapshotField::Log)
+    } else if *entry != b.entry {
+        Some(SnapshotField::Entry)
+    } else if *checkpoints != b.checkpoints {
+        Some(SnapshotField::Checkpoints)
+    } else if *next_checkpoint != b.next_checkpoint {
+        Some(SnapshotField::NextCheckpoint)
+    } else if *drafts != b.drafts {
+        Some(SnapshotField::Drafts)
+    } else if *hints_opened != b.hints_opened {
+        Some(SnapshotField::HintsOpened)
+    } else {
+        None
+    }
+}
+
+/// 照合で開けなかった理由。位置・欄名だけを持ち、利用者由来の文字列は持たない。
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum VerifyError {
+    /// 適用し直せなかった。
+    Replay(ReplayError),
+    /// 適用し直した結果が写しと食い違った。
+    Mismatch {
+        /// 最初に食い違った欄。
+        field: SnapshotField,
+    },
+}
+
+impl VerifyError {
+    /// 版の軸がすべて同じ場合の読み込みの理由。
+    ///
+    /// 食い違いと、記録側が残さない空白だけの送信は、書き換え・壊れとして `replay_mismatch` にする。
+    /// 教材側の不備（読めない操作プロファイル）と、未実装の再読み込み（TASK-320）は `None` で、
+    /// 呼び出し元は開かない（fail-closed）。版の軸が違う場合の `replay_diverged` への読み替えは TASK-174 の責務。
+    pub fn load_reason(&self) -> Option<LoadReason> {
+        match self {
+            VerifyError::Mismatch { .. } | VerifyError::Replay(ReplayError::BlankSubmit { .. }) => {
+                Some(LoadReason::ReplayMismatch)
+            }
+            VerifyError::Replay(_) => None,
+        }
+    }
+}
+
+impl fmt::Display for VerifyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VerifyError::Replay(e) => write!(f, "replay failed: {e}"),
+            VerifyError::Mismatch { field } => {
+                write!(f, "replayed state differs from the snapshot in {field:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for VerifyError {}
+
+/// 包みの `ops` を初期状態に適用し直し、写しと照合する。一致したときだけ、適用し直した状態を返す。
+///
+/// 返すのは写しではなく適用し直した状態である（写しだけを信じて開かない）。`envelope` は読み込み口
+/// （`load_gate`・`history_size`）で件数・長さ・深さを検査済みとする。
+///
+/// # Errors
+///
+/// [`VerifyError`]。適用し直せないとき、結果が写しと食い違うとき。どちらも開いてはならない。
+pub fn verify_envelope(
+    ir: &Ir,
+    initial: SessionState,
+    envelope: &SessionEnvelope,
+) -> Result<SessionState, VerifyError> {
+    let replayed = replay(ir, initial, &envelope.ops).map_err(VerifyError::Replay)?;
+    match first_difference(&replayed, &envelope.snapshot) {
+        None => Ok(replayed),
+        Some(field) => Err(VerifyError::Mismatch { field }),
+    }
+}
+
+/// 「表示だけ」で開く場合の元。写しへの読み取り専用の参照だけを持ち、実行の状態へ変換する関数は持たない。
+///
+/// 適用し直さず、実行の状態としても開かない。ただし `snapshot()` の戻りの `SessionState` は `Clone` なので、
+/// 複製を `Session::from_state` へ渡せば実行を再開できてしまい、これは型では防げない。表示だけで開く約束は、
+/// 呼び出し側が守る運用である（表示用の型への分離は別の課題）。どの理由が表示だけになるかの線引きは TASK-174 の責務である。
+#[derive(Debug, Clone, Copy)]
+pub struct ViewOnlySource<'a>(&'a SessionState);
+
+impl<'a> ViewOnlySource<'a> {
+    /// 表示の元にする写し。
+    pub fn snapshot(&self) -> &'a SessionState {
+        self.0
+    }
+}
+
+/// 包みの写しを、表示だけの元として渡す。
+pub fn view_only_source(envelope: &SessionEnvelope) -> ViewOnlySource<'_> {
+    ViewOnlySource(&envelope.snapshot)
 }

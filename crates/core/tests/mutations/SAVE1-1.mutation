@@ -1,0 +1,9 @@
+id: SAVE1-1
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/history_replay.rs
+find:     match first_difference(&replayed, &envelope.snapshot) {
+replace:     match None::<SnapshotField> {
+expect-fail: tampered_snapshot_is_replay_mismatch
+expect-fail: tampered_ops_is_replay_mismatch
+note: 照合を省いて写しを信じる（試作の X-4 相当。適用し直した結果を写しと比べない）
