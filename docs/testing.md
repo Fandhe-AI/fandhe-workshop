@@ -1074,7 +1074,7 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT12-13 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す | pre_restore_tick_with_saved_index_is_ignored, p2_pre_restore_ticks_never_change_run | pre_restore_tick_with_saved_index_is_ignored, restore_to_idle_checkpoint_ignores_pre_restore_ticks, pre_restore_tick_after_go_to_and_restore_is_ignored, each_generation_index_progresses_once, restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, p2_pre_restore_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (3, [Next, Stop], [Old(15)]) |
 | EVT12-14 | crates/core/src/checkpoint.rs: 復帰で処理中の番号を保存時点の値にしない（再開が先頭からになる） | restore_resumes_progress_in_new_generation, p4_restore_resumes_from_saved_done | restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, pre_restore_tick_with_saved_index_is_ignored, each_generation_index_progresses_once, pre_restore_tick_after_go_to_and_restore_is_ignored, p4_restore_resumes_from_saved_done | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (1, [Next]) |
 
-### 5.47 状態・イベントの変異注入（TASK-220 1/2）
+### 5.47 状態・イベントの変異注入（TASK-220）
 
 状態・イベントの実装を 7 か所壊した変異を、`op_sequence_properties`（TASK-219 の性質テスト）が検出することを確かめた。
 定義は `crates/core/tests/mutations/M1.mutation`〜`M7.mutation` である。
@@ -1090,7 +1090,7 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | M7 | 同じ番号の進行が二重に届いても通す |
 
 - M1〜M4・M6・M7 は、固定の生成の試験 `properties_p1_to_p6_hold_after_every_op` の失敗を期待し、すべて検出された
-- M5 は、固定の生成の試験が失敗しなかった。表の「実際に失敗した試験」に `properties_p1_to_p6_hold_after_every_op` が無いことが、その証拠である。そのため期待する失敗は、誘導つきの生成の `properties_p1_to_p6_hold_with_guided_sequences` にした。M5 の経緯は TASK-220 2/2 が本節に追記する。TASK-220 2/2 は `M5` の定義を新しく足さない
+- M5 は、固定の生成の試験が失敗しなかった。表の「実際に失敗した試験」に `properties_p1_to_p6_hold_after_every_op` が無いことが、その証拠である。そのため期待する失敗は、誘導つきの生成の `properties_p1_to_p6_hold_with_guided_sequences` にした。M5 の経緯は 5.47.1 に記録した。`M5` の定義は新しく足していない
 - 「実際に失敗した試験」には、期待した試験のほかに、誘導つきの生成や固定列の試験も並ぶ。性質テストの種は既定で、ケース数は 1000 である
 
 ```text
@@ -1109,6 +1109,54 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | M6 | crates/core/src/projection.rs: 復帰で持ち主の根の復習を保存の時点へ戻さない | properties_p1_to_p6_hold_after_every_op | p3_accepts_achievement_whose_acceptance_has_an_older_generation, p3_rejects_achievement_after_reentry_invalidates_acceptance, checker_detects_each_broken_property, scripted_sequence_satisfies_properties_and_covers_each_check, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation, properties_p1_to_p6_hold_with_guided_sequences | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Cmd(0), Restore(1)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Guided(0), Restore(1)] |
 | M7 | crates/core/src/judge.rs: 適用済みの番号の進行（二重の届き）を弾かない（先の番号は弾く） | properties_p1_to_p6_hold_after_every_op | checker_detects_each_broken_property, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_accepts_achievement_whose_acceptance_has_an_older_generation, scripted_sequence_satisfies_properties_and_covers_each_check, properties_p1_to_p6_hold_with_guided_sequences, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Tick(Dup)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Cmd(0), Tick(Current), Tick(Dup)] |
 
+#### 5.47.1 M5 の経緯（TASK-220 2/2）
+
+M5 は、固定の生成では検出できず、誘導つきの生成が検出した。この事実を、PoC-1 の発見事項 F-11 と EVT-15 の証拠の種類に沿って記録する。
+ここでの「固定の生成」は、乱数で操作列を作る `properties_p1_to_p6_hold_after_every_op` を指す。固定列（`scripted-inputs.json`）とは別物である。
+
+- 壊したこと: `Event::Entered` で変化の印の元（`pending`）を消さない。Step に入った後の入力で、前の Step の印が残って見える
+- 違反した性質: 誘導つきの生成の失敗は、P-1c（変化の印が期待と違う）である。7 操作目の学習者の入力で `marks [Mark { path: "notes/draft", kind: Put }] != expected []` と出た（2026-10-16、写しに M5 を当てて `cargo test` で確認）
+- 固定の生成が見逃す理由: 違反が表に出るには、達成の後に次の Step へ入り、その後に変化の印を見る深い状態が要る。第 2 節の実測（2026-10-16）では、確認による達成が固定 29 件・誘導 1,075 件、最後の Step の達成が固定 28 通り・誘導 509 通り、達成の直後に次の Step へ入った件数が固定 150 件・誘導 1,083 件だった。最小の反例 `[Guided(0)×7]`（正しい次の操作を 7 回続ける列）も、深さが要ることを示す
+- 主な証拠: 上の表と下の再実行の、M5 の「実際に失敗した試験」に `properties_p1_to_p6_hold_after_every_op` が無い（M1〜M4・M6・M7 には有る）。スクリプトは試験のターゲットの全試験を流して失敗をすべて列挙するため、一覧に無いことは、変異を入れた状態でその試験が通ったことを意味する。検出したのは、誘導つきの生成のほか、固定列の `scripted_sequence_satisfies_properties_and_covers_each_check` と P-3 の決定的な試験などである
+- 限界: この事実は、既定の種・1,000 通りでの結果である。種を変えると、固定の生成が M5 を検出することもありうる（第 2 節）
+
+M5 の再実行の記録（手で作らず、スクリプトの出力をそのまま貼る）。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 193c38f
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/M5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| M5 | crates/core/src/projection.rs: Step に入っても変化の印の元（pending）を消さない（到達しない腕へ退避） | properties_p1_to_p6_hold_with_guided_sequences | p3_accepts_achievement_whose_acceptance_has_an_older_generation, checker_detects_each_broken_property, p3_rejects_achievement_after_reentry_invalidates_acceptance, scripted_sequence_satisfies_properties_and_covers_each_check, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, properties_p1_to_p6_hold_with_guided_sequences, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)] |
+
+補助の証拠として、対照を流した。対照は、M5 と同じ `find`・`replace` で、期待する失敗だけを固定の生成の試験にしたものである。
+定義はコミットしない（既定の置き場に置くと `make check-mutations` が常に失敗するため）。リポジトリの写し（一時ディレクトリ）に置いて流した。
+
+```text
+id: M5-FIXED-CONTROL
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/projection.rs
+find:             Event::Entered { .. } => {
+replace:             Event::Entered { .. } => { self.push_row(i, event); } Event::Entered { .. } if false => {
+expect-fail: properties_p1_to_p6_hold_after_every_op
+```
+
+この対照は、結果が SURVIVED（終了コード 1）になるのが期待どおりである。固定の生成の試験が失敗しないことを確かめるためである。
+写しには `.git` が無いため、「元にしたコミット」は `unknown` と出る。写しの元にしたコミットは `193c38f` である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: unknown
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/M5-FIXED-CONTROL.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| M5-FIXED-CONTROL | crates/core/src/projection.rs: 対照。M5 と同じ壊し方を、固定の生成の試験に期待する | properties_p1_to_p6_hold_after_every_op | scripted_sequence_satisfies_properties_and_covers_each_check, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_accepts_achievement_whose_acceptance_has_an_older_generation, checker_detects_each_broken_property, properties_p1_to_p6_hold_with_guided_sequences, guided_generation_reaches_deeper_states_than_fixed_generation | SURVIVED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)] |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

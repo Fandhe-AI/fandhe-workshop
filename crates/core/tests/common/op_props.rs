@@ -7,7 +7,7 @@
 //!
 //! 性質の定義は `testdata/engine-event-consistency/test-data/property-test.md`（PoC-1 で固定）の
 //! 「確かめる性質」の表である。P-5（流し直しの一致）は `op_sequence_replay.rs` が持つため、ここでは扱わない。
-//! 変異注入（TASK-220）も範囲外である。
+//! 変異注入（TASK-220）は、この検査器を壊して確かめるのではなく、実装を壊して確かめる（`docs/testing.md` 5.47）。
 //!
 //! # 判定の規則
 //!
