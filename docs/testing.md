@@ -54,7 +54,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 復元の性質と変異 6/6（TASK-316 3/3、SAVE-1）は、同じ 2 つの試験ファイルに足した。各枠の下書きは 0〜2 件で引き、送信を挟まず連続する
   下書きを列の途中にも出す。試作の H-2（写しから作り直した実行が写しを返す）・H-7（同じ包みの書き出しが同じバイト列）を書き出し→読み込みの
   性質テストの中で確かめ、H-8（`ops` を 1 件消した包みは、開けるなら写しと一致し、開けないなら `replay_mismatch`）を固定・誘導つきで各 1,000 通り
-  確かめる。H-6（再読み込みで世代が上がる）は TASK-320 の範囲。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
+  確かめる。H-6（再読み込みの前の宛先の進行の無視）は TASK-320 2/2 で足した（5.67）。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
   `cargo test` の試験の所要時間）。変異は 5.59 節。自動ブラウザでの「`ops` だけで復元した最終の世界状態の一致」は、web の保存・読み込みの結線が
   未実装のため未確認
 - `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
@@ -97,7 +97,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1473,7 +1473,7 @@ SAVE1-1 は、`verify_envelope` が適用し直した結果を写しと比べず
 
 X-1（`reloaded()` が世代を上げない。性質 H-6）は、`Reload` が TASK-320 まで `ReplayError::UnsupportedReload` で拒否されるため、
 そのままの対応物が無い。代替の SAVE1-6 を置き、X-1・H-6 そのものは TASK-320 へ送る。
-X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.65）。H-6 は TASK-320 2/2 の範囲である。
+X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.66）。H-6 は TASK-320 2/2 で `SAVE4-4`・`SAVE4-5` として置いた（5.67）。
 SAVE1-6 は、時点 t の状態に下書きが残る場合だけ食い違うため、性質テストだけが検出する。
 
 ```text
@@ -1813,7 +1813,7 @@ spec SAVE-19 の実測（PoC-6 の `wrong_input` 29,138 件・9,937,328 バイ�
 後者は、時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して再読み込みしてから残りを流した結果が
 一致すること、再読み込みを含む全体の包みの照合が通ること、再読み込みの後の世代が時点 t の世代 +1 であることを確かめる。
 共有の関数が世代を上げ損ねると両経路が同じに壊れて一致するため、世代の増分は一致とは別に主張する。
-再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2 の範囲である。
+再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2（5.67）で固定した。
 自動ブラウザ（S-5）は、web に履歴を読み込んで復元する経路が無いため未実施（TASK-319・TASK-331 3/3 の後）。
 
 SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SAVE4-2 は適用し直しで `Reload` を飛ばす誤り、SAVE4-3 は記録側が `Reload` を残さない誤りである。
@@ -1831,3 +1831,77 @@ SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SA
 | SAVE4-2 | crates/core/src/history_replay.rs: 適用し直しで Reload を飛ばす | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided ほか 1 件） |
 | SAVE4-3 | crates/core/src/ops_record.rs: 記録側が Reload を残さない | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
 | SAVE1-1〜SAVE1-6 | crates/core/src/history_replay.rs ほか（5.58・5.59 の定義） | 6 件とも DETECTED |
+
+### 5.67 古い宛先の進行の無視（TASK-320 2/2）
+
+再読み込みの前に予約された進行の宛先（古い世代）が後から届いても、状態が変わらず `Ignored(Stale)` が 1 件だけ増えることを試験で固定した。
+製品コードの動作は変えていない（`judge_tick` は世代の食い違いを既に `Stale` にし、`reload` は入口の写しに触れない）。変えたのは `reload.rs` のコメントだけである。
+固定の試験は `crates/core/tests/reload_busy.rs` に足した。
+
+- `stale_tick_after_reload_is_ignored_once`: 再読み込みの前の宛先で `Ignored(Stale)` が 1 件だけ増え（`at` は操作前の世代。宛先の世代を写さない）、ログ以外の状態が変わらず、新しい宛先で最後まで流した結果が再読み込みなしの経路と一致する
+- `stale_ticks_from_before_two_reloads_are_each_ignored`: 再読み込みを 2 回挟み（間に 1 回進める場合と進めない場合）、どちらの前の宛先も 1 件ずつ無視される
+- `stale_tick_after_reload_when_not_busy_is_stale`: 処理中でない状態でも、世代の照合が `NoProcessing` より先に当たる
+- `stop_after_reload_returns_to_step_entry`: 再読み込みの後の停止が、再読み込みの前の入口の写しへ戻る（入口の写しは作り直されない）。停止の後も、停止の前の宛先は無視される
+- `session_reload_then_apply_ignores_stale_tick`: `Session::reload` → `Session::apply` の経路でも純粋関数の経路と同じ結果になる
+
+性質テスト H-6 は `history_verify` の `reload_at_any_point` に足した。時点 t が処理中なら、再読み込みの前の宛先を、再読み込みして得た状態の複製に送り、
+`Ignored(Stale)` が 1 件だけで状態が変わらないことを確かめる。探りは `ops` に記録しない（片側だけに入れると A/B の一致が壊れ、両側に入れると H-5 の意味が濁るため）。
+処理中でない時点は宛先が無いので飛ばす。探りの件数は成功条件にしない（成功条件は不変条件だけ）。
+自動ブラウザ（S-5・S-6）は、web に履歴を読み込んで再読み込みする結線が無いため未実施（TASK-319・TASK-331 の後）。
+
+SAVE4-4 は進行の照合から世代を外す誤り（固定の試験で検出）、SAVE4-5 は同じ誤りを性質テスト H-6 で検出することの確認、SAVE4-6 は再読み込みで入口の写しを作り直す誤りである。
+既存の SAVE4-1〜SAVE4-3・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b3fec6a-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE4-1.mutation 〜 SAVE4-6.mutation と SAVE1-1.mutation 〜 SAVE1-6.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE4-1〜SAVE4-3 | 5.66 の定義 | 3 件とも DETECTED |
+| SAVE4-4 | crates/core/src/judge.rs: 進行の照合から世代を外す | DETECTED（stale_tick_after_reload_is_ignored_once, stale_ticks_from_before_two_reloads_are_each_ignored ほか 3 件） |
+| SAVE4-5 | crates/core/src/judge.rs: SAVE4-4 と同じ置換（H-6 の確認） | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
+| SAVE4-6 | crates/core/src/reload.rs: 再読み込みで入口の写しを作り直す | DETECTED（stop_after_reload_returns_to_step_entry ほか 2 件） |
+| SAVE1-1〜SAVE1-6 | 5.58・5.59 の定義 | 6 件とも DETECTED |
+
+### 5.68 履歴の書き出し（TASK-330 1/2）
+
+書き出しは契約の包み（`ops` と写し。D-52・SAVE-17）を compact な 1 行の JSON にしたものである（`history_export::export_bytes`）。
+往復（書き出し→読み込みの段 1〜5）・同じ包みから同じバイト列が出ること・最上位の欄・上限超過でも書き出しを拒まないことを `crates/core/tests/history_export.rs` が、
+ファイル名の整え（`pack_id` は教材由来で信頼できない）を `crates/web/tests/history_export.rs` が、
+ダウンロードで保存されたファイルが `ops` と写しを持つこと・外部への要求と CSP 違反が 0 件・URL（`location`・履歴・ハッシュ）が変わらないこと・破棄した `blob:` URL から保存できないことを `tools/browser/history-export.test.mjs` が確かめる。
+`blob:` URL は CSP の `connect-src 'self'` で `fetch` が止まるため、読めるかどうかはダウンロードで確かめた。
+ホストに受講中の `ops` の記録（`OpsRecorder`）がまだ無いため、ブラウザ試験は契約の試料（`two-rounds.json`）を書き出す。受講中の状態からの書き出しは TASK-319・TASK-531 の結線の後に確かめる。本節の番号は、既存の重複を直さずに、既存の最大の次を使った（5.66 は別の変更が先に取った）。
+
+変異は SAVE17-1（書き出しを整形つきの JSON にする誤り）である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e6a486b-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE17-1.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE17-1 | crates/core/src/history_export.rs: 書き出しを整形つきの JSON にする | DETECTED（export_is_compact_single_line） |
+
+#### 大きさの測定（SAVE-17・SAVE-26）
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e6a486b-dirty
+ビルド: dev プロファイル（debug）・native（バイト数は profile に依らない）
+コマンド: cargo test -p fandhe-workshop-core --test history_export -- --nocapture record_export_sizes
+```
+
+| サンプル | 全体（バイト） | `ops` | 写し | `ops` の件数 |
+|---|---|---|---|---|
+| empty | 783 | 2 | 503 | 0 |
+| two-rounds | 8,964 | 1,166 | 7,520 | 28 |
+| draft-rejected | 1,156 | 126 | 752 | 4 |
+
+いずれも保存先の目安の 5MB（U-5・SAVE-26）と読み込みの上限 10MB を大きく下回る。
+PoC-6 の基点（2 周分で 77,300〜81,432 バイト。`h-full.json` は 77,300 バイト）とは直接比べられない。基点は試作の教材（Step の実体 36）の 2 周分を、PoC 時点の写しの形（`snapshot` が `state`・`draft`・`draft_root`）で測った値で、今の `SessionEnvelope` としては読めない。
+一方 `two-rounds` は 3 Step の教材の試料で、教材の大きさも写しの形も違う。基点の教材を今のエンジンで動かせるようになった後（実際の教材の全章は SAVE-27・PoC-14 の担当）に、同じコマンドで測り直す。
