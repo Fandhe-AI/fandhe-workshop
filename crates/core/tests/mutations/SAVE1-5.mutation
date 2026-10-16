@@ -1,0 +1,10 @@
+id: SAVE1-5
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/history_envelope.rs
+find:     Ok(HistoryEnvelope::new(
+replace:     let snapshot = SessionState { checkpoints: Default::default(), ..snapshot }; Ok(HistoryEnvelope::new(
+expect-fail: scripted_history_round_trips_and_verifies
+expect-fail: property_export_import_verifies_fixed
+expect-fail: property_export_import_verifies_guided
+note: 書き出す包みの写しでチェックポイントを落とす（試作の X-2 相当）

@@ -9,7 +9,8 @@
 //!
 //! 後者に世代 +1・`Reloaded`・`reload` の記録は含めない。再読み込みの意味は TASK-320 で、そこで
 //! 再読み込みを挟む形へ格上げする。性質テストの成功条件は一致だけにする（`docs/testing.md` 第 2 節）。
-//! 変異 `SAVE1-1`（照合を省く）は、固定の試験 2 本が検出する。
+//! 性質テストにはほかに、書き出しのバイト列の安定（H-7）と写しから作り直した実行の一致（H-2）、`ops` を 1 件消した包みが
+//! 黙って誤った状態で開かないこと（H-8）を含める。変異 `SAVE1-1`〜`SAVE1-6` の検出先になる（`docs/testing.md` 5.59）。
 
 mod common;
 
@@ -30,7 +31,7 @@ use fandhe_workshop_core::input::{CheckpointId, Control, Op};
 use fandhe_workshop_core::load_gate::load_json;
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::ops_record::SessionOp;
-use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::session::{Session, SessionState};
 use proptest::collection::vec;
 use proptest::prelude::*;
 
@@ -218,12 +219,18 @@ fn errors_do_not_carry_user_strings() {
 fn run_property<S, F>(name: &str, strategy: S, body: F)
 where
     S: Strategy<Value = Vec<OpSpec>>,
-    F: Fn(&Ir, &SessionState, &[OpSpec], &[u8], usize) -> Result<(), String>,
+    F: Fn(&Ir, &SessionState, &[OpSpec], &[Vec<u8>], usize) -> Result<(), String>,
 {
     let (ir, initial) = load_min_ir();
-    let with_extra = (strategy, vec(0u8..5, MAX_OPS + 1), 0usize..=MAX_OPS);
+    // 各枠の下書きは 0〜2 件。時点 t の状態に下書きが残る列・畳まれる列の両方を含める。
+    // `t` は生の値で渡し、各本体が自分の取りうる範囲に丸める。
+    let with_extra = (
+        strategy,
+        vec(vec(0u8..5, 0..=2), MAX_OPS + 1),
+        0usize..1_000,
+    );
     check(name, 1_000, with_extra, |(specs, drafts, t)| {
-        match body(&ir, &initial, &specs, &drafts, t % (specs.len() + 1)) {
+        match body(&ir, &initial, &specs, &drafts, t) {
             Ok(()) => Ok(()),
             Err(message) => {
                 prop_assert!(false, "{message}");
@@ -239,7 +246,7 @@ fn run_recording<'a>(
     ir: &'a Ir,
     initial: &SessionState,
     specs: &[OpSpec],
-    drafts: &[u8],
+    drafts: &[Vec<u8>],
     cut: usize,
 ) -> (RecordPath<'a>, (Vec<SessionOp>, SessionState)) {
     let mut path = RecordPath::new(ir, initial);
@@ -248,7 +255,7 @@ fn run_recording<'a>(
         if i == cut {
             taken = Some((path.rec.ops().to_vec(), path.state.clone()));
         }
-        if let Some(d) = draft_text(drafts[i]) {
+        for d in drafts[i].iter().filter_map(|k| draft_text(*k)) {
             path.draft(d);
         }
         path.spec(spec);
@@ -256,7 +263,7 @@ fn run_recording<'a>(
     if cut == specs.len() {
         taken = Some((path.rec.ops().to_vec(), path.state.clone()));
     }
-    if let Some(d) = draft_text(drafts[specs.len()]) {
+    for d in drafts[specs.len()].iter().filter_map(|k| draft_text(*k)) {
         path.draft(d);
     }
     let taken = taken.unwrap_or_else(|| (Vec::new(), initial.clone()));
@@ -268,7 +275,7 @@ fn export_import_verifies(
     ir: &Ir,
     initial: &SessionState,
     specs: &[OpSpec],
-    drafts: &[u8],
+    drafts: &[Vec<u8>],
     _cut: usize,
 ) -> Result<(), String> {
     let (path, _) = run_recording(ir, initial, specs, drafts, 0);
@@ -276,8 +283,19 @@ fn export_import_verifies(
     let env =
         build_envelope(ir, "s-1", rec.into_ops(), state).map_err(|e| format!("build: {e}"))?;
     let loaded = roundtrip(&env)?;
-    if serde_json::to_vec(&env).ok() != serde_json::to_vec(&loaded).ok() {
+    // 同じ包みの書き出しは何度でも同じバイト列になる（試作の H-7）。
+    let first = serde_json::to_vec(&env).map_err(|e| format!("export: {e}"))?;
+    let second = serde_json::to_vec(&env).map_err(|e| format!("export: {e}"))?;
+    if first != second {
+        return Err("two exports of the same envelope differ".to_owned());
+    }
+    if Some(&first) != serde_json::to_vec(&loaded).ok().as_ref() {
         return Err("export is not byte-identical after the roundtrip".to_owned());
+    }
+    // 任意の時点の写しから作り直した実行は、その写しを返す（試作の H-2）。
+    let rebuilt = Session::from_state(ir.clone(), loaded.snapshot.clone());
+    if rebuilt.state() != &loaded.snapshot {
+        return Err("a session rebuilt from the snapshot does not return it".to_owned());
     }
     match verify_envelope(ir, initial.clone(), &loaded) {
         Ok(s) if s == loaded.snapshot => Ok(()),
@@ -291,9 +309,10 @@ fn reload_at_any_point(
     ir: &Ir,
     initial: &SessionState,
     specs: &[OpSpec],
-    drafts: &[u8],
-    cut: usize,
+    drafts: &[Vec<u8>],
+    t: usize,
 ) -> Result<(), String> {
+    let cut = t % (specs.len() + 1);
     let (path, (prefix, cut_state)) = run_recording(ir, initial, specs, drafts, cut);
     let full = path.rec.ops().to_vec();
     let last = path.state;
@@ -314,6 +333,51 @@ fn reload_at_any_point(
         )),
         Err(e) => Err(format!("replay the rest failed: {e}")),
     }
+}
+
+/// 書き出して読み戻した包みの `ops` を 1 件消すと、黙って誤った状態で開かない（試作の H-8）。
+/// 開けた場合は写しと一致する（消した操作が状態に影響しない偶然だけ）。開けない場合は `replay_mismatch` になる。
+fn tampered_ops_never_open_wrong_state(
+    ir: &Ir,
+    initial: &SessionState,
+    specs: &[OpSpec],
+    drafts: &[Vec<u8>],
+    t: usize,
+) -> Result<(), String> {
+    let (path, _) = run_recording(ir, initial, specs, drafts, 0);
+    let RecordPath { state, rec, .. } = path;
+    let env =
+        build_envelope(ir, "s-1", rec.into_ops(), state).map_err(|e| format!("build: {e}"))?;
+    let mut loaded = roundtrip(&env)?;
+    if loaded.ops.is_empty() {
+        return Ok(());
+    }
+    let at = t % loaded.ops.len();
+    loaded.ops.remove(at);
+    match verify_envelope(ir, initial.clone(), &loaded) {
+        Ok(s) if s == loaded.snapshot => Ok(()),
+        Ok(_) => Err(format!("opened a wrong state after removing ops[{at}]")),
+        Err(e) if e.load_reason() == Some(LoadReason::ReplayMismatch) => Ok(()),
+        Err(e) => Err(format!("unexpected error after removing ops[{at}]: {e}")),
+    }
+}
+
+#[test]
+fn property_tampered_ops_never_open_wrong_state_fixed() {
+    run_property(
+        "history-verify-tampered",
+        op_specs(),
+        tampered_ops_never_open_wrong_state,
+    );
+}
+
+#[test]
+fn property_tampered_ops_never_open_wrong_state_guided() {
+    run_property(
+        "history-verify-tampered-guided",
+        guided_op_specs(),
+        tampered_ops_never_open_wrong_state,
+    );
 }
 
 #[test]
