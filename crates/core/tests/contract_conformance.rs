@@ -6,9 +6,9 @@
 //! 1. サンプルと EVT-6 の規則の表の照合（サンプル自体の値を検査する。常に通る）
 //! 2. 実際の `apply()` の不変条件（EVT-22 の決定性、3 つの入口の一致、世代の単調性と増分の上限）。
 //!    骨格でも結線後でも成り立つべき性質である
-//! 3. 厳密な照合（連鎖して流し、各操作の状態とイベント列がサンプルと一致すること）。`apply()` が骨格の間は
-//!    `e01` で必ず失敗するため `#[ignore]` とし、最後の分岐を埋めるタスクが外す。比較器そのものは、
-//!    期待どおりの提供元と 1 か所壊した提供元で自己確認する（CI に載る）
+//! 3. 厳密な照合（連鎖して流し、各操作の状態とイベント列がサンプルと一致すること）。全件が通る
+//!    （2026-10-16、TASK-214 1/3 で `#[ignore]` を外した）。比較器そのものは、
+//!    期待どおりの提供元と 1 か所壊した提供元で自己確認する
 //!
 //! 手書きの `Op` 列の 2 試験は、サンプルが含まない `Control::Begin` を覆うために残す。
 
@@ -23,7 +23,7 @@ use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{CheckpointId, Control, GenerationRule, Input, Op};
 use fandhe_workshop_core::provider::StateChangeProvider;
-use fandhe_workshop_core::session::{Engine, RunState, SessionState};
+use fandhe_workshop_core::session::{Checkpoint, Engine, RunState, SessionState};
 use fandhe_workshop_core::{apply, load_ir, Session};
 
 fn ir() -> Ir {
@@ -360,25 +360,9 @@ where
     replay_against_upto(provider, s, s.entries.len())
 }
 
-/// 入力の受付（TASK-207 1/3）・一致する進行（TASK-210 2/3）・処理中の停止（TASK-211）まで結線した範囲の照合。
-/// 先頭 13 件（e01 拒否・e02 受付・e03 再送の拒否・e04 と e05 の進行・e06 停止・e07 古い世代の進行の無視・
-/// e08 停止後の受付・e09〜e13 の進行）は実際の `apply()` と一致する。
-/// 連鎖の照合は先頭 13 件まで。e14（保存）以降は TASK-214 などの担当で、全件の照合は下の `#[ignore]` の試験が受け持つ。
-#[test]
-fn sample_replay_prefix_matches_apply() {
-    let s = load();
-    let ir = sample_ir(&s);
-    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 13) {
-        panic!(
-            "{}: {} differs ({})\nexpected: {}\nactual: {}",
-            m.id, m.what, m.note, m.expected, m.actual
-        );
-    }
-}
-
 /// 確認の操作による達成（TASK-207 2/3）の単独の照合。サンプルの e15（受付済みの Step を指して達成し、次の Step に
-/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖は先頭 13 件までで
-/// e15 に届かないため、前の状態から直接始める。
+/// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖で届く
+/// 全件の照合とは別に、前の状態から直接始めて 1 件の分岐の失敗を切り分ける。
 #[test]
 fn sample_confirm_entry_matches_apply() {
     let s = load();
@@ -540,8 +524,53 @@ fn sample_go_to_entry_matches_apply() {
     }
 }
 
+/// 保存と復帰（TASK-214 1/3）の単独の照合。e19（成功）と e20（無い番号への拒否）を、e19 の前の状態に
+/// e14 の保存を添えて連鎖して流し、イベント列と後の状態がサンプルと一致することを確かめる。
 #[test]
-#[ignore = "apply() の各分岐（TASK-207・210・211・213・214・215）の結線後に外す。結線の確認は --include-ignored で流す"]
+fn sample_restore_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let find = |id: &str| {
+        s.entries
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap_or_else(|| panic!("sample has {id}"))
+    };
+    let saved = find("e14");
+    let id = saved
+        .events
+        .iter()
+        .find_map(|ev| match ev {
+            Event::CheckpointSaved { id, log_len, .. } => Some((*id, *log_len)),
+            _ => None,
+        })
+        .expect("e14 saves");
+    let first = find("e19");
+    let mut state = SessionState {
+        run: first.before.clone(),
+        ..SessionState::default()
+    };
+    state.checkpoints.insert(
+        id.0,
+        Checkpoint {
+            run: saved.after.clone(),
+            entry: None,
+            log_len: id.1,
+            owner: first.after.current.as_ref().map(StepUid::root),
+        },
+    );
+    for eid in ["e19", "e20"] {
+        let e = find(eid);
+        assert_eq!(state.run, e.before, "{eid}: before");
+        let (next, events) = apply(&ir, state, e.op.clone());
+        assert_eq!(events, e.events, "{eid}: events");
+        assert_eq!(next.run, e.after, "{eid}: after");
+        state = next;
+    }
+}
+
+/// サンプルの全件（e01〜）を連鎖して流した照合。最後の分岐（保存と復帰、TASK-214 1/3）の結線で `#[ignore]` を外した。
+#[test]
 fn sample_replay_matches_apply() {
     let s = load();
     let ir = sample_ir(&s);

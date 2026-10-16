@@ -1,0 +1,8 @@
+id: EVT12-5
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     run.generation = next;
+replace:     run.generation = next; run.busy = None;
+expect-fail: restore_after_saving_at_three_ticks_returns_saved_run
+note: 復帰で処理中を解く（写しの busy を残さない）

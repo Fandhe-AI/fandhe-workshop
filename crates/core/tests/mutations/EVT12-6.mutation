@@ -1,0 +1,8 @@
+id: EVT12-6
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     state.next_checkpoint = CheckpointId(next_id);
+replace:     let _ = next_id;
+expect-fail: second_save_does_not_overwrite_first
+note: 保存で次の ID を進めない（2 回目の保存が 1 件目を上書きする）
