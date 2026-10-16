@@ -1,0 +1,8 @@
+id: EVT11-4
+package: fandhe-workshop-core
+test: move_step
+target: crates/core/src/go_to.rs
+find:         .insert(to.clone(), StepStatus::Entered);
+replace:         .entry(to.clone()).or_insert(StepStatus::Entered);
+expect-fail: move_to_achieved_step_sets_entered
+note: 達成済みの移動先を Entered に戻さない

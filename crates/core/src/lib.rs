@@ -28,6 +28,7 @@
 //! 拒否・問い返し・注記の文面への実行時の値の差し込み（[`text_fill`]、TASK-274）も持つ。
 //! 宛先が一致する進行の前進と食い違う進行の無視の記録（`tick`、TASK-210 2/3・3/3。公開しない）も持つ。
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
+//! 別の Step への移動（`go_to`、TASK-213 1/2。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -43,6 +44,7 @@ pub mod command_rule;
 mod confirm;
 pub mod effect;
 pub mod event;
+mod go_to;
 pub mod history_envelope;
 pub mod history_size;
 pub mod input;

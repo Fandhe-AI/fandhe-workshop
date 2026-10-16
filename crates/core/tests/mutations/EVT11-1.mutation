@@ -1,0 +1,9 @@
+id: EVT11-1
+package: fandhe-workshop-core
+test: move_step
+target: crates/core/src/go_to.rs
+find:     state.run.busy = None;
+replace:     state.run.busy = state.run.busy.clone();
+expect-fail: move_while_busy_increments_generation_and_clears_busy
+expect-fail: p4_move_clears_busy_and_increments
+note: 移動で処理中を解かない
