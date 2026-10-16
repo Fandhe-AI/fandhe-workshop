@@ -1,0 +1,10 @@
+id: EVT6-7
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:         return ignored(&state.run, &outcome.detail);
+replace:         return Vec::new();
+expect-fail: mismatched_tick_records_one_ignored
+expect-fail: duplicate_index_advances_once
+expect-fail: p2_mismatched_tick_keeps_run
+note: 食い違う進行を無視として記録しない（イベントが 0 件になる）

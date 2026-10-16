@@ -1,0 +1,10 @@
+id: EVT6-8
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:         return ignored(&state.run, &outcome.detail);
+replace:         return ignored(&state.run, &outcome.detail).into_iter().chain(ignored(&state.run, &outcome.detail)).collect();
+expect-fail: mismatched_tick_records_one_ignored
+expect-fail: duplicate_index_advances_once
+expect-fail: p2_mismatched_tick_keeps_run
+note: 無視を 2 件記録する（「1 件だけ」の違反）

@@ -77,7 +77,7 @@ pub enum RefuseReason {
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum IgnoreReason {
-    /// 世代または Step が古い。
+    /// 世代・Step・進行の番号のいずれかが古い（同じ番号の二重の届きを含む）。
     Stale,
     /// 現在の Step が無い。
     NoCurrent,

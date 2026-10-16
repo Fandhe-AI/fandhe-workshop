@@ -1,0 +1,8 @@
+id: EVT6-9
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:                 generation: run.generation,
+replace:                 generation: crate::addr::Generation(run.generation.0 + 1),
+expect-fail: mismatched_tick_records_one_ignored
+note: 無視の記録の世代を操作前の状態の世代と食い違わせる

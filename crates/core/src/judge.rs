@@ -52,7 +52,7 @@
 //!   コマンド規則の照合（`on.args`・`on.missing`）は [`crate::command_rule`] が持つ。
 //!   無視のときに続けて `Event::Ignored` を置くかは TASK-207 が決める
 //! - 進行（`Op::Tick`）での `Judged` の発行位置。EVT-8 は宛先の食い違いを「無視を 1 件だけ記録」とするため、
-//!   `Judged{ignored}` と `Ignored` を両方出すかは TASK-210 が決める。ここは [`judge_tick`] の純関数だけを置く
+//!   TASK-210 3/3 が `Ignored` 1 件だけと決めた（`Judged` は出さない）。ここは [`judge_tick`] の純関数だけを置く
 //! - `Event::Refused.rejection` の型の置き換え、問い返しの待ちの状態
 
 use std::fmt;
@@ -162,7 +162,7 @@ pub fn judged_event(at: Stamp, judgment: Judgment) -> Event {
 /// 進行の宛先を現在の状態と照らし、進行か無視かを決める。
 ///
 /// 3 要素（世代・Step・番号）が現在の状態と一致したときだけ進行になる。食い違いは `Stale`、現在の Step が無ければ
-/// `NoCurrent`、処理中でなければ `NoProcessing`（宛先の食い違いが先。EVT-8）。発行位置は TASK-210 が決める。
+/// `NoCurrent`、処理中でなければ `NoProcessing`（宛先の食い違いが先。EVT-8）。呼び出し元の `tick` は `Judged` を出さず `Ignored` 1 件だけを記録する（TASK-210 3/3）。
 pub fn judge_tick(run: &RunState, addr: &TickAddr) -> JudgeOutcome {
     let Some(current) = &run.current else {
         return JudgeOutcome::ignored(IgnoreReason::NoCurrent);
