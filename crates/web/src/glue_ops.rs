@@ -7,7 +7,8 @@
 //! （`docs/spec/01-brainstorm.md`、2026-10-12、TASK-1）である。
 //!
 //! 状態を変える経路は `Component::update` だけである（FEND-2・FEND-20）。glue は App を共有参照でだけ読む
-//! （`glue::with_app`）。`dispatch_action` は Runtime が `update` へ届ける入口で、glue からの結線は TASK-347 で行う。
+//! （`glue::with_app`）。`dispatch_action` は Runtime が `update` へ届ける入口で、glue は `set_timeout` のコールバックの中
+//! （`glue::deliver`）からだけ呼ぶ（TASK-349。FEND-4）。
 //! ツリーの構造を変える操作（要素の生成・挿入・削除、HTML や文字列の一括設定、属性の削除）は
 //! [`GlueOp`] に無く、許されない。
 //!
@@ -16,8 +17,8 @@
 //!   契約は取得の呼び出し箇所の数（[`MAX_ELEMENT_LOOKUPS`] 以下）で表し、時点の見直しは TASK-347 以降で行う。
 //! - Enter の送信（TASK-275）のため、取得する要素は root・下書きの欄・送信ボタンの 3 要素になる。FEND-20 の
 //!   「mount の時に 2 要素」とは異なる。呼び出し箇所は共有の取得関数 1 つにまとめ、数は 2 のまま保つ。
-//! - `tests/state_paths.rs` は glue の `dispatch_action` 呼び出しを禁止しているが、FEND-4 はタイマーの
-//!   コールバックから呼ぶ前提である。TASK-347 の結線で、この規則を見直す必要がある。
+//! - FEND-4 はタイマーのコールバックから `dispatch_action` を呼ぶ前提のため、`tests/state_paths.rs` の規則を
+//!   「`deliver` の 1 箇所だけ・`schedule_action` が `set_timeout` を通して呼ぶ」に見直した（TASK-349）。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
 //! （`action::ESC_KEYDOWN_ATTRS`）で届く。

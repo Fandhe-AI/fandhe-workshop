@@ -2,12 +2,15 @@
 //! dirty の求め方・core との一致（表示層が進行管理を持たないことの動的な確認）を確かめる。
 //! ダミーの部品は試験の側にだけ置く。試験では `unwrap` を使ってよい。
 
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{bind_text, el, text, Node};
 use fandhe_frontend_wasm_full::render_component_html;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::{apply, SessionState};
@@ -167,7 +170,7 @@ fn action_の復号は入力欄と互換で_未知の名前は_none() {
         EngineHost::decode_action("keydown-probe", ""),
         Some(HostAction::Input(_))
     ));
-    for name in ["tick", "complete", "click", ""] {
+    for name in ["tick", "click", ""] {
         assert!(EngineHost::decode_action(name, "").is_none(), "{name}");
     }
 }
@@ -402,4 +405,132 @@ fn raw_は_op_の_json_を復号し_壊れた_payload_は_none() {
 fn 配信する設定では_raw_を復号せず_raw_trigger_も描かない() {
     assert!(EngineHost::decode_action("raw", "{\"control\":{\"begin\":\"s-1\"}}").is_none());
     assert!(!html(&EngineHost::new()).contains("raw-trigger"));
+}
+
+// ---- TASK-349 1/2: tick・complete を Runtime の口で届ける ----
+
+fn addr(generation: u64, step: &str, index: u32) -> TickAddr {
+    TickAddr {
+        generation: Generation(generation),
+        step: StepUid::parse(step).unwrap(),
+        index,
+    }
+}
+
+/// 通知された宛先を記録する通知先を結んだホストと、その記録。
+fn recording_host() -> (EngineHost, Rc<RefCell<Vec<Option<TickAddr>>>>) {
+    let mut host = begun_host();
+    let seen: Rc<RefCell<Vec<Option<TickAddr>>>> = Rc::default();
+    let sink = Rc::clone(&seen);
+    host.set_tick_request(Box::new(move |next| sink.borrow_mut().push(next)));
+    (host, seen)
+}
+
+fn make_note() -> HostAction {
+    HostAction::Engine(Op::Input(Input::Command(
+        "/make-note first-note".to_owned(),
+    )))
+}
+
+fn ignored_count(host: &EngineHost) -> usize {
+    host.model()
+        .session()
+        .unwrap()
+        .log()
+        .iter()
+        .filter(|e| event_kind_name(e) == "ignored")
+        .count()
+}
+
+#[test]
+fn tick_と_complete_は_runtime_の復号で_op_とホストの_action_になる() {
+    let tick = EngineHost::decode_action("tick", "1 0 main/st-1");
+    assert!(matches!(
+        tick,
+        Some(HostAction::Engine(Op::Tick(ref a))) if *a == addr(1, "main/st-1", 0)
+    ));
+    assert!(matches!(
+        EngineHost::decode_action("complete", ""),
+        Some(HostAction::Complete)
+    ));
+    for bad in [
+        "",
+        "01 0 main/st-1",
+        "1 0",
+        "1 0 main/st-1 x",
+        "1 -1 main/st-1",
+        "x",
+    ] {
+        assert!(EngineHost::decode_action("tick", bad).is_none(), "{bad}");
+    }
+    assert!(EngineHost::decode_action("complete", "x").is_none());
+    // esc は従来どおり入力欄の action になる。
+    assert!(matches!(
+        EngineHost::decode_action("esc", "Escape"),
+        Some(HostAction::Input(_))
+    ));
+}
+
+#[test]
+fn complete_は状態もログも_dirty_も変えない() {
+    let mut host = begun_host();
+    host.update(make_note());
+    let before = (
+        host.model().session().unwrap().state().clone(),
+        host.model().projection().clone(),
+    );
+    host.update(HostAction::Complete);
+    assert!(host.dirty_fields().is_empty());
+    assert_eq!(host.model().session().unwrap().state(), &before.0);
+    assert_eq!(host.model().projection(), &before.1);
+}
+
+#[test]
+fn 進行の宛先は設定した時点と更新のたびに通知される() {
+    let (mut host, seen) = recording_host();
+    assert_eq!(seen.borrow().as_slice(), &[None]);
+    host.update(make_note());
+    assert_eq!(seen.borrow().last(), Some(&Some(addr(1, "main/st-1", 0))));
+    assert_eq!(host.next_tick(), Some(addr(1, "main/st-1", 0)));
+    let tick0 = addr(1, "main/st-1", 0);
+    host.update(HostAction::Engine(Op::Tick(tick0)));
+    assert_eq!(seen.borrow().last(), Some(&Some(addr(1, "main/st-1", 1))));
+}
+
+#[test]
+fn 最後の進行の後は_none_が通知される() {
+    let (mut host, seen) = recording_host();
+    host.update(make_note());
+    for i in 0..5 {
+        let next = host.next_tick().expect("処理中のはず");
+        assert_eq!(next, addr(1, "main/st-1", i));
+        host.update(HostAction::Engine(Op::Tick(next)));
+    }
+    assert_eq!(host.next_tick(), None);
+    assert_eq!(seen.borrow().last(), Some(&None));
+}
+
+#[test]
+fn 停止の後の古い宛先は_ignored_1件で状態を変えず_再入力で新しい世代の宛先になる() {
+    let (mut host, seen) = recording_host();
+    host.update(make_note());
+    let stale = host.next_tick().unwrap();
+    host.update(HostAction::Engine(Op::Control(Control::Stop)));
+    assert_eq!(seen.borrow().last(), Some(&None));
+    let state_after_stop = host.model().session().unwrap().state().clone();
+    let ignored_before = ignored_count(&host);
+    host.update(HostAction::Engine(Op::Tick(stale.clone())));
+    assert_eq!(ignored_count(&host), ignored_before + 1);
+    let session = host.model().session().unwrap();
+    assert_eq!(session.state().run, state_after_stop.run);
+    assert_eq!(session.generation(), Generation(2));
+    assert_eq!(seen.borrow().last(), Some(&None));
+    // 同じ宛先をもう一度届けても、記録が 1 件ずつ増えるだけで状態は変わらない。
+    host.update(HostAction::Engine(Op::Tick(stale)));
+    assert_eq!(
+        host.model().session().unwrap().state().run,
+        state_after_stop.run
+    );
+    host.update(make_note());
+    assert_eq!(seen.borrow().last(), Some(&Some(addr(2, "main/st-1", 0))));
 }

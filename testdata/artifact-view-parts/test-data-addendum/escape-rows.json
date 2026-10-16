@@ -1,0 +1,6 @@
+{"view":"__VIEW__","title":"escape cases","rows":[
+{"id":"e1","depth":0,"kind":"line","before":{"label":"<img src=x onerror=\"window.__escape_hit=1\">","detail":"<script>window.__escape_hit=2</script>","state":"ctx","tags":["<b>tag</b>"]},"after":{"label":"<img src=x onerror=\"window.__escape_hit=3\">","detail":"\"><svg onload=window.__escape_hit=4>","state":"add","tags":["<i>t</i>"]}},
+{"id":"e2","depth":0,"kind":"tab","before":{"label":"<iframe src=\"javascript:window.__escape_hit=5\"></iframe>","detail":"</div><script>window.__escape_hit=6</script>","state":"active","tags":[]},"after":{"label":"[x](javascript:window.__escape_hit=7)","detail":"**bold** `code`","state":"","tags":[]}},
+{"id":"e3","depth":1,"kind":"dir","before":{"label":"a&lt;b&amp;c","detail":"&#60;img src=x onerror=window.__escape_hit=8&#62;","state":"open","tags":[]},"after":null},
+{"id":"e4","depth":0,"kind":"field","before":null,"after":{"label":"label\" data-evil=\"1","detail":"value\" onfocus=\"window.__escape_hit=9\" autofocus=\"","state":"disabled","tags":[]}}
+]}

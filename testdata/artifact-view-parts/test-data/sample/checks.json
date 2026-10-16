@@ -1,0 +1,8 @@
+{"view":"checks","title":"チェック（架空の CI）","rows":[
+{"id":"c1","depth":0,"kind":"check","before":{"label":"format","detail":"3 秒","state":"success","tags":[]},"after":{"label":"format","detail":"3 秒","state":"success","tags":[]}},
+{"id":"c2","depth":0,"kind":"check","before":{"label":"lint","detail":"12 秒","state":"failure","tags":[]},"after":{"label":"lint","detail":"11 秒","state":"success","tags":[]}},
+{"id":"c3","depth":0,"kind":"check","before":{"label":"test","detail":"実行中","state":"running","tags":[]},"after":{"label":"test","detail":"48 秒","state":"success","tags":[]}},
+{"id":"c4","depth":0,"kind":"check","before":{"label":"build","detail":"待機中","state":"pending","tags":[]},"after":{"label":"build","detail":"2 分","state":"failure","tags":[]}},
+{"id":"c5","depth":0,"kind":"check","before":null,"after":{"label":"deploy-preview","detail":"待機中","state":"pending","tags":[]}},
+{"id":"c6","depth":0,"kind":"check","before":{"label":"docs","detail":"省略","state":"skipped","tags":[]},"after":null}
+]}

@@ -1,0 +1,8 @@
+{"view":"tasks","title":"メモ帳アプリの作業項目（架空の Issue）","rows":[
+{"id":"t1","depth":0,"kind":"task","before":{"label":"#1 メモを保存できる","detail":"担当: 受講者","state":"progress","tags":[]},"after":{"label":"#1 メモを保存できる","detail":"担当: 受講者","state":"done","tags":[]}},
+{"id":"t1a","depth":1,"kind":"task","before":{"label":"#2 保存先の形式を決める","detail":"担当: 受講者","state":"done","tags":[]},"after":{"label":"#2 保存先の形式を決める","detail":"担当: 受講者","state":"done","tags":[]}},
+{"id":"t1b","depth":1,"kind":"task","before":{"label":"#3 保存の関数を作る","detail":"担当: AI","state":"progress","tags":[]},"after":{"label":"#3 保存の関数を作る","detail":"担当: AI","state":"done","tags":[]}},
+{"id":"t2","depth":0,"kind":"task","before":{"label":"#4 メモを一覧で見られる","detail":"担当: AI","state":"open","tags":[]},"after":{"label":"#4 メモを一覧で見られる","detail":"担当: AI","state":"progress","tags":[]}},
+{"id":"t2a","depth":1,"kind":"task","before":null,"after":{"label":"#6 一覧の並び順を決める","detail":"担当: 受講者","state":"open","tags":[]}},
+{"id":"t3","depth":0,"kind":"task","before":{"label":"#5 メモを検索できる","detail":"担当: 未定","state":"open","tags":[]},"after":null}
+]}

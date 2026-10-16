@@ -11,10 +11,9 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use fandhe_workshop_contract::ir::{is_supported_ir_format, Ir};
-use fandhe_workshop_contract::limits::{LimitReason, LoadEntry, MAX_IR_BYTES};
+use fandhe_workshop_contract::limits::{LimitReason, LoadEntry};
 
-use crate::json_depth::check_json_depth;
-use crate::load_gate::{parse_json_value, LoadError};
+use crate::load_gate::{check_limits, parse_json_value, LoadError};
 
 /// IR を読めない理由。メッセージには ID だけを含め、IR の本文は含めない。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,7 +85,7 @@ fn from_gate(e: LoadError) -> IrLoadError {
 
 /// IR のバイト列が大きさと入れ子の上限（契約の `MAX_IR_BYTES`・`MAX_JSON_DEPTH`）に収まるかを、解析せずに判定する。
 ///
-/// `load_ir` が通す関門（`load_gate::parse_json_value` の `LoadEntry::Ir`）の最初の 2 段と同じ判定で、
+/// `load_ir` が通す関門と同じ判定（`load_gate::check_limits(LoadEntry::Ir, _)` をそのまま呼ぶ）で、
 /// pack の `compile` が成功を返す前に使い、「書き出せたが読めない IR」を作らないために公開する
 /// （上限の値は contract だけが持ち、深さの数え方は `json_depth` だけが持つ）。両者の一致は試験で確かめる。
 ///
@@ -94,10 +93,7 @@ fn from_gate(e: LoadError) -> IrLoadError {
 ///
 /// 大きさが `MAX_IR_BYTES` を超えれば `TooLarge`、入れ子が `MAX_JSON_DEPTH` を超えれば `TooDeep`。
 pub fn check_ir_limits(bytes: &[u8]) -> Result<(), LimitReason> {
-    if bytes.len() as u64 > MAX_IR_BYTES {
-        return Err(LimitReason::TooLarge);
-    }
-    check_json_depth(bytes)
+    check_limits(LoadEntry::Ir, bytes)
 }
 
 /// 解釈済みの値から版を先読みし、読める版（1・2）でなければその理由を返す。
@@ -180,7 +176,9 @@ pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fandhe_workshop_contract::limits::{LoadStage, LOAD_STAGE_ORDER, MAX_JSON_DEPTH};
+    use fandhe_workshop_contract::limits::{
+        LoadStage, LOAD_STAGE_ORDER, MAX_IR_BYTES, MAX_JSON_DEPTH,
+    };
 
     const MIN: &str = concat!(
         r#"{"format_version":1,"#,
