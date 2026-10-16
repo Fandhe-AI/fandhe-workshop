@@ -814,9 +814,9 @@ impl EngineHost {
     }
 }
 
-/// 復元で、ログ全体の拒否の文面を core に作り直させて控える。
+/// 復元で、ログ全体の拒否・問い返しの文面を core に作り直させて控える。
 ///
-/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否は控えず、
+/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否・問い返しは控えず、
 /// 行を出さない（fail-closed）。
 fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
     for (i, f) in filled_texts_of_log(session.ir(), session.log()) {
@@ -826,9 +826,9 @@ fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
     }
 }
 
-/// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否の `Judged` について文面を充填して控える。
+/// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否・問い返しの `Judged` について文面を充填して控える。
 ///
-/// 充填に失敗した（`Err`・`None`）拒否は控えない。エラーは文面も入力値も含まないが、ここでは出力しない。
+/// 充填に失敗した（`Err`・`None`）拒否・問い返しは控えない。問い返しも状態を変えないため、適用直後の状態で充填できる。エラーは文面も入力値も含まないが、ここでは出力しない。
 fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, from: usize) {
     let log = session.log();
     for i in from..log.len() {
@@ -837,13 +837,12 @@ fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, fro
         else {
             continue;
         };
-        let Event::Judged {
-            judgment: judgment @ Judgment::Rejected(_),
-            ..
-        } = judged
-        else {
+        let Event::Judged { judgment, .. } = judged else {
             continue;
         };
+        if !keeps_text(judgment) {
+            continue;
+        }
         let Ok(key) = u32::try_from(i) else {
             continue;
         };
@@ -851,6 +850,11 @@ fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, fro
             texts.insert(key, f.message);
         }
     }
+}
+
+/// 文面を控える判定か。拒否と問い返しだけで、受付や変化は応答の行の担当（TASK-435・TASK-438）。
+fn keeps_text(j: &Judgment) -> bool {
+    matches!(j, Judgment::Rejected(_) | Judgment::Clarified(_))
 }
 
 impl Component for EngineHost {

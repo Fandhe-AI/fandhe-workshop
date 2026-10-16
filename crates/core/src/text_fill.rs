@@ -274,12 +274,12 @@ pub fn filled_text(
     }))
 }
 
-/// ログの拒否の `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
+/// ログの拒否・問い返しの `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
 ///
 /// 復元では現在の状態しか無いため、各 `Judged` の `at.step` と直前までの `Progress` から、充填に要る欄
-/// （現在の Step・処理中の進み具合）だけを組み直す。拒否は状態を変えないので、組み直した値は判定の直前と
-/// 同じになる。処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否、
-/// 組み直せない（教材に無い Step・充填の失敗）拒否は戻さない（fail-closed）。
+/// （現在の Step・処理中の進み具合）だけを組み直す。拒否・問い返しは状態を変えないので、組み直した値は判定の直前と
+/// 同じになる。処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否・問い返し、
+/// 組み直せない（教材に無い Step・充填の失敗）ものは戻さない（fail-closed）。
 pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
     let mut out = Vec::new();
     // 直近の進行の（次の番号、総数）。状態を進める・変えるイベントで捨てる。
@@ -307,14 +307,17 @@ pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
             | Event::Skipped { .. } => progress = None,
             Event::Judged {
                 at,
-                judgment: judgment @ Judgment::Rejected(r),
+                judgment: judgment @ (Judgment::Rejected(_) | Judgment::Clarified(_)),
             } => {
                 let Some(Event::InputReceived { input, .. }) =
                     i.checked_sub(1).and_then(|p| log.get(p))
                 else {
                     continue;
                 };
-                let busy = if r.category == RejectCategory::Busy {
+                let busy = if matches!(
+                    judgment,
+                    Judgment::Rejected(r) if r.category == RejectCategory::Busy
+                ) {
                     let total = progress.map(|(_, t)| t).or_else(|| {
                         let node = ir.nodes.iter().find(|n| n.uid == at.step.0)?;
                         u32::try_from(node.step.processing.len()).ok()
@@ -556,5 +559,46 @@ mod tests {
         let filled = filled_texts_of_log(&ir, &log);
         assert_eq!(filled.len(), 1);
         assert_eq!(filled[0].1.message, "残り2/3");
+    }
+
+    #[test]
+    fn clarification_is_refilled_only_right_after_input() {
+        use crate::addr::{Generation, StepUid};
+        use crate::input::Input;
+        use fandhe_workshop_contract::judgment::Clarification;
+
+        let mut ir = ir_with(&[]);
+        ir.clarifications.insert(
+            "cl".into(),
+            serde_json::json!({"message": "名前を教えてください"}),
+        );
+        ir.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "uid": "s/a", "scope": "s", "unit": "u",
+                "step": {"id": "a", "title": "題"}
+            }))
+            .expect("node"),
+        );
+        let at = || crate::addr::Stamp {
+            generation: Generation::INITIAL,
+            step: StepUid("s/a".into()),
+        };
+        let judged = || Event::Judged {
+            at: at(),
+            judgment: Judgment::Clarified(Clarification {
+                text: "cl".into(),
+                next_action: NextAction::new("名前を付ける").expect("next"),
+            }),
+        };
+        let received = Event::InputReceived {
+            at: at(),
+            input: Input::Command("/new-idea".into()),
+        };
+        let filled = filled_texts_of_log(&ir, &[received.clone(), judged()]);
+        assert_eq!(filled.len(), 1);
+        assert_eq!(filled[0].0, 1);
+        assert_eq!(filled[0].1.message, "名前を教えてください");
+        // 入力の直後でない問い返しは戻さない（fail-closed）。
+        assert!(filled_texts_of_log(&ir, &[judged()]).is_empty());
     }
 }

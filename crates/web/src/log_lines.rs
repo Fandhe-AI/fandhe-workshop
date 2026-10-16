@@ -8,11 +8,11 @@
 //! （SAFE-11。HTML 風の文字列が要素にならないことは `tests/log_lines_contract.rs` が木の上で確かめる）。
 //!
 //! 結線の範囲: `InputReceived`（`received`）・`Progress`（`progress`）・`Stopped`（`stopped`）・`Reloaded`（`reloaded`。TASK-322）と、
-//! 拒否の `Judged`（`rejected`。TASK-437 1/2）。拒否の理由は、IR の文面の ID の解決と実行時の値の差し込みを
+//! 拒否の `Judged`（`rejected`。TASK-437 1/2）・問い返しの `Judged`（`clarified`。TASK-437 2/2）。理由・問いは、IR の文面の ID の解決と実行時の値の差し込みを
 //! 済ませた文面（`host::HostModel::judged_text`）を呼び出し側が渡す。ここでは文面を作らず、渡されなければ
 //! 行にしない（fail-closed）。
-//! 拡張点: 問い返しの行は TASK-437 2/2（#328）、応答の行は TASK-435・TASK-438 が `line_from_event` に足す。
-//! 型 [`LogLine`] は、結線済みの種類と拡張点で足す種類（問い返し・応答）をすべて表せる。
+//! 拡張点: 応答の行は TASK-435・TASK-438 が `line_from_event` に足す。
+//! 型 [`LogLine`] は、結線済みの種類と拡張点で足す種類（応答）をすべて表せる。
 //!
 //! 親の識別子 `log-list` は引き継がない。`hello.rs` の送信済みの一覧が使っており、ブラウザ試験が数えているため、
 //! `LogPart` の親は仮の `part-log-list` のままにする。引き継ぎ（hello の一覧の退役と `part-log*` の仮の識別子の
@@ -116,8 +116,8 @@ impl LogLine {
 
 /// イベントを行に写す。行にしないイベント（と、契約に違反する進行）は `None`。
 ///
-/// `text` は、そのイベントの拒否の理由として core が充填した文面（`HostModel::judged_text`）。
-/// 拒否の `Judged` は `text` が空白だけでないときだけ行にする（理由の無い行を出さない）。他のイベントは読まない。
+/// `text` は、そのイベントの拒否の理由・問い返しの問いとして core が充填した文面（`HostModel::judged_text`）。
+/// 拒否・問い返しの `Judged` は `text` が空白だけでないときだけ行にする（理由・問いの無い行を出さない）。他のイベントは読まない。
 ///
 /// `Event` は `non_exhaustive` のため、足された種類は `None` に倒す（行を黙って捏造しない）。
 pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
@@ -131,6 +131,16 @@ pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
                 category: r.category,
                 reason: reason.to_owned(),
                 next_action: r.next_action.clone(),
+            })
+        }
+        Event::Judged {
+            judgment: Judgment::Clarified(c),
+            ..
+        } => {
+            let question = text.filter(|t| !t.trim().is_empty())?;
+            Some(LogLine::Clarified {
+                question: question.to_owned(),
+                next_action: c.next_action.clone(),
             })
         }
         Event::InputReceived { input, .. } => {

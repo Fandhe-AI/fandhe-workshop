@@ -1,0 +1,8 @@
+id: TERM32-4
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/log_lines.rs
+find:             LogLine::Clarified { .. } => LineKind::Clarified,
+replace:             LogLine::Clarified { .. } => LineKind::Rejected,
+expect-fail: 拒否と問い返しは文面が渡されたときだけ行になり_種類で区別される
+note: 問い返しの行の種類が拒否と同じになる（区別の喪失）

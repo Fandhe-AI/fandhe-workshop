@@ -252,7 +252,7 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
 - 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
-- 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は TASK-437 2/2 の後に足す
+- 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は、試験の設定の mount に問い返しを持つ教材が無いため未対応（5.3.1d）
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
 ```text
@@ -316,6 +316,31 @@ TERM32-2 は、`crates/web/src/host.rs` の `install_session`（履歴の差し�
 |---|---|---|---|---|---|
 | TERM32-1 | crates/web/src/host.rs: 拒否の理由の控えを作らない（行が出ない） | 誤入力の拒否は理由と空でない次の行動の行として出る | 左の 1 件に加え、fill_pack_の拒否は期待の文面と次の行動のとおりに出る・履歴の差し替えで拒否の文面の控えは新しいログから作り直される の 2 件 | DETECTED | - |
 | TERM32-2 | crates/web/src/host.rs: 履歴の差し替えで拒否の文面の控えを作り直さない（差し替え前の位置の控えが残る） | 履歴の差し替えで拒否の文面の控えは新しいログから作り直される | 左の 1 件 | DETECTED | - |
+
+### 5.3.1d 問い返しが拒否と区別されて右のログに出ること（TASK-437 2/2）
+
+TERM32-3 は、`crates/web/src/host.rs` の `keeps_text`（文面を控える判定の選別）が問い返しを外す変異である。
+問い返しの文面の控えが作られず行が出なくなり、native の `crates/web/tests/clarify_lines.rs` が検出する。
+TERM32-4 は、`crates/web/src/log_lines.rs` で問い返しの行の種類を `rejected` と同じにする変異である（拒否との区別の喪失）。
+`log_lines_contract` の種類の試験が検出する。
+
+native の試験 `clarify_lines` は `ch1-pack` の `main/st-1-4` で、引数なしの `/new-idea`（問い返し）と順序違いの `/advance-phase`
+（`rejected:wrong_order`）を `EngineHost` に流す。問い返しの行（子は `line-question`・`line-next-action`、`data-category` なし）が
+拒否の行の件数に数えられないこと、拒否の行が入力の行の直後に出ること、復元と履歴の差し替えで控えが作り直されることを確かめる。
+
+- 212 文字の応答は試作パック（公開の可否が未決。D-11・TASK-14）で測った値で、実文は repo に無い。`ch1-pack` の ST-1.4 と、240 文字の合成の理由・問い（`log_lines_contract`。切り詰めず文字ノード 1 つで出る）で代える
+- 問い返しのブラウザ試験は未対応。試験の設定の mount は `min-3step` の IR を埋め込み、その `clarifications` は空で、`open_history` は IR を固定するため、問い返しを起こせない。別の Issue で扱う
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 2bf37a9-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM32-3.mutation crates/web/tests/mutations/TERM32-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM32-3 | crates/web/src/host.rs: 問い返しの文面の控えを作らない（行が出ない） | 引数なしの_new_idea_は_clarified_の行になり_拒否の行に数えない | 左の 1 件に加え、順序違いの_advance_phase_は…・復元でも問い返しの行が同じ文面で出る の 2 件 | DETECTED | - |
+| TERM32-4 | crates/web/src/log_lines.rs: 問い返しの行の種類が拒否と同じになる（区別の喪失） | 拒否と問い返しは文面が渡されたときだけ行になり_種類で区別される | 左の 1 件に加え、合成した全種の行が_log_list_の下で_check_area_と_check_view_を通る の 2 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
