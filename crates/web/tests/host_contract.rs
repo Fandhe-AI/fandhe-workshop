@@ -19,6 +19,7 @@ use fandhe_workshop_core::{load_ir, Projection, Session};
 use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::engine_parts::{event_kind_name, standard_registry};
 use fandhe_workshop_web::host::{EngineHost, HostAction, HostError, HostModel};
+use fandhe_workshop_web::log_lines::line_from_event;
 use fandhe_workshop_web::parts::*;
 
 const F_LOG: &[PartField] = &[
@@ -345,10 +346,15 @@ fn 操作のたびに_3_つの表示の元が同じイベント列から導か�
         }
         let h = html(&host);
         assert!(check_no_undefined(&host.view()).is_ok(), "{h}");
-        // ログの行は Changed を持たない（変化は印と復習へ回る）ため、行数は一括で導いた行数と比べる。
+        // ログの行は、行にできるイベント（入力・進行・停止。TASK-434）だけである。行数は一括で導いた行のうち
+        // `line_from_event` が行にするものの数と比べる。
         assert_eq!(
             h.matches("data-event=").count(),
-            Projection::from_events(log).log().len(),
+            Projection::from_events(log)
+                .log()
+                .iter()
+                .filter(|r| line_from_event(&log[r.event as usize]).is_some())
+                .count(),
             "{h}"
         );
     }
