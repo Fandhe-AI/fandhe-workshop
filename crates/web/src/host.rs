@@ -265,6 +265,8 @@ impl EngineHost {
     /// 一致することを確かめる。文字列のエスケープは `serde_json` に任せる。
     ///
     /// 拒否の分類（`judgedCategories`）は、`busy` の回数を数えるために足した（TASK-222）。
+    /// `stateWithoutLog`（ログを除いた状態の全体）と `ignoredReasons`（無視の理由）は、B-3〜B-5 の
+    /// 状態の一致と無視の理由を確かめるために足した（TASK-222）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn engine_snapshot_json(&self) -> String {
         use crate::engine_parts::{artifact_rows, event_kind_name};
@@ -328,10 +330,32 @@ impl EngineHost {
                 _ => None,
             })
             .collect();
+        // 無視の理由は `IgnoreReason`（non_exhaustive）の serde の表記に任せる。
+        let ignored_reasons: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                fandhe_workshop_core::event::Event::Ignored { at, reason } => Some(json!({
+                    "event": i,
+                    "generation": at.generation.0,
+                    "step": at.step.0,
+                    "reason": serde_json::to_value(reason).unwrap_or(serde_json::Value::Null),
+                })),
+                _ => None,
+            })
+            .collect();
+        // ログは無視のたびに伸びるため、状態の一致の比較からは外す。失敗は Null に倒す。
+        let mut state_without_log =
+            serde_json::to_value(session.state()).unwrap_or(serde_json::Value::Null);
+        if let Some(obj) = state_without_log.as_object_mut() {
+            obj.remove("log");
+        }
         json!({
             "irLoaded": true,
             "logLen": log.len(),
             "judgedCategories": judged_categories,
+            "ignoredReasons": ignored_reasons,
+            "stateWithoutLog": state_without_log,
             "consumed": bulk.consumed(),
             "generation": session.generation().0,
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
