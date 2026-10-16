@@ -1,0 +1,9 @@
+id: SAVE24-5
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/history_envelope.rs
+find:     Ok(HistoryEnvelope::new(
+replace:     let mut snapshot = snapshot; if snapshot.log.len() >= 2 { snapshot.log.swap(0, 1); } Ok(HistoryEnvelope::new(
+expect-fail: samples_are_rebuilt_byte_for_byte
+expect-fail: sample_rebuild_roundtrips_and_keeps_positions
+note: 包む直前にログの先頭の 2 件を入れ替える（SAVE-2、PoC-6 の X-6 に当たるログの並びの誤りの組み立て側）
