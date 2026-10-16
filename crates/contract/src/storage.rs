@@ -43,18 +43,20 @@
 //!
 //! - 起動番号の `fandhe-workshop/meta/…` の鍵（SAVE-12）と、秘密情報の警告の `sessionStorage` の鍵。必要なら版上げで足す
 //! - localStorage に書ける最大の判定と、IndexedDB の失敗時の挙動（TASK-317）
-//! - 読み込みの拒否理由コード（TASK-310 2/3）と判定の順序（TASK-310 3/3）。この 2 つは同じ版 1 の範囲で足し、
-//!   新しい版の定数を作らず [`STORAGE_CONTRACT_VERSION`] を参照する
+//! - 判定の順序（TASK-310 3/3）。読み込みの拒否理由コード（TASK-310 2/3）は [`crate::load_reason`] にあり、
+//!   どちらも同じ版 1 の範囲で、新しい版の定数を作らず [`STORAGE_CONTRACT_VERSION`] を参照する
 //! - 履歴の値の加工。値は口が触らず、HTML へ出すときのエスケープは web の責務である
 //! - SAVE-32 の削除の接頭辞は、試作の鍵（`…/history/<教材の ID>/`）の文面から配信の区間の分だけずれる。
 //!   本契約では [`pack_prefix`]・[`HistoryKey::belongs_to`] が正である
 //!
-//! 版の定数 [`STORAGE_CONTRACT_VERSION`] は、鍵の形・口の操作・[`StorageError`] の variant を変えるときに上げる。
+//! 版の定数 [`STORAGE_CONTRACT_VERSION`] は、鍵の形・口の操作・[`StorageError`] の variant・
+//! [`crate::load_reason::LoadReason`] の variant と文字列を変えるときに上げる。
 
 use crate::ir::Ir;
 use std::fmt;
 
-/// 保存先の契約の版。鍵の形・口の操作・[`StorageError`] の variant を変えるときに上げる。
+/// 保存先の契約の版。鍵の形・口の操作・[`StorageError`] の variant・[`crate::load_reason::LoadReason`] の
+/// variant と文字列を変えるときに上げる。
 pub const STORAGE_CONTRACT_VERSION: u32 = 1;
 
 /// 履歴の鍵の接頭辞。履歴の鍵はすべてこれと `/` で始まる。

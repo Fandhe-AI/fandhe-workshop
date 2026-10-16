@@ -1,0 +1,8 @@
+id: SAVE20-2
+package: fandhe-workshop-contract
+test: load_reason_contract
+target: crates/contract/src/load_reason.rs
+find:             LoadReason::TooLarge => LimitReason::TooLarge.as_str(),
+replace:             LoadReason::TooLarge => "too_big",
+expect-fail: limit_codes_delegate_to_limit_reason
+note: 上限の理由コードを委ねずに再定義し、limits の文字列とずれる
