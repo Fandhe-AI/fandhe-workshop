@@ -21,6 +21,7 @@ use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 
 use crate::a11y::LOG_LIST_TESTID;
+use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::input_limit::{clamp_draft, notice_for};
 use crate::learner_text::learner_line;
 
@@ -52,6 +53,9 @@ pub struct HelloView {
     /// keydown の probe が受け取った回数。配信する設定には存在しない。
     #[cfg(feature = "test-hooks")]
     keydown_probe: u32,
+    /// root の中の Esc（`esc`）を受け取った回数。配信する設定には存在しない（TASK-350）。
+    #[cfg(feature = "test-hooks")]
+    esc_count: u32,
 }
 
 /// アクション。配信する設定では値を持たず、Hello は操作を受け付けない。
@@ -61,6 +65,11 @@ pub enum HelloAction {
     SetDraft(String),
     /// 送信（`data-action="submit"`）。本文は状態の下書きから取り、DOM は読まない。
     Submit,
+    /// root の中の Esc（`data-action-keydown="esc"`。FEND-5）。状態を変えない。
+    ///
+    /// 停止・取り消しへの結び付け（`key_route::esc_route`）は TASK-347・TASK-352 の担当で、ここでは
+    /// 「Component に届いた」ことだけを表す。`UnknownAction` に倒すと届いたことを確かめられない。
+    Esc,
     /// keydown の probe への入力（`data-action-keydown="keydown-probe"`）。試験の設定のみ。
     #[cfg(feature = "test-hooks")]
     KeydownProbe,
@@ -87,6 +96,12 @@ impl HelloView {
     #[cfg(feature = "test-hooks")]
     pub(crate) fn keydown_probe(&self) -> u32 {
         self.keydown_probe
+    }
+
+    /// root の中の Esc を受け取った回数（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn esc_count(&self) -> u32 {
+        self.esc_count
     }
 }
 
@@ -117,6 +132,13 @@ impl Component for HelloView {
                     self.entries.pop_front();
                 }
                 self.dirty.push(FIELD_LOG);
+            }
+            HelloAction::Esc => {
+                // dirty は空のまま。DOM の更新も欄の作り直しも起こさない。
+                #[cfg(feature = "test-hooks")]
+                {
+                    self.esc_count = self.esc_count.saturating_add(1);
+                }
             }
             #[cfg(feature = "test-hooks")]
             HelloAction::KeydownProbe => {
@@ -186,7 +208,11 @@ impl Component for HelloView {
             Ok(list) => list,
             Err(_) => el("ol", attrs, vec![]),
         });
-        el("main", vec![("data-testid", "hello-root")], children)
+        // root の中の Esc を属性で届ける（FEND-5・D-30）。prevent-default・ignore-repeat は付けない
+        // （押しっぱなしの扱いは FEND-18・TASK-364 で決める）。変換中の除外は上流が行う。
+        let mut main_attrs = vec![("data-testid", "hello-root")];
+        main_attrs.extend(ESC_KEYDOWN_ATTRS);
+        el("main", main_attrs, children)
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
@@ -195,6 +221,9 @@ impl Component for HelloView {
         }
         if name == "submit" {
             return Some(HelloAction::Submit);
+        }
+        if let Some(RuntimeAction::Esc) = RuntimeAction::decode(name, payload) {
+            return Some(HelloAction::Esc);
         }
         #[cfg(feature = "test-hooks")]
         if name == "keydown-probe" {
@@ -232,7 +261,10 @@ mod tests {
     #[test]
     fn 配信設定の描画には_keydown_の_probe_が入らない() {
         let html = render_component_html(&HelloView::new());
-        assert!(!html.contains("data-action-keydown"), "{html}");
+        assert!(
+            !html.contains("data-action-keydown=\"keydown-probe\""),
+            "{html}"
+        );
         assert!(!html.contains("keydown-probe"), "{html}");
         assert!(HelloView::decode_action("keydown-probe", "").is_none());
     }
@@ -250,6 +282,56 @@ mod tests {
         let a = HelloView::decode_action("keydown-probe", "").expect("decoded");
         view.update(a);
         assert_eq!(view.keydown_probe(), 1);
+    }
+
+    #[test]
+    fn main_が_esc_の_keydown_の属性を持ち_prevent_default_などは持たない() {
+        let html = render_component_html(&HelloView::new());
+        let start = html.find("<main").expect("main");
+        let tag = &html[start..start + html[start..].find('>').expect("end")];
+        assert!(tag.contains("data-action-keydown=\"esc\""), "{tag}");
+        assert!(tag.contains("data-keys=\"Escape\""), "{tag}");
+        assert!(!html.contains("data-keydown-prevent-default"), "{html}");
+        assert!(!html.contains("data-keydown-ignore-repeat"), "{html}");
+    }
+
+    #[test]
+    fn esc_は_payload_が_escape_のときだけ復号される() {
+        assert!(matches!(
+            HelloView::decode_action("esc", "Escape"),
+            Some(HelloAction::Esc)
+        ));
+        for (n, p) in [
+            ("esc", ""),
+            ("esc", "Enter"),
+            ("esc", "Shift+Escape"),
+            ("Esc", "Escape"),
+        ] {
+            assert!(HelloView::decode_action(n, p).is_none(), "{n} {p}");
+        }
+    }
+
+    #[test]
+    fn esc_は状態を変えない() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き".to_owned()));
+        v.update(HelloAction::Submit);
+        v.update(HelloAction::SetDraft("続き".to_owned()));
+        let entries = v.entries.clone();
+        v.update(HelloAction::Esc);
+        assert_eq!(v.draft(), "続き");
+        assert_eq!(v.entries, entries);
+        assert!(v.dirty_fields().is_empty());
+    }
+
+    #[cfg(feature = "test-hooks")]
+    #[test]
+    fn esc_の受信回数を数える() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::Esc);
+        v.update(HelloAction::Esc);
+        assert_eq!(v.esc_count(), 2);
+        assert_eq!(v.keydown_probe(), 0);
     }
 
     #[test]
