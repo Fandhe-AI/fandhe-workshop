@@ -396,9 +396,14 @@ impl<'a> PropChecker<'a> {
             if confirmed {
                 self.stats.bump("achieved_by_confirm");
             } else if kind.as_deref() == Some("none") {
-                // 確認を省く Step は、受付と同時に達成する。同じ操作で同じ `at` の `Accepted` が先行する。
-                let accepted = a.events[..k]
+                // 確認を省く Step は、達成より前のどこかで受け付け済みである。processing つきの Step は
+                // 最後の Tick で達成するため、`Accepted` は過去の操作のログにある。
+                let end = a.before.log.len() + k;
+                let accepted = a
+                    .after
+                    .log
                     .iter()
+                    .take(end)
                     .any(|p| matches!(p, Event::Accepted { at: pa } if pa == at));
                 if !accepted {
                     return Err(format!(
