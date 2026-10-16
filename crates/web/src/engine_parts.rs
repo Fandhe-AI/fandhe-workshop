@@ -211,6 +211,9 @@ impl DisplayPart<HostModel> for LogPart {
     }
 }
 
+/// 経路をそのまま行のキーにしてよい長さの上限（バイト）。
+const ARTIFACT_KEY_PATH_MAX: usize = 256;
+
 /// 左の成果物。世界状態の経路と、変化の印を並べる。
 struct ArtifactPart;
 
@@ -244,7 +247,14 @@ impl DisplayPart<HostModel> for ArtifactPart {
                         el("span", vec![], vec![text(path.as_str())]),
                     ],
                 );
-                (format!("a{i}"), node)
+                // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。
+                // 教材由来の長い文字列はキーに使わず、位置のキーへ退く（接頭辞が違うので衝突しない）。
+                let key = if path.len() <= ARTIFACT_KEY_PATH_MAX {
+                    format!("p{path}")
+                } else {
+                    format!("i{i}")
+                };
+                (key, node)
             })
             .collect();
         let list = match keyed_view("ul", vec![], &F_ARTIFACT[0], items) {

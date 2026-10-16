@@ -10,7 +10,7 @@
 //!
 //! dirty field の求め方は、束縛点（Bound）は操作の前後で値が変わったものだけ、keyed list は
 //! イベントが返った（またはログの長さが変わった）ときだけである（FEND-3）。
-//! 3 つの表示（ログ・右の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
+//! 3 つの表示（ログ・左の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
 //! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。action から `Op` を作る経路は後続の
 //! タスクが足す。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）を持つ（BUILD-27・SHELL-35）。
