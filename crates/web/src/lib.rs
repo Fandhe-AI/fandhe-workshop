@@ -23,11 +23,13 @@
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 //! 未保存の変更の保留と同期の書き出し（TASK-317 2/2。SAVE-9）は `save_pending` に、`pagehide` で書き出すリスナー（wasm のみ）は `leave_flush` に置く。
+//! 候補の一覧の開閉の規則とコマンド表（TASK-440）は `candidates` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
 pub mod action;
 pub mod artifact_view;
+pub mod candidates;
 pub mod doc_view;
 pub mod engine_parts;
 pub mod glue_ops;
