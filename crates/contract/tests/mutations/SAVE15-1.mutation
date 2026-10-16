@@ -1,0 +1,8 @@
+id: SAVE15-1
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find:             Some(s) => encode_segment(s),
+replace:             Some(_) => ROOT_MARK.to_string(),
+expect-fail: key_differs_by_delivery_scope
+note: 配信の区間を無視して常に根の印にする（別の配信先の履歴が同じ鍵になる）

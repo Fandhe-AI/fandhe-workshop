@@ -104,6 +104,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 確認 4 種の宣言の型と、受付と達成の分け方の純関数（実行時の判定は core、診断は pack、表示は web） | contract | TASK-47 |
 | 差し込みの枠の閉じた集合・構文の読み取り・差し込みの純関数（`slot`。実行時の値の組み立ては core〔TASK-267〕、診断と IR を総なめにする数え上げは pack） | contract | TASK-46 |
 | 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
+| 保存先の口 `HistoryStore`・配信の区間・履歴の鍵の生成規則と読み戻し（`storage`。鍵に教材の版・内容を混ぜない） | contract | TASK-310 |
 | 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
