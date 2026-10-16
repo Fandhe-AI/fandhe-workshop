@@ -84,7 +84,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1260,6 +1260,27 @@ web の `key_route` の変異（JUDGE13-1・17-2 から 4・19-2）は、今回�
 | JUDGE21-1 | crates/contract/src/key_decide.rs: 先頭ではなく末尾の候補で補完する | judge21_completes_with_first_candidate | judge21_completes_with_first_candidate | DETECTED | - |
 | JUDGE22-1 | crates/contract/src/key_decide.rs: 修飾キー付き Enter の行を外す | judge22_modified_enter_is_nothing, expected_table_matches | expected_table_matches, judge22_modified_enter_is_nothing | DETECTED | - |
 | JUDGE22-2 | crates/contract/src/key_decide.rs: Shift+Ctrl+Enter を修飾キー付きから外す | judge22_modified_enter_is_nothing, expected_table_matches | expected_table_matches, judge22_modified_enter_is_nothing | DETECTED | - |
+
+### 5.54 候補が開いているときの Esc と補完の選び方（TASK-282 1/2）
+
+JUDGE18-2 は `key_route::after_esc` が候補を閉じたままにしない変異で、1 回目の Esc の後も候補が開いたままになり、2 回目の Esc が取り消しに届かない。JUDGE21-2 は `completion_choice` が先頭ではなく末尾の候補を選ぶ変異である。
+検出先はいずれも契約試験 `key_route_contract` である。候補の一覧が TASK-440 まで画面に無いため、ブラウザ試験はまだ無い。同じ `key_route.rs` を変えたため、既存の web の変異（JUDGE13-1・17-2 から 4・19-2）も再確認として含めた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 859b0e3-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/JUDGE18-2.mutation crates/web/tests/mutations/JUDGE21-2.mutation crates/web/tests/mutations/JUDGE13-1.mutation crates/web/tests/mutations/JUDGE17-2.mutation crates/web/tests/mutations/JUDGE17-3.mutation crates/web/tests/mutations/JUDGE17-4.mutation crates/web/tests/mutations/JUDGE19-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたままで、2 回目の Esc も閉じるだけになり、取り消しに届かない | 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる | 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる, 処理中の_esc_は何回押しても停止で取り消しにならない | DETECTED | - |
+| JUDGE21-2 | crates/web/src/key_route.rs: 先頭ではなく末尾の候補で補完する | 補完は先頭の候補を選ぶ | 補完は先頭の候補を選ぶ | DETECTED | - |
+| JUDGE13-1 | crates/web/src/key_route.rs: Shift+Enter が改行を奪って送信になる | shift_enter_は_prevent_default_せず送信もしない | shift_enter_は_prevent_default_せず送信もしない | DETECTED | - |
+| JUDGE17-2 | crates/web/src/key_route.rs: 処理中の Esc の優先を外す | 処理中の_esc_は候補が開いていても停止になり候補も閉じる | 処理中の_esc_は何回押しても停止で取り消しにならない, 処理中の_esc_は候補が開いていても停止になり候補も閉じる | DETECTED | - |
+| JUDGE17-3 | crates/web/src/key_route.rs: 処理中でなく候補が開いていても、Esc で候補が閉じない | 処理中でなく候補が開いている_esc_は候補を閉じるだけで操作を出さない | 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる, 処理中でなく候補が開いている_esc_は候補を閉じるだけで操作を出さない, 閉じた後に候補がまた開けば_esc_は再び閉じるだけになる | DETECTED | - |
+| JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | 処理中でなく候補が閉じている_esc_は取り消しの入力になる | 処理中でなく候補が閉じている_esc_は取り消しの入力になる, 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる, 取り消しの入力は規則の無い_step_で拒否として記録される | DETECTED | - |
+| JUDGE19-2 | crates/web/src/key_route.rs: 候補が開いて文字があっても Tab の既定動作を止めない | tab_は候補が開いていて文字があるときだけ_prevent_default_する | tab_は候補が開いていて文字があるときだけ_prevent_default_する | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
