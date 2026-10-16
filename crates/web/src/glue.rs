@@ -3,6 +3,12 @@
 //! 名前を `mount_app` にするのは、上流の `mount`（wasm-bindgen-exports）と重ねないため。
 //! マウントした `Runtime` はイベント配線を生かすために保持し続ける必要があり、
 //! `thread_local` に置く（wasm は単一スレッド）。
+//!
+//! 進行（`tick`）と補完（`complete`）は、ここが `Runtime::dispatch_action` で Component に届ける（FEND-4。TASK-349）。
+//! `dispatch_action` は更新の最中・配線のコールバックの中から呼ぶと `Reentrant` で捨てられ、保留もされない。
+//! そのため配送は必ず `set_timeout` のコールバック（別のスタック）の中で行い、呼び出しの箇所を `deliver` の 1 つに保つ
+//! （`tests/state_paths.rs` が固定する）。タイマーは取り消さない。停止・世代の替わりの後に届いた古い宛先の進行は、
+//! core が `Ignored` 1 件として記録して状態を変えない（EVT-8・EVT-9）。
 
 use std::cell::RefCell;
 
@@ -13,11 +19,17 @@ use wasm_bindgen::JsCast;
 
 use fandhe_workshop_contract::key_decide::{decide, KeyInput};
 
+use fandhe_workshop_core::addr::TickAddr;
+
+use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction};
 use crate::host::EngineHost;
 use crate::key_route::{effect_for, field_state};
+use crate::tick_interval::TICK_INTERVAL_MS;
 
 thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
+    /// 予約済みの進行の宛先。同じ宛先のタイマーを二重に積まないための印（取り消しのためではない）。
+    static SCHEDULED: RefCell<Option<TickAddr>> = const { RefCell::new(None) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -39,6 +51,94 @@ fn with_app<T>(f: impl FnOnce(&EngineHost) -> T) -> Option<T> {
         let app = rt.component();
         Some(f(&app))
     })
+}
+
+/// action を Runtime の口（`dispatch_action`）で Component に届ける。glue が状態を動かす唯一の口。
+///
+/// 呼び出し元は `schedule_action` が予約した `set_timeout` のコールバックだけである。そこは別のスタックで、
+/// Runtime の更新の最中ではないため、再入にならない。借用は共有参照の `try_borrow` で取り、未マウントは `None`。
+/// `Reentrant` は `Dropped` として返す。再送もキューイングもしない（古い宛先の再送は EVT-8 で無視になるだけで、
+/// 進行は次の更新が新しい宛先で予約し直す）。
+fn deliver(action: &RuntimeAction) -> Option<DispatchEffect> {
+    RUNTIME.with(|cell| {
+        let slot = cell.try_borrow().ok()?;
+        let rt = slot.as_ref()?;
+        let (name, payload) = action.encode();
+        Some(dispatch_effect(rt.dispatch_action(name, &payload)))
+    })
+}
+
+/// action の配送を `delay_ms` 後に予約する。配送は必ず `set_timeout` のコールバックの中で行う（再入を避けるため）。
+///
+/// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。古くなった宛先は届いても core が無視するため、
+/// 取り消しの規則を表示側に持たせない。進行の宛先が届いた時点で、その宛先の予約の印を外す。
+fn schedule_action(action: RuntimeAction, delay_ms: i32) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        if let RuntimeAction::Tick(addr) = &action {
+            SCHEDULED.with(|s| {
+                if let Ok(mut slot) = s.try_borrow_mut() {
+                    if slot.as_ref() == Some(addr) {
+                        *slot = None;
+                    }
+                }
+            });
+        }
+        let _ = deliver(&action);
+    });
+    let _ = window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), delay_ms);
+}
+
+/// 進行の間隔（ミリ秒）。定数は `i32` に収まる（`tick_interval` の const assert）。
+fn tick_delay_ms() -> i32 {
+    i32::try_from(TICK_INTERVAL_MS).unwrap_or(i32::MAX)
+}
+
+/// ホストが通知する次の進行の宛先を受け、タイマーを予約する（`EngineHost::set_tick_request` の通知先）。
+///
+/// `Component::update` の中から呼ばれるが、Runtime にも App にも触れず `set_timeout` を予約するだけなので、
+/// 再入は起きない。`None` は予約の印を消す。同じ宛先がすでに予約済みなら何もしない（古い進行が `Ignored` を
+/// 出して更新が走っても、同じ宛先のタイマーを積み増さない）。
+fn on_tick_request(next: Option<TickAddr>) {
+    let Some(addr) = next else {
+        SCHEDULED.with(|s| {
+            if let Ok(mut slot) = s.try_borrow_mut() {
+                *slot = None;
+            }
+        });
+        return;
+    };
+    let fresh = SCHEDULED.with(|s| match s.try_borrow_mut() {
+        Ok(mut slot) if slot.as_ref() != Some(&addr) => {
+            *slot = Some(addr.clone());
+            true
+        }
+        _ => false,
+    });
+    if fresh {
+        schedule_action(RuntimeAction::Tick(addr), tick_delay_ms());
+    }
+}
+
+/// 予約済みの進行の宛先。試験用の口が読む。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn scheduled_tick() -> Option<TickAddr> {
+    SCHEDULED.with(|s| s.try_borrow().ok().and_then(|slot| slot.clone()))
+}
+
+/// 補完の action を、実際の配送の口（`schedule_action`）で届ける。試験用の口が、画面の Tab と同じ経路を確かめるために使う。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn request_complete() {
+    schedule_action(RuntimeAction::Complete, 0);
+}
+
+/// 補完の action の受信回数。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn complete_count() -> Option<u32> {
+    with_app(|app| app.complete_count())
 }
 
 /// keydown の probe の受信回数。未マウント・借用中は `None`。
@@ -177,6 +277,11 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
         if effect.prevent_default {
             ev.prevent_default();
         }
+        // 補完はリスナーの中で直接届けず、タイマーの予約を通す（リスナーの中では再入で捨てられるため）。
+        // 候補の一覧が未実装の間は判定が補完にならず、画面からはここへ届かない（TASK-440 が到達させる）。
+        if effect.deliver_complete {
+            schedule_action(RuntimeAction::Complete, 0);
+        }
         // 押しっぱなしの自動リピートは送信しない（下書きが残るため、同じ行が繰り返し足されるのを防ぐ）。
         // 改行の挿入の抑止（prevent_default）は通常の Enter と同じにする。
         if effect.click_submit && !kev.repeat() {
@@ -224,7 +329,9 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         if slot.is_some() {
             return Err(JsValue::from_str("already mounted"));
         }
-        let runtime = Runtime::mount(root_id, EngineHost::for_mount())?;
+        let mut host = EngineHost::for_mount();
+        host.set_tick_request(Box::new(on_tick_request));
+        let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
