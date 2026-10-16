@@ -317,6 +317,18 @@ mod tests {
     }
 
     #[test]
+    fn 複数行の下書きは改行を保って一覧に積まれる() {
+        // JUDGE-13・S-29: 改行は trim も分割もせず、文字ノードの `\n` として残る。
+        let body = "一行目のメモ\n二行目のメモ";
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft(body.to_owned()));
+        v.update(HelloAction::Submit);
+        assert_eq!(v.entries.back().map(|e| e.1.as_str()), Some(body));
+        let html = render_component_html(&v);
+        assert!(html.contains(body), "{html}");
+    }
+
+    #[test]
     fn 一覧は上限を超えると古い順に捨て_キーは重複しない() {
         let mut v = HelloView::new();
         v.update(HelloAction::SetDraft("a".to_owned()));
