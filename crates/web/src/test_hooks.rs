@@ -6,6 +6,9 @@
 //! `debug_request_complete` は、配信と同じ配送の口（`set_timeout` → `dispatch_action`）で補完を届けるだけである。
 //! `debug_storage_open` と `debug_storage_write` は、試験用の保存先（`STORAGE`）を開く・書くだけで、画面の状態には触れない。
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
+//! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
+//! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
+//! `debug_save_flush`）だけで、保存の遅延のタイマーは置かない（値が残ったのが `pagehide` の書き込みによることを試験で示すため）。
 
 use wasm_bindgen::prelude::*;
 
@@ -174,6 +177,22 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
+thread_local! {
+    /// 離れる直前に書き出す未保存の値の保留（`debug_save_stage` が積む）。
+    static PENDING: crate::save_pending::PendingSave = crate::save_pending::PendingSave::new();
+}
+
+/// 試験用の保留を、準備完了済みの試験用の保存先へ書き出す。保存先が未準備・借用中（再入）なら何もせず `None`。
+fn flush_pending() -> Option<crate::save_pending::FlushOutcome> {
+    PENDING.with(|p| {
+        STORAGE.with(|s| {
+            let guard = s.try_borrow().ok()?;
+            let st = guard.as_ref()?;
+            Some(p.flush(st))
+        })
+    })
+}
+
 fn storage_key(pack_id: &str, start_id: &str) -> fandhe_workshop_contract::storage::HistoryKey {
     use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
     let path = web_sys::window()
@@ -291,4 +310,45 @@ pub fn debug_next_tick() -> String {
 #[wasm_bindgen]
 pub fn debug_request_complete() {
     crate::glue::request_complete();
+}
+
+/// 値を保留へ積むだけで、保存先へは書かない（TASK-317 2/2）。固定形の JSON（保留の件数）を返し、値・鍵は返さない。
+/// 鍵は必ず `HistoryKey` の構築子から作り、任意の文字列を鍵にしない。
+#[wasm_bindgen]
+pub fn debug_save_stage(pack_id: &str, start_id: &str, value: &str) -> String {
+    let key = storage_key(pack_id, start_id);
+    PENDING.with(|p| {
+        p.stage(key, value.to_string());
+        format!("{{\"ok\":true,\"pending\":{}}}", p.pending_len())
+    })
+}
+
+/// `pagehide` で保留を書き出すリスナーを付ける（登録は 1 回だけ）。固定形の JSON（`ok`）を返す。
+/// 保存先が未準備のときはリスナーの中で何も書かない（保留は残る）。
+#[wasm_bindgen]
+pub fn debug_save_install_pagehide() -> String {
+    match crate::leave_flush::install_pagehide_flush(|| {
+        flush_pending();
+    }) {
+        Ok(()) => "{\"ok\":true}".to_string(),
+        Err(_) => "{\"ok\":false}".to_string(),
+    }
+}
+
+/// 保留を試験から明示的に書き出す。固定形の JSON（件数と失敗の種類）を返し、値・鍵は返さない。
+#[wasm_bindgen]
+pub fn debug_save_flush() -> String {
+    match flush_pending() {
+        None => "{\"ok\":false,\"error\":\"not_opened\"}".to_string(),
+        Some(o) => {
+            let err = o
+                .first_error
+                .map(|e| format!("\"{}\"", error_name(e)))
+                .unwrap_or_else(|| "null".to_string());
+            format!(
+                "{{\"ok\":true,\"written\":{},\"failed\":{},\"error\":{}}}",
+                o.written, o.failed, err
+            )
+        }
+    }
 }
