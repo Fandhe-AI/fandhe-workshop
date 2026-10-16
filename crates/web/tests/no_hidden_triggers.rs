@@ -36,11 +36,13 @@ const ROUTED_ACTIONS: [&str; 6] = [
 const RAW_TRIGGER: (&str, &str) = ("raw-trigger", "host.rs");
 
 /// `data-payload` の出現の許可（相対パス, `"data-payload"` の件数, `PAYLOAD_ATTR` の件数）。表に無いファイルは 0 件。
-const PAYLOAD_ALLOWED: [(&str, usize, usize); 2] = [
+const PAYLOAD_ALLOWED: [(&str, usize, usize); 3] = [
     // 属性名の定義 1 と、指せる行（`data-action="ui"`）での使用 1。
     ("artifact_view.rs", 1, 2),
     // 試験の設定でだけ出る `raw-trigger` の 1 件。
     ("host.rs", 1, 0),
+    // 受講者が押す見える選択肢のボタン（TASK-445 2/2）。use の行 1 と使用 1。進行の宛先は置かない。
+    ("offers.rs", 0, 2),
 ];
 
 /// 配信する静的ファイルで禁止する文字列（コメントも含めて生の本文で照合する）。

@@ -342,6 +342,30 @@ native の試験 `clarify_lines` は `ch1-pack` の `main/st-1-4` で、引数�
 | TERM32-3 | crates/web/src/host.rs: 問い返しの文面の控えを作らない（行が出ない） | 引数なしの_new_idea_は_clarified_の行になり_拒否の行に数えない | 左の 1 件に加え、順序違いの_advance_phase_は…・復元でも問い返しの行が同じ文面で出る の 2 件 | DETECTED | - |
 | TERM32-4 | crates/web/src/log_lines.rs: 問い返しの行の種類が拒否と同じになる（区別の喪失） | 拒否と問い返しは文面が渡されたときだけ行になり_種類で区別される | 左の 1 件に加え、合成した全種の行が_log_list_の下で_check_area_と_check_view_を通る の 2 件 | DETECTED | - |
 
+
+### 5.3.1e 選択肢のクリックが core の判定に届くこと（TASK-445 2/2）
+
+TERM24-1 は、`crates/web/src/host.rs` の `decode_action` が `choose`（選択肢のクリック）を `Op::Input(Input::Choice)` に変える処理を無効にする変異である。
+ボタンを押しても core へ届かず、誤答の理由も達成も起きなくなり、native の `crates/web/tests/choice_answer.rs` が検出する。
+TERM24-2 は、`crates/web/src/offers.rs` の `choice_button` から `data-action` を外す変異である（クリックの宛先が無くなる）。
+
+mount の教材（`min-3step`）の確認には `answer` の Step が無く、そのままではブラウザ試験を書けない。mount の教材は既存の試験が st-1 の
+`point_at` などに依るため変えず、試験の設定だけの `raw` の接頭辞 `load-fixture:answer` で、st-1 の確認を `answer`（誤り 1・正解 1）に
+置き換えた教材へ差し替える（`test_fixture::answer_session`）。native の試験は `--features test-hooks` を付けたときだけ差し替えを確かめる。
+ブラウザ試験 `tools/browser/choice-answer.test.mjs` は、実クリックで誤答 → 選び直し → 達成を CSP あり・なしで流す。Step の状態表示
+（`step-status`）は TASK-435 の担当で未実装のため、達成は復習の `data-achieved`・エンジンの書き出し・ボタンの消滅で確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e8bffb8-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM24-1.mutation crates/web/tests/mutations/TERM24-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM24-1 | crates/web/src/host.rs: choose の変換を無効にする | choose_は_id_を_choice_の_op_にし_空の_payload_は何もしない | 左の 1 件に加え、誤答・正答・偽造 ID の 4 件 | DETECTED | - |
+| TERM24-2 | crates/web/src/offers.rs: ボタンから data-action を外す | ボタンの_action_と_payload_は選択肢の_id_で_文字には_id_が出ない | 左の 1 件 | DETECTED | - |
+
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
 3 件の変異を足した。いずれもビルドは通り、対応する試験だけが失敗する。

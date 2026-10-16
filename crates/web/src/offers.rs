@@ -8,8 +8,14 @@
 //! 受付の前や処理中に答えを先に見せないため、どれか 1 つでも欠けたら空の一覧にする（fail-closed）。
 //! 宣言が読めない・`check()` に通らない場合も同じで、警告の文面は出さない。
 //!
-//! 範囲の境界: クリックの結線（`data-action`・`data-payload`）、誤答の理由・選び直し・達成は TASK-445 2/2 が持つ。
-//! 入力方式 `choice` の Step の口は TASK-450 が持つ。入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
+//! クリックの結線（TASK-445 2/2）: ボタンは `data-action="choose"`・`data-payload=<ID>` を持ち、ホストの
+//! `decode_action` が `Op::Input(Input::Choice(ID))` に変えて core へ渡す。誤答の拒否・選び直し・達成は core の判定
+//! （`judge.rs`）の結果で、ホストは判定も「いま出ている選択肢か」の照合もしない。`choice_button` は入力方式 `choice`
+//! の段階（TASK-450）でも使い回す前提で、同じ `Input::Choice` を確認の段階と入力の段階のどちらで扱うかは core が
+//! Step の状態で振り分ける。ホストに確認の段階だけの照合を置くと、その再利用が黙って壊れる。偽造・古い ID は core が
+//! 拒否か無視に倒す。
+//!
+//! 範囲の境界: 入力方式 `choice` の Step の口は TASK-450 が持つ。入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
 //! ため、親の `ul` には `data-testid` を付けない。
 //!
 //! 選択肢の ID と `label` は教材由来の信頼できない文字列である。表示名は文字ノード、ID は `data-choice` の属性値に
@@ -20,6 +26,7 @@ use fandhe_workshop_contract::confirm_spec::answer_spec_of;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::Session;
 
+use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind};
@@ -78,7 +85,11 @@ pub fn answer_offers(session: &Session) -> Vec<Offer> {
         .collect()
 }
 
-/// 選択肢のボタン 1 つ。文字は表示名だけ、ID は `data-choice` にだけ載せる。
+/// 選択肢のクリックの action 名。`"choice"` は `data-input` の値と紛れるため使わない。
+/// 受け手は `host::EngineHost::decode_action` で、`RuntimeAction`（版 1 の契約）には入れない。
+pub const ACTION_CHOOSE: &str = "choose";
+
+/// 選択肢のボタン 1 つ。文字は表示名だけ、ID は `data-choice`・`data-payload` の属性値にだけ載せる。
 /// IR に依存しない形にして、入力方式 `choice` の口（TASK-450）も使い回せるようにする。
 pub fn choice_button(id: &str, label: &str) -> Node {
     el(
@@ -87,6 +98,8 @@ pub fn choice_button(id: &str, label: &str) -> Node {
             ("type", "button"),
             ("data-testid", InputPort::Choice.testid()),
             (CHOICE_ATTR, id),
+            (ACTION_ATTR, ACTION_CHOOSE),
+            (PAYLOAD_ATTR, id),
         ],
         vec![text(label)],
     )

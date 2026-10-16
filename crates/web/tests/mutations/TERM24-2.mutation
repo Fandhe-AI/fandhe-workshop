@@ -1,0 +1,8 @@
+id: TERM24-2
+package: fandhe-workshop-web
+test: choice_answer
+target: crates/web/src/offers.rs
+find:             (ACTION_ATTR, ACTION_CHOOSE),
+replace:             (ACTION_ATTR, "noop"),
+expect-fail: ボタンの_action_と_payload_は選択肢の_id_で_文字には_id_が出ない
+note: ボタンから data-action を外す（クリックが宛先に届かない。TERM-24）
