@@ -1,0 +1,11 @@
+id: SAVE19-6
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     check_limits(LoadEntry::History, bytes).map_err(LoadReason::from)?;
+replace:     let _ = check_limits(LoadEntry::History, bytes);
+expect-fail: over_by_one_is_too_large
+expect-fail: depth_over_is_too_deep
+expect-fail: size_precedes_depth
+expect-fail: depth_precedes_utf8
+note: 大きさ・深さの段を外す（巨大・深い入力を解釈まで通す）

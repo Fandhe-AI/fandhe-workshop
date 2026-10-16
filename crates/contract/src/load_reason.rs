@@ -46,8 +46,9 @@
 //! | 8 | [`HistoryLoadStage::SnapshotMatch`] | `replay_mismatch`・`replay_diverged` |
 //!
 //! 【推論】次の位置は SAVE-19 に記録が無く、試作の判定順（`open_history`）に合わせて仮に置いた。
-//! - `truncated` は Json 段に置く。SAVE-19 は位置を未確認とし、TASK-331 が実装で確かめて記録する。
-//!   結果が違えば [`crate::storage::STORAGE_CONTRACT_VERSION`] を上げて直す
+//! - `truncated` は Json 段に置く（TASK-331 1/3 で実装を通して確認済み。結果が仮置きと一致したため版は上げない。
+//!   判定の規則の正は core の `history_load::parse_history_json`）。大きさ・深さの後、解釈の前に UTF-8 を検査し、
+//!   末尾が不完全なら `truncated`、途中の不正なバイトは `not_json` とする。解釈が入力の終わりで途切れたものも `truncated`
 //! - `history_format_newer`・`other_pack` は Type 段に置く。どちらも 4 軸の版の理由ではなく（[`ReasonCode::kind`] が `None`）、
 //!   試作では `malformed`・`too_many_ops` の後、`bad_version` の前にある
 //! - `too_many_ops` は Type 段に置く。上限の契約（[`LimitReason::stage`]）の「型の後・適用し直しの前」に合わせる
@@ -59,8 +60,8 @@
 //! 定義しないもの:
 //! - どの理由が表示だけ・開かないになるかの線引き（[`crate::history_version::Disposition`]。TASK-174）
 //! - 受講者向けの文面（D-57・SHELL-36 が未決。TASK-532）
-//! - `truncated` の意味の食い違い（SAVE-19 は UTF-8 の途中切れ、試作は JSON が入力の終わりで途切れたもの）。
-//!   位置は上の【推論】のとおり仮置きで、TASK-331 が確かめる
+//! - `truncated` の意味（SAVE-19 は UTF-8 の途中切れ、試作は JSON が入力の終わりで途切れたもの）。
+//!   本契約は両方を `truncated` とする規則を core の `history_load` が実装し、TASK-331 1/3 で確かめた
 //! - core の `LoadError`・`MissingVersion` からの対応づけ（contract は core に依存できない。TASK-331・TASK-174）
 //!
 //! 理由コードは固定の `&'static str` だけで、読み込んだ内容を含めない（SAFE-40）。
