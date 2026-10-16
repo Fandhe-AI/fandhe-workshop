@@ -1,0 +1,9 @@
+id: FEND15-1
+package: fandhe-workshop-web
+test: list_policy_contract
+target: crates/web/src/list_policy.rs
+find: pub const LIST_ITEMS_TARGET: usize = 1_000;
+replace: pub const LIST_ITEMS_TARGET: usize = 5_000;
+expect-fail: 目安と安全弁の値
+expect-fail: 項目数の区分の境界
+note: 項目数の目安を安全弁より大きくする（分割の基準が効かなくなる）

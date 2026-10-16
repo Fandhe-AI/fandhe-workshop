@@ -360,13 +360,14 @@ where
     replay_against_upto(provider, s, s.entries.len())
 }
 
-/// 入力の受付（TASK-207 1/3）まで結線した範囲の照合。先頭 3 件（e01 拒否・e02 受付・e03 再送の拒否）は
-/// 実際の `apply()` と一致する。最初の食い違いは e04（最初の Tick、TASK-210）で、全件の照合は下の `#[ignore]` の試験が受け持つ。
+/// 入力の受付（TASK-207 1/3）と一致する進行（TASK-210 2/3）まで結線した範囲の照合。先頭 5 件（e01 拒否・e02 受付・
+/// e03 再送の拒否・e04 と e05 の進行）は実際の `apply()` と一致する。最初の食い違いは e06（停止、TASK-211）で、
+/// 全件の照合は下の `#[ignore]` の試験が受け持つ。
 #[test]
 fn sample_replay_prefix_matches_apply() {
     let s = load();
     let ir = sample_ir(&s);
-    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 3) {
+    if let Err(m) = replay_against_upto(&Engine::new(&ir), &s, 5) {
         panic!(
             "{}: {} differs ({})\nexpected: {}\nactual: {}",
             m.id, m.what, m.note, m.expected, m.actual
@@ -376,7 +377,7 @@ fn sample_replay_prefix_matches_apply() {
 
 /// 確認の操作による達成（TASK-207 2/3）の単独の照合。サンプルの e15（受付済みの Step を指して達成し、次の Step に
 /// 入る）を、その前の状態から 1 件だけ流して、イベント列と後の状態が一致することを確かめる。連鎖では
-/// e04（最初の Tick、TASK-210）で止まり e15 に届かないため、前の状態から直接始める。
+/// e06（停止、TASK-211）で止まり e15 に届かないため、前の状態から直接始める。
 #[test]
 fn sample_confirm_entry_matches_apply() {
     let s = load();
@@ -393,6 +394,38 @@ fn sample_confirm_entry_matches_apply() {
     let (next, events) = apply(&ir, state, e.op.clone());
     assert_eq!(events, e.events, "e15: events");
     assert_eq!(next.run, e.after, "e15: after");
+}
+
+/// 一致する進行（TASK-210 2/3）の単独の照合。サンプルの e09〜e13（世代 2 の st-1 の進行 5 つ。最後の進行で
+/// 処理中が解け、達成はしない）を、e09 の前の状態から連鎖して流し、各操作のイベント列と後の状態が一致することを
+/// 確かめる。連鎖では e06（停止、TASK-211）で止まり届かないため、前の状態から直接始める。
+#[test]
+fn sample_ticks_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let ids = ["e09", "e10", "e11", "e12", "e13"];
+    let first = s
+        .entries
+        .iter()
+        .find(|e| e.id == ids[0])
+        .expect("sample has e09");
+    let mut state = SessionState {
+        run: first.before.clone(),
+        ..SessionState::default()
+    };
+    for id in ids {
+        let e = s
+            .entries
+            .iter()
+            .find(|e| e.id == id)
+            .expect("sample has entry");
+        assert_eq!(state.run, e.before, "{id}: before");
+        let (next, events) = apply(&ir, state, e.op.clone());
+        assert_eq!(events, e.events, "{id}: events");
+        assert_eq!(next.run, e.after, "{id}: after");
+        state = next;
+    }
+    assert_eq!(state.run.busy, None);
 }
 
 /// 確認を省く明示の Step の受付と同時の達成（TASK-208）の単独の照合。サンプルの e16 を、その前の状態から

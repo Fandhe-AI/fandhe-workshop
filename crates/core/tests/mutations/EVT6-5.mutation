@@ -1,0 +1,8 @@
+id: EVT6-5
+package: fandhe-workshop-core
+test: tick_progress
+target: crates/core/src/tick.rs
+find:     state.run.busy = None;
+replace:     state.run.busy = state.run.busy.take();
+expect-fail: fixed_sequence_matches_sample_shape
+note: 最後の進行で処理中を解かない

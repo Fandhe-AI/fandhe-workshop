@@ -170,8 +170,8 @@ pub fn apply_effects(
 /// 進行 1 つを適用する。先に [`Event::Progress`] を出し、続けて効果の列（[`apply_effects`]）のイベントを並べる。
 ///
 /// `index` は、いま適用した進行の 0 始まりの番号（`Event::Progress::index` と同じ）。`total` は進行の総数。
-/// `run.busy` は変えない。宛先の照合・`busy` の進め方・`wait` の受付・`Op::Tick` の分岐は TASK-210・
-/// TASK-207 の責務である。`name` は教材由来の表示名で、HTML への埋め込みのエスケープは web 層の責務である。
+/// `run.busy` は変えない。宛先の照合・`busy` の進め方・`Op::Tick` の分岐は `tick` モジュール（TASK-210 2/3）、
+/// `wait` の受付は Step に入るときの処理を持つタスクの責務である。`name` は教材由来の表示名で、HTML への埋め込みのエスケープは web 層の責務である。
 #[allow(
     clippy::too_many_arguments,
     reason = "apply_effect と同じ並びの引数（状態・根・宛先・原因）に評価器を足した公開 API。束ねる型は TASK-210 で判断する"

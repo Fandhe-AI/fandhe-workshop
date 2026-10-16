@@ -26,7 +26,7 @@
 //! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-211・213・217）
 //! - `on_miss`・`on_wrong` の文面の解決と `Judged` の発行（`crate::judge`、TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）。
 //!   どちらも受付の分岐が先に行い、本モジュールは判定が確認のときだけ呼ばれる
-//! - `processing` を持つ Step の省略の達成（進行の完了で達成にする。TASK-210）
+//! - `processing` を持つ Step の省略の達成（進行の完了で [`crate::tick`] が達成にする。TASK-210 2/3）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は 1 操作で
 //! 高々 1 回。`Warning` の文面は固定文で、入力値・教材の値を埋め込まない。
