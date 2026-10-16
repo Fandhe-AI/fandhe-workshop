@@ -8,6 +8,7 @@
 //!
 //! アクセシビリティの構造の契約（TASK-366）は `a11y` に、受講者の文字列を非解釈で描く関数（SAFE-11）は
 //! `learner_text` に置く。
+//! 右のターミナル風エリアの語（ログの行・状態表示・Step の状態。TASK-431）と適合の検査は `terminal_area` に置く。
 //! 表示部品をホストに載せる口の契約（TASK-343）は `parts` に、action の名前と宛先は `action` に、
 //! 操作プロファイル・外観・左エリアの設定の渡し方は `profile` に置く。
 //! glue の許される操作は `glue_ops` に、keyed list の親の属性と項目数の方針は `list_policy` に置く。
@@ -31,6 +32,7 @@ pub mod learner_text;
 pub mod list_policy;
 pub mod parts;
 pub mod profile;
+pub mod terminal_area;
 pub mod tick_interval;
 
 #[cfg(target_arch = "wasm32")]
