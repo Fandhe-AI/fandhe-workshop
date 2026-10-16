@@ -1,0 +1,9 @@
+id: ART5-1
+package: fandhe-workshop-web
+test: artifact_view_binding_contract
+target: crates/web/src/artifact_view.rs
+find:     if !selected {
+replace:     if false {
+expect-fail: 親の属性の表
+expect-fail: view_list_の選択と件数
+note: 選ばれていないビューに hidden を付けない（ART-12。隠すべきビューが見えたままになる）

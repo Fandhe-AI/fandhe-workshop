@@ -1,0 +1,8 @@
+id: VER6-2
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: return view_only(LoadReason::ContentMajor);
+replace: return view_only(LoadReason::ReplayDiverged);
+expect-fail: ver6_content_major_boundaries
+note: 教材の主版の違いの理由コードを取り違える（表示だけには変わらないため、理由コードの値を固定する試験だけが検出する）
