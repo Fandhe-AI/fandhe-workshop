@@ -83,3 +83,32 @@ pub fn glue_source() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/glue.rs");
     std::fs::read_to_string(path).expect("src/glue.rs を読めない")
 }
+
+/// `src/` 配下の全 `.rs` を（src からの相対パス, 全文）の組で返す。表示層の静的な検査が使う。
+pub fn web_src_sources() -> Vec<(String, String)> {
+    fn walk(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, out);
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+    }
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut files = Vec::new();
+    walk(&root, &mut files);
+    files.sort();
+    files
+        .into_iter()
+        .map(|p| {
+            let rel = p.strip_prefix(&root).unwrap_or(&p).display().to_string();
+            let src = std::fs::read_to_string(&p).expect("src を読めない");
+            (rel, src)
+        })
+        .collect()
+}

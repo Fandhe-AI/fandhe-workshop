@@ -48,7 +48,7 @@ fn violations(src: &str) -> Vec<String> {
         }
         None => v.push("with_app が無い".to_owned()),
     }
-    if !code.contains("f:implFnOnce(&HelloView)->T") || code.contains("FnOnce(&mut") {
+    if !code.contains("f:implFnOnce(&EngineHost)->T") || code.contains("FnOnce(&mut") {
         v.push("with_app の閉包が共有参照を受けていない".to_owned());
     }
     let reads = count(&code, ".value()");
@@ -83,7 +83,7 @@ fn app_に触れるのは_with_app_の_component_の1箇所だけ() {
     assert_eq!(component_calls(&code), 1);
     let body = fn_body(&code, "with_app").expect("with_app が無い");
     assert_eq!(component_calls(body), 1);
-    assert!(code.contains("f:implFnOnce(&HelloView)->T"));
+    assert!(code.contains("f:implFnOnce(&EngineHost)->T"));
     assert!(!code.contains("FnOnce(&mut"));
 }
 
@@ -102,7 +102,7 @@ fn 実ソースは違反なし() {
 }
 
 const GOOD: &str = r#"
-fn with_app<T>(f: impl FnOnce(&HelloView) -> T) -> Option<T> {
+fn with_app<T>(f: impl FnOnce(&EngineHost) -> T) -> Option<T> {
     // rt.component() はコメントなので数えない
     let app = rt.component();
     Some(f(&*app))
