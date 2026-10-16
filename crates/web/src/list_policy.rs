@@ -10,6 +10,14 @@
 //! そのため親の属性は必ず [`keyed_view`] の `attrs`（つまり `view()`）に書く。アクセシビリティ契約の
 //! 「ライブの欄の属性は `view()` に直接書く」と同じ規則である。
 //!
+//! 上流（`fandhe-frontend-wasm-client` 0.6.1）の挙動: `keyed_dom.rs` の keyed list の適用は、そのたびに親の
+//! 属性を同期し（`sync_parent_attrs`・`sync_attrs`）、`view()` の列に無い属性を予約属性 `data-bind-list` を
+//! 除いてすべて消す。同期はその field が dirty になった更新でだけ起きる。また、宣言済みの属性の値を JS が
+//! 書き換えた場合、キャッシュと新しい値が同じなら、その回の `set_attribute` は省かれ、値が戻るのは次の適用になる。
+//!
+//! [`keyed_view`] は上流の `keyed_list` を呼べる唯一の入口である。`tests/list_parent_attrs.rs` が、
+//! `src/` で `keyed_list` を呼ぶのがこのファイルだけであることを検査する。
+//!
 //! 項目数の方針（FEND-22・D-46）: 1 リストの項目は約 [`LIST_ITEMS_TARGET`] 件までを目安とし、超える場合は
 //! 部品の側でリストを分割する。上流の [`LIST_ITEMS_LIMIT`] 件は安全弁で、目安ではない。目安の値は基準端末 A の
 //! 測定に基づく暫定値（FEND-22 は検討中）である。超えた場合の分割・畳み方の細目は、実装タスク
