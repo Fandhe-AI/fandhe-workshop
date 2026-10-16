@@ -1,0 +1,10 @@
+id: SAVE19-5
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     if e.is_eof() {
+replace:     if false {
+expect-fail: cut_at_char_boundary_is_truncated
+expect-fail: empty_input_is_truncated
+expect-fail: rejection_leaves_store_unchanged
+note: 入力の終わりで途切れた JSON を truncated ではなく not_json にする
