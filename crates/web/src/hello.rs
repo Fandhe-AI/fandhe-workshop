@@ -14,7 +14,6 @@
 
 use std::collections::VecDeque;
 
-use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::{bind_text, el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
@@ -23,12 +22,20 @@ use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::input_limit::{clamp_draft, notice_for};
 use crate::learner_text::learner_line;
+use crate::list_policy::keyed_view;
+use crate::parts::{FieldKind, PartField};
 
 /// 案内欄が束縛される field 名。
 const FIELD_NOTICE: &str = "input_notice";
 
 /// 送信済みの一覧が束縛される field 名（`keyed_list` の差分更新の対象）。
 const FIELD_LOG: &str = "learner_log";
+
+/// 送信済みの一覧の field。`list_policy::keyed_view` を通すための宣言（FEND-15）。
+const LEARNER_LOG_FIELD: PartField = PartField {
+    name: FIELD_LOG,
+    kind: FieldKind::KeyedList,
+};
 
 /// この入力欄が持つ field 名。ホストが、部品の field との衝突の検査に使う。
 pub(crate) const HELLO_FIELDS: [&str; 2] = [FIELD_NOTICE, FIELD_LOG];
@@ -198,7 +205,7 @@ impl Component for HelloView {
             ],
             vec![text("送信")],
         ));
-        // 件数が 0 でも常に keyed_list で描く（最初の送信から差分の経路に乗せるため）。
+        // 件数が 0 でも常に keyed_view で描く（最初の送信から差分の経路に乗せるため）。
         // Err は空の一覧に倒す（expect は wasm を太らせ、panic は画面を壊す）。
         let items: Vec<(String, Node)> = self
             .entries
@@ -206,10 +213,12 @@ impl Component for HelloView {
             .map(|(seq, body)| (format!("e{seq}"), learner_line(body)))
             .collect();
         let attrs = vec![("data-testid", LOG_LIST_TESTID)];
-        children.push(match keyed_list("ol", attrs.clone(), FIELD_LOG, items) {
-            Ok(list) => list,
-            Err(_) => el("ol", attrs, vec![]),
-        });
+        children.push(
+            match keyed_view("ol", attrs.clone(), &LEARNER_LOG_FIELD, items) {
+                Ok(list) => list,
+                Err(_) => el("ol", attrs, vec![]),
+            },
+        );
         // root の中の Esc を属性で届ける（FEND-5・D-30）。prevent-default・ignore-repeat は付けない
         // （押しっぱなしの扱いは FEND-18・TASK-364 で決める）。変換中の除外は上流が行う。
         let mut main_attrs = vec![("data-testid", "hello-root")];

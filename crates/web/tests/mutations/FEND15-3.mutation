@@ -1,0 +1,8 @@
+id: FEND15-3
+package: fandhe-workshop-web
+test: list_parent_attrs
+target: crates/web/src/engine_parts.rs
+find: keyed_view("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items)
+replace: fandhe_frontend_core::keyed::keyed_list("ul", LOG_LIST_ATTRS.to_vec(), F_LOG[0].name, items)
+expect-fail: 上流の_keyed_list_を呼ぶのは_list_policy_だけである
+note: keyed_view を迂回して上流の keyed_list を直接呼ぶ
