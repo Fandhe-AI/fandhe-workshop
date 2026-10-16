@@ -5,8 +5,9 @@
 use std::path::PathBuf;
 
 use fandhe_frontend_core::{el, Node};
+use fandhe_frontend_interactive::Component;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
-use fandhe_workshop_core::input::{Input, Op};
+use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::a11y::{check_no_undefined, Region, LOG_LIST_TESTID, TESTID_ATTR};
@@ -200,5 +201,85 @@ fn 描いた状態表示は契約に適合し_画面全体は未定義の識別�
         if step < TOTAL_TICKS {
             host.update(tick(step));
         }
+    }
+}
+
+fn stop() -> HostAction {
+    HostAction::Engine(Op::Control(Control::Stop))
+}
+
+#[test]
+fn 処理中の停止で_停止_になり_古い進行が届いても保たれる() {
+    let mut host = begun_host();
+    host.update(make_note());
+    host.update(tick(0));
+    host.update(stop());
+    assert_eq!(run_status(host.model().session()), RunStatus::Stopped);
+    assert_shows(&host, RunStatus::Stopped);
+    assert!(check_no_undefined(&host.view()).is_ok());
+    // 古い世代の進行は core が Ignored にする。表示は変わらず、束縛点も dirty にならない。
+    host.update(tick(1));
+    assert_shows(&host, RunStatus::Stopped);
+    let d = host.dirty_fields();
+    assert!(
+        !d.contains(&WORD_FIELD) && !d.contains(&STATE_FIELD),
+        "{d:?}"
+    );
+}
+
+#[test]
+fn 停止の後の再送信で処理中になり_最後まで届くと待機中へ戻る() {
+    let mut host = begun_host();
+    host.update(make_note());
+    host.update(stop());
+    host.update(make_note());
+    assert_shows(&host, RunStatus::Busy);
+    let generation = host.model().session().unwrap().state().run.generation.0;
+    for i in 0..TOTAL_TICKS {
+        host.update(HostAction::Engine(Op::Tick(TickAddr {
+            generation: Generation(generation),
+            step: StepUid::parse("main/st-1").unwrap(),
+            index: i,
+        })));
+    }
+    assert_shows(&host, RunStatus::Idle);
+}
+
+#[test]
+fn 処理中でない停止では_停止_にならない() {
+    let mut host = begun_host();
+    host.update(stop());
+    assert_ne!(run_status(host.model().session()), RunStatus::Stopped);
+}
+
+#[test]
+fn 停止の操作で状態表示の束縛点が_dirty_になる() {
+    let mut host = begun_host();
+    host.update(make_note());
+    host.update(stop());
+    let d = host.dirty_fields();
+    assert!(d.contains(&WORD_FIELD) && d.contains(&STATE_FIELD), "{d:?}");
+}
+
+#[test]
+fn esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない() {
+    for (name, payload) in [("esc", "Escape"), ("stop", "")] {
+        let act = || EngineHost::decode_action(name, payload).expect(name);
+        let mut host = begun_host();
+        let len0 = host.model().session().unwrap().log().len();
+        let entry = host.model().session().unwrap().state().run.current.clone();
+        let world0 = host.model().session().unwrap().state().run.world.clone();
+        host.update(act());
+        assert_eq!(host.model().session().unwrap().log().len(), len0);
+        host.update(make_note());
+        host.update(tick(0));
+        let gen_before = host.model().session().unwrap().state().run.generation.0;
+        host.update(act());
+        let run = &host.model().session().unwrap().state().run;
+        assert_eq!(run.generation.0, gen_before + 1);
+        assert!(run.busy.is_none());
+        assert_eq!(run.current, entry);
+        assert_eq!(run.world, world0);
+        assert_shows(&host, RunStatus::Stopped);
     }
 }

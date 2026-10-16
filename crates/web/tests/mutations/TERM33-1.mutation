@@ -2,7 +2,7 @@ id: TERM33-1
 package: fandhe-workshop-web
 test: run_status_contract
 target: crates/web/src/run_status.rs
-find: Some(s) if s.state().run.busy.is_some() => RunStatus::Busy,
-replace: Some(s) if s.state().run.busy.is_none() => RunStatus::Busy,
+find: if s.state().run.busy.is_some() {
+replace: if s.state().run.busy.is_none() {
 expect-fail: 入力で処理中になり_最後の進行の後に待機中へ戻る
 note: 処理中の判定を反転する（処理中でも「待機中」のままになり、待機中が「処理中」と表示される。TERM-33）

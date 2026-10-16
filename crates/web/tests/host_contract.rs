@@ -149,7 +149,13 @@ fn mount_できる境界を満たす() {
 fn 既定のホストの描画に入力欄の_testid_が揃い_a11y_を満たす() {
     let host = EngineHost::new();
     let h = html(&host);
-    for id in ["hello-root", "draft-input", "submit-input", "input-notice"] {
+    for id in [
+        "hello-root",
+        "draft-input",
+        "submit-input",
+        "stop-btn",
+        "input-notice",
+    ] {
         assert!(h.contains(&format!("data-testid=\"{id}\"")), "{id}: {h}");
     }
     assert!(h.contains("data-testid=\"workshop-root\""), "{h}");

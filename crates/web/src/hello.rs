@@ -24,7 +24,7 @@ use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::candidates::CommandTable;
 use crate::input_limit::{clamp_draft, notice_for};
-use crate::key_route::{after_esc, esc_input, esc_route, field_state};
+use crate::key_route::{after_esc, esc_input, esc_route, field_state, EscRoute};
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
@@ -95,9 +95,12 @@ pub enum HelloAction {
     Submit,
     /// root の中の Esc（`data-action-keydown="esc"`。FEND-5）。状態を変えない。
     ///
-    /// 停止・取り消しへの結び付け（`key_route::esc_route`）は TASK-347・TASK-352 の担当で、ここでは
-    /// 「Component に届いた」ことだけを表す。`UnknownAction` に倒すと届いたことを確かめられない。
+    /// 単体では「Component に届いた」ことと候補を閉じることだけを表す。処理中の停止（`esc_route`）は
+    /// ホストが [`HelloView::esc`] を通して Session へ適用する（TASK-436 2/2）。
     Esc,
+    /// 停止ボタン（`data-action="stop"`。TERM-33）。payload は読まない。単体では状態を変えず、
+    /// 処理中の停止への結線はホスト（`host::EngineHost`）が行う。
+    Stop,
     /// keydown の probe への入力（`data-action-keydown="keydown-probe"`）。試験の設定のみ。
     #[cfg(feature = "test-hooks")]
     KeydownProbe,
@@ -164,6 +167,26 @@ impl HelloView {
         self.keydown_probe
     }
 
+    /// Esc を 1 回受け取り、行き先を返す。候補を閉じる処理は中で行い、Session への適用は呼び出し元（ホスト）が
+    /// 返り値の `op` で行う。`busy` はホストが Session から取る（処理中なら停止の行き先になる。TERM-7）。
+    pub(crate) fn esc(&mut self, busy: bool) -> EscRoute {
+        let state = FieldState {
+            candidates_open: self.candidates_open(),
+            busy,
+            ..field_state(!self.draft.is_empty())
+        };
+        let route = esc_route(decide(&esc_input(), &state));
+        if state.candidates_open && !after_esc(state, &route).candidates_open {
+            self.closed_for = Some(self.draft.clone());
+            self.dirty.push(FIELD_CANDIDATES);
+        }
+        #[cfg(feature = "test-hooks")]
+        {
+            self.esc_count = self.esc_count.saturating_add(1);
+        }
+        route
+    }
+
     /// root の中の Esc を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn esc_count(&self) -> u32 {
@@ -208,22 +231,10 @@ impl Component for HelloView {
                 self.dirty.push(FIELD_LOG);
             }
             HelloAction::Esc => {
-                // 開いている一覧だけを閉じる（K-09）。`route.op`（停止・取り消しの入力）は Session へ適用しない。
-                // 適用は TASK-347・TASK-352 の担当で、ここで適用すると Esc のたびにログが増える。
-                let state = FieldState {
-                    candidates_open: self.candidates_open(),
-                    ..field_state(!self.draft.is_empty())
-                };
-                let route = esc_route(decide(&esc_input(), &state));
-                if state.candidates_open && !after_esc(state, &route).candidates_open {
-                    self.closed_for = Some(self.draft.clone());
-                    self.dirty.push(FIELD_CANDIDATES);
-                }
-                #[cfg(feature = "test-hooks")]
-                {
-                    self.esc_count = self.esc_count.saturating_add(1);
-                }
+                self.esc(false);
             }
+            // 停止の適用はホストの責務。単体では何も変えない。
+            HelloAction::Stop => {}
             #[cfg(feature = "test-hooks")]
             HelloAction::KeydownProbe => {
                 self.keydown_probe = self.keydown_probe.saturating_add(1);
@@ -310,6 +321,16 @@ impl Component for HelloView {
             ],
             vec![text("送信")],
         ));
+        // 停止ボタン（TERM-33）。ラベルは固定の文字だけで、payload・教材の文字列は持たない。
+        children.push(el(
+            "button",
+            vec![
+                ("type", "button"),
+                ("data-testid", InputPort::Stop.testid()),
+                ("data-action", "stop"),
+            ],
+            vec![text("停止")],
+        ));
         // 件数が 0 でも常に keyed_view で描く（最初の送信から差分の経路に乗せるため）。
         // Err は data-bind-list を保った通知の一覧に倒す（空の要素にすると全再描画になる。FEND-15）。
         let items: Vec<(String, Node)> = self
@@ -332,6 +353,9 @@ impl Component for HelloView {
         }
         if name == "submit" {
             return Some(HelloAction::Submit);
+        }
+        if name == "stop" {
+            return Some(HelloAction::Stop);
         }
         if let Some(RuntimeAction::Esc) = RuntimeAction::decode(name, payload) {
             return Some(HelloAction::Esc);
@@ -420,6 +444,42 @@ mod tests {
         ] {
             assert!(HelloView::decode_action(n, p).is_none(), "{n} {p}");
         }
+    }
+
+    #[test]
+    fn stop_ボタンは固定の属性と文字だけを持つ() {
+        let html = render_component_html(&HelloView::new());
+        assert!(html.contains("data-testid=\"stop-btn\""), "{html}");
+        assert!(html.contains("data-action=\"stop\""), "{html}");
+        assert!(html.contains(">停止</button>"), "{html}");
+        assert_eq!(
+            html.matches(concat!("data-", "payload")).count(),
+            0,
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn stop_は_payload_を読まず復号され_状態を変えない() {
+        for p in ["", "x"] {
+            assert!(matches!(
+                HelloView::decode_action("stop", p),
+                Some(HelloAction::Stop)
+            ));
+        }
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き".to_owned()));
+        v.update(HelloAction::Stop);
+        assert_eq!(v.draft(), "下書き");
+        assert!(v.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn esc_は処理中なら停止へ向かう() {
+        use fandhe_workshop_core::input::{Control, Op};
+        let mut v = HelloView::new();
+        assert_eq!(v.esc(true).op, Some(Op::Control(Control::Stop)));
+        assert_ne!(v.esc(false).op, Some(Op::Control(Control::Stop)));
     }
 
     #[test]
