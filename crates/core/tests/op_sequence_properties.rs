@@ -13,6 +13,10 @@
 //! 固定の生成は深い状態（確認による達成・最後の Step の達成）に届く列が少ないため、誘導つきの生成がそれを補うことを、
 //! 既定の種に固定した比較の試験で確かめる（PoC-1 の発見事項 F-11）。
 //!
+//! 再読み込み（SAVE-4。TASK-221 1/2）を操作に混ぜた列でも同じ検査を流す。再読み込みの前に予約された進行（古い世代の宛先）が
+//! 後から届いても、状態は変わらず `Ignored` が 1 件だけ増えることを、P-2 が操作のたびに確かめる。
+//! 網羅は、固定列と、既定の種に固定した比較の試験で別に確かめる。
+//!
 //! 範囲外: P-5（流し直しの一致）は `op_sequence_replay.rs`、変異注入の定義は `tests/mutations/M1.mutation`〜`M7.mutation`。
 //! 呼び出し元は CI の `make test` のみ。
 
@@ -22,7 +26,8 @@ use std::cell::RefCell;
 
 use common::contract_sample::{load, testdata_dir};
 use common::op_gen::{
-    guided_op_specs, op_specs, run_with, script_specs, Applied, Harness, OpSpec, Which, NODES,
+    guided_op_specs, guided_op_specs_with_reload, op_specs, op_specs_with_reload, run_with,
+    script_specs, Applied, Harness, OpSpec, Which, NODES,
 };
 use common::op_props::{PropChecker, PropStats};
 use common::property::{check, try_check_with, DEFAULT_SEED};
@@ -90,6 +95,19 @@ fn properties_p1_to_p6_hold_after_every_op() {
 #[test]
 fn properties_p1_to_p6_hold_with_guided_sequences() {
     run_property_test("op-sequence-properties-guided", guided_op_specs());
+}
+
+#[test]
+fn properties_p1_to_p6_hold_with_reload_sequences() {
+    run_property_test("op-sequence-properties-reload", op_specs_with_reload());
+}
+
+#[test]
+fn properties_p1_to_p6_hold_with_guided_reload_sequences() {
+    run_property_test(
+        "op-sequence-properties-guided-reload",
+        guided_op_specs_with_reload(),
+    );
 }
 
 /// 深さの指標（1,000 通りの合計）。
@@ -236,7 +254,7 @@ fn checker_detects_each_broken_property() {
 
     // P-2: 古い進行が状態を変えた。
     let k = find(&|a| {
-        matches!(&a.op, Op::Tick(t) if next_tick(&a.before).as_ref() != Some(t))
+        matches!(&a.op, Some(Op::Tick(t)) if next_tick(&a.before).as_ref() != Some(t))
             && a.before.run.current.is_some()
     });
     let mut b = all[k].clone();
@@ -289,7 +307,7 @@ fn checker_detects_each_broken_property() {
     assert!(check_broken(&ir, &initial, &all, k, &b).contains("P-3"));
 
     // P-4: 入力で世代が 1 増えた。
-    let k = find(&|a| matches!(a.op, Op::Input(_)));
+    let k = find(&|a| matches!(a.op, Some(Op::Input(_))));
     let mut b = all[k].clone();
     b.after.run.generation.0 += 1;
     assert!(check_broken(&ir, &initial, &all, k, &b).contains("P-4"));
@@ -316,7 +334,7 @@ fn checker_detects_each_broken_property() {
     assert!(check_broken(&ir, &initial, &all, k, &b).contains("P-1b"));
 
     // P-1c: 保存の操作で、印の無い経路が世界状態に現れた。
-    let k = find(&|a| matches!(a.op, Op::Control(Control::Save)));
+    let k = find(&|a| matches!(a.op, Some(Op::Control(Control::Save))));
     let mut b = all[k].clone();
     b.after
         .run
@@ -500,3 +518,121 @@ fn p3_rejects_achievement_when_restore_revoked_the_logged_acceptance() {
     }
     assert!(tested >= 1, "no confirm-none achievement in the script");
 }
+
+/// 再読み込みを混ぜた固定列。再読み込みの前に予約された進行が後から届いても、状態を変えず `Ignored` を 1 件だけ足す。
+/// 停止・再送・Step の移動・保存・復帰と再読み込みを混ぜ、各性質の検査が実際に行われたことも確かめる。
+#[test]
+fn stale_ticks_after_reload_in_sequences_are_ignored() {
+    use fandhe_workshop_core::event::IgnoreReason;
+    let (ir, initial) = load_min_ir();
+    let specs = [
+        OpSpec::Cmd(0),
+        OpSpec::Tick(Which::Current),
+        OpSpec::Reload,
+        OpSpec::Tick(Which::StaleGen),
+        OpSpec::Tick(Which::Dup),
+        OpSpec::Cmd(0),
+        OpSpec::Reload,
+        OpSpec::Tick(Which::StaleGen),
+        OpSpec::Stop,
+        OpSpec::Reload,
+        OpSpec::Tick(Which::StaleAny(0)),
+        OpSpec::GoTo(1),
+        OpSpec::Guided(0),
+        OpSpec::Reload,
+        OpSpec::Tick(Which::StaleGen),
+        OpSpec::Save,
+        OpSpec::Restore(1),
+        OpSpec::Reload,
+        OpSpec::Tick(Which::StaleNode),
+    ];
+    let (all, stats) = run_checked(&ir, &initial, &specs).expect("properties hold");
+    println!("RELOAD-SEQUENCE stats={:?}", stats.counts);
+    assert!(stats.get("gen_reload") >= 3, "reloads: {stats:?}");
+    assert!(stats.get("stale_after_reload") >= 2, "stale: {stats:?}");
+    assert!(
+        stats.get("gen_stop") >= 1 && stats.get("gen_move") >= 1 && stats.get("gen_restore") >= 1,
+        "generation bumps: {stats:?}"
+    );
+    // 再読み込みの直前に予約されていた宛先が、再読み込みの後に古い進行として届く。
+    let mut direct = 0;
+    for (i, a) in all.iter().enumerate() {
+        if a.op.is_some() || i + 1 >= all.len() {
+            continue;
+        }
+        let reserved = next_tick(&a.before);
+        let next = &all[i + 1];
+        if let (Some(reserved), Some(Op::Tick(addr))) = (reserved, &next.op) {
+            if *addr == reserved {
+                let mut cut = next.after.clone();
+                cut.log.truncate(next.before.log.len());
+                assert_eq!(
+                    cut,
+                    next.before,
+                    "op #{}: the stale tick changed the state",
+                    i + 1
+                );
+                assert!(
+                    matches!(
+                        next.events.as_slice(),
+                        [Event::Ignored {
+                            reason: IgnoreReason::Stale,
+                            ..
+                        }]
+                    ),
+                    "op #{}: {:?}",
+                    i + 1,
+                    next.events
+                );
+                direct += 1;
+            }
+        }
+    }
+    assert!(direct >= 1, "no reserved tick reached after a reload");
+}
+
+/// 再読み込みつきの生成が、再読み込みと「再読み込みの前の世代の宛先の進行」を実際に出すことの確認。
+/// 網羅性の確認なので、種と件数を既定に固定して環境変数の上書きを受けない。
+#[test]
+fn reload_generation_exercises_stale_ticks_after_reload() {
+    let (ir, initial) = load_min_ir();
+    for (name, fixed) in [("reload-fixed", true), ("reload-guided", false)] {
+        let total = RefCell::new(PropStats::default());
+        let body = |specs: Vec<OpSpec>| {
+            let mut checker = PropChecker::new(&ir, &initial);
+            run_with(&ir, initial.clone(), &specs, |i, a| {
+                checker.check(i, a).map_err(TestCaseError::fail)
+            })?;
+            total.borrow_mut().merge(&checker.stats);
+            Ok(())
+        };
+        if fixed {
+            try_check_with(name, &DEFAULT_SEED, 1_000, &op_specs_with_reload(), body)
+        } else {
+            try_check_with(
+                name,
+                &DEFAULT_SEED,
+                1_000,
+                &guided_op_specs_with_reload(),
+                body,
+            )
+        }
+        .expect("properties hold");
+        let t = total.borrow();
+        println!("RELOAD-COVERAGE {name} counts={:?}", t.counts);
+        assert!(
+            t.get("gen_reload") >= FLOOR_RELOADS,
+            "{name}: {:?}",
+            t.counts
+        );
+        assert!(
+            t.get("stale_after_reload") >= FLOOR_STALE_AFTER_RELOAD,
+            "{name}: {:?}",
+            t.counts
+        );
+    }
+}
+
+/// 既定の種での下限。実測は固定が 1593 件・732 件、誘導つきが 1070 件・387 件（2026-10-16。`docs/testing.md` 5.68）。
+const FLOOR_RELOADS: u64 = 500;
+const FLOOR_STALE_AFTER_RELOAD: u64 = 200;

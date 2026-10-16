@@ -62,6 +62,10 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   達成まで届いた列が固定 28 通り・誘導 509 通り、達成の直後に同じ操作で次の Step へ入った件数が固定 150 件・誘導 1,083 件。章の完了
   （`ChapterCompleted`）はエンジンが未実装（TASK-233 以降）のため、代わりに最後の Step の達成を指標にした。下限は
   確認による達成 500 件超・最後の Step の達成 200 通り超
+- 再読み込みを混ぜた列（TASK-221 1/2、SAVE-4）は `op_gen.rs` の `OpSpec::Reload` と、`op_specs_with_reload`・`guided_op_specs_with_reload` が出す。
+  `property-test.md` の操作の表には無く、表の外から足したものである。既存の戦略は変えていない（種ごとの列と記録を保つため）。
+  `op_sequence_properties.rs` と `op_sequence_replay.rs` に各 2 本の性質テスト（1,000 通り）と、固定列・既定の種に固定した網羅の試験を足した（5.68）。
+  4 本あわせて約 8 秒（2026-10-16、dev プロファイル）
 
 ## 3. 変異注入の手順
 
@@ -97,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1924,3 +1928,33 @@ TERM33-1 は処理中の判定を反転する変異で、入力の後に「処�
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
 | TERM33-1 | crates/web/src/run_status.rs: 処理中の判定を反転する（処理中でも「待機中」のままになり、待機中が「処理中」と表示される。TERM-33） | 入力で処理中になり_最後の進行の後に待機中へ戻る | 入力で処理中になり_最後の進行の後に待機中へ戻る | DETECTED | - |
+
+### 5.70 再読み込みを含む列の性質（TASK-221 1/2）
+
+TASK-219 の操作列に再読み込み（SAVE-4）を足し、停止・再送・Step の移動・保存・復帰と任意に混ぜた列でも、
+再読み込みの前に予約された進行（古い世代の宛先）が後から届いたとき、状態が変わらず `Ignored` が 1 件だけ増えることを確かめた。
+製品コード（`crates/core/src/**`）は変えていない。変えたのは試験のハーネスと検査器である。
+
+- `OpSpec::Reload` を足した。再読み込みは `Op` ではないので `Applied::op` を `Option<Op>` にし、`None` を再読み込みとした。宛先の履歴（`seen`・`last_tick`）は再読み込みで変えない
+- P-2: 古い進行の判定は変えていない。統計 `stale_after_reload`（操作前のログに、宛先の世代より大きい `new_generation` の `Reloaded` がある古い進行）を足した。出力と網羅の試験にだけ使う
+- P-4: `gen_reload` の腕が再読み込みの操作で出るようになった。再読み込みは世代とログ以外を変えないことも確かめる
+- 性質テスト: `properties_p1_to_p6_hold_with_reload_sequences`・`..._with_guided_reload_sequences`（P-1〜P-6）、`replay_from_start_matches_after_every_op_with_reload_sequences`・`..._with_guided_reload_sequences`（P-5。純粋関数の `session::reload` と `Session::reload` の一致）
+- 固定列 `stale_ticks_after_reload_in_sequences_are_ignored`: 再読み込みの直前に予約されていた宛先が、再読み込みの後に `Ignored(Stale)` 1 件だけで状態を変えないことを列の中で直接確かめる
+- 網羅 `reload_generation_exercises_stale_ticks_after_reload`: 既定の種・1,000 通りの実測（2026-10-16）は、固定が `gen_reload` 1,593 件・`stale_after_reload` 732 件、誘導つきが 1,070 件・387 件。下限は 500 件・200 件
+
+EVT8-1 は進行の宛先の照合から世代を外す誤り、EVT8-2 は再読み込みで世代を上げない誤りである。
+既存の M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ検査器とハーネスを通るため、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e7aa95b-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT8-1.mutation crates/core/tests/mutations/EVT8-2.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| EVT8-1 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す | DETECTED（stale_ticks_after_reload_in_sequences_are_ignored, properties_p1_to_p6_hold_with_reload_sequences, properties_p1_to_p6_hold_with_guided_reload_sequences ほか 4 件。最小の反例 `[Cmd(0), Tick(StaleGen)]`） |
+| EVT8-2 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（stale_ticks_after_reload_in_sequences_are_ignored, properties_p1_to_p6_hold_with_reload_sequences, properties_p1_to_p6_hold_with_guided_reload_sequences ほか 1 件。最小の反例 `[Reload]`） |
+| M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 既存の定義 | 19 件とも DETECTED |
+
+自動ブラウザの場面（S-5・S-6 系）と、再読み込みの後の実際のタイマーの進行は TASK-221 2/2 が扱う。
