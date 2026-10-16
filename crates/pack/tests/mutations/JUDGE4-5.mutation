@@ -1,0 +1,9 @@
+id: JUDGE4-5
+package: fandhe-workshop-pack
+test: reject_four_scenes
+target: crates/core/src/command_judge.rs
+find: if !shape_ok(arg.shape, v) {
+replace: if false {
+expect-fail: four_scenes_are_classified_100_percent
+expect-fail: missing_and_shape_go_through_judge_input
+note: 引数の形の検査を外す（形の違う値が受付になり、bad_arg_shape が返らない）
