@@ -13,6 +13,8 @@
 //! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
 //!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
+//! - 状態表示 `run-status` は `LogPart` の中の仮の位置に置く（4 部品目にすると標準の登録簿が 3 部品でなくなる）。
+//!   配置は TASK-517・TASK-438 が決める。
 //! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
 //!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
 //! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
@@ -24,7 +26,7 @@
 
 use std::collections::BTreeMap;
 
-use fandhe_frontend_core::{bind_text, el, text, Node};
+use fandhe_frontend_core::{bind_attr_token, bind_text, el, text, Node};
 use fandhe_frontend_wasm_client::BoundValue;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::projection::{Mark, MarkKind};
@@ -36,6 +38,8 @@ use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
 use crate::log_lines::{line_from_event, line_node};
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
+use crate::run_status::run_status;
+use crate::terminal_area::{RUN_STATUS_TESTID, STATE_ATTR};
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
 const LOG_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-log-list")];
@@ -49,6 +53,14 @@ const F_LOG: &[PartField] = &[
     },
     PartField {
         name: "engine_log_consumed",
+        kind: FieldKind::Bound,
+    },
+    PartField {
+        name: "run_status_word",
+        kind: FieldKind::Bound,
+    },
+    PartField {
+        name: "run_status_state",
         kind: FieldKind::Bound,
     },
 ];
@@ -176,6 +188,26 @@ fn with_trace(node: Node, event: u32, step: &str) -> Node {
     }
 }
 
+/// 状態表示（`run-status`。TASK-436）。語は文字ノード 1 つ、`data-state` は束縛点で更新する。
+///
+/// 値は `RunStatus` の固定の語だけで、教材や受講者の文字列を含まない。`data-state` を `aria-*` の束縛へ
+/// 替えない（`a11y` の `bound-a11y-attribute` が禁じる。ライブの属性は TASK-366 の持ち分）。
+/// 置き場所は仮で、画面の配置（TASK-517・TASK-438）が決めたら移す。
+fn run_status_node(model: &HostModel) -> Node {
+    let status = run_status(model.session());
+    let token = bind_attr_token(STATE_ATTR, F_LOG[3].name);
+    bind_text(
+        "span",
+        vec![
+            ("data-testid", RUN_STATUS_TESTID),
+            (STATE_ATTR, status.data_state()),
+            ("data-bind-attr", token.as_str()),
+        ],
+        F_LOG[2].name,
+        status.word(),
+    )
+}
+
 /// 右のログ。行にできるイベント 1 件が 1 行で、キーはイベントの位置（追記だけで安定する）。
 /// 行の構造は `log_lines`（TASK-431 準拠）が持ち、行にしないイベントは飛ばす。
 struct LogPart;
@@ -210,6 +242,7 @@ impl DisplayPart<HostModel> for LogPart {
             "section",
             vec![("data-testid", "part-log")],
             vec![
+                run_status_node(model),
                 list,
                 bind_text(
                     "span",
@@ -221,7 +254,12 @@ impl DisplayPart<HostModel> for LogPart {
         )
     }
     fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
-        consumed_bound(field, F_LOG[1].name, model)
+        let status = run_status(model.session());
+        match field {
+            f if f == F_LOG[2].name => Some(BoundValue::Text(status.word().to_owned())),
+            f if f == F_LOG[3].name => Some(BoundValue::Text(status.data_state().to_owned())),
+            _ => consumed_bound(field, F_LOG[1].name, model),
+        }
     }
 }
 

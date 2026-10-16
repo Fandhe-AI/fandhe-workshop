@@ -310,7 +310,7 @@ fn consumed_of(host: &EngineHost, field: &str) -> String {
 fn 標準の登録簿は_3_部品で_入力欄の_field_と衝突しない() {
     let r = standard_registry();
     assert_eq!(r.len(), 3);
-    assert_eq!(r.fields().count(), 6);
+    assert_eq!(r.fields().count(), 8);
     assert!(r
         .fields()
         .all(|f| !["input_notice", "learner_log"].contains(&f.name)));
