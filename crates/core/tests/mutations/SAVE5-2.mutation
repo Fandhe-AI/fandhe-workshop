@@ -1,0 +1,8 @@
+id: SAVE5-2
+package: fandhe-workshop-core
+test: reload_after_control
+target: crates/core/src/go_to.rs
+find:     state.run.generation = next;
+replace:     let _ = next;
+expect-fail: reload_right_after_move_restores_the_moved_state
+note: Step の移動で世代を上げない。移動の前の宛先が生き残り、移動の直後の世代が +1 にならない

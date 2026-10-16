@@ -1933,3 +1933,35 @@ EVT8-1 は進行の宛先の照合から世代を外す誤り、EVT8-2 は再読
 | M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 既存の定義 | 19 件とも DETECTED |
 
 自動ブラウザの場面（S-5・S-6 系）と、再読み込みの後の実際のタイマーの進行は TASK-221 2/2 が扱う。
+
+### 5.71 停止・移動・復帰の直後の再読み込み（TASK-321 1/2）
+
+停止・Step の移動・チェックポイントの復帰の直後に、保存の遅延を待たずに再読み込みしても、直後の状態へ戻り、操作の前の宛先の進行が状態を変えないことを固定した（SAVE-5。PoC-6 の S-6・S-7・S-19）。
+製品コードは変えていない。復元した状態は、世代の +1 とログ末尾の `Reloaded` 1 件を除いて直後の状態と等しい。操作の前の宛先は `Ignored(Stale)` が 1 件ずつ増えるだけで、状態は変わらない（S-19 は復帰の前に予約された 2 件）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/reload_after_control.rs` の `reload_right_after_stop_restores_the_stopped_state` | S-6。処理中に停止し、記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込みを通す。処理中でなく Step の入口と等しい |
+| 同 `reload_right_after_move_restores_the_moved_state` | S-7。処理中・処理中でないの 2 通りで、世代が移動の前 +2 になる |
+| 同 `reload_right_after_restore_restores_the_restored_state` | S-19。復習・ログ・チェックポイントの一覧・下書きも等しい |
+| 同 `session_entry_agrees_for_all_three_scenes` | `Session` の入口が純粋関数の経路と同じ状態になる |
+| `crates/web/tests/reload_after_control_store.rs` | 3 場面を、`PendingSave` に積み、`flush`（`pagehide` 相当）で localStorage の偽物へ書き、新しい保存先から読み戻して `load_history` で開き、再読み込みする。`flush` までは保存先に何も書かれない |
+
+自動ブラウザ（S-6・S-7・S-19）は未実施である。web に受講中の `ops` の記録・変更ごとの `PendingSave::stage`・読み込み時の `load_history` による復元と `Session::reload` の結線が無く、それは TASK-319 の範囲のため。
+結線の後に `tools/browser/reload-after-control.test.mjs`（`scripts/test-browser.sh` に登録）として足す。確認の操作の連打（S-9）は TASK-321 2/2 で扱う。
+
+SAVE5-1 は停止で入口の写しへ戻さない誤り、SAVE5-2 は移動で世代を上げない誤り、SAVE5-3 は再読み込みでチェックポイントの一覧を消す誤りである。
+既存の SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE5-{1,2,3}.mutation crates/core/tests/mutations/SAVE4-{1,2,3,4,5,6}.mutation crates/core/tests/mutations/SAVE1-{1,2,3,4,5,6}.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE5-1 | crates/core/src/stop.rs: 停止で入口の写しへ戻さない | DETECTED（reload_right_after_stop_restores_the_stopped_state） |
+| SAVE5-2 | crates/core/src/go_to.rs: 移動で世代を上げない | DETECTED（reload_right_after_move_restores_the_moved_state） |
+| SAVE5-3 | crates/core/src/reload.rs: 再読み込みでチェックポイントの一覧を消す | DETECTED（reload_right_after_restore_restores_the_restored_state） |
+| SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.58・5.59・5.66・5.67 の定義 | 12 件とも DETECTED |
