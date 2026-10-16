@@ -17,7 +17,8 @@
 //!
 //! # 拡張点
 //!
-//! - #207: [`run_with`] の検査フック（操作前・操作後・イベント列を受ける）に P-1〜P-6 の検査を渡す
+//! - #207（実装済み）: [`run_with`] の検査フックに `common/op_props.rs` の `PropChecker` を渡す。
+//!   固定列 [`script_specs`] も同じ検査器に通す
 //! - #208: [`OpSpec`] に誘導の variant を足し、[`Harness::resolve`] の中で現在の状態から解決する
 //!   （`resolve` は `&self` で状態を読む形を保つ）
 //!
@@ -25,6 +26,8 @@
 //!
 //! 連打は直前の学習者の入力が無いと捨てるため、展開後が空になりうる。この場合は先頭に
 //! `OpSpec::Cmd(0)`（`/make-note first-note`）を 1 件置き、列を 1 件以上にそろえる。
+
+use std::path::PathBuf;
 
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
@@ -34,6 +37,9 @@ use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{apply, Session};
 use proptest::prelude::*;
 use proptest::test_runner::TestCaseError;
+use serde::Deserialize;
+
+use super::contract_sample::testdata_dir;
 
 use super::property::{op_sequence, MAX_OPS};
 use super::tick::next_tick;
@@ -360,4 +366,78 @@ where
         check(i, &applied)?;
     }
     Ok(harness.state().clone())
+}
+
+/// 固定列（`scripted-inputs.json`）の 1 操作（`scripted-inputs.json` の `ops` の要素）。
+#[derive(Deserialize)]
+struct ScriptOp {
+    op: String,
+    which: Option<String>,
+    input: Option<serde_json::Value>,
+    node: Option<String>,
+    id: Option<u32>,
+}
+
+#[derive(Deserialize)]
+struct Script {
+    ops: Vec<ScriptOp>,
+}
+
+fn index_of(table: &[&str], value: &str) -> usize {
+    table
+        .iter()
+        .position(|v| *v == value)
+        .unwrap_or_else(|| panic!("value {value:?} is not in the op_gen table"))
+}
+
+/// 固定列の入力を、生成器の表の添字に写す。表に無い値は理由を添えて panic する。
+fn input_spec(v: &serde_json::Value) -> OpSpec {
+    if v == "cancel" {
+        return OpSpec::Cancel;
+    }
+    let obj = v.as_object().expect("input object");
+    if let Some(c) = obj.get("command") {
+        return OpSpec::Cmd(index_of(&CMDS, c.as_str().expect("command str")));
+    }
+    if let Some(c) = obj.get("choice") {
+        return OpSpec::Choice(index_of(&CHOICES, c.as_str().expect("choice str")));
+    }
+    if let Some(u) = obj.get("ui") {
+        return OpSpec::Ui(index_of(&PATHS, u["path"].as_str().expect("ui path")));
+    }
+    if let Some(a) = obj.get("approval") {
+        let d = a["decision"].as_str().expect("decision");
+        let i = DECISIONS
+            .iter()
+            .position(|x| format!("{x:?}").to_lowercase() == d)
+            .expect("decision in table");
+        return OpSpec::Approval(i);
+    }
+    panic!("unsupported scripted input: {v}");
+}
+
+pub fn script_specs() -> Vec<OpSpec> {
+    let path: PathBuf =
+        testdata_dir().join("engine-event-consistency/test-data/scripted-inputs.json");
+    let bytes = std::fs::read(path).expect("read scripted inputs");
+    let script: Script = serde_json::from_slice(&bytes).expect("parse scripted inputs");
+    script
+        .ops
+        .iter()
+        .map(|o| match o.op.as_str() {
+            "input" => input_spec(o.input.as_ref().expect("input")),
+            "tick" => OpSpec::Tick(match o.which.as_deref().expect("which") {
+                "current" => Which::Current,
+                "dup" => Which::Dup,
+                "stale_gen" => Which::StaleGen,
+                "stale_node" => Which::StaleNode,
+                other => panic!("unknown which {other:?}"),
+            }),
+            "stop" => OpSpec::Stop,
+            "goto" => OpSpec::GoTo(index_of(&NODES, o.node.as_deref().expect("node"))),
+            "save" => OpSpec::Save,
+            "restore" => OpSpec::Restore(o.id.expect("id")),
+            other => panic!("unknown op {other:?}"),
+        })
+        .collect()
 }
