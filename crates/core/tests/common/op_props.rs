@@ -32,6 +32,8 @@
 //! - P-4: ログの宛先の世代は単調に増える。世代は `Stopped`・`Moved`・`Restored`・`Begun` が出たときだけ、
 //!   ちょうど 1 増える。判定は `OpSpec` ではなくイベントで行う（処理中でない停止は取り消しになる・移動の後の停止は
 //!   世代を変えない・移動や復帰は拒否されうる）
+//! - 再読み込み（TASK-221。`Applied::op` が `None`）: P-2 は古い宛先の進行として、再読み込みの前の世代の宛先も
+//!   同じ規則で検査する（統計 `stale_after_reload`）。P-4 は再読み込みを世代の増分に数え、世代とログ以外を変えないことも確かめる
 //! - P-6: 同じ（世代, Step）で `Entered`・`Accepted`・`Achieved` はそれぞれ高々 1 回
 //!
 //! 失敗は、操作の番号・性質・解決した `Op` を含む文字列で返す。1 操作で複数の性質が違反した場合は、
@@ -333,7 +335,7 @@ impl<'a> PropChecker<'a> {
 
     /// P-2: 古い進行は状態を変えず `Ignored` を 1 件だけ足す。一致する進行は `Progress` をちょうど 1 件出す。
     pub fn check_p2(&mut self, a: &Applied) -> Result<(), String> {
-        let Op::Tick(addr) = &a.op else {
+        let Some(Op::Tick(addr)) = &a.op else {
             return Ok(());
         };
         if next_tick(&a.before).as_ref() == Some(addr) {
@@ -380,6 +382,13 @@ impl<'a> PropChecker<'a> {
         }
         if addr.generation.0 < a.before.run.generation.0 {
             self.stats.bump("stale_after_generation_change");
+            // 再読み込みの前の世代の宛先か（TASK-221）。操作前のログに、その世代より大きい `new_generation` の
+            // `Reloaded` がある。
+            if a.before.log.iter().any(|e| {
+                matches!(e, Event::Reloaded { new_generation, .. } if new_generation.0 > addr.generation.0)
+            }) {
+                self.stats.bump("stale_after_reload");
+            }
         }
         Ok(())
     }
@@ -462,7 +471,7 @@ impl<'a> PropChecker<'a> {
                     bumps.push(("gen_restore", new_generation.0))
                 }
                 Event::Begun { new_generation, .. } => bumps.push(("gen_begin", new_generation.0)),
-                // `apply` からは出ない（再読み込みは `Op` ではない）。出たら未知の増分にせず表に載せる。
+                // 再読み込みの操作（`op` が `None`）で出る。`Op` ではないので、`Op` の腕からは出ない。
                 Event::Reloaded { new_generation, .. } => {
                     bumps.push(("gen_reload", new_generation.0))
                 }
@@ -482,10 +491,19 @@ impl<'a> PropChecker<'a> {
         }
         if matches!(
             a.op,
-            Op::Input(_) | Op::Tick(_) | Op::Control(Control::Save)
+            Some(Op::Input(_) | Op::Tick(_) | Op::Control(Control::Save))
         ) && after != before
         {
             return Err("an input, tick or save changed the generation".into());
+        }
+        if a.op.is_none() {
+            // 再読み込み（SAVE-4）は世代以外を変えない。世代を戻し、ログを操作前の長さで切ると操作前と一致する。
+            let mut rest = a.after.clone();
+            rest.run.generation = a.before.run.generation;
+            rest.log.truncate(a.before.log.len());
+            if rest != a.before {
+                return Err("a reload changed something other than the generation".into());
+            }
         }
         Ok(())
     }

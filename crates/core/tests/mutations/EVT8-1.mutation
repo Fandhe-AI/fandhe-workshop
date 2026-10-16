@@ -1,0 +1,10 @@
+id: EVT8-1
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: properties_p1_to_p6_hold_with_reload_sequences
+expect-fail: properties_p1_to_p6_hold_with_guided_reload_sequences
+expect-fail: stale_ticks_after_reload_in_sequences_are_ignored
+note: 進行の宛先の照合から世代を外し、再読み込みの前に予約された進行（古い世代の宛先）を弾かない

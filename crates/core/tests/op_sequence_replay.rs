@@ -13,7 +13,10 @@
 mod common;
 
 use common::contract_sample::{load, testdata_dir};
-use common::op_gen::{guided_op_specs, op_specs, script_specs, Applied, Harness, OpSpec, Which};
+use common::op_gen::{
+    guided_op_specs, guided_op_specs_with_reload, op_specs, op_specs_with_reload, script_specs,
+    Applied, Harness, OpSpec, Which,
+};
 use common::property::{check, try_check_with, DEFAULT_SEED, MAX_OPS};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -102,6 +105,7 @@ impl Stats {
                     Event::Moved { .. } => "moved",
                     Event::CheckpointSaved { .. } => "saved",
                     Event::Restored { .. } => "restored",
+                    Event::Reloaded { .. } => "reloaded",
                     Event::Refused { .. } => "refused",
                     Event::Achieved { .. } => "achieved",
                     Event::Progress { .. } => "progress",
@@ -147,6 +151,20 @@ fn replay_from_start_matches_after_every_op() {
 #[test]
 fn replay_from_start_matches_after_every_op_with_guided_sequences() {
     run_replay_property("op-sequence-replay-guided", guided_op_specs());
+}
+
+/// 再読み込みを混ぜた列でも、純粋関数の経路（`session::reload`）と `Session` の経路（`Session::reload`）が一致する。
+#[test]
+fn replay_from_start_matches_after_every_op_with_reload_sequences() {
+    run_replay_property("op-sequence-replay-reload", op_specs_with_reload());
+}
+
+#[test]
+fn replay_from_start_matches_after_every_op_with_guided_reload_sequences() {
+    run_replay_property(
+        "op-sequence-replay-guided-reload",
+        guided_op_specs_with_reload(),
+    );
 }
 
 fn any_event(applied: &[Applied], pred: impl Fn(&Event) -> bool) -> bool {
@@ -275,5 +293,5 @@ fn replay_comparison_detects_a_dropped_op() {
     let result = compare_runs(&first, &short);
     assert!(result.is_err(), "a dropped op must be detected");
     // `Op` を 1 件落とした列は、2 件目（進行と保存）で食い違う。
-    assert!(matches!(first[1].op, Op::Tick(_)));
+    assert!(matches!(first[1].op, Some(Op::Tick(_))));
 }
