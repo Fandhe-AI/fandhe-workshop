@@ -1,7 +1,7 @@
-//! 右のターミナル風エリアが守る語の契約（TASK-431、版 1。ログの行・状態表示・Step の状態の語）。
+//! 右のターミナル風エリアが守る語の契約（TASK-431、版 1。ログの行・状態表示・Step の状態の語・入力の口の識別子）。
 //!
 //! 右のエリアの実装（TASK-434〜464）と通しの試験（TASK-87・TASK-92・TASK-374）は、ログの行の種類・
-//! 状態表示・Step の状態の語を観察点に使う。担当ごとに決めると統合で食い違うため、先に本モジュールで固定する。
+//! 状態表示・Step の状態の語・入力の口の識別子を観察点に使う。担当ごとに決めると統合で食い違うため、先に本モジュールで固定する。
 //! 呼び出し元は画面の試験で、`view()` が返す [`Node`] の木を [`check_area`]（右のエリアの部分木）・
 //! [`check_view`]（画面全体から右のエリアを探す）で照合する。native の rlib で試験できるよう、wasm 専用にしない。
 //!
@@ -9,14 +9,20 @@
 //! 試作 PoC-12 と試作の `right.rs` である。
 //! 値・識別子・規則を変える場合は、先に spec を直し、[`TERMINAL_AREA_CONTRACT_VERSION`] を上げる。黙って変えない。
 //!
-//! 版 1 は 2 回に分けて書き上げる。1/2（本モジュールの現状）はログの行・状態表示・Step の状態の語、
-//! 2/2 は入力の口の識別子と観察点の制約である。2/2 は版を上げず、識別子の閉じた一覧に足す。
+//! 版 1 は 2 回に分けて書き上げた。1/2 はログの行・状態表示・Step の状態の語、2/2 は入力の口の識別子と
+//! 観察点の制約である。2/2 は版を上げず、識別子の閉じた一覧に足した。
 //!
-//! 版 1（1/2）が持つ規則:
+//! 版 1 が持つ規則:
 //! 1. ログの行の種類と構造（[`LineKind`]・[`InputMethod`]。`log-list` の直接の子は `li` だけ）
 //! 2. 状態表示の値と語（[`RunStatus`]。識別子 `run-status`）
 //! 3. Step の状態の語（[`step_status_word`]。識別子 `step-status`）
 //! 4. 右のエリアの `data-testid` の閉じた一覧（定義にない識別子は違反）
+//! 5. 入力の口の識別子と配置（[`InputPort`]。入力欄・送信・停止・候補の一覧と項目・選択肢・承認のボタン）、
+//!    値を載せる属性（[`CHOICE_ATTR`]・[`DECISION_ATTR`]・[`REVISE_TARGET_ATTR`]）、承認のボタンの語（[`decision_word`]）
+//! 6. 観察点の制約: 試験が読む目印は、配信する設定の画面にも出る通常の属性（`data-testid` と値の `data-*` 属性）
+//!    だけで書く。試験用の隠し要素（`tick-trigger` 型）は、閉じた一覧に無い識別子なので `undefined-testid` で
+//!    失敗する。宛先を DOM に書いて隠しトリガーを click する経路（TASK-349 が消したもの）は足さない。
+//!    配信物に試験用の口が無いことは `tools/check-delivery.sh`（TASK-82）が検査し、本契約はそれと両立させる
 //!
 //! 識別子の持ち主の境界:
 //! - `log-list`・`pane-tabs`・`pane-tab`・`mark-glyph`・`mark-text`・ライブの欄・通知欄は `a11y`（TASK-366）が持つ。
@@ -27,12 +33,20 @@
 //!   表す。別の種類にすると `a11y` の版上げが要る
 //!
 //! 意図して固定しないもの:
-//! - 行の文言と `line-decision`・`line-target` の文字（ボタンの語は 2/2、行の文言は TASK-434・TASK-437）
+//! - 行の文言と `line-decision`・`line-target` の文字（行の文言は TASK-434・TASK-437）
 //! - どのイベントをどの行にするかの対応（TASK-434〜437）と、状態表示の導出（停止から待機中へ戻す時機。TASK-436）
 //! - `aria-*`・ライブの欄（TASK-366）
 //! - Step の状態のうち `Entered`・`NotStarted`・`Skipped` と章の完了の語（spec が 2 語しか確定していない。
 //!   TASK-435 が決めた後に版を上げて足す）。`step-status` の文字は木では検査しない
-//! - 入力の口の識別子と、未決の目印（2/2・TASK-464）
+//! - `data-action`・`data-payload` の値（`parts` の doc のとおり TASK-343 と実装の範囲）。受講者が操作する見える
+//!   ボタンが自分の action 属性を持つことは妨げない。禁じるのは、試験が宛先を書いた隠しトリガーを click する経路である
+//! - `hidden` による表示の状態（閉じた候補の一覧を隠す。keyed list の親を保つための正当な状態）
+//! - 送信・停止・対象つきの「直す」のラベルの書式（TASK-437・TASK-450）
+//! - 選択肢・承認のボタンの入れ物の要素と識別子、入力の口を置く領域（版上げで足す）
+//! - 確認の段階（`Confirm::Answer`・`Confirm::Approve`）と入力の段階の選択肢・承認との区別（版 1 は同じ口を使う）
+//! - 未決の目印: 開発用の「本文の参照」の行の代わりに試験が読む目印。TASK-788 が消し方を決め、別の目印を読む案なら
+//!   TASK-464 が版 2 で定義する。決まるまでは識別子を予約せず、右のエリアに識別子つきで出すと
+//!   `undefined-testid` で失敗する（fail-closed）
 //!
 //! 違反の文面は英語の固定文で、位置・規則名・識別子・属性名だけを含む。文字ノードの中身
 //! （受講者の入力・教材の文面）は埋め込まない（A09）。
@@ -47,7 +61,7 @@ use fandhe_workshop_contract::judgment::RejectCategory;
 use fandhe_workshop_core::input::{Decision, Input};
 use fandhe_workshop_core::step_status::StepStatus;
 
-/// この契約の版。値・識別子・規則を変えたら上げる（2/2 の追加は上げない）。
+/// この契約の版。値・識別子・規則を変えたら上げる（2/2 の追加は上げなかった）。
 pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 1;
 
 /// 行の種類を載せる属性名。
@@ -66,6 +80,10 @@ pub const TOTAL_ATTR: &str = "data-total";
 pub const DECISION_ATTR: &str = "data-decision";
 /// 状態表示の値を載せる属性名。
 pub const STATE_ATTR: &str = "data-state";
+/// 選択肢のボタンの選択肢 ID（空でない）を載せる属性名。
+pub const CHOICE_ATTR: &str = "data-choice";
+/// 対象つきの「直す」の対象（空白だけでない）を載せる属性名。汎用名の `data-target` は避ける。
+pub const REVISE_TARGET_ATTR: &str = "data-revise-target";
 
 /// 状態表示の識別子。
 pub const RUN_STATUS_TESTID: &str = "run-status";
@@ -86,7 +104,7 @@ pub const LINE_DECISION_TESTID: &str = "line-decision";
 /// 承認の対象の部品。
 pub const LINE_TARGET_TESTID: &str = "line-target";
 
-/// 本契約が持つ識別子の閉じた一覧（1/2 分）。
+/// 本契約が持つ識別子の閉じた一覧のうち、状態表示と行の部品の分。入力の口は [`InputPort::ALL`]。
 pub const TERMINAL_AREA_TESTIDS: [&str; 9] = [
     RUN_STATUS_TESTID,
     STEP_STATUS_TESTID,
@@ -101,6 +119,67 @@ pub const TERMINAL_AREA_TESTIDS: [&str; 9] = [
 
 /// 本契約の予約空間の接頭辞。
 pub const LINE_PREFIX: &str = "line-";
+
+/// 入力の口。試験が操作する要素を識別子で引くための閉じた一覧。
+///
+/// 確認の段階の答え・承認も入力の段階と同じ [`InputPort::Choice`]・[`InputPort::Approval`] を使う。
+/// 対象つきの「直す」は [`InputPort::Approval`] に `data-decision="revise"` と [`REVISE_TARGET_ATTR`] を付けて表す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputPort {
+    /// 入力欄（`textarea`）。1 画面に 1 つ。
+    Draft,
+    /// 送信（`button type="button"`）。1 画面に 1 つ。
+    Submit,
+    /// 停止の操作（`button type="button"`）。1 画面に 1 つ。
+    Stop,
+    /// 候補の一覧（`ul`・`ol`）。直接の子は `li` だけ。1 画面に 1 つ。
+    CandidateList,
+    /// 候補の項目（`button type="button"`）。`candidate-list` の中に置く。
+    Candidate,
+    /// 選択肢のボタン（`button type="button"`）。[`CHOICE_ATTR`] に選択肢 ID を持つ。
+    Choice,
+    /// 承認のボタン（`button type="button"`）。[`DECISION_ATTR`] に操作の値を持つ。
+    Approval,
+}
+
+impl InputPort {
+    /// すべての入力の口。
+    pub const ALL: [InputPort; 7] = [
+        InputPort::Draft,
+        InputPort::Submit,
+        InputPort::Stop,
+        InputPort::CandidateList,
+        InputPort::Candidate,
+        InputPort::Choice,
+        InputPort::Approval,
+    ];
+
+    /// `data-testid` の値。
+    pub const fn testid(self) -> &'static str {
+        match self {
+            InputPort::Draft => "draft-input",
+            InputPort::Submit => "submit-input",
+            InputPort::Stop => "stop-btn",
+            InputPort::CandidateList => "candidate-list",
+            InputPort::Candidate => "candidate-btn",
+            InputPort::Choice => "choice-btn",
+            InputPort::Approval => "approval-btn",
+        }
+    }
+
+    /// `data-testid` の値から引く。未知は `None`。
+    pub fn parse(v: &str) -> Option<InputPort> {
+        InputPort::ALL.into_iter().find(|p| p.testid() == v)
+    }
+
+    /// 1 画面に 1 つだけ置ける口か。
+    const fn is_single(self) -> bool {
+        matches!(
+            self,
+            InputPort::Draft | InputPort::Submit | InputPort::Stop | InputPort::CandidateList
+        )
+    }
+}
 
 /// ログの行の種類。承認の操作の記録は [`LineKind::Received`] の `data-input="approval"` で表す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,6 +290,22 @@ pub const fn decision_value(d: Decision) -> &'static str {
     }
 }
 
+/// 承認のボタンの語（はい・いいえ・直す）。
+pub const fn decision_word(d: Decision) -> &'static str {
+    match d {
+        Decision::Approve => "はい",
+        Decision::Reject => "いいえ",
+        Decision::Revise => "直す",
+    }
+}
+
+/// `data-decision` の値から承認の操作を引く。
+fn decision_from_value(v: &str) -> Option<Decision> {
+    [Decision::Approve, Decision::Reject, Decision::Revise]
+        .into_iter()
+        .find(|d| decision_value(*d) == v)
+}
+
 /// `data-decision` の値の一覧。
 pub const DECISION_VALUES: [&str; 3] = ["approve", "reject", "revise"];
 
@@ -262,9 +357,10 @@ pub const fn step_status_word(s: StepStatus) -> Option<&'static str> {
     }
 }
 
-/// 右のエリアで許される `data-testid` の閉じた一覧（本契約 + `a11y` が持つもの）に含まれるか。
+/// 右のエリアで許される `data-testid` の閉じた一覧（本契約の部品・入力の口 + `a11y` が持つもの）に含まれるか。
 pub fn is_defined_testid(id: &str) -> bool {
     TERMINAL_AREA_TESTIDS.contains(&id)
+        || InputPort::ALL.iter().any(|p| p.testid() == id)
         || LiveRegion::ALL.iter().any(|l| l.testid() == id)
         || StatusNotice::ALL.iter().any(|n| n.testid() == id)
         || [
@@ -361,6 +457,12 @@ struct Ctx {
     line: Option<usize>,
     /// 行の部品の中。
     in_part: bool,
+    /// 祖先に `log-list` がある。
+    in_log_list: bool,
+    /// 祖先に `candidate-list` がある。
+    in_candidate_list: bool,
+    /// 直接の親が `candidate-list`。
+    parent_is_candidate_list: bool,
 }
 
 /// 1 行の部品の要件。`(必須, 任意)`。
@@ -408,6 +510,8 @@ fn direct_text(children: &[Node]) -> String {
 
 struct Walk {
     out: Vec<Violation>,
+    /// 1 画面に 1 つだけの口の出現（識別子と要素の添字）。出現順。
+    singles: Vec<(&'static str, usize)>,
     links: Vec<(usize, usize)>,
     lines: Vec<Line>,
 }
@@ -505,9 +609,13 @@ impl Walk {
     }
 }
 
-fn walk(area: &Node) -> Vec<Violation> {
+/// 単数の口の出現位置（識別子と位置）。
+type Singles = Vec<(&'static str, Vec<usize>)>;
+
+fn walk(area: &Node) -> (Vec<Violation>, Singles) {
     let mut w = Walk {
         out: Vec::new(),
+        singles: Vec::new(),
         links: vec![(usize::MAX, 0)],
         lines: Vec::new(),
     };
@@ -519,6 +627,9 @@ fn walk(area: &Node) -> Vec<Violation> {
                 // `log-list` の直接の子は `li` だけ。文字ノードも構造違反（空白だけは許す）。
                 if ctx.parent_is_log_list && t.chars().any(|ch| !ch.is_whitespace()) {
                     w.bad(id, "log-list-child", "#text");
+                }
+                if ctx.parent_is_candidate_list && t.chars().any(|ch| !ch.is_whitespace()) {
+                    w.bad(id, "candidate-list-child", "#text");
                 }
                 continue;
             }
@@ -538,6 +649,9 @@ fn walk(area: &Node) -> Vec<Violation> {
             parent_is_log_list: false,
             line: ctx.line,
             in_part: ctx.in_part,
+            in_log_list: ctx.in_log_list,
+            in_candidate_list: ctx.in_candidate_list,
+            parent_is_candidate_list: false,
         };
         let testid = attr(attrs, TESTID_ATTR);
         if let Some(t) = testid {
@@ -554,15 +668,22 @@ fn walk(area: &Node) -> Vec<Violation> {
             }
             child_ctx.in_part = false;
         }
+        if ctx.parent_is_candidate_list && tag != "li" {
+            w.bad(id, "candidate-list-child", tag);
+        }
         match testid {
             Some(LOG_LIST_TESTID) => {
                 child_ctx.parent_is_log_list = true;
+                child_ctx.in_log_list = true;
                 child_ctx.line = None;
                 child_ctx.in_part = false;
             }
             Some(RUN_STATUS_TESTID) => check_run_status(&mut w, id, attrs, children),
             Some(t) if is_line_part(t) => {
                 check_part(&mut w, id, t, attrs, children, ctx, &mut child_ctx)
+            }
+            Some(t) if InputPort::parse(t).is_some() => {
+                check_input(&mut w, id, t, tag, attrs, children, ctx, &mut child_ctx)
             }
             _ => {}
         }
@@ -572,7 +693,117 @@ fn walk(area: &Node) -> Vec<Violation> {
         }
     }
     w.finish_lines();
-    w.out
+    let singles = w
+        .singles
+        .iter()
+        .map(|(t, id)| (*t, path_of(&w.links, *id)))
+        .collect();
+    (w.out, singles)
+}
+
+/// 単数の口の 2 つ目以降を違反にする。数える範囲（エリア 1 つか画面全体か）は呼び出し側が決める。
+fn duplicate_violations(singles: Singles) -> Vec<Violation> {
+    let mut seen: Vec<&'static str> = Vec::new();
+    let mut out = Vec::new();
+    for (t, path) in singles {
+        if seen.contains(&t) {
+            out.push(Violation::Element {
+                path,
+                rule: "input-duplicate",
+                detail: t.to_string(),
+            });
+        } else {
+            seen.push(t);
+        }
+    }
+    out
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "walk の持ち回しの値を 1 つの関数に集めると、check_part と同じ形で読めなくなるため"
+)]
+fn check_input(
+    w: &mut Walk,
+    id: usize,
+    testid: &str,
+    tag: &str,
+    attrs: &[(String, String)],
+    children: &[Node],
+    ctx: Ctx,
+    child_ctx: &mut Ctx,
+) {
+    let Some(port) = InputPort::parse(testid) else {
+        return;
+    };
+    let is_button = !matches!(port, InputPort::Draft | InputPort::CandidateList);
+    let tag_ok = match port {
+        InputPort::Draft => tag == "textarea",
+        InputPort::CandidateList => tag == "ul" || tag == "ol",
+        _ => tag == "button",
+    };
+    if !tag_ok {
+        w.bad(id, "input-tag", format!("{testid} on {tag}"));
+    }
+    if is_button && attr(attrs, "type") != Some("button") {
+        w.bad(id, "input-button-type", testid);
+    }
+    if ctx.in_log_list {
+        w.bad(id, "input-in-line", testid);
+    }
+    if port.is_single() {
+        w.singles.push((port.testid(), id));
+    }
+    let label_ok = all_text(children) && has_nonblank_text(children);
+    match port {
+        InputPort::CandidateList => {
+            child_ctx.parent_is_candidate_list = true;
+            child_ctx.in_candidate_list = true;
+        }
+        InputPort::Candidate => {
+            if !ctx.in_candidate_list {
+                w.bad(id, "candidate-outside-list", testid);
+            }
+            if !label_ok {
+                w.bad(id, "label-text-only", testid);
+            }
+        }
+        InputPort::Choice => {
+            if !label_ok {
+                w.bad(id, "label-text-only", testid);
+            }
+            if !attr(attrs, CHOICE_ATTR).is_some_and(|v| !v.is_empty()) {
+                w.bad(id, "choice-id", CHOICE_ATTR);
+            }
+        }
+        InputPort::Approval => check_approval(w, id, attrs, children),
+        InputPort::Draft | InputPort::Submit | InputPort::Stop => {}
+    }
+}
+
+fn check_approval(w: &mut Walk, id: usize, attrs: &[(String, String)], children: &[Node]) {
+    let decision = attr(attrs, DECISION_ATTR).and_then(decision_from_value);
+    if decision.is_none() {
+        w.bad(id, "approval-decision", DECISION_ATTR);
+    }
+    match attr(attrs, REVISE_TARGET_ATTR) {
+        Some(target) => {
+            let ok = decision == Some(Decision::Revise)
+                && target.chars().any(|ch| !ch.is_whitespace())
+                && all_text(children)
+                && has_nonblank_text(children);
+            if !ok {
+                w.bad(id, "revise-target", REVISE_TARGET_ATTR);
+            }
+        }
+        None => {
+            if let Some(d) = decision {
+                if !all_text(children) || direct_text(children).trim() != decision_word(d) {
+                    w.bad(id, "approval-word", DECISION_ATTR);
+                }
+            }
+        }
+    }
 }
 
 fn check_run_status(w: &mut Walk, id: usize, attrs: &[(String, String)], children: &[Node]) {
@@ -630,9 +861,11 @@ fn check_part(
 /// 渡された部分木を右のエリアとして照合する。違反はすべて集めて返す。
 ///
 /// 規則: `RawHtml` の禁止、`data-testid` の閉じた一覧、`log-list` の子と行の属性・部品、部品の配置と重複、
-/// `line-next-action` の非空、受講者の文字列の部品が文字ノードだけであること、`run-status` の値と語。
+/// `line-next-action` の非空、受講者の文字列の部品が文字ノードだけであること、`run-status` の値と語、
+/// 入力の口の要素・配置・値の属性・ボタンの語、単数の口の重複（このエリア内で数える）。
 pub fn check_area(area: &Node) -> Result<(), Vec<Violation>> {
-    let out = walk(area);
+    let (mut out, singles) = walk(area);
+    out.extend(duplicate_violations(singles));
     if out.is_empty() {
         Ok(())
     } else {
@@ -642,6 +875,7 @@ pub fn check_area(area: &Node) -> Result<(), Vec<Violation>> {
 
 /// 画面全体から右のエリア（`aria-label` が案内とログ・コマンドの入力の要素）を探して照合する。
 /// 1 つも無ければ失敗する（対象が無いまま空振りで通るのを防ぐ）。エリアの外は管轄外。
+/// 単数の口の重複は、全エリアの合計で数える。
 pub fn check_view(view: &Node) -> Result<(), Vec<Violation>> {
     let labels = [
         Region::GuideAndLog.aria_label(),
@@ -675,24 +909,30 @@ pub fn check_view(view: &Node) -> Result<(), Vec<Violation>> {
         }]);
     }
     let mut out = Vec::new();
+    let mut all_singles: Singles = Vec::new();
     for (node, id) in roots {
-        if let Err(vs) = check_area(node) {
-            let base = path_of(&links, id);
-            for v in vs {
-                out.push(match v {
-                    Violation::RawHtml { path } => Violation::RawHtml {
-                        path: [base.clone(), path].concat(),
-                    },
-                    Violation::Element { path, rule, detail } => Violation::Element {
-                        path: [base.clone(), path].concat(),
-                        rule,
-                        detail,
-                    },
-                    other => other,
-                });
-            }
+        let base = path_of(&links, id);
+        let (vs, singles) = walk(node);
+        for v in vs {
+            out.push(match v {
+                Violation::RawHtml { path } => Violation::RawHtml {
+                    path: [base.clone(), path].concat(),
+                },
+                Violation::Element { path, rule, detail } => Violation::Element {
+                    path: [base.clone(), path].concat(),
+                    rule,
+                    detail,
+                },
+                other => other,
+            });
         }
+        all_singles.extend(
+            singles
+                .into_iter()
+                .map(|(t, p)| (t, [base.clone(), p].concat())),
+        );
     }
+    out.extend(duplicate_violations(all_singles));
     if out.is_empty() {
         Ok(())
     } else {
