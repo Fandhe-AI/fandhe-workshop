@@ -13,6 +13,7 @@
 //! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しの作り直しは TASK-242）。
 //! 処理中でない停止は取り消しの入力 `Input::Cancel` として `accept` へ委ねる（TASK-212、EVT-10）。
 //! チェックポイントの保存と復帰は `checkpoint` モジュールが行う（TASK-214 1/3、EVT-12）。
+//! 再読み込みは `apply` の外にあり、`reload` モジュールが世代を +1 する（[`reload()`]、TASK-320 1/2、SAVE-4）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
 //! （`Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
@@ -39,6 +40,7 @@ use crate::event::{Cause, Event};
 use crate::go_to;
 use crate::input::{CheckpointId, Control, GenerationRule, Input, Op};
 use crate::provider::StateChangeProvider;
+use crate::reload;
 use crate::step_status::StepStatus;
 use crate::stop;
 use crate::tick;
@@ -199,6 +201,17 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     (state, events)
 }
 
+/// 再読み込み（SAVE-4）。処理中のまま続け、世代を +1 して `Reloaded` を 1 件ログへ足す純粋な関数。
+///
+/// `apply` の `Op` には含めない（世代の表を変えないため）。戻りのイベント列は新しい状態の `log` の末尾に
+/// 足された分と一致する。現在の Step が無いとき、世代があふれるときは状態を変えない（後者は `Warning` のみ）。
+pub fn reload(state: SessionState) -> (SessionState, Vec<Event>) {
+    let mut state = state;
+    let events = reload::on_reload(&mut state);
+    state.log.extend(events.iter().cloned());
+    (state, events)
+}
+
 /// 操作 1 件の後の世代を、[`GenerationRule`] の表に合わせて決める（EVT-6、TASK-210 1/3）。
 ///
 /// 呼び出し元は [`apply`] のみ。分岐（`accept`・`confirm` や後続の停止・移動・復帰）が表に反して世代を
@@ -328,6 +341,15 @@ impl Session {
         let before = self.state.log.len();
         let state = std::mem::take(&mut self.state);
         let (state, _events) = apply(&self.ir, state, op);
+        self.state = state;
+        self.state.log.get(before..).unwrap_or_default()
+    }
+
+    /// 再読み込みし、今回足されたイベントを返す（[`reload()`]）。
+    pub fn reload(&mut self) -> &[Event] {
+        let before = self.state.log.len();
+        let state = std::mem::take(&mut self.state);
+        let (state, _events) = reload(state);
         self.state = state;
         self.state.log.get(before..).unwrap_or_default()
     }

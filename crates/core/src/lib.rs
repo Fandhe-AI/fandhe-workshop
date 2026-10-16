@@ -33,6 +33,7 @@
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
 //! 別の Step への移動（`go_to`、TASK-213 1/2。公開しない）も持つ。
 //! チェックポイントの保存と復帰（`checkpoint`、TASK-214 1/3。公開しない）も持つ。
+//! 処理中の再読み込みでの世代 +1（`reload`、TASK-320 1/2。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -65,6 +66,7 @@ pub mod ops_record;
 pub mod projection;
 pub mod provider;
 pub mod rejection_text;
+mod reload;
 pub mod select_judge;
 pub mod session;
 pub mod step_status;
@@ -79,7 +81,7 @@ pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
 pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
 
-/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267、版 3）。
+/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320、版 4）。
 ///
 /// 覆う範囲は [`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]・[`session`]・[`projection`] の
 /// 公開の型と署名、および [`input::GenerationRule`] の表である。次のいずれかを変えたら上げる。
@@ -93,9 +95,12 @@ pub use session::{apply, Session, SessionState};
 ///
 /// 版 3 で足したもの: 判定結果のイベント `Event::Judged`（JUDGE-3）。`Op::Input` では `InputReceived` の直後に 1 件置く。
 ///
+/// 版 4 で足したもの: 再読み込み（SAVE-4）の `Event::Reloaded`・`session::reload`・`Session::reload`。
+/// `Op` と世代の規則の表は変えない（再読み込みは `apply()` を経由しない）。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）
-/// - 下書きの操作と再読み込み（SAVE-4）
+/// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 3;
+pub const CONTRACT_VERSION: u32 = 4;

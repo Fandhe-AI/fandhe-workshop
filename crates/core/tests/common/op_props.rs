@@ -133,6 +133,7 @@ fn stamp_of(e: &Event) -> Result<&Stamp, String> {
         | Event::Restored { at, .. }
         | Event::Begun { at, .. }
         | Event::HintOpened { at, .. }
+        | Event::Reloaded { at, .. }
         | Event::Refused { at, .. }
         | Event::Ignored { at, .. }
         | Event::Warning { at, .. } => Ok(at),
@@ -461,6 +462,10 @@ impl<'a> PropChecker<'a> {
                     bumps.push(("gen_restore", new_generation.0))
                 }
                 Event::Begun { new_generation, .. } => bumps.push(("gen_begin", new_generation.0)),
+                // `apply` からは出ない（再読み込みは `Op` ではない）。出たら未知の増分にせず表に載せる。
+                Event::Reloaded { new_generation, .. } => {
+                    bumps.push(("gen_reload", new_generation.0))
+                }
                 _ => {}
             }
         }

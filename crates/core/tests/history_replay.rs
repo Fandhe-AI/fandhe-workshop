@@ -159,23 +159,18 @@ fn blank_submit_is_rejected() {
 }
 
 #[test]
-fn reload_is_rejected_until_task_320() {
+fn reload_bumps_the_generation_and_logs_reloaded() {
     let (ir, initial) = load_min_ir();
     let ops = vec![HistoryOp::Draft("x".to_owned()), HistoryOp::Reload];
-    assert_eq!(
-        replay(&ir, initial.clone(), &ops),
-        Err(ReplayError::UnsupportedReload { index: 1 })
-    );
+    let state = replay(&ir, initial.clone(), &ops).expect("replay");
+    assert_eq!(state.run.generation.0, initial.run.generation.0 + 1);
+    let added = &state.log[initial.log.len()..];
+    assert!(matches!(added, [Event::Reloaded { .. }]), "{added:?}");
+    // 下書きは再読み込みで変わらない。
+    assert_eq!(state.drafts.len(), 1);
+    // `two-rounds` は再読み込みを含み、適用し直せる（写しとの一致は主張しない。`Control::Begin` が未実装）。
     let sample = history_sample::load("two-rounds");
-    let first = sample
-        .ops
-        .iter()
-        .position(|o| matches!(o, HistoryOp::Reload))
-        .expect("two-rounds has a reload");
-    assert_eq!(
-        replay(&ir, initial, &sample.ops),
-        Err(ReplayError::UnsupportedReload { index: first })
-    );
+    assert!(replay(&ir, initial, &sample.ops).is_ok());
 }
 
 #[test]

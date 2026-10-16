@@ -34,7 +34,7 @@ use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
-use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::session::{reload, SessionState};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, Session};
 use proptest::prelude::*;
@@ -361,6 +361,23 @@ impl<'a> Harness<'a> {
             }
             OpSpec::Save => Op::Control(Control::Save),
             OpSpec::Restore(n) => Op::Control(Control::Restore(CheckpointId(n))),
+        }
+    }
+
+    /// 再読み込み（SAVE-4）を流す。`apply` の外の経路で、純粋関数の経路は `session::reload`、
+    /// `Session` の経路は `Session::reload` を呼ぶ。進行の宛先の履歴（`seen`・`last_tick`）は保つ。
+    pub fn reload(&mut self) -> Vec<Event> {
+        match &mut self.route {
+            Route::Pure => {
+                let (after, events) = reload(self.state.clone());
+                self.state = after;
+                events
+            }
+            Route::Session(session) => {
+                let events = session.reload().to_vec();
+                self.state = session.state().clone();
+                events
+            }
         }
     }
 

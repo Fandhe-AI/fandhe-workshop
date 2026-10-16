@@ -151,7 +151,27 @@ fn enter_and_button_share_one_record_kind() {
         );
         assert!(!t.contains("enter") && !t.contains("key"));
     }
+    // `reload()` を呼ばない列に `reload` は現れない。
     assert!(rec.ops().iter().all(|o| kind_of(o) != "reload"));
+}
+
+#[test]
+fn reload_is_recorded_once_and_splits_drafts() {
+    let mut rec = OpsRecorder::new();
+    rec.draft("a".into());
+    rec.reload();
+    rec.draft("b".into());
+    // 再読み込みを挟んだ下書きは畳まない。
+    assert_eq!(
+        rec.ops(),
+        [
+            HistoryOp::Draft("a".to_string()),
+            HistoryOp::Reload,
+            HistoryOp::Draft("b".to_string()),
+        ]
+        .as_slice()
+    );
+    assert_eq!(kind_of(&rec.ops()[1]), "reload");
 }
 
 /// st-1 が `Entered`・処理中でない・世代 1 の状態。
