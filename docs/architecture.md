@@ -131,12 +131,13 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
 | ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ） | web | TASK-347 |
+| ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
-- TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する
+- TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。TASK-472 で版 2 に上げ、ツリーの `role`・属性とその規則を足した
 - TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語・入力の口の識別子・観察点の制約）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 1）が持つ。`parts`・`a11y` の版とは別に管理する
 - 左の成果物ビューの契約（TASK-467。`artifact_view`）の版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`（版 1）が持つ。上の 2 つの版とは別に管理する。TASK-467 2/2 で足した束縛点・指せる行の属性・変種の口も同じ版 1 の中にある
 

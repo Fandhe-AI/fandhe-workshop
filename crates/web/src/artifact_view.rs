@@ -19,7 +19,8 @@
 //!
 //! # 固定しないもの
 //!
-//! - 親要素の `role`・`aria-label`（`a11y` の閉じた一覧の版上げで足す。黙って付けない）
+//! - 親要素の `aria-label`（`a11y` の閉じた一覧にラベルの文字列が無い。TASK-470 の範囲）。ツリーの
+//!   `role=tree` は `tree_view_list` だけが付け（a11y の版 2。TASK-472）、他の種類の親には `role` を付けない
 //! - ART-16 の使い分けの規則（PoC-8 の「(a) はアプリのデモとカードに限る」案も固定しない）
 //! - 変種ごとの `data-mark` の付け先（TASK-469）と、どの行を指せるか（TASK-468）
 //! - keyed list のキーの合計バイト数（上流の安全弁）に収める工夫（TASK-469 以降）
@@ -170,6 +171,11 @@ impl ViewKind {
         }
     }
 
+    /// ツリー（ファイルツリー・タスクツリー）か。変種 (b) で `role=tree` を付ける対象（ART-9）。
+    pub const fn is_tree(self) -> bool {
+        matches!(self, ViewKind::FileTree | ViewKind::TaskTree)
+    }
+
     /// 変種 `v` をこの種類が許すか。文書・差分は (b) だけ（ART-7・ART-8）。
     pub const fn allows(self, v: Variant) -> bool {
         !matches!((self, v), (ViewKind::Document | ViewKind::Diff, Variant::A))
@@ -196,7 +202,7 @@ pub const HIDDEN_ATTR: &str = "hidden";
 
 /// 親要素の属性。閉じた集合の値だけで、教材由来の値を入れない。
 ///
-/// `role`・`aria-label` は付けない（`a11y` の版 1 の閉じた一覧に無く、版上げで足す）。
+/// `role`・`aria-label` は付けない。ツリーの `role=tree` は [`tree_list_attrs`] が足す。
 /// 選ばれていないビューにだけ `hidden=""` を足す（ART-12）。
 pub fn list_attrs(kind: ViewKind, selected: bool) -> Vec<(&'static str, &'static str)> {
     let mut attrs = vec![(TESTID_ATTR, VIEW_LIST_TESTID), (VIEW_ATTR, kind.as_str())];
@@ -224,6 +230,48 @@ pub fn view_list(
     keyed_view(
         tag,
         list_attrs(kind, selected),
+        &kind.list_part_field(),
+        items,
+    )
+}
+
+/// 親要素の属性に、ツリーの `role=tree` を足したもの（TASK-472。ART-9）。
+///
+/// [`list_attrs`] の結果に、次の 4 条件がすべて成り立つときだけ `role=tree` を足す。
+/// 種類がツリー、変種が (b)、選ばれている、項目が 1 件以上ある。(a) は対照として `role` を付けない。
+/// 項目が 0 件のときに付けないのは、子の無い `role=tree` が ARIA の必須の子に反するため。
+/// `aria-label` は付けない（`a11y` の閉じた一覧にラベルの文字列が無い。TASK-470 の範囲）。
+pub fn tree_list_attrs(
+    kind: ViewKind,
+    variant: Variant,
+    selected: bool,
+    has_items: bool,
+) -> Vec<(&'static str, &'static str)> {
+    let mut attrs = list_attrs(kind, selected);
+    if kind.is_tree() && variant == Variant::B && selected && has_items {
+        attrs.push(("role", crate::tree_attrs::TREE_ROLE));
+    }
+    attrs
+}
+
+/// ツリーのビューの keyed list の親要素を作る。親の属性は必ずここ（つまり `view()`）で書く（FEND-15）。
+///
+/// [`view_list`] と同じく、選ばれていないビューは `items` を捨てて空の一覧にする。`Err` は呼び出し側へ返す。
+///
+/// # Errors
+///
+/// 上流の安全弁（項目数・キーの重複など）が拒否した場合は `ListError`。
+pub fn tree_view_list(
+    tag: &'static str,
+    kind: ViewKind,
+    variant: Variant,
+    selected: bool,
+    items: Vec<(String, Node)>,
+) -> Result<Node, ListError> {
+    let items = if selected { items } else { Vec::new() };
+    keyed_view(
+        tag,
+        tree_list_attrs(kind, variant, selected, !items.is_empty()),
         &kind.list_part_field(),
         items,
     )

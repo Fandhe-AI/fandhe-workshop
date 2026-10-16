@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -43,4 +43,9 @@ export function renderQuoteNest(n) {
 // 進行の間隔（ミリ秒。TASK-229）。URL のクエリで変わらないことの確認に使う。読み取りのみ。
 export function tickIntervalMs() {
   return debug_tick_interval_ms();
+}
+
+// ツリーの試料を後の状態で描いた HTML 文字列を返す（TASK-472）。kind は "file_tree" か "task_tree"、variant は "a" か "b"。範囲外は空文字列。
+export function renderTree(kind, variant) {
+  return debug_render_tree(kind, variant);
 }

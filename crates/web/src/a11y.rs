@@ -1,4 +1,4 @@
-//! 画面が守るアクセシビリティの構造の契約（TASK-366、版 1。領域・通知欄・ライブの欄・タブ・変化の印・
+//! 画面が守るアクセシビリティの構造の契約（TASK-366、版 2。領域・通知欄・ライブの欄・タブ・変化の印・
 //! 操作対象の大きさ・読み上げの更新の単位）。
 //!
 //! 画面の実装（TASK-517・TASK-450 など）とブラウザ試験（TASK-369〜371・376）は、この契約を入力にする。
@@ -12,6 +12,9 @@
 //! ライブの欄の `aria-live`・`aria-atomic` は `view()` に直接書く。後から付けた属性や束縛した属性は更新で
 //! 消えるため（F-2）、版 1 では束縛による aria・role・`tabindex` を一切許さない。
 //! 値・識別子・規則を変える場合は、先に spec を直し、[`A11Y_CONTRACT_VERSION`] を上げる。黙って変えない。
+//!
+//! 版 2（TASK-472）は、ART-9・ART-13（ともに spec で確定済み）に従ってツリーの語を足した。`role` の `tree`・
+//! `treeitem` と、`aria-level`・`aria-posinset`・`aria-setsize`・`aria-expanded` である。版 1 の規則は変えない。
 //!
 //! 版 1 が持つ規則は次の 5 つである。
 //! 1. 領域の `aria-label`・通知欄・ライブの欄（A11Y-5〜7）
@@ -31,6 +34,13 @@
 //! - 適合の検査の管轄は、aria・role の属性、tab の `tabindex`、`data-mark`、上記の予約識別子である。
 //!   aria・role を持たないそれ以外の `data-testid`（例: `hello-root`）は管轄外とし、他の契約の識別子と
 //!   衝突させない。例外として `live-` で始まる識別子は予約空間とし、定義にない値は違反にする
+//!
+//! 版 2 が足す規則は次の 4 つである（ART-9・ART-13）。
+//! 6. `treeitem-attribute`: `role=treeitem` は 3 属性を正の 10 進の整数で持ち、位置は兄弟の数以下
+//! 7. `tree-attribute-placement`: ツリーの 4 属性は `role=treeitem` にだけ置く
+//! 8. `treeitem-expanded`: `aria-expanded` は `true` だけ。開閉とキー操作は持たない（ART-22。TASK-494）ので、
+//!    `false` は項目を隠す宣言になり許さない
+//! 9. `treeitem-outside-tree`: `role=treeitem` の祖先に `role=tree` がある
 //!
 //! 意図して固定しないもの（決める前に固定しない）:
 //! - 属性名は HTML に合わせて大文字小文字を区別せずに照合する（`ARIA-LABEL` も `aria-label` と同じ扱い）
@@ -52,7 +62,7 @@ use core::fmt;
 use fandhe_frontend_core::Node;
 
 /// この契約の版。値・識別子・規則を変えたら上げる。
-pub const A11Y_CONTRACT_VERSION: u32 = 1;
+pub const A11Y_CONTRACT_VERSION: u32 = 2;
 
 /// 識別子を載せる属性名。
 pub const TESTID_ATTR: &str = "data-testid";
@@ -414,8 +424,8 @@ pub const fn live_left_should_update(changed: usize) -> bool {
     changed >= 1
 }
 
-/// 版 1 で許す aria・role の属性名（閉じた一覧）。
-pub const A11Y_ATTRIBUTE_NAMES: [&str; 7] = [
+/// 版 2 で許す aria・role の属性名（閉じた一覧）。版 2 でツリーの 4 つを足した（TASK-472）。
+pub const A11Y_ATTRIBUTE_NAMES: [&str; 11] = [
     "role",
     "aria-label",
     "aria-live",
@@ -423,10 +433,14 @@ pub const A11Y_ATTRIBUTE_NAMES: [&str; 7] = [
     "aria-selected",
     "aria-controls",
     "aria-labelledby",
+    "aria-level",
+    "aria-posinset",
+    "aria-setsize",
+    "aria-expanded",
 ];
-/// 版 1 で許す `role` の値（閉じた一覧）。
-pub const ROLE_VALUES: [&str; 4] = ["status", "tablist", "tab", "tabpanel"];
-/// 版 1 で許す `aria-label` の値（閉じた一覧）。3 つの領域のラベルと tablist のラベル。
+/// 版 2 で許す `role` の値（閉じた一覧）。版 2 で `tree`・`treeitem` を足した（TASK-472）。
+pub const ROLE_VALUES: [&str; 6] = ["status", "tablist", "tab", "tabpanel", "tree", "treeitem"];
+/// 版 2 で許す `aria-label` の値（閉じた一覧）。3 つの領域のラベルと tablist のラベル。
 pub const ARIA_LABEL_VALUES: [&str; 4] = [
     Region::Artifacts.aria_label(),
     Region::GuideAndLog.aria_label(),
@@ -484,6 +498,8 @@ struct Ctx {
     in_live: bool,
     in_tabpanel: bool,
     in_tablist: bool,
+    /// 祖先に `role=tree` がある。
+    in_tree: bool,
     /// 直接の親が `data-mark` を持つ。子へ渡すたびに設定し直す（祖先ではなく親だけを表す）。
     parent_is_mark_row: bool,
 }
@@ -725,6 +741,7 @@ fn check_element(
             );
         }
     }
+    check_tree(attrs, role, ctx, child_ctx, &mut bad);
     if role == Some("tabpanel") {
         let id = attr(attrs, "id").unwrap_or("");
         match PaneTab::ALL.iter().find(|t| t.panel_id() == id) {
@@ -745,6 +762,72 @@ fn check_element(
             "aria-labelledby is for tabpanel".to_string(),
         );
     }
+}
+
+/// ツリー（ART-9・ART-13）の属性と配置を照合する。値は違反の文面に載せない。
+///
+/// `role=treeitem` は 3 属性（正の 10 進の整数。`aria-posinset` は `aria-setsize` 以下）を持ち、祖先に
+/// `role=tree` がある。`aria-expanded` は開閉の口（ART-22）が無い版 2 では `true` だけを許す。
+/// ツリーの 4 属性は `role=treeitem` にだけ置く。
+fn check_tree(
+    attrs: &[(String, String)],
+    role: Option<&str>,
+    ctx: Ctx,
+    child_ctx: &mut Ctx,
+    bad: &mut impl FnMut(&'static str, String),
+) {
+    if role == Some("tree") {
+        child_ctx.in_tree = true;
+    }
+    let tree_attrs = [
+        "aria-level",
+        "aria-posinset",
+        "aria-setsize",
+        "aria-expanded",
+    ];
+    if role != Some("treeitem") {
+        for k in tree_attrs {
+            if attr(attrs, k).is_some() {
+                bad("tree-attribute-placement", format!("{k} is for treeitem"));
+            }
+        }
+        return;
+    }
+    if !ctx.in_tree {
+        bad("treeitem-outside-tree", "must be inside tree".to_string());
+    }
+    let mut nums: [Option<u64>; 3] = [None; 3];
+    for (slot, k) in nums.iter_mut().zip(&tree_attrs[..3]) {
+        match attr(attrs, k).and_then(positive_decimal) {
+            Some(n) => *slot = Some(n),
+            None => bad(
+                "treeitem-attribute",
+                format!("{k} must be a positive integer"),
+            ),
+        }
+    }
+    if let [_, Some(pos), Some(size)] = nums {
+        if pos > size {
+            bad(
+                "treeitem-attribute",
+                "aria-posinset must not exceed aria-setsize".to_string(),
+            );
+        }
+    }
+    if attr(attrs, "aria-expanded").is_some_and(|v| v != "true") {
+        bad(
+            "treeitem-expanded",
+            "aria-expanded must be true (all items are open)".to_string(),
+        );
+    }
+}
+
+/// 先頭が 0 でない ASCII 数字だけの正の 10 進の整数。範囲を超える桁数は `None`。
+fn positive_decimal(s: &str) -> Option<u64> {
+    if s.is_empty() || s.starts_with('0') || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
 }
 
 /// 変化の印の 3 手段（A11Y-22）を照合する。値と本文は違反の文面に載せない。
