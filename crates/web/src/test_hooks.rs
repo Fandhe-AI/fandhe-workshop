@@ -143,3 +143,12 @@ pub fn debug_render_quote_nest(n: u32) -> String {
     };
     fandhe_frontend_core::render(&crate::doc_view::render_doc_node(&doc))
 }
+
+/// 進行の間隔（ミリ秒）の定数を返す（読み取りのみ）。
+///
+/// 配信する設定が `?tick=5` を無視して同じ値のままであることを、ブラウザ試験（TASK-229）が確かめるための口。
+/// 値を書き換える口は作らない。
+#[wasm_bindgen]
+pub fn debug_tick_interval_ms() -> u32 {
+    crate::tick_interval::TICK_INTERVAL_MS
+}

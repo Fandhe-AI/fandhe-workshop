@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -38,4 +38,9 @@ export function renderDoc(text) {
 // 引用を n 段入れ子にした木を Rust で組み立てて描画した HTML 文字列を返す（関門を通さない。n は 200 まで）。
 export function renderQuoteNest(n) {
   return debug_render_quote_nest(n);
+}
+
+// 進行の間隔（ミリ秒。TASK-229）。URL のクエリで変わらないことの確認に使う。読み取りのみ。
+export function tickIntervalMs() {
+  return debug_tick_interval_ms();
 }
