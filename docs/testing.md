@@ -1809,3 +1809,19 @@ SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SA
 | SAVE4-2 | crates/core/src/history_replay.rs: 適用し直しで Reload を飛ばす | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided ほか 1 件） |
 | SAVE4-3 | crates/core/src/ops_record.rs: 記録側が Reload を残さない | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
 | SAVE1-1〜SAVE1-6 | crates/core/src/history_replay.rs ほか（5.58・5.59 の定義） | 6 件とも DETECTED |
+
+### 5.67 処理中の状態表示（TASK-436 1/2）
+
+状態表示 `run-status` の導出（`run_status`）を実装した。処理中の Step（`run.busy` が `Some`）で「処理中」、それ以外と未読込で「待機中」にする。
+停止（`Stopped`）は TASK-436 2/2 の範囲である。固定の試験は `crates/web/tests/run_status_contract.rs`、ブラウザ試験は `tools/browser/run-status.test.mjs` である。
+TERM33-1 は処理中の判定を反転する変異で、入力の後に「処理中」へ、最後の進行の後に「待機中」へ変わることを確かめる試験が検出する。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b3fec6a-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM33-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM33-1 | crates/web/src/run_status.rs: 処理中の判定を反転する（処理中でも「待機中」のままになり、待機中が「処理中」と表示される。TERM-33） | 入力で処理中になり_最後の進行の後に待機中へ戻る | 入力で処理中になり_最後の進行の後に待機中へ戻る | DETECTED | - |
