@@ -11,7 +11,7 @@ use fandhe_workshop_contract::limits::{
     LimitReason, LoadEntry, LoadStage, LOAD_STAGE_ORDER, MAX_HISTORY_BYTES, MAX_IR_BYTES,
     MAX_JSON_DEPTH,
 };
-use fandhe_workshop_core::load_gate::{load_json, parse_json_value, LoadError};
+use fandhe_workshop_core::load_gate::{check_limits, load_json, parse_json_value, LoadError};
 use serde::Deserialize;
 
 const ENTRIES: [LoadEntry; 2] = [LoadEntry::Ir, LoadEntry::History];
@@ -201,4 +201,25 @@ fn serde_json_recursion_boundary() {
     let parse = |n: usize| serde_json::from_slice::<serde_json::Value>(&nested(n, true));
     assert!(parse(127).is_ok());
     assert!(parse(129).is_err());
+}
+
+#[test]
+fn check_limits_agrees_with_parse_json_value() {
+    for e in ENTRIES {
+        let inputs = [
+            pad_to(b"{}", limit(e)),
+            pad_to(b"{}", limit(e) + 1),
+            nested(MAX_JSON_DEPTH, true),
+            nested(MAX_JSON_DEPTH + 1, true),
+            pad_to(&nested(MAX_JSON_DEPTH + 1, true), limit(e) + 1),
+            b"{".to_vec(),
+        ];
+        for b in &inputs {
+            let gate = match parse_json_value(e, b) {
+                Err(LoadError::Limit(r)) => Some(r),
+                _ => None,
+            };
+            assert_eq!(check_limits(e, b).err(), gate);
+        }
+    }
 }
