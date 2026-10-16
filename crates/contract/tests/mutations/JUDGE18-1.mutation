@@ -1,0 +1,9 @@
+id: JUDGE18-1
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find: defined(KeyAction::CloseCandidates, false)
+replace: defined(KeyAction::CancelInput, false)
+expect-fail: judge18_two_escapes_close_then_cancel
+expect-fail: expected_table_matches
+note: 候補が開いていても 1 回目の Esc で取り消す（2 回の Esc が 1 回になる）

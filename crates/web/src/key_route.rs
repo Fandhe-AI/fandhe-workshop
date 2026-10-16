@@ -11,7 +11,7 @@
 //! 受け持たない行（glue は何もしない）と担当:
 //! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
 //! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
-//! - `Pending(_)`: 修飾キー付き Enter（JUDGE-22）などは版 1 で未決。送信も `preventDefault` もしない（版 2 は TASK-281）
+//! - `Pending(_)`: 版 2 の `decide` は返さない（修飾キー付き Enter は `Nothing`。TASK-281）。版 1 の表を読むために残る変種で、返ったら送信も `preventDefault` もしない
 //! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求める（候補を閉じる・取り消しの入力。TASK-277 2/2）
 //! - `Stop`: `effect_for` では何もしない。root の中の Esc は上流の `esc` 属性で Component に届くため、glue で重ねて
 //!   届けない（FEND-5・FEND-6）。停止への結び付けは `esc_route` が受け持つ（TASK-277 1/2）
