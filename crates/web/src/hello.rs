@@ -170,6 +170,8 @@ impl HelloView {
     /// Esc を 1 回受け取り、行き先を返す。候補を閉じる処理は中で行い、Session への適用は呼び出し元（ホスト）が
     /// 返り値の `op` で行う。`busy` はホストが Session から取る（処理中なら停止の行き先になる。TERM-7）。
     pub(crate) fn esc(&mut self, busy: bool) -> EscRoute {
+        // `update` と同じく前の操作の dirty を引き継がない（今回変わった field だけを載せる）。
+        self.dirty.clear();
         let state = FieldState {
             candidates_open: self.candidates_open(),
             busy,
@@ -492,6 +494,16 @@ mod tests {
         v.update(HelloAction::Esc);
         assert_eq!(v.draft(), "続き");
         assert_eq!(v.entries, entries);
+        assert!(v.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn esc_は前の操作の_dirty_を引き継がない() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き".to_owned()));
+        v.update(HelloAction::SetDraft("x".repeat(100_000)));
+        assert!(!v.dirty_fields().is_empty());
+        v.esc(false);
         assert!(v.dirty_fields().is_empty());
     }
 
