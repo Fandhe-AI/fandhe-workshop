@@ -448,6 +448,26 @@ fn sample_skip_confirm_entry_matches_apply() {
     assert_eq!(next.run, e.after, "e16: after");
 }
 
+/// 古い世代の進行の無視（TASK-210 3/3）の単独の照合。サンプルの e07 を、その前の状態から 1 件だけ流して、
+/// `Ignored` 1 件だけのイベント列と変わらない状態がサンプルと一致することを確かめる（連鎖は e06 で止まる）。
+#[test]
+fn sample_stale_tick_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let e = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e07")
+        .expect("sample has e07");
+    let state = SessionState {
+        run: e.before.clone(),
+        ..SessionState::default()
+    };
+    let (next, events) = apply(&ir, state, e.op.clone());
+    assert_eq!(events, e.events, "e07: events");
+    assert_eq!(next.run, e.after, "e07: after");
+}
+
 #[test]
 #[ignore = "apply() の各分岐（TASK-207・210・211・213・214・215）の結線後に外す。結線の確認は --include-ignored で流す"]
 fn sample_replay_matches_apply() {

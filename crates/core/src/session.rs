@@ -8,9 +8,9 @@
 //! 本件が固定するのは型・署名・純粋な補助関数・規則の表までで、状態機械の各分岐は実装しない。
 //! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが、受付済みへの確認の操作による達成（TASK-207 2/3）は `confirm` モジュールが埋めた。
 //! 世代の規則の表（[`GenerationRule`]）は、[`apply`] が分岐の後に強制する（TASK-210 1/3、EVT-6）。
-//! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進める（TASK-210 2/3、EVT-8・EVT-16）。
+//! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進め、食い違う進行は `Ignored` 1 件で記録する（TASK-210 2/3・3/3、EVT-8・EVT-16）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （食い違う宛先の無視の記録 TASK-210 3/3、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
+//! （停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -160,7 +160,7 @@ impl Default for SessionState {
 /// 状態に操作を適用し、新しい状態とイベント列を返す純粋な関数（EXT-4）。
 ///
 /// 全域で決定的であり、教材 `ir` は読むだけである。戻りのイベント列は新しい状態の `log` の末尾に
-/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は宛先が一致する分岐まで（TASK-210 2/3）実装済みで、ほかの分岐は契約だけの骨格のまま、
+/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は一致の前進と食い違いの無視の記録まで（TASK-210 2/3・3/3）実装済みで、ほかの分岐は契約だけの骨格のまま、
 /// 状態を変えずイベントも返さない。
 pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>) {
     let mut state = state;
@@ -224,7 +224,7 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
     match op {
         // 入力の受付は `accept`（TASK-207 1/3）、確認の操作による達成は `confirm`（TASK-207 2/3）。世代と宛先の照合は TASK-210。
         Op::Input(input) => accept::on_input(ir, state, input),
-        // 宛先が一致する進行は `tick`（TASK-210 2/3）。食い違いの無視の記録は 3/3。世代は変えない（1/3、`apply` の関門）。
+        // 宛先が一致する進行の前進と食い違う進行の無視の記録は `tick`（TASK-210 2/3・3/3）。世代は変えない（1/3、`apply` の関門）。
         Op::Tick(addr) => tick::on_tick(ir, state, addr),
         // TASK-211 停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),

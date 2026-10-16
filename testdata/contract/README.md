@@ -47,7 +47,7 @@ spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・T
 
 - `Op::Input` は、`InputReceived` の直後に `Judged` を 1 件だけ置きます（`Accepted`・効果・`Achieved` より前。TASK-267）。判定できない宣言、受付・確認の判定の後に遷移が続かない場合、取り消しの受付の規則（受付の処理は TASK-212 が結線する）では、`Judged` を置かず `Warning` を出します。結果は 6 種のどれか 1 つで、拒否・問い返しには空でない次の行動が付きます
 - 取り消し（`Input::Cancel`）は、教材の規則に `on.cancel` が無ければ `not_in_this_step` の拒否になります（EVT-10。e21）
-- 宛先が一致する `Tick` は `Judged` を出さず `Progress` だけを出します（TASK-210 2/3 が決めました）。宛先が食い違う `Tick` の扱いは TASK-210 3/3 が決めます。`Tick` の項目は版 2 のままです
+- 宛先が一致する `Tick` は `Judged` を出さず `Progress` だけを出します（TASK-210 2/3 が決めました）。宛先が食い違う `Tick` は `Judged` を出さず `Ignored` を 1 件だけ出します（TASK-210 3/3 が決めました。サンプルの形のままです）。`Tick` の項目は版 2 のままです
 - `Changed` は操作のイベントの最後に、1 経路 1 件で並びます。`at` は効果を適用した Step の時点で、無ければ操作後の世代と現在の Step です
 - `Stopped`・`Moved`・`Restored` の `at` は操作前の時点です
 - `Progress.index` は 0 始まりです。`Tick` は `InputReceived` を出しません
