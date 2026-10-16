@@ -1,0 +1,9 @@
+id: SAVE19-11
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     if env.ops.len() > MAX_HISTORY_OPS {
+replace:     if false {
+expect-fail: stage5_ops_count_boundary
+expect-fail: stage5_too_many_ops_through_load_history
+note: ops の件数の検査を外す

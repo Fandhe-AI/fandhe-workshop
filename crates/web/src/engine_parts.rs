@@ -15,7 +15,8 @@
 //! - 受講者の入力文字列は、ここでは描かない（入力欄の送信済み一覧が `learner_text::learner_line` で描く。
 //!   ログの部品での表示は TASK-434 が足す）。
 //! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
-//!   [`LIST_ERROR_ATTR`] の固定の通知を出し、空の一覧で黙って続けない。
+//!   親の `data-bind-list` を保ったまま `data-list-error="limit"` と固定の通知の行を出し、全再描画を避ける
+//!   （`list_policy::keyed_view_or_notice`）。
 //!
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
@@ -30,16 +31,14 @@ use fandhe_workshop_core::world::World;
 
 use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
 use crate::host::HostModel;
-use crate::list_policy::keyed_view;
+use crate::list_policy::keyed_view_or_notice;
+pub use crate::list_policy::LIST_ERROR_ATTR;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
 const LOG_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-log-list")];
 const ARTIFACT_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-artifact-list")];
 const REVIEW_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-review-list")];
-
-/// 上限超過などで一覧を描けないときの固定の通知の属性名。値は固定の文字列だけで、教材の値を入れない。
-pub const LIST_ERROR_ATTR: &str = "data-list-error";
 
 const F_LOG: &[PartField] = &[
     PartField {
@@ -145,15 +144,6 @@ pub fn artifact_rows(world: &World, marks: &[Mark]) -> Vec<(String, Option<Chang
     rows.into_iter().map(|(p, m)| (p.to_owned(), m)).collect()
 }
 
-/// 一覧を描けなかったときの固定の通知。空の一覧に見せず、利用者にも試験にも分かる形にする。
-fn list_error_view(testid: &'static str) -> Node {
-    el(
-        "section",
-        vec![("data-testid", testid), (LIST_ERROR_ATTR, "limit")],
-        vec![text("一覧を表示できません")],
-    )
-}
-
 fn consumed_text(model: &HostModel) -> String {
     model.projection().consumed().to_string()
 }
@@ -196,10 +186,7 @@ impl DisplayPart<HostModel> for LogPart {
                 (format!("r{}", row.event), node)
             })
             .collect();
-        let list = match keyed_view("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items) {
-            Ok(n) => n,
-            Err(_) => return list_error_view("part-log"),
-        };
+        let list = keyed_view_or_notice("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items);
         el(
             "section",
             vec![("data-testid", "part-log")],
@@ -265,10 +252,7 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 (key, node)
             })
             .collect();
-        let list = match keyed_view("ul", ARTIFACT_LIST_ATTRS.to_vec(), &F_ARTIFACT[0], items) {
-            Ok(n) => n,
-            Err(_) => return list_error_view("part-artifact-view"),
-        };
+        let list = keyed_view_or_notice("ul", ARTIFACT_LIST_ATTRS.to_vec(), &F_ARTIFACT[0], items);
         el(
             "section",
             vec![("data-testid", "part-artifact-view")],
@@ -329,10 +313,7 @@ impl DisplayPart<HostModel> for ReviewPart {
                 (format!("v{i}"), node)
             })
             .collect();
-        let list = match keyed_view("ul", REVIEW_LIST_ATTRS.to_vec(), &F_REVIEW[0], items) {
-            Ok(n) => n,
-            Err(_) => return list_error_view("part-review"),
-        };
+        let list = keyed_view_or_notice("ul", REVIEW_LIST_ATTRS.to_vec(), &F_REVIEW[0], items);
         el(
             "section",
             vec![("data-testid", "part-review")],

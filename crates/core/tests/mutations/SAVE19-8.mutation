@@ -1,0 +1,8 @@
+id: SAVE19-8
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     if value.get("format").and_then(Value::as_str) != Some(HISTORY_FORMAT_NAME) {
+replace:     if false {
+expect-fail: stage4_format_missing_or_wrong
+note: format の照合を外す（形式名の違いを型の段まで通す）

@@ -31,7 +31,7 @@
 //! エンジンが読める語彙の上限の正は [`VOCAB_MAX`] で、`docs/vocabulary/` の最新版（pack の `vocab::LATEST`）と
 //! 一致することを pack の試験が見る。
 //!
-//! 呼び出し元は、読み込みの経路（TASK-331）、web の復元（TASK-176・TASK-178）、15 件の試験（TASK-175）である。
+//! 呼び出し元は、読み込みの経路（`history_load::load_history`、TASK-331）、web の復元（TASK-176・TASK-178）、15 件の試験（TASK-175）である。
 //! 判定の順序は [`HISTORY_LOAD_ORDER`](fandhe_workshop_contract::load_reason::HISTORY_LOAD_ORDER) の段 5〜8 に
 //! 従い、1 段を 1 行の条件と早期 return で書く。I/O・時刻・乱数を持たない純関数で、全域で panic しない。
 //!
@@ -40,8 +40,8 @@
 //! 理由コードは `&'static str` だけで、読み込んだ内容を含まない。
 //!
 //! 境界（含まないもの）。
-//! - 段 1〜5 の大きさ・深さ・JSON・版の欄・型の検査と `too_many_ops`（TASK-331）。呼び出し側が検査済みの包みを渡す
-//!   前提で、適用し直しの時間は `ops` の件数に比例する
+//! - 段 1〜5 前半の大きさ・深さ・JSON・版の欄・型の検査と `too_many_ops`（`history_load::load_history`、TASK-331）。
+//!   呼び出し側が検査済みの包みを渡す前提で、適用し直しの時間は `ops` の件数に比例する
 //! - 写しとの照合の性質テストと `replay_mismatch` の作り込み（TASK-316 2/3）。本件は同一版で一致しない履歴を
 //!   `replay_diverged` と誤って分類しない振り分け 1 か所だけを持つ
 //! - `start` からの初期状態の構築（TASK-217・TASK-294）。初期状態は引数で受ける

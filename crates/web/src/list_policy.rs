@@ -23,15 +23,18 @@
 //! 測定に基づく暫定値（FEND-22 は検討中）である。超えた場合の分割・畳み方の細目は、実装タスク
 //! （ART-14・TERM-35・EVT-26 の担当）が試作して決めるため、本契約では設計しない。
 //!
-//! 上限を超えた場合は `Err` をそのまま返し、空の要素への代替や切り詰めで黙って続けない（空の要素にすると
-//! 差分更新ではなく全再描画になる）。
+//! 上限を超えた場合は [`keyed_view`] が `Err` をそのまま返し、切り詰めで黙って続けない。呼び出し側の復帰は
+//! [`keyed_view_or_notice`] に一本化する。`Err` のときも親要素は `data-bind-list` を保った keyed list
+//! （データの行は 0 件）で描く。`data-bind-list` を持たない空の要素に落とすと、上流は dirty な field を束縛点にも
+//! keyed list にも解決できず、構造のフォールバックで `app-root` の子を丸ごと置き換える（全再描画。
+//! FEND-15・PoC-8。TASK-359 2/2）ためである。
 //!
 //! 変える場合は、先に spec を直し、`parts::PARTS_CONTRACT_VERSION` を上げる。
 
 use core::fmt;
 
 use fandhe_frontend_core::keyed::{keyed_list, KeyedListError, MAX_KEYED_LIST_ITEMS};
-use fandhe_frontend_core::Node;
+use fandhe_frontend_core::{el, text, Node};
 
 use crate::parts::{FieldKind, PartField};
 
@@ -100,4 +103,41 @@ pub fn keyed_view(
         return Err(ListError::NotKeyedField);
     }
     keyed_list(tag, attrs, field.name, items).map_err(ListError::Upstream)
+}
+
+/// 一覧を描けなかったときの印の属性名。値は固定の `"limit"` だけで、教材の値を入れない。
+pub const LIST_ERROR_ATTR: &str = "data-list-error";
+
+/// 通知の行のキー。データ行のキーの接頭辞（`r`・`p`・`i`・`v`・`e`）と重ならない。
+const NOTICE_KEY: &str = "list-error";
+
+/// [`keyed_view`] の結果を返し、`Err` のときは `data-bind-list` を保った「データ行 0 件の keyed list」に落とす。
+///
+/// 呼び出し元は keyed list を持つ表示部品（ログ・成果物・復習・入力欄の送信済み一覧）。`Err` を握りつぶすのでは
+/// なく、親に [`LIST_ERROR_ATTR`] の印と固定の通知の行を 1 件だけ出し、利用者にも試験にも分かる形にする。
+/// 親が keyed list のまま残るため、上流は差分更新として扱い、全再描画にならない（モジュールの doc）。
+///
+/// 通知の行と印は固定の文字列だけで、教材の値を含めない（SAFE-11）。`keyed_view` さえ拒否する場合
+/// （`NotKeyedField`・予約属性の混入。どちらも固定値の誤り）は、最後の手段として空の要素を返す。この経路だけは
+/// 全再描画になりうるが、panic はしない。
+pub fn keyed_view_or_notice(
+    tag: &'static str,
+    attrs: Vec<(&str, &str)>,
+    field: &PartField,
+    items: Vec<(String, Node)>,
+) -> Node {
+    if let Ok(node) = keyed_view(tag, attrs.clone(), field, items) {
+        return node;
+    }
+    let mut marked = attrs;
+    marked.push((LIST_ERROR_ATTR, "limit"));
+    let notice = vec![(
+        NOTICE_KEY.to_owned(),
+        el(
+            "li",
+            vec![(LIST_ERROR_ATTR, "limit")],
+            vec![text("一覧を表示できません")],
+        ),
+    )];
+    keyed_view(tag, marked.clone(), field, notice).unwrap_or_else(|_| el(tag, marked, vec![]))
 }
