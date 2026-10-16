@@ -6,7 +6,10 @@
 use std::fs;
 use std::path::Path;
 
-use fandhe_workshop_web::artifact_view::{RowKind, ViewKind};
+use fandhe_workshop_web::artifact_view::{
+    RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
+    POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Match {
@@ -134,12 +137,14 @@ fn 検査は固有の語を検出できる() {
 #[test]
 fn 型と識別子に固有の語が無い() {
     let terms = forbidden_terms();
-    let src = read("src/artifact_view.rs");
     let mut found = Vec::new();
-    for id in identifiers(&src) {
-        let v = violations(&id, &terms);
-        if !v.is_empty() {
-            found.push(format!("{id}: {v:?}"));
+    for file in ["src/artifact_view.rs", "tests/artifact_view_sample.rs"] {
+        let src = read(file);
+        for id in identifiers(&src) {
+            let v = violations(&id, &terms);
+            if !v.is_empty() {
+                found.push(format!("{file} {id}: {v:?}"));
+            }
         }
     }
     assert!(found.is_empty(), "固有の語: {found:?}");
@@ -151,7 +156,20 @@ fn 綴りに固有の語が無い() {
     let spellings = ViewKind::ALL
         .iter()
         .map(|k| k.as_str())
-        .chain(RowKind::ALL.iter().map(|k| k.as_str()));
+        .chain(ViewKind::ALL.iter().map(|k| k.list_field()))
+        .chain(RowKind::ALL.iter().map(|k| k.as_str()))
+        .chain(Variant::ALL.iter().map(|v| v.as_str()))
+        .chain([
+            VIEW_LIST_TESTID,
+            VIEW_ATTR,
+            POINT_ACTION,
+            ACTION_ATTR,
+            PAYLOAD_ATTR,
+            ROW_ATTR,
+            TABINDEX_ATTR,
+            POINTABLE_TABINDEX,
+            HIDDEN_ATTR,
+        ]);
     for s in spellings {
         assert!(violations(s, &terms).is_empty(), "{s}");
     }
