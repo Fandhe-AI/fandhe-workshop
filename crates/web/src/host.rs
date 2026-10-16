@@ -11,7 +11,7 @@
 //! dirty field の求め方は、束縛点（Bound）は操作の前後で値が変わったものだけ、keyed list は
 //! イベントが返った（またはログの長さが変わった）ときだけである（FEND-3）。
 //! 3 つの表示（ログ・左の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
-//! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。`tick`・`complete` の action は
+//! 3 つの表示の部品は同じイベント列（`Session::log()`）から導いた値だけを読み、選択肢の部品（`offers`）は `Session` の現在の Step と IR を読む。`tick`・`complete` の action は
 //! `Runtime::dispatch_action` から届く（TASK-349。`decode_action` が `action::RuntimeAction` の検査を通す）。
 //! 送信（Enter・送信ボタン。TASK-438）は、入力欄の一覧に積んだ後、操作プロファイルの接頭辞で分類して
 //! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への

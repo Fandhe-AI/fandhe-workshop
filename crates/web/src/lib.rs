@@ -22,6 +22,7 @@
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
+//! `answer` の選択肢のボタン（表示名で出す。TASK-445 1/2）は `offers` に置く。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 //! 未保存の変更の保留と同期の書き出し（TASK-317 2/2。SAVE-9）は `save_pending` に、`pagehide` で書き出すリスナー（wasm のみ）は `leave_flush` に置く。
@@ -45,6 +46,7 @@ pub mod key_route;
 pub mod learner_text;
 pub mod list_policy;
 pub mod log_lines;
+pub mod offers;
 pub mod parts;
 pub mod profile;
 pub mod run_status;

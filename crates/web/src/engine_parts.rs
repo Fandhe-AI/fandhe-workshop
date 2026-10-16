@@ -1,10 +1,10 @@
-//! 3 つの表示（右のログ・左の成果物・復習）の部品（TASK-347 2/2。FEND-2）。
+//! 3 つの表示（右のログ・左の成果物・復習）と選択肢の部品（TASK-347 2/2・TASK-445。FEND-2）。
 //!
 //! 呼び出し元は `host::EngineHost` で、[`standard_registry`] の登録簿を持って `view`・`bound_value` を振り分ける。
-//! 3 部品はどれも `&HostModel` を読むだけで、状態を変える口を持たない。内容は同じイベント列
+//! 部品はどれも `&HostModel` を読むだけで、状態を変える口を持たない。3 つの表示の内容は同じイベント列
 //! （`Session::log()`）から core が導いた値（`Projection`・世界状態）だけで決まるため、3 つの表示は
-//! 同じ列の別の見え方になる（`tests/host_contract.rs` が増分と一括の一致を、
-//! `tools/browser/three-views.test.mjs` が DOM での一致を確かめる）。
+//! 同じ列の別の見え方になる。選択肢の部品（`offers`）は `Session` の現在の Step と IR を読む（`tests/host_contract.rs` が増分と一括の一致を、
+//! `tools/browser/three-views.test.mjs` が DOM での一致を確かめるのは 3 つの表示）。
 //!
 //! 仮のもの（持ち主が別にあるため、ここで確定しない）:
 //! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・束縛点の名前は、
@@ -13,7 +13,7 @@
 //! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
 //!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
-//! - 状態表示 `run-status` は `LogPart` の中の仮の位置に置く（4 部品目にすると標準の登録簿が 3 部品でなくなる）。
+//! - 状態表示 `run-status` は `LogPart` の中の仮の位置に置く（選択肢の部品は `Offers` として別に登録した）。
 //!   配置は TASK-517・TASK-438 が決める。
 //! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
 //!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
@@ -37,6 +37,7 @@ use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
 use crate::log_lines::{line_from_event, line_node};
+use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
 use crate::terminal_area::{RUN_STATUS_TESTID, STATE_ATTR};
@@ -85,16 +86,17 @@ const F_REVIEW: &[PartField] = &[
     },
 ];
 
-/// 3 部品を登録した標準の登録簿。field は固定で、入力欄の field（`HELLO_FIELDS`）とは衝突しない。
+/// 4 部品（ログ・成果物・復習・選択肢）を登録した標準の登録簿。field は固定で、入力欄の field（`HELLO_FIELDS`）とは衝突しない。
 ///
 /// 登録の拒否は起きない構成だが、`expect` を避けるため、拒否されたら登録済みの分だけを返す（安全側。
-/// 試験が 3 件の登録を固定する）。
+/// 試験が 4 件の登録を固定する）。
 pub fn standard_registry() -> PartRegistry<HostModel> {
     let mut r = PartRegistry::new();
-    let parts: [Box<dyn DisplayPart<HostModel>>; 3] = [
+    let parts: [Box<dyn DisplayPart<HostModel>>; 4] = [
         Box::new(LogPart),
         Box::new(ArtifactPart),
         Box::new(ReviewPart),
+        Box::new(OffersPart),
     ];
     for p in parts {
         if r.register(p).is_err() {
