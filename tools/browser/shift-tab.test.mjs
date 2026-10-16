@@ -5,7 +5,7 @@
 // 候補の一覧が開いている行は TASK-440 が入れるまで画面から作れないため、native の key_route_contract・
 // key_decide_contract が固定する。ここでは候補が無い画面の行だけを確かめる。
 // body への退出は配信設定（FANDHE_WEB_DIR）でだけ確かめる。試験の設定では keydown-probe が入力欄の前にあるため。
-// Tab の一巡・罠 0 件は #291、部品がそろった画面での再確認は TASK-451 の担当。
+// Tab の一巡・罠 0 件は tab-cycle.test.mjs、部品がそろった画面での再確認は TASK-451 の担当。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';

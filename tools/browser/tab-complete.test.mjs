@@ -5,7 +5,7 @@
 // 「候補が開いている」行はここでは観察できない。その行は native の key_route_contract が固定する。
 // ここでは、候補が無い画面で Tab が欄に文字があってもなくても preventDefault されず、
 // フォーカスが送信ボタンへ移り、欄の値が変わらない（タブ文字が入らない）ことを確かめる。
-// Shift+Tab の確認は #290、Tab の一巡・罠 0 件のブラウザ試験は #291 の担当。
+// Shift+Tab の確認は shift-tab.test.mjs、Tab の一巡・罠 0 件は tab-cycle.test.mjs が確かめる。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
