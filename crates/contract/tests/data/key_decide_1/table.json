@@ -1,0 +1,893 @@
+{
+  "contract_version": 1,
+  "rows": [
+    {
+      "id": "K01",
+      "source": "JUDGE-12",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "submit",
+          "prevent_default": true
+        }
+      }
+    },
+    {
+      "id": "K02",
+      "source": "JUDGE-12",
+      "input": {
+        "key": "Enter",
+        "key_code": 0,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "submit",
+          "prevent_default": true
+        }
+      }
+    },
+    {
+      "id": "K03",
+      "source": "JUDGE-12",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "submit",
+          "prevent_default": true
+        }
+      }
+    },
+    {
+      "id": "K04",
+      "source": "JUDGE-12",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": true,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "submit",
+          "prevent_default": true
+        }
+      }
+    },
+    {
+      "id": "K05",
+      "source": "JUDGE-13",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": true,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "newline",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K06",
+      "source": "JUDGE-13",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": true,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "newline",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K07",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K08",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 229,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K09",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Process",
+        "key_code": 0,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K10",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": true,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K11",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K12",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": true,
+        "shift": true,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K13",
+      "source": "PoC-2 K-07",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K14",
+      "source": "JUDGE-16",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K15",
+      "source": "JUDGE-16",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": true,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K16",
+      "source": "JUDGE-16",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": true,
+        "busy": true,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K17",
+      "source": "JUDGE-17",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": true,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "stop",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K18",
+      "source": "JUDGE-17",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "close_candidates",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K19",
+      "source": "JUDGE-17",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "cancel_input",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K20",
+      "source": "JUDGE-17",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "cancel_input",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K21",
+      "source": "PoC-2 K-14",
+      "input": {
+        "key": "Escape",
+        "key_code": 27,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": true,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "stop",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K22",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "complete",
+          "prevent_default": true
+        }
+      }
+    },
+    {
+      "id": "K23",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K24",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K25",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": false
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K26",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": true,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K27",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": true,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K28",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": true,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K29",
+      "source": "JUDGE-19",
+      "input": {
+        "key": "Tab",
+        "key_code": 9,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": true
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K30",
+      "source": "pending JUDGE-22",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": true,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "pending": "modified_enter"
+      }
+    },
+    {
+      "id": "K31",
+      "source": "pending JUDGE-22",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": true,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "pending": "modified_enter"
+      }
+    },
+    {
+      "id": "K32",
+      "source": "pending JUDGE-22",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": true
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "pending": "modified_enter"
+      }
+    },
+    {
+      "id": "K33",
+      "source": "pending JUDGE-22",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": false,
+        "shift": true,
+        "ctrl": true,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "pending": "modified_enter"
+      }
+    },
+    {
+      "id": "K34",
+      "source": "JUDGE-14",
+      "input": {
+        "key": "Enter",
+        "key_code": 13,
+        "is_composing": true,
+        "shift": false,
+        "ctrl": true,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "delegate_to_ime",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K35",
+      "source": "default",
+      "input": {
+        "key": "a",
+        "key_code": 65,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": false,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    },
+    {
+      "id": "K36",
+      "source": "default",
+      "input": {
+        "key": "ArrowDown",
+        "key_code": 40,
+        "is_composing": false,
+        "shift": false,
+        "ctrl": false,
+        "alt": false,
+        "meta": false
+      },
+      "state": {
+        "composing_marker": false,
+        "busy": false,
+        "candidates_open": true,
+        "has_text": true
+      },
+      "expect": {
+        "defined": {
+          "action": "nothing",
+          "prevent_default": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+id: JUDGE14-1
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find:         self.is_composing || self.key_code == 229 || self.key == "Process" || marker
+replace:         self.is_composing || self.key_code == 229 || self.key == "Process"
+expect-fail: judge14_any_single_signal_means_composing
+expect-fail: expected_table_matches
+note: 変換中の判定から自前の印を外す（印だけが立つ変換中に Enter が送信になる）

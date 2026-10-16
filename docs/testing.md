@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -898,6 +898,22 @@ JUDGE8-4 は残りの回数に終わった回数を入れ、JUDGE8-5 は `do` �
 | JUDGE8-3 | crates/core/src/text_fill.rs: 近い候補の距離の上限を 3 にする | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
 | JUDGE8-4 | crates/core/src/text_fill.rs: 残りの回数に終わった回数を入れる | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
 | JUDGE8-5 | crates/core/src/text_fill.rs: `do` の無い Step で `step_do` に題名を入れる | judge8_step_do_is_not_replaced_by_title | DETECTED |
+
+### 5.39 キー判定表 decide（TASK-257）
+
+Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件から `has_text` を外す誤り（JUDGE19-1）、変換中の判定から自前の印を外す誤り（JUDGE14-1）を入れ、契約適合試験 `key_decide_contract` が検出することを確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 44dcfe7-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/contract/tests/mutations/JUDGE14-1.mutation crates/contract/tests/mutations/JUDGE17-1.mutation crates/contract/tests/mutations/JUDGE19-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| JUDGE14-1 | crates/contract/src/key_decide.rs: 変換中の判定から自前の印を外す（印だけが立つ変換中に Enter が送信になる） | judge14_any_single_signal_means_composing, expected_table_matches | judge14_any_single_signal_means_composing, expected_table_matches | DETECTED | - |
+| JUDGE17-1 | crates/contract/src/key_decide.rs: Esc の処理中の優先を外す（処理中でも停止せず、候補を閉じるか入力を取り消してしまう） | judge17_three_ways_with_busy_priority, expected_table_matches | expected_table_matches, judge17_three_ways_with_busy_priority | DETECTED | - |
+| JUDGE19-1 | crates/contract/src/key_decide.rs: Tab の補完の条件から has_text を外す（文字が無いのに Tab を奪い、フォーカス移動できなくなる） | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | expected_table_matches, judge19_prevent_default_on_tab_only_when_open_and_text | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
