@@ -2,18 +2,19 @@
 //!
 //! 3 Step の教材（`min-3step.json`）で、成功した移動が世代を +1 し、処理中を解き、移動先を `Entered` にし、
 //! 入口の写しを無効化することを確かめる。無い Step・世代のあふれ・現在の Step 無しは状態を変えない
-//! （fail-closed）。移動前に予約された進行が後から届く場合の試験は TASK-213 2/2 の担当。
+//! （fail-closed）。移動前の世代を宛先にした進行が移動の後に届いても、`run` は変わらず `Ignored(Stale)` が
+//! 1 件だけ増えること、同じ Step へ入り直して受け付け直した後も効かないこと（TASK-213 2/2）も確かめる。
 
 mod common;
 
 use common::contract_sample::{load, testdata_dir};
-use common::property::{assert_replay_eq, check, DEFAULT_CASES};
+use common::property::{assert_replay_eq, check, op_sequence, DEFAULT_CASES};
 use common::tick::next_tick;
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
-use fandhe_workshop_core::event::{ControlKind, Event, RefuseReason};
+use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
+use fandhe_workshop_core::event::{ControlKind, Event, IgnoreReason, RefuseReason};
 use fandhe_workshop_core::input::{Control, Input, Op};
-use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::session::{Busy, SessionState};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, load_ir};
 use proptest::prelude::*;
@@ -310,6 +311,227 @@ fn move_is_deterministic() {
                     (next, events)
                 },
                 std::slice::from_ref(&plan),
+            )
+        },
+    );
+}
+
+/// 移動前の世代（1）を宛先にした進行。
+fn old_tick(step: &str, index: u32) -> Op {
+    Op::Tick(TickAddr {
+        generation: Generation(1),
+        step: uid(step),
+        index,
+    })
+}
+
+fn progress_count(events: &[Event]) -> usize {
+    events
+        .iter()
+        .filter(|e| matches!(e, Event::Progress { .. }))
+        .count()
+}
+
+/// 処理中の状態に残っている予約（`done..total` の番号、現在の世代・現在の Step）。
+fn reserved_ticks(state: &SessionState) -> Vec<TickAddr> {
+    let (Some(step), Some(busy)) = (state.run.current.clone(), state.run.busy.as_ref()) else {
+        return Vec::new();
+    };
+    (busy.done..busy.total)
+        .map(|index| TickAddr {
+            generation: state.run.generation,
+            step: step.clone(),
+            index,
+        })
+        .collect()
+}
+
+#[test]
+fn reserved_ticks_after_move_are_ignored() {
+    let ir = ir();
+    let busy = busy_state(&ir, 2);
+    let reserved = reserved_ticks(&busy);
+    assert_eq!(reserved.len(), 3);
+    let mut state = apply(&ir, busy, go_to(ST2)).0;
+    assert_eq!(state.run.generation, Generation(2));
+    for addr in reserved {
+        let before = state.clone();
+        let (next, events) = apply(&ir, state, Op::Tick(addr));
+        assert_eq!(next.run, before.run);
+        assert_eq!(
+            events,
+            vec![Event::Ignored {
+                at: stamp(2, ST2),
+                reason: IgnoreReason::Stale
+            }]
+        );
+        assert_eq!(next.log.len(), before.log.len() + 1);
+        state = next;
+    }
+}
+
+#[test]
+fn reserved_ticks_after_reenter_are_ignored() {
+    let ir = ir();
+    let busy = busy_state(&ir, 2);
+    let reserved = reserved_ticks(&busy);
+    let moved = apply(&ir, busy, go_to(ST1)).0;
+    assert_eq!(moved.run.busy, None);
+    for addr in reserved {
+        let (next, events) = apply(&ir, moved.clone(), Op::Tick(addr));
+        assert_eq!(next.run, moved.run);
+        assert_eq!(
+            events,
+            vec![Event::Ignored {
+                at: stamp(2, ST1),
+                reason: IgnoreReason::Stale
+            }]
+        );
+    }
+}
+
+#[test]
+fn stale_tick_after_reenter_and_reinput_is_ignored() {
+    let ir = ir();
+    let busy = busy_state(&ir, 2);
+    let moved = apply(&ir, busy, go_to(ST1)).0;
+    let mut state = apply(&ir, moved, first_note()).0;
+    assert_eq!(state.run.generation, Generation(2));
+    assert_eq!(state.run.busy, Some(Busy { done: 0, total: 5 }));
+    let before = state.run.clone();
+    let (next, events) = apply(&ir, state.clone(), old_tick(ST1, 0));
+    assert_eq!(next.run, before);
+    assert_eq!(progress_count(&events), 0);
+    assert_eq!(
+        events,
+        vec![Event::Ignored {
+            at: stamp(2, ST1),
+            reason: IgnoreReason::Stale
+        }]
+    );
+    let addr = next_tick(&state).expect("next tick");
+    state = apply(&ir, state, Op::Tick(addr)).0;
+    assert_eq!(state.run.busy, Some(Busy { done: 1, total: 5 }));
+    for n in 1..5 {
+        if n == 3 {
+            let before = state.run.clone();
+            state = apply(&ir, state, old_tick(ST1, 3)).0;
+            assert_eq!(state.run, before);
+        }
+        let addr = next_tick(&state).expect("next tick");
+        state = apply(&ir, state, Op::Tick(addr)).0;
+    }
+    assert_eq!(state.run.busy, None);
+}
+
+#[test]
+fn refused_move_keeps_reservation() {
+    let ir = ir();
+    let busy = busy_state(&ir, 2);
+    let addr = next_tick(&busy).expect("next tick");
+    let (refused, _) = apply(&ir, busy, go_to("main/st-9"));
+    assert_eq!(refused.run.generation, Generation(1));
+    let (done, events) = apply(&ir, refused, Op::Tick(addr));
+    assert_eq!(progress_count(&events), 1);
+    assert_eq!(done.run.busy, Some(Busy { done: 3, total: 5 }));
+}
+
+#[derive(Debug, Clone)]
+enum PostOp {
+    Old { step: usize, index: u32 },
+    Reinput,
+    Next,
+}
+
+fn post_op_strategy() -> impl Strategy<Value = PostOp> {
+    prop_oneof![
+        (0usize..3, 0u32..7).prop_map(|(step, index)| PostOp::Old { step, index }),
+        Just(PostOp::Reinput),
+        Just(PostOp::Next),
+    ]
+}
+
+fn post_move_scenario() -> impl Strategy<Value = (Plan, Vec<PostOp>)> {
+    (plan_strategy(), op_sequence(post_op_strategy()))
+}
+
+/// 移動の後に操作列を流す。古い世代の宛先の進行ごとに (操作前, 操作後, イベント列) を返す。
+fn run_post_move(
+    plan: &Plan,
+    ops: &[PostOp],
+) -> (SessionState, Vec<(SessionState, SessionState, Vec<Event>)>) {
+    let ir = ir();
+    let mut state = run_plan(plan).1;
+    let mut stale = Vec::new();
+    for op in ops {
+        match op {
+            PostOp::Old { step, index } => {
+                let name = ["main/st-1", "main/st-2", "main/st-3"]
+                    .get(*step)
+                    .copied()
+                    .unwrap_or(ST1);
+                let (next, events) = apply(&ir, state.clone(), old_tick(name, *index));
+                stale.push((state.clone(), next.clone(), events));
+                state = next;
+            }
+            PostOp::Reinput => state = apply(&ir, state, first_note()).0,
+            PostOp::Next => {
+                if let Some(addr) = next_tick(&state) {
+                    state = apply(&ir, state, Op::Tick(addr)).0;
+                }
+            }
+        }
+    }
+    (state, stale)
+}
+
+#[test]
+fn p2_pre_move_ticks_never_change_run() {
+    check(
+        "p2-pre-move-ticks-never-change-run",
+        DEFAULT_CASES,
+        post_move_scenario(),
+        |(plan, ops)| {
+            let (_, stale) = run_post_move(&plan, &ops);
+            // 正解は judge を使わず、宛先の世代が操作前の世代より小さいことだけで決める。
+            for (before, after, events) in &stale {
+                prop_assert!(Generation(1) < before.run.generation);
+                prop_assert_eq!(&after.run, &before.run);
+                let Some(current) = before.run.current.clone() else {
+                    return Err(TestCaseError::fail("current is None after move"));
+                };
+                prop_assert_eq!(
+                    events,
+                    &vec![Event::Ignored {
+                        at: Stamp {
+                            generation: before.run.generation,
+                            step: current
+                        },
+                        reason: IgnoreReason::Stale
+                    }]
+                );
+                prop_assert_eq!(after.log.len(), before.log.len() + 1);
+            }
+            Ok(())
+        },
+    );
+}
+
+#[test]
+fn post_move_sequence_is_deterministic() {
+    check(
+        "post-move-sequence-is-deterministic",
+        DEFAULT_CASES,
+        post_move_scenario(),
+        |(plan, ops)| {
+            assert_replay_eq(
+                |p: &[(Plan, Vec<PostOp>)]| {
+                    let (plan, ops) = &p[0];
+                    let (last, stale) = run_post_move(plan, ops);
+                    let events: Vec<Vec<Event>> = stale.into_iter().map(|t| t.2).collect();
+                    (last, events)
+                },
+                std::slice::from_ref(&(plan, ops)),
             )
         },
     );

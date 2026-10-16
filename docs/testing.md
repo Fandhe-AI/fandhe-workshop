@@ -987,6 +987,26 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT10-4 | crates/core/src/accept.rs: 受付済みの Step の取り消しの受付で Warning でなく Judged を出す | idle_stop_with_accept_rule_in_accepted_step_warns_only | idle_stop_with_accept_rule_in_accepted_step_warns_only | DETECTED | - |
 | EVT10-5 | crates/core/src/session.rs: 処理中でない停止の Changed.cause を停止のままにする | idle_stop_with_accept_rule_accepts_and_applies_effects | idle_stop_with_accept_rule_accepts_and_applies_effects | DETECTED | - |
 
+### 5.43 移動前に予約された進行の無視（TASK-213 2/2）
+
+進行の宛先の照合から世代を外す誤り（EVT11-7）を入れ、`move_step` が検出することを確かめる。同じ Step へ入り直して受け付け直した後の処理中でも、移動前の世代の進行が効かないことを固定する。EVT11-1〜6 は試験を足した後も検出が崩れないことの再確認である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 71b322c-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT11-1.mutation crates/core/tests/mutations/EVT11-2.mutation crates/core/tests/mutations/EVT11-3.mutation crates/core/tests/mutations/EVT11-4.mutation crates/core/tests/mutations/EVT11-5.mutation crates/core/tests/mutations/EVT11-6.mutation crates/core/tests/mutations/EVT11-7.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| EVT11-1 | crates/core/src/go_to.rs: 移動で処理中を解かない | move_while_busy_increments_generation_and_clears_busy, p4_move_clears_busy_and_increments | move_while_busy_increments_generation_and_clears_busy, move_to_same_step_reenters, stale_tick_after_reenter_and_reinput_is_ignored, reserved_ticks_after_reenter_are_ignored, p4_move_clears_busy_and_increments | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
+| EVT11-2 | crates/core/src/go_to.rs: 移動で世代を +1 しない | move_while_busy_increments_generation_and_clears_busy, idle_move_also_increments, p4_move_clears_busy_and_increments | idle_move_also_increments, move_to_same_step_reenters, move_while_busy_increments_generation_and_clears_busy, reserved_ticks_after_move_are_ignored, reserved_ticks_after_reenter_are_ignored, stale_tick_after_reenter_and_reinput_is_ignored, p4_move_clears_busy_and_increments, p2_pre_move_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: Plan { ticks: 0, resends: 0, target: 0 }; cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (Plan { ticks: 0, resends: 0, target: 0 }, [Old { step: 0, index: 0 }]) |
+| EVT11-3 | crates/core/src/go_to.rs: Moved.at に操作後の世代を使う | move_while_busy_increments_generation_and_clears_busy | move_while_busy_increments_generation_and_clears_busy, move_to_unknown_step_is_refused | DETECTED | - |
+| EVT11-4 | crates/core/src/go_to.rs: 達成済みの移動先を Entered に戻さない | move_to_achieved_step_sets_entered | move_to_achieved_step_sets_entered, move_to_same_step_reenters, move_invalidates_entry_copy, stale_tick_after_reenter_and_reinput_is_ignored, p4_move_clears_busy_and_increments | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
+| EVT11-5 | crates/core/src/go_to.rs: IR に無い Step の検査を外す（無い Step へ移動できてしまう） | move_to_unknown_step_is_refused | move_to_unknown_step_is_refused, refused_move_keeps_reservation | DETECTED | - |
+| EVT11-6 | crates/core/src/go_to.rs: 入口の写しを無効化しない | move_invalidates_entry_copy | move_invalidates_entry_copy | DETECTED | - |
+| EVT11-7 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す（移動前の進行が、同じ Step へ戻って受け付け直した後の処理中に効いてしまう。EVT9-5 と同じ誤りを移動の側から確かめる） | stale_tick_after_reenter_and_reinput_is_ignored, p2_pre_move_ticks_never_change_run | reserved_ticks_after_reenter_are_ignored, stale_tick_after_reenter_and_reinput_is_ignored, p2_pre_move_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (Plan { ticks: 0, resends: 0, target: 0 }, [Old { step: 0, index: 0 }, Old { step: 0, index: 0 }, Old { step: 0, index: 0 }, Old { step: 0, index: 0 }, Old { step: 0, index: 0 }, Old { step: 0, index: 0 }]) |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
