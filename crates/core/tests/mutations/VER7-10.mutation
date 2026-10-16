@@ -1,0 +1,8 @@
+id: VER7-10
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if hv.ir_format > caps.ir_format_max || hv.ir_format > ir.format_version {
+replace: if (hv.ir_format > caps.ir_format_max || hv.ir_format > ir.format_version) && !(h.vocab > caps.vocab_max) {
+expect-fail: ver7_stage6_order_follows_history_load_order
+note: vocab_newer を format_newer より先にしたのと同じ効果（判定の順序を崩す）
