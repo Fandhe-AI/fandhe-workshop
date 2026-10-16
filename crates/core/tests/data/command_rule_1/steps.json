@@ -59,9 +59,27 @@
   },
   "args_cond": {
     "id": "st-args",
-    "title": "中身のある on.args",
+    "title": "宣言に無い引数名の on.args",
     "input": { "kind": "command", "name": "x", "args": [] },
     "rules": [{ "id": "r", "on": { "command": "x", "args": { "a": "b" } }, "outcome": { "kind": "accept" } }]
+  },
+  "args_not_string": {
+    "id": "st-args-ns",
+    "title": "値が文字列でない on.args",
+    "input": { "kind": "command", "name": "x", "args": [{ "name": "a", "positional": true, "required": false, "shape": "kebab_case" }] },
+    "rules": [{ "id": "r", "on": { "command": "x", "args": { "a": 1 } }, "outcome": { "kind": "accept" } }]
+  },
+  "args_eq": {
+    "id": "st-args-eq",
+    "title": "値が等しい on.args",
+    "input": { "kind": "command", "name": "x", "args": [{ "name": "a", "positional": true, "required": false, "shape": "kebab_case" }] },
+    "rules": [{ "id": "r", "on": { "command": "x", "args": { "a": "b" } }, "outcome": { "kind": "accept" } }]
+  },
+  "unknown_key": {
+    "id": "st-unknown-key",
+    "title": "未知のキーを持つ規則",
+    "input": { "kind": "command", "name": "x", "args": [] },
+    "rules": [{ "id": "r", "on": { "command": "x", "unknown": {} }, "outcome": { "kind": "accept" } }]
   },
   "not_command": {
     "id": "st-choice",

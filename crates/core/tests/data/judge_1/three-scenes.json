@@ -1,0 +1,579 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "judge-1",
+    "title": "judge",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "new-idea": "skill",
+    "implement-issue-tree": "flow",
+    "help": "builtin"
+  },
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "m-unknown_command",
+      "next_action": "na-unknown_command"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "m-wrong_order",
+      "next_action": "na-wrong_order"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "m-missing_arg",
+      "next_action": "na-missing_arg"
+    },
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "m-bad_arg_shape",
+      "next_action": "na-bad_arg_shape"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "m-busy",
+      "next_action": "na-busy"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "m-not_in_this_step",
+      "next_action": "na-not_in_this_step"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "m-not_supported",
+      "next_action": "na-not_supported"
+    },
+    "rj-default-free-text-unjudged": {
+      "category": "free_text_unjudged",
+      "message": "m-free_text_unjudged",
+      "next_action": "na-free_text_unjudged"
+    },
+    "rj-wrong": {
+      "category": "not_in_this_step",
+      "message": "m",
+      "next_action": "na-wrong"
+    },
+    "rj-rule-bad-shape": {
+      "category": "bad_arg_shape",
+      "message": "m",
+      "next_action": "na-rule"
+    },
+    "rj-empty": {
+      "category": "not_in_this_step",
+      "message": "m",
+      "next_action": "   "
+    }
+  },
+  "clarifications": {
+    "cl-new-idea-name": {
+      "message": "m",
+      "how_to_answer": "名前を付けてもう一度送ります。"
+    }
+  },
+  "defaults": {
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order",
+    "missing_arg": "rj-default-missing-arg",
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "free_text_unjudged": "rj-default-free-text-unjudged"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-1-4",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": false,
+              "shape": "kebab_case"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-new-idea-missing",
+            "on": {
+              "command": "new-idea",
+              "missing": [
+                "name"
+              ]
+            },
+            "outcome": {
+              "kind": "clarify",
+              "clarification": "cl-new-idea-name"
+            }
+          },
+          {
+            "id": "r-new-idea",
+            "on": {
+              "command": "new-idea",
+              "missing": null,
+              "args": null
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "id": "st-1-4",
+        "title": "st-1-4"
+      }
+    },
+    {
+      "uid": "main/st-7-1",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "implement-issue-tree",
+          "args": [
+            {
+              "name": "issue",
+              "positional": true,
+              "required": true,
+              "shape": "digits"
+            },
+            {
+              "name": "external-checks",
+              "positional": false,
+              "required": true,
+              "shape": "any"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-impl",
+            "on": {
+              "command": "implement-issue-tree"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "id": "st-7-1",
+        "title": "st-7-1"
+      }
+    },
+    {
+      "uid": "main/st-7-3",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "implement-issue-tree",
+          "args": [
+            {
+              "name": "issue",
+              "positional": true,
+              "required": true,
+              "shape": "digits"
+            },
+            {
+              "name": "external-checks",
+              "positional": false,
+              "required": false,
+              "shape": "any"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-impl-blocked",
+            "on": {
+              "command": "implement-issue-tree",
+              "args": {},
+              "missing": []
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "set_attr": {
+                    "path": "issues/root-42",
+                    "attr": "state",
+                    "value": "blocked"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "id": "st-7-3",
+        "title": "st-7-3"
+      }
+    },
+    {
+      "uid": "main/st-bad-rule",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-x",
+            "on": {
+              "command": "new-idea"
+            },
+            "outcome": {
+              "kind": "explode"
+            }
+          }
+        ],
+        "id": "st-bad-rule",
+        "title": "st-bad-rule"
+      }
+    },
+    {
+      "uid": "main/st-bad-rejection-id",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-x",
+            "on": {
+              "command": "new-idea"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-nope"
+            }
+          }
+        ],
+        "id": "st-bad-rejection-id",
+        "title": "st-bad-rejection-id"
+      }
+    },
+    {
+      "uid": "main/st-reject-rule",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-x",
+            "on": {
+              "command": "new-idea"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-rule-bad-shape"
+            }
+          }
+        ],
+        "id": "st-reject-rule",
+        "title": "st-reject-rule"
+      }
+    },
+    {
+      "uid": "main/st-free-note-cat",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-x",
+            "on": {
+              "command": "new-idea"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-default-free-text-unjudged"
+            }
+          }
+        ],
+        "id": "st-free-note-cat",
+        "title": "st-free-note-cat"
+      }
+    },
+    {
+      "uid": "main/st-text",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20
+        },
+        "rules": [
+          {
+            "id": "r-text",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/memo",
+                    "attrs": {
+                      "state": "written"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "id": "st-text",
+        "title": "st-text"
+      }
+    },
+    {
+      "uid": "main/st-text-reject",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20
+        },
+        "rules": [
+          {
+            "id": "r-text-no",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-rule-bad-shape"
+            },
+            "when": {
+              "flag": "always"
+            }
+          },
+          {
+            "id": "r-text",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "id": "st-text-reject",
+        "title": "st-text-reject"
+      }
+    },
+    {
+      "uid": "main/st-text-clarify",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20
+        },
+        "rules": [
+          {
+            "id": "r-text-cl",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "clarify",
+              "clarification": "cl-new-idea-name"
+            }
+          }
+        ],
+        "id": "st-text-clarify",
+        "title": "st-text-clarify"
+      }
+    },
+    {
+      "uid": "main/st-text-nonote",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20
+        },
+        "on_reject": {
+          "free_text_unjudged": "rj-missing"
+        },
+        "rules": [],
+        "id": "st-text-nonote",
+        "title": "st-text-nonote"
+      }
+    },
+    {
+      "uid": "main/st-choice",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "o1",
+              "label": "一"
+            },
+            {
+              "id": "o2",
+              "label": "二"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-o1",
+            "when": null,
+            "on": {
+              "option": "o1"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-o2",
+            "on": {
+              "option": "o2"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "o1",
+              "label": "一",
+              "correct": true
+            },
+            {
+              "id": "o2",
+              "label": "二",
+              "correct": false
+            }
+          ],
+          "on_wrong": "rj-wrong"
+        },
+        "id": "st-choice",
+        "title": "st-choice"
+      }
+    },
+    {
+      "uid": "main/st-cancel",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-cancel",
+            "on": {
+              "cancel": true
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "id": "st-cancel",
+        "title": "st-cancel"
+      }
+    },
+    {
+      "uid": "main/st-empty-na",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "on_reject": {
+          "not_in_this_step": "rj-empty"
+        },
+        "rules": [],
+        "id": "st-empty-na",
+        "title": "st-empty-na"
+      }
+    },
+    {
+      "uid": "main/st-plain",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": []
+        },
+        "rules": [],
+        "id": "st-plain",
+        "title": "st-plain"
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-1",
+      "node": "main/st-1-4",
+      "effects": []
+    }
+  ]
+}

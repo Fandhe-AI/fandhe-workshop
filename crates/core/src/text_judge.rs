@@ -30,7 +30,7 @@
 //! # 扱わないこと
 //!
 //! - `session::apply` への結線、`processing` を持つ Step の処理中への移行、`InputReceived` の発行（TASK-207・TASK-210）
-//! - `Judged` の発行と、`on.text` の規則の `reject`・`clarify` の扱い（TASK-267）
+//! - `Judged` の発行と、`on.text` の規則の `reject`・`clarify` の扱い（[`crate::judge`]、TASK-267）
 //! - `not_in_this_step` などの分類（TASK-268・TASK-269）。`NotText` の分類は呼び出し側が決める
 //! - 達成。受付だけでは Step は達成にならず、確認の操作の後の遷移は TASK-207・TASK-306 が受け持つ
 //! - 自然文の内容で規則を分ける語（PACK-41、D-43）
@@ -177,9 +177,17 @@ pub fn judge_text(
         .iter()
         .filter(|r| is_text_accept_rule(r))
         .find(|r| match r.get("when") {
-            None => true,
+            None | Some(Value::Null) => true,
             Some(when) => cond.eval(when, run, root) == Some(true),
         });
+    accepted_by(text, hit).map(TextJudgment::Accepted)
+}
+
+/// 当たった受付の規則（無ければ `None`）から受付の結果を作る。規則の `when` は評価しない。
+///
+/// [`judge_text`] と `judge::judge_input` が共有する。`judge_input` は規則を上から 1 回だけ読み、当たった規則を
+/// そのまま渡す（`when` を評価し直さない。JUDGE-3 の判定と受付の効果を同じ規則から取る）。
+pub(crate) fn accepted_by(text: &str, hit: Option<&Value>) -> Result<AcceptedText, TextDeclError> {
     let mut accepted = AcceptedText {
         text: text.to_string(),
         rule_id: None,
@@ -197,7 +205,7 @@ pub fn judge_text(
             }
         }
     }
-    Ok(TextJudgment::Accepted(accepted))
+    Ok(accepted)
 }
 
 /// 受付を `run` に適用する。Step を `Accepted` にし、`Event::Accepted` に続けて規則の効果のイベントを返す。

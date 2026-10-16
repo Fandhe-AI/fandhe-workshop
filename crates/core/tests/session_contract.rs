@@ -23,7 +23,7 @@ fn uid(s: &str) -> StepUid {
 
 #[test]
 fn contract_version_is_two() {
-    assert_eq!(CONTRACT_VERSION, 2);
+    assert_eq!(CONTRACT_VERSION, 3);
 }
 
 #[test]

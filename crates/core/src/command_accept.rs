@@ -29,7 +29,7 @@
 //!
 //! - `Judged` の発行と `session::apply` への結線（TASK-207・TASK-267）
 //! - `rejections[id].category` の解決、文面の解決・`NextAction` の生成（TASK-267・TASK-274）
-//! - `on.args` の意味（TASK-267）と `on_achieved`、確認による達成への遷移（TASK-207・TASK-306）
+//! - `on_achieved`、確認による達成への遷移（TASK-207・TASK-306）
 
 use fandhe_workshop_contract::effect::EffectItem;
 use fandhe_workshop_contract::ir::Step;

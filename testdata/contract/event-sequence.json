@@ -1,6 +1,6 @@
 {
-  "sample_version": 2,
-  "contract_version": 2,
+  "sample_version": 3,
+  "contract_version": 3,
   "ir": "engine-event-consistency/test-data/min-3step.json",
   "initial": {
     "run": {
@@ -55,7 +55,7 @@
         "reject"
       ],
       "evt6": 1,
-      "note": "形の誤りによる拒否。版 1 に Judged は無いので InputReceived だけが出る。",
+      "note": "形の誤りによる拒否。InputReceived の直後に Judged（拒否）が 1 件出る。",
       "op": {
         "input": {
           "command": "/make-note Bad_Name"
@@ -106,6 +106,21 @@
             },
             "input": {
               "command": "/make-note Bad_Name"
+            }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "judgment": {
+              "rejected": {
+                "category": "bad_arg_shape",
+                "text": "rj-default-bad-arg-shape",
+                "next_action": "小文字・数字・ハイフンだけで書き直して、もう一度送ります。"
+              }
             }
           }
         }
@@ -179,6 +194,17 @@
             },
             "input": {
               "command": "/make-note first-note"
+            }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "judgment": {
+              "accepted": null
             }
           }
         },
@@ -289,6 +315,21 @@
             },
             "input": {
               "command": "/make-note first-note"
+            }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 1,
+              "step": "main/st-1"
+            },
+            "judgment": {
+              "rejected": {
+                "category": "busy",
+                "text": "rj-default-busy",
+                "next_action": "終わるまで待ちます。終わると、次の入力を受け付けます。"
+              }
             }
           }
         }
@@ -683,6 +724,17 @@
             },
             "input": {
               "command": "/make-note first-note"
+            }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "judgment": {
+              "accepted": null
             }
           }
         },
@@ -1259,7 +1311,7 @@
               "step": "main/st-1"
             },
             "id": 1,
-            "log_len": 20
+            "log_len": 24
           }
         }
       ]
@@ -1346,6 +1398,15 @@
                 "path": "notes/draft"
               }
             }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-1"
+            },
+            "judgment": "confirmed"
           }
         },
         {
@@ -1455,6 +1516,17 @@
             },
             "input": {
               "choice": "opt-memo"
+            }
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 2,
+              "step": "main/st-2"
+            },
+            "judgment": {
+              "accepted": null
             }
           }
         },
@@ -1774,7 +1846,7 @@
             },
             "id": 1,
             "new_generation": 4,
-            "log_len": 20,
+            "log_len": 24,
             "owner": "main/st-1"
           }
         },
@@ -1952,6 +2024,21 @@
               "step": "main/st-1"
             },
             "input": "cancel"
+          }
+        },
+        {
+          "judged": {
+            "at": {
+              "generation": 4,
+              "step": "main/st-1"
+            },
+            "judgment": {
+              "rejected": {
+                "category": "not_in_this_step",
+                "text": "rj-default-not-in-this-step",
+                "next_action": "今の Step の目的を読み直し、ヒントを開きます。"
+              }
+            }
           }
         }
       ]

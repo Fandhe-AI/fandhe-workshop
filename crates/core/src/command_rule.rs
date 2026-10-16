@@ -17,7 +17,14 @@
 //! - `option`・`approval`・`target`・`ui`・`text`・`cancel` が `null` でない規則は、コマンドの規則ではないので一致しない
 //! - `on.missing` は、書かれた引数がすべて値なしのときだけ一致する。無い・`null`・空は条件なし。
 //!   宣言に無い引数の名前は [`CommandRuleError::InvalidDeclaration`] にする
-//! - `on.args` は、中身があれば [`CommandRuleError::UnsupportedCondition`] にする（意味は TASK-267 が決める）
+//! - `on.args` は、書かれた引数がすべて指定の値と等しいときだけ一致する（値は文字列。値なしの引数は不一致）。
+//!   値が文字列でなければ [`CommandRuleError::UnsupportedCondition`]、宣言に無い引数の名前は
+//!   [`CommandRuleError::InvalidDeclaration`] にする（TASK-267。`Judged` の発行と受付の分岐が同じ結果を得るため、
+//!   `args`・`missing` の照合は本モジュールだけに置く）
+//! - 引数の名前は宣言名との完全一致を先に取り、無ければ `-` と `_` の違いだけで一致する宣言がちょうど 1 つの
+//!   ときに限りそれを採る（`a-b` と `a_b` を取り違えない）。曖昧・未宣言は宣言の誤り
+//! - `command`・`args`・`missing` と上の他方式のキー以外のキーが `on` にあれば、値が空でも一致しない
+//!   （余分なキーのある規則を受付へ倒さない）
 //! - `when` は `null` か無ければ条件なし。評価器が `Some(true)` を返したときだけ採り、`Some(false)`・`None` は飛ばす
 //! - `null` の値は「無い」とみなす。コンパイル前の古い形の IR は、使わない照合キーを `null` で並べるため
 //! - 未知の `outcome.kind` と型の合わない欄は [`CommandRuleError::InvalidDeclaration`] で、受付へは倒さない
@@ -45,7 +52,7 @@ use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{JudgmentKind, LexedCommand, RejectCategory};
 use serde_json::{Map, Value};
 
-use crate::command_judge::{judge_command, CommandVerdict, MatchedCommand};
+use crate::command_judge::{judge_command, CommandVerdict, MatchedCommand, ResolvedArg};
 
 /// 規則の照合の結果。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,7 +132,7 @@ pub enum CommandRuleError {
     NotCommand,
     /// `input`・`rules` が読めない（型の違い・未知の `outcome.kind`・宣言に無い引数名など）。
     InvalidDeclaration,
-    /// 意味が未定の条件（中身のある `on.args`）。黙って一致・不一致にしない。
+    /// 意味を持たない条件（文字列でない値の `on.args`）。黙って一致・不一致にしない。
     UnsupportedCondition,
 }
 
@@ -143,6 +150,9 @@ impl std::error::Error for CommandRuleError {}
 
 /// コマンド以外の入力方式の照合キー。`null` でない値を持つ規則はコマンドの規則ではない。
 const OTHER_KEYS: [&str; 6] = ["option", "approval", "target", "ui", "text", "cancel"];
+
+/// コマンドの規則が解釈する `on` のキー。これと [`OTHER_KEYS`] 以外のキーを持つ規則は一致しない。
+const KNOWN_KEYS: [&str; 3] = ["command", "args", "missing"];
 
 /// `Step.input` をコマンドの宣言として読む。
 pub fn command_spec(step: &Step) -> Result<CommandSpec, CommandRuleError> {
@@ -173,10 +183,33 @@ fn present<'a>(map: &'a Map<String, Value>, key: &str) -> Option<&'a Value> {
     map.get(key).filter(|v| !v.is_null())
 }
 
+fn normalize_key(key: &str) -> String {
+    key.replace('-', "_")
+}
+
+/// `on` に書かれた引数名を、宣言済みの引数の解決結果へ引く。完全一致を先に取り、無ければ `-` と `_` の違いだけで
+/// 一致する宣言がちょうど 1 つのときに限りそれを採る。未宣言・曖昧な名前は宣言の誤り。
+fn resolve_declared<'a>(
+    matched: &'a MatchedCommand,
+    name: &str,
+) -> Result<&'a ResolvedArg, CommandRuleError> {
+    if let Some(a) = matched.args.iter().find(|a| a.name == name) {
+        return Ok(a);
+    }
+    let key = normalize_key(name);
+    let mut found = matched
+        .args
+        .iter()
+        .filter(|a| normalize_key(&a.name) == key);
+    match (found.next(), found.next()) {
+        (Some(a), None) => Ok(a),
+        _ => Err(CommandRuleError::InvalidDeclaration),
+    }
+}
+
 /// `on.missing` の条件。書かれた引数がすべて値なしなら真。
 fn missing_holds(
     on: &Map<String, Value>,
-    spec: &CommandSpec,
     matched: &MatchedCommand,
 ) -> Result<bool, CommandRuleError> {
     let Some(v) = present(on, "missing") else {
@@ -186,15 +219,29 @@ fn missing_holds(
     let mut all_missing = true;
     for n in names {
         let n = n.as_str().ok_or(CommandRuleError::InvalidDeclaration)?;
-        if !spec.args.iter().any(|a| a.name == n) {
-            return Err(CommandRuleError::InvalidDeclaration);
-        }
-        let resolved = matched.args.iter().find(|a| a.name == n);
-        if !matches!(resolved, Some(a) if a.value.is_none()) {
+        if resolve_declared(matched, n)?.value.is_some() {
             all_missing = false;
         }
     }
     Ok(all_missing)
+}
+
+/// `on.args` の条件。書かれた引数がすべて指定の値と等しければ真。
+fn args_hold(on: &Map<String, Value>, matched: &MatchedCommand) -> Result<bool, CommandRuleError> {
+    let Some(v) = present(on, "args") else {
+        return Ok(true);
+    };
+    let map = v.as_object().ok_or(CommandRuleError::InvalidDeclaration)?;
+    let mut all_equal = true;
+    for (name, want) in map {
+        let want = want
+            .as_str()
+            .ok_or(CommandRuleError::UnsupportedCondition)?;
+        if resolve_declared(matched, name)?.value.as_deref() != Some(want) {
+            all_equal = false;
+        }
+    }
+    Ok(all_equal)
 }
 
 /// 宣言に合ったコマンドを `Step.rules` と上から照合する。
@@ -225,19 +272,16 @@ pub fn judge_command_rules(
         let command = command
             .as_str()
             .ok_or(CommandRuleError::InvalidDeclaration)?;
-        if command != spec.name || OTHER_KEYS.iter().any(|k| present(on, k).is_some()) {
+        if command != spec.name
+            || OTHER_KEYS.iter().any(|k| present(on, k).is_some())
+            || on
+                .keys()
+                .any(|k| !KNOWN_KEYS.contains(&k.as_str()) && !OTHER_KEYS.contains(&k.as_str()))
+        {
             continue;
         }
-        if !missing_holds(on, &spec, matched)? {
+        if !missing_holds(on, matched)? || !args_hold(on, matched)? {
             continue;
-        }
-        if let Some(args) = present(on, "args") {
-            let args = args
-                .as_object()
-                .ok_or(CommandRuleError::InvalidDeclaration)?;
-            if !args.is_empty() {
-                return Err(CommandRuleError::UnsupportedCondition);
-            }
         }
         if let Some(cond) = present(rule, "when") {
             if when(cond) != Some(true) {

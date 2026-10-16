@@ -1,9 +1,9 @@
 # contract
 
-公開 API の契約（`CONTRACT_VERSION` = 2）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
+公開 API の契約（`CONTRACT_VERSION` = 3）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
 `apply()` へ結線するときの合否の基準になります（TASK-205）。JSON はコメントを書けないため、説明は本ファイルに置きます。
 
-- サンプル: `event-sequence.json`（版 2）
+- サンプル: `event-sequence.json`（版 3）
 - 読む部品: `crates/core/tests/common/contract_sample.rs`
 - 形の試験: `crates/core/tests/contract_sample.rs`（TASK-205 1/2）
 - 適合試験: `crates/core/tests/contract_conformance.rs`（TASK-205 2/2）。EVT-22 の決定性と EVT-6 の世代を確かめます。サンプルを連鎖して流す厳密な照合は、`apply()` が骨格の間は失敗するため `#[ignore]` で、結線の確認は `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored` で行います（`docs/engine-api.md` の 7 節）
@@ -45,7 +45,9 @@ spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・T
 根拠は試作（PoC-1）のイベントの順序です。担当タスク（TASK-207・210・211・213・214・215）が別の決定をした場合は、
 版上げの契約タスクにします。
 
-- 版 1 に `Judged` は無いので、拒否は `InputReceived` だけになります
+- `Op::Input` は、`InputReceived` の直後に `Judged` を 1 件だけ置きます（`Accepted`・効果・`Achieved` より前。TASK-267）。判定できない宣言、受付・確認の判定の後に遷移が続かない場合、取り消しの受付の規則（受付の処理は TASK-212 が結線する）では、`Judged` を置かず `Warning` を出します。結果は 6 種のどれか 1 つで、拒否・問い返しには空でない次の行動が付きます
+- 取り消し（`Input::Cancel`）は、教材の規則に `on.cancel` が無ければ `not_in_this_step` の拒否になります（EVT-10。e21）
+- `Tick` の `Judged` の発行位置は決めていません（EVT-8 の「無視を 1 件だけ」との整合を TASK-210 が決めます）。`Tick` の項目は版 2 のままです
 - `Changed` は操作のイベントの最後に、1 経路 1 件で並びます。`at` は効果を適用した Step の時点で、無ければ操作後の世代と現在の Step です
 - `Stopped`・`Moved`・`Restored` の `at` は操作前の時点です
 - `Progress.index` は 0 始まりです。`Tick` は `InputReceived` を出しません
@@ -63,3 +65,4 @@ spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・T
 |---|---|---|
 | 1 | 2026-10-15 | 新規（TASK-205 1/2）。21 操作で 9 種と EVT-6 の (1)〜(6) を覆う |
 | 2 | 2026-10-15 | `CONTRACT_VERSION` 2 に追従（TASK-290）。`RunState.guidance_level`（全件 `A`）と `SessionState.hints_opened`（空）を足した。操作・イベントは変えない |
+| 3 | 2026-10-15 | `CONTRACT_VERSION` 3 に追従（TASK-267）。入力の項目（e01・e02・e03・e08・e15・e16・e21）の `InputReceived` の直後に `Judged` を足した。`Tick`・`Control` の項目は変えない |

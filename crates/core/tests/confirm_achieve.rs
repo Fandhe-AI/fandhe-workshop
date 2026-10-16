@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::{Generation, Root, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Decision, Input, Op};
@@ -90,6 +91,7 @@ fn names(events: &[Event]) -> Vec<&'static str> {
         .iter()
         .map(|e| match e {
             Event::InputReceived { .. } => "input_received",
+            Event::Judged { .. } => "judged",
             Event::Achieved { .. } => "achieved",
             Event::Transitioned { .. } => "transitioned",
             Event::Entered { .. } => "entered",
@@ -106,10 +108,14 @@ fn send(ir: &Ir, s: SessionState, input: Input) -> (SessionState, Vec<Event>) {
     apply(ir, s, Op::Input(input))
 }
 
-/// 外れ: イベントは `InputReceived` だけで、`run` は前と完全に一致する。
+/// 外れ: イベントは `InputReceived` と確認でない `Judged` だけで、`run` は前と完全に一致する。
 fn assert_missed(ir: &Ir, s: &SessionState, input: Input) {
     let (next, events) = send(ir, s.clone(), input);
-    assert_eq!(names(&events), ["input_received"], "{events:?}");
+    assert_eq!(names(&events), ["input_received", "judged"], "{events:?}");
+    assert!(
+        matches!(&events[1], Event::Judged { judgment, .. } if *judgment != Judgment::Confirmed),
+        "{events:?}"
+    );
     assert_eq!(next.run, s.run);
 }
 
@@ -120,10 +126,23 @@ fn point_at_confirms_and_moves_to_next_step() {
     let (next, events) = send(&ir, before.clone(), ui("v-files", "notes/draft"));
     assert_eq!(
         names(&events),
-        ["input_received", "achieved", "transitioned", "entered"]
+        [
+            "input_received",
+            "judged",
+            "achieved",
+            "transitioned",
+            "entered"
+        ]
     );
     assert!(matches!(
         &events[1],
+        Event::Judged {
+            judgment: Judgment::Confirmed,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &events[2],
         Event::Achieved {
             explicit_skip: false,
             ..
@@ -195,7 +214,7 @@ fn approve_confirms_only_on_approve_and_stops_without_next() {
     assert_missed(&ir, &s, ui("v-files", "notes/draft"));
     assert_missed(&ir, &s, targeted_approval(Decision::Approve));
     let (next, events) = send(&ir, s, approval(Decision::Approve));
-    assert_eq!(names(&events), ["input_received", "achieved"]);
+    assert_eq!(names(&events), ["input_received", "judged", "achieved"]);
     assert_eq!(status(&next, "main/st-3"), StepStatus::Achieved);
     assert_eq!(next.run.current, Some(uid("main/st-3")));
     assert!(!next.run.completed);
@@ -211,7 +230,7 @@ fn confirm_none_never_achieves_by_confirmation() {
 }
 
 fn answer_ir() -> Ir {
-    with_step(|st| {
+    let mut ir = with_step(|st| {
         st.confirm = Some(json!({
             "kind": "answer",
             "on_wrong": "rj-wrong",
@@ -220,7 +239,17 @@ fn answer_ir() -> Ir {
                 {"id": "ng", "correct": false}
             ]
         }));
-    })
+    });
+    // 誤答の文面。判定は文面の ID を IR で引けなければ宣言の誤りにする（fail-closed）ため、教材と同じく定義しておく。
+    ir.rejections.insert(
+        "rj-wrong".into(),
+        json!({
+            "category": "not_in_this_step",
+            "message": "正しい選択肢ではありません。",
+            "next_action": "選択肢をもう一度選びます。"
+        }),
+    );
+    ir
 }
 
 #[test]
@@ -233,7 +262,13 @@ fn answer_confirms_on_correct_option_only() {
     let (next, events) = send(&ir, s, Input::Choice("ok".into()));
     assert_eq!(
         names(&events),
-        ["input_received", "achieved", "transitioned", "entered"]
+        [
+            "input_received",
+            "judged",
+            "achieved",
+            "transitioned",
+            "entered"
+        ]
     );
     assert_eq!(status(&next, "main/st-1"), StepStatus::Achieved);
 }
@@ -277,7 +312,7 @@ fn on_achieved_effects_apply_between_achieved_and_transition() {
         ui("v-files", "notes/draft"),
     );
     let n = names(&events);
-    assert_eq!(n[..2], ["input_received", "achieved"]);
+    assert_eq!(n[..3], ["input_received", "judged", "achieved"]);
     assert!(n.contains(&"flag"), "{n:?}");
     let pos = |k: &str| n.iter().position(|x| *x == k);
     assert!(pos("flag") < pos("transitioned"));
@@ -309,7 +344,7 @@ fn conditional_or_dangling_edges_do_not_transition() {
         at("main/st-1", StepStatus::Accepted),
         ui("v-files", "notes/draft"),
     );
-    assert_eq!(names(&events), ["input_received", "achieved"]);
+    assert_eq!(names(&events), ["input_received", "judged", "achieved"]);
     assert_eq!(next.run.current, Some(uid("main/st-1")));
 
     let ir = with_step(|st| st.next[0].to = "main/nowhere".into());
@@ -318,7 +353,10 @@ fn conditional_or_dangling_edges_do_not_transition() {
         at("main/st-1", StepStatus::Accepted),
         ui("v-files", "notes/draft"),
     );
-    assert_eq!(names(&events), ["input_received", "achieved", "warning"]);
+    assert_eq!(
+        names(&events),
+        ["input_received", "judged", "achieved", "warning"]
+    );
     assert_eq!(status(&next, "main/st-1"), StepStatus::Achieved);
     assert_eq!(next.run.current, Some(uid("main/st-1")));
 }

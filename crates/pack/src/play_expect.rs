@@ -8,7 +8,7 @@
 //! 語の解釈は [`crate::vocab::result_kind`]・[`crate::vocab::rejection_category`] を通す（`rejection.rs` と同じ入口）。
 //!
 //! 扱わないこと
-//! - 誤入力をエンジンへ流して実際の判定と期待を比べる実行系（TASK-404。core の入力の判定は TASK-267 待ち）。
+//! - 誤入力をエンジンへ流して実際の判定と期待を比べる実行系（TASK-404。core の判定は `judge::judge_input`（TASK-267）で、`apply` への結線は TASK-207 待ち）。
 //!   [`ResultExpect::matches`] は、その比較で使う照合の規則だけを持つ
 //! - `pre[].expect`・`playthroughs` の期待（`progress`・`achieved` など語彙外の書き方を含む。TASK-404）
 //! - `next_action` が空の拒否・問い返しの診断（`E-EMPTY-NEXT-ACTION`。`slot_check`、TASK-46 2/2 が `validate`・`compile` で行う）

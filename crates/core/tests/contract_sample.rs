@@ -15,7 +15,7 @@ use fandhe_workshop_core::{load_ir, CONTRACT_VERSION};
 #[test]
 fn versions_match_the_contract() {
     let s = load();
-    assert_eq!(s.sample_version, 2, "sample_version");
+    assert_eq!(s.sample_version, 3, "sample_version");
     assert_eq!(
         s.contract_version, CONTRACT_VERSION,
         "contract changed: update the sample and bump sample_version"
@@ -70,6 +70,35 @@ fn kinds_and_evt6_are_covered() {
     }
     for n in 1..=6u8 {
         assert!(seen.contains(&n), "evt6 not covered: {n}");
+    }
+}
+
+#[test]
+fn input_entries_have_exactly_one_judged_right_after_input_received() {
+    let s = load();
+    for e in &s.entries {
+        let judged: Vec<usize> = e
+            .events
+            .iter()
+            .enumerate()
+            .filter(|(_, ev)| matches!(ev, Event::Judged { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        // 処理中でない停止は取り消しの入力として扱い、`InputReceived` を出す（EVT-10）。
+        if matches!(e.events.first(), Some(Event::InputReceived { .. })) {
+            assert_eq!(
+                judged,
+                vec![1],
+                "{}: Judged must follow InputReceived",
+                e.id
+            );
+        } else {
+            assert!(
+                judged.is_empty(),
+                "{}: only received inputs are judged here",
+                e.id
+            );
+        }
     }
 }
 

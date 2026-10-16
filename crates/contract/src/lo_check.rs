@@ -17,7 +17,7 @@
 //! - 数え方の規則（どれを自力に数えるか）。`self_reliant` のような欄は持たない（TASK-304・TASK-305）
 //! - core の `Event` から観測への写像。観測と対応するイベントは次のとおり。
 //!   `HintOpened` は `Event::HintOpened`、`Answered { correct: true }` は確認の `Confirmed`、
-//!   `Answered { correct: false }` は確認への拒否の記録。`Event::Judged` の追加は TASK-267・TASK-204 の版上げで行う
+//!   `Answered { correct: false }` は確認への拒否の記録。`Event::Judged` は core の契約の版 3（TASK-267）で追加済み
 //! - IR の `confirm` から [`CheckTarget`] を作る処理（TASK-47）
 //! - 選んだ選択肢の ID と表示名。必要になれば版を上げて足す
 //! - 進行役の手助けの有無（体験会 SESS が記録する。エンジンには分からない）

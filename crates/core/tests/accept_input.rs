@@ -10,6 +10,7 @@ mod common;
 use std::path::PathBuf;
 
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::{Generation, Root, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Decision, Input, Op};
@@ -85,6 +86,7 @@ fn kinds(events: &[Event]) -> Vec<&'static str> {
         .iter()
         .map(|e| match e {
             Event::InputReceived { .. } => "input_received",
+            Event::Judged { .. } => "judged",
             Event::Accepted { .. } => "accepted",
             Event::Changed { .. } => "changed",
             Event::Achieved { .. } => "achieved",
@@ -131,14 +133,17 @@ fn attr(s: &Session, key: &str) -> Option<String> {
 }
 
 fn only_input_received(events: &[Event]) {
-    assert_eq!(kinds(events), ["input_received"], "{events:?}");
+    assert_eq!(kinds(events), ["input_received", "judged"], "{events:?}");
 }
 
 #[test]
 fn command_accept_makes_step_accepted_not_achieved() {
     let mut s = session(ir(), "main/st-1");
     let events = send(&mut s, cmd("/make-note first-note"));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
     assert_eq!(attr(&s, "state").as_deref(), Some("created"));
     assert_eq!(attr(&s, "kind").as_deref(), Some("none"));
@@ -170,7 +175,10 @@ fn resend_after_accept_is_only_received() {
 fn choice_accept_records_choice() {
     let mut s = session(ir(), "main/st-2");
     let events = send(&mut s, Input::Choice("opt-memo".into()));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-2"), StepStatus::Accepted);
     assert_eq!(
         s.state().run.slices[&root()].choices.get(&uid("main/st-2")),
@@ -199,7 +207,10 @@ fn approval_accept_is_not_achievement() {
             target: None,
         },
     );
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-3"), StepStatus::Accepted);
     assert_eq!(attr(&s, "state").as_deref(), Some("published"));
     no_achieved(&s);
@@ -254,7 +265,10 @@ fn text_accept_is_not_achievement() {
     }
     let mut s = session(ir, "main/st-1");
     let events = send(&mut s, Input::Text("今日のメモ\n二行目".into()));
-    assert_eq!(kinds(&events), ["input_received", "accepted", "changed"]);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
     assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
     // processing を持つ Step なので処理中になる。
     assert_eq!(s.state().run.busy, Some(Busy { done: 0, total: 5 }));
@@ -329,6 +343,7 @@ fn invalid_rule_effects_warn_and_change_nothing() {
             target: None,
         },
     );
+    // 効果が読めない受付は、`Judged` を置かず `Warning` だけにする（受付の `Judged` の後に受付が無い食い違いを作らない）。
     assert_eq!(kinds(&events), ["input_received", "warning"]);
     assert_eq!(s.state().run, before);
 }
@@ -340,7 +355,7 @@ fn earlier_reject_rule_is_not_skipped_for_later_accept() {
         if n.uid == "main/st-1" {
             let accept = n.step.rules[0].clone();
             let mut reject = accept.clone();
-            reject["outcome"] = json!({ "kind": "reject" });
+            reject["outcome"] = json!({ "kind": "reject", "rejection": "rj-decline" });
             n.step.rules = vec![reject, accept];
         }
     }
@@ -377,4 +392,141 @@ fn rule_with_extra_args_key_does_not_match_command() {
     let mut s = session(ir, "main/st-1");
     only_input_received(&send(&mut s, cmd("/make-note first-note")));
     assert_eq!(status(&s, "main/st-1"), StepStatus::Entered);
+}
+
+/// st-1 を自然文の Step にし、規則を差し替えた教材。問い返しの文面 `cl-which` を足す。
+fn text_ir(rules: &[Value]) -> Ir {
+    let mut ir = ir();
+    ir.clarifications.insert(
+        "cl-which".into(),
+        json!({ "message": "どのメモですか。", "how_to_answer": "メモの名前を書いてもう一度送ります。" }),
+    );
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-1" {
+            n.step.input = Some(json!({ "kind": "text", "min": 1, "max": 50 }));
+            n.step.rules = rules.to_vec();
+        }
+    }
+    ir
+}
+
+fn text_rule(id: &str, outcome: Value) -> Value {
+    json!({ "id": id, "on": { "text": true }, "outcome": outcome })
+}
+
+fn text_accept_rule() -> Value {
+    text_rule(
+        "r-text",
+        json!({ "kind": "accept", "effects": [
+            { "put": { "path": "notes/memo", "attrs": { "state": "written" } } }
+        ] }),
+    )
+}
+
+fn judgment(events: &[Event]) -> &Judgment {
+    match events {
+        [Event::InputReceived { .. }, Event::Judged { judgment, .. }, ..] => judgment,
+        other => panic!("Judged が InputReceived の直後に無い: {other:?}"),
+    }
+}
+
+/// 拒否・問い返しの `Judged` の後は受け付けず、状態もログの受付も変えない（JUDGE-3 と遷移の一致）。
+fn assert_judged_only(ir: Ir, expect: impl Fn(&Judgment) -> bool) {
+    let mut s = session(ir, "main/st-1");
+    let before = s.state().run.clone();
+    let events = send(&mut s, Input::Text("今日のメモ".into()));
+    assert_eq!(kinds(&events), ["input_received", "judged"], "{events:?}");
+    assert!(expect(judgment(&events)), "{events:?}");
+    assert_eq!(s.state().run, before);
+    assert_eq!(status(&s, "main/st-1"), StepStatus::Entered);
+    assert!(!s.log().iter().any(|e| matches!(e, Event::Accepted { .. })));
+}
+
+#[test]
+fn text_reject_rule_is_judged_rejected_and_never_accepted() {
+    let reject = text_rule(
+        "r-text-no",
+        json!({ "kind": "reject", "rejection": "rj-decline" }),
+    );
+    // 無条件の拒否の規則だけの Step と、拒否の後ろに受付の規則がある Step。
+    for rules in [vec![reject.clone()], vec![reject, text_accept_rule()]] {
+        assert_judged_only(
+            text_ir(&rules),
+            |j| matches!(j, Judgment::Rejected(r) if r.text == "rj-decline"),
+        );
+    }
+}
+
+#[test]
+fn text_clarify_rule_is_judged_clarified_and_never_accepted() {
+    let clarify = text_rule(
+        "r-text-which",
+        json!({ "kind": "clarify", "clarification": "cl-which" }),
+    );
+    for rules in [vec![clarify.clone()], vec![clarify, text_accept_rule()]] {
+        assert_judged_only(
+            text_ir(&rules),
+            |j| matches!(j, Judgment::Clarified(c) if c.text == "cl-which"),
+        );
+    }
+}
+
+#[test]
+fn text_accept_rule_applies_effects_of_judged_rule() {
+    let mut s = session(text_ir(&[text_accept_rule()]), "main/st-1");
+    let events = send(&mut s, Input::Text("今日のメモ".into()));
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted", "changed"]
+    );
+    assert!(matches!(judgment(&events), Judgment::Accepted(_)));
+    assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
+    assert_eq!(
+        s.state()
+            .run
+            .world
+            .get("notes/memo")
+            .and_then(|e| e.attrs.get("state"))
+            .map(String::as_str),
+        Some("written")
+    );
+}
+
+/// st-1 に、取り消しを受け付ける規則（`judge` の試験データの `st-cancel` と同じ形）を足した教材。
+fn cancel_accept_ir() -> Ir {
+    let mut ir = ir();
+    for n in &mut ir.nodes {
+        if n.uid == "main/st-1" {
+            n.step.rules.insert(
+                0,
+                json!({ "id": "r-cancel", "on": { "cancel": true }, "outcome": { "kind": "accept" } }),
+            );
+        }
+    }
+    ir
+}
+
+#[test]
+fn cancel_accept_rule_is_not_recorded_as_accepted_until_wired() {
+    // 取り消しの受付の意味づけ（TASK-212）が入るまでは、受付の `Judged` を出さず、固定文の `Warning` だけにして
+    // 状態を変えない（受付と判定したのに遷移が無い食い違いを作らない。fail-closed）。
+    for status in [StepStatus::Entered, StepStatus::Accepted] {
+        let mut state = entered("main/st-1");
+        for sl in state.run.slices.values_mut() {
+            sl.status.insert(uid("main/st-1"), status);
+        }
+        let mut s = Session::from_state(cancel_accept_ir(), state);
+        let before = s.state().run.clone();
+        let events = send(&mut s, Input::Cancel);
+        assert_eq!(
+            kinds(&events),
+            ["input_received", "warning"],
+            "{status:?}: {events:?}"
+        );
+        assert!(!events.iter().any(|e| matches!(e, Event::Judged { .. })));
+        if let Event::Warning { message, .. } = &events[1] {
+            assert!(!message.contains("r-cancel"));
+        }
+        assert_eq!(s.state().run, before, "{status:?}");
+    }
 }

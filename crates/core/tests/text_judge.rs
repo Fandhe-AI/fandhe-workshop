@@ -189,6 +189,20 @@ fn rule_selection() {
 }
 
 #[test]
+fn null_when_is_unconditional() {
+    // `when: null` は無条件として選ぶ。評価器が条件を解釈できなくても効果は落ちない（judge の規則選択と同じ）。
+    let rules = json!([
+        { "id": "r-null", "on": { "text": true }, "when": null,
+        "outcome": { "kind": "accept", "effects": [{ "set_flag": "n" }] } },
+        { "id": "r-late", "on": { "text": true }, "outcome": { "kind": "accept", "effects": [] } },
+    ]);
+    let s = text_step(1, 10, rules);
+    let a = accepted(&s, "x");
+    assert_eq!(a.rule_id.as_deref(), Some("r-null"));
+    assert_eq!(a.effects.len(), 1);
+}
+
+#[test]
 fn declaration_errors() {
     let no_input = step_of(json!({ "id": "s", "title": "t" }));
     assert_eq!(judge(&no_input, "x").err(), Some(TextDeclError::NotText));
