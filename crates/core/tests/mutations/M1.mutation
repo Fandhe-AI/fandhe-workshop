@@ -1,0 +1,8 @@
+id: M1
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if false && (addr.generation != run.generation || addr.step != *current) {
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 宛先（世代と Step）の照合を丸ごと外し、食い違う進行を弾かない（世代だけを外す EVT9-5 とは別）

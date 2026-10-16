@@ -1,0 +1,8 @@
+id: M4
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/accept.rs
+find:         confirm::OnAccept::AwaitConfirm => None,
+replace:         confirm::OnAccept::AwaitConfirm => Some(Vec::new()),
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 確認を待たず、受付の直後に達成にする
