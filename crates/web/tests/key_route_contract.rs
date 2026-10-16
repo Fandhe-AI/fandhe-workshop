@@ -34,6 +34,33 @@ fn shift_enter_は_prevent_default_せず送信もしない() {
     }
 }
 
+#[test]
+fn ctrl_v_と_meta_v_は_prevent_default_せず送信もしない() {
+    // JUDGE-25: 貼り付けはブラウザの既定動作に任せる。keydown 側で止めると貼り付けが失われる。
+    for (ctrl, meta) in [(true, false), (false, true)] {
+        let input = KeyInput {
+            key: "v".to_owned(),
+            key_code: 0,
+            is_composing: false,
+            shift: false,
+            ctrl,
+            alt: false,
+            meta,
+        };
+        for has_text in [true, false] {
+            let effect = effect_for(decide(&input, &field_state(has_text)));
+            assert!(
+                !effect.prevent_default,
+                "ctrl={ctrl} meta={meta} has_text={has_text}"
+            );
+            assert!(
+                !effect.click_submit,
+                "ctrl={ctrl} meta={meta} has_text={has_text}"
+            );
+        }
+    }
+}
+
 // ---- Tab の補完の条件（TASK-278 1/3。JUDGE-19・FEND-21・D-42） ----
 //
 // 変異 JUDGE19-2（`Complete` の腕を何もしない効果に戻す）の検出先。候補が開く状態は TASK-440 が結ぶまで
