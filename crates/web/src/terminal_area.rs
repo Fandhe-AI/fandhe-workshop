@@ -478,8 +478,13 @@ impl Walk {
     }
 
     fn finish_lines(&mut self) {
-        let lines = core::mem::take(&mut self.lines);
-        for line in &lines {
+        for n in 0..self.lines.len() {
+            let line = Line {
+                id: self.lines[n].id,
+                kind: self.lines[n].kind,
+                input: self.lines[n].input,
+                parts: self.lines[n].parts.clone(),
+            };
             let Some(kind) = line.kind else { continue };
             let Some((required, optional)) = part_spec(kind, line.input) else {
                 continue;
@@ -510,7 +515,13 @@ fn walk(area: &Node) -> Vec<Violation> {
     let mut stack: Vec<(&Node, usize, Ctx)> = vec![(area, 0, Ctx::default())];
     while let Some((node, id, ctx)) = stack.pop() {
         let (tag, attrs, children) = match node {
-            Node::Text(_) => continue,
+            Node::Text(t) => {
+                // `log-list` の直接の子は `li` だけ。文字ノードも構造違反（空白だけは許す）。
+                if ctx.parent_is_log_list && t.chars().any(|ch| !ch.is_whitespace()) {
+                    w.bad(id, "log-list-child", "#text");
+                }
+                continue;
+            }
             Node::RawHtml(_) => {
                 w.out.push(Violation::RawHtml {
                     path: path_of(&w.links, id),
@@ -568,7 +579,8 @@ fn check_run_status(w: &mut Walk, id: usize, attrs: &[(String, String)], childre
     match attr(attrs, STATE_ATTR).and_then(RunStatus::parse) {
         None => w.bad(id, "run-status-state", STATE_ATTR),
         Some(s) => {
-            if direct_text(children).trim() != s.word() {
+            // 子は文字ノードだけ。要素で包んだ語や分割した語は、表示語との一致を保証できない。
+            if !all_text(children) || direct_text(children).trim() != s.word() {
                 w.bad(id, "run-status-word", STATE_ATTR);
             }
         }

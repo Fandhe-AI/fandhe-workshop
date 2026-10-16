@@ -419,6 +419,8 @@ fn structure_violations() {
     assert_eq!(first_rule(&outside), "line-part-outside-line");
     let non_li = area(vec![log(vec![el("div", vec![], vec![])])]);
     assert_eq!(first_rule(&non_li), "log-list-child");
+    let text_child = area(vec![log(vec![text("不正な行")])]);
+    assert_eq!(first_rule(&text_child), "log-list-child");
     let raw = area(vec![Node::RawHtml("<b>".into())]);
     assert!(matches!(
         check_area(&raw).unwrap_err()[0],
@@ -440,6 +442,18 @@ fn run_status_violations() {
         vec![text("処理中")],
     );
     assert_eq!(first_rule(&area(vec![bad_word])), "run-status-word");
+    let split_word = el(
+        "span",
+        vec![(TESTID_ATTR, RUN_STATUS_TESTID), ("data-state", "idle")],
+        vec![text("待機中"), el("span", vec![], vec![text("処理中")])],
+    );
+    assert_eq!(first_rule(&area(vec![split_word])), "run-status-word");
+    let wrapped_word = el(
+        "span",
+        vec![(TESTID_ATTR, RUN_STATUS_TESTID), ("data-state", "idle")],
+        vec![el("span", vec![], vec![text("待機中")])],
+    );
+    assert_eq!(first_rule(&area(vec![wrapped_word])), "run-status-word");
 }
 
 #[test]
