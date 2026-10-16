@@ -1,0 +1,9 @@
+id: EVT9-5
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: stale_tick_after_reinput_is_ignored
+expect-fail: p2_pre_stop_ticks_never_change_run
+note: 進行の宛先の照合から世代を外す（停止前の進行が、再入力後の処理中に効いてしまう）

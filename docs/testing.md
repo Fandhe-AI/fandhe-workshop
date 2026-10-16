@@ -932,6 +932,24 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT9-3 | crates/core/src/stop.rs: Stopped.at に操作後の世代を使う | stop_after_two_ticks_removes_draft, stop_matches_sample_e06 | stop_after_two_ticks_removes_draft, stop_matches_sample_e06 | DETECTED | - |
 | EVT9-4 | crates/core/src/stop.rs: 写しの Step と現在の Step の照合を外す（別の Step の写しへ戻る） | stop_with_other_step_entry_warns_only | stop_with_other_step_entry_warns_only | DETECTED | - |
 
+### 5.40 停止前の進行の無視と停止後の入力（TASK-211 2/2）
+
+進行の宛先の照合から世代を外す誤り（EVT9-5）を入れ、停止前の世代の進行が再入力後の処理中に効いてしまうことを `stop_restore` が検出することを確かめる。EVT9-1〜4 は、`stop_matches_sample_e06` を e08 まで広げた後も検出が崩れないことの再確認である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 91329d3-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT9-1.mutation crates/core/tests/mutations/EVT9-2.mutation crates/core/tests/mutations/EVT9-3.mutation crates/core/tests/mutations/EVT9-4.mutation crates/core/tests/mutations/EVT9-5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| EVT9-1 | crates/core/src/stop.rs: 世界状態を入口の写しへ戻さない | stop_after_two_ticks_removes_draft, stop_matches_sample_e06, p4_stop_returns_to_entry | input_after_stop_is_accepted_and_completes, stop_after_two_ticks_removes_draft, stop_matches_sample_e06, p4_stop_returns_to_entry | DETECTED | cases=256; minimal input: Plan { ticks: 0, resends: 0 } |
+| EVT9-2 | crates/core/src/stop.rs: 世代を +1 しない | stop_after_two_ticks_removes_draft, stop_matches_sample_e06, p4_stop_returns_to_entry | stale_tick_after_stop_is_ignored, input_after_stop_is_accepted_and_completes, stale_tick_after_reinput_is_ignored, stop_matches_sample_e06, stop_after_two_ticks_removes_draft, p4_stop_returns_to_entry, p2_pre_stop_ticks_never_change_run | DETECTED | cases=256; minimal input: (Plan { ticks: 0, resends: 0 }, [Old { second_step: false, index: 0 }]) |
+| EVT9-3 | crates/core/src/stop.rs: Stopped.at に操作後の世代を使う | stop_after_two_ticks_removes_draft, stop_matches_sample_e06 | stop_matches_sample_e06, stop_after_two_ticks_removes_draft | DETECTED | - |
+| EVT9-4 | crates/core/src/stop.rs: 写しの Step と現在の Step の照合を外す | stop_with_other_step_entry_warns_only | stop_with_other_step_entry_warns_only | DETECTED | - |
+| EVT9-5 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す（停止前の進行が、再入力後の処理中に効いてしまう） | stale_tick_after_reinput_is_ignored, p2_pre_stop_ticks_never_change_run | input_after_stop_is_accepted_and_completes, stale_tick_after_reinput_is_ignored, stale_tick_after_stop_is_ignored, stop_matches_sample_e06, p2_pre_stop_ticks_never_change_run | DETECTED | cases=256; minimal input: (Plan { ticks: 0, resends: 0 }, [Old { second_step: false, index: 0 }]) |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
