@@ -54,15 +54,16 @@ async function sendRaw(page, op) {
   }, [RAW, JSON.stringify(op)]);
 }
 
-const engineState = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
-
-// DOM の 3 部品から値を読む（固定の関数だけを渡す）。
-async function readDom(page) {
+// 状態の JSON と DOM を 1 回の evaluate で同時に読む（固定の関数だけを渡す）。
+// 実タイマーの進行（TASK-349）は、別々の evaluate の間に届いて状態と DOM をずらすことがある。
+// 同じタスクの中で両方を読めば、その間に進行は届かない。
+async function readBoth(page) {
   return page.evaluate(() => {
+    const engine = JSON.parse(window.__fandheTest.stateJson()).engine;
     const q = (id) => document.querySelector(`[data-testid="${id}"]`);
     const rows = (id) => [...q(id).querySelectorAll('li')];
     const text = (id) => q(id).textContent;
-    return {
+    const dom = {
       log: rows('part-log').map((li) => ({
         event: Number(li.dataset.event),
         generation: Number(li.dataset.generation),
@@ -80,7 +81,33 @@ async function readDom(page) {
       consumed: [text('part-log-consumed'), text('part-artifact-consumed'), text('part-review-consumed')],
       html: ['part-log', 'part-artifact-view', 'part-review'].map((id) => q(id).outerHTML),
     };
+    return { engine, dom };
   });
+}
+
+const engineState = async (page) => (await readBoth(page)).engine;
+const readDom = async (page) => (await readBoth(page)).dom;
+
+// 進行が止まるまで待つ。条件は、次の進行の予約が無く、ログの長さが進行の間隔の 2 倍の間変わらないこと。
+async function waitQuiet(page) {
+  const interval = await page.evaluate(() => window.__fandheTest.tickIntervalMs());
+  const deadline = Date.now() + 10000;
+  let lastLen = -1;
+  let since = Date.now();
+  while (Date.now() < deadline) {
+    const { len, next } = await page.evaluate(() => ({
+      len: JSON.parse(window.__fandheTest.stateJson()).engine.logLen,
+      next: window.__fandheTest.nextTick(),
+    }));
+    if (len !== lastLen || next !== 'null') {
+      lastLen = len;
+      since = Date.now();
+    } else if (Date.now() - since >= interval * 2) {
+      return;
+    }
+    await page.waitForTimeout(50);
+  }
+  throw new Error('ticks did not settle');
 }
 
 function assertMatches(dom, engine, detail) {
@@ -119,8 +146,7 @@ test('操作列を流すたびに、3 つの表示が同じイベント列から
     let grew = 0;
     for (let i = 0; i < ops.length; i += 1) {
       await sendRaw(page, ops[i]);
-      const engine = await engineState(page);
-      const dom = await readDom(page);
+      const { engine, dom } = await readBoth(page);
       assertMatches(dom, engine, `after op #${i} ${JSON.stringify(ops[i])}`);
       if (engine.logLen > lastLen) grew += 1;
       lastLen = engine.logLen;
@@ -132,11 +158,13 @@ test('操作列を流すたびに、3 つの表示が同じイベント列から
     assert.ok(kinds.has('input_received'), JSON.stringify([...kinds]));
 
     // (f) 丸ごと作り直しても、3 部品の DOM は同じ（差分更新が作り直しと一致する）。
+    await waitQuiet(page);
     const before = (await readDom(page)).html;
     assert.equal(await page.evaluate(() => window.__fandheTest.rerender()), true);
     const after = (await readDom(page)).html;
     assert.deepEqual(after, before);
-    assertMatches(await readDom(page), await engineState(page), 'after rerender');
+    const settled = await readBoth(page);
+    assertMatches(settled.dom, settled.engine, 'after rerender');
 
     // (g) CSP 違反・ページ内エラー・コンソールのエラーが 0 件。
     const counts = await collectSafety(page, rec);

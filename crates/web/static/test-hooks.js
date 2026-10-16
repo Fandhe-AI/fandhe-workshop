@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_next_tick, debug_request_complete } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -43,4 +43,14 @@ export function renderQuoteNest(n) {
 // 進行の間隔（ミリ秒。TASK-229）。URL のクエリで変わらないことの確認に使う。読み取りのみ。
 export function tickIntervalMs() {
   return debug_tick_interval_ms();
+}
+
+// 予約済みの次の進行の宛先（TASK-349）。JSON 文字列（generation / step / index）か "null"。読み取りのみ。
+export function nextTick() {
+  return debug_next_tick();
+}
+
+// 補完の action を配信と同じ配送の口（set_timeout → dispatch_action）で届ける（TASK-349）。
+export function requestComplete() {
+  debug_request_complete();
 }

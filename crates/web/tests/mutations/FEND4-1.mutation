@@ -1,0 +1,9 @@
+id: FEND4-1
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/glue.rs
+find:         if effect.deliver_complete {
+replace:         if effect.deliver_complete { let _ = deliver(&RuntimeAction::Complete);
+expect-fail: 実ソースは違反なし
+expect-fail: glue_は状態を変える呼び出しを持たない
+note: 補完を set_timeout の予約を通さず、リスナーの中から直接 deliver で届ける（更新の最中の再入で黙って捨てられる）
