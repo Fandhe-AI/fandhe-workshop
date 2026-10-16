@@ -173,7 +173,7 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 
 ### ブラウザテスト
 
-共通ヘルパ（`tools/browser/harness.mjs`）は、ブラウザの起動・通信の計数・CSP 違反の計数・ページ内エラーの収集を担います。安全性の試験（TASK-143）向けに、記録用の関数（`__poc7_hit`）の呼び出し・ダイアログ・ポップアップ・タブの異常終了の計数、画面の走査（危険な要素・`on*` 属性・`style` 属性・http(s) 以外の URL・外部 http(s)）、CSP の meta だけを除いた一時の写しでの配信（CSP なし）も担います。計数のキー名は `safetyCounts()` が返す固定のもので、後続の安全性の試験がそのまま使います。
+共通ヘルパ（`tools/browser/harness.mjs`）は、ブラウザの起動・通信の計数・CSP 違反の計数・ページ内エラーの収集を担います。安全性の試験（TASK-143）向けに、記録用の関数（`__poc7_hit`）の呼び出し・ダイアログ・ポップアップ・タブの異常終了の計数、画面の走査（危険な要素・`on*` 属性・`style` 属性・http(s) 以外の URL・外部 http(s)）、CSP の meta だけを除いた一時の写しでの配信（CSP なし）も担います。計数のキー名は `safetyCounts()` が返す固定のもので、後続の安全性の試験がそのまま使います。変換中の入力は、CDP による IME の模擬のヘルパ（`tools/browser/ime.mjs`。シミュレーターであり実 IME ではありません）で作ります。
 
 ```bash
 npm ci                              # package-lock.json の版を導入する
@@ -207,7 +207,7 @@ make test-browser                   # web（配信設定と試験の設定）を
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
 | `make test-serve` | `scripts/test-serve.sh` | 配信サーバの試験（Node の `node:test`） |
-| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験、配信設定の web で Enter の送信が送信ボタンの click と同じ記録になることと、Shift+Enter の改行・複数行の送信の試験、貼り付け（改行の保持・自動送信 0 件・合成の paste が止められないこと）の試験、上限の案内文と貼り付けの観察（TERM-15・TERM-19。PoC-2 の写しの試料・案内欄の位置・候補が開かないこと）の試験（Playwright）。CI には未組み込みです |
+| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験、配信設定の web で Enter の送信が送信ボタンの click と同じ記録になることと、Shift+Enter の改行・複数行の送信の試験、貼り付け（改行の保持・自動送信 0 件・合成の paste が止められないこと）の試験、上限の案内文と貼り付けの観察（TERM-15・TERM-19。PoC-2 の写しの試料・案内欄の位置・候補が開かないこと）の試験、CDP による IME の模擬のヘルパの自己確認と、入力欄と IME の層 3 の試験（TASK-86 1/2。変換中の誤送信 0 件・確定後の送信漏れ 0 件）（Playwright）。CI には未組み込みです |
 | `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
 | `make build-web` | `tools/build-web.sh` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定、`IR_FILE` で IR を同梱） |
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準を実ビルドで検査する |
