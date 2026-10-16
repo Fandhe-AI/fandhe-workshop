@@ -1,0 +1,8 @@
+id: VER7-7
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if h.engine > o.engine {
+replace: if h.engine.major > o.engine.major {
+expect-fail: ver7_engine_newer_is_refused
+note: エンジンの副版・修正版だけ新しい履歴を見逃す

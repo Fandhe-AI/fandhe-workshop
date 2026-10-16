@@ -1,0 +1,8 @@
+id: VER7-6
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if h.vocab > caps.vocab_max || o.vocab > caps.vocab_max {
+replace: if h.vocab > caps.vocab_max {
+expect-fail: ver7_vocab_newer_on_the_opening_side_is_refused
+note: 開く側の語彙が上限を超える場合を見ない

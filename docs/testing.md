@@ -97,7 +97,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`・`FEND15-3`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4` 、TASK-349 は `FEND4-1`・`FEND4-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`・`FEND15-3`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`・`FEND4-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1575,3 +1575,37 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | VER7-4 | crates/core/src/history_open.rs: format_older を engine_major の後へ回したのと同じ効果（判定の順序を崩す） | ver7_view_only_order_follows_the_contract | ver7_view_only_order_follows_the_contract | DETECTED | - |
 | VER6-1 | crates/core/src/history_open.rs: 教材の主版の違いを判定しない（主版の違う履歴が変換して開く経路に着く） | fail_closed_for_versions_that_must_not_open | ver6_content_major_boundaries, fail_closed_for_versions_that_must_not_open, ver6_content_major_with_removed_step_is_view_only_at_any_position, ver7_view_only_order_follows_the_contract, view_only_reasons_are_non_empty_and_classified | DETECTED | - |
 | VER7-1 | crates/core/src/history_open.rs: 新しい IR の構造の版の履歴を拒否しない（エンジンの最大版・開く教材の IR の版のどちらを超える場合も対象） | fail_closed_for_versions_that_must_not_open | fail_closed_for_versions_that_must_not_open, history_ir_format_newer_than_opening_pack_is_refused | DETECTED | - |
+
+### 5.61 開かない版の違いの変異と線引きの照合（TASK-174 3/3）
+
+`format_newer`・`vocab_newer`・`engine_newer` の判定（`crates/core/src/history_open.rs`）に、`VER7-5`〜`VER7-10` の 6 件を置いた。
+`VER7-5` は語彙の判定の欠落、`VER7-6` は開く側の語彙の条件、`VER7-7` は副版・修正版の新しさ、`VER7-8` はエンジンの上限側の条件、
+`VER7-9` は等しい版の境界、`VER7-10` は判定の順序の崩れを狙う。既存の `VER7-1`（開く教材側の条件）の退行も併せて確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 841fd59-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/VER7-5.mutation crates/core/tests/mutations/VER7-6.mutation crates/core/tests/mutations/VER7-7.mutation crates/core/tests/mutations/VER7-8.mutation crates/core/tests/mutations/VER7-9.mutation crates/core/tests/mutations/VER7-10.mutation crates/core/tests/mutations/VER7-1.mutation
+```
+
+| ID | 期待した失敗 | 結果 |
+|---|---|---|
+| VER7-5 | ver7_vocab_newer_is_refused | DETECTED |
+| VER7-6 | ver7_vocab_newer_on_the_opening_side_is_refused | DETECTED |
+| VER7-7 | ver7_engine_newer_is_refused | DETECTED |
+| VER7-8 | ver7_format_newer_is_refused | DETECTED |
+| VER7-9 | ver7_vocab_newer_is_refused | DETECTED |
+| VER7-10 | ver7_stage6_order_follows_history_load_order | DETECTED |
+| VER7-1 | fail_closed_for_versions_that_must_not_open | DETECTED |
+
+#### 線引きと決定の記録（D-52・D-59）の照合
+
+| 理由コード・結果 | 根拠 | 照合の結果 |
+|---|---|---|
+| `content_major`（表示だけ。向きを問わない） | D-52 の 6（VER-18） | 一致する |
+| 副版以下の違い（適用し直して写しと一致したときだけ変換して開く） | D-52 の 6（VER-4・VER-5） | 一致する |
+| `format_older`（表示だけ） | D-52 の 7・D-59 の 2 | 一致する |
+| `format_newer`（開かない） | D-59 の 2 | 一致する。ただし理由は Claude Code の判断で、ユーザーの理由としては記録されていない（D-59 の 4）。「開く側」をエンジンの上限と開く教材の両方に読むのは実装の読みである |
+| `vocab_newer`・`engine_newer`（開かない）、`engine_major`（表示だけ） | VER-7（PoC-6 の試作の線引き。V-iv-2・V-v-2） | D-52・D-59 はこの 3 種を直接は決めていない。VER-7（確定）と VER-18 の「試作のとおり」に従う |
+
+エンジンが読める語彙の上限の正は core の `VOCAB_MAX` で、pack の `vocab::LATEST` との一致は `crates/pack/tests/vocabulary_terms.rs` が見る。
