@@ -98,7 +98,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
 | IR の型、`ir_format`、加算の規則 | contract | TASK-41・TASK-60 |
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
-| キー判定表 `decide` の入出力と表 | contract | TASK-257・TASK-281 |
+| キー判定表 `decide` の入出力と表（`key_decide`） | contract | TASK-257・TASK-281 |
 | 案内レベルとヒントの値の型（`Control::OpenHint`・`HintOpened` は core） | contract | TASK-290 |
 | 入力方式 5 種と待機（`wait`）の宣言の型と `text` の判定の純関数（実行時の判定は core が呼ぶ。診断は pack） | contract | TASK-44 |
 | 確認 4 種の宣言の型と、受付と達成の分け方の純関数（実行時の判定は core、診断は pack、表示は web） | contract | TASK-47 |
