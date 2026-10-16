@@ -64,5 +64,6 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/doc-links.test.mjs" \
   "${ROOT_DIR}/tools/browser/doc-tree.test.mjs" \
   "${ROOT_DIR}/tools/browser/tick-interval.test.mjs" \
+  "${ROOT_DIR}/tools/browser/tick-dispatch.test.mjs" \
   "${ROOT_DIR}/tools/browser/three-views.test.mjs" \
   "${ROOT_DIR}/tools/browser/tree-attrs.test.mjs"

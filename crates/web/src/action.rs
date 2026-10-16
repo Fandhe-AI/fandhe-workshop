@@ -1,6 +1,6 @@
 //! Runtime が Component に届ける action の名前と宛先の形の契約（TASK-343 2/3）。
 //!
-//! 呼び出し元は、タイマーと root の外の Esc を結線する glue（TASK-347 以降）と、ホストの
+//! 呼び出し元は、タイマーと補完を結線する glue（TASK-349。root の外の Esc は後続）と、ホストの
 //! `Component::decode_action`（[`RuntimeAction::decode`] に委ねる）である。native の rlib で試験できるよう、
 //! wasm 専用にしない。
 //!
@@ -20,7 +20,7 @@
 //! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 1）。変える場合は先に spec を直して版を上げる。
 //!
 //! 意図して固定しないもの（持ち主が別にあるため）: 宛先の照合（TASK-210）、タイマーの間隔、glue の結線
-//! （TASK-347 以降）、キー処理の受け持ち（FEND-7・FEND-8）。
+//! （TASK-349 で結線済み）、キー処理の受け持ち（FEND-7・FEND-8）。
 
 use fandhe_frontend_wasm_full::DispatchOutcome;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};

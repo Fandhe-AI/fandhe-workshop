@@ -1,0 +1,9 @@
+id: FEND4-2
+package: fandhe-workshop-web
+test: host_contract
+target: crates/web/src/tick_schedule.rs
+find:     let index = run.busy.as_ref().map(|b| b.done)?;
+replace:     let index = run.busy.as_ref().map(|b| b.done + 1)?;
+expect-fail: 進行の宛先は設定した時点と更新のたびに通知される
+expect-fail: 最後の進行の後は_none_が通知される
+note: 次の進行の番号を 1 つ先にする（届いた進行が EVT-8 の番号の照合で無視され、処理中が進まなくなる）
