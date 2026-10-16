@@ -1,0 +1,8 @@
+id: EVT12-2
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     state.run = run;
+replace:     state.run = { let mut r = run; r.world = state.run.world.clone(); r };
+expect-fail: restore_after_stop_brings_back_world
+note: 復帰で世界状態を戻さない

@@ -224,7 +224,7 @@ pub enum Event {
         id: CheckpointId,
         /// 復帰後の世代。
         new_generation: Generation,
-        /// 復帰時点のログの長さ。
+        /// 復帰したチェックポイントの保存の時点のログの長さ（`CheckpointSaved.log_len` と同じ。EVT-14）。
         log_len: u32,
         /// 復帰後の現在の Step。
         owner: StepUid,

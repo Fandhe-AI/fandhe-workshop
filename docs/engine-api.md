@@ -69,7 +69,7 @@
 - `Op::Input` は連打（再送）でも 1 件ごとの `Op::Input` であり、`Keep` のままである
 - `Control::Stop` は処理中（`RunState.busy` が `Some`）のときだけ世代を上げる。処理中でない停止は `Input::Cancel` として扱い、世代を変えない（EVT-10）
 - `IncrementOnSuccess` は、拒否（`Event::Refused`）や無視（`Event::Ignored`）では変えない
-- 実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ
+- 実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214（実装済み）・TASK-217 が持つ
 - 表は `session::apply` の関門が強制する（TASK-210 1/3）。`Keep` の操作は分岐が世代を動かしても戻し、そのほかも世代を減らさず増分は 1 までにする
 
 ## 4. 宛先の形
@@ -117,8 +117,9 @@
 | EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の試験 | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10）。`session::step` が `accept` へ渡し、世代は変えない（実装済み、TASK-212。`cancel_input` の試験） |
 | EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 実装済み（`go_to` モジュール、TASK-213 1/2） | |
 | EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、入口の写しは `None` に無効化する（移動後の停止は `Warning` だけで状態を変えない）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない。移動前の世代の進行は移動の後に届いても `Ignored(Stale)` が 1 件だけで状態を変えない（TASK-213 2/2。`reserved_ticks_after_move_are_ignored`・`stale_tick_after_reenter_and_reinput_is_ignored`・`p2_pre_move_ticks_never_change_run` ほか） | 入口の写しの作り直しと移動先の `on_enter` の効果は TASK-242・217 |
-| EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 読み取れる | |
-| EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
+| EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 実装済み（`checkpoint` モジュール、TASK-214 1/3） | |
+| EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 実装済み（`checkpoint` モジュール、TASK-214 1/3）。`checkpoint_restore` の `restore_after_saving_at_three_ticks_returns_saved_run`・`p4_restore_returns_saved_run`・`p4_failed_restore_keeps_generation` ほか | 実体ごとの戻り方は TASK-241 |
+| EVT-12 チェックポイントの保存と復帰 | `Control::Save`・`Control::Restore(CheckpointId)`・`Event::CheckpointSaved`・`Event::Restored`・`SessionState.checkpoints` | 実装済み（`checkpoint` モジュール、TASK-214 1/3）。保存は実行状態と入口の写しを控え（処理中でも可）、`log_len` は保存操作の直前のログの長さ。復帰は `run` 全体を写しへ戻し世代だけ現在の +1 にし、`busy` と入口の写しも保存時点へ戻す。`Restored.log_len` は写しの値（EVT-14）。無い ID は `Refused(UnknownCheckpoint)`、世代・ID のあふれと現在の Step の無い写しは `Warning` だけで状態を変えない | `Restored` による復習の作り直しの試験は TASK-214 2/3、復帰前の進行の無視と処理中の再開の試験は 3/3、実体ごとの戻り方は TASK-241 |
 | EVT-6 の外: 周回の開始 | `Control::Begin` が `IncrementOnSuccess`。`Event::Begun.new_generation` | 読み取れる | 6 項目に数えない（試作の設計）。3 節の脚注の表で分けた |
 | EVT-8 の 3 要素 | `TickAddr { generation, step, index }`（`addr.rs`）。現在の側は `RunState.generation`・`RunState.current`・`Busy.done` | 読み取れる | |
 | EVT-8 (a) 一致したら進行が 1 つ進む | `Event::Progress { index, total }`・`Busy.done` | 実装済み（`tick` モジュール、TASK-210 2/3）。同じ操作の列から同じ状態とイベント列が再現される（EVT-16、`tick_progress` の `p16_replay_is_deterministic`） | |
@@ -150,16 +151,15 @@
 |---|---|---|---|
 | サンプルと規則の表 | サンプルの世代の差が 3 節の表と EVT-6 の (1)〜(6) に合う | 通る | 載る |
 | 実際の `apply()` の不変条件 | EVT-22（同じ入力列で状態とイベント列が一致）、3 つの入口の一致、世代が減らない・増分は 1 まで | 通る | 載る |
-| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 13 件（e01〜e13、入力の受付・一致する進行・処理中の停止・古い世代の進行の無視・停止後の受付）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。e06 は入口の写しを添えて単独でも照合する（`sample_stop_entry_matches_apply`、TASK-211 1/2）。全件は最初の食い違いが e14（保存）で `#[ignore]`（2026-10-16 に再確認。TASK-213 1/2 の後も e14 のまま）。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る）。e07（古い世代の進行の無視、TASK-210 3/3）も単独で照合する（`sample_stale_tick_entry_matches_apply`、CI に載る）。e17・e18（移動と無い Step への拒否、TASK-213 1/2）も e17 の前の状態から連鎖して単独で照合する（`sample_go_to_entry_matches_apply`、CI に載る） | 先頭 13 件と e06・e07・e09〜e13・e15〜e18 の単独照合が載る |
+| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 全件（e01〜e21）が通る（2026-10-16、TASK-214 1/3 で `#[ignore]` を外した。CI に載る）。単独の照合も残す: e06（`sample_stop_entry_matches_apply`）、e07（`sample_stale_tick_entry_matches_apply`）、e09〜e13（`sample_ticks_entry_matches_apply`）、e15（`sample_confirm_entry_matches_apply`）、e16（`sample_skip_confirm_entry_matches_apply`）、e17・e18（`sample_go_to_entry_matches_apply`）、e19・e20（`sample_restore_entry_matches_apply`。e14 の保存を添える） | 全件の連鎖と上の単独照合が載る |
 | 比較器の自己確認 | 期待どおりの提供元は合格、1 か所壊した提供元は最初の食い違いの操作 ID で失敗する | 通る | 載る |
 
 実行コマンド:
 
 - 通常: `make test`（CI の `rust-test` が流す）
-- 結線の確認: `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored`
+- 全件の連鎖の確認: `cargo test --locked -p fandhe-workshop-core --test contract_conformance`（`#[ignore]` は無い）
 
-統合するタスクの完了条件には、「`contract_conformance` が `--include-ignored` で通る」と書く。`apply()` の最後の分岐
-（TASK-207・210・211・213・214・215）を埋めるタスクが、`sample_replay_matches_apply` の `#[ignore]` を外す。
+`sample_replay_matches_apply` の `#[ignore]` は、全件が通ることを確かめて外した（2026-10-16、TASK-214 1/3）。以後、契約の挙動を変える変更は、この試験を通す。
 サンプルの版の規則（契約を変えたら版を上げる）は `testdata/contract/README.md` の「版の規則」に従う。
 
 ## 8. 変更履歴
@@ -170,6 +170,7 @@
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 | 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 
+- 2026-10-16: チェックポイントの保存と復帰（`checkpoint` モジュール、TASK-214 1/3）を `apply()` に結線し、サンプルの連鎖の全件の照合の `#[ignore]` を外した。`Event::Restored.log_len` の doc を「復帰したチェックポイントの保存の時点のログの長さ」に明確化した（値は変えない）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: 移動前に予約された進行の無視（TASK-213 2/2）の試験を足した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: 処理中の停止と入口の写しへの復帰（`stop` モジュール、TASK-211 1/2）を実装した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）

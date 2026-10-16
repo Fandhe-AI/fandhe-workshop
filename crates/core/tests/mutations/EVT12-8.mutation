@@ -1,0 +1,8 @@
+id: EVT12-8
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:         return warn(GENERATION_OVERFLOW);
+replace:         return Vec::new();
+expect-fail: restore_overflow_warns_only
+note: 世代のあふれで警告を出さない

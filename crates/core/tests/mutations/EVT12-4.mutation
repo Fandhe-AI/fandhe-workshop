@@ -1,0 +1,8 @@
+id: EVT12-4
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     let log_len = cp.log_len;
+replace:     let log_len = u32::try_from(state.log.len()).unwrap_or(u32::MAX);
+expect-fail: restore_after_saving_at_three_ticks_returns_saved_run
+note: Restored.log_len に現在のログの長さを使う

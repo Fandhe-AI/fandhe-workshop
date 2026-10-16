@@ -1,0 +1,8 @@
+id: EVT12-3
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     let Some(cp) = state.checkpoints.get(&id) else {
+replace:     let Some(cp) = state.checkpoints.get(&id).or_else(|| state.checkpoints.values().next()) else {
+expect-fail: restore_unknown_checkpoint_is_refused_without_change
+note: 無い ID を拒否せず別のチェックポイントへ戻る

@@ -1,0 +1,8 @@
+id: EVT12-7
+package: fandhe-workshop-core
+test: checkpoint_restore
+target: crates/core/src/checkpoint.rs
+find:     state.entry = entry;
+replace:     let _ = entry;
+expect-fail: restore_after_go_to_brings_back_entry
+note: 復帰で入口の写しを戻さない
