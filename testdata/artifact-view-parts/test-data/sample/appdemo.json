@@ -1,0 +1,11 @@
+{"view":"appdemo","title":"アプリのデモのワイヤー（メモ帳）","rows":[
+{"id":"a-title","depth":0,"kind":"heading","before":{"label":"メモ帳","detail":"","state":"","tags":[]},"after":{"label":"メモ帳","detail":"","state":"","tags":[]}},
+{"id":"a-tab-list","depth":0,"kind":"tab","before":{"label":"メモ","detail":"","state":"active","tags":[]},"after":{"label":"メモ","detail":"","state":"active","tags":[]}},
+{"id":"a-tab-set","depth":0,"kind":"tab","before":{"label":"設定","detail":"","state":"","tags":[]},"after":{"label":"設定","detail":"","state":"","tags":[]}},
+{"id":"a-field","depth":0,"kind":"field","before":{"label":"新しいメモ","detail":"","state":"","tags":[]},"after":{"label":"新しいメモ","detail":"買い物に行く","state":"","tags":[]}},
+{"id":"a-add","depth":0,"kind":"button","before":{"label":"追加","detail":"","state":"disabled","tags":[]},"after":{"label":"追加","detail":"","state":"","tags":[]}},
+{"id":"a-i1","depth":0,"kind":"item","before":{"label":"朝のあいさつ","detail":"今日","state":"","tags":[]},"after":{"label":"朝のあいさつ","detail":"今日","state":"","tags":[]}},
+{"id":"a-i2","depth":0,"kind":"item","before":{"label":"会議のメモ","detail":"昨日","state":"","tags":[]},"after":{"label":"会議のメモ","detail":"昨日","state":"","tags":[]}},
+{"id":"a-i3","depth":0,"kind":"item","before":null,"after":{"label":"買い物に行く","detail":"今","state":"","tags":[]}},
+{"id":"a-note","depth":0,"kind":"text","before":{"label":"メモは 2 件です","detail":"","state":"","tags":[]},"after":{"label":"メモは 3 件です","detail":"","state":"","tags":[]}}
+]}

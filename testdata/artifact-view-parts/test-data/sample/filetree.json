@@ -1,0 +1,13 @@
+{"view":"filetree","title":"memo-app（架空の練習用リポジトリ）","rows":[
+{"id":"memo-app","depth":0,"kind":"dir","before":{"label":"memo-app/","detail":"","state":"","tags":[]},"after":{"label":"memo-app/","detail":"","state":"","tags":[]}},
+{"id":"memo-app/notes","depth":1,"kind":"dir","before":{"label":"notes/","detail":"","state":"","tags":[]},"after":{"label":"notes/","detail":"","state":"","tags":[]}},
+{"id":"memo-app/notes/hello.md","depth":2,"kind":"file","before":{"label":"hello.md","detail":"12 行","state":"","tags":[]},"after":{"label":"hello.md","detail":"12 行","state":"","tags":[]}},
+{"id":"memo-app/notes/todo.md","depth":2,"kind":"file","before":{"label":"todo.md","detail":"5 行","state":"","tags":[]},"after":{"label":"todo.md","detail":"9 行","state":"","tags":[]}},
+{"id":"memo-app/notes/ideas.md","depth":2,"kind":"file","before":null,"after":{"label":"ideas.md","detail":"3 行","state":"","tags":[]}},
+{"id":"memo-app/notes/old-draft.md","depth":2,"kind":"file","before":{"label":"old-draft.md","detail":"40 行","state":"","tags":[]},"after":null},
+{"id":"memo-app/src","depth":1,"kind":"dir","before":{"label":"src/","detail":"","state":"","tags":[]},"after":{"label":"src/","detail":"","state":"","tags":[]}},
+{"id":"memo-app/src/main.rs","depth":2,"kind":"file","before":{"label":"main.rs","detail":"30 行","state":"","tags":[]},"after":{"label":"main.rs","detail":"34 行","state":"","tags":[]}},
+{"id":"memo-app/src/store.rs","depth":2,"kind":"file","before":{"label":"store.rs","detail":"58 行","state":"","tags":[]},"after":{"label":"store.rs","detail":"58 行","state":"","tags":[]}},
+{"id":"memo-app/README.md","depth":1,"kind":"file","before":{"label":"README.md","detail":"8 行","state":"","tags":[]},"after":{"label":"README.md","detail":"8 行","state":"","tags":[]}},
+{"id":"memo-app/Cargo.toml","depth":1,"kind":"file","before":{"label":"Cargo.toml","detail":"11 行","state":"","tags":[]},"after":{"label":"Cargo.toml","detail":"11 行","state":"","tags":[]}}
+]}
