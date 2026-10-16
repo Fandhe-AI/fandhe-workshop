@@ -3,7 +3,8 @@
 //! JUDGE-4 は、受け付けない入力にエンジンが持つ分類 1 つを付けることを求める。本モジュールは
 //! `unknown_command`・`wrong_order`・`not_supported`・`not_in_this_step`（コマンドの表と Step の状態で決まる
 //! 4 場面）を決める純関数を置く。呼び出し元は、`Judged` の発行（[`crate::judge`]、TASK-267）と教材テスト
-//! （TASK-404、pack）である。文面の解決と空でない次の行動は [`crate::rejection_text`] が持つ。
+//! （TASK-404、pack）である。引数不足と引数の形（TASK-268 2/2）は [`crate::command_judge`] が返し、4 場面の教材テストは
+//! pack の結合試験 `reject_four_scenes` が持つ。文面の解決と空でない次の行動は [`crate::rejection_text`] が持つ。
 //!
 //! # 規則（上から順に評価し、最初に当たったものを返す）
 //!
