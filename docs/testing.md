@@ -2016,3 +2016,30 @@ SAVE5-1 は停止で入口の写しへ戻さない誤り、SAVE5-2 は移動で�
 | EVT8-3 | crates/web/src/host.rs: ホストの再読み込みの模擬が core の再読み込みを呼ばない | DETECTED（reload_stale の 7 件が失敗。期待した 2 件を含む） |
 
 未実施: 実際の `page.reload()` を使う場面（browser-scenes.md の S-5・S-6 ほか）は、web の保存・復元の結線（TASK-319 3/3。#343）の後に行う。
+
+### 5.73 確認の操作の連打の直後の再読み込み（TASK-321 2/2）
+
+確認の操作を 20 回連打し、保存の遅延を待たずにその直後に再読み込みしても、達成が 1 回であり直後の状態へ戻ることを固定した（SAVE-5。PoC-6 の S-9）。
+製品コードは変えていない。進行を流し終えた後に確認を送ると、1 回目だけが達成（`Achieved`・`Transitioned`・`Entered`）になり、2 回目以降は次の Step（確認が `none` の選択の Step）に届いて `NotInThisStep` で拒否されるだけである。
+受付も達成も起きず、`run` も変わらない。復元した状態は、世代の +1 とログ末尾の `Reloaded` 1 件を除いて連打の直後の状態と等しく、`Achieved` は再読み込みの前も後も 1 件である。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/reload_after_control.rs` の `reload_right_after_confirm_burst_keeps_one_achievement` | S-9。記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込みを通す。復習の項目が 1 件で達成済み、再読み込みの後の確認でも達成が増えない。連打の前の世代の宛先は `Ignored(Stale)` になる |
+| `crates/web/tests/reload_after_control_store.rs` の `連打の直後に保存を待たず再読み込みしても達成は1回で直後の状態へ戻る` | `PendingSave` → `flush` → localStorage の偽物 → 読み戻し → `load_history` → `reload` の経路で同じことを確かめる |
+
+自動ブラウザ（S-6・S-7・S-9・S-19）は未実施である。理由は 5.71 と同じで、web の記録・復元の結線（TASK-319）の後に足す。
+
+SAVE5-4 は、確認の達成で現在位置を次の Step へ移さない誤りである。連打の 2 回目以降が達成済みの Step に届き、達成が重複する。
+既存の SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 31bde1d-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE5-{1,2,3,4}.mutation crates/core/tests/mutations/SAVE4-{1,2,3,4,5,6}.mutation crates/core/tests/mutations/SAVE1-{1,2,3,4,5,6}.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE5-4 | crates/core/src/confirm.rs: 確認の達成で現在位置を次の Step へ移さない | DETECTED（reload_right_after_confirm_burst_keeps_one_achievement） |
+| SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.72・5.71・5.58・5.59・5.66・5.67 の定義 | 15 件とも DETECTED |

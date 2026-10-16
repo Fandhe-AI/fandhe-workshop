@@ -1,4 +1,4 @@
-//! 停止・移動・復帰の直後に、保存を待たずに再読み込みしても直後の状態へ戻ることの試験（TASK-321 1/2、SAVE-5）。
+//! 停止・移動・復帰・確認の操作の連打の直後に、保存を待たずに再読み込みしても直後の状態へ戻ることの試験（TASK-321、SAVE-5）。
 //!
 //! 操作の直後の包みを `PendingSave` に積み、保存の遅延を待たずに `pagehide` 相当の `flush` で localStorage の偽物へ
 //! 同期に書き、新しいページを模して同じ保存先から読み戻し、`load_history`（段 1〜8）で開いて `reload` する。
@@ -216,4 +216,37 @@ fn 復帰の直後に保存を待たず再読み込みしても復帰の直後�
     let s = assert_stale_ignored(&ir, reloaded, old0);
     let s = assert_stale_ignored(&ir, s, old1);
     assert_eq!(s.log.len(), n + 2);
+}
+
+#[test]
+fn 連打の直後に保存を待たず再読み込みしても達成は1回で直後の状態へ戻る() {
+    let (ir, initial) = load();
+    let mut path = Path {
+        ir: &ir,
+        state: initial.clone(),
+        rec: OpsRecorder::new(),
+    };
+    path.op(Op::Input(Input::Command("/make-note first-note".into())));
+    while path.next_tick().is_some() {
+        path.tick();
+    }
+    assert_eq!(path.state.run.busy, None);
+    for _ in 0..20 {
+        path.op(Op::Input(Input::Ui {
+            view: "v-files".into(),
+            path: "notes/draft".into(),
+        }));
+    }
+    let burst = path.state.clone();
+    let achieved = |s: &SessionState| {
+        s.log
+            .iter()
+            .filter(|e| matches!(e, Event::Achieved { .. }))
+            .count()
+    };
+    assert_eq!(achieved(&burst), 1);
+    let reloaded = save_without_waiting_and_reload(&ir, &initial, path);
+    assert_only_reload_differs(&burst, &reloaded);
+    assert_eq!(achieved(&reloaded), 1);
+    assert_eq!(reloaded.run.current, Some(StepUid("main/st-2".into())));
 }
