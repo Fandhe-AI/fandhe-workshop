@@ -1,4 +1,5 @@
 // Enter による入力欄の送信と Shift+Enter の改行の試験（TASK-275。JUDGE-12・JUDGE-13・FEND-14）。
+// Ctrl・Alt・Meta 付きの Enter は送信にも改行にもしない（TASK-282 2/2。JUDGE-22・TERM-14・D-60）。
 //
 // 修飾なしの Enter は、送信ボタンの click と同じ入力・同じ記録になる。変換中・修飾キー付き・Shift 付きでは送信しない。
 // Shift+Enter は送信せず、preventDefault もしないので、欄に改行が入る。複数行の下書き（S-29・S-30）は、
@@ -100,13 +101,44 @@ test('下書きが空のとき、Enter でも click でも一覧は増えない'
   });
 });
 
-test('Shift・Control・Alt・Meta 付きの Enter では送信しない', async () => {
+test('Shift 付きの Enter では送信しない', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
     const { page, context } = await open(srv);
     await page.fill(INPUT, 'x');
     await page.focus(INPUT);
-    for (const mod of ['Shift', 'Control', 'Alt', 'Meta']) {
+    await page.keyboard.press('Shift+Enter');
+    assert.deepEqual(await lines(page), []);
+    await context.close();
+  });
+});
+
+// JUDGE-22・TERM-14: 修飾キー付きの Enter は送信にも改行にもしない（欄の値は変わらない）。
+// 限界: Playwright の keyboard.press は、Shift 以外の修飾キーを押している間は text を送らない。実キーボードの
+// OS ごとの差（とくに Windows）は代わりに確かめない（D-48 で別タスク）。
+test('Control・Alt・Meta 付き（Shift 併用を含む）の Enter は送信も改行もしない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context } = await open(srv);
+    await page.fill(INPUT, 'x');
+    await page.focus(INPUT);
+    for (const mod of ['Control', 'Alt', 'Meta', 'Shift+Control', 'Shift+Alt', 'Shift+Meta', 'Control+Alt']) {
       await page.keyboard.press(`${mod}+Enter`);
+      assert.equal(await page.inputValue(INPUT), 'x', mod);
+    }
+    assert.deepEqual(await lines(page), []);
+    await context.close();
+  });
+});
+
+test('Control・Alt・Meta 付きの Enter の keydown は preventDefault せず送信もしない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context } = await open(srv);
+    await page.fill(INPUT, 'x');
+    for (const flag of ['ctrlKey', 'altKey', 'metaKey']) {
+      const notPrevented = await page.evaluate(([sel, f]) => {
+        const el = document.querySelector(sel);
+        return el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', [f]: true, bubbles: true, cancelable: true }));
+      }, [INPUT, flag]);
+      assert.equal(notPrevented, true, flag);
     }
     assert.deepEqual(await lines(page), []);
     await context.close();

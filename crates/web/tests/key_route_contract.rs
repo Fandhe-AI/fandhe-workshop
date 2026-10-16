@@ -5,6 +5,7 @@
 //! 処理中の Esc を停止にする経路（`esc_route`）が外れる変異（JUDGE17-2）と、処理中でない Esc の 2 通り
 //! （候補を閉じる・取り消しの入力）が外れる変異（JUDGE17-3・JUDGE17-4）の検出先でもある。
 //! 候補が開いているときの Esc の 2 回（JUDGE-18）の遷移を外す変異（JUDGE18-2）と、補完の候補を先頭から変える変異（JUDGE21-2）の検出先でもある（TASK-282 1/2）。
+//! 修飾キー（Ctrl・Alt・Meta。Shift との組み合わせを含む）付きの Enter が送信にも `preventDefault` にもならない契約（JUDGE-22・D-60）を外す変異（JUDGE22-3）の検出先でもある（TASK-282 2/2）。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -60,6 +61,47 @@ fn ctrl_v_と_meta_v_は_prevent_default_せず送信もしない() {
                 !effect.click_submit,
                 "ctrl={ctrl} meta={meta} has_text={has_text}"
             );
+        }
+    }
+}
+
+// ---- 修飾キー付きの Enter（TASK-282 2/2。JUDGE-22・TERM-14・D-60・D-48） ----
+//
+// 変異 JUDGE22-3（`Nothing` の腕を送信にする）の検出先。送信にも改行にもしない。OS による分岐は持たない
+// ため、Ctrl・Alt・Meta は同じに扱う（D-48）。
+
+#[test]
+fn judge22_修飾キー付きの_enter_は送信も_prevent_default_もしない() {
+    // 修飾 3 つの 7 通りの組（空を除く）× shift × 文字 × 候補 × 処理中 の 56 セル。
+    for mask in 1..8u8 {
+        for shift in [false, true] {
+            for has_text in [false, true] {
+                for candidates_open in [false, true] {
+                    for busy in [false, true] {
+                        let input = KeyInput {
+                            key: "Enter".to_owned(),
+                            key_code: 0,
+                            is_composing: false,
+                            shift,
+                            ctrl: mask & 1 != 0,
+                            alt: mask & 2 != 0,
+                            meta: mask & 4 != 0,
+                        };
+                        let mut state = field_state(has_text);
+                        state.candidates_open = candidates_open;
+                        state.busy = busy;
+                        let cell = format!(
+                            "mask={mask} shift={shift} has_text={has_text} candidates_open={candidates_open} busy={busy}"
+                        );
+                        let decision = decide(&input, &state);
+                        let effect = effect_for(decision);
+                        assert!(!effect.prevent_default, "{cell}");
+                        assert!(!effect.click_submit, "{cell}");
+                        assert_eq!(esc_route(decision), EscRoute::NONE, "{cell}");
+                        assert_eq!(completion_choice(decision, &[1, 2]), None, "{cell}");
+                    }
+                }
+            }
         }
     }
 }
