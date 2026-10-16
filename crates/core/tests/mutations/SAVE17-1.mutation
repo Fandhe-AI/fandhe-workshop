@@ -1,0 +1,8 @@
+id: SAVE17-1
+package: fandhe-workshop-core
+test: history_export
+target: crates/core/src/history_export.rs
+find: serde_json::to_vec(env)
+replace: serde_json::to_vec_pretty(env)
+expect-fail: export_is_compact_single_line
+note: 書き出しを整形つきの JSON にする（PoC-6 の測定の基点と違う形になり、大きさの記録が比べられなくなる）
