@@ -191,7 +191,14 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - `step_do` の検査で「出うる文面」は、Step の `on_reject`、入力を持つ Step では `on_reject` に無い分類の `defaults`、規則の `reject`・`clarify`、確認の `on_wrong`・`on_miss`・選択肢の `on_wrong` が指す文面です
 - 欄が無い・文字列でない場合は `E-PARSE` です。診断には、本文・代替の文の値を写しません
 - `validate` と `compile` の両方がこの検査を行います。枠に誤りのある教材は IR を出しません
-- モジュールの引数の展開の後で `do` が空になる場合は、静的には見えません。展開後の IR を総なめにする `slot_check::tally_empty_next_actions` が数えます。`fandhe-pack test` への結線は TASK-404、実行時の値の組み立てと差し込みは TASK-267 の担当で、2026-10-15 時点では、純関数と値の組を手で作る試験までです
+- モジュールの引数の展開の後で `do` が空になる場合は、静的には見えません。展開後の IR を総なめにする `slot_check::tally_empty_next_actions` が数えます。`fandhe-pack test` への結線は TASK-404 の担当です。実行時の値の組み立てと差し込みは core の `text_fill`（TASK-274）が持ち、2026-10-16 時点では、結合試験（文面の確認 38 件と、差し込みの後で次の行動が空の拒否が 0 件であることの確認）までです
+
+### 実行時の値の規則
+
+- `input_head` と `nearest_command` には、教材の接頭辞（`profile.command_prefix`）が付きます。`/` を決め打ちにしません
+- `input_head` は、コマンドとして読めた入力だけに値があります。自然文・選択・画面操作・承認・取り消しでは値なしになり、代替の文が使われます
+- `nearest_command` は、分類が `unknown_command` のときだけ計算します。コマンド表から、編集距離（隣り合う 2 文字の入れ替えを 1 と数えます）が 2 以下で最小のものを選び、`unsupported` は選びません。同じ距離なら名前の辞書順の先頭です
+- `step_do` は Step の `do` だけを使い、無いときに題名で代えません。`remaining` は残りの回数、`total` は全体の回数です
 
 ## 教材テストの誤入力の期待（`expect`）
 

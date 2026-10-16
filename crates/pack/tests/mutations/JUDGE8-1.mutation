@@ -1,0 +1,9 @@
+id: JUDGE8-1
+package: fandhe-workshop-pack
+test: text_fill
+target: crates/core/src/judge.rs
+find: fill_next_action(raw, &values).map_err(fill_err)
+replace: NextAction::new(raw).map_err(|_| JudgeError::EmptyNextAction)
+expect-fail: judge8_text_checks_all_38
+expect-fail: judge8_text_checks_group_a_19
+note: 次の行動に差し込みをせず、教材の生の値（枠を含む）のまま返す

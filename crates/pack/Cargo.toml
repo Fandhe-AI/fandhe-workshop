@@ -20,5 +20,8 @@ toml.workspace = true
 yaml_serde.workspace = true
 pulldown-cmark.workspace = true
 
+[dev-dependencies]
+proptest.workspace = true
+
 [lints]
 workspace = true

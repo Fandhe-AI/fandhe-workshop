@@ -36,8 +36,10 @@
 //! # 文面の扱い（fail-closed）
 //!
 //! 文面は作らない。拒否・問い返しの文面の ID、または次の行動を IR から解決できない場合は、固定文の
-//! [`JudgeError`] を返し、受付や固定の代替文には倒さない。`{{slot}}` の差し込み（EP-7）は行わず、IR の値を
-//! そのまま [`NextAction`] にする（実行時の差し込みは TASK-274）。文字列は未信頼の値で、保持するだけである。
+//! [`JudgeError`] を返し、受付や固定の代替文には倒さない。次の行動の `{{slot}}`（EP-7）は、実行時の値で
+//! 差し込んだ後の値を [`NextAction`] にする（値の組み立てと充填は [`crate::text_fill`]、TASK-274）。
+//! 未知の枠・構文の誤りは [`JudgeError::InvalidTextSlot`]、差し込みの後に空になる次の行動は
+//! [`JudgeError::EmptyNextAction`] で、どちらも `Judged` を作らない。文字列は未信頼の値で、平文として保持するだけである。
 //! HTML へのエスケープは web 層の責務とする。存在の保証は pack の検査（`E-REF-REJECTION` など）が担う。
 //!
 //! 自然文の受付の注記（`free_text_unjudged`）は、文面を IR から解決できなくても受付を妨げず
@@ -80,6 +82,7 @@ use crate::select_judge::{
 };
 use crate::session::RunState;
 use crate::step_status::StepStatus;
+use crate::text_fill::{fill_next_action, slot_values, TextFillError};
 use crate::text_judge::{accepted_by, text_spec, AcceptedText, TextDeclError};
 
 /// 判定できない理由。`Display` は入力値・宣言の値を埋め込まない固定の英文である。
@@ -98,6 +101,8 @@ pub enum JudgeError {
     EmptyNextAction,
     /// 分類に対応する文面の ID が `on_reject` にも `defaults` にも無い。
     NoRejectionText,
+    /// 次の行動の枠が未知の名前・構文の誤りで充填できない、または値の材料が読めない。
+    InvalidTextSlot,
 }
 
 impl fmt::Display for JudgeError {
@@ -109,6 +114,7 @@ impl fmt::Display for JudgeError {
             Self::InvalidRejectionCategory => "rejection category is missing or invalid",
             Self::EmptyNextAction => "next action is missing or empty",
             Self::NoRejectionText => "no rejection text is defined for the category",
+            Self::InvalidTextSlot => "text slot cannot be filled",
         })
     }
 }
@@ -201,6 +207,7 @@ pub fn judge_input(
         run,
         root: &root,
         cond,
+        input,
     };
 
     if classify_busy(run, input).is_some() {
@@ -255,9 +262,30 @@ struct Ctx<'a> {
     run: &'a RunState,
     root: &'a Root,
     cond: &'a dyn ConditionEval,
+    input: &'a Input,
 }
 
 impl Ctx<'_> {
+    /// 次の行動を実行時の値で充填する。枠が無ければ値を組み立てない（受付の経路で編集距離を計算しない）。
+    /// `category` は拒否の分類で、近いコマンドは `unknown_command` のときだけ計算される。
+    fn next_action(
+        &self,
+        entry: &Value,
+        key: &str,
+        category: Option<RejectCategory>,
+    ) -> Result<NextAction, JudgeError> {
+        let raw = entry
+            .get(key)
+            .and_then(Value::as_str)
+            .ok_or(JudgeError::EmptyNextAction)?;
+        if !raw.contains("{{") {
+            return NextAction::new(raw).map_err(|_| JudgeError::EmptyNextAction);
+        }
+        let values =
+            slot_values(self.ir, self.step, self.run, self.input, category).map_err(fill_err)?;
+        fill_next_action(raw, &values).map_err(fill_err)
+    }
+
     fn lex(&self, raw: &str) -> Result<Lexed, JudgeError> {
         let prefix = read_profile(self.ir.pack.profile.as_ref())
             .map_err(|_| JudgeError::InvalidDeclaration)?
@@ -290,7 +318,7 @@ impl Ctx<'_> {
             .rejections
             .get(text_id)
             .ok_or(JudgeError::UnknownRejection)?;
-        let next_action = next_action_of(entry, "next_action")?;
+        let next_action = self.next_action(entry, "next_action", Some(category))?;
         Ok(JudgeOutcome::new(
             Judgment::Rejected(Rejection {
                 category,
@@ -314,7 +342,7 @@ impl Ctx<'_> {
             .and_then(Category::from_str_opt)
             .and_then(|c| RejectCategory::try_from(c).ok())
             .ok_or(JudgeError::InvalidRejectionCategory)?;
-        let next_action = next_action_of(entry, "next_action")?;
+        let next_action = self.next_action(entry, "next_action", Some(category))?;
         Ok(JudgeOutcome::new(
             Judgment::Rejected(Rejection {
                 category,
@@ -331,7 +359,7 @@ impl Ctx<'_> {
             .clarifications
             .get(id)
             .ok_or(JudgeError::UnknownClarification)?;
-        let next_action = next_action_of(entry, "how_to_answer")?;
+        let next_action = self.next_action(entry, "how_to_answer", None)?;
         Ok(JudgeOutcome::new(
             Judgment::Clarified(Clarification {
                 text: id.to_string(),
@@ -517,7 +545,7 @@ impl Ctx<'_> {
             .get(key)
             .or_else(|| self.ir.defaults.get(key))?;
         let entry = self.ir.rejections.get(text_id)?;
-        let next_action = next_action_of(entry, "next_action").ok()?;
+        let next_action = self.next_action(entry, "next_action", None).ok()?;
         Some(AcceptNote {
             text: text_id.clone(),
             next_action,
@@ -580,10 +608,9 @@ fn rule_outcome(rule: &Map<String, Value>) -> Result<RuleOutcome, JudgeError> {
     }
 }
 
-fn next_action_of(entry: &Value, key: &str) -> Result<NextAction, JudgeError> {
-    let s = entry
-        .get(key)
-        .and_then(Value::as_str)
-        .ok_or(JudgeError::EmptyNextAction)?;
-    NextAction::new(s).map_err(|_| JudgeError::EmptyNextAction)
+fn fill_err(e: TextFillError) -> JudgeError {
+    match e {
+        TextFillError::EmptyNextAction => JudgeError::EmptyNextAction,
+        _ => JudgeError::InvalidTextSlot,
+    }
 }
