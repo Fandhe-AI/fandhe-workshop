@@ -1,4 +1,4 @@
-//! 停止・Step の移動・チェックポイントの復帰の直後の再読み込みを守る試験（TASK-321 1/2、SAVE-5・PoC-6 の S-6・S-7・S-19 の固定版）。
+//! 停止・Step の移動・チェックポイントの復帰・確認の操作の連打の直後の再読み込みを守る試験（TASK-321、SAVE-5・PoC-6 の S-6・S-7・S-9・S-19 の固定版）。
 //!
 //! 停止・移動・復帰は世代を上げて古い宛先の進行を無効にする操作である。その直後に、保存の遅延を待たずに
 //! 再読み込みしても次の 2 つが成り立つことを、保存の経路（記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込み）
@@ -7,8 +7,10 @@
 //! - 操作の前に予約された宛先の進行が再読み込みの後に届いても、`Ignored(Stale)` が 1 件ずつ増えるだけで状態は変わらない
 //!
 //! 再読み込みの後の停止は `reload_busy.rs`（`stop_after_reload_returns_to_step_entry`）が持つので、ここでは重ねない。
-//! 確認の操作の連打（S-9）は TASK-321 2/2、ブラウザでの 3 場面は web に履歴の記録・復元の結線が入る
-//! （TASK-319）後に足す（`docs/testing.md` 5.69）。変異 `SAVE5-1`〜`SAVE5-3` の検出先になる。
+//! 連打（S-9）は、進行を流し終えた後に確認を 20 回送る場面である。1 回目だけが達成になり、2 回目以降は次の Step に
+//! 拒否されるだけなので、再読み込みの前も後も `Achieved` は 1 件になる。
+//! ブラウザでの 4 場面は web に履歴の記録・復元の結線が入る（TASK-319）後に足す（`docs/testing.md` 5.69・5.72）。
+//! 変異 `SAVE5-1`〜`SAVE5-4` の検出先になる。
 
 mod common;
 
@@ -17,6 +19,7 @@ use common::record_path::RecordPath;
 use common::tick::next_tick;
 use fandhe_workshop_contract::content_hash::content_hash;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::{Generation, Stamp, StepUid, TickAddr};
 use fandhe_workshop_core::event::{Event, IgnoreReason};
 use fandhe_workshop_core::history_envelope::build_envelope;
@@ -25,6 +28,7 @@ use fandhe_workshop_core::history_load::load_history;
 use fandhe_workshop_core::history_open::{Opened, OpeningCaps};
 use fandhe_workshop_core::input::{CheckpointId, Control, Input, Op};
 use fandhe_workshop_core::session::{reload, Session, SessionState};
+use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::{apply, load_ir, Projection};
 
@@ -266,4 +270,118 @@ fn session_entry_agrees_for_all_three_scenes() {
         );
         assert_eq!(session.state(), &expected, "scene={scene}");
     }
+}
+
+const BURST: usize = 20;
+const ST1: &str = "main/st-1";
+
+fn point() -> Op {
+    Op::Input(Input::Ui {
+        view: "v-files".into(),
+        path: "notes/draft".into(),
+    })
+}
+
+fn achieved_count(state: &SessionState) -> usize {
+    state
+        .log
+        .iter()
+        .filter(|e| matches!(e, Event::Achieved { .. }))
+        .count()
+}
+
+fn status(state: &SessionState, step: &str) -> StepStatus {
+    let u = StepUid(step.to_string());
+    state
+        .run
+        .slices
+        .get(&u.root())
+        .and_then(|sl| sl.status.get(&u))
+        .copied()
+        .unwrap_or_default()
+}
+
+/// 確認の操作の連打（S-9）。進行をすべて流して確認を待つ状態にし、確認を `BURST` 回送る。
+/// 1 回目だけが達成になり、2 回目以降は次の Step（選択の Step）に届いて拒否されるだけである。
+#[test]
+fn reload_right_after_confirm_burst_keeps_one_achievement() {
+    let ir = ir();
+    let mut path = RecordPath::new(&ir, &load().initial);
+    path.op(first_note());
+    // 進行が残ったまま確認を送ると処理中の拒否になり、連打の場面ではなくなる。
+    while let Some(addr) = next_tick(&path.state) {
+        path.op(Op::Tick(addr));
+    }
+    assert_eq!(path.state.run.busy, None);
+    assert_eq!(status(&path.state, ST1), StepStatus::Accepted);
+    assert_eq!(achieved_count(&path.state), 0);
+    let before = path.state.clone();
+
+    // 1 回目: 確認が達成になり、次の Step へ移る。
+    path.op(point());
+    let first = path.state.clone();
+    let n = before.log.len();
+    assert!(matches!(
+        first.log.get(n..),
+        Some([
+            Event::InputReceived { .. },
+            Event::Judged { .. },
+            Event::Achieved { .. },
+            Event::Transitioned { .. },
+            Event::Entered { .. },
+        ])
+    ));
+    assert_eq!(first.run.current, Some(StepUid(ST2.to_string())));
+
+    // 2〜20 回目: 次の Step には効かず、受付も達成も起きない。
+    for i in 1..BURST {
+        let m = path.state.log.len();
+        path.op(point());
+        assert!(
+            matches!(
+                path.state.log.get(m..),
+                Some([
+                    Event::InputReceived { .. },
+                    Event::Judged {
+                        judgment: Judgment::Rejected(_),
+                        ..
+                    },
+                ])
+            ),
+            "press={i}"
+        );
+        assert_eq!(path.state.run, first.run, "press={i}");
+    }
+    let burst = path.state.clone();
+    assert_eq!(achieved_count(&burst), 1);
+    assert_eq!(status(&burst, ST1), StepStatus::Achieved);
+    assert_eq!(burst.run.generation, before.run.generation);
+
+    let reloaded = save_and_reload(&ir, path);
+    assert_only_reload_differs(&burst, &reloaded);
+    assert_eq!(achieved_count(&reloaded), 1);
+    assert_eq!(reloaded.run.current, Some(StepUid(ST2.to_string())));
+    assert_eq!(status(&reloaded, ST1), StepStatus::Achieved);
+    let review = Projection::from_events(&reloaded.log);
+    let items: Vec<_> = review
+        .review()
+        .iter()
+        .filter(|r| r.step == StepUid(ST1.to_string()))
+        .collect();
+    assert_eq!(items.len(), 1);
+    assert!(items[0].achieved);
+    assert!(reloaded.run.world.contains_key("notes/draft"));
+
+    // 再読み込みの後にもう 1 回送っても、達成は増えず実行状態も変わらない。
+    let (again, _) = apply(&ir, reloaded.clone(), point());
+    assert_eq!(achieved_count(&again), 1);
+    assert_eq!(again.run, reloaded.run);
+
+    // 連打の前に予約された宛先は、再読み込みの後は古い。
+    let old = TickAddr {
+        generation: before.run.generation,
+        step: StepUid(ST1.to_string()),
+        index: 99,
+    };
+    assert_stale_ignored(&ir, reloaded, old);
 }
