@@ -1,0 +1,10 @@
+id: EVT8-3
+package: fandhe-workshop-web
+test: host_contract
+features: test-hooks
+target: crates/web/src/host.rs
+find:         self.step_engine(|session| events_summary(session.reload()));
+replace:         self.step_engine(|_session| (0, false));
+expect-fail: reload_stale::再読み込みで新しい世代の宛先が通知され_状態は世代以外変わらない
+expect-fail: reload_stale::再読み込みの後は新しい世代の宛先で完走し_再読み込みしない経路と世界が一致する
+note: ホストの再読み込みの模擬が core の再読み込みを呼ばない（世代が上がらず、古い宛先が無視されずに進行として通る）

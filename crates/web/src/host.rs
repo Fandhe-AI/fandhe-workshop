@@ -17,7 +17,8 @@
 //! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への
 //! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
-//! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）を持つ（BUILD-27・SHELL-35）。
+//! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
+//! 固定の合図。TASK-221 2/2）を持つ（BUILD-27・SHELL-35）。
 //!
 //! [`DisplayPart`]: crate::parts::DisplayPart
 
@@ -98,7 +99,20 @@ pub enum HostAction {
     Engine(Op),
     /// 補完（FEND-4）。挿入は TASK-440 2/2（#332）が足すまで、状態を変えない。
     Complete,
+    /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
+    ///
+    /// `Session::apply` 以外で状態を変える唯一の経路であり、配信する設定には入らない。web 本来の再読み込み
+    /// （保存した状態の復元）の結線は TASK-319 の担当である。
+    #[cfg(feature = "test-hooks")]
+    Reload,
 }
+
+/// `raw` の action で再読み込みの模擬を指す固定の合図（試験の設定だけ）。
+///
+/// 完全に一致したときだけ [`HostAction::Reload`] になる。`Op` の JSON としては復号できない形のため、
+/// `Op` との衝突は無い（`tests/host_contract.rs` が固定する）。新しい隠し要素は足さず、`raw-trigger` を使う。
+#[cfg(feature = "test-hooks")]
+pub const RAW_RELOAD: &str = "{\"reload\":{}}";
 
 /// 次の進行の宛先の通知先。`apply_engine` の後に、次に届けるべき進行（無ければ `None`）を渡す。
 ///
@@ -468,6 +482,21 @@ impl EngineHost {
     ///
     /// 戻りは、今回の操作で拒否の判定（`Judged` の `Rejected`）が出たか。送信の後に下書きを残すかの判断に使う。
     fn apply_engine(&mut self, op: Op) -> bool {
+        self.step_engine(|session| events_summary(session.apply(op)))
+    }
+
+    /// 再読み込みの模擬（試験の設定だけ）。`apply_engine` と同じ後処理を行い、新しい世代の宛先を通知する。
+    ///
+    /// 再読み込みの前に glue が予約したタイマーは取り消されず、古い宛先のまま後から届く。届いた分は core が
+    /// `Ignored(Stale)` として記録する（EVT-6・EVT-8・EVT-12）。
+    #[cfg(feature = "test-hooks")]
+    fn reload_engine(&mut self) {
+        self.step_engine(|session| events_summary(session.reload()));
+    }
+
+    /// `Session` を 1 段進める共通の後処理。`f` が返したイベント列を使い、projection・world・dirty・宛先の通知を更新する。
+    /// 状態を変える口（`apply_engine`・`reload_engine`）だけが呼ぶ。未読込なら何もしない。戻りは拒否の判定が出たか。
+    fn step_engine(&mut self, f: impl FnOnce(&mut Session) -> (usize, bool)) -> bool {
         if self.model.session.is_none() {
             return false;
         }
@@ -476,17 +505,7 @@ impl EngineHost {
             return false;
         };
         let len_before = session.log().len();
-        let events = session.apply(op);
-        let returned = events.len();
-        let rejected = events.iter().any(|e| {
-            matches!(
-                e,
-                Event::Judged {
-                    judgment: Judgment::Rejected(_),
-                    ..
-                }
-            )
-        });
+        let (returned, rejected) = f(session);
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
         self.model.projection.extend(log);
@@ -501,9 +520,10 @@ impl EngineHost {
             }
         }
         // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
-        if let (Some(f), Some(session)) = (self.tick_request.as_ref(), self.model.session.as_ref())
+        if let (Some(notify), Some(session)) =
+            (self.tick_request.as_ref(), self.model.session.as_ref())
         {
-            f(next_tick(session));
+            notify(next_tick(session));
         }
         if changed {
             let lists = self
@@ -569,6 +589,8 @@ impl Component for EngineHost {
             HostAction::Engine(op) => {
                 self.apply_engine(op);
             }
+            #[cfg(feature = "test-hooks")]
+            HostAction::Reload => self.reload_engine(),
             // 補完の挿入は TASK-440 2/2（#332）の担当。ここでは状態もログも変えず、dirty も積まない。
             HostAction::Complete => {
                 #[cfg(feature = "test-hooks")]
@@ -615,6 +637,10 @@ impl Component for EngineHost {
         #[cfg(feature = "test-hooks")]
         if name == "raw" {
             use fandhe_workshop_contract::limits::LoadEntry;
+            // 再読み込みの模擬の合図は完全一致だけ。これ以外は `Op` として復号する。
+            if payload == RAW_RELOAD {
+                return Some(HostAction::Reload);
+            }
             return fandhe_workshop_core::load_gate::load_json::<Op>(
                 LoadEntry::History,
                 payload.as_bytes(),
@@ -647,4 +673,18 @@ impl BindingSource for EngineHost {
         }
         self.registry.bound_value(field, &self.model)
     }
+}
+
+/// 返ったイベントの列から、件数と、拒否の判定（`Judged` の `Rejected`）が含まれるかを求める。
+fn events_summary(events: &[Event]) -> (usize, bool) {
+    let rejected = events.iter().any(|e| {
+        matches!(
+            e,
+            Event::Judged {
+                judgment: Judgment::Rejected(_),
+                ..
+            }
+        )
+    });
+    (events.len(), rejected)
 }
