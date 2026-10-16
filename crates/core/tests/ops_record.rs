@@ -128,24 +128,8 @@ fn kind_of(op: &SessionOp) -> &'static str {
 
 #[test]
 fn enter_and_button_share_one_record_kind() {
-    // Enter の経路もボタンの経路も、入口は submit の 1 つ。
-    let via_enter = {
-        let mut r = OpsRecorder::new();
-        r.draft("/help".into());
-        r.submit("/help".into());
-        r
-    };
-    let via_button = {
-        let mut r = OpsRecorder::new();
-        r.draft("/help".into());
-        r.submit("/help".into());
-        r
-    };
-    assert_eq!(
-        serde_json::to_string(via_enter.ops()).unwrap(),
-        serde_json::to_string(via_button.ops()).unwrap()
-    );
-
+    // Enter の経路もボタンの経路も、入口は submit の 1 つ（経路を区別する引数が API に無い）。
+    // 以下は、記録の種類のタグに経路の語が現れず、既知の種類に限られることを検査する。
     let mut rec = OpsRecorder::new();
     rec.draft("d".into());
     rec.submit("s".into());
