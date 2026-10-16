@@ -1,0 +1,8 @@
+id: FEND4-3
+package: fandhe-workshop-web
+test: no_hidden_triggers
+target: crates/web/src/host.rs
+find:             el("div", vec![("data-testid", "workshop-parts")], parts),
+replace:             el("div", vec![("data-testid", "workshop-parts")], parts),            el("button", vec![("data-testid", "tick-trigger"), ("data-action", "tick"), ("data-payload", ""), ("hidden", "")], vec![]),
+expect-fail: 実ソースは違反なし
+note: 配信する設定に、進行の宛先を data-payload で届ける隠し要素が入る（FEND-4 が禁じる経路）
