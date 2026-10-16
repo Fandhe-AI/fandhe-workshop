@@ -46,8 +46,12 @@ impl<'a> RecordPath<'a> {
 
     /// 抽象の操作を解決して記録しながら進める。入力は下書き→送信→適用の順にする。
     pub fn spec(&mut self, spec: &OpSpec) {
+        if *spec == OpSpec::Reload {
+            self.reload();
+            return;
+        }
         let applied = self.harness.step(spec);
-        self.op(applied.op);
+        self.op(applied.op.expect("a non-reload spec resolves to an op"));
     }
 
     /// 再読み込みを記録しながら進める。ハーネスの状態も同じ再読み込みでそろえる。
