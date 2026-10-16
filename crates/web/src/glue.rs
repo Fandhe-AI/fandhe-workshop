@@ -133,6 +133,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
 /// 他の要素（probe のボタン等）の Enter には反応しない。判定は `contract` の `decide`、効果への変換は
 /// `key_route` が持つ。`with_app` の借用は効果を求めた時点で解く。click の中で上流の Runtime が同期に
 /// `update` を呼ぶため、借用を持ったまま click すると更新が黙って失敗する。
+/// Tab の補完の `preventDefault`（JUDGE-19・D-42）も、同じリスナーが効果に従って結ぶ。
 /// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
 fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
     let target = root.clone();
