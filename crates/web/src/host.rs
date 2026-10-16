@@ -55,7 +55,7 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::history_replay::submit_input;
-use fandhe_workshop_core::input::Op;
+use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
@@ -725,6 +725,22 @@ impl EngineHost {
         rejected
     }
 
+    /// 処理中の Step があるか（Esc・停止ボタンが停止を送るかの判断に使う）。
+    fn is_busy(&self) -> bool {
+        self.model
+            .session()
+            .is_some_and(|s| s.state().run.busy.is_some())
+    }
+
+    /// 入力欄の dirty を、既に積んだ分と重複させずに足す。
+    fn extend_input_dirty(&mut self) {
+        for f in self.input.dirty_fields() {
+            if !self.dirty.contains(f) {
+                self.dirty.push(f);
+            }
+        }
+    }
+
     /// 送信を受ける（Enter・送信ボタン）。入力欄の一覧に積み、エンジンへ渡し、必要なら下書きを空にする。
     ///
     /// 本文は加工しない（trim も分割もしない。改行は保つ）。空白だけの本文はエンジンへ送らない
@@ -771,6 +787,20 @@ impl Component for EngineHost {
         self.dirty.clear();
         match action {
             HostAction::Input(HelloAction::Submit) => self.submit(),
+            HostAction::Input(HelloAction::Esc) => {
+                let busy = self.is_busy();
+                let route = self.input.esc(busy);
+                // 結ぶのは処理中の停止だけ。待機中の Esc は候補を閉じるだけで、ログを増やさない。
+                if let Some(op @ Op::Control(Control::Stop)) = route.op {
+                    self.apply_engine(op);
+                }
+                self.extend_input_dirty();
+            }
+            HostAction::Input(HelloAction::Stop) => {
+                if self.is_busy() {
+                    self.apply_engine(Op::Control(Control::Stop));
+                }
+            }
             HostAction::Input(a) => {
                 self.input.update(a);
                 self.dirty.extend_from_slice(self.input.dirty_fields());

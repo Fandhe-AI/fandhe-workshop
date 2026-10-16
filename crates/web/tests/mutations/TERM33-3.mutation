@@ -1,0 +1,8 @@
+id: TERM33-3
+package: fandhe-workshop-web
+test: run_status_contract
+target: crates/web/src/host.rs
+find: let busy = self.is_busy();
+replace: let busy = false;
+expect-fail: esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない
+note: Esc の経路で処理中を常に偽にする（Esc を押しても停止しない。TERM-33）

@@ -1,4 +1,4 @@
-// 状態表示（run-status）と処理中の段階の進行の試験（TASK-436 1/2。TERM-33）。
+// 状態表示（run-status）と処理中の段階の進行の試験（TASK-436 1/2。TERM-33。停止は stop-redo.test.mjs）。
 //
 // 試験の設定（TEST_HOOKS=1）の画面で、見えない `raw-trigger` から入力を 1 件送ると処理中の Step（5 段）になる
 // （tick-dispatch.test.mjs と同じ経路。送信ボタンの結線は TASK-438 の持ち分）。以降の進行は実タイマーが届ける。
