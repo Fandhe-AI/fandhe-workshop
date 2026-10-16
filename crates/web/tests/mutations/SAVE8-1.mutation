@@ -1,0 +1,8 @@
+id: SAVE8-1
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:     u64::try_from(s.encode_utf16().count()).unwrap_or(u64::MAX)
+replace:     u64::try_from(s.len()).unwrap_or(u64::MAX)
+expect-fail: utf16_の数え方はバイト数でも文字数でもない
+note: UTF-16 の符号単位数をバイト数に変える（日本語・絵文字で上限の判定がずれる）

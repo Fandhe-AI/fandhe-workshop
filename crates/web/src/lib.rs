@@ -18,6 +18,8 @@
 //! エンジン（core の `Session`）を持ち、`Runtime::mount` に渡すホストの Component と、表示部品の振り分け（TASK-347）は `host` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型と変化の印の対応（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
+//! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
+//! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
@@ -34,11 +36,17 @@ pub mod learner_text;
 pub mod list_policy;
 pub mod parts;
 pub mod profile;
+pub mod storage_select;
 pub mod terminal_area;
 pub mod tick_interval;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
+
+#[cfg(target_arch = "wasm32")]
+pub mod storage_idb;
+#[cfg(target_arch = "wasm32")]
+pub mod storage_local;
 
 #[cfg(all(target_arch = "wasm32", feature = "test-hooks"))]
 mod test_hooks;

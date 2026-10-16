@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -43,4 +43,25 @@ export function renderQuoteNest(n) {
 // 進行の間隔（ミリ秒。TASK-229）。URL のクエリで変わらないことの確認に使う。読み取りのみ。
 export function tickIntervalMs() {
   return debug_tick_interval_ms();
+}
+
+// 履歴の保存先（TASK-317）。open は非同期で、準備完了は storageState の opened で見る。値は状態の JSON に含めない。
+export function storageOpen() {
+  return debug_storage_open();
+}
+
+export function storageKey(packId, startId) {
+  return debug_storage_key(packId, startId);
+}
+
+export function storageWrite(packId, startId, value) {
+  return debug_storage_write(packId, startId, value);
+}
+
+export function storageRead(packId, startId) {
+  return debug_storage_read(packId, startId);
+}
+
+export function storageState(packId, startId) {
+  return debug_storage_state(packId, startId);
 }

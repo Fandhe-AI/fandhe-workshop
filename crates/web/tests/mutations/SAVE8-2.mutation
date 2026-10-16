@@ -1,0 +1,8 @@
+id: SAVE8-2
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:     projected > SWITCH_THRESHOLD_UTF16
+replace:     projected >= SWITCH_THRESHOLD_UTF16
+expect-fail: 閾値ちょうどは切り替えず一つ超えると切り替える
+note: 閾値の比較を以上にする（ちょうどで切り替わる）

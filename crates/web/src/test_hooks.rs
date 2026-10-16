@@ -156,3 +156,94 @@ pub fn debug_render_quote_nest(n: u32) -> String {
 pub fn debug_tick_interval_ms() -> u32 {
     crate::tick_interval::TICK_INTERVAL_MS
 }
+
+thread_local! {
+    /// 保存先の試験用の保持（`debug_storage_open` が準備完了の後に入れる）。
+    static STORAGE: std::cell::RefCell<Option<crate::storage_idb::OpenedStorage>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn storage_key(pack_id: &str, start_id: &str) -> fandhe_workshop_contract::storage::HistoryKey {
+    use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+    let path = web_sys::window()
+        .and_then(|w| w.location().pathname().ok())
+        .unwrap_or_default();
+    HistoryKey::for_pack(DeliveryScope::from_pathname(&path), pack_id, start_id)
+}
+
+fn error_name(e: fandhe_workshop_contract::storage::StorageError) -> &'static str {
+    use fandhe_workshop_contract::storage::StorageError;
+    match e {
+        StorageError::QuotaExceeded => "quota_exceeded",
+        StorageError::Unavailable => "unavailable",
+        StorageError::Failed => "failed",
+    }
+}
+
+/// 保存先を非同期に開く（TASK-317）。準備完了は `debug_storage_state` の `opened` で見る。開き直すと前の保持を捨てる。
+/// 鍵は必ず `HistoryKey` の構築子から作り、任意の文字列を鍵にしない。
+#[wasm_bindgen]
+pub fn debug_storage_open() {
+    STORAGE.with(|s| *s.borrow_mut() = None);
+    crate::storage_idb::open_history_storage(|opened| {
+        STORAGE.with(|s| *s.borrow_mut() = Some(opened));
+    });
+}
+
+/// 教材 ID と最初の開始点の ID から作った鍵の、保存領域に書く文字列を返す（読み取りのみ）。
+#[wasm_bindgen]
+pub fn debug_storage_key(pack_id: &str, start_id: &str) -> String {
+    storage_key(pack_id, start_id).render()
+}
+
+/// 保存先へ書く。固定形の JSON（`ok` と、失敗なら `error`）を返す。値は返り値に含めない。
+#[wasm_bindgen]
+pub fn debug_storage_write(pack_id: &str, start_id: &str, value: &str) -> String {
+    use fandhe_workshop_contract::storage::HistoryStore;
+    let key = storage_key(pack_id, start_id);
+    STORAGE.with(|s| match s.borrow().as_ref() {
+        None => "{\"ok\":false,\"error\":\"not_opened\"}".to_string(),
+        Some(st) => match st.write(&key, value) {
+            Ok(()) => "{\"ok\":true}".to_string(),
+            Err(e) => format!("{{\"ok\":false,\"error\":\"{}\"}}", error_name(e)),
+        },
+    })
+}
+
+/// 保存先から読む。無い・開いていないときは `undefined`。
+#[wasm_bindgen]
+pub fn debug_storage_read(pack_id: &str, start_id: &str) -> Option<String> {
+    use fandhe_workshop_contract::storage::HistoryStore;
+    let key = storage_key(pack_id, start_id);
+    STORAGE.with(|s| s.borrow().as_ref()?.read(&key).ok().flatten())
+}
+
+/// 保存先の状態を固定形の JSON で返す（値・鍵は含めない）。
+/// `kind` は今のセッションの保存先（`local` か `idb`）、`lastAsyncError` は種類の名前か `null`。
+/// `kindFor` は鍵ごとの起動時の選択で、IndexedDB の側にあればこのセッションの保存先をそちらに固定する。
+#[wasm_bindgen]
+pub fn debug_storage_state(pack_id: &str, start_id: &str) -> String {
+    use fandhe_workshop_contract::storage::{HistoryStore, StorageKind};
+    let key = storage_key(pack_id, start_id);
+    let name = |k: StorageKind| match k {
+        StorageKind::LocalStorage => "local",
+        StorageKind::IndexedDb => "idb",
+    };
+    STORAGE.with(|s| match s.borrow().as_ref() {
+        None => "{\"opened\":false}".to_string(),
+        Some(st) => {
+            let err = st
+                .last_async_error()
+                .map(|e| format!("\"{}\"", error_name(e)))
+                .unwrap_or_else(|| "null".to_string());
+            let kind_for = name(st.kind_for(&key));
+            format!(
+                "{{\"opened\":true,\"idbAvailable\":{},\"kind\":\"{}\",\"kindFor\":\"{}\",\"lastAsyncError\":{}}}",
+                st.idb_available(),
+                name(st.kind()),
+                kind_for,
+                err
+            )
+        }
+    })
+}

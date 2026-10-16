@@ -1,0 +1,8 @@
+id: SAVE8-7
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:             if self.active.get() == StorageKind::IndexedDb {
+replace:             if false {
+expect-fail: 切り替えは一方向で小さな値でも戻らない
+note: 切り替えを固定せず、閾値の手前なら localStorage へ戻る
