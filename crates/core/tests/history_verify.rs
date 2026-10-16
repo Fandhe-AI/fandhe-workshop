@@ -7,8 +7,9 @@
 //! - 任意の時点の書き出し→読み込みの後の一致: 時点 t の包みを読み込んで得た状態に残りの `ops` を流した結果が、
 //!   列を最後まで流した結果と一致する
 //!
-//! 後者に世代 +1・`Reloaded`・`reload` の記録は含めない。再読み込みの意味は TASK-320 で、そこで
-//! 再読み込みを挟む形へ格上げする。性質テストの成功条件は一致だけにする（`docs/testing.md` 第 2 節）。
+//! 後者は再読み込みを挟む形（H-5）である。時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを
+//! 書き出し→読み込みで復元して再読み込みしてから残りを流した結果が一致し、再読み込みの後の世代が時点 t の
+//! 世代 +1 であることも明示して確かめる（TASK-320 1/2）。性質テストの成功条件は一致が主である（`docs/testing.md` 第 2 節）。
 //! 性質テストにはほかに、書き出しのバイト列の安定（H-7）と写しから作り直した実行の一致（H-2）、`ops` を 1 件消した包みが
 //! 黙って誤った状態で開かないこと（H-8）を含める。変異 `SAVE1-1`〜`SAVE1-6` の検出先になる（`docs/testing.md` 5.59）。
 
@@ -30,7 +31,7 @@ use fandhe_workshop_core::history_replay::{
 use fandhe_workshop_core::input::{CheckpointId, Control, Op};
 use fandhe_workshop_core::load_gate::load_json;
 use fandhe_workshop_core::load_ir;
-use fandhe_workshop_core::ops_record::SessionOp;
+use fandhe_workshop_core::ops_record::{reload_recorded, OpsRecorder, SessionOp};
 use fandhe_workshop_core::session::{Session, SessionState};
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -165,15 +166,12 @@ fn replay_errors_are_typed() {
     assert_eq!(err, VerifyError::Replay(ReplayError::BlankSubmit { index }));
     assert_eq!(err.load_reason(), Some(LoadReason::ReplayMismatch));
 
+    // 写しを更新せず `Reload` だけを足した包みは、世代とログが食い違う（書き換え・壊れ）。
     let mut reload = env;
     reload.ops.push(HistoryOp::Reload);
-    let index = reload.ops.len() - 1;
     let err = verify_envelope(&ir, initial.clone(), &reload).expect_err("reload");
-    assert_eq!(
-        err,
-        VerifyError::Replay(ReplayError::UnsupportedReload { index })
-    );
-    assert_eq!(err.load_reason(), None);
+    assert!(matches!(err, VerifyError::Mismatch { .. }), "{err}");
+    assert_eq!(err.load_reason(), Some(LoadReason::ReplayMismatch));
 
     let mut bad = ir;
     bad.pack.profile = Some(serde_json::json!({ "command_prefix": "ab" }));
@@ -304,7 +302,8 @@ fn export_import_verifies(
     }
 }
 
-/// 時点 t で書き出し→読み込み→照合した状態に残りの `ops` を流すと、最後まで流した結果と一致する。
+/// 時点 t で再読み込みを挟む（H-5）。続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して
+/// 再読み込みしてから残りを流した結果が一致する。再読み込みの後の世代は時点 t の世代 +1 である。
 fn reload_at_any_point(
     ir: &Ir,
     initial: &SessionState,
@@ -313,25 +312,69 @@ fn reload_at_any_point(
     t: usize,
 ) -> Result<(), String> {
     let cut = t % (specs.len() + 1);
-    let (path, (prefix, cut_state)) = run_recording(ir, initial, specs, drafts, cut);
+    // 経路 A: 時点 cut の接頭辞と状態を控えてから、再読み込みを挟んで最後まで流す。
+    let mut path = RecordPath::new(ir, initial);
+    let mut taken = None;
+    for (i, spec) in specs.iter().enumerate() {
+        if i == cut {
+            taken = Some((path.rec.ops().to_vec(), path.state.clone()));
+            path.reload();
+        }
+        for d in drafts[i].iter().filter_map(|k| draft_text(*k)) {
+            path.draft(d);
+        }
+        path.spec(spec);
+    }
+    if cut == specs.len() {
+        taken = Some((path.rec.ops().to_vec(), path.state.clone()));
+        path.reload();
+    }
+    for d in drafts[specs.len()].iter().filter_map(|k| draft_text(*k)) {
+        path.draft(d);
+    }
+    let (prefix, cut_state) = taken.unwrap_or_else(|| (Vec::new(), initial.clone()));
     let full = path.rec.ops().to_vec();
     let last = path.state;
-    // 接頭辞の末尾の下書きに、次の下書きが畳まれた場合は、接頭辞が全体の先頭と一致しない。その時点は飛ばす。
-    if full.len() < prefix.len() || full[..prefix.len()] != prefix[..] {
-        return Ok(());
+    // 再読み込みを挟んだ列は、接頭辞の直後が `Reload` になる（下書きは再読み込みを挟んで畳まれない）。
+    if full.get(..prefix.len()) != Some(prefix.as_slice())
+        || full.get(prefix.len()) != Some(&HistoryOp::Reload)
+    {
+        return Err(format!("the prefix at t={cut} is not followed by a reload"));
     }
-    let env =
-        build_envelope(ir, "s-1", prefix.clone(), cut_state).map_err(|e| format!("build: {e}"))?;
+    // 経路 B: 時点 cut の包みを復元し、再読み込みしてから残りを流す。
+    let env = build_envelope(ir, "s-1", prefix.clone(), cut_state.clone())
+        .map_err(|e| format!("build: {e}"))?;
     let loaded = roundtrip(&env)?;
     let restored = verify_envelope(ir, initial.clone(), &loaded)
         .map_err(|e| format!("verify at t={cut}: {e}"))?;
-    match replay(ir, restored, &full[prefix.len()..]) {
+    let mut rec = OpsRecorder::new();
+    let (reloaded, _) = reload_recorded(restored, &mut rec);
+    // 共有の関数が世代を上げ損ねても両経路が同じに壊れて一致するため、世代の増分は別に主張する。
+    if cut_state.run.current.is_some()
+        && reloaded.run.generation.0 != cut_state.run.generation.0 + 1
+    {
+        return Err(format!(
+            "reload at t={cut} did not bump the generation by one"
+        ));
+    }
+    match replay(ir, reloaded, &full[prefix.len() + 1..]) {
+        Ok(s) if s == last => {}
+        Ok(s) => {
+            return Err(format!(
+                "state after reload at t={cut} differs in {:?}",
+                fandhe_workshop_core::history_replay::first_difference(&s, &last)
+            ))
+        }
+        Err(e) => return Err(format!("replay the rest failed: {e}")),
+    }
+    // 再読み込みを含む全体の包みも、書き出して読み戻して照合が通り、写しと一致する。
+    let full_env =
+        build_envelope(ir, "s-1", full, last.clone()).map_err(|e| format!("build full: {e}"))?;
+    let loaded = roundtrip(&full_env)?;
+    match verify_envelope(ir, initial.clone(), &loaded) {
         Ok(s) if s == last => Ok(()),
-        Ok(s) => Err(format!(
-            "state after reload at t={cut} differs in {:?}",
-            fandhe_workshop_core::history_replay::first_difference(&s, &last)
-        )),
-        Err(e) => Err(format!("replay the rest failed: {e}")),
+        Ok(_) => Err("verified state with a reload differs from the last state".to_owned()),
+        Err(e) => Err(format!("verify with a reload failed: {e}")),
     }
 }
 

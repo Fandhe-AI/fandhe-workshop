@@ -135,6 +135,10 @@ fn events_roundtrip() {
             opened: 1,
             total: 2,
         },
+        Event::Reloaded {
+            at: stamp(),
+            new_generation: Generation(4),
+        },
         Event::Refused {
             at: stamp(),
             op: ControlKind::OpenHint,
@@ -147,6 +151,12 @@ fn events_roundtrip() {
     }
     let v = serde_json::to_value(&events[6]).expect("serialize");
     assert!(v["stopped"]["new_generation"].is_number());
+    let reloaded = events
+        .iter()
+        .find(|e| matches!(e, Event::Reloaded { .. }))
+        .expect("reloaded");
+    let v = serde_json::to_value(reloaded).expect("serialize");
+    assert!(v["reloaded"]["new_generation"].is_number());
 }
 
 #[test]
@@ -162,6 +172,9 @@ fn unknown_field_and_variant_are_rejected() {
     assert!(serde_json::from_str::<Event>(bad_event).is_err());
     let ok_event = bad_event.replace(r#","extra":1"#, "");
     assert!(serde_json::from_str::<Event>(&ok_event).is_ok());
+    let bad_reloaded =
+        r#"{"reloaded":{"at":{"generation":1,"step":"s"},"new_generation":2,"extra":1}}"#;
+    assert!(serde_json::from_str::<Event>(bad_reloaded).is_err());
     let bad_ui = r#"{"ui":{"view":"v","path":"p","extra":1}}"#;
     assert!(serde_json::from_str::<Input>(bad_ui).is_err());
     let bad_approval = r#"{"approval":{"decision":"approve","target":null,"extra":1}}"#;

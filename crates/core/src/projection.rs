@@ -6,7 +6,7 @@
 //! # 導出の規則
 //!
 //! - ログ行: 行にするイベントは [`Projection::extend`] 内の `match` の表のとおり。行は `at` とログ上の位置だけを持ち、
-//!   ログは追記だけで、復帰でも行を消さない。`Skipped`・`Flag`・`Begun`・`HintOpened` と `Changed` は行にしない
+//!   ログは追記だけで、復帰でも行を消さない。`Skipped`・`Flag`・`Begun`・`HintOpened`・`Reloaded` と `Changed` は行にしない
 //!   （版 1 の画面に出さない・左の印で表す・状態であり出来事ではない）。`Accepted` は `Judged`（TASK-256）が
 //!   未導入のため行にする。`Judged` を足す版上げのときに TASK-256 が見直す
 //! - 変化の印: 基準点（`Entered`・`Stopped`・`Moved`・`Restored`・`Begun`）の後に、原因が `Input` の `Changed` が触れた
@@ -142,6 +142,7 @@ fn stamp_of(event: &Event) -> &Stamp {
         | Event::Restored { at, .. }
         | Event::Begun { at, .. }
         | Event::HintOpened { at, .. }
+        | Event::Reloaded { at, .. }
         | Event::Refused { at, .. }
         | Event::Ignored { at, .. }
         | Event::Warning { at, .. } => at,
@@ -205,7 +206,7 @@ impl Projection {
                 self.review_item_mut(&at.step).achieved = true;
             }
             Event::Skipped { at } => self.review_item_mut(&at.step).skipped = true,
-            Event::Flag { .. } | Event::HintOpened { .. } => {}
+            Event::Flag { .. } | Event::HintOpened { .. } | Event::Reloaded { .. } => {}
             Event::Changed {
                 at,
                 path,

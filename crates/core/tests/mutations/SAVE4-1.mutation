@@ -1,0 +1,10 @@
+id: SAVE4-1
+package: fandhe-workshop-core
+test: reload_busy
+target: crates/core/src/reload.rs
+find:     state.run.generation = next;
+replace:     let _ = next;
+expect-fail: reload_while_busy_keeps_busy_and_bumps_generation
+expect-fail: processing_continues_with_the_new_generation_to_the_end
+expect-fail: two_reloads_add_two_generations
+note: 再読み込みで世代を上げない（試作の X-1）。イベントの new_generation だけが進み、状態の世代は据え置きになる

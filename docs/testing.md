@@ -49,8 +49,8 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
 - 写しとの照合（TASK-316 2/3、SAVE-1）は `crates/core/tests/history_verify.rs` にある。実在の読み込みの口（`load_gate::load_json`）を通し、
   「書き出し→読み込みの一致」と「任意の時点の書き出し→読み込みの後の一致」（時点 t の包みを読み込んで得た状態に残りの `ops` を流した結果が、
-  最後まで流した結果と一致する。ケースごとに t を 1 つ引く）を、固定・誘導つきの生成で各 1,000 通り確かめる。再読み込みの意味（世代 +1・`Reloaded`）は
-  含めず、TASK-320 で格上げする。12 本あわせた実測は dev プロファイルで約 4.4 秒（2026-10-16、`cargo test` の試験の所要時間）
+  最後まで流した結果と一致する。ケースごとに t を 1 つ引く）を、固定・誘導つきの生成で各 1,000 通り確かめる。後者は TASK-320 1/2 で
+  再読み込みを挟む形（H-5。世代 +1・`Reloaded`・`reload` の記録）へ格上げした（5.65）。12 本あわせた実測は dev プロファイルで約 4.4 秒（2026-10-16、`cargo test` の試験の所要時間）
 - 復元の性質と変異 6/6（TASK-316 3/3、SAVE-1）は、同じ 2 つの試験ファイルに足した。各枠の下書きは 0〜2 件で引き、送信を挟まず連続する
   下書きを列の途中にも出す。試作の H-2（写しから作り直した実行が写しを返す）・H-7（同じ包みの書き出しが同じバイト列）を書き出し→読み込みの
   性質テストの中で確かめ、H-8（`ops` を 1 件消した包みは、開けるなら写しと一致し、開けないなら `replay_mismatch`）を固定・誘導つきで各 1,000 通り
@@ -233,6 +233,33 @@ SAFE11-1 は、`crates/web/src/learner_text.rs` の `learner_line` が文字ノ�
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（記法やタグが要素になる） | 記法と_html_は文字のまま描かれ_子の要素にならない | 記法と_html_は文字のまま描かれ_子の要素にならない, web_のソースは_raw_html_を使わない | DETECTED | - |
+
+### 5.3.1a 右のログに入力が文字として出ること（TASK-434 2/2）
+
+TERM21-1 は、`crates/web/src/learner_text.rs` の `learner_part`（右のログの行の本文）を生 HTML の出力口に替える変異である。
+native の適合試験 `log_lines_contract` が検出する。同じ修正で、SAFE11-1 の `find` を `learner_line` にだけ当たる文字列に直した
+（`learner_part` の追加で `vec![text(s)]` が 2 か所になり、変異の一意性の検査に通らなくなっていた）。
+
+実ブラウザでの確認は `tools/browser/log-lines-xss.test.mjs` が担う。`testdata` の `xss-cases.md` のうち入り口に E5 を含む 49 件を、
+「そのまま」「`/` の後ろ」「コマンドの引数」の 3 通りで送り（147 回。TASK-147 の SAFE-5 と同数）、`received` の行の本文が文字ノード
+1 つだけで送った文字列と一致すること、危険な要素・実行・外部通信・CSP 違反・ダイアログ・ポップアップ・ページの例外が 0 件であることを、
+CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
+構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
+
+- 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
+- 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
+- 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e6a486b-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/SAFE11-1.mutation crates/web/tests/mutations/TERM21-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
+| TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
@@ -1424,6 +1451,7 @@ SAVE1-1 は、`verify_envelope` が適用し直した結果を写しと比べず
 
 X-1（`reloaded()` が世代を上げない。性質 H-6）は、`Reload` が TASK-320 まで `ReplayError::UnsupportedReload` で拒否されるため、
 そのままの対応物が無い。代替の SAVE1-6 を置き、X-1・H-6 そのものは TASK-320 へ送る。
+X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.65）。H-6 は TASK-320 2/2 の範囲である。
 SAVE1-6 は、時点 t の状態に下書きが残る場合だけ食い違うため、性質テストだけが検出する。
 
 ```text
@@ -1755,14 +1783,41 @@ spec SAVE-19 の実測（PoC-6 の `wrong_input` 29,138 件・9,937,328 バイ�
 | SAVE19-13 | crates/core/src/history_load.rs: 段 8 を通らずに初期状態で開く | DETECTED（stage8_tampered_snapshot_is_replay_mismatch, all_nineteen_reasons_reach_the_single_entry ほか 14 件） |
 | SAVE19-14 | crates/core/src/history_open.rs: 写しとの一致の判定を常に真にする | DETECTED（stage8_tampered_snapshot_is_replay_mismatch, stage8_diverged_needs_a_version_difference ほか 5 件） |
 
-### 5.66 履歴の書き出し（TASK-330 1/2）
+### 5.66 処理中の再読み込み（TASK-320 1/2）
+
+処理中の再読み込みで世代を +1 し、処理中のまま続ける分岐を `reload` モジュール（`session::reload`・`Session::reload`）に実装した。
+`apply()` の `Op` には含めず、`CONTRACT_VERSION` を 3 から 4 へ上げた（`Event::Reloaded` の追加）。
+固定の試験は `crates/core/tests/reload_busy.rs`、性質テストは `history_verify` の `property_reload_at_any_point_*` を H-5 へ格上げした。
+後者は、時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して再読み込みしてから残りを流した結果が
+一致すること、再読み込みを含む全体の包みの照合が通ること、再読み込みの後の世代が時点 t の世代 +1 であることを確かめる。
+共有の関数が世代を上げ損ねると両経路が同じに壊れて一致するため、世代の増分は一致とは別に主張する。
+再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2 の範囲である。
+自動ブラウザ（S-5）は、web に履歴を読み込んで復元する経路が無いため未実施（TASK-319・TASK-331 3/3 の後）。
+
+SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SAVE4-2 は適用し直しで `Reload` を飛ばす誤り、SAVE4-3 は記録側が `Reload` を残さない誤りである。
+既存の SAVE1-1〜SAVE1-6 も同じ実行で流し、`replay` の変更で検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 8a9fede-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE4-1.mutation crates/core/tests/mutations/SAVE4-2.mutation crates/core/tests/mutations/SAVE4-3.mutation crates/core/tests/mutations/SAVE1-1.mutation crates/core/tests/mutations/SAVE1-2.mutation crates/core/tests/mutations/SAVE1-3.mutation crates/core/tests/mutations/SAVE1-4.mutation crates/core/tests/mutations/SAVE1-5.mutation crates/core/tests/mutations/SAVE1-6.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE4-1 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（reload_while_busy_keeps_busy_and_bumps_generation, two_reloads_add_two_generations ほか 3 件） |
+| SAVE4-2 | crates/core/src/history_replay.rs: 適用し直しで Reload を飛ばす | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided ほか 1 件） |
+| SAVE4-3 | crates/core/src/ops_record.rs: 記録側が Reload を残さない | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
+| SAVE1-1〜SAVE1-6 | crates/core/src/history_replay.rs ほか（5.58・5.59 の定義） | 6 件とも DETECTED |
+
+### 5.67 履歴の書き出し（TASK-330 1/2）
 
 書き出しは契約の包み（`ops` と写し。D-52・SAVE-17）を compact な 1 行の JSON にしたものである（`history_export::export_bytes`）。
 往復（書き出し→読み込みの段 1〜5）・同じ包みから同じバイト列が出ること・最上位の欄・上限超過でも書き出しを拒まないことを `crates/core/tests/history_export.rs` が、
 ファイル名の整え（`pack_id` は教材由来で信頼できない）を `crates/web/tests/history_export.rs` が、
 ダウンロードで保存されたファイルが `ops` と写しを持つこと・外部への要求と CSP 違反が 0 件・URL（`location`・履歴・ハッシュ）が変わらないこと・破棄した `blob:` URL から保存できないことを `tools/browser/history-export.test.mjs` が確かめる。
 `blob:` URL は CSP の `connect-src 'self'` で `fetch` が止まるため、読めるかどうかはダウンロードで確かめた。
-ホストに受講中の `ops` の記録（`OpsRecorder`）がまだ無いため、ブラウザ試験は契約の試料（`two-rounds.json`）を書き出す。受講中の状態からの書き出しは TASK-319・TASK-531 の結線の後に確かめる。本節の番号は、既存の重複を直さずに、既存の最大の次を使った。
+ホストに受講中の `ops` の記録（`OpsRecorder`）がまだ無いため、ブラウザ試験は契約の試料（`two-rounds.json`）を書き出す。受講中の状態からの書き出しは TASK-319・TASK-531 の結線の後に確かめる。本節の番号は、既存の重複を直さずに、既存の最大の次を使った（5.66 は別の変更が先に取った）。
 
 変異は SAVE17-1（書き出しを整形つきの JSON にする誤り）である。
 

@@ -6,4 +6,4 @@ find:     let mut state = initial;
 replace:     let mut state = SessionState { drafts: Default::default(), ..initial };
 expect-fail: property_reload_at_any_point_fixed
 expect-fail: property_reload_at_any_point_guided
-note: 再開の元の状態の下書きを落とす（試作の X-1 の代替。時点 t から残りを流す場合だけ食い違う。X-1 そのものは TASK-320）
+note: 再開の元の状態の下書きを落とす（試作の X-1 の代替。時点 t から残りを流す場合だけ食い違う。X-1 そのものは SAVE4-1。TASK-320 1/2）

@@ -1,0 +1,8 @@
+id: TERM21-1
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/learner_text.rs
+find: el("span", vec![("data-testid", testid)], vec![text(s)])
+replace: el("span", vec![("data-testid", testid)], vec![fandhe_frontend_core::raw_html(s)])
+expect-fail: html_風の文字列は要素にならずエスケープされる
+note: ログの行の本文を生 HTML として出す（受講者の入力がログで要素になる）
