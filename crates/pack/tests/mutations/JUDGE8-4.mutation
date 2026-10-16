@@ -1,0 +1,9 @@
+id: JUDGE8-4
+package: fandhe-workshop-pack
+test: text_fill
+target: crates/core/src/text_fill.rs
+find: Some(u64::from(b.total.saturating_sub(b.done))),
+replace: Some(u64::from(b.done)),
+expect-fail: judge8_text_checks_all_38
+expect-fail: judge8_text_checks_group_a_19
+note: 残りの回数に終わった回数を入れる

@@ -1,0 +1,99 @@
+# 差し込みの充填の試験用の章（架空）。do を持つ Step と題名だけの Step を混ぜ、確認の種類を 3 つ置く。
+id: "c1"
+title: "差し込みの充填を確かめる"
+starts:
+  - {id: "s-a", node: "a"}
+  - {id: "s-b", node: "b"}
+  - {id: "s-c", node: "c"}
+  - {id: "s-d", node: "d"}
+  - {id: "s-e", node: "e"}
+  - {id: "s-f", node: "f"}
+steps:
+  - id: "a"
+    title: "ヘルプを開く"
+    body: "a.md"
+    do: "/help を送ってコマンドの一覧を開く"
+    next: [{to: "b"}]
+    processing: [{name: "p1-run"}, {name: "p2-run"}, {name: "p3-run"}]
+    input:
+      kind: "command"
+      name: "help"
+      args:
+        - {name: "topic", positional: true, required: false, shape: "kebab_case"}
+    rules:
+      - id: "r-ask"
+        on: {command: "help", missing: ["topic"]}
+        outcome: {kind: "clarify", clarification: "cl-ask"}
+      - id: "r-help"
+        on: {command: "help"}
+        outcome: {kind: "accept", effects: [{set_flag: "helped"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "b"
+    title: "回数を決める"
+    body: "b.md"
+    next: [{to: "c"}]
+    on_reject:
+      wrong_order: "rj-wrong-order-title"
+    input:
+      kind: "command"
+      name: "start-run"
+      args:
+        - {name: "run", positional: true, required: true, shape: "digits"}
+    rules:
+      - id: "r-start"
+        on: {command: "start-run"}
+        outcome: {kind: "accept", effects: [{set_flag: "run-started"}]}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "c"
+    title: "自分の言葉で書く"
+    body: "c.md"
+    do: "ここまでの感想を自分の言葉で書く"
+    next: [{to: "d"}]
+    processing: [{name: "p1-run"}, {name: "p2-run"}]
+    input: {kind: "text", min: 1, max: 2000}
+    confirm:
+      kind: "none"
+      reason: "書いた内容は判定せず、送ったことだけで先へ進むため、別の確認を置かない。"
+  - id: "d"
+    title: "答えを選ぶ"
+    body: "d.md"
+    do: "いちばん近い答えを選ぶ"
+    next: [{to: "e"}]
+    input:
+      kind: "choice"
+      options:
+        - {id: "opt-a", label: "答え A"}
+        - {id: "opt-b", label: "答え B"}
+        - {id: "opt-c", label: "答え C"}
+        - {id: "opt-d", label: "答え D"}
+    confirm:
+      kind: "answer"
+      on_wrong: "rj-wrong-answer-default"
+      options:
+        - {id: "opt-a", correct: true}
+        - {id: "opt-b", correct: false, on_wrong: "rj-wrong-own-1"}
+        - {id: "opt-c", correct: false, on_wrong: "rj-wrong-own-2"}
+        - {id: "opt-d", correct: false}
+  - id: "e"
+    title: "場所を指す"
+    body: "e.md"
+    do: "変更された場所を指す"
+    next: [{to: "f"}]
+    views: ["v-files"]
+    input: {kind: "approval"}
+    confirm:
+      kind: "point_at"
+      targets: [{view: "v-files", path: "src/main.rs"}]
+      on_miss: "rj-miss-point"
+  - id: "f"
+    title: "承認する"
+    body: "f.md"
+    do: "結果を読んで承認する"
+    final: true
+    input: {kind: "approval"}
+    confirm:
+      kind: "approve"

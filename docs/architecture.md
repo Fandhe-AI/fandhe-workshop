@@ -115,6 +115,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 入力・進行の判定結果の統合と `Judged` の材料（`judge::judge_input`・`judge_tick`・`judged_event`。拒否・問い返しの文面の ID と次の行動を IR から解決する。結果の型は contract の `judgment`。`Op::Input` の `apply` への結線は `accept::on_input` が持ち、判定を 1 回だけ行ってその結果に従う。`Op::Tick` への結線は含まない） | core | TASK-267 |
 | 承認の「直す」の対象の一覧と、対象なしの「直す」の規則（`select_judge::revise_targets`） | core | TASK-264 |
 | 拒否の文面の解決と空でない次の行動（`rejection_text::resolve_rejection`・`rejection_of`。差し込みは含まない） | core | TASK-264 |
+| 拒否・問い返し・注記の文面への実行時の値の差し込み（`text_fill`。値の組み立て・近い候補の編集距離・次の行動と文面の充填。`judge` が結線して `Judged` の次の行動を充填する。枠の書式は contract の `slot`。画面への表示は含まない） | core | TASK-274 |
 | コマンド入力の規則の照合と問い返しの判定（`command_rule`。状態の変更・`Judged` の発行・問い返しの待ちの保持は含まない） | core | TASK-272 |
 | 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（`lo_first_answer`。GUIDE-18。型は contract の `lo_check`。履歴から観測への写像と他の LO の数え方は含まない） | core | TASK-305 |
 | 処理中の停止と入口の写しへの復帰（`stop`。公開しない。処理中でない停止・実体ごとの戻り方・入口の写しの更新は含まない） | core | TASK-211 |

@@ -25,6 +25,7 @@
 //! 処理中の入力の `busy` の分類（[`busy_class`]、TASK-209 1/2）も持つ。
 //! 受講者の操作を履歴の `ops` に追記する記録（[`ops_record`]、TASK-315 1/2）も持つ。
 //! `ops`・写し・版の欄を履歴の包みに組み立てる処理と下書きの同期（[`history_envelope`]、TASK-315 2/2）も持つ。
+//! 拒否・問い返し・注記の文面への実行時の値の差し込み（[`text_fill`]、TASK-274）も持つ。
 //! 宛先が一致する進行の前進と食い違う進行の無視の記録（`tick`、TASK-210 2/3・3/3。公開しない）も持つ。
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
@@ -58,6 +59,7 @@ pub mod select_judge;
 pub mod session;
 pub mod step_status;
 mod stop;
+pub mod text_fill;
 pub mod text_judge;
 mod tick;
 pub mod version_record;

@@ -3,7 +3,7 @@
 //! 教材が宣言した入力方式のうち `choice`・`ui_action`・`approval` は、LLM を使わずに Step の宣言
 //! （`input`・`rules`・`confirm`）との照合だけで判定できる。本モジュールはその照合の純関数を置く。
 //! 呼び出し元は、受付・達成の遷移（TASK-207）、`Judged` の発行（[`crate::judge`]、TASK-267）、対象つきの「直す」（TASK-264）、
-//! 誤答の文面の差し込み（TASK-274）、画面（web、TASK-445・TASK-447）である。
+//! 誤答の文面の差し込み（[`crate::text_fill`]、TASK-274）、画面（web、TASK-445・TASK-447）である。
 //! 承認の「直す」の対象つき入力（JUDGE-10、TASK-264）の判定もここに置く。
 //! 結果の型の語彙は `fandhe_workshop_contract::judgment`、入力・確認の宣言の型は `input_spec`・`confirm_spec`
 //! が正で、ここでは再定義しない。
@@ -37,7 +37,7 @@
 //!
 //! - 状態の変更・`Session::apply` への組み込み（TASK-207）。結果の統合と `Judged` の材料は [`crate::judge`]（TASK-267）
 //! - 文面の解決・差し込み・`NextAction` の生成（本モジュールは文面の ID だけを返す。解決は
-//!   [`crate::rejection_text`]、差し込みは TASK-274）
+//!   [`crate::rejection_text`]、差し込みは [`crate::text_fill`]、TASK-274）
 //! - 規則の `on` の組み合わせの静的な検査（TASK-45）
 //! - `rejections[id].category` の解決（規則による拒否の分類は呼び出し側）
 //! - コマンド・自然文の判定（[`crate::command_lex`]・`TextSpec::judge`）
