@@ -9,5 +9,6 @@ pub mod contract_sample;
 pub mod history_sample;
 pub mod json_input;
 pub mod op_gen;
+pub mod op_props;
 pub mod property;
 pub mod tick;

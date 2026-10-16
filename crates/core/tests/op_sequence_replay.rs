@@ -11,14 +11,8 @@
 
 mod common;
 
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-
 use common::contract_sample::{load, testdata_dir};
-use common::op_gen::{
-    op_specs, Applied, Harness, OpSpec, Which, CHOICES, CMDS, DECISIONS, NODES, PATHS,
-};
+use common::op_gen::{op_specs, script_specs, Applied, Harness, OpSpec, Which};
 use common::property::{check, try_check_with, DEFAULT_SEED, MAX_OPS};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -27,7 +21,8 @@ use fandhe_workshop_core::input::Op;
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::session::SessionState;
 use proptest::prelude::*;
-use serde::Deserialize;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 /// 教材（IR）を読む。ケースごとではなく、試験の先頭で 1 回だけ呼ぶ。
 fn load_min_ir() -> (Ir, SessionState) {
@@ -141,80 +136,6 @@ fn replay_from_start_matches_after_every_op() {
         },
     );
     println!("PROPERTY-TEST stats={:?}", stats.borrow().counts);
-}
-
-/// 固定列の 1 操作（`scripted-inputs.json` の `ops` の要素）。
-#[derive(Deserialize)]
-struct ScriptOp {
-    op: String,
-    which: Option<String>,
-    input: Option<serde_json::Value>,
-    node: Option<String>,
-    id: Option<u32>,
-}
-
-#[derive(Deserialize)]
-struct Script {
-    ops: Vec<ScriptOp>,
-}
-
-fn index_of(table: &[&str], value: &str) -> usize {
-    table
-        .iter()
-        .position(|v| *v == value)
-        .unwrap_or_else(|| panic!("value {value:?} is not in the op_gen table"))
-}
-
-/// 固定列の入力を、生成器の表の添字に写す。表に無い値は理由を添えて panic する。
-fn input_spec(v: &serde_json::Value) -> OpSpec {
-    if v == "cancel" {
-        return OpSpec::Cancel;
-    }
-    let obj = v.as_object().expect("input object");
-    if let Some(c) = obj.get("command") {
-        return OpSpec::Cmd(index_of(&CMDS, c.as_str().expect("command str")));
-    }
-    if let Some(c) = obj.get("choice") {
-        return OpSpec::Choice(index_of(&CHOICES, c.as_str().expect("choice str")));
-    }
-    if let Some(u) = obj.get("ui") {
-        return OpSpec::Ui(index_of(&PATHS, u["path"].as_str().expect("ui path")));
-    }
-    if let Some(a) = obj.get("approval") {
-        let d = a["decision"].as_str().expect("decision");
-        let i = DECISIONS
-            .iter()
-            .position(|x| format!("{x:?}").to_lowercase() == d)
-            .expect("decision in table");
-        return OpSpec::Approval(i);
-    }
-    panic!("unsupported scripted input: {v}");
-}
-
-fn script_specs() -> Vec<OpSpec> {
-    let path: PathBuf =
-        testdata_dir().join("engine-event-consistency/test-data/scripted-inputs.json");
-    let bytes = std::fs::read(path).expect("read scripted inputs");
-    let script: Script = serde_json::from_slice(&bytes).expect("parse scripted inputs");
-    script
-        .ops
-        .iter()
-        .map(|o| match o.op.as_str() {
-            "input" => input_spec(o.input.as_ref().expect("input")),
-            "tick" => OpSpec::Tick(match o.which.as_deref().expect("which") {
-                "current" => Which::Current,
-                "dup" => Which::Dup,
-                "stale_gen" => Which::StaleGen,
-                "stale_node" => Which::StaleNode,
-                other => panic!("unknown which {other:?}"),
-            }),
-            "stop" => OpSpec::Stop,
-            "goto" => OpSpec::GoTo(index_of(&NODES, o.node.as_deref().expect("node"))),
-            "save" => OpSpec::Save,
-            "restore" => OpSpec::Restore(o.id.expect("id")),
-            other => panic!("unknown op {other:?}"),
-        })
-        .collect()
 }
 
 fn any_event(applied: &[Applied], pred: impl Fn(&Event) -> bool) -> bool {
