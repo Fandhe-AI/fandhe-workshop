@@ -30,6 +30,8 @@ thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
     /// 予約済みの進行の宛先。同じ宛先のタイマーを二重に積まないための印（取り消しのためではない）。
     static SCHEDULED: RefCell<Option<TickAddr>> = const { RefCell::new(None) };
+    /// 書き戻しの対象の root。送信で下書きを空にしたとき、タイマーのコールバックが `sync_draft` に渡す。
+    static DRAFT_ROOT: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -121,6 +123,26 @@ fn on_tick_request(next: Option<TickAddr>) {
     if fresh {
         schedule_action(RuntimeAction::Tick(addr), tick_delay_ms());
     }
+}
+
+/// ホストが通知する下書きの書き戻しの要求を受け、`set_timeout(0)` で `sync_draft` を予約する
+/// （`EngineHost::set_draft_sync_request` の通知先。TASK-438）。
+///
+/// `Component::update` の中から呼ばれるため、Runtime にも App にも触れず予約するだけにする（再入を避ける）。
+/// 書き戻しを予約に回すのは、送信の click が上流の更新の中で走り、その最中に App を借りられないため。
+/// 限界: 送信の直後の短い間に変換が始まると、書き戻しが変換と競合しうる。IME の網羅は TASK-439・TASK-276 の担当。
+fn on_draft_sync_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        let root = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone()));
+        if let Some(root) = root {
+            sync_draft(&root);
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
 }
 
 /// 予約済みの進行の宛先。試験用の口が読む。
@@ -331,8 +353,14 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         }
         let mut host = EngineHost::for_mount();
         host.set_tick_request(Box::new(on_tick_request));
+        host.set_draft_sync_request(Box::new(on_draft_sync_request));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
+        DRAFT_ROOT.with(|r| {
+            if let Ok(mut slot) = r.try_borrow_mut() {
+                *slot = Some(root.clone());
+            }
+        });
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
         *slot = Some(runtime);

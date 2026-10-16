@@ -1,7 +1,7 @@
 //! ホストの入力欄（Hello）。ホスト（`host::EngineHost`）が内包し、`glue::mount_app` 経由で mount される。
 //!
 //! 単体の Component としても動く（既存の試験が使う）。入力欄の上限（SAFE-21。TASK-158）の受け口と、
-//! 送信と送信済みの一覧（受講者の文字列の非解釈の表示。SAFE-11。TASK-150）の足場だけを持つ。core・contract に型を足さず、この crate の中で閉じる。
+//! 送信済みの一覧（受講者の文字列の非解釈の表示。SAFE-11。TASK-150）への積み込みまでを持つ。送信の後に下書きを空にする判断（TERM-1）は、エンジンの判定を知るホストの責務である。core・contract に型を足さず、この crate の中で閉じる。
 
 // native ビルドでは glue が無く、試験以外から使われない。
 #![cfg_attr(
@@ -132,6 +132,24 @@ impl HelloView {
     /// 入力欄の値。glue が DOM へ書き戻すために読む。
     pub(crate) fn draft(&self) -> &str {
         &self.draft
+    }
+
+    /// 下書きを空にする（`SetDraft("")` と同じ意味）。送信を受け入れた後に、ホストが呼ぶ（TERM-1）。
+    ///
+    /// `update` と違い dirty を消さない。直前の `Submit` が積んだ field を残したまま、案内・候補の変化を足すため、
+    /// ホストは `Submit` と本関数の後に 1 度だけ `dirty_fields` を読む。単体の `Submit` は下書きを残す
+    /// （空にするかどうかは、エンジンの判定を知るホストの責務である）。
+    pub(crate) fn clear_draft(&mut self) {
+        let before = self.visible_candidates();
+        if self.over_limit {
+            self.dirty.push(FIELD_NOTICE);
+        }
+        self.over_limit = false;
+        self.draft.clear();
+        self.closed_for = None;
+        if self.visible_candidates() != before {
+            self.dirty.push(FIELD_CANDIDATES);
+        }
     }
 
     /// 直近の入力で切り捨てが起きたか（試験用の口が読む）。

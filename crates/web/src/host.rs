@@ -13,6 +13,9 @@
 //! 3 つの表示（ログ・左の成果物・復習。`engine_parts`）は `new()` が登録する標準の登録簿に入る（TASK-347 2/2）。
 //! 3 部品は同じイベント列（`Session::log()`）から導いた値だけを読む。`tick`・`complete` の action は
 //! `Runtime::dispatch_action` から届く（TASK-349。`decode_action` が `action::RuntimeAction` の検査を通す）。
+//! 送信（Enter・送信ボタン。TASK-438）は、入力欄の一覧に積んだ後、操作プロファイルの接頭辞で分類して
+//! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への
+//! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）を持つ（BUILD-27・SHELL-35）。
 //!
@@ -35,8 +38,11 @@ use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::Op;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session};
@@ -99,6 +105,19 @@ pub enum HostAction {
 /// glue が `set_timeout` の予約に使う。ホストは予約の状態を持たず、重複の抑止も glue が受け持つ。
 pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
 
+/// 下書きの書き戻しの要求の通知先。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+///
+/// glue が `<textarea>` の値の同期（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
+pub type DraftSyncRequest = Box<dyn Fn()>;
+
+/// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
+///
+/// 問い返しの後の扱いは JUDGE-27・TERM-22（検討中）に属するため、ここでは固定しない。
+/// 拒否でなければ空にする。
+pub(crate) fn keeps_draft(rejected: bool) -> bool {
+    rejected
+}
+
 /// 構築の拒否の理由。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostError {
@@ -128,6 +147,10 @@ pub struct EngineHost {
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
     tick_request: Option<TickRequest>,
+    /// 下書きの書き戻しの通知先。未設定なら通知しない。
+    draft_sync_request: Option<DraftSyncRequest>,
+    /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
+    command_prefix: Option<String>,
     /// 補完の action を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     complete_count: u32,
@@ -163,6 +186,8 @@ impl EngineHost {
             input: HelloView::new(),
             dirty: Vec::new(),
             tick_request: None,
+            draft_sync_request: None,
+            command_prefix: None,
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         }
@@ -186,6 +211,10 @@ impl EngineHost {
         let mut world = World::new();
         replay_changes(&mut world, session.log());
         let world_consumed = session.log().len();
+        let command_prefix =
+            fandhe_workshop_contract::profile::read_profile(session.ir().pack.profile.as_ref())
+                .ok()
+                .map(|p| p.command_prefix);
         Ok(Self {
             model: HostModel {
                 session: Some(session),
@@ -197,6 +226,8 @@ impl EngineHost {
             input,
             dirty: Vec::new(),
             tick_request: None,
+            draft_sync_request: None,
+            command_prefix,
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         })
@@ -241,6 +272,11 @@ impl EngineHost {
         self.tick_request = Some(f);
     }
 
+    /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+    pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
+        self.draft_sync_request = Some(f);
+    }
+
     /// 部品が読む値。
     pub fn model(&self) -> &HostModel {
         &self.model
@@ -252,7 +288,7 @@ impl EngineHost {
     }
 
     /// 入力欄の値。glue が DOM へ書き戻すために読む。
-    pub(crate) fn draft(&self) -> &str {
+    pub fn draft(&self) -> &str {
         self.input.draft()
     }
 
@@ -338,6 +374,19 @@ impl EngineHost {
                 _ => None,
             })
             .collect();
+        // 受け付けた入力の本文（TASK-438）。Enter と送信ボタンが同じ記録になること、改行が保たれることを
+        // ブラウザ試験が照合する。ログ行の欄は DOM の照合が使うため、増やさず別のキーに置く。
+        let received: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                Event::InputReceived { input, .. } => Some(json!({
+                    "event": i,
+                    "input": serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
+                })),
+                _ => None,
+            })
+            .collect();
         // 無視の理由は `IgnoreReason`（non_exhaustive）の serde の表記に任せる。
         let ignored_reasons: Vec<_> = log
             .iter()
@@ -362,6 +411,7 @@ impl EngineHost {
             "irLoaded": true,
             "logLen": log.len(),
             "judgedCategories": judged_categories,
+            "received": received,
             "ignoredReasons": ignored_reasons,
             "stateWithoutLog": state_without_log,
             "consumed": bulk.consumed(),
@@ -413,16 +463,28 @@ impl EngineHost {
     }
 
     /// core への操作を適用し、変わった field を dirty に積む。未読込なら何もしない。
-    fn apply_engine(&mut self, op: Op) {
+    ///
+    /// 戻りは、今回の操作で拒否の判定（`Judged` の `Rejected`）が出たか。送信の後に下書きを残すかの判断に使う。
+    fn apply_engine(&mut self, op: Op) -> bool {
         if self.model.session.is_none() {
-            return;
+            return false;
         }
         let before = self.bound_snapshot();
         let Some(session) = self.model.session.as_mut() else {
-            return;
+            return false;
         };
         let len_before = session.log().len();
-        let returned = session.apply(op).len();
+        let events = session.apply(op);
+        let returned = events.len();
+        let rejected = events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Rejected(_),
+                    ..
+                }
+            )
+        });
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
         self.model.projection.extend(log);
@@ -449,6 +511,45 @@ impl EngineHost {
                 .map(|f| f.name);
             self.dirty.extend(lists);
         }
+        rejected
+    }
+
+    /// 送信を受ける（Enter・送信ボタン）。入力欄の一覧に積み、エンジンへ渡し、必要なら下書きを空にする。
+    ///
+    /// 本文は加工しない（trim も分割もしない。改行は保つ）。空白だけの本文はエンジンへ送らない
+    /// （後から適用し直す処理が空白だけの送信を拒否するのと同じ基準）。接頭辞を読めない・session が無い
+    /// 場合はエンジンへ送らず、読めないときは入力を失わないよう下書きを残す。
+    fn submit(&mut self) {
+        let text = self.input.draft().to_owned();
+        if text.is_empty() {
+            return;
+        }
+        self.input.update(HelloAction::Submit);
+        let mut clear = true;
+        if self.model.session.is_some() {
+            match self.command_prefix.clone() {
+                None => clear = false,
+                Some(prefix) if !text.trim().is_empty() => {
+                    let rejected = self.apply_engine(Op::Input(submit_input(&prefix, text)));
+                    clear = !keeps_draft(rejected);
+                }
+                Some(_) => {}
+            }
+        }
+        // apply_engine は dirty を積むので、入力欄の分はその後に足す。
+        self.dirty.extend_from_slice(self.input.dirty_fields());
+        if clear {
+            self.input.clear_draft();
+            let from = self.input.dirty_fields();
+            for f in from {
+                if !self.dirty.contains(f) {
+                    self.dirty.push(f);
+                }
+            }
+            if let Some(f) = self.draft_sync_request.as_ref() {
+                f();
+            }
+        }
     }
 }
 
@@ -458,11 +559,14 @@ impl Component for EngineHost {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
+            HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(a) => {
                 self.input.update(a);
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
-            HostAction::Engine(op) => self.apply_engine(op),
+            HostAction::Engine(op) => {
+                self.apply_engine(op);
+            }
             // 補完の挿入は TASK-440 2/2（#332）の担当。ここでは状態もログも変えず、dirty も積まない。
             HostAction::Complete => {
                 #[cfg(feature = "test-hooks")]

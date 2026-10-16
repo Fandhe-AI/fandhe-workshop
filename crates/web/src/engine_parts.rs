@@ -9,7 +9,7 @@
 //! 仮のもの（持ち主が別にあるため、ここで確定しない）:
 //! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・束縛点の名前は、
 //!   TASK-431・TASK-467・TASK-511 が決める。ログの行の型は TASK-431 に準拠済み（`log_lines`。TASK-434）で、
-//!   識別子 `part-log*` だけが仮のまま残る（`log-list` の引き継ぎは TASK-438 または TASK-517）。
+//!   識別子 `part-log*` だけが仮のまま残る（`log-list` の引き継ぎは TASK-517）。
 //! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
 //!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
