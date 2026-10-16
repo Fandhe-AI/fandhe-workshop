@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::Component;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
+use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
@@ -282,4 +283,63 @@ fn esc_と停止ボタンは処理中だけ停止し_待機中ではログを変
         assert_eq!(run.world, world0);
         assert_shows(&host, RunStatus::Stopped);
     }
+}
+
+fn draft(host: &mut EngineHost, text: &str) {
+    host.update(EngineHost::decode_action("draft", text).expect("draft"));
+}
+
+fn esc() -> HostAction {
+    EngineHost::decode_action("esc", "Escape").expect("esc")
+}
+
+#[test]
+fn 処理中に候補が開いていても_esc_は停止になり候補も閉じる() {
+    let mut host = begun_host();
+    draft(&mut host, "/he");
+    assert!(host.candidates_open());
+    host.update(make_note());
+    host.update(tick(0));
+    assert!(host.candidates_open(), "処理中でも候補は開いたまま");
+    let session = host.model().session().unwrap();
+    assert!(session.state().run.busy.is_some());
+    let gen_before = session.state().run.generation.0;
+    let len_before = session.log().len();
+    host.update(esc());
+    let session = host.model().session().unwrap();
+    let run = &session.state().run;
+    assert!(run.busy.is_none());
+    assert_eq!(run.generation.0, gen_before + 1);
+    let stopped = session.log()[len_before..]
+        .iter()
+        .filter(|e| matches!(e, Event::Stopped { .. }))
+        .count();
+    assert_eq!(stopped, 1, "停止の行が 1 件だけ増える");
+    assert!(!host.candidates_open());
+    assert_eq!(host.draft(), "/he");
+    assert_shows(&host, RunStatus::Stopped);
+    let d = host.dirty_fields();
+    assert!(d.contains(&"input_candidates"), "{d:?}");
+}
+
+#[test]
+fn 停止の後に候補が開いていても_esc_は閉じるだけで停止を重ねない() {
+    let mut host = begun_host();
+    host.update(make_note());
+    host.update(tick(0));
+    host.update(esc());
+    assert_shows(&host, RunStatus::Stopped);
+    draft(&mut host, "/hel");
+    assert!(host.candidates_open());
+    let session = host.model().session().unwrap();
+    let gen_before = session.state().run.generation.0;
+    let len_before = session.log().len();
+    // 閉じた後の 2 回目の Esc は TASK-441 2/2（取り消しの入力）の持ち分のため、ここでは 1 回だけ押す。
+    host.update(esc());
+    let session = host.model().session().unwrap();
+    assert!(!host.candidates_open());
+    assert_eq!(session.state().run.generation.0, gen_before);
+    assert_eq!(session.log().len(), len_before);
+    assert_eq!(host.draft(), "/hel");
+    assert_shows(&host, RunStatus::Stopped);
 }

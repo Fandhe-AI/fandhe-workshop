@@ -1,0 +1,8 @@
+id: TERM7-1
+package: fandhe-workshop-web
+test: run_status_contract
+target: crates/web/src/hello.rs
+find:         if state.candidates_open && !after_esc(state, &route).candidates_open {
+replace:         if state.candidates_open && route.op.is_none() && !after_esc(state, &route).candidates_open {
+expect-fail: 処理中に候補が開いていても_esc_は停止になり候補も閉じる
+note: 処理中の Esc で停止はするが、候補の一覧が開いたまま残る（TERM-7）

@@ -1,7 +1,7 @@
 // 処理中の Esc の停止（TASK-277 1/2。JUDGE-17 (1)・TERM-7）のうち、今の画面で観察できる行の試験。
 //
-// K-11・K-14（処理中の停止）は、TASK-347 でエンジンを結ぶまで画面で処理中を作れない。その行は native の
-// key_route_contract が固定する。ここでは、処理中でない画面の下書きの欄で Esc の keydown が preventDefault されず、
+// K-11・K-14（処理中の停止）は、native の key_route_contract が経路を固定し、画面の結果は stop-redo.test.mjs と
+// esc-outcomes.test.mjs（TASK-441 1/2）が見る。ここでは、処理中でない画面の下書きの欄で Esc の keydown が preventDefault されず、
 // 欄の値が変わらず、送信済みの一覧の項目が増えないこと、CSP 違反・pageerror・console error が 0 件であることを確かめる。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
