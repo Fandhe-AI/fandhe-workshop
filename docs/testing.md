@@ -743,14 +743,14 @@ SAVE14-1 は鍵に教材の版を混ぜ、SAVE15-1 は配信の区間を無視�
 
 ```text
 実行日: 2026-10-16
-元にしたコミット: 8486454-dirty（本変更を含む作業ツリー）
+元にしたコミット: 4e2337a
 コマンド: scripts/check-mutations.sh crates/contract/tests/mutations/SAVE14-1.mutation crates/contract/tests/mutations/SAVE15-1.mutation
 ```
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
-| SAVE14-1 | crates/contract/src/storage.rs: 鍵に教材の版を混ぜる（版が変わると履歴の鍵が変わり、保存した履歴が読めなくなる） | key_ignores_pack_version_and_content | key_uses_first_start_only, key_ignores_pack_version_and_content | DETECTED | - |
-| SAVE15-1 | crates/contract/src/storage.rs: 配信の区間を無視して常に根の印にする（別の配信先の履歴が同じ鍵になる） | key_differs_by_delivery_scope | key_uses_first_start_only, prototype_ids_render_verbatim, render_parse_roundtrip_and_injective, store_port_roundtrip, unreadable_key_form, pack_named_unreadable_does_not_collide, pack_prefix_does_not_reach_other_scope_or_pack, key_differs_by_delivery_scope | DETECTED | - |
+| SAVE14-1 | crates/contract/src/storage.rs: 鍵に教材の版を混ぜる（版が変わると履歴の鍵が変わり、保存した履歴が読めなくなる） | key_ignores_pack_version_and_content | key_ignores_pack_version_and_content, key_uses_first_start_only | DETECTED | - |
+| SAVE15-1 | crates/contract/src/storage.rs: 配信の区間を無視して常に根の印にする（別の配信先の履歴が同じ鍵になる） | key_differs_by_delivery_scope | pack_named_unreadable_does_not_collide, pack_prefix_does_not_reach_other_scope_or_pack, key_differs_by_delivery_scope, key_uses_first_start_only, prototype_ids_render_verbatim, render_parse_roundtrip_and_injective, unreadable_key_form, store_port_roundtrip | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
