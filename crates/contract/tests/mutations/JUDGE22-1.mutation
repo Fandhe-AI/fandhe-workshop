@@ -1,0 +1,9 @@
+id: JUDGE22-1
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find:             if input.modified() {
+replace:             if false {
+expect-fail: judge22_modified_enter_is_nothing
+expect-fail: expected_table_matches
+note: 修飾キー付き Enter の行を外す（Ctrl+Enter が送信・改行になる）

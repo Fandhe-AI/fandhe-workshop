@@ -22,7 +22,7 @@
 
 学習目標の確認の記録の型と導出（`fandhe_workshop_contract::lo_check`、TASK-291）は contract の型で、`LO_CHECK_CONTRACT_VERSION` で別に版を管理する。本文書の型の一覧と `CONTRACT_VERSION` の対象外である。
 
-キー判定表 `decide` の入出力の型（`fandhe_workshop_contract::key_decide`、TASK-257）も contract の型で、`KEY_DECIDE_CONTRACT_VERSION` で別に版を管理する。本文書の型の一覧と `CONTRACT_VERSION` の対象外である。
+キー判定表 `decide` の入出力の型（`fandhe_workshop_contract::key_decide`、TASK-257 版 1・TASK-281 版 2）も contract の型で、`KEY_DECIDE_CONTRACT_VERSION`（現在 2）で別に版を管理する。本文書の型の一覧と `CONTRACT_VERSION` の対象外である。
 
 型は `fandhe_workshop_core::<モジュール>::<型>` で参照する。crate 直下には `Session`・`SessionState`・`apply`・`Projection`・`CONTRACT_VERSION` を再エクスポートしている。
 

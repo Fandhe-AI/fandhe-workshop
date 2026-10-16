@@ -1238,6 +1238,29 @@ JUDGE19-3 は、判定表 `decide` の Tab の行から Shift の条件を外す
 |---|---|---|---|---|---|
 | JUDGE19-3 | crates/contract/src/key_decide.rs: Tab の補完の条件から Shift を外す（候補が開いて文字があると Shift+Tab まで補完になり、逆向きのフォーカス移動を奪う） | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | expected_table_matches, judge19_prevent_default_on_tab_only_when_open_and_text | DETECTED | - |
 
+### 5.53 キー判定表の版 2（TASK-281）
+
+版 2 で確定した JUDGE-18・21・22 の変異を足した。JUDGE22-1・2 は、修飾キー付き Enter の行を外す・Shift+Ctrl+Enter を外すもので、送信・改行になることを検出する。
+JUDGE18-1 は 1 回目の Esc で取り消すもの、JUDGE21-1 は補完を末尾の候補にするものである。既存の 4 件（JUDGE14-1・17-1・19-1・19-3）も、版 2 で検出できることを確かめた。
+web の `key_route` の変異（JUDGE13-1・17-2 から 4・19-2）は、今回は流していない（未実施）。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 288b430-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/contract/tests/mutations/JUDGE14-1.mutation crates/contract/tests/mutations/JUDGE17-1.mutation crates/contract/tests/mutations/JUDGE18-1.mutation crates/contract/tests/mutations/JUDGE19-1.mutation crates/contract/tests/mutations/JUDGE19-3.mutation crates/contract/tests/mutations/JUDGE21-1.mutation crates/contract/tests/mutations/JUDGE22-1.mutation crates/contract/tests/mutations/JUDGE22-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| JUDGE14-1 | crates/contract/src/key_decide.rs: 変換中の判定から自前の印を外す | judge14_any_single_signal_means_composing, expected_table_matches | judge14_any_single_signal_means_composing, expected_table_matches | DETECTED | - |
+| JUDGE17-1 | crates/contract/src/key_decide.rs: Esc の処理中の優先を外す | judge17_three_ways_with_busy_priority, expected_table_matches | expected_table_matches, judge17_three_ways_with_busy_priority | DETECTED | - |
+| JUDGE18-1 | crates/contract/src/key_decide.rs: 候補が開いていても 1 回目の Esc で取り消す | judge18_two_escapes_close_then_cancel, expected_table_matches | judge18_two_escapes_close_then_cancel, expected_table_matches, judge17_three_ways_with_busy_priority | DETECTED | - |
+| JUDGE19-1 | crates/contract/src/key_decide.rs: Tab の補完の条件から has_text を外す | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | expected_table_matches, judge19_prevent_default_on_tab_only_when_open_and_text | DETECTED | - |
+| JUDGE19-3 | crates/contract/src/key_decide.rs: Tab の補完の条件から Shift を外す | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | DETECTED | - |
+| JUDGE21-1 | crates/contract/src/key_decide.rs: 先頭ではなく末尾の候補で補完する | judge21_completes_with_first_candidate | judge21_completes_with_first_candidate | DETECTED | - |
+| JUDGE22-1 | crates/contract/src/key_decide.rs: 修飾キー付き Enter の行を外す | judge22_modified_enter_is_nothing, expected_table_matches | expected_table_matches, judge22_modified_enter_is_nothing | DETECTED | - |
+| JUDGE22-2 | crates/contract/src/key_decide.rs: Shift+Ctrl+Enter を修飾キー付きから外す | judge22_modified_enter_is_nothing, expected_table_matches | expected_table_matches, judge22_modified_enter_is_nothing | DETECTED | - |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

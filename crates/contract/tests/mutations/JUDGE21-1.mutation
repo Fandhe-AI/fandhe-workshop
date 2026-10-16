@@ -1,0 +1,8 @@
+id: JUDGE21-1
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find:     candidates.first()
+replace:     candidates.last()
+expect-fail: judge21_completes_with_first_candidate
+note: 先頭ではなく末尾の候補で補完する
