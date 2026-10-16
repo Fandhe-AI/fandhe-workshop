@@ -1,0 +1,10 @@
+id: EVT9-1
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/stop.rs
+find:     state.run = run;
+replace:     run.world = state.run.world.clone();state.run = run;
+expect-fail: stop_after_two_ticks_removes_draft
+expect-fail: stop_matches_sample_e06
+expect-fail: p4_stop_returns_to_entry
+note: 世界状態を入口の写しへ戻さない（受付後の変化が残る）

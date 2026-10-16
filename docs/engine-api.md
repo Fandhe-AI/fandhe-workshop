@@ -113,7 +113,7 @@
 |---|---|---|---|
 | EVT-6 (1) 学習者の入力は世代を変えない | `Op::Input(_)` が `Keep`（`input.rs`）。`Input::Cancel` も同じ | 読み取れる | 連打も 1 件ごとの `Op::Input` で、`Keep` のままである |
 | EVT-6 (2) 進行は世代を変えない | `Op::Tick(_)` が `Keep` | 読み取れる | |
-| EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 読み取れる | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10） |
+| EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の試験 | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10。TASK-212 の担当で、現状は状態を変えず空を返す） |
 | EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 読み取れる | |
 | EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 読み取れる | |
 | EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
@@ -123,6 +123,7 @@
 | EVT-8 (b) 食い違いは状態を変えず「無視」を 1 件 | `Event::Ignored { at, reason }`・`IgnoreReason` | 実装済み（`tick` モジュール、TASK-210 3/3）。`tick_progress` の `mismatched_tick_records_one_ignored` ほか | |
 | EVT-8 (b) の場合ごとの理由の割り当て | 古い世代・移動前の Step は `IgnoreReason::Stale` | 決定済み | 同じ番号の二重の届きは `Stale`（世代・Step・番号のいずれかが古い）、処理中でなければ `NoProcessing` とした（TASK-210 3/3）。専用の理由の追加は版上げの契約タスク |
 | EVT-8 の判定順（宛先の照合を先に） | `TickAddr` と `IgnoreReason` の rustdoc | 実装済み（`judge_tick` が先に照合、TASK-210 3/3） | |
+| EVT-9 処理中の停止は世代を +1 し、処理中を解き、入口の写しへ戻す | `Event::Stopped { at, new_generation }`・`SessionState.entry`（`EntryCopy`） | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の `stop_after_two_ticks_removes_draft` ほか。写しが無い・別の Step のもの・世代があふれる場合は `Warning` だけで状態を変えない | 入口の写しの更新と実体ごとの戻り方は TASK-242、停止前の進行の無視と停止後の入力は TASK-211 2/2 |
 | GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 型は許す・実装待ち | TASK-295・TASK-297 |
 | GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 型は許す・実装待ち | TASK-295 |
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
@@ -147,7 +148,7 @@
 |---|---|---|---|
 | サンプルと規則の表 | サンプルの世代の差が 3 節の表と EVT-6 の (1)〜(6) に合う | 通る | 載る |
 | 実際の `apply()` の不変条件 | EVT-22（同じ入力列で状態とイベント列が一致）、3 つの入口の一致、世代が減らない・増分は 1 まで | 通る | 載る |
-| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 5 件（e01〜e05、入力の受付と一致する進行）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。全件は最初の食い違いが e06（停止、TASK-211）で `#[ignore]`。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る）。e07（古い世代の進行の無視、TASK-210 3/3）も単独で照合する（`sample_stale_tick_entry_matches_apply`、CI に載る） | 先頭 5 件と e07・e09〜e13・e15・e16 の単独照合が載る |
+| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 6 件（e01〜e06、入力の受付・一致する進行・処理中の停止）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。e06 は入口の写しを添えて単独でも照合する（`sample_stop_entry_matches_apply`、TASK-211 1/2）。全件は最初の食い違いが e14（保存）で `#[ignore]`（2026-10-16 に確認）。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る）。e07（古い世代の進行の無視、TASK-210 3/3）も単独で照合する（`sample_stale_tick_entry_matches_apply`、CI に載る） | 先頭 6 件と e06・e07・e09〜e13・e15・e16 の単独照合が載る |
 | 比較器の自己確認 | 期待どおりの提供元は合格、1 か所壊した提供元は最初の食い違いの操作 ID で失敗する | 通る | 載る |
 
 実行コマンド:
@@ -167,6 +168,7 @@
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 | 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 
+- 2026-10-16: 処理中の停止と入口の写しへの復帰（`stop` モジュール、TASK-211 1/2）を実装した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
 - 2026-10-15: `Projection` の導出の中身（ログ行・変化の印・復習・復帰の復習）を実装した。公開の型・署名・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-215 2/2）
 - 2026-10-15: e16 の単独照合を追加した。型・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-208）
