@@ -168,6 +168,21 @@ fn checker_detects_each_broken_property() {
     });
     assert!(check_broken(&ir, &initial, &all, k, &b).contains("P-3"));
 
+    // P-3: 確認を省く Step の達成から、同じ操作の `Accepted` を除いた。
+    let k = find(&|a| {
+        a.events.iter().enumerate().any(|(i, e)| {
+            matches!(e, Event::Achieved { at, .. }
+                if at.step.0 == "main/st-2"
+                    && a.events[..i]
+                        .iter()
+                        .any(|p| matches!(p, Event::Accepted { at: pa } if pa == at)))
+        })
+    });
+    let b = with_events(&all[k], |e| {
+        e.retain(|x| !matches!(x, Event::Accepted { .. }))
+    });
+    assert!(check_broken(&ir, &initial, &all, k, &b).contains("P-3"));
+
     // P-4: 入力で世代が 1 増えた。
     let k = find(&|a| matches!(a.op, Op::Input(_)));
     let mut b = all[k].clone();

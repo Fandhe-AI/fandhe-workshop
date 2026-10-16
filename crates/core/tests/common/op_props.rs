@@ -26,7 +26,7 @@
 //!   `Ignored` を出さず `Progress` をちょうど 1 件出す。古い進行かどうかは、`OpSpec` ではなく解決した
 //!   `Op::Tick` と操作前の状態から決める（`Dup` が現在の宛先に解決される場合があるため）
 //! - P-3: `Achieved` は、同じ操作で同じ `at` の `Judged { Confirmed }` の後か、確認を省くと明示した Step
-//!   （`confirm.kind` が `none`）のものだけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
+//!   （`confirm.kind` が `none`）で、同じ操作の同じ `at` の `Accepted` の後のものだけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
 //!   復帰・停止の後は同じ世代に `Accepted` が前に無いため、`confirm_before_achieve.rs` の I3 は使わない。
 //!   状態が達成の Step には、ログに `Achieved` がある
 //! - P-4: ログの宛先の世代は単調に増える。世代は `Stopped`・`Moved`・`Restored`・`Begun` が出たときだけ、
@@ -396,6 +396,15 @@ impl<'a> PropChecker<'a> {
             if confirmed {
                 self.stats.bump("achieved_by_confirm");
             } else if kind.as_deref() == Some("none") {
+                // 確認を省く Step は、受付と同時に達成する。同じ操作で同じ `at` の `Accepted` が先行する。
+                let accepted = a.events[..k]
+                    .iter()
+                    .any(|p| matches!(p, Event::Accepted { at: pa } if pa == at));
+                if !accepted {
+                    return Err(format!(
+                        "achievement without acceptance at {at:?} (confirm kind none)"
+                    ));
+                }
                 self.stats.bump("achieved_by_none");
             } else {
                 return Err(format!(
