@@ -1282,6 +1282,28 @@ JUDGE18-2 は `key_route::after_esc` が候補を閉じたままにしない変�
 | JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | 処理中でなく候補が閉じている_esc_は取り消しの入力になる | 処理中でなく候補が閉じている_esc_は取り消しの入力になる, 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる, 取り消しの入力は規則の無い_step_で拒否として記録される | DETECTED | - |
 | JUDGE19-2 | crates/web/src/key_route.rs: 候補が開いて文字があっても Tab の既定動作を止めない | tab_は候補が開いていて文字があるときだけ_prevent_default_する | tab_は候補が開いていて文字があるときだけ_prevent_default_する | DETECTED | - |
 
+### 5.55 修飾キー付きの Enter（TASK-282 2/2）
+
+JUDGE22-3 は `key_route::effect_for` の `Nothing` の腕を送信にする変異で、Ctrl・Alt・Meta 付きの Enter（Shift 併用を含む）が誤送信になる。検出先は契約試験 `key_route_contract` の `judge22_...` である。契約側の変異 JUDGE22-1・JUDGE22-2 は 5.53 で記録済みである。
+ブラウザ試験（`tools/browser/enter-submit.test.mjs`）は、修飾キー付きの Enter で一覧が増えず、欄の値が変わらず（改行が入らず）、`preventDefault` されないことを確かめた。Linux の Chromium で改行は観察されなかった。`make test-browser` は 105 件が成功した（失敗 0）。Playwright の `keyboard.press` は Shift 以外の修飾キーを押している間は text を送らないため、Windows の実機での差は確かめていない（D-48 で別タスク）。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: c598d3b-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/JUDGE22-3.mutation crates/web/tests/mutations/JUDGE13-1.mutation crates/web/tests/mutations/JUDGE17-2.mutation crates/web/tests/mutations/JUDGE17-3.mutation crates/web/tests/mutations/JUDGE17-4.mutation crates/web/tests/mutations/JUDGE18-2.mutation crates/web/tests/mutations/JUDGE19-2.mutation crates/web/tests/mutations/JUDGE21-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| JUDGE22-3 | crates/web/src/key_route.rs: 修飾キー付きの Enter が送信になる（誤送信） | judge22_修飾キー付きの_enter_は送信も_prevent_default_もしない | 同左を含む 9 件 | DETECTED | - |
+| JUDGE13-1 | crates/web/src/key_route.rs: Shift+Enter が改行を奪って送信になる | shift_enter_は_prevent_default_せず送信もしない | 同左 | DETECTED | - |
+| JUDGE17-2 | crates/web/src/key_route.rs: 処理中の Esc の優先を外す | 処理中の_esc_は候補が開いていても停止になり候補も閉じる | 同左を含む 2 件 | DETECTED | - |
+| JUDGE17-3 | crates/web/src/key_route.rs: 候補が開いていても Esc で閉じない | 処理中でなく候補が開いている_esc_は候補を閉じるだけで操作を出さない | 同左を含む 3 件 | DETECTED | - |
+| JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | 処理中でなく候補が閉じている_esc_は取り消しの入力になる | 同左を含む 3 件 | DETECTED | - |
+| JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたまま | 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる | 同左を含む 2 件 | DETECTED | - |
+| JUDGE19-2 | crates/web/src/key_route.rs: 候補が開いて文字があっても Tab を止めない | tab_は候補が開いていて文字があるときだけ_prevent_default_する | 同左 | DETECTED | - |
+| JUDGE21-2 | crates/web/src/key_route.rs: 末尾の候補で補完する | 補完は先頭の候補を選ぶ | 同左 | DETECTED | - |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
