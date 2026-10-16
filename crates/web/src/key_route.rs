@@ -1,7 +1,8 @@
 //! keydown の判定結果を、glue が行う効果へ変える純関数（TASK-275。JUDGE-12・JUDGE-13・FEND-14・D-42）。
 //!
 //! 呼び出し元は `glue` の keydown リスナーだけである。判定表 `decide`（TASK-257）の結果のうち、
-//! 修飾なしの Enter（`Submit`）だけを「送信ボタンへの click」に結ぶ。click は上流の Runtime の配線を通り、
+//! 修飾なしの Enter（`Submit`）を「送信ボタンへの click」に結び、Tab の補完（`Complete`。JUDGE-19・FEND-21）を
+//! `preventDefault` に結ぶ。click は上流の Runtime の配線を通り、
 //! 送信ボタンを押した場合と同じ `update` に届くため、入力も記録も同じになる。ボタンが無効なら何も起きない。
 //!
 //! この層は DOM に触れない。wasm 専用にしないのは、native の試験で行ごとの効果を固定するためである。
@@ -10,7 +11,11 @@
 //! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
 //! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
 //! - `Pending(_)`: 修飾キー付き Enter（JUDGE-22）などは版 1 で未決。送信も `preventDefault` もしない（版 2 は TASK-281）
-//! - `Complete`・`CloseCandidates`・`Stop`・`CancelInput`・`Nothing`: TASK-276・TASK-277・TASK-347
+//! - `CloseCandidates`・`Stop`・`CancelInput`・`Nothing`: TASK-276・TASK-277・TASK-347
+//!
+//! Tab の補完は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` を呼ぶ（TASK-278 1/3）。
+//! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは TASK-440 2/2 の担当で、
+//! ここでは行わない。
 
 use fandhe_workshop_contract::key_decide::{Decision, FieldState, KeyAction, KeyDecision};
 
@@ -28,6 +33,14 @@ impl KeydownEffect {
         prevent_default: false,
         click_submit: false,
     };
+
+    /// click を伴わず、`preventDefault` だけを判定のとおりに行う効果（Tab の補完）。
+    const fn prevent_only(prevent_default: bool) -> Self {
+        Self {
+            prevent_default,
+            click_submit: false,
+        }
+    }
 }
 
 /// 判定表へ渡す入力欄の状態。`has_text` は App の下書きから取る（DOM の値は読まない）。
@@ -36,7 +49,8 @@ impl KeydownEffect {
 /// - `composing_marker`: 自前の変換中の印は TASK-276 の担当。印が無くても、`isComposing`・keyCode 229・
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
 /// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）
-/// - `candidates_open`: 補完の候補の一覧が未実装
+/// - `candidates_open`: 補完の候補の一覧が未実装。TASK-440 が本関数の 1 か所で差し替える。
+///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる
 pub fn field_state(has_text: bool) -> FieldState {
     FieldState {
         composing_marker: false,
@@ -46,7 +60,8 @@ pub fn field_state(has_text: bool) -> FieldState {
     }
 }
 
-/// 判定結果から効果を求める。`Submit` 以外はすべて何もしない。
+/// 判定結果から効果を求める。`Submit` は click と `preventDefault`、`Complete` は `preventDefault` だけを返す。
+/// それ以外はすべて何もしない。
 ///
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn effect_for(decision: Decision) -> KeydownEffect {
@@ -61,8 +76,9 @@ pub fn effect_for(decision: Decision) -> KeydownEffect {
             },
             // JUDGE-13: Shift+Enter は送信せず、既定の動作（欄への改行）を妨げない。
             KeyAction::Newline => KeydownEffect::NONE,
-            KeyAction::Complete
-            | KeyAction::CloseCandidates
+            // JUDGE-19: Tab は候補が開いていて文字があるときだけ補完。判定が `preventDefault` を求める。
+            KeyAction::Complete => KeydownEffect::prevent_only(prevent_default),
+            KeyAction::CloseCandidates
             | KeyAction::Stop
             | KeyAction::CancelInput
             | KeyAction::DelegateToIme
@@ -159,7 +175,7 @@ mod tests {
     }
 
     #[test]
-    fn 送信になるのは_submit_だけ() {
+    fn 送信になるのは_submit_だけで_prevent_default_は_submit_と_complete() {
         let actions = [
             KeyAction::Submit,
             KeyAction::Newline,
@@ -176,7 +192,11 @@ mod tests {
                 prevent_default: true,
             }));
             assert_eq!(e.click_submit, action == KeyAction::Submit, "{action:?}");
-            assert_eq!(e.prevent_default, action == KeyAction::Submit, "{action:?}");
+            assert_eq!(
+                e.prevent_default,
+                matches!(action, KeyAction::Submit | KeyAction::Complete),
+                "{action:?}"
+            );
         }
         for row in PENDING_ROWS {
             assert_eq!(effect_for(Decision::Pending(row)), KeydownEffect::NONE);
