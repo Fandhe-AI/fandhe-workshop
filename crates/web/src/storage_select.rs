@@ -118,9 +118,14 @@ impl<L: SyncKv> Shared<L> {
         match self.usage.get() {
             Some(n) => n,
             None => {
-                let n = self.local.total_utf16().unwrap_or(0);
-                self.usage.set(Some(n));
-                n
+                // 全走査に失敗したら cache せず、悲観側（閾値超過扱い）に倒す。
+                match self.local.total_utf16() {
+                    Ok(n) => {
+                        self.usage.set(Some(n));
+                        n
+                    }
+                    Err(_) => u64::MAX,
+                }
             }
         }
     }
@@ -131,7 +136,10 @@ impl<L: SyncKv> Shared<L> {
 
     fn release(&self, key: &str, old_value: &str) {
         let freed = utf16_len(key) + utf16_len(old_value);
-        self.usage.set(Some(self.usage().saturating_sub(freed)));
+        // 見積もりが未確定なら更新しない（次の書き込みで全走査し直す）。
+        if let Some(n) = self.usage.get() {
+            self.usage.set(Some(n.saturating_sub(freed)));
+        }
     }
 
     /// IndexedDB への書き込みの確定の後に、同じ鍵の localStorage の写しを消す。
@@ -223,7 +231,9 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
     fn write(&self, key: &HistoryKey, value: &str) -> Result<(), StorageError> {
         let k = key.render();
         if let Some(idb) = &self.idb {
-            if self.active.get() == StorageKind::IndexedDb {
+            // 写しに鍵があれば、kind_for が未呼び出しでも IndexedDB へ書く（read が写しを先に引くため）。
+            if self.active.get() == StorageKind::IndexedDb || self.mirror.borrow().contains_key(&k)
+            {
                 return self.write_idb(idb, &k, value);
             }
         }
@@ -248,7 +258,10 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
         }
         match self.shared.local.set(&k, value) {
             Ok(()) => {
-                self.shared.usage.set(Some(projected));
+                // 見積もりが未確定（全走査に失敗）のときは、悲観値を cache しない。
+                if self.shared.usage.get().is_some() {
+                    self.shared.usage.set(Some(projected));
+                }
                 Ok(())
             }
             Err(StorageError::QuotaExceeded) => {

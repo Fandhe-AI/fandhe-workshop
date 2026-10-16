@@ -22,6 +22,8 @@ struct FakeLocal {
     map: RefCell<BTreeMap<String, String>>,
     /// 全体の上限（鍵と値の UTF-16 の合計）。`None` なら無制限。
     limit: Cell<Option<u64>>,
+    /// `true` なら `total_utf16` が失敗する。
+    fail_total: Cell<bool>,
 }
 
 impl FakeLocal {
@@ -68,6 +70,9 @@ impl SyncKv for FakeLocal {
         Ok(self.map.borrow().keys().cloned().collect())
     }
     fn total_utf16(&self) -> Result<u64, StorageError> {
+        if self.fail_total.get() {
+            return Err(StorageError::Unavailable);
+        }
         Ok(self.total())
     }
 }
@@ -373,4 +378,25 @@ fn remove_は両方から消し別の教材と別の配信先の鍵を残す() {
     assert_eq!(f.storage.read(&other_scope).unwrap().as_deref(), Some("O"));
     // 鍵が無くても Ok。
     f.storage.remove(&key("none")).unwrap();
+}
+
+#[test]
+fn kind_for_を呼ぶ前でも_indexeddb_にある鍵への書き込みは_indexeddb_へ行く() {
+    let k = key("p");
+    let f = fixture_with(&[(&k, "old")], true);
+    f.storage.write(&k, "new").unwrap();
+    assert_eq!(f.storage.kind(), StorageKind::IndexedDb);
+    assert!(!f.local.has(&k.render()));
+    assert_eq!(f.idb.pending_len(), 1);
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("new"));
+}
+
+#[test]
+fn 全走査に失敗した見積もりは_cache_せず悲観側で_indexeddb_へ切り替える() {
+    let f = fixture();
+    f.local.fail_total.set(true);
+    let k = key("p");
+    f.storage.write(&k, "v").unwrap();
+    assert_eq!(f.storage.kind(), StorageKind::IndexedDb);
+    assert!(!f.local.has(&k.render()));
 }
