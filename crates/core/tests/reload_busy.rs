@@ -20,6 +20,7 @@ use fandhe_workshop_core::event::{Event, IgnoreReason};
 use fandhe_workshop_core::history_envelope::build_envelope;
 use fandhe_workshop_core::history_replay::verify_envelope;
 use fandhe_workshop_core::input::{Control, Input, Op};
+use fandhe_workshop_core::projection::Projection;
 use fandhe_workshop_core::session::{reload, Busy, Session, SessionState};
 use fandhe_workshop_core::{apply, load_ir};
 
@@ -146,6 +147,34 @@ fn two_reloads_add_two_generations() {
             assert_eq!(to, from + 1, "between={between}");
         }
     }
+}
+
+/// 右のログの `Reloaded` を指す行の数（SAVE-6）。
+fn reloaded_rows(state: &SessionState) -> usize {
+    Projection::from_events(&state.log)
+        .log()
+        .iter()
+        .filter(|row| {
+            usize::try_from(row.event)
+                .ok()
+                .and_then(|i| state.log.get(i))
+                .is_some_and(|e| matches!(e, Event::Reloaded { .. }))
+        })
+        .count()
+}
+
+#[test]
+fn each_reload_adds_one_log_row() {
+    let ir = ir();
+    let mut state = busy_state(&ir, 1);
+    assert_eq!(reloaded_rows(&state), 0);
+    state = reload(state).0;
+    assert_eq!(reloaded_rows(&state), 1);
+    state = reload(state).0;
+    assert_eq!(reloaded_rows(&state), 2);
+    // 完走の後も行は増えも減りもしない。
+    let done = run_to_end(&ir, state);
+    assert_eq!(reloaded_rows(&done), 2);
 }
 
 #[test]

@@ -98,12 +98,17 @@ fn assert_only_reload_differs(before: &SessionState, after: &SessionState) {
             .as_slice()
         )
     );
-    // 復習とログの行は、再読み込みで増えも減りもしない。
+    // 復習は変わらず、ログの行は末尾に `Reloaded` を指す 1 行だけ増える（SAVE-6）。
     let (p0, p1) = (
         Projection::from_events(&before.log),
         Projection::from_events(&after.log),
     );
-    assert_eq!(p1.log(), p0.log());
+    assert_eq!(p1.log().len(), p0.log().len() + 1);
+    assert_eq!(p1.log().get(..p0.log().len()), Some(p0.log()));
+    assert_eq!(
+        p1.log().last().map(|r| r.event),
+        u32::try_from(before.log.len()).ok()
+    );
     assert_eq!(p1.review(), p0.review());
 }
 
