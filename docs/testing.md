@@ -49,8 +49,8 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
 - 写しとの照合（TASK-316 2/3、SAVE-1）は `crates/core/tests/history_verify.rs` にある。実在の読み込みの口（`load_gate::load_json`）を通し、
   「書き出し→読み込みの一致」と「任意の時点の書き出し→読み込みの後の一致」（時点 t の包みを読み込んで得た状態に残りの `ops` を流した結果が、
-  最後まで流した結果と一致する。ケースごとに t を 1 つ引く）を、固定・誘導つきの生成で各 1,000 通り確かめる。再読み込みの意味（世代 +1・`Reloaded`）は
-  含めず、TASK-320 で格上げする。12 本あわせた実測は dev プロファイルで約 4.4 秒（2026-10-16、`cargo test` の試験の所要時間）
+  最後まで流した結果と一致する。ケースごとに t を 1 つ引く）を、固定・誘導つきの生成で各 1,000 通り確かめる。後者は TASK-320 1/2 で
+  再読み込みを挟む形（H-5。世代 +1・`Reloaded`・`reload` の記録）へ格上げした（5.65）。12 本あわせた実測は dev プロファイルで約 4.4 秒（2026-10-16、`cargo test` の試験の所要時間）
 - 復元の性質と変異 6/6（TASK-316 3/3、SAVE-1）は、同じ 2 つの試験ファイルに足した。各枠の下書きは 0〜2 件で引き、送信を挟まず連続する
   下書きを列の途中にも出す。試作の H-2（写しから作り直した実行が写しを返す）・H-7（同じ包みの書き出しが同じバイト列）を書き出し→読み込みの
   性質テストの中で確かめ、H-8（`ops` を 1 件消した包みは、開けるなら写しと一致し、開けないなら `replay_mismatch`）を固定・誘導つきで各 1,000 通り
@@ -1424,6 +1424,7 @@ SAVE1-1 は、`verify_envelope` が適用し直した結果を写しと比べず
 
 X-1（`reloaded()` が世代を上げない。性質 H-6）は、`Reload` が TASK-320 まで `ReplayError::UnsupportedReload` で拒否されるため、
 そのままの対応物が無い。代替の SAVE1-6 を置き、X-1・H-6 そのものは TASK-320 へ送る。
+X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.65）。H-6 は TASK-320 2/2 の範囲である。
 SAVE1-6 は、時点 t の状態に下書きが残る場合だけ食い違うため、性質テストだけが検出する。
 
 ```text
@@ -1720,3 +1721,30 @@ SAVE19-10 は `ops` の件数の比較を `>=` にする誤り、SAVE19-11 は�
 | SAVE19-9 | crates/core/src/history_load.rs: 型の失敗を missing_version にする | DETECTED（stage5_malformed, stage4_boundary_inner_defects_are_malformed ほか 4 件） |
 | SAVE19-10 | crates/core/src/history_load.rs: ops の件数の比較を >= にする | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history） |
 | SAVE19-11 | crates/core/src/history_load.rs: ops の件数の検査を外す | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history ほか 1 件） |
+
+### 5.65 処理中の再読み込み（TASK-320 1/2）
+
+処理中の再読み込みで世代を +1 し、処理中のまま続ける分岐を `reload` モジュール（`session::reload`・`Session::reload`）に実装した。
+`apply()` の `Op` には含めず、`CONTRACT_VERSION` を 3 から 4 へ上げた（`Event::Reloaded` の追加）。
+固定の試験は `crates/core/tests/reload_busy.rs`、性質テストは `history_verify` の `property_reload_at_any_point_*` を H-5 へ格上げした。
+後者は、時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して再読み込みしてから残りを流した結果が
+一致すること、再読み込みを含む全体の包みの照合が通ること、再読み込みの後の世代が時点 t の世代 +1 であることを確かめる。
+共有の関数が世代を上げ損ねると両経路が同じに壊れて一致するため、世代の増分は一致とは別に主張する。
+再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2 の範囲である。
+自動ブラウザ（S-5）は、web に履歴を読み込んで復元する経路が無いため未実施（TASK-319・TASK-331 3/3 の後）。
+
+SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SAVE4-2 は適用し直しで `Reload` を飛ばす誤り、SAVE4-3 は記録側が `Reload` を残さない誤りである。
+既存の SAVE1-1〜SAVE1-6 も同じ実行で流し、`replay` の変更で検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 8a9fede-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE4-1.mutation crates/core/tests/mutations/SAVE4-2.mutation crates/core/tests/mutations/SAVE4-3.mutation crates/core/tests/mutations/SAVE1-1.mutation crates/core/tests/mutations/SAVE1-2.mutation crates/core/tests/mutations/SAVE1-3.mutation crates/core/tests/mutations/SAVE1-4.mutation crates/core/tests/mutations/SAVE1-5.mutation crates/core/tests/mutations/SAVE1-6.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE4-1 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（reload_while_busy_keeps_busy_and_bumps_generation, two_reloads_add_two_generations ほか 3 件） |
+| SAVE4-2 | crates/core/src/history_replay.rs: 適用し直しで Reload を飛ばす | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided ほか 1 件） |
+| SAVE4-3 | crates/core/src/ops_record.rs: 記録側が Reload を残さない | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
+| SAVE1-1〜SAVE1-6 | crates/core/src/history_replay.rs ほか（5.58・5.59 の定義） | 6 件とも DETECTED |

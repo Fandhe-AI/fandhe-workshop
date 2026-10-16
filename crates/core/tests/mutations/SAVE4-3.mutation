@@ -1,0 +1,9 @@
+id: SAVE4-3
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/ops_record.rs
+find:         self.ops.push(HistoryOp::Reload);
+replace:         let _ = &self.ops;
+expect-fail: property_reload_at_any_point_fixed
+expect-fail: property_reload_at_any_point_guided
+note: 記録側が再読み込みを ops に残さない。接頭辞の直後が Reload にならず、全体の照合も食い違う

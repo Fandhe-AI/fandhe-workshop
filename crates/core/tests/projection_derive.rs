@@ -177,6 +177,26 @@ fn evt1_boundary_events_clear_marks() {
 }
 
 #[test]
+fn reloaded_adds_no_row_and_keeps_marks() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Reloaded {
+            at: stamp(a),
+            new_generation: Generation(2),
+        },
+    ];
+    let with = Projection::from_events(&events);
+    let without = Projection::from_events(&events[..2]);
+    // 再読み込みは行を足さず、処理が続くので変化の印も消さない（SAVE-4。右のログの行は SAVE-6 で未決）。
+    assert_eq!(with.log().len(), without.log().len());
+    assert_eq!(with.marks(), without.marks());
+    assert!(!with.marks().is_empty());
+    assert_eq!(with.consumed(), events.len());
+}
+
+#[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";
     let events: Vec<Event> = [Cause::Stop, Cause::Move, Cause::Restore, Cause::Start]
