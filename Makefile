@@ -19,8 +19,10 @@
 
 .PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
 
+# 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
+# （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
 help: ## このヘルプを表示する（Make 非依存の一覧: scripts/help.sh）
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## /{printf "  \033[36mmake %-10s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST))
+	@awk 'BEGIN {FS = ":.*## "} NR == FNR {if ($$0 ~ /^[a-zA-Z0-9_-]+:.*## / && length($$1) > w) w = length($$1); next} /^[a-zA-Z0-9_-]+:.*## / {printf "  \033[36mmake %-" w "s\033[0m %s\n", $$1, $$2}' $(firstword $(MAKEFILE_LIST)) $(firstword $(MAKEFILE_LIST))
 
 doctor: ## 開発環境を診断する（読み取りのみ・何も導入しない）。直接: scripts/doctor.sh
 	@scripts/doctor.sh

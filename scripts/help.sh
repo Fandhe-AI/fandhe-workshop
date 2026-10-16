@@ -13,38 +13,38 @@ reject_args "$(basename "$0")" "$@"
 cat <<'EOF'
 このリポジトリの操作と、Make を使わずに直接実行する方法:
 
-  help        scripts/help.sh                この一覧を表示する
-  doctor      scripts/doctor.sh              開発環境を診断する（読み取りのみ。何も導入・修復しない）
-  setup       scripts/setup.sh               Git hooks 有効化と .env 雛形の配置（再実行しても安全）
-  check       scripts/check.sh               editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない）
-  test-hooks  scripts/hooks/test-hooks.sh    フックスクリプト自体の回帰テスト（bash + git のみ）
-  lint        scripts/lint.sh                Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）
-  fmt         cargo fmt --all                Rust のソースを rustfmt で整形する（ソースを変更する）
-  test        scripts/test.sh                Rust の native 試験（web を含む全 crate）
-  check-deps  scripts/check-crate-deps.sh    crate 間の依存の向きを cargo metadata で検査する
-  test-check-deps  scripts/test-check-crate-deps.sh  依存の向きの検査自体の回帰テスト
-  check-testdata  scripts/check-testdata-refs.sh  repo の外への相対参照が 0 件であることを検査する
-  test-check-testdata  scripts/test-check-testdata-refs.sh  参照の検査自体の回帰テスト
-  check-dom-reads  tools/check-deps.sh  web crate が DOM の値を読まないこと（例外は件数固定）を検査する
-  test-check-dom-reads  scripts/test-check-dom-reads.sh  DOM 読み取りの検査自体の回帰テスト
-  check-toolchain  scripts/check-toolchain.sh  固定ファイルの版と docs/toolchain.md の一致を検査する
-  test-check-toolchain  scripts/test-check-toolchain.sh  ツールチェーンの一致の検査自体の回帰テスト
-  check-workflow-secrets  scripts/check-workflow-secrets.sh  ci.yml が secret を参照していないことを検査する
+  help                         scripts/help.sh                         この一覧を表示する
+  doctor                       scripts/doctor.sh                       開発環境を診断する（読み取りのみ。何も導入・修復しない）
+  setup                        scripts/setup.sh                        Git hooks 有効化と .env 雛形の配置（再実行しても安全）
+  check                        scripts/check.sh                        editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない）
+  test-hooks                   scripts/hooks/test-hooks.sh             フックスクリプト自体の回帰テスト（bash + git のみ）
+  lint                         scripts/lint.sh                         Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない）
+  fmt                          cargo fmt --all                         Rust のソースを rustfmt で整形する（ソースを変更する）
+  test                         scripts/test.sh                         Rust の native 試験（web を含む全 crate）
+  check-deps                   scripts/check-crate-deps.sh             crate 間の依存の向きを cargo metadata で検査する
+  test-check-deps              scripts/test-check-crate-deps.sh        依存の向きの検査自体の回帰テスト
+  check-testdata               scripts/check-testdata-refs.sh          repo の外への相対参照が 0 件であることを検査する
+  test-check-testdata          scripts/test-check-testdata-refs.sh     参照の検査自体の回帰テスト
+  check-dom-reads              tools/check-deps.sh                     web crate が DOM の値を読まないこと（例外は件数固定）を検査する
+  test-check-dom-reads         scripts/test-check-dom-reads.sh         DOM 読み取りの検査自体の回帰テスト
+  check-toolchain              scripts/check-toolchain.sh              固定ファイルの版と docs/toolchain.md の一致を検査する
+  test-check-toolchain         scripts/test-check-toolchain.sh         ツールチェーンの一致の検査自体の回帰テスト
+  check-workflow-secrets       scripts/check-workflow-secrets.sh       ci.yml が secret を参照していないことを検査する
   test-check-workflow-secrets  scripts/test-check-workflow-secrets.sh  secret 参照の検査自体の回帰テスト
-  build-web   tools/build-web.sh             web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
-  test-build-web  scripts/test-build-web.sh  build-web の受入基準を実ビルドで検査する
-  check-delivery  tools/check-delivery.sh  配信物（先に make build-web）に試験用の口が無いことを検査する
-  test-check-delivery  scripts/test-check-delivery.sh  配信検査自体の回帰テスト（実ビルドを行うため遅い）
-  serve       node tools/serve.mjs           dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）
-  test-serve  scripts/test-serve.sh          配信サーバ（tools/serve.mjs）の試験（node:test）
-  test-browser  scripts/test-browser.sh      ブラウザ試験（Playwright の共通ヘルパ + 最小の画面 + keydown + 対照の自己確認。FANDHE_BROWSER_CHANNEL=chrome で原本）
-  test-keydown-control  scripts/test-keydown-control.sh  action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
-  check-mutations  scripts/check-mutations.sh  変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
-  test-check-mutations  scripts/test-check-mutations.sh  変異注入の検査自体の回帰テスト
-  measure-wasm-size  tools/measure/wasm-size.sh  WASM の gzip -9 の大きさを基点つきで測り JSON を出す
-  test-measure-wasm-size  scripts/test-measure-wasm-size.sh  wasm-size の様式検証と実ビルドの回帰テスト（遅い）
-  measure     tools/measure/all.sh           3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）
-  test-measure  scripts/test-measure.sh      一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）
+  build-web                    tools/build-web.sh                      web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
+  test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
+  check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する
+  test-check-delivery          scripts/test-check-delivery.sh          配信検査自体の回帰テスト（実ビルドを行うため遅い）
+  serve                        node tools/serve.mjs                    dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）
+  test-serve                   scripts/test-serve.sh                   配信サーバ（tools/serve.mjs）の試験（node:test）
+  test-browser                 scripts/test-browser.sh                 ブラウザ試験（Playwright の共通ヘルパ + 最小の画面 + keydown + 対照の自己確認。FANDHE_BROWSER_CHANNEL=chrome で原本）
+  test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
+  check-mutations              scripts/check-mutations.sh              変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
+  test-check-mutations         scripts/test-check-mutations.sh         変異注入の検査自体の回帰テスト
+  measure-wasm-size            tools/measure/wasm-size.sh              WASM の gzip -9 の大きさを基点つきで測り JSON を出す
+  test-measure-wasm-size       scripts/test-measure-wasm-size.sh       wasm-size の様式検証と実ビルドの回帰テスト（遅い）
+  measure                      tools/measure/all.sh                    3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）
+  test-measure                 scripts/test-measure.sh                 一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
