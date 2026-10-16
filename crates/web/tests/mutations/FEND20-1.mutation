@@ -1,0 +1,9 @@
+id: FEND20-1
+package: fandhe-workshop-web
+test: glue_contract
+target: crates/web/src/glue.rs
+find: field.set_value(draft);
+replace: field.set_value(draft); el.set_inner_html("");
+expect-fail: 構造を変える操作は_0_件
+expect-fail: 実ソースは違反なし
+note: glue が要素の中身を書き換える（許される操作の一覧に無い構造の変更が入っても気づけなくなる）
