@@ -352,3 +352,42 @@ pub fn debug_save_flush() -> String {
         }
     }
 }
+
+thread_local! {
+    /// 書き出しの試験用の `blob:` URL の保持（`debug_export_prepare` が入れ、`debug_export_revoke` が破棄する）。
+    static EXPORT_URL: std::cell::RefCell<Option<crate::history_download::ExportUrl>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// 契約の試料（2 周分）の包みを書き出し、`blob:` URL を作って保持する（TASK-330 1/2）。固定形の JSON を返す。
+///
+/// 返すのは `url`・`name`・`bytes` だけで、履歴の中身は返さない。前の URL が残っていれば先に破棄する。
+/// 失敗は `{"ok":false}`（理由の文は読まない）。ダウンロードの click は `static/test-hooks.js` が行う。
+#[wasm_bindgen]
+pub fn debug_export_prepare() -> String {
+    let Some(env) = crate::test_fixture::two_rounds_envelope() else {
+        return "{\"ok\":false}".to_string();
+    };
+    let Ok(bytes) = fandhe_workshop_core::history_export::export_bytes(&env) else {
+        return "{\"ok\":false}".to_string();
+    };
+    EXPORT_URL.with(|u| u.borrow_mut().take());
+    let Ok(url) = crate::history_download::object_url(&bytes) else {
+        return "{\"ok\":false}".to_string();
+    };
+    let json = serde_json::json!({
+        "ok": true,
+        "url": url.as_str(),
+        "name": crate::history_export::file_name(&env.pack_id),
+        "bytes": bytes.len(),
+    })
+    .to_string();
+    EXPORT_URL.with(|u| *u.borrow_mut() = Some(url));
+    json
+}
+
+/// 保持している書き出しの URL を破棄する。破棄したら `true`、保持が無ければ `false`。
+#[wasm_bindgen]
+pub fn debug_export_revoke() -> bool {
+    EXPORT_URL.with(|u| u.borrow_mut().take()).is_some()
+}
