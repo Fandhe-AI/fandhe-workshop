@@ -1,0 +1,15 @@
+id: EVT6-1
+package: fandhe-workshop-core
+test: generation_keep
+target: crates/core/src/session.rs
+find:         GenerationRule::Keep => before,
+replace:         GenerationRule::Keep => before.next().unwrap_or(before),
+expect-fail: keep_on_accept
+expect-fail: keep_on_refuse
+expect-fail: keep_on_confirm_achieve
+expect-fail: keep_on_resend_burst
+expect-fail: keep_on_cancel
+expect-fail: keep_on_tick_any_addr
+expect-fail: keep_on_save
+expect-fail: p2_keep_ops_never_change_generation
+note: 世代を変えない操作でも世代を 1 つ増やす（関門が Keep の操作の世代を進める）
