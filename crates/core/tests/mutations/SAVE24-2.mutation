@@ -1,0 +1,9 @@
+id: SAVE24-2
+package: fandhe-workshop-core
+test: ops_record
+target: crates/core/src/ops_record.rs
+find:         self.ops.push(HistoryOp::Submit(text));
+replace:         self.ops.push(HistoryOp::Submit(text.trim().to_string()));
+expect-fail: submit_text_is_not_trimmed_or_classified
+expect-fail: property_ops_follow_call_order
+note: 送信の本文を trim して記録する（SAVE-24 の受け取った値のまま残す規則に反する）
