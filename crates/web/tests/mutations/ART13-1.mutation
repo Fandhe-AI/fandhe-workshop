@@ -1,0 +1,8 @@
+id: ART13-1
+package: fandhe-workshop-web
+test: tree_attrs_contract
+target: crates/web/src/tree_attrs.rs
+find: pub const EXPANDED_OPEN: &str = "true";
+replace: pub const EXPANDED_OPEN: &str = "false";
+expect-fail: 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる
+note: 子を持つ項目を閉じた状態で出す（開閉の口が無いので、子が読み上げから隠れたままになる。ART-13）

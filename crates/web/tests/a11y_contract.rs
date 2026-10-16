@@ -131,7 +131,7 @@ fn unique<T: std::hash::Hash + Eq>(it: impl Iterator<Item = T>) -> usize {
 
 #[test]
 fn constants_match_spec() {
-    assert_eq!(A11Y_CONTRACT_VERSION, 1);
+    assert_eq!(A11Y_CONTRACT_VERSION, 2);
     assert_eq!(TESTID_ATTR, "data-testid");
     assert_eq!(Region::ALL.len(), 3);
     assert_eq!(unique(Region::ALL.iter().map(|r| r.aria_label())), 3);
@@ -159,7 +159,19 @@ fn constants_match_spec() {
     let mut want: Vec<&str> = Region::ALL.iter().map(|r| r.aria_label()).collect();
     want.push(TABLIST_LABEL);
     assert_eq!(ARIA_LABEL_VALUES.to_vec(), want);
-    assert_eq!(ROLE_VALUES, ["status", "tablist", "tab", "tabpanel"]);
+    assert_eq!(
+        ROLE_VALUES,
+        ["status", "tablist", "tab", "tabpanel", "tree", "treeitem"]
+    );
+    for name in [
+        "aria-level",
+        "aria-posinset",
+        "aria-setsize",
+        "aria-expanded",
+    ] {
+        assert!(A11Y_ATTRIBUTE_NAMES.contains(&name), "{name}");
+    }
+    assert_eq!(A11Y_ATTRIBUTE_NAMES.len(), 11);
     assert!(A11Y_ATTRIBUTE_NAMES.contains(&"aria-live"));
     assert!(!A11Y_ATTRIBUTE_NAMES.contains(&"aria-hidden"));
     let marks: Vec<_> = ChangeMark::ALL

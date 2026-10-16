@@ -165,6 +165,16 @@ pub fn debug_tick_interval_ms() -> u32 {
     crate::tick_interval::TICK_INTERVAL_MS
 }
 
+/// ツリーの試料（ファイルツリー・タスクツリー）を、後の状態で描いた HTML 文字列を返す（読み取りのみ）。
+///
+/// `kind` は `file_tree`・`task_tree`、`variant` は `a`・`b`。範囲外・描けない場合は空文字列を返し、黙って別の形に
+/// 退避しない。ブラウザ試験（TASK-472）が、ツリーの属性と全項目が見えることを `#app` の外の容器で確かめるための口で、
+/// 試料は埋め込みの固定データだけである。
+#[wasm_bindgen]
+pub fn debug_render_tree(kind: &str, variant: &str) -> String {
+    crate::test_fixture::render_tree_sample(kind, variant).unwrap_or_default()
+}
+
 /// 予約済みの次の進行の宛先を JSON 文字列で返す（読み取りのみ）。無ければ `null`。
 ///
 /// 形は `{"generation":..,"step":"..","index":..}`。Step の実体 ID の文字列は `serde_json` でエスケープする。
