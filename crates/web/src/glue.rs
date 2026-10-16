@@ -11,7 +11,10 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
+use fandhe_workshop_contract::key_decide::{decide, KeyInput};
+
 use crate::hello::HelloView;
+use crate::key_route::{effect_for, field_state};
 
 thread_local! {
     static RUNTIME: RefCell<Option<Runtime<HelloView>>> = const { RefCell::new(None) };
@@ -58,13 +61,23 @@ pub(crate) fn draft_snapshot() -> Option<(usize, bool, String)> {
     })
 }
 
+/// 下書きの欄・送信ボタンのセレクタ（`hello.rs` の `data-testid` と対応する）。
+const DRAFT_SELECTOR: &str = "[data-testid=\"draft-input\"]";
+const SUBMIT_SELECTOR: &str = "[data-testid=\"submit-input\"]";
+
+/// root 配下の要素を引く。要素の取得の呼び出し箇所をここ 1 つに保つ（`glue_contract` が箇所数を固定する）。
+/// 見つからない場合・不正なセレクタは `None`（安全側）。
+fn find_in_root(root: &web_sys::Element, selector: &str) -> Option<web_sys::Element> {
+    root.query_selector(selector).ok().flatten()
+}
+
 /// 状態の下書きを `<textarea>` へ書き戻す。値が同じなら書かない（書くとキャレットが末尾へ動くため）。
 ///
 /// 上流の `wasm-client` の `value` 束縛は `HtmlInputElement` しか同期しない（PoC-2 の F-1）。
 /// 状態側で 20,000 コードポイントに切った後の値を欄に反映するには、この書き戻しが要る。
 /// 上流が `<textarea>` の同期に対応したら外す。要素が無い・借用中は何もしない（安全側）。
 fn sync_draft(root: &web_sys::Element) {
-    let Ok(Some(el)) = root.query_selector("[data-testid=\"draft-input\"]") else {
+    let Some(el) = find_in_root(root, DRAFT_SELECTOR) else {
         return;
     };
     let Ok(field) = el.dyn_into::<web_sys::HtmlTextAreaElement>() else {
@@ -114,6 +127,58 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// 入力欄の Enter を、送信ボタンへの click に結ぶ（TASK-275。JUDGE-12・FEND-14）。`mount_app` が 1 回だけ呼ぶ。
+///
+/// root に登録するのは、再描画で欄が作り直されてもリスナーが外れないため。対象は下書きの `<textarea>` だけで、
+/// 他の要素（probe のボタン等）の Enter には反応しない。判定は `contract` の `decide`、効果への変換は
+/// `key_route` が持つ。`with_app` の借用は効果を求めた時点で解く。click の中で上流の Runtime が同期に
+/// `update` を呼ぶため、借用を持ったまま click すると更新が黙って失敗する。
+/// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
+fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
+    let target = root.clone();
+    let on_keydown = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+        let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+            return;
+        };
+        let from_field = ev
+            .target()
+            .is_some_and(|t| t.dyn_ref::<web_sys::HtmlTextAreaElement>().is_some());
+        if !from_field {
+            return;
+        }
+        // keyCode は IME の変換中の判定（JUDGE-14。229）に使うため読む。
+        let key_code = kev.key_code();
+        let input = KeyInput {
+            key: kev.key(),
+            key_code,
+            is_composing: kev.is_composing(),
+            shift: kev.shift_key(),
+            ctrl: kev.ctrl_key(),
+            alt: kev.alt_key(),
+            meta: kev.meta_key(),
+        };
+        let Some(has_text) = with_app(|app| !app.draft().is_empty()) else {
+            return;
+        };
+        let effect = effect_for(decide(&input, &field_state(has_text)));
+        if effect.prevent_default {
+            ev.prevent_default();
+        }
+        // 押しっぱなしの自動リピートは送信しない（下書きが残るため、同じ行が繰り返し足されるのを防ぐ）。
+        // 改行の挿入の抑止（prevent_default）は通常の Enter と同じにする。
+        if effect.click_submit && !kev.repeat() {
+            if let Some(button) = find_in_root(&target, SUBMIT_SELECTOR)
+                .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                button.click();
+            }
+        }
+    });
+    root.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref())?;
+    on_keydown.forget();
+    Ok(())
+}
+
 /// 画面を root 配下ごと再構築する。再描画の時間の測定（tools/measure/redraw.sh）が試験用の口経由で呼ぶ。
 ///
 /// 戻り値は、再構築を実行したかどうか。未マウント、または他の借用中は何もせず `false` を返す
@@ -147,7 +212,9 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
             return Err(JsValue::from_str("already mounted"));
         }
         let runtime = Runtime::mount(root_id, HelloView::new())?;
-        wire_draft_sync(runtime.root())?;
+        let root = runtime.root();
+        wire_draft_sync(root)?;
+        wire_enter_submit(root)?;
         *slot = Some(runtime);
         Ok(())
     })

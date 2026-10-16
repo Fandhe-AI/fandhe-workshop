@@ -23,6 +23,15 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
     ("set_value", GlueOp::TextareaSync),
     ("value", GlueOp::TextareaSync),
     ("is_composing", GlueOp::CompositionMark),
+    ("key", GlueOp::KeydownReceive),
+    ("key_code", GlueOp::KeydownReceive),
+    ("shift_key", GlueOp::KeydownReceive),
+    ("ctrl_key", GlueOp::KeydownReceive),
+    ("alt_key", GlueOp::KeydownReceive),
+    ("meta_key", GlueOp::KeydownReceive),
+    ("repeat", GlueOp::KeydownReceive),
+    ("target", GlueOp::KeydownReceive),
+    ("prevent_default", GlueOp::KeydownReceive),
     ("window", GlueOp::Timer),
     (
         "set_timeout_with_callback_and_timeout_and_arguments_0",
@@ -72,6 +81,9 @@ const NON_DOM_CALLS: &[&str] = &[
     "over_limit",
     "keydown_probe",
     "rerender",
+    "flatten",
+    "and_then",
+    "is_empty",
 ];
 
 /// 構造を変える操作。許される操作の一覧に無く、glue に 1 件も書かない。
