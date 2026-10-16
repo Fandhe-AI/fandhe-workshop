@@ -9,7 +9,7 @@
 //! 擬似操作 `FinishProcessing` は、処理中（`run.busy`）を畳む進行の照合（TASK-210）の代わりである。
 //! `Op::Tick` が処理を進めるようになった後は、これを `Op::Tick` に置き換えてよい。
 //! `Op::Control`・`Op::Tick` は列に入れない（世代を動かす経路を作らず、P-6 の前提を保つ）。
-//! 残り続けるボタンへの連打とログの増え方は TASK-209 2/2 が扱う。呼び出し元は CI の `make test` のみである。
+//! 残り続けるボタンへの連打とログの増え方は `button_burst.rs`（TASK-209 2/2）が扱う。呼び出し元は CI の `make test` のみである。
 
 mod common;
 
