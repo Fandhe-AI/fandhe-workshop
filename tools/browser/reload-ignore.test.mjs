@@ -240,7 +240,6 @@ test('R-3 再読み込みの後の停止で入口の状態へ戻り、古いタ�
     assert.deepEqual(settled.ignoredReasons.map((r) => r.reason), ['stale', 'stale']);
     assert.deepEqual(stateOf(settled), stateOf(stopped));
     assert.deepEqual(stateOf(later), stateOf(stopped));
-    assert.deepEqual(stateOf(later), stateOf(stopped));
     assert.deepEqual(ticksOf(later, 1), [0, 1]);
 
     // 停止の後でも再び入力できる。
