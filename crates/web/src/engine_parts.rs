@@ -31,12 +31,12 @@ use fandhe_workshop_core::world::World;
 use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
 use crate::host::HostModel;
 use crate::list_policy::keyed_view;
+use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
 const LOG_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-log-list")];
 const ARTIFACT_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-artifact-list")];
 const REVIEW_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-review-list")];
-use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 
 /// 上限超過などで一覧を描けないときの固定の通知の属性名。値は固定の文字列だけで、教材の値を入れない。
 pub const LIST_ERROR_ATTR: &str = "data-list-error";

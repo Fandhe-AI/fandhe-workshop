@@ -838,7 +838,7 @@ FEND20-1 は glue に要素の中身の書き換え（構造の変更）を足�
 | SAVE24-3 | crates/core/src/ops_record.rs: apply_recorded が操作を記録しない（拒否・無視も残す規則に反する） | refused_and_ignored_engine_ops_are_recorded, apply_recorded_matches_apply | refused_and_ignored_engine_ops_are_recorded, apply_recorded_matches_apply | DETECTED | - |
 | SAVE24-4 | crates/core/src/ops_record.rs: エンジンの操作を先頭に挿入する（PoC-6 の X-6 に当たる並びの誤りの記録側） | property_ops_follow_call_order, refused_and_ignored_engine_ops_are_recorded | consecutive_drafts_fold_to_last, property_ops_follow_call_order, refused_and_ignored_engine_ops_are_recorded | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Engine(0), Engine(0)] |
 
-### 5.34 keyed list の親要素の属性（TASK-359 1/2）
+### 5.60 keyed list の親要素の属性（TASK-359 1/2）
 
 FEND15-2 はログの親 `ul` の属性を `view()` から外し、FEND15-3 は `keyed_view` を迂回して上流の `keyed_list` を直接呼ぶ。
 前者は親の属性列の試験、後者は `src/` で `keyed_list` を呼ぶのが `list_policy.rs` だけであることの静的検査が、どちらも `list_parent_attrs` で検出する。
