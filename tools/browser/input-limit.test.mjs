@@ -3,12 +3,18 @@
 // 上限はコードポイントで数える（HTML の maxlength は UTF-16 の単位なので使わない）。超過分は受け付けず、
 // 固定の案内文を出し、1 文字消すと案内も消える。切り詰めた値は glue が <textarea> へ書き戻す（上流の F-1 への対処）。
 //
+// TASK-280（JUDGE-23）: キーと貼り付けの側の 5 つの操作（20,000 文字の貼り付け・20,001 文字の貼り付け・
+// 上限ちょうどでの 1 文字の入力・UTF-16 で 20,001 単位の貼り付け・1 文字消す）を、打鍵の 3 経路・Delete・
+// 送信まで含めて確かめる。試験名の K-1〜K-4 は計画の番号。カーソルは末尾に置く（途中への貼り付けは JUDGE-24）。
+//
 // 入力: FANDHE_WEB_DIR（配信設定。利用者から見える振る舞い）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1。状態と DOM の一致）。
 // どちらも未設定・不在は skip にせず失敗にする。文字列は試験の中で組み立て、fixture のファイルは置かない。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { launchBrowser, channelFromEnv, withServer, openPage, summarize, waitMounted } from './harness.mjs';
+import {
+  launchBrowser, channelFromEnv, withServer, withCspMode, openPage, summarize, waitMounted,
+} from './harness.mjs';
 
 const BASE = '/fandhe-input-limit/';
 const MAX = 20000;
@@ -180,6 +186,121 @@ test('試験の設定: 状態の下書き・超過の印が欄の value と一�
     assert.equal(s.draftCodePoints, MAX - 1);
     assert.equal(s.inputOverLimit, false);
 
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+const ITEMS = '[data-testid="log-list"] > li';
+
+for (const csp of [true, false]) {
+  const mode = `CSP ${csp ? 'あり' : 'なし'}`;
+
+  test(`JUDGE-23 K-1: 上限ちょうどで 1 文字入れると、打鍵・挿入・貼り付けのどれも受け付けない（${mode}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      const routes = {
+        type: async () => { await page.keyboard.type('x'); },
+        insertText: async () => { await page.keyboard.insertText('x'); },
+        paste: async () => {
+          await page.evaluate(() => navigator.clipboard.writeText('x'));
+          await page.keyboard.press('ControlOrMeta+V');
+        },
+      };
+      for (const [name, act] of Object.entries(routes)) {
+        await paste(page, 'あ'.repeat(MAX));
+        assert.equal(await notice(page), '', name);
+        await page.focus(INPUT);
+        await page.keyboard.press('ControlOrMeta+End');
+        await act();
+        assert.equal(await value(page), 'あ'.repeat(MAX), name);
+        assert.equal(await notice(page), NOTICE, name);
+      }
+      assertClean(rec);
+      await context.close();
+    }));
+  });
+
+  test(`JUDGE-23 K-3: Delete で 1 文字消しても案内が消える（${mode}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await paste(page, 'あ'.repeat(MAX + 1));
+      assert.equal(await notice(page), NOTICE);
+      await page.focus(INPUT);
+      await page.keyboard.press('ControlOrMeta+Home');
+      await page.keyboard.press('Delete');
+      assert.equal(cpLen(await value(page)), MAX - 1);
+      assert.equal(await notice(page), '');
+      assertClean(rec);
+      await context.close();
+    }));
+  });
+}
+
+test('JUDGE-23 K-2: 打鍵での UTF-16 の 20,001 単位は受け付け、次の 1 文字は受け付けず、消すとペアごと消える', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await paste(page, 'あ'.repeat(MAX - 1));
+    await page.focus(INPUT);
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.insertText('😀');
+    let v = await value(page);
+    assert.equal(v.length, MAX + 1);
+    assert.equal(cpLen(v), MAX);
+    assert.equal(await notice(page), '');
+
+    await page.keyboard.type('x');
+    v = await value(page);
+    assert.equal(cpLen(v), MAX);
+    assert.equal(v.endsWith('😀'), true);
+    assert.equal(await notice(page), NOTICE);
+
+    await page.keyboard.press('Backspace');
+    v = await value(page);
+    assert.equal(v.isWellFormed(), true);
+    assert.equal(cpLen(v), MAX - 1);
+    assert.equal(await notice(page), '');
+
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('JUDGE-23 K-4: 上限で切った後も自動送信は無く、Enter で上限の文字列が 1 件積まれる', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await paste(page, 'あ'.repeat(MAX + 1));
+    assert.equal(await notice(page), NOTICE);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    assert.equal((await page.$$(ITEMS)).length, 0);
+    await page.focus(INPUT);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, ITEMS);
+    const items = await page.$$eval(ITEMS, (lis) => lis.map((li) => li.textContent));
+    assert.equal(cpLen(items[0]), MAX);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('試験の設定（JUDGE-23）: 打鍵で超過した状態と、Backspace で戻った状態が欄の value と一致する', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    assert.equal(await page.evaluate(() => typeof window.__fandheTest?.draft), 'function', 'test hooks are missing');
+    const state = async () => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson()));
+    await paste(page, 'あ'.repeat(MAX));
+    await page.focus(INPUT);
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.type('x');
+    let s = await state();
+    assert.equal(s.draftCodePoints, MAX);
+    assert.equal(s.inputOverLimit, true);
+    assert.equal(await page.evaluate(() => window.__fandheTest.draft()), await value(page));
+    await page.keyboard.press('Backspace');
+    s = await state();
+    assert.equal(s.draftCodePoints, MAX - 1);
+    assert.equal(s.inputOverLimit, false);
+    assert.equal(await page.evaluate(() => window.__fandheTest.draft()), await value(page));
     assertClean(rec);
     await context.close();
   });

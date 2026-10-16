@@ -309,3 +309,25 @@ fn 取り消しの入力は規則の無い_step_で拒否として記録され�
     assert_eq!(next.run, before.run);
     assert_eq!(next.log.len(), before.log.len() + 2);
 }
+
+#[test]
+fn judge23_上限ちょうどの下書きでも文字キーは止めず_enter_は送信になる() {
+    // keydown の判定は下書きの長さを見ない。上限は `input` の段（`SetDraft` → `clamp_draft`）で切る設計で、
+    // 上限ちょうどでも文字キーを止めない（止めると超過の案内が出せない）。
+    let key = |k: &str| KeyInput {
+        key: k.to_owned(),
+        key_code: 0,
+        is_composing: false,
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    };
+    let effect = effect_for(decide(&key("x"), &field_state(true)));
+    assert!(!effect.prevent_default);
+    assert!(!effect.click_submit);
+
+    let effect = effect_for(decide(&key("Enter"), &field_state(true)));
+    assert!(effect.prevent_default);
+    assert!(effect.click_submit);
+}

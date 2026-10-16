@@ -1,0 +1,10 @@
+id: JUDGE23-2
+package: fandhe-workshop-web
+test: input_limit
+target: crates/web/src/input_limit.rs
+find:         Some((idx, _)) => (&value[..idx], true),
+replace:         Some((idx, _)) => (&value[..idx], false),
+expect-fail: judge23_20001文字の貼り付けは受け付けず_理由を示す
+expect-fail: judge23_上限ちょうどで1文字入力しても受け付けず_理由を示す
+expect-fail: judge23_5つの操作を順に流すと期待どおりに受け付け_拒否し_案内が消える
+note: 超過の判定を落とす（20,001 文字目は切るが、受け付けなかった理由を示さない）
