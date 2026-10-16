@@ -1,10 +1,11 @@
-//! 履歴を開く側の版と突き合わせる判定（`history_open`、TASK-174 1/3、VER-3〜VER-5）の試験。
+//! 履歴を開く側の版と突き合わせる判定（`history_open`、TASK-174 1/3・2/3、VER-3〜VER-7）の試験。
 //!
 //! 履歴は現行のエンジンで試験の中で作る（PoC の固定の履歴は試作の写しの形で、現行の `SessionState` では
 //! 読めない）。教材の変種は min-3step の JSON を書き換えて `load_ir` で読み、`testdata/` は増やさない。
 //! 版の欄だけを変える変種は、包みの `versions` を直接書き換える（PoC と同じ作り物）。
-//! `content_major`・`format_older`・`engine_major` の厳密な確認は TASK-174 2/3、`vocab_newer`・`format_newer`・
-//! `engine_newer` の厳密な確認は 3/3 の範囲で、ここでは「開かないこと・状態を作らないこと」だけを見張る。
+//! `content_major`・`format_older`・`engine_major`（表示だけになる 3 種。TASK-174 2/3）は、理由コードの値・向き・
+//! 境界・判定の順序を `ver6_*`・`ver7_*` で固定する。`vocab_newer`・`format_newer`・`engine_newer` の厳密な確認は
+//! 3/3 の範囲で、ここでは「開かないこと・状態を作らないこと」と、3 種との順序の 1 例だけを見張る。
 
 mod common;
 
@@ -17,6 +18,7 @@ use fandhe_workshop_contract::content_hash::content_hash;
 use fandhe_workshop_contract::history_version::{
     Disposition, HistoryVersions, Version3, VersionAxis, VocabVersion,
 };
+use fandhe_workshop_contract::history_version::{ReasonCode, ReasonKind};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::load_reason::LoadReason;
 use fandhe_workshop_core::addr::StepUid;
@@ -341,4 +343,204 @@ fn axis_names_match_the_debug_names_used_here() {
             "Refs"
         ])
     );
+}
+
+/// 開く側のエンジンの版を模して開く（PoC V-v-3 と同じ作り物）。
+fn open_as_engine(ir: &Ir, engine: &str, h: &SessionEnvelope) -> Opened {
+    let hash = content_hash(ir).expect("hash");
+    let opening = record_versions_with(ir, Version3::parse(engine).unwrap(), &hash).unwrap();
+    open_history(ir, &opening, &caps(), initial(), h)
+}
+
+/// 履歴の版の欄だけを書き換えた包み（作り物）。
+fn edited(h: &SessionEnvelope, edit: impl FnOnce(&mut SessionEnvelope)) -> SessionEnvelope {
+    let mut h = h.clone();
+    edit(&mut h);
+    h
+}
+
+/// `st-2` を取り除いて `st-1` を `st-3` へつなぎ、教材の版を `version` にした変種。
+fn remove_step(v: &mut Value, version: &str) {
+    let nodes = v["nodes"].as_array_mut().expect("nodes");
+    nodes.remove(1);
+    nodes[0]["step"]["next"] = json!([{ "to": "main/st-3", "when": null }]);
+    v["pack"]["version"] = json!(version);
+}
+
+/// IR の構造の版 2 を模した教材（`format_version` と `pack.ir_format` を両方 2 にする）。
+fn format2(extra: impl FnOnce(&mut Value)) -> Ir {
+    variant(|v| {
+        v["format_version"] = json!(2);
+        v["pack"]["ir_format"] = json!(2);
+        extra(v);
+    })
+}
+
+#[test]
+fn ver6_content_major_with_removed_step_is_view_only_at_any_position() {
+    let old = ir_of(&base_json());
+    let early = envelope(&old, within_st1(&old));
+    let late = envelope(&old, beyond_st1(&old));
+    let major = variant(|v| remove_step(v, "1.0.0"));
+    // 手前の履歴も、先の履歴も、主版が違えば表示だけ（位置によらない）。
+    assert_closed(
+        &open(&major, &early),
+        Disposition::ViewOnly,
+        LoadReason::ContentMajor,
+    );
+    assert_closed(
+        &open(&major, &late),
+        Disposition::ViewOnly,
+        LoadReason::ContentMajor,
+    );
+    // 対照: 主版が同じなら、手前の履歴は変換して開く。手前の履歴が開かないのは主版の違いのため。
+    let minor = variant(|v| remove_step(v, "0.0.2"));
+    assert!(axes(&open(&minor, &early)).contains("Content"));
+}
+
+#[test]
+fn ver6_content_major_boundaries() {
+    let old = ir_of(&base_json());
+    let h = envelope(&old, within_st1(&old));
+    let at = |version: &str| variant(|v| v["pack"]["version"] = json!(version));
+    assert_closed(
+        &open(&at("1.0.0"), &h),
+        Disposition::ViewOnly,
+        LoadReason::ContentMajor,
+    );
+    assert!(axes(&open(&at("0.99.99"), &h)).contains("Content"));
+    // 履歴の側の主版が新しい向きも表示だけ（向きを問わない）。
+    let newer = edited(&h, |h| h.versions.content = "1.0.0".to_owned());
+    assert_closed(
+        &open(&old, &newer),
+        Disposition::ViewOnly,
+        LoadReason::ContentMajor,
+    );
+    // 主版が同じなら、副版・修正版がどちら向きに違っても段 6 を通る。
+    let new2 = at("2.0.0");
+    let same = edited(&h, |h| h.versions.content = "2.5.3".to_owned());
+    assert!(axes(&open(&new2, &same)).contains("Content"));
+    let lower = edited(&h, |h| h.versions.content = "1.9.9".to_owned());
+    assert_closed(
+        &open(&new2, &lower),
+        Disposition::ViewOnly,
+        LoadReason::ContentMajor,
+    );
+}
+
+#[test]
+fn ver7_format_older_is_view_only() {
+    let old = ir_of(&base_json());
+    let h = envelope(&old, within_st1(&old));
+    // V-iv-4: 履歴の IR の版が 0。
+    let zero = edited(&h, |h| h.versions.ir_format = 0);
+    assert_closed(
+        &open(&old, &zero),
+        Disposition::ViewOnly,
+        LoadReason::FormatOlder,
+    );
+    // 履歴 1・開く教材 2（変換の規則を持たない。D-52）。
+    let new = format2(|_| {});
+    assert_closed(
+        &open(&new, &h),
+        Disposition::ViewOnly,
+        LoadReason::FormatOlder,
+    );
+    // 境界: 履歴 2・開く教材 2 は FormatOlder にならない。
+    let h2 = envelope(&new, within_st1(&new));
+    assert_eq!(open(&new, &h2).verdict().disposition(), Disposition::Open);
+    let new2 = format2(|v| v["pack"]["version"] = json!("0.0.2"));
+    assert_eq!(axes(&open(&new2, &h2)), set(&["Content", "ContentHash"]));
+}
+
+#[test]
+fn ver7_engine_major_is_view_only() {
+    let ir = ir_of(&base_json());
+    let h = envelope(&ir, within_st1(&ir));
+    let with_engine = |e: &str| edited(&h, |h| h.versions.engine = e.to_owned());
+    // V-v-3: 履歴 0.0.0・開く側 1.0.0。
+    assert_closed(
+        &open_as_engine(&ir, "1.0.0", &h),
+        Disposition::ViewOnly,
+        LoadReason::EngineMajor,
+    );
+    // 境界: 主版が同じで開く側が新しい副版なら変換して開く。主版を跨ぐと表示だけ。
+    assert_eq!(
+        axes(&open_as_engine(&ir, "1.2.0", &with_engine("1.0.0"))),
+        set(&["Engine"])
+    );
+    assert_closed(
+        &open_as_engine(&ir, "2.0.0", &with_engine("1.9.9")),
+        Disposition::ViewOnly,
+        LoadReason::EngineMajor,
+    );
+    // 向き: 履歴の側が新しいときは engine_newer が先に当たり、開かない。
+    assert_closed(
+        &open_as_engine(&ir, "0.0.0", &with_engine("1.0.0")),
+        Disposition::Refused,
+        LoadReason::EngineNewer,
+    );
+}
+
+#[test]
+fn ver7_view_only_order_follows_the_contract() {
+    let old = ir_of(&base_json());
+    let h = envelope(&old, within_st1(&old));
+    let major = variant(|v| v["pack"]["version"] = json!("1.0.0"));
+    let older = edited(&h, |h| h.versions.ir_format = 0);
+    let view = |o: &Opened, code| assert_closed(o, Disposition::ViewOnly, code);
+    // format_older > engine_major > content_major。
+    view(
+        &open_as_engine(&major, "1.0.0", &older),
+        LoadReason::FormatOlder,
+    );
+    view(
+        &open_as_engine(&major, "1.0.0", &h),
+        LoadReason::EngineMajor,
+    );
+    // 段 6 は段 7（開始点）・段 8（写しの照合）より先。
+    let no_start = edited(&h, |h| h.start = "s-none".to_owned());
+    view(&open(&major, &no_start), LoadReason::ContentMajor);
+    let mut tampered = h.clone();
+    tampered
+        .snapshot
+        .drafts
+        .insert(StepUid("main/st-1".to_owned()).root(), "改ざん".to_owned());
+    view(&open(&major, &tampered), LoadReason::ContentMajor);
+    // 「新しい」側は 3 種より先（厳密な試験は 3/3）。
+    let vocab = edited(&older, |h| h.versions.vocab = "1.4".to_owned());
+    assert_closed(
+        &open(&old, &vocab),
+        Disposition::Refused,
+        LoadReason::VocabNewer,
+    );
+}
+
+#[test]
+fn view_only_reasons_are_non_empty_and_classified() {
+    let old = ir_of(&base_json());
+    let h = envelope(&old, within_st1(&old));
+    let major = variant(|v| v["pack"]["version"] = json!("1.0.0"));
+    let older = edited(&h, |h| h.versions.ir_format = 0);
+    let cases = [
+        (
+            open(&major, &h),
+            ReasonKind::MajorDiffers(VersionAxis::Content),
+        ),
+        (
+            open(&old, &older),
+            ReasonKind::HistoryOlder(VersionAxis::IrFormat),
+        ),
+        (
+            open_as_engine(&old, "1.0.0", &h),
+            ReasonKind::MajorDiffers(VersionAxis::Engine),
+        ),
+    ];
+    for (o, kind) in cases {
+        assert_eq!(o.verdict().disposition(), Disposition::ViewOnly);
+        let code = o.verdict().code().copied().expect("code");
+        assert!(!code.as_str().is_empty());
+        assert_eq!(code.kind(), Some(kind));
+        assert!(o.state().is_none());
+    }
 }

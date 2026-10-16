@@ -1,0 +1,8 @@
+id: VER7-4
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if hv.ir_format < ir.format_version {
+replace: if hv.ir_format < ir.format_version && h.engine.same_major(&o.engine) {
+expect-fail: ver7_view_only_order_follows_the_contract
+note: format_older を engine_major の後へ回したのと同じ効果（判定の順序を崩す）
