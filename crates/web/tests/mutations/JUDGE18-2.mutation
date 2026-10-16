@@ -1,0 +1,8 @@
+id: JUDGE18-2
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: candidates_open: state.candidates_open && !route.close_candidates,
+replace: candidates_open: state.candidates_open,
+expect-fail: 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる
+note: 1 回目の Esc の後も候補が開いたままで、2 回目の Esc も閉じるだけになり、取り消しに届かない

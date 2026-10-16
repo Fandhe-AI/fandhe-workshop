@@ -4,6 +4,7 @@
 //! 変異注入の対象にできないため、公開の経路（契約の `decide` と web の `effect_for`）だけで固定する。
 //! 処理中の Esc を停止にする経路（`esc_route`）が外れる変異（JUDGE17-2）と、処理中でない Esc の 2 通り
 //! （候補を閉じる・取り消しの入力）が外れる変異（JUDGE17-3・JUDGE17-4）の検出先でもある。
+//! 候補が開いているときの Esc の 2 回（JUDGE-18）の遷移を外す変異（JUDGE18-2）と、補完の候補を先頭から変える変異（JUDGE21-2）の検出先でもある（TASK-282 1/2）。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -13,7 +14,9 @@ use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{apply, load_ir};
 use fandhe_workshop_web::glue_ops::tab_prevents_default;
-use fandhe_workshop_web::key_route::{effect_for, esc_input, esc_route, field_state, EscRoute};
+use fandhe_workshop_web::key_route::{
+    after_esc, completion_choice, effect_for, esc_input, esc_route, field_state, EscRoute,
+};
 use std::path::PathBuf;
 
 #[test]
@@ -330,4 +333,163 @@ fn judge23_上限ちょうどの下書きでも文字キーは止めず_enter_�
     let effect = effect_for(decide(&key("Enter"), &field_state(true)));
     assert!(effect.prevent_default);
     assert!(effect.click_submit);
+}
+
+// ---- 候補が開いているときの Esc の 2 回（TASK-282 1/2。JUDGE-18・D-60） ----
+//
+// 変異 JUDGE18-2（`after_esc` が候補を閉じたままにしない）の検出先。候補が開く状態は TASK-440 が結ぶまで
+// 画面から作れないため、`FieldState` を直接組み立てて固定する。
+
+#[test]
+fn 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しになる() {
+    for has_text in [false, true] {
+        let first_state = idle_state(has_text, true);
+        let first = esc_route(decide(&esc_input(), &first_state));
+        // 1 回目は閉じるだけで、取り消しの操作は出ない。
+        assert_eq!(first.op, None, "has_text={has_text}");
+        assert!(first.close_candidates, "has_text={has_text}");
+
+        let second_state = after_esc(first_state, &first);
+        assert!(!second_state.candidates_open, "has_text={has_text}");
+        assert_eq!(second_state.has_text, has_text);
+        assert!(!second_state.busy);
+
+        let second = esc_route(decide(&esc_input(), &second_state));
+        assert_eq!(
+            second.op,
+            Some(Op::Input(Input::Cancel)),
+            "has_text={has_text}"
+        );
+        assert!(!second.close_candidates, "has_text={has_text}");
+        // 取り消した後も状態は変わらない。
+        assert_eq!(after_esc(second_state, &second), second_state);
+    }
+}
+
+#[test]
+fn 閉じた後に候補がまた開けば_esc_は再び閉じるだけになる() {
+    let first_state = idle_state(true, true);
+    let first = esc_route(decide(&esc_input(), &first_state));
+    let mut reopened = after_esc(first_state, &first);
+    reopened.candidates_open = true;
+    let again = esc_route(decide(&esc_input(), &reopened));
+    assert_eq!(again.op, None);
+    assert!(again.close_candidates);
+}
+
+#[test]
+fn 処理中の_esc_は何回押しても停止で取り消しにならない() {
+    let mut state = idle_state(true, true);
+    state.busy = true;
+    let first = esc_route(decide(&esc_input(), &state));
+    assert_eq!(first.op, Some(Op::Control(Control::Stop)));
+    assert!(first.close_candidates);
+    let next = after_esc(state, &first);
+    assert!(next.busy);
+    assert!(!next.candidates_open);
+    let second = esc_route(decide(&esc_input(), &next));
+    assert_eq!(second.op, Some(Op::Control(Control::Stop)));
+}
+
+#[test]
+fn 候補が閉じている状態と変換中の_esc_は状態を変えない() {
+    for has_text in [false, true] {
+        let closed = idle_state(has_text, false);
+        let route = esc_route(decide(&esc_input(), &closed));
+        assert_eq!(after_esc(closed, &route), closed);
+    }
+    let mut composing = esc_input();
+    composing.is_composing = true;
+    let open = idle_state(true, true);
+    let route = esc_route(decide(&composing, &open));
+    assert_eq!(route, EscRoute::NONE);
+    assert_eq!(after_esc(open, &route), open);
+}
+
+#[test]
+fn esc_は_prevent_default_も_click_もしない() {
+    for busy in [false, true] {
+        for candidates_open in [false, true] {
+            let mut state = idle_state(true, candidates_open);
+            state.busy = busy;
+            let effect = effect_for(decide(&esc_input(), &state));
+            assert!(!effect.prevent_default, "{busy} {candidates_open}");
+            assert!(!effect.click_submit, "{busy} {candidates_open}");
+        }
+    }
+}
+
+// ---- 補完の選び方（TASK-282 1/2。JUDGE-21・D-60） ----
+//
+// 変異 JUDGE21-2（先頭ではなく末尾の候補で補完する）の検出先。矢印キーで候補を選ぶ操作は無い。
+
+#[test]
+fn 補完は先頭の候補を選ぶ() {
+    let state = idle_state(true, true);
+    let decision = decide(&tab(false, false, false, false), &state);
+    assert_eq!(
+        completion_choice(decision, &["/help", "/hint"]),
+        Some(&"/help")
+    );
+    assert_eq!(completion_choice(decision, &["/only"]), Some(&"/only"));
+    assert_eq!(
+        completion_choice(decision, &["/a", "/b", "/c"]),
+        Some(&"/a")
+    );
+    assert_eq!(completion_choice::<&str>(decision, &[]), None);
+}
+
+#[test]
+fn 補完でない判定では候補を選ばない() {
+    let candidates = ["/help", "/hint"];
+    let open = idle_state(true, true);
+    let closed = idle_state(true, false);
+    let mut busy = idle_state(true, true);
+    busy.busy = true;
+    let mut composing_tab = tab(false, false, false, false);
+    composing_tab.is_composing = true;
+    let mut enter = esc_input();
+    enter.key = "Enter".to_owned();
+    let cases = [
+        decide(&tab(false, false, false, false), &closed),
+        decide(&tab(false, false, false, false), &idle_state(false, true)),
+        decide(&tab(true, false, false, false), &open),
+        decide(&composing_tab, &open),
+        decide(&esc_input(), &open),
+        decide(&esc_input(), &closed),
+        decide(&esc_input(), &busy),
+        decide(&enter, &open),
+    ];
+    for (i, decision) in cases.into_iter().enumerate() {
+        assert_eq!(completion_choice(decision, &candidates), None, "{i}");
+    }
+}
+
+#[test]
+fn 矢印キーは候補を選ばずキャレット移動を奪わない() {
+    let candidates = ["/help", "/hint"];
+    for key in ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"] {
+        let mut input = esc_input();
+        input.key = key.to_owned();
+        for has_text in [false, true] {
+            for candidates_open in [false, true] {
+                let state = idle_state(has_text, candidates_open);
+                let decision = decide(&input, &state);
+                let cell = format!("{key} {has_text} {candidates_open}");
+                assert_eq!(
+                    decision,
+                    Decision::Defined(KeyDecision {
+                        action: KeyAction::Nothing,
+                        prevent_default: false,
+                    }),
+                    "{cell}"
+                );
+                let effect = effect_for(decision);
+                assert!(!effect.prevent_default, "{cell}");
+                assert!(!effect.click_submit, "{cell}");
+                assert_eq!(esc_route(decision), EscRoute::NONE, "{cell}");
+                assert_eq!(completion_choice(decision, &candidates), None, "{cell}");
+            }
+        }
+    }
 }

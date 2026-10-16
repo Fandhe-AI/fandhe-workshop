@@ -12,7 +12,7 @@
 //! 操作プロファイル・外観・左エリアの設定の渡し方は `profile` に置く。
 //! glue の許される操作は `glue_ops` に、keyed list の親の属性と項目数の方針は `list_policy` に置く。
 //! これら TASK-343 の契約の版は `parts::PARTS_CONTRACT_VERSION` が持つ。
-//! keydown の判定結果を glue の効果と Esc の行き先（停止・候補を閉じる・取り消し）へ変える純関数（TASK-275・TASK-277）は `key_route` に置く。
+//! keydown の判定結果を glue の効果と Esc の行き先（停止・候補を閉じる・取り消し）へ変える純関数（TASK-275・TASK-277）、Esc の後の状態遷移と補完に使う候補の選択（TASK-282）は `key_route` に置く。
 //! 進行の間隔の定数（TASK-229。D-47）は `tick_interval` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 #![forbid(unsafe_code)]

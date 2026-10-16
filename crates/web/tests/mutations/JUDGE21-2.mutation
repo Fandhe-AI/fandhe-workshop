@@ -1,0 +1,8 @@
+id: JUDGE21-2
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: KeyAction::Complete => first_completion(candidates),
+replace: KeyAction::Complete => candidates.last(),
+expect-fail: 補完は先頭の候補を選ぶ
+note: 先頭ではなく末尾の候補で補完する

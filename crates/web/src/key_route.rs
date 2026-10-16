@@ -18,12 +18,15 @@
 //! - `Nothing`: 何もしない。Shift+Tab もここに当たり、`preventDefault` せず逆向きのフォーカス移動に任せる
 //!   （JUDGE-19。TASK-278 2/3。ブラウザ試験は `tools/browser/shift-tab.test.mjs`）
 //!
+//! 候補が開いているときの Esc の 2 回と補完の選び方は、`after_esc`・`completion_choice` が受け持つ
+//! （TASK-282 1/2。JUDGE-18・JUDGE-21・D-60）。矢印キーで候補を選ぶ操作は無い（複数行の下書きでのキャレット移動と衝突するため）。
+//!
 //! Tab の補完は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` を呼ぶ（TASK-278 1/3）。
 //! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは TASK-440 2/2 の担当で、
 //! ここでは行わない。
 
 use fandhe_workshop_contract::key_decide::{
-    Decision, FieldState, KeyAction, KeyDecision, KeyInput,
+    first_completion, Decision, FieldState, KeyAction, KeyDecision, KeyInput,
 };
 use fandhe_workshop_core::input::{Control, Input, Op};
 
@@ -58,7 +61,8 @@ impl KeydownEffect {
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
 /// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）。差し替えるまで `esc_route` の停止の行には画面から到達しない
 /// - `candidates_open`: 補完の候補の一覧が未実装。TASK-440 が本関数の 1 か所で差し替える。
-///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる
+///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる。
+///   差し替えた後は、Esc の後に `after_esc` で状態を進める（JUDGE-18 の 2 回目の Esc を作るため）
 pub fn field_state(has_text: bool) -> FieldState {
     FieldState {
         composing_marker: false,
@@ -175,6 +179,40 @@ pub fn esc_route(decision: Decision) -> EscRoute {
             | KeyAction::Nothing => EscRoute::NONE,
         },
         Decision::Pending(_) => EscRoute::NONE,
+    }
+}
+
+/// Esc の行き先を適用した後の入力欄の状態を求める（JUDGE-18・D-60）。
+///
+/// 契約の `decide` は Esc 1 回ごとの判定で、「2 回」は呼び出し側が 1 回目の後に `candidates_open` を偽へ戻して
+/// 初めて成り立つ（`key_decide` の版 2 の注記）。本関数がその遷移を受け持つ。呼び出し元は TASK-440 の候補の一覧の部品である。
+/// Esc を押した回数は持たない。候補がまた開けば、次の Esc は再び閉じるだけになる（JUDGE-17 (2)）。
+/// 処理中（`busy`）は Esc では変えない。停止の結果は core の担当である。DOM には触れない。
+pub fn after_esc(state: FieldState, route: &EscRoute) -> FieldState {
+    FieldState {
+        candidates_open: state.candidates_open && !route.close_candidates,
+        ..state
+    }
+}
+
+/// Tab の補完に使う候補を選ぶ（JUDGE-21・D-60）。判定が `Complete` のときだけ先頭の候補を返し、他は `None`。
+///
+/// 矢印キーで候補を選ぶ操作は無く（TERM-26 は将来の拡張）、選択の状態も持たない。どの候補かは契約の
+/// `first_completion` が決める。下書きへの挿入そのものは TASK-440 2/2（#332）の担当で、ここでは行わない。
+/// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
+pub fn completion_choice<T>(decision: Decision, candidates: &[T]) -> Option<&T> {
+    match decision {
+        Decision::Defined(KeyDecision { action, .. }) => match action {
+            KeyAction::Complete => first_completion(candidates),
+            KeyAction::Submit
+            | KeyAction::Newline
+            | KeyAction::Stop
+            | KeyAction::CloseCandidates
+            | KeyAction::CancelInput
+            | KeyAction::DelegateToIme
+            | KeyAction::Nothing => None,
+        },
+        Decision::Pending(_) => None,
     }
 }
 
