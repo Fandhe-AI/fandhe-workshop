@@ -1,0 +1,8 @@
+id: VER6-1
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if !h.content.same_major(&o.content) {
+replace: if false {
+expect-fail: fail_closed_for_versions_that_must_not_open
+note: 教材の主版の違いを判定しない（主版の違う履歴が変換して開く経路に着く）
