@@ -148,6 +148,7 @@ function inspectInPage({ root }) {
           const text = part('mark-text');
           return {
             hostCount: all.length,
+            onItem: host === item,
             glyphCount: glyph.length,
             textCount: text.length,
             mark: host ? host.getAttribute('data-mark') : null,
@@ -231,6 +232,11 @@ function checkState({ info, kind, variant, phase, expected, v }) {
       hostsOk = false;
       return null;
     }
+    // 変種 (b) は項目自身、(a) は項目の中の外枠が宿主。位置が変種と食い違えば、変種を無視した実装として違反にする。
+    if (h.onItem !== (variant === 'b')) {
+      hostsOk = false;
+      return null;
+    }
     const row = MARK_TABLE[h.mark];
     if (row === undefined || h.glyph !== row[0] || h.text !== row[1]) {
       hostsOk = false;
@@ -238,7 +244,7 @@ function checkState({ info, kind, variant, phase, expected, v }) {
     }
     return h.mark;
   });
-  if (!hostsOk) bad('a mark host is missing, duplicated, or its glyph/text/data-mark do not correspond');
+  if (!hostsOk) bad('a mark host is missing, duplicated, misplaced for the variant, or its glyph/text/data-mark do not correspond');
 
   // 印の値。前は全行が印なし、後は行ごとに期待と一致する。
   if (!isAfter) {

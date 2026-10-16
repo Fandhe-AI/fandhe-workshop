@@ -184,6 +184,15 @@ test('T4: マウントしない空の画面では、検査器は違反を出す�
   }, { mount: false });
 });
 
+test('T4: 変種を無視して常に (b) を描く実装は、(a) のケースで印の宿主の位置の違反になる', async () => {
+  await withFixturePage(async (page) => {
+    const base = fixtureAdapter(page);
+    const adapter = { ...base, select: (kind, variant) => base.select(kind, 'b') };
+    const { violations } = await runViewCase(page, adapter, { kind: 'card_list', variant: 'a', rootSelector: ROOT });
+    assert.ok(violations.some((m) => m.includes('misplaced for the variant')), JSON.stringify(violations));
+  });
+});
+
 test('T4: key の期待が合わないアダプタでは、検査器は key の違反を出す', async () => {
   await withFixturePage(async (page) => {
     const adapter = { ...fixtureAdapter(page), keyOf: (id) => `x${id}` };
