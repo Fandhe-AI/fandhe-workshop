@@ -1,0 +1,9 @@
+id: JUDGE19-3
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find: if !input.shift && !input.modified() && state.candidates_open && state.has_text {
+replace: if !input.modified() && state.candidates_open && state.has_text {
+expect-fail: judge19_prevent_default_on_tab_only_when_open_and_text
+expect-fail: expected_table_matches
+note: Tab の補完の条件から Shift を外す（候補が開いて文字があると Shift+Tab まで補完になり、逆向きのフォーカス移動を奪う）

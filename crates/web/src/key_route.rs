@@ -15,7 +15,8 @@
 //! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求める（候補を閉じる・取り消しの入力。TASK-277 2/2）
 //! - `Stop`: `effect_for` では何もしない。root の中の Esc は上流の `esc` 属性で Component に届くため、glue で重ねて
 //!   届けない（FEND-5・FEND-6）。停止への結び付けは `esc_route` が受け持つ（TASK-277 1/2）
-//! - `Nothing`: 何もしない
+//! - `Nothing`: 何もしない。Shift+Tab もここに当たり、`preventDefault` せず逆向きのフォーカス移動に任せる
+//!   （JUDGE-19。TASK-278 2/3。ブラウザ試験は `tools/browser/shift-tab.test.mjs`）
 //!
 //! Tab の補完は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` を呼ぶ（TASK-278 1/3）。
 //! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは TASK-440 2/2 の担当で、
