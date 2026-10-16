@@ -295,6 +295,9 @@ native の適合試験 `submit_wiring` が検出する。
 
 TERM32-1 は、`crates/web/src/host.rs` の `record_judged_texts` が拒否の理由の文面を控える処理を無効にする変異である。
 理由の行が出なくなり、native の `crates/web/tests/reject_lines.rs` が検出する。
+TERM32-2 は、`crates/web/src/host.rs` の `install_session`（履歴の差し替え）が拒否の文面の控えを新しいログから作り直す処理を無効にする変異である。
+控えのキーはイベントの位置のため、差し替え前の位置の文面が残り、新しいログの拒否の行が出なくなる。`reject_lines.rs` の
+`open_history` で拒否の位置が違う履歴を取り込む試験が検出する。
 
 誤入力の出どころは、spec の「47 件」（private の試作パック）ではなく、repo 内のパックの `error_inputs`（期待が `rejected:*` のもの）である。
 試作パックは公開の可否（D-11・TASK-14）が未決で、`testdata/README.md` のとおり取り込んでいない。native の試験は
@@ -305,13 +308,14 @@ TERM32-1 は、`crates/web/src/host.rs` の `record_judged_texts` が拒否の�
 
 ```text
 実行日: 2026-10-16
-元にしたコミット: 0fa720e-dirty（本変更を含む作業ツリー）
-コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM32-1.mutation
+元にしたコミット: abb853e-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM32-2.mutation crates/web/tests/mutations/TERM32-1.mutation
 ```
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
-| TERM32-1 | crates/web/src/host.rs: 拒否の理由の控えを作らない（行が出ない） | 誤入力の拒否は理由と空でない次の行動の行として出る | 左の 1 件に加え、fill_pack_の拒否は期待の文面と次の行動のとおりに出る | DETECTED | - |
+| TERM32-1 | crates/web/src/host.rs: 拒否の理由の控えを作らない（行が出ない） | 誤入力の拒否は理由と空でない次の行動の行として出る | 左の 1 件に加え、fill_pack_の拒否は期待の文面と次の行動のとおりに出る・履歴の差し替えで拒否の文面の控えは新しいログから作り直される の 2 件 | DETECTED | - |
+| TERM32-2 | crates/web/src/host.rs: 履歴の差し替えで拒否の文面の控えを作り直さない（差し替え前の位置の控えが残る） | 履歴の差し替えで拒否の文面の控えは新しいログから作り直される | 左の 1 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 

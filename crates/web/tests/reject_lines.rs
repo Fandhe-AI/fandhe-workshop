@@ -7,6 +7,7 @@
 //! 確かめること: 拒否 1 件につき `rejected` の行がちょうど 1 件増え、理由と次の行動が空でなく、
 //! 表示する値が core の返した値（`Judged` の次の行動・同じ状態で呼んだ `filled_text` の文面）と
 //! 一致し、`log-list` の下で `check_area` を通る。画面は文面を作らない。
+//! 履歴の差し替え（`EngineHost::open_history`）では、控えが新しいログから作り直され、差し替え前の位置のキーが残らない。
 //!
 //! 47 件の誤入力（試作パック）は公開の可否が未決のため取り込まず、repo 内のパックの誤入力で代える
 //! （`testdata/README.md`・`docs/testing.md`）。`slot-pack` の誤入力は静的な検査用で、実行して期待の分類にならないため使わない。件数はパックごとに定数で固定し、データが減っても素通りしない。
@@ -17,21 +18,26 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::{el, text, Node};
+use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::event::Event;
-use fandhe_workshop_core::input::{Decision, Input, Op};
+use fandhe_workshop_core::history_envelope::build_envelope;
+use fandhe_workshop_core::history_export::export_bytes;
+use fandhe_workshop_core::history_replay::replay;
+use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::load_ir;
+use fandhe_workshop_core::ops_record::SessionOp;
 use fandhe_workshop_core::session::{Busy, RunState, Session, SessionState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
-use fandhe_workshop_core::text_fill::filled_text;
+use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_pack::compile::compile_dir;
 use fandhe_workshop_pack::play_expect::{parse_expect, ResultExpect};
 use fandhe_workshop_pack::source;
 use fandhe_workshop_web::a11y::{Region, LOG_LIST_TESTID, TESTID_ATTR};
 use fandhe_workshop_web::engine_parts::standard_registry;
-use fandhe_workshop_web::host::{EngineHost, HostAction};
+use fandhe_workshop_web::host::{EngineHost, HostAction, ImportOutcome};
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::terminal_area::{check_area, RunStatus, RUN_STATUS_TESTID};
 use serde_json::Value;
@@ -422,4 +428,95 @@ fn fill_pack_の拒否は期待の文面と次の行動のとおりに出る() {
         );
         run_case(&ir, c);
     }
+}
+
+/// 履歴の差し替えの試験の教材と開始の状態（`history_import.rs` と同じ組み）。
+fn import_ir_and_initial() -> (Ir, SessionState) {
+    let data = root().join("testdata");
+    let ir = load_ir(
+        &std::fs::read(data.join("engine-event-consistency/test-data/min-3step.json")).unwrap(),
+    )
+    .unwrap();
+    let v: Value =
+        serde_json::from_slice(&std::fs::read(data.join("contract/event-sequence.json")).unwrap())
+            .unwrap();
+    let initial: SessionState = serde_json::from_value(v["initial"].clone()).unwrap();
+    (ir, initial)
+}
+
+/// ログの中の拒否の `Judged` の位置。
+fn rejected_positions(log: &[Event]) -> Vec<u32> {
+    log.iter()
+        .enumerate()
+        .filter(|(_, e)| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Rejected(_),
+                    ..
+                }
+            )
+        })
+        .map(|(i, _)| u32::try_from(i).unwrap())
+        .collect()
+}
+
+#[test]
+fn 履歴の差し替えで拒否の文面の控えは新しいログから作り直される() {
+    let (ir, initial) = import_ir_and_initial();
+    let command = |c: &str| Op::Input(Input::Command(c.to_string()));
+
+    // 差し替え前のホストは、Step に入った直後の拒否を 1 件持つ。
+    let mut host = EngineHost::with_session(
+        Session::from_state(ir.clone(), initial.clone()),
+        standard_registry(),
+    )
+    .unwrap();
+    host.update(HostAction::Engine(command("/nothing")));
+    let old_log = host.model().session().unwrap().log().to_vec();
+    let old_positions = rejected_positions(&old_log);
+    assert_eq!(old_positions.len(), 1, "差し替え前の拒否は 1 件");
+    assert!(host.model().judged_text(old_positions[0]).is_some());
+    assert_eq!(rejected_rows(&host), 1);
+
+    // 取り込む履歴は、Step の移動の後に別の拒否を 1 件持つ（拒否の位置が差し替え前と違う）。
+    let ops: Vec<SessionOp> = vec![
+        HistoryOp::Engine(Op::Control(Control::GoTo(StepUid("main/st-2".to_owned())))),
+        HistoryOp::Engine(command("/sync-cloud")),
+    ];
+    let state = replay(&ir, initial, &ops).unwrap();
+    let new_positions = rejected_positions(&state.log);
+    assert_eq!(new_positions.len(), 1, "取り込む履歴の拒否は 1 件");
+    assert_ne!(new_positions, old_positions, "拒否の位置が差し替え前と違う");
+    let bytes = export_bytes(&build_envelope(&ir, "s-1", ops, state).unwrap()).unwrap();
+    assert_eq!(host.open_history(&bytes), ImportOutcome::Open);
+
+    // 控えは新しいログから作り直した文面だけで、差し替え前の位置のキーは残らない。
+    let new_log = host.model().session().unwrap().log().to_vec();
+    assert_eq!(rejected_positions(&new_log), new_positions);
+    let want: BTreeMap<usize, String> = filled_texts_of_log(&ir, &new_log)
+        .into_iter()
+        .map(|(i, f)| (i, f.message))
+        .collect();
+    assert_eq!(want.len(), 1, "新しいログの拒否の文面は 1 件");
+    for i in 0..old_log.len().max(new_log.len()) {
+        let key = u32::try_from(i).unwrap();
+        assert_eq!(
+            host.model().judged_text(key),
+            want.get(&i).map(String::as_str),
+            "位置 {i} の拒否の文面の控え"
+        );
+    }
+
+    // 拒否の行は新しいログの拒否の 1 件だけで、理由はその文面である。
+    assert_eq!(rejected_rows(&host), 1, "差し替え後の rejected の行");
+    let view = host.view();
+    let list = find(&view, "part-log-list").expect("part-log-list");
+    let row = children_of(list)
+        .iter()
+        .find(|li| attr(li, "data-kind") == Some("rejected"))
+        .unwrap();
+    let reason = only_text(find(row, "line-reason").expect("line-reason"));
+    let new_key = usize::try_from(new_positions[0]).unwrap();
+    assert_eq!(Some(reason), want.get(&new_key).map(String::as_str));
 }

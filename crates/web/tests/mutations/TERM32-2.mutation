@@ -1,0 +1,8 @@
+id: TERM32-2
+package: fandhe-workshop-web
+test: reject_lines
+target: crates/web/src/host.rs
+find:         self.model.judged_texts = d.judged_texts;
+replace:         let _ = d.judged_texts;
+expect-fail: 履歴の差し替えで拒否の文面の控えは新しいログから作り直される
+note: 履歴の差し替えで拒否の文面の控えを作り直さない（差し替え前の位置の控えが残る）
