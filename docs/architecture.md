@@ -105,7 +105,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 差し込みの枠の閉じた集合・構文の読み取り・差し込みの純関数（`slot`。実行時の値の組み立ては core〔TASK-267〕、診断と IR を総なめにする数え上げは pack） | contract | TASK-46 |
 | 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
 | 保存先の口 `HistoryStore`・配信の区間・履歴の鍵の生成規則と読み戻し（`storage`。鍵に教材の版・内容を混ぜない） | contract | TASK-310 |
-| 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口と拒否理由コード（`load_reason`） | contract | TASK-173・TASK-309・TASK-310 |
+| 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口、拒否理由コードと判定の順序（`load_reason`。順序は `HISTORY_LOAD_ORDER`、`STORAGE_CONTRACT_VERSION` 1） | contract | TASK-173・TASK-309・TASK-310 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈は contract、1 語ごとの適用は core、読み込み時の検査と診断は pack（spec の TASK-43 は「pack crate」と書くが、判定規則に従い分ける。IR の型は `Value` のまま変えない。進行 `processing` は contract が解釈し core が適用、`when` は core に評価器を注入する形で条件の語彙は TASK-42 が与える。TASK-43 2/2） | contract・core・pack | TASK-43 |
@@ -137,6 +137,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
 - TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する
+- TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 1）が持つ。`parts`・`a11y` の版とは別に管理する
 
 ## 7. feature
 

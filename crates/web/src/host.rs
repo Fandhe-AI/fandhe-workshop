@@ -299,6 +299,12 @@ impl EngineHost {
         self.input.keydown_probe()
     }
 
+    /// root の中の Esc を受け取った回数（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn esc_count(&self) -> u32 {
+        self.input.esc_count()
+    }
+
     /// 登録済みの束縛点の現在値を、field 名と組で控える。
     fn bound_snapshot(&self) -> Vec<(&'static str, Option<BoundValue>)> {
         self.registry
