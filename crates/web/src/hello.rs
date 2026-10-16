@@ -291,6 +291,51 @@ mod tests {
     }
 
     #[test]
+    fn judge23_上限ちょうどで1文字打っても下書きは変わらず_案内だけが立つ() {
+        use crate::input_limit::notice_for;
+        use fandhe_workshop_contract::limits::MAX_INPUT_CODE_POINTS;
+        let full = "あ".repeat(MAX_INPUT_CODE_POINTS);
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft(full.clone()));
+        assert_eq!(
+            v.bound_value("input_notice"),
+            Some(BoundValue::Text(String::new()))
+        );
+        // 上限ちょうどの状態で 1 文字打つと、下書きは変わらず、案内だけが立つ。
+        v.update(HelloAction::SetDraft(format!("{full}x")));
+        assert_eq!(v.draft(), full);
+        assert_eq!(v.dirty_fields(), ["input_notice"]);
+        assert_eq!(
+            v.bound_value("input_notice"),
+            Some(BoundValue::Text(notice_for(true).to_owned()))
+        );
+        // 1 文字消すと案内が空に戻り、input_notice が dirty になる。
+        v.update(HelloAction::SetDraft(
+            "あ".repeat(MAX_INPUT_CODE_POINTS - 1),
+        ));
+        assert_eq!(
+            v.bound_value("input_notice"),
+            Some(BoundValue::Text(String::new()))
+        );
+        assert_eq!(v.dirty_fields(), ["input_notice"]);
+    }
+
+    #[test]
+    fn judge23_上限で切った後の送信は上限の文字列を1件積む() {
+        use fandhe_workshop_contract::limits::MAX_INPUT_CODE_POINTS;
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft(
+            "あ".repeat(MAX_INPUT_CODE_POINTS + 1),
+        ));
+        // 貼り付け（SetDraft）だけでは一覧は増えない（JUDGE-25）。
+        assert!(v.entries.is_empty());
+        v.update(HelloAction::Submit);
+        assert_eq!(v.entries.len(), 1);
+        let body = v.entries.back().map(|e| e.1.as_str()).unwrap_or_default();
+        assert_eq!(body.chars().count(), MAX_INPUT_CODE_POINTS);
+    }
+
+    #[test]
     fn 入力欄は下書きを初期内容として描画する() {
         let mut v = HelloView::new();
         v.update(HelloAction::SetDraft("下書き<b>".to_owned()));
