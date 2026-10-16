@@ -101,12 +101,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
 | `find` | 必須 | `target` にちょうど 1 回現れる 1 行の文字列。0 回・2 回以上は定義の不正 |
 | `replace` | 必須 | 置き換え後の文字列（1 行） |
+| `features` | 任意 | 試験に付ける cargo の feature（`^[a-z0-9-]+$`、1 つ）。`test-hooks` の背後にある試験が対象のときに使う（TASK-221 2/2） |
 | `expect-fail` | 必須・複数可 | 失敗すべき試験関数名（完全一致）。1 行に 1 つ |
 | `note` | 任意 | 何を壊したかの説明 |
 
@@ -1932,4 +1933,29 @@ EVT8-1 は進行の宛先の照合から世代を外す誤り、EVT8-2 は再読
 | EVT8-2 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（stale_ticks_after_reload_in_sequences_are_ignored, properties_p1_to_p6_hold_with_reload_sequences, properties_p1_to_p6_hold_with_guided_reload_sequences ほか 1 件。最小の反例 `[Reload]`） |
 | M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 既存の定義 | 19 件とも DETECTED |
 
-自動ブラウザの場面（S-5・S-6 系）と、再読み込みの後の実際のタイマーの進行は TASK-221 2/2 が扱う。
+自動ブラウザの場面と、再読み込みの後の実際のタイマーの進行は 5.71（TASK-221 2/2）で扱った。
+
+### 5.71 再読み込みの後に届く古いタイマーの決定的な試験（TASK-221 2/2）
+
+5.70 の続きで、実際のタイマー（表示側の `set_timeout`。取り消さない設計）が、再読み込みの後に古い宛先で届く場面を確かめた。
+製品の振る舞い（core）は変えていない。変えたのは、試験の設定（`test-hooks`）だけにある再読み込みの口と、試験である。
+
+- 再読み込みの口: `raw` の action に固定の合図 `{"reload":{}}`（`host::RAW_RELOAD`）を完全一致で渡すと、ホストが `Session::reload` を呼ぶ（`HostAction::Reload`）。新しい隠し要素は足していない（`raw-trigger` を使う）。合図は `Op` として復号できず、衝突しない。配信する設定では復号されず `None` になる。
+- ホストの試験（`crates/web/tests/host_contract.rs` の `reload_stale`。`--features test-hooks`）: 新しい世代の宛先の通知、古い宛先の無視 1 件と二重の届き、完走（`Progress` は世代 1 が 0・1、世代 2 が 2・3・4）、再読み込み 2 回、再読み込みと停止の組み合わせ、処理中でないときの再読み込みを確かめる
+- 静的な検査（`crates/web/tests/no_progress.rs`）: `.reload(` が `host.rs` の `reload_engine` の 1 箇所だけで、その関数が `test-hooks` の背後にあることを、件数を固定して検査する
+- ブラウザ試験（`tools/browser/reload-ignore.test.mjs`。`make test-browser` に追加）: R-1 実タイマー（再読み込みの前に予約された古いタイマーが後から届き、無視は 1 件だけ。待つ条件は時間ではなく件数）、R-2 再読み込みの直後に再読み込み前の宛先を送る（S-5 の類比）、R-3 再読み込みの後の停止（S-6 の類比）、配信設定に口が無いこと。R-3 では、再読み込みで予約された世代 2 のタイマーと、再読み込みの前の世代 1 のタイマーの 2 本が後から届き、無視は 2 件になる
+- 変異の定義に任意のキー `features` を足し（`scripts/check-mutations.sh`）、`test-hooks` の背後にある試験を対象にできるようにした。EVT8-3 は、ホストの再読み込みの模擬が core の再読み込みを呼ばない誤りである
+
+実際の `page.reload()` ではなく、ページ内の模擬の再読み込みを選んだ。web には保存した状態の復元の結線が無く（TASK-319。#340〜#343）、`page.reload()` では教材の開始状態から作り直されるだけで、再読み込みの前の世代を引き継げないためである。停止の注入と同じ方式（`stop-move-ignore.test.mjs`）に合わせた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 1338226-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/EVT8-3.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| EVT8-3 | crates/web/src/host.rs: ホストの再読み込みの模擬が core の再読み込みを呼ばない | DETECTED（reload_stale の 7 件が失敗。期待した 2 件を含む） |
+
+未実施: 実際の `page.reload()` を使う場面（browser-scenes.md の S-5・S-6 ほか）は、web の保存・復元の結線（TASK-319 3/3。#343）の後に行う。

@@ -48,6 +48,10 @@ const FORBIDDEN: &[(&str, &str)] = &[
 const APPLY_FILE: &str = "host.rs";
 const APPLY_FN: &str = "apply_engine";
 
+/// `.reload(` が許される唯一の関数と、その直前に必要な属性（正規化後）。
+const RELOAD_FN: &str = "reload_engine";
+const RELOAD_CFG: &str = "#[cfg(feature=\"test-hooks\")]";
+
 /// `Session::from_state` が 1 箇所だけ許されるファイル（試験の設定だけの開始状態。`lib.rs` が feature で囲む）。
 const FROM_STATE_FILE: &str = "test_fixture.rs";
 const FROM_STATE_PAT: &str = "Session::from_state";
@@ -105,6 +109,40 @@ fn violations(files: &[(String, String)]) -> Vec<String> {
             ".apply( が全体で {apply_sites} 箇所（1 箇所のはず）"
         ));
     }
+    v.extend(reload_violations(files));
+    v
+}
+
+/// 再読み込みの模擬（`Session::reload`）の呼び出しの違反。`.reload(` は `host.rs` の `reload_engine` の 1 箇所だけで、
+/// その関数は `test-hooks` の feature の背後にある（配信する設定には入らない。TASK-221 2/2）。
+fn reload_violations(files: &[(String, String)]) -> Vec<String> {
+    let mut v = Vec::new();
+    let mut sites = 0usize;
+    for (name, src) in files {
+        let code = glue_code(src);
+        let method = count(&code, ".reload(");
+        sites += method;
+        if method == 0 {
+            continue;
+        }
+        let in_fn = fn_body(&code, RELOAD_FN).map_or(0, |b| count(b, ".reload("));
+        if name != APPLY_FILE || in_fn != 1 || method != 1 {
+            v.push(format!(
+                "{name}: .reload( が {method} 箇所（{APPLY_FILE} の {RELOAD_FN} の 1 箇所だけ）"
+            ));
+        }
+        let gated = code
+            .find(&format!("fn{RELOAD_FN}("))
+            .is_some_and(|i| code[..i].ends_with(RELOAD_CFG));
+        if !gated {
+            v.push(format!(
+                "{name}: {RELOAD_FN} が test-hooks の feature の背後にない"
+            ));
+        }
+    }
+    if sites != 1 {
+        v.push(format!(".reload( が全体で {sites} 箇所（1 箇所のはず）"));
+    }
     v
 }
 
@@ -143,6 +181,10 @@ fn apply_engine(&mut self, op: Op) {
     // session.apply(op) はコメントなので数えない
     let events = session.apply(op);
 }
+#[cfg(feature = "test-hooks")]
+fn reload_engine(&mut self) {
+    let events = session.reload();
+}
 "#;
 
 #[test]
@@ -180,6 +222,42 @@ fn 負例_apply_を別の場所で呼ぶと検出する() {
     assert!(!found.is_empty());
     let twice = GOOD_HOST.replace("let events", "session.apply(op); let events");
     assert!(!violations(&files(&[("host.rs", &twice)])).is_empty());
+}
+
+#[test]
+fn 実ソースの_reload_は_test_hooks_の背後の_1_箇所だけ() {
+    let found = web_src_sources();
+    let host = found.iter().find(|(n, _)| n == APPLY_FILE).unwrap();
+    assert_eq!(count(&glue_code(&host.1), ".reload("), 1);
+    assert_eq!(reload_violations(&found), Vec::<String>::new());
+}
+
+const NO_RELOAD_HOST: &str = "fn apply_engine() { s.apply(op); }";
+
+#[test]
+fn 負例_reload_の良い例は違反なし() {
+    assert_eq!(
+        violations(&files(&[("host.rs", GOOD_HOST)])),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn 負例_reload_を別の場所や_feature_なしで呼ぶと検出する() {
+    // 別のファイル。
+    let other = files(&[("host.rs", GOOD_HOST), ("a.rs", "fn y() { s.reload(); }")]);
+    assert!(!violations(&other).is_empty());
+    // 同じ関数で 2 回。
+    let twice = GOOD_HOST.replace("session.reload();", "session.reload(); session.reload();");
+    assert!(!violations(&files(&[("host.rs", &twice)])).is_empty());
+    // 別の関数。
+    let moved = GOOD_HOST.replace("fn reload_engine", "fn other_engine");
+    assert!(!violations(&files(&[("host.rs", &moved)])).is_empty());
+    // feature の背後にない。
+    let ungated = GOOD_HOST.replace("#[cfg(feature = \"test-hooks\")]\n", "");
+    assert!(!violations(&files(&[("host.rs", &ungated)])).is_empty());
+    // 呼び出しが無くなっても全体の件数が合わず検出する。
+    assert!(!violations(&files(&[("host.rs", NO_RELOAD_HOST)])).is_empty());
 }
 
 #[test]
