@@ -1,8 +1,10 @@
 //! ブラウザ試験用の口。feature `test-hooks` のときだけ組み込まれる。
 //!
 //! 配信する設定には入れない。`static/test-hooks.js` がここの関数を JS へ橋渡しし、
-//! TASK-28 以降のブラウザ試験が状態を読む。`debug_rerender` と `debug_request_complete` を除き、状態は変更しない。
+//! TASK-28 以降のブラウザ試験が状態を読む。`debug_rerender`・`debug_request_complete`・`debug_storage_open`・
+//! `debug_storage_write` を除き、状態は変更しない。
 //! `debug_request_complete` は、配信と同じ配送の口（`set_timeout` → `dispatch_action`）で補完を届けるだけである。
+//! `debug_storage_open` と `debug_storage_write` は、試験用の保存先（`STORAGE`）を開く・書くだけで、画面の状態には触れない。
 
 use wasm_bindgen::prelude::*;
 
