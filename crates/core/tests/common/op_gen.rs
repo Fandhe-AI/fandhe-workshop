@@ -1,7 +1,7 @@
 //! 任意の操作列の生成器と、抽象的な操作を具体の `Op` に解決して流すハーネス（TASK-219 1/3）。
 //!
-//! 呼び出し元は `op_sequence_replay.rs`（流し直しの一致）。後続の #207（性質 P-1〜P-6 の検査）と
-//! #208（現在の状態での正しい次の操作に誘導する生成）が同じ部品を拡張する。
+//! 呼び出し元は `op_sequence_replay.rs`（流し直しの一致）と `op_sequence_properties.rs`（性質 P-1〜P-6 の検査）。
+//! 固定の生成（[`op_specs`]）と、現在の状態での正しい次の操作に誘導する生成（[`guided_op_specs`]）の両方を提供する。
 //!
 //! # 定義の出所
 //!
@@ -19,8 +19,9 @@
 //!
 //! - #207（実装済み）: [`run_with`] の検査フックに `common/op_props.rs` の `PropChecker` を渡す。
 //!   固定列 [`script_specs`] も同じ検査器に通す
-//! - #208: [`OpSpec`] に誘導の variant を足し、[`Harness::resolve`] の中で現在の状態から解決する
-//!   （`resolve` は `&self` で状態を読む形を保つ）
+//! - #208（実装済み）: [`OpSpec::Guided`] を [`Harness::resolve`] の中で現在の状態から解決する
+//!   （`resolve` は `&self` で状態を読む形を保つ）。解決表は spec の `property-test-addendum.md`
+//!   （PoC-1 の発見事項 F-11 で足した誘導）と同じで、操作の 40% を誘導にする [`guided_op_specs`] が使う
 //!
 //! # 空列の扱い
 //!
@@ -34,6 +35,7 @@ use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
 use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, Session};
 use proptest::prelude::*;
 use proptest::test_runner::TestCaseError;
@@ -97,6 +99,9 @@ pub enum OpSpec {
     Cancel,
     /// 進行。
     Tick(Which),
+    /// 現在の状態での正しい次の操作（引数は選択の偶奇の決め手）。解決は [`Harness::resolve`] が行う。
+    /// 固定の生成では深い状態（確認による達成・章の完了）に届く列が少ないため、誘導つきの生成が補う。
+    Guided(u8),
     /// 停止（処理中でなければ取り消しとして扱う）。
     Stop,
     /// Step 移動（`NODES` の添字）。
@@ -108,7 +113,8 @@ pub enum OpSpec {
 }
 
 impl OpSpec {
-    /// 学習者の入力か。連打の複製の対象になる。
+    /// 学習者の入力か。連打の複製の対象になる。`Guided` は含めない
+    /// （連打は直前の明示の入力だけを複製する。PoC-1 の展開と同じ）。
     pub fn is_learner_input(&self) -> bool {
         matches!(
             self,
@@ -163,6 +169,12 @@ pub fn spec_strategy() -> impl Strategy<Value = RawSpec> {
         2 => (1u32..=4).prop_map(|n| RawSpec::One(OpSpec::Restore(n))),
         2 => (2usize..=20).prop_map(RawSpec::Burst),
     ]
+}
+
+/// 操作の 40% を [`OpSpec::Guided`]、残り 60% を [`spec_strategy`] の重みのままにした戦略（連打は展開前の重み）。
+pub fn guided_op_specs() -> impl Strategy<Value = Vec<OpSpec>> {
+    let guided = (0u8..4).prop_map(|k| RawSpec::One(OpSpec::Guided(k)));
+    op_sequence(prop_oneof![40 => guided, 60 => spec_strategy()]).prop_map(|raw| expand(&raw))
 }
 
 /// 連打を学習者の入力の複製に展開し、[`MAX_OPS`] で打ち切る。直前の入力が無い連打は捨てる。
@@ -292,6 +304,38 @@ impl<'a> Harness<'a> {
         }
     }
 
+    /// 現在の Step の状態（どの根にも無ければ未着手）。
+    fn status_of(&self, step: &StepUid) -> StepStatus {
+        self.state
+            .run
+            .slices
+            .get(&step.root())
+            .and_then(|s| s.status.get(step))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// 現在の状態での正しい次の操作を、既存の腕へ委ねて解決する。
+    fn guided(&self, k: u8) -> Op {
+        if self.state.run.busy.is_some() {
+            return Op::Tick(self.tick_addr(Which::Current));
+        }
+        let Some(current) = self.state.run.current.as_ref() else {
+            return self.resolve(&OpSpec::Cancel);
+        };
+        let next = if current.0 == NODES[0] {
+            match self.status_of(current) {
+                StepStatus::NotStarted | StepStatus::Entered => OpSpec::Cmd(0),
+                _ => OpSpec::Ui(0),
+            }
+        } else if current.0 == NODES[1] {
+            OpSpec::Choice(usize::from(k % 2 == 1))
+        } else {
+            OpSpec::Approval(0)
+        };
+        self.resolve(&next)
+    }
+
     /// 現在の状態から、抽象的な操作を具体の `Op` に解決する。
     pub fn resolve(&self, spec: &OpSpec) -> Op {
         let cancel = || Op::Input(Input::Cancel);
@@ -309,6 +353,7 @@ impl<'a> Harness<'a> {
             OpSpec::Text => Op::Input(Input::Text(TEXT.to_string())),
             OpSpec::Cancel => cancel(),
             OpSpec::Tick(which) => Op::Tick(self.tick_addr(which)),
+            OpSpec::Guided(k) => self.guided(k),
             OpSpec::Stop if self.state.run.busy.is_some() => Op::Control(Control::Stop),
             OpSpec::Stop => cancel(),
             OpSpec::GoTo(i) => {
