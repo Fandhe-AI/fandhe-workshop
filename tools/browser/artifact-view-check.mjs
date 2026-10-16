@@ -338,7 +338,9 @@ export async function runRejectedCase(page, adapter, { kind, variant, rootSelect
     const visible = info.error ? null : info.lists.filter((l) => !l.hidden).map((l) => l.view);
     const keys = info.error ? null : info.lists.map((l) => l.keys);
     const marks = info.error ? null : info.lists.map((l) => l.hosts.map((h) => h.mark));
-    return { visible, keys, marks, state: adapter.state ? await adapter.state() : null };
+    // 行のラベル・印の文字・項目内の構造まで比べるため、root 配下の DOM の中身（テキストと属性）も取る。
+    const dom = await page.evaluate((sel) => document.querySelector(sel)?.innerHTML ?? null, rootSelector);
+    return { visible, keys, marks, dom, state: adapter.state ? await adapter.state() : null };
   };
   const before = await read();
   if (before.visible === null || JSON.stringify(before.visible) !== JSON.stringify([baseline.kind])) {

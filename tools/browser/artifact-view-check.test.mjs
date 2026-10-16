@@ -151,6 +151,28 @@ test('T3: 許される組を拒否の検査へ渡すと、取り違えとして�
   });
 });
 
+test('T3: ラベルだけ書き換えて拒否する実装は、画面の変化として検出される', async () => {
+  await withFixturePage(async (page) => {
+    const base = fixtureAdapter(page);
+    const adapter = {
+      ...base,
+      select: async (kind, variant) => {
+        const r = await base.select(kind, variant);
+        if (kind === 'document') {
+          await page.evaluate((sel) => {
+            const el = [...document.querySelector(sel).querySelectorAll('*')].find((e) => e.children.length === 0 && e.textContent.trim() !== '');
+            el.textContent = `${el.textContent}!`;
+          }, ROOT);
+          return { ok: false };
+        }
+        return r;
+      },
+    };
+    const { violations } = await runRejectedCase(page, adapter, { kind: 'document', variant: 'a', rootSelector: ROOT });
+    assert.ok(violations.some((m) => m.includes('state or screen changed')), JSON.stringify(violations));
+  });
+});
+
 test('T4: マウントしない空の画面では、検査器は違反を出す（空振りで通らない）', async () => {
   await withFixturePage(async (page) => {
     // select・phase は成功を返すが、画面には何も描かれていない。
