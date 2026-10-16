@@ -1,0 +1,8 @@
+id: SAVE8-5
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:             .saturating_sub(old_len.unwrap_or(0))
+replace:             .saturating_sub(0)
+expect-fail: 見込みは同じ鍵の旧い値を二重に数えない
+note: 見込みで同じ鍵の旧い値を差し引かない（上書きで不要に切り替わる）

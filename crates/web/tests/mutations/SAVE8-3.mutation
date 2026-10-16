@@ -1,0 +1,8 @@
+id: SAVE8-3
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:         let key = k.to_string();
+replace:         let key = k.to_string(); self.shared.drop_local_copy(&key);
+expect-fail: 確定の前は_localstorage_の写しが残り確定の後に消える
+note: IndexedDB の確定を待たずに localStorage の写しを消す

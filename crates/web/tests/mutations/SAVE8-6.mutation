@@ -1,0 +1,8 @@
+id: SAVE8-6
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:                 Err(e) => shared.last_async_error.set(Some(e)),
+replace:                 Err(e) => { shared.last_async_error.set(Some(e)); shared.drop_local_copy(&key) }
+expect-fail: put_の失敗では_localstorage_の写しが残り種類だけが記録される
+note: put が失敗しても localStorage の写しを消す（唯一の写しを失う）

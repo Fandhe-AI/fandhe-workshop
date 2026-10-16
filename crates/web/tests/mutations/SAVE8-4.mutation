@@ -1,0 +1,8 @@
+id: SAVE8-4
+package: fandhe-workshop-web
+test: storage_select
+target: crates/web/src/storage_select.rs
+find:     if in_idb {
+replace:     if false {
+expect-fail: 起動時は片方だけならその側_両方なら_indexeddb_を正とする
+note: 起動時に IndexedDB の写しを見ない（両方にあるとき localStorage が正になる）
