@@ -10,6 +10,8 @@
 //! 外観は見た目だけを変え、入力判定・状態変化・遷移・履歴に影響しない（PACK-21）。外観は `main` の
 //! `data-theme` 属性だけで表し、`style` 属性・`<style>` 要素は使わない。
 //!
+//! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 1）である。
+//!
 //! 既定値: `command_prefix` は `"/"`、`theme` は `standard`、`view_tabs` は `all`（PACK-48）。
 //! `input_field` と `world_list` の既定は spec の本文に明記が無く、prototype の試験の観察から `shown` と置く
 //! （未確認の仮定）。
@@ -243,7 +245,8 @@ impl DisplaySettings {
 ///
 /// この形にしたのは、`DisplayPart::view(&self, model: &M)` の形を変えずに済み、既存の試験と後続の部品の
 /// 実装を壊さないためである。設定は教材ごとに固定で、`M` に持たせれば `view` の引数を増やさずに読める。
-/// 設定は `update` で変わらない前提のため dirty field にしない（変わる設計にする場合は 3/3 か版上げで扱う）。
+/// 設定は `update` で変わらない前提のため dirty field にしない（変わる設計にする場合は、先に spec を直して
+/// `parts::PARTS_CONTRACT_VERSION` を上げる）。
 pub trait SettingsSource {
     /// 現在の設定。
     fn display_settings(&self) -> &DisplaySettings;

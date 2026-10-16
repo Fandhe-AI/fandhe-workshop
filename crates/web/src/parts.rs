@@ -11,9 +11,9 @@
 //! 部品のトレイトは `&self` だけを受け取り、状態を変える口を持たない。登録の不正は拒否し、登録しない。
 //!
 //! 3 分割の境界: 本モジュールは口の型・登録・振り分けまでを持つ。action の名前と宛先（`action`）・操作
-//! プロファイルと設定の渡し方（`profile`）は 2/3 で足した。glue の許される操作・keyed list の方針・
-//! 契約の版番号・適合試験の仕上げは 3/3 で足す。
-//! 版番号の定数はこの段階では置かず、3/3 で付ける。
+//! プロファイルと設定の渡し方（`profile`）は 2/3 で足した。glue の許される操作（`glue_ops`）・keyed list の
+//! 親の属性と項目数の方針（`list_policy`）・契約の版番号 [`PARTS_CONTRACT_VERSION`] は 3/3 で足し、
+//! TASK-343 の契約は版 1 で確定した。
 //!
 //! 意図して固定しないもの（持ち主が別にあるため）:
 //! - 行の型、`data-testid`、束縛点の名前（TASK-431・TASK-467・TASK-511 が持つ。部品は自分の field 名を宣言するだけ）
@@ -28,6 +28,12 @@ use std::collections::HashSet;
 use fandhe_frontend_core::Node;
 
 use crate::profile::DisplaySettings;
+
+/// 表示部品の契約の版。対象は `parts`・`action`・`profile`・`glue_ops`・`list_policy` の 5 モジュールである。
+///
+/// 口の型・名前・payload の書式・許される操作の一覧・項目数の方針・不変条件を変えたら上げる。先に spec を直す。
+/// アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。
+pub const PARTS_CONTRACT_VERSION: u32 = 1;
 
 pub use fandhe_frontend_interactive::{Component, DirtyTracked};
 pub use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
