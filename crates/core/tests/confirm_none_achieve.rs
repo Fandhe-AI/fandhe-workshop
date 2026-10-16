@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use fandhe_workshop_contract::ir::{Ir, Step};
-use fandhe_workshop_core::addr::{Generation, StepUid};
+use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Input, Op};
 use fandhe_workshop_core::session::{RunState, SessionState, Slice};
@@ -239,4 +239,38 @@ fn warnings_do_not_embed_reason_or_input() {
             assert!(!message.contains(REASON_MARK) && !message.contains("opt-memo"));
         }
     }
+}
+
+/// `processing` を持つ省略の Step は、受付では達成せず、最後の進行の完了で達成して遷移する（TASK-210 2/3）。
+#[test]
+fn skip_with_processing_achieves_when_ticks_finish() {
+    let ir = ir_with(|st| {
+        st.confirm = Some(skip(json!("ok")));
+        st.processing = vec![
+            json!({ "name": "p1", "effects": [] }),
+            json!({ "name": "p2", "effects": [] }),
+        ];
+    });
+    let (mut s, _) = send(ir, memo());
+    for i in 0..2u32 {
+        assert_eq!(status(&s, "main/st-2"), StepStatus::Accepted, "tick {i}");
+        let addr = TickAddr {
+            generation: s.generation(),
+            step: uid("main/st-2"),
+            index: i,
+        };
+        let events = s.apply(Op::Tick(addr)).to_vec();
+        if i == 0 {
+            assert_eq!(kinds(&events), ["other"], "{events:?}");
+        } else {
+            assert_eq!(
+                kinds(&events),
+                ["other", "achieved", "transitioned", "entered"],
+                "{events:?}"
+            );
+        }
+    }
+    assert_eq!(s.state().run.busy, None);
+    assert_eq!(status(&s, "main/st-2"), StepStatus::Achieved);
+    assert_eq!(s.state().run.current, Some(uid("main/st-3")));
 }
