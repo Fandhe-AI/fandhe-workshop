@@ -42,6 +42,7 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session};
 
 use crate::action::RuntimeAction;
+use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
@@ -89,7 +90,7 @@ pub enum HostAction {
     Input(HelloAction),
     /// core への操作。
     Engine(Op),
-    /// 補完（FEND-4）。候補の一覧と挿入は TASK-440 が足すまで、状態を変えない。
+    /// 補完（FEND-4）。挿入は TASK-440 2/2（#332）が足すまで、状態を変えない。
     Complete,
 }
 
@@ -179,6 +180,8 @@ impl EngineHost {
         if let Some(f) = registry.fields().find(|f| HELLO_FIELDS.contains(&f.name)) {
             return Err(HostError::FieldCollision(f.name));
         }
+        let mut input = HelloView::new();
+        input.set_command_table(candidates::command_table(session.ir()));
         let projection = Projection::from_events(session.log());
         let mut world = World::new();
         replay_changes(&mut world, session.log());
@@ -191,7 +194,7 @@ impl EngineHost {
                 world_consumed,
             },
             registry,
-            input: HelloView::new(),
+            input,
             dirty: Vec::new(),
             tick_request: None,
             #[cfg(feature = "test-hooks")]
@@ -462,7 +465,7 @@ impl Component for EngineHost {
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
             HostAction::Engine(op) => self.apply_engine(op),
-            // 候補の一覧と挿入は TASK-440 の担当。ここでは状態もログも変えず、dirty も積まない。
+            // 補完の挿入は TASK-440 2/2（#332）の担当。ここでは状態もログも変えず、dirty も積まない。
             HostAction::Complete => {
                 #[cfg(feature = "test-hooks")]
                 {
