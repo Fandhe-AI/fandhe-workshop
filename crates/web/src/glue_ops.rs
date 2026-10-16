@@ -87,7 +87,7 @@ pub const OUTSIDE_ROOT_ESC_OWNER: KeyHandlingOwner = KeyHandlingOwner::Glue;
 
 /// Tab で `preventDefault` するか（FEND-21）。候補が開いていて、入力欄に文字があるときだけ真である。
 ///
-/// 変換中は前提の外（FEND-10・JUDGE-16 の範囲）で、ここでは扱わない。修飾キー付きの Enter（JUDGE-22）は検討中のため固定しない。
+/// 変換中は前提の外（FEND-10・JUDGE-16 の範囲）で、ここでは扱わない。修飾キー付きの Enter（JUDGE-22）は版 2 で `Nothing`（`preventDefault` なし）に確定しており、ここでは扱わない。
 pub const fn tab_prevents_default(candidates_open: bool, input_has_text: bool) -> bool {
     candidates_open && input_has_text
 }

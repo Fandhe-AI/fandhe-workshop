@@ -1246,7 +1246,7 @@ web の `key_route` の変異（JUDGE13-1・17-2 から 4・19-2）は、今回�
 
 ```text
 実行日: 2026-10-16
-元にしたコミット: 288b430-dirty（本変更を含む作業ツリー）
+元にしたコミット: 288b430（本変更の直前のコミット。変異は本変更を含む作業ツリーに対して流した）
 コマンド: scripts/check-mutations.sh crates/contract/tests/mutations/JUDGE14-1.mutation crates/contract/tests/mutations/JUDGE17-1.mutation crates/contract/tests/mutations/JUDGE18-1.mutation crates/contract/tests/mutations/JUDGE19-1.mutation crates/contract/tests/mutations/JUDGE19-3.mutation crates/contract/tests/mutations/JUDGE21-1.mutation crates/contract/tests/mutations/JUDGE22-1.mutation crates/contract/tests/mutations/JUDGE22-2.mutation
 ```
 
