@@ -118,7 +118,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 拒否・問い返し・注記の文面への実行時の値の差し込み（`text_fill`。値の組み立て・近い候補の編集距離・次の行動と文面の充填。`judge` が結線して `Judged` の次の行動を充填する。枠の書式は contract の `slot`。画面への表示は含まない） | core | TASK-274 |
 | コマンド入力の規則の照合と問い返しの判定（`command_rule`。状態の変更・`Judged` の発行・問い返しの待ちの保持は含まない） | core | TASK-272 |
 | 学習目標の確認の記録に当てる、最初の回答の正答だけを自力に数える規則（`lo_first_answer`。GUIDE-18。型は contract の `lo_check`。履歴から観測への写像と他の LO の数え方は含まない） | core | TASK-305 |
-| 処理中の停止と入口の写しへの復帰（`stop`。公開しない。処理中でない停止・実体ごとの戻り方・入口の写しの更新は含まない） | core | TASK-211 |
+| 処理中の停止と入口の写しへの復帰（`stop`。公開しない。実体ごとの戻り方・入口の写しの更新は含まない。処理中でない停止は `session` が取り消しの入力として `accept` へ渡す） | core | TASK-211・TASK-212 |
 | Step の移動（`go_to`。公開しない。移動前の進行の無視の試験・移動先の `on_enter`・入口の写しの作り直しは含まない） | core | TASK-213 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表と Step の状態によるコマンドの拒否の分類（`command_class`。未知・順序違い・教材未対応・この Step では使わない。`judge::judge_input` が結線して使う。`Judged` の発行は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268・TASK-269 |

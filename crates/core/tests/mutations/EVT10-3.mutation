@@ -1,0 +1,8 @@
+id: EVT10-3
+package: fandhe-workshop-core
+test: cancel_input
+target: crates/core/src/accept.rs
+find:         &effects,
+replace:         &if matches!(input, Input::Cancel) { Vec::new() } else { effects.clone() },
+expect-fail: idle_stop_with_accept_rule_accepts_and_applies_effects
+note: 取り消しの受付の規則の効果を適用しない

@@ -1,0 +1,8 @@
+id: EVT10-5
+package: fandhe-workshop-core
+test: cancel_input
+target: crates/core/src/session.rs
+find:     let cause = if matches!(op, Op::Control(Control::Stop)) && !was_busy {
+replace:     let cause = if matches!(op, Op::Control(Control::Stop)) && !was_busy && false {
+expect-fail: idle_stop_with_accept_rule_accepts_and_applies_effects
+note: 処理中でない停止の Changed.cause を停止のままにする

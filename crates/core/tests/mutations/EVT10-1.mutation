@@ -1,0 +1,10 @@
+id: EVT10-1
+package: fandhe-workshop-core
+test: cancel_input
+target: crates/core/src/session.rs
+find:             accept::on_input(ir, state, Input::Cancel)
+replace:             { let _ = (ir, Input::Cancel); Vec::new() }
+expect-fail: idle_stop_without_cancel_rule_is_rejected_in_entered_step
+expect-fail: idle_stop_without_cancel_rule_is_rejected_in_accepted_step
+expect-fail: idle_stop_equals_cancel_input
+note: 処理中でない停止を取り消しの入力として扱わない（何も起きない）

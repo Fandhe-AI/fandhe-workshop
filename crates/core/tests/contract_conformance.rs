@@ -490,6 +490,26 @@ fn sample_stop_entry_matches_apply() {
     assert_eq!(next.run, e.after, "e06: after");
 }
 
+/// 処理中でない停止（TASK-212、EVT-10）の単独の照合。サンプルの e21 を、その前の状態から 1 件だけ流し、
+/// 取り消しの拒否のイベント列と、状態・世代が変わらないことがサンプルと一致することを確かめる。
+#[test]
+fn sample_idle_stop_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let e = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e21")
+        .expect("sample has e21");
+    let state = SessionState {
+        run: e.before.clone(),
+        ..SessionState::default()
+    };
+    let (next, events) = apply(&ir, state, e.op.clone());
+    assert_eq!(events, e.events, "e21: events");
+    assert_eq!(next.run, e.after, "e21: after");
+}
+
 /// 別の Step への移動（TASK-213 1/2）の単独の照合。サンプルの e17（成功）と e18（無い Step への拒否）を、
 /// e17 の前の状態から連鎖して流し、イベント列と後の状態がサンプルと一致することを確かめる。
 /// どちらも入口の写しを要しない。
