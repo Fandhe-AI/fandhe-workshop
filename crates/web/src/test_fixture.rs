@@ -123,3 +123,18 @@ pub(crate) fn render_tree_sample(kind: &str, variant: &str) -> Option<String> {
     let node = tree_view_list("ul", kind, variant, true, items).ok()?;
     Some(render(&node))
 }
+
+/// 契約の試料の「2 周分」の履歴。書き出しの試験（TASK-330 1/2）が使う。
+#[cfg(target_arch = "wasm32")]
+const TWO_ROUNDS: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/contract/history/two-rounds.json"
+));
+
+/// 2 周分の履歴の包みを返す。`Session` を作らず、読み込みの入口（段 1〜5）だけで読む。読めなければ `None`。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn two_rounds_envelope(
+) -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope> {
+    use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
+    parse_history_envelope(parse_history_json(TWO_ROUNDS).ok()?).ok()
+}

@@ -44,7 +44,7 @@ wasm-bindgen = "=0.2.128"
 # 入力欄の値の書き戻し（crates/web の glue）と履歴の保存先（localStorage・IndexedDB。TASK-317）に使う。
 # 版は Cargo.lock の解決済みの版と同じにして、版を動かさない。
 # feature は書き戻しに要る型（イベントの種別判定と textarea の値）と、保存先の呼び出しに要る型に絞る。
-web-sys = { version = "0.3.105", default-features = false, features = ["Element", "Event", "EventTarget", "HtmlElement", "HtmlTextAreaElement", "InputEvent", "KeyboardEvent", "Window", "Location", "Storage", "DomException", "IdbFactory", "IdbOpenDbRequest", "IdbRequest", "IdbDatabase", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore"] }
+web-sys = { version = "0.3.105", default-features = false, features = ["Element", "Event", "EventTarget", "HtmlElement", "HtmlTextAreaElement", "InputEvent", "KeyboardEvent", "Window", "Location", "Storage", "DomException", "IdbFactory", "IdbOpenDbRequest", "IdbRequest", "IdbDatabase", "IdbTransaction", "IdbTransactionMode", "IdbObjectStore", "Blob", "BlobPropertyBag", "Url"] }
 
 # 表示層の基盤（D-30 の採用版）。crates.io から取得するため認証情報は要らない。
 # feature は FEND-1 に従い action-keydown だけを明示する（既定の feature は持ち込まない）。

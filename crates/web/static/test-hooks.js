@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_export_prepare, debug_export_revoke } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -77,6 +77,26 @@ export function saveInstallPagehide() {
 
 export function saveFlush() {
   return debug_save_flush();
+}
+
+// 履歴の書き出し（TASK-330 1/2）。exportPrepare は契約の試料（2 周分）の blob: URL を作り、JSON（ok / url / name / bytes）を返す。中身は返さない。
+export function exportPrepare() {
+  return debug_export_prepare();
+}
+
+// 保持している blob: URL を破棄する。破棄したら true。
+export function exportRevoke() {
+  return debug_export_revoke();
+}
+
+// ダウンロードの click は配信の本体に置かない（no_hidden_triggers が禁止）。試験の設定のこのファイルだけが <a download> を作って click し、すぐ外す。
+export function exportClick(url, name) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // ツリーの試料を後の状態で描いた HTML 文字列を返す（TASK-472）。kind は "file_tree" か "task_tree"、variant は "a" か "b"。範囲外は空文字列。
