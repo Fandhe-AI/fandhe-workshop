@@ -1,0 +1,9 @@
+id: ART2-1
+package: fandhe-workshop-web
+test: artifact_view_contract
+target: crates/web/src/artifact_view.rs
+find:                     mark: if b != a {
+replace:                     mark: if b == a {
+expect-fail: shown_後の状態の追加_削除_変更_不変
+expect-fail: 後の状態の印の数は前後の組から数えた変化の数と一致する
+note: 前後が同じ行に変更の印を付け、違う行には付けない

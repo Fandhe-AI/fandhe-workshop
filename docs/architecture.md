@@ -137,6 +137,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
 - TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する
+- 左の成果物ビューの契約（TASK-467。`artifact_view`）の版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`（版 1）が持つ。上の 2 つの版とは別に管理する
 - TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 1）が持つ。`parts`・`a11y` の版とは別に管理する
 
 ## 7. feature
