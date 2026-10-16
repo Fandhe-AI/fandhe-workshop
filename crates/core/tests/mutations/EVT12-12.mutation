@@ -1,0 +1,8 @@
+id: EVT12-12
+package: fandhe-workshop-core
+test: restore_review
+target: crates/core/src/projection.rs
+find:                     item.changes.clear();
+replace:                     let _ = &item.changes;
+expect-fail: evt14_restore_after_stop_brings_back_review
+note: 停止で Step の項目の変更を初期化しない

@@ -1,0 +1,9 @@
+id: EVT12-11
+package: fandhe-workshop-core
+test: restore_review
+target: crates/core/src/projection.rs
+find: self.saved_review.insert(i, self.review.clone());
+replace: self.saved_review.insert(i, Arc::new(Vec::new()));
+expect-fail: evt14_review_after_restore_matches_saved_review
+expect-fail: c1_p1d_restore_rebuilds_review_from_saved_prefix
+note: 保存の時点の復習を控えず、空を控える

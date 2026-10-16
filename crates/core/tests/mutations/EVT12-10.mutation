@@ -1,0 +1,9 @@
+id: EVT12-10
+package: fandhe-workshop-core
+test: restore_review
+target: crates/core/src/projection.rs
+find: usize::try_from(log_len)
+replace: usize::try_from(log_len.saturating_add(1))
+expect-fail: evt14_review_after_restore_matches_saved_review
+expect-fail: c1_p1d_restore_rebuilds_review_from_saved_prefix
+note: 保存の位置の次の位置の控えを引く（log_len の取り違え）
