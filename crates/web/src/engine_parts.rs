@@ -1,0 +1,335 @@
+//! 3 つの表示（右のログ・左の成果物・復習）の部品（TASK-347 2/2。FEND-2）。
+//!
+//! 呼び出し元は `host::EngineHost` で、[`standard_registry`] の登録簿を持って `view`・`bound_value` を振り分ける。
+//! 3 部品はどれも `&HostModel` を読むだけで、状態を変える口を持たない。内容は同じイベント列
+//! （`Session::log()`）から core が導いた値（`Projection`・世界状態）だけで決まるため、3 つの表示は
+//! 同じ列の別の見え方になる（`tests/host_contract.rs` が増分と一括の一致を、
+//! `tools/browser/three-views.test.mjs` が DOM での一致を確かめる）。
+//!
+//! 仮のもの（持ち主が別にあるため、ここで確定しない）:
+//! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・行の型・束縛点の名前は、
+//!   TASK-431・TASK-467・TASK-511 が決める。
+//! - 受講者の入力文字列は、ここでは描かない（入力欄の送信済み一覧が `learner_text::learner_line` で描く。
+//!   ログの部品での表示は TASK-434 が足す）。
+//! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
+//!   [`LIST_ERROR_ATTR`] の固定の通知を出し、空の一覧で黙って続けない。
+//!
+//! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
+//! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
+
+use std::collections::BTreeMap;
+
+use fandhe_frontend_core::{bind_text, el, text, Node};
+use fandhe_frontend_wasm_client::BoundValue;
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::projection::{Mark, MarkKind};
+use fandhe_workshop_core::world::World;
+
+use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
+use crate::host::HostModel;
+use crate::list_policy::keyed_view;
+use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
+
+/// 上限超過などで一覧を描けないときの固定の通知の属性名。値は固定の文字列だけで、教材の値を入れない。
+pub const LIST_ERROR_ATTR: &str = "data-list-error";
+
+const F_LOG: &[PartField] = &[
+    PartField {
+        name: "engine_log_rows",
+        kind: FieldKind::KeyedList,
+    },
+    PartField {
+        name: "engine_log_consumed",
+        kind: FieldKind::Bound,
+    },
+];
+const F_ARTIFACT: &[PartField] = &[
+    PartField {
+        name: "artifact_items",
+        kind: FieldKind::KeyedList,
+    },
+    PartField {
+        name: "artifact_consumed",
+        kind: FieldKind::Bound,
+    },
+];
+const F_REVIEW: &[PartField] = &[
+    PartField {
+        name: "review_items",
+        kind: FieldKind::KeyedList,
+    },
+    PartField {
+        name: "review_consumed",
+        kind: FieldKind::Bound,
+    },
+];
+
+/// 3 部品を登録した標準の登録簿。field は固定で、入力欄の field（`HELLO_FIELDS`）とは衝突しない。
+///
+/// 登録の拒否は起きない構成だが、`expect` を避けるため、拒否されたら登録済みの分だけを返す（安全側。
+/// 試験が 3 件の登録を固定する）。
+pub fn standard_registry() -> PartRegistry<HostModel> {
+    let mut r = PartRegistry::new();
+    let parts: [Box<dyn DisplayPart<HostModel>>; 3] = [
+        Box::new(LogPart),
+        Box::new(ArtifactPart),
+        Box::new(ReviewPart),
+    ];
+    for p in parts {
+        if r.register(p).is_err() {
+            break;
+        }
+    }
+    r
+}
+
+/// イベントの種類名。表示と試験の照合に使う固定の名前で、教材の値は含まない。
+/// `Event` は `non_exhaustive` のため、足された種類は `other` に倒す。
+pub fn event_kind_name(event: &Event) -> &'static str {
+    match event {
+        Event::Entered { .. } => "entered",
+        Event::ModuleEntered { .. } => "module_entered",
+        Event::ModuleExited { .. } => "module_exited",
+        Event::InputReceived { .. } => "input_received",
+        Event::Progress { .. } => "progress",
+        Event::Judged { .. } => "judged",
+        Event::Accepted { .. } => "accepted",
+        Event::Achieved { .. } => "achieved",
+        Event::Skipped { .. } => "skipped",
+        Event::Transitioned { .. } => "transitioned",
+        Event::ChapterCompleted { .. } => "chapter_completed",
+        Event::Flag { .. } => "flag",
+        Event::Changed { .. } => "changed",
+        Event::Stopped { .. } => "stopped",
+        Event::Moved { .. } => "moved",
+        Event::CheckpointSaved { .. } => "checkpoint_saved",
+        Event::Restored { .. } => "restored",
+        Event::Begun { .. } => "begun",
+        Event::HintOpened { .. } => "hint_opened",
+        Event::Refused { .. } => "refused",
+        Event::Ignored { .. } => "ignored",
+        Event::Warning { .. } => "warning",
+        _ => "other",
+    }
+}
+
+/// 変化の印の種類を、見た目の印（A11Y-22）へ写す。未知の種類は印なし。
+pub fn change_mark(kind: MarkKind) -> Option<ChangeMark> {
+    match kind {
+        MarkKind::Put => Some(ChangeMark::Add),
+        MarkKind::Removed => Some(ChangeMark::Remove),
+        MarkKind::AttrChanged => Some(ChangeMark::Change),
+        _ => None,
+    }
+}
+
+/// 左の成果物の行（経路の辞書順）。世界状態にある経路と、削除の印が付いた経路を合わせる。
+/// 印は世界状態にある経路か削除のものだけを付ける。
+pub fn artifact_rows(world: &World, marks: &[Mark]) -> Vec<(String, Option<ChangeMark>)> {
+    let mut rows: BTreeMap<&str, Option<ChangeMark>> =
+        world.keys().map(|p| (p.as_str(), None)).collect();
+    for m in marks {
+        let mark = change_mark(m.kind);
+        if world.contains_key(&m.path) || m.kind == MarkKind::Removed {
+            rows.insert(m.path.as_str(), mark);
+        }
+    }
+    rows.into_iter().map(|(p, m)| (p.to_owned(), m)).collect()
+}
+
+/// 一覧を描けなかったときの固定の通知。空の一覧に見せず、利用者にも試験にも分かる形にする。
+fn list_error_view(testid: &'static str) -> Node {
+    el(
+        "section",
+        vec![("data-testid", testid), (LIST_ERROR_ATTR, "limit")],
+        vec![text("一覧を表示できません")],
+    )
+}
+
+fn consumed_text(model: &HostModel) -> String {
+    model.projection().consumed().to_string()
+}
+
+fn consumed_bound(field: &str, own: &str, model: &HostModel) -> Option<BoundValue> {
+    (field == own).then(|| BoundValue::Text(consumed_text(model)))
+}
+
+/// 右のログ。イベント 1 件が 1 行で、キーはイベントの位置（追記だけで安定する）。
+struct LogPart;
+
+impl DisplayPart<HostModel> for LogPart {
+    fn kind(&self) -> PartKind {
+        PartKind::Log
+    }
+    fn fields(&self) -> &'static [PartField] {
+        F_LOG
+    }
+    fn view(&self, model: &HostModel) -> Node {
+        let events = model.session().map(|s| s.log()).unwrap_or(&[]);
+        let items: Vec<(String, Node)> = model
+            .projection()
+            .log()
+            .iter()
+            .map(|row| {
+                let kind = events
+                    .get(row.event as usize)
+                    .map_or("other", event_kind_name);
+                let (event, generation) = (row.event.to_string(), row.at.generation.0.to_string());
+                let node = el(
+                    "li",
+                    vec![
+                        ("data-event", event.as_str()),
+                        ("data-generation", generation.as_str()),
+                        ("data-step", row.at.step.0.as_str()),
+                        ("data-kind", kind),
+                    ],
+                    vec![text(kind)],
+                );
+                (format!("r{}", row.event), node)
+            })
+            .collect();
+        let list = match keyed_view("ul", vec![], &F_LOG[0], items) {
+            Ok(n) => n,
+            Err(_) => return list_error_view("part-log"),
+        };
+        el(
+            "section",
+            vec![("data-testid", "part-log")],
+            vec![
+                list,
+                bind_text(
+                    "span",
+                    vec![("data-testid", "part-log-consumed")],
+                    F_LOG[1].name,
+                    consumed_text(model),
+                ),
+            ],
+        )
+    }
+    fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
+        consumed_bound(field, F_LOG[1].name, model)
+    }
+}
+
+/// 左の成果物。世界状態の経路と、変化の印を並べる。
+struct ArtifactPart;
+
+impl DisplayPart<HostModel> for ArtifactPart {
+    fn kind(&self) -> PartKind {
+        PartKind::ArtifactView
+    }
+    fn fields(&self) -> &'static [PartField] {
+        F_ARTIFACT
+    }
+    fn view(&self, model: &HostModel) -> Node {
+        let items: Vec<(String, Node)> = artifact_rows(model.world(), model.projection().marks())
+            .into_iter()
+            .enumerate()
+            .map(|(i, (path, mark))| {
+                let value = mark.map_or("", ChangeMark::data_value);
+                let node = el(
+                    "li",
+                    vec![("data-path", path.as_str()), (MARK_ATTR, value)],
+                    vec![
+                        el(
+                            "span",
+                            vec![("data-testid", MARK_GLYPH_TESTID)],
+                            vec![text(mark.map_or("", ChangeMark::glyph))],
+                        ),
+                        el(
+                            "span",
+                            vec![("data-testid", MARK_TEXT_TESTID)],
+                            vec![text(mark.map_or("", ChangeMark::text))],
+                        ),
+                        el("span", vec![], vec![text(path.as_str())]),
+                    ],
+                );
+                (format!("a{i}"), node)
+            })
+            .collect();
+        let list = match keyed_view("ul", vec![], &F_ARTIFACT[0], items) {
+            Ok(n) => n,
+            Err(_) => return list_error_view("part-artifact-view"),
+        };
+        el(
+            "section",
+            vec![("data-testid", "part-artifact-view")],
+            vec![
+                list,
+                bind_text(
+                    "span",
+                    vec![("data-testid", "part-artifact-consumed")],
+                    F_ARTIFACT[1].name,
+                    model.world_consumed().to_string(),
+                ),
+            ],
+        )
+    }
+    fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
+        // 世界状態の導出が読み終えたログの長さ。ログ・復習の値（Projection の consumed）と一致する。
+        (field == F_ARTIFACT[1].name).then(|| BoundValue::Text(model.world_consumed().to_string()))
+    }
+}
+
+/// 復習。Step 単位の項目で、達成・省略と変化の数・経路を出す。
+struct ReviewPart;
+
+impl DisplayPart<HostModel> for ReviewPart {
+    fn kind(&self) -> PartKind {
+        PartKind::Review
+    }
+    fn fields(&self) -> &'static [PartField] {
+        F_REVIEW
+    }
+    fn view(&self, model: &HostModel) -> Node {
+        let items: Vec<(String, Node)> = model
+            .projection()
+            .review()
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let count = item.changes.len().to_string();
+                let paths = item
+                    .changes
+                    .iter()
+                    .map(|c| c.path.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let node = el(
+                    "li",
+                    vec![
+                        ("data-step", item.step.0.as_str()),
+                        (
+                            "data-achieved",
+                            if item.achieved { "true" } else { "false" },
+                        ),
+                        ("data-skipped", if item.skipped { "true" } else { "false" }),
+                        ("data-change-count", count.as_str()),
+                    ],
+                    vec![text(paths)],
+                );
+                (format!("v{i}"), node)
+            })
+            .collect();
+        let list = match keyed_view("ul", vec![], &F_REVIEW[0], items) {
+            Ok(n) => n,
+            Err(_) => return list_error_view("part-review"),
+        };
+        el(
+            "section",
+            vec![("data-testid", "part-review")],
+            vec![
+                list,
+                bind_text(
+                    "span",
+                    vec![("data-testid", "part-review-consumed")],
+                    F_REVIEW[1].name,
+                    consumed_text(model),
+                ),
+            ],
+        )
+    }
+    fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
+        consumed_bound(field, F_REVIEW[1].name, model)
+    }
+}

@@ -130,6 +130,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
+| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ） | web | TASK-347 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない

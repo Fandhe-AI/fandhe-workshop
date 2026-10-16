@@ -81,6 +81,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "over_limit",
     "keydown_probe",
     "esc_count",
+    "engine_snapshot_json",
+    "for_mount",
     "rerender",
     "flatten",
     "and_then",

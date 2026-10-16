@@ -53,6 +53,12 @@ pub(crate) fn esc_count() -> Option<u32> {
     with_app(|app| app.esc_count())
 }
 
+/// 3 つの表示の照合用の状態（JSON 文字列）。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn engine_snapshot() -> Option<String> {
+    with_app(|app| app.engine_snapshot_json())
+}
+
 /// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
 ///
 /// 戻り値は（コードポイント数、超過の印、本文）。
@@ -218,7 +224,7 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         if slot.is_some() {
             return Err(JsValue::from_str("already mounted"));
         }
-        let runtime = Runtime::mount(root_id, EngineHost::new())?;
+        let runtime = Runtime::mount(root_id, EngineHost::for_mount())?;
         let root = runtime.root();
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
