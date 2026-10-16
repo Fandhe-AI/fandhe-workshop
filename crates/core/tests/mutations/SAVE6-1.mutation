@@ -1,0 +1,8 @@
+id: SAVE6-1
+package: fandhe-workshop-core
+test: reload_busy
+target: crates/core/src/projection.rs
+find:             | Event::Reloaded { .. } => self.push_row(i, event),
+replace:             | Event::Reloaded { .. } => {}
+expect-fail: each_reload_adds_one_log_row
+note: 再読み込みを右のログの行にしない（SAVE-6・D-57）。

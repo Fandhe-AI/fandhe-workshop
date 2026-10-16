@@ -1,0 +1,8 @@
+id: SAVE6-2
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/log_lines.rs
+find:         Event::Reloaded { .. } => Some(LogLine::Reloaded),
+replace:         Event::Reloaded { .. } => None,
+expect-fail: 再読み込みは固定の文言の_reloaded_行になる
+note: 再読み込みを右のログの行に写さない（SAVE-6・D-57）。

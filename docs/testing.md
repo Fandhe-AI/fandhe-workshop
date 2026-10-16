@@ -2043,3 +2043,27 @@ SAVE5-4 は、確認の達成で現在位置を次の Step へ移さない誤り
 |---|---|---|
 | SAVE5-4 | crates/core/src/confirm.rs: 確認の達成で現在位置を次の Step へ移さない | DETECTED（reload_right_after_confirm_burst_keeps_one_achievement） |
 | SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.72・5.71・5.58・5.59・5.66・5.67 の定義 | 15 件とも DETECTED |
+
+### 5.74 再読み込み後の告知（TASK-322）
+
+再読み込みを右のログの 1 行にする（SAVE-6・D-57）。`Projection` が `Event::Reloaded` 1 件につき 1 行を出し、web の `log_lines` が行の種類 `reloaded`（固定の文言「再読み込みしました」）で描く。右のエリアの契約（`terminal_area`）は版 1 から版 2 に上げた。文言は D-57 が決めた「趣旨」から実装側で選んだもので、言い回しは未決である。変えるときは `log_lines::RELOADED_TEXT` だけを直す。
+
+- core の試験: `projection_derive` の `reloaded_adds_one_row_and_keeps_marks`（行が回数だけ増える・変化の印を消さない・増分と一括の一致）、`reload_busy` の `each_reload_adds_one_log_row`、`reload_after_control`（ログ末尾に `Reloaded` を指す 1 行だけ増える）
+- web の試験: `log_lines_contract`（`Reloaded` の写しと文言・`test-hooks` の背後で再読み込みの模擬を 1 回・2 回挟んだ後の `reloaded` の行の数）、`terminal_area_contract`（版 2・種類 7 件）
+- ブラウザ試験（`tools/browser/reload-notice.test.mjs`。`make test-browser` に追加）: N-1 再読み込み 1 回で `reloaded` の行が 1 件・処理中のまま・完走の後も 1 件、N-2 2 回で 2 件（`data-gen` は 1・2）、N-3 配信設定に口が無いこと。実際の `page.reload()` ではなくページ内の模擬の再読み込みで行う（5.72 と同じ理由）
+- 範囲外: ライブの欄の読み上げが 1 回だけ届くことと枠の二重の通知が 0 件であることは TASK-536 が持つ。再読み込みの行は `a11y::LIVE_EXCLUDED_LINE_KINDS` に入れていない（更新に数える側）
+
+変異の ID は `SAVE6-1`（導出が `Reloaded` を行にしない）・`SAVE6-2`（web が `Reloaded` を行に写さない）である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 094b1df-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE6-1.mutation crates/web/tests/mutations/SAVE6-2.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE6-1 | crates/core/src/projection.rs: 再読み込みを右のログの行にしない | DETECTED（each_reload_adds_one_log_row） |
+| SAVE6-2 | crates/web/src/log_lines.rs: 再読み込みを右のログの行に写さない | DETECTED（再読み込みは固定の文言の_reloaded_行になる） |
+
+未実施: 実際の `page.reload()` での 1 回・2 回の確認は、TASK-319 3/3（#343）の後に行う。
