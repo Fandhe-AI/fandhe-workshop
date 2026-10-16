@@ -1,0 +1,9 @@
+id: SAVE24-7
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/history_envelope.rs
+find:     Ok(HistoryEnvelope::new(
+replace:     let mut snapshot = snapshot; for cp in snapshot.checkpoints.values_mut() { cp.owner = None; } Ok(HistoryEnvelope::new(
+expect-fail: samples_are_rebuilt_byte_for_byte
+expect-fail: checkpoint_owner_is_kept
+note: 包む直前にチェックポイントの持ち主の根を落とす（SAVE-2）

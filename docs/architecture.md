@@ -120,7 +120,8 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表による未知のコマンドと順序違いの分類（`command_class`。`not_in_this_step`・`not_supported`・`Judged` の発行・`session::apply` への結線は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268 |
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
-| 受講者の操作を履歴の `ops` に追記する記録（`ops_record`。`SessionOp` は contract の `HistoryOp<Op>` の別名。契約の版の対象外。包みの組み立て・写しの下書きの同期・再読み込みは含まない） | core | TASK-315 |
+| 受講者の操作を履歴の `ops` に追記する記録（`ops_record`。`SessionOp` は contract の `HistoryOp<Op>` の別名。契約の版の対象外。再読み込みは含まない） | core | TASK-315 |
+| `ops`・写し・4 軸の版を履歴の包み（`SessionEnvelope` = contract の `HistoryEnvelope<Op, SessionState>`）に組み立てる処理と、下書きの記録と写しの `drafts` の同期（`history_envelope`。契約の版の対象外。適用し直しによる復元・読み込み・書き出しは含まない） | core | TASK-315 |
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |

@@ -5,6 +5,7 @@
 //! `submit` だけで残ること（SAVE-24）、下書きが書き出しに入ること（SAVE-18）を確かめる。
 //! `apply()` が骨格の間は、`ops` を適用し直した結果と `snapshot` の一致は確かめない（TASK-174・TASK-310・TASK-315 の責務）。
 //!
+//! 組み立て直した包み（`history_envelope`、TASK-315 2/2）も同じ照合を通す。
 //! 変異注入 `mutations/SAVE2-1.mutation`（PoC-6 の X-6 に当たる、読み込みでログの並びを変える誤り）は、
 //! この試験の往復・バイト一致・性質テストが検出する。比較器そのものは `comparator_self_check` で自己確認する。
 
@@ -24,6 +25,7 @@ use fandhe_workshop_contract::history::{
 };
 use fandhe_workshop_core::addr::{Generation, Root, Stamp, StepUid};
 use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::history_envelope::build_envelope_with;
 use fandhe_workshop_core::input::{CheckpointId, Control, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::session::{Checkpoint, EntryCopy, RunState, SessionState};
@@ -224,6 +226,46 @@ fn property_roundtrip_preserves_log_order() {
         vec(any::<u8>(), 2..24),
         |kinds| {
             let h = build(&kinds);
+            check_log_positions(&h.snapshot).map_err(TestCaseError::fail)?;
+            roundtrip_ok(&h).map_err(TestCaseError::fail)?;
+            Ok(())
+        },
+    );
+}
+
+/// 実装の組み立て（TASK-315 2/2）で包み直した値も、同じ往復の照合を通る。
+fn rebuild(h: &H) -> H {
+    let ir_path = common::contract_sample::testdata_dir()
+        .join("engine-event-consistency/test-data/min-3step.json");
+    let ir = load_ir(&std::fs::read(ir_path).unwrap()).unwrap();
+    build_envelope_with(
+        &ir,
+        h.versions.clone(),
+        &h.start,
+        h.ops.clone(),
+        h.snapshot.clone(),
+    )
+    .expect("start must be in the IR")
+}
+
+#[test]
+fn samples_rebuilt_by_builder_roundtrip() {
+    for name in SAMPLES {
+        let h = load(name);
+        let rebuilt = rebuild(&h);
+        assert!(rebuilt == h, "{name}");
+        roundtrip_ok(&rebuilt).unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
+#[test]
+fn property_built_envelope_roundtrip_preserves_log_order() {
+    check(
+        "history-built-roundtrip-log-order",
+        DEFAULT_CASES,
+        vec(any::<u8>(), 2..24),
+        |kinds| {
+            let h = rebuild(&build(&kinds));
             check_log_positions(&h.snapshot).map_err(TestCaseError::fail)?;
             roundtrip_ok(&h).map_err(TestCaseError::fail)?;
             Ok(())

@@ -6,6 +6,7 @@ JSON はコメントを書けないため、説明は本ファイルに置きま
 
 - サンプル: `empty.json`・`two-rounds.json`・`draft-rejected.json`（サンプルの版 1）
 - 読む部品: `crates/core/tests/common/history_sample.rs`
+- 組み立て直す試験: `crates/core/tests/history_envelope_build.rs`（実装の `history_envelope` で包み直し、バイト一致を見ます。TASK-315 2/2）
 - 適合試験: `crates/core/tests/history_envelope_conformance.rs`（core の型で往復・バイト一致・性質テスト・比較器の自己確認）
 - 補助の試験: `crates/contract/tests/history_envelope_samples.rs`（core に依存せず、最上位のキーの順・`ops` のタグ・必須欄を確かめる）
 - 変異: `crates/core/tests/mutations/SAVE2-1.mutation`（読み込みでログの並びを変える。PoC-6 の X-6 に当たる。記録は `docs/testing.md` の 5.7）

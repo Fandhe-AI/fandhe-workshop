@@ -1,0 +1,10 @@
+id: SAVE24-9
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/history_envelope.rs
+find:         state.drafts.insert(root, text.clone());
+replace:         let _ = (&root, &text);
+expect-fail: save24_example_shape_is_in_the_envelope
+expect-fail: empty_draft_is_kept_as_empty_string
+expect-fail: property_ops_and_drafts_stay_in_sync
+note: 下書きを ops に記録しても写しの drafts に書かない（SAVE-18・SAVE-24）
