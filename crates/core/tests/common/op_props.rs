@@ -26,7 +26,7 @@
 //!   `Ignored` を出さず `Progress` をちょうど 1 件出す。古い進行かどうかは、`OpSpec` ではなく解決した
 //!   `Op::Tick` と操作前の状態から決める（`Dup` が現在の宛先に解決される場合があるため）
 //! - P-3: `Achieved` は、同じ操作で同じ `at` の `Judged { Confirmed }` の後か、確認を省くと明示した Step
-//!   （`confirm.kind` が `none`）で、先行する `Accepted`（世代を除いて Step で照合し、入り直しで失効したものは除く）または復元済みの受け付け状態がある場合だけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
+//!   （`confirm.kind` が `none`）で、この操作内で最後に起きた `Accepted`、または操作前の状態が受け付け済み（復帰・停止の結果を含む。この操作内の `Entered` で失効する）の場合だけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
 //!   復帰・停止の後は同じ世代に `Accepted` が前に無いため、`confirm_before_achieve.rs` の I3 は使わない。
 //!   状態が達成の Step には、ログに `Achieved` がある
 //! - P-4: ログの宛先の世代は単調に増える。世代は `Stopped`・`Moved`・`Restored`・`Begun` が出たときだけ、
@@ -398,30 +398,22 @@ impl<'a> PropChecker<'a> {
             } else if kind.as_deref() == Some("none") {
                 // 確認を省く Step は、達成より前のどこかで受け付け済みである。processing つきの Step は
                 // 最後の Tick で達成するため、`Accepted` は過去の操作のログにある。
-                let end = a.before.log.len() + k;
-                // 復帰の後は世代が進み、旧世代の `Accepted` しかログに無い。そのため世代を除いて Step で
-                // 照合し、復帰直後に `StepStatus::Accepted` として復元された Step も受け付け済みとみなす。
-                // ただし `GoTo` などで同じ Step へ入り直した（`Entered` が `Accepted` より後ろにある）場合、
-                // 旧世代の `Accepted` は失効しているため根拠にしない。
-                let prefix = &a.after.log[..end.min(a.after.log.len())];
-                let last_entered = prefix
-                    .iter()
-                    .rposition(|p| matches!(p, Event::Entered { at: pe } if pe.step == at.step));
-                let logged = prefix.iter().enumerate().any(|(pos, p)| {
-                    matches!(p, Event::Accepted { at: pa } if pa.step == at.step)
-                        && last_entered.is_none_or(|le| pos > le)
+                // 受け付けの有効性は、操作前の状態（復帰・停止の結果を含む）と、この操作の達成より前の
+                // `Entered`・`Accepted` だけで決める。ログ全体の `Accepted` は、復帰・停止で巻き戻された
+                // ものを含むため根拠にしない。この操作の中で最後に起きたのが `Accepted` なら有効、`Entered` なら
+                // 失効、どちらも無ければ操作前の状態が `StepStatus::Accepted` であることを要する。
+                let last_in_op = a.events[..k].iter().rev().find_map(|p| match p {
+                    Event::Accepted { at: pa } if pa.step == at.step => Some(true),
+                    Event::Entered { at: pe } if pe.step == at.step => Some(false),
+                    _ => None,
                 });
-                // 今回の操作で入り直した Step は、操作前の復元状態も失効している。
-                let reentered_now = a.events[..k]
-                    .iter()
-                    .any(|p| matches!(p, Event::Entered { at: pe } if pe.step == at.step));
-                let restored = !reentered_now
-                    && a.before
+                let accepted = last_in_op.unwrap_or_else(|| {
+                    a.before
                         .run
                         .slices
                         .values()
-                        .any(|slice| slice.status.get(&at.step) == Some(&StepStatus::Accepted));
-                let accepted = logged || restored;
+                        .any(|slice| slice.status.get(&at.step) == Some(&StepStatus::Accepted))
+                });
                 if !accepted {
                     return Err(format!(
                         "achievement without acceptance at {at:?} (confirm kind none)"

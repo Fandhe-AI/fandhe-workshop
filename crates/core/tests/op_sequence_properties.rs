@@ -338,3 +338,60 @@ fn p3_rejects_achievement_after_reentry_invalidates_acceptance() {
     }
     assert!(tested >= 1, "no confirm-none achievement in the script");
 }
+
+/// 受け付け前に保存し、受け付けと達成の後に受け付け前へ復帰すると、ログには失効した `Accepted` が残るが、
+/// 復元後の状態は受け付け済みでない。この状態からの受け付けなしの達成を P-3 が拒否し、復元後の状態が
+/// 受け付け済みなら受け入れることを確かめる。
+#[test]
+fn p3_rejects_achievement_when_restore_revoked_the_logged_acceptance() {
+    use fandhe_workshop_core::step_status::StepStatus;
+    let (ir, initial) = load_min_ir();
+    let (all, _) = run_checked(&ir, &initial, &script_specs()).expect("properties hold");
+    let mut tested = 0;
+    for a in &all {
+        let achieved = a.events.iter().find_map(|e| match e {
+            Event::Achieved { at, .. } => Some(at.clone()),
+            _ => None,
+        });
+        let confirmed = a.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Confirmed,
+                    ..
+                }
+            )
+        });
+        let (Some(at), false) = (achieved, confirmed) else {
+            continue;
+        };
+        // 操作前のログには `Accepted` が残り、復元後の状態は受け付け前（`Entered`）という形にする。
+        let mut b = with_events(a, |events| {
+            events.retain(|x| !matches!(x, Event::Accepted { .. } | Event::Entered { .. }));
+        });
+        let old = Event::Accepted { at: at.clone() };
+        b.before.log.push(old.clone());
+        b.after.log.insert(b.before.log.len() - 1, old);
+        for slice in b.before.run.slices.values_mut() {
+            if slice.status.contains_key(&at.step) {
+                slice.status.insert(at.step.clone(), StepStatus::Entered);
+            }
+        }
+        let mut checker = PropChecker::new(&ir, &initial);
+        assert!(
+            checker.check_p3(&b).is_err(),
+            "an Accepted revoked by a restore must not justify the achievement"
+        );
+        for slice in b.before.run.slices.values_mut() {
+            if slice.status.contains_key(&at.step) {
+                slice.status.insert(at.step.clone(), StepStatus::Accepted);
+            }
+        }
+        let mut checker = PropChecker::new(&ir, &initial);
+        checker
+            .check_p3(&b)
+            .expect("a restored Accepted state still justifies the achievement");
+        tested += 1;
+    }
+    assert!(tested >= 1, "no confirm-none achievement in the script");
+}
