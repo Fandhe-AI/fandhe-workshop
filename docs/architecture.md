@@ -136,6 +136,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ。履歴ファイルの読み込み `EngineHost::open_history` は `load_session` を呼び、開いたときだけ `Session` を差し替える） | web | TASK-347・TASK-330 |
 | 右のログの行のモデルと描画（`log_lines`。TASK-431 の行の構造に準拠。入力・進行・停止・再読み込み・拒否を結線し（拒否の理由は `HostModel` が `apply_engine` の直後に core の `filled_text` で充填して控える。TASK-437 1/2）、問い返しは TASK-437 2/2、応答は TASK-435・TASK-438。`log-list` の引き継ぎは TASK-438 または TASK-517） | web | TASK-434 |
 | 状態表示の導出（`run_status`。待機中・処理中・停止。Esc と停止ボタンは `host` が処理中のときだけ `Control::Stop` に結ぶ。TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
+| 選択肢のボタン（`offers`。確認が `answer` の Step が確認待ちのとき、表示名のボタンを `Offers` の部品として描く。クリックの結線は TASK-445 2/2、配置は TASK-517） | web | TASK-445 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
