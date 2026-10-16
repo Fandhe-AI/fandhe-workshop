@@ -234,6 +234,33 @@ SAFE11-1 は、`crates/web/src/learner_text.rs` の `learner_line` が文字ノ�
 |---|---|---|---|---|---|
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（記法やタグが要素になる） | 記法と_html_は文字のまま描かれ_子の要素にならない | 記法と_html_は文字のまま描かれ_子の要素にならない, web_のソースは_raw_html_を使わない | DETECTED | - |
 
+### 5.3.1a 右のログに入力が文字として出ること（TASK-434 2/2）
+
+TERM21-1 は、`crates/web/src/learner_text.rs` の `learner_part`（右のログの行の本文）を生 HTML の出力口に替える変異である。
+native の適合試験 `log_lines_contract` が検出する。同じ修正で、SAFE11-1 の `find` を `learner_line` にだけ当たる文字列に直した
+（`learner_part` の追加で `vec![text(s)]` が 2 か所になり、変異の一意性の検査に通らなくなっていた）。
+
+実ブラウザでの確認は `tools/browser/log-lines-xss.test.mjs` が担う。`testdata` の `xss-cases.md` のうち入り口に E5 を含む 49 件を、
+「そのまま」「`/` の後ろ」「コマンドの引数」の 3 通りで送り（147 回。TASK-147 の SAFE-5 と同数）、`received` の行の本文が文字ノード
+1 つだけで送った文字列と一致すること、危険な要素・実行・外部通信・CSP 違反・ダイアログ・ポップアップ・ページの例外が 0 件であることを、
+CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
+構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
+
+- 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
+- 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
+- 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e6a486b-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/SAFE11-1.mutation crates/web/tests/mutations/TERM21-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
+| TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
+
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
 3 件の変異を足した。いずれもビルドは通り、対応する試験だけが失敗する。

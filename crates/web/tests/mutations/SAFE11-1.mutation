@@ -2,7 +2,7 @@ id: SAFE11-1
 package: fandhe-workshop-web
 test: learner_text
 target: crates/web/src/learner_text.rs
-find: vec![text(s)]
-replace: vec![fandhe_frontend_core::raw_html(s)]
+find: el("li", vec![], vec![text(s)])
+replace: el("li", vec![], vec![fandhe_frontend_core::raw_html(s)])
 expect-fail: 記法と_html_は文字のまま描かれ_子の要素にならない
 note: 受講者の文字列を生 HTML として出す（記法やタグが要素になる）
