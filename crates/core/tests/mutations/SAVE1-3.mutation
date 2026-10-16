@@ -1,0 +1,10 @@
+id: SAVE1-3
+package: fandhe-workshop-core
+test: history_replay
+target: crates/core/src/ops_record.rs
+find:             *prev = text;
+replace:             drop(text);
+expect-fail: scripted_history_replays_to_snapshot
+expect-fail: property_replay_matches_snapshot_fixed
+expect-fail: property_replay_matches_snapshot_guided
+note: 記録で連続する下書きを畳むとき最初の値が残る（試作の X-5 相当。適用し直した下書きが写しと食い違う）

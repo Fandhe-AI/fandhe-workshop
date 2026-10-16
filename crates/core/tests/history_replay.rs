@@ -195,11 +195,12 @@ where
 {
     let (ir, initial) = load_min_ir();
     let stats = RefCell::new(BTreeMap::<&'static str, u64>::new());
-    let with_drafts = (strategy, vec(0u8..5, MAX_OPS + 1));
+    // 各枠の下書きは 0〜2 件。送信を挟まず連続する下書きが列の途中にも現れ、畳みの誤りを検出できる。
+    let with_drafts = (strategy, vec(vec(0u8..5, 0..=2), MAX_OPS + 1));
     check(name, 1_000, with_drafts, |(specs, drafts)| {
         let mut path = RecordPath::new(&ir, &initial);
         for (i, spec) in specs.iter().enumerate() {
-            if let Some(d) = draft_text(drafts[i]) {
+            for d in drafts[i].iter().filter_map(|k| draft_text(*k)) {
                 path.draft(d);
             }
             path.spec(spec);
@@ -207,7 +208,7 @@ where
             prop_assert_eq!(&path.state.run, &path.harness.state().run, "run at #{}", i);
             prop_assert_eq!(&path.state.log, &path.harness.state().log, "log at #{}", i);
         }
-        if let Some(d) = draft_text(drafts[specs.len()]) {
+        for d in drafts[specs.len()].iter().filter_map(|k| draft_text(*k)) {
             path.draft(d);
         }
         let mut s = stats.borrow_mut();

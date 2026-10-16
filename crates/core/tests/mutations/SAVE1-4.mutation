@@ -1,0 +1,11 @@
+id: SAVE1-4
+package: fandhe-workshop-core
+test: history_verify
+target: crates/core/src/history_replay.rs
+find:         None => Ok(replayed),
+replace:         None => Ok(SessionState { drafts: Default::default(), ..replayed }),
+expect-fail: verified_state_is_the_replayed_state
+expect-fail: scripted_history_round_trips_and_verifies
+expect-fail: property_export_import_verifies_fixed
+expect-fail: property_export_import_verifies_guided
+note: 照合に通った後、返す状態の下書きを落とす（試作の X-6 相当。開いた状態が適用し直した状態と食い違う）
