@@ -22,7 +22,7 @@ use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::input_limit::{clamp_draft, notice_for};
 use crate::learner_text::learner_line;
-use crate::list_policy::keyed_view;
+use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
 
 /// 案内欄が束縛される field 名。
@@ -206,19 +206,14 @@ impl Component for HelloView {
             vec![text("送信")],
         ));
         // 件数が 0 でも常に keyed_view で描く（最初の送信から差分の経路に乗せるため）。
-        // Err は空の一覧に倒す（expect は wasm を太らせ、panic は画面を壊す）。
+        // Err は data-bind-list を保った通知の一覧に倒す（空の要素にすると全再描画になる。FEND-15）。
         let items: Vec<(String, Node)> = self
             .entries
             .iter()
             .map(|(seq, body)| (format!("e{seq}"), learner_line(body)))
             .collect();
         let attrs = vec![("data-testid", LOG_LIST_TESTID)];
-        children.push(
-            match keyed_view("ol", attrs.clone(), &LEARNER_LOG_FIELD, items) {
-                Ok(list) => list,
-                Err(_) => el("ol", attrs, vec![]),
-            },
-        );
+        children.push(keyed_view_or_notice("ol", attrs, &LEARNER_LOG_FIELD, items));
         // root の中の Esc を属性で届ける（FEND-5・D-30）。prevent-default・ignore-repeat は付けない
         // （押しっぱなしの扱いは FEND-18・TASK-364 で決める）。変換中の除外は上流が行う。
         let mut main_attrs = vec![("data-testid", "hello-root")];
