@@ -507,26 +507,34 @@ fn cancel_accept_ir() -> Ir {
 }
 
 #[test]
-fn cancel_accept_rule_is_not_recorded_as_accepted_until_wired() {
-    // 取り消しの受付の意味づけ（TASK-212）が入るまでは、受付の `Judged` を出さず、固定文の `Warning` だけにして
+fn cancel_accept_rule_accepts_in_entered_step() {
+    // 取り消しの受付の規則は、`Entered` の Step で他の入力と同じ受付の経路を通る（TASK-212、EVT-10）。
+    let mut s = Session::from_state(cancel_accept_ir(), entered("main/st-1"));
+    let events = send(&mut s, Input::Cancel);
+    assert_eq!(
+        kinds(&events),
+        ["input_received", "judged", "accepted"],
+        "{events:?}"
+    );
+    assert!(matches!(judgment(&events), Judgment::Accepted(_)));
+    assert_eq!(status(&s, "main/st-1"), StepStatus::Accepted);
+}
+
+#[test]
+fn cancel_accept_rule_warns_only_in_accepted_step() {
+    // 受付済みの Step での取り消しの受付の意味は仕様に無い。`Judged` を置かず固定文の `Warning` だけにして
     // 状態を変えない（受付と判定したのに遷移が無い食い違いを作らない。fail-closed）。
-    for status in [StepStatus::Entered, StepStatus::Accepted] {
-        let mut state = entered("main/st-1");
-        for sl in state.run.slices.values_mut() {
-            sl.status.insert(uid("main/st-1"), status);
-        }
-        let mut s = Session::from_state(cancel_accept_ir(), state);
-        let before = s.state().run.clone();
-        let events = send(&mut s, Input::Cancel);
-        assert_eq!(
-            kinds(&events),
-            ["input_received", "warning"],
-            "{status:?}: {events:?}"
-        );
-        assert!(!events.iter().any(|e| matches!(e, Event::Judged { .. })));
-        if let Event::Warning { message, .. } = &events[1] {
-            assert!(!message.contains("r-cancel"));
-        }
-        assert_eq!(s.state().run, before, "{status:?}");
+    let mut state = entered("main/st-1");
+    for sl in state.run.slices.values_mut() {
+        sl.status.insert(uid("main/st-1"), StepStatus::Accepted);
     }
+    let mut s = Session::from_state(cancel_accept_ir(), state);
+    let before = s.state().run.clone();
+    let events = send(&mut s, Input::Cancel);
+    assert_eq!(kinds(&events), ["input_received", "warning"], "{events:?}");
+    assert!(!events.iter().any(|e| matches!(e, Event::Judged { .. })));
+    if let Event::Warning { message, .. } = &events[1] {
+        assert!(!message.contains("r-cancel"));
+    }
+    assert_eq!(s.state().run, before);
 }

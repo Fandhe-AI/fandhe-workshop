@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -968,6 +968,24 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT11-4 | crates/core/src/go_to.rs: 達成済みの移動先を Entered に戻さない | move_to_achieved_step_sets_entered | move_to_same_step_reenters, move_to_achieved_step_sets_entered, move_invalidates_entry_copy, p4_move_clears_busy_and_increments | DETECTED | cases=256; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
 | EVT11-5 | crates/core/src/go_to.rs: IR に無い Step の検査を外す（無い Step へ移動できてしまう） | move_to_unknown_step_is_refused | move_to_unknown_step_is_refused | DETECTED | - |
 | EVT11-6 | crates/core/src/go_to.rs: 入口の写しを無効化しない | move_invalidates_entry_copy | move_invalidates_entry_copy | DETECTED | - |
+
+### 5.42 処理中でない停止の取り消しの入力としての扱い Control::Stop（TASK-212）
+
+処理中でない停止を取り消しの入力に渡さない誤り（EVT10-1）、処理中の停止まで取り消しの入力に渡す誤り（EVT10-2）、取り消しの受付の規則の効果を適用しない誤り（EVT10-3）、受付済みの Step の取り消しの受付で `Warning` でなく `Judged` を出す誤り（EVT10-4）、処理中でない停止の `Changed.cause` を停止のままにする誤り（EVT10-5）を入れ、`cancel_input`・`stop_restore` が検出することを確かめる。世代の +1 は `apply` の関門が戻すため、変異では見えにくい。`cancel_input` の世代の表明で担保する。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: d104ab4-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT10-1.mutation crates/core/tests/mutations/EVT10-2.mutation crates/core/tests/mutations/EVT10-3.mutation crates/core/tests/mutations/EVT10-4.mutation crates/core/tests/mutations/EVT10-5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| EVT10-1 | crates/core/src/session.rs: 処理中でない停止を取り消しの入力として扱わない（何も起きない） | idle_stop_without_cancel_rule_is_rejected_in_entered_step, idle_stop_without_cancel_rule_is_rejected_in_accepted_step, idle_stop_equals_cancel_input | idle_stop_without_cancel_rule_is_rejected_in_entered_step, idle_stop_with_reject_rule_judges_only, idle_stop_with_accept_rule_in_accepted_step_warns_only, idle_stop_without_cancel_rule_is_rejected_in_accepted_step, idle_stop_equals_cancel_input, idle_stop_with_accept_rule_accepts_and_applies_effects | DETECTED | - |
+| EVT10-2 | crates/core/src/session.rs: 処理中の停止も取り消しの入力に渡す（入口の写しへ戻らない） | stop_after_two_ticks_removes_draft, stop_matches_sample_e06 | stale_tick_after_stop_is_ignored, input_after_stop_is_accepted_and_completes, stale_tick_after_reinput_is_ignored, stop_after_two_ticks_removes_draft, stop_with_other_step_entry_warns_only, stop_overflow_warns_only, stop_without_entry_warns_only, p4_stop_returns_to_entry, stop_matches_sample_e06, p2_pre_stop_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: Plan { ticks: 0, resends: 0 }; cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (Plan { ticks: 0, resends: 0 }, [Old { second_step: false, index: 0 }]) |
+| EVT10-3 | crates/core/src/accept.rs: 取り消しの受付の規則の効果を適用しない | idle_stop_with_accept_rule_accepts_and_applies_effects | idle_stop_with_accept_rule_accepts_and_applies_effects | DETECTED | - |
+| EVT10-4 | crates/core/src/accept.rs: 受付済みの Step の取り消しの受付で Warning でなく Judged を出す | idle_stop_with_accept_rule_in_accepted_step_warns_only | idle_stop_with_accept_rule_in_accepted_step_warns_only | DETECTED | - |
+| EVT10-5 | crates/core/src/session.rs: 処理中でない停止の Changed.cause を停止のままにする | idle_stop_with_accept_rule_accepts_and_applies_effects | idle_stop_with_accept_rule_accepts_and_applies_effects | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

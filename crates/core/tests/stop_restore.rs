@@ -126,13 +126,23 @@ fn stop_matches_sample_e06() {
 }
 
 #[test]
-fn idle_stop_changes_nothing() {
+fn idle_stop_is_cancel_rejection_without_state_change() {
+    // 処理中でない停止は取り消しの入力として扱われる（TASK-212、EVT-10）。規則が無ければ拒否で、状態は変わらない。
     let ir = ir();
     let state = load().initial;
     let (next, events) = apply(&ir, state.clone(), stop());
-    assert!(events.is_empty());
-    assert_eq!(next, state);
+    assert_eq!(events.len(), 2, "{events:?}");
+    assert!(matches!(
+        events[0],
+        Event::InputReceived {
+            input: Input::Cancel,
+            ..
+        }
+    ));
+    assert!(matches!(events[1], Event::Judged { .. }));
+    assert_eq!(next.run, state.run);
     assert_eq!(next.run.generation, Generation(1));
+    assert_eq!(next.log.len(), state.log.len() + 2);
 }
 
 #[test]

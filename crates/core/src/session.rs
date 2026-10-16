@@ -11,8 +11,9 @@
 //! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進め、食い違う進行は `Ignored` 1 件で記録する（TASK-210 2/3・3/3、EVT-8・EVT-16）。
 //! 処理中の停止は `stop` モジュールが入口の写しへ戻す（TASK-211 1/2、EVT-9）。
 //! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しの作り直しは TASK-242）。
+//! 処理中でない停止は取り消しの入力 `Input::Cancel` として `accept` へ委ねる（TASK-212、EVT-10）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （処理中でない停止 TASK-212、保存と復帰 TASK-214、
+//! （保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -33,9 +34,9 @@ use serde::{Deserialize, Serialize};
 use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
 use crate::changed;
-use crate::event::Event;
+use crate::event::{Cause, Event};
 use crate::go_to;
-use crate::input::{CheckpointId, Control, GenerationRule, Op};
+use crate::input::{CheckpointId, Control, GenerationRule, Input, Op};
 use crate::provider::StateChangeProvider;
 use crate::step_status::StepStatus;
 use crate::stop;
@@ -172,10 +173,15 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     // `Changed` を出しても、ここで経路ごとに 1 件・変更前は操作前の値に置き換わる。
     let world_before = state.run.world.clone();
     let current_before = state.run.current.clone();
-    let cause = changed::cause_of(&op);
     let rule = op.generation_rule();
     let gen_before = state.run.generation;
     let was_busy = state.run.busy.is_some();
+    // 処理中でない停止は取り消しの入力として扱うので、`Changed` の原因も入力にする（EVT-10）。
+    let cause = if matches!(op, Op::Control(Control::Stop)) && !was_busy {
+        Cause::Input
+    } else {
+        changed::cause_of(&op)
+    };
     let events = step(ir, &mut state, op);
     // 世代の規則の表を分岐の外で強制する。`Changed` の宛先（下の `default_stamp`）より前に行い、
     // 状態とイベントの世代を食い違わせない。
@@ -231,10 +237,15 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         // 宛先が一致する進行の前進と食い違う進行の無視の記録は `tick`（TASK-210 2/3・3/3）。世代は変えない（1/3、`apply` の関門）。
         Op::Tick(addr) => tick::on_tick(ir, state, addr),
         // 処理中の停止と入口の写しへの復帰は `stop`（TASK-211 1/2）。世代は +1 になる（`apply` の関門が上限を守る）。
+        // 処理中でない停止は取り消しの入力 `Input::Cancel` として扱う（TASK-212、EVT-10）。`stop` は教材を読まない
+        // 不変条件を保つため、分岐はここで行う。世代は変わらない（`apply` の関門）。
+        Op::Control(Control::Stop) if state.run.busy.is_none() => {
+            accept::on_input(ir, state, Input::Cancel)
+        }
         Op::Control(Control::Stop) => stop::on_stop(state),
         // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（作り直しは TASK-242）。
         Op::Control(Control::GoTo(to)) => go_to::on_go_to(ir, state, to),
-        // TASK-212 処理中でない停止、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
+        // TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),
     }
 }

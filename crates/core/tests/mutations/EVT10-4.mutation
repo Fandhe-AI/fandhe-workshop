@@ -1,0 +1,8 @@
+id: EVT10-4
+package: fandhe-workshop-core
+test: cancel_input
+target: crates/core/src/accept.rs
+find:             if matches!(outcome.judgment, Judgment::Accepted(_)) {
+replace:             if false && matches!(outcome.judgment, Judgment::Accepted(_)) {
+expect-fail: idle_stop_with_accept_rule_in_accepted_step_warns_only
+note: 受付済みの Step の取り消しの受付で Warning でなく Judged を出す

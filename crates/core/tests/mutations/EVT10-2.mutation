@@ -1,0 +1,9 @@
+id: EVT10-2
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/session.rs
+find:         Op::Control(Control::Stop) if state.run.busy.is_none() => {
+replace:         Op::Control(Control::Stop) => {
+expect-fail: stop_after_two_ticks_removes_draft
+expect-fail: stop_matches_sample_e06
+note: 処理中の停止も取り消しの入力に渡す（入口の写しへ戻らない）
