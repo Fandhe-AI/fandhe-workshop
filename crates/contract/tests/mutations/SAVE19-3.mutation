@@ -1,0 +1,8 @@
+id: SAVE19-3
+package: fandhe-workshop-contract
+test: history_load_order_contract
+target: crates/contract/src/load_reason.rs
+find:             LoadReason::OtherPack => HistoryLoadStage::Type,
+replace:             LoadReason::OtherPack => HistoryLoadStage::Replay,
+expect-fail: stage_is_non_decreasing_along_order
+note: other_pack を適用し直しの段にして、段の単調性を崩す（次の bad_version より後ろの段になる）

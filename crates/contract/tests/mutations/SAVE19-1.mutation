@@ -1,0 +1,8 @@
+id: SAVE19-1
+package: fandhe-workshop-contract
+test: history_load_order_contract
+target: crates/contract/src/load_reason.rs
+find:     LoadReason::VocabNewer,         // 6 版の判定（語彙が新しい）
+replace:     LoadReason::EngineNewer,        // 6 版の判定（語彙が新しい）
+expect-fail: order_matches_contract
+note: 判定の順序の中の版の判定の要素を重複させる（vocab_newer の位置が engine_newer になる）

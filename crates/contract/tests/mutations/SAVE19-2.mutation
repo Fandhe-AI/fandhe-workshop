@@ -1,0 +1,8 @@
+id: SAVE19-2
+package: fandhe-workshop-contract
+test: history_load_order_contract
+target: crates/contract/src/load_reason.rs
+find:             LoadReason::TooManyOps => HistoryLoadStage::Type,
+replace:             LoadReason::TooManyOps => HistoryLoadStage::Size,
+expect-fail: limit_reasons_agree_with_limits_contract
+note: 件数の上限の段を大きさの段にして、上限の契約とずれさせる
