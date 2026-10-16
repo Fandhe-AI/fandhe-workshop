@@ -1,0 +1,9 @@
+id: SAVE19-14
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_open.rs
+find:         if state == history.snapshot {
+replace:         if true {
+expect-fail: stage8_tampered_snapshot_is_replay_mismatch
+expect-fail: stage8_diverged_needs_a_version_difference
+note: 写しとの一致の判定を常に真にする（適用し直しの結果を検証せず開く。history_load の試験で検出する）

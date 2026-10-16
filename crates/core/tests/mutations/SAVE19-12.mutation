@@ -1,0 +1,9 @@
+id: SAVE19-12
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_open.rs
+find:     if !ir.starts.iter().any(|s| s.id == history.start) {
+replace:     if false {
+expect-fail: stage7_start_missing
+expect-fail: all_nineteen_reasons_reach_the_single_entry
+note: 段 7 の開始点の検査を外す（教材に無い開始点の履歴を、写しが一致すれば開く）

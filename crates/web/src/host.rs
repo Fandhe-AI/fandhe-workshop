@@ -288,6 +288,11 @@ impl EngineHost {
                     "generation": r.at.generation.0,
                     "step": r.at.step.0,
                     "kind": log.get(r.event as usize).map_or("other", event_kind_name),
+                    // DOM の `data-kind`（行の種類）と照合する。行にしないイベントは null（DOM に行が無い）。
+                    "line": log
+                        .get(r.event as usize)
+                        .and_then(crate::log_lines::line_from_event)
+                        .map(|l| l.kind().as_str()),
                 })
             })
             .collect();

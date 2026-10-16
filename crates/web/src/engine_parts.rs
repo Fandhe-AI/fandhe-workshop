@@ -7,13 +7,14 @@
 //! `tools/browser/three-views.test.mjs` が DOM での一致を確かめる）。
 //!
 //! 仮のもの（持ち主が別にあるため、ここで確定しない）:
-//! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・行の型・束縛点の名前は、
-//!   TASK-431・TASK-467・TASK-511 が決める。
+//! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・束縛点の名前は、
+//!   TASK-431・TASK-467・TASK-511 が決める。ログの行の型は TASK-431 に準拠済み（`log_lines`。TASK-434）で、
+//!   識別子 `part-log*` だけが仮のまま残る（`log-list` の引き継ぎは TASK-438 または TASK-517）。
 //! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
 //!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
-//! - 受講者の入力文字列は、ここでは描かない（入力欄の送信済み一覧が `learner_text::learner_line` で描く。
-//!   ログの部品での表示は TASK-434 が足す）。
+//! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
+//!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
 //! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
 //!   親の `data-bind-list` を保ったまま `data-list-error="limit"` と固定の通知の行を出し、全再描画を避ける
 //!   （`list_policy::keyed_view_or_notice`）。
@@ -33,6 +34,7 @@ use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
+use crate::log_lines::{line_from_event, line_node};
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
@@ -153,7 +155,29 @@ fn consumed_bound(field: &str, own: &str, model: &HostModel) -> Option<BoundValu
     (field == own).then(|| BoundValue::Text(consumed_text(model)))
 }
 
-/// 右のログ。イベント 1 件が 1 行で、キーはイベントの位置（追記だけで安定する）。
+/// 行の `li` に、試験が元のイベントへ辿るための属性（イベントの位置・Step）を足す。
+/// 値は 10 進の数字と検証済みの `StepUid` だけで、`terminal_area` は必須の属性しか見ないため違反にならない。
+fn with_trace(node: Node, event: u32, step: &str) -> Node {
+    match node {
+        Node::Element {
+            tag,
+            mut attrs,
+            children,
+        } => {
+            attrs.push(("data-event".to_owned(), event.to_string()));
+            attrs.push(("data-step".to_owned(), step.to_owned()));
+            Node::Element {
+                tag,
+                attrs,
+                children,
+            }
+        }
+        other => other,
+    }
+}
+
+/// 右のログ。行にできるイベント 1 件が 1 行で、キーはイベントの位置（追記だけで安定する）。
+/// 行の構造は `log_lines`（TASK-431 準拠）が持ち、行にしないイベントは飛ばす。
 struct LogPart;
 
 impl DisplayPart<HostModel> for LogPart {
@@ -169,22 +193,13 @@ impl DisplayPart<HostModel> for LogPart {
             .projection()
             .log()
             .iter()
-            .map(|row| {
-                let kind = events
-                    .get(row.event as usize)
-                    .map_or("other", event_kind_name);
-                let (event, generation) = (row.event.to_string(), row.at.generation.0.to_string());
-                let node = el(
-                    "li",
-                    vec![
-                        ("data-event", event.as_str()),
-                        ("data-generation", generation.as_str()),
-                        ("data-step", row.at.step.0.as_str()),
-                        ("data-kind", kind),
-                    ],
-                    vec![text(kind)],
-                );
-                (format!("r{}", row.event), node)
+            .filter_map(|row| {
+                let line = line_from_event(events.get(row.event as usize)?)?;
+                let node = line_node(row.at.generation.0, &line)?;
+                Some((
+                    format!("r{}", row.event),
+                    with_trace(node, row.event, row.at.step.0.as_str()),
+                ))
             })
             .collect();
         let list = keyed_view_or_notice("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items);

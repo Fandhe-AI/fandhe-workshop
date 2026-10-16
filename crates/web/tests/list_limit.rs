@@ -17,7 +17,7 @@ use fandhe_frontend_core::keyed::KeyedListError;
 use fandhe_frontend_core::{el, render, text, Node};
 use fandhe_frontend_wasm_full::render_component_html;
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::input::{Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::engine_parts::standard_registry;
@@ -25,6 +25,7 @@ use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::list_policy::{
     keyed_view, keyed_view_or_notice, ListError, LIST_ERROR_ATTR,
 };
+use fandhe_workshop_web::log_lines::line_from_event;
 use fandhe_workshop_web::parts::{Component, DirtyTracked, FieldKind, PartField};
 
 const LIST_FIELD: PartField = PartField {
@@ -94,8 +95,15 @@ fn begun_host() -> EngineHost {
     EngineHost::with_session(Session::from_state(ir, state), standard_registry()).unwrap()
 }
 
+/// ログの部品に出る行の数。行になるのは `line_from_event` が写すイベントだけ（TASK-434）。
 fn log_len(host: &EngineHost) -> usize {
-    host.model().projection().log().len()
+    let events = host.model().session().unwrap().log();
+    host.model()
+        .projection()
+        .log()
+        .iter()
+        .filter(|r| line_from_event(&events[r.event as usize]).is_some())
+        .count()
 }
 
 /// `data-bind-*` 属性の値（`field` または `field:...`）の最初の部分をすべて集める。
@@ -117,13 +125,14 @@ fn bound_names(html: &str) -> Vec<String> {
 #[test]
 fn limit_4097_host_log_does_not_trigger_full_rerender() {
     let mut host = begun_host();
-    let op = || HostAction::Engine(Op::Control(Control::Save));
-    // 保存（`Control::Save`）は 1 回でログがちょうど 1 件増える（実測 2026-10-16）。それを確かめながら、4,096 行まで進める。
+    let op = || HostAction::Engine(Op::Input(Input::Text("x".to_owned())));
+    // 入力（`Input::Text`）は 1 回で行がちょうど 1 件増える（入力の記録の行。判定のイベントは行にならない）。
+    // それを確かめながら、4,096 行まで進める。
     let mut guard = 0;
     while log_len(&host) < 4_096 {
         let before = log_len(&host);
         host.update(op());
-        assert_eq!(log_len(&host), before + 1, "ログが 1 件ずつ増えない");
+        assert_eq!(log_len(&host), before + 1, "行が 1 件ずつ増えない");
         guard += 1;
         assert!(guard <= 5_000, "上限に届かない: {}", log_len(&host));
     }
