@@ -113,6 +113,27 @@ for (const csp of [true, false]) {
     }));
   });
 
+  test(`送信の直後に変換が始まっても、欄は書き換わらず、変換の終了後に空になる（CSP ${label}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, ACCEPTED);
+      // 同じタスクの中で送信と compositionstart を続け、書き戻しのタイマー（set_timeout 0）より前に変換を始める。
+      await page.evaluate(([submit, input]) => {
+        document.querySelector(submit).click();
+        document.querySelector(input).dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      }, [SUBMIT, INPUT]);
+      await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, RECEIVED);
+      await page.waitForTimeout(100);
+      assert.equal(await page.inputValue(INPUT), ACCEPTED, '変換中は書き戻さない');
+      await page.evaluate((input) => {
+        document.querySelector(input).dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      }, INPUT);
+      await waitEmpty(page);
+      clean(rec);
+      await context.close();
+    }));
+  });
+
   test(`Shift+Enter は送信せず、最後の Enter で改行を保った 1 件になる（CSP ${label}）`, async () => {
     await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
       const { page, context, rec } = await open(srv);
