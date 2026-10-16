@@ -2174,3 +2174,34 @@ glue（wasm32 専用）の結線の変異は native の試験で検出できな�
 | TERM11-1 | crates/web/src/host.rs: 補完で書き戻しの要求を出さない | DETECTED（補完は先頭の候補に置き換え_一覧を閉じ_書き戻しを一度だけ頼む） |
 | TERM11-2 | crates/web/src/hello.rs: 先頭ではなく末尾の候補を挿入する | DETECTED（複数の候補があれば名前順の先頭で補完し_unsupported_は選ばない） |
 | TERM42-3 | crates/web/src/candidates.rs: unsupported を候補の表から除外しない | DETECTED（開く場面と開かない場面 ほか） |
+
+### 5.77 左のビュー共通の検査器（TASK-471 2/3）
+
+PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tools/browser/artifact-view-check.mjs`）として整えた。
+本節の番号は、この文書の 5 節に既にある重複を直さずに、既存の最大の次を使った（base 取り込み時に 5.65・5.66 の衝突を、取り込みのたびに既存の最大の次へ付け直し、5.77 にした）。
+
+検査器は ART-1 の 14 通り（7 種 × 2 変種）を流せる枠である。各通りで前 → 後 → 前 → 後 → 前の 4 回の切り替え（2 往復）を行い、各状態で次を数える。
+
+- 前後の項目数と key の並びが、JSON から Node 側で独立に数えた期待値（`expectedFromRows`）と一致する
+- 印の 3 手段（記号・文字・`data-mark`）が対応し、印の宿主が項目ごとにちょうど 1 つである
+- key が重複しない
+- 選ばれていない list が空で `hidden`、選ばれた list は `hidden` でない
+- 要素の同一性（両方の状態にある行は同じ要素で、置換が 0。保持の数は前の行数に等しい）
+- 外部へのリクエスト・ページのエラー・ダイアログが全区分 0（`harness.mjs` の `collectSafety`）
+
+14 通りの数え方は、契約（`ViewKind::allows`）が許す 12 通りを `runViewCase` で流し、許さない 2 通り（文書 (a)・差分 (a)）を `runRejectedCase` で流す。
+後者は、拒否されること、状態も画面も変わらないこと、(b) へ黙って退避しないことを確かめる。基準の状態に (b) を使うと黙った退避を見分けられないため、
+基準は card_list の (a) にした。後続の検査は、自分のビューを差し込むアダプタ（`select`・`phase`）を渡して使う。
+
+文書だけは JSON の行が無く、期待値を手で数えた固定値（前 10 ブロック・後 13 行。未変更 7・追加 3・削除 3・変更 0）にした。
+出所は `doc-before.md`・`doc-after.md` の最上位のブロックである。TASK-476 で本文の木の粒度を結んだときに見直す既知の制約である。
+
+製品の `view()` には 7 本の list を描く部品がまだ無い（TASK-470）ため、試験の設定だけに、マウントする代役の部品（`crates/web/src/view_fixture.rs`）を足した。
+`#app` の外の別の root にマウントし、本体の画面とは状態を共有しない。(a)・(b) は印の付け先の違いだけを再現し、`wireframe-ui`・`headless-ui` の部品は使わない。
+そのため本節の合格は検査器の枠が動くことの証拠で、各ビューの合格ではない（ビューごとの証拠は TASK-473 以降）。
+
+空振りでないことは、自己確認（`artifact-view-check.test.mjs`）の T4 で示した。マウントしない空の画面と存在しない root では違反が出る。
+負の対照 3 種（印を消す・部品を項目の外に置く・`innerHTML`）と教材固有の語の検査は TASK-471 3/3 の範囲で、本件では行っていない。
+
+`make test-browser` は 158 件が通過した（2026-10-16。新しい試験は 21 件）。`make test`・`make lint`・`make check`・`make check-deps`・`make check-dom-reads` も通過した。
+配信設定（`make build-web`）は `make check-delivery` を通り、wasm に `memo-app`・`view-fixture` の文字列が 0 件であることを `grep` で確かめた。

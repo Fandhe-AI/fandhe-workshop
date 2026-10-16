@@ -19,6 +19,7 @@
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
+//! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
@@ -71,3 +72,6 @@ mod test_hooks;
 
 #[cfg(feature = "test-hooks")]
 mod test_fixture;
+
+#[cfg(any(test, feature = "test-hooks"))]
+mod view_fixture;
