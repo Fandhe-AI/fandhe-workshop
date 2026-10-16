@@ -1,0 +1,8 @@
+id: SAVE20-1
+package: fandhe-workshop-contract
+test: load_reason_contract
+target: crates/contract/src/load_reason.rs
+find:             LoadReason::OtherPack => "other_pack",
+replace:             LoadReason::OtherPack => "malformed",
+expect-fail: codes_are_unique
+note: 拒否理由コードの名前を重複させる（other_pack が malformed と同じ文字列になる）
