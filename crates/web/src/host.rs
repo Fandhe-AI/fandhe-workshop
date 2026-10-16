@@ -252,6 +252,8 @@ pub struct EngineHost {
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
     tick_request: Option<TickRequest>,
+    /// 履歴の差し替えのとき、これまでの進行のタイマーを無効にさせる通知先（表示側が登録する）。
+    tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
     /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
@@ -299,6 +301,7 @@ impl EngineHost {
             input: HelloView::new(),
             dirty: Vec::new(),
             tick_request: None,
+            tick_reset: None,
             draft_sync_request: None,
             command_prefix: None,
             initial: None,
@@ -336,6 +339,7 @@ impl EngineHost {
             input,
             dirty: Vec::new(),
             tick_request: None,
+            tick_reset: None,
             draft_sync_request: None,
             command_prefix: d.command_prefix,
             initial,
@@ -375,6 +379,11 @@ impl EngineHost {
     /// 次に届けるべき進行の宛先。処理中でなければ・未読込なら `None`。
     pub fn next_tick(&self) -> Option<TickAddr> {
         self.model.session().and_then(next_tick)
+    }
+
+    /// 履歴の差し替えで進行のタイマーを無効にする通知先を結ぶ。通知先は Runtime にも App にも触れてはならない。
+    pub fn set_tick_reset(&mut self, f: Box<dyn Fn()>) {
+        self.tick_reset = Some(f);
     }
 
     /// 進行の宛先の通知先を結ぶ。結んだ時点で、現在の宛先を 1 回通知する（開始時にすでに処理中の場合に備える）。
@@ -602,6 +611,10 @@ impl EngineHost {
         self.model.world_consumed = d.world_consumed;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
+        // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
+        if let Some(reset) = self.tick_reset.as_ref() {
+            reset();
+        }
         if let (Some(notify), Some(session)) =
             (self.tick_request.as_ref(), self.model.session.as_ref())
         {

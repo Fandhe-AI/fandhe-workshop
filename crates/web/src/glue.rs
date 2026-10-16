@@ -30,6 +30,9 @@ thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
     /// 予約済みの進行の宛先。同じ宛先のタイマーを二重に積まないための印（取り消しのためではない）。
     static SCHEDULED: RefCell<Option<TickAddr>> = const { RefCell::new(None) };
+    /// 進行のタイマーの世代。履歴の差し替え（`on_tick_reset`）で進める。古い世代のタイマーは配送の時点で捨てる。
+    /// 履歴の読み込みで差し替え前のタイマーが残っても、読み込み後のログへ `Ignored` を足さず、宛先が偶然一致しても進めない。
+    static TICK_EPOCH: RefCell<u64> = const { RefCell::new(0) };
     /// 書き戻しの対象の root。送信で下書きを空にしたとき、タイマーのコールバックが `sync_draft` に渡す。
     static DRAFT_ROOT: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
     /// 変換中（`compositionstart` から `compositionend` まで）かどうか。`sync_draft` が変換中の書き換えを避けるために読む。
@@ -74,14 +77,19 @@ fn deliver(action: &RuntimeAction) -> Option<DispatchEffect> {
 
 /// action の配送を `delay_ms` 後に予約する。配送は必ず `set_timeout` のコールバックの中で行う（再入を避けるため）。
 ///
-/// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。古くなった宛先は届いても core が無視するため、
-/// 取り消しの規則を表示側に持たせない。進行の宛先が届いた時点で、その宛先の予約の印を外す。
+/// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。進行は予約時の世代（`TICK_EPOCH`）を持ち、配送の時点で
+/// 世代が進んでいれば捨てる（履歴の差し替え前のタイマー）。それ以外の古い宛先は届いても core が無視する。同じ世代で届いた進行の宛先は、
+/// その宛先の予約の印を外す。
 fn schedule_action(action: RuntimeAction, delay_ms: i32) {
     let Some(window) = web_sys::window() else {
         return;
     };
+    let epoch = TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0));
     let callback = Closure::once_into_js(move || {
         if let RuntimeAction::Tick(addr) = &action {
+            if TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0)) != epoch {
+                return;
+            }
             SCHEDULED.with(|s| {
                 if let Ok(mut slot) = s.try_borrow_mut() {
                     if slot.as_ref() == Some(addr) {
@@ -99,6 +107,24 @@ fn schedule_action(action: RuntimeAction, delay_ms: i32) {
 /// 進行の間隔（ミリ秒）。定数は `i32` に収まる（`tick_interval` の const assert）。
 fn tick_delay_ms() -> i32 {
     i32::try_from(TICK_INTERVAL_MS).unwrap_or(i32::MAX)
+}
+
+/// 履歴の差し替えで、これまでの進行のタイマーを全部無効にする（`EngineHost::set_tick_reset` の通知先）。
+///
+/// 世代を進め、予約の印も消す。差し替え後の宛先が差し替え前と同じでも、新しいタイマーを予約し直せる。
+/// 停止・移動のような通常の更新では呼ばれない。古いタイマーは届いて core の `Ignored` になる（EVT-8）。
+fn on_tick_reset() {
+    TICK_EPOCH.with(|e| {
+        if let Ok(mut e) = e.try_borrow_mut() {
+            // u64 は実用上あふれない。あふれても世代が 0 に戻るだけで、配送の可否が変わるのはその一周に限る。
+            *e = e.wrapping_add(1);
+        }
+    });
+    SCHEDULED.with(|s| {
+        if let Ok(mut slot) = s.try_borrow_mut() {
+            *slot = None;
+        }
+    });
 }
 
 /// ホストが通知する次の進行の宛先を受け、タイマーを予約する（`EngineHost::set_tick_request` の通知先）。
@@ -382,6 +408,7 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         }
         let mut host = EngineHost::for_mount();
         host.set_tick_request(Box::new(on_tick_request));
+        host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();

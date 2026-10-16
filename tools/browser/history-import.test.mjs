@@ -231,3 +231,25 @@ test('書き換えたファイル・JSON でないファイルは開かず、状
     await B.context.close();
   });
 });
+
+test('処理中に履歴を読み込んでも、差し替え前の進行のタイマーは読み込み後のログへ何も足さない', async () => {
+  await withTwoOrigins(async (srvA) => {
+    const A = await openOrigin(srvA);
+    const text = await call(A.page, 'loadableHistoryText');
+    assert.ok(text.length > 0, 'loadable history exists');
+    // 入力を 1 件送り、進行のタイマーが予約された（処理中の）状態にする。
+    await sendRaw(A.page, { input: { command: '/make-note first-note' } });
+    await A.page.waitForFunction(() => window.__fandheTest.nextTick() !== 'null', null, { timeout: 5000 });
+    // 予約が残ったまま履歴を読み込む。
+    assert.equal(await call(A.page, 'importText', text), true);
+    await waitImport(A.page, 'open');
+    const right = await engine(A.page);
+    // 差し替え前のタイマーが届くのに足りる時間（進行の間隔の数倍）を置く。届いた古い進行がログへ足されれば長さが変わる。
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const later = await engine(A.page);
+    assert.equal(later.logLen, right.logLen, 'a stale tick must not append to the loaded log');
+    assert.equal(later.incrementalMatches, true);
+    assertQuiet(A.rec, 'A');
+    await A.context.close();
+  });
+});
