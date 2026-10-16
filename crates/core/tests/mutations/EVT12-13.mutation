@@ -1,0 +1,9 @@
+id: EVT12-13
+package: fandhe-workshop-core
+test: restore_resume
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: pre_restore_tick_with_saved_index_is_ignored
+expect-fail: p2_pre_restore_ticks_never_change_run
+note: 進行の宛先の照合から世代を外す（復帰前の進行が、保存時点の Step・番号へ戻った復帰の後の処理中に二重に効く。EVT9-5・EVT11-7 と同じ誤りを復帰の側から確かめる）
