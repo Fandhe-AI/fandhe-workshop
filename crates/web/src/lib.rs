@@ -19,6 +19,7 @@
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
+//! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 #![forbid(unsafe_code)]
@@ -36,6 +37,7 @@ pub mod input_limit;
 pub mod key_route;
 pub mod learner_text;
 pub mod list_policy;
+pub mod log_lines;
 pub mod parts;
 pub mod profile;
 pub mod storage_select;

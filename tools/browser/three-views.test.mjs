@@ -66,7 +66,7 @@ async function readBoth(page) {
     const dom = {
       log: rows('part-log').map((li) => ({
         event: Number(li.dataset.event),
-        generation: Number(li.dataset.generation),
+        generation: Number(li.dataset.gen),
         step: li.dataset.step,
         kind: li.dataset.kind,
       })),
@@ -113,7 +113,11 @@ async function waitQuiet(page) {
 function assertMatches(dom, engine, detail) {
   assert.equal(engine.irLoaded, true, detail);
   // (a) ログの行は、一括で導いた行と一致する。
-  assert.deepEqual(dom.log, engine.log, `log ${detail}`);
+  // 行にしないイベント（line が null）は DOM に行が無い。kind は行の種類（data-kind。TASK-431）で照合する。
+  const expectedLog = engine.log
+    .filter((r) => r.line !== null)
+    .map(({ event, generation, step, line }) => ({ event, generation, step, kind: line }));
+  assert.deepEqual(dom.log, expectedLog, `log ${detail}`);
   // (c) 成果物は、一括で導いた世界状態と印と一致する。
   assert.deepEqual(dom.artifacts, engine.artifacts, `artifacts ${detail}`);
   // (b) 復習は、一括で導いた復習と一致する。
