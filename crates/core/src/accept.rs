@@ -4,7 +4,7 @@
 //! 規則の効果を世界状態へ適用する。受付は達成ではない。達成は確認の操作の後で、受付済みの Step への入力は
 //! [`crate::confirm`]（TASK-207 2/3）が持つ。例外は、教材が理由を添えて確認を省くと明示した Step
 //! （`confirm: none`、EVT-5、TASK-208）で、受付と同時に [`crate::confirm`] の達成の処理を呼ぶ。
-//! `processing` を持つ Step は除く（進行の完了で達成にする。TASK-210）。
+//! `processing` を持つ Step は除く（進行の完了で [`crate::tick`] が達成にする。TASK-210 2/3）。
 //! 本モジュール自身は `StepStatus::Achieved` を書かず、`ChapterCompleted` を出さない。
 //! 呼び出し元は [`crate::session::apply`] だけで、公開 API には含めない（契約の対象外）。
 //! 入力の判定は [`crate::judge::judge_input`] が 1 回だけ行い、本モジュールはその結果（`Judged` に載せる判定と
@@ -45,8 +45,8 @@
 //! # 扱わないこと
 //!
 //! - 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
-//! - `busy` の文面の差し込み（TASK-274）、`processing` を持つ省略の Step の達成（TASK-210）
-//! - 進行 `Op::Tick` の照合と進め方（TASK-210）、処理中でない Esc の意味づけ（TASK-212）
+//! - `busy` の文面の差し込み（TASK-274）、`processing` を持つ省略の Step の達成（`tick`、TASK-210 2/3）
+//! - 進行 `Op::Tick` の照合と進め方（`tick`、TASK-210）、処理中でない Esc の意味づけ（TASK-212）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! `Warning` の文面は固定文で、入力値・教材の値を埋め込まない。入力値は未信頼で、HTML への埋め込みの
@@ -174,7 +174,7 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         choice,
         &at,
     ));
-    // 処理中の Step は、進行の完了で達成にする（TASK-210）。`busy` と `current` を食い違わせない。
+    // 処理中の Step は、進行の完了で `tick` が達成にする（TASK-210 2/3）。`busy` と `current` を食い違わせない。
     if let Some(items) = items.filter(|_| step.processing.is_empty()) {
         events.extend(confirm::achieve_with(ir, state, node, &at, &items));
     }
