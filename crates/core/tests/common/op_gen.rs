@@ -23,6 +23,13 @@
 //!   （`resolve` は `&self` で状態を読む形を保つ）。解決表は spec の `property-test-addendum.md`
 //!   （PoC-1 の発見事項 F-11 で足した誘導）と同じで、操作の 40% を誘導にする [`guided_op_specs`] が使う
 //!
+//! - TASK-221（実装済み）: [`OpSpec::Reload`]（再読み込み。SAVE-4）を足す。`property-test.md` の操作の表には
+//!   無く、表の外から足したものである（規則は spec の `engine-persistence.md` の SAVE-4）。再読み込みは `apply` の外の
+//!   経路のため `Op` ではなく、[`Applied::op`] は `None` になる。進行の宛先の履歴（`seen`・`last_tick`）は再読み込みで
+//!   変えないので、再読み込みの前に予約された宛先が `Tick(StaleGen)` などの古い宛先として後から届く。既存の戦略は
+//!   変えず（種ごとの列と記録を保つため）、再読み込みを混ぜる戦略 [`op_specs_with_reload`]・
+//!   [`guided_op_specs_with_reload`] を別に足す
+//!
 //! # 空列の扱い
 //!
 //! 連打は直前の学習者の入力が無いと捨てるため、展開後が空になりうる。この場合は先頭に
@@ -110,6 +117,8 @@ pub enum OpSpec {
     Save,
     /// チェックポイント復帰（番号 1〜4）。
     Restore(u32),
+    /// 再読み込み（SAVE-4）。`apply` の外の経路で、進行の宛先の履歴は保つ。学習者の入力ではない。
+    Reload,
 }
 
 impl OpSpec {
@@ -177,6 +186,23 @@ pub fn guided_op_specs() -> impl Strategy<Value = Vec<OpSpec>> {
     op_sequence(prop_oneof![40 => guided, 60 => spec_strategy()]).prop_map(|raw| expand(&raw))
 }
 
+/// [`spec_strategy`] に再読み込みを数 % の重みで混ぜた戦略（TASK-221）。
+pub fn reload_spec_strategy() -> impl Strategy<Value = RawSpec> {
+    prop_oneof![38 => spec_strategy(), 3 => Just(RawSpec::One(OpSpec::Reload))]
+}
+
+/// 再読み込みを混ぜた固定の生成（TASK-221）。[`op_specs`] とは別の列になる。
+pub fn op_specs_with_reload() -> impl Strategy<Value = Vec<OpSpec>> {
+    op_sequence(reload_spec_strategy()).prop_map(|raw| expand(&raw))
+}
+
+/// 再読み込みを混ぜた誘導つきの生成（TASK-221）。操作の 40% を誘導、残り 60% を [`reload_spec_strategy`] にする。
+pub fn guided_op_specs_with_reload() -> impl Strategy<Value = Vec<OpSpec>> {
+    let guided = (0u8..4).prop_map(|k| RawSpec::One(OpSpec::Guided(k)));
+    op_sequence(prop_oneof![40 => guided, 60 => reload_spec_strategy()])
+        .prop_map(|raw| expand(&raw))
+}
+
 /// 連打を学習者の入力の複製に展開し、[`MAX_OPS`] で打ち切る。直前の入力が無い連打は捨てる。
 pub fn expand(raw: &[RawSpec]) -> Vec<OpSpec> {
     let mut out: Vec<OpSpec> = Vec::new();
@@ -211,8 +237,8 @@ pub fn op_specs() -> impl Strategy<Value = Vec<OpSpec>> {
 /// 1 操作の結果。
 #[derive(Debug, Clone, PartialEq)]
 pub struct Applied {
-    /// 解決した具体の操作。
-    pub op: Op,
+    /// 解決した具体の操作。`None` は再読み込み（SAVE-4。`apply` の外の経路で `Op` ではない）。
+    pub op: Option<Op>,
     /// 操作前の状態。
     pub before: SessionState,
     /// 操作後の状態。
@@ -321,7 +347,9 @@ impl<'a> Harness<'a> {
             return Op::Tick(self.tick_addr(Which::Current));
         }
         let Some(current) = self.state.run.current.as_ref() else {
-            return self.resolve(&OpSpec::Cancel);
+            return self
+                .resolve(&OpSpec::Cancel)
+                .unwrap_or(Op::Input(Input::Cancel));
         };
         let next = if current.0 == NODES[0] {
             match self.status_of(current) {
@@ -333,13 +361,15 @@ impl<'a> Harness<'a> {
         } else {
             OpSpec::Approval(0)
         };
-        self.resolve(&next)
+        // `next` は `Reload` を含まないので `resolve` は必ず `Some` を返す。万一の場合は取り消しに倒す。
+        self.resolve(&next).unwrap_or(Op::Input(Input::Cancel))
     }
 
-    /// 現在の状態から、抽象的な操作を具体の `Op` に解決する。
-    pub fn resolve(&self, spec: &OpSpec) -> Op {
+    /// 現在の状態から、抽象的な操作を具体の `Op` に解決する。再読み込みは `Op` を持たないので `None` を返す。
+    /// 呼び出し元は [`Harness::guided`] と [`Harness::step`] で、どちらも `Reload` を渡す前に分ける。
+    pub fn resolve(&self, spec: &OpSpec) -> Option<Op> {
         let cancel = || Op::Input(Input::Cancel);
-        match *spec {
+        Some(match *spec {
             OpSpec::Cmd(i) => Op::Input(Input::Command(CMDS[i % CMDS.len()].to_string())),
             OpSpec::Choice(i) => Op::Input(Input::Choice(CHOICES[i % CHOICES.len()].to_string())),
             OpSpec::Ui(i) => Op::Input(Input::Ui {
@@ -361,7 +391,8 @@ impl<'a> Harness<'a> {
             }
             OpSpec::Save => Op::Control(Control::Save),
             OpSpec::Restore(n) => Op::Control(Control::Restore(CheckpointId(n))),
-        }
+            OpSpec::Reload => return None,
+        })
     }
 
     /// 再読み込み（SAVE-4）を流す。`apply` の外の経路で、純粋関数の経路は `session::reload`、
@@ -383,7 +414,17 @@ impl<'a> Harness<'a> {
 
     /// 操作を解決して流し、状態と履歴を更新する。
     pub fn step(&mut self, spec: &OpSpec) -> Applied {
-        let op = self.resolve(spec);
+        let Some(op) = self.resolve(spec) else {
+            // 再読み込み。宛先の履歴は変えない（前の世代の予約が後から古い宛先として届く）。
+            let before = self.state.clone();
+            let events = self.reload();
+            return Applied {
+                op: None,
+                before,
+                after: self.state.clone(),
+                events,
+            };
+        };
         if let Op::Tick(addr) = &op {
             if !self.seen.contains(addr) {
                 self.seen.push(addr.clone());
@@ -404,7 +445,7 @@ impl<'a> Harness<'a> {
             }
         };
         Applied {
-            op,
+            op: Some(op),
             before,
             after: self.state.clone(),
             events,
