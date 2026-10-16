@@ -35,6 +35,8 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - `failure_persistence` は無効にしている。有効だと `proptest-regressions/` をソースツリーへ書き出し、作業ツリーを書き換えてしまうため
 - 試験の成功条件は不変条件だけにする。環境変数で探索を変えても、操作の網羅性に依存しない。網羅性は固定列の試験で確かめる
 - 種を変えた探索では、変異注入の記録と結果が変わりうる。記録は既定の種で取る
+- 操作列の生成器とハーネスは `crates/core/tests/common/op_gen.rs`、流し直しの一致の試験（TASK-219 1/3、性質 P-5）は
+  `crates/core/tests/op_sequence_replay.rs` にある。1,000 通りの実測は dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
 
 ## 3. 変異注入の手順
 
