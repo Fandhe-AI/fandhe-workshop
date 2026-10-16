@@ -1702,7 +1702,7 @@ SAVE19-4 は文字の途中の切れを `not_json` にする誤り、SAVE19-5 �
 段 4 の `missing_version` は、`versions` の表の欠落に加えて `format` の違いと `history_format` の欠落を含める。
 根拠は `version-expectations.md` の 1 節と試作の `open_history` で、実装側の読みである（【推論】）。spec 側への提案は、SAVE-19・VER-1 でこれを明記することである。
 画面の状態が変わらないことのブラウザの確認は、web に履歴を読み込む経路が無いため未実施（TASK-531・TASK-532・TASK-176 の後）。
-段 7・8 の試験・所要時間・契約適合は TASK-331 3/3 の範囲である。
+段 7・8 の試験・所要時間・契約適合は 5.65（TASK-331 3/3）で扱う。
 
 SAVE19-7 は版の欄の段（`versions` の表の検査）を外す誤り、SAVE19-8 は `format` の照合を外す誤り、SAVE19-9 は型の失敗を `missing_version` にする誤り、
 SAVE19-10 は `ops` の件数の比較を `>=` にする誤り、SAVE19-11 は件数の検査を外す誤りである。
@@ -1721,10 +1721,44 @@ SAVE19-10 は `ops` の件数の比較を `>=` にする誤り、SAVE19-11 は�
 | SAVE19-10 | crates/core/src/history_load.rs: ops の件数の比較を >= にする | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history） |
 | SAVE19-11 | crates/core/src/history_load.rs: ops の件数の検査を外す | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history ほか 1 件） |
 
-### 5.65 左のビュー共通の検査器（TASK-471 2/3）
+### 5.65 履歴の読み込みの段 7・8（TASK-331 3/3）
+
+段 7（開始点）と段 8（適用し直しと写しとの照合）は `open_history` にあり、`history_load::load_history`（段 1〜8 の入口）から通して `history_load` の試験で確かめた。判定のコードは変えていない。
+開く履歴は記録の経路（`RecordPath`）で作った。固定の履歴 `two-rounds` は `reload` を含み、再読み込みの意味の実装（TASK-320）まで同一版でも `replay_mismatch` になる（`reload_history_is_replay_mismatch_until_task320` で固定）。
+19 種の理由コードがすべて `load_history` の 1 つの入口から返り、並びが `HISTORY_LOAD_ORDER` に沿うことは `all_nineteen_reasons_reach_the_single_entry` が見る。contract 側の適合試験は変更していない。
+画面の状態が変わらないことのブラウザの確認は、web に履歴を読み込む経路が無いため未実施（TASK-531・TASK-532・TASK-176 の後）。本節の番号は、5.63・5.64 と同じく既存の重複を直さずに、既存の最大の次を使った。
+
+適用し直しの所要時間（`max_ops_history_opens_within_a_loose_bound`・`replay_cost_grows_linearly_with_op_count`）。
+spec SAVE-19 の実測（PoC-6 の `wrong_input` 29,138 件・9,937,328 バイトで 660ms）は現行の件数の上限（20,000 件）を超え、段 5 の `too_many_ops` で断たれるため再現できない。
+計測値は機械に依存するので、試験は緩い上限（debug で 10 秒未満）と、件数が 4 倍のとき時間が 12 倍未満であること（二乗にならない）だけを表明し、実測は次に記録する。
+履歴は誤った入力の送信を 20,000 件記録して作る（試験の準備に約 10 秒かかる。`make test` では流す）。
+
+```text
+実行日: 2026-10-16
+ビルド: dev プロファイル（debug）・native
+20,000 件・9,970,781 バイト: 約 330〜360ms（全段。適用し直しを含む）
+5,000 件: 約 80ms
+コマンド: cargo test -p fandhe-workshop-core --test history_load -- --nocapture max_ops replay_cost
+```
+
+変異は、SAVE19-12 が段 7 の開始点の検査を外す誤り、SAVE19-13 が段 8 を通らずに初期状態で開く誤り、SAVE19-14 が写しとの一致の判定を常に真にする誤りである。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 73c5411-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE19-12.mutation crates/core/tests/mutations/SAVE19-13.mutation crates/core/tests/mutations/SAVE19-14.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE19-12 | crates/core/src/history_open.rs: 段 7 の開始点の検査を外す | DETECTED（stage7_start_missing, all_nineteen_reasons_reach_the_single_entry ほか 4 件） |
+| SAVE19-13 | crates/core/src/history_load.rs: 段 8 を通らずに初期状態で開く | DETECTED（stage8_tampered_snapshot_is_replay_mismatch, all_nineteen_reasons_reach_the_single_entry ほか 14 件） |
+| SAVE19-14 | crates/core/src/history_open.rs: 写しとの一致の判定を常に真にする | DETECTED（stage8_tampered_snapshot_is_replay_mismatch, stage8_diverged_needs_a_version_difference ほか 5 件） |
+
+### 5.66 左のビュー共通の検査器（TASK-471 2/3）
 
 PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tools/browser/artifact-view-check.mjs`）として整えた。
-本節の番号は、この文書の 5 節に既にある重複を直さずに、既存の最大の次を使った（base 取り込み時に 5.64 の衝突を 5.65 へ付け直した）。
+本節の番号は、この文書の 5 節に既にある重複を直さずに、既存の最大の次を使った（base 取り込み時に 5.65 の衝突を 5.66 へ付け直した）。
 
 検査器は ART-1 の 14 通り（7 種 × 2 変種）を流せる枠である。各通りで前 → 後 → 前 → 後 → 前の 4 回の切り替え（2 往復）を行い、各状態で次を数える。
 
