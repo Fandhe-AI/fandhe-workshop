@@ -87,7 +87,7 @@
 - ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
 - `Op::Tick` での `Judged`（進行・無視）の発行位置。EVT-8 は宛先の食い違いを「無視を 1 件だけ」と定めるため、`Judged{ignored}` と `Event::Ignored` を両方出すかは TASK-210 が決める。`judge::judge_tick` は純関数だけを置く。版 3 のサンプルの `Tick` の項目は変えない
 - `Event::Refused.rejection`（`Option<String>`）の型の置き換えと、問い返しの待ちの状態（EP-4 `clarifying`）。足すときは版上げにする
-- `wrong_order`・`not_supported` の分類の見分けと、処理中の入力の扱いの精緻化（TASK-268・TASK-269）。版 3 は、未知の名前を `unknown_command`、使わない入力を `not_in_this_step`、処理中を `busy` に暫定で割り当てる
+- コマンドの拒否の分類（`unknown_command`・`wrong_order`・`not_supported`・`not_in_this_step`）と処理中の `busy` は、TASK-268・TASK-269 で `command_class`・`judge` に確定した。型と署名は変えないため、版 3 のままである
 - 下書きの操作と再読み込み（SAVE-4）。再読み込みで世代を上げる規則は、3 節の表に含まれない。`apply()` の `Op` には含めず、履歴の入力の列の型（`fandhe_workshop_contract::history::HistoryOp`、TASK-309）が持つ
 
 ## 6. 机上の照合の記録

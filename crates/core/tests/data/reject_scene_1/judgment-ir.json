@@ -1,0 +1,516 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "judgment-demo",
+    "title": "判定の分類の試験用教材",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "help": "builtin",
+    "make-idea": "skill",
+    "publish-run": "flow",
+    "start-run": "flow",
+    "sync-cloud": "unsupported"
+  },
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "引数の形が合っていません。",
+      "next_action": "示された形で書き直して、もう一度送ります。"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "いまは処理中です。",
+      "next_action": "終わるまで待ちます。"
+    },
+    "rj-default-free-text-note": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容の良し悪しは、この教材では判定しません。",
+      "next_action": "自分の文を、自分で読み返します。"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "必要な引数が足りません。",
+      "next_action": "足りない引数を足して、もう一度送ります。"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直します。"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "実際の環境ではできますが、この教材では扱いません。",
+      "next_action": "教材の操作に戻ります。"
+    },
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "そのコマンドは、この教材の一覧にありません。",
+      "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "このコマンドは、まだ使う順番ではありません。",
+      "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+    },
+    "rj-run-missing-mode": {
+      "category": "missing_arg",
+      "message": "実行の番号のほかに、実行の種類も必要です。",
+      "next_action": "番号の後ろに種類を足して、もう一度送ります。"
+    }
+  },
+  "clarifications": {
+    "cl-idea-name": {
+      "how_to_answer": "名前を付けて、もう一度送ります。",
+      "message": "アイデアの名前が足りません。どんな名前にしますか。"
+    }
+  },
+  "defaults": {
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "free_text_unjudged": "rj-default-free-text-note",
+    "missing_arg": "rj-default-missing-arg",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-clarify",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-clarify",
+        "title": "名前を省いて送る",
+        "body": "st-clarify.md",
+        "processing": [
+          {
+            "name": "p1-run"
+          }
+        ],
+        "input": {
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": false,
+              "shape": "kebab_case"
+            }
+          ],
+          "kind": "command",
+          "name": "make-idea"
+        },
+        "rules": [
+          {
+            "id": "r-ask-name",
+            "on": {
+              "command": "make-idea",
+              "missing": [
+                "name"
+              ]
+            },
+            "outcome": {
+              "clarification": "cl-idea-name",
+              "kind": "clarify"
+            }
+          },
+          {
+            "id": "r-make",
+            "on": {
+              "command": "make-idea"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "idea-made"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-two-args"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（clarify。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-two-args",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-two-args",
+        "title": "引数を 2 つ取るコマンド",
+        "body": "st-two-args.md",
+        "input": {
+          "args": [
+            {
+              "name": "run",
+              "positional": true,
+              "required": true,
+              "shape": "digits"
+            },
+            {
+              "name": "mode",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ],
+          "kind": "command",
+          "name": "start-run"
+        },
+        "rules": [
+          {
+            "id": "r-start",
+            "on": {
+              "command": "start-run"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "run-started"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "on_reject": {
+          "missing_arg": "rj-run-missing-mode"
+        },
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-one-arg"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（two-args。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-one-arg",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-one-arg",
+        "title": "引数を 1 つ取るコマンド",
+        "body": "st-one-arg.md",
+        "processing": [
+          {
+            "name": "p1-run"
+          }
+        ],
+        "input": {
+          "args": [
+            {
+              "name": "run",
+              "positional": true,
+              "required": true,
+              "shape": "digits"
+            }
+          ],
+          "kind": "command",
+          "name": "start-run"
+        },
+        "rules": [
+          {
+            "id": "r-start-one",
+            "on": {
+              "command": "start-run"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "run-started-one"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-text"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（one-arg。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-text",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-text",
+        "title": "自分の言葉で書く",
+        "body": "st-text.md",
+        "input": {
+          "kind": "text",
+          "max": 2000,
+          "min": 1
+        },
+        "rules": [
+          {
+            "id": "r-text",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "text-written"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "書いた内容は判定せず、送ったことだけで先へ進むため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-choice"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（text。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-choice",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-choice",
+        "title": "種類を選ぶ",
+        "body": "st-choice.md",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-a",
+              "label": "種類 A"
+            },
+            {
+              "id": "opt-b",
+              "label": "種類 B"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-a",
+            "on": {
+              "option": "opt-a"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "chose-a"
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-b",
+            "on": {
+              "option": "opt-b"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "chose-b"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "選ぶことそのものが意思表示のため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-approval"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（choice。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-approval",
+      "scope": "main",
+      "unit": "ch-judge",
+      "step": {
+        "id": "st-approval",
+        "title": "承認する",
+        "body": "st-approval.md",
+        "final": true,
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-approve",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_flag": "approved"
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "approve"
+        }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "判定の分類の試験用の本文（approval。表示には使わない）。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-clarify",
+      "node": "main/st-clarify",
+      "effects": []
+    },
+    {
+      "id": "s-two-args",
+      "node": "main/st-two-args",
+      "effects": []
+    },
+    {
+      "id": "s-one-arg",
+      "node": "main/st-one-arg",
+      "effects": []
+    },
+    {
+      "id": "s-text",
+      "node": "main/st-text",
+      "effects": []
+    },
+    {
+      "id": "s-choice",
+      "node": "main/st-choice",
+      "effects": []
+    },
+    {
+      "id": "s-approval",
+      "node": "main/st-approval",
+      "effects": []
+    }
+  ]
+}

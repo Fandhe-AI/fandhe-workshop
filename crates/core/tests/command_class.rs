@@ -221,26 +221,27 @@ fn name_is_case_sensitive() {
 }
 
 #[test]
-fn builtin_and_skill_not_accepted_are_unclassified() {
+fn builtin_and_skill_not_accepted_are_not_in_this_step() {
     let ir = min3();
     assert_eq!(
         entered(&ir, "main/st-2", "/make-note x"),
-        CommandClass::Unclassified(CommandKind::Skill)
+        CommandClass::NotInThisStep(CommandKind::Skill)
     );
     assert_eq!(
         entered(&ir, "main/st-2", "/help"),
-        CommandClass::Unclassified(CommandKind::Builtin)
+        CommandClass::NotInThisStep(CommandKind::Builtin)
     );
     assert_eq!(
-        CommandClass::Unclassified(CommandKind::Skill).category(),
-        None
+        CommandClass::NotInThisStep(CommandKind::Skill).category(),
+        Some(RejectCategory::NotInThisStep)
     );
 }
 
 #[test]
 fn unsupported_is_never_wrong_order_or_accepting() {
     let ir = min3();
-    let u = CommandClass::Unclassified(CommandKind::Unsupported);
+    let u = CommandClass::NotSupported;
+    assert_eq!(u.category(), Some(RejectCategory::NotSupported));
     assert_eq!(entered(&ir, "main/st-1", "/sync-cloud"), u);
     assert_eq!(entered(&ir, "main/st-3", "/sync-cloud"), u);
     let s = synth("sync-cloud");

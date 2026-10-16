@@ -42,7 +42,7 @@
 //! # 扱わないこと
 //!
 //! - `Judged` の発行・`session::apply` への結線・規則の効果の適用（TASK-267・TASK-273・TASK-207）
-//! - 規則に当たらないとき（[`CommandRuleVerdict::NoRule`]）と名前の不一致の拒否の分類（TASK-268・TASK-269）
+//! - 規則に当たらないとき（[`CommandRuleVerdict::NoRule`]）と名前の不一致の拒否の分類（[`crate::command_class`]・[`crate::judge`]）
 //! - `rejections[id].category` の解決、文面の解決・差し込み・`NextAction` の生成（TASK-267・TASK-274）
 
 use std::fmt;
@@ -82,7 +82,7 @@ pub enum CommandRuleVerdict {
         /// `clarifications` の ID。
         clarification: String,
     },
-    /// 一致する規則が無い。分類は TASK-268・TASK-269 が決める。
+    /// 一致する規則が無い。分類は [`crate::judge`] が `not_in_this_step` にする。
     NoRule,
 }
 

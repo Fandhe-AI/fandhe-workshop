@@ -13,6 +13,7 @@ steps:
     title: "名前を省いて送る"
     body: "st-clarify.md"
     next: [{to: "st-two-args"}]
+    processing: [{name: "p1-run"}]
     input:
       kind: "command"
       name: "make-idea"
@@ -51,6 +52,7 @@ steps:
     title: "引数を 1 つ取るコマンド"
     body: "st-one-arg.md"
     next: [{to: "st-text"}]
+    processing: [{name: "p1-run"}]
     input:
       kind: "command"
       name: "start-run"
