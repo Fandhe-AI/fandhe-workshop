@@ -251,7 +251,7 @@ native の適合試験 `log_lines_contract` が検出する。同じ修正で、
 CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
-- 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
+- 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
 - 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
@@ -265,6 +265,31 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 |---|---|---|---|---|---|
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
 | TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
+
+### 5.3.1b 送信の結線（TASK-438。TERM-1・TERM-2）
+
+TERM1-1 は `crates/web/src/host.rs` の送信で下書きを空にする呼び出しを消す変異、TERM2-1 は送信の本文の改行を潰す変異である。
+native の適合試験 `submit_wiring` が検出する。
+
+実ブラウザでの確認は `tools/browser/submit-wiring.test.mjs` が担う。Enter と送信ボタンの click が、エンジンの記録（本文つきの
+`InputReceived`）と右のログの行で一致すること、拒否のときだけ下書きが残ること、Shift+Enter が送信せず改行を入れること、
+最後の Enter で改行を保った 1 件になり、ログの本文が文字ノード 1 つのまま改行を保つことを、CSP あり・なしで確かめる。
+`<textarea>` への書き戻しは非同期（`set_timeout` の 0 ミリ秒）のため、欄の値は空になるのを待って読む。
+
+- hello の `log-list` の退役は TASK-517 に回した（配信設定には教材が無く、エンジンのログが空のため）
+- 問い返しの後の欄の扱いは JUDGE-27・TERM-22（検討中）に属し、固定しない（拒否のときだけ残す）
+- IME の模擬（試験文 30 文）は TASK-276・TASK-439 の担当
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM1-1.mutation crates/web/tests/mutations/TERM2-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM1-1 | crates/web/src/host.rs: 送信を受け入れた後に下書きを空にしない | 拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される | 左の 1 件に加え、session なし・空白だけの 2 件 | DETECTED | - |
+| TERM2-1 | crates/web/src/host.rs: 送信の本文の改行を潰す | 複数行の本文は改行を保った_1_件として記録され_ログの行にも保たれる | 左の 1 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
@@ -1933,9 +1958,41 @@ EVT8-1 は進行の宛先の照合から世代を外す誤り、EVT8-2 は再読
 | EVT8-2 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（stale_ticks_after_reload_in_sequences_are_ignored, properties_p1_to_p6_hold_with_reload_sequences, properties_p1_to_p6_hold_with_guided_reload_sequences ほか 1 件。最小の反例 `[Reload]`） |
 | M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 既存の定義 | 19 件とも DETECTED |
 
-自動ブラウザの場面と、再読み込みの後の実際のタイマーの進行は 5.71（TASK-221 2/2）で扱った。
+自動ブラウザの場面（S-5・S-6 系）のうち、再読み込みの後の実際のタイマーの進行は 5.72（TASK-221 2/2）で扱った。
 
-### 5.71 再読み込みの後に届く古いタイマーの決定的な試験（TASK-221 2/2）
+### 5.71 停止・移動・復帰の直後の再読み込み（TASK-321 1/2）
+
+停止・Step の移動・チェックポイントの復帰の直後に、保存の遅延を待たずに再読み込みしても、直後の状態へ戻り、操作の前の宛先の進行が状態を変えないことを固定した（SAVE-5。PoC-6 の S-6・S-7・S-19）。
+製品コードは変えていない。復元した状態は、世代の +1 とログ末尾の `Reloaded` 1 件を除いて直後の状態と等しい。操作の前の宛先は `Ignored(Stale)` が 1 件ずつ増えるだけで、状態は変わらない（S-19 は復帰の前に予約された 2 件）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/reload_after_control.rs` の `reload_right_after_stop_restores_the_stopped_state` | S-6。処理中に停止し、記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込みを通す。処理中でなく Step の入口と等しい |
+| 同 `reload_right_after_move_restores_the_moved_state` | S-7。処理中・処理中でないの 2 通りで、世代が移動の前 +2 になる |
+| 同 `reload_right_after_restore_restores_the_restored_state` | S-19。復習・ログ・チェックポイントの一覧・下書きも等しい |
+| 同 `session_entry_agrees_for_all_three_scenes` | `Session` の入口が純粋関数の経路と同じ状態になる |
+| `crates/web/tests/reload_after_control_store.rs` | 3 場面を、`PendingSave` に積み、`flush`（`pagehide` 相当）で localStorage の偽物へ書き、新しい保存先から読み戻して `load_history` で開き、再読み込みする。`flush` までは保存先に何も書かれない |
+
+自動ブラウザ（S-6・S-7・S-19）は未実施である。web に受講中の `ops` の記録・変更ごとの `PendingSave::stage`・読み込み時の `load_history` による復元と `Session::reload` の結線が無く、それは TASK-319 の範囲のため。
+結線の後に `tools/browser/reload-after-control.test.mjs`（`scripts/test-browser.sh` に登録）として足す。確認の操作の連打（S-9）は TASK-321 2/2 で扱う。
+
+SAVE5-1 は停止で入口の写しへ戻さない誤り、SAVE5-2 は移動で世代を上げない誤り、SAVE5-3 は再読み込みでチェックポイントの一覧を消す誤りである。
+既存の SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE5-{1,2,3}.mutation crates/core/tests/mutations/SAVE4-{1,2,3,4,5,6}.mutation crates/core/tests/mutations/SAVE1-{1,2,3,4,5,6}.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE5-1 | crates/core/src/stop.rs: 停止で入口の写しへ戻さない | DETECTED（reload_right_after_stop_restores_the_stopped_state） |
+| SAVE5-2 | crates/core/src/go_to.rs: 移動で世代を上げない | DETECTED（reload_right_after_move_restores_the_moved_state） |
+| SAVE5-3 | crates/core/src/reload.rs: 再読み込みでチェックポイントの一覧を消す | DETECTED（reload_right_after_restore_restores_the_restored_state） |
+| SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.58・5.59・5.66・5.67 の定義 | 12 件とも DETECTED |
+
+### 5.72 再読み込みの後に届く古いタイマーの決定的な試験（TASK-221 2/2）
 
 5.70 の続きで、実際のタイマー（表示側の `set_timeout`。取り消さない設計）が、再読み込みの後に古い宛先で届く場面を確かめた。
 製品の振る舞い（core）は変えていない。変えたのは、試験の設定（`test-hooks`）だけにある再読み込みの口と、試験である。

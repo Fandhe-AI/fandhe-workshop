@@ -145,6 +145,11 @@ for (const csp of [true, false]) {
       await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir0) => withServer({ dir: dir0, base: BASE }, async (srv) => {
         const { page, context, rec } = await open(srv);
         await setup(page);
+        // 送信の後の欄の書き戻しは非同期のため、空になってから基準を読む（揺れを避ける）。
+        await page.waitForFunction((sel) => {
+          const el = document.querySelector(sel);
+          return el.value === '' || document.querySelectorAll('li').length === 0;
+        }, INPUT);
         const before0 = await page.inputValue(INPUT);
         const r = await cycle(page, key, dir);
         const detail = JSON.stringify(r);

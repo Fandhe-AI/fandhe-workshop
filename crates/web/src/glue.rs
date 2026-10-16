@@ -30,6 +30,10 @@ thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
     /// 予約済みの進行の宛先。同じ宛先のタイマーを二重に積まないための印（取り消しのためではない）。
     static SCHEDULED: RefCell<Option<TickAddr>> = const { RefCell::new(None) };
+    /// 書き戻しの対象の root。送信で下書きを空にしたとき、タイマーのコールバックが `sync_draft` に渡す。
+    static DRAFT_ROOT: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
+    /// 変換中（`compositionstart` から `compositionend` まで）かどうか。`sync_draft` が変換中の書き換えを避けるために読む。
+    static COMPOSING: RefCell<bool> = const { RefCell::new(false) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -123,6 +127,27 @@ fn on_tick_request(next: Option<TickAddr>) {
     }
 }
 
+/// ホストが通知する下書きの書き戻しの要求を受け、`set_timeout(0)` で `sync_draft` を予約する
+/// （`EngineHost::set_draft_sync_request` の通知先。TASK-438）。
+///
+/// `Component::update` の中から呼ばれるため、Runtime にも App にも触れず予約するだけにする（再入を避ける）。
+/// 書き戻しを予約に回すのは、送信の click が上流の更新の中で走り、その最中に App を借りられないため。
+/// 送信の直後・タイマーの実行前に変換が始まった場合、`sync_draft` が変換中を見て書き換えない。
+/// 保留した書き戻しは、`compositionend` の次のタスクの同期が引き受ける。
+fn on_draft_sync_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        let root = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone()));
+        if let Some(root) = root {
+            sync_draft(&root);
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+}
+
 /// 予約済みの進行の宛先。試験用の口が読む。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn scheduled_tick() -> Option<TickAddr> {
@@ -188,7 +213,13 @@ fn find_in_root(root: &web_sys::Element, selector: &str) -> Option<web_sys::Elem
 /// 上流の `wasm-client` の `value` 束縛は `HtmlInputElement` しか同期しない（PoC-2 の F-1）。
 /// 状態側で 20,000 コードポイントに切った後の値を欄に反映するには、この書き戻しが要る。
 /// 上流が `<textarea>` の同期に対応したら外す。要素が無い・借用中は何もしない（安全側）。
+///
+/// 変換中（`COMPOSING`）は、どの経路から呼ばれても書かない（変換中の書き換えは入力を壊す）。
+/// 保留した分は `compositionend` の次のタスクの同期が処理する。
 fn sync_draft(root: &web_sys::Element) {
+    if is_composing() {
+        return;
+    }
     let Some(el) = find_in_root(root, DRAFT_SELECTOR) else {
         return;
     };
@@ -199,6 +230,20 @@ fn sync_draft(root: &web_sys::Element) {
         let draft = app.draft();
         if field.value() != draft {
             field.set_value(draft);
+        }
+    });
+}
+
+/// 変換中かどうか。借用中は `true`（書かない側＝安全側）。
+fn is_composing() -> bool {
+    COMPOSING.with(|c| c.try_borrow().map(|b| *b).unwrap_or(true))
+}
+
+/// 変換中の印を更新する。借用中は何もしない。
+fn mark_composing(on: bool) {
+    COMPOSING.with(|c| {
+        if let Ok(mut b) = c.try_borrow_mut() {
+            *b = on;
         }
     });
 }
@@ -219,6 +264,11 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
         }
         sync_draft(&target);
     });
+    let on_start = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        mark_composing(true);
+    });
+    root.add_event_listener_with_callback("compositionstart", on_start.as_ref().unchecked_ref())?;
+    on_start.forget();
     root.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
     on_input.forget();
     // Safari は確定の `input` より前に `compositionend` を発火する。その時点の状態は古いため、
@@ -226,6 +276,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     // （Chrome のように `compositionend` が後でも、状態は最新なので害はない）。
     let target = root.clone();
     let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        mark_composing(false);
         let Some(window) = web_sys::window() else {
             return;
         };
@@ -331,8 +382,14 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         }
         let mut host = EngineHost::for_mount();
         host.set_tick_request(Box::new(on_tick_request));
+        host.set_draft_sync_request(Box::new(on_draft_sync_request));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
+        DRAFT_ROOT.with(|r| {
+            if let Ok(mut slot) = r.try_borrow_mut() {
+                *slot = Some(root.clone());
+            }
+        });
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
         *slot = Some(runtime);

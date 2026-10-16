@@ -1,0 +1,8 @@
+id: TERM1-1
+package: fandhe-workshop-web
+test: submit_wiring
+target: crates/web/src/host.rs
+find: self.input.clear_draft();
+replace: let _ = ();
+expect-fail: 拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される
+note: 送信を受け入れた後に下書きを空にしない（次の打鍵で古い本文が戻る）
