@@ -1,0 +1,8 @@
+id: ART11-1
+package: fandhe-workshop-web
+test: artifact_view_binding_contract
+target: crates/web/src/artifact_view.rs
+find:             (TABINDEX_ATTR, POINTABLE_TABINDEX),
+replace:             (ACTION_ATTR, POINT_ACTION),
+expect-fail: 属性の組は_4_つで順が固定_値はエスケープされる
+note: 指せる行の属性の組から tabindex を落とす（キーボードで指せない行になる。ART-11・FEND-13）

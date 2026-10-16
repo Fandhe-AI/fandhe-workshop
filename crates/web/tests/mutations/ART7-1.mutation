@@ -1,0 +1,9 @@
+id: ART7-1
+package: fandhe-workshop-web
+test: artifact_view_binding_contract
+target: crates/web/src/artifact_view.rs
+find:         !matches!((self, v), (ViewKind::Document | ViewKind::Diff, Variant::A))
+replace:         !matches!((self, v), (ViewKind::Diff, Variant::A))
+expect-fail: 変種の許可の表
+expect-fail: 変種の方針は許されない組と重複を拒否する
+note: 文書に変種 (a) を許す（ART-7 で (b) だけと確定済みの文書が (a) で作れてしまう）
