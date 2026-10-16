@@ -4,7 +4,7 @@
 //! 2 つの保存先を contract の口 [`HistoryStore`] に載せる合成の保存先 [`HistoryStorage`] と、切り替えの閾値を置く。
 //! ブラウザの API は直接呼ばず、小さな backend の trait（[`SyncKv`]・[`IdbBackend`]）を介す。
 //! wasm 側の実体は `storage_local`・`storage_idb`、native の試験は手元の写しの偽物を渡す。
-//! 呼び出し元は、離れる直前の書き込み（TASK-317 2/2）・保存の遅延の測定（TASK-318）・再読み込み（TASK-319）・復元（TASK-331）である。
+//! 呼び出し元は、離れる直前の書き込み（TASK-317 2/2。`save_pending`・`leave_flush`）・保存の遅延の測定（TASK-318）・再読み込み（TASK-319）・復元（TASK-331）である。
 //!
 //! 仕様が決めていない点を、次のとおり決めた（推論）。SAVE-8 を確定にするかは spec 側で扱う。
 //!
@@ -17,6 +17,9 @@
 //! - 起動時に同じ鍵が両方にあれば、IndexedDB を正とする
 //! - IndexedDB が使えない（開けない）ときは localStorage だけで動く。localStorage の想定外の上限超過は
 //!   [`StorageError::QuotaExceeded`] をそのまま返す（表示は TASK-323）
+//!
+//! 離れる直前の書き込み: 保存先が localStorage の間は `write` が同期で終わるため `pagehide` の中で足りる。IndexedDB へ切り替えた後は
+//! `put` の発行までで確定を保証しない（SAVE-9 の検討中の論点で、仕様の決定を待つ）。
 //!
 //! 限界: [`LOCAL_STORAGE_MAX_UTF16`] は Chrome での実測で、Firefox・Safari は未確認である。
 
