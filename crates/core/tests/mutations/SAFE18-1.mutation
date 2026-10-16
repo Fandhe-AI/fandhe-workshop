@@ -1,9 +1,9 @@
 id: SAFE18-1
 package: fandhe-workshop-core
 test: history_size
-target: crates/core/src/history_size.rs
-find: if len > MAX_HISTORY_BYTES {
-replace: if len >= MAX_HISTORY_BYTES {
+target: crates/core/src/load_gate.rs
+find: if len > max_bytes(entry) {
+replace: if len >= max_bytes(entry) {
 expect-fail: exact_limit_is_not_rejected_by_size
 expect-fail: limit_neighborhood_is_judged_exactly
 expect-fail: bytes_are_judged_by_length_without_reading_content
