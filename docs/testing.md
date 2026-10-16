@@ -101,12 +101,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
 | `find` | 必須 | `target` にちょうど 1 回現れる 1 行の文字列。0 回・2 回以上は定義の不正 |
 | `replace` | 必須 | 置き換え後の文字列（1 行） |
+| `features` | 任意 | 試験に付ける cargo の feature（`^[a-z0-9-]+$`、1 つ）。`test-hooks` の背後にある試験が対象のときに使う（TASK-221 2/2） |
 | `expect-fail` | 必須・複数可 | 失敗すべき試験関数名（完全一致）。1 行に 1 つ |
 | `note` | 任意 | 何を壊したかの説明 |
 
@@ -250,7 +251,7 @@ native の適合試験 `log_lines_contract` が検出する。同じ修正で、
 CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
-- 注入の口は、TASK-438（入力欄からエンジンへの結線）までは試験の設定の `raw-trigger`。結線後は `sendPayload` を入力欄の操作に差し替える
+- 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
 - 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は TASK-437 2/2 の後に足す
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
@@ -265,7 +266,32 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 | SAFE11-1 | crates/web/src/learner_text.rs: 受講者の文字列を生 HTML として出す（`find` を一意に直した再確認） | 記法と_html_は文字のまま描かれ_子の要素にならない | 左の 1 件に加え、web_のソースは_raw_html_を使わない | DETECTED | - |
 | TERM21-1 | crates/web/src/learner_text.rs: ログの行の本文を生 HTML として出す | html_風の文字列は要素にならずエスケープされる | 左の 1 件に加え、合成した全種の行の適合の 2 件 | DETECTED | - |
 
-### 5.3.1b 拒否の理由と次の行動が右のログに出ること（TASK-437 1/2）
+### 5.3.1b 送信の結線（TASK-438。TERM-1・TERM-2）
+
+TERM1-1 は `crates/web/src/host.rs` の送信で下書きを空にする呼び出しを消す変異、TERM2-1 は送信の本文の改行を潰す変異である。
+native の適合試験 `submit_wiring` が検出する。
+
+実ブラウザでの確認は `tools/browser/submit-wiring.test.mjs` が担う。Enter と送信ボタンの click が、エンジンの記録（本文つきの
+`InputReceived`）と右のログの行で一致すること、拒否のときだけ下書きが残ること、Shift+Enter が送信せず改行を入れること、
+最後の Enter で改行を保った 1 件になり、ログの本文が文字ノード 1 つのまま改行を保つことを、CSP あり・なしで確かめる。
+`<textarea>` への書き戻しは非同期（`set_timeout` の 0 ミリ秒）のため、欄の値は空になるのを待って読む。
+
+- hello の `log-list` の退役は TASK-517 に回した（配信設定には教材が無く、エンジンのログが空のため）
+- 問い返しの後の欄の扱いは JUDGE-27・TERM-22（検討中）に属し、固定しない（拒否のときだけ残す）
+- IME の模擬（試験文 30 文）は TASK-276・TASK-439 の担当
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM1-1.mutation crates/web/tests/mutations/TERM2-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM1-1 | crates/web/src/host.rs: 送信を受け入れた後に下書きを空にしない | 拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される | 左の 1 件に加え、session なし・空白だけの 2 件 | DETECTED | - |
+| TERM2-1 | crates/web/src/host.rs: 送信の本文の改行を潰す | 複数行の本文は改行を保った_1_件として記録され_ログの行にも保たれる | 左の 1 件 | DETECTED | - |
+
+### 5.3.1c 拒否の理由と次の行動が右のログに出ること（TASK-437 1/2）
 
 TERM32-1 は、`crates/web/src/host.rs` の `record_judged_texts` が拒否の理由の文面を控える処理を無効にする変異である。
 理由の行が出なくなり、native の `crates/web/tests/reject_lines.rs` が検出する。
@@ -1926,6 +1952,25 @@ TERM33-1 は処理中の判定を反転する変異で、入力の後に「処�
 |---|---|---|---|---|---|
 | TERM33-1 | crates/web/src/run_status.rs: 処理中の判定を反転する（処理中でも「待機中」のままになり、待機中が「処理中」と表示される。TERM-33） | 入力で処理中になり_最後の進行の後に待機中へ戻る | 入力で処理中になり_最後の進行の後に待機中へ戻る | DETECTED | - |
 
+### 5.69b 停止の操作と停止後のやり直し（TASK-436 2/2）
+
+状態表示 `run-status` に「停止」を足し、Esc（処理中のみ）と停止ボタン（`stop-btn`）を core の停止（`Control::Stop`）へ結んだ。
+導出は、処理中でなければログを末尾から読み、`Changed`・`Ignored`・`Warning` を読み飛ばして最初に当たったイベントが `Stopped` なら「停止」にする。
+処理中でないときの Esc・停止ボタンはログを変えない（取り消しの入力への結線は対象外）。固定の試験は `crates/web/tests/run_status_contract.rs`、
+ブラウザ試験は `tools/browser/stop-redo.test.mjs`（Esc・停止ボタンのそれぞれで、停止・入口の状態・効果の取り消し・再送信を確かめる）である。
+TERM33-2 は停止の分岐を潰す変異、TERM33-3 は Esc の経路で処理中を常に偽にする変異で、どちらも `run_status_contract` が検出する。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 317e86e-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM33-2.mutation（TERM33-3 も同じ）
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM33-2 | crates/web/src/run_status.rs: 停止の分岐を潰す（停止しても「待機中」のままになる。TERM-33） | 処理中の停止で_停止_になり_古い進行が届いても保たれる | esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない, 処理中の停止で_停止_になり_古い進行が届いても保たれる | DETECTED | - |
+| TERM33-3 | crates/web/src/host.rs: Esc の経路で処理中を常に偽にする（Esc を押しても停止しない。TERM-33） | esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない | esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない | DETECTED | - |
+
 ### 5.70 再読み込みを含む列の性質（TASK-221 1/2）
 
 TASK-219 の操作列に再読み込み（SAVE-4）を足し、停止・再送・Step の移動・保存・復帰と任意に混ぜた列でも、
@@ -1954,4 +1999,174 @@ EVT8-1 は進行の宛先の照合から世代を外す誤り、EVT8-2 は再読
 | EVT8-2 | crates/core/src/reload.rs: 再読み込みで世代を上げない | DETECTED（stale_ticks_after_reload_in_sequences_are_ignored, properties_p1_to_p6_hold_with_reload_sequences, properties_p1_to_p6_hold_with_guided_reload_sequences ほか 1 件。最小の反例 `[Reload]`） |
 | M1〜M7・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 既存の定義 | 19 件とも DETECTED |
 
-自動ブラウザの場面（S-5・S-6 系）と、再読み込みの後の実際のタイマーの進行は TASK-221 2/2 が扱う。
+自動ブラウザの場面（S-5・S-6 系）のうち、再読み込みの後の実際のタイマーの進行は 5.72（TASK-221 2/2）で扱った。
+
+### 5.71 停止・移動・復帰の直後の再読み込み（TASK-321 1/2）
+
+停止・Step の移動・チェックポイントの復帰の直後に、保存の遅延を待たずに再読み込みしても、直後の状態へ戻り、操作の前の宛先の進行が状態を変えないことを固定した（SAVE-5。PoC-6 の S-6・S-7・S-19）。
+製品コードは変えていない。復元した状態は、世代の +1 とログ末尾の `Reloaded` 1 件を除いて直後の状態と等しい。操作の前の宛先は `Ignored(Stale)` が 1 件ずつ増えるだけで、状態は変わらない（S-19 は復帰の前に予約された 2 件）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/reload_after_control.rs` の `reload_right_after_stop_restores_the_stopped_state` | S-6。処理中に停止し、記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込みを通す。処理中でなく Step の入口と等しい |
+| 同 `reload_right_after_move_restores_the_moved_state` | S-7。処理中・処理中でないの 2 通りで、世代が移動の前 +2 になる |
+| 同 `reload_right_after_restore_restores_the_restored_state` | S-19。復習・ログ・チェックポイントの一覧・下書きも等しい |
+| 同 `session_entry_agrees_for_all_three_scenes` | `Session` の入口が純粋関数の経路と同じ状態になる |
+| `crates/web/tests/reload_after_control_store.rs` | 3 場面を、`PendingSave` に積み、`flush`（`pagehide` 相当）で localStorage の偽物へ書き、新しい保存先から読み戻して `load_history` で開き、再読み込みする。`flush` までは保存先に何も書かれない |
+
+自動ブラウザ（S-6・S-7・S-19）は未実施である。web に受講中の `ops` の記録・変更ごとの `PendingSave::stage`・読み込み時の `load_history` による復元と `Session::reload` の結線が無く、それは TASK-319 の範囲のため。
+結線の後に `tools/browser/reload-after-control.test.mjs`（`scripts/test-browser.sh` に登録）として足す。確認の操作の連打（S-9）は TASK-321 2/2 で扱う。
+
+SAVE5-1 は停止で入口の写しへ戻さない誤り、SAVE5-2 は移動で世代を上げない誤り、SAVE5-3 は再読み込みでチェックポイントの一覧を消す誤りである。
+既存の SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b6d5b51-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE5-{1,2,3}.mutation crates/core/tests/mutations/SAVE4-{1,2,3,4,5,6}.mutation crates/core/tests/mutations/SAVE1-{1,2,3,4,5,6}.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE5-1 | crates/core/src/stop.rs: 停止で入口の写しへ戻さない | DETECTED（reload_right_after_stop_restores_the_stopped_state） |
+| SAVE5-2 | crates/core/src/go_to.rs: 移動で世代を上げない | DETECTED（reload_right_after_move_restores_the_moved_state） |
+| SAVE5-3 | crates/core/src/reload.rs: 再読み込みでチェックポイントの一覧を消す | DETECTED（reload_right_after_restore_restores_the_restored_state） |
+| SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.58・5.59・5.66・5.67 の定義 | 12 件とも DETECTED |
+
+### 5.72 再読み込みの後に届く古いタイマーの決定的な試験（TASK-221 2/2）
+
+5.70 の続きで、実際のタイマー（表示側の `set_timeout`。取り消さない設計）が、再読み込みの後に古い宛先で届く場面を確かめた。
+製品の振る舞い（core）は変えていない。変えたのは、試験の設定（`test-hooks`）だけにある再読み込みの口と、試験である。
+
+- 再読み込みの口: `raw` の action に固定の合図 `{"reload":{}}`（`host::RAW_RELOAD`）を完全一致で渡すと、ホストが `Session::reload` を呼ぶ（`HostAction::Reload`）。新しい隠し要素は足していない（`raw-trigger` を使う）。合図は `Op` として復号できず、衝突しない。配信する設定では復号されず `None` になる。
+- ホストの試験（`crates/web/tests/host_contract.rs` の `reload_stale`。`--features test-hooks`）: 新しい世代の宛先の通知、古い宛先の無視 1 件と二重の届き、完走（`Progress` は世代 1 が 0・1、世代 2 が 2・3・4）、再読み込み 2 回、再読み込みと停止の組み合わせ、処理中でないときの再読み込みを確かめる
+- 静的な検査（`crates/web/tests/no_progress.rs`）: `.reload(` が `host.rs` の `reload_engine` の 1 箇所だけで、その関数が `test-hooks` の背後にあることを、件数を固定して検査する
+- ブラウザ試験（`tools/browser/reload-ignore.test.mjs`。`make test-browser` に追加）: R-1 実タイマー（再読み込みの前に予約された古いタイマーが後から届き、無視は 1 件だけ。待つ条件は時間ではなく件数）、R-2 再読み込みの直後に再読み込み前の宛先を送る（S-5 の類比）、R-3 再読み込みの後の停止（S-6 の類比）、配信設定に口が無いこと。R-3 では、再読み込みで予約された世代 2 のタイマーと、再読み込みの前の世代 1 のタイマーの 2 本が後から届き、無視は 2 件になる
+- 変異の定義に任意のキー `features` を足し（`scripts/check-mutations.sh`）、`test-hooks` の背後にある試験を対象にできるようにした。EVT8-3 は、ホストの再読み込みの模擬が core の再読み込みを呼ばない誤りである
+
+実際の `page.reload()` ではなく、ページ内の模擬の再読み込みを選んだ。web には保存した状態の復元の結線が無く（TASK-319。#340〜#343）、`page.reload()` では教材の開始状態から作り直されるだけで、再読み込みの前の世代を引き継げないためである。停止の注入と同じ方式（`stop-move-ignore.test.mjs`）に合わせた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 1338226-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/EVT8-3.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| EVT8-3 | crates/web/src/host.rs: ホストの再読み込みの模擬が core の再読み込みを呼ばない | DETECTED（reload_stale の 7 件が失敗。期待した 2 件を含む） |
+
+未実施: 実際の `page.reload()` を使う場面（browser-scenes.md の S-5・S-6 ほか）は、web の保存・復元の結線（TASK-319 3/3。#343）の後に行う。
+
+### 5.73 確認の操作の連打の直後の再読み込み（TASK-321 2/2）
+
+確認の操作を 20 回連打し、保存の遅延を待たずにその直後に再読み込みしても、達成が 1 回であり直後の状態へ戻ることを固定した（SAVE-5。PoC-6 の S-9）。
+製品コードは変えていない。進行を流し終えた後に確認を送ると、1 回目だけが達成（`Achieved`・`Transitioned`・`Entered`）になり、2 回目以降は次の Step（確認が `none` の選択の Step）に届いて `NotInThisStep` で拒否されるだけである。
+受付も達成も起きず、`run` も変わらない。復元した状態は、世代の +1 とログ末尾の `Reloaded` 1 件を除いて連打の直後の状態と等しく、`Achieved` は再読み込みの前も後も 1 件である。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/reload_after_control.rs` の `reload_right_after_confirm_burst_keeps_one_achievement` | S-9。記録 → 包み → 書き出し → 読み込みの段 1〜8 → 再読み込みを通す。復習の項目が 1 件で達成済み、再読み込みの後の確認でも達成が増えない。連打の前の世代の宛先は `Ignored(Stale)` になる |
+| `crates/web/tests/reload_after_control_store.rs` の `連打の直後に保存を待たず再読み込みしても達成は1回で直後の状態へ戻る` | `PendingSave` → `flush` → localStorage の偽物 → 読み戻し → `load_history` → `reload` の経路で同じことを確かめる |
+
+自動ブラウザ（S-6・S-7・S-9・S-19）は未実施である。理由は 5.71 と同じで、web の記録・復元の結線（TASK-319）の後に足す。
+
+SAVE5-4 は、確認の達成で現在位置を次の Step へ移さない誤りである。連打の 2 回目以降が達成済みの Step に届き、達成が重複する。
+既存の SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 31bde1d-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE5-{1,2,3,4}.mutation crates/core/tests/mutations/SAVE4-{1,2,3,4,5,6}.mutation crates/core/tests/mutations/SAVE1-{1,2,3,4,5,6}.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE5-4 | crates/core/src/confirm.rs: 確認の達成で現在位置を次の Step へ移さない | DETECTED（reload_right_after_confirm_burst_keeps_one_achievement） |
+| SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.72・5.71・5.58・5.59・5.66・5.67 の定義 | 15 件とも DETECTED |
+
+### 5.74 再読み込み後の告知（TASK-322）
+
+再読み込みを右のログの 1 行にする（SAVE-6・D-57）。`Projection` が `Event::Reloaded` 1 件につき 1 行を出し、web の `log_lines` が行の種類 `reloaded`（固定の文言「再読み込みしました」）で描く。右のエリアの契約（`terminal_area`）は版 1 から版 2 に上げた。文言は D-57 が決めた「趣旨」から実装側で選んだもので、言い回しは未決である。変えるときは `log_lines::RELOADED_TEXT` だけを直す。
+
+- core の試験: `projection_derive` の `reloaded_adds_one_row_and_keeps_marks`（行が回数だけ増える・変化の印を消さない・増分と一括の一致）、`reload_busy` の `each_reload_adds_one_log_row`、`reload_after_control`（ログ末尾に `Reloaded` を指す 1 行だけ増える）
+- web の試験: `log_lines_contract`（`Reloaded` の写しと文言・`test-hooks` の背後で再読み込みの模擬を 1 回・2 回挟んだ後の `reloaded` の行の数）、`terminal_area_contract`（版 2・種類 7 件）
+- ブラウザ試験（`tools/browser/reload-notice.test.mjs`。`make test-browser` に追加）: N-1 再読み込み 1 回で `reloaded` の行が 1 件・処理中のまま・完走の後も 1 件、N-2 2 回で 2 件（`data-gen` は 1・2）、N-3 配信設定に口が無いこと。実際の `page.reload()` ではなくページ内の模擬の再読み込みで行う（5.72 と同じ理由）
+- 範囲外: ライブの欄の読み上げが 1 回だけ届くことと枠の二重の通知が 0 件であることは TASK-536 が持つ。再読み込みの行は `a11y::LIVE_EXCLUDED_LINE_KINDS` に入れていない（更新に数える側）
+
+変異の ID は `SAVE6-1`（導出が `Reloaded` を行にしない）・`SAVE6-2`（web が `Reloaded` を行に写さない）である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 094b1df-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE6-1.mutation crates/web/tests/mutations/SAVE6-2.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE6-1 | crates/core/src/projection.rs: 再読み込みを右のログの行にしない | DETECTED（each_reload_adds_one_log_row） |
+| SAVE6-2 | crates/web/src/log_lines.rs: 再読み込みを右のログの行に写さない | DETECTED（再読み込みは固定の文言の_reloaded_行になる） |
+
+未実施: 実際の `page.reload()` での 1 回・2 回の確認は、TASK-319 3/3（#343）の後に行う。
+
+### 5.75 別のオリジンへの履歴の読み込み（TASK-330 2/2）
+
+書き出したファイルを別のオリジンで選び、同じ状態にして続きを操作できることを固定した（SAVE-16。SHELL-15 の自動ブラウザの部分）。
+core に開いたときだけ `Session` を作る入口 `history_load::load_session` を足し、web のホストの `EngineHost::open_history` がそれを呼ぶ。
+判定は `load_history`（段 1〜8）に任せて複製せず、開かないときは状態・導出した値・dirty に触れない。保存先へは書かない（保存の結線は TASK-319）。
+
+ブラウザ試験（`tools/browser/history-import.test.mjs`）は、配信を 2 つ起動して別のオリジン（ポートが違う）を作り、別の context で開く。
+オリジン A で書き出してダウンロードしたファイルを、オリジン B で `setInputFiles` により選ぶ。ファイルの選択と読み取りは DOM の値を読むため、Rust ではなく試験の設定だけの `static/test-hooks.js` が行い、`raw-trigger` へ固定の接頭辞（`open-history:`）つきで届ける（`RuntimeAction` は変えていない）。
+確かめることは次のとおりである。結果は `stateJson().engine.lastImport` の固定のコードで読み、履歴の中身は出力に出さない。
+
+| 試験 | 内容 |
+|---|---|
+| 別のオリジンで同じ状態になり、続きを操作できる | B の Step・世代・世界状態・チェックポイント・下書き・ログ・復習・成果物が A の基準と一致する。続きの操作（次の Step への移動）で A と B が同じ結果になる。読み込みの前後で location・履歴・ハッシュが同じ。外部への要求（相手のオリジンへのものを含む）・CSP 違反・ページのエラーが 0 件。A に書いた保存領域の値は B から見えない |
+| 書き換えたファイル・JSON でないファイルは開かず、状態を変えない | `refused` / `replay_mismatch` と `refused` / `not_json`。B の状態は読み込みの前と同じ。そのあとに開けるファイルを選ぶと開く |
+
+native の試験は `crates/core/tests/history_load_session.rs`（開く・表示だけ・開かない・写しの書き換え）と `crates/web/tests/history_import.rs`（`Session` の差し替え・導出した値が一括の導出と一致・全 field の dirty と宛先の通知・拒否で何も変わらない・`raw` の接頭辞の一致）である。
+
+開ける包みの作り方と限界: 契約の試料（`two-rounds.json`）の写しは再読み込みの意味の実装前の値で、いまの main では段 8 で `replay_mismatch` になり開けない。そこで試験の設定の `test_fixture::loadable_envelope` が、試料の `ops` を試験の教材と開始直後の状態に適用し直し、得た状態を写しにして包み直す。
+ホストに受講中の `ops` の記録（`OpsRecorder`）がまだ無いため、受講中の実際の状態の書き出しと読み込みは TASK-319・TASK-531 の結線の後に確かめる。
+適用し直しの出発点は、ホストの組み立て時の状態である（`Control::Begin` と `start` からの初期状態の構築が入るまでの間。TASK-217・TASK-294）。
+実際の GitHub Pages の間と、macOS のファイル画面での確認（SAVE-30）は人が行う。
+
+変異は SAVE16-1（読み込みで projection を作り直さない）・SAVE16-2（適用し直しの出発点を既定値にする）・SAVE16-3（読み込みの後に dirty を積まない）・SAVE16-4（表示だけの履歴でも実行環境を作る）である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 68ac983-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/SAVE16-{1,2,3}.mutation crates/core/tests/mutations/SAVE16-4.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE16-1 | crates/web/src/host.rs: 読み込みで projection を作り直さない | DETECTED（open_replaces_the_session_with_the_snapshot_and_rederives_views） |
+| SAVE16-2 | crates/web/src/host.rs: 適用し直しの出発点を既定値にする | DETECTED（open_replaces_the_session_with_the_snapshot_and_rederives_views ほか） |
+| SAVE16-3 | crates/web/src/host.rs: 読み込みの後に field を dirty に積まない | DETECTED（open_marks_every_field_dirty_and_notifies_the_next_tick） |
+| SAVE16-4 | crates/core/src/history_load.rs: 表示だけの履歴でも実行環境を作る | DETECTED（view_only_yields_no_session） |
+
+### 5.76 Tab の補完と対象外コマンドの除外（TASK-440 2/2）
+
+一覧が開いていて文字がある入力欄で Tab を押すと、`preventDefault` され、下書きが先頭の候補（名前順）に置き換わり、`<textarea>` に書き戻され、フォーカスは入力欄に残ることを固定した（TERM-11・D-60。PoC-2 の K-03・K-07）。
+`unsupported` のコマンドは候補の表に入らないため、一覧にも Tab の補完にも出ない（TERM-42）。
+
+結線は次の 3 か所である。glue の Tab の経路が `candidates_open` を `field_state` へ渡す。配送された `HostAction::Complete` を、ホストが `HelloView::complete` に渡す。`complete` は配送の時点の状態で `decide` をやり直し、`completion_choice`（契約の `first_completion`）で先頭を選ぶ。下書きが変わったときだけ、ホストが `draft_sync_request` で書き戻しを頼む。補完はエンジンへ何も渡さず、ログ・世代・projection は変わらない。
+
+native の試験は `crates/web/tests/candidates_contract.rs`（補完・複数候補で先頭・補完しない場面・Esc で閉じた後・コマンド表の無いホスト・書き戻しの回数）、`crates/web/src/hello.rs` の単体試験、`crates/web/tests/key_route_contract.rs`（`field_state` の素通し）である。ブラウザ試験は `tools/browser/candidates.test.mjs`（K-03・複数候補・補完後の Tab・`unsupported`・K-07。CSP あり・なし）である。
+
+glue（wasm32 専用）の結線の変異は native の試験で検出できないため、ブラウザ試験の K-03 が担う。実 IME での変換中の Tab の確認は人が行う（TASK-93）。
+
+`make test-browser` では `submit-wiring.test.mjs` の「送信の直後に変換が始まっても…」の 2 件（CSP あり・なし）が失敗する。本変更を入れる前の `origin/main`（59f2ad9）でも同じ 2 件が失敗することを確かめており、本タスクの範囲外である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 59f2ad9-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM11-1.mutation crates/web/tests/mutations/TERM11-2.mutation crates/web/tests/mutations/TERM42-3.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| TERM11-1 | crates/web/src/host.rs: 補完で書き戻しの要求を出さない | DETECTED（補完は先頭の候補に置き換え_一覧を閉じ_書き戻しを一度だけ頼む） |
+| TERM11-2 | crates/web/src/hello.rs: 先頭ではなく末尾の候補を挿入する | DETECTED（複数の候補があれば名前順の先頭で補完し_unsupported_は選ばない） |
+| TERM42-3 | crates/web/src/candidates.rs: unsupported を候補の表から除外しない | DETECTED（開く場面と開かない場面 ほか） |

@@ -6,6 +6,7 @@
 //! 開始（`Control::Begin`）はまだ core が実装していないため、契約の試料（`event-sequence.json`）が持つ
 //! 開始直後の状態から始める。状態からの `Session` の再構築は、表示層で他に許されない操作（`tests/no_progress.rs`）で、
 //! このファイルの 1 箇所だけを例外にしている。教材と状態は埋め込みの試験データで、外から入らない。
+//! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 
@@ -21,9 +22,13 @@ const SAMPLE: &[u8] = include_bytes!(concat!(
 /// 試験用の教材と開始直後の状態から実行環境を作る。読めなければ `None`（呼び出し側は session なしに倒す）。
 pub(crate) fn start_session() -> Option<Session> {
     let ir = load_ir(IR).ok()?;
+    Some(Session::from_state(ir, start_state()?))
+}
+
+/// 試験の開始直後の状態（契約の試料の `initial`）。
+fn start_state() -> Option<SessionState> {
     let value: serde_json::Value = serde_json::from_slice(SAMPLE).ok()?;
-    let state: SessionState = serde_json::from_value(value.get("initial")?.clone()).ok()?;
-    Some(Session::from_state(ir, state))
+    serde_json::from_value(value.get("initial")?.clone()).ok()
 }
 
 /// ツリーの試料の 1 行。`(id, depth, kind, before, after)`。値は汎用のダミーの文字列で、教材固有の語を使わない。
@@ -137,4 +142,22 @@ pub(crate) fn two_rounds_envelope(
 ) -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope> {
     use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
     parse_history_envelope(parse_history_json(TWO_ROUNDS).ok()?).ok()
+}
+
+/// 開ける履歴の包みを返す（TASK-330 2/2）。
+///
+/// 契約の試料（2 周分）の `ops` を、試験の教材と開始直後の状態に適用し直し、得た状態を写しにして包み直す。
+/// 試料そのままの写しは再読み込みの意味の実装前の値で、読み込みの段 8 で `replay_mismatch` になるため使えない。
+/// 受講中に記録した `ops` ではなく、試料を適用し直したものである（ホストの `OpsRecorder` の常設は後続）。
+/// 2 周分・停止・保存・再読み込みを含むため、復習・チェックポイント・世界状態は空でない。
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn loadable_envelope() -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope>
+{
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_replay::replay;
+
+    let ir = load_ir(IR).ok()?;
+    let env = two_rounds_envelope()?;
+    let state = replay(&ir, start_state()?, &env.ops).ok()?;
+    build_envelope(&ir, &env.start, env.ops, state).ok()
 }

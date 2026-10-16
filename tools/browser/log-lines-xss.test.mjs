@@ -6,7 +6,7 @@
 // 送る（49 × 3 = 147 回）。CSP あり・なしの両方で、右のログの `received` の行が、文字ノード 1 つだけの本文を持ち、
 // 危険な要素が 0 件で、実行・外部通信・CSP 違反・ダイアログ・ポップアップ・ページの例外が 0 件であることを確かめる。
 //
-// 注入の口: 入力欄からエンジンへの結線は TASK-438 が持つ。それまでは、試験の設定（TEST_HOOKS=1）の見えない `raw-trigger` へ
+// 注入の口: 入力欄からエンジンへの結線は TASK-438 で入った。差し替えは別の Issue に回している（submit-wiring.test.mjs が結線そのものを確かめる）。それまでは、試験の設定（TEST_HOOKS=1）の見えない `raw-trigger` へ
 // `Op` の JSON を書いて click する（three-views.test.mjs と同じ口）。口は sendPayload の 1 か所にまとめてあり、TASK-438 の後は
 // ここを draft-input + submit-input の操作へ差し替える。
 // 範囲: 受付の行（InputReceived）と、それに続く拒否の行（TASK-437 1/2。理由に `{{input_head}}` として入力が差し込まれる経路）。

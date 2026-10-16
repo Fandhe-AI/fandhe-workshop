@@ -13,7 +13,7 @@
 //! 閉じた後に下書きが変わったら再び開く規則は、spec に明記が無いため prototype の `closed_for` の挙動に合わせた
 //! （`hello` が持つ）。
 //!
-//! 扱わないこと: Tab の補完の挿入（TASK-440 2/2 = #332）、候補ボタンのクリックで選ぶ操作、変換中の扱い。
+//! 扱わないこと: Tab の補完の挿入（`hello::HelloView::complete` が持つ）、候補ボタンのクリックで選ぶ操作、変換中の扱い。
 
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::profile::{read_profile, InputFieldMode};

@@ -1,0 +1,8 @@
+id: TERM11-1
+package: fandhe-workshop-web
+test: candidates_contract
+target: crates/web/src/host.rs
+find:             if self.input.complete() {
+replace:             if self.input.complete() && false {
+expect-fail: 補完は先頭の候補に置き換え_一覧を閉じ_書き戻しを一度だけ頼む
+note: 補完で下書きを置き換えても、dirty の通知と textarea への書き戻しの要求を出さない

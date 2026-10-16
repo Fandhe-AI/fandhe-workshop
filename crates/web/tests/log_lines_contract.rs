@@ -14,7 +14,9 @@ use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::a11y::{check_no_undefined, Region, LOG_LIST_TESTID, TESTID_ATTR};
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
-use fandhe_workshop_web::log_lines::{line_from_event, line_node, LogLine, STOPPED_TEXT};
+use fandhe_workshop_web::log_lines::{
+    line_from_event, line_node, LogLine, RELOADED_TEXT, STOPPED_TEXT,
+};
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::terminal_area::{
     check_area, check_view, InputMethod, LineKind, RunStatus, RUN_STATUS_TESTID,
@@ -125,6 +127,7 @@ fn synthetic_lines() -> Vec<LogLine> {
         total: 3,
     });
     v.push(LogLine::Stopped);
+    v.push(LogLine::Reloaded);
     v
 }
 
@@ -305,6 +308,59 @@ fn 拒否は文面が渡されたときだけ行になり_問い返しは写さ�
     // 文面が無い・空白だけなら行にしない（文面を作らない）。
     assert!(line_from_event(&j, None).is_none());
     assert!(line_from_event(&j, Some("  ")).is_none());
+}
+
+#[test]
+fn 再読み込みは固定の文言の_reloaded_行になる() {
+    let r = line_from_event(
+        &Event::Reloaded {
+            at: stamp(),
+            new_generation: Generation(2),
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(r, LogLine::Reloaded);
+    assert_eq!(r.kind(), LineKind::Reloaded);
+    let n = line_node(1, &r).unwrap();
+    assert_eq!(attr(&n, "data-kind"), Some("reloaded"));
+    assert_eq!(attr(&n, "data-gen"), Some("1"));
+    let body = children_of(&n);
+    assert_eq!(body.len(), 1);
+    assert!(matches!(children_of(&body[0]), [Node::Text(t)] if t == RELOADED_TEXT));
+    check_area(&area_of(vec![n])).unwrap();
+}
+
+/// 再読み込みの模擬を 1 回・2 回挟むと、右のログの `reloaded` の行がちょうど 1・2 件増える（SAVE-6）。
+#[cfg(feature = "test-hooks")]
+#[test]
+fn 再読み込みを挟むと_reloaded_行が回数だけ増え_ほかの行は変わらない() {
+    use fandhe_workshop_web::host::RAW_RELOAD;
+    let mut host = begun_host();
+    for op in sample_ops().into_iter().take(2) {
+        host.update(HostAction::Engine(op));
+    }
+    let rows = |host: &EngineHost| -> (usize, usize) {
+        let view = host.view();
+        let list = find(&view, "part-log-list").expect("part-log-list");
+        let lis = children_of(list);
+        let reloaded = lis
+            .iter()
+            .filter(|li| attr(li, "data-kind") == Some("reloaded"))
+            .count();
+        (reloaded, lis.len() - reloaded)
+    };
+    let (r0, other0) = rows(&host);
+    assert_eq!(r0, 0);
+    for n in 1..=2 {
+        host.update(EngineHost::decode_action("raw", RAW_RELOAD).unwrap());
+        let (r, other) = rows(&host);
+        assert_eq!(r, n);
+        assert_eq!(other, other0);
+        let view = host.view();
+        let list = find(&view, "part-log-list").expect("part-log-list");
+        check_area(&area_of(children_of(list).to_vec())).unwrap_or_else(|v| panic!("{v:?}"));
+    }
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! 右のターミナル風エリアが守る語の契約（TASK-431、版 1。ログの行・状態表示・Step の状態の語・入力の口の識別子）。
+//! 右のターミナル風エリアが守る語の契約（TASK-431、版 2。ログの行・状態表示・Step の状態の語・入力の口の識別子）。
 //!
 //! 右のエリアの実装（TASK-434〜464）と通しの試験（TASK-87・TASK-92・TASK-374）は、ログの行の種類・
 //! 状態表示・Step の状態の語・入力の口の識別子を観察点に使う。担当ごとに決めると統合で食い違うため、先に本モジュールで固定する。
@@ -11,6 +11,9 @@
 //!
 //! 版 1 は 2 回に分けて書き上げた。1/2 はログの行・状態表示・Step の状態の語、2/2 は入力の口の識別子と
 //! 観察点の制約である。2/2 は版を上げず、識別子の閉じた一覧に足した。
+//!
+//! 版 2 で足したもの: 行の種類 `reloaded`（SAVE-6・D-57・TASK-322。本文は `line-body` だけ）。
+//! 再読み込みの行は `a11y::LIVE_EXCLUDED_LINE_KINDS` に入れず、ライブの欄の更新に数える側にする。
 //!
 //! 版 1 が持つ規則:
 //! 1. ログの行の種類と構造（[`LineKind`]・[`InputMethod`]。`log-list` の直接の子は `li` だけ）
@@ -34,7 +37,7 @@
 //!
 //! 意図して固定しないもの:
 //! - 行の文言と `line-decision`・`line-target` の文字（行の文言は TASK-434・TASK-437。拒否の理由は core が充填した文面をそのまま出す）
-//! - どのイベントをどの行にするかの対応（TASK-434〜437）と、状態表示の導出（停止から待機中へ戻す時機。TASK-436）
+//! - どのイベントをどの行にするかの対応（TASK-434〜437）と、状態表示の導出（停止から待機中へ戻す時機は `run_status` が持つ。TASK-436 2/2）
 //! - `aria-*`・ライブの欄（TASK-366）
 //! - Step の状態のうち `Entered`・`NotStarted`・`Skipped` と章の完了の語（spec が 2 語しか確定していない。
 //!   TASK-435 が決めた後に版を上げて足す）。`step-status` の文字は木では検査しない
@@ -62,7 +65,7 @@ use fandhe_workshop_core::input::{Decision, Input};
 use fandhe_workshop_core::step_status::StepStatus;
 
 /// この契約の版。値・識別子・規則を変えたら上げる（2/2 の追加は上げなかった）。
-pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 1;
+pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 2;
 
 /// 行の種類を載せる属性名。
 pub const KIND_ATTR: &str = "data-kind";
@@ -196,17 +199,20 @@ pub enum LineKind {
     Progress,
     /// 停止。
     Stopped,
+    /// 再読み込みの告知（版 2。SAVE-6）。
+    Reloaded,
 }
 
 impl LineKind {
     /// すべての種類。
-    pub const ALL: [LineKind; 6] = [
+    pub const ALL: [LineKind; 7] = [
         LineKind::Received,
         LineKind::Response,
         LineKind::Rejected,
         LineKind::Clarified,
         LineKind::Progress,
         LineKind::Stopped,
+        LineKind::Reloaded,
     ];
 
     /// `data-kind` の値。
@@ -218,6 +224,7 @@ impl LineKind {
             LineKind::Clarified => "clarified",
             LineKind::Progress => "progress",
             LineKind::Stopped => "stopped",
+            LineKind::Reloaded => "reloaded",
         }
     }
 
@@ -479,7 +486,7 @@ fn part_spec(
         LineKind::Rejected => (&[LINE_REASON_TESTID, LINE_NEXT_ACTION_TESTID], &[]),
         LineKind::Clarified => (&[LINE_QUESTION_TESTID, LINE_NEXT_ACTION_TESTID], &[]),
         LineKind::Progress => (&[LINE_STAGE_TESTID], &[]),
-        LineKind::Stopped => (&[LINE_BODY_TESTID], &[]),
+        LineKind::Stopped | LineKind::Reloaded => (&[LINE_BODY_TESTID], &[]),
     })
 }
 

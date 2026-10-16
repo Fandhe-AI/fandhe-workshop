@@ -1,6 +1,6 @@
 //! 履歴ファイルを読む経路の段 1〜8（大きさ・深さ・JSON・版の欄・型・版の判定・適用し直し・写しとの照合）の入口（TASK-331 1/3〜3/3、SAVE-19・SAVE-20）。
 //!
-//! 呼び出し元は、web の復元（TASK-176・TASK-178）・ファイル選択（TASK-531）である。
+//! 呼び出し元は、web の復元（TASK-176・TASK-178）・ファイル選択（TASK-531）・ホストの読み込み（[`load_session`]、TASK-330 2/2）である。
 //! 段 7・8（開始点・適用し直しと写しとの照合）は [`load_history`] が最後に呼ぶ [`open_history`] の中にあり、
 //! 条件は複製しない。試験は `tests/history_load.rs`、所要時間の記録は `docs/testing.md` の 5.65 にある。
 //! `reload` を含む履歴は、再読み込みの意味の実装（TASK-320）まで適用し直せず `replay_mismatch` になる。
@@ -32,7 +32,7 @@
 //! 加えて、SAVE-19・VER-1 の `missing_version` が `format` の違いと `history_format` の欠落も含むことを明記する。
 
 use fandhe_workshop_contract::history::HISTORY_FORMAT_NAME;
-use fandhe_workshop_contract::history_version::HistoryVersions;
+use fandhe_workshop_contract::history_version::{ConversionNotes, HistoryVersions, Verdict};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::limits::{LoadEntry, MAX_HISTORY_OPS};
 use fandhe_workshop_contract::load_reason::LoadReason;
@@ -41,7 +41,7 @@ use serde_json::Value;
 use crate::history_envelope::SessionEnvelope;
 use crate::history_open::{open_history, Opened, OpeningCaps};
 use crate::load_gate::check_limits;
-use crate::session::SessionState;
+use crate::session::{Session, SessionState};
 use crate::version_record::check_versions_present;
 
 /// 履歴ファイルのバイト列を段 1〜3 で判定し、JSON の値を返す。
@@ -128,5 +128,44 @@ pub fn load_history(
     match env {
         Ok(env) => open_history(ir, opening, caps, initial, &env),
         Err(code) => Opened::Refused { code },
+    }
+}
+
+/// 開いた履歴から作った実行環境と、変換の記録（TASK-330 2/2）。
+#[derive(Debug)]
+pub struct LoadedSession {
+    /// 適用し直した状態から作った実行環境。
+    pub session: Session,
+    /// 版の違いの記録。変換なしで開いたときは `None`。
+    pub notes: Option<ConversionNotes>,
+}
+
+/// 履歴ファイルを段 1〜8 で判定し、開いたときだけ実行環境（[`Session`]）を作る。別のオリジンへの読み込み（SAVE-16）の入口。
+///
+/// 呼び出し元は web のホストの読み込みである。判定は [`load_history`] に任せ、条件は複製しない。
+/// `Session::from_state` をここで呼ぶのは、状態から実行環境を作り直す処理が保存復元の担当だからである
+/// （web の表示層は状態を作り直さない。`crates/web/tests/no_progress.rs`）。`ir` は状態と組にするため値で受ける。
+/// 表示だけ・開かないでは実行環境を作らず、判定だけを返す（SAVE-19）。純関数で、理由は固定のコードだけである（SAFE-40）。
+///
+/// # Errors
+///
+/// 開かなかった場合の判定（`ViewOnly` か `Refused`）。
+pub fn load_session(
+    bytes: &[u8],
+    ir: Ir,
+    opening: &HistoryVersions,
+    caps: &OpeningCaps,
+    initial: SessionState,
+) -> Result<LoadedSession, Verdict<LoadReason>> {
+    match load_history(bytes, &ir, opening, caps, initial) {
+        Opened::Open { state } => Ok(LoadedSession {
+            session: Session::from_state(ir, state),
+            notes: None,
+        }),
+        Opened::Converted { state, notes } => Ok(LoadedSession {
+            session: Session::from_state(ir, state),
+            notes: Some(notes),
+        }),
+        other => Err(other.verdict()),
     }
 }

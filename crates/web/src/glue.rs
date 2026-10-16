@@ -30,6 +30,13 @@ thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
     /// 予約済みの進行の宛先。同じ宛先のタイマーを二重に積まないための印（取り消しのためではない）。
     static SCHEDULED: RefCell<Option<TickAddr>> = const { RefCell::new(None) };
+    /// 進行のタイマーの世代。履歴の差し替え（`on_tick_reset`）で進める。古い世代のタイマーは配送の時点で捨てる。
+    /// 履歴の読み込みで差し替え前のタイマーが残っても、読み込み後のログへ `Ignored` を足さず、宛先が偶然一致しても進めない。
+    static TICK_EPOCH: RefCell<u64> = const { RefCell::new(0) };
+    /// 書き戻しの対象の root。送信で下書きを空にしたとき、タイマーのコールバックが `sync_draft` に渡す。
+    static DRAFT_ROOT: RefCell<Option<web_sys::Element>> = const { RefCell::new(None) };
+    /// 変換中（`compositionstart` から `compositionend` まで）かどうか。`sync_draft` が変換中の書き換えを避けるために読む。
+    static COMPOSING: RefCell<bool> = const { RefCell::new(false) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -70,14 +77,19 @@ fn deliver(action: &RuntimeAction) -> Option<DispatchEffect> {
 
 /// action の配送を `delay_ms` 後に予約する。配送は必ず `set_timeout` のコールバックの中で行う（再入を避けるため）。
 ///
-/// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。古くなった宛先は届いても core が無視するため、
-/// 取り消しの規則を表示側に持たせない。進行の宛先が届いた時点で、その宛先の予約の印を外す。
+/// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。進行は予約時の世代（`TICK_EPOCH`）を持ち、配送の時点で
+/// 世代が進んでいれば捨てる（履歴の差し替え前のタイマー）。それ以外の古い宛先は届いても core が無視する。同じ世代で届いた進行の宛先は、
+/// その宛先の予約の印を外す。
 fn schedule_action(action: RuntimeAction, delay_ms: i32) {
     let Some(window) = web_sys::window() else {
         return;
     };
+    let epoch = TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0));
     let callback = Closure::once_into_js(move || {
         if let RuntimeAction::Tick(addr) = &action {
+            if TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0)) != epoch {
+                return;
+            }
             SCHEDULED.with(|s| {
                 if let Ok(mut slot) = s.try_borrow_mut() {
                     if slot.as_ref() == Some(addr) {
@@ -95,6 +107,24 @@ fn schedule_action(action: RuntimeAction, delay_ms: i32) {
 /// 進行の間隔（ミリ秒）。定数は `i32` に収まる（`tick_interval` の const assert）。
 fn tick_delay_ms() -> i32 {
     i32::try_from(TICK_INTERVAL_MS).unwrap_or(i32::MAX)
+}
+
+/// 履歴の差し替えで、これまでの進行のタイマーを全部無効にする（`EngineHost::set_tick_reset` の通知先）。
+///
+/// 世代を進め、予約の印も消す。差し替え後の宛先が差し替え前と同じでも、新しいタイマーを予約し直せる。
+/// 停止・移動のような通常の更新では呼ばれない。古いタイマーは届いて core の `Ignored` になる（EVT-8）。
+fn on_tick_reset() {
+    TICK_EPOCH.with(|e| {
+        if let Ok(mut e) = e.try_borrow_mut() {
+            // u64 は実用上あふれない。あふれても世代が 0 に戻るだけで、配送の可否が変わるのはその一周に限る。
+            *e = e.wrapping_add(1);
+        }
+    });
+    SCHEDULED.with(|s| {
+        if let Ok(mut slot) = s.try_borrow_mut() {
+            *slot = None;
+        }
+    });
 }
 
 /// ホストが通知する次の進行の宛先を受け、タイマーを予約する（`EngineHost::set_tick_request` の通知先）。
@@ -121,6 +151,27 @@ fn on_tick_request(next: Option<TickAddr>) {
     if fresh {
         schedule_action(RuntimeAction::Tick(addr), tick_delay_ms());
     }
+}
+
+/// ホストが通知する下書きの書き戻しの要求を受け、`set_timeout(0)` で `sync_draft` を予約する
+/// （`EngineHost::set_draft_sync_request` の通知先。TASK-438）。
+///
+/// `Component::update` の中から呼ばれるため、Runtime にも App にも触れず予約するだけにする（再入を避ける）。
+/// 書き戻しを予約に回すのは、送信の click が上流の更新の中で走り、その最中に App を借りられないため。
+/// 送信の直後・タイマーの実行前に変換が始まった場合、`sync_draft` が変換中を見て書き換えない。
+/// 保留した書き戻しは、`compositionend` の次のタスクの同期が引き受ける。
+fn on_draft_sync_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        let root = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone()));
+        if let Some(root) = root {
+            sync_draft(&root);
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
 }
 
 /// 予約済みの進行の宛先。試験用の口が読む。
@@ -188,7 +239,13 @@ fn find_in_root(root: &web_sys::Element, selector: &str) -> Option<web_sys::Elem
 /// 上流の `wasm-client` の `value` 束縛は `HtmlInputElement` しか同期しない（PoC-2 の F-1）。
 /// 状態側で 20,000 コードポイントに切った後の値を欄に反映するには、この書き戻しが要る。
 /// 上流が `<textarea>` の同期に対応したら外す。要素が無い・借用中は何もしない（安全側）。
+///
+/// 変換中（`COMPOSING`）は、どの経路から呼ばれても書かない（変換中の書き換えは入力を壊す）。
+/// 保留した分は `compositionend` の次のタスクの同期が処理する。
 fn sync_draft(root: &web_sys::Element) {
+    if is_composing() {
+        return;
+    }
     let Some(el) = find_in_root(root, DRAFT_SELECTOR) else {
         return;
     };
@@ -199,6 +256,20 @@ fn sync_draft(root: &web_sys::Element) {
         let draft = app.draft();
         if field.value() != draft {
             field.set_value(draft);
+        }
+    });
+}
+
+/// 変換中かどうか。借用中は `true`（書かない側＝安全側）。
+fn is_composing() -> bool {
+    COMPOSING.with(|c| c.try_borrow().map(|b| *b).unwrap_or(true))
+}
+
+/// 変換中の印を更新する。借用中は何もしない。
+fn mark_composing(on: bool) {
+    COMPOSING.with(|c| {
+        if let Ok(mut b) = c.try_borrow_mut() {
+            *b = on;
         }
     });
 }
@@ -219,6 +290,11 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
         }
         sync_draft(&target);
     });
+    let on_start = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        mark_composing(true);
+    });
+    root.add_event_listener_with_callback("compositionstart", on_start.as_ref().unchecked_ref())?;
+    on_start.forget();
     root.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
     on_input.forget();
     // Safari は確定の `input` より前に `compositionend` を発火する。その時点の状態は古いため、
@@ -226,6 +302,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     // （Chrome のように `compositionend` が後でも、状態は最新なので害はない）。
     let target = root.clone();
     let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
+        mark_composing(false);
         let Some(window) = web_sys::window() else {
             return;
         };
@@ -270,15 +347,17 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
             alt: kev.alt_key(),
             meta: kev.meta_key(),
         };
-        let Some(has_text) = with_app(|app| !app.draft().is_empty()) else {
+        let Some((has_text, candidates_open)) =
+            with_app(|app| (!app.draft().is_empty(), app.candidates_open()))
+        else {
             return;
         };
-        let effect = effect_for(decide(&input, &field_state(has_text)));
+        let effect = effect_for(decide(&input, &field_state(has_text, candidates_open)));
         if effect.prevent_default {
             ev.prevent_default();
         }
         // 補完はリスナーの中で直接届けず、タイマーの予約を通す（リスナーの中では再入で捨てられるため）。
-        // 候補の一覧が未実装の間は判定が補完にならず、画面からはここへ届かない（TASK-440 が到達させる）。
+        // 一覧が開いていて文字があるときだけ判定が補完になり、ここへ届く（JUDGE-19）。挿入はホストが行う。
         if effect.deliver_complete {
             schedule_action(RuntimeAction::Complete, 0);
         }
@@ -331,8 +410,15 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         }
         let mut host = EngineHost::for_mount();
         host.set_tick_request(Box::new(on_tick_request));
+        host.set_tick_reset(Box::new(on_tick_reset));
+        host.set_draft_sync_request(Box::new(on_draft_sync_request));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
+        DRAFT_ROOT.with(|r| {
+            if let Ok(mut slot) = r.try_borrow_mut() {
+                *slot = Some(root.clone());
+            }
+        });
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
         *slot = Some(runtime);

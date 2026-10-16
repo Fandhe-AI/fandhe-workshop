@@ -70,7 +70,7 @@ fi
 # --- 定義の読み取り -------------------------------------------------------
 
 # 1 件分の定義を保持する変数。parse_def が埋める。
-M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE=""
+M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE="" M_FEATURES=""
 M_EXPECT=()
 
 # parse_def <file>: 定義を読み、形式を検査する。不正なら終了コード 2。
@@ -78,7 +78,7 @@ M_EXPECT=()
 parse_def() {
   local file="$1" line key value
   local seen_id=0 seen_package=0 seen_test=0 seen_target=0 seen_find=0 seen_replace=0 seen_note=0
-  M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE=""
+  M_ID="" M_PACKAGE="" M_TEST="" M_TARGET="" M_FIND="" M_REPLACE="" M_NOTE="" M_FEATURES=""
   M_EXPECT=()
   while IFS= read -r line || [ -n "${line}" ]; do
     [ -z "${line}" ] && continue
@@ -97,6 +97,7 @@ parse_def() {
       find) [ "${seen_find}" -eq 0 ] || die "${file}: duplicate key: find"; seen_find=1; M_FIND="${value}" ;;
       replace) [ "${seen_replace}" -eq 0 ] || die "${file}: duplicate key: replace"; seen_replace=1; M_REPLACE="${value}" ;;
       note) [ "${seen_note}" -eq 0 ] || die "${file}: duplicate key: note"; seen_note=1; M_NOTE="${value}" ;;
+      features) [ -z "${M_FEATURES}" ] || die "${file}: duplicate key: features"; M_FEATURES="${value}" ;;
       expect-fail) M_EXPECT+=("${value}") ;;
       *) die "${file}: unknown key: ${key}" ;;
     esac
@@ -111,6 +112,10 @@ parse_def() {
   # package・test は cargo の引数に渡すため、使える文字を絞る。
   printf '%s\n' "${M_PACKAGE}" | grep -Eq '^[a-z0-9-]+$' || die "${file}: invalid package: ${M_PACKAGE}"
   printf '%s\n' "${M_TEST}" | grep -Eq '^[a-z0-9_]+$' || die "${file}: invalid test: ${M_TEST}"
+  # features は任意（試験の設定の feature の背後にある試験を対象にするとき）。cargo の --features に渡す。
+  if [ -n "${M_FEATURES}" ]; then
+    printf '%s\n' "${M_FEATURES}" | grep -Eq '^[a-z0-9-]+$' || die "${file}: invalid features: ${M_FEATURES}"
+  fi
   printf '%s\n' "${M_ID}" | grep -Eq '^[A-Za-z0-9_-]+$' || die "${file}: invalid id: ${M_ID}"
   [ "${M_FIND}" != "${M_REPLACE}" ] || die "${file}: find and replace are identical"
   check_target "${file}" "${M_TARGET}"
@@ -194,7 +199,7 @@ fresh_work() {
 
 # run_test <package> <test>: WORK で試験のターゲット全体を流し、出力を OUT に残す。cargo の終了コードを返す。
 run_test() {
-  (cd "${WORK}" && cargo test --locked -p "$1" --test "$2") >"${OUT}" 2>&1
+  (cd "${WORK}" && cargo test --locked -p "$1" --test "$2" ${M_FEATURES:+--features "${M_FEATURES}"}) >"${OUT}" 2>&1
 }
 
 # join_by_comma <items...>: ", " で連結する。
@@ -265,7 +270,7 @@ for def in "${DEFS[@]}"; do
 
   # コンパイルできない変異は、検出に数えない。
   log "${M_ID}: compiling the mutated copy"
-  if ! (cd "${WORK}" && cargo test --locked -p "${M_PACKAGE}" --test "${M_TEST}" --no-run) >"${OUT}" 2>&1; then
+  if ! (cd "${WORK}" && cargo test --locked -p "${M_PACKAGE}" --test "${M_TEST}" ${M_FEATURES:+--features "${M_FEATURES}"} --no-run) >"${OUT}" 2>&1; then
     tail -n 30 "${OUT}" >&2
     die "${M_ID}: the mutated copy does not compile"
   fi

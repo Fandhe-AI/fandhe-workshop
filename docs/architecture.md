@@ -98,6 +98,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
 | 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
 | 履歴を開く可否の判定（`history_open::open_history`）・開く側の上限 `OpeningCaps`・エンジンが読める語彙の上限 `VOCAB_MAX`（pack の `vocab::LATEST` との一致は pack の試験が見る） | core | TASK-174 |
+| 開いた履歴から実行環境を作る入口（`history_load::load_session`。判定は `load_history` に任せ、開いたときだけ `Session::from_state` を呼ぶ。状態から実行環境を作り直す処理は保存復元の担当のため core に置く） | core | TASK-330 |
 | IR の型、`ir_format`、加算の規則 | contract | TASK-41・TASK-60 |
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
 | キー判定表 `decide` の入出力と表（`key_decide`） | contract | TASK-257・TASK-281 |
@@ -132,9 +133,9 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
-| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ） | web | TASK-347 |
+| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ。履歴ファイルの読み込み `EngineHost::open_history` は `load_session` を呼び、開いたときだけ `Session` を差し替える） | web | TASK-347・TASK-330 |
 | 右のログの行のモデルと描画（`log_lines`。TASK-431 の行の構造に準拠。入力・進行・停止・拒否の 4 種を結線し（拒否の理由は `HostModel` が `apply_engine` の直後に core の `filled_text` で充填して控える。TASK-437 1/2）、問い返しは TASK-437 2/2、応答は TASK-435・TASK-438。`log-list` の引き継ぎは TASK-438 または TASK-517） | web | TASK-434 |
-| 状態表示の導出（`run_status`。待機中・処理中。停止は TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
+| 状態表示の導出（`run_status`。待機中・処理中・停止。Esc と停止ボタンは `host` が処理中のときだけ `Control::Stop` に結ぶ。TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
@@ -143,7 +144,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
 - TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。TASK-472 で版 2 に上げ、ツリーの `role`・属性とその規則を足した
-- TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語・入力の口の識別子・観察点の制約）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 1）が持つ。`parts`・`a11y` の版とは別に管理する
+- TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語・入力の口の識別子・観察点の制約）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 2）が持つ。`parts`・`a11y` の版とは別に管理する
 - 左の成果物ビューの契約（TASK-467。`artifact_view`）の版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`（版 1）が持つ。上の 2 つの版とは別に管理する。TASK-467 2/2 で足した束縛点・指せる行の属性・変種の口も同じ版 1 の中にある
 
 ## 7. feature

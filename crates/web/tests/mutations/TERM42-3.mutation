@@ -1,0 +1,8 @@
+id: TERM42-3
+package: fandhe-workshop-web
+test: candidates_contract
+target: crates/web/src/candidates.rs
+find:                 None | Some(CommandKind::Unsupported)
+replace:                 None
+expect-fail: 開く場面と開かない場面
+note: unsupported のコマンドを候補の表から除外しない（一覧にも Tab の補完にも出る）

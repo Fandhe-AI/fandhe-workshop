@@ -1,7 +1,7 @@
 //! ホストの入力欄（Hello）。ホスト（`host::EngineHost`）が内包し、`glue::mount_app` 経由で mount される。
 //!
 //! 単体の Component としても動く（既存の試験が使う）。入力欄の上限（SAFE-21。TASK-158）の受け口と、
-//! 送信と送信済みの一覧（受講者の文字列の非解釈の表示。SAFE-11。TASK-150）の足場だけを持つ。core・contract に型を足さず、この crate の中で閉じる。
+//! 送信済みの一覧（受講者の文字列の非解釈の表示。SAFE-11。TASK-150）への積み込みまでを持つ。送信の後に下書きを空にする判断（TERM-1）は、エンジンの判定を知るホストの責務である。core・contract に型を足さず、この crate の中で閉じる。
 
 // native ビルドでは glue が無く、試験以外から使われない。
 #![cfg_attr(
@@ -24,7 +24,9 @@ use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::candidates::CommandTable;
 use crate::input_limit::{clamp_draft, notice_for};
-use crate::key_route::{after_esc, esc_input, esc_route, field_state};
+use crate::key_route::{
+    after_esc, completion_choice, esc_input, esc_route, field_state, tab_input, EscRoute,
+};
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
@@ -95,9 +97,12 @@ pub enum HelloAction {
     Submit,
     /// root の中の Esc（`data-action-keydown="esc"`。FEND-5）。状態を変えない。
     ///
-    /// 停止・取り消しへの結び付け（`key_route::esc_route`）は TASK-347・TASK-352 の担当で、ここでは
-    /// 「Component に届いた」ことだけを表す。`UnknownAction` に倒すと届いたことを確かめられない。
+    /// 単体では「Component に届いた」ことと候補を閉じることだけを表す。処理中の停止（`esc_route`）は
+    /// ホストが [`HelloView::esc`] を通して Session へ適用する（TASK-436 2/2）。
     Esc,
+    /// 停止ボタン（`data-action="stop"`。TERM-33）。payload は読まない。単体では状態を変えず、
+    /// 処理中の停止への結線はホスト（`host::EngineHost`）が行う。
+    Stop,
     /// keydown の probe への入力（`data-action-keydown="keydown-probe"`）。試験の設定のみ。
     #[cfg(feature = "test-hooks")]
     KeydownProbe,
@@ -134,6 +139,24 @@ impl HelloView {
         &self.draft
     }
 
+    /// 下書きを空にする（`SetDraft("")` と同じ意味）。送信を受け入れた後に、ホストが呼ぶ（TERM-1）。
+    ///
+    /// `update` と違い dirty を消さない。直前の `Submit` が積んだ field を残したまま、案内・候補の変化を足すため、
+    /// ホストは `Submit` と本関数の後に 1 度だけ `dirty_fields` を読む。単体の `Submit` は下書きを残す
+    /// （空にするかどうかは、エンジンの判定を知るホストの責務である）。
+    pub(crate) fn clear_draft(&mut self) {
+        let before = self.visible_candidates();
+        if self.over_limit {
+            self.dirty.push(FIELD_NOTICE);
+        }
+        self.over_limit = false;
+        self.draft.clear();
+        self.closed_for = None;
+        if self.visible_candidates() != before {
+            self.dirty.push(FIELD_CANDIDATES);
+        }
+    }
+
     /// 直近の入力で切り捨てが起きたか（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn over_limit(&self) -> bool {
@@ -144,6 +167,68 @@ impl HelloView {
     #[cfg(feature = "test-hooks")]
     pub(crate) fn keydown_probe(&self) -> u32 {
         self.keydown_probe
+    }
+
+    /// Esc を 1 回受け取り、行き先を返す。候補を閉じる処理は中で行い、Session への適用は呼び出し元（ホスト）が
+    /// 返り値の `op` で行う。`busy` はホストが Session から取る（処理中なら停止の行き先になる。TERM-7）。
+    pub(crate) fn esc(&mut self, busy: bool) -> EscRoute {
+        // `update` と同じく前の操作の dirty を引き継がない（今回変わった field だけを載せる）。
+        self.dirty.clear();
+        let state = FieldState {
+            busy,
+            ..field_state(!self.draft.is_empty(), self.candidates_open())
+        };
+        let route = esc_route(decide(&esc_input(), &state));
+        if state.candidates_open && !after_esc(state, &route).candidates_open {
+            self.closed_for = Some(self.draft.clone());
+            self.dirty.push(FIELD_CANDIDATES);
+        }
+        #[cfg(feature = "test-hooks")]
+        {
+            self.esc_count = self.esc_count.saturating_add(1);
+        }
+        route
+    }
+
+    /// Tab の補完を 1 回受け取り、下書きが変わったかを返す（TERM-11・D-60）。
+    ///
+    /// 呼び出し元はホストの `HostAction::Complete`（配送はタイマーの予約を通るため、keydown の時点から状態が
+    /// 変わりうる）。配送の時点の状態で判定をやり直し、一覧が閉じている・文字が無い・候補が無いときは何もしない。
+    /// 候補は `visible_candidates`（`unsupported` は表に入っていない。TERM-42）で、選び方は契約の
+    /// `first_completion`（先頭）に任せる。DOM には触れない。書き戻しはホストが `draft_sync_request` で頼む。
+    pub(crate) fn complete(&mut self) -> bool {
+        // `update` と同じく前の操作の dirty を引き継がない。
+        self.dirty.clear();
+        let shown = self.visible_candidates();
+        let state = field_state(!self.draft.is_empty(), !shown.is_empty());
+        let Some(choice) = completion_choice(decide(&tab_input(), &state), &shown) else {
+            return false;
+        };
+        let choice = choice.clone();
+        let changed = self.draft != choice;
+        self.replace_draft(&choice);
+        changed
+    }
+
+    /// 下書きを置き換える。上限・案内・閉じた印・候補の変化の dirty を積む（`SetDraft` と補完が共有する）。
+    fn replace_draft(&mut self, value: &str) {
+        let before = self.visible_candidates();
+        let (clamped, over) = clamp_draft(value);
+        if over != self.over_limit {
+            self.dirty.push(FIELD_NOTICE);
+        }
+        self.over_limit = over;
+        // 値が変わらない入力でも、上限で切った値の書き戻しは glue が毎回確かめる。
+        if self.draft != clamped {
+            self.draft = clamped.to_owned();
+        }
+        // 閉じた下書きから変わったら、閉じた印を外す（再び開けるようにする）。
+        if self.closed_for.as_deref() != Some(self.draft.as_str()) {
+            self.closed_for = None;
+        }
+        if self.visible_candidates() != before {
+            self.dirty.push(FIELD_CANDIDATES);
+        }
     }
 
     /// root の中の Esc を受け取った回数（試験用の口が読む）。
@@ -159,25 +244,7 @@ impl Component for HelloView {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
-            HelloAction::SetDraft(value) => {
-                let before = self.visible_candidates();
-                let (clamped, over) = clamp_draft(&value);
-                if over != self.over_limit {
-                    self.dirty.push(FIELD_NOTICE);
-                }
-                self.over_limit = over;
-                // 値が変わらない入力でも、上限で切った値の書き戻しは glue が毎回確かめる。
-                if self.draft != clamped {
-                    self.draft = clamped.to_owned();
-                }
-                // 閉じた下書きから変わったら、閉じた印を外す（再び開けるようにする）。
-                if self.closed_for.as_deref() != Some(self.draft.as_str()) {
-                    self.closed_for = None;
-                }
-                if self.visible_candidates() != before {
-                    self.dirty.push(FIELD_CANDIDATES);
-                }
-            }
+            HelloAction::SetDraft(value) => self.replace_draft(&value),
             HelloAction::Submit => {
                 if self.draft.is_empty() {
                     return;
@@ -190,22 +257,10 @@ impl Component for HelloView {
                 self.dirty.push(FIELD_LOG);
             }
             HelloAction::Esc => {
-                // 開いている一覧だけを閉じる（K-09）。`route.op`（停止・取り消しの入力）は Session へ適用しない。
-                // 適用は TASK-347・TASK-352 の担当で、ここで適用すると Esc のたびにログが増える。
-                let state = FieldState {
-                    candidates_open: self.candidates_open(),
-                    ..field_state(!self.draft.is_empty())
-                };
-                let route = esc_route(decide(&esc_input(), &state));
-                if state.candidates_open && !after_esc(state, &route).candidates_open {
-                    self.closed_for = Some(self.draft.clone());
-                    self.dirty.push(FIELD_CANDIDATES);
-                }
-                #[cfg(feature = "test-hooks")]
-                {
-                    self.esc_count = self.esc_count.saturating_add(1);
-                }
+                self.esc(false);
             }
+            // 停止の適用はホストの責務。単体では何も変えない。
+            HelloAction::Stop => {}
             #[cfg(feature = "test-hooks")]
             HelloAction::KeydownProbe => {
                 self.keydown_probe = self.keydown_probe.saturating_add(1);
@@ -292,6 +347,16 @@ impl Component for HelloView {
             ],
             vec![text("送信")],
         ));
+        // 停止ボタン（TERM-33）。ラベルは固定の文字だけで、payload・教材の文字列は持たない。
+        children.push(el(
+            "button",
+            vec![
+                ("type", "button"),
+                ("data-testid", InputPort::Stop.testid()),
+                ("data-action", "stop"),
+            ],
+            vec![text("停止")],
+        ));
         // 件数が 0 でも常に keyed_view で描く（最初の送信から差分の経路に乗せるため）。
         // Err は data-bind-list を保った通知の一覧に倒す（空の要素にすると全再描画になる。FEND-15）。
         let items: Vec<(String, Node)> = self
@@ -314,6 +379,9 @@ impl Component for HelloView {
         }
         if name == "submit" {
             return Some(HelloAction::Submit);
+        }
+        if name == "stop" {
+            return Some(HelloAction::Stop);
         }
         if let Some(RuntimeAction::Esc) = RuntimeAction::decode(name, payload) {
             return Some(HelloAction::Esc);
@@ -342,6 +410,38 @@ impl BindingSource for HelloView {
 mod tests {
     use super::*;
     use fandhe_frontend_wasm_full::render_component_html;
+
+    fn table(names: &[&str]) -> CommandTable {
+        CommandTable::new("/", names.iter().map(|n| (*n).to_owned()))
+    }
+
+    #[test]
+    fn complete_は先頭の候補に置き換える() {
+        let mut v = HelloView::new();
+        v.set_command_table(table(&["make-note", "help"]));
+        v.update(HelloAction::SetDraft("/".to_owned()));
+        assert!(v.complete());
+        assert_eq!(v.draft(), "/help");
+        assert!(!v.candidates_open());
+        assert_eq!(v.dirty_fields(), [FIELD_CANDIDATES]);
+    }
+
+    #[test]
+    fn complete_は閉じた一覧と候補の無い下書きでは何もしない() {
+        let mut v = HelloView::new();
+        v.set_command_table(table(&["help"]));
+        v.update(HelloAction::SetDraft("/he".to_owned()));
+        v.esc(false);
+        assert!(!v.complete());
+        assert_eq!(v.draft(), "/he");
+        assert!(v.dirty_fields().is_empty());
+        v.update(HelloAction::SetDraft("/zzz".to_owned()));
+        assert!(!v.complete());
+        // コマンド表が空なら一覧は開かず、補完もしない。
+        let mut empty = HelloView::new();
+        empty.update(HelloAction::SetDraft("/he".to_owned()));
+        assert!(!empty.complete());
+    }
 
     #[test]
     fn renders_hello_message() {
@@ -405,6 +505,42 @@ mod tests {
     }
 
     #[test]
+    fn stop_ボタンは固定の属性と文字だけを持つ() {
+        let html = render_component_html(&HelloView::new());
+        assert!(html.contains("data-testid=\"stop-btn\""), "{html}");
+        assert!(html.contains("data-action=\"stop\""), "{html}");
+        assert!(html.contains(">停止</button>"), "{html}");
+        assert_eq!(
+            html.matches(concat!("data-", "payload")).count(),
+            0,
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn stop_は_payload_を読まず復号され_状態を変えない() {
+        for p in ["", "x"] {
+            assert!(matches!(
+                HelloView::decode_action("stop", p),
+                Some(HelloAction::Stop)
+            ));
+        }
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き".to_owned()));
+        v.update(HelloAction::Stop);
+        assert_eq!(v.draft(), "下書き");
+        assert!(v.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn esc_は処理中なら停止へ向かう() {
+        use fandhe_workshop_core::input::{Control, Op};
+        let mut v = HelloView::new();
+        assert_eq!(v.esc(true).op, Some(Op::Control(Control::Stop)));
+        assert_ne!(v.esc(false).op, Some(Op::Control(Control::Stop)));
+    }
+
+    #[test]
     fn esc_は状態を変えない() {
         let mut v = HelloView::new();
         v.update(HelloAction::SetDraft("下書き".to_owned()));
@@ -414,6 +550,16 @@ mod tests {
         v.update(HelloAction::Esc);
         assert_eq!(v.draft(), "続き");
         assert_eq!(v.entries, entries);
+        assert!(v.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn esc_は前の操作の_dirty_を引き継がない() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("下書き".to_owned()));
+        v.update(HelloAction::SetDraft("x".repeat(100_000)));
+        assert!(!v.dirty_fields().is_empty());
+        v.esc(false);
         assert!(v.dirty_fields().is_empty());
     }
 
