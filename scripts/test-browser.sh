@@ -70,4 +70,5 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/list-parent-attrs.test.mjs" \
   "${ROOT_DIR}/tools/browser/confirm-burst.test.mjs" \
   "${ROOT_DIR}/tools/browser/stop-move-ignore.test.mjs" \
-  "${ROOT_DIR}/tools/browser/storage-select.test.mjs"
+  "${ROOT_DIR}/tools/browser/storage-select.test.mjs" \
+  "${ROOT_DIR}/tools/browser/storage-leave.test.mjs"

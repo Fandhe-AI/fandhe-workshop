@@ -136,7 +136,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 右のログの行のモデルと描画（`log_lines`。TASK-431 の行の構造に準拠。入力・進行・停止の 3 種を結線し、拒否・問い返し・応答は TASK-435・TASK-437。`log-list` の引き継ぎは TASK-438 または TASK-517） | web | TASK-434 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
-| 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`） | TASK-317 |
+| 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
