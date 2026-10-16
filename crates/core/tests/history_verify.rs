@@ -9,7 +9,9 @@
 //!
 //! 後者は再読み込みを挟む形（H-5）である。時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを
 //! 書き出し→読み込みで復元して再読み込みしてから残りを流した結果が一致し、再読み込みの後の世代が時点 t の
-//! 世代 +1 であることも明示して確かめる（TASK-320 1/2）。性質テストの成功条件は一致が主である（`docs/testing.md` 第 2 節）。
+//! 世代 +1 であることも明示して確かめる（TASK-320 1/2）。時点 t が処理中なら、再読み込みの前の宛先の進行を
+//! 複製した状態に送り、`Ignored(Stale)` が 1 件だけ増えて状態が変わらないことも確かめる（H-6、TASK-320 2/2）。
+//! 性質テストの成功条件は一致が主である（`docs/testing.md` 第 2 節）。
 //! 性質テストにはほかに、書き出しのバイト列の安定（H-7）と写しから作り直した実行の一致（H-2）、`ops` を 1 件消した包みが
 //! 黙って誤った状態で開かないこと（H-8）を含める。変異 `SAVE1-1`〜`SAVE1-6` の検出先になる（`docs/testing.md` 5.59）。
 
@@ -20,10 +22,14 @@ use common::history_sample;
 use common::op_gen::{guided_op_specs, op_specs, OpSpec, Which};
 use common::property::{check, MAX_OPS};
 use common::record_path::{draft_text, RecordPath};
+use common::tick::next_tick;
 use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::limits::LoadEntry;
 use fandhe_workshop_contract::load_reason::LoadReason;
+use fandhe_workshop_core::addr::Stamp;
+use fandhe_workshop_core::apply;
+use fandhe_workshop_core::event::{Event, IgnoreReason};
 use fandhe_workshop_core::history_envelope::{build_envelope, SessionEnvelope};
 use fandhe_workshop_core::history_replay::{
     replay, verify_envelope, view_only_source, ReplayError, SnapshotField, VerifyError,
@@ -302,6 +308,40 @@ fn export_import_verifies(
     }
 }
 
+/// 再読み込みの前に予約された進行の宛先（古い世代）が後から届いても、状態が変わらず `Ignored(Stale)` が
+/// 1 件だけ増える（試作の H-6）。複製した状態に当てて戻りだけを見る。`ops` には記録しない（片側だけに入れると
+/// A/B の一致が壊れ、両側に入れると H-5 の意味が濁るため）。処理中でない時点では宛先が無いので飛ばす。
+fn stale_tick_probe(
+    ir: &Ir,
+    cut_state: &SessionState,
+    reloaded: &SessionState,
+    cut: usize,
+) -> Result<(), String> {
+    let Some(old) = next_tick(cut_state) else {
+        return Ok(());
+    };
+    let (after, events) = apply(ir, reloaded.clone(), Op::Tick(old));
+    let Some(step) = reloaded.run.current.clone() else {
+        return Ok(());
+    };
+    let want = [Event::Ignored {
+        at: Stamp {
+            generation: reloaded.run.generation,
+            step,
+        },
+        reason: IgnoreReason::Stale,
+    }];
+    if events.as_slice() != want {
+        return Err(format!("H-6: the stale tick was not ignored at t={cut}"));
+    }
+    let mut expected = reloaded.clone();
+    expected.log.extend(want);
+    if after != expected {
+        return Err(format!("H-6: the stale tick changed the state at t={cut}"));
+    }
+    Ok(())
+}
+
 /// 時点 t で再読み込みを挟む（H-5）。続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して
 /// 再読み込みしてから残りを流した結果が一致する。再読み込みの後の世代は時点 t の世代 +1 である。
 fn reload_at_any_point(
@@ -357,6 +397,7 @@ fn reload_at_any_point(
             "reload at t={cut} did not bump the generation by one"
         ));
     }
+    stale_tick_probe(ir, &cut_state, &reloaded, cut)?;
     match replay(ir, reloaded, &full[prefix.len() + 1..]) {
         Ok(s) if s == last => {}
         Ok(s) => {
