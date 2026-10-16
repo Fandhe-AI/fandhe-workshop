@@ -1,0 +1,8 @@
+id: TERM32-3
+package: fandhe-workshop-web
+test: clarify_lines
+target: crates/web/src/host.rs
+find:     matches!(j, Judgment::Rejected(_) | Judgment::Clarified(_))
+replace:     matches!(j, Judgment::Rejected(_))
+expect-fail: 引数なしの_new_idea_は_clarified_の行になり_拒否の行に数えない
+note: 問い返しの文面の控えを作らない（行が出ない）

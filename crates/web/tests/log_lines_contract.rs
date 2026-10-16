@@ -5,7 +5,9 @@
 use std::path::PathBuf;
 
 use fandhe_frontend_core::{el, render, text, Node};
-use fandhe_workshop_contract::judgment::{Judgment, NextAction, RejectCategory, Rejection};
+use fandhe_workshop_contract::judgment::{
+    Clarification, Judgment, NextAction, RejectCategory, Rejection,
+};
 use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Decision, Input, Op};
@@ -285,7 +287,7 @@ fn without_text(e: &Event) -> Option<LogLine> {
 }
 
 #[test]
-fn 拒否は文面が渡されたときだけ行になり_問い返しは写さない() {
+fn 拒否と問い返しは文面が渡されたときだけ行になり_種類で区別される() {
     let na = NextAction::new("ls を打つ").expect("next action");
     let j = Event::Judged {
         at: stamp(),
@@ -308,6 +310,55 @@ fn 拒否は文面が渡されたときだけ行になり_問い返しは写さ�
     // 文面が無い・空白だけなら行にしない（文面を作らない）。
     assert!(line_from_event(&j, None).is_none());
     assert!(line_from_event(&j, Some("  ")).is_none());
+
+    // 問い返しは `clarified` の行になる。`data-category` は付かない。
+    let c = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Clarified(Clarification {
+            text: "cl-1".into(),
+            next_action: NextAction::new("名前を付ける").expect("next action"),
+        }),
+    };
+    let line = line_from_event(&c, Some("名前を教えてください")).unwrap();
+    assert_eq!(line.kind(), LineKind::Clarified);
+    let node = line_node(1, &line).unwrap();
+    assert_eq!(attr(&node, "data-kind"), Some("clarified"));
+    assert_eq!(attr(&node, "data-category"), None);
+    assert!(line_from_event(&c, None).is_none());
+    assert!(line_from_event(&c, Some("  ")).is_none());
+}
+
+#[test]
+fn 長い理由と問いは切り詰めず文字ノード_1_つで出る() {
+    // 212 文字の実文は未公開の試作パックにあるため、それを超える合成の文面で代える。
+    let long: String = "あ".repeat(240);
+    let na = NextAction::new("ls を打つ").expect("next action");
+    let r = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Rejected(Rejection {
+            category: RejectCategory::WrongOrder,
+            text: "r-1".into(),
+            next_action: na.clone(),
+        }),
+    };
+    let c = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Clarified(Clarification {
+            text: "cl-1".into(),
+            next_action: na,
+        }),
+    };
+    for (ev, id) in [(&r, "line-reason"), (&c, "line-question")] {
+        let node = line_node(1, &line_from_event(ev, Some(&long)).unwrap()).unwrap();
+        let body = children_of(&node)
+            .iter()
+            .find(|n| attr(n, "data-testid") == Some(id))
+            .unwrap();
+        match children_of(body) {
+            [Node::Text(t)] => assert_eq!(t, &long, "{id}: 切り詰めない"),
+            other => panic!("{id}: 文字ノード 1 つではない: {other:?}"),
+        }
+    }
 }
 
 #[test]
