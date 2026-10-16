@@ -308,7 +308,7 @@ pub fn debug_next_tick() -> String {
 
 /// 補完の action を、配信と同じ配送の口で届ける（タイマーの予約を通す）。
 ///
-/// 画面の Tab は候補の一覧が未実装のため補完に届かない（TASK-440）。配送の口そのものを確かめるための口である。
+/// 画面の Tab は一覧が開いていて文字があるときだけ補完に届く。この口は、その条件によらず配送の口そのものを確かめるためのものである。
 #[wasm_bindgen]
 pub fn debug_request_complete() {
     crate::glue::request_complete();

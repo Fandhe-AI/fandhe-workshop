@@ -1,4 +1,4 @@
-// 候補の一覧を開く・閉じる条件の試験（TASK-440 1/2。TERM-8・TERM-42・D-61。PoC-2 の K-04・K-05・K-06・K-08・K-09）。
+// 候補の一覧の開閉と Tab の補完の試験（TASK-440。TERM-8・TERM-11・TERM-42・D-60・D-61。PoC-2 の K-03〜K-09）。
 //
 // 試験の設定（FANDHE_WEB_TEST_DIR。教材は min-3step.json。コマンドは help・make-note・publish-note と、
 // unsupported の sync-cloud）で、入力欄の下書きに応じて一覧が開閉することを確かめる。
@@ -8,8 +8,10 @@
 //            下書きを変えると再び開く
 // 配信設定（FANDHE_WEB_DIR）は IR を読み込まないため、一覧は開かない。
 //
-// 1/2 で試験しないもの（#332 = TASK-440 2/2 の担当）: Tab で /help に補完される（K-03）、変換中の Tab（K-07）、
-// 開いている一覧での Tab の preventDefault。この画面では、一覧が開いていても Tab は通常のフォーカス移動である。
+// Tab の補完（2/2）: 一覧が開いていて文字があるとき、Tab は preventDefault され、下書きが先頭の候補になり
+// <textarea> に書き戻される。フォーカスは入力欄のまま（K-03）。unsupported は候補に出ないため補完されない。
+// 変換中の Tab は何もしない（K-07。実 IME での確認は人が行う）。配送と書き戻しは set_timeout(0) を 2 段通るため、
+// 値は waitForFunction で待つ。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
@@ -62,6 +64,14 @@ function assertClean(rec) {
 const isHidden = (page) => page.locator(LIST).evaluate((el) => el.hasAttribute('hidden'));
 const labels = (page) => page.locator(BTNS).allTextContents();
 const logLen = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine.logLen;
+const completeCount = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).completeCount;
+const waitValue = (page, value) => page.waitForFunction(
+  ([sel, v]) => document.querySelector(sel)?.value === v, [INPUT, value]);
+const tabEvent = (page, init) => page.evaluate(([sel, i]) => {
+  const el = document.querySelector(sel);
+  el.focus();
+  return el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...i }));
+}, [INPUT, init]);
 const focusedId = (page) => page.evaluate(() => document.activeElement?.getAttribute('data-testid') ?? null);
 
 for (const csp of [true, false]) {
@@ -145,6 +155,66 @@ for (const csp of [true, false]) {
       assert.equal(await focusedId(page), PROBE.match(/"(.+)"/)[1]);
       assert.equal(await page.inputValue(INPUT), '/he');
       assert.equal(await isHidden(page), false);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`開いているとき Tab は preventDefault され、先頭の候補で補完して欄に残る（K-03。CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, '/he');
+      assert.equal(await tabEvent(page, {}), false);
+      await waitValue(page, '/help');
+      assert.equal(await focusedId(page), 'draft-input');
+      assert.equal(await isHidden(page), true);
+      assert.equal(await completeCount(page), 1);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`実際の Tab 操作で補完され、複数候補では先頭になり、補完後の Tab は送信ボタンへ移る（K-03・K-08。CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      const before = await logLen(page);
+      await page.fill(INPUT, '/');
+      await page.focus(INPUT);
+      await page.keyboard.press('Tab');
+      await waitValue(page, '/help');
+      assert.equal(await focusedId(page), 'draft-input');
+      assert.equal(await logLen(page), before);
+      // 補完後は完全一致で一覧が閉じているため、次の Tab は通常のフォーカス移動。
+      await page.keyboard.press('Tab');
+      assert.equal(await focusedId(page), 'submit-input');
+      assert.equal(await page.inputValue(INPUT), '/help');
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`unsupported だけに一致する下書きでは Tab は補完にならない（TERM-42。CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, '/s');
+      await page.focus(INPUT);
+      await page.keyboard.press('Tab');
+      assert.equal(await focusedId(page), 'submit-input');
+      assert.equal(await page.inputValue(INPUT), '/s');
+      assert.equal(await completeCount(page), 0);
+      assertClean(rec);
+      await context.close();
+    });
+  });
+
+  test(`変換中の Tab はアプリが何もしない（K-07。CSP ${cspLabel}）`, async () => {
+    await run(async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, '/he');
+      assert.equal(await tabEvent(page, { isComposing: true }), true);
+      await page.waitForTimeout(100);
+      assert.equal(await page.inputValue(INPUT), '/he');
+      assert.equal(await completeCount(page), 0);
       assertClean(rec);
       await context.close();
     });

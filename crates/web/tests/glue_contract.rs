@@ -54,6 +54,7 @@ const ALLOWED_EVENTS: &[(&str, GlueOp)] = &[
 
 /// DOM ではない呼び出し名（Rust の標準・型変換・App と Runtime への読み取り）。
 const NON_DOM_CALLS: &[&str] = &[
+    "candidates_open",
     "with",
     "try_borrow",
     "try_borrow_mut",

@@ -2123,3 +2123,28 @@ native の試験は `crates/core/tests/history_load_session.rs`（開く・表�
 | SAVE16-2 | crates/web/src/host.rs: 適用し直しの出発点を既定値にする | DETECTED（open_replaces_the_session_with_the_snapshot_and_rederives_views ほか） |
 | SAVE16-3 | crates/web/src/host.rs: 読み込みの後に field を dirty に積まない | DETECTED（open_marks_every_field_dirty_and_notifies_the_next_tick） |
 | SAVE16-4 | crates/core/src/history_load.rs: 表示だけの履歴でも実行環境を作る | DETECTED（view_only_yields_no_session） |
+
+### 5.76 Tab の補完と対象外コマンドの除外（TASK-440 2/2）
+
+一覧が開いていて文字がある入力欄で Tab を押すと、`preventDefault` され、下書きが先頭の候補（名前順）に置き換わり、`<textarea>` に書き戻され、フォーカスは入力欄に残ることを固定した（TERM-11・D-60。PoC-2 の K-03・K-07）。
+`unsupported` のコマンドは候補の表に入らないため、一覧にも Tab の補完にも出ない（TERM-42）。
+
+結線は次の 3 か所である。glue の Tab の経路が `candidates_open` を `field_state` へ渡す。配送された `HostAction::Complete` を、ホストが `HelloView::complete` に渡す。`complete` は配送の時点の状態で `decide` をやり直し、`completion_choice`（契約の `first_completion`）で先頭を選ぶ。下書きが変わったときだけ、ホストが `draft_sync_request` で書き戻しを頼む。補完はエンジンへ何も渡さず、ログ・世代・projection は変わらない。
+
+native の試験は `crates/web/tests/candidates_contract.rs`（補完・複数候補で先頭・補完しない場面・Esc で閉じた後・コマンド表の無いホスト・書き戻しの回数）、`crates/web/src/hello.rs` の単体試験、`crates/web/tests/key_route_contract.rs`（`field_state` の素通し）である。ブラウザ試験は `tools/browser/candidates.test.mjs`（K-03・複数候補・補完後の Tab・`unsupported`・K-07。CSP あり・なし）である。
+
+glue（wasm32 専用）の結線の変異は native の試験で検出できないため、ブラウザ試験の K-03 が担う。実 IME での変換中の Tab の確認は人が行う（TASK-93）。
+
+`make test-browser` では `submit-wiring.test.mjs` の「送信の直後に変換が始まっても…」の 2 件（CSP あり・なし）が失敗する。本変更を入れる前の `origin/main`（59f2ad9）でも同じ 2 件が失敗することを確かめており、本タスクの範囲外である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 59f2ad9-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM11-1.mutation crates/web/tests/mutations/TERM11-2.mutation crates/web/tests/mutations/TERM42-3.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| TERM11-1 | crates/web/src/host.rs: 補完で書き戻しの要求を出さない | DETECTED（補完は先頭の候補に置き換え_一覧を閉じ_書き戻しを一度だけ頼む） |
+| TERM11-2 | crates/web/src/hello.rs: 先頭ではなく末尾の候補を挿入する | DETECTED（複数の候補があれば名前順の先頭で補完し_unsupported_は選ばない） |
+| TERM42-3 | crates/web/src/candidates.rs: unsupported を候補の表から除外しない | DETECTED（開く場面と開かない場面 ほか） |

@@ -347,15 +347,17 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
             alt: kev.alt_key(),
             meta: kev.meta_key(),
         };
-        let Some(has_text) = with_app(|app| !app.draft().is_empty()) else {
+        let Some((has_text, candidates_open)) =
+            with_app(|app| (!app.draft().is_empty(), app.candidates_open()))
+        else {
             return;
         };
-        let effect = effect_for(decide(&input, &field_state(has_text)));
+        let effect = effect_for(decide(&input, &field_state(has_text, candidates_open)));
         if effect.prevent_default {
             ev.prevent_default();
         }
         // 補完はリスナーの中で直接届けず、タイマーの予約を通す（リスナーの中では再入で捨てられるため）。
-        // 候補の一覧が未実装の間は判定が補完にならず、画面からはここへ届かない（TASK-440 が到達させる）。
+        // 一覧が開いていて文字があるときだけ判定が補完になり、ここへ届く（JUDGE-19）。挿入はホストが行う。
         if effect.deliver_complete {
             schedule_action(RuntimeAction::Complete, 0);
         }
