@@ -1,0 +1,8 @@
+id: EVT7-5
+package: fandhe-workshop-core
+test: button_burst
+target: crates/core/src/accept.rs
+find:     if !matches!(outcome.judgment, Judgment::Accepted(_)) {
+replace:     if false && !matches!(outcome.judgment, Judgment::Accepted(_)) {
+expect-fail: burst_of_20_on_remaining_button_rejects_all_and_keeps_state
+note: 受付前の拒否が受付の経路へ流れる（規則による拒否の Judged が出ない）
