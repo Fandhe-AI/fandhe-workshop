@@ -2043,3 +2043,40 @@ SAVE5-4 は、確認の達成で現在位置を次の Step へ移さない誤り
 |---|---|---|
 | SAVE5-4 | crates/core/src/confirm.rs: 確認の達成で現在位置を次の Step へ移さない | DETECTED（reload_right_after_confirm_burst_keeps_one_achievement） |
 | SAVE5-1〜SAVE5-3・SAVE4-1〜SAVE4-6・SAVE1-1〜SAVE1-6 | 5.72・5.71・5.58・5.59・5.66・5.67 の定義 | 15 件とも DETECTED |
+
+### 5.74 別のオリジンへの履歴の読み込み（TASK-330 2/2）
+
+書き出したファイルを別のオリジンで選び、同じ状態にして続きを操作できることを固定した（SAVE-16。SHELL-15 の自動ブラウザの部分）。
+core に開いたときだけ `Session` を作る入口 `history_load::load_session` を足し、web のホストの `EngineHost::open_history` がそれを呼ぶ。
+判定は `load_history`（段 1〜8）に任せて複製せず、開かないときは状態・導出した値・dirty に触れない。保存先へは書かない（保存の結線は TASK-319）。
+
+ブラウザ試験（`tools/browser/history-import.test.mjs`）は、配信を 2 つ起動して別のオリジン（ポートが違う）を作り、別の context で開く。
+オリジン A で書き出してダウンロードしたファイルを、オリジン B で `setInputFiles` により選ぶ。ファイルの選択と読み取りは DOM の値を読むため、Rust ではなく試験の設定だけの `static/test-hooks.js` が行い、`raw-trigger` へ固定の接頭辞（`open-history:`）つきで届ける（`RuntimeAction` は変えていない）。
+確かめることは次のとおりである。結果は `stateJson().engine.lastImport` の固定のコードで読み、履歴の中身は出力に出さない。
+
+| 試験 | 内容 |
+|---|---|
+| 別のオリジンで同じ状態になり、続きを操作できる | B の Step・世代・世界状態・チェックポイント・下書き・ログ・復習・成果物が A の基準と一致する。続きの操作（次の Step への移動）で A と B が同じ結果になる。読み込みの前後で location・履歴・ハッシュが同じ。外部への要求（相手のオリジンへのものを含む）・CSP 違反・ページのエラーが 0 件。A に書いた保存領域の値は B から見えない |
+| 書き換えたファイル・JSON でないファイルは開かず、状態を変えない | `refused` / `replay_mismatch` と `refused` / `not_json`。B の状態は読み込みの前と同じ。そのあとに開けるファイルを選ぶと開く |
+
+native の試験は `crates/core/tests/history_load_session.rs`（開く・表示だけ・開かない・写しの書き換え）と `crates/web/tests/history_import.rs`（`Session` の差し替え・導出した値が一括の導出と一致・全 field の dirty と宛先の通知・拒否で何も変わらない・`raw` の接頭辞の一致）である。
+
+開ける包みの作り方と限界: 契約の試料（`two-rounds.json`）の写しは再読み込みの意味の実装前の値で、いまの main では段 8 で `replay_mismatch` になり開けない。そこで試験の設定の `test_fixture::loadable_envelope` が、試料の `ops` を試験の教材と開始直後の状態に適用し直し、得た状態を写しにして包み直す。
+ホストに受講中の `ops` の記録（`OpsRecorder`）がまだ無いため、受講中の実際の状態の書き出しと読み込みは TASK-319・TASK-531 の結線の後に確かめる。
+適用し直しの出発点は、ホストの組み立て時の状態である（`Control::Begin` と `start` からの初期状態の構築が入るまでの間。TASK-217・TASK-294）。
+実際の GitHub Pages の間と、macOS のファイル画面での確認（SAVE-30）は人が行う。
+
+変異は SAVE16-1（読み込みで projection を作り直さない）・SAVE16-2（適用し直しの出発点を既定値にする）・SAVE16-3（読み込みの後に dirty を積まない）・SAVE16-4（表示だけの履歴でも実行環境を作る）である。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 68ac983-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/SAVE16-{1,2,3}.mutation crates/core/tests/mutations/SAVE16-4.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE16-1 | crates/web/src/host.rs: 読み込みで projection を作り直さない | DETECTED（open_replaces_the_session_with_the_snapshot_and_rederives_views） |
+| SAVE16-2 | crates/web/src/host.rs: 適用し直しの出発点を既定値にする | DETECTED（open_replaces_the_session_with_the_snapshot_and_rederives_views ほか） |
+| SAVE16-3 | crates/web/src/host.rs: 読み込みの後に field を dirty に積まない | DETECTED（open_marks_every_field_dirty_and_notifies_the_next_tick） |
+| SAVE16-4 | crates/core/src/history_load.rs: 表示だけの履歴でも実行環境を作る | DETECTED（view_only_yields_no_session） |

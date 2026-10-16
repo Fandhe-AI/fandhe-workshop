@@ -98,6 +98,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
 | 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
 | 履歴を開く可否の判定（`history_open::open_history`）・開く側の上限 `OpeningCaps`・エンジンが読める語彙の上限 `VOCAB_MAX`（pack の `vocab::LATEST` との一致は pack の試験が見る） | core | TASK-174 |
+| 開いた履歴から実行環境を作る入口（`history_load::load_session`。判定は `load_history` に任せ、開いたときだけ `Session::from_state` を呼ぶ。状態から実行環境を作り直す処理は保存復元の担当のため core に置く） | core | TASK-330 |
 | IR の型、`ir_format`、加算の規則 | contract | TASK-41・TASK-60 |
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
 | キー判定表 `decide` の入出力と表（`key_decide`） | contract | TASK-257・TASK-281 |
@@ -132,7 +133,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
-| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ） | web | TASK-347 |
+| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みは `test-hooks` の背後だけ。履歴ファイルの読み込み `EngineHost::open_history` は `load_session` を呼び、開いたときだけ `Session` を差し替える） | web | TASK-347・TASK-330 |
 | 右のログの行のモデルと描画（`log_lines`。TASK-431 の行の構造に準拠。入力・進行・停止の 3 種を結線し、拒否・問い返し・応答は TASK-435・TASK-437。`log-list` の引き継ぎは TASK-438 または TASK-517） | web | TASK-434 |
 | 状態表示の導出（`run_status`。待機中・処理中。停止は TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
