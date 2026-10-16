@@ -217,8 +217,8 @@ test('B-2c 残り続けるボタンへの連打は、すべて規則で拒否さ
     assert.equal(kindCount(e, 'accepted') - kindCount(before, 'accepted'), 0);
     assert.equal(kindCount(e, 'achieved') - kindCount(before, 'achieved'), 0);
     // DOM の行数は、書き出しの増分と一致する。
-    // 行になるのは入力の記録だけ。拒否の行は TASK-437 の結線まで出ない（TASK-434 1/2）。
-    assert.equal((await page.locator('[data-testid="part-log"] li').count()) - liBefore, BURST);
+    // 行になるのは入力の記録と拒否（TASK-437 1/2）で、1 回につき 2 件。
+    assert.equal((await page.locator('[data-testid="part-log"] li').count()) - liBefore, BURST * 2);
     assertConsistent(e);
     await assertSafe(page, rec);
     await context.close();

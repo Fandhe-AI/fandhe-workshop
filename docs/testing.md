@@ -252,7 +252,7 @@ CSP あり・なしで確かめる。作り直し（`rerender`）の後も確か
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
 - 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
-- 拒否・問い返しの行（`{{input_head}}` の差し込み）は TASK-437 の結線の後に観察の対象へ足す
+- 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は TASK-437 2/2 の後に足す
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
 ```text
@@ -290,6 +290,32 @@ native の適合試験 `submit_wiring` が検出する。
 |---|---|---|---|---|---|
 | TERM1-1 | crates/web/src/host.rs: 送信を受け入れた後に下書きを空にしない | 拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される | 左の 1 件に加え、session なし・空白だけの 2 件 | DETECTED | - |
 | TERM2-1 | crates/web/src/host.rs: 送信の本文の改行を潰す | 複数行の本文は改行を保った_1_件として記録され_ログの行にも保たれる | 左の 1 件 | DETECTED | - |
+
+### 5.3.1c 拒否の理由と次の行動が右のログに出ること（TASK-437 1/2）
+
+TERM32-1 は、`crates/web/src/host.rs` の `record_judged_texts` が拒否の理由の文面を控える処理を無効にする変異である。
+理由の行が出なくなり、native の `crates/web/tests/reject_lines.rs` が検出する。
+TERM32-2 は、`crates/web/src/host.rs` の `install_session`（履歴の差し替え）が拒否の文面の控えを新しいログから作り直す処理を無効にする変異である。
+控えのキーはイベントの位置のため、差し替え前の位置の文面が残り、新しいログの拒否の行が出なくなる。`reject_lines.rs` の
+`open_history` で拒否の位置が違う履歴を取り込む試験が検出する。
+
+誤入力の出どころは、spec の「47 件」（private の試作パック）ではなく、repo 内のパックの `error_inputs`（期待が `rejected:*` のもの）である。
+試作パックは公開の可否（D-11・TASK-14）が未決で、`testdata/README.md` のとおり取り込んでいない。native の試験は
+`min-3step` 7 件・`judgment` 17 件・`module-reuse` 8 件の計 32 件（件数は定数で固定）と、`fill-pack` の `text_checks` のうち拒否のもの
+（期待の文面と次の行動つき）を `EngineHost` に流す。`slot-pack` の誤入力は静的な検査用で、実行して期待の分類にならないため使わない。
+ブラウザ試験 `tools/browser/reject-lines.test.mjs` は `min-3step-pack` の 7 件を、CSP あり・なしで流す。
+いずれも、拒否 1 件につき `rejected` の行が 1 件、理由と次の行動が空でなく、表示がエンジンの値と一致することを確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: abb853e-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM32-2.mutation crates/web/tests/mutations/TERM32-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM32-1 | crates/web/src/host.rs: 拒否の理由の控えを作らない（行が出ない） | 誤入力の拒否は理由と空でない次の行動の行として出る | 左の 1 件に加え、fill_pack_の拒否は期待の文面と次の行動のとおりに出る・履歴の差し替えで拒否の文面の控えは新しいログから作り直される の 2 件 | DETECTED | - |
+| TERM32-2 | crates/web/src/host.rs: 履歴の差し替えで拒否の文面の控えを作り直さない（差し替え前の位置の控えが残る） | 履歴の差し替えで拒否の文面の控えは新しいログから作り直される | 左の 1 件 | DETECTED | - |
 
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 

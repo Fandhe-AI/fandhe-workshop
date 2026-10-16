@@ -126,7 +126,7 @@ fn 複数行の本文は改行を保った_1_件として記録され_ログの�
         let line = log
             .iter()
             .filter(|e| matches!(e, Event::InputReceived { .. }))
-            .filter_map(line_from_event)
+            .filter_map(|e| line_from_event(e, None))
             .next()
             .unwrap();
         assert!(

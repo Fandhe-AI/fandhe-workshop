@@ -102,7 +102,9 @@ fn log_len(host: &EngineHost) -> usize {
         .projection()
         .log()
         .iter()
-        .filter(|r| line_from_event(&events[r.event as usize]).is_some())
+        .filter(|r| {
+            line_from_event(&events[r.event as usize], host.model().judged_text(r.event)).is_some()
+        })
         .count()
 }
 
@@ -126,13 +128,13 @@ fn bound_names(html: &str) -> Vec<String> {
 fn limit_4097_host_log_does_not_trigger_full_rerender() {
     let mut host = begun_host();
     let op = || HostAction::Engine(Op::Input(Input::Text("x".to_owned())));
-    // 入力（`Input::Text`）は 1 回で行がちょうど 1 件増える（入力の記録の行。判定のイベントは行にならない）。
-    // それを確かめながら、4,096 行まで進める。
+    // 入力（`Input::Text`）は 1 回で行が 2 件増える（入力の記録の行と、拒否の行。TASK-437）。
+    // それを確かめながら、4,096 行まで進める（開始時の行数が偶数なら、ちょうど 4,096 に届く）。
     let mut guard = 0;
     while log_len(&host) < 4_096 {
         let before = log_len(&host);
         host.update(op());
-        assert_eq!(log_len(&host), before + 1, "行が 1 件ずつ増えない");
+        assert_eq!(log_len(&host), before + 2, "行が 2 件ずつ増えない");
         guard += 1;
         assert!(guard <= 5_000, "上限に届かない: {}", log_len(&host));
     }
@@ -142,7 +144,7 @@ fn limit_4097_host_log_does_not_trigger_full_rerender() {
     assert_eq!(count(&html, LIST_ERROR_ATTR), 0);
 
     host.update(op());
-    assert_eq!(log_len(&host), 4_097);
+    assert!(log_len(&host) > 4_096);
     let html = render_component_html(&host);
 
     // 1. ログの親に印があり、データ行は 0 件。

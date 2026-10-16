@@ -32,7 +32,7 @@
 | `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
 | `event` | `Event`（`HintOpened`・`Judged`・`Reloaded` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
 | `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` は宛先が一致する進行を TASK-210 2/3 が結線済みで、食い違いの無視の記録は 3/3） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
-| `text_fill` | `slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
+| `text_fill` | `slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`filled_texts_of_log`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
 | `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload` | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |

@@ -359,7 +359,11 @@ fn 操作のたびに_3_つの表示の元が同じイベント列から導か�
             Projection::from_events(log)
                 .log()
                 .iter()
-                .filter(|r| line_from_event(&log[r.event as usize]).is_some())
+                .filter(|r| line_from_event(
+                    &log[r.event as usize],
+                    host.model().judged_text(r.event)
+                )
+                .is_some())
                 .count(),
             "{h}"
         );

@@ -1,0 +1,8 @@
+id: TERM32-1
+package: fandhe-workshop-web
+test: reject_lines
+target: crates/web/src/host.rs
+find:         if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment) {
+replace:         if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment).map(|o| o.filter(|_| false)) {
+expect-fail: 誤入力の拒否は理由と空でない次の行動の行として出る
+note: 拒否の理由の控えを作らない（行が出ない）

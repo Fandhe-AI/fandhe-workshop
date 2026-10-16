@@ -36,6 +36,7 @@
 )]
 
 use core::fmt;
+use std::collections::BTreeMap;
 
 #[cfg(feature = "test-hooks")]
 use fandhe_frontend_core::text;
@@ -56,6 +57,7 @@ use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
@@ -78,9 +80,21 @@ pub struct HostModel {
     world: World,
     /// `world` が読み終えたログの長さ。
     world_consumed: usize,
+    /// 拒否の `Judged` ごとの、充填済みの理由の文面（キーはイベントの位置）。
+    ///
+    /// 文面は IR の文面の ID の解決と実行時の値の差し込みが要り、拒否を適用した直後の状態でしか作れない
+    /// （後の操作で状態が進むため）。そのため `apply_engine` が適用の直後に 1 度だけ作って控える。
+    /// 作れなかった拒否（文面の解決の失敗）は控えず、行を出さない（fail-closed）。
+    /// 復元（`with_session`）と履歴の差し替え（`install_session`）では、ログの各判定の時点の Step・進み具合から全件を作り直す。
+    judged_texts: BTreeMap<u32, String>,
 }
 
 impl HostModel {
+    /// 位置 `event` の拒否の理由の文面（core の `filled_text` が返した値）。控えが無ければ `None`。
+    pub fn judged_text(&self, event: u32) -> Option<&str> {
+        self.judged_texts.get(&event).map(String::as_str)
+    }
+
     /// 実行環境。未読込なら `None`。
     pub fn session(&self) -> Option<&Session> {
         self.session.as_ref()
@@ -185,6 +199,7 @@ struct Derived {
     projection: Projection,
     world: World,
     world_consumed: usize,
+    judged_texts: BTreeMap<u32, String>,
     command_prefix: Option<String>,
 }
 
@@ -193,6 +208,8 @@ fn derive(session: &Session) -> Derived {
     let projection = Projection::from_events(session.log());
     let mut world = World::new();
     replay_changes(&mut world, session.log());
+    let mut judged_texts = BTreeMap::new();
+    restore_judged_texts(&mut judged_texts, session);
     let command_prefix =
         fandhe_workshop_contract::profile::read_profile(session.ir().pack.profile.as_ref())
             .ok()
@@ -201,6 +218,7 @@ fn derive(session: &Session) -> Derived {
         projection,
         world,
         world_consumed: session.log().len(),
+        judged_texts,
         command_prefix,
     }
 }
@@ -296,6 +314,7 @@ impl EngineHost {
                 projection: Projection::new(),
                 world: World::new(),
                 world_consumed: 0,
+                judged_texts: BTreeMap::new(),
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -334,6 +353,7 @@ impl EngineHost {
                 projection: d.projection,
                 world: d.world,
                 world_consumed: d.world_consumed,
+                judged_texts: d.judged_texts,
             },
             registry,
             input,
@@ -457,7 +477,9 @@ impl EngineHost {
                     // DOM の `data-kind`（行の種類）と照合する。行にしないイベントは null（DOM に行が無い）。
                     "line": log
                         .get(r.event as usize)
-                        .and_then(crate::log_lines::line_from_event)
+                        .and_then(|e| {
+                            crate::log_lines::line_from_event(e, self.model.judged_text(r.event))
+                        })
                         .map(|l| l.kind().as_str()),
                 })
             })
@@ -497,6 +519,9 @@ impl EngineHost {
                     "generation": at.generation.0,
                     "step": at.step.0,
                     "category": r.category.as_str(),
+                    // 画面の理由・次の行動との照合用（TASK-437）。控えが無ければ null。
+                    "reason": self.model.judged_text(i as u32),
+                    "nextAction": r.next_action.as_str(),
                 })),
                 _ => None,
             })
@@ -614,6 +639,8 @@ impl EngineHost {
         self.model.projection = d.projection;
         self.model.world = d.world;
         self.model.world_consumed = d.world_consumed;
+        // 拒否の文面の控えはイベントの位置がキーのため、差し替え前の控えを残さず新しいログから作り直す。
+        self.model.judged_texts = d.judged_texts;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
@@ -704,6 +731,8 @@ impl EngineHost {
         let log = session.log();
         self.model.projection.extend(log);
         let changed = returned > 0 || log.len() != len_before;
+        // 拒否の理由の文面は、適用の直後（拒否は状態を変えないため、判定の直前と同じ状態）でだけ作れる。
+        record_judged_texts(&mut self.model.judged_texts, session, len_before);
         // 世界状態も同じ列から、未処理の分だけ導く。session の借用中のため、欄ごとに触る。
         let from = self.model.world_consumed.min(log.len());
         replay_changes(&mut self.model.world, &log[from..]);
@@ -781,6 +810,45 @@ impl EngineHost {
             if let Some(f) = self.draft_sync_request.as_ref() {
                 f();
             }
+        }
+    }
+}
+
+/// 復元で、ログ全体の拒否の文面を core に作り直させて控える。
+///
+/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否は控えず、
+/// 行を出さない（fail-closed）。
+fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
+    for (i, f) in filled_texts_of_log(session.ir(), session.log()) {
+        if let Ok(key) = u32::try_from(i) {
+            texts.insert(key, f.message);
+        }
+    }
+}
+
+/// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否の `Judged` について文面を充填して控える。
+///
+/// 充填に失敗した（`Err`・`None`）拒否は控えない。エラーは文面も入力値も含まないが、ここでは出力しない。
+fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, from: usize) {
+    let log = session.log();
+    for i in from..log.len() {
+        let (Some(Event::InputReceived { input, .. }), Some(judged)) =
+            (i.checked_sub(1).and_then(|p| log.get(p)), log.get(i))
+        else {
+            continue;
+        };
+        let Event::Judged {
+            judgment: judgment @ Judgment::Rejected(_),
+            ..
+        } = judged
+        else {
+            continue;
+        };
+        let Ok(key) = u32::try_from(i) else {
+            continue;
+        };
+        if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment) {
+            texts.insert(key, f.message);
         }
     }
 }

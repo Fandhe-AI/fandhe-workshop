@@ -33,6 +33,7 @@
 //! 未知の枠・構文の誤り・差し込みの後の空は [`TextFillError`] にする（fail-closed）。`Display` は固定の英文で、
 //! 入力値・教材の値・ID を埋め込まない。
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 use fandhe_workshop_contract::ir::{Ir, Step};
@@ -43,8 +44,9 @@ use serde_json::Value;
 
 use crate::command_class::CommandKind;
 use crate::command_lex::lex_command;
+use crate::event::Event;
 use crate::input::Input;
-use crate::session::RunState;
+use crate::session::{Busy, RunState};
 
 /// 近いコマンドとみなす編集距離の上限。これを超える候補は選ばない（代替の文が出る）。
 pub const NEAREST_MAX_DISTANCE: usize = 2;
@@ -272,6 +274,73 @@ pub fn filled_text(
     }))
 }
 
+/// ログの拒否の `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
+///
+/// 復元では現在の状態しか無いため、各 `Judged` の `at.step` と直前までの `Progress` から、充填に要る欄
+/// （現在の Step・処理中の進み具合）だけを組み直す。拒否は状態を変えないので、組み直した値は判定の直前と
+/// 同じになる。処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否、
+/// 組み直せない（教材に無い Step・充填の失敗）拒否は戻さない（fail-closed）。
+pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
+    let mut out = Vec::new();
+    // 直近の進行の（次の番号、総数）。状態を進める・変えるイベントで捨てる。
+    let mut progress: Option<(u32, u32)> = None;
+    // 保存の時点の進み具合。鍵は `CheckpointSaved.log_len`（`Restored.log_len` と同じ。EVT-14）。
+    let mut saved: BTreeMap<u32, Option<(u32, u32)>> = BTreeMap::new();
+    for (i, event) in log.iter().enumerate() {
+        match event {
+            Event::Progress { index, total, .. } => {
+                progress = Some((index.saturating_add(1), *total));
+            }
+            Event::CheckpointSaved { log_len, .. } => {
+                saved.insert(*log_len, progress);
+            }
+            // 復帰は保存の時点の状態を戻すので、進み具合も保存の時点のものへ戻す（控えが無ければ捨てる）。
+            Event::Restored { log_len, .. } => {
+                progress = saved.get(log_len).copied().flatten();
+            }
+            Event::Entered { .. }
+            | Event::Moved { .. }
+            | Event::Transitioned { .. }
+            | Event::Stopped { .. }
+            | Event::Accepted { .. }
+            | Event::Achieved { .. }
+            | Event::Skipped { .. } => progress = None,
+            Event::Judged {
+                at,
+                judgment: judgment @ Judgment::Rejected(r),
+            } => {
+                let Some(Event::InputReceived { input, .. }) =
+                    i.checked_sub(1).and_then(|p| log.get(p))
+                else {
+                    continue;
+                };
+                let busy = if r.category == RejectCategory::Busy {
+                    let total = progress.map(|(_, t)| t).or_else(|| {
+                        let node = ir.nodes.iter().find(|n| n.uid == at.step.0)?;
+                        u32::try_from(node.step.processing.len()).ok()
+                    });
+                    total.map(|total| Busy {
+                        done: progress.map_or(0, |(d, _)| d),
+                        total,
+                    })
+                } else {
+                    None
+                };
+                let run = RunState {
+                    current: Some(at.step.clone()),
+                    busy,
+                    ..RunState::default()
+                };
+                if let Ok(Some(f)) = filled_text(ir, &run, input, judgment) {
+                    out.push((i, f));
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -423,5 +492,69 @@ mod tests {
         ] {
             assert!(e.to_string().is_ascii());
         }
+    }
+
+    #[test]
+    fn restore_brings_back_progress_of_the_saved_moment() {
+        use crate::addr::{Generation, StepUid};
+        use crate::input::{CheckpointId, Input};
+        use fandhe_workshop_contract::judgment::Rejection;
+
+        let mut ir = ir_with(&[]);
+        ir.rejections.insert(
+            "busy".into(),
+            serde_json::json!({"message": "残り{{remaining}}/{{total}}"}),
+        );
+        ir.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "uid": "s/a", "scope": "s", "unit": "u",
+                "step": {"id": "a", "title": "題", "processing": [{}, {}, {}]}
+            }))
+            .expect("node"),
+        );
+        let at = || crate::addr::Stamp {
+            generation: Generation::INITIAL,
+            step: StepUid("s/a".into()),
+        };
+        let progress = |index| Event::Progress {
+            at: at(),
+            name: "p".into(),
+            index,
+            total: 3,
+        };
+        let judged = Event::Judged {
+            at: at(),
+            judgment: Judgment::Rejected(Rejection {
+                category: RejectCategory::Busy,
+                text: "busy".into(),
+                next_action: NextAction::new("待つ").expect("next"),
+            }),
+        };
+        let received = Event::InputReceived {
+            at: at(),
+            input: Input::Text("x".into()),
+        };
+        // 1 回進んだ時点で保存し、さらに進めてから復帰する。保存の時点は残り 2 回である。
+        let log = vec![
+            progress(0),
+            Event::CheckpointSaved {
+                at: at(),
+                id: CheckpointId(1),
+                log_len: 1,
+            },
+            progress(1),
+            Event::Restored {
+                at: at(),
+                id: CheckpointId(1),
+                new_generation: Generation(2),
+                log_len: 1,
+                owner: StepUid("s/a".into()),
+            },
+            received,
+            judged,
+        ];
+        let filled = filled_texts_of_log(&ir, &log);
+        assert_eq!(filled.len(), 1);
+        assert_eq!(filled[0].1.message, "残り2/3");
     }
 }
