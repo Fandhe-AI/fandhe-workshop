@@ -31,7 +31,7 @@
 //!
 //! - `session::apply` への結線、`processing` を持つ Step の処理中への移行、`InputReceived` の発行（TASK-207・TASK-210）
 //! - `Judged` の発行と、`on.text` の規則の `reject`・`clarify` の扱い（[`crate::judge`]、TASK-267）
-//! - `not_in_this_step` などの分類（TASK-268・TASK-269）。`NotText` の分類は呼び出し側が決める
+//! - `not_in_this_step` などの分類（[`crate::judge`]）。`NotText` の分類は呼び出し側が決める
 //! - 達成。受付だけでは Step は達成にならず、確認の操作の後の遷移は TASK-207・TASK-306 が受け持つ
 //! - 自然文の内容で規則を分ける語（PACK-41、D-43）
 //! - 入力欄の 20,000 コードポイントの上限（SAFE-21）は読み込み口（web）の責務。本モジュールは宣言の `max` までしか

@@ -21,9 +21,9 @@ error_inputs:
     pre:
       - {cmd: "/start-run 42", expect: "accepted"}
     input: {cmd: "/start-run 43", expect: "rejected:busy"}
-  - {id: "e-nits-1", start: "s-clarify", input: {cmd: "/start-run 42", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-1", start: "s-clarify", input: {cmd: "/help", expect: "rejected:not_in_this_step"}}
   - {id: "e-nits-2", start: "s-text", input: {cmd: "/make-idea first-idea", expect: "rejected:not_in_this_step"}}
-  - {id: "e-nits-3", start: "s-choice", input: {cmd: "/start-run 42", expect: "rejected:not_in_this_step"}}
+  - {id: "e-nits-3", start: "s-choice", input: {cmd: "/help", expect: "rejected:not_in_this_step"}}
   - {id: "e-nits-4", start: "s-approval", input: {cmd: "/make-idea first-idea", expect: "rejected:not_in_this_step"}}
   - {id: "e-nits-5", start: "s-approval", input: {text: "承認の代わりに文を書く", expect: "rejected:not_in_this_step"}}
   - {id: "e-unsupported-1", start: "s-clarify", input: {cmd: "/sync-cloud", expect: "rejected:not_supported"}}

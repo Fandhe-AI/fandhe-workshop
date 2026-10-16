@@ -15,19 +15,23 @@
 //!
 //! 1. 現在の Step が無い、または IR で引けない: 無視（[`IgnoreReason::NoCurrent`]）
 //! 2. 処理中（[`crate::busy_class::classify_busy`] が `Some`。取り消しは処理中に数えない）: 拒否 `busy`
-//!    （受付の分岐 `accept` と同じ 1 か所で決める。精緻化は TASK-269、JUDGE-5）
-//! 3. コマンドで、教材のコマンドの表に名前が無い: 拒否 `unknown_command`
-//! 4. Step の状態で段を分ける。`Entered` は入力の段、`Accepted` は確認の段、それ以外は拒否 `not_in_this_step`
+//!    （受付の分岐 `accept` と同じ 1 か所で決める。コマンドの分類や Step の状態より先で、同じ入力の連打も
+//!    別の入力も `busy` になる。JUDGE-5、TASK-269）
+//! 3. コマンドで、接頭辞が無い・字句が不正: 拒否 `not_in_this_step`
+//! 4. コマンドの分類（[`crate::command_class::classify_command`]）。表に無い名前は `unknown_command`、
+//!    `unsupported` は `not_supported`（Step の段階に関係なく先）、受け付けない `flow` は `wrong_order`、
+//!    受け付けない `builtin`・`skill` は `not_in_this_step`。表の値や宣言が読めなければ [`JudgeError`]
+//! 5. Step の状態で段を分ける。`Entered` は入力の段、`Accepted` は確認の段、それ以外は拒否 `not_in_this_step`
 //!
 //! 入力の段では、コマンドは宣言との照合の後に `rules` を上から読み、自然文は範囲の判定の後に `on.text` の規則を読み、
 //! 選択・画面操作・承認は [`crate::select_judge::judge_select`] に渡す。取り消しは `on.cancel` が真の規則があれば
 //! その結果に従い、無ければ `not_in_this_step` の拒否にする（EVT-10）。
 //!
-//! # 暫定の割り当て（後続のタスクが直す）
+//! # 分類の割り当て
 //!
-//! 分類の割り当ては [`classify_command`] の 1 か所にまとめる。教材のコマンドの表に無い名前は `unknown_command`、
-//! 表にあってもこの Step・この段で使わない名前は `not_in_this_step` とし、`wrong_order`・`not_supported` の
-//! 見分けはしない（`wrong_order` の結線と `not_supported` は TASK-269）。問い返しの待ちの状態（EP-4）は持たない。
+//! コマンドの分類は [`crate::command_class`] が 1 か所で決め、本モジュールは `category()` を拒否の分類として
+//! 使うだけである。コマンド以外の入力（自然文・選択・画面操作・承認）で使わないものは `not_in_this_step`。
+//! 問い返しの待ちの状態（EP-4）は持たない。
 //!
 //! # 文面の扱い（fail-closed）
 //!
@@ -64,6 +68,7 @@ use serde_json::{Map, Value};
 
 use crate::addr::{Root, Stamp, TickAddr};
 use crate::busy_class::classify_busy;
+use crate::command_class::classify_command as classify_command_class;
 use crate::command_judge::{judge_command, CommandVerdict};
 use crate::command_lex::{lex_command, CommandLexError};
 use crate::command_rule::{judge_command_rules, CommandRuleError, CommandRuleVerdict};
@@ -174,7 +179,7 @@ pub fn judge_tick(run: &RunState, addr: &TickAddr) -> JudgeOutcome {
     JudgeOutcome::new(Judgment::Progressed, JudgeDetail::None)
 }
 
-/// 入力 1 件を判定する。順序と暫定の割り当ては、モジュール文書のとおり。
+/// 入力 1 件を判定する。順序と分類の割り当ては、モジュール文書のとおり。
 pub fn judge_input(
     ir: &Ir,
     run: &RunState,
@@ -202,11 +207,21 @@ pub fn judge_input(
         return ctx.reject(RejectCategory::Busy);
     }
 
+    let status = run
+        .slices
+        .get(&root)
+        .and_then(|s| s.status.get(uid))
+        .copied()
+        .unwrap_or_default();
+
     let lexed = match input {
         Input::Command(raw) => match ctx.lex(raw)? {
             Lexed::Command(l) => {
-                if classify_command(ir, &l) == Some(RejectCategory::UnknownCommand) {
-                    return ctx.reject(RejectCategory::UnknownCommand);
+                // 表の読めない行や宣言の誤りは、受付にも別の分類にも倒さず宣言の誤りにする（fail-closed）。
+                let class = classify_command_class(ir, step, status, &l)
+                    .map_err(|_| JudgeError::InvalidDeclaration)?;
+                if let Some(category) = class.category() {
+                    return ctx.reject(category);
                 }
                 Some(l)
             }
@@ -215,29 +230,10 @@ pub fn judge_input(
         _ => None,
     };
 
-    let status = run
-        .slices
-        .get(&root)
-        .and_then(|s| s.status.get(uid))
-        .copied()
-        .unwrap_or_default();
     match status {
         StepStatus::Entered => ctx.entered(input, lexed.as_ref()),
         StepStatus::Accepted => ctx.accepted(input),
         _ => ctx.reject(RejectCategory::NotInThisStep),
-    }
-}
-
-/// コマンドの分類の暫定の割り当て（D9）。教材のコマンドの表に無い名前は `unknown_command`。
-/// 表にある名前は、ここでは分類を決めず（`None`）、Step の宣言との照合に任せる。
-/// `wrong_order` は `command_class::classify_command` が分類するが、ここには未結線である（結線は TASK-269 か追随の
-/// Issue）。`not_supported` の見分けは TASK-269 がこの 1 か所を直す。
-fn classify_command(ir: &Ir, lexed: &LexedCommand) -> Option<RejectCategory> {
-    if crate::command_judge::is_unknown_command(ir.commands.keys().map(String::as_str), &lexed.name)
-    {
-        Some(RejectCategory::UnknownCommand)
-    } else {
-        None
     }
 }
 

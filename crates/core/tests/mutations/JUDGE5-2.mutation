@@ -1,0 +1,9 @@
+id: JUDGE5-2
+package: fandhe-workshop-core
+test: reject_scene
+target: crates/core/src/judge.rs
+find:     if classify_busy(run, input).is_some() {
+replace:     if classify_busy(run, input).is_none() && false {
+expect-fail: any_other_input_while_processing_is_busy
+expect-fail: busy_wins_over_command_classes
+note: 処理中の判定を外す（処理中に別の入力が分類や受付に流れる）

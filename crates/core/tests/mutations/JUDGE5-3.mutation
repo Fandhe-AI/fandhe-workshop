@@ -1,0 +1,9 @@
+id: JUDGE5-3
+package: fandhe-workshop-core
+test: reject_scene
+target: crates/core/src/command_class.rs
+find:     Ok(CommandClass::NotInThisStep(kind))
+replace:     Ok(CommandClass::WrongOrder)
+expect-fail: playthrough_pairs_are_classified_100_percent
+expect-fail: builtin_and_skill_are_not_in_this_step_when_not_accepted
+note: builtin・skill を wrong_order に倒す（この Step では使わない入力が順序違いになる）
