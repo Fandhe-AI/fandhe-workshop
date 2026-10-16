@@ -104,6 +104,29 @@ test('Shift・Control・Alt・Meta 付きの Enter では送信しない', async
   });
 });
 
+test('押しっぱなしの自動リピート（repeat）の Enter では送信しない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context } = await open(srv);
+    await page.fill(INPUT, 'x');
+    // dispatchEvent は preventDefault されると false を返す。リピートでも改行は抑止される。
+    const notPrevented = await page.evaluate((sel) => {
+      const el = document.querySelector(sel);
+      const make = () => new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true });
+      el.dispatchEvent(make());
+      el.dispatchEvent(make());
+      return el.dispatchEvent(make());
+    }, INPUT);
+    assert.equal(notPrevented, false);
+    assert.deepEqual(await lines(page), []);
+    // 最初の押下（repeat なし）は 1 回だけ送信される。
+    await page.focus(INPUT);
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, ITEMS);
+    assert.deepEqual(await lines(page), ['x']);
+    await context.close();
+  });
+});
+
 test('変換中の Enter（isComposing・Process）では送信しない', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
     const { page, context } = await open(srv);

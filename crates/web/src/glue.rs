@@ -164,7 +164,9 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
         if effect.prevent_default {
             ev.prevent_default();
         }
-        if effect.click_submit {
+        // 押しっぱなしの自動リピートは送信しない（下書きが残るため、同じ行が繰り返し足されるのを防ぐ）。
+        // 改行の挿入の抑止（prevent_default）は通常の Enter と同じにする。
+        if effect.click_submit && !kev.repeat() {
             if let Some(button) = find_in_root(&target, SUBMIT_SELECTOR)
                 .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
             {
