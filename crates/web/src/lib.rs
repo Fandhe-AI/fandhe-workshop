@@ -18,6 +18,7 @@
 //! エンジン（core の `Session`）を持ち、`Runtime::mount` に渡すホストの Component と、表示部品の振り分け（TASK-347）は `host` に、3 つの表示（ログ・左の成果物・復習）の部品（TASK-347 2/2）は `engine_parts` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
+//! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
@@ -38,6 +39,7 @@ pub mod profile;
 pub mod terminal_area;
 pub mod tick_interval;
 pub mod tick_schedule;
+pub mod tree_attrs;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;

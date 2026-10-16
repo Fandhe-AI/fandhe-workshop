@@ -1,0 +1,9 @@
+id: ART9-2
+package: fandhe-workshop-web
+test: tree_attrs_contract
+target: crates/web/src/artifact_view.rs
+find:         attrs.push(("role", crate::tree_attrs::TREE_ROLE));
+replace:         attrs.push(("data-view-role", crate::tree_attrs::TREE_ROLE));
+expect-fail: 親の_role_は_4_条件がそろったときだけ付く
+expect-fail: 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる
+note: 親の role=tree を別の属性名に変える（子の treeitem が木の外に出て、支援技術が木として読めない。ART-9）

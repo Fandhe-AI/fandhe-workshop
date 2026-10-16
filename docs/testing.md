@@ -97,7 +97,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`・`FEND15-3`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`・`FEND15-3`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1625,3 +1625,27 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | `vocab_newer`・`engine_newer`（開かない）、`engine_major`（表示だけ） | VER-7（PoC-6 の試作の線引き。V-iv-2・V-v-2） | D-52・D-59 はこの 3 種を直接は決めていない。VER-7（確定）と VER-18 の「試作のとおり」に従う |
 
 エンジンが読める語彙の上限の正は core の `VOCAB_MAX` で、pack の `vocab::LATEST` との一致は `crates/pack/tests/vocabulary_terms.rs` が見る。
+
+### 5.62 ツリーの属性の計算と全項目が開いた表示（TASK-472）
+
+ツリーの位置の計算（`tree_attrs`）、親の `role=tree`（`artifact_view::tree_view_list`）、a11y 契約の版 2（`treeitem` の 3 属性・`aria-expanded` は `true` のみ）を
+次の 3 層で確かめた。
+
+- native: `tree_attrs_contract`（試作の正解値・端の場合・長さ 0〜6・深さ 0〜3 の全数を素朴な O(n^2) の数え方と照合・性質・前後で表示行が変わる例・親の `role` の 4 条件の表・変種 (a) の対照）と、
+  `a11y_tree_contract`（版 2 の 4 規則の負の対照 13 件と正の見本）
+- ブラウザ: `tools/browser/tree-attrs.test.mjs`（ファイルツリー・タスクツリーの (b) で `role=tree` が 1 個・`treeitem` の数・3 属性の値の表・全項目が見えること・安全性の計数 0、(a) の対照、範囲外の引数は空文字列）。
+  `make test-browser` は 122 件が通過した（2026-10-16）。読み上げは対象外で、A11Y-14・TASK-381 の人の確認で扱う
+- 変異: `ART9-1`（兄弟の位置を常に 1 にする）・`ART9-2`（親の `role=tree` を別の属性名にする）・`ART13-1`（子を持つ項目を閉じた状態で出す）。既存の `ART5-1` の退行も併せて確かめた
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 841fd59-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART9-1.mutation crates/web/tests/mutations/ART9-2.mutation crates/web/tests/mutations/ART13-1.mutation crates/web/tests/mutations/ART5-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| ART9-1 | crates/web/src/tree_attrs.rs: 兄弟の中の位置を常に 1 にする（aria-posinset が壊れ、支援技術が項目の順を読めない。ART-9） | 試作の正解値と一致する, 全数照合_素朴な数え方と一致する | 全数照合_素朴な数え方と一致する, 前後で表示行と兄弟の数が変わる, 端の場合, 試作の正解値と一致する, 長い並びでも_panic_しない | DETECTED | - |
+| ART9-2 | crates/web/src/artifact_view.rs: 親の role=tree を別の属性名に変える（子の treeitem が木の外に出て、支援技術が木として読めない。ART-9） | 親の_role_は_4_条件がそろったときだけ付く, 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる | 親の_role_は_4_条件がそろったときだけ付く, 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる | DETECTED | - |
+| ART13-1 | crates/web/src/tree_attrs.rs: 子を持つ項目を閉じた状態で出す（開閉の口が無いので、子が読み上げから隠れたままになる。ART-13） | 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる | 前後で表示行と兄弟の数が変わる, 変種_b_のファイルツリーとタスクツリーは全項目が開いた木になる | DETECTED | - |
+| ART5-1 | crates/web/src/artifact_view.rs: 選ばれていないビューに hidden を付けない（ART-12。隠すべきビューが見えたままになる） | 親の属性の表, view_list_の選択と件数 | view_list_の選択と件数, 親の属性の表 | DETECTED | - |
