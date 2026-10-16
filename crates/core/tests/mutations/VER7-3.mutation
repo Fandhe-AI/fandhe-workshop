@@ -1,0 +1,8 @@
+id: VER7-3
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if !h.engine.same_major(&o.engine) {
+replace: if false {
+expect-fail: ver7_engine_major_is_view_only
+note: エンジンの主版の違いを判定しない

@@ -1,0 +1,8 @@
+id: VER7-2
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: if hv.ir_format < ir.format_version {
+replace: if false {
+expect-fail: ver7_format_older_is_view_only
+note: 履歴の IR の版が古いことを判定しない（変換して開く経路に着く）
