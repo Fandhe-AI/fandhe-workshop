@@ -41,7 +41,7 @@ use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::Op;
-use fandhe_workshop_core::text_fill::filled_text;
+use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session};
 
@@ -68,7 +68,7 @@ pub struct HostModel {
     /// 文面は IR の文面の ID の解決と実行時の値の差し込みが要り、拒否を適用した直後の状態でしか作れない
     /// （後の操作で状態が進むため）。そのため `apply_engine` が適用の直後に 1 度だけ作って控える。
     /// 作れなかった拒否（文面の解決の失敗）は控えず、行を出さない（fail-closed）。
-    /// 復元（`with_session`）では、状態を変えないイベントだけが続く末尾の範囲に限って作り直す。
+    /// 復元（`with_session`）では、ログの各判定の時点の Step・進み具合から全件を作り直す。
     judged_texts: BTreeMap<u32, String>,
 }
 
@@ -204,7 +204,7 @@ impl EngineHost {
         replay_changes(&mut world, session.log());
         let world_consumed = session.log().len();
         let mut judged_texts = BTreeMap::new();
-        record_judged_texts(&mut judged_texts, &session, restorable_from(session.log()));
+        restore_judged_texts(&mut judged_texts, &session);
         Ok(Self {
             model: HostModel {
                 session: Some(session),
@@ -481,20 +481,16 @@ impl EngineHost {
     }
 }
 
-/// 復元で拒否の文面を作り直せる先頭の位置。
+/// 復元で、ログ全体の拒否の文面を core に作り直させて控える。
 ///
-/// 文面は判定の直前の状態で充填する値が要る。復元では現在の状態しか無いため、状態を変えないイベント
-/// （`InputReceived`・拒否と問い返しの `Judged`）だけが末尾に続く範囲に限る。それより前の拒否は文面を
-/// 作らず、行を出さない（fail-closed。誤った文面を出すより出さない）。
-fn restorable_from(log: &[Event]) -> usize {
-    let stateless = |e: &Event| match e {
-        Event::InputReceived { .. } => true,
-        Event::Judged { judgment, .. } => {
-            matches!(judgment, Judgment::Rejected(_) | Judgment::Clarified(_))
+/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否は控えず、
+/// 行を出さない（fail-closed）。
+fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
+    for (i, f) in filled_texts_of_log(session.ir(), session.log()) {
+        if let Ok(key) = u32::try_from(i) {
+            texts.insert(key, f.message);
         }
-        _ => false,
-    };
-    log.iter().rposition(|e| !stateless(e)).map_or(0, |p| p + 1)
+    }
 }
 
 /// `from` 以降の新しいイベントのうち、`InputReceived` の直後の拒否の `Judged` について文面を充填して控える。

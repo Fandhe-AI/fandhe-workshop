@@ -43,8 +43,9 @@ use serde_json::Value;
 
 use crate::command_class::CommandKind;
 use crate::command_lex::lex_command;
+use crate::event::Event;
 use crate::input::Input;
-use crate::session::RunState;
+use crate::session::{Busy, RunState};
 
 /// 近いコマンドとみなす編集距離の上限。これを超える候補は選ばない（代替の文が出る）。
 pub const NEAREST_MAX_DISTANCE: usize = 2;
@@ -270,6 +271,65 @@ pub fn filled_text(
         message: fill_message(raw, &values)?,
         next_action: next_action.clone(),
     }))
+}
+
+/// ログの拒否の `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
+///
+/// 復元では現在の状態しか無いため、各 `Judged` の `at.step` と直前までの `Progress` から、充填に要る欄
+/// （現在の Step・処理中の進み具合）だけを組み直す。拒否は状態を変えないので、組み直した値は判定の直前と
+/// 同じになる。処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否、
+/// 組み直せない（教材に無い Step・充填の失敗）拒否は戻さない（fail-closed）。
+pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
+    let mut out = Vec::new();
+    // 直近の進行の（次の番号、総数）。状態を進める・変えるイベントで捨てる。
+    let mut progress: Option<(u32, u32)> = None;
+    for (i, event) in log.iter().enumerate() {
+        match event {
+            Event::Progress { index, total, .. } => {
+                progress = Some((index.saturating_add(1), *total));
+            }
+            Event::Entered { .. }
+            | Event::Moved { .. }
+            | Event::Transitioned { .. }
+            | Event::Stopped { .. }
+            | Event::Restored { .. }
+            | Event::Accepted { .. }
+            | Event::Achieved { .. }
+            | Event::Skipped { .. } => progress = None,
+            Event::Judged {
+                at,
+                judgment: judgment @ Judgment::Rejected(r),
+            } => {
+                let Some(Event::InputReceived { input, .. }) =
+                    i.checked_sub(1).and_then(|p| log.get(p))
+                else {
+                    continue;
+                };
+                let busy = if r.category == RejectCategory::Busy {
+                    let total = progress.map(|(_, t)| t).or_else(|| {
+                        let node = ir.nodes.iter().find(|n| n.uid == at.step.0)?;
+                        u32::try_from(node.step.processing.len()).ok()
+                    });
+                    total.map(|total| Busy {
+                        done: progress.map_or(0, |(d, _)| d),
+                        total,
+                    })
+                } else {
+                    None
+                };
+                let run = RunState {
+                    current: Some(at.step.clone()),
+                    busy,
+                    ..RunState::default()
+                };
+                if let Ok(Some(f)) = filled_text(ir, &run, input, judgment) {
+                    out.push((i, f));
+                }
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 #[cfg(test)]

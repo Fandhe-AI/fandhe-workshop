@@ -362,6 +362,24 @@ fn run_case(ir: &Ir, c: &Case) -> (usize, usize) {
         c.id
     );
 
+    // 後続の操作（再読み込み・同じ入力の再拒否）で状態が先へ進んだ後の復元でも、過去の拒否の文面は変わらない。
+    let mut later =
+        Session::from_state(ir.clone(), host.model().session().unwrap().state().clone());
+    later.reload();
+    later.apply(Op::Input(c.input.clone()));
+    let later_host = EngineHost::with_session(later, standard_registry()).unwrap();
+    assert_eq!(
+        later_host.model().judged_text(last),
+        host.model().judged_text(last),
+        "{}: 状態変更後の復元で過去の理由の文面が残る",
+        c.id
+    );
+    assert!(
+        rejected_rows(&later_host) >= rejected_rows(&host),
+        "{}: 状態変更後の復元で過去の rejected の行が消えない",
+        c.id
+    );
+
     // `log-list` の親に載せ替えても適合する。
     check_area(&area_of(lis.to_vec())).unwrap_or_else(|v| panic!("{}: {v:?}", c.id));
 
