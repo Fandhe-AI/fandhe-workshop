@@ -1,0 +1,9 @@
+id: SAVE24-8
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/history_envelope.rs
+find:             state.drafts.remove(&root);
+replace:             let _ = &root;
+expect-fail: submit_clears_only_the_current_root_draft
+expect-fail: property_ops_and_drafts_stay_in_sync
+note: 送信の記録の後に現在の根の下書きを写しから除かない（MOD-4・SAVE-18）

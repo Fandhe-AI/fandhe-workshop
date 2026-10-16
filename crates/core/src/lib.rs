@@ -24,6 +24,7 @@
 //! コマンドの表による未知のコマンドと順序違いの分類（[`command_class`]、TASK-268 1/2）も持つ。
 //! 処理中の入力の `busy` の分類（[`busy_class`]、TASK-209 1/2）も持つ。
 //! 受講者の操作を履歴の `ops` に追記する記録（[`ops_record`]、TASK-315 1/2）も持つ。
+//! `ops`・写し・版の欄を履歴の包みに組み立てる処理と下書きの同期（[`history_envelope`]、TASK-315 2/2）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -39,6 +40,7 @@ pub mod command_rule;
 mod confirm;
 pub mod effect;
 pub mod event;
+pub mod history_envelope;
 pub mod history_size;
 pub mod input;
 pub mod ir_load;
