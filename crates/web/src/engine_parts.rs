@@ -9,6 +9,9 @@
 //! 仮のもの（持ち主が別にあるため、ここで確定しない）:
 //! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・行の型・束縛点の名前は、
 //!   TASK-431・TASK-467・TASK-511 が決める。
+//! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
+//!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
+//!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
 //! - 受講者の入力文字列は、ここでは描かない（入力欄の送信済み一覧が `learner_text::learner_line` で描く。
 //!   ログの部品での表示は TASK-434 が足す）。
 //! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
@@ -29,6 +32,11 @@ use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
 use crate::host::HostModel;
 use crate::list_policy::keyed_view;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
+
+/// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
+const LOG_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-log-list")];
+const ARTIFACT_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-artifact-list")];
+const REVIEW_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-review-list")];
 
 /// 上限超過などで一覧を描けないときの固定の通知の属性名。値は固定の文字列だけで、教材の値を入れない。
 pub const LIST_ERROR_ATTR: &str = "data-list-error";
@@ -188,7 +196,7 @@ impl DisplayPart<HostModel> for LogPart {
                 (format!("r{}", row.event), node)
             })
             .collect();
-        let list = match keyed_view("ul", vec![], &F_LOG[0], items) {
+        let list = match keyed_view("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items) {
             Ok(n) => n,
             Err(_) => return list_error_view("part-log"),
         };
@@ -257,7 +265,7 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 (key, node)
             })
             .collect();
-        let list = match keyed_view("ul", vec![], &F_ARTIFACT[0], items) {
+        let list = match keyed_view("ul", ARTIFACT_LIST_ATTRS.to_vec(), &F_ARTIFACT[0], items) {
             Ok(n) => n,
             Err(_) => return list_error_view("part-artifact-view"),
         };
@@ -321,7 +329,7 @@ impl DisplayPart<HostModel> for ReviewPart {
                 (format!("v{i}"), node)
             })
             .collect();
-        let list = match keyed_view("ul", vec![], &F_REVIEW[0], items) {
+        let list = match keyed_view("ul", REVIEW_LIST_ATTRS.to_vec(), &F_REVIEW[0], items) {
             Ok(n) => n,
             Err(_) => return list_error_view("part-review"),
         };
