@@ -2,11 +2,13 @@
 //!
 //! `key_route::effect_for` の `Newline` の腕が変わる変異（JUDGE13-1）の検出先である。`src/` 内の試験は
 //! 変異注入の対象にできないため、公開の経路（契約の `decide` と web の `effect_for`）だけで固定する。
+//! 処理中の Esc を停止にする経路（`esc_route`）が外れる変異（JUDGE17-2）の検出先でもある。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::key_decide::{decide, KeyInput};
+use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_web::glue_ops::tab_prevents_default;
-use fandhe_workshop_web::key_route::{effect_for, field_state};
+use fandhe_workshop_web::key_route::{effect_for, esc_input, esc_route, field_state, EscRoute};
 
 #[test]
 fn shift_enter_は_prevent_default_せず送信もしない() {
@@ -89,4 +91,65 @@ fn 変換中の_tab_は候補が開いていても_prevent_default_しない() {
     state.composing_marker = true;
     let effect = effect_for(decide(&tab(false, false, false, false), &state));
     assert!(!effect.prevent_default);
+}
+
+// ---- 処理中の Esc の停止（TASK-277 1/2。JUDGE-17 (1)・TERM-7・D-22） ----
+//
+// 変異 JUDGE17-2（`Stop` の腕を何もしない行き先に戻す）の検出先。処理中の状態は TASK-347 が結ぶまで
+// 画面から作れないため、`FieldState` を直接組み立てて固定する。
+
+#[test]
+fn 処理中の_esc_は候補が開いていても停止になり候補も閉じる() {
+    for candidates_open in [false, true] {
+        for has_text in [false, true] {
+            let mut state = field_state(has_text);
+            state.busy = true;
+            state.candidates_open = candidates_open;
+            let decision = decide(&esc_input(), &state);
+            let cell = format!("candidates_open={candidates_open} has_text={has_text}");
+            let route = esc_route(decision);
+            assert_eq!(route.op, Some(Op::Control(Control::Stop)), "{cell}");
+            assert!(route.close_candidates, "{cell}");
+            // glue の keydown では何もしない（root の中の Esc は上流の属性で 1 回だけ届く）。
+            let effect = effect_for(decide(&esc_input(), &state));
+            assert!(!effect.prevent_default, "{cell}");
+            assert!(!effect.click_submit, "{cell}");
+        }
+    }
+}
+
+#[test]
+fn 処理中でない_esc_は停止にならない() {
+    for candidates_open in [false, true] {
+        for has_text in [false, true] {
+            let mut state = field_state(has_text);
+            state.busy = false;
+            state.candidates_open = candidates_open;
+            let route = esc_route(decide(&esc_input(), &state));
+            assert_ne!(
+                route.op,
+                Some(Op::Control(Control::Stop)),
+                "{candidates_open} {has_text}"
+            );
+        }
+    }
+}
+
+#[test]
+fn 変換中の_esc_は処理中でも停止にならない() {
+    let mut composing = esc_input();
+    composing.is_composing = true;
+    let mut code_229 = esc_input();
+    code_229.key_code = 229;
+    for (label, input, marker) in [
+        ("is_composing", composing, false),
+        ("key_code", code_229, false),
+        ("marker", esc_input(), true),
+    ] {
+        let mut state = field_state(true);
+        state.busy = true;
+        state.candidates_open = true;
+        state.composing_marker = marker;
+        assert_eq!(esc_route(decide(&input, &state)), EscRoute::NONE, "{label}");
+    }
 }
