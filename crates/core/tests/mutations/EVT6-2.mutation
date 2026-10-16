@@ -1,0 +1,12 @@
+id: EVT6-2
+package: fandhe-workshop-core
+test: generation_keep
+target: crates/core/src/session.rs
+find:     state.run.generation = settle_generation(rule, was_busy, gen_before, state.run.generation);
+replace:     state.run.generation = gen_before.next().unwrap_or(gen_before);
+expect-fail: keep_on_accept
+expect-fail: keep_on_refuse
+expect-fail: keep_on_confirm_achieve
+expect-fail: keep_on_save
+expect-fail: p2_keep_ops_never_change_generation
+note: 関門を通さず、どの操作の後も世代を 1 つ増やす（Keep の操作で世代が動く）
