@@ -1,0 +1,45 @@
+# 文面の確認（text_checks）38 件。架空の教材で、群 A（a-01〜a-19）と群 B（b-01〜b-19）に分ける。
+# 各件は、開始点（start）・状態（status・busy。省略は入った直後・処理中でない）・入力と期待を持つ。
+# 期待は、結果の種類と分類（expect）・文面の ID（expect_rejection）・差し込みの後の文面（expect_message）と
+# 次の行動（expect_next_action）である。`{{` を含む値は引用符で囲む（AUTHOR-13）。
+text_checks:
+  # 群 A: 選択肢ごとの誤答の解説・近い候補・順序違い・処理中の残り・教材未対応
+  - {id: "a-01", start: "s-d", status: "accepted", input: {choice: "opt-b", expect: "rejected:not_in_this_step", expect_rejection: "rj-wrong-own-1", expect_message: "その答えだと前提が崩れます。", expect_next_action: "いちばん近い答えを選ぶ。読み直して、もう一度選びます。"}}
+  - {id: "a-02", start: "s-d", status: "accepted", input: {choice: "opt-c", expect: "rejected:not_in_this_step", expect_rejection: "rj-wrong-own-2", expect_message: "別の見方が要ります。（選択）", expect_next_action: "選択肢を読み比べて、もう一度選びます。"}}
+  - {id: "a-03", start: "s-d", status: "accepted", input: {choice: "opt-d", expect: "rejected:not_in_this_step", expect_rejection: "rj-wrong-answer-default", expect_message: "選んだ答えは合いません。", expect_next_action: "「答えを選ぶ」を読み直して、もう一度選びます。"}}
+  - {id: "a-04", start: "s-a", input: {cmd: "/hlep", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/hlep」は、この教材の一覧にありません。", expect_next_action: "「/help」に直して、もう一度送ります。"}}
+  - {id: "a-05", start: "s-a", input: {cmd: "/hel", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/hel」は、この教材の一覧にありません。", expect_next_action: "「/help」に直して、もう一度送ります。"}}
+  - {id: "a-06", start: "s-a", input: {cmd: "/hepl", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/hepl」は、この教材の一覧にありません。", expect_next_action: "「/help」に直して、もう一度送ります。"}}
+  - {id: "a-07", start: "s-a", input: {cmd: "/xote", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/xote」は、この教材の一覧にありません。", expect_next_action: "「/note」に直して、もう一度送ります。"}}
+  - {id: "a-08", start: "s-a", input: {cmd: "/hxxxp", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/hxxxp」は、この教材の一覧にありません。", expect_next_action: "「一覧にあるコマンド」に直して、もう一度送ります。"}}
+  - {id: "a-09", start: "s-a", input: {cmd: "/deploy-al", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/deploy-al」は、この教材の一覧にありません。", expect_next_action: "「一覧にあるコマンド」に直して、もう一度送ります。"}}
+  - {id: "a-10", start: "s-a", input: {cmd: "/start-run 42", expect: "rejected:wrong_order", expect_rejection: "rj-wrong-order", expect_message: "「/start-run」を使うのは、まだ先です。", expect_next_action: "今の Step では、/help を送ってコマンドの一覧を開く。"}}
+  - {id: "a-11", start: "s-c", input: {cmd: "/publish-run", expect: "rejected:wrong_order", expect_rejection: "rj-wrong-order", expect_message: "「/publish-run」を使うのは、まだ先です。", expect_next_action: "今の Step では、ここまでの感想を自分の言葉で書く。"}}
+  - {id: "a-12", start: "s-a", busy: {done: 0, total: 3}, input: {cmd: "/help", expect: "rejected:busy", expect_rejection: "rj-busy", expect_message: "「ヘルプを開く」を処理中です。", expect_next_action: "あと 3 回（全 3 回）で終わります。"}}
+  - {id: "a-13", start: "s-a", busy: {done: 1, total: 3}, input: {cmd: "/help", expect: "rejected:busy", expect_rejection: "rj-busy", expect_message: "「ヘルプを開く」を処理中です。", expect_next_action: "あと 2 回（全 3 回）で終わります。"}}
+  - {id: "a-14", start: "s-a", busy: {done: 2, total: 3}, input: {cmd: "/help", expect: "rejected:busy", expect_rejection: "rj-busy", expect_message: "「ヘルプを開く」を処理中です。", expect_next_action: "あと 1 回（全 3 回）で終わります。"}}
+  - {id: "a-15", start: "s-a", input: {cmd: "/sync-cloud", expect: "rejected:not_supported", expect_rejection: "rj-not-supported", expect_message: "「/sync-cloud」は、この教材では扱いません。", expect_next_action: "教材の操作に戻ります。"}}
+  - {id: "a-16", start: "s-c", input: {cmd: "/deploy-all", expect: "rejected:not_supported", expect_rejection: "rj-not-supported", expect_message: "「/deploy-all」は、この教材では扱いません。", expect_next_action: "教材の操作に戻ります。"}}
+  - {id: "a-17", start: "s-b", input: {cmd: "/publish-run", expect: "rejected:wrong_order", expect_rejection: "rj-wrong-order-title", expect_message: "「/publish-run」を使うのは、まだ先です。", expect_next_action: "「回数を決める」の形に合わせて、もう一度送ります。"}}
+  - {id: "a-18", start: "s-b", input: {cmd: "/strt-run", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/strt-run」は、この教材の一覧にありません。", expect_next_action: "「/start-run」に直して、もう一度送ります。"}}
+  - {id: "a-19", start: "s-c", busy: {done: 0, total: 2}, input: {text: "感想です", expect: "rejected:busy", expect_rejection: "rj-busy", expect_message: "「自分の言葉で書く」を処理中です。", expect_next_action: "あと 2 回（全 2 回）で終わります。"}}
+  # 群 B: 画面操作の外れ・問い返し・注記・引数の誤り・この Step では使わない入力・入力の語の二度目の展開をしないこと
+  - {id: "b-01", start: "s-e", status: "accepted", input: {ui: "v-files docs/readme.md", expect: "rejected:not_in_this_step", expect_rejection: "rj-miss-point", expect_message: "そこではありません。", expect_next_action: "「場所を指す」で印のついた場所を指します。"}}
+  - {id: "b-02", start: "s-d", status: "accepted", input: {choice: "opt-zzz", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「答えを選ぶ」の目的を読み直します。"}}
+  - {id: "b-03", start: "s-a", input: {cmd: "/help", expect: "clarified", expect_rejection: "cl-ask", expect_message: "「ヘルプを開く」に必要な値が足りません。", expect_next_action: "/help を送ってコマンドの一覧を開く。値を足して、もう一度送ります。"}}
+  - {id: "b-04", start: "s-c", input: {text: "感想です", expect: "accepted:free_text_unjudged", expect_rejection: "rj-free-text-note", expect_message: "書いた内容の良し悪しは判定しません。（自分の言葉で書く）", expect_next_action: "自分の文を読み返します。"}}
+  - {id: "b-05", start: "s-c", input: {text: "{{step_title}} と書く", expect: "accepted:free_text_unjudged", expect_rejection: "rj-free-text-note", expect_message: "書いた内容の良し悪しは判定しません。（自分の言葉で書く）", expect_next_action: "自分の文を読み返します。"}}
+  - {id: "b-06", start: "s-b", input: {cmd: "/start-run", expect: "rejected:missing_arg", expect_rejection: "rj-missing-arg", expect_message: "「回数を決める」に必要な引数が足りません。", expect_next_action: "「回数を決める」の形に合わせて足し、もう一度送ります。"}}
+  - {id: "b-07", start: "s-b", input: {cmd: "/start-run abc", expect: "rejected:bad_arg_shape", expect_rejection: "rj-bad-arg-shape", expect_message: "「/start-run」の引数の形が合っていません。", expect_next_action: "示された形で書き直して、もう一度送ります。（回数を決める）"}}
+  - {id: "b-08", start: "s-a", input: {cmd: "/help Bad_Name", expect: "rejected:bad_arg_shape", expect_rejection: "rj-bad-arg-shape", expect_message: "「/help」の引数の形が合っていません。", expect_next_action: "示された形で書き直して、もう一度送ります。（ヘルプを開く）"}}
+  - {id: "b-09", start: "s-c", input: {cmd: "/help", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「/help」は、この Step では使いません。", expect_next_action: "「自分の言葉で書く」の目的を読み直します。"}}
+  - {id: "b-10", start: "s-c", input: {choice: "opt-a", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「自分の言葉で書く」の目的を読み直します。"}}
+  - {id: "b-11", start: "s-c", input: {approval: "approve", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「自分の言葉で書く」の目的を読み直します。"}}
+  - {id: "b-12", start: "s-c", input: {cancel: true, expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「自分の言葉で書く」の目的を読み直します。"}}
+  - {id: "b-13", start: "s-f", input: {text: "承認の代わりに文を書く", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「承認する」の目的を読み直します。"}}
+  - {id: "b-14", start: "s-a", input: {cmd: "/{{step_title}}", expect: "rejected:unknown_command", expect_rejection: "rj-unknown-command", expect_message: "「/{{step_title}}」は、この教材の一覧にありません。", expect_next_action: "「一覧にあるコマンド」に直して、もう一度送ります。"}}
+  - {id: "b-15", start: "s-b", input: {cmd: "/help", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「/help」は、この Step では使いません。", expect_next_action: "「回数を決める」の目的を読み直します。"}}
+  - {id: "b-16", start: "s-c", input: {ui: "v-files src/main.rs", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「自分の言葉で書く」の目的を読み直します。"}}
+  - {id: "b-17", start: "s-e", input: {text: "場所の代わりに文を書く", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「その操作」は、この Step では使いません。", expect_next_action: "「場所を指す」の目的を読み直します。"}}
+  - {id: "b-18", start: "s-e", input: {cmd: "/help", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「/help」は、この Step では使いません。", expect_next_action: "「場所を指す」の目的を読み直します。"}}
+  - {id: "b-19", start: "s-d", status: "accepted", input: {cmd: "/help", expect: "rejected:not_in_this_step", expect_rejection: "rj-not-in-this-step", expect_message: "「/help」は、この Step では使いません。", expect_next_action: "「答えを選ぶ」の目的を読み直します。"}}

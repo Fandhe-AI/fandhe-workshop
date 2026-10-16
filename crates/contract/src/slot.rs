@@ -1,7 +1,7 @@
 //! 文面の差し込みの枠 `{{名前|代替の文}}` の閉じた集合・構文の読み取り・差し込みの純関数（TASK-46、語彙 v1.1 の EP-7）。
 //!
 //! 呼び出し元は 2 つある。静的検査をする pack（`slot_check`。枠の名前・分類の制限・代替の文の有無を診断にする）と、
-//! 実行時に拒否・問い返しの文面を組み立てる core（TASK-267。値の組を作って [`substitute`] を呼ぶ）である。
+//! 実行時に拒否・問い返しの文面を組み立てる core（`text_fill`、TASK-274。値の組を作って [`substitute`] を呼ぶ）である。
 //! 両者が同じ表と構文を読むため、`docs/architecture.md` 第 6 節の判定規則 1 に従い contract に置く。
 //! 実行時の値の組み立て（入力の先頭の語・近い候補・処理中の件数）は本モジュールの責務ではない。
 //!
@@ -147,7 +147,7 @@ pub fn parse_slots(text: &str) -> Result<Vec<SlotRef<'_>>, SlotSyntaxError> {
     Ok(out)
 }
 
-/// 差し込む値の組。実行時の組み立ては core（TASK-267）、検査では最悪の場合の値を pack が作る。
+/// 差し込む値の組。実行時の組み立ては core の `text_fill`（TASK-274）、検査では最悪の場合の値を pack が作る。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SlotValues {
     /// 入力の先頭の語。入力が空なら `None`。

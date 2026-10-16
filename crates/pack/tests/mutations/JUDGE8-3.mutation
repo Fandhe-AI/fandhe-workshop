@@ -1,0 +1,9 @@
+id: JUDGE8-3
+package: fandhe-workshop-pack
+test: text_fill
+target: crates/core/src/text_fill.rs
+find: pub const NEAREST_MAX_DISTANCE: usize = 2;
+replace: pub const NEAREST_MAX_DISTANCE: usize = 3;
+expect-fail: judge8_text_checks_all_38
+expect-fail: judge8_text_checks_group_a_19
+note: 近い候補の距離の上限を 3 にする（距離 3 の入力にも候補を出してしまう）

@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -879,7 +879,27 @@ SAVE14-1 は鍵に教材の版を混ぜ、SAVE15-1 は配信の区間を無視�
 | EVT6-8 | crates/core/src/tick.rs: 無視を 2 件記録する（「1 件だけ」の違反） | mismatched_tick_records_one_ignored, duplicate_index_advances_once, p2_mismatched_tick_keeps_run | duplicate_index_advances_once, mismatch_is_checked_before_processing_declaration, duplicate_of_last_tick_is_no_processing, mismatched_tick_records_one_ignored, p2_mismatched_tick_keeps_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Any(0, 0, false)] |
 | EVT6-9 | crates/core/src/tick.rs: 無視の記録の世代を操作前の状態の世代と食い違わせる | mismatched_tick_records_one_ignored | mismatched_tick_records_one_ignored | DETECTED | - |
 
-### 5.38 キー判定表 decide（TASK-257）
+### 5.38 拒否・解説への値の差し込み（TASK-274）
+
+JUDGE8-1 は次の行動の差し込みを外し、JUDGE8-2 は近い候補から `unsupported` の除外を外し、JUDGE8-3 は近い候補の距離の上限を 3 にし、
+JUDGE8-4 は残りの回数に終わった回数を入れ、JUDGE8-5 は `do` の無い Step の `step_do` に題名を入れる。文面の確認 38 件（群 A は 19 件）と、
+`do` を持たない Step の試験 `judge8_step_do_is_not_replaced_by_title` が、それぞれ検出する。試験は pack の結合試験 `text_fill` に置く。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 7f9b271-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/JUDGE8-1.mutation crates/pack/tests/mutations/JUDGE8-2.mutation crates/pack/tests/mutations/JUDGE8-3.mutation crates/pack/tests/mutations/JUDGE8-4.mutation crates/pack/tests/mutations/JUDGE8-5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| JUDGE8-1 | crates/core/src/judge.rs: 次の行動に差し込みをせず、教材の生の値のまま返す | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
+| JUDGE8-2 | crates/core/src/text_fill.rs: 近い候補の選び方から `unsupported` の除外を外す | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
+| JUDGE8-3 | crates/core/src/text_fill.rs: 近い候補の距離の上限を 3 にする | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
+| JUDGE8-4 | crates/core/src/text_fill.rs: 残りの回数に終わった回数を入れる | judge8_text_checks_all_38, judge8_text_checks_group_a_19 | DETECTED |
+| JUDGE8-5 | crates/core/src/text_fill.rs: `do` の無い Step で `step_do` に題名を入れる | judge8_step_do_is_not_replaced_by_title | DETECTED |
+
+### 5.39 キー判定表 decide（TASK-257）
 
 Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件から `has_text` を外す誤り（JUDGE19-1）、変換中の判定から自前の印を外す誤り（JUDGE14-1）を入れ、契約適合試験 `key_decide_contract` が検出することを確かめる。
 

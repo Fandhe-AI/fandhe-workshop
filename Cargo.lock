@@ -146,6 +146,7 @@ version = "0.0.0"
 dependencies = [
  "fandhe-workshop-contract",
  "fandhe-workshop-core",
+ "proptest",
  "pulldown-cmark",
  "serde",
  "serde_json",

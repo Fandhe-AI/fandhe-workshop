@@ -1,0 +1,8 @@
+id: JUDGE8-5
+package: fandhe-workshop-pack
+test: text_fill
+target: crates/core/src/text_fill.rs
+find: step_do: step.do_.clone(),
+replace: step_do: step.do_.clone().or_else(|| Some(step.title.clone())),
+expect-fail: judge8_step_do_is_not_replaced_by_title
+note: do の無い Step で step_do に題名を代わりに入れる（静的な数え上げとの食い違い）
