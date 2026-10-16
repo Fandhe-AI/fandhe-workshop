@@ -5,6 +5,7 @@
 //! 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈（[`effect`]、TASK-43）と、進行（`processing`）の解釈も持つ。
 //! 文面の差し込みの枠の閉じた集合・構文の読み取り・差し込み（[`slot`]、TASK-46）も持つ。
 //! 保存先の口と履歴の鍵の生成規則（[`storage`]、TASK-310）も持つ。
+//! キー判定表 `decide` の入出力の型と確定している行の判定（[`key_decide`]、TASK-257）も持つ。
 //! ほかの型は後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -18,6 +19,7 @@ pub mod history_version;
 pub mod input_spec;
 pub mod ir;
 pub mod judgment;
+pub mod key_decide;
 pub mod limits;
 pub mod lo_check;
 pub mod profile;
