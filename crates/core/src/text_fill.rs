@@ -129,7 +129,7 @@ pub fn osa_distance_within(a: &str, b: &str, max: usize) -> Option<usize> {
     for i in 1..=n {
         let mut cur = vec![INF; m + 1];
         let lo = i.saturating_sub(max);
-        let hi = (i + max).min(m);
+        let hi = i.saturating_add(max).min(m);
         if lo == 0 {
             cur[0] = i;
         }
@@ -313,6 +313,13 @@ mod tests {
                 assert_eq!(got, (full <= 2).then_some(full), "{a:?} {b:?}");
             }
         }
+    }
+
+    #[test]
+    fn max_usize_max_does_not_overflow() {
+        assert_eq!(osa_distance_within("a", "a", usize::MAX), Some(0));
+        assert_eq!(osa_distance_within("abc", "acb", usize::MAX), Some(1));
+        assert_eq!(osa_distance_within("", "ab", usize::MAX), Some(2));
     }
 
     #[test]
