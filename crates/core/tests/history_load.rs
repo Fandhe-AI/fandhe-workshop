@@ -251,3 +251,387 @@ fn rejection_is_deterministic() {
         assert_eq!(reason(&b), reason(&b));
     }
 }
+
+// ---- 段 4〜6（版の欄・型・版の判定。TASK-331 2/3）----
+
+use common::contract_sample::{load as load_sample, testdata_dir};
+use fandhe_workshop_contract::content_hash::content_hash;
+use fandhe_workshop_contract::history_version::{Disposition, HistoryVersions};
+use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::history_load::{load_history, parse_history_envelope};
+use fandhe_workshop_core::history_open::{Opened, OpeningCaps};
+use fandhe_workshop_core::load_ir;
+use fandhe_workshop_core::version_record::record_versions;
+use serde_json::{json, Value};
+
+const MAX_OPS: usize = 20_000;
+
+fn ir() -> Ir {
+    let path = testdata_dir().join("engine-event-consistency/test-data/min-3step.json");
+    load_ir(&std::fs::read(path).expect("read min-3step")).expect("load_ir")
+}
+
+fn opening(ir: &Ir) -> HistoryVersions {
+    record_versions(ir, &content_hash(ir).expect("hash")).expect("versions")
+}
+
+fn two_rounds() -> Value {
+    serde_json::from_slice(&read_bytes("two-rounds")).expect("parse")
+}
+
+fn bytes_of(edit: impl FnOnce(&mut Value)) -> Vec<u8> {
+    let mut v = two_rounds();
+    edit(&mut v);
+    serde_json::to_vec(&v).expect("to_vec")
+}
+
+fn run_with(bytes: &[u8], opening_edit: impl FnOnce(&mut HistoryVersions)) -> Opened {
+    let ir = ir();
+    let mut op = opening(&ir);
+    opening_edit(&mut op);
+    load_history(
+        bytes,
+        &ir,
+        &op,
+        &OpeningCaps::current(),
+        load_sample().initial,
+    )
+}
+
+fn run(bytes: &[u8]) -> Opened {
+    run_with(bytes, |_| {})
+}
+
+fn code(o: &Opened) -> (Disposition, LoadReason) {
+    match o {
+        Opened::ViewOnly { code } => (Disposition::ViewOnly, *code),
+        Opened::Refused { code } => (Disposition::Refused, *code),
+        other => panic!("expected a rejection, got {other:?}"),
+    }
+}
+
+fn refused(bytes: &[u8]) -> LoadReason {
+    let o = run(bytes);
+    let (d, c) = code(&o);
+    assert_eq!(d, Disposition::Refused, "{c}");
+    c
+}
+
+fn ops_of(n: usize) -> Value {
+    Value::Array((0..n).map(|_| json!({"draft": "x"})).collect())
+}
+
+fn read_bytes_addendum(name: &str) -> Vec<u8> {
+    let p = testdata_dir()
+        .join("save-restore-versions/test-data-addendum/histories")
+        .join(format!("{name}.json"));
+    std::fs::read(p).expect("read addendum")
+}
+
+fn reason_of(o: &Opened) -> Option<LoadReason> {
+    match o {
+        Opened::ViewOnly { code } | Opened::Refused { code } => Some(*code),
+        _ => None,
+    }
+}
+
+#[test]
+fn stage4_no_versions_poc_file() {
+    let b = read_bytes_addendum("b-5-no-versions");
+    assert_eq!(refused(&b), LoadReason::MissingVersion);
+}
+
+#[test]
+fn stage4_versions_not_a_table() {
+    for bad in [None, Some(Value::Null), Some(json!([])), Some(json!("1"))] {
+        let b = bytes_of(|v| match &bad {
+            None => {
+                v.as_object_mut().unwrap().remove("versions");
+            }
+            Some(x) => v["versions"] = x.clone(),
+        });
+        assert_eq!(refused(&b), LoadReason::MissingVersion, "{bad:?}");
+    }
+}
+
+#[test]
+fn stage4_format_missing_or_wrong() {
+    for bad in [None, Some(json!("fandhe-workshop-histor")), Some(json!(1))] {
+        let b = bytes_of(|v| match &bad {
+            None => {
+                v.as_object_mut().unwrap().remove("format");
+            }
+            Some(x) => v["format"] = x.clone(),
+        });
+        assert_eq!(refused(&b), LoadReason::MissingVersion, "{bad:?}");
+    }
+}
+
+#[test]
+fn stage4_history_format_missing() {
+    let b = bytes_of(|v| {
+        v.as_object_mut().unwrap().remove("history_format");
+    });
+    assert_eq!(refused(&b), LoadReason::MissingVersion);
+}
+
+#[test]
+fn stage4_top_level_not_a_table() {
+    assert_eq!(refused(b"[]"), LoadReason::MissingVersion);
+    assert_eq!(refused(b"1"), LoadReason::MissingVersion);
+}
+
+#[test]
+fn stage4_boundary_inner_defects_are_malformed() {
+    let no_engine = bytes_of(|v| {
+        v["versions"].as_object_mut().unwrap().remove("engine");
+    });
+    assert_eq!(refused(&no_engine), LoadReason::Malformed);
+    let unknown = bytes_of(|v| v["versions"]["extra"] = json!(1));
+    assert_eq!(refused(&unknown), LoadReason::Malformed);
+    let hf = bytes_of(|v| v["history_format"] = json!("1"));
+    assert_eq!(refused(&hf), LoadReason::Malformed);
+}
+
+#[test]
+fn stage5_malformed() {
+    assert_eq!(
+        refused(&read_bytes_addendum("b-7-malformed")),
+        LoadReason::Malformed
+    );
+    let cases: Vec<Vec<u8>> = vec![
+        bytes_of(|v| v["snapshot"]["run"]["generation"] = json!("x")),
+        bytes_of(|v| v["unknown_field"] = json!(1)),
+        bytes_of(|v| v["ops"] = json!([{"zzz": 1}])),
+        bytes_of(|v| {
+            v.as_object_mut().unwrap().remove("snapshot");
+        }),
+    ];
+    for b in cases {
+        assert_eq!(refused(&b), LoadReason::Malformed);
+    }
+}
+
+#[test]
+fn stage5_ops_count_boundary() {
+    let mk = |n: usize| {
+        let mut v = two_rounds();
+        v["ops"] = ops_of(n);
+        v
+    };
+    assert!(parse_history_envelope(mk(MAX_OPS)).is_ok());
+    assert_eq!(
+        parse_history_envelope(mk(MAX_OPS + 1)).unwrap_err(),
+        LoadReason::TooManyOps
+    );
+}
+
+#[test]
+fn stage5_too_many_ops_through_load_history() {
+    let b = bytes_of(|v| v["ops"] = ops_of(MAX_OPS + 1));
+    assert_eq!(refused(&b), LoadReason::TooManyOps);
+    // 20,000 件ちょうどは段 5 の件数では断たない（段 7 以降の結果は本件の範囲外）。
+    let ok = bytes_of(|v| v["ops"] = ops_of(MAX_OPS));
+    assert_ne!(reason_of(&run(&ok)), Some(LoadReason::TooManyOps));
+}
+
+#[test]
+fn stage5_newer_history_format_and_other_pack() {
+    let b = bytes_of(|v| v["history_format"] = json!(2));
+    assert_eq!(refused(&b), LoadReason::HistoryFormatNewer);
+    let b = bytes_of(|v| v["pack_id"] = json!("other"));
+    assert_eq!(refused(&b), LoadReason::OtherPack);
+}
+
+#[test]
+fn stage6_refused_reasons_reach_the_entry() {
+    let cases: Vec<(Vec<u8>, LoadReason)> = vec![
+        (
+            bytes_of(|v| v["versions"]["engine"] = json!("x")),
+            LoadReason::BadVersion,
+        ),
+        (
+            bytes_of(|v| v["versions"]["ir_format"] = json!(2)),
+            LoadReason::FormatNewer,
+        ),
+        (
+            bytes_of(|v| v["versions"]["vocab"] = json!("9.0")),
+            LoadReason::VocabNewer,
+        ),
+        (
+            bytes_of(|v| v["versions"]["engine"] = json!("1.0.0")),
+            LoadReason::EngineNewer,
+        ),
+    ];
+    for (b, want) in cases {
+        assert_eq!(refused(&b), want);
+    }
+}
+
+#[test]
+fn stage6_view_only_reasons_reach_the_entry() {
+    let o = run(&bytes_of(|v| v["versions"]["ir_format"] = json!(0)));
+    assert_eq!(code(&o), (Disposition::ViewOnly, LoadReason::FormatOlder));
+    let o = run_with(&read_bytes("two-rounds"), |op| {
+        op.engine = "1.0.0".to_string();
+    });
+    assert_eq!(code(&o), (Disposition::ViewOnly, LoadReason::EngineMajor));
+    let o = run_with(&read_bytes("two-rounds"), |op| {
+        op.content = "1.0.0".to_string();
+    });
+    assert_eq!(code(&o), (Disposition::ViewOnly, LoadReason::ContentMajor));
+}
+
+#[test]
+fn stages_4_to_6_follow_history_load_order() {
+    let cut = {
+        let mut b = bytes_of(|v| {
+            v.as_object_mut().unwrap().remove("versions");
+        });
+        b.truncate(b.len() * 55 / 100);
+        b
+    };
+    let cases: Vec<(Vec<u8>, LoadReason, LoadReason)> = vec![
+        (cut, LoadReason::Truncated, LoadReason::MissingVersion),
+        (
+            bytes_of(|v| {
+                v.as_object_mut().unwrap().remove("versions");
+                v["pack_id"] = json!("other");
+            }),
+            LoadReason::MissingVersion,
+            LoadReason::OtherPack,
+        ),
+        (
+            bytes_of(|v| {
+                v["format"] = json!("x");
+                v["snapshot"]["run"]["generation"] = json!("x");
+            }),
+            LoadReason::MissingVersion,
+            LoadReason::Malformed,
+        ),
+        (
+            bytes_of(|v| {
+                v["snapshot"]["run"]["generation"] = json!("x");
+                v["ops"] = ops_of(MAX_OPS + 1);
+            }),
+            LoadReason::Malformed,
+            LoadReason::TooManyOps,
+        ),
+        (
+            bytes_of(|v| {
+                v["ops"] = ops_of(MAX_OPS + 1);
+                v["history_format"] = json!(2);
+            }),
+            LoadReason::TooManyOps,
+            LoadReason::HistoryFormatNewer,
+        ),
+        (
+            bytes_of(|v| {
+                v["history_format"] = json!(2);
+                v["pack_id"] = json!("other");
+            }),
+            LoadReason::HistoryFormatNewer,
+            LoadReason::OtherPack,
+        ),
+        (
+            bytes_of(|v| {
+                v["pack_id"] = json!("other");
+                v["versions"]["engine"] = json!("x");
+            }),
+            LoadReason::OtherPack,
+            LoadReason::BadVersion,
+        ),
+        (
+            bytes_of(|v| {
+                v["pack_id"] = json!("other");
+                v["versions"]["ir_format"] = json!(99);
+            }),
+            LoadReason::OtherPack,
+            LoadReason::FormatNewer,
+        ),
+    ];
+    for (b, got, later) in cases {
+        assert_eq!(code(&run(&b)).1, got);
+        assert!(
+            order_pos(got) < order_pos(later),
+            "{got} must precede {later}"
+        );
+    }
+}
+
+#[test]
+fn stages_4_to_6_match_contract_stages() {
+    let cases: Vec<(Vec<u8>, HistoryLoadStage, LoadStage)> = vec![
+        (
+            bytes_of(|v| {
+                v.as_object_mut().unwrap().remove("versions");
+            }),
+            HistoryLoadStage::VersionField,
+            LoadStage::TypeAndContent,
+        ),
+        (
+            bytes_of(|v| v["unknown_field"] = json!(1)),
+            HistoryLoadStage::Type,
+            LoadStage::TypeAndContent,
+        ),
+        (
+            bytes_of(|v| v["versions"]["engine"] = json!("x")),
+            HistoryLoadStage::VersionJudgment,
+            LoadStage::TypeAndContent,
+        ),
+    ];
+    for (b, st, coarse) in cases {
+        let o = run(&b);
+        let c = code(&o).1;
+        assert_eq!(c.stage(), st, "{c}");
+        assert_eq!(c.stage().coarse(), coarse, "{c}");
+        assert!(o.state().is_none());
+        assert!(!c.to_string().is_empty());
+    }
+}
+
+#[test]
+fn stage4_to_6_rejection_leaves_store_unchanged() {
+    let store = MemStore::default();
+    let k1 = HistoryKey::for_pack(DeliveryScope::root(), "pack-a", "start");
+    let k2 = HistoryKey::for_pack(DeliveryScope::root(), "pack-b", "start");
+    let k3 = HistoryKey::for_pack(DeliveryScope::root(), "pack-c", "start");
+    let valid = String::from_utf8(read_bytes("two-rounds")).unwrap();
+    let no_versions = String::from_utf8(bytes_of(|v| {
+        v.as_object_mut().unwrap().remove("versions");
+    }))
+    .unwrap();
+    let newer = String::from_utf8(bytes_of(|v| v["versions"]["ir_format"] = json!(2))).unwrap();
+    store.write(&k1, &valid).unwrap();
+    store.write(&k2, &no_versions).unwrap();
+    store.write(&k3, &newer).unwrap();
+    store.reset_counts();
+    let before = store.snapshot();
+    let keys_before = store.keys().unwrap();
+
+    for k in [&k2, &k3] {
+        let stored = store.read(k).unwrap().unwrap();
+        assert!(run(stored.as_bytes()).state().is_none());
+    }
+    let from_file: Vec<Vec<u8>> = vec![
+        read_bytes_addendum("b-5-no-versions"),
+        read_bytes_addendum("b-7-malformed"),
+        bytes_of(|v| v["ops"] = ops_of(MAX_OPS + 1)),
+    ];
+    for b in &from_file {
+        assert!(run(b).state().is_none());
+    }
+
+    assert_eq!(store.snapshot(), before);
+    assert_eq!(store.keys().unwrap(), keys_before);
+    assert_eq!(store.writes(), 0);
+    assert_eq!(store.removes(), 0);
+}
+
+#[test]
+fn reasons_carry_no_input_text() {
+    let b = bytes_of(|v| v["format"] = json!("SECRET-MARKER"));
+    let c = code(&run(&b)).1;
+    assert!(!c.to_string().contains("SECRET-MARKER"));
+    assert!(HISTORY_LOAD_ORDER.contains(&c));
+}

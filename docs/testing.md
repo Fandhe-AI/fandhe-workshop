@@ -1689,3 +1689,31 @@ SAVE19-4 は文字の途中の切れを `not_json` にする誤り、SAVE19-5 �
 | SAVE19-4 | crates/core/src/history_load.rs: 文字の途中で切れた入力を truncated ではなく not_json にする | DETECTED（cut_inside_multibyte_char_is_truncated, utf8_precedes_parse） |
 | SAVE19-5 | crates/core/src/history_load.rs: 入力の終わりで途切れた JSON を not_json にする | DETECTED（cut_at_char_boundary_is_truncated, empty_input_is_truncated, rejection_leaves_store_unchanged） |
 | SAVE19-6 | crates/core/src/history_load.rs: 大きさ・深さの段を外す | DETECTED（over_by_one_is_too_large, depth_over_is_too_deep, size_precedes_depth ほか 13 件） |
+
+### 5.64 履歴の読み込みの段 4〜6（TASK-331 2/3）
+
+履歴の読み込みの版の欄・型・版の判定の段を `history_load::load_history`（段 1〜6 の入口）に実装し、`history_load` の試験で確かめた。
+段 4 は `check_history_head`、段 5 の前半は `parse_history_envelope`、段 5 の後半と段 6 は既存の `open_history` を呼ぶ。
+本節の番号は、5.63 と同じく既存の重複を直さずに、既存の最大の次を使った。
+
+段 4 の `missing_version` は、`versions` の表の欠落に加えて `format` の違いと `history_format` の欠落を含める。
+根拠は `version-expectations.md` の 1 節と試作の `open_history` で、実装側の読みである（【推論】）。spec 側への提案は、SAVE-19・VER-1 でこれを明記することである。
+画面の状態が変わらないことのブラウザの確認は、web に履歴を読み込む経路が無いため未実施（TASK-531・TASK-532・TASK-176 の後）。
+段 7・8 の試験・所要時間・契約適合は TASK-331 3/3 の範囲である。
+
+SAVE19-7 は版の欄の段（`versions` の表の検査）を外す誤り、SAVE19-8 は `format` の照合を外す誤り、SAVE19-9 は型の失敗を `missing_version` にする誤り、
+SAVE19-10 は `ops` の件数の比較を `>=` にする誤り、SAVE19-11 は件数の検査を外す誤りである。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 6d6b1ca-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE19-7.mutation crates/core/tests/mutations/SAVE19-8.mutation crates/core/tests/mutations/SAVE19-9.mutation crates/core/tests/mutations/SAVE19-10.mutation crates/core/tests/mutations/SAVE19-11.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE19-7 | crates/core/src/history_load.rs: 版の欄の段（versions の表の検査）を外す | DETECTED（stage4_no_versions_poc_file, stage4_versions_not_a_table ほか 4 件） |
+| SAVE19-8 | crates/core/src/history_load.rs: format の照合を外す | DETECTED（stage4_format_missing_or_wrong, stages_4_to_6_follow_history_load_order） |
+| SAVE19-9 | crates/core/src/history_load.rs: 型の失敗を missing_version にする | DETECTED（stage5_malformed, stage4_boundary_inner_defects_are_malformed ほか 4 件） |
+| SAVE19-10 | crates/core/src/history_load.rs: ops の件数の比較を >= にする | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history） |
+| SAVE19-11 | crates/core/src/history_load.rs: ops の件数の検査を外す | DETECTED（stage5_ops_count_boundary, stage5_too_many_ops_through_load_history ほか 1 件） |

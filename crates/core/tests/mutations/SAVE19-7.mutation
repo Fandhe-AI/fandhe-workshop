@@ -1,0 +1,10 @@
+id: SAVE19-7
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find:     check_versions_present(value)?;
+replace:     let _ = check_versions_present(value);
+expect-fail: stage4_versions_not_a_table
+expect-fail: stage4_no_versions_poc_file
+expect-fail: stages_4_to_6_follow_history_load_order
+note: 版の欄の段（versions の表の検査）を外す
