@@ -1,0 +1,10 @@
+id: JUDGE4-6
+package: fandhe-workshop-pack
+test: reject_four_scenes
+target: crates/core/src/judge.rs
+find: CommandVerdict::MissingArg => self.reject(RejectCategory::MissingArg),
+replace: CommandVerdict::MissingArg => self.reject(RejectCategory::NotInThisStep),
+expect-fail: four_scenes_are_classified_100_percent
+expect-fail: missing_and_shape_go_through_judge_input
+expect-fail: rejection_text_prefers_step_on_reject
+note: 判定結果の統合で引数不足を別の分類に写す（結線の誤り）

@@ -27,7 +27,7 @@
 //!
 //! 分類の割り当ては [`classify_command`] の 1 か所にまとめる。教材のコマンドの表に無い名前は `unknown_command`、
 //! 表にあってもこの Step・この段で使わない名前は `not_in_this_step` とし、`wrong_order`・`not_supported` の
-//! 見分けはしない（TASK-268・TASK-269）。問い返しの待ちの状態（EP-4）は持たない。
+//! 見分けはしない（`wrong_order` の結線と `not_supported` は TASK-269）。問い返しの待ちの状態（EP-4）は持たない。
 //!
 //! # 文面の扱い（fail-closed）
 //!
@@ -230,7 +230,8 @@ pub fn judge_input(
 
 /// コマンドの分類の暫定の割り当て（D9）。教材のコマンドの表に無い名前は `unknown_command`。
 /// 表にある名前は、ここでは分類を決めず（`None`）、Step の宣言との照合に任せる。
-/// `wrong_order`・`not_supported` の見分けは TASK-268・TASK-269 がこの 1 か所を直す。
+/// `wrong_order` は `command_class::classify_command` が分類するが、ここには未結線である（結線は TASK-269 か追随の
+/// Issue）。`not_supported` の見分けは TASK-269 がこの 1 か所を直す。
 fn classify_command(ir: &Ir, lexed: &LexedCommand) -> Option<RejectCategory> {
     if crate::command_judge::is_unknown_command(ir.commands.keys().map(String::as_str), &lexed.name)
     {
