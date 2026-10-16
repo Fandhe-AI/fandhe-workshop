@@ -1,0 +1,8 @@
+id: FEND21-1
+package: fandhe-workshop-web
+test: glue_contract
+target: crates/web/src/glue_ops.rs
+find:     candidates_open && input_has_text
+replace:     candidates_open || input_has_text
+expect-fail: tab_は候補が開いていて文字があるときだけ_prevent_default
+note: Tab の preventDefault の条件を「かつ」から「または」にする（候補が無いときの Tab 移動を奪う）
