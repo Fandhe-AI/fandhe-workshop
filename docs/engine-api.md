@@ -116,7 +116,7 @@
 | EVT-6 (2) 進行は世代を変えない | `Op::Tick(_)` が `Keep` | 読み取れる | |
 | EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の試験 | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10）。`session::step` が `accept` へ渡し、世代は変えない（実装済み、TASK-212。`cancel_input` の試験） |
 | EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 実装済み（`go_to` モジュール、TASK-213 1/2） | |
-| EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、入口の写しは `None` に無効化する（移動後の停止は `Warning` だけで状態を変えない）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない | 移動前の世代の進行の無視は TASK-213 2/2。入口の写しの作り直しと移動先の `on_enter` の効果は TASK-242・217 |
+| EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、入口の写しは `None` に無効化する（移動後の停止は `Warning` だけで状態を変えない）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない。移動前の世代の進行は移動の後に届いても `Ignored(Stale)` が 1 件だけで状態を変えない（TASK-213 2/2。`reserved_ticks_after_move_are_ignored`・`stale_tick_after_reenter_and_reinput_is_ignored`・`p2_pre_move_ticks_never_change_run` ほか） | 入口の写しの作り直しと移動先の `on_enter` の効果は TASK-242・217 |
 | EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 読み取れる | |
 | EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
 | EVT-6 の外: 周回の開始 | `Control::Begin` が `IncrementOnSuccess`。`Event::Begun.new_generation` | 読み取れる | 6 項目に数えない（試作の設計）。3 節の脚注の表で分けた |
@@ -170,6 +170,7 @@
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 | 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 
+- 2026-10-16: 移動前に予約された進行の無視（TASK-213 2/2）の試験を足した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: 処理中の停止と入口の写しへの復帰（`stop` モジュール、TASK-211 1/2）を実装した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）
 - 2026-10-15: `Projection` の導出の中身（ログ行・変化の印・復習・復帰の復習）を実装した。公開の型・署名・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-215 2/2）

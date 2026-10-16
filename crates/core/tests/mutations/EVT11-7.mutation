@@ -1,0 +1,9 @@
+id: EVT11-7
+package: fandhe-workshop-core
+test: move_step
+target: crates/core/src/judge.rs
+find:     if addr.generation != run.generation || addr.step != *current {
+replace:     if addr.step != *current {
+expect-fail: stale_tick_after_reenter_and_reinput_is_ignored
+expect-fail: p2_pre_move_ticks_never_change_run
+note: 進行の宛先の照合から世代を外す（移動前の進行が、同じ Step へ戻って受け付け直した後の処理中に効いてしまう。EVT9-5 と同じ誤りを移動の側から確かめる）
