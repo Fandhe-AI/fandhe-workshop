@@ -295,3 +295,46 @@ fn p3_accepts_achievement_whose_acceptance_has_an_older_generation() {
     }
     assert!(tested >= 1, "no confirm-none achievement in the script");
 }
+
+/// 一度 `Accepted` した Step へ入り直す（`Entered` が `Accepted` より後ろに来る）と、旧世代の `Accepted` は
+/// 失効する。受け付け前の誤った達成を P-3 が見逃さないことを確かめる。
+#[test]
+fn p3_rejects_achievement_after_reentry_invalidates_acceptance() {
+    let (ir, initial) = load_min_ir();
+    let (all, _) = run_checked(&ir, &initial, &script_specs()).expect("properties hold");
+    let mut checker = PropChecker::new(&ir, &initial);
+    let mut tested = 0;
+    for (i, a) in all.iter().enumerate() {
+        let none_achieved = a.events.iter().find_map(|e| match e {
+            Event::Achieved { at, .. } => Some(at.clone()),
+            _ => None,
+        });
+        let confirmed = a.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Confirmed,
+                    ..
+                }
+            )
+        });
+        if let (Some(at), false) = (none_achieved, confirmed) {
+            // 達成の直前に同じ Step へ入り直した形にし、同じ操作の `Accepted` も取り除く。
+            let broken = with_events(a, |events| {
+                events.retain(|x| !matches!(x, Event::Accepted { .. }));
+                let pos = events
+                    .iter()
+                    .position(|x| matches!(x, Event::Achieved { .. }))
+                    .expect("Achieved");
+                events.insert(pos, Event::Entered { at: at.clone() });
+            });
+            assert!(
+                checker.check_p3(&broken).is_err(),
+                "re-entry must invalidate the older Accepted"
+            );
+            tested += 1;
+        }
+        checker.check(i, a).expect("unbroken op passes");
+    }
+    assert!(tested >= 1, "no confirm-none achievement in the script");
+}
