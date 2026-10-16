@@ -97,7 +97,7 @@ pub enum Control {
 /// | `Control::SetGuidance(_)` | [`GenerationRule::Keep`] | GUIDE-3 |
 ///
 /// 世代が変わるイベント（`Stopped`・`Moved`・`Restored`・`Begun`）が `new_generation` を持つ。
-/// 世代は減らない。実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ。
+/// 世代は減らない。表の強制は `session::apply` の関門が持つ（TASK-210 1/3）。実際の増やし方の実装は TASK-210・TASK-211・TASK-213・TASK-214・TASK-217 が持つ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum GenerationRule {

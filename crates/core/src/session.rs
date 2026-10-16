@@ -7,8 +7,9 @@
 //!
 //! 本件が固定するのは型・署名・純粋な補助関数・規則の表までで、状態機械の各分岐は実装しない。
 //! [`apply`] の本体は契約だけの骨格である。入力の受付（`Op::Input`、TASK-207 1/3）は `accept` モジュールが、受付済みへの確認の操作による達成（TASK-207 2/3）は `confirm` モジュールが埋めた。
+//! 世代の規則の表（[`GenerationRule`]）は、[`apply`] が分岐の後に強制する（TASK-210 1/3、EVT-6）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （世代と進行の照合 TASK-210、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
+//! （進行の宛先の照合 TASK-210 2/3・3/3、停止 TASK-211、移動 TASK-213、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -30,7 +31,7 @@ use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
 use crate::changed;
 use crate::event::Event;
-use crate::input::{CheckpointId, Op};
+use crate::input::{CheckpointId, GenerationRule, Op};
 use crate::provider::StateChangeProvider;
 use crate::step_status::StepStatus;
 use crate::world::World;
@@ -166,7 +167,13 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     let world_before = state.run.world.clone();
     let current_before = state.run.current.clone();
     let cause = changed::cause_of(&op);
+    let rule = op.generation_rule();
+    let gen_before = state.run.generation;
+    let was_busy = state.run.busy.is_some();
     let events = step(ir, &mut state, op);
+    // 世代の規則の表を分岐の外で強制する。`Changed` の宛先（下の `default_stamp`）より前に行い、
+    // 状態とイベントの世代を食い違わせない。
+    state.run.generation = settle_generation(rule, was_busy, gen_before, state.run.generation);
     // 宛先の既定は操作後の世代と Step。各分岐のタスクが見直してよい初版の規則である。
     let default_at = changed::default_stamp(
         state.run.generation,
@@ -179,12 +186,43 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     (state, events)
 }
 
+/// 操作 1 件の後の世代を、[`GenerationRule`] の表に合わせて決める（EVT-6、TASK-210 1/3）。
+///
+/// 呼び出し元は [`apply`] のみ。分岐（`accept`・`confirm` や後続の停止・移動・復帰）が表に反して世代を
+/// 動かしても、ここで戻して fail-closed にする。世代は減らず、増分は 1 までで、あふれは変えない側に倒す。
+/// 全域で panic しない。表に variant を足すときは、ここも網羅の誤りとして気づける（同じ crate では `match` が網羅を要求する）。後続の分岐の世代の誤りがここで黙って直るため、各分岐の試験は世代を運ぶイベントの
+/// `new_generation` と状態の世代の一致を別に確かめる。
+fn settle_generation(
+    rule: GenerationRule,
+    was_busy: bool,
+    before: Generation,
+    after: Generation,
+) -> Generation {
+    // 増分が認められるのは「そのまま」か「ちょうど 1 つ先」だけ。
+    let stepped = if after == before || before.next() == Some(after) {
+        after
+    } else {
+        before
+    };
+    match rule {
+        GenerationRule::Keep => before,
+        GenerationRule::IncrementIfProcessing => {
+            if was_busy {
+                stepped
+            } else {
+                before
+            }
+        }
+        GenerationRule::IncrementOnSuccess => stepped,
+    }
+}
+
 /// 操作 1 件の遷移。返したイベント列は呼び出し側 [`apply`] がログへ足す。
 fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
     match op {
         // 入力の受付は `accept`（TASK-207 1/3）、確認の操作による達成は `confirm`（TASK-207 2/3）。世代と宛先の照合は TASK-210。
         Op::Input(input) => accept::on_input(ir, state, input),
-        // TASK-210: 宛先つきの進行。
+        // TASK-210 2/3: 宛先つきの進行の照合、3/3: 食い違いの無視の記録。世代は変えない（1/3、`apply` の関門）。
         Op::Tick(_) => Vec::new(),
         // TASK-211 停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),
@@ -219,6 +257,7 @@ impl StateChangeProvider for Engine<'_> {
 /// 実行環境。教材と状態を持ち、操作を順に適用する。世代は状態の中にある。
 ///
 /// 呼び出し元は web（1 つの教材の実行）。保存からの復元は [`Session::from_state`] で行う。
+/// 世代の規則の表（[`GenerationRule`]）は [`apply`] の境界で強制される。
 #[derive(Debug, Clone)]
 pub struct Session {
     ir: Ir,
