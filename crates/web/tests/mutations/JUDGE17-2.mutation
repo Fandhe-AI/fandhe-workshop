@@ -1,0 +1,8 @@
+id: JUDGE17-2
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: KeyAction::Stop => EscRoute::stop(),
+replace: KeyAction::Stop => EscRoute::NONE,
+expect-fail: 処理中の_esc_は候補が開いていても停止になり候補も閉じる
+note: 処理中の Esc が停止にならず、候補が開いていれば閉じるだけ・処理中の効果が残る（処理中の Esc の優先を外す）

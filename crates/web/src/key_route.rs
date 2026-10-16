@@ -1,6 +1,7 @@
 //! keydown の判定結果を、glue が行う効果へ変える純関数（TASK-275。JUDGE-12・JUDGE-13・FEND-14・D-42）。
 //!
-//! 呼び出し元は `glue` の keydown リスナーだけである。判定表 `decide`（TASK-257）の結果のうち、
+//! 呼び出し元は `glue` の keydown リスナー（`effect_for`）と、Component の `esc` action の処理
+//! （`esc_route`。TASK-347 が結ぶ）である。判定表 `decide`（TASK-257）の結果のうち、
 //! 修飾なしの Enter（`Submit`）を「送信ボタンへの click」に結び、Tab の補完（`Complete`。JUDGE-19・FEND-21）を
 //! `preventDefault` に結ぶ。click は上流の Runtime の配線を通り、
 //! 送信ボタンを押した場合と同じ `update` に届くため、入力も記録も同じになる。ボタンが無効なら何も起きない。
@@ -11,13 +12,19 @@
 //! - `Newline`: textarea の既定動作で改行する。`preventDefault` しない（JUDGE-13。`tools/browser/enter-submit.test.mjs` が確かめる）
 //! - `DelegateToIme`: IME に任せる。自前の変換中の印は TASK-276
 //! - `Pending(_)`: 修飾キー付き Enter（JUDGE-22）などは版 1 で未決。送信も `preventDefault` もしない（版 2 は TASK-281）
-//! - `CloseCandidates`・`Stop`・`CancelInput`・`Nothing`: TASK-276・TASK-277・TASK-347
+//! - `CloseCandidates`・`CancelInput`: `effect_for` では何もしない。Esc の行き先は `esc_route` が求め、この 2 行は #287（TASK-277 2/2）の担当
+//! - `Stop`: `effect_for` では何もしない。root の中の Esc は上流の `esc` 属性で Component に届くため、glue で重ねて
+//!   届けない（FEND-5・FEND-6）。停止への結び付けは `esc_route` が受け持つ（TASK-277 1/2）
+//! - `Nothing`: 何もしない
 //!
 //! Tab の補完は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` を呼ぶ（TASK-278 1/3）。
 //! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは TASK-440 2/2 の担当で、
 //! ここでは行わない。
 
-use fandhe_workshop_contract::key_decide::{Decision, FieldState, KeyAction, KeyDecision};
+use fandhe_workshop_contract::key_decide::{
+    Decision, FieldState, KeyAction, KeyDecision, KeyInput,
+};
+use fandhe_workshop_core::input::{Control, Op};
 
 /// glue が keydown に対して行う効果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,7 +55,7 @@ impl KeydownEffect {
 /// 他の値は、対応する状態がまだ存在しないため偽にする。状態が加わるタスクが、この関数の 1 か所を差し替える。
 /// - `composing_marker`: 自前の変換中の印は TASK-276 の担当。印が無くても、`isComposing`・keyCode 229・
 ///   `Process` のいずれかで判定表が変換中と見なすため、変換中の Enter は送信されない
-/// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）
+/// - `busy`: 進行の待機の状態が未実装（TASK-347 以降）。差し替えるまで `esc_route` の停止の行には画面から到達しない
 /// - `candidates_open`: 補完の候補の一覧が未実装。TASK-440 が本関数の 1 か所で差し替える。
 ///   差し替えるまで Tab の補完の行には到達せず、Tab は常に通常のフォーカス移動になる
 pub fn field_state(has_text: bool) -> FieldState {
@@ -78,13 +85,75 @@ pub fn effect_for(decision: Decision) -> KeydownEffect {
             KeyAction::Newline => KeydownEffect::NONE,
             // JUDGE-19: Tab は候補が開いていて文字があるときだけ補完。判定が `preventDefault` を求める。
             KeyAction::Complete => KeydownEffect::prevent_only(prevent_default),
+            // TASK-277: 停止は上流の `esc` 属性で Component に届き、`esc_route` が結ぶ。glue では重ねて届けない。
+            KeyAction::Stop => KeydownEffect::NONE,
             KeyAction::CloseCandidates
-            | KeyAction::Stop
             | KeyAction::CancelInput
             | KeyAction::DelegateToIme
             | KeyAction::Nothing => KeydownEffect::NONE,
         },
         Decision::Pending(_) => KeydownEffect::NONE,
+    }
+}
+
+/// Component が `esc` action を受けたときの行き先。
+///
+/// `KeydownEffect` には載せない。root の中の Esc に glue は作用しない（FEND-5・FEND-6）ため、
+/// glue の効果の型と混ぜると二重配送を誘うからである。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EscRoute {
+    /// Session へ渡す操作。停止なら `Op::Control(Control::Stop)`。停止の意味は core（EVT-9）が持つ。
+    pub op: Option<Op>,
+    /// 開いている候補の一覧を閉じるか。
+    pub close_candidates: bool,
+}
+
+impl EscRoute {
+    /// 何もしない行き先。
+    pub const NONE: Self = Self {
+        op: None,
+        close_candidates: false,
+    };
+
+    /// 停止の行き先。core の停止（`Control::Stop`）に結び、候補も閉じる。
+    fn stop() -> Self {
+        Self {
+            op: Some(Op::Control(Control::Stop)),
+            close_candidates: true,
+        }
+    }
+}
+
+/// Esc の判定の入力。上流が `isComposing`・229 を除外して届けるため、変換中の信号は持たせない。
+pub fn esc_input() -> KeyInput {
+    KeyInput {
+        key: "Escape".to_owned(),
+        key_code: 0,
+        is_composing: false,
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    }
+}
+
+/// 判定結果から Esc の行き先を求める。処理中の Esc は候補が開いていても必ず停止にし、候補も閉じる
+/// （JUDGE-17 (1)・TERM-7）。優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
+///
+/// `CloseCandidates`・`CancelInput` は #287（TASK-277 2/2）が埋めるまで何もしない。
+/// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
+pub fn esc_route(decision: Decision) -> EscRoute {
+    match decision {
+        Decision::Defined(KeyDecision { action, .. }) => match action {
+            KeyAction::Stop => EscRoute::stop(),
+            KeyAction::CloseCandidates | KeyAction::CancelInput => EscRoute::NONE,
+            KeyAction::Submit
+            | KeyAction::Newline
+            | KeyAction::Complete
+            | KeyAction::DelegateToIme
+            | KeyAction::Nothing => EscRoute::NONE,
+        },
+        Decision::Pending(_) => EscRoute::NONE,
     }
 }
 
@@ -212,5 +281,30 @@ mod tests {
         let s = field_state(true);
         assert!(s.has_text && !s.busy && !s.candidates_open && !s.composing_marker);
         assert!(!field_state(false).has_text);
+    }
+
+    #[test]
+    fn esc_の行き先は_stop_だけが操作と候補閉じを持つ() {
+        let actions = [
+            KeyAction::Submit,
+            KeyAction::Newline,
+            KeyAction::Complete,
+            KeyAction::CloseCandidates,
+            KeyAction::Stop,
+            KeyAction::CancelInput,
+            KeyAction::DelegateToIme,
+            KeyAction::Nothing,
+        ];
+        for action in actions {
+            let r = esc_route(Decision::Defined(KeyDecision {
+                action,
+                prevent_default: false,
+            }));
+            assert_eq!(r.op.is_some(), action == KeyAction::Stop, "{action:?}");
+            assert_eq!(r.close_candidates, action == KeyAction::Stop, "{action:?}");
+        }
+        for row in PENDING_ROWS {
+            assert_eq!(esc_route(Decision::Pending(row)), EscRoute::NONE);
+        }
     }
 }
