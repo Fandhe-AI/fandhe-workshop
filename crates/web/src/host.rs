@@ -262,7 +262,9 @@ impl EngineHost {
     /// 3 つの表示の照合用の状態を JSON 文字列で返す（読み取りのみ。試験の設定だけ）。
     ///
     /// 表示の導出（増分）とは別に、ログの全体から一括で導いた値を出す。ブラウザ試験が、DOM がこの値と
-    /// 一致することを確かめる。拒否の分類（`judgedCategories`）は、`busy` の回数を数えるために足した（TASK-222）。文字列のエスケープは `serde_json` に任せる。
+    /// 一致することを確かめる。文字列のエスケープは `serde_json` に任せる。
+    ///
+    /// 拒否の分類（`judgedCategories`）は、`busy` の回数を数えるために足した（TASK-222）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn engine_snapshot_json(&self) -> String {
         use crate::engine_parts::{artifact_rows, event_kind_name};

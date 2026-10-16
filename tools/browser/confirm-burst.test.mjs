@@ -153,10 +153,10 @@ test('B-1 確認の前は達成にならず、確認して初めて達成にな�
 test('B-2a 処理中の連打は、受付が 1 回で、残りは busy になる', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
     const { page, context, rec } = await openTestPage(srv);
-    const interval = await page.evaluate(() => window.__fandheTest.tickIntervalMs());
-    // 1 件目の受付から 5 段の進行が終わるまで（約 1,500ms）の間に、20 回の送信を終える。
+    // 処理中の窓に収まったかは、実時間の上限ではなく、下のログの順序（受付が最後の進行より前）で判定する。
+    // 負荷で setTimeout が遅れても偶発的に失敗しないようにするため。
     const elapsed = await sendBurst(page, COMMAND);
-    assert.ok(elapsed >= 900 && elapsed < interval * TOTAL_TICKS, `burst took ${elapsed}ms`);
+    assert.ok(elapsed >= 900, `burst took ${elapsed}ms`);
     const done = await waitUntil(page, 'all ticks', ticksDone);
     const lastProgress = Math.max(...done.log.filter((r) => r.kind === 'progress').map((r) => r.event));
     const received = done.log.filter((r) => r.kind === 'input_received');
