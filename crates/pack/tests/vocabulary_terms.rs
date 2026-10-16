@@ -216,3 +216,12 @@ fn latest_is_v13() {
     let max = TERMS.iter().map(|t| t.version).max().expect("語がある");
     assert_eq!(max, LATEST);
 }
+
+#[test]
+fn core_vocab_max_matches_latest() {
+    // エンジンが読める語彙の上限の正（core の `VOCAB_MAX`）と、文書の最新版（`LATEST`）がずれたら失敗する。
+    assert_eq!(
+        format!("v{}", fandhe_workshop_core::history_open::VOCAB_MAX),
+        LATEST.as_str()
+    );
+}
