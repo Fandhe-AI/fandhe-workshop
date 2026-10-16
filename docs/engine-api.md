@@ -132,7 +132,7 @@
 | GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 型は許す・実装待ち | TASK-295 |
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
 | JUDGE-3 入力 1 件の判定結果は 6 種のどれか 1 つで、`Judged` として出る | `Event::Judged { at, judgment }`・contract の `Judgment::kind()`（全域）・`judge::judge_input` | 読み取れる（型と純関数）。`Op::Input` は `apply()` に結線済み | 発行位置は `InputReceived` の直後（`Op::Input`）。`apply()` は判定を 1 回だけ行い、その結果に従って状態を変える（拒否・問い返しは状態を変えない）。判定できない宣言と、受付・確認の判定の後に遷移が続かない場合は `Judged` を置かず `Warning` を出す。取り消しの受付の規則（`on.cancel`）は `Entered` の Step で他の入力と同じ受付になり（TASK-212）、`Accepted` の Step では意味が仕様に無いため `Judged` を置かず `Warning` だけにする。進行の位置は TASK-210 |
-| SAVE-4 処理中の再読み込みは処理中のまま続け、世代を +1 する | `Event::Reloaded { at, new_generation }`・`session::reload`・`Session::reload`・`HistoryOp::Reload` | 実装済み（`reload` モジュール、TASK-320 1/2）。`reload_busy` の `reload_while_busy_keeps_busy_and_bumps_generation`・`two_reloads_add_two_generations` ほか、`history_verify` の `property_reload_at_any_point_*`。入口の写しは作り直さない。再読み込みの前の宛先の進行の無視と再読み込みの後の停止は TASK-320 2/2 | 右のログの行（SAVE-6）は文言が未決のため出さない |
+| SAVE-4 処理中の再読み込みは処理中のまま続け、世代を +1 する | `Event::Reloaded { at, new_generation }`・`session::reload`・`Session::reload`・`HistoryOp::Reload` | 実装済み（`reload` モジュール、TASK-320 1/2）。`reload_busy` の `reload_while_busy_keeps_busy_and_bumps_generation`・`two_reloads_add_two_generations` ほか、`history_verify` の `property_reload_at_any_point_*`。入口の写しは作り直さない。再読み込みの前の宛先の進行は `Ignored(Stale)` が 1 件だけで状態を変えず、再読み込みの後の停止は入口へ戻る（TASK-320 2/2。`reload_busy` の `stale_tick_after_reload_is_ignored_once`・`stale_ticks_from_before_two_reloads_are_each_ignored`・`stop_after_reload_returns_to_step_entry`、`history_verify` の H-6） | 右のログの行（SAVE-6）は文言が未決のため出さない |
 | GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 
 ## 7. 契約適合試験とサンプル
@@ -175,6 +175,7 @@
 
 - 2026-10-16: `Restored` による復習・変化の印の作り直しと、ログの並びが書き出し・読み込みで変わらないことの試験（`restore_review`、TASK-214 2/3）を足した。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: チェックポイントの保存と復帰（`checkpoint` モジュール、TASK-214 1/3）を `apply()` に結線し、サンプルの連鎖の全件の照合の `#[ignore]` を外した。`Event::Restored.log_len` の doc を「復帰したチェックポイントの保存の時点のログの長さ」に明確化した（値は変えない）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
+- 2026-10-16: 再読み込みの前に予約された進行の無視（TASK-320 2/2）の試験を足した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: 移動前に予約された進行の無視（TASK-213 2/2）の試験を足した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: 処理中の停止と入口の写しへの復帰（`stop` モジュール、TASK-211 1/2）を実装した。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-15: 7 節（契約適合試験とサンプル）を追加した。型と世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-205 2/2。版 2 への引き上げは上の表のとおり TASK-290）

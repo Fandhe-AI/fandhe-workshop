@@ -54,7 +54,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 復元の性質と変異 6/6（TASK-316 3/3、SAVE-1）は、同じ 2 つの試験ファイルに足した。各枠の下書きは 0〜2 件で引き、送信を挟まず連続する
   下書きを列の途中にも出す。試作の H-2（写しから作り直した実行が写しを返す）・H-7（同じ包みの書き出しが同じバイト列）を書き出し→読み込みの
   性質テストの中で確かめ、H-8（`ops` を 1 件消した包みは、開けるなら写しと一致し、開けないなら `replay_mismatch`）を固定・誘導つきで各 1,000 通り
-  確かめる。H-6（再読み込みで世代が上がる）は TASK-320 の範囲。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
+  確かめる。H-6（再読み込みの前の宛先の進行の無視）は TASK-320 2/2 で足した（5.67）。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
   `cargo test` の試験の所要時間）。変異は 5.59 節。自動ブラウザでの「`ops` だけで復元した最終の世界状態の一致」は、web の保存・読み込みの結線が
   未実装のため未確認
 - `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
@@ -1451,7 +1451,7 @@ SAVE1-1 は、`verify_envelope` が適用し直した結果を写しと比べず
 
 X-1（`reloaded()` が世代を上げない。性質 H-6）は、`Reload` が TASK-320 まで `ReplayError::UnsupportedReload` で拒否されるため、
 そのままの対応物が無い。代替の SAVE1-6 を置き、X-1・H-6 そのものは TASK-320 へ送る。
-X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.65）。H-6 は TASK-320 2/2 の範囲である。
+X-1 は TASK-320 1/2 で `SAVE4-1` として置いた（5.66）。H-6 は TASK-320 2/2 で `SAVE4-4`・`SAVE4-5` として置いた（5.67）。
 SAVE1-6 は、時点 t の状態に下書きが残る場合だけ食い違うため、性質テストだけが検出する。
 
 ```text
@@ -1791,7 +1791,7 @@ spec SAVE-19 の実測（PoC-6 の `wrong_input` 29,138 件・9,937,328 バイ�
 後者は、時点 t で再読み込みを挟んだ列を続けて流した結果と、時点 t の包みを書き出し→読み込みで復元して再読み込みしてから残りを流した結果が
 一致すること、再読み込みを含む全体の包みの照合が通ること、再読み込みの後の世代が時点 t の世代 +1 であることを確かめる。
 共有の関数が世代を上げ損ねると両経路が同じに壊れて一致するため、世代の増分は一致とは別に主張する。
-再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2 の範囲である。
+再読み込みの前の宛先の進行の無視（H-6）と再読み込みの後の停止は TASK-320 2/2（5.67）で固定した。
 自動ブラウザ（S-5）は、web に履歴を読み込んで復元する経路が無いため未実施（TASK-319・TASK-331 3/3 の後）。
 
 SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SAVE4-2 は適用し直しで `Reload` を飛ばす誤り、SAVE4-3 は記録側が `Reload` を残さない誤りである。
@@ -1810,7 +1810,41 @@ SAVE4-1 は再読み込みで世代を上げない誤り（試作の X-1）、SA
 | SAVE4-3 | crates/core/src/ops_record.rs: 記録側が Reload を残さない | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
 | SAVE1-1〜SAVE1-6 | crates/core/src/history_replay.rs ほか（5.58・5.59 の定義） | 6 件とも DETECTED |
 
-### 5.67 履歴の書き出し（TASK-330 1/2）
+### 5.67 古い宛先の進行の無視（TASK-320 2/2）
+
+再読み込みの前に予約された進行の宛先（古い世代）が後から届いても、状態が変わらず `Ignored(Stale)` が 1 件だけ増えることを試験で固定した。
+製品コードの動作は変えていない（`judge_tick` は世代の食い違いを既に `Stale` にし、`reload` は入口の写しに触れない）。変えたのは `reload.rs` のコメントだけである。
+固定の試験は `crates/core/tests/reload_busy.rs` に足した。
+
+- `stale_tick_after_reload_is_ignored_once`: 再読み込みの前の宛先で `Ignored(Stale)` が 1 件だけ増え（`at` は操作前の世代。宛先の世代を写さない）、ログ以外の状態が変わらず、新しい宛先で最後まで流した結果が再読み込みなしの経路と一致する
+- `stale_ticks_from_before_two_reloads_are_each_ignored`: 再読み込みを 2 回挟み（間に 1 回進める場合と進めない場合）、どちらの前の宛先も 1 件ずつ無視される
+- `stale_tick_after_reload_when_not_busy_is_stale`: 処理中でない状態でも、世代の照合が `NoProcessing` より先に当たる
+- `stop_after_reload_returns_to_step_entry`: 再読み込みの後の停止が、再読み込みの前の入口の写しへ戻る（入口の写しは作り直されない）。停止の後も、停止の前の宛先は無視される
+- `session_reload_then_apply_ignores_stale_tick`: `Session::reload` → `Session::apply` の経路でも純粋関数の経路と同じ結果になる
+
+性質テスト H-6 は `history_verify` の `reload_at_any_point` に足した。時点 t が処理中なら、再読み込みの前の宛先を、再読み込みして得た状態の複製に送り、
+`Ignored(Stale)` が 1 件だけで状態が変わらないことを確かめる。探りは `ops` に記録しない（片側だけに入れると A/B の一致が壊れ、両側に入れると H-5 の意味が濁るため）。
+処理中でない時点は宛先が無いので飛ばす。探りの件数は成功条件にしない（成功条件は不変条件だけ）。
+自動ブラウザ（S-5・S-6）は、web に履歴を読み込んで再読み込みする結線が無いため未実施（TASK-319・TASK-331 の後）。
+
+SAVE4-4 は進行の照合から世代を外す誤り（固定の試験で検出）、SAVE4-5 は同じ誤りを性質テスト H-6 で検出することの確認、SAVE4-6 は再読み込みで入口の写しを作り直す誤りである。
+既存の SAVE4-1〜SAVE4-3・SAVE1-1〜SAVE1-6 も同じ実行で流し、検出が失われていないことを確かめた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: b3fec6a-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE4-1.mutation 〜 SAVE4-6.mutation と SAVE1-1.mutation 〜 SAVE1-6.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE4-1〜SAVE4-3 | 5.66 の定義 | 3 件とも DETECTED |
+| SAVE4-4 | crates/core/src/judge.rs: 進行の照合から世代を外す | DETECTED（stale_tick_after_reload_is_ignored_once, stale_ticks_from_before_two_reloads_are_each_ignored ほか 3 件） |
+| SAVE4-5 | crates/core/src/judge.rs: SAVE4-4 と同じ置換（H-6 の確認） | DETECTED（property_reload_at_any_point_fixed, property_reload_at_any_point_guided） |
+| SAVE4-6 | crates/core/src/reload.rs: 再読み込みで入口の写しを作り直す | DETECTED（stop_after_reload_returns_to_step_entry ほか 2 件） |
+| SAVE1-1〜SAVE1-6 | 5.58・5.59 の定義 | 6 件とも DETECTED |
+
+### 5.68 履歴の書き出し（TASK-330 1/2）
 
 書き出しは契約の包み（`ops` と写し。D-52・SAVE-17）を compact な 1 行の JSON にしたものである（`history_export::export_bytes`）。
 往復（書き出し→読み込みの段 1〜5）・同じ包みから同じバイト列が出ること・最上位の欄・上限超過でも書き出しを拒まないことを `crates/core/tests/history_export.rs` が、

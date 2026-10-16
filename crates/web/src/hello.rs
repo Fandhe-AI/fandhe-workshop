@@ -18,12 +18,17 @@ use fandhe_frontend_core::{bind_text, el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 
+use fandhe_workshop_contract::key_decide::{decide, FieldState};
+
 use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
+use crate::candidates::CommandTable;
 use crate::input_limit::{clamp_draft, notice_for};
+use crate::key_route::{after_esc, esc_input, esc_route, field_state};
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
+use crate::terminal_area::InputPort;
 
 /// 案内欄が束縛される field 名。
 const FIELD_NOTICE: &str = "input_notice";
@@ -37,8 +42,17 @@ const LEARNER_LOG_FIELD: PartField = PartField {
     kind: FieldKind::KeyedList,
 };
 
+/// 候補の一覧が束縛される field 名（`keyed_list` の差分更新の対象。TASK-440）。
+const FIELD_CANDIDATES: &str = "input_candidates";
+
+/// 候補の一覧の field。`list_policy::keyed_view_or_notice` を通すための宣言（FEND-15）。
+const CANDIDATES_FIELD: PartField = PartField {
+    name: FIELD_CANDIDATES,
+    kind: FieldKind::KeyedList,
+};
+
 /// この入力欄が持つ field 名。ホストが、部品の field との衝突の検査に使う。
-pub(crate) const HELLO_FIELDS: [&str; 2] = [FIELD_NOTICE, FIELD_LOG];
+pub(crate) const HELLO_FIELDS: [&str; 3] = [FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES];
 
 /// 送信済みの一覧に残す最大の件数。超えたら古い順に捨てる。
 /// `keyed_list` の上限（4,096 件）に届かない値にして、`Err` を通常の経路にしない。
@@ -57,6 +71,11 @@ pub struct HelloView {
     entries: VecDeque<(u64, String)>,
     /// 次に振る通し番号。
     next_seq: u64,
+    /// 候補の元になるコマンド表。IR を持たないホストでは空で、一覧は開かない。
+    commands: CommandTable,
+    /// Esc で一覧を閉じたときの下書き。下書きがこの値と違う値に変わるまで閉じたままにする。
+    /// spec に明記が無く、prototype の `closed_for` の挙動に合わせた（TASK-440 1/2）。
+    closed_for: Option<String>,
     /// 直近の `update` で変わった field。上流が束縛点の更新に使う。
     dirty: Vec<&'static str>,
     /// keydown の probe が受け取った回数。配信する設定には存在しない。
@@ -90,6 +109,26 @@ impl HelloView {
         Self::default()
     }
 
+    /// コマンド表を受ける。ホストが IR から作って渡す（入力欄は IR を直接引かない）。
+    pub(crate) fn set_command_table(&mut self, table: CommandTable) {
+        self.commands = table;
+        self.closed_for = None;
+        self.dirty.clear();
+    }
+
+    /// いま画面に出す候補。Esc で閉じた下書きのままなら空。
+    fn visible_candidates(&self) -> Vec<String> {
+        if self.closed_for.as_deref() == Some(self.draft.as_str()) {
+            return Vec::new();
+        }
+        self.commands.candidates(&self.draft)
+    }
+
+    /// 候補の一覧が開いているか（TERM-42）。
+    pub(crate) fn candidates_open(&self) -> bool {
+        !self.visible_candidates().is_empty()
+    }
+
     /// 入力欄の値。glue が DOM へ書き戻すために読む。
     pub(crate) fn draft(&self) -> &str {
         &self.draft
@@ -121,6 +160,7 @@ impl Component for HelloView {
         self.dirty.clear();
         match action {
             HelloAction::SetDraft(value) => {
+                let before = self.visible_candidates();
                 let (clamped, over) = clamp_draft(&value);
                 if over != self.over_limit {
                     self.dirty.push(FIELD_NOTICE);
@@ -129,6 +169,13 @@ impl Component for HelloView {
                 // 値が変わらない入力でも、上限で切った値の書き戻しは glue が毎回確かめる。
                 if self.draft != clamped {
                     self.draft = clamped.to_owned();
+                }
+                // 閉じた下書きから変わったら、閉じた印を外す（再び開けるようにする）。
+                if self.closed_for.as_deref() != Some(self.draft.as_str()) {
+                    self.closed_for = None;
+                }
+                if self.visible_candidates() != before {
+                    self.dirty.push(FIELD_CANDIDATES);
                 }
             }
             HelloAction::Submit => {
@@ -143,7 +190,17 @@ impl Component for HelloView {
                 self.dirty.push(FIELD_LOG);
             }
             HelloAction::Esc => {
-                // dirty は空のまま。DOM の更新も欄の作り直しも起こさない。
+                // 開いている一覧だけを閉じる（K-09）。`route.op`（停止・取り消しの入力）は Session へ適用しない。
+                // 適用は TASK-347・TASK-352 の担当で、ここで適用すると Esc のたびにログが増える。
+                let state = FieldState {
+                    candidates_open: self.candidates_open(),
+                    ..field_state(!self.draft.is_empty())
+                };
+                let route = esc_route(decide(&esc_input(), &state));
+                if state.candidates_open && !after_esc(state, &route).candidates_open {
+                    self.closed_for = Some(self.draft.clone());
+                    self.dirty.push(FIELD_CANDIDATES);
+                }
                 #[cfg(feature = "test-hooks")]
                 {
                     self.esc_count = self.esc_count.saturating_add(1);
@@ -189,6 +246,36 @@ impl Component for HelloView {
             ],
             // 再描画で欄が作り直されても、状態の下書きを初期内容として復元する。
             vec![text(&self.draft)],
+        ));
+        // 候補の一覧。閉じているときは hidden（Tab 順・読み上げから外す）。クリックで選ぶ操作は無く、
+        // ボタンに action・payload・候補の文字列の属性は付けない（TERM-42・SAFE-11）。
+        let shown = self.visible_candidates();
+        let list_id = InputPort::CandidateList.testid();
+        let btn_id = InputPort::Candidate.testid();
+        let mut list_attrs = vec![("data-testid", list_id)];
+        if shown.is_empty() {
+            list_attrs.push(("hidden", ""));
+        }
+        let cand_items: Vec<(String, Node)> = shown
+            .iter()
+            .map(|c| {
+                let btn = el(
+                    "button",
+                    vec![
+                        ("type", "button"),
+                        ("tabindex", "-1"),
+                        ("data-testid", btn_id),
+                    ],
+                    vec![text(c)],
+                );
+                (format!("c{c}"), el("li", vec![], vec![btn]))
+            })
+            .collect();
+        children.push(keyed_view_or_notice(
+            "ul",
+            list_attrs,
+            &CANDIDATES_FIELD,
+            cand_items,
         ));
         children.push(bind_text(
             "p",

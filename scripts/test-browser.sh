@@ -3,7 +3,7 @@
 #
 # 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
 # tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
-# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・esc-attr・input-limit・paste・learner-text・enter-submit・tab-complete・shift-tab・tab-cycle・esc-key・json-depth・json-load-order・doc-links・doc-tree・tick-interval・three-views・log-lines-xss・tree-attrs・list-parent-attrs・confirm-burst・stop-move-ignore・restore-cancel。SAFE-9・SAFE-12・EVT-3・EVT-7・EVT-8・EVT-9・EVT-10・EVT-11・EVT-12・EVT-18・FEND-15・TERM-21）、
+# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・esc-attr・input-limit・paste・learner-text・enter-submit・tab-complete・shift-tab・tab-cycle・esc-key・json-depth・json-load-order・doc-links・doc-tree・tick-interval・three-views・log-lines-xss・tree-attrs・list-parent-attrs・confirm-burst・stop-move-ignore・restore-cancel・candidates。SAFE-9・SAFE-12・EVT-3・EVT-7・EVT-8・EVT-9・EVT-10・EVT-11・EVT-12・EVT-18・FEND-15・TERM-21）、
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）を含む。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
@@ -73,6 +73,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/confirm-burst.test.mjs" \
   "${ROOT_DIR}/tools/browser/stop-move-ignore.test.mjs" \
   "${ROOT_DIR}/tools/browser/restore-cancel.test.mjs" \
+  "${ROOT_DIR}/tools/browser/candidates.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-select.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-leave.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-export.test.mjs"
