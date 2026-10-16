@@ -1,0 +1,9 @@
+id: EVT12-9
+package: fandhe-workshop-core
+test: restore_review
+target: crates/core/src/projection.rs
+find:             Event::Restored { log_len, owner, .. } => {
+replace:             Event::Restored { log_len, owner, .. } => { self.push_row(i, event); self.restore_review(i, *log_len, &owner.root()); } Event::Restored { log_len, owner, .. } => {
+expect-fail: p1c_marks_reset_on_restore
+expect-fail: c1_p1d_restore_rebuilds_review_from_saved_prefix
+note: 復帰を基準点にせず、変化の印を作り直さない

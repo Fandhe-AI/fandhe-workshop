@@ -1028,6 +1028,23 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT12-7 | crates/core/src/checkpoint.rs: 復帰で入口の写しを戻さない | restore_after_go_to_brings_back_entry | restore_after_go_to_brings_back_entry | DETECTED | - |
 | EVT12-8 | crates/core/src/checkpoint.rs: 世代のあふれで警告を出さない | restore_overflow_warns_only | restore_overflow_warns_only | DETECTED | - |
 
+### 5.45 Restored による復習の作り直し（TASK-214 2/3）
+
+復帰で変化の印を作り直さない誤り（EVT12-9）、保存の位置の次の控えを引く誤り（EVT12-10）、保存の時点の復習を控えない誤り（EVT12-11）、停止で Step の項目の変更を初期化しない誤り（EVT12-12）を入れ、`restore_review` が検出することを確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 38b2216-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT12-9.mutation crates/core/tests/mutations/EVT12-10.mutation crates/core/tests/mutations/EVT12-11.mutation crates/core/tests/mutations/EVT12-12.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| EVT12-9 | crates/core/src/projection.rs: 復帰を基準点にせず、変化の印を作り直さない | p1c_marks_reset_on_restore, c1_p1d_restore_rebuilds_review_from_saved_prefix | p1c_marks_reset_on_restore, c1_p1d_restore_rebuilds_review_from_saved_prefix | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Resend, Restore(1)] |
+| EVT12-10 | crates/core/src/projection.rs: 保存の位置の次の位置の控えを引く（log_len の取り違え） | evt14_review_after_restore_matches_saved_review, c1_p1d_restore_rebuilds_review_from_saved_prefix | evt14_restore_after_stop_brings_back_review, evt14_restore_same_checkpoint_twice_and_nested, evt14_review_after_restore_matches_saved_review, c1_p1d_restore_rebuilds_review_from_saved_prefix | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Resend, Save, Save, Restore(3)] |
+| EVT12-11 | crates/core/src/projection.rs: 保存の時点の復習を控えず、空を控える | evt14_review_after_restore_matches_saved_review, c1_p1d_restore_rebuilds_review_from_saved_prefix | evt14_restore_after_stop_brings_back_review, evt14_review_after_restore_matches_saved_review, evt14_restore_same_checkpoint_twice_and_nested, c1_p1d_restore_rebuilds_review_from_saved_prefix | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Resend, Save, Save, Restore(2)] |
+| EVT12-12 | crates/core/src/projection.rs: 停止で Step の項目の変更を初期化しない | evt14_restore_after_stop_brings_back_review | evt14_restore_after_stop_brings_back_review | DETECTED | - |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
