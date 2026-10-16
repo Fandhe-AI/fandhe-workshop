@@ -1,0 +1,8 @@
+id: M5
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/projection.rs
+find:             Event::Entered { .. } => {
+replace:             Event::Entered { .. } => { self.push_row(i, event); } Event::Entered { .. } if false => {
+expect-fail: properties_p1_to_p6_hold_with_guided_sequences
+note: Step に入っても変化の印の元（pending）を消さない（到達しない腕へ退避）

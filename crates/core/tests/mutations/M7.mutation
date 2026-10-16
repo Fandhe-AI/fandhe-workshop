@@ -1,0 +1,8 @@
+id: M7
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/judge.rs
+find:     if addr.index != busy.done {
+replace:     if addr.index > busy.done {
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 適用済みの番号の進行（二重の届き）を弾かない（先の番号は弾く）

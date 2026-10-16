@@ -1,0 +1,8 @@
+id: M3
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/session.rs
+find:         changed::record_changes(events, &world_before, &state.run.world, &default_at, cause);
+replace:         changed::record_changes(events, &world_before, if matches!(cause, Cause::Stop) { &world_before } else { &state.run.world }, &default_at, cause);
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 処理中の停止で、世界状態の変化を Changed として記録しない

@@ -1074,6 +1074,42 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT12-13 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す | pre_restore_tick_with_saved_index_is_ignored, p2_pre_restore_ticks_never_change_run | pre_restore_tick_with_saved_index_is_ignored, restore_to_idle_checkpoint_ignores_pre_restore_ticks, pre_restore_tick_after_go_to_and_restore_is_ignored, each_generation_index_progresses_once, restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, p2_pre_restore_ticks_never_change_run | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (3, [Next, Stop], [Old(15)]) |
 | EVT12-14 | crates/core/src/checkpoint.rs: 復帰で処理中の番号を保存時点の値にしない（再開が先頭からになる） | restore_resumes_progress_in_new_generation, p4_restore_resumes_from_saved_done | restore_resumes_progress_in_new_generation, pre_restore_tick_after_stop_reinput_and_restore_is_ignored, pre_restore_tick_with_saved_index_is_ignored, each_generation_index_progresses_once, pre_restore_tick_after_go_to_and_restore_is_ignored, p4_restore_resumes_from_saved_done | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (1, [Next]) |
 
+### 5.47 状態・イベントの変異注入（TASK-220 1/2）
+
+状態・イベントの実装を 7 か所壊した変異を、`op_sequence_properties`（TASK-219 の性質テスト）が検出することを確かめた。
+定義は `crates/core/tests/mutations/M1.mutation`〜`M7.mutation` である。
+
+| ID | 壊したこと |
+|---|---|
+| M1 | 宛先（世代と Step）が食い違う進行を弾かない |
+| M2 | 復帰で世代を上げない |
+| M3 | 処理中の停止で、世界状態の変化を記録しない |
+| M4 | 確認を待たず、受付の直後に達成にする |
+| M5 | Step に入った時に、変化の印の元を消さない |
+| M6 | 復帰で、復習を保存の時点に戻さない |
+| M7 | 同じ番号の進行が二重に届いても通す |
+
+- M1〜M4・M6・M7 は、固定の生成の試験 `properties_p1_to_p6_hold_after_every_op` の失敗を期待し、すべて検出された
+- M5 は、固定の生成の試験が失敗しなかった。表の「実際に失敗した試験」に `properties_p1_to_p6_hold_after_every_op` が無いことが、その証拠である。そのため期待する失敗は、誘導つきの生成の `properties_p1_to_p6_hold_with_guided_sequences` にした。M5 の経緯は TASK-220 2/2 が本節に追記する。TASK-220 2/2 は `M5` の定義を新しく足さない
+- 「実際に失敗した試験」には、期待した試験のほかに、誘導つきの生成や固定列の試験も並ぶ。性質テストの種は既定で、ケース数は 1000 である
+
+```text
+実行日: 2026-10-16
+元にしたコミット: e5287bc-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/M1.mutation crates/core/tests/mutations/M2.mutation crates/core/tests/mutations/M3.mutation crates/core/tests/mutations/M4.mutation crates/core/tests/mutations/M5.mutation crates/core/tests/mutations/M6.mutation crates/core/tests/mutations/M7.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| M1 | crates/core/src/judge.rs: 宛先（世代と Step）の照合を丸ごと外し、食い違う進行を弾かない（世代だけを外す EVT9-5 とは別） | properties_p1_to_p6_hold_after_every_op | properties_p1_to_p6_hold_with_guided_sequences, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Tick(StaleGen)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Cmd(0), Tick(StaleGen)] |
+| M2 | crates/core/src/checkpoint.rs: 復帰で世代を上げない（EVT12-1 と同じ置換を性質テストで検出する） | properties_p1_to_p6_hold_after_every_op | stale_ticks_after_stop_move_and_restore_are_ignored, checker_detects_each_broken_property, p3_accepts_achievement_whose_acceptance_has_an_older_generation, p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, scripted_sequence_satisfies_properties_and_covers_each_check, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation, properties_p1_to_p6_hold_with_guided_sequences | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Restore(1)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Restore(1)] |
+| M3 | crates/core/src/session.rs: 処理中の停止で、世界状態の変化を Changed として記録しない | properties_p1_to_p6_hold_after_every_op | p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_accepts_achievement_whose_acceptance_has_an_older_generation, checker_detects_each_broken_property, stale_ticks_after_stop_move_and_restore_are_ignored, scripted_sequence_satisfies_properties_and_covers_each_check, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, properties_p1_to_p6_hold_with_guided_sequences, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Stop]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Cmd(0), Stop] |
+| M4 | crates/core/src/accept.rs: 確認を待たず、受付の直後に達成にする | properties_p1_to_p6_hold_after_every_op | p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, checker_detects_each_broken_property, scripted_sequence_satisfies_properties_and_covers_each_check, p3_accepts_achievement_whose_acceptance_has_an_older_generation, p3_rejects_achievement_after_reentry_invalidates_acceptance, properties_p1_to_p6_hold_with_guided_sequences, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [GoTo(2), Approval(0)] |
+| M5 | crates/core/src/projection.rs: Step に入っても変化の印の元（pending）を消さない（到達しない腕へ退避） | properties_p1_to_p6_hold_with_guided_sequences | checker_detects_each_broken_property, p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, p3_accepts_achievement_whose_acceptance_has_an_older_generation, scripted_sequence_satisfies_properties_and_covers_each_check, properties_p1_to_p6_hold_with_guided_sequences, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)] |
+| M6 | crates/core/src/projection.rs: 復帰で持ち主の根の復習を保存の時点へ戻さない | properties_p1_to_p6_hold_after_every_op | p3_accepts_achievement_whose_acceptance_has_an_older_generation, p3_rejects_achievement_after_reentry_invalidates_acceptance, checker_detects_each_broken_property, scripted_sequence_satisfies_properties_and_covers_each_check, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation, properties_p1_to_p6_hold_with_guided_sequences | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Cmd(0), Restore(1)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Save, Guided(0), Restore(1)] |
+| M7 | crates/core/src/judge.rs: 適用済みの番号の進行（二重の届き）を弾かない（先の番号は弾く） | properties_p1_to_p6_hold_after_every_op | checker_detects_each_broken_property, p3_rejects_achievement_when_restore_revoked_the_logged_acceptance, p3_rejects_achievement_after_reentry_invalidates_acceptance, p3_accepts_achievement_whose_acceptance_has_an_older_generation, scripted_sequence_satisfies_properties_and_covers_each_check, properties_p1_to_p6_hold_with_guided_sequences, properties_p1_to_p6_hold_after_every_op, guided_generation_reaches_deeper_states_than_fixed_generation | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Guided(0), Guided(0), Tick(Dup)]; cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Cmd(0), Tick(Current), Tick(Dup)] |
+
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

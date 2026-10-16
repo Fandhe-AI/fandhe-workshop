@@ -1,0 +1,8 @@
+id: M6
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/projection.rs
+find:                 self.restore_review(i, *log_len, &owner.root());
+replace:                 let _ = (log_len, owner);
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 復帰で持ち主の根の復習を保存の時点へ戻さない

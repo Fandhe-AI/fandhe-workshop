@@ -1,0 +1,8 @@
+id: M2
+package: fandhe-workshop-core
+test: op_sequence_properties
+target: crates/core/src/checkpoint.rs
+find:     run.generation = next;
+replace:     run.generation = state.run.generation;
+expect-fail: properties_p1_to_p6_hold_after_every_op
+note: 復帰で世代を上げない（EVT12-1 と同じ置換を性質テストで検出する）
