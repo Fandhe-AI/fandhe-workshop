@@ -26,7 +26,7 @@
 //!   `Ignored` を出さず `Progress` をちょうど 1 件出す。古い進行かどうかは、`OpSpec` ではなく解決した
 //!   `Op::Tick` と操作前の状態から決める（`Dup` が現在の宛先に解決される場合があるため）
 //! - P-3: `Achieved` は、同じ操作で同じ `at` の `Judged { Confirmed }` の後か、確認を省くと明示した Step
-//!   （`confirm.kind` が `none`）で、同じ操作の同じ `at` の `Accepted` の後のものだけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
+//!   （`confirm.kind` が `none`）で、先行する `Accepted`（世代を除いて Step で照合する）または復元済みの受け付け状態がある場合だけである。`confirm` が無い Step は確認を要する側に倒す（R-22）。
 //!   復帰・停止の後は同じ世代に `Accepted` が前に無いため、`confirm_before_achieve.rs` の I3 は使わない。
 //!   状態が達成の Step には、ログに `Achieved` がある
 //! - P-4: ログの宛先の世代は単調に増える。世代は `Stopped`・`Moved`・`Restored`・`Begun` が出たときだけ、
@@ -399,12 +399,21 @@ impl<'a> PropChecker<'a> {
                 // 確認を省く Step は、達成より前のどこかで受け付け済みである。processing つきの Step は
                 // 最後の Tick で達成するため、`Accepted` は過去の操作のログにある。
                 let end = a.before.log.len() + k;
-                let accepted = a
+                // 復帰の後は世代が進み、旧世代の `Accepted` しかログに無い。そのため世代を除いて Step で
+                // 照合し、復帰直後に `StepStatus::Accepted` として復元された Step も受け付け済みとみなす。
+                let logged = a
                     .after
                     .log
                     .iter()
                     .take(end)
-                    .any(|p| matches!(p, Event::Accepted { at: pa } if pa == at));
+                    .any(|p| matches!(p, Event::Accepted { at: pa } if pa.step == at.step));
+                let restored = a
+                    .before
+                    .run
+                    .slices
+                    .values()
+                    .any(|slice| slice.status.get(&at.step) == Some(&StepStatus::Accepted));
+                let accepted = logged || restored;
                 if !accepted {
                     return Err(format!(
                         "achievement without acceptance at {at:?} (confirm kind none)"

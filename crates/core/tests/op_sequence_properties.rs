@@ -257,3 +257,41 @@ fn stale_ticks_after_stop_move_and_restore_are_ignored() {
     let (_, stats) = run_checked(&ir, &initial, &specs).expect("properties hold");
     assert!(stats.get("tick_stale") >= 3, "{stats:?}");
 }
+
+/// 復帰の後に確認を省く Step が `Tick` で達成すると、`Accepted` は旧世代のままである。P-3 は世代を除いて
+/// 受け付け済みを探すため、この有効な列を不合格にしない。
+#[test]
+fn p3_accepts_achievement_whose_acceptance_has_an_older_generation() {
+    let (ir, initial) = load_min_ir();
+    let (all, _) = run_checked(&ir, &initial, &script_specs()).expect("properties hold");
+    let mut checker = PropChecker::new(&ir, &initial);
+    let mut tested = 0;
+    for (i, a) in all.iter().enumerate() {
+        let achieved = a.events.iter().any(|e| matches!(e, Event::Achieved { .. }));
+        let confirmed = a.events.iter().any(|e| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Confirmed,
+                    ..
+                }
+            )
+        });
+        if achieved && !confirmed {
+            // 達成の世代だけを進め、旧世代の `Accepted` と食い違う復帰後の形にする。
+            let shifted = with_events(a, |events| {
+                for e in events.iter_mut() {
+                    if let Event::Achieved { at, .. } = e {
+                        at.generation.0 += 1;
+                    }
+                }
+            });
+            checker
+                .check_p3(&shifted)
+                .expect("an older-generation Accepted still counts");
+            tested += 1;
+        }
+        checker.check(i, a).expect("unbroken op passes");
+    }
+    assert!(tested >= 1, "no confirm-none achievement in the script");
+}
