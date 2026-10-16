@@ -2,10 +2,9 @@
 //!
 //! 表示・保存・案内の担当が 1 つの型だけを見ればよいよう、エンジンのイベントと実行環境のイベントを
 //! [`Event`] 1 本にまとめる。すべての variant が [`Stamp`]（`at`）を持つ。世代が変わる variant は
-//! `new_generation` を持つ（EVT-6 の (3)(4)(6)。表は [`crate::input::GenerationRule`]）。契約の版は [`crate::CONTRACT_VERSION`]。
+//! `new_generation` を持つ（EVT-6 の (3)(4)(6) と再読み込み（SAVE-4）。表は [`crate::input::GenerationRule`]）。契約の版は [`crate::CONTRACT_VERSION`]。
 //!
 //! 意図して固定しないもの（版上げで足す）。
-//! - 再読み込み（SAVE-4）
 //! - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16。TASK-307・TASK-308 が決める。`Control::SetGuidance` はイベントを出さない）
 //!
 //! 文字列（`Warning::message`、`Changed` の値）は教材・利用者由来を含みうる。HTML へ埋め込む際の
@@ -236,6 +235,14 @@ pub enum Event {
         /// 開始 ID。
         start: String,
         /// 開始後の世代。
+        new_generation: Generation,
+    },
+    /// 再読み込みした（SAVE-4）。処理中のまま続け、世代だけを +1 する。`apply()` の `Op` ではなく、
+    /// `session::reload` が出す。
+    Reloaded {
+        /// 操作前の世代と現在の Step。
+        at: Stamp,
+        /// 再読み込み後の世代（保存した世代 +1）。
         new_generation: Generation,
     },
     /// ヒントを 1 段開いた（GUIDE-17）。世代は変わらない。

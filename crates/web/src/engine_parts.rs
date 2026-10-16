@@ -115,6 +115,7 @@ pub fn event_kind_name(event: &Event) -> &'static str {
         Event::Restored { .. } => "restored",
         Event::Begun { .. } => "begun",
         Event::HintOpened { .. } => "hint_opened",
+        Event::Reloaded { .. } => "reloaded",
         Event::Refused { .. } => "refused",
         Event::Ignored { .. } => "ignored",
         Event::Warning { .. } => "warning",
