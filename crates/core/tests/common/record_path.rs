@@ -1,24 +1,32 @@
-//! 履歴の `ops` を記録しながら `apply` で状態を進める「記録の経路」（試験の共通部品）。
+//! 「記録の経路」の試験用の部品（`history_replay`・`history_verify`・`history_open` の試験が共有する）。
 //!
-//! 呼び出し元は `history_replay.rs`（適用し直しの試験）と `history_open.rs`（版の判定の試験）で、
-//! どちらも写しと `ops` を同じ手順で作るために使う。
+//! 下書きと送信を記録しながら `apply` で状態を進める。実行時の入力欄が通る道に当たり、適用し直し
+//! （[`fandhe_workshop_core::history_replay::replay`]）の結果と比べる側の基準になる。
 
+use super::op_gen::{Harness, OpSpec};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::history_envelope::{record_draft, record_submit};
 use fandhe_workshop_core::input::{Input, Op};
 use fandhe_workshop_core::ops_record::{apply_recorded, OpsRecorder};
 use fandhe_workshop_core::session::{apply, SessionState};
 
-use super::op_gen::{Harness, OpSpec};
+/// 下書きの種類。`None` は下書きを挟まない。
+pub fn draft_text(kind: u8) -> Option<&'static str> {
+    match kind % 5 {
+        0 => None,
+        1 => Some(""),
+        2 => Some(" \u{3000}"),
+        3 => Some("ノートを作りたい"),
+        _ => Some("/make-note first-note"),
+    }
+}
 
 /// 記録の経路。下書きと送信を記録しながら `apply` で状態を進める（実行時の入力欄が通る道に当たる）。
 /// 操作の解決（進行の宛先など）は、同じ列を流す `Harness` に任せる。
 pub struct RecordPath<'a> {
     ir: &'a Ir,
     pub harness: Harness<'a>,
-    /// 記録しながら進めた現在の状態（写しの元）。
     pub state: SessionState,
-    /// 記録した `ops`。
     pub rec: OpsRecorder,
 }
 

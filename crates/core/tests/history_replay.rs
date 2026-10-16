@@ -2,7 +2,7 @@
 //!
 //! 「記録の経路」（下書きと送信を記録しながら `apply` で進めた状態）で得た写しと、その `ops` を初期状態に
 //! 適用し直した状態が一致することを、固定の列と性質テスト（固定・誘導つきの生成を各 1,000 通り）で確かめる。
-//! 写しとの照合の関数・書き出し→読み込みの一致・再読み込みの意味は TASK-316 2/3 と TASK-320 の範囲。
+//! 写しとの照合・書き出し→読み込みの一致は `history_verify`（TASK-316 2/3）、再読み込みの意味は TASK-320 の範囲。
 //!
 //! 性質テストの成功条件は一致だけにする。統計は出力するだけで assert しない（`docs/testing.md` 第 2 節）。
 //! 生成器の自然文（`TEXT`）は接頭辞 `/` で始まらないので自然文に、`CMDS` はすべて `/` で始まるのでコマンドに
@@ -17,12 +17,12 @@ use common::contract_sample::{load, testdata_dir};
 use common::history_sample;
 use common::op_gen::{guided_op_specs, op_specs, OpSpec, Which};
 use common::property::{check, MAX_OPS};
-use common::record_path::RecordPath;
+use common::record_path::{draft_text, RecordPath};
 use fandhe_workshop_contract::history::HistoryOp;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_envelope::build_envelope;
-use fandhe_workshop_core::history_replay::{replay, submit_input, ReplayError};
+use fandhe_workshop_core::history_replay::{first_difference, replay, submit_input, ReplayError};
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::ops_record::SessionOp;
@@ -35,38 +35,6 @@ fn load_min_ir() -> (Ir, SessionState) {
     let sample = load();
     let bytes = std::fs::read(testdata_dir().join(&sample.ir)).expect("read ir");
     (load_ir(&bytes).expect("load ir"), sample.initial)
-}
-
-/// 下書きの種類。`None` は下書きを挟まない。
-fn draft_text(kind: u8) -> Option<&'static str> {
-    match kind % 5 {
-        0 => None,
-        1 => Some(""),
-        2 => Some(" \u{3000}"),
-        3 => Some("ノートを作りたい"),
-        _ => Some("/make-note first-note"),
-    }
-}
-
-/// 食い違いを欄の名前で返す（全文は出さない）。
-fn diff_field(a: &SessionState, b: &SessionState) -> &'static str {
-    if a.run != b.run {
-        "run"
-    } else if a.log != b.log {
-        "log"
-    } else if a.entry != b.entry {
-        "entry"
-    } else if a.checkpoints != b.checkpoints {
-        "checkpoints"
-    } else if a.next_checkpoint != b.next_checkpoint {
-        "next_checkpoint"
-    } else if a.drafts != b.drafts {
-        "drafts"
-    } else if a.hints_opened != b.hints_opened {
-        "hints_opened"
-    } else {
-        "other"
-    }
 }
 
 /// 記録の経路の `ops` を包み、適用し直した結果が写しと一致するかを返す。
@@ -82,7 +50,8 @@ fn replay_matches_snapshot(
         Ok(replayed) if replayed == env.snapshot => Ok(()),
         Ok(replayed) => Err(format!(
             "replayed state differs from the snapshot in {}",
-            diff_field(&replayed, &env.snapshot)
+            first_difference(&replayed, &env.snapshot)
+                .map_or("other".to_owned(), |f| format!("{f:?}"))
         )),
         Err(e) => Err(format!("replay failed: {e}")),
     }
