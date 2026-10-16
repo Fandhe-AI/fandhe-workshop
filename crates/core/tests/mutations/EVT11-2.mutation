@@ -1,0 +1,10 @@
+id: EVT11-2
+package: fandhe-workshop-core
+test: move_step
+target: crates/core/src/go_to.rs
+find:     state.run.generation = next;
+replace:     state.run.generation = state.run.generation;
+expect-fail: move_while_busy_increments_generation_and_clears_busy
+expect-fail: idle_move_also_increments
+expect-fail: p4_move_clears_busy_and_increments
+note: 移動で世代を +1 しない

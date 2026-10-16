@@ -70,7 +70,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -949,6 +949,25 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | EVT9-3 | crates/core/src/stop.rs: Stopped.at に操作後の世代を使う | stop_after_two_ticks_removes_draft, stop_matches_sample_e06 | stop_matches_sample_e06, stop_after_two_ticks_removes_draft | DETECTED | - |
 | EVT9-4 | crates/core/src/stop.rs: 写しの Step と現在の Step の照合を外す | stop_with_other_step_entry_warns_only | stop_with_other_step_entry_warns_only | DETECTED | - |
 | EVT9-5 | crates/core/src/judge.rs: 進行の宛先の照合から世代を外す（停止前の進行が、再入力後の処理中に効いてしまう） | stale_tick_after_reinput_is_ignored, p2_pre_stop_ticks_never_change_run | input_after_stop_is_accepted_and_completes, stale_tick_after_reinput_is_ignored, stale_tick_after_stop_is_ignored, stop_matches_sample_e06, p2_pre_stop_ticks_never_change_run | DETECTED | cases=256; minimal input: (Plan { ticks: 0, resends: 0 }, [Old { second_step: false, index: 0 }]) |
+
+### 5.41 Step の移動 Control::GoTo（TASK-213 1/2）
+
+処理中を解かない誤り（EVT11-1）、世代を +1 しない誤り（EVT11-2）、`Moved.at` に操作後の世代を使う誤り（EVT11-3）、達成済みの移動先を `Entered` に戻さない誤り（EVT11-4）、IR に無い Step の検査を外す誤り（EVT11-5）、入口の写しを無効化しない誤り（EVT11-6）を入れ、`move_step` が検出することを確かめる。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 40e20ed-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EVT11-1.mutation crates/core/tests/mutations/EVT11-2.mutation crates/core/tests/mutations/EVT11-3.mutation crates/core/tests/mutations/EVT11-4.mutation crates/core/tests/mutations/EVT11-5.mutation crates/core/tests/mutations/EVT11-6.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| EVT11-1 | crates/core/src/go_to.rs: 移動で処理中を解かない | move_while_busy_increments_generation_and_clears_busy, p4_move_clears_busy_and_increments | move_to_same_step_reenters, move_while_busy_increments_generation_and_clears_busy, p4_move_clears_busy_and_increments | DETECTED | cases=256; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
+| EVT11-2 | crates/core/src/go_to.rs: 移動で世代を +1 しない | move_while_busy_increments_generation_and_clears_busy, idle_move_also_increments, p4_move_clears_busy_and_increments | idle_move_also_increments, move_while_busy_increments_generation_and_clears_busy, move_to_same_step_reenters, p4_move_clears_busy_and_increments | DETECTED | cases=256; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
+| EVT11-3 | crates/core/src/go_to.rs: Moved.at に操作後の世代を使う | move_while_busy_increments_generation_and_clears_busy | move_while_busy_increments_generation_and_clears_busy, move_to_unknown_step_is_refused | DETECTED | - |
+| EVT11-4 | crates/core/src/go_to.rs: 達成済みの移動先を Entered に戻さない | move_to_achieved_step_sets_entered | move_to_same_step_reenters, move_to_achieved_step_sets_entered, move_invalidates_entry_copy, p4_move_clears_busy_and_increments | DETECTED | cases=256; minimal input: Plan { ticks: 0, resends: 0, target: 0 } |
+| EVT11-5 | crates/core/src/go_to.rs: IR に無い Step の検査を外す（無い Step へ移動できてしまう） | move_to_unknown_step_is_refused | move_to_unknown_step_is_refused | DETECTED | - |
+| EVT11-6 | crates/core/src/go_to.rs: 入口の写しを無効化しない | move_invalidates_entry_copy | move_invalidates_entry_copy | DETECTED | - |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

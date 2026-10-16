@@ -115,7 +115,8 @@
 | EVT-6 (1) 学習者の入力は世代を変えない | `Op::Input(_)` が `Keep`（`input.rs`）。`Input::Cancel` も同じ | 読み取れる | 連打も 1 件ごとの `Op::Input` で、`Keep` のままである |
 | EVT-6 (2) 進行は世代を変えない | `Op::Tick(_)` が `Keep` | 読み取れる | |
 | EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の試験 | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10。TASK-212 の担当で、現状は状態を変えず空を返す） |
-| EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 読み取れる | |
+| EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 実装済み（`go_to` モジュール、TASK-213 1/2） | |
+| EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、入口の写しは `None` に無効化する（移動後の停止は `Warning` だけで状態を変えない）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない | 移動前の世代の進行の無視は TASK-213 2/2。入口の写しの作り直しと移動先の `on_enter` の効果は TASK-242・217 |
 | EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 読み取れる | |
 | EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 世代の規則は読み取れる。写しを戻して世代だけ新しくする処理は型は許す・実装待ち | 後者は TASK-214 が実装する |
 | EVT-6 の外: 周回の開始 | `Control::Begin` が `IncrementOnSuccess`。`Event::Begun.new_generation` | 読み取れる | 6 項目に数えない（試作の設計）。3 節の脚注の表で分けた |
@@ -149,7 +150,7 @@
 |---|---|---|---|
 | サンプルと規則の表 | サンプルの世代の差が 3 節の表と EVT-6 の (1)〜(6) に合う | 通る | 載る |
 | 実際の `apply()` の不変条件 | EVT-22（同じ入力列で状態とイベント列が一致）、3 つの入口の一致、世代が減らない・増分は 1 まで | 通る | 載る |
-| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 13 件（e01〜e13、入力の受付・一致する進行・処理中の停止・古い世代の進行の無視・停止後の受付）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。e06 は入口の写しを添えて単独でも照合する（`sample_stop_entry_matches_apply`、TASK-211 1/2）。全件は最初の食い違いが e14（保存）で `#[ignore]`（2026-10-16 に再確認）。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る）。e07（古い世代の進行の無視、TASK-210 3/3）も単独で照合する（`sample_stale_tick_entry_matches_apply`、CI に載る） | 先頭 13 件と e06・e07・e09〜e13・e15・e16 の単独照合が載る |
+| 厳密な照合 | 連鎖して流し、各操作の状態とイベント列がサンプルと一致する（`sample_replay_matches_apply`） | 先頭 13 件（e01〜e13、入力の受付・一致する進行・処理中の停止・古い世代の進行の無視・停止後の受付）は通る（`sample_replay_prefix_matches_apply`、CI に載る）。e06 は入口の写しを添えて単独でも照合する（`sample_stop_entry_matches_apply`、TASK-211 1/2）。全件は最初の食い違いが e14（保存）で `#[ignore]`（2026-10-16 に再確認。TASK-213 1/2 の後も e14 のまま）。連鎖で届かない e09〜e13（一致する進行の連鎖、TASK-210 2/3）は前の状態から `sample_ticks_entry_matches_apply` で、e15（確認による達成、TASK-207 2/3）は前の状態から単独で照合する（`sample_confirm_entry_matches_apply`、CI に載る）。e16（確認を省く明示の Step の受付と同時の達成、TASK-208）も単独で照合する（`sample_skip_confirm_entry_matches_apply`、CI に載る）。e07（古い世代の進行の無視、TASK-210 3/3）も単独で照合する（`sample_stale_tick_entry_matches_apply`、CI に載る）。e17・e18（移動と無い Step への拒否、TASK-213 1/2）も e17 の前の状態から連鎖して単独で照合する（`sample_go_to_entry_matches_apply`、CI に載る） | 先頭 13 件と e06・e07・e09〜e13・e15〜e18 の単独照合が載る |
 | 比較器の自己確認 | 期待どおりの提供元は合格、1 か所壊した提供元は最初の食い違いの操作 ID で失敗する | 通る | 載る |
 
 実行コマンド:
@@ -177,3 +178,4 @@
 - 2026-10-16: 宛先が一致する進行 `Op::Tick` を `apply()` に結線した（`tick` モジュール）。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 2/3）
 - 2026-10-16: 世代の表を `session::apply` の関門で強制した。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 1/3）
 - 2026-10-16: 停止前の進行の無視と停止後の入力（TASK-211 2/2）の試験を足し、サンプルの連鎖の照合を先頭 13 件（e01〜e13）に広げた。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
+- 2026-10-16: 別の Step への移動（`go_to` モジュール、TASK-213 1/2）を `apply()` に結線した。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた

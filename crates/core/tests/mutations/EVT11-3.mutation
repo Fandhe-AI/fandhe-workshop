@@ -1,0 +1,8 @@
+id: EVT11-3
+package: fandhe-workshop-core
+test: move_step
+target: crates/core/src/go_to.rs
+find:         generation: state.run.generation,
+replace:         generation: state.run.generation.next().unwrap_or(state.run.generation),
+expect-fail: move_while_busy_increments_generation_and_clears_busy
+note: Moved.at に操作後の世代を使う

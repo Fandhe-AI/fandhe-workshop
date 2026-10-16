@@ -490,6 +490,36 @@ fn sample_stop_entry_matches_apply() {
     assert_eq!(next.run, e.after, "e06: after");
 }
 
+/// 別の Step への移動（TASK-213 1/2）の単独の照合。サンプルの e17（成功）と e18（無い Step への拒否）を、
+/// e17 の前の状態から連鎖して流し、イベント列と後の状態がサンプルと一致することを確かめる。
+/// どちらも入口の写しを要しない。
+#[test]
+fn sample_go_to_entry_matches_apply() {
+    let s = load();
+    let ir = sample_ir(&s);
+    let first = s
+        .entries
+        .iter()
+        .find(|e| e.id == "e17")
+        .expect("sample has e17");
+    let mut state = SessionState {
+        run: first.before.clone(),
+        ..SessionState::default()
+    };
+    for id in ["e17", "e18"] {
+        let e = s
+            .entries
+            .iter()
+            .find(|e| e.id == id)
+            .unwrap_or_else(|| panic!("sample has {id}"));
+        assert_eq!(state.run, e.before, "{id}: before");
+        let (next, events) = apply(&ir, state, e.op.clone());
+        assert_eq!(events, e.events, "{id}: events");
+        assert_eq!(next.run, e.after, "{id}: after");
+        state = next;
+    }
+}
+
 #[test]
 #[ignore = "apply() の各分岐（TASK-207・210・211・213・214・215）の結線後に外す。結線の確認は --include-ignored で流す"]
 fn sample_replay_matches_apply() {

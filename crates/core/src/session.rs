@@ -10,8 +10,9 @@
 //! 世代の規則の表（[`GenerationRule`]）は、[`apply`] が分岐の後に強制する（TASK-210 1/3、EVT-6）。
 //! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進め、食い違う進行は `Ignored` 1 件で記録する（TASK-210 2/3・3/3、EVT-8・EVT-16）。
 //! 処理中の停止は `stop` モジュールが入口の写しへ戻す（TASK-211 1/2、EVT-9）。
+//! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しの作り直しは TASK-242）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （処理中でない停止 TASK-212、移動 TASK-213、保存と復帰 TASK-214、
+//! （処理中でない停止 TASK-212、保存と復帰 TASK-214、
 //! `Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
 //! 不変条件:
@@ -33,6 +34,7 @@ use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
 use crate::changed;
 use crate::event::Event;
+use crate::go_to;
 use crate::input::{CheckpointId, Control, GenerationRule, Op};
 use crate::provider::StateChangeProvider;
 use crate::step_status::StepStatus;
@@ -162,7 +164,7 @@ impl Default for SessionState {
 /// 状態に操作を適用し、新しい状態とイベント列を返す純粋な関数（EXT-4）。
 ///
 /// 全域で決定的であり、教材 `ir` は読むだけである。戻りのイベント列は新しい状態の `log` の末尾に
-/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は一致の前進と食い違いの無視の記録まで（TASK-210 2/3・3/3）、処理中の停止は入口の写しへの復帰まで（TASK-211 1/2）実装済みで、ほかの分岐は契約だけの骨格のまま、
+/// 足された分と一致する。入力の分岐は受付と確認による達成まで（TASK-207 1/3・2/3）、進行は一致の前進と食い違いの無視の記録まで（TASK-210 2/3・3/3）、処理中の停止は入口の写しへの復帰まで（TASK-211 1/2）、移動は移動先への入りと入口の写しの無効化まで（TASK-213 1/2）実装済みで、ほかの分岐は契約だけの骨格のまま、
 /// 状態を変えずイベントも返さない。
 pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>) {
     let mut state = state;
@@ -230,7 +232,9 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         Op::Tick(addr) => tick::on_tick(ir, state, addr),
         // 処理中の停止と入口の写しへの復帰は `stop`（TASK-211 1/2）。世代は +1 になる（`apply` の関門が上限を守る）。
         Op::Control(Control::Stop) => stop::on_stop(state),
-        // TASK-212 処理中でない停止、TASK-213 移動、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
+        // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（作り直しは TASK-242）。
+        Op::Control(Control::GoTo(to)) => go_to::on_go_to(ir, state, to),
+        // TASK-212 処理中でない停止、TASK-214 保存と復帰、TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),
     }
 }
