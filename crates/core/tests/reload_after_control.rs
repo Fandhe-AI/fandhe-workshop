@@ -223,13 +223,27 @@ fn reload_right_after_restore_restores_the_restored_state() {
 fn session_entry_agrees_for_all_three_scenes() {
     let ir = ir();
     for scene in 0..3 {
-        let mut path = busy_path(&ir, 2);
+        let mut path = if scene == 2 {
+            // 復帰の場面は、処理に入る前に保存してから処理を進める。
+            let mut p = RecordPath::new(&ir, &load().initial);
+            p.op(Op::Control(Control::Save));
+            p.op(first_note());
+            for _ in 0..2 {
+                let addr = next_tick(&p.state).expect("next tick");
+                p.op(Op::Tick(addr));
+            }
+            assert!(p.state.run.busy.is_some());
+            p
+        } else {
+            busy_path(&ir, 2)
+        };
         let old = next_tick(&path.state).expect("next tick");
         path.op(Op::Control(match scene {
             0 => Control::Stop,
             1 => Control::GoTo(StepUid(ST2.to_string())),
-            _ => Control::Save,
+            _ => Control::Restore(CheckpointId(1)),
         }));
+        assert_eq!(path.state.run.busy, None, "scene={scene}");
         let (pure_state, _) = reload(path.state.clone());
         let expected = assert_stale_ignored(&ir, pure_state, old.clone());
         let mut session = Session::from_state(ir.clone(), path.state);
