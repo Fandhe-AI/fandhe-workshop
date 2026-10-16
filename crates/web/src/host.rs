@@ -367,6 +367,8 @@ impl EngineHost {
             "consumed": bulk.consumed(),
             "generation": session.generation().0,
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
+            // DOM の `run-status` の `data-state` と照合する（TASK-436）。
+            "runStatus": crate::run_status::run_status(Some(session)).data_state(),
             "log": rows,
             "artifacts": artifacts,
             "review": review,
