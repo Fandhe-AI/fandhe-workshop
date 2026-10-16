@@ -1,0 +1,9 @@
+id: SAVE19-9
+package: fandhe-workshop-core
+test: history_load
+target: crates/core/src/history_load.rs
+find: .map_err(|_| LoadReason::Malformed)?;
+replace: .map_err(|_| LoadReason::MissingVersion)?;
+expect-fail: stage5_malformed
+expect-fail: stage4_boundary_inner_defects_are_malformed
+note: 型の失敗を missing_version にする

@@ -26,6 +26,7 @@ use fandhe_workshop_contract::history_version::{
     ContentHash, HistoryVersions, ReasonKind, Version3, VocabVersion,
 };
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::load_reason::LoadReason;
 use serde_json::Value;
 
 /// エンジンの版。core の crate の版（workspace の版）を継ぐ。
@@ -140,7 +141,7 @@ pub fn record_versions_with(
 pub struct MissingVersion;
 
 impl MissingVersion {
-    /// 理由の分類。コード名への対応づけは TASK-310 が持つ。
+    /// 理由の分類。コード名への対応づけは [`LoadReason`] への `From`（TASK-331 2/3）が持つ。
     #[must_use]
     pub const fn kind(&self) -> ReasonKind {
         ReasonKind::MissingVersion
@@ -154,6 +155,12 @@ impl fmt::Display for MissingVersion {
 }
 
 impl std::error::Error for MissingVersion {}
+
+impl From<MissingVersion> for LoadReason {
+    fn from(_: MissingVersion) -> Self {
+        LoadReason::MissingVersion
+    }
+}
 
 /// 履歴の JSON に `versions` の表があることを確かめる。
 ///

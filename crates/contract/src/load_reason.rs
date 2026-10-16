@@ -62,7 +62,7 @@
 //! - 受講者向けの文面（D-57・SHELL-36 が未決。TASK-532）
 //! - `truncated` の意味（SAVE-19 は UTF-8 の途中切れ、試作は JSON が入力の終わりで途切れたもの）。
 //!   本契約は両方を `truncated` とする規則を core の `history_load` が実装し、TASK-331 1/3 で確かめた
-//! - core の `LoadError`・`MissingVersion` からの対応づけ（contract は core に依存できない。TASK-331・TASK-174）
+//! - core の `LoadError`・`MissingVersion` からの対応づけ（contract は core に依存できない。TASK-331・TASK-174。`MissingVersion` は core の `version_record` の `From` で対応づけ済み、TASK-331 2/3）
 //!
 //! 理由コードは固定の `&'static str` だけで、読み込んだ内容を含めない（SAFE-40）。
 
