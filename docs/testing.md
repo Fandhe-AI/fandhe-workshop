@@ -1410,6 +1410,24 @@ SAVE1-6 は、時点 t の状態に下書きが残る場合だけ食い違うた
 | SAVE1-5 | crates/core/src/history_envelope.rs: 書き出す包みの写しでチェックポイントを落とす（試作の X-2 相当） | scripted_history_round_trips_and_verifies, property_export_import_verifies_fixed, property_export_import_verifies_guided | tampered_ops_is_replay_mismatch, tampered_snapshot_is_replay_mismatch, scripted_history_round_trips_and_verifies, verified_state_is_the_replayed_state, property_export_import_verifies_fixed, property_export_import_verifies_guided, property_reload_at_any_point_guided, property_reload_at_any_point_fixed | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Save], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 0); cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Save], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 0); cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Save, Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 1); cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Save, Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0)], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 1) |
 | SAVE1-6 | crates/core/src/history_replay.rs: 再開の元の状態の下書きを落とす（試作の X-1 の代替。時点 t から残りを流す場合だけ食い違う。X-1 そのものは TASK-320） | property_reload_at_any_point_fixed, property_reload_at_any_point_guided | property_reload_at_any_point_guided, property_reload_at_any_point_fixed | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0), Guided(0)], [[], [], [], [], [], [], [], [], [], [], [], [1], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 272); cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: ([Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Cmd(0), Choice(0)], [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [1], [], [], [], [], [], [], [], [], [], [], [], [], [], []], 417) |
 
+### 5.60 大きさ・深さの判定の一本化（Issue #1394）
+
+大きさの比較を `crates/core/src/load_gate.rs` の `check_size` の 1 か所に寄せ、`check_limits`（大きさ → 深さ）を
+IR・履歴・関門が共有するようにした。そのため `SAFE20-1`・`SAFE20-2`・`SAFE18-1` の対象の行を `load_gate.rs` へ移した。
+`SAFE20-2` の置換は、`Result<(), LimitReason>` を返す関数の中で `LoadError` を返せないため、深さの検査を大きさの前に置く形に変えた。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: ed3a165-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE20-1.mutation crates/core/tests/mutations/SAFE20-2.mutation crates/core/tests/mutations/SAFE18-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| SAFE20-1 | crates/core/src/load_gate.rs: 入れ子の深さの段を外す | depth_is_decided_before_parse, deep_valid_json_is_too_deep, depth_check_precedes_serde_recursion_limit, rejecting_stage_is_the_first_violated_in_contract_order | 期待どおり（4 件） | DETECTED |
+| SAFE20-2 | crates/core/src/load_gate.rs: 深さの段を大きさの段より先にする | size_is_decided_before_depth, rejecting_stage_is_the_first_violated_in_contract_order | 期待どおり（2 件） | DETECTED |
+| SAFE18-1 | crates/core/src/load_gate.rs: ちょうど 10MB を断る誤り | exact_limit_is_not_rejected_by_size, limit_neighborhood_is_judged_exactly, bytes_are_judged_by_length_without_reading_content, size_rule_holds_for_any_length | 期待どおり（4 件。最小の反例 10485760） | DETECTED |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

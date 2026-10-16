@@ -8,22 +8,22 @@
 //! 従うためと、呼び出し側が `File.size` や保存値の長さを、中身を wasm のメモリへ読み込む前に渡せるように
 //! するためである。呼び出し元は履歴の読み込み口（TASK-331・TASK-330）で、中身を読む前に呼ぶ。
 //!
+//! 比較の実体は `load_gate::check_size` にある（大きさの比較を 1 か所に寄せるため）。
+//!
 //! 判定は副作用の無い純関数で、保存済みの履歴を書き換えない。文面は持たず、表示側が
 //! `rejection_message(LoadEntry::History, reason)` で引く。
 
-use fandhe_workshop_contract::limits::{LimitReason, MAX_HISTORY_BYTES};
+use fandhe_workshop_contract::limits::{LimitReason, LoadEntry};
+
+use crate::load_gate::check_size;
 
 /// 履歴ファイルの長さ（バイト）だけで判定する。ちょうど上限は通し、超えたら [`LimitReason::TooLarge`]。
 ///
 /// # Errors
 ///
-/// `len` が [`MAX_HISTORY_BYTES`] を超えるとき、[`LimitReason::TooLarge`] を返す。
+/// `len` が [`MAX_HISTORY_BYTES`](fandhe_workshop_contract::limits::MAX_HISTORY_BYTES) を超えるとき、[`LimitReason::TooLarge`] を返す。
 pub const fn check_history_size(len: u64) -> Result<(), LimitReason> {
-    if len > MAX_HISTORY_BYTES {
-        Err(LimitReason::TooLarge)
-    } else {
-        Ok(())
-    }
+    check_size(LoadEntry::History, len)
 }
 
 /// バイト列の長さで判定する便宜の関数。中身は読まない。
