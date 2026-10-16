@@ -2230,3 +2230,29 @@ PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tool
 
 `make test-browser` は 158 件が通過した（2026-10-16。新しい試験は 21 件）。`make test`・`make lint`・`make check`・`make check-deps`・`make check-dom-reads` も通過した。
 配信設定（`make build-web`）は `make check-delivery` を通り、wasm に `memo-app`・`view-fixture` の文字列が 0 件であることを `grep` で確かめた。
+
+### 5.78 貼り付けと上限の案内文の表示（TASK-442）
+
+画面に出る上限の案内文（TERM-15）と貼り付けの扱い（TERM-19）を、PoC-2 の P-1〜P-10 に当たる自動試験で確かめた。切り捨て・案内の表示・4 種類の貼り付けの本体は先行タスク（TASK-158・TASK-279・TASK-280）で実装済みで、本タスクは本番のコードを変えず、観察の隙間だけを試験と変異で埋めた。
+
+| 層 | 試験 | 確かめること |
+|---|---|---|
+| native | `crates/web/tests/input_notice.rs` | 案内欄が 1 個・`p` 要素・`role=status`・子が文字だけ・入力欄より後ろ。超過で束縛と描画に固定の案内文が出て、1 文字消すと消える。PoC-2 の写し（20,000・20,000 のサロゲートペア入り・20,001）。4 種類の貼り付けで送信が起きない。超過で切ってもログが増えない |
+| ブラウザ | `tools/browser/paste-notice.test.mjs` | PoC-2 の写しでの P-3・P-4・P-7 と、P-5・P-6（CSP あり・なし。毎回ログが増えない）。案内欄の DOM の性質。合成の paste の後に案内が出ずログが増えない（P-10）。試験の設定で、`/` 始まりの貼り付けでも候補の一覧が開かない（P-9）ことと、4 種類の貼り付けでログが変わらないこと |
+
+P-9 は、配信設定の web がコマンド表を持たず一覧が常に閉じるため、教材（`min-3step.json`）を読む試験の設定でだけ観察できる。
+
+案内文の位置は、右のエリアの領域（`aria-label`）の配置が TASK-517 の範囲であるため、`terminal_area::check_view` ではなく、案内欄の個数・要素・属性・並びを直接照合した。
+
+`make test-browser` では `submit-wiring.test.mjs` の「送信の直後に変換が始まっても…」の 2 件（CSP あり・なし）が失敗する。5.76 に記したとおり本変更の前からの失敗で、本タスクの範囲外である。本タスクで足した 10 件は通過した。
+
+```text
+実行日: 2026-10-16
+元にしたコミット: 2bf37a9-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM15-1.mutation crates/web/tests/mutations/TERM15-2.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| TERM15-1 | crates/web/src/hello.rs: 案内欄の束縛の値を常に空にする | DETECTED（上限までは案内が空で_超過すると固定の案内文が束縛と描画に出る ほか） |
+| TERM15-2 | crates/web/src/hello.rs: 案内欄の描画の値を常に空にする | DETECTED（上限までは案内が空で_超過すると固定の案内文が束縛と描画に出る） |

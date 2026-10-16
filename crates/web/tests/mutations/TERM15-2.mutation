@@ -1,0 +1,8 @@
+id: TERM15-2
+package: fandhe-workshop-web
+test: input_notice
+target: crates/web/src/hello.rs
+find:             notice_for(self.over_limit),
+replace:             notice_for(false),
+expect-fail: 上限までは案内が空で_超過すると固定の案内文が束縛と描画に出る
+note: 案内欄の描画の値を常に空にする（超過しても描き直した画面に案内が出ない）

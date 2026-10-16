@@ -1,0 +1,9 @@
+id: TERM15-1
+package: fandhe-workshop-web
+test: input_notice
+target: crates/web/src/hello.rs
+find: BoundValue::Text(notice_for(self.over_limit).to_owned())
+replace: BoundValue::Text(notice_for(false).to_owned())
+expect-fail: 上限までは案内が空で_超過すると固定の案内文が束縛と描画に出る
+expect-fail: 一文字消すと案内も消える
+note: 案内欄の束縛の値を常に空にする（超過しても差分の経路で案内が出ない）
