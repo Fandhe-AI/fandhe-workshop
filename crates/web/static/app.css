@@ -84,9 +84,10 @@
 [data-mark="remove"] {
   background: rgba(207, 34, 46, 0.12);
   border-left: 3px solid #c62828;
+  text-decoration: line-through;
 }
 
-/* li は flex のため、取り消し線は子要素へ直接付ける（行番号・記号・コードの全体）。 */
+/* 差分の li は flex のため、祖先の取り消し線が子へ届かない場合に備え、子要素へも直接付ける（行番号・記号・コードの全体）。 */
 [data-mark="remove"] > .df-old,
 [data-mark="remove"] > .df-new,
 [data-mark="remove"] > .df-sign,
