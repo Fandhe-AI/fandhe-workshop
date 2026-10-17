@@ -28,6 +28,7 @@
 //! `ops` を初期状態に順に適用し直す復元と送信の分類（[`history_replay`]、TASK-316 1/3）も持つ。
 //! 履歴の読み込みの段 1〜6 の入口（大きさ・深さ・JSON・版の欄・型・版の判定。[`history_load`]、TASK-331 1/3・2/3）も持つ。
 //! 履歴の包みを書き出すバイト列にする処理と大きさの報告（[`history_export`]、TASK-330 1/2）も持つ。
+//! 保存の前に履歴の包みが読み込みの上限を超えていないかを判定する処理（[`history_limit`]、Issue #1414）も持つ。
 //! 履歴を開く側の版と突き合わせて開く可否を判定する処理（[`history_open`]、TASK-174）も持つ。
 //! 拒否・問い返し・注記の文面への実行時の値の差し込み（[`text_fill`]、TASK-274）も持つ。
 //! 宛先が一致する進行の前進と食い違う進行の無視の記録（`tick`、TASK-210 2/3・3/3。公開しない）も持つ。
@@ -54,6 +55,7 @@ pub mod event;
 mod go_to;
 pub mod history_envelope;
 pub mod history_export;
+pub mod history_limit;
 pub mod history_load;
 pub mod history_open;
 pub mod history_replay;

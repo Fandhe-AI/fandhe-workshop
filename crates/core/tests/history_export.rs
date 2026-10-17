@@ -157,6 +157,12 @@ fn report_flags_over_limit_without_refusing() {
     let many_report = export_report(&many_bytes, &many);
     assert!(many_report.exceeds_ops_limit);
     assert_eq!(many_report.ops, MAX_HISTORY_OPS + 1);
+
+    // ちょうど上限の件数は超過ではない。
+    let mut at = env.clone();
+    at.ops = vec![many.ops[0].clone(); MAX_HISTORY_OPS];
+    let at_bytes = export_bytes(&at).expect("at-limit history must export");
+    assert!(!export_report(&at_bytes, &at).exceeds_ops_limit);
 }
 
 #[test]
