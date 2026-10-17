@@ -68,7 +68,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `testdata/` | 試験データの置き場。spec repo の試験データを出所付きで写したもの（出所・規則は `testdata/README.md`）。整形ツールの対象外 |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words`）。Make なしでも直接実行できる |
 | `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
@@ -206,6 +206,8 @@ make test-browser                   # web（配信設定と試験の設定）を
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
+| `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
+| `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
 | `make test-serve` | `scripts/test-serve.sh` | 配信サーバの試験（Node の `node:test`） |
 | `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験、配信設定の web で Enter の送信が送信ボタンの click と同じ記録になることと、Shift+Enter の改行・複数行の送信の試験、貼り付け（改行の保持・自動送信 0 件・合成の paste が止められないこと）の試験、上限の案内文と貼り付けの観察（TERM-15・TERM-19。PoC-2 の写しの試料・案内欄の位置・候補が開かないこと）の試験、CDP による IME の模擬のヘルパの自己確認と、入力欄と IME の層 3 の試験（TASK-86 1/2。変換中の誤送信 0 件・確定後の送信漏れ 0 件）と、保存・復元・書き出し・版の層 3 の試験（TASK-86 2/2。往復・読み込み後の保存と復帰・版の判定・壊れた履歴の拒否）、Esc の画面の結果の試験（TASK-441 1/2・2/2。処理中は候補が開いていても停止して候補も閉じ、処理中でなく候補が開いていれば閉じるだけ、どちらでもなければ取り消しの入力で、受け付けない Step では拒否の行と次の行動が出る）（Playwright）。CI には未組み込みです |
 | `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |

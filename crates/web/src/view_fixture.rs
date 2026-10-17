@@ -10,6 +10,8 @@
 //!
 //! - 再現する: 7 本の keyed list（`view_list`）・選ばれていない list が空で `hidden`・前後の切り替えによる行の印
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
+//! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
+//!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品・ツリーの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、各ビューの合格ではない
 //!
@@ -46,6 +48,13 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
+
+/// 項目の外の部品を出し入れする action の名前。payload は `outside` か `inside`。
+pub(crate) const ACTION_CONTROL: &str = "fixture_control";
+/// 項目の外の部品の `data-testid`。
+pub(crate) const FIXTURE_OUTSIDE_TESTID: &str = "view-fixture-outside";
+/// 項目の外の部品を再描画させる dirty field の名前。束縛点にも keyed list にも対応しないため、上流は全再描画に倒れる。
+pub(crate) const OUTSIDE_FIELD: &str = "fixture_outside";
 
 /// 埋め込みの試験データの読み込み・構築の失敗。文面に入力の値を含めない。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -228,6 +237,8 @@ pub(crate) struct ViewFixture {
     selected: ViewKind,
     variant: Variant,
     phase: Phase,
+    /// 項目の外に部品を置くか（負の対照 N2 の切り替え）。既定は置かない。
+    outside: bool,
     dirty: Vec<&'static str>,
 }
 
@@ -238,6 +249,8 @@ pub(crate) enum FixtureAction {
     Select(ViewKind, Variant),
     /// 前後を切り替える。
     Phase(Phase),
+    /// 項目の外の部品を置く（`true`）か外す（`false`）。
+    Outside(bool),
 }
 
 impl ViewFixture {
@@ -265,6 +278,7 @@ impl ViewFixture {
             selected: ViewKind::FileTree,
             variant: Variant::B,
             phase: Phase::Before,
+            outside: false,
             dirty: Vec::new(),
         })
     }
@@ -316,6 +330,16 @@ impl Component for ViewFixture {
                 self.phase = phase;
                 self.dirty = dirty_list_fields(Some(self.selected), Some(self.selected), changed);
             }
+            FixtureAction::Outside(on) => {
+                if on != self.outside {
+                    self.outside = on;
+                    self.dirty.push(OUTSIDE_FIELD);
+                }
+            }
+        }
+        // 項目の外の部品があると、何かが変わる更新は束縛の無い field を伴い、全再描画になる。
+        if self.outside && !self.dirty.is_empty() && !self.dirty.contains(&OUTSIDE_FIELD) {
+            self.dirty.push(OUTSIDE_FIELD);
         }
     }
 
@@ -340,6 +364,20 @@ impl Component for ViewFixture {
                 }
             }
         }
+        if self.outside {
+            let label = match self.phase {
+                Phase::Before => "before",
+                Phase::After => "after",
+            };
+            lists.insert(
+                0,
+                el(
+                    "p",
+                    vec![(TESTID_ATTR, FIXTURE_OUTSIDE_TESTID)],
+                    vec![text(label)],
+                ),
+            );
+        }
         el("div", vec![(TESTID_ATTR, FIXTURE_TESTID)], lists)
     }
 
@@ -359,6 +397,11 @@ impl Component for ViewFixture {
             ACTION_PHASE => match payload {
                 "before" => Some(FixtureAction::Phase(Phase::Before)),
                 "after" => Some(FixtureAction::Phase(Phase::After)),
+                _ => None,
+            },
+            ACTION_CONTROL => match payload {
+                "outside" => Some(FixtureAction::Outside(true)),
+                "inside" => Some(FixtureAction::Outside(false)),
                 _ => None,
             },
             _ => None,
@@ -490,6 +533,46 @@ mod tests {
         assert!(f.dirty_fields().is_empty());
         f.update(FixtureAction::Phase(Phase::Before));
         assert!(f.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn 項目の外の部品の切り替えは復号され_不正な_payload_は拒否される() {
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_CONTROL, "outside"),
+            Some(FixtureAction::Outside(true))
+        );
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_CONTROL, "inside"),
+            Some(FixtureAction::Outside(false))
+        );
+        for payload in ["", "Outside", "outside ", "on"] {
+            assert_eq!(
+                ViewFixture::decode_action(ACTION_CONTROL, payload),
+                None,
+                "{payload}"
+            );
+        }
+    }
+
+    #[test]
+    fn 外に置いたときだけ_束縛の無い_dirty_field_が積まれ_外の要素が出る() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Phase(Phase::After));
+        assert_eq!(f.dirty_fields(), ["view_file_tree"]);
+        assert_eq!(render(&f.view()).matches(FIXTURE_OUTSIDE_TESTID).count(), 0);
+        f.update(FixtureAction::Outside(true));
+        assert_eq!(f.dirty_fields(), [OUTSIDE_FIELD]);
+        assert_eq!(render(&f.view()).matches(FIXTURE_OUTSIDE_TESTID).count(), 1);
+        f.update(FixtureAction::Phase(Phase::Before));
+        assert_eq!(f.dirty_fields(), ["view_file_tree", OUTSIDE_FIELD]);
+        // 変化の無い更新は積まない。
+        f.update(FixtureAction::Phase(Phase::Before));
+        assert!(f.dirty_fields().is_empty());
+        f.update(FixtureAction::Outside(false));
+        assert_eq!(f.dirty_fields(), [OUTSIDE_FIELD]);
+        f.update(FixtureAction::Phase(Phase::After));
+        assert_eq!(f.dirty_fields(), ["view_file_tree"]);
+        assert_eq!(render(&f.view()).matches(FIXTURE_OUTSIDE_TESTID).count(), 0);
     }
 
     #[test]

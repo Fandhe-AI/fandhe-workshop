@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -91,6 +91,12 @@ serve: ## dist/web をサブパスの下で gzip つきで配る（引数は直�
 
 test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。直接: scripts/test-serve.sh
 	@scripts/test-serve.sh
+
+check-generic-words: ## エンジンの crate のコードに教材固有の語（付録 A）が無いことを検査する（CI 未組み込み）。直接: node tools/check-generic-words.mjs
+	@node tools/check-generic-words.mjs
+
+test-check-generic-words: ## 教材固有の語の検査自体の回帰テスト（node:test）。直接: scripts/test-check-generic-words.sh
+	@scripts/test-check-generic-words.sh
 
 test-browser: ## 共通ヘルパで最小の画面をサブパス配信し、対照の自己確認も行うブラウザ試験（Playwright）。直接: scripts/test-browser.sh
 	@scripts/test-browser.sh
