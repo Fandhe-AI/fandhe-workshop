@@ -1,0 +1,8 @@
+id: ART2-3
+package: fandhe-workshop-web
+test: artifact_rows_sample
+target: crates/web/src/artifact_rows.rs
+find:     let paths: BTreeSet<&String> = before.keys().chain(after.keys()).collect();
+replace:     let paths: BTreeSet<&String> = after.keys().collect();
+expect-fail: 削除の行は後の状態で前の中身と削除の印で残る
+note: 走査を後の世界状態の鍵だけにする（削除された項目の行が消える。ART-2）
