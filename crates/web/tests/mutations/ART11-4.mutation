@@ -1,0 +1,8 @@
+id: ART11-4
+package: fandhe-workshop-web
+test: point_rows_contract
+target: crates/web/src/app_demo_view.rs
+find:             app_demo_item_b(row, i, phase, point(row.id()).as_ref())
+replace:             app_demo_item_b(row, i, phase, { let _ = point; None })
+expect-fail: 宛先のある行は_4_属性を組で持ち_宛先の無い行は_1_つも持たない
+note: アプリのデモ (b) が宛先を捨てる（PoC の B4 の退行。アプリのデモの行が指せる行にならない。ART-11）

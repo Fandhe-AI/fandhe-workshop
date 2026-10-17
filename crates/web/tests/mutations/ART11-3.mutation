@@ -1,0 +1,8 @@
+id: ART11-3
+package: fandhe-workshop-web
+test: point_rows_contract
+target: crates/web/src/card_view.rs
+find:             card_item_b(row, phase, point(row.id()).as_ref())
+replace:             card_item_b(row, phase, { let _ = point; None })
+expect-fail: 宛先のある行は_4_属性を組で持ち_宛先の無い行は_1_つも持たない
+note: カード (b) が宛先を捨てる（ビューごとの結線の抜け。1 つのビューだけ指せない行になる。ART-11）

@@ -36,7 +36,7 @@
 //! - 行番号は `旧:新` を `:` で分け、各側が空または ASCII の数字だけ（最大 9 桁）のときだけ出す。外れる側は空文字にし、
 //!   生の値を番号の列に出さない（fail-closed）
 //! - 未知の `state` は `?` にする。追加・削除とは主張しない（fail-closed）。生の値は出さない
-//! - `tags` は出さない（件数で子の数が変わり、項目の形が変わるため）。指せる行の属性は付けない（TASK-480）
+//! - `tags` は出さない（件数で子の数が変わり、項目の形が変わるため）。指せる行の属性は `pointed_item` で、宛先のある行にだけ付ける（TASK-480 1/2）
 //! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である。計算量は行数に対して O(n)
 //!
 //! `pre` の注意: HTML の構文解析では `pre` の直後の改行 1 つが落ちる。今の経路は CSR で文字ノードを直接作るため
@@ -52,8 +52,8 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_wireframe_ui::{text as wire_text, Bold, Size};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::marked_item;
-use crate::artifact_view::{view_list, ItemRow, Phase, Variant, ViewKind};
+use crate::artifact_mark::{pointed_item, PointOf};
+use crate::artifact_view::{view_list, ItemRow, Phase, PointTarget, Variant, ViewKind};
 use crate::list_policy::ListError;
 
 /// 旧の行番号の `data-testid`。
@@ -143,7 +143,7 @@ fn cell_span(testid: &'static str, class: &'static str, value: &str) -> Node {
 
 /// 行 1 件を作る。その状態で出ない行は `None`。
 #[must_use]
-pub fn diff_item(row: &ItemRow, phase: Phase) -> Option<Node> {
+pub fn diff_item(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
     let cell = shown.content;
     let (old, new) = line_numbers(cell.detail.as_str());
@@ -158,12 +158,13 @@ pub fn diff_item(row: &ItemRow, phase: Phase) -> Option<Node> {
             vec![text(cell.label.as_str())],
         ),
     ];
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         None,
         vec![("data-kind", row.kind().as_str())],
+        target,
         content,
     ))
 }
@@ -173,7 +174,7 @@ pub fn diff_item(row: &ItemRow, phase: Phase) -> Option<Node> {
 /// コードは `wireframe_ui::text` で描くため、空白が畳まれインデントが表示で失われる（G-4）。
 /// 文字列としては空白が残る。その状態で出ない行は `None`。
 #[must_use]
-pub fn diff_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
+pub fn diff_item_a(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
     let cell = shown.content;
     let (old, new) = line_numbers(cell.detail.as_str());
@@ -188,29 +189,36 @@ pub fn diff_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
             vec![wire_text(cell.label.as_str(), Size::Md, Bold(false))],
         ),
     ];
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::A,
         shown.mark,
         Some(row.depth()),
         vec![("data-kind", row.kind().as_str())],
+        target,
         content,
     ))
 }
 
 /// 変種 (a) の行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す（対照専用）。
 #[must_use]
-pub fn diff_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn diff_items_a(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| diff_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            diff_item_a(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 
 /// 行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn diff_items(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn diff_items(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| diff_item(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            diff_item(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 

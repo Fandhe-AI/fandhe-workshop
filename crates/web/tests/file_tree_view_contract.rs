@@ -5,6 +5,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::file_tree_view::{file_tree_items, file_tree_list};
 
@@ -51,7 +52,7 @@ fn rows() -> Vec<ItemRow> {
 }
 
 fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = file_tree_items(&rows(), phase);
+    let items = file_tree_items(&rows(), phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = file_tree_list("ul", true, items).expect("一覧");
@@ -212,7 +213,7 @@ fn 補足が空でも_span_は出る() {
         None,
     )
     .expect("行");
-    let items = file_tree_items(&[r], Phase::Before);
+    let items = file_tree_items(&[r], Phase::Before, &no_point);
     assert!(render(&items[0].1).contains("class=\"detail\""));
 }
 
@@ -230,7 +231,7 @@ fn ラベルと補足は文字としてエスケープされる() {
         None,
     )
     .expect("行");
-    let items = file_tree_items(&[r], Phase::Before);
+    let items = file_tree_items(&[r], Phase::Before, &no_point);
     let html = render(&items[0].1);
     assert!(!html.contains("<script"), "{html}");
     assert!(!html.contains("<img"), "{html}");
@@ -241,7 +242,7 @@ fn ラベルと補足は文字としてエスケープされる() {
 fn 項目が_0_件か選ばれていない一覧には_role_tree_が付かない() {
     let empty = file_tree_list("ul", true, Vec::new()).expect("一覧");
     assert!(!render(&empty).contains("role=\"tree\""));
-    let items = file_tree_items(&rows(), Phase::Before);
+    let items = file_tree_items(&rows(), Phase::Before, &no_point);
     let hidden = file_tree_list("ul", false, items).expect("一覧");
     let html = render(&hidden);
     assert!(!html.contains("role=\"tree\""), "{html}");
@@ -276,7 +277,7 @@ fn 二百行でも一意の_key_で一覧を作れる() {
             .expect("行"),
         );
     }
-    let items = file_tree_items(&v, Phase::After);
+    let items = file_tree_items(&v, Phase::After, &no_point);
     assert_eq!(items.len(), 200);
     let mut keys: Vec<&String> = items.iter().map(|(k, _)| k).collect();
     keys.sort();

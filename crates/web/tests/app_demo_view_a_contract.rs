@@ -8,6 +8,7 @@ use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::app_demo_view::{
     app_demo_items_a, app_demo_list, WireState, EMPTY_FIELD_TEXT,
 };
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 
 const APPDEMO: &str = include_str!(concat!(
@@ -49,7 +50,7 @@ fn rows() -> Vec<ItemRow> {
 }
 
 fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = app_demo_items_a(&rows(), phase);
+    let items = app_demo_items_a(&rows(), phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = app_demo_list("ul", true, items).expect("一覧");
@@ -58,7 +59,7 @@ fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
 
 fn one(kind: RowKind, cell: Cell) -> String {
     let r = Row::new(RowId::new("x").expect("id"), 0, kind, Some(cell), None).expect("行");
-    let items = app_demo_items_a(&[r], Phase::Before);
+    let items = app_demo_items_a(&[r], Phase::Before, &no_point);
     render(&items[0].1)
 }
 
@@ -289,7 +290,7 @@ fn ラベル_補足_状態は文字としてエスケープされる() {
 fn 項目が_0_件か選ばれていない一覧には_role_が付かない() {
     let empty = app_demo_list("ul", true, Vec::new()).expect("一覧");
     assert!(!render(&empty).contains("role="));
-    let items = app_demo_items_a(&rows(), Phase::Before);
+    let items = app_demo_items_a(&rows(), Phase::Before, &no_point);
     let hidden = app_demo_list("ul", false, items).expect("一覧");
     assert!(!render(&hidden).contains("role="));
 }

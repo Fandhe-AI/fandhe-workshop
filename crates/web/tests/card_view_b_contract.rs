@@ -5,6 +5,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::card_view::{card_items_b, card_list};
 
@@ -55,7 +56,7 @@ fn rows_of(json: &str) -> Vec<ItemRow> {
 }
 
 fn list_of(rows: &[ItemRow], phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = card_items_b(rows, phase);
+    let items = card_items_b(rows, phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = card_list("ul", true, items).expect("一覧");
@@ -75,7 +76,7 @@ fn one(cell: Cell) -> String {
         None,
     )
     .expect("行");
-    let items = card_items_b(&[r], Phase::Before);
+    let items = card_items_b(&[r], Phase::Before, &no_point);
     render(&items[0].1)
 }
 
@@ -273,7 +274,7 @@ fn ラベル_補足_状態_tags_は文字としてエスケープされる() {
 fn 項目が_0_件か選ばれていない一覧には_role_が付かない() {
     let empty = card_list("ul", true, Vec::new()).expect("一覧");
     assert!(!render(&empty).contains("role="));
-    let items = card_items_b(&rows_of(CARDS), Phase::Before);
+    let items = card_items_b(&rows_of(CARDS), Phase::Before, &no_point);
     let hidden = card_list("ul", false, items).expect("一覧");
     assert!(!render(&hidden).contains("role="));
 }

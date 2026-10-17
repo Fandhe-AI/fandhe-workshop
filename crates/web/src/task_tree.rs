@@ -23,13 +23,13 @@
 //!   チェックなしで、完了と主張しない）。`fandhe-frontend-wireframe-ui` の `checkbox` は、チェックの有無で子の数が
 //!   変わることと、グリフの `aria-hidden` が a11y 契約の閉じた一覧に無いことから使わない。
 //! - 木の位置は描画 1 回につき 1 回、O(n) で求める。
-//! - `data-row` 等の指せる行の属性は付けない（TASK-480 の担当）。
+//! - `data-row` 等の指せる行の属性は `pointed_item` で、宛先のある行にだけ付ける（TASK-480 1/2）。宛先は呼び出し側が注入する。
 
 use crate::list_policy::ListError;
 use fandhe_frontend_core::{el, text, Node};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::marked_item;
+use crate::artifact_mark::{pointed_item, PointOf};
 use crate::artifact_view::{tree_view_list, Cell, ItemRow, Phase, Variant, ViewKind};
 use crate::tree_attrs::shown_tree_attrs;
 
@@ -162,19 +162,20 @@ fn task_content(cell: &Cell) -> Vec<Node> {
 
 /// その状態で出る行を、key（`k<行の ID>`）つきの (a) の項目にする。木の属性は付けない。
 #[must_use]
-pub fn task_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn task_items_a(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
         .filter_map(|row| {
             let shown = row.shown(phase)?;
             let cell = shown.content;
             let mut content = vec![task_check(TaskState::parse(&cell.state))];
             content.extend(task_content(cell));
-            let node = marked_item(
+            let node = pointed_item(
                 "li",
                 Variant::A,
                 shown.mark,
                 Some(row.depth()),
                 vec![],
+                point(row.id()).as_ref(),
                 content,
             );
             Some((format!("k{}", row.id().as_str()), node))
@@ -184,19 +185,20 @@ pub fn task_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
 
 /// その状態で出る行を、key（`k<行の ID>`）つきの (b) の項目にする。行の並びは入力の順のまま。
 #[must_use]
-pub fn task_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn task_items_b(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     let attrs = shown_tree_attrs(rows, phase);
     rows.iter()
         .zip(attrs)
         .filter_map(|(row, attrs)| {
             let shown = row.shown(phase)?;
             let attrs = attrs?;
-            let node = marked_item(
+            let node = pointed_item(
                 "li",
                 Variant::B,
                 shown.mark,
                 Some(row.depth()),
                 attrs.pairs(),
+                point(row.id()).as_ref(),
                 task_content(shown.content),
             );
             Some((format!("k{}", row.id().as_str()), node))
@@ -206,10 +208,15 @@ pub fn task_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
 
 /// 変種に応じた項目にする。
 #[must_use]
-pub fn task_items(rows: &[ItemRow], phase: Phase, variant: Variant) -> Vec<(String, Node)> {
+pub fn task_items(
+    rows: &[ItemRow],
+    phase: Phase,
+    variant: Variant,
+    point: PointOf,
+) -> Vec<(String, Node)> {
     match variant {
-        Variant::A => task_items_a(rows, phase),
-        Variant::B => task_items_b(rows, phase),
+        Variant::A => task_items_a(rows, phase, point),
+        Variant::B => task_items_b(rows, phase, point),
     }
 }
 
@@ -224,13 +231,14 @@ pub fn task_tree_list(
     phase: Phase,
     variant: Variant,
     selected: bool,
+    point: PointOf,
 ) -> Result<Node, ListError> {
     tree_view_list(
         "ul",
         ViewKind::TaskTree,
         variant,
         selected,
-        task_items(rows, phase, variant),
+        task_items(rows, phase, variant, point),
     )
 }
 
@@ -239,8 +247,13 @@ pub fn task_tree_list(
 /// # Errors
 ///
 /// [`task_tree_list`] と同じ。
-pub fn task_tree_list_b(rows: &[ItemRow], phase: Phase, selected: bool) -> Result<Node, ListError> {
-    task_tree_list(rows, phase, Variant::B, selected)
+pub fn task_tree_list_b(
+    rows: &[ItemRow],
+    phase: Phase,
+    selected: bool,
+    point: PointOf,
+) -> Result<Node, ListError> {
+    task_tree_list(rows, phase, Variant::B, selected, point)
 }
 
 /// タスクツリー (a) の keyed list の親要素を作る。
@@ -248,6 +261,11 @@ pub fn task_tree_list_b(rows: &[ItemRow], phase: Phase, selected: bool) -> Resul
 /// # Errors
 ///
 /// [`task_tree_list`] と同じ。
-pub fn task_tree_list_a(rows: &[ItemRow], phase: Phase, selected: bool) -> Result<Node, ListError> {
-    task_tree_list(rows, phase, Variant::A, selected)
+pub fn task_tree_list_a(
+    rows: &[ItemRow],
+    phase: Phase,
+    selected: bool,
+    point: PointOf,
+) -> Result<Node, ListError> {
+    task_tree_list(rows, phase, Variant::A, selected, point)
 }

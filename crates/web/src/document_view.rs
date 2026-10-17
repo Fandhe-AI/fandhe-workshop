@@ -16,7 +16,8 @@
 //!   keyed list が同じ key の項目を in-place に更新する前提である（ART3-4 の延長）
 //! - `depth` は `None` で渡す。`marked_item` が深さのクラスを根に足すため、呼び出し側が `class` を渡すと重複して
 //!   a11y の違反になる。入れ子の字下げは木の要素（`ul`・`blockquote` など）が持つ
-//! - `role`・`aria-*` は付けない。指せる行の属性（`data-row`・`data-action`・`tabindex`）も付けない（TASK-480）
+//! - `role`・`aria-*` は付けない。指せる行の属性（`data-row`・`data-action`・`data-payload`・`tabindex`）は `pointed_item` で、宛先のある行にだけ付ける（TASK-480 1/2）。
+//!   宛先は呼び出し側が注入する。行の識別子（文書の経路 + `#` + 位置）と `Input::Ui.path` の対応は固定しない（spec 側の確認事項。`docs/testing.md` の 5.111）
 //! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である
 //!
 //! # 変種 (a)（対照専用）
@@ -39,8 +40,8 @@ use fandhe_frontend_wireframe_ui::{paragraph as wire_paragraph, text as wire_tex
 use fandhe_workshop_contract::doc::{Block, Inline};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::marked_item;
-use crate::artifact_view::{view_list, DocRow, Phase, Variant, ViewKind};
+use crate::artifact_mark::{pointed_item, PointOf};
+use crate::artifact_view::{view_list, DocRow, Phase, PointTarget, Variant, ViewKind};
 use crate::doc_view::{render_block_node, DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH};
 use crate::list_policy::ListError;
 
@@ -65,7 +66,7 @@ pub fn block_kind(block: &Block) -> &'static str {
 
 /// 行 1 件を作る。その状態で出ない行は `None`。
 #[must_use]
-pub fn doc_item(row: &DocRow<Block>, phase: Phase) -> Option<Node> {
+pub fn doc_item(row: &DocRow<Block>, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
     let block = shown.content;
     let content = vec![el(
@@ -77,21 +78,25 @@ pub fn doc_item(row: &DocRow<Block>, phase: Phase) -> Option<Node> {
         ],
         vec![render_block_node(block)],
     )];
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         None,
         vec![("data-kind", row.kind().as_str())],
+        target,
         content,
     ))
 }
 
 /// 行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn doc_items(rows: &[DocRow<Block>], phase: Phase) -> Vec<(String, Node)> {
+pub fn doc_items(rows: &[DocRow<Block>], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| doc_item(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            doc_item(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 
@@ -178,7 +183,7 @@ fn flatten_lines(lines: &[Line]) -> Vec<Node> {
 
 /// 変種 (a) の行 1 件を作る（対照専用。製品の構成では選べない）。その状態で出ない行は `None`。
 #[must_use]
-pub fn doc_item_a(row: &DocRow<Block>, phase: Phase) -> Option<Node> {
+pub fn doc_item_a(row: &DocRow<Block>, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
     let block = shown.content;
     let mut lines = Vec::new();
@@ -192,21 +197,25 @@ pub fn doc_item_a(row: &DocRow<Block>, phase: Phase) -> Option<Node> {
         ],
         flatten_lines(&lines),
     )];
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::A,
         shown.mark,
         None,
         vec![("data-kind", row.kind().as_str())],
+        target,
         content,
     ))
 }
 
 /// 変種 (a) の行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す（対照専用）。
 #[must_use]
-pub fn doc_items_a(rows: &[DocRow<Block>], phase: Phase) -> Vec<(String, Node)> {
+pub fn doc_items_a(rows: &[DocRow<Block>], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| doc_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            doc_item_a(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 

@@ -6,6 +6,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::diff_view::{diff_items_a, diff_list};
 
@@ -47,7 +48,7 @@ fn rows() -> Vec<ItemRow> {
 }
 
 fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = diff_items_a(&rows(), phase);
+    let items = diff_items_a(&rows(), phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = diff_list("ul", true, items).expect("一覧");
@@ -171,7 +172,7 @@ fn a_差分の記号は_state_と対応する() {
     assert_eq!(signs.iter().filter(|s| *s == "+").count(), 3);
     assert_eq!(signs.iter().filter(|s| *s == "-").count(), 1);
     let r = one_row("x", "1:1", "<script>");
-    let h = render(&diff_items_a(&r, Phase::Before)[0].1);
+    let h = render(&diff_items_a(&r, Phase::Before, &no_point)[0].1);
     assert_eq!(text_of(&h, "diff-sign"), "?");
     assert!(!h.contains("script"), "{h}");
 }
@@ -185,7 +186,7 @@ fn a_形が崩れた行番号は空になる() {
         ("12345678901:1", "", "1"),
     ] {
         let r = one_row("x", detail, "ctx");
-        let h = render(&diff_items_a(&r, Phase::Before)[0].1);
+        let h = render(&diff_items_a(&r, Phase::Before, &no_point)[0].1);
         assert_eq!(text_of(&h, "diff-old-no"), old, "{detail}");
         assert_eq!(text_of(&h, "diff-new-no"), new, "{detail}");
         assert!(!h.contains("abc"), "{h}");
@@ -220,7 +221,7 @@ fn a_a11y_の閉じた一覧に違反せず_role_と_aria_は無い() {
 #[test]
 fn a_コードと行番号は文字としてエスケープされる() {
     let r = one_row("<script>alert(\"1\")</script> & x", "<img src=x>:2", "add");
-    let h = render(&diff_items_a(&r, Phase::Before)[0].1);
+    let h = render(&diff_items_a(&r, Phase::Before, &no_point)[0].1);
     assert!(!h.contains("<script"), "{h}");
     assert!(!h.contains("<img"), "{h}");
     assert!(h.contains("&lt;script&gt;"), "{h}");

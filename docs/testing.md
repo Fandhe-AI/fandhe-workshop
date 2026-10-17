@@ -3385,6 +3385,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `app-demo-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`card-view`・`check-view` の 91 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
 - 範囲外: 指せる行の属性は TASK-480、模擬ログインの中身は TASK-492、配色と `wireframe_css()` は TASK-490、領域ごとの配置は ART-23、axe の対応づけは TASK-483、再描画の時間は TASK-485、値の注入の 24 通りは TASK-482、製品の結線、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）。(b) の `button`・`input` はフォーカスできるが押しても何も起きない（行を指す操作は TASK-480 との関係を後続で確かめる）
 
+### 5.111 指せる行の共通の作りと属性（TASK-480 1/2）
+
+7 種のビューの行が、同じ作り（`artifact_mark::pointed_item`）で指せる行の 4 属性（`data-action="ui"`・`data-payload`・`data-row`・`tabindex="0"`）を付けられるようにした。宛先は呼び出し側が `PointOf`（行の識別子から `PointTarget` を引く口）で注入し、ビューは指せるかどうかを判断しない。契約（`artifact_view.rs`。版 1）は変えず、属性の綴りと順は `PointAttrs::pairs()` だけが持つ。
+
+- 受入: 7 種のビューの全変種（差分・文書の (a) は対照の口）で、宛先つきの行がすべて 4 属性を根の `li` に組で持つ。宛先の無い行は 4 属性を 1 つも持たない。内側の要素（(a) の印の宿主の `div` など）には付かない。既存の試験・検査がすべて通る
+- 判断 1: 指せるかどうかは `RowId` だけの関数で、`Phase` には依らない。同じ key の項目の属性名の集合が前後で変わらず、keyed list の in-place 更新の前提（ART3-4 の延長）が保たれる。後の状態で前の中身を残して出す削除の行も、宛先があれば指せる
+- 判断 2: `PointTarget::new` が拒否する行（payload が 4,096 バイトを超える・空の view）は `point_all` が `None` に落とし、前後とも表示だけで出す。行は落とさず panic しない（fail-closed）
+- 判断 3: 製品で指せる行を決める規則（Step の `ui_action` の `targets` との照合か、導出したすべての行を指せるか）は後続の結線（TASK-470・TASK-347 の後続）で決める。本 Issue は注入の口と、代役の部品の規則だけを置く。代役の部品は、ビューの識別子を合成値（`fixture-<ビューの種類>`）にし、データの先頭の行だけを表示だけ、残りを指せる行にする（各ビューに負の対照を 1 行ずつ持つため）
+- 判断 4（spec 側の確認事項）: 文書の行の識別子は「文書の経路 + `#` + 位置」で、これを `Input::Ui.path` にどう対応させるかは、`artifact_doc_rows` の doc では TASK-476 の担当とされているが、TASK-476 の成果物では決まっていない。本 Issue は規則を固定せず、呼び出し側の注入に任せる
+- 判断 5: 操作対象の大きさ（A11Y-3）。`data-action` を持つ行は `a11y::TARGET_SIZE_SELECTOR` の集合に入るため、`app.css` に `[data-action="ui"] { min-height: 24px; min-width: 24px; }` の 1 規則を足した（色は足さない。TASK-490）
+- 判断 6: 木の (b) は `role=treeitem` の行ごとに `tabindex="0"` が付く。roving tabindex ではないが、a11y の契約（版 2）は tab 以外の静的な `tabindex` を検査しない。木のキー操作は TASK-494・A11Y-18 の範囲として記録する。アプリのデモの (b) では、`button`・`input`（読み取り専用）が指せる `li` の中でもフォーカスを受け、1 行に 2 つのタブの止まりになる。本 Issue では変えない
+- native の試験（`crates/web/tests/point_rows_contract.rs`）: 7 種 × 許される変種 × 前後で、宛先つきの行の 4 属性が組・順（action, payload, row, tabindex）・根にだけあること、payload が宛先に戻ること、宛先の無い行は 0 件、宛先が全く無ければ 0 件、同じ key の項目の指せるかどうかが前後で変わらないこと、一覧全体の a11y の違反が 0（木の (b) の `role=treeitem` を含む）、危険な文字を含む view・row のエスケープと復号の往復、payload の超過・空の view が表示だけになること。`artifact_mark_contract` に `pointed_item(target=None)` が `marked_item` と同じ出力になる試験を足した。`view_fixture` の単体試験: 先頭の行以外が 4 属性を持つこと、`decode_action("ui", ..)` が `None`（クリックの受け付けは TASK-480 2/2）
+- ブラウザの試験（`tools/browser/point-rows.test.mjs`）: 14 通り（7 種 × 変種、対照を含む）× 前後で、4 属性の組・先頭の行は 0 件・内側に `data-action` が無い・`focus()` と Tab でフォーカスを受ける・寸法が 24x24 以上・外部リクエストなどの安全性の計数が 0。クリックの効果は確かめない（TASK-480 2/2）
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 26618b7-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART11-2.mutation 〜 ART11-4.mutation（ART11-1 も再実行）
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART11-1 | 属性の組から `tabindex` を落とす（再実行） | DETECTED | `artifact_view_binding_contract` の「属性の組は_4_つで順が固定_値はエスケープされる」 |
+| ART11-2 | `pointed_item` が 4 属性を足さない | DETECTED | `point_rows_contract` の「宛先のある行は_4_属性を組で持ち_宛先の無い行は_1_つも持たない」ほか 2 件 |
+| ART11-3 | カード (b) が宛先を捨てる | DETECTED | 同上ほか 1 件 |
+| ART11-4 | アプリのデモ (b) が宛先を捨てる（PoC の B4 の退行） | DETECTED | 同上 |
+
+- ブラウザの試験: `point-rows`・`card-view`・`app-demo-view`・`check-view`・`task-tree`・`file-tree-view`・`diff-view`・`doc-view`・`view-switch`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`list-parent-attrs` の 136 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
+- 範囲外: クリックで指す操作の受け付け・名札の行 `screen/top`・クリックのブラウザ試験は TASK-480 2/2、Enter・Space は TASK-358・TASK-375、製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-18・A11Y-20・TASK-494、フォーカスの見た目と配色は TASK-490、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

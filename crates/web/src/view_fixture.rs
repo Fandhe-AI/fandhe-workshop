@@ -39,10 +39,10 @@ use fandhe_workshop_contract::doc::{Block, Doc};
 use crate::a11y::TESTID_ATTR;
 use crate::app_demo_view::app_demo_items;
 use crate::artifact_doc_rows::align_blocks;
-use crate::artifact_mark::marked_item;
+use crate::artifact_mark::{marked_item, PointOf};
 use crate::artifact_view::{
-    dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
-    RowKind, Variant, VariantPolicy, ViewKind,
+    dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, PointTarget, Row,
+    RowId, RowKind, Variant, VariantPolicy, ViewKind,
 };
 use crate::card_view::card_items;
 use crate::check_view::check_items;
@@ -126,6 +126,16 @@ enum ViewRows {
     Doc(Vec<DocRow<Block>>),
 }
 
+impl ViewRows {
+    /// データの先頭の行の識別子。代役の部品が、この行だけを表示だけにする（負の対照）。
+    fn first_id(&self) -> Option<&RowId> {
+        match self {
+            ViewRows::Items(v) => v.first().map(ItemRow::id),
+            ViewRows::Doc(v) => v.first().map(DocRow::id),
+        }
+    }
+}
+
 fn json_cell(v: &serde_json::Value) -> Result<Option<Cell>, FixtureError> {
     if v.is_null() {
         return Ok(None);
@@ -201,6 +211,20 @@ fn doc_rows() -> Result<Vec<DocRow<Block>>, FixtureError> {
         &doc_blocks(DOC_AFTER_JSON)?,
     )
     .map_err(|_| FixtureError::Data)
+}
+
+/// 代役の部品のビューの識別子。教材の `views` 表の識別子の代わりで、試験の設定の中に閉じる。
+fn fixture_view_id(kind: ViewKind) -> String {
+    format!("fixture-{}", kind.as_str())
+}
+
+/// 代役の部品の宛先の規則。データの先頭の行だけを表示だけにし（負の対照）、残りは指せる行にする。
+/// 規則は `RowId` だけで決まり、前後では変わらない。`PointTarget::new` が拒否する行も表示だけに落とす。
+fn fixture_point(view: &str, first: Option<&RowId>, row: &RowId) -> Option<PointTarget> {
+    if Some(row) == first {
+        return None;
+    }
+    PointTarget::new(view, row.clone()).ok()
 }
 
 /// 項目 1 件。(b) は項目自身が `data-mark` を持ち、(a) は項目の中の外枠が持つ（印の付け先の違いだけを再現する）。
@@ -307,36 +331,40 @@ impl ViewFixture {
     }
 
     fn items_of(&self, kind: ViewKind, rows: &ViewRows) -> Vec<(String, Node)> {
+        let view = fixture_view_id(kind);
+        let first = rows.first_id();
+        let point = |row: &RowId| fixture_point(&view, first, row);
+        let point: PointOf = &point;
         match rows {
             // ファイルツリーは (a)・(b) とも本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
             ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::A => {
-                file_tree_items_a(v, self.phase)
+                file_tree_items_a(v, self.phase, point)
             }
             ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
-                file_tree_items(v, self.phase)
+                file_tree_items(v, self.phase, point)
             }
             // 差分の (b) は本体のビュー（TASK-475）で描く。(a) は `fixture_select` では拒否され、対照の口からだけ入る。
             ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::B => {
-                diff_items(v, self.phase)
+                diff_items(v, self.phase, point)
             }
             ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::A => {
-                diff_items_a(v, self.phase)
+                diff_items_a(v, self.phase, point)
             }
             // カードは (a)・(b) とも本体のビュー（TASK-477）で描く。
             ViewRows::Items(v) if kind == ViewKind::CardList => {
-                card_items(v, self.phase, self.variant)
+                card_items(v, self.phase, self.variant, point)
             }
             // チェックの一覧は (a)・(b) とも本体のビュー（TASK-478）で描く。
             ViewRows::Items(v) if kind == ViewKind::CheckList => {
-                check_items(v, self.phase, self.variant)
+                check_items(v, self.phase, self.variant, point)
             }
             // アプリのデモは (a)・(b) とも本体のビュー（TASK-479）で描く。
             ViewRows::Items(v) if kind == ViewKind::AppDemo => {
-                app_demo_items(v, self.phase, self.variant)
+                app_demo_items(v, self.phase, self.variant, point)
             }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {
-                task_items(v, self.phase, self.variant)
+                task_items(v, self.phase, self.variant, point)
             }
             ViewRows::Items(v) => v
                 .iter()
@@ -344,9 +372,9 @@ impl ViewFixture {
                 .collect(),
             // 文書の (b) は本体のビュー（TASK-476）で描く。(a) は `fixture_select` では拒否され、対照の口からだけ入る。
             ViewRows::Doc(v) if self.variant == Variant::B => {
-                document_view::doc_items(v, self.phase)
+                document_view::doc_items(v, self.phase, point)
             }
-            ViewRows::Doc(v) => document_view::doc_items_a(v, self.phase),
+            ViewRows::Doc(v) => document_view::doc_items_a(v, self.phase, point),
         }
     }
 }
@@ -869,12 +897,48 @@ mod tests {
         let html = render(&f.view());
         assert_eq!(html.matches("<article").count(), 4, "{html}");
         assert_eq!(html.matches("data-scope=\"marker\"").count(), 8, "{html}");
-        assert_eq!(
-            html.matches("data-kind=\"card\" data-mark=\"change\"")
-                .count(),
-            2,
-            "{html}"
-        );
+        // 指せる行の 4 属性が data-kind と data-mark の間に入るため、2 つの属性を続けては探さない。
+        assert_eq!(html.matches("data-mark=\"change\"").count(), 2, "{html}");
+    }
+
+    #[test]
+    fn 代役の部品は先頭の行だけ表示だけにし_残りの行は_4_属性を組で持つ() {
+        let mut f = ViewFixture::load().unwrap();
+        for (kind, variant) in [
+            (ViewKind::FileTree, Variant::B),
+            (ViewKind::FileTree, Variant::A),
+            (ViewKind::TaskTree, Variant::B),
+            (ViewKind::TaskTree, Variant::A),
+            (ViewKind::CardList, Variant::B),
+            (ViewKind::CheckList, Variant::A),
+            (ViewKind::AppDemo, Variant::B),
+            (ViewKind::Diff, Variant::B),
+            (ViewKind::Document, Variant::B),
+        ] {
+            f.update(FixtureAction::Select(kind, variant));
+            f.update(FixtureAction::Phase(Phase::After));
+            let html = render(&f.view());
+            let rows = html.matches("data-mark=").count();
+            for attr in [
+                "data-action=\"ui\"",
+                "data-payload=",
+                "data-row=",
+                "tabindex=\"0\"",
+            ] {
+                assert_eq!(
+                    html.matches(attr).count(),
+                    rows - 1,
+                    "{kind:?} {variant:?} {attr}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn 代役の部品はクリックの_ui_action_を受け付けない() {
+        // クリックの受け付けは TASK-480 2/2 の担当。ここでは fail-closed を固定する。
+        assert_eq!(ViewFixture::decode_action("ui", "1:vk"), None);
+        assert_eq!(ViewFixture::decode_action("ui", ""), None);
     }
 
     #[test]
