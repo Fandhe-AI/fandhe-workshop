@@ -3503,6 +3503,35 @@ Tab・Shift+Tab・文字の入力・Enter・Space だけで、確認（`point_at
 - 限界: 完走は確認の Step の達成までである。st-2（`choice`）の画面の口は TASK-450 の担当で未実装のため、st-3 以降と 6 Step の CH-1 全体は扱わない。外れた行を指す経路（`rj-miss-point`）は native の既存の試験の範囲。修飾キー付きの Enter・Space は A11Y-18 に定めが無く、保守側（何もしない）のまま。行の操作対象の大きさとフォーカスの見た目は TASK-368・TASK-490。人によるキーボードだけの完走は JUDGE-20 の担当で、本試験は人の評価に数えない
 - 範囲外: A11Y-18 の試験そのものは TASK-375（#1008）、木の roving tabindex と二重のタブの止まりは A11Y-20・TASK-494、`step-status` の表示は TASK-435、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.115 Step の状態表示（受付済み・確認を省く Step。TASK-435 1/2）
+
+入力が受け付けられた後に右の操作エリアの `step-status` が「受付済み（確認待ち）」になり、確認の前に「達成」が出ないこと、確認を省く Step（`confirm: none`。定義で明示したものだけ）では受付と同時に「達成」が出ることを確かめる。TERM-31 に合う。3 種の確認ごとのブラウザ試験と既存の試験にある「`step-status` は TASK-435 の担当」という注記の除去は TASK-435 2/2（#402、5.116 を使う）の担当で、ここでは触れない。
+
+- 受入: 送信の後に「受付済み（確認待ち）」が出る。確認の前に「達成」が出る例が 0 件。確認を省く Step は、明示した場合に限り、受付と同時に「達成」が出る
+- 判断 1（導出）: `crates/web/src/step_status.rs` の `step_status` が `Session` を読むだけで決める。現在の Step の状態が `Accepted` なら受付済み（処理中でも同じ）、`Achieved` なら達成、それ以外はログを末尾から読み、狭い許可リストを読み飛ばして最初に当たったイベントが `Achieved` で、状態の上でも同じ Step が `Achieved` のときだけ達成とする。理由は、core が達成と同じ操作の中で `next` へ遷移して現在の Step を移すため、現在の Step の状態だけでは確認を省く Step と確認の直後の「達成」が一瞬も見えないこと。未読込・未知のイベントは語なしに倒す。表示は「達成」を独自に作らず、確認前の達成が 0 件であることは core（EVT-3・EVT-5）の保証を写す
+- 判断 2: `step-status` に属性を足さない（契約の語彙を増やさないため）。契約の版は上げない。`Entered`・`NotStarted`・`Skipped` と章の完了の語は未決のまま語なし（空の文字）にする
+- 判断 3: `Reloaded` は読み飛ばさない（`run_status` と同じ。再読み込みの直後は語なしになる）。`offers` は「確認待ち = `Accepted` かつ処理中でない」と読むが、あちらは確認の口を出してよいかの判断で、表示は処理中でも受付済みとする
+- native の試験: `crates/web/tests/step_status_contract.rs`（10 件。未読込・開始直後は空、送信の後は進行の各操作の後も受付済みで `Achieved` が 0 件、外れた指し先は受付済みのまま、正しい指し先で達成、確認を省く Step は 1 回の操作で受付と達成がそろい達成になる、確認を `approve` に置き換えた対照では受付済みのまま、承認の確認、移動の直後は空、束縛点は語が変わった操作でだけ dirty）
+- ブラウザの試験（`tools/browser/step-status.test.mjs`、3 件）: 開始直後は空で `stateJson` の `stepStatus` は null。送信の後に受付済みになり、5 段の進行の後も待っても受付済みのままで、`MutationObserver` の記録に「達成」が 0 件。`go_to` と選択で達成になり、記録に「受付済み」が 0 件。配信設定には試験の口が無く空。外部リクエスト・エラー・CSP 違反は 0 件
+- 変異: TERM31-1（受付済みを語なしへ倒す）・TERM31-2（受付済みを達成として返す）・TERM31-3（ログの末尾の読み取りを外す）。TASK-435 2/2 が足す場合は TERM31-4 から使う
+
+```text
+実行日: 2026-10-17
+元にしたコミット: bdb4057-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM31-1.mutation crates/web/tests/mutations/TERM31-2.mutation crates/web/tests/mutations/TERM31-3.mutation crates/web/tests/mutations/TERM33-1.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| TERM31-1 | 受付済みを語なしへ倒す | DETECTED | `step_status_contract` の「送信の後は受付済みで_進行の各操作の後も達成にならない」ほか 4 件 |
+| TERM31-2 | 受付済みを達成として返す | DETECTED | 同上ほか 4 件 |
+| TERM31-3 | ログの末尾の読み取りを外す | DETECTED | 「確認を省く_step_は受付と同時に達成になる」ほか 2 件 |
+| TERM33-1 | 既存の変異（再実行） | DETECTED | 従来と同じ試験 |
+
+- 実行の記録（2026-10-17）: `make lint`・`make test`（2,126 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words` が成功。`host_contract` の登録簿の束縛点の件数を 16 から 17 に直した。ブラウザの試験は、試験の設定の web で `step-status`（3 件）に加え `run-status`・`confirm-burst`・`three-views`・`keyboard-confirm`・`reload-points`・`list-parent-attrs`・`stop-redo`・`choice-answer`・`approval-flow`（35 件）が通過。`make check-delivery` と `make test-browser` の全件は未検証（配信設定の web に試験の口が無いことは `step-status` の試験で確認した）。CI には未組み込み
+- 限界: `processing` を持つ確認省略の Step は、進行の間「受付済み（確認待ち）」が出て、最後の進行で「達成」になる。語は契約の版 1 の固定語なので、確認を省く Step でも「確認待ち」の文言は変わらない。停止（`Control::Stop`）は core の Step の状態を戻さないため、停止の直後も受付済みのままになる（「達成」にはならない）
+- 範囲外: 3 種の確認ごとのブラウザ試験と注記の除去（#402）、`Entered` などの語の追加（spec の TERM-31 を先に直し契約の版を上げる必要がある）、配置の確定（TASK-517・TASK-438）、ライブの欄（TASK-366・TASK-370）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

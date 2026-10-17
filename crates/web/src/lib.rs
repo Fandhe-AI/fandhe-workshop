@@ -69,6 +69,7 @@ pub mod parts;
 pub mod profile;
 pub mod run_status;
 pub mod save_pending;
+pub mod step_status;
 pub mod storage_select;
 pub mod task_tree;
 pub mod terminal_area;

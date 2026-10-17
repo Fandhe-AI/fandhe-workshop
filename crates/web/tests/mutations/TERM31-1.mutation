@@ -1,0 +1,8 @@
+id: TERM31-1
+package: fandhe-workshop-web
+test: step_status_contract
+target: crates/web/src/step_status.rs
+find: Some(StepStatus::Accepted) => return Some(StepStatus::Accepted),
+replace: Some(StepStatus::Accepted) => return None,
+expect-fail: 送信の後は受付済みで_進行の各操作の後も達成にならない
+note: 受付済みを語なしへ倒す（送信の後に「受付済み（確認待ち）」が出ない。TERM-31）

@@ -768,6 +768,12 @@ impl EngineHost {
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
             // DOM の `run-status` の `data-state` と照合する（TASK-436）。
             "runStatus": crate::run_status::run_status(Some(session)).data_state(),
+            // DOM の `step-status` の語と照合する（TASK-435）。
+            "stepStatus": match crate::step_status::step_status(Some(session)) {
+                Some(fandhe_workshop_core::step_status::StepStatus::Accepted) => Some("accepted"),
+                Some(fandhe_workshop_core::step_status::StepStatus::Achieved) => Some("achieved"),
+                _ => None,
+            },
             "log": rows,
             "artifacts": artifacts,
             "review": review,

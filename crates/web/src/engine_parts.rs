@@ -14,7 +14,7 @@
 //!   仮のものである。左の成果物の親は、ビューごとに `view-list`（`artifact_view::list_attrs`）で確定済みである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
 //! - 状態表示 `run-status` は `LogPart` の中の仮の位置に置く（選択肢の部品は `Offers` として別に登録した）。
-//!   配置は TASK-517・TASK-438 が決める。
+//!   配置は TASK-517・TASK-438 が決める。Step の状態表示 `step-status`（TASK-435）も同じ位置に置く。
 //! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
 //!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
 //! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
@@ -46,7 +46,8 @@ use crate::log_lines::{line_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
-use crate::terminal_area::{RUN_STATUS_TESTID, STATE_ATTR};
+use crate::step_status::step_status;
+use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
 use crate::view_select::{
     declared_views, view_label, ACTION_SELECT_VIEW, SELECTED_ATTR, VIEW_SELECT_BUTTON_TESTID,
     VIEW_SELECT_FIELD, VIEW_SELECT_TESTID,
@@ -71,6 +72,10 @@ const F_LOG: &[PartField] = &[
     },
     PartField {
         name: "run_status_state",
+        kind: FieldKind::Bound,
+    },
+    PartField {
+        name: "step_status_word",
         kind: FieldKind::Bound,
     },
 ];
@@ -226,6 +231,24 @@ fn run_status_node(model: &HostModel) -> Node {
     )
 }
 
+/// Step の状態表示（`step-status`。TASK-435）の語。語なしは空の文字である。
+fn step_status_text(model: &HostModel) -> &'static str {
+    step_status(model.session())
+        .and_then(step_status_word)
+        .unwrap_or("")
+}
+
+/// Step の状態表示。語は文字ノード 1 つで、固定の 2 語か空だけを出す（教材・受講者の文字列は入らない）。
+/// 属性は足さない（契約の語彙を増やさないため）。置き場所は `run-status` と同じく仮である。
+fn step_status_node(model: &HostModel) -> Node {
+    bind_text(
+        "span",
+        vec![("data-testid", STEP_STATUS_TESTID)],
+        F_LOG[4].name,
+        step_status_text(model),
+    )
+}
+
 /// 右のログ。行にできるイベント 1 件が 1 行で、キーはイベントの位置（追記だけで安定する）。
 /// 行の構造は `log_lines`（TASK-431 準拠）が持ち、行にしないイベントは飛ばす。
 struct LogPart;
@@ -261,6 +284,7 @@ impl DisplayPart<HostModel> for LogPart {
             vec![("data-testid", "part-log")],
             vec![
                 run_status_node(model),
+                step_status_node(model),
                 list,
                 bind_text(
                     "span",
@@ -276,6 +300,7 @@ impl DisplayPart<HostModel> for LogPart {
         match field {
             f if f == F_LOG[2].name => Some(BoundValue::Text(status.word().to_owned())),
             f if f == F_LOG[3].name => Some(BoundValue::Text(status.data_state().to_owned())),
+            f if f == F_LOG[4].name => Some(BoundValue::Text(step_status_text(model).to_owned())),
             _ => consumed_bound(field, F_LOG[1].name, model),
         }
     }
