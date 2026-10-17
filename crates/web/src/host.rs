@@ -72,7 +72,7 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
 use crate::action::RuntimeAction;
-use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind};
+use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
 use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
@@ -177,11 +177,13 @@ pub enum FixtureName {
     Answer,
     /// 入力方式が `approval` で、対象つきの「直す」の規則を持つ Step の教材（承認のボタンの試験。TASK-447 1/2）。
     Approval,
+    /// 複数の種類のビューを Step ごとに宣言する教材（ビューの切り替えの試験。TASK-470 2/2）。
+    Views,
 }
 
 /// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
 ///
-/// 後ろは [`FixtureName`] の名前（`answer`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
+/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`views`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
 #[cfg(feature = "test-hooks")]
 pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 
@@ -928,6 +930,11 @@ impl EngineHost {
             return false;
         }
         let before = self.bound_snapshot();
+        let prev_view = self.model.selected_view();
+        let prev_step = self
+            .model
+            .session()
+            .and_then(|s| s.state().run.current.clone());
         let Some(recorded) = self.model.recorded.as_mut() else {
             return false;
         };
@@ -965,14 +972,43 @@ impl EngineHost {
             notify(next_tick(session));
         }
         if changed {
-            let lists = self
-                .registry
-                .fields()
-                .filter(|f| f.kind == FieldKind::KeyedList)
-                .map(|f| f.name);
-            self.dirty.extend(lists);
+            self.push_changed_lists(prev_view, prev_step);
         }
         rejected
+    }
+
+    /// ログが伸びたときに dirty へ積む keyed list を決める（ART-5・ART-12）。
+    ///
+    /// ビューの list 7 本は `dirty_list_fields` で絞る（ビューが変われば旧と新、同じなら今のビューだけ）。
+    /// 選択のボタンの list は、Step かビューが変わったときだけ積む（宣言の集合は Step で決まるため）。
+    /// それ以外の list（ログ・選択肢・候補など）は従来どおりすべて積む。行の中身が変わったかは再導出せず
+    /// `changed`（ログが伸びた）で代用する。行は世界状態と印だけから導かれ、どちらもログが伸びたときにしか
+    /// 変わらない。迷う側は積みすぎる側で、束縛点として解決できるため全再描画にはならない。
+    fn push_changed_lists(&mut self, prev_view: ViewKind, prev_step: Option<StepUid>) {
+        let next_view = self.model.selected_view();
+        let next_step = self
+            .model
+            .session()
+            .and_then(|s| s.state().run.current.clone());
+        let view_lists: Vec<&'static str> = VIEW_LIST_FIELDS.iter().map(|f| f.name).collect();
+        let narrowed = dirty_list_fields(Some(prev_view), Some(next_view), true);
+        let select_changed = prev_step != next_step || prev_view != next_view;
+        let lists: Vec<&'static str> = self
+            .registry
+            .fields()
+            .filter(|f| f.kind == FieldKind::KeyedList)
+            .map(|f| f.name)
+            .filter(|n| {
+                if view_lists.contains(n) {
+                    narrowed.contains(n)
+                } else if *n == view_select::VIEW_SELECT_FIELD.name {
+                    select_changed
+                } else {
+                    true
+                }
+            })
+            .collect();
+        self.dirty.extend(lists);
     }
 
     /// ビューを選ぶ。session があり、今の Step の宣言に含まれ、今の選択と違うときだけ状態を変える。
@@ -1145,6 +1181,7 @@ impl Component for EngineHost {
                 let built = match name {
                     FixtureName::Answer => crate::test_fixture::answer_session(),
                     FixtureName::Approval => crate::test_fixture::approval_session(),
+                    FixtureName::Views => crate::test_fixture::views_session(),
                 };
                 if let Some(session) = built {
                     self.initial = Some(session.state().clone());
@@ -1222,6 +1259,7 @@ impl Component for EngineHost {
                 return match name {
                     "answer" => Some(HostAction::LoadFixture(FixtureName::Answer)),
                     "approval" => Some(HostAction::LoadFixture(FixtureName::Approval)),
+                    "views" => Some(HostAction::LoadFixture(FixtureName::Views)),
                     _ => None,
                 };
             }

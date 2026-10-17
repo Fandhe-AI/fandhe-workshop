@@ -7,6 +7,7 @@
 //! 開始直後の状態から始める。状態からの `Session` の再構築は、表示層で他に許されない操作（`tests/no_progress.rs`）で、
 //! このファイルの 1 箇所だけを例外にしている。教材と状態は埋め込みの試験データで、外から入らない。
 //! 確認が `answer` の教材への差し替え（`answer_session`）は、`load-fixture:answer` の合図で使う（TASK-445 2/2）。
+//! 複数の種類のビューを宣言する教材（`views_session`）は `load-fixture:views` で使う（TASK-470 2/2）。
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 //! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
@@ -91,6 +92,43 @@ pub(crate) fn answer_session() -> Option<Session> {
             "on_wrong": "rj-decline"
         }),
     );
+    session_of(&serde_json::to_vec(&value).ok()?)
+}
+
+/// 複数の種類のビューを Step ごとに宣言する試験用の実行環境（TASK-470 2/2。`load-fixture:views`）。
+///
+/// 埋め込みの教材の `views` に `card_list`・`check_list` を足し、各 Step の宣言を次にする。
+/// `main/st-1` は file_tree・card_list・check_list（3 種の切り替え）、`main/st-2` は card_list・file_tree
+/// （st-1 から移ると既定が変わる）、`main/st-3` は card_list（st-2 から移っても種類が同じ）。
+/// `v-files` は契約の試料の操作列が指すため残す。読めない・節点が無いときは `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn views_session() -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let views = value.get_mut("views")?.as_object_mut()?;
+    views.insert(
+        "v-cards".to_owned(),
+        serde_json::json!({"kind": "card_list"}),
+    );
+    views.insert(
+        "v-checks".to_owned(),
+        serde_json::json!({"kind": "check_list"}),
+    );
+    let decl = [
+        (
+            "main/st-1",
+            serde_json::json!(["v-files", "v-cards", "v-checks"]),
+        ),
+        ("main/st-2", serde_json::json!(["v-cards", "v-files"])),
+        ("main/st-3", serde_json::json!(["v-cards"])),
+    ];
+    for node in value.get_mut("nodes")?.as_array_mut()? {
+        let uid = node.get("uid").and_then(|u| u.as_str()).map(str::to_owned);
+        if let Some((_, d)) = decl.iter().find(|(u, _)| Some(*u) == uid.as_deref()) {
+            node.get_mut("step")?
+                .as_object_mut()?
+                .insert("views".to_owned(), d.clone());
+        }
+    }
     session_of(&serde_json::to_vec(&value).ok()?)
 }
 
