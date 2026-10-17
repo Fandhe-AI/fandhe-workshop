@@ -106,8 +106,15 @@ export function matchToken(token, terms) {
 const IDENT = /[\p{L}\p{N}_]/u;
 
 // 文字列・識別子の中身を、英数字と `_` の連なりに分けて出力に積む。
+// text の中の改行ごとに行番号を進める（複数行の文字列の 2 行目以降の違反を実際の行で報告する）。
 function pushTokens(out, text, line) {
-  for (const m of text.matchAll(/[\p{L}\p{N}_]+/gu)) out.push({ token: m[0], line });
+  let cur = line;
+  let last = 0;
+  for (const m of text.matchAll(/[\p{L}\p{N}_]+/gu)) {
+    for (let k = last; k < m.index; k += 1) if (text[k] === '\n') cur += 1;
+    last = m.index;
+    out.push({ token: m[0], line: cur });
+  }
 }
 
 // Rust の字句を読み、コメントを除いた識別子と文字列の字句を返す。閉じない形は CheckError。
@@ -127,7 +134,10 @@ export function lexRust(src) {
     while (i < n) {
       const c = s[i];
       if (c === '\\') {
-        if (s[i + 1] === '\n') line += 1;
+        if (s[i + 1] === '\n') {
+          line += 1;
+          buf += '\n';
+        }
         buf += ' ';
         i += 2;
         continue;
@@ -228,10 +238,15 @@ export function lexRust(src) {
       }
       if (word === 'b' && s[j] === "'") {
         // バイト文字 b'x'・b'\''。
+        // `b'\x41'`・`b'\n'` のように、エスケープの後は閉じ引用符まで読む（`\x` は 2 桁の 16 進が続く）。
         let k = j + 1;
-        if (s[k] === '\\') k += 1;
-        k += 1;
-        if (s[k] !== "'") fail('malformed byte literal');
+        if (s[k] === '\\') k += 2;
+        else k += 1;
+        while (k < n && s[k] !== "'") {
+          if (s[k] === '\n') fail('malformed byte literal');
+          k += 1;
+        }
+        if (k >= n) fail('malformed byte literal');
         i = k + 1;
         continue;
       }
@@ -278,7 +293,10 @@ export function lexJs(src) {
       while (i < n) {
         const d = s[i];
         if (d === '\\') {
-          if (s[i + 1] === '\n') line += 1;
+          if (s[i + 1] === '\n') {
+            line += 1;
+            buf += '\n';
+          }
           buf += ' ';
           i += 2;
           continue;
@@ -360,6 +378,10 @@ export function lexToml(src) {
       while (i < n) {
         const d = s[i];
         if (c === '"' && d === '\\') {
+          if (s[i + 1] === '\n') {
+            line += 1;
+            buf += '\n';
+          }
           buf += ' ';
           i += 2;
           continue;
@@ -391,7 +413,20 @@ export function lexToml(src) {
 }
 
 // 走査。シンボリックリンクは辿らない（読まずに 2 で止める）。
+function rejectLink(p) {
+  let st;
+  try {
+    st = fs.lstatSync(p);
+  } catch (e) {
+    if (e.code === 'ENOENT') return false;
+    throw new CheckError('a target path is not readable');
+  }
+  if (st.isSymbolicLink()) throw new CheckError('symbolic link in the target tree');
+  return true;
+}
+
 function listFiles(dir, accept, acc = []) {
+  if (!rejectLink(dir)) return acc;
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -410,12 +445,15 @@ function listFiles(dir, accept, acc = []) {
 
 function targets(root) {
   const crates = path.join(root, 'crates');
+  rejectLink(crates);
   let names;
   try {
-    names = fs.readdirSync(crates, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
+    names = fs.readdirSync(crates, { withFileTypes: true });
   } catch {
     throw new CheckError('crates directory is not readable');
   }
+  for (const e of names) if (e.isSymbolicLink()) throw new CheckError('symbolic link in the target tree');
+  names = names.filter((e) => e.isDirectory()).map((e) => e.name).sort();
   if (names.length === 0) throw new CheckError('no crates found');
   const files = [];
   for (const name of names) {
@@ -423,7 +461,7 @@ function targets(root) {
     listFiles(path.join(base, 'src'), (f) => f.endsWith('.rs'), files);
     listFiles(path.join(base, 'static'), (f) => /\.(js|mjs|html|svg|css)$/.test(f), files);
     const toml = path.join(base, 'Cargo.toml');
-    if (fs.existsSync(toml)) files.push(toml);
+    if (rejectLink(toml)) files.push(toml);
   }
   return files;
 }

@@ -179,6 +179,41 @@ test('fail-closed: シンボリックリンクは辿らず 2', () => {
   assert.equal(run(root).code, 2);
 });
 
+test('Rust のバイト文字: 16 進・単純なエスケープは正当で 0', () => {
+  const body = "fn f() { let _ = [b'a', b'\\x41', b'\\n', b'\\'', b'\\\\']; }\n";
+  assert.equal(run(makeRoot({ 'crates/x/src/a.rs': body })).code, 0);
+});
+
+test('fail-closed: crates/<name>・static・Cargo.toml のリンクも 2', () => {
+  const r1 = makeRoot();
+  fs.mkdirSync(path.join(r1, 'other'));
+  fs.symlinkSync(path.join(r1, 'other'), path.join(r1, 'crates/linked'));
+  assert.equal(run(r1).code, 2);
+  const r2 = makeRoot();
+  fs.mkdirSync(path.join(r2, 'other'));
+  fs.symlinkSync(path.join(r2, 'other'), path.join(r2, 'crates/core/static'));
+  assert.equal(run(r2).code, 2);
+  const r3 = makeRoot();
+  fs.writeFileSync(path.join(r3, 'real.toml'), '[package]\n');
+  fs.symlinkSync(path.join(r3, 'real.toml'), path.join(r3, 'crates/core/Cargo.toml'));
+  assert.equal(run(r3).code, 2);
+});
+
+test('複数行の文字列の違反は実際の行で報告する', () => {
+  const cases = {
+    'crates/x/src/a.rs': 'fn f() {\n  let _ = "a\nb\n  github";\n  let _ = "x\\\n  github";\n  let _ = r"p\nq\ngithub";\n}\n',
+    'crates/x/static/a.js': 'const a = `p\nq\ngithub`;\nconst b = "x\\\n github";\n',
+    'crates/x/Cargo.toml': '[package]\nd = """\na\ngithub"""\n',
+  };
+  const expect = { 'crates/x/src/a.rs': [4, 6, 9], 'crates/x/static/a.js': [3, 5], 'crates/x/Cargo.toml': [4] };
+  for (const [rel, body] of Object.entries(cases)) {
+    const r = run(makeRoot({ [rel]: body }));
+    assert.equal(r.code, 1, r.out);
+    const lines = [...r.out.matchAll(new RegExp(`${rel.replace(/\./g, '\\.')}:(\\d+): github`, 'g'))].map((m) => Number(m[1]));
+    assert.deepEqual(lines, expect[rel], r.out);
+  }
+});
+
 test('誤用は 2: 未知の引数・--root の値なし', () => {
   const root = makeRoot();
   assert.equal(run(root, ['--unknown']).code, 2);
