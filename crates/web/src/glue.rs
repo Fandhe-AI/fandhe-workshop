@@ -40,6 +40,8 @@ thread_local! {
     /// ホストが頼んだ書き戻しが、まだ欄へ反映されていないかどうか（Issue #1510）。
     /// 送信の直後・書き戻しのタイマーの実行前に変換が始まると、書き戻しは変換の終わりまで保留になる。
     /// `compositionend` の捕捉の段で、上流が欄の値を状態へ届ける前に反映するために読む。
+    /// 印の寿命は書き戻し 1 回分に限る。立てるのは `on_draft_sync_request` だけで、下ろすのは
+    /// `clear_draft_sync_pending` だけ。残ると、後の通常の変換の終わりに変換前の下書きを欄へ書き、確定した文字を消す。
     static DRAFT_SYNC_PENDING: RefCell<bool> = const { RefCell::new(false) };
 }
 
@@ -164,16 +166,18 @@ fn on_tick_request(next: Option<TickAddr>) {
 /// 書き戻しを予約に回すのは、送信の click が上流の更新の中で走り、その最中に App を借りられないため。
 /// 送信の直後・タイマーの実行前に変換が始まった場合、`sync_draft` が変換中を見て書き換えない。
 /// 保留した書き戻しは、`compositionend` の捕捉の段（上流が欄の値を状態へ届ける前）で反映する（`wire_draft_sync`）。
-/// そのため、要求を受けた時点で保留の印を立て、欄へ反映した `sync_draft` が印を下ろす。
+/// そのため、タイマーを予約する時点で保留の印を立て、変換中でない `sync_draft` が（書けたかどうかに関わらず）印を下ろす。
+/// 書き戻しの対象の root が無いときも印を下ろす（書く先が無い印を残すと、後の変換の確定文字を消すため）。
 fn on_draft_sync_request() {
-    set_draft_sync_pending(true);
     let Some(window) = web_sys::window() else {
         return;
     };
+    mark_draft_sync_pending();
     let callback = Closure::once_into_js(move || {
         let root = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone()));
-        if let Some(root) = root {
-            sync_draft(&root);
+        match root {
+            Some(root) => sync_draft(&root),
+            None => clear_draft_sync_pending(),
         }
     });
     let _ =
@@ -247,26 +251,29 @@ fn find_in_root(root: &web_sys::Element, selector: &str) -> Option<web_sys::Elem
 /// 上流が `<textarea>` の同期に対応したら外す。要素が無い・借用中は何もしない（安全側）。
 ///
 /// 変換中（`COMPOSING`）は、どの経路から呼ばれても書かない（変換中の書き換えは入力を壊す）。
-/// 保留した分は `compositionend` の捕捉の段が処理する。欄と状態を突き合わせ終えたら、保留の印を下ろす。
+/// 保留した分は `compositionend` の捕捉の段が処理する。そのため変換中に限って保留の印を残す。
+///
+/// 変換中でなければ、書けたかどうかに関わらず保留の印を下ろす（印を書き戻し 1 回分より長く残さない）。
+/// 欄が無い・`<textarea>` でないときは、書く先が無い。App を借りられない（`with_app` が `None`）ときは
+/// 書き戻しを 1 回落とす。印を残しても、この後に再試行する経路は無く、次に印を読むのは後の通常の変換の
+/// `compositionend` である。そこで変換前の下書きを書くと確定した文字を消すため、下ろす側を選ぶ。落とした場合は
+/// 送信済みの本文が欄に残るが、次の入力で上流が欄の値を状態へ届け、欄と状態は揃う（文字は消えない）。
+/// `with_app` はタイマー・リスナーの中では借用中にならない（`mount_app` の外）ため、実際には通らない安全側の分岐である。
 fn sync_draft(root: &web_sys::Element) {
     if is_composing() {
         return;
     }
-    let Some(el) = find_in_root(root, DRAFT_SELECTOR) else {
-        return;
-    };
-    let Ok(field) = el.dyn_into::<web_sys::HtmlTextAreaElement>() else {
-        return;
-    };
-    let synced = with_app(|app| {
-        let draft = app.draft();
-        if field.value() != draft {
-            field.set_value(draft);
-        }
-    });
-    if synced.is_some() {
-        set_draft_sync_pending(false);
+    if let Some(field) = find_in_root(root, DRAFT_SELECTOR)
+        .and_then(|el| el.dyn_into::<web_sys::HtmlTextAreaElement>().ok())
+    {
+        let _ = with_app(|app| {
+            let draft = app.draft();
+            if field.value() != draft {
+                field.set_value(draft);
+            }
+        });
     }
+    clear_draft_sync_pending();
 }
 
 /// 書き戻しの保留があるかどうか。借用中は `false`（変換の終わりに書かない側＝確定した入力を消さない側）。
@@ -274,11 +281,21 @@ fn draft_sync_pending() -> bool {
     DRAFT_SYNC_PENDING.with(|p| p.try_borrow().map(|b| *b).unwrap_or(false))
 }
 
-/// 書き戻しの保留の印を更新する。借用中は何もしない。
-fn set_draft_sync_pending(on: bool) {
+/// 書き戻しの保留の印を立てる。立てるのは `on_draft_sync_request` だけ。借用中は何もしない（立てない側＝書かない側）。
+fn mark_draft_sync_pending() {
     DRAFT_SYNC_PENDING.with(|p| {
         if let Ok(mut b) = p.try_borrow_mut() {
-            *b = on;
+            *b = true;
+        }
+    });
+}
+
+/// 書き戻しの保留の印を下ろす。印を下ろす唯一の口（`sync_draft` の変換中でない出口と、root が無いタイマー）。
+/// 印の借用は各関数の中で閉じるため、実際には借用中にならない（なっても panic させず何もしない）。
+fn clear_draft_sync_pending() {
+    DRAFT_SYNC_PENDING.with(|p| {
+        if let Ok(mut b) = p.try_borrow_mut() {
+            *b = false;
         }
     });
 }
@@ -324,6 +341,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     root.add_event_listener_with_callback("input", on_input.as_ref().unchecked_ref())?;
     on_input.forget();
     // 保留した書き戻しがあるときだけ、捕捉の段で同期に反映する。保留が無いときは書かない。
+    // 変換の印を先に下ろすため、ここの `sync_draft` は書けたかどうかに関わらず保留の印を下ろす（印は変換 1 回分で尽きる）。
     // 変換の間、上流は `input` を延期するため、状態は変換前の下書きのままであり、ここで書くと確定した文字を消す。
     // Safari は確定の `input` より前に `compositionend` を発火する。その時点の状態は古いため、
     // 保留の無い同期はタスクを 1 つ送り、続く `input`（と上流の確定値の配送）が状態を更新した後に行う

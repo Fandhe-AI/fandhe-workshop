@@ -156,6 +156,39 @@ for (const csp of [true, false]) {
     }));
   });
 
+  // 書き戻しの保留の印は、書き戻し 1 回分より長く残さない（Issue #1510 のレビュー）。書き戻しのタイマーが欄を見つけられず
+  // 印が残ると、後の通常の変換の compositionend の捕捉の段で、変換前の状態の下書きが欄へ書かれ、確定した文字が消える。
+  // 欄の data-testid を一時的に変えて「欄が見つからない」経路を作り、その後の変換で確定した文字が欄と状態に残ることを確かめる。
+  test(`書き戻しのタイマーが欄を見つけられなくても、後の変換で確定した文字が消えない（CSP ${label}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, ACCEPTED);
+      // 送信の描画は click の中で同期に終わる。その後・書き戻しのタイマー（set_timeout 0）より前に欄の目印を外す。
+      await page.evaluate(([submit, input]) => {
+        document.querySelector(submit).click();
+        document.querySelector(input).setAttribute('data-testid', 'draft-input-hidden');
+      }, [SUBMIT, INPUT]);
+      await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, RECEIVED);
+      await settle(page);
+      await page.evaluate(() => {
+        document.querySelector('[data-testid="draft-input-hidden"]').setAttribute('data-testid', 'draft-input');
+      });
+      assert.equal(await stateDraft(page), '', '送信を受け入れた後の状態の下書きは空');
+      // 送信と関係の無い通常の変換。確定の文字は欄の値として置き、input は発火しない（上流は変換の間の input を延期する）。
+      await page.evaluate((input) => {
+        const el = document.querySelector(input);
+        el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        el.value = 'あ';
+        el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'あ' }));
+      }, INPUT);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), 'あ', '確定した文字が欄に残る');
+      assert.equal(await stateDraft(page), 'あ', '確定した文字が状態の下書きに届く');
+      clean(rec);
+      await context.close();
+    }));
+  });
+
   test(`Shift+Enter は送信せず、最後の Enter で改行を保った 1 件になる（CSP ${label}）`, async () => {
     await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
       const { page, context, rec } = await open(srv);
