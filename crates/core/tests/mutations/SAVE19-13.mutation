@@ -2,8 +2,8 @@ id: SAVE19-13
 package: fandhe-workshop-core
 test: history_load
 target: crates/core/src/history_load.rs
-find:         Ok(env) => open_history(ir, opening, caps, initial, &env),
-replace:         Ok(_) => Opened::Open { state: initial },
+find:             let opened = open_history(ir, opening, caps, initial, &env);
+replace:             let opened = Opened::Open { state: initial };
 expect-fail: stage8_tampered_snapshot_is_replay_mismatch
 expect-fail: all_nineteen_reasons_reach_the_single_entry
 note: 段 5 の後半から段 8 を通らずに、初期状態で開く（履歴を検証せず開く）

@@ -354,6 +354,12 @@ impl Session {
         self.state.log.get(before..).unwrap_or_default()
     }
 
+    /// 状態への可変の参照。下書きの写し（`drafts`）を `ops` の記録と同時に更新するためだけに、
+    /// [`crate::recorded_session::RecordedSession`] が使う。進行（世代・Step・ログ）は [`Session::apply`] 以外で変えない。
+    pub(crate) fn state_mut(&mut self) -> &mut SessionState {
+        &mut self.state
+    }
+
     /// 状態を取り出す（保存のため）。
     pub fn into_state(self) -> SessionState {
         self.state

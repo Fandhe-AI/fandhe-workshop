@@ -229,7 +229,7 @@ pub(crate) fn two_rounds_envelope(
 ///
 /// 契約の試料（2 周分）の `ops` を、試験の教材と開始直後の状態に適用し直し、得た状態を写しにして包み直す。
 /// 試料そのままの写しは再読み込みの意味の実装前の値で、読み込みの段 8 で `replay_mismatch` になるため使えない。
-/// 受講中に記録した `ops` ではなく、試料を適用し直したものである（ホストの `OpsRecorder` の常設は後続）。
+/// 受講中に記録した `ops` ではなく、試料を適用し直したものである（ホストは受講中の `ops` を記録するが、この試料は受講中の記録ではない）。
 /// 2 周分・停止・保存・再読み込みを含むため、復習・チェックポイント・世界状態は空でない。
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn loadable_envelope() -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope>

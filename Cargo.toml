@@ -41,6 +41,10 @@ proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 # wasm-bindgen CLI と完全一致させるため exact で固定する。版の正は docs/toolchain.md。
 wasm-bindgen = "=0.2.128"
 
+# 起動の前に保存先を開く間、マウントを待たせる Promise（crates/web の glue。TASK-319）を返すために直接参照する。
+# 版は Cargo.lock の解決済みの版（web-sys の推移依存）と同じにして、版を動かさない。
+js-sys = "0.3.105"
+
 # 入力欄の値の書き戻し（crates/web の glue）と履歴の保存先（localStorage・IndexedDB。TASK-317）に使う。
 # 版は Cargo.lock の解決済みの版と同じにして、版を動かさない。
 # feature は書き戻しに要る型（イベントの種別判定と textarea の値）と、保存先の呼び出しに要る型に絞る。

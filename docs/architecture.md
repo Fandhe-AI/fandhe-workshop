@@ -99,6 +99,8 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
 | 履歴を開く可否の判定（`history_open::open_history`）・開く側の上限 `OpeningCaps`・エンジンが読める語彙の上限 `VOCAB_MAX`（pack の `vocab::LATEST` との一致は pack の試験が見る） | core | TASK-174 |
 | 開いた履歴から実行環境を作る入口（`history_load::load_session`。判定は `load_history` に任せ、開いたときだけ `Session::from_state` を呼ぶ。状態から実行環境を作り直す処理は保存復元の担当のため core に置く） | core | TASK-330 |
+| 操作を `ops` に記録しながら進める実行環境（`recorded_session::RecordedSession`。`Session`・`OpsRecorder`・最初の開始点を束ね、下書きの写しとの同期も core で行う。`ops` が 0 件なら保存用の包みを作らない。SAVE-28） | core | TASK-319 |
+| 起動の分岐（`history_boot::boot_session`。保存済みが無い・未操作なら新しく始めて世代を上げず、開けたら再読み込みとして復元し、開かなければ初期状態で始める。判定は `history_load` の段 1〜8 に任せて複製しない。再読み込みを呼ぶため web ではなく core に置く） | core | TASK-319 |
 | IR の型、`ir_format`、加算の規則 | contract | TASK-41・TASK-60 |
 | 判定結果 6 種、拒否の分類、次の行動、字句化の結果の型 | contract | TASK-256 |
 | キー判定表 `decide` の入出力と表（`key_decide`） | contract | TASK-257・TASK-281 |
@@ -134,13 +136,14 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |
 | Component の口、action の名前と宛先の形、操作プロファイル、glue の許される操作、左のビューの行データ、右のエリアの識別子、枠の区画と通知の口、アクセシビリティの構造 | web | TASK-343・TASK-467・TASK-431・TASK-511・TASK-366 |
-| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みと差し替え（`load-fixture:` の `answer`・`approval`）は `test-hooks` の背後だけ。履歴ファイルの読み込み `EngineHost::open_history` は `load_session` を呼び、開いたときだけ `Session` を差し替える） | web | TASK-347・TASK-330 |
+| ホストの Component（`EngineHost`）と部品の登録簿への振り分け、3 つの表示（ログ・左の成果物・復習）の部品（`host`・`engine_parts`。同じイベント列から導いた値だけを読む。`raw` の action・`raw-trigger`・試験用の教材の読み込みと差し替え（`load-fixture:` の `answer`・`approval`）は `test-hooks` の背後だけ。履歴ファイルの読み込み `EngineHost::open_history` は `load_session` を呼び、開いたときだけ `Session` を差し替える。操作は `RecordedSession` を通して `ops` に記録し、起動時は `EngineHost::boot` が `boot_session` を呼び、離れる直前に保存する値は `history_to_save`） | web | TASK-347・TASK-330・TASK-319 |
 | 右のログの行のモデルと描画（`log_lines`。TASK-431 の行の構造に準拠。入力（承認の操作の行は `承認の操作: 直す（対象: …）` の文言。TASK-447 2/2）・進行・停止・再読み込み・拒否・問い返しを結線し（拒否・問い返しの文面は `HostModel` が `apply_engine` の直後に core の `filled_text` で充填して控える。TASK-437 1/2・2/2）、応答は TASK-435・TASK-438。`log-list` の引き継ぎは TASK-438 または TASK-517） | web | TASK-434 |
 | 状態表示の導出（`run_status`。待機中・処理中・停止。Esc と停止ボタンは `host` が処理中のときだけ `Control::Stop` に結ぶ。TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
 | 選択肢のボタン（`offers`。確認が `answer` の Step が確認待ちのとき、表示名のボタンを `Offers` の部品として描く。クリックは `data-action="choose"` で `decode_action` が `Op::Input(Input::Choice)` に結び、照合と判定は core。配置は TASK-517。承認のボタンも同じ部品で出す: 入力方式 `approval` の入力待ちと、確認が `approve`（または無し）の確認待ちで、はい・いいえ・直す、入力待ちでは規則に書かれた対象ごとの「直す（対象: …）」を加える。対象は core の `revise_targets` だけから得る。クリックは `data-action="decide"`・`"revise-target"` で `Op::Input(Input::Approval)` に結ぶ） | web | TASK-445・TASK-447 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
+| 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ） | web（`persist`。wasm のみ） | TASK-319 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う

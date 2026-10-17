@@ -46,6 +46,11 @@ impl OpsRecorder {
         Self::default()
     }
 
+    /// 読み込んだ `ops` から作る（保存済みの履歴の続きを記録するため。起動時の復元 [`crate::history_boot`]）。
+    pub fn from_ops(ops: Vec<SessionOp>) -> Self {
+        Self { ops }
+    }
+
     /// 下書きの置き換えを記録する。直前が `Draft` なら置き換え、そうでなければ追記する。
     /// 空文字列も記録する（入力欄を空にした操作も状態の一部）。
     pub fn draft(&mut self, text: String) {

@@ -1,0 +1,8 @@
+id: SAVE28-3
+package: fandhe-workshop-core
+test: recorded_session
+target: crates/core/src/recorded_session.rs
+find:         if self.recorder.is_empty() {
+replace:         if false {
+expect-fail: 操作が_0_件なら保存用の包みを作らない
+note: ops が 0 件でも保存用の包みを作る（未操作のページを離れると保存され、次の再読み込みで世代が上がる。SAVE-28）
