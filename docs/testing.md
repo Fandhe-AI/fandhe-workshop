@@ -3330,6 +3330,33 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `check-view`（CK1〜CK10）・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch`・`card-view` の 81 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
 - 範囲外: 契約の版 3（`role=list`・`listitem`）と状態の語彙・記号・色調の spec 側の確認、製品の結線、再描画の時間（TASK-485）、`wireframe_css()` の配信と配色（TASK-490）、指せる行の属性（TASK-480）、値の注入の 24 通り（TASK-482）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.109 アプリのデモのワイヤーの変種 (a)（TASK-479 1/2）
+
+アプリのデモのワイヤーを (a)（`wireframe-ui` の `text`・`tag`・`rich_text` と `input`・`button`・`card_basic`）で描く本体（`crates/web/src/app_demo_view.rs`）を作り、代役の部品（`view_fixture`）の `(app_demo, a)` をこれに回した。(b) は TASK-479 2/2 で、今は汎用の描き方のままである。
+
+- 受入: 項目数（前 8・後 9）と印の数（後は追加 1・削除 0・変更 3・印なし 5）が期待値と一致し、部品が行の種類ごとに出る。前後の切り替えで行も項目の内側も置き換わらない。部品の型・識別子・綴りに特定の教材の語が 0 件（`artifact_view_generic_names` が `app_demo_view.rs` と状態の文字を走査する）
+- 判断 1（試作からの逸脱）: `Active`・`Disabled` は常に `false` で渡す。試作は行データから決めるが、`wireframe-ui` 0.52.0 はこの 2 つを真のときだけ `data-active`・`data-disabled` として出すため、同じ key の項目の属性名の集合が前後で変わり、形の不変（5.95）に反する。状態は class（`Primary`）と文字（`（選択中）`・`（無効）`・`（不明）`）で示す
+- 判断 2: 状態は `WireState` の閉じた語彙（空・`active`・`disabled`）を完全一致で読み、一覧の外は `Unknown`（fail-closed）。語彙は spec に定めの無い試験データと PoC-8 由来の仮置きである。`data-state` は作らない
+- 判断 3: 種類の外の行（`RowKind` の他の 8 種）は、ラベルを文字として出すだけにする。`wireframe_ui::icon::*` は `aria-hidden` を出すため使わない。`role`・`aria-` は 0 件で、TASK-366 の契約の `tablist` の数は変えない
+- 判断 4: タブの横並びは `app.css` の `[data-view="app_demo"] > li[data-kind="tab"] { display: inline-block; }` の 1 規則で補う。領域ごとの配置（ART-23）と配色（TASK-490）は扱わない。製品の `view()` へは結線しない
+- native の試験（`crates/web/tests/app_demo_view_a_contract.rs`）: 項目数と key、印の数と宿主、部品の数、形の不変（比較 8 件）、`data-active`・`data-disabled` が 0 件、状態の語彙と文字、欄の文字、種類の外、a11y の閉じた一覧、エスケープ、`role` が付かないこと、`app.css` の規則。`view_fixture` の単体試験: (a) が本体を通ること
+- ブラウザの試験（`tools/browser/app-demo-view.test.mjs`）: AD1 前後 2 往復の検査器、AD2 部品の数と印の宿主と数、AD3 タブの横並び、AD4 外部リクエスト 0 件
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a5665ea-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART1-11.mutation 〜 ART1-13.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART1-11 | 欄の `Active` を行データで切り替える | DETECTED | `app_demo_view_a_contract` の「同じ_key_の項目の形は前後で変わらない」ほか 1 件 |
+| ART1-12 | ボタンの `Disabled` を状態から決める | DETECTED | 同上 |
+| ART1-13 | (a) の項目を変種 B の根で作る | DETECTED | `app_demo_view_a_contract` の「data_mark_は_li_には無く内側の_div_にだけある」 |
+
+- ブラウザの試験: `app-demo-view`・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch`・`card-view`・`check-view` の 85 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
+- 範囲外: (b)（`headless-ui` の `field`・`role=tab`・`tablist`）は TASK-479 2/2、指せる行の属性は TASK-480、模擬ログインの中身は TASK-492、配色と `wireframe_css()` は TASK-490、領域ごとの配置は ART-23、製品の結線、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

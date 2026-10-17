@@ -6,6 +6,7 @@
 use std::fs;
 use std::path::Path;
 
+use fandhe_workshop_web::app_demo_view::{WireState, EMPTY_FIELD_TEXT};
 use fandhe_workshop_web::artifact_view::{
     RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
     POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
@@ -149,6 +150,7 @@ fn 型と識別子に固有の語が無い() {
         "tests/artifact_view_sample.rs",
         "src/card_view.rs",
         "src/check_view.rs",
+        "src/app_demo_view.rs",
     ] {
         let src = read(file);
         for id in identifiers(&src) {
@@ -171,6 +173,8 @@ fn 綴りに固有の語が無い() {
         .chain(RowKind::ALL.iter().map(|k| k.as_str()))
         .chain(Variant::ALL.iter().map(|v| v.as_str()))
         .chain(CardState::ALL.iter().map(|c| c.text()))
+        .chain(WireState::ALL.iter().map(|c| c.text()))
+        .chain([EMPTY_FIELD_TEXT])
         .chain(
             CheckState::ALL
                 .iter()

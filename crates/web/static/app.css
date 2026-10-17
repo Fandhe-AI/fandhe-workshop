@@ -100,6 +100,12 @@
   border-left: 3px solid #b26a00;
 }
 
+/* アプリのデモ (a)（TASK-479 1/2）。タブの項目（li）を横に並べる。data-kind は
+  crates/web/src/app_demo_view.rs が marked_item で li に付ける。領域ごとの配置（ART-23）は扱わず、色は足さない（TASK-490）。 */
+[data-view="app_demo"] > li[data-kind="tab"] {
+  display: inline-block;
+}
+
 /* 文書 (b)（TASK-476）。ブロックの包みは項目の残りの幅を取る。木の要素（表・一覧・引用）の見た目は既定のままにし、
   色は足さない（TASK-490）。クラス名は crates/web/src/document_view.rs の定数と一致させる。 */
 [data-view="document"] > li {

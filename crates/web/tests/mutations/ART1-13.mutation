@@ -1,0 +1,8 @@
+id: ART1-13
+package: fandhe-workshop-web
+test: app_demo_view_a_contract
+target: crates/web/src/app_demo_view.rs
+find:         Variant::A,
+replace:         Variant::B,
+expect-fail: data_mark_は_li_には無く内側の_div_にだけある
+note: (a) の項目を (b) の根で作る（印が li 自身に付き、内側の div が無くなる）
