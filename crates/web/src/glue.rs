@@ -23,7 +23,7 @@ use fandhe_workshop_core::addr::TickAddr;
 
 use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction};
 use crate::host::EngineHost;
-use crate::key_route::{effect_for, field_state};
+use crate::key_route::{effect_for, field_state, row_key_effect};
 use crate::tick_interval::TICK_INTERVAL_MS;
 
 thread_local! {
@@ -371,7 +371,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
 
 /// 入力欄の Enter を、送信ボタンへの click に結ぶ（TASK-275。JUDGE-12・FEND-14）。`mount_app` が 1 回だけ呼ぶ。
 ///
-/// root に登録するのは、再描画で欄が作り直されてもリスナーが外れないため。対象は下書きの `<textarea>` だけで、
+/// root に登録するのは、再描画で欄が作り直されてもリスナーが外れないため。対象は下書きの `<textarea>` だけで（左の行は `wire_row_keys` が受け持つ）、
 /// 他の要素（probe のボタン等）の Enter には反応しない。判定は `contract` の `decide`、効果への変換は
 /// `key_route` が持つ。`with_app` の借用は効果を求めた時点で解く。click の中で上流の Runtime が同期に
 /// `update` を呼ぶため、借用を持ったまま click すると更新が黙って失敗する。
@@ -431,6 +431,55 @@ fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// 左の行（指せる行。`li`）の Enter・Space を、その行への `click()` に結ぶ（TASK-358 1/2。A11Y-18・FEND-13・D-42）。
+///
+/// 呼び出し元は [`mount_host`] と、試験用の代役の部品のマウント（`test_hooks::debug_view_fixture_mount`）である。
+/// 指せる行は標準の操作部品ではないため、ブラウザは Enter・Space で何もしない。ここで `click()` に結べば、
+/// マウスの click と同じく上流の委譲（`closest("[data-action]")`）から `decode_action` を通って下流に届き、
+/// 宛先を受け付けるかの判断は下流（`PointTarget::decode`・core・`is_pointable_now`）が持つ。glue は payload を読まない。
+///
+/// `pointable` は属性を読まず、target が `li` かどうかで決める（glue は DOM の値を読めない）。`tabindex` を持つ `li` は
+/// 指せる行だけで、持たない `li` はフォーカスを受けず keydown の target にならない。内側のボタンや入力欄の上では
+/// target がその要素になり、ここは何もしないため二重の click は起きない。
+/// `with_app` は呼ばない。借用を持ったまま `click()` すると、上流の同期の `update` が黙って失敗するためである。
+/// 判定は `key_route::row_key_effect` が持つ。`Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
+///
+/// # Errors
+///
+/// リスナーの登録に失敗した場合に `Err` を返す。
+pub(crate) fn wire_row_keys(root: &web_sys::Element) -> Result<(), JsValue> {
+    let on_keydown = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+        let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+            return;
+        };
+        let Some(row) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::HtmlLiElement>().ok())
+        else {
+            return;
+        };
+        let input = KeyInput {
+            key: kev.key(),
+            key_code: kev.key_code(),
+            is_composing: kev.is_composing(),
+            shift: kev.shift_key(),
+            ctrl: kev.ctrl_key(),
+            alt: kev.alt_key(),
+            meta: kev.meta_key(),
+        };
+        let effect = row_key_effect(&input, kev.repeat(), true);
+        if effect.prevent_default {
+            ev.prevent_default();
+        }
+        if effect.click_row {
+            row.click();
+        }
+    });
+    root.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref())?;
+    on_keydown.forget();
+    Ok(())
+}
+
 /// 画面を root 配下ごと再構築する。再描画の時間の測定（tools/measure/redraw.sh）が試験用の口経由で呼ぶ。
 ///
 /// 戻り値は、再構築を実行したかどうか。未マウント、または他の借用中は何もせず `false` を返す
@@ -477,6 +526,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         });
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
+        wire_row_keys(root)?;
         *slot = Some(runtime);
         Ok(())
     })

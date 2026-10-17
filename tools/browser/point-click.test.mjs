@@ -11,7 +11,7 @@
 //   この観察は期待として固定せず、結果を記録する
 // - PC5: 外部へのリクエスト・ページのエラー・ダイアログがどれも 0 件
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
-// Enter・Space の結線は TASK-358・TASK-375、製品の画面への結線は TASK-470・TASK-347 の後続の担当。
+// Enter・Space の結線は point-keys.test.mjs（TASK-358 1/2）、製品の画面への結線は TASK-470・TASK-347 の後続の担当。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

@@ -22,7 +22,7 @@
 //!   入力欄の Space（`KeyboardEvent.key` は `" "`）もここに当たる。`preventDefault` せず、textarea の既定動作で空白が入る
 //!   （FEND-7・D-42。TASK-352 1/3。ブラウザ試験は `tools/browser/field-space.test.mjs`）
 //!
-//! 標準でない要素（左の行）の Enter・Space は `row_key_effect` が受け持つ（TASK-352 2/3。A11Y-18・D-42）。結線は TASK-358 1/2 の担当である。
+//! 標準でない要素（左の行）の Enter・Space は `row_key_effect` が受け持つ（TASK-352 2/3。A11Y-18・D-42）。結線は `glue::wire_row_keys` である（TASK-358 1/2）。
 //!
 //! 候補が開いているときの Esc の 2 回と補完の選び方は、`after_esc`・`completion_choice` が受け持つ
 //! （TASK-282 1/2。JUDGE-18・JUDGE-21・D-60）。矢印キーで候補を選ぶ操作は無い（複数行の下書きでのキャレット移動と衝突するため）。
@@ -120,9 +120,9 @@ impl RowKeyEffect {
 
 /// 標準でない要素の Enter・Space から、`preventDefault` と click の要否を求める純関数。
 ///
-/// 呼び出し元は、左の行の keydown を結ぶ TASK-358 1/2（#398）である。現時点の呼び出し元は試験だけである。
-/// glue は属性を読む口（`closest`・`get_attribute`）を持たない（`tools/check-deps.sh`・`glue_contract`）ため、
-/// 行の同定と `pointable`（その行が確認の宛先になっているか）の出所は #398・TASK-480 の担当である。
+/// 呼び出し元は `glue::wire_row_keys`（TASK-358 1/2）である。
+/// glue は属性を読む口（`closest`・`get_attribute`）を持たないため、`pointable` は keydown の target が `li` かどうかで
+/// 決める。宛先を受け付けるかの判断は下流が持つ。
 /// D-42 により受け持ちは glue に残り、属性化も上流の口も採らない。
 ///
 /// 判定は次の順に評価する。

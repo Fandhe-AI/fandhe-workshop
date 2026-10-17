@@ -1,0 +1,8 @@
+id: FEND13-2
+package: fandhe-workshop-web
+test: row_keys_wiring
+target: crates/web/src/glue.rs
+find:         wire_row_keys(root)?;
+replace:         let _ = root;
+expect-fail: 実ソースは違反なし
+note: mount_host が左の行のキーの結線を呼ばず、製品の画面の指せる行が Enter・Space で動かない

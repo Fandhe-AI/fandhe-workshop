@@ -1,0 +1,8 @@
+id: FEND13-1
+package: fandhe-workshop-web
+test: no_hidden_triggers
+target: crates/web/src/glue.rs
+find:             row.click();
+replace:             let _ = &row;
+expect-fail: 実ソースは違反なし
+note: 左の行の Enter・Space が行への click に結ばれず、click と Enter・Space の結果が食い違う

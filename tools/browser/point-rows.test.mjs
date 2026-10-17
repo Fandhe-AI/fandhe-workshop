@@ -7,7 +7,7 @@
 // - PR3: 指せる行は li.focus() でフォーカスを受け、Tab の順にも入る
 // - PR4: 指せる行の寸法が 24x24 CSS ピクセル以上（A11Y-3）
 // - PR5: 外部へのリクエスト・ページのエラー・ダイアログがどれも 0 件
-// クリックの効果と Enter・Space は確かめない（TASK-480 2/2 と TASK-358 の担当）。
+// クリックの効果と Enter・Space は確かめない（TASK-480 2/2 と point-keys.test.mjs の担当）。
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
