@@ -101,6 +101,19 @@ fn revise_targets_rejects_invalid_declarations() {
 }
 
 #[test]
+fn revise_targets_reads_compiled_wide_rules_with_null_target() {
+    // コンパイル済みの教材の `on` は全キーを `null` 込みで持つ。対象なしの「直す」の `target: null` は欠落と同じ。
+    let s = step_with_rules(vec![
+        json!({ "id": "r-bare", "on": { "approval": "revise", "target": null, "text": null, "cancel": null },
+                "outcome": { "kind": "reject" } }),
+        json!({ "id": "r-empty", "on": { "approval": "revise", "target": [] }, "outcome": { "kind": "reject" } }),
+        json!({ "id": "r-t", "on": { "approval": "revise", "target": "expect", "text": null },
+                "outcome": { "kind": "accept" } }),
+    ]);
+    assert_eq!(revise_targets(&s), Ok(vec!["expect".to_string()]));
+}
+
+#[test]
 fn each_declared_target_is_accepted() {
     let ir = ir();
     let s = step_of(&ir, "st-two");

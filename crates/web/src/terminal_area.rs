@@ -306,8 +306,8 @@ pub const fn decision_word(d: Decision) -> &'static str {
     }
 }
 
-/// `data-decision` の値から承認の操作を引く。
-fn decision_from_value(v: &str) -> Option<Decision> {
+/// `data-decision` の値から承認の操作を引く（承認のボタンのクリックの復号が使う。TASK-447 1/2）。
+pub fn decision_from_value(v: &str) -> Option<Decision> {
     [Decision::Approve, Decision::Reject, Decision::Revise]
         .into_iter()
         .find(|d| decision_value(*d) == v)

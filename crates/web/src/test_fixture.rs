@@ -58,6 +58,54 @@ pub(crate) fn answer_session() -> Option<Session> {
     session_of(&serde_json::to_vec(&value).ok()?)
 }
 
+/// 入力方式が `approval` で、対象つきの「直す」の規則を持つ試験用の実行環境（TASK-447 1/2。`load-fixture:approval`）。
+///
+/// 埋め込みの教材の `main/st-1` を、対象 2 つ（`t-alpha`・`t-beta`）の「直す」で受付、対象なしの「直す」と
+/// 早すぎる「はい」を既存の `rj-decline`（次の行動つき）で拒否する規則に置き換える。確認は `approve`。
+/// 規則は細い形（`null` の欄なし）で書く。太い形の読みは core の試験が固定する。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn approval_session() -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let node = value
+        .get_mut("nodes")?
+        .as_array_mut()?
+        .iter_mut()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-1"))?;
+    let step = node.get_mut("step")?.as_object_mut()?;
+    step.insert(
+        "input".to_owned(),
+        serde_json::json!({ "kind": "approval" }),
+    );
+    step.insert(
+        "confirm".to_owned(),
+        serde_json::json!({ "kind": "approve" }),
+    );
+    let accept = |id: &str, target: &str| {
+        serde_json::json!({
+            "id": id,
+            "on": { "approval": "revise", "target": target },
+            "outcome": { "kind": "accept" }
+        })
+    };
+    let reject = |id: &str, on: serde_json::Value| {
+        serde_json::json!({
+            "id": id,
+            "on": on,
+            "outcome": { "kind": "reject", "rejection": "rj-decline" }
+        })
+    };
+    step.insert(
+        "rules".to_owned(),
+        serde_json::json!([
+            accept("r-alpha", "t-alpha"),
+            accept("r-beta", "t-beta"),
+            reject("r-bare-revise", serde_json::json!({ "approval": "revise" })),
+            reject("r-early", serde_json::json!({ "approval": "approve" })),
+        ]),
+    );
+    session_of(&serde_json::to_vec(&value).ok()?)
+}
+
 /// 試験の開始直後の状態（契約の試料の `initial`）。
 fn start_state() -> Option<SessionState> {
     let value: serde_json::Value = serde_json::from_slice(SAMPLE).ok()?;
