@@ -1,0 +1,426 @@
+{
+  "view": "cards",
+  "title": "generated cards 20",
+  "rows": [
+    {
+      "id": "pr1",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#1 変更 1",
+        "detail": "feat/x1 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#1 変更 1",
+        "detail": "feat/x1 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr2",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#2 変更 2",
+        "detail": "feat/x2 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#2 変更 2",
+        "detail": "feat/x2 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr3",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#3 変更 3",
+        "detail": "feat/x3 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#3 変更 3",
+        "detail": "feat/x3 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr4",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#4 変更 4",
+        "detail": "feat/x4 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#4 変更 4",
+        "detail": "feat/x4 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr5",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#5 変更 5",
+        "detail": "feat/x5 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#5 変更 5",
+        "detail": "feat/x5 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr6",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#6 変更 6",
+        "detail": "feat/x6 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#6 変更 6",
+        "detail": "feat/x6 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr7",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#7 変更 7",
+        "detail": "feat/x7 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#7 変更 7",
+        "detail": "feat/x7 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr8",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#8 変更 8",
+        "detail": "feat/x8 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#8 変更 8",
+        "detail": "feat/x8 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr9",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#9 変更 9",
+        "detail": "feat/x9 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#9 変更 9",
+        "detail": "feat/x9 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr10",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#10 変更 10",
+        "detail": "feat/x10 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#10 変更 10",
+        "detail": "feat/x10 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr11",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#11 変更 11",
+        "detail": "feat/x11 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#11 変更 11",
+        "detail": "feat/x11 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr12",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#12 変更 12",
+        "detail": "feat/x12 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#12 変更 12",
+        "detail": "feat/x12 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr13",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#13 変更 13",
+        "detail": "feat/x13 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#13 変更 13",
+        "detail": "feat/x13 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr14",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#14 変更 14",
+        "detail": "feat/x14 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#14 変更 14",
+        "detail": "feat/x14 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr15",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#15 変更 15",
+        "detail": "feat/x15 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#15 変更 15",
+        "detail": "feat/x15 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr16",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#16 変更 16",
+        "detail": "feat/x16 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#16 変更 16",
+        "detail": "feat/x16 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr17",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#17 変更 17",
+        "detail": "feat/x17 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#17 変更 17",
+        "detail": "feat/x17 → main / AI",
+        "state": "merged",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr18",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#18 変更 18",
+        "detail": "feat/x18 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#18 変更 18",
+        "detail": "feat/x18 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr19",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#19 変更 19",
+        "detail": "feat/x19 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#19 変更 19",
+        "detail": "feat/x19 → main / AI",
+        "state": "open",
+        "tags": [
+          "タグ"
+        ]
+      }
+    },
+    {
+      "id": "pr20",
+      "depth": 0,
+      "kind": "card",
+      "before": {
+        "label": "#20 変更 20",
+        "detail": "feat/x20 → main / AI",
+        "state": "closed",
+        "tags": [
+          "タグ"
+        ]
+      },
+      "after": {
+        "label": "#20 変更 20",
+        "detail": "feat/x20 → main / AI",
+        "state": "draft",
+        "tags": [
+          "タグ"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+id: ART17-5
+package: fandhe-workshop-web
+test: card_view_b_contract
+target: crates/web/src/card_view.rs
+find:                 vec![el("li", vec![], vec![text(joined.as_str())])],
+replace:                 cell.tags.iter().map(|t| el("li", vec![], vec![text(t.as_str())])).collect(),
+expect-fail: 同じ_key_の項目の形は前後で変わらない_ラベルの件数が変わる行を含む
+note: ラベルを 1 件ごとの li にする（件数の違う前後で子孫の数が変わり、keyed list の in-place 更新が崩れる）

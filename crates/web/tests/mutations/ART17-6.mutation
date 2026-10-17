@@ -1,0 +1,8 @@
+id: ART17-6
+package: fandhe-workshop-web
+test: card_view_b_contract
+target: crates/web/src/card_view.rs
+find:             CardState::Open | CardState::Unknown => MarkerTone::Neutral,
+replace:             CardState::Open | CardState::Unknown => MarkerTone::Info,
+expect-fail: 状態の文字と色調は固定の語彙に対応する
+note: オープンと語彙の外の色調を中立から情報へ変える（語彙の外を目立つ色へ寄せる）

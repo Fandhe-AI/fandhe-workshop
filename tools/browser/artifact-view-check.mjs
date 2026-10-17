@@ -124,7 +124,14 @@ export function expectedFromRows(rows) {
 }
 
 // 種類ごとの期待値。文書は行が無いので件数だけ（ids は null）。
-function expectedFor(kind, keyOf) {
+// rows が与えられたら、sample の代わりにその行（規模の検査用。文書では使えない）から期待値を数える。
+function expectedFor(kind, keyOf, rows) {
+  if (rows !== undefined) {
+    if (kind === 'document' || !Array.isArray(rows) || rows.length === 0) {
+      throw new Error('rows must be a non-empty array of a non-document view');
+    }
+    return { ids: expectedFromRows(rows), counts: null, keyOf };
+  }
   if (kind === 'document') {
     return { ids: null, counts: { ...DOC_EXPECTED }, keyOf };
   }
@@ -342,11 +349,13 @@ async function checkIdentity({ page, prev, next, kind, variant, expected, v, tag
 // 14 通りのうち許される 12 通りを流す。前 → 後 → 前 → 後 → 前（rounds = 2 で 2 往復）の各状態を検査する。
 // 返り値: { violations: string[], stats: { states, itemCounts, preserved } }。
 // deep: true なら、項目の内側の全子孫要素の同一性も数える（stats.innerPreserved。TASK-469 2/2）。既定 false は従来どおり。
-export async function runViewCase(page, adapter, { kind, variant, rootSelector, rounds = 2, deep = false }) {
+// rows: 任意。与えると sample でなくこの行（{ id, kind, before, after } の配列）から期待値を数える（TASK-477 2/2 の 20 件の規模）。
+// 呼び出し側が、画面を同じ行に切り替えてから流す。空・配列でない・文書のときは例外にし、黙って sample に戻さない。
+export async function runViewCase(page, adapter, { kind, variant, rootSelector, rounds = 2, deep = false, rows }) {
   const v = [];
   const stats = { states: 0, itemCounts: [], preserved: [] };
   if (deep) stats.innerPreserved = [];
-  const expected = expectedFor(kind, adapter.keyOf ?? ((id) => id));
+  const expected = expectedFor(kind, adapter.keyOf ?? ((id) => id), rows);
   const sel = await adapter.select(kind, variant);
   if (!sel.ok) {
     v.push(`${kind}/${variant}: the adapter refused to select an allowed variant`);
