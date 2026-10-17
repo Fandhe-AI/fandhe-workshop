@@ -41,7 +41,7 @@ test('最小の画面がサブパスで起動し、CSP 違反・ページ内エ�
     // 要求の件数は icon の取得の有無で揺れるため、含まれるべき集合だけを確かめる。
     const urls = rec.requests.map((r) => r.url);
     for (const u of urls) assert.ok(u.startsWith(`${srv.origin}${BASE}`), u);
-    for (const rel of ['app.js', 'wasm/fandhe_workshop_web.js', 'wasm/fandhe_workshop_web_bg.wasm']) {
+    for (const rel of ['app.js', 'app.css', 'wasm/fandhe_workshop_web.js', 'wasm/fandhe_workshop_web_bg.wasm']) {
       assert.ok(urls.includes(`${srv.url}${rel}`), `missing request: ${rel}`);
     }
     assert.ok(urls.includes(srv.url) || urls.includes(`${srv.url}index.html`), 'missing request: index');
@@ -49,6 +49,10 @@ test('最小の画面がサブパスで起動し、CSP 違反・ページ内エ�
     assert.equal(wasm.status, 200);
     assert.equal(wasm.contentType, 'application/wasm');
     assert.equal(wasm.contentEncoding, 'gzip');
+    // 外部スタイルシートは同一オリジンから 200 で届く（CSP 違反は上の s.csp が数える）。
+    const css = rec.requests.find((r) => r.url.endsWith('/app.css'));
+    assert.equal(css.status, 200);
+    assert.ok(css.contentType.startsWith('text/css'), css.contentType);
 
     // 配信する設定には試験用の口が無い。
     assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined');

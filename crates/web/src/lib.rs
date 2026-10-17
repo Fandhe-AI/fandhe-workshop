@@ -19,6 +19,7 @@
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
 //! 世界状態とイベント列から左のビューの行の前後の組を導く処理（TASK-468）は `artifact_rows` に、文書のブロックの突き合わせ（TASK-468 2/2。`-` と `+` の行にする）は `artifact_doc_rows` に置く。
+//! 項目 1 件を変化の印つきで作る部品（記号・文字・`data-mark` の 3 手段とインデントのクラス。TASK-469 1/2）は `artifact_mark` に置く。スタイルは `static/app.css`（同一オリジンの外部ファイル）である。
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
@@ -35,6 +36,7 @@
 pub mod a11y;
 pub mod action;
 pub mod artifact_doc_rows;
+pub mod artifact_mark;
 pub mod artifact_rows;
 pub mod artifact_view;
 pub mod candidates;
