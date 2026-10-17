@@ -3554,6 +3554,60 @@ Tab・Shift+Tab・文字の入力・Enter・Space だけで、確認（`point_at
 - 限界: `processing` を持つ確認省略の Step の文言、停止の直後の表示は 5.115 の限界のまま。確認の後に次の Step へ移っても語が「達成」のままであることまでは確かめるが、次の Step の受付後の語は本試験の対象外
 - 範囲外: `Entered` などの語の追加（spec の TERM-31 を先に直し契約の版を上げる必要がある）、配置の確定（TASK-517・TASK-438）、ライブの欄（TASK-366・TASK-370）、st-2（`choice`）の画面の口（TASK-450）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため要対応事項として報告のみ）
 
+### 5.117 CH-0〜CH-3 の通しと CH-1 のキーボードだけの完走（TASK-450 3/3）
+
+CH-0〜CH-3 の形の 20 Step を 1 つのページで最後まで自動操作で進め、CH-1 の 6 Step をキーボードだけで完走する。TERM-23 の残りに合う。5 方式（コマンド・複数行の自然文・選択肢・画面操作・承認）と 4 種の確認（指す・答える・承認する・なし）を画面から操作し、通しの途中で安全の計数がすべて 0 件であることを確かめる。
+
+- 解釈: 教材 repo が無く（2026-10-17 に `gh repo list Fandhe-AI` で確認。TASK-642 が未完了）、core にも章の完了・遷移先の入口の写しの作り直し・規則の `when` の評価が無い。このため、CH-0〜CH-3 の形（章ごとの Step 数・入力方式・確認の種類・拒否・問い返し・補完・処理中）を写した試験用の教材（`crates/web/tests/data/ch0_3/ir.json`。`pack.id` は `ch0-3-run`。作り方は同じ場所の `README.md`）を、無条件の `next` だけで線形につないで通す。試作の 73 項目は目標にせず、項目数は「N/N 項目」と記録する
+- 受入: (1) 試験の設定の画面を `?fixture=ch0-3` で開き、CSP あり・なしの両方で `main/st-3-2` が `achieved` になるまで進む。`raw-trigger` の click と `load-fixture:` は 0 回 (2) 5 方式と 4 種の確認を 1 回以上ずつ操作 (3) CH-1 の 6 Step を、`waitMounted` の後は `page.keyboard` だけで完走し、信頼されたマウスのイベントは 0 件 (4) ページのエラー・配信元以外への通信・ダイアログ・危険な要素・CSP 違反が 0 件 (5) 本節の記録
+- 判断 1: 教材は 20 Step（CH-0 が 4、CH-1 が 6、CH-2 が 8、CH-3 が 2）。各 Step は `views` を 1 件だけ宣言し、指す対象の行は Step に入る前か同じ Step の受付の効果で作る（`on_enter`・`starts[].effects` は core が適用しないため使わない。`reload_points_ch2` の st-7 がテスト専用の口に頼った原因はここにある）
+- 判断 2: 開始状態の補助。`test_fixture::session_of` が、契約の試料の開始状態の節点（`main/st-1`）を教材の `starts[0].node` に合わせる。既存の 3 つの教材は先頭が `main/st-1` で結果は変わらない（単体試験で固定）。`Session::from_state` の呼び出しは 1 箇所のまま（`tests/no_progress.rs`）
+- 判断 3: 規則の `when` を使わない。`ch1-pack.json` の st-1-4 の取り消しの規則は `when: {clarifying: …}` を持つが、core は `when` を評価しないため、`when` なしで書き直した。Esc の取り消しは問い返しの後に押す順で確かめる
+- 判断 4: キーボードの区間は `page.evaluate` を観察（フォーカス・状態の読み取り）だけに使う。目的の要素へは Tab を押して `document.activeElement` が着くまで繰り返し、回数は上限（300）だけ置いて固定しない。拒否の後は下書きが残るため、次の入力の前に全選択して置き換える。マウスの click は `detail` が 1 以上のものだけ数える（Enter・Space によるボタンの click も信頼されたイベントになるため）
+- 試験: native `crates/web/tests/ch0_3_run_host.rs`（3 件。模範の操作列 47 手を、判定の種類・現在の Step・状態つきで流す。警告・無視・省略による達成が 0 件で、確認のある Step の達成の直前の判定が「確認」であること。5 方式と 4 種の確認が教材と手の両方にあること）。ブラウザ `tools/browser/ch0-3-run.test.mjs`（通し × CSP あり・なしの 2 件が各 57/57 項目、キーボード × CSP あり・なしの 2 件が各 34/34 項目）。`test_fixture` の単体試験に 3 件（クエリの完全一致・鍵と 20 Step と先頭の Step・既定の教材の開始状態が変わらないこと）
+- 操作の範囲: 拒否（誤答・綴り違い・順序違い・対象なしの直す・早すぎるはい・外れた行）、問い返し、Tab の補完、Shift+Enter の改行、Esc の取り消し、処理中の完了待ち（4 進行と 2 進行）、選択肢の Enter と Space。各方式に入った直後と確認待ちで、選択肢・承認・入力欄・送信の数を表のとおりに数える
+
+試作の 73 項目との対応（試作の通しの実行元 `03-poc/_postfreeze-fixes/tools/ch-run.mjs` は本リポジトリから読めず、項目ごとの突き合わせは未確認）:
+
+| 区分 | 内容 | 理由 |
+|---|---|---|
+| 形を変えて再現した | 4 + 6 + 8 + 2 = 20 Step の通し、5 方式・4 種の確認、拒否・問い返し・補完・複数行・Esc の取り消し・処理中の完了待ち、CH-1 のキーボードだけの完走 | 教材は試作の文面ではなく、形を写した試験用の教材 |
+| 再現していない | 章の完了と「次の章へ進む」の表示 | core が章の完了（`ChapterCompleted`・`completed`）をまだ扱わず（`confirm.rs` の「扱わないこと」。TASK-233 以降）、製品の画面にも口が無い |
+| 再現していない | 遷移先の `on_enter` の名札の行、入口の写しの作り直し | core が遷移で入口の写しを作り直さない（`go_to.rs`・`checkpoint.rs` だけが代入する） |
+| 再現していない | 規則の `when`（`clarifying` など）、条件つきの辺 | core が評価しない（`accept.rs` の `NoConditions`） |
+| 再現していない | チェックポイントの復帰、本文と do の表示 | 製品の画面にボタンも表示も無い |
+| 再現していない | 処理中の Esc による停止 | 先頭以外の Step では入口の写しが無く、停止が警告で無視される（`stop.rs` の規則 2）。通しにもキーボードの区間にも入れない |
+
+担当のタスク番号は `docs/spec/05-tasks.md` で確かめていないため「未確認」とする。
+
+**教材 repo の CH-0〜CH-3 での流し直し: 未実施。** 理由は、教材 repo が未作成で TASK-642 が未完了なこと（2026-10-17 に確認）。教材 repo ができた後に、本試験の手順（`?fixture=ch0-3` の教材を本物に差し替える）で流し直す。
+
+変異（`crates/web/tests/mutations/TERM23-5.mutation` を新規。TERM23-1〜4 は TASK-450 1/3・2/3 の変異で、本節で再実行して記録する。1/3・2/3 の節は足さない）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| TERM23-1 | `offers.rs`: 入力方式 `choice` の選択肢を入力待ちでなく確認待ちで出す | DETECTED |
+| TERM23-2 | `offers.rs`: 壊れた宣言で空に倒さず口を出す | DETECTED |
+| TERM23-3 | `hello.rs`: 入力欄なしの設定を表示に反映しない | DETECTED |
+| TERM23-4 | `host.rs`: 入力欄なしの教材でも下書き・送信・補完を受け付ける | DETECTED |
+| TERM23-5 | `host.rs`: 対象つきの「直す」のクリックを「はい」として送る（`ch0_3_run_host` が検出） | DETECTED |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: cae5e2f（作業ツリーに本変更）
+コマンド（変異）: scripts/check-mutations.sh crates/web/tests/mutations/TERM23-1.mutation 〜 TERM23-5.mutation
+コマンド（native）: cargo test -p fandhe-workshop-web --features test-hooks --test ch0_3_run_host（3 件が通過）
+コマンド（ブラウザ）: TEST_HOOKS=1 tools/build-web.sh の出力を FANDHE_WEB_TEST_DIR、TEST_HOOKS なしの出力を FANDHE_WEB_DIR にして
+  node --test tools/browser/ch0-3-run.test.mjs ほか input-ports・input-field-hidden・keyboard-confirm・reload-points・choice-answer・approval-flow・esc-outcomes・candidates
+結果: 9 ファイル 64 件が通過、失敗 0（ch0-3-run は 4 件）
+負の対照: `test_fixture.rs` の `?fixture=ch0-3` の分岐を外して再ビルドすると、ch0-3-run の 4 件がすべて失敗する（既定の教材で始まり、最初の待ちが時間切れ）
+配信物: make build-web → make check-delivery が RESULT: ok。配信物の wasm に ch0-3-run の文字列は無い
+```
+
+- 未検証: `make test-browser` の全体（9 ファイルだけ流した）
+- 限界: 試験用の教材であり、本物の CH-0〜CH-3 の挙動は確かめていない。処理中の停止は通しに入れていない。Esc は入力欄にフォーカスがある場面だけ（ボタンにフォーカスがあるときの Esc は `main` に届かない。TASK-450 2/3 の対象外の事項）
+- 範囲外: 教材 repo での流し直し（TASK-642 の後）、章の完了・入口の写しの作り直し・`when` の評価・チェックポイントの復帰の口、先頭以外の Step で処理中に停止が無視されること（全周の通し TASK-92 の前に解消が要る）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

@@ -12,6 +12,7 @@
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 //! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
 //! 入力欄なしの教材（`?fixture=no-input`。`pack.profile.input_field: hidden`）も起動の前に選ぶ（TASK-450 2/3）。
+//! 章をまたいで 20 Step を 1 つのページで通す教材（`?fixture=ch0-3`。先頭は `starts[0]` の節点）も起動の前に選ぶ（TASK-450 3/3）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -43,6 +44,12 @@ const NO_INPUT_IR: &[u8] = include_bytes!(concat!(
     "/tests/data/input_field_hidden/ir.json"
 ));
 
+/// 章をまたいで 20 Step を通す教材（`crates/web/tests/data/ch0_3/ir.json`。`pack.id` は mount の既定と別。TASK-450 3/3）。
+const CH03_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/ch0_3/ir.json"
+));
+
 /// mount の教材の選択。既定は `min-3step`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum MountFixture {
@@ -53,14 +60,18 @@ pub(crate) enum MountFixture {
     ReloadPoints,
     /// 入力欄なしの 3 Step の教材（`pack.profile.input_field: hidden`。TASK-450 2/3）。
     NoInput,
+    /// 章をまたいで 20 Step を通す教材（TASK-450 3/3）。
+    Ch03,
 }
 
 /// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
-/// 8 Step の教材、`?fixture=no-input` の完全一致だけが入力欄なしの教材を選び、空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
+/// 8 Step の教材、`?fixture=no-input` の完全一致だけが入力欄なしの教材、`?fixture=ch0-3` の完全一致だけが 20 Step の通しの教材を選び、
+/// 空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
 pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
     match search {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
         "?fixture=no-input" => MountFixture::NoInput,
+        "?fixture=ch0-3" => MountFixture::Ch03,
         _ => MountFixture::Default,
     }
 }
@@ -71,13 +82,20 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
         MountFixture::Default => start_session(),
         MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
         MountFixture::NoInput => session_of(NO_INPUT_IR),
+        MountFixture::Ch03 => session_of(CH03_IR),
     }
 }
 
 /// 教材のバイト列と開始直後の状態から実行環境を作る。`Session::from_state` の唯一の呼び出し（`tests/no_progress.rs`）。
+///
+/// 開始の節点は教材の `starts[0].node` で、契約の試料の開始状態の節点（`main/st-1`）をそれに合わせる。
+/// 既存の教材は先頭が `main/st-1` で、結果は変わらない。節点が教材に無い・`starts` が読めないときは `None`。
 fn session_of(ir_bytes: &[u8]) -> Option<Session> {
     let ir = load_ir(ir_bytes).ok()?;
-    Some(Session::from_state(ir, start_state()?))
+    let value: serde_json::Value = serde_json::from_slice(ir_bytes).ok()?;
+    let node = value.get("starts")?.get(0)?.get("node")?.as_str()?;
+    ir.nodes.iter().any(|n| n.uid == node).then_some(())?;
+    Some(Session::from_state(ir, start_state_at(node)?))
 }
 
 /// 確認が `answer` の Step を持つ試験用の実行環境（TASK-445 2/2。`load-fixture:answer` が差し替える）。
@@ -224,10 +242,18 @@ pub(crate) fn ui_action_session() -> Option<Session> {
     session_of(&serde_json::to_vec(&value).ok()?)
 }
 
-/// 試験の開始直後の状態（契約の試料の `initial`）。
-fn start_state() -> Option<SessionState> {
+/// 契約の試料の開始状態が現在の Step とする節点。
+const SAMPLE_START: &str = "main/st-1";
+
+/// 契約の試料の開始状態の節点を `node` に置き換えた状態。試料の `current`・`status` の鍵・入口の写しの同じ欄が対象で、
+/// 他の欄は変えない。`node` は教材の `starts[0].node`（埋め込みで外から入らない）で、JSON の文字列として組み立て直す。
+fn start_state_at(node: &str) -> Option<SessionState> {
     let value: serde_json::Value = serde_json::from_slice(SAMPLE).ok()?;
-    serde_json::from_value(value.get("initial")?.clone()).ok()
+    let initial = value.get("initial")?;
+    let from = serde_json::to_string(SAMPLE_START).ok()?;
+    let to = serde_json::to_string(node).ok()?;
+    let text = serde_json::to_string(initial).ok()?.replace(&from, &to);
+    serde_json::from_str(&text).ok()
 }
 
 /// ツリーの試料の 1 行。`(id, depth, kind, before, after)`。値は汎用のダミーの文字列で、教材固有の語を使わない。
@@ -357,7 +383,7 @@ pub(crate) fn loadable_envelope() -> Option<fandhe_workshop_core::history_envelo
 
     let ir = load_ir(IR).ok()?;
     let env = two_rounds_envelope()?;
-    let state = replay(&ir, start_state()?, &env.ops).ok()?;
+    let state = replay(&ir, start_state_at(SAMPLE_START)?, &env.ops).ok()?;
     build_envelope(&ir, &env.start, env.ops, state).ok()
 }
 
@@ -424,6 +450,48 @@ mod tests {
             profile.input_field,
             fandhe_workshop_contract::profile::InputFieldMode::Hidden
         );
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが_ch0_3_の教材を選ぶ() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=ch0-3"),
+            MountFixture::Ch03
+        );
+        for other in [
+            "?fixture=ch0-3&x=1",
+            "?x=1&fixture=ch0-3",
+            "?fixture=ch0-3x",
+            "?fixture=Ch0-3",
+            "?fixture=ch0_3",
+            "fixture=ch0-3",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 通しの教材は鍵が別で_20_step_を持ち先頭の_step_から始まる() {
+        let a = mount_session(MountFixture::Default).unwrap();
+        let b = mount_session(MountFixture::Ch03).unwrap();
+        assert_ne!(a.ir().pack.id, b.ir().pack.id);
+        assert_eq!(b.ir().nodes.len(), 20);
+        let s = b.state();
+        let uid = s.run.current.as_ref().unwrap();
+        assert_eq!(uid.0, "main/st-0-1");
+        assert_eq!(s.run.slices[&uid.root()].status.len(), 1);
+        assert_eq!(s.entry.as_ref().unwrap().run.current.as_ref(), Some(uid));
+    }
+
+    #[test]
+    fn 既定の教材の開始状態は試料の節点のままである() {
+        let a = mount_session(MountFixture::Default).unwrap();
+        let uid = a.state().run.current.as_ref().unwrap().clone();
+        assert_eq!(uid.0, SAMPLE_START);
     }
 
     #[test]
