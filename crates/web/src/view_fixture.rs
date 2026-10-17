@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 再現しない: `wireframe-ui`・`headless-ui` の部品・ツリーの `role`・指せる行の属性。合格は検査器の枠が動く
+//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの (b) を除く。`file_tree_view`）・ツリーの `role`（同）・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、各ビューの合格ではない
 //!
 //! # データ
@@ -36,9 +36,10 @@ use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use crate::a11y::TESTID_ATTR;
 use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
-    dirty_list_fields, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId, RowKind, Variant,
-    VariantPolicy, ViewKind,
+    dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
+    RowKind, Variant, VariantPolicy, ViewKind,
 };
+use crate::file_tree_view::file_tree_items;
 
 /// 根の要素の `data-testid`。
 pub(crate) const FIXTURE_TESTID: &str = "view-fixture";
@@ -275,8 +276,12 @@ impl ViewFixture {
         self.phase
     }
 
-    fn items_of(&self, rows: &ViewRows) -> Vec<(String, Node)> {
+    fn items_of(&self, kind: ViewKind, rows: &ViewRows) -> Vec<(String, Node)> {
         match rows {
+            // ファイルツリーの (b) だけは本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
+            ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
+                file_tree_items(v, self.phase)
+            }
             ViewRows::Items(v) => v
                 .iter()
                 .filter_map(|r| row_node(r, self.phase, self.variant, |c: &Cell| c.label.as_str()))
@@ -325,11 +330,17 @@ impl Component for ViewFixture {
         for (kind, rows) in &self.views {
             let selected = *kind == self.selected;
             let items = if selected {
-                self.items_of(rows)
+                self.items_of(*kind, rows)
             } else {
                 Vec::new()
             };
-            match view_list("ul", *kind, selected, items) {
+            let list = if *kind == ViewKind::FileTree {
+                // 親の `role=tree` は (b) で選ばれ項目があるときだけ付く（(a) は従来どおり）。
+                tree_view_list("ul", *kind, self.variant, selected, items)
+            } else {
+                view_list("ul", *kind, selected, items)
+            };
+            match list {
                 Ok(n) => lists.push(n),
                 // 空の一覧で黙って続けず、固定の通知を返す。
                 Err(_) => {

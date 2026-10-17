@@ -1,0 +1,8 @@
+id: ART1-2
+package: fandhe-workshop-web
+test: file_tree_view_contract
+target: crates/web/src/file_tree_view.rs
+find:     let content = vec![label, detail];
+replace:     let content = if shown.content.detail.is_empty() { vec![label] } else { vec![label, detail] };
+expect-fail: 補足が空でも_span_は出る
+note: 補足が空のとき補足の span を省く（前後の切り替えで項目の子の並びが変わり、keyed list の in-place 更新が崩れる）

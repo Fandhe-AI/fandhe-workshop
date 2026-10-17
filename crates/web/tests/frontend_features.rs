@@ -74,7 +74,7 @@ fn web_の_fandhe_frontend_依存は_workspace_の宣言をそのまま使う() 
             "{name} は default-features を上書きしない"
         );
     }
-    assert_eq!(seen, 4, "fandhe-frontend-* の依存は 4 件");
+    assert_eq!(seen, 5, "fandhe-frontend-* の依存は 5 件");
 }
 
 #[test]
