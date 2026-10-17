@@ -159,6 +159,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 ## 5. 変異注入の記録
 
 系列（タスク）ごとに小見出しを置く。TASK-220 と TASK-244 は、ここに小見出しを足す。
+新しい節の番号は、rebase した時点の `origin/main` の最大の番号の次を使う。マージの後に重複が残った場合は、既存の節の番号を変えず、後から来た節に英小文字の枝番（`b`・`c`…）を付ける。
 
 ### 5.1 サンプル（TASK-31）
 
@@ -537,7 +538,7 @@ GUIDE17-1 は `visible_hints` の「`levels` が空の配列なら全水準で�
 |---|---|---|---|---|---|
 | GUIDE17-1 | crates/contract/src/guidance.rs: levels が空の配列のとき全水準で出す分岐を外す（空の levels のヒントが誰にも出なくなる） | empty_levels_means_all_levels | empty_levels_means_all_levels | DETECTED | - |
 
-### 5.7 判定の型の次の行動（TASK-256）
+### 5.7b 判定の型の次の行動（TASK-256）
 
 J1 は `NextAction::new` の空の検査を外す。空の次の行動を持つ拒否・問い返し・注記が作れてしまうため、
 `tests/judgment_contract.rs` が検出する。語彙の文書との一致の試験は `docs/` を読むため、変異注入の写しに含まれず、
@@ -726,7 +727,7 @@ EVT13-1 は差分の比較を常に真にし、EVT13-2 は変更前を変更後�
 | JUDGE1-3 | crates/core/src/command_judge.rs: 名前つき引数の名前の `-`／`_` の同一視を外す（`--external-checks` が宣言の `external_checks` に当たらない） | poc3_pairs, named_key_normalization | named_key_normalization, poc3_pairs, unchecked_spec_is_total | DETECTED | - |
 | JUDGE1-4 | crates/core/src/command_judge.rs: 必須の引数が無いときに拒否せず通す（必須の検査を外す） | poc3_pairs, positional_resolution, judging_properties | positional_resolution, order_of_violations, poc3_pairs, judging_properties | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (CommandSpec { name: "cmd", args: [ArgSpec { name: "a", positional: false, required: true, shape: KebabCase }] }, LexedCommand { name: "cmd", args: [] }) |
 
-### 5.16 選択肢・画面操作・承認の判定（TASK-263）
+### 5.16b 選択肢・画面操作・承認の判定（TASK-263）
 
 宣言にあるかの検査・画面操作の path の比較・承認の対象の比較・`answer` の正誤の判定を 1 か所ずつ外し、受付になってはならない入力が通ることを試験が検出することを確かめる。
 
@@ -772,7 +773,7 @@ EVT13-1 は差分の比較を常に真にし、EVT13-2 は変更前を変更後�
 |---|---|---|---|---|---|
 | PACK11-1 | crates/pack/src/play_expect.rs: rejected:free_text_unjudged を別の拒否の分類に読み替える（受付に付く分類が拒否の期待として通ってしまう） | pack11_expect_grammar_rejects_malformed | pack11_expect_grammar_rejects_malformed, pack11_error_input_expect_diagnostics | DETECTED | - |
 
-### 5.18 誤答ごとの拒否文面 `on_wrong`（TASK-46 1/2）
+### 5.18b 誤答ごとの拒否文面 `on_wrong`（TASK-46 1/2）
 
 正答の選択肢の `on_wrong` の検査を外す誤り（PACK15-1）と、選択肢の `on_wrong` の参照先の検査を外す誤り（PACK15-2）を入れ、試験が検出することを確かめる。
 
@@ -1159,7 +1160,7 @@ Esc の処理中の優先を外す誤り（JUDGE17-1）、Tab の補完の条件
 | JUDGE17-1 | crates/contract/src/key_decide.rs: Esc の処理中の優先を外す（処理中でも停止せず、候補を閉じるか入力を取り消してしまう） | judge17_three_ways_with_busy_priority, expected_table_matches | expected_table_matches, judge17_three_ways_with_busy_priority | DETECTED | - |
 | JUDGE19-1 | crates/contract/src/key_decide.rs: Tab の補完の条件から has_text を外す（文字が無いのに Tab を奪い、フォーカス移動できなくなる） | judge19_prevent_default_on_tab_only_when_open_and_text, expected_table_matches | expected_table_matches, judge19_prevent_default_on_tab_only_when_open_and_text | DETECTED | - |
 
-### 5.39 処理中の停止と入口の写しへの復帰（TASK-211 1/2）
+### 5.39b 処理中の停止と入口の写しへの復帰（TASK-211 1/2）
 
 世界状態を写しへ戻さない誤り（EVT9-1）、世代を +1 しない誤り（EVT9-2）、`Stopped.at` に操作後の世代を使う誤り（EVT9-3）、写しの Step と現在の Step の照合を外す誤り（EVT9-4）を入れ、`stop_restore` が検出することを確かめる。
 
@@ -1558,7 +1559,7 @@ SAVE19-1 は判定の順序（`HISTORY_LOAD_ORDER`）の中で `vocab_newer` の
 SAVE19-2 は `too_many_ops` の段を大きさの段にする変異で、上限の契約（`LimitReason::stage`）とのずれを作る。検出先は `limit_reasons_agree_with_limits_contract` である。
 SAVE19-3 は `other_pack` を適用し直しの段にする変異で、段の単調性を崩す。検出先は `stage_is_non_decreasing_along_order` である。最初の案（`other_pack` を版の判定の段にする）は、次の `bad_version` と同じ段で単調性が崩れず SURVIVED になったため、適用し直しの段へ改めた。
 
-### 5.58 左の成果物ビューの型と印の対応（TASK-467 1/2）
+### 5.58b 左の成果物ビューの型と印の対応（TASK-467 1/2）
 
 ART3-1 は `change_mark_of` が置かれた印（`Put`）を削除の印に対応させる変異で、検出先は契約試験 `artifact_view_contract` の `change_mark_of_の対応表` である。
 ART2-1 は前後が同じ行に変更の印を付け、違う行には付けない変異で、検出先は `shown_後の状態の追加_削除_変更_不変` と、印の数を前後の組から数え直す `後の状態の印の数は前後の組から数えた変化の数と一致する` である。
@@ -1646,7 +1647,7 @@ IR・履歴・関門が共有するようにした。そのため `SAFE20-1`・`
 | SAFE20-2 | crates/core/src/load_gate.rs: 深さの段を大きさの段より先にする | size_is_decided_before_depth, rejecting_stage_is_the_first_violated_in_contract_order | 期待どおり（2 件） | DETECTED |
 | SAFE18-1 | crates/core/src/load_gate.rs: ちょうど 10MB を断る誤り | exact_limit_is_not_rejected_by_size, limit_neighborhood_is_judged_exactly, bytes_are_judged_by_length_without_reading_content, size_rule_holds_for_any_length | 期待どおり（4 件。最小の反例 10485760） | DETECTED |
 
-### 5.60 左の成果物ビューの束縛点・指せる行・変種の口（TASK-467 2/2）
+### 5.60b 左の成果物ビューの束縛点・指せる行・変種の口（TASK-467 2/2）
 
 ART5-1 は選ばれていないビューに `hidden` を付けない変異で、検出先は `親の属性の表` と `view_list_の選択と件数` である。
 ART11-1 は指せる行の属性の組から `tabindex` を落とす変異で、検出先は `属性の組は_4_つで順が固定_値はエスケープされる` である。
@@ -1665,7 +1666,7 @@ ART7-1 は文書に変種 (a) を許す変異で、検出先は `変種の許可
 | ART11-1 | crates/web/src/artifact_view.rs: 指せる行の属性の組から tabindex を落とす（キーボードで指せない行になる。ART-11・FEND-13） | 属性の組は_4_つで順が固定_値はエスケープされる | 属性の組は_4_つで順が固定_値はエスケープされる | DETECTED | - |
 | ART7-1 | crates/web/src/artifact_view.rs: 文書に変種 (a) を許す（ART-7 で (b) だけと確定済みの文書が (a) で作れてしまう） | 変種の許可の表, 変種の方針は許されない組と重複を拒否する | 変種の許可の表, 変種の方針は許されない組と重複を拒否する | DETECTED | - |
 
-### 5.61 進行と補完の配送（TASK-349 1/2）
+### 5.61b 進行と補完の配送（TASK-349 1/2）
 
 FEND4-1 は補完を `set_timeout` の予約を通さず、リスナーの中から直接 `deliver` で届ける変異である（更新の最中の再入で黙って捨てられる誤り）。
 検出先は、配送の口の規則を固定する `state_paths` である。FEND4-2 は次の進行の番号を 1 つ先にする変異で、`host_contract` の宛先の通知の試験が検出する。
@@ -1703,76 +1704,7 @@ FEND4-3 は、配信する設定の画面に、進行の宛先を `data-payload`
 |---|---|---|---|---|---|
 | FEND4-3 | crates/web/src/host.rs: 配信する設定に、進行の宛先を data-payload で届ける隠し要素が入る（FEND-4 が禁じる経路） | 実ソースは違反なし | 実ソースは違反なし | DETECTED | - |
 
-## 6. 既存の自動テストの件数の基準値（TASK-346）
-
-採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
-本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
-PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
-
-```text
-計測日: 2026-10-14
-元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
-```
-
-### 6.1 採用した版（Cargo.lock の解決済みの版）
-
-| crate | 版 |
-|---|---|
-| `fandhe-frontend-core` | 0.4.3 |
-| `fandhe-frontend-interactive` | 0.2.7 |
-| `fandhe-frontend-wasm-client` | 0.6.1 |
-| `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
-| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
-
-版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
-
-### 6.2 ビルドと lint
-
-| 確認 | コマンド | 結果 |
-|---|---|---|
-| native のビルド | `cargo build --locked --workspace` | 成功 |
-| wasm32 の release（配信設定） | `SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
-| wasm32 の release + `test-hooks` | `TEST_HOOKS=1 SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
-| fmt・clippy（`-D warnings`。native と wasm32 の feature なし・`test-hooks`） | `make lint` | 成功 |
-
-### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
-
-| 試験のバイナリ | passed | failed | ignored |
-|---|---|---|---|
-| contract（unittests） | 0 | 0 | 0 |
-| contract（limits_contract） | 8 | 0 | 0 |
-| core（unittests） | 0 | 0 | 0 |
-| core（property_sample） | 6 | 0 | 0 |
-| core（provider_contract） | 4 | 0 | 0 |
-| pack（unittests lib） | 12 | 0 | 0 |
-| pack（unittests bin） | 0 | 0 | 0 |
-| pack（cli） | 3 | 0 | 0 |
-| pack（testdata_min_3step） | 3 | 0 | 0 |
-| web（unittests） | 3 | 0 | 0 |
-| web（frontend_features） | 3 | 0 | 0 |
-| doctest（contract・core・pack・web） | 0 | 0 | 0 |
-| 合計 | 42 | 0 | 0 |
-
-`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
-`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
-
-### 6.4 node:test の件数
-
-| 対象 | tests | pass | fail | skipped |
-|---|---|---|---|---|
-| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
-| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
-| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
-
-`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
-`make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
-
-### 6.5 未計測のもの
-
-- CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
-- `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
-
-### 5.60 表示だけになる版の違いの変異（TASK-174 2/3）
+### 5.60c 表示だけになる版の違いの変異（TASK-174 2/3）
 
 `content_major`・`format_older`・`engine_major` の判定（`crates/core/src/history_open.rs`）に、`VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4` の
 5 件を置いた。`VER6-2` は結果の種類（表示だけ）を変えず理由コードだけを取り違えるため、既存の `VER6-1` では検出できない種類である。
@@ -1794,7 +1726,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | VER6-1 | crates/core/src/history_open.rs: 教材の主版の違いを判定しない（主版の違う履歴が変換して開く経路に着く） | fail_closed_for_versions_that_must_not_open | ver6_content_major_boundaries, fail_closed_for_versions_that_must_not_open, ver6_content_major_with_removed_step_is_view_only_at_any_position, ver7_view_only_order_follows_the_contract, view_only_reasons_are_non_empty_and_classified | DETECTED | - |
 | VER7-1 | crates/core/src/history_open.rs: 新しい IR の構造の版の履歴を拒否しない（エンジンの最大版・開く教材の IR の版のどちらを超える場合も対象） | fail_closed_for_versions_that_must_not_open | fail_closed_for_versions_that_must_not_open, history_ir_format_newer_than_opening_pack_is_refused | DETECTED | - |
 
-### 5.61 開かない版の違いの変異と線引きの照合（TASK-174 3/3）
+### 5.61c 開かない版の違いの変異と線引きの照合（TASK-174 3/3）
 
 `format_newer`・`vocab_newer`・`engine_newer` の判定（`crates/core/src/history_open.rs`）に、`VER7-5`〜`VER7-10` の 6 件を置いた。
 `VER7-5` は語彙の判定の欠落、`VER7-6` は開く側の語彙の条件、`VER7-7` は副版・修正版の新しさ、`VER7-8` はエンジンの上限側の条件、
@@ -1828,7 +1760,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 
 エンジンが読める語彙の上限の正は core の `VOCAB_MAX` で、pack の `vocab::LATEST` との一致は `crates/pack/tests/vocabulary_terms.rs` が見る。
 
-### 5.62 ツリーの属性の計算と全項目が開いた表示（TASK-472）
+### 5.62b ツリーの属性の計算と全項目が開いた表示（TASK-472）
 
 ツリーの位置の計算（`tree_attrs`）、親の `role=tree`（`artifact_view::tree_view_list`）、a11y 契約の版 2（`treeitem` の 3 属性・`aria-expanded` は `true` のみ）を
 次の 3 層で確かめた。
@@ -1880,7 +1812,7 @@ SAVE19-4 は文字の途中の切れを `not_json` にする誤り、SAVE19-5 �
 | SAVE9-2 | crates/web/src/save_pending.rs: 書けなかった鍵も保留から外す（失敗した未保存の値が失われる） | DETECTED（書き込みの失敗では保留に残り再びの_flush_で書ける） |
 | SAVE9-3 | crates/web/src/save_pending.rs: 書けた鍵を保留から外さない（二重に書く） | DETECTED（flush_の後に保留は空になり_2_回目は書かない ほか 1 件） |
 
-### 5.64 履歴の読み込みの段 4〜6（TASK-331 2/3）
+### 5.64b 履歴の読み込みの段 4〜6（TASK-331 2/3）
 
 履歴の読み込みの版の欄・型・版の判定の段を `history_load::load_history`（段 1〜6 の入口）に実装し、`history_load` の試験で確かめた。
 段 4 は `check_history_head`、段 5 の前半は `parse_history_envelope`、段 5 の後半と段 6 は既存の `open_history` を呼ぶ。
@@ -2427,3 +2359,72 @@ MOD-4・TASK-236 の「最初の `/` まで」と、実装の「最後の `/` �
 | SAVE19-10 | crates/core/src/history_load.rs: 読み込みの件数の比較を >= にする（既存） | DETECTED |
 | SAVE19-11 | crates/core/src/history_load.rs: 読み込みの件数の検査を外す（既存） | DETECTED |
 ```
+
+## 6. 既存の自動テストの件数の基準値（TASK-346）
+
+採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
+本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
+PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
+
+```text
+計測日: 2026-10-14
+元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+```
+
+### 6.1 採用した版（Cargo.lock の解決済みの版）
+
+| crate | 版 |
+|---|---|
+| `fandhe-frontend-core` | 0.4.3 |
+| `fandhe-frontend-interactive` | 0.2.7 |
+| `fandhe-frontend-wasm-client` | 0.6.1 |
+| `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
+| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
+
+版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
+
+### 6.2 ビルドと lint
+
+| 確認 | コマンド | 結果 |
+|---|---|---|
+| native のビルド | `cargo build --locked --workspace` | 成功 |
+| wasm32 の release（配信設定） | `SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| wasm32 の release + `test-hooks` | `TEST_HOOKS=1 SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| fmt・clippy（`-D warnings`。native と wasm32 の feature なし・`test-hooks`） | `make lint` | 成功 |
+
+### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
+
+| 試験のバイナリ | passed | failed | ignored |
+|---|---|---|---|
+| contract（unittests） | 0 | 0 | 0 |
+| contract（limits_contract） | 8 | 0 | 0 |
+| core（unittests） | 0 | 0 | 0 |
+| core（property_sample） | 6 | 0 | 0 |
+| core（provider_contract） | 4 | 0 | 0 |
+| pack（unittests lib） | 12 | 0 | 0 |
+| pack（unittests bin） | 0 | 0 | 0 |
+| pack（cli） | 3 | 0 | 0 |
+| pack（testdata_min_3step） | 3 | 0 | 0 |
+| web（unittests） | 3 | 0 | 0 |
+| web（frontend_features） | 3 | 0 | 0 |
+| doctest（contract・core・pack・web） | 0 | 0 | 0 |
+| 合計 | 42 | 0 | 0 |
+
+`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
+`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
+
+### 6.4 node:test の件数
+
+| 対象 | tests | pass | fail | skipped |
+|---|---|---|---|---|
+| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
+| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
+| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
+
+`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
+`make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
+
+### 6.5 未計測のもの
+
+- CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
+- `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
