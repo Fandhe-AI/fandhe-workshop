@@ -3050,6 +3050,32 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 - ブラウザ: `task-tree`・`artifact-mark-toggle`・`artifact-view-check`・`artifact-view-controls`・`view-switch` の 62 件が通過（2026-10-17。`make test-browser` の全体ではなく、この 5 本を対象にした）
 
+### 5.99 ファイルツリーの変種 (b)（TASK-473 1/2）
+
+左の成果物エリアのファイルツリーを、変種 (b) で描く本体（`crates/web/src/file_tree_view.rs`）を作り、代役の部品（`view_fixture`）のファイルツリー (b) をこれに回した。変種 (a) は別の担当（#377）である。
+
+- 受入: 項目数（前 10・後 11）と変化の印の数（後は追加 1・削除 1・変更 2・印なし 7）が期待値と一致し、前後の切り替えで行も項目の内側も置き換わらない
+- 判断 1: `headless-ui` の `tree_view` からは `item_text`（ラベル）だけを採る。`item`・`branch` は `aria-selected` を必ず出し（a11y が違反にし、呼び出し側から消せない）、`*_indicator` の `aria-hidden` と `branch_content` の `role=group` は閉じた一覧に無く、根が `div` で `ul` の子として不正であり、`branch` は開いた行すべてに `aria-expanded` を付け、`data-value` に教材由来の識別子が入る。採る部品を広げるには、spec の更新と a11y の契約の版上げが先に要る
+- 判断 2: `fandhe-frontend-headless-ui` を web の直接の依存にした（0.69.2。`Cargo.lock` の解決済みの版のまま。`frontend_features` の件数は 5）。wasm-full は再エクスポートしないため
+- 判断 3: 製品の `view()` へは結線しない。製品には前後の切り替えの口が無く、世界状態から前後の行を作る規則（前の取り直し）が未決で、親の属性を替えると `list_parent_attrs` の期待が変わるため
+- 判断 4: 項目の形は前後で変えない。補足の `span` は空でも出し、ラベルはディレクトリでもファイルでも `item_text` にそろえる（種類は `data-kind`）。`aria-expanded`・`aria-setsize` の変化は属性だけで、子の列は変わらない
+- native の試験（`crates/web/tests/file_tree_view_contract.rs`）: 項目数と key の並び、印の数、a11y の閉じた一覧、木の属性（手で数えた位置）、禁じた属性が 0 件、前後の形の不変、補足が空でも出ること、エスケープ、0 件・非選択で `role=tree` が付かないこと、200 行の構成（時間は測らない。測定は TASK-485）
+- ブラウザの試験（`tools/browser/file-tree-view.test.mjs`）: FT1 検査器で前後 2 往復（行・内側の保持が前の行数に等しい）、FT2 前後の木の属性と項目数と印の数、FT3 外部リクエスト・ページのエラー・ダイアログが 0 件、FT4 (a) の対照
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a4bb59d-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART1-1.mutation crates/web/tests/mutations/ART1-2.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART1-1 | 項目に木の属性の組を付けない | DETECTED | `file_tree_view_contract` の「木の属性は手で数えた位置と一致する」 |
+| ART1-2 | 補足が空のとき補足の `span` を省く | DETECTED | `file_tree_view_contract` の「補足が空でも_span_は出る」 |
+
+- ブラウザの試験: `file-tree-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`tree-attrs`・`list-parent-attrs` の 71 件が通過（2026-10-17。`make test-browser` の全件ではなく、関係する 7 ファイルを試験の設定の web で流した）
+- 範囲外: 製品の結線、指せる行の属性（TASK-480）、変種 (a)（#377）、親の `aria-label`、`item`・`branch` の採用、200 件の再描画時間（TASK-485）、補足の見た目（TASK-490）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -3069,7 +3095,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | `fandhe-frontend-interactive` | 0.2.7 |
 | `fandhe-frontend-wasm-client` | 0.6.1 |
 | `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
-| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
+| `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473） |
 
 版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
 

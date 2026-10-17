@@ -12,9 +12,9 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (b) は `task_tree`（木の属性・状態のバッジ・親の `role=tree`。TASK-474 1/2）で描く
-//! - 再現しない: `wireframe-ui`・`headless-ui` の部品・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
-//!   ことの証拠であり、タスクツリー (b) を除く各ビューの合格ではない
+//! - 本体を通す: タスクツリーの (b) は `task_tree`（木の属性・状態のバッジ・親の `role=tree`。TASK-474 1/2）で、ファイルツリーの (b) は `file_tree_view`（TASK-473 1/2）で描く
+//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの (b) の `item_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
+//!   ことの証拠であり、タスクツリー (b)・ファイルツリー (b) を除く各ビューの合格ではない
 //!
 //! # データ
 //!
@@ -40,6 +40,7 @@ use crate::artifact_view::{
     dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
     RowKind, Variant, VariantPolicy, ViewKind,
 };
+use crate::file_tree_view::file_tree_items;
 use crate::task_tree::task_items_b;
 
 /// 根の要素の `data-testid`。
@@ -279,6 +280,10 @@ impl ViewFixture {
 
     fn items_of(&self, kind: ViewKind, rows: &ViewRows) -> Vec<(String, Node)> {
         match rows {
+            // ファイルツリーの (b) だけは本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
+            ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
+                file_tree_items(v, self.phase)
+            }
             // タスクツリーの (b) だけは本体を通す。他の種類と (a) は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree && self.variant == Variant::B => {
                 task_items_b(v, self.phase)
@@ -335,8 +340,8 @@ impl Component for ViewFixture {
             } else {
                 Vec::new()
             };
-            // タスクツリーだけは親の `role=tree` を足す経路を通す（(a) では `view_list` と同じ属性になる）。
-            let list = if *kind == ViewKind::TaskTree {
+            // 木の 2 種類は親の `role=tree` を足す経路を通す。(b) で選ばれ項目があるときだけ付き、(a) は `view_list` と同じ属性になる。
+            let list = if matches!(*kind, ViewKind::FileTree | ViewKind::TaskTree) {
                 tree_view_list("ul", *kind, self.variant, selected, items)
             } else {
                 view_list("ul", *kind, selected, items)

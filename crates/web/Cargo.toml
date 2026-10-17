@@ -22,6 +22,7 @@ fandhe-frontend-wasm-full.workspace = true
 fandhe-frontend-core.workspace = true
 fandhe-frontend-interactive.workspace = true
 fandhe-frontend-wasm-client.workspace = true
+fandhe-frontend-headless-ui.workspace = true
 # 試験の設定の状態の書き出し（engine_snapshot_json）の文字列のエスケープを手書きしないため。配信物には入らない。
 serde_json = { workspace = true, optional = true }
 
