@@ -101,7 +101,8 @@ pub struct HostModel {
     /// 復元（`with_session`）と履歴の差し替え（`install_session`）では、ログの各判定の時点の Step・進み具合から全件を作り直す。
     judged_texts: BTreeMap<u32, String>,
     /// 左の成果物で選んだビュー（TASK-470。`select-view`）。表示の状態で、履歴（`ops`）には記録しない。
-    /// 読み方は [`HostModel::selected_view`] が決め、別の Step・宣言に無い種類のときは読まれない。
+    /// 読み方は [`HostModel::selected_view`] が決め、宣言に無い種類のときは読まれない。今の Step が変わると
+    /// `step_engine` が捨てる（ART-12。元の Step へ戻っても以前の選択は戻らない）。
     view_choice: Option<ViewChoice>,
 }
 
@@ -943,6 +944,17 @@ impl EngineHost {
         let from = self.model.world_consumed.min(log.len());
         replay_changes(&mut self.model.world, &log[from..]);
         self.model.world_consumed = log.len();
+        // 今の Step が選んだときの Step と違えば、ビューの選択を捨てる（ART-12。移動すると宣言の先頭に戻る）。
+        // 読まないだけで残すと、元の Step へ戻ったときに以前の選択が戻ってしまう。Step を変える口はすべてここを通り、
+        // 差し替え（`install_recorded`）と構築は選択を持たずに始める。dirty は下の `changed` が list をすべて積む。
+        if self
+            .model
+            .view_choice
+            .as_ref()
+            .is_some_and(|c| Some(&c.step) != session.state().run.current.as_ref())
+        {
+            self.model.view_choice = None;
+        }
         for (name, old) in before {
             if self.registry.bound_value(name, &self.model) != old {
                 self.dirty.push(name);

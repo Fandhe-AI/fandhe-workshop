@@ -2967,7 +2967,7 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 行の中身はいまのまま、選ばれたビューの list に入れた。ブラウザの試験用の教材（複数のビューを宣言するもの）と、部品を項目の内側に置く規則・101 回の属性の不変は 2/2 の担当で、本節は native の試験で確かめた。
 
 - 受入: 選ばれていないビューの list が項目 0 件で `hidden` を持つ。親の属性が `list_attrs(kind, selected)` と一致する（開始直後・選択の後・Step の移動の後）
-- 試験（`crates/web/tests/view_select.rs`）: 開始時の描画（7 本・`hidden` は 6 本・宣言の先頭だけが見える・ボタンは宣言の順で一覧外の種類と未定義の ID は出ない）、選択の dirty（旧と新の list とボタンの list）、同じ種類と宣言に無い種類の無視、session なし、綴りの完全一致の復号、Step の移動で先頭に戻ること、a11y の検査
+- 試験（`crates/web/tests/view_select.rs`）: 開始時の描画（7 本・`hidden` は 6 本・宣言の先頭だけが見える・ボタンは宣言の順で一覧外の種類と未定義の ID は出ない）、選択の dirty（旧と新の list とボタンの list）、同じ種類と宣言に無い種類の無視、session なし、綴りの完全一致の復号、Step の移動で先頭に戻ること（A→B→A で戻っても以前の選択が戻らないことを含む）、行が上限（4,096 件）を超えると選ばれたビューの list に通知の行と `data-list-error` が出ること（ちょうど 4,096 件では出ない）、a11y の検査
 - 既存の試験の更新: `list_parent_attrs`（期待を 7 本とボタンの list に置き換え）、`host_contract`（field 数 9 から 16）、`artifact_view_binding_contract`（標準の登録簿が 7 本を持つ）、`no_hidden_triggers`（`engine_parts.rs` の `PAYLOAD_ATTR` 2 件）、ブラウザの `list-parent-attrs`・`reload-points`（選択子）
 - 仮置き: 宣言が無い Step の既定は、`view_tabs` が `all` ならファイルツリー（ホストは `all` だけを渡す。`pack.left_pane` の読み取りは TASK-53 2/2）。`view_tabs: all` で 7 種を選べるようにするのは TASK-481
 - 入れていないもの: 親の `aria-label`・ボタンの `aria-pressed`（`a11y` の閉じた一覧に無い。契約の版 3 と spec の更新が先に要る）。エンジンの操作の dirty の絞り込みは 2/2
@@ -2982,6 +2982,24 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 |---|---|---|---|
 | ART12-1 | 宣言に無い種類の選択も受け付ける | DETECTED | `view_select` の「宣言に無い種類の選択は無視され_dirty_を積まない」 |
 | ART5-2 | 選ばれていないビューの list も選択済みとして描く | DETECTED | `view_select` の 5 件（開始直後の描画を含む） |
+
+PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前に新しい試験が失敗し、直した後に通ることを確かめた。
+
+- 上限を超えた行の `Err` を、行 0 件の keyed list に黙って倒していた。元の行を `keyed_view_or_notice` に渡し、通知の行と `data-list-error` を出す形に戻した（FEND-22・D-46）
+- 別の Step では選択を読まないだけで、捨てていなかった。A で選び、B へ移って A へ戻ると以前の選択が戻った。`step_engine` が、今の Step が選んだときの Step と違えば選択を捨てる（ART-12）。Step を変える口（操作・送信・再読み込みの模擬）はすべて `step_engine` を通り、差し替え（`install_recorded`）と構築は選択を持たずに始める
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 2088de2-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART12-1.mutation crates/web/tests/mutations/ART5-2.mutation crates/web/tests/mutations/ART12-2.mutation crates/web/tests/mutations/FEND22-1.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART12-1 | 宣言に無い種類の選択も受け付ける | DETECTED | `view_select` の「宣言に無い種類の選択は無視され_dirty_を積まない」 |
+| ART5-2 | 選ばれていないビューの list も選択済みとして描く | DETECTED | `view_select` の 8 件（開始直後の描画を含む） |
+| ART12-2 | Step が変わってもビューの選択を捨てない | DETECTED | `view_select` の「先頭以外を選んで別の_step_へ移り_戻ると先頭に戻る」 |
+| FEND22-1 | 上限を超えた行を通知なしの空の一覧に倒す | DETECTED | `view_select` の「行が上限を超えると選ばれたビューの_list_に通知と_data_list_error_が出る」 |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

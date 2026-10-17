@@ -36,8 +36,7 @@ use fandhe_workshop_core::Session;
 use crate::a11y::{ChangeMark, TESTID_ATTR};
 use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
-    declared_kinds, list_attrs, view_list, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
-    VIEW_LIST_FIELDS,
+    declared_kinds, list_attrs, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR, VIEW_LIST_FIELDS,
 };
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
@@ -334,20 +333,19 @@ impl DisplayPart<HostModel> for ArtifactPart {
         let mut rows = Some(items);
         for kind in ViewKind::ALL {
             let is_selected = kind == selected;
-            let items = if is_selected {
+            let view_rows = if is_selected {
                 rows.take().unwrap_or_default()
             } else {
                 Vec::new()
             };
-            // 上限超過などの `Err` も同じ属性で「行 0 件の keyed list」に倒す（`data-bind-list` を保つ）。
-            let list = view_list("ul", kind, is_selected, items).unwrap_or_else(|_| {
-                keyed_view_or_notice(
-                    "ul",
-                    list_attrs(kind, is_selected),
-                    &kind.list_part_field(),
-                    Vec::new(),
-                )
-            });
+            // 上限超過などの `Err` は、元の行で `keyed_view_or_notice` が通知の行と `data-list-error` に倒す
+            // （FEND-22・D-46。`data-bind-list` は保つ）。黙って行 0 件の一覧にしない。
+            let list = keyed_view_or_notice(
+                "ul",
+                list_attrs(kind, is_selected),
+                &kind.list_part_field(),
+                view_rows,
+            );
             children.push(list);
         }
         children.push(bind_text(

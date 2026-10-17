@@ -256,3 +256,87 @@ fn 親の属性列は選択と操作を繰り返しても_list_attrs_と一致�
         }
     }
 }
+
+#[test]
+fn 先頭以外を選んで別の_step_へ移り_戻ると先頭に戻る() {
+    let mut host = host_of(multi_view_ir());
+    select(&mut host, ViewKind::FileTree);
+    let html = render_component_html(&host);
+    assert!(!is_hidden(&view_list_html(&html, ViewKind::FileTree).0));
+    for to in ["main/st-2", "main/st-1"] {
+        let go: Op = serde_json::from_value(serde_json::json!({"control": {"go_to": to}})).unwrap();
+        host.update(HostAction::Engine(go));
+        let cur = host.model().session().unwrap().state().run.current.clone();
+        assert_eq!(
+            cur.map(|s| s.0),
+            Some(to.to_owned()),
+            "移動が受け付けられない"
+        );
+    }
+    let html = render_component_html(&host);
+    // st-1 の宣言の先頭（diff）に戻り、以前の選択（file_tree）は戻らない（ART-12）。
+    for (kind, hidden) in list_tags(&html) {
+        assert_eq!(hidden, kind != ViewKind::Diff, "{}", kind.as_str());
+    }
+    assert_eq!(
+        buttons(&html),
+        vec![
+            ("diff".to_owned(), true),
+            ("card_list".to_owned(), false),
+            ("file_tree".to_owned(), false),
+        ]
+    );
+}
+
+/// 世界状態の経路が `n` 件になるログを持つホスト。ログの `changed` を導出が世界状態へ写す。
+fn host_with_paths(ir: Ir, n: usize) -> EngineHost {
+    let sample: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(testdata().join("contract/event-sequence.json")).unwrap(),
+    )
+    .unwrap();
+    let mut initial = sample["initial"].clone();
+    let log: Vec<serde_json::Value> = (0..n)
+        .map(|i| {
+            serde_json::json!({"changed": {
+                "at": {"generation": 1, "step": "main/st-1"},
+                "path": format!("p/{i}"),
+                "before": null,
+                "after": {"fixture": null, "attrs": {"kind": "none", "state": "created"}},
+                "cause": "input",
+            }})
+        })
+        .collect();
+    initial["log"] = serde_json::Value::Array(log);
+    let state: SessionState = serde_json::from_value(initial).unwrap();
+    EngineHost::with_session(Session::from_state(ir, state), standard_registry()).unwrap()
+}
+
+#[test]
+fn 行が上限を超えると選ばれたビューの_list_に通知と_data_list_error_が出る() {
+    let host = host_with_paths(multi_view_ir(), 4_097);
+    assert_eq!(host.model().world().len(), 4_097);
+    let html = render_component_html(&host);
+    let (tag, body) = view_list_html(&html, ViewKind::Diff);
+    assert!(!is_hidden(&tag), "{tag}");
+    assert!(tag.contains("data-list-error=\"limit\""), "{tag}");
+    assert!(tag.contains("data-bind-list=\"view_diff\""), "{tag}");
+    assert!(body.contains("一覧を表示できません"));
+    assert_eq!(rows_in(&body), 0);
+    // 選ばれていない list には通知を出さない。
+    for kind in ViewKind::ALL {
+        if kind != ViewKind::Diff {
+            let (tag, body) = view_list_html(&html, kind);
+            assert!(!tag.contains("data-list-error"), "{}", kind.as_str());
+            assert!(!body.contains("<li"), "{}", kind.as_str());
+        }
+    }
+}
+
+#[test]
+fn 行が上限ちょうどなら通知を出さない() {
+    let host = host_with_paths(multi_view_ir(), 4_096);
+    let html = render_component_html(&host);
+    let (tag, body) = view_list_html(&html, ViewKind::Diff);
+    assert!(!tag.contains("data-list-error"), "{tag}");
+    assert_eq!(rows_in(&body), 4_096);
+}

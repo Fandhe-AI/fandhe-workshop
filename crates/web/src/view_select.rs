@@ -9,8 +9,9 @@
 //!   黙って飛ばす。fail-closed）を宣言の順・種類ごとに最初の 1 つで並べる（`artifact_view::declared_kinds`）。
 //! - 選べるのは宣言した種類だけである。`view_tabs: all` で 7 種すべてを選べるようにするのは TASK-481 の担当で、
 //!   `pack.left_pane` の読み取り（TASK-53 2/2）の後に広げる。狭める側の仮置きなので安全側である。
-//! - 選択は Step ごとに持つ（[`ViewChoice`]）。別の Step に移ると、保持した選択は読まれず、
-//!   宣言の先頭のビューに戻る（ART-12）。
+//! - 選択は Step ごとに持つ（[`ViewChoice`]）。今の Step が変わると `host::EngineHost` が選択を捨て、
+//!   宣言の先頭のビューに戻る（ART-12。元の Step へ戻っても以前の選択は戻らない）。[`effective_view`] は
+//!   選んだ Step と今の Step の照合も残す（捨て忘れに対する二重の守り）。
 //! - 宣言が無い Step の既定のビューは試作の仮置きである（TASK-470・PACK-48・ART-25。決まった規則は TASK-496）。
 //!
 //! 属性値・文字はすべて閉じた集合の `&'static str` で、教材が付けたビューの ID は属性にも文字にも出さない。
@@ -41,7 +42,7 @@ pub const VIEW_SELECT_BUTTON_TESTID: &str = "view-select-button";
 /// 選択の属性名。値は `"true"` か `"false"`。
 pub const SELECTED_ATTR: &str = "data-selected";
 
-/// 保持する選択。どの Step で選んだかを持ち、別の Step では読まない。
+/// 保持する選択。どの Step で選んだかを持ち、別の Step では読まない（Step が変われば捨てられる）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewChoice {
     /// 選んだときの Step の実体 ID。
