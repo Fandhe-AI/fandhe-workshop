@@ -160,3 +160,18 @@ fn 開けない保存済みの値は新しく始め上書きしない() {
     leave(&h, &f);
     assert_eq!(f.local.raw(&k.render()).as_deref(), Some("{broken"));
 }
+
+#[test]
+fn 読み込みの上限を超える履歴は保存しない() {
+    let f = fixture(false);
+    let (mut h, _) = open_page(&f);
+    h.update(act("draft", "/make-note first-note"));
+    h.update(act("submit", ""));
+    assert!(h.history_to_save().is_some(), "上限以内なら保存する");
+    // 下書きの変更と送信を重ねて ops を読み込みの上限（20,000 件）より多くする。
+    for i in 0..10_001 {
+        h.update(act("draft", &format!("d{i}")));
+        h.update(act("submit", ""));
+    }
+    assert_eq!(h.history_to_save(), None, "読み込めない包みは保存しない");
+}

@@ -59,6 +59,7 @@ use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_boot::{boot_session, BootOutcome};
 use fandhe_workshop_core::history_export::export_bytes;
+use fandhe_workshop_core::history_limit;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
@@ -539,7 +540,7 @@ impl EngineHost {
 
     /// 離れる直前に保存する値（履歴ファイルと同じ書き出し）。保存しない場合は `None`。
     ///
-    /// 保存しない場合: 記録した `ops` が 0 件（未操作。最初の変更まで保存しない。SAVE-28）、起動時に開けなかった履歴がある
+    /// 保存しない場合: 読み込みの上限（`history_limit::check_save`）を超える、記録した `ops` が 0 件（未操作。最初の変更まで保存しない。SAVE-28）、起動時に開けなかった履歴がある
     /// （上書きすると失う）、包みを組み立てられない・書き出せない（fail-closed）。値は呼び出し側が保存先へ渡すだけで、
     /// ログにも結果にも出さない（履歴は下書きを含む受講者のデータである）。
     pub fn history_to_save(&self) -> Option<String> {
@@ -548,6 +549,8 @@ impl EngineHost {
         }
         let envelope = self.model.recorded.as_ref()?.envelope_for_save()?;
         let bytes = export_bytes(&envelope).ok()?;
+        // 読み込めない包みは保存しない。最後に読み込めた保存を残す（`history_limit` の規則 2）。
+        history_limit::check_save(bytes.len(), envelope.ops.len()).ok()?;
         String::from_utf8(bytes).ok()
     }
 
