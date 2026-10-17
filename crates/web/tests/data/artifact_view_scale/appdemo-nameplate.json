@@ -1,0 +1,5 @@
+{"view":"appdemo","title":"アプリのデモの名札（試作の教材 CH-0 の ST-0.1）","rows":[
+{"id":"screen/top","depth":0,"kind":"heading","before":{"label":"上部（教材の名前と、今の位置）","detail":"","state":"","tags":[]},"after":{"label":"上部（教材の名前と、今の位置）","detail":"","state":"","tags":[]}},
+{"id":"screen/left","depth":0,"kind":"item","before":{"label":"左（成果物。変わった所に印が付きます）","detail":"","state":"","tags":[]},"after":{"label":"左（成果物。変わった所に印が付きます）","detail":"","state":"","tags":[]}},
+{"id":"screen/right","depth":0,"kind":"item","before":{"label":"右（操作。ここに入力します）","detail":"","state":"","tags":[]},"after":{"label":"右（操作。ここに入力します）","detail":"","state":"","tags":[]}}
+]}

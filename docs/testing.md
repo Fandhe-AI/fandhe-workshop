@@ -3415,6 +3415,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `point-rows`・`card-view`・`app-demo-view`・`check-view`・`task-tree`・`file-tree-view`・`diff-view`・`doc-view`・`view-switch`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`list-parent-attrs` の 136 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
 - 範囲外: クリックで指す操作の受け付け・名札の行 `screen/top`・クリックのブラウザ試験は TASK-480 2/2、Enter・Space は TASK-358・TASK-375、製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-18・A11Y-20・TASK-494、フォーカスの見た目と配色は TASK-490、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.112 クリックで指す操作の受け付けとアプリのデモの名札の行（TASK-480 2/2）
+
+指せる行のクリック（`data-action="ui"`・`data-payload`）を、host の `EngineHost::decode_action` が `PointTarget::decode` を通して `Op::Input(Input::Ui { view, path })` に変えて受け付けるようにした。代役の部品（`view_fixture`）も同じ復号器を通し、今の画面で指せる行だけを記録する。アプリのデモの名札の行（世界状態の経路 `screen/top`）は、名札のデータ（`appdemo-nameplate.json`）で指せる行になる。契約（`artifact_view.rs`。版 1）は変えない。
+
+- 受入: 7 種のビューの宛先つきの行をクリックすると、指す操作として受け付けられる。宛先の無い行（表示だけの行）をクリックしても何も受け付けない。アプリのデモの名札の行 `screen/top` が指せる行になる
+- 判断 1: host は判定しない。`ui` の payload を復号して `Op::Input` に渡すだけで、宛先が今の Step に合うかの照合と判定は core（`select_judge`）に任せる（`tests/no_progress.rs` の方針のまま）。復号できない payload は `HostAction` にならず、`HelloView` にも流さない（fail-closed）
+- 判断 2: 配信する設定に入るのは host の `ui` の受け付けだけである。代役の部品・名札のデータ・`debug_view_fixture_state` の `pointed`・`point_count` は `test-hooks` の下だけにあり、`make check-delivery` で配信物に入らないことを確かめた
+- 判断 3: 代役の部品は、`view()` が属性を付ける関数（`fixture_point`）と同じ関数で受理を決める。見えていない行（前の状態で出ない追加の行など）・表示だけの行・別のビューの宛先・存在しない行の偽造の payload は、状態を変えない（`data-payload` はページ上で書き換えられる、信頼できない値のため）。受理しても見た目は変えず、dirty を積まない
+- 判断 4: 宛先の規則はデータごとに持つ（`PointRule`）。既定は「先頭の行だけ表示だけ」で、名札のデータは `screen/top` だけを指せる行にする。spec の ch-run の B4（`screen/top` が 1 件）と同じ形で、名札を自然な並び（top、left、right）のまま置き、`screen/left`・`screen/right` を表示だけの負の対照にするため
+- 判断 5: 内側の独立した対話要素（アプリのデモ (b) の `button`・`input`、タスクツリー (a) のチェックボックスなど）の上のクリックは、上流が行の action として届けない（観察: PC4 でアプリのデモ (b) の内側のボタンの上のクリックは受け付けた件数が 0 のまま）。A11Y-20・TASK-494 の二重のタブの止まりと同じ範囲として、本 Issue では変えない
+- 判断 6: 製品の `view()` への結線と、製品で指せる行を決める規則は後続（TASK-470・TASK-347 の後続）のままである。したがって、製品の画面で `screen/top` を指せるようにはしていない。本 Issue は、世界状態の `screen/top` から行・属性・入力までの往復を、本 Issue の範囲の部品をつないで native の試験で固定した
+- native の試験: `crates/web/tests/point_click_contract.rs`（host の復号、危険な文字を含む view・row の往復、復号できない payload が `None`、`ui` 以外の既存の分岐が変わらないこと、8 Step の教材をクリックの `ui` で完走した状態が `Op` を直接送った状態と一致すること、誤った経路・別のビューの宛先で Step が達成にならないこと、世界状態の名札が (a)・(b) の行・4 属性・`Input::Ui` へ往復すること）。`view_fixture` の単体試験: 復号器の通りに受け付けること、表示だけの行・出ていない行・偽造・別のビューの宛先を無視すること、名札のデータで `screen/top` だけが指せる行になり元に戻せること、データの切り替えが閉じた payload だけを受けること
+- ブラウザの試験（`tools/browser/point-click.test.mjs`）: PC1・PC2 は 14 通り（7 種 × 変種、対照を含む）× 前後で、実際のマウスで指せる行を 1 件クリックすると指した行が `{ view, row }` になり件数が 1 増え、表示だけの行のクリックでは変わらないこと。PC3 は名札の (a)・(b) の前後で、`screen/top` だけが `data-action="ui"`・`tabindex="0"` を持ち、クリックで受け付けられ、`screen/left`・`screen/right` は 4 属性を持たずクリックで変わらないこと。PC4 は内側のボタンの観察、PC5 は外部リクエストなどの安全性の計数が 0。クリックの点は、行の action に解決され内側に独立した対話要素が無い点をページ内で選び、見つからなければ失敗にする
+
+```text
+実行日: 2026-10-17
+元にしたコミット: ebea79a-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART11-5.mutation ART11-6.mutation ART11-4.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART11-4 | アプリのデモ (b) が宛先を捨てる（再実行） | DETECTED | `point_rows_contract` の「宛先のある行は_4_属性を組で持ち_宛先の無い行は_1_つも持たない」 |
+| ART11-5 | host が `ui` を受け付けない | DETECTED | `point_click_contract` の「正規の_payload_は_ui_の入力になる」ほか 4 件 |
+| ART11-6 | 復号器が行の空を受ける | DETECTED | `point_click_contract` の「復号できない_payload_は何も受け付けない」 |
+
+- 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,110 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、試験の設定の web で `point-click`（18 件）と `point-rows`・`app-demo-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`（計 83 件）が通過。`make test-browser` の全件は未検証。CI には未組み込み
+- 変異の定義の置き場: 代役の部品（`pub(crate)`）の受理の条件は統合テストから届かないため、変異は host と復号器に置いた。受理の条件は `view_fixture` の単体試験とブラウザの PC2・PC3 が確かめる
+- 範囲外: 製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、Enter・Space は TASK-358・TASK-375、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-18・A11Y-20・TASK-494、フォーカスの見た目と配色は TASK-490、文書の行の ID と `Input::Ui.path` の対応は spec 側の確認事項、`reload_points_host.rs` の `ui` の手を画面の経路へ切り替えること（`Counts` の固定値が変わるため触っていない）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
