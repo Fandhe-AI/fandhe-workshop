@@ -3052,7 +3052,7 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 ### 5.99 ファイルツリーの変種 (b)（TASK-473 1/2）
 
-左の成果物エリアのファイルツリーを、変種 (b) で描く本体（`crates/web/src/file_tree_view.rs`）を作り、代役の部品（`view_fixture`）のファイルツリー (b) をこれに回した。変種 (a) は別の担当（#377）である。
+左の成果物エリアのファイルツリーを、変種 (b) で描く本体（`crates/web/src/file_tree_view.rs`）を作り、代役の部品（`view_fixture`）のファイルツリー (b) をこれに回した。変種 (a) は 5.100 で足した。
 
 - 受入: 項目数（前 10・後 11）と変化の印の数（後は追加 1・削除 1・変更 2・印なし 7）が期待値と一致し、前後の切り替えで行も項目の内側も置き換わらない
 - 判断 1: `headless-ui` の `tree_view` からは `item_text`（ラベル）だけを採る。`item`・`branch` は `aria-selected` を必ず出し（a11y が違反にし、呼び出し側から消せない）、`*_indicator` の `aria-hidden` と `branch_content` の `role=group` は閉じた一覧に無く、根が `div` で `ul` の子として不正であり、`branch` は開いた行すべてに `aria-expanded` を付け、`data-value` に教材由来の識別子が入る。採る部品を広げるには、spec の更新と a11y の契約の版上げが先に要る
@@ -3101,6 +3101,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 - ブラウザ: `make test-browser` の全体（387 件）が通過（2026-10-17。CI には未組み込み）
 
+### 5.101 ファイルツリーの変種 (a)（TASK-473 2/2）
+
+ファイルツリーの変種 (a) を、`wireframe-ui` の `rich_text` で描く本体（`crates/web/src/file_tree_view.rs` の `file_tree_item_a` など）を作り、代役の部品（`view_fixture`）のファイルツリー (a) をこれに回した。(b) の関数は変えていない（ART1-1・ART1-2 の `find:` 行がそのまま当たる）。
+
+- 受入: (a) の項目数（前 10・後 11）と変化の印の数（後は追加 1・削除 1・変更 2・印なし 7）が期待値と一致し、前後の切り替えで行も項目の内側も置き換わらない。外部へのリクエスト・ページのエラー・ダイアログは 0 件
+- 判断 1: 外枠は `marked_item(.., Variant::A, ..)` の `li` と内側の `div`（印の宿主）で、中身は `rich_text`（ラベル・先頭の記号・末尾の補足）である。木の属性（`role=treeitem`・`aria-level` など）は付けない
+- 判断 2: 末尾の補足の `span` は `detail` が空でも必ず出す。省くと前後で子の列が変わり、keyed list の in-place 更新が崩れる。先頭の `span` と太字は行の種類だけで決め、前後や印では変えない
+- 判断 3: 先頭に `wireframe_ui::icon::*` は使わない。`svg` に `aria-hidden` を必ず出し、a11y の契約（版 2）の違反になる。記号は自作の `span` の文字（ディレクトリは `▾`、ファイルは空）にした。採るには契約の版 3 と spec の更新が先に要る
+- 判断 4: `fandhe-frontend-wireframe-ui` を web の直接の依存にした（0.52.0。依存は core 0.4.3 だけで採用中の版と同じ。`frontend_features` の件数は 6）
+- 判断 5: `wireframe_css()` は呼ばず、`app.css` へも連結しない。固定のライト配色の CSS の配信は TASK-490 の担当で、受入基準は構造だけである
+- 判断 6: 製品の `view()` へは結線しない（5.99 の判断 3 と同じ）
+- native の試験（`crates/web/tests/file_tree_view_a_contract.rs`）: 項目数と key の並び、印の数、`data-mark` が `li` に無く内側の `div` にだけあること、a11y の閉じた一覧と `role`・`aria-`・`svg` が 0 件、`rich_text` と太字・記号の対応、前後の形の不変、補足が空でも先頭・末尾の `span` が出ること、エスケープ、0 件・非選択で `role` が付かないこと、200 行の構成（時間は測らない。測定は TASK-485）
+- ブラウザの試験（`tools/browser/file-tree-view.test.mjs`）: FT5 検査器で (a) の前後 2 往復、FT6 (a) の前後の項目数・`rich_text`・印の宿主と数・禁じた要素が 0 件、FT7 外部リクエスト・ページのエラー・ダイアログが 0 件
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 01a8771-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART1-1.mutation crates/web/tests/mutations/ART1-2.mutation crates/web/tests/mutations/ART1-3.mutation crates/web/tests/mutations/ART1-4.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART1-1 | (b) の項目に木の属性の組を付けない | DETECTED | `file_tree_view_contract` の「木の属性は手で数えた位置と一致する」 |
+| ART1-2 | (b) の補足が空のとき補足の `span` を省く | DETECTED | `file_tree_view_contract` の「補足が空でも_span_は出る」 |
+| ART1-3 | (a) の補足が空のとき末尾を渡さない | DETECTED | `file_tree_view_a_contract` の「補足が空でも末尾の_span_と先頭の_span_は出る」 |
+| ART1-4 | (a) の項目を変種 B の根で作る | DETECTED | `file_tree_view_a_contract` の「data_mark_は_li_には無く内側の_div_にだけある」 |
+
+- ブラウザの試験: `file-tree-view`・`artifact-view-check`・`view-switch`・`tree-attrs`・`artifact-mark-toggle` の 59 件が通過（2026-10-17。`make test-browser` の全件ではなく、関係するファイルを試験の設定の web で流した。CI には未組み込み）
+- 範囲外: `wireframe_ui::icon::*` の採用（a11y の契約の版 3 が先）、`wireframe_css()` の配信と配色（TASK-490）、製品の結線、指せる行の属性（TASK-480）、200 件の再描画時間（TASK-485）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -3121,6 +3151,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | `fandhe-frontend-wasm-client` | 0.6.1 |
 | `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
 | `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473） |
+| `fandhe-frontend-wireframe-ui` | 0.52.0（直接の依存。`rich_text` を使う。TASK-473） |
 
 版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
 

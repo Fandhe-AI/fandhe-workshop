@@ -15,12 +15,13 @@ const WEB_MANIFEST: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Ca
 const LOCK: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.lock"));
 
 /// FEND-1 の採用版（D-30）。版を上げるときは、この表と `docs/testing.md` 第 6 節を同時に更新する（TASK-101）。
-const ADOPTED: [(&str, &str); 5] = [
+const ADOPTED: [(&str, &str); 6] = [
     ("fandhe-frontend-core", "0.4.3"),
     ("fandhe-frontend-interactive", "0.2.7"),
     ("fandhe-frontend-wasm-client", "0.6.1"),
     ("fandhe-frontend-wasm-full", "0.46.0"),
     ("fandhe-frontend-headless-ui", "0.69.2"),
+    ("fandhe-frontend-wireframe-ui", "0.52.0"),
 ];
 
 fn parse(src: &str) -> Table {
@@ -74,7 +75,7 @@ fn web_の_fandhe_frontend_依存は_workspace_の宣言をそのまま使う() 
             "{name} は default-features を上書きしない"
         );
     }
-    assert_eq!(seen, 5, "fandhe-frontend-* の依存は 5 件");
+    assert_eq!(seen, 6, "fandhe-frontend-* の依存は 6 件");
 }
 
 #[test]
