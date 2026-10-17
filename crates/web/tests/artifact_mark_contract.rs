@@ -171,3 +171,56 @@ fn index_html_は外部_css_を読み_style_を持たない() {
     assert!(!INDEX_HTML.contains("style="));
     assert!(!INDEX_HTML.contains("unsafe-inline"));
 }
+
+/// 木の形だけを残した写し。タグ・属性名の集合・子の数と種別を残し、属性値と文字の中身は捨てる。
+/// keyed list は同じ key の項目を、子ノード列の位置対応が一致するときだけ in-place に更新する（上流の
+/// `diff_children`）。形が印の値で変わると、前後の切り替えで項目の子が作り直される。
+#[derive(Debug, PartialEq, Eq)]
+enum Shape {
+    Element(&'static str, Vec<String>, Vec<Shape>),
+    Text,
+}
+
+fn shape(n: &Node) -> Shape {
+    match n {
+        Node::Element {
+            tag,
+            attrs,
+            children,
+        } => {
+            let mut names: Vec<String> = attrs.iter().map(|(k, _)| k.clone()).collect();
+            names.sort();
+            Shape::Element(tag, names, children.iter().map(shape).collect())
+        }
+        Node::Text(_) | Node::RawHtml(_) => Shape::Text,
+    }
+}
+
+#[test]
+fn 項目の形は印によって変わらない() {
+    for variant in Variant::ALL {
+        for depth in [None, Some(0), Some(3)] {
+            let base = shape(&item(variant, None, depth));
+            for mark in ChangeMark::ALL {
+                assert_eq!(
+                    shape(&item(variant, Some(mark), depth)),
+                    base,
+                    "{variant:?} {depth:?} {mark:?}"
+                );
+            }
+        }
+    }
+    // 空でない形であること（空の比較で通らない）。印なしでも記号・文字の 2 つの span が子にある。
+    let Shape::Element(_, _, kids) = shape(&item(Variant::B, None, None)) else {
+        panic!("root must be an element");
+    };
+    assert!(kids.len() >= 3, "{kids:?}");
+    assert_eq!(
+        kids[0],
+        Shape::Element(
+            "span",
+            vec!["class".into(), "data-testid".into()],
+            vec![Shape::Text]
+        )
+    );
+}
