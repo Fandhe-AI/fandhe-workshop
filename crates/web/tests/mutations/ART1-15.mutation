@@ -1,0 +1,9 @@
+id: ART1-15
+package: fandhe-workshop-web
+test: app_demo_view_b_contract
+target: crates/web/src/app_demo_view.rs
+find:             vec![("type", "button")],
+replace:             if state == WireState::Disabled { vec![("type", "button"), ("disabled", "")] } else { vec![("type", "button")] },
+expect-fail: 同じ_key_の項目の形は前後で変わらない
+expect-fail: 無効と選択の属性は出さず_role_と_aria_と_svg_と見出しは前後とも_0_件
+note: ボタンの disabled を状態から出す（試験データの a-add は前 disabled・後 空で、同じ key の項目の属性名の集合が前後で変わる）

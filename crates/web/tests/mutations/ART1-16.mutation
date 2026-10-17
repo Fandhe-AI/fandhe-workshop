@@ -1,0 +1,9 @@
+id: ART1-16
+package: fandhe-workshop-web
+test: app_demo_view_b_contract
+target: crates/web/src/app_demo_view.rs
+find:             vec![(TESTID_ATTR, APP_DEMO_TAB_TESTID)],
+replace:             vec![("role", "tab"), (TESTID_ATTR, APP_DEMO_TAB_TESTID)],
+expect-fail: a11y_の閉じた一覧に前後とも違反しない
+expect-fail: 無効と選択の属性は出さず_role_と_aria_と_svg_と見出しは前後とも_0_件
+note: タブの span に role=tab を足す（契約の版 2 では tab の testid・id・aria-controls が要り、tablist の数え上げも崩れる）
