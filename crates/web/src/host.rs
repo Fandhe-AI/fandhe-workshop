@@ -1223,7 +1223,7 @@ impl Component for EngineHost {
                     self.initial = Some(session.state().clone());
                     self.input
                         .set_command_table(candidates::command_table(session.ir()));
-                    self.input.set_input_field(read_input_field(&session));
+                    // 入力欄の有無は構造の違いで mount 後に変えられない。差し替えでは更新せず、構築時の値を保つ。
                     let start = RecordedSession::first_start(session.ir());
                     self.install_recorded(RecordedSession::new(session, start));
                 }
