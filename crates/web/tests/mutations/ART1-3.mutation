@@ -1,0 +1,8 @@
+id: ART1-3
+package: fandhe-workshop-web
+test: file_tree_view_a_contract
+target: crates/web/src/file_tree_view.rs
+find:         Some(trailing),
+replace:         if shown.content.detail.is_empty() { None } else { Some(trailing) },
+expect-fail: 補足が空でも末尾の_span_と先頭の_span_は出る
+note: (a) で補足が空のとき末尾を渡さない（前後で子の列が変わり、keyed list の in-place 更新が崩れる）
