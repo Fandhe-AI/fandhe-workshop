@@ -18,6 +18,7 @@
 //! エンジン（core の `Session`）を持ち、`Runtime::mount` に渡すホストの Component と、表示部品の振り分け（TASK-347）は `host` に、3 つの表示（ログ・左の成果物・復習）の部品（TASK-347 2/2）は `engine_parts` に置く。
 //! 本文の木を画面の部品に変える描画と、リンクの許可スキーム（TASK-149）は `doc_view` に置く。
 //! 左の成果物ビューの共通の型・変化の印の対応・束縛点・指せる行の属性・変種の口（TASK-467）は `artifact_view` に置く。版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`。
+//! 世界状態とイベント列から左のビューの行の前後の組を導く処理（TASK-468）は `artifact_rows` に置く。
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
@@ -33,6 +34,7 @@
 
 pub mod a11y;
 pub mod action;
+pub mod artifact_rows;
 pub mod artifact_view;
 pub mod candidates;
 pub mod doc_view;

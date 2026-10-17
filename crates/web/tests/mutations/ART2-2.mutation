@@ -1,0 +1,8 @@
+id: ART2-2
+package: fandhe-workshop-web
+test: artifact_rows_sample
+target: crates/web/src/artifact_rows.rs
+find:     replay_changes(&mut after, events);
+replace:     let _ = events;
+expect-fail: 六種の前後の項目数と印の数がjsonから数えた期待値と一致する
+note: 後の世界状態に Changed を当てない（後が前のままで、追加・削除・変更の印が 0 件になる）
