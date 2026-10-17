@@ -104,11 +104,6 @@ impl CommandVerdict {
     }
 }
 
-/// 名前が、教材のコマンドの表（IR の `commands` のキー）に無いか。値の種類は読まない。
-pub fn is_unknown_command<'a>(known: impl IntoIterator<Item = &'a str>, name: &str) -> bool {
-    !known.into_iter().any(|k| k == name)
-}
-
 fn normalize_key(key: &str) -> String {
     key.replace('-', "_")
 }

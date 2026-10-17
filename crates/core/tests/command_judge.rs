@@ -9,7 +9,7 @@ use common::property::{check, DEFAULT_CASES};
 use fandhe_workshop_contract::input_spec::{ArgShape, ArgSpec, CommandSpec};
 use fandhe_workshop_contract::judgment::{LexedArg, LexedCommand, RejectCategory};
 use fandhe_workshop_core::command_judge::{
-    is_unknown_command, judge_command, CommandVerdict, MatchedCommand, ResolvedArg,
+    judge_command, CommandVerdict, MatchedCommand, ResolvedArg,
 };
 use fandhe_workshop_core::command_lex::{lex_command, CommandLexError};
 use proptest::prelude::*;
@@ -87,19 +87,6 @@ fn cit_ch13() -> CommandSpec {
     )
 }
 
-const KNOWN: [&str; 10] = [
-    "help",
-    "new-idea",
-    "advance-phase",
-    "create-pr",
-    "create-commit",
-    "init-claude",
-    "setup-repo-guards",
-    "create-issue-tree",
-    "implement-issue-tree",
-    "update-claude",
-];
-
 #[test]
 fn poc3_pairs() {
     // 模範解答
@@ -144,19 +131,13 @@ fn poc3_pairs() {
         matched(&[("repo", Some("owner/repo")), ("visibility", Some("public"))])
     );
 
-    // 誤入力: 名前違い（既知・未知）
+    // 誤入力: 名前違い。未知か既知かの分類は command_class の試験が持つ
     assert_eq!(
         judge(&new_idea_ch1(), "/hepl"),
         CommandVerdict::NameMismatch
     );
-    assert!(is_unknown_command(KNOWN, "hepl"));
-    for (raw, name) in [
-        ("/advance-phase", "advance-phase"),
-        ("/create-pr", "create-pr"),
-        ("/update-claude", "update-claude"),
-    ] {
+    for raw in ["/advance-phase", "/create-pr", "/update-claude"] {
         assert_eq!(judge(&new_idea_ch2(), raw), CommandVerdict::NameMismatch);
-        assert!(!is_unknown_command(KNOWN, name));
     }
     // e03・e04・e13
     assert_eq!(
