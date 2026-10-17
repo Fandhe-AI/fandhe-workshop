@@ -1,0 +1,8 @@
+id: FEND7-1
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find: | KeyAction::Nothing => KeydownEffect::NONE,
+replace: | KeyAction::Nothing => KeydownEffect::complete(true),
+expect-fail: space_は状態に関わらず_prevent_default_せず送信もしない
+note: 入力欄の Space（や修飾キー付き Enter）で preventDefault し、空白が入らなくなる

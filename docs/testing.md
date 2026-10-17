@@ -2575,6 +2575,49 @@ TASK-352 の比較対象の件数（2026-10-17、`669ab6e` に本変更を加え
 | ART2-3 | DETECTED | 受入の試験が複数失敗（期待した `削除の行は後の状態で前の中身と削除の印で残る` を含む） |
 | ART2-4 | DETECTED | `ビューの外の要素は行にならない` |
 
+### 5.88 入力欄の Enter・Tab・Space の受け持ち（TASK-352 1/3）
+
+入力欄の Enter・Tab・Space の状態に依存する `preventDefault` は、D-42 のとおり glue が受け持つ（属性化も上流の口も採らない。FEND-7）。Enter・Tab は TASK-351 の `key-invariants`（5.86・5.86b）が固定している。本節では、試験が無かった Space を `tools/browser/field-space.test.mjs` と native の契約試験で固定した。Space は判定が `Nothing` で、glue は何もせず、textarea の既定動作で空白が入る。
+
+- 本変更は glue の動作を変えない（コメントと試験の追加だけ）。そのため「置き換えの前後」は無く、TASK-352 3/3 が比べる起点は 5.86b の件数である
+- `key-invariants` に行を足さなかったのは、基準の件数（20 件）を保つため。観察の方法は `key-invariants` と同じ（`window` の捕捉の段で keydown の Event を保持し、押した後に `defaultPrevented` を読む。内部の印は読まない）
+- native: `key_route_contract.rs` の `space_は状態に関わらず_prevent_default_せず送信もしない` が、`has_text` と `candidates_open` の 4 通りで `Nothing` かつ効果なしを確かめる。変異 `FEND7-1`（`Nothing` の腕を `preventDefault` ありにする）の検出先
+
+| id | web | 一覧（前提） | 下書き | preventDefault | ログの増分 | 欄の値 | フォーカス先 |
+|---|---|---|---|---|---|---|---|
+| SPACE-TEXT | 配信 | 閉 | `x` | なし | なし | `x` と空白 | `draft-input` |
+| SPACE-EMPTY | 配信 | 閉 | 空 | なし | なし | 空白 1 つ | `draft-input` |
+| SPACE-OPEN | 試験 | 開 | `/he` | なし | なし | `/he` と空白 | `draft-input` |
+
+観察した値は、事前の見込みと全行で一致した。食い違いは無い。SPACE-OPEN は押した後の一覧の開閉を照合しない（候補の絞り込みは `candidates` の担当）。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 02b76ce-dirty
+コマンド: node --test tools/browser/field-space.test.mjs（単独で 3 回）・TASK-351 の 5 ファイルの単独実行・make test-browser（1 回）・scripts/check-mutations.sh crates/web/tests/mutations/FEND7-1.mutation
+```
+
+| 実行 | 結果 |
+|---|---|
+| `field-space.test.mjs` 単独 3 回 | 3 回とも 4 件（表 3 行 + 行数の照合 1 件）がすべて通過 |
+| TASK-351 の比較対象の単独実行 | `key-invariants` 20 件・`tab-cycle` 11 件・`tab-complete` 4 件・`shift-tab` 6 件・`candidates` 18 件の計 59 件がすべて通過（5.86b と同じ件数） |
+| `make test-browser` 1 回 | 343 件がすべて通過（5.86b の 339 件から 4 件増。ローカルの計測。CI には未組み込み） |
+| 変異 `FEND7-1` | DETECTED（期待した試験 `space_は状態に関わらず_prevent_default_せず送信もしない` を含む複数の試験が失敗） |
+
+負の対照（製品コードを一時的に変えて両方の設定を再ビルドし、単独で実行した。変更は戻し、コミットしていない）。
+
+| 変更 | 結果 |
+|---|---|
+| `glue.rs` の keydown で、効果に関わらず `ev.prevent_default()` を呼ぶ | `field-space` の 3 件が失敗（空白が入らず、`waitForFunction` が時間切れになる） |
+
+TASK-352 3/3 のための参考値（正式な記録は 3/3 が行う。2026-10-17、`02b76ce` 時点）:
+
+- `crates/web/src/glue.rs`: `wc -l` で 482 行（本変更のコメント 2 行を含む。コメント・試験用の口・空行を含む数え方）。FEND-7 は決定時点で 349 行と記録しており、数え方（コメント・試験用の口を含むか）と、その後の機能追加で差がある
+- `web-sys` の feature: ルート `Cargo.toml` の `[workspace.dependencies]` に 21 個（決定時点の記録は 9 個）。本変更は feature を足さない
+- D-42 で上流の口を採らなかったため、3/3 の「上流の口を採用する場合」という前提は成り立たない。3/3 は記録と比較だけになる見込みである
+
+限界: 修飾キー付き Space・変換中の Space（`ime-input` の担当）・OS ごとの差（D-48）は対象外。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

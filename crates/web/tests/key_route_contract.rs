@@ -6,6 +6,7 @@
 //! （候補を閉じる・取り消しの入力）が外れる変異（JUDGE17-3・JUDGE17-4）の検出先でもある。
 //! 候補が開いているときの Esc の 2 回（JUDGE-18）の遷移を外す変異（JUDGE18-2）と、補完の候補を先頭から変える変異（JUDGE21-2）の検出先でもある（TASK-282 1/2）。
 //! 修飾キー（Ctrl・Alt・Meta。Shift との組み合わせを含む）付きの Enter が送信にも `preventDefault` にもならない契約（JUDGE-22・D-60）を外す変異（JUDGE22-3）の検出先でもある（TASK-282 2/2）。
+//! 入力欄の Space が状態に関わらず `preventDefault` も送信もしない契約（FEND-7・D-42）を外す変異（FEND7-1）の検出先でもある（TASK-352 1/3）。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -532,6 +533,50 @@ fn 矢印キーは候補を選ばずキャレット移動を奪わない() {
                 assert_eq!(esc_route(decision), EscRoute::NONE, "{cell}");
                 assert_eq!(completion_choice(decision, &candidates), None, "{cell}");
             }
+        }
+    }
+}
+
+// ---- 入力欄の Space（TASK-352 1/3。FEND-7・D-42） ----
+//
+// 変異 FEND7-1（`Nothing` の腕を `preventDefault` ありにする）の検出先。Space は判定が `Nothing` で、
+// glue は何もせず textarea の既定動作（空白の挿入）に任せる。DOM での結果は `tools/browser/field-space.test.mjs`。
+
+#[test]
+fn space_は状態に関わらず_prevent_default_せず送信もしない() {
+    let input = KeyInput {
+        key: " ".to_owned(),
+        key_code: 0,
+        is_composing: false,
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    };
+    for has_text in [false, true] {
+        for candidates_open in [false, true] {
+            let decision = decide(&input, &field_state(has_text, candidates_open));
+            assert_eq!(
+                decision,
+                Decision::Defined(KeyDecision {
+                    action: KeyAction::Nothing,
+                    prevent_default: false,
+                }),
+                "has_text={has_text} candidates_open={candidates_open}"
+            );
+            let effect = effect_for(decision);
+            assert!(
+                !effect.prevent_default,
+                "has_text={has_text} open={candidates_open}"
+            );
+            assert!(
+                !effect.click_submit,
+                "has_text={has_text} open={candidates_open}"
+            );
+            assert!(
+                !effect.deliver_complete,
+                "has_text={has_text} open={candidates_open}"
+            );
         }
     }
 }

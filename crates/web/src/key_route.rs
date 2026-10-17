@@ -19,6 +19,8 @@
 //!   送信も `preventDefault` もしない（JUDGE-22・D-60。TASK-282 2/2）。OS による分岐は持たない（D-48）。
 //!   Shift+Tab もここに当たり、`preventDefault` せず逆向きのフォーカス移動に任せる
 //!   （JUDGE-19。TASK-278 2/3。ブラウザ試験は `tools/browser/shift-tab.test.mjs`）
+//!   入力欄の Space（`KeyboardEvent.key` は `" "`）もここに当たる。`preventDefault` せず、textarea の既定動作で空白が入る
+//!   （FEND-7・D-42。TASK-352 1/3。ブラウザ試験は `tools/browser/field-space.test.mjs`）
 //!
 //! 候補が開いているときの Esc の 2 回と補完の選び方は、`after_esc`・`completion_choice` が受け持つ
 //! （TASK-282 1/2。JUDGE-18・JUDGE-21・D-60）。矢印キーで候補を選ぶ操作は無い（複数行の下書きでのキャレット移動と衝突するため）。
@@ -323,7 +325,7 @@ mod tests {
 
     #[test]
     fn enter_以外のキーは何もしない() {
-        for k in ["Tab", "Escape", "a", "Unidentified", ""] {
+        for k in ["Tab", "Escape", "a", " ", "Unidentified", ""] {
             assert_eq!(effect(&key(k), true), KeydownEffect::NONE, "{k:?}");
         }
     }
