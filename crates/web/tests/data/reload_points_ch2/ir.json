@@ -1,0 +1,655 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "reload-points-ch2",
+    "title": "再読み込みの地点の試験データ（8 Step）",
+    "version": "0.0.1",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "help": "builtin",
+    "make-note": "skill"
+  },
+  "views": {
+    "v-files": {
+      "kind": "file_tree"
+    }
+  },
+  "fixtures": {},
+  "hints": {
+    "h-1": {
+      "level": 1,
+      "text": "今の Step の目的を読み直します。"
+    }
+  },
+  "rejections": {
+    "rj-decline": {
+      "category": "not_in_this_step",
+      "message": "公開しない場合は、この Step を先へ進めません。",
+      "next_action": "公開してよいかをもう一度決めます。"
+    },
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "引数または入力の形が合っていません。",
+      "next_action": "小文字・数字・ハイフンだけで書き直して、もう一度送ります。"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "いまは処理中です。",
+      "next_action": "終わるまで待ちます。終わると、次の入力を受け付けます。"
+    },
+    "rj-default-free-text-note": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容の良し悪しは、この教材では判定しません。",
+      "next_action": "自分の文を、自分で読み返します。"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "必要な引数が足りません。",
+      "next_action": "足りない引数を足して、もう一度送ります。"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直し、ヒントを開きます。"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "実際の環境ではできますが、この教材では扱いません。",
+      "next_action": "教材の操作に戻ります。"
+    },
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "そのコマンドは、この教材の一覧にありません。",
+      "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "このコマンドは、まだ使う順番ではありません。",
+      "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+    },
+    "rj-miss-point": {
+      "category": "not_in_this_step",
+      "message": "そこは、変わった箇所ではありません。",
+      "next_action": "左の画面で、変化の印が付いた箇所を指します。"
+    },
+    "rj-wrong": {
+      "category": "not_in_this_step",
+      "message": "その答えではありません。",
+      "next_action": "もう一度選びます。"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "free_text_unjudged": "rj-default-free-text-note",
+    "missing_arg": "rj-default-missing-arg",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "module": null,
+      "args": {},
+      "caller": null
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-1",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-1",
+        "title": "地点の試験 1",
+        "body": "st-1.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "command",
+          "name": "make-note",
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "command": "make-note",
+              "missing": [],
+              "args": {}
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n1",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/n1"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-2"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-2",
+        "title": "地点の試験 2",
+        "body": "st-2.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 200
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n2",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "processing": [
+          {
+            "name": "p1",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "notes/n2",
+                  "attr": "state",
+                  "value": "step-1"
+                }
+              }
+            ]
+          },
+          {
+            "name": "p2",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "notes/n2",
+                  "attr": "state",
+                  "value": "step-2"
+                }
+              }
+            ]
+          },
+          {
+            "name": "p3",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "notes/n2",
+                  "attr": "state",
+                  "value": "step-3"
+                }
+              }
+            ]
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "opt-a",
+              "correct": true
+            },
+            {
+              "id": "opt-b",
+              "correct": false
+            }
+          ],
+          "on_wrong": "rj-wrong"
+        },
+        "next": [
+          {
+            "to": "main/st-3"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-3",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-3",
+        "title": "地点の試験 3",
+        "body": "st-3.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n3",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/n3"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-4"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-4",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-4",
+        "title": "地点の試験 4",
+        "body": "st-4.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-a",
+              "label": "案 A"
+            },
+            {
+              "id": "opt-b",
+              "label": "案 B"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "option": "opt-a"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n4",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "操作の結果が左の画面にすぐ出るため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-5"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-5",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-5",
+        "title": "地点の試験 5",
+        "body": "st-5.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-a",
+              "label": "案 A"
+            },
+            {
+              "id": "opt-b",
+              "label": "案 B"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "option": "opt-a"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n5",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/n5"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-6"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-6",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-6",
+        "title": "地点の試験 6",
+        "body": "st-6.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n6",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/st-7"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-7",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-7",
+        "title": "地点の試験 7",
+        "body": "st-7.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/n7"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "ui": {
+                "view": "v-files",
+                "path": "notes/n7"
+              }
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n7",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "opt-a",
+              "correct": true
+            },
+            {
+              "id": "opt-b",
+              "correct": false
+            }
+          ],
+          "on_wrong": "rj-wrong"
+        },
+        "next": [
+          {
+            "to": "main/st-8"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-8",
+      "scope": "main",
+      "unit": "ch-points",
+      "step": {
+        "id": "st-8",
+        "title": "地点の試験 8",
+        "body": "st-8.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": true,
+        "views": [
+          "v-files"
+        ],
+        "hints": [
+          "h-1"
+        ],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-accept",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/n8",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/n8"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        }
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-1",
+      "node": "main/st-1",
+      "effects": []
+    }
+  ]
+}

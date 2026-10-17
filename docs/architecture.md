@@ -144,7 +144,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。文書のブロックの突き合わせは含まない） | web（`artifact_rows`） | TASK-468 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
-| 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ） | web（`persist`。wasm のみ） | TASK-319 |
+| 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ。試験の設定だけ、起動の前に URL のクエリの完全一致（`?fixture=reload-points`）で mount の教材を選ぶ） | web（`persist`・`test_fixture`・`test_hooks`。wasm のみ） | TASK-319 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う

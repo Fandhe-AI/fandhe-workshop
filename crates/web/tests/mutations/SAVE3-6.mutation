@@ -1,0 +1,8 @@
+id: SAVE3-6
+package: fandhe-workshop-web
+test: reload_points_host
+target: crates/web/src/host.rs
+find:         self.model.projection = d.projection;
+replace:         self.model.projection = Projection::from_events(&[]);
+expect-fail: 十五の地点で再読み込みの前後が世代を除いて一致し完走した世界状態が一致する
+note: 復元したログから復習・変化の印を導き直さず空にする（復習と左の行の印が前と食い違う）

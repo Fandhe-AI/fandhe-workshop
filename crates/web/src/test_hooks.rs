@@ -16,6 +16,18 @@
 
 use wasm_bindgen::prelude::*;
 
+/// 起動の前に、URL のクエリ（`location.search`）から mount の教材を選ぶ（TASK-319 3/3）。
+///
+/// `persist::mount_with_history` が呼ぶ。クエリの読み取りを配信する経路のファイルに置かないため、ここに置く
+/// （`tests/tick_interval.rs` が配信する経路に URL の読み取りが無いことを固定する）。選択の規則は
+/// `test_fixture::mount_fixture_from_search` の完全一致だけで、読めないときは既定の教材に倒す。状態は変えない。
+pub(crate) fn mount_fixture_from_url() -> crate::test_fixture::MountFixture {
+    let search = web_sys::window()
+        .and_then(|w| w.location().search().ok())
+        .unwrap_or_default();
+    crate::test_fixture::mount_fixture_from_search(&search)
+}
+
 /// 現在の画面の状態を JSON 文字列で返す（読み取りのみ）。
 #[wasm_bindgen]
 pub fn debug_state_json() -> String {
