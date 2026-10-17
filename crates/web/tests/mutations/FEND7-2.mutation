@@ -1,0 +1,8 @@
+id: FEND7-2
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find:         "Enter" | " " => RowKeyEffect {
+replace:         "Enter" => RowKeyEffect {
+expect-fail: fend7_標準でない要素の_enter_と_space_は_prevent_default_と_click_になる
+note: 標準でない要素の Space で preventDefault も click もしなくなり、ページがスクロールして行を操作できない

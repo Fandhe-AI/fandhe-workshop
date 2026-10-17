@@ -2715,6 +2715,66 @@ TASK-352 3/3 のための参考値（正式な記録は 3/3 が行う。2026-10-
 
 残る限界。CH-2 の実データ（v1.0.0 の `idea-cycle`）での網羅は、`on_enter`・モジュールの出口・`when` などの未実装の語が core に入った後になる。処理中の地点は native の 33 地点（5.89）が持つ。`make test-browser` は CI に組み込まれていない（組み込みは必須チェックの更新と合わせて扱う）。
 
+### 5.91 標準でない要素の Enter・Space と送信ボタンの一致（TASK-352 2/3）
+
+受け持ちは D-42 のとおり glue に残す（属性化も上流の口も採らない。FEND-7）。そのため「置き換え」は起きず、3/3 は 5.88 と本節の記録と比べるだけになる見込みである。本変更は glue のコードを変えない。
+
+1. FEND-14 の 2 場面を `tools/browser/submit-disabled.test.mjs` で固定した。配信設定の画面で、Playwright の信頼入力（`page.keyboard.press`）を使い、内部の印は読まない。
+2. 標準でない要素（`data-action` を持つ左の行など）の Enter・Space の判定を、純関数 `key_route::row_key_effect(input, repeat, pointable)` にした。native の契約試験と変異で固定している。
+
+| 場面 | 作り方 | 確かめたこと |
+|---|---|---|
+| DISABLED | 下書きを入れ、試験の側で送信ボタンに `disabled` を立てる | Enter の keydown は `preventDefault` される・ログの増分は 0・欄の値は変わらない。DOM の `click()` を呼んでも増分は 0 |
+| ENABLED | 2 つのコンテキストで、片方は click、もう片方は Enter で送る | ログの行の本文と件数が一致し、送信後の欄は空 |
+
+無効なボタンへの `HTMLElement.click()` は Chromium で click を配らないことを観察で確かめた（HTML の仕様どおり）。このため「無効なら 0 件」は click 経路そのものが持つ性質で、`dispatch_action("submit")` のように無効なボタンを素通りする経路は試さない。製品の画面には送信ボタンが無効になる状態がまだ無く（空の下書きと処理中は core が拒否する。EVT-7）、無効の場面は試験の側で作った。
+
+`row_key_effect` の判定（上から順に評価する）。
+
+| 条件 | 結果 |
+|---|---|
+| `pointable` が偽（宛先の無い行） | 何もしない（Space の既定のスクロールも妨げない） |
+| 変換中 | 何もしない |
+| Ctrl・Alt・Meta・Shift のいずれかが付く | 何もしない（A11Y-18 は定めておらず、保守側に倒した） |
+| `key` が `"Enter"` か `" "` | `preventDefault`。`repeat` でなければ click |
+| それ以外のキー | 何もしない |
+
+変異（`crates/web/tests/mutations/`）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| FEND7-2 | 行の Space の腕を外す | `key_route_contract` の `fend7_標準でない要素の_enter_と_space_は_prevent_default_と_click_になる` |
+| FEND14-1 | 修飾なしの Enter の `click_submit` を偽にする | `key_route_contract` の `fend14_修飾なしの_enter_は送信ボタンへの_click_と_prevent_default_になる` |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 4835336-dirty
+コマンド: node --test tools/browser/submit-disabled.test.mjs（単独で 3 回）・TASK-351 の 5 ファイルの単独実行・make test-browser（1 回）・scripts/check-mutations.sh（FEND7-2・FEND14-1）
+```
+
+| 実行 | 結果 |
+|---|---|
+| `submit-disabled.test.mjs` 単独 3 回 | 3 回とも 2 件がすべて通過 |
+| TASK-351 の比較対象の単独実行 | `key-invariants` 20 件・`tab-cycle` 11 件・`tab-complete` 4 件・`shift-tab` 6 件・`candidates` 18 件の計 59 件がすべて通過（5.86b・5.88 と同じ件数） |
+| `make test-browser` 1 回 | 357 件がすべて通過（本変更前は 355 件。ローカルの計測。CI には未組み込み） |
+| FEND7-2・FEND14-1 | 2 件とも DETECTED |
+
+負の対照（`glue.rs` の送信ボタンへの `button.click()` を一時的に外して再ビルドし、単独で実行した。変更は戻し、コミットしていない）。
+
+| 変更 | 結果 |
+|---|---|
+| `wire_enter_submit` の `button.click()` を外す | ENABLED の 1 件が失敗（Enter では送信されない）。DISABLED は通る |
+
+TASK-352 3/3 のための記録（2026-10-17、`4835336` 時点）。
+
+- `crates/web/src/glue.rs`: `wc -l` で 500 行（本変更は変えない。5.88 の 482 行からの増分は、5.88 以後に入った別タスクの変更による）
+- `web-sys` の feature: ルート `Cargo.toml` の `[workspace.dependencies]` に 21 個（5.88 と同じ。本変更は足さない）
+- TASK-351 の件数: 59 件（同じ件数で通る）
+
+左の行の Enter・Space の結線は、行がまだ画面に無く、行を見分ける口（`closest`・`get_attribute`）が `tools/check-deps.sh` と `glue_contract` で禁じられているため、本変更では行わない。TASK-358 1/2（#398）と TASK-480 が、`row_key_effect` を呼ぶ結線と `pointable` の出所を受け持つ。
+
+限界: 修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、spec 側での確定が要る。送信ボタンを製品で無効にする状態は spec に無い。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

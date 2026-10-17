@@ -22,6 +22,8 @@
 //!   入力欄の Space（`KeyboardEvent.key` は `" "`）もここに当たる。`preventDefault` せず、textarea の既定動作で空白が入る
 //!   （FEND-7・D-42。TASK-352 1/3。ブラウザ試験は `tools/browser/field-space.test.mjs`）
 //!
+//! 標準でない要素（左の行）の Enter・Space は `row_key_effect` が受け持つ（TASK-352 2/3。A11Y-18・D-42）。結線は TASK-358 1/2 の担当である。
+//!
 //! 候補が開いているときの Esc の 2 回と補完の選び方は、`after_esc`・`completion_choice` が受け持つ
 //! （TASK-282 1/2。JUDGE-18・JUDGE-21・D-60）。矢印キーで候補を選ぶ操作は無い（複数行の下書きでのキャレット移動と衝突するため）。
 //!
@@ -94,6 +96,55 @@ pub fn tab_input() -> KeyInput {
         ctrl: false,
         alt: false,
         meta: false,
+    }
+}
+
+/// 標準でない要素（`data-action` を持つ左の行など）の Enter・Space に対する効果（TASK-352 2/3。A11Y-18・FEND-7・FEND-13）。
+///
+/// 入力欄の `KeydownEffect` とは別の型にする。行は click を送る先が送信ボタンではなく行そのものであり、
+/// 契約 `key_decide` の版（`KEY_DECIDE_CONTRACT_VERSION`）を上げずに表を保つためである。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RowKeyEffect {
+    /// `preventDefault` を呼ぶか。Space のページのスクロールと Enter の既定動作を止める。
+    pub prevent_default: bool,
+    /// 行へ click を送るか。押しっぱなしの自動リピートでは送らない。
+    pub click_row: bool,
+}
+
+impl RowKeyEffect {
+    const NONE: Self = Self {
+        prevent_default: false,
+        click_row: false,
+    };
+}
+
+/// 標準でない要素の Enter・Space から、`preventDefault` と click の要否を求める純関数。
+///
+/// 呼び出し元は、左の行の keydown を結ぶ TASK-358 1/2（#398）である。現時点の呼び出し元は試験だけである。
+/// glue は属性を読む口（`closest`・`get_attribute`）を持たない（`tools/check-deps.sh`・`glue_contract`）ため、
+/// 行の同定と `pointable`（その行が確認の宛先になっているか）の出所は #398・TASK-480 の担当である。
+/// D-42 により受け持ちは glue に残り、属性化も上流の口も採らない。
+///
+/// 判定は次の順に評価する。
+/// 1. 宛先の無い行（`pointable` が偽）は表示だけで、何もしない。Space の既定のスクロールも妨げない
+/// 2. 変換中は何もしない
+/// 3. Ctrl・Alt・Meta・Shift 付きは何もしない。A11Y-18 は修飾キー付きの扱いを定めていないため保守側に倒した。
+///    食い違いが見つかったら spec を先に直す
+/// 4. `key` が `"Enter"` か `" "`（Space）なら `preventDefault` し、`repeat` でなければ click する
+/// 5. それ以外のキーは何もしない。`key` は未信頼の値なので完全一致だけで扱う
+pub fn row_key_effect(input: &KeyInput, repeat: bool, pointable: bool) -> RowKeyEffect {
+    if !pointable || input.in_composition(false) {
+        return RowKeyEffect::NONE;
+    }
+    if input.ctrl || input.alt || input.meta || input.shift {
+        return RowKeyEffect::NONE;
+    }
+    match input.key.as_str() {
+        "Enter" | " " => RowKeyEffect {
+            prevent_default: true,
+            click_row: !repeat,
+        },
+        _ => RowKeyEffect::NONE,
     }
 }
 
@@ -388,6 +439,44 @@ mod tests {
             assert!(
                 completion_choice(decide(&tab_input(), &field_state(t, o)), &["a"]).is_none(),
                 "{t} {o}"
+            );
+        }
+    }
+
+    #[test]
+    fn 行の_enter_と_space_は_prevent_default_と_click() {
+        for k in ["Enter", " "] {
+            let e = row_key_effect(&key(k), false, true);
+            assert!(e.prevent_default && e.click_row, "{k:?}");
+            let held = row_key_effect(&key(k), true, true);
+            assert!(held.prevent_default && !held.click_row, "{k:?}");
+        }
+    }
+
+    #[test]
+    fn 行は宛先が無い_修飾付き_変換中_他のキーなら何もしない() {
+        assert_eq!(
+            row_key_effect(&key("Enter"), false, false),
+            RowKeyEffect::NONE
+        );
+        for m in 0..4 {
+            let mut k = key(" ");
+            match m {
+                0 => k.ctrl = true,
+                1 => k.alt = true,
+                2 => k.meta = true,
+                _ => k.shift = true,
+            }
+            assert_eq!(row_key_effect(&k, false, true), RowKeyEffect::NONE, "{m}");
+        }
+        let mut c = key("Enter");
+        c.is_composing = true;
+        assert_eq!(row_key_effect(&c, false, true), RowKeyEffect::NONE);
+        for k in ["Tab", "Escape", "a", "", "Unidentified"] {
+            assert_eq!(
+                row_key_effect(&key(k), false, true),
+                RowKeyEffect::NONE,
+                "{k:?}"
             );
         }
     }

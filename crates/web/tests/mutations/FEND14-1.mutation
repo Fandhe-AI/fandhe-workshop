@@ -1,0 +1,8 @@
+id: FEND14-1
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find:                 click_submit: true,
+replace:                 click_submit: false,
+expect-fail: fend14_修飾なしの_enter_は送信ボタンへの_click_と_prevent_default_になる
+note: 修飾なしの Enter が送信ボタンの click に結ばれず、Enter と click の結果が食い違う
