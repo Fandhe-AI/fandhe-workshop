@@ -1,0 +1,9 @@
+id: SAVE15-2
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find: "%75nreadable".to_string()
+replace: encode_segment(s)
+expect-fail: pack_named_unreadable_does_not_collide
+expect-fail: render_parse_roundtrip_and_injective
+note: 教材の ID が unreadable のときの特例を外す（読めない IR の鍵と衝突する）

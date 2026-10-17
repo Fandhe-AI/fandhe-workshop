@@ -1,0 +1,8 @@
+id: SAVE14-2
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find:         let start = ir.starts.first()?;
+replace:         let start = ir.starts.last()?;
+expect-fail: key_uses_first_start_only
+note: 鍵を最初でなく最後の開始点から作る（開始点を足すと鍵が変わり、保存した履歴が読めなくなる）
