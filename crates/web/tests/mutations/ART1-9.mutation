@@ -1,0 +1,8 @@
+id: ART1-9
+package: fandhe-workshop-web
+test: check_view_b_contract
+target: crates/web/src/check_view.rs
+find:             CheckState::Failure => "✗ 失敗",
+replace:             CheckState::Failure => "失敗",
+expect-fail: 状態は記号つきの文字と色調で出る
+note: 失敗のバッジの文字から記号を落とす（状態が色と文字だけになり、記号つきの文字で示す要件を満たさない）

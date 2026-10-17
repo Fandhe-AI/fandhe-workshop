@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、チェックの一覧の (a)・(b) は `check_view`（TASK-478）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -44,6 +44,7 @@ use crate::artifact_view::{
     RowKind, Variant, VariantPolicy, ViewKind,
 };
 use crate::card_view::card_items;
+use crate::check_view::check_items;
 use crate::diff_view::{diff_items, diff_items_a, diff_list};
 use crate::document_view;
 use crate::file_tree_view::{file_tree_items, file_tree_items_a};
@@ -57,7 +58,7 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
-/// カードの行のデータを切り替える action の名前。payload は `cards:sample` か `cards:20`（規模の検査用。TASK-477）。
+/// 行のデータを切り替える action の名前。payload は `cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）。
 pub(crate) const ACTION_DATA: &str = "fixture_data";
 
 /// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
@@ -97,6 +98,11 @@ const CARDS: &[u8] = include_bytes!(concat!(
 const CARDS_20: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/data/artifact_view_scale/cards-20.json"
+));
+/// チェック 20 件の規模のデータ（`generate.mjs` の `checks-20.json` の写し。出所は同じ場所の `README.md`）。
+const CHECKS_20: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/checks-20.json"
 ));
 const CHECKS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -240,13 +246,13 @@ pub(crate) enum FixtureAction {
     Phase(Phase),
     /// 項目の外の部品を置く（`true`）か外す（`false`）。
     Outside(bool),
-    /// カードの行のデータを差し替える。
-    Data(CardData),
+    /// 指定したビューの行のデータを差し替える（カード・チェックだけ）。
+    Data(ViewKind, DataSet),
 }
 
-/// カードの行のデータの出所。閉じた集合で、それ以外の payload は復号の段で拒否する。
+/// 行のデータの出所。閉じた集合で、それ以外の payload は復号の段で拒否する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CardData {
+pub(crate) enum DataSet {
     /// spec 由来の試験データ（3 行・後 4 行）。
     Sample,
     /// 規模の検査用の 20 行。
@@ -319,6 +325,10 @@ impl ViewFixture {
             ViewRows::Items(v) if kind == ViewKind::CardList => {
                 card_items(v, self.phase, self.variant)
             }
+            // チェックの一覧は (a)・(b) とも本体のビュー（TASK-478）で描く。
+            ViewRows::Items(v) if kind == ViewKind::CheckList => {
+                check_items(v, self.phase, self.variant)
+            }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {
                 task_items(v, self.phase, self.variant)
@@ -361,10 +371,14 @@ impl Component for ViewFixture {
                 self.phase = phase;
                 self.dirty = dirty_list_fields(Some(self.selected), Some(self.selected), changed);
             }
-            FixtureAction::Data(data) => {
-                let bytes = match data {
-                    CardData::Sample => CARDS,
-                    CardData::Scale20 => CARDS_20,
+            FixtureAction::Data(kind, data) => {
+                let bytes = match (kind, data) {
+                    (ViewKind::CardList, DataSet::Sample) => CARDS,
+                    (ViewKind::CardList, DataSet::Scale20) => CARDS_20,
+                    (ViewKind::CheckList, DataSet::Sample) => CHECKS,
+                    (ViewKind::CheckList, DataSet::Scale20) => CHECKS_20,
+                    // 復号の段で拒否済み。来た場合は何も変えない。
+                    _ => return,
                 };
                 // 読めなければ失敗の状態を立て、通知を出す（fail-closed。古いデータを黙って見せない）。
                 let loaded = load_items(bytes);
@@ -375,20 +389,12 @@ impl Component for ViewFixture {
                     self.dirty.push(OUTSIDE_FIELD);
                 }
                 if let Ok(rows) = loaded {
-                    if let Some((_, slot)) = self
-                        .views
-                        .iter_mut()
-                        .find(|(k, _)| *k == ViewKind::CardList)
-                    {
+                    if let Some((_, slot)) = self.views.iter_mut().find(|(k, _)| *k == kind) {
                         let same = matches!(slot, ViewRows::Items(cur) if *cur == rows);
                         *slot = ViewRows::Items(rows);
                         // 選ばれていない list は空で `hidden` のため、選ばれているときだけ dirty にする。
-                        if !same && self.selected == ViewKind::CardList {
-                            self.dirty = dirty_list_fields(
-                                Some(ViewKind::CardList),
-                                Some(ViewKind::CardList),
-                                true,
-                            );
+                        if !same && self.selected == kind {
+                            self.dirty = dirty_list_fields(Some(kind), Some(kind), true);
                         }
                     }
                 }
@@ -485,8 +491,10 @@ impl Component for ViewFixture {
                 _ => None,
             },
             ACTION_DATA => match payload {
-                "cards:sample" => Some(FixtureAction::Data(CardData::Sample)),
-                "cards:20" => Some(FixtureAction::Data(CardData::Scale20)),
+                "cards:sample" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Sample)),
+                "cards:20" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20)),
+                "checks:sample" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Sample)),
+                "checks:20" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20)),
                 _ => None,
             },
             ACTION_CONTROL => match payload {
@@ -868,11 +876,11 @@ mod tests {
     fn データの切り替えは閉じた_payload_だけを受ける() {
         assert_eq!(
             ViewFixture::decode_action(ACTION_DATA, "cards:20"),
-            Some(FixtureAction::Data(CardData::Scale20))
+            Some(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20))
         );
         assert_eq!(
             ViewFixture::decode_action(ACTION_DATA, "cards:sample"),
-            Some(FixtureAction::Data(CardData::Sample))
+            Some(FixtureAction::Data(ViewKind::CardList, DataSet::Sample))
         );
         for bad in ["Cards:20", "cards:21", "cards:", "", "cards:20 ", "diff:20"] {
             assert!(
@@ -886,21 +894,77 @@ mod tests {
     fn カードを選んでいるときのデータの切り替えで行が差し替わり_戻せる() {
         let mut f = ViewFixture::load().unwrap();
         f.update(FixtureAction::Select(ViewKind::CardList, Variant::B));
-        f.update(FixtureAction::Data(CardData::Scale20));
+        f.update(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20));
         assert_eq!(f.dirty_fields(), ["view_card_list"]);
         assert_eq!(row_counts(&f, ViewKind::CardList), (20, 20));
-        f.update(FixtureAction::Data(CardData::Scale20));
+        f.update(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20));
         assert!(f.dirty_fields().is_empty());
-        f.update(FixtureAction::Data(CardData::Sample));
+        f.update(FixtureAction::Data(ViewKind::CardList, DataSet::Sample));
         assert_eq!(row_counts(&f, ViewKind::CardList), (3, 4));
     }
 
     #[test]
     fn カードを選んでいないときのデータの切り替えは_dirty_を積まない() {
         let mut f = ViewFixture::load().unwrap();
-        f.update(FixtureAction::Data(CardData::Scale20));
+        f.update(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20));
         assert!(f.dirty_fields().is_empty());
         assert_eq!(row_counts(&f, ViewKind::CardList), (20, 20));
+    }
+
+    #[test]
+    fn チェックの_a_と_b_は本体を通り_記号つきの状態が出る() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::CheckList, Variant::B));
+        f.update(FixtureAction::Phase(Phase::After));
+        let html = render(&f.view());
+        assert_eq!(
+            html.matches("data-testid=\"check-label\"").count(),
+            6,
+            "{html}"
+        );
+        assert_eq!(html.matches("data-scope=\"marker\"").count(), 12, "{html}");
+        assert!(html.contains("✗ 失敗"), "{html}");
+        f.update(FixtureAction::Select(ViewKind::CheckList, Variant::A));
+        let html = render(&f.view());
+        assert!(html.matches("fw-wire-rich-text").count() >= 6, "{html}");
+        assert!(html.contains(">✓<") && html.contains(">成功<"), "{html}");
+    }
+
+    #[test]
+    fn チェックのデータの切り替えは閉じた_payload_だけを受け_戻せる() {
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "checks:20"),
+            Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20))
+        );
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "checks:sample"),
+            Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Sample))
+        );
+        for bad in ["Checks:20", "checks:21", "checks:", "checks:20 "] {
+            assert!(
+                ViewFixture::decode_action(ACTION_DATA, bad).is_none(),
+                "{bad:?}"
+            );
+        }
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::CheckList, Variant::A));
+        f.update(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20));
+        assert_eq!(f.dirty_fields(), ["view_check_list"]);
+        assert_eq!(row_counts(&f, ViewKind::CheckList), (20, 20));
+        f.update(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20));
+        assert!(f.dirty_fields().is_empty());
+        f.update(FixtureAction::Data(ViewKind::CheckList, DataSet::Sample));
+        assert_eq!(row_counts(&f, ViewKind::CheckList), (5, 6));
+        // カードの行は影響を受けない。
+        assert_eq!(row_counts(&f, ViewKind::CardList), (3, 4));
+    }
+
+    #[test]
+    fn チェックを選んでいないときの切り替えは_dirty_を積まない() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20));
+        assert!(f.dirty_fields().is_empty());
+        assert_eq!(row_counts(&f, ViewKind::CheckList), (20, 20));
     }
 
     #[test]

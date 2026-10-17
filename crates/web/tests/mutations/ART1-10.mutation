@@ -1,0 +1,8 @@
+id: ART1-10
+package: fandhe-workshop-web
+test: check_view_b_contract
+target: crates/web/src/check_view.rs
+find:             CheckState::Failure => MarkerTone::Danger,
+replace:             CheckState::Failure => MarkerTone::Neutral,
+expect-fail: 状態は記号つきの文字と色調で出る
+note: 失敗の色調を中立にする（失敗が目立たなくなる）

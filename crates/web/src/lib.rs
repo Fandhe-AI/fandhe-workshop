@@ -23,6 +23,7 @@
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! ファイルツリーのビュー（変種 (a)・(b)。TASK-473）は `file_tree_view` に置く。
 //! カードのビュー（変種 (a)・(b)。TASK-477）は `card_view` に置く。
+//! チェックの一覧のビュー（変種 (a)・(b)。TASK-478）は `check_view` に置く。
 //! タスクツリーの変種 (a)・(b) の本体（TASK-474。ART-1・A11Y-22）は `task_tree` に置く。
 //! 差分のビューの変種 (b) の本体（TASK-475 1/2。ART-1・ART-8）は `diff_view` に置く。
 //! 文書のビューの変種 (b) の本体（TASK-476 1/2。ART-1・ART-7。本文の木の `Block` を行の中身に結ぶ）と、対照専用の変種 (a)（TASK-476 2/2。製品では選べない）は `document_view` に置く。
@@ -46,6 +47,7 @@ pub mod artifact_rows;
 pub mod artifact_view;
 pub mod candidates;
 pub mod card_view;
+pub mod check_view;
 pub mod diff_view;
 pub mod doc_view;
 pub mod document_view;

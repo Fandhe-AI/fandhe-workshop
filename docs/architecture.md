@@ -143,6 +143,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | ファイルツリーのビュー（変種 (a)・(b)。(b) は木の属性・変化の印・headless-ui の `item_text`、(a) は wireframe-ui の `rich_text`。製品の結線は後続） | web（`file_tree_view`） | TASK-473 |
 | カードのビュー（変種 (a)・(b)。(a) は wireframe-ui の `card_basic`・`tag`、(b) は自作の `article`・`ul` と headless-ui の `marker`。ラベルと状態は行データから受け取り、特定の教材の語を持たない。製品の結線は後続） | web（`card_view`） | TASK-477 |
+| チェックの一覧のビュー（変種 (a)・(b)。(a) は wireframe-ui の `rich_text`・`tag` と自作の記号の `span`、(b) は `li` 自身が印の宿主で headless-ui の `marker`。状態は記号つきの文字。状態・ラベル・補足は行データから受け取り、特定の教材の語を持たない。製品の結線は後続） | web（`check_view`） | TASK-478 |
 | タスクツリーの変種 (a)・(b) の本体（(b) は木の属性、(a) はチェックボックスの代役・深さのクラスで木の意味なし。どちらも状態のバッジで、状態は記号と文字の両方。ART-1・A11Y-22） | web（`task_tree`） | TASK-474 |
 | 差分のビューの変種 (b) の本体（`pre`・行番号・記号の列。行の印と差分の記号の 2 層を別の列に出す。ART-1・ART-8）と、対照専用の変種 (a)（`diff_item_a`。製品では選べない） | web（`diff_view`） | TASK-475 |
 | 文書のビューの変種 (b) の本体（本文の木 `Block` を行の中身に結び、包みの中に木の要素を 1 つ描く。実行時に Markdown は解釈しない。ART-1・ART-7）と、対照専用の変種 (a)（`doc_item_a`。平文の行に落とす。製品では選べない） | web（`document_view`） | TASK-476 |
