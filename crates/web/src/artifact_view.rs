@@ -374,7 +374,7 @@ impl PointTarget {
         })
     }
 
-    /// core の入力へ変換する。host の `decode_action` への結線は後続の範囲。
+    /// core の入力へ変換する。host の `decode_action`（`ui`）がクリックの宛先をこの形で `Op::Input` に渡す（TASK-480 2/2）。
     pub fn to_input(&self) -> Input {
         Input::Ui {
             view: self.view.clone(),

@@ -1,0 +1,8 @@
+id: ART11-6
+package: fandhe-workshop-web
+test: point_click_contract
+target: crates/web/src/artifact_view.rs
+find:         if view.is_empty() || row.is_empty() {
+replace:         if view.is_empty() && row.is_empty() {
+expect-fail: 復号できない_payload_は何も受け付けない
+note: 復号器が行の空を受ける（宛先の無い payload をクリックの宛先として受け付ける退行。ART-11）

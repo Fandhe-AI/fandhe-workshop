@@ -398,6 +398,8 @@ pub fn debug_view_fixture_state() -> String {
             "selected": f.selected().as_str(),
             "variant": f.variant().as_str(),
             "phase": match f.phase() { Phase::Before => "before", Phase::After => "after" },
+            "pointed": f.last_point().map(|t| serde_json::json!({"view": t.view(), "row": t.row().as_str()})),
+            "point_count": f.point_count(),
         })
         .to_string()
     })

@@ -149,7 +149,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 差分のビューの変種 (b) の本体（`pre`・行番号・記号の列。行の印と差分の記号の 2 層を別の列に出す。ART-1・ART-8）と、対照専用の変種 (a)（`diff_item_a`。製品では選べない） | web（`diff_view`） | TASK-475 |
 | 文書のビューの変種 (b) の本体（本文の木 `Block` を行の中身に結び、包みの中に木の要素を 1 つ描く。実行時に Markdown は解釈しない。ART-1・ART-7）と、対照専用の変種 (a)（`doc_item_a`。平文の行に落とす。製品では選べない） | web（`document_view`） | TASK-476 |
 | 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。増分の口 `PhaseWorlds` は `Projection::extend` と同じ契約でログの全体を受け、一括と同じ結果になる） | web（`artifact_rows`） | TASK-468 |
-| 項目 1 件を変化の印つきで作る部品（`artifact_mark`。記号・文字・`data-mark` の 3 手段、変種 (b) は根・(a) は外枠が宿主、深さのクラス `d0`〜`d6`。見た目は同一オリジンの外部ファイル `static/app.css` で、`<style>` 要素と `style` 属性は使わない。指せる行の 4 属性は `pointed_item` で付け、宛先は呼び出し側が `PointOf` で注入する） | web（`artifact_mark`） | TASK-469・TASK-480 |
+| 項目 1 件を変化の印つきで作る部品（`artifact_mark`。記号・文字・`data-mark` の 3 手段、変種 (b) は根・(a) は外枠が宿主、深さのクラス `d0`〜`d6`。見た目は同一オリジンの外部ファイル `static/app.css` で、`<style>` 要素と `style` 属性は使わない。指せる行の 4 属性は `pointed_item` で付け、宛先は呼び出し側が `PointOf` で注入する。クリックは host の `decode_action` が `PointTarget::decode` で受け、`Input::Ui` として core に渡す） | web（`artifact_mark`） | TASK-469・TASK-480 |
 | 文書のブロックの突き合わせ（`artifact_doc_rows`。前後のブロックを LCS で突き合わせ、変更を `-` と `+` の組にして `~` は作らない。ID は「文書の経路 + `#` + 位置」。ブロックの型は型パラメータで受け、`contract::doc::Block` との結びは TASK-476。上限超過は `TooLarge`） | web（`artifact_doc_rows`） | TASK-468 |
 | 左の成果物の部品の結線（ビューの種類ごとの keyed list 7 本・選ばれていない list は空で `hidden`）と、ビューの選択（宣言の順・今の Step が宣言した種類だけを選べる。選択は Step ごとに持ち、移動すると先頭に戻る。action `select-view`。宣言が無い Step の既定は試作の仮置き） | web（`engine_parts`・`view_select`・`host`） | TASK-470 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |

@@ -3,7 +3,7 @@
 //! 固定データを 7 種のビュー × 許される変種（差分・文書の (a) は対照の口）で描き、宛先のある行が `data-action`・
 //! `data-payload`・`data-row`・`tabindex` を組で持ち、宛先の無い行が 1 つも持たないことを確かめる。
 //! 宛先は呼び出し側が注入する（`PointOf`）。ここでは「先頭の行だけ表示だけ、残りは指せる」を注入する。
-//! 期待値は属性名のリテラルと行数から作り、実装の関数から導かない。クリックの受け付けは TASK-480 2/2 の担当。
+//! 期待値は属性名のリテラルと行数から作り、実装の関数から導かない。クリックの受け付けは `point_click_contract.rs`（TASK-480 2/2）が確かめる。
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_contract::doc::Block;

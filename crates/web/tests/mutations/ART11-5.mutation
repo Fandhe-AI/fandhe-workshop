@@ -1,0 +1,8 @@
+id: ART11-5
+package: fandhe-workshop-web
+test: point_click_contract
+target: crates/web/src/host.rs
+find:         if name == POINT_ACTION {
+replace:         if name == "ui-disabled" {
+expect-fail: 正規の_payload_は_ui_の入力になる
+note: host が ui を受け付けない（クリックが指す操作にならない退行。ART-11）

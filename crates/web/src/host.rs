@@ -22,6 +22,7 @@
 //! 選択肢のクリック（`choose`）は配信する設定にも入り、`decode_action` が `Op::Input(Input::Choice)` に変える。
 //! ビューの選択（`select-view`。TASK-470）も配信する設定に入り、`decode_action` が `HostAction::SelectView` に変える。
 //! 承認のクリック（`decide`・`revise-target`。TASK-447 1/2）も同じで、`Op::Input(Input::Approval)` に変える。
+//! 指せる行のクリック（`ui`。TASK-480 2/2）も配信する設定に入り、`PointTarget::decode` を通して `Op::Input(Input::Ui)` に変える。
 //!
 //! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
 //! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
@@ -73,6 +74,7 @@ use fandhe_workshop_core::{Projection, Session, SessionState};
 
 use crate::action::RuntimeAction;
 use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
+use crate::artifact_view::{PointTarget, POINT_ACTION};
 use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
@@ -1273,6 +1275,12 @@ impl Component for EngineHost {
         // ビューの選択（TASK-470）。payload は種類の綴りの完全一致だけ。宣言に含まれるかは `update` が照合する。
         if name == view_select::ACTION_SELECT_VIEW {
             return ViewKind::parse(payload).map(HostAction::SelectView);
+        }
+        // 指せる行のクリック（TASK-480 2/2）。復号は `PointTarget::decode` の 1 か所だけで、正規形でないものは何もしない。
+        // 宛先が今の Step に合うかの照合と判定は core（`select_judge`）に任せ、ここでは判定しない。
+        if name == POINT_ACTION {
+            return PointTarget::decode(name, payload)
+                .map(|t| HostAction::Engine(Op::Input(t.to_input())));
         }
         // 選択肢のクリック（TASK-445 2/2）。payload は選択肢の ID で、照合と判定は core に任せる。空は何もしない。
         if name == crate::offers::ACTION_CHOOSE {

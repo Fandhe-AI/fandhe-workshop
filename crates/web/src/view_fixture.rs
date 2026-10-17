@@ -13,7 +13,8 @@
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
 //! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、チェックの一覧の (a)・(b) は `check_view`（TASK-478）で、アプリのデモの (a)・(b) は `app_demo_view`（TASK-479）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
-//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
+//! - 再現する（指せる行。TASK-480）: 宛先のある行の 4 属性（データの先頭の行だけ表示だけ）・クリックの `ui` の受け付け（`PointTarget::decode` を通り、今の画面で指せる行だけを `last_point` に記録する）・アプリのデモの名札のデータ（`appdemo:nameplate`。指せる行は `screen/top` だけ）
+//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
 //! # データ
@@ -59,7 +60,7 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
-/// 行のデータを切り替える action の名前。payload は `cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）。
+/// 行のデータを切り替える action の名前。payload は `cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）。
 pub(crate) const ACTION_DATA: &str = "fixture_data";
 
 /// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
@@ -114,6 +115,12 @@ const APPDEMO: &[u8] = include_bytes!(concat!(
     "/../../testdata/artifact-view-parts/test-data/sample/appdemo.json"
 ));
 
+/// アプリのデモの名札の 3 行（spec の試作の教材 CH-0 の ST-0.1 の `on_enter` の `title`・`role` を写したもの。出所は同じ場所の `README.md`）。
+const APPDEMO_NAMEPLATE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/appdemo-nameplate.json"
+));
+
 /// `doc-before.md` を `markdown::parse` で木にした JSON（`Doc`）。実行時に Markdown を解釈しないため、ビルド時の出力を
 /// 写して持つ。写しが元の Markdown と食い違わないことは、単体試験が `markdown::parse`（pack。dev-dependency）で確かめる。
 const DOC_BEFORE_JSON: &str = r#"{"version":1,"blocks":[{"t":"heading","level":1,"children":[{"t":"text","text":"メモ帳アプリの使い方"}]},{"t":"paragraph","children":[{"t":"text","text":"メモ帳アプリは、短いメモを保存して一覧で見るための練習用アプリです。"}]},{"t":"heading","level":2,"children":[{"t":"text","text":"準備"}]},{"t":"list","ordered":true,"items":[[{"t":"paragraph","children":[{"t":"text","text":"リポジトリを開きます。"}]}],[{"t":"paragraph","children":[{"t":"code","text":"cargo run"},{"t":"text","text":" で起動します。"}]}],[{"t":"paragraph","children":[{"t":"text","text":"画面の「追加」を押します。"}]}]]},{"t":"heading","level":2,"children":[{"t":"text","text":"保存の仕組み"}]},{"t":"paragraph","children":[{"t":"text","text":"メモは "},{"t":"code","text":"notes/"},{"t":"text","text":" の下に 1 件 1 ファイルで保存します。"}]},{"t":"table","head":[[{"t":"text","text":"項目"}],[{"t":"text","text":"内容"}]],"rows":[[[{"t":"text","text":"形式"}],[{"t":"text","text":"Markdown"}]],[[{"t":"text","text":"場所"}],[{"t":"code","text":"notes/"}]]]},{"t":"quote","children":[{"t":"paragraph","children":[{"t":"text","text":"注意: 保存先を変えると、古いメモは見えなくなります。"}]}]},{"t":"heading","level":2,"children":[{"t":"text","text":"次の手順"}]},{"t":"list","ordered":false,"items":[[{"t":"paragraph","children":[{"t":"text","text":"メモを書く"}]}],[{"t":"paragraph","children":[{"t":"text","text":"保存する"}]}]]}]}"#;
@@ -127,7 +134,7 @@ enum ViewRows {
 }
 
 impl ViewRows {
-    /// データの先頭の行の識別子。代役の部品が、この行だけを表示だけにする（負の対照）。
+    /// データの先頭の行の識別子。既定の規則では、この行だけを表示だけにする（負の対照）。
     fn first_id(&self) -> Option<&RowId> {
         match self {
             ViewRows::Items(v) => v.first().map(ItemRow::id),
@@ -218,10 +225,31 @@ fn fixture_view_id(kind: ViewKind) -> String {
     format!("fixture-{}", kind.as_str())
 }
 
-/// 代役の部品の宛先の規則。データの先頭の行だけを表示だけにし（負の対照）、残りは指せる行にする。
-/// 規則は `RowId` だけで決まり、前後では変わらない。`PointTarget::new` が拒否する行も表示だけに落とす。
-fn fixture_point(view: &str, first: Option<&RowId>, row: &RowId) -> Option<PointTarget> {
-    if Some(row) == first {
+/// 代役の部品が、どの行を指せる行にするかの規則。データごとに持ち、`RowId` だけで決まる（前後では変わらない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PointRule {
+    /// データの先頭の行だけを表示だけにし（負の対照）、残りは指せる行にする。名札以外の既定。
+    AllButFirst,
+    /// 挙げた行だけを指せる行にし、残りは表示だけにする（名札の `screen/top`。spec の ch-run の B4 と同じ形）。
+    Only(&'static [&'static str]),
+}
+
+/// 名札のデータで指せる行（世界状態の経路 `screen/top`）。
+const NAMEPLATE_POINTABLE: &[&str] = &["screen/top"];
+
+/// 代役の部品の宛先の規則を `rule` で適用する。`PointTarget::new` が拒否する行も表示だけに落とす。
+/// `view()` の属性と `update` の受理の判定が同じ関数を通るため、見えている指せる行と受け付ける宛先は食い違わない。
+fn fixture_point(
+    view: &str,
+    rule: PointRule,
+    first: Option<&RowId>,
+    row: &RowId,
+) -> Option<PointTarget> {
+    let allowed = match rule {
+        PointRule::AllButFirst => Some(row) != first,
+        PointRule::Only(ids) => ids.contains(&row.as_str()),
+    };
+    if !allowed {
         return None;
     }
     PointTarget::new(view, row.clone()).ok()
@@ -256,12 +284,17 @@ pub(crate) struct ViewFixture {
     outside: bool,
     /// データの切り替えで読み込みに失敗したか。立っている間は固定の通知を出す（古いデータを黙って見せない）。
     load_failed: bool,
+    /// ビューごとの宛先の規則。`views` と同じ並びで、既定は `AllButFirst`。
+    rules: Vec<PointRule>,
+    /// 最後に受け付けた指す操作の宛先（TASK-480 2/2）。受け付けた件数は `point_count`。
+    last_point: Option<PointTarget>,
+    point_count: u32,
     dirty: Vec<&'static str>,
 }
 
 /// 状態を変える action。`Select` は復号の段で `VariantPolicy` を通るため、許されない組は作れない。
 /// `Contrast` は対照の口で、差分・文書の (a) だけを受ける。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FixtureAction {
     /// ビューの種類と変種を選ぶ。
     Select(ViewKind, Variant),
@@ -273,6 +306,8 @@ pub(crate) enum FixtureAction {
     Outside(bool),
     /// 指定したビューの行のデータを差し替える（カード・チェックだけ）。
     Data(ViewKind, DataSet),
+    /// 指せる行のクリック（`ui`）。復号は `PointTarget::decode` だけを通る。今の画面で指せる行だけを記録する。
+    Point(PointTarget),
 }
 
 /// 行のデータの出所。閉じた集合で、それ以外の payload は復号の段で拒否する。
@@ -282,6 +317,8 @@ pub(crate) enum DataSet {
     Sample,
     /// 規模の検査用の 20 行。
     Scale20,
+    /// 名札の 3 行（アプリのデモだけ。指せる行は `screen/top` だけ）。
+    Nameplate,
 }
 
 impl ViewFixture {
@@ -311,6 +348,9 @@ impl ViewFixture {
             phase: Phase::Before,
             outside: false,
             load_failed: false,
+            rules: vec![PointRule::AllButFirst; ViewKind::ALL.len()],
+            last_point: None,
+            point_count: 0,
             dirty: Vec::new(),
         })
     }
@@ -330,10 +370,43 @@ impl ViewFixture {
         self.phase
     }
 
-    fn items_of(&self, kind: ViewKind, rows: &ViewRows) -> Vec<(String, Node)> {
+    /// 最後に受け付けた指す操作の宛先。
+    pub(crate) fn last_point(&self) -> Option<&PointTarget> {
+        self.last_point.as_ref()
+    }
+
+    /// 受け付けた指す操作の件数。
+    pub(crate) fn point_count(&self) -> u32 {
+        self.point_count
+    }
+
+    /// `target` が、今の画面（選ばれたビュー・今の状態）で指せる行か。`view()` が属性を付ける規則と同じ関数で決める。
+    /// 属性は `data-payload` をページ上で書き換えられるため、見えていない行・表示だけの行・別のビューの宛先は受理しない。
+    fn is_pointable_now(&self, target: &PointTarget) -> bool {
+        if target.view() != fixture_view_id(self.selected) {
+            return false;
+        }
+        let Some(idx) = self.views.iter().position(|(k, _)| *k == self.selected) else {
+            return false;
+        };
+        let (_, rows) = &self.views[idx];
+        let rule = self.rules[idx];
+        let first = rows.first_id();
+        let visible = match rows {
+            ViewRows::Items(v) => v
+                .iter()
+                .any(|r| r.id() == target.row() && r.shown(self.phase).is_some()),
+            ViewRows::Doc(v) => v
+                .iter()
+                .any(|r| r.id() == target.row() && r.shown(self.phase).is_some()),
+        };
+        visible && fixture_point(target.view(), rule, first, target.row()).as_ref() == Some(target)
+    }
+
+    fn items_of(&self, kind: ViewKind, rows: &ViewRows, rule: PointRule) -> Vec<(String, Node)> {
         let view = fixture_view_id(kind);
         let first = rows.first_id();
-        let point = |row: &RowId| fixture_point(&view, first, row);
+        let point = |row: &RowId| fixture_point(&view, rule, first, row);
         let point: PointOf = &point;
         match rows {
             // ファイルツリーは (a)・(b) とも本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
@@ -410,6 +483,8 @@ impl Component for ViewFixture {
                     (ViewKind::CardList, DataSet::Scale20) => CARDS_20,
                     (ViewKind::CheckList, DataSet::Sample) => CHECKS,
                     (ViewKind::CheckList, DataSet::Scale20) => CHECKS_20,
+                    (ViewKind::AppDemo, DataSet::Sample) => APPDEMO,
+                    (ViewKind::AppDemo, DataSet::Nameplate) => APPDEMO_NAMEPLATE,
                     // 復号の段で拒否済み。来た場合は何も変えない。
                     _ => return,
                 };
@@ -422,14 +497,28 @@ impl Component for ViewFixture {
                     self.dirty.push(OUTSIDE_FIELD);
                 }
                 if let Ok(rows) = loaded {
-                    if let Some((_, slot)) = self.views.iter_mut().find(|(k, _)| *k == kind) {
-                        let same = matches!(slot, ViewRows::Items(cur) if *cur == rows);
+                    if let Some(idx) = self.views.iter().position(|(k, _)| *k == kind) {
+                        let new_rule = match data {
+                            DataSet::Nameplate => PointRule::Only(NAMEPLATE_POINTABLE),
+                            DataSet::Sample | DataSet::Scale20 => PointRule::AllButFirst,
+                        };
+                        let slot = &mut self.views[idx].1;
+                        let same = matches!(slot, ViewRows::Items(cur) if *cur == rows)
+                            && self.rules[idx] == new_rule;
                         *slot = ViewRows::Items(rows);
+                        self.rules[idx] = new_rule;
                         // 選ばれていない list は空で `hidden` のため、選ばれているときだけ dirty にする。
                         if !same && self.selected == kind {
                             self.dirty = dirty_list_fields(Some(kind), Some(kind), true);
                         }
                     }
+                }
+            }
+            FixtureAction::Point(target) => {
+                // 受理しても見た目は変えない（dirty を積まない）。指せない宛先は何も変えない。
+                if self.is_pointable_now(&target) {
+                    self.point_count = self.point_count.saturating_add(1);
+                    self.last_point = Some(target);
                 }
             }
             FixtureAction::Outside(on) => {
@@ -454,10 +543,10 @@ impl Component for ViewFixture {
             );
         }
         let mut lists = Vec::new();
-        for (kind, rows) in &self.views {
+        for ((kind, rows), rule) in self.views.iter().zip(&self.rules) {
             let selected = *kind == self.selected;
             let items = if selected {
-                self.items_of(*kind, rows)
+                self.items_of(*kind, rows, *rule)
             } else {
                 Vec::new()
             };
@@ -528,8 +617,16 @@ impl Component for ViewFixture {
                 "cards:20" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20)),
                 "checks:sample" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Sample)),
                 "checks:20" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20)),
+                "appdemo:sample" => Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Sample)),
+                "appdemo:nameplate" => {
+                    Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Nameplate))
+                }
                 _ => None,
             },
+            // 指せる行のクリック。復号は `PointTarget::decode` だけを通す（host と同じ復号器）。
+            crate::artifact_view::POINT_ACTION => {
+                PointTarget::decode(name, payload).map(FixtureAction::Point)
+            }
             ACTION_CONTROL => match payload {
                 "outside" => Some(FixtureAction::Outside(true)),
                 "inside" => Some(FixtureAction::Outside(false)),
@@ -934,11 +1031,106 @@ mod tests {
         }
     }
 
+    fn point(f: &ViewFixture, row: &str) -> FixtureAction {
+        let t = PointTarget::new(&fixture_view_id(f.selected()), RowId::new(row).unwrap()).unwrap();
+        FixtureAction::Point(t)
+    }
+
     #[test]
-    fn 代役の部品はクリックの_ui_action_を受け付けない() {
-        // クリックの受け付けは TASK-480 2/2 の担当。ここでは fail-closed を固定する。
-        assert_eq!(ViewFixture::decode_action("ui", "1:vk"), None);
-        assert_eq!(ViewFixture::decode_action("ui", ""), None);
+    fn 代役の部品はクリックの_ui_action_を復号器の通りに受け付ける() {
+        let t = PointTarget::new("fixture-card_list", RowId::new("c-2").unwrap()).unwrap();
+        assert_eq!(
+            ViewFixture::decode_action("ui", &t.encode_payload()),
+            Some(FixtureAction::Point(t))
+        );
+        let long = format!("4096:{}", "x".repeat(4_097));
+        for bad in [
+            "", "1:v", "0:abc", "05:abcde", "x:abc", "10000:a", "3:abc", &long,
+        ] {
+            assert_eq!(ViewFixture::decode_action("ui", bad), None, "{bad:?}");
+        }
+        assert_eq!(ViewFixture::decode_action("uix", "3:abcd"), None);
+    }
+
+    #[test]
+    fn 指せる行の宛先は記録され_表示だけの行と偽造は無視される() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::AppDemo, Variant::B));
+        // 先頭の行（表示だけ）は無視される。
+        f.update(point(&f, "a-title"));
+        assert_eq!((f.point_count(), f.last_point()), (0, None));
+        // 前の状態で出ない行（追加の行）は無視される。
+        f.update(point(&f, "a-i3"));
+        assert_eq!(f.point_count(), 0);
+        // 存在しない行の偽造は無視される。
+        f.update(point(&f, "no-such-row"));
+        assert_eq!(f.point_count(), 0);
+        // 指せる行は記録され、dirty は積まない。
+        f.update(point(&f, "a-i1"));
+        assert_eq!(f.point_count(), 1);
+        assert_eq!(f.last_point().map(|t| t.row().as_str()), Some("a-i1"));
+        assert!(f.dirty_fields().is_empty());
+        // 後の状態では追加の行も指せる。
+        f.update(FixtureAction::Phase(Phase::After));
+        f.update(point(&f, "a-i3"));
+        assert_eq!(f.point_count(), 2);
+        // 別のビューの宛先は、選ばれていなければ無視される。
+        let other = PointTarget::new("fixture-card_list", RowId::new("c-2").unwrap()).unwrap();
+        f.update(FixtureAction::Point(other));
+        assert_eq!(f.point_count(), 2);
+    }
+
+    #[test]
+    fn 名札のデータでは_screen_top_だけが指せる行になる() {
+        for variant in [Variant::A, Variant::B] {
+            let mut f = ViewFixture::load().unwrap();
+            f.update(FixtureAction::Select(ViewKind::AppDemo, variant));
+            f.update(FixtureAction::Data(ViewKind::AppDemo, DataSet::Nameplate));
+            assert_eq!(f.dirty_fields(), ["view_app_demo"]);
+            assert_eq!(row_counts(&f, ViewKind::AppDemo), (3, 3));
+            let html = render(&f.view());
+            assert_eq!(html.matches("data-row=\"screen/top\"").count(), 1, "{html}");
+            assert_eq!(html.matches("data-row=").count(), 1, "{html}");
+            assert_eq!(html.matches("data-action=\"ui\"").count(), 1, "{html}");
+            assert_eq!(html.matches("tabindex=\"0\"").count(), 1, "{html}");
+            f.update(point(&f, "screen/left"));
+            f.update(point(&f, "screen/right"));
+            assert_eq!(f.point_count(), 0);
+            f.update(point(&f, "screen/top"));
+            assert_eq!(f.point_count(), 1);
+            assert_eq!(f.last_point().map(|t| t.row().as_str()), Some("screen/top"));
+            // 元に戻すと、既定の規則（先頭の行だけ表示だけ）に戻る。
+            f.update(FixtureAction::Data(ViewKind::AppDemo, DataSet::Sample));
+            assert_eq!(row_counts(&f, ViewKind::AppDemo), (8, 9));
+            let html = render(&f.view());
+            assert_eq!(html.matches("data-row=").count(), 7, "{html}");
+            f.update(point(&f, "screen/top"));
+            assert_eq!(f.point_count(), 1);
+        }
+    }
+
+    #[test]
+    fn 名札のデータは閉じた_payload_だけを受ける() {
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "appdemo:nameplate"),
+            Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Nameplate))
+        );
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "appdemo:sample"),
+            Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Sample))
+        );
+        for bad in [
+            "appdemo:",
+            "appdemo:20",
+            "Appdemo:nameplate",
+            "appdemo:nameplate ",
+            "app_demo:nameplate",
+        ] {
+            assert!(
+                ViewFixture::decode_action(ACTION_DATA, bad).is_none(),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]
