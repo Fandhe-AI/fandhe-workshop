@@ -1,0 +1,8 @@
+id: ART5-2
+package: fandhe-workshop-web
+test: view_select
+target: crates/web/src/engine_parts.rs
+find: let is_selected = kind == selected;
+replace: let is_selected = true;
+expect-fail: 開始直後は宣言の先頭だけが見え_他の_6_本は空で_hidden
+note: 選ばれていないビューの list にも行が入り、hidden が付かない（ART-5・ART-12）

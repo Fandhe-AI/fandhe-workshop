@@ -26,13 +26,26 @@ const RAW = '[data-testid="raw-trigger"]';
 const DRAFT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
 const SAMPLE = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../testdata/contract/event-sequence.json');
-// 親の data-testid と、束縛される field 名（view() が書く値）。
+// 親の選択子と、束縛される field 名・view() が書く属性（data-bind-list を除く）。
+// 成果物の親はビューごとに 1 本で data-testid が共通のため、data-view でも絞る（TASK-470）。
+// 既定の教材はビューを宣言しないので、ファイルツリーが選ばれ、他は hidden を持つ。
+const tid = (id) => `[data-testid="${id}"]`;
+const viewList = (kind) => `[data-testid="view-list"][data-view="${kind}"]`;
 const ENGINE_LISTS = [
-  ['part-log-list', 'engine_log_rows'],
-  ['part-artifact-list', 'artifact_items'],
-  ['part-review-list', 'review_items'],
+  { sel: tid('part-log-list'), field: 'engine_log_rows', attrs: { 'data-testid': 'part-log-list' } },
+  {
+    sel: viewList('file_tree'),
+    field: 'view_file_tree',
+    attrs: { 'data-testid': 'view-list', 'data-view': 'file_tree' },
+  },
+  {
+    sel: viewList('document'),
+    field: 'view_document',
+    attrs: { 'data-testid': 'view-list', 'data-view': 'document', hidden: '' },
+  },
+  { sel: tid('part-review-list'), field: 'review_items', attrs: { 'data-testid': 'part-review-list' } },
 ];
-const LEARNER_LIST = ['log-list', 'learner_log'];
+const LEARNER_LIST = { sel: tid('log-list'), field: 'learner_log', attrs: { 'data-testid': 'log-list' } };
 
 let browser;
 let ops;
@@ -67,23 +80,23 @@ async function sendRaw(page, op) {
 const logLen = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine.logLen;
 
 // 親要素の参照を window に保持し、後付けの属性を 3 つ付ける。
-async function pin(page, testids) {
+async function pin(page, sels) {
   await page.evaluate((ids) => {
     window.__pinned = {};
     for (const id of ids) {
-      const el = document.querySelector(`[data-testid="${id}"]`);
+      const el = document.querySelector(id);
       el.setAttribute('aria-live', 'polite');
       el.setAttribute('class', 'injected');
       el.setAttribute('data-injected', '1');
       window.__pinned[id] = el;
     }
-  }, testids);
+  }, sels);
 }
 
 // 保持した参照が今の DOM の要素と同一か、後付けの属性が無いか、属性の集合を返す。
-async function inspect(page, testid) {
+async function inspect(page, sel) {
   return page.evaluate((id) => {
-    const el = document.querySelector(`[data-testid="${id}"]`);
+    const el = document.querySelector(id);
     const attrs = {};
     for (const a of el.attributes) attrs[a.name] = a.value;
     return {
@@ -91,16 +104,16 @@ async function inspect(page, testid) {
       connected: window.__pinned[id].isConnected,
       attrs,
     };
-  }, testid);
+  }, sel);
 }
 
-function assertParent(info, testid, field, detail) {
+function assertParent(info, { sel: testid, field, attrs }, detail) {
   assert.equal(info.same, true, `same element ${testid} ${detail}`);
   assert.equal(info.connected, true, `connected ${testid} ${detail}`);
   for (const injected of ['aria-live', 'class', 'data-injected']) {
     assert.equal(injected in info.attrs, false, `${injected} should be gone on ${testid} ${detail}`);
   }
-  assert.deepEqual(info.attrs, { 'data-testid': testid, 'data-bind-list': field }, `${testid} ${detail}`);
+  assert.deepEqual(info.attrs, { ...attrs, 'data-bind-list': field }, `${testid} ${detail}`);
 }
 
 async function assertSafe(page, rec) {
@@ -115,7 +128,7 @@ test('エンジンの 3 リストの親は、更新の後も同じ要素で、�
     const { page, context, rec } = await openPage(browser, { origin: srv.origin });
     await page.goto(srv.url);
     await waitMounted(page);
-    await pin(page, ENGINE_LISTS.map(([id]) => id));
+    await pin(page, ENGINE_LISTS.map((l) => l.sel));
     // 増えないと field が dirty にならず、何も確かめないことになる。
     const start = await logLen(page);
     let grew = false;
@@ -127,20 +140,20 @@ test('エンジンの 3 リストの親は、更新の後も同じ要素で、�
       }
     }
     assert.equal(grew, true, '操作列でログが 1 件も増えていない');
-    for (const [id, field] of ENGINE_LISTS) assertParent(await inspect(page, id), id, field, 'after update');
+    for (const l of ENGINE_LISTS) assertParent(await inspect(page, l.sel), l, 'after update');
 
     // 全操作を流しても同じである。
     for (const op of ops) await sendRaw(page, op);
-    for (const [id, field] of ENGINE_LISTS) assertParent(await inspect(page, id), id, field, 'after all ops');
+    for (const l of ENGINE_LISTS) assertParent(await inspect(page, l.sel), l, 'after all ops');
 
     // view() から作り直した結果とも一致する。
     assert.equal(await page.evaluate(() => window.__fandheTest.rerender()), true);
-    for (const [id, field] of ENGINE_LISTS) {
+    for (const l of ENGINE_LISTS) {
       const attrs = await page.evaluate((i) => {
-        const el = document.querySelector(`[data-testid="${i}"]`);
+        const el = document.querySelector(i);
         return Object.fromEntries([...el.attributes].map((a) => [a.name, a.value]));
-      }, id);
-      assert.deepEqual(attrs, { 'data-testid': id, 'data-bind-list': field }, `rerender ${id}`);
+      }, l.sel);
+      assert.deepEqual(attrs, { ...l.attrs, 'data-bind-list': l.field }, `rerender ${l.sel}`);
     }
     await assertSafe(page, rec);
     await context.close();
@@ -152,25 +165,25 @@ test('入力欄の送信済み一覧の親は、送信の後も同じ要素で�
     const { page, context, rec } = await openPage(browser, { origin: srv.origin });
     await page.goto(srv.url);
     await waitMounted(page);
-    const [id, field] = LEARNER_LIST;
-    await pin(page, [id]);
+    const l = LEARNER_LIST;
+    await pin(page, [l.sel]);
     await page.fill(DRAFT, 'hello');
     await page.click(SUBMIT);
-    assert.equal(await page.locator(`[data-testid="${id}"] > li`).count(), 1, '送信が反映されていない');
-    assertParent(await inspect(page, id), id, field, 'after submit');
+    assert.equal(await page.locator(`${l.sel} > li`).count(), 1, '送信が反映されていない');
+    assertParent(await inspect(page, l.sel), l, 'after submit');
     await assertSafe(page, rec);
     await context.close();
   });
 });
 
-test('配信設定でも、3 つの親 ul が 1 つずつあり、行は 0 件である', async () => {
+test('配信設定でも、成果物のビューごとの親を含む親 ul が 1 つずつあり、行は 0 件である', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
     const { page, context } = await openPage(browser, { origin: srv.origin });
     await page.goto(srv.url);
     await waitMounted(page);
-    for (const [id] of ENGINE_LISTS) {
-      assert.equal(await page.locator(`ul[data-testid="${id}"]`).count(), 1, id);
-      assert.equal(await page.locator(`[data-testid="${id}"] li`).count(), 0, id);
+    for (const l of ENGINE_LISTS) {
+      assert.equal(await page.locator(`ul${l.sel}`).count(), 1, l.sel);
+      assert.equal(await page.locator(`${l.sel} li`).count(), 0, l.sel);
     }
     await context.close();
   });

@@ -37,7 +37,7 @@ const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
 const RAW = '[data-testid="raw-trigger"]';
 const LOG_ITEMS = '[data-testid="part-log-list"] > li';
-const ARTIFACT_ITEMS = '[data-testid="part-artifact-list"] > li';
+const ARTIFACT_ITEMS = '[data-testid="part-artifact-view"] [data-testid="view-list"]:not([hidden]) > li';
 const REVIEW_ITEMS = '[data-testid="part-review-list"] > li';
 const FINISH_LIMIT = 60;
 const T = 30000;

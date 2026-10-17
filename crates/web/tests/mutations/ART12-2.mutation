@@ -1,0 +1,8 @@
+id: ART12-2
+package: fandhe-workshop-web
+test: view_select
+target: crates/web/src/host.rs
+find: .is_some_and(|c| Some(&c.step) != session.state().run.current.as_ref())
+replace: .is_some_and(|_| false)
+expect-fail: 先頭以外を選んで別の_step_へ移り_戻ると先頭に戻る
+note: Step が変わってもビューの選択を捨てず、元の Step へ戻ると以前の選択が戻る（ART-12）

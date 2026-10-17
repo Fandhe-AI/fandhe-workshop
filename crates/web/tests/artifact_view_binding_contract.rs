@@ -71,9 +71,10 @@ fn 束縛点は登録でき_dirty_を受け_標準の部品の_field_と重な�
     r.register(Box::new(Seven)).unwrap();
     let names: Vec<&'static str> = VIEW_LIST_FIELDS.iter().map(|f| f.name).collect();
     assert!(r.check_dirty(&names).is_ok());
+    // TASK-470 以降、標準の成果物の部品が 7 本を持つ。他の部品の field とは重ならない（登録簿が検査する）。
     let std_reg = standard_registry();
-    for f in std_reg.fields() {
-        assert!(!names.contains(&f.name), "{}", f.name);
+    for n in &names {
+        assert!(std_reg.fields().any(|f| f.name == *n), "{n}");
     }
     // 標準の登録簿へ重ねると、種類の重複で拒否される。
     let mut std_reg = standard_registry();
