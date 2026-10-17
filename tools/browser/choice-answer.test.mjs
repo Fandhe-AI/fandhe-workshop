@@ -12,8 +12,8 @@
 //   - 正しい選択肢をキーボード（フォーカスして Enter）で押すと達成になる: 復習の st-1 が `data-achieved="true"`、
 //     エンジンの書き出しの `log` に `achieved` が出て `current` が st-1 から進み、ボタンが 0 件・親の `ul` が `hidden` になる
 //   - 拒否の行は正答で増えない。危険な要素・実行・CSP 違反・ダイアログが 0 件である
-// Step の状態表示（`step-status` の「達成」）は TASK-435 の担当で未実装のため、ここでは確かめない。達成は上の観察点で
-// 確かめ、`step-status` の確認は TASK-435 の実装後に親 #351 の受入で行う。
+// Step の状態表示（`step-status` の「達成」）は confirm-status.test.mjs（TASK-435 2/2）が確かめるため、ここでは確かめない。
+// 達成は上の観察点で確かめる。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_DIR。どちらも未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';

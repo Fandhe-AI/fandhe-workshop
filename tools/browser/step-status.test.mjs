@@ -1,4 +1,4 @@
-// Step の状態表示（step-status）の試験（TASK-435 1/2。TERM-31）。3 種の確認ごとの試験は TASK-435 2/2 の持ち分。
+// Step の状態表示（step-status）の試験（TASK-435 1/2。TERM-31）。3 種の確認ごとの試験は confirm-status.test.mjs（TASK-435 2/2）が持つ。
 //
 // 試験の設定（TEST_HOOKS=1）の画面で、見えない `raw-trigger` から Op を送る（run-status.test.mjs と同じ経路）。
 // 確かめること:

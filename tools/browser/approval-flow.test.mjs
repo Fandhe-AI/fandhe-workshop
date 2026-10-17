@@ -13,7 +13,7 @@
 // 確かめないこと:
 //   - st-2 の入力方式 `choice` の画面の口は TASK-450 の担当で未実装のため、`raw-trigger` へ `Op` の JSON を送る
 //   - 章の完了（`ChapterCompleted`）は core が未実装（TASK-233 以降）のため、最後の Step の達成までを確かめる
-//   - `step-status` の表示は TASK-435 の担当
+//   - `step-status` の表示は confirm-status.test.mjs（TASK-435 2/2）が確かめる
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_DIR。どちらも未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';

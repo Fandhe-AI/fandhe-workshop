@@ -20,7 +20,7 @@
 //   - st-2 の入力方式 `choice` の画面の口は TASK-450 の担当で未実装のため、完走は確認（point_at）の Step の達成までとする。
 //     st-3 以降と 6 Step の CH-1 全体は扱わない
 //   - 世界状態の行は st-1 の受付後も notes/draft の 1 件だけなので、外れた行を指す経路（rj-miss-point）は native の試験の範囲
-//   - `step-status` の表示は TASK-435 の担当。人によるキーボードだけの完走は JUDGE-20 の担当で、本試験は人の評価に数えない
+//   - `step-status` の表示は confirm-status.test.mjs（TASK-435 2/2）が確かめる。人によるキーボードだけの完走は JUDGE-20 の担当で、本試験は人の評価に数えない
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。mount の教材は min-3step。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
