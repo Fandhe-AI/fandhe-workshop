@@ -105,16 +105,91 @@ export function matchToken(token, terms) {
 
 const IDENT = /[\p{L}\p{N}_]/u;
 
-// 文字列・識別子の中身を、英数字と `_` の連なりに分けて出力に積む。
-// text の中の改行ごとに行番号を進める（複数行の文字列の 2 行目以降の違反を実際の行で報告する）。
-function pushTokens(out, text, line) {
-  let cur = line;
-  let last = 0;
-  for (const m of text.matchAll(/[\p{L}\p{N}_]+/gu)) {
-    for (let k = last; k < m.index; k += 1) if (text[k] === '\n') cur += 1;
-    last = m.index;
-    out.push({ token: m[0], line: cur });
+// 字句にする文字の列。chars は 1 コード点ずつ、lines は各文字の行番号（エスケープの復号や行継続で、
+// 元の行と文字の並びがずれても違反の行を実際の行で報告するため）。
+class Buf {
+  constructor() {
+    this.chars = [];
+    this.lines = [];
   }
+  add(ch, line) {
+    this.chars.push(ch);
+    this.lines.push(line);
+  }
+}
+
+// 文字列・識別子の中身を、英数字と `_` の連なりに分けて出力に積む。
+function pushBuf(out, buf) {
+  let tok = '';
+  let tokLine = 0;
+  const flush = () => {
+    if (tok !== '') out.push({ token: tok, line: tokLine });
+    tok = '';
+  };
+  for (let k = 0; k < buf.chars.length; k += 1) {
+    if (IDENT.test(buf.chars[k])) {
+      if (tok === '') tokLine = buf.lines[k];
+      tok += buf.chars[k];
+    } else flush();
+  }
+  flush();
+}
+
+const SIMPLE_ESCAPES = {
+  rust: { n: ' ', r: ' ', t: ' ', '\\': '\\', 0: ' ', "'": "'", '"': '"' },
+  js: { n: ' ', r: ' ', t: ' ', b: ' ', f: ' ', v: ' ' },
+  toml: { b: ' ', t: ' ', n: ' ', f: ' ', r: ' ', e: ' ', '"': '"', '\\': '\\' },
+};
+
+// 開き引用符の内側の `\` から始まるエスケープを復号して buf に積み、[次の位置, 行] を返す。
+// lang は rust・js・toml（1 行の基本文字列）・toml-ml（複数行の基本文字列）。未対応の形は CheckError
+// （復号できないまま照合すると語を見逃すため、合格にしない）。
+function readEscape(s, i, line, lang, buf, fail) {
+  const c = s[i + 1];
+  if (c === undefined) fail('unterminated string');
+  if (c === '\n' || (c === '\r' && s[i + 2] === '\n')) {
+    if (lang === 'toml') fail('unsupported escape');
+    i += c === '\n' ? 2 : 3;
+    line += 1;
+    if (lang === 'rust' || lang === 'toml-ml') {
+      while (i < s.length && /[ \t\r\n]/.test(s[i])) {
+        if (s[i] === '\n') line += 1;
+        i += 1;
+      }
+    }
+    return [i, line];
+  }
+  const kind = lang === 'toml-ml' ? 'toml' : lang;
+  const hex = (count) => {
+    const digits = s.slice(i + 2, i + 2 + count).join('');
+    if (digits.length !== count || !/^[0-9a-fA-F]+$/.test(digits)) fail('unsupported escape');
+    return [parseInt(digits, 16), i + 2 + count];
+  };
+  const emit = (cp, next) => {
+    if (cp > 0x10ffff) fail('unsupported escape');
+    buf.add(String.fromCodePoint(cp), line);
+    return [next, line];
+  };
+  const simple = SIMPLE_ESCAPES[kind];
+  if (c === 'x') return emit(...hex(2));
+  if (c === 'u' && kind === 'toml') return emit(...hex(4));
+  if (c === 'U' && kind === 'toml') return emit(...hex(8));
+  if (c === 'u' && (kind === 'rust' || kind === 'js') && s[i + 2] === '{') {
+    let k = i + 3;
+    while (k < s.length && /[0-9a-fA-F]/.test(s[k])) k += 1;
+    if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
+    return emit(parseInt(s.slice(i + 3, k).join(''), 16), k + 1);
+  }
+  if (c === 'u' && kind === 'js') return emit(...hex(4));
+  if (kind === 'js') {
+    if (c === '0' && !/[0-9]/.test(s[i + 2] ?? '')) return emit(0x20, i + 2);
+    if (/[0-9]/.test(c)) fail('unsupported escape'); // 8 進・\8・\9
+    if (Object.hasOwn(simple, c)) return emit(simple[c].codePointAt(0), i + 2);
+    return emit(c.codePointAt(0), i + 2); // その他は文字そのもの（`\'`・`\"`・`` \` ``・`\\`・`\$` など）
+  }
+  if (Object.hasOwn(simple, c)) return emit(simple[c].codePointAt(0), i + 2);
+  fail('unsupported escape');
+  return [i, line];
 }
 
 // Rust の字句を読み、コメントを除いた識別子と文字列の字句を返す。閉じない形は CheckError。
@@ -127,46 +202,37 @@ export function lexRust(src) {
   const fail = (msg) => {
     throw new CheckError(`${msg} at line ${line}`);
   };
-  // 通常の文字列（開き引用符の直後から）。エスケープを読み、閉じ引用符の次の位置を返す。
+  // 通常の文字列（開き引用符の直後から）。エスケープを復号し、閉じ引用符の次の位置まで読む。
   const readString = () => {
-    const startLine = line;
-    let buf = '';
+    const buf = new Buf();
     while (i < n) {
       const c = s[i];
       if (c === '\\') {
-        if (s[i + 1] === '\n') {
-          line += 1;
-          buf += '\n';
-        }
-        buf += ' ';
-        i += 2;
+        [i, line] = readEscape(s, i, line, 'rust', buf, fail);
         continue;
       }
       if (c === '"') {
         i += 1;
-        pushTokens(out, buf, startLine);
+        pushBuf(out, buf);
         return;
       }
-      if (c === '\n') {
-        line += 1;
-        buf += '\n';
-      } else buf += c;
+      buf.add(c, line);
+      if (c === '\n') line += 1;
       i += 1;
     }
     fail('unterminated string');
   };
   const readRaw = (hashes) => {
-    const startLine = line;
     const close = `"${'#'.repeat(hashes)}`;
-    let buf = '';
+    const buf = new Buf();
     while (i < n) {
       if (s[i] === '"' && s.slice(i, i + close.length).join('') === close) {
         i += close.length;
-        pushTokens(out, buf, startLine);
+        pushBuf(out, buf);
         return;
       }
+      buf.add(s[i], line);
       if (s[i] === '\n') line += 1;
-      buf += s[i];
       i += 1;
     }
     fail('unterminated raw string');
@@ -259,8 +325,10 @@ export function lexRust(src) {
   return out;
 }
 
-// JS の字句。`//`・`/* */` を除き、'...'・"..."・`...` の中身を字句にする。正規表現リテラルは読まない
-// （クォートを含む正規表現は誤読する可能性があるため、閉じない文字列は CheckError にして合格にしない）。
+// JS の字句。`//`・`/* */` を除き、'...'・"..."・`...` の中身を字句にする。テンプレートリテラルは補間 `${...}` を
+// 入れ子の式として読み（式の中の文字列・入れ子のテンプレートも照合する）、エスケープは復号してから照合する。
+// 正規表現リテラルは読まない（クォートを含む正規表現は誤読する可能性があるため、閉じない文字列・補間は
+// CheckError にして合格にしない）。
 export function lexJs(src) {
   const out = [];
   const s = Array.from(src);
@@ -270,89 +338,233 @@ export function lexJs(src) {
   const fail = (msg) => {
     throw new CheckError(`${msg} at line ${line}`);
   };
+  const readQuoted = (q) => {
+    const buf = new Buf();
+    i += 1;
+    while (i < n) {
+      const d = s[i];
+      if (d === '\\') {
+        [i, line] = readEscape(s, i, line, 'js', buf, fail);
+        continue;
+      }
+      if (d === q) {
+        i += 1;
+        pushBuf(out, buf);
+        return;
+      }
+      if (d === '\n') fail('unterminated string');
+      buf.add(d, line);
+      i += 1;
+    }
+    fail('unterminated string');
+  };
+  // 開きのバッククォートの位置から。`${` の手前までの断片を字句にし、式を code() で読んでから続ける。
+  const readTemplate = () => {
+    let buf = new Buf();
+    i += 1;
+    while (i < n) {
+      const d = s[i];
+      if (d === '\\') {
+        [i, line] = readEscape(s, i, line, 'js', buf, fail);
+        continue;
+      }
+      if (d === '`') {
+        i += 1;
+        pushBuf(out, buf);
+        return;
+      }
+      if (d === '$' && s[i + 1] === '{') {
+        pushBuf(out, buf);
+        buf = new Buf();
+        i += 2;
+        code(true);
+        continue;
+      }
+      buf.add(d, line);
+      if (d === '\n') line += 1;
+      i += 1;
+    }
+    fail('unterminated template literal');
+  };
+  // コードを読む。inInterp のときは、対応する `}` の手前で止まる（`}` の次の位置へ進めて返る）。
+  const code = (inInterp) => {
+    let depth = 0;
+    while (i < n) {
+      const c = s[i];
+      if (c === '\n') {
+        line += 1;
+        i += 1;
+      } else if (c === '/' && s[i + 1] === '/') {
+        while (i < n && s[i] !== '\n') i += 1;
+      } else if (c === '/' && s[i + 1] === '*') {
+        i += 2;
+        while (i < n && !(s[i] === '*' && s[i + 1] === '/')) {
+          if (s[i] === '\n') line += 1;
+          i += 1;
+        }
+        if (i >= n) fail('unterminated block comment');
+        i += 2;
+      } else if (c === '"' || c === "'") {
+        readQuoted(c);
+      } else if (c === '`') {
+        readTemplate();
+      } else if (inInterp && c === '{') {
+        depth += 1;
+        i += 1;
+      } else if (inInterp && c === '}') {
+        i += 1;
+        if (depth === 0) return;
+        depth -= 1;
+      } else if (IDENT.test(c)) {
+        let j = i;
+        while (j < n && IDENT.test(s[j])) j += 1;
+        out.push({ token: s.slice(i, j).join(''), line });
+        i = j;
+      } else {
+        i += 1;
+      }
+    }
+    if (inInterp) fail('unterminated template interpolation');
+  };
+  code(false);
+  return out;
+}
+
+// HTML・SVG。`<!-- -->` だけをコメントとして除く。タグの中の引用符つきの属性値にある `<!--` はコメントにしない。
+// 数値の文字参照（`&#103;`・`&#x67;`）は復号する。タグの引用符が閉じない・コメントが閉じない形は CheckError。
+export function lexHtml(src) {
+  const out = [];
+  const s = Array.from(src);
+  const n = s.length;
+  const buf = new Buf();
+  let i = 0;
+  let line = 1;
+  let inTag = false;
+  let quote = null;
+  const fail = (msg) => {
+    throw new CheckError(`${msg} at line ${line}`);
+  };
   while (i < n) {
     const c = s[i];
-    if (c === '\n') {
-      line += 1;
+    if (!inTag && c === '<' && s[i + 1] === '!' && s[i + 2] === '-' && s[i + 3] === '-') {
+      const start = line;
+      i += 4;
+      while (i < n && !(s[i] === '-' && s[i + 1] === '-' && s[i + 2] === '>')) {
+        if (s[i] === '\n') line += 1;
+        i += 1;
+      }
+      if (i >= n) {
+        line = start;
+        fail('unterminated comment');
+      }
+      i += 3;
+      buf.add(' ', line);
+      continue;
+    }
+    if (c === '&' && s[i + 1] === '#') {
+      const m = /^&#(?:x([0-9a-fA-F]+)|([0-9]+));/.exec(s.slice(i, i + 12).join(''));
+      if (m) {
+        const cp = m[1] ? parseInt(m[1], 16) : parseInt(m[2], 10);
+        if (cp > 0x10ffff) fail('unsupported character reference');
+        buf.add(String.fromCodePoint(cp), line);
+        i += m[0].length;
+        continue;
+      }
+    }
+    if (!inTag) {
+      if (c === '<' && /[A-Za-z/!?]/.test(s[i + 1] ?? '')) inTag = true;
+    } else if (quote !== null) {
+      if (c === quote) quote = null;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === '>') {
+      inTag = false;
+    }
+    buf.add(c, line);
+    if (c === '\n') line += 1;
+    i += 1;
+  }
+  if (quote !== null) fail('unterminated attribute value');
+  pushBuf(out, buf);
+  return out;
+}
+
+// CSS。`/* */` だけをコメントとして除く。文字列（'...'・"..."）の中の `/*` はコメントにしない。
+// CSS のエスケープ（`\67 ` のような 16 進、`\g` のような文字そのもの）は復号してから照合する。
+export function lexCss(src) {
+  const out = [];
+  const s = Array.from(src);
+  const n = s.length;
+  const buf = new Buf();
+  let i = 0;
+  let line = 1;
+  let quote = null;
+  const fail = (msg) => {
+    throw new CheckError(`${msg} at line ${line}`);
+  };
+  while (i < n) {
+    const c = s[i];
+    if (c === '\\') {
+      const d = s[i + 1];
+      if (d === undefined) fail('unsupported escape');
+      if (d === '\n') {
+        if (quote === null) fail('unsupported escape');
+        line += 1;
+        i += 2;
+        continue;
+      }
+      if (/[0-9a-fA-F]/.test(d)) {
+        let k = i + 1;
+        while (k < n && k < i + 7 && /[0-9a-fA-F]/.test(s[k])) k += 1;
+        const cp = parseInt(s.slice(i + 1, k).join(''), 16);
+        if (cp > 0x10ffff) fail('unsupported escape');
+        buf.add(cp === 0 ? ' ' : String.fromCodePoint(cp), line);
+        if (s[k] === ' ' || s[k] === '\t') k += 1;
+        else if (s[k] === '\n') {
+          line += 1;
+          k += 1;
+        }
+        i = k;
+        continue;
+      }
+      buf.add(d, line);
+      i += 2;
+      continue;
+    }
+    if (quote !== null) {
+      if (c === quote) quote = null;
+      else if (c === '\n') fail('unterminated string');
+      buf.add(c, line);
       i += 1;
-    } else if (c === '/' && s[i + 1] === '/') {
-      while (i < n && s[i] !== '\n') i += 1;
-    } else if (c === '/' && s[i + 1] === '*') {
+      continue;
+    }
+    if (c === '/' && s[i + 1] === '*') {
+      const start = line;
       i += 2;
       while (i < n && !(s[i] === '*' && s[i + 1] === '/')) {
         if (s[i] === '\n') line += 1;
         i += 1;
       }
-      if (i >= n) fail('unterminated block comment');
-      i += 2;
-    } else if (c === '"' || c === "'" || c === '`') {
-      const startLine = line;
-      let buf = '';
-      i += 1;
-      let closed = false;
-      while (i < n) {
-        const d = s[i];
-        if (d === '\\') {
-          if (s[i + 1] === '\n') {
-            line += 1;
-            buf += '\n';
-          }
-          buf += ' ';
-          i += 2;
-          continue;
-        }
-        if (d === c) {
-          closed = true;
-          i += 1;
-          break;
-        }
-        if (d === '\n') {
-          if (c !== '`') fail('unterminated string');
-          line += 1;
-        }
-        buf += d;
-        i += 1;
+      if (i >= n) {
+        line = start;
+        fail('unterminated comment');
       }
-      if (!closed) fail('unterminated string');
-      pushTokens(out, buf, startLine);
-    } else if (IDENT.test(c)) {
-      let j = i;
-      while (j < n && IDENT.test(s[j])) j += 1;
-      out.push({ token: s.slice(i, j).join(''), line });
-      i = j;
-    } else {
-      i += 1;
+      i += 2;
+      buf.add(' ', line);
+      continue;
     }
+    if (c === '"' || c === "'") quote = c;
+    buf.add(c, line);
+    if (c === '\n') line += 1;
+    i += 1;
   }
+  if (quote !== null) fail('unterminated string');
+  pushBuf(out, buf);
   return out;
-}
-
-// `<!-- -->` または `/* */` だけをコメントとして除き、残りの全体を字句にする（HTML・SVG・CSS）。
-export function lexMarkup(src, open, close) {
-  const out = [];
-  let line = 1;
-  let pos = 0;
-  while (pos < src.length) {
-    const at = src.indexOf(open, pos);
-    const end = at < 0 ? src.length : at;
-    const chunk = src.slice(pos, end);
-    pushLines(out, chunk, line);
-    line += chunk.split('\n').length - 1;
-    if (at < 0) break;
-    const stop = src.indexOf(close, at + open.length);
-    if (stop < 0) throw new CheckError(`unterminated comment at line ${line}`);
-    const comment = src.slice(at, stop + close.length);
-    line += comment.split('\n').length - 1;
-    pos = stop + close.length;
-  }
-  return out;
-}
-
-function pushLines(out, text, firstLine) {
-  text.split('\n').forEach((l, k) => pushTokens(out, l, firstLine + k));
 }
 
 // TOML。文字列の外の `#` から行末までがコメント。文字列（基本・リテラル・複数行）の中身は字句にする。
+// 基本文字列のエスケープは復号してから照合する。
 export function lexToml(src) {
   const out = [];
   const s = Array.from(src);
@@ -371,19 +583,13 @@ export function lexToml(src) {
       while (i < n && s[i] !== '\n') i += 1;
     } else if (c === '"' || c === "'") {
       const triple = s[i + 1] === c && s[i + 2] === c;
-      const startLine = line;
+      const buf = new Buf();
       i += triple ? 3 : 1;
-      let buf = '';
       let closed = false;
       while (i < n) {
         const d = s[i];
         if (c === '"' && d === '\\') {
-          if (s[i + 1] === '\n') {
-            line += 1;
-            buf += '\n';
-          }
-          buf += ' ';
-          i += 2;
+          [i, line] = readEscape(s, i, line, triple ? 'toml-ml' : 'toml', buf, fail);
           continue;
         }
         if (d === c && (!triple || (s[i + 1] === c && s[i + 2] === c))) {
@@ -391,15 +597,13 @@ export function lexToml(src) {
           closed = true;
           break;
         }
-        if (d === '\n') {
-          if (!triple) fail('unterminated string');
-          line += 1;
-        }
-        buf += d;
+        if (d === '\n' && !triple) fail('unterminated string');
+        buf.add(d, line);
+        if (d === '\n') line += 1;
         i += 1;
       }
       if (!closed) fail('unterminated string');
-      pushTokens(out, buf, startLine);
+      pushBuf(out, buf);
     } else if (IDENT.test(c)) {
       let j = i;
       while (j < n && IDENT.test(s[j])) j += 1;
@@ -470,8 +674,8 @@ function lexFile(file, src) {
   if (file.endsWith('.rs')) return lexRust(src);
   if (file.endsWith('.js') || file.endsWith('.mjs')) return lexJs(src);
   if (file.endsWith('.toml')) return lexToml(src);
-  if (file.endsWith('.css')) return lexMarkup(src, '/*', '*/');
-  return lexMarkup(src, '<!--', '-->');
+  if (file.endsWith('.css')) return lexCss(src);
+  return lexHtml(src);
 }
 
 // 検査の本体。{ violations: ['path:line: word', ...], files } を返す。検査を完了できなければ CheckError。

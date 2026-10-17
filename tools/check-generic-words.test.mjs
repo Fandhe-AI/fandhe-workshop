@@ -201,7 +201,7 @@ test('fail-closed: crates/<name>・static・Cargo.toml のリンクも 2', () =>
 
 test('複数行の文字列の違反は実際の行で報告する', () => {
   const cases = {
-    'crates/x/src/a.rs': 'fn f() {\n  let _ = "a\nb\n  github";\n  let _ = "x\\\n  github";\n  let _ = r"p\nq\ngithub";\n}\n',
+    'crates/x/src/a.rs': 'fn f() {\n  let _ = "a\nb\n  github";\n  let _ = "x \\\n  github";\n  let _ = r"p\nq\ngithub";\n}\n',
     'crates/x/static/a.js': 'const a = `p\nq\ngithub`;\nconst b = "x\\\n github";\n',
     'crates/x/Cargo.toml': '[package]\nd = """\na\ngithub"""\n',
   };
@@ -219,4 +219,66 @@ test('誤用は 2: 未知の引数・--root の値なし', () => {
   assert.equal(run(root, ['--unknown']).code, 2);
   const r = spawnSync(process.execPath, [TOOL, '--root'], { encoding: 'utf8' });
   assert.equal(r.status, 2);
+});
+
+test('テンプレートリテラルの補間と入れ子の中の語を検査する', () => {
+  const bodies = [
+    'const a = `ok ${"//"} github`;\n',
+    'const a = `x ${`y ${"github"}`} z`;\n',
+    'const a = `x ${ {k: 1}.k + "github" }`;\n',
+    'const a = `x ${f(`github`)}`;\n',
+  ];
+  for (const body of bodies) {
+    const r = run(makeRoot({ 'crates/x/static/a.js': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a = `x ${f(1)} y`;\n' })).code, 0);
+});
+
+test('閉じない補間は 2', () => {
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a = `x ${f(1`;\n' })).code, 2);
+});
+
+test('引用符の中のコメント記号をコメントとして扱わない（CSS・HTML・SVG）', () => {
+  const cases = {
+    'crates/x/static/a.css': 'a::before { content: "/* github */"; }\n',
+    'crates/x/static/a.html': '<a title="<!-- github -->">x</a>\n',
+    'crates/x/static/a.svg': "<svg><text data-x='<!-- github -->'>x</text></svg>\n",
+  };
+  for (const [rel, body] of Object.entries(cases)) {
+    const r = run(makeRoot({ [rel]: body }));
+    assert.equal(r.code, 1, `${rel}: ${r.out}`);
+  }
+  const ok = {
+    'crates/x/static/a.css': '/* github */ a { color: red; }\n',
+    'crates/x/static/a.html': '<!-- github --><a>x</a>\n',
+  };
+  for (const [rel, body] of Object.entries(ok)) assert.equal(run(makeRoot({ [rel]: body })).code, 0, rel);
+});
+
+test('エスケープを復号してから照合する（Rust・JS・TOML・CSS・HTML）', () => {
+  const cases = {
+    'crates/x/src/a.rs': 'const A: &str = "git\\x68ub";\n',
+    'crates/x/src/b.rs': 'const A: &str = "git\\u{68}ub";\n',
+    'crates/x/static/a.js': 'const a = "git\\x68ub";\n',
+    'crates/x/static/b.js': 'const a = `git\\u0068ub`;\n',
+    'crates/x/Cargo.toml': '[package]\nd = "git\\u0068ub"\n',
+    'crates/x/static/a.css': 'a::before { content: "git\\68 ub"; }\n',
+    'crates/x/static/a.html': '<a title="git&#104;ub">x</a>\n',
+  };
+  for (const [rel, body] of Object.entries(cases)) {
+    const r = run(makeRoot({ [rel]: body }));
+    assert.equal(r.code, 1, `${rel}: ${r.out}`);
+  }
+});
+
+test('未対応のエスケープは検査不能として 2', () => {
+  const cases = {
+    'crates/x/src/a.rs': 'const A: &str = "a\\qb";\n',
+    'crates/x/static/a.js': 'const a = "a\\1b";\n',
+    'crates/x/Cargo.toml': '[package]\nd = "a\\qb"\n',
+  };
+  for (const [rel, body] of Object.entries(cases)) {
+    assert.equal(run(makeRoot({ [rel]: body })).code, 2, rel);
+  }
 });
