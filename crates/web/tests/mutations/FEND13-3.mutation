@@ -1,0 +1,8 @@
+id: FEND13-3
+package: fandhe-workshop-web
+test: keyboard_confirm_host
+target: crates/web/src/engine_parts.rs
+find:                     target.as_ref(),
+replace:                     None,
+expect-fail: 確認待ちの行は_4_属性を組で持ち_宣言_id_の宛先になる
+note: ArtifactPart が行に指せる属性を付けず、製品の画面でキーボードの Enter・Space が確認にならない

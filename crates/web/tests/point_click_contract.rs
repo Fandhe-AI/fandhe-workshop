@@ -5,7 +5,8 @@
 //! 復号できない payload は何も受け付けないこと、`ui` の受け付けで教材が進むこと、世界状態の名札の経路
 //! `screen/top` が行・属性・入力へ往復することを確かめる。宛先が今の Step に合うかの判定は core の
 //! `select_judge` の担当で、host は判定しない（`tests/no_progress.rs`）。
-//! 製品の画面への結線（`view()` の 7 本の一覧への本体の結線）は TASK-470・TASK-347 の後続の範囲である。
+//! 製品の `ArtifactPart` の行への最小の結線は `tests/keyboard_confirm_host.rs`（TASK-358 2/2）が確かめる。
+//! 7 本の一覧への本体の結線は TASK-470・TASK-347 の後続の範囲である。
 //! 試験では `unwrap` を使ってよい。
 
 use std::collections::BTreeMap;

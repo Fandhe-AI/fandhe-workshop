@@ -3472,8 +3472,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 | FEND7-2・FEND14-1・FEND20-1・FEND4-1 | 既存の変異（再実行） | DETECTED | 従来と同じ試験 |
 
 - 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,113 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make check-toolchain`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、`point-keys`（20 件）、`point-click`・`point-rows`・`app-demo-view`、`enter-submit`・`key-invariants`・`field-space`・`submit-disabled`（38 件）を個別に流して通過。`make test-browser` の全件は未検証。CI には未組み込み
-- 限界: 製品の画面（`#app`）にはまだ指せる行が無く、本結線は潜在的である。修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、保守側（何もしない）に倒した。spec 側での確定が要る。変換中（IME）の行の Enter は native の `row_key_effect` の試験が固定し、ブラウザ試験では扱わない
+- 限界: 製品の画面（`#app`）にはまだ指せる行が無く、本結線は潜在的である（5.114 で最小の結線を足した）。修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、保守側（何もしない）に倒した。spec 側での確定が要る。変換中（IME）の行の Enter は native の `row_key_effect` の試験が固定し、ブラウザ試験では扱わない
 - 範囲外: キーボードだけで確認を完走する試験は TASK-358 2/2（#399）、A11Y-18 の試験は TASK-375、製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-20・TASK-494、フォーカスの見た目は TASK-490、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
+### 5.114 キーボードだけで確認を完走する試験と製品の指せる行（TASK-358 2/2）
+
+Tab・Shift+Tab・文字の入力・Enter・Space だけで、確認（`point_at`）を含む Step を達成まで進められることを、製品の画面（`#app`）で確かめる。A11Y-18 の流れ（Tab で行にフォーカスし、Enter・Space が click と同じ扱いで確認が成立する）に合う。
+
+- 受入: キーボードだけで確認を含む Step を達成まで進められ、結果が A11Y-18 の期待と食い違わない
+- 判断 1: 製品の `ArtifactPart` には指せる行が無く、そのままでは完走を確かめられないため、最小の結線を足した。選ばれたビューの宣言 ID が引ける行は、すべて `(宣言 ID, 世界状態の経路)` を宛先とする指せる行にする。宛先の受理と判定は従来どおり core（`select_judge`）に任せ、正解の行だけを指せる行にはしない（`rj-miss-point` の意味を残す）。宣言 ID が無い場合と `PointTarget::new` が拒否する行は表示だけに倒す
+- 判断 2: 宛先の view は教材の宣言 ID（min-3step では `v-files`）で、種類の綴り（`file_tree`）ではない。core は宣言 ID との完全一致で照合する
+- 判断 3: この規則は仮置きである。確定は TASK-470・TASK-347 の後続と TASK-739（#1069）。7 種のビューの本体を製品の `view()` に結線することも範囲外のまま
+- native の試験: `crates/web/tests/keyboard_confirm_host.rs`（3 件。確認待ちの行が 4 属性を組で持ち payload が `v-files` と `notes/draft` に復号される・その payload を `decode_action("ui", ..)` に渡すと st-1 が達成になり st-2 へ進む・宣言 ID が無い場合は 4 属性が 1 つも付かない）
+- ブラウザの試験（`tools/browser/keyboard-confirm.test.mjs`、CSP あり・なしで 10 件）: KC1 は入力欄へ Tab で移り `/make-note first-note` を入力して Enter、行へ Tab で移って Enter で達成になる。KC2 は Space でも同じ流れでスクロールしない。KC3 は Shift+Tab の逆順でも同じ行に着く。KC4 は達成の後の Enter・Space で達成が 1 回のままで現在の Step が戻らない。KC5 は Shift+Enter では達成にならず、続く Enter で達成になる。操作は `page.keyboard` だけで、信頼されたマウスのイベントが 0 件であることを数える。Tab の回数は観察（入力欄まで 2 回、行まで 3 回）で、固定しない
+- 変異: FEND13-3（`ArtifactPart` が指せる属性を付けない）
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 713f895-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/FEND13-3.mutation crates/web/tests/mutations/FEND13-1.mutation crates/web/tests/mutations/FEND13-2.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| FEND13-3 | `ArtifactPart` が指せる属性を付けない | DETECTED | `keyboard_confirm_host` の「確認待ちの行は_4_属性を組で持ち_宣言_id_の宛先になる」ほか 1 件 |
+| FEND13-1・FEND13-2 | 既存の変異（再実行） | DETECTED | 従来と同じ試験 |
+
+- 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,116 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、試験の設定の web で `keyboard-confirm`（10 件）を含む 18 ファイル（151 件。`point-keys`・`point-click`・`point-rows`・`view-switch`・`three-views`・`list-parent-attrs`・`stop-move-ignore`・`reload-points`・`tab-cycle`・`shift-tab`・`enter-submit`・`key-invariants`・`submit-disabled`・`choice-answer`・`approval-flow`・`xss-cases`・`log-lines-xss`）が通過。`make test-browser` の全件は未検証。CI には未組み込み
+- 負の対照: `ArtifactPart` の結線を一時的に外して試験の設定で再ビルドすると、`keyboard-confirm` の 10 件がすべて失敗した（変更は戻した）
+- 限界: 完走は確認の Step の達成までである。st-2（`choice`）の画面の口は TASK-450 の担当で未実装のため、st-3 以降と 6 Step の CH-1 全体は扱わない。外れた行を指す経路（`rj-miss-point`）は native の既存の試験の範囲。修飾キー付きの Enter・Space は A11Y-18 に定めが無く、保守側（何もしない）のまま。行の操作対象の大きさとフォーカスの見た目は TASK-368・TASK-490。人によるキーボードだけの完走は JUDGE-20 の担当で、本試験は人の評価に数えない
+- 範囲外: A11Y-18 の試験そのものは TASK-375（#1008）、木の roving tabindex と二重のタブの止まりは A11Y-20・TASK-494、`step-status` の表示は TASK-435、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
