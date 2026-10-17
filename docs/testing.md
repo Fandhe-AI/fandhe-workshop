@@ -354,7 +354,7 @@ mount の教材（`min-3step`）の確認には `answer` の Step が無く、�
 `point_at` などに依るため変えず、試験の設定だけの `raw` の接頭辞 `load-fixture:answer` で、st-1 の確認を `answer`（誤り 1・正解 1）に
 置き換えた教材へ差し替える（`test_fixture::answer_session`）。native の試験は `--features test-hooks` を付けたときだけ差し替えを確かめる。
 ブラウザ試験 `tools/browser/choice-answer.test.mjs` は、実クリックで誤答 → 選び直し → 達成を CSP あり・なしで流す。Step の状態表示
-（`step-status`）は TASK-435 の担当で未実装のため、達成は復習の `data-achieved`・エンジンの書き出し・ボタンの消滅で確かめる。
+（`step-status`）の語は `confirm-status.test.mjs`（5.116）が確かめるため、ここでは達成を復習の `data-achieved`・エンジンの書き出し・ボタンの消滅で確かめる。
 
 ```text
 実行日: 2026-10-16
@@ -3501,7 +3501,7 @@ Tab・Shift+Tab・文字の入力・Enter・Space だけで、確認（`point_at
 - 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,116 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、試験の設定の web で `keyboard-confirm`（10 件）を含む 18 ファイル（151 件。`point-keys`・`point-click`・`point-rows`・`view-switch`・`three-views`・`list-parent-attrs`・`stop-move-ignore`・`reload-points`・`tab-cycle`・`shift-tab`・`enter-submit`・`key-invariants`・`submit-disabled`・`choice-answer`・`approval-flow`・`xss-cases`・`log-lines-xss`）が通過。`make test-browser` の全件は未検証。CI には未組み込み
 - 負の対照: `ArtifactPart` の結線を一時的に外して試験の設定で再ビルドすると、`keyboard-confirm` の 10 件がすべて失敗した（変更は戻した）
 - 限界: 完走は確認の Step の達成までである。st-2（`choice`）の画面の口は TASK-450 の担当で未実装のため、st-3 以降と 6 Step の CH-1 全体は扱わない。外れた行を指す経路（`rj-miss-point`）は native の既存の試験の範囲。修飾キー付きの Enter・Space は A11Y-18 に定めが無く、保守側（何もしない）のまま。行の操作対象の大きさとフォーカスの見た目は TASK-368・TASK-490。人によるキーボードだけの完走は JUDGE-20 の担当で、本試験は人の評価に数えない
-- 範囲外: A11Y-18 の試験そのものは TASK-375（#1008）、木の roving tabindex と二重のタブの止まりは A11Y-20・TASK-494、`step-status` の表示は TASK-435、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+- 範囲外: A11Y-18 の試験そのものは TASK-375（#1008）、木の roving tabindex と二重のタブの止まりは A11Y-20・TASK-494、`step-status` の表示は 5.116（TASK-435 2/2）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
 ### 5.115 Step の状態表示（受付済み・確認を省く Step。TASK-435 1/2）
 
@@ -3531,6 +3531,28 @@ Tab・Shift+Tab・文字の入力・Enter・Space だけで、確認（`point_at
 - 実行の記録（2026-10-17）: `make lint`・`make test`（2,126 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words` が成功。`host_contract` の登録簿の束縛点の件数を 16 から 17 に直した。ブラウザの試験は、試験の設定の web で `step-status`（3 件）に加え `run-status`・`confirm-burst`・`three-views`・`keyboard-confirm`・`reload-points`・`list-parent-attrs`・`stop-redo`・`choice-answer`・`approval-flow`（35 件）が通過。`make check-delivery` と `make test-browser` の全件は未検証（配信設定の web に試験の口が無いことは `step-status` の試験で確認した）。CI には未組み込み
 - 限界: `processing` を持つ確認省略の Step は、進行の間「受付済み（確認待ち）」が出て、最後の進行で「達成」になる。語は契約の版 1 の固定語なので、確認を省く Step でも「確認待ち」の文言は変わらない。停止（`Control::Stop`）は core の Step の状態を戻さないため、停止の直後も受付済みのままになる（「達成」にはならない）
 - 範囲外: 3 種の確認ごとのブラウザ試験と注記の除去（#402）、`Entered` などの語の追加（spec の TERM-31 を先に直し契約の版を上げる必要がある）、配置の確定（TASK-517・TASK-438）、ライブの欄（TASK-366・TASK-370）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため要対応事項として報告のみ）
+
+### 5.116 確認の 3 種の操作の後の達成の表示（TASK-435 2/2）
+
+指す（`point_at`）・答える（`answer`）・承認する（`approve`）の 3 種の確認ごとに、送信 → 「受付済み（確認待ち）」→ 確認の操作 → 「達成」を実ブラウザで確かめる。TERM-31 に合う。実装の変更は無く、5.115 の導出と結線の受入を、確認の種類ごとに実際の UI の操作で確かめる試験である。
+
+- 受入: 確認の操作の後に「達成」が出る試験が 3 種で通る。3 種のいずれでも、確認の操作の前に「達成」が DOM に出た例が 0 件（`MutationObserver` の記録で確かめる）
+- 判断 1: 入力の送信は `raw-trigger` へ `Op` の JSON を送って決定的にし、確認の操作は Playwright の実クリックで行う。確認の操作の直前に記録へ印を入れ、印より前に受付済みが 1 件以上・達成が 0 件、印より後に達成が出ることを確かめる（観察器が動いていることの対照を兼ねる）
+- 判断 2: 答えると承認では、誤った操作（誤った選択肢・対象なしの「直す」）の負の側を含める。拒否になっても語は受付済みのまま（承認の最初の拒否では空）で、「達成」は出ない。st-1 だけを扱い、st-2 以降の通しは `approval-flow` の担当とする
+- 判断 3: 語は DOM の `textContent` と `stateJson` の `engine.stepStatus`・`achieved` の件数・`current` を突き合わせる
+- 試験（`tools/browser/confirm-status.test.mjs`、3 種 × CSP あり・なしの 6 件）: CS-POINT（mount の教材の st-1。左の行 notes/draft のクリック）、CS-ANSWER（`load-fixture:answer`。誤った案の後に正しい案）、CS-APPROVE（`load-fixture:approval`。対象なしの直す、対象つきの直す、はい）。各ケースの最後に外部リクエスト・エラー・CSP 違反・ダイアログ・危険な要素が 0 件であることを確かめる
+- 変異: 足さない。導出は変えず、TERM31-1〜3 と native の契約試験が既に覆う。変異注入（`scripts/check-mutations.sh`）はブラウザ試験を対象にしない
+- 既存の試験の注記: `choice-answer`・`approval-flow`・`keyboard-confirm`・`step-status` の「`step-status` は TASK-435 の担当」を、本節の試験への参照に直した（assertion は変えていない）
+
+```text
+実行日: 2026-10-17
+元にしたコミット: eec5fe0（作業ツリーに本変更）
+コマンド: tools/build-web.sh（TEST_HOOKS=1 と配信設定）の後、FANDHE_WEB_DIR=dist/web FANDHE_WEB_TEST_DIR=dist/web-test node --test tools/browser/confirm-status.test.mjs
+結果: 6 件が通過、失敗 0
+```
+
+- 限界: `processing` を持つ確認省略の Step の文言、停止の直後の表示は 5.115 の限界のまま。確認の後に次の Step へ移っても語が「達成」のままであることまでは確かめるが、次の Step の受付後の語は本試験の対象外
+- 範囲外: `Entered` などの語の追加（spec の TERM-31 を先に直し契約の版を上げる必要がある）、配置の確定（TASK-517・TASK-438）、ライブの欄（TASK-366・TASK-370）、st-2（`choice`）の画面の口（TASK-450）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため要対応事項として報告のみ）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
