@@ -1,0 +1,8 @@
+id: ART9-3
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/src/task_tree.rs
+find:         ViewKind::TaskTree,
+replace:         ViewKind::CardList,
+expect-fail: 木の属性は全項目にあり_親は_role_tree
+note: 親をツリーでない種類として作る（role=tree が消え、子の treeitem が木の外に出る。ART-9）
