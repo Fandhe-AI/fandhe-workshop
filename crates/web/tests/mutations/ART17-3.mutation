@@ -1,0 +1,8 @@
+id: ART17-3
+package: fandhe-workshop-web
+test: card_view_a_contract
+target: crates/web/src/card_view.rs
+find:         Variant::A,
+replace:         Variant::B,
+expect-fail: data_mark_は_li_には無く内側の_div_にだけある
+note: (a) の項目を変種 B の根で作る（印の宿主が内側の div でなく li になる）
