@@ -1704,75 +1704,6 @@ FEND4-3 は、配信する設定の画面に、進行の宛先を `data-payload`
 |---|---|---|---|---|---|
 | FEND4-3 | crates/web/src/host.rs: 配信する設定に、進行の宛先を data-payload で届ける隠し要素が入る（FEND-4 が禁じる経路） | 実ソースは違反なし | 実ソースは違反なし | DETECTED | - |
 
-## 6. 既存の自動テストの件数の基準値（TASK-346）
-
-採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
-本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
-PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
-
-```text
-計測日: 2026-10-14
-元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
-```
-
-### 6.1 採用した版（Cargo.lock の解決済みの版）
-
-| crate | 版 |
-|---|---|
-| `fandhe-frontend-core` | 0.4.3 |
-| `fandhe-frontend-interactive` | 0.2.7 |
-| `fandhe-frontend-wasm-client` | 0.6.1 |
-| `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
-| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
-
-版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
-
-### 6.2 ビルドと lint
-
-| 確認 | コマンド | 結果 |
-|---|---|---|
-| native のビルド | `cargo build --locked --workspace` | 成功 |
-| wasm32 の release（配信設定） | `SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
-| wasm32 の release + `test-hooks` | `TEST_HOOKS=1 SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
-| fmt・clippy（`-D warnings`。native と wasm32 の feature なし・`test-hooks`） | `make lint` | 成功 |
-
-### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
-
-| 試験のバイナリ | passed | failed | ignored |
-|---|---|---|---|
-| contract（unittests） | 0 | 0 | 0 |
-| contract（limits_contract） | 8 | 0 | 0 |
-| core（unittests） | 0 | 0 | 0 |
-| core（property_sample） | 6 | 0 | 0 |
-| core（provider_contract） | 4 | 0 | 0 |
-| pack（unittests lib） | 12 | 0 | 0 |
-| pack（unittests bin） | 0 | 0 | 0 |
-| pack（cli） | 3 | 0 | 0 |
-| pack（testdata_min_3step） | 3 | 0 | 0 |
-| web（unittests） | 3 | 0 | 0 |
-| web（frontend_features） | 3 | 0 | 0 |
-| doctest（contract・core・pack・web） | 0 | 0 | 0 |
-| 合計 | 42 | 0 | 0 |
-
-`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
-`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
-
-### 6.4 node:test の件数
-
-| 対象 | tests | pass | fail | skipped |
-|---|---|---|---|---|
-| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
-| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
-| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
-
-`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
-`make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
-
-### 6.5 未計測のもの
-
-- CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
-- `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
-
 ### 5.60c 表示だけになる版の違いの変異（TASK-174 2/3）
 
 `content_major`・`format_older`・`engine_major` の判定（`crates/core/src/history_open.rs`）に、`VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4` の
@@ -2428,3 +2359,72 @@ MOD-4・TASK-236 の「最初の `/` まで」と、実装の「最後の `/` �
 | SAVE19-10 | crates/core/src/history_load.rs: 読み込みの件数の比較を >= にする（既存） | DETECTED |
 | SAVE19-11 | crates/core/src/history_load.rs: 読み込みの件数の検査を外す（既存） | DETECTED |
 ```
+
+## 6. 既存の自動テストの件数の基準値（TASK-346）
+
+採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
+本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
+PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
+
+```text
+計測日: 2026-10-14
+元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+```
+
+### 6.1 採用した版（Cargo.lock の解決済みの版）
+
+| crate | 版 |
+|---|---|
+| `fandhe-frontend-core` | 0.4.3 |
+| `fandhe-frontend-interactive` | 0.2.7 |
+| `fandhe-frontend-wasm-client` | 0.6.1 |
+| `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
+| `fandhe-frontend-headless-ui` | 0.69.2（推移的な依存） |
+
+版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
+
+### 6.2 ビルドと lint
+
+| 確認 | コマンド | 結果 |
+|---|---|---|
+| native のビルド | `cargo build --locked --workspace` | 成功 |
+| wasm32 の release（配信設定） | `SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| wasm32 の release + `test-hooks` | `TEST_HOOKS=1 SKIP_WASM_OPT=1 tools/build-web.sh` | 成功 |
+| fmt・clippy（`-D warnings`。native と wasm32 の feature なし・`test-hooks`） | `make lint` | 成功 |
+
+### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
+
+| 試験のバイナリ | passed | failed | ignored |
+|---|---|---|---|
+| contract（unittests） | 0 | 0 | 0 |
+| contract（limits_contract） | 8 | 0 | 0 |
+| core（unittests） | 0 | 0 | 0 |
+| core（property_sample） | 6 | 0 | 0 |
+| core（provider_contract） | 4 | 0 | 0 |
+| pack（unittests lib） | 12 | 0 | 0 |
+| pack（unittests bin） | 0 | 0 | 0 |
+| pack（cli） | 3 | 0 | 0 |
+| pack（testdata_min_3step） | 3 | 0 | 0 |
+| web（unittests） | 3 | 0 | 0 |
+| web（frontend_features） | 3 | 0 | 0 |
+| doctest（contract・core・pack・web） | 0 | 0 | 0 |
+| 合計 | 42 | 0 | 0 |
+
+`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
+`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
+
+### 6.4 node:test の件数
+
+| 対象 | tests | pass | fail | skipped |
+|---|---|---|---|---|
+| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
+| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
+| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
+
+`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
+`make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
+
+### 6.5 未計測のもの
+
+- CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
+- `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
