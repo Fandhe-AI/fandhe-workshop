@@ -14,7 +14,7 @@
 // - 各試験の末尾: 外部へのリクエスト・ページのエラー・ダイアログがどれも 0 件
 // 変換中（IME）の行の Enter は native の row_key_effect の試験が固定する。
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
-// 製品の画面（#app）の行への結線は TASK-470・TASK-347 の後続、キーボードだけの完走は TASK-358 2/2・TASK-375 の担当。
+// 製品の画面（#app）の行への結線と、キーボードだけの完走は keyboard-confirm.test.mjs（TASK-358 2/2）。A11Y-18 の試験そのものは TASK-375 の担当。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

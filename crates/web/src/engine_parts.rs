@@ -34,9 +34,10 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
 use crate::a11y::{ChangeMark, TESTID_ATTR};
-use crate::artifact_mark::marked_item;
+use crate::artifact_mark::{point_all, pointed_item};
 use crate::artifact_view::{
-    declared_kinds, list_attrs, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR, VIEW_LIST_FIELDS,
+    declared_kinds, list_attrs, RowId, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
+    VIEW_LIST_FIELDS,
 };
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
@@ -295,16 +296,32 @@ impl DisplayPart<HostModel> for ArtifactPart {
     }
     fn view(&self, model: &HostModel) -> Node {
         let selected = model.selected_view();
+        // 指せる行の宛先に使う宣言 ID。core は `spec.targets[].view` と完全一致で照合するため、種類の綴りではなく
+        // 教材が宣言した ID を使う。宣言が無い（既定のビュー）なら `None` で、全行を表示だけにする。
+        let declared_id: Option<String> = model.session().and_then(|s| {
+            let views = declared_views(s);
+            declared_kinds(&views)
+                .into_iter()
+                .find(|(k, _)| *k == selected)
+                .map(|(_, id)| id.to_owned())
+        });
         let items: Vec<(String, Node)> = artifact_rows(model.world(), model.projection().marks())
             .into_iter()
             .enumerate()
             .map(|(i, (path, mark))| {
-                let node = marked_item(
+                // 仮置きの規則（TASK-358 2/2）: 選ばれたビューの宣言 ID が引ける行はすべて指せる行にする。
+                // 規則の確定は TASK-470・TASK-347 の後続と TASK-739 の担当で、受理と判定は core に任せる。
+                // `PointTarget::new` が拒否する行（空・上限超過）は表示だけに倒す。
+                let target = declared_id
+                    .as_deref()
+                    .and_then(|id| point_all(id)(&RowId::new(path.as_str()).ok()?));
+                let node = pointed_item(
                     "li",
                     Variant::B,
                     mark,
                     None,
                     vec![("data-path", path.as_str())],
+                    target.as_ref(),
                     vec![el("span", vec![], vec![text(path.as_str())])],
                 );
                 // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。

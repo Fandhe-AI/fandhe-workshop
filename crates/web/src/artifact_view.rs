@@ -24,7 +24,8 @@
 //! - ART-16 の使い分けの規則（PoC-8 の「(a) はアプリのデモとカードに限る」案も固定しない）
 //! - 変種ごとの `data-mark` の付け先と印の部品（`artifact_mark`。TASK-469）。どの行を指せるかは `artifact_rows` が決める（TASK-468）
 //! - keyed list のキーの合計バイト数（上流の安全弁）に収める工夫（TASK-469 以降）
-//! - host の `decode_action` への `ui` の結線（TASK-347 の後続）
+//! - 製品の `ArtifactPart` で指せる行を決める規則（TASK-358 2/2 の仮置きは「選ばれたビューの宣言 ID が引ける行はすべて指せる」。
+//!   確定は TASK-470・TASK-347 の後続と TASK-739）
 //! - 宣言の無い Step の既定のビュー（試作の仮置きを `view_select::default_view` に置いた。TASK-470・TASK-76・TASK-496）
 //! - 世界状態から行データを導く処理と、`MarkKind` からの対応と前後比較との照合（`artifact_rows` が持つ。TASK-468）
 //! - 欄単位の差。D-49 で持たないと決めた。採る場合は版上げで足す
