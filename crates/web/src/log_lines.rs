@@ -11,6 +11,7 @@
 //! 拒否の `Judged`（`rejected`。TASK-437 1/2）・問い返しの `Judged`（`clarified`。TASK-437 2/2）。理由・問いは、IR の文面の ID の解決と実行時の値の差し込みを
 //! 済ませた文面（`host::HostModel::judged_text`）を呼び出し側が渡す。ここでは文面を作らず、渡されなければ
 //! 行にしない（fail-closed）。
+//! 承認の操作の行の文言は `承認の操作: {語}（対象: {対象}）`（対象なしは括弧なし。TASK-447 2/2）。
 //! 拡張点: 応答の行は TASK-435・TASK-438 が `line_from_event` に足す。
 //! 型 [`LogLine`] は、結線済みの種類と拡張点で足す種類（応答）をすべて表せる。
 //!
@@ -43,6 +44,16 @@ pub const STOPPED_TEXT: &str = "停止しました";
 /// 再読み込みの行の固定の文言（SAVE-6・D-57）。決まっているのは「再読み込みしました」の趣旨だけで、
 /// 言い回しは未決。変えるときはこの定数だけを直す。教材・受講者の値は含めない。
 pub const RELOADED_TEXT: &str = "再読み込みしました";
+
+/// 承認の操作の行の接頭辞（TERM-27。TASK-447 2/2）。文言は `承認の操作: {語}（対象: {対象}）`。
+/// 教材・受講者の値は含めない固定の文言で、変えるときはこの 3 つの定数だけを直す。
+pub const APPROVAL_PREFIX: &str = "承認の操作: ";
+
+/// 承認の操作の行で、対象の前に置く固定の文言。対象が無い行には出さない。
+pub const APPROVAL_TARGET_OPEN: &str = "（対象: ";
+
+/// 承認の操作の行で、対象の後に置く固定の文言。対象が無い行には出さない。
+pub const APPROVAL_TARGET_CLOSE: &str = "）";
 
 /// ログの 1 行。種類ごとに、TASK-431 が定める部品だけを持つ。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +200,9 @@ pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
         }
         LogLine::Approval { decision, target } => {
             attrs.push((INPUT_ATTR, InputMethod::Approval.as_str()));
+            // 固定の文言は文字ノードで前後に置き、観察点の span の文字と属性は変えない。
+            // 対象は教材由来の値なので、文言と連結した 1 本の文字列にせず learner_part の文字ノードのままにする。
+            children.push(text(APPROVAL_PREFIX));
             children.push(el(
                 "span",
                 vec![
@@ -198,7 +212,9 @@ pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
                 vec![text(decision_word(*decision))],
             ));
             if let Some(t) = target {
+                children.push(text(APPROVAL_TARGET_OPEN));
                 children.push(learner_part(LINE_TARGET_TESTID, t));
+                children.push(text(APPROVAL_TARGET_CLOSE));
             }
         }
         LogLine::Response { body, next_action } => {

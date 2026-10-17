@@ -1,0 +1,8 @@
+id: TERM27-3
+package: fandhe-workshop-web
+test: approval_flow
+target: crates/web/src/log_lines.rs
+find:             children.push(text(APPROVAL_PREFIX));
+replace:             children.push(text(""));
+expect-fail: 承認の操作の行は文言になり_はいで先へ進んで最後の_step_まで通る
+note: 承認の操作の行の接頭辞を落とす（ログの文言「承認の操作: …」の受入を壊す。TERM-27）
