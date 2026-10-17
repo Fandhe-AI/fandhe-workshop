@@ -1,0 +1,8 @@
+id: TERM27-1
+package: fandhe-workshop-web
+test: approval_buttons
+target: crates/web/src/host.rs
+find:         if name == crate::offers::ACTION_REVISE_TARGET {
+replace:         if name == crate::offers::ACTION_REVISE_TARGET && payload.is_empty() {
+expect-fail: revise_target_は対象をそのまま_op_にし_空は何もしない
+note: revise-target の変換を無効にする（対象つきの直すが core に届かず、受付にならない。TERM-27）
