@@ -2,7 +2,7 @@ id: PACK13-1
 package: fandhe-workshop-pack
 test: confirm_vocabulary
 target: crates/pack/src/confirm.rs
-find:             if step.use_module.is_some() {
-replace:             if step.use_module.is_some() || step.confirm.is_none() {
+find:             if step.use_module.is_some()
+replace:             if step.use_module.is_some() || step.confirm.is_none()
 expect-fail: pack13_missing_confirm_is_no_confirm
 note: 確認の無い Step を検査から外す（入力を持つのに確認も理由つきの省略も無い Step が、検証を通ってしまう）
