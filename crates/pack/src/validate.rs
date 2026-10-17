@@ -10,7 +10,7 @@
 //! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
-//! 構造の検査は、`expand::check_use_steps`（`use` と `input` の同時指定）・`input::check_inputs`・
+//! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定）・`input::check_inputs`・
 //! `confirm::check_confirms`（正答の無い `answer` は `E-STRUCTURE`）を再利用し、結果を絞らずに返す。絞ると
 //! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
 //! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。

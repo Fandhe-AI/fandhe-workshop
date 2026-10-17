@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `E-PARSE` | 構文として読めない。未知の欄（`script` など語彙にない欄）がある。`workshop.yaml` と `workshop.toml` が両方ある、またはどちらも無い。外観に名前にない値や未知の項目がある | PACK-2・PACK-3・PACK-7・PACK-21 | 語彙 v1 |
 | `E-FORMAT-VERSION` | `pack.ir_format` が、エンジンの読める版（1 と 2）のどちらでもない | PACK-24・PACK-28 | 語彙 v1 |
-| `E-STRUCTURE` | 構造の誤り。正答の選択肢に `on_wrong` がある。`body_levels` に `A` がある。`requires`・`unmet` の片方だけがある。`use` と `input` の同時指定、またはどちらも無い。`params` にない `args`。正答の無い `answer` | PACK-15・PACK-17・PACK-18・PACK-19・PACK-28 | 実装にだけ |
+| `E-STRUCTURE` | 構造の誤り。正答の選択肢に `on_wrong` がある。`body_levels` に `A` がある。`requires`・`unmet` の片方だけがある。`use` と `input` の同時指定、またはどちらも無い。`use` と `confirm` の同時指定。`params` にない `args`。正答の無い `answer` | PACK-15・PACK-17・PACK-18・PACK-19・PACK-28 | 実装にだけ |
 | `E-REF-STEP` | 存在しない Step を参照している | PACK-28 | 語彙 v1 |
 | `E-REF-VIEW` | 存在しないビューを参照している | PACK-28 | 語彙 v1 |
 | `E-REF-FIXTURE` | 存在しない練習データを参照している | PACK-28 | 語彙 v1 |
