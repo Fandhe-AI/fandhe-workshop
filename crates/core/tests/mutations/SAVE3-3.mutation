@@ -1,0 +1,8 @@
+id: SAVE3-3
+package: fandhe-workshop-core
+test: reload_points
+target: crates/core/src/history_boot.rs
+find:     session.reload();
+replace:     let _ = &mut session;
+expect-fail: 三十三の地点で再読み込みの前後が世代を除いて一致し完走した世界状態が一致する
+note: 復元は再読み込みとして世代を 1 上げ、Reloaded を足す
