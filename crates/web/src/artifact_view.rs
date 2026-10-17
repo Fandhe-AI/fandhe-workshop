@@ -22,7 +22,7 @@
 //! - 親要素の `aria-label`（`a11y` の閉じた一覧にラベルの文字列が無い。TASK-470 の範囲）。ツリーの
 //!   `role=tree` は `tree_view_list` だけが付け（a11y の版 2。TASK-472）、他の種類の親には `role` を付けない
 //! - ART-16 の使い分けの規則（PoC-8 の「(a) はアプリのデモとカードに限る」案も固定しない）
-//! - 変種ごとの `data-mark` の付け先（TASK-469）。どの行を指せるかは `artifact_rows` が決める（TASK-468）
+//! - 変種ごとの `data-mark` の付け先と印の部品（`artifact_mark`。TASK-469）。どの行を指せるかは `artifact_rows` が決める（TASK-468）
 //! - keyed list のキーの合計バイト数（上流の安全弁）に収める工夫（TASK-469 以降）
 //! - host の `decode_action` への `ui` の結線（TASK-347 の後続）
 //! - 宣言の無い Step の既定のビュー（試作の仮置き。TASK-470・TASK-76・TASK-496）

@@ -129,6 +129,22 @@ T="$(copy_tree with-trigger-html)"
 echo '<button data-testid="tick-trigger"></button>' >>"${T}/index.html"
 expect "added tick-trigger in index.html is detected" 1 "${CHECK}" "${T}"
 
+T="$(copy_tree with-style-element)"
+echo '<style>body{}</style>' >>"${T}/index.html"
+expect "added style element in index.html is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-style-attr)"
+echo '<div style="color:red"></div>' >>"${T}/index.html"
+expect "added style attribute in index.html is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree with-style-app)"
+echo '// <style>' >>"${T}/app.js"
+expect "added style element in app.js is detected" 1 "${CHECK}" "${T}"
+
+T="$(copy_tree without-app-css)"
+rm -f "${T}/app.css"
+expect "missing app.css is exit 2" 2 "${CHECK}" "${T}"
+
 T="$(copy_tree without-app-js)"
 rm -f "${T}/app.js"
 expect "missing app.js is exit 2" 2 "${CHECK}" "${T}"

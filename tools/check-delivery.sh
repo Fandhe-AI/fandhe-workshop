@@ -17,6 +17,9 @@
 #      tools/serve.mjs は配信ルート内のリンク先を配信するので、リンクは到達可能な経路になる）
 #   9. WASM のバイト列に隠し要素の名前 tick-trigger・esc-trigger・complete-trigger が無い（TASK-349 2/2）
 #  10. 配信する JS・HTML（glue の JS・app.js・index.html）に、上の 3 名と data-payload が無い（TASK-349 2/2）
+#  11. index.html と app.js に <style 要素と style= 属性が無い（TASK-469 1/2。SAFE-15 の静的な層）。
+#      app.css の存在を必須にする（欠けていれば 2）。WASM のバイト列と glue の JS は、依存由来の文字列で 0 件に
+#      ならない可能性があるため数えず、描画後の DOM の数え上げ（ブラウザ試験）に任せる。
 # 7 は 2026-10-15 に配信する設定の release wasm で実測し、どちらも 0 件だった（std・依存由来の文字列も残らない）。
 # 将来 0 件でなくなった場合は、試験の設定との対照つきの検査（TASK-82）へ移す。
 # 9・10 は 2026-10-16 に配信する設定の release 一式で実測し、いずれも 0 件だった（WASM の data-payload は 1 件）。
@@ -57,7 +60,8 @@ WASM="${DIST}/wasm/fandhe_workshop_web_bg.wasm"
 GLUE_JS="${DIST}/wasm/fandhe_workshop_web.js"
 INDEX="${DIST}/index.html"
 APP_JS="${DIST}/app.js"
-for f in "${WASM}" "${GLUE_JS}" "${INDEX}" "${APP_JS}"; do
+APP_CSS="${DIST}/app.css"
+for f in "${WASM}" "${GLUE_JS}" "${INDEX}" "${APP_JS}" "${APP_CSS}"; do
   if [ ! -f "${f}" ]; then
     echo "error: required file not found: ${f} (run \`make build-web\` first)" >&2
     exit 2
@@ -142,6 +146,13 @@ for f in "${GLUE_JS}" "${APP_JS}" "${INDEX}"; do
     no_match "no ${pat} in $(basename "${f}")" -q "${pat}" "${f}"
   done
 done
+
+# スタイルは同一オリジンの外部ファイル app.css だけに置く（SAFE-13・SAFE-15）。静的な層として、配信する HTML・JS に
+# <style 要素と style= 属性が無いことを確かめる。描画後の DOM の数え上げはブラウザ試験（collectSafety）が担う。
+no_match "no <style element in index.html" -q '<style' "${INDEX}"
+no_match "no style= attribute in index.html" -q 'style=' "${INDEX}"
+no_match "no <style in app.js" -q '<style' "${APP_JS}"
+no_match "no style= in app.js" -q 'style=' "${APP_JS}"
 
 # シンボリックリンクは名前の検査をすり抜けるため、1 件でもあれば失敗にする（リンクを辿らない）。
 LINKS_ERR=0
