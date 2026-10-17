@@ -1,0 +1,9 @@
+id: ART1-11
+package: fandhe-workshop-web
+test: app_demo_view_a_contract
+target: crates/web/src/app_demo_view.rs
+find: Active(false)
+replace: Active(!cell.detail.is_empty())
+expect-fail: 同じ_key_の項目の形は前後で変わらない
+expect-fail: data_active_と_data_disabled_は前後とも_0_件
+note: 欄の Active を行データで切り替える（detail が空から非空に変わる行で data-active が増え、同じ key の属性名の集合が前後で変わる）

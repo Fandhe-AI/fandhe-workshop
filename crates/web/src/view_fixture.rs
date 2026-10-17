@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、チェックの一覧の (a)・(b) は `check_view`（TASK-478）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、チェックの一覧の (a)・(b) は `check_view`（TASK-478）で、アプリのデモの (a) は `app_demo_view`（TASK-479 1/2）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -37,6 +37,7 @@ use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::doc::{Block, Doc};
 
 use crate::a11y::TESTID_ATTR;
+use crate::app_demo_view::app_demo_items_a;
 use crate::artifact_doc_rows::align_blocks;
 use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
@@ -328,6 +329,10 @@ impl ViewFixture {
             // チェックの一覧は (a)・(b) とも本体のビュー（TASK-478）で描く。
             ViewRows::Items(v) if kind == ViewKind::CheckList => {
                 check_items(v, self.phase, self.variant)
+            }
+            // アプリのデモの (a) は本体のビュー（TASK-479 1/2）で描く。(b) は 2/2 まで汎用の描き方のまま。
+            ViewRows::Items(v) if kind == ViewKind::AppDemo && self.variant == Variant::A => {
+                app_demo_items_a(v, self.phase)
             }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {
@@ -965,6 +970,17 @@ mod tests {
         f.update(FixtureAction::Data(ViewKind::CheckList, DataSet::Scale20));
         assert!(f.dirty_fields().is_empty());
         assert_eq!(row_counts(&f, ViewKind::CheckList), (20, 20));
+    }
+
+    #[test]
+    fn アプリのデモの_a_の後は本体を通り_部品と内側の印が出る() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::AppDemo, Variant::A));
+        f.update(FixtureAction::Phase(Phase::After));
+        let html = render(&f.view());
+        assert_eq!(html.matches("fw-wire-tag ").count(), 2, "{html}");
+        assert_eq!(html.matches("fw-wire-button ").count(), 1, "{html}");
+        assert_eq!(html.matches("data-mark=\"change\"").count(), 3, "{html}");
     }
 
     #[test]

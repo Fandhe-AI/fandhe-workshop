@@ -1,0 +1,9 @@
+id: ART1-12
+package: fandhe-workshop-web
+test: app_demo_view_a_contract
+target: crates/web/src/app_demo_view.rs
+find:             Disabled(false),
+replace:             Disabled(state == WireState::Disabled),
+expect-fail: 同じ_key_の項目の形は前後で変わらない
+expect-fail: data_active_と_data_disabled_は前後とも_0_件
+note: ボタンの Disabled を状態から決める（無効から通常に変わる行で data-disabled が消え、属性名の集合が前後で変わる）
