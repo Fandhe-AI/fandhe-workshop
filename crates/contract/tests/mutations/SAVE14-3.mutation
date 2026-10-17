@@ -1,0 +1,9 @@
+id: SAVE14-3
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find:     b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')
+replace:     b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-' | b'/')
+expect-fail: render_parse_roundtrip_and_injective
+expect-fail: pack_prefix_does_not_reach_other_scope_or_pack
+note: 区間の / を符号化しない（区間の数が崩れ、接頭辞が別の配信先・別の教材の鍵に届く）
