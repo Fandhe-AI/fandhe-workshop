@@ -2464,6 +2464,48 @@ static を素の文字列の照合へ作り直した後（2026-10-17）は、`ma
 | 修正後の `submit-wiring.test.mjs` 単独 5 回 | 5 回とも 10 件がすべて通過 |
 | 修正後の `make test-browser` 1 回 | 316 件がすべて通過 |
 
+### 5.86 Enter 系のキーの不変条件の基準（TASK-351 1/2）
+
+変換中でない状態の Enter・Shift+Enter・修飾キー付き Enter について、観察できる結果（keydown の `preventDefault` の有無・右のログの行・入力欄の値）を、受け持ちに依らない表として固定した（FEND-21）。受け持ちは現状の glue（D-42）。TASK-352 が受け持ちを置き換えるとき、置き換えの前後で `tools/browser/key-invariants.test.mjs` を同じ件数で通して比べる基準である。Tab・Shift+Tab の行は #346（TASK-351 2/2）が同じファイル・同じ列で足す。
+
+- 観察の方法: 配信設定（`TEST_HOOKS` なし）だけを使い、内部の印（`__fandheTest`・`data-action-keydown`）は読まない。入力は信頼入力（`page.keyboard.press`）。`preventDefault` は、`window` の捕捉の段で入力欄が対象の keydown の Event を保持し、押した後にその `defaultPrevented` を読む（誰がどの段で呼んでも観察できる）。押した 1 回につき Enter の keydown がちょうど 1 件であることも確かめる
+- 表の列: `id`・`press`・`draft`・`prevented`・`lines`・`value`。各行は新しいページで実行する。ENTER-TEXT は送信後の空化（TASK-438）を待ってから欄の値を確かめる。送信が無い行は、タイマーを 2 回挟んだ後で 0 件を確かめる
+- 現状で観察した値は、事前の見込み（`decide` と既存の試験）と全行で一致した。食い違いは無い
+
+| id | キー | 下書き | preventDefault | ログの行 | 欄の値 |
+|---|---|---|---|---|---|
+| ENTER-TEXT | Enter | `x` | あり | `x` | 空 |
+| ENTER-EMPTY | Enter | 空 | あり | なし | 空 |
+| SHIFT-ENTER-TEXT | Shift+Enter | `x` | なし | なし | `x` と改行 |
+| SHIFT-ENTER-EMPTY | Shift+Enter | 空 | なし | なし | 改行のみ |
+| CTRL-ENTER | Control+Enter | `x` | なし | なし | `x` |
+| ALT-ENTER | Alt+Enter | `x` | なし | なし | `x` |
+| META-ENTER | Meta+Enter | `x` | なし | なし | `x` |
+| SHIFT-CTRL-ENTER | Shift+Control+Enter | `x` | なし | なし | `x` |
+| SHIFT-ALT-ENTER | Shift+Alt+Enter | `x` | なし | なし | `x` |
+| SHIFT-META-ENTER | Shift+Meta+Enter | `x` | なし | なし | `x` |
+| CTRL-ALT-ENTER | Control+Alt+Enter | `x` | なし | なし | `x` |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 0b607a7-dirty
+コマンド: node --test tools/browser/key-invariants.test.mjs（単独で 3 回）・make test-browser（1 回）
+```
+
+| 実行 | 結果 |
+|---|---|
+| `key-invariants.test.mjs` 単独 3 回 | 3 回とも 12 件（表 11 行 + 行数の照合 1 件）がすべて通過 |
+| `make test-browser` 1 回 | 331 件がすべて通過（ローカルの計測。CI には未組み込み） |
+
+負の対照（製品コードを一時的に変えてビルドし、単独で実行した。変更は戻し、コミットしていない）。
+
+| 変更 | 結果 |
+|---|---|
+| `glue.rs` の keydown で `prevent_default()` を呼ばない | ENTER-TEXT・ENTER-EMPTY の 2 件が失敗（ENTER-TEXT は改行が入り空にならない） |
+| `key_route.rs` の `Newline` を送信（click と `preventDefault`）に変える（JUDGE13-1 相当） | SHIFT-ENTER-TEXT・SHIFT-ENTER-EMPTY の 2 件が失敗 |
+
+残る限界: Playwright の `keyboard.press` は、Shift 以外の修飾キーを押している間は text を送らない。修飾キー付き Enter の OS ごとの差（とくに Windows）は D-48 で別に扱う。変換中の Enter は対象外（`ime-input`・`enter-submit` の担当）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
