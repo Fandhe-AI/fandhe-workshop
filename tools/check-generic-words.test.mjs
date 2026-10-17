@@ -342,6 +342,23 @@ test('後置の ++・-- の後の `/` は除算で、正規表現とは読まな
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'let n = 1; ++n; let r = /github/;\n' })).code, 1);
 });
 
+test('正規表現リテラルの identity escape は文字そのものとして照合する', () => {
+  // Unicode フラグなしでは /git\hub/ の `\h` は h を表すため、github に一致する
+  const r = run(makeRoot({ 'crates/x/static/a.js': 'const re = /git\\hub/;\n' }));
+  assert.equal(r.code, 1, r.out);
+  // u フラグで意味が変わる \p・\k は検査不能として 2
+  assert.equal(run(makeRoot({ 'crates/x/static/c.js': 'const re = /\\p{L}/;\n' })).code, 2);
+});
+
+test('オブジェクト式の `}` の後の `/` は除算で、文ブロックの `}` の後は正規表現', () => {
+  for (const body of ['const n = {} / 2;\n', 'const n = ({}) / 2;\n', 'const o = { a: {} / 2 };\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 0, body);
+  }
+  // 文ブロックの後は正規表現で、語を照合する
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'if (a) { b(); }\n/github/.test(c);\n' })).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/static/c.js': 'function f() {}\n/github/.test(c);\n' })).code, 1);
+});
+
 test('HTML の style 要素と style 属性の CSS もエスケープを復号して照合する', () => {
   const cases = [
     '<style>a::after { content: "git\\68 ub"; }</style>\n',

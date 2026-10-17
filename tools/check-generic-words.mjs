@@ -448,7 +448,12 @@ export function lexJs(src, startLine = 1) {
           buf.add(String.fromCodePoint(cp), line);
           continue;
         }
-        buf.add(' ', line); // \d・\w・\1 などの文字を表さないエスケープと、記号の文字そのもの
+        // \p・\P・\k・\c は u フラグの有無で意味が変わるため、読めない形として失敗にする。
+        if ('pPkc'.includes(e)) fail('unsupported escape');
+        // 意味を持つ文字（\d \w \s \b \n \1 など）と記号は区切りの空白にする。
+        // それ以外の英字は identity escape で、その文字そのもの（/git/hub/ の /h は h）として照合する。
+        if (/[A-Za-z]/.test(e) && !'dDwWsSbBnrtvf'.includes(e)) buf.add(e, line);
+        else buf.add(' ', line);
         i += 2;
         continue;
       }
@@ -475,11 +480,18 @@ export function lexJs(src, startLine = 1) {
     if (prev.startsWith('kw:')) return KEYWORDS_BEFORE_REGEX.has(prev.slice(3));
     return true;
   };
+  // 直前の字句から、`{` がオブジェクト式か（文ブロックでないか）を決める。
+  const braceIsExpression = (prev) => {
+    if (prev === null) return false;
+    if (prev.startsWith('kw:')) return prev !== 'kw:else' && prev !== 'kw:do';
+    return !['operand', ')', ']', ';', '{', '}', '=>'].includes(prev);
+  };
   // コードを読む。inInterp のときは、対応する `}` の手前で止まる（`}` の次の位置へ進めて返る）。
   const code = (inInterp) => {
-    let depth = 0;
     // 直前の有意な字句（null・'operand'・'kw:<語>'・記号 1 文字）。
     let prev = null;
+    // `{` ごとの種別（true は式の `{...}`。閉じた後は値の終わりで、次の `/` は除算）。
+    const braces = [];
     while (i < n) {
       const c = s[i];
       if (c === '\n') {
@@ -504,15 +516,18 @@ export function lexJs(src, startLine = 1) {
       } else if (c === '`') {
         readTemplate();
         prev = 'operand';
-      } else if (inInterp && c === '{') {
-        depth += 1;
+      } else if (c === '{') {
+        braces.push(braceIsExpression(prev));
         i += 1;
         prev = c;
-      } else if (inInterp && c === '}') {
+      } else if (c === '}') {
         i += 1;
-        if (depth === 0) return;
-        depth -= 1;
-        prev = c;
+        if (braces.length === 0) {
+          if (inInterp) return;
+          prev = c;
+        } else {
+          prev = braces.pop() ? 'operand' : c;
+        }
       } else if (IDENT.test(c) || (c === '\\' && s[i + 1] === 'u')) {
         const word = readIdent();
         prev = KEYWORDS_BEFORE_REGEX.has(word) ? `kw:${word}` : 'operand';
@@ -521,7 +536,8 @@ export function lexJs(src, startLine = 1) {
         if (prev !== 'operand') prev = c;
         i += 2;
       } else {
-        if (!/\s/.test(c)) prev = c;
+        if (c === '>' && prev === '=' && s[i - 1] === '=') prev = '=>';
+        else if (!/\s/.test(c)) prev = c;
         i += 1;
       }
     }
