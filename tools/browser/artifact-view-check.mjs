@@ -179,6 +179,18 @@ function elementMapInPage({ root, view }) {
   return map;
 }
 
+// 選ばれた list の key -> 項目の内側の全子孫要素（文書順の配列）の Map。deep の検査用（TASK-469 2/2）。
+// 行の根の同一性だけでは、印の宿主や記号・文字の span が作り直されても見えない。
+function innerMapInPage({ root, view }) {
+  const map = new Map();
+  const rootEl = document.querySelector(root);
+  const list = rootEl
+    ? [...rootEl.querySelectorAll('[data-testid="view-list"]')].find((l) => l.getAttribute('data-view') === view)
+    : undefined;
+  if (list) for (const c of list.children) map.set(c.getAttribute('data-key'), [...c.querySelectorAll('*')]);
+  return map;
+}
+
 // root 直下の部品の根（最初の子の要素）。全再描画なら前後で別の要素になる。
 function rootChildInPage({ root }) {
   return document.querySelector(root)?.firstElementChild ?? null;
@@ -195,11 +207,31 @@ function compareMapsInPage([a, b]) {
   return { same, replaced };
 }
 
-async function snapshot(page, rootSelector, kind) {
+// 2 つの内側の Map で、両方にある key の子孫の並びが要素まで同じか（個数が違えば置換）。
+function compareInnerInPage([a, b]) {
+  const same = [];
+  const replaced = [];
+  for (const [k, els] of a) {
+    if (!b.has(k)) continue;
+    const now = b.get(k);
+    const ok = els.length === now.length && els.every((el, i) => el === now[i] && el.isConnected);
+    (ok ? same : replaced).push(k);
+  }
+  return { same, replaced };
+}
+
+async function snapshot(page, rootSelector, kind, deep = false) {
   const info = await page.evaluate(inspectInPage, { root: rootSelector, danger: DANGER_SELECTOR });
   const handle = await page.evaluateHandle(elementMapInPage, { root: rootSelector, view: kind });
   const rootHandle = await page.evaluateHandle(rootChildInPage, { root: rootSelector });
-  return { info, handle, rootHandle };
+  const innerHandle = deep ? await page.evaluateHandle(innerMapInPage, { root: rootSelector, view: kind }) : null;
+  return { info, handle, rootHandle, innerHandle };
+}
+
+async function disposeSnapshot(s) {
+  await s.handle.dispose();
+  await s.rootHandle.dispose();
+  if (s.innerHandle) await s.innerHandle.dispose();
 }
 
 // 1 つの状態の検査。違反の文面は固定で、tag（種類・変種・状態の名前）だけを前置する。
@@ -280,7 +312,7 @@ function checkState({ info, kind, variant, phase, expected, v }) {
 }
 
 // 同一性。両方の状態にある key は同じ要素でなければならない。置換 0、保持の数は前の行数に等しい。
-async function checkIdentity({ page, prev, next, kind, variant, expected, v, tag }) {
+async function checkIdentity({ page, prev, next, kind, variant, expected, v, tag, deep = false }) {
   const { same, replaced } = await page.evaluate(compareMapsInPage, [prev.handle, next.handle]);
   const bad = (msg) => v.push(`${kind}/${variant}/${tag}: ${msg}`);
   const sameRoot = await page.evaluate(([a, b]) => a !== null && a === b && a.isConnected, [prev.rootHandle, next.rootHandle]);
@@ -295,14 +327,23 @@ async function checkIdentity({ page, prev, next, kind, variant, expected, v, tag
     if (!unchangedIds.every((id) => keep.has(key(id)))) bad('an unchanged row was replaced');
     if (!changedIds.every((id) => keep.has(key(id)))) bad('a changed row was replaced');
   }
-  return same.length;
+  let inner = null;
+  if (deep) {
+    const r = await page.evaluate(compareInnerInPage, [prev.innerHandle, next.innerHandle]);
+    if (r.replaced.length !== 0) bad('inner elements of a row were replaced');
+    if (r.same.length !== beforeCount) bad('rows with preserved inner elements differ from the before row count');
+    inner = r.same.length;
+  }
+  return { rows: same.length, inner };
 }
 
 // 14 通りのうち許される 12 通りを流す。前 → 後 → 前 → 後 → 前（rounds = 2 で 2 往復）の各状態を検査する。
 // 返り値: { violations: string[], stats: { states, itemCounts, preserved } }。
-export async function runViewCase(page, adapter, { kind, variant, rootSelector, rounds = 2 }) {
+// deep: true なら、項目の内側の全子孫要素の同一性も数える（stats.innerPreserved。TASK-469 2/2）。既定 false は従来どおり。
+export async function runViewCase(page, adapter, { kind, variant, rootSelector, rounds = 2, deep = false }) {
   const v = [];
   const stats = { states: 0, itemCounts: [], preserved: [] };
+  if (deep) stats.innerPreserved = [];
   const expected = expectedFor(kind, adapter.keyOf ?? ((id) => id));
   const sel = await adapter.select(kind, variant);
   if (!sel.ok) {
@@ -320,24 +361,21 @@ export async function runViewCase(page, adapter, { kind, variant, rootSelector, 
         v.push(`${kind}/${variant}/${phase}: the adapter refused to switch the state`);
         break;
       }
-      const cur = await snapshot(page, rootSelector, kind);
+      const cur = await snapshot(page, rootSelector, kind, deep);
       checkState({ info: cur.info, kind, variant, phase, expected, v });
       stats.states += 1;
       const sel1 = cur.info.error ? undefined : cur.info.lists.find((l) => l.view === kind);
       stats.itemCounts.push(sel1 ? sel1.children : -1);
       if (prev) {
-        const n = await checkIdentity({ page, prev, next: cur, kind, variant, expected, v, tag: `${phases[i - 1]}->${phase}` });
-        stats.preserved.push(n);
-        await prev.handle.dispose();
-        await prev.rootHandle.dispose();
+        const n = await checkIdentity({ page, prev, next: cur, kind, variant, expected, v, deep, tag: `${phases[i - 1]}->${phase}` });
+        stats.preserved.push(n.rows);
+        if (deep) stats.innerPreserved.push(n.inner);
+        await disposeSnapshot(prev);
       }
       prev = cur;
     }
   } finally {
-    if (prev) {
-      await prev.handle.dispose();
-      await prev.rootHandle.dispose();
-    }
+    if (prev) await disposeSnapshot(prev);
   }
   return { violations: v, stats };
 }
@@ -378,4 +416,15 @@ export async function runRejectedCase(page, adapter, { kind, variant, rootSelect
   if (JSON.stringify(after) !== JSON.stringify(before)) bad('state or screen changed after a refused selection');
   if (after.visible && after.visible.includes(kind)) bad('the refused view was shown');
   return { violations: v };
+}
+
+// 負の対照用（TASK-469 2/2）: 選ばれた list の行の要素を握り、後で同じ要素かを数える。
+// 別のビューへ切り替えて戻す（全再描画に当たる）と、保持が 0 件になることを示すために使う。
+export async function holdRows(page, rootSelector, kind) {
+  return page.evaluateHandle(elementMapInPage, { root: rootSelector, view: kind });
+}
+
+// holdRows で握った 2 つの Map を比べる。{ same, replaced } は key の配列。
+export async function compareHeldRows(page, a, b) {
+  return page.evaluate(compareMapsInPage, [a, b]);
 }

@@ -1,0 +1,8 @@
+id: ART3-4
+package: fandhe-workshop-web
+test: artifact_mark_contract
+target: crates/web/src/artifact_mark.rs
+find:     let mut children = vec![glyph, label];
+replace:     let mut children = if mark.is_some() { vec![glyph, label] } else { vec![] };
+expect-fail: 項目の形は印によって変わらない
+note: 印なしのとき記号・文字の span を省く（前後の切り替えで項目の子の並びが変わり、keyed list の in-place 更新が崩れる）
