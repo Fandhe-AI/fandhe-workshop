@@ -2,8 +2,8 @@ id: EVT7-4
 package: fandhe-workshop-core
 test: button_burst
 target: crates/core/src/session.rs
-find:     state.log.extend(events.iter().cloned());
-replace:     state.log.extend(events.iter().skip(1).cloned());
+find:         changed::record_changes(events, &world_before, &state.run.world, &default_at, cause);
+replace:         changed::record_changes(events, &world_before, &state.run.world, &default_at, cause); state.log.extend(events.iter().skip(1).cloned()); return (state, events);
 expect-fail: burst_of_20_on_remaining_button_rejects_all_and_keeps_state
 expect-fail: p6_remaining_button_burst_keeps_state
 note: 1 回の操作のイベントがログへすべて記録されない（連打 20 回でログが 40 件にならない）
