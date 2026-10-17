@@ -10,6 +10,7 @@ use fandhe_workshop_contract::doc::{Block, Inline};
 use fandhe_workshop_pack::markdown::parse;
 use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::artifact_doc_rows::align_blocks;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{DocRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::doc_view::{DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH};
 use fandhe_workshop_web::document_view::{doc_items_a, doc_list};
@@ -30,7 +31,7 @@ fn sample_rows() -> Vec<DocRow<Block>> {
 }
 
 fn htmls(rows: &[DocRow<Block>], phase: Phase) -> Vec<String> {
-    doc_items_a(rows, phase)
+    doc_items_a(rows, phase, &no_point)
         .iter()
         .map(|(_, n)| render(n))
         .collect()
@@ -88,7 +89,7 @@ fn shape(html: &str) -> String {
 fn a_項目数は前10_後13で_key_は一意() {
     let rows = sample_rows();
     for (phase, want) in [(Phase::Before, 10), (Phase::After, 13)] {
-        let items = doc_items_a(&rows, phase);
+        let items = doc_items_a(&rows, phase, &no_point);
         assert_eq!(items.len(), want);
         let mut keys: Vec<&str> = items.iter().map(|(k, _)| k.as_str()).collect();
         keys.sort_unstable();
@@ -102,7 +103,7 @@ fn a_項目数は前10_後13で_key_は一意() {
 fn a_項目の形は_li_の子が内側の_div_1つで_印の宿主はその_div() {
     let rows = sample_rows();
     for phase in [Phase::Before, Phase::After] {
-        for (key, node) in doc_items_a(&rows, phase) {
+        for (key, node) in doc_items_a(&rows, phase, &no_point) {
             let html = render(&node);
             assert!(html.starts_with("<li data-kind=\"block\""), "{key} {html}");
             assert!(!html.contains("<li data-mark"), "{key}");
@@ -204,8 +205,8 @@ fn a_印は前に無く_後は追加3_削除3_変更0_印なし7() {
 #[test]
 fn a_同じ_key_の項目の形は前後で変わらない() {
     let rows = sample_rows();
-    let before = doc_items_a(&rows, Phase::Before);
-    let after = doc_items_a(&rows, Phase::After);
+    let before = doc_items_a(&rows, Phase::Before, &no_point);
+    let after = doc_items_a(&rows, Phase::After, &no_point);
     for (k, b) in &before {
         let a = after.iter().find(|(ak, _)| ak == k).expect("key");
         assert_eq!(shape(&render(b)), shape(&render(&a.1)), "{k}");
@@ -276,7 +277,7 @@ fn a_引用の入れ子が上限を超えても_panic_せず省略の文言が1�
 fn a_a11y_は前後とも違反0で_role_と_aria_は無い() {
     let rows = sample_rows();
     for phase in [Phase::Before, Phase::After] {
-        let list = doc_list("ul", true, doc_items_a(&rows, phase)).expect("一覧");
+        let list = doc_list("ul", true, doc_items_a(&rows, phase, &no_point)).expect("一覧");
         if let Err(v) = check_no_undefined(&list) {
             panic!("a11y の違反: {v:?}");
         }
@@ -305,7 +306,7 @@ fn a_規模の確認_80ブロックで項目は80件で構造の要素は0() {
     let blocks = parse(&md).blocks;
     assert_eq!(blocks.len(), 80);
     let rows = align_blocks("document", &blocks, &blocks).expect("行");
-    let items = doc_items_a(&rows, Phase::After);
+    let items = doc_items_a(&rows, Phase::After, &no_point);
     assert_eq!(items.len(), 80);
     let html = joined(&rows, Phase::After);
     for tag in [

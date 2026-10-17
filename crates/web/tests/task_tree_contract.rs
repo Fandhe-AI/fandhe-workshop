@@ -5,6 +5,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::task_tree::{
     state_badge, task_items_a, task_items_b, task_tree_list_a, task_tree_list_b, TaskState,
@@ -69,7 +70,7 @@ fn cell_of(label: &str, state: &str) -> Cell {
 }
 
 fn html(rows: &[ItemRow], phase: Phase) -> String {
-    render(&task_tree_list_b(rows, phase, true).unwrap())
+    render(&task_tree_list_b(rows, phase, true, &no_point).unwrap())
 }
 
 fn count(h: &str, needle: &str) -> usize {
@@ -108,10 +109,10 @@ fn 木の属性は全項目にあり_親は_role_tree() {
 #[test]
 fn 選ばれていないときと空のときは_role_tree_が付かない() {
     let rows = sample();
-    let h = render(&task_tree_list_b(&rows, Phase::Before, false).unwrap());
+    let h = render(&task_tree_list_b(&rows, Phase::Before, false, &no_point).unwrap());
     assert_eq!(count(&h, "role=\"tree\""), 0, "{h}");
     assert_eq!(count(&h, "treeitem"), 0, "{h}");
-    let empty = render(&task_tree_list_b(&[], Phase::Before, true).unwrap());
+    let empty = render(&task_tree_list_b(&[], Phase::Before, true, &no_point).unwrap());
     assert_eq!(count(&empty, "role=\"tree\""), 0, "{empty}");
 }
 
@@ -119,7 +120,7 @@ fn 選ばれていないときと空のときは_role_tree_が付かない() {
 fn 全項目に状態のバッジがあり_記号と文字の両方が空でない() {
     let rows = sample();
     for phase in [Phase::Before, Phase::After] {
-        let items = task_items_b(&rows, phase);
+        let items = task_items_b(&rows, phase, &no_point);
         for (_, node) in &items {
             let h = render(node);
             assert_eq!(count(&h, "data-testid=\"state-badge\""), 1, "{h}");
@@ -196,8 +197,8 @@ fn shape(n: &Node) -> String {
 #[test]
 fn 項目の形は状態と印と前後で変わらない() {
     let rows = sample();
-    let before = task_items_b(&rows, Phase::Before);
-    let after = task_items_b(&rows, Phase::After);
+    let before = task_items_b(&rows, Phase::Before, &no_point);
+    let after = task_items_b(&rows, Phase::After, &no_point);
     for (k, n) in &before {
         let (_, m) = after.iter().find(|(k2, _)| k2 == k).unwrap();
         assert_eq!(shape(n), shape(m), "{k}");
@@ -210,7 +211,7 @@ fn 項目の形は状態と印と前後で変わらない() {
             row("c", 0, None, Some(cell_of("l", state))),
             row("d", 0, Some(cell_of("l", state)), None),
         ];
-        for n in task_items_b(&rows, Phase::After) {
+        for n in task_items_b(&rows, Phase::After, &no_point) {
             shapes.push(shape(&n.1));
         }
     }
@@ -222,7 +223,7 @@ fn 項目の形は状態と印と前後で変わらない() {
 fn 契約を通り_aria_hidden_と_aria_selected_は出ない() {
     let rows = sample();
     for phase in [Phase::Before, Phase::After] {
-        let list = task_tree_list_b(&rows, phase, true).unwrap();
+        let list = task_tree_list_b(&rows, phase, true, &no_point).unwrap();
         assert!(check_no_undefined(&list).is_ok());
         let h = render(&list);
         assert_eq!(count(&h, "aria-hidden"), 0, "{h}");
@@ -249,7 +250,7 @@ fn ラベルと詳細はエスケープされ_要素にならない() {
 #[test]
 fn 印の宿主は項目の根で_記号と文字は印と対応する() {
     let rows = sample();
-    let items = task_items_b(&rows, Phase::After);
+    let items = task_items_b(&rows, Phase::After, &no_point);
     let h = render(&items.iter().find(|(k, _)| k == "kt2a").unwrap().1);
     assert!(h.starts_with("<li "), "{h}");
     assert_eq!(count(&h, "data-mark=\"add\""), 1, "{h}");
@@ -260,7 +261,7 @@ fn 印の宿主は項目の根で_記号と文字は印と対応する() {
 // ---- 変種 (a)（TASK-474 2/2）----
 
 fn html_a(rows: &[ItemRow], phase: Phase) -> String {
-    render(&task_tree_list_a(rows, phase, true).unwrap())
+    render(&task_tree_list_a(rows, phase, true, &no_point).unwrap())
 }
 
 #[test]
@@ -345,8 +346,8 @@ fn a_状態のバッジは全項目にあり_文字の数は_b_と同じ() {
 #[test]
 fn a_項目の形は状態と印と前後で変わらない() {
     let rows = sample();
-    let before = task_items_a(&rows, Phase::Before);
-    let after = task_items_a(&rows, Phase::After);
+    let before = task_items_a(&rows, Phase::Before, &no_point);
+    let after = task_items_a(&rows, Phase::After, &no_point);
     for (k, n) in &before {
         let (_, m) = after.iter().find(|(k2, _)| k2 == k).unwrap();
         assert_eq!(shape(n), shape(m), "{k}");
@@ -359,7 +360,7 @@ fn a_項目の形は状態と印と前後で変わらない() {
             row("c", 0, None, Some(cell_of("l", state))),
             row("d", 0, Some(cell_of("l", state)), None),
         ];
-        for n in task_items_a(&rows, Phase::After) {
+        for n in task_items_a(&rows, Phase::After, &no_point) {
             shapes.push(shape(&n.1));
         }
     }
@@ -370,7 +371,7 @@ fn a_項目の形は状態と印と前後で変わらない() {
 #[test]
 fn a_印の宿主は中の_div_で_深さのクラスは深さと一致する() {
     let rows = sample();
-    let items = task_items_a(&rows, Phase::After);
+    let items = task_items_a(&rows, Phase::After, &no_point);
     let h = render(&items.iter().find(|(k, _)| k == "kt1a").unwrap().1);
     assert!(h.starts_with("<li><div "), "{h}");
     assert_eq!(count(&h, "data-mark="), 1, "{h}");
@@ -383,7 +384,7 @@ fn a_印の宿主は中の_div_で_深さのクラスは深さと一致する() 
 fn a_契約を通りエスケープされ_チェックの見た目は_app_css_にある() {
     let rows = sample();
     for phase in [Phase::Before, Phase::After] {
-        let list = task_tree_list_a(&rows, phase, true).unwrap();
+        let list = task_tree_list_a(&rows, phase, true, &no_point).unwrap();
         assert!(check_no_undefined(&list).is_ok());
         let h = render(&list);
         assert_eq!(count(&h, "aria-hidden"), 0, "{h}");

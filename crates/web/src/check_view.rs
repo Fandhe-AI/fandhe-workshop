@@ -1,5 +1,8 @@
 //! 左の成果物エリアのチェックの一覧のビュー、変種 (a)・(b)（TASK-478）。ART-1・ART-17。
 //!
+//! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
+//! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
+//!
 //! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
 //! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則も未決のためである
 //! （TASK-470・TASK-347 の後続）。
@@ -47,8 +50,8 @@ use fandhe_frontend_headless_ui::marker::{self, MarkerRootProps, MarkerTone, Mar
 use fandhe_frontend_wireframe_ui::{rich_text, tag, Bold, Orientation, Primary, Size};
 
 use crate::a11y::TESTID_ATTR;
-use crate::artifact_mark::marked_item;
-use crate::artifact_view::{view_list, Cell, ItemRow, Phase, Variant, ViewKind};
+use crate::artifact_mark::{pointed_item, PointOf};
+use crate::artifact_view::{view_list, Cell, ItemRow, Phase, PointTarget, Variant, ViewKind};
 use crate::list_policy::ListError;
 
 /// 変種 (a) の先頭の記号の `span` の class。
@@ -192,23 +195,27 @@ fn check_content(cell: &Cell) -> Vec<Node> {
 
 /// 変種 (a) の行 1 件を作る。その状態で出ない行は `None`。木の属性は付けない。
 #[must_use]
-pub fn check_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
+pub fn check_item_a(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::A,
         shown.mark,
         Some(row.depth()),
         vec![("data-kind", row.kind().as_str())],
+        target,
         check_content(shown.content),
     ))
 }
 
 /// 行の並びから、変種 (a) のその状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn check_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn check_items_a(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| check_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            check_item_a(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 
@@ -253,31 +260,40 @@ fn check_content_b(cell: &Cell) -> Vec<Node> {
 
 /// 変種 (b) の行 1 件を作る。その状態で出ない行は `None`。
 #[must_use]
-pub fn check_item_b(row: &ItemRow, phase: Phase) -> Option<Node> {
+pub fn check_item_b(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         Some(row.depth()),
         vec![("data-kind", row.kind().as_str())],
+        target,
         check_content_b(shown.content),
     ))
 }
 
 /// 行の並びから、変種 (b) のその状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn check_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn check_items_b(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
-        .filter_map(|row| check_item_b(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .filter_map(|row| {
+            check_item_b(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
+        })
         .collect()
 }
 
 /// 変種に応じた項目を返す。呼び出し元（`view_fixture`）の振り分けを一か所にまとめる。
 #[must_use]
-pub fn check_items(rows: &[ItemRow], phase: Phase, variant: Variant) -> Vec<(String, Node)> {
+pub fn check_items(
+    rows: &[ItemRow],
+    phase: Phase,
+    variant: Variant,
+    point: PointOf,
+) -> Vec<(String, Node)> {
     match variant {
-        Variant::A => check_items_a(rows, phase),
-        Variant::B => check_items_b(rows, phase),
+        Variant::A => check_items_a(rows, phase, point),
+        Variant::B => check_items_b(rows, phase, point),
     }
 }

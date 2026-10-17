@@ -11,6 +11,7 @@ use fandhe_workshop_contract::doc::{Block, Inline};
 use fandhe_workshop_pack::markdown::parse;
 use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::artifact_doc_rows::align_blocks;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{DocRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::doc_view::{DEPTH_OMITTED_TEXT, MAX_RENDER_DEPTH};
 use fandhe_workshop_web::document_view::{doc_items, doc_list};
@@ -32,7 +33,7 @@ fn sample_rows() -> Vec<DocRow<Block>> {
 }
 
 fn htmls(rows: &[DocRow<Block>], phase: Phase) -> Vec<String> {
-    doc_items(rows, phase)
+    doc_items(rows, phase, &no_point)
         .iter()
         .map(|(_, n)| render(n))
         .collect()
@@ -65,7 +66,7 @@ fn text(s: &str) -> Inline {
 fn 項目数は前10_後13で_key_は一意() {
     let rows = sample_rows();
     for (phase, want) in [(Phase::Before, 10), (Phase::After, 13)] {
-        let items = doc_items(&rows, phase);
+        let items = doc_items(&rows, phase, &no_point);
         assert_eq!(items.len(), want);
         let mut keys: Vec<&str> = items.iter().map(|(k, _)| k.as_str()).collect();
         keys.sort_unstable();
@@ -125,7 +126,7 @@ fn 構造の要素の数は_markdown_を目で数えた値と一致する() {
 fn 全項目の根の子は記号_文字_包みの3つで_包みはブロックを1つ持つ() {
     let rows = sample_rows();
     for phase in [Phase::Before, Phase::After] {
-        for (key, node) in doc_items(&rows, phase) {
+        for (key, node) in doc_items(&rows, phase, &no_point) {
             let html = render(&node);
             // (b) は印を項目自身が持つ。(a) の形（内側の div が持つ）にならない。
             assert!(
@@ -155,8 +156,8 @@ fn 同じ_key_の項目の形は前後で変わらない() {
             .map(|(head, _)| head.to_owned())
             .expect(">")
     };
-    let before = doc_items(&rows, Phase::Before);
-    let after = doc_items(&rows, Phase::After);
+    let before = doc_items(&rows, Phase::Before, &no_point);
+    let after = doc_items(&rows, Phase::After, &no_point);
     for (k, b) in &before {
         let a = after.iter().find(|(ak, _)| ak == k).expect("key");
         assert_eq!(strip(&render(b)), strip(&render(&a.1)), "{k}");
@@ -276,7 +277,7 @@ fn 引用の入れ子が上限を超えると省略の文言になる() {
 fn a11y_は前後とも違反0で_role_と_aria_は無い() {
     let rows = sample_rows();
     for phase in [Phase::Before, Phase::After] {
-        let items = doc_items(&rows, phase);
+        let items = doc_items(&rows, phase, &no_point);
         let list = doc_list("ul", true, items).expect("一覧");
         if let Err(v) = check_no_undefined(&list) {
             panic!("a11y の違反: {v:?}");
@@ -291,7 +292,12 @@ fn a11y_は前後とも違反0で_role_と_aria_は無い() {
 
 #[test]
 fn 選ばれていない一覧は空で_hidden() {
-    let list = doc_list("ul", false, doc_items(&sample_rows(), Phase::After)).expect("一覧");
+    let list = doc_list(
+        "ul",
+        false,
+        doc_items(&sample_rows(), Phase::After, &no_point),
+    )
+    .expect("一覧");
     let html = render(&list);
     assert!(html.contains("hidden"), "{html}");
     assert_eq!(n(&html, "<li"), 0, "{html}");
@@ -317,7 +323,7 @@ fn 規模の確認_80ブロックで構造の数が組み立てた数と一致�
     let blocks = parse(&md).blocks;
     assert_eq!(blocks.len(), 80);
     let rows = align_blocks("document", &blocks, &blocks).expect("行");
-    let items = doc_items(&rows, Phase::After);
+    let items = doc_items(&rows, Phase::After, &no_point);
     assert_eq!(items.len(), 80);
     let mut keys: Vec<&str> = items.iter().map(|(k, _)| k.as_str()).collect();
     keys.sort_unstable();

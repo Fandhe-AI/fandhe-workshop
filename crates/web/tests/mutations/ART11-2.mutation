@@ -1,0 +1,8 @@
+id: ART11-2
+package: fandhe-workshop-web
+test: point_rows_contract
+target: crates/web/src/artifact_mark.rs
+find:         all.extend(p.pairs());
+replace:         let _ = p;
+expect-fail: 宛先のある行は_4_属性を組で持ち_宛先の無い行は_1_つも持たない
+note: pointed_item が指せる行の 4 属性を足さない（宛先を渡しても表示だけの行になり、7 種のビューのどの行も指せない。ART-11）

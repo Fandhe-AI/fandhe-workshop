@@ -6,6 +6,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::file_tree_view::{file_tree_items_a, file_tree_list_a};
 
@@ -52,7 +53,7 @@ fn rows() -> Vec<ItemRow> {
 }
 
 fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = file_tree_items_a(&rows(), phase);
+    let items = file_tree_items_a(&rows(), phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = file_tree_list_a("ul", true, items).expect("一覧");
@@ -138,7 +139,7 @@ fn ラベルと補足は文字としてエスケープされる() {
         None,
     )
     .expect("行");
-    let items = file_tree_items_a(&[r], Phase::Before);
+    let items = file_tree_items_a(&[r], Phase::Before, &no_point);
     let html = render(&items[0].1);
     assert!(!html.contains("<script"), "{html}");
     assert!(!html.contains("<img"), "{html}");
@@ -214,7 +215,7 @@ fn 補足が空でも末尾の_span_と先頭の_span_は出る() {
         None,
     )
     .expect("行");
-    let items = file_tree_items_a(&[r], Phase::Before);
+    let items = file_tree_items_a(&[r], Phase::Before, &no_point);
     let html = render(&items[0].1);
     assert!(html.contains("class=\"detail\""), "{html}");
     assert!(html.contains("class=\"icon\""), "{html}");
@@ -224,7 +225,7 @@ fn 補足が空でも末尾の_span_と先頭の_span_は出る() {
 fn 項目が_0_件か選ばれていない一覧には_role_が付かない() {
     let empty = file_tree_list_a("ul", true, Vec::new()).expect("一覧");
     assert!(!render(&empty).contains("role="));
-    let items = file_tree_items_a(&rows(), Phase::Before);
+    let items = file_tree_items_a(&rows(), Phase::Before, &no_point);
     let hidden = file_tree_list_a("ul", false, items).expect("一覧");
     assert!(!render(&hidden).contains("role="));
 }
@@ -257,7 +258,7 @@ fn 二百行でも一意の_key_で一覧を作れる() {
             .expect("行"),
         );
     }
-    let items = file_tree_items_a(&v, Phase::After);
+    let items = file_tree_items_a(&v, Phase::After, &no_point);
     assert_eq!(items.len(), 200);
     let mut keys: Vec<&String> = items.iter().map(|(k, _)| k).collect();
     keys.sort();

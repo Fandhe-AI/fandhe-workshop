@@ -1,5 +1,8 @@
 //! 左の成果物エリアのファイルツリーのビュー、変種 (b)（TASK-473 1/2）と変種 (a)（TASK-473 2/2）。ART-1・ART-2・ART-3・ART-9・ART-13。
 //!
+//! 項目の根は `artifact_mark::pointed_item`（`marked_item` に指せる行の 4 属性を足す）で作る。宛先は呼び出し側が `PointOf` で注入し、
+//! 宛先の無い行には 4 属性が付かない（TASK-480 1/2。不変条件は `artifact_mark` の doc）。
+//!
 //! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
 //! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則（前の取り直し）も
 //! 未決のためである（TASK-470・TASK-347 の後続）。変種 (a) は `wireframe-ui` の `rich_text` で描く（下の「変種 (a)」）。
@@ -49,8 +52,10 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::tree_view::{item_text, TreeItemProps};
 use fandhe_frontend_wireframe_ui::{rich_text, Bold, Orientation, Size};
 
-use crate::artifact_mark::marked_item;
-use crate::artifact_view::{tree_view_list, ItemRow, Phase, RowKind, Variant, ViewKind};
+use crate::artifact_mark::{pointed_item, PointOf};
+use crate::artifact_view::{
+    tree_view_list, ItemRow, Phase, PointTarget, RowKind, Variant, ViewKind,
+};
 use crate::list_policy::ListError;
 use crate::tree_attrs::{shown_tree_attrs, TreeItemAttrs};
 
@@ -76,7 +81,12 @@ const FIXED_PROPS: TreeItemProps<'static> = TreeItemProps {
 
 /// 行 1 件を作る。その状態で出ない行は `None`。`tree` は [`shown_tree_attrs`] の、この行の結果である。
 #[must_use]
-pub fn file_tree_item(row: &ItemRow, phase: Phase, tree: Option<&TreeItemAttrs>) -> Option<Node> {
+pub fn file_tree_item(
+    row: &ItemRow,
+    phase: Phase,
+    tree: Option<&TreeItemAttrs>,
+    target: Option<&PointTarget>,
+) -> Option<Node> {
     let shown = row.shown(phase)?;
     let mut attrs = tree.map(TreeItemAttrs::pairs).unwrap_or_default();
     attrs.push(("data-kind", row.kind().as_str()));
@@ -91,24 +101,25 @@ pub fn file_tree_item(row: &ItemRow, phase: Phase, tree: Option<&TreeItemAttrs>)
         vec![text(shown.content.detail.as_str())],
     );
     let content = vec![label, detail];
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::B,
         shown.mark,
         Some(row.depth()),
         attrs,
+        target,
         content,
     ))
 }
 
 /// 行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn file_tree_items(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn file_tree_items(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     let attrs = shown_tree_attrs(rows, phase);
     rows.iter()
         .zip(attrs.iter())
         .filter_map(|(row, tree)| {
-            file_tree_item(row, phase, tree.as_ref())
+            file_tree_item(row, phase, tree.as_ref(), point(row.id()).as_ref())
                 .map(|n| (format!("k{}", row.id().as_str()), n))
         })
         .collect()
@@ -129,7 +140,7 @@ pub fn file_tree_list(
 
 /// 変種 (a) の行 1 件を作る。その状態で出ない行は `None`。木の属性は付けない。
 #[must_use]
-pub fn file_tree_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
+pub fn file_tree_item_a(row: &ItemRow, phase: Phase, target: Option<&PointTarget>) -> Option<Node> {
     let shown = row.shown(phase)?;
     let is_dir = row.kind() == RowKind::Dir;
     let leading = el(
@@ -150,22 +161,24 @@ pub fn file_tree_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
         Bold(is_dir),
         Orientation::Horizontal,
     );
-    Some(marked_item(
+    Some(pointed_item(
         "li",
         Variant::A,
         shown.mark,
         Some(row.depth()),
         vec![("data-kind", row.kind().as_str())],
+        target,
         vec![rich],
     ))
 }
 
 /// 行の並びから、変種 (a) のその状態で出る項目の `(key, 要素)` を入力の順に返す。
 #[must_use]
-pub fn file_tree_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+pub fn file_tree_items_a(rows: &[ItemRow], phase: Phase, point: PointOf) -> Vec<(String, Node)> {
     rows.iter()
         .filter_map(|row| {
-            file_tree_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n))
+            file_tree_item_a(row, phase, point(row.id()).as_ref())
+                .map(|n| (format!("k{}", row.id().as_str()), n))
         })
         .collect()
 }

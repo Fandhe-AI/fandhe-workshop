@@ -14,6 +14,19 @@
 //!   子ノード列の位置対応が一致するときだけ同じ key の項目を in-place に更新するため、前後の切り替えの前提になる（`artifact_mark_contract` と ART3-4）
 //! - インデントのクラスは `d0`〜`d6`。7 以上は `d6` に丸める（無限にクラス名を作らない。fail-closed）
 //!
+//! # 指せる行（TASK-480 1/2）
+//!
+//! 7 種のビューは `pointed_item` を共通の根にし、宛先のある行にだけ `data-action`・`data-payload`・`data-row`・
+//! `tabindex` の 4 属性を組で付ける（`PointAttrs::pairs()` が正。ここでは属性名・値を書き直さない）。
+//! 宛先を決めるのはビューではなく呼び出し側で、`PointOf` として注入する。
+//!
+//! - 指せるかどうかは `RowId` だけで決まり、`Phase` には依らない。同じ key の項目の属性名の集合は前後で変わらず、
+//!   keyed list の in-place 更新の前提（ART3-4 の延長）が保たれる。後の状態で前の中身を残して出す削除の行も、宛先があれば指せる
+//! - 4 属性は常に組で付ける。宛先の無い行（`None`）には 1 つも付けない
+//! - `PointTarget::new` が拒否した行（payload の超過・空の view）は表示だけで出す。行は落とさず panic しない（`point_all`。fail-closed）
+//! - `data-payload` の識別子は `artifact_view` の外に書かない（`no_hidden_triggers` が件数を固定している）
+//! - 属性の値は `render` の既定のエスケープを通す（SAFE-11）
+//!
 //! # 固定しないもの
 //!
 //! - 色・コントラスト（`static/app.css`。検査は TASK-490・ART-20）
@@ -32,7 +45,7 @@ use fandhe_frontend_core::{el, text, Node};
 use crate::a11y::{
     ChangeMark, MarkValue, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID, TESTID_ATTR,
 };
-use crate::artifact_view::{mark_value, Variant};
+use crate::artifact_view::{mark_value, PointTarget, RowId, Variant};
 
 /// 記号の要素のクラス。`static/app.css` が配置を定義する。
 pub const MARK_GLYPH_CLASS: &str = "mk-glyph";
@@ -114,4 +127,42 @@ pub fn marked_item(
         }
         Variant::A => el(tag, attrs, vec![el("div", host, children)]),
     }
+}
+
+/// 行の宛先を引く口。行の識別子だけを受け、前後（`Phase`）は受けない。
+///
+/// 呼び出し元は 7 種のビューの並びの関数。宛先の判断（教材の宣言との照合など）は呼び出し側の責務である。
+pub type PointOf<'a> = &'a dyn Fn(&RowId) -> Option<PointTarget>;
+
+/// どの行も指せない（表示だけ）。宛先の無い画面が使う。
+#[must_use]
+pub fn no_point(_: &RowId) -> Option<PointTarget> {
+    None
+}
+
+/// ビュー `view` の行をすべて指せる行にする。`PointTarget::new` が拒否する行（payload の超過・空の `view`）は
+/// `None`（表示だけ）に落とす。
+pub fn point_all(view: &str) -> impl Fn(&RowId) -> Option<PointTarget> + '_ {
+    move |row| PointTarget::new(view, row.clone()).ok()
+}
+
+/// `marked_item` に、指せる行の 4 属性を足して項目を作る。`target` が `None` なら `marked_item` と同じ出力になる。
+///
+/// 4 属性は `attrs` の後ろに `PointAttrs::pairs()` の順で付き、(a)・(b) とも根の要素に載る。
+#[must_use]
+pub fn pointed_item(
+    tag: &'static str,
+    variant: Variant,
+    mark: Option<ChangeMark>,
+    depth: Option<u8>,
+    attrs: Vec<(&'static str, &str)>,
+    target: Option<&PointTarget>,
+    content: Vec<Node>,
+) -> Node {
+    let point = target.map(PointTarget::attrs);
+    let mut all: Vec<(&'static str, &str)> = attrs;
+    if let Some(p) = &point {
+        all.extend(p.pairs());
+    }
+    marked_item(tag, variant, mark, depth, all, content)
 }

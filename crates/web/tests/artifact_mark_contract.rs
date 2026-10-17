@@ -9,9 +9,10 @@ use fandhe_workshop_web::a11y::{
     check_no_undefined, ChangeMark, MarkValue, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID,
 };
 use fandhe_workshop_web::artifact_mark::{
-    depth_class, mark_attr_value, marked_item, DEPTH_CLASSES, MARK_GLYPH_CLASS, MARK_TEXT_CLASS,
+    depth_class, mark_attr_value, marked_item, pointed_item, DEPTH_CLASSES, MARK_GLYPH_CLASS,
+    MARK_TEXT_CLASS,
 };
-use fandhe_workshop_web::artifact_view::Variant;
+use fandhe_workshop_web::artifact_view::{PointTarget, RowId, Variant};
 
 const APP_CSS: &str = include_str!("../static/app.css");
 const INDEX_HTML: &str = include_str!("../static/index.html");
@@ -223,4 +224,54 @@ fn 項目の形は印によって変わらない() {
             vec![Shape::Text]
         )
     );
+}
+
+#[test]
+fn 宛先が無ければ_pointed_item_は_marked_item_と同じ出力で_宛先があれば_4_属性が根に付く() {
+    let content = || vec![el("span", vec![], vec![text("ラベル")])];
+    let target = PointTarget::new("v", RowId::new("r1").expect("id")).expect("宛先");
+    for variant in [Variant::A, Variant::B] {
+        for mark in marks() {
+            let plain = marked_item(
+                "li",
+                variant,
+                mark,
+                Some(1),
+                vec![("data-path", "p")],
+                content(),
+            );
+            let none = pointed_item(
+                "li",
+                variant,
+                mark,
+                Some(1),
+                vec![("data-path", "p")],
+                None,
+                content(),
+            );
+            assert_eq!(render(&plain), render(&none), "{variant:?} {mark:?}");
+            let some = pointed_item(
+                "li",
+                variant,
+                mark,
+                Some(1),
+                vec![("data-path", "p")],
+                Some(&target),
+                content(),
+            );
+            let html = render(&some);
+            let root = &html[..html.find('>').expect("開始タグ")];
+            assert!(
+                root.contains(
+                    "data-action=\"ui\" data-payload=\"1:vr1\" data-row=\"r1\" tabindex=\"0\""
+                ),
+                "{variant:?} {root}"
+            );
+            assert_eq!(
+                check_no_undefined(&list_of(some)),
+                Ok(()),
+                "{variant:?} {mark:?}"
+            );
+        }
+    }
 }

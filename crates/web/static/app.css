@@ -114,6 +114,13 @@
   min-width: 24px;
 }
 
+/* 指せる行（TASK-480 1/2）。data-action を持つ行は操作対象の大きさ（A11Y-3。24x24 CSS ピクセル）の集合に入るため、
+  最小の大きさだけを足す。7 種のビューの行が共通の pointed_item で同じ属性を持つ。色・フォーカスの見た目は足さない（TASK-490）。 */
+[data-action="ui"] {
+  min-height: 24px;
+  min-width: 24px;
+}
+
 /* 文書 (b)（TASK-476）。ブロックの包みは項目の残りの幅を取る。木の要素（表・一覧・引用）の見た目は既定のままにし、
   色は足さない（TASK-490）。クラス名は crates/web/src/document_view.rs の定数と一致させる。 */
 [data-view="document"] > li {

@@ -6,6 +6,7 @@
 
 use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
+use fandhe_workshop_web::artifact_mark::no_point;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::diff_view::{diff_items, diff_list};
 
@@ -48,7 +49,7 @@ fn rows() -> Vec<ItemRow> {
 }
 
 fn list(phase: Phase) -> (Vec<String>, Vec<String>, Node) {
-    let items = diff_items(&rows(), phase);
+    let items = diff_items(&rows(), phase, &no_point);
     let keys = items.iter().map(|(k, _)| k.clone()).collect();
     let htmls = items.iter().map(|(_, n)| render(n)).collect();
     let node = diff_list("ul", true, items).expect("一覧");
@@ -242,7 +243,7 @@ fn 形が崩れた行番号は空になり生の値は出ない() {
         ("1:12345678901", "1", ""),
     ] {
         let r = one_row("x", detail, "ctx");
-        let h = render(&diff_items(&r, Phase::Before)[0].1);
+        let h = render(&diff_items(&r, Phase::Before, &no_point)[0].1);
         assert_eq!(text_of(&h, "diff-old-no"), old, "{detail}");
         assert_eq!(text_of(&h, "diff-new-no"), new, "{detail}");
         assert!(!h.contains("<b>"), "{h}");
@@ -254,7 +255,7 @@ fn 形が崩れた行番号は空になり生の値は出ない() {
 #[test]
 fn 未知の_state_は問符になり生の値は出ない() {
     let r = one_row("x", "1:1", "<script>");
-    let h = render(&diff_items(&r, Phase::Before)[0].1);
+    let h = render(&diff_items(&r, Phase::Before, &no_point)[0].1);
     assert_eq!(text_of(&h, "diff-sign"), "?");
     assert!(!h.contains("script"), "{h}");
 }
@@ -306,7 +307,7 @@ fn a11y_の閉じた一覧に前後とも違反せず_role_と_aria_は無い() 
 #[test]
 fn コードと行番号は文字としてエスケープされる() {
     let r = one_row("<script>alert(\"1\")</script> & x", "<img src=x>:2", "add");
-    let h = render(&diff_items(&r, Phase::Before)[0].1);
+    let h = render(&diff_items(&r, Phase::Before, &no_point)[0].1);
     assert!(!h.contains("<script"), "{h}");
     assert!(!h.contains("<img"), "{h}");
     assert!(h.contains("&lt;script&gt;"), "{h}");
@@ -315,7 +316,7 @@ fn コードと行番号は文字としてエスケープされる() {
 
 #[test]
 fn 選ばれていない一覧は空で_hidden() {
-    let items = diff_items(&rows(), Phase::Before);
+    let items = diff_items(&rows(), Phase::Before, &no_point);
     let hidden = render(&diff_list("ul", false, items).expect("一覧"));
     assert!(hidden.contains("hidden"), "{hidden}");
     assert!(!hidden.contains("diff-code"), "{hidden}");
@@ -341,7 +342,7 @@ fn 五百行でも一意の_key_で一覧を作れる() {
             .expect("行")
         })
         .collect();
-    let items = diff_items(&v, Phase::After);
+    let items = diff_items(&v, Phase::After, &no_point);
     assert_eq!(items.len(), 500);
     assert!(diff_list("ul", true, items).is_ok());
 }
