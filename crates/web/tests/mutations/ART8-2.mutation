@@ -1,0 +1,9 @@
+id: ART8-2
+package: fandhe-workshop-web
+test: diff_view_contract
+target: crates/web/src/diff_view.rs
+find:             DiffSign::Delete => "-",
+replace:             DiffSign::Delete => "",
+expect-fail: 層1と層2は別の要素に出る
+expect-fail: 差分の記号は_state_と対応し_集計は手で数えた値と一致する
+note: 差分の - の列を消す（2 層の印の片方が失われる。ART-8）

@@ -12,9 +12,9 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で描く
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で描く
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
-//!   ことの証拠であり、タスクツリー・ファイルツリーを除く各ビューの合格ではない
+//!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
 //! # データ
 //!
@@ -40,6 +40,7 @@ use crate::artifact_view::{
     dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
     RowKind, Variant, VariantPolicy, ViewKind,
 };
+use crate::diff_view::{diff_items, diff_list};
 use crate::file_tree_view::{file_tree_items, file_tree_items_a};
 use crate::task_tree::task_items;
 
@@ -287,6 +288,10 @@ impl ViewFixture {
             ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
                 file_tree_items(v, self.phase)
             }
+            // 差分の (b) は本体のビュー（TASK-475）で描く。(a) は復号の段で拒否されるが、ここでも通さない。
+            ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::B => {
+                diff_items(v, self.phase)
+            }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {
                 task_items(v, self.phase, self.variant)
@@ -346,6 +351,8 @@ impl Component for ViewFixture {
             // 木の 2 種類は親の `role=tree` を足す経路を通す。(b) で選ばれ項目があるときだけ付き、(a) は `view_list` と同じ属性になる。
             let list = if matches!(*kind, ViewKind::FileTree | ViewKind::TaskTree) {
                 tree_view_list("ul", *kind, self.variant, selected, items)
+            } else if *kind == ViewKind::Diff {
+                diff_list("ul", selected, items)
             } else {
                 view_list("ul", *kind, selected, items)
             };
@@ -494,6 +501,24 @@ mod tests {
             "{html}"
         );
         assert_eq!(html.matches("data-checked=\"true\"").count(), 3, "{html}");
+    }
+
+    #[test]
+    fn 差分の_b_の後は本体を通りコードの_pre_と記号の列が出る() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::Diff, Variant::B));
+        f.update(FixtureAction::Phase(Phase::After));
+        let html = render(&f.view());
+        assert_eq!(
+            html.matches("<pre data-testid=\"diff-code\"").count(),
+            9,
+            "{html}"
+        );
+        assert_eq!(
+            html.matches("data-testid=\"diff-sign\"").count(),
+            9,
+            "{html}"
+        );
     }
 
     #[test]

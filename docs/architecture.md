@@ -143,6 +143,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | ファイルツリーのビュー（変種 (a)・(b)。(b) は木の属性・変化の印・headless-ui の `item_text`、(a) は wireframe-ui の `rich_text`。製品の結線は後続） | web（`file_tree_view`） | TASK-473 |
 | タスクツリーの変種 (a)・(b) の本体（(b) は木の属性、(a) はチェックボックスの代役・深さのクラスで木の意味なし。どちらも状態のバッジで、状態は記号と文字の両方。ART-1・A11Y-22） | web（`task_tree`） | TASK-474 |
+| 差分のビューの変種 (b) の本体（`pre`・行番号・記号の列。行の印と差分の記号の 2 層を別の列に出す。ART-1・ART-8） | web（`diff_view`） | TASK-475 |
 | 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。増分の口 `PhaseWorlds` は `Projection::extend` と同じ契約でログの全体を受け、一括と同じ結果になる） | web（`artifact_rows`） | TASK-468 |
 | 項目 1 件を変化の印つきで作る部品（`artifact_mark`。記号・文字・`data-mark` の 3 手段、変種 (b) は根・(a) は外枠が宿主、深さのクラス `d0`〜`d6`。見た目は同一オリジンの外部ファイル `static/app.css` で、`<style>` 要素と `style` 属性は使わない） | web（`artifact_mark`） | TASK-469 |
 | 文書のブロックの突き合わせ（`artifact_doc_rows`。前後のブロックを LCS で突き合わせ、変更を `-` と `+` の組にして `~` は作らない。ID は「文書の経路 + `#` + 位置」。ブロックの型は型パラメータで受け、`contract::doc::Block` との結びは TASK-476。上限超過は `TooLarge`） | web（`artifact_doc_rows`） | TASK-468 |
