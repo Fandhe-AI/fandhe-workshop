@@ -52,13 +52,19 @@ use fandhe_workshop_contract::history_version::Verdict;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_contract::load_reason::LoadReason;
+use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
 use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::history_boot::{boot_session, BootOutcome};
+use fandhe_workshop_core::history_export::export_bytes;
+use fandhe_workshop_core::history_limit;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
-use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
+use fandhe_workshop_core::ops_record::OpsRecorder;
+use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
@@ -74,8 +80,10 @@ use crate::tick_schedule::next_tick;
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
 pub struct HostModel {
-    /// 実行環境。`None` は IR が未読込であることを表す。
-    session: Option<Session>,
+    /// 操作を `ops` に記録する実行環境。`None` は IR が未読込であることを表す。
+    ///
+    /// 記録（`ops`）は離れる直前の保存の元になる（TASK-319）。表示の部品は [`HostModel::session`] で `Session` だけを読む。
+    recorded: Option<RecordedSession>,
     /// ログから導いた表示用の値。
     projection: Projection,
     /// ログの `Changed` だけから組み立てた世界状態（P-1b。左の成果物の元）。
@@ -99,7 +107,7 @@ impl HostModel {
 
     /// 実行環境。未読込なら `None`。
     pub fn session(&self) -> Option<&Session> {
-        self.session.as_ref()
+        self.recorded.as_ref().map(RecordedSession::session)
     }
 
     /// ログから導いた表示用の値。
@@ -130,7 +138,7 @@ pub enum HostAction {
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
     ///
     /// `Session::apply` 以外で状態を変える唯一の経路であり、配信する設定には入らない。web 本来の再読み込み
-    /// （保存した状態の復元）の結線は TASK-319 の担当である。
+    /// （保存した状態の復元）は起動の分岐（[`EngineHost::boot`]、TASK-319 1/3）が担い、この模擬は使わない。
     #[cfg(feature = "test-hooks")]
     Reload,
     /// 履歴ファイルの読み込み（試験の設定だけ。本文は未検査の文字列で、`open_history` の段 1〜8 が断る）。
@@ -264,6 +272,31 @@ pub(crate) fn keeps_draft(rejected: bool) -> bool {
     rejected
 }
 
+/// 起動の結果の種類（TASK-319 1/3）。保存済みの履歴の中身は含めない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BootKind {
+    /// 新しく始めた（保存済みの履歴が無い、または未操作）。世代は上がらない。
+    Fresh,
+    /// 保存済みの履歴を開いて復元した（世代 +1）。
+    Restored,
+    /// 保存済みの履歴を開かなかった。初期状態で始め、保存は止める。
+    NotOpened,
+    /// 実行環境が無く、何もしなかった。
+    NoSession,
+}
+
+impl BootKind {
+    /// 固定の名前。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BootKind::Fresh => "fresh",
+            BootKind::Restored => "restored",
+            BootKind::NotOpened => "not_opened",
+            BootKind::NoSession => "no_session",
+        }
+    }
+}
+
 /// 構築の拒否の理由。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostError {
@@ -304,6 +337,13 @@ pub struct EngineHost {
     /// 【推論】`Control::Begin` と `start` からの初期状態の構築（TASK-217・TASK-294）が入るまでは、
     /// 組み立て時の状態を出発点にする。
     initial: Option<SessionState>,
+    /// 直近に `ops` へ記録した下書き。入力欄の値がこれと違うときだけ、下書きを記録する（未操作の入力欄は記録しない）。
+    draft_recorded: String,
+    /// 保存を止める印。起動時に保存済みの履歴を開けなかった（上書きすると失う）、または読めなかったときに立てる（fail-closed）。
+    save_blocked: bool,
+    /// 起動の結果の種類（試験用の口が読む）。`boot` を呼ばなかったときは `None`。
+    #[cfg(feature = "test-hooks")]
+    boot_kind: Option<BootKind>,
     /// 直近の読み込みの結果（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     last_import: Option<ImportOutcome>,
@@ -333,7 +373,7 @@ impl EngineHost {
     pub fn new() -> Self {
         Self {
             model: HostModel {
-                session: None,
+                recorded: None,
                 projection: Projection::new(),
                 world: World::new(),
                 world_consumed: 0,
@@ -347,6 +387,10 @@ impl EngineHost {
             draft_sync_request: None,
             command_prefix: None,
             initial: None,
+            draft_recorded: String::new(),
+            save_blocked: false,
+            #[cfg(feature = "test-hooks")]
+            boot_kind: None,
             #[cfg(feature = "test-hooks")]
             last_import: None,
             #[cfg(feature = "test-hooks")]
@@ -370,9 +414,10 @@ impl EngineHost {
         input.set_command_table(candidates::command_table(session.ir()));
         let initial = Some(session.state().clone());
         let d = derive(&session);
+        let start = RecordedSession::first_start(session.ir());
         Ok(Self {
             model: HostModel {
-                session: Some(session),
+                recorded: Some(RecordedSession::new(session, start)),
                 projection: d.projection,
                 world: d.world,
                 world_consumed: d.world_consumed,
@@ -386,6 +431,10 @@ impl EngineHost {
             draft_sync_request: None,
             command_prefix: d.command_prefix,
             initial,
+            draft_recorded: String::new(),
+            save_blocked: false,
+            #[cfg(feature = "test-hooks")]
+            boot_kind: None,
             #[cfg(feature = "test-hooks")]
             last_import: None,
             #[cfg(feature = "test-hooks")]
@@ -417,6 +466,102 @@ impl EngineHost {
             }
         }
         Self::new()
+    }
+
+    /// 起動時に保存済みの履歴（あれば）を渡し、新しく始めるか復元するかを決めて実行環境を差し替える（TASK-319 1/3。SAVE-3・SAVE-28）。
+    ///
+    /// 分岐は core の `boot_session` に任せ、条件は複製しない。保存済みの値が無い・未操作なら、いまの初期状態のまま
+    /// 世代を上げずに始める。開けたら再読み込みとして復元する（世代 +1）。開けなければ初期状態のまま始め、
+    /// 保存済みの値を上書きしないよう保存を止める（fail-closed）。実行環境が無い（IR 未読込）ときは何もせず
+    /// [`BootKind::NoSession`] を返す。`mount` の前に 1 度だけ呼ぶ。
+    pub fn boot(&mut self, saved: Option<&[u8]>) -> BootKind {
+        let (Some(session), Some(initial)) = (self.model.session(), self.initial.as_ref()) else {
+            return BootKind::NoSession;
+        };
+        let ir = session.ir().clone();
+        let start = RecordedSession::first_start(&ir);
+        let initial = initial.clone();
+        let Ok(hash) = content_hash(&ir) else {
+            self.save_blocked = true;
+            return BootKind::NoSession;
+        };
+        let Ok(opening) = record_versions(&ir, &hash) else {
+            self.save_blocked = true;
+            return BootKind::NoSession;
+        };
+        let outcome = boot_session(
+            saved,
+            ir,
+            &opening,
+            &OpeningCaps::current(),
+            initial,
+            &start,
+        );
+        let (recorded, kind) = match outcome {
+            BootOutcome::Fresh(r) => (r, BootKind::Fresh),
+            BootOutcome::Restored { session, .. } => (session, BootKind::Restored),
+            BootOutcome::NotOpened { session, .. } => {
+                self.save_blocked = true;
+                (session, BootKind::NotOpened)
+            }
+        };
+        // 復元した現在の根の下書きを入力欄へ戻す（記録の基準も同じ値にして、戻しただけでは記録を増やさない）。
+        let restored_draft = recorded
+            .session()
+            .state()
+            .run
+            .current
+            .as_ref()
+            .map(StepUid::root)
+            .and_then(|root| recorded.session().state().drafts.get(&root).cloned());
+        #[cfg(feature = "test-hooks")]
+        {
+            self.boot_kind = Some(kind);
+        }
+        self.install_recorded(recorded);
+        if let Some(text) = restored_draft {
+            self.input.update(HelloAction::SetDraft(text));
+            self.draft_recorded = self.input.draft().to_owned();
+        }
+        kind
+    }
+
+    /// 入力欄の値が最後に記録した下書きと違うときだけ、下書きとして記録する。
+    fn record_draft_change(&mut self) {
+        if self.input.draft() == self.draft_recorded {
+            return;
+        }
+        let draft = self.input.draft().to_owned();
+        if let Some(recorded) = self.model.recorded.as_mut() {
+            recorded.draft(draft.clone());
+        }
+        self.draft_recorded = draft;
+    }
+
+    /// 離れる直前に保存する値（履歴ファイルと同じ書き出し）。保存しない場合は `None`。
+    ///
+    /// 保存しない場合: 読み込みの上限（`history_limit::check_save`）を超える、記録した `ops` が 0 件（未操作。最初の変更まで保存しない。SAVE-28）、起動時に開けなかった履歴がある
+    /// （上書きすると失う）、包みを組み立てられない・書き出せない（fail-closed）。値は呼び出し側が保存先へ渡すだけで、
+    /// ログにも結果にも出さない（履歴は下書きを含む受講者のデータである）。
+    pub fn history_to_save(&self) -> Option<String> {
+        if self.save_blocked {
+            return None;
+        }
+        let envelope = self.model.recorded.as_ref()?.envelope_for_save()?;
+        let bytes = export_bytes(&envelope).ok()?;
+        // 読み込めない包みは保存しない。最後に読み込めた保存を残す（`history_limit` の規則 2）。
+        history_limit::check_save(bytes.len(), envelope.ops.len()).ok()?;
+        String::from_utf8(bytes).ok()
+    }
+
+    /// 保存先の鍵。教材の `pack.id` と最初の開始点から求める（`HistoryKey::from_ir`）。IR が無い・開始点が無いときは `None`。
+    pub fn history_key(&self, scope: DeliveryScope) -> Option<HistoryKey> {
+        HistoryKey::from_ir(scope, self.model.session()?.ir())
+    }
+
+    /// 起動の前に、保存先の読み込みに失敗したことを伝える。保存済みの値を読めなかったまま保存すると失うため、保存を止める。
+    pub(crate) fn block_saving(&mut self) {
+        self.save_blocked = true;
     }
 
     /// 次に届けるべき進行の宛先。処理中でなければ・未読込なら `None`。
@@ -584,6 +729,7 @@ impl EngineHost {
         }
         json!({
             "irLoaded": true,
+            "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
             "logLen": log.len(),
             "judgedCategories": judged_categories,
@@ -619,10 +765,10 @@ impl EngineHost {
     /// 実行環境・開始時の状態・開く側の版のどれかが無ければ、何も変えずに `Unavailable` を返す（開けない側に倒す）。
     /// 開かない（表示だけ・開かない）ときも、状態・導出した値・dirty のどれにも触れない。
     /// 差し替えでは、導出した値を作り直し、全 field を dirty に積み、次の進行の宛先を通知する。
-    /// 保存先へは書かない（保存の結線は TASK-319）。入力欄の下書きも変えない（SHELL-22・TASK-531）。
+    /// 保存先へは書かない（離れる直前の書き出しは `persist`。TASK-319）。入力欄の下書きも変えない（SHELL-22・TASK-531）。
+    /// 開いた履歴の `ops` の続きに以後の操作を記録する。
     pub fn open_history(&mut self, bytes: &[u8]) -> ImportOutcome {
-        let (Some(session), Some(initial)) = (self.model.session.as_ref(), self.initial.as_ref())
-        else {
+        let (Some(session), Some(initial)) = (self.model.session(), self.initial.as_ref()) else {
             return ImportOutcome::Unavailable;
         };
         let ir = session.ir().clone();
@@ -645,7 +791,13 @@ impl EngineHost {
                 } else {
                     ImportOutcome::Open
                 };
-                self.install_session(loaded.session);
+                // 開いた履歴の `ops` の続きに記録する（開いた後に離れても、開いた内容から続きが復元される）。
+                let recorded = RecordedSession::with_recorder(
+                    loaded.session,
+                    OpsRecorder::from_ops(loaded.ops),
+                    loaded.start,
+                );
+                self.install_recorded(recorded);
                 outcome
             }
             Err(Verdict::ViewOnly { code }) => ImportOutcome::ViewOnly(code),
@@ -655,10 +807,13 @@ impl EngineHost {
         }
     }
 
-    /// 開いた履歴の `Session` に差し替え、導出した値・dirty・進行の宛先を作り直す。
-    fn install_session(&mut self, session: Session) {
-        let d = derive(&session);
-        self.model.session = Some(session);
+    /// 開いた履歴の実行環境に差し替え、導出した値・dirty・進行の宛先を作り直す。
+    ///
+    /// 下書きの記録の基準は空に戻す。入力欄に文字が残っていれば、次の操作で新しい記録の先頭に下書きとして記録される。
+    fn install_recorded(&mut self, recorded: RecordedSession) {
+        let d = derive(recorded.session());
+        self.draft_recorded = String::new();
+        self.model.recorded = Some(recorded);
         self.model.projection = d.projection;
         self.model.world = d.world;
         self.model.world_consumed = d.world_consumed;
@@ -670,9 +825,7 @@ impl EngineHost {
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
         }
-        if let (Some(notify), Some(session)) =
-            (self.tick_request.as_ref(), self.model.session.as_ref())
-        {
+        if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
             notify(next_tick(session));
         }
     }
@@ -729,7 +882,13 @@ impl EngineHost {
         self.step_engine(|session| events_summary(session.apply(op)))
     }
 
+    /// 送信の本文を記録してから、操作プロファイルの接頭辞で分類して適用する。戻りは `apply_engine` と同じ。
+    fn submit_engine(&mut self, prefix: &str, text: String) -> bool {
+        self.step_engine(|session| events_summary(session.submit(prefix, text)))
+    }
+
     /// 再読み込みの模擬（試験の設定だけ）。`apply_engine` と同じ後処理を行い、新しい世代の宛先を通知する。
+    /// 記録（`ops`）にも `Reload` を足す（SAVE-4）。
     ///
     /// 再読み込みの前に glue が予約したタイマーは取り消されず、古い宛先のまま後から届く。届いた分は core が
     /// `Ignored(Stale)` として記録する（EVT-6・EVT-8・EVT-12）。
@@ -740,16 +899,17 @@ impl EngineHost {
 
     /// `Session` を 1 段進める共通の後処理。`f` が返したイベント列を使い、projection・world・dirty・宛先の通知を更新する。
     /// 状態を変える口（`apply_engine`・`reload_engine`）だけが呼ぶ。未読込なら何もしない。戻りは拒否の判定が出たか。
-    fn step_engine(&mut self, f: impl FnOnce(&mut Session) -> (usize, bool)) -> bool {
-        if self.model.session.is_none() {
+    fn step_engine(&mut self, f: impl FnOnce(&mut RecordedSession) -> (usize, bool)) -> bool {
+        if self.model.recorded.is_none() {
             return false;
         }
         let before = self.bound_snapshot();
-        let Some(session) = self.model.session.as_mut() else {
+        let Some(recorded) = self.model.recorded.as_mut() else {
             return false;
         };
-        let len_before = session.log().len();
-        let (returned, rejected) = f(session);
+        let len_before = recorded.session().log().len();
+        let (returned, rejected) = f(recorded);
+        let session = recorded.session();
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
         self.model.projection.extend(log);
@@ -766,9 +926,7 @@ impl EngineHost {
             }
         }
         // 次の進行の宛先を通知する（`None` も渡す。予約済みの印を glue が消すため）。
-        if let (Some(notify), Some(session)) =
-            (self.tick_request.as_ref(), self.model.session.as_ref())
-        {
+        if let (Some(notify), Some(session)) = (self.tick_request.as_ref(), self.model.session()) {
             notify(next_tick(session));
         }
         if changed {
@@ -810,11 +968,16 @@ impl EngineHost {
         }
         self.input.update(HelloAction::Submit);
         let mut clear = true;
-        if self.model.session.is_some() {
+        if self.model.recorded.is_some() {
             match self.command_prefix.clone() {
                 None => clear = false,
                 Some(prefix) if !text.trim().is_empty() => {
-                    let rejected = self.apply_engine(Op::Input(submit_input(&prefix, text)));
+                    // 直前の下書きを先に記録してから送信する（`ops` は操作の順のまま残す）。
+                    self.record_draft_change();
+                    let rejected = self.submit_engine(&prefix, text);
+                    // 送信の記録は、その根の下書きを写しから除く。入力欄に残る下書き（拒否のとき）は、
+                    // この後の `record_draft_change` が記録し直す。
+                    self.draft_recorded.clear();
                     clear = !keeps_draft(rejected);
                 }
                 Some(_) => {}
@@ -927,7 +1090,8 @@ impl Component for EngineHost {
                     self.initial = Some(session.state().clone());
                     self.input
                         .set_command_table(candidates::command_table(session.ir()));
-                    self.install_session(session);
+                    let start = RecordedSession::first_start(session.ir());
+                    self.install_recorded(RecordedSession::new(session, start));
                 }
             }
             // 補完は入力欄だけの操作で、エンジンへは何も渡さない（ログ・世代・projection は変わらない）。
@@ -945,6 +1109,8 @@ impl Component for EngineHost {
                 }
             }
         }
+        // 入力欄の値が変わっていれば下書きとして記録する。どの action の後でも 1 か所で行う。
+        self.record_draft_change();
     }
 
     fn view(&self) -> Node {

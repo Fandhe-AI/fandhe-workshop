@@ -2,8 +2,8 @@
 //!
 //! 分担: 画面上で 300ms ごとに進むことの観察は、タイマー（TASK-349）と処理中の画面ができた後の TASK-453 が持つ。
 //! 本試験は「値が 300 であること」と「配信する経路に URL を読む処理が無いこと」を機械的に固定する。
-//! 照合はコメントを除き、空白を除いた形で行う。例外は現時点で 0 件（将来 `?ir` を読む実装が入るときは、
-//! ファイルと件数で限定して足す）。
+//! 照合はコメントを除き、空白を除いた形で行う。例外は 1 件だけ（`persist.rs` の保存先の鍵を決めるパス名の読み取り。
+//! クエリは読まない。TASK-319）。将来 `?ir` を読む実装が入るときは、ファイルと件数で限定して足す。
 
 mod common;
 
@@ -20,6 +20,10 @@ const FORBIDDEN: &[&str] = &[
     "debug_set_tick",
     "set_tick_interval",
 ];
+
+/// 例外: 履歴の鍵の区間を決めるパス名の読み取り（ファイル名、`location` の出現数、読み取りの形）。
+/// 読むのは `pathname` だけで、クエリ（`search`）は読まない。
+const LOCATION_EXCEPTION: (&str, usize, &str) = ("persist.rs", 1, ".location().pathname()");
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -51,7 +55,14 @@ fn 配信する経路は_url_を読まない() {
         }
         let src = std::fs::read_to_string(&path).expect("読めない");
         scanned += 1;
-        for h in hits(&glue_code(&src)) {
+        let code = glue_code(&src);
+        let excused = path.file_name().is_some_and(|n| n == LOCATION_EXCEPTION.0)
+            && code.matches("location").count() == LOCATION_EXCEPTION.1
+            && code.contains(LOCATION_EXCEPTION.2);
+        for h in hits(&code) {
+            if excused && h == "location" {
+                continue;
+            }
             bad.push(format!("{}: {h}", path.display()));
         }
     }

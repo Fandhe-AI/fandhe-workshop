@@ -27,6 +27,7 @@
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。
 //! wasm 側の実体は `storage_local`（localStorage）と `storage_idb`（IndexedDB と非同期に開く入口）である。
 //! 未保存の変更の保留と同期の書き出し（TASK-317 2/2。SAVE-9）は `save_pending` に、`pagehide` で書き出すリスナー（wasm のみ）は `leave_flush` に置く。
+//! 受講中の履歴の保存先の結線（起動前に保存先を開いて読み、離れる直前に書き出す。wasm のみ。TASK-319）は `persist` に置く。
 //! 候補の一覧の開閉の規則とコマンド表（TASK-440）は `candidates` に置く。
 //! 履歴の書き出しファイルの名前と種類（TASK-330 1/2。SAVE-16）は `history_export` に、書き出しのバイト列から `blob:` URL を作る処理（wasm のみ）は `history_download` に置く。
 #![forbid(unsafe_code)]
@@ -66,6 +67,8 @@ mod glue;
 pub mod history_download;
 #[cfg(target_arch = "wasm32")]
 pub mod leave_flush;
+#[cfg(target_arch = "wasm32")]
+pub mod persist;
 #[cfg(target_arch = "wasm32")]
 pub mod storage_idb;
 #[cfg(target_arch = "wasm32")]

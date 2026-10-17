@@ -2,7 +2,7 @@ id: SAVE16-4
 package: fandhe-workshop-core
 test: history_load_session
 target: crates/core/src/history_load.rs
-find:         other => Err(other.verdict()),
-replace:         Opened::ViewOnly { .. } => Ok(LoadedSession { session: Session::from_state(ir, SessionState::default()), notes: None }), other => Err(other.verdict()),
+find:         other => return Err(other.verdict()),
+replace:         Opened::ViewOnly { .. } => (SessionState::default(), None), other => return Err(other.verdict()),
 expect-fail: view_only_yields_no_session
 note: 表示だけの履歴でも実行環境を作る（開かないはずの履歴で続きを操作できてしまう）
