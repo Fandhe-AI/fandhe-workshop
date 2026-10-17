@@ -181,11 +181,13 @@ pub enum FixtureName {
     Approval,
     /// 複数の種類のビューを Step ごとに宣言する教材（ビューの切り替えの試験。TASK-470 2/2）。
     Views,
+    /// 入力方式が `ui_action` の Step を持つ教材（入力方式ごとの入力の口の試験。TASK-450 1/3）。
+    UiAction,
 }
 
 /// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
 ///
-/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`views`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
+/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`views`・`ui-action`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
 #[cfg(feature = "test-hooks")]
 pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 
@@ -1190,6 +1192,7 @@ impl Component for EngineHost {
                     FixtureName::Answer => crate::test_fixture::answer_session(),
                     FixtureName::Approval => crate::test_fixture::approval_session(),
                     FixtureName::Views => crate::test_fixture::views_session(),
+                    FixtureName::UiAction => crate::test_fixture::ui_action_session(),
                 };
                 if let Some(session) = built {
                     self.initial = Some(session.state().clone());
@@ -1268,6 +1271,7 @@ impl Component for EngineHost {
                     "answer" => Some(HostAction::LoadFixture(FixtureName::Answer)),
                     "approval" => Some(HostAction::LoadFixture(FixtureName::Approval)),
                     "views" => Some(HostAction::LoadFixture(FixtureName::Views)),
+                    "ui-action" => Some(HostAction::LoadFixture(FixtureName::UiAction)),
                     _ => None,
                 };
             }

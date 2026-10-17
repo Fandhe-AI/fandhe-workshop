@@ -67,6 +67,20 @@ fn buttons(h: &EngineHost) -> usize {
     html(h).matches("data-testid=\"choice-btn\"").count()
 }
 
+/// 達成後に出ている選択肢の ID（`data-choice` の値）。
+fn choice_ids(h: &EngineHost) -> Vec<String> {
+    html(h)
+        .split("data-choice=\"")
+        .skip(1)
+        .filter_map(|r| r.split('"').next().map(str::to_owned))
+        .collect()
+}
+
+/// 達成の後は、answer の選択肢が消え、次の Step（入力方式 `choice`。TASK-450）の選択肢に替わる。
+fn assert_answer_replaced_by_next_input(h: &EngineHost) {
+    assert_eq!(choice_ids(h), ["opt-memo", "opt-todo"], "{}", html(h));
+}
+
 fn rejected_rows(h: &EngineHost) -> usize {
     html(h).matches("data-kind=\"rejected\"").count()
 }
@@ -133,7 +147,7 @@ fn 誤答の後の正答で達成になりボタンが消える() {
     click(&mut h, "opt-right");
     assert_eq!(achieved(&h), 1);
     assert_ne!(current(&h), step, "次の Step へ進む");
-    assert_eq!(buttons(&h), 0);
+    assert_answer_replaced_by_next_input(&h);
     assert!(
         h.dirty_fields().contains(&FIELD_OFFERS),
         "{:?}",
@@ -142,7 +156,10 @@ fn 誤答の後の正答で達成になりボタンが消える() {
     let out = html(&h);
     let start = out.find("data-bind-list=\"offer_choices\"").unwrap();
     let tag = &out[out[..start].rfind('<').unwrap()..start + out[start..].find('>').unwrap()];
-    assert!(tag.contains("hidden"), "{tag}");
+    assert!(
+        !tag.contains("hidden"),
+        "次の Step の選択肢があるため一覧は隠れない: {tag}"
+    );
     assert_eq!(rejected_rows(&h), 1, "正答で拒否の行は増えない");
 }
 
@@ -156,7 +173,7 @@ fn 誤答を重ねても毎回_1_件ずつ出て_その後の正答で達成に�
     }
     click(&mut h, "opt-right");
     assert_eq!(achieved(&h), 1);
-    assert_eq!(buttons(&h), 0);
+    assert_answer_replaced_by_next_input(&h);
 }
 
 #[test]
@@ -228,6 +245,6 @@ mod load_fixture {
         assert_eq!(buttons(&h), 2);
         click(&mut h, "opt-right");
         assert_eq!(achieved(&h), 1);
-        assert_eq!(buttons(&h), 0);
+        assert_answer_replaced_by_next_input(&h);
     }
 }

@@ -10,7 +10,7 @@
 //   - 誤った選択肢を Playwright の実クリックで押すと、`rejected` の行が 1 件増え、理由と次の行動がエンジンの値と一致する
 //   - 誤答の後もボタンが 2 件残り、復習に達成が無い（選び直せる）
 //   - 正しい選択肢をキーボード（フォーカスして Enter）で押すと達成になる: 復習の st-1 が `data-achieved="true"`、
-//     エンジンの書き出しの `log` に `achieved` が出て `current` が st-1 から進み、ボタンが 0 件・親の `ul` が `hidden` になる
+//     エンジンの書き出しの `log` に `achieved` が出て `current` が st-1 から進み、answer の選択肢が消えて次の Step（入力方式 `choice`。TASK-450 1/3）の選択肢 2 件（opt-memo・opt-todo）に替わる
 //   - 拒否の行は正答で増えない。危険な要素・実行・CSP 違反・ダイアログが 0 件である
 // Step の状態表示（`step-status` の「達成」）は confirm-status.test.mjs（TASK-435 2/2）が確かめるため、ここでは確かめない。
 // 達成は上の観察点で確かめる。
@@ -130,13 +130,14 @@ async function runFlow(page) {
   // 選び直し: 正答。キーボード（フォーカスして Enter）で押す。
   await page.getByRole('button', { name: RIGHT.label }).focus();
   await page.keyboard.press('Enter');
-  await page.waitForFunction(([btn]) => document.querySelectorAll(btn).length === 0, [BTN]);
+  await page.waitForFunction(([btn]) => [...document.querySelectorAll(btn)].every((b) => b.dataset.choice !== 'opt-right')
+    && document.querySelectorAll(btn).length === 2, [BTN]);
   s = await snapshot(page);
   assert.deepEqual(s.reviewAchieved, ['main/st-1'], JSON.stringify(s.reviewAchieved));
   assert.ok(s.engine.log.some((r) => r.kind === 'achieved'), JSON.stringify(s.engine.log));
   assert.notEqual(s.engine.current, 'main/st-1');
-  assert.equal(s.buttons.length, 0);
-  assert.equal(s.ulHidden, true);
+  assert.deepEqual(s.buttons.map((b) => b.choice), ['opt-memo', 'opt-todo'], '次の Step の入力の選択肢に替わる');
+  assert.equal(s.ulHidden, false);
   assert.equal(s.rows.length, rejectedBefore + 1, '正答で拒否の行は増えない');
 }
 

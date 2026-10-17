@@ -135,11 +135,16 @@ fn step(h: &mut EngineHost) -> Option<Route> {
                 h.update(act("decide", "approve"));
                 Route::Screen
             }
-            4 | 5 => raw(h, Input::Choice("opt-a".into())),
+            4 | 5 => {
+                // 入力方式 `choice` の入力待ちの選択肢のボタン（TASK-450 1/3）の経路。
+                h.update(act("choose", "opt-a"));
+                Route::Screen
+            }
             6 => {
                 h.update(act("revise-target", "expect"));
                 Route::Screen
             }
+            // st-7（`ui_action`）の対象は自分の受付で作られる行で、入った時点では左に無く画面から指せない。
             7 => raw(h, ui(&path)),
             _ => submit(h, &format!("/make-note note-{n}")),
         }
@@ -281,8 +286,8 @@ fn 十五の地点で再読み込みの前後が世代を除いて一致し完�
             entered: 8,
             busy: 0,
             awaiting_confirm: 7,
-            screen: 8,
-            raw: 7,
+            screen: 10,
+            raw: 5,
         }
     );
 }

@@ -12,9 +12,9 @@
 //   - 画面の左の行・復習の行が等しく、ログの行は前の行の末尾に再読み込みの告知（SAVE-6）が 1 件足されたもの
 //   - 入力欄の値とホストの下書きが前と等しい（SAVE-3 の入力欄の値）
 //   - そこから完走した最終の世界状態が、再読み込みなしの完走と等しい
-// 手の経路は、実際の画面が 8 手（入力欄の送信・選択肢・承認のボタン）、テスト専用の口（raw-trigger）が 7 手。
-// spec の検証方法の「10 手が画面・5 手がテスト専用」とは違う。入力方式 choice の画面の口（TASK-450）と、確認の
-// point_at・ui_action の画面からの結線が未実装のためで、教材の形は変えない（7 手は PoC と同じ形のまま raw で送る）。
+// 手の経路は、実際の画面が 10 手（入力欄の送信・選択肢・承認のボタン）、テスト専用の口（raw-trigger）が 5 手で、
+// spec の検証方法の「10 手が画面・5 手がテスト専用」と一致する。raw の 5 手は、確認の point_at の行と、
+// st-7（ui_action）の対象が自分の受付で作られる行で入った時点では左に無いこと（教材の形は PoC と同じまま）による。
 //
 // 対照: クエリなし・未知の名前では `min-3step` で始まり、鍵は `min-3step` の側に書かれる（選択が完全一致だけであること）。
 //
@@ -106,7 +106,7 @@ function guidedMove({ n, accepted }) {
   switch (n) {
     case 2: return submit('メモ 2');
     case 3: case 8: return yes;
-    case 4: case 5: return raw({ input: { choice: 'opt-a' } });
+    case 4: case 5: return screen((page) => page.click('[data-testid="choice-btn"][data-choice="opt-a"]'));
     case 6: return screen((page) => page.getByRole('button', { name: '直す（対象: expect）', exact: true }).click());
     case 7: return raw(uiOp(n));
     default: return submit(`/make-note note-${n}`);
@@ -252,7 +252,7 @@ for (const csp of [true, false]) {
 
       // PoC の S-1 と同じく観測した値を出す（保存した値・下書きは出さない）。
       console.log(`OBS csp=${csp} ${JSON.stringify(counts)}`);
-      assert.deepEqual(counts, { points: 15, entered: 8, busy: 0, awaitingConfirm: 7, screen: 8, raw: 7 });
+      assert.deepEqual(counts, { points: 15, entered: 8, busy: 0, awaitingConfirm: 7, screen: 10, raw: 5 });
     }));
   });
 
