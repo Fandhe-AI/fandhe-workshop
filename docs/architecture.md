@@ -33,7 +33,7 @@
 | `fandhe-workshop-contract` | lib | 責務をまたぐ共有の契約。データ型・定数・版・スキーマ・サンプル・純粋な表・純関数。I/O・状態遷移・時刻・乱数を持たない | `serde`・`serde_json` のみ |
 | `fandhe-workshop-core` | lib | DOM 非依存の純 Rust の中核。`Session`・`apply`・入力・イベント・Step の状態・`Projection`・進行管理・周回・停止・チェックポイント・保存復元の処理・状態変化の提供元の境界 | contract、`serde`・`serde_json` |
 | `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`pulldown-cmark`（native のみ） |
-| `fandhe-workshop-web` | lib（`cdylib`・`rlib`） | `fandhe-frontend` の Component 実装と glue。wasm32 向け。native でも `rlib` として試験できる | core、contract、`fandhe-frontend-*`（wasm-full 0.46.0。TASK-26）、`wasm-bindgen`、`web-sys`（`cfg(target_arch = "wasm32")` のみ） |
+| `fandhe-workshop-web` | lib（`cdylib`・`rlib`） | `fandhe-frontend` の Component 実装と glue。wasm32 向け。native でも `rlib` として試験できる | core、contract、`fandhe-frontend-*`（wasm-full 0.46.0。TASK-26。headless-ui 0.69.2 は `tree_view::item_text` のため。TASK-473）、`wasm-bindgen`、`web-sys`（`cfg(target_arch = "wasm32")` のみ） |
 
 - バイナリ名 `fandhe-pack` は TASK-399（CLI の外部仕様）の契約が持つ。本文書は pack crate に置くことだけを固定する
 - ワークスペース設定は `resolver = "2"`、`members` は 4 crate すべて、`default-members` は contract・core・pack
@@ -141,6 +141,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 状態表示の導出（`run_status`。待機中・処理中・停止。Esc と停止ボタンは `host` が処理中のときだけ `Control::Stop` に結ぶ。TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
 | 選択肢のボタン（`offers`。確認が `answer` の Step が確認待ちのとき、表示名のボタンを `Offers` の部品として描く。クリックは `data-action="choose"` で `decode_action` が `Op::Input(Input::Choice)` に結び、照合と判定は core。配置は TASK-517。承認のボタンも同じ部品で出す: 入力方式 `approval` の入力待ちと、確認が `approve`（または無し）の確認待ちで、はい・いいえ・直す、入力待ちでは規則に書かれた対象ごとの「直す（対象: …）」を加える。対象は core の `revise_targets` だけから得る。クリックは `data-action="decide"`・`"revise-target"` で `Op::Input(Input::Approval)` に結ぶ） | web | TASK-445・TASK-447 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
+| ファイルツリーのビュー（変種 (b)。木の属性・変化の印・headless-ui の `item_text`。製品の結線は後続） | web（`file_tree_view`） | TASK-473 |
 | タスクツリーの変種 (a)・(b) の本体（(b) は木の属性、(a) はチェックボックスの代役・深さのクラスで木の意味なし。どちらも状態のバッジで、状態は記号と文字の両方。ART-1・A11Y-22） | web（`task_tree`） | TASK-474 |
 | 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。増分の口 `PhaseWorlds` は `Projection::extend` と同じ契約でログの全体を受け、一括と同じ結果になる） | web（`artifact_rows`） | TASK-468 |
 | 項目 1 件を変化の印つきで作る部品（`artifact_mark`。記号・文字・`data-mark` の 3 手段、変種 (b) は根・(a) は外枠が宿主、深さのクラス `d0`〜`d6`。見た目は同一オリジンの外部ファイル `static/app.css` で、`<style>` 要素と `style` 属性は使わない） | web（`artifact_mark`） | TASK-469 |

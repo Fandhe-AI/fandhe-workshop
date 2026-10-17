@@ -1,0 +1,8 @@
+id: ART1-1
+package: fandhe-workshop-web
+test: file_tree_view_contract
+target: crates/web/src/file_tree_view.rs
+find:     let mut attrs = tree.map(TreeItemAttrs::pairs).unwrap_or_default();
+replace:     let mut attrs: Vec<(&'static str, &str)> = { let _ = tree; Vec::new() };
+expect-fail: 木の属性は手で数えた位置と一致する
+note: 木の属性の組を付けない（項目が role=treeitem・aria-level などを失い、支援技術が木として読めない）

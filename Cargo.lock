@@ -159,6 +159,7 @@ name = "fandhe-workshop-web"
 version = "0.0.0"
 dependencies = [
  "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
  "fandhe-frontend-interactive",
  "fandhe-frontend-wasm-client",
  "fandhe-frontend-wasm-full",
