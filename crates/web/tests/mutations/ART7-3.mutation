@@ -1,0 +1,8 @@
+id: ART7-3
+package: fandhe-workshop-web
+test: document_view_contract
+target: crates/web/src/document_view.rs
+find:         Variant::B,
+replace:         Variant::A,
+expect-fail: 全項目の根の子は記号_文字_包みの3つで_包みはブロックを1つ持つ
+note: 印の宿主を項目自身から内側の div に変える（変種 (b) の項目の形が (a) のものに変わる。ART-1）

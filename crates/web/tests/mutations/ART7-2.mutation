@@ -1,0 +1,9 @@
+id: ART7-2
+package: fandhe-workshop-web
+test: document_view_contract
+target: crates/web/src/document_view.rs
+find:         vec![render_block_node(block)],
+replace:         vec![fandhe_frontend_core::text(block_kind(block))],
+expect-fail: 構造の要素の数は_markdown_を目で数えた値と一致する
+expect-fail: 規模の確認_80ブロックで構造の数が組み立てた数と一致する
+note: 包みの中身を木の描画でなく種類名の文字だけにする（見出し・表・一覧・引用の構造が落ちる。ART-1・ART-7）

@@ -3183,6 +3183,33 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `diff-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch` の 66 件が通過（2026-10-17。関係する 5 ファイルを試験の設定の web で流した）。`make check-delivery` は配信物に試験用の口が無いことを確認した
 - 範囲外: (a) を製品から外すかの決定（TASK-465）、`wireframe_css()` の配信と配色（TASK-490）、文書 (a) の対照（TASK-476）、製品の結線、指せる行の属性（TASK-480）、測定（TASK-485）、ブラウザの試験の CI への組み込み（必須チェックと ruleset の変更が要る）
 
+### 5.104 文書のビューの変種 (b)（TASK-476 1/2）
+
+文書の行の中身を本文の木（`contract::doc::Block`）に結び、変種 (b) の項目として描いた（`document_view`）。木の描画は TASK-149・TASK-150 の `doc_view` を再利用し、ブロック 1 件の入口 `render_block_node` だけを足した。製品の契約（文書は (b) だけ。`ViewKind::allows`・`VariantPolicy`）は変えない。
+
+- 受入: 見出し・表・一覧・引用・コードの構造が保たれること、実行時に Markdown を解釈するコードが 0 件であること
+- 実行時に Markdown を解釈しない構造: 木は pack の `markdown::parse`（ビルド時）が作り、web は `Block` を受けて描くだけである。代役の部品は `doc-before.md`・`doc-after.md` を木にした JSON の写しを持ち（単体試験が `markdown::parse` の結果との一致を確かめる）、前後は `align_blocks` で `-` と `+` の行にする。pack は web の dev-dependency（試験専用）だけで、通常の依存に無い
+- 項目の形: 根の子は記号・文字（変化の印）と `data-testid="doc-block"` の包みの 3 つで、包みの中にブロックの要素が 1 つ入る。`depth` は渡さず、`role`・`aria-*`・指せる行の属性は付けない。`data-block` の値は閉じた集合の静的な文字列である
+- サンプルに無い構造: `doc-before.md`・`doc-after.md` には囲みのコードと区切り線が無い（spec の写しでバイト一致のため書き換えない）。ブラウザの試験は見出し・段落・番号つき一覧・番号なし一覧・表・引用・行内のコードを、囲みのコード（空白の保持・言語名の許可）と区切り線は native の契約試験の手作りの行で確かめる
+- native の試験: `crates/web/tests/document_view_contract.rs`（項目数と key、印の件数、構造の要素の数、項目の形、`data-block`、囲みのコード、区切り線、エスケープ、リンク・画像の許可、深さの上限、a11y、80 ブロックの構成）、`crates/web/tests/no_runtime_markdown.rs`（manifest の通常の依存・`Cargo.lock` の推移的な依存・ソースのコード行）、`view_fixture` の単体 2 件
+- ブラウザの試験（`tools/browser/doc-view.test.mjs`）: DV1 検査器で違反 0・項目数 `[10,13,10,13,10]`、DV2 構造の要素の数と表のセルの文字が Markdown と一致、DV3 外部通信・エラー・ダイアログ 0 件、DV4 構造を文字だけにすると検査が失敗する対照
+- 試作の教材パック（`bbs-tutorial`）の読み取りは、この repo に取り込まれていない（`testdata/README.md`）ため行っていない
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 56d1ba0-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART7-1.mutation crates/web/tests/mutations/ART7-2.mutation crates/web/tests/mutations/ART7-3.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART7-1 | 文書に変種 (a) を許す | DETECTED | `artifact_view_binding_contract` の 2 件 |
+| ART7-2 | 包みの中身を木の描画でなく種類名の文字だけにする | DETECTED | `document_view_contract` の構造の数・80 ブロックの構成ほか 6 件 |
+| ART7-3 | 印の宿主を項目自身から内側の `div` に変える | DETECTED | `document_view_contract` の「全項目の根の子は記号_文字_包みの3つで_包みはブロックを1つ持つ」 |
+
+- ブラウザの試験: `doc-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`diff-view` の 70 件が通過（2026-10-17。試験の設定の web で流した）
+- 範囲外: `-` と `+` の組を主張する専用の試験と文書 (a) の対照（TASK-476 2/2）、製品の結線と世界状態から `Vec<Block>` を読む規則、指せる行の属性（TASK-480）、色（TASK-490）、測定（TASK-485）、ブラウザの試験の CI への組み込み。検査器の `DANGER_SELECTOR` は `img` をすべて違反と数えるが `doc_view` は相対の `src` の画像を正当に `img` にする。サンプルに画像が無いため当たらないが、製品の結線の時に食い違う
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で描く
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -20,7 +20,8 @@
 //!
 //! 文書以外の 6 種は、spec 由来の試験データ（`testdata/artifact-view-parts/test-data/sample/*.json`）を
 //! `include_bytes!` で埋め込む。読めなければ `Err` を返し、空の一覧で黙って続けない（fail-closed）。値は
-//! 運ぶだけで、`text()` の文字のノードにだけ入れる。文書は JSON が無いため、ブロックの並びを表で持つ。
+//! 運ぶだけで、`text()` の文字のノードにだけ入れる。文書は JSON が無いため、`doc-before.md`・`doc-after.md` を
+//! ビルド時に木にした JSON の写しで持つ（実行時に Markdown は解釈しない）。
 //! 文書の前後の数（前 10・後 13 ブロック）の出所は `testdata/artifact-view-parts/test-data/sample/` の
 //! `doc-before.md`・`doc-after.md` の最上位のブロックで、変更されたブロックは削除と追加の 2 行になる。
 
@@ -33,14 +34,17 @@
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
+use fandhe_workshop_contract::doc::{Block, Doc};
 
 use crate::a11y::TESTID_ATTR;
+use crate::artifact_doc_rows::align_blocks;
 use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
     dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
     RowKind, Variant, VariantPolicy, ViewKind,
 };
 use crate::diff_view::{diff_items, diff_items_a, diff_list};
+use crate::document_view;
 use crate::file_tree_view::{file_tree_items, file_tree_items_a};
 use crate::task_tree::task_items;
 
@@ -95,28 +99,16 @@ const APPDEMO: &[u8] = include_bytes!(concat!(
     "/../../testdata/artifact-view-parts/test-data/sample/appdemo.json"
 ));
 
-/// 文書のブロックの表。`(id, 前, 後)`。変更されたブロックは、前だけの行と後だけの行の 2 行にする。
-/// 前は 10 ブロック、後は 13 ブロック（未変更 7・追加 3・削除 3）。中身は汎用の短い文字列である。
-const DOC_BLOCKS: [(&str, Option<&str>, Option<&str>); 13] = [
-    ("d01", Some("見出し 1"), Some("見出し 1")),
-    ("d02", Some("段落 1"), Some("段落 1")),
-    ("d03", Some("見出し 2"), Some("見出し 2")),
-    ("d04-old", Some("一覧 1"), None),
-    ("d04-new", None, Some("一覧 1 改")),
-    ("d05", Some("見出し 3"), Some("見出し 3")),
-    ("d06", Some("段落 2"), Some("段落 2")),
-    ("d07-old", Some("表 1"), None),
-    ("d07-new", None, Some("表 1 改")),
-    ("d08", Some("引用 1"), Some("引用 1")),
-    ("d09", Some("見出し 4"), Some("見出し 4")),
-    ("d10-old", Some("一覧 2"), None),
-    ("d10-new", None, Some("一覧 2 改")),
-];
+/// `doc-before.md` を `markdown::parse` で木にした JSON（`Doc`）。実行時に Markdown を解釈しないため、ビルド時の出力を
+/// 写して持つ。写しが元の Markdown と食い違わないことは、単体試験が `markdown::parse`（pack。dev-dependency）で確かめる。
+const DOC_BEFORE_JSON: &str = r#"{"version":1,"blocks":[{"t":"heading","level":1,"children":[{"t":"text","text":"メモ帳アプリの使い方"}]},{"t":"paragraph","children":[{"t":"text","text":"メモ帳アプリは、短いメモを保存して一覧で見るための練習用アプリです。"}]},{"t":"heading","level":2,"children":[{"t":"text","text":"準備"}]},{"t":"list","ordered":true,"items":[[{"t":"paragraph","children":[{"t":"text","text":"リポジトリを開きます。"}]}],[{"t":"paragraph","children":[{"t":"code","text":"cargo run"},{"t":"text","text":" で起動します。"}]}],[{"t":"paragraph","children":[{"t":"text","text":"画面の「追加」を押します。"}]}]]},{"t":"heading","level":2,"children":[{"t":"text","text":"保存の仕組み"}]},{"t":"paragraph","children":[{"t":"text","text":"メモは "},{"t":"code","text":"notes/"},{"t":"text","text":" の下に 1 件 1 ファイルで保存します。"}]},{"t":"table","head":[[{"t":"text","text":"項目"}],[{"t":"text","text":"内容"}]],"rows":[[[{"t":"text","text":"形式"}],[{"t":"text","text":"Markdown"}]],[[{"t":"text","text":"場所"}],[{"t":"code","text":"notes/"}]]]},{"t":"quote","children":[{"t":"paragraph","children":[{"t":"text","text":"注意: 保存先を変えると、古いメモは見えなくなります。"}]}]},{"t":"heading","level":2,"children":[{"t":"text","text":"次の手順"}]},{"t":"list","ordered":false,"items":[[{"t":"paragraph","children":[{"t":"text","text":"メモを書く"}]}],[{"t":"paragraph","children":[{"t":"text","text":"保存する"}]}]]}]}"#;
+/// `doc-after.md` の木の JSON。
+const DOC_AFTER_JSON: &str = r#"{"version":1,"blocks":[{"t":"heading","level":1,"children":[{"t":"text","text":"メモ帳アプリの使い方"}]},{"t":"paragraph","children":[{"t":"text","text":"メモ帳アプリは、短いメモを保存して一覧で見るための練習用アプリです。"}]},{"t":"heading","level":2,"children":[{"t":"text","text":"準備"}]},{"t":"list","ordered":true,"items":[[{"t":"paragraph","children":[{"t":"text","text":"リポジトリを開きます。"}]}],[{"t":"paragraph","children":[{"t":"code","text":"cargo run"},{"t":"text","text":" で起動します。"}]}],[{"t":"paragraph","children":[{"t":"text","text":"画面の「追加」を押します。"}]}],[{"t":"paragraph","children":[{"t":"text","text":"一覧に新しいメモが出ることを確かめます。"}]}]]},{"t":"heading","level":2,"children":[{"t":"text","text":"保存の仕組み"}]},{"t":"paragraph","children":[{"t":"text","text":"メモは "},{"t":"code","text":"notes/"},{"t":"text","text":" の下に 1 件 1 ファイルで保存します。"}]},{"t":"table","head":[[{"t":"text","text":"項目"}],[{"t":"text","text":"内容"}]],"rows":[[[{"t":"text","text":"形式"}],[{"t":"text","text":"Markdown"}]],[[{"t":"text","text":"場所"}],[{"t":"code","text":"notes/"}]],[[{"t":"text","text":"文字コード"}],[{"t":"text","text":"UTF-8"}]]]},{"t":"quote","children":[{"t":"paragraph","children":[{"t":"text","text":"注意: 保存先を変えると、古いメモは見えなくなります。"}]}]},{"t":"heading","level":2,"children":[{"t":"text","text":"次の手順"}]},{"t":"list","ordered":false,"items":[[{"t":"paragraph","children":[{"t":"text","text":"メモを書く"}]}],[{"t":"paragraph","children":[{"t":"text","text":"保存する"}]}],[{"t":"paragraph","children":[{"t":"text","text":"一覧で確かめる"}]}]]}]}"#;
 
-/// 1 種のビューの行。文書だけ中身が文字列（本文の木の結線は TASK-476）。
+/// 1 種のビューの行。文書だけ中身が本文の木のブロック（`contract::doc::Block`。TASK-476）。
 enum ViewRows {
     Items(Vec<ItemRow>),
-    Doc(Vec<DocRow<String>>),
+    Doc(Vec<DocRow<Block>>),
 }
 
 fn json_cell(v: &serde_json::Value) -> Result<Option<Cell>, FixtureError> {
@@ -180,20 +172,20 @@ fn load_items(bytes: &[u8]) -> Result<Vec<ItemRow>, FixtureError> {
         .collect()
 }
 
-fn doc_rows() -> Result<Vec<DocRow<String>>, FixtureError> {
-    DOC_BLOCKS
-        .iter()
-        .map(|&(id, before, after)| {
-            Row::new(
-                RowId::new(id).map_err(|_| FixtureError::Data)?,
-                0,
-                RowKind::Block,
-                before.map(str::to_owned),
-                after.map(str::to_owned),
-            )
-            .map_err(|_| FixtureError::Data)
-        })
-        .collect()
+fn doc_blocks(json: &str) -> Result<Vec<Block>, FixtureError> {
+    serde_json::from_str::<Doc>(json)
+        .map(|d| d.blocks)
+        .map_err(|_| FixtureError::Data)
+}
+
+/// 前後の木のブロックを突き合わせ、`-` と `+` の行にする。突き合わせに失敗したら `Err`（fail-closed）。
+fn doc_rows() -> Result<Vec<DocRow<Block>>, FixtureError> {
+    align_blocks(
+        "document",
+        &doc_blocks(DOC_BEFORE_JSON)?,
+        &doc_blocks(DOC_AFTER_JSON)?,
+    )
+    .map_err(|_| FixtureError::Data)
 }
 
 /// 項目 1 件。(b) は項目自身が `data-mark` を持ち、(a) は項目の中の外枠が持つ（印の付け先の違いだけを再現する）。
@@ -309,10 +301,12 @@ impl ViewFixture {
                 .iter()
                 .filter_map(|r| row_node(r, self.phase, self.variant, |c: &Cell| c.label.as_str()))
                 .collect(),
-            ViewRows::Doc(v) => v
-                .iter()
-                .filter_map(|r| row_node(r, self.phase, self.variant, |b: &String| b.as_str()))
-                .collect(),
+            // 文書の (b) は本体のビュー（TASK-476）で描く。(a) は `fixture_select` の復号で拒否され到達しない。
+            // 到達しない枝は (b) へ黙って退避せず、空にする（対照の口は TASK-476 2/2 が足す）。
+            ViewRows::Doc(v) if self.variant == Variant::B => {
+                document_view::doc_items(v, self.phase)
+            }
+            ViewRows::Doc(_) => Vec::new(),
         }
     }
 }
@@ -369,6 +363,8 @@ impl Component for ViewFixture {
                 tree_view_list("ul", *kind, self.variant, selected, items)
             } else if *kind == ViewKind::Diff {
                 diff_list("ul", selected, items)
+            } else if *kind == ViewKind::Document {
+                document_view::doc_list("ul", selected, items)
             } else {
                 view_list("ul", *kind, selected, items)
             };
@@ -539,6 +535,42 @@ mod tests {
             9,
             "{html}"
         );
+    }
+
+    #[test]
+    fn 木の写しは_markdown_の解釈結果と一致する() {
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../testdata/artifact-view-parts/test-data/sample/"
+        );
+        for (file, json) in [
+            ("doc-before.md", DOC_BEFORE_JSON),
+            ("doc-after.md", DOC_AFTER_JSON),
+        ] {
+            let md = std::fs::read_to_string(format!("{dir}{file}")).unwrap();
+            let parsed = fandhe_workshop_pack::markdown::parse(&md);
+            let copy: Doc = serde_json::from_str(json).unwrap();
+            assert_eq!(copy, parsed, "{file}");
+        }
+    }
+
+    #[test]
+    fn 文書の_b_の後は本体を通り構造の要素が出る() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Select(ViewKind::Document, Variant::B));
+        f.update(FixtureAction::Phase(Phase::After));
+        let html = render(&f.view());
+        assert_eq!(
+            html.matches("data-testid=\"doc-block\"").count(),
+            13,
+            "{html}"
+        );
+        assert_eq!(html.matches("<h1").count(), 1, "{html}");
+        assert_eq!(html.matches("<h2").count(), 3, "{html}");
+        assert_eq!(html.matches("<table").count(), 2, "{html}");
+        assert_eq!(html.matches("<blockquote").count(), 1, "{html}");
+        assert_eq!(html.matches("data-mark=\"add\"").count(), 3, "{html}");
+        assert_eq!(html.matches("data-mark=\"remove\"").count(), 3, "{html}");
     }
 
     #[test]
