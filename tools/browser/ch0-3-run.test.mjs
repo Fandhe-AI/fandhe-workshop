@@ -338,7 +338,8 @@ async function finish(page, rec, scene, L, { expectMouse }) {
   const e = await engine(page);
   L.check(scene, 'エンジンの警告が 0 件', e.log.filter((r) => r.kind === 'warning').length === 0);
   L.check(scene, 'エンジンの無視が 0 件', e.log.filter((r) => r.kind === 'ignored').length === 0);
-  L.check(scene, '省略による達成が 0 件', e.log.filter((r) => r.kind === 'skipped').length === 0);
+  // 投影の行（e.log）には Event::Skipped が出ない。省略は Step ごとの見直し項目（e.review）の skipped に現れる。
+  L.check(scene, '省略した Step が 0 件', e.review.filter((r) => r.skipped).length === 0);
   const counts = await collectSafety(page, rec);
   for (const k of nonZero(counts)) L.check(scene, `安全の計数 ${k} が 0`, false);
   L.check(scene, '安全の計数がすべて 0', nonZero(counts).length === 0);
