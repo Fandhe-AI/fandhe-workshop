@@ -237,6 +237,17 @@ pub fn revise_targets(step: &Step) -> Result<Vec<String>, SelectJudgeError> {
         let Some(target) = on.get("target") else {
             continue;
         };
+        // コンパイル済みの教材は `on` の全キーを `null` 込みで持つ。判定（`accept::normalized`）は空の値を
+        // 欠落として扱うため、ここも同じに読む。読まないと画面の一覧だけが `InvalidDeclaration` になる。
+        let blank = match target {
+            Value::Null => true,
+            Value::Array(a) => a.is_empty(),
+            Value::Object(o) => o.is_empty(),
+            _ => false,
+        };
+        if blank {
+            continue;
+        }
         let target = target
             .as_str()
             .ok_or(SelectJudgeError::InvalidDeclaration)?;

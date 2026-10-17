@@ -20,6 +20,7 @@
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
 //! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）・試験用の教材への差し替え（`raw` の固定の接頭辞 `load-fixture:`。TASK-445 2/2）を持つ（BUILD-27・SHELL-35）。
 //! 選択肢のクリック（`choose`）は配信する設定にも入り、`decode_action` が `Op::Input(Input::Choice)` に変える。
+//! 承認のクリック（`decide`・`revise-target`。TASK-447 1/2）も同じで、`Op::Input(Input::Approval)` に変える。
 //!
 //! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
 //! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
@@ -57,7 +58,7 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::history_replay::submit_input;
-use fandhe_workshop_core::input::{Control, Input, Op};
+use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::version_record::record_versions;
 use fandhe_workshop_core::world::World;
@@ -151,6 +152,8 @@ pub enum HostAction {
 pub enum FixtureName {
     /// 確認が `answer` の Step を持つ教材（選択肢のボタンの試験）。
     Answer,
+    /// 入力方式が `approval` で、対象つきの「直す」の規則を持つ Step の教材（承認のボタンの試験。TASK-447 1/2）。
+    Approval,
 }
 
 /// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
@@ -915,8 +918,12 @@ impl Component for EngineHost {
                 self.last_import = Some(self.open_history(text.as_bytes()));
             }
             #[cfg(feature = "test-hooks")]
-            HostAction::LoadFixture(FixtureName::Answer) => {
-                if let Some(session) = crate::test_fixture::answer_session() {
+            HostAction::LoadFixture(name) => {
+                let built = match name {
+                    FixtureName::Answer => crate::test_fixture::answer_session(),
+                    FixtureName::Approval => crate::test_fixture::approval_session(),
+                };
+                if let Some(session) = built {
                     self.initial = Some(session.state().clone());
                     self.input
                         .set_command_table(candidates::command_table(session.ir()));
@@ -988,6 +995,7 @@ impl Component for EngineHost {
             if let Some(name) = payload.strip_prefix(RAW_LOAD_FIXTURE) {
                 return match name {
                     "answer" => Some(HostAction::LoadFixture(FixtureName::Answer)),
+                    "approval" => Some(HostAction::LoadFixture(FixtureName::Approval)),
                     _ => None,
                 };
             }
@@ -1002,6 +1010,24 @@ impl Component for EngineHost {
         if name == crate::offers::ACTION_CHOOSE {
             return (!payload.is_empty())
                 .then(|| HostAction::Engine(Op::Input(Input::Choice(payload.to_owned()))));
+        }
+        // 承認のクリック（TASK-447 1/2）。`decide` の payload は `approve`・`reject`・`revise` の完全一致だけ。
+        // 対象つきは payload が対象そのもの（分解しない）。照合と判定は core に任せ、空・未知の値は何もしない。
+        if name == crate::offers::ACTION_DECIDE {
+            return crate::terminal_area::decision_from_value(payload).map(|decision| {
+                HostAction::Engine(Op::Input(Input::Approval {
+                    decision,
+                    target: None,
+                }))
+            });
+        }
+        if name == crate::offers::ACTION_REVISE_TARGET {
+            return (!payload.is_empty()).then(|| {
+                HostAction::Engine(Op::Input(Input::Approval {
+                    decision: Decision::Revise,
+                    target: Some(payload.to_owned()),
+                }))
+            });
         }
         // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
         // `esc` と未知の名前は、これまでどおり入力欄に委ねる。

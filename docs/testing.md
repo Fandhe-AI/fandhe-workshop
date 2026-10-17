@@ -366,6 +366,27 @@ mount の教材（`min-3step`）の確認には `answer` の Step が無く、�
 | TERM24-1 | crates/web/src/host.rs: choose の変換を無効にする | choose_は_id_を_choice_の_op_にし_空の_payload_は何もしない | 左の 1 件に加え、誤答・正答・偽造 ID の 4 件 | DETECTED | - |
 | TERM24-2 | crates/web/src/offers.rs: ボタンから data-action を外す | ボタンの_action_と_payload_は選択肢の_id_で_文字には_id_が出ない | 左の 1 件 | DETECTED | - |
 
+### 5.3.1f 承認のボタンのクリックが core の判定に届くこと（TASK-447 1/2）
+
+TERM27-1 は、`crates/web/src/host.rs` の `decode_action` が `revise-target`（対象つきの「直す」のクリック）を
+`Op::Input(Input::Approval)` に変える処理を無効にする変異である。対象つきの「直す」が core へ届かず、受付にならない。
+TERM27-2 は、`crates/web/src/offers.rs` の `approval_offers` が対象つきのボタンをすべて落とす変異である
+（規則に書かれた対象の数だけ出る受入を壊す）。どちらも native の `crates/web/tests/approval_buttons.rs` が検出する。
+
+ブラウザ試験 `tools/browser/approval-buttons.test.mjs` は、試験の設定だけの `load-fixture:approval`（対象 `t-alpha`・`t-beta`）で、
+実クリックの拒否（対象なしの「直す」）と、対象つきの「直す」による確認の段への切り替えを CSP あり・なしで流す。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 665042c-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM27-1.mutation crates/web/tests/mutations/TERM27-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM27-1 | crates/web/src/host.rs: revise-target の変換を無効にする | revise_target_は対象をそのまま_op_にし_空は何もしない | 左の 1 件に加え、受付・確認の段・拒否の流れの 4 件 | DETECTED | - |
+| TERM27-2 | crates/web/src/offers.rs: 対象つきのボタンを出さない | 入力の段は三つと対象の数だけのボタンが出る | 左の 1 件に加え、重複・太い形・拒否・エスケープの 5 件 | DETECTED | - |
+
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
 3 件の変異を足した。いずれもビルドは通り、対応する試験だけが失敗する。
