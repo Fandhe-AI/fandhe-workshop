@@ -15,7 +15,12 @@
 //! Step の状態で振り分ける。ホストに確認の段階だけの照合を置くと、その再利用が黙って壊れる。偽造・古い ID は core が
 //! 拒否か無視に倒す。
 //!
-//! 範囲の境界: 入力方式 `choice` の Step の口は TASK-450 が持つ。入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
+//! 入力方式 `choice` の入力待ち（TASK-450 1/3）: 宣言の選択肢を同じ口（`choice-btn`）で出す。出す条件は
+//! 「現在の Step がある・処理中でない・`Entered`・宣言が読めて `check()` に通る」で、選択肢は core の
+//! `select_judge::choice_options` だけから得る（web は宣言の JSON を読まない）。欠けたら空にする（fail-closed）。
+//! 入力欄・送信は Step の入力方式では出し入れしない（教材全体の `input_field` の設定が決める。TASK-450 2/3）。
+//!
+//! 範囲の境界: 入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
 //! ため、親の `ul` には `data-testid` を付けない。
 //!
 //! 承認のボタン（TASK-447 1/2。TERM-27）: 同じ部品に「はい」「いいえ」「直す」と、規則に書かれた対象ごとの
@@ -39,7 +44,7 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::confirm_spec::{answer_spec_of, ConfirmKind};
 use fandhe_workshop_contract::input_spec::InputKind;
 use fandhe_workshop_core::input::Decision;
-use fandhe_workshop_core::select_judge::revise_targets;
+use fandhe_workshop_core::select_judge::{choice_options, revise_targets};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::Session;
 
@@ -102,6 +107,39 @@ pub fn answer_offers(session: &Session) -> Vec<Offer> {
             label: o.display_name().to_owned(),
         })
         .collect()
+}
+
+/// 入力方式 `choice` の Step が入力待ちのときの選択肢。条件を満たさなければ空（fail-closed）。
+pub fn input_choice_offers(session: &Session) -> Vec<Offer> {
+    let state = session.state();
+    let Some(uid) = state.run.current.as_ref() else {
+        return Vec::new();
+    };
+    if state.run.busy.is_some() {
+        return Vec::new();
+    }
+    let entered = state
+        .run
+        .slices
+        .get(&uid.root())
+        .and_then(|s| s.status.get(uid))
+        .is_some_and(|st| *st == StepStatus::Entered);
+    if !entered {
+        return Vec::new();
+    }
+    let Some(node) = session.ir().nodes.iter().find(|n| n.uid == uid.0) else {
+        return Vec::new();
+    };
+    match choice_options(&node.step) {
+        Ok(opts) => opts
+            .into_iter()
+            .map(|o| Offer {
+                id: o.id,
+                label: o.label,
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    }
 }
 
 /// 選択肢のクリックの action 名。`"choice"` は `data-input` の値と紛れるため使わない。
@@ -275,6 +313,14 @@ impl DisplayPart<HostModel> for OffersPart {
                 )
             })
             .collect();
+        // 入力待ちの選択肢。キーの接頭辞 `e` は、確認の段（接頭辞なし）・承認の `i`・`c` と衝突させない。
+        let input_choices = model.session().map(input_choice_offers).unwrap_or_default();
+        items.extend(input_choices.iter().enumerate().map(|(i, o)| {
+            (
+                format!("s{step}#e{i}"),
+                el("li", vec![], vec![choice_button(&o.id, &o.label)]),
+            )
+        }));
         let approvals = model.session().map(approval_offers).unwrap_or_default();
         items.extend(approvals.iter().enumerate().map(|(i, o)| {
             let stage = if o.input_stage { "i" } else { "c" };

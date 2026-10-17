@@ -8,6 +8,7 @@
 //! このファイルの 1 箇所だけを例外にしている。教材と状態は埋め込みの試験データで、外から入らない。
 //! 確認が `answer` の教材への差し替え（`answer_session`）は、`load-fixture:answer` の合図で使う（TASK-445 2/2）。
 //! 複数の種類のビューを宣言する教材（`views_session`）は `load-fixture:views` で使う（TASK-470 2/2）。
+//! 入力方式が `ui_action` の Step を持つ教材（`ui_action_session`）は `load-fixture:ui-action` で使う（TASK-450 1/3）。
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 //! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
@@ -176,6 +177,38 @@ pub(crate) fn approval_session() -> Option<Session> {
             reject("r-bare-revise", serde_json::json!({ "approval": "revise" })),
             reject("r-early", serde_json::json!({ "approval": "approve" })),
         ]),
+    );
+    session_of(&serde_json::to_vec(&value).ok()?)
+}
+
+/// 入力方式が `ui_action` の Step を持つ試験用の実行環境（TASK-450 1/3。`load-fixture:ui-action`）。
+///
+/// 埋め込みの教材の `main/st-2` を、対象 `v-files` の `notes/draft` を指すと受付になる `ui_action` に置き換える。
+/// 確認は `none` のままで、受付がそのまま達成になる。`notes/draft` は st-1 の受付が作る行で、st-2 は `v-files` を
+/// 宣言しているため、st-2 に入った時点で左の行は指せる行になる。規則は細い形で書く。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn ui_action_session() -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let node = value
+        .get_mut("nodes")?
+        .as_array_mut()?
+        .iter_mut()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-2"))?;
+    let step = node.get_mut("step")?.as_object_mut()?;
+    step.insert(
+        "input".to_owned(),
+        serde_json::json!({
+            "kind": "ui_action",
+            "targets": [{ "view": "v-files", "path": "notes/draft" }]
+        }),
+    );
+    step.insert(
+        "rules".to_owned(),
+        serde_json::json!([{
+            "id": "r-point",
+            "on": { "ui": { "view": "v-files", "path": "notes/draft" } },
+            "outcome": { "kind": "accept" }
+        }]),
     );
     session_of(&serde_json::to_vec(&value).ok()?)
 }

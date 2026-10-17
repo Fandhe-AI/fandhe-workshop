@@ -13,7 +13,7 @@ use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{JudgmentKind, RejectCategory};
 use fandhe_workshop_core::input::{Decision, Input};
 use fandhe_workshop_core::select_judge::{
-    judge_confirm, judge_select, ConfirmVerdict, SelectJudgeError, SelectVerdict,
+    choice_options, judge_confirm, judge_select, ConfirmVerdict, SelectJudgeError, SelectVerdict,
 };
 use proptest::prelude::*;
 use serde_json::Value;
@@ -394,4 +394,41 @@ fn source_has_no_external_calls() {
     ] {
         assert!(!code.contains(banned), "{banned}");
     }
+}
+
+#[test]
+fn choice_options_lists_declared_options_in_order() {
+    let opts = choice_options(&step("choice")).unwrap();
+    assert_eq!(opts[0].id, "opt-memo");
+    assert_eq!(opts[0].label, "メモ");
+    assert_eq!(opts[1].id, "opt-todo");
+}
+
+#[test]
+fn choice_options_is_empty_for_other_methods() {
+    for name in ["ui", "approval", "text_step", "no_input"] {
+        assert_eq!(choice_options(&step(name)), Ok(vec![]), "{name}");
+    }
+}
+
+#[test]
+fn choice_options_rejects_invalid_declarations() {
+    assert_eq!(
+        choice_options(&step("bad_input")),
+        Err(SelectJudgeError::InvalidDeclaration)
+    );
+    let mut s = step("choice");
+    s.input = Some(serde_json::json!({
+        "kind": "choice",
+        "options": [{ "id": "a", "label": "A" }, { "id": "a", "label": "B" }]
+    }));
+    assert_eq!(
+        choice_options(&s),
+        Err(SelectJudgeError::InvalidDeclaration)
+    );
+    s.input = Some(serde_json::json!({ "kind": "choice", "options": [] }));
+    assert_eq!(
+        choice_options(&s),
+        Err(SelectJudgeError::InvalidDeclaration)
+    );
 }

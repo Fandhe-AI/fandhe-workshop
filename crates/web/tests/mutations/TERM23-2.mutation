@@ -1,0 +1,8 @@
+id: TERM23-2
+package: fandhe-workshop-web
+test: input_ports
+target: crates/web/src/offers.rs
+find:         Err(_) => Vec::new(),
+replace:         Err(_) => vec![Offer { id: String::from("x"), label: String::from("x") }],
+expect-fail: 壊れた宣言は選択肢を出さない
+note: 宣言が壊れた Step で空に倒さず口を出す（fail-closed を外す。TERM-23）

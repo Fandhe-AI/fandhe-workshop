@@ -181,7 +181,15 @@ fn 達成して次の_step_へ移るとボタンは消える() {
     h.update(HostAction::Engine(Op::Input(Input::Choice(
         "opt-right".to_owned(),
     ))));
-    assert_eq!(buttons(&h), 0, "{}", html(&h));
+    // answer の選択肢は消え、次の Step（入力方式 `choice`。TASK-450）の選択肢に替わる。
+    let out = html(&h);
+    assert_eq!(buttons(&h), 2, "{out}");
+    for id in ["opt-memo", "opt-todo"] {
+        assert!(out.contains(&format!("data-choice=\"{id}\"")), "{out}");
+    }
+    for id in ["opt-right", "opt-wrong"] {
+        assert!(!out.contains(&format!("data-choice=\"{id}\"")), "{out}");
+    }
 }
 
 #[test]

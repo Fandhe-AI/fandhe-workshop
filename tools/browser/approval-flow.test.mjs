@@ -7,11 +7,10 @@
 //   - 対象なしの「直す」は拒否になり、承認の行の文字が `承認の操作: 直す`（`line-target` なし）になる
 //   - 対象つきの「直す」を押すと承認の行の文字が `承認の操作: 直す（対象: t-alpha）`、`line-target` の文字が `t-alpha` になる
 //   - 確認の段の「はい」で次の Step（st-2）へ進み、行の文字が `承認の操作: はい` になる
-//   - st-2 の選択のあと st-3 に進み、「はい」を 2 回で st-3 が達成になる。3 Step すべてが達成で、承認のボタンが 0 件
+//   - st-2（入力方式 `choice`）の選択肢のボタンを実クリックして st-3 に進み、「はい」を 2 回で st-3 が達成になる。3 Step すべてが達成で、承認のボタンが 0 件
 //   - 危険な要素・実行・CSP 違反・ダイアログが 0 件である
 //
 // 確かめないこと:
-//   - st-2 の入力方式 `choice` の画面の口は TASK-450 の担当で未実装のため、`raw-trigger` へ `Op` の JSON を送る
 //   - 章の完了（`ChapterCompleted`）は core が未実装（TASK-233 以降）のため、最後の Step の達成までを確かめる
 //   - `step-status` の表示は confirm-status.test.mjs（TASK-435 2/2）が確かめる
 //
@@ -127,8 +126,8 @@ async function runFlow(page) {
   assert.equal(s.approvalRows[s.approvalRows.length - 1].decision, 'approve');
   assert.ok(s.reviewAchieved.includes('main/st-1'), JSON.stringify(s.reviewAchieved));
 
-  // st-2（選択）: 画面の口が無いため Op で送る（TASK-450）。
-  await sendRaw(page, JSON.stringify({ input: { choice: 'opt-memo' } }));
+  // st-2（選択）: 入力待ちの選択肢のボタンを実クリックする（TASK-450 1/3）。
+  await page.click('[data-testid="choice-btn"][data-choice="opt-memo"]', { timeout: T });
   await currentIs(page, 'main/st-3');
 
   // st-3（最終の承認）: 「はい」で受付、進行の後の「はい」で達成。

@@ -3,7 +3,7 @@
 //! 教材が宣言した入力方式のうち `choice`・`ui_action`・`approval` は、LLM を使わずに Step の宣言
 //! （`input`・`rules`・`confirm`）との照合だけで判定できる。本モジュールはその照合の純関数を置く。
 //! 呼び出し元は、受付・達成の遷移（TASK-207）、`Judged` の発行（[`crate::judge`]、TASK-267）、対象つきの「直す」（TASK-264）、
-//! 誤答の文面の差し込み（[`crate::text_fill`]、TASK-274）、画面（web、TASK-445・TASK-447）である。
+//! 誤答の文面の差し込み（[`crate::text_fill`]、TASK-274）、画面（web、TASK-445・TASK-447・TASK-450）である。
 //! 承認の「直す」の対象つき入力（JUDGE-10、TASK-264）の判定もここに置く。
 //! 結果の型の語彙は `fandhe_workshop_contract::judgment`、入力・確認の宣言の型は `input_spec`・`confirm_spec`
 //! が正で、ここでは再定義しない。
@@ -47,7 +47,9 @@ use std::fmt;
 use fandhe_workshop_contract::confirm_spec::{
     answer_spec_of, ApproveSpec, ConfirmKind, NoneSpec, PointAtSpec,
 };
-use fandhe_workshop_contract::input_spec::{ApprovalSpec, ChoiceSpec, InputKind, UiActionSpec};
+use fandhe_workshop_contract::input_spec::{
+    ApprovalSpec, ChoiceOption, ChoiceSpec, InputKind, UiActionSpec,
+};
 use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{JudgmentKind, RejectCategory};
 use serde::de::DeserializeOwned;
@@ -256,6 +258,32 @@ pub fn revise_targets(step: &Step) -> Result<Vec<String>, SelectJudgeError> {
         }
     }
     Ok(targets)
+}
+
+/// 入力方式 `choice` の Step が宣言した選択肢（宣言の並び順）。
+///
+/// 画面（TASK-450）が入力待ちの選択肢のボタンを出すときの正で、web に宣言の JSON を読ませないために core が返す。
+/// `input` が無い、または方式が `choice` でなければ空。方式が `choice` で宣言が読めない・`check()` に通らない
+/// （選択肢が空・ID か表示名が空・ID の重複）ときは [`SelectJudgeError::InvalidDeclaration`]。
+pub fn choice_options(step: &Step) -> Result<Vec<ChoiceOption>, SelectJudgeError> {
+    let Some(decl) = &step.input else {
+        return Ok(Vec::new());
+    };
+    let decl = decl
+        .as_object()
+        .ok_or(SelectJudgeError::InvalidDeclaration)?;
+    let kind = decl
+        .get("kind")
+        .and_then(Value::as_str)
+        .and_then(InputKind::from_str_opt)
+        .ok_or(SelectJudgeError::InvalidDeclaration)?;
+    if kind != InputKind::Choice {
+        return Ok(Vec::new());
+    }
+    let spec: ChoiceSpec = read_spec(decl).ok_or(SelectJudgeError::InvalidDeclaration)?;
+    spec.check()
+        .map_err(|_| SelectJudgeError::InvalidDeclaration)?;
+    Ok(spec.options)
 }
 
 /// 宣言の方式と入力の種類が合い、宣言にある値なら `Ok(true)`。方式違い・宣言に無い値は `Ok(false)`。
