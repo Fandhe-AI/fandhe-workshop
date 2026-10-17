@@ -375,8 +375,9 @@ pub fn judge_select(
 /// 確認の段の判定。`Step.confirm` に照らす。`confirm` が無い Step は `approve` として扱う
 /// （`confirm_spec::achievement(None)` と同じ安全側）。
 ///
-/// 宣言の検査（`check`）は `crate::confirm` の達成の判定と同じにする。検査に通らない宣言は宣言の誤りで、
-/// 確認・外れの `Judged` を出さない（`Judged` と達成の遷移を食い違わせない）。
+/// 確認の段で確認の宣言を評価する唯一の箇所。達成の処理（`crate::confirm`）は結果だけを使い、宣言を読み直さない。
+/// 検査（`check`）に通らない宣言は宣言の誤りで、確認・外れの `Judged` を出さない（`Judged` と達成の遷移を
+/// 食い違わせない）。
 pub fn judge_confirm(step: &Step, input: &Input) -> Result<ConfirmVerdict, SelectJudgeError> {
     if !is_select_input(input) {
         return Err(SelectJudgeError::NotSelectInput);
