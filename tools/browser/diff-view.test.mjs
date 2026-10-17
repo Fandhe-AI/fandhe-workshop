@@ -6,6 +6,9 @@
 //        層 1（行の印）と層 2（差分の記号）が別の要素に出る。role・aria-* は 0 件
 // - DF3: 外部へのリクエスト・ページのエラー・ダイアログがどれも 0 件
 // - DF4: 対照。インデントの検査が正しい理由で失敗する（pre の空白の扱いを normal にすると、字下げの差が消える）
+// - DF5: 対照の口（fixture_contrast）から入る差分 (a) が、14 通りの検査器の枠で違反 0（TASK-475 2/2）
+// - DF6: (a) の観察の固定。インデントが失われる（前後とも）、pre が無く wire_text で描かれる。(b) では保たれる正の対照
+// - DF7: 対照の後も fixture_select の diff:a は拒否され、状態が変わらない（製品の契約は不変）
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,6 +67,21 @@ function fixtureAdapter(page) {
     phase: (name) => dispatch('fixture_phase', name),
     state: () => page.evaluate(() => window.__fandheTest.viewFixtureState()),
     keyOf: (id) => `k${id}`,
+  };
+}
+
+// 差分 (a) だけ対照の口に送る。製品の契約が拒否する組を、試験の設定の中でだけ描く。
+function contrastAdapter(page) {
+  const base = fixtureAdapter(page);
+  return {
+    ...base,
+    select: async (kind, variant) => {
+      if (kind === 'diff' && variant === 'a') {
+        const r = JSON.parse(await page.evaluate(() => window.__fandheTest.viewFixtureDispatch('fixture_contrast', 'diff:a')));
+        return { ok: r.outcome === 'applied' };
+      }
+      return base.select(kind, variant);
+    },
   };
 }
 
@@ -163,7 +181,9 @@ function indentGap(page) {
     const lefts = [];
     for (const idx of [3, 4]) {
       const li = document.querySelectorAll(`${sel} > li`)[idx];
-      const node = li.querySelector('[data-testid="diff-code"]').firstChild;
+      // (b) は pre の直下、(a) は wire_text の span の下にある、最初の文字ノード。
+      const code = li.querySelector('[data-testid="diff-code"]');
+      const node = document.createTreeWalker(code, NodeFilter.SHOW_TEXT).nextNode();
       const at = node.textContent.search(/\S/);
       const r = document.createRange();
       r.setStart(node, at);
@@ -185,5 +205,71 @@ test('DF4 対照: インデントの検査は、pre の空白の扱いを normal
     }, LIST);
     const collapsed = await indentGap(page);
     assert.ok(collapsed <= 0.5, `indent should be gone when white-space is normal: ${collapsed}`);
+  });
+});
+
+test('DF5: 対照の口の差分 (a) が検査器の枠で違反 0', async () => {
+  await withFixturePage(async (page, rec) => {
+    const { violations, stats } = await runViewCase(page, contrastAdapter(page), {
+      kind: 'diff', variant: 'a', rootSelector: ROOT, rounds: 2, deep: true,
+    });
+    const counts = await collectSafety(page, rec);
+    const detail = JSON.stringify({ violations, stats, counts, rec });
+    const { before: b, after: a } = COUNTS;
+    assert.deepEqual(violations, [], detail);
+    assert.equal(stats.states, 5, detail);
+    assert.deepEqual(stats.itemCounts, [b, a, b, a, b], detail);
+    assert.deepEqual(stats.preserved, [b, b, b, b], detail);
+    assert.deepEqual(stats.innerPreserved, [b, b, b, b], detail);
+    assert.deepEqual(nonZero(counts), [], detail);
+  });
+});
+
+test('DF6: (a) ではインデントが失われ、(b) では保たれる（G-4 の観察）', async () => {
+  await withFixturePage(async (page) => {
+    const adapter = contrastAdapter(page);
+    assert.ok((await adapter.select('diff', 'a')).ok);
+    const gaps = [];
+    for (const phase of ['before', 'after']) {
+      assert.ok((await adapter.phase(phase)).ok);
+      const gap = await indentGap(page);
+      // 4 つの空白は 1 つに畳まれる（直前の列の後ろに空白 1 つ分が残る）。(b) の 4 つ分（約 31px）より大きく小さい。
+      assert.ok(gap < 12, `indent should be collapsed in (a) at ${phase}: ${gap}`);
+      gaps.push(gap);
+      const o = await page.evaluate((sel) => {
+        const items = [...document.querySelectorAll(`${sel} > li`)];
+        const ws = items.map((li) => getComputedStyle(li.querySelector('[data-testid="diff-code"]')).whiteSpace);
+        return {
+          items: items.length,
+          ws,
+          wire: items.filter((li) => li.querySelectorAll('.fw-wire-text').length === 1).length,
+          pres: document.querySelectorAll(`${sel} pre`).length,
+          roles: document.querySelectorAll(`${sel} [role]`).length,
+          liMarks: items.filter((li) => li.hasAttribute('data-mark')).length,
+        };
+      }, LIST);
+      const detail = JSON.stringify({ phase, o });
+      assert.equal(o.items, COUNTS[phase], detail);
+      assert.equal(o.wire, o.items, detail);
+      assert.equal(o.pres, 0, detail);
+      assert.equal(o.roles, 0, detail);
+      assert.equal(o.liMarks, 0, detail);
+      assert.ok(o.ws.every((w) => !['pre', 'pre-wrap', 'break-spaces'].includes(w)), detail);
+    }
+    assert.ok((await adapter.select('diff', 'b')).ok);
+    const kept = await indentGap(page);
+    assert.ok(kept > 5, `indent should be kept in (b): ${kept}`);
+    for (const g of gaps) assert.ok(kept > g * 2, `(b) ${kept} should be far wider than (a) ${g}`);
+  });
+});
+
+test('DF7: 対照の後も fixture_select の diff:a は拒否され、状態は変わらない', async () => {
+  await withFixturePage(async (page) => {
+    const adapter = contrastAdapter(page);
+    assert.ok((await adapter.select('diff', 'a')).ok);
+    const before = await adapter.state();
+    const r = JSON.parse(await page.evaluate(() => window.__fandheTest.viewFixtureDispatch('fixture_select', 'diff:a')));
+    assert.equal(r.outcome, 'rejected', JSON.stringify(r));
+    assert.equal(await adapter.state(), before);
   });
 });

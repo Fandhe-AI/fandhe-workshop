@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で描く
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -40,7 +40,7 @@ use crate::artifact_view::{
     dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
     RowKind, Variant, VariantPolicy, ViewKind,
 };
-use crate::diff_view::{diff_items, diff_list};
+use crate::diff_view::{diff_items, diff_items_a, diff_list};
 use crate::file_tree_view::{file_tree_items, file_tree_items_a};
 use crate::task_tree::task_items;
 
@@ -52,6 +52,9 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
+
+/// 対照の口の action の名前。payload は `diff:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
+pub(crate) const ACTION_CONTRAST: &str = "fixture_contrast";
 
 /// 項目の外の部品を出し入れする action の名前。payload は `outside` か `inside`。
 pub(crate) const ACTION_CONTROL: &str = "fixture_control";
@@ -223,11 +226,14 @@ pub(crate) struct ViewFixture {
     dirty: Vec<&'static str>,
 }
 
-/// 状態を変える action。復号の段で `VariantPolicy` を通るため、許されない組は作れない。
+/// 状態を変える action。`Select` は復号の段で `VariantPolicy` を通るため、許されない組は作れない。
+/// `Contrast` は対照の口で、差分の (a) だけを受ける。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FixtureAction {
     /// ビューの種類と変種を選ぶ。
     Select(ViewKind, Variant),
+    /// 製品の契約が拒否する組を対照として選ぶ（差分の (a) だけ）。
+    Contrast(ViewKind),
     /// 前後を切り替える。
     Phase(Phase),
     /// 項目の外の部品を置く（`true`）か外す（`false`）。
@@ -288,9 +294,12 @@ impl ViewFixture {
             ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
                 file_tree_items(v, self.phase)
             }
-            // 差分の (b) は本体のビュー（TASK-475）で描く。(a) は復号の段で拒否されるが、ここでも通さない。
+            // 差分の (b) は本体のビュー（TASK-475）で描く。(a) は `fixture_select` では拒否され、対照の口からだけ入る。
             ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::B => {
                 diff_items(v, self.phase)
+            }
+            ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::A => {
+                diff_items_a(v, self.phase)
             }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {
@@ -319,6 +328,13 @@ impl Component for ViewFixture {
                 let changed = variant != self.variant;
                 self.selected = kind;
                 self.variant = variant;
+                self.dirty = dirty_list_fields(Some(prev), Some(kind), changed);
+            }
+            FixtureAction::Contrast(kind) => {
+                let prev = self.selected;
+                let changed = self.variant != Variant::A;
+                self.selected = kind;
+                self.variant = Variant::A;
                 self.dirty = dirty_list_fields(Some(prev), Some(kind), changed);
             }
             FixtureAction::Phase(phase) => {
@@ -398,6 +414,10 @@ impl Component for ViewFixture {
                 VariantPolicy::new(&[(kind, variant)]).ok()?;
                 Some(FixtureAction::Select(kind, variant))
             }
+            ACTION_CONTRAST => match payload {
+                "diff:a" => Some(FixtureAction::Contrast(ViewKind::Diff)),
+                _ => None,
+            },
             ACTION_PHASE => match payload {
                 "before" => Some(FixtureAction::Phase(Phase::Before)),
                 "after" => Some(FixtureAction::Phase(Phase::After)),
@@ -535,6 +555,55 @@ mod tests {
             );
         }
         assert!(ViewFixture::decode_action(ACTION_SELECT, "card_list:a").is_some());
+    }
+
+    #[test]
+    fn 対照の口は_diff_a_だけを受け_他の_payload_は拒否される() {
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_CONTRAST, "diff:a"),
+            Some(FixtureAction::Contrast(ViewKind::Diff))
+        );
+        for payload in [
+            "document:a",
+            "diff:b",
+            "card_list:a",
+            "Diff:a",
+            "diff:a ",
+            "diff",
+            "",
+        ] {
+            assert_eq!(
+                ViewFixture::decode_action(ACTION_CONTRAST, payload),
+                None,
+                "{payload}"
+            );
+        }
+    }
+
+    #[test]
+    fn 対照の口で差分の_a_の後は_wire_text_で描かれ_pre_は無い() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Contrast(ViewKind::Diff));
+        f.update(FixtureAction::Phase(Phase::After));
+        assert_eq!((f.selected(), f.variant()), (ViewKind::Diff, Variant::A));
+        let html = render(&f.view());
+        assert_eq!(html.matches("fw-wire-text").count(), 9, "{html}");
+        assert_eq!(html.matches("<pre").count(), 0, "{html}");
+        assert_eq!(
+            html.matches("data-testid=\"diff-sign\"").count(),
+            9,
+            "{html}"
+        );
+        // (a) の印の宿主は項目自身ではなく、内側の div である。
+        assert!(!html.contains("<li data-mark"), "{html}");
+        assert!(html.contains("<div"), "{html}");
+    }
+
+    #[test]
+    fn 対照の後も_fixture_select_の_diff_a_は拒否される() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Contrast(ViewKind::Diff));
+        assert_eq!(ViewFixture::decode_action(ACTION_SELECT, "diff:a"), None);
     }
 
     #[test]
