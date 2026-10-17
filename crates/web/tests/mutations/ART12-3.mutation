@@ -1,0 +1,8 @@
+id: ART12-3
+package: fandhe-workshop-web
+test: view_select
+target: crates/web/src/host.rs
+find: let select_changed = prev_step != next_step || prev_view != next_view;
+replace: let select_changed = prev_view != next_view;
+expect-fail: step_が変わっても種類が同じなら_その_list_とボタンだけが_dirty_になる
+note: Step が変わっても種類が同じなら選択のボタンを dirty にせず、宣言の集合が変わったボタンが古いまま残る（ART-12）

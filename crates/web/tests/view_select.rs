@@ -340,3 +340,157 @@ fn 行が上限ちょうどなら通知を出さない() {
     assert!(!tag.contains("data-list-error"), "{tag}");
     assert_eq!(rows_in(&body), 4_096);
 }
+
+fn dirty_after(host: &mut EngineHost, op: serde_json::Value) -> Vec<&'static str> {
+    let op: Op = serde_json::from_value(op).unwrap();
+    host.update(HostAction::Engine(op));
+    host.dirty_fields().to_vec()
+}
+
+fn view_lists_in(dirty: &[&str]) -> Vec<String> {
+    dirty
+        .iter()
+        .filter(|n| n.starts_with("view_") && **n != "view_select")
+        .map(|n| (*n).to_owned())
+        .collect()
+}
+
+fn text_op(text: &str) -> serde_json::Value {
+    serde_json::json!({"input": {"text": text}})
+}
+
+#[test]
+fn 同じ_step_とビューで中身が変わると選ばれたビューの_list_だけが_dirty_になる() {
+    let mut host = host_of(multi_view_ir());
+    let dirty = dirty_after(&mut host, text_op("hello"));
+    assert_eq!(
+        view_lists_in(&dirty),
+        vec!["view_diff".to_owned()],
+        "{dirty:?}"
+    );
+    assert!(!dirty.contains(&"view_select"), "{dirty:?}");
+    // ログの list など、ビューの外の list は従来どおり積まれる。
+    assert!(dirty.len() > 1, "{dirty:?}");
+}
+
+#[test]
+fn step_が変わりビューの種類が変わると旧と新の_list_とボタンが_dirty_になる() {
+    let mut host = host_of(multi_view_ir());
+    let dirty = dirty_after(
+        &mut host,
+        serde_json::json!({"control": {"go_to": "main/st-2"}}),
+    );
+    let mut got = view_lists_in(&dirty);
+    got.sort();
+    assert_eq!(
+        got,
+        vec!["view_card_list".to_owned(), "view_diff".to_owned()],
+        "{dirty:?}"
+    );
+    assert!(dirty.contains(&"view_select"), "{dirty:?}");
+}
+
+/// st-2 と st-3 がどちらも card_list だけを宣言する IR（Step が変わっても種類が同じ経路）。
+fn same_kind_ir() -> Ir {
+    let mut v = base_json();
+    v["views"] = serde_json::json!({"v-c": {"kind": "card_list"}});
+    for node in v["nodes"].as_array_mut().unwrap() {
+        node["step"]["views"] = serde_json::json!(["v-c"]);
+    }
+    load_ir(&serde_json::to_vec(&v).unwrap()).unwrap()
+}
+
+#[test]
+fn step_が変わっても種類が同じなら_その_list_とボタンだけが_dirty_になる() {
+    let mut host = host_of(same_kind_ir());
+    let dirty = dirty_after(
+        &mut host,
+        serde_json::json!({"control": {"go_to": "main/st-2"}}),
+    );
+    assert_eq!(
+        view_lists_in(&dirty),
+        vec!["view_card_list".to_owned()],
+        "{dirty:?}"
+    );
+    assert!(dirty.contains(&"view_select"), "{dirty:?}");
+}
+
+#[test]
+fn 続けて別の_step_へ移ると_その都度_旧と新の_list_とボタンが_dirty_になる() {
+    let mut host = host_of(multi_view_ir());
+    dirty_after(
+        &mut host,
+        serde_json::json!({"control": {"go_to": "main/st-2"}}),
+    );
+    // st-3 は宣言が無く、既定の file_tree になる。st-2 から移ると種類が変わる。
+    let dirty = dirty_after(
+        &mut host,
+        serde_json::json!({"control": {"go_to": "main/st-3"}}),
+    );
+    assert_eq!(view_lists_in(&dirty).len(), 2, "{dirty:?}");
+    assert!(dirty.contains(&"view_select"), "{dirty:?}");
+}
+
+#[test]
+fn 絞り込みの後も描画の_hidden_と行は選ばれたビューと一致する() {
+    let mut host = host_of(multi_view_ir());
+    for op in [
+        text_op("hello"),
+        serde_json::json!({"control": {"go_to": "main/st-2"}}),
+        text_op("again"),
+    ] {
+        dirty_after(&mut host, op);
+        let html = render_component_html(&host);
+        let shown = host.model().selected_view();
+        for (kind, hidden) in list_tags(&html) {
+            assert_eq!(hidden, kind != shown, "{}", kind.as_str());
+        }
+        check_no_undefined(&host.view()).unwrap();
+    }
+}
+
+#[cfg(feature = "test-hooks")]
+mod views_fixture {
+    use super::*;
+    use fandhe_workshop_web::host::{FixtureName, RAW_LOAD_FIXTURE};
+
+    #[test]
+    fn load_fixture_views_は復号され_st_1_で_3_種のボタンが出る() {
+        let action = EngineHost::decode_action("raw", &format!("{RAW_LOAD_FIXTURE}views")).unwrap();
+        assert!(matches!(
+            action,
+            HostAction::LoadFixture(FixtureName::Views)
+        ));
+        let mut host = EngineHost::new();
+        host.update(action);
+        let html = render_component_html(&host);
+        assert_eq!(
+            buttons(&html),
+            vec![
+                ("file_tree".to_owned(), true),
+                ("card_list".to_owned(), false),
+                ("check_list".to_owned(), false),
+            ]
+        );
+        // st-1 -> st-2 は既定が変わり、st-2 -> st-3 は card_list のまま（1 本とボタン）。
+        let mut dirty = dirty_after(
+            &mut host,
+            serde_json::json!({"control": {"go_to": "main/st-2"}}),
+        );
+        assert_eq!(view_lists_in(&dirty).len(), 2, "{dirty:?}");
+        assert!(dirty.contains(&"view_select"), "{dirty:?}");
+        dirty = dirty_after(
+            &mut host,
+            serde_json::json!({"control": {"go_to": "main/st-3"}}),
+        );
+        assert_eq!(
+            view_lists_in(&dirty),
+            vec!["view_card_list".to_owned()],
+            "{dirty:?}"
+        );
+        assert!(dirty.contains(&"view_select"), "{dirty:?}");
+        for bad in ["load-fixture:Views", "load-fixture:view"] {
+            assert!(EngineHost::decode_action("raw", bad).is_none(), "{bad}");
+        }
+    }
+}

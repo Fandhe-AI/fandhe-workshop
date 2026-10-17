@@ -42,6 +42,7 @@ const ENGINE_LISTS = [
     sel: viewList('document'),
     field: 'view_document',
     attrs: { 'data-testid': 'view-list', 'data-view': 'document', hidden: '' },
+    untouched: true,
   },
   { sel: tid('part-review-list'), field: 'review_items', attrs: { 'data-testid': 'part-review-list' } },
 ];
@@ -107,9 +108,15 @@ async function inspect(page, sel) {
   }, sel);
 }
 
-function assertParent(info, { sel: testid, field, attrs }, detail) {
+function assertParent(info, { sel: testid, field, attrs, untouched }, detail) {
   assert.equal(info.same, true, `same element ${testid} ${detail}`);
   assert.equal(info.connected, true, `connected ${testid} ${detail}`);
+  if (untouched) {
+    // 選ばれていないビューの list は、中身だけが変わる更新では dirty にならず、親の属性を同期し直さない
+    // （更新の範囲をビューごとに絞る。TASK-470 2/2）。後付けの属性が残ることが、触れていない証拠である。
+    assert.equal(info.attrs['data-injected'], '1', `${testid} should not be re-synced ${detail}`);
+    return;
+  }
   for (const injected of ['aria-live', 'class', 'data-injected']) {
     assert.equal(injected in info.attrs, false, `${injected} should be gone on ${testid} ${detail}`);
   }

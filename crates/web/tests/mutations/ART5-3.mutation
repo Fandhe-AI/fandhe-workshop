@@ -1,0 +1,8 @@
+id: ART5-3
+package: fandhe-workshop-web
+test: view_select
+target: crates/web/src/host.rs
+find: narrowed.contains(n)
+replace: true
+expect-fail: 同じ_step_とビューで中身が変わると選ばれたビューの_list_だけが_dirty_になる
+note: ビューの list を絞らず 7 本すべてを dirty にする（ART-5。更新の範囲が広がる）

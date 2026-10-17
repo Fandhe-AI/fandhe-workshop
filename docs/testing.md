@@ -3001,6 +3001,31 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 | ART12-2 | Step が変わってもビューの選択を捨てない | DETECTED | `view_select` の「先頭以外を選んで別の_step_へ移り_戻ると先頭に戻る」 |
 | FEND22-1 | 上限を超えた行を通知なしの空の一覧に倒す | DETECTED | `view_select` の「行が上限を超えると選ばれたビューの_list_に通知と_data_list_error_が出る」 |
 
+### 5.97 切り替え時の更新範囲と同一性（TASK-470 2/2）
+
+エンジンの操作（`step_engine`）がログの伸びたときに積む keyed list を絞り、切り替え・更新の後も根の要素が同一でフォーカスが保たれることを、複数のビューを宣言する試験用の教材で確かめた。
+
+- dirty の規則: ビューの list 7 本は `dirty_list_fields` で絞る（ビューが変われば旧と新の 2 本、同じなら今のビューの 1 本）。選択のボタンの list は、Step かビューが変わったときだけ積む（宣言の集合は Step で決まるため）。それ以外の list は従来どおりすべて積む。行の中身が変わったかは再導出せず、ログが伸びたことで代用する（積みすぎる側に倒れ、束縛点として解決できるので全再描画にならない）
+- 試験用の教材: `load-fixture:views`（試験の設定だけ）。st-1 は file_tree・card_list・check_list、st-2 は card_list・file_tree、st-3 は card_list を宣言する
+- native の試験（`crates/web/tests/view_select.rs`）: 同じ Step・同じビューで 1 本だけ、種類が変わると旧と新の 2 本とボタン、Step が変わっても種類が同じなら 1 本とボタン、絞り込みの後の描画の一致、`load-fixture:views` の復号と Step の移動ごとの dirty
+- ブラウザの試験（`tools/browser/view-switch.test.mjs`）: V1 ボタンの順と表示、V2 実クリックで 3 種を 2 往復、V3 入力欄にフォーカスを置いたままの切り替え・更新・移動、V4 再描画 101 回で選択の属性の差 0 回、N1 部品を項目の外に置く対照（内側では同一、外側では根の子が置き換わる）、P1 代役の部品での前後の切り替え
+- 既存の試験の更新: `list-parent-attrs` は、選ばれていないビューの list を更新で再同期しない側に直した（後付けの属性が残ることを確かめる）
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 1484623-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART5-3.mutation crates/web/tests/mutations/ART12-3.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART5-3 | ビューの list を絞らず 7 本すべてを積む | DETECTED | `view_select` の 4 件（同じ Step・同じビューの 1 本だけの試験を含む） |
+| ART12-3 | Step が変わっても種類が同じなら選択のボタンを積まない | DETECTED | `view_select` の「step_が変わっても種類が同じなら_その_list_とボタンだけが_dirty_になる」 |
+
+- `make test-browser`: 381 件が通過（2026-10-17）。上の 7 件と `list-parent-attrs` の更新を含む
+- 手元の確認: `select_changed` を常に偽にしても V3 は通った。ブラウザの本試験は、ボタンの積み漏れを検出できない（native の試験と ART12-3 が固定する）。理由は未調査
+- 限界: 製品の画面には前後の切り替え（ART-2 の口）が無いため、P1 は代役の部品で代えた。製品の根は N1 の間も同一であることを同じ測り方で確かめた。「部品を項目の外に置く」状態を製品の画面に作る口は、登録簿の契約に例外を作るため設けていない。親の `aria-label`・ボタンの `aria-pressed` は契約の版上げが先に要る
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
