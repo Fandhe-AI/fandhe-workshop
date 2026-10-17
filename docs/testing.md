@@ -101,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -3239,7 +3239,7 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 ### 5.106 カードの変種 (a)（TASK-477 1/2）
 
-左の成果物エリアのカードを、変種 (a) で描く本体（`crates/web/src/card_view.rs`）を作り、代役の部品（`view_fixture`）の `(card_list, a)` をこれに回した。(a) は `wireframe-ui` の `card_basic`（ラベル・補足・状態の `tag`）と、ラベルを連結した `tag` 1 個で描く。変種 (b)（`article`・`ul`・`marker`）と 20 件の規模は TASK-477 2/2 に分けた。
+左の成果物エリアのカードを、変種 (a) で描く本体（`crates/web/src/card_view.rs`）を作り、代役の部品（`view_fixture`）の `(card_list, a)` をこれに回した。(a) は `wireframe-ui` の `card_basic`（ラベル・補足・状態の `tag`）と、ラベルを連結した `tag` 1 個で描く。変種 (b)（`article`・`ul`・`marker`）と 20 件の規模は TASK-477 2/2（5.107）に分けた。
 
 - 受入: (a) の項目数（前 3・後 4）と変化の印の数（後は追加 1・削除 1・変更 2・印なし 0）が期待値と一致し、前後の切り替えで行も項目の内側も置き換わらない。部品の型・識別子・綴りに Issue・PR などの語が 0 件（`artifact_view_generic_names` が `card_view.rs` を走査する）
 - 判断 1: ラベル（`tags`）は区切り「・」で連結した 1 個の `tag` にし、空でも必ず出す。1 件ごとに `tag` にすると件数の違う前後で子の数が変わり、keyed list の in-place 更新の前提（5.95）と `artifact-mark-toggle` の `deep` が崩れる
@@ -3267,6 +3267,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `card-view`・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch` の 62 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件と `list-parent-attrs`（配信用の web が別に要る）は未検証。CI には未組み込み）
 - 範囲外: 変種 (b)・20 件の規模・2 変種の検査器の通し（TASK-477 2/2）、`wireframe_css()` の配信と配色（TASK-490）、製品の結線、指せる行の属性（TASK-480）、再描画の時間（TASK-485）、値の注入の 24 通り（TASK-482）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.107 カードの変種 (b) と 20 件の規模（TASK-477 2/2）
+
+カードの変種 (b)（自作の `article` と `ul`、`headless-ui` の `marker`）を `card_view.rs` に足し、代役の部品（`view_fixture`）の `(card_list, b)` をこれに回した。あわせて 20 件の規模のデータで、検査器から (a)・(b) の 2 変種を流した。
+
+- 受入: (b) の項目数（前 3・後 4）と印の数（後は追加 1・削除 1・変更 2・印なし 0）が期待値と一致し、印は項目の `li` 自身にある。前後の切り替えで行も項目の内側も置き換わらない。20 件では (a)・(b) とも項目 20、保持 20。部品の型・識別子・綴りに Issue・PR などの語が 0 件（`artifact_view_generic_names` が `card_view.rs` と新しい testid の綴りを走査する）
+- 判断 1: 項目の根は `li` で、`article` はその内側に置く。親の list は `ul` で、`ul` の直下の `article` は HTML として不正であり、検査器は (b) の印の宿主が項目自身であることを求める。見出し要素は使わない（20 件で見出しが 20 個増え、ページの見出しの構成を変えるため。契約に定めも無い）
+- 判断 2（spec からの逸脱）: ラベルの `ul` は `li` を 1 個に固定し、文字は「・」で連結する。ラベル 1 件ごとの `li` にすると、`pr1`（前 1 件・後 2 件）で子孫の数が前後で変わり、検査器の `deep` が違反になる。`ul` の自作は満たすが、項目 1 件ごとの `li` ではない。spec 側の確認が要る
+- 判断 3: `marker` は `root`（`div`）と `content`（`span`）だけを使う。`icon` は `aria-hidden` を固定で出し、a11y の契約（版 2）の閉じた一覧に無い。色調は `CardState::tone` の閉じた `match`（下書き = warning、オープン・不明 = neutral、マージ済み = info、クローズ = danger）で、spec に定めの無い仮置きである。状態は文字でも示し、色に頼らない
+- 判断 4: 状態の語彙・完全一致・fail-closed、印の扱い（ART-17）、`wireframe_css()` を呼ばないこと、製品の `view()` へ結線しないことは (a) と同じ（5.106）
+- 判断 5: 20 件のデータは `testdata/`（spec の写しで SHA-256 固定）に置けないため、`crates/web/tests/data/artifact_view_scale/cards-20.json` に置く（出所は同じ場所の `README.md`）。`view_fixture` に action `fixture_data`（payload は `cards:sample`・`cards:20` だけ）を足し、検査器の `runViewCase` に任意の `rows` を足した。`view_fixture` は `test-hooks` の下だけで、配信物には入らない
+- 注意: 20 件のデータは追加・削除とラベルの件数の変化を含まない。判断 2 の形の不変は、sample の `pr1` で確かめる
+- native の試験（`crates/web/tests/card_view_b_contract.rs`）: 項目数と key の並び、印の数、`data-mark` が `li` 自身だけにあること、`article`・`marker`・`ul`・`li` の数、状態の文字と色調（5 状態）、ラベルの連結、補足が空でも `p` が出ること、前後の形の不変（`pr1` を含む比較 3 件）、欄ごとの印が無いこと、a11y の閉じた一覧と `role`・`aria-`・`svg`・`icon` が 0 件、エスケープ、0 件・非選択で `role` が付かないこと、20 件の構成。`view_fixture` の単体試験: (b) が本体を通ること、`fixture_data` の受理と拒否、20 件への切り替えと戻し、非選択中の切り替えで dirty を積まないこと
+- ブラウザの試験（`tools/browser/card-view.test.mjs`）: CV4 (b) の前後 2 往復、CV5 前後の部品の数と印の宿主と数、CV6 外部リクエスト・ページのエラー・ダイアログが 0 件、CV7 a -> b -> a の選び直し、CV8 20 件の写しが `generate.mjs` の出力と一致、CV9 20 件を (a)・(b) で流す、CV10 20 件に切り替えずに 20 件の `rows` で流すと項目数の違反が出る（`rows` の口の対照）。`artifact-view-controls` の N3b は、(b) の本体では最初の `span` が `marker` になるため、選択子を `[data-testid="card-label"]` に直した（試験の意図は変えない）
+
+```text
+実行日: 2026-10-17
+元にしたコミット: bf3b033-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART17-1.mutation 〜 ART17-6.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART17-4 | (b) の項目を変種 A の根で作る | DETECTED | `card_view_b_contract` の「data_mark_は_li_自身にあり内側の要素には無い」 |
+| ART17-5 | ラベルを 1 件ごとの `li` にする | DETECTED | `card_view_b_contract` の「同じ_key_の項目の形は前後で変わらない_ラベルの件数が変わる行を含む」ほか 2 件 |
+| ART17-6 | オープンと語彙の外の色調を情報へ変える | DETECTED | `card_view_b_contract` の「状態の文字と色調は固定の語彙に対応する」 |
+
+- 変異を置いていないもの: `fixture_data` の差し替え。変異の仕組みは統合試験の対象だけを指定でき、`view_fixture` の単体試験（lib）は指せないため、単体試験だけで確かめた
+- ブラウザの試験: `card-view`（CV1〜CV10）・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch` の 70 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
+- 範囲外: 再描画の時間（TASK-485）、`wireframe_css()` の配信と配色（TASK-490）、製品の結線、指せる行の属性（TASK-480）、値の注入の 24 通り（TASK-482）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -3286,7 +3316,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | `fandhe-frontend-interactive` | 0.2.7 |
 | `fandhe-frontend-wasm-client` | 0.6.1 |
 | `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
-| `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473） |
+| `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473。`marker::root`・`content` も使う。TASK-477） |
 | `fandhe-frontend-wireframe-ui` | 0.52.0（直接の依存。`rich_text` を使う。TASK-473） |
 
 版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。

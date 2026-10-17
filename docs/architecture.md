@@ -142,7 +142,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 選択肢のボタン（`offers`。確認が `answer` の Step が確認待ちのとき、表示名のボタンを `Offers` の部品として描く。クリックは `data-action="choose"` で `decode_action` が `Op::Input(Input::Choice)` に結び、照合と判定は core。配置は TASK-517。承認のボタンも同じ部品で出す: 入力方式 `approval` の入力待ちと、確認が `approve`（または無し）の確認待ちで、はい・いいえ・直す、入力待ちでは規則に書かれた対象ごとの「直す（対象: …）」を加える。対象は core の `revise_targets` だけから得る。クリックは `data-action="decide"`・`"revise-target"` で `Op::Input(Input::Approval)` に結ぶ） | web | TASK-445・TASK-447 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
 | ファイルツリーのビュー（変種 (a)・(b)。(b) は木の属性・変化の印・headless-ui の `item_text`、(a) は wireframe-ui の `rich_text`。製品の結線は後続） | web（`file_tree_view`） | TASK-473 |
-| カードのビュー（変種 (a)。wireframe-ui の `card_basic`・`tag`。ラベルと状態は行データから受け取り、特定の教材の語を持たない。製品の結線は後続） | web（`card_view`） | TASK-477 |
+| カードのビュー（変種 (a)・(b)。(a) は wireframe-ui の `card_basic`・`tag`、(b) は自作の `article`・`ul` と headless-ui の `marker`。ラベルと状態は行データから受け取り、特定の教材の語を持たない。製品の結線は後続） | web（`card_view`） | TASK-477 |
 | タスクツリーの変種 (a)・(b) の本体（(b) は木の属性、(a) はチェックボックスの代役・深さのクラスで木の意味なし。どちらも状態のバッジで、状態は記号と文字の両方。ART-1・A11Y-22） | web（`task_tree`） | TASK-474 |
 | 差分のビューの変種 (b) の本体（`pre`・行番号・記号の列。行の印と差分の記号の 2 層を別の列に出す。ART-1・ART-8）と、対照専用の変種 (a)（`diff_item_a`。製品では選べない） | web（`diff_view`） | TASK-475 |
 | 文書のビューの変種 (b) の本体（本文の木 `Block` を行の中身に結び、包みの中に木の要素を 1 つ描く。実行時に Markdown は解釈しない。ART-1・ART-7）と、対照専用の変種 (a)（`doc_item_a`。平文の行に落とす。製品では選べない） | web（`document_view`） | TASK-476 |

@@ -10,7 +10,9 @@ use fandhe_workshop_web::artifact_view::{
     RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
     POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
 };
-use fandhe_workshop_web::card_view::{CardState, TAGS_SEPARATOR};
+use fandhe_workshop_web::card_view::{
+    CardState, CARD_DETAIL_TESTID, CARD_LABEL_TESTID, CARD_TAGS_TESTID, TAGS_SEPARATOR,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Match {
@@ -165,7 +167,12 @@ fn 綴りに固有の語が無い() {
         .chain(RowKind::ALL.iter().map(|k| k.as_str()))
         .chain(Variant::ALL.iter().map(|v| v.as_str()))
         .chain(CardState::ALL.iter().map(|c| c.text()))
-        .chain([TAGS_SEPARATOR])
+        .chain([
+            TAGS_SEPARATOR,
+            CARD_LABEL_TESTID,
+            CARD_DETAIL_TESTID,
+            CARD_TAGS_TESTID,
+        ])
         .chain([
             VIEW_LIST_TESTID,
             VIEW_ATTR,

@@ -201,7 +201,7 @@ test('N3b: ラベルへ innerHTML で同じ形の文字列を入れると、危�
   await withFixturePage(async (page) => {
     const mutate = (p) => p.evaluate((html) => {
       const li = document.querySelector('#view-fixture-root [data-testid="view-list"]:not([hidden]) > *');
-      const label = [...li.querySelectorAll('span')].find((s) => !s.hasAttribute('data-testid'));
+      const label = li.querySelector('[data-testid="card-label"]');
       label.innerHTML = html;
     }, '<img><iframe></iframe><a href="javascript:void(0)">x</a>');
     const { violations } = await runViewCase(page, mutatingAdapter(page, mutate), { kind: 'card_list', variant: 'b', rootSelector: ROOT });
