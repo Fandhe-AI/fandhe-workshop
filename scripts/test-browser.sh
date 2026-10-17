@@ -3,7 +3,7 @@
 #
 # 配信設定の web（TEST_HOOKS なし）と試験の設定の web（TEST_HOOKS=1）を一時ディレクトリへビルドし、
 # tools/browser/*.test.mjs を node:test で実行する。配信設定は FANDHE_WEB_DIR、試験の設定は FANDHE_WEB_TEST_DIR で渡す。
-# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・esc-attr・input-limit・paste・paste-notice（上限の案内文と貼り付けの観察。TERM-15・TERM-19）・learner-text・enter-submit・submit-wiring・tab-complete・shift-tab・tab-cycle・esc-key・json-depth・json-load-order・doc-links・doc-tree・tick-interval・three-views・log-lines-xss・reject-lines・choice-answer（選択肢の誤答・選び直し・達成。TERM-24）・approval-buttons（承認のボタンと対象つきの直す。TERM-27）・approval-flow（承認の操作のログ文言と CH-2 相当の完走。TERM-27）・tree-attrs・list-parent-attrs・confirm-burst・stop-move-ignore・esc-outcomes（Esc の画面の結果。TERM-7。処理中は候補が開いていても停止し候補も閉じる・処理中でなく候補が開いていれば閉じるだけ・どちらでもなければ取り消しの入力で、受け付けない Step では拒否の行と次の行動が出る。TERM-8）・reload-ignore・reload-notice・restore-cancel・candidates・history-export・history-import・artifact-view-check（左のビュー共通の検査器の自己確認。TASK-471）・artifact-view-controls（検査器の負の対照 3 種。印を消す・部品を項目の外に置く・innerHTML。TASK-471）・ime（CDP による IME の模擬のヘルパの自己確認）・ime-input（入力欄と IME の層 3。BUILD-10。誤送信 0・送信漏れ 0。CDP の模擬）・history-versions（保存・復元・書き出し・版の層 3。BUILD-10。往復・読み込み後の保存と復帰・版の判定・壊れた履歴の拒否）・reload-fresh（保存済みの履歴が無い場合と未操作の再読み込みで新しく始まり世代が上がらない。操作後は復元される対照つき。SAVE-3・SAVE-28）。SAFE-9・SAFE-12・EVT-3・EVT-7・EVT-8・EVT-9・EVT-10・EVT-11・EVT-12・EVT-18・SAVE-6・FEND-15・TERM-1・TERM-2・TERM-21）、
+# 共通ヘルパの試験（harness・safety。安全性の計数の対照）と、実際の画面の試験（smoke-hello・keydown-action・esc-attr・input-limit・paste・paste-notice（上限の案内文と貼り付けの観察。TERM-15・TERM-19）・learner-text・enter-submit・key-invariants（Enter 系・Tab 系のキーの不変条件の基準。FEND-21。TASK-351）・submit-wiring・tab-complete・shift-tab・tab-cycle・esc-key・json-depth・json-load-order・doc-links・doc-tree・tick-interval・three-views・log-lines-xss・reject-lines・choice-answer（選択肢の誤答・選び直し・達成。TERM-24）・approval-buttons（承認のボタンと対象つきの直す。TERM-27）・approval-flow（承認の操作のログ文言と CH-2 相当の完走。TERM-27）・tree-attrs・list-parent-attrs・confirm-burst・stop-move-ignore・esc-outcomes（Esc の画面の結果。TERM-7。処理中は候補が開いていても停止し候補も閉じる・処理中でなく候補が開いていれば閉じるだけ・どちらでもなければ取り消しの入力で、受け付けない Step では拒否の行と次の行動が出る。TERM-8）・reload-ignore・reload-notice・restore-cancel・candidates・history-export・history-import・artifact-view-check（左のビュー共通の検査器の自己確認。TASK-471）・artifact-view-controls（検査器の負の対照 3 種。印を消す・部品を項目の外に置く・innerHTML。TASK-471）・ime（CDP による IME の模擬のヘルパの自己確認）・ime-input（入力欄と IME の層 3。BUILD-10。誤送信 0・送信漏れ 0。CDP の模擬）・history-versions（保存・復元・書き出し・版の層 3。BUILD-10。往復・読み込み後の保存と復帰・版の判定・壊れた履歴の拒否）・reload-fresh（保存済みの履歴が無い場合と未操作の再読み込みで新しく始まり世代が上がらない。操作後は復元される対照つき。SAVE-3・SAVE-28）。SAFE-9・SAFE-12・EVT-3・EVT-7・EVT-8・EVT-9・EVT-10・EVT-11・EVT-12・EVT-18・SAVE-6・FEND-15・TERM-1・TERM-2・TERM-21）、
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）を含む。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
@@ -56,6 +56,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/paste-notice.test.mjs" \
   "${ROOT_DIR}/tools/browser/learner-text.test.mjs" \
   "${ROOT_DIR}/tools/browser/enter-submit.test.mjs" \
+  "${ROOT_DIR}/tools/browser/key-invariants.test.mjs" \
   "${ROOT_DIR}/tools/browser/submit-wiring.test.mjs" \
   "${ROOT_DIR}/tools/browser/tab-complete.test.mjs" \
   "${ROOT_DIR}/tools/browser/shift-tab.test.mjs" \
