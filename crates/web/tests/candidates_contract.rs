@@ -118,7 +118,7 @@ fn 開く場面と開かない場面() {
 }
 
 #[test]
-fn esc_は一覧を閉じるだけでログも下書きも変えず_下書きが変われば再び開く() {
+fn esc_は1回目で一覧を閉じるだけで_下書きは変えず_下書きが変われば再び開く() {
     let mut h = host();
     let log = h.model().session().unwrap().log().len();
     act(&mut h, "draft", "/he");
@@ -223,7 +223,7 @@ fn esc_で閉じた一覧は補完しない() {
 }
 
 #[test]
-fn 補完の後の_esc_はログを変えない() {
+fn 補完の後の_esc_は取り消しの入力になり下書きは残る() {
     let mut h = host();
     let log = h.model().session().unwrap().log().len();
     act(&mut h, "draft", "/he");

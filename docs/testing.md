@@ -2324,3 +2324,30 @@ P-9 は、配信設定の web がコマンド表を持たず一覧が常に閉�
 | ID | 対象 | 結果 |
 |---|---|---|
 | TERM7-1 | crates/web/src/hello.rs: 停止の経路で候補の一覧を閉じない | DETECTED（処理中に候補が開いていても_esc_は停止になり候補も閉じる） |
+
+### 5.80 取り消しの入力と不受理の Step の拒否（TASK-441 2/2）
+
+変換中でない入力欄での Esc の 3 つ目、(3) 処理中でなく候補も閉じていれば取り消しの入力にする、を画面で確かめた（TERM-8。JUDGE-17・JUDGE-18。PoC-2 の K-09・K-10）。5.79 と違い、本タスクは本番のコードを変えた。`crates/web/src/host.rs` の Esc の分岐は、従来は停止だけを Session へ適用していた。これを停止と取り消しの入力（`Op::Input(Input::Cancel)`）の 2 つに広げた。許可する op を明示し、`EscRoute` に行き先が増えても黙って Session へ流れないようにした。判定（`esc_route`）と core 側の拒否（`on.cancel` の規則が無い Step の `not_in_this_step`）は実装済みで、欠けていたのはホストの結線だけだった。試験の教材（`min-3step.json`）はどの Step も取り消しを受け付けないため、拒否の側だけを確かめる。取り消しを受け付ける Step の画面の結果と下書きの扱いは仕様が定めておらず、本タスクの範囲外である。
+
+| 層 | 試験 | 確かめること |
+|---|---|---|
+| native | `crates/web/tests/run_status_contract.rs` | 待機中で候補が閉じている Esc（下書きは空と `hello`）で、ログの末尾が `InputReceived { Cancel }` と `Judged { Rejected(not_in_this_step) }` になり、世代・状態表示・下書きが変わらず、文面の控えが `filled_text` と一致し、`rejected` の行が 1 件（子は理由と次の行動）になること。候補が開いていれば 1 回目で閉じ 2 回目で取り消しになること。停止の後の Esc が取り消しになり、停止の行は 1 件のままで世代が変わらないこと |
+| ブラウザ | `tools/browser/esc-outcomes.test.mjs` | 試験の設定（CSP あり・なし）で、上の 3 通りの拒否の行が出て、文字が IR の既定の拒否の文面・次の行動と一致し、子が文字ノード 1 つで、`logLen` は +2 でも `rejected` の行は 1 件であること |
+
+結線で期待が変わった既存の試験は、検査を消さずに直した。`esc_と停止ボタンは…`（名前は変異 TERM33-3 が参照するため維持）は、待機中の Esc で拒否が 2 件増え世代が変わらないことを検査する。`candidates_contract.rs` の 2 件は名前を実態に合わせた。`tools/browser/candidates.test.mjs` は、閉じた後の 2 回目の Esc で `logLen` が +2 になることを検査する。
+
+実行結果（2026-10-17）。ブラウザ試験は `esc-outcomes`・`candidates`・`esc-key`・`esc-attr`・`stop-redo`・`restore-cancel`・`reject-lines`・`keydown-action`・`run-status` を個別に流し（58 件）、全件通過した。`esc-outcomes` と `candidates` は続けてもう 1 回流して通過した。`make test-browser` の全体は流していない（未検証）。`make lint`・`make test`・`make check`・`make check-deps`・`make check-dom-reads` は通過した。`make check-delivery` は流していない（未検証。本タスクは試験用の口を足していない）。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 665042c-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM8-1.mutation crates/web/tests/mutations/TERM33-3.mutation crates/web/tests/mutations/TERM7-1.mutation crates/web/tests/mutations/JUDGE17-4.mutation crates/web/tests/mutations/JUDGE18-2.mutation
+```
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| TERM8-1 | crates/web/src/host.rs: 待機中の Esc の取り消しの入力が Session へ届かない | DETECTED（待機中で候補が閉じている_esc_は取り消しの入力になり_拒否の行と次の行動が出る） |
+| TERM33-3 | crates/web/src/host.rs: Esc の経路で処理中を常に偽にする | DETECTED（流し直し） |
+| TERM7-1 | crates/web/src/hello.rs: 停止の経路で候補の一覧を閉じない | DETECTED（流し直し） |
+| JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | DETECTED（流し直し） |
+| JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたまま | DETECTED（流し直し） |

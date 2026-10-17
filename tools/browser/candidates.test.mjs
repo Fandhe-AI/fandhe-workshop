@@ -123,12 +123,15 @@ for (const csp of [true, false]) {
         return el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       }, INPUT);
       assert.equal(notPrevented, true);
-      // 1 回目の Esc（preventDefault されない）で閉じる。閉じた後の Esc は何も起こさない。
+      // 1 回目の Esc（preventDefault されない）で閉じ、ログは変わらない。閉じた後の Esc は取り消しの入力になり、
+      // 取り消しを受け付けない Step では拒否が記録される（InputReceived と Judged の 2 件。TASK-441 2/2）。
       assert.equal(await isHidden(page), true);
+      assert.equal(await logLen(page), before);
       await page.keyboard.press('Escape');
       assert.equal(await isHidden(page), true);
       assert.equal(await page.inputValue(INPUT), '/he');
-      assert.equal(await logLen(page), before);
+      const afterCancel = await logLen(page);
+      assert.equal(afterCancel, before + 2);
       // 閉じた後の Tab は補完にならない。
       await page.keyboard.press('Tab');
       assert.equal(await focusedId(page), 'submit-input');
@@ -140,7 +143,7 @@ for (const csp of [true, false]) {
       await page.focus(INPUT);
       await page.keyboard.press('Escape');
       assert.equal(await isHidden(page), true);
-      assert.equal(await logLen(page), before);
+      assert.equal(await logLen(page), afterCancel);
       assertClean(rec);
       await context.close();
     });

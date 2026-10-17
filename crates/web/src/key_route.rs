@@ -189,7 +189,7 @@ pub fn esc_input() -> KeyInput {
 /// 優先順位そのものは判定表 `decide` が持ち、ここでは作り直さない。
 ///
 /// 画面から (2) に届くのは候補の一覧が結ばれた TASK-440 1/2 の後、(1) がホストから Session に届くのは TASK-436 2/2 の後である。
-/// (3) の Session への適用は未結線で、待機中の Esc はログを変えない。
+/// (3) の Session への適用もホスト（`host::EngineHost`）が行う（TASK-441 2/2）。取り消しの規則が無い Step では拒否の行が出る。
 /// `match` は網羅的に書く。`KeyAction` に行が増えたとき、ここでコンパイルが失敗して気づけるようにするため。
 pub fn esc_route(decision: Decision) -> EscRoute {
     match decision {

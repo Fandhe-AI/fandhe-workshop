@@ -98,7 +98,8 @@ pub enum HelloAction {
     /// root の中の Esc（`data-action-keydown="esc"`。FEND-5）。状態を変えない。
     ///
     /// 単体では「Component に届いた」ことと候補を閉じることだけを表す。処理中の停止（`esc_route`）は
-    /// ホストが [`HelloView::esc`] を通して Session へ適用する（TASK-436 2/2）。
+    /// ホストが [`HelloView::esc`] を通して Session へ適用する（TASK-436 2/2）。処理中でなく候補も閉じていれば
+    /// 取り消しの入力になり、これもホストが適用する（TASK-441 2/2）。
     Esc,
     /// 停止ボタン（`data-action="stop"`。TERM-33）。payload は読まない。単体では状態を変えず、
     /// 処理中の停止への結線はホスト（`host::EngineHost`）が行う。
