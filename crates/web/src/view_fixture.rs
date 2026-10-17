@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で描く
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -57,7 +57,7 @@ pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
 
-/// 対照の口の action の名前。payload は `diff:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
+/// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
 pub(crate) const ACTION_CONTRAST: &str = "fixture_contrast";
 
 /// 項目の外の部品を出し入れする action の名前。payload は `outside` か `inside`。
@@ -219,12 +219,12 @@ pub(crate) struct ViewFixture {
 }
 
 /// 状態を変える action。`Select` は復号の段で `VariantPolicy` を通るため、許されない組は作れない。
-/// `Contrast` は対照の口で、差分の (a) だけを受ける。
+/// `Contrast` は対照の口で、差分・文書の (a) だけを受ける。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum FixtureAction {
     /// ビューの種類と変種を選ぶ。
     Select(ViewKind, Variant),
-    /// 製品の契約が拒否する組を対照として選ぶ（差分の (a) だけ）。
+    /// 製品の契約が拒否する組を対照として選ぶ（差分・文書の (a) だけ）。
     Contrast(ViewKind),
     /// 前後を切り替える。
     Phase(Phase),
@@ -301,12 +301,11 @@ impl ViewFixture {
                 .iter()
                 .filter_map(|r| row_node(r, self.phase, self.variant, |c: &Cell| c.label.as_str()))
                 .collect(),
-            // 文書の (b) は本体のビュー（TASK-476）で描く。(a) は `fixture_select` の復号で拒否され到達しない。
-            // 到達しない枝は (b) へ黙って退避せず、空にする（対照の口は TASK-476 2/2 が足す）。
+            // 文書の (b) は本体のビュー（TASK-476）で描く。(a) は `fixture_select` では拒否され、対照の口からだけ入る。
             ViewRows::Doc(v) if self.variant == Variant::B => {
                 document_view::doc_items(v, self.phase)
             }
-            ViewRows::Doc(_) => Vec::new(),
+            ViewRows::Doc(v) => document_view::doc_items_a(v, self.phase),
         }
     }
 }
@@ -412,6 +411,7 @@ impl Component for ViewFixture {
             }
             ACTION_CONTRAST => match payload {
                 "diff:a" => Some(FixtureAction::Contrast(ViewKind::Diff)),
+                "document:a" => Some(FixtureAction::Contrast(ViewKind::Document)),
                 _ => None,
             },
             ACTION_PHASE => match payload {
@@ -590,13 +590,20 @@ mod tests {
     }
 
     #[test]
-    fn 対照の口は_diff_a_だけを受け_他の_payload_は拒否される() {
+    fn 対照の口は_diff_a_と_document_a_だけを受け_他の_payload_は拒否される() {
         assert_eq!(
             ViewFixture::decode_action(ACTION_CONTRAST, "diff:a"),
             Some(FixtureAction::Contrast(ViewKind::Diff))
         );
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_CONTRAST, "document:a"),
+            Some(FixtureAction::Contrast(ViewKind::Document))
+        );
         for payload in [
-            "document:a",
+            "document:b",
+            "Document:a",
+            "document:a ",
+            "document",
             "diff:b",
             "card_list:a",
             "Diff:a",
@@ -636,6 +643,48 @@ mod tests {
         let mut f = ViewFixture::load().unwrap();
         f.update(FixtureAction::Contrast(ViewKind::Diff));
         assert_eq!(ViewFixture::decode_action(ACTION_SELECT, "diff:a"), None);
+    }
+
+    #[test]
+    fn 対照の口で文書の_a_の後は構造の要素が無く平文の部品で描かれる() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Contrast(ViewKind::Document));
+        f.update(FixtureAction::Phase(Phase::After));
+        assert_eq!(
+            (f.selected(), f.variant()),
+            (ViewKind::Document, Variant::A)
+        );
+        let html = render(&f.view());
+        assert_eq!(
+            html.matches("data-testid=\"doc-block\"").count(),
+            13,
+            "{html}"
+        );
+        for tag in [
+            "<h1",
+            "<h2",
+            "<ol",
+            "<table",
+            "<blockquote",
+            "<code",
+            "<pre",
+        ] {
+            assert_eq!(html.matches(tag).count(), 0, "{tag} {html}");
+        }
+        // ul は 7 種の keyed list の親だけで、本文の一覧は ul にならない。
+        assert_eq!(html.matches("<ul").count(), 7, "{html}");
+        assert!(html.contains("fw-wire-"), "{html}");
+        assert!(!html.contains("<li data-mark"), "{html}");
+    }
+
+    #[test]
+    fn 対照の後も_fixture_select_の_document_a_は拒否される() {
+        let mut f = ViewFixture::load().unwrap();
+        f.update(FixtureAction::Contrast(ViewKind::Document));
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_SELECT, "document:a"),
+            None
+        );
     }
 
     #[test]

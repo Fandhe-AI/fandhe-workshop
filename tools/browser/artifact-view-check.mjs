@@ -8,7 +8,7 @@
 // - 要素の同一性（未変更の行は 100%、変更のあった行の置換は 0）。root 直下の部品の根も、前後で同じ要素であること
 // - 危険な要素・属性（DANGER_SELECTOR）が root の下に 0 件であること
 // - 契約が許さない 2 通り（文書 (a)・差分 (a)）は、拒否され、状態も画面も変わらず、(b) へ黙って退避しない
-//   （拒否は fixture_select に対して成り立つ。差分 (a) は代役の部品の対照の口 fixture_contrast から描け、diff-view.test.mjs が流す）
+//   （拒否は fixture_select に対して成り立つ。差分 (a)・文書 (a) は代役の部品の対照の口 fixture_contrast から描け、diff-view.test.mjs・doc-view.test.mjs が流す）
 // 外部へのリクエスト・ページのエラー・ダイアログが 0 件であることは、呼び出し側が harness の collectSafety で主張する。
 //
 // 呼び出し元: 本検査器の自己確認（artifact-view-check.test.mjs。マウントする代役の部品に向ける）。

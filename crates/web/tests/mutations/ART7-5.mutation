@@ -1,0 +1,8 @@
+id: ART7-5
+package: fandhe-workshop-web
+test: document_view_a_contract
+target: crates/web/src/document_view.rs
+find:         Variant::A,
+replace:         Variant::B,
+expect-fail: a_項目の形は_li_の子が内側の_div_1つで_印の宿主はその_div
+note: (a) の項目を (b) の印の付け先（項目自身）で作る（(a) の項目の形が (b) のものに変わる。ART-1）
