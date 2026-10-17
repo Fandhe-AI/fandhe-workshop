@@ -1,0 +1,8 @@
+id: SAVE3-1
+package: fandhe-workshop-core
+test: reload_points
+target: crates/core/src/reload.rs
+find:     state.run.generation = next;
+replace:     state.run.generation = next; state.run.busy = None;
+expect-fail: 三十三の地点で再読み込みの前後が世代を除いて一致し完走した世界状態が一致する
+note: 再読み込みで処理中を止めない（処理中の地点の復元が処理中のまま続く）
