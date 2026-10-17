@@ -2841,6 +2841,30 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 - FEND-7・FEND-20 の「349 行・9 個」を、今の数え方との関係で注記するかは spec 側で扱う。
 - ブラウザ試験は CI に未組み込みである。
 
+### 5.93 文書の導出と増分・一括の一致（TASK-468 2/2）
+
+1/2（5.87）が送った 2 件を入れた。文書のブロックの突き合わせ（`artifact_doc_rows`）と、増分と一括の一致（`PhaseWorlds`）である。コードは純関数だけで、ブラウザ試験は無い。
+
+- 受入（文書）: `doc-before.md`・`doc-after.md` を `markdown::parse` でブロックにし、期待値は導出を通さずにパース結果から数える（重複が無いことを確かめた上で、前のブロックのうち後に含まれるものを未変更とする）。未変更 + 追加 = 後のブロック数、未変更 + 削除 = 前のブロック数、`~` が 0 件、前の状態は印 0 件
+- 規則: 空・同一・全追加・全削除、変更は `-` が先の組、重複したブロックを含む列、ID の形、空の経路、読み取りの誤り、上限（`LIST_ITEMS_LIMIT` 超と中央の表 `MAX_ALIGN_CELLS` 超は `TooLarge`）、`Changed` 以外の無視
+- 増分と一括: 6 種の sample・同じ経路を何度も変える列・`Changed` 以外を混ぜた列・文書を 1 ブロックずつ変える列で、全接頭辞 × 4 通りの分け方（1・2・3 件ずつ・全体 1 回）の増分の結果が一括と一致する。`Projection::extend` に同じ分け方で渡した結果の `consumed` と `Projection::from_events` との一致も確かめる
+- 仮置き: 同点のときは `-` を `+` より先に出す（spec は順を決めていない）。基準点での「前」の取り直しは TASK-470・TASK-347
+
+```text
+実行日: 2026-10-17
+元にしたコミット: d64e78a-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART2-{2,3,4,5,6,7}.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART2-2 | 後の世界状態に `Changed` を当てない | DETECTED | `artifact_rows_sample` の 7 件 |
+| ART2-3 | 走査を後の世界状態の鍵だけにする | DETECTED | `artifact_rows_sample` の 7 件 |
+| ART2-4 | 前後とも読めない経路を飛ばさない | DETECTED | `artifact_rows_contract` の「ビューの外の要素は行にならない」 |
+| ART2-5 | 前後が違うブロックを一致として組にする | DETECTED | `artifact_doc_rows` の 4 件 |
+| ART2-6 | 増分の開始位置を 1 つ飛ばす | DETECTED | `artifact_rows_incremental` の 2 件 |
+| ART2-7 | 前にだけあるブロックの行を出さない | DETECTED | `artifact_doc_rows` の 5 件 |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

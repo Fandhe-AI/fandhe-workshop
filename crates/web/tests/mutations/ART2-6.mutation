@@ -1,0 +1,9 @@
+id: ART2-6
+package: fandhe-workshop-web
+test: artifact_rows_incremental
+target: crates/web/src/artifact_rows.rs
+find:         if let Some(rest) = events.get(self.consumed..) {
+replace:         if let Some(rest) = events.get(self.consumed + 1..) {
+expect-fail: sampleの六種は全接頭辞と四通りの分け方で一括と一致する
+expect-fail: 同じ経路を何度も変える列と他のイベントを混ぜた列でも一致する
+note: 増分の開始位置を 1 つ飛ばす（未処理のイベントを 1 件落とす）

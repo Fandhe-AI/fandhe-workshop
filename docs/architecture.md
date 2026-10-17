@@ -141,7 +141,8 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 状態表示の導出（`run_status`。待機中・処理中・停止。Esc と停止ボタンは `host` が処理中のときだけ `Control::Stop` に結ぶ。TASK-436 2/2。描画は `engine_parts` の `LogPart` の仮の位置） | web | TASK-436 |
 | 選択肢のボタン（`offers`。確認が `answer` の Step が確認待ちのとき、表示名のボタンを `Offers` の部品として描く。クリックは `data-action="choose"` で `decode_action` が `Op::Input(Input::Choice)` に結び、照合と判定は core。配置は TASK-517。承認のボタンも同じ部品で出す: 入力方式 `approval` の入力待ちと、確認が `approve`（または無し）の確認待ちで、はい・いいえ・直す、入力待ちでは規則に書かれた対象ごとの「直す（対象: …）」を加える。対象は core の `revise_targets` だけから得る。クリックは `data-action="decide"`・`"revise-target"` で `Op::Input(Input::Approval)` に結ぶ） | web | TASK-445・TASK-447 |
 | ツリーの位置の計算（`aria-level`・`aria-posinset`・`aria-setsize`）と、木の属性の組・親の `role=tree`（ART-9・ART-13。全項目を開いた表示で、開閉とキー操作は持たない） | web（`tree_attrs`・`artifact_view`） | TASK-472 |
-| 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。文書のブロックの突き合わせは含まない） | web（`artifact_rows`） | TASK-468 |
+| 世界状態とイベント列から、左のビューの行の前後の組と印の数を導く処理（`artifact_rows`。属性の読み方とビューの選別は呼び出し側が持つ。増分の口 `PhaseWorlds` は `Projection::extend` と同じ契約でログの全体を受け、一括と同じ結果になる） | web（`artifact_rows`） | TASK-468 |
+| 文書のブロックの突き合わせ（`artifact_doc_rows`。前後のブロックを LCS で突き合わせ、変更を `-` と `+` の組にして `~` は作らない。ID は「文書の経路 + `#` + 位置」。ブロックの型は型パラメータで受け、`contract::doc::Block` との結びは TASK-476。上限超過は `TooLarge`） | web（`artifact_doc_rows`） | TASK-468 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
 | 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ。試験の設定だけ、起動の前に URL のクエリの完全一致（`?fixture=reload-points`）で mount の教材を選ぶ） | web（`persist`・`test_fixture`・`test_hooks`。wasm のみ） | TASK-319 |

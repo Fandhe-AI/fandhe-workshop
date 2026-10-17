@@ -1,0 +1,9 @@
+id: ART2-7
+package: fandhe-workshop-web
+test: artifact_doc_rows
+target: crates/web/src/artifact_doc_rows.rs
+find:             Step::Del(i) => (before.get(i), None),
+replace:             Step::Del(_) => continue,
+expect-fail: 実データの前後の行数と印が数えた値と一致する
+expect-fail: 空と同一と全追加と全削除
+note: 前にだけあるブロックの行を出さない（未変更 + 削除 が前のブロック数に届かない）
