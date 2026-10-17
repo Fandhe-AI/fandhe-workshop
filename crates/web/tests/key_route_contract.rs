@@ -7,6 +7,7 @@
 //! 候補が開いているときの Esc の 2 回（JUDGE-18）の遷移を外す変異（JUDGE18-2）と、補完の候補を先頭から変える変異（JUDGE21-2）の検出先でもある（TASK-282 1/2）。
 //! 修飾キー（Ctrl・Alt・Meta。Shift との組み合わせを含む）付きの Enter が送信にも `preventDefault` にもならない契約（JUDGE-22・D-60）を外す変異（JUDGE22-3）の検出先でもある（TASK-282 2/2）。
 //! 入力欄の Space が状態に関わらず `preventDefault` も送信もしない契約（FEND-7・D-42）を外す変異（FEND7-1）の検出先でもある（TASK-352 1/3）。
+//! 標準でない要素の Enter・Space の効果（`row_key_effect`。FEND-7）を外す変異（FEND7-2）と、修飾なしの Enter が送信ボタンへの click と `preventDefault` になる契約（FEND-14）を外す変異（FEND14-1）の検出先でもある（TASK-352 2/3）。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
@@ -17,7 +18,8 @@ use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{apply, load_ir};
 use fandhe_workshop_web::glue_ops::tab_prevents_default;
 use fandhe_workshop_web::key_route::{
-    after_esc, completion_choice, effect_for, esc_input, esc_route, field_state, EscRoute,
+    after_esc, completion_choice, effect_for, esc_input, esc_route, field_state, row_key_effect,
+    EscRoute, RowKeyEffect,
 };
 use std::path::PathBuf;
 
@@ -578,5 +580,62 @@ fn space_は状態に関わらず_prevent_default_せず送信もしない() {
                 "has_text={has_text} open={candidates_open}"
             );
         }
+    }
+}
+
+fn plain(key: &str) -> KeyInput {
+    KeyInput {
+        key: key.to_owned(),
+        key_code: 0,
+        is_composing: false,
+        shift: false,
+        ctrl: false,
+        alt: false,
+        meta: false,
+    }
+}
+
+#[test]
+fn fend14_修飾なしの_enter_は送信ボタンへの_click_と_prevent_default_になる() {
+    // 無効なボタンへの click はブラウザが何もしないため、Enter の送信は click 経路に結ぶことで FEND-14 を満たす。
+    for has_text in [true, false] {
+        let effect = effect_for(decide(&plain("Enter"), &field_state(has_text, false)));
+        assert!(effect.click_submit, "has_text={has_text}");
+        assert!(effect.prevent_default, "has_text={has_text}");
+    }
+}
+
+#[test]
+fn fend7_標準でない要素の_enter_と_space_は_prevent_default_と_click_になる() {
+    for key in ["Enter", " "] {
+        let effect = row_key_effect(&plain(key), false, true);
+        assert!(effect.prevent_default, "{key:?}");
+        assert!(effect.click_row, "{key:?}");
+        let held = row_key_effect(&plain(key), true, true);
+        assert!(held.prevent_default && !held.click_row, "{key:?} repeat");
+    }
+}
+
+#[test]
+fn fend7_標準でない要素は宛先なし_修飾付き_変換中_他のキーで何もしない() {
+    let none = |e: RowKeyEffect| !e.prevent_default && !e.click_row;
+    assert!(none(row_key_effect(&plain("Enter"), false, false)));
+    for key in ["Tab", "Escape", "a", "", "Unidentified"] {
+        assert!(none(row_key_effect(&plain(key), false, true)), "{key:?}");
+    }
+    for key in ["Enter", " "] {
+        for m in 0..4 {
+            let mut k = plain(key);
+            match m {
+                0 => k.ctrl = true,
+                1 => k.alt = true,
+                2 => k.meta = true,
+                _ => k.shift = true,
+            }
+            assert!(none(row_key_effect(&k, false, true)), "{key:?} {m}");
+        }
+        let mut c = plain(key);
+        c.is_composing = true;
+        assert!(none(row_key_effect(&c, false, true)), "{key:?} composing");
     }
 }
