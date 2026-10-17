@@ -2775,6 +2775,72 @@ TASK-352 3/3 のための記録（2026-10-17、`4835336` 時点）。
 
 限界: 修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、spec 側での確定が要る。送信ボタンを製品で無効にする状態は spec に無い。
 
+### 5.92 上流の口を採らない場合の前後の比較と glue の規模（TASK-352 3/3）
+
+受け持ちは D-42 の案 (c)（glue を維持する）で決まっており、上流への追加要望も行わない（FEND-7・FEND-8）。そのため「上流の口への置き換え」は起きない。3/3 は、TASK-352 の 3 件が glue のコードを変えていないことの確認と、前後の試験の件数・glue の規模の記録だけを行う。コードと試験は変えていない。
+
+「前」は TASK-352 に着手する前の基準（5.86b。`669ab6e`）、「後」は 3 件の完了後（`bddd086`）とする。
+
+TASK-352 の 3 件（1/3 `85d03e6`・2/3 `bddd086`）が `glue.rs` に与えた変更を、空白を無視し、空行と `//` の行を除いた差分で確かめた。`85d03e6` から `bddd086` までの差分は 0 行である。`669ab6e` から今までの非コメントの差分は、TASK-319 の保存・復元の結線（`mount_host`・`history_to_save`・`mount_app` の戻り値）だけで、キー処理の glue ではない。
+
+| 時点 | コミット | `key-invariants` | `tab-cycle` | `tab-complete` | `shift-tab` | `candidates` | 計 |
+|---|---|---|---|---|---|---|---|
+| 前（5.86b） | `669ab6e` | 20 | 11 | 4 | 6 | 18 | 59 |
+| 1/3（5.88） | `02b76ce` | 20 | 11 | 4 | 6 | 18 | 59 |
+| 2/3（5.91） | `4835336` | 20 | 11 | 4 | 6 | 18 | 59 |
+| 後（本節） | `bddd086` | 20 | 11 | 4 | 6 | 18 | 59 |
+
+置き換えが無いため、「同じ件数で通る」ことは置き換えの成否ではなく、TASK-352 がキー処理の不変条件を壊していないことの確認である。
+
+glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/glue.rs` で読み、コード行は空行と `//` で始まる行を除いた数。`/* */` のブロックコメントは 0 件）。
+
+| 時点 | `wc -l` | コード行 |
+|---|---|---|
+| `669ab6e`（前） | 480 | 319 |
+| `02b76ce`（1/3） | 480 | 319 |
+| `4835336`（2/3） | 500 | 324 |
+| `bddd086`（後） | 500 | 324 |
+
+- 前から後への増分（コード +5 行、全体 +20 行）は、すべて TASK-319 の保存・復元の結線による。TASK-352 による増分はコード行で 0 である。
+- FEND-7・FEND-20 の「349 行・9 個」は、決定時点の PoC の追試の値（`wc -l` で 438 行）で、数え方と範囲が今と異なる。今の glue は `key_route.rs`（514 行・コード 369 行）・`glue_ops.rs`（94 行・コード 42 行）などへ分割されており、行数の減少を削減とは読めない（分割が理由とみられる。推測）。
+
+`web-sys` の feature は、ルート `Cargo.toml` の `[workspace.dependencies]` に 21 個ある（5.88・5.91 と同じ。TASK-352 による増分は 0）。
+
+| 用途 | 個数 | feature |
+|---|---|---|
+| キー入力・textarea の glue | 8 | `Element`・`Event`・`EventTarget`・`HtmlElement`・`HtmlTextAreaElement`・`InputEvent`・`KeyboardEvent`・`Window` |
+| 保存先（localStorage・IndexedDB） | 10 | `Location`・`Storage`・`DomException`・`IdbFactory`・`IdbOpenDbRequest`・`IdbRequest`・`IdbDatabase`・`IdbTransaction`・`IdbTransactionMode`・`IdbObjectStore` |
+| 書き出し | 3 | `Blob`・`BlobPropertyBag`・`Url` |
+
+決定時点の 9 個に対し、キー入力・textarea の用途は 8 個で、保存先・書き出しの用途が後から加わった。
+
+親 #347 の受け入れ条件との対応。
+
+| 条件 | 確かめた場所 |
+|---|---|
+| TASK-351 の試験が同じ件数で通る | 上の件数の表と、下の実行の記録（59 件） |
+| FEND-14（Enter と送信ボタンの一致）の 2 場面 | 5.91 と、本節の再実行（`submit-disabled.test.mjs` の 2 件） |
+| glue のコード行数と `web-sys` の feature の数の記録 | 上の 2 つの表 |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: bddd086
+コマンド: node --test tools/browser/{key-invariants,tab-cycle,tab-complete,shift-tab,candidates}.test.mjs（各ファイルを単独で 3 回）・node --test tools/browser/submit-disabled.test.mjs（単独で 1 回）・make test-browser（1 回）
+```
+
+| 実行 | 結果 |
+|---|---|
+| TASK-351 の 5 ファイル 単独 3 回 | 3 回とも 20・11・4・6・18 件の計 59 件がすべて通過 |
+| `submit-disabled.test.mjs` 単独 1 回 | 2 件がすべて通過 |
+| `make test-browser` 1 回 | 357 件がすべて通過（5.91 と同じ件数。ローカルの計測。CI には未組み込み） |
+
+限界と残る作業。
+
+- 左の行の Enter・Space の結線（`row_key_effect` を呼ぶ側）は TASK-358 1/2 と TASK-480 が受け持つ。
+- 修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、spec 側での確定が要る。
+- FEND-7・FEND-20 の「349 行・9 個」を、今の数え方との関係で注記するかは spec 側で扱う。
+- ブラウザ試験は CI に未組み込みである。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
