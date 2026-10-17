@@ -1,0 +1,8 @@
+id: ART2-4
+package: fandhe-workshop-web
+test: artifact_rows_contract
+target: crates/web/src/artifact_rows.rs
+find:             (None, None) => continue,
+replace:             (None, None) => (0, RowKind::Item),
+expect-fail: ビューの外の要素は行にならない
+note: 前後とも読めない経路を飛ばさない
