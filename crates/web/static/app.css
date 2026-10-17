@@ -99,3 +99,20 @@
   background: rgba(191, 135, 0, 0.15);
   border-left: 3px solid #b26a00;
 }
+
+/* 文書 (b)（TASK-476）。ブロックの包みは項目の残りの幅を取る。木の要素（表・一覧・引用）の見た目は既定のままにし、
+  色は足さない（TASK-490）。クラス名は crates/web/src/document_view.rs の定数と一致させる。 */
+[data-view="document"] > li {
+  display: flex;
+  align-items: baseline;
+}
+
+.dc-block {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 文書の li も flex のため、削除の印の取り消し線を直接の子（ブロックの包み）へも付ける。 */
+[data-view="document"] > [data-mark="remove"] > .dc-block {
+  text-decoration: line-through;
+}

@@ -119,6 +119,16 @@ pub fn render_doc_node(doc: &Doc) -> Node {
     el("div", vec![("data-testid", "doc")], render_doc(doc))
 }
 
+/// ブロック 1 件を描く。文書のビュー（`document_view`）が行ごとに呼ぶ入口。
+///
+/// 木の版の検査は `Doc` の読み込みの段と [`render_doc`] が持つ。ブロック単位のこの経路には無いため、
+/// 呼び出し側は版の合った `Doc` から取り出したブロックだけを渡す。スキームの許可・外部画像の拒否・
+/// 深さの上限（[`MAX_RENDER_DEPTH`]）は、[`render_doc`] と同じ非公開の描画を通るので変わらない。
+#[must_use]
+pub fn render_block_node(block: &Block) -> Node {
+    render_block(block, 0)
+}
+
 /// ブロックの列を描く。`depth` が上限に達していれば、省略の段落を 1 つだけ返す。
 fn render_blocks(blocks: &[Block], depth: usize) -> Vec<Node> {
     if depth >= MAX_RENDER_DEPTH {
