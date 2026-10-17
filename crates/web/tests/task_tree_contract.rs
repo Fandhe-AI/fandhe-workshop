@@ -7,7 +7,8 @@ use fandhe_frontend_core::{render, Node};
 use fandhe_workshop_web::a11y::check_no_undefined;
 use fandhe_workshop_web::artifact_view::{Cell, ItemRow, Phase, Row, RowId, RowKind};
 use fandhe_workshop_web::task_tree::{
-    state_badge, task_items_b, task_tree_list_b, TaskState, STATE_GLYPH_TESTID, STATE_TEXT_TESTID,
+    state_badge, task_items_a, task_items_b, task_tree_list_a, task_tree_list_b, TaskState,
+    STATE_GLYPH_TESTID, STATE_TEXT_TESTID,
 };
 
 const TASKS: &str = include_str!(concat!(
@@ -254,4 +255,151 @@ fn 印の宿主は項目の根で_記号と文字は印と対応する() {
     assert_eq!(count(&h, "data-mark=\"add\""), 1, "{h}");
     assert_eq!(count(&h, "data-testid=\"mark-glyph\""), 1, "{h}");
     assert_eq!(count(&h, "data-testid=\"mark-text\""), 1, "{h}");
+}
+
+// ---- 変種 (a)（TASK-474 2/2）----
+
+fn html_a(rows: &[ItemRow], phase: Phase) -> String {
+    render(&task_tree_list_a(rows, phase, true).unwrap())
+}
+
+#[test]
+fn a_項目数と印の数は手で数えた値と一致する() {
+    let rows = sample();
+    let before = html_a(&rows, Phase::Before);
+    let after = html_a(&rows, Phase::After);
+    // 出所: tasks.json（(b) の試験と同じ）。(a) の項目は `<li>` で数える。
+    assert_eq!(count(&before, "<li"), 5, "{before}");
+    assert_eq!(count(&after, "<li"), 6, "{after}");
+    assert_eq!(count(&before, "data-mark=\"\""), 5, "{before}");
+    assert_eq!(count(&after, "data-mark=\"change\""), 3, "{after}");
+    assert_eq!(count(&after, "data-mark=\"add\""), 1, "{after}");
+    assert_eq!(count(&after, "data-mark=\"remove\""), 1, "{after}");
+    assert_eq!(count(&after, "data-mark=\"\""), 1, "{after}");
+}
+
+#[test]
+fn a_木の意味は無い() {
+    let rows = sample();
+    for phase in [Phase::Before, Phase::After] {
+        let h = html_a(&rows, phase);
+        for needle in [
+            "role=\"tree\"",
+            "role=\"treeitem\"",
+            "aria-level",
+            "aria-posinset",
+            "aria-setsize",
+            "aria-expanded",
+        ] {
+            assert_eq!(count(&h, needle), 0, "{needle} {h}");
+        }
+    }
+}
+
+#[test]
+fn a_完了の項目だけチェック済みで_未知の状態はチェックなし() {
+    let rows = sample();
+    let before = html_a(&rows, Phase::Before);
+    let after = html_a(&rows, Phase::After);
+    assert_eq!(count(&before, "data-testid=\"task-check\""), 5, "{before}");
+    assert_eq!(count(&after, "data-testid=\"task-check\""), 6, "{after}");
+    // 前の done は t1a だけ。後の done は t1・t1a・t1b（削除の t3 は前の中身 open を出す）。
+    assert_eq!(count(&before, "data-checked=\"true\""), 1, "{before}");
+    assert_eq!(count(&after, "data-checked=\"true\""), 3, "{after}");
+    assert_eq!(count(&after, "\u{2713}"), 3, "{after}");
+    for raw in ["", "Done", "<b>x</b>"] {
+        let rows = vec![row(
+            "x",
+            0,
+            Some(cell_of("l", raw)),
+            Some(cell_of("l", raw)),
+        )];
+        let h = html_a(&rows, Phase::Before);
+        assert_eq!(count(&h, "data-checked=\"true\""), 0, "{h}");
+        assert_eq!(count(&h, "\u{2713}"), 0, "{h}");
+        assert_eq!(count(&h, "不明"), 1, "{h}");
+        assert_eq!(count(&h, "<b>x</b>"), 0, "{h}");
+    }
+}
+
+#[test]
+fn a_状態のバッジは全項目にあり_文字の数は_b_と同じ() {
+    let rows = sample();
+    let before = html_a(&rows, Phase::Before);
+    let after = html_a(&rows, Phase::After);
+    assert_eq!(count(&before, "data-testid=\"state-badge\""), 5, "{before}");
+    assert_eq!(count(&after, "data-testid=\"state-badge\""), 6, "{after}");
+    for h in [&before, &after] {
+        for t in [STATE_GLYPH_TESTID, STATE_TEXT_TESTID] {
+            assert_eq!(count(h, &format!("data-testid=\"{t}\"></span>")), 0, "{h}");
+        }
+    }
+    assert_eq!(count(&before, "完了"), 1, "{before}");
+    assert_eq!(count(&before, "進行中"), 2, "{before}");
+    assert_eq!(count(&before, "未着手"), 2, "{before}");
+    assert_eq!(count(&after, "完了"), 3, "{after}");
+    assert_eq!(count(&after, "進行中"), 1, "{after}");
+    assert_eq!(count(&after, "未着手"), 2, "{after}");
+}
+
+#[test]
+fn a_項目の形は状態と印と前後で変わらない() {
+    let rows = sample();
+    let before = task_items_a(&rows, Phase::Before);
+    let after = task_items_a(&rows, Phase::After);
+    for (k, n) in &before {
+        let (_, m) = after.iter().find(|(k2, _)| k2 == k).unwrap();
+        assert_eq!(shape(n), shape(m), "{k}");
+    }
+    let mut shapes = vec![];
+    for state in ["open", "progress", "done", "zzz"] {
+        let rows = vec![
+            row("a", 0, Some(cell_of("l", state)), Some(cell_of("l", state))),
+            row("b", 0, Some(cell_of("l", state)), Some(cell_of("m", state))),
+            row("c", 0, None, Some(cell_of("l", state))),
+            row("d", 0, Some(cell_of("l", state)), None),
+        ];
+        for n in task_items_a(&rows, Phase::After) {
+            shapes.push(shape(&n.1));
+        }
+    }
+    shapes.dedup();
+    assert_eq!(shapes.len(), 1, "{shapes:?}");
+}
+
+#[test]
+fn a_印の宿主は中の_div_で_深さのクラスは深さと一致する() {
+    let rows = sample();
+    let items = task_items_a(&rows, Phase::After);
+    let h = render(&items.iter().find(|(k, _)| k == "kt1a").unwrap().1);
+    assert!(h.starts_with("<li><div "), "{h}");
+    assert_eq!(count(&h, "data-mark="), 1, "{h}");
+    assert_eq!(count(&h, "class=\"d1\""), 1, "{h}");
+    let h = render(&items.iter().find(|(k, _)| k == "kt1").unwrap().1);
+    assert_eq!(count(&h, "class=\"d0\""), 1, "{h}");
+}
+
+#[test]
+fn a_契約を通りエスケープされ_チェックの見た目は_app_css_にある() {
+    let rows = sample();
+    for phase in [Phase::Before, Phase::After] {
+        let list = task_tree_list_a(&rows, phase, true).unwrap();
+        assert!(check_no_undefined(&list).is_ok());
+        let h = render(&list);
+        assert_eq!(count(&h, "aria-hidden"), 0, "{h}");
+        assert_eq!(count(&h, "aria-selected"), 0, "{h}");
+    }
+    let evil = Cell {
+        label: "<script>alert(1)</script>".to_owned(),
+        detail: "\"><img src=x>".to_owned(),
+        state: "done".to_owned(),
+        tags: vec![],
+    };
+    let rows = vec![row("e", 0, Some(evil.clone()), Some(evil))];
+    let h = html_a(&rows, Phase::Before);
+    assert_eq!(count(&h, "<script"), 0, "{h}");
+    assert_eq!(count(&h, "<img"), 0, "{h}");
+    assert_eq!(count(&h, "&lt;script&gt;"), 1, "{h}");
+    let css = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css"));
+    assert!(css.contains(".tk-check"));
 }

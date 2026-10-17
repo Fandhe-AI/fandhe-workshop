@@ -1,6 +1,9 @@
-//! タスクツリーの変種 (b) の本体（TASK-474 1/2。ART-1・ART-9・ART-13・A11Y-22・PoC-8）。
+//! タスクツリーの変種 (a)・(b) の本体（TASK-474。ART-1・ART-9・ART-13・A11Y-22・PoC-8）。
 //!
-//! 呼び出し元は今のところ `view_fixture`（試験の設定だけ）で、検査器の枠が (b) の本体を通る。製品の画面
+//! (a) は wireframe 系のチェックボックス（完了をチェック済みで示す）・状態の文字・入れ子のクラスで描き、木の意味
+//! （`role=tree`・`treeitem`）を持たない。(b) は木の意味を持つ。
+//!
+//! 呼び出し元は今のところ `view_fixture`（試験の設定だけ）で、検査器の枠が (a)・(b) の本体を通る。製品の画面
 //! （`engine_parts`）への結線は、世界状態からタスクのラベルと状態を読む `read` と前後の切り替えの口が決まる
 //! 後続の作業で行う。
 //!
@@ -16,6 +19,9 @@
 //! - 状態の語彙（`open`・`progress`・`done`）は spec に定めが無く、試験データ由来の仮置きである。
 //! - 項目の形（タグと子の数）は、状態・印・前後で変えない。keyed list が同じ key の項目を in-place に更新する
 //!   条件は形が同じことだからである。`tags` は表示しない（件数で子が増え、形が変わるため）。
+//! - (a) のチェックは自作の `span` で、子は文字ノード 1 つに固定する（完了だけ `✓`、他は空文字。`Unknown` も
+//!   チェックなしで、完了と主張しない）。`fandhe-frontend-wireframe-ui` の `checkbox` は、チェックの有無で子の数が
+//!   変わることと、グリフの `aria-hidden` が a11y 契約の閉じた一覧に無いことから使わない。
 //! - 木の位置は描画 1 回につき 1 回、O(n) で求める。
 //! - `data-row` 等の指せる行の属性は付けない（TASK-480 の担当）。
 
@@ -24,7 +30,7 @@ use fandhe_frontend_core::{el, text, Node};
 
 use crate::a11y::TESTID_ATTR;
 use crate::artifact_mark::marked_item;
-use crate::artifact_view::{tree_view_list, ItemRow, Phase, Variant, ViewKind};
+use crate::artifact_view::{tree_view_list, Cell, ItemRow, Phase, Variant, ViewKind};
 use crate::tree_attrs::shown_tree_attrs;
 
 /// ラベルの `data-testid`。
@@ -37,6 +43,13 @@ pub const STATE_BADGE_TESTID: &str = "state-badge";
 pub const STATE_GLYPH_TESTID: &str = "state-glyph";
 /// 状態の文字の `data-testid`。印の文字（`mark-text`）とは別にする。
 pub const STATE_TEXT_TESTID: &str = "state-text";
+
+/// (a) のチェックの `data-testid`。
+pub const TASK_CHECK_TESTID: &str = "task-check";
+/// (a) のチェックのクラス。見た目は `app.css` が決める。
+pub const TASK_CHECK_CLASS: &str = "tk-check";
+/// チェック済みの印。
+const CHECK_GLYPH: &str = "✓";
 
 /// タスクの状態。閉じた集合で、色だけに頼らず記号と文字の両方で示す（A11Y-22）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +128,60 @@ pub fn state_badge(state: TaskState) -> Node {
     )
 }
 
+/// (a) のチェックボックス。完了だけチェック済みにする。子は文字ノード 1 つで、形は状態で変えない。
+#[must_use]
+pub fn task_check(state: TaskState) -> Node {
+    let checked = state == TaskState::Done;
+    el(
+        "span",
+        vec![
+            (TESTID_ATTR, TASK_CHECK_TESTID),
+            ("class", TASK_CHECK_CLASS),
+            ("data-checked", if checked { "true" } else { "false" }),
+        ],
+        vec![text(if checked { CHECK_GLYPH } else { "" })],
+    )
+}
+
+/// 変種に共通の中身（ラベル・詳細・状態のバッジ）。
+fn task_content(cell: &Cell) -> Vec<Node> {
+    vec![
+        el(
+            "span",
+            vec![(TESTID_ATTR, TASK_LABEL_TESTID)],
+            vec![text(cell.label.as_str())],
+        ),
+        el(
+            "span",
+            vec![(TESTID_ATTR, TASK_DETAIL_TESTID)],
+            vec![text(cell.detail.as_str())],
+        ),
+        state_badge(TaskState::parse(&cell.state)),
+    ]
+}
+
+/// その状態で出る行を、key（`k<行の ID>`）つきの (a) の項目にする。木の属性は付けない。
+#[must_use]
+pub fn task_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+    rows.iter()
+        .filter_map(|row| {
+            let shown = row.shown(phase)?;
+            let cell = shown.content;
+            let mut content = vec![task_check(TaskState::parse(&cell.state))];
+            content.extend(task_content(cell));
+            let node = marked_item(
+                "li",
+                Variant::A,
+                shown.mark,
+                Some(row.depth()),
+                vec![],
+                content,
+            );
+            Some((format!("k{}", row.id().as_str()), node))
+        })
+        .collect()
+}
+
 /// その状態で出る行を、key（`k<行の ID>`）つきの (b) の項目にする。行の並びは入力の順のまま。
 #[must_use]
 pub fn task_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
@@ -124,43 +191,63 @@ pub fn task_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
         .filter_map(|(row, attrs)| {
             let shown = row.shown(phase)?;
             let attrs = attrs?;
-            let cell = shown.content;
             let node = marked_item(
                 "li",
                 Variant::B,
                 shown.mark,
                 Some(row.depth()),
                 attrs.pairs(),
-                vec![
-                    el(
-                        "span",
-                        vec![(TESTID_ATTR, TASK_LABEL_TESTID)],
-                        vec![text(cell.label.as_str())],
-                    ),
-                    el(
-                        "span",
-                        vec![(TESTID_ATTR, TASK_DETAIL_TESTID)],
-                        vec![text(cell.detail.as_str())],
-                    ),
-                    state_badge(TaskState::parse(&cell.state)),
-                ],
+                task_content(shown.content),
             );
             Some((format!("k{}", row.id().as_str()), node))
         })
         .collect()
 }
 
-/// タスクツリー (b) の keyed list の親要素を作る。親の属性は `view()` から呼ぶこの関数で書く（FEND-15）。
+/// 変種に応じた項目にする。
+#[must_use]
+pub fn task_items(rows: &[ItemRow], phase: Phase, variant: Variant) -> Vec<(String, Node)> {
+    match variant {
+        Variant::A => task_items_a(rows, phase),
+        Variant::B => task_items_b(rows, phase),
+    }
+}
+
+/// タスクツリーの keyed list の親要素を作る。親の属性は `view()` から呼ぶこの関数で書く（FEND-15）。
+/// `role=tree` は (b) のときだけ付く。
 ///
 /// # Errors
 ///
 /// 上流の安全弁が拒否した場合は `ListError`。空の一覧に落とさず呼び出し側へ返す。
-pub fn task_tree_list_b(rows: &[ItemRow], phase: Phase, selected: bool) -> Result<Node, ListError> {
+pub fn task_tree_list(
+    rows: &[ItemRow],
+    phase: Phase,
+    variant: Variant,
+    selected: bool,
+) -> Result<Node, ListError> {
     tree_view_list(
         "ul",
         ViewKind::TaskTree,
-        Variant::B,
+        variant,
         selected,
-        task_items_b(rows, phase),
+        task_items(rows, phase, variant),
     )
+}
+
+/// タスクツリー (b) の keyed list の親要素を作る。
+///
+/// # Errors
+///
+/// [`task_tree_list`] と同じ。
+pub fn task_tree_list_b(rows: &[ItemRow], phase: Phase, selected: bool) -> Result<Node, ListError> {
+    task_tree_list(rows, phase, Variant::B, selected)
+}
+
+/// タスクツリー (a) の keyed list の親要素を作る。
+///
+/// # Errors
+///
+/// [`task_tree_list`] と同じ。
+pub fn task_tree_list_a(rows: &[ItemRow], phase: Phase, selected: bool) -> Result<Node, ListError> {
+    task_tree_list(rows, phase, Variant::A, selected)
 }

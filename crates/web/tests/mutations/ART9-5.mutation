@@ -1,0 +1,8 @@
+id: ART9-5
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/src/task_tree.rs
+find:         vec![text(if checked { CHECK_GLYPH } else { "" })],
+replace:         if checked { vec![el("span", vec![], vec![text(CHECK_GLYPH)])] } else { vec![text("")] },
+expect-fail: a_項目の形は状態と印と前後で変わらない
+note: (a) のチェックの子を、チェック済みのときだけ入れ子の span にする（状態で形が変わり、keyed list の in-place 更新の条件が崩れる。ART-13）
