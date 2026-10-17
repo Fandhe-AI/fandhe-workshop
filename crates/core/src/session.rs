@@ -144,7 +144,7 @@ pub struct SessionState {
     pub checkpoints: BTreeMap<CheckpointId, Checkpoint>,
     /// 次に振るチェックポイントの ID。
     pub next_checkpoint: CheckpointId,
-    /// 根ごとの下書き。停止・復帰で戻さない（MOD-4・MOD-9）。下書きを変える操作は版 1 では固定しない。
+    /// 根ごとの下書き。鍵は `StepUid::root`（入れ子の実体では `Instance.id`）。停止・復帰で戻さない（MOD-4・MOD-9）。下書きを変える操作は版 1 では固定しない。
     pub drafts: BTreeMap<Root, String>,
     /// Step の実体ごとに開いたヒントの段数。停止・復帰で戻さない（GUIDE-7）ため、`run` の外に置く。
     /// 増やす処理と周回をまたぐ合計は TASK-295・TASK-297 が実装する。

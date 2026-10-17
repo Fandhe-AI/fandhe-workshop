@@ -101,6 +101,22 @@ fn testdata_uids_pass_parse() {
 }
 
 #[test]
+fn testdata_roots_match_node_scope() {
+    let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata");
+    let files = [
+        "engine-event-consistency/test-data/min-3step.json",
+        "input-field-ime/test-data/ch1-pack.json",
+        "input-field-ime/test-data/ime-pack.json",
+    ];
+    for f in files {
+        let ir = load_ir(&std::fs::read(base.join(f)).expect("read testdata")).expect("load ir");
+        for n in &ir.nodes {
+            assert_eq!(StepUid(n.uid.clone()).root().0, n.scope, "{f}: {}", n.uid);
+        }
+    }
+}
+
+#[test]
 fn generation_rule_table() {
     let t = TickAddr {
         generation: Generation(1),

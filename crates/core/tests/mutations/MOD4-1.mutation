@@ -1,0 +1,9 @@
+id: MOD4-1
+package: fandhe-workshop-core
+test: history_envelope_build
+target: crates/core/src/addr.rs
+find:         let root = self.0.rsplit_once('/').map_or(self.0.as_str(), |(r, _)| r);
+replace:         let root = self.0.split_once('/').map_or(self.0.as_str(), |(r, _)| r);
+expect-fail: nested_instance_draft_root_is_its_instance_id
+expect-fail: nested_submit_clears_only_its_own_root
+note: 根を最初の `/` までにする（MOD-4 の文言どおりの読み。入れ子の実体の下書きが親と混ざる。#1413）
