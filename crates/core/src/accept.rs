@@ -26,8 +26,8 @@
 //!    出す（処理中の再送。受付は（世代, Step）につき 1 回で、2 回目以降は処理中の拒否になる。EVT-7）。
 //!    Step が `Entered`・`Accepted` でない（達成済みなど）ときも `Judged` だけを出す
 //! 7. Step が `Accepted` で処理中でなければ、判定が確認のときだけ確認の処理（[`crate::confirm`]）に渡す。
-//!    それ以外の判定は `Judged` だけを出す。確認でも達成にならなければ（宣言・達成の効果が読めない）、
-//!    `Judged` を置かず `confirm` の `Warning` だけを出す
+//!    それ以外の判定は `Judged` だけを出す。確認でも達成にならなければ（達成の効果 `on_achieved` が読めない）、
+//!    `Judged` を置かず `confirm` の `Warning` だけを出す（宣言の誤りは規則 4 で先に落ちる）
 //! 8. Step が `Entered` なら、判定が受付のときだけ受け付ける。拒否・問い返しは `Judged` だけで状態を変えない。
 //!    受付の効果は、判定が指した規則（[`JudgeDetail::Rule`] の添字）の `outcome.effects`、または自然文の判定が
 //!    返した効果（[`JudgeDetail::Text`]）で、規則を読み直さない。効果が読めない・付帯情報が受付の形でない・
@@ -129,9 +129,9 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
                 events.push(judged);
                 return events;
             }
-            // 達成にならなかった（宣言・達成の効果が読めない）ときは、受付と同じく `Judged` を置かず
+            // 達成にならなかった（達成の効果 `on_achieved` が読めない）ときは、受付と同じく `Judged` を置かず
             // `confirm` の固定文の `Warning` だけにする（確認の `Judged` の後に達成が無い食い違いを作らない）。
-            let confirmed = confirm::on_confirm(ir, state, node, &at, &input);
+            let confirmed = confirm::on_confirmed(ir, state, node, &at);
             if confirmed
                 .iter()
                 .any(|e| matches!(e, Event::Achieved { .. }))
