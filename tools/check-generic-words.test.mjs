@@ -282,3 +282,31 @@ test('未対応のエスケープは検査不能として 2', () => {
     assert.equal(run(makeRoot({ [rel]: body })).code, 2, rel);
   }
 });
+
+test('正規表現リテラルの `//` をコメントと取り違えず、後続の語を検出する', () => {
+  const body = 'const re = /https?:\\/\\/\\//;\nconst re2 = /https?://///;\nconst source = "github";\n';
+  const r = run(makeRoot({ 'crates/x/static/a.js': body }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /a\.js:3: github/);
+  // 除算は正規表現にしない
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const q = (a + b) / 2 / 3;\n' })).code, 0);
+});
+
+test('閉じない正規表現リテラルは検査不能として 2', () => {
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const re = /abc;\nconst s = "github";\n' })).code, 2);
+});
+
+test('識別子の Unicode エスケープを復号して照合する', () => {
+  for (const body of ['const git\\u0068ub = 1;\n', 'const git\\u{68}ub = 1;\n']) {
+    const r = run(makeRoot({ 'crates/x/static/a.js': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a\\u00zz = 1;\n' })).code, 2);
+});
+
+test('セミコロンの無い HTML の数値文字参照も復号する', () => {
+  for (const body of ['<a title="git&#104ub">x</a>\n', '<a title="git&#x68ub">x</a>\n']) {
+    const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+});

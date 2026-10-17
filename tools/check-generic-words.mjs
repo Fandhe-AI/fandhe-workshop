@@ -327,8 +327,8 @@ export function lexRust(src) {
 
 // JS の字句。`//`・`/* */` を除き、'...'・"..."・`...` の中身を字句にする。テンプレートリテラルは補間 `${...}` を
 // 入れ子の式として読み（式の中の文字列・入れ子のテンプレートも照合する）、エスケープは復号してから照合する。
-// 正規表現リテラルは読まない（クォートを含む正規表現は誤読する可能性があるため、閉じない文字列・補間は
-// CheckError にして合格にしない）。
+// 正規表現リテラルは、直前の字句から開始と判定できたとき本体を読む（同じ行で閉じなければ CheckError）。
+// 識別子の `\uXXXX` エスケープは復号する。
 export function lexJs(src) {
   const out = [];
   const s = Array.from(src);
@@ -386,9 +386,79 @@ export function lexJs(src) {
     }
     fail('unterminated template literal');
   };
+  // 識別子を読む。`\uXXXX`・`\u{...}` のエスケープは復号して 1 つの字句にする（`github` は github）。
+  const readIdent = () => {
+    const buf = new Buf();
+    const startLine = line;
+    for (;;) {
+      if (i < n && IDENT.test(s[i])) {
+        buf.add(s[i], line);
+        i += 1;
+      } else if (s[i] === '\\' && s[i + 1] === 'u') {
+        let cp;
+        if (s[i + 2] === '{') {
+          let k = i + 3;
+          while (k < n && /[0-9a-fA-F]/.test(s[k])) k += 1;
+          if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
+          cp = parseInt(s.slice(i + 3, k).join(''), 16);
+          i = k + 1;
+        } else {
+          const digits = s.slice(i + 2, i + 6).join('');
+          if (digits.length !== 4 || !/^[0-9a-fA-F]+$/.test(digits)) fail('unsupported escape');
+          cp = parseInt(digits, 16);
+          i += 6;
+        }
+        if (cp > 0x10ffff) fail('unsupported escape');
+        buf.add(String.fromCodePoint(cp), startLine);
+      } else break;
+    }
+    const word = buf.chars.join('');
+    pushBuf(out, buf);
+    return word;
+  };
+  // 正規表現リテラル（開きの `/` から）。本体の字句は照合し、`\x` の組は飛ばす。クラス `[...]` の中の `/` は終端にしない。
+  // 同じ行で閉じない形は CheckError（除算との取り違えで以降を読み飛ばさない）。
+  const readRegex = () => {
+    const buf = new Buf();
+    i += 1;
+    let inClass = false;
+    while (i < n) {
+      const d = s[i];
+      if (d === '\n') fail('unterminated regular expression');
+      if (d === '\\') {
+        if (s[i + 1] === undefined || s[i + 1] === '\n') fail('unterminated regular expression');
+        buf.add(' ', line);
+        i += 2;
+        continue;
+      }
+      if (d === '[') inClass = true;
+      else if (d === ']') inClass = false;
+      else if (d === '/' && !inClass) {
+        i += 1;
+        while (i < n && IDENT.test(s[i])) i += 1; // フラグ
+        pushBuf(out, buf);
+        return;
+      }
+      buf.add(d, line);
+      i += 1;
+    }
+    fail('unterminated regular expression');
+  };
+  const KEYWORDS_BEFORE_REGEX = new Set([
+    'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await',
+  ]);
+  // 直前の字句から、`/` が正規表現の開始かを決める。値の終わり（識別子・文字列・数・`)`・`]`）の後は除算。
+  const regexAllowed = (prev) => {
+    if (prev === null) return true;
+    if (prev === 'operand' || prev === ')' || prev === ']') return false;
+    if (prev.startsWith('kw:')) return KEYWORDS_BEFORE_REGEX.has(prev.slice(3));
+    return true;
+  };
   // コードを読む。inInterp のときは、対応する `}` の手前で止まる（`}` の次の位置へ進めて返る）。
   const code = (inInterp) => {
     let depth = 0;
+    // 直前の有意な字句（null・'operand'・'kw:<語>'・記号 1 文字）。
+    let prev = null;
     while (i < n) {
       const c = s[i];
       if (c === '\n') {
@@ -404,23 +474,29 @@ export function lexJs(src) {
         }
         if (i >= n) fail('unterminated block comment');
         i += 2;
+      } else if (c === '/' && regexAllowed(prev)) {
+        readRegex();
+        prev = 'operand';
       } else if (c === '"' || c === "'") {
         readQuoted(c);
+        prev = 'operand';
       } else if (c === '`') {
         readTemplate();
+        prev = 'operand';
       } else if (inInterp && c === '{') {
         depth += 1;
         i += 1;
+        prev = c;
       } else if (inInterp && c === '}') {
         i += 1;
         if (depth === 0) return;
         depth -= 1;
-      } else if (IDENT.test(c)) {
-        let j = i;
-        while (j < n && IDENT.test(s[j])) j += 1;
-        out.push({ token: s.slice(i, j).join(''), line });
-        i = j;
+        prev = c;
+      } else if (IDENT.test(c) || (c === '\\' && s[i + 1] === 'u')) {
+        const word = readIdent();
+        prev = KEYWORDS_BEFORE_REGEX.has(word) ? `kw:${word}` : 'operand';
       } else {
+        if (!/\s/.test(c)) prev = c;
         i += 1;
       }
     }
@@ -431,7 +507,7 @@ export function lexJs(src) {
 }
 
 // HTML・SVG。`<!-- -->` だけをコメントとして除く。タグの中の引用符つきの属性値にある `<!--` はコメントにしない。
-// 数値の文字参照（`&#103;`・`&#x67;`）は復号する。タグの引用符が閉じない・コメントが閉じない形は CheckError。
+// 数値の文字参照（`&#103;`・`&#x67;`。ブラウザと同じく末尾の `;` が無くても復号する）は復号する。タグの引用符が閉じない・コメントが閉じない形は CheckError。
 export function lexHtml(src) {
   const out = [];
   const s = Array.from(src);
@@ -462,7 +538,7 @@ export function lexHtml(src) {
       continue;
     }
     if (c === '&' && s[i + 1] === '#') {
-      const m = /^&#(?:x([0-9a-fA-F]+)|([0-9]+));/.exec(s.slice(i, i + 12).join(''));
+      const m = /^&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));?/.exec(s.slice(i, i + 12).join(''));
       if (m) {
         const cp = m[1] ? parseInt(m[1], 16) : parseInt(m[2], 10);
         if (cp > 0x10ffff) fail('unsupported character reference');
