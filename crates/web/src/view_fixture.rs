@@ -223,6 +223,8 @@ pub(crate) struct ViewFixture {
     phase: Phase,
     /// 項目の外に部品を置くか（負の対照 N2 の切り替え）。既定は置かない。
     outside: bool,
+    /// データの切り替えで読み込みに失敗したか。立っている間は固定の通知を出す（古いデータを黙って見せない）。
+    load_failed: bool,
     dirty: Vec<&'static str>,
 }
 
@@ -277,6 +279,7 @@ impl ViewFixture {
             variant: Variant::B,
             phase: Phase::Before,
             outside: false,
+            load_failed: false,
             dirty: Vec::new(),
         })
     }
@@ -363,8 +366,15 @@ impl Component for ViewFixture {
                     CardData::Sample => CARDS,
                     CardData::Scale20 => CARDS_20,
                 };
-                // 読めなければ状態を変えない（fail-closed）。
-                if let Ok(rows) = load_items(bytes) {
+                // 読めなければ失敗の状態を立て、通知を出す（fail-closed。古いデータを黙って見せない）。
+                let loaded = load_items(bytes);
+                let failed = loaded.is_err();
+                if failed != self.load_failed {
+                    self.load_failed = failed;
+                    // 束縛の無い field は全再描画になる。
+                    self.dirty.push(OUTSIDE_FIELD);
+                }
+                if let Ok(rows) = loaded {
                     if let Some((_, slot)) = self
                         .views
                         .iter_mut()
@@ -397,6 +407,13 @@ impl Component for ViewFixture {
     }
 
     fn view(&self) -> Node {
+        if self.load_failed {
+            return el(
+                "section",
+                vec![(TESTID_ATTR, FIXTURE_ERROR_TESTID)],
+                vec![text("データを読み込めません")],
+            );
+        }
         let mut lists = Vec::new();
         for (kind, rows) in &self.views {
             let selected = *kind == self.selected;
