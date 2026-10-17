@@ -1,0 +1,8 @@
+id: TERM31-3
+package: fandhe-workshop-web
+test: step_status_contract
+target: crates/web/src/step_status.rs
+find: for ev in s.log().iter().rev() {
+replace: for ev in s.log().iter().rev().take(0) {
+expect-fail: 確認を省く_step_は受付と同時に達成になる
+note: ログの末尾の読み取りを外す（確認を省く Step の受付と同時の達成が見えない。TERM-31）
