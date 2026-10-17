@@ -887,8 +887,11 @@ impl Component for EngineHost {
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
                 let route = self.input.esc(busy);
-                // 結ぶのは処理中の停止だけ。待機中の Esc は候補を閉じるだけで、ログを増やさない。
-                if let Some(op @ Op::Control(Control::Stop)) = route.op {
+                // 処理中の停止と、処理中でなく候補が閉じているときの取り消しの入力（TASK-441 2/2。TERM-8）を
+                // Session へ適用する。候補を閉じるだけの Esc は op を持たず、ログを増やさない。取り消しの規則が
+                // 無い Step の拒否は core が記録する。許可する op を明示し、将来の行き先が黙って流れないようにする。
+                if let Some(op @ (Op::Control(Control::Stop) | Op::Input(Input::Cancel))) = route.op
+                {
                     self.apply_engine(op);
                 }
                 self.extend_input_dirty();

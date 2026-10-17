@@ -1,0 +1,8 @@
+id: TERM8-1
+package: fandhe-workshop-web
+test: run_status_contract
+target: crates/web/src/host.rs
+find: if let Some(op @ (Op::Control(Control::Stop) | Op::Input(Input::Cancel))) = route.op {
+replace: if let Some(op @ Op::Control(Control::Stop)) = route.op {
+expect-fail: 待機中で候補が閉じている_esc_は取り消しの入力になり_拒否の行と次の行動が出る
+note: 待機中の Esc の取り消しの入力が Session へ届かず、取り消しを受け付けない Step の拒否の行も出ない（TERM-8）
