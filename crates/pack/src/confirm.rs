@@ -13,8 +13,9 @@
 //! 決定事項（2026-10-15）:
 //! - `none` の `reason` の欠け・空・空白だけは、PACK-13 の「理由つき」の違反として `E-NO-CONFIRM` にする
 //!   （`E-PARSE` にしない）
-//! - `use` を持つ Step は検査しない（入力を持たず、確認を要さない。`use` と `input` の同時指定は
-//!   `expand::check_use_steps` が `E-STRUCTURE` で拒否する）
+//! - `use` を持つ Step は検査しない（入力も確認も持たない。`use` と `input`、`use` と `confirm` の同時指定は
+//!   `expand::check_use_steps` が `E-STRUCTURE` で拒否する。拒否された Step の `confirm` をここで重ねて検査せず、
+//!   同じ定義に診断を 2 件出さない）
 //! - モジュールの `confirm` が引数の置換記号 `${` を含むときは、置換前の値を検査しない。置換前は語彙として読めず
 //!   （例: `kind: "${k}"`）、置換後に違反になりうる（例: `reason: "${why}"` に空文字）ため、展開（`expand`）が
 //!   置換後の Step を [`check_step_confirm`] で検査する（2026-10-15。`input` と同じ扱い）。置換後の診断には、

@@ -1,7 +1,7 @@
 //! 学習モジュールの `use` の展開（PACK-19、TASK-50 1/2・2/2）の結合試験。
 //!
 //! 2/2 の受入基準は、巡回（`defect-cycle.md` の C1〜C3）と 9 段の入れ子が `E-MODULE-CYCLE`、`use` と `input` の
-//! 同時指定と `params` に無い `args` が `E-STRUCTURE` になること（`neg_` の試験）。
+//! 同時指定（`use` と `confirm` の同時指定も）と `params` に無い `args` が `E-STRUCTURE` になること（`neg_` の試験）。
 //!
 //! 1/2 の受入基準は 2 つ。(a) 2 つの実体（`round1`・`round2`）が別の Step の実体になり、モジュールの定義の
 //! 1 か所の修正が両方に反映される。(b) 3 周目の実体を、章の定義ファイルを 1 つ足すだけで書ける。
@@ -651,6 +651,67 @@ fn neg_a_module_step_with_both_use_and_input_is_reported_once() {
     let s = d[0].to_string();
     assert!(s.contains("step:a"), "{s}");
     assert!(!s.contains("shortname"), "{s}");
+}
+
+#[test]
+fn neg_a_chapter_step_with_both_use_and_confirm_is_a_structure_error() {
+    // `use` の Step は確認を持たない（語彙 v1、PACK-19）。中身の正しい `confirm` でも拒否し、理由の文字列を写さない。
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, final: true, use: {module: m, instance: i}, confirm: {kind: none, reason: whyvalue}}\n",
+    );
+    let t = mini(chapter, MOD_OK);
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure], "{d:?}");
+    assert_eq!(d[0].file(), "chapters/c1/chapter.yaml");
+    let s = d[0].to_string();
+    assert!(s.contains("step:u"), "{s}");
+    assert!(s.contains("`confirm`"), "{s}");
+    assert!(!s.contains("whyvalue"), "{s}");
+}
+
+#[test]
+fn neg_a_module_step_with_both_use_and_confirm_is_reported_once() {
+    // モジュールの中の同時指定も拒否する。`confirm` が `${` を含んでも宣言の有無だけで決まるため、2 つの実体から
+    // 呼んでも診断は 1 件で、引数の値も確認の中身も写さない。
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, next: [{to: v}], use: {module: m, instance: r1, args: {x: shortname}}}\n",
+        "  - {id: v, title: V, final: true, use: {module: m, instance: r2, args: {x: shortname}}}\n",
+    );
+    let module = concat!(
+        "id: m\ntitle: M\nparams: {x: d}\nsteps:\n",
+        "  - {id: a, title: \"A ${x}\", final: true, use: {module: e, instance: j}, confirm: {kind: \"${x}\"}}\n",
+    );
+    let t = mini(chapter, module);
+    t.put(
+        "modules/e/module.yaml",
+        b"id: e\ntitle: E\nsteps:\n  - {id: z, title: Z, final: true}\n",
+    );
+    let d = diags(&t);
+    assert_eq!(codes(&d), [DiagCode::Structure], "{d:?}");
+    assert_eq!(d[0].file(), "modules/m/module.yaml");
+    let s = d[0].to_string();
+    assert!(s.contains("step:a"), "{s}");
+    assert!(!s.contains("shortname"), "{s}");
+    assert!(!s.contains("${"), "{s}");
+}
+
+#[test]
+fn neg_a_step_with_use_input_and_confirm_reports_both_in_order() {
+    let chapter = concat!(
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u}]\nsteps:\n",
+        "  - {id: u, title: U, final: true, use: {module: m, instance: i}, input: {kind: approval}, confirm: {kind: approve}}\n",
+    );
+    let t = mini(chapter, MOD_OK);
+    let d = diags(&t);
+    assert_eq!(
+        codes(&d),
+        [DiagCode::Structure, DiagCode::Structure],
+        "{d:?}"
+    );
+    assert!(d[0].to_string().contains("`input`"), "{}", d[0]);
+    assert!(d[1].to_string().contains("`confirm`"), "{}", d[1]);
 }
 
 /// `module.yaml` の末尾（`steps:` が最後の欄）へ、改行を補ってから Step を足す。
