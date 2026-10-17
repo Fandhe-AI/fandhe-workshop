@@ -458,3 +458,17 @@ test('JS の `\\u{...}` は先頭の 0 が多くても復号して照合する',
   }
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const s = "\\u{00000110000}";\n' })).code, 2);
 });
+
+test('style 属性の `=` の前後に長い空白があっても CSS として復号して照合する', () => {
+  const pad = ' '.repeat(20);
+  for (const body of [
+    `<p style\n${pad}=\n${pad}"content: 'git\\68 ub'">x</p>\n`,
+    `<p STYLE${pad}=${pad}'content: "git\\68 ub"'>x</p>\n`,
+  ]) {
+    const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  // 名前が style でない属性の値は CSS として読まない（CSS のコメントの形で語を落とさない）
+  const r = run(makeRoot({ 'crates/x/static/b.html': '<p data-style="/* github */">x</p>\n' }));
+  assert.equal(r.code, 1, r.out);
+});

@@ -628,6 +628,19 @@ function readCharRef(s, i, fail, inAttribute) {
   return { text: ' ', next: i + 1 + legacy.length, literal: name };
 }
 
+// 位置 q の引用符が `style` 属性の値の開きか。`=` の前後と名前との間の空白は何個でもよい。固定幅の窓で見ると
+// 長い空白で外れて CSS のエスケープを復号しないまま照合するため、後ろ向きに読む。名前は完全一致（`data-style` は別）。
+function opensStyleValue(s, q) {
+  let k = q - 1;
+  while (k >= 0 && /\s/.test(s[k])) k -= 1;
+  if (s[k] !== '=') return false;
+  k -= 1;
+  while (k >= 0 && /\s/.test(s[k])) k -= 1;
+  const end = k + 1;
+  while (k >= 0 && !/[\s"'=<>/]/.test(s[k])) k -= 1;
+  return s.slice(k + 1, end).join('').toLowerCase() === 'style';
+}
+
 // HTML・SVG。`<!-- -->` だけをコメントとして除く。タグの中の引用符つきの属性値にある `<!--` はコメントにしない。
 // 文字参照は readCharRef で読む（数値の参照は `;` が無くても復号する。名前つきの参照の扱いはそちらの注記）。
 // タグの引用符が閉じない・コメントが閉じない・復号できない数値の参照は CheckError。
@@ -678,7 +691,7 @@ export function lexHtml(src) {
       }
     } else if (quote !== null) {
       if (c === quote) quote = null;
-    } else if ((c === '"' || c === "'") && tagName !== 'style' && /\bstyle\s*=\s*$/i.test(s.slice(Math.max(0, i - 24), i).join(''))) {
+    } else if ((c === '"' || c === "'") && tagName !== 'style' && opensStyleValue(s, i)) {
       // style 属性の値は CSS。文字参照を復号してから lexCss に渡す（エスケープを復号して照合する）。
       let k = i + 1;
       while (k < n && s[k] !== c) k += 1;
