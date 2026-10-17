@@ -11,6 +11,7 @@
 //! 入力方式が `ui_action` の Step を持つ教材（`ui_action_session`）は `load-fixture:ui-action` で使う（TASK-450 1/3）。
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
 //! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
+//! 入力欄なしの教材（`?fixture=no-input`。`pack.profile.input_field: hidden`）も起動の前に選ぶ（TASK-450 2/3）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -36,6 +37,12 @@ const RELOAD_POINTS_IR: &[u8] = include_bytes!(concat!(
     "/tests/data/reload_points_ch2/ir.json"
 ));
 
+/// 入力欄なしの 3 Step の教材（`crates/web/tests/data/input_field_hidden/ir.json`。`pack.id` は mount の既定と別）。
+const NO_INPUT_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/input_field_hidden/ir.json"
+));
+
 /// mount の教材の選択。既定は `min-3step`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum MountFixture {
@@ -44,13 +51,16 @@ pub(crate) enum MountFixture {
     Default,
     /// 8 Step の再読み込みの地点の試験用の教材。
     ReloadPoints,
+    /// 入力欄なしの 3 Step の教材（`pack.profile.input_field: hidden`。TASK-450 2/3）。
+    NoInput,
 }
 
 /// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
-/// 8 Step の教材を選び、空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
+/// 8 Step の教材、`?fixture=no-input` の完全一致だけが入力欄なしの教材を選び、空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
 pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
     match search {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
+        "?fixture=no-input" => MountFixture::NoInput,
         _ => MountFixture::Default,
     }
 }
@@ -60,6 +70,7 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
     match fixture {
         MountFixture::Default => start_session(),
         MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
+        MountFixture::NoInput => session_of(NO_INPUT_IR),
     }
 }
 
@@ -378,6 +389,41 @@ mod tests {
                 "{other}"
             );
         }
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが入力欄なしの教材を選ぶ() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=no-input"),
+            MountFixture::NoInput
+        );
+        for other in [
+            "?fixture=no-input&x=1",
+            "?x=1&fixture=no-input",
+            "?fixture=no-input2",
+            "?fixture=No-Input",
+            "fixture=no-input",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 入力欄なしの教材は鍵が別で入力欄なしを宣言する() {
+        let a = mount_session(MountFixture::Default).unwrap();
+        let b = mount_session(MountFixture::NoInput).unwrap();
+        assert_ne!(a.ir().pack.id, b.ir().pack.id);
+        assert_eq!(b.ir().nodes.len(), 3);
+        let profile =
+            fandhe_workshop_contract::profile::read_profile(b.ir().pack.profile.as_ref()).unwrap();
+        assert_eq!(
+            profile.input_field,
+            fandhe_workshop_contract::profile::InputFieldMode::Hidden
+        );
     }
 
     #[test]

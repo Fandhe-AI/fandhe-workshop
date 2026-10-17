@@ -97,7 +97,7 @@ impl InputField {
     }
 
     /// 入力欄・送信ボタン・補完の候補・キーの案内・OS の選択を出すか。`Hidden` でも、選択肢・画面操作・
-    /// 承認・確認の操作と停止は出る。
+    /// 承認・確認の操作と停止は出る。呼び出し元は `hello::HelloView`（TASK-450 2/3）。
     pub const fn shows_input_area(self) -> bool {
         matches!(self, InputField::Shown)
     }

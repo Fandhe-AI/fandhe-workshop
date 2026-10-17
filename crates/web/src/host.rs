@@ -24,6 +24,11 @@
 //! 承認のクリック（`decide`・`revise-target`。TASK-447 1/2）も同じで、`Op::Input(Input::Approval)` に変える。
 //! 指せる行のクリック（`ui`。TASK-480 2/2）も配信する設定に入り、`PointTarget::decode` を通して `Op::Input(Input::Ui)` に変える。
 //!
+//! 入力欄なしの教材（`pack.profile.input_field: hidden`。PACK-20。TASK-450 2/3）では、入力欄・候補の一覧・送信を
+//! [`HelloView`] が描かない。ホストは教材を読んだとき（`with_session`・`load-fixture:`）に 1 度だけ設定を渡し、mount の後には
+//! 変えない（入力欄の有無は構造の違いで、束縛点の差分更新に乗らないため）。口が無いので、下書き・送信・補完の action は
+//! 状態を変えず、保存済みの下書きも入力欄へ戻さない。停止（Esc・停止ボタン）と選択肢・承認・画面操作の経路は変えない。
+//!
 //! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
 //! 開かないときは状態・導出した値・dirty のどれにも触れない（SAVE-19）。ファイルの選択と読み取りは DOM の値を読むため、
 //! Rust ではなく試験の設定だけの `static/test-hooks.js` が行う（`make check-dom-reads`）。可視の画面は TASK-531 の担当である。
@@ -79,8 +84,10 @@ use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
+use crate::profile::InputField;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
+use fandhe_workshop_contract::profile::InputFieldMode;
 
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
@@ -253,6 +260,17 @@ struct Derived {
     world_consumed: usize,
     judged_texts: BTreeMap<u32, String>,
     command_prefix: Option<String>,
+    /// 入力欄の表示（PACK-20）。読めない設定は既定の `Shown` に倒す。
+    input_field: InputField,
+}
+
+/// 教材の `pack.profile.input_field` を表示層の型で返す。契約の `Hidden` のときだけ `Hidden` で、
+/// 読めない設定・指定なしは既定の `Shown` にする（`DisplaySettings::default` と同じ）。
+fn read_input_field(session: &Session) -> InputField {
+    match fandhe_workshop_contract::profile::read_profile(session.ir().pack.profile.as_ref()) {
+        Ok(p) if p.input_field == InputFieldMode::Hidden => InputField::Hidden,
+        _ => InputField::Shown,
+    }
 }
 
 /// ログ全体から表示用の値を導く。
@@ -272,6 +290,7 @@ fn derive(session: &Session) -> Derived {
         world_consumed: session.log().len(),
         judged_texts,
         command_prefix,
+        input_field: read_input_field(session),
     }
 }
 
@@ -436,6 +455,7 @@ impl EngineHost {
         input.set_command_table(candidates::command_table(session.ir()));
         let initial = Some(session.state().clone());
         let d = derive(&session);
+        input.set_input_field(d.input_field);
         let start = RecordedSession::first_start(session.ir());
         Ok(Self {
             model: HostModel {
@@ -548,7 +568,8 @@ impl EngineHost {
             self.boot_kind = Some(kind);
         }
         self.install_recorded(recorded);
-        if let Some(text) = restored_draft {
+        // 入力欄なしの教材は、復元した下書きを戻す先が無い。
+        if let Some(text) = restored_draft.filter(|_| self.input.shows_input_area()) {
             self.input.update(HelloAction::SetDraft(text));
             self.draft_recorded = self.input.draft().to_owned();
         }
@@ -1154,6 +1175,10 @@ impl Component for EngineHost {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
+            // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完を受けても状態を変えない（fail-closed）。
+            HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
+            | HostAction::Complete
+                if !self.input.shows_input_area() => {}
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1198,6 +1223,7 @@ impl Component for EngineHost {
                     self.initial = Some(session.state().clone());
                     self.input
                         .set_command_table(candidates::command_table(session.ir()));
+                    self.input.set_input_field(read_input_field(&session));
                     let start = RecordedSession::first_start(session.ir());
                     self.install_recorded(RecordedSession::new(session, start));
                 }

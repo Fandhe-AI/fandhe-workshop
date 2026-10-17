@@ -30,6 +30,7 @@ use crate::key_route::{
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
+use crate::profile::InputField;
 use crate::terminal_area::InputPort;
 
 /// 案内欄が束縛される field 名。
@@ -78,6 +79,8 @@ pub struct HelloView {
     /// Esc で一覧を閉じたときの下書き。下書きがこの値と違う値に変わるまで閉じたままにする。
     /// spec に明記が無く、prototype の `closed_for` の挙動に合わせた（TASK-440 1/2）。
     closed_for: Option<String>,
+    /// 入力欄の表示（PACK-20）。`Hidden` なら入力欄・候補の一覧・送信を DOM に出さない。
+    input_field: InputField,
     /// 直近の `update` で変わった field。上流が束縛点の更新に使う。
     dirty: Vec<&'static str>,
     /// keydown の probe が受け取った回数。配信する設定には存在しない。
@@ -120,6 +123,19 @@ impl HelloView {
         self.commands = table;
         self.closed_for = None;
         self.dirty.clear();
+    }
+
+    /// 入力欄の表示を受ける（PACK-20。TASK-450 2/3）。ホストが教材の `pack.profile.input_field` から決めて渡す。
+    ///
+    /// 入力欄の有無は構造の違いで、束縛点の差分更新では反映されない。そのため構築時（教材を読んだとき）に
+    /// 1 度だけ呼び、mount の後には変えない。
+    pub(crate) fn set_input_field(&mut self, field: InputField) {
+        self.input_field = field;
+    }
+
+    /// 入力欄を出すか。キーの案内・OS の選択（TERM-38。未実装）を足すときも、この判定の下に置く。
+    pub(crate) fn shows_input_area(&self) -> bool {
+        self.input_field.shows_input_area()
     }
 
     /// いま画面に出す候補。Esc で閉じた下書きのままなら空。
@@ -292,62 +308,69 @@ impl Component for HelloView {
             ],
             vec![text("probe")],
         ));
-        // maxlength は UTF-16 の単位で数えるため使わない。上限は update が掛ける。
-        // 欄に aria は付けない（a11y の契約）。案内欄は role=status で読み上げに乗せる。
-        children.push(el(
-            "textarea",
-            vec![
-                ("data-testid", "draft-input"),
-                ("data-action-input", "draft"),
-            ],
-            // 再描画で欄が作り直されても、状態の下書きを初期内容として復元する。
-            vec![text(&self.draft)],
-        ));
-        // 候補の一覧。閉じているときは hidden（Tab 順・読み上げから外す）。クリックで選ぶ操作は無く、
-        // ボタンに action・payload・候補の文字列の属性は付けない（TERM-42・SAFE-11）。
-        let shown = self.visible_candidates();
-        let list_id = InputPort::CandidateList.testid();
-        let btn_id = InputPort::Candidate.testid();
-        let mut list_attrs = vec![("data-testid", list_id)];
-        if shown.is_empty() {
-            list_attrs.push(("hidden", ""));
+        // 入力欄なしの教材（`pack.profile.input_field: hidden`）では、入力欄・候補の一覧・送信を DOM に出さない。
+        // 「0 件」を DOM の数で確かめられ、Tab 順・読み上げにも入らない。案内欄・停止・送信済みの一覧は残す。
+        let shows_input = self.shows_input_area();
+        if shows_input {
+            // maxlength は UTF-16 の単位で数えるため使わない。上限は update が掛ける。
+            // 欄に aria は付けない（a11y の契約）。案内欄は role=status で読み上げに乗せる。
+            children.push(el(
+                "textarea",
+                vec![
+                    ("data-testid", "draft-input"),
+                    ("data-action-input", "draft"),
+                ],
+                // 再描画で欄が作り直されても、状態の下書きを初期内容として復元する。
+                vec![text(&self.draft)],
+            ));
+            // 候補の一覧。閉じているときは hidden（Tab 順・読み上げから外す）。クリックで選ぶ操作は無く、
+            // ボタンに action・payload・候補の文字列の属性は付けない（TERM-42・SAFE-11）。
+            let shown = self.visible_candidates();
+            let list_id = InputPort::CandidateList.testid();
+            let btn_id = InputPort::Candidate.testid();
+            let mut list_attrs = vec![("data-testid", list_id)];
+            if shown.is_empty() {
+                list_attrs.push(("hidden", ""));
+            }
+            let cand_items: Vec<(String, Node)> = shown
+                .iter()
+                .map(|c| {
+                    let btn = el(
+                        "button",
+                        vec![
+                            ("type", "button"),
+                            ("tabindex", "-1"),
+                            ("data-testid", btn_id),
+                        ],
+                        vec![text(c)],
+                    );
+                    (format!("c{c}"), el("li", vec![], vec![btn]))
+                })
+                .collect();
+            children.push(keyed_view_or_notice(
+                "ul",
+                list_attrs,
+                &CANDIDATES_FIELD,
+                cand_items,
+            ));
         }
-        let cand_items: Vec<(String, Node)> = shown
-            .iter()
-            .map(|c| {
-                let btn = el(
-                    "button",
-                    vec![
-                        ("type", "button"),
-                        ("tabindex", "-1"),
-                        ("data-testid", btn_id),
-                    ],
-                    vec![text(c)],
-                );
-                (format!("c{c}"), el("li", vec![], vec![btn]))
-            })
-            .collect();
-        children.push(keyed_view_or_notice(
-            "ul",
-            list_attrs,
-            &CANDIDATES_FIELD,
-            cand_items,
-        ));
         children.push(bind_text(
             "p",
             vec![("data-testid", "input-notice"), ("role", "status")],
             FIELD_NOTICE,
             notice_for(self.over_limit),
         ));
-        children.push(el(
-            "button",
-            vec![
-                ("type", "button"),
-                ("data-testid", "submit-input"),
-                ("data-action", "submit"),
-            ],
-            vec![text("送信")],
-        ));
+        if shows_input {
+            children.push(el(
+                "button",
+                vec![
+                    ("type", "button"),
+                    ("data-testid", "submit-input"),
+                    ("data-action", "submit"),
+                ],
+                vec![text("送信")],
+            ));
+        }
         // 停止ボタン（TERM-33）。ラベルは固定の文字だけで、payload・教材の文字列は持たない。
         children.push(el(
             "button",
@@ -734,6 +757,34 @@ mod tests {
         assert!(html.contains("&lt;b&gt;太字&lt;/b&gt;"), "{html}");
         for tag in ["<a ", "<img", "<h1", "<code", "<strong", "<b>"] {
             assert!(!html.contains(tag), "{tag}: {html}");
+        }
+    }
+
+    fn count_of(html: &str, needle: &str) -> usize {
+        html.matches(needle).count()
+    }
+
+    #[test]
+    fn 入力欄なしでは入力欄_候補の一覧_送信を出さず停止と案内欄は残す() {
+        let mut v = HelloView::new();
+        v.set_input_field(InputField::Hidden);
+        let out = render_component_html(&v);
+        for id in ["draft-input", "candidate-list", "submit-input"] {
+            assert_eq!(count_of(&out, &format!("data-testid=\"{id}\"")), 0, "{out}");
+        }
+        assert!(!out.contains("<textarea"), "{out}");
+        assert_eq!(count_of(&out, "data-testid=\"stop-btn\""), 1, "{out}");
+        assert_eq!(count_of(&out, "data-testid=\"input-notice\""), 1, "{out}");
+        assert_eq!(count_of(&out, "data-testid=\"hello-root\""), 1, "{out}");
+        assert!(out.contains("data-action-keydown"), "{out}");
+        assert_eq!(crate::a11y::check_no_undefined(&v.view()), Ok(()));
+    }
+
+    #[test]
+    fn 既定では入力欄_候補の一覧_送信を出す() {
+        let out = render_component_html(&HelloView::new());
+        for id in ["draft-input", "candidate-list", "submit-input", "stop-btn"] {
+            assert_eq!(count_of(&out, &format!("data-testid=\"{id}\"")), 1, "{out}");
         }
     }
 

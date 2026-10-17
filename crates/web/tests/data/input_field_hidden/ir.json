@@ -1,0 +1,441 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "min-3step-no-input",
+    "title": "入力欄なしの 3 Step 教材（試験データ）",
+    "version": "0.0.1",
+    "ir_format": 1,
+    "guidance": "A",
+    "profile": {
+      "input_field": "hidden"
+    }
+  },
+  "refs": [],
+  "commands": {
+    "help": "builtin",
+    "make-note": "skill",
+    "publish-note": "flow",
+    "sync-cloud": "unsupported"
+  },
+  "views": {
+    "v-files": {
+      "kind": "file_tree"
+    }
+  },
+  "fixtures": {},
+  "hints": {
+    "h-1-1": {
+      "level": 1,
+      "text": "ノートを新しく作る場面です。"
+    },
+    "h-1-2": {
+      "level": 2,
+      "text": "使うコマンドは make-note です。"
+    },
+    "h-1-3": {
+      "level": 3,
+      "text": "/make-note first-note"
+    },
+    "h-2-1": {
+      "level": 1,
+      "text": "ノートの種類を 1 つ選ぶ場面です。"
+    },
+    "h-3-1": {
+      "level": 1,
+      "text": "作ったノートを公開してよいかを決める場面です。"
+    }
+  },
+  "rejections": {
+    "rj-decline": {
+      "category": "not_in_this_step",
+      "message": "公開しない場合は、この Step を先へ進めません。",
+      "next_action": "公開してよいかをもう一度決めます。"
+    },
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "引数または入力の形が合っていません。",
+      "next_action": "小文字・数字・ハイフンだけで書き直して、もう一度送ります。"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "いまは処理中です。",
+      "next_action": "終わるまで待ちます。終わると、次の入力を受け付けます。"
+    },
+    "rj-default-free-text-note": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容の良し悪しは、この教材では判定しません。",
+      "next_action": "自分の文を、自分で読み返します。"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "必要な引数が足りません。",
+      "next_action": "足りない引数を足して、もう一度送ります。"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直し、ヒントを開きます。"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "実際の環境ではできますが、この教材では扱いません。",
+      "next_action": "教材の操作に戻ります。"
+    },
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "そのコマンドは、この教材の一覧にありません。",
+      "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "このコマンドは、まだ使う順番ではありません。",
+      "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+    },
+    "rj-miss-point": {
+      "category": "not_in_this_step",
+      "message": "そこは、変わった箇所ではありません。",
+      "next_action": "左の画面で、変化の印が付いた箇所を指します。"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "free_text_unjudged": "rj-default-free-text-note",
+    "missing_arg": "rj-default-missing-arg",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "module": null,
+      "args": {},
+      "caller": null
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-1",
+      "scope": "main",
+      "unit": "ch-min",
+      "step": {
+        "id": "st-1",
+        "title": "ノートを作る",
+        "body": "st-1.md",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "fixtures": [],
+        "hints": [
+          "h-1-1",
+          "h-1-2",
+          "h-1-3"
+        ],
+        "on_enter": [],
+        "processing": [
+          {
+            "name": "p1-prepare",
+            "effects": []
+          },
+          {
+            "name": "p2-create",
+            "effects": []
+          },
+          {
+            "name": "p3-write",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "notes/draft",
+                  "attr": "state",
+                  "value": "writing"
+                }
+              }
+            ]
+          },
+          {
+            "name": "p4-check",
+            "effects": []
+          },
+          {
+            "name": "p5-save",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "notes/draft",
+                  "attr": "state",
+                  "value": "saved"
+                }
+              }
+            ]
+          }
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-a",
+              "label": "選択肢 1"
+            },
+            {
+              "id": "opt-b",
+              "label": "選択肢 2"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-make",
+            "on": {
+              "command": null,
+              "missing": [],
+              "args": {},
+              "option": "opt-a",
+              "approval": null,
+              "target": null,
+              "ui": null,
+              "text": null,
+              "cancel": null
+            },
+            "when": null,
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "notes/draft",
+                    "fixture": null,
+                    "attrs": {
+                      "kind": "none",
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-other",
+            "on": {
+              "command": null,
+              "missing": [],
+              "args": {},
+              "option": "opt-b",
+              "approval": null,
+              "target": null,
+              "ui": null,
+              "text": null,
+              "cancel": null
+            },
+            "when": null,
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-decline"
+            }
+          }
+        ],
+        "on_reject": {},
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/draft"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "on_achieved": [],
+        "next": [
+          {
+            "to": "main/st-2",
+            "when": null
+          }
+        ],
+        "use": null
+      },
+      "enter": null,
+      "exit_to": null
+    },
+    {
+      "uid": "main/st-2",
+      "scope": "main",
+      "unit": "ch-min",
+      "step": {
+        "id": "st-2",
+        "title": "ノートの種類を選ぶ",
+        "body": "st-2.md",
+        "lo": [
+          "LO-2"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "fixtures": [],
+        "hints": [
+          "h-2-1"
+        ],
+        "on_enter": [],
+        "processing": [],
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "notes/draft"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-point",
+            "on": {
+              "command": null,
+              "missing": [],
+              "args": {},
+              "option": null,
+              "approval": null,
+              "target": null,
+              "ui": {
+                "view": "v-files",
+                "path": "notes/draft"
+              },
+              "text": null,
+              "cancel": null
+            },
+            "when": null,
+            "outcome": {
+              "kind": "accept",
+              "effects": []
+            }
+          }
+        ],
+        "on_reject": {},
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "opt-wrong",
+              "correct": false,
+              "label": "誤った案"
+            },
+            {
+              "id": "opt-right",
+              "correct": true,
+              "label": "正しい案"
+            }
+          ],
+          "on_wrong": "rj-decline"
+        },
+        "on_achieved": [],
+        "next": [
+          {
+            "to": "main/st-3",
+            "when": null
+          }
+        ],
+        "use": null
+      },
+      "enter": null,
+      "exit_to": null
+    },
+    {
+      "uid": "main/st-3",
+      "scope": "main",
+      "unit": "ch-min",
+      "step": {
+        "id": "st-3",
+        "title": "ノートを公開する",
+        "body": "st-3.md",
+        "lo": [
+          "LO-3"
+        ],
+        "final": true,
+        "views": [
+          "v-files"
+        ],
+        "fixtures": [],
+        "hints": [
+          "h-3-1"
+        ],
+        "on_enter": [],
+        "processing": [],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-approve",
+            "on": {
+              "command": null,
+              "missing": [],
+              "args": {},
+              "option": null,
+              "approval": "approve",
+              "target": null,
+              "ui": null,
+              "text": null,
+              "cancel": null
+            },
+            "when": null,
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "set_attr": {
+                    "path": "notes/draft",
+                    "attr": "state",
+                    "value": "published"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-decline",
+            "on": {
+              "command": null,
+              "missing": [],
+              "args": {},
+              "option": null,
+              "approval": "reject",
+              "target": null,
+              "ui": null,
+              "text": null,
+              "cancel": null
+            },
+            "when": null,
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-decline"
+            }
+          }
+        ],
+        "on_reject": {},
+        "confirm": {
+          "kind": "approve"
+        },
+        "on_achieved": [],
+        "next": [],
+        "use": null
+      },
+      "enter": null,
+      "exit_to": null
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-1",
+      "node": "main/st-1",
+      "effects": []
+    }
+  ]
+}
