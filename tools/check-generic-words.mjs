@@ -329,12 +329,12 @@ export function lexRust(src) {
 // 入れ子の式として読み（式の中の文字列・入れ子のテンプレートも照合する）、エスケープは復号してから照合する。
 // 正規表現リテラルは、直前の字句から開始と判定できたとき本体を読む（同じ行で閉じなければ CheckError）。
 // 識別子の `\uXXXX` エスケープは復号する。
-export function lexJs(src) {
+export function lexJs(src, startLine = 1) {
   const out = [];
   const s = Array.from(src);
   const n = s.length;
   let i = 0;
-  let line = 1;
+  let line = startLine;
   const fail = (msg) => {
     throw new CheckError(`${msg} at line ${line}`);
   };
@@ -426,8 +426,29 @@ export function lexJs(src) {
       const d = s[i];
       if (d === '\n') fail('unterminated regular expression');
       if (d === '\\') {
-        if (s[i + 1] === undefined || s[i + 1] === '\n') fail('unterminated regular expression');
-        buf.add(' ', line);
+        const e = s[i + 1];
+        if (e === undefined || e === '\n') fail('unterminated regular expression');
+        // 文字を表すエスケープ（\xHH・\uXXXX・\u{...}）は復号して照合する。読めない形は検査不能として失敗にする。
+        if (e === 'x' || e === 'u') {
+          let cp;
+          if (e === 'u' && s[i + 2] === '{') {
+            let k = i + 3;
+            while (k < n && /[0-9a-fA-F]/.test(s[k])) k += 1;
+            if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
+            cp = parseInt(s.slice(i + 3, k).join(''), 16);
+            i = k + 1;
+          } else {
+            const count = e === 'x' ? 2 : 4;
+            const digits = s.slice(i + 2, i + 2 + count).join('');
+            if (digits.length !== count || !/^[0-9a-fA-F]+$/.test(digits)) fail('unsupported escape');
+            cp = parseInt(digits, 16);
+            i += 2 + count;
+          }
+          if (cp > 0x10ffff) fail('unsupported escape');
+          buf.add(String.fromCodePoint(cp), line);
+          continue;
+        }
+        buf.add(' ', line); // \d・\w・\1 などの文字を表さないエスケープと、記号の文字そのもの
         i += 2;
         continue;
       }
@@ -512,11 +533,12 @@ export function lexHtml(src) {
   const out = [];
   const s = Array.from(src);
   const n = s.length;
-  const buf = new Buf();
+  let buf = new Buf();
   let i = 0;
   let line = 1;
   let inTag = false;
   let quote = null;
+  let tagName = '';
   const fail = (msg) => {
     throw new CheckError(`${msg} at line ${line}`);
   };
@@ -548,13 +570,30 @@ export function lexHtml(src) {
       }
     }
     if (!inTag) {
-      if (c === '<' && /[A-Za-z/!?]/.test(s[i + 1] ?? '')) inTag = true;
+      if (c === '<' && /[A-Za-z/!?]/.test(s[i + 1] ?? '')) {
+        inTag = true;
+        tagName = (/^<([A-Za-z][A-Za-z0-9-]*)/.exec(s.slice(i, i + 20).join('')) ?? [])[1]?.toLowerCase() ?? '';
+      }
     } else if (quote !== null) {
       if (c === quote) quote = null;
     } else if (c === '"' || c === "'") {
       quote = c;
     } else if (c === '>') {
       inTag = false;
+      if (tagName === 'script') {
+        // script の中身は HTML ではなく JS。`<!-- -->` をコメントにせず、JS の字句解析へ渡す（文字列の中の語を落とさない）。
+        buf.add(c, line);
+        i += 1;
+        pushBuf(out, buf);
+        buf = new Buf();
+        let k = i;
+        while (k < n && !(s[k] === '<' && s[k + 1] === '/' && s.slice(k + 2, k + 8).join('').toLowerCase() === 'script')) k += 1;
+        const body = s.slice(i, k).join('');
+        out.push(...lexJs(body, line));
+        for (const ch of body) if (ch === '\n') line += 1;
+        i = k;
+        continue;
+      }
     }
     buf.add(c, line);
     if (c === '\n') line += 1;

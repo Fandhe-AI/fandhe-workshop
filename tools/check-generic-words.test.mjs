@@ -310,3 +310,26 @@ test('セミコロンの無い HTML の数値文字参照も復号する', () =>
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
 });
+
+test('正規表現リテラルの文字を表すエスケープを復号して照合する。読めない形は 2', () => {
+  for (const body of ['const re = /git\\u0068ub/;\n', 'const re = /git\\u{68}ub/;\n', 'const re = /git\\x68ub/;\n']) {
+    const r = run(makeRoot({ 'crates/x/static/a.js': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  // 文字を表さないエスケープは語を作らない
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const re = /\\d+\\s\\w/;\n' })).code, 0);
+  for (const body of ['const re = /\\u00zz/;\n', 'const re = /\\xg1/;\n', 'const re = /\\u{110000}/;\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 2, body);
+  }
+});
+
+test('HTML の script の中身は JS として読み、文字列の `<!-- -->` を落とさない', () => {
+  const body = '<p>x</p>\n<script>\nconst x = "<!-- github -->";\n</script>\n';
+  const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /a\.html:3: github/);
+  // script の外の HTML コメントは従来どおり除く。script の中の JS コメントも除く
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<!-- github -->\n<script>// github\nconst a = 1;</script>\n' })).code, 0);
+  // 閉じない JS の文字列は検査不能として 2
+  assert.equal(run(makeRoot({ 'crates/x/static/c.html': '<script>const a = "x;</script>\n' })).code, 2);
+});
