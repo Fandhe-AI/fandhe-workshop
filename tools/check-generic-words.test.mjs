@@ -384,3 +384,77 @@ test('TOML の複数行文字列の終端の引用符が 4 個・5 個でも閉�
   }
   assert.equal(run(makeRoot({ 'crates/x/Cargo.toml': 'a = """value""""\nb = 1\n' })).code, 0);
 });
+
+test('制御文の括弧の閉じの後の `/` は正規表現で、中の `//` をコメントと取り違えない', () => {
+  // Codex の指摘の例そのもの: if の括弧の後の正規表現を除算と誤認すると、`//` 以降の github を読み飛ばす
+  const r = run(makeRoot({ 'crates/x/static/a.js': 'if (ok) /[//]github/.test(x);\n' }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /a\.js:1: github/);
+  for (const body of [
+    'while (ok) /[//]github/.test(x);\n',
+    'for (;;) /[//]github/.test(x);\n',
+    'with (o) /[//]github/.test(x);\n',
+    'if (f(a)) /[//]github/.test(x);\n',
+    'do x(); while (ok) /[//]github/.test(x);\n',
+  ]) {
+    const r2 = run(makeRoot({ 'crates/x/static/b.js': body }));
+    assert.equal(r2.code, 1, `${body}: ${r2.out}`);
+  }
+  // 制御文でない括弧・プロパティ名の for の後は除算のまま
+  for (const body of ['const q = f(a) / 2 / 3;\n', 'const q = x.for(a) / 2 / 3;\n', 'const q = x.if / 2 / 3;\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 0, body);
+  }
+  // 制御文の括弧の後の `{` は文ブロックで、閉じた後の `/` は正規表現
+  assert.equal(run(makeRoot({ 'crates/x/static/d.js': 'if (a) { b(); } /github/.test(c);\n' })).code, 1);
+});
+
+test('HTML の数値文字参照は先頭の 0 を含む数字列全体を読んで復号する', () => {
+  const cases = [
+    '<p title="git&#000000000104;ub">x</p>\n',
+    '<p title="git&#x0000000068;ub">x</p>\n',
+    '<p>git&#00000000000000000000104ub</p>\n',
+    '<p style="content: \'git&#000000000104;ub\'">x</p>\n',
+  ];
+  for (const body of cases) {
+    const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+});
+
+test('範囲外・復号できない HTML の数値文字参照は検査不能として 2', () => {
+  for (const ref of ['&#0;', '&#1114112;', '&#00000000001114112;', '&#x110000;', '&#xD800;', '&#128;', '&#x9F;']) {
+    for (const body of [`<p>a${ref}b</p>\n`, `<p style="content: 'a${ref}b'">x</p>\n`]) {
+      assert.equal(run(makeRoot({ 'crates/x/static/a.html': body })).code, 2, body);
+    }
+  }
+  // 数字の無い `&#`・`&#x` は参照ではなく文字のまま
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<p>&# &#x; &#q</p>\n' })).code, 0);
+});
+
+test('HTML の名前つき文字参照: `;` 無しの旧来の名前の後の語と、英数字や `_` になる参照を照合する', () => {
+  // `&ltpr` は本文で `<pr` と表示される（`;` 無しで復号される旧来の名前 lt の後に pr が続く）
+  for (const body of ['<p>&ltpr x</p>\n', '<p>&amppr</p>\n', '<p title="&copyPrIssue">x</p>\n']) {
+    const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  // 正当な名前つき参照だけなら語を作らない
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<p>&ltimes; &lt; &amp; &nbsp; &copy;</p>\n' })).code, 0);
+  // 英数字・`_` に復号される参照（fjlig は fj、lowbar・UnderBar は `_`）は復号してから照合する
+  const appendix = APPENDIX.replace('- 注記', '').trimEnd() + '\n| 試験 | `fjord` | 部分一致 |\n| 試験 | `git_hub` | 部分一致 |\n\n- 注記\n';
+  for (const body of ['<p>&fjlig;ord</p>\n', '<p>git&lowbar;hub</p>\n', '<p title="git&UnderBar;hub">x</p>\n']) {
+    const r = run(makeRoot({ 'crates/x/static/c.html': body }, { appendix }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+});
+
+test('JS の `\\u{...}` は先頭の 0 が多くても復号して照合する', () => {
+  for (const body of [
+    'const s = "git\\u{0000000068}ub";\n',
+    'const git\\u{0000000068}ub = 1;\n',
+    'const re = /git\\u{0000000068}ub/;\n',
+  ]) {
+    const r = run(makeRoot({ 'crates/x/static/a.js': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const s = "\\u{00000110000}";\n' })).code, 2);
+});

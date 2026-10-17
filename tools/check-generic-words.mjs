@@ -141,6 +141,19 @@ const SIMPLE_ESCAPES = {
   toml: { b: ' ', t: ' ', n: ' ', f: ' ', r: ' ', e: ' ', '"': '"', '\\': '\\' },
 };
 
+// `\u{...}` の `{` の次の位置から 16 進を読み、[符号点, `}` の次の位置] を返す。先頭の 0 は何個でもよい
+// （JS は桁数を制限しない。`\u{0000000068}` は h）。数字が無い・閉じない・範囲外は fail（読めないまま照合しない）。
+function bracedHex(s, start, fail) {
+  let k = start;
+  while (k < s.length && /[0-9a-fA-F]/.test(s[k])) k += 1;
+  if (s[k] !== '}' || k === start) fail('unsupported escape');
+  const digits = s.slice(start, k).join('').replace(/^0+/, '');
+  if (digits.length > 6) fail('unsupported escape');
+  const cp = digits === '' ? 0 : parseInt(digits, 16);
+  if (cp > 0x10ffff) fail('unsupported escape');
+  return [cp, k + 1];
+}
+
 // 開き引用符の内側の `\` から始まるエスケープを復号して buf に積み、[次の位置, 行] を返す。
 // lang は rust・js・toml（1 行の基本文字列）・toml-ml（複数行の基本文字列）。未対応の形は CheckError
 // （復号できないまま照合すると語を見逃すため、合格にしない）。
@@ -174,12 +187,7 @@ function readEscape(s, i, line, lang, buf, fail) {
   if (c === 'x') return emit(...hex(2));
   if (c === 'u' && kind === 'toml') return emit(...hex(4));
   if (c === 'U' && kind === 'toml') return emit(...hex(8));
-  if (c === 'u' && (kind === 'rust' || kind === 'js') && s[i + 2] === '{') {
-    let k = i + 3;
-    while (k < s.length && /[0-9a-fA-F]/.test(s[k])) k += 1;
-    if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
-    return emit(parseInt(s.slice(i + 3, k).join(''), 16), k + 1);
-  }
+  if (c === 'u' && (kind === 'rust' || kind === 'js') && s[i + 2] === '{') return emit(...bracedHex(s, i + 3, fail));
   if (c === 'u' && kind === 'js') return emit(...hex(4));
   if (kind === 'js') {
     if (c === '0' && !/[0-9]/.test(s[i + 2] ?? '')) return emit(0x20, i + 2);
@@ -328,6 +336,7 @@ export function lexRust(src) {
 // JS の字句。`//`・`/* */` を除き、'...'・"..."・`...` の中身を字句にする。テンプレートリテラルは補間 `${...}` を
 // 入れ子の式として読み（式の中の文字列・入れ子のテンプレートも照合する）、エスケープは復号してから照合する。
 // 正規表現リテラルは、直前の字句から開始と判定できたとき本体を読む（同じ行で閉じなければ CheckError）。
+// `)` の後は除算だが、制御文（if・while・for・with）の括弧の閉じの後は文の始まりとして正規表現の開始にする。
 // 識別子の `\uXXXX` エスケープは復号する。
 export function lexJs(src, startLine = 1) {
   const out = [];
@@ -397,11 +406,7 @@ export function lexJs(src, startLine = 1) {
       } else if (s[i] === '\\' && s[i + 1] === 'u') {
         let cp;
         if (s[i + 2] === '{') {
-          let k = i + 3;
-          while (k < n && /[0-9a-fA-F]/.test(s[k])) k += 1;
-          if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
-          cp = parseInt(s.slice(i + 3, k).join(''), 16);
-          i = k + 1;
+          [cp, i] = bracedHex(s, i + 3, fail);
         } else {
           const digits = s.slice(i + 2, i + 6).join('');
           if (digits.length !== 4 || !/^[0-9a-fA-F]+$/.test(digits)) fail('unsupported escape');
@@ -432,11 +437,7 @@ export function lexJs(src, startLine = 1) {
         if (e === 'x' || e === 'u') {
           let cp;
           if (e === 'u' && s[i + 2] === '{') {
-            let k = i + 3;
-            while (k < n && /[0-9a-fA-F]/.test(s[k])) k += 1;
-            if (s[k] !== '}' || k === i + 3 || k - (i + 3) > 8) fail('unsupported escape');
-            cp = parseInt(s.slice(i + 3, k).join(''), 16);
-            i = k + 1;
+            [cp, i] = bracedHex(s, i + 3, fail);
           } else {
             const count = e === 'x' ? 2 : 4;
             const digits = s.slice(i + 2, i + 2 + count).join('');
@@ -473,7 +474,10 @@ export function lexJs(src, startLine = 1) {
   const KEYWORDS_BEFORE_REGEX = new Set([
     'return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await',
   ]);
+  // 括弧の閉じの後に文が続く制御文。`if (ok) /re/.test(x)` の `)` は値の終わりではなく、次の `/` は正規表現の開始。
+  const CONTROL_KEYWORDS = new Set(['if', 'while', 'for', 'with']);
   // 直前の字句から、`/` が正規表現の開始かを決める。値の終わり（識別子・文字列・数・`)`・`]`）の後は除算。
+  // 制御文の括弧の閉じ（'ctl)'）と制御文の語（'ctl:<語>'）の後は文の始まりで、正規表現が来うる。
   const regexAllowed = (prev) => {
     if (prev === null) return true;
     if (prev === 'operand' || prev === ')' || prev === ']') return false;
@@ -484,7 +488,7 @@ export function lexJs(src, startLine = 1) {
   const braceIsExpression = (prev) => {
     if (prev === null) return false;
     if (prev.startsWith('kw:')) return prev !== 'kw:else' && prev !== 'kw:do';
-    return !['operand', ')', ']', ';', '{', '}', '=>'].includes(prev);
+    return !['operand', ')', 'ctl)', ']', ';', '{', '}', '=>'].includes(prev);
   };
   // コードを読む。inInterp のときは、対応する `}` の手前で止まる（`}` の次の位置へ進めて返る）。
   const code = (inInterp) => {
@@ -492,6 +496,8 @@ export function lexJs(src, startLine = 1) {
     let prev = null;
     // `{` ごとの種別（true は式の `{...}`。閉じた後は値の終わりで、次の `/` は除算）。
     const braces = [];
+    // `(` ごとの種別（true は制御文の括弧。閉じた後は文の始まりで、次の `/` は正規表現）。
+    const parens = [];
     while (i < n) {
       const c = s[i];
       if (c === '\n') {
@@ -528,9 +534,21 @@ export function lexJs(src, startLine = 1) {
         } else {
           prev = braces.pop() ? 'operand' : c;
         }
+      } else if (c === '(') {
+        parens.push(prev !== null && prev.startsWith('ctl:'));
+        i += 1;
+        prev = c;
+      } else if (c === ')') {
+        i += 1;
+        prev = parens.pop() ? 'ctl)' : c;
       } else if (IDENT.test(c) || (c === '\\' && s[i + 1] === 'u')) {
+        // `.` の直後はプロパティ名で、キーワードと同じ綴りでも値（`x.for(a) / 2`・`x.return / 2` は除算）。
+        const afterDot = prev === '.';
         const word = readIdent();
-        prev = KEYWORDS_BEFORE_REGEX.has(word) ? `kw:${word}` : 'operand';
+        if (afterDot) prev = 'operand';
+        else if (KEYWORDS_BEFORE_REGEX.has(word)) prev = `kw:${word}`;
+        else if (CONTROL_KEYWORDS.has(word)) prev = `ctl:${word}`;
+        else prev = 'operand';
       } else if ((c === '+' || c === '-') && s[i + 1] === c) {
         // `++`・`--` は 1 つの字句。値の直後なら後置演算子で、値の終わりのまま（次の `/` は除算）。前置なら演算子。
         if (prev !== 'operand') prev = c;
@@ -547,8 +565,72 @@ export function lexJs(src, startLine = 1) {
   return out;
 }
 
+// 数値文字参照の数字列を復号する。数字列は先頭の 0 を含めて全体を読む（`&#000000000104;` は h）。
+// 0・範囲外・サロゲート・C1（0x80〜0x9F。ブラウザは windows-1252 の文字に置き換えるが、その表は写さない）は、
+// ブラウザと同じ文字に復号できないため fail（検査不能。合格にしない）。
+function decodeNumericRef(digits, hex, fail) {
+  const trimmed = digits.replace(/^0+/, '');
+  if (trimmed.length > (hex ? 6 : 7)) fail('unsupported character reference');
+  const cp = trimmed === '' ? 0 : parseInt(trimmed, hex ? 16 : 10);
+  if (cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) || (cp >= 0x80 && cp <= 0x9f)) {
+    fail('unsupported character reference');
+  }
+  return String.fromCodePoint(cp);
+}
+
+// 末尾の `;` が無くても復号される旧来の名前つき文字参照（HTML の named character references の表で `;` の無い形が
+// 載っている名前）。本文では、後ろに英数字が続いても最長の名前の分だけ復号される（`&ltpr` は `<pr`）。
+const LEGACY_REFS = [
+  'AElig', 'AMP', 'Aacute', 'Acirc', 'Agrave', 'Aring', 'Atilde', 'Auml', 'COPY', 'Ccedil', 'ETH', 'Eacute', 'Ecirc',
+  'Egrave', 'Euml', 'GT', 'Iacute', 'Icirc', 'Igrave', 'Iuml', 'LT', 'Ntilde', 'Oacute', 'Ocirc', 'Ograve', 'Oslash',
+  'Otilde', 'Ouml', 'QUOT', 'REG', 'THORN', 'Uacute', 'Ucirc', 'Ugrave', 'Uuml', 'Yacute', 'aacute', 'acirc',
+  'acute', 'aelig', 'agrave', 'amp', 'aring', 'atilde', 'auml', 'brvbar', 'ccedil', 'cedil', 'cent', 'copy',
+  'curren', 'deg', 'divide', 'eacute', 'ecirc', 'egrave', 'eth', 'euml', 'frac12', 'frac14', 'frac34', 'gt',
+  'iacute', 'icirc', 'iexcl', 'igrave', 'iquest', 'iuml', 'laquo', 'lt', 'macr', 'micro', 'middot', 'nbsp', 'not',
+  'ntilde', 'oacute', 'ocirc', 'ograve', 'ordf', 'ordm', 'oslash', 'otilde', 'ouml', 'para', 'plusmn', 'pound',
+  'quot', 'raquo', 'reg', 'sect', 'shy', 'sup1', 'sup2', 'sup3', 'szlig', 'thorn', 'times', 'uacute', 'ucirc',
+  'ugrave', 'uml', 'uuml', 'yacute', 'yen', 'yuml',
+];
+
+// 英数字か `_` に復号される名前つき文字参照（`;` つき）。表の中でこの 3 つだけで、復号して照合する。
+const WORD_REFS = new Map([
+  ['fjlig', 'fj'],
+  ['lowbar', '_'],
+  ['UnderBar', '_'],
+]);
+
+// `&` の位置から文字参照を読む。参照でなければ null。{ text: 復号した文字, next: 次の位置, literal?: 別の読みの字句 }。
+// 名前つき参照は表の全部を写さない。WORD_REFS 以外は復号せず、名前を字句として残す（`&` と `;` で区切られる。
+// 語を足す向きの近似で、見逃す向きには倒れない）。本文（inAttribute が偽）で旧来の名前の後に英数字が続くときは、
+// 復号した読み（名前の分を区切りにして残りを続ける）を text に、復号しない読み（名前の全体）を literal に返す
+// （`&ltimes;` のように、正当な長い名前の頭が旧来の名前と重なる場合を表なしで区別できないため、両方を照合する）。
+function readCharRef(s, i, fail, inAttribute) {
+  if (s[i + 1] === '#') {
+    let k = i + 2;
+    const hex = s[k] === 'x' || s[k] === 'X';
+    if (hex) k += 1;
+    const start = k;
+    while (k < s.length && (hex ? /[0-9a-fA-F]/ : /[0-9]/).test(s[k])) k += 1;
+    if (k === start) return null; // `&#`・`&#x` だけは参照ではなく文字のまま
+    const text = decodeNumericRef(s.slice(start, k).join(''), hex, fail);
+    if (s[k] === ';') k += 1;
+    return { text, next: k };
+  }
+  if (!/[A-Za-z]/.test(s[i + 1] ?? '')) return null;
+  let k = i + 1;
+  while (k < s.length && /[A-Za-z0-9]/.test(s[k])) k += 1;
+  const name = s.slice(i + 1, k).join('');
+  if (s[k] === ';' && WORD_REFS.has(name)) return { text: WORD_REFS.get(name), next: k + 1 };
+  if (inAttribute) return null; // 属性値では、旧来の名前の後に英数字が続くと復号されない
+  let legacy = '';
+  for (const l of LEGACY_REFS) if (l.length < name.length && name.startsWith(l) && l.length > legacy.length) legacy = l;
+  if (legacy === '') return null;
+  return { text: ' ', next: i + 1 + legacy.length, literal: name };
+}
+
 // HTML・SVG。`<!-- -->` だけをコメントとして除く。タグの中の引用符つきの属性値にある `<!--` はコメントにしない。
-// 数値の文字参照（`&#103;`・`&#x67;`。ブラウザと同じく末尾の `;` が無くても復号する）は復号する。タグの引用符が閉じない・コメントが閉じない形は CheckError。
+// 文字参照は readCharRef で読む（数値の参照は `;` が無くても復号する。名前つきの参照の扱いはそちらの注記）。
+// タグの引用符が閉じない・コメントが閉じない・復号できない数値の参照は CheckError。
 export function lexHtml(src) {
   const out = [];
   const s = Array.from(src);
@@ -579,13 +661,13 @@ export function lexHtml(src) {
       buf.add(' ', line);
       continue;
     }
-    if (c === '&' && s[i + 1] === '#') {
-      const m = /^&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));?/.exec(s.slice(i, i + 12).join(''));
-      if (m) {
-        const cp = m[1] ? parseInt(m[1], 16) : parseInt(m[2], 10);
-        if (cp > 0x10ffff) fail('unsupported character reference');
-        buf.add(String.fromCodePoint(cp), line);
-        i += m[0].length;
+    if (c === '&') {
+      // タグの外も属性値も同じに読む（属性値で旧来の名前の後に英数字が続く形は復号されないが、literal の読みで照合する）。
+      const ref = readCharRef(s, i, fail, false);
+      if (ref !== null) {
+        if (ref.literal !== undefined) out.push({ token: ref.literal, line });
+        for (const ch of ref.text) buf.add(ch, line);
+        i = ref.next;
         continue;
       }
     }
@@ -601,14 +683,17 @@ export function lexHtml(src) {
       let k = i + 1;
       while (k < n && s[k] !== c) k += 1;
       if (k >= n) fail('unterminated attribute value');
-      const raw = s
-        .slice(i + 1, k)
-        .join('')
-        .replace(/&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));?/g, (m, h, d) => {
-          const cp = h ? parseInt(h, 16) : parseInt(d, 10);
-          if (cp > 0x10ffff) fail('unsupported character reference');
-          return String.fromCodePoint(cp);
-        });
+      let raw = '';
+      for (let m = i + 1; m < k; ) {
+        const ref = s[m] === '&' ? readCharRef(s, m, fail, true) : null;
+        if (ref !== null) {
+          raw += ref.text;
+          m = ref.next;
+        } else {
+          raw += s[m];
+          m += 1;
+        }
+      }
       buf.add(c, line);
       pushBuf(out, buf);
       buf = new Buf();
