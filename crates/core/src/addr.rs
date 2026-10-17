@@ -33,6 +33,10 @@ impl Generation {
 ///
 /// IR の `Instance.id` と一致する。状態の切り身（[`crate::session::Slice`]）と下書きの持ち主の鍵になる
 /// （MOD-3・MOD-4）。ファイルパスや URL には使わない。
+///
+/// MOD-4・TASK-236 の文言は「最初の `/` まで」だが、入れ子の無い試作から書かれた定義であり、入れ子の実体でだけ
+/// 最後の `/` との読みが分かれる。本実装は `Instance.id`・`Node.scope`（最後の `/` より前）に従う。フラグは実体ごと
+/// に持つ（語彙 v1 の 9 節）ため、最初の `/` にすると入れ子の子の状態が親に混ざる。仕様の決定待ち（#1413）。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Root(pub String);
@@ -115,6 +119,7 @@ impl StepUid {
     }
 
     /// 最後の `/` より前を根（`Instance.id`）として返す（`/` が無ければ全体）。ネストした実体でも根は親ではなく自身になる。
+    /// MOD-4 の文言（最初の `/` まで）との食い違いは [`Root`] の文書を参照する（#1413）。
     pub fn root(&self) -> Root {
         let root = self.0.rsplit_once('/').map_or(self.0.as_str(), |(r, _)| r);
         Root(root.to_string())
