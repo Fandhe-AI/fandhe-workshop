@@ -155,7 +155,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 左の成果物の部品の結線（ビューの種類ごとの keyed list 7 本・選ばれていない list は空で `hidden`）と、ビューの選択（宣言の順・今の Step が宣言した種類だけを選べる。選択は Step ごとに持ち、移動すると先頭に戻る。action `select-view`。宣言が無い Step の既定は試作の仮置き） | web（`engine_parts`・`view_select`・`host`） | TASK-470 |
 | 進行の間隔の定数（300ms。D-47。URL・教材から変えられない。core は時刻を持たない。EVT-16） | web（`tick_interval`） | TASK-229 |
 | 履歴の保存先の実装（localStorage・IndexedDB）と選択の規則（切り替えの閾値・一方向の切り替え・二重の写しの優先。D-52。口 `HistoryStore` は contract） | web（`storage_select`・`storage_local`・`storage_idb`・`save_pending`・`leave_flush`） | TASK-317 |
-| 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ。試験の設定だけ、起動の前に URL のクエリの完全一致（`?fixture=reload-points`）で mount の教材を選ぶ） | web（`persist`・`test_fixture`・`test_hooks`。wasm のみ） | TASK-319 |
+| 受講中の保存の結線（起動の前に保存先を開いて読み、`Promise` でマウントを待たせ、離れる直前の `pagehide` で `history_to_save` を書く。最初の変更まで保存しない。試験用の口の保存先・保留とは別に持つ。試験の設定だけ、起動の前に URL のクエリの完全一致（`?fixture=reload-points`・`?fixture=no-input`・`?fixture=ch0-3`）で mount の教材を選ぶ） | web（`persist`・`test_fixture`・`test_hooks`。wasm のみ） | TASK-319 |
 
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う

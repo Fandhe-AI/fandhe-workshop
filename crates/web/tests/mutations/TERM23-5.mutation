@@ -1,0 +1,8 @@
+id: TERM23-5
+package: fandhe-workshop-web
+test: ch0_3_run_host
+target: crates/web/src/host.rs
+find:                     decision: Decision::Revise,
+replace:                     decision: Decision::Approve,
+expect-fail: 画面から送れる手だけで二十の_step_を最後まで進める
+note: 対象つきの「直す」のクリックを「はい」として core へ送る（直す対象を決める Step が進まず、通しが完走しない。TERM-23）
