@@ -566,10 +566,10 @@ export function staticHits(src, terms) {
   return hits.sort((a, b) => a.line - b.line || a.word.localeCompare(b.word));
 }
 
-// static のファイルを UTF-8 として読む。UTF-8 として不正な列や NUL を含むもの（UTF-16 など）は、ASCII の語が
-// 別のバイト列になって全部の読みから隠れるため、検査不能（2）にする。
+// static のファイルを UTF-8 として読む（先頭の UTF-8 の BOM は除く）。UTF-8 として不正なバイト列（BOM つきの UTF-16 を
+// 含む。FF FE・FE FF は UTF-8 として不正）は、語が別のバイト列になって全部の読みから隠れうるため、検査不能（2）にする。
+// NUL は正当な JS の文字列にも書けるため、それだけでは 2 にしない。
 function decodeStaticBytes(bytes) {
-  if (bytes.includes(0)) throw new CheckError('unsupported encoding (NUL byte)');
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {

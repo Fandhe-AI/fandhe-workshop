@@ -330,7 +330,7 @@ test('正規表現リテラルの文字を表すエスケープを復号して�
   }
   // 文字を表さないエスケープは語を作らない
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const re = /\\d+\\s\\w/;\n' })).code, 0);
-  for (const body of ['const re = /\\u00zz/;\n', 'const re = /\\xg1/;\n', 'const re = /\\u{110000}/u;\n']) {
+  for (const body of ['const re = /\\u00zz/;\n', 'const re = /\\xg1/;\n', 'const re = /\\u{110000}/;\n']) {
     assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 0, body);
   }
 });
@@ -541,14 +541,14 @@ test('復号の組み合わせ: HTML→CSS・JS→HTML・行の継続・8 進の
 
 test('正当な JS・HTML・CSS は、エスケープや参照が読めない形でも 2 にしない', () => {
   const cases = {
-    'crates/x/static/a.js': '// \\u00zz \\u{110000} \\x \\8\nconst re = /\\k<n>\\p{L}/u;\nconst s = "a\\0b";\n',
+    'crates/x/static/a.js': '// \\u00zz \\u{110000} \\x \\8\nconst re = /(?<n>a)\\k<n>\\p{L}/u;\nconst re2 = /\\u{110000}/;\nconst s = "a\\0b";\n',
     'crates/x/static/a.html': '<p>&# &#x; &#q &unknownname; &#0; &#xD800;</p>\n',
     'crates/x/static/a.css': 'a::after { content: "\\0 \\110000 \\D800 \\"; }\n',
   };
   for (const [rel, body] of Object.entries(cases)) assert.equal(run(makeRoot({ [rel]: body })).code, 0, rel);
 });
 
-test('fail-closed: UTF-8 でない static（UTF-16・不正なバイト列）は 2。BOM つきの UTF-8 は読む', () => {
+test('fail-closed: UTF-8 でない static（BOM つきの UTF-16・不正なバイト列）は 2。BOM つきの UTF-8 と NUL を含む JS は読む', () => {
   const root1 = makeRoot();
   fs.mkdirSync(path.join(root1, 'crates/x/static'), { recursive: true });
   fs.writeFileSync(path.join(root1, 'crates/x/static/a.js'), Buffer.from('\ufeffconst a = "github";\n', 'utf16le'));
@@ -560,6 +560,7 @@ test('fail-closed: UTF-8 でない static（UTF-16・不正なバイト列）は
   const bom = run(makeRoot({ 'crates/x/static/a.js': '\ufeffconst a = "github";\n' }));
   assert.equal(bom.code, 1, bom.out);
   assert.match(bom.out, /a\.js:1: github/);
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const a = "x\0y";\n' })).code, 0);
 });
 
 test('.rs のコメントの中の語は今までどおり 0（static だけがコメントも照合する）', () => {
