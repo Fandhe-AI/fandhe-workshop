@@ -1,0 +1,9 @@
+id: ART7-4
+package: fandhe-workshop-web
+test: document_view_a_contract
+target: crates/web/src/document_view.rs
+find:         flatten_lines(&lines),
+replace:         vec![render_block_node(block)],
+expect-fail: a_構造の要素は1つも出ず_平文の部品だけが出る
+expect-fail: a_行の数は_markdown_を目で数えた値と一致する
+note: (a) の包みの中身を平文の行でなく木の描画にする（表・引用・一覧の構造喪失の観察が消える。ART-7）

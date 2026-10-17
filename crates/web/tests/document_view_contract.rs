@@ -333,6 +333,39 @@ fn 規模の確認_80ブロックで構造の数が組み立てた数と一致�
 }
 
 #[test]
+fn 後の状態で削除の直後は追加で_組は3つ_種類が一致する() {
+    let rows = sample_rows();
+    let after = htmls(&rows, Phase::After);
+    let kind = |s: &str| -> String {
+        let key = "data-block=\"";
+        let at = s.find(key).expect("data-block") + key.len();
+        s[at..].split('"').next().expect("値").to_owned()
+    };
+    let mut pairs: Vec<String> = Vec::new();
+    for (i, h) in after.iter().enumerate() {
+        if h.contains("data-mark=\"remove\"") {
+            let next = after.get(i + 1).expect("削除の次の項目");
+            assert!(next.contains("data-mark=\"add\""), "削除の直後は追加: {i}");
+            assert_eq!(kind(h), kind(next), "組の種類が一致: {i}");
+            assert!(h.contains("mk-glyph\">-<"), "{h}");
+            assert!(next.contains("mk-glyph\">+<"), "{next}");
+            pairs.push(kind(h));
+        }
+        if h.contains("data-mark=\"add\"") {
+            let prev = after.get(i.wrapping_sub(1)).expect("追加の前の項目");
+            assert!(
+                prev.contains("data-mark=\"remove\""),
+                "追加の直前は削除: {i}"
+            );
+        }
+    }
+    assert_eq!(pairs, ["list", "table", "list"]);
+    let before = joined(&rows, Phase::Before);
+    assert_eq!(n(&before, "mk-glyph\">-<"), 0);
+    assert_eq!(n(&before, "mk-glyph\">+<"), 0);
+}
+
+#[test]
 fn app_css_にブロックの包みのクラスがある() {
     assert!(APP_CSS.contains(".dc-block"));
 }

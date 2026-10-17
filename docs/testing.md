@@ -3208,7 +3208,34 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 | ART7-3 | 印の宿主を項目自身から内側の `div` に変える | DETECTED | `document_view_contract` の「全項目の根の子は記号_文字_包みの3つで_包みはブロックを1つ持つ」 |
 
 - ブラウザの試験: `doc-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`diff-view` の 70 件が通過（2026-10-17。試験の設定の web で流した）
-- 範囲外: `-` と `+` の組を主張する専用の試験と文書 (a) の対照（TASK-476 2/2）、製品の結線と世界状態から `Vec<Block>` を読む規則、指せる行の属性（TASK-480）、色（TASK-490）、測定（TASK-485）、ブラウザの試験の CI への組み込み。検査器の `DANGER_SELECTOR` は `img` をすべて違反と数えるが `doc_view` は相対の `src` の画像を正当に `img` にする。サンプルに画像が無いため当たらないが、製品の結線の時に食い違う
+- 範囲外: `-` と `+` の組を主張する専用の試験と文書 (a) の対照は 5.105 で扱った（TASK-476 2/2）。製品の結線と世界状態から `Vec<Block>` を読む規則、指せる行の属性（TASK-480）、色（TASK-490）、測定（TASK-485）、ブラウザの試験の CI への組み込み。検査器の `DANGER_SELECTOR` は `img` をすべて違反と数えるが `doc_view` は相対の `src` の画像を正当に `img` にする。サンプルに画像が無いため当たらないが、製品の結線の時に食い違う
+
+### 5.105 文書のビューの `-` と `+` の組と変種 (a)（対照。TASK-476 2/2）
+
+(b) で `-` と `+` の組が出ることを試験で主張し、変種 (a)（`wireframe-ui` の `text`・`paragraph` で平文の行に落とす方式）を対照として固定した。製品の契約（文書は (b) だけ。`ViewKind::allows`・`VariantPolicy`）は変えない。(a) は代役の部品の対照の口 `fixture_contrast`（payload `document:a`）からだけ描ける。
+
+- 受入: 前後の切り替えで変更のあったブロックが `-` と `+` の組で出ること。(a) では表・引用・一覧が構造を失うこと
+- 項目の形（(a)）: 根の `li` の子は内側の `div` 1 つで、印はその `div` が持つ（差分の (a) と同じ）。`div` の子は記号・文字・`doc-block` の包みの順で、包みの中は見出しと表の見出し行が `text`（大・太字）、それ以外が `paragraph` の行になる。リンクの宛先・画像の URL は捨てる。入れ子は `MAX_RENDER_DEPTH` で打ち切り、省略の文言の行にする
+- 観察の中身: サンプルの前は見出しの行 5・段落の行 10、後は見出しの行 6・段落の行 20（Markdown から手で数えた）。構造の要素（`h1`〜`h6`・`ol`・`ul`・`table`・`blockquote`・`pre`・`code`・`a`・`img`・`hr`）は 0 件で、表は `項目 | 内容` のように縦棒で連結された文字になる。`wireframe_css()` は配信していないため、(a) の印の宿主が内側の `div` であることから `static/app.css` の取り消し線は当たらない（見た目は TASK-490）
+- native の試験: `crates/web/tests/document_view_a_contract.rs`（項目数と key、項目の形、構造の喪失、行の数、文字の保持、印の件数、同じ key の形の不変、エスケープ、囲みのコードと区切り線、深さの上限、a11y、80 ブロックの構成）、`document_view_contract.rs` の組の隣接（3 組・種類 list/table/list・記号 `-`/`+`）、`view_fixture` の単体（対照の口の受理と拒否、(a) の後の構造の要素 0、対照の後も `fixture_select` の `document:a` を拒否）
+- ブラウザの試験（`tools/browser/doc-view.test.mjs`）: DV5 `-`/`+` の組（(b)。2 往復と、追加の印を消すと検査が失敗する対照）、DV6 (a) が検査器の枠で違反 0、DV7 (a) で構造の要素が全て 0・行の数と文字が残り、(b) へ戻すと構造が戻る、DV8 対照の後も `document:a` の選択は拒否される
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 3abaecf-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART7-1.mutation crates/web/tests/mutations/ART7-2.mutation crates/web/tests/mutations/ART7-3.mutation crates/web/tests/mutations/ART7-4.mutation crates/web/tests/mutations/ART7-5.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART7-1 | 文書に変種 (a) を許す | DETECTED | `artifact_view_binding_contract` の 2 件 |
+| ART7-2 | 包みの中身を木の描画でなく種類名の文字だけにする | DETECTED | `document_view_contract` の構造の数・80 ブロックの構成ほか 6 件 |
+| ART7-3 | 印の宿主を項目自身から内側の `div` に変える | DETECTED | `document_view_contract` の「全項目の根の子は記号_文字_包みの3つで_包みはブロックを1つ持つ」 |
+| ART7-4 | (a) の包みの中身を平文の行でなく木の描画にする | DETECTED | `document_view_a_contract` の構造の要素・行の数ほか 5 件 |
+| ART7-5 | (a) の項目の印の付け先を項目自身にする | DETECTED | `document_view_a_contract` の「項目の形は li の子が内側の div 1 つで印の宿主はその div」 |
+
+- ブラウザの試験: `doc-view`・`diff-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch` の 74 件が通過（2026-10-17。試験の設定の web で流した）。`make test-browser` の全件は未検証
+- 範囲外: 80 ブロックのブラウザでの描画の測定（TASK-485）、(a) を製品から外すか残すかの決定（TASK-465）、`wireframe_css()` の配信と配色・(a) の取り消し線（TASK-490）、製品の結線と指せる行の属性（TASK-480）、本文を出す部品（TASK-489）、検査器の `DANGER_SELECTOR` が `img` をすべて違反と数える件、試作の教材パック（`bbs-tutorial`）の読み取り、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
