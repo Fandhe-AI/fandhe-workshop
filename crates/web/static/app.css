@@ -111,3 +111,8 @@
   flex: 1;
   min-width: 0;
 }
+
+/* 文書の li も flex のため、削除の印の取り消し線を直接の子（ブロックの包み）へも付ける。 */
+[data-view="document"] > [data-mark="remove"] > .dc-block {
+  text-decoration: line-through;
+}
