@@ -9,13 +9,13 @@
 //! 完了・失敗の通知は JS のイベントで届く。ハンドラは `Closure::new` で作って `Handlers` に持ち、確定のときに
 //! 要求・トランザクションから外して Rust 側のクロージャを解放する（`release`）。`Closure::once_into_js` は呼ばれない限り
 //! 解放されず、書き込みごとに呼ばれなかった側が残るため使わない。確定しないまま残るのは、他のタブに塞がれたまま
-//! 開けない要求のハンドラ（1 セッションに 1 組・定数個）だけである。
+//! 開けない要求のハンドラ（1 セッションに 1 組・定数個）と、保持中の接続の `versionchange` ハンドラ 1 つ（[`IdbStore`] の破棄で外す）だけである。
 //! 例外の文は読まない・記録しない。DOM の値は読まない（`DomException::name` と要求の結果だけを使う）。
 
 use crate::storage_local::LocalStore;
 use crate::storage_select::{Done, HistoryStorage, IdbBackend};
 use fandhe_workshop_contract::storage::{HistoryKey, StorageError};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
@@ -27,16 +27,51 @@ const DB_VERSION: u32 = 1;
 const STORE: &str = "history";
 
 /// 開いた IndexedDB の包み。接続はこの包みだけが持ち（`Clone` にしない）、破棄のときに閉じる（[`Drop`]）。
+///
+/// 別のタブが新しい版で開こうとすると、保持中の接続に `versionchange` が届く。接続を閉じないと相手の要求が
+/// `blocked` のまま進まないため、ハンドラの中で同期に閉じる（同期に閉じるので相手には `blocked` も発火しない）。
+/// 閉じた後は再度開かない。版を上げたのは新しいコードのタブで、このタブの `DB_VERSION` は DB の版より小さく、
+/// 開き直しは `VersionError` になる上に新しい版のスキーマも知らないためである。閉じた後の `put`・`delete` は
+/// トランザクションを作らず `StorageError::Unavailable`（このセッションでは IndexedDB へ書けない）で失敗する。
+/// 失敗後の扱いは `HistoryStorage` の既存の規則のままで、手元の写しは値を持ち（このセッションの読み取りは書いた値を返す）、
+/// localStorage の写しは消さず、`last_async_error` に種類が残る。再読み込みすると保存先に残った旧い値に戻る。
+/// 読み取りは手元の写しと localStorage だけを引くため、閉じても影響を受けない。
 pub struct IdbStore {
     db: IdbDatabase,
+    /// `versionchange` で閉じた後に立つ。書き込みの入口が見る。
+    closed: Rc<Cell<bool>>,
+    /// `versionchange` のハンドラの持ち主。破棄のときに外してから解放する。
+    on_version_change: Closure<dyn FnMut()>,
+}
+
+impl IdbStore {
+    /// 開いた接続を包み、`versionchange` で閉じるハンドラを付ける。呼び出し元は `open_history_storage` だけ。
+    fn new(db: IdbDatabase) -> IdbStore {
+        let closed = Rc::new(Cell::new(false));
+        let (c, d) = (Rc::clone(&closed), db.clone());
+        let on_version_change = Closure::<dyn FnMut()>::new(move || {
+            c.set(true);
+            d.close();
+        });
+        db.set_onversionchange(Some(on_version_change.as_ref().unchecked_ref()));
+        IdbStore {
+            db,
+            closed,
+            on_version_change,
+        }
+    }
 }
 
 /// `IdbDatabase` は破棄では閉じないため、包みの破棄で明示的に閉じる。開き直し（試験用の口の `debug_storage_open` が
-/// 前の保持を捨てる等）で旧い接続が残ると、将来の版上げの `versionchange` が `blocked` になる。
+/// 前の保持を捨てる等）で旧い接続が残ると、別のタブの版上げが塞がれる。
 /// `close()` は発行済みのトランザクションの完了を待ってから接続を閉じるため、確定前の put・delete は失われない。
+/// ハンドラは、フィールドの `Closure` が解放される前（この `drop` の中）に外す（外さずに解放すると、後から届いた
+/// イベントが解放済みのクロージャを呼ぶ）。
 impl Drop for IdbStore {
     fn drop(&mut self) {
+        self.db.set_onversionchange(None);
         self.db.close();
+        let _ = &self.on_version_change;
     }
 }
 
@@ -113,6 +148,11 @@ fn watch(tx: &IdbTransaction, done: Done) {
 
 impl IdbStore {
     fn start(&self, done: Done) -> Option<(IdbTransaction, Done)> {
+        if self.closed.get() {
+            // `versionchange` で閉じた後。再度は開かない（`IdbStore` の doc）。
+            done(Err(StorageError::Unavailable));
+            return None;
+        }
         match self
             .db
             .transaction_with_str_and_mode(STORE, IdbTransactionMode::Readwrite)
@@ -207,6 +247,7 @@ fn detach_open(req: &IdbOpenDbRequest, keep: &Handlers) {
 /// 開けないときは IndexedDB 無しの保存先（localStorage だけ）で呼ぶ。`on_ready` は必ず 1 回だけ呼ばれる
 /// （開く要求の `error`・`blocked`・`success` と、全件の読み取りの完了・中断のどの経路でも）。
 /// 他のタブに塞がれて（`blocked`）合図を出した後に遅れて開けたとき、および全件を読めなかったときは、接続を閉じる。
+/// 開けた後に別のタブが新しい版で開こうとしたときの扱いは [`IdbStore`] の doc。
 pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
     let ready: Ready = Rc::new(RefCell::new(Some(Box::new(on_ready))));
     let factory = web_sys::window().and_then(|w| w.indexed_db().ok().flatten());
@@ -248,12 +289,15 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
             db.close();
             return;
         }
-        let reads = db
+        // 全件の読み取りの最中に届く `versionchange` でも閉じるよう、読む前に包む。
+        let store = IdbStore::new(db);
+        let reads = store
+            .db
             .transaction_with_str(STORE)
             .and_then(|tx| tx.object_store(STORE).map(|s| (tx, s)))
             .and_then(|(tx, s)| Ok((tx, s.get_all_keys()?, s.get_all()?)));
         let Ok((tx, keys, values)) = reads else {
-            db.close();
+            drop(store);
             finish(&r, None);
             return;
         };
@@ -263,10 +307,10 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
             Box::new(move |res| match res {
                 Ok(()) => {
                     let initial = collect(&keys, &values);
-                    finish(&r, Some((IdbStore { db }, initial)));
+                    finish(&r, Some((store, initial)));
                 }
                 Err(_) => {
-                    db.close();
+                    drop(store);
                     finish(&r, None);
                 }
             }),

@@ -87,6 +87,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/artifact-view-check.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-view-controls.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-leave.test.mjs" \
+  "${ROOT_DIR}/tools/browser/idb-versionchange.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-export.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-import.test.mjs" \
   "${ROOT_DIR}/tools/browser/run-status.test.mjs" \
