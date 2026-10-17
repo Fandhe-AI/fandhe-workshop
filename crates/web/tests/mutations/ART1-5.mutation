@@ -1,0 +1,8 @@
+id: ART1-5
+package: fandhe-workshop-web
+test: check_view_a_contract
+target: crates/web/src/check_view.rs
+find:             Some(glyph),
+replace:             None,
+expect-fail: どの状態でも先頭の記号と補足の要素が出る
+note: 変種 (a) の先頭の記号を出さない（状態によって子の数が変わる形の崩れ。記号が無いと状態を文字だけで読ませることになる）

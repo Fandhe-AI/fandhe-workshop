@@ -1,0 +1,346 @@
+{
+  "view": "checks",
+  "title": "generated checks 20",
+  "rows": [
+    {
+      "id": "c1",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-1",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-1",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c2",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-2",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-2",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c3",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-3",
+        "detail": "1 秒",
+        "state": "success",
+        "tags": []
+      },
+      "after": {
+        "label": "check-3",
+        "detail": "2 秒",
+        "state": "running",
+        "tags": []
+      }
+    },
+    {
+      "id": "c4",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-4",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-4",
+        "detail": "2 秒",
+        "state": "skipped",
+        "tags": []
+      }
+    },
+    {
+      "id": "c5",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-5",
+        "detail": "1 秒",
+        "state": "running",
+        "tags": []
+      },
+      "after": {
+        "label": "check-5",
+        "detail": "2 秒",
+        "state": "running",
+        "tags": []
+      }
+    },
+    {
+      "id": "c6",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-6",
+        "detail": "1 秒",
+        "state": "skipped",
+        "tags": []
+      },
+      "after": {
+        "label": "check-6",
+        "detail": "2 秒",
+        "state": "skipped",
+        "tags": []
+      }
+    },
+    {
+      "id": "c7",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-7",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-7",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c8",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-8",
+        "detail": "1 秒",
+        "state": "skipped",
+        "tags": []
+      },
+      "after": {
+        "label": "check-8",
+        "detail": "2 秒",
+        "state": "skipped",
+        "tags": []
+      }
+    },
+    {
+      "id": "c9",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-9",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-9",
+        "detail": "2 秒",
+        "state": "pending",
+        "tags": []
+      }
+    },
+    {
+      "id": "c10",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-10",
+        "detail": "1 秒",
+        "state": "running",
+        "tags": []
+      },
+      "after": {
+        "label": "check-10",
+        "detail": "2 秒",
+        "state": "running",
+        "tags": []
+      }
+    },
+    {
+      "id": "c11",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-11",
+        "detail": "1 秒",
+        "state": "pending",
+        "tags": []
+      },
+      "after": {
+        "label": "check-11",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c12",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-12",
+        "detail": "1 秒",
+        "state": "running",
+        "tags": []
+      },
+      "after": {
+        "label": "check-12",
+        "detail": "2 秒",
+        "state": "pending",
+        "tags": []
+      }
+    },
+    {
+      "id": "c13",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-13",
+        "detail": "1 秒",
+        "state": "skipped",
+        "tags": []
+      },
+      "after": {
+        "label": "check-13",
+        "detail": "2 秒",
+        "state": "skipped",
+        "tags": []
+      }
+    },
+    {
+      "id": "c14",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-14",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-14",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c15",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-15",
+        "detail": "1 秒",
+        "state": "success",
+        "tags": []
+      },
+      "after": {
+        "label": "check-15",
+        "detail": "2 秒",
+        "state": "success",
+        "tags": []
+      }
+    },
+    {
+      "id": "c16",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-16",
+        "detail": "1 秒",
+        "state": "pending",
+        "tags": []
+      },
+      "after": {
+        "label": "check-16",
+        "detail": "2 秒",
+        "state": "pending",
+        "tags": []
+      }
+    },
+    {
+      "id": "c17",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-17",
+        "detail": "1 秒",
+        "state": "pending",
+        "tags": []
+      },
+      "after": {
+        "label": "check-17",
+        "detail": "2 秒",
+        "state": "success",
+        "tags": []
+      }
+    },
+    {
+      "id": "c18",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-18",
+        "detail": "1 秒",
+        "state": "failure",
+        "tags": []
+      },
+      "after": {
+        "label": "check-18",
+        "detail": "2 秒",
+        "state": "failure",
+        "tags": []
+      }
+    },
+    {
+      "id": "c19",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-19",
+        "detail": "1 秒",
+        "state": "pending",
+        "tags": []
+      },
+      "after": {
+        "label": "check-19",
+        "detail": "2 秒",
+        "state": "running",
+        "tags": []
+      }
+    },
+    {
+      "id": "c20",
+      "depth": 0,
+      "kind": "check",
+      "before": {
+        "label": "check-20",
+        "detail": "1 秒",
+        "state": "success",
+        "tags": []
+      },
+      "after": {
+        "label": "check-20",
+        "detail": "2 秒",
+        "state": "success",
+        "tags": []
+      }
+    }
+  ]
+}

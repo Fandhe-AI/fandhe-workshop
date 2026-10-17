@@ -1,0 +1,8 @@
+id: ART1-7
+package: fandhe-workshop-web
+test: check_view_a_contract
+target: crates/web/src/check_view.rs
+find:             _ => CheckState::Unknown,
+replace:             _ => CheckState::Success,
+expect-fail: 語彙の外の状態は不明になり_既知の状態へ寄せない
+note: 語彙の外の状態を成功へ寄せる（読めない状態が成功に見える。fail-closed の逆）

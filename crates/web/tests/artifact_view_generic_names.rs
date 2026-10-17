@@ -13,6 +13,9 @@ use fandhe_workshop_web::artifact_view::{
 use fandhe_workshop_web::card_view::{
     CardState, CARD_DETAIL_TESTID, CARD_LABEL_TESTID, CARD_TAGS_TESTID, TAGS_SEPARATOR,
 };
+use fandhe_workshop_web::check_view::{
+    CheckState, CHECK_DETAIL_TESTID, CHECK_LABEL_TESTID, DETAIL_CLASS, ICON_CLASS,
+};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Match {
@@ -145,6 +148,7 @@ fn 型と識別子に固有の語が無い() {
         "src/artifact_view.rs",
         "tests/artifact_view_sample.rs",
         "src/card_view.rs",
+        "src/check_view.rs",
     ] {
         let src = read(file);
         for id in identifiers(&src) {
@@ -167,6 +171,17 @@ fn 綴りに固有の語が無い() {
         .chain(RowKind::ALL.iter().map(|k| k.as_str()))
         .chain(Variant::ALL.iter().map(|v| v.as_str()))
         .chain(CardState::ALL.iter().map(|c| c.text()))
+        .chain(
+            CheckState::ALL
+                .iter()
+                .flat_map(|c| [c.text(), c.label(), c.glyph()]),
+        )
+        .chain([
+            CHECK_LABEL_TESTID,
+            CHECK_DETAIL_TESTID,
+            ICON_CLASS,
+            DETAIL_CLASS,
+        ])
         .chain([
             TAGS_SEPARATOR,
             CARD_LABEL_TESTID,

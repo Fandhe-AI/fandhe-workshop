@@ -3297,6 +3297,39 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `card-view`（CV1〜CV10）・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch` の 70 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
 - 範囲外: 再描画の時間（TASK-485）、`wireframe_css()` の配信と配色（TASK-490）、製品の結線、指せる行の属性（TASK-480）、値の注入の 24 通り（TASK-482）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.108 チェックの一覧の変種 (a)・(b) と 20 件の規模（TASK-478）
+
+チェックの一覧を (a)（`wireframe-ui` の `rich_text`・`tag`）と (b)（`li` と `headless-ui` の `marker`）の両方で描く本体（`crates/web/src/check_view.rs`）を作り、代役の部品（`view_fixture`）の `(check_list, a)`・`(check_list, b)` をこれに回した。あわせて 20 件の規模のデータで、検査器から 2 変種を流した。
+
+- 受入: 項目数（前 5・後 6）と印の数（後は追加 1・削除 1・変更 3・印なし 1）が期待値と一致し、状態が記号つきの文字（`✓ 成功`・`✗ 失敗` など）で出る。前後の切り替えで行も項目の内側も置き換わらない。20 件では (a)・(b) とも項目 20、保持 20、後の印は変更 20（補足が全行で変わるため）。部品の型・識別子・綴りに特定の教材の語が 0 件（`artifact_view_generic_names` が `check_view.rs` と記号・文字・testid の綴りを走査する）
+- 判断 1（spec からの逸脱）: (b) に `role=list`・`role=listitem` を付けない。a11y の契約（版 2）の `ROLE_VALUES` に無く、付けると `undefined-role` になる。契約の版上げは spec が先に要るため、本作業では行わず、`li`（`ul` の暗黙の listitem）と `marker` で描く。契約の版 3 に足すかは spec 側の確認事項である
+- 判断 2: 状態は `CheckState` の閉じた語彙（`success`・`failure`・`running`・`pending`・`skipped`）を完全一致で読み、一覧の外は `Unknown`（`? 不明`）にする（fail-closed）。記号・文字・色調は spec に定めの無い PoC-8 の試作由来の仮置きである。注意: 実行中と待機中は記号が同じ `…` で文字だけが違う。省略の `–`（U+2013）は印の `-`（U+002D）と見た目が近い（コードポイントは違い、試験で印の記号と一致しないことを確かめた）。試作の `data-state`（教材由来の文字列を属性へ入れる）は写さない
+- 判断 3: (a) の先頭は `wireframe_ui::icon::*` を使わず、自作の `span.icon` に記号の文字を入れる（`icon::*` は `aria-hidden` を必ず出し a11y の契約の違反になる）。先頭の `span` はどの状態でも出し、状態で子の数を変えない。強調は失敗のときだけ
+- 判断 4: (b) は `li` 自身が印の宿主で、子はラベルの `span`・`marker` のバッジ・補足の `span` の 3 つに固定する。`marker::icon` は呼ばない（`aria-hidden` を固定で出すため）
+- 判断 5: 製品の `view()` へは結線しない（カードと同じ。TASK-470・TASK-347 の後続）
+- 判断 6: 20 件のデータは `crates/web/tests/data/artifact_view_scale/checks-20.json` に置く（出所は同じ場所の `README.md`）。`view_fixture` の `fixture_data` を、差し替えるビューの種類を持つ形（`Data(ViewKind, DataSet)`）に一般化し、payload `checks:sample`・`checks:20` を足した。`cards:*` の振る舞いは変えない
+- native の試験（`crates/web/tests/check_view_a_contract.rs`・`check_view_b_contract.rs`）: 項目数と key の並び、印の数、印の宿主（(a) は内側の `div`、(b) は `li` 自身）、部品の数、6 状態の記号・文字・色調、語彙の外、形の不変（前後で比べる 5 件）、補足が空でも要素が出ること、a11y の閉じた一覧と `role`・`aria-`・`svg`・`data-part="icon"` が 0 件、エスケープ、0 件・非選択で `role` が付かないこと、20 件の構成。`view_fixture` の単体試験: (a)・(b) が本体を通ること、`checks:*` の受理と拒否、20 件への切り替えと戻し、非選択中の切り替えで dirty を積まないこと
+- ブラウザの試験（`tools/browser/check-view.test.mjs`）: CK1〜CK3 は (a)、CK4〜CK6 は (b)（前後 2 往復・部品の数と印の宿主と数・外部リクエスト 0 件）、CK7 a -> b -> a の選び直し、CK8 20 件の写しが `generate.mjs` の出力と一致、CK9 20 件を (a)・(b) で流す、CK10 20 件に切り替えずに 20 件の `rows` で流すと項目数の違反が出る
+
+```text
+実行日: 2026-10-17
+元にしたコミット: baae6ee-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART1-5.mutation 〜 ART1-10.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART1-5 | (a) の先頭の記号を出さない | DETECTED | `check_view_a_contract` の「どの状態でも先頭の記号と補足の要素が出る」ほか 3 件 |
+| ART1-6 | (a) の項目を変種 B の根で作る | DETECTED | `check_view_a_contract` の「data_mark_は_li_には無く内側の_div_にだけある」 |
+| ART1-7 | 語彙の外の状態を成功へ寄せる | DETECTED | `check_view_a_contract` の「語彙の外の状態は不明になり_既知の状態へ寄せない」 |
+| ART1-8 | (b) の項目を変種 A の根で作る | DETECTED | `check_view_b_contract` の「data_mark_は_li_自身にだけあり_内側には無い」 |
+| ART1-9 | 失敗のバッジの文字から記号を落とす | DETECTED | `check_view_b_contract` の「状態は記号つきの文字と色調で出る」ほか 1 件 |
+| ART1-10 | 失敗の色調を中立にする | DETECTED | `check_view_b_contract` の「状態は記号つきの文字と色調で出る」 |
+
+- 変異を置いていないもの: `fixture_data` の差し替え（5.107 と同じ理由で、単体試験だけで確かめた）
+- ブラウザの試験: `check-view`（CK1〜CK10）・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch`・`card-view` の 81 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
+- 範囲外: 契約の版 3（`role=list`・`listitem`）と状態の語彙・記号・色調の spec 側の確認、製品の結線、再描画の時間（TASK-485）、`wireframe_css()` の配信と配色（TASK-490）、指せる行の属性（TASK-480）、値の注入の 24 通り（TASK-482）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -3316,8 +3349,8 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | `fandhe-frontend-interactive` | 0.2.7 |
 | `fandhe-frontend-wasm-client` | 0.6.1 |
 | `fandhe-frontend-wasm-full` | 0.46.0（`default-features = false`・`features = ["action-keydown"]`） |
-| `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473。`marker::root`・`content` も使う。TASK-477） |
-| `fandhe-frontend-wireframe-ui` | 0.52.0（直接の依存。`rich_text` を使う。TASK-473） |
+| `fandhe-frontend-headless-ui` | 0.69.2（直接の依存。`tree_view::item_text` を使う。TASK-473。`marker::root`・`content` も使う。TASK-477・TASK-478） |
+| `fandhe-frontend-wireframe-ui` | 0.52.0（直接の依存。`rich_text` を使う。TASK-473。`tag` も使う。TASK-477・TASK-478） |
 
 版は `crates/web/tests/frontend_features.rs` が `Cargo.lock` と照合する。版を上げるときは、この表と試験の `ADOPTED` を同時に更新する。
 
