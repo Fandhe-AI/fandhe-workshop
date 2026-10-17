@@ -451,18 +451,24 @@ impl EngineHost {
         Self::with_session(Session::new(ir), registry)
     }
 
-    /// `glue::mount_app` が mount するホスト。配信する設定は [`EngineHost::new`] と同じ。
+    /// `persist::mount_with_history` が mount するホスト（配信する設定）。[`EngineHost::new`] と同じである。
     ///
-    /// 試験の設定（`test-hooks`）では、試験データの教材（`min-3step.json`）と開始直後の状態を埋め込んで読み込み、
-    /// 3 つの表示が動く状態から始める。読み込みに失敗したら session なしに倒す（ブラウザ試験が
-    /// `irLoaded: true` を必須にするため、失敗は試験で検出される）。
+    /// 試験の設定（`test-hooks`）では代わりに [`EngineHost::for_mount_with`] が、試験データの教材（既定は
+    /// `min-3step.json`）と開始直後の状態を埋め込んで読み込み、3 つの表示が動く状態から始める。
+    /// 読み込みに失敗したら session なしに倒す（ブラウザ試験が `irLoaded: true` を必須にするため、失敗は試験で検出される）。
+    #[cfg(not(feature = "test-hooks"))]
     pub(crate) fn for_mount() -> Self {
-        #[cfg(feature = "test-hooks")]
-        {
-            if let Some(session) = crate::test_fixture::start_session() {
-                if let Ok(host) = Self::with_session(session, standard_registry()) {
-                    return host;
-                }
+        Self::new()
+    }
+
+    /// 起動の前に選んだ教材で mount するホスト（試験の設定だけ。TASK-319 3/3）。
+    ///
+    /// `persist::mount_with_history` が URL のクエリから選んだ教材を渡す。読み込みに失敗したら session なしに倒す。
+    #[cfg(feature = "test-hooks")]
+    pub(crate) fn for_mount_with(fixture: crate::test_fixture::MountFixture) -> Self {
+        if let Some(session) = crate::test_fixture::mount_session(fixture) {
+            if let Ok(host) = Self::with_session(session, standard_registry()) {
+                return host;
             }
         }
         Self::new()

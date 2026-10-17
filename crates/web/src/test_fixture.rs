@@ -8,6 +8,9 @@
 //! このファイルの 1 箇所だけを例外にしている。教材と状態は埋め込みの試験データで、外から入らない。
 //! 確認が `answer` の教材への差し替え（`answer_session`）は、`load-fixture:answer` の合図で使う（TASK-445 2/2）。
 //! 履歴ファイルの読み込みの試験（TASK-330 2/2）が使う開ける包み（`loadable_envelope`）もここで作る。
+//! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
+//! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
+//! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 
@@ -23,6 +26,39 @@ const SAMPLE: &[u8] = include_bytes!(concat!(
 /// 試験用の教材と開始直後の状態から実行環境を作る。読めなければ `None`（呼び出し側は session なしに倒す）。
 pub(crate) fn start_session() -> Option<Session> {
     session_of(IR)
+}
+
+/// 再読み込みの一致の試験用の 8 Step の教材（`crates/web/tests/data/reload_points_ch2/ir.json`。`pack.id` は mount の既定と別）。
+const RELOAD_POINTS_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/reload_points_ch2/ir.json"
+));
+
+/// mount の教材の選択。既定は `min-3step`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum MountFixture {
+    /// 3 Step の `min-3step`（既存のブラウザ試験の前提）。
+    #[default]
+    Default,
+    /// 8 Step の再読み込みの地点の試験用の教材。
+    ReloadPoints,
+}
+
+/// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
+/// 8 Step の教材を選び、空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
+pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
+    match search {
+        "?fixture=reload-points" => MountFixture::ReloadPoints,
+        _ => MountFixture::Default,
+    }
+}
+
+/// 選んだ教材と開始直後の状態から実行環境を作る。読めなければ `None`。
+pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
+    match fixture {
+        MountFixture::Default => start_session(),
+        MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
+    }
 }
 
 /// 教材のバイト列と開始直後の状態から実行環境を作る。`Session::from_state` の唯一の呼び出し（`tests/no_progress.rs`）。
@@ -241,4 +277,43 @@ pub(crate) fn loadable_envelope() -> Option<fandhe_workshop_core::history_envelo
     let env = two_rounds_envelope()?;
     let state = replay(&ir, start_state()?, &env.ops).ok()?;
     build_envelope(&ir, &env.start, env.ops, state).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 完全一致のクエリだけが_8_step_の教材を選ぶ() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=reload-points"),
+            MountFixture::ReloadPoints
+        );
+        for other in [
+            "",
+            "?",
+            "?fixture=",
+            "?fixture=unknown",
+            "?fixture=reload-points&x=1",
+            "?x=1&fixture=reload-points",
+            "?fixture=reload-points2",
+            "?fixture=Reload-Points",
+            "fixture=reload-points",
+            "?tick=5",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 選んだ教材は鍵が別で_8_step_を持つ() {
+        let a = mount_session(MountFixture::Default).unwrap();
+        let b = mount_session(MountFixture::ReloadPoints).unwrap();
+        assert_ne!(a.ir().pack.id, b.ir().pack.id);
+        assert_eq!(b.ir().nodes.len(), 8);
+    }
 }

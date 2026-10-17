@@ -2620,7 +2620,7 @@ TASK-352 3/3 のための参考値（正式な記録は 3/3 が行う。2026-10-
 
 ### 5.89 再読み込みの 33 地点の一致（TASK-319 2/3）
 
-3 Step 以上の教材の途中で再読み込みしたとき、同じ Step・同じ左の状態・同じ復習・同じログ・同じ入力欄の値で再開すること（世代を除く）と、各地点から完走した最終の世界状態が再読み込みなしの完走と一致することを、native の 33 地点で確かめる（SAVE-3）。経路は本番と同じ保存→起動（`RecordedSession::envelope_for_save` → `export_bytes` → `boot_session`）で、`Session::reload` を直接呼ぶだけの試験にはしない。自動ブラウザの 15 地点は #343 が持つ。
+3 Step 以上の教材の途中で再読み込みしたとき、同じ Step・同じ左の状態・同じ復習・同じログ・同じ入力欄の値で再開すること（世代を除く）と、各地点から完走した最終の世界状態が再読み込みなしの完走と一致することを、native の 33 地点で確かめる（SAVE-3）。経路は本番と同じ保存→起動（`RecordedSession::envelope_for_save` → `export_bytes` → `boot_session`）で、`Session::reload` を直接呼ぶだけの試験にはしない。自動ブラウザの 15 地点は 5.90（#343）が持つ。
 
 出所は PoC-6 の native 試験（v1.0.0 の 1 周目 16 Step を誘導つきで進め、33 地点で再読み込み）である。ただし本物の教材は、`on_enter` の効果・モジュールの出口・遷移の `when: param`・`RunState.completed` を立てる処理が core に未実装のため、今のエンジンでは完走できない（2026-10-17、`85d03e6` で確認）。そこで 16 Step の形（入力方式・確認の種類・処理中の数）だけを写した平らな 1 本の教材を、手書きの IR として `crates/core/tests/data/reload_points_1/ir.json` に置いた。未実装の語は使わず、完走は最後の Step（`final`）の達成で判定する（`completed` が実装されてもそのまま通る）。
 
@@ -2658,7 +2658,62 @@ TASK-352 3/3 のための参考値（正式な記録は 3/3 が行う。2026-10-
 | `reload_points`（`OBS Counts { points: 33, entered: 16, busy: 5, awaiting_confirm: 12 }`） | 2 件とも通過 |
 | SAVE3-1〜SAVE3-4 | 4 件とも DETECTED |
 
-残る限界。CH-2 の実データでの網羅は、未実装の語が入った後に v1.0.0 の 1 周目へ切り替える。世代を除く一致の確認は復元した側で行い、web の画面での一致は #343 が持つ。
+残る限界。CH-2 の実データでの網羅は、未実装の語が入った後に v1.0.0 の 1 周目へ切り替える。世代を除く一致の確認は復元した側で行い、web の画面での一致は 5.90（#343）が持つ。
+
+### 5.90 自動ブラウザの 15 地点の一致（TASK-319 3/3）
+
+実際の画面で `page.reload()` をかけたとき、CH-2 に相当する 15 地点（入った直後 8・確認待ち 7）のすべてで、再読み込みの前後の状態（Step・左の状態・復習・ログ・入力欄の値）が世代を除いて一致し、各地点から完走した最終の世界状態が再読み込みなしの完走と一致することを確かめる（SAVE-3）。出所は PoC-6 の S-1（地点 15・`busy` は 0。各手は処理中が終わるのを待ってから再読み込みした）。native の 33 地点は 5.89 が持つ。
+
+教材。`crates/web/tests/data/reload_points_ch2/ir.json` は、5.89 の 16 Step の教材（`crates/core/tests/data/reload_points_1/ir.json`）の先頭 8 節点の写しで、CH-2（`st-2-1`〜`st-2-8`）と同じ形（入力方式と確認の種類）を持つ。`st-8` を `final` にし、`pack.id` を `reload-points-ch2`（mount の既定の `min-3step` と別）にした。処理中は `st-2` の 3 件だけである。core の試験データを crate をまたいで読まないのは、web の試験が core の都合で黙って変わらないようにするためである。未実装の語は使わない。
+
+起動の前に教材を選ぶ口（試験の設定だけ）。教材の差し替え `load-fixture:` はマウントの後に働き、保存先の鍵（`pack.id`）が `min-3step` のままになるため、再読み込みからの復元を試せない。そこで、URL のクエリが `?fixture=reload-points` に完全一致したときだけ、`persist::mount_with_history` が起動（`boot`）の前に 8 Step の教材を選ぶ（`test_fixture::mount_fixture_from_search`）。空・未知の名前・余分な文字・他のキーとの併用はすべて既定の `min-3step` に倒す。クエリを読む処理は、走査の対象外の `test_hooks.rs` に置き、配信する経路に URL の読み取りが無いこと（`tests/tick_interval.rs`）を保つ。配信物にこの教材の ID や `fixture=` は入らない（`make check-delivery`・`make test-build-web` で確認）。
+
+地点の数え方。1 地点は「誘導つきの 1 手を打つ前の、完走前の状態」で、各地点で地点ごとに違う空でない下書きを入れてから再読み込みする（未操作の履歴は復元されない SAVE-28 の対象外にし、入力欄の値の比較を空同士にしないため）。
+
+| 種類 | 数 | 内容 |
+|---|---|---|
+| 入った直後 | 8 | 各 Step の入口 |
+| 確認待ち | 7 | 確認が `none` 以外の Step の受付後（`st-4` は `none`） |
+| 処理中 | 0 | 各手の後に進行を終えてから次へ進むため地点に現れない（PoC の S-1 と同じ）。処理中の地点は 5.89 の native が持つ |
+| 合計 | 15 | 数を固定する |
+
+手の経路。15 手のうち、実際の画面が 8 手（`st-1` 受付、`st-2` 受付と確認、`st-3` 受付、`st-6` 受付と確認、`st-7` 確認、`st-8` 受付）、テスト専用の口（`raw-trigger`）が 7 手（`st-1`・`st-3`・`st-5`・`st-8` の確認、`st-4`・`st-5` の受付、`st-7` の受付）である。spec の検証方法の「10 手が画面・5 手がテスト専用」とは違う。差の理由は、入力方式 choice の画面の口（TASK-450 1/3。#404）と、確認の point_at・ui_action の `Input::Ui` への結線が未実装なことである。試験を 10/5 に合わせるために教材の形は変えない。これらが入った後は、実際の画面の手へ切り替える余地がある。
+
+| 試験 | 内容 |
+|---|---|
+| `tools/browser/reload-points.test.mjs` の地点の巡回（CSP あり・なし） | 15 地点のそれぞれで新しい context を開き、誘導つきの手を打って下書きを入れ、`page.reload()` する。起動の種類が `restored`、世代がちょうど +1、engine のログは前のログに `reloaded` が 1 件足されたもの、ログを除いた状態（世代を除く）・復習・左の行・現在の Step・状態表示が一致、画面の左の行と復習の行が一致、画面のログの行は前の行に告知（SAVE-6）が 1 件足されたもの、入力欄の値とホストの下書きが一致、鍵が教材の `pack.id` の側にだけ書かれる、復元した側から完走した世界状態が再読み込みなしの完走と一致、CSP 違反・ページ内エラー・console のエラーが 0 件。地点の数と手の経路の数を `assert` で固定し、`OBS` 行で出す |
+| 同ファイルの対照（CSP あり・なし） | クエリなし・`?fixture=unknown`・`?fixture=reload-points&x=1` では `min-3step` で始まり、鍵が `min-3step` の側に書かれる（教材の選択が完全一致だけであること） |
+| `crates/web/tests/reload_points_host.rs` の地点の巡回 | 同じ教材と誘導で、web の保存の経路（ホストの記録・`history_to_save`・保留と書き出し・偽物の保存先・`boot`）を native で通す。状態全体（世代を除く）・下書き・左の行・復習・世界状態が一致し、完走した世界状態が一致。地点（15・8・7・0）と手の経路（8・7）を固定する。変異の検出先 |
+| 同ファイルのデータの形 | IR が 8 Step、処理中の合計が 3、`final` が最後の 1 つだけ、確認が `none` でない Step が 7、未実装の語を含まない、`pack.id` が `min-3step` と違う |
+| `test_fixture` の単体 | 完全一致のクエリだけが 8 Step の教材を選ぶ。選んだ教材は鍵が別で 8 Step を持つ（`cargo test -p fandhe-workshop-web --features test-hooks --lib`） |
+
+変異の定義（`crates/web/tests/mutations/SAVE3-*.mutation`。`SAVE3-1`〜`SAVE3-4` は core）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| SAVE3-5 | 復元したログから世界状態を導き直さず空にする | `reload_points_host` の地点の巡回 |
+| SAVE3-6 | 復元したログから復習・変化の印を導き直さず空にする | 同上 |
+| SAVE3-7 | 復元した下書きを入力欄へ戻さない | 同上 |
+
+教材の選択（`test_fixture`）は native の統合試験には組み込まれないため、変異の対象にせず、負の対照を手で一度流した。`?fixture=` の比較を常に偽にして再ビルドすると、ブラウザの試験の地点の巡回が失敗する（完走の基準を作る段階で止まる）ことを確かめ、変更は戻した。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: dc72a67-dirty
+コマンド: cargo test --locked -p fandhe-workshop-web --test reload_points_host -- --nocapture・scripts/check-mutations.sh（SAVE3-5〜7）・make test-browser・make lint・make test・make check-deps・make check-dom-reads・make test-build-web・make check-delivery
+```
+
+| 実行 | 結果 |
+|---|---|
+| `reload_points_host`（`OBS Counts { points: 15, entered: 8, busy: 0, awaiting_confirm: 7, screen: 8, raw: 7 }`） | 2 件とも通過 |
+| `reload-points`（CSP あり・なしとも `OBS {"points":15,"entered":8,"busy":0,"awaitingConfirm":7,"screen":8,"raw":7}`） | 4 件とも通過（単独で約 46 秒） |
+| SAVE3-5〜SAVE3-7 | 3 件とも DETECTED |
+| 手で流した負の対照 | ブラウザの地点の巡回が失敗（CSP あり） |
+| `make test-browser` | 355 件がすべて通過（`reload-points` の 4 件を含む） |
+| `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make check-generic-words` | 通過 |
+| `make test-build-web`・`make check-delivery` | 通過（配信物に試験用の口・試験の教材の ID・`fixture=` が無い） |
+
+残る限界。CH-2 の実データ（v1.0.0 の `idea-cycle`）での網羅は、`on_enter`・モジュールの出口・`when` などの未実装の語が core に入った後になる。処理中の地点は native の 33 地点（5.89）が持つ。`make test-browser` は CI に組み込まれていない（組み込みは必須チェックの更新と合わせて扱う）。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
@@ -2718,7 +2773,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 
 残る限界と未実施。
 
-- 地点ごとの復元の一致（native 33 地点・自動ブラウザ 15 地点・完走した最終の世界状態）は #342・#343
+- 地点ごとの復元の一致（native 33 地点・自動ブラウザ 15 地点・完走した最終の世界状態）は #342（5.89）・#343（5.90）
 - 停止・移動・復帰の直後の実際の `page.reload()`（5.71 の `reload-after-control`）は TASK-321 の残り
 - 開けない履歴の告知と「捨てて始める」ボタン（SAVE-21・SHELL-17）、起動番号による古いタブの保存の禁止（SAVE-12）、`visibilitychange` での書き出しと IndexedDB の書き込みの確定（SAVE-9 の検討中の論点）は範囲外
 
