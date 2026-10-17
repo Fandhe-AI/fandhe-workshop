@@ -101,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -3026,7 +3026,31 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - 手元の確認: `select_changed` を常に偽にしても V3 は通った。ブラウザの本試験は、ボタンの積み漏れを検出できない（native の試験と ART12-3 が固定する）。理由は未調査
 - 限界: 製品の画面には前後の切り替え（ART-2 の口）が無いため、P1 は代役の部品で代えた。製品の根は N1 の間も同一であることを同じ測り方で確かめた。「部品を項目の外に置く」状態を製品の画面に作る口は、登録簿の契約に例外を作るため設けていない。親の `aria-label`・ボタンの `aria-pressed` は契約の版上げが先に要る
 
-### 5.98 ファイルツリーの変種 (b)（TASK-473 1/2）
+### 5.98 タスクツリーの変種 (b)（TASK-474 1/2）
+
+タスクツリーの (b) の本体（`task_tree`）を作り、代役の部品（`view_fixture`）の `(task_tree, b)` だけがこの本体を通るようにした。項目の数と印の数が前後で期待値と一致すること、状態を記号と文字の両方で示すことを確かめた。製品の画面への結線は、世界状態からタスクの属性を読む口と前後の切り替えの口が決まる後続の作業に残す。
+
+- 項目の形: 根の `li` が木の属性と印を持ち、子は印の記号・印の文字・ラベル・詳細・状態のバッジの 5 つに固定する。バッジの子は記号と文字の 2 つ。状態・印・前後で形を変えないため、keyed list は同じ key の項目を in-place に更新できる
+- 状態の語彙: `open`・`progress`・`done` は spec に定めが無く、試験データ由来の仮置きである。それ以外の値は `Unknown`（`?`・`不明`）に倒し、生の値は描画に出さない
+- 構成: 木の位置は描画 1 回につき `shown_tree_attrs` を 1 回呼ぶ O(n) の計算にした。50 件の再描画 16ms の測定は TASK-485 の担当で、本節では測っていない
+- `fandhe-frontend-headless-ui` の直接依存は足さなかった。`tree_view::item` は `aria-selected` を無条件に出し `data-value` に行の ID を出す。`marker::icon` は `aria-hidden` を出す。どちらも a11y 版 2 の閉じた一覧に無い。依存の採否は TASK-473 と合わせて決める
+- native の試験（`crates/web/tests/task_tree_contract.rs`）: 項目数（前 5・後 6）と印の数（変更 3・追加 1・削除 1・印なし 1）、木の属性と `aria-expanded`（前 1・後 2）、親の `role=tree` の条件、状態のバッジ、状態の文字と JSON の対応、未知の状態、項目の形の不変、a11y 契約、エスケープ、印の宿主
+- ブラウザの試験（`tools/browser/task-tree.test.mjs`）: P1 検査器の deep で違反 0・保持が前の行数に等しい、P2 前後の各状態の数え上げ、C1 状態の文字を空にする負の対照
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a4bb59d-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/A11Y22-1.mutation crates/web/tests/mutations/ART9-3.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| A11Y22-1 | 完了の状態の文字を空にする | DETECTED | `task_tree_contract` の 2 件 |
+| ART9-3 | 親をツリーでない種類として作る | DETECTED | `task_tree_contract` の「木の属性は全項目にあり_親は_role_tree」ほか |
+
+- ブラウザ: `task-tree`・`artifact-mark-toggle`・`artifact-view-check`・`artifact-view-controls`・`view-switch` の 62 件が通過（2026-10-17。`make test-browser` の全体ではなく、この 5 本を対象にした）
+
+### 5.99 ファイルツリーの変種 (b)（TASK-473 1/2）
 
 左の成果物エリアのファイルツリーを、変種 (b) で描く本体（`crates/web/src/file_tree_view.rs`）を作り、代役の部品（`view_fixture`）のファイルツリー (b) をこれに回した。変種 (a) は別の担当（#377）である。
 

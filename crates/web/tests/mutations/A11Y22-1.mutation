@@ -1,0 +1,9 @@
+id: A11Y22-1
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/src/task_tree.rs
+find:             TaskState::Done => "完了",
+replace:             TaskState::Done => "",
+expect-fail: 全項目に状態のバッジがあり_記号と文字の両方が空でない
+expect-fail: 状態の文字は前後の_state_と対応する
+note: 完了の状態の文字を空にする（記号だけで状態を示す、色や記号だけに頼る表示になる。A11Y-22）
