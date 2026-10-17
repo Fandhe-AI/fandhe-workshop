@@ -12,7 +12,7 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a) は `card_view`（TASK-477 1/2）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -43,6 +43,7 @@ use crate::artifact_view::{
     dirty_list_fields, tree_view_list, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId,
     RowKind, Variant, VariantPolicy, ViewKind,
 };
+use crate::card_view::card_items_a;
 use crate::diff_view::{diff_items, diff_items_a, diff_list};
 use crate::document_view;
 use crate::file_tree_view::{file_tree_items, file_tree_items_a};
@@ -292,6 +293,10 @@ impl ViewFixture {
             }
             ViewRows::Items(v) if kind == ViewKind::Diff && self.variant == Variant::A => {
                 diff_items_a(v, self.phase)
+            }
+            // カードの (a) は本体のビュー（TASK-477 1/2）で描く。(b) は TASK-477 2/2 まで汎用の項目のまま。
+            ViewRows::Items(v) if kind == ViewKind::CardList && self.variant == Variant::A => {
+                card_items_a(v, self.phase)
             }
             // タスクツリーは (a)・(b) とも本体を通す。他の種類は従来の汎用の項目のまま。
             ViewRows::Items(v) if kind == ViewKind::TaskTree => {

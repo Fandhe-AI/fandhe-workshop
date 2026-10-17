@@ -1,0 +1,8 @@
+id: ART17-2
+package: fandhe-workshop-web
+test: card_view_a_contract
+target: crates/web/src/card_view.rs
+find:             _ => CardState::Unknown,
+replace:             _ => CardState::Open,
+expect-fail: 語彙の外の状態は不明になり_既知の状態へ寄せない
+note: 語彙の外の状態を既知の状態（オープン）へ寄せる（fail-closed の破れ）

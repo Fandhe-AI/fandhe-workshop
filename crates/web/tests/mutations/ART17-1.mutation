@@ -1,0 +1,8 @@
+id: ART17-1
+package: fandhe-workshop-web
+test: card_view_a_contract
+target: crates/web/src/card_view.rs
+find:         Some(cell.detail.as_str()),
+replace:         (!cell.detail.is_empty()).then_some(cell.detail.as_str()),
+expect-fail: 補足とラベルが空でも形の部品は出る
+note: 補足が空のとき secondary を渡さない（前後で子の列が変わり、keyed list の in-place 更新が崩れる）

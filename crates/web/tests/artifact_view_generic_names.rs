@@ -10,6 +10,7 @@ use fandhe_workshop_web::artifact_view::{
     RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
     POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
 };
+use fandhe_workshop_web::card_view::{CardState, TAGS_SEPARATOR};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Match {
@@ -138,7 +139,11 @@ fn 検査は固有の語を検出できる() {
 fn 型と識別子に固有の語が無い() {
     let terms = forbidden_terms();
     let mut found = Vec::new();
-    for file in ["src/artifact_view.rs", "tests/artifact_view_sample.rs"] {
+    for file in [
+        "src/artifact_view.rs",
+        "tests/artifact_view_sample.rs",
+        "src/card_view.rs",
+    ] {
         let src = read(file);
         for id in identifiers(&src) {
             let v = violations(&id, &terms);
@@ -159,6 +164,8 @@ fn 綴りに固有の語が無い() {
         .chain(ViewKind::ALL.iter().map(|k| k.list_field()))
         .chain(RowKind::ALL.iter().map(|k| k.as_str()))
         .chain(Variant::ALL.iter().map(|v| v.as_str()))
+        .chain(CardState::ALL.iter().map(|c| c.text()))
+        .chain([TAGS_SEPARATOR])
         .chain([
             VIEW_LIST_TESTID,
             VIEW_ATTR,
