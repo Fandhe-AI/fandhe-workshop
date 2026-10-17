@@ -57,6 +57,13 @@ async function waitQuiet(page) {
 
 const waitEmpty = (page) => page.waitForFunction((sel) => document.querySelector(sel).value === '', INPUT);
 
+// 状態側の下書き本文（試験用の口）。欄の値とは別に読む。
+const stateDraft = (page) => page.evaluate(() => window.__fandheTest.draft());
+
+// ここまでに予約済みのタイマー（同じ 0 ミリ秒の set_timeout）が走り終わるまで待つ。タイマーは予約順に走るため、
+// 後から積んだ自分のタイマーが走った時点で、先に予約された書き戻しのタイマーは実行済みである。固定の sleep は使わない。
+const settle = (page) => page.evaluate(() => new Promise((resolve) => { setTimeout(resolve, 0); }));
+
 // DOM の received の行（属性と本文）。
 const receivedRows = (page) => page.$$eval(RECEIVED, (lis) => lis.map((li) => ({
   input: li.dataset.input,
@@ -113,6 +120,9 @@ for (const csp of [true, false]) {
     }));
   });
 
+  // 上流の Runtime は compositionend で欄の値を確定値として状態へ届ける（FEND-10）。保留した書き戻しを欄へ反映する前に
+  // 届くと、送信済みの本文が状態へ戻り、欄も空にならず、次の Enter で同じ本文を再び送る（Issue #1510）。
+  // そのため欄だけでなく状態の下書きも空になること、続く Enter で 2 件目が記録されないこと（誤送信 0）を確かめる。
   test(`送信の直後に変換が始まっても、欄は書き換わらず、変換の終了後に空になる（CSP ${label}）`, async () => {
     await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
       const { page, context, rec } = await open(srv);
@@ -123,12 +133,57 @@ for (const csp of [true, false]) {
         document.querySelector(input).dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
       }, [SUBMIT, INPUT]);
       await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, RECEIVED);
-      await page.waitForTimeout(100);
+      // 書き戻しのタイマーが走った後でも、変換中は欄を書き換えない（状態の下書きは送信で空になっている）。
+      await settle(page);
       assert.equal(await page.inputValue(INPUT), ACCEPTED, '変換中は書き戻さない');
+      assert.equal(await stateDraft(page), '', '送信を受け入れた後の状態の下書きは空');
       await page.evaluate((input) => {
         document.querySelector(input).dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
       }, INPUT);
       await waitEmpty(page);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), '', '変換の終了後に欄が空のまま');
+      assert.equal(await stateDraft(page), '', '送信済みの本文が状態の下書きへ戻らない');
+      // 誤送信 0: 続く Enter で送信済みの本文を再び送らない（空の下書きの Enter は送信しない）。
+      await page.focus(INPUT);
+      await page.keyboard.press('Enter');
+      await settle(page);
+      await waitQuiet(page);
+      assert.equal(await page.$$eval(RECEIVED, (l) => l.length), 1, '続く Enter で 2 件目を送らない');
+      assert.deepEqual((await engine(page)).received.map((r) => r.input), [{ command: ACCEPTED }]);
+      clean(rec);
+      await context.close();
+    }));
+  });
+
+  // 書き戻しの保留の印は、書き戻し 1 回分より長く残さない（Issue #1510 のレビュー）。書き戻しのタイマーが欄を見つけられず
+  // 印が残ると、後の通常の変換の compositionend の捕捉の段で、変換前の状態の下書きが欄へ書かれ、確定した文字が消える。
+  // 欄の data-testid を一時的に変えて「欄が見つからない」経路を作り、その後の変換で確定した文字が欄と状態に残ることを確かめる。
+  test(`書き戻しのタイマーが欄を見つけられなくても、後の変換で確定した文字が消えない（CSP ${label}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await page.fill(INPUT, ACCEPTED);
+      // 送信の描画は click の中で同期に終わる。その後・書き戻しのタイマー（set_timeout 0）より前に欄の目印を外す。
+      await page.evaluate(([submit, input]) => {
+        document.querySelector(submit).click();
+        document.querySelector(input).setAttribute('data-testid', 'draft-input-hidden');
+      }, [SUBMIT, INPUT]);
+      await page.waitForFunction((sel) => document.querySelectorAll(sel).length === 1, RECEIVED);
+      await settle(page);
+      await page.evaluate(() => {
+        document.querySelector('[data-testid="draft-input-hidden"]').setAttribute('data-testid', 'draft-input');
+      });
+      assert.equal(await stateDraft(page), '', '送信を受け入れた後の状態の下書きは空');
+      // 送信と関係の無い通常の変換。確定の文字は欄の値として置き、input は発火しない（上流は変換の間の input を延期する）。
+      await page.evaluate((input) => {
+        const el = document.querySelector(input);
+        el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+        el.value = 'あ';
+        el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'あ' }));
+      }, INPUT);
+      await settle(page);
+      assert.equal(await page.inputValue(INPUT), 'あ', '確定した文字が欄に残る');
+      assert.equal(await stateDraft(page), 'あ', '確定した文字が状態の下書きに届く');
       clean(rec);
       await context.close();
     }));
