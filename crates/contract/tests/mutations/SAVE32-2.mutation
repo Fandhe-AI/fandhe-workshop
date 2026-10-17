@@ -1,0 +1,8 @@
+id: SAVE32-2
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find: if p == pack_id)
+replace: if p != pack_id)
+expect-fail: store_port_roundtrip
+note: 削除の対象の判定で教材の ID の一致を反転する（指定した教材が残り、別の教材が消える）

@@ -1,0 +1,8 @@
+id: SAVE32-1
+package: fandhe-workshop-contract
+test: storage_contract
+target: crates/contract/src/storage.rs
+find:         &self.scope == scope
+replace:         true
+expect-fail: store_port_roundtrip
+note: 削除の対象の判定で配信の区間を見ない（別の配信先の同じ教材の履歴まで消える）
