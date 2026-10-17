@@ -1,0 +1,8 @@
+id: A11Y22-2
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/src/task_tree.rs
+find:             TaskState::Open => "未着手",
+replace:             TaskState::Open => "",
+expect-fail: a_状態のバッジは全項目にあり_文字の数は_b_と同じ
+note: 未着手の状態の文字を空にする（記号だけで状態を示す表示になる。(a)・(b) 共通の A11Y-22）

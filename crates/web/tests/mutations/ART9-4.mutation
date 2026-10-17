@@ -1,0 +1,8 @@
+id: ART9-4
+package: fandhe-workshop-web
+test: task_tree_contract
+target: crates/web/src/task_tree.rs
+find:     let checked = state == TaskState::Done;
+replace:     let checked = false;
+expect-fail: a_完了の項目だけチェック済みで_未知の状態はチェックなし
+note: (a) のチェックを常に外す（完了がチェック済みで示されない。ART-9）
