@@ -1,0 +1,8 @@
+id: ART8-4
+package: fandhe-workshop-web
+test: diff_view_a_contract
+target: crates/web/src/diff_view.rs
+find:         Variant::A,
+replace:         Variant::B,
+expect-fail: a_data_mark_は_li_には無く内側の_div_にだけある
+note: 変種 (a) の項目を (b) の印の付け先で作る（印が内側の div でなく li に付く）

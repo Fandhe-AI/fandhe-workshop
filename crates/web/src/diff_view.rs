@@ -1,11 +1,21 @@
 //! 左の成果物エリアの差分のビュー、変種 (b)（TASK-475 1/2。ART-1・ART-8）。
 //!
 //! 変種 (a) の `wireframe-ui` の `text` は空白を畳むため、コードのインデントが失われる（PoC-8 の G-4）。
-//! (b) は自作の部品（`pre`・行番号・記号の列）で描き、インデントを保つ。
+//! (b) は自作の部品（`pre`・行番号・記号の列）で描き、インデントを保つ。(a) は対照専用で、製品の構成では選べない
+//! （[`diff_item_a`]。TASK-475 2/2）。
 //!
 //! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
 //! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から差分の行（`Row<Cell>`）を作る規則も
-//! 未決のためである。変種 (a) の扱いは別の担当（TASK-475 2/2）である。
+//! 未決のためである。
+//!
+//! # 変種 (a)（対照専用）
+//!
+//! 製品の契約は差分の (a) を拒否する（`ViewKind::allows`）。(a) は G-4 の観察（インデントが失われる）を試験として
+//! 固定するためだけに残し、呼び出し元は代役の部品の対照の口（`fixture_contrast`）と統合試験だけである。
+//! (b) と違うのはコードの 1 列だけで、`wireframe_ui::text` の `span` を `data-testid="diff-code"` の `span` で包む。
+//! 行番号・記号の列と信頼境界は (b) と同じで、根は `marked_item(.., Variant::A, ..)`（印は内側の `div`）である。
+//! `wireframe_css()` は配信していない（TASK-490）ため実画面の `white-space` は `normal` だが、`nowrap` でも
+//! 行頭の空白は畳まれるので、観察は wireframe の CSS の有無に依らない。
 //!
 //! # 印の 2 層
 //!
@@ -39,6 +49,7 @@
 //! タグ・属性名・クラス・testid・`data-kind` の値は閉じた集合の `&'static str` だけである。
 
 use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_wireframe_ui::{text as wire_text, Bold, Size};
 
 use crate::a11y::TESTID_ATTR;
 use crate::artifact_mark::marked_item;
@@ -155,6 +166,44 @@ pub fn diff_item(row: &ItemRow, phase: Phase) -> Option<Node> {
         vec![("data-kind", row.kind().as_str())],
         content,
     ))
+}
+
+/// 変種 (a) の行 1 件を作る（対照専用。製品の構成では選べない）。(b) とはコードの列だけが違う。
+///
+/// コードは `wireframe_ui::text` で描くため、空白が畳まれインデントが表示で失われる（G-4）。
+/// 文字列としては空白が残る。その状態で出ない行は `None`。
+#[must_use]
+pub fn diff_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
+    let shown = row.shown(phase)?;
+    let cell = shown.content;
+    let (old, new) = line_numbers(cell.detail.as_str());
+    let sign = DiffSign::parse(cell.state.as_str()).glyph();
+    let content = vec![
+        cell_span(DIFF_OLD_NO_TESTID, DF_OLD_CLASS, old),
+        cell_span(DIFF_NEW_NO_TESTID, DF_NEW_CLASS, new),
+        cell_span(DIFF_SIGN_TESTID, DF_SIGN_CLASS, sign),
+        el(
+            "span",
+            vec![(TESTID_ATTR, DIFF_CODE_TESTID), ("class", DF_CODE_CLASS)],
+            vec![wire_text(cell.label.as_str(), Size::Md, Bold(false))],
+        ),
+    ];
+    Some(marked_item(
+        "li",
+        Variant::A,
+        shown.mark,
+        Some(row.depth()),
+        vec![("data-kind", row.kind().as_str())],
+        content,
+    ))
+}
+
+/// 変種 (a) の行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す（対照専用）。
+#[must_use]
+pub fn diff_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+    rows.iter()
+        .filter_map(|row| diff_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n)))
+        .collect()
 }
 
 /// 行の並びから、その状態で出る項目の `(key, 要素)` を入力の順に返す。

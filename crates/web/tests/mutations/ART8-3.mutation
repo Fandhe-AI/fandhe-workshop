@@ -1,0 +1,8 @@
+id: ART8-3
+package: fandhe-workshop-web
+test: diff_view_a_contract
+target: crates/web/src/diff_view.rs
+find:             vec![wire_text(cell.label.as_str(), Size::Md, Bold(false))],
+replace:             vec![text(cell.label.as_str())],
+expect-fail: a_コードは_wire_text_で_pre_は無い
+note: 変種 (a) のコードを wire_text を通さず描く（対照が G-4 の再現でなくなる。ART-8）

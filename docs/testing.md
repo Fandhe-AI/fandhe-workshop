@@ -3133,7 +3133,7 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 ### 5.102 差分の変種 (b)（TASK-475 1/2）
 
-左の成果物エリアの差分を、変種 (b) で描く本体（`crates/web/src/diff_view.rs`）を作り、代役の部品（`view_fixture`）の `(diff, b)` をこれに回した。(a) は `wireframe-ui` の `text` が空白を畳みインデントを失う（PoC-8 の G-4）ため、(b) は自作の `pre`・行番号・記号の列で描く。変種 (a) の観察は別の担当（TASK-475 2/2）である。製品の画面への結線は 5.98 と同じく後続の作業に残す。
+左の成果物エリアの差分を、変種 (b) で描く本体（`crates/web/src/diff_view.rs`）を作り、代役の部品（`view_fixture`）の `(diff, b)` をこれに回した。(a) は `wireframe-ui` の `text` が空白を畳みインデントを失う（PoC-8 の G-4）ため、(b) は自作の `pre`・行番号・記号の列で描く。変種 (a) の観察は 5.103（TASK-475 2/2）に分けた。製品の画面への結線は 5.98 と同じく後続の作業に残す。
 
 - 受入: 項目数（前 7・後 9）、コードのインデントが保たれること、行番号の列（旧・新）と記号の列があること、行の印（層 1）と差分の記号（層 2）が別の要素に出ること
 - 項目の形: 根の `li` の子は、層 1 の記号・文字、旧の行番号、新の行番号、層 2 の差分の記号、`pre` の 6 つに固定する。hunk の行も同じ 6 つで、行番号と記号は空文字になる。`tags` は出さない
@@ -3156,6 +3156,32 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 - ブラウザの試験: `diff-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch` の 63 件が通過（2026-10-17。`make test-browser` の全件ではなく、関係する 5 ファイルを試験の設定の web で流した）
 - 範囲外: 製品の結線、指せる行の属性（TASK-480）、色とコントラスト（TASK-490）、500 行の再描画の測定（TASK-485）、約 1,000 行を超える場合の見せ方（TASK-484）、親の `aria-label`、変種 (a)（TASK-475 2/2）
+
+### 5.103 差分の変種 (a)（対照。TASK-475 2/2）
+
+差分の変種 (a)（`wireframe-ui` の `text` でコードを描く）を、対照としてだけ固定した。製品の契約（差分は (b) だけ。`ViewKind::allows`・`VariantPolicy`）は変えない。(a) へは代役の部品（`view_fixture`）の別の action `fixture_contrast`（payload は完全一致の `diff:a` だけ）からだけ入り、`fixture_select` の `diff:a` は拒否されたままである。
+
+- 受入: (a) が 14 通りの検査器の枠（前後 2 往復の項目数・key・印の 3 手段・同一性）を通ること、(a) でインデントが失われる観察を固定すること、同じページの (b) では保たれる正の対照、契約の拒否が不変であること
+- 項目の形: (b) とコードの 1 列だけが違う。`data-testid="diff-code"` の `span` の中に `span.fw-wire-text` を 1 つ置く。印の宿主は内側の `div`（`li` には付かない）
+- 観察の中身: 実画面（`wireframe_css()` は未配信）ではコードの先頭の 4 つの空白が 1 つに畳まれ、直前の列の後ろに空白 1 つ分（約 8px）が残るだけになる。(b) の 4 つ分（約 31px）より大きく小さい。上流の `TEXT_CSS` は `white-space: nowrap` で、これも行頭の空白を畳む
+- native の試験: `view_fixture` の単体 3 件（対照の口の復号・(a) の描画・対照の後も `fixture_select` が拒否）と `crates/web/tests/diff_view_a_contract.rs`（項目数と key、印の宿主、`pre` が無く `fw-wire-text` が項目数と同じ、2 層の印、行番号の fail-closed、形の不変、a11y、エスケープ、`TEXT_CSS` の記録）
+- ブラウザの試験（`tools/browser/diff-view.test.mjs`）: DF5 対照の口の (a) が検査器で違反 0、DF6 (a) の前後でインデントが畳まれ `pre` が無く `role` が 0・(b) では保たれる、DF7 対照の後も `fixture_select` の `diff:a` が `rejected` で状態が変わらない
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a54e6e5-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART8-1.mutation crates/web/tests/mutations/ART8-2.mutation crates/web/tests/mutations/ART8-3.mutation crates/web/tests/mutations/ART8-4.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART8-1 | コードを `pre` でない要素で描く（(b)） | DETECTED | `diff_view_contract`（5.102 と同じ 2 件） |
+| ART8-2 | 差分の `-` の列を消す（(b)） | DETECTED | `diff_view_contract`（5.102 と同じ 2 件） |
+| ART8-3 | (a) のコードを `wire_text` を通さず描く | DETECTED | `diff_view_a_contract` の「a_コードは_wire_text_で_pre_は無い」 |
+| ART8-4 | (a) の項目を (b) の印の付け先で作る | DETECTED | `diff_view_a_contract` の「a_data_mark_は_li_には無く内側の_div_にだけある」 |
+
+- ブラウザの試験: `diff-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch` の 66 件が通過（2026-10-17。関係する 5 ファイルを試験の設定の web で流した）。`make check-delivery` は配信物に試験用の口が無いことを確認した
+- 範囲外: (a) を製品から外すかの決定（TASK-465）、`wireframe_css()` の配信と配色（TASK-490）、文書 (a) の対照（TASK-476）、製品の結線、指せる行の属性（TASK-480）、測定（TASK-485）、ブラウザの試験の CI への組み込み（必須チェックと ruleset の変更が要る）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
