@@ -66,11 +66,19 @@ const achievedCount = (e, step) => e.log.filter((r) => r.kind === 'achieved' && 
 const wordOf = (page) => page.evaluate((sel) => document.querySelector(sel).textContent, STATUS);
 
 // step-status の文字の変化をすべて記録する（一瞬だけ出る「達成」を取りこぼさないため）。
+// MutationObserver は同じタスク内の変更をまとめて通知するため、現在の文字だけでなく、
+// 各記録の oldValue と追加・削除されたノードの文字も記録する。
 const observe = (page) => page.evaluate((sel) => {
   const el = document.querySelector(sel);
   window.__stepStatusSeen = [el.textContent];
-  new MutationObserver(() => window.__stepStatusSeen.push(document.querySelector(sel).textContent))
-    .observe(el, { characterData: true, childList: true, subtree: true });
+  new MutationObserver((records) => {
+    for (const r of records) {
+      if (r.type === 'characterData' && r.oldValue !== null) window.__stepStatusSeen.push(r.oldValue);
+      for (const n of r.removedNodes) window.__stepStatusSeen.push(n.textContent);
+      for (const n of r.addedNodes) window.__stepStatusSeen.push(n.textContent);
+    }
+    window.__stepStatusSeen.push(document.querySelector(sel).textContent);
+  }).observe(el, { characterData: true, characterDataOldValue: true, childList: true, subtree: true });
 }, STATUS);
 const mark = (page) => page.evaluate((m) => window.__stepStatusSeen.push(m), MARK);
 const seen = (page) => page.evaluate(() => window.__stepStatusSeen);
@@ -194,3 +202,26 @@ for (const [name, run] of CASES) {
     });
   }
 }
+
+// 負の対照: 同じタスクの中で「達成」を表示して戻しても、記録に残ること。
+test('対照: 同一タスク内で達成を表示して戻しても記録に残る', async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.setContent('<p data-testid="step-status">受付済み（確認待ち）</p>');
+  await observe(page);
+  await page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    el.textContent = '達成';
+    el.textContent = '受付済み（確認待ち）';
+  }, STATUS);
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+  assert.ok((await seen(page)).includes(ACHIEVED), JSON.stringify(await seen(page)));
+  await page.evaluate((sel) => {
+    const t = document.querySelector(sel).firstChild;
+    t.nodeValue = '達成';
+    t.nodeValue = '受付済み（確認待ち）';
+  }, STATUS);
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+  assert.ok((await seen(page)).filter((w) => w === ACHIEVED).length >= 2, JSON.stringify(await seen(page)));
+  await context.close();
+});
