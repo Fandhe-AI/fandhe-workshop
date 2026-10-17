@@ -516,6 +516,10 @@ export function lexJs(src, startLine = 1) {
       } else if (IDENT.test(c) || (c === '\\' && s[i + 1] === 'u')) {
         const word = readIdent();
         prev = KEYWORDS_BEFORE_REGEX.has(word) ? `kw:${word}` : 'operand';
+      } else if ((c === '+' || c === '-') && s[i + 1] === c) {
+        // `++`・`--` は 1 つの字句。値の直後なら後置演算子で、値の終わりのまま（次の `/` は除算）。前置なら演算子。
+        if (prev !== 'operand') prev = c;
+        i += 2;
       } else {
         if (!/\s/.test(c)) prev = c;
         i += 1;
@@ -576,10 +580,44 @@ export function lexHtml(src) {
       }
     } else if (quote !== null) {
       if (c === quote) quote = null;
+    } else if ((c === '"' || c === "'") && tagName !== 'style' && /\bstyle\s*=\s*$/i.test(s.slice(Math.max(0, i - 24), i).join(''))) {
+      // style 属性の値は CSS。文字参照を復号してから lexCss に渡す（エスケープを復号して照合する）。
+      let k = i + 1;
+      while (k < n && s[k] !== c) k += 1;
+      if (k >= n) fail('unterminated attribute value');
+      const raw = s
+        .slice(i + 1, k)
+        .join('')
+        .replace(/&#(?:[xX]([0-9a-fA-F]+)|([0-9]+));?/g, (m, h, d) => {
+          const cp = h ? parseInt(h, 16) : parseInt(d, 10);
+          if (cp > 0x10ffff) fail('unsupported character reference');
+          return String.fromCodePoint(cp);
+        });
+      buf.add(c, line);
+      pushBuf(out, buf);
+      buf = new Buf();
+      out.push(...lexCss(raw, line));
+      for (let m = i + 1; m < k; m += 1) if (s[m] === '\n') line += 1;
+      i = k + 1;
+      continue;
     } else if (c === '"' || c === "'") {
       quote = c;
     } else if (c === '>') {
       inTag = false;
+      if (tagName === 'style') {
+        // style 要素の中身は CSS。HTML の文字参照は効かないので lexCss へ渡す。
+        buf.add(c, line);
+        i += 1;
+        pushBuf(out, buf);
+        buf = new Buf();
+        let k = i;
+        while (k < n && !(s[k] === '<' && s[k + 1] === '/' && s.slice(k + 2, k + 7).join('').toLowerCase() === 'style')) k += 1;
+        const body = s.slice(i, k).join('');
+        out.push(...lexCss(body, line));
+        for (const ch of body) if (ch === '\n') line += 1;
+        i = k;
+        continue;
+      }
       if (tagName === 'script') {
         // script の中身は HTML ではなく JS。`<!-- -->` をコメントにせず、JS の字句解析へ渡す（文字列の中の語を落とさない）。
         buf.add(c, line);
@@ -606,13 +644,13 @@ export function lexHtml(src) {
 
 // CSS。`/* */` だけをコメントとして除く。文字列（'...'・"..."）の中の `/*` はコメントにしない。
 // CSS のエスケープ（`\67 ` のような 16 進、`\g` のような文字そのもの）は復号してから照合する。
-export function lexCss(src) {
+export function lexCss(src, startLine = 1) {
   const out = [];
   const s = Array.from(src);
   const n = s.length;
   const buf = new Buf();
   let i = 0;
-  let line = 1;
+  let line = startLine;
   let quote = null;
   const fail = (msg) => {
     throw new CheckError(`${msg} at line ${line}`);
@@ -707,8 +745,18 @@ export function lexToml(src) {
           [i, line] = readEscape(s, i, line, triple ? 'toml-ml' : 'toml', buf, fail);
           continue;
         }
-        if (d === c && (!triple || (s[i + 1] === c && s[i + 2] === c))) {
-          i += triple ? 3 : 1;
+        if (triple && d === c && s[i + 1] === c && s[i + 2] === c) {
+          // 終端の引用符は 3〜5 個（3 個を超える分は文字列の末尾の引用符）。
+          let k = i;
+          while (s[k] === c) k += 1;
+          if (k - i > 5) fail('unterminated string');
+          for (let m = 0; m < k - i - 3; m += 1) buf.add(c, line);
+          i = k;
+          closed = true;
+          break;
+        }
+        if (!triple && d === c) {
+          i += 1;
           closed = true;
           break;
         }

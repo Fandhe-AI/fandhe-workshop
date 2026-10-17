@@ -333,3 +333,37 @@ test('HTML の script の中身は JS として読み、文字列の `<!-- -->` 
   // 閉じない JS の文字列は検査不能として 2
   assert.equal(run(makeRoot({ 'crates/x/static/c.html': '<script>const a = "x;</script>\n' })).code, 2);
 });
+
+test('後置の ++・-- の後の `/` は除算で、正規表現とは読まない', () => {
+  for (const body of ['let n = x++ / 2;\n', 'let n = x-- / 2 / 3;\n', 'let m = a++ /b/ c;\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 0, body);
+  }
+  // 前置の ++ の後は式の始まりなので、続く正規表現の語は照合する
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'let n = 1; ++n; let r = /github/;\n' })).code, 1);
+});
+
+test('HTML の style 要素と style 属性の CSS もエスケープを復号して照合する', () => {
+  const cases = [
+    '<style>a::after { content: "git\\68 ub"; }</style>\n',
+    '<p style="content: \'git\\68 ub\'">x</p>\n',
+    '<p style=\'content: "git\\68 ub"\'>x</p>\n',
+  ];
+  for (const body of cases) {
+    const r = run(makeRoot({ 'crates/x/static/a.html': body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+  }
+  // 語を含まない style は通る。CSS のコメントは除く
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<style>/* github */ a { color: red; }</style><p style="color:red">x</p>\n' })).code, 0);
+});
+
+test('TOML の複数行文字列の終端の引用符が 4 個・5 個でも閉じる', () => {
+  for (const q of ['"', "'"]) {
+    for (const extra of ['', q, q + q]) {
+      const body = `[package]\na = ${q.repeat(3)}value${extra}${q.repeat(3)}\nb = ${q.repeat(3)}github${extra}${q.repeat(3)}\n`;
+      const r = run(makeRoot({ 'crates/x/Cargo.toml': body }));
+      assert.equal(r.code, 1, `${body}: ${r.out}`);
+      assert.match(r.out, /Cargo\.toml:3: github/);
+    }
+  }
+  assert.equal(run(makeRoot({ 'crates/x/Cargo.toml': 'a = """value""""\nb = 1\n' })).code, 0);
+});
