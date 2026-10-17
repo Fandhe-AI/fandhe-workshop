@@ -10,7 +10,7 @@
 //! 指せる行（`data-action="ui"`。`artifact_view`）が正当に出力する属性名であり、同じ文字列リテラルは 1 つに
 //! まとめられるため、件数では新しい経路を検出できないからである。そこで「経路」を、進行の宛先
 //! （`tick`・`complete`・`esc`）を `data-action` に書く形、許可の外の `data-payload`、DOM への属性の書き込み、
-//! 送信ボタン以外の `.click()` と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
+//! 送信ボタンと左の行（`row_key_effect` の結果）以外への `.click()` と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
 //! `static/test-hooks.js` は試験の設定でだけ配信されるため対象外である。
 //! 解析は、コメントを除き、空白と `r#` を除いた文字列で照合する（`common::glue_code` と同じ）。
 
@@ -114,13 +114,22 @@ fn violations(src: &[(String, String)], statics: &[(String, String)]) -> Vec<Str
         }
         let clicks = count(&code, ".click()");
         if rel == "glue.rs" {
-            let near_submit = code.find(".click()").is_some_and(|p| {
-                let from = p.saturating_sub(300);
-                code[from..p].contains("SUBMIT_SELECTOR")
-            });
-            if clicks != 1 || !near_submit {
+            // 各 `.click()` の直前 300 文字に錨があること。送信ボタン（`SUBMIT_SELECTOR`）が 1 件、
+            // 左の行（`click_row`。`row_key_effect` の結果）が 1 件のちょうど 2 件だけを許す（TASK-358 1/2）。
+            let (mut submit, mut row) = (0, 0);
+            for (p, _) in code.match_indices(".click()") {
+                let near = &code[p.saturating_sub(300)..p];
+                // 近い方の錨を採る（行の click の前に送信の処理が入りうるため）。
+                match (near.rfind("SUBMIT_SELECTOR"), near.rfind("click_row")) {
+                    (Some(a), Some(b)) if a > b => submit += 1,
+                    (Some(_), None) => submit += 1,
+                    (_, Some(_)) => row += 1,
+                    (None, None) => {}
+                }
+            }
+            if clicks != 2 || submit != 1 || row != 1 {
                 out.push(format!(
-                    "{rel}: .click() は送信ボタンへの 1 件だけのはず（{clicks} 件）"
+                    "{rel}: .click() は送信ボタンへの 1 件と左の行への 1 件だけのはず（{clicks} 件。送信 {submit}・行 {row}）"
                 ));
             }
         } else if clicks != 0 {
@@ -179,7 +188,10 @@ fn good_src() -> Vec<(String, String)> {
         ),
         f(
             "glue.rs",
-            "fn on_key() { if let Some(b) = find_in_root(&t, SUBMIT_SELECTOR) { b.click(); } }",
+            concat!(
+                "fn on_key() { if let Some(b) = find_in_root(&t, SUBMIT_SELECTOR) { b.click(); } } ",
+                "fn on_row() { let e = row_key_effect(&i, r, true); if e.click_row { row.click(); } }",
+            ),
         ),
     ]
 }
@@ -277,8 +289,21 @@ fn set_attribute_と_click_の追加を検出する() {
     assert!(any(&v, "set_attribute("), "{v:?}");
     let v = violations(&with("view.rs", "fn v() { b.click(); }"), &[]);
     assert!(any(&v, "view.rs: .click() が 1 件"), "{v:?}");
+    // 3 件目・錨の無い click・送信の click を消して 1 件になった場合も検出する。
     let v = violations(&with("glue.rs", "fn w() { other.click(); }"), &[]);
     assert!(any(&v, "glue.rs: .click()"), "{v:?}");
+    let v = violations(
+        &with("glue.rs", "fn w() { if e.click_row { x.click(); } }"),
+        &[],
+    );
+    assert!(any(&v, "glue.rs: .click()"), "{v:?}");
+    let only_row = vec![(
+        "glue.rs".to_owned(),
+        "fn on_row() { let e = row_key_effect(&i, r, true); if e.click_row { row.click(); } }"
+            .to_owned(),
+    )];
+    let v = violations(&only_row, &[]);
+    assert!(any(&v, "送信 0・行 1"), "{v:?}");
 }
 
 #[test]

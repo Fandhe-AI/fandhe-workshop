@@ -7,7 +7,7 @@
 // 無効の場面は試験の側で disabled を立てて作る（safety の「属性を書き換えて click」と同じ前例）。
 // dispatch_action("submit") の経路は試さない（無効なボタンを素通りするため。TASK-352 の検証方法）。
 //
-// 標準でない要素（左の行）の Enter・Space は、行がまだ画面に無いため TASK-358 1/2 の結線に引き渡す。
+// 標準でない要素（左の行）の Enter・Space は、行の結線は point-keys.test.mjs（TASK-358 1/2）が確かめる。
 // 判定そのものは key_route::row_key_effect が持ち、native の契約試験（key_route_contract）が固定している。
 // 内部の印は読まない。window の捕捉の段で保持した keydown の Event の defaultPrevented と DOM だけを見る。
 //

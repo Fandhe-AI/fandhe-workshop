@@ -353,6 +353,10 @@ pub fn debug_view_fixture_mount(root_id: &str) -> String {
         };
         match fandhe_frontend_wasm_full::Runtime::mount(root_id, fixture) {
             Ok(rt) => {
+                // 左の行の Enter・Space の結線（TASK-358 1/2）。失敗したら Runtime を保持しない。
+                if crate::glue::wire_row_keys(rt.root()).is_err() {
+                    return "{\"ok\":false,\"error\":\"mount\"}".to_string();
+                }
                 *slot = Some(rt);
                 "{\"ok\":true}".to_string()
             }

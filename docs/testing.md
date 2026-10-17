@@ -2836,7 +2836,7 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 
 限界と残る作業。
 
-- 左の行の Enter・Space の結線（`row_key_effect` を呼ぶ側）は TASK-358 1/2 と TASK-480 が受け持つ。
+- 左の行の Enter・Space の結線（`row_key_effect` を呼ぶ側）は TASK-358 1/2 と TASK-480 が受け持つ。結線は 5.113 で行った。
 - 修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、spec 側での確定が要る。
 - FEND-7・FEND-20 の「349 行・9 個」を、今の数え方との関係で注記するかは spec 側で扱う。
 - ブラウザ試験は CI に未組み込みである。
@@ -3444,6 +3444,36 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,110 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、試験の設定の web で `point-click`（18 件）と `point-rows`・`app-demo-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`（計 83 件）が通過。`make test-browser` の全件は未検証。CI には未組み込み
 - 変異の定義の置き場: 代役の部品（`pub(crate)`）の受理の条件は統合テストから届かないため、変異は host と復号器に置いた。受理の条件は `view_fixture` の単体試験とブラウザの PC2・PC3 が確かめる
 - 範囲外: 製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、Enter・Space は TASK-358・TASK-375、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-18・A11Y-20・TASK-494、フォーカスの見た目と配色は TASK-490、文書の行の ID と `Input::Ui.path` の対応は spec 側の確認事項、`reload_points_host.rs` の `ui` の手を画面の経路へ切り替えること（`Counts` の固定値が変わるため触っていない）、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
+
+### 5.113 左の行の Enter・Space の結線（TASK-358 1/2）
+
+指せる行（`li` に 4 属性が組で付いた行）で Enter・Space を押すと、その行への `click()` になり、マウスの click と同じ経路（上流の委譲 → `decode_action` → host）で受け付けられるようにした。`glue::wire_row_keys` が root の keydown を受け、`key_route::row_key_effect` の結果に従って `preventDefault` と `click()` を行う。D-42 により受け持ちは glue に置き、属性化も上流の口も採らない。
+
+- 受入: 指せる行にフォーカスして Enter・Space を押すと、click と同じ入力になる
+- 判断 1: `pointable` は属性を読まず、keydown の target が `HtmlLiElement` かで決める（`web-sys` の feature を 1 つ足しただけで、版と `Cargo.lock` は動かさない）。`tabindex` を持つ `li` は指せる行だけで、宛先の無い行はフォーカスを受けず keydown の target にならない。内側のボタン・入力欄の上では target がその要素になり、glue は何もしない（二重の click を防ぐ）。宛先を受け付けるかの判断は、従来どおり下流（`PointTarget::decode`・core・`is_pointable_now`）が持つ
+- 判断 2: `wire_enter_submit` とは別の関数にし、`with_app` を呼ばない。借用を持ったまま `click()` すると、上流の同期の `update` が黙って失敗するため。代役の部品の root にも同じ関数を付ける（`debug_view_fixture_mount`。`test-hooks` の下だけ。失敗したら Runtime を保持しない）
+- 判断 3: 要素の取得（`query_selector`・`root()`）は増やさない。click の先はイベントの target そのものである。`MAX_ELEMENT_LOOKUPS`・`PARTS_CONTRACT_VERSION` は変えない
+- 判断 4: `no_hidden_triggers` の `glue.rs` の `.click()` の規則を「ちょうど 2 件。直前の錨が `SUBMIT_SELECTOR` の送信ボタン 1 件と、`click_row`（`row_key_effect` の結果）の行 1 件」に改めた。隠しトリガの経路が増えないことは保つ
+- 代償: 合成の keydown を宛先の無い `li` へ送ると Space の `preventDefault` と `click()` が起きる。ただし `click()` は上流の解決で何も届けない。スクリプトは `click()` を直接呼べるため、新しい経路にはならない
+- native の試験: `crates/web/tests/row_keys_wiring.rs`（`wire_row_keys` の本体に `row_key_effect(`・`HtmlLiElement`・`.click()`・`prevent_default` があり `with_app(` が無いこと、`mount_host` と `debug_view_fixture_mount` が呼ぶこと。欠落の負例つき）、`no_hidden_triggers.rs`（click の規則の改訂と負例: 3 件目・錨の無い click・送信の click だけが残る場合）
+- ブラウザの試験（`tools/browser/point-keys.test.mjs`、20 件）: PK1 は 14 通り（7 種 × 変種、対照を含む）× 前後で、フォーカスした指せる行の Enter・Space が行を指し件数が 1 増え、`defaultPrevented` が真でスクロールしないこと。PK2 は click・Enter・Space の状態の変化の一致。PK3 は押しっぱなしで 1 回だけ受け付け、リピート中も `preventDefault` されること。PK4 は Shift+Enter・Control+Enter・Alt+Space・Meta+Enter が何もしないこと。PK5 は名札のデータで `screen/top` だけが受け付けられ、`screen/left`・`screen/right` はフォーカスを受けず Enter でも件数が変わらないこと。PK6 は内側のボタンの Enter の観察（結果は受け付けた件数 0 のまま。期待としては固定しない）。各試験の末尾で外部リクエストなどの安全性の計数が 0
+- 負の対照: `wire_row_keys` の `row.click()` を一時的に外して試験の設定で再ビルドし、`point-keys` を単独で流すと 20 件中 18 件（PK1・PK2・PK3・PK5）が失敗し、PK4・PK6 だけが通った（変更は戻した）。結線が実際に効いていることの確認である
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 2546f64-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/FEND13-1.mutation crates/web/tests/mutations/FEND13-2.mutation FEND7-2 FEND14-1 FEND20-1 FEND4-1
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| FEND13-1 | 左の行の `row.click()` を外す | DETECTED | `no_hidden_triggers` の「実ソースは違反なし」 |
+| FEND13-2 | `mount_host` が `wire_row_keys` を呼ばない | DETECTED | `row_keys_wiring` の「実ソースは違反なし」 |
+| FEND7-2・FEND14-1・FEND20-1・FEND4-1 | 既存の変異（再実行） | DETECTED | 従来と同じ試験 |
+
+- 実行の記録（2026-10-17）: `make fmt`・`make lint`・`make test`（2,113 件が通過、失敗 0）・`make check`・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make check-toolchain`・`make build-web` と `make check-delivery` が成功。ブラウザの試験は、`point-keys`（20 件）、`point-click`・`point-rows`・`app-demo-view`、`enter-submit`・`key-invariants`・`field-space`・`submit-disabled`（38 件）を個別に流して通過。`make test-browser` の全件は未検証。CI には未組み込み
+- 限界: 製品の画面（`#app`）にはまだ指せる行が無く、本結線は潜在的である。修飾キー付きの行の Enter・Space は A11Y-18 が定めておらず、保守側（何もしない）に倒した。spec 側での確定が要る。変換中（IME）の行の Enter は native の `row_key_effect` の試験が固定し、ブラウザ試験では扱わない
+- 範囲外: キーボードだけで確認を完走する試験は TASK-358 2/2（#399）、A11Y-18 の試験は TASK-375、製品の `view()` への結線と製品で指せる行を決める規則は TASK-470・TASK-347 の後続、木の roving tabindex とアプリのデモの二重のタブの止まりは A11Y-20・TASK-494、フォーカスの見た目は TASK-490、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
