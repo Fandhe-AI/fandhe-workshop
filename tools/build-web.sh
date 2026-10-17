@@ -160,7 +160,7 @@ mkdir -p "${OUT_ABS}/wasm"
 wasm-bindgen --target web --out-dir "${OUT_ABS}/wasm" --out-name fandhe_workshop_web "${ARTIFACT}"
 
 STATIC_DIR="${ROOT_DIR}/crates/web/static"
-cp "${STATIC_DIR}/app.js" "${STATIC_DIR}/icon.svg" "${OUT_ABS}/"
+cp "${STATIC_DIR}/app.js" "${STATIC_DIR}/app.css" "${STATIC_DIR}/icon.svg" "${OUT_ABS}/"
 # index.html の印は、試験の設定では meta に置き換え、配信する設定では行ごと消す。
 if [ "${CONFIG}" = "test" ]; then
   sed 's|<!--fandhe:test-hooks-->|<meta name="fandhe-test-hooks" content="1">|' \

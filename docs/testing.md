@@ -101,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -2865,41 +2865,51 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 | ART2-6 | 増分の開始位置を 1 つ飛ばす | DETECTED | `artifact_rows_incremental` の 2 件 |
 | ART2-7 | 前にだけあるブロックの行を出さない | DETECTED | `artifact_doc_rows` の 5 件 |
 
-### 5.94 ビューごとの keyed list とビューの選択（TASK-470 1/2）
+### 5.94 変化の印の部品と外部スタイルシート（TASK-469 1/2）
 
-製品の左の成果物の部品（`engine_parts::ArtifactPart`）を、ビューの種類ごとの keyed list 7 本と、選択のボタンの list 1 本の形にした。
-選ばれていない list は項目 0 件で `hidden` を持つ。選択は `select-view` の action（`view_select`）で、今の Step が宣言した種類だけを受ける。
-行の中身はいまのまま、選ばれたビューの list に入れた。ブラウザの試験用の教材（複数のビューを宣言するもの）と、部品を項目の内側に置く規則・101 回の属性の不変は 2/2 の担当で、本節は native の試験で確かめた。
+印の部品（`artifact_mark`）と、印の見た目・インデントを置く外部スタイルシート（`crates/web/static/app.css`）を足した。keyed list の項目の作りの詰めと、印の文字を消す負の対照は 2/2 の担当である。
 
-- 受入: 選ばれていないビューの list が項目 0 件で `hidden` を持つ。親の属性が `list_attrs(kind, selected)` と一致する（開始直後・選択の後・Step の移動の後）
-- 試験（`crates/web/tests/view_select.rs`）: 開始時の描画（7 本・`hidden` は 6 本・宣言の先頭だけが見える・ボタンは宣言の順で一覧外の種類と未定義の ID は出ない）、選択の dirty（旧と新の list とボタンの list）、同じ種類と宣言に無い種類の無視、session なし、綴りの完全一致の復号、Step の移動で先頭に戻ること、a11y の検査
-- 既存の試験の更新: `list_parent_attrs`（期待を 7 本とボタンの list に置き換え）、`host_contract`（field 数 9 から 16）、`artifact_view_binding_contract`（標準の登録簿が 7 本を持つ）、`no_hidden_triggers`（`engine_parts.rs` の `PAYLOAD_ATTR` 2 件）、ブラウザの `list-parent-attrs`・`reload-points`（選択子）
-- 仮置き: 宣言が無い Step の既定は、`view_tabs` が `all` ならファイルツリー（ホストは `all` だけを渡す。`pack.left_pane` の読み取りは TASK-53 2/2）。`view_tabs: all` で 7 種を選べるようにするのは TASK-481
-- 入れていないもの: 親の `aria-label`・ボタンの `aria-pressed`（`a11y` の閉じた一覧に無い。契約の版 3 と spec の更新が先に要る）。エンジンの操作の dirty の絞り込みは 2/2
+- 受入（印）: `artifact_mark_contract` が、印なし・追加・削除・変更 × 変種 (a)・(b) で、`a11y::check_no_undefined` の違反 0、`data-mark` の宿主が 1 項目に 1 つ、(b) は根・(a) は外枠が宿主、記号・文字が宿主の直接の子で `a11y` の値と一致、印なしは 3 手段とも空、`aria-hidden` が無いことを確かめる。既存の検査器（`artifact-view-check.mjs` の T2）は代役の部品がこの部品を使うようになったため、12 通り × 2 往復の 3 手段の対応を新しい部品で確かめる
+- 受入（スタイル）: `<style` 要素と `style` 属性が 0 件であることを 3 層で確かめる。描画結果（`artifact_mark_contract`）、配信物の静的な検査（`check-delivery.sh` の `index.html`・`app.js`）、描画後の DOM の数え上げ（`collectSafety`）である。`app.css` の同一オリジンの取得と `text/css` は `smoke-hello` が確かめる。CSS が Rust の定数のクラス（`d0`〜`d6`・`mk-glyph`・`mk-text`）と `[data-mark]` を定義していることも `artifact_mark_contract` が確かめる
+- 深さの範囲外（7 以上）は `d6` に丸める（fail-closed）
+- WASM のバイト列と glue の JS の `<style`・`style=` は、2026-10-17 に配信する設定の release 一式で実測し、いずれも 0 件だった。ただし依存由来の文字列で 0 件でなくなりうるため、静的な検査に加えず、描画後の DOM の数え上げに任せる
+- 範囲外: `wireframe_css()` の書き出しと `app.css` への連結は、変種 (a) で実際の部品を使うビュー（TASK-473 以降）が持つ。色のコントラストは TASK-490 の担当
 
 ```text
 実行日: 2026-10-17
 元にしたコミット: 727a981-dirty
-コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART12-1.mutation crates/web/tests/mutations/ART5-2.mutation
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART3-{2,3}.mutation
 ```
 
 | ID | 変異 | 結果 | 検出した試験 |
 |---|---|---|---|
-| ART12-1 | 宣言に無い種類の選択も受け付ける | DETECTED | `view_select` の「宣言に無い種類の選択は無視され_dirty_を積まない」 |
-| ART5-2 | 選ばれていないビューの list も選択済みとして描く | DETECTED | `view_select` の 5 件（開始直後の描画を含む） |
+| ART3-2 | 変種 (a) で項目の根にも `data-mark` を付ける | DETECTED | `artifact_mark_contract` の 3 件 |
+| ART3-3 | 深さの丸めを剰余に替える | DETECTED | `artifact_mark_contract` の「深さのクラスは d0 から d6」 |
 
-## 6. 既存の自動テストの件数の基準値（TASK-346）
+### 5.95 前後の切り替えでの差分更新（TASK-469 2/2）
 
-採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
-本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
-PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
+変化の印の部品を使う項目が、前後の切り替えで keyed list の項目として in-place に更新されることを、検査器の `deep` 検査と自動ブラウザの試験で確かめた（ART-1・ART-3）。
+
+- 測ったもの: 契約が許す 12 通り（7 種 × 2 変種から文書 (a)・差分 (a) を除く）を、前 → 後 → 前 → 後 → 前の 5 状態で流し、各遷移で、両方にある key の行の要素の同一性（行の根）と、項目の内側の全子孫要素（印の宿主・記号・文字・内容の `span`）の同一性を数える。結果は 12 通りの全遷移で、行の保持が前の行数に等しく（未変更 100%・変更行の置換 0）、内側の保持も前の行数に等しかった（2026-10-17 計測）
+- 検査器: `artifact-view-check.mjs` の `runViewCase` に任意の `deep`（既定 `false`。既定の経路の挙動・違反文言は変えていない）を足した。`deep: true` のとき、内側の置換を固定文言 `inner elements of a row were replaced` の違反にし、保持数を `stats.innerPreserved` に出す。負の対照用に `holdRows`・`compareHeldRows` を export した
+- マウント時の DOM: 代役の部品の初期状態は file_tree・(b)・前で、最初の `select` は DOM を更新しない。このため file_tree (b) だけがマウント時の `innerHTML` の DOM から始まる（他の 11 通りは keyed の挿入から始まる）。この 1 通りでも内側の保持は全遷移で前の行数に等しく、項目の作りの手直しは要らなかった
+- 項目の形の不変条件: 印の値（印なし・追加・削除・変更）によって、項目のタグ・属性名の集合・子の数と種別が変わらないことを `artifact_mark_contract` の「項目の形は印によって変わらない」が (a)・(b) の両方で固定する。形が変わると上流の子ノード列の位置対応が崩れ、項目の子が作り直される
+- 負の対照: C1 は後の状態で印の文字を DOM 上で消し、`deep` の経路でも「3 手段が対応しない」違反が出ること（対は違反 0）。C2 は別のビューへ切り替えて戻し、行の保持が 0 件になること（同一性の検査が置換を検出できる。PoC-8 の 0/11 の写し）。T4 は空の画面で `deep` でも違反が出ること
+- 範囲外: 製品の `view()` への 7 本の list の結線（TASK-470）、`wireframe_css()` の書き出し（TASK-473 以降）、色のコントラスト（TASK-490）、性能の測定（ART-4）。`view_fixture` の key の安定性の単体試験（変異 ART2-8）は、非公開 mod のため結合試験から触れず、行の同一性が P1 で 4 遷移すべて 100% であることで代えた
 
 ```text
-計測日: 2026-10-14
-元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+実行日: 2026-10-17
+元にしたコミット: 2c4d231-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART3-4.mutation・make test-browser
 ```
 
-### 5.87 履歴が無い場合と未操作の場合の起動（TASK-319 1/3）
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART3-4 | 印なしのとき記号・文字の `span` を省く | DETECTED | `artifact_mark_contract` の「項目の形は印によって変わらない」ほか 3 件 |
+
+`make test-browser` は 374 件がすべて通過した（`artifact-mark-toggle` の 17 件を含む。ローカルの計測。CI には未組み込み）。
+
+### 5.87b 履歴が無い場合と未操作の場合の起動（TASK-319 1/3）
 
 起動時に保存済みの履歴の有無で分岐し、保存済みの履歴が無い場合と未操作の場合は新しい状態で始めて世代を上げない（SAVE-3・SAVE-28。PoC-6 の F-9）。復元の一致を地点ごとに確かめる試験（native の 33 地点・自動ブラウザの 15 地点）は #342・#343 が持ち、本節は分岐と、それを観測できる最小の保存の結線を対象にする。
 
@@ -2949,6 +2959,29 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 - 地点ごとの復元の一致（native 33 地点・自動ブラウザ 15 地点・完走した最終の世界状態）は #342（5.89）・#343（5.90）
 - 停止・移動・復帰の直後の実際の `page.reload()`（5.71 の `reload-after-control`）は TASK-321 の残り
 - 開けない履歴の告知と「捨てて始める」ボタン（SAVE-21・SHELL-17）、起動番号による古いタブの保存の禁止（SAVE-12）、`visibilitychange` での書き出しと IndexedDB の書き込みの確定（SAVE-9 の検討中の論点）は範囲外
+
+### 5.96 ビューごとの keyed list とビューの選択（TASK-470 1/2）
+
+製品の左の成果物の部品（`engine_parts::ArtifactPart`）を、ビューの種類ごとの keyed list 7 本と、選択のボタンの list 1 本の形にした。
+選ばれていない list は項目 0 件で `hidden` を持つ。選択は `select-view` の action（`view_select`）で、今の Step が宣言した種類だけを受ける。
+行の中身はいまのまま、選ばれたビューの list に入れた。ブラウザの試験用の教材（複数のビューを宣言するもの）と、部品を項目の内側に置く規則・101 回の属性の不変は 2/2 の担当で、本節は native の試験で確かめた。
+
+- 受入: 選ばれていないビューの list が項目 0 件で `hidden` を持つ。親の属性が `list_attrs(kind, selected)` と一致する（開始直後・選択の後・Step の移動の後）
+- 試験（`crates/web/tests/view_select.rs`）: 開始時の描画（7 本・`hidden` は 6 本・宣言の先頭だけが見える・ボタンは宣言の順で一覧外の種類と未定義の ID は出ない）、選択の dirty（旧と新の list とボタンの list）、同じ種類と宣言に無い種類の無視、session なし、綴りの完全一致の復号、Step の移動で先頭に戻ること、a11y の検査
+- 既存の試験の更新: `list_parent_attrs`（期待を 7 本とボタンの list に置き換え）、`host_contract`（field 数 9 から 16）、`artifact_view_binding_contract`（標準の登録簿が 7 本を持つ）、`no_hidden_triggers`（`engine_parts.rs` の `PAYLOAD_ATTR` 2 件）、ブラウザの `list-parent-attrs`・`reload-points`（選択子）
+- 仮置き: 宣言が無い Step の既定は、`view_tabs` が `all` ならファイルツリー（ホストは `all` だけを渡す。`pack.left_pane` の読み取りは TASK-53 2/2）。`view_tabs: all` で 7 種を選べるようにするのは TASK-481
+- 入れていないもの: 親の `aria-label`・ボタンの `aria-pressed`（`a11y` の閉じた一覧に無い。契約の版 3 と spec の更新が先に要る）。エンジンの操作の dirty の絞り込みは 2/2
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 727a981-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART12-1.mutation crates/web/tests/mutations/ART5-2.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART12-1 | 宣言に無い種類の選択も受け付ける | DETECTED | `view_select` の「宣言に無い種類の選択は無視され_dirty_を積まない」 |
+| ART5-2 | 選ばれていないビューの list も選択済みとして描く | DETECTED | `view_select` の 5 件（開始直後の描画を含む） |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

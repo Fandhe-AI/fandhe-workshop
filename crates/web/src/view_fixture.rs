@@ -33,11 +33,11 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 
-use crate::a11y::MarkValue;
-use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID, TESTID_ATTR};
+use crate::a11y::TESTID_ATTR;
+use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
-    dirty_list_fields, mark_value, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId, RowKind,
-    Variant, VariantPolicy, ViewKind,
+    dirty_list_fields, view_list, Cell, DocRow, ItemRow, Phase, Row, RowId, RowKind, Variant,
+    VariantPolicy, ViewKind,
 };
 
 /// 根の要素の `data-testid`。
@@ -189,14 +189,6 @@ fn doc_rows() -> Result<Vec<DocRow<String>>, FixtureError> {
         .collect()
 }
 
-/// 印の宿主の属性値。`mark_value` が返す閉じた集合の `&'static str` で、教材由来の値を含まない。
-fn mark_attr_value(v: MarkValue) -> &'static str {
-    match v {
-        MarkValue::None => "",
-        MarkValue::Mark(m) => ChangeMark::data_value(m),
-    }
-}
-
 /// 項目 1 件。(b) は項目自身が `data-mark` を持ち、(a) は項目の中の外枠が持つ（印の付け先の違いだけを再現する）。
 fn row_node<T: PartialEq>(
     row: &Row<T>,
@@ -205,29 +197,14 @@ fn row_node<T: PartialEq>(
     label: impl Fn(&T) -> &str,
 ) -> Option<(String, Node)> {
     let shown = row.shown(phase)?;
-    let value = mark_value(shown.mark);
-    let parts = vec![
-        el(
-            "span",
-            vec![(TESTID_ATTR, MARK_GLYPH_TESTID)],
-            vec![text(value.glyph())],
-        ),
-        el(
-            "span",
-            vec![(TESTID_ATTR, MARK_TEXT_TESTID)],
-            vec![text(value.text())],
-        ),
-        el("span", vec![], vec![text(label(shown.content))]),
-    ];
-    let mark = mark_attr_value(value);
-    let node = match variant {
-        Variant::B => el("li", vec![(MARK_ATTR, mark)], parts),
-        Variant::A => el(
-            "li",
-            vec![],
-            vec![el("div", vec![(MARK_ATTR, mark)], parts)],
-        ),
-    };
+    let node = marked_item(
+        "li",
+        variant,
+        shown.mark,
+        Some(row.depth()),
+        vec![],
+        vec![el("span", vec![], vec![text(label(shown.content))])],
+    );
     Some((format!("k{}", row.id().as_str()), node))
 }
 
@@ -523,7 +500,7 @@ mod tests {
         let html = render(&f.view());
         assert_eq!(html.matches("hidden").count(), 6, "{html}");
         // (a) は項目の中の外枠が印を持つ。
-        assert!(html.contains("><div data-mark=\"\"><span"), "{html}");
+        assert!(html.contains("><div data-mark=\"\" class=\"d"), "{html}");
     }
 
     #[test]

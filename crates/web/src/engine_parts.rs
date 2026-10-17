@@ -33,9 +33,11 @@ use fandhe_workshop_core::projection::{Mark, MarkKind};
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
-use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID, TESTID_ATTR};
+use crate::a11y::{ChangeMark, TESTID_ATTR};
+use crate::artifact_mark::marked_item;
 use crate::artifact_view::{
-    declared_kinds, list_attrs, view_list, ViewKind, ACTION_ATTR, PAYLOAD_ATTR, VIEW_LIST_FIELDS,
+    declared_kinds, list_attrs, view_list, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
+    VIEW_LIST_FIELDS,
 };
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
@@ -298,23 +300,13 @@ impl DisplayPart<HostModel> for ArtifactPart {
             .into_iter()
             .enumerate()
             .map(|(i, (path, mark))| {
-                let value = mark.map_or("", ChangeMark::data_value);
-                let node = el(
+                let node = marked_item(
                     "li",
-                    vec![("data-path", path.as_str()), (MARK_ATTR, value)],
-                    vec![
-                        el(
-                            "span",
-                            vec![("data-testid", MARK_GLYPH_TESTID)],
-                            vec![text(mark.map_or("", ChangeMark::glyph))],
-                        ),
-                        el(
-                            "span",
-                            vec![("data-testid", MARK_TEXT_TESTID)],
-                            vec![text(mark.map_or("", ChangeMark::text))],
-                        ),
-                        el("span", vec![], vec![text(path.as_str())]),
-                    ],
+                    Variant::B,
+                    mark,
+                    None,
+                    vec![("data-path", path.as_str())],
+                    vec![el("span", vec![], vec![text(path.as_str())])],
                 );
                 // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。
                 // 教材由来の長い文字列はキーに使わず、位置のキーへ退く（接頭辞が違うので衝突しない）。

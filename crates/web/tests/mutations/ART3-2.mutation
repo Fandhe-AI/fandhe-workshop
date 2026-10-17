@@ -1,0 +1,8 @@
+id: ART3-2
+package: fandhe-workshop-web
+test: artifact_mark_contract
+target: crates/web/src/artifact_mark.rs
+find:         Variant::A => el(tag, attrs, vec![el("div", host, children)]),
+replace:         Variant::A => el(tag, [attrs, host.clone()].concat(), vec![el("div", host, children)]),
+expect-fail: 変種_b_は根が宿主で_a_は外枠が宿主
+note: 変種 (a) で項目の根にも data-mark を付ける（印の宿主が 2 つになる）
