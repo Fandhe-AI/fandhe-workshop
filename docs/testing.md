@@ -2291,7 +2291,7 @@ PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tool
 そのため本節の合格は検査器の枠が動くことの証拠で、各ビューの合格ではない（ビューごとの証拠は TASK-473 以降）。
 
 空振りでないことは、自己確認（`artifact-view-check.test.mjs`）の T4 で示した。マウントしない空の画面と存在しない root では違反が出る。
-負の対照 3 種（印を消す・部品を項目の外に置く・`innerHTML`）と教材固有の語の検査は TASK-471 3/3 の範囲で、本件では行っていない。
+負の対照 3 種（印を消す・部品を項目の外に置く・`innerHTML`）と教材固有の語の検査は TASK-471 3/3 が持つ（5.81）。
 
 `make test-browser` は 158 件が通過した（2026-10-16。新しい試験は 21 件）。`make test`・`make lint`・`make check`・`make check-deps`・`make check-dom-reads` も通過した。
 配信設定（`make build-web`）は `make check-delivery` を通り、wasm に `memo-app`・`view-fixture` の文字列が 0 件であることを `grep` で確かめた。
@@ -2371,3 +2371,36 @@ P-9 は、配信設定の web がコマンド表を持たず一覧が常に閉�
 | TERM7-1 | crates/web/src/hello.rs: 停止の経路で候補の一覧を閉じない | DETECTED（流し直し） |
 | JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | DETECTED（流し直し） |
 | JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたまま | DETECTED（流し直し） |
+
+### 5.81 負の対照と教材固有の語の検査（TASK-471 3/3）
+
+TASK-471 の残りの 2 つを足した。検査器（5.77）が差を見つけられることの負の対照 3 種と、エンジンの crate に教材固有の語が無いことの検査（W-22）である。
+
+#### 検査器の拡張
+
+`tools/browser/artifact-view-check.mjs` に 2 つの検査を足した。PoC-8 が危険な要素を数えた選択子の写し（`DANGER_SELECTOR`）で root の下を数え、0 でなければ違反にする。root 直下の部品の根が前後で同じ要素であることも比べる（全再描画を、行の置換とは別の違反として名指しするため）。
+
+#### 負の対照 3 種（`tools/browser/artifact-view-controls.test.mjs`）
+
+どれも「変えない側は違反 0、変えた側は特定の違反」の対で主張し、違反は固定の文言で特定する。
+
+| ID | 対照 | 期待 |
+|---|---|---|
+| N1 | 後の状態で、印の記号・文字・`data-mark` のどれか 1 つを消す（3 通りを別の試験にする） | `glyph/text/data-mark do not correspond` |
+| N2 | 代役の部品に `fixture_control` で項目の外の部品を足す（束縛の無い dirty field により、上流は全再描画に倒れる） | 行の置換と根の置換の違反。保持の数がすべて 0。部品を項目の中に戻した対は違反 0 |
+| N3a | escape の行の文字列を、不活性の文書で `innerHTML` と `textContent` に入れて数える | `innerHTML` は目で数えた件数（14 文字列で 1・1・0・1・1・0・1・1・0 …、合計 6）、`textContent` は 0。`window.__escape_hit` は未定義のまま |
+| N3b | 後の状態で、ラベルへ `innerHTML` で `img`・`iframe`・`javascript:` の `a` を入れる | `dangerous elements or attributes are present` |
+
+`fixture_control` は `view_fixture.rs`（試験の設定だけ）にあり、配信物には入らない。24 通り（6 ビュー × 2 変種 × 前後）で escape の行を実際に流す正の試験は、代役の部品が sample の JSON しか持たないため ART-6 の担当に残す。
+
+#### 教材固有の語の検査（`tools/check-generic-words.mjs`）
+
+- 語の一覧の正は `docs/vocabulary/vocabulary.md` の付録 A で、検査は写さずに読む（既存の 2 試験と同じ照合の規則）。付録 A が読めない・0 語・未知の照合の値は終了コード 2 で、合格にしない
+- 対象は `crates/*/src/**` の `.rs`、`crates/*/static/**` の `.js`・`.html`・`.svg`・`.css`、`crates/*/Cargo.toml`。コメントを除き、識別子と文字列リテラルの字句を照合する。`crates/*/tests/**` は、教材を模した試験データを意図的に持つため対象外にした
+- 閉じない文字列・コメント、シンボリックリンクは終了コード 2 にする
+- 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）
+- 回帰テスト（`make test-check-generic-words`）は、実 repo で 0、語を足した写しで 1、コメント・`tests/` の語は 0、例外の件数の増減で 1、判定できない入力で 2 を確かめる
+
+CI・`make check`・lefthook には組み込んでいない。失敗したら止めるガードを足すことは、仕様が人間の承認点に挙げている変更だからである。組み込むときは `ci.yml` の変更と、ruleset の必須チェックの更新が要る。
+
+実行結果（2026-10-17）。`make test-browser` は 314 件中 312 件が通過し、2 件（`ime-input` の「送信の直後に変換が始まっても…」。CSP あり・なし）が 30 秒のタイムアウトで失敗した。本変更と無関係な試験で、個別に流し直すと 23 件すべてが通過した（負荷による揺れと見られる。原因は未調査）。新しい試験（N1〜N3b の 12 件と、検査器の自己確認 T1〜T4）は通過した。`make test-check-generic-words`（17 件）・`make check-generic-words`・`make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` も通過した。`make check-delivery` は流していない（未検証）。
