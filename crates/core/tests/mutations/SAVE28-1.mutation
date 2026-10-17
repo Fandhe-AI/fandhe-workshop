@@ -1,0 +1,9 @@
+id: SAVE28-1
+package: fandhe-workshop-core
+test: history_boot
+target: crates/core/src/history_boot.rs
+find:         RecordedSession::new(Session::from_state(ir, initial), start)
+replace:         { let mut r = RecordedSession::new(Session::from_state(ir, initial), start); r.reload(); r }
+expect-fail: 保存済みの履歴が無ければ新しく始まり世代は上がらない
+expect-fail: 操作が_0_件の包みは未操作として新しく始まる
+note: 新しく始めるときに再読み込みをかける（保存済みが無い・未操作の再読み込みで世代が上がる。SAVE-3・SAVE-28）

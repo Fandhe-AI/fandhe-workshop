@@ -1,0 +1,9 @@
+id: SAVE28-4
+package: fandhe-workshop-core
+test: history_boot
+target: crates/core/src/history_boot.rs
+find:         RecordedSession::new(Session::from_state(ir, initial), start)
+replace:         RecordedSession::new(Session::from_state(ir, SessionState::default()), start)
+expect-fail: 保存済みの履歴が無ければ新しく始まり世代は上がらない
+expect-fail: 任意の初期状態で保存済みが無ければ初期状態のまま
+note: 新しく始めるときに渡された初期状態を捨てて既定の状態にする（開始直後の状態にならない。SAVE-3）

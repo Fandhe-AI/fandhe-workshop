@@ -2629,6 +2629,68 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
 ```
 
+### 5.87 履歴が無い場合と未操作の場合の起動（TASK-319 1/3）
+
+起動時に保存済みの履歴の有無で分岐し、保存済みの履歴が無い場合と未操作の場合は新しい状態で始めて世代を上げない（SAVE-3・SAVE-28。PoC-6 の F-9）。復元の一致を地点ごとに確かめる試験（native の 33 地点・自動ブラウザの 15 地点）は #342・#343 が持ち、本節は分岐と、それを観測できる最小の保存の結線を対象にする。
+
+- 起動の分岐: core の `history_boot::boot_session`。保存済みが無い → 新しく始める（再読み込みを呼ばない）、開けて `ops` が 0 件 → 新しく始める、開けた → `Session::reload` に当たる処理を 1 回かけて復元する（世代 +1・`Reloaded` 1 件）、表示だけ・開かない → 初期状態で始め、呼び出し側は保存済みの値を上書きしない。判定は `history_load::load_history_with_envelope`（`load_history` と `load_session` の共通の下請け）に任せ、段 1〜8 の条件は複製しない
+- 「未操作」の定義: 記録した `ops` が 0 件であること。下書きの入力も `ops` に記録する（SAVE-2）ため、文字を打っただけでも未操作ではない。`RecordedSession::envelope_for_save` は 0 件のとき `None` を返し、最初の変更まで保存しない
+- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは置かない（TASK-318）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
+- 本番の設定（IR を持たないホスト）は保存先を開かず、今までどおり即座にマウントする。IR の取得は後続のタスクである
+- 試験用の口の保存先・保留とは別の保存先・保留を持つ。`pagehide` のリスナーは名前ごとに 1 回だけ登録する（`leave_flush::install_pagehide_flush_as`）ため、試験用の口の登録を塞がない
+
+試験の一覧。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/history_boot.rs` | 保存済みが無ければ新しく始まり世代・ログ・`Reloaded` が不変、任意の初期状態（性質テスト 256 通り）で恒等、`ops` が 0 件の包みは未操作、陽性の対照（操作 1 件は復元され世代 +1・`Reloaded` 1 件）、開けない値・別の教材は初期状態のまま |
+| `crates/core/tests/recorded_session.rs` | 0 件なら包みを作らない、記録の規則が記録器と一致、作った包みが段 1〜8 で開けて適用し直しが写しと一致 |
+| `crates/web/tests/boot_store.rs` | 保存先の偽物を通して、新規・未操作を 3 回続けても鍵が 0 件、陽性の対照（保存・復元・さらに復元で世代 +1 ずつ）、入力途中の下書きが復元される、開けない値を上書きしない |
+| `tools/browser/reload-fresh.test.mjs` | 実際の画面（CSP あり・なし）で、保存済みが無い・未操作の再読み込みを 2 回続けても鍵が書かれず世代 1・`reloaded` の行 0 件で状態がマウント直後と等しい、陽性の対照（1 手を送信して再読み込み → 鍵が書かれ世代 +1・`reloaded` の行 1 件）、未操作の再読み込みの後でも操作すれば保存される |
+
+変異の定義（`crates/*/tests/mutations/SAVE28-*.mutation`）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| SAVE28-1 | 新しく始めるときに再読み込みをかける | `history_boot` の新規・0 件の包み |
+| SAVE28-2 | `ops` が 0 件の包みを未操作として扱う規則を外す | `history_boot` の 0 件の包み |
+| SAVE28-3 | `ops` が 0 件でも保存用の包みを作る | `recorded_session` |
+| SAVE28-4 | 新しく始めるときに初期状態を捨てて既定の状態にする | `history_boot` の新規・恒等 |
+| SAVE28-5 | 開けなかった履歴があっても保存を止めない | `boot_store` の上書きしない試験 |
+
+既存の変異の定義は、コードの移動に合わせて `find` を直した（SAVE16-4・SAVE19-13・TERM2-1。`load_session` の本体と送信の経路が変わったため）。SAVE16-2 は `initial.clone()` が `boot` と重ならないよう `boot` の側を直した。`FEND15-2`・`FEND15-3` は本変更の前から `find` が一致しない（`engine_parts.rs` の `keyed_view` の呼び出しの形が変わっている）ため、本変更の範囲外として記録した。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 0b607a7-dirty
+コマンド: scripts/check-mutations.sh（SAVE28-1〜5。変更したファイルを対象にする既存の 35 件）・make test・make lint・make test-browser
+```
+
+| 実行 | 結果 |
+|---|---|
+| SAVE28-1〜SAVE28-5 | 5 件とも DETECTED |
+| 変更したファイルを対象にする既存の変異 35 件（SAVE1・SAVE4・SAVE16・SAVE19・SAVE24・TERM・FEND・EVT8・G） | 35 件とも DETECTED |
+| `make test`（`history_boot` 6 件・`recorded_session` 5 件・`boot_store` 6 件を含む） | 全件が通過 |
+| `make test-browser` | 327 件がすべて通過（`reload-fresh` の 8 件を含む） |
+| `make check-delivery`・`make test-build-web` | 通過（配信物に試験用の口が無い） |
+
+残る限界と未実施。
+
+- 地点ごとの復元の一致（native 33 地点・自動ブラウザ 15 地点・完走した最終の世界状態）は #342・#343
+- 停止・移動・復帰の直後の実際の `page.reload()`（5.71 の `reload-after-control`）は TASK-321 の残り
+- 開けない履歴の告知と「捨てて始める」ボタン（SAVE-21・SHELL-17）、起動番号による古いタブの保存の禁止（SAVE-12）、`visibilitychange` での書き出しと IndexedDB の書き込みの確定（SAVE-9 の検討中の論点）は範囲外
+
+## 6. 既存の自動テストの件数の基準値（TASK-346）
+
+採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
+本リポジトリには「版を上げる前」の値が無い。この値は、今後の版上げ（FEND-17・TASK-101）で比べる基準値である。
+PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象が違うため比べない。
+
+```text
+計測日: 2026-10-14
+元にしたコミット: f469e9f-dirty（本変更を含む作業ツリー）
+```
+
 ### 6.1 採用した版（Cargo.lock の解決済みの版）
 
 | crate | 版 |

@@ -1,0 +1,8 @@
+id: SAVE28-2
+package: fandhe-workshop-core
+test: history_boot
+target: crates/core/src/history_boot.rs
+find:     if envelope.ops.is_empty() {
+replace:     if false {
+expect-fail: 操作が_0_件の包みは未操作として新しく始まる
+note: ops が 0 件の包みを未操作として扱う規則を外す（外から置かれた 0 件の包みが復元され、世代が上がる。SAVE-28）

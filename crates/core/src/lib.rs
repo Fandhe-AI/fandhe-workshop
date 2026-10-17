@@ -36,6 +36,7 @@
 //! 別の Step への移動（`go_to`、TASK-213 1/2。公開しない）も持つ。
 //! チェックポイントの保存と復帰（`checkpoint`、TASK-214 1/3。公開しない）も持つ。
 //! 処理中の再読み込みでの世代 +1（`reload`、TASK-320 1/2。公開しない）も持つ。
+//! 操作を `ops` に記録しながら進める実行環境（[`recorded_session`]、TASK-319 1/3）と、起動時に保存済みの履歴の有無で新しく始めるか復元するかを分ける処理（[`history_boot`]）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -53,6 +54,7 @@ mod confirm;
 pub mod effect;
 pub mod event;
 mod go_to;
+pub mod history_boot;
 pub mod history_envelope;
 pub mod history_export;
 pub mod history_limit;
@@ -69,6 +71,7 @@ pub mod load_gate;
 pub mod ops_record;
 pub mod projection;
 pub mod provider;
+pub mod recorded_session;
 pub mod rejection_text;
 mod reload;
 pub mod select_judge;

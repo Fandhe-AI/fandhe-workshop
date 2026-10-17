@@ -82,6 +82,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "new",
     "once_into_js",
     "mount",
+    // 保存先を待ってから起動の分岐とマウントを行う入口（`persist`。TASK-319）。DOM には触れない。
+    "mount_with_history",
     "component",
     "draft",
     "over_limit",

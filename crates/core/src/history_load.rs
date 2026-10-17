@@ -41,6 +41,7 @@ use serde_json::Value;
 use crate::history_envelope::SessionEnvelope;
 use crate::history_open::{open_history, Opened, OpeningCaps};
 use crate::load_gate::check_limits;
+use crate::ops_record::SessionOp;
 use crate::session::{Session, SessionState};
 use crate::version_record::check_versions_present;
 
@@ -124,10 +125,26 @@ pub fn load_history(
     caps: &OpeningCaps,
     initial: SessionState,
 ) -> Opened {
-    let env = parse_history_json(bytes).and_then(parse_history_envelope);
-    match env {
-        Ok(env) => open_history(ir, opening, caps, initial, &env),
-        Err(code) => Opened::Refused { code },
+    load_history_with_envelope(bytes, ir, opening, caps, initial).0
+}
+
+/// [`load_history`] と同じ判定で、段 5 までに型を通った包みも一緒に返す。
+///
+/// 呼び出し元は起動の分岐（[`crate::history_boot`]）で、開いた履歴の `ops` と開始点を引き継ぐために包みが要る。
+/// 判定の条件はここに 1 か所だけ置き、複製しない。段 1〜5 で断ったときの包みは `None`。
+pub(crate) fn load_history_with_envelope(
+    bytes: &[u8],
+    ir: &Ir,
+    opening: &HistoryVersions,
+    caps: &OpeningCaps,
+    initial: SessionState,
+) -> (Opened, Option<SessionEnvelope>) {
+    match parse_history_json(bytes).and_then(parse_history_envelope) {
+        Ok(env) => {
+            let opened = open_history(ir, opening, caps, initial, &env);
+            (opened, Some(env))
+        }
+        Err(code) => (Opened::Refused { code }, None),
     }
 }
 
@@ -138,11 +155,15 @@ pub struct LoadedSession {
     pub session: Session,
     /// 版の違いの記録。変換なしで開いたときは `None`。
     pub notes: Option<ConversionNotes>,
+    /// 開いた履歴の `ops`。開いた後の操作はこの続きに記録する（TASK-319。保存の元になる）。
+    pub ops: Vec<SessionOp>,
+    /// 開いた履歴の最初の開始点。
+    pub start: String,
 }
 
 /// 履歴ファイルを段 1〜8 で判定し、開いたときだけ実行環境（[`Session`]）を作る。別のオリジンへの読み込み（SAVE-16）の入口。
 ///
-/// 呼び出し元は web のホストの読み込みである。判定は [`load_history`] に任せ、条件は複製しない。
+/// 呼び出し元は web のホストの読み込みである。判定は [`load_history_with_envelope`] に任せ、条件は複製しない。
 /// `Session::from_state` をここで呼ぶのは、状態から実行環境を作り直す処理が保存復元の担当だからである
 /// （web の表示層は状態を作り直さない。`crates/web/tests/no_progress.rs`）。`ir` は状態と組にするため値で受ける。
 /// 表示だけ・開かないでは実行環境を作らず、判定だけを返す（SAVE-19）。純関数で、理由は固定のコードだけである（SAFE-40）。
@@ -157,15 +178,22 @@ pub fn load_session(
     caps: &OpeningCaps,
     initial: SessionState,
 ) -> Result<LoadedSession, Verdict<LoadReason>> {
-    match load_history(bytes, &ir, opening, caps, initial) {
-        Opened::Open { state } => Ok(LoadedSession {
-            session: Session::from_state(ir, state),
-            notes: None,
-        }),
-        Opened::Converted { state, notes } => Ok(LoadedSession {
-            session: Session::from_state(ir, state),
-            notes: Some(notes),
-        }),
-        other => Err(other.verdict()),
-    }
+    let (opened, envelope) = load_history_with_envelope(bytes, &ir, opening, caps, initial);
+    let (state, notes) = match opened {
+        Opened::Open { state } => (state, None),
+        Opened::Converted { state, notes } => (state, Some(notes)),
+        other => return Err(other.verdict()),
+    };
+    // 開けたなら包みはある。無ければ開けた扱いにしない（fail-closed）。
+    let Some(envelope) = envelope else {
+        return Err(Verdict::Refused {
+            code: LoadReason::Malformed,
+        });
+    };
+    Ok(LoadedSession {
+        session: Session::from_state(ir, state),
+        notes,
+        ops: envelope.ops,
+        start: envelope.start,
+    })
 }

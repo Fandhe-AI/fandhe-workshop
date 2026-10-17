@@ -451,11 +451,13 @@ pub(crate) fn rerender() -> bool {
 
 /// `root_id` の要素にホストをマウントする。2 回目以降は拒否する。
 ///
+/// 呼び出し元は [`mount_app`]（保存先の準備を待った後）と、保存済みの履歴を持たない配信する設定の同期の入口である。
+/// 起動の分岐（`EngineHost::boot`）は呼び出し元が済ませてから渡す。進行・下書き・補完の通知先はここで結ぶ。
+///
 /// # Errors
 ///
 /// 要素が無い場合、イベント配線に失敗した場合、すでにマウント済みの場合に `Err` を返す。
-#[wasm_bindgen]
-pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
+pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsValue> {
     RUNTIME.with(|cell| {
         let mut slot = cell
             .try_borrow_mut()
@@ -463,7 +465,6 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         if slot.is_some() {
             return Err(JsValue::from_str("already mounted"));
         }
-        let mut host = EngineHost::for_mount();
         host.set_tick_request(Box::new(on_tick_request));
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
@@ -479,4 +480,21 @@ pub fn mount_app(root_id: &str) -> Result<(), JsValue> {
         *slot = Some(runtime);
         Ok(())
     })
+}
+
+/// 離れる直前に保存する値。保存しないとき（未操作・開けなかった履歴がある・未マウント）は `None`（TASK-319）。
+///
+/// `persist` の `pagehide` のリスナーが呼ぶ。読み取りだけで、状態は変えない。
+pub(crate) fn history_to_save() -> Option<String> {
+    with_app(EngineHost::history_to_save).flatten()
+}
+
+/// `root_id` の要素にホストをマウントする Promise を返す。2 回目以降は拒否する。
+///
+/// 保存済みの履歴の読み込みは非同期のため、保存先が準備できてから起動の分岐を行いマウントする（`persist`、TASK-319）。
+/// `static/app.js` が `await` し、`data-mounted` はその完了後に立てる。要素が無い場合、イベント配線に失敗した場合、
+/// すでにマウント済みの場合は拒否する。
+#[wasm_bindgen]
+pub fn mount_app(root_id: &str) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id)
 }

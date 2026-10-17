@@ -6,7 +6,7 @@ const root = document.documentElement;
 
 try {
   await init();
-  mount_app("app");
+  await mount_app("app");
   if (document.querySelector('meta[name="fandhe-test-hooks"]')) {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;
