@@ -1,0 +1,9 @@
+id: SAVE19-16
+package: fandhe-workshop-core
+test: history_limit
+target: crates/core/src/history_limit.rs
+find:     len <= MAX_HISTORY_OPS
+replace:     len <= usize::MAX
+expect-fail: ops_boundary_at_and_over_limit
+expect-fail: save_gate_agrees_with_load_gate
+note: 保存の前の件数の検査を外す（読み込めない包みの保存を許す）

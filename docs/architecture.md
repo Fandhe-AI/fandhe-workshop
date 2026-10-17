@@ -129,6 +129,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
 | 受講者の操作を履歴の `ops` に追記する記録（`ops_record`。`SessionOp` は contract の `HistoryOp<Op>` の別名。契約の版の対象外。再読み込みは含まない） | core | TASK-315 |
 | `ops`・写し・4 軸の版を履歴の包み（`SessionEnvelope` = contract の `HistoryEnvelope<Op, SessionState>`）に組み立てる処理と、下書きの記録と写しの `drafts` の同期（`history_envelope`。契約の版の対象外。適用し直しによる復元・読み込み・書き出しは含まない） | core | TASK-315 |
+| 保存の前に、直列化したバイト数と `ops` の件数が読み込みの上限を超えないかを判定する純関数（`history_limit`。契約の版の対象外。記録は止めず、超える包みは保存しない仮の規則。文面と上限の値は持たない） | core | #1414 |
 | `ops` を初期状態に順に適用し直す復元と送信の分類（`history_replay`。契約の版の対象外。写しとの照合と `replay_mismatch` への対応づけ（`verify_envelope`）を含み、再読み込みは含まない） | core | TASK-316 |
 | 確認の操作による達成と外れた指し先（`confirm`。公開しない。達成の効果と `next` の無条件の先頭の辺への遷移まで。章の完了・`on_enter`・`Judged` は含まない） | core | TASK-207 |
 | 診断の型（`Diagnostic`）、診断コード（`E-*`）の一覧、CLI の外部仕様 | pack（`E-LIMIT-*` の拒否理由の型は contract） | TASK-195・TASK-399 |

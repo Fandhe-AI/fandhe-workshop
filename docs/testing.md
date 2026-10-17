@@ -2405,3 +2405,25 @@ MOD-4・TASK-236 の「最初の `/` まで」と、実装の「最後の `/` �
 | SAVE24-8 | crates/core/src/history_envelope.rs: 送信の記録の後に現在の根の下書きを写しから除かない（MOD-4・SAVE-18） | submit_clears_only_the_current_root_draft, property_ops_and_drafts_stay_in_sync | nested_submit_clears_only_its_own_root, submit_clears_only_the_current_root_draft, property_ops_and_drafts_stay_in_sync | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Draft(""), Submit("a")] |
 | SAVE24-9 | crates/core/src/history_envelope.rs: 下書きを ops に記録しても写しの drafts に書かない（SAVE-18・SAVE-24） | save24_example_shape_is_in_the_envelope, empty_draft_is_kept_as_empty_string, property_ops_and_drafts_stay_in_sync | nested_submit_clears_only_its_own_root, empty_draft_is_kept_as_empty_string, nested_instance_draft_root_is_its_instance_id, submit_clears_only_the_current_root_draft, save24_example_shape_is_in_the_envelope, whitespace_submit_changes_nothing, property_ops_and_drafts_stay_in_sync | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Draft("")] |
 ```
+
+### 5.82 記録中に履歴の件数の上限を超えたときの保存の判定（#1414）
+
+記録中に `ops` が `MAX_HISTORY_OPS` を超えたときの規則は、spec に無い。次を安全側の仮の規則（推論）として実装した。記録は止めず、保存は読み込めない包みを書かず（最後に読み込めた保存を残す）、書き出しは止めない。判定は `history_limit::check_save` が理由コード（`too_large`・`too_many_ops`）で返し、文面は持たない。規則の決定（D-n）と SAVE-19・SAFE-41・SAVE-24 への記録は、人が spec のリポジトリで行う（未了）。保存の経路への結線は TASK-318・TASK-319、受講者への案内は TASK-531 の後に確かめる（2026-10-17）。
+
+| 層 | 試験 | 確かめること |
+|---|---|---|
+| native | `crates/core/tests/history_limit.rs` | 20,000 件と 20,001 件の境界、大きさを先に見る順、保存の判定が読み込みの判定と一致すること、20,001 件目以降も記録が続くこと、件数の性質テスト |
+| native | `crates/core/tests/history_export.rs` | ちょうど上限の件数で `exceeds_ops_limit` が偽であること（超えても書き出しは止まらない既存の確認に足した） |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 5631b7a-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE19-15.mutation crates/core/tests/mutations/SAVE19-16.mutation crates/core/tests/mutations/SAVE19-10.mutation crates/core/tests/mutations/SAVE19-11.mutation
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE19-15 | crates/core/src/history_limit.rs: 件数の比較を <= から < にする（上限ちょうどの保存を断つ） | DETECTED（ops_boundary_at_and_over_limit, property_ops_boundary, save_gate_agrees_with_load_gate） |
+| SAVE19-16 | crates/core/src/history_limit.rs: 件数の検査を外す | DETECTED（ops_boundary_at_and_over_limit, property_ops_boundary, save_gate_agrees_with_load_gate） |
+| SAVE19-10 | crates/core/src/history_load.rs: 読み込みの件数の比較を >= にする（既存） | DETECTED |
+| SAVE19-11 | crates/core/src/history_load.rs: 読み込みの件数の検査を外す（既存） | DETECTED |
+```
