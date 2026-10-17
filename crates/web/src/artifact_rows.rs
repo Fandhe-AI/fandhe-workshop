@@ -13,6 +13,8 @@
 //!
 //! # 指せる行の規則
 //!
+//! 本節は `derive_rows`（6 種）の規則である。文書の行は `artifact_doc_rows` が「文書の経路 + `#` + 位置」から ID を合成する。
+//!
 //! `RowId` は世界状態の経路そのものにする。`PointTarget::to_input` は経路をそのまま `Input::Ui` の
 //! `path` に入れるため、別の値にすると指した入力が世界状態の経路と食い違う。導出した行はすべて
 //! `PointTarget::new(<ビューの ID>, row.id().clone())` で指せる。後の状態で前の中身を残して出す削除の行も指せる。
@@ -28,7 +30,15 @@
 //! # 範囲外
 //!
 //! 属性名の読み方（`label`・`state` など）とビューの選別は呼び出し側の `read` が持つ（各ビュー本体と Phase 4 の決定）。
-//! 文書のブロックの突き合わせ（変更を `-` と `+` の 2 行にする処理）は TASK-468 2/2 が持つ。
+//! 文書のブロックの突き合わせ（変更を `-` と `+` の 2 行にする処理）は `artifact_doc_rows` が持つ（TASK-468 2/2）。
+//! 基準点（`Entered`・`Stopped`・`Moved`・`Restored`・`Begun`）で「前」を取り直す規則は spec に無く、TASK-470・TASK-347 の結線が決める。
+//! 増分（`PhaseWorlds`）は、呼び出し側が渡した固定の「前」に対してログを伸ばすことだけを指す。
+//!
+//! # 増分と一括
+//!
+//! 右のログ・復習の `Projection` と同じく、増分の口（`PhaseWorlds::extend`）はログの全体を受け、処理済みの先頭を
+//! 読み飛ばす。一括の口（`derive_rows`・`derive_doc_rows`）と増分の口は、前後の世界状態から行を作る同じ関数
+//! （`rows_between`・`doc_rows_between`）を通すため、`replay_changes` が絶対値を当てることと合わせて、分け方によらず結果が一致する。
 //!
 //! # 信頼境界
 //!
@@ -44,7 +54,10 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::world::{Element, World};
 
 use crate::a11y::ChangeMark;
-use crate::artifact_view::{check_unique_ids, ArtifactViewError, Phase, Row, RowId, RowKind};
+use crate::artifact_doc_rows::doc_rows_between;
+use crate::artifact_view::{
+    check_unique_ids, ArtifactViewError, DocRow, Phase, Row, RowId, RowKind,
+};
 
 /// 要素 1 つから作る行の部品。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +77,8 @@ pub enum DeriveError {
     Element,
     /// 行の検査に通らない（空の ID・重複した ID など）。
     Row(ArtifactViewError),
+    /// 文書のブロックが多すぎて突き合わせられない（計算量の上限。黙って別の突き合わせに退避しない）。
+    TooLarge,
 }
 
 impl fmt::Display for DeriveError {
@@ -71,6 +86,7 @@ impl fmt::Display for DeriveError {
         match self {
             DeriveError::Element => f.write_str("element does not match the view reader"),
             DeriveError::Row(_) => f.write_str("row is invalid"),
+            DeriveError::TooLarge => f.write_str("document is too large to align"),
         }
     }
 }
@@ -99,6 +115,15 @@ where
 {
     let mut after = before.clone();
     replay_changes(&mut after, events);
+    rows_between(before, &after, read)
+}
+
+/// 前後の世界状態から行を作る。一括と増分が共有する（どちらも同じ関数を通す）。
+fn rows_between<T, F>(before: &World, after: &World, read: F) -> Result<Vec<Row<T>>, DeriveError>
+where
+    T: PartialEq,
+    F: Fn(&str, &Element) -> Result<Option<RowParts<T>>, DeriveError>,
+{
     let paths: BTreeSet<&String> = before.keys().chain(after.keys()).collect();
     let mut rows = Vec::new();
     for path in paths {
@@ -125,6 +150,70 @@ where
     }
     check_unique_ids(&rows)?;
     Ok(rows)
+}
+
+/// 固定の「前」の世界状態と、ログを少しずつ当てた「後」の世界状態を持つ増分の口。
+///
+/// `Projection::extend` と同じ契約で、`events` はログの全体を渡す。処理済みの先頭は読み飛ばし、
+/// 短い列では何もしない（`consumed` は縮めない）。呼び出し元は結線（TASK-470）で、右のログ・復習と同じイベント列を渡す。
+#[derive(Debug, Clone)]
+pub struct PhaseWorlds {
+    before: World,
+    after: World,
+    consumed: usize,
+}
+
+impl PhaseWorlds {
+    /// 前の世界状態から始める。後は前の写しで、処理済みは 0 件。
+    pub fn new(before: World) -> Self {
+        let after = before.clone();
+        PhaseWorlds {
+            before,
+            after,
+            consumed: 0,
+        }
+    }
+
+    /// 未処理の分だけ後の世界状態に当てる。
+    pub fn extend(&mut self, events: &[Event]) {
+        if let Some(rest) = events.get(self.consumed..) {
+            replay_changes(&mut self.after, rest);
+        }
+        self.consumed = self.consumed.max(events.len());
+    }
+
+    /// 前の世界状態。
+    pub fn before(&self) -> &World {
+        &self.before
+    }
+
+    /// 後の世界状態。
+    pub fn after(&self) -> &World {
+        &self.after
+    }
+
+    /// 処理済みのイベントの数。
+    pub fn consumed(&self) -> usize {
+        self.consumed
+    }
+
+    /// 6 種のビューの行。`derive_rows` と同じ結果になる。
+    pub fn rows<T, F>(&self, read: F) -> Result<Vec<Row<T>>, DeriveError>
+    where
+        T: PartialEq,
+        F: Fn(&str, &Element) -> Result<Option<RowParts<T>>, DeriveError>,
+    {
+        rows_between(&self.before, &self.after, read)
+    }
+
+    /// 文書のブロックの行。`derive_doc_rows` と同じ結果になる。
+    pub fn doc_rows<B, F>(&self, doc_path: &str, read: F) -> Result<Vec<DocRow<B>>, DeriveError>
+    where
+        B: PartialEq + Clone,
+        F: Fn(&Element) -> Result<Vec<B>, DeriveError>,
+    {
+        doc_rows_between(&self.before, &self.after, doc_path, read)
+    }
 }
 
 /// ある状態の行の数と印の数。

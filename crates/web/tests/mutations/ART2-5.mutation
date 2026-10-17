@@ -1,0 +1,9 @@
+id: ART2-5
+package: fandhe-workshop-web
+test: artifact_doc_rows
+target: crates/web/src/artifact_doc_rows.rs
+find:         if i < n && j < m && a.get(i) == b.get(j) {
+replace:         if i < n && j < m {
+expect-fail: 実データの前後の行数と印が数えた値と一致する
+expect-fail: 変更は削除が先の組で波ダッシュは無い
+note: 前後が違うブロックを一致として組にする（波ダッシュの行ができ、未変更の数が合わなくなる）
