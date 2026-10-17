@@ -5,13 +5,14 @@
 // - 印の 3 手段（記号・文字・data-mark）が対応している（印の宿主は項目ごとにちょうど 1 つ）
 // - key が重複しない
 // - 選ばれていない list が空で hidden である（選ばれた list は hidden でない）
-// - 要素の同一性（未変更の行は 100%、変更のあった行の置換は 0）
+// - 要素の同一性（未変更の行は 100%、変更のあった行の置換は 0）。root 直下の部品の根も、前後で同じ要素であること
+// - 危険な要素・属性（DANGER_SELECTOR）が root の下に 0 件であること
 // - 契約が許さない 2 通り（文書 (a)・差分 (a)）は、拒否され、状態も画面も変わらず、(b) へ黙って退避しない
 // 外部へのリクエスト・ページのエラー・ダイアログが 0 件であることは、呼び出し側が harness の collectSafety で主張する。
 //
 // 呼び出し元: 本検査器の自己確認（artifact-view-check.test.mjs。マウントする代役の部品に向ける）。
-// 後続は、自分のビューを差し込むアダプタを渡して使う（TASK-469・TASK-470・TASK-473〜TASK-479。
-// 負の対照 3 種と教材固有の語の検査は TASK-471 3/3）。
+// 負の対照 3 種（印を消す・部品を項目の外に置く・innerHTML）の自己確認は artifact-view-controls.test.mjs（TASK-471 3/3）。
+// 後続は、自分のビューを差し込むアダプタを渡して使う（TASK-469・TASK-470・TASK-473〜TASK-479）。
 //
 // アダプタの契約（検査器は画面の作り方を知らない）:
 //   select(kind, variant) -> Promise<{ ok: boolean }>   ビューの種類と変種を選ぶ。拒否されたら ok: false
@@ -58,6 +59,10 @@ const MARK_TABLE = { add: ['+', '【追加】'], remove: ['-', '【削除】'], 
 
 // 文書の期待値（手で数えた固定値）。before は前のブロック数、after は後に出す行数（削除を残す）。
 export const DOC_EXPECTED = { before: 10, after: 13, unchanged: 7, add: 3, remove: 3, change: 0 };
+
+// 危険な要素・属性の数え上げの選択子（PoC-8 の検査の写し）。固定の文字列で、データから組み立てない。
+export const DANGER_SELECTOR =
+  'img, script, iframe, svg[onload], a[href^=javascript], [onerror], [onload], [onfocus], [data-evil]';
 
 const SAMPLE_DIR = new URL('../../testdata/artifact-view-parts/test-data/sample/', import.meta.url);
 const ESCAPE_ROWS = new URL('../../testdata/artifact-view-parts/test-data-addendum/escape-rows.json', import.meta.url);
@@ -125,12 +130,13 @@ function expectedFor(kind, keyOf) {
 }
 
 // ページ内の検査（固定の関数。データは引数で渡す）。root の下の 7 本の list と、各項目の印の宿主を数える。
-function inspectInPage({ root }) {
+function inspectInPage({ root, danger }) {
   const rootEl = document.querySelector(root);
   if (!rootEl) return { error: true };
   const lists = [...rootEl.querySelectorAll('[data-testid="view-list"]')];
   return {
     error: false,
+    danger: rootEl.querySelectorAll(danger).length,
     lists: lists.map((l) => {
       const items = [...l.children];
       return {
@@ -173,6 +179,11 @@ function elementMapInPage({ root, view }) {
   return map;
 }
 
+// root 直下の部品の根（最初の子の要素）。全再描画なら前後で別の要素になる。
+function rootChildInPage({ root }) {
+  return document.querySelector(root)?.firstElementChild ?? null;
+}
+
 // 2 つの Map で両方にある key の要素が同じか。接続が切れた要素は置換と数える。
 function compareMapsInPage([a, b]) {
   const same = [];
@@ -185,9 +196,10 @@ function compareMapsInPage([a, b]) {
 }
 
 async function snapshot(page, rootSelector, kind) {
-  const info = await page.evaluate(inspectInPage, { root: rootSelector });
+  const info = await page.evaluate(inspectInPage, { root: rootSelector, danger: DANGER_SELECTOR });
   const handle = await page.evaluateHandle(elementMapInPage, { root: rootSelector, view: kind });
-  return { info, handle };
+  const rootHandle = await page.evaluateHandle(rootChildInPage, { root: rootSelector });
+  return { info, handle, rootHandle };
 }
 
 // 1 つの状態の検査。違反の文面は固定で、tag（種類・変種・状態の名前）だけを前置する。
@@ -195,6 +207,7 @@ function checkState({ info, kind, variant, phase, expected, v }) {
   const bad = (msg) => v.push(`${kind}/${variant}/${phase}: ${msg}`);
   if (info.error) return bad('root element not found');
   const { lists } = info;
+  if (info.danger !== 0) bad('dangerous elements or attributes are present');
   if (lists.length !== 7) bad('expected exactly 7 view lists');
   const views = lists.map((l) => l.view).sort();
   const want = KINDS.map((k) => k.kind).sort();
@@ -270,6 +283,8 @@ function checkState({ info, kind, variant, phase, expected, v }) {
 async function checkIdentity({ page, prev, next, kind, variant, expected, v, tag }) {
   const { same, replaced } = await page.evaluate(compareMapsInPage, [prev.handle, next.handle]);
   const bad = (msg) => v.push(`${kind}/${variant}/${tag}: ${msg}`);
+  const sameRoot = await page.evaluate(([a, b]) => a !== null && a === b && a.isConnected, [prev.rootHandle, next.rootHandle]);
+  if (!sameRoot) bad('the view root element was replaced');
   if (replaced.length !== 0) bad('rows present in both states were replaced');
   const beforeCount = expected.ids ? expected.ids.counts.before : expected.counts.before;
   if (same.length !== beforeCount) bad('preserved row count differs from the before row count');
@@ -314,11 +329,15 @@ export async function runViewCase(page, adapter, { kind, variant, rootSelector, 
         const n = await checkIdentity({ page, prev, next: cur, kind, variant, expected, v, tag: `${phases[i - 1]}->${phase}` });
         stats.preserved.push(n);
         await prev.handle.dispose();
+        await prev.rootHandle.dispose();
       }
       prev = cur;
     }
   } finally {
-    if (prev) await prev.handle.dispose();
+    if (prev) {
+      await prev.handle.dispose();
+      await prev.rootHandle.dispose();
+    }
   }
   return { violations: v, stats };
 }
@@ -340,7 +359,7 @@ export async function runRejectedCase(page, adapter, { kind, variant, rootSelect
     return { violations: v };
   }
   const read = async () => {
-    const info = await page.evaluate(inspectInPage, { root: rootSelector });
+    const info = await page.evaluate(inspectInPage, { root: rootSelector, danger: DANGER_SELECTOR });
     const visible = info.error ? null : info.lists.filter((l) => !l.hidden).map((l) => l.view);
     const keys = info.error ? null : info.lists.map((l) => l.keys);
     const marks = info.error ? null : info.lists.map((l) => l.hosts.map((h) => h.mark));

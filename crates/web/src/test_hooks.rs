@@ -6,7 +6,7 @@
 //! `debug_request_complete` は、配信と同じ配送の口（`set_timeout` → `dispatch_action`）で補完を届けるだけである。
 //! `debug_storage_open` と `debug_storage_write` は、試験用の保存先（`STORAGE`）を開く・書くだけで、画面の状態には触れない。
 //! `debug_view_fixture_mount` と `debug_view_fixture_dispatch` は、`#app` の外の別の root に代役の部品（`view_fixture`）を
-//! マウントして action を届けるだけで、本体の画面の状態には触れない。`debug_view_fixture_state` は読み取りのみ。
+//! マウントして action（`fixture_select`・`fixture_phase`・項目の外の部品を出し入れする `fixture_control`）を届けるだけで、本体の画面の状態には触れない。`debug_view_fixture_state` は読み取りのみ。
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
