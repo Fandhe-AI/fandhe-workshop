@@ -1,8 +1,8 @@
-//! 左の成果物エリアのアプリのデモのワイヤーのビュー、変種 (a)（TASK-479 1/2）。ART-1・ART-17。
+//! 左の成果物エリアのアプリのデモのワイヤーのビュー、変種 (a)・(b)（TASK-479）。ART-1・ART-17。
 //!
 //! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
 //! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則も未決のためである
-//! （TASK-470・TASK-347 の後続）。変種 (b)（`headless-ui`）は TASK-479 2/2 の担当で、ここでは扱わない。
+//! （TASK-470・TASK-347 の後続）。
 //!
 //! # 固定するもの
 //!
@@ -27,24 +27,57 @@
 //! - 状態は文字でも示し、色に頼らない。状態が変わった行は、行単位の「変更」の印だけで示し、欄ごとの印は持たない（ART-17）
 //! - `wireframe_css()` は呼ばない。固定のライト配色の CSS の配信は TASK-490 の担当である
 //!
+//! # 変種 (b)
+//!
+//! 項目の根は `marked_item("li", Variant::B, ..)` で、印の宿主は項目自身である。子は行の種類ごとに 1 要素（項目は 2 要素）で、
+//! 種類は項目ごとに固定なので前後で形は変わらない。
+//!
+//! - 見出し: `p`。タブ: `span`（[`APP_DEMO_TAB_TESTID`]）。ボタン: `button`（`type=button`）
+//! - 欄: `headless-ui` の `field::root` > `field::label` + `field::input`（読み取り専用。`value` は空でも必ず出す）
+//! - 項目: ラベルの `span` と補足の `span`（[`APP_DEMO_ITEM_LABEL_TESTID`]・[`APP_DEMO_ITEM_DETAIL_TESTID`]）
+//! - 上記以外の種類は、ラベルを `p` の文字として出すだけにする（fail-closed）
+//! - `role`・`aria-*` は 1 つも出さない。spec は自作の `role=tab`・`role=listitem` と親の `role=tablist` を挙げるが、
+//!   a11y の契約（版 2）では `tablist` はページに 1 個（`pane-tabs`）で、`tab` は `pane-tab` の予約 id と `aria-controls` を
+//!   要し、`listitem` は閉じた一覧に無いため、付けると適合試験の違反になる。意味は `ul`・`li`・`button` の暗黙の役割で保つ。
+//!   契約の版 3 に足すかは spec 側の確認事項である（判断は `docs/testing.md`）
+//! - 選択中・無効は文字（[`WireState::text`]）で示し、`aria-selected`・`disabled` は出さない（`disabled` は同じ key の
+//!   項目の属性名の集合を前後で変えるため）
+//! - 欄の `id` は `app-demo-field-{行の添字}` で、行の識別子（信頼できない値）から作らない。予約 id（`pane-*`）と衝突しない
+//!
 //! # 信頼境界
 //!
 //! ラベル・補足・状態は教材由来で信頼できない。`text()` の文字のノードにだけ入れ、`render` の既定のエスケープを通す
 //! （SAFE-11）。属性・class に入るのは閉じた集合の `&'static str`（`data-kind` と部品の class）だけで、`data-state` は作らない。
 //! 状態の文字も教材の値ではなく [`WireState::text`] の固定の文字列である。
+//!
+//! 唯一の例外が変種 (b) の欄の `input` の `value`（= 補足）である。属性名は固定、`render` の既定のエスケープを通る、
+//! URL・イベントハンドラの属性ではない、の 3 点から許容し、エスケープの試験で確かめる。
 
-use fandhe_frontend_core::Node;
+use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_headless_ui::field::{self, FieldIds, FieldProps};
 use fandhe_frontend_wireframe_ui::{
     button, card_basic, input, rich_text, tag, text as wire_text, Active, Bold, Disabled,
     Orientation, Primary, Size,
 };
 
+use crate::a11y::TESTID_ATTR;
 use crate::artifact_mark::marked_item;
 use crate::artifact_view::{view_list, Cell, ItemRow, Phase, RowKind, Variant, ViewKind};
 use crate::list_policy::ListError;
 
 /// 欄の補足（入力済みの文字）が空のときに出す固定の文字。
 pub const EMPTY_FIELD_TEXT: &str = "（未入力）";
+
+/// 変種 (b) のタブの `span` の `data-testid`。
+pub const APP_DEMO_TAB_TESTID: &str = "app-demo-tab";
+/// 変種 (b) の項目のラベルの `data-testid`。
+pub const APP_DEMO_ITEM_LABEL_TESTID: &str = "app-demo-item-label";
+/// 変種 (b) の項目の補足の `data-testid`。
+pub const APP_DEMO_ITEM_DETAIL_TESTID: &str = "app-demo-item-detail";
+/// 変種 (b) の見出しの `p` の class。
+pub const APP_DEMO_HEADING_CLASS: &str = "app-demo-heading";
+/// 変種 (b) の欄の `id` の接頭辞。予約 id（`pane-tab-*`・`pane-*`）と衝突しない。
+pub const APP_DEMO_FIELD_ID_PREFIX: &str = "app-demo-field-";
 
 /// 部品の状態の閉じた語彙。
 ///
@@ -186,4 +219,111 @@ pub fn app_demo_list(
     items: Vec<(String, Node)>,
 ) -> Result<Node, ListError> {
     view_list(tag, ViewKind::AppDemo, selected, items)
+}
+
+/// 変種 (b) の欄。読み取り専用で、`value` は空でも必ず出す（属性名の集合を前後で変えない）。
+fn field_b(cell: &Cell, index: usize) -> Node {
+    let id = format!("{APP_DEMO_FIELD_ID_PREFIX}{index}");
+    let props = FieldProps {
+        id: id.as_str(),
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: true,
+        has_helper_text: false,
+    };
+    field::root(
+        &props,
+        vec![],
+        vec![
+            field::label(&props, vec![], vec![text(cell.label.as_str())]),
+            field::input(
+                &props,
+                vec![
+                    ("type", "text"),
+                    ("value", cell.detail.as_str()),
+                    ("placeholder", EMPTY_FIELD_TEXT),
+                ],
+            ),
+        ],
+    )
+}
+
+/// 変種 (b) の中身。行の種類ごとに子の数と種別を固定する。
+fn content_b(kind: RowKind, cell: &Cell, index: usize) -> Vec<Node> {
+    let state = WireState::parse(cell.state.as_str());
+    match kind {
+        RowKind::Heading => vec![el(
+            "p",
+            vec![("class", APP_DEMO_HEADING_CLASS)],
+            vec![text(cell.label.as_str())],
+        )],
+        RowKind::Tab => vec![el(
+            "span",
+            vec![(TESTID_ATTR, APP_DEMO_TAB_TESTID)],
+            vec![text(with_state(cell.label.as_str(), state).as_str())],
+        )],
+        RowKind::Field => vec![field_b(cell, index)],
+        RowKind::Button => vec![el(
+            "button",
+            vec![("type", "button")],
+            vec![text(with_state(cell.label.as_str(), state).as_str())],
+        )],
+        RowKind::Item => vec![
+            el(
+                "span",
+                vec![(TESTID_ATTR, APP_DEMO_ITEM_LABEL_TESTID)],
+                vec![text(cell.label.as_str())],
+            ),
+            el(
+                "span",
+                vec![(TESTID_ATTR, APP_DEMO_ITEM_DETAIL_TESTID)],
+                vec![text(cell.detail.as_str())],
+            ),
+        ],
+        RowKind::Text
+        | RowKind::Dir
+        | RowKind::File
+        | RowKind::Hunk
+        | RowKind::Line
+        | RowKind::Task
+        | RowKind::Card
+        | RowKind::Check
+        | RowKind::Block => vec![el("p", vec![], vec![text(cell.label.as_str())])],
+    }
+}
+
+/// 変種 (b) の行 1 件を作る。その状態で出ない行は `None`。`index` は行の並びの添字（欄の `id` に使う）。
+#[must_use]
+pub fn app_demo_item_b(row: &ItemRow, index: usize, phase: Phase) -> Option<Node> {
+    let shown = row.shown(phase)?;
+    Some(marked_item(
+        "li",
+        Variant::B,
+        shown.mark,
+        Some(row.depth()),
+        vec![("data-kind", row.kind().as_str())],
+        content_b(row.kind(), shown.content, index),
+    ))
+}
+
+/// 行の並びから、変種 (b) のその状態で出る項目の `(key, 要素)` を入力の順に返す。
+#[must_use]
+pub fn app_demo_items_b(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+    rows.iter()
+        .enumerate()
+        .filter_map(|(i, row)| {
+            app_demo_item_b(row, i, phase).map(|n| (format!("k{}", row.id().as_str()), n))
+        })
+        .collect()
+}
+
+/// 変種に応じた項目を返す。呼び出し元（`view_fixture`）の振り分けを一か所にまとめる。
+#[must_use]
+pub fn app_demo_items(rows: &[ItemRow], phase: Phase, variant: Variant) -> Vec<(String, Node)> {
+    match variant {
+        Variant::A => app_demo_items_a(rows, phase),
+        Variant::B => app_demo_items_b(rows, phase),
+    }
 }

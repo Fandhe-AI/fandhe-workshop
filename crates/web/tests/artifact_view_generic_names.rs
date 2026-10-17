@@ -6,7 +6,10 @@
 use std::fs;
 use std::path::Path;
 
-use fandhe_workshop_web::app_demo_view::{WireState, EMPTY_FIELD_TEXT};
+use fandhe_workshop_web::app_demo_view::{
+    WireState, APP_DEMO_FIELD_ID_PREFIX, APP_DEMO_HEADING_CLASS, APP_DEMO_ITEM_DETAIL_TESTID,
+    APP_DEMO_ITEM_LABEL_TESTID, APP_DEMO_TAB_TESTID, EMPTY_FIELD_TEXT,
+};
 use fandhe_workshop_web::artifact_view::{
     RowKind, Variant, ViewKind, ACTION_ATTR, HIDDEN_ATTR, PAYLOAD_ATTR, POINTABLE_TABINDEX,
     POINT_ACTION, ROW_ATTR, TABINDEX_ATTR, VIEW_ATTR, VIEW_LIST_TESTID,
@@ -180,6 +183,13 @@ fn 綴りに固有の語が無い() {
                 .iter()
                 .flat_map(|c| [c.text(), c.label(), c.glyph()]),
         )
+        .chain([
+            APP_DEMO_FIELD_ID_PREFIX,
+            APP_DEMO_HEADING_CLASS,
+            APP_DEMO_ITEM_DETAIL_TESTID,
+            APP_DEMO_ITEM_LABEL_TESTID,
+            APP_DEMO_TAB_TESTID,
+        ])
         .chain([
             CHECK_LABEL_TESTID,
             CHECK_DETAIL_TESTID,

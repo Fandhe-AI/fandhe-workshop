@@ -3357,6 +3357,34 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 - ブラウザの試験: `app-demo-view`・`artifact-view-check`・`artifact-mark-toggle`・`artifact-view-controls`・`view-switch`・`card-view`・`check-view` の 85 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
 - 範囲外: (b)（`headless-ui` の `field`・`role=tab`・`tablist`）は TASK-479 2/2、指せる行の属性は TASK-480、模擬ログインの中身は TASK-492、配色と `wireframe_css()` は TASK-490、領域ごとの配置は ART-23、製品の結線、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）
 
+### 5.110 アプリのデモのワイヤーの変種 (b) と tablist の属性（TASK-479 2/2）
+
+アプリのデモのワイヤーを (b)（`headless-ui` の `field` による読み取り専用の欄と、自作の `span`・`button`）で描く本体を `crates/web/src/app_demo_view.rs` に足し、代役の部品（`view_fixture`）の `(app_demo, b)` をこれに回した。これでアプリのデモの (a)・(b) とも本体を通る。
+
+- 受入: 項目数（前 8・後 9）と印の数（後は追加 1・削除 0・変更 3・印なし 5）が期待値と一致する。`tablist` の属性は TASK-366 の契約（版 2）の適合試験と食い違わない（ページの `tablist` は `pane-tabs` の 1 個、`tab` は `pane-tab` の 2 個のまま）。9 行の規模は試験データ `appdemo.json` の後の状態がちょうど 9 行であるため、新しい規模のデータは作らない
+- 判断 1（spec からの逸脱。spec 側の確認事項）: (b) は `role`・`aria-*` を 1 つも出さない。spec は自作の `role=tab`・`role=listitem` と親の `role=tablist` を挙げるが、契約（版 2）では、親の `tablist` は `check_complete` の数（ちょうど 1）を崩し、`role=tab` は `pane-tab` の testid・予約 id・`aria-controls` を要し、`aria-selected` は tab 以外で違反、`listitem` は閉じた一覧に無い。契約を変えるには spec を先に直して `A11Y_CONTRACT_VERSION` を上げる必要があるため、ここでは変えない。意味は `ul`・`li`・`button` の暗黙の役割で保つ。試作も PoC-12 の A5 でアプリのデモの親を `tablist` から外した。契約の版 3 に `tab`・`listitem` を足すかは spec 側の確認事項である。「`tablist` の属性を契約に合わせる」は、ページの `tablist` を 1 個のままにして適合試験が通ることと読んだ
+- 判断 2: 選択中・無効は文字（`（選択中）`・`（無効）`・`（不明）`）で示し、`aria-selected`・`disabled` は出さない。`disabled` を状態から出すと、試験データの `a-add`（前 `disabled`・後 空）で同じ key の項目の属性名の集合が前後で変わる。見出しは `h1`〜`h6` を使わず `p` にする（ページの見出しの構成を変えないため）
+- 判断 3: 欄の `id` は `app-demo-field-{行の並びの添字}` で、行の識別子（信頼できない値）から作らない。予約 id（`pane-tab-*`・`pane-*`）と衝突しない。`value` は空でも必ず出す
+- 判断 4（信頼境界の例外）: 教材由来の文字列が文字のノードの外に出るのは欄の `input` の `value`（補足）だけである。属性名は固定、`render` の既定のエスケープを通る、URL・イベントハンドラの属性ではない、の 3 点から許容し、エスケープの試験で確かめる
+- 判断 5: 操作対象の大きさ（A11Y-3・ART-10）。ブラウザで測ると `button` は 94x24、`input` は 185x21 で、`input` の高さが 24 未満だった（2026-10-17）。`app.css` に `[data-view="app_demo"] button, [data-view="app_demo"] input { min-height: 24px; min-width: 24px; }` の 1 規則を足した（色は足さない。TASK-490）
+- native の試験（`crates/web/tests/app_demo_view_b_contract.rs`）: 項目数と key、印の数と宿主（`li` 自身）、部品の数、形の不変（比較 8 件）、`disabled`・`aria-`・`role=`・`svg`・見出しが 0 件、状態の文字、欄の `id`・`for`・`value`、種類の外、a11y の閉じた一覧、`tablist` 1 個・`tab` 2 個の数え上げと適合試験、負の対照（親の `tablist`・`span` の `role=tab` で違反）、エスケープ（`value` を含む）、`app.css` の規則。`view_fixture` の単体試験: (b) が本体を通ること
+- ブラウザの試験（`tools/browser/app-demo-view.test.mjs`）: AD5 (b) の 2 往復の検査器、AD6 部品の数と印の宿主と数、AD7 ページの `tablist` と一覧の中の `role`、AD8 同じ `input` の `value` の更新と読み取り専用、AD9 タブの横並びと操作対象の大きさ、AD10 選び直しと外部リクエスト 0 件
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a22dc63-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART1-14.mutation 〜 ART1-16.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART1-14 | (b) の項目を変種 A の根で作る | DETECTED | `app_demo_view_b_contract` の「data_mark_は_li_自身にだけあり内側には無い」 |
+| ART1-15 | ボタンの `disabled` を状態から出す | DETECTED | 「同じ_key_の項目の形は前後で変わらない」ほか 1 件 |
+| ART1-16 | タブの `span` に `role=tab` を足す | DETECTED | 「a11y_の閉じた一覧に前後とも違反しない」ほか 2 件 |
+
+- ブラウザの試験: `app-demo-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`card-view`・`check-view` の 91 件が通過（2026-10-17。試験の設定の web で流した。`make test-browser` の全件は未検証。CI には未組み込み）
+- 範囲外: 指せる行の属性は TASK-480、模擬ログインの中身は TASK-492、配色と `wireframe_css()` は TASK-490、領域ごとの配置は ART-23、axe の対応づけは TASK-483、再描画の時間は TASK-485、値の注入の 24 通りは TASK-482、製品の結線、`make test-browser` の CI への組み込み（必須チェックと ruleset の変更が要るため、要対応事項として報告のみ）。(b) の `button`・`input` はフォーカスできるが押しても何も起きない（行を指す操作は TASK-480 との関係を後続で確かめる）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
