@@ -57,6 +57,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/learner-text.test.mjs" \
   "${ROOT_DIR}/tools/browser/enter-submit.test.mjs" \
   "${ROOT_DIR}/tools/browser/key-invariants.test.mjs" \
+  "${ROOT_DIR}/tools/browser/field-space.test.mjs" \
   "${ROOT_DIR}/tools/browser/submit-wiring.test.mjs" \
   "${ROOT_DIR}/tools/browser/tab-complete.test.mjs" \
   "${ROOT_DIR}/tools/browser/shift-tab.test.mjs" \

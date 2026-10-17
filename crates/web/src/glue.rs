@@ -376,6 +376,8 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
 /// `key_route` が持つ。`with_app` の借用は効果を求めた時点で解く。click の中で上流の Runtime が同期に
 /// `update` を呼ぶため、借用を持ったまま click すると更新が黙って失敗する。
 /// Tab の補完の `preventDefault`（JUDGE-19・D-42）も、同じリスナーが効果に従って結ぶ。
+/// 入力欄の Enter・Tab・Space の状態に依存する `preventDefault` は、属性化も上流の口も採らず glue が受け持つ
+/// （D-42。FEND-7。TASK-352 1/3）。Space は判定が `Nothing` で `preventDefault` せず、textarea の既定動作の空白の挿入に任せる。
 /// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
 fn wire_enter_submit(root: &web_sys::Element) -> Result<(), JsValue> {
     let target = root.clone();
