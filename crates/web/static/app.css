@@ -48,6 +48,33 @@
   font-weight: bold;
 }
 
+/* 差分 (b)（TASK-475）。行番号・記号・コードを 1 行に並べる。コードは pre のままにして空白を保つ。
+  クラス名は crates/web/src/diff_view.rs の定数と一致させる。色は足さない（TASK-490）。 */
+[data-view="diff"] > li {
+  display: flex;
+  align-items: baseline;
+}
+
+.df-old,
+.df-new {
+  flex: none;
+  width: 3rem;
+  text-align: right;
+  font-family: monospace;
+}
+
+.df-sign {
+  flex: none;
+  width: 1.5rem;
+  text-align: center;
+  font-family: monospace;
+}
+
+.df-code {
+  margin: 0;
+  font-family: monospace;
+}
+
 /* 印の色。意味は記号と文字でも伝えるため、色だけに頼らない。 */
 [data-mark="add"] {
   background: rgba(46, 160, 67, 0.15);

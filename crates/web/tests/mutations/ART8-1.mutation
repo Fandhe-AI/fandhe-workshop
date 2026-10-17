@@ -1,0 +1,9 @@
+id: ART8-1
+package: fandhe-workshop-web
+test: diff_view_contract
+target: crates/web/src/diff_view.rs
+find:             "pre",
+replace:             "span",
+expect-fail: コードは_pre_で_インデントの空白が文字に残る
+expect-fail: 同じ_key_の項目の形は前後で変わらず_子は_6_つ
+note: コードを pre でない要素で描く（空白が畳まれインデントを失う。ART-8・G-4）

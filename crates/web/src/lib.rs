@@ -23,6 +23,7 @@
 //! ツリーの位置の計算と木の属性（TASK-472。ART-9・ART-13）は `tree_attrs` に置く。
 //! ファイルツリーのビュー（変種 (b)。TASK-473 1/2）は `file_tree_view` に置く。
 //! タスクツリーの変種 (a)・(b) の本体（TASK-474。ART-1・A11Y-22）は `task_tree` に置く。
+//! 差分のビューの変種 (b) の本体（TASK-475 1/2。ART-1・ART-8）は `diff_view` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
@@ -42,6 +43,7 @@ pub mod artifact_mark;
 pub mod artifact_rows;
 pub mod artifact_view;
 pub mod candidates;
+pub mod diff_view;
 pub mod doc_view;
 pub mod engine_parts;
 pub mod file_tree_view;
