@@ -31,6 +31,23 @@
 .d5 { margin-left: 6.25rem; }
 .d6 { margin-left: 7.5rem; }
 
+/* タスクツリー (a) のチェックボックス。完了は ✓ の文字でも示すため、色だけに頼らない。色の水準は TASK-490 の担当。 */
+.tk-check {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  line-height: 1.1em;
+  margin-right: 0.4em;
+  text-align: center;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.tk-check[data-checked="true"] {
+  font-weight: bold;
+}
+
 /* 印の色。意味は記号と文字でも伝えるため、色だけに頼らない。 */
 [data-mark="add"] {
   background: rgba(46, 160, 67, 0.15);

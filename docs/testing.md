@@ -101,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -3075,6 +3075,31 @@ PR #1534 のレビューの指摘で、2 件を直した。どちらも直す前
 
 - ブラウザの試験: `file-tree-view`・`artifact-view-check`・`artifact-view-controls`・`artifact-mark-toggle`・`view-switch`・`tree-attrs`・`list-parent-attrs` の 71 件が通過（2026-10-17。`make test-browser` の全件ではなく、関係する 7 ファイルを試験の設定の web で流した）
 - 範囲外: 製品の結線、指せる行の属性（TASK-480）、変種 (a)（#377）、親の `aria-label`、`item`・`branch` の採用、200 件の再描画時間（TASK-485）、補足の見た目（TASK-490）
+
+### 5.100 タスクツリーの変種 (a)（TASK-474 2/2）
+
+タスクツリーの (a) を `task_tree` に足し、代役の部品（`view_fixture`）の `(task_tree, a)` もこの本体を通るようにした。(a) はチェックボックス（完了をチェック済みで示す）・状態のバッジ・深さのクラスで描き、木の意味（`role=tree`・`treeitem`）を持たない。製品の画面への結線は 5.98 と同じく後続の作業に残す。
+
+- 項目の形: `li` の中に印の宿主の `div`（深さのクラス）があり、子は印の記号・印の文字・チェック・ラベル・詳細・状態のバッジの 6 つに固定する。チェックは子が文字ノード 1 つの `span` で、完了だけ `✓`、他は空文字。未知の状態もチェックなし（完了と主張しない）
+- `fandhe-frontend-wireframe-ui` の `checkbox` は使わなかった。チェックの有無でグリフの子が増減して形が変わること、グリフの `aria-hidden` が a11y 版 2 の閉じた一覧に無いこと、依存が未導入で `wireframe_css()` の連結も未実装であることによる。採否は TASK-473 の headless-ui と合わせて決める
+- native の試験（`crates/web/tests/task_tree_contract.rs` の `a_` で始まる 6 件）: 項目数と印の数、木の意味が無いこと、チェックの数（前 1・後 3）と未知の状態、状態のバッジと文字の数、項目の形の不変、印の宿主と深さのクラス、a11y 契約・エスケープ・`app.css` の `.tk-check`
+- ブラウザの試験（`tools/browser/task-tree.test.mjs`）: P1a 検査器の deep で違反 0、P2a 前後の各状態の数え上げ（チェックの数は試料の JSON から Node 側で数えた完了の数）、C2 `data-checked` を反転する負の対照
+
+```text
+実行日: 2026-10-17
+元にしたコミット: a6b6e58-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/A11Y22-1.mutation crates/web/tests/mutations/ART9-3.mutation crates/web/tests/mutations/A11Y22-2.mutation crates/web/tests/mutations/ART9-4.mutation crates/web/tests/mutations/ART9-5.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| A11Y22-1 | 完了の状態の文字を空にする（再実行。既存の `find` が一意のまま） | DETECTED | `task_tree_contract` の 3 件 |
+| ART9-3 | 親をツリーでない種類として作る（再実行） | DETECTED | `task_tree_contract` の 2 件 |
+| A11Y22-2 | 未着手の状態の文字を空にする | DETECTED | `task_tree_contract` の 3 件 |
+| ART9-4 | (a) のチェックを常に外す | DETECTED | `task_tree_contract` の「a_完了の項目だけチェック済みで_未知の状態はチェックなし」 |
+| ART9-5 | (a) のチェックの子をチェック済みのときだけ入れ子の span にする | DETECTED | `task_tree_contract` の「a_項目の形は状態と印と前後で変わらない」 |
+
+- ブラウザ: `make test-browser` の全体（387 件）が通過（2026-10-17。CI には未組み込み）
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
