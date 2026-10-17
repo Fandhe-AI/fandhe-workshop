@@ -2466,7 +2466,7 @@ static を素の文字列の照合へ作り直した後（2026-10-17）は、`ma
 
 ### 5.86 Enter 系のキーの不変条件の基準（TASK-351 1/2）
 
-変換中でない状態の Enter・Shift+Enter・修飾キー付き Enter について、観察できる結果（keydown の `preventDefault` の有無・右のログの行・入力欄の値）を、受け持ちに依らない表として固定した（FEND-21）。受け持ちは現状の glue（D-42）。TASK-352 が受け持ちを置き換えるとき、置き換えの前後で `tools/browser/key-invariants.test.mjs` を同じ件数で通して比べる基準である。Tab・Shift+Tab の行は #346（TASK-351 2/2）が同じファイル・同じ列で足す。
+変換中でない状態の Enter・Shift+Enter・修飾キー付き Enter について、観察できる結果（keydown の `preventDefault` の有無・右のログの行・入力欄の値）を、受け持ちに依らない表として固定した（FEND-21）。受け持ちは現状の glue（D-42）。TASK-352 が受け持ちを置き換えるとき、置き換えの前後で `tools/browser/key-invariants.test.mjs` を同じ件数で通して比べる基準である。Tab・Shift+Tab の行は 5.86b（TASK-351 2/2）で同じファイルに足した。
 
 - 観察の方法: 配信設定（`TEST_HOOKS` なし）だけを使い、内部の印（`__fandheTest`・`data-action-keydown`）は読まない。入力は信頼入力（`page.keyboard.press`）。`preventDefault` は、`window` の捕捉の段で入力欄が対象の keydown の Event を保持し、押した後にその `defaultPrevented` を読む（誰がどの段で呼んでも観察できる）。押した 1 回につき Enter の keydown がちょうど 1 件であることも確かめる
 - 表の列: `id`・`press`・`draft`・`prevented`・`lines`・`value`。各行は新しいページで実行する。ENTER-TEXT は送信後の空化（TASK-438）を待ってから欄の値を確かめる。送信が無い行は、タイマーを 2 回挟んだ後で 0 件を確かめる
@@ -2505,6 +2505,54 @@ static を素の文字列の照合へ作り直した後（2026-10-17）は、`ma
 | `key_route.rs` の `Newline` を送信（click と `preventDefault`）に変える（JUDGE13-1 相当） | SHIFT-ENTER-TEXT・SHIFT-ENTER-EMPTY の 2 件が失敗 |
 
 残る限界: Playwright の `keyboard.press` は、Shift 以外の修飾キーを押している間は text を送らない。修飾キー付き Enter の OS ごとの差（とくに Windows）は D-48 で別に扱う。変換中の Enter は対象外（`ime-input`・`enter-submit` の担当）。
+
+### 5.86b Tab 系のキーの不変条件の基準（TASK-351 2/2）
+
+Tab・Shift+Tab について、keydown の `preventDefault` の有無・ログの行・欄の値・押した後のフォーカス先を、5.86 と同じファイル `tools/browser/key-invariants.test.mjs` の表に 8 行足した（FEND-21）。Tab は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` され、それ以外では呼ばれない。Shift+Tab は常に `preventDefault` されない（JUDGE-19）。受け持ちは現状の glue（D-42）。TASK-352 は、置き換えの前後でこのファイルを同じ件数（20 件）で通して比べる。
+
+- 観察の方法の差分: 配信設定は IR を読まず候補の一覧が常に閉じるため、一覧が開いている行（TAB-OPEN・SHIFT-TAB-OPEN）と、一覧が閉じたままの `/zzz`・`/help` の行は試験の設定（`TEST_HOOKS=1`。埋め込み教材 `min-3step`）で観察する。基準を 1 ファイルに置き、置き換えの前後で件数を比べるためである。内部の印（`__fandheTest`・`data-action-keydown`）を読まない原則は保ち、DOM と捕捉した Event の `defaultPrevented` だけで観察する。入力は `FANDHE_WEB_DIR` と `FANDHE_WEB_TEST_DIR` の両方で、どちらかが未設定・不在なら skip でなく失敗にする
+- 列の追加（Enter の 11 行にも付与した）: `web`（`delivery` か `test`）・`open`（押す前の一覧の開閉。前提として照合する）・`key`（捕捉する `KeyboardEvent.key`）・`focus`（押した後の `document.activeElement` の `data-testid`。`body` は `BODY`）。ログの行は「押す前の行 + `lines` = 押した後の行」で照合する。欄の値が変わる行は `waitForFunction` で待つ（Tab の補完は `set_timeout(0)` を 2 段通る）
+- Enter の 11 行の `focus` は全行 `draft-input` で、事前の見込みと一致した
+
+| id | web | 一覧（前提） | キー | 下書き | preventDefault | ログの行 | 欄の値 | フォーカス先 |
+|---|---|---|---|---|---|---|---|---|
+| TAB-TEXT | 配信 | 閉 | Tab | `x` | なし | なし | `x` | `submit-input` |
+| TAB-EMPTY | 配信 | 閉 | Tab | 空 | なし | なし | 空 | `submit-input` |
+| SHIFT-TAB-TEXT | 配信 | 閉 | Shift+Tab | `x` | なし | なし | `x` | `BODY` |
+| SHIFT-TAB-EMPTY | 配信 | 閉 | Shift+Tab | 空 | なし | なし | 空 | `BODY` |
+| TAB-OPEN | 試験 | 開 | Tab | `/he` | あり | なし | `/help` | `draft-input` |
+| SHIFT-TAB-OPEN | 試験 | 開 | Shift+Tab | `/he` | なし | なし | `/he` | `keydown-probe` |
+| TAB-NOMATCH | 試験 | 閉 | Tab | `/zzz` | なし | なし | `/zzz` | `submit-input` |
+| TAB-EXACT | 試験 | 閉 | Tab | `/help` | なし | なし | `/help` | `submit-input` |
+
+現状で観察した値は、事前の見込み（`decide` と既存の試験）と全行で一致した。食い違いは無い。SHIFT-TAB-OPEN のフォーカス先 `keydown-probe` は、試験の設定にだけある入力欄の前の要素で、配信設定では `BODY` へ出る（SHIFT-TAB-TEXT）。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 669ab6e-dirty
+コマンド: node --test tools/browser/key-invariants.test.mjs（単独で 3 回）・make test-browser（1 回）
+```
+
+| 実行 | 結果 |
+|---|---|
+| `key-invariants.test.mjs` 単独 3 回 | 3 回とも 20 件（表 19 行 + 行数の照合 1 件）がすべて通過 |
+| `make test-browser` 1 回 | 339 件がすべて通過（5.86 の 331 件から 8 件増。ローカルの計測。CI には未組み込み） |
+
+負の対照（製品コードを一時的に変えて試験の設定を再ビルドし、単独で実行した。変更は戻し、コミットしていない）。
+
+| 変更 | 結果 |
+|---|---|
+| `key_route.rs` の `KeyAction::Complete` を `KeydownEffect::NONE` にする（JUDGE19-2 相当） | TAB-OPEN の 1 件が失敗 |
+| `key_decide.rs` の Tab の条件から `!input.shift` を外す（JUDGE19-3 相当） | SHIFT-TAB-OPEN の 1 件が失敗 |
+
+TASK-352 の比較対象の件数（2026-10-17、`669ab6e` に本変更を加えた状態の単独実行）: `key-invariants` 20 件、`tab-cycle` 11 件、`tab-complete` 4 件、`shift-tab` 6 件、`candidates` 18 件。
+
+残る限界:
+
+- 一覧が開いていて欄が空の組み合わせは画面から作れない（空にすると一覧は閉じる）。contract の `key_decide_contract`（JUDGE19-1）が固定している
+- Esc で閉じた後に文字が残る状態の Tab は、2 回押す操作になり 1 行 1 押下の表に収まらない。`candidates`（K-06）の担当
+- Tab の一巡・罠 0 件は `tab-cycle` の担当。修飾キー付き Tab は対象外
+- OS ごとの差（とくに Windows）は D-48 で別に扱う
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
