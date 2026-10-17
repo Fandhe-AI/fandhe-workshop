@@ -121,7 +121,7 @@ pub fn mount_with_history(root_id: &str) -> js_sys::Promise {
     })
 }
 
-/// mount するホスト。試験の設定だけ、起動の前に URL のクエリ（`?fixture=reload-points` の完全一致）で教材を選ぶ（TASK-319 3/3）。
+/// mount するホスト。試験の設定だけ、起動の前に URL のクエリ（`?fixture=reload-points`・`?fixture=no-input` の完全一致）で教材を選ぶ（TASK-319 3/3）。
 ///
 /// 起動の分岐（`boot`）と保存先の鍵（`pack.id`）は選んだ教材で決まるため、選択は必ず起動の前に行う。
 /// 配信する設定では選択の経路を持たない（クエリを読む処理は試験の口の `test_hooks.rs` にだけ置き、`tick_interval` の試験が配信する経路に URL の読み取りが無いことを固定している）。

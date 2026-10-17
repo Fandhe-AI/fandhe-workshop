@@ -18,7 +18,7 @@
 //! 入力方式 `choice` の入力待ち（TASK-450 1/3）: 宣言の選択肢を同じ口（`choice-btn`）で出す。出す条件は
 //! 「現在の Step がある・処理中でない・`Entered`・宣言が読めて `check()` に通る」で、選択肢は core の
 //! `select_judge::choice_options` だけから得る（web は宣言の JSON を読まない）。欠けたら空にする（fail-closed）。
-//! 入力欄・送信は Step の入力方式では出し入れしない（教材全体の `input_field` の設定が決める。TASK-450 2/3）。
+//! 入力欄・送信は Step の入力方式では出し入れしない（教材全体の `input_field` の設定が決め、描くのは `hello::HelloView`、設定を渡すのは `host`。TASK-450 2/3）。
 //!
 //! 範囲の境界: 入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
 //! ため、親の `ul` には `data-testid` を付けない。

@@ -1,0 +1,8 @@
+id: TERM23-4
+package: fandhe-workshop-web
+test: input_field_hidden
+target: crates/web/src/host.rs
+find:                 if !self.input.shows_input_area() => {}
+replace:                 if false => {}
+expect-fail: 入力欄なしでは下書き_送信_補完が状態を変えない
+note: 入力欄なしの教材でも下書き・送信・補完を受け付ける（fail-closed を外す。PACK-20）

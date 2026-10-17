@@ -11,7 +11,7 @@
 //   - 危険な要素・実行・CSP 違反・ダイアログが 0 件である
 //
 // 確かめないこと:
-//   - 入力欄を出さない設定（`input_field: hidden`）の表示は TASK-450 2/3、CH-0〜CH-3 の通しとキーボードだけでの完走は TASK-450 3/3
+//   - 入力欄を出さない設定（`input_field: hidden`）の表示は `input-field-hidden.test.mjs`（TASK-450 2/3）、CH-0〜CH-3 の通しとキーボードだけでの完走は TASK-450 3/3
 //   - 確認の point_at の行のクリックは keyboard-confirm.test.mjs と reload-points.test.mjs が受け持つため、ここでは `raw-trigger` で送る
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。

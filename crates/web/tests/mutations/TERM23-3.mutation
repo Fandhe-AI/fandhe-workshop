@@ -1,0 +1,8 @@
+id: TERM23-3
+package: fandhe-workshop-web
+test: input_field_hidden
+target: crates/web/src/hello.rs
+find:         let shows_input = self.shows_input_area();
+replace:         let shows_input = true;
+expect-fail: 入力欄なしの教材では入力欄_送信_候補が0件で停止は出る
+note: 入力欄なしの設定を表示に反映せず、入力欄・候補の一覧・送信を出す（PACK-20。TERM-23）
