@@ -101,7 +101,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -1703,6 +1703,39 @@ FEND4-3 は、配信する設定の画面に、進行の宛先を `data-payload`
 |---|---|---|---|---|---|
 | FEND4-3 | crates/web/src/host.rs: 配信する設定に、進行の宛先を data-payload で届ける隠し要素が入る（FEND-4 が禁じる経路） | 実ソースは違反なし | 実ソースは違反なし | DETECTED | - |
 
+### 5.83 負の対照と教材固有の語の検査（TASK-471 3/3）
+
+TASK-471 の残りの 2 つを足した。検査器（5.77）が差を見つけられることの負の対照 3 種と、エンジンの crate に教材固有の語が無いことの検査（W-22）である。
+
+#### 検査器の拡張
+
+`tools/browser/artifact-view-check.mjs` に 2 つの検査を足した。PoC-8 が危険な要素を数えた選択子の写し（`DANGER_SELECTOR`）で root の下を数え、0 でなければ違反にする。root 直下の部品の根が前後で同じ要素であることも比べる（全再描画を、行の置換とは別の違反として名指しするため）。
+
+#### 負の対照 3 種（`tools/browser/artifact-view-controls.test.mjs`）
+
+どれも「変えない側は違反 0、変えた側は特定の違反」の対で主張し、違反は固定の文言で特定する。
+
+| ID | 対照 | 期待 |
+|---|---|---|
+| N1 | 後の状態で、印の記号・文字・`data-mark` のどれか 1 つを消す（3 通りを別の試験にする） | `glyph/text/data-mark do not correspond` |
+| N2 | 代役の部品に `fixture_control` で項目の外の部品を足す（束縛の無い dirty field により、上流は全再描画に倒れる） | 行の置換と根の置換の違反。保持の数がすべて 0。部品を項目の中に戻した対は違反 0 |
+| N3a | escape の行の文字列を、不活性の文書で `innerHTML` と `textContent` に入れて数える | `innerHTML` は目で数えた件数（14 文字列で 1・1・0・1・1・0・1・1・0 …、合計 6）、`textContent` は 0。`window.__escape_hit` は未定義のまま |
+| N3b | 後の状態で、ラベルへ `innerHTML` で `img`・`iframe`・`javascript:` の `a` を入れる | `dangerous elements or attributes are present` |
+
+`fixture_control` は `view_fixture.rs`（試験の設定だけ）にあり、配信物には入らない。24 通り（6 ビュー × 2 変種 × 前後）で escape の行を実際に流す正の試験は、代役の部品が sample の JSON しか持たないため ART-6 の担当に残す。
+
+#### 教材固有の語の検査（`tools/check-generic-words.mjs`）
+
+- 語の一覧の正は `docs/vocabulary/vocabulary.md` の付録 A で、検査は写さずに読む（既存の 2 試験と同じ照合の規則）。付録 A が読めない・0 語・未知の照合の値は終了コード 2 で、合格にしない
+- 対象は `crates/*/src/**` の `.rs`、`crates/*/static/**` の `.js`・`.html`・`.svg`・`.css`、`crates/*/Cargo.toml`。コメントを除き、識別子と文字列リテラルの字句を照合する。`crates/*/tests/**` は、教材を模した試験データを意図的に持つため対象外にした
+- 閉じない文字列・コメント、シンボリックリンクは終了コード 2 にする
+- 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）
+- 回帰テスト（`make test-check-generic-words`）は、実 repo で 0、語を足した写しで 1、コメント・`tests/` の語は 0、例外の件数の増減で 1、判定できない入力で 2 を確かめる
+
+CI・`make check`・lefthook には組み込んでいない。失敗したら止めるガードを足すことは、仕様が人間の承認点に挙げている変更だからである。組み込むときは `ci.yml` の変更と、ruleset の必須チェックの更新が要る。
+
+実行結果（2026-10-17）。`make test-browser` は 314 件中 312 件が通過し、2 件（`ime-input` の「送信の直後に変換が始まっても…」。CSP あり・なし）が 30 秒のタイムアウトで失敗した。本変更と無関係な試験で、個別に流し直すと 23 件すべてが通過した（負荷による揺れと見られる。原因は未調査）。新しい試験（N1〜N3b の 12 件と、検査器の自己確認 T1〜T4）は通過した。`make test-check-generic-words`（17 件）・`make check-generic-words`・`make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` も通過した。`make check-delivery` は流していない（未検証）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -2304,7 +2337,7 @@ PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tool
 そのため本節の合格は検査器の枠が動くことの証拠で、各ビューの合格ではない（ビューごとの証拠は TASK-473 以降）。
 
 空振りでないことは、自己確認（`artifact-view-check.test.mjs`）の T4 で示した。マウントしない空の画面と存在しない root では違反が出る。
-負の対照 3 種（印を消す・部品を項目の外に置く・`innerHTML`）と教材固有の語の検査は TASK-471 3/3 が持つ（5.81）。
+負の対照 3 種（印を消す・部品を項目の外に置く・`innerHTML`）と教材固有の語の検査は TASK-471 3/3 が持つ（5.83）。
 
 `make test-browser` は 158 件が通過した（2026-10-16。新しい試験は 21 件）。`make test`・`make lint`・`make check`・`make check-deps`・`make check-dom-reads` も通過した。
 配信設定（`make build-web`）は `make check-delivery` を通り、wasm に `memo-app`・`view-fixture` の文字列が 0 件であることを `grep` で確かめた。
@@ -2385,35 +2418,45 @@ P-9 は、配信設定の web がコマンド表を持たず一覧が常に閉�
 | JUDGE17-4 | crates/web/src/key_route.rs: 取り消しの入力がエンジンへ届かない | DETECTED（流し直し） |
 | JUDGE18-2 | crates/web/src/key_route.rs: 1 回目の Esc の後も候補が開いたまま | DETECTED（流し直し） |
 
-### 5.81 負の対照と教材固有の語の検査（TASK-471 3/3）
+### 5.81 入れ子の実体の根（#1413）
 
-TASK-471 の残りの 2 つを足した。検査器（5.77）が差を見つけられることの負の対照 3 種と、エンジンの crate に教材固有の語が無いことの検査（W-22）である。
+MOD-4・TASK-236 の「最初の `/` まで」と、実装の「最後の `/` より前（`Instance.id`・`Node.scope`）」は、入れ子の実体（`impl-run@round1/merge-gate@gate/st-7-4`）でだけ食い違う。文言の出所は入れ子の無い PoC-4 の試作で、入れ子を意識して決めた記録は見つからなかった（2026-10-17）。実装は語彙 v1 の 9 節（フラグなどは実体ごと）・`Root` の文書・pack の展開と合うため変えず、入れ子の実体で根が `Instance.id` になることを試験で固定した。仕様側の決定は未了で、人が spec のリポジトリで決める（`docs/engine-api.md` の 6 節）。
 
-#### 検査器の拡張
-
-`tools/browser/artifact-view-check.mjs` に 2 つの検査を足した。PoC-8 が危険な要素を数えた選択子の写し（`DANGER_SELECTOR`）で root の下を数え、0 でなければ違反にする。root 直下の部品の根が前後で同じ要素であることも比べる（全再描画を、行の置換とは別の違反として名指しするため）。
-
-#### 負の対照 3 種（`tools/browser/artifact-view-controls.test.mjs`）
-
-どれも「変えない側は違反 0、変えた側は特定の違反」の対で主張し、違反は固定の文言で特定する。
-
-| ID | 対照 | 期待 |
+| 層 | 試験 | 確かめること |
 |---|---|---|
-| N1 | 後の状態で、印の記号・文字・`data-mark` のどれか 1 つを消す（3 通りを別の試験にする） | `glyph/text/data-mark do not correspond` |
-| N2 | 代役の部品に `fixture_control` で項目の外の部品を足す（束縛の無い dirty field により、上流は全再描画に倒れる） | 行の置換と根の置換の違反。保持の数がすべて 0。部品を項目の中に戻した対は違反 0 |
-| N3a | escape の行の文字列を、不活性の文書で `innerHTML` と `textContent` に入れて数える | `innerHTML` は目で数えた件数（14 文字列で 1・1・0・1・1・0・1・1・0 …、合計 6）、`textContent` は 0。`window.__escape_hit` は未定義のまま |
-| N3b | 後の状態で、ラベルへ `innerHTML` で `img`・`iframe`・`javascript:` の `a` を入れる | `dangerous elements or attributes are present` |
+| native | `crates/core/tests/history_envelope_build.rs` | 入れ子の実体・親・別の周回の下書きが別々の鍵に入ること。入れ子の送信がその実体の鍵だけを除くこと。期待の根は文字列で直に書く |
+| native | `crates/core/tests/session_contract.rs` | testdata の IR の全ノードで `StepUid::root` が `Node.scope` と一致すること（入れ子を含む IR は testdata に無い） |
 
-`fixture_control` は `view_fixture.rs`（試験の設定だけ）にあり、配信物には入らない。24 通り（6 ビュー × 2 変種 × 前後）で escape の行を実際に流す正の試験は、代役の部品が sample の JSON しか持たないため ART-6 の担当に残す。
+```text
+実行日: 2026-10-17
+元にしたコミット: 0a3707e-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/MOD4-1.mutation crates/core/tests/mutations/SAVE24-8.mutation crates/core/tests/mutations/SAVE24-9.mutation
 
-#### 教材固有の語の検査（`tools/check-generic-words.mjs`）
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| MOD4-1 | crates/core/src/addr.rs: 根を最初の `/` までにする（MOD-4 の文言どおりの読み。入れ子の実体の下書きが親と混ざる。#1413） | nested_instance_draft_root_is_its_instance_id, nested_submit_clears_only_its_own_root | nested_instance_draft_root_is_its_instance_id, nested_submit_clears_only_its_own_root | DETECTED | - |
+| SAVE24-8 | crates/core/src/history_envelope.rs: 送信の記録の後に現在の根の下書きを写しから除かない（MOD-4・SAVE-18） | submit_clears_only_the_current_root_draft, property_ops_and_drafts_stay_in_sync | nested_submit_clears_only_its_own_root, submit_clears_only_the_current_root_draft, property_ops_and_drafts_stay_in_sync | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Draft(""), Submit("a")] |
+| SAVE24-9 | crates/core/src/history_envelope.rs: 下書きを ops に記録しても写しの drafts に書かない（SAVE-18・SAVE-24） | save24_example_shape_is_in_the_envelope, empty_draft_is_kept_as_empty_string, property_ops_and_drafts_stay_in_sync | nested_submit_clears_only_its_own_root, empty_draft_is_kept_as_empty_string, nested_instance_draft_root_is_its_instance_id, submit_clears_only_the_current_root_draft, save24_example_shape_is_in_the_envelope, whitespace_submit_changes_nothing, property_ops_and_drafts_stay_in_sync | DETECTED | cases=256 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Draft("")] |
+```
 
-- 語の一覧の正は `docs/vocabulary/vocabulary.md` の付録 A で、検査は写さずに読む（既存の 2 試験と同じ照合の規則）。付録 A が読めない・0 語・未知の照合の値は終了コード 2 で、合格にしない
-- 対象は `crates/*/src/**` の `.rs`、`crates/*/static/**` の `.js`・`.html`・`.svg`・`.css`、`crates/*/Cargo.toml`。コメントを除き、識別子と文字列リテラルの字句を照合する。`crates/*/tests/**` は、教材を模した試験データを意図的に持つため対象外にした
-- 閉じない文字列・コメント、シンボリックリンクは終了コード 2 にする
-- 例外は 2 種類で、理由をスクリプトに書いた。字句の完全一致の許可は `thread_local`（Rust 標準のマクロ）と `SlashCount`（区切り文字 `/` の個数）。件数を固定した例外は `crates/core/src/command_class.rs` の `skill` が 3 件（コマンドの種類 `skill` と付録 A の `skill` の実際の衝突。増減すると失敗する）
-- 回帰テスト（`make test-check-generic-words`）は、実 repo で 0、語を足した写しで 1、コメント・`tests/` の語は 0、例外の件数の増減で 1、判定できない入力で 2 を確かめる
+### 5.82 記録中に履歴の件数の上限を超えたときの保存の判定（#1414）
 
-CI・`make check`・lefthook には組み込んでいない。失敗したら止めるガードを足すことは、仕様が人間の承認点に挙げている変更だからである。組み込むときは `ci.yml` の変更と、ruleset の必須チェックの更新が要る。
+記録中に `ops` が `MAX_HISTORY_OPS` を超えたときの規則は、spec に無い。次を安全側の仮の規則（推論）として実装した。記録は止めず、保存は読み込めない包みを書かず（最後に読み込めた保存を残す）、書き出しは止めない。判定は `history_limit::check_save` が理由コード（`too_large`・`too_many_ops`）で返し、文面は持たない。規則の決定（D-n）と SAVE-19・SAFE-41・SAVE-24 への記録は、人が spec のリポジトリで行う（未了）。保存の経路への結線は TASK-318・TASK-319、受講者への案内は TASK-531 の後に確かめる（2026-10-17）。
 
-実行結果（2026-10-17）。`make test-browser` は 314 件中 312 件が通過し、2 件（`ime-input` の「送信の直後に変換が始まっても…」。CSP あり・なし）が 30 秒のタイムアウトで失敗した。本変更と無関係な試験で、個別に流し直すと 23 件すべてが通過した（負荷による揺れと見られる。原因は未調査）。新しい試験（N1〜N3b の 12 件と、検査器の自己確認 T1〜T4）は通過した。`make test-check-generic-words`（17 件）・`make check-generic-words`・`make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` も通過した。`make check-delivery` は流していない（未検証）。
+| 層 | 試験 | 確かめること |
+|---|---|---|
+| native | `crates/core/tests/history_limit.rs` | 20,000 件と 20,001 件の境界、大きさを先に見る順、保存の判定が読み込みの判定と一致すること、20,001 件目以降も記録が続くこと、件数の性質テスト |
+| native | `crates/core/tests/history_export.rs` | ちょうど上限の件数で `exceeds_ops_limit` が偽であること（超えても書き出しは止まらない既存の確認に足した） |
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 5631b7a-dirty
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAVE19-15.mutation crates/core/tests/mutations/SAVE19-16.mutation crates/core/tests/mutations/SAVE19-10.mutation crates/core/tests/mutations/SAVE19-11.mutation
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SAVE19-15 | crates/core/src/history_limit.rs: 件数の比較を <= から < にする（上限ちょうどの保存を断つ） | DETECTED（ops_boundary_at_and_over_limit, property_ops_boundary, save_gate_agrees_with_load_gate） |
+| SAVE19-16 | crates/core/src/history_limit.rs: 件数の検査を外す | DETECTED（ops_boundary_at_and_over_limit, property_ops_boundary, save_gate_agrees_with_load_gate） |
+| SAVE19-10 | crates/core/src/history_load.rs: 読み込みの件数の比較を >= にする（既存） | DETECTED |
+| SAVE19-11 | crates/core/src/history_load.rs: 読み込みの件数の検査を外す（既存） | DETECTED |
+```

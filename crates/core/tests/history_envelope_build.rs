@@ -127,6 +127,39 @@ fn submit_clears_only_the_current_root_draft() {
 }
 
 #[test]
+fn nested_instance_draft_root_is_its_instance_id() {
+    // 期待値の根は文字列で直に書く（`StepUid::root` で作ると自己参照になる）。
+    let mut state = at("impl-run@round1/merge-gate@gate/st-7-4");
+    let mut rec = OpsRecorder::new();
+    record_draft(&mut state, &mut rec, "child".into());
+    state.run.current = Some(StepUid("impl-run@round1/st-7-3".into()));
+    record_draft(&mut state, &mut rec, "parent".into());
+    state.run.current = Some(StepUid("impl-run@round2/merge-gate@gate/st-7-4".into()));
+    record_draft(&mut state, &mut rec, "round2".into());
+    let get = |r: &str| state.drafts.get(&Root(r.to_string())).map(String::as_str);
+    assert_eq!(state.drafts.len(), 3);
+    assert_eq!(get("impl-run@round1/merge-gate@gate"), Some("child"));
+    assert_eq!(get("impl-run@round1"), Some("parent"));
+    assert_eq!(get("impl-run@round2/merge-gate@gate"), Some("round2"));
+}
+
+#[test]
+fn nested_submit_clears_only_its_own_root() {
+    let mut state = at("impl-run@round1/st-7-3");
+    let mut rec = OpsRecorder::new();
+    record_draft(&mut state, &mut rec, "parent".into());
+    state.run.current = Some(StepUid("impl-run@round2/merge-gate@gate/st-7-4".into()));
+    record_draft(&mut state, &mut rec, "round2".into());
+    state.run.current = Some(StepUid("impl-run@round1/merge-gate@gate/st-7-4".into()));
+    record_draft(&mut state, &mut rec, "child".into());
+    assert!(record_submit(&mut state, &mut rec, "child".into()));
+    let get = |r: &str| state.drafts.get(&Root(r.to_string())).map(String::as_str);
+    assert_eq!(get("impl-run@round1/merge-gate@gate"), None);
+    assert_eq!(get("impl-run@round1"), Some("parent"));
+    assert_eq!(get("impl-run@round2/merge-gate@gate"), Some("round2"));
+}
+
+#[test]
 fn no_current_step_records_ops_only() {
     let mut state = SessionState::default();
     let mut rec = OpsRecorder::new();

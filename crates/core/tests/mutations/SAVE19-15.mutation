@@ -1,0 +1,10 @@
+id: SAVE19-15
+package: fandhe-workshop-core
+test: history_limit
+target: crates/core/src/history_limit.rs
+find:     len <= MAX_HISTORY_OPS
+replace:     len < MAX_HISTORY_OPS
+expect-fail: ops_boundary_at_and_over_limit
+expect-fail: save_gate_agrees_with_load_gate
+expect-fail: property_ops_boundary
+note: 保存の前の件数の比較を <= から < にする（上限ちょうどの保存を断つ）

@@ -101,6 +101,7 @@ fn wrong_input_pairs_are_classified_100_percent() {
         c(&m, "main/st-1", "/publish-note", W),
         c(&h, "main/st-1-4", "/advance-phase", W),
         c(&h, "main/st-1-4", "/new-idea/advance-phase", U),
+        c(&h, "main/st-1-4", "/hepl", U),
         c(&h, "main/st-1-1", "/advance-phase", W),
         c(&h, "main/st-1-3", "/advance-phase", W),
         c(&h, "main/st-1-6", "/advance-phase", W),
@@ -339,6 +340,40 @@ fn unknown_name_is_unknown_for_any_step_and_status() {
             prop_assert_eq!(r, Ok(CommandClass::Unknown));
             Ok(())
         },
+    );
+}
+
+#[test]
+fn known_name_is_never_unknown_for_any_step_and_status() {
+    for ir in [min3(), ch1()] {
+        let names: Vec<String> = ir.commands.keys().cloned().collect();
+        let uids: Vec<String> = ir.nodes.iter().map(|n| n.uid.clone()).collect();
+        check(
+            "class-known",
+            DEFAULT_CASES,
+            (0..names.len(), 0..uids.len(), status_strategy()),
+            |(ni, i, st)| {
+                let s = step(&ir, &uids[i]);
+                let r = classify(&ir, s, st, &format!("/{}", names[ni]));
+                prop_assert_ne!(r, Ok(CommandClass::Unknown));
+                Ok(())
+            },
+        );
+    }
+}
+
+#[test]
+fn known_names_in_other_steps_are_classified_by_kind() {
+    let ir = ch1();
+    let s = step(&ir, "main/st-1-4");
+    let st = StepStatus::Entered;
+    assert_eq!(
+        classify(&ir, s, st, "/advance-phase"),
+        Ok(CommandClass::WrongOrder)
+    );
+    assert_eq!(
+        classify(&ir, s, st, "/create-pr"),
+        Ok(CommandClass::NotInThisStep(CommandKind::Skill))
     );
 }
 
