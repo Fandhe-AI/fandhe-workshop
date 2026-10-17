@@ -10,8 +10,8 @@
 //! - `data-testid`（`part-log`・`part-artifact-view`・`part-review`）・束縛点の名前は、
 //!   TASK-431・TASK-467・TASK-511 が決める。ログの行の型は TASK-431 に準拠済み（`log_lines`。TASK-434）で、
 //!   識別子 `part-log*` だけが仮のまま残る（`log-list` の引き継ぎは TASK-517）。
-//! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-artifact-list`・`part-review-list`）も同じ持ち主の
-//!   仮のものである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
+//! - 親の一覧 `ul` の `data-testid`（`part-log-list`・`part-review-list`）も同じ持ち主の
+//!   仮のものである。左の成果物の親は、ビューごとに `view-list`（`artifact_view::list_attrs`）で確定済みである。親要素の属性は、上流が dirty な更新のたびに `view()` の属性列へ同期し、無い属性を消す
 //!   （FEND-15）ため、`view()` に書く。JS で後付けしない。
 //! - 状態表示 `run-status` は `LogPart` の中の仮の位置に置く（選択肢の部品は `Offers` として別に登録した）。
 //!   配置は TASK-517・TASK-438 が決める。
@@ -31,8 +31,12 @@ use fandhe_frontend_wasm_client::BoundValue;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::projection::{Mark, MarkKind};
 use fandhe_workshop_core::world::World;
+use fandhe_workshop_core::Session;
 
-use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID};
+use crate::a11y::{ChangeMark, MARK_ATTR, MARK_GLYPH_TESTID, MARK_TEXT_TESTID, TESTID_ATTR};
+use crate::artifact_view::{
+    declared_kinds, list_attrs, view_list, ViewKind, ACTION_ATTR, PAYLOAD_ATTR, VIEW_LIST_FIELDS,
+};
 use crate::host::HostModel;
 use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
@@ -41,10 +45,13 @@ use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
 use crate::terminal_area::{RUN_STATUS_TESTID, STATE_ATTR};
+use crate::view_select::{
+    declared_views, view_label, ACTION_SELECT_VIEW, SELECTED_ATTR, VIEW_SELECT_BUTTON_TESTID,
+    VIEW_SELECT_FIELD, VIEW_SELECT_TESTID,
+};
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
 const LOG_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-log-list")];
-const ARTIFACT_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-artifact-list")];
 const REVIEW_LIST_ATTRS: [(&str, &str); 1] = [("data-testid", "part-review-list")];
 
 const F_LOG: &[PartField] = &[
@@ -65,16 +72,23 @@ const F_LOG: &[PartField] = &[
         kind: FieldKind::Bound,
     },
 ];
+/// 左の成果物の束縛点。ビューごとの keyed list 7 本・選択のボタンの list・世界状態の読み終えた長さの 9 件。
 const F_ARTIFACT: &[PartField] = &[
-    PartField {
-        name: "artifact_items",
-        kind: FieldKind::KeyedList,
-    },
+    VIEW_LIST_FIELDS[0],
+    VIEW_LIST_FIELDS[1],
+    VIEW_LIST_FIELDS[2],
+    VIEW_LIST_FIELDS[3],
+    VIEW_LIST_FIELDS[4],
+    VIEW_LIST_FIELDS[5],
+    VIEW_LIST_FIELDS[6],
+    VIEW_SELECT_FIELD,
     PartField {
         name: "artifact_consumed",
         kind: FieldKind::Bound,
     },
 ];
+/// `F_ARTIFACT` の中の `artifact_consumed` の位置。
+const F_ARTIFACT_CONSUMED: usize = 8;
 const F_REVIEW: &[PartField] = &[
     PartField {
         name: "review_items",
@@ -279,6 +293,7 @@ impl DisplayPart<HostModel> for ArtifactPart {
         F_ARTIFACT
     }
     fn view(&self, model: &HostModel) -> Node {
+        let selected = model.selected_view();
         let items: Vec<(String, Node)> = artifact_rows(model.world(), model.projection().marks())
             .into_iter()
             .enumerate()
@@ -311,25 +326,85 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 (key, node)
             })
             .collect();
-        let list = keyed_view_or_notice("ul", ARTIFACT_LIST_ATTRS.to_vec(), &F_ARTIFACT[0], items);
+        // 選択のボタン。宣言が 2 種以上のときだけ出す（ART-12）。静的な子にせず keyed list に置くのは、
+        // 選択だけの更新で dirty な field を束縛点に解決するため（上流は解決できないと全再描画にする）。
+        let buttons = model
+            .session()
+            .map_or_else(Vec::new, |s| select_buttons(s, selected));
+        let select_attrs = if buttons.is_empty() {
+            vec![(TESTID_ATTR, VIEW_SELECT_TESTID), ("hidden", "")]
+        } else {
+            vec![(TESTID_ATTR, VIEW_SELECT_TESTID)]
+        };
+        let select_list = keyed_view_or_notice("ul", select_attrs, &VIEW_SELECT_FIELD, buttons);
+        // 行は選ばれたビューの list だけに入れ、他の 6 本は空で hidden にする。
+        let mut children = vec![select_list];
+        let mut rows = Some(items);
+        for kind in ViewKind::ALL {
+            let is_selected = kind == selected;
+            let items = if is_selected {
+                rows.take().unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            // 上限超過などの `Err` も同じ属性で「行 0 件の keyed list」に倒す（`data-bind-list` を保つ）。
+            let list = view_list("ul", kind, is_selected, items).unwrap_or_else(|_| {
+                keyed_view_or_notice(
+                    "ul",
+                    list_attrs(kind, is_selected),
+                    &kind.list_part_field(),
+                    Vec::new(),
+                )
+            });
+            children.push(list);
+        }
+        children.push(bind_text(
+            "span",
+            vec![("data-testid", "part-artifact-consumed")],
+            F_ARTIFACT[F_ARTIFACT_CONSUMED].name,
+            model.world_consumed().to_string(),
+        ));
         el(
             "section",
             vec![("data-testid", "part-artifact-view")],
-            vec![
-                list,
-                bind_text(
-                    "span",
-                    vec![("data-testid", "part-artifact-consumed")],
-                    F_ARTIFACT[1].name,
-                    model.world_consumed().to_string(),
-                ),
-            ],
+            children,
         )
     }
     fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
         // 世界状態の導出が読み終えたログの長さ。ログ・復習の値（Projection の consumed）と一致する。
-        (field == F_ARTIFACT[1].name).then(|| BoundValue::Text(model.world_consumed().to_string()))
+        (field == F_ARTIFACT[F_ARTIFACT_CONSUMED].name)
+            .then(|| BoundValue::Text(model.world_consumed().to_string()))
     }
+}
+
+/// 選択のボタンの項目。宣言が 2 種以上のときだけ返す。文字・属性値は閉じた集合の固定値だけ（SAFE-11）。
+fn select_buttons(session: &Session, selected: ViewKind) -> Vec<(String, Node)> {
+    let views = declared_views(session);
+    let declared = declared_kinds(&views);
+    if declared.len() < 2 {
+        return Vec::new();
+    }
+    declared
+        .iter()
+        .map(|(kind, _)| {
+            let flag = if *kind == selected { "true" } else { "false" };
+            let button = el(
+                "button",
+                vec![
+                    ("type", "button"),
+                    (TESTID_ATTR, VIEW_SELECT_BUTTON_TESTID),
+                    (ACTION_ATTR, ACTION_SELECT_VIEW),
+                    (PAYLOAD_ATTR, kind.as_str()),
+                    (SELECTED_ATTR, flag),
+                ],
+                vec![text(view_label(*kind))],
+            );
+            (
+                format!("t{}", kind.as_str()),
+                el("li", vec![], vec![button]),
+            )
+        })
+        .collect()
 }
 
 /// 復習。Step 単位の項目で、達成・省略と変化の数・経路を出す。

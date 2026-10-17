@@ -20,6 +20,7 @@
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
 //! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）・試験用の教材への差し替え（`raw` の固定の接頭辞 `load-fixture:`。TASK-445 2/2）を持つ（BUILD-27・SHELL-35）。
 //! 選択肢のクリック（`choose`）は配信する設定にも入り、`decode_action` が `Op::Input(Input::Choice)` に変える。
+//! ビューの選択（`select-view`。TASK-470）も配信する設定に入り、`decode_action` が `HostAction::SelectView` に変える。
 //! 承認のクリック（`decide`・`revise-target`。TASK-447 1/2）も同じで、`Op::Input(Input::Approval)` に変える。
 //!
 //! 履歴ファイルの読み込み（[`EngineHost::open_history`]）は、core の `load_session`（段 1〜8）が開いたときだけ `Session` を差し替える。
@@ -71,11 +72,13 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
 use crate::action::RuntimeAction;
+use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind};
 use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::tick_schedule::next_tick;
+use crate::view_select::{self, ViewChoice};
 
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
@@ -97,9 +100,18 @@ pub struct HostModel {
     /// 作れなかった拒否（文面の解決の失敗）は控えず、行を出さない（fail-closed）。
     /// 復元（`with_session`）と履歴の差し替え（`install_session`）では、ログの各判定の時点の Step・進み具合から全件を作り直す。
     judged_texts: BTreeMap<u32, String>,
+    /// 左の成果物で選んだビュー（TASK-470。`select-view`）。表示の状態で、履歴（`ops`）には記録しない。
+    /// 読み方は [`HostModel::selected_view`] が決め、別の Step・宣言に無い種類のときは読まれない。
+    view_choice: Option<ViewChoice>,
 }
 
 impl HostModel {
+    /// 左の成果物で今見せるビュー。保持した選択が今の Step のもので、今の宣言に含まれるときだけそれを返し、
+    /// それ以外は既定のビュー（宣言の先頭。`view_select::effective_view`）を返す。
+    pub fn selected_view(&self) -> ViewKind {
+        view_select::effective_view(self.session(), self.view_choice.as_ref())
+    }
+
     /// 位置 `event` の拒否の理由の文面（core の `filled_text` が返した値）。控えが無ければ `None`。
     pub fn judged_text(&self, event: u32) -> Option<&str> {
         self.judged_texts.get(&event).map(String::as_str)
@@ -133,6 +145,8 @@ pub enum HostAction {
     Input(HelloAction),
     /// core への操作。
     Engine(Op),
+    /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
+    SelectView(ViewKind),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -378,6 +392,7 @@ impl EngineHost {
                 world: World::new(),
                 world_consumed: 0,
                 judged_texts: BTreeMap::new(),
+                view_choice: None,
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -422,6 +437,7 @@ impl EngineHost {
                 world: d.world,
                 world_consumed: d.world_consumed,
                 judged_texts: d.judged_texts,
+                view_choice: None,
             },
             registry,
             input,
@@ -825,6 +841,7 @@ impl EngineHost {
         self.model.world_consumed = d.world_consumed;
         // 拒否の文面の控えはイベントの位置がキーのため、差し替え前の控えを残さず新しいログから作り直す。
         self.model.judged_texts = d.judged_texts;
+        self.model.view_choice = None;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
@@ -944,6 +961,30 @@ impl EngineHost {
             self.dirty.extend(lists);
         }
         rejected
+    }
+
+    /// ビューを選ぶ。session があり、今の Step の宣言に含まれ、今の選択と違うときだけ状態を変える。
+    /// dirty は旧と新のビューの list と選択のボタンの list である（上流が親の属性を同期する束縛点）。
+    fn select_view(&mut self, kind: ViewKind) {
+        let Some(session) = self.model.session() else {
+            return;
+        };
+        let Some(step) = session.state().run.current.clone() else {
+            return;
+        };
+        let views = view_select::declared_views(session);
+        let declared = declared_kinds(&views);
+        if !view_select::selectable(&declared).contains(&kind) {
+            return;
+        }
+        let prev = self.model.selected_view();
+        if prev == kind {
+            return;
+        }
+        self.model.view_choice = Some(ViewChoice { step, kind });
+        self.dirty
+            .extend(dirty_list_fields(Some(prev), Some(kind), false));
+        self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
     }
 
     /// 処理中の Step があるか（Esc・停止ボタンが停止を送るかの判断に使う）。
@@ -1080,6 +1121,7 @@ impl Component for EngineHost {
             HostAction::Engine(op) => {
                 self.apply_engine(op);
             }
+            HostAction::SelectView(kind) => self.select_view(kind),
             #[cfg(feature = "test-hooks")]
             HostAction::Reload => self.reload_engine(),
             #[cfg(feature = "test-hooks")]
@@ -1177,6 +1219,10 @@ impl Component for EngineHost {
             )
             .ok()
             .map(HostAction::Engine);
+        }
+        // ビューの選択（TASK-470）。payload は種類の綴りの完全一致だけ。宣言に含まれるかは `update` が照合する。
+        if name == view_select::ACTION_SELECT_VIEW {
+            return ViewKind::parse(payload).map(HostAction::SelectView);
         }
         // 選択肢のクリック（TASK-445 2/2）。payload は選択肢の ID で、照合と判定は core に任せる。空は何もしない。
         if name == crate::offers::ACTION_CHOOSE {

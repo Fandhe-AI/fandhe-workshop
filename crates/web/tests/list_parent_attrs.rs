@@ -111,19 +111,31 @@ fn 登録簿の_keyed_list_field_はどれも親要素がちょうど_1_つ描�
 
 #[test]
 fn 親の属性列は_view_に書かれ_操作の前後で変わらない() {
-    let expected = [
-        ("engine_log_rows", "part-log-list"),
-        ("artifact_items", "part-artifact-list"),
-        ("review_items", "part-review-list"),
-        ("learner_log", "log-list"),
-    ];
+    // 既定の教材はビューを宣言しないため、ファイルツリーが選ばれ、残り 6 本は hidden。選択のボタンは 0 件で hidden。
+    let mut expected: Vec<(&str, Vec<String>)> = [
+        ("engine_log_rows", vec!["data-testid=part-log-list"]),
+        ("review_items", vec!["data-testid=part-review-list"]),
+        ("learner_log", vec!["data-testid=log-list"]),
+        ("view_select", vec!["data-testid=view-select", "hidden="]),
+    ]
+    .into_iter()
+    .map(|(f, a)| (f, a.into_iter().map(str::to_owned).collect()))
+    .collect();
+    for kind in fandhe_workshop_web::artifact_view::ViewKind::ALL {
+        let mut attrs = vec![
+            "data-testid=view-list".to_owned(),
+            format!("data-view={}", kind.as_str()),
+        ];
+        if kind != fandhe_workshop_web::artifact_view::ViewKind::FileTree {
+            attrs.push("hidden=".to_owned());
+        }
+        expected.push((kind.list_field(), attrs));
+    }
     let check = |host: &EngineHost| {
         let html = render_component_html(host);
-        for (field, testid) in expected {
-            let mut want = vec![
-                format!("data-bind-list={field}"),
-                format!("data-testid={testid}"),
-            ];
+        for (field, attrs) in &expected {
+            let mut want: Vec<String> = attrs.clone();
+            want.push(format!("data-bind-list={field}"));
             want.sort();
             assert_eq!(parent_attrs(&html, field), vec![want], "{field}");
         }

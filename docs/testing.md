@@ -2243,7 +2243,7 @@ PoC-8 の検査を、実装 repo の共通のブラウザ試験の道具（`tool
 文書だけは JSON の行が無く、期待値を手で数えた固定値（前 10 ブロック・後 13 行。未変更 7・追加 3・削除 3・変更 0）にした。
 出所は `doc-before.md`・`doc-after.md` の最上位のブロックである。TASK-476 で本文の木の粒度を結んだときに見直す既知の制約である。
 
-製品の `view()` には 7 本の list を描く部品がまだ無い（TASK-470）ため、試験の設定だけに、マウントする代役の部品（`crates/web/src/view_fixture.rs`）を足した。
+製品の `view()` には 7 本の list が入った（TASK-470）が各ビューの本体が無い（TASK-473 以降）ため、試験の設定だけに、マウントする代役の部品（`crates/web/src/view_fixture.rs`）を足した。
 `#app` の外の別の root にマウントし、本体の画面とは状態を共有しない。(a)・(b) は印の付け先の違いだけを再現し、`wireframe-ui`・`headless-ui` の部品は使わない。
 そのため本節の合格は検査器の枠が動くことの証拠で、各ビューの合格ではない（ビューごとの証拠は TASK-473 以降）。
 
@@ -2864,6 +2864,29 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 | ART2-5 | 前後が違うブロックを一致として組にする | DETECTED | `artifact_doc_rows` の 4 件 |
 | ART2-6 | 増分の開始位置を 1 つ飛ばす | DETECTED | `artifact_rows_incremental` の 2 件 |
 | ART2-7 | 前にだけあるブロックの行を出さない | DETECTED | `artifact_doc_rows` の 5 件 |
+
+### 5.94 ビューごとの keyed list とビューの選択（TASK-470 1/2）
+
+製品の左の成果物の部品（`engine_parts::ArtifactPart`）を、ビューの種類ごとの keyed list 7 本と、選択のボタンの list 1 本の形にした。
+選ばれていない list は項目 0 件で `hidden` を持つ。選択は `select-view` の action（`view_select`）で、今の Step が宣言した種類だけを受ける。
+行の中身はいまのまま、選ばれたビューの list に入れた。ブラウザの試験用の教材（複数のビューを宣言するもの）と、部品を項目の内側に置く規則・101 回の属性の不変は 2/2 の担当で、本節は native の試験で確かめた。
+
+- 受入: 選ばれていないビューの list が項目 0 件で `hidden` を持つ。親の属性が `list_attrs(kind, selected)` と一致する（開始直後・選択の後・Step の移動の後）
+- 試験（`crates/web/tests/view_select.rs`）: 開始時の描画（7 本・`hidden` は 6 本・宣言の先頭だけが見える・ボタンは宣言の順で一覧外の種類と未定義の ID は出ない）、選択の dirty（旧と新の list とボタンの list）、同じ種類と宣言に無い種類の無視、session なし、綴りの完全一致の復号、Step の移動で先頭に戻ること、a11y の検査
+- 既存の試験の更新: `list_parent_attrs`（期待を 7 本とボタンの list に置き換え）、`host_contract`（field 数 9 から 16）、`artifact_view_binding_contract`（標準の登録簿が 7 本を持つ）、`no_hidden_triggers`（`engine_parts.rs` の `PAYLOAD_ATTR` 2 件）、ブラウザの `list-parent-attrs`・`reload-points`（選択子）
+- 仮置き: 宣言が無い Step の既定は、`view_tabs` が `all` ならファイルツリー（ホストは `all` だけを渡す。`pack.left_pane` の読み取りは TASK-53 2/2）。`view_tabs: all` で 7 種を選べるようにするのは TASK-481
+- 入れていないもの: 親の `aria-label`・ボタンの `aria-pressed`（`a11y` の閉じた一覧に無い。契約の版 3 と spec の更新が先に要る）。エンジンの操作の dirty の絞り込みは 2/2
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 727a981-dirty
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/ART12-1.mutation crates/web/tests/mutations/ART5-2.mutation
+```
+
+| ID | 変異 | 結果 | 検出した試験 |
+|---|---|---|---|
+| ART12-1 | 宣言に無い種類の選択も受け付ける | DETECTED | `view_select` の「宣言に無い種類の選択は無視され_dirty_を積まない」 |
+| ART5-2 | 選ばれていないビューの list も選択済みとして描く | DETECTED | `view_select` の 5 件（開始直後の描画を含む） |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

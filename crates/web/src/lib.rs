@@ -60,6 +60,7 @@ pub mod terminal_area;
 pub mod tick_interval;
 pub mod tick_schedule;
 pub mod tree_attrs;
+pub mod view_select;
 
 #[cfg(target_arch = "wasm32")]
 mod glue;
