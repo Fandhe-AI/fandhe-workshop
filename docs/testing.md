@@ -387,6 +387,26 @@ TERM27-2 は、`crates/web/src/offers.rs` の `approval_offers` が対象つき�
 | TERM27-1 | crates/web/src/host.rs: revise-target の変換を無効にする | revise_target_は対象をそのまま_op_にし_空は何もしない | 左の 1 件に加え、受付・確認の段・拒否の流れの 4 件 | DETECTED | - |
 | TERM27-2 | crates/web/src/offers.rs: 対象つきのボタンを出さない | 入力の段は三つと対象の数だけのボタンが出る | 左の 1 件に加え、重複・太い形・拒否・エスケープの 5 件 | DETECTED | - |
 
+### 5.3.1g 承認の操作のログ文言と CH-2 相当の完走（TASK-447 2/2）
+
+TERM27-3 は、`crates/web/src/log_lines.rs` の承認の操作の行から接頭辞「承認の操作: 」の文字ノードを落とす変異である。
+行の文字が spec の文言（`承認の操作: 直す（対象: t-alpha）` 等）にならなくなり、native の `crates/web/tests/approval_flow.rs` が検出する。
+
+ブラウザ試験 `tools/browser/approval-flow.test.mjs` は、本 repo に CH-2 の教材が無いため、ST-2.6 と同じ構造の承認の Step
+（`load-fixture:approval` の `st-1`）から、選択の `st-2`、最終の承認の `st-3` までを CSP あり・なしで流す。
+`st-2` は入力方式 `choice` の画面の口が TASK-450 の担当で未実装のため `Op` で送る。章の完了（`ChapterCompleted`）は core が
+未実装（TASK-233 以降）のため、最後の Step の達成までを確かめる。
+
+```text
+実行日: 2026-10-17
+元にしたコミット: 8c36c5c-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM27-3.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM27-3 | crates/web/src/log_lines.rs: 承認の操作の行の接頭辞を落とす | 承認の操作の行は文言になり_はいで先へ進んで最後の_step_まで通る | 左の 1 件 | DETECTED | - |
+
 ### 5.3.2 木の読み込みの検査と描画の深さ（TASK-150 2/3）
 
 3 件の変異を足した。いずれもビルドは通り、対応する試験だけが失敗する。

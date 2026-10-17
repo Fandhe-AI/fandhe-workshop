@@ -446,6 +446,51 @@ fn html_風の文字列は要素にならずエスケープされる() {
     check_area(&area_of(nodes_of(&lines))).unwrap();
 }
 
+fn plain_text(n: &Node) -> String {
+    match n {
+        Node::Text(s) => s.clone(),
+        Node::Element { children, .. } => children.iter().map(plain_text).collect(),
+        _ => String::new(),
+    }
+}
+
+#[test]
+fn 承認の操作の行は文言になり_観察点の文字は変わらない() {
+    for (d, word) in [
+        (Decision::Approve, "はい"),
+        (Decision::Reject, "いいえ"),
+        (Decision::Revise, "直す"),
+    ] {
+        let bare = line_node(
+            7,
+            &LogLine::Approval {
+                decision: d,
+                target: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(plain_text(&bare), format!("承認の操作: {word}"));
+        assert!(find(&bare, "line-target").is_none());
+        let targeted = line_node(
+            7,
+            &LogLine::Approval {
+                decision: d,
+                target: Some("t-alpha".to_owned()),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            plain_text(&targeted),
+            format!("承認の操作: {word}（対象: t-alpha）")
+        );
+        assert_eq!(plain_text(find(&targeted, "line-decision").unwrap()), word);
+        assert_eq!(
+            plain_text(find(&targeted, "line-target").unwrap()),
+            "t-alpha"
+        );
+    }
+}
+
 #[test]
 fn 空の次の行動は型で作れない() {
     assert!(NextAction::new("  ").is_err());
