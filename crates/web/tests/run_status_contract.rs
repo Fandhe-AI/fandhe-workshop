@@ -6,10 +6,12 @@ use std::path::PathBuf;
 
 use fandhe_frontend_core::{el, Node};
 use fandhe_frontend_interactive::Component;
+use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::text_fill::filled_text;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::a11y::{check_no_undefined, Region, LOG_LIST_TESTID, TESTID_ATTR};
 use fandhe_workshop_web::engine_parts::standard_registry;
@@ -262,6 +264,8 @@ fn 停止の操作で状態表示の束縛点が_dirty_になる() {
     assert!(d.contains(&WORD_FIELD) && d.contains(&STATE_FIELD), "{d:?}");
 }
 
+// 試験名は変異（TERM33-3）の記録が参照するため変えない。待機中にログを変えないのは停止ボタンだけで、
+// 待機中の Esc は取り消しの入力になる（TASK-441 2/2）。取り消しを受け付けない Step では拒否が 2 件増え、世代は変わらない。
 #[test]
 fn esc_と停止ボタンは処理中だけ停止し_待機中ではログを変えない() {
     for (name, payload) in [("esc", "Escape"), ("stop", "")] {
@@ -270,8 +274,15 @@ fn esc_と停止ボタンは処理中だけ停止し_待機中ではログを変
         let len0 = host.model().session().unwrap().log().len();
         let entry = host.model().session().unwrap().state().run.current.clone();
         let world0 = host.model().session().unwrap().state().run.world.clone();
+        let gen0 = host.model().session().unwrap().state().run.generation.0;
         host.update(act());
-        assert_eq!(host.model().session().unwrap().log().len(), len0);
+        let grown = if name == "esc" { 2 } else { 0 };
+        assert_eq!(host.model().session().unwrap().log().len(), len0 + grown);
+        assert_eq!(
+            host.model().session().unwrap().state().run.generation.0,
+            gen0
+        );
+        assert_shows(&host, RunStatus::Idle);
         host.update(make_note());
         host.update(tick(0));
         let gen_before = host.model().session().unwrap().state().run.generation.0;
@@ -334,7 +345,7 @@ fn 停止の後に候補が開いていても_esc_は閉じるだけで停止を
     let session = host.model().session().unwrap();
     let gen_before = session.state().run.generation.0;
     let len_before = session.log().len();
-    // 閉じた後の 2 回目の Esc は TASK-441 2/2（取り消しの入力）の持ち分のため、ここでは 1 回だけ押す。
+    // 閉じた後の 2 回目の Esc（取り消しの入力）は下の試験で確かめるため、ここでは 1 回だけ押す。
     host.update(esc());
     let session = host.model().session().unwrap();
     assert!(!host.candidates_open());
@@ -342,4 +353,124 @@ fn 停止の後に候補が開いていても_esc_は閉じるだけで停止を
     assert_eq!(session.log().len(), len_before);
     assert_eq!(host.draft(), "/hel");
     assert_shows(&host, RunStatus::Stopped);
+}
+
+/// ログの末尾が `InputReceived { Cancel }` と `Judged { Rejected(NotInThisStep) }` の 2 件であることを確かめ、
+/// 拒否の次の行動を返す。
+fn assert_cancel_rejected_tail(host: &EngineHost, len_before: usize) -> String {
+    let session = host.model().session().unwrap();
+    let log = session.log();
+    assert_eq!(log.len(), len_before + 2, "{:?}", &log[len_before..]);
+    assert!(
+        matches!(
+            &log[len_before],
+            Event::InputReceived {
+                input: Input::Cancel,
+                ..
+            }
+        ),
+        "{:?}",
+        log[len_before]
+    );
+    let Event::Judged { judgment, .. } = &log[len_before + 1] else {
+        panic!("{:?}", log[len_before + 1]);
+    };
+    let Judgment::Rejected(rej) = judgment else {
+        panic!("{judgment:?}");
+    };
+    assert_eq!(rej.category, RejectCategory::NotInThisStep);
+    assert!(!rej.next_action.as_str().trim().is_empty());
+    // 拒否の文面の控えが core の `filled_text` と一致し、空でない。
+    let key = u32::try_from(len_before + 1).unwrap();
+    let filled = filled_text(session.ir(), &session.state().run, &Input::Cancel, judgment)
+        .unwrap()
+        .expect("filled text");
+    assert!(!filled.message.trim().is_empty());
+    assert_eq!(host.model().judged_text(key), Some(filled.message.as_str()));
+    rej.next_action.as_str().to_owned()
+}
+
+/// `part-log-list` の `rejected` の行がちょうど 1 件で、子が理由と次の行動の 2 つであることを確かめる。
+fn assert_one_rejected_row(host: &EngineHost, next_action: &str) {
+    let view = host.view();
+    let list = find(&view, "part-log-list").expect("part-log-list");
+    let rows: Vec<&Node> = children_of(list)
+        .iter()
+        .filter(|li| attr(li, "data-kind") == Some("rejected"))
+        .collect();
+    assert_eq!(rows.len(), 1);
+    let row = rows[0];
+    assert_eq!(attr(row, "data-category"), Some("not_in_this_step"));
+    assert_eq!(children_of(row).len(), 2);
+    let reason = text_of(find(row, "line-reason").expect("line-reason"));
+    assert!(!reason.trim().is_empty());
+    assert_eq!(
+        text_of(find(row, "line-next-action").expect("line-next-action")),
+        next_action
+    );
+}
+
+#[test]
+fn 待機中で候補が閉じている_esc_は取り消しの入力になり_拒否の行と次の行動が出る() {
+    for text in ["", "hello"] {
+        let mut host = begun_host();
+        draft(&mut host, text);
+        assert!(!host.candidates_open());
+        assert_shows(&host, RunStatus::Idle);
+        let session = host.model().session().unwrap();
+        let (gen_before, len_before) = (session.state().run.generation.0, session.log().len());
+        host.update(esc());
+        let next = assert_cancel_rejected_tail(&host, len_before);
+        let run = &host.model().session().unwrap().state().run;
+        assert_eq!(run.generation.0, gen_before);
+        assert!(run.busy.is_none());
+        assert_eq!(host.draft(), text);
+        assert!(!host.candidates_open());
+        assert_shows(&host, RunStatus::Idle);
+        assert_one_rejected_row(&host, &next);
+        let d = host.dirty_fields();
+        assert!(d.contains(&"engine_log_rows"), "{d:?}");
+    }
+}
+
+#[test]
+fn 候補が開いているときの_esc_は1回目で閉じ2回目で取り消しの入力になる() {
+    let mut host = begun_host();
+    draft(&mut host, "/he");
+    assert!(host.candidates_open());
+    let session = host.model().session().unwrap();
+    let (gen_before, len_before) = (session.state().run.generation.0, session.log().len());
+    host.update(esc());
+    assert!(!host.candidates_open());
+    assert_eq!(host.model().session().unwrap().log().len(), len_before);
+    host.update(esc());
+    let next = assert_cancel_rejected_tail(&host, len_before);
+    let run = &host.model().session().unwrap().state().run;
+    assert_eq!(run.generation.0, gen_before);
+    assert_eq!(host.draft(), "/he");
+    assert_shows(&host, RunStatus::Idle);
+    assert_one_rejected_row(&host, &next);
+}
+
+#[test]
+fn 停止の後に候補が閉じている_esc_は取り消しの入力になり_世代は変わらない() {
+    let mut host = begun_host();
+    host.update(make_note());
+    host.update(tick(0));
+    host.update(esc());
+    assert_shows(&host, RunStatus::Stopped);
+    let session = host.model().session().unwrap();
+    let (gen_before, len_before) = (session.state().run.generation.0, session.log().len());
+    host.update(esc());
+    let next = assert_cancel_rejected_tail(&host, len_before);
+    let session = host.model().session().unwrap();
+    assert_eq!(session.state().run.generation.0, gen_before);
+    let stopped = session
+        .log()
+        .iter()
+        .filter(|e| matches!(e, Event::Stopped { .. }))
+        .count();
+    assert_eq!(stopped, 1, "停止の行は 1 件のまま");
+    assert_shows(&host, RunStatus::Idle);
+    assert_one_rejected_row(&host, &next);
 }
