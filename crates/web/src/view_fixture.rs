@@ -12,9 +12,9 @@
 //!   （`Row::shown`・`mark_value`）・変種 (a)・(b) の印の付け先の違い（(b) は項目自身、(a) は項目の中の外枠）
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
-//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (b) は `file_tree_view`（TASK-473 1/2）で、差分の (b) は `diff_view`（TASK-475 1/2）で描く
-//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの (b) の `item_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
-//!   ことの証拠であり、タスクツリー・ファイルツリー (b)・差分 (b) を除く各ビューの合格ではない
+//! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、差分の (b) は `diff_view`（TASK-475 1/2）で描く
+//! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`・指せる行の属性。合格は検査器の枠が動く
+//!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
 //! # データ
 //!
@@ -41,7 +41,7 @@ use crate::artifact_view::{
     RowKind, Variant, VariantPolicy, ViewKind,
 };
 use crate::diff_view::{diff_items, diff_list};
-use crate::file_tree_view::file_tree_items;
+use crate::file_tree_view::{file_tree_items, file_tree_items_a};
 use crate::task_tree::task_items;
 
 /// 根の要素の `data-testid`。
@@ -281,7 +281,10 @@ impl ViewFixture {
 
     fn items_of(&self, kind: ViewKind, rows: &ViewRows) -> Vec<(String, Node)> {
         match rows {
-            // ファイルツリーの (b) だけは本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
+            // ファイルツリーは (a)・(b) とも本体のビュー（TASK-473）で描く。他は汎用の描き方のまま。
+            ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::A => {
+                file_tree_items_a(v, self.phase)
+            }
             ViewRows::Items(v) if kind == ViewKind::FileTree && self.variant == Variant::B => {
                 file_tree_items(v, self.phase)
             }

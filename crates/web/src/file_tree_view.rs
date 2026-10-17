@@ -1,8 +1,8 @@
-//! 左の成果物エリアのファイルツリーのビュー、変種 (b)（TASK-473 1/2。ART-1・ART-2・ART-3・ART-9・ART-13）。
+//! 左の成果物エリアのファイルツリーのビュー、変種 (b)（TASK-473 1/2）と変種 (a)（TASK-473 2/2）。ART-1・ART-2・ART-3・ART-9・ART-13。
 //!
 //! 呼び出し元は、今は検査器の代役の部品（`view_fixture`）だけである。製品の `view()`（`engine_parts::ArtifactPart`）へは
 //! まだ結線しない。製品には前後の切り替え（ART-2）の口が無く、世界状態から `Row<Cell>` を作る規則（前の取り直し）も
-//! 未決のためである（TASK-470・TASK-347 の後続）。変種 (a) は別の担当（`wireframe-ui` の `rich_text`）である。
+//! 未決のためである（TASK-470・TASK-347 の後続）。変種 (a) は `wireframe-ui` の `rich_text` で描く（下の「変種 (a)」）。
 //!
 //! 行は `artifact_mark::marked_item` を根にし、`tree_attrs` の木の属性と、`headless-ui` の `tree_view::item_text`
 //! のラベルを持つ。親の `role=tree` は `artifact_view::tree_view_list` が付ける。
@@ -27,6 +27,18 @@
 //! - key は `k` + 行の識別子で、検査器の `keyOf` と同じ形である
 //! - 計算量は行数に対して O(n)
 //!
+//! # 変種 (a)
+//!
+//! 外枠は `marked_item(.., Variant::A, ..)` の `li` と内側の `div`（印の宿主）で、中身は `wireframe_ui::rich_text`
+//! （ラベル・先頭の記号・末尾の補足）である。(b) の関数には触れない。
+//!
+//! - 末尾の補足の `span` は `detail` が空でも必ず出す。省くと前後で子の列が変わり、keyed list の in-place 更新が崩れる
+//! - 先頭の `span` と太字は `row.kind()` だけで決め、前後や印では変えない。同じ key の項目の形は前後で変わらない
+//! - 先頭に `wireframe_ui::icon::*` は使わない。`svg` に `aria-hidden` を必ず出し、a11y の契約（版 2）の違反になる。
+//!   採るには契約の版 3 と spec の更新が先に要る。記号は自作の `span` の文字（`mark_nodes` の記号と同じ扱い）にする
+//! - 木の属性（`role=treeitem`・`aria-level` など）は付けない。(a) は木の意味を持たない
+//! - `wireframe_css()` は呼ばない。固定のライト配色の CSS の配信は TASK-490 の担当である
+//!
 //! # 信頼境界
 //!
 //! ラベル・補足は `text()` の文字のノードにだけ入れ、`render` の既定のエスケープを通す（SAFE-11）。
@@ -35,14 +47,21 @@
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::tree_view::{item_text, TreeItemProps};
+use fandhe_frontend_wireframe_ui::{rich_text, Bold, Orientation, Size};
 
 use crate::artifact_mark::marked_item;
-use crate::artifact_view::{tree_view_list, ItemRow, Phase, Variant, ViewKind};
+use crate::artifact_view::{tree_view_list, ItemRow, Phase, RowKind, Variant, ViewKind};
 use crate::list_policy::ListError;
 use crate::tree_attrs::{shown_tree_attrs, TreeItemAttrs};
 
 /// 補足の `span` のクラス。スタイルは持たない（見た目は TASK-490）。
 pub const DETAIL_CLASS: &str = "detail";
+
+/// 変種 (a) の先頭の記号の `span` のクラス。スタイルは持たない（見た目は TASK-490）。
+pub const ICON_CLASS: &str = "icon";
+
+/// ディレクトリの先頭の記号（開いた形）。ファイルは空文字だが、`span` は必ず出して形をそろえる。
+const DIR_GLYPH: &str = "\u{25be}";
 
 /// 教材由来の値を持たない、`item_text` に渡す固定の props。
 const FIXED_PROPS: TreeItemProps<'static> = TreeItemProps {
@@ -106,4 +125,60 @@ pub fn file_tree_list(
     items: Vec<(String, Node)>,
 ) -> Result<Node, ListError> {
     tree_view_list(tag, ViewKind::FileTree, Variant::B, selected, items)
+}
+
+/// 変種 (a) の行 1 件を作る。その状態で出ない行は `None`。木の属性は付けない。
+#[must_use]
+pub fn file_tree_item_a(row: &ItemRow, phase: Phase) -> Option<Node> {
+    let shown = row.shown(phase)?;
+    let is_dir = row.kind() == RowKind::Dir;
+    let leading = el(
+        "span",
+        vec![("class", ICON_CLASS)],
+        vec![text(if is_dir { DIR_GLYPH } else { "" })],
+    );
+    let trailing = el(
+        "span",
+        vec![("class", DETAIL_CLASS)],
+        vec![text(shown.content.detail.as_str())],
+    );
+    let rich = rich_text(
+        shown.content.label.as_str(),
+        Some(leading),
+        Some(trailing),
+        Size::Md,
+        Bold(is_dir),
+        Orientation::Horizontal,
+    );
+    Some(marked_item(
+        "li",
+        Variant::A,
+        shown.mark,
+        Some(row.depth()),
+        vec![("data-kind", row.kind().as_str())],
+        vec![rich],
+    ))
+}
+
+/// 行の並びから、変種 (a) のその状態で出る項目の `(key, 要素)` を入力の順に返す。
+#[must_use]
+pub fn file_tree_items_a(rows: &[ItemRow], phase: Phase) -> Vec<(String, Node)> {
+    rows.iter()
+        .filter_map(|row| {
+            file_tree_item_a(row, phase).map(|n| (format!("k{}", row.id().as_str()), n))
+        })
+        .collect()
+}
+
+/// ファイルツリー (a) の keyed list の親要素を作る。親に `role` は付かない。
+///
+/// # Errors
+///
+/// 上流の安全弁（項目数・キーの重複）が拒否した場合は `ListError`。握りつぶさず呼び出し側へ返す。
+pub fn file_tree_list_a(
+    tag: &'static str,
+    selected: bool,
+    items: Vec<(String, Node)>,
+) -> Result<Node, ListError> {
+    tree_view_list(tag, ViewKind::FileTree, Variant::A, selected, items)
 }

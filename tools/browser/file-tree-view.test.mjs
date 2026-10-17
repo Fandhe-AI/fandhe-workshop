@@ -1,11 +1,14 @@
-// ファイルツリーのビュー、変種 (b) の試験（TASK-473 1/2。ART-1・ART-2・ART-3・ART-9・ART-13）。
+// ファイルツリーのビュー、変種 (a)・(b) の試験（TASK-473。ART-1・ART-2・ART-3・ART-9・ART-13）。
 //
-// 代役の部品（view_fixture）が file_tree_view で描くファイルツリー (b) を、検査器（artifact-view-check.mjs）で流す。
+// 代役の部品（view_fixture）が file_tree_view で描くファイルツリー (a)・(b) を、検査器（artifact-view-check.mjs）で流す。
 // - FT1: 前後 2 往復で違反 0、行も項目の内側も置き換わらない（保持が前の行数に等しい）、状態の数は 5
 // - FT2: 前と後の各状態で、選ばれた list が role=tree、全 li が treeitem と木の属性を持ち、ラベルが item_text、
 //        aria-selected・aria-hidden・data-value は 0 件。項目数と変化の印の数が期待値（目で数えた値）と一致する
 // - FT3: 外部へのリクエスト・ページのエラー・ダイアログがどれも 0 件
 // - FT4: 対照。ファイルツリー (a) では親に role が無く、treeitem も 0 件
+// - FT5: (a) で前後 2 往復の違反 0、行も項目の内側も置き換わらない
+// - FT6: (a) の前後それぞれで、項目数・rich_text の数・印の宿主（li には無く内側の div）・印の数・role/aria/svg が 0 件
+// - FT7: (a) の前後の切り替えで、外部へのリクエスト・ページのエラー・ダイアログが 0 件
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -143,5 +146,65 @@ test('FT4 対照: ファイルツリー (a) では親に role が無く、treeit
     assert.equal(o.role, null, JSON.stringify(o));
     assert.equal(o.treeitems, 0, JSON.stringify(o));
     assert.equal(o.itemText, 0, JSON.stringify(o));
+  });
+});
+
+test('FT5: 変種 (a) の前後 2 往復で違反 0、行も内側も置き換わらない', async () => {
+  await withFixturePage(async (page, rec) => {
+    const { violations, stats } = await runViewCase(page, fixtureAdapter(page), {
+      kind: 'file_tree', variant: 'a', rootSelector: ROOT, rounds: 2, deep: true,
+    });
+    const counts = await collectSafety(page, rec);
+    const detail = JSON.stringify({ violations, stats, counts, rec });
+    const { before: b, after: a } = COUNTS;
+    assert.deepEqual(violations, [], detail);
+    assert.equal(stats.states, 5, detail);
+    assert.deepEqual(stats.itemCounts, [b, a, b, a, b], detail);
+    assert.deepEqual(stats.preserved, [b, b, b, b], detail);
+    assert.deepEqual(stats.innerPreserved, [b, b, b, b], detail);
+    assert.deepEqual(nonZero(counts), [], detail);
+  });
+});
+
+function observeA(page) {
+  return page.evaluate((sel) => {
+    const list = document.querySelector(sel);
+    const items = [...list.querySelectorAll(':scope > li')];
+    return {
+      items: items.length,
+      rich: list.querySelectorAll('.fw-wire-rich-text').length,
+      liMarks: items.filter((li) => li.hasAttribute('data-mark')).length,
+      divHosts: list.querySelectorAll('li > div[data-mark]').length,
+      marks: list.querySelectorAll('li > div[data-mark]:not([data-mark=""])').length,
+      forbidden: list.querySelectorAll('[role], [aria-hidden], svg, [data-part]').length + (list.hasAttribute('role') ? 1 : 0),
+    };
+  }, LIST);
+}
+
+test('FT6: 変種 (a) の前後それぞれで、項目数・rich_text・印の宿主・印の数が期待どおり', async () => {
+  await withFixturePage(async (page) => {
+    const adapter = fixtureAdapter(page);
+    assert.ok((await adapter.select('file_tree', 'a')).ok);
+    for (const [phase, n, marks] of [['before', COUNTS.before, 0], ['after', COUNTS.after, 4], ['before', COUNTS.before, 0]]) {
+      assert.ok((await adapter.phase(phase)).ok);
+      const o = await observeA(page);
+      const detail = JSON.stringify({ phase, o });
+      assert.equal(o.items, n, detail);
+      assert.equal(o.rich, n, detail);
+      assert.equal(o.liMarks, 0, detail);
+      assert.equal(o.divHosts, n, detail);
+      assert.equal(o.marks, marks, detail);
+      assert.equal(o.forbidden, 0, detail);
+    }
+  });
+});
+
+test('FT7: 変種 (a) の切り替えで外部へのリクエスト・ページのエラー・ダイアログは 0 件', async () => {
+  await withFixturePage(async (page, rec) => {
+    const adapter = fixtureAdapter(page);
+    assert.ok((await adapter.select('file_tree', 'a')).ok);
+    for (const phase of ['after', 'before', 'after']) assert.ok((await adapter.phase(phase)).ok);
+    const counts = await collectSafety(page, rec);
+    assert.deepEqual(nonZero(counts), [], JSON.stringify({ counts, rec }));
   });
 });

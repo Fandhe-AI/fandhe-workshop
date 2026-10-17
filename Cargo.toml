@@ -64,6 +64,9 @@ fandhe-frontend-wasm-client = { version = "0.6.1", default-features = false }
 # ファイルツリーのビューが `tree_view::item_text` を使うために直接参照する（TASK-473）。wasm-full は再エクスポートしない。
 # 版は Cargo.lock の解決済みの版と同じにして、版を動かさない。headless-ui に feature は無い。
 fandhe-frontend-headless-ui = "0.69.2"
+# ファイルツリーのビューの変種 (a) が `rich_text` を使うために直接参照する（TASK-473）。外部依存は core だけ。
+# CSS（`wireframe_css()`）は呼ばない（TASK-490 の担当）。
+fandhe-frontend-wireframe-ui = "0.52.0"
 
 # 公開 API の文書化と、unsafe・#[allow] の理由の明記を機械で強制する
 # （.claude/rules/code-comment-style.md）。make lint は -D warnings で流す。
