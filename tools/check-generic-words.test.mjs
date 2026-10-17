@@ -2,7 +2,8 @@
 //
 // 作業ツリーは変えない。一時ディレクトリへ小さな crates/ と docs/vocabulary/vocabulary.md を組み立てて検査を流す
 // （実 repo に対しては読むだけ）。語を足した写しで失敗すること（負の対照）と、判定できない入力で 2 になること
-// （fail-closed）を主張する。
+// （fail-closed）を主張する。static（JS・HTML・SVG・CSS）は字句解析をせず、コメントを含む素の文字列と、エスケープを
+// 全体で復号した文字列で照合する。字句の読み違いで語を見逃した過去の指摘の例は、どれも 1 になることを確かめる。
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -127,18 +128,28 @@ test('tests/ に書いた語は対象外で 0', () => {
   assert.equal(r.code, 0, r.out);
 });
 
-test('static の js・html・svg・css と Cargo.toml も対象。コメントは除く', () => {
+test('static の js・html・svg・css と Cargo.toml も対象。static はコメントの中の語も 1、Cargo.toml のコメントは 0', () => {
   const cases = {
-    'crates/x/static/a.js': ["const a = 'github';\n", '// github\n/* issue */ const b = 1;\n'],
-    'crates/x/static/a.html': ['<p id="pr">x</p>\n', '<!-- github -->\n<p>x</p>\n'],
-    'crates/x/static/a.svg': ['<g id="bbs"/>\n', '<!-- bbs -->\n<g/>\n'],
-    'crates/x/static/a.css': ['.thread { color: red; }\n', '/* thread */ .a { color: red; }\n'],
-    'crates/x/Cargo.toml': ['[package]\nname = "github-x"\n', '# github\n[package]\nname = "x"\n'],
+    'crates/x/static/a.js': ["const a = 'github';\n", 'const b = 1;\n', ['// github\n', '/* issue */ const b = 1;\n']],
+    'crates/x/static/a.mjs': ["const a = 'github';\n", 'const b = 1;\n', ['// github\n']],
+    'crates/x/static/a.html': ['<p id="pr">x</p>\n', '<p>x</p>\n', ['<!-- github -->\n<p>x</p>\n']],
+    'crates/x/static/a.svg': ['<g id="bbs"/>\n', '<g/>\n', ['<!-- bbs -->\n<g/>\n']],
+    'crates/x/static/a.css': ['.thread { color: red; }\n', '.a { color: red; }\n', ['/* thread */ .a { color: red; }\n']],
   };
-  for (const [rel, [bad, good]] of Object.entries(cases)) {
+  for (const [rel, [bad, good, comments]] of Object.entries(cases)) {
     assert.equal(run(makeRoot({ [rel]: bad })).code, 1, rel);
     assert.equal(run(makeRoot({ [rel]: good })).code, 0, rel);
+    for (const body of comments) assert.equal(run(makeRoot({ [rel]: body })).code, 1, `${rel}: ${body}`);
   }
+  assert.equal(run(makeRoot({ 'crates/x/Cargo.toml': '[package]\nname = "github-x"\n' })).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/Cargo.toml': '# github\n[package]\nname = "x"\n' })).code, 0);
+});
+
+test('static の違反は同じ行・語を読みの数だけ重ねず、行ごとの件数で報告する', () => {
+  const r = run(makeRoot({ 'crates/x/static/a.js': "const a = 'github';\nconst b = 'github github';\n" }));
+  assert.equal(r.code, 1, r.out);
+  const lines = [...r.out.matchAll(/a\.js:(\d+): github/g)].map((m) => Number(m[1]));
+  assert.deepEqual(lines, [1, 2, 2], r.out);
 });
 
 test('例外の件数: command_class.rs の skill を 1 増やしても 1 減らしても 1', () => {
@@ -163,11 +174,9 @@ test('fail-closed: 付録 A が無い・0 語・未知の照合の値は 2', () 
   assert.equal(run(makeRoot({}, { appendix: unknown })).code, 2);
 });
 
-test('fail-closed: 閉じていない文字列・ブロックコメント・crates 無しは 2', () => {
+test('fail-closed: .rs の閉じていない文字列・ブロックコメント、crates 無しは 2', () => {
   assert.equal(run(makeRoot({ 'crates/x/src/a.rs': 'const A: &str = "abc;\n' })).code, 2);
   assert.equal(run(makeRoot({ 'crates/x/src/a.rs': '/* never closed\n' })).code, 2);
-  assert.equal(run(makeRoot({ 'crates/x/static/a.js': "const a = 'abc;\n" })).code, 2);
-  assert.equal(run(makeRoot({ 'crates/x/static/a.html': '<!-- never closed\n' })).code, 2);
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'cgw-'));
   dirs.push(empty);
   assert.equal(run(empty).code, 2);
@@ -235,11 +244,17 @@ test('テンプレートリテラルの補間と入れ子の中の語を検査�
   assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a = `x ${f(1)} y`;\n' })).code, 0);
 });
 
-test('閉じない補間は 2', () => {
-  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a = `x ${f(1`;\n' })).code, 2);
+test('static は字句が閉じなくても 2 にせず、素の文字列で照合する（語が無ければ 0、あれば 1）', () => {
+  for (const body of ["const a = 'abc;\n", 'const a = `x ${f(1`;\n', 'const re = /abc;\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 0, body);
+    assert.equal(run(makeRoot({ 'crates/x/static/b.js': `${body}github\n` })).code, 1, body);
+  }
+  assert.equal(run(makeRoot({ 'crates/x/static/a.html': '<!-- never closed\n' })).code, 0);
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<!-- never closed github\n' })).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/static/a.css': '/* never closed\n' })).code, 0);
 });
 
-test('引用符の中のコメント記号をコメントとして扱わない（CSS・HTML・SVG）', () => {
+test('引用符の中のコメント記号の後の語も照合する（CSS・HTML・SVG）', () => {
   const cases = {
     'crates/x/static/a.css': 'a::before { content: "/* github */"; }\n',
     'crates/x/static/a.html': '<a title="<!-- github -->">x</a>\n',
@@ -249,11 +264,6 @@ test('引用符の中のコメント記号をコメントとして扱わない�
     const r = run(makeRoot({ [rel]: body }));
     assert.equal(r.code, 1, `${rel}: ${r.out}`);
   }
-  const ok = {
-    'crates/x/static/a.css': '/* github */ a { color: red; }\n',
-    'crates/x/static/a.html': '<!-- github --><a>x</a>\n',
-  };
-  for (const [rel, body] of Object.entries(ok)) assert.equal(run(makeRoot({ [rel]: body })).code, 0, rel);
 });
 
 test('エスケープを復号してから照合する（Rust・JS・TOML・CSS・HTML）', () => {
@@ -272,10 +282,9 @@ test('エスケープを復号してから照合する（Rust・JS・TOML・CSS�
   }
 });
 
-test('未対応のエスケープは検査不能として 2', () => {
+test('.rs・Cargo.toml の未対応のエスケープは検査不能として 2', () => {
   const cases = {
     'crates/x/src/a.rs': 'const A: &str = "a\\qb";\n',
-    'crates/x/static/a.js': 'const a = "a\\1b";\n',
     'crates/x/Cargo.toml': '[package]\nd = "a\\qb"\n',
   };
   for (const [rel, body] of Object.entries(cases)) {
@@ -283,17 +292,19 @@ test('未対応のエスケープは検査不能として 2', () => {
   }
 });
 
-test('正規表現リテラルの `//` をコメントと取り違えず、後続の語を検出する', () => {
+test('正規表現の中の `//` の後の語も検出する（`/` の意味を判定しない）', () => {
   const body = 'const re = /https?:\\/\\/\\//;\nconst re2 = /https?://///;\nconst source = "github";\n';
   const r = run(makeRoot({ 'crates/x/static/a.js': body }));
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /a\.js:3: github/);
-  // 除算は正規表現にしない
+  // 除算の `/` だけなら語は無く 0
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const q = (a + b) / 2 / 3;\n' })).code, 0);
 });
 
-test('閉じない正規表現リテラルは検査不能として 2', () => {
-  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const re = /abc;\nconst s = "github";\n' })).code, 2);
+test('閉じない正規表現リテラルの後の語も照合する', () => {
+  const r = run(makeRoot({ 'crates/x/static/a.js': 'const re = /abc;\nconst s = "github";\n' }));
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /a\.js:2: github/);
 });
 
 test('識別子の Unicode エスケープを復号して照合する', () => {
@@ -301,7 +312,8 @@ test('識別子の Unicode エスケープを復号して照合する', () => {
     const r = run(makeRoot({ 'crates/x/static/a.js': body }));
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
-  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a\\u00zz = 1;\n' })).code, 2);
+  // 読めないエスケープは文字のまま残し、2 にしない
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': 'const a\\u00zz = 1;\n' })).code, 0);
 });
 
 test('セミコロンの無い HTML の数値文字参照も復号する', () => {
@@ -311,34 +323,35 @@ test('セミコロンの無い HTML の数値文字参照も復号する', () =>
   }
 });
 
-test('正規表現リテラルの文字を表すエスケープを復号して照合する。読めない形は 2', () => {
+test('正規表現リテラルの文字を表すエスケープを復号して照合する。読めない形は 2 にしない', () => {
   for (const body of ['const re = /git\\u0068ub/;\n', 'const re = /git\\u{68}ub/;\n', 'const re = /git\\x68ub/;\n']) {
     const r = run(makeRoot({ 'crates/x/static/a.js': body }));
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
   // 文字を表さないエスケープは語を作らない
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const re = /\\d+\\s\\w/;\n' })).code, 0);
-  for (const body of ['const re = /\\u00zz/;\n', 'const re = /\\xg1/;\n', 'const re = /\\u{110000}/;\n']) {
-    assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 2, body);
+  for (const body of ['const re = /\\u00zz/;\n', 'const re = /\\xg1/;\n', 'const re = /\\u{110000}/u;\n']) {
+    assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 0, body);
   }
 });
 
-test('HTML の script の中身は JS として読み、文字列の `<!-- -->` を落とさない', () => {
+test('HTML の script の中の `<!-- -->` の語を落とさない', () => {
   const body = '<p>x</p>\n<script>\nconst x = "<!-- github -->";\n</script>\n';
   const r = run(makeRoot({ 'crates/x/static/a.html': body }));
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /a\.html:3: github/);
-  // script の外の HTML コメントは従来どおり除く。script の中の JS コメントも除く
-  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<!-- github -->\n<script>// github\nconst a = 1;</script>\n' })).code, 0);
-  // 閉じない JS の文字列は検査不能として 2
-  assert.equal(run(makeRoot({ 'crates/x/static/c.html': '<script>const a = "x;</script>\n' })).code, 2);
+  // script の外の HTML コメント・script の中の JS コメントの語も照合する
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<!-- github -->\n<p>x</p>\n' })).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/static/b2.html': '<script>// github\nconst a = 1;</script>\n' })).code, 1);
+  // 閉じない JS の文字列も 2 にしない
+  assert.equal(run(makeRoot({ 'crates/x/static/c.html': '<script>const a = "x;</script>\n' })).code, 0);
 });
 
-test('後置の ++・-- の後の `/` は除算で、正規表現とは読まない', () => {
+test('`++`・`--` の前後の `/` は、語が無ければ 0、あれば 1', () => {
   for (const body of ['let n = x++ / 2;\n', 'let n = x-- / 2 / 3;\n', 'let m = a++ /b/ c;\n']) {
     assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 0, body);
   }
-  // 前置の ++ の後は式の始まりなので、続く正規表現の語は照合する
+  // 前置の ++ の後の正規表現の語は照合する
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'let n = 1; ++n; let r = /github/;\n' })).code, 1);
 });
 
@@ -346,15 +359,15 @@ test('正規表現リテラルの identity escape は文字そのものとして
   // Unicode フラグなしでは /git\hub/ の `\h` は h を表すため、github に一致する
   const r = run(makeRoot({ 'crates/x/static/a.js': 'const re = /git\\hub/;\n' }));
   assert.equal(r.code, 1, r.out);
-  // u フラグで意味が変わる \p・\k は検査不能として 2
-  assert.equal(run(makeRoot({ 'crates/x/static/c.js': 'const re = /\\p{L}/;\n' })).code, 2);
+  // u フラグで意味が変わる \p・\k も 2 にしない（文字のまま残す）
+  assert.equal(run(makeRoot({ 'crates/x/static/c.js': 'const re = /\\p{L}/u;\n' })).code, 0);
 });
 
-test('オブジェクト式の `}` の後の `/` は除算で、文ブロックの `}` の後は正規表現', () => {
+test('`}` の後の `/` は、語が無ければ 0、あれば 1', () => {
   for (const body of ['const n = {} / 2;\n', 'const n = ({}) / 2;\n', 'const o = { a: {} / 2 };\n']) {
     assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 0, body);
   }
-  // 文ブロックの後は正規表現で、語を照合する
+  // 文ブロックの後の正規表現の語は照合する
   assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'if (a) { b(); }\n/github/.test(c);\n' })).code, 1);
   assert.equal(run(makeRoot({ 'crates/x/static/c.js': 'function f() {}\n/github/.test(c);\n' })).code, 1);
 });
@@ -369,8 +382,9 @@ test('HTML の style 要素と style 属性の CSS もエスケープを復号�
     const r = run(makeRoot({ 'crates/x/static/a.html': body }));
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
-  // 語を含まない style は通る。CSS のコメントは除く
-  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<style>/* github */ a { color: red; }</style><p style="color:red">x</p>\n' })).code, 0);
+  // 語を含まない style は通る。CSS のコメントの中の語は照合する
+  assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<style>a { color: red; }</style><p style="color:red">x</p>\n' })).code, 0);
+  assert.equal(run(makeRoot({ 'crates/x/static/c.html': '<style>/* github */ a { color: red; }</style>\n' })).code, 1);
 });
 
 test('TOML の複数行文字列の終端の引用符が 4 個・5 個でも閉じる', () => {
@@ -385,8 +399,8 @@ test('TOML の複数行文字列の終端の引用符が 4 個・5 個でも閉�
   assert.equal(run(makeRoot({ 'crates/x/Cargo.toml': 'a = """value""""\nb = 1\n' })).code, 0);
 });
 
-test('制御文の括弧の閉じの後の `/` は正規表現で、中の `//` をコメントと取り違えない', () => {
-  // Codex の指摘の例そのもの: if の括弧の後の正規表現を除算と誤認すると、`//` 以降の github を読み飛ばす
+test('制御文の括弧の閉じの後の正規表現も、中の `//` の後の語を照合する', () => {
+  // Codex の指摘の例: 字句解析で if の括弧の後の正規表現を除算と誤認すると、`//` 以降の github を読み飛ばしていた
   const r = run(makeRoot({ 'crates/x/static/a.js': 'if (ok) /[//]github/.test(x);\n' }));
   assert.equal(r.code, 1, r.out);
   assert.match(r.out, /a\.js:1: github/);
@@ -400,11 +414,11 @@ test('制御文の括弧の閉じの後の `/` は正規表現で、中の `//` 
     const r2 = run(makeRoot({ 'crates/x/static/b.js': body }));
     assert.equal(r2.code, 1, `${body}: ${r2.out}`);
   }
-  // 制御文でない括弧・プロパティ名の for の後は除算のまま
+  // 制御文でない括弧・プロパティ名の for の後の除算は、語が無ければ 0
   for (const body of ['const q = f(a) / 2 / 3;\n', 'const q = x.for(a) / 2 / 3;\n', 'const q = x.if / 2 / 3;\n']) {
     assert.equal(run(makeRoot({ 'crates/x/static/c.js': body })).code, 0, body);
   }
-  // 制御文の括弧の後の `{` は文ブロックで、閉じた後の `/` は正規表現
+  // 制御文の括弧の後の文ブロックの後の正規表現の語も照合する
   assert.equal(run(makeRoot({ 'crates/x/static/d.js': 'if (a) { b(); } /github/.test(c);\n' })).code, 1);
 });
 
@@ -421,11 +435,13 @@ test('HTML の数値文字参照は先頭の 0 を含む数字列全体を読ん
   }
 });
 
-test('範囲外・復号できない HTML の数値文字参照は検査不能として 2', () => {
+test('範囲外・C1 の HTML の数値文字参照は置換文字として読み、2 にしない', () => {
   for (const ref of ['&#0;', '&#1114112;', '&#00000000001114112;', '&#x110000;', '&#xD800;', '&#128;', '&#x9F;']) {
-    for (const body of [`<p>a${ref}b</p>\n`, `<p style="content: 'a${ref}b'">x</p>\n`]) {
-      assert.equal(run(makeRoot({ 'crates/x/static/a.html': body })).code, 2, body);
+    for (const body of [`<p>a${ref}b</p>\n`, `<p style="content: 'a${ref}b'">x</p>\n`, `const s = "a${ref}b";\n`]) {
+      assert.equal(run(makeRoot({ 'crates/x/static/a.html': body })).code, 0, body);
     }
+    // 置換文字は語をつながず、前後の語はそれぞれ照合する
+    assert.equal(run(makeRoot({ 'crates/x/static/b.html': `<p>open${ref}pr</p>\n` })).code, 1, ref);
   }
   // 数字の無い `&#`・`&#x` は参照ではなく文字のまま
   assert.equal(run(makeRoot({ 'crates/x/static/b.html': '<p>&# &#x; &#q</p>\n' })).code, 0);
@@ -456,7 +472,8 @@ test('JS の `\\u{...}` は先頭の 0 が多くても復号して照合する',
     const r = run(makeRoot({ 'crates/x/static/a.js': body }));
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
-  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const s = "\\u{00000110000}";\n' })).code, 2);
+  // 範囲外は 2 にしない
+  assert.equal(run(makeRoot({ 'crates/x/static/b.js': 'const s = "\\u{00000110000}";\n' })).code, 0);
 });
 
 test('style 属性の `=` の前後に長い空白があっても CSS として復号して照合する', () => {
@@ -468,7 +485,85 @@ test('style 属性の `=` の前後に長い空白があっても CSS として�
     const r = run(makeRoot({ 'crates/x/static/a.html': body }));
     assert.equal(r.code, 1, `${body}: ${r.out}`);
   }
-  // 名前が style でない属性の値は CSS として読まない（CSS のコメントの形で語を落とさない）
+  // 名前が style でない属性の値の中の CSS のコメントの形の語も照合する
   const r = run(makeRoot({ 'crates/x/static/b.html': '<p data-style="/* github */">x</p>\n' }));
   assert.equal(r.code, 1, r.out);
+});
+
+test('Codex の指摘の例（字句の読み違いで語を見逃した書き方）はどれも 1', () => {
+  const cases = [
+    // 最新の 2 件: for await の await が制御文の情報を上書きした例と、引用符の無い style 属性の CSS エスケープ
+    ['a.js', 'async function f() { for await (const x of xs) /[//]github/.test(x); }\n'],
+    ['a.html', '<p style=font-family:git\\68ub>x</p>\n'],
+    // `)`・`}`・`++` の後の `/` の判定
+    ['b.js', 'if (ok) /[//]github/.test(x);\n'],
+    ['c.js', 'if (a) { b(); }\n/[//]github/.test(c);\n'],
+    ['d.js', 'let n = 1;\n++n\n/[//]github/.test(s);\n'],
+    // <script> の中の <!-- -->
+    ['b.html', '<script>\n<!-- github -->\n</script>\n'],
+    ['c.html', '<script>const x = "<!-- github -->";</script>\n'],
+    // `;` の無い数値文字参照・先頭の 0 の多い参照
+    ['d.html', '<p>git&#104ub</p>\n'],
+    ['e.html', '<p>git&#x68ub</p>\n'],
+    ['f.html', '<p>git&#00000000000000000000104;ub</p>\n'],
+    ['g.html', '<p title="git&#x0000000068;ub">x</p>\n'],
+    // <style> 要素の CSS エスケープ
+    ['h.html', '<style>a::after { content: "git\\68 ub"; }</style>\n'],
+    ['a.css', 'a::after { content: "git\\68 ub"; }\n'],
+  ];
+  for (const [name, body] of cases) {
+    const r = run(makeRoot({ [`crates/x/static/${name}`]: body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+    assert.match(r.out, /: github/, r.out);
+  }
+});
+
+test('復号の組み合わせ: HTML→CSS・JS→HTML・行の継続・8 進のエスケープも照合する', () => {
+  const cases = [
+    // HTML の参照で書いた `\` の後の CSS エスケープ
+    ['a.html', '<p style="content: \'git&#92;68 ub\'">x</p>\n'],
+    // JS の文字列で書いた HTML の参照（innerHTML に入れると h になる）
+    ['a.js', 'el.innerHTML = "git\\x26#104;ub";\n'],
+    // JS の行の継続
+    ['b.js', 'const a = "git\\\nhub";\n'],
+    // 旧来の 8 進のエスケープ（\150 は h）と identity escape
+    ['c.js', 'const a = "git\\150ub";\n'],
+    ['d.js', 'const a = "git\\hub";\n'],
+    // CSS の 1 文字のエスケープ
+    ['a.css', '.git\\hub { color: red; }\n'],
+  ];
+  for (const [name, body] of cases) {
+    const r = run(makeRoot({ [`crates/x/static/${name}`]: body }));
+    assert.equal(r.code, 1, `${body}: ${r.out}`);
+    assert.match(r.out, /:1: github/, r.out);
+  }
+});
+
+test('正当な JS・HTML・CSS は、エスケープや参照が読めない形でも 2 にしない', () => {
+  const cases = {
+    'crates/x/static/a.js': '// \\u00zz \\u{110000} \\x \\8\nconst re = /\\k<n>\\p{L}/u;\nconst s = "a\\0b";\n',
+    'crates/x/static/a.html': '<p>&# &#x; &#q &unknownname; &#0; &#xD800;</p>\n',
+    'crates/x/static/a.css': 'a::after { content: "\\0 \\110000 \\D800 \\"; }\n',
+  };
+  for (const [rel, body] of Object.entries(cases)) assert.equal(run(makeRoot({ [rel]: body })).code, 0, rel);
+});
+
+test('fail-closed: UTF-8 でない static（UTF-16・不正なバイト列）は 2。BOM つきの UTF-8 は読む', () => {
+  const root1 = makeRoot();
+  fs.mkdirSync(path.join(root1, 'crates/x/static'), { recursive: true });
+  fs.writeFileSync(path.join(root1, 'crates/x/static/a.js'), Buffer.from('\ufeffconst a = "github";\n', 'utf16le'));
+  assert.equal(run(root1).code, 2);
+  const root2 = makeRoot();
+  fs.mkdirSync(path.join(root2, 'crates/x/static'), { recursive: true });
+  fs.writeFileSync(path.join(root2, 'crates/x/static/a.css'), Buffer.from([0x61, 0xff, 0x62, 0x0a]));
+  assert.equal(run(root2).code, 2);
+  const bom = run(makeRoot({ 'crates/x/static/a.js': '\ufeffconst a = "github";\n' }));
+  assert.equal(bom.code, 1, bom.out);
+  assert.match(bom.out, /a\.js:1: github/);
+});
+
+test('.rs のコメントの中の語は今までどおり 0（static だけがコメントも照合する）', () => {
+  const body = '// github\n/* issue */\nfn f() {}\n';
+  assert.equal(run(makeRoot({ 'crates/x/src/a.rs': body })).code, 0);
+  assert.equal(run(makeRoot({ 'crates/x/static/a.js': body })).code, 1);
 });
