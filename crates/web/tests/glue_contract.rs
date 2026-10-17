@@ -42,7 +42,12 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
 ];
 
 /// リスナーの登録。イベント名で操作の種類が決まる。
-const LISTENER_CALL: &str = "add_event_listener_with_callback";
+/// `_and_bool` は捕捉の段（capture）の登録で、`compositionend` を上流の泡立ちの段の配線より先に受けるために使う
+/// （Issue #1510）。どちらの形も、第 1 引数のイベント名を同じ許可の表で照合する。
+const LISTENER_CALLS: &[&str] = &[
+    "add_event_listener_with_callback",
+    "add_event_listener_with_callback_and_bool",
+];
 
 /// リスナーに登録してよいイベント名と、対応する許される操作。
 const ALLOWED_EVENTS: &[(&str, GlueOp)] = &[
@@ -152,15 +157,17 @@ fn call_names(code: &str) -> Vec<String> {
 
 /// リスナー登録の第 1 引数（文字列リテラル）を集める。リテラルでない第 1 引数は空文字として返す（許可されない）。
 fn listener_events(code: &str) -> Vec<String> {
-    let needle = format!("{LISTENER_CALL}(");
     let mut events = Vec::new();
-    for (pos, _) in code.match_indices(&needle) {
-        let rest = &code[pos + needle.len()..];
-        let event = rest
-            .strip_prefix('"')
-            .and_then(|r| r.split('"').next())
-            .unwrap_or("");
-        events.push(event.to_owned());
+    for call in LISTENER_CALLS {
+        let needle = format!("{call}(");
+        for (pos, _) in code.match_indices(&needle) {
+            let rest = &code[pos + needle.len()..];
+            let event = rest
+                .strip_prefix('"')
+                .and_then(|r| r.split('"').next())
+                .unwrap_or("");
+            events.push(event.to_owned());
+        }
     }
     events
 }
@@ -176,7 +183,7 @@ fn violations(src: &str) -> Vec<String> {
     let known: HashSet<&str> = DOM_CALLS
         .iter()
         .map(|(n, _)| *n)
-        .chain(std::iter::once(LISTENER_CALL))
+        .chain(LISTENER_CALLS.iter().copied())
         .chain(NON_DOM_CALLS.iter().copied())
         .collect();
     for name in call_names(&code) {
@@ -308,6 +315,26 @@ fn 負例_未知の呼び出しを足すと検出する() {
 fn 負例_許可外のイベントのリスナーを足すと検出する() {
     let src = GOOD.replace("\"compositionend\"", "\"paste\"");
     assert!(violations(&src).iter().any(|m| m.contains("paste")));
+}
+
+#[test]
+fn 負例_捕捉の段の登録でも許可外のイベントを検出する() {
+    let src = GOOD.replace(
+        "add_event_listener_with_callback(\"compositionend\", g)",
+        "add_event_listener_with_callback_and_bool(\"paste\", g, true)",
+    );
+    assert_ne!(src, GOOD);
+    assert!(violations(&src).iter().any(|m| m.contains("paste")));
+}
+
+#[test]
+fn 負例_捕捉の段の登録でもリテラルでないイベント名を検出する() {
+    let src = GOOD.replace(
+        "add_event_listener_with_callback(\"compositionend\", g)",
+        "add_event_listener_with_callback_and_bool(name, g, true)",
+    );
+    assert_ne!(src, GOOD);
+    assert!(violations(&src).iter().any(|m| m.contains("リスナー")));
 }
 
 #[test]
