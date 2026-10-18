@@ -279,8 +279,6 @@ fn parse_inlines(it: &mut Iter, depth: usize, end: Option<TagEnd>) -> Vec<Inline
     out
 }
 
-/// 開始タグの直後から、対応する終了タグまでを入れ子を数えながら読み飛ばし、含まれるテキストだけを返す。
-/// 反復で読むので、入れ子が深くてもスタックを使わない。
 /// 行の途中の改行を連結するか。直前の出力が `Text` で末尾が CJK、直後のイベントが `Text` で先頭が CJK のときだけ
 /// 真になる。`parse_inlines` が `SoftBreak` を見たときに呼ぶ。空文字列でも panic しない。
 fn joins_soft_break(prev: Option<&Inline>, next: Option<&Event>) -> bool {
@@ -303,6 +301,8 @@ fn is_cjk(c: char) -> bool {
     )
 }
 
+/// 開始タグの直後から、対応する終了タグまでを入れ子を数えながら読み飛ばし、含まれるテキストだけを返す。
+/// 反復で読むので、入れ子が深くてもスタックを使わない。
 fn skip_to_text(it: &mut Iter) -> String {
     let mut depth = 1usize;
     let mut s = String::new();
