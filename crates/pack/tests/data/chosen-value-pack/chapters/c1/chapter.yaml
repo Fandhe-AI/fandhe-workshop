@@ -1,0 +1,56 @@
+id: c1
+title: 選んだ値の章
+starts: [{id: s1, node: a}, {id: s2, node: c}]
+steps:
+  - id: a
+    title: A
+    body: a.md
+    next: [{to: b}]
+    input:
+      kind: command
+      name: make-item
+      args:
+        - {name: name, positional: true, required: true, shape: kebab_case}
+    rules:
+      - id: r-alpha
+        on: {command: make-item, args: {name: alpha}}
+        outcome:
+          kind: accept
+          effects:
+            - put: {path: work/alpha, attrs: {label: first}}
+      - id: r-beta
+        on: {command: make-item, args: {name: beta}}
+        outcome:
+          kind: accept
+          effects:
+            - put: {path: work/beta, attrs: {label: second}}
+    confirm: {kind: none, reason: 送った結果がそのまま次の Step の前提になるため、別の確認を置かない。}
+  - id: c
+    title: C
+    body: c.md
+    next: [{to: b}]
+    on_enter:
+      - put: {path: draft, attrs: {tone: 初期}}
+    input:
+      kind: choice
+      options:
+        - {id: opt-a, label: 案 A}
+        - {id: opt-b, label: 案 B}
+    rules:
+      - id: r-opt-a
+        on: {option: opt-a}
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: {path: draft, attr: tone, value: 丁寧な文面}
+      - id: r-opt-b
+        on: {option: opt-b}
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: {path: draft, attr: tone, value: 簡潔な文面}
+    confirm: {kind: none, reason: 選ぶことそのものが意思表示のため、別の確認を置かない。}
+  - id: b
+    title: B
+    body: b.md
+    final: true

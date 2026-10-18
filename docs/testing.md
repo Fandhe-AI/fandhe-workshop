@@ -3805,3 +3805,9 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 |---|---|---|---|---|
 | PACK38-1 | crates/contract/src/view_body.rs: 未知の綴りの拒否を外す | unknown_spelling_is_refused_exactly | unknown_spelling_is_refused_exactly | DETECTED |
 | PACK38-2 | crates/pack/src/vocab_check.rs: views.body を使用と数える判定を常に偽にする | vocab_declaration_older_than_1_4_is_a_mismatch | vocab_declaration_older_than_1_4_is_a_mismatch | DETECTED |
+
+### 5.125 選んだ値の差し込みの限界の観察（TASK-66 2/2）
+
+受講者が選んだ値を差し込む語は足さないと決まった（D-50、PACK-39）。この決定の下での現状を、`crates/pack/tests/chosen_value_gap.rs` の `pack39_` の 10 件で固定する。差し込みらしい欄が `on_enter` で `E-PARSE` になること、規則の `outcome.effects` では読み込みは通るが実行時に入力ごと拒否されること、受講者の値を指す枠が `E-SLOT-UNKNOWN` になること、章の `${名前}` が文字のまま世界状態に残ること、列挙・引数の条件のない規則・選択ごとの固定値の属性の回避が書けること、列挙にない値が拒否され世界状態が変わらないことを確かめる。
+
+変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである（PACK-44 の試験と同じ扱い）。限界の記録は `docs/known-gaps.md`。
