@@ -12,6 +12,8 @@ steps:
     do: PR カードのマージの操作をします
     views: [v-prs, v-roots]
     final: true
+    on_enter:
+      - put: { path: "roots/child-${child}", attrs: { state: open } }
     input:
       kind: ui_action
       targets: [{ view: v-prs, path: "prs/${pr}-a#merge" }]
