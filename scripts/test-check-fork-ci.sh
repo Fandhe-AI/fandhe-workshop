@@ -383,6 +383,44 @@ case_ "block run with a trailing comment on the pinned write passes (D3)" 0 - --
 printf '        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"; echo "rev=main" >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run4"
 splice "${GOOD_PACK}" "${TMP_DIR}/pack-oneline.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run4"
 case_ "two writes of one output on one line are rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-oneline.yml" --engine-rev "${GOOD_REV}"
+# review follow-ups 2: shell quoting, clone destinations, YAML-quoted permissions
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: |\n          echo '"'"'rev=$(cat ENGINE_REV)'"'"' >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run5"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-sq-block.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run5"
+case_ "single-quoted command substitution in a block run is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-sq-block.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: echo '"'"'rev=$(cat ENGINE_REV)'"'"' >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run6"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-sq-inline.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run6"
+case_ "single-quoted command substitution in an inline run is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-sq-inline.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: |\n          echo rev=$(cat ENGINE_REV) >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run7"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-unquoted.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run7"
+case_ "unquoted command substitution in a block run passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-unquoted.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: "echo \\"rev=$(cat ENGINE_REV)\\" >> \\"${GITHUB_OUTPUT}\\""\n' >"${TMP_DIR}/t-run8"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-yamlq.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run8"
+case_ "YAML-quoted run with a double-quoted substitution passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-yamlq.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git -C other checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-other.yml"
+case_ "pin applied to another directory than the clone is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-other.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n'; } >"${TMP_DIR}/pack-clone-before.yml"
+case_ "pin written before the clone is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-before.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine3\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-two.yml"
+case_ "two clones with only one pinned are rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-two.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          cd engine2 && git checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-cd.yml"
+case_ "clone then cd into it and checkout ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-clone-cd.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-write-dq.yml" 's|contents: read|contents: "write"|'
+case_ "double-quoted write permission is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-dq.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-write-sq.yml" "s|contents: read|contents: 'write'|"
+case_ "single-quoted write permission is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-sq.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-write-flow.yml" 's|^permissions:$|permissions: {contents: "write"}|;/^  contents: read$/d'
+case_ "flow-style quoted write permission is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-flow.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-write-quoted-all.yml" 's|^permissions:$|permissions: "write-all"|'
+case_ "quoted write-all is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-quoted-all.yml"
+
 printf '{"packages":{"node_modules/a":{"resolved":"https:%suser:pw%snpm.example.invalid/a.tgz"}}}\n' "//" "${AT}" >"${TMP_DIR}/npm-cred.json"
 "${CHECK}" --secrets-checker "${STUB}" --package-lock "${TMP_DIR}/npm-cred.json" >/dev/null 2>"${TMP_DIR}/err" || true
 if grep -q 'pw' "${TMP_DIR}/err"; then

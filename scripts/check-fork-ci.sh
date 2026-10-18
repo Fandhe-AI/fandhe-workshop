@@ -26,8 +26,9 @@
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進 1 行
 #     D2 エンジン repo を取得する checkout が 1 つ以上ある
 #     D3 その ref が ENGINE_REV の値、または同じジョブの前の step が ENGINE_REV だけから書いた出力
-#     D4 run でエンジン repo を取得する run が、`$(cat ENGINE_REV)` を checkout / reset / fetch の対象か --rev 等の値の位置で使っている
-#        （git clone の保存先など版を指定しない位置は不可）
+#     D4 run でエンジン repo を取得するコマンドが、取得先ごとに ENGINE_REV で版を決める
+#        （git clone は同じ先への `git -C <先> checkout` 等か --branch 等の値。cargo install 等は同じコマンドの版の位置。
+#        取得先と版の適用先を対応付けられない形は拒否する）
 #
 # deploy.yml の起点を変える場合（TASK-121）は、C2 と回帰テストを同時に直す。
 #
@@ -275,7 +276,17 @@ b3_out="$(awk -v owners="${ALLOWED_USES_OWNERS}" '
 report "${CI_FILE}" "${b3_out}"
 
 # ---- C1 ci.yml に write の権限・environment が無い ----
-grep_report "C1 write permission (the build/test workflow must be read-only)" "${CI_FILE}" ':[[:space:]]*write([[:space:]#]|$)|write-all' -i
+# YAML のスカラーとして読むため、値の引用符（"write"・'write'）を外してから比べる。フロー形式（{contents: "write"}）も拾う。
+rc=0
+c1_out="$(awk '
+  {
+    l = $0; gsub(/["\047]/, "", l); sub(/[[:space:]]+#.*$/, "", l); l = tolower(l)
+    if (l ~ /:[[:space:]]*(![^[:space:]]*[[:space:]]+)*write([[:space:],}]|$)/ || l ~ /write-all/)
+      print NR ":C1 write permission (the build/test workflow must be read-only)"
+  }
+' "${CI_FILE}")" || rc=$?
+[ "${rc}" -eq 0 ] || { echo "error: awk failed on ${CI_FILE}" >&2; exit 2; }
+report "${CI_FILE}" "${c1_out}"
 grep_report "C1 environment (deployment settings belong in deploy.yml)" "${CI_FILE}" '^[[:space:]]*(-[[:space:]]+)?environment[[:space:]]*:' -i
 
 # ---- C2 deploy.yml ----
@@ -364,6 +375,26 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       }
       return s
     }
+    # inline の run の値。YAML の引用符で全体が囲まれているときだけ外して中身を戻す。
+    # シェルの引用符は意味を持つので消さない（trim_val のように一括で削除しない）。
+    function run_val(s,   q) {
+      sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]+$/, "", s)
+      q = substr(s, 1, 1)
+      if ((q == "\"" || q == "\047") && length(s) >= 2 && substr(s, length(s), 1) == q) {
+        s = substr(s, 2, length(s) - 2)
+        if (q == "\"") { gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\\\", s) } else gsub(/\047\047/, "\047", s)
+      }
+      return s
+    }
+    # コメントを除いた 1 行が、ENGINE_REV だけから GITHUB_OUTPUT へ書く固定版の形か。
+    # コマンド置換が実際に展開される引用なし、または二重引用符の中の形だけを認める（単一引用符の中は文字列のまま）。
+    function output_pinned(l,   head) {
+      if (l !~ / *>> *"?\$\{?GITHUB_OUTPUT\}?"? *$/) return 0
+      head = l; sub(/ *>> *"?\$\{?GITHUB_OUTPUT\}?"? *$/, "", head)
+      if (head ~ /^[[:space:]]*echo +[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)$/) return 1
+      if (head ~ /^[[:space:]]*echo +"[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)"$/) return 1
+      return 0
+    }
     # step の出力を書く行を調べる。固定版として認めるのは、コメントを除いた行全体が
     # `echo NAME=$(cat ENGINE_REV) >> $GITHUB_OUTPUT`（引用・波括弧は任意）の形のときだけ。
     # それ以外で GITHUB_OUTPUT に触れる行は、行内の全ての NAME= を汚染として記録する（名前を取れない場合に備え全名の印も付ける）。
@@ -373,8 +404,8 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       for (i = 1; i <= n; i++) {
         l = strip_comment(arr[i])
         if (l !~ /GITHUB_OUTPUT/) continue
-        if (l ~ /^[[:space:]]*echo +["\047]?[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>> *["\047]?\$\{?GITHUB_OUTPUT\}?["\047]? *$/) {
-          name = l; sub(/^[[:space:]]*echo +["\047]?/, "", name); sub(/=.*$/, "", name)
+        if (output_pinned(l)) {
+          name = l; sub(/^[[:space:]]*echo +"?/, "", name); sub(/=.*$/, "", name)
           pinned[job SUBSEP id SUBSEP name] = 1
           continue
         }
@@ -405,6 +436,56 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       }
       return 0
     }
+    function norm(p) { gsub(/["\047]/, "", p); sub(/^\.\//, "", p); sub(/\/+$/, "", p); return p }
+    function full(p) { p = norm(p); if (p ~ /^\//) return p; return cwd == "" ? p : cwd "/" p }
+    # run のエンジン取得が、取得先ごとに ENGINE_REV で版を決めているか。コマンドを &&・;・||・| で分けて順に見る。
+    #  - git clone は、同じコマンドに --branch 等の指定が無ければ取得先ディレクトリを「未固定」に記録し、
+    #    後の `git -C <同じ先> checkout|switch|reset|fetch "$(cat ENGINE_REV)"`（または cd した先での同じ操作）で外す。
+    #  - cargo install・git fetch 等は、同じコマンドの中で版の位置に使うことを要する。
+    #  - 取得先を判断できない形・取得を認識できない形・最後まで未固定の先が残る形は拒否する。
+    function run_ok(run,   low, n, arr, i, l, ns, segs, j, seg, ls, cnt, bad, t, nt, k, d, x, c) {
+      low = tolower(run)
+      if (low !~ /fandhe-ai\/fandhe-workshop/ || low !~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) return 1
+      gsub(/\\\n/, " ", run)
+      split("", pending); cwd = ""; cnt = 0; bad = 0
+      n = split(run, arr, "\n")
+      for (i = 1; i <= n; i++) {
+        l = strip_comment(arr[i])
+        ns = split(l, segs, /&&|;|\|\||\|/)
+        for (j = 1; j <= ns; j++) {
+          seg = segs[j]; ls = tolower(seg)
+          if (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) {
+            c = seg; sub(/^[[:space:]]*cd[[:space:]]*/, "", c); sub(/[[:space:]].*$/, "", c); c = norm(c)
+            cwd = (c == "" || c ~ /^[-~]/) ? "?" : full(c)
+            continue
+          }
+          if (ls ~ /fandhe-ai\/fandhe-workshop/ && ls ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) {
+            cnt++
+            if (run_pins(seg)) continue
+            if (ls !~ /git clone/) { bad = 1; continue }
+            x = seg; sub(/^[[:space:]]+/, "", x); sub(/[[:space:]]+$/, "", x)
+            nt = split(x, t, /[[:space:]]+/)
+            d = "?"
+            for (k = 1; k <= nt; k++) if (tolower(t[k]) ~ /fandhe-ai\/fandhe-workshop/) {
+              if (k == nt) d = "fandhe-workshop"
+              else if (norm(t[k + 1]) ~ /^[A-Za-z0-9_.\/-]+$/) d = norm(t[k + 1])
+              break
+            }
+            pending[full(d)] = 1
+            continue
+          }
+          if (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg)) {
+            if (match(seg, /git +-C +[^ ]+/)) {
+              x = substr(seg, RSTART, RLENGTH); sub(/^git +-C +/, "", x); d = full(x)
+            } else d = cwd
+            delete pending[d]
+          }
+        }
+      }
+      if (cnt == 0) bad = 1
+      for (k in pending) bad = 1
+      return !bad
+    }
     function end_step(   m, p, pid, pname, k) {
       if (!in_step) return
       if (s_uses ~ /^actions\/checkout@/ && tolower(s_repo) == tolower(guard)) {
@@ -422,7 +503,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
       }
       if (s_id != "") scan_outputs(s_id, s_run)
-      if (tolower(s_run) ~ /fandhe-ai\/fandhe-workshop/ && tolower(s_run) ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/ && !run_pins(s_run))
+      if (!run_ok(s_run))
         print s_line ":D4 run fetches the engine repo without using ENGINE_REV as the version"
       in_step = 0
     }
@@ -452,7 +533,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         s_ref = line; sub(/^[[:space:]]*ref[[:space:]]*:[[:space:]]*/, "", s_ref); sub(/[[:space:]]+#.*$/, "", s_ref); gsub(/["\047]/, "", s_ref)
       }
       else if (line ~ /^[[:space:]]*id[[:space:]]*:/) s_id = trim_val(line)
-      else if (line ~ /^[[:space:]]*run[[:space:]]*:/) { s_run = s_run "\n" trim_val(line); in_run = 1 }
+      else if (line ~ /^[[:space:]]*run[[:space:]]*:/) { s_run = s_run "\n" run_val(line); in_run = 1 }
     }
     END {
       end_step()
