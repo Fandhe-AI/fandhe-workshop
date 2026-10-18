@@ -663,9 +663,15 @@ pub const TERMS: &[VocabTerm] = &[
     },
 ];
 
+/// （`kind`, `term`）の組から語を引く。`pack.vocab` の宣言との版の比較（`vocab_check`）が、番号を持たない語の版を
+/// 引くために使う。`extension_point` と対の形である。
+pub(crate) fn term(kind: &str, term: &str) -> Option<&'static VocabTerm> {
+    TERMS.iter().find(|t| t.kind == kind && t.term == term)
+}
+
 /// 表に（`kind`, `term`）の組があるか。
-fn has_term(kind: &str, term: &str) -> bool {
-    TERMS.iter().any(|t| t.kind == kind && t.term == term)
+fn has_term(kind: &str, term_name: &str) -> bool {
+    term(kind, term_name).is_some()
 }
 
 /// 語彙の `result` の語を判定結果の種類に写す。語彙にある 3 語（`accepted`・`rejected`・`clarified`）だけを受ける。

@@ -1,0 +1,8 @@
+id: PACK31-3
+package: fandhe-workshop-pack
+test: vocab_declaration
+target: crates/pack/src/vocab_check.rs
+find:             step.confirm
+replace:             step.input
+expect-fail: pack31_input_choice_label_is_not_confirm_label
+note: confirm の代わりに input を見る（入力方式 choice の label を確認の label と取り違える）

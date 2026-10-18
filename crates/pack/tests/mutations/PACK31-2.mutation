@@ -1,0 +1,8 @@
+id: PACK31-2
+package: fandhe-workshop-pack
+test: vocab_declaration
+target: crates/pack/src/vocab_check.rs
+find:                         .any(|o| o.get("label").is_some_and(|l| !l.is_null()))
+replace:                         .any(|o| o.get("label").is_some_and(|l| l.is_null()))
+expect-fail: pack31_label_with_vocab_below_1_3_is_reported
+note: 確認の選択肢の label を使用と数える判定を反転させる（label を使う教材が通る）
