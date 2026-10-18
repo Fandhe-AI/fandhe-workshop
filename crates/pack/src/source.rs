@@ -260,6 +260,9 @@ pub struct LoadedPack {
     pub tests_file: Option<String>,
     /// 教材テストの内容。
     pub tests: Option<TestsSrc>,
+    /// `pack.vocab` が欄ごと省略ではなく、値のない `null` として明示されている（形式 B のみ。TOML に null は無い）。
+    /// `PackInfo.vocab` は省略も `null` も `None` に読むため、読み込み時に区別して残す（PACK-31）。
+    pub vocab_explicit_null: bool,
 }
 
 /// バイト位置を 1 始まりの行・桁（文字数）にする。範囲外は末尾として扱う。
@@ -946,11 +949,18 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
     let mut diags = Vec::new();
     let workshop_file = rel(dir, &wpath);
     let mut workshop: Option<WorkshopSrc> = None;
+    let mut vocab_explicit_null = false;
     if let Some(text) = read_diag_text(&wpath, &workshop_file, "pack", &mut diags) {
         if let Some(d) = probe_format_version(format, &text, &workshop_file) {
             return Err(vec![d]);
         }
         workshop = parse_diag(format, &text, &workshop_file, "pack", &mut diags);
+        if workshop.is_some() && format == Format::Yaml {
+            vocab_explicit_null = yaml_serde::from_str::<Value>(&text)
+                .ok()
+                .and_then(|v| v.get("pack").and_then(|p| p.get("vocab")).cloned())
+                .is_some_and(|v| v.is_null());
+        }
     }
 
     let mut scopes = Vec::new();
@@ -1053,6 +1063,7 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
             fixture_texts,
             tests_file,
             tests,
+            vocab_explicit_null,
         }),
         _ => Err(diags),
     }

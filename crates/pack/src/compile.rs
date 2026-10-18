@@ -386,6 +386,7 @@ mod tests {
             fixture_texts: BTreeMap::new(),
             tests_file: None,
             tests: None,
+            vocab_explicit_null: false,
         };
         let d = compile(&pack).unwrap_err();
         assert_eq!(

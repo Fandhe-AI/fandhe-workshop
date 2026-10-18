@@ -44,12 +44,12 @@ fn uses_start_condition(pack: &LoadedPack) -> bool {
 
 /// 宣言を読んで、使用と比べる。`pack.vocab` が無いときは空を返す。
 pub(crate) fn check_vocab_declaration(pack: &LoadedPack) -> Vec<Diagnostic> {
-    let Some(raw) = pack.workshop.pack.vocab.as_ref() else {
-        return Vec::new();
-    };
-    let declared = match raw {
-        Value::String(s) => Declared::parse(s),
-        _ => None,
+    // 省略は検査しない。値のない `null`（`vocab:`・`~`）は明示した不正な宣言なので `E-PARSE` にする。
+    let declared = match pack.workshop.pack.vocab.as_ref() {
+        None if pack.vocab_explicit_null => None,
+        None => return Vec::new(),
+        Some(Value::String(s)) => Declared::parse(s),
+        Some(_) => None,
     };
     let file = pack.workshop_file.as_str();
     let Some(declared) = declared else {

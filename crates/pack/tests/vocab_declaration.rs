@@ -191,3 +191,15 @@ fn pack31_is_deterministic_and_validate_only() {
         assert!(ds.iter().all(|d| d.code() != DiagCode::VocabMismatch));
     }
 }
+
+#[test]
+fn pack31_explicit_null_vocab_is_parse_error_but_omission_passes() {
+    for v in ["null", "~", ""] {
+        let t = yaml_pack(&format!("  vocab: {v}\n"), &req_unmet());
+        assert_eq!(parse_errors(&t).len(), 1, "yaml vocab: {v:?}");
+        assert!(mismatches(&t).is_empty(), "yaml vocab: {v:?}");
+    }
+    let t = yaml_pack("", &req_unmet());
+    assert!(parse_errors(&t).is_empty());
+    assert!(mismatches(&t).is_empty());
+}
