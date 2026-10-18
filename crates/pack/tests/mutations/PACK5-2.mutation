@@ -1,0 +1,8 @@
+id: PACK5-2
+package: fandhe-workshop-pack
+test: yaml_features
+target: crates/pack/src/yaml_strict.rs
+find:     if anchor_id != 0 {
+replace:     if false && anchor_id != 0 {
+expect-fail: pack5_expect_anchor_and_alias_are_rejected_in_commands
+note: アンカーの判定を外す（アンカー付きのノードが黙って通る）

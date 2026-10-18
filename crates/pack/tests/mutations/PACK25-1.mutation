@@ -1,0 +1,8 @@
+id: PACK25-1
+package: fandhe-workshop-pack
+test: no_starts
+target: crates/pack/src/validate.rs
+find:     } else if starts == 0 {
+replace:     } else if false && starts == 0 {
+expect-fail: pack25_expect_missing_and_empty_starts_are_rejected
+note: validate の開始点 0 件の判定を外す（compile の判定だけが残り、validate_dir が通す）

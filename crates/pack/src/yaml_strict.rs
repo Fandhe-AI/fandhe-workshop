@@ -11,6 +11,11 @@
 //! あり、`Value` へ読んだ時点で字面が失われるので、型付きの読み込みの側では見られない。また欄の名前の許可リスト
 //! は使わない（後から足した数値の欄が黙って漏れる fail-open になるため）。
 //!
+//! アンカー・エイリアス・タグ・複数文書（PACK-5、D-43）も拒否する。`yaml_serde` はアンカーとエイリアスを透過に
+//! 展開し、`!!int` などの中核のタグを内部で解決して消すため、型付きの読み込みや serde の木の走査では見えない。
+//! そこで `check_yaml_features` が、安全な Rust だけの別のイベントパーサ（`saphyr-parser`）でイベントを直接見る。
+//! 2 つのパーサの解釈が食い違ってイベントパーサがエラーを返したときも、通さずに拒否する（fail-closed）。
+//!
 //! キーの同一性は文字列で比べる（`true:` と `'true':` は同じキー）。構造定義のキーは最終的にすべて `String` に
 //! 読まれ、YAML 上で別のキーでも 1 つに潰れて後勝ちになるためである。
 
@@ -33,11 +38,30 @@ pub(crate) enum StrictError {
     },
     /// 10 進でない整数（`0x`・`0o`・`0b`）を書いた。値は持たない（作成者の入力を診断へ写さない）。
     NonDecimalInt { pos: Option<(usize, usize)> },
+    /// アンカー・エイリアス・タグ・複数文書のどれかを書いた（PACK-5）。名前・字面は持たない（作成者の入力を診断へ
+    /// 写さない）。
+    Feature {
+        kind: YamlFeature,
+        pos: Option<(usize, usize)>,
+    },
     /// 重複以外（構文エラー等）。元のエラーの文字列と位置。
     Other {
         raw: String,
         pos: Option<(usize, usize)>,
     },
+}
+
+/// 拒否する YAML の機能の種別。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum YamlFeature {
+    /// アンカー（`&x`）。
+    Anchor,
+    /// エイリアス（`*x`。マージキー `<<: *x` を含む）。
+    Alias,
+    /// 明示されたタグ（`!t`・`!!str`・`!!int` など）。
+    Tag,
+    /// 2 つ目以降の文書。
+    MultipleDocuments,
 }
 
 type DupSlot = RefCell<Option<Option<String>>>;
@@ -201,6 +225,56 @@ pub(crate) fn check_radix_ints(text: &str) -> Result<(), StrictError> {
                 })
             }
         }
+    }
+}
+
+/// アンカー・エイリアス・タグ・複数文書を拒否する（PACK-5、D-43）。最初の 1 件で止める。
+///
+/// `check_duplicate_keys` が構文エラーと複数文書を先に拒否するので、ここへは `yaml_serde` が受け付けた文書だけが
+/// 届く。複数文書の判定は多重の防御である。位置は 1 始まりの行・桁（`yaml_serde` の診断と同じ基準）。
+pub(crate) fn check_yaml_features(text: &str) -> Result<(), StrictError> {
+    use saphyr_parser::{Event, Parser};
+
+    let mut documents = 0usize;
+    for item in Parser::new_from_str(text) {
+        let (event, span) = match item {
+            Ok(pair) => pair,
+            Err(_) => {
+                // パーサの文言は写さない（入力の断片が混ざりうる）。
+                return Err(StrictError::Other {
+                    raw: "YAML event parser disagreed".to_string(),
+                    pos: None,
+                });
+            }
+        };
+        let pos = Some((span.start.line(), span.start.col() + 1));
+        let kind = match event {
+            Event::DocumentStart(_) => {
+                documents += 1;
+                (documents > 1).then_some(YamlFeature::MultipleDocuments)
+            }
+            Event::Alias(_) => Some(YamlFeature::Alias),
+            Event::Scalar(_, _, anchor, tag) => feature_of(anchor, tag.is_some()),
+            Event::SequenceStart(anchor, tag) | Event::MappingStart(anchor, tag) => {
+                feature_of(anchor, tag.is_some())
+            }
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            return Err(StrictError::Feature { kind, pos });
+        }
+    }
+    Ok(())
+}
+
+/// ノードのアンカー番号（0 はアンカーなし）とタグの有無から、拒否する機能を決める。
+fn feature_of(anchor_id: usize, has_tag: bool) -> Option<YamlFeature> {
+    if anchor_id != 0 {
+        Some(YamlFeature::Anchor)
+    } else if has_tag {
+        Some(YamlFeature::Tag)
+    } else {
+        None
     }
 }
 
@@ -438,6 +512,84 @@ pub(crate) fn string_probe(text: &str) -> Result<Vec<StepStrings>, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn feature(text: &str) -> (YamlFeature, Option<(usize, usize)>) {
+        match check_yaml_features(text) {
+            Err(StrictError::Feature { kind, pos }) => (kind, pos),
+            other => panic!("expected feature, got {other:?} for {text:?}"),
+        }
+    }
+
+    #[test]
+    fn anchors_aliases_tags_and_documents_are_detected() {
+        use YamlFeature::*;
+        let cases: &[(&str, YamlFeature)] = &[
+            ("a: &x 1\n", Anchor),
+            ("a: &x 1\nb: *x\n", Anchor),
+            ("x: &a {k: 1}\ny: *a\n", Anchor),
+            ("a: &x {k: 1}\nb: {<<: *x}\n", Anchor),
+            ("a: !t 1\n", Tag),
+            ("a: !!str 1\n", Tag),
+            ("a: !!int 31\n", Tag),
+            ("a: ! 1\n", Tag),
+            ("a: !!map {k: 1}\n", Tag),
+            ("a: !t [1]\n", Tag),
+            ("- &x 1\n", Anchor),
+            ("&x a: 1\n", Anchor),
+            ("a: &x\n", Anchor),
+            ("---\na: 1\n---\nb: 2\n", MultipleDocuments),
+        ];
+        for (text, want) in cases {
+            assert_eq!(feature(text).0, *want, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn plain_text_that_looks_like_features_is_not_detected() {
+        for text in [
+            "title: \"Q&A\"\n",
+            "title: 'a*b'\n",
+            "title: Hello!\n",
+            "title: a & b\n",
+            "# &x comment\na: 1\n",
+            "a: |\n  * item\n  &x\n  !t\n",
+            "a: >\n  !important\n",
+            "a: [x, \"!y\"]\n",
+            "---\na: 1\n",
+            "a: 1\n...\n",
+            "",
+        ] {
+            assert!(check_yaml_features(text).is_ok(), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn feature_position_is_one_based_line_and_column() {
+        let (_, pos) = feature("a: 1\nb: &x 2\n");
+        let (line, col) = pos.expect("position");
+        assert_eq!(line, 2);
+        // 桁の基準は `yaml_serde` と同じ 1 始まり（重複キーが行頭にあれば 1）。位置はアンカーを付けたノード
+        // （ここでは値 `2`）の先頭である。
+        assert_eq!(dup("a: 1\nb: 2\nb: 3\n").1, Some((3, 1)));
+        assert_eq!(col, 7);
+    }
+
+    #[test]
+    fn undefined_alias_is_rejected_fail_closed() {
+        assert!(matches!(
+            check_yaml_features("a: *x\n"),
+            Err(StrictError::Other { .. })
+        ));
+    }
+
+    #[test]
+    fn feature_error_does_not_carry_names() {
+        let e = check_yaml_features("a: &secretanchor secretvalue\n").unwrap_err();
+        let s = format!("{e:?}");
+        assert!(!s.contains("secret"), "{s}");
+        let e = check_yaml_features("a: !secrettag 1\n").unwrap_err();
+        assert!(!format!("{e:?}").contains("secret"));
+    }
 
     fn dup(text: &str) -> (Option<String>, Option<(usize, usize)>) {
         match check_duplicate_keys(text) {

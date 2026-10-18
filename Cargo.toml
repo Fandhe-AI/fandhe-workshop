@@ -33,6 +33,9 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 toml = "1.1.6"
 yaml_serde = "0.10.7"
+# 形式 B の YAML のアンカー・エイリアス・タグを拒否するため（PACK-5、D-43）。yaml_serde はこれらを透過に展開し、
+# libyaml-rs は unsafe を要するため、安全な Rust だけのイベントパーサを使う。pack（native）だけが使う。
+saphyr-parser = "0.2.2"
 pulldown-cmark = { version = "0.13.4", default-features = false }
 # core 等の性質テスト用。dev-dependencies からのみ参照し、配信物（wasm）には入れない。
 # fork・timeout を外して依存の木を小さくする。

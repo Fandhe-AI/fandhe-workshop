@@ -1,0 +1,8 @@
+id: PACK5-3
+package: fandhe-workshop-pack
+test: yaml_features
+target: crates/pack/src/yaml_strict.rs
+find:     } else if has_tag {
+replace:     } else if false && has_tag {
+expect-fail: pack5_expect_tags_are_rejected
+note: タグの判定を外す（!!int 31 などが黙って解決されて通る）

@@ -43,6 +43,15 @@ TASK-179 でこの文書に書き足します。
 （PACK-5。黙って 31 などに読み替えないためです）。形式 A（TOML）も同じです。形式 B で文字列として書きたいときは
 `'0x1f'` のように引用符で囲んでください。診断には値を写さず、行と桁だけを示します。
 
+形式 B では、アンカー（`&x`）・エイリアス（`*x`。マージキー `<<: *x` を含む）・タグ（`!t`・`!!str`・`!!int` など）・
+複数文書（`---` で区切った 2 つ目以降の文書）も、どの欄でも `E-PARSE` で拒否します（PACK-5。YAML の処理系が黙って
+展開・解決して、書いた内容と違う値になるのを避けるためです）。同じ値を何度も使いたいときはそのまま書くか、
+モジュールを使ってください。文字列にしたいときは `!!str` ではなく引用符で囲んでください。1 つの文書の先頭の `---`
+と末尾の `...` は書けます。形式 A（TOML）には、これらの記法がありません。
+
+開始点（`starts`）は、全章を合わせて 1 件以上が必要です。0 件の教材パックは、`validate` の検査で `E-STRUCTURE` として
+拒否します（PACK-25）。モジュールの `starts` は数えません。
+
 `commands`・`views` など、語彙の型付けが入るまで自由な値として通す欄の中の引用符なしの値は、文字列にならず
 YAML の型のままです。重複キーの拒否だけが及びます。
 
@@ -284,6 +293,8 @@ pack:
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
+| `crates/pack/tests/yaml_features.rs` の `pack5_` | アンカー・エイリアス・マージキー・タグ・複数文書をどの欄でも `E-PARSE` で拒否し、名前・字面を写さないこと（PACK-5） |
+| `crates/pack/tests/no_starts.rs` の `pack25_` | 開始点が 0 件のパックを `validate` の段階で `E-STRUCTURE` として拒否すること（PACK-25） |
 | `crates/pack/tests/radix_literals.rs` の `pack5_` | 10 進でない整数（`0x1f` 等）をどの位置でも両形式で `E-PARSE` で拒否し、値を写さないこと（PACK-5） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
