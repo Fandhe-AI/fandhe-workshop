@@ -1,6 +1,6 @@
-//! 語彙の版の表（語彙 v1〜v1.3 の語と名前つき拡張点 EP-1〜EP-12）。
+//! 語彙の版の表（語彙 v1〜v1.4 の語と名前つき拡張点 EP-1〜EP-13）。
 //!
-//! 正は `docs/vocabulary/vocabulary.md`（版 2）で、本モジュールは実装側の写しである。
+//! 正は `docs/vocabulary/vocabulary.md`（版 3）で、本モジュールは実装側の写しである。
 //! `fandhe-pack vocab`（TASK-408）の数え上げと、宣言と使用の一致の検査（TASK-59）が、
 //! 語ごとの語彙の版を引くために使う。文書と本表の一致は `tests/vocabulary_terms.rs` が確かめる。
 //! 純粋な定数の表で、I/O も panic も持たない。
@@ -21,6 +21,8 @@ pub enum VocabVersion {
     V1_2,
     /// 語彙 v1.3（EP-10〜EP-12 と `confirm.options[].label`）。
     V1_3,
+    /// 語彙 v1.4（EP-13 と `views.body`）。
+    V1_4,
 }
 
 impl VocabVersion {
@@ -31,6 +33,7 @@ impl VocabVersion {
             VocabVersion::V1_1 => "v1.1",
             VocabVersion::V1_2 => "v1.2",
             VocabVersion::V1_3 => "v1.3",
+            VocabVersion::V1_4 => "v1.4",
         }
     }
 
@@ -41,6 +44,7 @@ impl VocabVersion {
             VocabVersion::V1_1 => (1, 1),
             VocabVersion::V1_2 => (1, 2),
             VocabVersion::V1_3 => (1, 3),
+            VocabVersion::V1_4 => (1, 4),
         }
     }
 }
@@ -51,7 +55,7 @@ pub fn extension_point(name: &str) -> Option<&'static ExtensionPoint> {
 }
 
 /// このエンジンが知る語彙の版の上限。
-pub const LATEST: VocabVersion = VocabVersion::V1_3;
+pub const LATEST: VocabVersion = VocabVersion::V1_4;
 
 /// 名前つき拡張点の 1 件。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,6 +156,12 @@ pub const EXTENSION_POINTS: &[ExtensionPoint] = &[
         name: "pack.left_pane",
         kind: "pack",
         version: VocabVersion::V1_3,
+    },
+    ExtensionPoint {
+        id: "EP-13",
+        name: "view.document_body",
+        kind: "view",
+        version: VocabVersion::V1_4,
     },
 ];
 
@@ -660,6 +670,24 @@ pub const TERMS: &[VocabTerm] = &[
         term: "confirm.options[].label",
         version: VocabVersion::V1_3,
         extension_point: None,
+    },
+    VocabTerm {
+        kind: "field",
+        term: "views.body",
+        version: VocabVersion::V1_4,
+        extension_point: Some("EP-13"),
+    },
+    VocabTerm {
+        kind: "value",
+        term: "views.body=shown",
+        version: VocabVersion::V1_4,
+        extension_point: Some("EP-13"),
+    },
+    VocabTerm {
+        kind: "value",
+        term: "views.body=hidden",
+        version: VocabVersion::V1_4,
+        extension_point: Some("EP-13"),
     },
 ];
 

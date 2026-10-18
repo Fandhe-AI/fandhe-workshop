@@ -5,8 +5,8 @@
 //!
 //! - `pack.vocab` を省略した教材は検査しない。PACK-31 の前提は「`pack.vocab` を書く」であり、書き方の
 //!   規約は TASK-179 の持ち分である（contract の `DEFAULT` は履歴を書くときの値で、検査の既定ではない）
-//! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-12（`pack.profile`・
-//!   `appearance`・`left_pane`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）。v1.1 の語は対象外
+//! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-13（`pack.profile`・
+//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）。v1.1 の語は対象外
 //! - `confirm.options[].label` は確認の `confirm` だけを見る。入力方式 `choice` の `input.options[].label`
 //!   （v1 の語。PACK-23）は別の欄であり、`step.input` は読まない
 //! - 必要な版は [`crate::vocab::EXTENSION_POINTS`]・[`crate::vocab::term`] から引き、ここに書き写さない
@@ -47,6 +47,7 @@ const PROBES: &[Probe] = &[
     (Source::Ep("pack.left_pane"), |p| {
         p.workshop.pack.left_pane.is_some()
     }),
+    (Source::Ep("view.document_body"), uses_view_body),
     (LABEL, uses_answer_label),
 ];
 
@@ -85,6 +86,15 @@ fn uses_answer_label(pack: &LoadedPack) -> bool {
                 })
         })
     })
+}
+
+/// `workshop.views` のどれかが `body` を持つか（EP-13）。値の型や綴りは見ない（読めない値は別に `E-PARSE`）。
+/// `null` は使用に数えない。
+fn uses_view_body(pack: &LoadedPack) -> bool {
+    pack.workshop
+        .views
+        .values()
+        .any(|v| v.get("body").is_some_and(|b| !b.is_null()))
 }
 
 /// 章・モジュール（呼ばれないものを含む）の開始点に `requires`・`unmet` があるか。

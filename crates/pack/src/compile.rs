@@ -80,6 +80,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
     ex.diags.extend(profile_diags);
     ex.diags.extend(appearance_diags);
+    ex.diags
+        .extend(crate::view_body::check_view_bodies(&pack.workshop_file, w));
     // 読めない `left_pane` は `E-PARSE` だけを報告し、モードが決まらないため `E-LEFT-*` は検査しない。
     let (left_pane, left_parse) = crate::left_pane::check_left_pane(&pack.workshop_file, w);
     let left_pane_ok = left_parse.is_empty();

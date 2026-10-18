@@ -1,17 +1,18 @@
 # 語彙の文書
 
 ```text
-語彙の文書の版: 2
+語彙の文書の版: 3
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.3）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
+- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.4）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
 - 「語彙の文書の版」は本文書の版（整数）であり、語ごとの「語彙の版」（`v1`・`v1.1` など）とは別物である。IR の形式の版 `ir_format`（TASK-41）とも別に管理する
 - 版 1 は名前つき拡張点 EP-1〜EP-5（語彙 v1）だけを固定した。版 2 は加算で、EP-6〜EP-12、拡張点の番号を持たない `confirm.options[].label`、条件・状態変化・入力方式などを含む語彙 v1〜v1.3 の全語（7 節）、版と拡張点の対応表（8 節）を足す
-- TASK-62〜TASK-72 で決まる語彙は本版に含めない。足すときは新しい語彙の版の行として加え、文書の版を上げる
+- 版 3 は加算で、EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を足す（TASK-66 1/2、PACK-38、D-50・D-51）。文書のビューが練習データの本文を出す宣言である
+- TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）を除き、本版に含めない。足すときは新しい語彙の版の行として加え、文書の版を上げる
 - 変更規則: 固定した行は書き換えない・消さない・改名しない。足すときは新しい語彙の版の行として加え、文書の版を上げ、変更履歴に記録する
 - 名前を変える必要が出た場合は、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
 - 仕様は private のため、本文を転記せず ID（PACK-14、EXT-8）で参照する
@@ -34,6 +35,7 @@
 | EP-10 | `pack.profile` | `pack` | `v1.3` | コマンドの接頭辞と入力欄の有無 | 入力の作法は教材ごとに選べてよい、共通の設定 |
 | EP-11 | `pack.appearance` | `pack` | `v1.3` | 外観の選択。閉じた 4 値で、見た目だけを変える | 読みやすさの要請は教材によらない |
 | EP-12 | `pack.left_pane` | `pack` | `v1.3` | 世界状態の一覧とビューの切り替えボタンの表示の絞り込み | 画面の情報量を絞りたい教材で共通 |
+| EP-13 | `view.document_body` | `view` | `v1.4` | 文書のビューが、行の要素の練習データの本文を出す宣言（`views.<ID>.body: shown`）。省略は `hidden` | 文書・手順書・メモの中身を見せる教材は、題材によらず共通 |
 
 - 書き方は要旨である。欄の型と評価の意味の正は、各実装タスク（TASK-42・TASK-44・TASK-46・TASK-49・TASK-51・TASK-52・TASK-53）とする。本文書が固定するのは、名前・種別・語彙の版である
 - 試験は、表のうち行頭が `EP-` の行を数える。この表以外に、行頭が `EP-` の表の行を置かない
@@ -81,13 +83,14 @@
 | TASK-51 | 7 節の開始条件の語（EP-9） |
 | TASK-52 | 7 節の `pack.profile` の語（EP-10） |
 | TASK-53 | 7 節の `pack.appearance`・`pack.left_pane` の語（EP-11・EP-12） |
+| TASK-66 | 2 節の EP-13・7 節の `views.body` の語 |
 | TASK-59 | 7 節の語の一覧（宣言と使用の一致の検査の対象） |
 | TASK-256 | 7 節の `result`・`rejection` の語 |
 | TASK-408 | `vocab` コマンドの数え上げ |
 
 ## 7. 語の一覧
 
-語彙 v1〜v1.3 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
+語彙 v1〜v1.4 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
 
 - 種別の列は分類のキーであり、2 節の拡張点の種別とは別物である
 - 語の列の `a.b` は欄の経路、`x=y` は欄 `x` の値 `y` を指す
@@ -181,6 +184,9 @@
 | `value` | `pack.left_pane.view_tabs=declared` | `v1.3` | EP-12 | PACK-22 | 左エリアの値 |
 | `value` | `pack.left_pane.view_tabs=hidden` | `v1.3` | EP-12 | PACK-22 | 左エリアの値 |
 | `field` | `confirm.options[].label` | `v1.3` | — | PACK-23 | 選択肢の表示名（入力方式 choice の options[].label とは別の欄。拡張点の番号なし） |
+| `field` | `views.body` | `v1.4` | EP-13 | PACK-38 | 文書のビューが練習データの本文を出すか |
+| `value` | `views.body=shown` | `v1.4` | EP-13 | PACK-38 | 本文の値（閉じた集合） |
+| `value` | `views.body=hidden` | `v1.4` | EP-13 | PACK-38 | 本文の値（閉じた集合。省略と同じ） |
 
 ## 8. 版と拡張点の対応表
 
@@ -190,9 +196,11 @@
 | `v1.1` | EP-6・EP-7・EP-8 | — | PACK-15〜PACK-17 |
 | `v1.2` | EP-9 | — | PACK-18 |
 | `v1.3` | EP-10・EP-11・EP-12 | `confirm.options[].label` | PACK-20〜PACK-23 |
+| `v1.4` | EP-13 | — | PACK-38 |
 
 - v1.1〜v1.3 は加算だけで、IR の形式の版 `ir_format` は 1 のままである（PACK-24）
-- 語彙の版の上限は `v1.3` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
+- v1.4 も加算だけである。`views` は値を通す欄のため、IR の型は変わらない
+- 語彙の版の上限は `v1.4` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
 
 ## 9. 仕様との照合表
 
@@ -216,6 +224,7 @@
 | PACK-21 | `pack.appearance.theme`・`pack.appearance.theme=standard`・`pack.appearance.theme=mono`・`pack.appearance.theme=high_contrast`・`pack.appearance.theme=reading` |
 | PACK-22 | `pack.left_pane.world_list`・`pack.left_pane.view_tabs`・`pack.left_pane.world_list=shown`・`pack.left_pane.world_list=hidden`・`pack.left_pane.view_tabs=all`・`pack.left_pane.view_tabs=declared`・`pack.left_pane.view_tabs=hidden` |
 | PACK-23 | `confirm.options[].label` |
+| PACK-38 | `views.body`・`views.body=shown`・`views.body=hidden` |
 
 ## 10. 本文書に入れないもの
 
@@ -224,7 +233,7 @@
 - `pack.vocab` の宣言と使用の一致の検査: 検査は TASK-59 が持つ。`pack.vocab` は宣言の欄であり、語には数えない（PACK-31）
 - 判定結果の残り（確認・進行・無視）: 入力判定の契約（TASK-256、JUDGE-3）が持つ
 - ビューの種類（EP-5 を除く）: 画面の契約が持つ
-- TASK-62〜TASK-72 で決まる語彙: 決まった後に、新しい語彙の版の行として足す
+- TASK-62〜TASK-72 で決まる語彙（TASK-66 の文書ビューの本文の語は 7 節に足した）: 決まった後に、新しい語彙の版の行として足す
 
 ## 付録 A. 固有の語の一覧
 
@@ -261,3 +270,4 @@
 |---|---|---|---|
 | 1 | 2026-10-15 | 初版。EP-1〜EP-5 を語彙 v1 として固定 | TASK-48、PACK-14 |
 | 2 | 2026-10-15 | EP-6〜EP-12・`confirm.options[].label`・語彙 v1〜v1.3 の語の一覧・版と拡張点の対応表を加算。名前の形を 2 段以上に拡張 | TASK-194、PACK-8〜PACK-23 |
+| 3 | 2026-10-18 | EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を加算。TASK-66 1/2 | TASK-66、PACK-38、D-50・D-51 |

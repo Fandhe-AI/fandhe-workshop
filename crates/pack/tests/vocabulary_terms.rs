@@ -10,7 +10,7 @@ use std::path::Path;
 
 use fandhe_workshop_pack::vocab::{VocabVersion, EXTENSION_POINTS, LATEST, TERMS};
 
-const VERSIONS: [&str; 4] = ["v1", "v1.1", "v1.2", "v1.3"];
+const VERSIONS: [&str; 5] = ["v1", "v1.1", "v1.2", "v1.3", "v1.4"];
 
 fn doc() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/vocabulary/vocabulary.md");
@@ -125,7 +125,7 @@ fn terms_are_unique() {
 #[test]
 fn extension_points_match_table() {
     let rows = ep_rows(&doc());
-    assert_eq!(rows.len(), 12, "EP の行の数");
+    assert_eq!(rows.len(), 13, "EP の行の数");
     assert_eq!(rows.len(), EXTENSION_POINTS.len());
     for (row, ep) in rows.iter().zip(EXTENSION_POINTS) {
         assert_eq!(
@@ -159,7 +159,7 @@ fn version_table_matches_extension_points() {
         }
     }
     assert_eq!(seen, ep_version, "8 節の対応と 2 節の語彙の版が一致");
-    assert_eq!(seen.len(), 12);
+    assert_eq!(seen.len(), 13);
 }
 
 #[test]
@@ -201,8 +201,10 @@ fn crosswalk_terms_exist() {
     let known: BTreeSet<String> = doc_terms(&d).into_iter().map(|t| t.1).collect();
     let rows = section_rows(&d, "## 9. ");
     let ids: Vec<String> = rows.iter().map(|r| r[0].clone()).collect();
-    let want: Vec<String> = (8..=23).map(|n| format!("PACK-{n}")).collect();
-    assert_eq!(ids, want, "PACK-8〜PACK-23 の 16 行がそろう");
+    let mut want: Vec<String> = (8..=23).map(|n| format!("PACK-{n}")).collect();
+    // 語彙 v1.4（TASK-66 1/2）の出所。
+    want.push("PACK-38".to_string());
+    assert_eq!(ids, want, "PACK-8〜PACK-23 と PACK-38 の 17 行がそろう");
     for row in &rows {
         for term in row[1].split('`').skip(1).step_by(2) {
             assert!(known.contains(term), "{}: 7 節に無い語 {term}", row[0]);
@@ -211,8 +213,8 @@ fn crosswalk_terms_exist() {
 }
 
 #[test]
-fn latest_is_v13() {
-    assert_eq!(LATEST, VocabVersion::V1_3);
+fn latest_is_v14() {
+    assert_eq!(LATEST, VocabVersion::V1_4);
     let max = TERMS.iter().map(|t| t.version).max().expect("語がある");
     assert_eq!(max, LATEST);
 }

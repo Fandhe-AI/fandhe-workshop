@@ -1,0 +1,8 @@
+id: PACK38-2
+package: fandhe-workshop-pack
+test: view_body
+target: crates/pack/src/vocab_check.rs
+find:         .any(|v| v.get("body").is_some_and(|b| !b.is_null()))
+replace:         .any(|v| v.get("body").is_some_and(|b| !b.is_null()) && false)
+expect-fail: vocab_declaration_older_than_1_4_is_a_mismatch
+note: views.body を使用と数える判定を常に偽にする（1.3 を宣言して body を使っても不一致が報告されない）

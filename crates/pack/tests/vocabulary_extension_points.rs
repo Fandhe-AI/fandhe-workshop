@@ -1,4 +1,4 @@
-//! 名前つき拡張点 EP-1〜EP-12 の固定と、汎用名の検査（TASK-48、PACK-14）。
+//! 名前つき拡張点 EP-1〜EP-13 の固定と、汎用名の検査（TASK-48、PACK-14）。
 //!
 //! 正は `docs/vocabulary/vocabulary.md`。この試験は、文書の表が期待どおりの名前・種別・語彙の版を
 //! 持つことと、名前が付録 A の固有の語を含まないことを、文書を読んで確かめる。
@@ -10,7 +10,7 @@ use std::fs;
 use std::path::Path;
 
 /// 期待する公開の一覧（ID、名前、種別、語彙の版）。
-const EXPECTED: [(&str, &str, &str, &str); 12] = [
+const EXPECTED: [(&str, &str, &str, &str); 13] = [
     ("EP-1", "input.wait", "input", "v1"),
     ("EP-2", "input.cancel", "input", "v1"),
     ("EP-3", "condition.param", "condition", "v1"),
@@ -23,6 +23,7 @@ const EXPECTED: [(&str, &str, &str, &str); 12] = [
     ("EP-10", "pack.profile", "pack", "v1.3"),
     ("EP-11", "pack.appearance", "pack", "v1.3"),
     ("EP-12", "pack.left_pane", "pack", "v1.3"),
+    ("EP-13", "view.document_body", "view", "v1.4"),
 ];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
