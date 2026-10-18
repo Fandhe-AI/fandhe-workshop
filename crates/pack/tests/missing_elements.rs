@@ -334,3 +334,39 @@ fn pack30_unsafe_path_and_values_are_not_echoed() {
         assert!(!d.to_string().contains("SECRET-VALUE"), "{d}");
     }
 }
+
+#[test]
+fn pack30_module_start_with_param_path_is_checked_after_expansion() {
+    // モジュールの `starts[].effects` の `remove: "${target}"` も、展開の後に定義元の開始点として報告する。
+    let t = assemble(&DEFECTS[2], Format::A);
+    let rel = "modules/mod-inner/module.toml";
+    rewrite(
+        &t,
+        rel,
+        "[params]\ntarget = \"lost-item\"\n",
+        "[params]\ntarget = \"lost-item\"\n\n[[starts]]\nid = \"us-1\"\nnode = \"u-b\"\neffects = [{ remove = \"${target}\" }]\n",
+    );
+    let diags = validate_dir(&t.0);
+    let hit = element_diags(&diags)
+        .iter()
+        .any(|x| x.file() == rel && x.item() == "start:us-1");
+    assert!(hit, "{diags:?}");
+}
+
+#[test]
+fn pack30_chapter_templated_path_is_checked_without_substitution() {
+    // 章は引数を置換されない。`${x}` を含む経路でも、どこにも置かれなければ報告する。
+    let t = Tmp::new("element-chapter-templated");
+    copy_dir(&base_dir(Format::A), &t.0);
+    let rel = "chapters/ch-d/chapter.toml";
+    rewrite(
+        &t,
+        rel,
+        "title = \"次へ進む準備をする\"",
+        "title = \"次へ進む準備をする\"\non_enter = [{ remove = \"lost-${x}\" }]",
+    );
+    let diags = validate_dir(&t.0);
+    let hits = element_diags(&diags);
+    assert_eq!(hits.len(), 1, "{diags:?}");
+    assert_eq!(hits[0].file(), rel);
+}

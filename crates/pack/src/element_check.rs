@@ -14,7 +14,8 @@
 //! - `replace` の対象（不在なら置くため、そもそも報告しない）
 //!
 //! モジュールの引数（`${`）を含む `remove`・`set_attr` の経路は展開の前に決まらないため展開の前には判定せず、
-//! 展開の後の Step（[`check_missing_elements_expanded`]）で判定する。教材データは信頼しない入力として扱い、
+//! 展開の後の Step・開始点（[`check_missing_elements_expanded`]）で判定する。章の経路は置換されないので、
+//! `${` を含んでいても展開の前に判定する。教材データは信頼しない入力として扱い、
 //! 診断の文面は固定の英語で、経路は `safe_ident` を通るときだけ写す（属性値は写さない）。
 //! 読めない効果の項目は飛ばす（語彙の誤りは `effect_check` が報告する）。
 
@@ -41,22 +42,28 @@ pub fn check_missing_elements(pack: &LoadedPack) -> Vec<Diagnostic> {
             let site = Site {
                 file: &scope.file,
                 item: &item,
-                pre_expansion: true,
+                pre_expansion: defers(scope.kind),
             };
             check_list(&mut out, &site, "effects", &start.effects, &placed);
         }
         for step in &scope.src.steps {
-            check_step(&mut out, &scope.file, step, &placed, true);
+            check_step(&mut out, &scope.file, step, &placed, defers(scope.kind));
         }
     }
     out
 }
 
-/// 展開の後（モジュールの引数の置換の後）の Step を検査する。
+/// `${` を含む経路を展開の後まで延期するのはモジュールだけである。章は引数を置換されず、`${x}` は
+/// 実行時にそのまま世界状態の鍵になるため、展開の前に判定する。
+fn defers(kind: ScopeKind) -> bool {
+    kind == ScopeKind::Module
+}
+
+/// 展開の後（モジュールの引数の置換の後）の Step と開始点を検査する。
 ///
-/// 置かれる経路は展開後の全 Step と開始点から集め、検査はモジュールの実体（`scope != "main"`）だけにする
-/// （章の Step は置換されず、展開の前の検査で足りる）。診断は Step を定義したモジュールのファイルに付け、
-/// 同じ内容は 1 件にする。
+/// 置かれる経路は展開後の全 Step と開始点から集め、検査はモジュールの実体（`scope != "main"`）の Step と、
+/// その Step から始まる開始点だけにする（章は置換されず、展開の前の検査で足りる）。診断は定義したモジュールの
+/// ファイルに付け（開始点の項目は展開前の開始 ID）、同じ内容は 1 件にする。
 pub fn check_missing_elements_expanded(
     pack: &LoadedPack,
     nodes: &[Node],
@@ -70,13 +77,34 @@ pub fn check_missing_elements_expanded(
         placed.add_step(&node.step);
     }
     let mut out = Vec::new();
-    for node in nodes.iter().filter(|n| n.scope != "main") {
-        let file = pack
-            .scopes
+    let file_of = |unit: &str| {
+        pack.scopes
             .iter()
-            .find(|s| s.kind == ScopeKind::Module && s.src.id == node.unit)
-            .map_or(pack.workshop_file.as_str(), |s| s.file.as_str());
-        check_step(&mut out, file, &node.step, &placed, false);
+            .find(|s| s.kind == ScopeKind::Module && s.src.id == unit)
+            .map_or(pack.workshop_file.as_str(), |s| s.file.as_str())
+    };
+    for start in starts {
+        // 展開後のモジュールの開始点は ID が `<実体 ID>#<開始 ID>`、始点はモジュールの実体の Step。
+        let Some(node) = nodes
+            .iter()
+            .find(|n| n.uid == start.node && n.scope != "main")
+        else {
+            continue;
+        };
+        let orig = start
+            .id
+            .rsplit_once('#')
+            .map_or(start.id.as_str(), |(_, o)| o);
+        let item = format!("start:{orig}");
+        let site = Site {
+            file: file_of(&node.unit),
+            item: &item,
+            pre_expansion: false,
+        };
+        check_list(&mut out, &site, "effects", &start.effects, &placed);
+    }
+    for node in nodes.iter().filter(|n| n.scope != "main") {
+        check_step(&mut out, file_of(&node.unit), &node.step, &placed, false);
     }
     let mut seen = BTreeSet::new();
     out.retain(|d| seen.insert(format!("{d:?}")));
