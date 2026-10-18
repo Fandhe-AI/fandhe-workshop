@@ -107,9 +107,11 @@ pub use session::{apply, Session, SessionState};
 /// 版 4 で足したもの: 再読み込み（SAVE-4）の `Event::Reloaded`・`session::reload`・`Session::reload`。
 /// `Op` と世代の規則の表は変えない（再読み込みは `apply()` を経由しない）。
 ///
+/// 版 5 で足したもの: 問い返しの待ちの欄 `session::Slice::clarifying`（EP-4）。旧データは既定で読め、`None` は書き出さない。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）
 /// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 4;
+pub const CONTRACT_VERSION: u32 = 5;

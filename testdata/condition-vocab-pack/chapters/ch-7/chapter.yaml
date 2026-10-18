@@ -1,0 +1,40 @@
+# CH-7 の形: 必須引数つきの command の後に、周回 1 のモジュール impl-run を呼ぶ（branch_demo が "true"）。
+id: ch-7
+title: 実行の進行
+
+starts:
+  - { id: s-7-1, node: st-7-1 }
+
+steps:
+  - id: st-7-1
+    title: 実行を始める
+    do: /start-run に親の番号を付けて送ります
+    views: [v-roots]
+    next: [{ to: u-impl }]
+    input:
+      kind: command
+      name: start-run
+      args:
+        - { name: parent, positional: true, required: true, shape: digits }
+    rules:
+      - id: r-launch
+        on: { command: start-run, args: { parent: "42" } }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: roots/root-42, attrs: { state: running } }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-roots, path: roots/root-42 }]
+      on_miss: rj-miss-point
+
+  - id: u-impl
+    title: "周回 1: 進行から完了まで"
+    final: true
+    use:
+      module: impl-run
+      instance: round1
+      args:
+        branch_demo: "true"
+        pr: pr-1
+        child: "1"

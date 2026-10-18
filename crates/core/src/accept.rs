@@ -50,7 +50,7 @@
 //! - 確認の操作による達成と外れた指し先（`confirm`、TASK-207 2/3）、確認前の達成 0 件の性質テスト（TASK-207 3/3）
 //! - `processing` を持つ省略の Step の達成（`tick`、TASK-210 2/3）。`busy` の文面の差し込みは `judge` が [`crate::text_fill`] で行う（TASK-274）
 //! - 進行 `Op::Tick` の照合と進め方（`tick`、TASK-210）
-//! - 問い返しの待ちの条件（`when: clarifying`）の評価（`NoConditions` で評価するため当たらない）
+//! - 問い返しの待ちの欄（`Slice::clarifying`）を立てる処理と、評価器の `VocabConditions` への結線（評価は実装済み。立てる・消す処理と結線は TASK-207・TASK-267。それまで `NoConditions` で評価するため当たらない）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! `Warning` の文面は固定文で、入力値・教材の値を埋め込まない。入力値は未信頼で、HTML への埋め込みの

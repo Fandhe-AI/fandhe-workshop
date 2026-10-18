@@ -23,7 +23,7 @@ fn uid(s: &str) -> StepUid {
 
 #[test]
 fn contract_version_is_two() {
-    assert_eq!(CONTRACT_VERSION, 4);
+    assert_eq!(CONTRACT_VERSION, 5);
 }
 
 #[test]
@@ -257,4 +257,22 @@ fn projection_and_types_are_constructible() {
     let _: Option<LogRow> = None;
     let _: BTreeSet<String> = BTreeSet::new();
     let _ = (apply as fn(_, _, _) -> _, Session::new);
+}
+
+#[test]
+fn slice_clarifying_is_backward_compatible_in_serde() {
+    use fandhe_workshop_core::session::Slice;
+    // 欄が無い旧データを読める。
+    let old: Slice = serde_json::from_str(r#"{"status":{},"choices":{},"flags":[]}"#).unwrap();
+    assert_eq!(old.clarifying, None);
+    // `None` は書き出さない（旧データとバイト単位で同じ）。
+    let out = serde_json::to_string(&old).unwrap();
+    assert!(!out.contains("clarifying"), "{out}");
+    // `Some` は往復する。
+    let s = Slice {
+        clarifying: Some("cl-1".into()),
+        ..Slice::default()
+    };
+    let back: Slice = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+    assert_eq!(back, s);
 }
