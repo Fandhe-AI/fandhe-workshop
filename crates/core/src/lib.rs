@@ -8,6 +8,7 @@
 //! 実行環境 [`Session`]・遷移関数 [`apply`]・導出 [`Projection`]（[`session`]・[`projection`]、TASK-204 2/3。導出の中身は TASK-215 2/2）も持つ。
 //! 履歴の 4 軸の版の記録と欠落の検査（[`version_record`]、TASK-173 2/2）も持つ。
 //! 状態変化の語彙（要素・属性・フラグ）の 1 語ごとの適用と、`when` つきの列・進行の順次適用（[`effect`]、TASK-43）も持つ。
+//! 条件の語彙（状態・世界状態・論理）の評価と、`when` に差し込む評価器（[`condition`]、TASK-42 1/2）も持つ。
 //! 操作 1 件の世界状態の差分から変更前の値つきの `Changed` を作る記録（[`changed`]、TASK-215 1/2）も持つ。
 //! 受講者の 1 行をコマンド名と引数に分ける字句化（[`command_lex`]、TASK-262 1/2）も持つ。
 //! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
@@ -50,6 +51,7 @@ pub mod command_class;
 pub mod command_judge;
 pub mod command_lex;
 pub mod command_rule;
+pub mod condition;
 mod confirm;
 pub mod effect;
 pub mod event;

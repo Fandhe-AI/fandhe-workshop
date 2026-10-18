@@ -33,6 +33,7 @@ use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Start};
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
+use crate::condition_check::check_optional;
 use crate::confirm;
 use crate::diag::{DiagCode, Diagnostic};
 use crate::effect_check::check_effects;
@@ -101,6 +102,10 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
                 continue;
             }
             for (code, msg) in check_effects(&st.effects, "effects", &w.fixtures, false) {
+                ex.diags
+                    .push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
+            }
+            for (code, msg) in check_optional(st.requires.as_ref(), "requires") {
                 ex.diags
                     .push(diag(&scope.file, &format!("start:{}", st.id), code, msg));
             }
