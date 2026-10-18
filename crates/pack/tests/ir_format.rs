@@ -8,7 +8,8 @@
 //!
 //! 版 2 の golden を作り直したのは、D-51 による版上げ（契約の変更）である。以後の書き換えも、
 //! `ir_format` の版上げの判断が要る（spec を先に直す）。試験は
-//! 作業ツリーを書き換えない。再生成の手順は、`cargo build --locked -p fandhe-workshop-pack` の後に、
+//! 作業ツリーを書き換えない。TASK-61（行の途中の改行の連結）で fixture-pack の golden を作り直したのは、
+//! D-51・PACK-27 で決まった変換の内容の変更で、欄の追加ではないため `ir_format` は上げていない。再生成の手順は、`cargo build --locked -p fandhe-workshop-pack` の後に、
 //! `target/debug/fandhe-pack compile <パックのディレクトリ>` の標準出力を golden のファイルに保存する。
 //! 一時ディレクトリは `CARGO_TARGET_TMPDIR` の下に作る。
 

@@ -1,0 +1,8 @@
+id: PACK27-2
+package: fandhe-workshop-pack
+test: soft_break_join
+target: crates/pack/src/markdown.rs
+find:     prev_cjk && next_cjk
+replace:     prev_cjk || !prev_cjk
+expect-fail: pack27_ascii_soft_break_is_kept
+note: 連結の判定を常に真にする（英数字の改行も連結される）

@@ -1,4 +1,4 @@
-//! 本文と練習データの木が IR に載ることの結合試験（TASK-60 の 1/2、04-behavior の PACK-26・SAFE-37・ART-18）。
+//! 本文と練習データの木が IR に載ることの結合試験（TASK-60 の 1/2・TASK-61、04-behavior の PACK-26・SAFE-37・ART-18）。
 //!
 //! `compile_dir` が、Step の本文（`body`・`body_levels`）と練習データの内容を安全な木にして IR（版 2）へ載せ、
 //! その IR を `load_ir` が読めることを、実パック（`testdata/`・`tests/data/`）と一時ディレクトリの
@@ -104,8 +104,12 @@ fn body_tree_has_no_html_kind_and_no_null() {
     assert!(j.contains("<script>alert(1)</script>"));
     assert!(!j.contains("\"t\":\"script\"") && !j.contains("\"t\":\"html\""));
     assert!(!j.contains("null"));
-    // 日本語の行の途中の改行は、連結せずに残す（連結は TASK-61）。
-    assert!(j.contains("次の行です。日本語の\"},{\"t\":\"text\",\"text\":\"\\n\""));
+    // 日本語の行の途中の改行は連結し、英数字の段落の改行は残す（TASK-61・PACK-27）。
+    assert!(j.contains("次の行です。日本語の\"},{\"t\":\"text\",\"text\":\"行の途中"));
+    assert!(!j.contains("日本語の\"},{\"t\":\"text\",\"text\":\"\\n\""));
+    assert!(j.contains(
+        "alpha line\"},{\"t\":\"text\",\"text\":\"\\n\"},{\"t\":\"text\",\"text\":\"beta line"
+    ));
     // リンクの URL は検査せずに入れる。
     assert!(j.contains("\"href\":\"https://example.com/\""));
     // 本文のある Step の水準別の本文。

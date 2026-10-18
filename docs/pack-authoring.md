@@ -324,6 +324,15 @@ pack:
 - 診断は `EP-9 (starts.requires) needs vocab 1.2 or later (declared 1.0)` や `confirm.options[].label needs vocab 1.3 or later (declared 1.2)` の形で、file は定義ファイル、item は `pack:vocab` です。`label` の値は写しません
 - 語彙 1.1 の拡張点は、まだ検査しません
 
+## 本文の行の途中の改行
+
+本文（Markdown）を 1 段落 1 行で書く必要はありません（PACK-27・D-51）。
+
+- 前後がともに日本語（かな・漢字・全角記号）の行末の改行は、連結されます。文の途中に空白は入りません
+- 英数字が接する改行（`hello` と `world` など）や、日本語と英数字の間の改行は残り、画面では空白として描かれます
+- コード・強調・リンクの直前や直後の改行は、連結されません
+- 段落を分けるには空行を、強制改行には行末の空白 2 つか `\` を使います
+
 ## `validate` が見つけない欠陥
 
 `validate` は、次の 3 つを報告しません（PACK-30・D-43 で、検出できない限界として受け入れた範囲です）。
@@ -354,6 +363,7 @@ pack:
 | `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性・Step の巡回・規則の遮蔽を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
 | `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
 | `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-12）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |
+| `crates/pack/tests/soft_break_join.rs` の `pack27_` | 前後が CJK の行の途中の改行だけが連結され、英数字・混在・インラインの境界・強制改行は変わらないこと（PACK-27・D-51） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
