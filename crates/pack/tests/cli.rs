@@ -180,3 +180,54 @@ fn pack5_cli_radix_literal_is_diagnostic_and_emits_no_ir() {
     assert!(!out.contains("0x1f"), "{out}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// PACK-5: アンカー・エイリアス・タグを書いたパックは終了コード 1 で `E-PARSE` を出し、IR を出さない。
+#[test]
+fn pack5_cli_anchor_and_tag_are_diagnostic_and_emit_no_ir() {
+    for (tag, commands) in [
+        ("anchor", "x: &anchor_name {n: 1}\n  y: *anchor_name"),
+        ("tag", "x: !!int 31"),
+    ] {
+        let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+            .join(format!("pack5-cli-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("workshop.yaml"),
+            format!("pack: {{id: p, title: t, version: '0', ir_format: 1, guidance: A}}\ncommands:\n  {commands}\n"),
+        )
+        .unwrap();
+        let o = bin().arg("compile").arg(&dir).output().unwrap();
+        assert_eq!(o.status.code(), Some(1), "{tag}");
+        let out = String::from_utf8_lossy(&o.stdout);
+        assert!(out.contains("E-PARSE"), "{tag}: {out}");
+        assert!(!out.contains("\"ir_format\""), "{tag}: {out}");
+        assert!(!out.contains("anchor_name"), "{tag}: {out}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// PACK-25: 開始点が 0 件のパックは終了コード 1 で `E-STRUCTURE` を出し、IR を出さない。
+#[test]
+fn pack25_cli_no_start_is_diagnostic_and_emits_no_ir() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("pack25-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("chapters/c1")).unwrap();
+    std::fs::write(
+        dir.join("workshop.yaml"),
+        "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("chapters/c1/chapter.yaml"),
+        "id: c1\ntitle: C\nsteps:\n  - {id: a, title: A, final: true}\n",
+    )
+    .unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-STRUCTURE"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

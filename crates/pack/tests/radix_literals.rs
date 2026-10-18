@@ -3,7 +3,7 @@
 //! `yaml_serde`・`toml` は `0x1f` を黙って 31 に読む。構造定義のどの位置でも `E-PARSE` で拒否し、31 に読み替えた
 //! IR を出さないことを、形式 B と形式 A の両方で確かめる。診断には入力の値（`0x1f`）を写さず、行と桁だけを添える。
 //! `fandhe-pack validate` の結線は TASK-401 が受け持つため、ここではライブラリの経路（`compile_dir`）を使う。
-//! アンカー・タグ・複数文書の拒否と `starts` 0 件の拒否は TASK-57 2/2 の担当で、ここでは扱わない。
+//! アンカー・タグ・複数文書の拒否は `yaml_features.rs`、`starts` 0 件の拒否は `no_starts.rs`（TASK-57 2/2）が扱う。
 
 mod common;
 

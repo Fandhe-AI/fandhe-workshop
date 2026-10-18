@@ -9,6 +9,7 @@
 //! 形式の判定（`workshop.yaml` と `workshop.toml` の両方・どちらも無いは拒否。PACK-2）と、語彙にない欄の
 //! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。引用符なしの値の文字列としての読み取り・重複キーの拒否・
 //! 構文エラーの行と桁（PACK-4）も本モジュールと `yaml_strict` が扱う。モジュールの展開は `compile`（`expand`）が行う。
+//! 形式 B のアンカー・エイリアス・タグ・複数文書の拒否（PACK-5）も `yaml_strict` が行い、ここで診断文にする。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -75,7 +76,23 @@ impl Format {
                     Err(StrictError::Other { raw, pos }) => {
                         return Err(classify_parse_error(&raw, pos));
                     }
-                    Err(StrictError::NonDecimalInt { .. }) => {}
+                    Err(StrictError::NonDecimalInt { .. } | StrictError::Feature { .. }) => {}
+                }
+                // アンカー・エイリアス・タグ・複数文書は `yaml_serde` が黙って展開・解決するので拒否する（PACK-5）。
+                match yaml_strict::check_yaml_features(text) {
+                    Ok(()) => {}
+                    Err(StrictError::Feature { kind, pos }) => {
+                        return Err(yaml_feature_message(kind, pos));
+                    }
+                    Err(StrictError::Other { raw, pos }) => {
+                        return Err(classify_parse_error(&raw, pos));
+                    }
+                    Err(StrictError::Duplicate { name, pos }) => {
+                        return Err(duplicate_key_message(name.as_deref(), pos));
+                    }
+                    Err(StrictError::NonDecimalInt { pos }) => {
+                        return Err(non_decimal_int_message(pos));
+                    }
                 }
                 // 10 進でない整数（`0x1f` 等）は `yaml_serde` が黙って数に読むので拒否する（PACK-5）。
                 match yaml_strict::check_radix_ints(text) {
@@ -88,6 +105,9 @@ impl Format {
                     }
                     Err(StrictError::Duplicate { name, pos }) => {
                         return Err(duplicate_key_message(name.as_deref(), pos));
+                    }
+                    Err(StrictError::Feature { kind, pos }) => {
+                        return Err(yaml_feature_message(kind, pos));
                     }
                 }
                 yaml_serde::from_str(text).map_err(|e| {
@@ -261,6 +281,20 @@ fn non_decimal_int_message(pos: Option<(usize, usize)>) -> String {
             format!("integer at line {line} column {col} must be written in decimal")
         }
         None => "integer must be written in decimal".to_string(),
+    }
+}
+
+/// アンカー・エイリアス・タグ・複数文書の診断文。アンカー名・タグの字面・値は写さず、位置だけを添える。
+fn yaml_feature_message(kind: yaml_strict::YamlFeature, pos: Option<(usize, usize)>) -> String {
+    use yaml_strict::YamlFeature;
+    let what = match kind {
+        YamlFeature::Anchor | YamlFeature::Alias => "anchors and aliases",
+        YamlFeature::Tag => "tags",
+        YamlFeature::MultipleDocuments => "multiple documents",
+    };
+    match pos {
+        Some((line, col)) => format!("{what} are not allowed at line {line} column {col}"),
+        None => format!("{what} are not allowed"),
     }
 }
 
