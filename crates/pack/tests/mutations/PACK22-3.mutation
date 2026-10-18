@@ -1,0 +1,8 @@
+id: PACK22-3
+package: fandhe-workshop-pack
+test: left_pane
+target: crates/pack/src/left_pane.rs
+find:         if !placed.contains(path) {
+replace:         if false && !placed.contains(path) {
+expect-fail: target_row_is_checked_even_with_world_list_hidden_only
+note: E-LEFT-TARGET-ROW の「どの put・replace にも現れない」判定を無効化する（置かれない経路の宛先が通る）

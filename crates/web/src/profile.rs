@@ -7,20 +7,22 @@
 //! 本モジュールは、検査済みの設定を表示層へ渡す型だけを持つ。IR の値からの変換と診断は pack 側
 //! （TASK-52・TASK-53）の責務で、本モジュールの型に合わせて値を作る。
 //!
-//! 外観の閉じた集合と読み取りの規則の正は `contract::appearance` にある（`Theme` はその再公開）。
+//! 外観の閉じた集合と読み取りの規則の正は `contract::appearance` に、左エリアの設定の正は `contract::left_pane` に
+//! ある（`Theme`・`LeftPane`・`WorldList`・`ViewTabs` はその再公開）。
 //!
 //! 外観は見た目だけを変え、入力判定・状態変化・遷移・履歴に影響しない（PACK-21）。外観は `main` の
 //! `data-theme` 属性だけで表し、`style` 属性・`<style>` 要素は使わない。
 //!
 //! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 1）である。
 //!
-//! 既定値: `command_prefix` は `"/"`、`theme` は `standard`、`view_tabs` は `all`（PACK-48）。
-//! `input_field` と `world_list` の既定は spec の本文に明記が無く、prototype の試験の観察から `shown` と置く
-//! （未確認の仮定）。
+//! 既定値: `command_prefix` は `"/"`、`theme` は `standard`、`view_tabs` は `all`（PACK-48）、`world_list` は
+//! `shown`（語彙 v1.3 の 5 節）。`input_field` の既定は spec の本文に明記が無く、prototype の試験の観察から
+//! `shown` と置く（未確認の仮定）。
 
 use core::fmt;
 
 pub use fandhe_workshop_contract::appearance::Theme;
+pub use fandhe_workshop_contract::left_pane::{LeftPane, ViewTabs, WorldList};
 pub use fandhe_workshop_contract::profile::InputClass;
 use fandhe_workshop_contract::profile::{check_command_prefix, classify_input};
 
@@ -113,73 +115,6 @@ pub struct OperationProfile {
     pub command_prefix: CommandPrefix,
     /// 入力欄の表示。
     pub input_field: InputField,
-}
-
-/// 左エリアの世界の一覧の表示（EP-12）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum WorldList {
-    /// 出す（既定）。
-    #[default]
-    Shown,
-    /// 出さない。
-    Hidden,
-}
-
-impl WorldList {
-    /// 語彙の綴り。
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            WorldList::Shown => "shown",
-            WorldList::Hidden => "hidden",
-        }
-    }
-
-    /// 出すか。
-    pub const fn is_shown(self) -> bool {
-        matches!(self, WorldList::Shown)
-    }
-}
-
-/// 左エリアのビューの切り替えの表示（EP-12）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ViewTabs {
-    /// すべてのビューのボタンを出す（既定）。
-    #[default]
-    All,
-    /// 教材が宣言したビューだけに絞る。
-    Declared,
-    /// ボタンを出さない。
-    Hidden,
-}
-
-impl ViewTabs {
-    /// 語彙の綴り。
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            ViewTabs::All => "all",
-            ViewTabs::Declared => "declared",
-            ViewTabs::Hidden => "hidden",
-        }
-    }
-
-    /// 切り替えのボタンを出すか。
-    pub const fn shows_buttons(self) -> bool {
-        !matches!(self, ViewTabs::Hidden)
-    }
-
-    /// 宣言したビューだけに絞るか。ビューの種類そのものは TASK-467 が持つため、種類の型に依らない述語にする。
-    pub const fn limits_to_declared(self) -> bool {
-        matches!(self, ViewTabs::Declared)
-    }
-}
-
-/// 左エリアの設定。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct LeftPane {
-    /// 世界の一覧。
-    pub world_list: WorldList,
-    /// ビューの切り替え。
-    pub view_tabs: ViewTabs,
 }
 
 /// 表示層へ渡す設定の全体。

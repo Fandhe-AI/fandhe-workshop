@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定）・`input::check_inputs`・
@@ -75,6 +75,12 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
         &pack.workshop_file,
         &pack.workshop,
     ));
+    let (left_pane, left_parse) =
+        crate::left_pane::check_left_pane(&pack.workshop_file, &pack.workshop);
+    if left_parse.is_empty() {
+        out.extend(crate::left_pane::check_left_targets(pack, left_pane));
+    }
+    out.extend(left_parse);
     // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO` は、同じ内容のものを 1 件にする。
     let mut seen = BTreeSet::new();
     out.retain(|d| d.code() != DiagCode::SlotNeedsDo || seen.insert(format!("{d:?}")));
@@ -336,15 +342,15 @@ fn check_id(
     ));
 }
 
-fn get<'v>(v: &'v Value, key: &str) -> Option<&'v Value> {
+pub(crate) fn get<'v>(v: &'v Value, key: &str) -> Option<&'v Value> {
     v.as_object().and_then(|m| m.get(key))
 }
 
-fn kind_is(v: &Value, expected: &str) -> bool {
+pub(crate) fn kind_is(v: &Value, expected: &str) -> bool {
     get(v, "kind").and_then(Value::as_str) == Some(expected)
 }
 
-fn elements(v: Option<&Value>) -> &[Value] {
+pub(crate) fn elements(v: Option<&Value>) -> &[Value] {
     match v {
         Some(Value::Array(a)) => a,
         _ => &[],

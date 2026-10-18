@@ -1,0 +1,8 @@
+id: PACK22-2
+package: fandhe-workshop-pack
+test: left_pane
+target: crates/pack/src/compile.rs
+find:     ex.diags.extend(left_parse);
+replace:     let _ = left_parse;
+expect-fail: bad_left_pane_is_one_parse_error_without_values
+note: compile が left_pane の E-PARSE を捨てる（名前にない値と未知の欄が IR まで通る）
