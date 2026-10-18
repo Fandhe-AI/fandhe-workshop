@@ -141,7 +141,7 @@ fn unknown_field_name(msg: &str) -> Option<String> {
 }
 
 /// 診断に写してよい短い識別子（欄名）のときだけ `Some`。教材由来の長い・奇妙な文字列は写さない。
-fn short_ident(name: &str) -> Option<String> {
+pub(crate) fn short_ident(name: &str) -> Option<String> {
     let ok = !name.is_empty()
         && name.len() <= 64
         && name

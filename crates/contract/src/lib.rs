@@ -10,6 +10,7 @@
 //! ほかの型は後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
+pub mod condition;
 pub mod confirm_spec;
 pub mod content_hash;
 pub mod doc;
