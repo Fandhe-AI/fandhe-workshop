@@ -398,6 +398,15 @@ fn pack_roots(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
+/// `pack-defects/` の下で、土台（`base/`）以外のディレクトリか。
+fn is_defect_overlay(root: &Path) -> bool {
+    let names: Vec<_> = root.components().map(|c| c.as_os_str()).collect();
+    match names.iter().position(|n| *n == "pack-defects") {
+        Some(i) => names.get(i + 1).is_some_and(|n| *n != "base"),
+        None => false,
+    }
+}
+
 #[test]
 fn correct_testdata_packs_have_no_false_positives() {
     let mut roots = Vec::new();
@@ -408,6 +417,11 @@ fn correct_testdata_packs_have_no_false_positives() {
     );
     let mut checked = 0;
     for root in roots {
+        // 欠陥パックの差し替えファイルの置き場（`pack-defects/v1*/<形式>/D*`）は、パックの断片であり
+        // 完全なパックではない（章が無い・欠陥を意図して含む）。完全な土台（`base/`）は対象に残す。
+        if is_defect_overlay(&root) {
+            continue;
+        }
         // 読み込みに失敗するパック（欠陥を含む試験データ等）は、参照の検査の対象外にする。
         let Ok(pack) = load(&root) else { continue };
         checked += 1;

@@ -1,0 +1,73 @@
+# 欠陥パックの土台（語彙 v1.1 用、形式 B）。架空の備品メモの教材で、D13〜D23 の 11 種の欠陥を
+# 1 ファイルの差し替えで埋められる最小限の要素を持つ。形式 A は持たない（11 種の定義が形式 B 限定のため）。
+# `{{` を含む値は、flow 形式の中で E-PARSE になる罠を避けるため、必ず引用符で囲む。
+pack:
+  id: defect-base-v1-1
+  title: 欠陥パックの土台（v1.1）
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+  guidance_levels:
+    B: { hide_command_kinds: [skill] }
+    C: { hide_command_kinds: [skill] }
+
+commands:
+  help: builtin
+  make-item: skill
+
+views:
+  v-files: { kind: file_tree }
+
+hints:
+  h-2-3-1: { level: 1, text: 備品を 1 つ作る場面です。 }
+  h-13-2-1: { level: 1, text: 左の画面で、変わった箇所を探します。 }
+
+rejections:
+  rj-default-unknown-command:
+    category: unknown_command
+    message: 入力した語は、この教材の一覧にありません。
+    next_action: "「{{nearest_command|/help}}」に直して、もう一度送ります。"
+  rj-default-wrong-order:
+    category: wrong_order
+    message: そのコマンドを使うのは、まだ先です。
+    next_action: "今の Step では、{{step_do}}。"
+  rj-default-missing-arg:
+    category: missing_arg
+    message: 必要な引数が足りません。
+    next_action: 足りない引数を足して、もう一度送ります。
+  rj-default-bad-arg-shape:
+    category: bad_arg_shape
+    message: 引数の形が合っていません。
+    next_action: 小文字・数字・ハイフンだけで書き直して、もう一度送ります。
+  rj-default-busy:
+    category: busy
+    message: "「{{step_title」を処理中です。"
+    next_action: 終わるまで待ってから、次の入力を送ります。
+  rj-default-not-in-this-step:
+    category: not_in_this_step
+    message: そのコマンドは、この Step では使いません。
+    next_action: 今の Step の目的を読み直します。
+  rj-answer-wrong:
+    category: not_in_this_step
+    message: その答えではありません。
+    next_action: 選択肢を読み直して、もう一度選びます。
+  rj-1-4-expl-rejected:
+    category: not_in_this_step
+    message: 拒否では、先に進みません。
+    next_action: 問い返しの意味を読み直して、もう一度選びます。
+  rj-2-7-expl-login-2:
+    category: not_in_this_step
+    message: その選択肢は、備品の作成には当たりません。
+    next_action: 作る操作に当たる選択肢を選び直します。
+  rj-miss:
+    category: not_in_this_step
+    message: そこは、変わった箇所ではありません。
+    next_action: 左の画面で、変化の印が付いた箇所を指します。
+
+defaults:
+  unknown_command: rj-default-unknown-command
+  wrong_order: rj-default-wrong-order
+  missing_arg: rj-default-missing-arg
+  bad_arg_shape: rj-default-bad-arg-shape
+  busy: rj-default-busy
+  not_in_this_step: rj-default-not-in-this-step

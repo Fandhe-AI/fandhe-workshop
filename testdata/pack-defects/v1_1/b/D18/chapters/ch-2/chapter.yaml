@@ -1,0 +1,50 @@
+# v1.1 の土台の章 2。`do` を持つコマンドの入力（D18 の対象）と、選択肢ごとの文面を持つ確認（D13 の対象）。
+id: ch-2
+title: 備品を作る
+
+starts:
+  - { id: s-2-1, node: st-2-3 }
+
+steps:
+  - id: st-2-3
+    title: 備品を作る
+    hints: [h-2-3-1]
+    views: [v-files]
+    input:
+      kind: command
+      name: make-item
+      args:
+        - { name: name, positional: true, required: true, shape: kebab_case }
+    rules:
+      - id: r-make
+        on: { command: make-item }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: items/x, attrs: { state: created } }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss
+      targets:
+        - { view: v-files, path: items/x }
+    next: [{ to: st-2-7 }]
+
+  - id: st-2-7
+    title: 作る操作を選ぶ
+    do: 備品の作成に当たる選択肢を選ぶ
+    input:
+      kind: choice
+      options:
+        - { id: ans-login-1, label: 備品を作る }
+        - { id: ans-login-2, label: 備品を消す }
+    confirm:
+      kind: answer
+      on_wrong: rj-answer-wrong
+      options:
+        - { id: ans-login-1, correct: true }
+        - { id: ans-login-2, correct: false, on_wrong: rj-2-7-expl-login-2 }
+    next: [{ to: st-2-8 }]
+
+  - id: st-2-8
+    title: 章の終わり
+    final: true
