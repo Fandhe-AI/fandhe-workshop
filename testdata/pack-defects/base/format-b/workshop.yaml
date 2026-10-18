@@ -1,0 +1,40 @@
+# 欠陥パックの土台（形式 B）。架空の備品メモの教材で、12 種の欠陥を 1 ファイルの差し替えで埋められる最小限の要素を持つ。
+# 同じ教材の形式 A は ../format-a/ にある。2 つの IR はバイト一致する（crates/pack/tests/defect_packs.rs が確かめる）。
+pack:
+  id: defect-base
+  title: 欠陥パックの土台
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+
+commands:
+  help: builtin
+  make-item: skill
+
+views:
+  v-files: { kind: file_tree }
+  v-doc: { kind: document }
+
+fixtures:
+  fx-note: { path: fixtures/note.md, kind: document }
+
+hints:
+  h-a: { level: 1, text: 備品を 1 つ作る場面です。 }
+
+rejections:
+  rj-missing-arg:
+    category: missing_arg
+    message: 必要な引数が足りません。
+    next_action: 足りない引数を足して、もう一度送ります。
+  rj-bad-shape:
+    category: bad_arg_shape
+    message: 引数の形が合っていません。
+    next_action: 小文字・数字・ハイフンだけで書き直して、もう一度送ります。
+  rj-miss:
+    category: not_in_this_step
+    message: そこは、変わった箇所ではありません。
+    next_action: 左の画面で、変化の印が付いた箇所を指します。
+
+defaults:
+  missing_arg: rj-missing-arg
+  bad_arg_shape: rj-bad-shape

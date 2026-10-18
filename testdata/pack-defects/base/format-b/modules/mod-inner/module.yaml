@@ -1,0 +1,12 @@
+# 内側の学習モジュール。他のモジュールを呼ばない。
+id: mod-inner
+title: 内側のモジュール
+
+steps:
+  - id: u-a
+    title: 内側の入口
+    next: [{ to: u-b }]
+
+  - id: u-b
+    title: 内側の出口
+    final: true

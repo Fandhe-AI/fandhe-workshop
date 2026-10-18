@@ -1,0 +1,9 @@
+# 外側の学習モジュール。内側のモジュールを呼ぶ（巡回はしない）。
+id = "mod-outer"
+title = "外側のモジュール"
+
+[[steps]]
+id = "o-a"
+title = "内側へ入る"
+use = { module = "mod-inner", instance = "in1", args = {} }
+final = true

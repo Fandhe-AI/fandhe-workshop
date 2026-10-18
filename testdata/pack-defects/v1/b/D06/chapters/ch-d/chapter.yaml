@@ -1,0 +1,67 @@
+# 欠陥パックの土台の章。st-2-1 から st-2-8 へ一本道でつながる。
+id: ch-d
+title: 備品を作って確かめる
+
+starts:
+  - { id: s-1, node: st-2-1 }
+  - { id: s-7, node: st-2-7 }
+
+steps:
+  - id: st-2-1
+    title: 場面を読む
+    body: st-2-1.md
+    views: [v-files]
+    next: [{ to: st-2-2 }]
+
+  - id: st-2-2
+    title: 練習データを開く
+    fixtures: [fx-note]
+    next: [{ to: st-2-3 }]
+
+  - id: st-2-3
+    title: ヒントを見る
+    hints: [h-a]
+    next: [{ to: st-2-4 }]
+
+  - id: st-2-4
+    title: 次へ進む準備をする
+    next: [{ to: st-2-5 }]
+
+  - id: st-2-5
+    title: 途中の場面
+    next: [{ to: st-2-6 }]
+
+  - id: st-2-6
+    title: 分かれ道の手前
+    next: [{ to: st-2-7 }, { to: st-2-stub, when: { flag: ready } }]
+
+  - id: st-2-stub
+    title: 行き先のない場面
+
+  - id: st-2-7
+    title: 備品を作る
+    body: st-2-7.md
+    views: [v-files]
+    next: [{ to: st-2-8 }]
+    input:
+      kind: command
+      name: make-item
+      args:
+        - { name: name, positional: true, required: true, shape: kebab_case }
+    rules:
+      - id: r-make
+        on: { command: make-item }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: items/x, attrs: { state: created } }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss
+      targets:
+        - { view: v-files, path: items/x }
+
+  - id: st-2-8
+    title: 学習モジュールを通る
+    use: { module: mod-outer, instance: i1, args: {} }
+    final: true

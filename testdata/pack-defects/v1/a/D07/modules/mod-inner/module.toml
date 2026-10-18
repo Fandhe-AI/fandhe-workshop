@@ -1,0 +1,19 @@
+# 内側の学習モジュール。他のモジュールを呼ばない。
+id = "mod-inner"
+title = "内側のモジュール"
+
+[[steps]]
+id = "u-a"
+title = "内側の入口"
+next = [{ to = "u-loop" }]
+
+[[steps]]
+id = "u-loop"
+title = "外側へ戻る"
+use = { module = "mod-outer", instance = "in2", args = {} }
+next = [{ to = "u-b" }]
+
+[[steps]]
+id = "u-b"
+title = "内側の出口"
+final = true
