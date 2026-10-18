@@ -285,6 +285,18 @@ pack:
 - 同じ宛先が複数あれば、同じ診断が重ねて出ます
 - 診断の文面は固定です。ビューの ID や経路は、英数字・`_`・`.`・`-` だけで書かれているときに限って写します
 
+## `validate` が見つけない欠陥
+
+`validate` は、次の 2 つを報告しません（PACK-30・D-43 で、検出できない限界として受け入れた範囲です）。
+
+- 条件の充足可能性: 決して真にならない `when`（例: ある旗とその否定を `all` で並べた条件）の先の Step。静的な辺は
+  あるので、到達できるものとして扱います
+- Step の巡回: 無条件の `next` で前の Step に戻り、`final` に着かない巡回。モジュールの呼び出しの巡回
+  （`E-MODULE-CYCLE`）だけは報告します
+
+補うには、教材テストの `playthroughs` に、すべての開始点と、条件で分かれるそれぞれの枝を通る模範解答を書き、
+各枝が `final` まで進むことを確かめてください。
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -296,6 +308,7 @@ pack:
 | `crates/pack/tests/yaml_features.rs` の `pack5_` | アンカー・エイリアス・マージキー・タグ・複数文書をどの欄でも `E-PARSE` で拒否し、名前・字面を写さないこと（PACK-5） |
 | `crates/pack/tests/no_starts.rs` の `pack25_` | 開始点が 0 件のパックを `validate` の段階で `E-STRUCTURE` として拒否すること（PACK-25） |
 | `crates/pack/tests/radix_literals.rs` の `pack5_` | 10 進でない整数（`0x1f` 等）をどの位置でも両形式で `E-PARSE` で拒否し、値を写さないこと（PACK-5） |
+| `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性と Step の巡回を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
