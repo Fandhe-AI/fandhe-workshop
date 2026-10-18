@@ -20,6 +20,7 @@
 //! `pack.scopes` の全スコープに働くため、その中身も診断の対象になる（fail-closed）。
 //! モジュール呼び出しの巡回の検出（`E-MODULE-CYCLE`、TASK-50 2/2）も、展開の途中で [`crate::expand`] が行う。
 //! 展開を要するこの検査と、`${` を含む宣言の置換後の検査は、呼ばれないモジュールでは働かない。
+//! `pack.appearance` の検査（`E-PARSE`、TASK-53）は [`crate::appearance`] が行う。
 //! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
 //! モジュールの宣言が `${` を含む場合は、引数を置換した後の値を [`crate::expand`] が検査する。
 
@@ -68,6 +69,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     }
 
     let (profile, profile_diags) = crate::profile::check_profile(&pack.workshop_file, w);
+    let appearance_diags = crate::appearance::check_appearance(&pack.workshop_file, w);
     let mut starts: Vec<Start> = Vec::new();
     let mut start_ids: BTreeSet<String> = BTreeSet::new();
     let mut chapters = 0usize;
@@ -76,6 +78,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 走るため、それでは間に合わない）。
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
     ex.diags.extend(profile_diags);
+    ex.diags.extend(appearance_diags);
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         chapters += 1;
