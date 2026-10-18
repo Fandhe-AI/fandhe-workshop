@@ -96,17 +96,24 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 
 ### エンジンのビルドの前提
 
-ツールの版は固定済みです。固定した値の正は [docs/toolchain.md](./docs/toolchain.md) の一か所に置き、ここには転記しません（二重定義を避けるため）。固定ファイルとの一致は `make check-toolchain` が検査します。
+固定した版の正は [docs/toolchain.md](./docs/toolchain.md) の第 2 節の表です。次の表はその写しで、第三者がこの節だけを読んで同じ版を揃えられるようにしています。写しとの一致は `make check-toolchain` が検査します（CI の `check` ジョブでも流れます）。
 
-| 項目 | 固定するファイル | 備考 |
-|---|---|---|
-| Rust のツールチェーン | `rust-toolchain.toml` | rustup が版・rustfmt・clippy を導入します。`target/` の掃除手順は「セットアップ」に書いています |
-| `wasm32` ターゲット | `rust-toolchain.toml` | ブラウザ向けのビルドと、`make lint` の wasm32 向け clippy に使います |
-| wasm-bindgen CLI | `Cargo.toml`・`Cargo.lock` の `wasm-bindgen` と同じ版 | ビルドスクリプト（TASK-27）から必須になります。現時点は任意です |
-| Node.js | `package.json` の `engines`・`.npmrc` | ブラウザテストの実行に使います |
-| Playwright | `package.json`・`package-lock.json` | ブラウザテストに使います |
-| Chrome または Chromium | 固定しません | Playwright が同梱する Chromium を使います（理由は docs/toolchain.md） |
-| 試験データの置き場所 | 方針は固定済み | 2 つ以上の crate が使うデータは `testdata/`、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。未決なのは、契約のサンプル・golden の配置の細目だけです |
+| キー | 値 | 固定するファイル | 備考 |
+|---|---|---|---|
+| `rust` | `1.98.1` | `rust-toolchain.toml` の `channel` | rustfmt・clippy も導入されます。`target/` の掃除手順は「セットアップ」に書いています |
+| `rust-target` | `wasm32-unknown-unknown` | `rust-toolchain.toml` の `targets` | ブラウザ向けのビルドと、`make lint` の wasm32 向け clippy に使います |
+| `wasm-bindgen` | `0.2.128` | `Cargo.toml`・`Cargo.lock` | CLI は `Cargo.lock` の版と同じにします |
+| `node` | `>=24 <25` | `package.json` の `engines.node`・`.npmrc` の `engine-strict` | 24 系を使います |
+| `playwright` | `1.63.0` | `package.json`・`package-lock.json` | ブラウザテストに使います |
+
+固定しない前提は次のとおりです。
+
+| 項目 | 内容 |
+|---|---|
+| Chrome または Chromium | 固定しません。Playwright 1.63.0 が同梱する Chromium を使います。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome` を付けます（理由は docs/toolchain.md の第 3 節） |
+| 試験データの置き場所 | 2 つ以上の crate が使うデータは `testdata/`（出所は `testdata/README.md`）、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。repo の外を参照しないことは `make check-testdata` が検査します |
+| Python | 不要です。試験用の配信は Node の `tools/serve.mjs` が担います |
+| wasm-opt | 任意です（`SKIP_WASM_OPT=1` で省けます） |
 
 ### 必要なツール
 
@@ -119,7 +126,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | [rustup](https://rustup.rs/) 経由の [Rust](https://www.rust-lang.org/)（cargo・rustfmt・clippy・`wasm32` ターゲット） | `make lint`・`make test`・`make fmt`。`rust-toolchain.toml` を自動で読む | ✓ |
 | [jq](https://jqlang.github.io/jq/) | `make check-deps`（crate 間の依存の向きの検査） | ✓ |
 | [direnv](https://direnv.net/) | `.env` の自動読み込み | 任意 |
-| wasm-bindgen CLI | wasm のビルド（TASK-27 以降） | 任意 |
+| wasm-bindgen CLI（`Cargo.lock` と同じ版） | `make build-web`・`make test-browser`。native のビルド・試験だけなら不要 | 任意（wasm のビルドには必須） |
 | [Node.js](https://nodejs.org/) 24 系（`npm`・`npx`） | ブラウザテスト（Playwright）と Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
 
 macOS（Homebrew）の例:
@@ -135,7 +142,9 @@ brew install lefthook editorconfig-checker shellcheck direnv
 ```bash
 make doctor   # 必要なツールが揃っているか確認する
 rustup toolchain install   # rust-toolchain.toml の版・component・ターゲットを導入する
+cargo install wasm-bindgen-cli --version 0.2.128 --locked   # wasm のビルドとブラウザテストを使う場合のみ
 npm ci        # ブラウザテストを使う場合のみ。package-lock.json の版を導入する
+npx playwright install chromium   # ブラウザテストを使う場合のみ。同梱の Chromium を導入する
 make setup    # Git hooks を有効化し、.env が無ければ .env.example から作成する
 direnv allow  # direnv を使う場合のみ。.envrc の読み込みを許可する
 ```
@@ -149,7 +158,7 @@ worktree はそれぞれ別の `target/` を持つため、不要になった wo
 
 ## ビルドとテスト
 
-現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads` です。内容は次の「コマンド」の表を参照してください。
+流す順は、native のビルド、native のテスト、wasm32 のビルド、ブラウザテストです。現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads` です。内容は次の「コマンド」の表を参照してください。
 
 Cargo ワークスペースは導入済みです。pack crate は `compile <pack-dir>` と `compare` を実装済みで、現在の制約は、出力先の `-o` が未実装（標準出力のみ）・`use` によるモジュール展開をしない・他のコマンド（`validate`・`test`・`vocab`）が未実装であることです。それ以外の crate は骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
 
@@ -170,7 +179,14 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 
 ### wasm32 のビルド
 
-（後続のタスクで記入します）
+```bash
+make build-web                  # 配信の設定（既定は release）。出力は dist/web
+TEST_HOOKS=1 make build-web     # 試験の設定。出力は dist/web-test
+make serve                      # dist/web をサブパスの下で配る
+make check-delivery             # 配信物に試験用の口が無いことを確かめる
+```
+
+wasm-bindgen CLI の版が `Cargo.lock` と違うと、ビルドは止まります。詳しい環境変数は `tools/build-web.sh` の冒頭のコメントを参照してください。
 
 ### ブラウザテスト
 
@@ -202,7 +218,7 @@ make test-browser                   # web（配信設定と試験の設定）を
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
 | `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
 | `make test-check-dom-reads` | `scripts/test-check-dom-reads.sh` | DOM 読み取りの検査自体の回帰テスト |
-| `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致を検査する |
+| `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致、README の「前提」の表との一致を検査する |
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |

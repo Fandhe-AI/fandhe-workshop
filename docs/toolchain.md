@@ -30,6 +30,7 @@
 - `wasm-bindgen` CLI は、`Cargo.lock` の `wasm-bindgen` と同じ版にする。版が違うと生成が失敗するか、壊れた glue になる
 - `Cargo.toml` では `=0.2.128` と exact で書く。`Cargo.lock` なしの解決は 0.2.129 になり、CLI と食い違うため
   （PoC-11 `_setup` F-1）
+- README の「前提」の表は、この表の写しである。`check-toolchain.sh` が値の一致を検査する
 - `Cargo.lock` と `package-lock.json` はコミットする。ビルドは `--locked`、Node の依存の導入は `npm ci` で行う
 
 ## 3. 前提
@@ -57,7 +58,7 @@ npx playwright install chromium
 ## 5. 版を上げる手順
 
 1. 固定ファイル（`rust-toolchain.toml`・`Cargo.toml`・`Cargo.lock`・`package.json`・`package-lock.json`）、
-    本文書の表、導入する CLI を、同じ PR で上げる
+    本文書の表、README の「前提」の表とセットアップの導入行、導入する CLI を、同じ PR で上げる
 2. `make check-toolchain` を通す
 3. wasm-bindgen を上げるときは、`web-sys`・`js-sys` の版を揃える。0.2.128 に対応するのは 0.3.105 で、
     0.3.106 は `wasm-bindgen =0.2.129` を要求する（TASK-26 への申し送り）
@@ -74,3 +75,4 @@ npx playwright install chromium
 |---|---|---|---|
 | 1 | 2026-10-12 | 初版。Rust・wasm-bindgen・Node・Playwright の版を固定 | TASK-25 |
 | 2 | 2026-10-14 | 試験用の配信を Node の `tools/serve.mjs` に確定（Python は不要）。固定する版は変えない | TASK-28 |
+| 3 | 2026-10-18 | README の「前提」に値を写し、check-toolchain が一致を検査する。固定する版は変えない | TASK-90 |

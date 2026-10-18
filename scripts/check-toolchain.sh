@@ -7,6 +7,7 @@
 #   - package.json・package-lock.json: Node の engines と Playwright（範囲記号なし）
 #   - package-lock.json の取得元が npm の公式 registry で、integrity があること
 #   - .npmrc の engine-strict
+#   - README.md の「前提」節の表（docs/toolchain.md の表の写し）と、セットアップの wasm-bindgen CLI の導入行
 # 手元に導入された CLI の版は見ない（それは doctor.sh の役割）。道具なしで CI でも流せる純粋なファイル間の検査にする。
 #
 # 使い方: scripts/check-toolchain.sh [--root <dir>]
@@ -29,7 +30,11 @@ fi
 require_cmd jq || exit 2
 
 DOC="${TARGET_ROOT}/docs/toolchain.md"
+README="${TARGET_ROOT}/README.md"
 violations=0
+SECTION=""
+SECTION_DIR=""
+trap '[ -z "${SECTION_DIR}" ] || rm -rf "${SECTION_DIR}"' EXIT
 
 fail() {
   echo "error: $*" >&2
@@ -65,6 +70,7 @@ jq_str() {
 }
 
 need_file "${DOC}"
+need_file "${README}"
 for f in rust-toolchain.toml Cargo.toml Cargo.lock package.json package-lock.json .npmrc; do
   need_file "${TARGET_ROOT}/${f}"
 done
@@ -74,6 +80,34 @@ RUST_TARGET="$(doc_value rust-target)"
 WASM_BINDGEN="$(doc_value wasm-bindgen)"
 NODE="$(doc_value node)"
 PLAYWRIGHT="$(doc_value playwright)"
+
+# README.md の「前提」節（見出し `## 前提` から次の `## ` の手前まで）。節の外の表（MCP の表など）と
+# キーが衝突しないよう、節だけを一時ファイルに抜き出して読む。見出しがちょうど 1 つでなければ検査不能。
+if [ "$(grep -cx '## 前提' "${README}")" -ne 1 ]; then
+  echo "error: README.md must have exactly one '## 前提' heading" >&2
+  exit 2
+fi
+SECTION_DIR="$(mktemp -d)"
+SECTION="${SECTION_DIR}/prerequisites.md"
+awk '/^## / { in_sec = ($0 == "## 前提"); next } in_sec { print }' "${README}" >"${SECTION}"
+
+# readme_check <key> <docs の値>: README の表の値を docs/toolchain.md と照合する。行が 0 行・複数行・空なら exit 2。
+readme_check() {
+  local v
+  if ! v="$(toolchain_value "${SECTION}" "$1")"; then
+    echo "error: README.md 前提 must have exactly one non-empty row for key: $1" >&2
+    exit 2
+  fi
+  [ "${v}" = "$2" ] || fail "README.md 前提 ${1} is '${v}', docs/toolchain.md says '$2'"
+}
+readme_check rust "${RUST}"
+readme_check rust-target "${RUST_TARGET}"
+readme_check wasm-bindgen "${WASM_BINDGEN}"
+readme_check node "${NODE}"
+readme_check playwright "${PLAYWRIGHT}"
+if ! grep -qF "cargo install wasm-bindgen-cli --version ${WASM_BINDGEN} --locked" "${README}"; then
+  fail "README.md must contain the line: cargo install wasm-bindgen-cli --version ${WASM_BINDGEN} --locked"
+fi
 
 # rust-toolchain.toml
 RT="${TARGET_ROOT}/rust-toolchain.toml"
