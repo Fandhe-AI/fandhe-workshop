@@ -68,7 +68,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `testdata/` | 試験データの置き場。spec repo の試験データを出所付きで写したもの（出所・規則は `testdata/README.md`）。整形ツールの対象外 |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words`）。Make なしでも直接実行できる |
 | `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
@@ -222,6 +222,8 @@ make test-browser                   # web（配信設定と試験の設定）を
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
+| `make check-fork-ci` | `scripts/check-fork-ci.sh` | fork の CI の構成（private な依存 0 件・ビルド・試験の secret 参照 0 件・配信ジョブの切り離し）を静的に検査する |
+| `make test-check-fork-ci` | `scripts/test-check-fork-ci.sh` | fork の CI の構成の検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
 | `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
 | `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
@@ -264,11 +266,21 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 | ワークフロー | 内容 |
 |---|---|
-| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain` と `make check-workflow-secrets`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
-| `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
+| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain`・`make check-workflow-secrets`・`make check-fork-ci`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。ジョブには `github.repository` が upstream であることの `if:` を付け、fork では飛ばす。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
 
+- fork の CI（BUILD-22）: 第三者が fork して secret を設定しないまま CI を流しても、ビルドと試験が通る構成にしています。
+  ビルドと試験は `ci.yml` の中で完結させ（共通 workflow には頼りません）、配信だけを `deploy.yml` に分けています。
+  この性質は `make check-fork-ci` が静的に検査します。確かめる点は、private な依存が 0 件であること（`Cargo.lock`・`package-lock.json`・
+  `.npmrc`・`.cargo/` の出所と、private な submodule を CI が取得しないこと）、`ci.yml` が secret や認証の語を参照しないこと、
+  `ci.yml` に書き込み権限・`environment` が無く `deploy.yml` が `workflow_dispatch` だけで fork では飛ばされること、の 3 点です。
+  4 点目として、教材 repo のビルドが固定したエンジンの版（`ENGINE_REV`）で行われること（`--pack-workflow`・`--engine-rev`）も検査できます
+- fork での実行はしていません（D-29 の「行わない確認」。2026-10-18 時点）。上の性質は構成の検査で確かめたもので、実際の fork で
+  CI が通ることを確かめたものではありません。`ENGINE_REV` の検査は試験の見本でだけ確かめており、実際の教材 repo への適用は
+  教材 repo の作成（TASK-36）の後です。`ai-review.yml` と `update-external.yml` はビルド・試験ではないため検査の対象外で、
+  fork での挙動は机上の読み（`CODEX_HOME_DIR` が未設定なら skip、schedule は fork で既定では無効）であり、未確認です
 - `main` は ruleset `main-protection` で保護しています（2026-10-11 適用）。直接 push はできず、変更はすべて PR を経由します。
   マージ方式は squash のみで、必須チェックがすべて成功し、レビュースレッドがすべて解決済みであることが条件です（承認数は 0）
 - ruleset の必須チェック（required status checks）には、PR の HEAD に報告される全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を登録しています。

@@ -38,12 +38,13 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
+│   ├── check-fork-ci.sh      # fork の CI の構成（private な依存・secret の参照・配信の切り離し）の検査（回帰テストは test-check-fork-ci.sh）
 │   ├── ci-rust-toolchain.sh  # CI で導入された rustc の版と docs/toolchain.md の照合
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
 │   ├── ci.yml                # changes / check / rust-lint / rust-test / test-hooks / test-hooks-macos / pr-title / ci-complete
-│   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・未実装で失敗。TASK-121 で実装）
+│   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・fork では skip・未実装で失敗。TASK-121 で実装）
 │   ├── ai-review.yml         # codex による PR 自動レビュー
 │   └── update-external.yml   # スキル・submodule の日次追従 PR
 ├── .claude/
@@ -93,6 +94,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
 | `make test-check-workflow-secrets` | secret 参照の検査自体の回帰テスト |
+| `make check-fork-ci` | fork の CI の構成（private な依存・secret の参照・配信の切り離し）の静的な検査 |
+| `make test-check-fork-ci` | fork の CI の構成の検査自体の回帰テスト |
 | `make build-web` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定） |
 | `make test-build-web` | `build-web` の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する |
 | `make check-delivery` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査（`tools/check-delivery.sh`。CI には未組み込み） |

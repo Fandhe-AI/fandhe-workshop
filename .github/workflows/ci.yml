@@ -64,7 +64,7 @@ jobs:
         run: bash scripts/ci-changes.sh
 
   # editorconfig-checker + shellcheck に加え、道具を要しない設定の検査も流す（make check-toolchain・
-  # make check-workflow-secrets とそれぞれの回帰テスト）。チェック名は ruleset の必須チェックが参照する
+  # make check-workflow-secrets・make check-fork-ci とそれぞれの回帰テスト）。チェック名は ruleset の必須チェックが参照する
   # ため、中身より狭くなっても変えない。
   check:
     name: "make check (editorconfig-checker + shellcheck)"
@@ -135,6 +135,14 @@ jobs:
           set -euo pipefail
           make check-workflow-secrets
           make test-check-workflow-secrets
+
+      # fork の CI の構成の静的な検査（TASK-96・BUILD-22）。既存ジョブへの step 追加のため、
+      # ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-fork-ci
+        run: |
+          set -euo pipefail
+          make check-fork-ci
+          make test-check-fork-ci
 
   # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
   # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。

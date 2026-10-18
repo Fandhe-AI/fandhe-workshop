@@ -95,6 +95,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
+- 配信のジョブには、fork では飛ばす `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付ける。`ci.yml` には書き込み権限・`environment`・reusable workflow を置かず、`uses:` は SHA 固定の `actions/*` だけにする。いずれも `make check-fork-ci`（`scripts/check-fork-ci.sh`）が `check` ジョブで検査する（BUILD-22）。起点や所有者を変えるときは、検査と回帰テストを同時に直す
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
@@ -243,5 +244,10 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | `ci.yml` | rust-lint・rust-test | 未計測（初回の実行後に更新する） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
+
+fork の CI（2026-10-18）: ビルドと試験は `ci.yml` の中で完結させ、共通 workflow（`Fandhe-AI/actions`）には頼らない。`gh api` で読んだ事実は、
+public・license 無し・`rust-base-ci.yml` は呼び出し側の `rust-toolchain.toml` を前提に `runner-label` を取る・`pages-deploy.yml` の runner は
+self-hosted が前提・参照は可変の `@latest`、の 5 点。fork が依存する根拠にならないため採らなかった。fork での実行はしていない
+（D-29 の行わない確認）。`ai-review.yml`・`update-external.yml` の fork での挙動は机上の読みで、未確認。
 
 施策: macOS のフック回帰テスト（`test-hooks-macos`）はフック関連の変更時のみ実行（`changes` ジョブ。不要時は skipped として報告）。main への push 実行は cancel しない。

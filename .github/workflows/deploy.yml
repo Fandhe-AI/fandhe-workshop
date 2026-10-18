@@ -29,6 +29,11 @@ concurrency:
 jobs:
   deploy:
     name: "deploy (skeleton; TASK-121)"
+    # fork では配信の secret・権限が無いため、ジョブごと飛ばす（TASK-96・BUILD-22）。upstream だけが配信する。
+    # 比較は github.repository だけで、利用者が決められる値を使わず、repo の設定（variables）にも依らない。
+    # scripts/check-fork-ci.sh が、全ジョブにこの if: があることを検査する。TASK-121 でジョブを足す場合も
+    # 同じ if: を付ける。
+    if: github.repository == 'Fandhe-AI/fandhe-workshop'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}

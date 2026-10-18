@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -74,6 +74,12 @@ check-workflow-secrets: ## ci.yml が secret を参照していないことを�
 
 test-check-workflow-secrets: ## secret 参照の検査自体の回帰テスト。直接: scripts/test-check-workflow-secrets.sh
 	@scripts/test-check-workflow-secrets.sh
+
+check-fork-ci: ## fork の CI の構成（private な依存・secret の参照・配信の切り離し）を検査する。直接: scripts/check-fork-ci.sh
+	@scripts/check-fork-ci.sh
+
+test-check-fork-ci: ## fork の CI の構成の検査自体の回帰テスト。直接: scripts/test-check-fork-ci.sh
+	@scripts/test-check-fork-ci.sh
 build-web: ## web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）。直接: tools/build-web.sh
 	@tools/build-web.sh
 
