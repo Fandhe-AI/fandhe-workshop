@@ -15,6 +15,7 @@ use fandhe_workshop_contract::effect::{
 use fandhe_workshop_contract::ir::FixtureDef;
 use serde_json::Value;
 
+use crate::condition_check::check_condition;
 use crate::diag::DiagCode;
 
 /// `list`（欄名 `field`）の各項目を検査し、誤りごとに `(コード, 文面)` を返す。
@@ -40,6 +41,9 @@ pub(crate) fn check_effects(
                 out.push((code, format!("{prefix}: {e}")));
             }
             Ok(item) => {
+                if let Some(w) = &item.when {
+                    out.extend(check_condition(w, &format!("{prefix}.when")));
+                }
                 if let Effect::Put(p) | Effect::Replace(p) = &item.effect {
                     if let Some(f) = &p.fixture {
                         if !fixtures.contains_key(f) {

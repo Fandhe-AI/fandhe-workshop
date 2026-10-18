@@ -4,8 +4,8 @@
 //! 純関数だけを持つ。呼び出し元は、後続のタスクで `Session::apply` の受付・達成・途中開始の分岐
 //! （TASK-207・TASK-215・TASK-217）になる。[`apply_effect`] は 1 つの語を適用する。[`apply_effects`] は
 //! 項目の列を順に適用し、`when` を [`ConditionEval`] で評価して飛ばす（TASK-43 2/2）。`when` を無視して
-//! 列を流す関数は、条件つきの項目を無条件に適用してしまうため作らない。条件の語彙（TASK-42）は持たず、
-//! 評価器を注入する。[`apply_tick`] は進行 1 つを適用する。
+//! 列を流す関数は、条件つきの項目を無条件に適用してしまうため作らない。条件の語彙の評価は
+//! [`crate::condition`]（TASK-42）が持ち、ここでは評価器を注入する。[`apply_tick`] は進行 1 つを適用する。
 //!
 //! 操作 1 件の `Changed` の集約（経路ごとに 1 件・変更前は操作前の値）は、[`crate::session::apply`] が
 //! [`crate::changed`] で行う。本モジュールの `Changed` は語 1 つごとで、集約の際の宛先の出所になる。
@@ -118,7 +118,7 @@ pub fn apply_effect(
     }
 }
 
-/// `when` の評価器。条件の語彙（TASK-42）が実体を与える。純関数であること（I/O・時刻・乱数を持たない）。
+/// `when` の評価器。実体は [`crate::condition::VocabConditions`]（TASK-42）。純関数であること（I/O・時刻・乱数を持たない）。
 pub trait ConditionEval {
     /// `Some(true)` で適用、`Some(false)` で飛ばす。`None` は評価できない（未知の語など）。
     fn eval(&self, when: &Value, run: &RunState, root: &Root) -> Option<bool>;

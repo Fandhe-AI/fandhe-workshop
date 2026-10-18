@@ -114,6 +114,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈は contract、1 語ごとの適用は core、読み込み時の検査と診断は pack（spec の TASK-43 は「pack crate」と書くが、判定規則に従い分ける。IR の型は `Value` のまま変えない。進行 `processing` は contract が解釈し core が適用、`when` は core に評価器を注入する形で条件の語彙は TASK-42 が与える。TASK-43 2/2） | contract・core・pack | TASK-43 |
+| 条件の語彙（状態・世界状態・論理。`step`・`flag`・`world_has`・`world_attr`・`count`・`chose`・`all`・`any`・`not`）の型と `Value` からの解釈は contract、評価と `ConditionEval` の実体は core、読み込み時の検査と診断は pack（IR の型は `Value` のまま変えない。`param`・`clarifying` は型だけを持ち、評価は TASK-42 2/2。TASK-42 1/2） | contract・core・pack | TASK-42 |
 | 操作 1 件の世界状態の差分から変更前の値つきの `Changed` を作る記録（`changed`。契約の版の対象外で、`apply` が呼ぶ。復習の導出は TASK-215 2/2） | core | TASK-215 |
 | コマンドの字句化の処理と宣言との照合（`command_lex::lex_command`・`command_judge::judge_command`。結果の型は contract の `judgment`、接頭辞の分けは contract の `profile`、宣言の型は contract の `input_spec`） | core | TASK-262 |
 | 選択肢・画面操作・承認の判定の処理（`select_judge::judge_select`・`judge_confirm`。LLM なし。状態の変更と `Judged` の発行は含まない） | core | TASK-263 |
@@ -273,3 +274,4 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-15: 第 6 節に、差し込みの枠（TASK-46 2/2）の純関数の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-15: 第 6 節に、承認の「直す」の対象と拒否の文面の解決（TASK-264）の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-15: 第 6 節に、コマンド入力の規則の照合と問い返しの判定（TASK-272）の処理の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-18: 第 6 節に、条件の語彙（TASK-42 1/2）の型・評価・検査の置き場を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

@@ -34,6 +34,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use crate::compile::{body_len, body_tree, diag, Budget};
+use crate::condition_check::{check_condition, check_optional};
 use crate::diag::{DiagCode, Diagnostic};
 use crate::effect_check::{check_effects, check_processing};
 use crate::input::has_placeholder;
@@ -377,6 +378,19 @@ impl<'a> Expander<'a> {
             {
                 self.diags.push(diag(&scope.file, &item, code, msg));
             }
+            // 条件の語彙（TASK-42）。遷移・規則の `when` を置換後の値で検査する。`null` は条件なし。
+            for (i, t) in s.next.iter().enumerate() {
+                for (code, msg) in check_optional(t.when.as_ref(), &format!("next[{i}].when")) {
+                    self.diags.push(diag(&scope.file, &item, code, msg));
+                }
+            }
+            for (i, r) in s.rules.iter().enumerate() {
+                if let Some(w) = r.get("when").filter(|w| !w.is_null()) {
+                    for (code, msg) in check_condition(w, &format!("rules[{i}].when")) {
+                        self.diags.push(diag(&scope.file, &item, code, msg));
+                    }
+                }
+            }
             self.checks.push(Check {
                 file: scope.file.clone(),
                 item: item.clone(),
@@ -616,6 +630,9 @@ impl<'a> Expander<'a> {
                 for (code, msg) in
                     check_effects(&s.effects, "effects", &self.pack.workshop.fixtures, true)
                 {
+                    self.diags.push(diag(&p.scope.file, &item, code, msg));
+                }
+                for (code, msg) in check_optional(s.requires.as_ref(), "requires") {
                     self.diags.push(diag(&p.scope.file, &item, code, msg));
                 }
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
