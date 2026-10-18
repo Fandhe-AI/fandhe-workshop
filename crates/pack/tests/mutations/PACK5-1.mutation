@@ -1,0 +1,8 @@
+id: PACK5-1
+package: fandhe-workshop-pack
+test: radix_literals
+target: crates/pack/src/yaml_strict.rs
+find:     ["0x", "0o", "0b"].iter().any(|p| t.starts_with(p))
+replace:     false && ["0x", "0o", "0b"].iter().any(|p| t.starts_with(p))
+expect-fail: pack5_expect_input_max_in_hex_is_rejected
+note: 形式 B の 10 進でない整数の字面の判定を外す（0x1f が 31 に黙って読まれて通る）

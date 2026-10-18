@@ -51,13 +51,19 @@ impl Format {
     /// 型が合わない入力値が入るので、そのまま診断へ渡さない。
     fn parse<T: DeserializeOwned>(self, text: &str) -> Result<T, String> {
         match self {
-            Format::Toml => toml::from_str(text).map_err(|e| {
-                let pos = e.span().map(|r| line_col(text, r.start));
-                if e.message() == "duplicate key" {
-                    return duplicate_key_message(None, pos);
+            Format::Toml => {
+                // 10 進でない整数は `toml` が黙って数に読むので、型付きの読み込みの前に拒否する（PACK-5）。
+                if let Some(pos) = toml_radix_int(text) {
+                    return Err(non_decimal_int_message(Some(pos)));
                 }
-                classify_parse_error(e.message(), pos)
-            }),
+                toml::from_str(text).map_err(|e| {
+                    let pos = e.span().map(|r| line_col(text, r.start));
+                    if e.message() == "duplicate key" {
+                        return duplicate_key_message(None, pos);
+                    }
+                    classify_parse_error(e.message(), pos)
+                })
+            }
             Format::Yaml => {
                 // 型付きの読み込みの前に重複キーを拒否する（PACK-4）。重複のある文書は構文として信頼できない
                 // ので、`ir_format` の版の検査（`probe_format_version`）より前に `E-PARSE` で止まる。
@@ -68,6 +74,20 @@ impl Format {
                     }
                     Err(StrictError::Other { raw, pos }) => {
                         return Err(classify_parse_error(&raw, pos));
+                    }
+                    Err(StrictError::NonDecimalInt { .. }) => {}
+                }
+                // 10 進でない整数（`0x1f` 等）は `yaml_serde` が黙って数に読むので拒否する（PACK-5）。
+                match yaml_strict::check_radix_ints(text) {
+                    Ok(()) => {}
+                    Err(StrictError::NonDecimalInt { pos }) => {
+                        return Err(non_decimal_int_message(pos));
+                    }
+                    Err(StrictError::Other { raw, pos }) => {
+                        return Err(classify_parse_error(&raw, pos));
+                    }
+                    Err(StrictError::Duplicate { name, pos }) => {
+                        return Err(duplicate_key_message(name.as_deref(), pos));
                     }
                 }
                 yaml_serde::from_str(text).map_err(|e| {
@@ -232,6 +252,32 @@ fn line_col(text: &str, offset: usize) -> (usize, usize) {
     let line = before.matches('\n').count() + 1;
     let col = before.rsplit('\n').next().map_or(0, |l| l.chars().count()) + 1;
     (line, col)
+}
+
+/// 10 進でない整数の診断文。値も欄の名前も写さず、位置だけを添える。
+fn non_decimal_int_message(pos: Option<(usize, usize)>) -> String {
+    match pos {
+        Some((line, col)) => {
+            format!("integer at line {line} column {col} must be written in decimal")
+        }
+        None => "integer must be written in decimal".to_string(),
+    }
+}
+
+/// 形式 A で、10 進でない整数の最初の位置（行・桁）。構文として読めない文書は `None`
+/// （既存の `toml::from_str` が構文エラーとして扱う）。
+fn toml_radix_int(text: &str) -> Option<(usize, usize)> {
+    use toml::de::{DeTable, DeValue};
+    fn walk(text: &str, v: &toml::Spanned<DeValue<'_>>) -> Option<(usize, usize)> {
+        match v.get_ref() {
+            DeValue::Integer(i) if i.radix() != 10 => Some(line_col(text, v.span().start)),
+            DeValue::Array(a) => a.iter().find_map(|x| walk(text, x)),
+            DeValue::Table(t) => t.values().find_map(|x| walk(text, x)),
+            _ => None,
+        }
+    }
+    let table = DeTable::parse(text).ok()?;
+    table.get_ref().values().find_map(|v| walk(text, v))
 }
 
 /// 入力値を含まない構文エラーのメッセージ。位置が分かれば行と桁を添える。

@@ -6,10 +6,15 @@
 //! 引用符なしの `null`・`~` を `None` として読むため、同じテキストを文字列として読み直して字面を補う。
 //! 契約の型は IR の JSON の読み込みと共有しているので変えない。
 //!
+//! 10 進でない整数（`0x1f`・`0o17`・`0b11`。PACK-5、D-43）は、`yaml_serde` が黙って 31 などの数に読むため、
+//! `check_radix_ints` が 2 回の木の走査で字面を確かめて拒否する。数値の欄の多くは `serde_json::Value` の領域に
+//! あり、`Value` へ読んだ時点で字面が失われるので、型付きの読み込みの側では見られない。また欄の名前の許可リスト
+//! は使わない（後から足した数値の欄が黙って漏れる fail-open になるため）。
+//!
 //! キーの同一性は文字列で比べる（`true:` と `'true':` は同じキー）。構造定義のキーは最終的にすべて `String` に
 //! 読まれ、YAML 上で別のキーでも 1 つに潰れて後勝ちになるためである。
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
 use std::fmt;
 
@@ -26,6 +31,8 @@ pub(crate) enum StrictError {
         name: Option<String>,
         pos: Option<(usize, usize)>,
     },
+    /// 10 進でない整数（`0x`・`0o`・`0b`）を書いた。値は持たない（作成者の入力を診断へ写さない）。
+    NonDecimalInt { pos: Option<(usize, usize)> },
     /// 重複以外（構文エラー等）。元のエラーの文字列と位置。
     Other {
         raw: String,
@@ -155,6 +162,239 @@ impl<'de> Visitor<'de> for KeySeed<'_> {
     }
 }
 
+/// 10 進でない整数のスカラーを拒否する（PACK-5）。値は捨て、木を 2 回辿るだけである。
+///
+/// 1 回目は `deserialize_any` で、整数として読まれた節を前順の番号で控える。2 回目は同じ順に辿り、整数の節だけ
+/// `deserialize_str` で字面を受けて `0x`・`0o`・`0b`（符号を 1 つ外した後）を判定する。表のキーは文字列として
+/// 読まれるので数えない。2 回の節の数が食い違えば、通さずに失敗にする（fail-closed）。
+pub(crate) fn check_radix_ints(text: &str) -> Result<(), StrictError> {
+    let flags: RefCell<Vec<bool>> = RefCell::new(Vec::new());
+    MarkSeed { flags: &flags }
+        .deserialize(yaml_serde::Deserializer::from_str(text))
+        .map_err(|e| StrictError::Other {
+            raw: e.to_string(),
+            pos: e.location().map(|l| (l.line(), l.column())),
+        })?;
+    let flags = flags.into_inner();
+    let slot: Cell<bool> = Cell::new(false);
+    let next = Cell::new(0usize);
+    let result = RadixSeed {
+        flags: &flags,
+        next: &next,
+        slot: &slot,
+    }
+    .deserialize(yaml_serde::Deserializer::from_str(text));
+    match result {
+        Ok(()) if next.get() == flags.len() => Ok(()),
+        Ok(()) => Err(StrictError::Other {
+            raw: "node count mismatch".to_string(),
+            pos: None,
+        }),
+        Err(e) => {
+            let pos = e.location().map(|l| (l.line(), l.column()));
+            if slot.get() {
+                Err(StrictError::NonDecimalInt { pos })
+            } else {
+                Err(StrictError::Other {
+                    raw: e.to_string(),
+                    pos,
+                })
+            }
+        }
+    }
+}
+
+/// 符号を 1 つ外した後に `0x`・`0o`・`0b` で始まるか。`yaml_serde` が整数として読む形に合わせる。
+fn is_radix_literal(s: &str) -> bool {
+    let t = s.strip_prefix(['+', '-']).unwrap_or(s);
+    ["0x", "0o", "0b"].iter().any(|p| t.starts_with(p))
+}
+
+/// 1 回目の走査の種。節ごとに 1 要素を積む。
+struct MarkSeed<'a> {
+    flags: &'a RefCell<Vec<bool>>,
+}
+
+impl<'de> DeserializeSeed<'de> for MarkSeed<'_> {
+    type Value = ();
+    fn deserialize<D: de::Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+        let idx = {
+            let mut f = self.flags.borrow_mut();
+            f.push(false);
+            f.len() - 1
+        };
+        d.deserialize_any(MarkWalk {
+            flags: self.flags,
+            idx,
+        })
+    }
+}
+
+struct MarkWalk<'a> {
+    flags: &'a RefCell<Vec<bool>>,
+    idx: usize,
+}
+
+impl MarkWalk<'_> {
+    fn mark<E>(&self) -> Result<(), E> {
+        self.flags.borrow_mut()[self.idx] = true;
+        Ok(())
+    }
+}
+
+impl<'de> Visitor<'de> for MarkWalk<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("any YAML value")
+    }
+    fn visit_bool<E: de::Error>(self, _: bool) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_i64<E: de::Error>(self, _: i64) -> Result<(), E> {
+        self.mark()
+    }
+    fn visit_u64<E: de::Error>(self, _: u64) -> Result<(), E> {
+        self.mark()
+    }
+    fn visit_i128<E: de::Error>(self, _: i128) -> Result<(), E> {
+        self.mark()
+    }
+    fn visit_u128<E: de::Error>(self, _: u128) -> Result<(), E> {
+        self.mark()
+    }
+    fn visit_f64<E: de::Error>(self, _: f64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_str<E: de::Error>(self, _: &str) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_unit<E: de::Error>(self) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_none<E: de::Error>(self) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_some<D: de::Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+        MarkSeed { flags: self.flags }.deserialize(d)
+    }
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
+        while seq
+            .next_element_seed(MarkSeed { flags: self.flags })?
+            .is_some()
+        {}
+        Ok(())
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+        while map.next_key_seed(SkipKey)?.is_some() {
+            map.next_value_seed(MarkSeed { flags: self.flags })?;
+        }
+        Ok(())
+    }
+    fn visit_enum<A: de::EnumAccess<'de>>(self, data: A) -> Result<(), A::Error> {
+        use de::VariantAccess;
+        let (_, variant) = data.variant::<IgnoredAny>()?;
+        variant.newtype_variant_seed(MarkSeed { flags: self.flags })
+    }
+}
+
+/// 表のキーは文字列として読まれるので、字面を見ない・節に数えない。
+struct SkipKey;
+
+impl<'de> DeserializeSeed<'de> for SkipKey {
+    type Value = ();
+    fn deserialize<D: de::Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+        IgnoredAny::deserialize(d).map(|_| ())
+    }
+}
+
+/// 2 回目の走査の種。1 回目で整数だった節は文字列として受けて字面を確かめる。
+#[derive(Clone, Copy)]
+struct RadixSeed<'a> {
+    flags: &'a [bool],
+    next: &'a Cell<usize>,
+    slot: &'a Cell<bool>,
+}
+
+impl<'de> DeserializeSeed<'de> for RadixSeed<'_> {
+    type Value = ();
+    fn deserialize<D: de::Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+        let idx = self.next.get();
+        self.next.set(idx + 1);
+        if self.flags.get(idx).copied().unwrap_or(false) {
+            d.deserialize_str(self)
+        } else {
+            d.deserialize_any(RadixWalk(self))
+        }
+    }
+}
+
+/// 整数の節を文字列として受ける。
+impl<'de> Visitor<'de> for RadixSeed<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("an integer scalar")
+    }
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<(), E> {
+        if is_radix_literal(v) {
+            self.slot.set(true);
+            Err(E::custom("non-decimal integer"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+struct RadixWalk<'a>(RadixSeed<'a>);
+
+impl<'de> Visitor<'de> for RadixWalk<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("any YAML value")
+    }
+    fn visit_bool<E: de::Error>(self, _: bool) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_i64<E: de::Error>(self, _: i64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_u64<E: de::Error>(self, _: u64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_f64<E: de::Error>(self, _: f64) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_str<E: de::Error>(self, _: &str) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_unit<E: de::Error>(self) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_none<E: de::Error>(self) -> Result<(), E> {
+        Ok(())
+    }
+    fn visit_some<D: de::Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+        self.0.deserialize(d)
+    }
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<(), A::Error> {
+        while seq.next_element_seed(self.0)?.is_some() {}
+        Ok(())
+    }
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+        while map.next_key_seed(SkipKey)?.is_some() {
+            map.next_value_seed(self.0)?;
+        }
+        Ok(())
+    }
+    fn visit_enum<A: de::EnumAccess<'de>>(self, data: A) -> Result<(), A::Error> {
+        use de::VariantAccess;
+        let (_, variant) = data.variant::<IgnoredAny>()?;
+        variant.newtype_variant_seed(self.0)
+    }
+}
+
 /// 人が書く層の `Option<String>` の欄を文字列として読み直した結果（Step ごと）。
 ///
 /// 契約の人が書く層に `Option<String>` を足したら、ここにも足す。
@@ -257,5 +497,67 @@ mod tests {
         assert_eq!(v[1].do_.as_deref(), Some("null"));
         assert_eq!(v[2].do_.as_deref(), Some(""));
         assert_eq!(v[3], StepStrings::default());
+    }
+
+    fn radix(text: &str) -> Option<Option<(usize, usize)>> {
+        match check_radix_ints(text) {
+            Ok(()) => None,
+            Err(StrictError::NonDecimalInt { pos }) => Some(pos),
+            Err(e) => panic!("unexpected {e:?}"),
+        }
+    }
+
+    #[test]
+    fn radix_ints_are_detected_in_every_position() {
+        for t in [
+            "a: 0x1f\n",
+            "a: -0x1f\n",
+            "a: +0x1f\n",
+            "a: 0o17\n",
+            "a: 0b11\n",
+            "a: {kind: text, min: 1, max: 0x1f}\n",
+            "a: [1, 2, {n: 0x1f}]\n",
+            "a:\n  - n: 0x1f\n",
+            "a: !t 0x1f\n",
+            "a: !!int 0x1f\n",
+            "a: 0xffffffffffffffffffff\n",
+            "a: &x 0x1f\nb: *x\n",
+        ] {
+            assert!(radix(t).is_some(), "not detected: {t:?}");
+        }
+    }
+
+    #[test]
+    fn radix_ints_report_scalar_position() {
+        let p = radix("a: 1\nb: {m: 0x1f}\n")
+            .expect("detected")
+            .expect("pos");
+        assert_eq!(p.0, 2);
+    }
+
+    #[test]
+    fn decimal_and_text_forms_are_not_radix_ints() {
+        for t in [
+            "a: 31\n",
+            "a: '0x1f'\n",
+            "a: \"0x1f\"\n",
+            "a: |\n  0x1f\n",
+            "0x1f: 1\n",
+            "a: 0X1F\n",
+            "a: 1e3\n",
+            "a: 010\n",
+            "a: [true, null, 1.5, x]\n",
+            "",
+        ] {
+            assert!(radix(t).is_none(), "wrongly detected: {t:?}");
+        }
+    }
+
+    #[test]
+    fn radix_check_keeps_syntax_errors_as_other() {
+        assert!(matches!(
+            check_radix_ints("a: [1\n"),
+            Err(StrictError::Other { .. })
+        ));
     }
 }
