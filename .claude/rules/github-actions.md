@@ -27,7 +27,7 @@ description: >
 - 2026-10-11 に ruleset `main-protection`（id 24879606）を適用した。対象は既定ブランチ、enforcement は active、
   bypass は無し。classic branch protection は使っていない。変更は `setup-repo-guards` スキルの手順に従う
 - ruleset の内容: ブランチの削除と force push の禁止、PR 必須（承認数 0・レビュースレッドの解決必須・マージ方式は
-  squash のみ）、必須チェック 12 件（下表）。`main` へ直接 push はできず、すべて PR を経由する
+  squash のみ）、必須チェック 13 件（下表）。`main` へ直接 push はできず、すべて PR を経由する
 - 承認数を 0 にしているのは、人の承認者を置かない運用のため。レビューのゲートは ai-review の必須チェック
   （`codex / review` は P0・P1 の指摘で失敗する）と、レビュースレッドの解決必須で担保する
 
@@ -44,6 +44,7 @@ description: >
 | `codex / post_feedback` | github-actions（15368） |
 | `rust lint (fmt + clippy + check-deps)` | github-actions（15368） |
 | `rust build + test (--workspace)` | github-actions（15368） |
+| `browser test (Chromium)` | github-actions（15368） |
 | `Cursor Bugbot` | cursor（1210556） |
 
 - ジョブ名（`name:`）を変えると required check の参照が切れて pending のままマージ不能になる。名前を変える場合は ruleset 側も同時に更新する
@@ -80,16 +81,15 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 - 反映は、ジョブを追加した変更のマージ直後に行った。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で
   新しいチェックが「Expected」のまま残りマージできなくなるため。今後ジョブを追加するときも同じ順序で行う
 
-### TASK-79 で追加したチェック（ruleset 反映待ち）
+### TASK-79 で追加したチェック（2026-10-18 に ruleset へ反映済み）
 
 `ci.yml` に `browser-test`（チェック名 `browser test (Chromium)`、発行元は github-actions の 15368）を追加した。
 `make test-browser` を同梱の Chromium で流し、1 本でも失敗すれば `ci-complete` ごと失敗する。ruleset の
-必須チェックへの追加は、この変更のマージ直後に人が行う（上の TASK-33 と同じ順序の理由）。
+必須チェックへの追加は、この変更（#1577）のマージ直後の 2026-10-18 に行った（上の TASK-33 と同じ順序の理由）。
+必須チェックは 12 件から 13 件になった。strict は false、bypass は無しのまま、他の rule は変えていない。
 
 - 手順: GET した JSON の必須チェックに `browser test (Chromium)`（`integration_id` 15368）を足して PUT し、
-  上記のコマンドで `unbound` が空であることを確かめる
-- 反映までの間、PR の HEAD に必須でないチェックが報告されるため、`implement-issue-tree` の自動マージは辞退し、
-  マージ可能状態で止まる（人がマージする）
+  上記のコマンドで `unbound` が空（total 13）であることを確かめた
 
 ## リポジトリ設定（2026-10-11 適用）
 
