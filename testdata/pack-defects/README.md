@@ -10,12 +10,40 @@
 pack-defects/
 ├── base/format-a/   正しいパック（形式 A: TOML）
 ├── base/format-b/   同じ教材（形式 B: YAML）。IR は形式 A とバイト一致する
-└── v1/{a,b}/D01〜D12/   欠陥ごとの差し替えファイル（パックの根からの相対パスで 1 ファイルだけ置く）
+├── v1/{a,b}/D01〜D12/   欠陥ごとの差し替えファイル（パックの根からの相対パスで 1 ファイルだけ置く）
+├── base/format-b-v1_1/  語彙 v1.1 用の正しいパック（形式 B だけ。上の土台とは独立）
+└── v1_1/b/D13〜D23/     語彙 v1.1 の欠陥ごとの差し替えファイル（同じ作り）
 ```
 
 試験は、`base/format-<x>` を一時ディレクトリへ写し、その上に `v1/<x>/<ID>` を重ねて欠陥パックを組み立てます。
 24 の完全な写しを持たないのは、土台を直したときに直す場所を 1 か所にするためです。
-`v1/` の段は、語彙 v1.1 の欠陥（#416）を並べるために空けてあります。
+語彙 v1.1 の 11 種（#416）は、`base/format-b-v1_1` に `v1_1/b/<ID>` を重ねて組み立てます。
+
+## 語彙 v1.1 の 11 種の欠陥（TASK-56 2/3・#416）
+
+| ID | 埋め方 | 期待のコード | 期待の場所（項目） | 重ねるファイル |
+|---|---|---|---|---|
+| D13 | 誤答の選択肢の `on_wrong` を存在しない拒否にする | `E-REF-REJECTION` | ch-2 の章・`step:st-2-7` | 章 |
+| D14 | 正答の選択肢に `on_wrong` を足す | `E-STRUCTURE` | ch-1 の章・`step:st-1-4` | 章 |
+| D15 | 未知の枠名を書く | `E-SLOT-UNKNOWN` | `workshop.yaml`・`rejection:rj-default-unknown-command` | `workshop.yaml` |
+| D16 | `wrong_order` の文面に busy 専用の枠を書く | `E-SLOT-CONTEXT` | `workshop.yaml`・`rejection:rj-default-wrong-order` | `workshop.yaml` |
+| D17 | 代替の文が要る枠に代替を書かない | `E-SLOT-NO-FALLBACK` | `workshop.yaml`・`rejection:rj-default-unknown-command` | `workshop.yaml` |
+| D18 | `step_do` を使う文面が出うる Step から `do` を外す | `E-SLOT-NEEDS-DO` | ch-2 の章・`step:st-2-3` | 章 |
+| D19 | 枠を閉じない | `E-SLOT-SYNTAX` | `workshop.yaml`・`rejection:rj-default-busy` | `workshop.yaml` |
+| D20 | `body_levels` を存在しないファイルにする | `E-REF-BODY` | ch-13 の章・`step:st-13-2` | 章 |
+| D21 | 水準 B の本文に `skill` 種のコマンド名を書く | `E-GUIDANCE-LEAK` | ch-13 の章・`step:st-13-2` | 水準 B の本文 |
+| D22 | ヒントを水準 B・C だけに出し、水準 A で 0 件にする | `E-HINT-HIDDEN` | ch-13 の章・`step:st-13-2` | `workshop.yaml` |
+| D23 | 開始点の `guidance` を未定義の水準にする | `E-PARSE` | ch-13 の章・`scope` | 章 |
+
+判定は上の 12 種と同じです。11 種の定義は spec 側（private）で固定されており、ここには ID と要旨だけを置きます。
+
+- 形式 B だけです（spec の定義が形式 B 限定のため）。
+- 土台を別に置いたのは、既存の土台に v1.1 の要素を足すと、D01〜D12 の 24 の差し替えファイルが足した要素を
+  巻き戻すためです。章のディレクトリ名・題材・D21 で書くコマンド名は本 repo で新しく書いた架空のもので、
+  欠陥の定義・期待のコード・期待の場所は変えていません。
+- 今の必須の検出は `validate` の 8 種（D13〜D20）で、8/8 です。D21〜D23 は検査器の側が TASK-49（#495・#496）の
+  持ち分で未実装のため、検出の試験を `#[ignore]` で置いてあります。11/11 は TASK-49 の完了後に外して確かめます。
+  D21〜D23 のパックが期待外の診断を出さないことは、今の試験で確かめています。
 
 ## 12 種の欠陥
 

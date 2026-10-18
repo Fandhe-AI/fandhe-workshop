@@ -1,0 +1,27 @@
+# v1.1 の土台の章 1。選択の入力と、誤答ごとの文面 `on_wrong` を持つ確認（D14 の置換元）。
+id: ch-1
+title: 問い返しを読む
+
+starts:
+  - { id: s-1-1, node: st-1-4 }
+
+steps:
+  - id: st-1-4
+    title: 問い返しを選ぶ
+    do: 問い返しに当たる選択肢を選ぶ
+    input:
+      kind: choice
+      options:
+        - { id: asked-back, label: 問い返された }
+        - { id: rejected, label: 拒否された }
+    confirm:
+      kind: answer
+      on_wrong: rj-answer-wrong
+      options:
+        - { id: asked-back, correct: true, on_wrong: rj-1-4-expl-rejected }
+        - { id: rejected, correct: false, on_wrong: rj-1-4-expl-rejected }
+    next: [{ to: st-1-5 }]
+
+  - id: st-1-5
+    title: 章の終わり
+    final: true

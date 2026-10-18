@@ -10,7 +10,12 @@
 //!   TASK-398（#468）の持ち分で未実装のため、検出の試験は `#[ignore]` で置く。静的な 10 種 × 2 = 20 パックの
 //!   検出を必須にし、24/24 は TASK-404・TASK-398 の完了後に `#[ignore]` を外して確かめる
 //!
-//! 範囲外: 語彙 v1.1 の欠陥 11 種（#416）、正しいパックの誤検出 0 件（`test` を含む）と試験の限界の記録（#417）。
+//! 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3・#416）は、末尾の `pack29_v1_1_*` が確かめる。
+//! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。今の必須の検出は `validate` の 8 種で、D21〜D23 は
+//! 検査器の側（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・`starts[].guidance` の `E-PARSE`）が TASK-49（#495・#496）の
+//! 持ち分で未実装のため `#[ignore]` で置く。11/11 は TASK-49 の完了後に `#[ignore]` を外して確かめる。
+//!
+//! 範囲外: 正しいパックの誤検出 0 件（`test` を含む）と試験の限界の記録（#417）。
 
 mod common;
 
@@ -307,4 +312,267 @@ fn pack29_play_defects_reported_by_test() {
             );
         }
     }
+}
+
+// ---- 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3、#416）----
+
+/// v1.1 の欠陥の検出の状況。`PendingTask49` は検査器の側が未実装で、今は報告されない。
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum V11Status {
+    Detect,
+    PendingTask49,
+}
+
+/// v1.1 の期待の表の 1 行。`overlay` は重ねるファイル、`file` は期待のファイルで、どちらも拡張子つき。
+/// D21（本文）と D22（`workshop.yaml`）は、重ねるファイルと診断の付くファイルが違う。
+struct DefectV11 {
+    id: &'static str,
+    code: DiagCode,
+    file: &'static str,
+    item: &'static str,
+    overlay: &'static str,
+    status: V11Status,
+}
+
+const CH1: &str = "chapters/ch-1/chapter.yaml";
+const CH2: &str = "chapters/ch-2/chapter.yaml";
+const CH13: &str = "chapters/ch-13/chapter.yaml";
+const WORKSHOP_B: &str = "workshop.yaml";
+const DEFECTS_V1_1: [DefectV11; 11] = [
+    DefectV11 {
+        id: "D13",
+        code: DiagCode::RefRejection,
+        file: CH2,
+        item: "step:st-2-7",
+        overlay: CH2,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D14",
+        code: DiagCode::Structure,
+        file: CH1,
+        item: "step:st-1-4",
+        overlay: CH1,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D15",
+        code: DiagCode::SlotUnknown,
+        file: WORKSHOP_B,
+        item: "rejection:rj-default-unknown-command",
+        overlay: WORKSHOP_B,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D16",
+        code: DiagCode::SlotContext,
+        file: WORKSHOP_B,
+        item: "rejection:rj-default-wrong-order",
+        overlay: WORKSHOP_B,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D17",
+        code: DiagCode::SlotNoFallback,
+        file: WORKSHOP_B,
+        item: "rejection:rj-default-unknown-command",
+        overlay: WORKSHOP_B,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D18",
+        code: DiagCode::SlotNeedsDo,
+        file: CH2,
+        item: "step:st-2-3",
+        overlay: CH2,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D19",
+        code: DiagCode::SlotSyntax,
+        file: WORKSHOP_B,
+        item: "rejection:rj-default-busy",
+        overlay: WORKSHOP_B,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D20",
+        code: DiagCode::RefBody,
+        file: CH13,
+        item: "step:st-13-2",
+        overlay: CH13,
+        status: V11Status::Detect,
+    },
+    DefectV11 {
+        id: "D21",
+        code: DiagCode::GuidanceLeak,
+        file: CH13,
+        item: "step:st-13-2",
+        overlay: "chapters/ch-13/st-13-2.b.md",
+        status: V11Status::PendingTask49,
+    },
+    DefectV11 {
+        id: "D22",
+        code: DiagCode::HintHidden,
+        file: CH13,
+        item: "step:st-13-2",
+        overlay: WORKSHOP_B,
+        status: V11Status::PendingTask49,
+    },
+    DefectV11 {
+        id: "D23",
+        code: DiagCode::Parse,
+        file: CH13,
+        item: "scope",
+        overlay: CH13,
+        status: V11Status::PendingTask49,
+    },
+];
+
+fn base_dir_v1_1() -> PathBuf {
+    defects_root().join("base").join("format-b-v1_1")
+}
+
+fn overlay_dir_v1_1(d: &DefectV11) -> PathBuf {
+    defects_root().join("v1_1").join("b").join(d.id)
+}
+
+fn assemble_v1_1(d: &DefectV11) -> Tmp {
+    let t = Tmp::new(&format!("defect-{}-b", d.id));
+    copy_dir(&base_dir_v1_1(), &t.0);
+    copy_dir(&overlay_dir_v1_1(d), &t.0);
+    t
+}
+
+fn matches_v1_1(diag: &Diagnostic, d: &DefectV11) -> bool {
+    diag.code() == d.code && diag.file() == d.file && diag.item() == d.item
+}
+
+fn describe(diags: &[Diagnostic]) -> Vec<String> {
+    diags
+        .iter()
+        .map(|x| format!("{} {} {}", x.code(), x.file(), x.item()))
+        .collect()
+}
+
+/// `dir` の直下のエントリ名を集める（ファイルも dir も対象）。
+fn entry_names(dir: &Path) -> Vec<String> {
+    let mut out: Vec<String> = fs::read_dir(dir)
+        .expect("read_dir")
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn pack29_v1_1_base_validates_clean_and_compiles() {
+    let diags = validate_dir(&base_dir_v1_1());
+    assert!(diags.is_empty(), "{diags:?}");
+    compile_dir(&base_dir_v1_1()).expect("compile v1.1 base");
+}
+
+#[test]
+fn pack29_v1_1_defect_dirs_match_table_and_only_replace_base_files() {
+    let v1_1 = defects_root().join("v1_1");
+    assert_eq!(entry_names(&v1_1), vec!["b"], "v1_1 has format B only");
+    let want: Vec<&str> = DEFECTS_V1_1.iter().map(|d| d.id).collect();
+    assert_eq!(
+        entry_names(&v1_1.join("b")),
+        want,
+        "v1_1/b directories must equal the table"
+    );
+
+    for d in &DEFECTS_V1_1 {
+        let overlay = overlay_dir_v1_1(d);
+        let mut files = Vec::new();
+        files_under(&overlay, "", &mut files);
+        assert_eq!(files, vec![d.overlay.to_string()], "{}: one file", d.id);
+        let new = fs::read(overlay.join(d.overlay)).expect("read overlay");
+        let old = fs::read(base_dir_v1_1().join(d.overlay)).expect("base has the path");
+        assert_ne!(new, old, "{}: overlay must differ from base", d.id);
+    }
+}
+
+#[test]
+fn pack29_v1_1_static_defects_reported_at_expected_location() {
+    let mut missed = Vec::new();
+    let mut detected = 0;
+    for d in DEFECTS_V1_1
+        .iter()
+        .filter(|d| d.status == V11Status::Detect)
+    {
+        let diags = validate_dir(&assemble_v1_1(d).0);
+        assert_no_secret(&diags);
+        if diags.iter().any(|x| matches_v1_1(x, d)) {
+            detected += 1;
+        } else {
+            missed.push(format!(
+                "{}: want {} {} {}; got {:?}",
+                d.id,
+                d.code,
+                d.file,
+                d.item,
+                describe(&diags)
+            ));
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "undetected defects:\n{}",
+        missed.join("\n")
+    );
+    assert_eq!(detected, 8);
+    println!("PACK-29 v1.1 static defects detected {detected}/8");
+}
+
+#[test]
+fn pack29_v1_1_pending_defects_have_no_unrelated_diagnostics() {
+    for d in DEFECTS_V1_1
+        .iter()
+        .filter(|d| d.status == V11Status::PendingTask49)
+    {
+        let diags = validate_dir(&assemble_v1_1(d).0);
+        assert_no_secret(&diags);
+        let stray: Vec<String> = describe(&diags)
+            .into_iter()
+            .zip(&diags)
+            .filter(|(_, x)| x.code() != d.code)
+            .map(|(s, _)| s)
+            .collect();
+        assert!(
+            stray.is_empty(),
+            "{}: unrelated diagnostics {stray:?}",
+            d.id
+        );
+    }
+}
+
+#[test]
+#[ignore = "E-GUIDANCE-LEAK / E-HINT-HIDDEN / starts[].guidance E-PARSE are TASK-49 (#495, #496)"]
+fn pack29_v1_1_guidance_defects_reported_at_expected_location() {
+    let mut missed = Vec::new();
+    for d in DEFECTS_V1_1
+        .iter()
+        .filter(|d| d.status == V11Status::PendingTask49)
+    {
+        let diags = validate_dir(&assemble_v1_1(d).0);
+        assert_no_secret(&diags);
+        if !diags.iter().any(|x| matches_v1_1(x, d)) {
+            missed.push(format!(
+                "{}: want {} {} {}; got {:?}",
+                d.id,
+                d.code,
+                d.file,
+                d.item,
+                describe(&diags)
+            ));
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "undetected defects:\n{}",
+        missed.join("\n")
+    );
 }

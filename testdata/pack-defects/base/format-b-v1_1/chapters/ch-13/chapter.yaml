@@ -1,0 +1,18 @@
+# v1.1 の土台の章 13。開始点の水準 `guidance`（D23 の対象）と、水準ごとの本文 `body_levels`（D20・D21 の対象）。
+id: ch-13
+title: 水準ごとの本文
+
+starts:
+  - { id: s-13-1, node: st-13-2, guidance: B }
+
+steps:
+  - id: st-13-2
+    title: 変わった箇所を探す
+    body: st-13-2.md
+    body_levels: { B: st-13-2.b.md }
+    hints: [h-13-2-1]
+    next: [{ to: st-13-3 }]
+
+  - id: st-13-3
+    title: 章の終わり
+    final: true
