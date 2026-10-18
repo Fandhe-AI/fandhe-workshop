@@ -399,7 +399,20 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     # `echo NAME=$(cat ENGINE_REV) >> $GITHUB_OUTPUT`（引用・波括弧は任意）の形のときだけ。
     # それ以外で GITHUB_OUTPUT に触れる行は、行内の全ての NAME= を汚染として記録する（名前を取れない場合に備え全名の印も付ける）。
     # キーはジョブ ID・step ID・出力名で、別ジョブの step の出力は参照できない（steps コンテキストはジョブ内）。
+    # run にシェルの制御構造（if / case / ループ / 関数 / グループ / exit・return）や && ・|| があるか。
+    # 構文木を作らないため、実行が保証されない形は「ある」として扱い、呼び出し側で拒否する（fail-closed）。
+    function has_ctl(run, ops,   n, arr, i, l) {
+      n = split(run, arr, "\n")
+      for (i = 1; i <= n; i++) {
+        l = strip_comment(arr[i])
+        if (ops && l ~ /&&|\|\|/) return 1
+        if (l ~ /(^|[[:space:];&|({])(if|then|elif|else|fi|case|esac|while|until|for|select|do|done|function|exit|return)([[:space:];]|$)/) return 1
+        if (l ~ /^[[:space:]]*[{(]/ || l ~ /\(\)/) return 1
+      }
+      return 0
+    }
     function scan_outputs(id, run,   n, arr, i, l, rest, name) {
+      if (has_ctl(run, 1)) { tainted[job SUBSEP id SUBSEP "*"] = 1; return }
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
         l = strip_comment(arr[i])
@@ -456,17 +469,31 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     #    後の `git -C <同じ先> checkout|switch|reset|fetch "$(cat ENGINE_REV)"`（または cd した先での同じ操作）で外す。
     #  - cargo install・git fetch 等は、同じコマンドの中で版の位置に使うことを要する。
     #  - 取得先を判断できない形・取得を認識できない形・最後まで未固定の先が残る形は拒否する。
-    function run_ok(run,   low, n, arr, i, l, ns, segs, j, seg, ls, cnt, bad, t, nt, k, m, d, x, c) {
+    function run_ok(run,   low, n, arr, i, l, ns, segs, seps, rest, prevsep, chain_ok, gate, kind_ok, is_wt, j, seg, ls, cnt, bad, t, nt, k, m, d, x, c) {
       low = tolower(run)
       if (low !~ /fandhe-ai\/fandhe-workshop/ || low !~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) return 1
       gsub(/\\\n/, " ", run)
-      split("", pending); cwd = ""; cnt = 0; bad = 0
+      # 実行が保証されない形（制御構造・&&・||）を含む run は、版の固定を判断できないので拒否する
+      if (has_ctl(run, 0)) return 0
+      split("", pending); split("", known); cwd = ""; cnt = 0; bad = 0
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
         l = strip_comment(arr[i])
-        ns = split(l, segs, /&&|;|\|\||\|/)
+        ns = 0; rest = l; prevsep = ""
+        while (match(rest, /&&|;|\|\||\|/)) {
+          ns++; segs[ns] = substr(rest, 1, RSTART - 1); seps[ns] = prevsep
+          prevsep = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
+        }
+        ns++; segs[ns] = rest; seps[ns] = prevsep
         for (j = 1; j <= ns; j++) {
           seg = segs[j]; ls = tolower(seg)
+          is_wt = (seg ~ /(^|[[:space:]])git( +-C +[^ ]+)? +(checkout|switch|reset|pull|merge|rebase|cherry-pick)([[:space:]]|$)/)
+          kind_ok = (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) || is_wt || (ls ~ /fandhe-ai\/fandhe-workshop/ && ls ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/)
+          # gate: この segment の実行が前の segment の成功だけに依る連鎖か（|| ・| の後ろ、無関係なコマンドの後ろの && は条件つき）
+          if (j == 1 || seps[j] == ";") chain_ok = 1
+          else if (seps[j] == "||" || seps[j] == "|") chain_ok = 0
+          gate = chain_ok
+          if (!kind_ok) chain_ok = 0
           if (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) {
             c = seg; sub(/^[[:space:]]*cd[[:space:]]*/, "", c); sub(/[[:space:]].*$/, "", c); c = norm(c)
             cwd = (c == "" || c ~ /^[-~]/) ? "?" : full(c)
@@ -493,14 +520,16 @@ if [ -n "${PACK_WORKFLOW}" ]; then
               }
               break
             }
-            pending[full(d)] = 1
+            pending[full(d)] = 1; known[full(d)] = 1
             continue
           }
-          if (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg)) {
+          if (is_wt || (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg))) {
             if (match(seg, /git +-C +[^ ]+/)) {
               x = substr(seg, RSTART, RLENGTH); sub(/^git +-C +/, "", x); d = full(x)
             } else d = cwd
-            delete pending[d]
+            if (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg)) {
+              if (gate) delete pending[d]
+            } else if (d in known) pending[d] = 1   # ENGINE_REV 以外へ切り替える操作は固定済みを解除する
           }
         }
       }

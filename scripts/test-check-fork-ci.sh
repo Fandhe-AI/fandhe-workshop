@@ -472,6 +472,41 @@ d4_case() {
         if: ${{ false }}' "${GOOD_PACK}"; } >"${TMP_DIR}/pack-if-false.yml"
 case_ "output step with an if condition is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-if-false.yml" --engine-rev "${GOOD_REV}"
 
+# review follow-ups 4: 制御構造・条件演算子・取得先ごとの固定の解除
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  d4_case "conditional checkout after && false is rejected (D4)" 1 "git clone ${URL} engine2" "false && git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "checkout after || is rejected (D4)" 1 "git clone ${URL} engine2" "true || git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "checkout inside an if is rejected (D4)" 1 "git clone ${URL} engine2" "if false; then git -C engine2 checkout \"\$(cat ENGINE_REV)\"; fi"
+  d4_case "checkout main after the pin unpins the destination (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C engine2 checkout main"
+  d4_case "reset to another ref after the pin unpins the destination (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C engine2 reset --hard origin/main"
+  d4_case "pin after switching to main again passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout main" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "checkout main in another directory keeps the pin (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C other checkout main"
+}
+d3_n=0
+# d3_case <name> <expected-rc> <run-lines...>: 出力を書く step の run を差し替えた見本を流す
+d3_case() {
+  local name="$1" want="$2" f="${TMP_DIR}/d3-$((++d3_n)).yml" tag="D3"
+  shift 2
+  [ "${want}" = 0 ] && tag="-"
+  {
+    printf 'name: Build pack\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n'
+    printf '      - name: Read engine revision\n        id: rev\n        run: |\n'
+    printf '          %s\n' "$@"
+    # shellcheck disable=SC2016 # YAML の式なので、シェルに展開させない
+    printf '      - name: Checkout engine\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/fandhe-workshop\n          ref: ${{ steps.rev.outputs.rev }}\n          path: engine\n          persist-credentials: false\n' "${SHA}"
+  } >"${f}"
+  case_ "${name}" "${want}" "${tag}" --pack-workflow "${f}" --engine-rev "${GOOD_REV}"
+}
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  d3_case "unconditional pinned output in a block run passes (D3)" 0 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
+  d3_case "pinned output inside an if is rejected (D3)" 1 'if false; then' '  echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"' 'fi'
+  d3_case "pinned output inside a case is rejected (D3)" 1 'case x in y) echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}" ;; esac'
+  d3_case "pinned output after && false is rejected (D3)" 1 'false && echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
+  d3_case "pinned output after an exit is rejected (D3)" 1 'exit 0' 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
+}
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"
