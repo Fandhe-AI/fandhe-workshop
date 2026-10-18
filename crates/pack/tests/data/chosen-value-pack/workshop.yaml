@@ -1,0 +1,8 @@
+# chosen-value-pack（形式 B）。受講者が選んだ値の差し込みが無いこと（PACK-39・D-50）と、その回避の書き方の試験用。架空の内容だけを持つ。
+pack: {id: chosen-value-pack, title: 選んだ値, version: '0.0.1', ir_format: 1, guidance: A}
+commands:
+  make-item: skill
+rejections:
+  rj-not-listed: {category: not_in_this_step, message: その値は、この Step の候補にありません。, next_action: 候補のどれかで、もう一度送ります。}
+defaults:
+  not_in_this_step: rj-not-listed
