@@ -10,7 +10,12 @@
 //! - コードの言語名は、情報文字列の空白の前の最初の語だけを取る。
 //! - 入れ子の深さが [`MAX_DOC_DEPTH`] を超えた部分は、構造を捨ててテキストだけの段落にまとめる。再帰は
 //!   この上限で止まり、深い入力でもスタックを使い果たさない（上限は IR の JSON の入れ子の上限から導く）。
-//! - 行の途中の改行は常に `"\n"` のテキストにする。日本語の行の途中の改行の連結は TASK-61 が扱う。
+//! - 行の途中の改行（soft break）は `"\n"` のテキストにする。ただし直前のテキストの最後の文字と直後の
+//!   テキストの最初の文字がともに CJK（かな・漢字・全角記号。範囲は [`is_cjk`]）なら連結し、節を出さない
+//!   （D-51・PACK-27）。Chrome は `"\n"` を空白として描くため、日本語の文の途中に空白が見えるのを防ぐ。
+//!   - 限界: 境界がコード・強調・リンクなどインラインの節にあるときは連結しない（試作の規則と同じ）。
+//!     隣り合うテキストの節も 1 つにまとめない。`skip_to_text`（深さ上限・画像の alt）は改行を空白にする。
+//!   - hard break（`Inline::Break`）とコードブロックの中の改行は対象外。
 //! - 出力は決定的で、同じ入力からは同じ木になる。
 
 use fandhe_workshop_contract::doc::{Block, Doc, Inline, MAX_DOC_DEPTH, TREE_VERSION};
@@ -227,9 +232,13 @@ fn parse_inlines(it: &mut Iter, depth: usize, end: Option<TagEnd>) -> Vec<Inline
             Event::Code(t) => out.push(Inline::Code {
                 text: t.to_string(),
             }),
-            Event::SoftBreak => out.push(Inline::Text {
-                text: "\n".to_string(),
-            }),
+            Event::SoftBreak => {
+                if !joins_soft_break(out.last(), it.peek()) {
+                    out.push(Inline::Text {
+                        text: "\n".to_string(),
+                    });
+                }
+            }
             Event::HardBreak => out.push(Inline::Break),
             Event::Start(tag) => {
                 if depth >= MAX_DOC_DEPTH {
@@ -272,6 +281,28 @@ fn parse_inlines(it: &mut Iter, depth: usize, end: Option<TagEnd>) -> Vec<Inline
 
 /// 開始タグの直後から、対応する終了タグまでを入れ子を数えながら読み飛ばし、含まれるテキストだけを返す。
 /// 反復で読むので、入れ子が深くてもスタックを使わない。
+/// 行の途中の改行を連結するか。直前の出力が `Text` で末尾が CJK、直後のイベントが `Text` で先頭が CJK のときだけ
+/// 真になる。`parse_inlines` が `SoftBreak` を見たときに呼ぶ。空文字列でも panic しない。
+fn joins_soft_break(prev: Option<&Inline>, next: Option<&Event>) -> bool {
+    let prev_cjk =
+        matches!(prev, Some(Inline::Text { text }) if text.chars().next_back().is_some_and(is_cjk));
+    let next_cjk = matches!(next, Some(Event::Text(t)) if t.chars().next().is_some_and(is_cjk));
+    prev_cjk && next_cjk
+}
+
+/// 連結の対象にする「CJK の文字」。範囲は試作の変換器に合わせ、広げない。
+fn is_cjk(c: char) -> bool {
+    matches!(c,
+        '\u{3000}'..='\u{303F}' // CJK の記号・句読点
+        | '\u{3040}'..='\u{30FF}' // ひらがな・カタカナ
+        | '\u{3400}'..='\u{4DBF}' // CJK 統合漢字拡張 A
+        | '\u{4E00}'..='\u{9FFF}' // CJK 統合漢字
+        | '\u{F900}'..='\u{FAFF}' // CJK 互換漢字
+        | '\u{FF00}'..='\u{FFEF}' // 全角形・半角カナ
+        | '\u{20000}'..='\u{2FFFF}' // 拡張 B 以降
+    )
+}
+
 fn skip_to_text(it: &mut Iter) -> String {
     let mut depth = 1usize;
     let mut s = String::new();
@@ -323,12 +354,13 @@ mod tests {
     }
 
     #[test]
-    fn soft_breaks_are_never_joined() {
+    fn soft_breaks_join_only_between_cjk() {
         assert_eq!(first_para_text(&parse("hello\nworld")), "hello\nworld");
         assert_eq!(
             first_para_text(&parse("これは日本語の\n文章です。")),
-            "これは日本語の\n文章です。"
+            "これは日本語の文章です。"
         );
+        assert_eq!(first_para_text(&parse("日本語の\nabc")), "日本語の\nabc");
     }
 
     #[test]

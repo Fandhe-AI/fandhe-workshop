@@ -74,19 +74,28 @@
               },
               {
                 "t": "text",
-                "text": "\n"
-              },
-              {
-                "t": "text",
                 "text": "次の行です。日本語の"
               },
               {
                 "t": "text",
+                "text": "行の途中の改行は、連結されます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "alpha line"
+              },
+              {
+                "t": "text",
                 "text": "\n"
               },
               {
                 "t": "text",
-                "text": "行の途中の改行も、そのまま残ります。"
+                "text": "beta line"
               }
             ]
           },

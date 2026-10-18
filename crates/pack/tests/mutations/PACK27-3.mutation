@@ -1,0 +1,8 @@
+id: PACK27-3
+package: fandhe-workshop-pack
+test: soft_break_join
+target: crates/pack/src/markdown.rs
+find:     prev_cjk && next_cjk
+replace:     prev_cjk
+expect-fail: pack27_mixed_soft_break_is_kept
+note: 直後の文字の検査を外す（直前だけで判定する）
