@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定）・`input::check_inputs`・
@@ -82,6 +82,7 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
         out.extend(crate::left_pane::check_left_targets(pack, left_pane));
     }
     out.extend(left_parse);
+    out.extend(crate::vocab_check::check_vocab_declaration(pack));
     // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO`・`E-LEFT-TARGET-*`・`E-REF-ELEMENT` は、
     // 同じ内容のものを 1 件にする（`compile` と同じ。`E-REF-ELEMENT` は `validate` だけの検査）。
     let mut seen = BTreeSet::new();

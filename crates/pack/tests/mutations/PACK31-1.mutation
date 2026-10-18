@@ -1,0 +1,8 @@
+id: PACK31-1
+package: fandhe-workshop-pack
+test: vocab_declaration
+target: crates/pack/src/vocab_check.rs
+find:         if declared < needed && used(pack) {
+replace:         if false && used(pack) {
+expect-fail: pack31_ep9_with_vocab_below_1_2_is_reported
+note: 宣言と必要な版の比較を常に偽にする（宣言より新しい語彙を使う教材が通る）

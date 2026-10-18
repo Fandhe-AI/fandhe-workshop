@@ -33,6 +33,21 @@ impl VocabVersion {
             VocabVersion::V1_3 => "v1.3",
         }
     }
+
+    /// `pack.vocab` の宣言（`主.副`）と比べるための `(主, 副)` を返す。
+    pub const fn major_minor(self) -> (u32, u32) {
+        match self {
+            VocabVersion::V1 => (1, 0),
+            VocabVersion::V1_1 => (1, 1),
+            VocabVersion::V1_2 => (1, 2),
+            VocabVersion::V1_3 => (1, 3),
+        }
+    }
+}
+
+/// 名前（`starts.requires` など）から名前つき拡張点を引く。
+pub fn extension_point(name: &str) -> Option<&'static ExtensionPoint> {
+    EXTENSION_POINTS.iter().find(|e| e.name == name)
 }
 
 /// このエンジンが知る語彙の版の上限。
