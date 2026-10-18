@@ -3749,3 +3749,21 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | PACK31-1 | crates/pack/src/vocab_check.rs: 宣言と必要な版の比較を常に偽にする | pack31_ep9_with_vocab_below_1_2_is_reported | pack31_ep9_with_vocab_below_1_2_is_reported, pack31_ep9_in_module_start_is_reported, pack31_newer_vocab_than_declared_is_reported, pack31_one_diagnostic_per_extension_point, pack31_spec_pack_declaring_1_0_but_using_requires_is_reported | DETECTED |
+
+### 5.122 確認の選択肢の label の版の検査と誤検出 0 件（TASK-59 2/2）
+
+`confirm.options[].label`（語彙 1.3）を使う教材が `pack.vocab` に 1.3 未満を宣言すると、`validate` が `E-VOCAB-MISMATCH` を 1 件報告することを確かめる（PACK-31・VER-14・D-43）。入力方式 `choice` の `options[].label`（v1 の語）を取り違えないこと、宣言と使用が一致する教材（`testdata/` の教材と `confirm-label-pack`）で誤検出が 0 件であることも試験する（`vocab_declaration`）。
+
+- PACK31-2: 確認の選択肢の `label` を使用と数える判定を反転させる
+- PACK31-3: `confirm` の代わりに `input` を見る（入力方式 `choice` の `label` を取り違える）
+
+```text
+実行日: 2026-10-18
+元にしたコミット: 5b4fffd（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK31-2.mutation（PACK31-3 も同様）
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK31-2 | crates/pack/src/vocab_check.rs: 確認の選択肢の label を使用と数える判定を反転させる | pack31_label_with_vocab_below_1_3_is_reported | pack31_label_reported_once_per_pack_and_orders_after_ep12, pack31_label_in_module_step_is_reported, pack31_confirm_label_pack_positive_control, pack31_label_with_vocab_below_1_3_is_reported, pack31_label_matching_or_omitted_or_null_is_not_reported | DETECTED |
+| PACK31-3 | crates/pack/src/vocab_check.rs: confirm の代わりに input を見る | pack31_input_choice_label_is_not_confirm_label | pack31_label_in_module_step_is_reported, pack31_label_reported_once_per_pack_and_orders_after_ep12, pack31_label_with_vocab_below_1_3_is_reported, pack31_input_choice_label_is_not_confirm_label, pack31_matching_declarations_are_not_reported, pack31_correct_packs_have_no_false_positives | DETECTED |

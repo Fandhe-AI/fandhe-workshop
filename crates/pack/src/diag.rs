@@ -1,6 +1,6 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
-//! コードの一覧は `docs/diagnostics.md`（一覧の版 3、TASK-195）で固定した。出力形と終了コードは
+//! コードの一覧は `docs/diagnostics.md`（一覧の版 4、TASK-195）で固定した。出力形と終了コードは
 //! TASK-399（#469〜#471）の契約で固定する（未了）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
@@ -9,7 +9,7 @@ use std::io;
 
 use crate::cli::{EXIT_DIAGNOSTICS, EXIT_OK};
 
-/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 3）である。
+/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 4）である。
 ///
 /// 一覧と本列挙の一致の自動検査は TASK-400 が持つ。`E-LIMIT-*` の拒否理由の型は contract
 /// （TASK-199 の `PackLimitCode`）が持ち、一覧には参照だけを置く。
