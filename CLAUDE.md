@@ -42,7 +42,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
-│   ├── ci.yml                # changes / check / rust-lint / rust-test / test-hooks / test-hooks-macos / pr-title / ci-complete
+│   ├── ci.yml                # changes / check / rust-lint / rust-test / browser-test / test-hooks / test-hooks-macos / pr-title / ci-complete
 │   ├── deploy.yml            # 配信の骨格（workflow_dispatch のみ・permissions {}・未実装で失敗。TASK-121 で実装）
 │   ├── ai-review.yml         # codex による PR 自動レビュー
 │   └── update-external.yml   # スキル・submodule の日次追従 PR
@@ -87,7 +87,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
-| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・貼り付け（改行の保持・自動送信 0 件・合成の paste）の試験・IME の模擬（CDP）と入力欄の層 3 の試験・保存済みの履歴が無い場合と未操作の再読み込みで新しく始まる試験（SAVE-3・SAVE-28）・保存・復元・書き出し・版の層 3 の試験・入力方式ごとの入力の口の切り替えの試験（TERM-23）・入力欄なしの教材の表示の試験（PACK-20）・CH-0〜CH-3 の形の 20 Step の通しと CH-1 のキーボードだけの完走の試験（TERM-23）・対照の自己確認（SAFE-8。CSP あり・なし。Playwright。`npm ci` と `npx playwright install chromium` が前提。CI 未組み込み） |
+| `make test-browser` | ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・貼り付け（改行の保持・自動送信 0 件・合成の paste）の試験・IME の模擬（CDP）と入力欄の層 3 の試験・保存済みの履歴が無い場合と未操作の再読み込みで新しく始まる試験（SAVE-3・SAVE-28）・保存・復元・書き出し・版の層 3 の試験・入力方式ごとの入力の口の切り替えの試験（TERM-23）・入力欄なしの教材の表示の試験（PACK-20）・CH-0〜CH-3 の形の 20 Step の通しと CH-1 のキーボードだけの完走の試験（TERM-23）・対照の自己確認（SAFE-8。CSP あり・なし。Playwright。`npm ci` と `npx playwright install chromium` が前提。CI は `browser-test` ジョブが流す） |
 | `make test-keydown-control` | `action-keydown` を外した写しで keydown の試験が正しい理由で失敗することの対照（遅く、CI・フックには入れない） |
 | `make check-toolchain` | 固定ファイルの版・README の「前提」の表と `docs/toolchain.md` の一致の検査 |
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
