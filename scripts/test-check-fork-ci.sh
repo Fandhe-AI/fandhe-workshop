@@ -441,6 +441,37 @@ rc=0
 PATH="${TMP_DIR}/shim:${PATH}" "${CHECK}" --secrets-checker "${STUB}" --npmrc "${TMP_DIR}/npmrc-ok" >/dev/null 2>&1 || rc=$?
 if [ "${rc}" = 2 ]; then echo "ok - a grep failure inside a report is not a pass (exit 2)"; passed=$((passed + 1)); else echo "not ok - grep failure (expected exit 2, got ${rc})"; failed=$((failed + 1)); fi
 
+# review follow-ups 3: single quotes, non-switching operations, conditional output steps, clone destinations
+URL='https://github.com/Fandhe-AI/fandhe-workshop'
+d4_n=0
+# d4_case <name> <expected-rc> <run-lines...>: 良い見本に run のステップを足して流す
+d4_case() {
+  local name="$1" want="$2" f="${TMP_DIR}/d4-$((++d4_n)).yml" tag="D4"
+  shift 2
+  [ "${want}" = 0 ] && tag="-"
+  { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n'; printf '          %s\n' "$@"; } >"${f}"
+  case_ "${name}" "${want}" "${tag}" --pack-workflow "${f}" --engine-rev "${GOOD_REV}"
+}
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  d4_case "single-quoted command substitution is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout '\$(cat ENGINE_REV)'"
+  d4_case "double-quoted command substitution passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "fetch alone does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 fetch origin \"\$(cat ENGINE_REV)\""
+  d4_case "reset without --hard does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 reset \"\$(cat ENGINE_REV)\""
+  d4_case "reset --hard pins (D4)" 0 "git clone ${URL} engine2" "git -C engine2 reset --hard \"\$(cat ENGINE_REV)\""
+  d4_case "checkout -- <path form> does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout -- \"\$(cat ENGINE_REV)\""
+  d4_case "switch --detach pins (D4)" 0 "git clone ${URL} engine2" "git -C engine2 switch --detach \"\$(cat ENGINE_REV)\""
+  d4_case "clone into . then checkout ENGINE_REV passes (D4)" 0 "git clone ${URL} ." "git checkout \"\$(cat ENGINE_REV)\""
+  d4_case "clone into . without a pin is rejected (D4)" 1 "git clone ${URL} ."
+  d4_case "clone flags after the URL are not destinations (D4)" 0 "git clone ${URL} --depth 1 engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "clone flag without a destination uses the default directory (D4)" 0 "git clone ${URL} --recursive" "git -C fandhe-workshop checkout \"\$(cat ENGINE_REV)\""
+  d4_case "clone flag without a destination is not pinned elsewhere (D4)" 1 "git clone ${URL} --recursive" "git -C --recursive checkout \"\$(cat ENGINE_REV)\""
+}
+# 出力元の step が条件つきなら、出力は固定済みと認めない
+{ sed -e '/^        id: rev$/a\
+        if: ${{ false }}' "${GOOD_PACK}"; } >"${TMP_DIR}/pack-if-false.yml"
+case_ "output step with an if condition is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-if-false.yml" --engine-rev "${GOOD_REV}"
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"

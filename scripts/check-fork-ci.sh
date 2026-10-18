@@ -417,19 +417,32 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         }
       }
     }
-    # run が ENGINE_REV を取得版の指定に使うか。`$(cat ENGINE_REV)` の直前が版を指定する位置のときだけ認める:
-    # git checkout / switch の対象、git reset の対象、git fetch の ref、--rev / --branch / --tag の値。
-    # git clone の URL の後ろ（保存先）や表示だけの echo・cat は認めない。変数へ受けてから使う形は判定できないので拒否する。
+    # 文字列 s を端まで読んだ時点の引用状態（"" / "\047" / "\""）。単一引用符の中ではコマンド置換が展開されない。
+    function quote_state(s,   i, c, q) {
+      q = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "\\" && q != "\047") { i++; continue }
+        if (q == "") { if (c == "\047" || c == "\"") q = c }
+        else if (c == q) q = ""
+      }
+      return q
+    }
+    # run が ENGINE_REV を取得版の指定に使うか。`$(cat ENGINE_REV)` が実際に展開される位置（単一引用符の外）で、
+    # 直前が作業ツリーを指定の版へ切り替える操作のときだけ認める:
+    # git checkout / switch の対象（`--` のパス指定は除く）、git reset --hard の対象、--rev / --branch / --tag の値。
+    # fetch だけ・reset の既定（--mixed）・git clone の保存先・表示だけの echo・cat は認めない。変数へ受けてから使う形は判定できない。
     function run_pins(run,   n, arr, i, rest, pre) {
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
         rest = strip_comment(arr[i]); pre = ""
         while (match(rest, /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/)) {
           pre = pre substr(rest, 1, RSTART - 1)
-          if (pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +(checkout|switch)( +-[A-Za-z-]+)* +["\047]?$/ \
-              || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +reset( +--[a-z]+)* +["\047]?$/ \
-              || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +fetch( +-[-A-Za-z0-9=]+)*( +[^ -][^ ]*){0,3} +["\047]?$/ \
-              || pre ~ /(^|[[:space:];&|(])(git|cargo)( +[^ ]+)* +--(rev|branch|tag)[ =]+["\047]?$/) return 1
+          if (quote_state(pre) != "\047") {
+            if (pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +(checkout|switch)( +-{1,2}[A-Za-z][A-Za-z-]*)* +"?$/ \
+                || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +reset( +-{1,2}[A-Za-z][A-Za-z-]*)* +--hard( +-{1,2}[A-Za-z][A-Za-z-]*)* +"?$/ \
+                || pre ~ /(^|[[:space:];&|(])(git|cargo)( +[^ ]+)* +--(rev|branch|tag)[ =]+"?$/) return 1
+          }
           pre = pre substr(rest, RSTART, RLENGTH)
           rest = substr(rest, RSTART + RLENGTH)
         }
@@ -437,13 +450,13 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       return 0
     }
     function norm(p) { gsub(/["\047]/, "", p); sub(/^\.\//, "", p); sub(/\/+$/, "", p); return p }
-    function full(p) { p = norm(p); if (p ~ /^\//) return p; return cwd == "" ? p : cwd "/" p }
+    function full(p) { p = norm(p); if (p == ".") return cwd; if (p ~ /^\//) return p; return cwd == "" ? p : cwd "/" p }
     # run のエンジン取得が、取得先ごとに ENGINE_REV で版を決めているか。コマンドを &&・;・||・| で分けて順に見る。
     #  - git clone は、同じコマンドに --branch 等の指定が無ければ取得先ディレクトリを「未固定」に記録し、
     #    後の `git -C <同じ先> checkout|switch|reset|fetch "$(cat ENGINE_REV)"`（または cd した先での同じ操作）で外す。
     #  - cargo install・git fetch 等は、同じコマンドの中で版の位置に使うことを要する。
     #  - 取得先を判断できない形・取得を認識できない形・最後まで未固定の先が残る形は拒否する。
-    function run_ok(run,   low, n, arr, i, l, ns, segs, j, seg, ls, cnt, bad, t, nt, k, d, x, c) {
+    function run_ok(run,   low, n, arr, i, l, ns, segs, j, seg, ls, cnt, bad, t, nt, k, m, d, x, c) {
       low = tolower(run)
       if (low !~ /fandhe-ai\/fandhe-workshop/ || low !~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) return 1
       gsub(/\\\n/, " ", run)
@@ -467,8 +480,17 @@ if [ -n "${PACK_WORKFLOW}" ]; then
             nt = split(x, t, /[[:space:]]+/)
             d = "?"
             for (k = 1; k <= nt; k++) if (tolower(t[k]) ~ /fandhe-ai\/fandhe-workshop/) {
-              if (k == nt) d = "fandhe-workshop"
-              else if (norm(t[k + 1]) ~ /^[A-Za-z0-9_.\/-]+$/) d = norm(t[k + 1])
+              # URL の後ろ: フラグ（- で始まる語。値を取るものは次の語も）を飛ばし、最初の語を保存先とする。無ければ URL 末尾の名前
+              d = t[k]; sub(/\/+$/, "", d); sub(/\.git$/, "", d); sub(/^.*[\/:]/, "", d)
+              if (d !~ /^[A-Za-z0-9_.-]+$/) d = "?"
+              for (m = k + 1; m <= nt; m++) {
+                if (t[m] ~ /^-/) {
+                  if (t[m] ~ /^(-b|-o|-c|-j|-u|--depth|--branch|--origin|--config|--jobs|--reference|--filter|--template|--separate-git-dir|--upload-pack|--shallow-since|--shallow-exclude|--revision)$/) m++
+                  continue
+                }
+                d = (norm(t[m]) ~ /^[A-Za-z0-9_.\/-]+$/) ? norm(t[m]) : "?"
+                break
+              }
               break
             }
             pending[full(d)] = 1
@@ -502,7 +524,11 @@ if [ -n "${PACK_WORKFLOW}" ]; then
             print s_line ":D3 ref comes from step " pid " output " pname " which is not written only from ENGINE_REV earlier in the same job"
         } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
       }
-      if (s_id != "") scan_outputs(s_id, s_run)
+      if (s_id != "") {
+        scan_outputs(s_id, s_run)
+        # 条件つきの step は実行されない場合があり、出力が空になる。固定済みとは認めない
+        if (s_if != "") tainted[job SUBSEP s_id SUBSEP "*"] = 1
+      }
       if (!run_ok(s_run))
         print s_line ":D4 run fetches the engine repo without using ENGINE_REV as the version"
       in_step = 0
@@ -521,7 +547,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       if (!in_steps) next
       if ($0 ~ /^[[:space:]]*-[[:space:]]/ && (item_ind < 0 || ind == item_ind)) {
         end_step(); item_ind = ind
-        in_step = 1; s_uses = ""; s_repo = ""; s_ref = ""; s_id = ""; s_run = ""; in_run = 0; s_line = NR
+        in_step = 1; s_uses = ""; s_repo = ""; s_ref = ""; s_id = ""; s_if = ""; s_run = ""; in_run = 0; s_line = NR
         body = $0; sub(/^[[:space:]]*-[[:space:]]+/, "", body); line = body; key_ind = ind + 2
       } else line = $0
       if (!in_step) next
@@ -533,6 +559,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         s_ref = line; sub(/^[[:space:]]*ref[[:space:]]*:[[:space:]]*/, "", s_ref); sub(/[[:space:]]+#.*$/, "", s_ref); gsub(/["\047]/, "", s_ref)
       }
       else if (line ~ /^[[:space:]]*id[[:space:]]*:/) s_id = trim_val(line)
+      else if (line ~ /^[[:space:]]*if[[:space:]]*:/ && indent($0) <= key_ind) s_if = "1"
       else if (line ~ /^[[:space:]]*run[[:space:]]*:/) { s_run = s_run "\n" run_val(line); in_run = 1 }
     }
     END {
