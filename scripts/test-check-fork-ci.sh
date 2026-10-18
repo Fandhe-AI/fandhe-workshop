@@ -276,6 +276,26 @@ case_ "git clone of the engine without ENGINE_REV is rejected (D4)" 1 D4 --pack-
 { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-ok.yml"
 case_ "git clone of the engine that reads ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-clone-ok.yml" --engine-rev "${GOOD_REV}"
 
+echo "# review follow-ups"
+variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-ortrue.yml" "s/^\\(    if: .*\\)\$/\\1 || true/"
+case_ "fork guard with '|| true' is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-ortrue.yml"
+# 同じ step に別の値の出力を足す見本（id: rev の step 内に書く）
+# shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
+sed 's|^\(        run: echo "rev=.*\)$|        run: \|\n          echo "rev=main" >> "${GITHUB_OUTPUT}"\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"|' "${GOOD_PACK}" >"${TMP_DIR}/pack-taint2.yml"
+case_ "output also written with another value is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-taint2.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
+sed 's|^\(        run: echo "rev=.*\)$|        run: echo "rev=main" >> "${GITHUB_OUTPUT}" # ENGINE_REV|' "${GOOD_PACK}" >"${TMP_DIR}/pack-commentonly.yml"
+case_ "ENGINE_REV only in a comment is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-commentonly.yml" --engine-rev "${GOOD_REV}"
+printf '{"packages":{"node_modules/a":{"resolved":"https:%suser:pw%snpm.example.invalid/a.tgz"}}}\n' "//" "${AT}" >"${TMP_DIR}/npm-cred.json"
+"${CHECK}" --secrets-checker "${STUB}" --package-lock "${TMP_DIR}/npm-cred.json" >/dev/null 2>"${TMP_DIR}/err" || true
+if grep -q 'pw' "${TMP_DIR}/err"; then
+  echo "not ok - A2 output leaks the resolved value"
+  failed=$((failed + 1))
+else
+  echo "ok - A2 output does not contain the resolved value"
+  passed=$((passed + 1))
+fi
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"

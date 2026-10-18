@@ -135,6 +135,13 @@ grep_hits() {
 # ---- A1 Cargo.lock ----
 need_file "${CARGO_LOCK}"
 a1_out=""
+# grep の終了コード 1（source 行なし）は正常、2 以上（読み取り失敗）は検査未完了として 2 で止める（fail-closed）
+a1_rc=0
+a1_src="$(grep -n '^source = ' -- "${CARGO_LOCK}")" || a1_rc=$?
+if [ "${a1_rc}" -gt 1 ]; then
+  echo "error: grep failed on ${CARGO_LOCK}" >&2
+  exit 2
+fi
 while IFS= read -r entry; do
   [ -n "${entry}" ] || continue
   lineno="${entry%%:*}"
@@ -163,19 +170,19 @@ while IFS= read -r entry; do
 }${lineno}:A1 dependency source is not crates.io or an allowed public git repo"
   fi
 done <<EOT
-$(grep -n '^source = ' -- "${CARGO_LOCK}" || true)
+${a1_src}
 EOT
 report "${CARGO_LOCK}" "${a1_out}"
 
 # ---- A2 package-lock.json ----
 need_file "${PACKAGE_LOCK}"
 rc=0
-a2_out="$(jq -r '[.. | objects | .resolved? | select(type == "string") | select(startswith("https://registry.npmjs.org/") | not)] | .[] | "0:A2 npm dependency resolved outside registry.npmjs.org: " + .' "${PACKAGE_LOCK}")" || rc=$?
+a2_out="$(jq -r '[paths(type == "object" and (.resolved? | type) == "string" and (.resolved | startswith("https://registry.npmjs.org/") | not))] | .[] | "0:A2 npm dependency resolved outside registry.npmjs.org at ." + (map(tostring) | join("."))' "${PACKAGE_LOCK}")" || rc=$?
 if [ "${rc}" -ne 0 ]; then
   echo "error: cannot parse ${PACKAGE_LOCK} as JSON" >&2
   exit 2
 fi
-# jq の出力に行番号は無い。resolved の値は公開 URL のため、そのまま出してよい
+# jq の出力に行番号は無い。resolved の値は認証情報入り URL でありうるため出さず、JSON 内の位置だけを出す
 report "${PACKAGE_LOCK}" "${a2_out}"
 
 # ---- A3 .npmrc（無ければ合格） ----
@@ -294,7 +301,10 @@ c2_out="$(awk -v repo="${GUARD_REPO}" '
     next
   }
   section == "jobs" && indent($0) == 4 && $0 ~ /^    if[[:space:]]*:/ {
-    if (index($0, "github.repository == \047" repo "\047") > 0) job_guard = 1
+    # 条件全体が許可した比較式と一致するときだけ合格にする（`|| true` などの付加を通さない）
+    cond = $0; sub(/^    if[[:space:]]*:[[:space:]]*/, "", cond); sub(/[[:space:]]+#.*$/, "", cond)
+    sub(/^\$\{\{[[:space:]]*/, "", cond); sub(/[[:space:]]*\}\}$/, "", cond); gsub(/[[:space:]]+$/, "", cond)
+    if (cond == "github.repository == \047" repo "\047") job_guard = 1
     next
   }
   END {
@@ -328,6 +338,18 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     function trim_val(s) {
       sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]*#.*$/, "", s); gsub(/["\047]/, "", s); return s
     }
+    # step の出力を書く行を調べる。ENGINE_REV を読む形は `$(cat ENGINE_REV)` と `$(< ENGINE_REV)` だけを認め、
+    # 同じ出力名に別の値を書く行が 1 つでもあれば固定版とみなさない。
+    function scan_outputs(id, run,   n, arr, i, l, name) {
+      n = split(run, arr, "\n")
+      for (i = 1; i <= n; i++) {
+        l = arr[i]
+        if (l !~ /GITHUB_OUTPUT/ || !match(l, /[A-Za-z0-9_-]+=/)) continue
+        name = substr(l, RSTART, RLENGTH - 1)
+        if (l ~ /[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>>/) pinned[id SUBSEP name] = 1
+        else tainted[id SUBSEP name] = 1
+      }
+    }
     function end_step(   m, id) {
       if (!in_step) return
       if (s_uses ~ /^actions\/checkout@/ && tolower(s_repo) == tolower(guard)) {
@@ -335,15 +357,16 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         if (s_ref == "") print s_line ":D3 engine checkout has no ref (the version is not pinned)"
         else if (s_ref == rev) { }
         else if (match(s_ref, /^\$\{\{ *steps\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+ *\}\}$/)) {
-          m = s_ref; sub(/^\$\{\{ *steps\./, "", m); sub(/\..*$/, "", m)
+          m = s_ref; sub(/^\$\{\{ *steps\./, "", m); sub(/ *\}\}$/, "", m)
           pend[++np] = m; pend_line[np] = s_line
         } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
       }
-      if (s_id != "") reads[s_id] = (index(s_run, "ENGINE_REV") > 0)
-      if (tolower(s_run) ~ /fandhe-ai\/fandhe-workshop/ && tolower(s_run) ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/ && index(s_run, "ENGINE_REV") == 0)
+      if (s_id != "") scan_outputs(s_id, s_run)
+      if (tolower(s_run) ~ /fandhe-ai\/fandhe-workshop/ && tolower(s_run) ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/ && s_run !~ read_re)
         print s_line ":D4 run fetches the engine repo without referencing ENGINE_REV"
       in_step = 0
     }
+    BEGIN { read_re = "(cat +|< *)(\\./)?ENGINE_REV" }
     /^[[:space:]]*($|#)/ { next }
     {
       ind = indent($0)
@@ -369,7 +392,11 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     END {
       end_step()
       if (engine == 0) print "0:D2 no actions/checkout step fetches the engine repo " guard
-      for (i = 1; i <= np; i++) if (!(pend[i] in reads) || !reads[pend[i]]) print pend_line[i] ":D3 ref comes from step " pend[i] " which does not read ENGINE_REV"
+      for (i = 1; i <= np; i++) {
+        split(pend[i], pn, ".outputs.")
+        k = pn[1] SUBSEP pn[2]
+        if (!(k in pinned) || (k in tainted)) print pend_line[i] ":D3 ref comes from step " pn[1] " output " pn[2] " which is not written only from ENGINE_REV"
+      }
     }
   ' "${PACK_WORKFLOW}")" || rc=$?
   [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${PACK_WORKFLOW}" >&2; exit 2; }
