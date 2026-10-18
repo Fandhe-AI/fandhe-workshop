@@ -1,0 +1,32 @@
+# ST-1.4 の形: 必須でない引数が足りない command を問い返し、問い返しの待ちの間の取り消しを受け付ける（clarifying）。
+id: ch-1
+title: 操作練習（抜粋）
+
+starts:
+  - { id: s-1-4, node: st-1-4 }
+
+steps:
+  - id: st-1-4
+    title: 引数なしの /new-idea
+    do: 名前を付けずに /new-idea を送り、聞き返しを見ます
+    views: [v-cards]
+    final: true
+    input:
+      kind: command
+      name: new-idea
+      args:
+        - { name: name, positional: true, required: false, shape: kebab_case }
+    rules:
+      - id: r-ask-name
+        on: { command: new-idea, missing: [name] }
+        outcome: { kind: clarify, clarification: cl-new-idea-name }
+      - id: r-cancel
+        on: { cancel: true }
+        when: { clarifying: cl-new-idea-name }
+        outcome: { kind: accept, effects: [{ set_flag: cancelled }] }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: asked-back, correct: true }
+        - { id: rejected, correct: false }

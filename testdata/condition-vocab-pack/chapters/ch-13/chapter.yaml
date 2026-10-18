@@ -1,0 +1,95 @@
+# CH-13 の形: 選択・command・件数による分岐（count）の後に、周回 2 のモジュール impl-run を呼ぶ（branch_demo が "false"）。
+# 開始点 s-13-2 は前の Step の達成を条件にする（step）。
+id: ch-13
+title: 複数の根と周回
+
+starts:
+  - { id: s-13-1, node: st-13-1 }
+  - id: s-13-2
+    node: st-13-2
+    requires: { step: { step: st-13-1, state: achieved } }
+    unmet: rj-start-needs-previous
+
+steps:
+  - id: st-13-1
+    title: 範囲を選ぶ
+    do: 進める範囲を、選択肢から選びます
+    views: [v-roots]
+    next: [{ to: st-13-2 }]
+    input:
+      kind: choice
+      options:
+        - { id: diff-only, label: 変更分だけ }
+        - { id: everything, label: すべて }
+    rules:
+      - id: r-diff
+        on: { option: diff-only }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: roots/root-a, attrs: { state: open } }
+      - id: r-everything
+        on: { option: everything }
+        outcome: { kind: reject, rejection: rj-nogo }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-roots, path: roots/root-a }]
+      on_miss: rj-miss-point
+
+  - id: st-13-2
+    title: 根を開く
+    do: /open-root を送ります。--root は付けても付けなくても構いません
+    views: [v-roots]
+    next:
+      - { to: st-13-2x, when: { count: { prefix: roots/, where: { state: open }, op: ">=", n: 2 } } }
+      - { to: st-13-3 }
+    input:
+      kind: command
+      name: open-root
+      args:
+        - { name: root, required: false }
+    rules:
+      - id: r-open
+        on: { command: open-root }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: roots/root-b, attrs: { state: open } }
+            - when: { world_has: roots/root-a }
+              set_attr: { path: roots/root-a, attr: state, value: shared }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-roots, path: roots/root-b }]
+      on_miss: rj-miss-point
+
+  - id: st-13-2x
+    title: 開いた根を選ぶ
+    do: 続ける根を、選択肢から選びます
+    views: [v-roots]
+    next: [{ to: st-13-3 }]
+    input:
+      kind: choice
+      options:
+        - { id: keep-a, label: 根 A }
+        - { id: keep-b, label: 根 B }
+    rules:
+      - id: r-keep-a
+        on: { option: keep-a }
+        outcome: { kind: accept, effects: [] }
+      - id: r-keep-b
+        on: { option: keep-b }
+        outcome: { kind: accept, effects: [] }
+    confirm:
+      kind: none
+      reason: 選ぶこと自体が目的で、左の変化を指す学習目標がない。
+
+  - id: st-13-3
+    title: "周回 2: 進行から完了まで"
+    final: true
+    use:
+      module: impl-run
+      instance: round2
+      args:
+        branch_demo: "false"
+        pr: pr-2
+        child: "9"

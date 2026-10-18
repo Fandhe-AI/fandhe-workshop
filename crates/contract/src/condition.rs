@@ -7,8 +7,8 @@
 //! core の評価（`fandhe_workshop_core::condition`）である。2 つの責務が参照するため contract に置く。
 //!
 //! 語は 11 個。`step`・`flag`・`world_has`・`world_attr`・`count`・`chose` と、論理の `all`・`any`・`not`
-//! は本件で評価まで実装する。`param`（EP-3）・`clarifying`（EP-4）は形だけを持ち、評価は TASK-42 2/2 が
-//! 受け持つ。式やスクリプトの欄は持たない（未知の欄は拒否する）。
+//! は core が評価する。`param`（EP-3）は実体の引数、`clarifying`（EP-4）は根の問い返しの待ちと比べる
+//! （TASK-42 2/2）。式やスクリプトの欄は持たない（未知の欄は拒否する）。
 //!
 //! 1 つの表にはちょうど 1 つの語を書く。`all`・`any`・`not` の入れ子は [`MAX_JSON_DEPTH`] で断る。
 //! 解釈は I/O・panic を持たず、誤りの型は入力値を持たない（教材由来の値は診断に写さないため）。
@@ -117,7 +117,7 @@ pub struct ChoseIs {
     pub option: String,
 }
 
-/// `param` 条件の本体（EP-3。評価は TASK-42 2/2）。
+/// `param` 条件の本体（EP-3。評価は core の `eval_condition`）。
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ParamIs {

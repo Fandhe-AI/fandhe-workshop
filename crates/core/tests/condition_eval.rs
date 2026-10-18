@@ -1,7 +1,8 @@
-//! 条件の語彙（TASK-42 1/2）の評価の試験。9 語それぞれの真・偽と、3 値の扱い、`apply_effects` 経由の `when`。
+//! 条件の語彙（TASK-42）の評価の試験。11 語それぞれの真・偽と、3 値の扱い、`apply_effects` 経由の `when`。
 
 use fandhe_workshop_contract::condition::Condition;
 use fandhe_workshop_contract::effect::EffectItem;
+use fandhe_workshop_contract::ir::Instance;
 use fandhe_workshop_core::addr::{Generation, Root, Stamp, StepUid};
 use fandhe_workshop_core::condition::{eval_condition, VocabConditions};
 use fandhe_workshop_core::effect::{apply_effects, ConditionEval};
@@ -10,6 +11,7 @@ use fandhe_workshop_core::session::{RunState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::world::Element;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 
 fn root() -> Root {
     Root("main".into())
@@ -50,11 +52,34 @@ fn state() -> RunState {
     run
 }
 
+/// 実体の一覧。`main` は引数なし、`m@i` は引数あり。
+fn instances() -> Vec<Instance> {
+    let inst = |id: &str, args: &[(&str, &str)]| Instance {
+        id: id.into(),
+        module: None,
+        args: args
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+        caller: None,
+    };
+    vec![inst("main", &[]), inst("m@i", &[("n", "v"), ("k", "w")])]
+}
+
+fn args_of(root: &str) -> BTreeMap<String, String> {
+    instances()
+        .into_iter()
+        .find(|i| i.id == root)
+        .expect("instance")
+        .args
+}
+
 fn ev(v: Value) -> Option<bool> {
     let c = Condition::from_value(&v).expect("parse");
-    let got = eval_condition(&c, &state(), &root());
+    let got = eval_condition(&c, &state(), &root(), Some(&args_of("main")));
     // 評価器の経路でも同じ結果になる。
-    assert_eq!(VocabConditions.eval(&v, &state(), &root()), got);
+    let inst = instances();
+    assert_eq!(VocabConditions::new(&inst).eval(&v, &state(), &root()), got);
     got
 }
 
@@ -83,7 +108,7 @@ fn step_compares_status_and_unregistered_is_not_started() {
     // 別の根の Step は見ない。
     let c = Condition::from_value(&json!({"step": {"step": "s1", "state": "achieved"}})).unwrap();
     assert_eq!(
-        eval_condition(&c, &state(), &Root("m@i".into())),
+        eval_condition(&c, &state(), &Root("m@i".into()), None),
         Some(false)
     );
 }
@@ -149,7 +174,7 @@ fn chose_reads_the_choice_of_the_root_and_step() {
     );
     let c = Condition::from_value(&json!({"chose": {"step": "s3", "option": "opt-a"}})).unwrap();
     assert_eq!(
-        eval_condition(&c, &state(), &Root("m@i".into())),
+        eval_condition(&c, &state(), &Root("m@i".into()), None),
         Some(true)
     );
 }
@@ -173,18 +198,71 @@ fn logic_words_and_empty_lists() {
 }
 
 #[test]
-fn unevaluable_words_are_none_and_propagate_through_logic() {
-    let p = json!({"param": {"name": "n", "eq": "v"}});
+fn param_compares_the_arguments_of_the_root_instance() {
+    let inst = instances();
+    let ve = VocabConditions::new(&inst);
+    let p = |n: &str, e: &str| json!({"param": {"name": n, "eq": e}});
+    let mi = Root("m@i".into());
+    assert_eq!(ve.eval(&p("n", "v"), &state(), &mi), Some(true));
+    assert_eq!(ve.eval(&p("k", "w"), &state(), &mi), Some(true));
+    assert_eq!(ve.eval(&p("n", "x"), &state(), &mi), Some(false));
+    assert_eq!(ve.eval(&p("absent", "v"), &state(), &mi), Some(false));
+    // 章の根は引数が空なので偽。
+    assert_eq!(ve.eval(&p("n", "v"), &state(), &root()), Some(false));
+    // 実体が見つからない根は評価できない。
+    assert_eq!(ve.eval(&p("n", "v"), &state(), &Root("zz@i".into())), None);
+    assert_eq!(
+        VocabConditions::new(&[]).eval(&p("n", "v"), &state(), &mi),
+        None
+    );
+    // 論理に混ぜる。
+    assert_eq!(
+        ve.eval(&json!({"not": p("n", "v")}), &state(), &mi),
+        Some(false)
+    );
+    assert_eq!(
+        ve.eval(
+            &json!({"all": [p("n", "v"), {"flag": "other-only"}]}),
+            &state(),
+            &mi
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        ve.eval(
+            &json!({"any": [p("n", "x"), {"flag": "absent"}]}),
+            &state(),
+            &mi
+        ),
+        Some(false)
+    );
+    // 引数が分からないとき（None）は評価できず、論理に伝わる。
+    let c = Condition::from_value(&p("n", "v")).unwrap();
+    assert_eq!(eval_condition(&c, &state(), &mi, None), None);
+    let all = Condition::from_value(&json!({"all": [{"flag": "absent"}, p("n", "v")]})).unwrap();
+    assert_eq!(eval_condition(&all, &state(), &mi, None), None);
+    let not = Condition::from_value(&json!({"not": p("n", "v")})).unwrap();
+    assert_eq!(eval_condition(&not, &state(), &mi, None), None);
+}
+
+#[test]
+fn clarifying_is_true_only_for_the_same_root_and_id() {
+    let mut run = state();
     let c = json!({"clarifying": "cl-1"});
-    let t = json!({"flag": "ready"});
-    let f = json!({"flag": "absent"});
-    assert_eq!(ev(p.clone()), None);
-    assert_eq!(ev(c.clone()), None);
-    assert_eq!(ev(json!({"all": [t, p]})), None);
-    // 短絡しない: 偽の子があっても評価できない子があれば None。
-    assert_eq!(ev(json!({"all": [f, c]})), None);
-    assert_eq!(ev(json!({"any": [t, p]})), None);
-    assert_eq!(ev(json!({"not": c})), None);
+    let none: Vec<Instance> = Vec::new();
+    let ve = VocabConditions::new(&none);
+    // 待ちが無ければ偽（安全側）。
+    assert_eq!(ve.eval(&c, &run, &root()), Some(false));
+    run.slices.get_mut(&root()).unwrap().clarifying = Some("cl-1".into());
+    assert_eq!(ve.eval(&c, &run, &root()), Some(true));
+    assert_eq!(
+        ve.eval(&json!({"clarifying": "cl-2"}), &run, &root()),
+        Some(false)
+    );
+    // 別の根の待ちは見ない。
+    assert_eq!(ve.eval(&c, &run, &Root("m@i".into())), Some(false));
+    assert_eq!(ve.eval(&c, &run, &Root("none".into())), Some(false));
+    assert_eq!(ve.eval(&json!({"not": c}), &run, &root()), Some(false));
 }
 
 #[test]
@@ -195,7 +273,7 @@ fn unparsable_values_are_none() {
         json!("flag"),
         json!(null),
     ] {
-        assert_eq!(VocabConditions.eval(&v, &state(), &root()), None);
+        assert_eq!(VocabConditions::new(&[]).eval(&v, &state(), &root()), None);
     }
 }
 
@@ -224,7 +302,7 @@ fn apply_effects_applies_true_skips_false_and_warns_on_none() {
         &items,
         &at,
         Cause::Start,
-        &VocabConditions,
+        &VocabConditions::new(&[]),
     );
     assert!(run.slices[&root()].flags.contains("later"));
     assert!(!run.world.contains_key("skip"));
@@ -252,4 +330,29 @@ fn double_negation_and_single_all_are_identities() {
         assert_eq!(ev(json!({"all": [c.clone()]})), ev(c.clone()));
         assert_eq!(ev(json!({"any": [c.clone()]})), ev(c));
     }
+}
+
+#[test]
+fn apply_effects_when_param_differs_per_instance() {
+    let inst = instances();
+    let at = Stamp {
+        generation: Generation::INITIAL,
+        step: StepUid("m@i/s1".into()),
+    };
+    let items = vec![item(
+        json!({"set_flag": "hit", "when": {"param": {"name": "n", "eq": "v"}}}),
+    )];
+    let mut run = state();
+    for r in ["main", "m@i"] {
+        apply_effects(
+            &mut run,
+            &Root(r.into()),
+            &items,
+            &at,
+            Cause::Start,
+            &VocabConditions::new(&inst),
+        );
+    }
+    assert!(!run.slices[&root()].flags.contains("hit"));
+    assert!(run.slices[&Root("m@i".into())].flags.contains("hit"));
 }

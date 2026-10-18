@@ -91,6 +91,7 @@
 |---|---|---|---|
 | `contract/` | 本 repo（TASK-205 1/2） | 2026-10-15 | 公開 API の契約のイベント列のサンプル。結線の合否の基準 |
 | `contract/history/` | 本 repo（TASK-309 3/3） | 2026-10-15 | 履歴の包みのサンプル 3 本（空・2 周分・下書きと拒否）。往復の適合試験の基準 |
+| `condition-vocab-pack/` | 本 repo（TASK-42 2/2） | 2026-10-18 | 条件の語彙 11 語の網羅用の最小の教材パック（ST-1.4・CH-2・CH-7・CH-13 の形、架空の題材）。PACK-8 の網羅の試験の基準 |
 
 ## 種類から探す
 
@@ -101,6 +102,7 @@
 | 版違いの履歴 | `save-restore-versions/test-data/packs/`（版違いのパック）、`save-restore-versions/test-data-addendum/histories/` |
 | 入力の試験文 | `untrusted-input-safety/` の各 `test-data*/`、`input-field-ime/test-data/paste-samples/` |
 | IME の試験文 | `input-field-ime/test-data/ime-sentences.{md,json}`、`key-procedures.md` |
+| 条件の語彙の網羅パック | `condition-vocab-pack/`（試験は `crates/pack/tests/condition_vocab_pack.rs`） |
 | 契約のサンプル | `contract/event-sequence.json`（説明は `contract/README.md`） |
 | 履歴の包みのサンプル | `contract/history/*.json`（説明は `contract/history/README.md`） |
 | 左の成果物ビューの sample（7 種） | `artifact-view-parts/test-data/sample/`（説明は `artifact-view-parts/test-data/README.md`） |
@@ -162,3 +164,4 @@
 - 2026-10-16 に、左の成果物ビューの 14 ファイルを機械で走査しました。秘密情報の検知パターン・`fandhe.com`・
   個人のパス・URL は 0 件でした。題材は架空の `memo-app` です。この走査の分について、人の確認・承認は得ていません。
 - 公開前の人の確認の方法は TASK-14 で決めます。2026-10-12 時点で未決定のため、人の確認・承認は得ていません。
+- 2026-10-18 に、条件の語彙の網羅パック（`condition-vocab-pack/`、7 ファイル）を機械で走査しました。秘密情報の検知パターン・`fandhe.com`・個人のパス・URL は 0 件でした。題材は架空です。この走査の分について、人の確認・承認は得ていません。

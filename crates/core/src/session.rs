@@ -66,6 +66,13 @@ pub struct Slice {
     pub choices: BTreeMap<StepUid, String>,
     /// この根のフラグ。
     pub flags: BTreeSet<String>,
+    /// 問い返しの待ち（EP-4）。待っている問い返しの ID で、`clarifying` 条件が読む。
+    ///
+    /// 旧データを読めるよう、無ければ `None`、`None` なら書き出さない。立てる・消す処理は結線のタスク
+    /// （TASK-207・TASK-267）の持ち分で、それまで本番の値は常に `None` となり、`clarifying` 条件は偽
+    /// （取り消しの受付の規則は当たらない）に倒れる。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clarifying: Option<String>,
 }
 
 /// 実行の位置と世界の状態。停止・復帰が戻す単位である（下書きとログは含まない）。

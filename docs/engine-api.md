@@ -1,8 +1,8 @@
 # 公開 API の契約の文書
 
 ```text
-公開 API の契約の文書の版: 4
-対象の契約の版（CONTRACT_VERSION）: 4
+公開 API の契約の文書の版: 5
+対象の契約の版（CONTRACT_VERSION）: 5
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
@@ -35,7 +35,7 @@
 | `text_fill` | `slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`filled_texts_of_log`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み（`filled_texts_of_log` はログから拒否・問い返しの文面を作り直す）。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
-| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload` | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
+| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload` | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
 - 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
@@ -82,16 +82,17 @@
 - `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
 - 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。`at` は操作前の世代と現在の Step（宛先の値ではない）で、現在の Step が無いときは記録しない（実装済み、TASK-210 3/3）
 
-## 5. 版 4 で固定しないもの
+## 5. 版 5 で固定しないもの
 
-次は意図して版 4 に含めない。足すときは版上げの契約タスクとする。
+次は意図して版 5 に含めない。足すときは版上げの契約タスクとする。
 
 - 早送りの入・切（EVT-27）
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
 - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
 - ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
 - `Op::Tick` での `Judged`（進行・無視）の発行位置。宛先が一致する進行は `Judged` を出さず `Progress` だけを出すと決めた（TASK-210 2/3、版 3 のサンプルの形に一致し、`CONTRACT_VERSION` を上げずに済む）。宛先の食い違いは `Judged{ignored}` を出さず `Event::Ignored` を 1 件だけ出すと決めた（TASK-210 3/3、サンプル e07 の形のまま、版は据え置き）。`judge::judge_tick` は純関数だけを置く
-- `Event::Refused.rejection`（`Option<String>`）の型の置き換えと、問い返しの待ちの状態（EP-4 `clarifying`）。足すときは版上げにする
+- `Event::Refused.rejection`（`Option<String>`）の型の置き換え。足すときは版上げにする
+- 問い返しの待ちの状態（EP-4 `clarifying`）は、欄 `Slice.clarifying` を版 5 で固定した（TASK-42 2/2）。立てる・消す処理と評価器の結線は TASK-207・TASK-267 が持ち、それまで本番の値は常に `None` である
 - コマンドの拒否の分類（`unknown_command`・`wrong_order`・`not_supported`・`not_in_this_step`）と処理中の `busy` は、TASK-268・TASK-269 で `command_class`・`judge` に確定した。型と署名は変えないため、版 3 のままである
 - 下書きの操作。再読み込み（SAVE-4）は版 4 で `Event::Reloaded`・`session::reload`・`Session::reload` として固定した（TASK-320 1/2）。`apply()` の `Op` には含めず、履歴の入力の列の型（`fandhe_workshop_contract::history::HistoryOp`、TASK-309）の `Reload` が持つ
 
@@ -143,7 +144,7 @@
 
 | 物 | 置き場 | 役割 |
 |---|---|---|
-| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 4、対象は `CONTRACT_VERSION` 4） | 21 件の操作の前後の状態と期待のイベント列 |
+| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 5、対象は `CONTRACT_VERSION` 5） | 21 件の操作の前後の状態と期待のイベント列 |
 | サンプルの説明 | `testdata/contract/README.md` | 欄の意味・版の規則 |
 | 形の試験 | `crates/core/tests/contract_sample.rs` | サンプルが core の型で読めること、連なり、網羅 |
 | 適合試験 | `crates/core/tests/contract_conformance.rs` | 下表の 3 層 |
@@ -174,6 +175,7 @@
 | 2 | 2026-10-15 | `Control::OpenHint`・`Control::SetGuidance`、`Event::HintOpened`、`RefuseReason::NoHint`、`ControlKind::OpenHint`、`RunState.guidance_level`、`SessionState.hints_opened` を追加。世代の表に 2 行、照合の記録に GUIDE-17・GUIDE-3 を追加。`CONTRACT_VERSION` を 1 から 2 へ | TASK-290 |
 | 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 | 4 | 2026-10-16 | `Event::Reloaded`・`session::reload`・`Session::reload` を追加（再読み込みは `Op` に含めない）。3 節に注記、5 節の項目を更新、6 節に SAVE-4 の照合を追加。`CONTRACT_VERSION` を 3 から 4 へ | TASK-320 1/2 |
+| 5 | 2026-10-18 | `Slice.clarifying`（問い返しの待ち、EP-4）を追加。旧データは serde の既定で読め、`None` は書き出さない。5 節の項目を更新。`CONTRACT_VERSION` を 4 から 5 へ | TASK-42 2/2 |
 
 - 2026-10-16: `Restored` による復習・変化の印の作り直しと、ログの並びが書き出し・読み込みで変わらないことの試験（`restore_review`、TASK-214 2/3）を足した。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: チェックポイントの保存と復帰（`checkpoint` モジュール、TASK-214 1/3）を `apply()` に結線し、サンプルの連鎖の全件の照合の `#[ignore]` を外した。`Event::Restored.log_len` の doc を「復帰したチェックポイントの保存の時点のログの長さ」に明確化した（値は変えない）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた

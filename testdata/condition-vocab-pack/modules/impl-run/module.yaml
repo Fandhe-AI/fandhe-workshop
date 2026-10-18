@@ -1,0 +1,71 @@
+# 学習モジュール impl-run: 進行（ST-7.2）、止まる場面（ST-7.3、引数 branch_demo が "true" の周回だけ）、
+# マージの門（merge-gate の呼び出し）。周回ごとに実体化する。
+id: impl-run
+title: 進行から完了まで
+
+params:
+  branch_demo: "true"
+  pr: pr-1
+  child: "1"
+
+steps:
+  - id: st-7-2
+    title: 子ごとの進行
+    do: 進行が終わるまで待ち、PR カードの変化を指します
+    views: [v-prs]
+    on_enter:
+      - put: { path: "prs/${pr}-a", attrs: { state: open } }
+    processing:
+      - name: pr-created
+        effects:
+          - set_attr: { path: "prs/${pr}-a", attr: state, value: ci-running }
+      - name: ci-passed
+        effects:
+          - set_attr: { path: "prs/${pr}-a", attr: state, value: ready }
+    next:
+      - { to: st-7-3, when: { param: { name: branch_demo, eq: "true" } } }
+      - { to: u-merge }
+    input: { kind: wait }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-prs, path: "prs/${pr}-a" }]
+      on_miss: rj-miss-point
+
+  - id: st-7-3
+    title: 事前確認を飛ばした起動で止まる場面
+    do: 引数を省いた起動を試します
+    views: [v-roots]
+    next: [{ to: u-merge }]
+    input:
+      kind: command
+      name: run-all
+      args:
+        - { name: parent, positional: true, required: true, shape: digits }
+        - { name: checks, required: false }
+    rules:
+      - id: r-blocked
+        on: { command: run-all, missing: [checks] }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: "prs/${pr}-a", attr: state, value: blocked }
+            - set_flag: stopped
+      - id: r-with-arg
+        on: { command: run-all }
+        outcome: { kind: reject, rejection: rj-nogo }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-answer
+      options:
+        - { id: ans-add-arg, correct: true }
+        - { id: ans-same-args, correct: false }
+
+  - id: u-merge
+    title: マージの門
+    final: true
+    use:
+      module: merge-gate
+      instance: gate
+      args:
+        pr: "${pr}"
+        child: "${child}"

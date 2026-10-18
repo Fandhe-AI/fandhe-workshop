@@ -1,0 +1,29 @@
+# 学習モジュール merge-gate: 受講者が自分でマージする 1 Step（ST-7.4）。impl-run から呼ばれる。
+id: merge-gate
+title: マージの門
+
+params:
+  pr: pr-1
+  child: "1"
+
+steps:
+  - id: st-7-4
+    title: 自分でマージする
+    do: PR カードのマージの操作をします
+    views: [v-prs, v-roots]
+    final: true
+    input:
+      kind: ui_action
+      targets: [{ view: v-prs, path: "prs/${pr}-a#merge" }]
+    rules:
+      - id: r-merge
+        on: { ui: { view: v-prs, path: "prs/${pr}-a#merge" } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: "prs/${pr}-a", attr: state, value: merged }
+            - set_attr: { path: "roots/child-${child}", attr: state, value: closed }
+    confirm:
+      kind: point_at
+      targets: [{ view: v-roots, path: "roots/child-${child}" }]
+      on_miss: rj-miss-point
