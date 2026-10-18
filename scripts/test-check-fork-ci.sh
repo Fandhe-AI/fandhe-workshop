@@ -110,6 +110,7 @@ EOF
 GOOD_MODULES="${TMP_DIR}/gitmodules"
 printf '[submodule "docs/spec"]\n\tpath = docs/spec\n\turl = https://github.com/Fandhe-AI/x.git\n\tupdate = none\n' >"${GOOD_MODULES}"
 
+# 正準の形（check-fork-ci.sh の D3 の 3 step）。教材 repo の checkout・ENGINE_REV の出力・エンジンの checkout の順
 GOOD_PACK="${TMP_DIR}/pack.yml"
 cat >"${GOOD_PACK}" <<EOF
 name: Build pack
@@ -119,9 +120,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          persist-credentials: false
       - name: Read engine revision
         id: rev
-        run: echo "rev=\$(cat ENGINE_REV)" >> "\${GITHUB_OUTPUT}"
+        run: echo "rev=\$(cat ENGINE_REV)" >> "\$GITHUB_OUTPUT"
       - name: Checkout engine
         uses: actions/checkout@${SHA} # v7.0.1
         with:
@@ -157,9 +162,10 @@ case_ "the real repo passes (A-C)" 0 -
 case_ "sample inputs pass (A-C)" 0 - --ci "${GOOD_CI}" --deploy "${GOOD_DEPLOY}" --cargo-lock "${GOOD_LOCK}" \
   --package-lock "${GOOD_NPM}" --gitmodules "${GOOD_MODULES}" --npmrc "${TMP_DIR}/none-npmrc" --cargo-config-dir "${TMP_DIR}/none-cargo"
 case_ "GITHUB_PATH is not mistaken for a _PAT word" 0 - --ci "${GOOD_CI}"
-case_ "pack workflow reading ENGINE_REV passes (D)" 0 - --pack-workflow "${GOOD_PACK}" --engine-rev "${GOOD_REV}"
+case_ "canonical pack workflow passes (D)" 0 - --pack-workflow "${GOOD_PACK}" --engine-rev "${GOOD_REV}"
+# 正準でない形は、版が固定されていても拒否する（正準は 1 つ）
 variant "${GOOD_PACK}" "${TMP_DIR}/pack-literal.yml" "s|\${{ steps.rev.outputs.rev }}|${REV}|"
-case_ "pack workflow with the literal ENGINE_REV ref passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-literal.yml" --engine-rev "${GOOD_REV}"
+case_ "pack workflow with the literal ENGINE_REV ref is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-literal.yml" --engine-rev "${GOOD_REV}"
 
 echo "# A: private dependencies"
 # 認証情報入りの URL の見本は、secret-scan.sh に検知されないよう実行時に組み立てる
@@ -292,7 +298,7 @@ case_ "no engine checkout is rejected (D2)" 1 D2 --pack-workflow "${TMP_DIR}/pac
 case_ "git clone of the engine without ENGINE_REV is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-ok.yml"
-case_ "git clone of the engine that reads ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-clone-ok.yml" --engine-rev "${GOOD_REV}"
+case_ "git clone of the engine that reads ENGINE_REV is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-ok.yml" --engine-rev "${GOOD_REV}"
 
 # D4: ENGINE_REV を表示するだけの行は版の指定とみなさない
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
@@ -311,12 +317,20 @@ jobs:
   prep:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          persist-credentials: false
       - name: Read engine revision
         id: rev
-        run: echo "rev=\$(cat ENGINE_REV)" >> "\${GITHUB_OUTPUT}"
+        run: echo "rev=\$(cat ENGINE_REV)" >> "\$GITHUB_OUTPUT"
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          persist-credentials: false
       - name: Checkout engine
         uses: actions/checkout@${SHA} # v7.0.1
         with:
@@ -333,15 +347,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          persist-credentials: false
       - name: Checkout engine
         uses: actions/checkout@${SHA} # v7.0.1
         with:
           repository: Fandhe-AI/fandhe-workshop
           ref: \${{ steps.rev.outputs.rev }}
+          path: engine
           persist-credentials: false
       - name: Read engine revision
         id: rev
-        run: echo "rev=\$(cat ENGINE_REV)" >> "\${GITHUB_OUTPUT}"
+        run: echo "rev=\$(cat ENGINE_REV)" >> "\$GITHUB_OUTPUT"
 EOF
 case_ "ref from a step that runs after the checkout is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-later.yml" --engine-rev "${GOOD_REV}"
 variant "${GOOD_PACK}" "${TMP_DIR}/pack-id-outputs.yml" 's|id: rev|id: read_outputs|;s|steps\.rev\.outputs\.rev|steps.read_outputs.outputs.rev|'
@@ -368,7 +387,7 @@ case_ "ENGINE_REV only in a comment is rejected (D3)" 1 D3 --pack-workflow "${TM
 case_ "git clone with ENGINE_REV as the destination is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-dest.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 { cat "${GOOD_PACK}"; printf '      - name: Install engine\n        run: cargo install --git https://github.com/Fandhe-AI/fandhe-workshop --rev "$(cat ENGINE_REV)" fandhe-pack\n'; } >"${TMP_DIR}/pack-cargo-rev.yml"
-case_ "cargo install with --rev ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-cargo-rev.yml" --engine-rev "${GOOD_REV}"
+case_ "cargo install with --rev ENGINE_REV is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-cargo-rev.yml" --engine-rev "${GOOD_REV}"
 
 # D3: ブロック形式の run のコメントにある ENGINE_REV は出力の根拠にしない
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
@@ -378,7 +397,7 @@ case_ "ENGINE_REV only in a block-run comment is rejected (D3)" 1 D3 --pack-work
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 printf '        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}" # pinned\n' >"${TMP_DIR}/t-run3"
 splice "${GOOD_PACK}" "${TMP_DIR}/pack-blockok.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run3"
-case_ "block run with a trailing comment on the pinned write passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-blockok.yml" --engine-rev "${GOOD_REV}"
+case_ "block run with a trailing comment on the pinned write is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-blockok.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 printf '        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"; echo "rev=main" >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run4"
 splice "${GOOD_PACK}" "${TMP_DIR}/pack-oneline.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run4"
@@ -395,11 +414,11 @@ case_ "single-quoted command substitution in an inline run is rejected (D3)" 1 D
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 printf '        run: |\n          echo rev=$(cat ENGINE_REV) >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run7"
 splice "${GOOD_PACK}" "${TMP_DIR}/pack-unquoted.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run7"
-case_ "unquoted command substitution in a block run passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-unquoted.yml" --engine-rev "${GOOD_REV}"
+case_ "unquoted command substitution in a block run is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-unquoted.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 printf '        run: "echo \\"rev=$(cat ENGINE_REV)\\" >> \\"${GITHUB_OUTPUT}\\""\n' >"${TMP_DIR}/t-run8"
 splice "${GOOD_PACK}" "${TMP_DIR}/pack-yamlq.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run8"
-case_ "YAML-quoted run with a double-quoted substitution passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-yamlq.yml" --engine-rev "${GOOD_REV}"
+case_ "YAML-quoted run with a double-quoted substitution is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-yamlq.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git -C other checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-other.yml"
 case_ "pin applied to another directory than the clone is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-other.yml" --engine-rev "${GOOD_REV}"
@@ -411,7 +430,7 @@ case_ "pin written before the clone is rejected (D4)" 1 D4 --pack-workflow "${TM
 case_ "two clones with only one pinned are rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-two.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
 { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          cd engine2 && git checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-cd.yml"
-case_ "clone then cd into it and checkout ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-clone-cd.yml" --engine-rev "${GOOD_REV}"
+case_ "clone then cd into it and checkout ENGINE_REV is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-cd.yml" --engine-rev "${GOOD_REV}"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-write-dq.yml" 's|contents: read|contents: "write"|'
 case_ "double-quoted write permission is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-dq.yml"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-write-sq.yml" "s|contents: read|contents: 'write'|"
@@ -455,16 +474,16 @@ d4_case() {
 # shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
 {
   d4_case "single-quoted command substitution is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout '\$(cat ENGINE_REV)'"
-  d4_case "double-quoted command substitution passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "double-quoted command substitution after a clone is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
   d4_case "fetch alone does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 fetch origin \"\$(cat ENGINE_REV)\""
   d4_case "reset without --hard does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 reset \"\$(cat ENGINE_REV)\""
-  d4_case "reset --hard pins (D4)" 0 "git clone ${URL} engine2" "git -C engine2 reset --hard \"\$(cat ENGINE_REV)\""
+  d4_case "reset --hard after a clone is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 reset --hard \"\$(cat ENGINE_REV)\""
   d4_case "checkout -- <path form> does not pin (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout -- \"\$(cat ENGINE_REV)\""
-  d4_case "switch --detach pins (D4)" 0 "git clone ${URL} engine2" "git -C engine2 switch --detach \"\$(cat ENGINE_REV)\""
-  d4_case "clone into . then checkout ENGINE_REV passes (D4)" 0 "git clone ${URL} ." "git checkout \"\$(cat ENGINE_REV)\""
+  d4_case "switch --detach after a clone is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 switch --detach \"\$(cat ENGINE_REV)\""
+  d4_case "clone into . then checkout ENGINE_REV is rejected (D4)" 1 "git clone ${URL} ." "git checkout \"\$(cat ENGINE_REV)\""
   d4_case "clone into . without a pin is rejected (D4)" 1 "git clone ${URL} ."
-  d4_case "clone flags after the URL are not destinations (D4)" 0 "git clone ${URL} --depth 1 engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
-  d4_case "clone flag without a destination uses the default directory (D4)" 0 "git clone ${URL} --recursive" "git -C fandhe-workshop checkout \"\$(cat ENGINE_REV)\""
+  d4_case "clone with flags after the URL is rejected (D4)" 1 "git clone ${URL} --depth 1 engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "clone into the default directory is rejected (D4)" 1 "git clone ${URL} --recursive" "git -C fandhe-workshop checkout \"\$(cat ENGINE_REV)\""
   d4_case "clone flag without a destination is not pinned elsewhere (D4)" 1 "git clone ${URL} --recursive" "git -C --recursive checkout \"\$(cat ENGINE_REV)\""
 }
 # 出力元の step が条件つきなら、出力は固定済みと認めない
@@ -480,8 +499,8 @@ case_ "output step with an if condition is rejected (D3)" 1 D3 --pack-workflow "
   d4_case "checkout inside an if is rejected (D4)" 1 "git clone ${URL} engine2" "if false; then git -C engine2 checkout \"\$(cat ENGINE_REV)\"; fi"
   d4_case "checkout main after the pin unpins the destination (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C engine2 checkout main"
   d4_case "reset to another ref after the pin unpins the destination (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C engine2 reset --hard origin/main"
-  d4_case "pin after switching to main again passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout main" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
-  d4_case "checkout main in another directory keeps the pin (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C other checkout main"
+  d4_case "pin after switching to main again is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout main" "git -C engine2 checkout \"\$(cat ENGINE_REV)\""
+  d4_case "checkout main in another directory after a pin is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout \"\$(cat ENGINE_REV)\"" "git -C other checkout main"
 }
 d3_n=0
 # d3_case <name> <expected-rc> <run-lines...>: 出力を書く step の run を差し替えた見本を流す
@@ -491,6 +510,7 @@ d3_case() {
   [ "${want}" = 0 ] && tag="-"
   {
     printf 'name: Build pack\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n'
+    printf '      - name: Checkout\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          persist-credentials: false\n' "${SHA}"
     printf '      - name: Read engine revision\n        id: rev\n        run: |\n'
     printf '          %s\n' "$@"
     # shellcheck disable=SC2016 # YAML の式なので、シェルに展開させない
@@ -500,11 +520,13 @@ d3_case() {
 }
 # shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
 {
-  d3_case "unconditional pinned output in a block run passes (D3)" 0 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
-  d3_case "pinned output inside an if is rejected (D3)" 1 'if false; then' '  echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"' 'fi'
-  d3_case "pinned output inside a case is rejected (D3)" 1 'case x in y) echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}" ;; esac'
-  d3_case "pinned output after && false is rejected (D3)" 1 'false && echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
-  d3_case "pinned output after an exit is rejected (D3)" 1 'exit 0' 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
+  d3_case "canonical output line in a block run passes (D3)" 0 'echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'
+  d3_case "output line with braces around GITHUB_OUTPUT is rejected (D3)" 1 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
+  d3_case "pinned output inside an if is rejected (D3)" 1 'if false; then' '  echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"' 'fi'
+  d3_case "pinned output inside a case is rejected (D3)" 1 'case x in y) echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT" ;; esac'
+  d3_case "pinned output after && false is rejected (D3)" 1 'false && echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'
+  d3_case "pinned output after an exit is rejected (D3)" 1 'exit 0' 'echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'
+  d3_case "canonical line inside a here-document is rejected (D3)" 1 "cat <<'EOF'" 'echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"' 'EOF'
 }
 
 # review follow-ups 5: 行をまたぐ条件・後続 step による版の変更
@@ -532,16 +554,16 @@ PIN='"$(cat ENGINE_REV)"'
   d4_case "checkout on a line starting with || is rejected (D4)" 1 "git clone ${URL} engine2" "true" "|| git -C engine2 checkout ${PIN}"
   d4_case "checkout inside a here-document is rejected (D4)" 1 "git clone ${URL} engine2" "cat <<EOF" "git -C engine2 checkout ${PIN}" "EOF"
   d4_case "checkout inside a multi-line quote is rejected (D4)" 1 "git clone ${URL} engine2" "echo '" "git -C engine2 checkout ${PIN}" "'"
-  d4_case "backslash-continued && chain passes (D4)" 0 "git clone ${URL} engine2 && \\" "  git -C engine2 checkout ${PIN}"
+  d4_case "backslash-continued && chain is rejected (D4)" 1 "git clone ${URL} engine2 && \\" "  git -C engine2 checkout ${PIN}"
   d4_steps "later step checks out main in the pinned clone (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout ${PIN}" -- "git -C engine2 checkout main"
   d4_steps "later step checks out main in the engine checkout path (D4)" 1 "git -C engine checkout main"
   d4_steps "later step pulls after cd into the engine checkout (D4)" 1 "cd engine && git pull"
   d4_steps "later step fetches inside a nested shell (D4)" 1 "sh -c 'cd engine && git fetch origin main'"
   d4_steps "later git operation on an undetermined directory is rejected (D4)" 1 'git -C "$DIR" checkout main'
   d4_steps "later git operation via an alias is rejected (D4)" 1 "git -C engine -c alias.co=checkout co main"
-  d4_steps "later read-only git command on the engine passes (D4)" 0 "git -C engine status" "git -C engine log --oneline -1"
-  d4_steps "later checkout in another directory passes (D4)" 0 "git -C other checkout main"
-  d4_steps "later read-only command on a pinned clone passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout ${PIN}" -- "git -C engine2 rev-parse HEAD"
+  d4_steps "later read-only git command on the engine is rejected (D4)" 1 "git -C engine status" "git -C engine log --oneline -1"
+  d4_steps "later git checkout in another directory is rejected (D4)" 1 "git -C other checkout main"
+  d4_steps "later read-only command on a pinned clone is rejected (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout ${PIN}" -- "git -C engine2 rev-parse HEAD"
 }
 # 折り返す YAML スカラー（>）は行の区切りが実行と食い違うので、固定の形でも拒否する
 # shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
@@ -552,6 +574,83 @@ case_ "folded run scalar that fetches the engine is rejected (D4)" 1 D4 --pack-w
 case_ "later checkout into the engine path is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-overwrite.yml" --engine-rev "${GOOD_REV}"
 { cat "${GOOD_PACK}"; printf '      - name: Pack\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/pack-x\n          path: pack\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-sibling.yml"
 case_ "later checkout into a sibling path passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-sibling.yml" --engine-rev "${GOOD_REV}"
+
+# review follow-ups 6: 正準の形の許可リスト（表示だけの git・here-document・作業ディレクトリ・式の権限）
+echo "# canonical form"
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  d4_case "display-only echo git after a clone is rejected (D4)" 1 "git clone ${URL} engine2" "echo git -C engine2 checkout ${PIN}"
+  d4_case "no-op ': git' after a clone is rejected (D4)" 1 "git clone ${URL} engine2" ": git -C engine2 checkout ${PIN}"
+  d4_steps "display-only echo git in a later step is rejected (D4)" 1 "echo git -C engine checkout ${PIN}"
+  d4_steps "later step that mentions ENGINE_REV is rejected (D4)" 1 "echo main > ENGINE_REV"
+  d4_steps "later step that refers to the engine path is rejected (D4)" 1 "cargo build --manifest-path engine/Cargo.toml"
+  d4_steps "later unrelated step passes (D4)" 0 "cargo build --release"
+}
+# shellcheck disable=SC2016 # YAML の式なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Cache\n        uses: actions/cache@%s # v4\n        with:\n          path: ${{ runner.temp }}/x\n' "${SHA}"; } >"${TMP_DIR}/pack-expr-path.yml"
+case_ "later step with an expression in path is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-expr-path.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # YAML の式なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '  build2:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: ${{ vars.ENGINE }}\n          ref: main\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-expr-repo.yml"
+case_ "a job whose checkout repository is an expression is checked and rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-expr-repo.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # YAML の式なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: ${{ vars.ENGINE }}\n          path: other\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-expr-repo-later.yml"
+case_ "later checkout whose repository is an expression is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-expr-repo-later.yml" --engine-rev "${GOOD_REV}"
+{ cat "${GOOD_PACK}"; printf '  lint:\n    runs-on: ubuntu-latest\n    env:\n      X: y\n    steps:\n      - run: git status\n'; } >"${TMP_DIR}/pack-other-job.yml"
+case_ "a job that does not refer to the engine is not checked (D)" 0 - --pack-workflow "${TMP_DIR}/pack-other-job.yml" --engine-rev "${GOOD_REV}"
+printf 'name: Build pack\non:\n  push:\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make check\n' >"${TMP_DIR}/pack-no-engine.yml"
+case_ "workflow without an engine job is rejected (D2)" 1 D2 --pack-workflow "${TMP_DIR}/pack-no-engine.yml" --engine-rev "${GOOD_REV}"
+# pack_insert <name> <out> <mode> <pattern> <text>: 良い見本へ text を差し込んだ見本で D3 の拒否を確かめる（mode は splice と同じ）
+pack_insert() {
+  printf '%s' "$5" >"${TMP_DIR}/t-ins"
+  splice "${GOOD_PACK}" "$2" "$3" "$4" "${TMP_DIR}/t-ins"
+  case_ "$1" 1 D3 --pack-workflow "$2" --engine-rev "${GOOD_REV}"
+}
+pack_insert "output step with working-directory is rejected (D3)" "${TMP_DIR}/pack-wd.yml" after '        id: rev' '        working-directory: other
+'
+pack_insert "output step with shell is rejected (D3)" "${TMP_DIR}/pack-shell.yml" after '        id: rev' '        shell: bash
+'
+pack_insert "output step with env is rejected (D3)" "${TMP_DIR}/pack-step-env.yml" after '        id: rev' '        env:
+          BASH_ENV: x
+'
+pack_insert "job-level defaults are rejected (D3)" "${TMP_DIR}/pack-job-defaults.yml" after '    runs-on: ubuntu-latest' '    defaults:
+      run:
+        working-directory: other
+'
+pack_insert "workflow-level defaults are rejected (D3)" "${TMP_DIR}/pack-wf-defaults.yml" eq 'jobs:' 'defaults:
+  run:
+    working-directory: other
+jobs:
+'
+pack_insert "job-level env is rejected (D3)" "${TMP_DIR}/pack-job-env.yml" after '    runs-on: ubuntu-latest' '    env:
+      BASH_ENV: x
+'
+pack_insert "workflow-level env is rejected (D3)" "${TMP_DIR}/pack-wf-env.yml" eq 'jobs:' 'env:
+  BASH_ENV: x
+jobs:
+'
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+pack_insert "unrelated step before the output step is rejected (D3)" "${TMP_DIR}/pack-before.yml" eq '      - name: Read engine revision' '      - name: Env
+        run: echo "BASH_ENV=/tmp/x" >> "$GITHUB_ENV"
+      - name: Read engine revision
+'
+pack_insert "engine checkout with an extra input is rejected (D3)" "${TMP_DIR}/pack-extra-input.yml" after '          path: engine' '          fetch-depth: 0
+'
+awk '{ print } /persist-credentials: false/ && !done { print "          path: pack"; done = 1 }' "${GOOD_PACK}" >"${TMP_DIR}/pack-own-path.yml"
+case_ "checkout of this repository with a path is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-own-path.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_PACK}" "${TMP_DIR}/pack-no-own.yml" '/^      - name: Checkout$/,/^          persist-credentials: false$/d'
+case_ "missing checkout of this repository is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-no-own.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_PACK}" "${TMP_DIR}/pack-pc-true.yml" '/repository: Fandhe-AI/,/persist-credentials/s|false|true|'
+case_ "engine checkout with persist-credentials true is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-pc-true.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
+variant "${GOOD_CI}" "${TMP_DIR}/ci-write-expr.yml" "s|contents: read|contents: \${{ github.event_name == 'push' \\&\\& 'write' \\|\\| 'read' }}|"
+case_ "write inside an expression in a permission value is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write-expr.yml"
+# shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
+variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-expr.yml" 's|^permissions:$|permissions: ${{ fromJSON(vars.PERMS) }}|;/^  contents: read$/d'
+case_ "an expression as the permissions value is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-perm-expr.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-none.yml" 's|contents: read|contents: none|'
+case_ "a none permission passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-none.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-flow.yml" 's|^permissions:$|permissions: {contents: read, actions: none}|;/^  contents: read$/d'
+case_ "a flow-style read-only permissions map passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-flow.yml"
 
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"

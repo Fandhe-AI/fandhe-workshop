@@ -6,6 +6,7 @@
 # という性質を、fork での実行（D-29 により行わない）ではなく構成の検査で確かめる。
 # 検査は行ベース（awk・grep・jq）で、YAML の構文木は作らない。既存の書式（インデント 2・ブロック形式）に
 # 依存するため、書式を変える場合は scripts/test-check-fork-ci.sh の見本も同時に直す。
+# C1・D は許可リストで判定する: 正準の形を 1 つだけ認め、シェルの意味は解釈せず、正準の形から外れたものは拒否する。
 #
 # 検査の項目:
 #   A private な依存が 0 件
@@ -19,19 +20,25 @@
 #     B2 BUILD-2 が挙げる語（GITHUB_TOKEN・CARGO_REGISTR*・git-fetch-with-cli・語としての _TOKEN / _PAT）が無い
 #     B3 uses: が 40 桁の SHA 固定で、所有者が許可リストにあり、reusable workflow を呼ばない
 #   C 配信の切り離し
-#     C1 ci.yml に write の権限・environment が無い
+#     C1 ci.yml の permissions の値が {}・リテラルの read / none だけ（write・式 ${{ }} は不可）で、environment が無い
 #     C2 deploy.yml が workflow_dispatch だけで動き、permissions が {} で、全ジョブが fork では飛ばされる
 #     C3 ci.yml に deploy ジョブが無い
 #   D ENGINE_REV での教材 repo のビルド（--pack-workflow と --engine-rev の両方を渡したときだけ）
+#     版の固定は正準の形を 1 つだけ認める。シェルの意味は解釈せず、正準の形から外れたものは拒否する（許可リスト）。
+#     エンジンの repo か ENGINE_REV を参照するジョブ（以下、エンジンのジョブ）が対象。
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進 1 行
-#     D2 エンジン repo を取得する checkout が 1 つ以上ある
-#     D3 その ref が ENGINE_REV の値、または同じジョブの前の step が ENGINE_REV だけから書いた出力
-#     D4 run でエンジン repo を取得するコマンドが、取得先ごとに ENGINE_REV で版を決める
-#        （git clone は同じ先への `git -C <先> checkout` 等か --branch 等の値。cargo install 等は同じコマンドの版の位置。
-#        取得先と版の適用先を対応付けられない形は拒否する）。同じジョブの後続 step では、取得したエンジンの
-#        取得先（actions/checkout の path・git clone の保存先）に対する読み取り以外の git 操作と、そこへの checkout を拒否する
-#   D の検査は字句の検査で、任意のシェルの意味は解釈しない。判定できない形（制御構造・行をまたぐ && / ||・
-#   折り返す YAML スカラー・here-document・対象のディレクトリを確定できない git 操作・GIT_DIR）は拒否する（fail-closed）。
+#     D2 正準の 3 step を持つエンジンのジョブが 1 つ以上ある
+#     D3 エンジンのジョブが次の 3 step で始まる。ジョブの key は許可リストのものだけ（env・defaults 等は不可）で、
+#        workflow に env・defaults が無い（いずれも正準の step の動きを変えうるため）
+#          1. この repo の checkout: uses: actions/checkout@<40 桁の SHA>、with は persist-credentials: false だけ
+#          2. 出力: id と run だけ。run は前後の空白を除いてちょうど 1 行の
+#             echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"（行の文字列の完全一致）
+#          3. エンジンの checkout: uses: actions/checkout@<40 桁の SHA>、with は repository: Fandhe-AI/fandhe-workshop・
+#             ref: ${{ steps.<2 の id>.outputs.rev }}・path: <固定のディレクトリ名>・persist-credentials: false だけ
+#        git clone・cargo install 等で取得する経路は正準に含めない（取得の正しさがシェルの解釈を要するため）
+#        repository を式（${{ }}）で決める step を持つジョブも、エンジンを取得しうるものとしてエンジンのジョブに含める
+#     D4 4 つ目以降の step が、語としての git・エンジンの repo・ENGINE_REV・3 の path の文字列を含まず（name の行は除く）、
+#        with の repository・ref・path に ${{ を使わない
 #
 # deploy.yml の起点を変える場合（TASK-121）は、C2 と回帰テストを同時に直す。
 #
@@ -279,13 +286,41 @@ b3_out="$(awk -v owners="${ALLOWED_USES_OWNERS}" '
 report "${CI_FILE}" "${b3_out}"
 
 # ---- C1 ci.yml に write の権限・environment が無い ----
-# YAML のスカラーとして読むため、値の引用符（"write"・'write'）を外してから比べる。フロー形式（{contents: "write"}）も拾う。
+# permissions の値は許可リストで判定する: `{}`、ブロック形式の `<scope>: read|none`、フロー形式の `{<scope>: read|none, ...}` だけ。
+# 式（${{ ... }}）は値を確定できないため、permissions のブロックのどこにあっても拒否する。値の引用符は外してから比べる。
 rc=0
 c1_out="$(awk '
-  {
-    l = $0; gsub(/["\047]/, "", l); sub(/[[:space:]]+#.*$/, "", l); l = tolower(l)
-    if (l ~ /:[[:space:]]*(![^[:space:]]*[[:space:]]+)*write([[:space:],}]|$)/ || l ~ /write-all/)
-      print NR ":C1 write permission (the build/test workflow must be read-only)"
+  function indent(s) { match(s, /^ */); return RLENGTH }
+  function bare(s) { sub(/[[:space:]]+#.*$/, "", s); sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); gsub(/["\047]/, "", s); return s }
+  function perm_ok(v) { return v == "read" || v == "none" }
+  function bad(n) { print n ":C1 permissions must be {} or literal <scope>: read|none (no write, write-all or ${{ }} expressions; the build/test workflow must be read-only)" }
+  # flow_ok <value>: permissions: の同じ行の値が {} か、全要素が read・none のフロー形式か
+  function flow_ok(v,   inner, n, a, i, kv) {
+    if (v == "{}") return 1
+    if (v !~ /^\{.*\}$/) return 0
+    inner = substr(v, 2, length(v) - 2); n = split(inner, a, ",")
+    for (i = 1; i <= n; i++) {
+      kv = a[i]
+      if (kv !~ /^[[:space:]]*[A-Za-z-]+[[:space:]]*:/) return 0
+      sub(/^[^:]*:/, "", kv)
+      if (!perm_ok(bare(kv))) return 0
+    }
+    return 1
+  }
+  in_perm && ($0 ~ /^[[:space:]]*$/ || $0 ~ /^[[:space:]]*#/) { next }
+  in_perm && indent($0) > perm_ind {
+    if ($0 ~ /\$\{\{/ || $0 !~ /^[[:space:]]*[A-Za-z-]+[[:space:]]*:/) { bad(NR); next }
+    v = $0; sub(/^[^:]*:/, "", v)
+    if (!perm_ok(bare(v))) bad(NR)
+    next
+  }
+  { in_perm = 0 }
+  /^[[:space:]]*(-[[:space:]]+)?["\047]?permissions["\047]?[[:space:]]*:/ {
+    v = $0; sub(/^[^:]*:/, "", v)
+    if (v ~ /\$\{\{/) { bad(NR); next }
+    v = bare(v)
+    if (v == "") { in_perm = 1; perm_ind = indent($0); next }
+    if (!flow_ok(v)) bad(NR)
   }
 ' "${CI_FILE}")" || rc=$?
 [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${CI_FILE}" >&2; exit 2; }
@@ -349,6 +384,9 @@ report "${DEPLOY_FILE}" "${c2_out}"
 grep_report "C3 deploy job in the build/test workflow (it belongs in deploy.yml)" "${CI_FILE}" '^  deploy[[:space:]]*:'
 
 # ---- D ENGINE_REV ----
+# 正準の出力 step の run（文字列の完全一致で比べる。拒否の理由にも見本として出す）
+# shellcheck disable=SC2016 # 正準の行の文字列なので、シェルに展開させない
+D_CANON_RUN='echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'
 if [ -n "${PACK_WORKFLOW}" ]; then
   need_file "${PACK_WORKFLOW}"
   need_file "${ENGINE_REV_FILE}"
@@ -357,392 +395,185 @@ if [ -n "${PACK_WORKFLOW}" ]; then
   rev="$(head -n 1 "${ENGINE_REV_FILE}")"
   if [ "${rev_lines}" -ne 1 ] || ! printf '%s' "${rev}" | grep -Eq '^[0-9a-f]{40}$'; then
     fail "${ENGINE_REV_FILE}:1:D1 ENGINE_REV must be a single line of 40 lowercase hex digits"
-    rev="invalid"
   fi
-  # defaults（run の working-directory を含みうる）があれば、run の起点を確定できないものとして扱う
-  wd_defaults=0
+  # D2〜D4: 行ベースで step を読み、エンジンのジョブを正準の形と字句で比べる。シェルの意味は解釈しない。
+  # step の情報は通し番号（gsn）で配列に持ち、ジョブの終わり（end_job）でまとめて判定する。
   rc=0
-  grep -Eq '^[[:space:]]*defaults[[:space:]]*:' -- "${PACK_WORKFLOW}" || rc=$?
-  case "${rc}" in
-    0) wd_defaults=1 ;;
-    1) ;;
-    *) echo "error: grep failed on ${PACK_WORKFLOW}" >&2; exit 2 ;;
-  esac
-  rc=0
-  d_out="$(awk -v rev="${rev}" -v guard="${GUARD_REPO}" -v wd_defaults="${wd_defaults}" '
+  d_out="$(awk -v guard="${GUARD_REPO}" -v canon="${D_CANON_RUN}" '
+    BEGIN {
+      JOB_KEYS = "name runs-on permissions timeout-minutes needs if steps strategy concurrency continue-on-error outputs"
+      n = split(JOB_KEYS, a, " "); for (i = 1; i <= n; i++) job_ok[a[i]] = 1
+      OWN = "uses: actions/checkout@<40-hex sha> with only persist-credentials: false (no repository, ref or path)"
+      OUT = "only id: <id> and run: " canon " (exactly this one line; no if, env, shell or working-directory)"
+      ENG = "uses: actions/checkout@<40-hex sha> with only repository: " guard ", ref: ${{ steps.<id of step 2>.outputs.rev }}, path: <directory name>, persist-credentials: false"
+    }
     function indent(s) { match(s, /^ */); return RLENGTH }
-    function trim_val(s) {
-      sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]*#.*$/, "", s); gsub(/["\047]/, "", s); return s
+    function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    # key_of <s>: 字下げと "- " を除いた行が `key:` の形ならその key、そうでなければ ""（引用した key・<< 等は ""）
+    function key_of(s) {
+      if (!match(s, /^[A-Za-z0-9_-]+[[:space:]]*:([[:space:]]|$)/)) return ""
+      s = substr(s, 1, RLENGTH); sub(/[[:space:]]*:[[:space:]]*$/, "", s); return s
     }
-    # シェルの行からコメント（空白の直後の # 以降。引用の外のものだけ）を除く。ブロック形式の run の行にも使う。
-    function strip_comment(s,   i, c, q) {
-      q = ""
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1)
-        if (c == "\\" && q != "\047") { i++; continue }
-        if (q == "") {
-          if (c == "\047" || c == "\"") q = c
-          else if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]]/)) return substr(s, 1, i - 1)
-        } else if (c == q) q = ""
+    # raw_of <s>: `key:` の後ろの値（前後の空白だけを除く。コメントも残す）
+    function raw_of(s) { sub(/^[A-Za-z0-9_-]+[[:space:]]*:/, "", s); return trim(s) }
+    # val_of <s>: raw_of から行末のコメント（空白の後ろの # 以降）を除いた値。引用符は外さない（正準の形は引用しない）
+    function val_of(s) { s = raw_of(s); if (s ~ /^#/) return ""; sub(/[[:space:]]+#.*$/, "", s); return s }
+    # engine_ref <line>: 行がエンジンの repo か ENGINE_REV を参照するか。repository を式で決める行は、エンジンでありうるものとして扱う
+    function engine_ref(s) {
+      if (s ~ /^[[:space:]]*(-[[:space:]]+)?repository[[:space:]]*:.*\$\{\{/) return 1
+      s = tolower(s); return index(s, "fandhe-ai/fandhe-workshop") || index(s, "engine_rev")
+    }
+    function start_job(name) {
+      end_job()
+      job = (name == "" ? "?" : name); job_line = NR; jfirst = gsn + 1
+      job_eng = 0; job_badline = 0; job_badkey = ""; jk = -1; in_steps = 0; cur_step = 0; cur = ""
+    }
+    # key_line <body> <raw>: step の直下の `key: value` の行を記録する
+    function key_line(body, raw,   k, v) {
+      k = key_of(body); wind = -1; wcur = ""
+      if (k == "") { st_bad[s] = 1; cur = ""; st_text[s] = st_text[s] "\n" raw; return }
+      if (index(st_keys[s], " " k " ")) st_dup[s] = 1
+      st_keys[s] = (st_keys[s] == "" ? " " : st_keys[s]) k " "
+      cur = k
+      if (k != "name") st_text[s] = st_text[s] "\n" raw
+      v = raw_of(body)
+      # 別名・アンカー・タグは値を字句で確定できない
+      if (v ~ /^[*&!]/) st_bad[s] = 1
+      if (k == "uses") st_uses[s] = val_of(body)
+      else if (k == "id") st_id[s] = val_of(body)
+      else if (k == "run") {
+        if (v ~ /^\|-?$/) { st_style[s] = "block"; st_run[s] = "" }
+        else if (v == "" || v ~ /^[|>"\047{\[]/) st_style[s] = "other"
+        else { st_style[s] = "plain"; st_run[s] = v }
       }
-      return s
+      else if (k == "with" && v != "" && v !~ /^#/) st_wbad[s] = 1
     }
-    # inline の run の値。YAML の引用符で全体が囲まれているときだけ外して中身を戻す。
-    # シェルの引用符は意味を持つので消さない（trim_val のように一括で削除しない）。
-    function run_val(s,   q) {
-      sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]+$/, "", s)
-      q = substr(s, 1, 1)
-      if ((q == "\"" || q == "\047") && length(s) >= 2 && substr(s, length(s), 1) == q) {
-        s = substr(s, 2, length(s) - 2)
-        if (q == "\"") { gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\\\", s) } else gsub(/\047\047/, "\047", s)
-      }
-      return s
+    # with_line <body>: with の直下の `key: value` の行を記録する
+    function with_line(body,   k) {
+      k = key_of(body); wcur = k
+      if (k == "") { st_wbad[s] = 1; return }
+      if (index(st_wkeys[s], " " k " ")) st_wbad[s] = 1
+      st_wkeys[s] = (st_wkeys[s] == "" ? " " : st_wkeys[s]) k " "
+      if (raw_of(body) ~ /^[*&!]/) st_wbad[s] = 1
+      if (k == "repository") st_repo[s] = val_of(body)
+      else if (k == "ref") st_ref[s] = val_of(body)
+      else if (k == "path") st_path[s] = val_of(body)
+      else if (k == "persist-credentials") st_pc[s] = val_of(body)
     }
-    # コメントを除いた 1 行が、ENGINE_REV だけから GITHUB_OUTPUT へ書く固定版の形か。
-    # コマンド置換が実際に展開される引用なし、または二重引用符の中の形だけを認める（単一引用符の中は文字列のまま）。
-    function output_pinned(l,   head) {
-      if (l !~ / *>> *"?\$\{?GITHUB_OUTPUT\}?"? *$/) return 0
-      head = l; sub(/ *>> *"?\$\{?GITHUB_OUTPUT\}?"? *$/, "", head)
-      if (head ~ /^[[:space:]]*echo +[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)$/) return 1
-      if (head ~ /^[[:space:]]*echo +"[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)"$/) return 1
-      return 0
+    # keys_ok <have> <required> <optional>: " a b " の形の key の集合が、required を全て持ち、required と optional 以外を持たないか
+    function keys_ok(have, req, opt,   n, a, i) {
+      n = split(req, a, " "); for (i = 1; i <= n; i++) if (!index(have, " " a[i] " ")) return 0
+      n = split(trim(have), a, " "); for (i = 1; i <= n; i++) if (!index(" " req " " opt " ", " " a[i] " ")) return 0
+      return 1
     }
-    # step の出力を書く行を調べる。固定版として認めるのは、コメントを除いた行全体が
-    # `echo NAME=$(cat ENGINE_REV) >> $GITHUB_OUTPUT`（引用・波括弧は任意）の形のときだけ。
-    # それ以外で GITHUB_OUTPUT に触れる行は、行内の全ての NAME= を汚染として記録する（名前を取れない場合に備え全名の印も付ける）。
-    # キーはジョブ ID・step ID・出力名で、別ジョブの step の出力は参照できない（steps コンテキストはジョブ内）。
-    # run にシェルの制御構造（if / case / ループ / 関数 / グループ / exit・return）や && ・|| があるか。
-    # 構文木を作らないため、実行が保証されない形は「ある」として扱い、呼び出し側で拒否する（fail-closed）。
-    function has_ctl(run, ops,   n, arr, i, l) {
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        l = strip_comment(arr[i])
-        if (ops && l ~ /&&|\|\|/) return 1
-        if (l ~ /(^|[[:space:];&|({])(if|then|elif|else|fi|case|esac|while|until|for|select|do|done|function|exit|return)([[:space:];]|$)/) return 1
-        if (l ~ /^[[:space:]]*[{(]/ || l ~ /\(\)/) return 1
-      }
-      return 0
+    function plain_step(i) { return !st_bad[i] && !st_dup[i] && !st_wbad[i] }
+    function pinned_uses(i) { return st_uses[i] ~ /^actions\/checkout@[0-9a-f]{40}$/ }
+    # is_own <i>: この repo（教材 repo）の正準の checkout か。path・ref があると ENGINE_REV を読む場所・版が変わる
+    function is_own(i) {
+      return plain_step(i) && keys_ok(st_keys[i], "uses with", "name") && pinned_uses(i) \
+        && keys_ok(st_wkeys[i], "persist-credentials", "") && st_pc[i] == "false"
     }
-    function scan_outputs(id, run,   n, arr, i, l, rest, name) {
-      if (has_ctl(run, 1)) { tainted[job SUBSEP id SUBSEP "*"] = 1; return }
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        l = strip_comment(arr[i])
-        if (l !~ /GITHUB_OUTPUT/) continue
-        if (output_pinned(l)) {
-          name = l; sub(/^[[:space:]]*echo +"?/, "", name); sub(/=.*$/, "", name)
-          pinned[job SUBSEP id SUBSEP name] = 1
-          continue
-        }
-        tainted[job SUBSEP id SUBSEP "*"] = 1
-        rest = l
-        while (match(rest, /[A-Za-z0-9_-]+=/)) {
-          tainted[job SUBSEP id SUBSEP substr(rest, RSTART, RLENGTH - 1)] = 1
-          rest = substr(rest, RSTART + RLENGTH)
-        }
-      }
+    # run_line <i>: run の値が前後の空白を除いて 1 行ならその行、そうでなければ改行（どの正準の行とも一致しない）
+    function run_line(i,   n, a, j, c, r, t) {
+      if (st_style[i] == "plain" && !st_multi[i]) return st_run[i]
+      if (st_style[i] != "block") return "\n"
+      n = split(st_run[i], a, "\n"); c = 0; r = ""
+      for (j = 1; j <= n; j++) { t = trim(a[j]); if (t != "") { c++; r = t } }
+      return c == 1 ? r : "\n"
     }
-    # 文字列 s を端まで読んだ時点の引用状態（"" / "\047" / "\""）。単一引用符の中ではコマンド置換が展開されない。
-    function quote_state(s,   i, c, q) {
-      q = ""
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1)
-        if (c == "\\" && q != "\047") { i++; continue }
-        if (q == "") { if (c == "\047" || c == "\"") q = c }
-        else if (c == q) q = ""
-      }
-      return q
+    # is_out <i>: 正準の出力 step か（run は文字列の完全一致。if・env・shell・working-directory 等の key を持たない）
+    function is_out(i) {
+      return plain_step(i) && keys_ok(st_keys[i], "id run", "name") && st_id[i] ~ /^[A-Za-z0-9_-]+$/ && run_line(i) == canon
     }
-    # run が ENGINE_REV を取得版の指定に使うか。`$(cat ENGINE_REV)` が実際に展開される位置（単一引用符の外）で、
-    # 直前が作業ツリーを指定の版へ切り替える操作のときだけ認める:
-    # git checkout / switch の対象（`--` のパス指定は除く）、git reset --hard の対象、--rev / --branch / --tag の値。
-    # fetch だけ・reset の既定（--mixed）・git clone の保存先・表示だけの echo・cat は認めない。変数へ受けてから使う形は判定できない。
-    function run_pins(run,   n, arr, i, rest, pre) {
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        rest = strip_comment(arr[i]); pre = ""
-        while (match(rest, /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/)) {
-          pre = pre substr(rest, 1, RSTART - 1)
-          if (quote_state(pre) != "\047") {
-            if (pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +(checkout|switch)( +-{1,2}[A-Za-z][A-Za-z-]*)* +"?$/ \
-                || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +reset( +-{1,2}[A-Za-z][A-Za-z-]*)* +--hard( +-{1,2}[A-Za-z][A-Za-z-]*)* +"?$/ \
-                || pre ~ /(^|[[:space:];&|(])(git|cargo)( +[^ ]+)* +--(rev|branch|tag)[ =]+"?$/) return 1
-          }
-          pre = pre substr(rest, RSTART, RLENGTH)
-          rest = substr(rest, RSTART + RLENGTH)
-        }
-      }
-      return 0
+    # is_eng <i> <aid>: 正準のエンジンの checkout か（ref は step 2 の出力 aid の rev だけ）
+    function is_eng(i, aid) {
+      return plain_step(i) && keys_ok(st_keys[i], "uses with", "name") && pinned_uses(i) \
+        && keys_ok(st_wkeys[i], "repository ref path persist-credentials", "") && st_repo[i] == guard \
+        && aid != "" && st_ref[i] == "${{ steps." aid ".outputs.rev }}" && st_path[i] ~ /^[A-Za-z0-9_-]+$/ && st_pc[i] == "false"
     }
-    function norm(p) { gsub(/["\047]/, "", p); sub(/^\.\//, "", p); sub(/\/+$/, "", p); return p }
-    function full(p) { p = norm(p); if (p == ".") return cwd; if (p ~ /^\//) return p; return cwd == "" ? p : cwd "/" p }
-    # rel <base> <p>: base（ワークスペースからの相対。"" は直下）から見た p の位置。字句だけで確定できない
-    # （変数・絶対パス・..・空）なら "?" を返す。
-    function rel(base, p) {
-      p = norm(p)
-      if (base ~ /\?/ || p == "" || p ~ /^-/ || p !~ /^[A-Za-z0-9_.\/-]+$/ || p ~ /^\// || p ~ /(^|\/)\.\.(\/|$)/) return "?"
-      if (p == ".") return base
-      return base == "" ? p : base "/" p
-    }
-    # line_open <l>: コメントを除いた 1 行が、引用・括弧・バッククォートを閉じずに終わるか（次の行と 1 つのコマンドになる形）。
-    function line_open(s,   i, c, q, p, b) {
-      q = ""; p = 0; b = 0
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1)
-        if (c == "\\" && q != "\047") { i++; continue }
-        if (c == "`" && q != "\047") { b = !b; continue }
-        if (q == "") {
-          if (c == "\047" || c == "\"") q = c
-          else if (c == "(") p++
-          else if (c == ")") p--
-        } else if (c == q) q = ""
-      }
-      return q != "" || p != 0 || b
-    }
-    # broken <run>: 行ごとの解析では実行の順序を判断できない形なら理由を返す（行をまたぐ && ・|| ・|、
-    # 閉じない引用・括弧、here-document、YAML が行を折り返すスカラー）。行末の \ は呼び出し側で結合済みとする。
-    function broken(run,   n, arr, i, l) {
-      if (s_fold) return "is a folded YAML scalar (> or a multi-line plain/quoted value)"
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        l = strip_comment(arr[i])
-        if (l ~ /(&&|\|\||\|)[[:space:]]*$/ || l ~ /^[[:space:]]*(&&|\|\||\|)/ || line_open(l))
-          return "continues a command across lines (a line starts or ends with &&, || or |, or leaves a quote, parenthesis or backquote open)"
-        if (l ~ /<</) return "uses a here-document or here-string"
-      }
+    # c_why <i> <ep>: 正準の 3 step より後ろの step が無関係な step の条件を満たさなければ理由を返す（名前の行は見ない）
+    function c_why(i, ep,   t) {
+      t = st_text[i]
+      if (st_bad[i] || st_wbad[i]) return "cannot be read as a plain block mapping (alias, anchor, tag, flow style or an unexpected line)"
+      if (tolower(t) ~ /(^|[^a-z0-9])git([^a-z0-9]|$)/) return "mentions git"
+      if (index(tolower(t), "fandhe-ai/fandhe-workshop")) return "mentions the engine repo"
+      if (index(tolower(t), "engine_rev")) return "mentions ENGINE_REV"
+      if (ep != "" && index(t, ep)) return "mentions the engine path " ep
+      if (st_repo[i] ~ /\$\{\{/ || st_ref[i] ~ /\$\{\{/ || st_path[i] ~ /\$\{\{/) return "uses an expression in repository, ref or path"
       return ""
     }
-    # eng_hit <d>: ディレクトリ d での git 操作が、このジョブの前の step で取得したエンジンに及びうるか。
-    # d かエンジンの取得先が確定できない（"?"）、エンジンが直下（""）、d がエンジンの取得先かその中なら及びうる。
-    function eng_hit(d,   k, e, pre) {
-      pre = job SUBSEP
-      for (k in eng) {
-        if (index(k, pre) != 1) continue
-        e = substr(k, length(pre) + 1)
-        if (d ~ /\?/ || e ~ /\?/ || e == "" || d == e || index(d, e "/") == 1) return 1
-      }
-      return 0
-    }
-    # eng_overlap <d>: d への checkout が、このジョブで取得済みのエンジンの取得先を上書き・内包しうるか。
-    function eng_overlap(d,   k, e, pre) {
-      if (eng_hit(d)) return 1
-      pre = job SUBSEP
-      for (k in eng) {
-        if (index(k, pre) != 1) continue
-        e = substr(k, length(pre) + 1)
-        if (d == "" || index(e, d "/") == 1) return 1
-      }
-      return 0
-    }
-    # run_moves <run>: このジョブの前の step で取得したエンジンに対し、読み取り以外の git 操作をするなら理由を返す。
-    # 版を固定した後に別の版へ動かす操作（checkout・switch・reset・fetch・pull・restore 等）を通さないための検査で、
-    # 条件の有無は問わない。git の後ろの大域オプション（-C・-c・--git-dir 等）を読み、対象のディレクトリを決める。
-    # cd は、制御構造も行をまたぐ形も無い run で、無条件の位置（行頭か ; の後ろ）にある字句のパスのときだけ追う。
-    # それ以外の cd・pushd・popd の後ろは対象を確定できないものとして扱う（fail-closed）。
-    function run_moves(run,   k, any, straight, n, arr, i, l, ns, segs, seps, rest, prevsep, j, seg, c, w, nt, t, m, d, sc) {
-      any = 0
-      for (k in eng) if (index(k, job SUBSEP) == 1) { any = 1; break }
-      if (!any || run !~ /(^|[^A-Za-z0-9_.-])git[[:space:]]/) return ""
-      gsub(/\\\n/, " ", run)
-      straight = !has_ctl(run, 0) && broken(run) == ""
-      cwd = s_base
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        # コメントは除かない（行をまたぐ引用の中の # を見誤ると操作を見落とすため。誤検出の側に倒す）
-        l = arr[i]
-        ns = 0; rest = l; prevsep = ""
-        while (match(rest, /&&|;|\|\||\|/)) {
-          ns++; segs[ns] = substr(rest, 1, RSTART - 1); seps[ns] = prevsep
-          prevsep = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
-        }
-        ns++; segs[ns] = rest; seps[ns] = prevsep
-        for (j = 1; j <= ns; j++) {
-          seg = segs[j]
-          if (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) {
-            c = seg; sub(/^[[:space:]]*cd[[:space:]]*/, "", c); sub(/[[:space:]]+$/, "", c)
-            cwd = (straight && (seps[j] == "" || seps[j] == ";") && c !~ /[[:space:]]/) ? rel(cwd, c) : "?"
-            continue
-          }
-          if (seg ~ /(^|[^A-Za-z0-9_-])(cd|pushd|popd)([[:space:]]|$)/) cwd = "?"
-          w = seg
-          while (match(w, /(^|[^A-Za-z0-9_.-])git[[:space:]]+/)) {
-            w = substr(w, RSTART + RLENGTH)
-            nt = split(w, t, /[[:space:]]+/)
-            d = cwd; sc = ""
-            for (m = 1; m <= nt; m++) {
-              if (t[m] == "") continue
-              if (t[m] == "-C") { m++; d = rel(d, t[m]); continue }
-              if (t[m] == "-c") { m++; continue }
-              if (t[m] ~ /^-/) { if (t[m] ~ /git-dir|work-tree/) d = "?"; continue }
-              sc = t[m]; gsub(/["\047)]/, "", sc); break
-            }
-            if (sc ~ /^(status|log|show|diff|rev-parse|describe|ls-files|ls-tree|cat-file|rev-list|show-ref|version|help)$/) continue
-            if (eng_hit(d))
-              return "run may change the version of the engine fetched by an earlier step of this job (git " (sc == "" ? "?" : sc) " in " (d ~ /\?/ ? "a directory that cannot be determined" : (d == "" ? "the workspace root" : d)) "); only read-only git commands may target it"
-          }
+    function end_job(   n, s1, s2, s3, aid, ep, k, r) {
+      if (job == "") return
+      if (job_eng) {
+        any_eng = 1
+        n = gsn - jfirst + 1; s1 = jfirst; s2 = jfirst + 1; s3 = jfirst + 2
+        if (job_badline) print job_badline ":D3 job " job " has " job_badkey "; a job that refers to the engine repo or ENGINE_REV may only use the keys " JOB_KEYS " (env, defaults and the like change how the canonical steps run)"
+        if (n < 1 || !is_own(s1)) print (n >= 1 ? st_line[s1] : job_line) ":D3 step 1 of job " job " must be the canonical checkout of this repository: " OWN
+        if (n < 2 || !is_out(s2)) print (n >= 2 ? st_line[s2] : job_line) ":D3 step 2 of job " job " must be the canonical ENGINE_REV output step: " OUT
+        aid = (n >= 2 && is_out(s2)) ? st_id[s2] : ""
+        if (n < 3 || !is_eng(s3, aid)) print (n >= 3 ? st_line[s3] : job_line) ":D3 step 3 of job " job " must be the canonical engine checkout: " ENG
+        else if (is_own(s1)) eng_ok++
+        ep = (n >= 3 && st_path[s3] ~ /^[A-Za-z0-9_-]+$/) ? st_path[s3] : ""
+        for (k = 4; k <= n; k++) {
+          r = c_why(jfirst + k - 1, ep)
+          if (r != "") print st_line[jfirst + k - 1] ":D4 step " k " of job " job " " r "; only the three canonical steps (" OWN "; " OUT "; " ENG ") may refer to git, the engine repo, ENGINE_REV or the engine path"
         }
       }
-      return ""
+      job = ""
     }
-    # run のエンジン取得が、取得先ごとに ENGINE_REV で版を決めているか。合格なら ""、違反なら理由を返す。
-    # コマンドを &&・;・||・| で分けて順に見る。
-    #  - git clone は、同じコマンドに --branch 等の指定が無ければ取得先ディレクトリを「未固定」に記録し、
-    #    後の `git -C <同じ先> checkout|switch|reset|fetch "$(cat ENGINE_REV)"`（または cd した先での同じ操作）で外す。
-    #  - cargo install・git fetch 等は、同じコマンドの中で版の位置に使うことを要する。
-    #  - 取得先を判断できない形・取得を認識できない形・最後まで未固定の先が残る形は拒否する。
-    # 取得先は fetched に記録し、呼び出し側が後続 step の検査（run_moves）のためにジョブの eng へ移す。
-    function run_ok(run,   low, n, arr, i, l, ns, segs, seps, rest, prevsep, chain_ok, gate, kind_ok, is_wt, j, seg, ls, cnt, bad, t, nt, k, m, d, x, c, r) {
-      split("", pending); split("", known); split("", fetched); cwd = s_base; cnt = 0; bad = 0
-      low = tolower(run)
-      if (low !~ /fandhe-ai\/fandhe-workshop/ || low !~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) return ""
-      gsub(/\\\n/, " ", run)
-      # 実行が保証されない形（制御構造）・行ごとに読めない形を含む run は、版の固定を判断できないので拒否する
-      if (has_ctl(run, 0)) return "run that fetches the engine repo uses shell control flow (if/case/loops/functions/groups/exit/return), so the pin cannot be decided"
-      r = broken(run)
-      if (r != "") return "run that fetches the engine repo " r ", so the pin cannot be decided"
-      n = split(run, arr, "\n")
-      for (i = 1; i <= n; i++) {
-        l = strip_comment(arr[i])
-        ns = 0; rest = l; prevsep = ""
-        while (match(rest, /&&|;|\|\||\|/)) {
-          ns++; segs[ns] = substr(rest, 1, RSTART - 1); seps[ns] = prevsep
-          prevsep = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
-        }
-        ns++; segs[ns] = rest; seps[ns] = prevsep
-        for (j = 1; j <= ns; j++) {
-          seg = segs[j]; ls = tolower(seg)
-          is_wt = (seg ~ /(^|[[:space:]])git( +-C +[^ ]+)? +(checkout|switch|reset|pull|merge|rebase|cherry-pick)([[:space:]]|$)/)
-          kind_ok = (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) || is_wt || (ls ~ /fandhe-ai\/fandhe-workshop/ && ls ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/)
-          # gate: この segment の実行が前の segment の成功だけに依る連鎖か（|| ・| の後ろ、無関係なコマンドの後ろの && は条件つき）
-          if (j == 1 || seps[j] == ";") chain_ok = 1
-          else if (seps[j] == "||" || seps[j] == "|") chain_ok = 0
-          gate = chain_ok
-          if (!kind_ok) chain_ok = 0
-          if (seg ~ /^[[:space:]]*cd([[:space:]]|$)/) {
-            c = seg; sub(/^[[:space:]]*cd[[:space:]]*/, "", c); sub(/[[:space:]].*$/, "", c); c = norm(c)
-            cwd = (c == "" || c ~ /^[-~]/) ? "?" : full(c)
-            continue
-          }
-          if (ls ~ /fandhe-ai\/fandhe-workshop/ && ls ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/) {
-            cnt++
-            d = "?"
-            if (ls ~ /git clone/) {
-              x = seg; sub(/^[[:space:]]+/, "", x); sub(/[[:space:]]+$/, "", x)
-              nt = split(x, t, /[[:space:]]+/)
-              for (k = 1; k <= nt; k++) if (tolower(t[k]) ~ /fandhe-ai\/fandhe-workshop/) {
-                # URL の後ろ: フラグ（- で始まる語。値を取るものは次の語も）を飛ばし、最初の語を保存先とする。無ければ URL 末尾の名前
-                d = t[k]; sub(/\/+$/, "", d); sub(/\.git$/, "", d); sub(/^.*[\/:]/, "", d)
-                if (d !~ /^[A-Za-z0-9_.-]+$/) d = "?"
-                for (m = k + 1; m <= nt; m++) {
-                  if (t[m] ~ /^-/) {
-                    if (t[m] ~ /^(-b|-o|-c|-j|-u|--depth|--branch|--origin|--config|--jobs|--reference|--filter|--template|--separate-git-dir|--upload-pack|--shallow-since|--shallow-exclude|--revision)$/) m++
-                    continue
-                  }
-                  d = (norm(t[m]) ~ /^[A-Za-z0-9_.\/-]+$/) ? norm(t[m]) : "?"
-                  break
-                }
-                break
-              }
-              fetched[full(d)] = 1
-            } else if (ls !~ /cargo install/) fetched["?"] = 1   # 取得先を字句で決められない取得（cargo install は作業ツリーを残さない）
-            if (run_pins(seg)) continue
-            if (ls !~ /git clone/) { bad = 1; continue }
-            pending[full(d)] = 1; known[full(d)] = 1
-            continue
-          }
-          if (is_wt || (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg))) {
-            if (match(seg, /git +-C +[^ ]+/)) {
-              x = substr(seg, RSTART, RLENGTH); sub(/^git +-C +/, "", x); d = full(x)
-            } else d = cwd
-            if (seg ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && run_pins(seg)) {
-              if (gate) delete pending[d]
-            } else if (d in known) pending[d] = 1   # ENGINE_REV 以外へ切り替える操作は固定済みを解除する
-          }
-        }
-      }
-      if (cnt == 0) bad = 1
-      for (k in pending) bad = 1
-      return bad ? "run fetches the engine repo without using ENGINE_REV as the version" : ""
-    }
-    function end_step(   m, p, pid, pname, k, r, dd) {
-      if (!in_step) return
-      # run の起点（ワークスペースからの相対）。defaults がある workflow では起点を確定できないものとする
-      s_base = wd_defaults ? "?" : (s_wd == "" ? "" : rel("", s_wd))
-      dd = (s_path == "") ? "" : rel("", s_path)
-      # 取得済みのエンジンの取得先へ・その親へ書く checkout は、エンジンを別の版で置き換えうる
-      if (s_uses ~ /^actions\/checkout@/ && eng_overlap(dd))
-        print s_line ":D4 checkout writes into or over the engine directory fetched by an earlier step of this job"
-      if (s_uses ~ /^actions\/checkout@/ && tolower(s_repo) == tolower(guard)) {
-        engine++
-        if (s_ref == "") print s_line ":D3 engine checkout has no ref (the version is not pinned)"
-        else if (s_ref == rev) { }
-        else if (match(s_ref, /^\$\{\{ *steps\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+ *\}\}$/)) {
-          # ID と出力名はリテラルの ".outputs." で分ける（正規表現にしない）。対象の checkout より前の同一ジョブの step だけを見る
-          m = s_ref; sub(/^\$\{\{ *steps\./, "", m); sub(/ *\}\}$/, "", m)
-          p = index(m, ".outputs.")
-          pid = substr(m, 1, p - 1); pname = substr(m, p + 9)
-          k = job SUBSEP pid SUBSEP pname
-          if (!(k in pinned) || (k in tainted) || ((job SUBSEP pid SUBSEP "*") in tainted))
-            print s_line ":D3 ref comes from step " pid " output " pname " which is not written only from ENGINE_REV earlier in the same job"
-        } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
-      }
-      if (s_id != "") {
-        scan_outputs(s_id, s_run)
-        # 条件つきの step は実行されない場合があり、出力が空になる。固定済みとは認めない
-        if (s_if != "") tainted[job SUBSEP s_id SUBSEP "*"] = 1
-      }
-      # 前の step で取得したエンジンへの操作を先に見る（この step 自身が取得した先は run_ok が見る）
-      r = run_moves(s_run)
-      if (r != "") print s_line ":D4 " r
-      r = run_ok(s_run)
-      if (r != "") print s_line ":D4 " r
-      for (k in fetched) eng[job SUBSEP (k ~ /\?/ ? "?" : k)] = 1
-      if (s_uses ~ /^actions\/checkout@/ && tolower(s_repo) == tolower(guard)) eng[job SUBSEP dd] = 1
-      in_step = 0
-    }
-    /^[[:space:]]*($|#)/ { next }
-    /GIT_DIR|GIT_WORK_TREE/ { print NR ":D4 GIT_DIR or GIT_WORK_TREE redirects git operations, so the engine directory cannot be tracked" }
     {
-      ind = indent($0)
-      if ($0 ~ /^jobs[[:space:]]*:/) injobs = 1
-      if (injobs && ind == 2 && $0 ~ /^  [A-Za-z0-9_-]+[[:space:]]*:/) {
-        end_step(); in_steps = 0
-        job = $0; sub(/^ +/, "", job); sub(/[[:space:]]*:.*$/, "", job)
+      raw = $0; ind = indent(raw)
+      if (job != "" && !(in_jobs && ind == 2) && engine_ref(raw)) job_eng = 1
+      # ブロック形式の run の中身（# で始まる行も中身）。プレーンの run が次の行へ続く形は正準ではない
+      if (cur_step && cur == "run" && raw !~ /^[[:space:]]*$/ && ind > key_ind) {
+        st_text[s] = st_text[s] "\n" raw
+        if (st_style[s] == "block") st_run[s] = st_run[s] "\n" raw; else st_multi[s] = 1
         next
       }
-      if ($0 ~ /^[[:space:]]*steps[[:space:]]*:/) { end_step(); in_steps = 1; steps_ind = ind; item_ind = -1; next }
-      if (in_steps && ind <= steps_ind) { end_step(); in_steps = 0 }
-      if (!in_steps) next
-      if ($0 ~ /^[[:space:]]*-[[:space:]]/ && (item_ind < 0 || ind == item_ind)) {
-        end_step(); item_ind = ind
-        in_step = 1; s_uses = ""; s_repo = ""; s_ref = ""; s_id = ""; s_if = ""; s_run = ""; in_run = 0; s_line = NR
-        s_path = ""; s_wd = ""; s_style = ""; s_fold = 0
-        body = $0; sub(/^[[:space:]]*-[[:space:]]+/, "", body); line = body; key_ind = ind + 2
-      } else line = $0
-      if (!in_step) next
-      # 引用・プレーンの複数行の値と > は YAML が行を 1 行に折り返すため、行ごとの解析と食い違う（s_fold）
-      if (in_run && indent($0) > key_ind) { s_run = s_run "\n" $0; if (s_style != "|") s_fold = 1; next }
-      in_run = 0
-      if (line ~ /^[[:space:]]*uses[[:space:]]*:/) s_uses = trim_val(line)
-      else if (line ~ /^[[:space:]]*repository[[:space:]]*:/) s_repo = trim_val(line)
-      else if (line ~ /^[[:space:]]*ref[[:space:]]*:/) {
-        s_ref = line; sub(/^[[:space:]]*ref[[:space:]]*:[[:space:]]*/, "", s_ref); sub(/[[:space:]]+#.*$/, "", s_ref); gsub(/["\047]/, "", s_ref)
+      if (raw ~ /^[[:space:]]*$/ || raw ~ /^[[:space:]]*#/) next
+      if (ind == 0) {
+        k = key_of(raw)
+        if (k == "jobs") { end_job(); in_jobs = 1; next }
+        end_job(); in_jobs = 0
+        if ((k == "env" || k == "defaults") && !wf_line) { wf_line = NR; wf_key = k }
+        next
       }
-      else if (line ~ /^[[:space:]]*id[[:space:]]*:/) s_id = trim_val(line)
-      else if (line ~ /^[[:space:]]*if[[:space:]]*:/ && indent($0) <= key_ind) s_if = "1"
-      else if (line ~ /^[[:space:]]*path[[:space:]]*:/) s_path = trim_val(line)
-      else if (line ~ /^[[:space:]]*working-directory[[:space:]]*:/) s_wd = trim_val(line)
-      else if (line ~ /^[[:space:]]*run[[:space:]]*:/) {
-        # ブロックの指示子（| ・> と字下げ・改行の指定）は run の本文に入れない
-        v = run_val(line); vi = v; sub(/[[:space:]]+#.*$/, "", vi)
-        if (vi ~ /^[|>][-+0-9]*$/) { s_style = substr(vi, 1, 1); if (s_style == ">") s_fold = 1 }
-        else { s_run = s_run "\n" v; s_style = "plain" }
-        in_run = 1
+      if (!in_jobs) next
+      if (ind == 2) { start_job(key_of(trim(raw))); if (engine_ref(raw)) job_eng = 1; next }
+      if (job == "") next
+      if (jk < 0) jk = ind
+      if (ind <= jk) {
+        k = key_of(trim(raw)); in_steps = 0; cur_step = 0; cur = ""
+        if (ind == jk && k == "steps" && raw_of(trim(raw)) ~ /^(#.*)?$/) { in_steps = 1; item_ind = -1; next }
+        if (!job_badline && (ind < jk || !(k in job_ok))) { job_badline = NR; job_badkey = (k == "" ? "an unexpected line" : k) }
+        next
+      }
+      if (!in_steps) next
+      if (raw ~ /^[[:space:]]*-([[:space:]]|$)/ && (item_ind < 0 || ind == item_ind)) {
+        item_ind = ind; s = ++gsn; cur_step = 1; cur = ""; st_line[s] = NR
+        body = raw; sub(/^[[:space:]]*-[[:space:]]*/, "", body)
+        if (body == "") { key_ind = -1; next }
+        key_ind = length(raw) - length(body)
+        key_line(body, raw)
+        next
+      }
+      if (!cur_step) { if (!job_badline) { job_badline = NR; job_badkey = "an unexpected line under steps" } ; next }
+      body = trim(raw)
+      if (key_ind < 0) key_ind = ind
+      if (ind == key_ind) { key_line(body, raw); next }
+      st_text[s] = st_text[s] "\n" raw
+      if (ind < key_ind) { st_bad[s] = 1; next }
+      # 現在の key の値の続き。with の直下は入力として読み、ref・path 等の値が次の行へ続く形は正準ではない
+      if (cur == "with") {
+        if (wind < 0) wind = ind
+        if (ind == wind) with_line(body)
+        else if (wcur == "repository" || wcur == "ref" || wcur == "path" || wcur == "persist-credentials") st_wbad[s] = 1
       }
     }
     END {
-      end_step()
-      if (engine == 0) print "0:D2 no actions/checkout step fetches the engine repo " guard
+      end_job()
+      if (any_eng && wf_line) print wf_line ":D3 workflow-level " wf_key " changes how the canonical steps run; remove it from a workflow that fetches the engine"
+      if (eng_ok == 0) print "0:D2 no job fetches the engine repo " guard " with the canonical steps (1. " OWN "; 2. " OUT "; 3. " ENG ")"
     }
   ' "${PACK_WORKFLOW}")" || rc=$?
   [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${PACK_WORKFLOW}" >&2; exit 2; }

@@ -286,7 +286,10 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
   この性質は `make check-fork-ci` が静的に検査します。確かめる点は、private な依存が 0 件であること（`Cargo.lock`・`package-lock.json`・
   `.npmrc`・`.cargo/` の出所と、private な submodule を CI が取得しないこと）、`ci.yml` が secret や認証の語を参照しないこと、
   `ci.yml` に書き込み権限・`environment` が無く `deploy.yml` が `workflow_dispatch` だけで fork では飛ばされること、の 3 点です。
-  4 点目として、教材 repo のビルドが固定したエンジンの版（`ENGINE_REV`）で行われること（`--pack-workflow`・`--engine-rev`）も検査できます
+  4 点目として、教材 repo のビルドが固定したエンジンの版（`ENGINE_REV`）で行われること（`--pack-workflow`・`--engine-rev`）も検査できます。
+  この検査は正準の形を 1 つだけ認める許可リストで、エンジンを参照するジョブは「教材 repo の checkout」「`ENGINE_REV` を出力に書く 1 行の
+  `run`」「その出力を `ref` にしたエンジンの `actions/checkout`」の 3 step で始める必要があります（`git clone` 等での取得は認めません。
+  形の詳細は `scripts/check-fork-ci.sh` の冒頭）
 - fork での実行はしていません（D-29 の「行わない確認」。2026-10-18 時点）。上の性質は構成の検査で確かめたもので、実際の fork で
   CI が通ることを確かめたものではありません。`ENGINE_REV` の検査は試験の見本でだけ確かめており、実際の教材 repo への適用は
   教材 repo の作成（TASK-36）の後です。`ai-review.yml` と `update-external.yml` はビルド・試験ではないため検査の対象外で、
