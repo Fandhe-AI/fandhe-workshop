@@ -15,7 +15,10 @@
 //! 検査器の側（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・`starts[].guidance` の `E-PARSE`）が TASK-49（#495・#496）の
 //! 持ち分で未実装のため `#[ignore]` で置く。11/11 は TASK-49 の完了後に `#[ignore]` を外して確かめる。
 //!
-//! 範囲外: 正しいパックの誤検出 0 件（`test` を含む）と試験の限界の記録（#417）。
+//! 正しいパックの誤検出 0 件（TASK-56 3/3・#417）は、末尾の `pack29_correct_packs_*` が確かめる。
+//! `validate` と、`test` の段の静的な検査（`E-PLAY-INPUT-CLASS`・誤入力の `expect` の読み取り）は必須で、
+//! 実行器を要する CLI `test` の誤検出 0 件は TASK-404（#648）の完了後に `#[ignore]` を外して確かめる。
+//! 試験の限界は `testdata/pack-defects/README.md` の「試験の限界」に記録する。
 
 mod common;
 
@@ -25,7 +28,11 @@ use std::process::Command;
 
 use common::{assert_no_secret, copy_dir, testdata, Tmp};
 
+use fandhe_workshop_pack::cli::EXIT_OK;
 use fandhe_workshop_pack::compile::compile_dir;
+use fandhe_workshop_pack::play_expect::{check_error_input_expects, read_error_input_expects};
+use fandhe_workshop_pack::profile::check_play_inputs;
+use fandhe_workshop_pack::source::load;
 use fandhe_workshop_pack::validate::validate_dir;
 use fandhe_workshop_pack::{DiagCode, Diagnostic};
 
@@ -575,4 +582,104 @@ fn pack29_v1_1_guidance_defects_reported_at_expected_location() {
         "undetected defects:\n{}",
         missed.join("\n")
     );
+}
+
+// ---- 正しいパックの誤検出 0 件（TASK-56 3/3、#417）----
+
+/// `validate` の誤検出 0 件を確かめる正しいパック（土台 3 つ）。
+const CORRECT_FOR_VALIDATE: [&str; 3] = ["format-a", "format-b", "format-b-v1_1"];
+
+/// `test` の誤検出 0 件を確かめる正しいパック。教材テストを持つ土台だけで、`format-b-v1_1` は `tests/` が
+/// 無く `test` の段の検査が空振りになるため含めない。
+const CORRECT_FOR_TEST: [&str; 2] = ["format-a", "format-b"];
+
+fn correct_pack(name: &str) -> PathBuf {
+    let p = defects_root().join("base").join(name);
+    assert!(p.is_dir(), "correct pack {name} must exist");
+    p
+}
+
+/// 一覧が空振りしない（両形式を含む）ことを確かめる。
+fn assert_both_formats(names: &[&str]) {
+    let has = |manifest: &str| {
+        names
+            .iter()
+            .any(|n| correct_pack(n).join(manifest).is_file())
+    };
+    assert!(has("workshop.toml"), "format A pack is required");
+    assert!(has("workshop.yaml"), "format B pack is required");
+}
+
+#[test]
+fn pack29_correct_packs_have_no_false_positives_in_validate() {
+    assert_both_formats(&CORRECT_FOR_VALIDATE);
+    let mut found = Vec::new();
+    for name in CORRECT_FOR_VALIDATE {
+        let diags = validate_dir(&correct_pack(name));
+        assert_no_secret(&diags);
+        found.extend(describe(&diags).into_iter().map(|d| format!("{name}: {d}")));
+    }
+    assert!(found.is_empty(), "false positives:\n{}", found.join("\n"));
+    println!(
+        "PACK-29 false positives (validate) 0 over {} packs",
+        CORRECT_FOR_VALIDATE.len()
+    );
+}
+
+#[test]
+fn pack29_correct_packs_have_no_false_positives_in_test_static_checks() {
+    assert_both_formats(&CORRECT_FOR_TEST);
+    let mut found = Vec::new();
+    for name in CORRECT_FOR_TEST {
+        let lp = load(&correct_pack(name)).unwrap_or_else(|d| panic!("{name}: load: {d:?}"));
+        // 教材テストが読めずに空になる経路を、誤検出 0 件と取り違えないための確認。
+        assert!(lp.tests_file.is_some(), "{name}: tests file must be loaded");
+        let expects = read_error_input_expects(&lp)
+            .unwrap_or_else(|d| panic!("{name}: error_inputs expect: {d:?}"));
+        assert_eq!(expects.len(), 3, "{name}: error_inputs e01..e03");
+        // 既定の接頭辞では `check_play_inputs` は何も検査しない。0 件は自明で、`pack.profile` を
+        // 変える教材が来たときの備えとして呼ぶ。
+        let mut diags = check_play_inputs(&lp);
+        diags.extend(check_error_input_expects(&lp));
+        assert_no_secret(&diags);
+        found.extend(describe(&diags).into_iter().map(|d| format!("{name}: {d}")));
+    }
+    assert!(found.is_empty(), "false positives:\n{}", found.join("\n"));
+    println!(
+        "PACK-29 false positives (test static checks) 0 over {} packs",
+        CORRECT_FOR_TEST.len()
+    );
+}
+
+/// TASK-404（#648）の完了後に `#[ignore]` を外す。実行器が模範解答の完走と誤入力の分類を確かめ、
+/// 診断を 1 件も出さない（終了コード 0）ことを要求する。
+#[test]
+#[ignore = "fandhe-pack test is TASK-404 (#648)"]
+fn pack29_correct_packs_have_no_false_positives_in_test() {
+    for name in CORRECT_FOR_TEST {
+        let o = Command::new(env!("CARGO_BIN_EXE_fandhe-pack"))
+            .arg("test")
+            .arg(correct_pack(name))
+            .output()
+            .expect("run fandhe-pack");
+        let all = format!(
+            "{}{}",
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        );
+        let diag_lines: Vec<&str> = all
+            .lines()
+            .filter(|l| {
+                l.splitn(3, ": ")
+                    .nth(2)
+                    .is_some_and(|r| r.starts_with("E-"))
+            })
+            .collect();
+        assert!(diag_lines.is_empty(), "{name}: {diag_lines:?}");
+        assert_eq!(
+            o.status.code(),
+            Some(i32::from(EXIT_OK)),
+            "{name}: exit code"
+        );
+    }
 }
