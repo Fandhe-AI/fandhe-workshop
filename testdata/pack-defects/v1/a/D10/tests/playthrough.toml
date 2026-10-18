@@ -1,0 +1,21 @@
+# 教材テスト: 模範解答 1 本と、誤入力 3 件（fandhe-pack test 用）。
+
+[[playthroughs]]
+id = "pt-main"
+end = "complete"
+segments = [{ start = "s-7", steps = [{ cmd = "/make-item first-item", expect = "accepted" }, { ui = "v-files items/x", expect = "achieved" }] }]
+
+[[error_inputs]]
+id = "e01"
+start = "s-7"
+input = { cmd = "/make-item Bad_Name", expect = "rejected:bad_arg_shape" }
+
+[[error_inputs]]
+id = "e02"
+start = "s-7"
+input = { cmd = "/make-item BAD", expect = "rejected:bad_arg_shape" }
+
+[[error_inputs]]
+id = "e03"
+start = "s-7"
+input = { cmd = "/make-item", expect = "rejected:bad_arg_shape" }
