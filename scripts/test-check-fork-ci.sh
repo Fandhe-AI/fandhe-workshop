@@ -507,6 +507,52 @@ d3_case() {
   d3_case "pinned output after an exit is rejected (D3)" 1 'exit 0' 'echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"'
 }
 
+# review follow-ups 5: 行をまたぐ条件・後続 step による版の変更
+# d4_steps <name> <expected-rc> <run-lines...>: 良い見本（path: engine の checkout）に run の step を足して流す。
+# 引数 "--" で次の step に移る。
+d4_steps() {
+  local name="$1" want="$2" f="${TMP_DIR}/d4-$((++d4_n)).yml" tag="D4" a
+  shift 2
+  [ "${want}" = 0 ] && tag="-"
+  {
+    cat "${GOOD_PACK}"
+    printf '      - name: Engine step\n        run: |\n'
+    for a in "$@"; do
+      if [ "${a}" = "--" ]; then printf '      - name: Engine step\n        run: |\n'; else printf '          %s\n' "${a}"; fi
+    done
+  } >"${f}"
+  case_ "${name}" "${want}" "${tag}" --pack-workflow "${f}" --engine-rev "${GOOD_REV}"
+}
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+PIN='"$(cat ENGINE_REV)"'
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  d4_case "checkout after a line ending with || is rejected (D4)" 1 "git clone ${URL} engine2" "true ||" "  git -C engine2 checkout ${PIN}"
+  d4_case "checkout after a line ending with && is rejected (D4)" 1 "git clone ${URL} engine2" "false &&" "  git -C engine2 checkout ${PIN}"
+  d4_case "checkout on a line starting with || is rejected (D4)" 1 "git clone ${URL} engine2" "true" "|| git -C engine2 checkout ${PIN}"
+  d4_case "checkout inside a here-document is rejected (D4)" 1 "git clone ${URL} engine2" "cat <<EOF" "git -C engine2 checkout ${PIN}" "EOF"
+  d4_case "checkout inside a multi-line quote is rejected (D4)" 1 "git clone ${URL} engine2" "echo '" "git -C engine2 checkout ${PIN}" "'"
+  d4_case "backslash-continued && chain passes (D4)" 0 "git clone ${URL} engine2 && \\" "  git -C engine2 checkout ${PIN}"
+  d4_steps "later step checks out main in the pinned clone (D4)" 1 "git clone ${URL} engine2" "git -C engine2 checkout ${PIN}" -- "git -C engine2 checkout main"
+  d4_steps "later step checks out main in the engine checkout path (D4)" 1 "git -C engine checkout main"
+  d4_steps "later step pulls after cd into the engine checkout (D4)" 1 "cd engine && git pull"
+  d4_steps "later step fetches inside a nested shell (D4)" 1 "sh -c 'cd engine && git fetch origin main'"
+  d4_steps "later git operation on an undetermined directory is rejected (D4)" 1 'git -C "$DIR" checkout main'
+  d4_steps "later git operation via an alias is rejected (D4)" 1 "git -C engine -c alias.co=checkout co main"
+  d4_steps "later read-only git command on the engine passes (D4)" 0 "git -C engine status" "git -C engine log --oneline -1"
+  d4_steps "later checkout in another directory passes (D4)" 0 "git -C other checkout main"
+  d4_steps "later read-only command on a pinned clone passes (D4)" 0 "git clone ${URL} engine2" "git -C engine2 checkout ${PIN}" -- "git -C engine2 rev-parse HEAD"
+}
+# 折り返す YAML スカラー（>）は行の区切りが実行と食い違うので、固定の形でも拒否する
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: >\n          git clone %s engine2 &&\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n' "${URL}"; } >"${TMP_DIR}/pack-folded.yml"
+case_ "folded run scalar that fetches the engine is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-folded.yml" --engine-rev "${GOOD_REV}"
+# 後続の actions/checkout が取得済みのエンジンの取得先へ書く
+{ cat "${GOOD_PACK}"; printf '      - name: Overwrite engine\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/pack-x\n          path: engine\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-overwrite.yml"
+case_ "later checkout into the engine path is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-overwrite.yml" --engine-rev "${GOOD_REV}"
+{ cat "${GOOD_PACK}"; printf '      - name: Pack\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/pack-x\n          path: pack\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-sibling.yml"
+case_ "later checkout into a sibling path passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-sibling.yml" --engine-rev "${GOOD_REV}"
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"
