@@ -239,6 +239,39 @@ pack:
 - 名前にない値（`dark` など）や、`theme` 以外の欄は `E-PARSE` になります。色・フォント・CSS を指定する欄はありません
 - 診断には書いた値を写しません
 
+## 左エリア（`left_pane`）
+
+`pack.left_pane` で、左エリアに出す情報を絞れます（PACK-22）。2 項目とも省略でき、省略すると既定になります。
+
+| 項目 | 値 | 意味 |
+|---|---|---|
+| `world_list` | `shown`（既定） | 世界の一覧を出す |
+| | `hidden` | 世界の一覧を出さない |
+| `view_tabs` | `all`（既定） | すべてのビューの切り替えを出す |
+| | `declared` | Step が宣言したビューだけに絞る |
+| | `hidden` | 切り替えを出さず、Step ごとに 1 つのビューだけを見せる |
+
+```yaml
+pack:
+  left_pane: { world_list: hidden, view_tabs: declared }
+```
+
+名前にない値（`view_tabs: x` など）、文字列でない値、2 項目以外の欄は `E-PARSE` になります。このとき `E-LEFT-*` は検査しません。
+
+設定を既定（`shown`・`all`）から変えたときだけ、設定と矛盾する Step を次の診断で知らせます。報告先は、その Step を定義した章・モジュールのファイルと項目 `step:<Step ID>` です。
+
+| コード | 検査する設定 | 報告する場合 |
+|---|---|---|
+| `E-LEFT-MULTI-VIEW` | `view_tabs: hidden` | Step の `views` に 2 つ以上のビューを宣言している |
+| `E-LEFT-TARGET-VIEW` | `view_tabs` が `all` 以外 | 操作の宛先（`input` の `ui_action`・`confirm` の `point_at` の `targets`、`rules[].on.ui`）のビューが、その Step の画面に出ない |
+| `E-LEFT-TARGET-ROW` | 設定が既定でない（`world_list` だけの変更を含む） | 宛先の `path` が、教材のどの `put`・`replace` の `path` にも現れない |
+
+- 画面に出るビューは、`views` で宣言した順に、種類（`kind`）ごとの最初の 1 つです。`hidden` では先頭の 1 つだけです。`views` を宣言しない Step では、ビューの ID の辞書順で最初の 1 つとして扱います（試作の仮置きで、決まった規則は後続のタスクで定めます）
+- `E-LEFT-TARGET-ROW` は必要条件だけを調べる静的な近似です。経路がどこかで世界状態に置かれることしか確かめないため、画面でしか分からない矛盾は報告されません。宛先の経路は、`put`・`replace` で世界状態に置いてください。`put` の `path` に含めた `${...}` は、空文字列を含む任意の文字列として照合します
+- 宛先の `view` や `path` に `${` を含む場合（モジュールの引数）は、展開前に決まらないため判定しません。`workshop.views` に無いビューは `E-REF-VIEW` が報告します
+- 同じ宛先が複数あれば、同じ診断が重ねて出ます
+- 診断の文面は固定です。ビューの ID や経路は、英数字・`_`・`.`・`-` だけで書かれているときに限って写します
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -260,3 +293,5 @@ pack:
 | `crates/pack/tests/text_slots.rs` の `pack16_`・`pack12_` | 5 つの `E-SLOT-*` が期待のファイル・項目で出ること、次の行動の空が静的・動的の両方で 0 件になること、公開の試験データで診断が 0 件であること（PACK-12、PACK-16） |
 | `crates/contract/tests/slot_contract.rs` の `pack16_` | 枠の構文・差し込みの再走査をしない性質・エラーの固定文（PACK-16） |
 | `crates/pack/tests/appearance.rs` | 外観 4 値の読み込み、名前にない値と未知の欄の `E-PARSE`、`validate` との一致、TOML・CLI、スタイル欄が 0 件であること（PACK-21） |
+| `crates/pack/tests/left_pane.rs` | 左エリアの設定の読み込みと `E-PARSE`、`E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW` が期待のファイル・項目で出ること、既定では出ないこと、`compile`・`validate`・TOML・CLI の一致（PACK-22） |
+| `crates/contract/tests/left_pane_contract.rs` | 左エリアの 2 項目の閉じた集合、既定値、名前にない値・型違い・未知の欄の拒否（PACK-22） |

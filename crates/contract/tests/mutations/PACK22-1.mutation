@@ -1,0 +1,8 @@
+id: PACK22-1
+package: fandhe-workshop-contract
+test: left_pane_contract
+target: crates/contract/src/left_pane.rs
+find:                 lp.view_tabs = ViewTabs::from_vocab(s).ok_or(LeftPaneReadError::ViewTabsUnknown)?;
+replace:                 lp.view_tabs = ViewTabs::from_vocab(s).unwrap_or_default();
+expect-fail: unknown_values_are_rejected
+note: view_tabs の名前にない値を拒否せず既定へ倒す（`view_tabs: x` が黙って通る）

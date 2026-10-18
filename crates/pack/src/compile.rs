@@ -20,7 +20,8 @@
 //! `pack.scopes` の全スコープに働くため、その中身も診断の対象になる（fail-closed）。
 //! モジュール呼び出しの巡回の検出（`E-MODULE-CYCLE`、TASK-50 2/2）も、展開の途中で [`crate::expand`] が行う。
 //! 展開を要するこの検査と、`${` を含む宣言の置換後の検査は、呼ばれないモジュールでは働かない。
-//! `pack.appearance` の検査（`E-PARSE`、TASK-53）は [`crate::appearance`] が行う。
+//! `pack.appearance` の検査（`E-PARSE`、TASK-53）は [`crate::appearance`] が、`pack.left_pane` の検査と
+//! `E-LEFT-*`（TASK-53 2/2）は [`crate::left_pane`] が行う。
 //! Step の `input` の宣言は [`crate::input`]、`confirm` の宣言と未指定は [`crate::confirm`] が検査する（IR には宣言の値をそのまま載せる）。
 //! モジュールの宣言が `${` を含む場合は、引数を置換した後の値を [`crate::expand`] が検査する。
 
@@ -79,6 +80,14 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
     ex.diags.extend(profile_diags);
     ex.diags.extend(appearance_diags);
+    // 読めない `left_pane` は `E-PARSE` だけを報告し、モードが決まらないため `E-LEFT-*` は検査しない。
+    let (left_pane, left_parse) = crate::left_pane::check_left_pane(&pack.workshop_file, w);
+    let left_pane_ok = left_parse.is_empty();
+    if left_pane_ok {
+        ex.diags
+            .extend(crate::left_pane::check_left_targets(pack, left_pane));
+    }
+    ex.diags.extend(left_parse);
 
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         chapters += 1;
@@ -154,6 +163,12 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     ex.diags = Vec::new();
     starts.extend(ex.module_starts(&mut start_ids));
     diags.append(&mut ex.diags);
+    // 引数に依存する左エリアの宛先は、展開の後の Step で検査する。
+    if left_pane_ok {
+        diags.extend(crate::left_pane::check_left_expanded(
+            pack, left_pane, &ex.nodes, &starts,
+        ));
+    }
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
     // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
     // 接頭辞と入力欄の有無に反する入力・規則を検査する（TASK-52、PACK-20）。
