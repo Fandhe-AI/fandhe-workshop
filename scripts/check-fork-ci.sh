@@ -25,8 +25,8 @@
 #   D ENGINE_REV での教材 repo のビルド（--pack-workflow と --engine-rev の両方を渡したときだけ）
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進 1 行
 #     D2 エンジン repo を取得する checkout が 1 つ以上ある
-#     D3 その ref が ENGINE_REV の値、または ENGINE_REV を読む step の出力
-#     D4 run でエンジン repo を取得する行が ENGINE_REV を参照している
+#     D3 その ref が ENGINE_REV の値、または同じジョブの前の step が ENGINE_REV だけから書いた出力
+#     D4 run でエンジン repo を取得する run が、取得系コマンドの行で `$(cat ENGINE_REV)` を版の指定に使っている
 #
 # deploy.yml の起点を変える場合（TASK-121）は、C2 と回帰テストを同時に直す。
 #
@@ -132,6 +132,18 @@ grep_hits() {
   printf '%s\n' "${out}" | awk -F: -v d="${desc}" '{ print $1 ":" d }'
 }
 
+# grep_report <description> <file> <extended-regex> [grep-flags...]: grep_hits の結果を違反として記録する。
+# $(...) の中の exit は親に届かず空文字列（合格）になるため、終了状態を受けて 2 以上なら親側で 2 で止める（fail-closed）。
+grep_report() {
+  local hits rc=0
+  hits="$(grep_hits "$@")" || rc=$?
+  if [ "${rc}" -ne 0 ]; then
+    echo "error: check could not complete (grep_hits exit ${rc})" >&2
+    exit 2
+  fi
+  report "$2" "${hits}"
+}
+
 # ---- A1 Cargo.lock ----
 need_file "${CARGO_LOCK}"
 a1_out=""
@@ -188,14 +200,14 @@ report "${PACKAGE_LOCK}" "${a2_out}"
 # ---- A3 .npmrc（無ければ合格） ----
 if [ -e "${NPMRC}" ]; then
   need_file "${NPMRC}"
-  report "${NPMRC}" "$(grep_hits "A3 .npmrc sets a registry or credentials" "${NPMRC}" '^[[:space:]]*(@[^=]*:)?registry[[:space:]]*=|_authtoken|_auth[[:space:]]*=|_password|^[[:space:]]*//' -i)"
+  grep_report "A3 .npmrc sets a registry or credentials" "${NPMRC}" '^[[:space:]]*(@[^=]*:)?registry[[:space:]]*=|_authtoken|_auth[[:space:]]*=|_password|^[[:space:]]*//' -i
 fi
 
 # ---- A4 .cargo/config(.toml)（無ければ合格） ----
 for cfg in "${CARGO_CONFIG_DIR}/config" "${CARGO_CONFIG_DIR}/config.toml"; do
   if [ -e "${cfg}" ]; then
     need_file "${cfg}"
-    report "${cfg}" "$(grep_hits "A4 cargo config sets a registry, source replacement or credentials" "${cfg}" '\[registries|\[source|replace-with|git-fetch-with-cli|credential-provider|token' -i)"
+    grep_report "A4 cargo config sets a registry, source replacement or credentials" "${cfg}" '\[registries|\[source|replace-with|git-fetch-with-cli|credential-provider|token' -i
   fi
 done
 
@@ -238,7 +250,7 @@ fi
 # ---- B2 BUILD-2 が挙げる語 ----
 # コメントも除外しない（run のブロックスカラーとコメントを行頭の # だけでは区別できないため。fail-closed）。
 # 語の境界で判定し、GITHUB_PATH のような別の語は通す。
-report "${CI_FILE}" "$(grep_hits "B2 forbidden credential word (GITHUB_TOKEN, CARGO_REGISTR*, git-fetch-with-cli, *_TOKEN, *_PAT)" "${CI_FILE}" 'GITHUB_TOKEN|CARGO_REGISTR|git-fetch-with-cli|_(TOKEN|PAT)([^A-Za-z0-9_]|$)' -i)"
+grep_report "B2 forbidden credential word (GITHUB_TOKEN, CARGO_REGISTR*, git-fetch-with-cli, *_TOKEN, *_PAT)" "${CI_FILE}" 'GITHUB_TOKEN|CARGO_REGISTR|git-fetch-with-cli|_(TOKEN|PAT)([^A-Za-z0-9_]|$)' -i
 
 # ---- B3 uses: ----
 rc=0
@@ -262,8 +274,8 @@ b3_out="$(awk -v owners="${ALLOWED_USES_OWNERS}" '
 report "${CI_FILE}" "${b3_out}"
 
 # ---- C1 ci.yml に write の権限・environment が無い ----
-report "${CI_FILE}" "$(grep_hits "C1 write permission (the build/test workflow must be read-only)" "${CI_FILE}" ':[[:space:]]*write([[:space:]#]|$)|write-all' -i)"
-report "${CI_FILE}" "$(grep_hits "C1 environment (deployment settings belong in deploy.yml)" "${CI_FILE}" '^[[:space:]]*(-[[:space:]]+)?environment[[:space:]]*:' -i)"
+grep_report "C1 write permission (the build/test workflow must be read-only)" "${CI_FILE}" ':[[:space:]]*write([[:space:]#]|$)|write-all' -i
+grep_report "C1 environment (deployment settings belong in deploy.yml)" "${CI_FILE}" '^[[:space:]]*(-[[:space:]]+)?environment[[:space:]]*:' -i
 
 # ---- C2 deploy.yml ----
 need_file "${DEPLOY_FILE}"
@@ -319,7 +331,7 @@ c2_out="$(awk -v repo="${GUARD_REPO}" '
 report "${DEPLOY_FILE}" "${c2_out}"
 
 # ---- C3 ci.yml に deploy ジョブが無い ----
-report "${CI_FILE}" "$(grep_hits "C3 deploy job in the build/test workflow (it belongs in deploy.yml)" "${CI_FILE}" '^  deploy[[:space:]]*:')"
+grep_report "C3 deploy job in the build/test workflow (it belongs in deploy.yml)" "${CI_FILE}" '^  deploy[[:space:]]*:'
 
 # ---- D ENGINE_REV ----
 if [ -n "${PACK_WORKFLOW}" ]; then
@@ -339,37 +351,59 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]*#.*$/, "", s); gsub(/["\047]/, "", s); return s
     }
     # step の出力を書く行を調べる。ENGINE_REV を読む形は `$(cat ENGINE_REV)` と `$(< ENGINE_REV)` だけを認め、
-    # 同じ出力名に別の値を書く行が 1 つでもあれば固定版とみなさない。
+    # 同じ出力名に別の値を書く行が 1 つでもあれば固定版とみなさない。キーはジョブ ID・step ID・出力名で、
+    # 別ジョブの step の出力は参照できない（steps コンテキストはジョブ内）。
     function scan_outputs(id, run,   n, arr, i, l, name) {
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
         l = arr[i]
         if (l !~ /GITHUB_OUTPUT/ || !match(l, /[A-Za-z0-9_-]+=/)) continue
         name = substr(l, RSTART, RLENGTH - 1)
-        if (l ~ /[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>>/) pinned[id SUBSEP name] = 1
-        else tainted[id SUBSEP name] = 1
+        if (l ~ /[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>>/) pinned[job SUBSEP id SUBSEP name] = 1
+        else tainted[job SUBSEP id SUBSEP name] = 1
       }
     }
-    function end_step(   m, id) {
+    # run が ENGINE_REV を取得版の指定に使うか。git / cargo / gh の取得系コマンドと同じ行に `$(cat ENGINE_REV)` が
+    # ある形だけを認める（表示だけの cat・echo は認めない。変数へ受けてから使う形は判定できないので拒否する）。
+    function run_pins(run,   n, arr, i, l) {
+      n = split(run, arr, "\n")
+      for (i = 1; i <= n; i++) {
+        l = arr[i]
+        if (l ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && l ~ /(^|[[:space:];&|(])(git|cargo|gh)[[:space:]]/ \
+            && l ~ /(checkout|switch|reset|fetch|clone|install|--rev|--branch|--tag)/ && l !~ /(^|[[:space:];&|(])(echo|printf)[[:space:]]/) return 1
+      }
+      return 0
+    }
+    function end_step(   m, p, pid, pname, k) {
       if (!in_step) return
       if (s_uses ~ /^actions\/checkout@/ && tolower(s_repo) == tolower(guard)) {
         engine++
         if (s_ref == "") print s_line ":D3 engine checkout has no ref (the version is not pinned)"
         else if (s_ref == rev) { }
         else if (match(s_ref, /^\$\{\{ *steps\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+ *\}\}$/)) {
+          # ID と出力名はリテラルの ".outputs." で分ける（正規表現にしない）。対象の checkout より前の同一ジョブの step だけを見る
           m = s_ref; sub(/^\$\{\{ *steps\./, "", m); sub(/ *\}\}$/, "", m)
-          pend[++np] = m; pend_line[np] = s_line
+          p = index(m, ".outputs.")
+          pid = substr(m, 1, p - 1); pname = substr(m, p + 9)
+          k = job SUBSEP pid SUBSEP pname
+          if (!(k in pinned) || (k in tainted))
+            print s_line ":D3 ref comes from step " pid " output " pname " which is not written only from ENGINE_REV earlier in the same job"
         } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
       }
       if (s_id != "") scan_outputs(s_id, s_run)
-      if (tolower(s_run) ~ /fandhe-ai\/fandhe-workshop/ && tolower(s_run) ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/ && s_run !~ read_re)
-        print s_line ":D4 run fetches the engine repo without referencing ENGINE_REV"
+      if (tolower(s_run) ~ /fandhe-ai\/fandhe-workshop/ && tolower(s_run) ~ /(git clone|cargo install|git fetch|gh repo clone|git submodule|curl|wget)/ && !run_pins(s_run))
+        print s_line ":D4 run fetches the engine repo without using ENGINE_REV as the version"
       in_step = 0
     }
-    BEGIN { read_re = "(cat +|< *)(\\./)?ENGINE_REV" }
     /^[[:space:]]*($|#)/ { next }
     {
       ind = indent($0)
+      if ($0 ~ /^jobs[[:space:]]*:/) injobs = 1
+      if (injobs && ind == 2 && $0 ~ /^  [A-Za-z0-9_-]+[[:space:]]*:/) {
+        end_step(); in_steps = 0
+        job = $0; sub(/^ +/, "", job); sub(/[[:space:]]*:.*$/, "", job)
+        next
+      }
       if ($0 ~ /^[[:space:]]*steps[[:space:]]*:/) { end_step(); in_steps = 1; steps_ind = ind; item_ind = -1; next }
       if (in_steps && ind <= steps_ind) { end_step(); in_steps = 0 }
       if (!in_steps) next
@@ -392,11 +426,6 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     END {
       end_step()
       if (engine == 0) print "0:D2 no actions/checkout step fetches the engine repo " guard
-      for (i = 1; i <= np; i++) {
-        split(pend[i], pn, ".outputs.")
-        k = pn[1] SUBSEP pn[2]
-        if (!(k in pinned) || (k in tainted)) print pend_line[i] ":D3 ref comes from step " pn[1] " output " pn[2] " which is not written only from ENGINE_REV"
-      }
     }
   ' "${PACK_WORKFLOW}")" || rc=$?
   [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${PACK_WORKFLOW}" >&2; exit 2; }

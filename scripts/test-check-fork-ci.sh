@@ -134,6 +134,18 @@ EOF
 GOOD_REV="${TMP_DIR}/ENGINE_REV"
 printf '%s\n' "${REV}" >"${GOOD_REV}"
 
+# splice <src> <out> <after|eq|prefix> <pattern> <text-file>: 複数行の差し替えを行う（BSD sed の置換文字列は
+# \n を改行にしないため、sed では作らない）。after = pattern を含む行の後ろへ text を足す / eq = 行全体が
+# pattern の行を text で置き換える / prefix = pattern で始まる行を text で置き換える。
+splice() {
+  awk -v mode="$3" -v pat="$4" -v f="$5" '
+    function emit(   l) { while ((getline l < f) > 0) print l; close(f) }
+    mode == "after" { print; if (index($0, pat) > 0) emit(); next }
+    mode == "eq" { if ($0 == pat) emit(); else print; next }
+    mode == "prefix" { if (index($0, pat) == 1) emit(); else print; next }
+  ' "$1" >"$2"
+}
+
 # variant <out> <sed-expr>: 良い見本の差分から違反の見本を作る（sed -e の式を 1 つ渡す）。
 variant() {
   local src="$1" out="$2" expr="$3"
@@ -178,13 +190,16 @@ printf '[registries.private]\nindex = "sparse+https://x.invalid/"\n' >"${TMP_DIR
 case_ "cargo private registry is rejected (A4)" 1 A4 --cargo-config-dir "${TMP_DIR}/cargo-registry"
 printf '[submodule "docs/spec"]\n\tpath = docs/spec\n\turl = https://github.com/Fandhe-AI/x.git\n' >"${TMP_DIR}/gitmodules-bad"
 case_ "submodule without update = none is rejected (A5)" 1 A5 --gitmodules "${TMP_DIR}/gitmodules-bad"
-variant "${GOOD_CI}" "${TMP_DIR}/ci-submodules.yml" 's|persist-credentials: false|persist-credentials: false\n          submodules: recursive|'
+printf '          submodules: recursive\n' >"${TMP_DIR}/t-sub"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-submodules.yml" after 'persist-credentials: false' "${TMP_DIR}/t-sub"
 case_ "checkout with submodules is rejected (A5)" 1 A5 --ci "${TMP_DIR}/ci-submodules.yml"
-variant "${GOOD_CI}" "${TMP_DIR}/ci-submodules-false.yml" 's|persist-credentials: false|persist-credentials: false\n          submodules: false|'
+printf '          submodules: false\n' >"${TMP_DIR}/t-sub"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-submodules-false.yml" after 'persist-credentials: false' "${TMP_DIR}/t-sub"
 case_ "checkout with submodules: false passes" 0 - --ci "${TMP_DIR}/ci-submodules-false.yml"
 
 echo "# B: secret references in the build/test workflow"
-variant "${GOOD_CI}" "${TMP_DIR}/ci-registry-env.yml" 's|    runs-on: ubuntu-latest|    runs-on: ubuntu-latest\n    env:\n      CARGO_REGISTRIES_X_TOKEN: dummy|'
+printf '    env:\n      CARGO_REGISTRIES_X_TOKEN: dummy\n' >"${TMP_DIR}/t-env"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-registry-env.yml" after '    runs-on: ubuntu-latest' "${TMP_DIR}/t-env"
 case_ "CARGO_REGISTR* word is rejected (B2)" 1 B2 --ci "${TMP_DIR}/ci-registry-env.yml"
 # shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
 variant "${GOOD_CI}" "${TMP_DIR}/ci-pat.yml" 's|echo "\${RUNNER_TEMP}/bin"|echo "${MY_PAT}"|'
@@ -227,17 +242,20 @@ variant "${GOOD_CI}" "${TMP_DIR}/ci-write.yml" 's|contents: read|contents: write
 case_ "write permission in ci.yml is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-write.yml"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-writeall.yml" 's|^permissions:|permissions: write-all|'
 case_ "write-all in ci.yml is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-writeall.yml"
-variant "${GOOD_CI}" "${TMP_DIR}/ci-env.yml" 's|    runs-on: ubuntu-latest|    runs-on: ubuntu-latest\n    environment: prod|'
+printf '    environment: prod\n' >"${TMP_DIR}/t-env"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-env.yml" after '    runs-on: ubuntu-latest' "${TMP_DIR}/t-env"
 case_ "environment in ci.yml is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-env.yml"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-deploy-job.yml" 's|^  check:|  deploy:|'
 case_ "deploy job in ci.yml is rejected (C3)" 1 C3 --ci "${TMP_DIR}/ci-deploy-job.yml"
 for trig in pull_request pull_request_target push schedule workflow_run; do
-  variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-${trig}.yml" "s|^  workflow_dispatch:|  workflow_dispatch:\n  ${trig}:|"
+  printf '  %s:\n' "${trig}" >"${TMP_DIR}/t-trig"
+  splice "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-${trig}.yml" after '  workflow_dispatch:' "${TMP_DIR}/t-trig"
   case_ "deploy.yml with ${trig} trigger is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-${trig}.yml"
 done
 variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-inline-on.yml" 's|^on:$|on: [push, workflow_dispatch]|;/^  workflow_dispatch:$/d'
 case_ "deploy.yml with an inline on: is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-inline-on.yml"
-variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-perm.yml" 's|^permissions: {}|permissions:\n  contents: read|'
+printf 'permissions:\n  contents: read\n' >"${TMP_DIR}/t-perm"
+splice "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-perm.yml" eq 'permissions: {}' "${TMP_DIR}/t-perm"
 case_ "deploy.yml with non-empty top-level permissions is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-perm.yml"
 variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-noguard.yml" '/^    if: /d'
 case_ "deploy job without the fork guard is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-noguard.yml"
@@ -276,12 +294,70 @@ case_ "git clone of the engine without ENGINE_REV is rejected (D4)" 1 D4 --pack-
 { cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          git -C engine2 checkout "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-ok.yml"
 case_ "git clone of the engine that reads ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-clone-ok.yml" --engine-rev "${GOOD_REV}"
 
+# D4: ENGINE_REV を表示するだけの行は版の指定とみなさない
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: |\n          git clone https://github.com/Fandhe-AI/fandhe-workshop engine2\n          cat ENGINE_REV\n'; } >"${TMP_DIR}/pack-clone-cat.yml"
+case_ "git clone followed by a bare cat ENGINE_REV is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-cat.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: git clone https://github.com/Fandhe-AI/fandhe-workshop engine2 && echo "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-echo.yml"
+case_ "git clone with ENGINE_REV only echoed is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-echo.yml" --engine-rev "${GOOD_REV}"
+
+# D3: 別ジョブ・後ろの step の出力は承認しない。step ID が "outputs" を含んでも誤って分割しない
+cat >"${TMP_DIR}/pack-otherjob.yml" <<EOF
+name: Build pack
+on:
+  push:
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read engine revision
+        id: rev
+        run: echo "rev=\$(cat ENGINE_REV)" >> "\${GITHUB_OUTPUT}"
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          repository: Fandhe-AI/fandhe-workshop
+          ref: \${{ steps.rev.outputs.rev }}
+          persist-credentials: false
+EOF
+case_ "ref from a step of another job is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-otherjob.yml" --engine-rev "${GOOD_REV}"
+cat >"${TMP_DIR}/pack-later.yml" <<EOF
+name: Build pack
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout engine
+        uses: actions/checkout@${SHA} # v7.0.1
+        with:
+          repository: Fandhe-AI/fandhe-workshop
+          ref: \${{ steps.rev.outputs.rev }}
+          persist-credentials: false
+      - name: Read engine revision
+        id: rev
+        run: echo "rev=\$(cat ENGINE_REV)" >> "\${GITHUB_OUTPUT}"
+EOF
+case_ "ref from a step that runs after the checkout is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-later.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_PACK}" "${TMP_DIR}/pack-id-outputs.yml" 's|id: rev|id: read_outputs|;s|steps\.rev\.outputs\.rev|steps.read_outputs.outputs.rev|'
+case_ "a step id containing 'outputs' passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-id-outputs.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_PACK}" "${TMP_DIR}/pack-dotless.yml" 's|steps\.rev\.outputs\.rev|steps.rev-outputs-rev|'
+case_ "a ref with a character in place of the dot is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-dotless.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_PACK}" "${TMP_DIR}/pack-dotany.yml" 's|id: rev|id: readXoutputsXrev|;s|steps\.rev\.outputs\.rev|steps.readXoutputsXrev.outputs.rev|'
+case_ "a step id with X in place of dots passes only by its own output (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-dotany.yml" --engine-rev "${GOOD_REV}"
+
 echo "# review follow-ups"
 variant "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-ortrue.yml" "s/^\\(    if: .*\\)\$/\\1 || true/"
 case_ "fork guard with '|| true' is rejected (C2)" 1 C2 --deploy "${TMP_DIR}/deploy-ortrue.yml"
 # 同じ step に別の値の出力を足す見本（id: rev の step 内に書く）
 # shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
-sed 's|^\(        run: echo "rev=.*\)$|        run: \|\n          echo "rev=main" >> "${GITHUB_OUTPUT}"\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"|' "${GOOD_PACK}" >"${TMP_DIR}/pack-taint2.yml"
+printf '        run: |\n          echo "rev=main" >> "${GITHUB_OUTPUT}"\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-taint2.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run"
 case_ "output also written with another value is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-taint2.yml" --engine-rev "${GOOD_REV}"
 # shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
 sed 's|^\(        run: echo "rev=.*\)$|        run: echo "rev=main" >> "${GITHUB_OUTPUT}" # ENGINE_REV|' "${GOOD_PACK}" >"${TMP_DIR}/pack-commentonly.yml"
@@ -295,6 +371,16 @@ else
   echo "ok - A2 output does not contain the resolved value"
   passed=$((passed + 1))
 fi
+
+# grep が 2 で失敗したら、$(...) の中でも握りつぶさず 2 で止まる（A3 の grep だけを失敗させる shim）
+mkdir -p "${TMP_DIR}/shim"
+REAL_GREP="$(command -v grep)"
+# shellcheck disable=SC2016 # shim の本文なので、シェルに展開させない
+printf '#!/bin/sh\ncase "$*" in *_authtoken*) exit 2 ;; esac\nexec "%s" "$@"\n' "${REAL_GREP}" >"${TMP_DIR}/shim/grep"
+chmod +x "${TMP_DIR}/shim/grep"
+rc=0
+PATH="${TMP_DIR}/shim:${PATH}" "${CHECK}" --secrets-checker "${STUB}" --npmrc "${TMP_DIR}/npmrc-ok" >/dev/null 2>&1 || rc=$?
+if [ "${rc}" = 2 ]; then echo "ok - a grep failure inside a report is not a pass (exit 2)"; passed=$((passed + 1)); else echo "not ok - grep failure (expected exit 2, got ${rc})"; failed=$((failed + 1)); fi
 
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
