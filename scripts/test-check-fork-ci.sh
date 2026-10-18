@@ -362,6 +362,27 @@ case_ "output also written with another value is rejected (D3)" 1 D3 --pack-work
 # shellcheck disable=SC2016 # sed の式なので、シェルに展開させない
 sed 's|^\(        run: echo "rev=.*\)$|        run: echo "rev=main" >> "${GITHUB_OUTPUT}" # ENGINE_REV|' "${GOOD_PACK}" >"${TMP_DIR}/pack-commentonly.yml"
 case_ "ENGINE_REV only in a comment is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-commentonly.yml" --engine-rev "${GOOD_REV}"
+# D4: ENGINE_REV を保存先の位置に置くだけの形は版の指定とみなさない
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Clone engine\n        run: git clone https://github.com/Fandhe-AI/fandhe-workshop "$(cat ENGINE_REV)"\n'; } >"${TMP_DIR}/pack-clone-dest.yml"
+case_ "git clone with ENGINE_REV as the destination is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-clone-dest.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+{ cat "${GOOD_PACK}"; printf '      - name: Install engine\n        run: cargo install --git https://github.com/Fandhe-AI/fandhe-workshop --rev "$(cat ENGINE_REV)" fandhe-pack\n'; } >"${TMP_DIR}/pack-cargo-rev.yml"
+case_ "cargo install with --rev ENGINE_REV passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-cargo-rev.yml" --engine-rev "${GOOD_REV}"
+
+# D3: ブロック形式の run のコメントにある ENGINE_REV は出力の根拠にしない
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: |\n          echo "rev=main" >> "${GITHUB_OUTPUT}" # rev=$(cat ENGINE_REV) >>\n' >"${TMP_DIR}/t-run2"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-blockcomment.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run2"
+case_ "ENGINE_REV only in a block-run comment is rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-blockcomment.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}" # pinned\n' >"${TMP_DIR}/t-run3"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-blockok.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run3"
+case_ "block run with a trailing comment on the pinned write passes (D3)" 0 - --pack-workflow "${TMP_DIR}/pack-blockok.yml" --engine-rev "${GOOD_REV}"
+# shellcheck disable=SC2016 # 見本の文字列なので、シェルに展開させない
+printf '        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"; echo "rev=main" >> "${GITHUB_OUTPUT}"\n' >"${TMP_DIR}/t-run4"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-oneline.yml" prefix '        run: echo "rev=' "${TMP_DIR}/t-run4"
+case_ "two writes of one output on one line are rejected (D3)" 1 D3 --pack-workflow "${TMP_DIR}/pack-oneline.yml" --engine-rev "${GOOD_REV}"
 printf '{"packages":{"node_modules/a":{"resolved":"https:%suser:pw%snpm.example.invalid/a.tgz"}}}\n' "//" "${AT}" >"${TMP_DIR}/npm-cred.json"
 "${CHECK}" --secrets-checker "${STUB}" --package-lock "${TMP_DIR}/npm-cred.json" >/dev/null 2>"${TMP_DIR}/err" || true
 if grep -q 'pw' "${TMP_DIR}/err"; then

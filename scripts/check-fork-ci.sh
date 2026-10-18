@@ -26,7 +26,8 @@
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進 1 行
 #     D2 エンジン repo を取得する checkout が 1 つ以上ある
 #     D3 その ref が ENGINE_REV の値、または同じジョブの前の step が ENGINE_REV だけから書いた出力
-#     D4 run でエンジン repo を取得する run が、取得系コマンドの行で `$(cat ENGINE_REV)` を版の指定に使っている
+#     D4 run でエンジン repo を取得する run が、`$(cat ENGINE_REV)` を checkout / reset / fetch の対象か --rev 等の値の位置で使っている
+#        （git clone の保存先など版を指定しない位置は不可）
 #
 # deploy.yml の起点を変える場合（TASK-121）は、C2 と回帰テストを同時に直す。
 #
@@ -350,27 +351,57 @@ if [ -n "${PACK_WORKFLOW}" ]; then
     function trim_val(s) {
       sub(/^[^:]*:[[:space:]]*/, "", s); sub(/[[:space:]]*#.*$/, "", s); gsub(/["\047]/, "", s); return s
     }
-    # step の出力を書く行を調べる。ENGINE_REV を読む形は `$(cat ENGINE_REV)` と `$(< ENGINE_REV)` だけを認め、
-    # 同じ出力名に別の値を書く行が 1 つでもあれば固定版とみなさない。キーはジョブ ID・step ID・出力名で、
-    # 別ジョブの step の出力は参照できない（steps コンテキストはジョブ内）。
-    function scan_outputs(id, run,   n, arr, i, l, name) {
+    # シェルの行からコメント（空白の直後の # 以降。引用の外のものだけ）を除く。ブロック形式の run の行にも使う。
+    function strip_comment(s,   i, c, q) {
+      q = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (c == "\\" && q != "\047") { i++; continue }
+        if (q == "") {
+          if (c == "\047" || c == "\"") q = c
+          else if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[[:space:]]/)) return substr(s, 1, i - 1)
+        } else if (c == q) q = ""
+      }
+      return s
+    }
+    # step の出力を書く行を調べる。固定版として認めるのは、コメントを除いた行全体が
+    # `echo NAME=$(cat ENGINE_REV) >> $GITHUB_OUTPUT`（引用・波括弧は任意）の形のときだけ。
+    # それ以外で GITHUB_OUTPUT に触れる行は、行内の全ての NAME= を汚染として記録する（名前を取れない場合に備え全名の印も付ける）。
+    # キーはジョブ ID・step ID・出力名で、別ジョブの step の出力は参照できない（steps コンテキストはジョブ内）。
+    function scan_outputs(id, run,   n, arr, i, l, rest, name) {
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
-        l = arr[i]
-        if (l !~ /GITHUB_OUTPUT/ || !match(l, /[A-Za-z0-9_-]+=/)) continue
-        name = substr(l, RSTART, RLENGTH - 1)
-        if (l ~ /[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>>/) pinned[job SUBSEP id SUBSEP name] = 1
-        else tainted[job SUBSEP id SUBSEP name] = 1
+        l = strip_comment(arr[i])
+        if (l !~ /GITHUB_OUTPUT/) continue
+        if (l ~ /^[[:space:]]*echo +["\047]?[A-Za-z0-9_-]+=\$\((cat +|< *)(\.\/)?ENGINE_REV\)["\047]? *>> *["\047]?\$\{?GITHUB_OUTPUT\}?["\047]? *$/) {
+          name = l; sub(/^[[:space:]]*echo +["\047]?/, "", name); sub(/=.*$/, "", name)
+          pinned[job SUBSEP id SUBSEP name] = 1
+          continue
+        }
+        tainted[job SUBSEP id SUBSEP "*"] = 1
+        rest = l
+        while (match(rest, /[A-Za-z0-9_-]+=/)) {
+          tainted[job SUBSEP id SUBSEP substr(rest, RSTART, RLENGTH - 1)] = 1
+          rest = substr(rest, RSTART + RLENGTH)
+        }
       }
     }
-    # run が ENGINE_REV を取得版の指定に使うか。git / cargo / gh の取得系コマンドと同じ行に `$(cat ENGINE_REV)` が
-    # ある形だけを認める（表示だけの cat・echo は認めない。変数へ受けてから使う形は判定できないので拒否する）。
-    function run_pins(run,   n, arr, i, l) {
+    # run が ENGINE_REV を取得版の指定に使うか。`$(cat ENGINE_REV)` の直前が版を指定する位置のときだけ認める:
+    # git checkout / switch の対象、git reset の対象、git fetch の ref、--rev / --branch / --tag の値。
+    # git clone の URL の後ろ（保存先）や表示だけの echo・cat は認めない。変数へ受けてから使う形は判定できないので拒否する。
+    function run_pins(run,   n, arr, i, rest, pre) {
       n = split(run, arr, "\n")
       for (i = 1; i <= n; i++) {
-        l = arr[i]
-        if (l ~ /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/ && l ~ /(^|[[:space:];&|(])(git|cargo|gh)[[:space:]]/ \
-            && l ~ /(checkout|switch|reset|fetch|clone|install|--rev|--branch|--tag)/ && l !~ /(^|[[:space:];&|(])(echo|printf)[[:space:]]/) return 1
+        rest = strip_comment(arr[i]); pre = ""
+        while (match(rest, /\$\((cat +|< *)(\.\/)?ENGINE_REV\)/)) {
+          pre = pre substr(rest, 1, RSTART - 1)
+          if (pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +(checkout|switch)( +-[A-Za-z-]+)* +["\047]?$/ \
+              || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +reset( +--[a-z]+)* +["\047]?$/ \
+              || pre ~ /(^|[[:space:];&|(])git( +-C +[^ ]+)? +fetch( +-[-A-Za-z0-9=]+)*( +[^ -][^ ]*){0,3} +["\047]?$/ \
+              || pre ~ /(^|[[:space:];&|(])(git|cargo)( +[^ ]+)* +--(rev|branch|tag)[ =]+["\047]?$/) return 1
+          pre = pre substr(rest, RSTART, RLENGTH)
+          rest = substr(rest, RSTART + RLENGTH)
+        }
       }
       return 0
     }
@@ -386,7 +417,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
           p = index(m, ".outputs.")
           pid = substr(m, 1, p - 1); pname = substr(m, p + 9)
           k = job SUBSEP pid SUBSEP pname
-          if (!(k in pinned) || (k in tainted))
+          if (!(k in pinned) || (k in tainted) || ((job SUBSEP pid SUBSEP "*") in tainted))
             print s_line ":D3 ref comes from step " pid " output " pname " which is not written only from ENGINE_REV earlier in the same job"
         } else print s_line ":D3 engine checkout ref is not ENGINE_REV or an output of the step that reads it"
       }
