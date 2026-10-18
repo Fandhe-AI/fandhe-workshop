@@ -116,6 +116,13 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     ex.diags.splice(0..0, module_diags);
     let needs_do = crate::slot_check::check_expanded(pack, &ex.nodes, &starts);
     ex.diags.extend(needs_do);
+    // 引数に依存する左エリアの宛先は、展開の後の Step で検査する（読めない設定は別に `E-PARSE`）。
+    let (left_pane, left_parse) =
+        crate::left_pane::check_left_pane(&pack.workshop_file, &pack.workshop);
+    if left_parse.is_empty() {
+        let left = crate::left_pane::check_left_expanded(pack, left_pane, &ex.nodes, &starts);
+        ex.diags.extend(left);
+    }
     let mut seen = BTreeSet::new();
     ex.diags
         .into_iter()
@@ -127,6 +134,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::Limit
                     | DiagCode::SlotNeedsDo
                     | DiagCode::EmptyNextAction
+                    | DiagCode::LeftTargetView
+                    | DiagCode::LeftTargetRow
             )
         })
         .filter(|d| seen.insert(format!("{d:?}")))

@@ -82,7 +82,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     ex.diags.extend(appearance_diags);
     // 読めない `left_pane` は `E-PARSE` だけを報告し、モードが決まらないため `E-LEFT-*` は検査しない。
     let (left_pane, left_parse) = crate::left_pane::check_left_pane(&pack.workshop_file, w);
-    if left_parse.is_empty() {
+    let left_pane_ok = left_parse.is_empty();
+    if left_pane_ok {
         ex.diags
             .extend(crate::left_pane::check_left_targets(pack, left_pane));
     }
@@ -162,6 +163,12 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     ex.diags = Vec::new();
     starts.extend(ex.module_starts(&mut start_ids));
     diags.append(&mut ex.diags);
+    // 引数に依存する左エリアの宛先は、展開の後の Step で検査する。
+    if left_pane_ok {
+        diags.extend(crate::left_pane::check_left_expanded(
+            pack, left_pane, &ex.nodes, &starts,
+        ));
+    }
     // 入力方式の宣言（章とモジュールの全 Step）を、型で読めるかと意味の制約で検査する（TASK-44）。
     // 入力を持つ Step が確認も理由つきの省略も持たないことと、確認の宣言を検査する（TASK-47、PACK-13）。
     // 接頭辞と入力欄の有無に反する入力・規則を検査する（TASK-52、PACK-20）。

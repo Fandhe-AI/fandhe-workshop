@@ -352,3 +352,54 @@ fn cli_reports_all_three_codes_and_accepts_the_fixed_pack() {
         String::from_utf8_lossy(&o.stdout)
     );
 }
+
+/// 章の Step `u` が、モジュール `m1`（Step `ma`、`ma_extra` を足す）を引数 `v` つきで呼ぶ。
+fn module_pack(left_pane: &str, arg: &str, ma_extra: &str) -> Tmp {
+    let t = Tmp::new("left-pane-mod");
+    t.put("workshop.yaml", workshop(left_pane).as_bytes());
+    let chapter = format!(
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: u}}]\nsteps:\n  - {{id: u, title: U, use: {{module: m1, instance: i1, args: {{v: {arg}}}}}, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+    );
+    t.put(CHAPTER_FILE, chapter.as_bytes());
+    let module = format!(
+        "id: m1\ntitle: M\nparams: {{v: v1}}\nsteps:\n  - {{id: ma, title: MA, final: true, {ma_extra}}}\n"
+    );
+    t.put("modules/m1/module.yaml", module.as_bytes());
+    t
+}
+
+#[test]
+fn argument_driven_views_are_checked_after_expansion() {
+    // 引数で宣言したビュー v2 と、固定の宛先 v2 は同じ。展開の前に v1 へ倒して誤拒否しない。
+    let ok = "views: ['${v}'], input: {kind: ui_action, targets: [{view: v2, path: f/x}]}, confirm: {kind: none, reason: r}, on_enter: [{put: {path: f/x, attrs: {k: v}}}]";
+    let t = module_pack("{view_tabs: declared}", "v2", ok);
+    assert!(left(&t).is_empty(), "{:?}", left(&t));
+    // 引数が別のビュー v1 なら、宛先 v2 は画面に出ない。
+    let t = module_pack("{view_tabs: declared}", "v1", ok);
+    let d = left(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(
+        d[0].starts_with("modules/m1/module.yaml: step:ma: E-LEFT-TARGET-VIEW"),
+        "{}",
+        d[0]
+    );
+}
+
+#[test]
+fn argument_driven_targets_are_checked_after_expansion() {
+    let body = "views: [v1], input: {kind: ui_action, targets: [{view: '${v}', path: f/x}]}, confirm: {kind: none, reason: r}, on_enter: [{put: {path: f/x, attrs: {k: v}}}]";
+    // 画面内のビューを引数で指定すれば報告しない。
+    let t = module_pack("{view_tabs: declared}", "v1", body);
+    assert!(left(&t).is_empty(), "{:?}", left(&t));
+    // 画面外のビューを引数で指定すると報告する。
+    let t = module_pack("{view_tabs: declared}", "v2", body);
+    let d = left(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(d[0].contains("E-LEFT-TARGET-VIEW"), "{}", d[0]);
+    // 経路を引数で指定し、どこにも置かれなければ報告する。
+    let row = "views: [v1], input: {kind: ui_action, targets: [{view: v1, path: 'f/${v}'}]}, confirm: {kind: none, reason: r}, on_enter: [{put: {path: f/other, attrs: {k: v}}}]";
+    let t = module_pack("{world_list: hidden}", "zz", row);
+    let d = left(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(d[0].contains("E-LEFT-TARGET-ROW"), "{}", d[0]);
+}
