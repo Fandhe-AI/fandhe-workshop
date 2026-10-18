@@ -503,6 +503,9 @@ if [ -n "${PACK_WORKFLOW}" ]; then
       # checkout は保存先（path を省けば作業領域のルート）を clean するため、エンジンを消しうる。保存先は解釈せず一律に拒否する
       u = tolower(st_uses[i]); gsub(/["\047]/, "", u)
       if (u ~ /^actions\/checkout@/) return "is an actions/checkout (a checkout cleans its destination, the workspace root when path is omitted, and can remove or replace the engine; destinations are not interpreted)"
+      # uses を複数行のスカラーで書くと値を字句で確定できない。step の本文のどこかに checkout が現れれば同じく拒否する
+      if (u ~ /^[>|]/) return "has a uses value that is not on the same line (block or folded scalar)"
+      if (index(tolower(t), "actions/checkout")) return "mentions actions/checkout (a checkout can remove or replace the engine; only a plain same-line uses is read)"
       if (tolower(t) ~ /(^|[^a-z0-9])git([^a-z0-9]|$)/) return "mentions git"
       if (index(tolower(t), "fandhe-ai/fandhe-workshop")) return "mentions the engine repo"
       if (index(tolower(t), "engine_rev")) return "mentions ENGINE_REV"

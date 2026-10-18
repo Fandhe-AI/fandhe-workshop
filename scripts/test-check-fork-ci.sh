@@ -659,6 +659,11 @@ case_ "a flow-style read-only permissions map passes (C1)" 0 - --ci "${TMP_DIR}/
 case_ "later checkout without a path (workspace root) is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-root-checkout.yml" --engine-rev "${GOOD_REV}"
 { cat "${GOOD_PACK}"; printf '      - uses: "Actions/Checkout@%s"\n' "${SHA}"; } >"${TMP_DIR}/pack-root-checkout-quoted.yml"
 case_ "later quoted, mixed-case checkout without with is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-root-checkout-quoted.yml" --engine-rev "${GOOD_REV}"
+# uses を折り返し・ブロックのスカラーで書くと、同じ行の値には checkout が現れない
+{ cat "${GOOD_PACK}"; printf '      - uses: >-\n          actions/checkout@%s\n' "${SHA}"; } >"${TMP_DIR}/pack-folded-checkout.yml"
+case_ "later checkout in a folded uses scalar is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-folded-checkout.yml" --engine-rev "${GOOD_REV}"
+{ cat "${GOOD_PACK}"; printf '      - uses: |\n          actions/checkout@%s\n' "${SHA}"; } >"${TMP_DIR}/pack-block-checkout.yml"
+case_ "later checkout in a block uses scalar is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-block-checkout.yml" --engine-rev "${GOOD_REV}"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-no-perm.yml" '/^permissions:$/d;/^  contents: read$/d'
 case_ "ci.yml without top-level permissions is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-no-perm.yml"
 printf '    permissions:\n      contents: read\n' >"${TMP_DIR}/t-job-perm"
