@@ -3733,3 +3733,19 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | PACK30-1 | crates/pack/src/element_check.rs: E-REF-ELEMENT の判定を常に偽にする | pack30_missing_element_defects_reported_at_expected_location | pack30_missing_element_defects_reported_at_expected_location, pack30_unsafe_path_and_values_are_not_echoed, pack30_start_effects_are_checked_and_put_by_start_places | DETECTED |
 
 `placed` の共有化（`left_pane.rs` から `placed.rs` へ移した）の後も、`PACK22-3` が DETECTED であることを同じ実行で確かめた。
+
+### 5.121 宣言より新しい語彙を使う教材の検査（TASK-59 1/2）
+
+`pack.vocab` を書いた教材が、宣言より新しい版の拡張点（EP-9〜EP-12）を使うと、`validate` が `E-VOCAB-MISMATCH` を拡張点ごとに 1 件報告することを確かめる（PACK-31・VER-14・D-43）。宣言が一致する教材と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になることを試験する（`vocab_declaration`）。
+
+- PACK31-1: 宣言と必要な版の比較を常に偽にする
+
+```text
+実行日: 2026-10-18
+元にしたコミット: 69ed2fe（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK31-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK31-1 | crates/pack/src/vocab_check.rs: 宣言と必要な版の比較を常に偽にする | pack31_ep9_with_vocab_below_1_2_is_reported | pack31_ep9_with_vocab_below_1_2_is_reported, pack31_ep9_in_module_start_is_reported, pack31_newer_vocab_than_declared_is_reported, pack31_one_diagnostic_per_extension_point, pack31_spec_pack_declaring_1_0_but_using_requires_is_reported | DETECTED |

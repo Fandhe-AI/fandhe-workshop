@@ -422,6 +422,11 @@ fn correct_testdata_packs_have_no_false_positives() {
         if is_defect_overlay(&root) {
             continue;
         }
+        // `v1.0.0-vocab-1.0` は、`1.0` を宣言して `requires`（EP-9）を使う PACK-31 の欠陥の例であり、
+        // `E-VOCAB-MISMATCH` になるのが正しい（`vocab_declaration.rs` が確かめる）。
+        if root.ends_with("packs/v1.0.0-vocab-1.0") {
+            continue;
+        }
         // 読み込みに失敗するパック（欠陥を含む試験データ等）は、参照の検査の対象外にする。
         let Ok(pack) = load(&root) else { continue };
         checked += 1;

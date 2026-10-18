@@ -1,7 +1,7 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 2
+診断コードの一覧の版: 3
 決定日: 2026-10-18
 状態: 固定（契約）
 ```
@@ -13,7 +13,7 @@
 - 「一覧の版」は本文書の整数の版である。語彙の版・`ir_format`・`LIMITS_CONTRACT_VERSION` とは別に管理する
 - 区分の「語彙の文書」は、PoC の語彙の文書（v1 の 13 節、v1.1、v1.3）を指す。repo の `docs/vocabulary/vocabulary.md` ではない（同文書の 10 節が診断コードを本一覧に委ねている）
 - 条件は要旨である。検査の中身の正は、04 の各 PACK と各実装タスク（TASK-46・TASK-47・TASK-49〜TASK-55 など）とする
-- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致の自動検査は TASK-400 が持つ。版 2 は自動検査を持たない
+- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致の自動検査は TASK-400 が持つ。版 3 は自動検査を持たない
 - 仕様は private のため、本文を転記せず ID で参照する
 
 ### 変更規則
@@ -24,7 +24,7 @@
 
 ## 2. 本表（04 の PACK-2〜PACK-30 に現れるコード、および実装で足したコード）
 
-本表の行数を「一覧の件数」とする（33 件）。他の節には、本表と同じ形の行を置かない。
+本表の行数を「一覧の件数」とする（34 件）。他の節には、本表と同じ形の行を置かない。
 
 | コード | 出る条件（要旨） | 出所の 04 の ID | 区分 |
 |---|---|---|---|
@@ -39,6 +39,7 @@
 | `E-REF-MODULE` | 存在しないモジュールを参照している | PACK-28 | 語彙 v1 |
 | `E-REF-COMMAND` | 存在しないコマンドを参照している | PACK-28 | 実装にだけ |
 | `E-REF-ELEMENT` | `remove`・`set_attr` の経路を、教材のどの `put`・`replace` も置かない（静的な近似で、必要条件だけを調べる。順序に依る不在は検出しない。`validate` だけが検出し、`compile` は検出しない） | PACK-30 | 実装にだけ |
+| `E-VOCAB-MISMATCH` | `pack.vocab` を書いた教材が、宣言より新しい語彙の版の拡張点（EP-9 は 1.2、EP-10〜EP-12 は 1.3）を使っている（`pack.vocab` を省略した教材は検査しない。`validate` だけが検出し、`compile` は検出しない） | PACK-31 | 実装にだけ |
 | `E-REF-BODY` | 存在しない本文を参照している | PACK-28 | 語彙 v1 |
 | `E-DUP-ID` | Step の ID が重複している（章をまたいでも） | PACK-28 | 語彙 v1 |
 | `E-UNREACHABLE` | どの開始点からも到達できない Step がある | PACK-28 | 語彙 v1 |
@@ -66,7 +67,7 @@
 
 ## 3. 件数の記録
 
-- 本表は 33 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT` を足した（変更履歴）
+- 本表は 34 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH` を足した（変更履歴）
 - 数え方: 当該の行から正規表現 `E-[A-Z][A-Z0-9*]*(-[A-Z0-9*]+)*` で取り出して重複を除く。`GUIDE-14` のような ID の後半が当たった数字だけの形は数えない
 - PACK-2〜PACK-28 の行には、`E-LIMIT-*`・`E-INSTR-*` は現れない
 
@@ -89,6 +90,7 @@
 | PACK-22 | `E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW` | 3 |
 | PACK-24 | `E-FORMAT-VERSION` | 1 |
 | PACK-30 | `E-REF-ELEMENT` | 1 |
+| PACK-31 | `E-VOCAB-MISMATCH` | 1 |
 | PACK-28 | `E-REF-STEP`・`E-REF-VIEW`・`E-REF-FIXTURE`・`E-REF-HINT`・`E-REF-REJECTION`・`E-REF-MODULE`・`E-REF-COMMAND`・`E-REF-BODY`・`E-DUP-ID`・`E-UNREACHABLE`・`E-DEAD-END`・`E-MODULE-CYCLE`・`E-EMPTY-NEXT-ACTION`・`E-NO-CONFIRM`・`E-FORMAT-VERSION`・`E-STRUCTURE` | 16 |
 
 件数は ID ごとの出現数であり、足し合わせても本表の件数にはならない（同じコードが複数の ID に現れるため）。
@@ -100,12 +102,12 @@
 | 語彙の文書（v1） | 15 |
 | 語彙の文書（v1.1） | 7 |
 | 語彙の文書（v1.3） | 8 |
-| 実装にだけある | 3（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`） |
-| 合計 | 33 |
+| 実装にだけある | 4（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`） |
+| 合計 | 34 |
 
 ### 実装の列挙との対応
 
-`DiagCode::ALL` は 40 件である。内訳は、本表 33 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
+`DiagCode::ALL` は 41 件である。内訳は、本表 34 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
 
 ## 4. 上限超過のコード（参照のみ）
 
@@ -134,3 +136,4 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 |---|---|---|---|
 | 1 | 2026-10-15 | 初版。04 の PACK-2〜PACK-28 に現れる 32 件を固定。`E-LIMIT-*` は参照のみ | TASK-195 |
 | 2 | 2026-10-18 | `E-REF-ELEMENT` を足し、33 件にした。04 の PACK-30 は検査の範囲（存在しない要素への `remove`・`set_attr`）を定めるがコード名を持たず、名前は実装の側で付けた。既存の行は変えていない | TASK-58 2/2・D-43 |
+| 3 | 2026-10-18 | `E-VOCAB-MISMATCH` を足し、34 件にした。04 の PACK-31 は宣言と使用の食い違いを診断にすると定めるがコード名を持たず、名前は実装の側で付けた。既存の行は変えていない | TASK-59 1/2・D-43 |
