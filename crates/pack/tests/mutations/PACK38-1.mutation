@@ -1,0 +1,8 @@
+id: PACK38-1
+package: fandhe-workshop-contract
+test: view_body_contract
+target: crates/contract/src/view_body.rs
+find:     ViewBody::from_vocab(s).ok_or(ViewBodyReadError::Unknown)
+replace:     Ok(ViewBody::from_vocab(s).unwrap_or_default())
+expect-fail: unknown_spelling_is_refused_exactly
+note: 未知の綴りの拒否を外す（visible などが黙って hidden として通る）

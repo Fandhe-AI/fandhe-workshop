@@ -285,6 +285,28 @@ pack:
 - 同じ宛先が複数あれば、同じ診断が重ねて出ます
 - 診断の文面は固定です。ビューの ID や経路は、英数字・`_`・`.`・`-` だけで書かれているときに限って写します
 
+## 文書のビューの本文（`views.<ID>.body`）
+
+文書のビューが、練習データ（`fixtures/` のファイル）の本文を出すかどうかを、ビューごとに宣言できます（PACK-38・D-50・D-51。語彙 1.4、拡張点 EP-13）。
+
+| 値 | 意味 |
+|---|---|
+| `hidden`（既定） | 題・属性・注記だけを出す（今までと同じ） |
+| `shown` | 行の要素が持つ練習データの本文を、その行の本文として出す |
+
+```yaml
+views:
+  v-doc: { kind: document, body: shown }
+```
+
+- 出す本文は、世界状態の要素の `fixture`（練習データの ID）で決まります。状態変化の `put`・`replace` で `fixture` を別の練習データの ID に替えると、出る本文も替わります。書き換えた後の本文は、あらかじめ別の練習データとして用意してください。新しい語は要りません
+- `body` は `kind` を問わず読み、検査します。文書のビュー以外に書いても、画面は使いません
+- 値は `shown`・`hidden` だけです。名前にない値（大文字を含む）と、文字列でない値（`null` を含む）は `E-PARSE`（項目 `view:<ID>`）になり、`compile` は IR を出しません。診断の文面は固定で、書いた値を写しません
+- `body` を書く教材は、`pack.vocab` に `1.4` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- IR の型は変わりません。`body` を書かない教材の IR は、今までとバイト単位で同じです。本文の木は、版 2 の `fixture_docs` に宣言したすべての練習データが既に載っています
+- 画面への表示は、画面のタスク（ART-18）が結線します。本節の時点では、宣言と、本文の木を引く関数（`contract::view_body::body_doc`）までが入っています
+- 練習データの中の、選んだ値の差し込みは、この語では扱いません（後続のタスクで扱います）
+
 ## 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`）
 
 世界状態は空で始まり、要素を作るのは `put`・`replace` だけです。置かれていない経路への `remove`・`set_attr` は、
@@ -310,12 +332,12 @@ pack:
 ## `pack.vocab` の宣言と使用の一致（`E-VOCAB-MISMATCH`）
 
 宣言より新しい語彙を使う教材は、履歴の「語彙の軸」が宣言に頼るため、版違いの履歴の理由を特定できません。
-`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 4）。
+`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 5）。
 
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）です。
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）です。
   値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
@@ -362,7 +384,7 @@ pack:
 | `crates/pack/tests/radix_literals.rs` の `pack5_` | 10 進でない整数（`0x1f` 等）をどの位置でも両形式で `E-PARSE` で拒否し、値を写さないこと（PACK-5） |
 | `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性・Step の巡回・規則の遮蔽を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
 | `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
-| `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-12）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |
+| `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-13）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |
 | `crates/pack/tests/soft_break_join.rs` の `pack27_` | 前後が CJK の行の途中の改行だけが連結され、英数字・混在・インラインの境界・強制改行は変わらないこと（PACK-27・D-51） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
@@ -379,3 +401,5 @@ pack:
 | `crates/pack/tests/appearance.rs` | 外観 4 値の読み込み、名前にない値と未知の欄の `E-PARSE`、`validate` との一致、TOML・CLI、スタイル欄が 0 件であること（PACK-21） |
 | `crates/pack/tests/left_pane.rs` | 左エリアの設定の読み込みと `E-PARSE`、`E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW` が期待のファイル・項目で出ること、既定では出ないこと、`compile`・`validate`・TOML・CLI の一致（PACK-22） |
 | `crates/contract/tests/left_pane_contract.rs` | 左エリアの 2 項目の閉じた集合、既定値、名前にない値・型違い・未知の欄の拒否（PACK-22） |
+| `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
+| `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |

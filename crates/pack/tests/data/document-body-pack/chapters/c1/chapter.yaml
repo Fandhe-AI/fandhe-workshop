@@ -1,0 +1,35 @@
+id: c1
+title: 文書の章
+starts: [{id: s1, node: a}]
+steps:
+  - id: a
+    title: A
+    body: a.md
+    views: [v-doc]
+    on_enter:
+      - put: {path: notes/draft, fixture: doc-a}
+    on_achieved:
+      - replace: {path: notes/draft, fixture: doc-b}
+    next: [{to: b}]
+    input:
+      kind: approval
+    rules:
+      - id: r-approve
+        on: {approval: approve}
+        outcome: {kind: accept}
+      - id: r-decline
+        on: {approval: reject}
+        outcome: {kind: reject, rejection: rj-decline}
+    confirm: {kind: none, reason: 承認そのものが意思表示のため、別の確認を置かない。}
+  - id: b
+    title: B
+    body: b.md
+    views: [v-doc]
+    final: true
+    input:
+      kind: approval
+    rules:
+      - id: r-approve
+        on: {approval: approve}
+        outcome: {kind: accept}
+    confirm: {kind: none, reason: 承認そのものが意思表示のため、別の確認を置かない。}

@@ -58,7 +58,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── CONTRIBUTING.md           # 貢献ガイド（人向けの入口）
 ├── docs/glossary.md          # 用語集（章・Step・IR・語彙など）
 ├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
-├── docs/vocabulary/          # 語彙の文書（語彙 v1〜v1.3 の語の版・拡張点 EP-1〜EP-12 の固定）
+├── docs/vocabulary/          # 語彙の文書（語彙 v1〜v1.4 の語の版・拡張点 EP-1〜EP-13 の固定）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 4。TASK-195・TASK-58・TASK-59）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴の節。主版・pack.vocab の規約は TASK-179 で追加）

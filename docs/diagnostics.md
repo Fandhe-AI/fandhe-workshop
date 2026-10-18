@@ -1,7 +1,7 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 4
+診断コードの一覧の版: 5
 決定日: 2026-10-18
 状態: 固定（契約）
 ```
@@ -13,7 +13,7 @@
 - 「一覧の版」は本文書の整数の版である。語彙の版・`ir_format`・`LIMITS_CONTRACT_VERSION` とは別に管理する
 - 区分の「語彙の文書」は、PoC の語彙の文書（v1 の 13 節、v1.1、v1.3）を指す。repo の `docs/vocabulary/vocabulary.md` ではない（同文書の 10 節が診断コードを本一覧に委ねている）
 - 条件は要旨である。検査の中身の正は、04 の各 PACK と各実装タスク（TASK-46・TASK-47・TASK-49〜TASK-55 など）とする
-- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致の自動検査は TASK-400 が持つ。版 4 は自動検査を持たない
+- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致の自動検査は TASK-400 が持つ。版 5 は自動検査を持たない
 - 仕様は private のため、本文を転記せず ID で参照する
 
 ### 変更規則
@@ -65,6 +65,7 @@
 
 - `E-PROFILE-*`・`E-LEFT-*` は、`pack.profile`・`pack.left_pane` を既定から変えたときだけ検査される
 - `E-VOCAB-MISMATCH` の対象には、上の行の拡張点に加えて、番号を持たない `confirm.options[].label`（語彙 1.3。`answer` の選択肢の表示名）も含まれる（版 4。固定した行は書き換えず、本注で補う）。入力方式 `choice` の `options[].label`（語彙 v1）は別の欄で、対象ではない
+- `E-VOCAB-MISMATCH` の対象には、EP-13（`view.document_body`。`views.<ID>.body`、語彙 1.4）も含まれる（版 5。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 
 ## 3. 件数の記録
 
@@ -139,3 +140,4 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 2 | 2026-10-18 | `E-REF-ELEMENT` を足し、33 件にした。04 の PACK-30 は検査の範囲（存在しない要素への `remove`・`set_attr`）を定めるがコード名を持たず、名前は実装の側で付けた。既存の行は変えていない | TASK-58 2/2・D-43 |
 | 3 | 2026-10-18 | `E-VOCAB-MISMATCH` を足し、34 件にした。04 の PACK-31 は宣言と使用の食い違いを診断にすると定めるがコード名を持たず、名前は実装の側で付けた。既存の行は変えていない | TASK-59 1/2・D-43 |
 | 4 | 2026-10-18 | `E-VOCAB-MISMATCH` の対象に `confirm.options[].label`（語彙 1.3）を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | TASK-59 2/2・D-43 |
+| 5 | 2026-10-18 | `E-VOCAB-MISMATCH` の対象に EP-13（`views.<ID>.body`、語彙 1.4）を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | TASK-66 1/2・D-43 |

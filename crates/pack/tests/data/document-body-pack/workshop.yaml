@@ -1,0 +1,9 @@
+# document-body-pack（形式 B）。文書ビューの本文の語（EP-13）の試験用で、架空の内容だけを持つ。
+pack: {id: document-body-pack, title: 文書の本文, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.4'}
+views:
+  v-doc: {kind: document, body: shown}
+fixtures:
+  doc-a: {path: fixtures/doc-a.md, kind: document}
+  doc-b: {path: fixtures/doc-b.md, kind: document}
+rejections:
+  rj-decline: {category: not_in_this_step, message: まだ公開しません。, next_action: もう一度決めます。}
