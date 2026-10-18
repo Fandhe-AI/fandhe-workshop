@@ -3,7 +3,7 @@
 # ローカル（`make check`）・Git hooks（lefthook.yml）・CI が同じコマンド契約を共有する。
 # CI 側で独自のチェックを定義せず、scripts/ の実体を呼ぶ（make スキルの「入口は複数でも
 # 実処理の定義は一つ」）。Rust のジョブ（rust-lint / rust-test）はこの骨格に載せ、後続タスクが
-# 足す検査（wasm32 ビルド・ブラウザ試験等）も本ファイルへ追加する。
+# 足す検査も本ファイルへ追加する（ブラウザ試験は browser-test ジョブ）。
 # ジョブを足したら、必ず ci-complete の needs と ruleset の必須チェックにも追加すること。
 #
 # 本ファイルは pull_request で動くため、secret を一切参照しない（scripts/check-workflow-secrets.sh が
@@ -37,6 +37,11 @@ env:
   EDITORCONFIG_CHECKER_SHA256: "cd32084fce5f3d49ba49697f362ac3a114989715c98819303247dd54c1f368b0"
   SHELLCHECK_VERSION: "0.11.0"
   SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+  # browser-test ジョブが導入する wasm-bindgen CLI。版は docs/toolchain.md と Cargo.lock の wasm-bindgen に揃える
+  # （食い違いは tools/build-web.sh が止める）。SHA256 は x86_64-unknown-linux-musl の資産を実際にダウンロードして
+  # 実測し、リリース API の digest と一致することを確認した値（2026-10-18）。
+  WASM_BINDGEN_VERSION: "0.2.128"
+  WASM_BINDGEN_SHA256: "b51f0208fdff83515a787bd8ab9ac5865ed84dabb66d0c709957bb59793c645f"
 
 jobs:
   # 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（scripts/ci-changes.sh）。
@@ -229,7 +234,7 @@ jobs:
 
   # Rust のビルドと試験の骨格。ネイティブのビルドは make test（cargo test --locked --workspace）が兼ねる。
   # --workspace の枠は scripts/test.sh が持ち、web を含む全 crate を試験する（default-members は web を含まない）。
-  # wasm32 のビルド（tools/build-web.sh）は TASK-27、ブラウザ試験は TASK-28 が、本ジョブまたは別ジョブとして足す。
+  # wasm32 のビルド（tools/build-web.sh）は TASK-27 が足す。ブラウザ試験は別ジョブ browser-test が流す。
   # secret を参照しない。配信は deploy.yml（別ワークフロー）。
   # チェック名は ruleset の必須チェックが参照する。追加・改名時は ruleset も同時に更新する。
   rust-test:
@@ -256,6 +261,73 @@ jobs:
 
       - name: make test
         run: make test
+
+  # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
+  # smoke-hello を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。
+  # 流す中身は make test-browser（scripts/test-browser.sh）で、ここにロジックを重ねない。試験の web は
+  # その中で一度だけビルドされ、smoke-hello はビルドし直さない。1 本でも失敗すれば本ジョブが失敗し、
+  # ci-complete が CI 全体を失敗にする（skipped も許容しない）。
+  # rust-test の 30 分に収まらない見込みのため別ジョブにする。needs を持たず常に実行する。
+  # キャッシュは入れない。初回の実測の後に効果を測って足す（.claude/rules/github-actions.md の「入れる前に効果を測る」）。
+  # secret を参照しない。チェック名は ruleset の必須チェックが参照する。追加・改名時は ruleset も同時に更新する。
+  browser-test:
+    name: "browser test (Chromium)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        # rust-toolchain.toml の版・component・target（wasm32）を rustup が導入する
+        run: rustup toolchain install
+
+      - name: Verify installed toolchain
+        run: bash scripts/ci-rust-toolchain.sh
+
+      - name: Install pinned wasm-bindgen CLI
+        # 版固定 + SHA256 検証済みのプリビルトバイナリを導入する（check ジョブと同じ方式）
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/wasm-bindgen/bin"
+          work_dir="${RUNNER_TEMP}/wasm-bindgen/work"
+          mkdir -p "${bin_dir}" "${work_dir}"
+          cd "${work_dir}"
+
+          wb_dir="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl"
+          wb_archive="${wb_dir}.tar.gz"
+          curl -fsSLo "${wb_archive}" \
+            "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${wb_archive}"
+          echo "${WASM_BINDGEN_SHA256}  ${wb_archive}" | sha256sum -c -
+          tar -xzf "${wb_archive}" "${wb_dir}/wasm-bindgen"
+          install -m 0755 "${wb_dir}/wasm-bindgen" "${bin_dir}/wasm-bindgen"
+
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
+
+      - name: Setup Node.js
+        # 版は package.json の engines.node（docs/toolchain.md が一か所の正）から読む。
+        # 一体型のキャッシュは PR からの汚染を避けるため使わない。
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Install npm dependencies
+        # Playwright の版は package-lock.json で固定されている
+        run: npm ci
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: make test-browser
+        run: make test-browser
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
@@ -306,6 +378,7 @@ jobs:
       - check
       - rust-lint
       - rust-test
+      - browser-test
       - test-hooks
       - test-hooks-macos
       - pr-title
