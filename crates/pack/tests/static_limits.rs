@@ -1,14 +1,16 @@
-//! 静的検査の限界パック（条件の充足可能性・Step の巡回）の試験（PACK-30・D-43、TASK-58 1/2・#422）。
+//! 静的検査の限界パック（条件の充足可能性・Step の巡回・規則の遮蔽）の試験（PACK-30・D-43、TASK-58・#422・#423）。
 //!
 //! D-43 は、`validate` に足す検査を存在しない要素への `remove`・`set_attr` だけに絞り、条件の充足可能性と
 //! Step の巡回は検出できない限界として受け入れ、教材テスト（`tests/playthrough.*`）で補うと決めた。
-//! 本ファイルは、その限界を「検出しないことが期待」として固定する。検査を足すなら spec 側の決定と
+//! 先の規則が後の規則を隠す遮蔽も同じ扱いである。足す検査は存在しない要素への `remove`・`set_attr`
+//! （`E-REF-ELEMENT`）だけで、`missing_elements.rs` が確かめる。本ファイルは、その限界を「検出しないことが期待」として固定する。検査を足すなら spec 側の決定と
 //! 診断コード一覧（TASK-195）の版上げが先で、そのときは本ファイルの期待を同じ変更で改める。
 //!
 //! - 限界パックは `testdata/pack-defects/limits/<形式>/<ID>` に置く。土台は `base/format-{a,b}` で、
 //!   章のファイル 1 つだけを重ねる（`defect_packs.rs` の欠陥パックと同じ作り。ID の空間は `L##` で分ける）
 //! - L01 は決して真にならない `when` の先の Step、L02 は `final` に着かない無条件の巡回
-//! - 遮蔽の限界は #423 が `L03` 以降として足す余地がある
+//! - L03 は先頭の規則が引数を問わず一致し、後ろの規則が決して選ばれない遮蔽（core は上から照合し、最初に
+//!   一致した規則の `outcome` を使う）。隠す語の検査（PACK-52）の範囲は対象外
 //! - 教材テスト（CLI `test`）での検出は TASK-404（#648）・TASK-398（#468）の完了前で、本ファイルでは確かめない
 
 mod common;
@@ -22,7 +24,7 @@ use fandhe_workshop_pack::compile::compile_dir;
 use fandhe_workshop_pack::validate::validate_dir;
 
 /// 限界パックの ID。表（`testdata/pack-defects/README.md`）と一致させる。
-const LIMITS: [&str; 2] = ["L01", "L02"];
+const LIMITS: [&str; 3] = ["L01", "L02", "L03"];
 
 #[derive(Clone, Copy, Debug)]
 enum Format {
@@ -185,5 +187,21 @@ fn pack30_limit_edges_are_present_in_ir() {
             .clone();
         assert_eq!(next.len(), 1, "L02 {f:?}: one edge: {next:?}");
         assert_eq!(next[0]["to"], "main/st-2-1", "L02 {f:?}: loops back");
+        // L03: st-2-7 の規則は 2 つで、先頭が引数の条件を持たず、後ろが name の値を指定する（後ろは選ばれない）。
+        let ir = ir_of(&assemble("L03", f));
+        let rules = find_step(&ir, "st-2-7").expect("st-2-7")["rules"]
+            .as_array()
+            .expect("rules array")
+            .clone();
+        let ids: Vec<&str> = rules.iter().filter_map(|r| r["id"].as_str()).collect();
+        assert_eq!(ids, ["r-make", "r-make-named"], "L03 {f:?}: rules in order");
+        assert!(
+            rules[0]["on"].get("args").is_none(),
+            "L03 {f:?}: the first rule has no argument condition: {rules:?}"
+        );
+        assert_eq!(
+            rules[1]["on"]["args"]["name"], "memo",
+            "L03 {f:?}: the later, narrower rule is in the IR: {rules:?}"
+        );
     }
 }

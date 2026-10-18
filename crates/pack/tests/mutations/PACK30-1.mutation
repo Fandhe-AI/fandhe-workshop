@@ -1,0 +1,8 @@
+id: PACK30-1
+package: fandhe-workshop-pack
+test: missing_elements
+target: crates/pack/src/element_check.rs
+find:         if (site.pre_expansion && path.contains("${")) || placed.contains(path) {
+replace:         if (site.pre_expansion && path.contains("${")) || true {
+expect-fail: pack30_missing_element_defects_reported_at_expected_location
+note: E-REF-ELEMENT の「どの put・replace も置かない」判定を常に偽にする（置かれない経路への remove・set_attr が通る）

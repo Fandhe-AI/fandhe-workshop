@@ -285,17 +285,43 @@ pack:
 - 同じ宛先が複数あれば、同じ診断が重ねて出ます
 - 診断の文面は固定です。ビューの ID や経路は、英数字・`_`・`.`・`-` だけで書かれているときに限って写します
 
+## 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`）
+
+世界状態は空で始まり、要素を作るのは `put`・`replace` だけです。置かれていない経路への `remove`・`set_attr` は、
+実行時に警告（`Event::Warning`）になり、教材テストが失敗します。`validate` は、その手前で次のように報告します
+（PACK-30・D-43。診断コード一覧の版 2）。
+
+- 教材のどこの `put`・`replace` も置かない経路を `remove`・`set_attr` が指すと、`E-REF-ELEMENT` です。
+  `compile` は報告しません（`validate` だけの検査です）
+- 「置く」に数えるのは、章・モジュールの全 Step の `on_enter`・`on_achieved`・`processing[].effects`・
+  `rules[].outcome.effects` と、`starts[].effects` の `put`・`replace` です。`when` つきの `put` も数えます
+- `put` の経路に `${...}` があれば、空文字列を含む任意の文字列として照合します
+- モジュールの引数を含む `remove`・`set_attr` の経路は、引数を置き換えた後の Step で判定します。診断は Step を
+  定義したモジュールのファイルに付きます
+- `replace` は報告しません（要素が無ければ置くため）
+- 診断は `on_enter[0]: remove target path ... is not placed by any put or replace` の形です。経路は、英数字・
+  `_`・`.`・`-` だけで書かれているときに限って写します。属性の値は写しません
+
+必要条件だけを調べる近似です。次は報告しないので、教材テストの模範解答と、実行時の警告で補ってください。
+
+- 順序に依る不在: `put` より前の `remove`、同じ経路への 2 度目の `remove`
+- `put` が通らない枝（条件・入力の違い）で置かれる要素への `set_attr`
+
 ## `validate` が見つけない欠陥
 
-`validate` は、次の 2 つを報告しません（PACK-30・D-43 で、検出できない限界として受け入れた範囲です）。
+`validate` は、次の 3 つを報告しません（PACK-30・D-43 で、検出できない限界として受け入れた範囲です）。
 
 - 条件の充足可能性: 決して真にならない `when`（例: ある旗とその否定を `all` で並べた条件）の先の Step。静的な辺は
   あるので、到達できるものとして扱います
 - Step の巡回: 無条件の `next` で前の Step に戻り、`final` に着かない巡回。モジュールの呼び出しの巡回
   （`E-MODULE-CYCLE`）だけは報告します
+- 規則の遮蔽: 先の規則が後の規則を隠し、後ろの規則が決して選ばれないこと。規則は上から照合し、最初に一致した
+  ものの `outcome` を使います。たとえば引数の条件を持たない `make-item` の規則の後ろに、`name` の値を指定した
+  `make-item` の規則を置くと、後ろの規則は使われません。規則は具体的なものから先に書いてください
 
 補うには、教材テストの `playthroughs` に、すべての開始点と、条件で分かれるそれぞれの枝を通る模範解答を書き、
-各枝が `final` まで進むことを確かめてください。
+各枝が `final` まで進むことを確かめてください。遮蔽は、模範解答と誤入力で、規則ごとに意図した結果になる入力を
+通して確かめます。
 
 ## 根拠となる試験
 
@@ -308,7 +334,8 @@ pack:
 | `crates/pack/tests/yaml_features.rs` の `pack5_` | アンカー・エイリアス・マージキー・タグ・複数文書をどの欄でも `E-PARSE` で拒否し、名前・字面を写さないこと（PACK-5） |
 | `crates/pack/tests/no_starts.rs` の `pack25_` | 開始点が 0 件のパックを `validate` の段階で `E-STRUCTURE` として拒否すること（PACK-25） |
 | `crates/pack/tests/radix_literals.rs` の `pack5_` | 10 進でない整数（`0x1f` 等）をどの位置でも両形式で `E-PARSE` で拒否し、値を写さないこと（PACK-5） |
-| `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性と Step の巡回を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
+| `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性・Step の巡回・規則の遮蔽を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
+| `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
 | `crates/pack/tests/modules.rs` | 2 つの実体が別の Step の実体になること・1 か所の修正が両方に反映されること・3 周目をファイルの追加だけで書けること・巡回の検出・入れ子の上限と不正な呼び出し（PACK-19） |
 | `crates/pack/tests/input_vocabulary.rs` の `pack10_` | 5 方式と `wait`・`cancel` の宣言が検証を通ること、`text` に内容を判定する欄が書けないこと、不正な宣言の診断と値を出さないこと（PACK-10） |
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |

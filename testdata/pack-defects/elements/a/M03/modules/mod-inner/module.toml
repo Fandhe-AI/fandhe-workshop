@@ -1,0 +1,18 @@
+# 要素の欠陥 M03。内側のモジュールが、引数の既定値（どこの put・replace も置かない経路）を remove する。
+# 経路は展開の後でだけ決まる（土台のモジュールを 1 か所だけ差し替えた）。
+id = "mod-inner"
+title = "内側のモジュール"
+
+[params]
+target = "lost-item"
+
+[[steps]]
+id = "u-a"
+title = "内側の入口"
+on_enter = [{ remove = "${target}" }]
+next = [{ to = "u-b" }]
+
+[[steps]]
+id = "u-b"
+title = "内側の出口"
+final = true
