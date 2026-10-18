@@ -19,7 +19,7 @@
 //! `E-LEFT-TARGET-ROW` は必要条件だけを調べる静的な近似で、「経路がどこかで置かれる」ことしか確かめない。
 //! 練習データの種別とビューの種類の対応（その種類で行になるか）は、教材に載らない試作の約束で、ここでは
 //! 判定しない。文書の行の ID を宛先にする書き方は TASK-476 が決める。このため、経路は完全一致（`put` 側の
-//! `${...}` は空でない任意の文字列）だけで照合する。モジュールの引数（`${`）を含む宛先は展開前に決まらない
+//! `${...}` は空文字列を含む任意の文字列）だけで照合する。モジュールの引数（`${`）を含む宛先は展開前に決まらない
 //! ため展開の前には判定せず、展開の後の Step（[`check_left_expanded`]）で判定する。
 //!
 //! 教材データは信頼しない入力として扱う。診断の文面は固定の英語で、ビュー ID・経路は `safe_ident` を通る
@@ -313,7 +313,7 @@ impl<'a> Placed<'a> {
     }
 }
 
-/// `${...}` を空でない任意の文字列とみなした照合。`${` が無ければ完全一致。
+/// `${...}` を空文字列を含む任意の文字列とみなした照合。`${` が無ければ完全一致。
 ///
 /// 正規表現を組み立てず、リテラルの断片を左から順に探す線形の走査にする（教材データ由来の文字列で
 /// 計算量が膨らまないため）。閉じ `}` が無い `${` 以降はリテラルとして扱う。
@@ -336,20 +336,13 @@ fn matches_pattern(pattern: &str, target: &str) -> bool {
         return false;
     };
     for lit in &literals[1..last] {
-        // 変数の部分は 1 文字以上。先頭の 1 文字を飛ばしてから断片を探す。
-        let Some(first) = remain.chars().next() else {
+        // 変数の部分は 0 文字以上（モジュールの引数は空文字列も受け付ける）。
+        let Some(pos) = remain.find(lit) else {
             return false;
         };
-        let after = &remain[first.len_utf8()..];
-        let Some(pos) = after.find(lit) else {
-            return false;
-        };
-        remain = &after[pos + lit.len()..];
+        remain = &remain[pos + lit.len()..];
     }
-    let Some(first) = remain.chars().next() else {
-        return false;
-    };
-    remain[first.len_utf8()..].ends_with(literals[last])
+    remain.ends_with(literals[last])
 }
 
 #[cfg(test)]
@@ -359,11 +352,13 @@ mod tests {
     #[test]
     fn pattern_matches_nonempty_wildcards() {
         assert!(matches_pattern("a/${x}/b", "a/zz/b"));
-        assert!(!matches_pattern("a/${x}/b", "a//b"));
+        assert!(matches_pattern("a/${x}/b", "a//b"));
         assert!(matches_pattern("${x}", "q"));
-        assert!(!matches_pattern("${x}", ""));
+        assert!(matches_pattern("${x}", ""));
         assert!(matches_pattern("${a}${b}", "ab"));
-        assert!(!matches_pattern("${a}${b}", "a"));
+        assert!(matches_pattern("${a}${b}", "a"));
+        assert!(matches_pattern("f/${s}x", "f/x"));
+        assert!(!matches_pattern("f/${s}x", "f/y"));
         assert!(matches_pattern("p/${a}.${b}", "p/x.y"));
         assert!(!matches_pattern("p/${a}.${b}", "p/x"));
         assert!(matches_pattern("a${x", "a${x"));

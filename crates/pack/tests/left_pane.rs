@@ -256,7 +256,10 @@ fn parameterised_targets_and_puts() {
     // `${` を含む宛先は判定しない。
     let skipped = format!("views: [v1], {}", ui_input("v1", "'f/${name}'"));
     assert!(left(&pack("{world_list: hidden}", &skipped)).is_empty());
-    // `put` 側の `${...}` は空でない任意の文字列に当たる。
+    // `put` 側の `${...}` は空文字列を含む任意の文字列に当たる（モジュールの引数は空文字列も受け付ける）。
+    let empty = "on_enter: [{put: {path: 'f/${suffix}x', attrs: {k: v}}}]";
+    let hit0 = format!("views: [v1], {empty}, {}", ui_input("v1", "f/x"));
+    assert!(left(&pack("{world_list: hidden}", &hit0)).is_empty());
     let wild = "on_enter: [{put: {path: 'f/${name}/x', attrs: {k: v}}}]";
     let hit = format!("views: [v1], {wild}, {}", ui_input("v1", "f/abc/x"));
     assert!(left(&pack("{world_list: hidden}", &hit)).is_empty());
