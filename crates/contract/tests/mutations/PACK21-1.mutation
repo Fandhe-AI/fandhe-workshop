@@ -1,0 +1,8 @@
+id: PACK21-1
+package: fandhe-workshop-contract
+test: appearance_contract
+target: crates/contract/src/appearance.rs
+find:             other => return Err(AppearanceReadError::UnknownKey(other.to_owned())),
+replace:             _ => {}
+expect-fail: unknown_keys_are_rejected
+note: theme 以外の欄を拒否する分岐を無効化する（スタイルを指定する欄が黙って通る）
