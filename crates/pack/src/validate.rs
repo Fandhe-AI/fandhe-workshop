@@ -81,9 +81,15 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
         out.extend(crate::left_pane::check_left_targets(pack, left_pane));
     }
     out.extend(left_parse);
-    // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO` は、同じ内容のものを 1 件にする。
+    // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO` と `E-LEFT-TARGET-*` は、
+    // 同じ内容のものを 1 件にする（`compile` と同じ）。
     let mut seen = BTreeSet::new();
-    out.retain(|d| d.code() != DiagCode::SlotNeedsDo || seen.insert(format!("{d:?}")));
+    out.retain(|d| {
+        !matches!(
+            d.code(),
+            DiagCode::SlotNeedsDo | DiagCode::LeftTargetView | DiagCode::LeftTargetRow
+        ) || seen.insert(format!("{d:?}"))
+    });
     out
 }
 

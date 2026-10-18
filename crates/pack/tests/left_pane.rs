@@ -403,3 +403,18 @@ fn argument_driven_targets_are_checked_after_expansion() {
     assert_eq!(d.len(), 1, "{d:?}");
     assert!(d[0].contains("E-LEFT-TARGET-ROW"), "{}", d[0]);
 }
+
+#[test]
+fn fixed_module_targets_are_reported_once_by_validate() {
+    // 引数を含まない宛先は展開の前に報告済み。展開の後の再検査で重ねない。
+    let body = "views: [v1], input: {kind: ui_action, targets: [{view: v2, path: f/x}]}, confirm: {kind: none, reason: r}, on_enter: [{put: {path: f/x, attrs: {k: v}}}]";
+    let t = module_pack("{view_tabs: declared}", "v1", body);
+    let d = left(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(d[0].contains("E-LEFT-TARGET-VIEW"), "{}", d[0]);
+    let row = "views: [v1], input: {kind: ui_action, targets: [{view: v1, path: f/none}]}, confirm: {kind: none, reason: r}, on_enter: [{put: {path: f/other, attrs: {k: v}}}]";
+    let t = module_pack("{world_list: hidden}", "v1", row);
+    let d = left(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert!(d[0].contains("E-LEFT-TARGET-ROW"), "{}", d[0]);
+}
