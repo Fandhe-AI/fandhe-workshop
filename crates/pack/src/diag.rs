@@ -1,6 +1,6 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
-//! コードの一覧は `docs/diagnostics.md`（一覧の版 1、TASK-195）で固定した。出力形と終了コードは
+//! コードの一覧は `docs/diagnostics.md`（一覧の版 2、TASK-195）で固定した。出力形と終了コードは
 //! TASK-399（#469〜#471）の契約で固定する（未了）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
@@ -9,7 +9,7 @@ use std::io;
 
 use crate::cli::{EXIT_DIAGNOSTICS, EXIT_OK};
 
-/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 1）である。
+/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 2）である。
 ///
 /// 一覧と本列挙の一致の自動検査は TASK-400 が持つ。`E-LIMIT-*` の拒否理由の型は contract
 /// （TASK-199 の `PackLimitCode`）が持ち、一覧には参照だけを置く。
@@ -32,6 +32,8 @@ pub enum DiagCode {
     RefFixture,
     /// 未定義のヒントを参照している。
     RefHint,
+    /// 存在しない要素への `remove`・`set_attr`（どの `put`・`replace` も置かない経路。PACK-30・D-43）。
+    RefElement,
     /// 未定義のモジュールを参照している。
     RefModule,
     /// 未定義のコマンドを参照している。
@@ -107,6 +109,7 @@ impl DiagCode {
         DiagCode::RefBody,
         DiagCode::RefFixture,
         DiagCode::RefHint,
+        DiagCode::RefElement,
         DiagCode::RefModule,
         DiagCode::RefCommand,
         DiagCode::RefView,
@@ -151,6 +154,7 @@ impl DiagCode {
             DiagCode::RefBody => "E-REF-BODY",
             DiagCode::RefFixture => "E-REF-FIXTURE",
             DiagCode::RefHint => "E-REF-HINT",
+            DiagCode::RefElement => "E-REF-ELEMENT",
             DiagCode::RefModule => "E-REF-MODULE",
             DiagCode::RefCommand => "E-REF-COMMAND",
             DiagCode::RefView => "E-REF-VIEW",
@@ -370,7 +374,7 @@ mod tests {
 
     #[test]
     fn d5_codes_are_well_formed() {
-        assert_eq!(DiagCode::ALL.len(), 39);
+        assert_eq!(DiagCode::ALL.len(), 40);
         let mut seen = std::collections::HashSet::new();
         for c in DiagCode::ALL {
             let s = c.as_str();

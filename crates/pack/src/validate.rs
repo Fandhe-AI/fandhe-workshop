@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定）・`input::check_inputs`・
@@ -70,6 +70,7 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(check_structure(pack));
     out.extend(crate::slot_check::check_texts(pack));
     out.extend(check_reachability(pack));
+    out.extend(crate::element_check::check_missing_elements(pack));
     out.extend(check_module_expansion(pack));
     out.extend(crate::appearance::check_appearance(
         &pack.workshop_file,
@@ -81,13 +82,16 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
         out.extend(crate::left_pane::check_left_targets(pack, left_pane));
     }
     out.extend(left_parse);
-    // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO` と `E-LEFT-TARGET-*` は、
-    // 同じ内容のものを 1 件にする（`compile` と同じ）。
+    // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO`・`E-LEFT-TARGET-*`・`E-REF-ELEMENT` は、
+    // 同じ内容のものを 1 件にする（`compile` と同じ。`E-REF-ELEMENT` は `validate` だけの検査）。
     let mut seen = BTreeSet::new();
     out.retain(|d| {
         !matches!(
             d.code(),
-            DiagCode::SlotNeedsDo | DiagCode::LeftTargetView | DiagCode::LeftTargetRow
+            DiagCode::SlotNeedsDo
+                | DiagCode::LeftTargetView
+                | DiagCode::LeftTargetRow
+                | DiagCode::RefElement
         ) || seen.insert(format!("{d:?}"))
     });
     out
@@ -129,6 +133,9 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
         let left = crate::left_pane::check_left_expanded(pack, left_pane, &ex.nodes, &starts);
         ex.diags.extend(left);
     }
+    // 引数に依存する `remove`・`set_attr` の経路も、展開の後の Step で検査する（`validate` だけの検査）。
+    let missing = crate::element_check::check_missing_elements_expanded(pack, &ex.nodes, &starts);
+    ex.diags.extend(missing);
     let mut seen = BTreeSet::new();
     ex.diags
         .into_iter()
@@ -142,6 +149,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::EmptyNextAction
                     | DiagCode::LeftTargetView
                     | DiagCode::LeftTargetRow
+                    | DiagCode::RefElement
             )
         })
         .filter(|d| seen.insert(format!("{d:?}")))
