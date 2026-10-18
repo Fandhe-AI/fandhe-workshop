@@ -573,7 +573,8 @@ case_ "folded run scalar that fetches the engine is rejected (D4)" 1 D4 --pack-w
 { cat "${GOOD_PACK}"; printf '      - name: Overwrite engine\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/pack-x\n          path: engine\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-overwrite.yml"
 case_ "later checkout into the engine path is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-overwrite.yml" --engine-rev "${GOOD_REV}"
 { cat "${GOOD_PACK}"; printf '      - name: Pack\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          repository: Fandhe-AI/pack-x\n          path: pack\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-sibling.yml"
-case_ "later checkout into a sibling path passes (D4)" 0 - --pack-workflow "${TMP_DIR}/pack-sibling.yml" --engine-rev "${GOOD_REV}"
+# 後続の checkout は保存先を解釈せず一律に拒否する（許可リスト）
+case_ "later checkout into a sibling path is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-sibling.yml" --engine-rev "${GOOD_REV}"
 
 # review follow-ups 6: 正準の形の許可リスト（表示だけの git・here-document・作業ディレクトリ・式の権限）
 echo "# canonical form"
@@ -651,6 +652,20 @@ variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-none.yml" 's|contents: read|contents: n
 case_ "a none permission passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-none.yml"
 variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-flow.yml" 's|^permissions:$|permissions: {contents: read, actions: none}|;/^  contents: read$/d'
 case_ "a flow-style read-only permissions map passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-flow.yml"
+
+# review follow-ups 7: path を省いた後続の checkout・トップレベルの permissions の欠落
+# path を省いた checkout は作業領域のルートを clean し、取得済みのエンジンごと消す
+{ cat "${GOOD_PACK}"; printf '      - name: Checkout again\n        uses: actions/checkout@%s # v7.0.1\n        with:\n          persist-credentials: false\n' "${SHA}"; } >"${TMP_DIR}/pack-root-checkout.yml"
+case_ "later checkout without a path (workspace root) is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-root-checkout.yml" --engine-rev "${GOOD_REV}"
+{ cat "${GOOD_PACK}"; printf '      - uses: "Actions/Checkout@%s"\n' "${SHA}"; } >"${TMP_DIR}/pack-root-checkout-quoted.yml"
+case_ "later quoted, mixed-case checkout without with is rejected (D4)" 1 D4 --pack-workflow "${TMP_DIR}/pack-root-checkout-quoted.yml" --engine-rev "${GOOD_REV}"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-no-perm.yml" '/^permissions:$/d;/^  contents: read$/d'
+case_ "ci.yml without top-level permissions is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-no-perm.yml"
+printf '    permissions:\n      contents: read\n' >"${TMP_DIR}/t-job-perm"
+splice "${TMP_DIR}/ci-no-perm.yml" "${TMP_DIR}/ci-job-perm-only.yml" after '    runs-on: ubuntu-latest' "${TMP_DIR}/t-job-perm"
+case_ "ci.yml with only job-level permissions is rejected (C1)" 1 C1 --ci "${TMP_DIR}/ci-job-perm-only.yml"
+variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-empty.yml" 's|^permissions:$|permissions: {}|;/^  contents: read$/d'
+case_ "top-level permissions: {} passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-empty.yml"
 
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"

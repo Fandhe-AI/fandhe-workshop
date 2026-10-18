@@ -20,7 +20,8 @@
 #     B2 BUILD-2 が挙げる語（GITHUB_TOKEN・CARGO_REGISTR*・git-fetch-with-cli・語としての _TOKEN / _PAT）が無い
 #     B3 uses: が 40 桁の SHA 固定で、所有者が許可リストにあり、reusable workflow を呼ばない
 #   C 配信の切り離し
-#     C1 ci.yml の permissions の値が {}・リテラルの read / none だけ（write・式 ${{ }} は不可）で、environment が無い
+#     C1 ci.yml がトップレベルの permissions を持ち（省略は既定の権限の継承になるため不可）、permissions の値が
+#        {}・リテラルの read / none だけ（write・式 ${{ }} は不可）で、environment が無い
 #     C2 deploy.yml が workflow_dispatch だけで動き、permissions が {} で、全ジョブが fork では飛ばされる
 #     C3 ci.yml に deploy ジョブが無い
 #   D ENGINE_REV での教材 repo のビルド（--pack-workflow と --engine-rev の両方を渡したときだけ）
@@ -37,8 +38,9 @@
 #             ref: ${{ steps.<2 の id>.outputs.rev }}・path: <固定のディレクトリ名>・persist-credentials: false だけ
 #        git clone・cargo install 等で取得する経路は正準に含めない（取得の正しさがシェルの解釈を要するため）
 #        repository を式（${{ }}）で決める step を持つジョブも、エンジンを取得しうるものとしてエンジンのジョブに含める
-#     D4 4 つ目以降の step が、語としての git・エンジンの repo・ENGINE_REV・3 の path の文字列を含まず（name の行は除く）、
-#        with の repository・ref・path に ${{ を使わない
+#     D4 4 つ目以降の step が、actions/checkout を使わず（checkout は保存先を clean し、path を省けば作業領域の
+#        ルートごとエンジンを消すため。保存先は解釈しない）、語としての git・エンジンの repo・ENGINE_REV・3 の path の
+#        文字列を含まず（name の行は除く）、with の repository・ref・path に ${{ を使わない
 #
 # deploy.yml の起点を変える場合（TASK-121）は、C2 と回帰テストを同時に直す。
 #
@@ -285,7 +287,7 @@ b3_out="$(awk -v owners="${ALLOWED_USES_OWNERS}" '
 [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${CI_FILE}" >&2; exit 2; }
 report "${CI_FILE}" "${b3_out}"
 
-# ---- C1 ci.yml に write の権限・environment が無い ----
+# ---- C1 ci.yml にトップレベルの permissions があり、write の権限・environment が無い ----
 # permissions の値は許可リストで判定する: `{}`、ブロック形式の `<scope>: read|none`、フロー形式の `{<scope>: read|none, ...}` だけ。
 # 式（${{ ... }}）は値を確定できないため、permissions のブロックのどこにあっても拒否する。値の引用符は外してから比べる。
 rc=0
@@ -316,12 +318,15 @@ c1_out="$(awk '
   }
   { in_perm = 0 }
   /^[[:space:]]*(-[[:space:]]+)?["\047]?permissions["\047]?[[:space:]]*:/ {
+    if ($0 ~ /^["\047]?permissions["\047]?[[:space:]]*:/) top_perm = 1
     v = $0; sub(/^[^:]*:/, "", v)
     if (v ~ /\$\{\{/) { bad(NR); next }
     v = bare(v)
     if (v == "") { in_perm = 1; perm_ind = indent($0); next }
     if (!flow_ok(v)) bad(NR)
   }
+  # 省略するとリポジトリ・組織の既定の権限（書き込みでありうる）を継承するため、トップレベルの宣言を必須にする
+  END { if (!top_perm) print "0:C1 top-level permissions: not found (omitting it inherits the repository or organization default, which may be write; declare {} or read-only scopes)" }
 ' "${CI_FILE}")" || rc=$?
 [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${CI_FILE}" >&2; exit 2; }
 report "${CI_FILE}" "${c1_out}"
@@ -492,9 +497,12 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         && aid != "" && st_ref[i] == "${{ steps." aid ".outputs.rev }}" && st_path[i] ~ /^[A-Za-z0-9_-]+$/ && st_pc[i] == "false"
     }
     # c_why <i> <ep>: 正準の 3 step より後ろの step が無関係な step の条件を満たさなければ理由を返す（名前の行は見ない）
-    function c_why(i, ep,   t) {
+    function c_why(i, ep,   t, u) {
       t = st_text[i]
       if (st_bad[i] || st_wbad[i]) return "cannot be read as a plain block mapping (alias, anchor, tag, flow style or an unexpected line)"
+      # checkout は保存先（path を省けば作業領域のルート）を clean するため、エンジンを消しうる。保存先は解釈せず一律に拒否する
+      u = tolower(st_uses[i]); gsub(/["\047]/, "", u)
+      if (u ~ /^actions\/checkout@/) return "is an actions/checkout (a checkout cleans its destination, the workspace root when path is omitted, and can remove or replace the engine; destinations are not interpreted)"
       if (tolower(t) ~ /(^|[^a-z0-9])git([^a-z0-9]|$)/) return "mentions git"
       if (index(tolower(t), "fandhe-ai/fandhe-workshop")) return "mentions the engine repo"
       if (index(tolower(t), "engine_rev")) return "mentions ENGINE_REV"
@@ -516,7 +524,7 @@ if [ -n "${PACK_WORKFLOW}" ]; then
         ep = (n >= 3 && st_path[s3] ~ /^[A-Za-z0-9_-]+$/) ? st_path[s3] : ""
         for (k = 4; k <= n; k++) {
           r = c_why(jfirst + k - 1, ep)
-          if (r != "") print st_line[jfirst + k - 1] ":D4 step " k " of job " job " " r "; only the three canonical steps (" OWN "; " OUT "; " ENG ") may refer to git, the engine repo, ENGINE_REV or the engine path"
+          if (r != "") print st_line[jfirst + k - 1] ":D4 step " k " of job " job " " r "; only the three canonical steps (" OWN "; " OUT "; " ENG ") may use actions/checkout or refer to git, the engine repo, ENGINE_REV or the engine path"
         }
       }
       job = ""
