@@ -158,3 +158,25 @@ fn pack2_cli_exit_code_for_both_and_neither() {
     }
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// PACK-5: 10 進でない整数を書いたパックは終了コード 1 で `E-PARSE` を出し、IR を出さない。
+/// `validate` は TASK-401 まで未実装なので、同じ読み込みを通る `compile` で確かめる。
+#[test]
+fn pack5_cli_radix_literal_is_diagnostic_and_emits_no_ir() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("pack5-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("workshop.yaml"),
+        "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\ncommands:\n  x: {n: 0x1f}\n",
+    )
+    .unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-PARSE"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+    assert!(!out.contains("0x1f"), "{out}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
