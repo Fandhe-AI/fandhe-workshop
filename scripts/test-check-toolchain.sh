@@ -43,6 +43,7 @@ fresh_copy() {
   cp "${ROOT_DIR}/rust-toolchain.toml" "${ROOT_DIR}/Cargo.toml" "${ROOT_DIR}/Cargo.lock" \
     "${ROOT_DIR}/package.json" "${ROOT_DIR}/package-lock.json" "${ROOT_DIR}/.npmrc" "${dest}/"
   cp "${ROOT_DIR}/docs/toolchain.md" "${dest}/docs/toolchain.md"
+  cp "${ROOT_DIR}/README.md" "${dest}/README.md"
   echo "${dest}"
 }
 
@@ -135,6 +136,35 @@ dir="$(fresh_copy)"
 printf '{ broken' >"${dir}/package.json"
 run_check "${dir}"
 expect "invalid package.json fails closed" 2 "${RC}"
+
+# 3b. README の「前提」節
+mutate_case "README rust version drift is rejected" 1 README.md "| ${BT}rust${BT} | ${BT}1.98.1${BT} |" "| ${BT}rust${BT} | ${BT}1.98.2${BT} |"
+mutate_case "README playwright version drift is rejected" 1 README.md "| ${BT}playwright${BT} | ${BT}1.63.0${BT} |" "| ${BT}playwright${BT} | ${BT}1.62.0${BT} |"
+mutate_case "README wasm-bindgen install line drift is rejected" 1 README.md 'cargo install wasm-bindgen-cli --version 0.2.128 --locked' 'cargo install wasm-bindgen-cli --version 0.2.129 --locked'
+mutate_case "README without the 前提 heading fails closed" 2 README.md '## 前提' '## 準備'
+
+dir="$(fresh_copy)"
+grep -vF "| ${BT}node${BT} |" "${dir}/README.md" >"${dir}/README.md.new"
+mv "${dir}/README.md.new" "${dir}/README.md"
+run_check "${dir}"
+expect "README missing key fails closed" 2 "${RC}"
+
+dir="$(fresh_copy)"
+# 「前提」節の中で rust の行を重ねる（節の末尾の見出しの直前ではなく、行の直後に挿入）
+awk -v bt="${BT}" '{ print } index($0, "| " bt "rust" bt " |") == 1 { print }' "${dir}/README.md" >"${dir}/README.md.new"
+mv "${dir}/README.md.new" "${dir}/README.md"
+run_check "${dir}"
+expect "README duplicated key fails closed" 2 "${RC}"
+
+dir="$(fresh_copy)"
+rm "${dir}/README.md"
+run_check "${dir}"
+expect "missing README fails closed" 2 "${RC}"
+
+dir="$(fresh_copy)"
+printf '\n## 別の節\n\n| %splaywright%s | %s9.9.9%s | outside |\n' "${BT}" "${BT}" "${BT}" "${BT}" >>"${dir}/README.md"
+run_check "${dir}"
+expect "key rows outside the 前提 section are ignored" 0 "${RC}"
 
 # 4. 誤用
 RC=0
