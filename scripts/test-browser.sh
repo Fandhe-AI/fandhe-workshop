@@ -7,7 +7,7 @@
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）を含む。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。
-# CI へは未組み込み（ジョブの追加は必須チェックの更新と合わせて扱う）。
+# CI では browser-test ジョブが流す（TASK-79。Playwright とブラウザの導入はジョブ側の step が行う）。
 #
 # 終了コード: 0 = 全試験が通過 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・不正な channel）。
 set -euo pipefail

@@ -80,6 +80,17 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 - 反映は、ジョブを追加した変更のマージ直後に行った。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で
   新しいチェックが「Expected」のまま残りマージできなくなるため。今後ジョブを追加するときも同じ順序で行う
 
+### TASK-79 で追加したチェック（ruleset 反映待ち）
+
+`ci.yml` に `browser-test`（チェック名 `browser test (Chromium)`、発行元は github-actions の 15368）を追加した。
+`make test-browser` を同梱の Chromium で流し、1 本でも失敗すれば `ci-complete` ごと失敗する。ruleset の
+必須チェックへの追加は、この変更のマージ直後に人が行う（上の TASK-33 と同じ順序の理由）。
+
+- 手順: GET した JSON の必須チェックに `browser test (Chromium)`（`integration_id` 15368）を足して PUT し、
+  上記のコマンドで `unbound` が空であることを確かめる
+- 反映までの間、PR の HEAD に必須でないチェックが報告されるため、`implement-issue-tree` の自動マージは辞退し、
+  マージ可能状態で止まる（人がマージする）
+
 ## リポジトリ設定（2026-10-11 適用）
 
 ワークフローの書き方に影響する設定。変更は `setup-repo-guards` スキルの手順に従う。
@@ -242,6 +253,7 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
 | `ci.yml` | rust-lint・rust-test | 未計測（初回の実行後に更新する） |
+| `ci.yml` | browser-test | 未計測（TASK-79。初回の実行後に更新する。timeout は 60 分） |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 

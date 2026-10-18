@@ -198,6 +198,16 @@ npx playwright install chromium     # 同梱の Chromium を導入する
 make test-browser                   # web（配信設定と試験の設定）を一時ディレクトリへビルドし、試験を流す
 ```
 
+CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chromium)`）は、同じ `make test-browser` を同梱の Chromium（`FANDHE_BROWSER_CHANNEL` なし）で流します。pass／fail 型の試験（`tools/browser/*.test.mjs` の全件。PoC-1・2・6 と語彙の結線に当たる試験を含む）と、最小の画面の試験（`smoke-hello`。web は先に一度だけビルドし、試験自体はビルドし直さない）が対象です。1 本でも失敗すればジョブが失敗し、`ci-complete` が CI 全体を失敗にします。ジョブの手順は次のとおりで、手元でも同じ順で再現できます。
+
+1. 固定した Rust と、SHA256 を検証した wasm-bindgen CLI（`docs/toolchain.md`）を導入する
+2. Node.js 24 系を導入する（版は `package.json` の `engines`）
+3. `npm ci`
+4. `npx playwright install --with-deps chromium`（CI の Ubuntu では OS の依存も入れる）
+5. `make test-browser`
+
+失敗したときは、ジョブのログの node:test の出力で、失敗した試験ファイルと検査名を確認します。
+
 既定は Playwright 同梱の Chromium です。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome make test-browser` とします（値は `chromium` か `chrome` だけです。Chrome が無い場合は Chromium へ切り替えず失敗します）。
 
 ## コマンド
@@ -228,7 +238,7 @@ make test-browser                   # web（配信設定と試験の設定）を
 | `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
 | `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
 | `make test-serve` | `scripts/test-serve.sh` | 配信サーバの試験（Node の `node:test`） |
-| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験、配信設定の web で Enter の送信が送信ボタンの click と同じ記録になることと、Shift+Enter の改行・複数行の送信の試験、貼り付け（改行の保持・自動送信 0 件・合成の paste が止められないこと）の試験、上限の案内文と貼り付けの観察（TERM-15・TERM-19。PoC-2 の写しの試料・案内欄の位置・候補が開かないこと）の試験、CDP による IME の模擬のヘルパの自己確認と、入力欄と IME の層 3 の試験（TASK-86 1/2。変換中の誤送信 0 件・確定後の送信漏れ 0 件）と、保存済みの履歴が無い場合と未操作の再読み込みで新しく始まり世代が上がらない試験（TASK-319 1/3。操作後は復元される対照つき）、保存・復元・書き出し・版の層 3 の試験（TASK-86 2/2。往復・読み込み後の保存と復帰・版の判定・壊れた履歴の拒否）、Esc の画面の結果の試験（TASK-441 1/2・2/2。処理中は候補が開いていても停止して候補も閉じ、処理中でなく候補が開いていれば閉じるだけ、どちらでもなければ取り消しの入力で、受け付けない Step では拒否の行と次の行動が出る）、入力方式ごとに選択肢・承認のボタンが切り替わり画面操作の Step が左の行のクリックで受け付けられる試験（TERM-23。TASK-450 1/3）、入力欄なしの教材で入力欄・送信・補完の候補・OS の選択が 0 件になり、停止と選択肢・画面操作・承認・確認は出て最後まで進む試験（PACK-20。TASK-450 2/3）、CH-0〜CH-3 の形の 20 Step を 1 つのページで最後まで進め、CH-1 をキーボードだけで完走する試験（TERM-23。TASK-450 3/3）（Playwright）。CI には未組み込みです |
+| `make test-browser` | `scripts/test-browser.sh` | 共通ヘルパ（`tools/browser/`）の試験・安全性の計数の対照と、配信設定の web をサブパス配信した最小の画面の試験・対照を挿入した自己確認（SAFE-8。CSP あり・なし）、試験の設定（`TEST_HOOKS=1`）の web で keydown の属性が届くことの試験、配信設定の web で Enter の送信が送信ボタンの click と同じ記録になることと、Shift+Enter の改行・複数行の送信の試験、貼り付け（改行の保持・自動送信 0 件・合成の paste が止められないこと）の試験、上限の案内文と貼り付けの観察（TERM-15・TERM-19。PoC-2 の写しの試料・案内欄の位置・候補が開かないこと）の試験、CDP による IME の模擬のヘルパの自己確認と、入力欄と IME の層 3 の試験（TASK-86 1/2。変換中の誤送信 0 件・確定後の送信漏れ 0 件）と、保存済みの履歴が無い場合と未操作の再読み込みで新しく始まり世代が上がらない試験（TASK-319 1/3。操作後は復元される対照つき）、保存・復元・書き出し・版の層 3 の試験（TASK-86 2/2。往復・読み込み後の保存と復帰・版の判定・壊れた履歴の拒否）、Esc の画面の結果の試験（TASK-441 1/2・2/2。処理中は候補が開いていても停止して候補も閉じ、処理中でなく候補が開いていれば閉じるだけ、どちらでもなければ取り消しの入力で、受け付けない Step では拒否の行と次の行動が出る）、入力方式ごとに選択肢・承認のボタンが切り替わり画面操作の Step が左の行のクリックで受け付けられる試験（TERM-23。TASK-450 1/3）、入力欄なしの教材で入力欄・送信・補完の候補・OS の選択が 0 件になり、停止と選択肢・画面操作・承認・確認は出て最後まで進む試験（PACK-20。TASK-450 2/3）、CH-0〜CH-3 の形の 20 Step を 1 つのページで最後まで進め、CH-1 をキーボードだけで完走する試験（TERM-23。TASK-450 3/3）（Playwright）。CI では `browser-test` ジョブが流します |
 | `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
 | `make build-web` | `tools/build-web.sh` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定、`IR_FILE` で IR を同梱） |
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準を実ビルドで検査する |
@@ -266,7 +276,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 
 | ワークフロー | 内容 |
 |---|---|
-| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain`・`make check-workflow-secrets`・`make check-fork-ci`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
+| `ci.yml` | `check`: ローカル・hooks と同じ `make check` を実行する（editorconfig-checker / shellcheck はバージョン固定 + SHA256 検証で導入）。あわせて `make check-toolchain`・`make check-workflow-secrets`・`make check-fork-ci`（と各回帰テスト）も流す。`rust-lint`: `make lint`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads`（`rust-toolchain.toml` の版を rustup で導入し、導入された版を `scripts/ci-rust-toolchain.sh` で照合する）。`rust-test`: `make test`（`cargo test --locked --workspace`）がネイティブのビルドと試験を兼ねる。2 つの Rust ジョブはキャッシュを使わない（効果を実測してから足す）。`changes`: 変更ファイルから、フックの回帰テストを macOS でも実行するかを決める（`scripts/ci-changes.sh`。PR でフック関連の変更が無ければ ubuntu のみ、push・判定不能時は macOS も含める）。`test-hooks`: フックスクリプト自体の回帰テスト（`make test-hooks`。ubuntu-latest で常に実行する）。`test-hooks-macos`: 同じテストの macOS 版（macos-latest。標準の bash 3.2 でも実行する）。`changes` の結果で不要な場合は macOS ランナーを起動せず、チェックは skipped として報告される。`browser-test`: `make test-browser`（pass／fail 型の試験と `smoke-hello`）を同梱の Chromium で流す（TASK-79。Node・Playwright の導入を含み、キャッシュは使わない）。`pr-title`: PR タイトルを commit-msg フックと同じスクリプトで検証する（squash merge でコミット件名になるため）。`ci-complete`: 全ジョブ結果の集約（`test-hooks-macos` の skipped は、`changes` の結果と一致する場合だけ許容する） |
 | `deploy.yml` | 配信の骨格（TASK-33）。`workflow_dispatch` だけで動き、`permissions: {}`。ジョブには `github.repository` が upstream であることの `if:` を付け、fork では飛ばす。中身は未実装で、実行すると失敗して止まる（TASK-121 で作る）。secret を参照するビルド・試験を `ci.yml` に置かないため、配信は PR の起点を持たない別ワークフローに分けている |
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
