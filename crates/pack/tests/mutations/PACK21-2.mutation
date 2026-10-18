@@ -1,0 +1,8 @@
+id: PACK21-2
+package: fandhe-workshop-pack
+test: appearance
+target: crates/pack/src/compile.rs
+find:     ex.diags.extend(appearance_diags);
+replace:     let _ = appearance_diags;
+expect-fail: bad_appearance_is_one_parse_error_without_values
+note: compile が外観の診断を捨てる（名前にない値と未知の欄が IR まで通る）

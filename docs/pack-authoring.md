@@ -219,6 +219,26 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - 読むのは `error_inputs[].input.expect` だけです。`pre[].expect`・`playthroughs` の期待は `fandhe-pack test`（TASK-404）が読みます
 - エンジンで実際に判定して期待と比べる実行は、入力の判定の実装（TASK-267）と TASK-404 の後になります（2026-10-15 時点）。いまの試験は、期待の読み取りと、拒否の文面・次の行動が空でないことの静的な確認までです
 
+## 外観（`appearance`）
+
+`pack.appearance.theme` で画面の外観を選べます（PACK-21）。値は次の 4 つに限られ、省略すると `standard` です。
+
+| `theme` | 意味 |
+|---|---|
+| `standard` | 標準（既定） |
+| `mono` | モノクロ |
+| `high_contrast` | 高コントラスト |
+| `reading` | 読みやすさ重視 |
+
+```yaml
+pack:
+  appearance: { theme: reading }
+```
+
+- 外観は見た目だけを変えます。入力の判定・状態変化・遷移・履歴には影響しません
+- 名前にない値（`dark` など）や、`theme` 以外の欄は `E-PARSE` になります。色・フォント・CSS を指定する欄はありません
+- 診断には書いた値を写しません
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -239,3 +259,4 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `crates/pack/tests/error_input_expect.rs` の `pack11_` | 誤入力の期待の 3 形の読み取りと不正な書き方の拒否、架空の教材の誤入力 20 件の分類、3 場面の区別、拒否の文面と次の行動が空でないこと（PACK-11） |
 | `crates/pack/tests/text_slots.rs` の `pack16_`・`pack12_` | 5 つの `E-SLOT-*` が期待のファイル・項目で出ること、次の行動の空が静的・動的の両方で 0 件になること、公開の試験データで診断が 0 件であること（PACK-12、PACK-16） |
 | `crates/contract/tests/slot_contract.rs` の `pack16_` | 枠の構文・差し込みの再走査をしない性質・エラーの固定文（PACK-16） |
+| `crates/pack/tests/appearance.rs` | 外観 4 値の読み込み、名前にない値と未知の欄の `E-PARSE`、`validate` との一致、TOML・CLI、スタイル欄が 0 件であること（PACK-21） |

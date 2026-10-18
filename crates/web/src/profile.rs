@@ -7,6 +7,8 @@
 //! 本モジュールは、検査済みの設定を表示層へ渡す型だけを持つ。IR の値からの変換と診断は pack 側
 //! （TASK-52・TASK-53）の責務で、本モジュールの型に合わせて値を作る。
 //!
+//! 外観の閉じた集合と読み取りの規則の正は `contract::appearance` にある（`Theme` はその再公開）。
+//!
 //! 外観は見た目だけを変え、入力判定・状態変化・遷移・履歴に影響しない（PACK-21）。外観は `main` の
 //! `data-theme` 属性だけで表し、`style` 属性・`<style>` 要素は使わない。
 //!
@@ -18,6 +20,7 @@
 
 use core::fmt;
 
+pub use fandhe_workshop_contract::appearance::Theme;
 pub use fandhe_workshop_contract::profile::InputClass;
 use fandhe_workshop_contract::profile::{check_command_prefix, classify_input};
 
@@ -110,40 +113,6 @@ pub struct OperationProfile {
     pub command_prefix: CommandPrefix,
     /// 入力欄の表示。
     pub input_field: InputField,
-}
-
-/// 外観の種類（EP-11）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Theme {
-    /// 標準（既定）。
-    #[default]
-    Standard,
-    /// モノクロ。
-    Mono,
-    /// 高コントラスト。
-    HighContrast,
-    /// 読みやすさ重視。
-    Reading,
-}
-
-impl Theme {
-    /// 全種類。
-    pub const ALL: [Theme; 4] = [
-        Theme::Standard,
-        Theme::Mono,
-        Theme::HighContrast,
-        Theme::Reading,
-    ];
-
-    /// 語彙の綴り。`data-theme` の値になる。
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Theme::Standard => "standard",
-            Theme::Mono => "mono",
-            Theme::HighContrast => "high_contrast",
-            Theme::Reading => "reading",
-        }
-    }
 }
 
 /// 左エリアの世界の一覧の表示（EP-12）。
