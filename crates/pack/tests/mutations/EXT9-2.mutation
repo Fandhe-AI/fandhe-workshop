@@ -1,0 +1,8 @@
+id: EXT9-2
+package: fandhe-workshop-pack
+test: old_pack_history_open
+target: crates/contract/src/ir.rs
+find: pub const SUPPORTED_IR_FORMATS: [u32; 2] = [IR_FORMAT_V1, IR_FORMAT_V2];
+replace: pub const SUPPORTED_IR_FORMATS: [u32; 2] = [IR_FORMAT_V2, IR_FORMAT_V2];
+expect-fail: ext9_frozen_v1_irs_open_as_sessions
+note: 版 1 の IR を読まない（旧い教材が新しい版のエンジンで開かなくなる）

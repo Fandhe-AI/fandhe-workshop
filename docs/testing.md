@@ -4380,3 +4380,45 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 
 - CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
 - `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
+
+### 5.142 旧い教材と旧い履歴が新しい版で開く試験（TASK-190 1/2）
+
+結論: EXT-9（D-52・D-53）の「開く」の側を、凍結した成果物で固定した（`crates/pack/tests/old_pack_history_open.rs`）。EP-13（語彙 1.4）を含む今のエンジンで、旧形式の凍結物である版 1 の IR 4 本が読め、凍結した履歴が変換なしで開く。受け口ごとの版は持たない（D-53）ことも、履歴の `versions` の欄の集合で固定した。新しい項目を使わない教材の IR のバイト一致は #463（TASK-190 2/2）が受け持つ。
+
+「新しい版のエンジン」は、EP-13 を含む今のエンジンである。凍結物は今のエンジン（コミット 6fc670a）で生成した旧形式の試料であり、EP-13 の追加前のエンジンが書いた成果物ではない（履歴の語彙 1.0 は教材の宣言に由来し、旧エンジンの証拠にならない）。証明する範囲は、旧形式の履歴・IR を今のエンジンが開くことまでである。次の受け口の追加は、既存の試験用の口（`OpeningCaps::with_vocab_max`・`record_versions_with`）で模す。旧履歴の凍結物の作り方は `crates/pack/tests/data/old_histories_1/README.md`。
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| `ext9_premise_engine_is_newer_than_frozen_artifacts` | 凍結物の語彙は今の上限より古く、版 1 の IR は語彙の宣言が無い | 通る |
+| `ext9_frozen_v1_irs_open_as_sessions` | 版 1 の golden 4 本が読め、開始点から実行環境を作れる | 通る |
+| `ext9_frozen_history_opens_with_its_v1_ir` | 凍結した履歴が `Open`（写しと一致）。起動では `Restored` で再読み込みが 1 件足される | 通る |
+| `ext9_frozen_history_against_recompiled_v2_ir_is_view_only` | 今 compile し直した版 2 の IR では `ViewOnly(format_older)`（D-52 の既知の境界） | 通る |
+| `ext9_frozen_history_opens_when_pack_redeclares_newer_vocab` | 教材が語彙 1.4 を宣言し直すと `Converted`（`vocab` の軸を含み、`ir_format`・`engine` は含まない） | 通る |
+| `ext9_frozen_history_opens_in_a_next_engine_with_one_more_extension_point` | 語彙の上限 1.5・エンジンの副版 +1 を模すと `Converted`（違いは `engine` だけ） | 通る |
+| `ext9_contract_empty_history_sample_opens_in_current_engine` | 契約の試料 `empty` が `Open`、起動では `Fresh` | 通る |
+| `ext9_stale_contract_samples_are_closed_for_a_non_version_reason` | `two-rounds`・`draft-rejected` は `replay_mismatch`（段 8）で開かない。版の理由ではない | 通る |
+| `ext9_history_versions_have_no_per_extension_point_version` | `versions` の鍵は 6 つだけ。受け口ごとの欄を足した包みは `malformed` で断られ、理由に欄の名前を含めない | 通る |
+
+限界:
+
+- 旧いエンジンの実物（過去の版のビルド）は repo に無い。次の受け口の追加は模擬である
+- 版 1 の履歴は、今 compile し直した版 2 の IR では続きから再開できず表示だけになる（D-52 は変換の規則を持たない）。教材の配信が版 2 に替わると起きるため、04 の EXT-9 の注意点として扱う
+- `two-rounds`・`draft-rejected` の写しは、再読み込みの意味の実装前に作られ、受け口とは別の理由で開かない。写しの更新は契約の試料の版上げに当たり、本件の範囲外
+- 試作の写しの形の `testdata/save-restore-versions/**/h-*.json` は今の型で読めず、対象外
+
+#### 04 の EXT-9 への反映案
+
+証拠の種類に本件の試験（旧い教材と旧い履歴が、受け口を足した後のエンジンで開くこと）を足し、「検討中の理由」のうち受け口を足した後に旧い教材と履歴を読む自動テストが無い点を解く案である。バイト一致は #463 が揃うまで残す。上の限界（版 1 の履歴と版 2 の IR）は注意点として書く。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 6fc670a（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/EXT9-1.mutation crates/pack/tests/mutations/EXT9-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| EXT9-1 | crates/core/src/history_open.rs: 履歴の語彙が上限より古いときに断る向きの取り違え | ext9_frozen_history_opens_with_its_v1_ir | DETECTED |
+| EXT9-2 | crates/contract/src/ir.rs: 版 1 の IR を読まない | ext9_frozen_v1_irs_open_as_sessions | DETECTED |
+
+集計: 2 件すべて DETECTED（2026-10-19）。
