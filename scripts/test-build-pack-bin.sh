@@ -14,6 +14,8 @@ source "${DIR}/lib.sh"
 reject_args "$(basename "$0")" "$@"
 require_cmd cargo
 require_cmd jq
+require_cmd mktemp
+require_cmd rm
 
 BUILD="${DIR}/build-pack-bin.sh"
 TMP_DIR="$(mktemp -d)"
