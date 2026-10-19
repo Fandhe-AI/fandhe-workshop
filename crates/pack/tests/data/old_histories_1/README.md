@@ -18,7 +18,7 @@ JSON はコメントを書けないため、説明は本ファイルに置きま
 - 記録: `RecordedSession` で次の 4 手を記録し、`envelope_for_save()` → `export_bytes` で書き出したバイト列をそのまま置いた
   1. 下書き（`/make-note`）
   2. 受け付けられる送信（`/make-note first-note`）
-  3. 形の誤りで拒否される送信（`/make-note` に kebab-case でない名前）
+  3. 処理中のため拒否される送信（`/make-note Bad_Name`。凍結 JSON の category は `busy`）
   4. 末尾の未送信の下書き
 - `versions`: `engine` 0.0.0・`ir_format` 1・`vocab` 1.0・`content` 0.0.1
 - 生成に使ったコードは試験に残していない（試験は読むだけで、書き戻さない）
