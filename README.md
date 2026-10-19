@@ -110,7 +110,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 
 | 項目 | 内容 |
 |---|---|
-| Chrome または Chromium | 固定しません。Playwright 1.63.0 が同梱する Chromium を使います。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome` を付けます（理由は docs/toolchain.md の第 3 節） |
+| Chrome または Chromium | 固定しません。Playwright 1.63.0 が同梱する Chromium を使います。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome` を付けます（理由は docs/toolchain.md の第 3 節、扱いは「Chrome の原本と Chromium の扱い」） |
 | 試験データの置き場所 | 2 つ以上の crate が使うデータは `testdata/`（出所は `testdata/README.md`）、1 つの crate だけが使う小さな入力はその crate の `tests/` に置きます（[docs/architecture.md](./docs/architecture.md) の第 8 節）。repo の外を参照しないことは `make check-testdata` が検査します |
 | Python | 不要です。試験用の配信は Node の `tools/serve.mjs` が担います |
 | wasm-opt | 任意です（`SKIP_WASM_OPT=1` で省けます） |
@@ -211,6 +211,21 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 失敗したときは、ジョブのログの node:test の出力で、失敗した試験ファイルと検査名を確認します。
 
 既定は Playwright 同梱の Chromium です。Google Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome make test-browser` とします（値は `chromium` か `chrome` だけです。Chrome が無い場合は Chromium へ切り替えず失敗します）。
+
+### Chrome の原本と Chromium の扱い（BUILD-20）
+
+ブラウザテストの原本は、Google Chrome の最新の安定版で流します（D-9）。同梱の Chromium は写しです。どちらで流したかは、node:test の診断の行 `browser: channel=... version=...`（`harness.test.mjs`）で分かります。不具合を報告するときは、この channel と版を添えてください。
+
+| 環境 | 流し方 | 結果の位置づけ |
+|---|---|---|
+| x86_64 の Linux（Chrome の安定版を導入済み） | `FANDHE_BROWSER_CHANNEL=chrome make test-browser` | 原本。2026-10-19 に全件合格を確かめた（記録は `docs/testing.md` 5.128） |
+| Linux Arm64 など、Chrome の安定版が無い環境 | 変数を付けずに `make test-browser`（同梱の Chromium） | 参考の確認。`npx playwright install chrome` は `not supported on Linux Arm64` で失敗する |
+| macOS など上記以外 | 未確認 | 確かめていないため、位置づけを決めていません |
+| CI（`browser test (Chromium)`） | 同梱の Chromium | 関門。原本は CI では流していません（関門にするかは人間の判断待ちです） |
+
+- Chrome の導入は `npx playwright install chrome` です（Ubuntu・Debian の x86_64 だけ。root が要り、既存の `google-chrome` を最新の安定版に入れ替えます）。Google の公式の導入手順でもかまいません
+- `chrome` を指定して Chrome が無いときは、Chromium へ切り替えずに起動の失敗で止まります（fail-closed）。値は `chromium` か `chrome` だけで、それ以外は終了コード 2 です
+- 原本は、Playwright の版を上げたときと公開（リリース）の前に流し直し、記録を更新する提案です（未承認）
 
 ## コマンド
 

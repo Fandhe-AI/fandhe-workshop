@@ -4,7 +4,7 @@
 // 後続の試験が同じ数え方で「0 件」を主張できるようにする。0 件が空振りでないことは harness.test.mjs の対照で示す。
 // 安全性の試験（TASK-143）向けに、記録用の関数の呼び出し・ダイアログ・ポップアップ・タブの異常終了の計数、
 // 画面の走査（危険な要素・on* 属性・style 属性・http(s) 以外の URL・外部 http(s)）、CSP なしの写しでの配信を足してある。
-// 呼び出し元: tools/browser/*.test.mjs（TASK-28 2/2）。後続の TASK-94（Chrome 原本）・TASK-143 の対照（safety.test.mjs・safety-control.test.mjs）・
+// 呼び出し元: tools/browser/*.test.mjs（TASK-28 2/2）。Chrome の原本での実行（TASK-94。扱いと記録は docs/testing.md 5.128）・TASK-143 の対照（safety.test.mjs・safety-control.test.mjs）・
 // TASK-144 以降の安全性の試験も使う。safetyCounts() のキー名は後続の試験との契約のため変えない。
 // 配信は tools/serve.mjs の startServer を再利用する。エンジンは配信先の名前を知らない。
 //
