@@ -105,7 +105,7 @@ pub fn usage() -> String {
 pub const AUTHOR2_ITEM_KINDS: [&str; 5] =
     ["step", "rejection", "start", "playthrough", "error_input"];
 
-/// 版 2 時点の実装が使う項目の種別の参考の一覧。種別を足しても版は上げない（形は `is_item` が見る）。
+/// 版 3 時点の実装が使う項目の種別の参考の一覧。種別を足しても版は上げない（形は `is_item` が見る）。
 pub const ITEM_KINDS_V2: &[&str] = &[
     "step",
     "rejection",

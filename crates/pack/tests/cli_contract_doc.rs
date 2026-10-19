@@ -150,7 +150,7 @@ fn cli_doc_destination_section_present() {
 
 #[test]
 fn cli_doc_metrics_block_matches_contract() {
-    let body = section(&doc(), "## 10. `metrics` の出力");
+    let body = section(&doc(), "## 11. `metrics` の出力");
     let mut in_block = false;
     let mut block = Vec::new();
     for l in body.lines() {

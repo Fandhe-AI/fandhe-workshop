@@ -4534,9 +4534,26 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 範囲外: spec の SAFE-35 の文言の更新、フラグ・選んだ選択肢を受付の時点へ戻すこと（ログに変更前の値が無い。条件の語彙の評価器を結線するとき（TASK-267）に見直す）、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 
-### 5.148 `metrics` の数え方と出力（TASK-402）
+### 5.148 compile の出力とバイト単位の決定性（TASK-407）
 
-`fandhe-pack metrics <pack-dir>`（`crates/pack/src/metrics.rs`、出力の形は `docs/cli.md` 版 3 の 10 節）に対する試験と変異注入である。数え方は PoC-3 の試作に合わせた近似（実効行数は空行と `#` 行を除く。深さは YAML がインデント / 2 + 1 + 一覧の印 + 行内の入れ子、TOML が表の見出しの段数 + 1 + 行内の入れ子）で、試作と違い、上限・リンク・読めないファイルは診断にして表を出さない（fail-closed）。
+`fandhe-pack compile <pack-dir> [-o <file>]` の `-o` の書き出しを実装し、標準出力と `-o` のファイルが同じバイト列であること、複数回・別ディレクトリの写し・列挙順違いでも IR が同一であること、末尾の形を、実行ファイルを起動する結合試験（`crates/pack/tests/compile_output.rs` の `author8_` 8 件）で固定した（AUTHOR-8）。契約は `docs/cli.md` 版 3 の 10 節。
+
+- 書き出しは compile が診断なしで終わった後にだけ行い、同じディレクトリの一時ファイルへ書いて `rename` で置き換える（途中の失敗で IR が残らない）。書き出せないときは `error:` の 1 行と終了コード 2
+- 権限で書けない場合の試験は、root で動く CI で偽陽性になるため入れていない
+
+変異注入（実行日: 2026-10-19、元にしたコミット: 209ff01 に本変更を載せた作業ツリー、コマンド: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR8-*.mutation`）。
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR8-1 | crates/pack/src/cli.rs: `-o` のファイルの末尾を 1 バイト落とす | author8_stdout_and_output_file_are_byte_identical | DETECTED |
+| AUTHOR8-2 | crates/pack/src/cli.rs: `-o` のときも標準出力へ IR を書く | author8_stdout_and_output_file_are_byte_identical | DETECTED |
+| AUTHOR8-3 | crates/pack/src/cli.rs: 書き出しの失敗を成功として返す | author8_unwritable_output_exits_2 | DETECTED |
+
+集計: 3 件すべて DETECTED（2026-10-19）。「失敗時に一時ファイルを消さない」変異は、試験の失敗経路（親が無い・ディレクトリを指す）が一時ファイルを作る前に失敗するため等価になり、採らなかった。
+
+### 5.149 `metrics` の数え方と出力（TASK-402）
+
+`fandhe-pack metrics <pack-dir>`（`crates/pack/src/metrics.rs`、出力の形は `docs/cli.md` 版 3 の 11 節）に対する試験と変異注入である。数え方は PoC-3 の試作に合わせた近似（実効行数は空行と `#` 行を除く。深さは YAML がインデント / 2 + 1 + 一覧の印 + 行内の入れ子、TOML が表の見出しの段数 + 1 + 行内の入れ子）で、試作と違い、上限・リンク・読めないファイルは診断にして表を出さない（fail-closed）。
 
 期待値の出し方。
 

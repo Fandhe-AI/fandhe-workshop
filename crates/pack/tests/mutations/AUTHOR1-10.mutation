@@ -2,7 +2,7 @@ id: AUTHOR1-10
 package: fandhe-workshop-pack
 test: metrics
 target: crates/pack/src/cli_contract.rs
-find: if c.is_control() || c == ',' {
-replace: if c.is_control() {
+find: if c.is_control() || c == ',' || c == '"' {
+replace: if c.is_control() || c == '"' {
 expect-fail: me9_odd_file_names_keep_one_row_of_five_fields
 note: file 欄の , を直さず 5 欄が崩れる

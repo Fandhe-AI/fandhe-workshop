@@ -1,0 +1,8 @@
+id: AUTHOR8-2
+package: fandhe-workshop-pack
+test: compile_output
+target: crates/pack/src/cli.rs
+find: Some(path) => match write_output(path, &bytes) {
+replace: Some(path) => match write_output(path, &bytes).and_then(|()| out.write_all(&bytes)) {
+expect-fail: author8_stdout_and_output_file_are_byte_identical
+note: -o のときも標準出力へ IR を書く

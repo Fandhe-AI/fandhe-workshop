@@ -39,27 +39,6 @@ fn i10_each_command_is_dispatched_to_its_handler() {
 }
 
 #[test]
-fn i11_compile_output_is_accepted_but_not_written() {
-    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("i11-compile-o-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let target = dir.join("x.json");
-    let o = bin()
-        .arg("compile")
-        .arg(ch1_pack())
-        .arg("-o")
-        .arg(&target)
-        .output()
-        .unwrap();
-    assert_eq!(o.status.code(), Some(2));
-    assert!(o.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&o.stderr).contains("compile -o is not implemented"));
-    assert!(!target.exists());
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
 fn i2_no_args_prints_usage() {
     let o = bin().output().unwrap();
     assert_eq!(o.status.code(), Some(2));
@@ -105,7 +84,7 @@ fn i6_compile_argument_errors() {
     let o = bin()
         .arg("compile")
         .arg(ch1_pack())
-        .args(["-o", "x"])
+        .arg("-o")
         .output()
         .unwrap();
     assert_eq!(o.status.code(), Some(2));

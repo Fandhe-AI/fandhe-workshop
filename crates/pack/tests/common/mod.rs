@@ -88,6 +88,32 @@ pub fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
+pub fn files_of(dir: &Path, base: &Path, out: &mut Vec<PathBuf>) {
+    for e in fs::read_dir(dir).expect("read_dir").flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            files_of(&p, base, out);
+        } else {
+            out.push(p.strip_prefix(base).expect("prefix").to_path_buf());
+        }
+    }
+}
+
+/// ファイルを辞書順の逆で作って写す（ディレクトリの列挙順を変える）。
+pub fn reversed_copy(from: &Path, tag: &str) -> Tmp {
+    let t = Tmp::new(tag);
+    let mut files = Vec::new();
+    files_of(from, from, &mut files);
+    files.sort();
+    files.reverse();
+    for rel in files {
+        let dst = t.0.join(&rel);
+        fs::create_dir_all(dst.parent().expect("parent")).expect("mkdir");
+        fs::copy(from.join(&rel), dst).expect("copy");
+    }
+    t
+}
+
 pub const WORKSHOP: &str = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\n";
 pub const CHAPTER: &str = concat!(
     "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",

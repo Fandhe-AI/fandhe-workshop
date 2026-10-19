@@ -7,7 +7,7 @@
 //! 診断の文面には、接頭辞の値・コマンド名・未知のキーの生の値を写さない。item に名前を写すのは
 //! `safe_ident` を通るときだけにする（`: ` や改行で 1 行の形を壊さないため）。名前が通らないコマンドは、
 //! 名前順で 1 始まりの位置を使った `command:#<n>` で示す（PoC の出力 `command:ls a` とは形が違う。
-//! 出力形の正は `docs/cli.md` 版 2 の 6〜7 節）。
+//! 出力形の正は `docs/cli.md` 版 3 の 6〜7 節）。
 //!
 //! 接頭辞と `input_field` に基づく Step の検査（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`。TASK-52 2/2）は
 //! [`check_profile_steps`] が `compile` から呼ばれて行う。教材テストの入力の分けの検査（`E-PLAY-INPUT-CLASS`）は
