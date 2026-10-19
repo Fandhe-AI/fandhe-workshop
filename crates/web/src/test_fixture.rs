@@ -98,6 +98,14 @@ fn session_of(ir_bytes: &[u8]) -> Option<Session> {
     Some(Session::from_state(ir, start_state_at(node)?))
 }
 
+/// 任意の教材（IR の JSON のバイト列）から実行環境を作る（TASK-175 2/2。`load-ir:` が差し替える）。
+///
+/// 版の違う履歴 15 件の、開く側の教材をブラウザで入れ替えるために使う。読めない・開始の節点が無いときは `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn session_from_ir_bytes(ir_bytes: &[u8]) -> Option<Session> {
+    session_of(ir_bytes)
+}
+
 /// 確認が `answer` の Step を持つ試験用の実行環境（TASK-445 2/2。`load-fixture:answer` が差し替える）。
 ///
 /// 埋め込みの教材の `main/st-1` の確認を、選択肢 2 件（誤り・正解）の `answer` に置き換える。誤答の文面は教材が

@@ -220,6 +220,12 @@ pub(crate) fn engine_snapshot() -> Option<String> {
     with_app(|app| app.engine_snapshot_json())
 }
 
+/// 直近に開いた履歴の、開いた直後の状態の JSON。開いていない・未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn last_import_state() -> Option<String> {
+    with_app(|app| app.last_import_state_json().map(str::to_owned)).flatten()
+}
+
 /// 入力欄の値の取得。未マウント・借用中は `None`。試験用の口が欄の状態を読むために使う。
 ///
 /// 戻り値は（コードポイント数、超過の印、本文）。
