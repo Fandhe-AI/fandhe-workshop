@@ -26,11 +26,12 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
 ├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
 ├── docs/toolchain.md         # 固定した版と前提の一か所の正（check-toolchain が一致を検査）
+├── docs/dependency-inventory.md # 依存の棚卸しの手順と日付つきの結果の記録（BUILD-25・D-58。実行は make inventory-deps）
 ├── docs/measurement.md       # 測定の結果の様式（基点の 4 項目と比較の規則。実行は make measure）
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・serve.mjs・browser/・measure/。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・serve.mjs・inventory-deps.mjs・browser/・measure/。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -107,6 +108,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI 未組み込み） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
+| `make inventory-deps` | `Cargo.lock` の依存の取り下げ・所有者の数を crates.io で調べる（`tools/inventory-deps.mjs`。通信が要り数分かかる。CI 未組み込み。手順と記録は `docs/dependency-inventory.md`） |
+| `make test-inventory-deps` | 依存の棚卸し自体の回帰テスト（通信なし） |
 | `make measure` | 3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し、束の JSON を出す（遅く、ブラウザを要する） |
 | `make test-measure` | 一括測定の束の検証・fail-closed・実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 
