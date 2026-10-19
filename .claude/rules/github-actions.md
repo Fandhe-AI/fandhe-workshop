@@ -108,6 +108,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
+- 配信のジョブ（`deploy.yml`）は fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
