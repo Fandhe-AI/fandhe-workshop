@@ -1,0 +1,313 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "input-kinds",
+    "title": "Input kinds",
+    "version": "0",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "init-claude": {
+      "description": "d"
+    }
+  },
+  "views": {
+    "files": {
+      "kind": "files"
+    }
+  },
+  "fixtures": {},
+  "hints": {},
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/s-command",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-command",
+        "title": "Command",
+        "body": "a.md",
+        "input": {
+          "args": [
+            {
+              "name": "target",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ],
+          "kind": "command",
+          "name": "init-claude"
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-text"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-text",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-text",
+        "title": "Text",
+        "body": "a.md",
+        "input": {
+          "kind": "text",
+          "max": 100,
+          "min": 1
+        },
+        "rules": [
+          {
+            "id": "r-cancel",
+            "on": {
+              "cancel": true
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-choice"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-choice",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-choice",
+        "title": "Choice",
+        "body": "a.md",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "a",
+              "label": "A"
+            },
+            {
+              "id": "b",
+              "label": "B"
+            }
+          ]
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-ui"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-ui",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-ui",
+        "title": "Ui",
+        "body": "a.md",
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "path": "src/main.rs",
+              "view": "files"
+            }
+          ]
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-approval"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-approval",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-approval",
+        "title": "Approval",
+        "body": "a.md",
+        "input": {
+          "kind": "approval"
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-wait"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-wait",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-wait",
+        "title": "Wait",
+        "body": "a.md",
+        "processing": [
+          {
+            "name": "p1"
+          },
+          {
+            "name": "p2"
+          }
+        ],
+        "input": {
+          "kind": "wait"
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-end"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-end",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-end",
+        "title": "End",
+        "final": true
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/s-command",
+      "effects": []
+    }
+  ]
+}

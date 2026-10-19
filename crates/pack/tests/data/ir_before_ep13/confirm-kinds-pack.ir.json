@@ -1,0 +1,236 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "confirm-kinds",
+    "title": "Confirm kinds",
+    "version": "0",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {
+    "v-files": {
+      "kind": "file_tree"
+    }
+  },
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-miss-point": {
+      "category": "not_in_this_step",
+      "message": "Not the changed spot.",
+      "next_action": "Point at the marked spot."
+    },
+    "rj-wrong-answer": {
+      "category": "not_in_this_step",
+      "message": "Not that one.",
+      "next_action": "Choose again."
+    }
+  },
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/s-point",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-point",
+        "title": "Point",
+        "body": "a.md",
+        "views": [
+          "v-files"
+        ],
+        "input": {
+          "kind": "approval"
+        },
+        "confirm": {
+          "kind": "point_at",
+          "on_miss": "rj-miss-point",
+          "targets": [
+            {
+              "path": "src/main.rs",
+              "view": "v-files"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/s-answer"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-answer",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-answer",
+        "title": "Answer",
+        "body": "a.md",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "a",
+              "label": "A"
+            },
+            {
+              "id": "b",
+              "label": "B"
+            }
+          ]
+        },
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-wrong-answer",
+          "options": [
+            {
+              "correct": true,
+              "id": "a",
+              "label": "A"
+            },
+            {
+              "correct": false,
+              "id": "b",
+              "on_wrong": "rj-wrong-answer"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/s-approve"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-approve",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-approve",
+        "title": "Approve",
+        "body": "a.md",
+        "input": {
+          "kind": "approval"
+        },
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/s-none"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-none",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-none",
+        "title": "None",
+        "body": "a.md",
+        "input": {
+          "kind": "approval"
+        },
+        "confirm": {
+          "kind": "none",
+          "reason": "Nothing to verify after this step."
+        },
+        "next": [
+          {
+            "to": "main/s-end"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-end",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-end",
+        "title": "End",
+        "final": true
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/s-point",
+      "effects": []
+    }
+  ]
+}
