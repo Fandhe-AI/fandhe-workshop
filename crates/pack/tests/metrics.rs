@@ -1,6 +1,6 @@
 //! `fandhe-pack metrics <pack-dir>` の結合試験（TASK-402、AUTHOR-1）。
 //!
-//! 期待値は、PoC-3 の試作の数え方（`docs/cli.md` 版 3 の 11 節）を実装とは別に（python で）書いて得た定数である。
+//! 期待値は、PoC-3 の試作の数え方（`docs/cli.md` 版 4 の 11 節）を実装とは別に（python で）書いて得た定数である。
 //! 掲示板教材そのものは repo に無く（D-11。`testdata/README.md`）、spec は private で試験から読まないため、
 //! 自動試験では最小の教材パック 2 形式と、条件の語彙を使う架空のパック（`testdata/condition-vocab-pack`）で代える。
 //! 掲示板教材との照合はローカルで行い、`docs/testing.md` 5.148 に記録した。作業ツリーは書き換えない。

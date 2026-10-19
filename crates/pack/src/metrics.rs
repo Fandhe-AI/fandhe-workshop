@@ -1,7 +1,7 @@
 //! `fandhe-pack metrics <pack-dir>` の本体。ファイルごとの行数・実効行数・バイト数・入れ子の深さを CSV で出す
 //! （AUTHOR-1、TASK-402）。
 //!
-//! 呼び出し元は `cli::run_metrics` で、出力の形（ヘッダ・行・`TOTAL`）の正は `docs/cli.md`（版 3）の 11 節、
+//! 呼び出し元は `cli::run_metrics` で、出力の形（ヘッダ・行・`TOTAL`）の正は `docs/cli.md`（版 4）の 11 節、
 //! 行の組み立ては `cli_contract::metrics_row` にある。形式 A（TOML）と形式 B（YAML）の書きやすさを比べる
 //! 指標として試作（PoC-3）が使った数え方を写しており、実効行数と深さは厳密な構文解析でない近似である。
 //!

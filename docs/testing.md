@@ -4536,7 +4536,7 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 ### 5.148 compile の出力とバイト単位の決定性（TASK-407）
 
-`fandhe-pack compile <pack-dir> [-o <file>]` の `-o` の書き出しを実装し、標準出力と `-o` のファイルが同じバイト列であること、複数回・別ディレクトリの写し・列挙順違いでも IR が同一であること、末尾の形を、実行ファイルを起動する結合試験（`crates/pack/tests/compile_output.rs` の `author8_` 8 件）で固定した（AUTHOR-8）。契約は `docs/cli.md` 版 3 の 10 節。
+`fandhe-pack compile <pack-dir> [-o <file>]` の `-o` の書き出しを実装し、標準出力と `-o` のファイルが同じバイト列であること、複数回・別ディレクトリの写し・列挙順違いでも IR が同一であること、末尾の形を、実行ファイルを起動する結合試験（`crates/pack/tests/compile_output.rs` の `author8_` 8 件）で固定した（AUTHOR-8）。契約は `docs/cli.md` 版 4 の 10 節。
 
 - 書き出しは compile が診断なしで終わった後にだけ行い、同じディレクトリの一時ファイルへ書いて `rename` で置き換える（途中の失敗で IR が残らない）。書き出せないときは `error:` の 1 行と終了コード 2
 - 権限で書けない場合の試験は、root で動く CI で偽陽性になるため入れていない
@@ -4553,7 +4553,7 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 ### 5.149 `metrics` の数え方と出力（TASK-402）
 
-`fandhe-pack metrics <pack-dir>`（`crates/pack/src/metrics.rs`、出力の形は `docs/cli.md` 版 3 の 11 節）に対する試験と変異注入である。数え方は PoC-3 の試作に合わせた近似（実効行数は空行と `#` 行を除く。深さは YAML がインデント / 2 + 1 + 一覧の印 + 行内の入れ子、TOML が表の見出しの段数 + 1 + 行内の入れ子）で、試作と違い、上限・リンク・読めないファイルは診断にして表を出さない（fail-closed）。
+`fandhe-pack metrics <pack-dir>`（`crates/pack/src/metrics.rs`、出力の形は `docs/cli.md` 版 4 の 11 節）に対する試験と変異注入である。数え方は PoC-3 の試作に合わせた近似（実効行数は空行と `#` 行を除く。深さは YAML がインデント / 2 + 1 + 一覧の印 + 行内の入れ子、TOML が表の見出しの段数 + 1 + 行内の入れ子）で、試作と違い、上限・リンク・読めないファイルは診断にして表を出さない（fail-closed）。
 
 期待値の出し方。
 
