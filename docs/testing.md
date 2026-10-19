@@ -4511,3 +4511,23 @@ AUTHOR2-1 は空の項目を拒否する検査を外し、AUTHOR2-2 は診断の
 | AUTHOR2-4 | crates/pack/src/diag.rs: ファイル・項目の欄の区切りの `: ` を直さなくなる | diagnostic_separator_in_fields_is_escaped | DETECTED |
 
 集計: 4 件すべて DETECTED（2026-10-19）。
+
+### 5.146 引数の形の検査とコマンドの振り分け（TASK-401）
+
+`docs/cli.md` 版 2 の 3 節の引数の形の検査と、6 つのコマンドの振り分け（コード側は `crates/pack/src/cli.rs`）に対する変異注入である。試験は `crates/pack/tests/cli_contract.rs`（形の誤りが読み込みの前に 2 で止まること）と `crates/pack/tests/cli.rs`（形が正しい呼び出しが各コマンドの handler に届くこと）にある。
+
+AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTHOR1-5 は `vocab` の振り分けを `metrics` の handler に差し替え、AUTHOR1-6 は `-` で始まる引数を位置引数として拒否する判定を外す。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 2f8070b（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR1-4.mutation crates/pack/tests/mutations/AUTHOR1-5.mutation crates/pack/tests/mutations/AUTHOR1-6.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR1-4 | crates/pack/src/cli.rs: 1 引数のコマンドの余分な引数の検査が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+| AUTHOR1-5 | crates/pack/src/cli.rs: vocab の振り分けが metrics の handler になる | i10_each_command_is_dispatched_to_its_handler | DETECTED |
+| AUTHOR1-6 | crates/pack/src/cli.rs: - で始まる引数を位置引数として拒否する判定が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+
+集計: 3 件すべて DETECTED（2026-10-19）。

@@ -102,11 +102,40 @@ fn argument_shape_errors_exit_2() {
         assert_eq!(code(&o), Some(2), "{args:?}");
         assert!(o.stdout.is_empty(), "{args:?}");
     }
-    // 引数の数の検査は TASK-401 の担当。骨格の間は未実装として 2 で終わることだけを見る（経過措置）。
+}
+
+#[test]
+fn argument_shape_errors_are_reported_before_loading() {
+    let a = ch1_pack();
+    let f = std::ffi::OsStr::new("f");
+    let o_ = std::ffi::OsStr::new("-o");
+    let x = std::ffi::OsStr::new("-x");
+    let extra = std::ffi::OsStr::new("extra");
+    let mut cases: Vec<Vec<&std::ffi::OsStr>> = Vec::new();
     for c in ["validate", "test", "vocab", "metrics"] {
-        let o = bin().args([c, "/nonexistent/path"]).output().unwrap();
-        assert_eq!(code(&o), Some(2), "{c}");
-        assert!(o.stdout.is_empty(), "{c}");
+        let c = std::ffi::OsStr::new(c);
+        cases.push(vec![c]);
+        cases.push(vec![c, a.as_os_str(), extra]);
+        cases.push(vec![c, x]);
+        cases.push(vec![c, o_, f, a.as_os_str()]);
+    }
+    let c = std::ffi::OsStr::new("compile");
+    cases.push(vec![c, a.as_os_str(), extra]);
+    cases.push(vec![c, x]);
+    cases.push(vec![c, o_, f, a.as_os_str()]);
+    cases.push(vec![c, a.as_os_str(), o_]);
+    cases.push(vec![c, a.as_os_str(), o_, x]);
+    cases.push(vec![c, a.as_os_str(), o_, f, o_, extra]);
+    cases.push(vec![c, a.as_os_str(), o_, f, extra]);
+    cases.push(vec![std::ffi::OsStr::new("compare"), x, a.as_os_str()]);
+    for args in cases {
+        let o = bin().args(&args).output().unwrap();
+        assert_eq!(code(&o), Some(2), "{args:?}");
+        assert!(o.stdout.is_empty(), "{args:?}");
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert!(err.starts_with("error:"), "{args:?}: {err}");
+        assert!(err.contains(&usage()), "{args:?}");
+        assert!(!err.contains("not implemented"), "{args:?}: {err}");
     }
 }
 

@@ -1,0 +1,8 @@
+id: AUTHOR1-6
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/cli.rs
+find: if is_dashed(&a) {
+replace: if false {
+expect-fail: argument_shape_errors_are_reported_before_loading
+note: - で始まる引数を位置引数として拒否する判定が外れる
