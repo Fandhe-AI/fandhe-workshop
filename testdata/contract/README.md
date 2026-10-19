@@ -1,9 +1,9 @@
 # contract
 
-公開 API の契約（`CONTRACT_VERSION` = 5）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
+公開 API の契約（`CONTRACT_VERSION` = 6）に対する、イベント列のサンプルです。表示・保存・入力判定・案内の担当が
 `apply()` へ結線するときの合否の基準になります（TASK-205）。JSON はコメントを書けないため、説明は本ファイルに置きます。
 
-- サンプル: `event-sequence.json`（版 5）
+- サンプル: `event-sequence.json`（版 6）
 - 読む部品: `crates/core/tests/common/contract_sample.rs`
 - 形の試験: `crates/core/tests/contract_sample.rs`（TASK-205 1/2）
 - 適合試験: `crates/core/tests/contract_conformance.rs`（TASK-205 2/2）。EVT-22 の決定性と EVT-6 の世代を確かめます。サンプルを連鎖して流す厳密な照合は、`apply()` が骨格の間は失敗するため `#[ignore]` で、結線の確認は `cargo test --locked -p fandhe-workshop-core --test contract_conformance -- --include-ignored` で行います（`docs/engine-api.md` の 7 節）
@@ -68,3 +68,4 @@ spec は private のため、本文を写さず ID（EVT-6・EVT-10・EVT-22・T
 | 3 | 2026-10-15 | `CONTRACT_VERSION` 3 に追従（TASK-267）。入力の項目（e01・e02・e03・e08・e15・e16・e21）の `InputReceived` の直後に `Judged` を足した。`Tick`・`Control` の項目は変えない |
 | 4 | 2026-10-16 | `CONTRACT_VERSION` 4 に追従（TASK-320 1/2）。操作・イベントは変えない（再読み込みは `apply()` の `Op` ではないため、サンプルに入らない） |
 | 5 | 2026-10-18 | `CONTRACT_VERSION` 5 に追従（TASK-42 2/2）。`Slice.clarifying` は `None` で書き出さないため、状態・操作・イベントは変えない |
+| 6 | 2026-10-19 | `CONTRACT_VERSION` 6 に追従（TASK-160 2/3）。`Event::TransitionLimitReached` を足したが、上限に達する操作はサンプルに入らないため、状態・操作・イベントは変えない |

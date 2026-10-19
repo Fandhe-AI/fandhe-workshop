@@ -4,6 +4,8 @@
 //! 1,000 回に達した時点で止まり、`Warning` が 1 件だけ残り、現在の Step が空になって以降の入力が落ちずに無視されることを確かめる。
 //! 巡回しない長い連鎖は、1,000 回ちょうどなら通り、1,001 回で止まる（境界）。再帰を使っていないことは小さなスタックで確かめる。
 //! 開始（`Control::Begin`）は未実装（TASK-217）なので、`enter` の巡回は `Control::GoTo` で入口へ入って代わりにする。
+//! TASK-160 2/3（SAFE-34）で、止めたときに専用の `TransitionLimitReached` が `Warning` の直後に 1 件だけ残り、
+//! 着地の回数が上限と一致することを足した（止まらないときは 0 件）。
 //! 呼び出し元は CI の `make test` と変異注入（`tests/mutations/SAFE23-*.mutation`）である。
 
 use std::path::PathBuf;
@@ -58,6 +60,36 @@ fn limit_warnings(events: &[Event]) -> usize {
     )
 }
 
+/// 受講者向けの専用のイベント（SAFE-34）の着地の回数。止めたときの 1 件だけを取り出す。
+fn limit_landings(events: &[Event]) -> Vec<u32> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::TransitionLimitReached { landings, .. } => Some(*landings),
+            _ => None,
+        })
+        .collect()
+}
+
+/// 止めたとき、専用のイベントが 1 件で、作成者向けの `Warning` の直後・イベント列の末尾にあることを確かめる。
+fn assert_limit_event(events: &[Event]) {
+    assert_eq!(
+        limit_landings(events),
+        vec![u32::try_from(MAX_TRANSITIONS_PER_INPUT).expect("fits")],
+        "{events:?}"
+    );
+    let n = events.len();
+    assert!(n >= 2, "{events:?}");
+    assert!(
+        matches!(&events[n - 2], Event::Warning { message, .. } if message.contains("per-input limit")),
+        "{events:?}"
+    );
+    assert!(
+        matches!(&events[n - 1], Event::TransitionLimitReached { .. }),
+        "{events:?}"
+    );
+}
+
 fn entered(events: &[Event]) -> usize {
     count(events, |e| matches!(e, Event::ModuleEntered { .. }))
 }
@@ -98,7 +130,7 @@ fn cycle_enter_self_stops_at_limit() {
     let (state, events) = apply(&ir, state_at("main/st-1"), go_to("main/u-self"));
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), MAX_TRANSITIONS_PER_INPUT);
-    assert!(matches!(events.last(), Some(Event::Warning { .. })));
+    assert_limit_event(&events);
     assert_halted(&state, &ir);
 }
 
@@ -108,6 +140,7 @@ fn cycle_enter_2_stops_at_limit() {
     let (state, events) = apply(&ir, state_at("main/st-1"), go_to("main/u-a"));
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), MAX_TRANSITIONS_PER_INPUT);
+    assert_limit_event(&events);
     assert_halted(&state, &ir);
 }
 
@@ -118,6 +151,7 @@ fn cycle_exit_2_stops_at_limit() {
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
     assert_eq!(count(&events, |e| matches!(e, Event::Achieved { .. })), 1);
+    assert_limit_event(&events);
     assert_halted(&state, &ir);
 }
 
@@ -143,6 +177,7 @@ fn cycle_d07_flat_stays_under_limit() {
         all.extend(events);
     }
     assert_eq!(limit_warnings(&all), 0, "{all:?}");
+    assert!(limit_landings(&all).is_empty(), "{all:?}");
     assert!(state.run.current.is_some());
     assert!(entered(&all) >= 1, "{all:?}");
     assert!(entered(&all) < 10, "{all:?}");
@@ -212,6 +247,7 @@ fn enter_chain_boundary() {
     let ir = enter_chain(ok);
     let (state, events) = apply(&ir, state_at("main/e"), text());
     assert_eq!(warnings(&events), 0, "{events:?}");
+    assert!(limit_landings(&events).is_empty(), "{events:?}");
     assert_eq!(state.run.current, Some(uid("main/tail")));
     assert_eq!(entered(&events), ok);
 
@@ -219,6 +255,7 @@ fn enter_chain_boundary() {
     let (state, events) = apply(&ir, state_at("main/e"), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), ok + 1);
+    assert_limit_event(&events);
     assert_halted(&state, &ir);
 }
 
@@ -229,6 +266,7 @@ fn exit_chain_boundary() {
     let ir = exit_chain(ok);
     let (state, events) = apply(&ir, state_at("main/c0"), text());
     assert_eq!(warnings(&events), 0, "{events:?}");
+    assert!(limit_landings(&events).is_empty(), "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
     // 末尾まで戻った後の現在位置は、最後の復帰先（呼び出し先の final Step のままにしない）。
     assert_eq!(state.run.current, Some(uid("main/tail")));
@@ -237,6 +275,7 @@ fn exit_chain_boundary() {
     let (state, events) = apply(&ir, state_at("main/c0"), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
+    assert_limit_event(&events);
     assert_halted(&state, &ir);
 }
 
@@ -266,6 +305,7 @@ fn unknown_enter_target_warns() {
     }
     let (_, events) = apply(&ir, state_at("main/e"), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
+    assert!(limit_landings(&events).is_empty(), "{events:?}");
     assert!(!events
         .iter()
         .any(|e| matches!(e, Event::Warning { message, .. } if message.contains("nowhere"))));

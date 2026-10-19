@@ -63,6 +63,7 @@ pub mod host;
 pub mod input_limit;
 pub mod key_route;
 pub mod learner_text;
+pub mod limit_notice;
 pub mod list_policy;
 pub mod log_lines;
 pub mod offers;

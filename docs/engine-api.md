@@ -1,8 +1,8 @@
 # 公開 API の契約の文書
 
 ```text
-公開 API の契約の文書の版: 5
-対象の契約の版（CONTRACT_VERSION）: 5
+公開 API の契約の文書の版: 6
+対象の契約の版（CONTRACT_VERSION）: 6
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
@@ -30,7 +30,7 @@
 |---|---|---|---|
 | `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
 | `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
-| `event` | `Event`（`HintOpened`・`Judged`・`Reloaded` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `event` | `Event`（`HintOpened`・`Judged`・`Reloaded`・`TransitionLimitReached` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
 | `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` は宛先が一致する進行を TASK-210 2/3 が結線済みで、食い違いの無視の記録は 3/3） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
 | `text_fill` | `slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`filled_texts_of_log`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み（`filled_texts_of_log` はログから拒否・問い返しの文面を作り直す）。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
@@ -82,9 +82,9 @@
 - `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
 - 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。`at` は操作前の世代と現在の Step（宛先の値ではない）で、現在の Step が無いときは記録しない（実装済み、TASK-210 3/3）
 
-## 5. 版 5 で固定しないもの
+## 5. 版 6 で固定しないもの
 
-次は意図して版 5 に含めない。足すときは版上げの契約タスクとする。
+次は意図して版 6 に含めない。足すときは版上げの契約タスクとする。
 
 - 早送りの入・切（EVT-27）
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
@@ -137,6 +137,7 @@
 | SAVE-5 停止・移動・復帰の直後の再読み込みは直後の状態と等しく、操作の前の宛先は `Ignored(Stale)` | `Event::Stopped`・`Event::Moved`・`Event::Restored`、`session::reload`、`HistoryOp::Reload` | 試験で固定（TASK-321）。`reload_after_control` の `reload_right_after_stop_restores_the_stopped_state`・`reload_right_after_move_restores_the_moved_state`・`reload_right_after_restore_restores_the_restored_state`・`reload_right_after_confirm_burst_keeps_one_achievement`（連打 S-9）、web の `reload_after_control_store`。製品コードは変えていない | 自動ブラウザ（S-6・S-7・S-9・S-19）は web に履歴の記録・復元の結線が入る TASK-319 の後 |
 | GUIDE-3 案内レベルは実行全体で 1 つ | `RunState.guidance_level`（`Slice` に置かない）、`Control::SetGuidance` | 読み取れる | 切り替えの処理は TASK-294 が実装する |
 | MOD-4 下書きの根は「最初の `/` まで」 | `Root`・`StepUid::root`（`addr.rs`） | 所見あり | 入れ子の実体でだけ、文言（最初の `/`）と実装（最後の `/` より前＝`Instance.id`）が食い違う。実装は語彙 v1 の 9 節（フラグは実体ごと）と合うため変えず、試験で固定した（`docs/testing.md` の 5.81）。仕様側の決定は未了（#1413）。決定が「最初の `/`」なら切り身・フラグ・チェックポイントの持ち主の鍵にも効くため、`CONTRACT_VERSION` を上げる別の変更になる。切り身（MOD-3・MOD-9・MOD-10）の根も同じ定義から来ており、同じ食い違いがある |
+| SAFE-34 上限で止めた理由は専用のイベントで通知する | `Event::TransitionLimitReached { at, landings }` | 実装済み（`transit` モジュール、TASK-160 2/3）。`transition_limit` の `assert_limit_event` が、巡回 3 本と連鎖の境界で、止めたときにちょうど 1 件で `Warning` の直後・末尾にあり `landings` が上限と一致することを、止まらないときは 0 件であることを確かめる。`Projection` は 1 件につき 1 行にする | 見出し・案内・まとめ表示は web が持つ（`log_lines`・`limit_notice`）。止めた後の戻り方（SAFE-35）は TASK-160 3/3 |
 
 ## 7. 契約適合試験とサンプル
 
@@ -144,7 +145,7 @@
 
 | 物 | 置き場 | 役割 |
 |---|---|---|
-| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 5、対象は `CONTRACT_VERSION` 5） | 21 件の操作の前後の状態と期待のイベント列 |
+| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 6、対象は `CONTRACT_VERSION` 6） | 21 件の操作の前後の状態と期待のイベント列 |
 | サンプルの説明 | `testdata/contract/README.md` | 欄の意味・版の規則 |
 | 形の試験 | `crates/core/tests/contract_sample.rs` | サンプルが core の型で読めること、連なり、網羅 |
 | 適合試験 | `crates/core/tests/contract_conformance.rs` | 下表の 3 層 |
@@ -176,6 +177,7 @@
 | 3 | 2026-10-15 | `Event::Judged` を追加。`judge` モジュール（判定結果の統合）を一覧に追加。5 節に `Tick` の発行位置などの未決を、6 節に JUDGE-3 の照合を追加。`CONTRACT_VERSION` を 2 から 3 へ | TASK-267 |
 | 4 | 2026-10-16 | `Event::Reloaded`・`session::reload`・`Session::reload` を追加（再読み込みは `Op` に含めない）。3 節に注記、5 節の項目を更新、6 節に SAVE-4 の照合を追加。`CONTRACT_VERSION` を 3 から 4 へ | TASK-320 1/2 |
 | 5 | 2026-10-18 | `Slice.clarifying`（問い返しの待ち、EP-4）を追加。旧データは serde の既定で読め、`None` は書き出さない。5 節の項目を更新。`CONTRACT_VERSION` を 4 から 5 へ | TASK-42 2/2 |
+| 6 | 2026-10-19 | `Event::TransitionLimitReached`（遷移の上限で止めたことの専用のイベント、SAFE-34・D-45）を追加。作成者向けの `Warning`（SAFE-23）は残し、その直後に 1 件置く。2 節・6 節を更新。`CONTRACT_VERSION` を 5 から 6 へ | TASK-160 2/3 |
 
 - 2026-10-16: `Restored` による復習・変化の印の作り直しと、ログの並びが書き出し・読み込みで変わらないことの試験（`restore_review`、TASK-214 2/3）を足した。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: チェックポイントの保存と復帰（`checkpoint` モジュール、TASK-214 1/3）を `apply()` に結線し、サンプルの連鎖の全件の照合の `#[ignore]` を外した。`Event::Restored.log_len` の doc を「復帰したチェックポイントの保存の時点のログの長さ」に明確化した（値は変えない）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた

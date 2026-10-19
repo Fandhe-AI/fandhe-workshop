@@ -139,6 +139,10 @@ fn events_roundtrip() {
             at: stamp(),
             new_generation: Generation(4),
         },
+        Event::TransitionLimitReached {
+            at: stamp(),
+            landings: 1000,
+        },
         Event::Refused {
             at: stamp(),
             op: ControlKind::OpenHint,
@@ -157,6 +161,12 @@ fn events_roundtrip() {
         .expect("reloaded");
     let v = serde_json::to_value(reloaded).expect("serialize");
     assert!(v["reloaded"]["new_generation"].is_number());
+    let limit = events
+        .iter()
+        .find(|e| matches!(e, Event::TransitionLimitReached { .. }))
+        .expect("transition_limit_reached");
+    let v = serde_json::to_value(limit).expect("serialize");
+    assert_eq!(v["transition_limit_reached"]["landings"], 1000);
 }
 
 #[test]
@@ -175,6 +185,10 @@ fn unknown_field_and_variant_are_rejected() {
     let bad_reloaded =
         r#"{"reloaded":{"at":{"generation":1,"step":"s"},"new_generation":2,"extra":1}}"#;
     assert!(serde_json::from_str::<Event>(bad_reloaded).is_err());
+    let bad_limit = r#"{"transition_limit_reached":{"at":{"generation":1,"step":"s"},"landings":1000,"extra":1}}"#;
+    assert!(serde_json::from_str::<Event>(bad_limit).is_err());
+    let ok_limit = bad_limit.replace(r#","extra":1"#, "");
+    assert!(serde_json::from_str::<Event>(&ok_limit).is_ok());
     let bad_ui = r#"{"ui":{"view":"v","path":"p","extra":1}}"#;
     assert!(serde_json::from_str::<Input>(bad_ui).is_err());
     let bad_approval = r#"{"approval":{"decision":"approve","target":null,"extra":1}}"#;
