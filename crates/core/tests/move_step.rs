@@ -212,13 +212,17 @@ fn move_invalidates_entry_copy() {
     assert!(state.entry.is_some());
     let (next, _) = apply(&ir, state, go_to(ST1));
     assert!(next.entry.is_none());
-    // 写しの Step へ戻った後に受け付けて停止しても、古い写しへ誤って巻き戻らない。
+    // 写しの Step へ戻った後に受け付けて停止しても、古い写しへ誤って巻き戻らない。受付の前に確保した新しい写し
+    // （移動先の Step のもの）へ戻り、現在の Step を保ったまま処理中だけが解ける。
     let (accepted, _) = apply(&ir, next, first_note());
     assert!(accepted.run.busy.is_some());
-    let before = accepted.run.clone();
     let (stopped, events) = apply(&ir, accepted, Op::Control(Control::Stop));
-    assert!(only_warning(&events), "{events:?}");
-    assert_eq!(stopped.run, before);
+    assert!(
+        events.iter().any(|e| matches!(e, Event::Stopped { .. })),
+        "{events:?}"
+    );
+    assert!(stopped.run.busy.is_none());
+    assert_eq!(stopped.run.current, Some(StepUid(ST1.to_string())));
 }
 
 #[derive(Debug, Clone)]
