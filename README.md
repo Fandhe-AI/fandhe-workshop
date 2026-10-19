@@ -86,7 +86,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/vocabulary/vocabulary.md` | 語彙の文書（版 3）。語彙 v1〜v1.4 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
 | `docs/diagnostics.md` | 診断コードの一覧（版 4）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH` の 34 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致の検査は TASK-400 |
-| `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の規約は TASK-179 で追加予定。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |
+| `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の書き方の規約（検査は採らず作成者の規約。D-52）。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |
 | `docs/known-gaps.md` | 既知の不足（忠実さの限界）。受講者が選んだ値を差し込めないこと（H-3）と、属性を書き換える回避を記録する。根拠の試験は `crates/pack/tests/chosen_value_gap.rs` |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |

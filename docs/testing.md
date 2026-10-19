@@ -4145,6 +4145,34 @@ D-59 の 4 のとおり、`format_newer` の向きの理由は Claude Code の�
 
 範囲外: spec の VER-18 の「証拠の種類」は `ir_format` が古い履歴を「実装前で、確かめていない」としているが、実装は既にあり V-iv-4・`VER2-1`・`VER7-2` が固定している。spec 側で直す事項であり、本件では編集しない。
 
+### 5.138 主版を上げる規約と `pack.vocab` の規約の机上の照合（TASK-179）
+
+結論: VER-11 の完了条件 3 点が `docs/pack-authoring.md` の節に書かれた。主版の上げ忘れを警告する検査は D-52 により採らず、試験は足さない。
+
+| 完了条件 | 節 | 根拠 |
+|---|---|---|
+| 主版を上げる条件 | 「主版を上げる条件（`pack.version`）」 | VER-11・D-52 |
+| `pack.vocab` を書く規約 | 「`pack.vocab` の書き方」 | VER-11・VER-14・PACK-31 |
+| 本文だけの修正が判定に現れない点 | 既存の 2 節と、上の節からの参照 | VER-12・D-51 |
+
+文書の主張と実装の照合は次のとおり。
+
+| 主張 | 照合先 |
+|---|---|
+| 主版の違いは位置によらず表示だけ（`content_major`） | `fifteen_histories_match_the_fixed_expectations`（V-iii-1・V-iii-2）・`ver6_*` |
+| 副版で足した Step より先は `replay_diverged` | 同上（V-ii-1）・`ver5_*` |
+| `pack.vocab` の省略は `1.0` で記録 | `t2_default_vocab_record`（`VocabVersion::DEFAULT`） |
+| 読めない `pack.version` は記録を作らない | `t6_fail_closed` |
+| 語彙の上限は 1.4、`validate` は上限超えを報告しない | `crates/pack/src/vocab.rs` の `LATEST`、`vocab_check.rs`（`declared < needed` だけを見る） |
+| `validate` は `pack.version` の形を検査しない | `crates/pack/src` に該当の検査が無い（grep 0 件） |
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 6bfdef0（作業ツリーに本変更）
+```
+
+範囲外: spec の VER-11 の「作成者向けの文書に規約がまだ無い」の記述は、spec 側で直す。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
