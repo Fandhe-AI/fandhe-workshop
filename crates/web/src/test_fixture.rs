@@ -13,9 +13,11 @@
 //! 再読み込みの一致のブラウザ試験（TASK-319 3/3）は、起動の前に 8 Step の教材（`reload_points_session`）を選ぶ。
 //! 入力欄なしの教材（`?fixture=no-input`。`pack.profile.input_field: hidden`）も起動の前に選ぶ（TASK-450 2/3）。
 //! 章をまたいで 20 Step を 1 つのページで通す教材（`?fixture=ch0-3`。先頭は `starts[0]` の節点）も起動の前に選ぶ（TASK-450 3/3）。
+//! 遷移の上限（SAFE-23）の試験は、巡回する IR 4 本（`cycle_session`）と巡回しない長い連鎖（`chain_session`）を `load-fixture:cycle-*`・`load-fixture:chain-*` で使う（TASK-160 1/3）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
+use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 
 const IR: &[u8] = include_bytes!(concat!(
@@ -91,11 +93,122 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
 /// 開始の節点は教材の `starts[0].node` で、契約の試料の開始状態の節点（`main/st-1`）をそれに合わせる。
 /// 既存の教材は先頭が `main/st-1` で、結果は変わらない。節点が教材に無い・`starts` が読めないときは `None`。
 fn session_of(ir_bytes: &[u8]) -> Option<Session> {
+    session_at(ir_bytes, None)
+}
+
+/// [`session_of`] の開始の節点を、`starts` の ID で選べるようにしたもの。`None` は `starts[0]`。
+///
+/// ID は教材の `starts` から引き、Rust のコードに教材の節点の名前を書かない。ID が無いときは `None`。
+fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
     let ir = load_ir(ir_bytes).ok()?;
     let value: serde_json::Value = serde_json::from_slice(ir_bytes).ok()?;
-    let node = value.get("starts")?.get(0)?.get("node")?.as_str()?;
+    let starts = value.get("starts")?.as_array()?;
+    let start = match start_id {
+        None => starts.first()?,
+        Some(id) => starts
+            .iter()
+            .find(|s| s.get("id").and_then(serde_json::Value::as_str) == Some(id))?,
+    };
+    let node = start.get("node")?.as_str()?;
     ir.nodes.iter().any(|n| n.uid == node).then_some(())?;
     Some(Session::from_state(ir, start_state_at(node)?))
+}
+
+/// 巡回する IR（`use` の `enter` の自己参照・2 者の巡回・`exit_to` の 2 者の巡回・1 入力あたりの遷移が少数の巡回）。
+/// 作成者向けの検査を通さずに配られた IR の想定で、遷移の上限（SAFE-23）の試験が使う。spec の写しで、編集しない。
+#[cfg(feature = "test-hooks")]
+const CYCLE_ENTER_SELF_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/cycle-enter-self.json"
+));
+#[cfg(feature = "test-hooks")]
+const CYCLE_ENTER_2_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/cycle-enter-2.json"
+));
+#[cfg(feature = "test-hooks")]
+const CYCLE_EXIT_2_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/cycle-exit-2.json"
+));
+#[cfg(feature = "test-hooks")]
+const CYCLE_D07_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/cycle-d07-flat.json"
+));
+
+/// 巡回する IR の試験用の実行環境（遷移の上限の試験。`load-fixture:cycle-*`）。
+///
+/// 開始の節点は、`enter` の巡回の 2 本は `starts[0]`（通常の Step。試験が `go_to` で巡回の入口へ移す）、
+/// `exit_to` の巡回は `starts` の ID `s-exit-2`、1 入力あたりの遷移が少数の対照は ID `s-d07` の節点にする。
+/// 読めなければ `None`（呼び出し側は何もしない）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn cycle_session(ir: CycleIr) -> Option<Session> {
+    match ir {
+        CycleIr::EnterSelf => session_at(CYCLE_ENTER_SELF_IR, None),
+        CycleIr::Enter2 => session_at(CYCLE_ENTER_2_IR, None),
+        CycleIr::Exit2 => session_at(CYCLE_EXIT_2_IR, Some("s-exit-2")),
+        CycleIr::D07 => session_at(CYCLE_D07_IR, Some("s-d07")),
+    }
+}
+
+/// 巡回する IR の種類（試験の設定だけ）。
+#[cfg(feature = "test-hooks")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CycleIr {
+    /// `enter` が自分を指す。
+    EnterSelf,
+    /// `enter` が 2 者で巡回する。
+    Enter2,
+    /// `exit_to` が 2 者で巡回する。
+    Exit2,
+    /// 巡回していても 1 入力あたりの遷移が少数の対照。
+    D07,
+}
+
+/// 巡回しない `use` の長い連鎖の試験用の実行環境（遷移の上限の境界。`load-fixture:chain-1000`・`chain-1001`）。
+///
+/// 埋め込みの教材の `main/st-2`（選択の入力、`confirm: none`）の達成で、`use` の Step `len` 個を `enter` でたどって
+/// 最後の Step `main/st-3` に着く。着地は `len + 1` 回で、`len` が 999 なら 1,000 回ちょうど（通る）、1,000 なら
+/// 1,001 回（止まる）。`use` の Step は `main/st-3` の複製で、`enter` だけを足す。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn chain_session(len: usize) -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let nodes = value.get_mut("nodes")?.as_array_mut()?;
+    let template = nodes
+        .iter()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-3"))?
+        .clone();
+    let first = if len == 0 {
+        "main/st-3".to_owned()
+    } else {
+        "main/u-0".to_owned()
+    };
+    let entry = nodes
+        .iter_mut()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-2"))?;
+    entry
+        .get_mut("step")?
+        .as_object_mut()?
+        .insert("next".to_owned(), serde_json::json!([{ "to": first }]));
+    let mut added = Vec::with_capacity(len);
+    for i in 0..len {
+        let mut n = template.clone();
+        let target = if i + 1 == len {
+            "main/st-3".to_owned()
+        } else {
+            format!("main/u-{}", i + 1)
+        };
+        let obj = n.as_object_mut()?;
+        obj.insert("uid".to_owned(), serde_json::json!(format!("main/u-{i}")));
+        obj.insert("enter".to_owned(), serde_json::json!(target));
+        obj.get_mut("step")?
+            .as_object_mut()?
+            .insert("id".to_owned(), serde_json::json!(format!("u-{i}")));
+        added.push(n);
+    }
+    value.get_mut("nodes")?.as_array_mut()?.extend(added);
+    session_of(&serde_json::to_vec(&value).ok()?)
 }
 
 /// 確認が `answer` の Step を持つ試験用の実行環境（TASK-445 2/2。`load-fixture:answer` が差し替える）。
@@ -253,7 +366,23 @@ fn start_state_at(node: &str) -> Option<SessionState> {
     let from = serde_json::to_string(SAMPLE_START).ok()?;
     let to = serde_json::to_string(node).ok()?;
     let text = serde_json::to_string(initial).ok()?.replace(&from, &to);
-    serde_json::from_str(&text).ok()
+    let mut state: SessionState = serde_json::from_str(&text).ok()?;
+    // 切り身の鍵は Step の実体の根（`main` か、入れ子の実体の ID）。節点が `main` の外にあるときは鍵も合わせる
+    // （合わせないと、開始の Step の状態を引けず、入力が受け付けられない）。
+    let uid = StepUid(node.to_owned());
+    let root = uid.root();
+    let main = StepUid(SAMPLE_START.to_owned()).root();
+    if root != main {
+        if let Some(slice) = state.run.slices.remove(&main) {
+            state.run.slices.insert(root.clone(), slice);
+        }
+        if let Some(entry) = state.entry.as_mut() {
+            if let Some(slice) = entry.run.slices.remove(&main) {
+                entry.run.slices.insert(root, slice);
+            }
+        }
+    }
+    Some(state)
 }
 
 /// ツリーの試料の 1 行。`(id, depth, kind, before, after)`。値は汎用のダミーの文字列で、教材固有の語を使わない。
