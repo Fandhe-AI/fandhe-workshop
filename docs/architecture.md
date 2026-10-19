@@ -165,7 +165,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
 - TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 1）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。TASK-472 で版 2 に上げ、ツリーの `role`・属性とその規則を足した
 - TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語・入力の口の識別子・観察点の制約）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 3）が持つ。`parts`・`a11y` の版とは別に管理する
-- CLI の外部仕様（TASK-399・TASK-407。バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力）の版は `cli_contract::CLI_CONTRACT_VERSION`（版 3）が持ち、文書は `docs/cli.md`。他の契約の版とは別に管理する
+- CLI の外部仕様（TASK-399・TASK-407・TASK-402・TASK-408。バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）の版は `cli_contract::CLI_CONTRACT_VERSION`（版 5）が持ち、文書は `docs/cli.md`。他の契約の版とは別に管理する
 - 左の成果物ビューの契約（TASK-467。`artifact_view`）の版は `artifact_view::ARTIFACT_VIEW_CONTRACT_VERSION`（版 1）が持つ。上の 2 つの版とは別に管理する。TASK-467 2/2 で足した束縛点・指せる行の属性・変種の口も同じ版 1 の中にある
 
 ## 7. feature

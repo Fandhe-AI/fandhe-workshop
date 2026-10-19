@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 4
+CLI の外部仕様の版: 5
 決定日: 2026-10-19
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` と `vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-408、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9）
-- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 4」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9）
+- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 5」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -152,7 +152,26 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 - 同じ内容の教材パックの IR は、何度 compile しても、別のディレクトリへ写しても、ファイルの列挙順が違っても、絶対パスでも相対パスでも、バイト単位で同じになる。IR に絶対パス・時刻・乱数は入らない
 - 画面に配る IR は、この `compile` の出力そのものである。配信物には `IR_FILE=<file> tools/build-web.sh` で `ir/main.json` として入る。配信の実装は TASK-109・TASK-121 の側にある
 
-## 11. vocab の出力
+## 11. `metrics` の出力
+
+`metrics <pack-dir>` は、パック根の下の拡張子が `toml` か `yaml` の通常ファイルについて、4 つの値を CSV で標準出力に出す（AUTHOR-1）。`.md` などは数えない。
+
+```text
+file,lines,effective_lines,bytes,max_depth
+chapters/c1/chapter.yaml,12,10,230,4
+workshop.yaml,6,5,120,3
+TOTAL,18,15,350,4
+```
+
+- 1 行目は `METRICS_HEADER` で、続けてファイルごとに 1 行、最後に `TOTAL` の 1 行を出す。各行はちょうど 5 欄で、行の組み立ては `cli_contract::metrics_row` が持つ
+- 並びは、各ディレクトリのエントリを名前の順に並べ、ディレクトリはその位置で深さ優先に潜る順である。同じ入力は同じバイト列になる
+- `file` 欄はパック根からの相対パスで、区切りは `/`。制御文字は `\u{XXXX}`（16 進 4 桁・大文字）、`,` は `\u{002C}`、`"` は `\u{0022}` に直し（CSV の引用欄と解釈されないようにし）、1 ファイル 1 行・5 欄を保つ。絶対パスは出さない
+- `lines` は行数（末尾に改行の無い最終行も 1 行）、`effective_lines` は空行と `#` で始まる行を除いた数、`bytes` は読んだバイト数である
+- `max_depth` は近似である（試作 PoC-3 の数え方）。YAML は実効行ごとの「先頭の空白のバイト数 / 2 + 1 + 行が `- ` で始まれば 1 + 行内の `{`・`[` の最大の入れ子」の最大。TOML は `[` で始まり `=` を含まない行を表の見出しとし、その名前を `.` で分けた数を見出しの深さ（深さの候補にもする）とし、それ以外の行は「見出しの深さ + 1 + `=` の右側の行内の入れ子」の最大。文字列（`"` の内側）の括弧は数えない
+- `TOTAL` は行数・実効行数・バイト数が和、`max_depth` が最大である
+- 診断（`workshop.*` が無い・両方ある、上限・リンク・深さの超過、読めない・UTF-8 でない・大きすぎるファイル）があるときは、表を出さず診断の行だけを標準出力に出して終了コード 1 にする。最終行は出さない。標準エラー出力は空である
+
+## 12. vocab の出力
 
 `vocab <pack-dir>` の出力の契約（AUTHOR-9、TASK-408）。教材が既存の語彙の組み合わせだけで書けたのか、名前つき拡張点に頼ったのかを、作成者が機械で確かめる。コード側の正は `cli_contract` の `VOCAB_HEADER`・`vocab_row`・`vocab_summary_lines`・`vocab_pack_line`、数え方は `vocab_report`。
 
@@ -185,17 +204,16 @@ m1,s4,step,EP-3
 - 診断があるときは表を出さない（fail-closed）。診断は 6 節の形で 1 件 1 行、最終行はない。`validate` 専用の検査（`E-VOCAB-MISMATCH`・`E-REF-ELEMENT`・到達性）は関門に入れない
 - 集計行は日本語、診断は英語の文言が混ざる。最終行（8 節）と同じ扱いで、機械で読むときは `# ` で始まる行を集計行とみなす
 
-## 12. 本版で扱わない事項
+## 13. 本版で扱わない事項
 
 - `vocab` の EP-9（`starts[].requires`）と `confirm.options[].label` の数え上げ（TASK-409）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403）
 - `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
 - 引数の数の検査と振り分け（TASK-401）
-- `metrics` の本体（TASK-402）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
 
-## 13. 適合試験
+## 14. 適合試験
 
 `crates/pack/tests/cli_contract_doc.rs`（文書とコードの一致）と `crates/pack/tests/cli_contract.rs`（実行ファイルの挙動）が次を確かめる。
 
@@ -225,6 +243,7 @@ m1,s4,step,EP-3
 | `author3_unreadable_final_line` | 読み込めない最終行が常に NG |
 | `pack_summary_counts` | 要約の章・モジュール・Step の定義の数 |
 | `compare_lines_follow_contract` | `compare` の 3 つの行 |
+| `cli_doc_metrics_block_matches_contract` | 10 節の例のブロックが `METRICS_HEADER`・`metrics_row` と一致し、最後の行が `TOTAL` である |
 | `diagnostics_go_to_stdout` | 診断は標準出力、標準エラー出力は空 |
 | `author8_stdout_and_output_file_are_byte_identical`（`compile_output.rs`） | 標準出力と `-o` のファイルが同じバイト列で、`-o` のとき標準出力・標準エラー出力は空 |
 | `author8_repeated_runs_are_byte_identical` | 何度 compile しても同じバイト列 |
@@ -244,11 +263,12 @@ m1,s4,step,EP-3
 | `author9_hostile_ids_are_escaped` | ID の `,`・`"`・改行・先頭の `#` を直し、各行が 4 欄に保たれる |
 | `author9_module_scope_rows` | 呼ばれないモジュールの Step も数え、`use` 行は（i）（ii）に入らない |
 
-## 14. 変更履歴
+## 15. 変更履歴
 
 | 版 | 日付 | 内容 |
 |---|---|---|
 | 1 | 2026-10-19 | 初版（バイナリ名・コマンド 6 つ・引数の形・使い方・終了コード） |
 | 2 | 2026-10-19 | 診断 1 行の形・項目の書式・最終行（`validate`・`compare`）・診断の出し先を足す（TASK-399 2/2） |
 | 3 | 2026-10-19 | `compile` の出力（`-o` の書き出し・標準出力との同一バイト・末尾・決定性）を 10 節に固定し、以降の節を繰り下げる（TASK-407、AUTHOR-8） |
-| 4 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 11 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |
+| 4 | 2026-10-19 | `metrics` の出力の形（ヘッダ・行・`TOTAL`・数え方・診断時の扱い）を足す（TASK-402） |
+| 5 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 12 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |

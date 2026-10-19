@@ -252,3 +252,26 @@ fn author9_module_scope_rows() {
     // 行の数は、`use` 行 1 つを除いて（i）（ii）の合計に等しい。
     assert_eq!(rows, i + ii + 1);
 }
+
+/// `processing` の要素の `effects[].when` にある `clarifying` も数える（EP-4）。`processing` だけで拡張点を使う Step は
+/// （ii）に入り、（i）に残らない。
+#[test]
+fn author9_processing_effects_when_is_counted() {
+    let t = edited(
+        "v-proc",
+        &[(
+            CHAPTER,
+            "next: [{to: \"ep1\"}]",
+            "processing: [{name: \"pp\", effects: [{set_flag: \"f\", when: {clarifying: \"cl-ask\"}}]}]\n    next: [{to: \"ep1\"}]",
+        )],
+    );
+    let (code, out, err) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert!(err.is_empty());
+    let expected = EXPECTED
+        .replace("c1,plain,step,\n", "c1,plain,step,EP-4\n")
+        .replace("書けた Step: 3", "書けた Step: 2")
+        .replace("書けた Step: 11", "書けた Step: 12")
+        .replace("# EP-4 を使った Step: 1", "# EP-4 を使った Step: 2");
+    assert_eq!(out, expected);
+}

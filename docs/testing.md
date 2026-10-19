@@ -4536,7 +4536,7 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 ### 5.148 compile の出力とバイト単位の決定性（TASK-407）
 
-`fandhe-pack compile <pack-dir> [-o <file>]` の `-o` の書き出しを実装し、標準出力と `-o` のファイルが同じバイト列であること、複数回・別ディレクトリの写し・列挙順違いでも IR が同一であること、末尾の形を、実行ファイルを起動する結合試験（`crates/pack/tests/compile_output.rs` の `author8_` 8 件）で固定した（AUTHOR-8）。契約は `docs/cli.md` 版 3 の 10 節。
+`fandhe-pack compile <pack-dir> [-o <file>]` の `-o` の書き出しを実装し、標準出力と `-o` のファイルが同じバイト列であること、複数回・別ディレクトリの写し・列挙順違いでも IR が同一であること、末尾の形を、実行ファイルを起動する結合試験（`crates/pack/tests/compile_output.rs` の `author8_` 8 件）で固定した（AUTHOR-8）。契約は `docs/cli.md` 版 4 の 10 節。
 
 - 書き出しは compile が診断なしで終わった後にだけ行い、同じディレクトリの一時ファイルへ書いて `rename` で置き換える（途中の失敗で IR が残らない）。書き出せないときは `error:` の 1 行と終了コード 2
 - 権限で書けない場合の試験は、root で動く CI で偽陽性になるため入れていない
@@ -4551,9 +4551,41 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 集計: 3 件すべて DETECTED（2026-10-19）。「失敗時に一時ファイルを消さない」変異は、試験の失敗経路（親が無い・ディレクトリを指す）が一時ファイルを作る前に失敗するため等価になり、採らなかった。
 
-### 5.149 vocab の数え上げと出力（TASK-408）
+### 5.149 `metrics` の数え方と出力（TASK-402）
 
-`fandhe-pack vocab <pack-dir>` を実装し、拡張点を使った Step の表・（i）（ii）・拡張点ごとの行・教材パック全体の行（EP-10〜EP-12）を、実行ファイルを起動する結合試験（`crates/pack/tests/vocab_command.rs` の `author9_` 8 件）で固定した（AUTHOR-9）。契約は `docs/cli.md` 版 4 の 11 節。
+`fandhe-pack metrics <pack-dir>`（`crates/pack/src/metrics.rs`、出力の形は `docs/cli.md` 版 4 の 11 節）に対する試験と変異注入である。数え方は PoC-3 の試作に合わせた近似（実効行数は空行と `#` 行を除く。深さは YAML がインデント / 2 + 1 + 一覧の印 + 行内の入れ子、TOML が表の見出しの段数 + 1 + 行内の入れ子）で、試作と違い、上限・リンク・読めないファイルは診断にして表を出さない（fail-closed）。
+
+期待値の出し方。
+
+- `crates/pack/tests/metrics.rs` の期待値は、同じ規則を Rust 以外（python）で別に書いた小さなスクリプトで、最小の教材パック 2 形式（`testdata/engine-event-consistency/test-data/min-3step-pack`・`crates/pack/tests/data/min-3step-pack-b`）と `testdata/condition-vocab-pack` に流して得た。Rust の出力から写していない。スクリプトは repo に入れていない
+- 掲示板教材そのものは repo に無く（D-11。`testdata/README.md`）、spec は private なので自動試験には入れていない。ローカルで、spec の試作パック（形式 A の 8 ファイル）に `metrics` を流し、PoC-3 のログの形式 A のブロックと `diff` で比べた。ヘッダ・8 行・`TOTAL` の全行がバイト単位で一致した（2026-10-19。TOML の深さの規則まで含めて試作と同じ数え方である）。形式 B はログが章 4 の時点で、パックが章 16 に増えているため比べていない
+- `AUTHOR1-5` の置換は、`run_metrics` が出力先を受けるようになったため書き直した（意味は変えていない。`vocab` の実装後は期待する失敗の試験が `i11_vocab_is_dispatched_to_vocab` になった）
+
+AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` の深さが最大でなく和になり、AUTHOR1-9 は `workshop.*` が無くても表を出し、AUTHOR1-10 は `file` 欄の `,` を直さず 5 欄が崩れる。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 209ff01（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR1-4.mutation … AUTHOR1-10.mutation（AUTHOR1-4〜6 の再実行を含む 7 件を 1 回で渡す）
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR1-4 | crates/pack/src/cli.rs: 1 引数のコマンドの余分な引数の検査が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+| AUTHOR1-5 | crates/pack/src/cli.rs: vocab の振り分けが metrics の handler になる | i11_vocab_is_dispatched_to_vocab | DETECTED |
+| AUTHOR1-6 | crates/pack/src/cli.rs: - で始まる引数を位置引数として拒否する判定が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+| AUTHOR1-7 | crates/pack/src/metrics.rs: 実効行数がコメント行を除かない | me1_min_pack_format_a | DETECTED |
+| AUTHOR1-8 | crates/pack/src/metrics.rs: TOTAL の深さが最大でなく和になる | me1_min_pack_format_a | DETECTED |
+| AUTHOR1-9 | crates/pack/src/metrics.rs: workshop.* が無くても表を出す | me5_missing_dir_and_missing_workshop_are_diagnostics | DETECTED |
+| AUTHOR1-10 | crates/pack/src/cli_contract.rs: file 欄の , を直さず 5 欄が崩れる | me9_odd_file_names_keep_one_row_of_five_fields | DETECTED |
+
+集計: 7 件すべて DETECTED（2026-10-19）。
+
+範囲外: 実効行数・深さの厳密化（YAML の複数行の文字列・フロー記法。別の決定が要る）、掲示板教材の自動試験（D-11・TASK-14 の公開可否に依る）、形式 B の掲示板教材の照合（比べるログが無い）。
+
+### 5.150 vocab の数え上げと出力（TASK-408）
+
+`fandhe-pack vocab <pack-dir>` を実装し、拡張点を使った Step の表・（i）（ii）・拡張点ごとの行・教材パック全体の行（EP-10〜EP-12）を、実行ファイルを起動する結合試験（`crates/pack/tests/vocab_command.rs` の `author9_` 8 件）で固定した（AUTHOR-9）。契約は `docs/cli.md` 版 5 の 12 節。
 
 - 試験用の教材は `crates/pack/tests/data/vocab-pack`（架空。語彙の付録 A の語を使わない）。EP-1〜EP-8・EP-13 を 1 つずつ・併用・使わない・`use`・呼ばれるモジュール・呼ばれないモジュールの形で置く
 - 関門は `source::load` と `compile::compile` で、診断があれば表を出さず終了コード 1 で診断だけを出す。`validate` 専用の検査は関門に入れない
@@ -4571,9 +4603,10 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 | AUTHOR9-3 | crates/pack/src/vocab_report.rs: 拡張点ごとの行が ID の文字列順になる | author9_table_and_summary | DETECTED |
 | AUTHOR9-4 | crates/pack/src/cli_contract.rs: ID のエスケープが外れる | author9_hostile_ids_are_escaped | DETECTED |
 | AUTHOR9-5 | crates/pack/src/vocab_report.rs: `compile` の関門が外れる | author9_compile_failure_prints_diagnostics_only | DETECTED |
+| AUTHOR9-6 | crates/pack/src/vocab_report.rs: `processing` の要素の `effects` 配下の `when` が走査されない | author9_processing_effects_when_is_counted | DETECTED |
 | AUTHOR1-5 | crates/pack/src/cli.rs: `vocab` の振り分けが `metrics` の handler になる | i11_vocab_is_dispatched_to_vocab | DETECTED |
 
-集計: 6 件すべて DETECTED（2026-10-19）。
+集計: 7 件すべて DETECTED（2026-10-19）。`processing[].effects[].when` の `clarifying` を数える試験 `author9_processing_effects_when_is_counted` と AUTHOR9-6 は、PR のレビュー指摘（走査の欠落）で足した。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

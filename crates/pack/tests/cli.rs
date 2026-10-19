@@ -8,7 +8,7 @@ fn bin() -> Command {
 
 #[test]
 fn i1_subcommands_start() {
-    for name in ["validate", "test", "metrics"] {
+    for name in ["validate", "test"] {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
         assert!(o.stdout.is_empty(), "{name}");
@@ -20,7 +20,7 @@ fn i1_subcommands_start() {
 /// 形が正しい呼び出しは、そのコマンドの handler に届く（未実装の行が自分の名前だけを名指しする）。
 #[test]
 fn i10_each_command_is_dispatched_to_its_handler() {
-    let names = ["validate", "test", "metrics"];
+    let names = ["validate", "test"];
     for name in names {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");

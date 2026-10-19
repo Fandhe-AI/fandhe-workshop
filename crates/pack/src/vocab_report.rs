@@ -1,8 +1,8 @@
 //! `fandhe-pack vocab` の数え上げ（TASK-408、AUTHOR-9）。
 //!
 //! 作成者が、書いた教材が既存の語彙の組み合わせだけで書けたのか、名前つき拡張点に頼ったのかを機械で確かめる。
-//! `cli::run_vocab` から呼ばれ、表と集計の文字列を返す。行・集計行の形は `cli_contract`（`docs/cli.md` 版 4 の
-//! 11 節）が持ち、拡張点の ID は [`crate::vocab::EXTENSION_POINTS`] から引いて、ここに書き写さない。
+//! `cli::run_vocab` から呼ばれ、表と集計の文字列を返す。行・集計行の形は `cli_contract`（`docs/cli.md` 版 5 の
+//! 12 節）が持ち、拡張点の ID は [`crate::vocab::EXTENSION_POINTS`] から引いて、ここに書き写さない。
 //!
 //! - 関門: 読み込み（`source::load`）と `compile::compile` のどちらかが診断を返したら、表は出さずその診断を返す
 //!   （fail-closed）。`compile` を通ると条件・効果・入力・確認・`pack.profile`・`appearance`・`left_pane`・
@@ -241,8 +241,14 @@ fn condition_words(step: &Step) -> ConditionWords {
             walk_effects(effects, &mut w);
         }
     }
-    for list in [&step.on_enter, &step.on_achieved, &step.processing] {
+    for list in [&step.on_enter, &step.on_achieved] {
         walk_effects(list, &mut w);
+    }
+    // `processing` の要素は `name` と `effects` を持つ処理単位で、条件は `effects` の各効果の `when` にある。
+    for p in &step.processing {
+        if let Some(effects) = p.get("effects").and_then(Value::as_array) {
+            walk_effects(effects, &mut w);
+        }
     }
     w
 }
