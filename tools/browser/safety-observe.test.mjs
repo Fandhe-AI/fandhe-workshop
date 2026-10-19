@@ -71,6 +71,15 @@ function assertNoPageErrors(rec, what) {
   assert.equal(rec.pageErrors.length, 0, `${what}: page errors ${rec.pageErrors.length}`);
 }
 
+// 送信後にページが静止するまで待つ。setTimeout 経由の dispatch・img の onerror（404 後）・描画の反映を、
+// 件数ではなく効果として採取してから数えるため。ネットワークの idle → 描画 2 フレーム → タイマーの順に待つ。
+async function settle(page, ms = 100) {
+  await page.waitForLoadState('networkidle').catch(() => {});
+  await page.evaluate((wait) => new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, wait)));
+  }), ms);
+}
+
 const countsLine = (c) => SAFETY_KEYS.map((k) => `${k}=${c[k]}`).join(' ');
 
 // 1. data: 試験データの SHA-256 の照合。
@@ -119,8 +128,10 @@ test('xss: 入り口別の件数と、E5 を入力欄から送ったときの安
       for (const p of payloads) {
         await page.fill(INPUT, p.payload);
         await page.click(SUBMIT);
+        await settle(page, 50);
         n += 1;
       }
+      await settle(page, 500);
       sent += n;
       const received = await page.$$eval(RECEIVED, (l) => l.length);
       const counts = await collectSafety(page, rec);
@@ -255,8 +266,10 @@ test('secret: 10 形を入力欄から送ったときの警告の有無を記録
     let warned = 0;
     for (const s of shapes) {
       await page.fill(INPUT, build(s));
-      const w = await page.evaluate(() => document.querySelectorAll('[data-testid*="secret" i], [data-testid*="warn" i], [role="alert"]').length);
       await page.click(SUBMIT);
+      await settle(page);
+      // 送信後の画面で数える。形ごとに警告ノードの有無を見て、その形に帰属させる。
+      const w = await page.evaluate(() => document.querySelectorAll('[data-testid*="secret" i], [data-testid*="warn" i], [role="alert"]').length);
       sent += 1;
       if (w > 0) warned += 1;
     }
