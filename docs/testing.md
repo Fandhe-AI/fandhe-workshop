@@ -3762,6 +3762,62 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 
 限界: 各節は今のビルドで観察できる範囲に限る。10 倍の水準は CI のメモリと時間のため入れていない。Chrome の原本では流さない（BUILD-20・TASK-94）。
 
+### 5.127 YAML 系 crate の見直し（TASK-73）
+
+結論は、D-58（2026-10-12）と PACK-47 に従い、別の crate には移らないことである。`yaml_serde` 0.10.7 を維持し、版を固定する。`Cargo.lock` に変更は無い。代わりの crate は探していない。
+
+固定は `crates/pack/tests/yaml_dependency.rs` の `pack47_` の 3 件で確かめる。ルートの `Cargo.toml` の宣言が exact 指定の `=0.10.7` であること（`"0.10.7"` は暗黙の caret 要件で `cargo update` により動く）、`Cargo.lock` の解決が 1 版・0.10.7・crates.io の registry であること、pack crate が版を上書きせず workspace の宣言を使うことである。版を上げるときは、試験の定数 `ADOPTED_YAML_SERDE` とこの節を同時に直す。
+
+基準値（実行日 2026-10-19、元にしたコミット 23a5245。`cargo test --locked -p fandhe-workshop-pack` の passed の件数）。
+
+| 系統 | 試験 | passed |
+|---|---|---|
+| PACK-3 | `format_b` の `pack3_` | 5 |
+| PACK-4 | `format_b` の `pack4_` | 9 |
+| PACK-6 | `compare` の `pack6_` | 7 |
+| 参考 | `ir_format` の `ir2_golden_bytes_match` | 1 |
+| 参考 | `yaml_features` の `pack5_` | 9 |
+| 参考 | `radix_literals` の `pack5_` | 7 |
+
+golden の IR 5 ファイル（`crates/pack/tests/data/golden/`）の SHA-256 は次のとおり（`min-3step-pack` と `min-3step-pack-b` は同一）。
+
+```text
+ch1-pack.ir.json           3c61f683e32266f6aff1c56e87d5eb030a07d53e74f1a3758fd981132c79077c
+fixture-pack.ir.json       ac48968b0897222653067a9a73dd1d47c6723046a60c45b11d1f4cef893c54bc
+ime-pack.ir.json           9a179699101fd13a74c8c1feb8a3b01c446be6e95402237b66394d6cd47d8929
+min-3step-pack-b.ir.json   7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45cdd192bd9a4
+min-3step-pack.ir.json     7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45cdd192bd9a4
+```
+
+懸念（コードと試験に残っている事実）。
+
+- 所有者が 1 人で 2026-01 に公開された。継続は未確認（spec に記録された調査時点の情報）
+- アンカー・エイリアス・マージキーを透過に展開し、タグを黙って解決する。対処として `saphyr-parser` で先に拒否している（`yaml_strict.rs`・`yaml_features.rs`）
+- 10 進でない整数を黙って数に読む。対処として拒否している（`radix_literals.rs`）
+- 複数文書のとき位置を返さない（`format_b.rs` の `pack4_expect_multiple_documents_are_rejected_without_position`）
+- 重複キーの検出は別の走査で行っている
+
+未確認の事項は、crates.io の現在の保守状況・所有者の数・取り下げの有無・既知の脆弱性である。本タスクでは調べていない。依存の棚卸し（BUILD-25、TASK-99 = #439）で確かめる。棚卸しは初回公開の前とリリースごとに行う。
+
+移ることになった場合の手順（合格条件は PACK-47 に残っている）。
+
+1. 入れ替える前に、上の件数を控える
+2. 入れ替えた後、同じコマンドで同じ件数が通ることを確かめる
+3. `ir2_golden_bytes_match` が通ることを確かめる。入れ替える前のビルドの `fandhe-pack compile` の標準出力と、入れ替えた後の出力を `cmp` でバイト比較する。形式 A／B の同値は `fandhe-pack compare` で見る。`compare` は今のビルドだけで 2 つを比べるため、前後の比較には使えない
+4. `ADOPTED_YAML_SERDE` とこの節を直し、決定は TASK-18 に戻す
+
+- PACK47-1: `Cargo.toml` の `yaml_serde` の宣言を exact 指定から暗黙の caret 要件（`"0.10.7"`）に緩める
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 23a5245（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK47-1.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK47-1 | Cargo.toml: yaml_serde の宣言を caret 要件に緩める | pack47_workspace_declares_adopted_yaml_serde_version | pack47_workspace_declares_adopted_yaml_serde_version | DETECTED |
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
