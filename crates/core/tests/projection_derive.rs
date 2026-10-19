@@ -251,6 +251,7 @@ fn limit_rewind_to_entry_cancels_merged_changes_without_registering_the_rollback
             at: stamp(a),
             input: Input::Text("go".into()),
         },
+        Event::Accepted { at: stamp(a) },
         changed(a, "x", None, Some(1), Cause::Input),
         Event::Progress {
             at: stamp(a),
@@ -290,6 +291,7 @@ fn limit_rewind_to_entry_restores_review_and_marks_without_world_diff() {
             at: stamp(a),
             input: Input::Text("go".into()),
         },
+        Event::Accepted { at: stamp(a) },
         changed(a, "x", None, Some(1), Cause::Input),
         progress(0),
         changed(a, "x", Some(1), None, Cause::Input),
@@ -311,6 +313,105 @@ fn limit_rewind_to_entry_restores_review_and_marks_without_world_diff() {
         inc.extend(&events[..n]);
     }
     assert_eq!(inc, p);
+}
+
+/// 処理中に拒否された入力の再送（`Accepted` が出ない）は入口の控えを上書きしない。受付で x を足し、途中の進行で
+/// x を消し、再送が拒否されても、最後の進行で上限に達すれば復習と印は実際の受付の時点（入口）へ戻る。
+#[test]
+fn limit_rewind_ignores_rejected_resend_during_busy() {
+    let a = "main/a";
+    let input = || Event::InputReceived {
+        at: stamp(a),
+        input: Input::Text("go".into()),
+    };
+    let progress = |index| Event::Progress {
+        at: stamp(a),
+        name: "p".into(),
+        index,
+        total: 3,
+    };
+    let events = vec![
+        entered(a),
+        input(),
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        progress(0),
+        changed(a, "x", Some(1), None, Cause::Input),
+        // 処理中の再送。拒否（`Judged`）だけで `Accepted` は出ない。
+        input(),
+        progress(1),
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 処理中の移動（`Moved`）で上限に達したときも、core と同じく入口の写しへ戻す。世界状態の差分が相殺されて
+/// 取り消しの `Changed` が出なくても、復習と印は入口の時点へ戻る。
+#[test]
+fn limit_rewind_on_move_while_busy_returns_to_entry() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 0,
+            total: 3,
+        },
+        changed(a, "x", Some(1), None, Cause::Input),
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 処理中でない移動で上限に達したときは、操作の前（移動の直前）へ戻す。
+#[test]
+fn limit_on_move_while_idle_returns_to_before_the_move() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(!p.marks().is_empty());
 }
 
 #[test]

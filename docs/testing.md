@@ -4085,7 +4085,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 実装は `session::apply` が操作の前の `run`・`entry` を控え、イベント列に `TransitionLimitReached` があれば `transit::return_after_limit` で戻す。控える費用は、操作 1 件につき `world` 以外の分の複製が増えるだけ
 - 新しいイベントは足さず、`CONTRACT_VERSION` は 6 のまま。通知欄の文言は「実行を止めて直前の Step に戻しました」に変えた（仮置き）。通知は戻った Step での次の入力まで残る
 - 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。復習は `Projection` が、操作の先頭（`InputReceived`・`Progress`・`Moved`）で控えた復習と印の元へ `TransitionLimitReached` で戻して、Step の状態と揃える。ログ行は消さない
-- 進行（処理中）の途中から止めた場合は、操作の前（受付済み・処理中）ではなく入口の写しへ戻す。受付済みのまま処理中だけを消すと、入力も進行も受け付けられず、確認 none の Step が達成に進めないため。入口の写しが無い・別の Step のときは、操作の前の `run` から処理中だけを空にして戻す（現在の Step は残るが、受付済みのまま入力で進めない場合がある）。復習と印は、進行の途中から止めたとき入口の受付の時点へ戻す
+- 進行（処理中）の途中から止めた場合は、操作の前（受付済み・処理中）ではなく入口の写しへ戻す。受付済みのまま処理中だけを消すと、入力も進行も受け付けられず、確認 none の Step が達成に進めないため。入口の写しが無い・別の Step のときは、操作の前の `run` から処理中だけを空にして戻す（現在の Step は残るが、受付済みのまま入力で進めない場合がある）。復習と印は、処理中（進行の途中）から止めたとき、進行でも移動でも、実際に処理を始めた受付（`Accepted`）の時点へ戻す。処理中に拒否された再送（`InputReceived` と `Judged` だけ）では入口の控えを更新しない
 
 試験は 3 層に置いた。
 
@@ -4096,6 +4096,8 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - SAFE35-1: 止めた後に戻す処理を飛ばす
 - SAFE35-2: 戻すときに `busy` を空にしない
 - SAFE35-3: `run` を戻さず `current` だけ戻す
+- SAFE35-5: 入力の受信のたびに入口の控えを取る（拒否された再送で上書きする）
+- SAFE35-6: 処理中の移動で入口の控えへ戻さない
 
 `SAFE23-2`（`halt` の `current = None` の削除）は、`apply` が直後に戻すため、効果が試験から見えない等価変異になった。廃止し、内側の fail-closed は SAFE35 の変異と、操作の前に現在の Step が無い場合の既存の挙動で担保する。
 
@@ -4110,6 +4112,8 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE35-1 | crates/core/src/session.rs: 止めた後に戻さない | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, exit_chain_boundary | DETECTED |
 | SAFE35-2 | crates/core/src/transit.rs: `busy` を空にしない | tick_path_returns_without_busy_and_does_not_loop | DETECTED |
 | SAFE35-3 | crates/core/src/transit.rs: `current` だけ戻す | cycle_exit_2_stops_at_limit, cycle_exit_2_accepts_again_and_returns_again | DETECTED |
+| SAFE35-5 | crates/core/src/projection.rs: 受信のたびに入口の控えを取る | limit_rewind_ignores_rejected_resend_during_busy | DETECTED |
+| SAFE35-6 | crates/core/src/projection.rs: 処理中の移動で入口の控えへ戻さない | limit_rewind_on_move_while_busy_returns_to_entry | DETECTED |
 
 範囲外: spec の SAFE-35 の文言の更新、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 

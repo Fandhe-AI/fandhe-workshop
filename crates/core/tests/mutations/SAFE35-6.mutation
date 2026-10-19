@@ -1,0 +1,8 @@
+id: SAFE35-6
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:                 Event::Moved { .. } if self.progressing => {
+replace:                 Event::Moved { .. } if false => {
+expect-fail: limit_rewind_on_move_while_busy_returns_to_entry
+note: 処理中の移動で上限に達したとき、復習と印を入口の控えへ戻さず移動の直前へ戻す（core が選ぶ入口の写しの復帰先とずれる）

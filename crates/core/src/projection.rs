@@ -114,10 +114,15 @@ pub struct Projection {
     /// 直近の操作の先頭（`InputReceived`・`Progress`・`Moved`）の時点の復習と印の元。
     /// 上限で止めた操作を操作の前へ戻す（SAFE-35）ので、`TransitionLimitReached` で復習と印の元をここへ戻す。
     op_start: Option<OpStart>,
-    /// 直近の入力の受付（`InputReceived`）の時点の復習と印の元。処理中になる受付は入口の写しを確保するので、
-    /// 進行（`Progress`）の途中で止めたときは操作の前ではなくここへ戻す（入口へ戻す `return_after_limit` と揃える）。
+    /// 入口の写しに対応する、入力の受付（`Accepted`）の時点の復習と印の元。処理中になる受付は入口の写しを確保し、
+    /// その Step の写しが既にあれば入った時点のものを残す（`accept`）ので、既にあるときは上書きしない。
+    /// 処理中の操作（進行・移動）の途中で止めたときは操作の前ではなくここへ戻す（入口へ戻す `return_after_limit` と
+    /// 揃える）。処理中に拒否された入力（`Accepted` が出ない）では更新しない。
     /// 移動・停止・復帰などで入口の写しが無効になる箇所で捨てる。
     entry_start: Option<OpStart>,
+    /// 進行（`Progress`）が始まり、まだ完了していない（処理中である）。処理中の移動は入口へ戻るので、
+    /// その判断に使う。達成・上限での停止・入口の写しの無効化で下ろす。
+    progressing: bool,
 }
 
 /// 操作の先頭で控える復習と印の元。
@@ -203,19 +208,33 @@ impl Projection {
         // 操作の先頭の控え。上限で止めた操作の `Achieved`・`Changed` を復習から取り除くために使う。
         if matches!(
             event,
-            Event::InputReceived { .. } | Event::Progress { .. } | Event::Moved { .. }
+            Event::InputReceived { .. }
+                | Event::Accepted { .. }
+                | Event::Progress { .. }
+                | Event::Moved { .. }
         ) {
             let now = (self.review.clone(), self.pending.clone());
             match event {
-                Event::InputReceived { .. } => self.entry_start = Some(now.clone()),
-                // 進行の途中で止めると入口の写しへ戻るので、控えは入口の時点のものにする。
+                // 受付のとき（拒否された入力ではなく）だけ入口の控えを確保する。既にあれば入った時点のものを残す。
+                Event::Accepted { .. } if self.entry_start.is_none() => {
+                    self.entry_start = Some(now.clone());
+                }
+                // 処理中の操作を途中で止めると入口の写しへ戻るので、控えは入口の時点のものにする。
                 Event::Progress { .. } => {
+                    self.op_start = Some(self.entry_start.clone().unwrap_or(now));
+                    self.progressing = true;
+                    return self.step_event(i, event);
+                }
+                Event::Moved { .. } if self.progressing => {
                     self.op_start = Some(self.entry_start.clone().unwrap_or(now));
                     return self.step_event(i, event);
                 }
                 _ => {}
             }
-            self.op_start = Some(now);
+            // 受付は操作の先頭ではない（`InputReceived` が先頭）ので、控えを取り直さない。
+            if !matches!(event, Event::Accepted { .. }) {
+                self.op_start = Some(now);
+            }
         }
         self.step_event(i, event);
     }
@@ -231,6 +250,7 @@ impl Projection {
                 | Event::Restored { .. }
         ) {
             self.entry_start = None;
+            self.progressing = false;
         }
         match event {
             Event::Entered { .. } => {
@@ -258,8 +278,10 @@ impl Projection {
                     self.review = review;
                     self.pending = pending;
                 }
+                self.progressing = false;
             }
             Event::Achieved { at, .. } => {
+                self.progressing = false;
                 self.push_row(i, event);
                 self.review_item_mut(&at.step).achieved = true;
             }
