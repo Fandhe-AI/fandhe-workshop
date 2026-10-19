@@ -2,13 +2,13 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 3）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 4）で、本モジュールは同じ内容のコード側の写しである。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
 //! 呼び出し元は `cli`（振り分けと出力）と `main.rs`（終了コード）で、`cli` は本モジュールの名前を `pub use`
 //! で再公開するため、`cli::EXIT_*`・`cli::Subcommand`・`cli::usage` の既存のパスは変わらない。
 //! 後続の TASK-401（振り分け）・TASK-402（`metrics`）・TASK-403〜TASK-408・TASK-410 は、この契約を入力にする。
-//! `metrics` は本件で枠と使い方に加えており、TASK-402 は本体の実装だけを足す。
+//! `metrics` の出力の形（ヘッダ・行・`TOTAL`）は版 4 で足した（TASK-402）。
 //!
 //! 診断 1 行の欄の分け方は `diag::Diagnostic` の Display が持ち、出し先（診断と最終行は標準出力、使い方と
 //! 使い方の誤りは標準エラー出力）は `cli` が守る。`validate` への最終行の結線は TASK-403、`test` の最終行と
@@ -21,7 +21,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 3;
+pub const CLI_CONTRACT_VERSION: u32 = 4;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -239,4 +239,23 @@ pub fn compare_unreadable_line(a: usize, b: usize) -> String {
         "NG: 診断 {} 件（比べられません。a {a} 件、b {b} 件）",
         a + b
     )
+}
+
+/// `metrics` の出力のヘッダ行。
+pub const METRICS_HEADER: &str = "file,lines,effective_lines,bytes,max_depth";
+
+/// `metrics` の合計の行の `file` 欄に置く語。
+pub const METRICS_TOTAL_LABEL: &str = "TOTAL";
+
+/// `metrics` の 1 ファイルの行。`file` の制御文字は `\u{XXXX}`、`,` は `\u{002C}`、`"` は `\u{0022}` に直し、1 行 5 欄を保つ。
+pub fn metrics_row(file: &str, lines: u64, effective: u64, bytes: u64, depth: u64) -> String {
+    let mut f = String::new();
+    for c in file.chars() {
+        if c.is_control() || c == ',' || c == '"' {
+            f.push_str(&format!("\\u{{{:04X}}}", u32::from(c)));
+        } else {
+            f.push(c);
+        }
+    }
+    format!("{f},{lines},{effective},{bytes},{depth}")
 }

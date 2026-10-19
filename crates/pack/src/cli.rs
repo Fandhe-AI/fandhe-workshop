@@ -1,12 +1,13 @@
 //! `fandhe-pack` のサブコマンドの引数の解釈と振り分け、終了コード。
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
-//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`compile -o` の書き出しは TASK-407 で
-//! 実装した。`validate`・`test`・`vocab`・`metrics` は形を受け付けたうえで経過措置の未実装（終了コード 2）に
-//! 振り分け、本体は後続のタスク（TASK-402〜TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 3）で、
+//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。
+//! `compile -o` の書き出しは TASK-407 で実装した。`validate`・`test`・`vocab` は形を受け付けたうえで経過措置の未実装
+//! （終了コード 2）に振り分け、本体は後続のタスク（TASK-403・TASK-404・TASK-408）が各 `run_*` の中身を差し替えて作る。
+//! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 4）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
-//! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）だけで、引数の解釈は
+//! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）と `metrics` の走査だけで、引数の解釈は
 //! ファイルシステムに触れない。
 
 use std::ffi::{OsStr, OsString};
@@ -163,7 +164,7 @@ fn parse<I: Iterator<Item = OsString>>(
 /// 引数なしは使い方だけを標準エラーに出す。コマンド名が未知（`defects` を含む）または引数の形が誤りなら
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
 /// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
-/// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 3 の 9 節）。
+/// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 4 の 9 節）。
 /// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。他のコマンドは未実装で `EXIT_USAGE` を返す（経過措置）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
@@ -196,7 +197,7 @@ where
             run_compile(&pack_dir, output.as_deref(), out, err)
         }
         Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, err),
-        Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, err),
+        Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, out, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
     }
 }
@@ -226,16 +227,22 @@ fn run_vocab<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
     not_implemented(Subcommand::Vocab, err)
 }
 
-/// `metrics` の振り分け先。本体は TASK-402。
-fn run_metrics<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
-    not_implemented(Subcommand::Metrics, err)
+/// `metrics` の実行。表も診断も標準出力に出し、標準エラー出力は使わない（診断があれば表は出さない）。
+fn run_metrics<O: Write, E: Write>(pack_dir: &Path, out: &mut O, _err: &mut E) -> io::Result<u8> {
+    match crate::metrics::report(pack_dir) {
+        Ok(table) => {
+            out.write_all(table.as_bytes())?;
+            Ok(EXIT_OK)
+        }
+        Err(diags) => write_diagnostics(out, &diags),
+    }
 }
 
 /// `compile` の実行。IR は `-o` が無ければ標準出力へ、あれば `output` のファイルへ、同じバイト列で出す。
 ///
 /// 診断があるときはファイルを作らず既存のファイルにも触れない（失敗した compile の出力を、後で配信物の IR として
 /// 取り込む事故を防ぐ fail-closed）。書き出せないときは理由を `error:` 行で標準エラーに出して `EXIT_USAGE` を
-/// 返す（`docs/cli.md` 版 3 の 10 節。AUTHOR-8）。書き出しの I/O エラーは `main` へ伝播させず、ここで理由つきの
+/// 返す（`docs/cli.md` 版 4 の 10 節。AUTHOR-8）。書き出しの I/O エラーは `main` へ伝播させず、ここで理由つきの
 /// 終了に変える（伝播すると理由なしの 2 になるため）。
 fn run_compile<O, E>(dir: &Path, output: Option<&Path>, out: &mut O, err: &mut E) -> io::Result<u8>
 where
@@ -307,7 +314,7 @@ fn write_output(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断、最後に `compare_unreadable_line` の
 /// 行を書いて `EXIT_DIAGNOSTICS` を返し、一致・不一致の行は出さない（失敗を一致とみなさない）。
 /// 不一致の行の「バイト目」は 1 始まり（内部のバイト位置に 1 を足す）。
-/// 行の形の正は `docs/cli.md` 版 3 の 8 節である。
+/// 行の形の正は `docs/cli.md` 版 4 の 8 節である。
 fn run_compare<O: Write>(a: &Path, b: &Path, out: &mut O) -> io::Result<u8> {
     match compare_dirs(a, b) {
         Ok(Outcome::Same { len }) => {
@@ -349,7 +356,10 @@ mod tests {
     #[test]
     fn c1_accepted_shapes_reach_their_handler() {
         for c in Subcommand::ALL {
-            if matches!(c, Subcommand::Compile | Subcommand::Compare) {
+            if matches!(
+                c,
+                Subcommand::Compile | Subcommand::Compare | Subcommand::Metrics
+            ) {
                 continue;
             }
             let (code, out, err) = run_args(&[c.name(), "x"]);

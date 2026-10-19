@@ -1,7 +1,7 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
 //! コードの一覧は `docs/diagnostics.md`（一覧の版 4、TASK-195）で固定した。出力形と終了コードは
-//! `docs/cli.md`（版 3）の 6〜9 節で固定した（TASK-399）。`cli` の各コマンドが診断を集め、
+//! `docs/cli.md`（版 4）の 6〜9 節で固定した（TASK-399）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
 use std::fmt;
@@ -280,7 +280,7 @@ impl Diagnostic {
 ///
 /// `split_fields` が真のとき（file・item の欄）は、欄の区切りの `: ` のうち空白を `\u{0020}` に直す。ID・パスは
 /// 教材データ由来で `: ` を含みうるため、直さないと先頭から 3 つの `: で区切る` 読み方が崩れる
-/// （`docs/cli.md` 版 3 の 6 節）。最後の欄のメッセージは区切りを持たないので直さない。
+/// （`docs/cli.md` 版 4 の 6 節）。最後の欄のメッセージは区切りを持たないので直さない。
 fn write_escaped(f: &mut fmt::Formatter<'_>, s: &str, split_fields: bool) -> fmt::Result {
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
