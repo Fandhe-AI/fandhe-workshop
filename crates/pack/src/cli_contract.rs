@@ -225,9 +225,12 @@ pub fn compare_same_line(len: usize) -> String {
     format!("OK: IR が一致しました（{len} バイト）")
 }
 
-/// `compare` の不一致の行。`line` は 1 始まりの行、`offset` はバイト位置。
+/// `compare` の不一致の行。`line` は 1 始まりの行、`offset` は 0 始まりのバイト位置で、表示は 1 始まりの序数にする。
 pub fn compare_differ_line(line: usize, offset: usize) -> String {
-    format!("NG: IR が一致しません（{line} 行目、{offset} バイト目）")
+    format!(
+        "NG: IR が一致しません（{line} 行目、{} バイト目）",
+        offset + 1
+    )
 }
 
 /// `compare` で、どちらかのパックを読めなかったときの最終行。件数は合計と a・b の別を出す。

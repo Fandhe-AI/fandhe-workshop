@@ -365,6 +365,6 @@ fn compare_lines_follow_contract() {
     assert_eq!(compare_same_line(7), "OK: IR が一致しました（7 バイト）");
     assert_eq!(
         compare_differ_line(3, 57),
-        "NG: IR が一致しません（3 行目、57 バイト目）"
+        "NG: IR が一致しません（3 行目、58 バイト目）"
     );
 }

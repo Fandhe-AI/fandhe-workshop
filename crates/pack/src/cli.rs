@@ -82,6 +82,7 @@ where
 /// 一致は `cli_contract::compare_same_line` の行で `EXIT_OK`、不一致は `compare_differ_line` の行で
 /// `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断、最後に `compare_unreadable_line` の
 /// 行を書いて `EXIT_DIAGNOSTICS` を返し、一致・不一致の行は出さない（失敗を一致とみなさない）。
+/// 不一致の行の「バイト目」は 1 始まり（内部のバイト位置に 1 を足す）。
 /// 行の形の正は `docs/cli.md` 版 2 の 8 節である。
 fn run_compare<I, O, E>(mut args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
