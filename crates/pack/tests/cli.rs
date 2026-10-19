@@ -252,3 +252,39 @@ fn i11_compile_pack_over_limit_is_diagnostic() {
     assert!(out.contains("E-LIMIT-PACK-SIZE"), "{out}");
     assert!(!out.contains("\"ir_format\""), "{out}");
 }
+
+#[test]
+fn i12_compile_dir_too_deep_is_diagnostic() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i12-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut deep = dir.join("deep");
+    for _ in 1..33 {
+        deep = deep.join("d");
+    }
+    std::fs::create_dir_all(&deep).unwrap();
+    std::fs::write(dir.join("workshop.yaml"), "pack: {}\n").unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-LIMIT-DEPTH"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+}
+
+#[cfg(unix)]
+#[test]
+fn i13_compile_symlink_is_diagnostic() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i13-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("workshop.yaml"), "pack: {}\n").unwrap();
+    std::os::unix::fs::symlink("nowhere", dir.join("link")).unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-LIMIT-SYMLINK"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+}

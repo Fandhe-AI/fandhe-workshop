@@ -1,0 +1,8 @@
+id: SAFE43-1
+package: fandhe-workshop-pack
+test: pack_dir_limits
+target: crates/pack/src/source.rs
+find: if depth < MAX_DEPTH {
+replace: if depth <= MAX_DEPTH {
+expect-fail: dir_33_levels_is_rejected_without_reading
+note: 深さの判定を <= にする（33 段を通してしまう）

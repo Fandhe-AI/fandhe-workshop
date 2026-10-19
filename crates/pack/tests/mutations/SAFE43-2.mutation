@@ -1,0 +1,8 @@
+id: SAFE43-2
+package: fandhe-workshop-pack
+test: pack_dir_limits
+target: crates/pack/src/source.rs
+find: if depth < MAX_DEPTH {
+replace: if depth + 1 < MAX_DEPTH {
+expect-fail: dir_exactly_32_levels_loads
+note: 深さの判定を 1 段厳しくする（ちょうど 32 段を断る）
