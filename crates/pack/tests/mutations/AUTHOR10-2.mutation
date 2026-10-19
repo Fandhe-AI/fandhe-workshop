@@ -1,0 +1,9 @@
+id: AUTHOR10-2
+package: fandhe-workshop-pack
+test: limits_commands
+target: crates/pack/src/source.rs
+find:     if !over.is_empty() {
+replace:     if false && !over.is_empty() {
+expect-fail: author10_multiple_limits_listed_and_nothing_read
+expect-fail: author10_pack_size_over_on_every_entry
+note: 事前走査の結果を捨てて読み込みへ進む（E-PARSE が出て上限の診断が消える）

@@ -1,0 +1,8 @@
+id: AUTHOR10-1
+package: fandhe-workshop-pack
+test: limits_commands
+target: crates/pack/src/source.rs
+find: let is_md = path.extension().is_some_and(|x| x == "md");
+replace: let is_md = true;
+expect-fail: author10_non_md_body_over_is_e_limit
+note: .md 以外の本文を .md として扱う（上限超過が E-LIMIT-MD-SIZE になる）

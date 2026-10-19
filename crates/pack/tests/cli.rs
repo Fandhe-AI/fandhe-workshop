@@ -336,3 +336,48 @@ fn i13_compile_symlink_is_diagnostic() {
     assert!(out.contains("E-LIMIT-SYMLINK"), "{out}");
     assert!(!out.contains("\"ir_format\""), "{out}");
 }
+
+#[test]
+fn i14_compile_markdown_over_limit_is_diagnostic() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i14-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("workshop.yaml"), "pack: {}\n").unwrap();
+    std::fs::write(dir.join("unused.md"), vec![b'a'; 524_289]).unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-LIMIT-MD-SIZE"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+}
+
+#[test]
+fn i15_compile_non_md_body_over_limit_is_e_limit() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i15-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("chapters/c1")).unwrap();
+    std::fs::write(
+        dir.join("workshop.yaml"),
+        "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("chapters/c1/chapter.yaml"),
+        concat!(
+            "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
+            "  - {id: a, title: A, body: b.txt, next: [{to: b}]}\n",
+            "  - {id: b, title: B, final: true}\n",
+        ),
+    )
+    .unwrap();
+    std::fs::write(dir.join("chapters/c1/b.txt"), vec![b'a'; 524_289]).unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains(" E-LIMIT: "), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+}

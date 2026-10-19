@@ -759,6 +759,16 @@ pub(crate) fn detect_format(root: &Path) -> Result<(Format, PathBuf), Vec<Diagno
     }
 }
 
+/// `.md` 以外の本文が上限を超えたことの診断。素の `E-LIMIT` には専用の文面が契約に無いため固定の英文にし、中身は写さない。
+fn body_too_large(key: &str) -> Diagnostic {
+    diag(
+        key,
+        "file",
+        DiagCode::Limit,
+        format!("body file exceeds the {MAX_MARKDOWN_BYTES}-byte limit"),
+    )
+}
+
 /// 1 つの本文を読み、`bodies` に入れる。失敗は診断にする。
 fn load_body(
     root: &Path,
@@ -793,16 +803,26 @@ fn load_body(
         ));
         return;
     }
+    // `.md` 以外の本文は事前走査（`check_limits`）の対象外で、どのファイルが本文になるかは参照を読むまで
+    // 分からない。このため上限は読む前の大きさ（metadata）で判定し、コードは素の `E-LIMIT` にする（AUTHOR-10）。
+    // `.md` の判定は事前走査と同じ大文字小文字を区別する規則にし、2 つの分類がずれないようにする。
+    let is_md = path.extension().is_some_and(|x| x == "md");
+    if !is_md && fs::symlink_metadata(&path).is_ok_and(|m| m.len() > MAX_MARKDOWN_BYTES) {
+        diags.push(body_too_large(&key));
+        return;
+    }
     match read_text(&path, MAX_MARKDOWN_BYTES) {
         Ok(t) => {
             bodies.insert(key, t);
         }
-        Err(ReadError::TooLarge) => diags.push(diag(
+        // 確認と読み込みの間の入れ替えでも、上限 + 1 バイトで打ち切るため上限を超えて読まない。
+        Err(ReadError::TooLarge) if is_md => diags.push(diag(
             &key,
             "file",
             DiagCode::LimitMdSize,
             PackLimitCode::MdSize.message(),
         )),
+        Err(ReadError::TooLarge) => diags.push(body_too_large(&key)),
         Err(ReadError::NotUtf8) => diags.push(diag(
             &key,
             "file",
