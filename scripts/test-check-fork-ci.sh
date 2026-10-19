@@ -122,7 +122,7 @@ ycase "submodules: false passes" 0 - ci "$(ci_doc - "" "" $'      - uses: action
 ycase "permissions: {} at top level passes" 0 - ci "$(ci_doc 'permissions: {}' "" "" "")"
 ycase "flow-style read-only permissions pass" 0 - ci "$(ci_doc 'permissions: {contents: read, actions: none}' "" "" "")"
 ycase "flow-style branches pass" 0 - ci "$(ci_doc - "" "" "" $'  push:\n    branches: [main]')"
-ycase "allowed CARGO_ env keys pass" 0 - ci "$(ci_doc - "" $'    env:\n      CARGO_TERM_COLOR: always\n      CARGO_INCREMENTAL: "0"' "")"
+ycase "allowed CARGO_ env keys pass" 0 - ci "$(ci_doc - "" $'    env:\n      CARGO_TERM_COLOR: always\n      CARGO_INCREMENTAL: "0"\n      CARGO_PROFILE_DEV_DEBUG: line-tables-only\n      CARGO_TARGET_DIR: /tmp/t' "")"
 ycase "deploy sample passes" 0 - deploy "$(deploy_doc - - -)"
 ycase "deploy guard wrapped in an expression passes" 0 - deploy "$(deploy_doc - - "  deploy:
     if: \${{ ${G} }}

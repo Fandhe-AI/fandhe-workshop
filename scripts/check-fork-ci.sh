@@ -66,6 +66,9 @@ source "${DIR}/lib.sh"
 
 # uses に許す所有者（カンマ区切り）。サードパーティ action を足すときは、この定数と SHA 固定を同時に見直す
 ALLOWED_USES_OWNERS="actions"
+# 全ジョブの if: に要求する配信元リポジトリ。fork 自身の github.repository を許可値にすると制限の目的が
+# 失われるため、固定の設定値として判定処理（ruby）へ引数で渡す
+UPSTREAM_REPO="Fandhe-AI/fandhe-workshop"
 CRATES_REGISTRY="registry+https://github.com/rust-lang/crates.io-index"
 NPM_REGISTRY_PREFIX="https://registry.npmjs.org/"
 
@@ -150,8 +153,10 @@ require "psych"
 mode = ARGV[0]
 file = ARGV[1]
 owners = (ARGV[2] || "").split(",")
-GUARD = "github.repository == 'Fandhe-AI/fandhe-workshop'".freeze
-CARGO_ENV_ALLOWED = %w[cargo_term_color cargo_incremental cargo_profile_dev_debug].freeze
+upstream = ARGV[3].to_s
+abort("upstream repository is not given") if upstream.empty?
+GUARD = "github.repository == '#{upstream}'".freeze
+CARGO_ENV_ALLOWED = %w[cargo_term_color cargo_incremental cargo_profile_dev_debug cargo_target_dir].freeze
 N = Psych::Nodes
 
 $viol = []
@@ -358,7 +363,7 @@ RUBY
 run_yaml() {
   local mode="$1" file="$2" out line rc=0
   need_file "${file}"
-  out="$(ruby -e "${RUBY_PROG}" -- "${mode}" "${file}" "${ALLOWED_USES_OWNERS}")" || rc=$?
+  out="$(ruby -e "${RUBY_PROG}" -- "${mode}" "${file}" "${ALLOWED_USES_OWNERS}" "${UPSTREAM_REPO}")" || rc=$?
   case "${rc}" in
     0) return 0 ;;
     1)
