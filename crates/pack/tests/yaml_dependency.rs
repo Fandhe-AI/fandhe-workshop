@@ -13,7 +13,7 @@ const ROOT_MANIFEST: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/.
 const PACK_MANIFEST: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
 const LOCK: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.lock"));
 
-/// PACK-47 の採用版（D-58）。版を上げるときは、この定数と `docs/testing.md` の 5.126 を同時に更新する。
+/// PACK-47 の採用版（D-58）。版を上げるときは、この定数と `docs/testing.md` の 5.127 を同時に更新する。
 const ADOPTED_YAML_SERDE: &str = "0.10.7";
 
 fn parse(src: &str) -> Table {
