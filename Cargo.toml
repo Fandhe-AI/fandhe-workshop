@@ -32,9 +32,10 @@ fandhe-workshop-pack = { path = "crates/pack" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 toml = "1.1.6"
-# 形式 B（YAML）の読み込みに使う。D-58・PACK-47 で「維持して版を固定する」と決めた。版の照合は
+# 形式 B（YAML）の読み込みに使う。D-58・PACK-47 で「維持して版を固定する」と決めた。"=" 付きの exact 指定にして
+# cargo update でも動かさない。版の照合は
 # crates/pack/tests/yaml_dependency.rs が行う。所有者 1 人の crate のため、依存の棚卸し（TASK-99）の対象にする。
-yaml_serde = "0.10.7"
+yaml_serde = "=0.10.7"
 # 形式 B の YAML のアンカー・エイリアス・タグを拒否するため（PACK-5、D-43）。yaml_serde はこれらを透過に展開し、
 # libyaml-rs は unsafe を要するため、安全な Rust だけのイベントパーサを使う。pack（native）だけが使う。
 saphyr-parser = "0.2.2"

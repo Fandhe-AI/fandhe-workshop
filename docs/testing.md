@@ -3746,7 +3746,7 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 
 結論は、D-58（2026-10-12）と PACK-47 に従い、別の crate には移らないことである。`yaml_serde` 0.10.7 を維持し、版を固定する。`Cargo.lock` に変更は無い。代わりの crate は探していない。
 
-固定は `crates/pack/tests/yaml_dependency.rs` の `pack47_` の 3 件で確かめる。ルートの `Cargo.toml` の宣言が 0.10.7 そのものであること、`Cargo.lock` の解決が 1 版・0.10.7・crates.io の registry であること、pack crate が版を上書きせず workspace の宣言を使うことである。版を上げるときは、試験の定数 `ADOPTED_YAML_SERDE` とこの節を同時に直す。
+固定は `crates/pack/tests/yaml_dependency.rs` の `pack47_` の 3 件で確かめる。ルートの `Cargo.toml` の宣言が exact 指定の `=0.10.7` であること（`"0.10.7"` は暗黙の caret 要件で `cargo update` により動く）、`Cargo.lock` の解決が 1 版・0.10.7・crates.io の registry であること、pack crate が版を上書きせず workspace の宣言を使うことである。版を上げるときは、試験の定数 `ADOPTED_YAML_SERDE` とこの節を同時に直す。
 
 基準値（実行日 2026-10-19、元にしたコミット 23a5245。`cargo test --locked -p fandhe-workshop-pack` の passed の件数）。
 
@@ -3786,7 +3786,7 @@ min-3step-pack.ir.json     7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45
 3. `ir2_golden_bytes_match` が通ることを確かめる。入れ替える前のビルドの `fandhe-pack compile` の標準出力と、入れ替えた後の出力を `cmp` でバイト比較する。形式 A／B の同値は `fandhe-pack compare` で見る。`compare` は今のビルドだけで 2 つを比べるため、前後の比較には使えない
 4. `ADOPTED_YAML_SERDE` とこの節を直し、決定は TASK-18 に戻す
 
-- PACK47-1: `Cargo.toml` の `yaml_serde` の宣言を範囲（`"0.10"`）に緩める
+- PACK47-1: `Cargo.toml` の `yaml_serde` の宣言を exact 指定から暗黙の caret 要件（`"0.10.7"`）に緩める
 
 ```text
 実行日: 2026-10-19
@@ -3796,7 +3796,7 @@ min-3step-pack.ir.json     7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
-| PACK47-1 | Cargo.toml: yaml_serde の宣言を範囲に緩める | pack47_workspace_declares_adopted_yaml_serde_version | pack47_workspace_declares_adopted_yaml_serde_version | DETECTED |
+| PACK47-1 | Cargo.toml: yaml_serde の宣言を caret 要件に緩める | pack47_workspace_declares_adopted_yaml_serde_version | pack47_workspace_declares_adopted_yaml_serde_version | DETECTED |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

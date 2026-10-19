@@ -1,7 +1,7 @@
 //! YAML を読む crate の採用版の固定を守る試験（TASK-73 / PACK-47 / D-58）。
 //!
 //! 形式 B（YAML）の読み込みは `yaml_serde` に依存する。D-58 は「維持して版を固定する」と決めた。
-//! `Cargo.toml` の宣言が範囲に緩むと、`cargo update` で黙って別の版に動く。ここでは宣言・`Cargo.lock` の
+//! `Cargo.toml` の宣言が exact 指定（`=`）でなくなると、`cargo update` で黙って別の版に動く。ここでは宣言・`Cargo.lock` の
 //! 解決済みの版・pack crate の参照の仕方を照合する。crates.io の現況の確認は依存の棚卸し（TASK-99）が持つ。
 //!
 //! 読み込みは `CARGO_MANIFEST_DIR` からの相対パスで行う。変異注入（`scripts/check-mutations.sh`）の
@@ -28,9 +28,11 @@ fn pack47_workspace_declares_adopted_yaml_serde_version() {
         .as_str()
         .or_else(|| dep.get("version").and_then(|v| v.as_str()))
         .unwrap_or_default();
+    // "0.10.7" は暗黙の caret 要件（>=0.10.7, <0.11.0）で cargo update により動くため、"=" の exact 指定を要求する。
+    let expected = format!("={ADOPTED_YAML_SERDE}");
     assert_eq!(
-        declared, ADOPTED_YAML_SERDE,
-        "PACK-47: yaml_serde は {ADOPTED_YAML_SERDE} に固定する（D-58）: {dep}"
+        declared, expected,
+        "PACK-47: yaml_serde は {expected}（exact 指定）で固定する（D-58）: {dep}"
     );
 }
 

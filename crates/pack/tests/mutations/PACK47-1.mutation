@@ -2,7 +2,7 @@ id: PACK47-1
 package: fandhe-workshop-pack
 test: yaml_dependency
 target: Cargo.toml
-find: yaml_serde = "0.10.7"
-replace: yaml_serde = "0.10"
+find: yaml_serde = "=0.10.7"
+replace: yaml_serde = "0.10.7"
 expect-fail: pack47_workspace_declares_adopted_yaml_serde_version
-note: yaml_serde の宣言を範囲に緩める（Cargo.lock は 0.10.7 のままで、cargo update で黙って版が動く状態になる）
+note: yaml_serde の宣言を exact 指定から暗黙の caret 要件に緩める（Cargo.lock は 0.10.7 のままで、cargo update で黙って版が動く状態になる）
