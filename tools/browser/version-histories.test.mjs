@@ -78,10 +78,19 @@ function assertQuiet(rec, label) {
   assert.equal(s.popups, 0, `${label}: no popup`);
 }
 
-// 保存領域の鍵の一覧（localStorage の鍵と、IndexedDB の history ストアの鍵の数。DB が無ければ null）。
+// 保存領域の指紋（localStorage の鍵と値、IndexedDB の history ストアの鍵と値）。
+// 値は要約（FNV-1a）にして返し、中身は失敗メッセージに出ない。DB が無ければ idb は null。
 async function storageFingerprint(page) {
   return page.evaluate(async () => {
-    const local = Object.keys(localStorage).sort();
+    const digest = (text) => {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < text.length; i += 1) {
+        h ^= text.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return `${text.length}:${h.toString(16)}`;
+    };
+    const local = Object.keys(localStorage).sort().map((k) => [k, digest(String(localStorage.getItem(k)))]);
     let idb = null;
     if (indexedDB.databases) {
       const dbs = await indexedDB.databases();
@@ -92,9 +101,17 @@ async function storageFingerprint(page) {
           req.onsuccess = () => {
             const db = req.result;
             if (!db.objectStoreNames.contains('history')) { db.close(); resolve('no-store'); return; }
-            const c = db.transaction('history').objectStore('history').count();
-            c.onsuccess = () => { db.close(); resolve(c.result); };
-            c.onerror = () => { db.close(); resolve('error'); };
+            const store = db.transaction('history').objectStore('history');
+            const keysReq = store.getAllKeys();
+            keysReq.onerror = () => { db.close(); resolve('error'); };
+            keysReq.onsuccess = () => {
+              const valuesReq = store.getAll();
+              valuesReq.onerror = () => { db.close(); resolve('error'); };
+              valuesReq.onsuccess = () => {
+                db.close();
+                resolve(keysReq.result.map((k, i) => [String(k), digest(JSON.stringify(valuesReq.result[i]) ?? '')]));
+              };
+            };
           };
         });
       }
@@ -132,6 +149,8 @@ async function openRow(srv, row) {
   assert.equal(await call(page, 'openingOverride', JSON.stringify({ engine: row.opening.engine, vocab_max: row.opening.vocab_max })), true, `${row.id}: override sent`);
   await settle(page);
 
+  // 既存の保存データを置いた状態にする（拒否した履歴が上書きしても検知できるようにする）。
+  await page.evaluate(() => localStorage.setItem('fandhe-test-sentinel', 'before'));
   const before = await engine(page);
   const stateBefore = comparable(before);
   const installBefore = before.installCount;
