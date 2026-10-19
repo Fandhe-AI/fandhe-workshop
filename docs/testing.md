@@ -4098,6 +4098,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - SAFE35-3: `run` を戻さず `current` だけ戻す
 - SAFE35-5: 入力の受信のたびに入口の控えを取る（拒否された再送で上書きする）
 - SAFE35-6: 処理中の移動で入口の控えへ戻さない
+- SAFE35-7: 最後の進行で処理中を解かない（処理完了後の移動の上限で入口の控えへ戻る）
 
 `SAFE23-2`（`halt` の `current = None` の削除）は、`apply` が直後に戻すため、効果が試験から見えない等価変異になった。廃止し、内側の fail-closed は SAFE35 の変異と、操作の前に現在の Step が無い場合の既存の挙動で担保する。
 
@@ -4114,6 +4115,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE35-3 | crates/core/src/transit.rs: `current` だけ戻す | cycle_exit_2_stops_at_limit, cycle_exit_2_accepts_again_and_returns_again | DETECTED |
 | SAFE35-5 | crates/core/src/projection.rs: 受信のたびに入口の控えを取る | limit_rewind_ignores_rejected_resend_during_busy | DETECTED |
 | SAFE35-6 | crates/core/src/projection.rs: 処理中の移動で入口の控えへ戻さない | limit_rewind_on_move_while_busy_returns_to_entry | DETECTED |
+| SAFE35-7 | crates/core/src/projection.rs: 最後の進行で処理中を解かない | limit_on_move_after_last_progress_returns_to_before_the_move | DETECTED |
 
 範囲外: spec の SAFE-35 の文言の更新、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 

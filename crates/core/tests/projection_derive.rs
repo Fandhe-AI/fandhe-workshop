@@ -414,6 +414,44 @@ fn limit_on_move_while_idle_returns_to_before_the_move() {
     assert!(!p.marks().is_empty());
 }
 
+/// 確認待ちの Step で最後の進行（`Achieved` なし）を終えた後の移動は処理中ではない。上限に達したときは
+/// 入口の写しではなく移動の直前へ戻し、復習と印を残す（core は処理が無いので移動直前の状態を保つ）。
+#[test]
+fn limit_on_move_after_last_progress_returns_to_before_the_move() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 2,
+            total: 3,
+        },
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(!p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().any(|r| !r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
 #[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";

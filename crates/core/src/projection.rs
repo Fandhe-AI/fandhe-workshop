@@ -220,9 +220,10 @@ impl Projection {
                     self.entry_start = Some(now.clone());
                 }
                 // 処理中の操作を途中で止めると入口の写しへ戻るので、控えは入口の時点のものにする。
-                Event::Progress { .. } => {
+                Event::Progress { index, total, .. } => {
                     self.op_start = Some(self.entry_start.clone().unwrap_or(now));
-                    self.progressing = true;
+                    // 最後の進行（確認待ちの Step では `Achieved` が出ない）で処理は終わる。以後の移動は移動直前の控えを使う。
+                    self.progressing = index.saturating_add(1) < *total;
                     return self.step_event(i, event);
                 }
                 Event::Moved { .. } if self.progressing => {
