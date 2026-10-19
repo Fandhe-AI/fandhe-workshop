@@ -57,8 +57,9 @@ TEST_HOOKS=1 OUT_DIR="${TMP}/web-test" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-
 # 書き出しの試験は #[ignore] で、ここだけが --ignored で呼ぶ。15 件がそろわなければ失敗にする（fail-closed）。
 log "emitting version histories for browser tests"
 mkdir -p "${TMP}/version-histories"
-FANDHE_VERSION_HISTORIES_OUT="${TMP}/version-histories" cargo test --locked -p fandhe-workshop-core \
-  --test version_histories -- --ignored --exact emit_histories_for_browser >/dev/null
+# cargo は cwd の Cargo.toml を探すため、呼び出し元の cwd に依存しないようサブシェルで ROOT_DIR へ移して実行する。
+(cd "${ROOT_DIR}" && FANDHE_VERSION_HISTORIES_OUT="${TMP}/version-histories" cargo test --locked -p fandhe-workshop-core \
+  --test version_histories -- --ignored --exact emit_histories_for_browser >/dev/null)
 emitted="$(find "${TMP}/version-histories" -maxdepth 1 -name '*.history.json' | wc -l | tr -d ' ')"
 if [[ "${emitted}" != "15" ]]; then
   echo "error: expected 15 emitted histories, got ${emitted}" >&2
