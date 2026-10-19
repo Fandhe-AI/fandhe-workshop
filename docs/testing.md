@@ -4422,3 +4422,41 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | EXT9-2 | crates/contract/src/ir.rs: 版 1 の IR を読まない | ext9_frozen_v1_irs_open_as_sessions | DETECTED |
 
 集計: 2 件すべて DETECTED（2026-10-19）。
+
+### 5.143 新しい項目を使わない教材パックの IR の同一性の試験（TASK-190 2/2）
+
+結論: EXT-9（D-52・D-53）の「同一」の側を、追加の前のエンジンの成果物で固定した（`crates/pack/tests/ext9_ir_identity.rs`）。新しい項目（EP-13 の `views.<ID>.body`）を使わない教材 13 件の IR が、EP-13 の追加の前後でバイト単位で同じである。受け口ごとの版は持たない（D-53）ことも、IR の版の鍵の集合と、欄を足すと断られることで固定した。
+
+「追加の前」は、EP-13 の追加コミット（ad4629c）の親 0fa7146 のエンジンである。`tests/data/golden/*.ir.json` の 5 本は、最後にそのコミットで書かれた（以後作り直していない）。golden の無い 7 教材と、本文を持たない最小パックの 1 件は、そのコミットのエンジンで出力して `tests/data/ir_before_ep13/` に凍結した（作り方は同ディレクトリの README。実行日 2026-10-19）。同じ旧いエンジンで golden の 5 本がバイト一致することも、凍結時に確かめた。
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| `ext9_premise_frozen_set_does_not_use_new_items` | 対象の全教材で、どのビューにも `body` が無く、`pack.vocab` が 1.4 未満または無い | 通る |
+| `ext9_golden_packs_are_byte_identical_across_ep13` | golden の 5 教材を今のエンジンで出力し、golden とバイト一致 | 通る |
+| `ext9_other_packs_are_byte_identical_across_ep13` | golden の無い 7 教材を出力し、`ir_before_ep13/` とバイト一致 | 通る |
+| `ext9_pack_without_trees_stays_v1_and_identical_across_ep13` | 本文も練習データも持たない教材は版 1 のままで、凍結物とバイト一致 | 通る |
+| `ext9_using_the_new_item_changes_only_its_own_key`（対照） | `document-body-pack` から `body` を省くと、違うのは `/views/v-doc/body` だけで、版は同じ | 通る |
+| `ext9_ir_has_no_per_extension_point_version` | 版を表す鍵は `format_version`・`pack.ir_format`・`pack.version`・`pack.vocab` だけ。受け口ごとの版の欄は、教材の宣言では `E-PARSE`、IR の読み込みでは `Json` で断られ、値も鍵も写さない | 通る |
+
+限界:
+
+- 受け口の追加の実例は EP-13 の 1 件だけで、次の受け口の追加は試験できない。受け口が増えたら、凍結物の世代を足す運用は未決である
+- golden の出所（0fa7146 の出力であること）はコミットの履歴に頼る。試験は履歴を見ない
+- 対象は `tests/data` と `testdata` の教材 13 件である。`testdata/` の他の教材は含めていない
+
+#### 04 の EXT-9 への反映案
+
+証拠の種類に本件の試験を足す。5.142（1/2）と合わせて、「検討中の理由」のうち受け口の追加についての自動テストが無い点が、開く側・同一の側の両面で解ける案である。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 1097f1f（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/EXT9-3.mutation crates/pack/tests/mutations/EXT9-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| EXT9-3 | crates/contract/src/ir.rs: 受け口の欄の既定値が使わない教材の出力に漏れる | ext9_golden_packs_are_byte_identical_across_ep13 | DETECTED |
+| EXT9-4 | crates/contract/src/ir.rs: 使わない教材の版まで上がる | ext9_pack_without_trees_stays_v1_and_identical_across_ep13 | DETECTED |
+
+集計: 2 件すべて DETECTED（2026-10-19）。

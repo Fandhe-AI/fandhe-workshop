@@ -1,0 +1,288 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "chosen-value-pack",
+    "title": "選んだ値",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "make-item": "skill"
+  },
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-not-listed": {
+      "category": "not_in_this_step",
+      "message": "その値は、この Step の候補にありません。",
+      "next_action": "候補のどれかで、もう一度送ります。"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "not_in_this_step": "rj-not-listed"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/a",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "a",
+        "title": "A",
+        "body": "a.md",
+        "input": {
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ],
+          "kind": "command",
+          "name": "make-item"
+        },
+        "rules": [
+          {
+            "id": "r-alpha",
+            "on": {
+              "args": {
+                "name": "alpha"
+              },
+              "command": "make-item"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "put": {
+                    "attrs": {
+                      "label": "first"
+                    },
+                    "path": "work/alpha"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-beta",
+            "on": {
+              "args": {
+                "name": "beta"
+              },
+              "command": "make-item"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "put": {
+                    "attrs": {
+                      "label": "second"
+                    },
+                    "path": "work/beta"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/b"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "第 1 Step"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "名前を付けて作ります。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/c",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "c",
+        "title": "C",
+        "body": "c.md",
+        "on_enter": [
+          {
+            "put": {
+              "attrs": {
+                "tone": "初期"
+              },
+              "path": "draft"
+            }
+          }
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-a",
+              "label": "案 A"
+            },
+            {
+              "id": "opt-b",
+              "label": "案 B"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-opt-a",
+            "on": {
+              "option": "opt-a"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "tone",
+                    "path": "draft",
+                    "value": "丁寧な文面"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-opt-b",
+            "on": {
+              "option": "opt-b"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "tone",
+                    "path": "draft",
+                    "value": "簡潔な文面"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "選ぶことそのものが意思表示のため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/b"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "第 2 Step"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "案を選びます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/b",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "b",
+        "title": "B",
+        "body": "b.md",
+        "final": true
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "最後の Step"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "終わりです。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/a",
+      "effects": []
+    },
+    {
+      "id": "s2",
+      "node": "main/c",
+      "effects": []
+    }
+  ]
+}
