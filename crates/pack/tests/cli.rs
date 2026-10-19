@@ -11,9 +11,52 @@ fn i1_subcommands_start() {
     for name in ["validate", "test", "vocab", "metrics"] {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
+        assert!(o.stdout.is_empty(), "{name}");
         let err = String::from_utf8_lossy(&o.stderr);
         assert!(err.contains("not implemented"), "{name}: {err}");
     }
+}
+
+/// 形が正しい呼び出しは、そのコマンドの handler に届く（未実装の行が自分の名前だけを名指しする）。
+#[test]
+fn i10_each_command_is_dispatched_to_its_handler() {
+    let names = ["validate", "test", "vocab", "metrics"];
+    for name in names {
+        let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
+        assert_eq!(o.status.code(), Some(2), "{name}");
+        let err = String::from_utf8_lossy(&o.stderr);
+        assert!(
+            err.contains(&format!("fandhe-pack {name} is not implemented yet")),
+            "{name}: {err}"
+        );
+        for other in names.iter().filter(|n| **n != name) {
+            assert!(
+                !err.contains(&format!("fandhe-pack {other} is not")),
+                "{name}: {err}"
+            );
+        }
+    }
+}
+
+#[test]
+fn i11_compile_output_is_accepted_but_not_written() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i11-compile-o-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let target = dir.join("x.json");
+    let o = bin()
+        .arg("compile")
+        .arg(ch1_pack())
+        .arg("-o")
+        .arg(&target)
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert!(o.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&o.stderr).contains("compile -o is not implemented"));
+    assert!(!target.exists());
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -67,6 +110,14 @@ fn i6_compile_argument_errors() {
         .unwrap();
     assert_eq!(o.status.code(), Some(2));
     assert!(o.stdout.is_empty());
+    let o = bin()
+        .args(["compile", "-o", "x"])
+        .arg(ch1_pack())
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert!(o.stdout.is_empty());
+    assert!(!String::from_utf8_lossy(&o.stderr).contains("not implemented"));
 }
 
 fn min_3step_a() -> std::path::PathBuf {
@@ -164,7 +215,7 @@ fn pack2_cli_exit_code_for_both_and_neither() {
 }
 
 /// PACK-5: 10 進でない整数を書いたパックは終了コード 1 で `E-PARSE` を出し、IR を出さない。
-/// `validate` は TASK-401 まで未実装なので、同じ読み込みを通る `compile` で確かめる。
+/// `validate` は TASK-403 まで未実装なので、同じ読み込みを通る `compile` で確かめる。
 #[test]
 fn pack5_cli_radix_literal_is_diagnostic_and_emits_no_ir() {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))

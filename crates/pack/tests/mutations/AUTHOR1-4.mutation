@@ -1,0 +1,8 @@
+id: AUTHOR1-4
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/cli.rs
+find: expect_end(cmd, args)?;
+replace: let _ = (cmd, &args);
+expect-fail: argument_shape_errors_are_reported_before_loading
+note: 1 引数のコマンドの余分な引数の検査が外れる
