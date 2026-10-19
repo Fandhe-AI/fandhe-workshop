@@ -105,10 +105,12 @@ for (const csp of [true, false]) {
         const { page, context, rec, consoleTexts } = await open(srv);
         await saveOneStep(page);
         const savedEng = await engine(page);
-        await page.goto(`${srv.url}?fixture=${name}`);
-        await waitMounted(page);
+        // 比較の基準は、断られる画面へ移る前（保存済みの通常画面）で取る。断りの起動処理が書き換えた値を正としないため。
         const baseline = await storageDump(page);
         assert.notEqual(baseline, '[]', 'a saved history exists before the refusal (non-vacuous)');
+        await page.goto(`${srv.url}?fixture=${name}`);
+        await waitMounted(page);
+        assert.equal(await storageDump(page), baseline, 'storage is unchanged right after the refusal screen mounts');
 
         assert.equal(await page.locator(NOTICE).count(), 1);
         assert.equal(await page.locator(NOTICE).innerText(), `教材を読み込めませんでした。（${code}）`);
@@ -134,8 +136,8 @@ for (const csp of [true, false]) {
         const again = await engine(page);
         assert.equal(again.bootKind, 'restored');
         assert.equal(again.irLoaded, true);
-        assert.equal(again.generation >= savedEng.generation, true);
-        assert.equal(again.logLen >= savedEng.logLen, true);
+        assert.equal(again.generation, savedEng.generation);
+        assert.equal(again.logLen, savedEng.logLen);
         assert.equal(await page.locator(NOTICE).count(), 0);
         clean(rec);
         await context.close();
