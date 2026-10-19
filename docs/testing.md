@@ -3760,7 +3760,7 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 
 実行の記録（2026-10-19、base 23a5245）: 単体で 7 本が pass、`make test-browser` 全体は 532 本が pass（終了コード 0、85 秒）。配信設定の E5 は送信の回数だけを assert する（配信設定は教材なしで、右のログの受付の行は 0 件増える。受付の行の観察は `log-lines-xss.test.mjs` の担当）。`FANDHE_WEB_TEST_DIR` を未設定にして流すと終了コード 1 になる（例外が 0 に化けない）。
 
-限界: 各節は今のビルドで観察できる範囲に限る。10 倍の水準は CI のメモリと時間のため入れていない。Chrome の原本では流さない（BUILD-20・TASK-94）。
+限界: 各節は今のビルドで観察できる範囲に限る。10 倍の水準は CI のメモリと時間のため入れていない。Chrome の原本での実行は 5.128（BUILD-20・TASK-94）にある。
 
 ### 5.127 YAML 系 crate の見直し（TASK-73）
 
@@ -3817,6 +3817,62 @@ min-3step-pack.ir.json     7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | PACK47-1 | Cargo.toml: yaml_serde の宣言を caret 要件に緩める | pack47_workspace_declares_adopted_yaml_serde_version | pack47_workspace_declares_adopted_yaml_serde_version | DETECTED |
+
+### 5.128 Chrome の原本でのブラウザテスト（TASK-94）
+
+BUILD-20 の原本（Google Chrome の最新の安定版）で、`make test-browser` を x86_64 の上で流し、全件が通ることを確かめた。それまでの証拠は Chromium の写し（BUILD-4・CI の `browser test (Chromium)`）だけだった。
+
+起動の口は TASK-28 で実装済みである（`FANDHE_BROWSER_CHANNEL`。値は `chromium` か `chrome`）。仕様は「原本は `channel: "chrome"` を指定し、写しは 1 行を外す」と書くが、実装は既定が同梱の Chromium で、原本は環境変数で選ぶ。向きが逆である。起動の失敗はどちらの channel でも黙って Chromium へ切り替わらない（fail-closed）。そのため、`chrome` を指定して全件が通ったこと自体が、Chrome で流れた証拠になる。診断の行（`harness.test.mjs` の `browser: channel=... version=...`）が channel と版を残す。
+
+実行の記録（2026-10-19、base 0ce9b62、作業ツリーに本変更）。
+
+| 項目 | 内容 |
+|---|---|
+| ホスト | x86_64 の Linux |
+| 実行の場所 | 使い捨てのコンテナ。イメージ `mcr.microsoft.com/playwright:v1.63.0-noble`（digest `sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27`）。ソースは読み取り専用で mount し、コンテナの中の写しでビルドした |
+| 道具 | rustc 1.98.1、wasm-bindgen CLI 0.2.128（CI と同じ musl のプリビルトを SHA256 で照合）、Node v24.20.0、Playwright 1.63.0 |
+| Chrome の導入 | `npx playwright install chrome` |
+| 原本の Chrome | Google Chrome 155.0.8059.84 |
+| 同梱の Chromium | 153.0.8010.12 |
+
+| 実行 | コマンド | tests | pass | fail | 終了コード | 秒 |
+|---|---|---|---|---|---|---|
+| 原本（コンテナ） | `FANDHE_BROWSER_CHANNEL=chrome make test-browser` | 535 | 535 | 0 | 0 | 105 |
+| 写し（同じコンテナ） | `make test-browser` | 535 | 535 | 0 | 0 | 86 |
+| 写し（ホスト） | `make test-browser` | 535 | 535 | 0 | 0 | 125 |
+
+件数は 5.126 の 532 本より 3 本多い。その後に足された試験と、本タスクで足した channel と版の診断の試験 1 本を含む（内訳は確かめていない）。原本と写しで件数は同じである。
+
+対照: Chrome を導入する前のコンテナで `FANDHE_BROWSER_CHANNEL=chrome node --test tools/browser/harness.test.mjs` を流すと、11 本すべてが `Chromium distribution 'chrome' is not found` で失敗し、終了コードは 1 だった（Chromium へ切り替わらない）。`FANDHE_BROWSER_CHANNEL=firefox make test-browser` は終了コード 2 だった。
+
+限界:
+
+- 確かめたのはコンテナ（x86_64・Ubuntu noble）であり、CI の runner ではない
+- Chrome の最新版は日々変わる。この記録は日付つきの 1 点にすぎない
+- Chrome の `.deb` の SHA は固定していない（最新版を対象にする D-9 の性質による）。そのため CI には入れず、使い捨てのコンテナで流した
+- macOS と Linux Arm64 では確かめていない。Linux Arm64 には Chrome の安定版が無い（PoC-11 F-2）
+
+#### Chromium で流す扱い
+
+Chrome の安定版が入らない環境（Linux Arm64 など）では、変数を付けずに既定の同梱 Chromium で流す。D-9 に従い、その結果は参考の確認とする。正は x86_64 の Chrome の最新版での記録とする。CI の関門は今の Chromium のままである。自動で Chromium へ切り替える仕組みは足していない。手順は README の「Chrome の原本と Chromium の扱い」に書いた。
+
+#### 04 の BUILD-20 への反映案
+
+`docs/spec/**` は編集しないため、spec 側で直す案をここに残す。仕様の文は転記せず、ID と項目名で指す（未承認）。
+
+- 前提: 実装では、原本は `FANDHE_BROWSER_CHANNEL=chrome` で選び、既定は同梱の Chromium である。「9 本のスクリプトが `channel: "chrome"` を持つ」という試作の前提を、これに置き換える。許可しない値と Chrome が無い場合は、どちらも失敗になる
+- 操作: x86_64 の上のコンテナで `FANDHE_BROWSER_CHANNEL=chrome make test-browser` を流す
+- 期待: 原本が全件合格する。Chrome の安定版が無い環境では、変数なしの Chromium で流し、結果は参考の確認とする（D-9）
+- 根拠・証拠の種類: 「なし」を、本節の記録（自動ブラウザ。Chrome の原本。x86_64 のコンテナ）に置き換える
+- 状態と検討中の理由: 扱いの決定が採用されたら「確定」にする案。検討中の理由に挙げた案のうち「`channel` を環境変数で切り替える」を採った。「x86_64 の runner の CI で原本を流す」は人間の判断待ちとして残す
+
+人間の判断が要る事項（未承認）。
+
+1. Chromium で流す扱いの決定の採否
+2. Chrome の原本を CI の関門にするか。する場合は、`ci.yml` にジョブを足し、`ci-complete` の `needs` と ruleset の必須チェックを同時に更新する。ruleset は実装者の権限の外にある。提案は、関門は Chromium のままにして、Playwright の版上げとリリースの前に原本を流し直して記録を更新すること
+3. 原本を流し直す手段（スクリプトや `workflow_dispatch` のワークフロー）を足すか
+
+範囲外: `tools/measure/browser.mjs` は channel を受けずに `chromium.launch()` を呼んでおり、測定は Chromium に固定されている。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

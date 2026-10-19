@@ -1,7 +1,7 @@
 # ツールチェーンの固定
 
 ```text
-ツールチェーンの版: 1
+ツールチェーンの版: 4
 決定日: 2026-10-12
 状態: 固定
 ```
@@ -39,7 +39,7 @@
 |---|---|---|
 | rustfmt・clippy | 必須 | `rust-toolchain.toml` の `components` で導入される |
 | wasm-opt | 任意 | 配信物を小さくするときに使う |
-| Chrome または Chromium | 固定しない | Playwright 1.63.0 が同梱する Chromium 153.0.8010.12 を使う。Linux arm64 には Chrome の安定版が無い（PoC-11 F-2） |
+| Chrome または Chromium | 固定しない | Playwright 1.63.0 が同梱する Chromium 153.0.8010.12 を使う。Linux arm64 には Chrome の安定版が無い（PoC-11 F-2）。Chrome の原本で流すときは `FANDHE_BROWSER_CHANNEL=chrome` を付ける。扱いは README の「Chrome の原本と Chromium の扱い」、記録は docs/testing.md 5.128 |
 | Python | 不要 | 試験用の配信は Node の `tools/serve.mjs`（TASK-28）が担う |
 
 ## 4. 導入手順
@@ -76,3 +76,4 @@ npx playwright install chromium
 | 1 | 2026-10-12 | 初版。Rust・wasm-bindgen・Node・Playwright の版を固定 | TASK-25 |
 | 2 | 2026-10-14 | 試験用の配信を Node の `tools/serve.mjs` に確定（Python は不要）。固定する版は変えない | TASK-28 |
 | 3 | 2026-10-18 | README の「前提」に値を写し、check-toolchain が一致を検査する。固定する版は変えない | TASK-90 |
+| 4 | 2026-10-19 | Chrome の原本と Chromium で流す扱いを第 3 節に追記。固定する版は変えない | TASK-94 |
