@@ -14,19 +14,29 @@
 #     （解釈して検査を続けることはしない）。
 #     Y1 引用符つきの key（`"uses": ...`・`'submodules': ...`。行の先頭と `- ` の後ろ。run の本文の行も含む）
 #     Y2 複合キー（`? `）
-#     Y3 フロー形式のマッピング（run の本文の外で、${{ }} を除いた行に `{` がある。permissions の行は C1 が
-#        値を判定するので除く。step・job に限らず with・concurrency 等のフロー形式も拒否する）
+#     Y3 フロー形式のマッピング・シーケンス（run の本文の外で、${{ }} を除いた行に `{` か `[` がある。`{` は
+#        permissions の行だけを除く（C1 が値を判定する）。`[` は要素にマッピング（`[uses: x]`）を隠せるため、
+#        許可リストの `branches: [<語>, ...]`（語は英数字と _ . / - だけ）の行だけを除く。step・job に限らず
+#        with・concurrency・needs 等のフロー形式も拒否する）
 #     Y4 key の前のタグ・アンカー（`!!str uses:`・`&a uses:`）と、key に置いた別名（`*a :`）
-#     Y5 run の値が別名（`run: *a`。アンカーの本文は run の外にありうるため、A5 の run の検査が届かない）
+#     Y5 run の値が別名（`run: *a`。アンカーの本文は run の外にありうるため、A5 の run の検査が届かない）か、
+#        run: の行に値が無い（値が次の行から始まると、その形を字句で確定できない）
+#     Y6 引用符つきのスカラー: ダブルクォートの値に \ がある（YAML がエスケープを復号するため、字句で見た文字列と
+#        実行時の文字列が食い違う）か、引用符が同じ行で閉じない（続きの行の範囲を字句で確定できない）。
+#        プレーン・ブロックのスカラーの \ は復号されないので対象外（シェルの行の継続を使える）
+#     Y7 if: の値が同じ行で完結しない（値が空・ブロックや折り返しのスカラー・if: より深い字下げの続きの行がある。
+#        続きの行は条件に連結され、C2 の比較をすり抜ける）
 #   A private な依存が 0 件
 #     A1 Cargo.lock の source が crates.io（と許可リストの公開 git）だけ
 #     A2 package-lock.json の resolved が registry.npmjs.org だけ
 #     A3 .npmrc に registry・認証の行が無い
 #     A4 .cargo/config(.toml) に registry・認証・git-fetch-with-cli が無い
 #     A5 .gitmodules の各 submodule が `update = none` を持ち、ci.yml の checkout が submodule を取得しない。
-#        ci.yml の run の本文（ブロック・複数行のスカラーの続きの行を含む）に、語としての submodule(s) が無く、
-#        git と --recurs で始まるオプション（--recurse-submodules・--recursive。git は長いオプションの一意な
-#        前置きを受け付けるため前置きで見る）が同じ run に無い（明示の取得は update = none を上書きする）
+#        明示の取得は update = none を上書きし、git はオプション・設定キー（clone.recurseSubmodules 等）・
+#        環境変数（GIT_CONFIG_*）のどれからでも submodule を取りうるため、意味は解釈せず一律に拒否する:
+#        ci.yml の run の本文（ブロック・複数行のスカラーの続きの行を含む）に、語としての git と、大文字小文字を
+#        問わず submodule・recurse・git_ の部分文字列が無い。ci.yml の key に GIT_ で始まるもの（env のどの階層でも）
+#        が無く、env: の値が同じ行に無い（式で書いた env は key を字句で確定できない）
 #   B ビルド・試験のジョブ（ci.yml）からの secret の参照が 0 件
 #     B1 scripts/check-workflow-secrets.sh を呼ぶ（実体は二重に書かない。ruby を要する）
 #     B2 BUILD-2 が挙げる語（GITHUB_TOKEN・CARGO_REGISTR*・git-fetch-with-cli・語としての _TOKEN / _PAT）が無い
@@ -171,47 +181,91 @@ grep_report() {
 }
 
 # ---- Y YAML の表記の字句の関門（と A5 の run の本文） ----
-# yaml_gate <file> <0|1>: Y1〜Y5 を検査して違反を記録する。第 2 引数が 1 なら、run の本文の submodule の取得（A5）も検査する。
+# yaml_gate <file> <0|1>: Y1〜Y7 を検査して違反を記録する。第 2 引数が 1 なら、ci.yml の git・submodule の経路（A5）も検査する。
 # run の本文は「run: の行の値と、その key の列より深く字下げした行・空行の続き」とみなす（スカラーの形は解釈しない）。
 yaml_gate() {
   local file="$1" sub_check="$2" out rc=0
   out="$(awk -v sub_check="${sub_check}" '
+    BEGIN { if_col = -1 }
     function indent(s) { match(s, /^ */); return RLENGTH }
-    # flush_run: git と --recurs の両方が同じ run にあれば、--recurs の行を違反として出す
-    function flush_run() {
-      if (in_run && run_git && run_rec != "") print run_rec
-      in_run = 0; run_git = 0; run_rec = ""
+    # strip_props <s>: 値の前のタグ・アンカー（`!!str `・`&a `）を除く
+    function strip_props(s) { while (match(s, /^[!&][^[:space:]]*([[:space:]]+|$)/)) s = substr(s, RLENGTH + 1); return s }
+    # value_of <line>: 字下げ・`- `・裸の `key:` を除いた値の位置の文字列（タグ・アンカーも除く）
+    function value_of(s) {
+      sub(/^[[:space:]]*(-[[:space:]]+)*/, "", s)
+      sub(/^[A-Za-z0-9_.-]+[[:space:]]*:([[:space:]]+|$)/, "", s)
+      return strip_props(s)
     }
-    # scan_run <text> <line>: run の本文の 1 行を A5 の語で調べる
+    # quoted_check <value> <line>: 値が引用符で始まるなら Y6 を検査する。ダブルクォートは \ を含めば拒否し
+    # （YAML がバックスラッシュの後ろの u0075 等を復号するため、字句の検査と実行時の文字列が食い違う）、引用符が同じ行で閉じなければ拒否する
+    # （複数行の引用符つきスカラーは、続きの行の字下げが浅くても続くことがあり、本文の範囲を字句で確定できない）
+    function quoted_check(v, n,   r) {
+      if (substr(v, 1, 1) == "\"") {
+        r = substr(v, 2)
+        if (index(r, "\\")) print n ":Y6 backslash in a double-quoted YAML scalar (escapes are decoded by YAML; use a plain or block scalar)"
+        else if (!index(r, "\"")) print n ":Y6 double-quoted YAML scalar does not close on the same line"
+      } else if (substr(v, 1, 1) == "\047") {
+        r = substr(v, 2); gsub(/\047\047/, "", r)
+        if (!index(r, "\047")) print n ":Y6 single-quoted YAML scalar does not close on the same line"
+      }
+    }
+    # scan_run <text> <line>: run の本文の 1 行を A5 の語で調べる（ci.yml だけ）。git の取得はオプション・設定キー・
+    # 環境変数で submodule を取りうるため、意味は解釈せず、語としての git と submodule・recurse・git_ の部分文字列を一律に拒否する
     function scan_run(s, n,   l) {
       if (!sub_check) return
       l = tolower(s)
-      if (l ~ /(^|[^a-z0-9_])submodules?([^a-z0-9_]|$)/) print n ":A5 run mentions submodule (an explicit submodule update overrides update = none; private docs/spec must not be fetched)"
-      if (l ~ /(^|[^a-z0-9_])git([^a-z0-9_]|$)/) run_git = 1
-      if (index(l, "--recurs")) run_rec = run_rec (run_rec == "" ? "" : "\n") n ":A5 run passes --recurs* (--recurse-submodules or --recursive) together with git (submodules must not be fetched)"
+      if (l ~ /(^|[^a-z0-9_])git([^a-z0-9_]|$)/) print n ":A5 run mentions git (git can fetch submodules through options, config keys and environment; the build/test workflow must not run git)"
+      if (index(l, "submodule") || index(l, "recurse")) print n ":A5 run mentions submodule or recurse (an explicit submodule fetch overrides update = none; private docs/spec must not be fetched)"
+      if (index(l, "git_")) print n ":A5 run mentions GIT_* (git reads config from GIT_CONFIG_* and similar variables, also via GITHUB_ENV)"
     }
     {
       raw = $0
+      # Y7: if: の次の空でない行が if: の key より深ければ、値の続き（条件の連結）とみなして拒否する
+      if (if_col >= 0 && raw !~ /^[[:space:]]*$/) {
+        if (indent(raw) > if_col) print if_line ":Y7 if: continues on the next line (write the whole condition on the if: line)"
+        if_col = -1
+      }
       if (raw ~ /^[[:space:]]*(-[[:space:]]+)?("([^"\\]|\\.)*"|\047([^\047]|\047\047)*\047)[[:space:]]*:/) print NR ":Y1 quoted YAML key (keys must be plain words; quoted keys are not interpreted)"
       if (raw ~ /^[[:space:]]*(-[[:space:]]+)?\?([[:space:]]|$)/) print NR ":Y2 complex YAML key (? ) cannot be read lexically"
       if (raw ~ /^[[:space:]]*(-[[:space:]]+)?([!&][^[:space:]]*[[:space:]]+)+[^[:space:]:]+[[:space:]]*:([[:space:]]|$)/ \
         || raw ~ /^[[:space:]]*(-[[:space:]]+)?\*[^[:space:]]+[[:space:]]+:/) print NR ":Y4 tag, anchor or alias on a YAML key cannot be read lexically"
       if (in_run) {
         if (raw ~ /^[[:space:]]*$/ || indent(raw) > run_col) { scan_run(raw, NR); next }
-        flush_run()
+        in_run = 0
       }
       if (raw ~ /^[[:space:]]*(-[[:space:]]+)?run[[:space:]]*:/) {
         t = raw; sub(/^[[:space:]]*(-[[:space:]]+)?/, "", t); run_col = length(raw) - length(t)
         v = t; sub(/^run[[:space:]]*:[[:space:]]*/, "", v)
         if (v ~ /^\*/) print NR ":Y5 run value is an alias (the anchored text can live outside any run and is not checked)"
+        w = strip_props(v); sub(/^#.*$/, "", w); sub(/[[:space:]]+#.*$/, "", w)
+        if (w ~ /^[[:space:]]*$/) print NR ":Y5 run value does not start on the run: line (write run: | or the command on the same line)"
+        quoted_check(w, NR)
         in_run = 1; scan_run(v, NR)
         next
       }
       if (raw ~ /^[[:space:]]*#/) next
+      quoted_check(value_of(raw), NR)
       t = raw; gsub(/\$\{\{[^}]*\}\}/, "", t)
       if (index(t, "{") && t !~ /^[[:space:]]*(-[[:space:]]+)?permissions[[:space:]]*:/) print NR ":Y3 flow-style mapping outside permissions (write steps, jobs and inputs as block mappings)"
+      # フロー形式のシーケンスは、要素にマッピング（`[uses: x]`）を隠せる。許可するのは on: の branches の
+      # 単純な語の列だけ（キー名と要素の文字を許可リストで限定し、要素に `:`・`{`・引用符・別名を置かせない）
+      if (index(t, "[") && t !~ /^[[:space:]]*branches[[:space:]]*:[[:space:]]*\[[[:space:]]*[A-Za-z0-9_.\/-]+([[:space:]]*,[[:space:]]*[A-Za-z0-9_.\/-]+)*[[:space:]]*\][[:space:]]*$/) print NR ":Y3 flow-style sequence (write sequences in block style; only branches: [<names>] is allowed)"
+      if (raw ~ /^[[:space:]]*(-[[:space:]]+)?if[[:space:]]*:/) {
+        t = raw; sub(/^[[:space:]]*(-[[:space:]]+)?/, "", t); if_col = length(raw) - length(t); if_line = NR
+        v = t; sub(/^if[[:space:]]*:[[:space:]]*/, "", v); sub(/^#.*$/, "", v); sub(/[[:space:]]+#.*$/, "", v)
+        if (v ~ /^[[:space:]]*$/) print NR ":Y7 if: value is empty or does not start on the if: line"
+        else if (v ~ /^[|>]/) print NR ":Y7 if: value is a block or folded scalar (write the whole condition on the if: line)"
+      }
+      if (sub_check) {
+        # git の設定を環境変数で渡す経路（GIT_CONFIG_COUNT・GIT_CONFIG_KEY_0 等）。env の階層は問わない
+        if (tolower(raw) ~ /^[[:space:]]*(-[[:space:]]+)*git_[^[:space:]:]*[[:space:]]*:/) print NR ":A5 GIT_* environment variable key (git reads config such as submodule settings from GIT_CONFIG_*)"
+        # env を式などで同じ行に書くと、key を字句で確定できない
+        if (raw ~ /^[[:space:]]*(-[[:space:]]+)?env[[:space:]]*:/) {
+          v = raw; sub(/^[^:]*:[[:space:]]*/, "", v); sub(/^#.*$/, "", v); sub(/[[:space:]]+#.*$/, "", v)
+          if (v !~ /^[[:space:]]*$/) print NR ":A5 env: value on the same line (write env as a block mapping so that GIT_* keys can be checked)"
+        }
+      }
     }
-    END { flush_run() }
   ' "${file}")" || rc=$?
   [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${file}" >&2; exit 2; }
   report "${file}" "${out}"
@@ -436,7 +490,8 @@ c2_out="$(awk -v repo="${GUARD_REPO}" '
     next
   }
   section == "jobs" && indent($0) == 4 && $0 ~ /^    if[[:space:]]*:/ {
-    # 条件全体が許可した比較式と一致するときだけ合格にする（`|| true` などの付加を通さない）
+    # 条件全体が許可した比較式と一致するときだけ合格にする（`|| true` などの付加を通さない）。
+    # if: が 1 行で完結すること（続きの行・ブロックのスカラーが無いこと）は関門 Y7 が保証する
     cond = $0; sub(/^    if[[:space:]]*:[[:space:]]*/, "", cond); sub(/[[:space:]]+#.*$/, "", cond)
     sub(/^\$\{\{[[:space:]]*/, "", cond); sub(/[[:space:]]*\}\}$/, "", cond); gsub(/[[:space:]]+$/, "", cond)
     if (cond == "github.repository == \047" repo "\047") job_guard = 1

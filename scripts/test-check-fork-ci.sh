@@ -726,6 +726,89 @@ ci_case "run body with braces, quotes and URLs passes" 0 - '      - name: Submod
           { echo "https://example.invalid/a:b"; } > out.txt
           cp --recursive a b'
 
+# review follow-ups 9: 複数行の if・YAML のエスケープ・フロー形式のシーケンス・git の設定の経路
+echo "# multi-line if, YAML escapes, flow sequences and git config routes"
+GUARD_IF="    if: github.repository == 'Fandhe-AI/fandhe-workshop'"
+dep_n=0
+# deploy_case <name> <expected-rc> <expected-tag|-> <text>: 良い見本の deploy.yml の if: の行を text に差し替えて流す
+deploy_case() {
+  local f="${TMP_DIR}/deploy-y-$((++dep_n)).yml"
+  printf '%s\n' "$4" >"${TMP_DIR}/t-dep"
+  splice "${GOOD_DEPLOY}" "${f}" eq "${GUARD_IF}" "${TMP_DIR}/t-dep"
+  case_ "$1" "$2" "$3" --deploy "${f}"
+}
+deploy_case "fork guard continued by a deeper '|| true' line is rejected (Y7)" 1 Y7 "${GUARD_IF}
+      || true"
+deploy_case "fork guard continued after a blank line is rejected (Y7)" 1 Y7 "${GUARD_IF}
+
+      || true"
+deploy_case "folded if is rejected (Y7)" 1 Y7 "    if: >-
+      github.repository == 'Fandhe-AI/fandhe-workshop' || true"
+deploy_case "block if is rejected (Y7)" 1 Y7 "    if: |
+      github.repository == 'Fandhe-AI/fandhe-workshop'"
+deploy_case "empty if with the condition on the next line is rejected (Y7)" 1 Y7 "    if:
+      github.repository == 'Fandhe-AI/fandhe-workshop'"
+deploy_case "backslash in a double-quoted name in deploy.yml is rejected (Y6)" 1 Y6 "${GUARD_IF}
+    name: \"deploy\\u0020x\""
+ci_case "step-level if continued on a deeper line is rejected (Y7)" 1 Y7 "      - if: github.event_name == 'push'
+          || true
+        run: make check"
+ci_case "single-line step-level if passes" 0 - "      - if: github.event_name == 'push'
+        run: make check"
+# YAML のエスケープ（バックスラッシュ + u0075 は u）。YAML は復号して submodule にするが、字句の検査には現れない
+ESC_U="\\u0075"
+ci_case "YAML escape in a double-quoted run is rejected (Y6)" 1 Y6 "      - run: \"git submod${ESC_U}le update --init --checkout docs/spec\""
+ci_case "YAML escape without git in a double-quoted run is rejected (Y6)" 1 Y6 "      - run: \"make ch${ESC_U}ck\""
+ci_case "backslash in a double-quoted name is rejected (Y6)" 1 Y6 "      - name: \"B${ESC_U}ild\"
+        run: make check"
+ci_case "multi-line double-quoted run is rejected (Y6)" 1 Y6 '      - run: "make check
+          && make test"'
+ci_case "multi-line single-quoted run is rejected (Y6)" 1 Y6 "      - run: 'make check
+          && make test'"
+ci_case "run value on the next line is rejected (Y5)" 1 Y5 "      - run:
+          \"make ch${ESC_U}ck\""
+ci_case "backslashes in plain and block run scalars pass" 0 - '      - run: printf "a\n" > out.txt
+      - run: |
+          cargo build \
+            --release'
+ci_case "flow sequence of mappings as steps is rejected (Y3)" 1 Y3 '  other:
+    runs-on: ubuntu-latest
+    steps: [uses: someone/action@main]'
+ci_case "flow sequence as a step is rejected (Y3)" 1 Y3 '      - [uses: someone/action@main]'
+ci_case "flow sequence in needs is rejected (Y3)" 1 Y3 '  other:
+    needs: [check]
+    runs-on: ubuntu-latest
+    steps:
+      - run: make check'
+printf '    branches: [main, release-1]\n' >"${TMP_DIR}/t-br"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-branches.yml" after '  pull_request:' "${TMP_DIR}/t-br"
+case_ "branches: [<names>] passes" 0 - --ci "${TMP_DIR}/ci-branches.yml"
+printf '    branches: [uses: someone/action@main]\n' >"${TMP_DIR}/t-br"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-branches-map.yml" after '  pull_request:' "${TMP_DIR}/t-br"
+case_ "branches with a mapping inside the flow sequence is rejected (Y3)" 1 Y3 --ci "${TMP_DIR}/ci-branches-map.yml"
+ci_case "git -c clone.recurseSubmodules=true is rejected (A5)" 1 A5 '      - run: git -c clone.recurseSubmodules=true clone https://github.com/Fandhe-AI/x.git'
+ci_case "git -c fetch.recurseSubmodules is rejected (A5)" 1 A5 '      - run: git -c fetch.recurseSubmodules=on-demand fetch'
+ci_case "any git command in a run is rejected (A5)" 1 A5 '      - run: git status'
+ci_case "step env GIT_CONFIG_KEY_0 is rejected (A5)" 1 A5 '      - name: Env
+        env:
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: submodule.recurse
+          GIT_CONFIG_VALUE_0: true
+        run: make check'
+printf '    env:\n      GIT_CONFIG_KEY_0: submodule.recurse\n' >"${TMP_DIR}/t-genv"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-job-gitenv.yml" after '    runs-on: ubuntu-latest' "${TMP_DIR}/t-genv"
+case_ "job env GIT_CONFIG_KEY_0 is rejected (A5)" 1 A5 --ci "${TMP_DIR}/ci-job-gitenv.yml"
+printf 'env:\n  GIT_CONFIG_KEY_0: submodule.recurse\njobs:\n' >"${TMP_DIR}/t-genv"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-wf-gitenv.yml" eq 'jobs:' "${TMP_DIR}/t-genv"
+case_ "workflow env GIT_CONFIG_KEY_0 is rejected (A5)" 1 A5 --ci "${TMP_DIR}/ci-wf-gitenv.yml"
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+{
+  ci_case "env given as an expression is rejected (A5)" 1 A5 '      - name: Env
+        env: ${{ fromJSON(vars.ENV) }}
+        run: make check'
+  ci_case "GIT_CONFIG_* written to GITHUB_ENV is rejected (A5)" 1 A5 '      - run: echo "GIT_CONFIG_COUNT=1" >> "$GITHUB_ENV"'
+}
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"
