@@ -273,6 +273,209 @@ ycase "deploy on as a scalar passes" 0 - deploy "$(deploy_doc 'on: workflow_disp
 ycase "deploy with non-empty top-level permissions is rejected (C2)" 1 C2 deploy "$(deploy_doc - $'permissions:\n  contents: read' -)"
 ycase "deploy without the on key is rejected (C2)" 1 C2 deploy "$(deploy_doc '' - -)"
 
+# ---- D: ENGINE_REV の正準の形（教材 repo の workflow）----
+# 先行の字句実装（awk）が回避の指摘で収束しなかった形を、ここで拒否されることとして個別に確かめる。
+# 合格するのは正準の 3 step だけ。後ろの step は git の語・エンジンの repo・ENGINE_REV・エンジンの path・
+# actions/checkout に触れた時点で一律に拒否される（シェルの意味は解釈しない）。
+echo "# D: canonical ENGINE_REV pin"
+ENGINE="Fandhe-AI/fandhe-workshop"
+REF=$'${{ steps.rev.outputs.rev }}'
+GOOD_REV="${TMP_DIR}/ENGINE_REV"
+printf '0123456789abcdef0123456789abcdef01234567\n' >"${GOOD_REV}"
+CANON_S1=$'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          persist-credentials: false'
+CANON_S2=$'      - id: rev\n        run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'
+
+# eng3 <repository> <ref> <path> [<extra raw line>]: エンジンの checkout の step
+eng3() {
+  local x=""
+  [ -z "${4-}" ] || x=$'\n'"$4"
+  printf '      - uses: actions/checkout@%s\n        with:\n          repository: %s\n          ref: %s\n          path: %s\n          persist-credentials: false%s' \
+    "${SHA}" "$1" "$2" "$3" "${x}"
+}
+CANON_S3="$(eng3 "${ENGINE}" "${REF}" engine)"
+
+# pack_doc [<top>] [<jobx>] [<s1>] [<s2>] [<s3>] [<later>] [<after>]: 教材 repo の workflow の見本。
+#   s1〜s3 は `-` なら正準の step、空文字なら置かない。later は 4 番目以降の step、after は別のジョブ
+pack_doc() {
+  local top="${1-}" jobx="${2-}" s1="${3--}" s2="${4--}" s3="${5--}" later="${6-}" after="${7-}"
+  [ "${s1}" != "-" ] || s1="${CANON_S1}"
+  [ "${s2}" != "-" ] || s2="${CANON_S2}"
+  [ "${s3}" != "-" ] || s3="${CANON_S3}"
+  printf 'name: Pack\non:\n  pull_request:\npermissions:\n  contents: read\n%s\njobs:\n  build:\n    runs-on: ubuntu-latest\n%s\n    steps:\n%s\n%s\n%s\n%s\n%s\n' \
+    "${top}" "${jobx}" "${s1}" "${s2}" "${s3}" "${later}" "${after}"
+}
+
+# pcase <name> <rc> <tag|-> <content> [<engine-rev file>]: 教材 repo の workflow を検査する
+pcase() {
+  local f rev="${5:-${GOOD_REV}}"
+  seq_no=$((seq_no + 1))
+  f="${TMP_DIR}/p-${seq_no}.yml"
+  printf '%s\n' "$4" >"${f}"
+  case_ "$1" "$2" "$3" --pack-workflow "${f}" --engine-rev "${rev}"
+}
+# d3case / dcase: 正準の 3 step を外す見本（D3）と、後ろに足す step の見本（D4）
+d3case() { pcase "$1 (D3)" 1 D3 "$2"; }
+dcase() { pcase "$1 (D4)" 1 D4 "$(pack_doc "" "" - - - "$2")"; }
+rs() { printf '      - run: %s' "$1"; }
+
+pcase "canonical three steps pass" 0 - "$(pack_doc)"
+printf '0123456789abcdef0123456789abcdef01234567' >"${TMP_DIR}/rev-nonl"
+pcase "ENGINE_REV without a trailing newline passes" 0 - "$(pack_doc)" "${TMP_DIR}/rev-nonl"
+pcase "name on each step passes" 0 - "$(pack_doc "" "" "${CANON_S1}"$'\n        name: Checkout' "${CANON_S2}"$'\n        name: Read the pin' "${CANON_S3}"$'\n        name: Engine')"
+pcase "output step as a one-line block scalar passes" 0 - "$(pack_doc "" "" - $'      - id: rev\n        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"')"
+# 復号すると正準と同じ文字列になる引用の表記は、A〜C と同じく復号した値で判定するため合格する
+pcase "output step as a double-quoted YAML string decoding to the canonical run passes" 0 - "$(pack_doc "" "" - $'      - id: rev\n        run: "echo \\"rev=$(cat ENGINE_REV)\\" >> \\"$GITHUB_OUTPUT\\""')"
+# YAML のコメントは値の一部ではない（復号した値が正準と一致する）ため、run の行末のコメントは合格する
+pcase "a YAML comment after the output run is not part of its value and passes" 0 - "$(pack_doc "" "" - $'      - id: rev\n        run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT" # note')"
+pcase "step id containing the word outputs passes" 0 - "$(pack_doc "" "" - $'      - id: read_outputs\n        run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"' "$(eng3 "${ENGINE}" $'${{ steps.read_outputs.outputs.rev }}' engine)")"
+pcase "allowed job and workflow keys pass" 0 - "$(pack_doc $'concurrency:\n  group: pack' $'    timeout-minutes: 30')"
+pcase "an unrelated job that uses git is not inspected" 0 - "$(pack_doc "" "" - - - "" $'  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: git status')"
+pcase "a later step that builds passes" 0 - "$(pack_doc "" "" - - - "$(rs 'cargo build --release')")"
+pcase "a later upload-artifact step passes" 0 - "$(pack_doc "" "" - - - $'      - uses: actions/upload-artifact@'"${SHA}"$'\n        with:\n          path: dist')"
+
+# D1 ENGINE_REV の形
+revcase() { # <name> <printf format>
+  local f="${TMP_DIR}/rev-$((seq_no += 1))"
+  # shellcheck disable=SC2059 # 書式そのものが見本の内容
+  printf "$2" >"${f}"
+  pcase "$1 (D1)" 1 D1 "$(pack_doc)" "${f}"
+}
+revcase "a short ENGINE_REV is rejected" 'abc123\n'
+revcase "an upper-case ENGINE_REV is rejected" '0123456789ABCDEF0123456789ABCDEF01234567\n'
+revcase "a trailing space in ENGINE_REV is rejected" '0123456789abcdef0123456789abcdef01234567 \n'
+revcase "two lines in ENGINE_REV are rejected" '0123456789abcdef0123456789abcdef01234567\nmain\n'
+revcase "CRLF in ENGINE_REV is rejected" '0123456789abcdef0123456789abcdef01234567\r\n'
+revcase "two trailing newlines in ENGINE_REV are rejected" '0123456789abcdef0123456789abcdef01234567\n\n'
+revcase "an empty ENGINE_REV is rejected" ''
+revcase "a branch name in ENGINE_REV is rejected" 'main\n'
+
+# D2 エンジンを正準の形で取得するジョブが無い
+pcase "no job fetches the engine (D2)" 1 D2 $'name: P\non: push\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo build'
+pcase "an engine job fetching another repository is rejected (D2)" 1 D2 "$(pack_doc "" "" - - "$(eng3 someone/else "${REF}" engine)")"
+
+# D3 正準の 3 step・キーの許可リストから外れる
+d3case "ref main" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" main engine)")"
+d3case "no ref" "$(pack_doc "" "" - - $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: '"${ENGINE}"$'\n          path: engine\n          persist-credentials: false')"
+d3case "ref latest" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" latest engine)")"
+d3case "a literal SHA as ref (even the pinned value)" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" 0123456789abcdef0123456789abcdef01234567 engine)")"
+d3case "ref of another step id" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" $'${{ steps.other.outputs.rev }}' engine)")"
+d3case "ref with the dot replaced" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" $'${{ steps.rev.outputs-rev }}' engine)")"
+d3case "output run reading another file" "$(pack_doc "" "" - $'      - id: rev\n        run: echo "rev=$(cat OTHER_REV)" >> "$GITHUB_OUTPUT"')"
+d3case "output run with braces around GITHUB_OUTPUT" "$(pack_doc "" "" - $'      - id: rev\n        run: echo "rev=$(cat ENGINE_REV)" >> "${GITHUB_OUTPUT}"')"
+d3case "output run with a single-quoted substitution" "$(pack_doc "" "" - $'      - id: rev\n        run: echo \'rev=$(cat ENGINE_REV)\' >> "$GITHUB_OUTPUT"')"
+d3case "output run with an unquoted substitution" "$(pack_doc "" "" - $'      - id: rev\n        run: echo rev=$(cat ENGINE_REV) >> "$GITHUB_OUTPUT"')"
+d3case "output run mentioning ENGINE_REV only in a comment" "$(pack_doc "" "" - $'      - id: rev\n        run: echo "rev=main" >> "$GITHUB_OUTPUT" # ENGINE_REV')"
+d3case "output run written twice (block)" "$(pack_doc "" "" - $'      - id: rev\n        run: |\n          echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"\n          echo "rev=main" >> "$GITHUB_OUTPUT"')"
+d3case "output run written twice (semicolon)" "$(pack_doc "" "" - $'      - id: rev\n        run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"; echo "rev=main" >> "$GITHUB_OUTPUT"')"
+d3case "output run inside an if" "$(pack_doc "" "" - $'      - id: rev\n        run: |\n          if false; then\n            echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"\n          fi')"
+d3case "output run after && false" "$(pack_doc "" "" - $'      - id: rev\n        run: false && echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"')"
+d3case "output run after exit 0" "$(pack_doc "" "" - $'      - id: rev\n        run: |\n          exit 0\n          echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"')"
+d3case "output run inside a here-doc" "$(pack_doc "" "" - $'      - id: rev\n        run: |\n          cat <<EOF\n          echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"\n          EOF')"
+for k in 'if: true' 'shell: bash' 'working-directory: sub' $'env:\n          A: b' 'continue-on-error: true'; do
+  d3case "output step with an extra key (${k%%:*})" "$(pack_doc "" "" - "${CANON_S2}"$'\n        '"${k}")"
+done
+d3case "job env" "$(pack_doc "" $'    env:\n      A: b')"
+d3case "job defaults" "$(pack_doc "" $'    defaults:\n      run:\n        shell: bash')"
+d3case "job container" "$(pack_doc "" $'    container: ubuntu')"
+d3case "workflow env" "$(pack_doc $'env:\n  A: b')"
+d3case "workflow defaults" "$(pack_doc $'defaults:\n  run:\n    shell: bash')"
+d3case "another step before the output step" "$(pack_doc "" "" "${CANON_S1}"$'\n      - run: cargo build' "${CANON_S2}" "${CANON_S3}")"
+d3case "no output step" "$(pack_doc "" "" - "")"
+d3case "output step after the engine checkout" "$(pack_doc "" "" - "${CANON_S3}" "${CANON_S2}")"
+d3case "no checkout of this repository" "$(pack_doc "" "" "")"
+d3case "checkout of this repository with a path" "$(pack_doc "" "" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          path: self\n          persist-credentials: false')"
+d3case "checkout of this repository with persist-credentials: true" "$(pack_doc "" "" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          persist-credentials: true')"
+d3case "engine checkout with an extra input" "$(pack_doc "" "" - - "$(eng3 "${ENGINE}" "${REF}" engine '          fetch-depth: 0')")"
+d3case "engine checkout with persist-credentials: true" "$(pack_doc "" "" - - $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: '"${ENGINE}"$'\n          ref: '"${REF}"$'\n          path: engine\n          persist-credentials: true')"
+d3case "engine checkout with a tag-pinned uses" "$(pack_doc "" "" - - $'      - uses: actions/checkout@v4\n        with:\n          repository: '"${ENGINE}"$'\n          ref: '"${REF}"$'\n          path: engine\n          persist-credentials: false')"
+d3case "capitalised REF key" "$(pack_doc "" "" - - $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: '"${ENGINE}"$'\n          REF: '"${REF}"$'\n          path: engine\n          persist-credentials: false')"
+d3case "capitalised Uses key" "$(pack_doc "" "" - - $'      - Uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: '"${ENGINE}"$'\n          ref: '"${REF}"$'\n          path: engine\n          persist-credentials: false')"
+d3case "an engine checkout whose repository is an expression" "$(pack_doc "" "" - $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: ${{ inputs.repo }}' "")"
+
+# D4 正準の後ろの step がエンジンの取得・版の変更に触れる
+dcase "git clone of the engine" "$(rs 'git clone https://example.invalid/Fandhe-AI/fandhe-workshop engine2')"
+dcase "git clone to the current directory" "$(rs 'git clone https://example.invalid/x .')"
+dcase "git clone with a trailing flag" "$(rs 'git clone https://example.invalid/x --depth 1')"
+dcase "git clone to the default directory" "$(rs 'git clone https://example.invalid/x')"
+dcase "git checkout of the pinned value" "$(rs $'git checkout "$(cat ENGINE_REV)"')"
+dcase "git fetch" "$(rs 'git fetch origin main')"
+dcase "git reset" "$(rs 'git reset origin/main')"
+dcase "git reset --hard" "$(rs 'git reset --hard origin/main')"
+dcase "git switch --detach" "$(rs 'git switch --detach main')"
+dcase "git checkout -- a path" "$(rs 'git checkout -- engine')"
+dcase "cd then git checkout" "$(rs 'cd engine && git checkout main')"
+dcase "git checkout main after the pin" "$(rs 'git checkout main')"
+dcase "git -C engine checkout main" "$(rs 'git -C engine checkout main')"
+dcase "git -C with a variable" "$(rs $'git -C "$DIR" checkout main')"
+dcase "git -C engine status" "$(rs 'git -C engine status')"
+dcase "cd engine and git pull" "$(rs 'cd engine && git pull')"
+dcase "sh -c with cd and git fetch" "$(rs "sh -c 'cd engine && git fetch origin'")"
+dcase "an alias of git" "$(rs 'alias g=git')"
+dcase "echo git (display only)" "$(rs 'echo git clone x')"
+dcase "a colon command mentioning git" $'      - run: ": git status"'
+dcase "writing main into ENGINE_REV" "$(rs 'echo main > ENGINE_REV')"
+dcase "cargo build with the engine manifest path" "$(rs 'cargo build --manifest-path engine/Cargo.toml')"
+dcase "cargo build with the engine path in another case" "$(rs 'cargo build --manifest-path ENGINE/Cargo.toml')"
+dcase "cargo install --git with the pinned value" "$(rs $'cargo install --git https://example.invalid/x --rev "$(cat ENGINE_REV)"')"
+dcase "git after && in a block" $'      - run: |\n          true && git clone https://example.invalid/x engine2'
+dcase "git after || in a block" $'      - run: |\n          false || git clone https://example.invalid/x engine2'
+dcase "git inside an if in a block" $'      - run: |\n          if true; then\n            git clone https://example.invalid/x engine2\n          fi'
+dcase "git after a trailing && continuation" $'      - run: |\n          true &&\n            git clone https://example.invalid/x engine2'
+dcase "git after a backslash continuation" $'      - run: |\n          true \\\n            && git clone https://example.invalid/x engine2'
+dcase "git inside a here-doc" $'      - run: |\n          cat <<EOF\n          git clone https://example.invalid/x engine2\n          EOF'
+dcase "git inside a multi-line quote" $'      - run: |\n          sh -c "\n            git clone https://example.invalid/x engine2\n          "'
+dcase "git in a folded scalar" $'      - run: >-\n          git clone https://example.invalid/x engine2'
+dcase "clone then checkout of a different version" $'      - run: |\n          git clone https://example.invalid/x engine2\n          cd engine2\n          git checkout main'
+dcase "checkout without a path" $'      - uses: actions/checkout@'"${SHA}"
+dcase "checkout with the engine path" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          path: engine'
+dcase "checkout with a sibling path" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          path: other'
+dcase "checkout with a quoted uses value" $'      - uses: "actions/checkout@'"${SHA}"$'"'
+dcase "checkout with a capitalised Uses key" $'      - Uses: actions/checkout@'"${SHA}"
+dcase "checkout with a folded uses value" $'      - uses: >-\n          actions/checkout@'"${SHA}"
+dcase "checkout with a block uses value" $'      - uses: |\n          actions/checkout@'"${SHA}"
+dcase "checkout with a quoted key" $'      - "uses": actions/checkout@'"${SHA}"
+dcase "checkout as a flow-style step" $'      - {uses: actions/checkout@'"${SHA}"$'}'
+dcase "checkout whose repository is an expression" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          repository: ${{ inputs.repo }}'
+dcase "checkout whose ref is an expression" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          ref: ${{ inputs.ref }}'
+dcase "checkout whose path is an expression" $'      - uses: actions/checkout@'"${SHA}"$'\n        with:\n          path: ${{ inputs.path }}'
+dcase "another action whose path input is an expression" $'      - uses: actions/upload-artifact@'"${SHA}"$'\n        with:\n          path: ${{ inputs.path }}'
+dcase "an escaped git in a double-quoted run (decoded before judging)" $'      - run: "\\x67it clone https://example.invalid/x engine2"'
+dcase "a capitalised Run key with git" $'      - RUN: git clone https://example.invalid/x engine2'
+
+# 復号した値で判定する（表記の違いで抜けられない）ことの確認
+pcase "an anchor on the output run is rejected (Y)" 1 Y "$(pack_doc "" "" - $'      - id: rev\n        run: &r echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"')"
+pcase "an alias is rejected (Y)" 1 Y "$(pack_doc $'x: &a 1\ny: *a')"
+pcase "a duplicate with key is rejected (Y)" 1 Y "$(pack_doc "" "" - - "${CANON_S3}"$'\n        with:\n          path: x')"
+pcase "a merge key is rejected (Y)" 1 Y "$(pack_doc "" $'    x:\n      <<: {a: 1}')"
+
+# 出力に復号した値を出さない
+pack_out() { # <name> <workflow content> [<engine-rev file>]: 違反の出力に LEAK が含まれないこと
+  local f="${TMP_DIR}/pout-$((seq_no += 1)).yml" rc=0 rev="${3:-${GOOD_REV}}"
+  printf '%s\n' "$2" >"${f}"
+  "${CHECK}" --secrets-checker "${STUB}" --pack-workflow "${f}" --engine-rev "${rev}" >"${TMP_DIR}/out" 2>"${TMP_DIR}/err" || rc=$?
+  if [ "${rc}" = 1 ] && ! grep -q -- "${LEAK}" "${TMP_DIR}/err" "${TMP_DIR}/out"; then
+    echo "ok - ${1}"
+    passed=$((passed + 1))
+  else
+    echo "not ok - ${1} (exit ${rc}, or the value leaked)"
+    sed 's/^/# /' "${TMP_DIR}/err"
+    failed=$((failed + 1))
+  fi
+}
+pack_out "a later step's run value is not echoed" "$(pack_doc "" "" - - - "      - run: git clone https://${LEAK}.invalid/x")"
+pack_out "a job key is not echoed" "$(pack_doc "" "    ${LEAK}: x")"
+printf '%s\n' "${LEAK}" >"${TMP_DIR}/rev-leak"
+pack_out "the ENGINE_REV content is not echoed" "$(pack_doc)" "${TMP_DIR}/rev-leak"
+
+# 誤用・検査を完了できない（終了コード 2）
+printf '%s\n' "$(pack_doc)" >"${TMP_DIR}/pack-ok.yml"
+case_ "--pack-workflow without --engine-rev exits 2" 2 - --pack-workflow "${TMP_DIR}/pack-ok.yml"
+case_ "--engine-rev without --pack-workflow exits 2" 2 - --engine-rev "${GOOD_REV}"
+case_ "a missing pack workflow exits 2" 2 - --pack-workflow "${TMP_DIR}/none.yml" --engine-rev "${GOOD_REV}"
+case_ "a missing ENGINE_REV exits 2" 2 - --pack-workflow "${TMP_DIR}/pack-ok.yml" --engine-rev "${TMP_DIR}/none"
+printf 'a: [unclosed\n' >"${TMP_DIR}/pack-broken.yml"
+case_ "a YAML syntax error in the pack workflow exits 2" 2 - --pack-workflow "${TMP_DIR}/pack-broken.yml" --engine-rev "${GOOD_REV}"
+
 # ---- Y: YAML の曖昧な表記 ----
 echo "# Y: ambiguous YAML notation"
 ycase "alias is rejected (Y)" 1 Y ci "$(ci_doc - $'x: &a 1\ny: *a' "" "")"
@@ -370,6 +573,9 @@ rc=0
 printf 'name: CI\n' >"${TMP_DIR}/min.yml"
 env PATH="${TMP_DIR}/nobin" "${TMP_DIR}/nobin/bash" "${CHECK}" --secrets-checker "${STUB}" --ci "${TMP_DIR}/min.yml" >/dev/null 2>"${TMP_DIR}/err" || rc=$?
 verdict "missing ruby exits 2" 2 - "${rc}" "${TMP_DIR}/err"
+rc=0
+env PATH="${TMP_DIR}/nobin" "${TMP_DIR}/nobin/bash" "${CHECK}" --secrets-checker "${STUB}" --pack-workflow "${TMP_DIR}/pack-ok.yml" --engine-rev "${GOOD_REV}" >/dev/null 2>"${TMP_DIR}/err" || rc=$?
+verdict "missing ruby exits 2 for --pack-workflow" 2 - "${rc}" "${TMP_DIR}/err"
 
 # ---- 実際の cargo を通す ----
 echo "# real cargo"

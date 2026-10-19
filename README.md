@@ -249,7 +249,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |
 | `make test-check-workflow-secrets` | `scripts/test-check-workflow-secrets.sh` | secret 参照の検査自体の回帰テスト |
-| `make check-fork-ci` | `scripts/check-fork-ci.sh` | fork が secret 無しでも CI を通せる構成であることを、パーサで復号した値で検査する（`ruby`・`jq`・`cargo` が必要） |
+| `make check-fork-ci` | `scripts/check-fork-ci.sh` | fork が secret 無しでも CI を通せる構成であることを、パーサで復号した値で検査する（A〜C。教材 repo 向けの D は `--pack-workflow` と `--engine-rev` を渡したときだけ。`ruby`・`jq`・`cargo` が必要） |
 | `make test-check-fork-ci` | `scripts/test-check-fork-ci.sh` | fork CI 検査自体の回帰テスト |
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
 | `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
@@ -312,12 +312,21 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 ### fork の CI
 
 第三者が fork して secret を設定せずに CI を流しても、ビルドと試験が通る構成を保ちます。`make check-fork-ci` が、
-次の 3 点を静的に検査します。YAML は Psych（ruby 標準）でノード木にし、Cargo の依存元は `cargo metadata --locked`、
+次の 3 点（A〜C）を静的に検査します。教材 repo 向けの D は、`--pack-workflow` と `--engine-rev` を渡したときだけ動きます。YAML は Psych（ruby 標準）でノード木にし、Cargo の依存元は `cargo metadata --locked`、
 `package-lock.json` は `jq`、`.gitmodules` は git 自身の設定パーサで復号し、字句ではなく復号した値で判定します。
 
 - A: private な依存が 0 件で、submodule を取得しない
 - B: `ci.yml` からの secret の参照が 0 件で、`uses` は許可した所有者の 40 桁 SHA 固定だけ
 - C: `ci.yml` のトップレベルの `permissions` が読み取り専用で、配信（`deploy.yml`）は別ワークフローに切り離され、fork では skip される
+- D: 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する。`ENGINE_REV` は 40 桁の小文字の 16 進を 1 行だけ持つ（D1）。workflow には、次の正準の 3 step で始まるジョブが 1 つ以上必要で（D2・D3）、4 番目以降の step は `actions/checkout`・`git` の語・エンジンの repo・`ENGINE_REV`・エンジンの置き場に触れてはならない（D4）
+
+D の正準の 3 step は、次の 1 つだけです。形が外れたものは拒否します。
+
+1. この repo の `actions/checkout`（40 桁 SHA 固定、`persist-credentials: false` だけを指定する）
+2. `ENGINE_REV` を読んで出力する 1 行の step（`id` と `run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"` だけを持つ）
+3. 2 の出力を `ref` にしたエンジンの `actions/checkout`（`repository`・`ref`・`path`・`persist-credentials: false` だけを指定する）
+
+`git clone` や `cargo install --git` による取得は、正準に含めず一律に拒否します。シェルの意味は解釈せず、復号した値の許可リストで判定します。エンジンは教材 repo 自身のビルド定義（`Cargo.toml` の path 依存・Makefile）から使う前提です。
 
 検査の限界は次のとおりです（2026-10-19 時点）。
 
@@ -325,7 +334,8 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 - `run` の中のシェルの意味は解釈しません（`submodule` の語の有無だけを見ます。難読化・変数での組み立て・`eval` は見抜けません）
 - `run` から呼ぶスクリプト（`scripts/*.sh`・`make` のターゲット）の中身は解釈しません
 - runner・利用者の環境の設定（`~/.npmrc`・`$CARGO_HOME/config.toml`・global の git 設定）は対象外です
-- 実際の fork での実行は行っていません
+- D はエンジンに触れないジョブを検査しません。文字列を組み立てた URL・action の内部の動き・artifact の受け渡しも見抜けません。TMPL-9 で案 B を採る場合の作り直しは TASK-765 の範囲です
+- 実際の fork での実行は行っていません。D は試験の見本でだけ確かめており、実際の教材 repo（TASK-36）への適用もしていません（D-29 の行わない確認。2026-10-19 時点）
 
 ## MCP サーバー
 
