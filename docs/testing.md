@@ -4266,7 +4266,7 @@ VER13-2 は `deny_unknown_fields` の属性の行が複数あり一意に当た�
 
 ### 5.141 履歴が追記だけで増える性質（TASK-188 1/2）
 
-結論: TASK-186 の決定 D-53（2026-10-12）に合わせ、今の `ops` と写しの列の欄が追記だけで増えることを性質テスト（`crates/core/tests/history_append_only.rs`）で固定した。同期の試験は作っていない（D-5）。履歴の形式の文書は TASK-188 2/2 が、試験の `//!` の定義を引いて書く。
+結論: TASK-186 の決定 D-53（2026-10-12）に合わせ、今の `ops` と写しの列の欄が追記だけで増えることを性質テスト（`crates/core/tests/history_append_only.rs`）で固定した。同期の試験は作っていない（D-5）。履歴の形式の文書は `docs/history-format.md`（TASK-188 2/2）に書いた。
 
 性質の定義（前後 2 つの包み prev → next）:
 
