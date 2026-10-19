@@ -9,12 +9,24 @@
 # C1・D は許可リストで判定する: 正準の形を 1 つだけ認め、シェルの意味は解釈せず、正準の形から外れたものは拒否する。
 #
 # 検査の項目:
+#   Y YAML の表記の字句の関門（検査する全 workflow: ci.yml・deploy.yml・--pack-workflow。A〜D より先に流す）
+#     A〜D は裸の `key:` の行だけを読むため、key を字句で確定できない表記は解釈せず一律に拒否する
+#     （解釈して検査を続けることはしない）。
+#     Y1 引用符つきの key（`"uses": ...`・`'submodules': ...`。行の先頭と `- ` の後ろ。run の本文の行も含む）
+#     Y2 複合キー（`? `）
+#     Y3 フロー形式のマッピング（run の本文の外で、${{ }} を除いた行に `{` がある。permissions の行は C1 が
+#        値を判定するので除く。step・job に限らず with・concurrency 等のフロー形式も拒否する）
+#     Y4 key の前のタグ・アンカー（`!!str uses:`・`&a uses:`）と、key に置いた別名（`*a :`）
+#     Y5 run の値が別名（`run: *a`。アンカーの本文は run の外にありうるため、A5 の run の検査が届かない）
 #   A private な依存が 0 件
 #     A1 Cargo.lock の source が crates.io（と許可リストの公開 git）だけ
 #     A2 package-lock.json の resolved が registry.npmjs.org だけ
 #     A3 .npmrc に registry・認証の行が無い
 #     A4 .cargo/config(.toml) に registry・認証・git-fetch-with-cli が無い
-#     A5 .gitmodules の各 submodule が `update = none` を持ち、ci.yml の checkout が submodule を取得しない
+#     A5 .gitmodules の各 submodule が `update = none` を持ち、ci.yml の checkout が submodule を取得しない。
+#        ci.yml の run の本文（ブロック・複数行のスカラーの続きの行を含む）に、語としての submodule(s) が無く、
+#        git と --recurs で始まるオプション（--recurse-submodules・--recursive。git は長いオプションの一意な
+#        前置きを受け付けるため前置きで見る）が同じ run に無い（明示の取得は update = none を上書きする）
 #   B ビルド・試験のジョブ（ci.yml）からの secret の参照が 0 件
 #     B1 scripts/check-workflow-secrets.sh を呼ぶ（実体は二重に書かない。ruby を要する）
 #     B2 BUILD-2 が挙げる語（GITHUB_TOKEN・CARGO_REGISTR*・git-fetch-with-cli・語としての _TOKEN / _PAT）が無い
@@ -157,6 +169,62 @@ grep_report() {
   fi
   report "$2" "${hits}"
 }
+
+# ---- Y YAML の表記の字句の関門（と A5 の run の本文） ----
+# yaml_gate <file> <0|1>: Y1〜Y5 を検査して違反を記録する。第 2 引数が 1 なら、run の本文の submodule の取得（A5）も検査する。
+# run の本文は「run: の行の値と、その key の列より深く字下げした行・空行の続き」とみなす（スカラーの形は解釈しない）。
+yaml_gate() {
+  local file="$1" sub_check="$2" out rc=0
+  out="$(awk -v sub_check="${sub_check}" '
+    function indent(s) { match(s, /^ */); return RLENGTH }
+    # flush_run: git と --recurs の両方が同じ run にあれば、--recurs の行を違反として出す
+    function flush_run() {
+      if (in_run && run_git && run_rec != "") print run_rec
+      in_run = 0; run_git = 0; run_rec = ""
+    }
+    # scan_run <text> <line>: run の本文の 1 行を A5 の語で調べる
+    function scan_run(s, n,   l) {
+      if (!sub_check) return
+      l = tolower(s)
+      if (l ~ /(^|[^a-z0-9_])submodules?([^a-z0-9_]|$)/) print n ":A5 run mentions submodule (an explicit submodule update overrides update = none; private docs/spec must not be fetched)"
+      if (l ~ /(^|[^a-z0-9_])git([^a-z0-9_]|$)/) run_git = 1
+      if (index(l, "--recurs")) run_rec = run_rec (run_rec == "" ? "" : "\n") n ":A5 run passes --recurs* (--recurse-submodules or --recursive) together with git (submodules must not be fetched)"
+    }
+    {
+      raw = $0
+      if (raw ~ /^[[:space:]]*(-[[:space:]]+)?("([^"\\]|\\.)*"|\047([^\047]|\047\047)*\047)[[:space:]]*:/) print NR ":Y1 quoted YAML key (keys must be plain words; quoted keys are not interpreted)"
+      if (raw ~ /^[[:space:]]*(-[[:space:]]+)?\?([[:space:]]|$)/) print NR ":Y2 complex YAML key (? ) cannot be read lexically"
+      if (raw ~ /^[[:space:]]*(-[[:space:]]+)?([!&][^[:space:]]*[[:space:]]+)+[^[:space:]:]+[[:space:]]*:([[:space:]]|$)/ \
+        || raw ~ /^[[:space:]]*(-[[:space:]]+)?\*[^[:space:]]+[[:space:]]+:/) print NR ":Y4 tag, anchor or alias on a YAML key cannot be read lexically"
+      if (in_run) {
+        if (raw ~ /^[[:space:]]*$/ || indent(raw) > run_col) { scan_run(raw, NR); next }
+        flush_run()
+      }
+      if (raw ~ /^[[:space:]]*(-[[:space:]]+)?run[[:space:]]*:/) {
+        t = raw; sub(/^[[:space:]]*(-[[:space:]]+)?/, "", t); run_col = length(raw) - length(t)
+        v = t; sub(/^run[[:space:]]*:[[:space:]]*/, "", v)
+        if (v ~ /^\*/) print NR ":Y5 run value is an alias (the anchored text can live outside any run and is not checked)"
+        in_run = 1; scan_run(v, NR)
+        next
+      }
+      if (raw ~ /^[[:space:]]*#/) next
+      t = raw; gsub(/\$\{\{[^}]*\}\}/, "", t)
+      if (index(t, "{") && t !~ /^[[:space:]]*(-[[:space:]]+)?permissions[[:space:]]*:/) print NR ":Y3 flow-style mapping outside permissions (write steps, jobs and inputs as block mappings)"
+    }
+    END { flush_run() }
+  ' "${file}")" || rc=$?
+  [ "${rc}" -eq 0 ] || { echo "error: awk failed on ${file}" >&2; exit 2; }
+  report "${file}" "${out}"
+}
+
+need_file "${CI_FILE}"
+need_file "${DEPLOY_FILE}"
+yaml_gate "${CI_FILE}" 1
+yaml_gate "${DEPLOY_FILE}" 0
+if [ -n "${PACK_WORKFLOW}" ]; then
+  need_file "${PACK_WORKFLOW}"
+  yaml_gate "${PACK_WORKFLOW}" 0
+fi
 
 # ---- A1 Cargo.lock ----
 need_file "${CARGO_LOCK}"

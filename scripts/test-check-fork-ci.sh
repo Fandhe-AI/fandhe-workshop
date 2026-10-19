@@ -672,6 +672,60 @@ case_ "ci.yml with only job-level permissions is rejected (C1)" 1 C1 --ci "${TMP
 variant "${GOOD_CI}" "${TMP_DIR}/ci-perm-empty.yml" 's|^permissions:$|permissions: {}|;/^  contents: read$/d'
 case_ "top-level permissions: {} passes (C1)" 0 - --ci "${TMP_DIR}/ci-perm-empty.yml"
 
+# review follow-ups 8: 字句で確定できない key（Y）・run からの submodule の取得（A5）
+echo "# YAML key notation and submodule fetches in run"
+ci_n=0
+# ci_case <name> <expected-rc> <expected-tag|-> <text>: 良い見本の ci.yml の末尾に text（step 等）を足して流す
+ci_case() {
+  local f="${TMP_DIR}/ci-y-$((++ci_n)).yml"
+  { cat "${GOOD_CI}"; printf '%s\n' "$4"; } >"${f}"
+  case_ "$1" "$2" "$3" --ci "${f}"
+}
+ci_case "double-quoted uses key is rejected (Y1)" 1 Y1 '      - "uses": someone/action@main'
+ci_case "single-quoted uses key is rejected (Y1)" 1 Y1 "      - 'uses': someone/action@main"
+printf '          "submodules": recursive\n' >"${TMP_DIR}/t-qsub"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-qsub.yml" after 'persist-credentials: false' "${TMP_DIR}/t-qsub"
+case_ "double-quoted submodules key is rejected (Y1)" 1 Y1 --ci "${TMP_DIR}/ci-qsub.yml"
+printf '    "environment": production\n' >"${TMP_DIR}/t-qenv"
+splice "${GOOD_CI}" "${TMP_DIR}/ci-qenv.yml" after '    runs-on: ubuntu-latest' "${TMP_DIR}/t-qenv"
+case_ "double-quoted environment key is rejected (Y1)" 1 Y1 --ci "${TMP_DIR}/ci-qenv.yml"
+ci_case "complex key for uses is rejected (Y2)" 1 Y2 '      - ? uses
+        : someone/action@main'
+ci_case "flow-style step is rejected (Y3)" 1 Y3 '      - {uses: someone/action@main}'
+ci_case "flow-style steps sequence is rejected (Y3)" 1 Y3 '  other:
+    runs-on: ubuntu-latest
+    steps: [{uses: someone/action@main}]'
+ci_case "tagged uses key is rejected (Y4)" 1 Y4 '      - !!str uses: someone/action@main'
+ci_case "anchored uses key is rejected (Y4)" 1 Y4 '      - &k uses: someone/action@main'
+ci_case "run given as an alias is rejected (Y5)" 1 Y5 '      - name: &cmd git submodule update --init --checkout docs/spec
+        run: *cmd'
+printf 'name: CI\npermissions: {}\njobs: {check: {runs-on: ubuntu-latest, steps: [{run: make check}]}}\n' >"${TMP_DIR}/ci-flow-jobs.yml"
+case_ "flow-style jobs mapping is rejected (Y3)" 1 Y3 --ci "${TMP_DIR}/ci-flow-jobs.yml"
+printf '%s\n' '      - "uses": someone/action@main' >"${TMP_DIR}/t-qpack"
+splice "${GOOD_PACK}" "${TMP_DIR}/pack-quoted.yml" after '          persist-credentials: false' "${TMP_DIR}/t-qpack"
+case_ "quoted key in the pack workflow is rejected (Y1)" 1 Y1 --pack-workflow "${TMP_DIR}/pack-quoted.yml" --engine-rev "${GOOD_REV}"
+printf '%s\n' '"on":' '  push:' >"${TMP_DIR}/t-qon"
+splice "${GOOD_DEPLOY}" "${TMP_DIR}/deploy-quoted.yml" eq 'on:' "${TMP_DIR}/t-qon"
+case_ "quoted key in deploy.yml is rejected (Y1)" 1 Y1 --deploy "${TMP_DIR}/deploy-quoted.yml"
+ci_case "inline run with git submodule update is rejected (A5)" 1 A5 '      - run: git submodule update --init --checkout docs/spec'
+ci_case "block run with git submodule update is rejected (A5)" 1 A5 '      - name: Spec
+        run: |
+          make check
+          git submodule update --init --checkout docs/spec'
+ci_case "submodule.recurse config in run is rejected (A5)" 1 A5 '      - run: git -c submodule.recurse=true pull'
+ci_case "git clone --recurse-submodules is rejected (A5)" 1 A5 '      - run: git clone --recurse-submodules https://github.com/Fandhe-AI/x.git'
+ci_case "git clone --recursive is rejected (A5)" 1 A5 '      - run: git clone --recursive https://github.com/Fandhe-AI/x.git'
+ci_case "abbreviated --recurs is rejected (A5)" 1 A5 '      - run: git clone --recurs https://github.com/Fandhe-AI/x.git'
+ci_case "--recursive on a continued line of a git command is rejected (A5)" 1 A5 '      - run: |
+          git clone \
+            --recursive https://github.com/Fandhe-AI/x.git'
+# shellcheck disable=SC2016 # 見本の本文なので、シェルに展開させない
+ci_case "run body with braces, quotes and URLs passes" 0 - '      - name: Submodule-free build
+        run: |
+          "${CARGO:-cargo}" build --release
+          { echo "https://example.invalid/a:b"; } > out.txt
+          cp --recursive a b'
+
 echo "# misuse and fail-closed (exit 2)"
 case_ "missing Cargo.lock stops with exit 2" 2 - --cargo-lock "${TMP_DIR}/none.lock"
 case_ "missing ci.yml stops with exit 2" 2 - --ci "${TMP_DIR}/none.yml"
