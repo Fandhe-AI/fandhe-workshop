@@ -7,7 +7,7 @@ use super::op_gen::{Harness, OpSpec};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::history_envelope::{record_draft, record_submit};
 use fandhe_workshop_core::input::{Input, Op};
-use fandhe_workshop_core::ops_record::{apply_recorded, reload_recorded, OpsRecorder};
+use fandhe_workshop_core::ops_record::{apply_recorded, reload_recorded, OpsRecorder, SessionOp};
 use fandhe_workshop_core::session::{apply, SessionState};
 
 /// 下書きの種類。`None` は下書きを挟まない。
@@ -37,6 +37,17 @@ impl<'a> RecordPath<'a> {
             harness: Harness::pure(ir, initial.clone()),
             state: initial.clone(),
             rec: OpsRecorder::new(),
+        }
+    }
+
+    /// 既存の `ops` と状態の続きとして作る。起動の分岐（`boot_session`）で復元した後に、同じ列の続きを
+    /// 記録の経路で流すための入口である（`history_append_only` が使う）。進行の宛先の履歴は引き継がない。
+    pub fn resume(ir: &'a Ir, state: SessionState, ops: Vec<SessionOp>) -> Self {
+        RecordPath {
+            ir,
+            harness: Harness::pure(ir, state.clone()),
+            state,
+            rec: OpsRecorder::from_ops(ops),
         }
     }
 

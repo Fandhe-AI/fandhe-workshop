@@ -1,0 +1,8 @@
+id: EXT5-3
+package: fandhe-workshop-core
+test: history_append_only
+target: crates/core/src/checkpoint.rs
+find:     state.entry = entry;
+replace:     state.entry = entry; state.log.truncate(log_len as usize);
+expect-fail: scripted_sequence_covers_each_kind_of_growth
+note: 復帰で log を切る（性質 3。PoC-6 の X-6 に近い誤り）

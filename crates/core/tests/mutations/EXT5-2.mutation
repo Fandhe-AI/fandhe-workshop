@@ -1,0 +1,10 @@
+id: EXT5-2
+package: fandhe-workshop-core
+test: history_append_only
+target: crates/core/src/ops_record.rs
+find:         self.ops.push(HistoryOp::Reload);
+replace:         self.ops.insert(0, HistoryOp::Reload);
+expect-fail: property_append_only_with_reload_fixed
+expect-fail: property_append_only_with_reload_guided
+expect-fail: property_append_only_across_boot_fixed
+note: 再読み込みの記録を末尾でなく先頭へ差し込み、既存の位置をずらす（性質 2）

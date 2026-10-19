@@ -1,0 +1,8 @@
+id: EXT5-4
+package: fandhe-workshop-core
+test: history_append_only
+target: crates/core/src/checkpoint.rs
+find:     let id = state.next_checkpoint;
+replace:     let id = CheckpointId(0);
+expect-fail: scripted_sequence_covers_each_kind_of_growth
+note: 保存のたびに同じ ID へ書き、既存のチェックポイントを上書きする（性質 4）

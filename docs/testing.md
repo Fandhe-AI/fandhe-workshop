@@ -57,6 +57,14 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   確かめる。H-6（再読み込みの前の宛先の進行の無視）は TASK-320 2/2 で足した（5.67）。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
   `cargo test` の試験の所要時間）。変異は 5.59 節。自動ブラウザでの「`ops` だけで復元した最終の世界状態の一致」は、web の保存・読み込みの結線が
   未実装のため未確認
+- 履歴が追記だけで増える性質（TASK-188 1/2、EXT-5・D-53）は `crates/core/tests/history_append_only.rs` にある。前後 2 つの包みについて、
+  頭の欄（`format`・`history_format`・`pack_id`・`start`・4 軸の `versions`）が変わらないこと、`ops` が確定した部分を書き換えないこと
+  （末尾の未確定の `Draft` だけは置き換わってよい。今の記録規則のまま）、`snapshot.log` の接頭辞が保たれること、
+  `snapshot.checkpoints` の既存の項目が変わらず `next_checkpoint` が減らないことを確かめる。`run`・`entry`・`drafts`・`hints_opened` は
+  列ではなく現在の状態で上書きされるため対象にしない。記録 1 段ごと・離れた 2 点・書き出し→読み込みを通した形に加え、時点 t の包みを
+  `boot_session` で復元して本番の保存の入口と続きの記録でも確かめる。固定・誘導つき・再読み込みを混ぜた生成と起動をまたぐ形の 6 本を各 1,000 通り流し、
+  固定の列（各種類の増え方を網羅）と検査器の自己確認を足した 8 本の実測は dev プロファイルで約 6.5 秒（2026-10-19、`cargo test` の試験の所要時間）。
+  変異は 5.141 節
 - `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
   （環境変数を受けない）。実測（2026-10-16、1,000 通り）は、確認による達成が固定 29 件・誘導 1,075 件、最後の Step（`main/st-3`）が
   達成まで届いた列が固定 28 通り・誘導 509 通り、達成の直後に同じ操作で次の Step へ入った件数が固定 150 件・誘導 1,083 件。章の完了
@@ -101,7 +109,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-53 1/2 は `PACK21-1`・`PACK21-2`、TASK-53 2/2 は `PACK22-1`〜`PACK22-3`、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-177 1/2 は `VER18-1`・`VER18-2`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、TASK-57 1/2 は `PACK5-1` を、TASK-57 2/2 は `PACK5-2`・`PACK5-3`・`PACK25-1` を、TASK-58 2/2 は `PACK30-1` を、TASK-61 は `PACK27-1`〜`PACK27-3` を、TASK-66 1/2 は `PACK38-1`・`PACK38-2` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を、TASK-159 1/2 は `SAFE22-1`〜`SAFE22-4` を、TASK-159 2/2 は `SAFE43-1`〜`SAFE43-4` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-53 1/2 は `PACK21-1`・`PACK21-2`、TASK-53 2/2 は `PACK22-1`〜`PACK22-3`、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-177 1/2 は `VER18-1`・`VER18-2`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、TASK-57 1/2 は `PACK5-1` を、TASK-57 2/2 は `PACK5-2`・`PACK5-3`・`PACK25-1` を、TASK-58 2/2 は `PACK30-1` を、TASK-61 は `PACK27-1`〜`PACK27-3` を、TASK-66 1/2 は `PACK38-1`・`PACK38-2` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を、TASK-159 1/2 は `SAFE22-1`〜`SAFE22-4` を、TASK-159 2/2 は `SAFE43-1`〜`SAFE43-4` を、TASK-188 1/2 は `EXT5-1`〜`EXT5-4` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -4255,6 +4263,53 @@ VER13-2 は `deny_unknown_fields` の属性の行が複数あり一意に当た�
 集計: 3 件すべて DETECTED。native は `ir_refusal_host` が 6 件、ブラウザは 8 件（2 つの IR と対照と起動後の拒否を、CSP あり・なしで流す）で通った（2026-10-19）。
 
 範囲外: 実物の旧版での確認（TASK-183）、製品の「教材 IR を読めないときの画面」（TASK-545）、通知の口の契約（TASK-511）。
+
+### 5.141 履歴が追記だけで増える性質（TASK-188 1/2）
+
+結論: TASK-186 の決定 D-53（2026-10-12）に合わせ、今の `ops` と写しの列の欄が追記だけで増えることを性質テスト（`crates/core/tests/history_append_only.rs`）で固定した。同期の試験は作っていない（D-5）。履歴の形式の文書は TASK-188 2/2 が、試験の `//!` の定義を引いて書く。
+
+性質の定義（前後 2 つの包み prev → next）:
+
+| 番号 | 内容 |
+|---|---|
+| 1 | `format`・`history_format`・`pack_id`・`start`・`versions`（4 軸）が等しい |
+| 2 | `ops` は、n を prev の件数として、next の件数が n 以上、先頭の n - 1 件が等しく、n 件目は等しいか両方が `Draft` |
+| 3 | prev の `snapshot.log` が next の接頭辞になっている |
+| 4 | prev の各チェックポイントが next に同じ値で残り、`next_checkpoint` が減らない |
+
+確かめたこと:
+
+- 記録 1 段（下書き・操作・再読み込み）ごとの包みを直前の包みと比べる。ケースごとに引いた時点 t の包みと最後の包みも比べ、書き出し→読み込みを通した包みで一致と性質を確かめる
+- 時点 t の包みを書き出して `boot_session` で復元し、起動直後の `envelope_for_save()`（`Reload` と `Reloaded` が足される）と、その後の続きの記録の各包みが、時点 t の包みに対して性質を満たす
+- 固定の列で、下書きの置き換え・送信の後の下書き（畳まれない）・送信・エンジンの操作・再読み込み・保存・ログが伸びた後の復帰を各 1 回以上起こす
+- 検査器の自己確認: 1 か所ずつ壊した 15 通りの組が違反になり、末尾の下書きだけを別の下書きに変えた組と件が増えた組は違反にならない。違反の文言に下書き・送信の本文を含めない（A09）
+
+判断: 今の記録規則は連続する下書きを最後の 1 件に畳むため、`ops` を「末尾の未確定の `Draft` 以外を書き換えない列」と定義した。記録規則は変えていない（安全側）。写しの全体は単調ではないため、単調と主張するのは `log`・`checkpoints`・`next_checkpoint` と頭の欄だけである。
+
+#### 04 の EXT-5 への反映案
+
+「今の `ops` を追記だけで増える列として保証する」の証拠に、本件の性質テストを足す案である。保証の読みは「末尾の未確定の `Draft` だけが置き換わる」を明記する。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 3de72fb（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EXT5-1.mutation crates/core/tests/mutations/EXT5-2.mutation crates/core/tests/mutations/EXT5-3.mutation crates/core/tests/mutations/EXT5-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| EXT5-1 | crates/core/src/ops_record.rs: 確定済みの Submit を下書きで書き換える | scripted_sequence_covers_each_kind_of_growth, property_append_only_fixed, property_append_only_guided | 同左（加えて検査器の自己確認、再読み込み・起動をまたぐ 4 本） | DETECTED |
+| EXT5-2 | crates/core/src/ops_record.rs: 再読み込みの記録を先頭へ差し込む | property_append_only_with_reload_fixed, property_append_only_with_reload_guided, property_append_only_across_boot_fixed | 同左（加えて固定の列、自己確認、誘導つきの起動） | DETECTED |
+| EXT5-3 | crates/core/src/checkpoint.rs: 復帰で log を切る | scripted_sequence_covers_each_kind_of_growth | 同左（加えて自己確認と性質テスト 6 本） | DETECTED |
+| EXT5-4 | crates/core/src/checkpoint.rs: 保存のたびに同じ ID へ書く | scripted_sequence_covers_each_kind_of_growth | 同左（加えて自己確認と性質テスト 6 本） | DETECTED |
+
+集計: 4 件すべて DETECTED（2026-10-19）。
+
+限界:
+
+- 同期の試験は 0 件である（D-5。初回は同期を実装しない）
+- `run`・`entry`・`drafts`・`hints_opened` は対象外である。世代の単調な増加は既存の P 系の性質の範囲である
+- 起動後の続きは、進行の宛先の履歴（`seen`・`last_tick`）を引き継がずに流す
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
