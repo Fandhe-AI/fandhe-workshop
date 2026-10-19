@@ -145,4 +145,5 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
   "${ROOT_DIR}/tools/browser/reload-fresh.test.mjs" \
   "${ROOT_DIR}/tools/browser/reload-points.test.mjs" \
   "${ROOT_DIR}/tools/browser/transition-limit.test.mjs" \
-  "${ROOT_DIR}/tools/browser/safety-observe.test.mjs"
+  "${ROOT_DIR}/tools/browser/safety-observe.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ir-refusal.test.mjs"

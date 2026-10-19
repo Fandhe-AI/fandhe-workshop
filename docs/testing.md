@@ -4208,6 +4208,54 @@ VER13-2 は `deny_unknown_fields` の属性の行が複数あり一意に当た�
 
 範囲外: 旧いエンジンで実際に開く確認と表示・履歴の不変（#456）、読み込み時の `confirm` の型付け。
 
+### 5.140 旧いエンジンの断りの表示と履歴不変（TASK-181 2/2）
+
+結論: 旧いエンジンが新しい教材（IR）を読めないとき、理由つきで断ることと、保存済みの履歴が書き換わらないことを、自動ブラウザ（`tools/browser/ir-refusal.test.mjs`、CSP あり・なし）と native（`crates/web/tests/ir_refusal_host.rs`）で固定した。5.139 と同じく、ブラウザで動く今のエンジンを「より新しい教材に対する旧いエンジン」とみなす。旧版のビルドの実物は repo に無い。
+
+断られる IR は、既定の教材（`min-3step`）と同じ `pack.id` で作る（同じ教材の新しい版が旧いエンジンに届いた場面）。試験の設定の `?fixture=` の完全一致で選ぶ。
+
+| 場面 | IR | 理由コード | 試験 |
+|---|---|---|---|
+| 版が新しい | `format_version`・`pack.ir_format` が 3 で、未知の欄を持つ（D-51） | `format_newer` | 画面の T1、native の `future_format_ir_is_refused_as_format_newer` |
+| 版を上げずに欄だけが足された混在 | 版は 1 のまま、未知の欄を持つ（`Ir` は未知の欄を拒否する） | `malformed` | 画面の T2、native の `future_field_ir_is_refused_as_malformed` |
+
+確かめたこと:
+
+- 断られる画面は、通知 `ir-notice`（`role=status`）に「教材を読み込めませんでした。（コード）」だけを出す。入力欄・ログ・部品は描かない。未知の欄の値（番兵の文字列）は、画面・コンソール・写しの JSON のどこにも出ない（SAFE-11・SAFE-40）
+- 先に既定の画面で 1 手を送って保存させ、保存先（localStorage）に履歴があることを確かめてから、断られる画面へ同じ文脈のまま移る。断っている間も、断った画面の再読み込み（pagehide）の後も、保存先の全体が 1 文字も変わらない。履歴の値は出力に出さず、一致かどうかだけを比べる
+- 断った後に既定の画面へ戻ると、保存済みの履歴が `restored` として開ける（陽性の対照）
+- 起動後に `load-ir:` で読めない IR を送っても、状態・ログの長さ・差し替えの回数（`installCount`）・URL・保存先が変わらず、写しの `irRefusal` だけが立つ
+- 断る仕組み: 起動で断ったホストは session を持たず、`history_key` が `None` になる。保存先を開かず、`pagehide` の書き出しも付けない（native の `refused_host_has_no_history_key_and_saves_nothing`）
+
+製品のコードの変更（最小）: `IrLoadError::reason_code`（core。固定の ASCII で ID・入力値を含めない）、`ir_notice`（通知文の仮置き）、`EngineHost::refused`・`ir_refusal`。配信する設定の `for_mount` は `refused` を呼ばず、IR の取得は従来どおり後続のタスクの担当で、配信物の振る舞いは変えていない。
+
+限界:
+
+- 模型であり実物ではない。実在する旧版のビルドで開く確認は TASK-183、版つき URL は TASK-125・TASK-178 の担当である
+- 旧いエンジンと新しい教材が混ざる場面（キャッシュされた旧いエンジンの配信物と新しい教材）は、キャッシュや版つき URL ではなく、試験用のクエリで模している
+- `label` を持つ IR を旧いエンジンが断る場合は、今のエンジンが `label` を知っているためブラウザでは再現できない（5.139 の限界と同じく、`confirm` の型の確定は判定の時点である）。本文の木だけを足した IR も、版 3 に相当する場面が無いため扱わない（5.139 に記録）
+- 文言とコードは仮置きである。`format_unsupported`・`format_inconsistent` は【推論】による名前で、最終の名前と受講者向けの文面・画面の枠は TASK-545（SHELL-31）・D-57、通知の口の契約は TASK-511 が決める
+
+#### 04 の VER-13 への反映案
+
+証拠の種類に、本件の自動ブラウザ（理由の表示と、保存済みの履歴が書き換わらないこと）を足す案である。「旧いエンジンで実際に開く確認」は TASK-183 が残るため、状態は検討中のままとする。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 01ac7b0（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/VER13-3.mutation crates/web/tests/mutations/VER13-4.mutation crates/web/tests/mutations/VER13-5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER13-3 | crates/core/src/ir_load.rs: 新しい版を `format_newer` ではなく `format_unsupported` に写す | future_format_ir_is_refused_as_format_newer, refused_host_shows_the_notice_with_the_code_only | 同左（加えて refused_ir_at_runtime_keeps_the_session） | DETECTED |
+| VER13-4 | crates/web/src/host.rs: 起動で断ったホストが理由コードを控えない | refused_host_shows_the_notice_with_the_code_only | 同左 | DETECTED |
+| VER13-5 | crates/web/src/host.rs: 起動後に断った IR の理由コードを控えない | refused_ir_at_runtime_keeps_the_session | 同左 | DETECTED |
+
+集計: 3 件すべて DETECTED。native は `ir_refusal_host` が 6 件、ブラウザは 8 件（2 つの IR と対照と起動後の拒否を、CSP あり・なしで流す）で通った（2026-10-19）。
+
+範囲外: 実物の旧版での確認（TASK-183）、製品の「教材 IR を読めないときの画面」（TASK-545）、通知の口の契約（TASK-511）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

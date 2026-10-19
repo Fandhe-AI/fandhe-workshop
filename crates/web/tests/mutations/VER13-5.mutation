@@ -1,0 +1,9 @@
+id: VER13-5
+package: fandhe-workshop-web
+test: ir_refusal_host
+features: test-hooks
+target: crates/web/src/host.rs
+find:                     Err(e) => self.ir_refusal = Some(e.reason_code()),
+replace:                     Err(e) => self.ir_refusal = Some(e.reason_code()).filter(|_| false),
+expect-fail: refused_ir_at_runtime_keeps_the_session
+note: 起動後に読めない IR を断ったとき理由コードを控えない（断りが観察できない）

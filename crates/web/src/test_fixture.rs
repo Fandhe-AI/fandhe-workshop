@@ -14,11 +14,13 @@
 //! 入力欄なしの教材（`?fixture=no-input`。`pack.profile.input_field: hidden`）も起動の前に選ぶ（TASK-450 2/3）。
 //! 章をまたいで 20 Step を 1 つのページで通す教材（`?fixture=ch0-3`。先頭は `starts[0]` の節点）も起動の前に選ぶ（TASK-450 3/3）。
 //! 遷移の上限（SAFE-23）の試験は、巡回する IR 4 本（`cycle_session`）と巡回しない長い連鎖（`chain_session`）を `load-fixture:cycle-*`・`load-fixture:chain-*` で使う（TASK-160 1/3）。
+//! 旧いエンジンが読めない未来の IR（`?fixture=future-ir-format`・`?fixture=future-ir-field`。既定の教材から作り、`pack.id` は同じ）は、
+//! 起動の前に選ぶと `mount_refusal` が理由を返し、ホストは通知だけを描く（VER-13。TASK-181 2/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
 use fandhe_workshop_core::addr::StepUid;
-use fandhe_workshop_core::{load_ir, Session, SessionState};
+use fandhe_workshop_core::{load_ir, IrLoadError, Session, SessionState};
 
 const IR: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -64,6 +66,47 @@ pub(crate) enum MountFixture {
     NoInput,
     /// 章をまたいで 20 Step を通す教材（TASK-450 3/3）。
     Ch03,
+    /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
+    FutureFormat,
+    /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
+    FutureField,
+}
+
+/// 未来の IR に足す未知の欄の値。画面・ログ・写しに出ないことを、ブラウザ試験がこの文字列の不在で確かめる（SAFE-11）。
+pub(crate) const FUTURE_SENTINEL: &str = "FUTURE-SENTINEL-V3-X";
+
+/// 旧いエンジンが読めない IR の種類。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FutureIr {
+    /// 版が 3 で、未知の欄を持つ（D-51: 新しい欄は版を上げて足す）。
+    Format,
+    /// 版は 1 のまま、未知の欄を持つ。
+    Field,
+}
+
+/// 既定の教材（`min-3step`）から、旧いエンジンが読めない IR を作る。`pack.id` は既定のまま（同じ教材の新しい版が
+/// 旧いエンジンに届いた場面）。新しい試験データのファイルは作らず、埋め込みの IR を書き換える。
+pub(crate) fn future_ir_bytes(kind: FutureIr) -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    let obj = value.as_object_mut()?;
+    if kind == FutureIr::Format {
+        obj.insert("format_version".to_owned(), 3.into());
+        obj.get_mut("pack")?
+            .as_object_mut()?
+            .insert("ir_format".to_owned(), 3.into());
+    }
+    obj.insert("future_v3_x".to_owned(), FUTURE_SENTINEL.into());
+    serde_json::to_vec(&value).ok()
+}
+
+/// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
+pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
+    let kind = match fixture {
+        MountFixture::FutureFormat => FutureIr::Format,
+        MountFixture::FutureField => FutureIr::Field,
+        _ => return None,
+    };
+    load_ir(&future_ir_bytes(kind)?).err()
 }
 
 /// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
@@ -74,6 +117,8 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
+        "?fixture=future-ir-format" => MountFixture::FutureFormat,
+        "?fixture=future-ir-field" => MountFixture::FutureField,
         _ => MountFixture::Default,
     }
 }
@@ -85,6 +130,9 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
         MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
         MountFixture::NoInput => session_of(NO_INPUT_IR),
         MountFixture::Ch03 => session_of(CH03_IR),
+        // 読めない想定の IR。万一読めたら session になり、通知が出ないのでブラウザ試験が失敗する（fail-closed）。
+        MountFixture::FutureFormat => session_of(&future_ir_bytes(FutureIr::Format)?),
+        MountFixture::FutureField => session_of(&future_ir_bytes(FutureIr::Field)?),
     }
 }
 
@@ -116,10 +164,12 @@ fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
 
 /// 任意の教材（IR の JSON のバイト列）から実行環境を作る（TASK-175 2/2。`load-ir:` が差し替える）。
 ///
-/// 版の違う履歴 15 件の、開く側の教材をブラウザで入れ替えるために使う。読めない・開始の節点が無いときは `None`。
+/// 版の違う履歴 15 件の、開く側の教材をブラウザで入れ替えるために使う。IR を読めなければ `Err`（呼び出し側が
+/// 理由コードだけを控える。VER-13）、読めても開始の節点が無いときは `Ok(None)`。
 #[cfg(feature = "test-hooks")]
-pub(crate) fn session_from_ir_bytes(ir_bytes: &[u8]) -> Option<Session> {
-    session_of(ir_bytes)
+pub(crate) fn load_session_from_ir_bytes(ir_bytes: &[u8]) -> Result<Option<Session>, IrLoadError> {
+    load_ir(ir_bytes)?;
+    Ok(session_of(ir_bytes))
 }
 
 /// 巡回する IR（`use` の `enter` の自己参照・2 者の巡回・`exit_to` の 2 者の巡回・1 入力あたりの遷移が少数の巡回）。
@@ -622,6 +672,58 @@ mod tests {
         assert_eq!(uid.0, "main/st-0-1");
         assert_eq!(s.run.slices[&uid.root()].status.len(), 1);
         assert_eq!(s.entry.as_ref().unwrap().run.current.as_ref(), Some(uid));
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが未来の_ir_の教材を選ぶ() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=future-ir-format"),
+            MountFixture::FutureFormat
+        );
+        assert_eq!(
+            mount_fixture_from_search("?fixture=future-ir-field"),
+            MountFixture::FutureField
+        );
+        for other in [
+            "?fixture=future-ir-format&x=1",
+            "?x=1&fixture=future-ir-field",
+            "?fixture=future-ir-format2",
+            "?fixture=Future-Ir-Field",
+            "fixture=future-ir-field",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 未来の_ir_は既定と同じ鍵で未知の欄を持ち断られる() {
+        let default_id = mount_session(MountFixture::Default)
+            .unwrap()
+            .ir()
+            .pack
+            .id
+            .clone();
+        for kind in [FutureIr::Format, FutureIr::Field] {
+            let bytes = future_ir_bytes(kind).unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(value["pack"]["id"], default_id.as_str());
+            assert_eq!(value["future_v3_x"], FUTURE_SENTINEL);
+        }
+        assert_eq!(
+            mount_refusal(MountFixture::FutureFormat),
+            Some(IrLoadError::FormatVersion(3))
+        );
+        assert!(matches!(
+            mount_refusal(MountFixture::FutureField),
+            Some(IrLoadError::Json(_))
+        ));
+        assert_eq!(mount_refusal(MountFixture::Default), None);
+        assert!(mount_session(MountFixture::FutureFormat).is_none());
+        assert!(mount_session(MountFixture::FutureField).is_none());
     }
 
     #[test]
