@@ -3890,7 +3890,7 @@ Chrome の安定版が入らない環境（Linux Arm64 など）では、変数�
 
 ### 5.129 教材パックと Markdown の大きさの上限（TASK-159 1/2）
 
-`source::load` の事前走査が、教材パック全体（20,971,520 バイト）と Markdown 1 ファイル（524,288 バイト）の上限を、中身を読まずに判定することを確かめる（SAFE-22・D-25）。ちょうどの大きさは読め、1 バイト超過と 200MB・5MB は `E-LIMIT-PACK-SIZE`・`E-LIMIT-MD-SIZE` で 1 秒未満に拒否される。巨大なファイルは疎ファイルで作る。Markdown は、どの Step も参照しない `.md` を使い、本文の読み込み時の判定ではなく事前走査だけが捉える形にする。`cli` に `compile` の終了コードと標準出力の確認を 1 件足した。深さとシンボリックリンクは #442、3 コマンドへの適用は TASK-410 の範囲である。
+`source::load` の事前走査が、教材パック全体（20,971,520 バイト）と Markdown 1 ファイル（524,288 バイト）の上限を、中身を読まずに判定することを確かめる（SAFE-22・D-25）。ちょうどの大きさは読め、1 バイト超過と 200MB・5MB は `E-LIMIT-PACK-SIZE`・`E-LIMIT-MD-SIZE` で 1 秒未満に拒否される。巨大なファイルは疎ファイルで作る。Markdown は、どの Step も参照しない `.md` を使い、本文の読み込み時の判定ではなく事前走査だけが捉える形にする。`cli` に `compile` の終了コードと標準出力の確認を 1 件足した。深さとシンボリックリンクは #442、3 コマンドの入口への適用は 5.151 節（TASK-410）にある。
 
 - SAFE22-1: Markdown の判定を `>=` にする（ちょうど 512KB を断る）
 - SAFE22-2: Markdown の事前走査の判定を外す
@@ -3937,7 +3937,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.131 ディレクトリの深さとシンボリックリンクの上限（TASK-159 2/2）
 
-`source::load` の事前走査が、ディレクトリの入れ子の上限とシンボリックリンクを、中身を読まずに判定することを確かめる（SAFE-43・D-44）。根を 0 段として 32 段は通し、33 段は `E-LIMIT-DEPTH` で拒否する。シンボリックリンクは辿らず `E-LIMIT-SYMLINK` で拒否する。拒否は 1 秒未満で終わり、`workshop.yaml` を壊しても `E-PARSE` は出ず、33 段目より下やリンクの先の `SECRET` は診断に現れない。リンクの種類は、パック外のディレクトリ・宛先なし・パックの根への循環・`chapters` 自体・`workshop.yaml`・巨大ファイルの 6 通りを試す。`cli` に `compile` の終了コードと標準出力の確認を 2 件（`i12`・`i13`）足した。ファイルへのリンクを本文として参照する場合は、既存の `compile.rs` の `neg_symlink_is_rejected_without_following` が扱う。パックの根自体がリンクの場合の扱いは spec に定めが無く、本節では扱わない。`validate`・`test` を含む 3 コマンドへの適用は TASK-410 の範囲である。
+`source::load` の事前走査が、ディレクトリの入れ子の上限とシンボリックリンクを、中身を読まずに判定することを確かめる（SAFE-43・D-44）。根を 0 段として 32 段は通し、33 段は `E-LIMIT-DEPTH` で拒否する。シンボリックリンクは辿らず `E-LIMIT-SYMLINK` で拒否する。拒否は 1 秒未満で終わり、`workshop.yaml` を壊しても `E-PARSE` は出ず、33 段目より下やリンクの先の `SECRET` は診断に現れない。リンクの種類は、パック外のディレクトリ・宛先なし・パックの根への循環・`chapters` 自体・`workshop.yaml`・巨大ファイルの 6 通りを試す。`cli` に `compile` の終了コードと標準出力の確認を 2 件（`i12`・`i13`）足した。ファイルへのリンクを本文として参照する場合は、既存の `compile.rs` の `neg_symlink_is_rejected_without_following` が扱う。パックの根自体がリンクの場合の扱いは spec に定めが無く、本節では扱わない。`validate`・`test` を含む 3 コマンドの入口への適用は 5.151 節（TASK-410）にある。
 
 - SAFE43-1: 深さの判定を `<=` にする（33 段を通してしまう）
 - SAFE43-2: 深さの判定を 1 段厳しくする（ちょうど 32 段を断る）
@@ -4607,6 +4607,24 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 | AUTHOR1-5 | crates/pack/src/cli.rs: `vocab` の振り分けが `metrics` の handler になる | i11_vocab_is_dispatched_to_vocab | DETECTED |
 
 集計: 7 件すべて DETECTED（2026-10-19）。`processing[].effects[].when` の `clarifying` を数える試験 `author9_processing_effects_when_is_counted` と AUTHOR9-6 は、PR のレビュー指摘（走査の欠落）で足した。
+
+### 5.151 3 つのコマンドの入口での上限の検査（TASK-410）
+
+上限の検査が、`validate`・`test`・`compile` が共通に通る読み込みの前に働くことを固定した（AUTHOR-10。上限の値は SAFE-22・SAFE-43）。試験は `crates/pack/tests/limits_commands.rs` の `author10_` 11 件と、`tests/cli.rs` の `i14`・`i15` である。
+
+- 入口は `source::load`・`validate::validate_dir`・`compile::compile_dir` の 3 つ。パック全体・Markdown・深さ・シンボリックリンクの超過は、どの入口でも上限の診断だけを返し、`workshop.yaml` を壊しても `E-PARSE` が出ず、`SECRET` も診断に現れない
+- 複数の上限を同時に超えた場合は、上限の診断の組だけが出る（`author10_multiple_limits_listed_and_nothing_read`）
+- `body`・`body_levels` が指す `.md` 以外の本文が 524,288 バイトを超えたら、診断コードは素の `E-LIMIT` になる。大きさは読む前に metadata で判定する。`.md` の本文は従来どおり `E-LIMIT-MD-SIZE`。`.md` の判定は事前走査と同じく大文字小文字を区別する
+- CLI の層は `compile` だけを確かめた（`i14`・`i15`）
+
+未確認: `validate`・`test` の CLI 本体は未実装（TASK-403・TASK-404）のため、CLI から起動したときの終了コードと診断の行は、それらの実装後に同じ教材パックで確かめる。後続の実装が `source::load` を通ることが前提である。
+
+変異注入（実行日: 2026-10-19、元にしたコミット: 897b5ac に本変更を載せた作業ツリー、コマンド: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR10-1.mutation crates/pack/tests/mutations/AUTHOR10-2.mutation`）。
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR10-1 | crates/pack/src/source.rs: `.md` 以外の本文を `.md` として扱う | author10_non_md_body_over_is_e_limit | DETECTED |
+| AUTHOR10-2 | crates/pack/src/source.rs: 事前走査の結果を捨てて読み込みへ進む | author10_multiple_limits_listed_and_nothing_read, author10_pack_size_over_on_every_entry | DETECTED |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

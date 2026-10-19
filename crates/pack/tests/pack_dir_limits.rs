@@ -8,7 +8,7 @@
 //! - 「中身を読まない」ことは、`workshop.yaml` を構文として壊しても `E-PARSE` が出ないことと、
 //!   走査されない側・リンクの先にある `SECRET` や上限超過が診断に現れないことで確かめる
 //! - ファイルへのリンクを本文として参照する場合は `compile.rs` の `neg_symlink_is_rejected_without_following` が扱う
-//! - 3 コマンドへの適用は TASK-410 の範囲で、ここでは扱わない
+//! - 3 コマンドの入口への適用は `limits_commands.rs`（TASK-410）で扱う
 
 mod common;
 
