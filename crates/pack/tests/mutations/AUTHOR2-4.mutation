@@ -1,0 +1,8 @@
+id: AUTHOR2-4
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/diag.rs
+find: } else if split_fields && c == ':' && chars.peek() == Some(&' ') {
+replace: } else if false && split_fields && c == ':' && chars.peek() == Some(&' ') {
+expect-fail: diagnostic_separator_in_fields_is_escaped
+note: ファイル・項目の欄の区切りの `: ` を直さなくなる

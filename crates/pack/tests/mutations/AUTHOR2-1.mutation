@@ -1,0 +1,8 @@
+id: AUTHOR2-1
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/diag.rs
+find: if item.trim().is_empty() {
+replace: if false {
+expect-fail: diagnostic_requires_file_and_item
+note: 項目が空の診断を作れてしまう

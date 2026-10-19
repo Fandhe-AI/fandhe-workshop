@@ -6,6 +6,7 @@
 //! `content_major`・`format_older`・`engine_major`（表示だけになる 3 種。TASK-174 2/3）は、理由コードの値・向き・
 //! 境界・判定の順序を `ver6_*`・`ver7_*` で固定する。`vocab_newer`・`format_newer`・`engine_newer`（開かない 3 種。
 //! TASK-174 3/3）は、向き・境界・順序・理由の分類を `ver7_*`・`refused_*` で固定する。
+//! VER-18（D-52・D-59）の線引きのうち採らなかった案は、変異 `VER18-1`・`VER18-2` でも固定する（TASK-177 1/2）。
 
 mod common;
 

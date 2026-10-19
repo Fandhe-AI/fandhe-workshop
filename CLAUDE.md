@@ -61,9 +61,12 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/glossary.md          # 用語集（章・Step・IR・語彙など）
 ├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
 ├── docs/vocabulary/          # 語彙の文書（語彙 v1〜v1.4 の語の版・拡張点 EP-1〜EP-13 の固定）
+├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 4。TASK-195・TASK-58・TASK-59）
-├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴の節。主版・pack.vocab の規約は TASK-179 で追加）
+├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先。版 2。TASK-399）
+├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
+├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）
 ├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3 など）
 ├── docs/spec/                # 仕様（private submodule。update = none）
 └── _/                        # スキルが使うローカル状態（git 管理外。_/local-plans/ 等）
@@ -89,7 +92,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
-| `make test-browser` | 前段で `fandhe-pack` の debug ビルドを行い `FANDHE_PACK_BIN` で渡す（TASK-91）。ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・貼り付け（改行の保持・自動送信 0 件・合成の paste）の試験・IME の模擬（CDP）と入力欄の層 3 の試験・保存済みの履歴が無い場合と未操作の再読み込みで新しく始まる試験（SAVE-3・SAVE-28）・保存・復元・書き出し・版の層 3 の試験・版の違う履歴 15 件の判定と写しの一致の試験（VER-2）・入力方式ごとの入力の口の切り替えの試験（TERM-23）・入力欄なしの教材の表示の試験（PACK-20）・CH-0〜CH-3 の形の 20 Step の通しと CH-1 のキーボードだけの完走の試験（TERM-23）・巡回する IR と長い連鎖の遷移 1,000 回の上限の試験（transition-limit。SAFE-23・SAFE-34・SAFE-35。TASK-160 1/3・2/3・3/3。止めた後は操作の前の Step に戻る）・対照の自己確認（SAFE-8。CSP あり・なし）・安全性の観察の記録（safety-observe。BUILD-4。観察値は assert せず diagnostic に残す。Playwright。`npm ci` と `npx playwright install chromium` が前提。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本（記録は `docs/testing.md` 5.128）。CI は `browser-test` ジョブが Chromium で流す） |
+| `make test-browser` | 前段で `fandhe-pack` の debug ビルドを行い `FANDHE_PACK_BIN` で渡す（TASK-91）。ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・貼り付け（改行の保持・自動送信 0 件・合成の paste）の試験・IME の模擬（CDP）と入力欄の層 3 の試験・保存済みの履歴が無い場合と未操作の再読み込みで新しく始まる試験（SAVE-3・SAVE-28）・保存・復元・書き出し・版の層 3 の試験・版の違う履歴 15 件の判定と写しの一致の試験（VER-2）・入力方式ごとの入力の口の切り替えの試験（TERM-23）・入力欄なしの教材の表示の試験（PACK-20）・CH-0〜CH-3 の形の 20 Step の通しと CH-1 のキーボードだけの完走の試験（TERM-23）・巡回する IR と長い連鎖の遷移 1,000 回の上限の試験（transition-limit。SAFE-23・SAFE-34・SAFE-35。TASK-160 1/3・2/3・3/3。止めた後は操作の前の Step に戻る）・対照の自己確認（SAFE-8。CSP あり・なし）・安全性の観察の記録（safety-observe。BUILD-4。観察値は assert せず diagnostic に残す）・旧いエンジンが新しい教材を理由つきで断り保存済みの履歴が書き換わらない試験（VER-13。TASK-181 2/2。`docs/testing.md` 5.140。Playwright。`npm ci` と `npx playwright install chromium` が前提。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本（記録は `docs/testing.md` 5.128）。CI は `browser-test` ジョブが Chromium で流す） |
 | `make test-build-pack-bin` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` に追従することの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-keydown-control` | `action-keydown` を外した写しで keydown の試験が正しい理由で失敗することの対照（遅く、CI・フックには入れない） |
 | `make check-toolchain` | 固定ファイルの版・README の「前提」の表と `docs/toolchain.md` の一致の検査 |

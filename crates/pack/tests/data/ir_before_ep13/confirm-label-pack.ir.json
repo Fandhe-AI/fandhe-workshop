@@ -1,0 +1,107 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "confirm-label",
+    "title": "Confirm label",
+    "version": "0",
+    "ir_format": 2,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-wrong": {
+      "category": "not_in_this_step",
+      "message": "Not that one.",
+      "next_action": "Choose again."
+    }
+  },
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/s-answer",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-answer",
+        "title": "Answer",
+        "body": "a.md",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "ok",
+              "label": "INPUT-CHOICE-OK"
+            },
+            {
+              "id": "asked-back",
+              "label": "INPUT-CHOICE-ASKED"
+            }
+          ]
+        },
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ok",
+              "label": "正しい手順"
+            },
+            {
+              "correct": false,
+              "id": "asked-back"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/s-end"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "a"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/s-end",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "s-end",
+        "title": "End",
+        "final": true
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/s-answer",
+      "effects": []
+    }
+  ]
+}

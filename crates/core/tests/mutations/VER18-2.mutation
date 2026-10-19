@@ -1,0 +1,8 @@
+id: VER18-2
+package: fandhe-workshop-core
+test: history_open
+target: crates/core/src/history_open.rs
+find: return refuse(LoadReason::FormatNewer);
+replace: return view_only(LoadReason::FormatOlder);
+expect-fail: ver7_format_newer_is_refused
+note: 新しい ir_format の履歴も表示だけにする（D-59 の 2 で採らなかった読み。開く側が知らない形式を描こうとする）

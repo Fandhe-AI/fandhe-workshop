@@ -1,0 +1,8 @@
+id: EXT9-3
+package: fandhe-workshop-pack
+test: ext9_ir_identity
+target: crates/contract/src/ir.rs
+find: pub left_pane: Option<Value>,
+replace: pub left_pane: Option<Value>, #[serde(default)] pub next_receptacle: Option<Value>,
+expect-fail: ext9_golden_packs_are_byte_identical_across_ep13
+note: 受け口の欄を skip_serializing_if なしで足し、既定値（null）が使わない教材の出力に漏れる（VER13-2 と同じく番兵の欄で表す）

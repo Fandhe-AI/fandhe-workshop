@@ -1,0 +1,8 @@
+id: VER13-1
+package: fandhe-workshop-pack
+test: ir_old_engine
+target: crates/contract/src/ir.rs
+find: .any(|n| n.body_doc.is_some() || !n.body_levels_doc.is_empty());
+replace: .any(|n| !n.body_levels_doc.is_empty());
+expect-fail: ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version
+note: 本文の木だけを使う IR の必要な版を 1 と計算する（木を足しても版を上げない試作の挙動）

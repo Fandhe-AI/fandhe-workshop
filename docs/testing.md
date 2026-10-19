@@ -57,6 +57,14 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
   確かめる。H-6（再読み込みの前の宛先の進行の無視）は TASK-320 2/2 で足した（5.67）。14 本あわせた実測は dev プロファイルで約 4.8 秒（2026-10-16、
   `cargo test` の試験の所要時間）。変異は 5.59 節。自動ブラウザでの「`ops` だけで復元した最終の世界状態の一致」は、web の保存・読み込みの結線が
   未実装のため未確認
+- 履歴が追記だけで増える性質（TASK-188 1/2、EXT-5・D-53）は `crates/core/tests/history_append_only.rs` にある。前後 2 つの包みについて、
+  頭の欄（`format`・`history_format`・`pack_id`・`start`・4 軸の `versions`）が変わらないこと、`ops` が確定した部分を書き換えないこと
+  （末尾の未確定の `Draft` だけは置き換わってよい。今の記録規則のまま）、`snapshot.log` の接頭辞が保たれること、
+  `snapshot.checkpoints` の既存の項目が変わらず `next_checkpoint` が減らないことを確かめる。`run`・`entry`・`drafts`・`hints_opened` は
+  列ではなく現在の状態で上書きされるため対象にしない。記録 1 段ごと・離れた 2 点・書き出し→読み込みを通した形に加え、時点 t の包みを
+  `boot_session` で復元して本番の保存の入口と続きの記録でも確かめる。固定・誘導つき・再読み込みを混ぜた生成と起動をまたぐ形の 6 本を各 1,000 通り流し、
+  固定の列（各種類の増え方を網羅）と検査器の自己確認を足した 8 本の実測は dev プロファイルで約 6.5 秒（2026-10-19、`cargo test` の試験の所要時間）。
+  変異は 5.141 節
 - `guided_generation_reaches_deeper_states_than_fixed_generation` は、既定の種に固定して固定・誘導の深さを比べる網羅性の試験
   （環境変数を受けない）。実測（2026-10-16、1,000 通り）は、確認による達成が固定 29 件・誘導 1,075 件、最後の Step（`main/st-3`）が
   達成まで届いた列が固定 28 通り・誘導 509 通り、達成の直後に同じ操作で次の Step へ入った件数が固定 150 件・誘導 1,083 件。章の完了
@@ -101,7 +109,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-53 1/2 は `PACK21-1`・`PACK21-2`、TASK-53 2/2 は `PACK22-1`〜`PACK22-3`、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、TASK-57 1/2 は `PACK5-1` を、TASK-57 2/2 は `PACK5-2`・`PACK5-3`・`PACK25-1` を、TASK-58 2/2 は `PACK30-1` を、TASK-61 は `PACK27-1`〜`PACK27-3` を、TASK-66 1/2 は `PACK38-1`・`PACK38-2` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を、TASK-159 1/2 は `SAFE22-1`〜`SAFE22-4` を、TASK-159 2/2 は `SAFE43-1`〜`SAFE43-4` を使う |
+| `id` | 必須 | 変異の ID。ファイル名（`.mutation` を除く）と同じ値にする。使える文字は `^[A-Za-z0-9_-]+$`。正は `crates/*/tests/mutations/*.mutation` の定義で、本表では列挙しない（規則は表の下） |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -114,10 +122,16 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 未知のキー・重複した単一キー・必須キーの欠落・空の値は、終了コード 2 で止める
 - 1 件の変異は 1 か所の書き換えに限る。複数行・複数か所の変異が要る場合は、後続タスクで形式を拡張する（拡張点: `find` / `replace` を組で複数持てるようにする）
 - サンプルは `crates/core/tests/property_sample.rs` の見本を対象にする。エンジンの試験では `crates/core/src/**` などの実装を対象にする
+- ID の正は `crates/<crate>/tests/mutations/<ID>.mutation` の定義そのものである。どのタスクがどの ID を足したかは、第 5 節の各小見出しと記録の表の ID 列に残る
+- 本節で ID を列挙しない理由: 並列にマージされる PR が同じ 1 行へ追記し、漏れと衝突が起きたため（Issue #1560。2026-10-19 時点の定義は 425 件）
+- 新しい ID は `<ビヘイビア ID からハイフンを除いたもの>-<連番>` で付ける（例: `SAVE-19` → `SAVE19-6`）。連番は、同じ crate の同じ族の既存の最大の次を使う
+- 既存の例外は改名しない。足場の時期の `<英大文字 1 字><連番>`（`S1`・`M1` など）と、`JUDGE1-C1` のような英字つき枝番である
+- ID はファイル名なので、同じ crate の中では重ならない。crate をまたぐ重複は避ける。既存の `VER7-1`（contract と core）は、第 5 節の記録が参照するため改名しない
+- ファイル名と `id` の一致は、今は検査していない（2026-10-19 に全 425 件の一致を確かめた）
 
 ### 3.3 新しい変異を足す手順
 
-1. 壊したい 1 か所を決め、`find`（ちょうど 1 回現れる文字列）と `replace` を書く
+1. 壊したい 1 か所を決め、`find`（ちょうど 1 回現れる文字列）と `replace` を書く。ID は 3.2 節の規則で付け、ファイル名を ID と同じにする
 2. 失敗すべき試験の関数名を `expect-fail` に書く。名前を推測で書かず、元の状態で `ok` と出る名前を使う
 3. `make check-mutations` を流し、DETECTED になることを確かめる
 4. 出力された記録の表を、第 5 節の該当の見出しへ貼る（手で作らない）
@@ -3963,7 +3977,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
 
-1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、`halt` が現在の Step・処理中・入口の写しを空にする（内側の fail-closed。後続の 5.135 で、`apply` が直後に操作の前の状態へ戻すようになった）。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.134、止めた後の戻り方（SAFE-35、#446）は 5.135 で扱う。
+1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、`halt` が現在の Step・処理中・入口の写しを空にする（内側の fail-closed。後続の 5.147 で、`apply` が直後に操作の前の状態へ戻すようになった）。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.135、止めた後の戻り方（SAFE-35、#446）は 5.147 で扱う。
 
 試験は 2 層に置いた。
 
@@ -4019,9 +4033,9 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
 
-範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、戻り方（#446）。見出しと専用の `Event`（#445）は 5.134 で扱った。
+範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、戻り方（#446）。見出しと専用の `Event`（#445）は 5.135 で扱った。
 
-### 5.134 遷移の上限で止めた理由の見出しとまとめ表示（TASK-160 2/3）
+### 5.135 遷移の上限で止めた理由の見出しとまとめ表示（TASK-160 2/3）
 
 遷移 1,000 回の上限（5.133）で止めたとき、受講者に理由が見えるようにする（SAFE-34・D-45）。止める前は、作成者向けの `Warning` が残るだけで、web はそれを行にしないため、受講者の画面には何も出なかった。試作（PoC-7）では見出しが「教材の定義の誤り」になり、案内の欄が空で、同じ行が 1,000 行並んだ。
 
@@ -4039,14 +4053,14 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 案内の欄は、領域「案内とログ」の通知欄 `log-notice` と読んだ。`a11y` 契約が予約済みで、どこにも描いていなかった。`input-notice` は入力の上限の案内（`paste-notice`・`input-limit`）が使っているため採らない
 - 行の種類 `limit` と部品 `line-heading` を足し、`TERMINAL_AREA_CONTRACT_VERSION` を 2 から 3 にした（`LineKind` は閉じた一覧で、黙って変えられない）。`reloaded`（版 2）と同じく、`LIVE_EXCLUDED_LINE_KINDS` には入れない
 - 文言は仮置きで、`log_lines`（`LIMIT_HEADING`・`LIMIT_BODY_*`）と `limit_notice`（`LIMIT_NOTICE_*`）の定数 1 か所に置いた。固定文と、着地の回数を 3 桁ごとに区切った数だけで作り、教材・受講者の値を含めない（SAFE-11）。仕様の側での確定は spec repo の作業になる
-- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後は操作の前の Step へ戻り（5.135）、戻った Step で次の入力が受け付けられると消える
+- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後は操作の前の Step へ戻り（5.147）、戻った Step で次の入力が受け付けられると消える
 - 状態表示（`run-status`）は現行どおり「待機中」に倒れる。`RunStatus` は 3 値の閉じた契約で、上限の停止を「停止」にするかは本件の範囲外とした
 
 試験は 3 層に置いた。
 
 - native の core（`crates/core/tests/transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めたときに `TransitionLimitReached` がちょうど 1 件で、`Warning` の直後・イベント列の末尾にあり、`landings` が 1,000 であること。止まらない場合（`cycle-d07-flat`・1,000 回ちょうどの連鎖・連鎖の途中の `enter` の先が無い場合）は 0 件であること。`api_types.rs` は直列化の形と、余分なキーの拒否を確かめる。`projection_derive.rs` は 1 件につき 1 行になることを確かめる
 - native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
-- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の確認は 5.135 に置き換えた。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
+- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の確認は 5.147 に置き換えた。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
 
 - SAFE34-1: 専用の `Event` の着地の回数を 0 にする
 - SAFE34-2: 専用の `Event` を行にしない
@@ -4069,9 +4083,384 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE34-4 | crates/web/src/log_lines.rs: 個々の着地を行にする | 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである | 同左 | DETECTED |
 | SAFE23-1〜3 | crates/core/src/transit.rs（5.133 の表のとおり） | 5.133 のとおり | 5.133 のとおり | DETECTED（本変更の後に再実行して確認） |
 
-範囲外: 止めた後の戻り方（SAFE-35、#446。5.135 で扱った）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
+範囲外: 止めた後の戻り方（SAFE-35、#446。5.147 で扱った）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
 
-### 5.135 上限で止めた後の戻り方（TASK-160 3/3）
+### 5.136 版の線引きの決定との照合（TASK-177 1/2）
+
+結論: `open_history`（`crates/core/src/history_open.rs`）の判定は、D-52 の 6・7 と D-59 の 2 の決定と一致しており、判定の変更は無い。決定は試作と同じため、04（VER-2〜VER-7）の期待の更新も生じない。照合の表は 5.61c にあり、ここでは重複させない。本件は、決定で採らなかった案を表す変異を足して固定する。
+
+| 決定の項目 | 固定している試験 | 変異 |
+|---|---|---|
+| D-52 の 6: 主版の違いは向き・位置を問わず表示だけ（採らなかった案 (b)「適用し直して一致すれば主版違いも変換」を退ける） | `ver6_content_major_with_removed_step_is_view_only_at_any_position`・`ver6_content_major_boundaries` | `VER6-1`〜`VER6-3` |
+| D-52 の 6: 副版以下は変換して開く（採らなかった案 (a)「教材内容の版が違えば常に表示だけ」を退ける） | `ver4_*`・`ver5_step_added_by_minor_keeps_early_history_and_diverges_after` | `VER18-1`（本件で追加） |
+| D-52 の 7・D-59 の 2: `ir_format` が古ければ表示だけ | `ver7_format_older_is_view_only` | `VER7-2` |
+| D-59 の 2: `ir_format` が新しければ開かない（D-52 の文言どおりの「表示だけ」と読まない） | `ver7_format_newer_is_refused`・`history_ir_format_newer_than_opening_pack_is_refused` | `VER7-1`・`VER7-8`・`VER18-2`（本件で追加） |
+
+D-59 の 4 のとおり、`format_newer` の向きの理由は Claude Code の判断で、ユーザーの理由としては記録されていない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 7528a9d（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/VER18-1.mutation crates/core/tests/mutations/VER18-2.mutation（退行確認として VER6-1〜VER6-3・VER7-1・VER7-2・VER7-8 も同時に実行）
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER18-1 | crates/core/src/history_open.rs: 内容の版が違えば常に表示だけにする | ver4_content_patch_only_is_converted | ver4_content_minor_with_changed_text_is_converted, ver4_content_patch_only_is_converted, ver4_converted_state_is_saved_with_the_opening_versions, replay_mismatch_is_separated_from_diverged, ver5_step_added_by_minor_keeps_early_history_and_diverges_after, ver7_format_older_is_view_only, ver6_content_major_boundaries, ver6_content_major_with_removed_step_is_view_only_at_any_position | DETECTED |
+| VER18-2 | crates/core/src/history_open.rs: 新しい `ir_format` も表示だけにする | ver7_format_newer_is_refused | history_ir_format_newer_than_opening_pack_is_refused, refused_reasons_are_non_empty_and_classified, ver7_format_newer_is_refused, ver7_stage6_order_follows_history_load_order | DETECTED |
+| VER6-1〜VER6-3・VER7-1・VER7-2・VER7-8 | 同左（退行確認） | 各変異の定義のとおり | 各変異の定義のとおり | 全件 DETECTED |
+
+範囲外: 15 件の試験を決定どおりの期待で通す作業（TASK-177 2/2、#452）。
+
+### 5.137 版の違う履歴 15 件の期待と決定の照合（TASK-177 2/2）
+
+結論: 15 件の期待は D-52 の 6・7 と D-59 の 2 の決定どおりで、`expectations.json` の変更は無い。決定は試作と同じため、04（VER-2〜VER-7）の期待の更新も生じない（5.136 を参照）。本件は、15 行を 1 行ずつ決定の条項に結び付けた照合の記録と、決定で採らなかった読みで期待を書くと食い違うことの自己確認を足す。
+
+| ID | 決定の条項 | 期待（結果 / コード / 軸） |
+|---|---|---|
+| V-0 | 版の違い無し。適用し直して一致 | open / - / - |
+| V-i-1・V-i-2 | D-52 の 6: 副版以下の違いは適用し直して一致すれば変換 | converted / - / content, content_hash |
+| V-ii-1 | D-52 の 6: 副版で、適用し直しが写しと一致しない | view_only / replay_diverged / - |
+| V-ii-2 | D-52 の 6: 副版で、足した Step より手前のため一致 | converted / - / content, content_hash |
+| V-iii-1・V-iii-2 | D-52 の 6: 主版の違いは位置を問わず表示だけ | view_only / content_major / - |
+| V-iv-1 | 語彙が古い側は副版以下と同じく変換 | converted / - / vocab, content_hash |
+| V-iv-2 | 語彙が新しければ開かない | refused / vocab_newer / - |
+| V-iv-3 | D-59 の 2: `ir_format` が新しければ開かない | refused / format_newer / - |
+| V-iv-4 | D-52 の 7・D-59 の 2: `ir_format` が古ければ表示だけ | view_only / format_older / - |
+| V-v-1 | エンジンの副版の違いは変換 | converted / - / engine |
+| V-v-2 | エンジンが新しければ開かない | refused / engine_newer / - |
+| V-v-3 | エンジンの主版の違いは表示だけ | view_only / engine_major / - |
+| V-ref | 参照元の違いは変換 | converted / - / refs |
+
+自己確認の試験 `rejected_readings_of_the_decision_mismatch_the_fifteen`（`crates/core/tests/version_histories.rs`）は、表の行の写しの期待を不採用の読みに書き換え、実際の結果と食い違うことを確かめる。書き換える前の行は一致することも同じ試験の中で見る。
+
+| 不採用の読み | 書き換えた行 | 食い違いの分類 |
+|---|---|---|
+| 案 (a)「教材内容の版が違えば常に表示だけ」 | V-i-1・V-i-2・V-ii-2 を view_only / content_major | それ以外（実際は開く） |
+| 案 (b)「主版の違いでも、適用し直して一致すれば変換」 | V-iii-2 を converted | 慎重な側（実際は表示だけ） |
+| D-52 の文言どおり「`ir_format` が違えば常に表示だけ」 | V-iv-3 を view_only / format_older | 慎重な側（実際は開かない） |
+
+判定の側の不採用案は 5.136 の `VER18-1`・`VER18-2` が固定しており、本件では変異を足さない。表の JSON は同じ行が複数あり、変異の `find` が一意に当たらないためである。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 97605c5（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/VER2-1.mutation crates/core/tests/mutations/VER2-2.mutation crates/core/tests/mutations/VER18-1.mutation crates/core/tests/mutations/VER18-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER2-1 | crates/core/src/history_open.rs: 教材形式が古い履歴の判定を外す | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+| VER2-2 | crates/core/src/history_open.rs: エンジンの主版の違いを開かないに倒す | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+| VER18-1 | crates/core/src/history_open.rs: 教材内容の版が違えば常に表示だけにする | ver4_content_patch_only_is_converted | 5.136 と同じ 8 件 | DETECTED |
+| VER18-2 | crates/core/src/history_open.rs: 新しい `ir_format` も表示だけにする | ver7_format_newer_is_refused | 5.136 と同じ 4 件 | DETECTED |
+
+範囲外: spec の VER-18 の「証拠の種類」は `ir_format` が古い履歴を「実装前で、確かめていない」としているが、実装は既にあり V-iv-4・`VER2-1`・`VER7-2` が固定している。spec 側で直す事項であり、本件では編集しない。
+
+### 5.138 主版を上げる規約と `pack.vocab` の規約の机上の照合（TASK-179）
+
+結論: VER-11 の完了条件 3 点が `docs/pack-authoring.md` の節に書かれた。主版の上げ忘れを警告する検査は D-52 により採らず、試験は足さない。
+
+| 完了条件 | 節 | 根拠 |
+|---|---|---|
+| 主版を上げる条件 | 「主版を上げる条件（`pack.version`）」 | VER-11・D-52 |
+| `pack.vocab` を書く規約 | 「`pack.vocab` の書き方」 | VER-11・VER-14・PACK-31 |
+| 本文だけの修正が判定に現れない点 | 既存の 2 節と、上の節からの参照 | VER-12・D-51 |
+
+文書の主張と実装の照合は次のとおり。
+
+| 主張 | 照合先 |
+|---|---|
+| 主版の違いは位置によらず表示だけ（`content_major`） | `fifteen_histories_match_the_fixed_expectations`（V-iii-1・V-iii-2）・`ver6_*` |
+| 副版で足した Step より先は `replay_diverged` | 同上（V-ii-1）・`ver5_*` |
+| `pack.vocab` の省略は `1.0` で記録 | `t2_default_vocab_record`（`VocabVersion::DEFAULT`） |
+| 読めない `pack.version` は記録を作らない | `t6_fail_closed` |
+| 語彙の上限は 1.4、`validate` は上限超えを報告しない | `crates/pack/src/vocab.rs` の `LATEST`、`vocab_check.rs`（`declared < needed` だけを見る） |
+| `validate` は `pack.version` の形を検査しない | `crates/pack/src` に該当の検査が無い（grep 0 件） |
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 6bfdef0（作業ツリーに本変更）
+```
+
+範囲外: spec の VER-11 の「作成者向けの文書に規約がまだ無い」の記述は、spec 側で直す。
+
+### 5.139 旧新 IR の読み込みの互換（TASK-181 1/2）
+
+結論: 04 の VER-13 の 3 つの場合を、D-51・D-52・D-59 の決定に合わせて native の試験で固定した（`crates/pack/tests/ir_old_engine.rs`）。旧いエンジンの実物はこの repo に無いため、試験の中に「版 1 だけを読み、確認の選択肢の `label` を知らない旧いエンジン」の模型を置いた。模型であり実物ではない。製品コードの変更は無い。
+
+| 場合 | 決定の下での期待 | 断る仕組み | 試験 |
+|---|---|---|---|
+| 1. 旧い IR（木も `label` も無い）を新しいエンジンが読む | 変換せず `ir_format` 1 のまま読め、`answer` の確認も読める（`label` は無く、表示名は ID） | 加算だけ | `ver13_old_ir_answers_are_read_by_new_engine_without_label`（バイト一致は `ir_compat.rs`） |
+| 2. `label` を持つ IR を旧いエンジンが読む | 断る。`label` は v1.3 の加算で `ir_format` は 1 のまま（PACK-24）のため、版ではなく型で断る。理由に `label` の値を含めない | 旧い `AnswerOption` の `deny_unknown_fields` | `ver13_label_stays_v1_and_new_engine_reads_it`・`ver13_label_ir_is_refused_by_old_engine_without_echo` |
+| 3a. 本文の木を使う IR を旧いエンジンが読む | 木を使うと `ir_format` 2 になり（D-51・D-52）、版 1 だけを読む旧いエンジンは版の理由で断る（型の不一致にしない） | 版の先読み | `ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version` |
+| 3b. 木を使わない教材を旧いエンジンが読む | 最小の `ir_format`（1）のままで読める（D-52） | 加算だけ | `ver13_pack_without_trees_stays_v1_and_old_engine_reads_it` |
+| 今後の欄 | 新しい欄は `ir_format` を上げる。`Value` で通す位置（`confirm`）の欄も、版の先読みが先に断る | 版の先読み | `ver13_future_field_inside_confirm_is_refused_by_version_gate` |
+
+対照として、模型が版 1 の golden を読めること（`ver13_old_engine_model_reads_v1_goldens`）を確かめ、模型が正しい理由で断っていることの前提にした。
+
+限界: 製品の `load_ir` は `confirm` を読み込み時に型付けしない。版 1 のまま `answer` の選択肢に未知の欄を足した IR は読み込みを通り、確認の判定時に不正な宣言として扱われる。`ver13_future_field_in_answer_option_is_refused_at_judging_not_loading` はこの現状の記録で、望ましい挙動の主張ではない。読み込み時に型付けするかは別に判断する（`crates/core/src/ir_load.rs`）。
+
+#### 04 の VER-13 への反映案
+
+【現状】の「本文の木だけを足した IR は、旧いエンジンでも読める」は、`Ir`・`Node` が未知の欄を許し `ir_format` が 1 のままだった試作の性質である。D-51・D-52 の下では「木を使う IR は `ir_format` 2 になり、版 1 だけを読む旧いエンジンは版の理由で断る。木を使わない教材は版 1 のままで読める」に置き換わる。証拠の種類には本件の自動テスト（native）を足す。旧いエンジンで実際に開く確認と、表示・保存済みの履歴の不変は TASK-181 の 2/2（#456）が残るため、検討中のままとする案である。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 223308a（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/VER13-1.mutation crates/pack/tests/mutations/VER13-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER13-1 | crates/contract/src/ir.rs: 本文の木だけを使う IR の必要な版を 1 と計算する | ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version | ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version | DETECTED |
+| VER13-2 | crates/contract/src/confirm_spec.rs: `AnswerOption` が未知の欄を受け入れる | ver13_future_field_in_answer_option_is_refused_at_judging_not_loading | ver13_future_field_in_answer_option_is_refused_at_judging_not_loading | DETECTED |
+
+VER13-2 は `deny_unknown_fields` の属性の行が複数あり一意に当たらないため、番兵の欄を足して「未知の欄を受け入れる」状態を表した。
+
+範囲外: 旧いエンジンで実際に開く確認と表示・履歴の不変（#456）、読み込み時の `confirm` の型付け。
+
+### 5.140 旧いエンジンの断りの表示と履歴不変（TASK-181 2/2）
+
+結論: 旧いエンジンが新しい教材（IR）を読めないとき、理由つきで断ることと、保存済みの履歴が書き換わらないことを、自動ブラウザ（`tools/browser/ir-refusal.test.mjs`、CSP あり・なし）と native（`crates/web/tests/ir_refusal_host.rs`）で固定した。5.139 と同じく、ブラウザで動く今のエンジンを「より新しい教材に対する旧いエンジン」とみなす。旧版のビルドの実物は repo に無い。
+
+断られる IR は、既定の教材（`min-3step`）と同じ `pack.id` で作る（同じ教材の新しい版が旧いエンジンに届いた場面）。試験の設定の `?fixture=` の完全一致で選ぶ。
+
+| 場面 | IR | 理由コード | 試験 |
+|---|---|---|---|
+| 版が新しい | `format_version`・`pack.ir_format` が 3 で、未知の欄を持つ（D-51） | `format_newer` | 画面の T1、native の `future_format_ir_is_refused_as_format_newer` |
+| 版を上げずに欄だけが足された混在 | 版は 1 のまま、未知の欄を持つ（`Ir` は未知の欄を拒否する） | `malformed` | 画面の T2、native の `future_field_ir_is_refused_as_malformed` |
+
+確かめたこと:
+
+- 断られる画面は、通知 `ir-notice`（`role=status`）に「教材を読み込めませんでした。（コード）」だけを出す。入力欄・ログ・部品は描かない。未知の欄の値（番兵の文字列）は、画面・コンソール・写しの JSON のどこにも出ない（SAFE-11・SAFE-40）
+- 先に既定の画面で 1 手を送って保存させ、保存先（localStorage）に履歴があることを確かめてから、断られる画面へ同じ文脈のまま移る。断っている間も、断った画面の再読み込み（pagehide）の後も、保存先の全体が 1 文字も変わらない。履歴の値は出力に出さず、一致かどうかだけを比べる
+- 断った後に既定の画面へ戻ると、保存済みの履歴が `restored` として開ける（陽性の対照）
+- 起動後に `load-ir:` で読めない IR を送っても、状態・ログの長さ・差し替えの回数（`installCount`）・URL・保存先が変わらず、写しの `irRefusal` だけが立つ
+- 断る仕組み: 起動で断ったホストは session を持たず、`history_key` が `None` になる。保存先を開かず、`pagehide` の書き出しも付けない（native の `refused_host_has_no_history_key_and_saves_nothing`）
+
+製品のコードの変更（最小）: `IrLoadError::reason_code`（core。固定の ASCII で ID・入力値を含めない）、`ir_notice`（通知文の仮置き）、`EngineHost::refused`・`ir_refusal`。配信する設定の `for_mount` は `refused` を呼ばず、IR の取得は従来どおり後続のタスクの担当で、配信物の振る舞いは変えていない。
+
+限界:
+
+- 模型であり実物ではない。実在する旧版のビルドで開く確認は TASK-183、版つき URL は TASK-125・TASK-178 の担当である
+- 旧いエンジンと新しい教材が混ざる場面（キャッシュされた旧いエンジンの配信物と新しい教材）は、キャッシュや版つき URL ではなく、試験用のクエリで模している
+- `label` を持つ IR を旧いエンジンが断る場合は、今のエンジンが `label` を知っているためブラウザでは再現できない（5.139 の限界と同じく、`confirm` の型の確定は判定の時点である）。本文の木だけを足した IR も、版 3 に相当する場面が無いため扱わない（5.139 に記録）
+- 文言とコードは仮置きである。`format_unsupported`・`format_inconsistent` は【推論】による名前で、最終の名前と受講者向けの文面・画面の枠は TASK-545（SHELL-31）・D-57、通知の口の契約は TASK-511 が決める
+
+#### 04 の VER-13 への反映案
+
+証拠の種類に、本件の自動ブラウザ（理由の表示と、保存済みの履歴が書き換わらないこと）を足す案である。「旧いエンジンで実際に開く確認」は TASK-183 が残るため、状態は検討中のままとする。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 01ac7b0（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/VER13-3.mutation crates/web/tests/mutations/VER13-4.mutation crates/web/tests/mutations/VER13-5.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER13-3 | crates/core/src/ir_load.rs: 新しい版を `format_newer` ではなく `format_unsupported` に写す | future_format_ir_is_refused_as_format_newer, refused_host_shows_the_notice_with_the_code_only | 同左（加えて refused_ir_at_runtime_keeps_the_session） | DETECTED |
+| VER13-4 | crates/web/src/host.rs: 起動で断ったホストが理由コードを控えない | refused_host_shows_the_notice_with_the_code_only | 同左 | DETECTED |
+| VER13-5 | crates/web/src/host.rs: 起動後に断った IR の理由コードを控えない | refused_ir_at_runtime_keeps_the_session | 同左 | DETECTED |
+
+集計: 3 件すべて DETECTED。native は `ir_refusal_host` が 6 件、ブラウザは 8 件（2 つの IR と対照と起動後の拒否を、CSP あり・なしで流す）で通った（2026-10-19）。
+
+範囲外: 実物の旧版での確認（TASK-183）、製品の「教材 IR を読めないときの画面」（TASK-545）、通知の口の契約（TASK-511）。
+
+### 5.141 履歴が追記だけで増える性質（TASK-188 1/2）
+
+結論: TASK-186 の決定 D-53（2026-10-12）に合わせ、今の `ops` と写しの列の欄が追記だけで増えることを性質テスト（`crates/core/tests/history_append_only.rs`）で固定した。同期の試験は作っていない（D-5）。履歴の形式の文書は `docs/history-format.md`（TASK-188 2/2）に書いた。
+
+性質の定義（前後 2 つの包み prev → next）:
+
+| 番号 | 内容 |
+|---|---|
+| 1 | `format`・`history_format`・`pack_id`・`start`・`versions`（4 軸）が等しい |
+| 2 | `ops` は、n を prev の件数として、next の件数が n 以上、先頭の n - 1 件が等しく、n 件目は等しいか両方が `Draft` |
+| 3 | prev の `snapshot.log` が next の接頭辞になっている |
+| 4 | prev の各チェックポイントが next に同じ値で残り、`next_checkpoint` が減らない |
+
+確かめたこと:
+
+- 記録 1 段（下書き・操作・再読み込み）ごとの包みを直前の包みと比べる。ケースごとに引いた時点 t の包みと最後の包みも比べ、書き出し→読み込みを通した包みで一致と性質を確かめる
+- 時点 t の包みを書き出して `boot_session` で復元し、起動直後の `envelope_for_save()`（`Reload` と `Reloaded` が足される）と、その後の続きの記録の各包みが、時点 t の包みに対して性質を満たす
+- 固定の列で、下書きの置き換え・送信の後の下書き（畳まれない）・送信・エンジンの操作・再読み込み・保存・ログが伸びた後の復帰を各 1 回以上起こす
+- 検査器の自己確認: 1 か所ずつ壊した 15 通りの組が違反になり、末尾の下書きだけを別の下書きに変えた組と件が増えた組は違反にならない。違反の文言に下書き・送信の本文を含めない（A09）
+
+判断: 今の記録規則は連続する下書きを最後の 1 件に畳むため、`ops` を「末尾の未確定の `Draft` 以外を書き換えない列」と定義した。記録規則は変えていない（安全側）。写しの全体は単調ではないため、単調と主張するのは `log`・`checkpoints`・`next_checkpoint` と頭の欄だけである。
+
+#### 04 の EXT-5 への反映案
+
+「今の `ops` を追記だけで増える列として保証する」の証拠に、本件の性質テストを足す案である。保証の読みは「末尾の未確定の `Draft` だけが置き換わる」を明記する。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 3de72fb（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/EXT5-1.mutation crates/core/tests/mutations/EXT5-2.mutation crates/core/tests/mutations/EXT5-3.mutation crates/core/tests/mutations/EXT5-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| EXT5-1 | crates/core/src/ops_record.rs: 確定済みの Submit を下書きで書き換える | scripted_sequence_covers_each_kind_of_growth, property_append_only_fixed, property_append_only_guided | 同左（加えて検査器の自己確認、再読み込み・起動をまたぐ 4 本） | DETECTED |
+| EXT5-2 | crates/core/src/ops_record.rs: 再読み込みの記録を先頭へ差し込む | property_append_only_with_reload_fixed, property_append_only_with_reload_guided, property_append_only_across_boot_fixed | 同左（加えて固定の列、自己確認、誘導つきの起動） | DETECTED |
+| EXT5-3 | crates/core/src/checkpoint.rs: 復帰で log を切る | scripted_sequence_covers_each_kind_of_growth | 同左（加えて自己確認と性質テスト 6 本） | DETECTED |
+| EXT5-4 | crates/core/src/checkpoint.rs: 保存のたびに同じ ID へ書く | scripted_sequence_covers_each_kind_of_growth | 同左（加えて自己確認と性質テスト 6 本） | DETECTED |
+
+集計: 4 件すべて DETECTED（2026-10-19）。
+
+限界:
+
+- 同期の試験は 0 件である（D-5。初回は同期を実装しない）
+- `run`・`entry`・`drafts`・`hints_opened` は対象外である。世代の単調な増加は既存の P 系の性質の範囲である
+- 起動後の続きは、進行の宛先の履歴（`seen`・`last_tick`）を引き継がずに流す
+
+### 5.142 旧い教材と旧い履歴が新しい版で開く試験（TASK-190 1/2）
+
+結論: EXT-9（D-52・D-53）の「開く」の側を、凍結した成果物で固定した（`crates/pack/tests/old_pack_history_open.rs`）。EP-13（語彙 1.4）を含む今のエンジンで、旧形式の凍結物である版 1 の IR 4 本が読め、凍結した履歴が変換なしで開く。受け口ごとの版は持たない（D-53）ことも、履歴の `versions` の欄の集合で固定した。新しい項目を使わない教材の IR のバイト一致は #463（TASK-190 2/2）が受け持つ。
+
+「新しい版のエンジン」は、EP-13 を含む今のエンジンである。凍結物は今のエンジン（コミット 6fc670a）で生成した旧形式の試料であり、EP-13 の追加前のエンジンが書いた成果物ではない（履歴の語彙 1.0 は教材の宣言に由来し、旧エンジンの証拠にならない）。証明する範囲は、旧形式の履歴・IR を今のエンジンが開くことまでである。次の受け口の追加は、既存の試験用の口（`OpeningCaps::with_vocab_max`・`record_versions_with`）で模す。旧履歴の凍結物の作り方は `crates/pack/tests/data/old_histories_1/README.md`。
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| `ext9_premise_engine_is_newer_than_frozen_artifacts` | 凍結物の語彙は今の上限より古く、版 1 の IR は語彙の宣言が無い | 通る |
+| `ext9_frozen_v1_irs_open_as_sessions` | 版 1 の golden 4 本が読め、開始点から実行環境を作れる | 通る |
+| `ext9_frozen_history_opens_with_its_v1_ir` | 凍結した履歴が `Open`（写しと一致）。起動では `Restored` で再読み込みが 1 件足される | 通る |
+| `ext9_frozen_history_against_recompiled_v2_ir_is_view_only` | 今 compile し直した版 2 の IR では `ViewOnly(format_older)`（D-52 の既知の境界） | 通る |
+| `ext9_frozen_history_opens_when_pack_redeclares_newer_vocab` | 教材が語彙 1.4 を宣言し直すと `Converted`（`vocab` の軸を含み、`ir_format`・`engine` は含まない） | 通る |
+| `ext9_frozen_history_opens_in_a_next_engine_with_one_more_extension_point` | 語彙の上限 1.5・エンジンの副版 +1 を模すと `Converted`（違いは `engine` だけ） | 通る |
+| `ext9_contract_empty_history_sample_opens_in_current_engine` | 契約の試料 `empty` が `Open`、起動では `Fresh` | 通る |
+| `ext9_stale_contract_samples_are_closed_for_a_non_version_reason` | `two-rounds`・`draft-rejected` は `replay_mismatch`（段 8）で開かない。版の理由ではない | 通る |
+| `ext9_history_versions_have_no_per_extension_point_version` | `versions` の鍵は 6 つだけ。受け口ごとの欄を足した包みは `malformed` で断られ、理由に欄の名前を含めない | 通る |
+
+限界:
+
+- 旧いエンジンの実物（過去の版のビルド）は repo に無い。次の受け口の追加は模擬である
+- 版 1 の履歴は、今 compile し直した版 2 の IR では続きから再開できず表示だけになる（D-52 は変換の規則を持たない）。教材の配信が版 2 に替わると起きるため、04 の EXT-9 の注意点として扱う
+- `two-rounds`・`draft-rejected` の写しは、再読み込みの意味の実装前に作られ、受け口とは別の理由で開かない。写しの更新は契約の試料の版上げに当たり、本件の範囲外
+- 試作の写しの形の `testdata/save-restore-versions/**/h-*.json` は今の型で読めず、対象外
+
+#### 04 の EXT-9 への反映案
+
+証拠の種類に本件の試験（旧い教材と旧い履歴が、受け口を足した後のエンジンで開くこと）を足し、「検討中の理由」のうち受け口を足した後に旧い教材と履歴を読む自動テストが無い点を解く案である。バイト一致は #463 が揃うまで残す。上の限界（版 1 の履歴と版 2 の IR）は注意点として書く。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 6fc670a（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/EXT9-1.mutation crates/pack/tests/mutations/EXT9-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| EXT9-1 | crates/core/src/history_open.rs: 履歴の語彙が上限より古いときに断る向きの取り違え | ext9_frozen_history_opens_with_its_v1_ir | DETECTED |
+| EXT9-2 | crates/contract/src/ir.rs: 版 1 の IR を読まない | ext9_frozen_v1_irs_open_as_sessions | DETECTED |
+
+集計: 2 件すべて DETECTED（2026-10-19）。
+
+### 5.143 新しい項目を使わない教材パックの IR の同一性の試験（TASK-190 2/2）
+
+結論: EXT-9（D-52・D-53）の「同一」の側を、追加の前のエンジンの成果物で固定した（`crates/pack/tests/ext9_ir_identity.rs`）。新しい項目（EP-13 の `views.<ID>.body`）を使わない教材 13 件の IR が、EP-13 の追加の前後でバイト単位で同じである。受け口ごとの版は持たない（D-53）ことも、IR の版の鍵の集合と、欄を足すと断られることで固定した。
+
+「追加の前」は、EP-13 の追加コミット（ad4629c）の親 0fa7146 のエンジンである。`tests/data/golden/*.ir.json` の 5 本は、最後にそのコミットで書かれた（以後作り直していない）。golden の無い 7 教材と、本文を持たない最小パックの 1 件は、そのコミットのエンジンで出力して `tests/data/ir_before_ep13/` に凍結した（作り方は同ディレクトリの README。実行日 2026-10-19）。同じ旧いエンジンで golden の 5 本がバイト一致することも、凍結時に確かめた。
+
+| 試験 | 内容 | 結果 |
+|---|---|---|
+| `ext9_premise_frozen_set_does_not_use_new_items` | 対象の全教材で、どのビューにも `body` が無く、`pack.vocab` が 1.4 未満または無い | 通る |
+| `ext9_golden_packs_are_byte_identical_across_ep13` | golden の 5 教材を今のエンジンで出力し、golden とバイト一致 | 通る |
+| `ext9_other_packs_are_byte_identical_across_ep13` | golden の無い 7 教材を出力し、`ir_before_ep13/` とバイト一致 | 通る |
+| `ext9_pack_without_trees_stays_v1_and_identical_across_ep13` | 本文も練習データも持たない教材は版 1 のままで、凍結物とバイト一致 | 通る |
+| `ext9_using_the_new_item_changes_only_its_own_key`（対照） | `document-body-pack` から `body` を省くと、違うのは `/views/v-doc/body` だけで、版は同じ | 通る |
+| `ext9_ir_has_no_per_extension_point_version` | 版を表す鍵は `format_version`・`pack.ir_format`・`pack.version`・`pack.vocab` だけ。受け口ごとの版の欄は、教材の宣言では `E-PARSE`、IR の読み込みでは `Json` で断られ、値も鍵も写さない | 通る |
+
+限界:
+
+- 受け口の追加の実例は EP-13 の 1 件だけで、次の受け口の追加は試験できない。受け口が増えたら、凍結物の世代を足す運用は未決である
+- golden の出所（0fa7146 の出力であること）はコミットの履歴に頼る。試験は履歴を見ない
+- 対象は `tests/data` と `testdata` の教材 13 件である。`testdata/` の他の教材は含めていない
+
+#### 04 の EXT-9 への反映案
+
+証拠の種類に本件の試験を足す。5.142（1/2）と合わせて、「検討中の理由」のうち受け口の追加についての自動テストが無い点が、開く側・同一の側の両面で解ける案である。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 1097f1f（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/EXT9-3.mutation crates/pack/tests/mutations/EXT9-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| EXT9-3 | crates/contract/src/ir.rs: 受け口の欄の既定値が使わない教材の出力に漏れる | ext9_golden_packs_are_byte_identical_across_ep13 | DETECTED |
+| EXT9-4 | crates/contract/src/ir.rs: 使わない教材の版まで上がる | ext9_pack_without_trees_stays_v1_and_identical_across_ep13 | DETECTED |
+
+集計: 2 件すべて DETECTED（2026-10-19）。
+
+### 5.144 CLI のコマンド一覧・引数・終了コードの契約（TASK-399 1/2）
+
+`fandhe-pack` の外部仕様（`docs/cli.md` 版 1。コード側は `crates/pack/src/cli_contract.rs`）の適合試験 `crates/pack/tests/cli_contract.rs`（実行ファイルの挙動）と `cli_contract_doc.rs`（文書とコードの一致）に対する変異注入である。
+
+AUTHOR1-1 はコマンドの一覧から `metrics` を落とし、AUTHOR1-2 は使い方の誤りの終了コードを 1 にし、AUTHOR1-3 は `compile` の引数の形から `-o` を落とす。
+
+変異注入は、文書を一時ディレクトリへ写さない。そのため文書を読む `cli_contract_doc.rs` は変異の対象に含めず、手元で表・使い方のブロックを 1 文字ずらして失敗することを確かめる運用とする。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: fe74c4e（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR1-1.mutation crates/pack/tests/mutations/AUTHOR1-2.mutation crates/pack/tests/mutations/AUTHOR1-3.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR1-1 | crates/pack/src/cli_contract.rs: コマンドの一覧から metrics が落ちる | commands_are_the_six_in_contract_order | DETECTED |
+| AUTHOR1-2 | crates/pack/src/cli_contract.rs: 使い方の誤りの終了コードが診断ありの 1 と同じになる | author1_no_args_prints_usage_and_exits_2, exit_codes_are_fixed_values | DETECTED |
+| AUTHOR1-3 | crates/pack/src/cli_contract.rs: compile の引数の形から -o が落ちる | usage_declares_compile_output_option | DETECTED |
+
+集計: 3 件すべて DETECTED（2026-10-19）。
+
+### 5.145 診断 1 行・項目・最終行・出し先の契約（TASK-399 2/2）
+
+`docs/cli.md` 版 2 の 6〜9 節（コード側は `crates/pack/src/cli_contract.rs` と `crates/pack/src/diag.rs`）の適合試験 `crates/pack/tests/cli_contract.rs`（実行ファイルと型）に対する変異注入である。
+
+AUTHOR2-1 は空の項目を拒否する検査を外し、AUTHOR2-2 は診断の行から項目の欄を落とし、AUTHOR2-3 は読み込めないときの最終行を `OK:` にし、AUTHOR2-4 はファイル・項目の欄の `: ` を直さなくする。
+
+文書を読む `cli_contract_doc.rs` は、5.144 と同じく変異の対象に含めない。手元で 8 節の例の 1 文字をずらして失敗することを確かめる運用とする。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: df2cde5（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR2-1.mutation crates/pack/tests/mutations/AUTHOR2-2.mutation crates/pack/tests/mutations/AUTHOR2-3.mutation crates/pack/tests/mutations/AUTHOR2-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR2-1 | crates/pack/src/diag.rs: 項目が空の診断を作れてしまう | diagnostic_requires_file_and_item | DETECTED |
+| AUTHOR2-2 | crates/pack/src/diag.rs: 診断の行から項目の欄が落ちる | author2_diagnostic_lines_have_four_fields | DETECTED |
+| AUTHOR2-3 | crates/pack/src/cli_contract.rs: 読み込めないときの最終行が OK: になる | author3_unreadable_final_line | DETECTED |
+| AUTHOR2-4 | crates/pack/src/diag.rs: ファイル・項目の欄の区切りの `: ` を直さなくなる | diagnostic_separator_in_fields_is_escaped | DETECTED |
+
+集計: 4 件すべて DETECTED（2026-10-19）。
+
+### 5.146 引数の形の検査とコマンドの振り分け（TASK-401）
+
+`docs/cli.md` 版 2 の 3 節の引数の形の検査と、6 つのコマンドの振り分け（コード側は `crates/pack/src/cli.rs`）に対する変異注入である。試験は `crates/pack/tests/cli_contract.rs`（形の誤りが読み込みの前に 2 で止まること）と `crates/pack/tests/cli.rs`（形が正しい呼び出しが各コマンドの handler に届くこと）にある。
+
+AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTHOR1-5 は `vocab` の振り分けを `metrics` の handler に差し替え、AUTHOR1-6 は `-` で始まる引数を位置引数として拒否する判定を外す。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 2f8070b（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR1-4.mutation crates/pack/tests/mutations/AUTHOR1-5.mutation crates/pack/tests/mutations/AUTHOR1-6.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR1-4 | crates/pack/src/cli.rs: 1 引数のコマンドの余分な引数の検査が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+| AUTHOR1-5 | crates/pack/src/cli.rs: vocab の振り分けが metrics の handler になる | i10_each_command_is_dispatched_to_its_handler | DETECTED |
+| AUTHOR1-6 | crates/pack/src/cli.rs: - で始まる引数を位置引数として拒否する判定が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
+
+集計: 3 件すべて DETECTED（2026-10-19）。
+
+### 5.147 上限で止めた後の戻り方（TASK-160 3/3）
 
 遷移 1,000 回の上限（5.133）で止めた後、受講者が先へ進めるようにする（SAFE-35・D-45「止めた後は直前の Step に戻す」）。それまでは `halt` が現在の Step を空にしたため、以降の入力はすべて無視され、受講者は止まったまま残った。
 

@@ -1,0 +1,10 @@
+id: VER13-3
+package: fandhe-workshop-web
+test: ir_refusal_host
+features: test-hooks
+target: crates/core/src/ir_load.rs
+find:             if v > newest {
+replace:             if v > u32::MAX {
+expect-fail: future_format_ir_is_refused_as_format_newer
+expect-fail: refused_host_shows_the_notice_with_the_code_only
+note: 読める最大より新しい版を format_newer ではなく format_unsupported に写す（旧いエンジンが新しい版の教材を断る理由が食い違う）

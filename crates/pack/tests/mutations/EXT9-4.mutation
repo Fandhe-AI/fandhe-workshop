@@ -1,0 +1,8 @@
+id: EXT9-4
+package: fandhe-workshop-pack
+test: ext9_ir_identity
+target: crates/contract/src/ir.rs
+find: if uses_v2 {
+replace: if true {
+expect-fail: ext9_pack_without_trees_stays_v1_and_identical_across_ep13
+note: 受け口の追加で、使わない教材の版まで上がる（D-52 の最小の ir_format に反する）

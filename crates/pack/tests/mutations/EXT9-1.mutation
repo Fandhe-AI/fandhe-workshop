@@ -1,0 +1,8 @@
+id: EXT9-1
+package: fandhe-workshop-pack
+test: old_pack_history_open
+target: crates/core/src/history_open.rs
+find: if h.vocab > caps.vocab_max || o.vocab > caps.vocab_max {
+replace: if h.vocab < caps.vocab_max || o.vocab > caps.vocab_max {
+expect-fail: ext9_frozen_history_opens_with_its_v1_ir
+note: 履歴の語彙が開く側の上限より古いとき（受け口を足した後の旧い履歴）に断る向きの取り違え

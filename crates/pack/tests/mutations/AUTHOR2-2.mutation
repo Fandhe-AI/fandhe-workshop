@@ -1,0 +1,8 @@
+id: AUTHOR2-2
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/diag.rs
+find: write_escaped(f, &self.item, true)?;
+replace: let _ = &self.item;
+expect-fail: author2_diagnostic_lines_have_four_fields
+note: 診断の行から項目の欄が落ちる（項目が空の行になる）

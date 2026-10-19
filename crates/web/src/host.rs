@@ -74,6 +74,7 @@ use fandhe_workshop_core::history_limit;
 use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
+use fandhe_workshop_core::ir_load::IrLoadError;
 use fandhe_workshop_core::ops_record::OpsRecorder;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
@@ -493,6 +494,11 @@ pub struct EngineHost {
     draft_recorded: String,
     /// 保存を止める印。起動時に保存済みの履歴を開けなかった（上書きすると失う）、または読めなかったときに立てる（fail-closed）。
     save_blocked: bool,
+    /// 教材（IR）を読めなかった理由コード（VER-13。固定の ASCII だけで、入力値・ID を含めない）。
+    ///
+    /// 起動で断ったホスト（[`EngineHost::refused`]）は session が無く、`view` がこのコードの通知だけを描く。
+    /// 起動後の `load-ir:` で読めなかったときは、session を差し替えずにコードだけを控える（試験の設定だけ）。
+    ir_refusal: Option<&'static str>,
     /// 起動の結果の種類（試験用の口が読む）。`boot` を呼ばなかったときは `None`。
     #[cfg(feature = "test-hooks")]
     boot_kind: Option<BootKind>,
@@ -545,6 +551,7 @@ impl EngineHost {
             initial: None,
             draft_recorded: String::new(),
             save_blocked: false,
+            ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
             #[cfg(feature = "test-hooks")]
@@ -554,6 +561,22 @@ impl EngineHost {
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         }
+    }
+
+    /// 教材（IR）を読めなかったホストを作る（旧いエンジンが新しい教材を断る場面。VER-13）。
+    ///
+    /// [`EngineHost::new`] と同じ空の状態に、理由コード（`IrLoadError::reason_code`）だけを入れる。
+    /// session が無いので `history_key` は `None` になり、保存先を開かず、何も書かない（fail-closed）。
+    /// `view` は教材を描かず、通知（`ir-notice`）だけを描く。
+    pub fn refused(err: &IrLoadError) -> Self {
+        let mut host = Self::new();
+        host.ir_refusal = Some(err.reason_code());
+        host
+    }
+
+    /// 教材を読めなかった理由コード。読めた・断っていないときは `None`。
+    pub fn ir_refusal(&self) -> Option<&'static str> {
+        self.ir_refusal
     }
 
     /// 実行環境と登録簿からホストを作る。登録簿の field がホスト自身の field と衝突したら拒否する。
@@ -593,6 +616,7 @@ impl EngineHost {
             initial,
             draft_recorded: String::new(),
             save_blocked: false,
+            ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
             #[cfg(feature = "test-hooks")]
@@ -628,6 +652,9 @@ impl EngineHost {
     /// `persist::mount_with_history` が URL のクエリから選んだ教材を渡す。読み込みに失敗したら session なしに倒す。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn for_mount_with(fixture: crate::test_fixture::MountFixture) -> Self {
+        if let Some(err) = crate::test_fixture::mount_refusal(fixture) {
+            return Self::refused(&err);
+        }
         if let Some(session) = crate::test_fixture::mount_session(fixture) {
             if let Ok(host) = Self::with_session(session, standard_registry()) {
                 return host;
@@ -796,7 +823,12 @@ impl EngineHost {
         use serde_json::json;
 
         let Some(session) = self.model.session() else {
-            return json!({ "irLoaded": false, "lastImport": self.last_import_json() }).to_string();
+            return json!({
+                "irLoaded": false,
+                "irRefusal": self.ir_refusal,
+                "lastImport": self.last_import_json(),
+            })
+            .to_string();
         };
         let log = session.log();
         let bulk = Projection::from_events(log);
@@ -922,6 +954,7 @@ impl EngineHost {
         }
         json!({
             "irLoaded": true,
+            "irRefusal": self.ir_refusal,
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
             "installCount": self.probe.install_count,
@@ -1424,8 +1457,11 @@ impl Component for EngineHost {
             }
             #[cfg(feature = "test-hooks")]
             HostAction::LoadIr(text) => {
-                if let Some(session) = crate::test_fixture::session_from_ir_bytes(text.as_bytes()) {
-                    self.replace_pack(session);
+                match crate::test_fixture::load_session_from_ir_bytes(text.as_bytes()) {
+                    Ok(Some(session)) => self.replace_pack(session),
+                    // 読めない IR は session を差し替えず、理由コードだけを控える（履歴・画面の構造は変えない）。
+                    Err(e) => self.ir_refusal = Some(e.reason_code()),
+                    Ok(None) => {}
                 }
             }
             #[cfg(feature = "test-hooks")]
@@ -1476,6 +1512,20 @@ impl Component for EngineHost {
     }
 
     fn view(&self) -> Node {
+        // 教材を読めずに起動したホストは、教材を描かず通知だけを出す（入力欄・部品・raw-trigger は描かない）。
+        if let (None, Some(code)) = (self.model.session(), self.ir_refusal) {
+            return el(
+                "div",
+                vec![("data-testid", "workshop-root")],
+                vec![el(
+                    "p",
+                    vec![("data-testid", "ir-notice"), ("role", "status")],
+                    vec![fandhe_frontend_core::text(
+                        crate::ir_notice::ir_notice_text(code),
+                    )],
+                )],
+            );
+        }
         let parts: Vec<Node> = self
             .registry
             .views(&self.model)

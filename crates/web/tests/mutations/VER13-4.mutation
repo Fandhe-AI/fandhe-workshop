@@ -1,0 +1,9 @@
+id: VER13-4
+package: fandhe-workshop-web
+test: ir_refusal_host
+features: test-hooks
+target: crates/web/src/host.rs
+find:         host.ir_refusal = Some(err.reason_code());
+replace:         host.ir_refusal = Some(err.reason_code()).filter(|_| false);
+expect-fail: refused_host_shows_the_notice_with_the_code_only
+note: 起動で断ったホストが理由コードを控えない（通知が出ず、教材も無い空の画面になる）

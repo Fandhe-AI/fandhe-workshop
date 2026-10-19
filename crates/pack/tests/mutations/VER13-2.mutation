@@ -1,0 +1,8 @@
+id: VER13-2
+package: fandhe-workshop-pack
+test: ir_old_engine
+target: crates/contract/src/confirm_spec.rs
+find: pub label: Option<String>,
+replace: pub label: Option<String>, #[serde(default)] pub future_v3_x: Option<String>,
+expect-fail: ver13_future_field_in_answer_option_is_refused_at_judging_not_loading
+note: AnswerOption が未知の欄を受け入れる（deny_unknown_fields を外すのと同じ効果。属性の行が 3 か所に現れ一意に当たらないため、番兵の欄を足して表す）
