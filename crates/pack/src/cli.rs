@@ -267,7 +267,7 @@ where
 /// `bytes` を `path` へ原子的に置き換えて書く（同じディレクトリの一時ファイルへ書き、`sync_all` してから `rename`）。
 ///
 /// 途中の失敗で途中まで書いた IR が残らず、既存のファイルより短い IR でも末尾が残らない。一時ファイルは
-/// `create_new` で作り、既存のファイルやリンクを辿って書き換えない。失敗したら一時ファイルを消す。
+/// `create_new` で作り、既存のファイルやリンクを辿って書き換えない。作れなかった一時パスは消さず、作った後の失敗でだけ消す。
 /// 置き換えるので、既存のファイルの権限は引き継がない。
 fn write_output(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let name = path.file_name().ok_or_else(|| {
@@ -283,15 +283,17 @@ fn write_output(path: &Path, bytes: &[u8]) -> io::Result<()> {
     tmp_name.push(name);
     tmp_name.push(format!(".fandhe-pack-{}.tmp", std::process::id()));
     let tmp = path.with_file_name(tmp_name);
-    let written = (|| {
-        let mut f = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)?;
+    // open が失敗した経路（既存のファイルとの衝突を含む）では、自分が作っていない一時パスを消さない。
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)?;
+    let tmp_ref = &tmp;
+    let written = (move || {
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
-        fs::rename(&tmp, path)
+        fs::rename(tmp_ref, path)
     })();
     if written.is_err() {
         let _ = fs::remove_file(&tmp);
