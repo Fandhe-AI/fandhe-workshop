@@ -44,6 +44,30 @@ impl Tmp {
         fs::create_dir_all(p.parent().expect("parent")).expect("mkdir");
         fs::write(p, content).expect("write");
     }
+
+    /// 論理サイズだけを持つ疎ファイルを置く。巨大な上限超過を、ディスクと時間を使わずに作るための部品。
+    pub fn put_sparse(&self, rel: &str, len: u64) {
+        let p = self.0.join(rel);
+        fs::create_dir_all(p.parent().expect("parent")).expect("mkdir");
+        fs::File::create(p)
+            .expect("create")
+            .set_len(len)
+            .expect("set_len");
+    }
+}
+
+/// 通常ファイルの論理サイズの合計（リンクは辿らない）。
+pub fn dir_total_bytes(dir: &Path) -> u64 {
+    let mut total = 0;
+    for e in fs::read_dir(dir).expect("read_dir").flatten() {
+        let md = fs::symlink_metadata(e.path()).expect("metadata");
+        if md.is_dir() {
+            total += dir_total_bytes(&e.path());
+        } else if md.is_file() {
+            total += md.len();
+        }
+    }
+    total
 }
 
 impl Drop for Tmp {

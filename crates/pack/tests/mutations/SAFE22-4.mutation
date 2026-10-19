@@ -1,0 +1,9 @@
+id: SAFE22-4
+package: fandhe-workshop-pack
+test: pack_size_limits
+target: crates/pack/src/source.rs
+find: if total > MAX_PACK_BYTES && diags.len() < max_diags {
+replace: if false && total > MAX_PACK_BYTES && diags.len() < max_diags {
+expect-fail: pack_total_one_byte_over_is_rejected_without_reading
+expect-fail: pack_total_200mb_is_rejected_quickly
+note: パック全体の事前走査の判定を外す（超過が通り、中身を読んで別の診断になる）

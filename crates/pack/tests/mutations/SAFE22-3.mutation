@@ -1,0 +1,8 @@
+id: SAFE22-3
+package: fandhe-workshop-pack
+test: pack_size_limits
+target: crates/pack/src/source.rs
+find: if total > MAX_PACK_BYTES && diags.len() < max_diags {
+replace: if total >= MAX_PACK_BYTES && diags.len() < max_diags {
+expect-fail: pack_total_exactly_at_limit_loads
+note: パック全体の判定を >= にする（ちょうど 20MB を断る）
