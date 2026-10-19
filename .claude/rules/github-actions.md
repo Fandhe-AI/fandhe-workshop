@@ -88,6 +88,8 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 必須チェックへの追加は、この変更（#1577）のマージ直後の 2026-10-18 に行った（上の TASK-33 と同じ順序の理由）。
 必須チェックは 12 件から 13 件になった。strict は false、bypass は無しのまま、他の rule は変えていない。
 
+- 2/2（#434）で、観察の記録の試験 `tools/browser/safety-observe.test.mjs` を `make test-browser` の列に加えた。ジョブ・
+  チェック名・`ci-complete` の `needs`・ruleset は変えていない（新たな承認も不要）
 - 手順: GET した JSON の必須チェックに `browser test (Chromium)`（`integration_id` 15368）を足して PUT し、
   上記のコマンドで `unbound` が空（total 13）であることを確かめた
 
@@ -252,7 +254,7 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | --- | --- | --- |
 | `ci.yml` | check・test-hooks（ubuntu / macOS）・pr-title・ci-complete | wall-clock 約 2〜3 分。各ジョブの実処理は 5〜15 秒で、大半は macOS ランナーの起動待ち（約 2 分） |
 | `ci.yml` | rust-lint・rust-test | 未計測（初回の実行後に更新する） |
-| `ci.yml` | browser-test | 未計測（TASK-79。初回の実行後に更新する。timeout は 60 分） |
+| `ci.yml` | browser-test | 約 4 分（run 39157607724・2026-10-18）。ローカルの `make test-browser` は 85 秒（2026-10-19。観察の記録の追加を含む）。timeout は 60 分 |
 | `ai-review.yml` | codex の preflight・review・post_feedback | 約 1〜2 分 |
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
