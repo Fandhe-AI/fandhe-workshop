@@ -482,7 +482,7 @@ def later_step_bad?(s, engine, ep)
       next if n.equal?(skip)
       t = n.value.downcase
       hit = true if t.match?(GIT_WORD_RE) || t.include?("actions/checkout") || t.include?(engine.downcase) ||
-                    t.include?("engine_rev") || (ep && n.value.include?(ep))
+                    t.include?("engine_rev") || (ep && t.include?(ep.downcase))
     elsif n.is_a?(N::Mapping)
       pairs(n).each do |k, v|
         next unless k.is_a?(N::Scalar) && %w[repository ref path].include?(k.value.downcase)

@@ -415,6 +415,7 @@ dcase "echo git (display only)" "$(rs 'echo git clone x')"
 dcase "a colon command mentioning git" $'      - run: ": git status"'
 dcase "writing main into ENGINE_REV" "$(rs 'echo main > ENGINE_REV')"
 dcase "cargo build with the engine manifest path" "$(rs 'cargo build --manifest-path engine/Cargo.toml')"
+dcase "cargo build with the engine path in another case" "$(rs 'cargo build --manifest-path ENGINE/Cargo.toml')"
 dcase "cargo install --git with the pinned value" "$(rs $'cargo install --git https://example.invalid/x --rev "$(cat ENGINE_REV)"')"
 dcase "git after && in a block" $'      - run: |\n          true && git clone https://example.invalid/x engine2'
 dcase "git after || in a block" $'      - run: |\n          false || git clone https://example.invalid/x engine2'
