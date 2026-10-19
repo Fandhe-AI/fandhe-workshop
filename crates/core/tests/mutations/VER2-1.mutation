@@ -1,0 +1,8 @@
+id: VER2-1
+package: fandhe-workshop-core
+test: version_histories
+target: crates/core/src/history_open.rs
+find: if hv.ir_format < ir.format_version {
+replace: if hv.ir_format > ir.format_version {
+expect-fail: fifteen_histories_match_the_fixed_expectations
+note: 教材形式が古い履歴の判定を外す（V-iv-4 が適用し直しまで進み、危険な側の食い違いになる）

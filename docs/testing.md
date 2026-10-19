@@ -3943,7 +3943,25 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 | SAFE43-3 | crates/pack/src/source.rs: シンボリックリンクの判定を外す | dangling_symlink_is_rejected_as_symlink, dir_symlink_to_outside_is_rejected_without_following | symlink_named_workshop_yaml_is_rejected_before_parse, symlink_to_huge_file_is_rejected_quickly_without_reading, symlink_cycle_to_pack_root_is_rejected_quickly, dangling_symlink_is_rejected_as_symlink, chapters_dir_itself_as_symlink_is_rejected, dir_symlink_to_outside_is_rejected_without_following | DETECTED |
 | SAFE43-4 | crates/pack/src/source.rs: リンクを辿って見る（symlink_metadata を metadata にする） | dangling_symlink_is_rejected_as_symlink, dir_symlink_to_outside_is_rejected_without_following | dangling_symlink_is_rejected_as_symlink, symlink_named_workshop_yaml_is_rejected_before_parse, dir_symlink_to_outside_is_rejected_without_following, chapters_dir_itself_as_symlink_is_rejected, symlink_to_huge_file_is_rejected_quickly_without_reading, symlink_cycle_to_pack_root_is_rejected_quickly | DETECTED |
 
-### 5.132 遷移 1,000 回の上限（TASK-160 1/3）
+### 5.132 版の違う履歴 15 件と期待の表（TASK-175 1/2）
+
+版の違う履歴 15 件を、実施の前に固定した期待の表（`testdata/version-histories/expectations.json`）と突き合わせる（VER-2）。履歴は現行のエンジンで試験の中で作り、`load_history`（段 1〜8）で開く。結果の種類・理由コード・違いの軸が表と合うことを見て、食い違いを「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める。表の ID・種ごとの件数（1/2/2/2/4/3/1）・結果ごとの件数（1/6/5/3）は試験のコードにも持ち、表だけの書き換えを検出する。比較器の自己確認として、期待を 1 つ書き換えると食い違いが出ることも確かめる。写しの一致と `Session` を作らないことの確認は #449（TASK-175 2/2）の範囲で、本節は確かめていない。
+
+- VER2-1: 教材形式が古い履歴の判定を外す（V-iv-4 が適用し直しまで進み、危険な側の食い違いになる）
+- VER2-2: エンジンの主版の違いを開かないに倒す（V-v-3 が慎重な側の食い違いになる）
+
+```text
+実行日: 2026-10-19
+元にしたコミット: e6fde05（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/VER2-1.mutation（VER2-2 も同様）
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER2-1 | crates/core/src/history_open.rs: 教材形式が古い履歴の判定を外す（V-iv-4 が適用し直しまで進み、危険な側の食い違いになる） | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+| VER2-2 | crates/core/src/history_open.rs: エンジンの主版の違いを開かないに倒す（V-v-3 が慎重な側の食い違いになる） | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+
+### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
 
 1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）と止めた後の戻り方（SAFE-35、#446）は本節の範囲外で、`Warning` のままにしている。
 
