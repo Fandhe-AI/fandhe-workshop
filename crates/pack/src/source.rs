@@ -1,6 +1,6 @@
 //! 教材パックのディレクトリを読み込む層（構造定義・本文・練習データの内容）。
 //!
-//! `compile`（`crate::compile`）の前段で、ディスクに触れるのはここだけである。教材データは信頼しない
+//! `compile`（`crate::compile`）の前段で、ディスクに触れるのはここと `metrics`（走査と読み込みは本モジュールの関数を使う）だけである。教材データは信頼しない
 //! 入力として扱い、(1) 中身を読む前に上限・シンボリックリンク・入れ子の深さを確かめ、(2) 本文と練習データの
 //! パスは安全な相対パス（`..`・絶対パス・`\` を含まない）に限り、(3) 読むときは上限 + 1 バイトで打ち切る。
 //! 診断のメッセージにはパスと ID だけを入れ、本文・練習データの中身は入れない。
@@ -28,7 +28,7 @@ use crate::yaml_strict::{self, StrictError};
 /// 上限の値は契約（TASK-199）の共有定数を使い、独自に持たない。
 const MAX_MARKDOWN_BYTES: u64 = limits::MAX_MARKDOWN_BYTES;
 const MAX_PACK_BYTES: u64 = limits::MAX_PACK_BYTES;
-const MAX_DEPTH: usize = limits::MAX_PACK_DIR_DEPTH;
+pub(crate) const MAX_DEPTH: usize = limits::MAX_PACK_DIR_DEPTH;
 
 /// 人が書く形式。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -396,8 +396,17 @@ fn diag(file: &str, item: &str, code: DiagCode, message: impl Into<String>) -> D
     Diagnostic::new(file, item, code, message).expect("file and item are non-empty")
 }
 
+/// シンボリックリンク・入れ子の深さの上限超過の診断（`metrics` の走査が使う）。
+pub(crate) fn limit_diag(file: &str, code: DiagCode) -> Diagnostic {
+    let msg = match code {
+        DiagCode::LimitSymlink => PackLimitCode::Symlink.message(),
+        _ => PackLimitCode::DirDepth.message(),
+    };
+    diag(file, "file", code, msg)
+}
+
 /// パック根からの相対パスを `/` 区切りで書く。根自身は `.`。
-fn rel(root: &Path, p: &Path) -> String {
+pub(crate) fn rel(root: &Path, p: &Path) -> String {
     let parts: Vec<String> = p
         .strip_prefix(root)
         .unwrap_or(p)
@@ -463,7 +472,7 @@ fn is_plain_file_under(root_canon: &Path, path: &Path) -> bool {
 }
 
 /// ディレクトリの走査に失敗したことの診断。握りつぶすと、教材の一部が欠けた IR が成功として返る。
-fn scan_failure(file: &str) -> Diagnostic {
+pub(crate) fn scan_failure(file: &str) -> Diagnostic {
     diag(
         file,
         "file",
@@ -489,7 +498,7 @@ const MAX_SCAN_DIAGS: usize = 100;
 
 /// 中身を読む前の走査。シンボリックリンク・入れ子の深さ・Markdown の大きさ・パック全体の大きさを数える。
 /// リンクは辿らない。診断は相対パスの順に並べる。
-fn check_limits(root: &Path) -> Vec<Diagnostic> {
+pub(crate) fn check_limits(root: &Path) -> Vec<Diagnostic> {
     check_limits_with(root, MAX_SCAN_ENTRIES, MAX_SCAN_DIAGS)
 }
 
@@ -646,7 +655,7 @@ fn read_scope(
 }
 
 /// 上限つきで読み、失敗は診断にする。
-fn read_diag_text(
+pub(crate) fn read_diag_text(
     path: &Path,
     file: &str,
     item: &str,
@@ -715,7 +724,7 @@ fn sorted_subdirs(root: &Path, p: &Path, diags: &mut Vec<Diagnostic>) -> Vec<Pat
 }
 
 /// 形式を決める。両方ある・どちらも無い場合は `E-PARSE`。
-fn detect_format(root: &Path) -> Result<(Format, PathBuf), Vec<Diagnostic>> {
+pub(crate) fn detect_format(root: &Path) -> Result<(Format, PathBuf), Vec<Diagnostic>> {
     let toml_p = root.join("workshop.toml");
     let yaml_p = root.join("workshop.yaml");
     // 種類が違うエントリ（ディレクトリなど）を「無い」と扱うと、もう片方の形式が黙って選ばれうる。

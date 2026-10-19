@@ -1,0 +1,8 @@
+id: AUTHOR1-9
+package: fandhe-workshop-pack
+test: metrics
+target: crates/pack/src/metrics.rs
+find: source::detect_format(dir)?;
+replace: let _ = source::detect_format(dir);
+expect-fail: me5_missing_dir_and_missing_workshop_are_diagnostics
+note: workshop.* が無くても表を出す

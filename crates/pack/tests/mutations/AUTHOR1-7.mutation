@@ -1,0 +1,8 @@
+id: AUTHOR1-7
+package: fandhe-workshop-pack
+test: metrics
+target: crates/pack/src/metrics.rs
+find: if t.is_empty() || t.starts_with('#') {
+replace: if t.is_empty() {
+expect-fail: me1_min_pack_format_a
+note: 実効行数がコメント行を除かない

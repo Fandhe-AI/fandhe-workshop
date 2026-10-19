@@ -1,12 +1,12 @@
 //! `fandhe-pack` のサブコマンドの引数の解釈と振り分け、終了コード。
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
-//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`validate`・`test`・`vocab`・`metrics`・
+//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。`validate`・`test`・`vocab`・
 //! `compile -o` は形を受け付けたうえで経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク
-//! （TASK-402〜TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 2）で、
+//! （TASK-403・TASK-404・TASK-407・TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 3）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
-//! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）だけで、引数の解釈は
+//! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）と `metrics` の走査だけで、引数の解釈は
 //! ファイルシステムに触れない。
 
 use std::ffi::{OsStr, OsString};
@@ -195,7 +195,7 @@ where
             run_compile(&pack_dir, output.as_deref(), out, err)
         }
         Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, err),
-        Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, err),
+        Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, out, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
     }
 }
@@ -225,9 +225,15 @@ fn run_vocab<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
     not_implemented(Subcommand::Vocab, err)
 }
 
-/// `metrics` の振り分け先。本体は TASK-402。
-fn run_metrics<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
-    not_implemented(Subcommand::Metrics, err)
+/// `metrics` の実行。表も診断も標準出力に出し、標準エラー出力は使わない（診断があれば表は出さない）。
+fn run_metrics<O: Write, E: Write>(pack_dir: &Path, out: &mut O, _err: &mut E) -> io::Result<u8> {
+    match crate::metrics::report(pack_dir) {
+        Ok(table) => {
+            out.write_all(table.as_bytes())?;
+            Ok(EXIT_OK)
+        }
+        Err(diags) => write_diagnostics(out, &diags),
+    }
 }
 
 /// `compile` の実行。`-o <file>` の書き出しは TASK-407 まで未実装で、受け付けても読み込まず書かない。
@@ -297,7 +303,10 @@ mod tests {
     #[test]
     fn c1_accepted_shapes_reach_their_handler() {
         for c in Subcommand::ALL {
-            if matches!(c, Subcommand::Compile | Subcommand::Compare) {
+            if matches!(
+                c,
+                Subcommand::Compile | Subcommand::Compare | Subcommand::Metrics
+            ) {
                 continue;
             }
             let (code, out, err) = run_args(&[c.name(), "x"]);

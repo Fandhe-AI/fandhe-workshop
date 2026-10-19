@@ -7,9 +7,9 @@ use std::fs;
 use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
-    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, usage, FinalLine,
-    PackSummary, Subcommand, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK,
-    EXIT_USAGE, ITEM_KINDS_V2,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, metrics_row,
+    usage, FinalLine, PackSummary, Subcommand, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION,
+    EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE, ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL,
 };
 use fandhe_workshop_pack::source::Format;
 
@@ -146,4 +146,32 @@ fn cli_doc_destination_section_present() {
     let body = section(&doc(), "## 9. 診断の出し先");
     assert!(body.contains("標準出力"));
     assert!(body.contains("標準エラー出力"));
+}
+
+#[test]
+fn cli_doc_metrics_block_matches_contract() {
+    let body = section(&doc(), "## 10. `metrics` の出力");
+    let mut in_block = false;
+    let mut block = Vec::new();
+    for l in body.lines() {
+        if l == "```text" {
+            in_block = true;
+        } else if l == "```" {
+            break;
+        } else if in_block {
+            block.push(l.to_string());
+        }
+    }
+    assert_eq!(block.len(), 4);
+    assert_eq!(block[0], METRICS_HEADER);
+    assert_eq!(
+        block[1],
+        metrics_row("chapters/c1/chapter.yaml", 12, 10, 230, 4)
+    );
+    assert_eq!(block[2], metrics_row("workshop.yaml", 6, 5, 120, 3));
+    assert_eq!(block[3], format!("{METRICS_TOTAL_LABEL},18,15,350,4"));
+    assert_eq!(
+        metrics_row("a,b\n", 1, 1, 1, 1),
+        "a\\u{002C}b\\u{000A},1,1,1,1"
+    );
 }

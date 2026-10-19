@@ -1,0 +1,8 @@
+id: AUTHOR1-8
+package: fandhe-workshop-pack
+test: metrics
+target: crates/pack/src/metrics.rs
+find: t_depth = t_depth.max(m.max_depth);
+replace: t_depth = t_depth.saturating_add(m.max_depth);
+expect-fail: me1_min_pack_format_a
+note: TOTAL の深さが最大でなく和になる
