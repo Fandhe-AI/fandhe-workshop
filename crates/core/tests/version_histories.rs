@@ -4,6 +4,8 @@
 //! 履歴は現行のエンジンで試験の中で決定的に作り、`load_history`（段 1〜8 の実際の入口）で開く。
 //! 表だけを書き換えて合計をずらす操作は、本ファイルの VER-2 の定数（件数・ID）との照合で検出する。
 //! 食い違いは「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める（PoC-6 の 4 節の 3）。
+//! 15 件の期待は 2026-10-19 に VER-18（D-52・D-59）と 1 行ずつ照合し、変更は無かった（照合は `docs/testing.md` の 5.137）。
+//! 決定で採らなかった読みで期待を書くと食い違うことは、`rejected_readings_of_the_decision_mismatch_the_fifteen` が確かめる。
 //! 写しの一致と `Session` を作らないことの確認は、自動ブラウザの試験（`tools/browser/version-histories.test.mjs`、#449）が担う。
 //! `open_history` は写しが一致したときだけ開くため、本試験の `state()` の検査は構造上ほぼ自明である。
 //! ブラウザ試験が開く 15 件の履歴と教材は、同じ作り方を `emit_histories_for_browser`（`#[ignore]`）が書き出す
@@ -497,6 +499,71 @@ fn comparator_reports_a_changed_expectation() {
         Mismatch::Other,
         "got open, expected closed is the other side"
     );
+}
+
+/// 表から行を ID で引き、期待だけを書き換えた写しを返す。
+fn rewritten(t: &Table, id: &str, result: Outcome, code: Option<&str>, axes: &[Axis]) -> Row {
+    let mut row = t
+        .rows
+        .iter()
+        .find(|r| r.id == id)
+        .expect("row id must exist")
+        .clone();
+    row.expect.result = result;
+    row.expect.code = code.map(str::to_owned);
+    row.expect.axes = axes.to_vec();
+    row
+}
+
+/// 書き換える行の ID・結果・コード・軸と、期待する食い違いの分類。
+type Case<'a> = (&'a str, Outcome, Option<&'a str>, &'a [Axis], Mismatch);
+
+/// VER-18（D-52・D-59）で採らなかった読みで期待を書くと、15 件の試験が落ちることの自己確認（#452）。
+///
+/// 判定の側の不採用案は変異 `VER18-1`・`VER18-2` が固定する。本試験は期待の表の側を固定し、
+/// 表が不採用の読みに書き換わった場合に `fifteen_histories_match_the_fixed_expectations` が失敗することを示す。
+#[test]
+fn rejected_readings_of_the_decision_mismatch_the_fifteen() {
+    let t = read_table();
+    let view_major = (Outcome::ViewOnly, Some("content_major"));
+    let cases: [Case; 5] = [
+        // 案 (a)「教材内容の版が違えば常に表示だけ」: 実際は変換して開くため、表示だけの期待に対し危険な側（開く）に食い違う。
+        ("V-i-1", view_major.0, view_major.1, &[], Mismatch::Other),
+        ("V-i-2", view_major.0, view_major.1, &[], Mismatch::Other),
+        ("V-ii-2", view_major.0, view_major.1, &[], Mismatch::Other),
+        // 案 (b)「主版の違いでも、適用し直して一致すれば変換」: 実際は表示だけのため、変換の期待に対し慎重な側に食い違う。
+        (
+            "V-iii-2",
+            Outcome::Converted,
+            None,
+            &[Axis::Content, Axis::ContentHash],
+            Mismatch::Cautious,
+        ),
+        // D-52 の文言どおり「`ir_format` が違えば常に表示だけ」: D-59 の 2 は新しい側を開かない。
+        (
+            "V-iv-3",
+            Outcome::ViewOnly,
+            Some("format_older"),
+            &[],
+            Mismatch::Cautious,
+        ),
+    ];
+    for (id, result, code, axes, want) in cases {
+        let original = t
+            .rows
+            .iter()
+            .find(|r| r.id == id)
+            .expect("row id must exist");
+        let (o, _) = open_row(original);
+        assert!(
+            compare(original, &o).is_none(),
+            "{id}: the fixed row must match"
+        );
+        let row = rewritten(&t, id, result, code, axes);
+        let (kind, _) =
+            compare(&row, &o).unwrap_or_else(|| panic!("{id}: a rejected reading must mismatch"));
+        assert_eq!(kind, want, "{id}");
+    }
 }
 
 /// ブラウザ試験の入力を書き出す先（絶対パスのディレクトリ）。未設定・相対・ディレクトリでなければ panic する。

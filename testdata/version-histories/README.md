@@ -58,7 +58,7 @@ V-iv-3・V-iv-4・V-v-1〜V-v-3・V-ref は、版の欄だけを書き換えた�
 
 | 試験 | 場所 | 見るもの |
 |---|---|---|
-| native | `crates/core/tests/version_histories.rs` | 結果の種類・理由・軸が表と合う（慎重な側とそれ以外に分けて数える） |
+| native | `crates/core/tests/version_histories.rs` | 結果の種類・理由・軸が表と合う（慎重な側とそれ以外に分けて数える）。期待を VER-18 で採らなかった読みに書き換えると食い違うことも確かめる |
 | 口の native | `crates/web/tests/version_histories_host.rs`（feature `test-hooks`） | 開く側のエンジンの版・語彙の上限の上書き、差し替えの回数、軸の書き出し |
 | ブラウザ | `tools/browser/version-histories.test.mjs`（`make test-browser`） | 15 件を実際に開く。開く 7 件は写しが `snapshot` と完全に一致し、開かない 8 件は実行環境の差し替えが 0 回で、状態・保存領域・URL が変わらない。理由は開かない 8 件で空でなく、開く 7 件で `null` |
 
@@ -95,3 +95,5 @@ V-iv-3・V-iv-4・V-v-1〜V-v-3・V-ref は、版の欄だけを書き換えた�
 6. `VER2-*` の変異を `make check-mutations` で流し直します。対象の行の期待が変わった場合は、変異の内容と期待する
    失敗を決め直し、`docs/testing.md` の記録を更新します。
 7. 変更の日付（`YYYY-MM-DD`）と根拠の決定（D-n）を、`docs/testing.md` の該当の節に残します。
+
+照合の記録は `docs/testing.md` の 5.136（判定）と 5.137（15 件の期待）にあります。
