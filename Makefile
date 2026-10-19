@@ -75,7 +75,7 @@ check-workflow-secrets: ## ci.yml が secret を参照していないことを�
 test-check-workflow-secrets: ## secret 参照の検査自体の回帰テスト。直接: scripts/test-check-workflow-secrets.sh
 	@scripts/test-check-workflow-secrets.sh
 
-check-fork-ci: ## fork が secret 無しでも CI を通せる構成であることをパーサで検査する（ruby・jq・cargo が必要）。直接: scripts/check-fork-ci.sh
+check-fork-ci: ## fork が secret 無しでも CI を通せる構成であることをパーサで検査する（A〜C。D は --pack-workflow 指定時のみ。ruby・jq・cargo が必要）。直接: scripts/check-fork-ci.sh
 	@scripts/check-fork-ci.sh
 
 test-check-fork-ci: ## fork CI 検査自体の回帰テスト。直接: scripts/test-check-fork-ci.sh

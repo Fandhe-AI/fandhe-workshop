@@ -108,7 +108,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
-- 配信のジョブ（`deploy.yml`）は fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）
+- 配信のジョブ（`deploy.yml`）は fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない
@@ -260,3 +260,11 @@ gh run view <run-id> --json jobs --jq '.jobs[]|[.name,.conclusion,.startedAt,.co
 | `update-external.yml` | 日次の外部ソース追従（reusable） | 実績なし（未計測） |
 
 施策: macOS のフック回帰テスト（`test-hooks-macos`）はフック関連の変更時のみ実行（`changes` ジョブ。不要時は skipped として報告）。main への push 実行は cancel しない。
+
+## fork の CI（2026-10-19）
+
+- 現状の実装は、ビルドと試験を `ci.yml` の中で完結させ、共通 workflow（`Fandhe-AI/actions`）を使っていない
+- 2026-10-18 に `gh api` で読んだ事実: public・license 無し・`rust-base-ci.yml` は呼び出し側の `rust-toolchain.toml` を前提とする・
+  `pages-deploy.yml` は self-hosted が前提・参照は可変の `@latest`
+- この構成の方針の採否は TASK-96 の人間の承認点であり、未承認である
+- fork での実行はしていない（D-29 の行わない確認）。検査は静的な構成の確認（`scripts/check-fork-ci.sh`）に限る

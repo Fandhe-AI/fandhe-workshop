@@ -28,9 +28,31 @@
 #     C1 ci.yml のトップレベルの permissions が読み取り専用で、environment を持たない
 #     C2 deploy.yml は workflow_dispatch だけで動き、全ジョブが fork で skip される
 #     C3 ci.yml に配信のジョブ（名前に deploy を含む）を置かない
+#   D 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する
+#     （`--pack-workflow` と `--engine-rev` を渡したときだけ動く。本 repo の CI の既定の実行には入らない）
+#     D1 ENGINE_REV が 40 桁の小文字の 16 進を 1 行だけ持つ（末尾の改行は 1 つまで）
+#     D2 正準の 3 step で始まるエンジンのジョブが 1 つ以上ある
+#     D3 エンジンのジョブが正準の 3 step で始まり、ジョブと workflow のキーが許可リストの中だけ
+#     D4 4 番目以降の step が actions/checkout を使わず、git の語・エンジンの repo・ENGINE_REV・エンジンの path に触れない
 #   Y YAML の曖昧な表記を解釈せず拒否する（別名・アンカー・明示のタグ・複数文書・指令・マージキー・
 #     スカラーでないキー・重複キー）。重複キーは大文字小文字を区別せずに比べる
 #     （`with:` の入力は大文字の環境変数になるため、`Submodules:` も有効なキーになる）
+#
+# 正準の 3 step（D の合格はこの形 1 つだけ。キーは綴りの完全一致で、`name` だけは各 step に足してよい）
+#     - uses: actions/checkout@<40 桁 SHA>
+#       with:
+#         persist-credentials: false
+#     - id: <id>
+#       run: echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"
+#     - uses: actions/checkout@<40 桁 SHA>
+#       with:
+#         repository: Fandhe-AI/fandhe-workshop
+#         ref: ${{ steps.<id>.outputs.rev }}
+#         path: <dir>
+#         persist-credentials: false
+# D はシェルの意味（clone 先の追跡・`&&`・here-doc 等）を解釈しない。正準の形に外れたものと、4 番目以降の step が
+# 触れたものを、復号した値の許可リストで一律に拒否する（先行の字句的な実装が回避の指摘で収束しなかった反省）。
+# エンジンは教材 repo 自身のビルド定義（Cargo.toml の path 依存・Makefile）から使う前提で、後続の step は触れない。
 #
 # 検査の限界（README にも書く）
 #   - 自分たちが書く構成の誤りを防ぐための検査であり、悪意ある変更を防ぐ境界ではない
@@ -38,7 +60,11 @@
 #     見抜けない）
 #   - `run` から呼ぶスクリプト（scripts/*.sh・make のターゲット）の中身は解釈しない
 #   - runner・利用者の環境の設定（~/.npmrc・$CARGO_HOME/config.toml・global の git 設定）は対象外
-#   - 実際の fork での実行はしていない
+#   - D: git clone・cargo install --git 等による取得は正準に含めず一律に拒否する。エンジンに触れないジョブは検査しない。
+#     文字列を組み立てた URL・action の内部の動き・artifact の受け渡しは見抜けない。`--engine-rev` には workflow が読む
+#     のと同じ（教材 repo の直下の）ENGINE_REV を渡す前提である。TMPL-9 で案 B を採る場合の作り直しは TASK-765 の範囲
+#   - 実際の fork での実行はしていない。D は試験の見本でだけ確かめており、実際の教材 repo（TASK-36）への適用もしていない
+#     （D-29 の行わない確認。2026-10-19 時点）
 #
 # 出力: 違反は `error: <file>:<行>:<項目> <理由>`（YAML 以外は行が無く `error: <file>:<項目> <理由>`）を標準エラーへ
 # 1 行ずつ出す。値は出さない（復号した値・resolved の URL・source の URL・.npmrc の行・cargo と git の標準エラー）。
@@ -55,6 +81,8 @@
 #   --npmrc <file>               A3
 #   --gitmodules <file>          A5（.gitmodules の部分）
 #   --cargo-config-dir <dir>     A4（<dir>/config と <dir>/config.toml の存在を拒否する）
+#   --pack-workflow <file>       D2〜D4 と Y（教材 repo の workflow。--engine-rev と組で渡す。片方だけは誤用）
+#   --engine-rev <file>          D1（教材 repo の ENGINE_REV）
 #   --secrets-checker <script>   B1 の実体の差し替え（回帰テストだけが使う）
 # 終了コード: 0 = 合格 / 1 = 違反あり / 2 = 誤用、または検査を完了できない（ファイルが無い・道具が無い・
 #   パースに失敗・B1 が 2・cargo の失敗）。2 でも合格にしない（fail-closed）。
@@ -69,12 +97,16 @@ ALLOWED_USES_OWNERS="actions"
 # 全ジョブの if: に要求する配信元リポジトリ。fork 自身の github.repository を許可値にすると制限の目的が
 # 失われるため、固定の設定値として判定処理（ruby）へ引数で渡す
 UPSTREAM_REPO="Fandhe-AI/fandhe-workshop"
+# D が教材 repo の workflow に要求するエンジンの repo。UPSTREAM_REPO と値は同じだが、意味（fork 判定の配信元と取得対象）が
+# 違うため別の定数にする
+ENGINE_REPO="Fandhe-AI/fandhe-workshop"
 CRATES_REGISTRY="registry+https://github.com/rust-lang/crates.io-index"
 NPM_REGISTRY_PREFIX="https://registry.npmjs.org/"
 
 usage() {
   echo "usage: $(basename "$0") [--ci <file>] [--deploy <file>] [--cargo-manifest <Cargo.toml>] [--cargo-metadata-json <file>]" \
-    "[--package-lock <file>] [--npmrc <file>] [--gitmodules <file>] [--cargo-config-dir <dir>] [--secrets-checker <script>]" >&2
+    "[--package-lock <file>] [--npmrc <file>] [--gitmodules <file>] [--cargo-config-dir <dir>]" \
+    "[--pack-workflow <file> --engine-rev <file>] [--secrets-checker <script>]" >&2
   exit 2
 }
 
@@ -86,6 +118,8 @@ PKG_LOCK=""
 NPMRC_FILE=""
 GITMODULES_FILE=""
 CARGO_CFG_DIR=""
+PACK_WORKFLOW=""
+ENGINE_REV_FILE=""
 SECRETS_CHECKER="${DIR}/check-workflow-secrets.sh"
 SELECTED=0
 while [ "$#" -gt 0 ]; do
@@ -99,6 +133,8 @@ while [ "$#" -gt 0 ]; do
     --npmrc) NPMRC_FILE="$2" ;;
     --gitmodules) GITMODULES_FILE="$2" ;;
     --cargo-config-dir) CARGO_CFG_DIR="$2" ;;
+    --pack-workflow) PACK_WORKFLOW="$2" ;;
+    --engine-rev) ENGINE_REV_FILE="$2" ;;
     --secrets-checker) SECRETS_CHECKER="$2"; shift 2; continue ;;
     *) usage ;;
   esac
@@ -115,8 +151,12 @@ if [ "${SELECTED}" -eq 0 ]; then
   CARGO_CFG_DIR="${ROOT_DIR}/.cargo"
 fi
 
+# D は 2 つのファイルが揃って意味を持つ。片方だけでは検査を完了できないため、誤用として止める
+if [ -n "${PACK_WORKFLOW}" ] && [ -z "${ENGINE_REV_FILE}" ]; then usage; fi
+if [ -z "${PACK_WORKFLOW}" ] && [ -n "${ENGINE_REV_FILE}" ]; then usage; fi
+
 # 検査を流す前に、必要な道具を確かめる（無ければ exit 2。合格にしない）
-if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ]; then require_cmd ruby || exit 2; fi
+if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ] || [ -n "${PACK_WORKFLOW}" ]; then require_cmd ruby || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] || [ -n "${CARGO_META_JSON}" ] || [ -n "${PKG_LOCK}" ]; then require_cmd jq || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] && [ -z "${CARGO_META_JSON}" ]; then require_cmd cargo || exit 2; fi
 if [ -n "${GITMODULES_FILE}" ]; then require_cmd git || exit 2; fi
@@ -155,6 +195,7 @@ file = ARGV[1]
 owners = (ARGV[2] || "").split(",")
 upstream = ARGV[3].to_s
 abort("upstream repository is not given") if upstream.empty?
+engine = ARGV[4].to_s
 GUARD = "github.repository == '#{upstream}'".freeze
 CARGO_ENV_ALLOWED = %w[cargo_term_color cargo_incremental cargo_profile_dev_debug cargo_target_dir].freeze
 N = Psych::Nodes
@@ -350,8 +391,173 @@ def check_deploy(root)
   end
 end
 
+# ---- 教材 repo の workflow（D2〜D4）----
+# 正準の 3 step の照合は、キーの綴りの完全一致と復号した値で行う（正準は 1 つ）。
+# 後続の step の拒否（D4）だけは、大文字小文字を区別せず広く拾う。
+CANON_RUN = 'echo "rev=$(cat ENGINE_REV)" >> "$GITHUB_OUTPUT"'.freeze
+PACK_TOP_KEYS = %w[name run-name on permissions concurrency jobs].freeze
+PACK_JOB_KEYS = %w[name runs-on permissions timeout-minutes needs if steps strategy concurrency continue-on-error outputs].freeze
+CHECKOUT_RE = %r{\Aactions/checkout@[0-9a-f]{40}\z}
+ID_RE = /\A[A-Za-z_][A-Za-z0-9_-]*\z/
+PATH_RE = /\A[A-Za-z0-9_-]+\z/
+GIT_WORD_RE = /(?<![a-z0-9])git(?![a-z0-9])/
+
+# 綴りそのままのキーの一覧。マッピングでない、またはキーにスカラーでないものがあるときは nil
+def keyset(m)
+  return nil unless m.is_a?(N::Mapping)
+  ks = pairs(m).map { |k, _| str(k) }
+  ks.include?(nil) ? nil : ks
+end
+
+# 綴りの完全一致でキーを引く（mget は小文字化して照合するので、正準の照合には使わない）
+def sget(m, key)
+  pairs(m).each { |k, v| return v if str(k) == key }
+  nil
+end
+
+# step のキーが need に name を足した集合ちょうどで、name があればスカラーであること
+def step_keys_ok?(s, need)
+  ks = keyset(s)
+  return false unless ks
+  return false unless (ks - ["name"]).sort == need.sort
+  nm = sget(s, "name")
+  nm.nil? || nm.is_a?(N::Scalar)
+end
+
+def uses_checkout?(s)
+  str(sget(s, "uses")).to_s.match?(CHECKOUT_RE)
+end
+
+def own_checkout?(s)
+  return false unless step_keys_ok?(s, %w[uses with]) && uses_checkout?(s)
+  w = sget(s, "with")
+  ks = keyset(w)
+  !ks.nil? && ks.sort == ["persist-credentials"] && str(sget(w, "persist-credentials")) == "false"
+end
+
+# 出力の step なら id を、そうでなければ nil を返す
+def output_step?(s)
+  return nil unless step_keys_ok?(s, %w[id run])
+  id = str(sget(s, "id"))
+  run = str(sget(s, "run"))
+  return nil unless id && id.match?(ID_RE) && run && run.strip == CANON_RUN
+  id
+end
+
+def engine_checkout?(s, id, engine)
+  return false unless id && step_keys_ok?(s, %w[uses with]) && uses_checkout?(s)
+  w = sget(s, "with")
+  ks = keyset(w)
+  return false unless ks && ks.sort == %w[repository ref path persist-credentials].sort
+  str(sget(w, "repository")) == engine &&
+    str(sget(w, "ref")) == "${{ steps.#{id}.outputs.rev }}" &&
+    str(sget(w, "path")).to_s.match?(PATH_RE) &&
+    str(sget(w, "persist-credentials")) == "false"
+end
+
+# エンジンを取得しうるジョブか。エンジンの repo か ENGINE_REV に触れるか、repository を式や非スカラーで決める
+def engine_job?(jv, engine)
+  hit = false
+  each_node(jv) do |n|
+    if n.is_a?(N::Scalar)
+      t = n.value.downcase
+      hit = true if t.include?(engine.downcase) || t.include?("engine_rev")
+    elsif n.is_a?(N::Mapping)
+      pairs(n).each do |k, v|
+        next unless k.is_a?(N::Scalar) && k.value.downcase == "repository"
+        hit = true if !v.is_a?(N::Scalar) || v.value.include?("${{")
+      end
+    end
+  end
+  hit
+end
+
+# 4 番目以降の step が触れてはならないものに触れているか。ep は正準の 3 番目の path（無ければ nil）
+def later_step_bad?(s, engine, ep)
+  return true if str(mget(s, "uses")).to_s.downcase.start_with?("actions/checkout")
+  skip = mget(s, "name")
+  hit = false
+  each_node(s) do |n|
+    if n.is_a?(N::Scalar)
+      next if n.equal?(skip)
+      t = n.value.downcase
+      hit = true if t.match?(GIT_WORD_RE) || t.include?("actions/checkout") || t.include?(engine.downcase) ||
+                    t.include?("engine_rev") || (ep && n.value.include?(ep))
+    elsif n.is_a?(N::Mapping)
+      pairs(n).each do |k, v|
+        next unless k.is_a?(N::Scalar) && %w[repository ref path].include?(k.value.downcase)
+        hit = true if !v.is_a?(N::Scalar) || v.value.include?("${{")
+      end
+    end
+  end
+  hit
+end
+
+def check_pack(root, engine)
+  jobs = mget(root, "jobs")
+  unless jobs.is_a?(N::Mapping)
+    add(root, "D2", "jobs must be a mapping")
+    return
+  end
+  ok_jobs = 0
+  engine_jobs = 0
+  pairs(jobs).each do |jk, jv|
+    next unless engine_job?(jv, engine)
+    engine_jobs += 1
+    unless jv.is_a?(N::Mapping)
+      add(jk, "D3", "an engine job must be a mapping")
+      next
+    end
+    bad = false
+    pairs(jv).each do |k, _|
+      kn = str(k)
+      next if kn && PACK_JOB_KEYS.include?(kn)
+      add(k, "D3", "a key of an engine job is not in the allowlist (#{PACK_JOB_KEYS.join(", ")})")
+      bad = true
+    end
+    steps = sget(jv, "steps")
+    unless steps.is_a?(N::Sequence)
+      add(steps || jk, "D3", "an engine job must have steps as a sequence")
+      next
+    end
+    st = steps.children
+    s1, s2, s3 = st[0], st[1], st[2]
+    id = s2 && output_step?(s2)
+    unless s1 && own_checkout?(s1)
+      add(s1 || steps, "D3", "step 1 of an engine job must be the canonical checkout of this repository (uses: actions/checkout@<40-hex>, with: persist-credentials: false only)")
+      bad = true
+    end
+    unless id
+      add(s2 || steps, "D3", "step 2 of an engine job must be exactly: id: <id> and run: echo \"rev=$(cat ENGINE_REV)\" >> \"$GITHUB_OUTPUT\"")
+      bad = true
+    end
+    ep = nil
+    if s3 && engine_checkout?(s3, id, engine)
+      ep = str(sget(sget(s3, "with"), "path"))
+    else
+      add(s3 || steps, "D3", "step 3 of an engine job must be the canonical engine checkout (repository: #{engine}, ref: ${{ steps.<id of step 2>.outputs.rev }}, path: <dir>, persist-credentials: false)")
+      bad = true
+    end
+    (st[3..-1] || []).each_with_index do |s, i|
+      next unless later_step_bad?(s, engine, ep)
+      add(s, "D4", "step #{i + 4} of an engine job uses actions/checkout or refers to git, the engine repo, ENGINE_REV or the engine path; only the three canonical steps may")
+      bad = true
+    end
+    ok_jobs += 1 unless bad
+  end
+  if engine_jobs > 0
+    pairs(root).each do |k, _|
+      kn = str(k)
+      next if kn && PACK_TOP_KEYS.include?(kn)
+      add(k, "D3", "a top-level key is not in the allowlist (#{PACK_TOP_KEYS.join(", ")}) while an engine job exists")
+    end
+  end
+  add(jobs, "D2", "no job fetches the engine with the canonical three steps") if ok_jobs.zero?
+end
+
 case mode
 when "ci" then check_ci(root, owners)
+when "pack" then check_pack(root, engine)
 when "deploy" then check_deploy(root)
 else
   warn "error: unknown mode"
@@ -363,7 +569,7 @@ RUBY
 run_yaml() {
   local mode="$1" file="$2" out line rc=0
   need_file "${file}"
-  out="$(ruby -e "${RUBY_PROG}" -- "${mode}" "${file}" "${ALLOWED_USES_OWNERS}" "${UPSTREAM_REPO}")" || rc=$?
+  out="$(ruby -e "${RUBY_PROG}" -- "${mode}" "${file}" "${ALLOWED_USES_OWNERS}" "${UPSTREAM_REPO}" "${ENGINE_REPO}")" || rc=$?
   case "${rc}" in
     0) return 0 ;;
     1)
@@ -507,6 +713,22 @@ check_gitmodules() {
   done <<<"${names}"
 }
 
+# ---- D1 ENGINE_REV ----
+# 中身は出さない。ruby の判定が 0 = 合格 / 1 = 不合格。それ以外（ruby の異常終了）は検査を完了できない
+check_engine_rev() {
+  local rc=0
+  need_file "${ENGINE_REV_FILE}"
+  ruby -e 'exit(File.binread(ARGV[0]).match?(/\A[0-9a-f]{40}\n?\z/) ? 0 : 1)' -- "${ENGINE_REV_FILE}" || rc=$?
+  case "${rc}" in
+    0) ;;
+    1) report "${ENGINE_REV_FILE}:1:D1 ENGINE_REV must be a single line of 40 lowercase hex digits" ;;
+    *)
+      echo "error: D1 check of ${ENGINE_REV_FILE} could not complete (exit ${rc})" >&2
+      exit 2
+      ;;
+  esac
+}
+
 # ---- B1 ----
 check_secrets() {
   local f="$1" rc=0
@@ -533,6 +755,10 @@ if [ -n "${CI_FILE}" ]; then
   run_yaml ci "${CI_FILE}"
 fi
 [ -z "${DEPLOY_FILE}" ] || run_yaml deploy "${DEPLOY_FILE}"
+if [ -n "${PACK_WORKFLOW}" ]; then
+  check_engine_rev
+  run_yaml pack "${PACK_WORKFLOW}"
+fi
 
 if [ "${VIOLATIONS}" -ne 0 ]; then
   echo "error: ${VIOLATIONS} violation(s) in the fork CI check" >&2
