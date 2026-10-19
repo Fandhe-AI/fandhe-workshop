@@ -39,7 +39,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
-│   ├── check-fork-ci.sh      # fork が secret 無しで CI を通せる構成かをパーサ復号で検査（回帰テストは test-check-fork-ci.sh。ruby・jq・cargo が必要）
+│   ├── check-fork-ci.sh      # fork が secret 無しで CI を通せる構成か（A〜C）と教材 repo の ENGINE_REV の正準の形（D。指定時のみ）をパーサ復号で検査（回帰テストは test-check-fork-ci.sh。ruby・jq・cargo が必要）
 │   ├── ci-rust-toolchain.sh  # CI で導入された rustc の版と docs/toolchain.md の照合
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
@@ -96,7 +96,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-toolchain` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `ci.yml` が secret を参照していないことの検査 |
 | `make test-check-workflow-secrets` | secret 参照の検査自体の回帰テスト |
-| `make check-fork-ci` | fork が secret 無しで CI を通せる構成かの検査（A〜C。パーサで復号して判定。ruby・jq・cargo が必要） |
+| `make check-fork-ci` | fork が secret 無しで CI を通せる構成かの検査（A〜C。D は教材 repo 用で `--pack-workflow` と `--engine-rev` の指定時のみ。パーサで復号して判定。ruby・jq・cargo が必要） |
 | `make test-check-fork-ci` | fork CI 検査自体の回帰テスト |
 | `make build-web` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定） |
 | `make test-build-web` | `build-web` の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する |
