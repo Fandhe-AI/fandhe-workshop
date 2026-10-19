@@ -1,0 +1,10 @@
+id: EXT5-1
+package: fandhe-workshop-core
+test: history_append_only
+target: crates/core/src/ops_record.rs
+find:     if let Some(HistoryOp::Draft(prev)) = self.ops.last_mut() {
+replace:     if let Some(HistoryOp::Submit(prev)) = self.ops.last_mut() {
+expect-fail: scripted_sequence_covers_each_kind_of_growth
+expect-fail: property_append_only_fixed
+expect-fail: property_append_only_guided
+note: 確定済みの Submit を下書きで書き換える（性質 2。末尾の Draft だけが置き換わってよいという規則を見分ける）
