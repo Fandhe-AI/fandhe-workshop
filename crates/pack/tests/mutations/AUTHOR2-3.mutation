@@ -1,0 +1,8 @@
+id: AUTHOR2-3
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/cli_contract.rs
+find: format!("NG: 診断 {diagnostics} 件（{UNREADABLE}）")
+replace: format!("OK: 診断 {diagnostics} 件（{UNREADABLE}）")
+expect-fail: author3_unreadable_final_line
+note: 読み込めないときの最終行が OK: になる

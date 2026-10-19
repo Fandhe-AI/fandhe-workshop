@@ -241,7 +241,7 @@ fn pack6_reports_do_not_leak_content_or_paths() {
     let code = run(argv, &mut out, &mut err).expect("run");
     assert_eq!(code, EXIT_DIAGNOSTICS);
     let text = String::from_utf8(out).expect("utf8");
-    assert!(text.starts_with("NG: IR differs at line "), "{text}");
+    assert!(text.starts_with("NG: IR が一致しません（"), "{text}");
     assert!(!text.contains(SECRET), "{text}");
 
     // 診断の出力にも、本文・絶対パスは出ない。
@@ -254,7 +254,10 @@ fn pack6_reports_do_not_leak_content_or_paths() {
     assert_eq!(code, EXIT_DIAGNOSTICS);
     let text = String::from_utf8(out).expect("utf8");
     assert!(!text.is_empty());
-    assert!(!text.contains("OK:") && !text.contains("NG:"), "{text}");
+    assert!(
+        !text.contains("OK:") && !text.contains("一致しま"),
+        "{text}"
+    );
     assert!(!text.contains(SECRET), "{text}");
     assert!(!text.contains(a.0.to_str().expect("utf8 path")), "{text}");
     assert!(!text.contains(b.0.to_str().expect("utf8 path")), "{text}");

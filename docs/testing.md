@@ -109,7 +109,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 | キー | 必須 | 内容 |
 |---|---|---|
-| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-53 1/2 は `PACK21-1`・`PACK21-2`、TASK-53 2/2 は `PACK22-1`〜`PACK22-3`、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-177 1/2 は `VER18-1`・`VER18-2`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、TASK-57 1/2 は `PACK5-1` を、TASK-57 2/2 は `PACK5-2`・`PACK5-3`・`PACK25-1` を、TASK-58 2/2 は `PACK30-1` を、TASK-61 は `PACK27-1`〜`PACK27-3` を、TASK-66 1/2 は `PACK38-1`・`PACK38-2` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を、TASK-159 1/2 は `SAFE22-1`〜`SAFE22-4` を、TASK-159 2/2 は `SAFE43-1`〜`SAFE43-4` を、TASK-188 1/2 は `EXT5-1`〜`EXT5-4` を、TASK-399 1/2 は `AUTHOR1-1`〜`AUTHOR1-3` を使う |
+| `id` | 必須 | 変異の ID。サンプルは `S1`・`S2`。TASK-220 は `M1` 以降、TASK-244 は `X1` 以降、TASK-158 は `L1`、TASK-81 は `G1`・`G2`、TASK-180 は `H1`、TASK-290 は `GUIDE17-1`、TASK-256 は `J1`、TASK-291 は `GUIDE18-1`、TASK-309 は `SAVE2-1` 以降、TASK-52 は `PACK20-1` 以降、TASK-53 1/2 は `PACK21-1`・`PACK21-2`、TASK-53 2/2 は `PACK22-1`〜`PACK22-3`、TASK-47 は `PACK13-1` 以降・`PACK23-1`、TASK-262 は `JUDGE1-1` 以降、TASK-215 は `EVT13-1` 以降、TASK-263 は `JUDGE1-C1`・`JUDGE1-U1`・`JUDGE1-A1`・`JUDGE1-Q1`、TASK-266 は `JUDGE2-1` 以降、TASK-45 は `PACK11-1` 以降、TASK-46 は `PACK15-1` 以降・`PACK16-1` 以降・`PACK12-1` 以降、TASK-272 は `JUDGE6-1` 以降、TASK-305 は `GUIDE18-2` 以降、TASK-207 は `EVT3-1` 以降、TASK-268 は `JUDGE4-1` 以降、TASK-208 は `EVT5-1` 以降、TASK-209 は `EVT7-1` 以降、TASK-269 は `JUDGE5-1` 以降、TASK-315 は `SAVE24-1` 以降、TASK-210 は `EVT6-1` 以降、TASK-310 は `SAVE14-1`・`SAVE15-1` 以降・`SAVE19-1` 以降、TASK-343 は `FEND20-1`・`FEND15-1`・`FEND21-1`、TASK-359 は `FEND15-2`〜`FEND15-4`、TASK-274 は `JUDGE8-1` 以降、TASK-257 は `JUDGE14-1`・`JUDGE17-1`・`JUDGE19-1`、TASK-211 は `EVT9-1` 以降、TASK-213 は `EVT11-1` 以降、TASK-212 は `EVT10-1` 以降、TASK-214 は `EVT12-1` 以降、TASK-229 は `EVT18-1`、TASK-275 は `JUDGE13-1`、TASK-278 は `JUDGE19-2`・`JUDGE19-3`、TASK-277 は `JUDGE17-2`〜`JUDGE17-4`、TASK-282 は `JUDGE18-2`・`JUDGE21-2`、TASK-316 は `SAVE1-1` 以降、TASK-467 は `ART3-1`・`ART2-1`・`ART5-1`・`ART11-1`・`ART7-1`、TASK-468 1/2 は `ART2-2`〜`ART2-4`、TASK-469 1/2 は `ART3-2`・`ART3-3`、TASK-469 2/2 は `ART3-4`、TASK-474 1/2 は `A11Y22-1`・`ART9-3`、TASK-474 2/2 は `A11Y22-2`・`ART9-4`・`ART9-5`、TASK-475 1/2 は `ART8-1`・`ART8-2`、TASK-477 1/2 は `ART17-1`〜`ART17-3`、TASK-477 2/2 は `ART17-4`〜`ART17-6`、TASK-174 は `VER3-1`・`VER4-1`・`VER4-2`・`VER6-1`・`VER7-1`、TASK-174 2/3 は `VER6-2`・`VER6-3`・`VER7-2`〜`VER7-4`、TASK-174 3/3 は `VER7-5`〜`VER7-10`、TASK-177 1/2 は `VER18-1`・`VER18-2`、TASK-349 は `FEND4-1`〜`FEND4-3`、TASK-472 は `ART9-1`・`ART9-2`・`ART13-1`、TASK-331 1/3 は `SAVE19-4`〜`SAVE19-6`、TASK-317 は `SAVE8-1` 以降、TASK-317 2/2 は `SAVE9-1` 以降、TASK-330 1/2 は `SAVE17-1`、TASK-221 1/2 は `EVT8-1`・`EVT8-2`、TASK-221 2/2 は `EVT8-3`、#1413 は `MOD4-1` を、TASK-57 1/2 は `PACK5-1` を、TASK-57 2/2 は `PACK5-2`・`PACK5-3`・`PACK25-1` を、TASK-58 2/2 は `PACK30-1` を、TASK-61 は `PACK27-1`〜`PACK27-3` を、TASK-66 1/2 は `PACK38-1`・`PACK38-2` を、#1417 は `SAVE14-2`・`SAVE14-3`・`SAVE15-2`・`SAVE32-1`・`SAVE32-2` を、TASK-159 1/2 は `SAFE22-1`〜`SAFE22-4` を、TASK-159 2/2 は `SAFE43-1`〜`SAFE43-4` を、TASK-188 1/2 は `EXT5-1`〜`EXT5-4` を、TASK-399 1/2 は `AUTHOR1-1`〜`AUTHOR1-3` を、TASK-399 2/2 は `AUTHOR2-1`〜`AUTHOR2-4` を使う |
 | `package` | 必須 | cargo のパッケージ名（`^[a-z0-9-]+$`） |
 | `test` | 必須 | 試験のターゲット名。`--test` に渡す（`^[a-z0-9_]+$`） |
 | `target` | 必須 | 書き換えるファイル。repo 根からの相対パス。絶対パス・`..`・symlink は拒否する |
@@ -4482,3 +4482,26 @@ AUTHOR1-1 はコマンドの一覧から `metrics` を落とし、AUTHOR1-2 は�
 | AUTHOR1-3 | crates/pack/src/cli_contract.rs: compile の引数の形から -o が落ちる | usage_declares_compile_output_option | DETECTED |
 
 集計: 3 件すべて DETECTED（2026-10-19）。
+
+### 5.145 診断 1 行・項目・最終行・出し先の契約（TASK-399 2/2）
+
+`docs/cli.md` 版 2 の 6〜9 節（コード側は `crates/pack/src/cli_contract.rs` と `crates/pack/src/diag.rs`）の適合試験 `crates/pack/tests/cli_contract.rs`（実行ファイルと型）に対する変異注入である。
+
+AUTHOR2-1 は空の項目を拒否する検査を外し、AUTHOR2-2 は診断の行から項目の欄を落とし、AUTHOR2-3 は読み込めないときの最終行を `OK:` にし、AUTHOR2-4 はファイル・項目の欄の `: ` を直さなくする。
+
+文書を読む `cli_contract_doc.rs` は、5.144 と同じく変異の対象に含めない。手元で 8 節の例の 1 文字をずらして失敗することを確かめる運用とする。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: df2cde5（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR2-1.mutation crates/pack/tests/mutations/AUTHOR2-2.mutation crates/pack/tests/mutations/AUTHOR2-3.mutation crates/pack/tests/mutations/AUTHOR2-4.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR2-1 | crates/pack/src/diag.rs: 項目が空の診断を作れてしまう | diagnostic_requires_file_and_item | DETECTED |
+| AUTHOR2-2 | crates/pack/src/diag.rs: 診断の行から項目の欄が落ちる | author2_diagnostic_lines_have_four_fields | DETECTED |
+| AUTHOR2-3 | crates/pack/src/cli_contract.rs: 読み込めないときの最終行が OK: になる | author3_unreadable_final_line | DETECTED |
+| AUTHOR2-4 | crates/pack/src/diag.rs: ファイル・項目の欄の区切りの `: ` を直さなくなる | diagnostic_separator_in_fields_is_escaped | DETECTED |
+
+集計: 4 件すべて DETECTED（2026-10-19）。

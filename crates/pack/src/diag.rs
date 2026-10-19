@@ -1,7 +1,7 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
 //! コードの一覧は `docs/diagnostics.md`（一覧の版 4、TASK-195）で固定した。出力形と終了コードは
-//! TASK-399（#469〜#471）の契約で固定する（未了）。`cli` の各コマンドが診断を集め、
+//! `docs/cli.md`（版 2）の 6〜9 節で固定した（TASK-399）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
 use std::fmt;
@@ -277,10 +277,18 @@ impl Diagnostic {
 }
 
 /// 制御文字を `\u{XXXX}` に直して書く。教材データ由来の改行で 1 行の形が崩れるのを防ぐ。
-fn write_escaped(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
-    for c in s.chars() {
+///
+/// `split_fields` が真のとき（file・item の欄）は、欄の区切りの `: ` のうち空白を `\u{0020}` に直す。ID・パスは
+/// 教材データ由来で `: ` を含みうるため、直さないと先頭から 3 つの `: で区切る` 読み方が崩れる
+/// （`docs/cli.md` 版 2 の 6 節）。最後の欄のメッセージは区切りを持たないので直さない。
+fn write_escaped(f: &mut fmt::Formatter<'_>, s: &str, split_fields: bool) -> fmt::Result {
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
         if c.is_control() {
             write!(f, "\\u{{{:04X}}}", u32::from(c))?;
+        } else if split_fields && c == ':' && chars.peek() == Some(&' ') {
+            f.write_str(":\\u{0020}")?;
+            chars.next();
         } else {
             fmt::Write::write_char(f, c)?;
         }
@@ -290,11 +298,11 @@ fn write_escaped(f: &mut fmt::Formatter<'_>, s: &str) -> fmt::Result {
 
 impl fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write_escaped(f, &self.file)?;
+        write_escaped(f, &self.file, true)?;
         f.write_str(": ")?;
-        write_escaped(f, &self.item)?;
+        write_escaped(f, &self.item, true)?;
         write!(f, ": {}: ", self.code)?;
-        write_escaped(f, &self.message)
+        write_escaped(f, &self.message, false)
     }
 }
 
@@ -309,7 +317,7 @@ pub fn exit_code(diags: &[Diagnostic]) -> u8 {
 
 /// 診断を 1 件 1 行で書き出し、終了コードを返す。
 ///
-/// 最終行（`OK:`・`NG:`）は出さない。TASK-399・TASK-403 で足す。
+/// 最終行（`OK:`・`NG:`）は出さない（`validate` の最終行は `cli_contract::final_line` で、結線は TASK-403）。
 pub fn write_diagnostics<W: io::Write>(out: &mut W, diags: &[Diagnostic]) -> io::Result<u8> {
     for d in diags {
         writeln!(out, "{d}")?;
@@ -401,6 +409,27 @@ mod tests {
         let d = diag("f", "i", "m");
         assert_eq!(exit_code(std::slice::from_ref(&d)), 1);
         assert_eq!(exit_code(&[d.clone(), d]), 1);
+    }
+
+    #[test]
+    fn d8_separator_in_file_and_item_keeps_four_fields() {
+        let d = diag("a: b.yaml", "step:x: y", "msg: with sep");
+        let s = d.to_string();
+        let parts: Vec<&str> = s.splitn(4, ": ").collect();
+        assert_eq!(
+            parts,
+            [
+                "a:\\u{0020}b.yaml",
+                "step:x:\\u{0020}y",
+                "E-REF-STEP",
+                "msg: with sep"
+            ]
+        );
+        // 末尾が `:` の欄でも、区切りの `: ` を取り違えない。
+        let d = diag("a:", "step:", "m");
+        let s = d.to_string();
+        let parts: Vec<&str> = s.splitn(4, ": ").collect();
+        assert_eq!(parts, ["a:", "step:", "E-REF-STEP", "m"]);
     }
 
     #[test]

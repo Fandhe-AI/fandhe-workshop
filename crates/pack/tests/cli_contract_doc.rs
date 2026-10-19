@@ -1,14 +1,17 @@
-//! CLI の外部仕様の文書（`docs/cli.md`）とコード側の契約（`cli_contract`）の一致の試験（TASK-399 1/2）。
+//! CLI の外部仕様の文書（`docs/cli.md`）とコード側の契約（`cli_contract`）の一致の試験（TASK-399 1/2・2/2）。
 //!
-//! 版の欄・コマンドの表・使い方のブロック・終了コードの表を、定数と型から照合する。文書は読むだけで、
+//! 版の欄・コマンドの表・使い方のブロック・終了コードの表・項目の種別の表・最終行の例・出し先の節を、定数と型から照合する。文書は読むだけで、
 //! 作業ツリーを書き換えない。実行ファイルの挙動は `cli_contract.rs` が見る。
 
 use std::fs;
 use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
-    usage, Subcommand, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, usage, FinalLine,
+    PackSummary, Subcommand, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK,
+    EXIT_USAGE, ITEM_KINDS_V2,
 };
+use fandhe_workshop_pack::source::Format;
 
 fn doc() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/cli.md"))
@@ -86,4 +89,61 @@ fn cli_doc_exit_code_table_matches_constants() {
     let rows = table_rows(&section(&doc(), "## 5. 終了コード"));
     let codes: Vec<u8> = rows.iter().map(|r| r[0].parse().unwrap()).collect();
     assert_eq!(codes, [EXIT_OK, EXIT_DIAGNOSTICS, EXIT_USAGE]);
+}
+
+#[test]
+fn cli_doc_item_kinds_table_matches() {
+    let rows = table_rows(&section(&doc(), "## 7. 項目の書式"));
+    let kinds: Vec<String> = rows
+        .iter()
+        .map(|r| r[0].trim_matches('`').to_string())
+        .collect();
+    assert_eq!(kinds, ITEM_KINDS_V2);
+    for k in AUTHOR2_ITEM_KINDS {
+        assert!(kinds.iter().any(|x| x == k), "{k}");
+    }
+}
+
+#[test]
+fn cli_doc_final_line_examples_match() {
+    let body = section(&doc(), "## 8. 最終行");
+    let mut in_block = false;
+    let mut block = Vec::new();
+    for l in body.lines() {
+        if l == "```text" {
+            in_block = true;
+        } else if l == "```" {
+            break;
+        } else if in_block {
+            block.push(l.to_string());
+        }
+    }
+    let summary = PackSummary {
+        format: Format::Yaml,
+        chapters: 1,
+        modules: 0,
+        step_defs: 2,
+    };
+    let expected = [
+        final_line(&FinalLine::Checked {
+            diagnostics: 0,
+            summary,
+        }),
+        final_line(&FinalLine::Checked {
+            diagnostics: 3,
+            summary,
+        }),
+        final_line(&FinalLine::Unreadable { diagnostics: 8 }),
+        compare_same_line(120),
+        compare_differ_line(3, 57),
+        compare_unreadable_line(0, 4),
+    ];
+    assert_eq!(block, expected);
+}
+
+#[test]
+fn cli_doc_destination_section_present() {
+    let body = section(&doc(), "## 9. 診断の出し先");
+    assert!(body.contains("標準出力"));
+    assert!(body.contains("標準エラー出力"));
 }
