@@ -205,7 +205,12 @@ async function fetchUpdatedAt(fetchFn, base, name, timeoutMs) {
   return at.slice(0, 10);
 }
 
+// build metadata（`+` 以降。例: 1.1.8+spec-1.1.0）は版の大小にも pre-release の判定にも使わない。
+const stripBuild = (v) => v.split('+')[0];
+
 function compareVersions(a, b) {
+  a = stripBuild(a);
+  b = stripBuild(b);
   const pa = a.split(/[.+-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : -1));
   const pb = b.split(/[.+-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : -1));
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
@@ -215,8 +220,8 @@ function compareVersions(a, b) {
   return 0;
 }
 
-function latestVersion(entries) {
-  const stable = entries.filter((e) => !e.yanked && !e.vers.includes('-'));
+export function latestVersion(entries) {
+  const stable = entries.filter((e) => !e.yanked && !stripBuild(e.vers).includes('-'));
   if (stable.length === 0) return null;
   return stable.map((e) => e.vers).sort(compareVersions).pop();
 }

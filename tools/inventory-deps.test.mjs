@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ACKNOWLEDGED_SINGLE_OWNER, directDependencyNames, indexPath, main, parseLock,
+  ACKNOWLEDGED_SINGLE_OWNER, directDependencyNames, indexPath, latestVersion, main, parseLock,
 } from './inventory-deps.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -231,6 +231,13 @@ test('indexPath は cargo の経路の規則に従う', () => {
   assert.equal(indexPath('abc'), '3/a/abc');
   assert.equal(indexPath('serde'), 'se/rd/serde');
   assert.equal(indexPath('Yaml_Serde'), 'ya/ml/yaml_serde');
+});
+
+test('最新版は build metadata の `-` を pre-release と誤らず、pre-release と取り下げは除く', () => {
+  const e = (vers, yanked = false) => ({ vers, yanked });
+  assert.equal(latestVersion([e('0.9.8'), e('1.1.8+spec-1.1.0'), e('1.0.4+spec-1.0.0')]), '1.1.8+spec-1.1.0');
+  assert.equal(latestVersion([e('1.0.0'), e('2.0.0-rc.1'), e('1.5.0', true)]), '1.0.0');
+  assert.equal(latestVersion([e('1.0.0-alpha')]), null);
 });
 
 test('実 repo の Cargo.lock を読み、registry の件数が行の数え直しと一致する（通信なし）', () => {
