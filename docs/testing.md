@@ -3896,7 +3896,32 @@ Chrome の安定版が入らない環境（Linux Arm64 など）では、変数�
 | SAFE22-3 | crates/pack/src/source.rs: パック全体の判定を >= にする（ちょうど 20MB を断る） | pack_total_exactly_at_limit_loads | pack_total_exactly_at_limit_loads | DETECTED |
 | SAFE22-4 | crates/pack/src/source.rs: パック全体の事前走査の判定を外す | pack_total_one_byte_over_is_rejected_without_reading, pack_total_200mb_is_rejected_quickly | pack_total_200mb_is_rejected_quickly, pack_total_one_byte_over_is_rejected_without_reading | DETECTED |
 
-### 5.130 ディレクトリの深さとシンボリックリンクの上限（TASK-159 2/2）
+### 5.130 依存の棚卸し（TASK-99）
+
+BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプトは `tools/inventory-deps.mjs`（`make inventory-deps`）、手順と結果の記録は `docs/dependency-inventory.md` である。
+
+回帰テストは `make test-inventory-deps`（`tools/inventory-deps.test.mjs`、node:test）。loopback の stub サーバに試料を置いて流し、実 crates.io には通信しない。
+
+| 項目 | 内容 |
+|---|---|
+| 実行日・元にしたコミット | 2026-10-19、base 2761fba（作業ツリーに本変更） |
+| コマンド | `make test-inventory-deps` |
+| 結果 | tests 14、pass 14、fail 0 |
+| 主張の内容 | 正常・取り下げ済み・team だけの所有者・直接/推移・index の 404・5xx・壊れた JSON・checksum の不一致・リダイレクト・タイムアウト・不正な crate 名と許可外の取得先・crates.io 以外の source・古い例外・Markdown のエスケープ・JSON の鍵・実 repo の `Cargo.lock` の件数 |
+
+実際の棚卸しを 2026-10-19 に 1 回流した（`make inventory-deps`。終了コード 0）。66 件の registry の crate（直接 16 件）のうち、取り下げ済みは 0 件、所有者 1 人は 32 件（うち例外 1 件の `yaml_serde`）だった。全件の表と D-58 との机上の照らし合わせは `docs/dependency-inventory.md` に記録した。5.127 が未確認としていた `yaml_serde` の保守の状況・所有者の数・取り下げの有無は、同文書で確かめた（所有者は user 1 人、取り下げなし、crates.io 上の最終更新日は 2026-08-18）。
+
+実装で計画から変えた点が 1 つある。所有者 1 人の crate を終了コード 1 の条件にする案だったが、実測で 66 件中 32 件が該当したため、記録と要約への表示に留め、終了コードは変えないことにした。
+
+未確認・限界:
+
+- 既知の脆弱性の走査（`cargo audit`・RustSec）は扱っていない
+- `miniserve` 0.35.0 とその推移的な依存は、L2 の配布物が未導入のため対象外である
+- CI では実際の棚卸しを流していない（通信が要り、数分かかる。必須チェックの変更は人間の判断）
+- 所有者 1 人で直接の依存に当たる `fandhe-frontend-*` の 6 件を D-58 が個別に判断した記録は確かめていない
+- 取得先（crates.io の API・sparse index）の応答は日々変わる。記録は日付つきの 1 点である
+
+### 5.131 ディレクトリの深さとシンボリックリンクの上限（TASK-159 2/2）
 
 `source::load` の事前走査が、ディレクトリの入れ子の上限とシンボリックリンクを、中身を読まずに判定することを確かめる（SAFE-43・D-44）。根を 0 段として 32 段は通し、33 段は `E-LIMIT-DEPTH` で拒否する。シンボリックリンクは辿らず `E-LIMIT-SYMLINK` で拒否する。拒否は 1 秒未満で終わり、`workshop.yaml` を壊しても `E-PARSE` は出ず、33 段目より下やリンクの先の `SECRET` は診断に現れない。リンクの種類は、パック外のディレクトリ・宛先なし・パックの根への循環・`chapters` 自体・`workshop.yaml`・巨大ファイルの 6 通りを試す。`cli` に `compile` の終了コードと標準出力の確認を 2 件（`i12`・`i13`）足した。ファイルへのリンクを本文として参照する場合は、既存の `compile.rs` の `neg_symlink_is_rejected_without_following` が扱う。パックの根自体がリンクの場合の扱いは spec に定めが無く、本節では扱わない。`validate`・`test` を含む 3 コマンドへの適用は TASK-410 の範囲である。
 
