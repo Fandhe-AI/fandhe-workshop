@@ -1,0 +1,8 @@
+id: VER2-2
+package: fandhe-workshop-core
+test: version_histories
+target: crates/core/src/history_open.rs
+find: return view_only(LoadReason::EngineMajor);
+replace: return refuse(LoadReason::EngineMajor);
+expect-fail: fifteen_histories_match_the_fixed_expectations
+note: エンジンの主版の違いを開かないに倒す（V-v-3 が慎重な側の食い違いになる）
