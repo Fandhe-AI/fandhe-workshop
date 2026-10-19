@@ -1,0 +1,8 @@
+id: AUTHOR8-1
+package: fandhe-workshop-pack
+test: compile_output
+target: crates/pack/src/cli.rs
+find: f.write_all(bytes)?;
+replace: f.write_all(&bytes[..bytes.len() - 1])?;
+expect-fail: author8_stdout_and_output_file_are_byte_identical
+note: -o のファイルの末尾を 1 バイト落とす

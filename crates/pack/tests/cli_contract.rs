@@ -1,9 +1,9 @@
 //! CLI の外部仕様の契約の適合試験（TASK-399 1/2・2/2、AUTHOR-1〜AUTHOR-3）。
 //!
-//! 正は `docs/cli.md`（版 2）で、本ファイルは実行ファイルが契約の終了コードと出し先で終わることと、
+//! 正は `docs/cli.md`（版 3）で、本ファイルは実行ファイルが契約の終了コードと出し先で終わることと、
 //! 定数・型・使い方の文言を確かめる。文書との一致は `cli_contract_doc.rs` が見る（変異注入は
 //! 文書を一時ディレクトリへ写さないため、文書を読む試験を分けている）。
-//! 診断 1 行・項目の形・最終行・出し先は版 2（TASK-399 2/2）で足した。`compile -o` の動作は TASK-407 の担当のため見ない。
+//! 診断 1 行・項目の形・最終行・出し先は版 2（TASK-399 2/2）で足した。`compile -o` の動作は `compile_output.rs`（TASK-407）が見る。
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -166,7 +166,7 @@ fn exit_0_and_1_follow_diagnostics() {
 
 #[test]
 fn usage_declares_compile_output_option() {
-    // `-o` の動作は TASK-407 の担当。ここでは使い方に宣言されていることだけを見る。
+    // `-o` の動作は `compile_output.rs`（TASK-407）が見る。ここでは使い方に宣言されていることだけを見る。
     assert!(usage().contains("  compile <pack-dir> [-o <file>]\n"));
     assert!(usage().starts_with("usage: fandhe-pack <command> [<args>]\n\ncommands:\n"));
 }
