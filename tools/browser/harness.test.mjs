@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveLaunchOptions, channelFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted,
+  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted,
 } from './harness.mjs';
 
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'";
@@ -102,4 +102,12 @@ test('waitMounted: data-mounted="error" は例外', async () => {
     await assert.rejects(() => waitMounted(p, { timeout: 5000 }), /data-mounted="error"/);
     await context.close();
   });
+});
+
+test('packBinFromEnv: 未設定・存在しない・通常ファイルでないは FANDHE_PACK_BIN を名指して失敗し、ENOENT を漏らさない', () => {
+  for (const env of [{}, { FANDHE_PACK_BIN: '' }, { FANDHE_PACK_BIN: path.join(tmp, 'no-such-bin') }, { FANDHE_PACK_BIN: tmp }]) {
+    assert.throws(() => packBinFromEnv(env), (e) => /FANDHE_PACK_BIN/.test(e.message) && !/ENOENT/.test(e.message));
+  }
+  const file = path.join(tmp, 'csp.html');
+  assert.equal(packBinFromEnv({ FANDHE_PACK_BIN: file }), file);
 });
