@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -100,6 +100,9 @@ test-check-generic-words: ## 教材固有の語の検査自体の回帰テスト
 
 test-browser: ## 共通ヘルパで最小の画面をサブパス配信し、対照の自己確認も行うブラウザ試験（Playwright）。直接: scripts/test-browser.sh
 	@scripts/test-browser.sh
+
+test-build-pack-bin: ## fandhe-pack の前提バイナリの解決が CARGO_TARGET_DIR に追従することの回帰テスト（遅い）。直接: scripts/test-build-pack-bin.sh
+	@scripts/test-build-pack-bin.sh
 
 test-keydown-control: ## action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）。直接: scripts/test-keydown-control.sh
 	@scripts/test-keydown-control.sh
