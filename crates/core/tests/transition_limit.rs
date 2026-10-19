@@ -15,7 +15,8 @@ use fandhe_workshop_contract::limits::MAX_TRANSITIONS_PER_INPUT;
 use fandhe_workshop_core::addr::{StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
-use fandhe_workshop_core::session::{Busy, SessionState};
+use fandhe_workshop_core::projection::Projection;
+use fandhe_workshop_core::session::{Busy, EntryCopy, SessionState};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, load_ir};
 
@@ -184,6 +185,16 @@ fn cycle_exit_2_stops_at_limit() {
     // 止めた操作の達成は状態に残らない（f1 は Entered のまま）ので、次の入力は再び受け付けられる。
     assert_returned(&state, &before, false, &events);
     assert_next_input_received(&ir, &state, "main/f1");
+    // 復習も戻る。止めた操作の `Achieved` がログに残っても、f1 は未達成のまま。
+    let projection = Projection::from_events(&state.log);
+    assert!(
+        projection
+            .review()
+            .iter()
+            .all(|r| r.step != uid("main/f1") || !r.achieved),
+        "{:?}",
+        projection.review()
+    );
 }
 
 /// 巡回していても 1 回の入力ごとの遷移が少数なら、上限に当たらない対照。
@@ -392,6 +403,11 @@ fn tick_path_returns_without_busy_and_does_not_loop() {
         .status
         .insert(uid("main/f1"), StepStatus::Accepted);
     before.run.busy = Some(Busy { done: 0, total: 1 });
+    // 入口の写しは入力を受け付け直せる状態（Entered）。進行からの復帰はここへ戻る。
+    before.entry = Some(EntryCopy {
+        run: state_at("main/f1").run,
+        log_len: 0,
+    });
     let addr = TickAddr {
         generation: before.run.generation,
         step: uid("main/f1"),
@@ -401,6 +417,10 @@ fn tick_path_returns_without_busy_and_does_not_loop() {
     assert_limit_event(&events);
     assert_eq!(state.run.current, Some(uid("main/f1")));
     assert_eq!(state.run.busy, None);
+    assert_eq!(
+        state.run.slices[&uid("main/f1").root()].status[&uid("main/f1")],
+        StepStatus::Entered
+    );
     assert_eq!(state.run.generation, before.run.generation);
     let (_, again) = apply(&ir, state, Op::Tick(addr));
     assert!(limit_landings(&again).is_empty(), "{again:?}");

@@ -4084,7 +4084,8 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 操作の前に現在の Step が無かったときは戻す先が無いので、`halt` の空のまま止める。`enter` の先が IR に無い場合（`UNKNOWN_TARGET`）は上限ではないので戻さない
 - 実装は `session::apply` が操作の前の `run`・`entry` を控え、イベント列に `TransitionLimitReached` があれば `transit::return_after_limit` で戻す。控える費用は、操作 1 件につき `world` 以外の分の複製が増えるだけ
 - 新しいイベントは足さず、`CONTRACT_VERSION` は 6 のまま。通知欄の文言は「実行を止めて直前の Step に戻しました」に変えた（仮置き）。通知は戻った Step での次の入力まで残る
-- 既知の限界: 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。このため `Projection` の復習の `achieved` が Step の状態と食い違いうる。直すには戻りのイベントと版上げが要る
+- 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。復習は `Projection` が、操作の先頭（`InputReceived`・`Progress`・`Moved`）で控えた復習と印の元へ `TransitionLimitReached` で戻して、Step の状態と揃える。ログ行は消さない
+- 進行（処理中）の途中から止めた場合は、操作の前（受付済み・処理中）ではなく入口の写しへ戻す。受付済みのまま処理中だけを消すと、入力も進行も受け付けられず、確認 none の Step が達成に進めないため。入口の写しが無い・別の Step のときは空のまま止める
 
 試験は 3 層に置いた。
 

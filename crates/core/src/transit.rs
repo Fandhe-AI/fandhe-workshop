@@ -118,8 +118,8 @@ fn halt(state: &mut SessionState, at: Stamp, budget: &Budget, events: &mut Vec<E
 /// 世代は減らさず操作後の値を残し（`go_to` が出した `Moved` の世代と一致させる）、`busy` は必ず空にする
 /// （進行の宛先が再び有効になり、止める・戻すを無限に繰り返すのを防ぐ。fail-closed）。
 /// 操作の前に現在の Step が無かったときは戻す先が無いので、空のまま止める。
-/// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。このため復習の `achieved` が Step の状態と
-/// 食い違いうる（既知の限界）。
+/// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。復習は `Projection` が
+/// `TransitionLimitReached` で操作の前の復習へ戻して Step の状態と揃える。
 pub(crate) fn return_after_limit(
     state: &mut SessionState,
     run_before: &crate::session::RunState,
@@ -129,9 +129,23 @@ pub(crate) fn return_after_limit(
         return;
     }
     let generation = state.run.generation;
-    state.run = run_before.clone();
-    state.run.generation = generation;
-    state.run.busy = None; // 戻した後は必ず処理中でない
+    // 進行（処理中）の途中から止めた場合、操作の前の状態は受付済みで処理中だけを消すと、入力も進行も
+    // 受け付けられない（確認 none の Step は達成にも進めない）。入口の写しがその Step のものなら、
+    // 入口の状態（入力を受け付け直せる状態）へ戻す。写しが無い・別の Step のときは空のまま止める（fail-closed）。
+    let mut run = if run_before.busy.is_some() {
+        match entry_before
+            .as_ref()
+            .filter(|e| e.run.current == run_before.current)
+        {
+            Some(entry) => entry.run.clone(),
+            None => return,
+        }
+    } else {
+        run_before.clone()
+    };
+    run.generation = generation;
+    run.busy = None; // 戻した後は必ず処理中でない
+    state.run = run;
     state.entry = entry_before.clone();
 }
 

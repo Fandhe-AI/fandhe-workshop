@@ -111,7 +111,16 @@ pub struct Projection {
     /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。現在の復習と共有し、
     /// 保存そのものは参照の複製に限る（復習を変えない保存の連続で全体を複製しない）。
     saved_review: BTreeMap<usize, Arc<Vec<ReviewItem>>>,
+    /// 直近の操作の先頭（`InputReceived`・`Progress`・`Moved`）の時点の復習と印の元。
+    /// 上限で止めた操作を操作の前へ戻す（SAFE-35）ので、`TransitionLimitReached` で復習と印の元をここへ戻す。
+    op_start: Option<OpStart>,
 }
+
+/// 操作の先頭で控える復習と印の元。
+type OpStart = (
+    Arc<Vec<ReviewItem>>,
+    BTreeMap<String, (Option<Element>, Option<Element>)>,
+);
 
 /// 変化の印の種類を（最初の変更前, 最後の変更後）から決める。
 fn mark_kind(before: &Option<Element>, after: &Option<Element>) -> MarkKind {
@@ -187,6 +196,13 @@ impl Projection {
 
     /// イベント 1 件（ログ上の位置 `i`）を導出へ反映する。
     fn step(&mut self, i: usize, event: &Event) {
+        // 操作の先頭の控え。上限で止めた操作の `Achieved`・`Changed` を復習から取り除くために使う。
+        if matches!(
+            event,
+            Event::InputReceived { .. } | Event::Progress { .. } | Event::Moved { .. }
+        ) {
+            self.op_start = Some((self.review.clone(), self.pending.clone()));
+        }
         match event {
             Event::Entered { .. } => {
                 self.push_row(i, event);
@@ -204,8 +220,16 @@ impl Projection {
             | Event::Refused { .. }
             | Event::Ignored { .. }
             | Event::Warning { .. }
-            | Event::TransitionLimitReached { .. }
             | Event::Reloaded { .. } => self.push_row(i, event),
+            Event::TransitionLimitReached { .. } => {
+                self.push_row(i, event);
+                // 止めた操作は操作の前の状態へ戻る（SAFE-35）。復習と印の元も操作の前へ戻し、Step の状態と揃える。
+                // 先頭の控えが無い（操作の先頭を持たない列）ときは、何も戻さない。
+                if let Some((review, pending)) = self.op_start.take() {
+                    self.review = review;
+                    self.pending = pending;
+                }
+            }
             Event::Achieved { at, .. } => {
                 self.push_row(i, event);
                 self.review_item_mut(&at.step).achieved = true;
