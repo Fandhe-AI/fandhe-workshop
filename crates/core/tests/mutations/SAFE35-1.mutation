@@ -2,8 +2,8 @@ id: SAFE35-1
 package: fandhe-workshop-core
 test: transition_limit
 target: crates/core/src/session.rs
-find:         crate::transit::return_after_limit(&mut state, &run_before, &entry_before);
-replace:         let _ = (&run_before, &entry_before);
+find:         match crate::transit::return_after_limit(&mut state, &run_before, &entry_before) {
+replace:         match { let _ = (&run_before, &entry_before); crate::transit::LimitReturn::Halted } {
 expect-fail: cycle_enter_self_stops_at_limit
 expect-fail: cycle_exit_2_stops_at_limit
 expect-fail: exit_chain_boundary

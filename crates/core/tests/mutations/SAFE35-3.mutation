@@ -2,8 +2,8 @@ id: SAFE35-3
 package: fandhe-workshop-core
 test: transition_limit
 target: crates/core/src/transit.rs
-find:     state.run = run_before.clone();
-replace:     state.run.current = run_before.current.clone();
+find:     state.run = run;
+replace:     state.run.current = run.current.clone();
 expect-fail: cycle_exit_2_stops_at_limit
 expect-fail: cycle_exit_2_accepts_again_and_returns_again
 note: 実行状態を戻さず現在の Step だけ戻す（止めた操作の達成が残り、次の入力が受け付けられない）

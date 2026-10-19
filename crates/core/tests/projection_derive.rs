@@ -240,6 +240,39 @@ fn transition_limit_reached_adds_one_row_and_keeps_marks() {
     assert_eq!(with.consumed(), events.len());
 }
 
+/// 処理中から入口へ戻した上限停止（SAFE-35）。先行の操作で併合済みの変更は、原因 `Stop` の取り消しの
+/// `Changed` で打ち消され、取り消しそのものは学習者の変更として印にも復習にも残らない。
+#[test]
+fn limit_rewind_to_entry_cancels_merged_changes_without_registering_the_rollback() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 0,
+            total: 2,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+        changed(a, "x", Some(1), None, Cause::Stop),
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
 #[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";

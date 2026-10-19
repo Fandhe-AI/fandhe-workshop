@@ -243,8 +243,11 @@ impl Projection {
                 after,
                 cause,
             } => {
-                if *cause == Cause::Input {
-                    self.merge_change(&at.step, path, before, after);
+                match cause {
+                    Cause::Input => self.merge_change(&at.step, path, before, after),
+                    // 上限で止めて入口へ戻した差分（SAFE-35）。学習者の変更として足さず、併合済みの変更を打ち消す。
+                    Cause::Stop => self.unmerge_change(&at.step, path, after),
+                    _ => {}
                 }
             }
             Event::Stopped { at, .. } => {
@@ -325,6 +328,28 @@ impl Projection {
                 before: before.clone(),
                 after: after.clone(),
             }),
+        }
+    }
+
+    /// 取り消しの差分（原因 `Stop`）を印の元と復習へ当てる。併合済みの変更だけが対象で、新しい項目は作らない。
+    /// 取り消し後の値が最初の変更前に等しければ変更ごと取り除き、そうでなければ変更後を差し替える。
+    fn unmerge_change(&mut self, step: &StepUid, path: &str, after: &Option<Element>) {
+        if let Some(entry) = self.pending.get_mut(path) {
+            if entry.0 == *after {
+                self.pending.remove(path);
+            } else {
+                entry.1 = after.clone();
+            }
+        }
+        let items = Arc::make_mut(&mut self.review);
+        if let Some(item) = items.iter_mut().find(|r| &r.step == step) {
+            if let Some(pos) = item.changes.iter().position(|c| c.path == path) {
+                if item.changes[pos].before == *after {
+                    item.changes.remove(pos);
+                } else {
+                    item.changes[pos].after = after.clone();
+                }
+            }
         }
     }
 

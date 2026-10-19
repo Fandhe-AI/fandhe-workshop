@@ -197,15 +197,33 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     };
     let events = step(ir, &mut state, op);
     // 上限で止めたら、操作の前の Step・状態へ戻す（SAFE-35、D-45）。世代の強制より前に行う。
+    let mut cause = cause;
+    let mut returned_generation = None;
     if events
         .iter()
         .any(|e| matches!(e, Event::TransitionLimitReached { .. }))
     {
-        crate::transit::return_after_limit(&mut state, &run_before, &entry_before);
+        match crate::transit::return_after_limit(&mut state, &run_before, &entry_before) {
+            crate::transit::LimitReturn::Halted => {}
+            crate::transit::LimitReturn::Restored => {
+                if was_busy {
+                    returned_generation = Some(state.run.generation);
+                }
+            }
+            crate::transit::LimitReturn::RewoundToEntry => {
+                returned_generation = Some(state.run.generation);
+                // 入口へ戻した世界状態の差分は取り消しで、学習者の変更ではない（`Projection` が併合しない）。
+                cause = Cause::Stop;
+            }
+        }
     }
     // 世代の規則の表を分岐の外で強制する。`Changed` の宛先（下の `default_stamp`）より前に行い、
     // 状態とイベントの世代を食い違わせない。
     state.run.generation = settle_generation(rule, was_busy, gen_before, state.run.generation);
+    // 処理中から戻したときの世代の +1 は、表の強制で消さない（復帰前の進行を無効にする。`return_after_limit`）。
+    if let Some(generation) = returned_generation {
+        state.run.generation = generation;
+    }
     // 宛先の既定は操作後の世代と Step。各分岐のタスクが見直してよい初版の規則である。
     let default_at = changed::default_stamp(
         state.run.generation,

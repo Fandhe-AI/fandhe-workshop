@@ -386,10 +386,8 @@ fn cycle_exit_2_accepts_again_and_returns_again() {
     assert_eq!(state2.run.busy, None);
 }
 
-/// 進行（`Tick`）の完了で巡回に入って止めた場合も、`busy` は空で戻る。同じ宛先の `Tick` を再送しても
-/// 歩行は起きず、止める・戻すの無限の繰り返しにならない。
-#[test]
-fn tick_path_returns_without_busy_and_does_not_loop() {
+/// 進行つきの Step を受付済み・処理中にした状態。`with_entry` なら入口の写し（Entered）を持つ。
+fn busy_state(with_entry: bool) -> (Ir, SessionState, TickAddr) {
     let mut ir = cycle_ir("cycle-exit-2");
     if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == "main/f1") {
         n.step.processing = vec![serde_json::json!({ "name": "p1", "effects": [] })];
@@ -403,16 +401,26 @@ fn tick_path_returns_without_busy_and_does_not_loop() {
         .status
         .insert(uid("main/f1"), StepStatus::Accepted);
     before.run.busy = Some(Busy { done: 0, total: 1 });
-    // 入口の写しは入力を受け付け直せる状態（Entered）。進行からの復帰はここへ戻る。
-    before.entry = Some(EntryCopy {
-        run: state_at("main/f1").run,
-        log_len: 0,
-    });
+    if with_entry {
+        // 入口の写しは入力を受け付け直せる状態（Entered）。進行からの復帰はここへ戻る。
+        before.entry = Some(EntryCopy {
+            run: state_at("main/f1").run,
+            log_len: 0,
+        });
+    }
     let addr = TickAddr {
         generation: before.run.generation,
         step: uid("main/f1"),
         index: 0,
     };
+    (ir, before, addr)
+}
+
+/// 進行（`Tick`）の完了で巡回に入って止めた場合も、`busy` は空で戻る。世代は +1 になり、復帰前の宛先は
+/// 再入力で同じ Step が処理中になった後も照合を通らない。止める・戻すの無限の繰り返しにもならない。
+#[test]
+fn tick_path_returns_without_busy_and_does_not_loop() {
+    let (ir, before, addr) = busy_state(true);
     let (state, events) = apply(&ir, before.clone(), Op::Tick(addr.clone()));
     assert_limit_event(&events);
     assert_eq!(state.run.current, Some(uid("main/f1")));
@@ -421,9 +429,52 @@ fn tick_path_returns_without_busy_and_does_not_loop() {
         state.run.slices[&uid("main/f1").root()].status[&uid("main/f1")],
         StepStatus::Entered
     );
-    assert_eq!(state.run.generation, before.run.generation);
-    let (_, again) = apply(&ir, state, Op::Tick(addr));
+    assert_eq!(
+        state.run.generation,
+        before.run.generation.next().expect("room")
+    );
+    // 再入力で同じ Step が処理中になっても、復帰前の宛先は無視される。
+    let mut again_busy = state.clone();
+    again_busy.run.busy = Some(Busy { done: 0, total: 1 });
+    let (_, again) = apply(&ir, again_busy, Op::Tick(addr.clone()));
     assert!(limit_landings(&again).is_empty(), "{again:?}");
+    assert_eq!(
+        count(&again, |e| matches!(e, Event::Ignored { .. })),
+        1,
+        "{again:?}"
+    );
+    let (_, again) = apply(&ir, state, Op::Tick(addr));
+    assert_eq!(
+        count(&again, |e| matches!(e, Event::Ignored { .. })),
+        1,
+        "{again:?}"
+    );
+}
+
+/// 本番の経路のように入口の写しが無くても、処理中の上限停止で学習者が現在の Step を失わない。操作の前の
+/// `run` から `busy` だけを空にして戻り、世代は +1 になり、保存と移動が働く。
+#[test]
+fn busy_limit_without_entry_copy_keeps_current_step() {
+    let (ir, before, addr) = busy_state(false);
+    assert!(before.entry.is_none());
+    let (state, events) = apply(&ir, before.clone(), Op::Tick(addr.clone()));
+    assert_limit_event(&events);
+    assert_eq!(state.run.current, Some(uid("main/f1")));
+    assert_eq!(state.run.busy, None);
+    assert_eq!(
+        state.run.generation,
+        before.run.generation.next().expect("room")
+    );
+    let (saved, saved_events) = apply(&ir, state.clone(), Op::Control(Control::Save));
+    assert!(!saved_events.is_empty());
+    assert_eq!(saved.checkpoints.len(), 1);
+    let (moved, moved_events) = apply(&ir, state.clone(), go_to("main/f1"));
+    assert!(!moved_events.is_empty());
+    assert_eq!(moved.run.current, Some(uid("main/f1")));
+    // 復帰前の宛先は無効。
+    let mut again_busy = state;
+    again_busy.run.busy = Some(Busy { done: 0, total: 1 });
+    let (_, again) = apply(&ir, again_busy, Op::Tick(addr));
     assert_eq!(
         count(&again, |e| matches!(e, Event::Ignored { .. })),
         1,

@@ -112,33 +112,60 @@ fn halt(state: &mut SessionState, at: Stamp, budget: &Budget, events: &mut Vec<E
     state.entry = None;
 }
 
+/// 上限で止めた操作を戻した結果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LimitReturn {
+    /// 戻す先が無く、空のまま止めた（fail-closed）。
+    Halted,
+    /// 操作の前の状態へ戻した。
+    Restored,
+    /// 処理中だったので入口の写しの状態へ戻した。世界状態が操作の前から変わりうる。
+    RewoundToEntry,
+}
+
 /// 上限で止めた操作を、その操作の前の状態へ戻す（SAFE-35、D-45）。呼び出し元は `session::apply` だけ。
 ///
 /// 戻す単位は `run` 全体と入口の写しで、巡回の途中の着地点ではなく受講者が操作の前にいた Step へ戻る。
-/// 世代は減らさず操作後の値を残し（`go_to` が出した `Moved` の世代と一致させる）、`busy` は必ず空にする
-/// （進行の宛先が再び有効になり、止める・戻すを無限に繰り返すのを防ぐ。fail-closed）。
-/// 操作の前に現在の Step が無かったときは戻す先が無いので、空のまま止める。
+/// 処理中（`busy`）だった操作は、次のとおり戻す。
+///
+/// - 入口の写しがその Step のものなら、入口の状態（入力を受け付け直せる状態）へ戻す。世界状態も入口へ戻るので、
+///   呼び出し元 `apply` が差分を原因 `Stop` の `Changed` にして記録する（学習者の変更として併合させない）
+/// - 写しが無い・別の Step のとき（本番は入口の写しをまだ作らない。TASK-242・217）は、操作の前の `run` から
+///   `busy` だけを空にして戻す。現在の Step を失わないので、保存・移動・復帰などは働く。受付済みのまま
+///   入力で進めない Step（確認なしの進行つき）が残りうるが、受付の効果の二重適用より安全側とする
+///
+/// 処理中だった操作は世代を +1 する（`go_to` のように既に進んでいるときは、その値を残す）。復帰前に出した
+/// 進行の宛先（世代・Step・番号）を、再入力で同じ Step が処理中になった後も無効にするためである。世代が
+/// あふれるときは戻さずに空のまま止める（fail-closed）。`busy` は必ず空にする。
+/// 操作の前に現在の Step が無かったときも戻す先が無いので、空のまま止める。
 /// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。復習は `Projection` が
 /// `TransitionLimitReached` で操作の前の復習へ戻して Step の状態と揃える。
 pub(crate) fn return_after_limit(
     state: &mut SessionState,
     run_before: &crate::session::RunState,
     entry_before: &Option<crate::session::EntryCopy>,
-) {
+) -> LimitReturn {
     if run_before.current.is_none() {
-        return;
+        return LimitReturn::Halted;
     }
-    let generation = state.run.generation;
-    // 進行（処理中）の途中から止めた場合、操作の前の状態は受付済みで処理中だけを消すと、入力も進行も
-    // 受け付けられない（確認 none の Step は達成にも進めない）。入口の写しがその Step のものなら、
-    // 入口の状態（入力を受け付け直せる状態）へ戻す。写しが無い・別の Step のときは空のまま止める（fail-closed）。
+    let mut generation = state.run.generation;
+    let mut outcome = LimitReturn::Restored;
     let mut run = if run_before.busy.is_some() {
+        if generation == run_before.generation {
+            let Some(next) = generation.next() else {
+                return LimitReturn::Halted;
+            };
+            generation = next;
+        }
         match entry_before
             .as_ref()
             .filter(|e| e.run.current == run_before.current)
         {
-            Some(entry) => entry.run.clone(),
-            None => return,
+            Some(entry) => {
+                outcome = LimitReturn::RewoundToEntry;
+                entry.run.clone()
+            }
+            None => run_before.clone(),
         }
     } else {
         run_before.clone()
@@ -147,6 +174,7 @@ pub(crate) fn return_after_limit(
     run.busy = None; // 戻した後は必ず処理中でない
     state.run = run;
     state.entry = entry_before.clone();
+    outcome
 }
 
 /// 移動先 `to` に着地する（`go_to` の入口）。`to` が IR にあることは呼び出し元が確かめ済み。
