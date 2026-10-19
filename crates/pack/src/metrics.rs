@@ -30,9 +30,13 @@ pub struct Measure {
 /// 行内の `{`・`[` の最大の入れ子。`"` の内側は数えない。
 fn inline_depth(s: &str) -> u64 {
     let (mut depth, mut max) = (0u64, 0u64);
-    let (mut in_str, mut prev) = (false, '\0');
+    let (mut in_str, mut escaped) = (false, false);
     for c in s.chars() {
-        if c == '"' && prev != '\\' {
+        if in_str && escaped {
+            escaped = false;
+        } else if in_str && c == '\\' {
+            escaped = true;
+        } else if c == '"' {
             in_str = !in_str;
         } else if !in_str {
             match c {
@@ -44,7 +48,6 @@ fn inline_depth(s: &str) -> u64 {
                 _ => {}
             }
         }
-        prev = c;
     }
     max
 }
@@ -175,6 +178,8 @@ mod tests {
         assert_eq!(inline_depth("\"[[\" x"), 0);
         assert_eq!(inline_depth("\"a\\\"[\" [x]"), 1);
         assert_eq!(inline_depth("]] [x]"), 1);
+        // 偶数個のバックスラッシュの直後の `"` は文字列を閉じる。
+        assert_eq!(inline_depth("{ path = \"a\\\\\", xs = [[1]] }"), 3);
     }
 
     #[test]

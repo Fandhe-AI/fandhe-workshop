@@ -247,11 +247,11 @@ pub const METRICS_HEADER: &str = "file,lines,effective_lines,bytes,max_depth";
 /// `metrics` の合計の行の `file` 欄に置く語。
 pub const METRICS_TOTAL_LABEL: &str = "TOTAL";
 
-/// `metrics` の 1 ファイルの行。`file` の制御文字は `\u{XXXX}`、`,` は `\u{002C}` に直し、1 行 5 欄を保つ。
+/// `metrics` の 1 ファイルの行。`file` の制御文字は `\u{XXXX}`、`,` は `\u{002C}`、`"` は `\u{0022}` に直し、1 行 5 欄を保つ。
 pub fn metrics_row(file: &str, lines: u64, effective: u64, bytes: u64, depth: u64) -> String {
     let mut f = String::new();
     for c in file.chars() {
-        if c.is_control() || c == ',' {
+        if c.is_control() || c == ',' || c == '"' {
             f.push_str(&format!("\\u{{{:04X}}}", u32::from(c)));
         } else {
             f.push(c);

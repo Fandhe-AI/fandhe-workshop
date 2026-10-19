@@ -174,4 +174,8 @@ fn cli_doc_metrics_block_matches_contract() {
         metrics_row("a,b\n", 1, 1, 1, 1),
         "a\\u{002C}b\\u{000A},1,1,1,1"
     );
+    assert_eq!(
+        metrics_row("\"a.yaml", 1, 1, 1, 1),
+        "\\u{0022}a.yaml,1,1,1,1"
+    );
 }
