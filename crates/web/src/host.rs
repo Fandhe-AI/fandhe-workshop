@@ -251,11 +251,23 @@ pub enum FixtureName {
     Views,
     /// 入力方式が `ui_action` の Step を持つ教材（入力方式ごとの入力の口の試験。TASK-450 1/3）。
     UiAction,
+    /// `enter` が自分を指して巡回する IR（遷移の上限の試験。TASK-160 1/3）。
+    CycleEnterSelf,
+    /// `enter` が 2 者で巡回する IR。
+    CycleEnter2,
+    /// `exit_to` が 2 者で巡回する IR。
+    CycleExit2,
+    /// 巡回していても 1 入力あたりの遷移が少数の IR（上限に当たらない対照）。
+    CycleD07,
+    /// 巡回しない `use` の連鎖で、着地がちょうど 1,000 回（通る）。
+    Chain1000,
+    /// 巡回しない `use` の連鎖で、着地が 1,001 回（止まる）。
+    Chain1001,
 }
 
 /// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
 ///
-/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`views`・`ui-action`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
+/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`views`・`ui-action`・`cycle-enter-self`・`cycle-enter-2`・`cycle-exit-2`・`cycle-d07`・`chain-1000`・`chain-1001`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
 #[cfg(feature = "test-hooks")]
 pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 
@@ -878,6 +890,18 @@ impl EngineHost {
                 _ => None,
             })
             .collect();
+        // 警告の文面（TASK-160）。エンジンの固定文だけで、教材・入力の値は含まない。遷移の上限で止めた警告を、効果の
+        // 適用などの他の警告と区別して数えるために、ブラウザ試験が使う。
+        let warnings: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                fandhe_workshop_core::event::Event::Warning { message, .. } => {
+                    Some(json!({ "event": i, "message": message }))
+                }
+                _ => None,
+            })
+            .collect();
         // ログは無視のたびに伸びるため、状態の一致の比較からは外す。失敗は Null に倒す。
         let mut state_without_log =
             serde_json::to_value(session.state()).unwrap_or(serde_json::Value::Null);
@@ -893,6 +917,7 @@ impl EngineHost {
             "judgedCategories": judged_categories,
             "received": received,
             "ignoredReasons": ignored_reasons,
+            "warnings": warnings,
             "stateWithoutLog": state_without_log,
             "consumed": bulk.consumed(),
             "generation": session.generation().0,
@@ -1399,6 +1424,20 @@ impl Component for EngineHost {
                     FixtureName::Approval => crate::test_fixture::approval_session(),
                     FixtureName::Views => crate::test_fixture::views_session(),
                     FixtureName::UiAction => crate::test_fixture::ui_action_session(),
+                    FixtureName::CycleEnterSelf => {
+                        crate::test_fixture::cycle_session(crate::test_fixture::CycleIr::EnterSelf)
+                    }
+                    FixtureName::CycleEnter2 => {
+                        crate::test_fixture::cycle_session(crate::test_fixture::CycleIr::Enter2)
+                    }
+                    FixtureName::CycleExit2 => {
+                        crate::test_fixture::cycle_session(crate::test_fixture::CycleIr::Exit2)
+                    }
+                    FixtureName::CycleD07 => {
+                        crate::test_fixture::cycle_session(crate::test_fixture::CycleIr::D07)
+                    }
+                    FixtureName::Chain1000 => crate::test_fixture::chain_session(999),
+                    FixtureName::Chain1001 => crate::test_fixture::chain_session(1000),
                 };
                 if let Some(session) = built {
                     self.replace_pack(session);
@@ -1482,6 +1521,14 @@ impl Component for EngineHost {
                     "approval" => Some(HostAction::LoadFixture(FixtureName::Approval)),
                     "views" => Some(HostAction::LoadFixture(FixtureName::Views)),
                     "ui-action" => Some(HostAction::LoadFixture(FixtureName::UiAction)),
+                    "cycle-enter-self" => {
+                        Some(HostAction::LoadFixture(FixtureName::CycleEnterSelf))
+                    }
+                    "cycle-enter-2" => Some(HostAction::LoadFixture(FixtureName::CycleEnter2)),
+                    "cycle-exit-2" => Some(HostAction::LoadFixture(FixtureName::CycleExit2)),
+                    "cycle-d07" => Some(HostAction::LoadFixture(FixtureName::CycleD07)),
+                    "chain-1000" => Some(HostAction::LoadFixture(FixtureName::Chain1000)),
+                    "chain-1001" => Some(HostAction::LoadFixture(FixtureName::Chain1001)),
                     _ => None,
                 };
             }

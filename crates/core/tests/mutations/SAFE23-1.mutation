@@ -1,0 +1,9 @@
+id: SAFE23-1
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/transit.rs
+find:         if n > MAX_TRANSITIONS_PER_INPUT {
+replace:         if n >= MAX_TRANSITIONS_PER_INPUT {
+expect-fail: enter_chain_boundary
+expect-fail: exit_chain_boundary
+note: 上限の比較を以上にする（1,000 回ちょうどの着地が止まる）

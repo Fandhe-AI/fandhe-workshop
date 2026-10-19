@@ -217,7 +217,7 @@ test('cycle: 巡回する IR の 4 ファイルを関門に渡した結果を記
       const out = JSON.parse(await page.evaluate(([e, s]) => window.__fandheTest.checkJsonLoad(e, s), ['ir', text]));
       log(t, 'cycle', `${f} bytes=${Buffer.byteLength(text)} ok=${out.ok} stage=${out.stage ?? '-'} reason=${out.reason ?? '-'}`);
     }
-    log(t, 'cycle', '画面での起動と遷移の上限は未実装（?ir= は TASK-168・#549、遷移の上限は TASK-160・#444）');
+    log(t, 'cycle', '画面での起動は未実装（?ir= は TASK-168・#549）。遷移の上限は transition-limit.test.mjs が確かめる（TASK-160・#444）');
     assertNoPageErrors(rec, 'cycle');
     await context.close();
   });

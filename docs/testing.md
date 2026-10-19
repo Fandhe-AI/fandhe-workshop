@@ -3961,6 +3961,31 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 | VER2-1 | crates/core/src/history_open.rs: 教材形式が古い履歴の判定を外す（V-iv-4 が適用し直しまで進み、危険な側の食い違いになる） | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
 | VER2-2 | crates/core/src/history_open.rs: エンジンの主版の違いを開かないに倒す（V-v-3 が慎重な側の食い違いになる） | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
 
+### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
+
+1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）と止めた後の戻り方（SAFE-35、#446）は本節の範囲外で、`Warning` のままにしている。
+
+試験は 2 層に置いた。
+
+- native（`crates/core/tests/transition_limit.rs`）: 巡回する IR 4 本（`testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/`。読み込みを通る）のうち、`cycle-enter-self`・`cycle-enter-2` は `Control::GoTo` で巡回の入口へ入り、`cycle-exit-2` は `main/f1` への自然文 1 回で、`ModuleEntered`／`ModuleExited` がちょうど 1,000 件・`Warning` が 1 件・現在の Step が空になる。`cycle-d07-flat` は `s-d07` の節点から `Input::Ui` を 2 回送り、上限の `Warning` が 0 件で `ModuleEntered` が少数に収まる。巡回しない `enter` の連鎖（入口 → `use` k 個 → 末尾。着地は k + 1 回）と `exit_to` の連鎖（c0 → c1 … ck → 末尾）は、k = 999 で通り（`Warning` 0 件）、k = 1,000 で止まる。256 KB のスタックのスレッドで巡回を流しても溢れない。連鎖の途中の `enter` の先が IR に無いときは、固定文の `Warning` が 1 件で panic しない
+- ブラウザ（`tools/browser/transition-limit.test.mjs`）: `load-fixture:cycle-*`・`load-fixture:chain-1000`・`chain-1001`（試験の設定だけ。配信物には入らない）で教材を差し替えて同じ主張を確かめる。タブが落ちないこと（`crashed` が偽）とページ内のエラーが 0 件であることを、各場合で確かめる。上限で止めた警告は、エンジンの書き出しの `warnings`（固定文）から数える（`go_to` で飛んだ教材では効果の適用の警告が別に出るため、種類 `warning` の件数では数えない）
+
+開始（`Control::Begin`）は未実装（TASK-217）なので、SAFE-23 の「開始する」の代わりに `go_to` で巡回の入口へ入った。開始時の連鎖は TASK-217 が同じ歩行器を通す。web の試験用の起動（`start_state_at`）は、開始の節点が `main` の外にあるとき、切り身の鍵を節点の根に合わせる（合わせないと開始の Step の状態を引けず、入力が受け付けられない）。
+
+所要時間は assert せず、diagnostic に残した（2026-10-19、debug ビルドの native で 8 件合計 0.01 秒、ブラウザで巡回 1 本あたり約 40〜50 ミリ秒）。
+
+- SAFE23-1: 上限の比較を `>=` にする（1,000 回ちょうどの着地が止まる）
+- SAFE23-2: 止めたときに現在の Step を空にしない
+- SAFE23-3: 上限を 1 つ緩める（1,001 回目が通る）
+
+上限の判定そのものを外す変異は、検査が終わらなくなるため作っていない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 8098b2b（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-2・3 も同様）
+```
+
 ### 5.134 版の違う履歴 15 件のブラウザでの確認（TASK-175 2/2）
 
 版の違う履歴 15 件を実際のブラウザで開き、5.132 の期待の表（`testdata/version-histories/expectations.json`。Node が直接読む）と突き合わせる（VER-2）。履歴と開く側の教材は、native の試験と同じ作り方を `emit_histories_for_browser`（`#[ignore]`）が書き出す（`scripts/test-browser.sh` だけが `--ignored` で呼び、15 件がそろわなければ失敗にする）。開く側の教材・エンジンの版・語彙の上限は、試験の設定の口（`raw` の `load-ir:`・`opening-override:`）で作る。配信の設定の判定の経路は変えず、口は配信物に入らない。
@@ -3990,8 +4015,13 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
+| SAFE23-1 | crates/core/src/transit.rs: 上限の比較を以上にする（1,000 回ちょうどの着地が止まる） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
+| SAFE23-2 | crates/core/src/transit.rs: 止めたときに現在の Step を空にしない | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit | cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_self_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
+| SAFE23-3 | crates/core/src/transit.rs: 上限を 1 つ緩める（1,001 回目が通る） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
+
+範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、見出しと専用の `Event`（#445）、戻り方（#446）。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

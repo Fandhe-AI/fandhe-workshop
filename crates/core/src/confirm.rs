@@ -4,7 +4,8 @@
 //! 判定する。その判定は [`crate::judge::judge_input`]（`select_judge::judge_confirm`）が 1 回だけ行い、本モジュールは
 //! 確認と決まった後の達成の処理だけを持つ。宣言は読み直さない（判定と遷移の食い違いを作らない。JUDGE-3）。
 //! 確認と決まれば Step を達成（`StepStatus::Achieved`）にし、達成のときの効果を適用し、最小の遷移（`next` の
-//! 先頭の無条件の辺）で次の Step に入る。確認でなければ `accept` が受付済みのまま何も変えない。
+//! 先頭の無条件の辺、`use` の呼び出し先、`final` の `exit_to`）で次の Step に入る。遷移のたどりと、1 回の操作で起きる
+//! 遷移の上限（1,000 回）は [`crate::transit`] が持つ（TASK-160、SAFE-23）。確認でなければ `accept` が受付済みのまま何も変えない。
 //! 呼び出し元は [`crate::accept::on_input`] だけで、公開 API には含めない（契約の対象外）。
 //! 確認の種類ごとの成立条件と宣言の検査は `select_judge` が、宣言の型は contract の `confirm_spec` が持つ。
 //!
@@ -22,14 +23,14 @@
 //!
 //! # 扱わないこと
 //!
-//! - 章の完了（`ChapterCompleted`・`completed`）、`exit_to`・`use` への遷移（TASK-233 以降）
+//! - 章の完了（`ChapterCompleted`・`completed`）、実体ごとの状態の切り分け、`use`・`exit_to` を通る間の効果（TASK-233 以降。たどり自体は `transit` が行う）
 //! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-242・213・217）
 //! - `on_miss`・`on_wrong` の文面の解決と `Judged` の発行（`crate::judge`、TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）。
 //!   どちらも受付の分岐が先に行い、本モジュールは判定が確認のときだけ呼ばれる
 //! - `processing` を持つ Step の省略の達成（進行の完了で [`crate::tick`] が達成にする。TASK-210 2/3）
 //!
-//! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は 1 操作で
-//! 高々 1 回。`Warning` の文面は固定文で、入力値・教材の値を埋め込まない。
+//! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。遷移は上限
+//! （`MAX_TRANSITIONS_PER_INPUT`）で必ず止まる。`Warning` の文面は固定文で、入力値・教材の値を埋め込まない。
 
 use fandhe_workshop_contract::confirm_spec::{achievement, Achievement, ConfirmKind, NoneSpec};
 use fandhe_workshop_contract::effect::EffectItem;
@@ -37,18 +38,16 @@ use fandhe_workshop_contract::ir::{Ir, Node, Step};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::addr::{Stamp, StepUid};
+use crate::addr::Stamp;
 use crate::effect::{apply_effects, NoConditions};
 use crate::event::{Cause, Event};
 use crate::session::SessionState;
 use crate::step_status::StepStatus;
+use crate::transit;
 
 /// 宣言が読めなかったときの固定文。入力値・教材の値を含めない。
 const INVALID_DECLARATION: &str =
     "confirm declaration or achievement effects could not be read; input ignored";
-
-/// 遷移先が IR に無いときの固定文。
-const UNKNOWN_TARGET: &str = "transition target is not in the course; transition skipped";
 
 /// 受付の時点での達成の扱い（EVT-5）。
 pub(crate) enum OnAccept {
@@ -161,37 +160,7 @@ pub(crate) fn achieve_with(
         Cause::Input,
         &NoConditions,
     ));
-    // 無条件の最初の辺だけを採る。`when` は評価できないので、条件つきの辺は採らない。
-    let Some(edge) = node
-        .step
-        .next
-        .iter()
-        .find(|t| t.when.as_ref().is_none_or(Value::is_null))
-    else {
-        return events;
-    };
-    let Some(target) = ir.nodes.iter().find(|n| n.uid == edge.to) else {
-        events.push(warning(at, UNKNOWN_TARGET));
-        return events;
-    };
-    let to = StepUid(target.uid.clone());
-    events.push(Event::Transitioned {
-        at: at.clone(),
-        to: to.clone(),
-    });
-    state.run.current = Some(to.clone());
-    state
-        .run
-        .slices
-        .entry(to.root())
-        .or_default()
-        .status
-        .insert(to.clone(), StepStatus::Entered);
-    events.push(Event::Entered {
-        at: Stamp {
-            generation: at.generation,
-            step: to,
-        },
-    });
+    // 遷移（`next`・`use`・`exit_to`）は歩行器が行い、1 回の操作の遷移の上限を守る（TASK-160、SAFE-23）。
+    transit::after_achieved(ir, state, node, at, &mut events);
     events
 }

@@ -1,8 +1,8 @@
 id: SAVE5-4
 package: fandhe-workshop-core
 test: reload_after_control
-target: crates/core/src/confirm.rs
-find:     state.run.current = Some(to.clone());
-replace:     let _ = &to;
+target: crates/core/src/transit.rs
+find:             state.run.current = Some(uid.clone());
+replace:             let _ = &uid;
 expect-fail: reload_right_after_confirm_burst_keeps_one_achievement
 note: 確認の達成で次の Step へ現在位置を移さない。連打の 2 回目以降が達成済みの Step に届き、達成が重複する
