@@ -1,0 +1,8 @@
+id: AUTHOR9-6
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:     for p in &step.processing {
+replace:     for p in &step.processing[..0] {
+expect-fail: author9_processing_effects_when_is_counted
+note: processing の要素の effects 配下の when が走査されない

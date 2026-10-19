@@ -8,7 +8,7 @@ fn bin() -> Command {
 
 #[test]
 fn i1_subcommands_start() {
-    for name in ["validate", "test", "vocab"] {
+    for name in ["validate", "test"] {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
         assert!(o.stdout.is_empty(), "{name}");
@@ -20,7 +20,7 @@ fn i1_subcommands_start() {
 /// 形が正しい呼び出しは、そのコマンドの handler に届く（未実装の行が自分の名前だけを名指しする）。
 #[test]
 fn i10_each_command_is_dispatched_to_its_handler() {
-    let names = ["validate", "test", "vocab"];
+    let names = ["validate", "test"];
     for name in names {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
@@ -36,6 +36,20 @@ fn i10_each_command_is_dispatched_to_its_handler() {
             );
         }
     }
+}
+
+/// `vocab` は自分の handler に届く（標準出力の 1 行目が `VOCAB_HEADER`）。他のコマンドの振り分けとは取り違えない。
+#[test]
+fn i11_vocab_is_dispatched_to_vocab() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/vocab-pack");
+    let o = bin().arg("vocab").arg(dir).output().unwrap();
+    assert_eq!(o.status.code(), Some(0));
+    assert!(o.stderr.is_empty());
+    let out = String::from_utf8(o.stdout).unwrap();
+    assert_eq!(
+        out.lines().next(),
+        Some(fandhe_workshop_pack::cli_contract::VOCAB_HEADER)
+    );
 }
 
 #[test]

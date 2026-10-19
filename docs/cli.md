@@ -1,17 +1,17 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 4
+CLI の外部仕様の版: 5
 決定日: 2026-10-19
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402、AUTHOR-1〜AUTHOR-3・AUTHOR-8）
-- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 4」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9）
+- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 5」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
-- 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・PACK-2）で参照する
+- 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
 
 ## 2. バイナリ名
@@ -84,7 +84,7 @@ commands:
 
 項目は `<種別>`、または `<種別>:<名前>` の形で書く。種別は `[a-z][a-z_]*` で、名前は空でない。名前を安全に写せない（空・`safe_ident` を通らない）ときは、名前の代わりに `#<n>`（1 始まりの位置）を使う（例: `command:#2`）。
 
-AUTHOR-2 が名指しする 5 種（`step`・`rejection`・`start`・`playthrough`・`error_input`）は、必ずこの名前の種別で出す。次の表は、版 3 時点で実装が使う種別の参考の一覧である。種別を足しても版は上げない（形は上の規則が決める）。
+AUTHOR-2 が名指しする 5 種（`step`・`rejection`・`start`・`playthrough`・`error_input`）は、必ずこの名前の種別で出す。次の表は、版 4 時点で実装が使う種別の参考の一覧である。種別を足しても版は上げない（形は上の規則が決める）。
 
 | 種別 | 項目の形 | 備考 |
 |---|---|---|
@@ -171,15 +171,49 @@ TOTAL,18,15,350,4
 - `TOTAL` は行数・実効行数・バイト数が和、`max_depth` が最大である
 - 診断（`workshop.*` が無い・両方ある、上限・リンク・深さの超過、読めない・UTF-8 でない・大きすぎるファイル）があるときは、表を出さず診断の行だけを標準出力に出して終了コード 1 にする。最終行は出さない。標準エラー出力は空である
 
-## 12. 本版で扱わない事項
+## 12. vocab の出力
 
+`vocab <pack-dir>` の出力の契約（AUTHOR-9、TASK-408）。教材が既存の語彙の組み合わせだけで書けたのか、名前つき拡張点に頼ったのかを、作成者が機械で確かめる。コード側の正は `cli_contract` の `VOCAB_HEADER`・`vocab_row`・`vocab_summary_lines`・`vocab_pack_line`、数え方は `vocab_report`。
+
+| 場面 | 標準出力 | 標準エラー出力 | 終了コード |
+|---|---|---|---|
+| 読み込めて、`compile` の診断が 0 件 | 表と集計行（下の例） | 空 | 0 |
+| 読み込めない、または `compile` に診断がある | 診断の行だけ（表・集計行なし） | 空 | 1 |
+
+```text
+scope,step,kind,extension_points
+c1,s1,step,
+c1,s2,step,EP-1 EP-7
+c1,s3,use,
+m1,s4,step,EP-3
+# (i) 既存の語彙の組み合わせだけで書けた Step: 1
+# (ii) 名前つき拡張点を使って書けた Step: 2
+# EP-1 を使った Step: 1
+# EP-3 を使った Step: 1
+# EP-7 を使った Step: 1
+# EP-11 を使った（教材パック全体）: pack.appearance
+```
+
+- 表: 先頭はヘッダ `scope,step,kind,extension_points` で、1 行が 1 つの Step の定義である。`scope` は章・モジュールの ID、`step` は Step の ID。行の順は、章の名前の昇順、続いてモジュールの名前の昇順で、各ファイルの中は書かれた順である。呼ばれないモジュールの Step も含め、展開後の複製は数えない
+- `kind` は `step` か `use`。`use` は他モジュールの呼び出しで、`extension_points` は空にし、（i）（ii）にも数えない（展開した先の Step で数える）
+- `extension_points` は、その Step が使った拡張点の ID を半角空白でつないだもの。並びは拡張点の番号順（`EP-2` の後に `EP-13`）で、使っていなければ空
+- 数える拡張点は EP-1〜EP-8 と EP-13 である。EP-3・EP-4 は条件の欄（`next[].when`・規則と効果の `when`）の中の `param`・`clarifying` を数える。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の `guidance_levels`・開始点の `guidance` は数えない。EP-9（`starts[].requires`）と `confirm.options[].label` は数えない（TASK-409）
+- 集計行は `# ` で始まる。（i）は拡張点を 1 つも使わなかった `step` 行の数、（ii）は 1 つ以上使った `step` 行の数。続けて、1 回以上使われた拡張点だけを、番号順に `# EP-n を使った Step: N` として出す
+- 教材パック全体の行（EP-10〜EP-12）は、`pack.profile`・`pack.appearance`・`pack.left_pane` を**読んだ値が既定と違う**ときだけ、末尾に番号順で出す。欄を既定と同じ値で書いても出さない。これらは Step ごとの数（i）（ii）に入れない
+- ID の欄に含まれる制御文字（改行を含む）・`,`・`"`・U+2028・U+2029、および `scope` の先頭の `#` は、`\u{XXXX}`（16 進 4 桁・大文字）に直す。1 行が 4 欄に保たれ、表の行が集計行に見えない。出力に写すのは ID・拡張点の ID・固定の欄名だけで、本文・練習データ・条件の値は写さない
+- 診断があるときは表を出さない（fail-closed）。診断は 6 節の形で 1 件 1 行、最終行はない。`validate` 専用の検査（`E-VOCAB-MISMATCH`・`E-REF-ELEMENT`・到達性）は関門に入れない
+- 集計行は日本語、診断は英語の文言が混ざる。最終行（8 節）と同じ扱いで、機械で読むときは `# ` で始まる行を集計行とみなす
+
+## 13. 本版で扱わない事項
+
+- `vocab` の EP-9（`starts[].requires`）と `confirm.options[].label` の数え上げ（TASK-409）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403）
 - `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
 - 引数の数の検査と振り分け（TASK-401）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
 
-## 13. 適合試験
+## 14. 適合試験
 
 `crates/pack/tests/cli_contract_doc.rs`（文書とコードの一致）と `crates/pack/tests/cli_contract.rs`（実行ファイルの挙動）が次を確かめる。
 
@@ -219,8 +253,17 @@ TOTAL,18,15,350,4
 | `author8_diagnostics_do_not_write_output` | 診断があればファイルを作らず、既存にも触れない |
 | `author8_unwritable_output_exits_2` | 書き出せないとき 2 と `error:` の 1 行で、一時ファイルを残さない |
 | `author8_no_temporary_file_is_left_after_success` | 成功後に一時ファイルが残らない |
+| `cli_doc_vocab_example_matches_contract`（`cli_contract_doc.rs`） | 11 節の例のブロックが `VOCAB_HEADER`・`vocab_row`・`vocab_summary_lines`・`vocab_pack_line` の出力と完全一致する |
+| `author9_table_and_summary`（`vocab_command.rs`） | 表・`use` 行・（i）（ii）・拡張点ごとの行が期待どおりで、並びが番号順 |
+| `author9_pack_wide_lines_only_when_changed` | 教材パック全体の行が、既定から変えた欄だけ末尾に番号順で出る |
+| `author9_explicit_default_values_emit_nothing` | 既定と同じ値の明示では教材パック全体の行が出ない |
+| `author9_ep9_and_label_not_counted` | `starts[].requires`・`confirm.options[].label` を足しても出力が変わらない |
+| `author9_load_failure_prints_diagnostics_only` | 読み込めないときは 1・診断だけ・標準エラー出力は空 |
+| `author9_compile_failure_prints_diagnostics_only` | `compile` に診断があるときは 1・表を出さない |
+| `author9_hostile_ids_are_escaped` | ID の `,`・`"`・改行・先頭の `#` を直し、各行が 4 欄に保たれる |
+| `author9_module_scope_rows` | 呼ばれないモジュールの Step も数え、`use` 行は（i）（ii）に入らない |
 
-## 14. 変更履歴
+## 15. 変更履歴
 
 | 版 | 日付 | 内容 |
 |---|---|---|
@@ -228,3 +271,4 @@ TOTAL,18,15,350,4
 | 2 | 2026-10-19 | 診断 1 行の形・項目の書式・最終行（`validate`・`compare`）・診断の出し先を足す（TASK-399 2/2） |
 | 3 | 2026-10-19 | `compile` の出力（`-o` の書き出し・標準出力との同一バイト・末尾・決定性）を 10 節に固定し、以降の節を繰り下げる（TASK-407、AUTHOR-8） |
 | 4 | 2026-10-19 | `metrics` の出力の形（ヘッダ・行・`TOTAL`・数え方・診断時の扱い）を足す（TASK-402） |
+| 5 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 12 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |

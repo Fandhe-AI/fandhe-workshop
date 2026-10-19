@@ -1,0 +1,8 @@
+id: AUTHOR9-1
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:     if profile != ProfileSetting::default() {
+replace:     if w.pack.profile.is_some() {
+expect-fail: author9_explicit_default_values_emit_nothing
+note: EP-10 の既定の判定が値ではなく欄の有無になる（既定と同じ値の明示でも行が出る）

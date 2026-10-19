@@ -2,7 +2,7 @@ id: AUTHOR1-5
 package: fandhe-workshop-pack
 test: cli
 target: crates/pack/src/cli.rs
-find: Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, err),
+find: Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, out),
 replace: Invocation::Vocab { pack_dir } => run_metrics(&pack_dir, out, err),
-expect-fail: i10_each_command_is_dispatched_to_its_handler
+expect-fail: i11_vocab_is_dispatched_to_vocab
 note: vocab の振り分けが metrics の handler になる

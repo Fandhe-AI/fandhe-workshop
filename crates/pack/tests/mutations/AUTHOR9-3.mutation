@@ -1,0 +1,8 @@
+id: AUTHOR9-3
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:     let counts: Vec<(&str, usize)> = EXTENSION_POINTS
+replace:     let counts: Vec<(&str, usize)> = per_ep.iter().map(|(k, v)| (*k, *v)).collect(); let _table_order: Vec<(&str, usize)> = EXTENSION_POINTS
+expect-fail: author9_table_and_summary
+note: EP ごとの集計行が ID の文字列順になる（EP-13 が EP-2 より前に来る）
