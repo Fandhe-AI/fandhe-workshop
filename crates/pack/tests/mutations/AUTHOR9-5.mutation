@@ -1,0 +1,8 @@
+id: AUTHOR9-5
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:     crate::compile::compile(&pack)?;
+replace:     let _ = crate::compile::compile(&pack);
+expect-fail: author9_compile_failure_prints_diagnostics_only
+note: compile の関門が外れる（診断があっても表を出す）

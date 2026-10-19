@@ -372,8 +372,12 @@ views:
 - 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.4"`）。YAML では引用符で囲みます
 - 現在のエンジンが読める語彙の上限は 1.4 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
   履歴は開きません（`vocab_newer`。VER-7）。`validate` は、上限を超える宣言を報告しません（2026-10-19 時点）
-- 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-9 と `label` を数えません
+- 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-1〜EP-8 と EP-13 だけを Step ごとに数え、EP-9 と `label` は数えません
   （AUTHOR-17）
+- `fandhe-pack vocab <pack-dir>` は、Step ごとの拡張点の使用と、既存の語彙の組み合わせだけで書けた Step の数を出します（AUTHOR-9。出力の形は
+  `docs/cli.md` の 11 節）。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
+  `guidance_levels` と開始点の `guidance` は数えません。`pack.profile`・`pack.appearance`・`pack.left_pane` は、既定から変えたときだけ末尾に出し、Step ごとの数に入れません。
+  読み込みか `compile` に診断があるときは表を出しません。`pack.vocab` に何を宣言するかを確かめるときは、先に `compile` を通します
 - 語彙の版を上げるだけの変更は流れを変えないため、主版ではなく副版か修正版の扱いです。語彙が古い履歴は、適用し直して一致すれば
   変換して開きます（VER-4）
 

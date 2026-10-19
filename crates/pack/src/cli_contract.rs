@@ -2,7 +2,8 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 3）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 4）で、本モジュールは同じ内容のコード側の写しである。
+//! `vocab` の出力の形（ヘッダ・行・集計行・教材パック全体の行）は版 4 で足した（TASK-408）。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
 //! 呼び出し元は `cli`（振り分けと出力）と `main.rs`（終了コード）で、`cli` は本モジュールの名前を `pub use`
@@ -21,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 3;
+pub const CLI_CONTRACT_VERSION: u32 = 4;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -239,4 +240,115 @@ pub fn compare_unreadable_line(a: usize, b: usize) -> String {
         "NG: 診断 {} 件（比べられません。a {a} 件、b {b} 件）",
         a + b
     )
+}
+
+/// `vocab` の表のヘッダ（AUTHOR-9）。
+pub const VOCAB_HEADER: &str = "scope,step,kind,extension_points";
+
+/// `vocab` の表の行の種別。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VocabRowKind {
+    /// 通常の Step。拡張点を数える。
+    Step,
+    /// モジュールの呼び出し（`use`）。展開した先の Step で数えるため、拡張点は空で数にも入れない。
+    Use,
+}
+
+impl VocabRowKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            VocabRowKind::Step => "step",
+            VocabRowKind::Use => "use",
+        }
+    }
+}
+
+/// 教材データ由来の ID を表の 1 欄として安全にする。制御文字（改行を含む）・行の区切りの U+2028・U+2029・`,`・`"` を
+/// `\u{XXXX}`（16 進 4 桁・大文字）に直し、1 行 4 欄を保つ。`first` が真なら先頭の `#` も直し、表の行が
+/// 集計行（`# ` 始まり）に見えないようにする。
+fn vocab_field(s: &str, first: bool) -> String {
+    let mut out = String::with_capacity(s.len());
+    for (i, c) in s.chars().enumerate() {
+        let escape = c.is_control()
+            || matches!(c, ',' | '"' | '\u{2028}' | '\u{2029}')
+            || (first && i == 0 && c == '#');
+        if escape {
+            out.push_str(&format!("\\u{{{:04X}}}", u32::from(c)));
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// `vocab` の表の 1 行。拡張点は ID を半角空白でつないで 1 欄に入れる（空なら空の欄）。
+pub fn vocab_row(scope: &str, step: &str, kind: VocabRowKind, eps: &[&str]) -> String {
+    format!(
+        "{},{},{},{}",
+        vocab_field(scope, true),
+        vocab_field(step, false),
+        kind.as_str(),
+        eps.join(" ")
+    )
+}
+
+/// `vocab` の集計行。（i）（ii）の後ろに、使われた拡張点ごとの Step 数を、渡された順に続ける。
+pub fn vocab_summary_lines(i: usize, ii: usize, per_ep: &[(&str, usize)]) -> Vec<String> {
+    let mut out = vec![
+        format!("# (i) 既存の語彙の組み合わせだけで書けた Step: {i}"),
+        format!("# (ii) 名前つき拡張点を使って書けた Step: {ii}"),
+    ];
+    out.extend(
+        per_ep
+            .iter()
+            .map(|(ep, n)| format!("# {ep} を使った Step: {n}")),
+    );
+    out
+}
+
+/// `vocab` の教材パック全体の行。`field` は `pack.profile` のような固定の欄名で、教材データの値は写さない。
+pub fn vocab_pack_line(ep_id: &str, field: &str) -> String {
+    format!("# {ep_id} を使った（教材パック全体）: {field}")
+}
+
+#[cfg(test)]
+mod vocab_tests {
+    use super::*;
+
+    #[test]
+    fn v1_row_shape_and_escape() {
+        assert_eq!(
+            vocab_row("c1", "s1", VocabRowKind::Step, &["EP-1", "EP-7"]),
+            "c1,s1,step,EP-1 EP-7"
+        );
+        assert_eq!(vocab_row("m1", "u1", VocabRowKind::Use, &[]), "m1,u1,use,");
+        let r = vocab_row("#a,b\"c\nd", "e,f", VocabRowKind::Step, &[]);
+        assert_eq!(
+            r,
+            "\\u{0023}a\\u{002C}b\\u{0022}c\\u{000A}d,e\\u{002C}f,step,"
+        );
+        assert_eq!(r.matches(',').count(), 3);
+        assert!(!r.starts_with('#'));
+        // 先頭以外の `#` と step 欄の先頭の `#` はそのまま。
+        assert_eq!(
+            vocab_row("a#", "#b", VocabRowKind::Step, &[]),
+            "a#,#b,step,"
+        );
+    }
+
+    #[test]
+    fn v2_summary_and_pack_lines() {
+        assert_eq!(
+            vocab_summary_lines(2, 1, &[("EP-1", 1)]),
+            [
+                "# (i) 既存の語彙の組み合わせだけで書けた Step: 2",
+                "# (ii) 名前つき拡張点を使って書けた Step: 1",
+                "# EP-1 を使った Step: 1"
+            ]
+        );
+        assert_eq!(
+            vocab_pack_line("EP-10", "pack.profile"),
+            "# EP-10 を使った（教材パック全体）: pack.profile"
+        );
+    }
 }

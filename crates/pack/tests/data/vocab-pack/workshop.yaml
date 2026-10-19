@@ -1,0 +1,33 @@
+# TASK-408 の試験用の架空の教材（形式 B）。`fandhe-pack vocab` が数える拡張点（EP-1〜EP-8・EP-13）を、
+# Step ごとに 1 つずつ・併用・使わない・`use` の形で置く。上流の教材の文面・構成は含まない（語彙の付録 A の語を使わない）。
+pack:
+  id: "vocab-demo"
+  title: "拡張点の数え上げの試験用教材"
+  version: "0.0.1"
+  ir_format: 1
+  guidance: "A"
+  vocab: "1.4"
+views:
+  v-cards: {kind: "card_list"}
+  v-doc: {kind: "document", body: "shown"}
+  v-doc-hidden: {kind: "document", body: "hidden"}
+commands:
+  help: "builtin"
+hints:
+  h-plain: {text: "ヒント"}
+  h-levels: {text: "水準つきのヒント", levels: ["B"]}
+clarifications:
+  cl-ask:
+    message: "足りない値があります。"
+    how_to_answer: "値を足して、もう一度送ります。"
+rejections:
+  rj-wrong:
+    category: "not_in_this_step"
+    message: "合いません。"
+    next_action: "読み直して、もう一度選びます。"
+  rj-wrong-own:
+    category: "not_in_this_step"
+    message: "別の見方が要ります。"
+    next_action: "選択肢を読み比べます。"
+defaults:
+  not_in_this_step: "rj-wrong"

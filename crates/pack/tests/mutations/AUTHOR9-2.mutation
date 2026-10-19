@@ -1,0 +1,8 @@
+id: AUTHOR9-2
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:             if step.use_module.is_some() {
+replace:             if false {
+expect-fail: author9_table_and_summary
+note: use の Step が通常の Step として数えられる（use 行が出ず（i）に入る）

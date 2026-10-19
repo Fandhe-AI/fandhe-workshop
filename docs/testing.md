@@ -4551,6 +4551,30 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 
 集計: 3 件すべて DETECTED（2026-10-19）。「失敗時に一時ファイルを消さない」変異は、試験の失敗経路（親が無い・ディレクトリを指す）が一時ファイルを作る前に失敗するため等価になり、採らなかった。
 
+### 5.149 vocab の数え上げと出力（TASK-408）
+
+`fandhe-pack vocab <pack-dir>` を実装し、拡張点を使った Step の表・（i）（ii）・拡張点ごとの行・教材パック全体の行（EP-10〜EP-12）を、実行ファイルを起動する結合試験（`crates/pack/tests/vocab_command.rs` の `author9_` 8 件）で固定した（AUTHOR-9）。契約は `docs/cli.md` 版 4 の 11 節。
+
+- 試験用の教材は `crates/pack/tests/data/vocab-pack`（架空。語彙の付録 A の語を使わない）。EP-1〜EP-8・EP-13 を 1 つずつ・併用・使わない・`use`・呼ばれるモジュール・呼ばれないモジュールの形で置く
+- 関門は `source::load` と `compile::compile` で、診断があれば表を出さず終了コード 1 で診断だけを出す。`validate` 専用の検査は関門に入れない
+- 教材パック全体の行は、欄の有無ではなく読んだ値が既定と違うかで判定する（`vocab_check` の「欄がある」とは規則が違う）。`author9_explicit_default_values_emit_nothing` が固定する
+- EP-9（`starts[].requires`）と `confirm.options[].label` は数えない（TASK-409）。`author9_ep9_and_label_not_counted` が、足しても出力が変わらないことで固定する
+- ID の `,`・`"`・制御文字・先頭の `#` は `\u{XXXX}` に直し、偽の欄や偽の集計行を作れないようにする（`author9_hostile_ids_are_escaped`）
+- `fandhe-pack vocab` の振り分けは `tests/cli.rs` の `i11_vocab_is_dispatched_to_vocab` が見る。これに合わせて AUTHOR1-5 の変異の期待する失敗の試験を直した
+
+変異注入（実行日: 2026-10-19、元にしたコミット: eb5468e に本変更を載せた作業ツリー、コマンド: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR9-*.mutation crates/pack/tests/mutations/AUTHOR1-5.mutation`）。
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR9-1 | crates/pack/src/vocab_report.rs: EP-10 の既定の判定が欄の有無になる | author9_explicit_default_values_emit_nothing | DETECTED |
+| AUTHOR9-2 | crates/pack/src/vocab_report.rs: `use` の Step が通常の Step として数えられる | author9_table_and_summary | DETECTED |
+| AUTHOR9-3 | crates/pack/src/vocab_report.rs: 拡張点ごとの行が ID の文字列順になる | author9_table_and_summary | DETECTED |
+| AUTHOR9-4 | crates/pack/src/cli_contract.rs: ID のエスケープが外れる | author9_hostile_ids_are_escaped | DETECTED |
+| AUTHOR9-5 | crates/pack/src/vocab_report.rs: `compile` の関門が外れる | author9_compile_failure_prints_diagnostics_only | DETECTED |
+| AUTHOR1-5 | crates/pack/src/cli.rs: `vocab` の振り分けが `metrics` の handler になる | i11_vocab_is_dispatched_to_vocab | DETECTED |
+
+集計: 6 件すべて DETECTED（2026-10-19）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

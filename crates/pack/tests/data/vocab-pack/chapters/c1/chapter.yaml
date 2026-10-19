@@ -1,0 +1,98 @@
+# 拡張点の数え上げの試験用の章（架空）。EP の使い方ごとに Step を 1 つ置く。
+id: "c1"
+title: "数え上げの試験"
+starts:
+  - {id: "s1", node: "plain"}
+steps:
+  - id: "plain"
+    title: "拡張点を使わない"
+    body: "a.md"
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "ep1"}]
+  - id: "ep1"
+    title: "待機"
+    body: "a.md"
+    input: {kind: "wait"}
+    processing: [{name: "p1"}]
+    confirm: {kind: "approve"}
+    next: [{to: "ep2"}]
+  - id: "ep2"
+    title: "取り消し"
+    body: "a.md"
+    input: {kind: "text", min: 1, max: 100}
+    rules:
+      - id: "r-cancel"
+        on: {cancel: true}
+        outcome: {kind: "accept"}
+    confirm: {kind: "approve"}
+    next: [{to: "ep4"}]
+  - id: "ep4"
+    title: "問い返しの条件"
+    body: "a.md"
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next:
+      - to: "ep5"
+        when: {any: [{flag: "f"}, {clarifying: "cl-ask"}]}
+      - to: "ep5"
+  - id: "ep5"
+    title: "カード一覧"
+    body: "a.md"
+    views: ["v-cards"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "ep6"}]
+  - id: "ep6"
+    title: "選択肢ごとの誤答"
+    body: "a.md"
+    input:
+      kind: "choice"
+      options:
+        - {id: "opt-a", label: "答え A"}
+        - {id: "opt-b", label: "答え B"}
+    confirm:
+      kind: "answer"
+      on_wrong: "rj-wrong"
+      options:
+        - {id: "opt-a", correct: true}
+        - {id: "opt-b", correct: false, on_wrong: "rj-wrong-own"}
+    next: [{to: "ep7"}]
+  - id: "ep7"
+    title: "差し込み枠"
+    body: "a.md"
+    do: "短い文を書く"
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "ep8"}]
+  - id: "ep8"
+    title: "水準ごとの案内"
+    body: "a.md"
+    body_levels: {B: "a.b.md"}
+    hints: ["h-plain", "h-levels"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "ep13"}]
+  - id: "ep13"
+    title: "文書の本文"
+    body: "a.md"
+    views: ["v-doc", "v-doc-hidden"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "multi"}]
+  - id: "multi"
+    title: "複数の拡張点"
+    body: "a.md"
+    do: "待つ"
+    views: ["v-doc"]
+    input: {kind: "wait"}
+    processing: [{name: "p1"}]
+    confirm: {kind: "approve"}
+    next: [{to: "call"}]
+  - id: "call"
+    title: "モジュールの呼び出し"
+    next: [{to: "end"}]
+    use: {module: "m1", instance: "i1", args: {}}
+  - id: "end"
+    title: "終わり"
+    final: true

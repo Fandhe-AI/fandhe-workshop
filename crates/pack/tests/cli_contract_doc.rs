@@ -7,9 +7,10 @@ use std::fs;
 use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
-    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, usage, FinalLine,
-    PackSummary, Subcommand, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK,
-    EXIT_USAGE, ITEM_KINDS_V2,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, usage,
+    vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine, PackSummary, Subcommand,
+    VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE,
+    ITEM_KINDS_V2, VOCAB_HEADER,
 };
 use fandhe_workshop_pack::source::Format;
 
@@ -146,4 +147,35 @@ fn cli_doc_destination_section_present() {
     let body = section(&doc(), "## 9. 診断の出し先");
     assert!(body.contains("標準出力"));
     assert!(body.contains("標準エラー出力"));
+}
+
+/// 11 節の例のブロックが、`vocab` の出力の形を作る関数の結果と完全に一致する（TASK-408）。
+#[test]
+fn cli_doc_vocab_example_matches_contract() {
+    let body = section(&doc(), "## 11. vocab の出力");
+    let mut in_block = false;
+    let mut block = Vec::new();
+    for l in body.lines() {
+        if l == "```text" {
+            in_block = true;
+        } else if l == "```" {
+            break;
+        } else if in_block {
+            block.push(l.to_string());
+        }
+    }
+    let mut expected = vec![
+        VOCAB_HEADER.to_string(),
+        vocab_row("c1", "s1", VocabRowKind::Step, &[]),
+        vocab_row("c1", "s2", VocabRowKind::Step, &["EP-1", "EP-7"]),
+        vocab_row("c1", "s3", VocabRowKind::Use, &[]),
+        vocab_row("m1", "s4", VocabRowKind::Step, &["EP-3"]),
+    ];
+    expected.extend(vocab_summary_lines(
+        1,
+        2,
+        &[("EP-1", 1), ("EP-3", 1), ("EP-7", 1)],
+    ));
+    expected.push(vocab_pack_line("EP-11", "pack.appearance"));
+    assert_eq!(block, expected);
 }

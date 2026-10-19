@@ -1,0 +1,18 @@
+# 呼ばれるモジュール。引数の条件（EP-3）を使う Step と、使わない Step を置く。
+id: "m1"
+title: "呼ばれるモジュール"
+params:
+  n: "1"
+steps:
+  - id: "m1a"
+    title: "引数の条件"
+    body: "a.md"
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next:
+      - to: "m1b"
+        when: {param: {name: "n", eq: "1"}}
+      - to: "m1b"
+  - id: "m1b"
+    title: "使わない"
+    final: true

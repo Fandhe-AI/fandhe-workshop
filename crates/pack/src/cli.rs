@@ -2,9 +2,9 @@
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
 //! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`compile -o` の書き出しは TASK-407 で
-//! 実装した。`validate`・`test`・`vocab`・`metrics` は形を受け付けたうえで経過措置の未実装（終了コード 2）に
-//! 振り分け、本体は後続のタスク（TASK-402〜TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 3）で、
+//! 実装した。`vocab` は TASK-408 で実装した。`validate`・`test`・`metrics` は形を受け付けたうえで経過措置の未実装（終了コード 2）に
+//! 振り分け、本体は後続のタスク（TASK-402〜TASK-406）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 4）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）だけで、引数の解釈は
 //! ファイルシステムに触れない。
@@ -19,6 +19,7 @@ use crate::cli_contract::{compare_differ_line, compare_same_line, compare_unread
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::compile_dir;
 use crate::diag::write_diagnostics;
+use crate::vocab_report::report_dir;
 
 pub use crate::cli_contract::{usage, Subcommand, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE};
 
@@ -195,7 +196,7 @@ where
         Invocation::Compile { pack_dir, output } => {
             run_compile(&pack_dir, output.as_deref(), out, err)
         }
-        Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, err),
+        Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, out),
         Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
     }
@@ -221,9 +222,17 @@ fn run_test<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
     not_implemented(Subcommand::Test, err)
 }
 
-/// `vocab` の振り分け先。本体は TASK-408。
-fn run_vocab<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
-    not_implemented(Subcommand::Vocab, err)
+/// `vocab` の実行。表と集計を標準出力に書いて `EXIT_OK`。読み込みか `compile` に診断があれば、表は出さず診断を
+/// 1 件 1 行で標準出力に書いて `EXIT_DIAGNOSTICS` を返す（失敗を成功とみなさない。標準エラー出力には書かない）。
+/// 出力の形の正は `docs/cli.md` 版 4 の 11 節で、数え方は `vocab_report`。
+fn run_vocab<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
+    match report_dir(dir) {
+        Ok(text) => {
+            out.write_all(text.as_bytes())?;
+            Ok(EXIT_OK)
+        }
+        Err(diags) => write_diagnostics(out, &diags),
+    }
 }
 
 /// `metrics` の振り分け先。本体は TASK-402。
@@ -349,7 +358,10 @@ mod tests {
     #[test]
     fn c1_accepted_shapes_reach_their_handler() {
         for c in Subcommand::ALL {
-            if matches!(c, Subcommand::Compile | Subcommand::Compare) {
+            if matches!(
+                c,
+                Subcommand::Compile | Subcommand::Compare | Subcommand::Vocab
+            ) {
                 continue;
             }
             let (code, out, err) = run_args(&[c.name(), "x"]);
