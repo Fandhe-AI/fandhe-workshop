@@ -11,6 +11,7 @@
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
 //! `debug_save_flush`）だけで、保存の遅延のタイマーは置かない（値が残ったのが `pagehide` の書き込みによることを試験で示すため）。
+//! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
 //! 状態は変えない。取り込みはファイルの選択（`static/test-hooks.js`）から `raw-trigger` 経由でホストの `open_history` に届く。
 
@@ -26,6 +27,15 @@ pub(crate) fn mount_fixture_from_url() -> crate::test_fixture::MountFixture {
         .and_then(|w| w.location().search().ok())
         .unwrap_or_default();
     crate::test_fixture::mount_fixture_from_search(&search)
+}
+
+/// 直近に開いた履歴の、開いた直後（進行の前）の状態の JSON を返す（読み取りのみ。TASK-175 2/2）。
+///
+/// 開いていなければ `"null"`。写しの一致の確認用で、進行のタイマーが開いた後に状態を進めても揺れない。
+/// 失敗の文に出さないこと（履歴の中身のため）。
+#[wasm_bindgen]
+pub fn debug_last_import_state_json() -> String {
+    crate::glue::last_import_state().unwrap_or_else(|| "null".to_string())
 }
 
 /// 現在の画面の状態を JSON 文字列で返す（読み取りのみ）。

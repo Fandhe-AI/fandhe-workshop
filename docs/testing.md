@@ -3945,7 +3945,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.132 版の違う履歴 15 件と期待の表（TASK-175 1/2）
 
-版の違う履歴 15 件を、実施の前に固定した期待の表（`testdata/version-histories/expectations.json`）と突き合わせる（VER-2）。履歴は現行のエンジンで試験の中で作り、`load_history`（段 1〜8）で開く。結果の種類・理由コード・違いの軸が表と合うことを見て、食い違いを「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める。表の ID・種ごとの件数（1/2/2/2/4/3/1）・結果ごとの件数（1/6/5/3）は試験のコードにも持ち、表だけの書き換えを検出する。比較器の自己確認として、期待を 1 つ書き換えると食い違いが出ることも確かめる。写しの一致と `Session` を作らないことの確認は #449（TASK-175 2/2）の範囲で、本節は確かめていない。
+版の違う履歴 15 件を、実施の前に固定した期待の表（`testdata/version-histories/expectations.json`）と突き合わせる（VER-2）。履歴は現行のエンジンで試験の中で作り、`load_history`（段 1〜8）で開く。結果の種類・理由コード・違いの軸が表と合うことを見て、食い違いを「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める。表の ID・種ごとの件数（1/2/2/2/4/3/1）・結果ごとの件数（1/6/5/3）は試験のコードにも持ち、表だけの書き換えを検出する。比較器の自己確認として、期待を 1 つ書き換えると食い違いが出ることも確かめる。写しの一致と `Session` を作らないことの確認は 5.134（#449。TASK-175 2/2）で行う。本節は確かめていない。
 
 - VER2-1: 教材形式が古い履歴の判定を外す（V-iv-4 が適用し直しまで進み、危険な側の食い違いになる）
 - VER2-2: エンジンの主版の違いを開かないに倒す（V-v-3 が慎重な側の食い違いになる）
@@ -3986,11 +3986,40 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-2・3 も同様）
 ```
 
+### 5.134 版の違う履歴 15 件のブラウザでの確認（TASK-175 2/2）
+
+版の違う履歴 15 件を実際のブラウザで開き、5.132 の期待の表（`testdata/version-histories/expectations.json`。Node が直接読む）と突き合わせる（VER-2）。履歴と開く側の教材は、native の試験と同じ作り方を `emit_histories_for_browser`（`#[ignore]`）が書き出す（`scripts/test-browser.sh` だけが `--ignored` で呼び、15 件がそろわなければ失敗にする）。開く側の教材・エンジンの版・語彙の上限は、試験の設定の口（`raw` の `load-ir:`・`opening-override:`）で作る。配信の設定の判定の経路は変えず、口は配信物に入らない。
+
+確かめたこと（`tools/browser/version-histories.test.mjs`。CSP あり・なしの 2 通り）:
+
+- 結果の種類・理由コード・違いの軸が表と合う。食い違いは「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件
+- 開く 7 件（変換なし 1・変換して開く 6）で、開いた直後の状態（`lastImportStateJson()`）が履歴ファイルの `snapshot` と完全に一致する（7/7）
+- 開かない 8 件（表示だけ 5・開かない 3）で、実行環境の差し替えが 0 回（`installCount`）。状態・保存領域・URL も変わらない（8/8）
+- 理由が空の例が 0 件（開かない 8 件は空でない文字列、開く 7 件は `null`）
+- 外部への要求・CSP 違反・ページのエラー・dialog・popup が 0 件
+- 比較器の自己確認（期待を 1 つ書き換えると食い違いが出て、慎重さで分類される）
+
+集計（2026-10-19。CSP あり・なしとも同じ）: 慎重な側 0・それ以外 0・写しの一致 7/7・差し替え 0/8・変化なし 8/8・空の理由 0/8。
+
+native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-hooks`）は、上書きが無ければ配信と同じ判定になること、エンジンの上書きで V-v-1 が変換（軸 `engine`）・V-v-3 が表示だけ（`engine_major`）になること、語彙の上限の上書きで開かない（`vocab_newer`）になること、開かない履歴で差し替えの回数が増えないこと、読めない上書き・教材は何もしないことを固定する。ブラウザ試験は変異注入（`scripts/check-mutations.sh`。`cargo test` だけを流す）の対象外のため、変異はこの native の試験に掛ける。
+
+- VER2-3: 開く側のエンジンの版の上書きを無視する（V-v-1・V-v-3 が期待と食い違う）
+- VER2-4: 変換して開いたときの違いの軸を常に空で返す（軸の照合が失敗する）
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 770091e（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/VER2-3.mutation（VER2-4 も同様）
+ブラウザ試験: make test-browser（539 件が通過）
+```
+
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | SAFE23-1 | crates/core/src/transit.rs: 上限の比較を以上にする（1,000 回ちょうどの着地が止まる） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | SAFE23-2 | crates/core/src/transit.rs: 止めたときに現在の Step を空にしない | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit | cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_self_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | SAFE23-3 | crates/core/src/transit.rs: 上限を 1 つ緩める（1,001 回目が通る） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
+| VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
+| VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
 
 範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、見出しと専用の `Event`（#445）、戻り方（#446）。
 

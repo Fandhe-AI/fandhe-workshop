@@ -114,6 +114,14 @@ fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
     Some(Session::from_state(ir, start_state_at(node)?))
 }
 
+/// 任意の教材（IR の JSON のバイト列）から実行環境を作る（TASK-175 2/2。`load-ir:` が差し替える）。
+///
+/// 版の違う履歴 15 件の、開く側の教材をブラウザで入れ替えるために使う。読めない・開始の節点が無いときは `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn session_from_ir_bytes(ir_bytes: &[u8]) -> Option<Session> {
+    session_of(ir_bytes)
+}
+
 /// 巡回する IR（`use` の `enter` の自己参照・2 者の巡回・`exit_to` の 2 者の巡回・1 入力あたりの遷移が少数の巡回）。
 /// 作成者向けの検査を通さずに配られた IR の想定で、遷移の上限（SAFE-23）の試験が使う。spec の写しで、編集しない。
 #[cfg(feature = "test-hooks")]

@@ -55,7 +55,11 @@ use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 use fandhe_workshop_contract::content_hash::content_hash;
 #[cfg(feature = "test-hooks")]
 use fandhe_workshop_contract::history_version::ReasonCode;
-use fandhe_workshop_contract::history_version::Verdict;
+use fandhe_workshop_contract::history_version::{ContentHash, HistoryVersions, Verdict};
+#[cfg(feature = "test-hooks")]
+use fandhe_workshop_contract::history_version::{
+    ConversionNotes, Version3, VersionAxis, VocabVersion,
+};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_contract::load_reason::LoadReason;
@@ -74,6 +78,8 @@ use fandhe_workshop_core::ops_record::OpsRecorder;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
 use fandhe_workshop_core::version_record::record_versions;
+#[cfg(feature = "test-hooks")]
+use fandhe_workshop_core::version_record::record_versions_with;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
@@ -176,6 +182,61 @@ pub enum HostAction {
     /// 開始の状態・補完表・導出した値を新しい教材から作り直す。作れなければ何もしない。
     #[cfg(feature = "test-hooks")]
     LoadFixture(FixtureName),
+    /// 任意の教材（IR の JSON）への差し替え（試験の設定だけ。TASK-175 2/2）。本文は未検査の文字列で、読めなければ何もしない。
+    ///
+    /// 版の違う履歴 15 件のうち、開く側の教材が mount の教材と違う行を開くために使う。判定は `load_session` に任せたまま、
+    /// 開く側の教材だけを入れ替える。
+    #[cfg(feature = "test-hooks")]
+    LoadIr(String),
+    /// 開く側の版の上書き（試験の設定だけ。TASK-175 2/2）。読めなければ何もしない。
+    #[cfg(feature = "test-hooks")]
+    OpeningOverride(OpeningOverride),
+}
+
+/// 開く側の版の上書き（試験の設定だけ）。`None` の欄は、教材と現行のエンジンから求めた値のまま使う。
+///
+/// 実在しない別の版のエンジンや、語彙の上限が低い実装を模して、版の違う履歴 15 件の開く側の条件を作る（VER-2）。
+/// 配信する設定には存在せず、`open_history` の配信の経路は常に現行の値を使う。
+#[cfg(feature = "test-hooks")]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OpeningOverride {
+    /// 開く側のエンジンの版。
+    pub engine: Option<Version3>,
+    /// 開く側が扱える語彙の版の上限。
+    pub vocab_max: Option<VocabVersion>,
+}
+
+/// 版の軸の固定の名前（snake_case）。試験の期待の表の綴りと一致させ、Debug 名には頼らない。
+#[cfg(feature = "test-hooks")]
+fn axis_name(axis: VersionAxis) -> &'static str {
+    match axis {
+        VersionAxis::Engine => "engine",
+        VersionAxis::IrFormat => "ir_format",
+        VersionAxis::Vocab => "vocab",
+        VersionAxis::Content => "content",
+        VersionAxis::ContentHash => "content_hash",
+        VersionAxis::Refs => "refs",
+    }
+}
+
+/// 変換して開いたときの違いの軸の名前（`notes` の順）。
+#[cfg(feature = "test-hooks")]
+fn axes_of(notes: &ConversionNotes) -> Vec<&'static str> {
+    notes.diffs().iter().map(|d| axis_name(d.axis)).collect()
+}
+
+/// 履歴の読み込みの観察の控え（試験の設定だけ）。結果の種類以外の、差し替えの回数・違いの軸・開いた直後の状態を持つ。
+#[cfg(feature = "test-hooks")]
+#[derive(Debug, Default)]
+struct ImportProbe {
+    /// `install_recorded` を呼んだ回数。開かない履歴で実行環境を作り直していないことを数で見る。
+    install_count: u32,
+    /// 直近の読み込みで変換して開いたときの違いの軸の名前。それ以外は空。
+    last_axes: Vec<&'static str>,
+    /// 直近に開いた直後（進行の前）の状態の JSON。開いていなければ `None`。
+    last_state: Option<String>,
+    /// 開く側の版の上書き。
+    opening: OpeningOverride,
 }
 
 /// 差し替えられる試験用の教材の名前（試験の設定だけ）。未知の名前は復号の時点で断る。
@@ -223,6 +284,45 @@ pub const RAW_RELOAD: &str = "{\"reload\":{}}";
 /// 始まるため衝突しない。`RuntimeAction`（版つきの契約）は変えず、新しい隠し要素も足さない。
 #[cfg(feature = "test-hooks")]
 pub const RAW_OPEN_HISTORY: &str = "open-history:";
+
+/// `raw` の action で任意の教材（IR の JSON）への差し替えを指す固定の接頭辞（試験の設定だけ。TASK-175 2/2）。
+#[cfg(feature = "test-hooks")]
+pub const RAW_LOAD_IR: &str = "load-ir:";
+
+/// `raw` の action で開く側の版の上書きを指す固定の接頭辞（試験の設定だけ。TASK-175 2/2）。
+///
+/// 後ろは `{"engine": "<x.y.z>" | null, "vocab_max": "<x.y>" | null}`。両方 `null` で解除する。
+#[cfg(feature = "test-hooks")]
+pub const RAW_OPENING_OVERRIDE: &str = "opening-override:";
+
+/// 開く側の版の上書きの本文を読む。鍵は `engine`・`vocab_max` の 2 つだけで、値は版の文字列か `null`。
+/// 未知の鍵・読めない版・大きさや深さの関門を通らない本文は `None`。
+#[cfg(feature = "test-hooks")]
+fn parse_opening_override(body: &str) -> Option<OpeningOverride> {
+    use fandhe_workshop_contract::limits::LoadEntry;
+    let value: serde_json::Value =
+        fandhe_workshop_core::load_gate::load_json(LoadEntry::History, body.as_bytes()).ok()?;
+    let obj = value.as_object()?;
+    if obj.keys().any(|k| k != "engine" && k != "vocab_max") {
+        return None;
+    }
+    let field = |name: &str| -> Option<Option<String>> {
+        match obj.get(name) {
+            None | Some(serde_json::Value::Null) => Some(None),
+            Some(serde_json::Value::String(s)) => Some(Some(s.clone())),
+            Some(_) => None,
+        }
+    };
+    let engine = match field("engine")? {
+        None => None,
+        Some(s) => Some(Version3::parse(&s)?),
+    };
+    let vocab_max = match field("vocab_max")? {
+        None => None,
+        Some(s) => Some(VocabVersion::parse(&s)?),
+    };
+    Some(OpeningOverride { engine, vocab_max })
+}
 
 /// 履歴ファイルの読み込みの結果（TASK-330 2/2）。理由は固定のコードだけで、ファイルの内容を含めない（SAFE-40）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -399,6 +499,9 @@ pub struct EngineHost {
     /// 直近の読み込みの結果（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     last_import: Option<ImportOutcome>,
+    /// 読み込みの観察の控え（試験用の口が読む）。
+    #[cfg(feature = "test-hooks")]
+    probe: ImportProbe,
     /// 補完の action を受け取った回数（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     complete_count: u32,
@@ -447,6 +550,8 @@ impl EngineHost {
             #[cfg(feature = "test-hooks")]
             last_import: None,
             #[cfg(feature = "test-hooks")]
+            probe: ImportProbe::default(),
+            #[cfg(feature = "test-hooks")]
             complete_count: 0,
         }
     }
@@ -492,6 +597,8 @@ impl EngineHost {
             boot_kind: None,
             #[cfg(feature = "test-hooks")]
             last_import: None,
+            #[cfg(feature = "test-hooks")]
+            probe: ImportProbe::default(),
             #[cfg(feature = "test-hooks")]
             complete_count: 0,
         })
@@ -684,7 +791,7 @@ impl EngineHost {
     /// `stateWithoutLog`（ログを除いた状態の全体）と `ignoredReasons`（無視の理由）は、B-3〜B-5 の
     /// 状態の一致と無視の理由を確かめるために足した（TASK-222）。
     #[cfg(feature = "test-hooks")]
-    pub(crate) fn engine_snapshot_json(&self) -> String {
+    pub fn engine_snapshot_json(&self) -> String {
         use crate::engine_parts::{artifact_rows, event_kind_name};
         use serde_json::json;
 
@@ -805,6 +912,7 @@ impl EngineHost {
             "irLoaded": true,
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
+            "installCount": self.probe.install_count,
             "logLen": log.len(),
             "judgedCategories": judged_categories,
             "received": received,
@@ -856,17 +964,16 @@ impl EngineHost {
         let Ok(hash) = content_hash(&ir) else {
             return ImportOutcome::Unavailable;
         };
-        let Ok(opening) = record_versions(&ir, &hash) else {
+        let Some((opening, caps)) = self.opening_conditions(&ir, &hash) else {
             return ImportOutcome::Unavailable;
         };
-        match load_session(
-            bytes,
-            ir,
-            &opening,
-            &OpeningCaps::current(),
-            initial.clone(),
-        ) {
+        match load_session(bytes, ir, &opening, &caps, initial.clone()) {
             Ok(loaded) => {
+                #[cfg(feature = "test-hooks")]
+                {
+                    self.probe.last_axes = loaded.notes.as_ref().map(axes_of).unwrap_or_default();
+                    self.probe.last_state = serde_json::to_string(loaded.session.state()).ok();
+                }
                 let outcome = if loaded.notes.is_some() {
                     ImportOutcome::Converted
                 } else {
@@ -881,17 +988,63 @@ impl EngineHost {
                 self.install_recorded(recorded);
                 outcome
             }
-            Err(Verdict::ViewOnly { code }) => ImportOutcome::ViewOnly(code),
-            Err(Verdict::Refused { code }) => ImportOutcome::Refused(code),
+            Err(Verdict::ViewOnly { code }) => self.closed(ImportOutcome::ViewOnly(code)),
+            Err(Verdict::Refused { code }) => self.closed(ImportOutcome::Refused(code)),
             // `load_session` は開く 2 種を `Err` にしない。来ても開かない側に倒す。
-            Err(_) => ImportOutcome::Unavailable,
+            Err(_) => self.closed(ImportOutcome::Unavailable),
         }
+    }
+
+    /// 開かなかった結果を返す。試験の設定では、前の読み込みの軸・状態の控えを捨てる（開いていないのに残さない）。
+    fn closed(&mut self, outcome: ImportOutcome) -> ImportOutcome {
+        #[cfg(feature = "test-hooks")]
+        {
+            self.probe.last_axes = Vec::new();
+            self.probe.last_state = None;
+        }
+        outcome
+    }
+
+    /// 開く側の版と上限。配信する設定では、教材と現行のエンジンから求めた値だけを使う。
+    #[cfg(not(feature = "test-hooks"))]
+    fn opening_conditions(
+        &self,
+        ir: &Ir,
+        hash: &ContentHash,
+    ) -> Option<(HistoryVersions, OpeningCaps)> {
+        record_versions(ir, hash)
+            .ok()
+            .map(|v| (v, OpeningCaps::current()))
+    }
+
+    /// 開く側の版と上限。試験の設定では、上書き（[`OpeningOverride`]）があればそれを使う。
+    #[cfg(feature = "test-hooks")]
+    fn opening_conditions(
+        &self,
+        ir: &Ir,
+        hash: &ContentHash,
+    ) -> Option<(HistoryVersions, OpeningCaps)> {
+        let o = &self.probe.opening;
+        let versions = match &o.engine {
+            Some(e) => record_versions_with(ir, *e, hash),
+            None => record_versions(ir, hash),
+        }
+        .ok()?;
+        let caps = match &o.vocab_max {
+            Some(v) => OpeningCaps::with_vocab_max(*v),
+            None => OpeningCaps::current(),
+        };
+        Some((versions, caps))
     }
 
     /// 開いた履歴の実行環境に差し替え、導出した値・dirty・進行の宛先を作り直す。
     ///
     /// 下書きの記録の基準は空に戻す。入力欄に文字が残っていれば、次の操作で新しい記録の先頭に下書きとして記録される。
     fn install_recorded(&mut self, recorded: RecordedSession) {
+        #[cfg(feature = "test-hooks")]
+        {
+            self.probe.install_count = self.probe.install_count.saturating_add(1);
+        }
         let d = derive(recorded.session());
         self.draft_recorded = String::new();
         self.model.recorded = Some(recorded);
@@ -912,6 +1065,18 @@ impl EngineHost {
         }
     }
 
+    /// 教材ごと差し替える（試験の設定だけ）。開始の状態・補完表・導出した値を新しい教材から作り直す。
+    ///
+    /// 入力欄の有無は構造の違いで mount 後に変えられない。差し替えでは更新せず、構築時の値を保つ。
+    #[cfg(feature = "test-hooks")]
+    fn replace_pack(&mut self, session: Session) {
+        self.initial = Some(session.state().clone());
+        self.input
+            .set_command_table(candidates::command_table(session.ir()));
+        let start = RecordedSession::first_start(session.ir());
+        self.install_recorded(RecordedSession::new(session, start));
+    }
+
     /// 直近の読み込みの結果（試験の設定だけ）。まだ読み込んでいなければ `None`。
     #[cfg(feature = "test-hooks")]
     pub fn last_import(&self) -> Option<ImportOutcome> {
@@ -926,8 +1091,16 @@ impl EngineHost {
             Some(o) => serde_json::json!({
                 "verdict": o.as_str(),
                 "reason": o.reason().map(|r| ReasonCode::as_str(&r)),
+                // 変換して開いたときの違いの軸。それ以外は空（理由コードと同じく固定の名前だけ）。
+                "axes": self.probe.last_axes,
             }),
         }
+    }
+
+    /// 直近に開いた直後（進行の前）の状態の JSON。開いていなければ `None`（写しの一致の確認用。試験の設定だけ）。
+    #[cfg(feature = "test-hooks")]
+    pub fn last_import_state_json(&self) -> Option<&str> {
+        self.probe.last_state.as_deref()
     }
 
     /// keydown の probe が受け取った回数（試験用の口が読む）。
@@ -1237,6 +1410,14 @@ impl Component for EngineHost {
                 self.last_import = Some(self.open_history(text.as_bytes()));
             }
             #[cfg(feature = "test-hooks")]
+            HostAction::LoadIr(text) => {
+                if let Some(session) = crate::test_fixture::session_from_ir_bytes(text.as_bytes()) {
+                    self.replace_pack(session);
+                }
+            }
+            #[cfg(feature = "test-hooks")]
+            HostAction::OpeningOverride(o) => self.probe.opening = o,
+            #[cfg(feature = "test-hooks")]
             HostAction::LoadFixture(name) => {
                 let built = match name {
                     FixtureName::Answer => crate::test_fixture::answer_session(),
@@ -1259,12 +1440,7 @@ impl Component for EngineHost {
                     FixtureName::Chain1001 => crate::test_fixture::chain_session(1000),
                 };
                 if let Some(session) = built {
-                    self.initial = Some(session.state().clone());
-                    self.input
-                        .set_command_table(candidates::command_table(session.ir()));
-                    // 入力欄の有無は構造の違いで mount 後に変えられない。差し替えでは更新せず、構築時の値を保つ。
-                    let start = RecordedSession::first_start(session.ir());
-                    self.install_recorded(RecordedSession::new(session, start));
+                    self.replace_pack(session);
                 }
             }
             // 補完は入力欄だけの操作で、エンジンへは何も渡さない（ログ・世代・projection は変わらない）。
@@ -1329,6 +1505,14 @@ impl Component for EngineHost {
             // 履歴ファイルの読み込みは接頭辞が一致したときだけ。本文の大きさ・深さ・JSON は `open_history` の段 1〜3 が断る。
             if let Some(body) = payload.strip_prefix(RAW_OPEN_HISTORY) {
                 return Some(HostAction::OpenHistory(body.to_owned()));
+            }
+            // 任意の教材（IR の JSON）への差し替え。本文は `load_ir` の関門が断る（読めなければ何もしない）。
+            if let Some(body) = payload.strip_prefix(RAW_LOAD_IR) {
+                return Some(HostAction::LoadIr(body.to_owned()));
+            }
+            // 開く側の版の上書き。形が違えば何もしない（判定が食い違って試験が落ちる側に倒す）。
+            if let Some(body) = payload.strip_prefix(RAW_OPENING_OVERRIDE) {
+                return parse_opening_override(body).map(HostAction::OpeningOverride);
             }
             // 試験用の教材の差し替えは接頭辞が一致したときだけ。未知の名前は何もしない。
             if let Some(name) = payload.strip_prefix(RAW_LOAD_FIXTURE) {

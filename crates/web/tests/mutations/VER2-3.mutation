@@ -1,0 +1,10 @@
+id: VER2-3
+package: fandhe-workshop-web
+test: version_histories_host
+features: test-hooks
+target: crates/web/src/host.rs
+find:             Some(e) => record_versions_with(ir, *e, hash),
+replace:             Some(_) => record_versions(ir, hash),
+expect-fail: an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis
+expect-fail: a_major_engine_override_is_view_only_and_does_not_replace_the_session
+note: 試験の設定の開く側のエンジンの版の上書きを無視する（V-v-1・V-v-3 をブラウザで開いても、上書きなしの判定になり期待と食い違う）

@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_export_prepare, debug_export_prepare_loadable, debug_loadable_history_text, debug_export_revoke } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_export_prepare, debug_export_prepare_loadable, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -169,4 +169,19 @@ export function importInstall() {
 // ファイルを経ずに同じ raw の経路で取り込む。基準の状態を作るために使う。
 export function importText(text) {
   return sendRaw(OPEN_HISTORY_PREFIX + text);
+}
+
+// 任意の教材（IR の JSON）への差し替え（TASK-175 2/2）。版の違う履歴の、開く側の教材を入れ替える。読めなければ何も変わらない。
+export function loadIr(text) {
+  return sendRaw('load-ir:' + text);
+}
+
+// 開く側の版の上書き（TASK-175 2/2）。JSON 文字列 {"engine": "x.y.z" | null, "vocab_max": "x.y" | null}。両方 null で解除。
+export function openingOverride(json) {
+  return sendRaw('opening-override:' + json);
+}
+
+// 直近に開いた履歴の、開いた直後（進行の前）の状態の JSON 文字列か "null"。写しの一致の確認に使う。
+export function lastImportStateJson() {
+  return debug_last_import_state_json();
 }
