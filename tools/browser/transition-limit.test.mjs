@@ -18,8 +18,11 @@
 //   (a) 右のログに `data-kind="limit"` の行がちょうど 1 件。見出し（`line-heading`）は「教材の定義の誤りではなく実行時の上限」を
 //       示す専用の文言で、本文に回数 `1,000` を含む
 //   (b) その操作で増えた右のログの行は少数。上限までの 1,000 回の着地を 1,000 行並べず、止めた 1 行にまとめる
-//   (c) ログの通知欄 `log-notice`（`role="status"`、子の要素なし）に理由の文が出る。止めた後の無視の記録が積まれても残る
+//   (c) ログの通知欄 `log-notice`（`role="status"`、子の要素なし）に理由の文が出る。次の入力を受け付けると消える
 //   (d) エンジンの書き出しの `limits` が 1 件で、着地の回数が 1,000
+// SAFE-35（TASK-160 3/3）: 止めた後は、操作の前の Step が現在の Step に戻り、次の入力が受け付けられる。
+//   戻った Step への入力で `input_received` が 1 件増える。cycle-exit-2 と chain-1001 は同じ入力で再び上限に当たるので、
+//   `accepted` が 1 件増え、上限の行が 2 件になって通知が出る（繰り返し戻れる）。cycle-enter-* は通知が消える。
 // 止まらない連鎖（chain-1000）と少数の遷移（cycle-d07）では、行 0 件・通知欄は空・`limits` 0 件の対照を確かめる。
 // 文言の正は Rust 側の定数（`log_lines::LIMIT_HEADING`・`limit_notice::limit_notice_text`）で、仮置き（D-45 に文言の記録が無い）。
 // 変えるときは Rust 側と下の 2 つの定数を同時に直す。
@@ -37,7 +40,7 @@ const BASE = '/fandhe-transition-limit/';
 const RAW = '[data-testid="raw-trigger"]';
 const LIMIT = 1000;
 const LIMIT_HEADING = '実行時の上限で止めました';
-const LIMIT_NOTICE = '実行時の上限（1 回の操作で内部の遷移 1,000 回）に達したため、実行を止めました。';
+const LIMIT_NOTICE = '実行時の上限（1 回の操作で内部の遷移 1,000 回）に達したため、実行を止めて直前の Step に戻しました。';
 
 let browser;
 
@@ -85,15 +88,32 @@ async function act(page, op) {
   return engineOf(page);
 }
 
-// 止まった後の入力でタブが落ちず、ログも伸びない（現在の Step が無いので無視される）。
-async function assertIgnoredAfterHalt(page) {
+// 止めた後は操作の前の Step に戻り（SAFE-35）、続けて送った入力が受け付けられる。
+// `origin` は操作の前の Step、`rehalts` は同じ入力で再び上限に当たる試料か（当たれば上限の行が 2 件になり通知が出る）。
+async function assertReturnedAndAccepting(page, origin, generation, input, rehalts) {
   const e = await engineOf(page);
-  assert.equal(e.current, null, '止めたら現在の Step が空');
-  await sendRaw(page, JSON.stringify({ input: { text: 'go' } }));
-  await page.waitForTimeout(100);
+  assert.equal(e.current, origin, '止めたら操作の前の Step が現在の Step');
+  assert.equal(e.generation, generation, '世代は期待どおり');
+  assert.equal(await page.locator('[data-testid="step-status"]').count(), 1);
+  const received = kinds(e, 'input_received');
+  await sendRaw(page, JSON.stringify(input));
+  await page.waitForFunction((n) => {
+    const x = JSON.parse(window.__fandheTest.stateJson()).engine;
+    return x.log.filter((r) => r.kind === 'input_received').length > n;
+  }, received);
   const after = await engineOf(page);
-  assert.equal(after.logLen, e.logLen, '止めた後の入力はログを増やさない');
-  assert.equal(after.current, null);
+  assert.equal(kinds(after, 'input_received'), received + 1, '受付のイベントが 1 件増える');
+  assert.equal(after.current, origin, '戻った Step にいる');
+  const lines = page.locator('[data-testid="part-log-list"] > li[data-kind="limit"]');
+  const notice = page.locator('[data-testid="log-notice"]');
+  if (rehalts) {
+    assert.equal(kinds(after, 'accepted'), kinds(e, 'accepted') + 1, '受付の規則に合う入力は受け付けられる');
+    assert.equal(await lines.count(), 2, '再び止めた行が増える');
+    assert.equal(await notice.innerText(), LIMIT_NOTICE);
+  } else {
+    assert.equal(await lines.count(), 1, '上限の行は 1 件のまま');
+    assert.equal(await notice.innerText(), '', '次の入力で通知は消える');
+  }
 }
 
 // 右のログの行（`part-log-list` の直接の子の `li`）の数。
@@ -139,10 +159,10 @@ async function run(name, body) {
   });
 }
 
-for (const [name, start, op, kind] of [
-  ['cycle-enter-self', 'main/st-1', { control: { go_to: 'main/u-self' } }, 'module_entered'],
-  ['cycle-enter-2', 'main/st-1', { control: { go_to: 'main/u-a' } }, 'module_entered'],
-  ['cycle-exit-2', 'main/f1', { input: { text: 'go' } }, 'module_exited'],
+for (const [name, start, op, kind, rehalts] of [
+  ['cycle-enter-self', 'main/st-1', { control: { go_to: 'main/u-self' } }, 'module_entered', false],
+  ['cycle-enter-2', 'main/st-1', { control: { go_to: 'main/u-a' } }, 'module_entered', false],
+  ['cycle-exit-2', 'main/f1', { input: { text: 'go' } }, 'module_exited', true],
 ]) {
   test(`${name}: 1,000 回で止まり警告が 1 件だけ残る`, async (t) => {
     await run(name, async (page) => {
@@ -154,9 +174,7 @@ for (const [name, start, op, kind] of [
       assert.equal(limitWarnings(e), 1, JSON.stringify(e.warnings));
       assert.equal(kinds(e, kind), LIMIT);
       await assertLimitShown(page, e, rowsBefore);
-      await assertIgnoredAfterHalt(page);
-      // 止めた後の無視の記録が積まれても、行は 1 件のまま、通知は残る。
-      await assertLimitShown(page, await engineOf(page), rowsBefore);
+      await assertReturnedAndAccepting(page, start, e.generation, { input: { text: 'go' } }, rehalts);
     });
   });
 }
@@ -186,9 +204,8 @@ for (const [name, halts] of [['chain-1000', false], ['chain-1001', true]]) {
       t.diagnostic(`${name} elapsed_ms=${Date.now() - t0} logLen=${e.logLen}`);
       assert.equal(limitWarnings(e), halts ? 1 : 0, JSON.stringify(e.warnings));
       if (halts) {
-        assert.equal(e.current, null);
         await assertLimitShown(page, e, rowsBefore);
-        await assertIgnoredAfterHalt(page);
+        await assertReturnedAndAccepting(page, 'main/st-2', e.generation, { input: { choice: 'opt-memo' } }, true);
       } else {
         await assertNoLimitShown(page, e);
         assert.equal(e.current, 'main/st-3', '最後の Step に入る');

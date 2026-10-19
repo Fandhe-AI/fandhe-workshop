@@ -181,7 +181,10 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     let mut state = state;
     // 操作 1 件の `Changed` は、前後の世界状態の差分から作る（EVT-13、TASK-215）。各分岐が語レベルの
     // `Changed` を出しても、ここで経路ごとに 1 件・変更前は操作前の値に置き換わる。
-    let world_before = state.run.world.clone();
+    // 上限で止めた操作を操作の前の状態へ戻すため（SAFE-35）、世界状態だけでなく `run` 全体と入口の写しを控える。
+    // 費用は切り身・フラグなど `world` 以外の分の複製が増えるだけで、操作 1 件につき 1 回に収まる。
+    let run_before = state.run.clone();
+    let entry_before = state.entry.clone();
     let current_before = state.run.current.clone();
     let rule = op.generation_rule();
     let gen_before = state.run.generation;
@@ -193,6 +196,13 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         changed::cause_of(&op)
     };
     let events = step(ir, &mut state, op);
+    // 上限で止めたら、操作の前の Step・状態へ戻す（SAFE-35、D-45）。世代の強制より前に行う。
+    if events
+        .iter()
+        .any(|e| matches!(e, Event::TransitionLimitReached { .. }))
+    {
+        crate::transit::return_after_limit(&mut state, &run_before, &entry_before);
+    }
     // 世代の規則の表を分岐の外で強制する。`Changed` の宛先（下の `default_stamp`）より前に行い、
     // 状態とイベントの世代を食い違わせない。
     state.run.generation = settle_generation(rule, was_busy, gen_before, state.run.generation);
@@ -202,8 +212,13 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         state.run.current.as_ref(),
         current_before.as_ref(),
     );
-    let events =
-        changed::record_changes(events, &world_before, &state.run.world, &default_at, cause);
+    let events = changed::record_changes(
+        events,
+        &run_before.world,
+        &state.run.world,
+        &default_at,
+        cause,
+    );
     state.log.extend(events.iter().cloned());
     (state, events)
 }

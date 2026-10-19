@@ -22,9 +22,9 @@
 //! # 止めたとき
 //!
 //! 固定文の `Warning` を 1 件と、その直後に専用の `TransitionLimitReached`（SAFE-34）を 1 件だけ足し、
-//! `current`・`busy`・入口の写しを空にする。以降の入力は、現在の Step が無いので落ちずに無視される。入口の写しも空にするのは、`go_to` が古い写しを残さないのと同じ理由である（停止が古い写しへ戻る誤りを防ぐ）。
+//! 内側では `current`・`busy`・入口の写しを空にし（fail-closed）、`apply` が直後に操作の前の状態へ戻す（[`return_after_limit`]、SAFE-35）。
 //! 着地先の `enter` が IR に無いときも、`UNKNOWN_TARGET` の `Warning` を 1 件足して同じ空の状態に確定する（移動元が現在位置に残らない）。
-//! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後の戻り方（SAFE-35）は後続のタスクが扱う。
+//! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後は、操作の前の Step が現在の Step に戻り、次の入力が受け付けられる（SAFE-35）。
 //!
 //! # 扱わないこと
 //!
@@ -105,9 +105,34 @@ fn halt(state: &mut SessionState, at: Stamp, budget: &Budget, events: &mut Vec<E
         at,
         landings: u32::try_from(budget.0).unwrap_or(u32::MAX),
     });
-    state.run.current = None; // 止めた後の入力が巡回の途中の Step へ届かないよう空にする
+    // 内側の fail-closed。戻す先が無い場合（操作の前に現在の Step が無い）に備え、まず空にする。
+    // 通常は呼び出し元 `apply` が直後に [`return_after_limit`] で操作の前へ戻す（SAFE-35）。
+    state.run.current = None;
     state.run.busy = None;
     state.entry = None;
+}
+
+/// 上限で止めた操作を、その操作の前の状態へ戻す（SAFE-35、D-45）。呼び出し元は `session::apply` だけ。
+///
+/// 戻す単位は `run` 全体と入口の写しで、巡回の途中の着地点ではなく受講者が操作の前にいた Step へ戻る。
+/// 世代は減らさず操作後の値を残し（`go_to` が出した `Moved` の世代と一致させる）、`busy` は必ず空にする
+/// （進行の宛先が再び有効になり、止める・戻すを無限に繰り返すのを防ぐ。fail-closed）。
+/// 操作の前に現在の Step が無かったときは戻す先が無いので、空のまま止める。
+/// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。このため復習の `achieved` が Step の状態と
+/// 食い違いうる（既知の限界）。
+pub(crate) fn return_after_limit(
+    state: &mut SessionState,
+    run_before: &crate::session::RunState,
+    entry_before: &Option<crate::session::EntryCopy>,
+) {
+    if run_before.current.is_none() {
+        return;
+    }
+    let generation = state.run.generation;
+    state.run = run_before.clone();
+    state.run.generation = generation;
+    state.run.busy = None; // 戻した後は必ず処理中でない
+    state.entry = entry_before.clone();
 }
 
 /// 移動先 `to` に着地する（`go_to` の入口）。`to` が IR にあることは呼び出し元が確かめ済み。

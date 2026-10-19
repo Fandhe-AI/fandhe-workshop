@@ -12,10 +12,10 @@ use std::path::PathBuf;
 
 use fandhe_workshop_contract::ir::{Ir, Node, Transition};
 use fandhe_workshop_contract::limits::MAX_TRANSITIONS_PER_INPUT;
-use fandhe_workshop_core::addr::StepUid;
+use fandhe_workshop_core::addr::{StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
-use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::session::{Busy, SessionState};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, load_ir};
 
@@ -124,35 +124,66 @@ fn assert_halted(state: &SessionState, ir: &Ir) {
     assert_eq!(next.run.current, None);
 }
 
+/// 上限で止めた後、操作の前の状態へ戻ったこと（SAFE-35）。`moved` は世代が +1 される操作（`go_to`）か。
+fn assert_returned(state: &SessionState, before: &SessionState, moved: bool, events: &[Event]) {
+    assert_eq!(state.run.current, before.run.current);
+    assert_eq!(state.run.busy, None);
+    assert_eq!(state.entry, before.entry);
+    let mut expected = before.run.clone();
+    if moved {
+        expected.generation = expected.generation.next().expect("room");
+    }
+    assert_eq!(state.run, expected);
+    // 世界状態が操作の前に戻るので、`Changed` は出ない。
+    assert_eq!(count(events, |e| matches!(e, Event::Changed { .. })), 0);
+}
+
+/// 戻った Step への次の入力が受け付けられ、受付のイベントが増えることを確かめる（繰り返し戻れることも含む）。
+fn assert_next_input_received(ir: &Ir, state: &SessionState, origin: &str) {
+    let (_, events) = apply(ir, state.clone(), text());
+    assert!(!events.is_empty(), "input must not be ignored");
+    assert!(
+        matches!(&events[0], Event::InputReceived { at, .. } if at.step == uid(origin)),
+        "{events:?}"
+    );
+}
+
 #[test]
 fn cycle_enter_self_stops_at_limit() {
     let ir = cycle_ir("cycle-enter-self");
-    let (state, events) = apply(&ir, state_at("main/st-1"), go_to("main/u-self"));
+    let before = state_at("main/st-1");
+    let (state, events) = apply(&ir, before.clone(), go_to("main/u-self"));
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), MAX_TRANSITIONS_PER_INPUT);
     assert_limit_event(&events);
-    assert_halted(&state, &ir);
+    assert_returned(&state, &before, true, &events);
+    assert_next_input_received(&ir, &state, "main/st-1");
 }
 
 #[test]
 fn cycle_enter_2_stops_at_limit() {
     let ir = cycle_ir("cycle-enter-2");
-    let (state, events) = apply(&ir, state_at("main/st-1"), go_to("main/u-a"));
+    let before = state_at("main/st-1");
+    let (state, events) = apply(&ir, before.clone(), go_to("main/u-a"));
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), MAX_TRANSITIONS_PER_INPUT);
     assert_limit_event(&events);
-    assert_halted(&state, &ir);
+    assert_returned(&state, &before, true, &events);
+    assert_next_input_received(&ir, &state, "main/st-1");
 }
 
 #[test]
 fn cycle_exit_2_stops_at_limit() {
     let ir = cycle_ir("cycle-exit-2");
-    let (state, events) = apply(&ir, state_at("main/f1"), text());
+    let before = state_at("main/f1");
+    let (state, events) = apply(&ir, before.clone(), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
     assert_eq!(count(&events, |e| matches!(e, Event::Achieved { .. })), 1);
     assert_limit_event(&events);
-    assert_halted(&state, &ir);
+    // 止めた操作の達成は状態に残らない（f1 は Entered のまま）ので、次の入力は再び受け付けられる。
+    assert_returned(&state, &before, false, &events);
+    assert_next_input_received(&ir, &state, "main/f1");
 }
 
 /// 巡回していても 1 回の入力ごとの遷移が少数なら、上限に当たらない対照。
@@ -252,11 +283,13 @@ fn enter_chain_boundary() {
     assert_eq!(entered(&events), ok);
 
     let ir = enter_chain(ok + 1);
-    let (state, events) = apply(&ir, state_at("main/e"), text());
+    let before = state_at("main/e");
+    let (state, events) = apply(&ir, before.clone(), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(entered(&events), ok + 1);
     assert_limit_event(&events);
-    assert_halted(&state, &ir);
+    assert_returned(&state, &before, false, &events);
+    assert_next_input_received(&ir, &state, "main/e");
 }
 
 #[test]
@@ -272,11 +305,13 @@ fn exit_chain_boundary() {
     assert_eq!(state.run.current, Some(uid("main/tail")));
 
     let ir = exit_chain(ok + 1);
-    let (state, events) = apply(&ir, state_at("main/c0"), text());
+    let before = state_at("main/c0");
+    let (state, events) = apply(&ir, before.clone(), text());
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
     assert_limit_event(&events);
-    assert_halted(&state, &ir);
+    assert_returned(&state, &before, false, &events);
+    assert_next_input_received(&ir, &state, "main/c0");
 }
 
 /// 歩行器が再帰ならあふれる小さなスタックで巡回を流す。
@@ -321,4 +356,75 @@ fn unknown_enter_target_halts_state_on_go_to() {
     let (next, events) = apply(&ir, state_at("main/e"), go_to("main/u-1"));
     assert_eq!(warnings(&events), 1, "{events:?}");
     assert_halted(&next, &ir);
+}
+
+/// 止めた後に戻った Step への次の入力は `Accepted` になる。止めた操作の達成が状態に残らないため
+/// 再び達成まで進み、同じ巡回で再び止まって戻る（繰り返し戻れる、SAFE-35）。
+#[test]
+fn cycle_exit_2_accepts_again_and_returns_again() {
+    let ir = cycle_ir("cycle-exit-2");
+    let (state, _) = apply(&ir, state_at("main/f1"), text());
+    let (state2, events) = apply(&ir, state, text());
+    assert_eq!(
+        count(&events, |e| matches!(e, Event::Accepted { .. })),
+        1,
+        "{events:?}"
+    );
+    assert_limit_event(&events);
+    assert_eq!(state2.run.current, Some(uid("main/f1")));
+    assert_eq!(state2.run.busy, None);
+}
+
+/// 進行（`Tick`）の完了で巡回に入って止めた場合も、`busy` は空で戻る。同じ宛先の `Tick` を再送しても
+/// 歩行は起きず、止める・戻すの無限の繰り返しにならない。
+#[test]
+fn tick_path_returns_without_busy_and_does_not_loop() {
+    let mut ir = cycle_ir("cycle-exit-2");
+    if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == "main/f1") {
+        n.step.processing = vec![serde_json::json!({ "name": "p1", "effects": [] })];
+    }
+    let mut before = state_at("main/f1");
+    before
+        .run
+        .slices
+        .entry(uid("main/f1").root())
+        .or_default()
+        .status
+        .insert(uid("main/f1"), StepStatus::Accepted);
+    before.run.busy = Some(Busy { done: 0, total: 1 });
+    let addr = TickAddr {
+        generation: before.run.generation,
+        step: uid("main/f1"),
+        index: 0,
+    };
+    let (state, events) = apply(&ir, before.clone(), Op::Tick(addr.clone()));
+    assert_limit_event(&events);
+    assert_eq!(state.run.current, Some(uid("main/f1")));
+    assert_eq!(state.run.busy, None);
+    assert_eq!(state.run.generation, before.run.generation);
+    let (_, again) = apply(&ir, state, Op::Tick(addr));
+    assert!(limit_landings(&again).is_empty(), "{again:?}");
+    assert_eq!(
+        count(&again, |e| matches!(e, Event::Ignored { .. })),
+        1,
+        "{again:?}"
+    );
+}
+
+/// 止めて戻った後も、保存などの操作がふつうに働き、同じ操作の列は同じ状態になる（決定的）。
+#[test]
+fn controls_work_after_return_and_replay_is_deterministic() {
+    let ir = cycle_ir("cycle-enter-2");
+    let run = |ops: &[Op]| {
+        let mut state = state_at("main/st-1");
+        for op in ops {
+            state = apply(&ir, state, op.clone()).0;
+        }
+        state
+    };
+    let ops = [go_to("main/u-a"), Op::Control(Control::Save)];
+    let a = run(&ops);
+    assert_eq!(a.run.current, Some(uid("main/st-1")));
+    assert_eq!(a.checkpoints.len(), 1);
+    assert_eq!(a, run(&ops));
 }

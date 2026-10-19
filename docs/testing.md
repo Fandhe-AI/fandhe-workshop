@@ -3963,7 +3963,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
 
-1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.134、止めた後の戻り方（SAFE-35、#446）は別のタスクで扱う。
+1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、`halt` が現在の Step・処理中・入口の写しを空にする（内側の fail-closed。後続の 5.135 で、`apply` が直後に操作の前の状態へ戻すようになった）。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.134、止めた後の戻り方（SAFE-35、#446）は 5.135 で扱う。
 
 試験は 2 層に置いた。
 
@@ -3975,7 +3975,6 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 所要時間は assert せず、diagnostic に残した（2026-10-19、debug ビルドの native で 8 件合計 0.01 秒、ブラウザで巡回 1 本あたり約 40〜50 ミリ秒）。
 
 - SAFE23-1: 上限の比較を `>=` にする（1,000 回ちょうどの着地が止まる）
-- SAFE23-2: 止めたときに現在の Step を空にしない
 - SAFE23-3: 上限を 1 つ緩める（1,001 回目が通る）
 
 上限の判定そのものを外す変異は、検査が終わらなくなるため作っていない。
@@ -3983,7 +3982,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 ```text
 実行日: 2026-10-19
 元にしたコミット: 8098b2b（作業ツリーに本変更）
-コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-2・3 も同様）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-3 も同様）
 ```
 
 ### 5.134 版の違う履歴 15 件のブラウザでの確認（TASK-175 2/2）
@@ -4016,7 +4015,6 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | SAFE23-1 | crates/core/src/transit.rs: 上限の比較を以上にする（1,000 回ちょうどの着地が止まる） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
-| SAFE23-2 | crates/core/src/transit.rs: 止めたときに現在の Step を空にしない | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit | cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_self_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | SAFE23-3 | crates/core/src/transit.rs: 上限を 1 つ緩める（1,001 回目が通る） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
@@ -4041,14 +4039,14 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 案内の欄は、領域「案内とログ」の通知欄 `log-notice` と読んだ。`a11y` 契約が予約済みで、どこにも描いていなかった。`input-notice` は入力の上限の案内（`paste-notice`・`input-limit`）が使っているため採らない
 - 行の種類 `limit` と部品 `line-heading` を足し、`TERMINAL_AREA_CONTRACT_VERSION` を 2 から 3 にした（`LineKind` は閉じた一覧で、黙って変えられない）。`reloaded`（版 2）と同じく、`LIVE_EXCLUDED_LINE_KINDS` には入れない
 - 文言は仮置きで、`log_lines`（`LIMIT_HEADING`・`LIMIT_BODY_*`）と `limit_notice`（`LIMIT_NOTICE_*`）の定数 1 か所に置いた。固定文と、着地の回数を 3 桁ごとに区切った数だけで作り、教材・受講者の値を含めない（SAFE-11）。仕様の側での確定は spec repo の作業になる
-- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後の無視の記録が積まれても残り、後続の操作（移動・復帰・戻り）で消える
+- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後は操作の前の Step へ戻り（5.135）、戻った Step で次の入力が受け付けられると消える
 - 状態表示（`run-status`）は現行どおり「待機中」に倒れる。`RunStatus` は 3 値の閉じた契約で、上限の停止を「停止」にするかは本件の範囲外とした
 
 試験は 3 層に置いた。
 
 - native の core（`crates/core/tests/transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めたときに `TransitionLimitReached` がちょうど 1 件で、`Warning` の直後・イベント列の末尾にあり、`landings` が 1,000 であること。止まらない場合（`cycle-d07-flat`・1,000 回ちょうどの連鎖・連鎖の途中の `enter` の先が無い場合）は 0 件であること。`api_types.rs` は直列化の形と、余分なキーの拒否を確かめる。`projection_derive.rs` は 1 件につき 1 行になることを確かめる
-- native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、止めた後の入力でも残る、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
-- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の入力でも変わらない。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
+- native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
+- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の確認は 5.135 に置き換えた。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
 
 - SAFE34-1: 専用の `Event` の着地の回数を 0 にする
 - SAFE34-2: 専用の `Event` を行にしない
@@ -4071,7 +4069,48 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE34-4 | crates/web/src/log_lines.rs: 個々の着地を行にする | 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである | 同左 | DETECTED |
 | SAFE23-1〜3 | crates/core/src/transit.rs（5.133 の表のとおり） | 5.133 のとおり | 5.133 のとおり | DETECTED（本変更の後に再実行して確認） |
 
-範囲外: 止めた後の戻り方（SAFE-35、#446）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
+範囲外: 止めた後の戻り方（SAFE-35、#446。5.135 で扱った）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
+
+### 5.135 上限で止めた後の戻り方（TASK-160 3/3）
+
+遷移 1,000 回の上限（5.133）で止めた後、受講者が先へ進めるようにする（SAFE-35・D-45「止めた後は直前の Step に戻す」）。それまでは `halt` が現在の Step を空にしたため、以降の入力はすべて無視され、受講者は止まったまま残った。
+
+決めたこと（D-45 に細目の記録が無いため、自動運転でエンジンの側が安全側に倒して置いた。spec 側の確定は別の作業）。
+
+- 「直前の Step」は、上限に当たった操作を受ける前に受講者がいた Step と読む。巡回の途中の最後の着地点へ戻すと、同じ巡回にすぐ入り直すだけになるため採らない
+- 戻る契機は「止めたのと同じ操作の中で、エンジンが戻す」。明示の「戻る」操作（新しい `Control`）は足さない。web には受講者が `GoTo`・`Restore` を出す UI が無く、明示の操作にすると本番の受講者は戻れず、`CONTRACT_VERSION` の版上げと画面の部品（spec 先行）も要るため
+- 戻す単位は、操作の前の `run` 全体と入口の写し。`current` だけを戻すと、止めた操作が達成にした Step が `Achieved` のまま残り、次の入力が `Idle` になって受け付けられない（`cycle-exit-2`）。世界状態も戻るので、止めた操作の `Changed` は 0 件になる
+- 戻した後も変える欄は 2 つ。`generation` は操作の後の値を残す（減らさない。`go_to` の `Moved.new_generation` と一致させる）。`busy` は必ず空にする（進行の経路で、同じ `TickAddr` が再び有効になり、止める・戻すを無限に繰り返すのを防ぐ fail-closed）
+- 操作の前に現在の Step が無かったときは戻す先が無いので、`halt` の空のまま止める。`enter` の先が IR に無い場合（`UNKNOWN_TARGET`）は上限ではないので戻さない
+- 実装は `session::apply` が操作の前の `run`・`entry` を控え、イベント列に `TransitionLimitReached` があれば `transit::return_after_limit` で戻す。控える費用は、操作 1 件につき `world` 以外の分の複製が増えるだけ
+- 新しいイベントは足さず、`CONTRACT_VERSION` は 6 のまま。通知欄の文言は「実行を止めて直前の Step に戻しました」に変えた（仮置き）。通知は戻った Step での次の入力まで残る
+- 既知の限界: 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。このため `Projection` の復習の `achieved` が Step の状態と食い違いうる。直すには戻りのイベントと版上げが要る
+
+試験は 3 層に置いた。
+
+- native の core（`transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めた後に現在の Step・入口の写し・`run`（世代は `go_to` のとき +1）が操作の前と一致し、`Changed` が 0 件であること。戻った Step への入力でイベントの先頭が `InputReceived` になること。`cycle-exit-2` は次の入力で `Accepted` が出て、再び止まって戻ること。進行の経路（`Tick`）で止めたとき `busy` が空で、同じ宛先の再送は `Ignored` になり再び歩かないこと。止めて戻った後の保存が働き、同じ操作の列が同じ状態になること
+- native の web（`limit_notice.rs`）: 戻った Step での入力で `InputReceived` が 1 件増え、通知欄（DOM と束縛値）が空になり、上限の行は 1 件のまま
+- ブラウザ（`transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、止めた直後の `current` が操作の前の Step で、続く入力で `input_received` が 1 件増えること。`cycle-exit-2`・`chain-1001` は `accepted` が 1 件増え、上限の行が 2 件・通知が出る。`cycle-enter-*` は通知が消える
+
+- SAFE35-1: 止めた後に戻す処理を飛ばす
+- SAFE35-2: 戻すときに `busy` を空にしない
+- SAFE35-3: `run` を戻さず `current` だけ戻す
+
+`SAFE23-2`（`halt` の `current = None` の削除）は、`apply` が直後に戻すため、効果が試験から見えない等価変異になった。廃止し、内側の fail-closed は SAFE35 の変異と、操作の前に現在の Step が無い場合の既存の挙動で担保する。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 7528a9d（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE35-1.mutation（SAFE35-2・3、SAFE23-1・3、SAFE34-1 も同様）
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| SAFE35-1 | crates/core/src/session.rs: 止めた後に戻さない | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, exit_chain_boundary | DETECTED |
+| SAFE35-2 | crates/core/src/transit.rs: `busy` を空にしない | tick_path_returns_without_busy_and_does_not_loop | DETECTED |
+| SAFE35-3 | crates/core/src/transit.rs: `current` だけ戻す | cycle_exit_2_stops_at_limit, cycle_exit_2_accepts_again_and_returns_again | DETECTED |
+
+範囲外: spec の SAFE-35 の文言の更新、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
