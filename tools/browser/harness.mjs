@@ -27,6 +27,24 @@ export function resolveLaunchOptions({ channel, headless = true } = {}) {
   return c === 'chrome' ? { channel: 'chrome', headless } : { headless };
 }
 
+// 前提バイナリ fandhe-pack の位置を FANDHE_PACK_BIN から受け取る（BUILD-16。TASK-91。PoC-11 の F-10）。
+// 設定元は scripts/test-browser.sh（scripts/build-pack-bin.sh が cargo の出力から解決する）。target/debug の直書きは
+// CARGO_TARGET_DIR を変えると生の ENOENT で止まるため、未設定・存在しない・通常ファイルでない場合は
+// 原因を名指す例外にする。skip にはしない（fail-closed）。
+export function packBinFromEnv(env = process.env) {
+  const bin = env.FANDHE_PACK_BIN;
+  const hint = 'FANDHE_PACK_BIN must point to the fandhe-pack binary built by scripts/build-pack-bin.sh (run make test-browser)';
+  if (!bin) throw new Error(`${hint}: not set`);
+  let st;
+  try {
+    st = fs.statSync(bin);
+  } catch {
+    throw new Error(`${hint}: no such file`);
+  }
+  if (!st.isFile()) throw new Error(`${hint}: not a regular file`);
+  return bin;
+}
+
 // 環境変数 FANDHE_BROWSER_CHANNEL から channel を読む。空・未設定は 'chromium'。
 export function channelFromEnv(env = process.env) {
   const v = env.FANDHE_BROWSER_CHANNEL;

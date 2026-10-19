@@ -281,7 +281,8 @@ jobs:
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
   # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
   # なることを関門にする。TASK-79 2/2）を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。
-  # 流す中身は make test-browser（scripts/test-browser.sh）で、ここにロジックを重ねない。試験の web は
+  # 流す中身は make test-browser（scripts/test-browser.sh）で、ここにロジックを重ねない。fandhe-pack の debug ビルドも
+  # その前段が行い、FANDHE_PACK_BIN で試験へ渡す（TASK-91）。試験の web は
   # その中で一度だけビルドされ、smoke-hello はビルドし直さない。1 本でも失敗すれば本ジョブが失敗し、
   # ci-complete が CI 全体を失敗にする（skipped も許容しない）。
   # rust-test の 30 分に収まらない見込みのため別ジョブにする。needs を持たず常に実行する。
@@ -344,6 +345,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: make test-browser
+        # BUILD-16（TASK-91）: 既定でない target でも前提（fandhe-pack・web）が揃うことを毎回確かめる
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
         run: make test-browser
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
