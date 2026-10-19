@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 2
+CLI の外部仕様の版: 3
 決定日: 2026-10-19
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先）を 1 か所に固定する（TASK-399 1/2・2/2、AUTHOR-1〜AUTHOR-3）
-- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 2」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407、AUTHOR-1〜AUTHOR-3・AUTHOR-8）
+- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 3」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -24,7 +24,7 @@ CLI の外部仕様の版: 2
 |---|---|---|
 | `validate` | `<pack-dir>` | 静的検査（TASK-403） |
 | `test` | `<pack-dir>` | 検査の後に、模範解答の完走と誤入力の分類（TASK-404） |
-| `compile` | `<pack-dir> [-o <file>]` | IR（JSON）を標準出力、または `-o` のファイルへ出す（`-o` は TASK-407） |
+| `compile` | `<pack-dir> [-o <file>]` | IR（JSON）を標準出力、または `-o` のファイルへ出す |
 | `vocab` | `<pack-dir>` | 拡張点を使った Step の数え上げ（TASK-408） |
 | `metrics` | `<pack-dir>` | ファイルごとの行数・実効行数・バイト数・入れ子の深さ（TASK-402） |
 | `compare` | `<pack-dir-a> <pack-dir-b>` | 2 つの教材パックの IR の完全一致の比較 |
@@ -84,7 +84,7 @@ commands:
 
 項目は `<種別>`、または `<種別>:<名前>` の形で書く。種別は `[a-z][a-z_]*` で、名前は空でない。名前を安全に写せない（空・`safe_ident` を通らない）ときは、名前の代わりに `#<n>`（1 始まりの位置）を使う（例: `command:#2`）。
 
-AUTHOR-2 が名指しする 5 種（`step`・`rejection`・`start`・`playthrough`・`error_input`）は、必ずこの名前の種別で出す。次の表は、版 2 時点で実装が使う種別の参考の一覧である。種別を足しても版は上げない（形は上の規則が決める）。
+AUTHOR-2 が名指しする 5 種（`step`・`rejection`・`start`・`playthrough`・`error_input`）は、必ずこの名前の種別で出す。次の表は、版 3 時点で実装が使う種別の参考の一覧である。種別を足しても版は上げない（形は上の規則が決める）。
 
 | 種別 | 項目の形 | 備考 |
 |---|---|---|
@@ -132,17 +132,36 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 - 診断のある実行では、標準エラー出力は空である。使い方の誤り（終了コード 2）のときは、標準出力は空である
 - 経過措置（契約外）の `not implemented` の行は標準エラー出力に出す（5 節）
 
-## 10. 本版で扱わない事項
+## 10. compile の出力
+
+`compile <pack-dir> [-o <file>]` の出力の契約（AUTHOR-8、TASK-407）。
+
+| 場面 | 標準出力 | 標準エラー出力 | `-o` のファイル | 終了コード |
+|---|---|---|---|---|
+| `-o` なし・診断 0 件 | IR | 空 | なし | 0 |
+| `-o` あり・診断 0 件 | 空 | 空 | 標準出力の場合と同じバイト列 | 0 |
+| `-o` あり・診断あり | 診断の行（最終行なし） | 空 | 作らない。既存のファイルにも触れない | 1 |
+| `-o` あり・書き出せない | 空 | `error: fandhe-pack compile: cannot write output <path>: <原因>` の 1 行 | 中途半端なファイルを残さない | 2 |
+
+- 標準出力と `-o` のファイルは同じバイト列である。`-o` のとき標準出力へは出さない
+- 書き出しは compile が診断なしで終わった後にだけ行う（診断があれば何も書かない。fail-closed）
+- 書き出しは、同じディレクトリの一時ファイル（`.<ファイル名>.fandhe-pack-<pid>.tmp`）へ書いて `rename` で置き換える。途中で失敗しても途中までの IR が残らず、既存のファイルより短い IR でも末尾が残らない。失敗した場合は一時ファイルを消す。置き換えるので、既存のファイルの権限は引き継がない
+- 書き出せない場合は、親ディレクトリが無い・権限が無い・既存のディレクトリを指す・ファイル名を持たない場合を含み、終了コードは 2 である（5 節）。`<path>` は引用符つきで出し、教材の本文・IR の中身は出さない
+- `-o` の値は `-` で始められない。`-o -` を標準出力の意味にはしない
+- 末尾の形は、整形した JSON の最後の `}` の後に LF が 1 つだけで、CRLF・BOM を含まず、UTF-8 である
+- 同じ内容の教材パックの IR は、何度 compile しても、別のディレクトリへ写しても、ファイルの列挙順が違っても、絶対パスでも相対パスでも、バイト単位で同じになる。IR に絶対パス・時刻・乱数は入らない
+- 画面に配る IR は、この `compile` の出力そのものである。配信物には `IR_FILE=<file> tools/build-web.sh` で `ir/main.json` として入る。配信の実装は TASK-109・TASK-121 の側にある
+
+## 11. 本版で扱わない事項
 
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403）
 - `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
-- `compile -o` と末尾の扱い（TASK-407）
 - 引数の数の検査と振り分け（TASK-401）
 - `metrics` の本体（TASK-402）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
 
-## 11. 適合試験
+## 12. 適合試験
 
 `crates/pack/tests/cli_contract_doc.rs`（文書とコードの一致）と `crates/pack/tests/cli_contract.rs`（実行ファイルの挙動）が次を確かめる。
 
@@ -155,7 +174,7 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 | `cli_doc_item_kinds_table_matches` | 7 節の表の種別が `ITEM_KINDS_V2` と一致し、AUTHOR-2 の 5 種を含む |
 | `cli_doc_final_line_examples_match` | 8 節の例のブロックが `final_line`・`compare_*_line` の出力と完全一致する |
 | `cli_doc_destination_section_present` | 9 節に標準出力と標準エラー出力の両方がある |
-| `usage_declares_compile_output_option` | 使い方に `compile <pack-dir> [-o <file>]` の行がある（`-o` の動作は確かめない） |
+| `usage_declares_compile_output_option` | 使い方に `compile <pack-dir> [-o <file>]` の行がある（動作は `compile_output.rs`） |
 | `exit_codes_are_fixed_values` | 終了コードの定数が 0・1・2 である |
 | `commands_are_the_six_in_contract_order` | コマンドが 6 つで、AUTHOR-1 の順である |
 | `defects_is_not_an_author_command` | `defects` が未知のコマンドで、使い方に出ない |
@@ -173,10 +192,19 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 | `pack_summary_counts` | 要約の章・モジュール・Step の定義の数 |
 | `compare_lines_follow_contract` | `compare` の 3 つの行 |
 | `diagnostics_go_to_stdout` | 診断は標準出力、標準エラー出力は空 |
+| `author8_stdout_and_output_file_are_byte_identical`（`compile_output.rs`） | 標準出力と `-o` のファイルが同じバイト列で、`-o` のとき標準出力・標準エラー出力は空 |
+| `author8_repeated_runs_are_byte_identical` | 何度 compile しても同じバイト列 |
+| `author8_copies_in_other_directories_are_byte_identical` | 別のディレクトリへの写し・列挙順を変えた写し・相対パスでも同じバイト列で、IR にパスが入らない |
+| `author8_output_tail_is_fixed` | 末尾が `}` と LF 1 つで、CRLF・BOM がなく、読み戻せる |
+| `author8_output_replaces_existing_file_entirely` | 既存のファイルを丸ごと置き換える |
+| `author8_diagnostics_do_not_write_output` | 診断があればファイルを作らず、既存にも触れない |
+| `author8_unwritable_output_exits_2` | 書き出せないとき 2 と `error:` の 1 行で、一時ファイルを残さない |
+| `author8_no_temporary_file_is_left_after_success` | 成功後に一時ファイルが残らない |
 
-## 12. 変更履歴
+## 13. 変更履歴
 
 | 版 | 日付 | 内容 |
 |---|---|---|
 | 1 | 2026-10-19 | 初版（バイナリ名・コマンド 6 つ・引数の形・使い方・終了コード） |
 | 2 | 2026-10-19 | 診断 1 行の形・項目の書式・最終行（`validate`・`compare`）・診断の出し先を足す（TASK-399 2/2） |
+| 3 | 2026-10-19 | `compile` の出力（`-o` の書き出し・標準出力との同一バイト・末尾・決定性）を 10 節に固定し、以降の節を繰り下げる（TASK-407、AUTHOR-8） |

@@ -427,6 +427,16 @@ views:
 教材パックからは名前の欄を書いて使うだけで、任意のコードは書けません。実行時に拡張点を登録する仕組みもありません。
 手順は `docs/extension-point-procedure.md` にあります。
 
+## IR の出力と配信物（`compile`）
+
+`fandhe-pack compile <pack-dir> -o <file>` が書く IR は、画面に配る IR そのものです。標準出力に出す IR と `-o` のファイルは同じバイト列で、`-o` を付けたときは標準出力に何も出ません。
+
+- 同じ内容の教材パックは、何度 compile しても、別のディレクトリへ写しても、同じバイト列の IR になります。IR にパス・時刻・乱数は入りません
+- 診断が 1 件でもあるときは、ファイルを作りません。同じ名前のファイルが既にあっても書き換えません
+- 書き出せないとき（親のディレクトリが無い・既存のディレクトリを指すなど）は、`error:` の 1 行を標準エラー出力に出して終了コード 2 で終わります。一時ファイルへ書いてから置き換えるので、途中まで書いた IR は残りません
+- 配信物には `IR_FILE=<file> tools/build-web.sh` で入ります（`ir/main.json`）。配信の実装は TASK-109・TASK-121 の側です
+- 外部仕様は `docs/cli.md` の 10 節（AUTHOR-8）です
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -462,3 +472,4 @@ views:
 | `crates/contract/tests/left_pane_contract.rs` | 左エリアの 2 項目の閉じた集合、既定値、名前にない値・型違い・未知の欄の拒否（PACK-22） |
 | `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
+| `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |

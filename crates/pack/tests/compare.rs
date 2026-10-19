@@ -12,7 +12,7 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use common::{minimal, testdata, Tmp, CHAPTER, SECRET, WORKSHOP};
+use common::{minimal, reversed_copy, testdata, Tmp, CHAPTER, SECRET, WORKSHOP};
 use fandhe_workshop_pack::cli::{run, EXIT_DIAGNOSTICS};
 use fandhe_workshop_pack::compare::{compare_dirs, Outcome};
 use fandhe_workshop_pack::compile::compile_dir;
@@ -74,32 +74,6 @@ fn rewrite(t: &Tmp, rel: &str, from: &str, to: &str) {
     let text = fs::read_to_string(&p).expect("read");
     assert!(text.contains(from), "{rel} lacks {from:?}");
     fs::write(p, text.replacen(from, to, 1)).expect("write");
-}
-
-fn files_of(dir: &Path, base: &Path, out: &mut Vec<PathBuf>) {
-    for e in fs::read_dir(dir).expect("read_dir").flatten() {
-        let p = e.path();
-        if p.is_dir() {
-            files_of(&p, base, out);
-        } else {
-            out.push(p.strip_prefix(base).expect("prefix").to_path_buf());
-        }
-    }
-}
-
-/// ファイルを辞書順の逆で作って写す（ディレクトリの列挙順を変える）。
-fn reversed_copy(from: &Path, tag: &str) -> Tmp {
-    let t = Tmp::new(tag);
-    let mut files = Vec::new();
-    files_of(from, from, &mut files);
-    files.sort();
-    files.reverse();
-    for rel in files {
-        let dst = t.0.join(&rel);
-        fs::create_dir_all(dst.parent().expect("parent")).expect("mkdir");
-        fs::copy(from.join(&rel), dst).expect("copy");
-    }
-    t
 }
 
 #[test]

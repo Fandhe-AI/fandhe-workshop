@@ -1,16 +1,17 @@
 //! `fandhe-pack` のサブコマンドの引数の解釈と振り分け、終了コード。
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
-//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`validate`・`test`・`vocab`・`metrics`・
-//! `compile -o` は形を受け付けたうえで経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク
-//! （TASK-402〜TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 2）で、
+//! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`compile -o` の書き出しは TASK-407 で
+//! 実装した。`validate`・`test`・`vocab`・`metrics` は形を受け付けたうえで経過措置の未実装（終了コード 2）に
+//! 振り分け、本体は後続のタスク（TASK-402〜TASK-408）が各 `run_*` の中身を差し替えて作る。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 3）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）だけで、引数の解釈は
 //! ファイルシステムに触れない。
 
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -162,8 +163,8 @@ fn parse<I: Iterator<Item = OsString>>(
 /// 引数なしは使い方だけを標準エラーに出す。コマンド名が未知（`defects` を含む）または引数の形が誤りなら
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
 /// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
-/// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 2 の 9 節）。
-/// 他のコマンドと `compile -o` は未実装で `EXIT_USAGE` を返す（経過措置）。
+/// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 3 の 9 節）。
+/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。他のコマンドは未実装で `EXIT_USAGE` を返す（経過措置）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: IntoIterator<Item = OsString>,
@@ -230,23 +231,74 @@ fn run_metrics<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
     not_implemented(Subcommand::Metrics, err)
 }
 
-/// `compile` の実行。`-o <file>` の書き出しは TASK-407 まで未実装で、受け付けても読み込まず書かない。
+/// `compile` の実行。IR は `-o` が無ければ標準出力へ、あれば `output` のファイルへ、同じバイト列で出す。
+///
+/// 診断があるときはファイルを作らず既存のファイルにも触れない（失敗した compile の出力を、後で配信物の IR として
+/// 取り込む事故を防ぐ fail-closed）。書き出せないときは理由を `error:` 行で標準エラーに出して `EXIT_USAGE` を
+/// 返す（`docs/cli.md` 版 3 の 10 節。AUTHOR-8）。書き出しの I/O エラーは `main` へ伝播させず、ここで理由つきの
+/// 終了に変える（伝播すると理由なしの 2 になるため）。
 fn run_compile<O, E>(dir: &Path, output: Option<&Path>, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     O: Write,
     E: Write,
 {
-    if output.is_some() {
-        writeln!(err, "error: fandhe-pack compile -o is not implemented yet")?;
-        return Ok(EXIT_USAGE);
-    }
     match compile_dir(dir) {
-        Ok(bytes) => {
-            out.write_all(&bytes)?;
-            Ok(EXIT_OK)
-        }
+        Ok(bytes) => match output {
+            None => {
+                out.write_all(&bytes)?;
+                Ok(EXIT_OK)
+            }
+            Some(path) => match write_output(path, &bytes) {
+                Ok(()) => Ok(EXIT_OK),
+                Err(e) => {
+                    writeln!(
+                        err,
+                        "error: fandhe-pack compile: cannot write output {path:?}: {}",
+                        e.kind()
+                    )?;
+                    Ok(EXIT_USAGE)
+                }
+            },
+        },
         Err(diags) => write_diagnostics(out, &diags),
     }
+}
+
+/// `bytes` を `path` へ原子的に置き換えて書く（同じディレクトリの一時ファイルへ書き、`sync_all` してから `rename`）。
+///
+/// 途中の失敗で途中まで書いた IR が残らず、既存のファイルより短い IR でも末尾が残らない。一時ファイルは
+/// `create_new` で作り、既存のファイルやリンクを辿って書き換えない。作れなかった一時パスは消さず、作った後の失敗でだけ消す。
+/// 置き換えるので、既存のファイルの権限は引き継がない。
+fn write_output(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let name = path.file_name().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "output path has no file name")
+    })?;
+    if fs::metadata(path).is_ok_and(|m| m.is_dir()) {
+        return Err(io::Error::new(
+            io::ErrorKind::IsADirectory,
+            "output path is a directory",
+        ));
+    }
+    let mut tmp_name = OsString::from(".");
+    tmp_name.push(name);
+    tmp_name.push(format!(".fandhe-pack-{}.tmp", std::process::id()));
+    let tmp = path.with_file_name(tmp_name);
+    // open が失敗した経路（既存のファイルとの衝突を含む）では、自分が作っていない一時パスを消さない。
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)?;
+    let tmp_ref = &tmp;
+    let written = (move || {
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        fs::rename(tmp_ref, path)
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written
 }
 
 /// `compare` の実行。引数は `<pack-dir-a> <pack-dir-b>` ちょうど 2 つ（解釈済み）。
@@ -255,7 +307,7 @@ where
 /// `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断、最後に `compare_unreadable_line` の
 /// 行を書いて `EXIT_DIAGNOSTICS` を返し、一致・不一致の行は出さない（失敗を一致とみなさない）。
 /// 不一致の行の「バイト目」は 1 始まり（内部のバイト位置に 1 を足す）。
-/// 行の形の正は `docs/cli.md` 版 2 の 8 節である。
+/// 行の形の正は `docs/cli.md` 版 3 の 8 節である。
 fn run_compare<O: Write>(a: &Path, b: &Path, out: &mut O) -> io::Result<u8> {
     match compare_dirs(a, b) {
         Ok(Outcome::Same { len }) => {
@@ -318,9 +370,13 @@ mod tests {
         assert_eq!(code, EXIT_USAGE);
         assert!(out.is_empty() && err.contains("unknown option"));
         assert!(!err.contains("not implemented"));
-        let (code, out, err) = run_args(&["compile", "x", "-o", "y"]);
-        assert_eq!(code, EXIT_USAGE);
-        assert!(out.is_empty() && err.contains("compile -o is not implemented yet"));
+        // `-o` の値が無い・`-` 始まりの値は形の誤り（書き出しには進まない）。
+        for args in [&["compile", "x", "-o"][..], &["compile", "x", "-o", "-y"]] {
+            let (code, out, err) = run_args(args);
+            assert_eq!(code, EXIT_USAGE, "{args:?}");
+            assert!(out.is_empty() && err.starts_with("error:"), "{args:?}");
+            assert!(!err.contains("not implemented"), "{args:?}");
+        }
     }
 
     #[test]

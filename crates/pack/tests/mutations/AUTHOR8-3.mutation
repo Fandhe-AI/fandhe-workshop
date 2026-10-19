@@ -1,0 +1,8 @@
+id: AUTHOR8-3
+package: fandhe-workshop-pack
+test: compile_output
+target: crates/pack/src/cli.rs
+find:     written
+replace:     Ok::<(), io::Error>(())
+expect-fail: author8_unwritable_output_exits_2
+note: 書き出しの失敗を成功として返す

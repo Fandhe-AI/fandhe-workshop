@@ -2,7 +2,7 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 2）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 3）で、本モジュールは同じ内容のコード側の写しである。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
 //! 呼び出し元は `cli`（振り分けと出力）と `main.rs`（終了コード）で、`cli` は本モジュールの名前を `pub use`
@@ -21,7 +21,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 2;
+pub const CLI_CONTRACT_VERSION: u32 = 3;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -105,7 +105,7 @@ pub fn usage() -> String {
 pub const AUTHOR2_ITEM_KINDS: [&str; 5] =
     ["step", "rejection", "start", "playthrough", "error_input"];
 
-/// 版 2 時点の実装が使う項目の種別の参考の一覧。種別を足しても版は上げない（形は `is_item` が見る）。
+/// 版 3 時点の実装が使う項目の種別の参考の一覧。種別を足しても版は上げない（形は `is_item` が見る）。
 pub const ITEM_KINDS_V2: &[&str] = &[
     "step",
     "rejection",
