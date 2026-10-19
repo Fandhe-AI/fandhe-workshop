@@ -31,6 +31,8 @@ cat <<'EOF'
   test-check-toolchain         scripts/test-check-toolchain.sh         ツールチェーンの一致の検査自体の回帰テスト
   check-workflow-secrets       scripts/check-workflow-secrets.sh       ci.yml が secret を参照していないことを検査する
   test-check-workflow-secrets  scripts/test-check-workflow-secrets.sh  secret 参照の検査自体の回帰テスト
+  check-fork-ci                scripts/check-fork-ci.sh                fork が secret 無しでも CI を通せる構成であることをパーサで検査する
+  test-check-fork-ci           scripts/test-check-fork-ci.sh           fork CI 検査自体の回帰テスト
   build-web                    tools/build-web.sh                      web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
   test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
   check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する

@@ -28,6 +28,9 @@ concurrency:
 
 jobs:
   deploy:
+    # fork では動かさない。fork は配信先の権限・environment を持たず、実行しても失敗して通知が増えるだけである。
+    # 値はリポジトリ名の固定の比較にする（scripts/check-fork-ci.sh の C2 が完全一致で検査する）
+    if: github.repository == 'Fandhe-AI/fandhe-workshop'
     name: "deploy (skeleton; TASK-121)"
     runs-on: ubuntu-latest
     timeout-minutes: 5
