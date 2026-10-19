@@ -1,0 +1,335 @@
+{
+  "table_version": 1,
+  "rows": [
+    {
+      "id": "V-0",
+      "category": "same",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "open",
+        "code": null,
+        "axes": []
+      }
+    },
+    {
+      "id": "V-i-1",
+      "category": "text_only",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "text-1.1.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "content",
+          "content_hash"
+        ]
+      }
+    },
+    {
+      "id": "V-i-2",
+      "category": "text_only",
+      "fabricated": false,
+      "history": {
+        "path": "early",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "text-1.1.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "content",
+          "content_hash"
+        ]
+      }
+    },
+    {
+      "id": "V-ii-1",
+      "category": "step_added",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "step-added-1.2.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "view_only",
+        "code": "replay_diverged",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-ii-2",
+      "category": "step_added",
+      "fabricated": false,
+      "history": {
+        "path": "early",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "step-added-1.2.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "content",
+          "content_hash"
+        ]
+      }
+    },
+    {
+      "id": "V-iii-1",
+      "category": "step_removed",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "step-removed-2.0.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "view_only",
+        "code": "content_major",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-iii-2",
+      "category": "step_removed",
+      "fabricated": false,
+      "history": {
+        "path": "early",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "step-removed-2.0.0",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "view_only",
+        "code": "content_major",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-iv-1",
+      "category": "vocab_format",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "vocab-1.0",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "vocab",
+          "content_hash"
+        ]
+      }
+    },
+    {
+      "id": "V-iv-2",
+      "category": "vocab_format",
+      "fabricated": false,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {}
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": "1.0"
+      },
+      "expect": {
+        "result": "refused",
+        "code": "vocab_newer",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-iv-3",
+      "category": "vocab_format",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "ir_format": 2
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "refused",
+        "code": "format_newer",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-iv-4",
+      "category": "vocab_format",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "ir_format": 0
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "view_only",
+        "code": "format_older",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-v-1",
+      "category": "engine",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "engine": "0.0.0"
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": "0.1.0",
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "engine"
+        ]
+      }
+    },
+    {
+      "id": "V-v-2",
+      "category": "engine",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "engine": "0.2.0"
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": "0.1.0",
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "refused",
+        "code": "engine_newer",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-v-3",
+      "category": "engine",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "engine": "0.0.0"
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": "1.0.0",
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "view_only",
+        "code": "engine_major",
+        "axes": []
+      }
+    },
+    {
+      "id": "V-ref",
+      "category": "refs",
+      "fabricated": true,
+      "history": {
+        "path": "mid",
+        "pack": "base",
+        "edit": {
+          "refs": {
+            "sample-ref": "1111111"
+          }
+        }
+      },
+      "opening": {
+        "pack": "base",
+        "engine": null,
+        "vocab_max": null
+      },
+      "expect": {
+        "result": "converted",
+        "code": null,
+        "axes": [
+          "refs"
+        ]
+      }
+    }
+  ]
+}

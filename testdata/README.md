@@ -107,6 +107,7 @@
 | 履歴の包みのサンプル | `contract/history/*.json`（説明は `contract/history/README.md`） |
 | 左の成果物ビューの sample（7 種） | `artifact-view-parts/test-data/sample/`（説明は `artifact-view-parts/test-data/README.md`） |
 | escape の行 | `artifact-view-parts/test-data-addendum/escape-rows.json` |
+| 版の違う履歴の期待の表 | `version-histories/expectations.json`（説明は `version-histories/README.md`） |
 
 ## manifest の検証
 
@@ -160,6 +161,7 @@
 | 置き場 | 作成日 | 作成元 | 用途 |
 |---|---|---|---|
 | `pack-defects/` | 2026-10-18 | TASK-56・#415・#416・#417 | 欠陥パック（PACK-29 の 12 種 × 形式 A・B と、語彙 v1.1 の 11 種 × 形式 B）と、その土台の正しいパック。`crates/pack/tests/defect_packs.rs` が使い、土台は誤検出 0 件の試験にも使う。題材は架空 |
+| `version-histories/` | 2026-10-19 | TASK-175・#448 | 版の違う履歴 15 件の期待の表（VER-2）。`crates/core/tests/version_histories.rs` が読む。履歴は試験の中で作り、表だけを置く。後続のブラウザ試験（#449）が Node 側からも読むため `testdata/` に置く |
 
 ## 公開の扱い
 
@@ -174,3 +176,4 @@
 - 公開前の人の確認の方法は TASK-14 で決めます。2026-10-12 時点で未決定のため、人の確認・承認は得ていません。
 - 2026-10-18 に、条件の語彙の網羅パック（`condition-vocab-pack/`、7 ファイル）を機械で走査しました。秘密情報の検知パターン・`fandhe.com`・個人のパス・URL は 0 件でした。題材は架空です。この走査の分について、人の確認・承認は得ていません。
 - 2026-10-18 に、欠陥パック（`pack-defects/`。語彙 v1.1 の 11 種を含む）は本 repo で新しく書きました。題材は架空の備品メモで、秘密情報・URL・個人のパスを含みません。この分について、人の確認・承認は得ていません。
+- 2026-10-19 に、版の違う履歴の期待の表（`version-histories/`、2 ファイル）は本 repo で新しく書きました。名前と commit は架空のダミー値で、秘密情報・URL・個人のパスを含みません。この分について、人の確認・承認は得ていません。
