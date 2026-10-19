@@ -3963,7 +3963,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
 
-1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）と止めた後の戻り方（SAFE-35、#446）は本節の範囲外で、`Warning` のままにしている。
+1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.134、止めた後の戻り方（SAFE-35、#446）は別のタスクで扱う。
 
 試験は 2 層に置いた。
 
@@ -4021,7 +4021,57 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
 
-範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、見出しと専用の `Event`（#445）、戻り方（#446）。
+範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、戻り方（#446）。見出しと専用の `Event`（#445）は 5.134 で扱った。
+
+### 5.134 遷移の上限で止めた理由の見出しとまとめ表示（TASK-160 2/3）
+
+遷移 1,000 回の上限（5.133）で止めたとき、受講者に理由が見えるようにする（SAFE-34・D-45）。止める前は、作成者向けの `Warning` が残るだけで、web はそれを行にしないため、受講者の画面には何も出なかった。試作（PoC-7）では見出しが「教材の定義の誤り」になり、案内の欄が空で、同じ行が 1,000 行並んだ。
+
+実装した 4 点は次のとおり。
+
+1. 専用の見出しの行: 右のログに `data-kind="limit"` の行を 1 件出す。見出し（`line-heading`）は「実行時の上限で止めました」、本文（`line-body`）は上限の回数（`1,000`）を含み、教材の定義の誤りではなく実行時の上限であることを述べる
+2. 案内の欄: ログの通知欄 `log-notice`（`role="status"`）に、理由の文を出す
+3. 専用の `Event`: `Event::TransitionLimitReached { at, landings }`（`CONTRACT_VERSION` 6）。文字列の欄を持たない
+4. まとめ表示: 個々の着地（`ModuleEntered`・`ModuleExited`・`Transitioned`）は行にせず、止めた 1 行にまとめる
+
+決めたこと（決定 D-45 に文言と細目の記録が無いため、エンジンの側で仮に置いた。記録として残す）。
+
+- `Warning` は残し、その直後に専用の `Event` を 1 件足す。置き換えない。SAFE-23（Must）と TASK-160 の完了条件が「理由が `Warning` として 1 件残る」と書いており、5.133 の試験もその前提だからである。`Warning` は作成者向けの診断として残り、受講者向けの表示は専用の `Event` だけから作る
+- まとめ表示の読み: 現在の web では、`ModuleEntered` 等は `line_from_event` が `None` を返すため、DOM にはもともと 1,000 行並ばない。ここでは「止めた 1 行だけを出し、個々の着地は行にしない」ことを契約として定め、`tests/log_lines_contract.rs` で固定した。後続のタスクが着地を行にする場合は、まとめの規則を一緒に持ち込む必要がある
+- 案内の欄は、領域「案内とログ」の通知欄 `log-notice` と読んだ。`a11y` 契約が予約済みで、どこにも描いていなかった。`input-notice` は入力の上限の案内（`paste-notice`・`input-limit`）が使っているため採らない
+- 行の種類 `limit` と部品 `line-heading` を足し、`TERMINAL_AREA_CONTRACT_VERSION` を 2 から 3 にした（`LineKind` は閉じた一覧で、黙って変えられない）。`reloaded`（版 2）と同じく、`LIVE_EXCLUDED_LINE_KINDS` には入れない
+- 文言は仮置きで、`log_lines`（`LIMIT_HEADING`・`LIMIT_BODY_*`）と `limit_notice`（`LIMIT_NOTICE_*`）の定数 1 か所に置いた。固定文と、着地の回数を 3 桁ごとに区切った数だけで作り、教材・受講者の値を含めない（SAFE-11）。仕様の側での確定は spec repo の作業になる
+- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後の無視の記録が積まれても残り、後続の操作（移動・復帰・戻り）で消える
+- 状態表示（`run-status`）は現行どおり「待機中」に倒れる。`RunStatus` は 3 値の閉じた契約で、上限の停止を「停止」にするかは本件の範囲外とした
+
+試験は 3 層に置いた。
+
+- native の core（`crates/core/tests/transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めたときに `TransitionLimitReached` がちょうど 1 件で、`Warning` の直後・イベント列の末尾にあり、`landings` が 1,000 であること。止まらない場合（`cycle-d07-flat`・1,000 回ちょうどの連鎖・連鎖の途中の `enter` の先が無い場合）は 0 件であること。`api_types.rs` は直列化の形と、余分なキーの拒否を確かめる。`projection_derive.rs` は 1 件につき 1 行になることを確かめる
+- native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、止めた後の入力でも残る、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
+- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の入力でも変わらない。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
+
+- SAFE34-1: 専用の `Event` の着地の回数を 0 にする
+- SAFE34-2: 専用の `Event` を行にしない
+- SAFE34-3: 通知欄の導出が常に空を返す
+- SAFE34-4: 個々の着地（`ModuleEntered`）を行にする
+
+あわせて、`SAFE23-2.mutation` の置換対象が `transit.rs` の 2 か所に一致して検査が止まっていたため、`halt` の行に説明のコメントを付けて一意にした（置換する内容は変えていない）。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 606b235（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE34-1.mutation（SAFE34-2〜4・SAFE23-1〜3 も同様）
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| SAFE34-1 | crates/core/src/transit.rs: 専用の `Event` の着地の回数を 0 にする | cycle_enter_self_stops_at_limit, enter_chain_boundary | cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_self_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
+| SAFE34-2 | crates/web/src/log_lines.rs: 専用の `Event` を行にしない | 上限で止めた理由は_limit_行になり_見出しと本文が固定の文言で出る, 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである | 同左 | DETECTED |
+| SAFE34-3 | crates/web/src/limit_notice.rs: 通知欄の導出が常に空を返す | 巡回で上限に達すると_limit_行が1件と通知欄の理由が出て_着地は行にならない | 同左, 上限に達した操作で通知欄の束縛点が_dirty_になる | DETECTED |
+| SAFE34-4 | crates/web/src/log_lines.rs: 個々の着地を行にする | 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである | 同左 | DETECTED |
+| SAFE23-1〜3 | crates/core/src/transit.rs（5.133 の表のとおり） | 5.133 のとおり | 5.133 のとおり | DETECTED（本変更の後に再実行して確認） |
+
+範囲外: 止めた後の戻り方（SAFE-35、#446）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

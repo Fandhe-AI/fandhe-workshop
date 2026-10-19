@@ -21,10 +21,10 @@
 //!
 //! # 止めたとき
 //!
-//! 固定文の `Warning` を 1 件だけ足し、`current`・`busy`・入口の写しを空にする。以降の入力は、現在の Step が無いので
-//! 落ちずに無視される。入口の写しも空にするのは、`go_to` が古い写しを残さないのと同じ理由である（停止が古い写しへ戻る誤りを防ぐ）。
+//! 固定文の `Warning` を 1 件と、その直後に専用の `TransitionLimitReached`（SAFE-34）を 1 件だけ足し、
+//! `current`・`busy`・入口の写しを空にする。以降の入力は、現在の Step が無いので落ちずに無視される。入口の写しも空にするのは、`go_to` が古い写しを残さないのと同じ理由である（停止が古い写しへ戻る誤りを防ぐ）。
 //! 着地先の `enter` が IR に無いときも、`UNKNOWN_TARGET` の `Warning` を 1 件足して同じ空の状態に確定する（移動元が現在位置に残らない）。
-//! 止めた後の見出し・まとめ表示（SAFE-34）と戻り方（SAFE-35）は後続のタスクが扱い、本モジュールは `Warning` のままにする。
+//! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後の戻り方（SAFE-35）は後続のタスクが扱う。
 //!
 //! # 扱わないこと
 //!
@@ -96,9 +96,16 @@ fn set_status(state: &mut SessionState, uid: &str, status: StepStatus) {
 }
 
 /// 上限で止める。fail-closed で、現在の Step・処理中・入口の写しを空にする。
-fn halt(state: &mut SessionState, at: Stamp, events: &mut Vec<Event>) {
-    events.push(warning(at, LIMIT_REACHED));
-    state.run.current = None;
+///
+/// 作成者向けの `Warning`（SAFE-23）の直後に、受講者向けの専用の `TransitionLimitReached`（SAFE-34）を 1 件足す。
+/// 受講者向けの文面は web が固定文で持つので、ここでは着地の回数だけを渡す。
+fn halt(state: &mut SessionState, at: Stamp, budget: &Budget, events: &mut Vec<Event>) {
+    events.push(warning(at.clone(), LIMIT_REACHED));
+    events.push(Event::TransitionLimitReached {
+        at,
+        landings: u32::try_from(budget.0).unwrap_or(u32::MAX),
+    });
+    state.run.current = None; // 止めた後の入力が巡回の途中の Step へ届かないよう空にする
     state.run.busy = None;
     state.entry = None;
 }
@@ -119,7 +126,7 @@ pub(crate) fn move_to(
         return;
     };
     if !budget.take() {
-        halt(state, stamp(generation, to), events);
+        halt(state, stamp(generation, to), &budget, events);
         return;
     }
     land(ir, state, generation, node, &mut budget, events);
@@ -153,7 +160,7 @@ pub(crate) fn after_achieved(
                 return;
             };
             if !budget.take() {
-                halt(state, at, events);
+                halt(state, at, &budget, events);
                 return;
             }
             events.push(Event::Transitioned {
@@ -175,7 +182,7 @@ pub(crate) fn after_achieved(
             return;
         };
         if !budget.take() {
-            halt(state, at, events);
+            halt(state, at, &budget, events);
             return;
         }
         set_status(state, &back.uid, StepStatus::Achieved);
@@ -230,7 +237,7 @@ fn land(
             instance: callee.scope.clone(),
         });
         if !budget.take() {
-            halt(state, here, events);
+            halt(state, here, budget, events);
             return;
         }
         node = callee;

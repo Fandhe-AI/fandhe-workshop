@@ -902,6 +902,18 @@ impl EngineHost {
                 _ => None,
             })
             .collect();
+        // 遷移の上限で止めた専用のイベント（SAFE-34）。着地の回数だけで、文面は含まない。DOM の見出しの行・通知欄と
+        // 件数を照合するために、ブラウザ試験が使う。
+        let limits: Vec<_> = log
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| match e {
+                fandhe_workshop_core::event::Event::TransitionLimitReached { landings, .. } => {
+                    Some(json!({ "event": i, "landings": landings }))
+                }
+                _ => None,
+            })
+            .collect();
         // ログは無視のたびに伸びるため、状態の一致の比較からは外す。失敗は Null に倒す。
         let mut state_without_log =
             serde_json::to_value(session.state()).unwrap_or(serde_json::Value::Null);
@@ -918,6 +930,7 @@ impl EngineHost {
             "received": received,
             "ignoredReasons": ignored_reasons,
             "warnings": warnings,
+            "limits": limits,
             "stateWithoutLog": state_without_log,
             "consumed": bulk.consumed(),
             "generation": session.generation().0,

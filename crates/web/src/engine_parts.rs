@@ -40,6 +40,7 @@ use crate::artifact_view::{
     VIEW_LIST_FIELDS,
 };
 use crate::host::HostModel;
+use crate::limit_notice::limit_notice;
 use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
 use crate::log_lines::{line_from_event, line_node};
@@ -76,6 +77,11 @@ const F_LOG: &[PartField] = &[
     },
     PartField {
         name: "step_status_word",
+        kind: FieldKind::Bound,
+    },
+    // 末尾に足す（[2]..[4] は位置で参照している）。遷移の上限で止めた理由の通知欄（SAFE-34）。
+    PartField {
+        name: "log_notice",
         kind: FieldKind::Bound,
     },
 ];
@@ -154,6 +160,7 @@ pub fn event_kind_name(event: &Event) -> &'static str {
         Event::Refused { .. } => "refused",
         Event::Ignored { .. } => "ignored",
         Event::Warning { .. } => "warning",
+        Event::TransitionLimitReached { .. } => "transition_limit_reached",
         _ => "other",
     }
 }
@@ -286,6 +293,13 @@ impl DisplayPart<HostModel> for LogPart {
                 run_status_node(model),
                 step_status_node(model),
                 list,
+                // 遷移の上限で止めた理由の通知欄（SAFE-34）。`role` は静的に書き、束縛しない（A11Y-7）。
+                bind_text(
+                    "p",
+                    vec![("data-testid", "log-notice"), ("role", "status")],
+                    F_LOG[5].name,
+                    limit_notice(model.session()).as_str(),
+                ),
                 bind_text(
                     "span",
                     vec![("data-testid", "part-log-consumed")],
@@ -301,6 +315,7 @@ impl DisplayPart<HostModel> for LogPart {
             f if f == F_LOG[2].name => Some(BoundValue::Text(status.word().to_owned())),
             f if f == F_LOG[3].name => Some(BoundValue::Text(status.data_state().to_owned())),
             f if f == F_LOG[4].name => Some(BoundValue::Text(step_status_text(model).to_owned())),
+            f if f == F_LOG[5].name => Some(BoundValue::Text(limit_notice(model.session()))),
             _ => consumed_bound(field, F_LOG[1].name, model),
         }
     }

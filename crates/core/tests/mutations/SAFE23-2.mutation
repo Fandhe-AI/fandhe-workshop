@@ -2,8 +2,8 @@ id: SAFE23-2
 package: fandhe-workshop-core
 test: transition_limit
 target: crates/core/src/transit.rs
-find:     state.run.current = None;
-replace:     let _ = &state.run.current;
+find:     state.run.current = None; // 止めた後
+replace:     let _ = &state.run.current; // 止めた後
 expect-fail: cycle_enter_self_stops_at_limit
 expect-fail: cycle_enter_2_stops_at_limit
 expect-fail: cycle_exit_2_stops_at_limit

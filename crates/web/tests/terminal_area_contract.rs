@@ -241,7 +241,7 @@ fn one_line(l: Node) -> Node {
 
 #[test]
 fn version_and_values_are_fixed() {
-    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 2);
+    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 3);
     let kinds: Vec<_> = LineKind::ALL.iter().map(|k| k.as_str()).collect();
     assert_eq!(
         kinds,
@@ -252,7 +252,8 @@ fn version_and_values_are_fixed() {
             "clarified",
             "progress",
             "stopped",
-            "reloaded"
+            "reloaded",
+            "limit"
         ]
     );
     let inputs: Vec<_> = InputMethod::ALL.iter().map(|k| k.as_str()).collect();
@@ -730,6 +731,22 @@ fn line_part_violations() {
         vec![part(LINE_QUESTION_TESTID, "q")],
     );
     assert_eq!(k(clar), "line-part-missing");
+    // 上限の行（版 3）は見出しと本文の両方が要る。両方あれば適合する。
+    let ok_limit = line(
+        vec![("data-kind", "limit")],
+        vec![part(LINE_HEADING_TESTID, "h"), part(LINE_BODY_TESTID, "b")],
+    );
+    assert!(check_area(&area(vec![log(vec![ok_limit])])).is_ok());
+    let no_heading = line(
+        vec![("data-kind", "limit")],
+        vec![part(LINE_BODY_TESTID, "b")],
+    );
+    assert_eq!(k(no_heading), "line-part-missing");
+    let no_body = line(
+        vec![("data-kind", "limit")],
+        vec![part(LINE_HEADING_TESTID, "h")],
+    );
+    assert_eq!(k(no_body), "line-part-missing");
     let no_dec = line(
         vec![("data-kind", "received"), ("data-input", "approval")],
         vec![],

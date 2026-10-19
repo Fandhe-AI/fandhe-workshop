@@ -1,4 +1,4 @@
-//! 右のターミナル風エリアが守る語の契約（TASK-431、版 2。ログの行・状態表示・Step の状態の語・入力の口の識別子）。
+//! 右のターミナル風エリアが守る語の契約（TASK-431、版 3。ログの行・状態表示・Step の状態の語・入力の口の識別子）。
 //!
 //! 右のエリアの実装（TASK-434〜464）と通しの試験（TASK-87・TASK-92・TASK-374）は、ログの行の種類・
 //! 状態表示・Step の状態の語・入力の口の識別子を観察点に使う。担当ごとに決めると統合で食い違うため、先に本モジュールで固定する。
@@ -14,6 +14,10 @@
 //!
 //! 版 2 で足したもの: 行の種類 `reloaded`（SAVE-6・D-57・TASK-322。本文は `line-body` だけ）。
 //! 再読み込みの行は `a11y::LIVE_EXCLUDED_LINE_KINDS` に入れず、ライブの欄の更新に数える側にする。
+//!
+//! 版 3 で足したもの: 行の種類 `limit`（遷移の上限で止めた理由の見出しの行。SAFE-34・D-45・TASK-160 2/3）と、
+//! その見出しの部品 `line-heading`。本文は `line-body`。上限の行も `LIVE_EXCLUDED_LINE_KINDS` に入れず、
+//! ライブの欄の更新に数える側にする（停止・再読み込みと同じ）。
 //!
 //! 版 1 が持つ規則:
 //! 1. ログの行の種類と構造（[`LineKind`]・[`InputMethod`]。`log-list` の直接の子は `li` だけ）
@@ -66,7 +70,7 @@ use fandhe_workshop_core::input::{Decision, Input};
 use fandhe_workshop_core::step_status::StepStatus;
 
 /// この契約の版。値・識別子・規則を変えたら上げる（2/2 の追加は上げなかった）。
-pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 2;
+pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 3;
 
 /// 行の種類を載せる属性名。
 pub const KIND_ATTR: &str = "data-kind";
@@ -101,6 +105,8 @@ pub const LINE_REASON_TESTID: &str = "line-reason";
 pub const LINE_NEXT_ACTION_TESTID: &str = "line-next-action";
 /// 問い返しの質問の部品。
 pub const LINE_QUESTION_TESTID: &str = "line-question";
+/// 見出しの部品（版 3。上限の行の見出し）。
+pub const LINE_HEADING_TESTID: &str = "line-heading";
 /// 処理中の段階の部品。
 pub const LINE_STAGE_TESTID: &str = "line-stage";
 /// 承認の操作の部品。
@@ -109,7 +115,7 @@ pub const LINE_DECISION_TESTID: &str = "line-decision";
 pub const LINE_TARGET_TESTID: &str = "line-target";
 
 /// 本契約が持つ識別子の閉じた一覧のうち、状態表示と行の部品の分。入力の口は [`InputPort::ALL`]。
-pub const TERMINAL_AREA_TESTIDS: [&str; 9] = [
+pub const TERMINAL_AREA_TESTIDS: [&str; 10] = [
     RUN_STATUS_TESTID,
     STEP_STATUS_TESTID,
     LINE_BODY_TESTID,
@@ -119,6 +125,7 @@ pub const TERMINAL_AREA_TESTIDS: [&str; 9] = [
     LINE_STAGE_TESTID,
     LINE_DECISION_TESTID,
     LINE_TARGET_TESTID,
+    LINE_HEADING_TESTID,
 ];
 
 /// 本契約の予約空間の接頭辞。
@@ -202,11 +209,13 @@ pub enum LineKind {
     Stopped,
     /// 再読み込みの告知（版 2。SAVE-6）。
     Reloaded,
+    /// 遷移の上限で止めた理由の見出しの行（版 3。SAFE-34）。
+    Limit,
 }
 
 impl LineKind {
     /// すべての種類。
-    pub const ALL: [LineKind; 7] = [
+    pub const ALL: [LineKind; 8] = [
         LineKind::Received,
         LineKind::Response,
         LineKind::Rejected,
@@ -214,6 +223,7 @@ impl LineKind {
         LineKind::Progress,
         LineKind::Stopped,
         LineKind::Reloaded,
+        LineKind::Limit,
     ];
 
     /// `data-kind` の値。
@@ -226,6 +236,7 @@ impl LineKind {
             LineKind::Progress => "progress",
             LineKind::Stopped => "stopped",
             LineKind::Reloaded => "reloaded",
+            LineKind::Limit => "limit",
         }
     }
 
@@ -488,6 +499,7 @@ fn part_spec(
         LineKind::Clarified => (&[LINE_QUESTION_TESTID, LINE_NEXT_ACTION_TESTID], &[]),
         LineKind::Progress => (&[LINE_STAGE_TESTID], &[]),
         LineKind::Stopped | LineKind::Reloaded => (&[LINE_BODY_TESTID], &[]),
+        LineKind::Limit => (&[LINE_HEADING_TESTID, LINE_BODY_TESTID], &[]),
     })
 }
 

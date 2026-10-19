@@ -214,6 +214,33 @@ fn reloaded_adds_one_row_and_keeps_marks() {
 }
 
 #[test]
+fn transition_limit_reached_adds_one_row_and_keeps_marks() {
+    let a = "main/a";
+    let limit = Event::TransitionLimitReached {
+        at: Stamp {
+            generation: Generation(3),
+            step: StepUid(a.to_string()),
+        },
+        landings: 1000,
+    };
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        limit,
+    ];
+    let without = Projection::from_events(&events[..2]);
+    let with = Projection::from_events(&events);
+    // 上限で止めるたびに 1 行（SAFE-34）。行は専用のイベントの位置と止めた地点の世代を指す。
+    assert_eq!(with.log().len(), without.log().len() + 1);
+    let last = with.log().last().expect("row");
+    assert_eq!(last.event, 2);
+    assert_eq!(last.at.generation, Generation(3));
+    // 変化の印は基準点でしか消えない。
+    assert_eq!(with.marks(), without.marks());
+    assert_eq!(with.consumed(), events.len());
+}
+
+#[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";
     let events: Vec<Event> = [Cause::Stop, Cause::Move, Cause::Restore, Cause::Start]

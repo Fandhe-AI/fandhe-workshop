@@ -1,0 +1,8 @@
+id: SAFE34-4
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/log_lines.rs
+find:         Event::Stopped { .. } => Some(LogLine::Stopped),
+replace:         Event::ModuleEntered { .. } => Some(LogLine::Stopped), Event::Stopped { .. } => Some(LogLine::Stopped),
+expect-fail: 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである
+note: 個々の着地を行にする（上限までの同じ遷移の行が 1,000 行並ぶ）

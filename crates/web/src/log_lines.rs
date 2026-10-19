@@ -7,6 +7,11 @@
 //! `learner_text::learner_part` の文字ノードだけで描く。属性値には enum の固定の語と 10 進の数字だけを入れる
 //! （SAFE-11。HTML 風の文字列が要素にならないことは `tests/log_lines_contract.rs` が木の上で確かめる）。
 //!
+//! 遷移の上限で止めた理由の行（`limit`。SAFE-34・D-45・TASK-160 2/3）は、専用の `TransitionLimitReached` 1 件を
+//! 見出しと本文の 1 行に写す。個々の着地（`ModuleEntered`・`ModuleExited`・`Transitioned`）は行にしない。これが
+//! 「同じ遷移の行を上限まで並べず、まとめて表示する」の実体で、`tests/log_lines_contract.rs` が固定する。
+//! それらを行にする後続のタスクは、まとめの規則を一緒に持ち込む。
+//!
 //! 結線の範囲: `InputReceived`（`received`）・`Progress`（`progress`）・`Stopped`（`stopped`）・`Reloaded`（`reloaded`。TASK-322）と、
 //! 拒否の `Judged`（`rejected`。TASK-437 1/2）・問い返しの `Judged`（`clarified`。TASK-437 2/2）。理由・問いは、IR の文面の ID の解決と実行時の値の差し込みを
 //! 済ませた文面（`host::HostModel::judged_text`）を呼び出し側が渡す。ここでは文面を作らず、渡されなければ
@@ -33,7 +38,7 @@ use crate::list_policy::{keyed_view, ListError};
 use crate::parts::PartField;
 use crate::terminal_area::{
     decision_value, decision_word, InputMethod, LineKind, CATEGORY_ATTR, DECISION_ATTR, GEN_ATTR,
-    INDEX_ATTR, INPUT_ATTR, KIND_ATTR, LINE_BODY_TESTID, LINE_DECISION_TESTID,
+    INDEX_ATTR, INPUT_ATTR, KIND_ATTR, LINE_BODY_TESTID, LINE_DECISION_TESTID, LINE_HEADING_TESTID,
     LINE_NEXT_ACTION_TESTID, LINE_QUESTION_TESTID, LINE_REASON_TESTID, LINE_STAGE_TESTID,
     LINE_TARGET_TESTID, TOTAL_ATTR,
 };
@@ -44,6 +49,39 @@ pub const STOPPED_TEXT: &str = "停止しました";
 /// 再読み込みの行の固定の文言（SAVE-6・D-57）。決まっているのは「再読み込みしました」の趣旨だけで、
 /// 言い回しは未決。変えるときはこの定数だけを直す。教材・受講者の値は含めない。
 pub const RELOADED_TEXT: &str = "再読み込みしました";
+
+/// 遷移の上限で止めた行の見出し（SAFE-34）。教材の定義の誤りではなく、実行時の上限であることを示す。
+/// 文言は決定（D-45）に記録が無く、エンジンの側の仮置き。変えるときはこの 3 つの定数だけを直す。
+/// 教材・受講者の値は含めない固定の文言で、数は着地の回数（`u32`）を 10 進で区切ったものだけである。
+pub const LIMIT_HEADING: &str = "実行時の上限で止めました";
+
+/// 上限の行の本文で、数の前に置く固定の文言。
+pub const LIMIT_BODY_BEFORE: &str = "1 回の操作で起きる内部の遷移が上限の ";
+
+/// 上限の行の本文で、数の後に置く固定の文言。
+pub const LIMIT_BODY_AFTER: &str = " 回に達したため、実行を止めました。教材の定義の誤りではなく、実行時の上限です。同じ遷移の行は表示せず、この 1 行にまとめています。";
+
+/// 数を 3 桁ごとに `,` で区切った 10 進の文字列にする（`1000` は `1,000`）。
+pub fn group_digits(n: u32) -> String {
+    let digits = n.to_string();
+    let len = digits.len();
+    let mut out = String::with_capacity(len + len / 3);
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// 上限の行の本文。
+pub fn limit_body(landings: u32) -> String {
+    format!(
+        "{LIMIT_BODY_BEFORE}{}{LIMIT_BODY_AFTER}",
+        group_digits(landings)
+    )
+}
 
 /// 承認の操作の行の接頭辞（TERM-27。TASK-447 2/2）。文言は `承認の操作: {語}（対象: {対象}）`。
 /// 教材・受講者の値は含めない固定の文言で、変えるときはこの 3 つの定数だけを直す。
@@ -108,6 +146,11 @@ pub enum LogLine {
     Stopped,
     /// 再読み込みの告知。
     Reloaded,
+    /// 遷移の上限で止めた理由の見出しと、まとめた遷移の回数（SAFE-34）。
+    Limit {
+        /// 止めるまでに数えた着地の回数。
+        landings: u32,
+    },
 }
 
 impl LogLine {
@@ -121,6 +164,7 @@ impl LogLine {
             LogLine::Progress { .. } => LineKind::Progress,
             LogLine::Stopped => LineKind::Stopped,
             LogLine::Reloaded => LineKind::Reloaded,
+            LogLine::Limit { .. } => LineKind::Limit,
         }
     }
 }
@@ -181,6 +225,9 @@ pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
         }),
         Event::Stopped { .. } => Some(LogLine::Stopped),
         Event::Reloaded { .. } => Some(LogLine::Reloaded),
+        Event::TransitionLimitReached { landings, .. } => Some(LogLine::Limit {
+            landings: *landings,
+        }),
         _ => None,
     }
 }
@@ -255,6 +302,10 @@ pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
         }
         LogLine::Stopped => children.push(learner_part(LINE_BODY_TESTID, STOPPED_TEXT)),
         LogLine::Reloaded => children.push(learner_part(LINE_BODY_TESTID, RELOADED_TEXT)),
+        LogLine::Limit { landings } => {
+            children.push(learner_part(LINE_HEADING_TESTID, LIMIT_HEADING));
+            children.push(learner_part(LINE_BODY_TESTID, &limit_body(*landings)));
+        }
     }
     Some(el("li", attrs, children))
 }

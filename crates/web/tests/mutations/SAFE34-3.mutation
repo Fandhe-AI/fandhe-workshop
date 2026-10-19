@@ -1,0 +1,8 @@
+id: SAFE34-3
+package: fandhe-workshop-web
+test: limit_notice
+target: crates/web/src/limit_notice.rs
+find:                 return limit_notice_text(*landings);
+replace:                 let _ = landings; return String::new();
+expect-fail: 巡回で上限に達すると_limit_行が1件と通知欄の理由が出て_着地は行にならない
+note: 通知欄の導出が常に空を返す（案内の欄に理由が出ない）

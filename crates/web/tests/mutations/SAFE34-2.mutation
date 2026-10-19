@@ -1,0 +1,9 @@
+id: SAFE34-2
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/log_lines.rs
+find:         Event::TransitionLimitReached { landings, .. } => Some(LogLine::Limit {
+replace:         Event::TransitionLimitReached { landings, .. } if false => Some(LogLine::Limit {
+expect-fail: 上限で止めた理由は_limit_行になり_見出しと本文が固定の文言で出る
+expect-fail: 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである
+note: 上限で止めた専用のイベントを行にしない（受講者に理由の見出しが見えない）

@@ -1,0 +1,9 @@
+id: SAFE34-1
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/transit.rs
+find:         landings: u32::try_from(budget.0).unwrap_or(u32::MAX),
+replace:         landings: 0,
+expect-fail: cycle_enter_self_stops_at_limit
+expect-fail: enter_chain_boundary
+note: 上限で止めたときの専用のイベントの着地の回数を 0 にする（見出しと通知欄に出す回数が実際と食い違う）

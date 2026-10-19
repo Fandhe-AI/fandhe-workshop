@@ -17,7 +17,8 @@ use fandhe_workshop_web::a11y::{check_no_undefined, Region, LOG_LIST_TESTID, TES
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::log_lines::{
-    line_from_event, line_node, LogLine, RELOADED_TEXT, STOPPED_TEXT,
+    group_digits, limit_body, line_from_event, line_node, LogLine, LIMIT_HEADING, RELOADED_TEXT,
+    STOPPED_TEXT,
 };
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::terminal_area::{
@@ -130,6 +131,7 @@ fn synthetic_lines() -> Vec<LogLine> {
     });
     v.push(LogLine::Stopped);
     v.push(LogLine::Reloaded);
+    v.push(LogLine::Limit { landings: 1000 });
     v
 }
 
@@ -380,6 +382,84 @@ fn 再読み込みは固定の文言の_reloaded_行になる() {
     assert_eq!(body.len(), 1);
     assert!(matches!(children_of(&body[0]), [Node::Text(t)] if t == RELOADED_TEXT));
     check_area(&area_of(vec![n])).unwrap();
+}
+
+/// 遷移の上限で止めた理由は、専用のイベント 1 件が見出しと本文の `limit` の行 1 件になる（SAFE-34）。
+#[test]
+fn 上限で止めた理由は_limit_行になり_見出しと本文が固定の文言で出る() {
+    let line = line_from_event(
+        &Event::TransitionLimitReached {
+            at: stamp(),
+            landings: 1000,
+        },
+        None,
+    )
+    .unwrap();
+    assert_eq!(line, LogLine::Limit { landings: 1000 });
+    assert_eq!(line.kind(), LineKind::Limit);
+    let n = line_node(1, &line).unwrap();
+    assert_eq!(attr(&n, "data-kind"), Some("limit"));
+    assert_eq!(attr(&n, "data-gen"), Some("1"));
+    let heading = find(&n, "line-heading").expect("line-heading");
+    assert!(matches!(children_of(heading), [Node::Text(t)] if t == LIMIT_HEADING));
+    let body = find(&n, "line-body").expect("line-body");
+    assert!(matches!(children_of(body), [Node::Text(t)] if t == &limit_body(1000)));
+    assert!(limit_body(1000).contains("1,000"));
+    check_area(&area_of(vec![n])).unwrap();
+}
+
+#[test]
+fn 数は三桁ごとに区切る() {
+    for (n, s) in [
+        (0, "0"),
+        (7, "7"),
+        (999, "999"),
+        (1000, "1,000"),
+        (12_345, "12,345"),
+        (1_000_000, "1,000,000"),
+        (u32::MAX, "4,294,967,295"),
+    ] {
+        assert_eq!(group_digits(n), s);
+    }
+}
+
+/// 個々の着地・遷移は行にしない。上限までの同じ遷移の行を 1,000 行並べず、止めた 1 行にまとめる（SAFE-34）。
+/// これらを行にする後続のタスクは、まとめの規則を一緒に持ち込む必要がある。
+#[test]
+fn 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである() {
+    let entered = Event::ModuleEntered {
+        at: stamp(),
+        instance: "m".into(),
+    };
+    let exited = Event::ModuleExited {
+        at: stamp(),
+        instance: "m".into(),
+    };
+    let transitioned = Event::Transitioned {
+        at: stamp(),
+        to: StepUid("main/st-2".to_owned()),
+    };
+    let warning = Event::Warning {
+        at: stamp(),
+        message: "internal transitions reached the per-input limit; run stopped".into(),
+    };
+    let limit = Event::TransitionLimitReached {
+        at: stamp(),
+        landings: 1000,
+    };
+    let mut events = Vec::new();
+    for _ in 0..1000 {
+        events.push(entered.clone());
+    }
+    events.push(exited.clone());
+    events.push(transitioned.clone());
+    events.push(warning.clone());
+    events.push(limit);
+    let lines: Vec<_> = events
+        .iter()
+        .filter_map(|e| line_from_event(e, None))
+        .collect();
+    assert_eq!(lines, vec![LogLine::Limit { landings: 1000 }]);
 }
 
 /// 再読み込みの模擬を 1 回・2 回挟むと、右のログの `reloaded` の行がちょうど 1・2 件増える（SAVE-6）。
