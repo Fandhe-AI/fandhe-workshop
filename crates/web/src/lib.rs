@@ -28,6 +28,7 @@
 //! 差分のビューの変種 (b) の本体（TASK-475 1/2。ART-1・ART-8）は `diff_view` に置く。
 //! 文書のビューの変種 (b) の本体（TASK-476 1/2。ART-1・ART-7。本文の木の `Block` を行の中身に結ぶ）と、対照専用の変種 (a)（TASK-476 2/2。製品では選べない）は `document_view` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
+//! 教材（IR）を読めなかったホストが出す、旧いエンジンの断りの通知文（VER-13。仮置き）は `ir_notice` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
 //! `answer` の選択肢のボタン（表示名で出す。TASK-445 1/2）は `offers` に置く。
@@ -61,6 +62,7 @@ pub mod history_export;
 pub mod host;
 
 pub mod input_limit;
+pub mod ir_notice;
 pub mod key_route;
 pub mod learner_text;
 pub mod limit_notice;

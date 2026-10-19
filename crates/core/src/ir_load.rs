@@ -10,7 +10,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use fandhe_workshop_contract::ir::{is_supported_ir_format, Ir};
+use fandhe_workshop_contract::ir::{is_supported_ir_format, Ir, SUPPORTED_IR_FORMATS};
 use fandhe_workshop_contract::limits::{LimitReason, LoadEntry};
 
 use crate::load_gate::{check_limits, parse_json_value, LoadError};
@@ -68,6 +68,35 @@ impl fmt::Display for IrLoadError {
 }
 
 impl std::error::Error for IrLoadError {}
+
+impl IrLoadError {
+    /// 画面に出してよい理由コード（固定の ASCII。入力値・ID を含めない。SAFE-11・SAFE-40）。
+    ///
+    /// web の旧いエンジンの断りの通知（`ir_notice`）が呼ぶ。`Display` は `DuplicateUid`・`UnresolvedRef` で
+    /// IR の ID を含むため、画面には使わず、このコードだけを使う。版が読める最大より新しいときは
+    /// `format_newer`、それ以外の版の食い違いは `format_unsupported` にする（履歴の `LoadReason` と同じ綴りは
+    /// 意味もそろえる）。`format_unsupported`・`format_inconsistent` は【推論】による仮置きの名前で、
+    /// 最終の名前と受講者向けの文面は TASK-545・D-57 が決める。
+    pub fn reason_code(&self) -> &'static str {
+        let newest = SUPPORTED_IR_FORMATS.iter().copied().max().unwrap_or(0);
+        let version = |v: u32| {
+            if v > newest {
+                "format_newer"
+            } else {
+                "format_unsupported"
+            }
+        };
+        match self {
+            IrLoadError::Limit(r) => r.as_str(),
+            IrLoadError::Json(m) if m == SYNTAX_ERROR => "not_json",
+            IrLoadError::Json(_)
+            | IrLoadError::DuplicateUid(_)
+            | IrLoadError::UnresolvedRef { .. } => "malformed",
+            IrLoadError::FormatVersion(v) | IrLoadError::PackIrFormat(v) => version(*v),
+            IrLoadError::FormatInconsistent { .. } => "format_inconsistent",
+        }
+    }
+}
 
 /// 関門の解釈の段の失敗（`NotJson`）を表す分類。
 const SYNTAX_ERROR: &str = "syntax error";
@@ -191,6 +220,38 @@ mod tests {
 
     fn load(s: &str) -> Result<Ir, IrLoadError> {
         load_ir(s.as_bytes())
+    }
+
+    #[test]
+    fn reason_code_is_fixed_and_carries_no_input() {
+        let cases: [(IrLoadError, &str); 9] = [
+            (IrLoadError::Limit(LimitReason::TooLarge), "too_large"),
+            (IrLoadError::Limit(LimitReason::TooDeep), "too_deep"),
+            (IrLoadError::Json(SYNTAX_ERROR.to_owned()), "not_json"),
+            (IrLoadError::Json(TYPE_MISMATCH.to_owned()), "malformed"),
+            (IrLoadError::FormatVersion(3), "format_newer"),
+            (IrLoadError::PackIrFormat(3), "format_newer"),
+            (IrLoadError::FormatVersion(0), "format_unsupported"),
+            (
+                IrLoadError::FormatInconsistent {
+                    format_version: 1,
+                    pack_ir_format: 2,
+                },
+                "format_inconsistent",
+            ),
+            (
+                IrLoadError::DuplicateUid("secret-id".to_owned()),
+                "malformed",
+            ),
+        ];
+        for (e, code) in cases {
+            assert_eq!(e.reason_code(), code, "{e}");
+        }
+        let unresolved = IrLoadError::UnresolvedRef {
+            from: "secret-from".to_owned(),
+            to: "secret-to".to_owned(),
+        };
+        assert_eq!(unresolved.reason_code(), "malformed");
     }
 
     #[test]
