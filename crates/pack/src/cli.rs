@@ -51,7 +51,7 @@ enum Invocation {
 enum UsageError {
     /// 必須の位置引数が足りない。
     MissingArgs(Subcommand),
-    /// 余分な位置引数、または 2 つ目の `-o`。
+    /// 余分な位置引数（`-` 始まりでないもの）。2 つ目の `-o` は `UnknownOption` になる。
     UnexpectedArg(Subcommand, OsString),
     /// `-` で始まる未知の引数（`-o` の位置違いを含む）。
     UnknownOption(Subcommand, OsString),
