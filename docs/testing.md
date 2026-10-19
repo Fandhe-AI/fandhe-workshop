@@ -4100,6 +4100,51 @@ D-59 の 4 のとおり、`format_newer` の向きの理由は Claude Code の�
 
 範囲外: 15 件の試験を決定どおりの期待で通す作業（TASK-177 2/2、#452）。
 
+### 5.137 版の違う履歴 15 件の期待と決定の照合（TASK-177 2/2）
+
+結論: 15 件の期待は D-52 の 6・7 と D-59 の 2 の決定どおりで、`expectations.json` の変更は無い。決定は試作と同じため、04（VER-2〜VER-7）の期待の更新も生じない（5.136 を参照）。本件は、15 行を 1 行ずつ決定の条項に結び付けた照合の記録と、決定で採らなかった読みで期待を書くと食い違うことの自己確認を足す。
+
+| ID | 決定の条項 | 期待（結果 / コード / 軸） |
+|---|---|---|
+| V-0 | 版の違い無し。適用し直して一致 | open / - / - |
+| V-i-1・V-i-2 | D-52 の 6: 副版以下の違いは適用し直して一致すれば変換 | converted / - / content, content_hash |
+| V-ii-1 | D-52 の 6: 副版で、適用し直しが写しと一致しない | view_only / replay_diverged / - |
+| V-ii-2 | D-52 の 6: 副版で、足した Step より手前のため一致 | converted / - / content, content_hash |
+| V-iii-1・V-iii-2 | D-52 の 6: 主版の違いは位置を問わず表示だけ | view_only / content_major / - |
+| V-iv-1 | 語彙が古い側は副版以下と同じく変換 | converted / - / vocab, content_hash |
+| V-iv-2 | 語彙が新しければ開かない | refused / vocab_newer / - |
+| V-iv-3 | D-59 の 2: `ir_format` が新しければ開かない | refused / format_newer / - |
+| V-iv-4 | D-52 の 7・D-59 の 2: `ir_format` が古ければ表示だけ | view_only / format_older / - |
+| V-v-1 | エンジンの副版の違いは変換 | converted / - / engine |
+| V-v-2 | エンジンが新しければ開かない | refused / engine_newer / - |
+| V-v-3 | エンジンの主版の違いは表示だけ | view_only / engine_major / - |
+| V-ref | 参照元の違いは変換 | converted / - / refs |
+
+自己確認の試験 `rejected_readings_of_the_decision_mismatch_the_fifteen`（`crates/core/tests/version_histories.rs`）は、表の行の写しの期待を不採用の読みに書き換え、実際の結果と食い違うことを確かめる。書き換える前の行は一致することも同じ試験の中で見る。
+
+| 不採用の読み | 書き換えた行 | 食い違いの分類 |
+|---|---|---|
+| 案 (a)「教材内容の版が違えば常に表示だけ」 | V-i-1・V-i-2・V-ii-2 を view_only / content_major | それ以外（実際は開く） |
+| 案 (b)「主版の違いでも、適用し直して一致すれば変換」 | V-iii-2 を converted | 慎重な側（実際は表示だけ） |
+| D-52 の文言どおり「`ir_format` が違えば常に表示だけ」 | V-iv-3 を view_only / format_older | 慎重な側（実際は開かない） |
+
+判定の側の不採用案は 5.136 の `VER18-1`・`VER18-2` が固定しており、本件では変異を足さない。表の JSON は同じ行が複数あり、変異の `find` が一意に当たらないためである。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 97605c5（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/VER2-1.mutation crates/core/tests/mutations/VER2-2.mutation crates/core/tests/mutations/VER18-1.mutation crates/core/tests/mutations/VER18-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER2-1 | crates/core/src/history_open.rs: 教材形式が古い履歴の判定を外す | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+| VER2-2 | crates/core/src/history_open.rs: エンジンの主版の違いを開かないに倒す | fifteen_histories_match_the_fixed_expectations | fifteen_histories_match_the_fixed_expectations | DETECTED |
+| VER18-1 | crates/core/src/history_open.rs: 教材内容の版が違えば常に表示だけにする | ver4_content_patch_only_is_converted | 5.136 と同じ 8 件 | DETECTED |
+| VER18-2 | crates/core/src/history_open.rs: 新しい `ir_format` も表示だけにする | ver7_format_newer_is_refused | 5.136 と同じ 4 件 | DETECTED |
+
+範囲外: spec の VER-18 の「証拠の種類」は `ir_format` が古い履歴を「実装前で、確かめていない」としているが、実装は既にあり V-iv-4・`VER2-1`・`VER7-2` が固定している。spec 側で直す事項であり、本件では編集しない。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
