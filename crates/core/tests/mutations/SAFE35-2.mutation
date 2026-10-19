@@ -1,0 +1,8 @@
+id: SAFE35-2
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/transit.rs
+find:     run.busy = None; // 戻した後
+replace:     let _ = &run.busy; // 戻した後
+expect-fail: busy_limit_without_entry_copy_keeps_current_step
+note: 戻すときに処理中を空にしない（同じ宛先の進行が再び有効になり、止める・戻すを繰り返す）

@@ -2,7 +2,8 @@
 //!
 //! 3 Step の教材（`min-3step.json`）の st-1 を、サンプルの `initial`（入口の写しを持つ）から受け付け、
 //! 進行を進めてから停止したとき、世代が +1 になり、処理中が解け、受付後に作られた世界状態が消えることを確かめる。
-//! 戻り先が不確かなとき（写しが無い・別の Step のもの・世代があふれる）は `Warning` だけで状態を変えない。
+//! 状態に写しが無い・別の Step のものなら、ログから受付の時点を導いて戻る（`entry_derive`、SAFE-35）。戻り先が
+//! 不確かなとき（ログからも導けない・世代があふれる）は `Warning` だけで状態を変えない。
 //! 停止の前の世代を宛先にした進行が停止の後に届いても `run` は変わらず `Ignored(Stale)` が 1 件だけ増えること、
 //! 停止の後に入力を受け付け直せること（TASK-211 2/2）も確かめる。
 
@@ -145,11 +146,33 @@ fn idle_stop_is_cancel_rejection_without_state_change() {
     assert_eq!(next.log.len(), state.log.len() + 2);
 }
 
+/// 状態に入口の写しが無くても（通常の操作の形）、ログから受付の時点を導いて戻る。結果は、状態に写しがある
+/// ときと同じになる（導いた写しが受付の直前の状態と一致する。SAFE-35・`entry_derive`）。
 #[test]
-fn stop_without_entry_warns_only() {
+fn stop_without_stored_entry_derives_the_same_entry_from_log() {
+    let ir = ir();
+    let with_copy = busy_state(&ir, 2);
+    assert!(with_copy.entry.is_some());
+    let mut without_copy = with_copy.clone();
+    without_copy.entry = None;
+    let (expected, expected_events) = apply(&ir, with_copy, stop());
+    let (next, events) = apply(&ir, without_copy, stop());
+    assert!(
+        matches!(events.first(), Some(Event::Stopped { .. })),
+        "{events:?}"
+    );
+    assert_eq!(events, expected_events);
+    assert_eq!(next.run, expected.run);
+    assert_eq!(next.entry, None);
+}
+
+/// 状態の写しも無く、ログに受付も無い（受付の時点を一意に決められない）ときは、`Warning` だけで状態を変えない。
+#[test]
+fn stop_without_entry_or_accept_in_log_warns_only() {
     let ir = ir();
     let mut state = busy_state(&ir, 2);
     state.entry = None;
+    state.log.clear();
     let before = state.clone();
     let (next, events) = apply(&ir, state, stop());
     assert!(only_warning(&events), "{events:?}");
@@ -158,13 +181,23 @@ fn stop_without_entry_warns_only() {
     assert_eq!(next.log.len(), before.log.len() + 1);
 }
 
+/// 状態の写しが別の Step のものなら使わず、ログから導く。ログからも導けなければ `Warning` だけで状態を変えない。
 #[test]
-fn stop_with_other_step_entry_warns_only() {
+fn stop_with_other_step_entry_falls_back_to_log() {
     let ir = ir();
     let mut state = busy_state(&ir, 2);
     if let Some(e) = state.entry.as_mut() {
         e.run.current = Some(uid("main/st-2"));
     }
+    let (next, events) = apply(&ir, state.clone(), stop());
+    assert!(
+        matches!(events.first(), Some(Event::Stopped { .. })),
+        "{events:?}"
+    );
+    assert_eq!(next.run.current, Some(uid(ST1)));
+    assert!(next.run.world.is_empty());
+
+    state.log.clear();
     let before = state.run.clone();
     let (next, events) = apply(&ir, state, stop());
     assert!(only_warning(&events), "{events:?}");

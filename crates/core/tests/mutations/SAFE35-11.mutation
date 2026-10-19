@@ -1,0 +1,8 @@
+id: SAFE35-11
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/entry_derive.rs
+find:                 if cp.log_len != *log_len
+replace:                 if false && cp.log_len != *log_len
+expect-fail: mismatched_checkpoint_is_not_used_to_derive_entry
+note: 復帰の写しの log_len と Restored の食い違いを見ない（書き換えられた写しから入口を導き、受付の時点を一意に決められないまま取り消す）

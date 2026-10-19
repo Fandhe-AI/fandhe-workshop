@@ -22,9 +22,9 @@
 //! # 止めたとき
 //!
 //! 固定文の `Warning` を 1 件と、その直後に専用の `TransitionLimitReached`（SAFE-34）を 1 件だけ足し、
-//! `current`・`busy`・入口の写しを空にする。以降の入力は、現在の Step が無いので落ちずに無視される。入口の写しも空にするのは、`go_to` が古い写しを残さないのと同じ理由である（停止が古い写しへ戻る誤りを防ぐ）。
+//! 内側では `current`・`busy`・入口の写しを空にし（fail-closed）、`apply` が直後に操作の前の状態へ戻す（[`return_after_limit`]、SAFE-35）。
 //! 着地先の `enter` が IR に無いときも、`UNKNOWN_TARGET` の `Warning` を 1 件足して同じ空の状態に確定する（移動元が現在位置に残らない）。
-//! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後の戻り方（SAFE-35）は後続のタスクが扱う。
+//! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後は、操作の前の Step が現在の Step に戻り、次の入力が受け付けられる（SAFE-35）。
 //!
 //! # 扱わないこと
 //!
@@ -105,9 +105,82 @@ fn halt(state: &mut SessionState, at: Stamp, budget: &Budget, events: &mut Vec<E
         at,
         landings: u32::try_from(budget.0).unwrap_or(u32::MAX),
     });
-    state.run.current = None; // 止めた後の入力が巡回の途中の Step へ届かないよう空にする
+    // 内側の fail-closed。戻す先が無い場合（操作の前に現在の Step が無い）に備え、まず空にする。
+    // 通常は呼び出し元 `apply` が直後に [`return_after_limit`] で操作の前へ戻す（SAFE-35）。
+    state.run.current = None;
     state.run.busy = None;
     state.entry = None;
+}
+
+/// 上限で止めた操作を戻した結果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LimitReturn {
+    /// 戻す先が無く、空のまま止めた（fail-closed）。
+    Halted,
+    /// 操作の前の状態へ戻した。
+    Restored,
+    /// 処理中だったので入口の写しの状態へ戻した。世界状態が操作の前から変わりうる。
+    RewoundToEntry,
+}
+
+/// 上限で止めた操作を、その操作の前の状態へ戻す（SAFE-35、D-45）。呼び出し元は `session::apply` だけ。
+///
+/// 戻す単位は `run` 全体と入口の写しで、巡回の途中の着地点ではなく受講者が操作の前にいた Step へ戻る。
+/// 処理中（`busy`）だった操作は、次のとおり戻す。
+///
+/// - 入口の写しが得られれば、入口の状態（入力を受け付け直せる状態）へ戻す。世界状態も入口へ戻るので、
+///   呼び出し元 `apply` が差分を原因 `Stop` の `Changed` にして記録する（学習者の変更として併合させない）
+/// - 写しは状態に書かず、操作の前のログから処理を始めた受付の時点を導く（[`crate::entry_derive`]。状態に
+///   現在の Step の写しがあればそれを使う）。受付から処理中になった通常の経路はこちらに当たり、受付の効果を
+///   二重に適用せずに入力を受け付け直せる
+/// - 受付の時点を一意に決められないとき（ログに受付が無い・処理中の間にあり得ないイベントがある・復帰の写しが
+///   食い違う）は、操作の前の `run` から `busy` だけを空にして戻す。現在の Step を失わないので、保存・移動・
+///   復帰などは働く。受付済みのまま入力で進めない Step が残りうるが、受付の効果の二重適用より安全側とする
+///
+/// 処理中だった操作は世代を +1 する（`go_to` のように既に進んでいるときは、その値を残す）。復帰前に出した
+/// 進行の宛先（世代・Step・番号）を、再入力で同じ Step が処理中になった後も無効にするためである。世代が
+/// あふれるときは戻さずに空のまま止める（fail-closed）。`busy` は必ず空にする。
+/// 操作の前に現在の Step が無かったときも戻す先が無いので、空のまま止める。
+/// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。復習は `Projection` が
+/// `TransitionLimitReached` で操作の前の復習へ戻して Step の状態と揃える。
+pub(crate) fn return_after_limit(
+    state: &mut SessionState,
+    run_before: &crate::session::RunState,
+    entry_before: &Option<crate::session::EntryCopy>,
+) -> LimitReturn {
+    if run_before.current.is_none() {
+        return LimitReturn::Halted;
+    }
+    let mut generation = state.run.generation;
+    let mut outcome = LimitReturn::Restored;
+    let mut run = if run_before.busy.is_some() {
+        if generation == run_before.generation {
+            let Some(next) = generation.next() else {
+                return LimitReturn::Halted;
+            };
+            generation = next;
+        }
+        // `state.log`・`state.checkpoints` は、まだ操作の前のもの（`apply` がログへ足すのはこの後）。
+        match crate::entry_derive::stored_or_derived(
+            run_before,
+            entry_before.as_ref(),
+            &state.log,
+            &state.checkpoints,
+        ) {
+            Some(entry) => {
+                outcome = LimitReturn::RewoundToEntry;
+                entry.run
+            }
+            None => run_before.clone(),
+        }
+    } else {
+        run_before.clone()
+    };
+    run.generation = generation;
+    run.busy = None; // 戻した後は必ず処理中でない
+    state.run = run;
+    state.entry = entry_before.clone();
+    outcome
 }
 
 /// 移動先 `to` に着地する（`go_to` の入口）。`to` が IR にあることは呼び出し元が確かめ済み。

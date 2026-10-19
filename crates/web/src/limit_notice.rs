@@ -7,8 +7,9 @@
 //! 規則は `run_status` と同じ形で、未読込は空に倒す。ログを末尾から読み、止めた直後に core が足す
 //! `Changed`・`Ignored`・`Warning`・`Reloaded` は読み飛ばし、最初に当たったイベントが `TransitionLimitReached`
 //! なら通知文、それ以外（未知のイベントを含む）は空文字列にする。許可リストを狭くするのは、止めた後に受講者が
-//! 次の操作（移動・復帰・開始など）をしたら、古い理由を消すため。止めた後の戻り方（SAFE-35）が足すイベントも、
-//! この許可リストに無いので自然に通知を消す。
+//! 次の操作（移動・復帰・開始など）をしたら、古い理由を消すため。止めた後は core が操作の前の Step へ戻し
+//! （SAFE-35）、戻りの専用のイベントは足さない。戻った Step での次の入力は `InputReceived` を足すので、
+//! この許可リストに無く、自然に通知を消す。
 
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::Session;
@@ -19,9 +20,9 @@ use crate::log_lines::group_digits;
 pub const LIMIT_NOTICE_BEFORE: &str = "実行時の上限（1 回の操作で内部の遷移 ";
 
 /// 通知文で、数の後に置く固定の文言。
-pub const LIMIT_NOTICE_AFTER: &str = " 回）に達したため、実行を止めました。";
+pub const LIMIT_NOTICE_AFTER: &str = " 回）に達したため、実行を止めて直前の Step に戻しました。";
 
-/// 通知文を作る。文言は決定（D-45）に記録が無く、エンジンの側の仮置き。
+/// 通知文を作る。文言は決定（D-45）に記録が無く、エンジンの側の仮置き（SAFE-35 で「直前の Step に戻した」旨を足した）。
 pub fn limit_notice_text(landings: u32) -> String {
     format!(
         "{LIMIT_NOTICE_BEFORE}{}{LIMIT_NOTICE_AFTER}",
@@ -62,7 +63,7 @@ mod tests {
     fn text_uses_grouped_number() {
         assert_eq!(
             limit_notice_text(1000),
-            "実行時の上限（1 回の操作で内部の遷移 1,000 回）に達したため、実行を止めました。"
+            "実行時の上限（1 回の操作で内部の遷移 1,000 回）に達したため、実行を止めて直前の Step に戻しました。"
         );
     }
 }

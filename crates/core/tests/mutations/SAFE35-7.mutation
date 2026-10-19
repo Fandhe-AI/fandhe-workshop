@@ -1,0 +1,8 @@
+id: SAFE35-7
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:                     self.progressing = index.saturating_add(1) < *total;
+replace:                     self.progressing = index.saturating_add(1) <= *total;
+expect-fail: limit_on_move_after_last_progress_returns_to_before_the_move
+note: 最後の進行で処理中を解かない（確認待ちの Step では Achieved が出ず、処理完了後の移動の上限でも入口の控えへ戻って復習と印が消える）

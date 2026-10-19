@@ -2,7 +2,7 @@
 //!
 //! 作成者向けの検査を通さずに配られた巡回する IR で上限に達する操作を、`EngineHost` に送り、右のログに `limit` の行が
 //! ちょうど 1 件、通知欄に理由が出て、1,000 回の着地が行として並ばないことを確かめる。上限に達しない巡回しない連鎖と
-//! 通常の進行では、行も通知も出ない（対照）。通知欄は上限の直後に束縛点として更新され、止めた後の無視の記録が積まれても残る。
+//! 通常の進行では、行も通知も出ない（対照）。通知欄は上限の直後に束縛点として更新される。止めた後は操作の前の Step へ戻り（SAFE-35）、そこでの入力が受け付けられると消える。
 //! 試験では `unwrap` を使ってよい。
 
 use std::path::PathBuf;
@@ -115,6 +115,16 @@ fn limit_events(host: &EngineHost) -> usize {
         .count()
 }
 
+fn received_count(host: &EngineHost) -> usize {
+    host.model()
+        .session()
+        .unwrap()
+        .log()
+        .iter()
+        .filter(|e| matches!(e, Event::InputReceived { .. }))
+        .count()
+}
+
 #[test]
 fn 巡回で上限に達すると_limit_行が1件と通知欄の理由が出て_着地は行にならない() {
     for (name, from, to) in [
@@ -146,12 +156,16 @@ fn 巡回で上限に達すると_limit_行が1件と通知欄の理由が出て
         let log = host.model().session().unwrap().log();
         let last = log.last().unwrap();
         assert_eq!(event_kind_name(last), "transition_limit_reached");
-        // 止めた後の入力は無視され、通知は残る。行は増えない。
+        // 止めた後は操作の前の Step に戻り、そこでの入力は受け付けられる（SAFE-35）。
+        // 受け付けた入力でログの末尾が変わるので通知は消え、上限の行は 1 件のまま残る。
+        let received = received_count(&host);
         host.update(text_in(&host));
+        assert_eq!(received_count(&host), received + 1, "{name}");
         assert_eq!(limit_events(&host), 1, "{name}");
         let view = host.view();
         assert_eq!(limit_lines(&view).len(), 1, "{name}");
-        assert_eq!(notice_dom(&view), limit_notice_text(1000), "{name}");
+        assert_eq!(notice_dom(&view), "", "{name}");
+        assert_eq!(notice_bound(&host), "", "{name}");
     }
 }
 

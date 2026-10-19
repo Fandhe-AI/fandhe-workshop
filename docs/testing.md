@@ -3977,7 +3977,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 
 ### 5.133 遷移 1,000 回の上限（TASK-160 1/3）
 
-1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。以降の入力は現在の Step が無いため、落ちずに無視される。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.135、止めた後の戻り方（SAFE-35、#446）は別のタスクで扱う。
+1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）を `transit` モジュールがループでたどり、着地の回数が `MAX_TRANSITIONS_PER_INPUT`（1,000）を超える 1,001 回目で止めることを確かめる（SAFE-23・D-25）。止めたときは固定文の `Warning` を 1 件足し、`halt` が現在の Step・処理中・入口の写しを空にする（内側の fail-closed。後続の 5.147 で、`apply` が直後に操作の前の状態へ戻すようになった）。再帰を使わないので、スタックは溢れない。見出しとまとめ表示（SAFE-34、#445）は 5.135、止めた後の戻り方（SAFE-35、#446）は 5.147 で扱う。
 
 試験は 2 層に置いた。
 
@@ -3989,7 +3989,6 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 所要時間は assert せず、diagnostic に残した（2026-10-19、debug ビルドの native で 8 件合計 0.01 秒、ブラウザで巡回 1 本あたり約 40〜50 ミリ秒）。
 
 - SAFE23-1: 上限の比較を `>=` にする（1,000 回ちょうどの着地が止まる）
-- SAFE23-2: 止めたときに現在の Step を空にしない
 - SAFE23-3: 上限を 1 つ緩める（1,001 回目が通る）
 
 上限の判定そのものを外す変異は、検査が終わらなくなるため作っていない。
@@ -3997,7 +3996,7 @@ BUILD-25・D-58 の依存の棚卸しの手順を実装した。スクリプト�
 ```text
 実行日: 2026-10-19
 元にしたコミット: 8098b2b（作業ツリーに本変更）
-コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-2・3 も同様）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE23-1.mutation（SAFE23-3 も同様）
 ```
 
 ### 5.134 版の違う履歴 15 件のブラウザでの確認（TASK-175 2/2）
@@ -4030,7 +4029,6 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | SAFE23-1 | crates/core/src/transit.rs: 上限の比較を以上にする（1,000 回ちょうどの着地が止まる） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
-| SAFE23-2 | crates/core/src/transit.rs: 止めたときに現在の Step を空にしない | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit | cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, cycle_enter_self_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | SAFE23-3 | crates/core/src/transit.rs: 上限を 1 つ緩める（1,001 回目が通る） | enter_chain_boundary, exit_chain_boundary | cycle_enter_self_stops_at_limit, cycle_enter_2_stops_at_limit, cycle_exit_2_stops_at_limit, enter_chain_boundary, exit_chain_boundary | DETECTED |
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
@@ -4055,14 +4053,14 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 案内の欄は、領域「案内とログ」の通知欄 `log-notice` と読んだ。`a11y` 契約が予約済みで、どこにも描いていなかった。`input-notice` は入力の上限の案内（`paste-notice`・`input-limit`）が使っているため採らない
 - 行の種類 `limit` と部品 `line-heading` を足し、`TERMINAL_AREA_CONTRACT_VERSION` を 2 から 3 にした（`LineKind` は閉じた一覧で、黙って変えられない）。`reloaded`（版 2）と同じく、`LIVE_EXCLUDED_LINE_KINDS` には入れない
 - 文言は仮置きで、`log_lines`（`LIMIT_HEADING`・`LIMIT_BODY_*`）と `limit_notice`（`LIMIT_NOTICE_*`）の定数 1 か所に置いた。固定文と、着地の回数を 3 桁ごとに区切った数だけで作り、教材・受講者の値を含めない（SAFE-11）。仕様の側での確定は spec repo の作業になる
-- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後の無視の記録が積まれても残り、後続の操作（移動・復帰・戻り）で消える
+- 通知欄は、ログを末尾から読み、`Changed`・`Ignored`・`Warning`・`Reloaded` を読み飛ばして、最初に当たったイベントが `TransitionLimitReached` のときだけ文を出す（`run_status` と同じ狭い許可リスト）。止めた後は操作の前の Step へ戻り（5.147）、戻った Step で次の入力が受け付けられると消える
 - 状態表示（`run-status`）は現行どおり「待機中」に倒れる。`RunStatus` は 3 値の閉じた契約で、上限の停止を「停止」にするかは本件の範囲外とした
 
 試験は 3 層に置いた。
 
 - native の core（`crates/core/tests/transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めたときに `TransitionLimitReached` がちょうど 1 件で、`Warning` の直後・イベント列の末尾にあり、`landings` が 1,000 であること。止まらない場合（`cycle-d07-flat`・1,000 回ちょうどの連鎖・連鎖の途中の `enter` の先が無い場合）は 0 件であること。`api_types.rs` は直列化の形と、余分なキーの拒否を確かめる。`projection_derive.rs` は 1 件につき 1 行になることを確かめる
-- native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、止めた後の入力でも残る、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
-- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の入力でも変わらない。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
+- native の web（`crates/web/tests/log_lines_contract.rs`・`limit_notice.rs`・`terminal_area_contract.rs`）: 行の構造と固定の文言、数の区切り、1,000 件の着地と `Warning` から行になるのが上限の 1 行だけであること、`EngineHost` で巡回の IR を流したときの `limit` の行・通知欄（DOM と束縛値の一致、`role="status"`、子の要素なし、束縛点が dirty になる）、上限に達しない場合は行も通知も出ないこと
+- ブラウザ（`tools/browser/transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、`limit` の行がちょうど 1 件（見出し・本文の回数）、その操作で増えた右のログの行が 5 行以下、`log-notice` の文・`role`・子の要素 0 件、エンジンの書き出しの `limits`（`landings` が 1,000 の 1 件）を確かめる。止めた後の確認は 5.147 に置き換えた。`cycle-d07` と `chain-1000` では行 0 件・通知欄が空・`limits` が 0 件の対照を確かめる。5.133 の主張（警告 1 件・`module_*` が 1,000 件・crash 0・ページ内エラー 0・安全性の計数）は残した。文言の期待値は試験の冒頭の定数に置き、正は Rust 側の定数である
 
 - SAFE34-1: 専用の `Event` の着地の回数を 0 にする
 - SAFE34-2: 専用の `Event` を行にしない
@@ -4085,7 +4083,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE34-4 | crates/web/src/log_lines.rs: 個々の着地を行にする | 個々の着地と遷移は行にならず_まとめは上限の_1_行だけである | 同左 | DETECTED |
 | SAFE23-1〜3 | crates/core/src/transit.rs（5.133 の表のとおり） | 5.133 のとおり | 5.133 のとおり | DETECTED（本変更の後に再実行して確認） |
 
-範囲外: 止めた後の戻り方（SAFE-35、#446）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
+範囲外: 止めた後の戻り方（SAFE-35、#446。5.147 で扱った）、開始での連鎖（TASK-217）、実体ごとの状態・`on_enter`（TASK-233 以降）、spec の `screen-terminal-area.md` の行の種類の閉じた一覧への `limit`・`line-heading` の追記と文言の確定（spec repo 側の作業）、上限の停止での状態表示（`run-status`）の扱い。
 
 ### 5.136 版の線引きの決定との照合（TASK-177 1/2）
 
@@ -4461,6 +4459,80 @@ AUTHOR1-4 は 1 引数のコマンドの余分な引数の検査を外し、AUTH
 | AUTHOR1-6 | crates/pack/src/cli.rs: - で始まる引数を位置引数として拒否する判定が外れる | argument_shape_errors_are_reported_before_loading | DETECTED |
 
 集計: 3 件すべて DETECTED（2026-10-19）。
+
+### 5.147 上限で止めた後の戻り方（TASK-160 3/3）
+
+遷移 1,000 回の上限（5.133）で止めた後、受講者が先へ進めるようにする（SAFE-35・D-45「止めた後は直前の Step に戻す」）。それまでは `halt` が現在の Step を空にしたため、以降の入力はすべて無視され、受講者は止まったまま残った。
+
+決めたこと（D-45 に細目の記録が無いため、自動運転でエンジンの側が安全側に倒して置いた。spec 側の確定は別の作業）。
+
+- 「直前の Step」は、上限に当たった操作を受ける前に受講者がいた Step と読む。巡回の途中の最後の着地点へ戻すと、同じ巡回にすぐ入り直すだけになるため採らない
+- 戻る契機は「止めたのと同じ操作の中で、エンジンが戻す」。明示の「戻る」操作（新しい `Control`）は足さない。web には受講者が `GoTo`・`Restore` を出す UI が無く、明示の操作にすると本番の受講者は戻れず、`CONTRACT_VERSION` の版上げと画面の部品（spec 先行）も要るため
+- 戻す単位は、操作の前の `run` 全体と状態の入口の写しの欄（`SessionState.entry`）。`current` だけを戻すと、止めた操作が達成にした Step が `Achieved` のまま残り、次の入力が `Idle` になって受け付けられない（`cycle-exit-2`）。世界状態も戻るので、止めた操作の `Changed` は 0 件になる
+- 戻した後も変える欄は 2 つ。`generation` は操作の後の値を残す（減らさない。`go_to` の `Moved.new_generation` と一致させる）。`busy` は必ず空にする（進行の経路で、同じ `TickAddr` が再び有効になり、止める・戻すを無限に繰り返すのを防ぐ fail-closed）
+- 操作の前に現在の Step が無かったときは戻す先が無いので、`halt` の空のまま止める。`enter` の先が IR に無い場合（`UNKNOWN_TARGET`）は上限ではないので戻さない
+- 実装は `session::apply` が操作の前の `run`・`entry` を控え、イベント列に `TransitionLimitReached` があれば `transit::return_after_limit` で戻す。控える費用は、操作 1 件につき `world` 以外の分の複製が増えるだけ
+- 新しいイベントは足さず、`CONTRACT_VERSION` は 6 のまま。通知欄の文言は「実行を止めて直前の Step に戻しました」に変えた（仮置き）。通知は戻った Step での次の入力まで残る
+- 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。復習は `Projection` が、操作の先頭（`InputReceived`・`Progress`・`Moved`）で控えた復習と印の元へ `TransitionLimitReached` で戻して、Step の状態と揃える。ログ行は消さない
+- `Projection` の控えは、復習と印の元の写しではなく取り消し差分（undo log）の長さで持つ。復習と印の元を変える箇所は、変える前の値を差分へ 1 件ずつ積み、上限で止めたときは控えた長さまで差分を逆に当てる。控えの取得は O(1)、変更 1 件の費用はその変更で変わる値の大きさ、戻す費用は控えの後の差分の数に比例し、操作ごとに復習全体・印の元全体を複製しない（Step を多く通る履歴でも累積の複製が 2 乗にならない）。差分は生きている控えのうち最も古いものより前を捨てる。保存の時点の復習は main と同じく現在の復習と `Arc` を共有する（保存の後の最初の変更で 1 回だけ複製する）
+- 進行（処理中）の途中から止めた場合は、操作の前（受付済み・処理中）ではなく入口の写し（処理を始めた受付の直前の状態）へ戻す。受付済みのまま処理中だけを消すと、入力も進行も受け付けられず、確認 none の Step が達成に進めないため。復習と印は、処理中（進行の途中）から止めたとき、進行でも移動でも、実際に処理を始めた受付（`Accepted`）の時点へ戻す。処理中に拒否された再送（`InputReceived` と `Judged` だけ）では入口の控えを更新しない
+- 入口の写しは状態に書かない。受付のたびに `SessionState.entry` へ写すと、処理中の履歴の写し（`snapshot.entry`）が null でなくなり、#1606 で凍結した `min-3step-v1-progress.json` が、版が同じなのに適用し直しの照合で開けなくなる（VER-2・VER-3。`first_difference` は `entry` も比べる）。`SessionState.entry` の埋め方は main と同じ（通常の操作では空。写しを持つチェックポイントへの復帰でだけ入る）にし、履歴の形式・版・凍結物は変えない
+- 写しが要る場面（処理中の停止と、処理中の上限停止の後の戻り）でだけ、`entry_derive` が操作の前のログから受付の時点を導く。状態に現在の Step の写しがあればそれを優先する。起点はいまの `run` とログの末尾で、末尾から 1 件ずつ前へ見る。`Changed` は変更前の値を控え（`apply` が操作 1 件・経路ごとに 1 件、変更前は操作前の値で記録するので、新しい方から当てると受付の直前の世界状態に一意に戻る）、処理中に起きても実行状態を変えない出来事（`Progress`・`Flag`・`Warning`・`Ignored`・拒否された再送の `InputReceived`・`Judged`、`Refused`・`CheckpointSaved`・`Reloaded`）は読み飛ばす。`Restored` に当たったら、そのチェックポイントの `run` と保存の時点（`log_len`）へ起点を移す（チェックポイントの保存と復帰は写しを導かず、この移動で処理中の保存へ復帰した後も受付の時点へ戻れる）。現在の Step の `Accepted` に当たったら、控えた変更前の値を当て、Step を `Entered`・`busy` を空にした `run` を写しとする
+- 受付の時点を一意に決められないとき（ログの先頭まで受付が無い、処理中の区間では起きない出来事（Step への入り・移動・停止・達成・上限での停止・別の Step の受付・未知のもの）に当たる、`Restored` の写しが無い・`log_len` が食い違う・前を指さない・同じ Step の処理中でない）は導かない。停止は従来どおり `Warning` だけで状態を変えず、上限で止めた後は操作の前の `run` から処理中だけを空にして戻す（現在の Step は残るが、受付済みのまま入力で進めない場合がある）。どちらも取り消しをしない側である
+- 計算量は、1 回の導出でログの長さに比例する（位置は単調に減り、`Restored` の移動も必ず前へ進む）。導出は処理中の停止と処理中の上限停止の操作でだけ、1 操作につき高々 1 回行い、受付・進行のたびには行わないので、操作の列を適用し直しても 2 乗にならない。ログの長さは履歴の読み込み口の上限で抑えられる
+- フラグ（`flags`・`global_flags`）と、選択の入力で選んだ選択肢（`choices`）は戻さない。`Event::Flag` は変更前の値を持たず、選択肢の上書きは変更前を残さないため、ログから一意に決められない。どちらも受け付け直すと同じ値を置き直す（冪等）ので、同じ規則での効果は二重にならない。これを導けない扱い（取り消しをしない）にすると、フラグを立てる処理中の Step で解決済みの P1（入口の写しが無いと受け付け直せない）が再発するため、戻さないことを選んで試験で固定した（`busy_limit_keeps_flags_set_by_the_stopped_operation`）
+- 処理中に保存して復帰した後も、復習と印の戻し先は入口の受付の時点に揃える。core の復帰は保存時の `busy` を戻し、受付の時点を `Restored` から保存の時点へ起点を移して導くので、`Projection` も `CheckpointSaved` の時点の処理中と入口の控え（受付から保存までの復習の取り消し差分。量は受付の後の変更の数に比例する）を控え、`Restored` の `log_len` に対応する控えを戻す（保存の時点の復習へ差分を逆に当てて入口の時点の復習を作る）。持ち主の根の項目だけを控えから取り、他の根の項目と印の元は復帰の時点のもの（印の元は空）にする。保存の位置を指さない `log_len` では、処理中と入口の控えを無しに倒す。`Projection` の欄は外から見えず、保存形式・公開 API・`CONTRACT_VERSION` は変えない
+- 停止と上限の後の戻り方を変えたので、変更前のビルドで「受付→処理中の停止→保存」のように保存した履歴は、版が同じまま適用し直しの照合で開けなくなる。エンジンは未配信で版が `0.0.0` のまま（`ENGINE_VERSION` は `Cargo` の版）なので、旧い挙動で適用し直す経路は足さない。挙動を変えたときに版を上げる運用は、履歴の保存と版の確認の作業（#1058・#1059）で扱う
+
+試験は 3 層に置いた。
+
+- native の core（`transition_limit.rs`・`stop_restore.rs`、入口の写しの導出）: `apply` の受付から処理中になり（状態の入口の写しは空のまま）、最後の進行で止めたとき、ログから導いた受付の時点へ戻って世界状態の変化が原因 `Stop` の `Changed` で取り消され、受け付け直して再び止まって戻れること（`busy_limit_rewinds_to_accept_derived_from_log`）。処理中に保存・先へ進めて復帰してから停止すると、`Restored` から起点を移して受付の前へ戻ること（`busy_restore_then_stop_returns_to_accept`）。写しの `log_len` が食い違うとき（`mismatched_checkpoint_is_not_used_to_derive_entry`）と、受付と現在の間に Step への入りがあるとき（`entry_is_not_derived_across_a_step_entry`）は導かず、停止は `Warning` だけ、上限の後は受付済みのまま処理中だけを空にすること。フラグは戻さないこと（`busy_limit_keeps_flags_set_by_the_stopped_operation`）。サンプルの写しを消しても、導いた写しで写しがあるときと同じ停止の結果になること（`stop_without_stored_entry_derives_the_same_entry_from_log`）。ログにも受付が無ければ `Warning` だけであること（`stop_without_entry_or_accept_in_log_warns_only`・`stop_with_other_step_entry_falls_back_to_log`）。凍結した旧い履歴が開くことは `crates/pack/tests/old_pack_history_open.rs` の `ext9_*` が確かめる
+- native の core（`transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めた後に現在の Step・入口の写し・`run`（世代は `go_to` のとき +1）が操作の前と一致し、`Changed` が 0 件であること。戻った Step への入力でイベントの先頭が `InputReceived` になること。`cycle-exit-2` は次の入力で `Accepted` が出て、再び止まって戻ること。進行の経路（`Tick`）で止めたとき `busy` が空で、同じ宛先の再送は `Ignored` になり再び歩かないこと。止めて戻った後の保存が働き、同じ操作の列が同じ状態になること。受付で x を置き、最初の進行で x を消し、処理中に保存・復帰して最後の進行で止めたとき、`Changed` が 0 件で Step が入口（Entered）に戻り、復習と印に x が残らないこと（`busy_restore_then_limit_rewinds_review_to_entry`）
+- native の core（`projection_derive.rs`）: 同じ場面をイベント列で組み、復習・印が入口の時点へ戻り、増分と一括が一致すること（`limit_rewind_after_restore_while_busy_returns_to_entry`）。処理中でない時点の保存へ復帰した後の移動の上限では、復帰前の受付の控えへ戻らないこと（対照、`limit_after_restore_to_idle_checkpoint_keeps_restored_review`）
+- native の web（`limit_notice.rs`）: 戻った Step での入力で `InputReceived` が 1 件増え、通知欄（DOM と束縛値）が空になり、上限の行は 1 件のまま
+- ブラウザ（`transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、止めた直後の `current` が操作の前の Step で、続く入力で `input_received` が 1 件増えること。`cycle-exit-2`・`chain-1001` は `accepted` が 1 件増え、上限の行が 2 件・通知が出る。`cycle-enter-*` は通知が消える
+
+- SAFE35-1: 止めた後に戻す処理を飛ばす
+- SAFE35-2: 戻すときに `busy` を空にしない
+- SAFE35-3: `run` を戻さず `current` だけ戻す
+- SAFE35-4: 処理中から戻すときに世代を進めない（復帰前の進行の宛先が、再入力で同じ Step が処理中になった後に再び有効になる）
+- SAFE35-5: 入力の受信のたびに入口の控えを取る（拒否された再送で上書きする）
+- SAFE35-6: 処理中の移動で入口の控えへ戻さない
+- SAFE35-7: 最後の進行で処理中を解かない（処理完了後の移動の上限で入口の控えへ戻る）
+- SAFE35-8: 復帰で処理中と入口の控えを保存の時点へ戻さない（処理中の保存へ復帰した後の上限で、復習が進行の直前に残る）
+- SAFE35-9: 導いた入口の写しで、受付から現在までの世界状態の変化を戻さない
+- SAFE35-10: `Restored` から保存の時点へ起点を移さない
+- SAFE35-11: 復帰の写しの `log_len` と `Restored` の食い違いを見ない
+- SAFE35-12: 処理中の停止が状態の写しだけを見て、ログから導かない
+- SAFE35-13: 処理中の区間で起きない出来事を読み飛ばす（区間の外の古い受付から導く）
+
+`SAFE23-2`（`halt` の `current = None` の削除）は、`apply` が直後に戻すため、効果が試験から見えない等価変異になった。廃止し、内側の fail-closed は SAFE35 の変異と、操作の前に現在の Step が無い場合の既存の挙動で担保する。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 1de3532（作業ツリーに本変更。入口の写しをログから導く作りに変えた後に SAFE35-1〜13 を一括で再実行した）。SAFE35-5〜8 は、控えを取り消し差分に変えた後に 4a000b1 の作業ツリーで再実行した
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE35-1.mutation … crates/core/tests/mutations/SAFE35-13.mutation（13 件を 1 回で渡す）
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| SAFE35-1 | crates/core/src/session.rs: 止めた後に戻さない | cycle_enter_self_stops_at_limit, cycle_exit_2_stops_at_limit, exit_chain_boundary | DETECTED |
+| SAFE35-2 | crates/core/src/transit.rs: `busy` を空にしない | busy_limit_without_entry_copy_keeps_current_step | DETECTED |
+| SAFE35-3 | crates/core/src/transit.rs: `current` だけ戻す | cycle_exit_2_stops_at_limit, cycle_exit_2_accepts_again_and_returns_again | DETECTED |
+| SAFE35-4 | crates/core/src/transit.rs: 処理中から戻すときに世代を進めない | tick_path_returns_without_busy_and_does_not_loop, busy_limit_without_entry_copy_keeps_current_step | DETECTED |
+| SAFE35-5 | crates/core/src/projection.rs: 受信のたびに入口の控えを取る | limit_rewind_ignores_rejected_resend_during_busy | DETECTED |
+| SAFE35-6 | crates/core/src/projection.rs: 処理中の移動で入口の控えへ戻さない | limit_rewind_on_move_while_busy_returns_to_entry | DETECTED |
+| SAFE35-7 | crates/core/src/projection.rs: 最後の進行で処理中を解かない | limit_on_move_after_last_progress_returns_to_before_the_move | DETECTED |
+| SAFE35-8 | crates/core/src/projection.rs: 復帰で処理中と入口の控えを戻さない | limit_rewind_after_restore_while_busy_returns_to_entry | DETECTED |
+| SAFE35-9 | crates/core/src/entry_derive.rs: 導いた写しで世界状態の変化を戻さない | busy_limit_rewinds_to_accept_derived_from_log, busy_restore_then_stop_returns_to_accept | DETECTED |
+| SAFE35-10 | crates/core/src/entry_derive.rs: `Restored` から保存の時点へ起点を移さない | busy_restore_then_stop_returns_to_accept, busy_restore_then_limit_rewinds_review_to_entry | DETECTED |
+| SAFE35-11 | crates/core/src/entry_derive.rs: 復帰の写しの `log_len` の食い違いを見ない | mismatched_checkpoint_is_not_used_to_derive_entry | DETECTED |
+| SAFE35-12 | crates/core/src/stop.rs: 停止が状態の写しだけを見てログから導かない | stop_without_stored_entry_derives_the_same_entry_from_log, stop_with_other_step_entry_falls_back_to_log | DETECTED |
+| SAFE35-13 | crates/core/src/entry_derive.rs: 処理中の区間で起きない出来事を読み飛ばす | entry_is_not_derived_across_a_step_entry | DETECTED |
+
+集計: 13 件すべて DETECTED（2026-10-19）。控えを取り消し差分に変えた後の SAFE35-5〜8 の再実行も 4 件すべて DETECTED（2026-10-19。置換対象の行は変えていない。他の 9 件は `projection.rs` を対象にせず、再実行していない）。SAFE23-1・3、SAFE34-1 は 7528a9d の作業ツリーで DETECTED を確かめた後、本変更では再実行していない（`transit.rs` の変更は `return_after_limit` の写しの取り方だけで、これらの置換対象と試験は変えていない）。
+
+範囲外: spec の SAFE-35 の文言の更新、フラグ・選んだ選択肢を受付の時点へ戻すこと（ログに変更前の値が無い。条件の語彙の評価器を結線するとき（TASK-267）に見直す）、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

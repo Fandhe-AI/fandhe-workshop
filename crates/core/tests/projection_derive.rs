@@ -240,6 +240,308 @@ fn transition_limit_reached_adds_one_row_and_keeps_marks() {
     assert_eq!(with.consumed(), events.len());
 }
 
+/// 処理中から入口へ戻した上限停止（SAFE-35）。先行の操作で併合済みの変更は、原因 `Stop` の取り消しの
+/// `Changed` で打ち消され、取り消しそのものは学習者の変更として印にも復習にも残らない。
+#[test]
+fn limit_rewind_to_entry_cancels_merged_changes_without_registering_the_rollback() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 0,
+            total: 2,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+        changed(a, "x", Some(1), None, Cause::Stop),
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 進行の途中で止めたとき、入口の受付の後に進行が値を戻していて世界状態の差分が無くても、
+/// 取り消した操作の印と復習は入口の時点へ戻る（SAFE-35。差分に依存しない）。
+#[test]
+fn limit_rewind_to_entry_restores_review_and_marks_without_world_diff() {
+    let a = "main/a";
+    let progress = |index| Event::Progress {
+        at: stamp(a),
+        name: "p".into(),
+        index,
+        total: 3,
+    };
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        progress(0),
+        changed(a, "x", Some(1), None, Cause::Input),
+        progress(1),
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+    let mut inc = Projection::new();
+    for n in 1..=events.len() {
+        inc.extend(&events[..n]);
+    }
+    assert_eq!(inc, p);
+}
+
+/// 処理中に拒否された入力の再送（`Accepted` が出ない）は入口の控えを上書きしない。受付で x を足し、途中の進行で
+/// x を消し、再送が拒否されても、最後の進行で上限に達すれば復習と印は実際の受付の時点（入口）へ戻る。
+#[test]
+fn limit_rewind_ignores_rejected_resend_during_busy() {
+    let a = "main/a";
+    let input = || Event::InputReceived {
+        at: stamp(a),
+        input: Input::Text("go".into()),
+    };
+    let progress = |index| Event::Progress {
+        at: stamp(a),
+        name: "p".into(),
+        index,
+        total: 3,
+    };
+    let events = vec![
+        entered(a),
+        input(),
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        progress(0),
+        changed(a, "x", Some(1), None, Cause::Input),
+        // 処理中の再送。拒否（`Judged`）だけで `Accepted` は出ない。
+        input(),
+        progress(1),
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 処理中の移動（`Moved`）で上限に達したときも、core と同じく入口の写しへ戻す。世界状態の差分が相殺されて
+/// 取り消しの `Changed` が出なくても、復習と印は入口の時点へ戻る。
+#[test]
+fn limit_rewind_on_move_while_busy_returns_to_entry() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 0,
+            total: 3,
+        },
+        changed(a, "x", Some(1), None, Cause::Input),
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 処理中でない移動で上限に達したときは、操作の前（移動の直前）へ戻す。
+#[test]
+fn limit_on_move_while_idle_returns_to_before_the_move() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(!p.marks().is_empty());
+}
+
+/// 確認待ちの Step で最後の進行（`Achieved` なし）を終えた後の移動は処理中ではない。上限に達したときは
+/// 入口の写しではなく移動の直前へ戻し、復習と印を残す（core は処理が無いので移動直前の状態を保つ）。
+#[test]
+fn limit_on_move_after_last_progress_returns_to_before_the_move() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 2,
+            total: 3,
+        },
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(!p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().any(|r| !r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+}
+
+/// 処理中に保存して復帰した後の最後の進行で上限に達したときも、復習と印は入口の受付の時点へ戻る（SAFE-35）。
+/// core は復帰で保存時の処理中と入口の写しを戻すので、導出も保存時の入口の控えを戻す。受付で x を足し、
+/// 最初の進行で x を消しているので世界状態の差分が無く、取り消しの `Changed` は出ない。
+#[test]
+fn limit_rewind_after_restore_while_busy_returns_to_entry() {
+    let a = "main/a";
+    let progress = |index| Event::Progress {
+        at: stamp(a),
+        name: "p".into(),
+        index,
+        total: 2,
+    };
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "x", None, Some(1), Cause::Input),
+        progress(0),
+        changed(a, "x", Some(1), None, Cause::Input),
+        saved(a, 0, 6),
+        restored(a, 0, 6, a),
+        progress(1),
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+    let mut inc = Projection::new();
+    for n in 1..=events.len() {
+        inc.extend(&events[..n]);
+    }
+    assert_eq!(inc, p);
+}
+
+/// 処理中でない時点の保存へ復帰した後は、復帰前の処理中と入口の控えを持ち越さない。復帰の後の移動が上限で
+/// 止まったときは、移動の直前（復帰後の復習）へ戻り、復帰前の受付の時点へは戻らない。復帰で控えを戻す前から
+/// 通る対照で、復帰の直前の処理中と入口の控えをそのまま持ち越す誤り（`Restored` で下ろさず、保存の時点の控えも
+/// 戻さない）を検出する。
+#[test]
+fn limit_after_restore_to_idle_checkpoint_keeps_restored_review() {
+    let a = "main/a";
+    let events = vec![
+        entered(a),
+        changed(a, "x", None, Some(1), Cause::Input),
+        saved(a, 0, 2),
+        // 保存の後・受付の前の変更。復帰前の入口の控え（受付の時点）にだけ入る。
+        changed(a, "y", None, Some(1), Cause::Input),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        Event::Accepted { at: stamp(a) },
+        changed(a, "z", None, Some(1), Cause::Input),
+        Event::Progress {
+            at: stamp(a),
+            name: "p".into(),
+            index: 0,
+            total: 2,
+        },
+        restored(a, 0, 2, a),
+        // 復帰後は処理中でないので、移動の上限は移動の直前へ戻る（保存前の受付の控えへ戻らない）。
+        Event::Moved {
+            at: stamp(a),
+            to: StepUid(a.into()),
+            new_generation: Generation::INITIAL,
+        },
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    let paths: Vec<&str> = p
+        .review()
+        .iter()
+        .flat_map(|r| r.changes.iter().map(|c| c.path.as_str()))
+        .collect();
+    assert_eq!(paths, vec!["x"], "{:?}", p.review());
+}
+
 #[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";

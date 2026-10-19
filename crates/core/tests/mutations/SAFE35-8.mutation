@@ -1,0 +1,8 @@
+id: SAFE35-8
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:         if let Some(point) = saved {
+replace:         if let Some(point) = saved.filter(|_| false) {
+expect-fail: limit_rewind_after_restore_while_busy_returns_to_entry
+note: 復帰で処理中と入口の控えを保存の時点へ戻さない（処理中の保存へ復帰した後の上限で、復習が進行の直前に残る）

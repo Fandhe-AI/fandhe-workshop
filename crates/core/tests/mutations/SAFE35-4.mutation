@@ -1,0 +1,9 @@
+id: SAFE35-4
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/transit.rs
+find:             generation = next;
+replace:             let _ = next;
+expect-fail: tick_path_returns_without_busy_and_does_not_loop
+expect-fail: busy_limit_without_entry_copy_keeps_current_step
+note: 処理中から戻すときに世代を進めない（復帰前の進行の宛先が、再入力で同じ Step が処理中になった後に再び有効になる）

@@ -145,7 +145,9 @@ pub struct SessionState {
     pub run: RunState,
     /// これまでのイベントのログ。追記だけで、[`apply`] の戻りのイベント列が末尾に足される。
     pub log: Vec<Event>,
-    /// 入口の写し。
+    /// 入口の写し。通常の操作では値を入れず（`None`）、写しを持つチェックポイントへの復帰でだけ戻る。
+    /// 処理中の停止・上限で止めた後の戻りが使う写しは、この欄が空ならログから導く（`entry_derive`、SAFE-35）。
+    /// 欄に値を入れると履歴の写し（`snapshot`）が変わり、同じ版の履歴の照合（VER-2・VER-3）に響く。
     pub entry: Option<EntryCopy>,
     /// 保存したチェックポイント。
     pub checkpoints: BTreeMap<CheckpointId, Checkpoint>,
@@ -181,7 +183,11 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     let mut state = state;
     // 操作 1 件の `Changed` は、前後の世界状態の差分から作る（EVT-13、TASK-215）。各分岐が語レベルの
     // `Changed` を出しても、ここで経路ごとに 1 件・変更前は操作前の値に置き換わる。
-    let world_before = state.run.world.clone();
+    // 上限で止めた操作を操作の前の状態へ戻すため（SAFE-35）、世界状態だけでなく `run` 全体と状態の入口の写しの欄を
+    // 控える。処理中の戻り先（受付の時点）は、止めたときにだけ操作の前のログから導く（`transit::return_after_limit`）。
+    // 費用は切り身・フラグなど `world` 以外の分の複製が増えるだけで、操作 1 件につき 1 回に収まる。
+    let run_before = state.run.clone();
+    let entry_before = state.entry.clone();
     let current_before = state.run.current.clone();
     let rule = op.generation_rule();
     let gen_before = state.run.generation;
@@ -193,17 +199,47 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         changed::cause_of(&op)
     };
     let events = step(ir, &mut state, op);
+    // 上限で止めたら、操作の前の Step・状態へ戻す（SAFE-35、D-45）。世代の強制より前に行う。
+    let mut cause = cause;
+    let mut returned_generation = None;
+    if events
+        .iter()
+        .any(|e| matches!(e, Event::TransitionLimitReached { .. }))
+    {
+        match crate::transit::return_after_limit(&mut state, &run_before, &entry_before) {
+            crate::transit::LimitReturn::Halted => {}
+            crate::transit::LimitReturn::Restored => {
+                if was_busy {
+                    returned_generation = Some(state.run.generation);
+                }
+            }
+            crate::transit::LimitReturn::RewoundToEntry => {
+                returned_generation = Some(state.run.generation);
+                // 入口へ戻した世界状態の差分は取り消しで、学習者の変更ではない（`Projection` が併合しない）。
+                cause = Cause::Stop;
+            }
+        }
+    }
     // 世代の規則の表を分岐の外で強制する。`Changed` の宛先（下の `default_stamp`）より前に行い、
     // 状態とイベントの世代を食い違わせない。
     state.run.generation = settle_generation(rule, was_busy, gen_before, state.run.generation);
+    // 処理中から戻したときの世代の +1 は、表の強制で消さない（復帰前の進行を無効にする。`return_after_limit`）。
+    if let Some(generation) = returned_generation {
+        state.run.generation = generation;
+    }
     // 宛先の既定は操作後の世代と Step。各分岐のタスクが見直してよい初版の規則である。
     let default_at = changed::default_stamp(
         state.run.generation,
         state.run.current.as_ref(),
         current_before.as_ref(),
     );
-    let events =
-        changed::record_changes(events, &world_before, &state.run.world, &default_at, cause);
+    let events = changed::record_changes(
+        events,
+        &run_before.world,
+        &state.run.world,
+        &default_at,
+        cause,
+    );
     state.log.extend(events.iter().cloned());
     (state, events)
 }
