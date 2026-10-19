@@ -1,0 +1,9 @@
+id: SAFE43-3
+package: fandhe-workshop-pack
+test: pack_dir_limits
+target: crates/pack/src/source.rs
+find: if md.file_type().is_symlink() {
+replace: if false && md.file_type().is_symlink() {
+expect-fail: dangling_symlink_is_rejected_as_symlink
+expect-fail: dir_symlink_to_outside_is_rejected_without_following
+note: シンボリックリンクの判定を外す

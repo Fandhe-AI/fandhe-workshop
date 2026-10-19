@@ -1,0 +1,9 @@
+id: SAFE43-4
+package: fandhe-workshop-pack
+test: pack_dir_limits
+target: crates/pack/src/source.rs
+find: let md = match fs::symlink_metadata(&p) {
+replace: let md = match fs::metadata(&p) {
+expect-fail: dangling_symlink_is_rejected_as_symlink
+expect-fail: dir_symlink_to_outside_is_rejected_without_following
+note: リンクを辿って見る（symlink_metadata を metadata にする）
