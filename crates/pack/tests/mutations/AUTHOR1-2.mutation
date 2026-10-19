@@ -1,0 +1,9 @@
+id: AUTHOR1-2
+package: fandhe-workshop-pack
+test: cli_contract
+target: crates/pack/src/cli_contract.rs
+find: pub const EXIT_USAGE: u8 = 2;
+replace: pub const EXIT_USAGE: u8 = 1;
+expect-fail: author1_no_args_prints_usage_and_exits_2
+expect-fail: exit_codes_are_fixed_values
+note: 使い方の誤りの終了コードが診断ありの 1 と同じになる

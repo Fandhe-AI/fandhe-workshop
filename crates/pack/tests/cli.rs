@@ -8,7 +8,7 @@ fn bin() -> Command {
 
 #[test]
 fn i1_subcommands_start() {
-    for name in ["validate", "test", "vocab"] {
+    for name in ["validate", "test", "vocab", "metrics"] {
         let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
         assert_eq!(o.status.code(), Some(2), "{name}");
         let err = String::from_utf8_lossy(&o.stderr);
