@@ -263,7 +263,8 @@ jobs:
         run: make test
 
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
-  # smoke-hello を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。
+  # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
+  # なることを関門にする。TASK-79 2/2）を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。
   # 流す中身は make test-browser（scripts/test-browser.sh）で、ここにロジックを重ねない。試験の web は
   # その中で一度だけビルドされ、smoke-hello はビルドし直さない。1 本でも失敗すれば本ジョブが失敗し、
   # ci-complete が CI 全体を失敗にする（skipped も許容しない）。
