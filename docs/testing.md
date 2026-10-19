@@ -4035,7 +4035,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | VER2-3 | crates/web/src/host.rs: 開く側のエンジンの版の上書きを無視する | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis, a_major_engine_override_is_view_only_and_does_not_replace_the_session | DETECTED |
 | VER2-4 | crates/web/src/host.rs: 変換して開いたときの違いの軸を常に空で返す | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | an_engine_override_turns_the_judgment_into_a_conversion_with_the_engine_axis | DETECTED |
 
-範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、戻り方（#446）。見出しと専用の `Event`（#445）は 5.134 で扱った。
+範囲外: 実体ごとの状態・切り身とフラグの分離・遷移先の `on_enter` の効果・`ChapterCompleted`（TASK-233 以降。#564〜#566 と重なるため、`transit` を通して拡張する前提で調整が要る）、開始での連鎖（TASK-217）、戻り方（#446）。見出しと専用の `Event`（#445）は 5.135 で扱った。
 
 ### 5.135 遷移の上限で止めた理由の見出しとまとめ表示（TASK-160 2/3）
 
