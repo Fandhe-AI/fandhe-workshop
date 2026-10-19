@@ -23,6 +23,7 @@
 //!
 //! 固定文の `Warning` を 1 件だけ足し、`current`・`busy`・入口の写しを空にする。以降の入力は、現在の Step が無いので
 //! 落ちずに無視される。入口の写しも空にするのは、`go_to` が古い写しを残さないのと同じ理由である（停止が古い写しへ戻る誤りを防ぐ）。
+//! 着地先の `enter` が IR に無いときも、`UNKNOWN_TARGET` の `Warning` を 1 件足して同じ空の状態に確定する（移動元が現在位置に残らない）。
 //! 止めた後の見出し・まとめ表示（SAFE-34）と戻り方（SAFE-35）は後続のタスクが扱い、本モジュールは `Warning` のままにする。
 //!
 //! # 扱わないこと
@@ -215,7 +216,12 @@ fn land(
         };
         let here = stamp(generation, &node.uid);
         let Some(callee) = find(ir, enter) else {
+            // 呼び出し先が無いと着地先の Step を入力待ちにできない。移動元を現在位置に残すと
+            // `Moved`・`Transitioned` の宛先と食い違うので、上限で止めるときと同じ空の状態に確定する。
             events.push(warning(here, UNKNOWN_TARGET));
+            state.run.current = None;
+            state.run.busy = None;
+            state.entry = None;
             return;
         };
         set_status(state, &node.uid, StepStatus::Entered);

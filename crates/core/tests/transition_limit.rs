@@ -270,3 +270,15 @@ fn unknown_enter_target_warns() {
         .iter()
         .any(|e| matches!(e, Event::Warning { message, .. } if message.contains("nowhere"))));
 }
+
+/// 移動先の `enter` が IR に無いとき、`current` を移動元に残さず、止まった状態に確定する。
+#[test]
+fn unknown_enter_target_halts_state_on_go_to() {
+    let mut ir = enter_chain(3);
+    if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == "main/u-1") {
+        n.enter = Some("main/nowhere".into());
+    }
+    let (next, events) = apply(&ir, state_at("main/e"), go_to("main/u-1"));
+    assert_eq!(warnings(&events), 1, "{events:?}");
+    assert_halted(&next, &ir);
+}
