@@ -89,7 +89,7 @@ fn i7_compare_same_content_is_ok() {
     assert_eq!(o.status.code(), Some(0));
     assert!(o.stderr.is_empty());
     let out = String::from_utf8_lossy(&o.stdout);
-    assert!(out.starts_with("OK: IR matches ("), "{out}");
+    assert!(out.starts_with("OK: IR が一致しました（"), "{out}");
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn i8_compare_different_packs_is_ng() {
         .unwrap();
     assert_eq!(o.status.code(), Some(1));
     let out = String::from_utf8_lossy(&o.stdout);
-    assert!(out.starts_with("NG: IR differs at line "), "{out}");
+    assert!(out.starts_with("NG: IR が一致しません（"), "{out}");
 }
 
 #[test]
@@ -116,7 +116,11 @@ fn i9_compare_missing_dir_is_diagnostic_not_verdict() {
     assert_eq!(o.status.code(), Some(1));
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(out.contains("E-PARSE"), "{out}");
-    assert!(!out.contains("OK:") && !out.contains("NG:"), "{out}");
+    assert!(!out.contains("OK:") && !out.contains("一致しま"), "{out}");
+    assert!(
+        out.lines().last().is_some_and(|l| l.starts_with("NG: 診断 ") && l.contains("比べられません。a 0 件、b ")),
+        "{out}"
+    );
 }
 
 #[test]

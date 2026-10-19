@@ -1,14 +1,15 @@
 //! `fandhe-pack` のサブコマンドの枠と終了コード。
 //!
 //! `compile <pack-dir>` と `compare <pack-dir-a> <pack-dir-b>` を実装している（TASK-39）。他のコマンドの中身は後続のタスク（TASK-401〜TASK-408）で作る。
-//! `compile` の出力先（`-o`）と末尾の扱いは TASK-407、診断の出し先は TASK-399 2/2（#471）で固定する。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード）の正は `docs/cli.md`（版 1）で、
+//! `compile` の出力先（`-o`）と末尾の扱いは TASK-407 で固定する。診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 2）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile` 経由）だけである。
 
 use std::ffi::OsString;
 use std::io::{self, Write};
 
+use crate::cli_contract::{compare_differ_line, compare_same_line, compare_unreadable_line};
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::compile_dir;
 use crate::diag::write_diagnostics;
@@ -18,7 +19,7 @@ pub use crate::cli_contract::{usage, Subcommand, EXIT_DIAGNOSTICS, EXIT_OK, EXIT
 /// 引数（実行ファイル名を除く）を解釈して実行し、終了コードを返す。
 ///
 /// `compile` は `<pack-dir>` を 1 つだけ受け、IR（JSON）を `out` に書く。診断があれば `out` に 1 件 1 行で
-/// 書いて `EXIT_DIAGNOSTICS` を返す（診断の出し先は仮で、TASK-399 2/2 で固定する）。`-o` や余分な引数は
+/// 書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 2 の 9 節）。`-o` や余分な引数は
 /// 未実装として `EXIT_USAGE` を返す。他のコマンドは未実装で `EXIT_USAGE` を返し、2 つ目以降の引数は読まない。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
@@ -78,10 +79,10 @@ where
 
 /// `compare` の実行。引数は `<pack-dir-a> <pack-dir-b>` ちょうど 2 つ。
 ///
-/// 一致は `OK: IR matches (<len> bytes)` で `EXIT_OK`、不一致は `NG: IR differs at line <line> (byte <offset>)`
-/// で `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断を書いて `EXIT_DIAGNOSTICS` を返し、
-/// 判定の行は出さない（失敗を一致とみなさない）。最終行の形と、診断がどちらのパックのものかの表し方は、
-/// 仮のもので TASK-399 2/2 で固定する。
+/// 一致は `cli_contract::compare_same_line` の行で `EXIT_OK`、不一致は `compare_differ_line` の行で
+/// `EXIT_DIAGNOSTICS`。どちらかに診断があれば a の診断、続けて b の診断、最後に `compare_unreadable_line` の
+/// 行を書いて `EXIT_DIAGNOSTICS` を返し、一致・不一致の行は出さない（失敗を一致とみなさない）。
+/// 行の形の正は `docs/cli.md` 版 2 の 8 節である。
 fn run_compare<I, O, E>(mut args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: Iterator<Item = OsString>,
@@ -101,16 +102,17 @@ where
     }
     match compare_dirs(std::path::Path::new(&a), std::path::Path::new(&b)) {
         Ok(Outcome::Same { len }) => {
-            writeln!(out, "OK: IR matches ({len} bytes)")?;
+            writeln!(out, "{}", compare_same_line(len))?;
             Ok(EXIT_OK)
         }
         Ok(Outcome::Differ { offset, line }) => {
-            writeln!(out, "NG: IR differs at line {line} (byte {offset})")?;
+            writeln!(out, "{}", compare_differ_line(line, offset))?;
             Ok(EXIT_DIAGNOSTICS)
         }
         Err(e) => {
             write_diagnostics(out, &e.a)?;
             write_diagnostics(out, &e.b)?;
+            writeln!(out, "{}", compare_unreadable_line(e.a.len(), e.b.len()))?;
             Ok(EXIT_DIAGNOSTICS)
         }
     }
