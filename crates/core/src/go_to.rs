@@ -10,8 +10,11 @@
 //! 1. 現在の Step が無いなら、状態を変えず空のイベント列を返す（`Stamp` を作れない。開始前の移動は TASK-217）
 //! 2. 移動先が IR に無いなら、状態を変えず `Refused`（`UnknownStep`）を 1 件返す
 //! 3. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
-//! 4. 世代を +1、`busy` を `None`、現在の Step を移動先、移動先の状態を `Entered` にする。
-//!    入口の写しは無効化する。`Moved` と `Entered` の 2 件を返す
+//! 4. 世代を +1、`busy` を `None` にし、入口の写しは無効化する。`Moved` を返し、移動先への着地は [`crate::transit`] が行う。
+//!    `use` でない移動先は現在の Step と状態 `Entered` を置き、`Entered` を返す（合計 2 件）。`use` の移動先は
+//!    `ModuleEntered` を挟んで呼び出し先まで進む。巡回して 1,000 回に達したら `Warning` 1 件で止め、現在の Step を空にする（SAFE-23）
+//!
+//! 開始（`Control::Begin`）が未実装の間、巡回の試験はこの移動で代わりに巡回の入口へ入る（開始での連鎖は TASK-217）。
 //!
 //! 出発側の Step の状態・選択・フラグ・世界状態・ログ・下書き・ヒント・チェックポイントには触れない。
 //! 同じ Step への移動は入り直しとして成功する。
@@ -39,7 +42,7 @@ use fandhe_workshop_contract::ir::Ir;
 use crate::addr::{Stamp, StepUid};
 use crate::event::{ControlKind, Event, RefuseReason};
 use crate::session::SessionState;
-use crate::step_status::StepStatus;
+use crate::transit;
 
 /// 世代があふれるときの固定文。
 const GENERATION_OVERFLOW: &str = "generation overflow; move ignored";
@@ -70,26 +73,13 @@ pub(crate) fn on_go_to(ir: &Ir, state: &mut SessionState, to: StepUid) -> Vec<Ev
     };
     state.run.generation = next;
     state.run.busy = None;
-    state.run.current = Some(to.clone());
-    state
-        .run
-        .slices
-        .entry(to.root())
-        .or_default()
-        .status
-        .insert(to.clone(), StepStatus::Entered);
     state.entry = None;
-    vec![
-        Event::Moved {
-            at,
-            to: to.clone(),
-            new_generation: next,
-        },
-        Event::Entered {
-            at: Stamp {
-                generation: next,
-                step: to,
-            },
-        },
-    ]
+    // 着地は歩行器が行う。`use` の移動先は呼び出し先まで進み、巡回は上限で止まる（TASK-160、SAFE-23）。
+    let mut events = vec![Event::Moved {
+        at,
+        to: to.clone(),
+        new_generation: next,
+    }];
+    transit::move_to(ir, state, next, &to.0, &mut events);
+    events
 }

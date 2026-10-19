@@ -36,6 +36,7 @@
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
 //! 別の Step への移動（`go_to`、TASK-213 1/2。公開しない）も持つ。
 //! チェックポイントの保存と復帰（`checkpoint`、TASK-214 1/3。公開しない）も持つ。
+//! 1 回の操作で起きる内部の遷移のたどりと上限 1,000 回での停止（`transit`、TASK-160 1/3、SAFE-23。公開しない）も持つ。
 //! 処理中の再読み込みでの世代 +1（`reload`、TASK-320 1/2。公開しない）も持つ。
 //! 操作を `ops` に記録しながら進める実行環境（[`recorded_session`]、TASK-319 1/3）と、起動時に保存済みの履歴の有無で新しく始めるか復元するかを分ける処理（[`history_boot`]）も持つ。
 //! ほかは後続のタスクで追加する。
@@ -83,6 +84,7 @@ mod stop;
 pub mod text_fill;
 pub mod text_judge;
 mod tick;
+mod transit;
 pub mod version_record;
 pub mod world;
 
