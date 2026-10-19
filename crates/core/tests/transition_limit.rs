@@ -230,7 +230,8 @@ fn exit_chain_boundary() {
     let (state, events) = apply(&ir, state_at("main/c0"), text());
     assert_eq!(warnings(&events), 0, "{events:?}");
     assert_eq!(exited(&events), MAX_TRANSITIONS_PER_INPUT);
-    assert!(state.run.current.is_some());
+    // 末尾まで戻った後の現在位置は、最後の復帰先（呼び出し先の final Step のままにしない）。
+    assert_eq!(state.run.current, Some(uid("main/tail")));
 
     let ir = exit_chain(ok + 1);
     let (state, events) = apply(&ir, state_at("main/c0"), text());

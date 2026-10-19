@@ -178,6 +178,8 @@ pub(crate) fn after_achieved(
             return;
         }
         set_status(state, &back.uid, StepStatus::Achieved);
+        // 戻り先の先へ進めない場合に備え、現在位置も呼び出し元へ移す（ModuleExited の復帰先と一致させる）。
+        state.run.current = Some(StepUid(back.uid.clone()));
         let back_at = stamp(generation, &back.uid);
         events.push(Event::ModuleExited {
             at: back_at.clone(),
