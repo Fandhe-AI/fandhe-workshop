@@ -4173,6 +4173,41 @@ D-59 の 4 のとおり、`format_newer` の向きの理由は Claude Code の�
 
 範囲外: spec の VER-11 の「作成者向けの文書に規約がまだ無い」の記述は、spec 側で直す。
 
+### 5.139 旧新 IR の読み込みの互換（TASK-181 1/2）
+
+結論: 04 の VER-13 の 3 つの場合を、D-51・D-52・D-59 の決定に合わせて native の試験で固定した（`crates/pack/tests/ir_old_engine.rs`）。旧いエンジンの実物はこの repo に無いため、試験の中に「版 1 だけを読み、確認の選択肢の `label` を知らない旧いエンジン」の模型を置いた。模型であり実物ではない。製品コードの変更は無い。
+
+| 場合 | 決定の下での期待 | 断る仕組み | 試験 |
+|---|---|---|---|
+| 1. 旧い IR（木も `label` も無い）を新しいエンジンが読む | 変換せず `ir_format` 1 のまま読め、`answer` の確認も読める（`label` は無く、表示名は ID） | 加算だけ | `ver13_old_ir_answers_are_read_by_new_engine_without_label`（バイト一致は `ir_compat.rs`） |
+| 2. `label` を持つ IR を旧いエンジンが読む | 断る。`label` は v1.3 の加算で `ir_format` は 1 のまま（PACK-24）のため、版ではなく型で断る。理由に `label` の値を含めない | 旧い `AnswerOption` の `deny_unknown_fields` | `ver13_label_stays_v1_and_new_engine_reads_it`・`ver13_label_ir_is_refused_by_old_engine_without_echo` |
+| 3a. 本文の木を使う IR を旧いエンジンが読む | 木を使うと `ir_format` 2 になり（D-51・D-52）、版 1 だけを読む旧いエンジンは版の理由で断る（型の不一致にしない） | 版の先読み | `ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version` |
+| 3b. 木を使わない教材を旧いエンジンが読む | 最小の `ir_format`（1）のままで読める（D-52） | 加算だけ | `ver13_pack_without_trees_stays_v1_and_old_engine_reads_it` |
+| 今後の欄 | 新しい欄は `ir_format` を上げる。`Value` で通す位置（`confirm`）の欄も、版の先読みが先に断る | 版の先読み | `ver13_future_field_inside_confirm_is_refused_by_version_gate` |
+
+対照として、模型が版 1 の golden を読めること（`ver13_old_engine_model_reads_v1_goldens`）を確かめ、模型が正しい理由で断っていることの前提にした。
+
+限界: 製品の `load_ir` は `confirm` を読み込み時に型付けしない。版 1 のまま `answer` の選択肢に未知の欄を足した IR は読み込みを通り、確認の判定時に不正な宣言として扱われる。`ver13_future_field_in_answer_option_is_refused_at_judging_not_loading` はこの現状の記録で、望ましい挙動の主張ではない。読み込み時に型付けするかは別に判断する（`crates/core/src/ir_load.rs`）。
+
+#### 04 の VER-13 への反映案
+
+【現状】の「本文の木だけを足した IR は、旧いエンジンでも読める」は、`Ir`・`Node` が未知の欄を許し `ir_format` が 1 のままだった試作の性質である。D-51・D-52 の下では「木を使う IR は `ir_format` 2 になり、版 1 だけを読む旧いエンジンは版の理由で断る。木を使わない教材は版 1 のままで読める」に置き換わる。証拠の種類には本件の自動テスト（native）を足す。旧いエンジンで実際に開く確認と、表示・保存済みの履歴の不変は TASK-181 の 2/2（#456）が残るため、検討中のままとする案である。spec の変更は spec repo 側で行い、本 repo では編集しない。
+
+```text
+実行日: 2026-10-19
+元にしたコミット: 223308a（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/VER13-1.mutation crates/pack/tests/mutations/VER13-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| VER13-1 | crates/contract/src/ir.rs: 本文の木だけを使う IR の必要な版を 1 と計算する | ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version | ver13_tree_ir_requires_v2_and_old_engine_refuses_by_version | DETECTED |
+| VER13-2 | crates/contract/src/confirm_spec.rs: `AnswerOption` が未知の欄を受け入れる | ver13_future_field_in_answer_option_is_refused_at_judging_not_loading | ver13_future_field_in_answer_option_is_refused_at_judging_not_loading | DETECTED |
+
+VER13-2 は `deny_unknown_fields` の属性の行が複数あり一意に当たらないため、番兵の欄を足して「未知の欄を受け入れる」状態を表した。
+
+範囲外: 旧いエンジンで実際に開く確認と表示・履歴の不変（#456）、読み込み時の `confirm` の型付け。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
