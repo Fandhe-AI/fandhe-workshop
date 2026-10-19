@@ -57,6 +57,16 @@ test('channelFromEnv: 空・未設定は chromium', () => {
   assert.equal(channelFromEnv({ FANDHE_BROWSER_CHANNEL: 'chrome' }), 'chrome');
 });
 
+// 起動したブラウザの channel と版を診断の行に残す。Chrome の原本で流したことの証拠（docs/testing.md 5.128）に使う。
+// 観察値の版は assert しない（Chrome の最新版は日々変わる。D-9）。空でない文字列であることだけを確かめる。
+test('起動したブラウザの channel と版を記録する', (t) => {
+  const channel = channelFromEnv();
+  const version = browser.version();
+  t.diagnostic(`browser: channel=${channel} version=${version}`);
+  assert.equal(typeof version, 'string');
+  assert.ok(version.length > 0);
+});
+
 async function visit(file) {
   return withServer({ dir: tmp, base: '/h/' }, async (srv) => {
     const { page: p, context, rec } = await openPage(browser, { origin: srv.origin });
