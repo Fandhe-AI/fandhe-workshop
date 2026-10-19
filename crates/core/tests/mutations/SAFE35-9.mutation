@@ -1,0 +1,9 @@
+id: SAFE35-9
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/entry_derive.rs
+find:                 for (path, before) in undo {
+replace:                 for (path, before) in undo.into_iter().take(0) {
+expect-fail: busy_limit_rewinds_to_accept_derived_from_log
+expect-fail: busy_restore_then_stop_returns_to_accept
+note: 導いた入口の写しで、受付から現在までの世界状態の変化を戻さない（受付と進行の効果が残ったまま入力を受け付け直し、効果が二重になる）

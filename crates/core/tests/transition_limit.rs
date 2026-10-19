@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use fandhe_workshop_contract::ir::{Ir, Node, Transition};
 use fandhe_workshop_contract::limits::MAX_TRANSITIONS_PER_INPUT;
 use fandhe_workshop_core::addr::{StepUid, TickAddr};
-use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::event::{Cause, Event};
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::projection::Projection;
 use fandhe_workshop_core::session::{Busy, EntryCopy, SessionState};
@@ -484,7 +484,8 @@ fn busy_limit_without_entry_copy_keeps_current_step() {
 
 /// 処理中に保存して復帰し、最後の進行で上限に達したとき、core は入口（受付の前）へ戻り、復習もその時点へ戻る
 /// （SAFE-35）。受付で x を置き、最初の進行で x を消すので、入口と止めた時点の世界状態は等しく、取り消しの
-/// `Changed` は出ない。導出は差分に頼らず、保存時の入口の控えを復帰で戻して揃える。
+/// `Changed` は出ない。core はログの `Restored` から保存の時点へ起点を移して受付の時点を導き、導出（`Projection`）
+/// は差分に頼らず、保存時の入口の控えを復帰で戻して揃える。
 #[test]
 fn busy_restore_then_limit_rewinds_review_to_entry() {
     let mut ir = cycle_ir("cycle-exit-2");
@@ -509,7 +510,8 @@ fn busy_restore_then_limit_rewinds_review_to_entry() {
     };
     let (state, _) = apply(&ir, state_at("main/f1"), text());
     assert!(state.run.world.contains_key("x"), "{:?}", state.run.world);
-    assert!(state.entry.is_some());
+    // 入口の写しは状態に書かない（受付の時点はログから導く。履歴の写しの形を main と同じに保つ）。
+    assert!(state.entry.is_none());
     let (state, _) = apply(&ir, state.clone(), tick(&state));
     assert!(!state.run.world.contains_key("x"));
     let (state, saved) = apply(&ir, state, Op::Control(Control::Save));
@@ -559,4 +561,252 @@ fn controls_work_after_return_and_replay_is_deterministic() {
     assert_eq!(a.run.current, Some(uid("main/st-1")));
     assert_eq!(a.checkpoints.len(), 1);
     assert_eq!(a, run(&ops));
+}
+
+/// 入口へ戻して世界状態が変わる止め方では、`apply` が取り消しの `Changed` を末尾に足す（`record_changes`）。
+/// 専用のイベントが 1 件で、その後ろが `Changed` だけであることを確かめる。
+fn assert_limit_then_changes(events: &[Event]) {
+    assert_eq!(
+        limit_landings(events),
+        vec![u32::try_from(MAX_TRANSITIONS_PER_INPUT).expect("fits")],
+        "{events:?}"
+    );
+    let at = events
+        .iter()
+        .position(|e| matches!(e, Event::TransitionLimitReached { .. }))
+        .expect("limit event");
+    assert!(
+        events[at + 1..]
+            .iter()
+            .all(|e| matches!(e, Event::Changed { .. })),
+        "{events:?}"
+    );
+}
+
+/// cycle-exit-2 の f1（確認を省く Step。達成の後の遷移が巡回して上限に達する）を、自然文の受付で
+/// `accept_effects` を当て、`processing` の進行を持つ Step にした教材。
+fn processing_ir(accept_effects: serde_json::Value, processing: Vec<serde_json::Value>) -> Ir {
+    let mut ir = cycle_ir("cycle-exit-2");
+    if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == "main/f1") {
+        n.step.rules = vec![serde_json::json!({
+            "id": "r-accept",
+            "on": { "text": true },
+            "outcome": { "kind": "accept", "effects": accept_effects }
+        })];
+        n.step.processing = processing;
+    }
+    ir
+}
+
+/// 処理中の現在の Step への、次に来るべき進行。
+fn next_tick(state: &SessionState) -> Op {
+    let busy = state.run.busy.clone().expect("busy");
+    Op::Tick(TickAddr {
+        generation: state.run.generation,
+        step: uid("main/f1"),
+        index: busy.done,
+    })
+}
+
+fn f1_status(state: &SessionState) -> StepStatus {
+    state.run.slices[&uid("main/f1").root()].status[&uid("main/f1")]
+}
+
+/// 本番の経路（`apply` の受付から処理中になる。状態の入口の写しは空のまま）で、最後の進行から上限に達しても、
+/// ログから導いた受付の時点へ戻り、入力を受け付け直せる（解決済みの P1「入口の写しが無い処理中の Step も入力を
+/// 受け付け直せる状態へ戻す」の再発防止）。受付と進行の世界状態の変化は取り消され、取り消しは原因 `Stop` の
+/// `Changed` になる。受け付け直した後も、同じ導き方で再び戻れる。
+#[test]
+fn busy_limit_rewinds_to_accept_derived_from_log() {
+    let ir = processing_ir(
+        serde_json::json!([{ "put": { "path": "x", "fixture": "fx" } }]),
+        vec![
+            serde_json::json!({ "name": "p1", "effects": [{ "put": { "path": "y", "fixture": "fy" } }] }),
+        ],
+    );
+    let entered = state_at("main/f1");
+    let (accepted, _) = apply(&ir, entered.clone(), text());
+    assert!(accepted.run.busy.is_some());
+    assert_eq!(accepted.entry, None);
+    let (state, events) = apply(&ir, accepted.clone(), next_tick(&accepted));
+    assert_limit_then_changes(&events);
+    assert_eq!(state.entry, None);
+    assert_eq!(state.run.current, Some(uid("main/f1")));
+    assert_eq!(state.run.busy, None);
+    assert_eq!(f1_status(&state), StepStatus::Entered);
+    assert_eq!(state.run.world, entered.run.world);
+    assert_eq!(
+        state.run.generation,
+        accepted.run.generation.next().expect("room")
+    );
+    let stops: Vec<&str> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { path, cause, .. } if *cause == Cause::Stop => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stops, vec!["x"], "{events:?}");
+    let p = Projection::from_events(&state.log);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review()
+            .iter()
+            .all(|r| r.changes.is_empty() && !r.achieved),
+        "{:?}",
+        p.review()
+    );
+    // 受け付け直せる。
+    let (again, events) = apply(&ir, state, text());
+    assert_eq!(
+        count(&events, |e| matches!(e, Event::Accepted { .. })),
+        1,
+        "{events:?}"
+    );
+    assert!(again.run.busy.is_some());
+    let (again, events) = apply(&ir, again.clone(), next_tick(&again));
+    assert_limit_then_changes(&events);
+    assert_eq!(f1_status(&again), StepStatus::Entered);
+    assert_eq!(again.run.world, entered.run.world);
+}
+
+/// 処理中に保存し、先へ進めてから復帰し、停止したとき、core はログの `Restored` から保存の時点へ起点を移して
+/// 受付の時点を導き、受付の前の状態へ戻る（状態の入口の写しは空のまま）。
+#[test]
+fn busy_restore_then_stop_returns_to_accept() {
+    let ir = processing_ir(
+        serde_json::json!([{ "put": { "path": "x", "fixture": "fx" } }]),
+        vec![
+            serde_json::json!({ "name": "p1", "effects": [{ "put": { "path": "y", "fixture": "fy" } }] }),
+            serde_json::json!({ "name": "p2", "effects": [{ "put": { "path": "z", "fixture": "fz" } }] }),
+            serde_json::json!({ "name": "p3", "effects": [] }),
+        ],
+    );
+    let entered = state_at("main/f1");
+    let (state, _) = apply(&ir, entered.clone(), text());
+    let (state, _) = apply(&ir, state.clone(), next_tick(&state));
+    let (state, saved) = apply(&ir, state, Op::Control(Control::Save));
+    let id = match saved.as_slice() {
+        [Event::CheckpointSaved { id, .. }] => *id,
+        other => panic!("save must succeed: {other:?}"),
+    };
+    assert_eq!(state.checkpoints[&id].entry, None);
+    let (state, _) = apply(&ir, state.clone(), next_tick(&state));
+    assert!(state.run.world.contains_key("z"));
+    let (state, _) = apply(&ir, state, Op::Control(Control::Restore(id)));
+    assert!(state.run.busy.is_some());
+    assert_eq!(state.entry, None);
+    let (stopped, events) = apply(&ir, state, Op::Control(Control::Stop));
+    assert!(
+        matches!(events.first(), Some(Event::Stopped { .. })),
+        "{events:?}"
+    );
+    assert_eq!(stopped.run.busy, None);
+    assert_eq!(f1_status(&stopped), StepStatus::Entered);
+    assert_eq!(stopped.run.world, entered.run.world);
+    assert_eq!(stopped.entry, None);
+}
+
+/// 復帰の写しが `Restored` と食い違う（保存から読んだ写しの書き換えなど）ときは、受付の時点を一意に決められない
+/// ので取り消しをしない。上限で止めた後は、操作の前の `run` から `busy` だけを空にして戻り（Step は受付済みのまま、
+/// 世界状態も操作の前のまま）、停止は `Warning` だけで状態を変えない（fail-closed）。
+#[test]
+fn mismatched_checkpoint_is_not_used_to_derive_entry() {
+    let ir = processing_ir(
+        serde_json::json!([{ "put": { "path": "x", "fixture": "fx" } }]),
+        vec![
+            serde_json::json!({ "name": "p1", "effects": [] }),
+            serde_json::json!({ "name": "p2", "effects": [] }),
+        ],
+    );
+    let (state, _) = apply(&ir, state_at("main/f1"), text());
+    let (state, saved) = apply(&ir, state, Op::Control(Control::Save));
+    let id = match saved.as_slice() {
+        [Event::CheckpointSaved { id, .. }] => *id,
+        other => panic!("save must succeed: {other:?}"),
+    };
+    let (mut state, _) = apply(&ir, state, Op::Control(Control::Restore(id)));
+    if let Some(cp) = state.checkpoints.get_mut(&id) {
+        cp.log_len += 1;
+    }
+    let (stopped, events) = apply(&ir, state.clone(), Op::Control(Control::Stop));
+    assert!(
+        matches!(events.as_slice(), [Event::Warning { .. }]),
+        "{events:?}"
+    );
+    assert_eq!(stopped.run, state.run);
+
+    let (state, _) = apply(&ir, state.clone(), next_tick(&state));
+    let before = state.clone();
+    let (state, events) = apply(&ir, state, next_tick(&before));
+    assert_limit_then_changes(&events);
+    assert_eq!(state.run.current, Some(uid("main/f1")));
+    assert_eq!(state.run.busy, None);
+    assert_eq!(f1_status(&state), StepStatus::Accepted);
+    assert_eq!(state.run.world, before.run.world);
+    assert!(state.run.world.contains_key("x"));
+}
+
+/// フラグは受付の時点の値へ戻さない（`Event::Flag` は変更前の値を持たず、ログから一意に決められないため。
+/// `entry_derive` の「戻さない欄」）。世界状態と Step の状態は受付の時点へ戻り、受け付け直すと同じフラグを
+/// 置き直すので、効果は二重にならない。この扱いを固定する。
+#[test]
+fn busy_limit_keeps_flags_set_by_the_stopped_operation() {
+    let ir = processing_ir(
+        serde_json::json!([
+            { "put": { "path": "x", "fixture": "fx" } },
+            { "set_flag": "seen" }
+        ]),
+        vec![serde_json::json!({ "name": "p1", "effects": [] })],
+    );
+    let entered = state_at("main/f1");
+    let (accepted, _) = apply(&ir, entered.clone(), text());
+    let root = uid("main/f1").root();
+    assert!(accepted.run.slices[&root].flags.contains("seen"));
+    let (state, events) = apply(&ir, accepted.clone(), next_tick(&accepted));
+    assert_limit_then_changes(&events);
+    assert_eq!(f1_status(&state), StepStatus::Entered);
+    assert_eq!(state.run.world, entered.run.world);
+    assert!(state.run.slices[&root].flags.contains("seen"));
+    let (again, _) = apply(&ir, state, text());
+    assert_eq!(
+        again.run.slices[&root].flags,
+        accepted.run.slices[&root].flags
+    );
+}
+
+/// 受付の時点は、処理中の区間（受付から現在まで）の中でだけ探す。区間の外の受付（ここでは移動で Step に入り直す
+/// 前の受付）からは導かない。受付が無いまま処理中になった状態（保存から読んだ不整合など）では、停止は `Warning`
+/// だけで状態を変えず、上限で止めた後は Step を受付済みのまま `busy` だけを空にして戻す（fail-closed）。
+#[test]
+fn entry_is_not_derived_across_a_step_entry() {
+    let ir = processing_ir(
+        serde_json::json!([{ "put": { "path": "x", "fixture": "fx" } }]),
+        vec![serde_json::json!({ "name": "p1", "effects": [] })],
+    );
+    let (state, _) = apply(&ir, state_at("main/f1"), text());
+    let (moved, _) = apply(&ir, state, go_to("main/f1"));
+    assert_eq!(moved.run.busy, None);
+    // 移動の後に受付を経ずに処理中になった不整合な状態。
+    let mut broken = moved;
+    broken
+        .run
+        .slices
+        .entry(uid("main/f1").root())
+        .or_default()
+        .status
+        .insert(uid("main/f1"), StepStatus::Accepted);
+    broken.run.busy = Some(Busy { done: 0, total: 1 });
+    let (stopped, events) = apply(&ir, broken.clone(), Op::Control(Control::Stop));
+    assert!(
+        matches!(events.as_slice(), [Event::Warning { .. }]),
+        "{events:?}"
+    );
+    assert_eq!(stopped.run, broken.run);
+
+    let (state, events) = apply(&ir, broken.clone(), next_tick(&broken));
+    assert_limit_event(&events);
+    assert_eq!(f1_status(&state), StepStatus::Accepted);
+    assert_eq!(state.run.busy, None);
+    assert_eq!(state.run.world, broken.run.world);
 }

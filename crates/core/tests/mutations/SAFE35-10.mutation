@@ -1,0 +1,9 @@
+id: SAFE35-10
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/entry_derive.rs
+find:                 let cp = checkpoints.get(id)?;
+replace:                 let cp = checkpoints.get(id).filter(|_| false)?;
+expect-fail: busy_restore_then_stop_returns_to_accept
+expect-fail: busy_restore_then_limit_rewinds_review_to_entry
+note: 復帰（Restored）から保存の時点へ起点を移さない（処理中の保存へ復帰した後は受付の時点を導けず、停止・上限の後に入口へ戻れない）

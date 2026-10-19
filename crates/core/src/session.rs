@@ -145,7 +145,9 @@ pub struct SessionState {
     pub run: RunState,
     /// これまでのイベントのログ。追記だけで、[`apply`] の戻りのイベント列が末尾に足される。
     pub log: Vec<Event>,
-    /// 入口の写し。
+    /// 入口の写し。通常の操作では値を入れず（`None`）、写しを持つチェックポイントへの復帰でだけ戻る。
+    /// 処理中の停止・上限で止めた後の戻りが使う写しは、この欄が空ならログから導く（`entry_derive`、SAFE-35）。
+    /// 欄に値を入れると履歴の写し（`snapshot`）が変わり、同じ版の履歴の照合（VER-2・VER-3）に響く。
     pub entry: Option<EntryCopy>,
     /// 保存したチェックポイント。
     pub checkpoints: BTreeMap<CheckpointId, Checkpoint>,
@@ -181,7 +183,8 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
     let mut state = state;
     // 操作 1 件の `Changed` は、前後の世界状態の差分から作る（EVT-13、TASK-215）。各分岐が語レベルの
     // `Changed` を出しても、ここで経路ごとに 1 件・変更前は操作前の値に置き換わる。
-    // 上限で止めた操作を操作の前の状態へ戻すため（SAFE-35）、世界状態だけでなく `run` 全体と入口の写しを控える。
+    // 上限で止めた操作を操作の前の状態へ戻すため（SAFE-35）、世界状態だけでなく `run` 全体と状態の入口の写しの欄を
+    // 控える。処理中の戻り先（受付の時点）は、止めたときにだけ操作の前のログから導く（`transit::return_after_limit`）。
     // 費用は切り身・フラグなど `world` 以外の分の複製が増えるだけで、操作 1 件につき 1 回に収まる。
     let run_before = state.run.clone();
     let entry_before = state.entry.clone();

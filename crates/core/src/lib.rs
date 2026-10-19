@@ -34,6 +34,7 @@
 //! 拒否・問い返し・注記の文面への実行時の値の差し込み（[`text_fill`]、TASK-274）も持つ。
 //! 宛先が一致する進行の前進と食い違う進行の無視の記録（`tick`、TASK-210 2/3・3/3。公開しない）も持つ。
 //! 処理中の停止と入口の写しへの復帰（`stop`、TASK-211 1/2。公開しない）も持つ。
+//! 入口の写しを状態に書かず、要る場面でログから導くこと（`entry_derive`、TASK-160 3/3、SAFE-35。公開しない）も持つ。
 //! 別の Step への移動（`go_to`、TASK-213 1/2。公開しない）も持つ。
 //! チェックポイントの保存と復帰（`checkpoint`、TASK-214 1/3。公開しない）も持つ。
 //! 1 回の操作で起きる内部の遷移のたどりと上限 1,000 回での停止と、止めた後に操作の前の状態へ戻すこと（`transit`、TASK-160、SAFE-23・SAFE-35。公開しない）も持つ。
@@ -55,6 +56,7 @@ pub mod command_rule;
 pub mod condition;
 mod confirm;
 pub mod effect;
+mod entry_derive;
 pub mod event;
 mod go_to;
 pub mod history_boot;

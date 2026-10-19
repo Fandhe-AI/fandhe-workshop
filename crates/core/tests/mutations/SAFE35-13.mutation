@@ -1,0 +1,8 @@
+id: SAFE35-13
+package: fandhe-workshop-core
+test: transition_limit
+target: crates/core/src/entry_derive.rs
+find:             _ => return None,
+replace:             _ => {}
+expect-fail: entry_is_not_derived_across_a_step_entry
+note: 処理中の区間で起きない出来事（Step への入り・移動など）を読み飛ばす（区間の外の古い受付から入口を導き、受付の時点を取り違える）

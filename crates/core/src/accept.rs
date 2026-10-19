@@ -166,20 +166,6 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         confirm::OnAccept::Achieve(items) => Some(items),
     };
     events.push(judged);
-    // 処理中になる受付では、受付の前の状態を入口の写しとして確保する。停止・上限で止めた後の戻りが、
-    // 受付の効果を二重に適用せずに入力を受け付け直せる状態へ戻れるようにする（SAFE-35）。
-    // その Step の写しが既にあるときは、入った時点の写しを残す。
-    if !step.processing.is_empty()
-        && !state
-            .entry
-            .as_ref()
-            .is_some_and(|e| e.run.current.as_ref() == Some(&current))
-    {
-        state.entry = Some(crate::session::EntryCopy {
-            run: state.run.clone(),
-            log_len: u32::try_from(state.log.len()).unwrap_or(u32::MAX),
-        });
-    }
     events.extend(accept(
         &mut state.run,
         &current,

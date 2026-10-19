@@ -1,0 +1,9 @@
+id: SAFE35-12
+package: fandhe-workshop-core
+test: stop_restore
+target: crates/core/src/stop.rs
+find:     let Some(entry) = crate::entry_derive::entry_for_current(state) else {
+replace:     let Some(entry) = state.entry.clone().filter(|e| e.run.current.as_ref() == Some(&current)) else {
+expect-fail: stop_without_stored_entry_derives_the_same_entry_from_log
+expect-fail: stop_with_other_step_entry_falls_back_to_log
+note: 処理中の停止が状態の入口の写しだけを見てログから導かない（通常の操作では写しが空なので、処理中の停止が常に Warning になる）

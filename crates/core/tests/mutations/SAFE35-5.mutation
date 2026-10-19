@@ -2,7 +2,7 @@ id: SAFE35-5
 package: fandhe-workshop-core
 test: projection_derive
 target: crates/core/src/projection.rs
-find:                 Event::Accepted { .. } if self.entry_start.is_none() => {
+find:                 Event::Accepted { .. } => {
 replace:                 Event::Accepted { .. } | Event::InputReceived { .. } => {
 expect-fail: limit_rewind_ignores_rejected_resend_during_busy
-note: 入力の受信のたびに入口の控えを取る（処理中に拒否された再送が入口の控えを上書きし、復習と印の戻し先が実際の受付より後になる）。控えを取るのは受付だけで、既にあれば残す
+note: 入力の受信のたびに入口の控えを取る（処理中に拒否された再送が入口の控えを上書きし、復習と印の戻し先が実際の受付より後になる）。控えを取るのは受付だけ

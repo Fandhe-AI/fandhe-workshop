@@ -1,6 +1,6 @@
 //! 処理中の停止 `Control::Stop` の分岐（TASK-211 1/2、EVT-9）。
 //!
-//! 処理中に停止されたとき、世代を 1 つ進め、処理中を解き、現在の Step に入った時点の状態（入口の写し）へ
+//! 処理中に停止されたとき、世代を 1 つ進め、処理中を解き、入口の写し（通常は処理を始めた受付の直前の状態）へ
 //! 実行状態を戻す。受付から停止までの世界状態の変化は、写しへ戻ることで取り消される。
 //! 呼び出し元は [`crate::session::apply`] だけで、公開 API には含めない（契約の対象外）。
 //! 世代の規則の表（`IncrementIfProcessing`）の強制は `apply` の関門が行い、本モジュールは表を再実装しない。
@@ -10,8 +10,10 @@
 //!
 //! 1. 処理中でない、または現在の Step が無いなら、状態を変えず空のイベント列を返す（処理中でない停止は
 //!    [`crate::session::apply`] が取り消しの入力として `accept` へ渡すので、通常ここへは来ない。TASK-212）
-//! 2. 世代があふれる、入口の写しが無い、写しの Step が現在の Step と違う、のいずれかなら、
-//!    固定文の `Warning` だけを出して状態を変えない（fail-closed。戻り先が不確かなまま一部だけ戻さない）
+//! 2. 世代があふれる、入口の写しが得られない、のいずれかなら、固定文の `Warning` だけを出して状態を変えない
+//!    （fail-closed。戻り先が不確かなまま一部だけ戻さない）。写しは、状態に現在の Step の写しがあればそれを、
+//!    無ければログから導いたもの（受付の時点の `run`）を使う（[`crate::entry_derive`]）。通常の操作では状態の
+//!    写しは空なので、導いたものを使う。受付の時点を一意に決められないときは得られない
 //! 3. `run` を写しの `run` で置き換え、世代を操作前の +1、`busy` を `None` にする。
 //!    `Stopped`（`at` は操作前の世代と現在の Step）を 1 件返す
 //!
@@ -21,7 +23,8 @@
 //! # 扱わないこと
 //!
 //! - 処理中でない停止の取り消しの入力としての扱い（`session::step` と `accept`、TASK-212）
-//! - 実体（根）ごとの戻り方と、Step に入るたびの入口の写しの作り直し（TASK-242・217。移動は写しを無効化する、TASK-213）
+//! - 実体（根）ごとの戻り方と、Step に入った時点の写し（TASK-242・217。移動は状態の写しを無効化する、TASK-213。
+//!   導く写しは受付の時点のもので、移動の後の受付からは移動先の受付の時点を導く）
 //! - 停止前の宛先の進行は、`tick` が世代の照合（`judge_tick`）で `Ignored` に記録する。試験は `tests/stop_restore.rs`（TASK-211 2/2）
 //! - 変換中の Esc を停止にしない処理（JUDGE-16。web の担当）
 //!
@@ -57,14 +60,11 @@ pub(crate) fn on_stop(state: &mut SessionState) -> Vec<Event> {
     let Some(next) = state.run.generation.next() else {
         return warn(GENERATION_OVERFLOW);
     };
-    let Some(entry) = state
-        .entry
-        .as_ref()
-        .filter(|e| e.run.current.as_ref() == Some(&current))
-    else {
+    // 写しは状態に書かず、ログから導く（`entry_derive`）。導けないときは戻らない（fail-closed）。
+    let Some(entry) = crate::entry_derive::entry_for_current(state) else {
         return warn(MISSING_ENTRY);
     };
-    let mut run = entry.run.clone();
+    let mut run = entry.run;
     run.generation = next;
     run.busy = None;
     state.run = run;
