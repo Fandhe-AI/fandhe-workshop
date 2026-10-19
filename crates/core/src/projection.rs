@@ -17,9 +17,12 @@
 //!   `Changed`（停止・移動・復帰・開始の巻き戻し）は学習者の変化ではないため入れない。`Stopped` は Step の入口へ
 //!   戻すため、その Step の項目を初期化する
 //! - 復帰（EVT-14）: `CheckpointSaved` の時点の復習をイベントから導いて控え、`Restored` で持ち主の根の項目だけを
-//!   控えへ戻す。`SessionState.checkpoints` の写しは読まない（EVT-13）。`log_len` が保存の位置を指さない不正な
-//!   ログでは、持ち主の根の項目を空にして他の根の項目だけを残す（panic せず決定的）。再帰で作り直さないのは、
-//!   保存から読んだログが信頼できない入力であり、入れ子の復帰で計算量が爆発しないようにするため（A04）。
+//!   控えへ戻す。処理中かどうかと入口の控え（受付の時点の復習）も保存の時点のものへ戻す（core の復帰が `busy` と
+//!   入口の写しを戻すのと揃え、復帰後の上限停止で入口の時点へ戻せるようにする。SAFE-35）。
+//!   `SessionState.checkpoints` の写しは読まない（EVT-13）。`log_len` が保存の位置を指さない不正なログでは、
+//!   持ち主の根の項目を空にして他の根の項目だけを残し、処理中と入口の控えを無しに倒す（panic せず決定的）。
+//!   再帰で作り直さないのは、保存から読んだログが信頼できない入力であり、入れ子の復帰で計算量が爆発しないように
+//!   するため（A04）。
 //!   `apply()` が出すログでの確認は `tests/restore_review.rs`（TASK-214 2/3）
 //!
 //! # 不変条件
@@ -108,9 +111,9 @@ pub struct Projection {
     review: Arc<Vec<ReviewItem>>,
     /// 変化の印の元。基準点からの経路ごとの（最初の変更前, 最後の変更後）。
     pending: BTreeMap<String, (Option<Element>, Option<Element>)>,
-    /// 保存の時点の復習。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。現在の復習と共有し、
-    /// 保存そのものは参照の複製に限る（復習を変えない保存の連続で全体を複製しない）。
-    saved_review: BTreeMap<usize, Arc<Vec<ReviewItem>>>,
+    /// 保存の時点の復習・入口の控え・処理中。鍵は `CheckpointSaved` のログ上の位置（その `log_len`）。
+    /// 復習は現在の復習と共有し、保存そのものは参照の複製に限る（復習を変えない保存の連続で全体を複製しない）。
+    saved: BTreeMap<usize, SavedPoint>,
     /// 直近の操作の先頭（`InputReceived`・`Progress`・`Moved`）の時点の復習と印の元。
     /// 上限で止めた操作を操作の前へ戻す（SAFE-35）ので、`TransitionLimitReached` で復習と印の元をここへ戻す。
     op_start: Option<OpStart>,
@@ -118,7 +121,8 @@ pub struct Projection {
     /// その Step の写しが既にあれば入った時点のものを残す（`accept`）ので、既にあるときは上書きしない。
     /// 処理中の操作（進行・移動）の途中で止めたときは操作の前ではなくここへ戻す（入口へ戻す `return_after_limit` と
     /// 揃える）。処理中に拒否された入力（`Accepted` が出ない）では更新しない。
-    /// 移動・停止・復帰などで入口の写しが無効になる箇所で捨てる。
+    /// 移動・停止などで入口の写しが無効になる箇所で捨てる。復帰では保存の時点の控えへ戻す（core の復帰が入口の
+    /// 写しを保存時点のものへ戻すため）。
     entry_start: Option<OpStart>,
     /// 進行（`Progress`）が始まり、まだ完了していない（処理中である）。処理中の移動は入口へ戻るので、
     /// その判断に使う。達成・上限での停止・入口の写しの無効化で下ろす。
@@ -130,6 +134,15 @@ type OpStart = (
     Arc<Vec<ReviewItem>>,
     BTreeMap<String, (Option<Element>, Option<Element>)>,
 );
+
+/// 保存（`CheckpointSaved`）の時点の控え。core の `Checkpoint` が `run`（`busy` を含む）と入口の写しを写すのと
+/// 対応させる。入口の控えは復習だけを持つ。印の元は `Restored` が基準点として空にするので控えない。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SavedPoint {
+    review: Arc<Vec<ReviewItem>>,
+    entry_review: Option<Arc<Vec<ReviewItem>>>,
+    progressing: bool,
+}
 
 /// 変化の印の種類を（最初の変更前, 最後の変更後）から決める。
 fn mark_kind(before: &Option<Element>, after: &Option<Element>) -> MarkKind {
@@ -320,7 +333,14 @@ impl Projection {
             }
             Event::CheckpointSaved { .. } => {
                 self.push_row(i, event);
-                self.saved_review.insert(i, self.review.clone());
+                self.saved.insert(
+                    i,
+                    SavedPoint {
+                        review: self.review.clone(),
+                        entry_review: self.entry_start.as_ref().map(|(review, _)| review.clone()),
+                        progressing: self.progressing,
+                    },
+                );
             }
             Event::Restored { log_len, owner, .. } => {
                 self.push_row(i, event);
@@ -406,28 +426,47 @@ impl Projection {
     }
 
     /// 復帰（EVT-14）。持ち主の根の項目を、保存の時点のものへ戻す。他の根の項目は変えない。
-    /// 保存の位置を指さない `log_len`（範囲外・未来・不一致）は「写しなし」で、持ち主の根の項目を空にする。
+    /// 保存の位置を指さない `log_len`（範囲外・未来・不一致）は「写しなし」で、持ち主の根の項目を空にし、
+    /// 処理中と入口の控えも無しに倒す（呼び出し元 `step_event` が先に下ろしている）。
+    ///
+    /// 処理中かどうかと入口の控えも保存の時点のものへ戻す。core の復帰は `busy` と入口の写しを保存時点へ戻すので、
+    /// 復帰後の最後の進行・移動で上限に達すると入口（受付の前）へ戻る。控えを戻さないと、導出だけが進行の直前へ
+    /// 戻り、世界状態の差分が無い（受付と進行の変更が相殺された）ときは取り消しの `Changed` も出ず、取り消した
+    /// 変更が復習に残る（SAFE-35）。入口の控えの他の根の項目は、復習と同じく復帰の時点のものを使う。
     fn restore_review(&mut self, i: usize, log_len: u32, own: &crate::addr::Root) {
         let saved = usize::try_from(log_len)
             .ok()
             .filter(|at| *at < i)
-            .and_then(|at| self.saved_review.get(&at));
-        let mut restored: Vec<ReviewItem> = saved
-            .map(|items| {
-                items
-                    .iter()
-                    .filter(|r| &r.step.root() == own)
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
-        restored.extend(
-            self.review
-                .iter()
-                .filter(|r| &r.step.root() != own)
-                .cloned(),
-        );
-        self.review = Arc::new(restored);
+            .and_then(|at| self.saved.get(&at))
+            .cloned();
+        let others: Vec<ReviewItem> = self
+            .review
+            .iter()
+            .filter(|r| &r.step.root() != own)
+            .cloned()
+            .collect();
+        // 持ち主の根の項目は控えから、他の根の項目は復帰の時点の復習から取る。
+        let rebuild = |items: Option<&Arc<Vec<ReviewItem>>>| -> Arc<Vec<ReviewItem>> {
+            let mut restored: Vec<ReviewItem> = items
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter(|r| &r.step.root() == own)
+                        .cloned()
+                        .collect()
+                })
+                .unwrap_or_default();
+            restored.extend(others.iter().cloned());
+            Arc::new(restored)
+        };
+        self.review = rebuild(saved.as_ref().map(|s| &s.review));
+        if let Some(point) = saved {
+            self.progressing = point.progressing;
+            self.entry_start = point
+                .entry_review
+                .as_ref()
+                .map(|review| (rebuild(Some(review)), BTreeMap::new()));
+        }
     }
 
     /// 処理済みのイベント数。

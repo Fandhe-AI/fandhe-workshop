@@ -4086,10 +4086,12 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - 新しいイベントは足さず、`CONTRACT_VERSION` は 6 のまま。通知欄の文言は「実行を止めて直前の Step に戻しました」に変えた（仮置き）。通知は戻った Step での次の入力まで残る
 - 止めた操作が出した `Accepted`・`Achieved` などはログに残る（ログは追記だけ）。復習は `Projection` が、操作の先頭（`InputReceived`・`Progress`・`Moved`）で控えた復習と印の元へ `TransitionLimitReached` で戻して、Step の状態と揃える。ログ行は消さない
 - 進行（処理中）の途中から止めた場合は、操作の前（受付済み・処理中）ではなく入口の写しへ戻す。受付済みのまま処理中だけを消すと、入力も進行も受け付けられず、確認 none の Step が達成に進めないため。入口の写しが無い・別の Step のときは、操作の前の `run` から処理中だけを空にして戻す（現在の Step は残るが、受付済みのまま入力で進めない場合がある）。復習と印は、処理中（進行の途中）から止めたとき、進行でも移動でも、実際に処理を始めた受付（`Accepted`）の時点へ戻す。処理中に拒否された再送（`InputReceived` と `Judged` だけ）では入口の控えを更新しない
+- 処理中に保存して復帰した後も、復習と印の戻し先は入口の受付の時点に揃える。core の復帰は保存時の `busy` と入口の写しを戻すので、`Projection` も `CheckpointSaved` の時点の処理中と入口の控え（復習）を控え、`Restored` の `log_len` に対応する控えを戻す。持ち主の根の項目だけを控えから取り、他の根の項目と印の元は復帰の時点のもの（印の元は空）にする。保存の位置を指さない `log_len` では、処理中と入口の控えを無しに倒す。`Projection` の欄は外から見えず、保存形式・公開 API・`CONTRACT_VERSION` は変えない
 
 試験は 3 層に置いた。
 
-- native の core（`transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めた後に現在の Step・入口の写し・`run`（世代は `go_to` のとき +1）が操作の前と一致し、`Changed` が 0 件であること。戻った Step への入力でイベントの先頭が `InputReceived` になること。`cycle-exit-2` は次の入力で `Accepted` が出て、再び止まって戻ること。進行の経路（`Tick`）で止めたとき `busy` が空で、同じ宛先の再送は `Ignored` になり再び歩かないこと。止めて戻った後の保存が働き、同じ操作の列が同じ状態になること
+- native の core（`transition_limit.rs`）: 巡回 3 本と連鎖の境界で、止めた後に現在の Step・入口の写し・`run`（世代は `go_to` のとき +1）が操作の前と一致し、`Changed` が 0 件であること。戻った Step への入力でイベントの先頭が `InputReceived` になること。`cycle-exit-2` は次の入力で `Accepted` が出て、再び止まって戻ること。進行の経路（`Tick`）で止めたとき `busy` が空で、同じ宛先の再送は `Ignored` になり再び歩かないこと。止めて戻った後の保存が働き、同じ操作の列が同じ状態になること。受付で x を置き、最初の進行で x を消し、処理中に保存・復帰して最後の進行で止めたとき、`Changed` が 0 件で Step が入口（Entered）に戻り、復習と印に x が残らないこと（`busy_restore_then_limit_rewinds_review_to_entry`）
+- native の core（`projection_derive.rs`）: 同じ場面をイベント列で組み、復習・印が入口の時点へ戻り、増分と一括が一致すること（`limit_rewind_after_restore_while_busy_returns_to_entry`）。処理中でない時点の保存へ復帰した後の移動の上限では、復帰前の受付の控えへ戻らないこと（対照、`limit_after_restore_to_idle_checkpoint_keeps_restored_review`）
 - native の web（`limit_notice.rs`）: 戻った Step での入力で `InputReceived` が 1 件増え、通知欄（DOM と束縛値）が空になり、上限の行は 1 件のまま
 - ブラウザ（`transition-limit.test.mjs`）: 巡回 3 本と `chain-1001` で、止めた直後の `current` が操作の前の Step で、続く入力で `input_received` が 1 件増えること。`cycle-exit-2`・`chain-1001` は `accepted` が 1 件増え、上限の行が 2 件・通知が出る。`cycle-enter-*` は通知が消える
 
@@ -4099,13 +4101,14 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 - SAFE35-5: 入力の受信のたびに入口の控えを取る（拒否された再送で上書きする）
 - SAFE35-6: 処理中の移動で入口の控えへ戻さない
 - SAFE35-7: 最後の進行で処理中を解かない（処理完了後の移動の上限で入口の控えへ戻る）
+- SAFE35-8: 復帰で処理中と入口の控えを保存の時点へ戻さない（処理中の保存へ復帰した後の上限で、復習が進行の直前に残る）
 
 `SAFE23-2`（`halt` の `current = None` の削除）は、`apply` が直後に戻すため、効果が試験から見えない等価変異になった。廃止し、内側の fail-closed は SAFE35 の変異と、操作の前に現在の Step が無い場合の既存の挙動で担保する。
 
 ```text
 実行日: 2026-10-19
 元にしたコミット: 7528a9d（作業ツリーに本変更）
-コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE35-1.mutation（SAFE35-2・3、SAFE23-1・3、SAFE34-1 も同様）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/SAFE35-1.mutation（SAFE35-2・3、SAFE23-1・3、SAFE34-1 も同様。SAFE35-8 は 2026-10-19 に 4516665 の作業ツリーで実行）
 ```
 
 | ID | 対象 | 期待した失敗 | 結果 |
@@ -4116,6 +4119,7 @@ native の固定（`crates/web/tests/version_histories_host.rs`。feature `test-
 | SAFE35-5 | crates/core/src/projection.rs: 受信のたびに入口の控えを取る | limit_rewind_ignores_rejected_resend_during_busy | DETECTED |
 | SAFE35-6 | crates/core/src/projection.rs: 処理中の移動で入口の控えへ戻さない | limit_rewind_on_move_while_busy_returns_to_entry | DETECTED |
 | SAFE35-7 | crates/core/src/projection.rs: 最後の進行で処理中を解かない | limit_on_move_after_last_progress_returns_to_before_the_move | DETECTED |
+| SAFE35-8 | crates/core/src/projection.rs: 復帰で処理中と入口の控えを戻さない | limit_rewind_after_restore_while_busy_returns_to_entry | DETECTED |
 
 範囲外: spec の SAFE-35 の文言の更新、明示の戻る・チェックポイントへ戻る操作と画面の部品（SAVE-31 が先）、止めた操作の `Accepted`・`Achieved` がログに残ることによる食い違い、通知文言の確定、開始での連鎖（TASK-217）。
 

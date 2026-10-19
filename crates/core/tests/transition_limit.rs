@@ -482,6 +482,67 @@ fn busy_limit_without_entry_copy_keeps_current_step() {
     );
 }
 
+/// 処理中に保存して復帰し、最後の進行で上限に達したとき、core は入口（受付の前）へ戻り、復習もその時点へ戻る
+/// （SAFE-35）。受付で x を置き、最初の進行で x を消すので、入口と止めた時点の世界状態は等しく、取り消しの
+/// `Changed` は出ない。導出は差分に頼らず、保存時の入口の控えを復帰で戻して揃える。
+#[test]
+fn busy_restore_then_limit_rewinds_review_to_entry() {
+    let mut ir = cycle_ir("cycle-exit-2");
+    if let Some(n) = ir.nodes.iter_mut().find(|n| n.uid == "main/f1") {
+        n.step.rules = vec![serde_json::json!({
+            "id": "r-put",
+            "on": { "text": true },
+            "outcome": { "kind": "accept", "effects": [{ "put": { "path": "x", "fixture": "fx" } }] }
+        })];
+        n.step.processing = vec![
+            serde_json::json!({ "name": "p1", "effects": [{ "remove": "x" }] }),
+            serde_json::json!({ "name": "p2", "effects": [] }),
+        ];
+    }
+    let tick = |state: &SessionState| {
+        let busy = state.run.busy.clone().expect("busy");
+        Op::Tick(TickAddr {
+            generation: state.run.generation,
+            step: uid("main/f1"),
+            index: busy.done,
+        })
+    };
+    let (state, _) = apply(&ir, state_at("main/f1"), text());
+    assert!(state.run.world.contains_key("x"), "{:?}", state.run.world);
+    assert!(state.entry.is_some());
+    let (state, _) = apply(&ir, state.clone(), tick(&state));
+    assert!(!state.run.world.contains_key("x"));
+    let (state, saved) = apply(&ir, state, Op::Control(Control::Save));
+    let id = match saved.as_slice() {
+        [Event::CheckpointSaved { id, .. }] => *id,
+        other => panic!("save must succeed: {other:?}"),
+    };
+    let (state, restored) = apply(&ir, state, Op::Control(Control::Restore(id)));
+    assert!(
+        matches!(restored.as_slice(), [Event::Restored { .. }]),
+        "{restored:?}"
+    );
+    assert!(state.run.busy.is_some());
+    let (state, events) = apply(&ir, state.clone(), tick(&state));
+    assert_limit_event(&events);
+    assert_eq!(count(&events, |e| matches!(e, Event::Changed { .. })), 0);
+    assert_eq!(state.run.current, Some(uid("main/f1")));
+    assert_eq!(state.run.busy, None);
+    assert_eq!(
+        state.run.slices[&uid("main/f1").root()].status[&uid("main/f1")],
+        StepStatus::Entered
+    );
+    let p = Projection::from_events(&state.log);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review()
+            .iter()
+            .all(|r| r.changes.is_empty() && !r.achieved),
+        "{:?}",
+        p.review()
+    );
+}
+
 /// 止めて戻った後も、保存などの操作がふつうに働き、同じ操作の列は同じ状態になる（決定的）。
 #[test]
 fn controls_work_after_return_and_replay_is_deterministic() {
