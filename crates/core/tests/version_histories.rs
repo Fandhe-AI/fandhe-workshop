@@ -4,8 +4,10 @@
 //! 履歴は現行のエンジンで試験の中で決定的に作り、`load_history`（段 1〜8 の実際の入口）で開く。
 //! 表だけを書き換えて合計をずらす操作は、本ファイルの VER-2 の定数（件数・ID）との照合で検出する。
 //! 食い違いは「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める（PoC-6 の 4 節の 3）。
-//! 写しの一致と `Session` を作らないことの確認は、自動ブラウザの試験（#449）が担う。
+//! 写しの一致と `Session` を作らないことの確認は、自動ブラウザの試験（`tools/browser/version-histories.test.mjs`、#449）が担う。
 //! `open_history` は写しが一致したときだけ開くため、本試験の `state()` の検査は構造上ほぼ自明である。
+//! ブラウザ試験が開く 15 件の履歴と教材は、同じ作り方を `emit_histories_for_browser`（`#[ignore]`）が書き出す
+//! （`scripts/test-browser.sh` だけが `--ignored` で呼ぶ。バイト列を native の試験と同じにするため）。
 
 mod common;
 
@@ -182,8 +184,34 @@ fn base_edit(v: &mut Value) {
     v["refs"] = json!([{ "name": "sample-ref", "commit": "0000000" }]);
 }
 
+impl Pack {
+    /// 表と同じ綴りの名前（`Deserialize` の `rename` と一致させる）。ブラウザ試験の入力の置き場の名前にもなる。
+    fn name(self) -> &'static str {
+        match self {
+            Pack::Base => "base",
+            Pack::Vocab10 => "vocab-1.0",
+            Pack::Text110 => "text-1.1.0",
+            Pack::StepAdded120 => "step-added-1.2.0",
+            Pack::StepRemoved200 => "step-removed-2.0.0",
+        }
+    }
+
+    const ALL: [Pack; 5] = [
+        Pack::Base,
+        Pack::Vocab10,
+        Pack::Text110,
+        Pack::StepAdded120,
+        Pack::StepRemoved200,
+    ];
+}
+
 /// 教材の変種を作る。
 fn pack_ir(pack: Pack) -> Ir {
+    load_ir(&serde_json::to_vec(&pack_json(pack)).expect("to_vec")).expect("load_ir")
+}
+
+/// 教材の変種の IR の JSON（`load_ir` に渡す前の値）。ブラウザ試験の入力の書き出しも同じ値を使う。
+fn pack_json(pack: Pack) -> Value {
     let mut v = base_json();
     base_edit(&mut v);
     match pack {
@@ -210,7 +238,7 @@ fn pack_ir(pack: Pack) -> Ir {
             v["pack"]["version"] = json!("2.0.0");
         }
     }
-    load_ir(&serde_json::to_vec(&v).expect("to_vec")).expect("load_ir")
+    v
 }
 
 fn initial() -> SessionState {
@@ -469,4 +497,44 @@ fn comparator_reports_a_changed_expectation() {
         Mismatch::Other,
         "got open, expected closed is the other side"
     );
+}
+
+/// ブラウザ試験の入力を書き出す先（絶対パスのディレクトリ）。未設定・相対・ディレクトリでなければ panic する。
+fn emit_dir() -> std::path::PathBuf {
+    let raw = std::env::var_os("FANDHE_VERSION_HISTORIES_OUT")
+        .expect("FANDHE_VERSION_HISTORIES_OUT must be set");
+    let dir = std::path::PathBuf::from(raw);
+    assert!(dir.is_absolute(), "the output directory must be absolute");
+    assert!(dir.is_dir(), "the output directory must exist");
+    dir
+}
+
+/// 15 件の履歴と開く側の教材を、ブラウザ試験の入力として書き出す（VER-2、#449）。
+///
+/// 呼び出し元は `scripts/test-browser.sh` だけで、`--ignored` を付けたときしか流れない（通常の `make test` は書き出さない）。
+/// ファイル名は固定の ID と `Pack` の名前だけから作り、表の文字列をそのままパスにしない。
+#[test]
+#[ignore = "ブラウザ試験の入力を書き出す。scripts/test-browser.sh だけが --ignored で呼ぶ"]
+fn emit_histories_for_browser() {
+    let out = emit_dir();
+    let t = read_table();
+    let ids: Vec<&str> = t.rows.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, IDS, "the 15 ids must match VER-2");
+    std::fs::create_dir_all(out.join("packs")).expect("create packs dir");
+    for (row, id) in t.rows.iter().zip(IDS) {
+        assert!(
+            id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'),
+            "{id}"
+        );
+        let bytes = serde_json::to_vec(&make_history(&row.history)).expect("serialize");
+        std::fs::write(out.join(format!("{id}.history.json")), bytes).expect("write history");
+    }
+    for pack in Pack::ALL {
+        let bytes = serde_json::to_vec(&pack_json(pack)).expect("serialize");
+        std::fs::write(
+            out.join("packs").join(format!("{}.ir.json", pack.name())),
+            bytes,
+        )
+        .expect("write pack");
+    }
 }

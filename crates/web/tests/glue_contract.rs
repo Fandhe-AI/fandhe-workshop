@@ -101,6 +101,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "wrapping_add",
     "set_draft_sync_request",
     "engine_snapshot_json",
+    // 開いた直後の状態の読み取り（試験の設定だけ。TASK-175 2/2）。DOM には触れない。
+    "last_import_state_json",
     "for_mount",
     "rerender",
     "flatten",
