@@ -114,6 +114,10 @@ pub struct Projection {
     /// 直近の操作の先頭（`InputReceived`・`Progress`・`Moved`）の時点の復習と印の元。
     /// 上限で止めた操作を操作の前へ戻す（SAFE-35）ので、`TransitionLimitReached` で復習と印の元をここへ戻す。
     op_start: Option<OpStart>,
+    /// 直近の入力の受付（`InputReceived`）の時点の復習と印の元。処理中になる受付は入口の写しを確保するので、
+    /// 進行（`Progress`）の途中で止めたときは操作の前ではなくここへ戻す（入口へ戻す `return_after_limit` と揃える）。
+    /// 移動・停止・復帰などで入口の写しが無効になる箇所で捨てる。
+    entry_start: Option<OpStart>,
 }
 
 /// 操作の先頭で控える復習と印の元。
@@ -201,7 +205,32 @@ impl Projection {
             event,
             Event::InputReceived { .. } | Event::Progress { .. } | Event::Moved { .. }
         ) {
-            self.op_start = Some((self.review.clone(), self.pending.clone()));
+            let now = (self.review.clone(), self.pending.clone());
+            match event {
+                Event::InputReceived { .. } => self.entry_start = Some(now.clone()),
+                // 進行の途中で止めると入口の写しへ戻るので、控えは入口の時点のものにする。
+                Event::Progress { .. } => {
+                    self.op_start = Some(self.entry_start.clone().unwrap_or(now));
+                    return self.step_event(i, event);
+                }
+                _ => {}
+            }
+            self.op_start = Some(now);
+        }
+        self.step_event(i, event);
+    }
+
+    /// 控えを取った後の、イベント 1 件の反映。
+    fn step_event(&mut self, i: usize, event: &Event) {
+        if matches!(
+            event,
+            Event::Entered { .. }
+                | Event::Begun { .. }
+                | Event::Moved { .. }
+                | Event::Stopped { .. }
+                | Event::Restored { .. }
+        ) {
+            self.entry_start = None;
         }
         match event {
             Event::Entered { .. } => {

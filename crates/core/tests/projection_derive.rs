@@ -273,6 +273,46 @@ fn limit_rewind_to_entry_cancels_merged_changes_without_registering_the_rollback
     );
 }
 
+/// 進行の途中で止めたとき、入口の受付の後に進行が値を戻していて世界状態の差分が無くても、
+/// 取り消した操作の印と復習は入口の時点へ戻る（SAFE-35。差分に依存しない）。
+#[test]
+fn limit_rewind_to_entry_restores_review_and_marks_without_world_diff() {
+    let a = "main/a";
+    let progress = |index| Event::Progress {
+        at: stamp(a),
+        name: "p".into(),
+        index,
+        total: 3,
+    };
+    let events = vec![
+        entered(a),
+        Event::InputReceived {
+            at: stamp(a),
+            input: Input::Text("go".into()),
+        },
+        changed(a, "x", None, Some(1), Cause::Input),
+        progress(0),
+        changed(a, "x", Some(1), None, Cause::Input),
+        progress(1),
+        Event::TransitionLimitReached {
+            at: stamp(a),
+            landings: 1000,
+        },
+    ];
+    let p = Projection::from_events(&events);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        p.review().iter().all(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+    let mut inc = Projection::new();
+    for n in 1..=events.len() {
+        inc.extend(&events[..n]);
+    }
+    assert_eq!(inc, p);
+}
+
 #[test]
 fn evt13_non_input_changes_are_not_marked_or_reviewed() {
     let a = "main/a";
