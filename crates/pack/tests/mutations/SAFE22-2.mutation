@@ -1,0 +1,9 @@
+id: SAFE22-2
+package: fandhe-workshop-pack
+test: pack_size_limits
+target: crates/pack/src/source.rs
+find: if p.extension().is_some_and(|x| x == "md") && md.len() > MAX_MARKDOWN_BYTES {
+replace: if false && p.extension().is_some_and(|x| x == "md") && md.len() > MAX_MARKDOWN_BYTES {
+expect-fail: unreferenced_markdown_one_byte_over_is_rejected_by_prescan
+expect-fail: markdown_5mb_is_rejected_quickly_without_reading
+note: Markdown の事前走査の判定を外す（参照されない超過ファイルと 5MB が通る）

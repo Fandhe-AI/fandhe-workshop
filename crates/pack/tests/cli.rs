@@ -231,3 +231,24 @@ fn pack25_cli_no_start_is_diagnostic_and_emits_no_ir() {
     assert!(!out.contains("\"ir_format\""), "{out}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// SAFE-22: 教材パック全体の上限（20MB）を 1 バイト超えると、終了コード 1 で `E-LIMIT-PACK-SIZE` を出し、
+/// IR を出さない。巨大な実体を書かないよう疎ファイルで作る。
+#[test]
+fn i11_compile_pack_over_limit_is_diagnostic() {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("i11-cli-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("workshop.yaml"), "pack: {}\n").unwrap();
+    std::fs::File::create(dir.join("pad.bin"))
+        .unwrap()
+        .set_len(20_971_520 + 1)
+        .unwrap();
+    let o = bin().arg("compile").arg(&dir).output().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-LIMIT-PACK-SIZE"), "{out}");
+    assert!(!out.contains("\"ir_format\""), "{out}");
+}
