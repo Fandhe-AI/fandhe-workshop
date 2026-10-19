@@ -61,6 +61,8 @@ pub(crate) fn on_stop(state: &mut SessionState) -> Vec<Event> {
         return warn(GENERATION_OVERFLOW);
     };
     // 写しは状態に書かず、ログから導く（`entry_derive`）。導けないときは戻らない（fail-closed）。
+    // 従来は処理中の停止が `Warning` だけだった。未配信（エンジンの版が `0.0.0` のまま）の間の変更として
+    // 版を上げず、変更前の開発版で保存した履歴は照合で開けない。版を上げる運用は #1058・#1059 で扱う。
     let Some(entry) = crate::entry_derive::entry_for_current(state) else {
         return warn(MISSING_ENTRY);
     };
