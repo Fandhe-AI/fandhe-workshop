@@ -1,0 +1,8 @@
+id: FEND3-2
+package: fandhe-workshop-web
+test: dirty_binding_points
+target: crates/web/src/host.rs
+find:         self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
+replace:         self.dirty.push("view_select_unbound");
+expect-fail: 更新_33_回の_dirty_field_はすべて束縛点か_keyed_list_に対応し_11_種以上を確かめる
+note: ビューの選択で目印の無い field 名を dirty に積む（上流は root を全置換し、フォーカスと入力途中の値を失う。FEND-3）
