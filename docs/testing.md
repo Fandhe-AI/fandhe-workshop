@@ -5370,3 +5370,54 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - 教材の版・内容が変わっても鍵が変わらないことの画面の確認と、IR が読めないときの鍵 `unreadable/<IR の名前>`（TASK-326 2/2）
 - 配信先の区間による別の配信先との衝突（SAVE-15。TASK-327）
 - 起動時の変換の告知の表示（未実装。本試験は告知の行が出ないことだけを見る）
+
+### 5.173 教材の版・内容が変わっても鍵が変わらず、読めない IR で保存先を書き換えない（TASK-326 2/2。SAVE-14・DLV-8）
+
+実行日: 2026-10-20、元にしたコミット: `ec7d025` に本変更を載せた作業ツリー（dirty）。
+
+保存先の鍵は教材の ID と最初の開始点の ID だけで決まり、教材の版・内容に依らない（試作 F-1）。契約の層（`HistoryKey::from_ir`・`HistoryKey::unreadable`・`SAVE14-1`〜`SAVE14-3`・`SAVE15-2`）は固定済みのため、本タスクは web の層（ホスト・保存の経路）と実際の画面で、次の 2 点を確かめる。
+
+1. 教材の版・内容が変わっても鍵が変わらない（同じ鍵で保存済みの履歴が読まれ、新しい鍵が増えない）
+2. 読めない IR で保存済みの履歴を書き換えない。IR が読めないときの鍵が教材の鍵の範囲（`pack_prefix`・`belongs_to`）に入らない
+
+#### 本番のコードを変えない理由
+
+5.172 と同じく、試験・試験の設定・文書だけを足し、本番のコード（`host.rs`・`persist.rs`）は変えていない。
+
+- 配信する設定には「IR の名前」が無い（IR の取得 `?ir=` は TASK-168 の担当）。読めない IR の鍵 `unreadable/<IR の名前>` は、本番の経路ではまだ作れない
+- 今の経路は、仕様の鍵より厳しい fail-closed である。`EngineHost::refused` のとき `history_key` は `None` で、`persist::mount_with_history` は保存先を開かず、`pagehide` の書き出しも付けない。このため「読めない IR で保存済みの履歴を書き換えない」は、鍵を経由するより厳しく満たされる
+- 読めない IR に鍵を与えて通常の mount の経路へ流すと、断った画面で保存先への書き込み（起動番号の記録等）が起きうる。5.140 の「保存先が不変」を壊すため、結線は IR の名前が生まれる TASK-168 と同時に決める
+
+#### 教材の変種（試験の設定だけ）
+
+`src/test_fixture.rs` の `Chapter::ANext`。章 A と `pack.id`・`starts` が同じで、`pack.version` を `0.1.0`（主版は 0 のまま）、題名を別の文字列にしたもの。内容のハッシュは章 A と違い、鍵は同じ（単体試験が確かめる）。`?fixture=chapter-a-next` の完全一致だけが選ぶ。新しい試験データのファイルと、新しい試験用の口は足さない。
+
+#### native の試験と変異
+
+- `crates/web/tests/key_stability_host.rs`（4 件）: (a) 版・題名を変えた教材（同じ主版）が同じ鍵で `Restored` になり、保存しても鍵が 1 本のまま。(b) 主版を変えた教材は同じ鍵で読んだうえで `NotOpened` になり、`history_to_save` が `None` で保存先は 1 文字も変わらない。(c) 読めない IR のホストは `history_key` が `None`・`boot` が `NoSession`・保存する値が無く、保存先は不変。(d) `HistoryKey::unreadable` の鍵は教材の接頭辞で始まらず `belongs_to` が偽で、保存先に置いても教材の履歴の起動は変わらない
+- 変異（`scripts/check-mutations.sh` の結果は DETECTED）。既存の `SAVE14-4`・`SAVE14-5` も DETECTED のまま
+
+| ID | 置き換え | 失敗した試験 |
+|---|---|---|
+| `SAVE14-6` | web の鍵に教材の版（`pack.version`）を混ぜる | `key_stability_host` の (a)・(b) |
+
+#### ブラウザ試験
+
+`tools/browser/key-stability.test.mjs`（CSP あり・なし。2 件）。1 つの browser context で、章 A を 1 手進める（履歴の鍵が 1 本）→ 版・題名を変えた教材へ移る（鍵は 1 本のまま・`restored`・Step と各 Step の状態が同じ）→ もう 1 手進める（鍵は 1 本のまま）→ 再読み込み（同じ）→ 読めない IR（`?fixture=future-ir-format`）へ移る（断った画面のマウント後の localStorage の全体が、断っている間と `pagehide` の後で一致し、鍵は増えない）→ 章 A へ戻る（`restored`）を確かめる。版が変わって鍵が変わったときは固定の印 `KEY-CHANGED-BY-VERSION` を失敗の文に含める。出力に保存の値・鍵の文字列・下書きを出さない。`chapter-keys` は 5.172 の対照（`test-chapter-key-control`）が前提とするため、手順は足さず別のファイルにした。
+
+#### 件数・確認（2026-10-20）
+
+- `make lint`・`make test`（2,657 件・失敗 0）・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make check`・`make check-delivery`（`make build-web` の後）は通った
+- ブラウザ試験は、`TEST_HOOKS=1` の web を作り `key-stability`・`chapter-keys`・`ir-refusal` の 3 ファイル（計 10 件）を単独で流し、すべて通った。`make test-browser` の全体は流していない（未検証）
+- `make test-chapter-key-control` は流していない（未実施。本変更は `chapter-keys` に触れない）
+- `scripts/expected-test-counts.txt` は変えていない
+
+#### 限界
+
+- 読めない IR の鍵 `unreadable/<IR の名前>` を本番の経路で使うのは、IR の名前が存在するようになってから（TASK-168 の `?ir=`）。それまでは保存先を開かない fail-closed で満たす
+- `load_ir` は `starts: []` を受ける。このとき `HistoryKey::from_ir` は `None` で、ホストは保存なしで mount する（契約の doc comment は `unreadable` へ倒すと書くが、web は倒していない）。作成側は `validate` が `E-STRUCTURE` で拒否する（PACK-25）ため、配られる IR では起きにくい。名前が無い点は同じで、実行時の扱いは先送りする
+
+#### 範囲外
+
+- 配信先の区間による別の配信先との衝突（SAVE-15。TASK-327）
+- 起動時の変換の告知の表示（未実装。本試験は告知の行が出ないことだけを見る）
