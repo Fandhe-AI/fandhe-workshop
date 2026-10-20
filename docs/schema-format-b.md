@@ -158,7 +158,15 @@
 | `rules[]` | `crates/pack/src/rejection.rs`・`effect_check.rs`・`condition_check.rs` | `id`・`on`（`command`・`args`・`ui`・`cancel` など）・`when`（省略可）・`outcome`（`kind`: `accept`・`reject`・`clarify`） |
 | `processing[]` | `crates/pack/src/effect_check.rs` | `name`（空でない文字列）と `effects` だけ。間隔の欄は書けません（PACK-44） |
 
-どの欄も、未知の欄・未知の `kind`・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE` です。参照先の不在は `E-REF-*` です。
+検証の範囲は欄によって異なります。`validate`・`compile` の成功は、規則の全欄の検証済みを意味しません。
+
+| 欄 | 検査される範囲 |
+|---|---|
+| `input`・`confirm`・`processing[]` | 未知の欄・未知の `kind`・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE`、参照先の不在は `E-REF-*` です。`processing[].effects` は状態変化の語彙検査（`effect_check.rs`）を通ります |
+| `rules[]` | 読み込みの段階では型を付けず、そのまま保持します。展開（`expand.rs`）が検査するのは `when` の条件だけです。`on`・`outcome` の欄の書き違いは、読み込みでは検出されない場合があります |
+| `rules[].outcome.effects` | `effect_check.rs` の語彙検査に渡りません。不正な欄（例: 未知の欄）がコンパイルを通過し、実行時の警告（`Event::Warning`）になる場合があります（H-3。`docs/known-gaps.md`） |
+
+`rules[]` の `outcome.effects` を書いたら、教材テストの模範解答と誤入力で、実際の動きを確かめてください。
 
 ## 7. 条件と状態変化
 
