@@ -4804,7 +4804,28 @@ root（`#app`）の外の Esc は、glue が `document` の keydown で受けて
 
 通常の試験は 3 回続けて通過した。
 
-限界: 負の対照（`rerender` で保持した要素が残らないことの試験）は TASK-348 3/3 が担当する。ブラウザ試験には変異注入（`.mutation`）の仕組みが無いため、(a)(b) は手元の確認に留める。配信設定の画面での変種は入れていない（`raw-trigger` が無く、入力・Enter・実タイマーの進行だけになるため）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。
+限界: 負の対照（`rerender` で保持した要素が残らないことの試験）は TASK-348 3/3 が担当する（5.161 で足した）。ブラウザ試験には変異注入（`.mutation`）の仕組みが無いため、(a)(b) は手元の確認に留める。配信設定の画面での変種は入れていない（`raw-trigger` が無く、入力・Enter・実タイマーの進行だけになるため）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。
+
+### 5.161 全再描画の負の対照（TASK-348 3/3）
+
+実行日: 2026-10-20
+元にしたコミット: 7b130ca（origin/main）に本変更を加えた作業ツリー
+
+`tools/browser/element-identity.test.mjs` に 2 件目の `B-7n` を足した（FEND-3。PoC-1 の B-7n 相当）。試験用の口の全再描画（`__fandheTest.rerender()`）を起こすと、参照を保持した 6 要素が 1 つも残らず、入力欄のフォーカスが失われることを確かめる。B-7 の検査器（`changedRefs`・`readSwaps`・フォーカスの判定）が実際に差を検出できることの裏づけである。`src/` と依存は変えていない。
+
+- 操作の列: 入力欄にフォーカスして `/make-no` を打つ（送信しない）→ 作り直しの前の前提（外れた要素 0 件・取り除き 0 回・フォーカスは入力欄）を assert → `rerender()`（`true` を assert）→ 2 フレーム待つ
+- 6 要素（B-7 の `PINNED` の部分集合。PoC との対応）: `workshop-root`（app-root）・`draft-input`・`submit-input`（submit-btn）・`stop-btn`・`view-list[data-view=file_tree]`（world-list）・`part-log-list`（log-list）
+- 確かめる項目: 取り除きが 1 回以上、`changedRefs` が 6 件（残った要素が 0 件。PoC の `< 6` より強い）、`document.activeElement` が元の入力欄でも新しい入力欄でもない、CSP 違反・ページ内エラー・コンソールのエラーが 0 件。入力途中の値の喪失は assert しない（`ime-input` の I-7 が、作り直しの後も欄の値が下書きと一致すると assert しているため）
+
+手元の確認（コミットしない。2026-10-20）:
+
+| 確認 | 内容 | 結果 |
+|---|---|---|
+| (a) 対照の対照 | `rerender()` の呼び出しを外した写しで流す | 失敗（取り除きが 0 回で「取り除きが起きた」の assert が落ちる） |
+
+2 件（B-7・B-7n）は 3 回続けて通過した。
+
+限界: ブラウザ試験には変異注入（`.mutation`）の仕組みが無いため、(a) は手元の確認に留める。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。`make test-browser` の全体は未検証（本試験のファイルだけを流した）。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
