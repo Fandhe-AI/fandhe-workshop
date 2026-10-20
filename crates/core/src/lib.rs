@@ -79,6 +79,7 @@ pub mod provider;
 pub mod recorded_session;
 pub mod rejection_text;
 mod reload;
+pub mod secret_scan;
 pub mod select_judge;
 pub mod session;
 pub mod step_status;

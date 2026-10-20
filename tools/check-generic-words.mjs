@@ -44,6 +44,11 @@ export const FIXED_EXCEPTIONS = new Map([
   // コマンドの種類 builtin・skill・flow・unsupported の 1 語（CommandKind::Skill とその綴り 2 件）。付録 A の `skill` と
   // 実際に衝突している。改名か語彙の版上げかは人間の判断が要るため、件数を固定して増減を検出する。
   ['crates/core/src/command_class.rs\tskill', 3],
+  // 秘密情報の検出の規則（SAFE-27。TASK-164 1/3）。形の ID・名前・接頭辞（`github_token`・`github_pat_`・`ghp_` など）が
+  // 付録 A の `github`・`gh` に当たる。ID は spec の試験データ（secret-shapes.json の expect）と同じ値にする必要があり、
+  // 教材の知識ではなく秘密情報の形の名前である。語はこの 1 ファイルに閉じ、件数を固定して増減を検出する。
+  ['crates/core/src/secret_scan.rs\tgithub', 5],
+  ['crates/core/src/secret_scan.rs\tgh', 2],
 ]);
 
 class CheckError extends Error {}

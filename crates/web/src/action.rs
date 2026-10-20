@@ -139,6 +139,8 @@ pub(crate) enum Scheduled {
     Runtime(RuntimeAction),
     /// 遅延保存の結果（書き込んだ時点の保存世代つき）。
     SaveResult(u64, Result<(), StorageError>),
+    /// 遅延保存の直前の検出（見つけた形だけ。値は持たない。SAFE-27）。
+    SecretHold(Vec<fandhe_workshop_core::secret_scan::SecretShape>),
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -153,6 +155,10 @@ impl Scheduled {
     pub(crate) fn encode(&self) -> (&'static str, String) {
         match self {
             Scheduled::Runtime(a) => a.encode(),
+            Scheduled::SecretHold(shapes) => (
+                crate::secret_notice::ACTION_SECRET_HOLD,
+                crate::secret_notice::encode_secret_hold(shapes),
+            ),
             Scheduled::SaveResult(e, r) => (
                 crate::save_notice::ACTION_SAVE_RESULT,
                 crate::save_notice::encode_save_result(*e, *r),

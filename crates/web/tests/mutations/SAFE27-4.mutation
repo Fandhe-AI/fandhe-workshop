@@ -1,0 +1,9 @@
+id: SAFE27-4
+package: fandhe-workshop-web
+test: secret_notice
+target: crates/web/src/host.rs
+find:         if found {
+replace:         if false && found {
+expect-fail: every_shape_stops_the_save_and_shows_only_its_name
+expect-fail: later_saves_stay_held_while_the_history_holds_the_value
+note: 検出しても saver を呼ぶ（秘密情報が保存先に積まれる。D-44・SAFE-27）

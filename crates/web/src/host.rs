@@ -94,9 +94,11 @@ use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
+use crate::secret_notice::{secret_hold, SECRET_NOTICE_FIELD};
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
 use fandhe_workshop_contract::profile::InputFieldMode;
+use fandhe_workshop_core::secret_scan::SecretShape;
 
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
@@ -129,9 +131,17 @@ pub struct HostModel {
     /// 履歴の書き出しの案内（SAVE-29・D-57。`export-notice` の元）。表示の状態で、履歴（`ops`）にも保存先にも書かない。
     /// 次の起点・履歴の差し替えで置き換わり、再読み込みでは出ない（消える時機は仮置き）。
     export_hint: Option<ExportHint>,
+    /// 保存の直前に見つけた秘密情報らしい文字列の形（SAFE-27・TASK-164 1/3。`secret-notice` の元）。形だけを持ち、値は持たない。
+    /// 表示の状態で、履歴（`ops`）にも保存先にも書かない。見つけた間は、その値を保存先へ積まない。
+    secret_warning: Vec<SecretShape>,
 }
 
 impl HostModel {
+    /// 警告に出す形。無ければ空（`secret-notice` が空になる）。
+    pub fn secret_warning(&self) -> &[SecretShape] {
+        &self.secret_warning
+    }
+
     /// 書き出しの案内の種類。無ければ `None`（`export-notice` が空になる）。
     pub fn export_hint(&self) -> Option<ExportHint> {
         self.export_hint
@@ -186,6 +196,8 @@ pub enum HostAction {
     /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
     /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
     SaveResult(u64, Option<StorageError>),
+    /// 遅延保存の直前の検出（SAFE-27・TASK-164 1/3）。見つけた形だけを持ち、値は持たない。
+    SecretHold(Vec<SecretShape>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -597,6 +609,7 @@ impl EngineHost {
                 view_choice: None,
                 save_failure: None,
                 export_hint: None,
+                secret_warning: Vec::new(),
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -674,6 +687,7 @@ impl EngineHost {
                 view_choice: None,
                 save_failure: None,
                 export_hint: None,
+                secret_warning: Vec::new(),
             },
             registry,
             input,
@@ -924,16 +938,34 @@ impl EngineHost {
     /// 保存する値が無い（未操作・保存停止・上限超過）ときは何もしない。表示も変えない（それぞれ別の規則が持つ）。
     /// 失敗しても状態は巻き戻さない。書けなかった値は注入側の保留に残り、次の変更か離れる直前に再び試される。
     fn save_after_change(&mut self) {
-        let Some(saver) = self.history_saver.as_ref() else {
+        if self.history_saver.is_none() {
             return;
-        };
+        }
         let Some(value) = self.history_to_save() else {
             return;
         };
+        // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。形だけを警告に出す。世代・保存の失敗の表示は変えない。
+        let held = secret_hold(&value);
+        let found = !held.is_empty();
+        self.set_secret_warning(held);
+        if found {
+            return;
+        }
         // 即時の保存のたびに世代を進め、配送待ちの遅延保存の結果を古くする。
         self.save_epoch = self.save_epoch.wrapping_add(1);
+        let Some(saver) = self.history_saver.as_ref() else {
+            return;
+        };
         let failure = saver(&value).err();
         self.set_save_failure(failure);
+    }
+
+    /// 警告の形を置き換え、変わったときだけ dirty に積む。
+    fn set_secret_warning(&mut self, shapes: Vec<SecretShape>) {
+        if self.model.secret_warning != shapes {
+            self.model.secret_warning = shapes;
+            self.dirty.push(SECRET_NOTICE_FIELD);
+        }
     }
 
     /// 保存の結果（即時・遅延の同期の書き込み）を `sync_save_failure` に入れ、表示する失敗を求め直す。
@@ -1118,6 +1150,8 @@ impl EngineHost {
         }
         json!({
             "irLoaded": true,
+            // 警告に出す形の ID だけ（値は入れない。SAFE-27）。
+            "secretWarning": self.model.secret_warning.iter().map(|s| s.id()).collect::<Vec<_>>(),
             "irRefusal": self.ir_refusal,
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
@@ -1266,6 +1300,7 @@ impl EngineHost {
         self.model.view_choice = None;
         // 差し替えた履歴では、前の案内も初回の印も持ち越さない。
         self.model.export_hint = None;
+        self.model.secret_warning = Vec::new();
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
@@ -1599,9 +1634,12 @@ impl Component for EngineHost {
             // 書き込みの後に即時の保存が走っていれば（世代が進んでいる）、古い結果は捨てる。新しい通知を消さない・古い失敗を出さない。
             HostAction::SaveResult(epoch, failure) => {
                 if epoch == self.save_epoch {
+                    // 書き込みが走った値は、検出に掛からなかった値である。
+                    self.set_secret_warning(Vec::new());
                     self.set_save_failure(failure);
                 }
             }
+            HostAction::SecretHold(shapes) => self.set_secret_warning(shapes),
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1838,6 +1876,10 @@ impl Component for EngineHost {
             });
         }
         // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
+        // 遅延保存の検出（SAFE-27）。payload は完全一致だけを受け、未知の値は何もしない。
+        if name == crate::secret_notice::ACTION_SECRET_HOLD {
+            return crate::secret_notice::decode_secret_hold(payload).map(HostAction::SecretHold);
+        }
         if name == crate::save_notice::ACTION_SAVE_RESULT {
             return crate::save_notice::decode_save_result(payload)
                 .map(|(epoch, failure)| HostAction::SaveResult(epoch, failure));

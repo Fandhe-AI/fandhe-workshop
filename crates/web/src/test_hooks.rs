@@ -307,7 +307,7 @@ pub fn debug_storage_state(pack_id: &str, start_id: &str) -> String {
 
 /// 変更の後の遅延保存の状態を固定形の JSON で返す（読み取りのみ。TASK-318・SAVE-7）。
 ///
-/// `debounce_ms`・`max_wait_ms` は実装の値（期待にしない）、`scheduled` は待っている変更の有無、`saves` は遅延保存の書き出しを試みた回数、
+/// `debounce_ms`・`max_wait_ms` は実装の値（期待にしない）、`scheduled` は待っている変更の有無、`saves` は遅延保存の書き出しを試みた回数、`secretHolds` は秘密情報らしい文字列を見つけて保存を止めた回数、
 /// `kind` は本番の保存先の種類（開いていなければ `null`）。値・鍵は含めない。
 #[wasm_bindgen]
 pub fn debug_autosave_state() -> String {
@@ -315,11 +315,12 @@ pub fn debug_autosave_state() -> String {
         .map(|k| format!("\"{k}\""))
         .unwrap_or_else(|| "null".to_string());
     format!(
-        "{{\"debounce_ms\":{},\"max_wait_ms\":{},\"scheduled\":{},\"saves\":{},\"kind\":{}}}",
+        "{{\"debounce_ms\":{},\"max_wait_ms\":{},\"scheduled\":{},\"saves\":{},\"secretHolds\":{},\"kind\":{}}}",
         crate::save_schedule::SAVE_DEBOUNCE_MS,
         crate::save_schedule::SAVE_MAX_WAIT_MS,
         crate::glue::save_scheduled(),
         crate::persist::autosave_count(),
+        crate::persist::secret_hold_count(),
         kind
     )
 }

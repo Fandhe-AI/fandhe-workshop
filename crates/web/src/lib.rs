@@ -76,6 +76,7 @@ pub mod run_status;
 pub mod save_notice;
 pub mod save_pending;
 pub mod save_schedule;
+pub mod secret_notice;
 pub mod step_status;
 pub mod storage_select;
 pub mod task_tree;

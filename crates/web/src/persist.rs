@@ -12,6 +12,8 @@
 //! TASK-318・SAVE-7）、(3) 離れる直前（`pagehide`）である。打鍵ごとに履歴の全体を書き出す費用を避けるため、下書きは (2) で畳む。
 //! どれもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
 //! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。
+//! 3 つとも、書く直前の値を `secret_notice::secret_hold` で調べ、秘密情報らしい文字列があれば保留へ積まない（SAFE-27。TASK-164 1/3）。
+//! 警告の表示は (1)(2) が行い、(3) は積まないだけである。選択（保存する・残さない）は TASK-164 3/3 が持つ。
 //! IndexedDB への書き込みの失敗は確定が非同期で届くため、ホストが次の `update` で probe（[`async_save_failure`]）を引いて表示する（SAVE-11）。
 //! 変更のたびの書き込みが容量超過で失敗したときは、ホストが理由を表示する。書けなかった値は保留に残り、次の書き出しで再び試す。
 //!
@@ -26,6 +28,7 @@ use wasm_bindgen::JsValue;
 use crate::host::EngineHost;
 use crate::leave_flush::install_pagehide_flush_as;
 use crate::save_pending::PendingSave;
+use crate::secret_notice::secret_hold;
 use crate::storage_idb::{open_history_storage, OpenedStorage};
 
 thread_local! {
@@ -38,6 +41,9 @@ thread_local! {
     /// 試験の設定だけ: 変更の後の保存（変更のたび・遅延の両方）を試みた回数。値・鍵は持たない。
     #[cfg(feature = "test-hooks")]
     static AUTOSAVES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    /// 試験の設定だけ: 秘密情報らしい文字列を見つけて保存を止めた回数（遅延・離れる直前の両方）。値・形は持たない。
+    #[cfg(feature = "test-hooks")]
+    static SECRET_HOLDS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// 保存先を非同期に開く。準備ができたら（開けなくても localStorage だけで）`on_ready` を 1 回呼ぶ。
@@ -92,6 +98,15 @@ pub(crate) fn save_deferred() {
     let Some(v) = crate::glue::history_to_save() else {
         return;
     };
+    // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。形だけをホストへ配り、警告を出す（SAFE-27）。
+    // 解除は、次に書けた保存の `save-result`（成功）がホストで行う。
+    let held = secret_hold(&v);
+    if !held.is_empty() {
+        #[cfg(feature = "test-hooks")]
+        SECRET_HOLDS.with(|c| c.set(c.get().saturating_add(1)));
+        crate::glue::schedule_action(crate::action::Scheduled::SecretHold(held), 0);
+        return;
+    }
     // 書き込む直前の保存世代。結果の配送が遅れる間に即時の保存が走れば、この世代は古くなる。
     let Some(epoch) = crate::glue::save_epoch() else {
         return;
@@ -101,6 +116,12 @@ pub(crate) fn save_deferred() {
     AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
     // 失敗・成功を保存通知へ反映する（SAVE-10）。配送は別のスタックのタイマーで行う。
     crate::glue::report_save_result(epoch, result);
+}
+
+/// 秘密情報らしい文字列を見つけて保存を止めた回数。試験の設定だけ。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn secret_hold_count() -> u32 {
+    SECRET_HOLDS.with(std::cell::Cell::get)
 }
 
 /// 本番の保存先の種類（`local` か `idb`）。開いていなければ `None`。試験の設定だけ。
@@ -138,6 +159,12 @@ pub fn install_save_on_leave(
         let Some(v) = value() else {
             return;
         };
+        // 秘密情報らしい文字列は、離れる直前にも書かない。警告は出せない（離れる最中のため）。
+        if !secret_hold(&v).is_empty() {
+            #[cfg(feature = "test-hooks")]
+            SECRET_HOLDS.with(|c| c.set(c.get().saturating_add(1)));
+            return;
+        }
         let _ = stage_and_flush(&key, v);
     })
 }

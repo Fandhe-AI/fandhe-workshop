@@ -1,0 +1,8 @@
+id: SAFE27-6
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:         .is_none_or(|c| !c.is_ascii_alphanumeric())
+replace:         .is_none_or(|_| true)
+expect-fail: a_prefix_inside_a_longer_word_is_not_detected
+note: 接頭辞の直前が英数字でもよいことにする（語の途中の接頭辞を検出する。SAFE-27）

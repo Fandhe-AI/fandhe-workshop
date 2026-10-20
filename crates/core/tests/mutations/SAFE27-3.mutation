@@ -1,0 +1,8 @@
+id: SAFE27-3
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:         serde_json::Value::Object(m) => m.values().for_each(|x| collect(x, out)),
+replace:         serde_json::Value::Object(m) => m.iter().for_each(|(k, x)| { out.extend(scan_text(k)); collect(x, out) }),
+expect-fail: keys_are_not_scanned
+note: オブジェクトのキーも調べる（キーだけにある値を検出する。SAFE-27）

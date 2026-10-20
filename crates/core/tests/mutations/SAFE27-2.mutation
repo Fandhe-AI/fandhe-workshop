@@ -1,0 +1,8 @@
+id: SAFE27-2
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:             if n >= min {
+replace:             if n >= min.saturating_sub(min) {
+expect-fail: controls_are_not_detected
+note: 接頭辞の後の長さの下限を 0 にする（接頭辞だけの説明文を誤検出する。N-05。SAFE-27）
