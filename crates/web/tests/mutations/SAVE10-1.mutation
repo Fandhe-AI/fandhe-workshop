@@ -1,0 +1,8 @@
+id: SAVE10-1
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/host.rs
+find:         let failure = saver(&value).err();
+replace:         let failure = saver(&value).err().or(self.model.save_failure);
+expect-fail: 容量超過で理由が出て状態は進み既存の保存は変わらず_空けた後の次の変更で消える
+note: 保存に成功しても失敗の表示が消えない

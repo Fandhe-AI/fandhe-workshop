@@ -2929,7 +2929,7 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 
 - 起動の分岐: core の `history_boot::boot_session`。保存済みが無い → 新しく始める（再読み込みを呼ばない）、開けて `ops` が 0 件 → 新しく始める、開けた → `Session::reload` に当たる処理を 1 回かけて復元する（世代 +1・`Reloaded` 1 件）、表示だけ・開かない → 初期状態で始め、呼び出し側は保存済みの値を上書きしない。判定は `history_load::load_history_with_envelope`（`load_history` と `load_session` の共通の下請け）に任せ、段 1〜8 の条件は複製しない
 - 「未操作」の定義: 記録した `ops` が 0 件であること。下書きの入力も `ops` に記録する（SAVE-2）ため、文字を打っただけでも未操作ではない。`RecordedSession::envelope_for_save` は 0 件のとき `None` を返し、最初の変更まで保存しない
-- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは、この時点では置かなかった（TASK-318 で `glue` に置いた。5.168）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
+- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは、この時点では置かなかった（TASK-318 で `glue` に置いた。5.169）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
 - 本番の設定（IR を持たないホスト）は保存先を開かず、今までどおり即座にマウントする。IR の取得は後続のタスクである
 - 試験用の口の保存先・保留とは別の保存先・保留を持つ。`pagehide` のリスナーは名前ごとに 1 回だけ登録する（`leave_flush::install_pagehide_flush_as`）ため、試験用の口の登録を塞がない
 
@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 650 | 431 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 431`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.168） |
+| `glue.rs` | 650 | 431 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 431`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.169） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -5069,7 +5069,18 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 - 文書だけの変更で、試験は足していない。`scripts/`・`tools/`・`ci.yml` は変えていない
 - 未確認: 実際の版上げ PR での運用。初回の版上げで、CI 上の動作と所要時間を本節に追記する
 
-### 5.168 保存の遅延の測定（TASK-318。SAVE-7・PoC-6 の S-16）
+### 5.168 localStorage の容量超過で状態を壊さない（TASK-323 1/2。SAVE-10）
+
+実行日: 2026-10-20、元にしたコミット: 04b82bb に本変更を載せた作業ツリー。
+
+- 変更のたびに保存を試す経路を足した。`update` で状態を変えた（ログが伸びた）操作の末尾で 1 回だけ、`persist::save_now` が保留に積んで保存先へ書く。下書きだけの変更では試さない。遅延・畳み込みは無い（下書きだけの変更の遅延保存は 5.169）
+- 失敗の種類は `HostModel::save_failure`（`StorageError`）に入れ、`save-notice`（`role="status"`、`log-notice` とは別の欄）に固定の文で出す。容量超過は「保存できませんでした（QuotaExceededError）」。他の 2 種の文は仮置きで、配置と確定は TASK-534・TASK-323 2/2 が持つ。操作は巻き戻さず、書けなかった値は保留に残る
+- native 試験 `crates/web/tests/save_failure.rs`: 未操作・保存停止・下書きだけでは保存を試さない、容量超過で表示・dirty・状態の進行・既存の保存の不変、空けた後の次の変更で表示が消える
+- ブラウザ試験 `tools/browser/save-quota.test.mjs`（S-17 相当。CSP あり・なし）。`indexedDB` を隠して localStorage だけの保存先にする（IndexedDB があれば切り替わり失敗は出ないため）。(1) 離れる前に保存される (2) 満杯で理由が出て保存値は不変・ログは伸びる (3) 空けた後の次の変更で表示が消える (4) 再読み込みで復元される。`make test-browser` は 580 件が通った
+- 変異注入 `SAVE10-1`〜`SAVE10-4`: 4 件とも DETECTED（`scripts/check-mutations.sh`）。表示が消えない・変更で保存しない・文言違い・下書きでも保存する
+- 既知の限界: 失敗の後、`HistoryStorage::write` は使用量を全走査し直すが、試験が外から別の鍵を消した場合は古い値のままになる。IndexedDB が無いと切り替えの経路を通らないため、判定には影響しない。IndexedDB へ切り替えた後の非同期の失敗の表示は TASK-323 2/2。操作ごとの書き込みによる再描画の測定（`make measure`）は未計測
+
+### 5.169 保存の遅延の測定（TASK-318。SAVE-7・PoC-6 の S-16）
 
 実行日: 2026-10-20、元にしたコミット: `04b82bb` に本変更を載せた作業ツリー（dirty）。
 
@@ -5077,7 +5088,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 - 変更の通知: `EngineHost::set_save_request`。`update` の末尾で、履歴（op の列・下書きの記録）が実際に変わったときだけ 1 回通知する（`history_changed` の印。変化の無い `update`・起動では通知しない。未操作の再読み込みは保存しない。SAVE-28）
 - 遅延の判定: `save_schedule`（純関数。native の単体試験 6 件）。遅延（debounce）200ms・最大の待ち 500ms は PoC の実装値で、実装の値であり期待にしない。連続する変更は最後の 1 回に畳み、最初の変更から最大の待ちを超えない。古いタイマーは `clearTimeout` でなく token で捨てる
-- タイマーと書き出し: タイマーの予約は `glue`（L4 の許可表で `set_timeout` は glue だけ）、書き出しは `persist::save_now`（`history_to_save` が `None` なら書かない。fail-closed。書けなかった値は保留に残る）。`pagehide` の書き出しはこれまでどおり残る
+- タイマーと書き出し: タイマーの予約は `glue`（L4 の許可表で `set_timeout` は glue だけ）、書き出しは `persist::save_deferred`（`history_to_save` が `None` なら書かない。fail-closed。書けなかった値は保留に残る）。`pagehide` の書き出しはこれまでどおり残る
 - 試験用の口: `debug_autosave_state`・`debug_history_save_len`（読み取りのみ。値・鍵は返さない。配信物には入らない。`make check-delivery` で確認）
 
 #### 測定の方式

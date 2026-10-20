@@ -339,8 +339,8 @@ fn consumed_of(host: &EngineHost, field: &str) -> String {
 fn 標準の登録簿は_4_部品で_入力欄の_field_と衝突しない() {
     let r = standard_registry();
     assert_eq!(r.len(), 4);
-    // ログ 6（通知欄 `log_notice` を含む）・成果物 9（ビューごとの list 7 + 選択のボタン + 読み終えた長さ）・復習 2・選択肢 1。
-    assert_eq!(r.fields().count(), 18);
+    // ログ 7（通知欄 `log_notice`・`save_notice` を含む）・成果物 9（ビューごとの list 7 + 選択のボタン + 読み終えた長さ）・復習 2・選択肢 1。
+    assert_eq!(r.fields().count(), 19);
     assert!(r
         .fields()
         .all(|f| !["input_notice", "learner_log"].contains(&f.name)));

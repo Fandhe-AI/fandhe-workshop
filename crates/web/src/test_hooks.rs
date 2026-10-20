@@ -10,7 +10,7 @@
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
-//! `debug_save_flush`）だけで、この試験用の保留に遅延保存のタイマーは触れない（値が残ったのが `pagehide` の書き込みによることを試験で示すため。本番の保存先への遅延保存は `persist::save_now`、TASK-318）。
+//! `debug_save_flush`）だけで、この試験用の保留に遅延保存のタイマーは触れない（値が残ったのが `pagehide` の書き込みによることを試験で示すため。本番の保存先への遅延保存は `persist::save_deferred`、TASK-318）。
 //! `debug_autosave_state`・`debug_history_save_len`（TASK-318）は読み取りのみである。
 //! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、

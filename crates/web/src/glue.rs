@@ -167,7 +167,7 @@ fn on_tick_request(next: Option<TickAddr>) {
 ///
 /// `Component::update` の中から呼ばれるため、Runtime にも App にも触れず予約するだけにする（再入を避ける）。
 /// 連続する変更は最後の 1 回に畳み、最初の変更から最大の待ちを超えない（`save_schedule`）。
-/// 書き出しは別のスタックのタイマーの中で `persist::save_now` が行い、書けない・保存しない値は書かない（fail-closed）。
+/// 書き出しは別のスタックのタイマーの中で `persist::save_deferred` が行い、書けない・保存しない値は書かない（fail-closed）。
 fn on_save_request() {
     let Some(window) = web_sys::window() else {
         return;
@@ -183,7 +183,7 @@ fn on_save_request() {
         let fire =
             SAVE_DEBOUNCE.with(|d| d.try_borrow_mut().ok().map(|mut d| d.on_fire(plan.token)));
         if fire == Some(Fire::Save) {
-            crate::persist::save_now();
+            crate::persist::save_deferred();
         }
     });
     let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(

@@ -1,0 +1,8 @@
+id: SAVE10-2
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/host.rs
+find:         if self.save_due {
+replace:         if false && self.save_due {
+expect-fail: 状態を変える操作のたびに保存され値は保存する値と等しい
+note: 状態を変える操作の後に保存を試さない

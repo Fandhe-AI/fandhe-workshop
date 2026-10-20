@@ -70,12 +70,12 @@ fn 下書きが変わらない_update_は通知しない() {
 }
 
 #[test]
-fn 送信は_op_を適用するので通知する() {
+fn 状態を変える送信は即時の保存が書くので遅延保存の通知を出さない() {
     let (mut h, n) = host();
     h.update(act("draft", "x"));
     let before = n.get();
     h.update(act("submit", ""));
-    assert!(n.get() > before, "送信の update で通知が出ない");
+    assert_eq!(n.get(), before, "送信は変更のたびの保存（SAVE-10）が書くので通知は要らない");
 }
 
 #[test]

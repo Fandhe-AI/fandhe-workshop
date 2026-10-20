@@ -7,10 +7,12 @@
 //! 試験用の口（`test_hooks` の `debug_storage_*`・`debug_save_*`）は、別の保存先と保留を持ち続ける。そのため試験の設定では
 //! IndexedDB の接続が 2 本になるが、どちらも `versionchange` で閉じる（`storage_idb`）ため、互いの更新を塞がない。
 //!
-//! 書き出しは 2 つの契機で行う。(1) 変更の後の遅延保存（`glue` のタイマーが `save_now` を呼ぶ。連続する変更は畳む。
-//! 判定は `save_schedule`。TASK-318・SAVE-7）、(2) 離れる直前（`pagehide`）。どちらも、ホストが「保存する値」を持つときだけ
-//! 保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が `None`）ので、
-//! 未操作のページを離れても保存先には何も書かれない（SAVE-28）。
+//! 書き出す時機は 3 つある。(1) 状態を変える操作のたび（ホストの `update` の末尾が `save_now` を呼ぶ。SAVE-10・TASK-323 1/2）、
+//! (2) 下書きだけの変更の後の遅延保存（`glue` のタイマーが `save_deferred` を呼ぶ。連続する変更は畳む。判定は `save_schedule`。
+//! TASK-318・SAVE-7）、(3) 離れる直前（`pagehide`）である。打鍵ごとに履歴の全体を書き出す費用を避けるため、下書きは (2) で畳む。
+//! どれもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
+//! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。
+//! 変更のたびの書き込みが容量超過で失敗したときは、ホストが理由を表示する。書けなかった値は保留に残り、次の書き出しで再び試す。
 //!
 //! 鍵は呼び出し元が `HistoryKey` の構築子で作ったものだけを受ける。値・鍵の文字列は、結果にも記録にも出さない
 //! （履歴は下書きを含む受講者のデータである）。
@@ -32,7 +34,7 @@ thread_local! {
     static PENDING: PendingSave = PendingSave::new();
     /// 変更の後の遅延保存が書く鍵。`boot_and_mount` が結ぶ（鍵を作れない設定では空のままで、遅延保存は何もしない）。
     static SAVE_KEY: RefCell<Option<HistoryKey>> = const { RefCell::new(None) };
-    /// 試験の設定だけ: 遅延保存で書けた回数。値・鍵は持たない。
+    /// 試験の設定だけ: 変更の後の保存（変更のたび・遅延の両方）を試みた回数。値・鍵は持たない。
     #[cfg(feature = "test-hooks")]
     static AUTOSAVES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
@@ -79,7 +81,7 @@ fn stage_and_flush(key: &HistoryKey, value: String) {
 ///
 /// 保存しない場合（未操作・上限超え・開けなかった履歴がある・未マウント）は何も書かない（`history_to_save` が `None`）。
 /// 呼ぶのは別のスタックのタイマーの中だけで、Runtime・`dispatch_action` には触れない（読み取りの `history_to_save` と保留だけ）。
-pub(crate) fn save_now() {
+pub(crate) fn save_deferred() {
     let Some(key) = SAVE_KEY.with(|k| k.try_borrow().ok().and_then(|k| k.clone())) else {
         return;
     };
@@ -104,7 +106,7 @@ pub(crate) fn storage_kind_name() -> Option<&'static str> {
     })
 }
 
-/// 遅延保存を試みた回数。試験の設定だけ。
+/// 変更の後の保存（変更のたび・遅延の両方）を試みた回数。試験の設定だけ。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn autosave_count() -> u32 {
     AUTOSAVES.with(std::cell::Cell::get)
@@ -127,6 +129,26 @@ pub fn install_save_on_leave(
             return;
         };
         stage_and_flush(&key, v);
+    })
+}
+
+/// 変更のたびの保存（SAVE-10）。`value` を `key` の保留に積んで書き、最初の失敗の種類を返す。
+///
+/// 保存先が開いていない・借用中は `Unavailable`。書けなかった値は保留に残る（既存の保存は、保存先の `write` が失敗しても
+/// 同じ鍵の旧い値を消さない）。値・鍵の文字列は返さない。
+fn save_now(key: &HistoryKey, value: &str) -> Result<(), StorageError> {
+    #[cfg(feature = "test-hooks")]
+    AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
+    PENDING.with(|p| {
+        p.stage(key.clone(), value.to_owned());
+        STORAGE.with(|s| {
+            let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
+            let st = slot.as_ref().ok_or(StorageError::Unavailable)?;
+            match p.flush(st).first_error {
+                Some(e) => Err(e),
+                None => Ok(()),
+            }
+        })
     })
 }
 
@@ -194,6 +216,9 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
             host.block_saving();
         }
     }
+    // 変更のたびの保存の口は mount の前に結ぶ（mount の後はホストを `&mut` で触れない）。
+    let saver_key = key.clone();
+    host.set_history_saver(Box::new(move |v| save_now(&saver_key, v)));
     crate::glue::mount_host(root_id, host)?;
     SAVE_KEY.with(|k| {
         if let Ok(mut slot) = k.try_borrow_mut() {

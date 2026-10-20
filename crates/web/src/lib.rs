@@ -72,6 +72,7 @@ pub mod offers;
 pub mod parts;
 pub mod profile;
 pub mod run_status;
+pub mod save_notice;
 pub mod save_pending;
 pub mod save_schedule;
 pub mod step_status;

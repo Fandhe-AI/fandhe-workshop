@@ -24,7 +24,7 @@
 //! 5. 読み上げの更新を数える単位（A11Y-6・A11Y-8。[`live_response_updates`]・[`live_left_should_update`]）
 //!
 //! 識別子の持ち主の境界:
-//! - 本契約が持つ識別子: `live-response`・`live-left`・`view-notice`・`input-notice`・`log-notice`・
+//! - 本契約が持つ識別子: `live-response`・`live-left`・`view-notice`・`input-notice`・`log-notice`・`save-notice`・
 //!   `log-list`（A11Y-7 が名指しする。TASK-431 は再定義せず参照する）・`pane-tabs`・`pane-tab`、
 //!   および id の `pane-tab-ops`・`pane-tab-artifacts`・`pane-ops`・`pane-artifacts`
 //! - 変化の印について本契約が持つもの: 属性 `data-mark` とその値、識別子 `mark-glyph`・`mark-text`
@@ -141,6 +141,12 @@ impl StatusNotice {
         }
     }
 }
+
+/// 履歴を保存できなかったことの通知欄の識別子（SAVE-10・TASK-323 1/2）。
+///
+/// 通知欄（`role="status"`）として扱うが、`StatusNotice::ALL` には入れない。保存の口を持たない画面（右のエリアだけの
+/// 描画など）には出ないため、全体の適合では「1 個」でなく「2 個以上でない」だけを求める（任意の通知欄）。
+pub const SAVE_NOTICE_TESTID: &str = "save-notice";
 
 /// ログの一覧の識別子。ライブの欄の外に置き、`aria-live`・`role` を持たせない（A11Y-7）。
 pub const LOG_LIST_TESTID: &str = "log-list";
@@ -702,7 +708,8 @@ fn check_element(
     }
 
     // 通知欄。
-    let is_notice = StatusNotice::ALL.iter().any(|n| Some(n.testid()) == testid);
+    let is_notice = StatusNotice::ALL.iter().any(|n| Some(n.testid()) == testid)
+        || testid == Some(SAVE_NOTICE_TESTID);
     if is_notice {
         tally.notice.push(testid.unwrap_or_default().to_string());
         if role != Some("status") {
@@ -981,6 +988,8 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
             n(&t.notice, s.testid()),
         );
     }
+    let saves = n(&t.notice, SAVE_NOTICE_TESTID);
+    count(format!("notice {SAVE_NOTICE_TESTID}"), saves.min(1), saves);
     count("log-list".to_string(), 1, t.log_lists);
     count("tablist".to_string(), 1, t.tablists);
     for p in PaneTab::ALL {
