@@ -23,6 +23,8 @@
 //! （TASK-349 で結線済み）、キー処理の受け持ち（FEND-7・FEND-8）。
 
 use fandhe_frontend_wasm_full::DispatchOutcome;
+#[cfg(target_arch = "wasm32")]
+use fandhe_workshop_contract::storage::StorageError;
 use fandhe_workshop_core::addr::{Generation, StepUid, TickAddr};
 
 /// 進行の action の名前。
@@ -126,6 +128,35 @@ impl RuntimeAction {
             ),
             RuntimeAction::Complete => (ACTION_COMPLETE, String::new()),
             RuntimeAction::Esc => (ACTION_ESC, ESC_KEY_TOKEN.to_owned()),
+        }
+    }
+}
+
+/// `schedule_action` が届けるもの。版つきの契約の action と、遅延保存の結果（ホストの私的な action。SAVE-10）。
+#[cfg(target_arch = "wasm32")]
+pub(crate) enum Scheduled {
+    /// 進行・補完・Esc。
+    Runtime(RuntimeAction),
+    /// 遅延保存の結果（書き込んだ時点の保存世代つき）。
+    SaveResult(u64, Result<(), StorageError>),
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<RuntimeAction> for Scheduled {
+    fn from(a: RuntimeAction) -> Self {
+        Scheduled::Runtime(a)
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Scheduled {
+    pub(crate) fn encode(&self) -> (&'static str, String) {
+        match self {
+            Scheduled::Runtime(a) => a.encode(),
+            Scheduled::SaveResult(e, r) => (
+                crate::save_notice::ACTION_SAVE_RESULT,
+                crate::save_notice::encode_save_result(*e, *r),
+            ),
         }
     }
 }

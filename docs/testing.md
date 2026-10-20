@@ -2929,7 +2929,7 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 
 - 起動の分岐: core の `history_boot::boot_session`。保存済みが無い → 新しく始める（再読み込みを呼ばない）、開けて `ops` が 0 件 → 新しく始める、開けた → `Session::reload` に当たる処理を 1 回かけて復元する（世代 +1・`Reloaded` 1 件）、表示だけ・開かない → 初期状態で始め、呼び出し側は保存済みの値を上書きしない。判定は `history_load::load_history_with_envelope`（`load_history` と `load_session` の共通の下請け）に任せ、段 1〜8 の条件は複製しない
 - 「未操作」の定義: 記録した `ops` が 0 件であること。下書きの入力も `ops` に記録する（SAVE-2）ため、文字を打っただけでも未操作ではない。`RecordedSession::envelope_for_save` は 0 件のとき `None` を返し、最初の変更まで保存しない
-- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは置かない（TASK-318）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
+- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは、この時点では置かなかった（TASK-318 で `glue` に置いた。5.170）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
 - 本番の設定（IR を持たないホスト）は保存先を開かず、今までどおり即座にマウントする。IR の取得は後続のタスクである
 - 試験用の口の保存先・保留とは別の保存先・保留を持つ。`pagehide` のリスナーは名前ごとに 1 回だけ登録する（`leave_flush::install_pagehide_flush_as`）ため、試験用の口の登録を塞がない
 
@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 611 | 401 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 401`（`<=` で照合。増えたら失敗） |
+| `glue.rs` | 680 | 449 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 449`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.170） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -5053,7 +5053,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 |---|---|---|---|
 | FEND20-7 | `persist.rs` に `el.set_inner_html("")` | L1・L2（glue 以外） | DETECTED |
 | FEND20-8 | `leave_flush.rs` のリスナーのイベントを `click` にする | L3 | DETECTED |
-| FEND20-9 | `glue.rs` のコメント 1 行をコードの行にする（401 行を超える） | 行数の上限 | DETECTED |
+| FEND20-9 | `glue.rs` のコメント 1 行をコードの行にする（上限を超える） | 行数の上限 | DETECTED |
 | FEND20-10 | ルートの web-sys の feature に `HtmlInputElement` を足す | feature の一覧 | DETECTED |
 | FEND20-1 | glue に `el.set_inner_html("")` | glue 固有・L1 | DETECTED |
 | G1 | glue の `component()` を 2 箇所にする | glue 固有 | DETECTED |
@@ -5073,7 +5073,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 実行日: 2026-10-20、元にしたコミット: 04b82bb に本変更を載せた作業ツリー。
 
-- 変更のたびに保存を試す経路を足した。`update` で状態を変えた（ログが伸びた）操作の末尾で 1 回だけ、`persist::save_now` が保留に積んで保存先へ書く。下書きだけの変更では試さない。遅延・畳み込みは無く、TASK-318 が調整する（同じ口を流用できる）
+- 変更のたびに保存を試す経路を足した。`update` で状態を変えた（ログが伸びた）操作の末尾で 1 回だけ、`persist::save_now` が保留に積んで保存先へ書く。下書きだけの変更では試さない。遅延・畳み込みは無い（下書きだけの変更の遅延保存は 5.170）
 - 失敗の種類は `HostModel::save_failure`（`StorageError`）に入れ、`save-notice`（`role="status"`、`log-notice` とは別の欄）に固定の文で出す。容量超過は「保存できませんでした（QuotaExceededError）」。他の 2 種の文は仮置きで、配置と確定は TASK-534・TASK-323 2/2 が持つ。操作は巻き戻さず、書けなかった値は保留に残る
 - native 試験 `crates/web/tests/save_failure.rs`: 未操作・保存停止・下書きだけでは保存を試さない、容量超過で表示・dirty・状態の進行・既存の保存の不変、空けた後の次の変更で表示が消える
 - ブラウザ試験 `tools/browser/save-quota.test.mjs`（S-17 相当。CSP あり・なし）。`indexedDB` を隠して localStorage だけの保存先にする（IndexedDB があれば切り替わり失敗は出ないため）。(1) 離れる前に保存される (2) 満杯で理由が出て保存値は不変・ログは伸びる (3) 空けた後の次の変更で表示が消える (4) 再読み込みで復元される。`make test-browser` は 580 件が通った
@@ -5094,6 +5094,72 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 - ブラウザ試験 `tools/browser/save-idb-failure.test.mjs`（CSP あり・なし）: localStorage を閾値の手前まで埋めて 1 手目を IndexedDB へ向け、put を中断させた 2 手目の後に理由が出て IndexedDB の値が不変、中断を外した 3 手目で更新・表示が消え、再読み込みで復元される。`getAll` を失敗させて起動すると、起動の直後から理由が出て、操作しても既存の localStorage の値は変わらない。`make test-browser` は 584 件が通った（5.168 の 580 件に 4 件）
 - 変異注入 `SAVE11-1`〜`SAVE11-3`: 3 件とも DETECTED（`scripts/check-mutations.sh`。SAVE10-1 も DETECTED のまま）。put の成功で失敗を消さない・`update` の末尾で求め直さない・全件を読めない印を持たない
 - 範囲外: 文言（`Unavailable`・`Failed`）の確定と保存停止の専用の通知は TASK-534 の持ち分。SAVE-11・SHELL-19 を確定にするかは spec 側で扱う
+
+### 5.170 保存の遅延の測定（TASK-318。SAVE-7・PoC-6 の S-16）
+
+実行日: 2026-10-20、元にしたコミット: `04b82bb` に本変更を載せた作業ツリー（dirty）。
+
+受講者の操作で状態が変わってから、履歴が保存先へ書き込まれる（localStorage は `setItem` の完了、IndexedDB は transaction の `complete`）までの時間を測る。測るには変更のたびの保存の経路が要るため、本タスクで次を本番の経路に結線した。
+
+- 変更の通知: `EngineHost::set_save_request`。`update` の末尾で、履歴（op の列・下書きの記録）が実際に変わったときだけ 1 回通知する（`history_changed` の印。変化の無い `update`・起動では通知しない。未操作の再読み込みは保存しない。SAVE-28）
+- 遅延の判定: `save_schedule`（純関数。native の単体試験 6 件）。遅延（debounce）200ms・最大の待ち 500ms は PoC の実装値で、実装の値であり期待にしない。連続する変更は最後の 1 回に畳み、最初の変更から最大の待ちを超えない。古いタイマーは `clearTimeout` でなく token で捨てる
+- タイマーと書き出し: タイマーの予約は `glue`（L4 の許可表で `set_timeout` は glue だけ）、書き出しは `persist::save_deferred`（`history_to_save` が `None` なら書かない。fail-closed。書けなかった値は保留に残る）。`pagehide` の書き出しはこれまでどおり残る
+- 試験用の口: `debug_autosave_state`・`debug_history_save_len`（読み取りのみ。値・鍵は返さない。配信物には入らない。`make check-delivery` で確認）
+
+#### 測定の方式
+
+`tools/browser/save-latency.test.mjs`。時刻はページ側の `performance.now()`。書き込みの時刻は context の初期化スクリプトが `Storage.prototype.setItem`・`IDBObjectStore.prototype.put` を包んで記録する（時刻と長さだけを持ち、値・鍵は持たない）。変更の時刻 t0 は、入力欄へ値を入れて `input` を発火する操作（`SetDraft`）と同じ evaluate の中で、操作の直前に取る。
+
+- 条件: {localStorage, IndexedDB} × {小さい履歴 2〜9KB, 大きい履歴 85〜156KB}（UTF-8 のバイト数）。各条件で暖機を 1 回捨て、計測 10 回。各回の前に保存が落ち着くのを待つ
+- IndexedDB は、localStorage を閾値の手前まで無関係の鍵で埋めて開き直し、最初の本番の保存で切り替える（暖機で捨てる）
+- 履歴は受け付けられない入力の送信を繰り返して伸ばす（小さい: 1 回ずつ、大きい: 25 回ずつ）
+- 値: 合計 = 書き込みの完了 - t0。待ち＋書き込み = 合計 - debounce（遅延を除いた値）。書き込みだけ = 完了 - 入口
+- 統計: `tools/measure/browser.mjs` の `median`・`p95`（nearest-rank。10 回では最大値に等しい）
+- assert: 4 条件の p95 が 1,000ms 以内、1 回の変更で書き込みがちょうど 1 件・`saves` が 1 増える（本番の遅延保存であること）、履歴の大きさが条件の範囲に入ること、外部への要求・ページの例外が 0 件。遅延の長さそのものは assert しない
+- 対照 2 件: 変更しなければ 1.5 秒待っても履歴の鍵への書き込みが 0 件／50ms おきの 5 回の変更が 1 回の書き込みに畳まれ、最初の変更から 1 秒以内に書かれる
+
+#### 結果（2026-10-20）
+
+```text
+基点: commit 04b82bb（dirty。本変更を含む）・wasm-opt なし（SKIP_WASM_OPT=1）・機能の範囲 test-hooks（試験の設定）
+      圧縮 tools/serve.mjs の gzip なし（127.0.0.1 の配信。回線の制限なし）・CPU の減速なし
+ブラウザ: Chromium 153.0.8010.12（headless）・Playwright 1.63.0・Linux x86_64（Core i7-13700K・10 論理コア・RAM 27GB）
+```
+
+| 条件 | 履歴（UTF-8） | 合計の中央値（ms） | 合計の p95（ms） | 待ち＋書き込みの p95（ms） | 書き込みだけの p95（ms） | 判定（1,000ms 以内） |
+|---|---|---|---|---|---|---|
+| localStorage・小 | 2,235 B | 203.9 | 204.7 | 4.7 | 0.1 | 通過 |
+| localStorage・大 | 90,156 B | 205.3 | 206.1 | 6.1 | 0.2 | 通過 |
+| IndexedDB・小 | 2,235 B | 204.9 | 205.9 | 5.9 | 0.7 | 通過 |
+| IndexedDB・大 | 90,156 B | 204.7 | 206.6 | 6.6 | 0.5 | 通過 |
+
+合計はほぼ debounce（200ms）で、待ち＋書き込みは数 ms である。実測値は `make test-browser` の `[save-latency]` の diagnostic に JSON で出る（履歴の中身と鍵は出さない）。
+
+#### 限界・未確認
+
+- 基準端末 A（`docs/measurement.md`）では測っていない。上の端末は自動運転の開発機で、基準端末 A ではない。基準端末 A での値の追記は人が行う（未実施）
+- Chromium だけで測った。Chrome の原本・Firefox・Safari は測っていない
+- 大きい履歴は 90,156 B（範囲 85〜156KB の下端に近い）。上端（156KB）は測っていない。範囲内であることは各回に assert している
+- CSP ありだけで流す（時間は CSP の meta に依らない見込みだが、なしでは測っていない）
+- 履歴の大きさは、下書きの記録が同じ下書きを置き換えるため、10 回の間で変わらない（書き込みの文字列の長さは 2,075・80,156 の UTF-16 の単位）
+- `make measure` の束には入れていない。束（`measure-run/v1`）は `results` を 3 件に固定しており、4 件目は様式の変更になるため（`docs/measurement.md` §7）
+- SAVE-9（IndexedDB で離れる直前の変更が落ちうる）は本タスクの対象外。遅延保存で落ちる窓は狭まるが、仕様の決定は spec 側
+
+#### 既存の試験への影響
+
+- 変更のたびに遅延保存が走るため、`tools/browser/tick-dispatch.test.mjs` の「`setTimeout` の遅延が進行の間隔だけ」を、進行の予約（debounce より長い値）だけを数える形に直した（遅延保存の遅延が進行の間隔より短いことも確かめる。assert の意味は保つ）
+- `make test-browser` は 584 件すべて通過（`save-latency` の 6 件を含む）。`ir-refusal`・`version-histories`・`reload-fresh`・`reload-points`・`storage-leave`・`storage-select`・`element-identity` は変更なしで通る
+- `glue.rs` のコード行が 401 から 431 に増えた（遅延保存のタイマーと試験用の読み取り）。`glue_scale.rs` の上限と 5.166 の表を同時に更新した（5.166 が定める手続き。PR 本文に理由を書く）
+- 続けて 431 から 445 に増えた（遅延保存の結果と予約の無効化の配送。`Scheduled` は `action.rs` に置いて glue の増加を抑えた）。上限と 5.166 の表を同時に更新した。遅延保存の失敗・成功は私的な action `save-result` でホストへ届け、保存通知（SAVE-10）を更新する。即時の保存は予約済みの遅延保存を無効にする（`SaveDebounce::cancel`）
+- さらに 445 から 449 に増えた（遅延保存の結果に保存世代 `epoch` を付けて配送し、古い結果をホストが捨てるための `save_epoch` の取得と引数の受け渡し）。上限と 5.166 の表を同時に更新した。PR 本文に理由を書く
+- `state_paths.rs` の `INIT_ALLOWED` に `set_save_request`、`glue_contract.rs` の許可表に新しい呼び出し名（DOM ではない名前）を足した。web-sys の feature は増やしていない（24 個のまま）
+- `scripts/expected-test-counts.txt` は更新していない（5.166 と同じ。件数の照合は版上げ PR でだけ働く）
+
+#### 変異注入
+
+| ID | 入れた誤り | 期待した失敗 | 結果 |
+|---|---|---|---|
+| SAVE7-1 | 履歴が変わっても保存の通知を出さない（`crates/web/src/host.rs`） | `save_request` の「下書きの変更ごとに 1 回通知する」 | DETECTED（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE7-1.mutation`。送信の試験も失敗した） |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

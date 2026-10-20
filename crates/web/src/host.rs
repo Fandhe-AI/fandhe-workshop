@@ -174,6 +174,9 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
+    /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
+    /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
+    SaveResult(u64, Option<StorageError>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -505,12 +508,20 @@ pub struct EngineHost {
     tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
+    /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
+    save_request: Option<DraftSyncRequest>,
+    /// 即時の保存が済んだとき、予約済みの遅延保存を無効にさせる通知先（TASK-318）。未設定なら通知しない。
+    save_cancel: Option<DraftSyncRequest>,
+    /// この `update` で履歴（op の列・下書きの記録）が変わった印。`update` の末尾で通知して下ろす。
+    history_changed: bool,
     /// 変更のたびの保存の口。未設定（native の試験など）なら保存を試さない。
     history_saver: Option<HistorySaver>,
     /// 非同期の保存の失敗を読む口（SAVE-11）。未設定なら同期の保存の結果だけで表示を決める。
     save_failure_probe: Option<SaveFailureProbe>,
     /// 直近の同期の保存（saver）の失敗。表示は「これ、無ければ probe の値」で決める。
     sync_save_failure: Option<StorageError>,
+    /// 即時の保存の世代。遅延保存の結果は、書き込んだ時点の世代が今と一致するときだけ反映する。
+    save_epoch: u64,
     /// 今の `update` で状態を変えた（ログが伸びた）印。`update` の末尾で 1 回だけ保存を試して下ろす。
     /// 下書きだけの変更では立てない（打鍵ごとに履歴の全体を書く費用を避ける。下書きは離れる直前に書く）。
     save_due: bool,
@@ -579,9 +590,13 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            save_request: None,
+            save_cancel: None,
+            history_changed: false,
             history_saver: None,
             save_failure_probe: None,
             sync_save_failure: None,
+            save_epoch: 0,
             save_due: false,
             command_prefix: None,
             initial: None,
@@ -649,9 +664,13 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            save_request: None,
+            save_cancel: None,
+            history_changed: false,
             history_saver: None,
             save_failure_probe: None,
             sync_save_failure: None,
+            save_epoch: 0,
             save_due: false,
             command_prefix: d.command_prefix,
             initial,
@@ -771,6 +790,7 @@ impl EngineHost {
         let draft = self.input.draft().to_owned();
         if let Some(recorded) = self.model.recorded.as_mut() {
             recorded.draft(draft.clone());
+            self.history_changed = true;
         }
         self.draft_recorded = draft;
     }
@@ -824,9 +844,22 @@ impl EngineHost {
         self.draft_sync_request = Some(f);
     }
 
+    /// 履歴が変わった `update` の末尾で呼ぶ通知先を結ぶ（変更の後の遅延保存。TASK-318）。
+    ///
+    /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れず、タイマーを予約するだけにする（再入になる）。
+    /// 起動（`boot`）は `update` を通らないので通知しない（未操作の再読み込みは保存しない。SAVE-28）。
+    pub fn set_save_request(&mut self, f: DraftSyncRequest) {
+        self.save_request = Some(f);
+    }
+
+    /// 即時の保存が済んだときに、予約済みの遅延保存を無効にさせる通知先を結ぶ（同じ履歴の二重の書き込みを避ける）。
+    pub fn set_save_cancel(&mut self, f: DraftSyncRequest) {
+        self.save_cancel = Some(f);
+    }
+
     /// 変更のたびの保存の口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
     ///
-    /// 保存の起点は状態を変える操作の `update` の末尾に 1 回で、遅延も畳み込みも無い（TASK-318 が調整する）。
+    /// 保存の起点は状態を変える操作の `update` の末尾に 1 回で、遅延も畳み込みも無い。下書きだけの変更は `set_save_request` の遅延保存が受ける（TASK-318）。
     pub fn set_history_saver(&mut self, f: HistorySaver) {
         self.history_saver = Some(f);
     }
@@ -863,9 +896,21 @@ impl EngineHost {
         let Some(value) = self.history_to_save() else {
             return;
         };
+        // 即時の保存のたびに世代を進め、配送待ちの遅延保存の結果を古くする。
+        self.save_epoch = self.save_epoch.wrapping_add(1);
         let failure = saver(&value).err();
+        self.set_save_failure(failure);
+    }
+
+    /// 保存の結果（即時・遅延の同期の書き込み）を `sync_save_failure` に入れ、表示する失敗を求め直す。
+    fn set_save_failure(&mut self, failure: Option<StorageError>) {
         self.sync_save_failure = failure;
         self.refresh_save_failure();
+    }
+
+    /// 今の保存世代。即時の保存のたびに進み、遅延保存の結果の配送が古いかの判定に使う（SAVE-10）。
+    pub fn save_epoch(&self) -> u64 {
+        self.save_epoch
     }
 
     /// 部品が読む値。
@@ -1300,6 +1345,7 @@ impl EngineHost {
         };
         let len_before = recorded.session().log().len();
         let (returned, rejected) = f(recorded);
+        self.history_changed = true;
         let session = recorded.session();
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
@@ -1509,6 +1555,12 @@ impl Component for EngineHost {
             HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
             | HostAction::Complete
                 if !self.input.shows_input_area() => {}
+            // 書き込みの後に即時の保存が走っていれば（世代が進んでいる）、古い結果は捨てる。新しい通知を消さない・古い失敗を出さない。
+            HostAction::SaveResult(epoch, failure) => {
+                if epoch == self.save_epoch {
+                    self.set_save_failure(failure);
+                }
+            }
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1595,10 +1647,20 @@ impl Component for EngineHost {
         }
         // 入力欄の値が変わっていれば下書きとして記録する。どの action の後でも 1 か所で行う。
         self.record_draft_change();
-        // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。
+        // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。遅延保存の予約は、この即時の保存が書くので不要になる。
         if self.save_due {
             self.save_due = false;
+            self.history_changed = false;
+            if let Some(f) = self.save_cancel.as_ref() {
+                f();
+            }
             self.save_after_change();
+        } else if self.history_changed {
+            // 下書きだけの変更は、打鍵ごとに書かず遅延保存へ畳む（TASK-318。SAVE-7）。
+            self.history_changed = false;
+            if let Some(f) = self.save_request.as_ref() {
+                f();
+            }
         }
         // 非同期の保存の失敗（IndexedDB）の表示を、打鍵・送信・進行のどの `update` でも求め直す（SAVE-11）。
         self.refresh_save_failure(); // update の末尾
@@ -1732,6 +1794,11 @@ impl Component for EngineHost {
                     target: Some(payload.to_owned()),
                 }))
             });
+        }
+        // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
+        if name == crate::save_notice::ACTION_SAVE_RESULT {
+            return crate::save_notice::decode_save_result(payload)
+                .map(|(epoch, failure)| HostAction::SaveResult(epoch, failure));
         }
         // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
         // `esc` と未知の名前は、これまでどおり入力欄に委ねる。

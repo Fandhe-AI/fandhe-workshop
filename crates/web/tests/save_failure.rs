@@ -160,3 +160,58 @@ fn 保存停止のときは保存を試さず表示も変えない() {
     assert!(f.local.map.borrow().is_empty());
     assert_eq!(notice(&h), "");
 }
+
+#[test]
+fn 遅延保存の結果の_action_が通知を出し_成功で消す() {
+    let (mut h, _, _, _) = setup();
+    h.update(act("save-result", "0 quota"));
+    assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
+    assert_eq!(notice(&h), QUOTA_TEXT);
+    assert!(h.dirty_fields().contains(&"save_notice"));
+    h.update(act("save-result", "0 ok"));
+    assert_eq!(h.model().save_failure(), None);
+    assert_eq!(notice(&h), "");
+}
+
+#[test]
+fn 遅延保存の結果の未知の_payload_は受けない() {
+    assert!(EngineHost::decode_action("save-result", "").is_none());
+    assert!(EngineHost::decode_action("save-result", "OK").is_none());
+    assert!(EngineHost::decode_action("save-result", "ok").is_none());
+    assert!(EngineHost::decode_action("save-result", "01 ok").is_none());
+    assert!(EngineHost::decode_action("save-result", "-1 ok").is_none());
+    assert!(EngineHost::decode_action("save-result", "1 OK").is_none());
+    assert!(EngineHost::decode_action("save-result", "99999999999999999999 ok").is_none());
+}
+
+#[test]
+fn 配送待ちの古い成功は_後の即時保存の失敗の通知を消さない() {
+    let (mut h, f, _, _) = setup();
+    step(&mut h);
+    // 遅延保存がこの世代で成功し、結果の配送はまだ。
+    let stale = h.save_epoch();
+    f.local.limit.set(Some(f.local.total()));
+    step(&mut h);
+    assert_eq!(notice(&h), QUOTA_TEXT);
+    h.update(act("save-result", &format!("{stale} ok")));
+    assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
+    assert_eq!(notice(&h), QUOTA_TEXT);
+}
+
+#[test]
+fn 配送待ちの古い失敗は_後の即時保存の成功の後に表示されない() {
+    let (mut h, f, _, _) = setup();
+    step(&mut h);
+    let stale = h.save_epoch();
+    f.local.limit.set(Some(f.local.total()));
+    step(&mut h);
+    f.local.limit.set(None);
+    step(&mut h);
+    assert_eq!(notice(&h), "");
+    h.update(act("save-result", &format!("{stale} quota")));
+    assert_eq!(h.model().save_failure(), None);
+    assert_eq!(notice(&h), "");
+    // 今の世代の結果は反映される。
+    h.update(act("save-result", &format!("{} quota", h.save_epoch())));
+    assert_eq!(notice(&h), QUOTA_TEXT);
+}
