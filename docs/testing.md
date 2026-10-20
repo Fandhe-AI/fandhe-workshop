@@ -2929,7 +2929,7 @@ glue の規模（2026-10-17。`glue.rs` は `git show <commit>:crates/web/src/gl
 
 - 起動の分岐: core の `history_boot::boot_session`。保存済みが無い → 新しく始める（再読み込みを呼ばない）、開けて `ops` が 0 件 → 新しく始める、開けた → `Session::reload` に当たる処理を 1 回かけて復元する（世代 +1・`Reloaded` 1 件）、表示だけ・開かない → 初期状態で始め、呼び出し側は保存済みの値を上書きしない。判定は `history_load::load_history_with_envelope`（`load_history` と `load_session` の共通の下請け）に任せ、段 1〜8 の条件は複製しない
 - 「未操作」の定義: 記録した `ops` が 0 件であること。下書きの入力も `ops` に記録する（SAVE-2）ため、文字を打っただけでも未操作ではない。`RecordedSession::envelope_for_save` は 0 件のとき `None` を返し、最初の変更まで保存しない
-- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは、この時点では置かなかった（TASK-318 で `glue` に置いた。5.169）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
+- web の結線: ホストは `RecordedSession` を通して操作を記録する（`apply_engine`・`submit_engine`・入力欄の下書きの変更）。起動の前に `persist::mount_with_history` が保存先を開いて保存済みの値を読み、`EngineHost::boot` の後にマウントする（`mount_app` は `Promise` を返し、`app.js` が `await` する）。離れる直前（`pagehide`）に `history_to_save` が値を返すときだけ保存先へ書く。保存の遅延のタイマーは、この時点では置かなかった（TASK-318 で `glue` に置いた。5.170）。保存済みの値を読めない・開けないときは保存を止める（fail-closed）
 - 本番の設定（IR を持たないホスト）は保存先を開かず、今までどおり即座にマウントする。IR の取得は後続のタスクである
 - 試験用の口の保存先・保留とは別の保存先・保留を持つ。`pagehide` のリスナーは名前ごとに 1 回だけ登録する（`leave_flush::install_pagehide_flush_as`）ため、試験用の口の登録を塞がない
 
@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 672 | 445 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 445`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.169） |
+| `glue.rs` | 672 | 445 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 445`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.170） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -5073,14 +5073,29 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 実行日: 2026-10-20、元にしたコミット: 04b82bb に本変更を載せた作業ツリー。
 
-- 変更のたびに保存を試す経路を足した。`update` で状態を変えた（ログが伸びた）操作の末尾で 1 回だけ、`persist::save_now` が保留に積んで保存先へ書く。下書きだけの変更では試さない。遅延・畳み込みは無い（下書きだけの変更の遅延保存は 5.169）
+- 変更のたびに保存を試す経路を足した。`update` で状態を変えた（ログが伸びた）操作の末尾で 1 回だけ、`persist::save_now` が保留に積んで保存先へ書く。下書きだけの変更では試さない。遅延・畳み込みは無い（下書きだけの変更の遅延保存は 5.170）
 - 失敗の種類は `HostModel::save_failure`（`StorageError`）に入れ、`save-notice`（`role="status"`、`log-notice` とは別の欄）に固定の文で出す。容量超過は「保存できませんでした（QuotaExceededError）」。他の 2 種の文は仮置きで、配置と確定は TASK-534・TASK-323 2/2 が持つ。操作は巻き戻さず、書けなかった値は保留に残る
 - native 試験 `crates/web/tests/save_failure.rs`: 未操作・保存停止・下書きだけでは保存を試さない、容量超過で表示・dirty・状態の進行・既存の保存の不変、空けた後の次の変更で表示が消える
 - ブラウザ試験 `tools/browser/save-quota.test.mjs`（S-17 相当。CSP あり・なし）。`indexedDB` を隠して localStorage だけの保存先にする（IndexedDB があれば切り替わり失敗は出ないため）。(1) 離れる前に保存される (2) 満杯で理由が出て保存値は不変・ログは伸びる (3) 空けた後の次の変更で表示が消える (4) 再読み込みで復元される。`make test-browser` は 580 件が通った
 - 変異注入 `SAVE10-1`〜`SAVE10-4`: 4 件とも DETECTED（`scripts/check-mutations.sh`）。表示が消えない・変更で保存しない・文言違い・下書きでも保存する
 - 既知の限界: 失敗の後、`HistoryStorage::write` は使用量を全走査し直すが、試験が外から別の鍵を消した場合は古い値のままになる。IndexedDB が無いと切り替えの経路を通らないため、判定には影響しない。IndexedDB へ切り替えた後の非同期の失敗の表示は TASK-323 2/2。操作ごとの書き込みによる再描画の測定（`make measure`）は未計測
 
-### 5.169 保存の遅延の測定（TASK-318。SAVE-7・PoC-6 の S-16）
+### 5.169 IndexedDB の保存失敗で状態を壊さない（TASK-323 2/2。SAVE-11・SHELL-19）
+
+実行日: 2026-10-20、元にしたコミット: 6c6d214 に本変更を載せた作業ツリー。5.168 の「IndexedDB へ切り替えた後の非同期の失敗の表示は TASK-323 2/2」は、本節で解消した。
+
+- 経路: IndexedDB の確定（`Done`）のコールバックからホストへは触れない（`state_paths`）ため、`persist` が保存先の失敗の種類を読み取り専用の probe（`async_save_failure`）にして `EngineHost::set_save_failure_probe` で mount の前に 1 回だけ結ぶ。ホストは `update` の末尾で毎回、「同期の保存の失敗、無ければ probe の値」を求め直し、前と違うときだけ `save-notice` を dirty に積む。結んだ時点でも 1 回引く
+- `HistoryStorage::last_async_error` は、後の put の確定で `None` に戻す（戻さないと表示が消えない）。delete の失敗は従来どおり記録だけ
+- 全件の読み取りの失敗（Issue のコメントで引き継いだ D-52 の巻き戻り）: IndexedDB を開けたが全件を読めなかったときは、接続を閉じたうえで `HistoryStorage::unreadable` にする。`read`・`write` は `Unavailable` を返し、`persist::boot_and_mount` の既存の経路で保存が止まる。どちらの保存先の既存の値も変えない。probe も `Unavailable` を返す。この fail-closed の採用は自動運転での判断で、人の承認は無い（採らなかった案は、localStorage に失敗の印を残して次の起動で照合する方式）
+- 限界 1: 非同期の失敗は、失敗した操作の時点ではなく次の `update`（打鍵・送信・進行）で表示される。操作の時点で出すには、action の契約（FEND-4・版 1）に action を足す必要があり、spec を先に変える必要がある。本タスクでは行わない
+- 限界 2: IndexedDB を開けない（`error`・`blocked`）間に localStorage だけへ書いたセッションでは、再読み込みで D-52 により旧い IndexedDB の値が勝つ危険が残る。本タスクで直したのは「開けたが読めない」場合だけ
+- 限界 3: 実際の容量超過（`QuotaExceededError`）の再現（CDP の `Storage.overrideQuotaForOrigin`）は試していない（未検証）。ブラウザ試験は put の直後に `transaction.abort()` を呼ぶ包みで中断を起こし、種類は `Failed` になる。`QuotaExceeded` の文は native 試験で確かめた
+- native 試験 `crates/web/tests/save_failure_idb.rs`: 確定の失敗で次の `update` に理由が出る・状態は進む・IndexedDB の既存の値は不変・続く間は dirty に積まない、種類ごとの文、後の確定で表示が消える、localStorage の写しは確定の失敗で消えない、全件を読めない保存先は最初から理由を出し `read`・`write` を断る
+- ブラウザ試験 `tools/browser/save-idb-failure.test.mjs`（CSP あり・なし）: localStorage を閾値の手前まで埋めて 1 手目を IndexedDB へ向け、put を中断させた 2 手目の後に理由が出て IndexedDB の値が不変、中断を外した 3 手目で更新・表示が消え、再読み込みで復元される。`getAll` を失敗させて起動すると、起動の直後から理由が出て、操作しても既存の localStorage の値は変わらない。`make test-browser` は 584 件が通った（5.168 の 580 件に 4 件）
+- 変異注入 `SAVE11-1`〜`SAVE11-3`: 3 件とも DETECTED（`scripts/check-mutations.sh`。SAVE10-1 も DETECTED のまま）。put の成功で失敗を消さない・`update` の末尾で求め直さない・全件を読めない印を持たない
+- 範囲外: 文言（`Unavailable`・`Failed`）の確定と保存停止の専用の通知は TASK-534 の持ち分。SAVE-11・SHELL-19 を確定にするかは spec 側で扱う
+
+### 5.170 保存の遅延の測定（TASK-318。SAVE-7・PoC-6 の S-16）
 
 実行日: 2026-10-20、元にしたコミット: `04b82bb` に本変更を載せた作業ツリー（dirty）。
 

@@ -1,0 +1,8 @@
+id: SAVE11-2
+package: fandhe-workshop-web
+test: save_failure_idb
+target: crates/web/src/host.rs
+find:         self.refresh_save_failure(); // update の末尾
+replace:         // 変異: update の末尾で求め直さない
+expect-fail: 確定の失敗は次の_update_で理由が出て状態は進み既存の保存は変わらない
+note: update の末尾で非同期の失敗の表示を求め直さない

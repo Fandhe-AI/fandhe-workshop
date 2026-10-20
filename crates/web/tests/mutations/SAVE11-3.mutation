@@ -1,0 +1,8 @@
+id: SAVE11-3
+package: fandhe-workshop-web
+test: save_failure_idb
+target: crates/web/src/storage_select.rs
+find:         s.idb_unreadable = true;
+replace:         s.idb_unreadable = false;
+expect-fail: 全件を読めなかった保存先は最初から理由を出し保存を試さず既存の値を変えない
+note: 全件を読めなかった保存先が、読めない印を持たず write・read を断らない

@@ -144,6 +144,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/storage-leave.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-latency.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-quota.test.mjs" \
+  "${ROOT_DIR}/tools/browser/save-idb-failure.test.mjs" \
   "${ROOT_DIR}/tools/browser/idb-versionchange.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-export.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-import.test.mjs" \

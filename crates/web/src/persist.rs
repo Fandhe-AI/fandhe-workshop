@@ -12,6 +12,7 @@
 //! TASK-318・SAVE-7）、(3) 離れる直前（`pagehide`）である。打鍵ごとに履歴の全体を書き出す費用を避けるため、下書きは (2) で畳む。
 //! どれもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
 //! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。
+//! IndexedDB への書き込みの失敗は確定が非同期で届くため、ホストが次の `update` で probe（[`async_save_failure`]）を引いて表示する（SAVE-11）。
 //! 変更のたびの書き込みが容量超過で失敗したときは、ホストが理由を表示する。書けなかった値は保留に残り、次の書き出しで再び試す。
 //!
 //! 鍵は呼び出し元が `HistoryKey` の構築子で作ったものだけを受ける。値・鍵の文字列は、結果にも記録にも出さない
@@ -157,6 +158,22 @@ fn save_now(key: &HistoryKey, value: &str) -> Result<(), StorageError> {
     })
 }
 
+/// IndexedDB の保存失敗の probe の実体（SAVE-11。TASK-323 2/2）。読み取り専用で、ホストが `update` のたびに引く。
+///
+/// 全件を読めなかった保存先は常に `Unavailable`、それ以外は直近の put の失敗の種類（成功の確定で消える）を返す。
+/// IndexedDB の確定は非同期で届くため、ホストへ押し込む経路は無い（`state_paths` の規則）。ホストが次の `update` で引く。
+/// 保存先が未オープン・借用中は `None`（パニックしない）。
+fn async_save_failure() -> Option<StorageError> {
+    STORAGE.with(|s| {
+        let slot = s.try_borrow().ok()?;
+        let st = slot.as_ref()?;
+        if st.idb_unreadable() {
+            return Some(StorageError::Unavailable);
+        }
+        st.last_async_error()
+    })
+}
+
 /// 配信先の区間。URL のパス名（サブパスの下で配られても鍵が衝突しない）から `DeliveryScope` の構築子で作る。
 fn delivery_scope() -> DeliveryScope {
     let path = web_sys::window()
@@ -224,6 +241,7 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
     // 変更のたびの保存の口は mount の前に結ぶ（mount の後はホストを `&mut` で触れない）。
     let saver_key = key.clone();
     host.set_history_saver(Box::new(move |v| save_now(&saver_key, v)));
+    host.set_save_failure_probe(Box::new(async_save_failure));
     crate::glue::mount_host(root_id, host)?;
     SAVE_KEY.with(|k| {
         if let Ok(mut slot) = k.try_borrow_mut() {

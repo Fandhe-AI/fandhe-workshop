@@ -10,7 +10,7 @@
 // 書いたのが本番の遅延保存であること（saves が 1 増える）、履歴の大きさが条件の範囲に入ること、対照 2 件である。
 // 各条件は暖機を 1 回捨てる（IndexedDB は最初の書き込みで localStorage から切り替わる。TASK-317 1/2）。
 // 限界: 自動運転の端末は基準端末 A ではない。CPU の減速なし。CSP ありだけで流す（時間は CSP の meta に依らない）。
-//       Chromium だけで測り、Firefox・Safari は測っていない。記録は docs/testing.md 5.169。
+//       Chromium だけで測り、Firefox・Safari は測っていない。記録は docs/testing.md 5.170。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
