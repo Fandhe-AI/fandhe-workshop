@@ -9,7 +9,7 @@
 //
 // 節の担当（育てる先。別ファイルを増やさず、この 1 ファイルの該当の節を育てる）。観察できない部分は「未実装」と記録する。
 //   data   : 試験データの SHA-256 の照合（不一致は前提の崩れとして失敗）
-//   xss    : E1〜E4・E6 は TASK-144・145・146・147、E5 は配信設定の入力欄から送って記録する
+//   xss    : E1 は pack-body-xss.test.mjs（TASK-144）が pass／fail で確かめる。E2〜E4・E6 は TASK-145・146・147、E5 は配信設定の入力欄から送って記録する
 //   oversize: 10 倍の水準は TASK-154（#855）・TASK-155
 //   nest   : 深い入れ子・巨大な配列
 //   cycle  : 巡回する IR の画面での起動は TASK-168（#549 の ?ir=）・TASK-160（#444 の遷移の上限）
@@ -116,7 +116,7 @@ test('xss: 入り口別の件数と、E5 を入力欄から送ったときの安
   }
   assert.ok(all.length > 0, 'no cases were read');
   log(t, 'xss', `cases=${all.length} byEntry=${JSON.stringify(byEntry)}`);
-  log(t, 'xss', 'E1/E2/E3/E4/E6: 件数のみ。画面の経路の観察は TASK-144 / TASK-145 / TASK-146 / TASK-147 で育てる（未実装）');
+  log(t, 'xss', 'E1: pack-body-xss.test.mjs（TASK-144）が確かめる。E2/E3/E4/E6: 件数のみ。画面の経路の観察は TASK-145 / TASK-146 / TASK-147 で育てる（未実装）');
 
   const payloads = e5Payloads();
   let sent = 0;
