@@ -256,6 +256,33 @@ expect "counts browser: failing tests fail closed" 2 "${RC}"
 run pull_request counts browser "${TMP_DIR}/tap-partial.tap"
 expect "counts browser: missing TAP summary fails closed" 2 "${RC}"
 
+# --- 変更ファイル照合の異常（grep が 2 以上を返す）は「変更なし」にせず fail-closed にする ---
+REAL_GREP="$(command -v grep)"
+FAKE_BIN="${TMP_DIR}/fakebin"
+mkdir -p "${FAKE_BIN}"
+cat >"${FAKE_BIN}/grep" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\${a}" in */changed.txt) exit 2 ;; esac
+done
+exec "${REAL_GREP}" "\$@"
+EOF
+chmod +x "${FAKE_BIN}/grep"
+
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+commit_head
+RC=0
+OUT="$(PATH="${FAKE_BIN}:${PATH}" CI_EVENT_NAME=pull_request "${SCRIPT}" --repo "${REPO}" --base HEAD^1 guard --cargo-metadata-json "${TMP_DIR}/md-ok.json" 2>&1)" || RC=$?
+expect "guard: grep failure on the changed list fails closed" 2 "${RC}"
+RC=0
+OUT="$(PATH="${FAKE_BIN}:${PATH}" CI_EVENT_NAME=pull_request "${SCRIPT}" --repo "${REPO}" --base HEAD^1 counts rust "${TMP_DIR}/rust-base.log" 2>&1)" || RC=$?
+expect "counts rust: grep failure on the changed list fails closed" 2 "${RC}"
+
+# changed.txt の読み取り失敗（--changed-files が読めない）も判定不能
+run pull_request guard --changed-files "${TMP_DIR}/no-such-list.txt" --cargo-metadata-json "${TMP_DIR}/md-ok.json"
+expect "guard: unreadable changed-files list fails closed" 2 "${RC}"
+
 # --- misuse ---
 run pull_request --no-such-option detect
 expect "misuse: unknown option" 2 "${RC}"

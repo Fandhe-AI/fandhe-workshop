@@ -78,6 +78,8 @@ if [ "${#ARGS[@]}" -eq 0 ]; then
 fi
 [ -n "${EXPECTED_FILE}" ] || EXPECTED_FILE="${REPO}/${EXPECTED_REL}"
 
+require_cmd grep
+
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-bump.XXXXXX")"
 trap 'rm -rf "${TMP}"' EXIT
 
@@ -142,8 +144,14 @@ changed_list() {
     fail2 "cannot diff ${BASE}..HEAD"
 }
 
+# is_changed <path>: 一覧に含まれれば 0、含まれなければ 1。grep の異常（2 以上）は「変更なし」にせず判定不能で止める。
 is_changed() {
-  grep -qxF -- "$1" "${TMP}/changed.txt"
+  local rc=0
+  grep -qxF -- "$1" "${TMP}/changed.txt" || rc=$?
+  case "${rc}" in
+    0 | 1) return "${rc}" ;;
+    *) fail2 "cannot check changed files (grep exit ${rc})" ;;
+  esac
 }
 
 # (5) wasm-full が default-features = false で action-keydown を明示していること。
