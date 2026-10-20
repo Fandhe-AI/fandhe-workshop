@@ -122,6 +122,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "now",
     "save_deferred",
     "report_save_result",
+    "save_epoch",
     "is_scheduled",
     "is_ok_and",
     "engine_snapshot_json",

@@ -207,10 +207,18 @@ fn on_save_cancel() {
 /// 遅延保存の結果をホストへ届ける（`persist::save_deferred` が呼ぶ。SAVE-10）。
 ///
 /// 呼ぶのは遅延保存のタイマーの中（別のスタック）だけだが、配送は他の action と同じく `schedule_action` の `set_timeout(0)` に回す。
+///
+/// `epoch` は書き込んだ時点の保存世代。配送までに即時の保存が走っていれば、ホストが古い結果として捨てる。
 pub(crate) fn report_save_result(
+    epoch: u64,
     result: Result<(), fandhe_workshop_contract::storage::StorageError>,
 ) {
-    schedule_action(Scheduled::SaveResult(result), 0);
+    schedule_action(Scheduled::SaveResult(epoch, result), 0);
+}
+
+/// 今の保存世代（即時の保存のたびに進む）。未マウント・借用中は `None`。
+pub(crate) fn save_epoch() -> Option<u64> {
+    with_app(EngineHost::save_epoch)
 }
 
 /// 遅延保存を待っている変更があるか。試験用の口が読む。

@@ -92,11 +92,15 @@ pub(crate) fn save_deferred() {
     let Some(v) = crate::glue::history_to_save() else {
         return;
     };
+    // 書き込む直前の保存世代。結果の配送が遅れる間に即時の保存が走れば、この世代は古くなる。
+    let Some(epoch) = crate::glue::save_epoch() else {
+        return;
+    };
     let result = stage_and_flush(&key, v);
     #[cfg(feature = "test-hooks")]
     AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
     // 失敗・成功を保存通知へ反映する（SAVE-10）。配送は別のスタックのタイマーで行う。
-    crate::glue::report_save_result(result);
+    crate::glue::report_save_result(epoch, result);
 }
 
 /// 本番の保存先の種類（`local` か `idb`）。開いていなければ `None`。試験の設定だけ。

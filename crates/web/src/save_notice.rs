@@ -12,25 +12,39 @@ use fandhe_workshop_contract::storage::StorageError;
 /// 遅延保存の結果をホストへ届ける action の名前（`decode_action` が受ける私的な名前。`RuntimeAction` の契約には入れない）。
 pub const ACTION_SAVE_RESULT: &str = "save-result";
 
-/// 遅延保存の結果の payload。成功は `ok`、失敗は種類の名前（値・鍵は含めない）。
-pub fn encode_save_result(result: Result<(), StorageError>) -> &'static str {
-    match result {
+/// 遅延保存の結果の payload。`<保存世代> <ok|失敗の種類の名前>`（値・鍵は含めない）。
+///
+/// 世代は、書き込んだ時点のホストの保存世代（`EngineHost::save_epoch`）。配送が遅れる間に即時の保存が走ったとき、
+/// 古い結果が新しい通知を上書きしないよう、ホストが現在の世代との一致を見て捨てる（SAVE-10）。
+pub fn encode_save_result(epoch: u64, result: Result<(), StorageError>) -> String {
+    let kind = match result {
         Ok(()) => "ok",
         Err(StorageError::QuotaExceeded) => "quota",
         Err(StorageError::Unavailable) => "unavailable",
         Err(StorageError::Failed) => "failed",
-    }
+    };
+    format!("{epoch} {kind}")
 }
 
 /// [`encode_save_result`] の逆。完全一致だけを受け、未知の payload は `None`（信頼しない入力）。
-pub fn decode_save_result(payload: &str) -> Option<Option<StorageError>> {
-    match payload {
-        "ok" => Some(None),
-        "quota" => Some(Some(StorageError::QuotaExceeded)),
-        "unavailable" => Some(Some(StorageError::Unavailable)),
-        "failed" => Some(Some(StorageError::Failed)),
-        _ => None,
+/// 世代は正規形の 10 進（先頭 0 なし・u64 に収まる）だけを受ける。
+pub fn decode_save_result(payload: &str) -> Option<(u64, Option<StorageError>)> {
+    let (epoch, kind) = payload.split_once(' ')?;
+    if epoch.is_empty() || (epoch.len() > 1 && epoch.starts_with('0')) {
+        return None;
     }
+    if !epoch.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let epoch = epoch.parse::<u64>().ok()?;
+    let failure = match kind {
+        "ok" => None,
+        "quota" => Some(StorageError::QuotaExceeded),
+        "unavailable" => Some(StorageError::Unavailable),
+        "failed" => Some(StorageError::Failed),
+        _ => return None,
+    };
+    Some((epoch, failure))
 }
 
 /// 通知欄の束縛点の名前（`engine_parts` の `F_LOG` の末尾と同じ。ホストが dirty に積むときに使う）。

@@ -174,8 +174,9 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
-    /// 遅延保存の結果（SAVE-10）。`None` は成功で、通知を消す。`Some` は失敗の種類で、通知を出す。
-    SaveResult(Option<StorageError>),
+    /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
+    /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
+    SaveResult(u64, Option<StorageError>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -519,6 +520,8 @@ pub struct EngineHost {
     save_failure_probe: Option<SaveFailureProbe>,
     /// 直近の同期の保存（saver）の失敗。表示は「これ、無ければ probe の値」で決める。
     sync_save_failure: Option<StorageError>,
+    /// 即時の保存の世代。遅延保存の結果は、書き込んだ時点の世代が今と一致するときだけ反映する。
+    save_epoch: u64,
     /// 今の `update` で状態を変えた（ログが伸びた）印。`update` の末尾で 1 回だけ保存を試して下ろす。
     /// 下書きだけの変更では立てない（打鍵ごとに履歴の全体を書く費用を避ける。下書きは離れる直前に書く）。
     save_due: bool,
@@ -593,6 +596,7 @@ impl EngineHost {
             history_saver: None,
             save_failure_probe: None,
             sync_save_failure: None,
+            save_epoch: 0,
             save_due: false,
             command_prefix: None,
             initial: None,
@@ -666,6 +670,7 @@ impl EngineHost {
             history_saver: None,
             save_failure_probe: None,
             sync_save_failure: None,
+            save_epoch: 0,
             save_due: false,
             command_prefix: d.command_prefix,
             initial,
@@ -891,6 +896,8 @@ impl EngineHost {
         let Some(value) = self.history_to_save() else {
             return;
         };
+        // 即時の保存のたびに世代を進め、配送待ちの遅延保存の結果を古くする。
+        self.save_epoch = self.save_epoch.wrapping_add(1);
         let failure = saver(&value).err();
         self.set_save_failure(failure);
     }
@@ -899,6 +906,11 @@ impl EngineHost {
     fn set_save_failure(&mut self, failure: Option<StorageError>) {
         self.sync_save_failure = failure;
         self.refresh_save_failure();
+    }
+
+    /// 今の保存世代。即時の保存のたびに進み、遅延保存の結果の配送が古いかの判定に使う（SAVE-10）。
+    pub fn save_epoch(&self) -> u64 {
+        self.save_epoch
     }
 
     /// 部品が読む値。
@@ -1543,7 +1555,12 @@ impl Component for EngineHost {
             HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
             | HostAction::Complete
                 if !self.input.shows_input_area() => {}
-            HostAction::SaveResult(failure) => self.set_save_failure(failure),
+            // 書き込みの後に即時の保存が走っていれば（世代が進んでいる）、古い結果は捨てる。新しい通知を消さない・古い失敗を出さない。
+            HostAction::SaveResult(epoch, failure) => {
+                if epoch == self.save_epoch {
+                    self.set_save_failure(failure);
+                }
+            }
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1780,7 +1797,8 @@ impl Component for EngineHost {
         }
         // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
         if name == crate::save_notice::ACTION_SAVE_RESULT {
-            return crate::save_notice::decode_save_result(payload).map(HostAction::SaveResult);
+            return crate::save_notice::decode_save_result(payload)
+                .map(|(epoch, failure)| HostAction::SaveResult(epoch, failure));
         }
         // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
         // `esc` と未知の名前は、これまでどおり入力欄に委ねる。
