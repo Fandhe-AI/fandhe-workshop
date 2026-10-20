@@ -1,0 +1,8 @@
+id: FEND20-3
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/persist.rs
+find: install_save_on_leave(key, crate::glue::history_to_save)
+replace: host.open_history(&[]); install_save_on_leave(key, crate::glue::history_to_save)
+expect-fail: 層全体は_update_を通らない状態の変更を持たない
+note: 許可表に無い &mut self のメソッドの呼び出しが保存の層に入る（R3 の許可表）

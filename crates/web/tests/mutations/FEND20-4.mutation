@@ -1,0 +1,8 @@
+id: FEND20-4
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/test_hooks.rs
+find: let f = rt.component();
+replace: let f = rt.component(); rt.dispatch_action("x", "");
+expect-fail: 層全体は_update_を通らない状態の変更を持たない
+note: 読み取りの口に状態を変える配送が紛れ込む（R2）
