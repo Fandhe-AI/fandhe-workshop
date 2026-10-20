@@ -456,7 +456,10 @@ mod tests {
         }
         let mut got: Vec<usize> = DiagCode::ALL.iter().map(|c| index(*c)).collect();
         got.sort_unstable();
-        let want: Vec<usize> = (0..DiagCode::ALL.len()).collect();
+        // 期待する変種数は `ALL` から作らない（`ALL` の入れ忘れが want 側にも現れず見逃されるため）。
+        // 上の `index` の最大値 + 1 と同じ値を、変種を足すたびに手で更新する。
+        const VARIANTS: usize = 41;
+        let want: Vec<usize> = (0..VARIANTS).collect();
         assert_eq!(got, want);
     }
 
