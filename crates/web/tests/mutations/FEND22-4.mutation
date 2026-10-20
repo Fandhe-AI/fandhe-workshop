@@ -1,0 +1,8 @@
+id: FEND22-4
+package: fandhe-workshop-web
+test: list_limit
+target: crates/web/src/engine_parts.rs
+find: items.extend((from.saturating_add(skip)..to).filter_map(data_row));
+replace: items.extend((from..to).filter_map(data_row)); let _ = skip;
+expect-fail: over_limit_host_log_is_folded_and_does_not_trigger_full_rerender
+note: 最新の Step の先頭を畳んだ後も畳んだ行を出す（同じ Step だけで 4,097 行を超えると上限を超える）

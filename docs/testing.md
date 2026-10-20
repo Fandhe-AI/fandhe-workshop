@@ -4899,6 +4899,30 @@ FEND-16 と TASK-361 は、配信する設定の WASM の `gzip -9` の大きさ
 - 前後の +10% を満たさない事実は、spec の FEND-16 の文言（置き換えの前後）と D-42 の食い違いを含めて spec 側で扱う。置き換えが将来起きる場合は、本節と同じ手順で測り直す
 - `make test-measure-wasm-size` は流していない（未検証）
 
+### 5.163 1 リストを約 1,000 項目で畳む（TASK-360 1/2）
+
+実行日: 2026-10-20
+元にしたコミット: 9f2dbb2（origin/main）に本変更を加えた作業ツリー
+
+FEND-22・D-46 の案 3（Step ごとに分け、古い Step を 1 行の要約に畳む）を、右のログ（`LogPart`）と復習（`ReviewPart`）へ入れた。畳みの計画は `list_policy::plan_fold`（純粋関数）、要約行は `list_policy::fold_node` が作る。D-46 が実装に委ねた細目は、次のとおり決めた。
+
+| 細目 | 決めたこと |
+|---|---|
+| グループ | ログは表示される行のうち `(世代, Step)` が同じで連続する範囲。復習は項目 1 件を 1 グループ。章の単位は作らず、集約行で代える |
+| 畳む順序 | (1) 最新を除く 2 行以上のグループを、古い順に Step の要約 1 行にする。(2) なお超えるなら最古から順に集約行 1 行へまとめる。(3) なお超えるなら最新のグループの先頭を「この Step の前の N 行」の 1 行にする |
+| 保証 | 総数が 1,000 以下なら畳まない。超えるときは出る行が常に 1,000 以下（4,096 件の安全弁は残る） |
+| 決定性 | 計画はグループの長さの列と目安だけで決まる。履歴を持たず、増分と一括の導出が一致する |
+| キー | 要約 `s{先頭のイベント}`・集約 `fold-older`・先頭の畳み `fold-head`。データ行のキーは変えない（残る行の要素を保つ） |
+| 要約行 | 文言は固定で数は 3 桁区切りの 10 進だけ。属性は `data-fold`・`data-fold-rows`（Step の要約だけ検証済みの `data-step`）。`data-event` は付けない |
+| 開き方 | 未実装（`docs/known-gaps.md` の FEND-22） |
+
+- native: `crates/web/tests/list_fold.rs` の 9 件（恒等・1,001 での畳み・形ごとの上限・古い側だけが畳まれる・追記・擬似乱数 1,000 通り・長さ 0 と巨大値で panic しない・要約行の文言と属性）。`list_limit.rs` のホストの試験は、表示前の行が 4,096 を超えるまで入力を続け、畳みで 1,000 項目以下・通知なし・dirty の解決を確かめる形に書き直した（4,097 件の `Err` の経路は単位の試験が守る）
+- ブラウザ: `tools/browser/list-fold.test.mjs`（`raw-trigger` から拒否される入力を送り続け、50 回ごとに 1,000 項目以下・通知 0 件・要約行に `data-event` なし・畳みの発生を確かめ、最後に親と枠の同一性・安全性の観察 0 件を確かめる。所要約 4 秒）。復習の 1,000 件超は IR から作れないため native の試験で守る（`crates/web/tests/review_fold.rs` の 2 件。達成済みの Step を 1,001 件ログに積んだホストを `ReviewPart` まで描き、要約を含む項目数が 1,000 以下・`older` の要約 1 行と畳んだ件数・最新の項目の保持・残る行の連続・通知なし・束縛点 1 つを確かめる。1,000 件ちょうどでは畳まない）
+- 変異: `FEND22-2`（計画が畳まない）・`FEND22-3`（ログがグループの長さを渡さない）・`FEND22-4`（先頭を畳んだ後も畳んだ行を出す）が DETECTED。`FEND15-4` は host の試験を書き直したため、`expect-fail` から host の試験を外した
+- 既知: `FEND15-2`・`FEND15-3` の `find` が base の `engine_parts.rs`（`keyed_view_or_notice`）と一致せず、`check-mutations.sh` が終了コード 2 で止まる（本変更の前から。未対応）
+
+未実施: 左のビュー（7 本の view list。TASK-484）、4,096 件の打ち切りと状態の文字（TASK-360 2/2）、再描画の傾きの測定（TASK-232・TASK-454）。上流への報告は、D-46 に従い行わない。`scripts/expected-test-counts.txt` は更新していない。
+
 ### 5.164 状態を変える経路が update だけであることの検査（TASK-362 1/2）
 
 FEND-20 は、glue（web-sys）がキー入力・タイマー・変換中の印・保存の通知を受けても、状態を変える経路は `Component::update` だけであることを求める。従来の `crates/web/tests/state_paths.rs` は `glue.rs` だけを読んでいた。本節で、`lib.rs` の `cfg(target_arch = "wasm32")` つきの `mod` 宣言から求めた層全体（`glue`・`persist`・`leave_flush`・`storage_idb`・`storage_local`・`history_download`・`test_hooks`）に広げた。DOM 操作の許可一覧と glue の行数・web-sys の feature 数の記録は 2/2（TASK-362）が受け持つ。

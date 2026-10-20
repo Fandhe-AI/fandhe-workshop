@@ -21,7 +21,15 @@
 //! 項目数の方針（FEND-22・D-46）: 1 リストの項目は約 [`LIST_ITEMS_TARGET`] 件までを目安とし、超える場合は
 //! 部品の側でリストを分割する。上流の [`LIST_ITEMS_LIMIT`] 件は安全弁で、目安ではない。目安の値は基準端末 A の
 //! 測定に基づく暫定値（FEND-22 は検討中）である。超えた場合の分割・畳み方の細目は、実装タスク
-//! （ART-14・TERM-35・EVT-26 の担当）が試作して決めるため、本契約では設計しない。
+//! （ART-14・TERM-35・EVT-26 の担当）が試作して決める。ログと復習の畳みは [`plan_fold`] が決めた。
+//!
+//! 畳み方（TASK-360 1/2。D-46 の案 3）: 表示部品は行を Step などの連続する「グループ」に分け、[`plan_fold`] に
+//! グループの長さの列を渡して、1 リストが [`LIST_ITEMS_TARGET`] 項目以内になるよう古い側から畳む。順序は
+//! (1) 最新を除く 2 行以上のグループを Step の要約 1 行にする、(2) まだ超えるなら最古のグループから順に 1 つの
+//! 集約行へまとめる、(3) それでも超えるなら最新のグループの先頭を 1 行に畳む（最新の行は残る）。計画はグループの
+//! 長さの列と目安だけで決まる純粋関数で、更新の履歴を持たない（増分と一括の導出が一致する。EVT-1）。
+//! 章の単位のグループは作らず、集約行で代える。要約行は表示だけで、開く操作は未実装である
+//! （`docs/known-gaps.md`）。左の成果物の 7 本の list への適用は TASK-484 が持つ。
 //!
 //! 上限を超えた場合は [`keyed_view`] が `Err` をそのまま返し、切り詰めで黙って続けない。呼び出し側の復帰は
 //! [`keyed_view_or_notice`] に一本化する。`Err` のときも親要素は `data-bind-list` を保った keyed list
@@ -36,6 +44,7 @@ use core::fmt;
 use fandhe_frontend_core::keyed::{keyed_list, KeyedListError, MAX_KEYED_LIST_ITEMS};
 use fandhe_frontend_core::{el, text, Node};
 
+use crate::log_lines::group_digits;
 use crate::parts::{FieldKind, PartField};
 
 /// 1 リストの項目数の目安（D-46）。超えたらリストを分割する。FEND-22 は検討中で、基準端末 A の値である。
@@ -140,4 +149,164 @@ pub fn keyed_view_or_notice(
         ),
     )];
     keyed_view(tag, marked.clone(), field, notice).unwrap_or_else(|_| el(tag, marked, vec![]))
+}
+
+/// 畳みの計画の 1 項目。古い順に並び、出す行の総数は [`plan_fold`] の `target` 以下になる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoldEntry {
+    /// `group` の行のうち、先頭から `skip` 行を除いた残りをそのまま出す。
+    Rows {
+        /// グループの位置（古い順）。
+        group: usize,
+        /// 先頭から除く行数（畳まれた分は別の項目が受け持つ）。
+        skip: usize,
+    },
+    /// `group` の全行を Step の要約 1 行にする。
+    Summary {
+        /// グループの位置。
+        group: usize,
+        /// 畳んだ行数。
+        rows: usize,
+    },
+    /// 最古の `groups` 個のグループ（計 `rows` 行）を集約の 1 行にする。
+    Older {
+        /// 畳んだグループの数。
+        groups: usize,
+        /// 畳んだ行数。
+        rows: usize,
+    },
+    /// 最新のグループの先頭 `rows` 行を 1 行にする（直後に同じグループの `Rows` が続く）。
+    Head {
+        /// グループの位置。
+        group: usize,
+        /// 畳んだ行数。
+        rows: usize,
+    },
+}
+
+/// 畳みの計画を立てる。`group_lens` は古い順のグループの長さ、`target` は 1 リストの項目数の目安
+/// （通常は [`LIST_ITEMS_TARGET`]）。呼び出し元は `engine_parts` のログ（Step ごと）と復習（1 項目 1 グループ）。
+///
+/// 総数が `target` 以下なら畳まない。`target` が 3 未満のときは 3 として扱う。結果の項目が出す行の数
+/// （`Rows` の残りと要約・集約・先頭の各 1 行の合計）は、常に `target` 以下になる。
+/// 計算は飽和演算で、panic しない。
+pub fn plan_fold(group_lens: &[usize], target: usize) -> Vec<FoldEntry> {
+    let target = target.max(3);
+    let n = group_lens.len();
+    let mut total: usize = group_lens.iter().fold(0, |a, l| a.saturating_add(*l));
+    if total <= target || n == 0 {
+        return (0..n)
+            .map(|group| FoldEntry::Rows { group, skip: 0 })
+            .collect();
+    }
+    let latest = n - 1;
+    // (1) 最新を除く 2 行以上のグループを、古い順に、収まるまで要約にする。
+    let mut summarized_upto = 0;
+    for (g, len) in group_lens.iter().enumerate().take(latest) {
+        if total <= target {
+            break;
+        }
+        if *len >= 2 {
+            total = total.saturating_sub(len - 1);
+        }
+        summarized_upto = g + 1;
+    }
+    // (2) まだ超えるなら、最古の k 個（最新を除く）を 1 行へ集約する。k 個で k - 1 行減る。
+    let mut aggregated = 0;
+    if total > target && latest >= 2 {
+        aggregated = (total - target + 1).min(latest);
+        total = total.saturating_sub(aggregated - 1);
+        summarized_upto = summarized_upto.max(aggregated);
+    }
+    // (3) それでも超えるなら、最新のグループの先頭 h 行を 1 行へ畳む。h 行で h - 1 行減る。
+    let latest_len = group_lens[latest];
+    let head = if total > target && latest_len >= 2 {
+        (total - target + 1).min(latest_len - 1)
+    } else {
+        0
+    };
+    let mut out = Vec::with_capacity(n + 2);
+    if aggregated > 0 {
+        let rows = group_lens[..aggregated]
+            .iter()
+            .fold(0usize, |a, l| a.saturating_add(*l));
+        out.push(FoldEntry::Older {
+            groups: aggregated,
+            rows,
+        });
+    }
+    for (group, len) in group_lens.iter().enumerate().skip(aggregated) {
+        if group == latest && head > 0 {
+            out.push(FoldEntry::Head { group, rows: head });
+            out.push(FoldEntry::Rows { group, skip: head });
+        } else if group < summarized_upto && *len >= 2 {
+            out.push(FoldEntry::Summary { group, rows: *len });
+        } else {
+            out.push(FoldEntry::Rows { group, skip: 0 });
+        }
+    }
+    out
+}
+
+/// 要約行の種別。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoldKind {
+    /// 1 つの Step の行を畳んだ要約。
+    Step,
+    /// 古いグループをまとめた集約。
+    Older,
+    /// 最新の Step の先頭を畳んだ行。
+    Head,
+}
+
+impl FoldKind {
+    /// `data-fold` の値。
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            FoldKind::Step => "step",
+            FoldKind::Older => "older",
+            FoldKind::Head => "head",
+        }
+    }
+}
+
+/// 畳みの印の属性名（値は [`FoldKind::as_str`]）。
+pub const FOLD_ATTR: &str = "data-fold";
+/// 畳んだ行数の属性名。値は 10 進の数だけ。
+pub const FOLD_ROWS_ATTR: &str = "data-fold-rows";
+
+/// 要約行の `li` を作る。文言は固定で、数は 3 桁区切りの 10 進だけを入れる（教材・受講者の値を連結しない。SAFE-11）。
+/// `step` は検証済みの `StepUid` の文字列で、属性値として既定のエスケープに通る（[`FoldKind::Step`] のときだけ付く）。
+/// `review` が真なら復習の項目の文言にする。`data-event` は付けない（データ行の数え上げと区別するため）。
+pub fn fold_node(
+    kind: FoldKind,
+    groups: usize,
+    rows: usize,
+    step: Option<&str>,
+    review: bool,
+) -> Node {
+    let n = |v: usize| group_digits(u32::try_from(v).unwrap_or(u32::MAX));
+    let rows_text = n(rows);
+    let word = match (kind, review) {
+        (FoldKind::Step, _) => format!("前の Step の {rows_text} 行を畳みました"),
+        (FoldKind::Older, false) => {
+            format!(
+                "それ以前の {} 個の Step の {rows_text} 行を畳みました",
+                n(groups)
+            )
+        }
+        (FoldKind::Older, true) => {
+            format!("それ以前の {} 件の復習の項目を畳みました", n(groups))
+        }
+        (FoldKind::Head, _) => format!("この Step の前の {rows_text} 行を畳みました"),
+    };
+    let rows_attr = rows.to_string();
+    let mut attrs = vec![
+        (FOLD_ATTR, kind.as_str()),
+        (FOLD_ROWS_ATTR, rows_attr.as_str()),
+    ];
+    if let (FoldKind::Step, Some(s)) = (kind, step) {
+        attrs.push(("data-step", s));
+    }
+    el("li", attrs, vec![text(word)])
 }

@@ -6,7 +6,7 @@
 //! （全再描画）。そのため `Err` の代替も `data-bind-list` を持つ親を保つ。本試験は次を固定する。
 //! - 4,096 件は通り、4,097 件は `keyed_view` が `TooManyItems` で拒否する。
 //! - 代替（`keyed_view_or_notice`）は `data-bind-list` を保った親を 1 つ描き、データ行は 0 件・通知の行は 1 件である。
-//! - ホスト全体で、ログが 4,097 行になった更新の直後も、dirty な field がすべて描画結果の束縛点として解決でき
+//! - ホスト全体で、ログの表示前の行が 4,097 行を超えても、畳みで 1,000 項目以内に収まり通知は出ず、dirty な field がすべて描画結果の束縛点として解決でき
 //!   （全再描画の条件が成り立たない）、部品の `section` と束縛点が残る。
 //!
 //! 失敗の文面には、field 名と件数だけを出す（教材由来の値を出さない）。試験では `unwrap` を使ってよい。
@@ -23,7 +23,7 @@ use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::list_policy::{
-    keyed_view, keyed_view_or_notice, ListError, LIST_ERROR_ATTR,
+    keyed_view, keyed_view_or_notice, ListError, LIST_ERROR_ATTR, LIST_ITEMS_TARGET,
 };
 use fandhe_workshop_web::log_lines::line_from_event;
 use fandhe_workshop_web::parts::{Component, DirtyTracked, FieldKind, PartField};
@@ -125,31 +125,30 @@ fn bound_names(html: &str) -> Vec<String> {
 }
 
 #[test]
-fn limit_4097_host_log_does_not_trigger_full_rerender() {
+fn over_limit_host_log_is_folded_and_does_not_trigger_full_rerender() {
     let mut host = begun_host();
     let op = || HostAction::Engine(Op::Input(Input::Text("x".to_owned())));
     // 入力（`Input::Text`）は 1 回で行が 2 件増える（入力の記録の行と、拒否の行。TASK-437）。
-    // それを確かめながら、4,096 行まで進める（開始時の行数が偶数なら、ちょうど 4,096 に届く）。
+    // 畳みが無ければ 4,097 行で上流が拒否する件数（FEND-15）まで、表示前の行を増やし続ける。
     let mut guard = 0;
-    while log_len(&host) < 4_096 {
+    while log_len(&host) <= 4_096 {
         let before = log_len(&host);
         host.update(op());
         assert_eq!(log_len(&host), before + 2, "行が 2 件ずつ増えない");
         guard += 1;
         assert!(guard <= 5_000, "上限に届かない: {}", log_len(&host));
     }
-    assert_eq!(log_len(&host), 4_096);
-    let html = render_component_html(&host);
-    assert_eq!(count(&html, "data-event="), 4_096);
-    assert_eq!(count(&html, LIST_ERROR_ATTR), 0);
-
-    host.update(op());
-    assert!(log_len(&host) > 4_096);
     let html = render_component_html(&host);
 
-    // 1. ログの親に印があり、データ行は 0 件。
-    assert_eq!(count(&html, "data-event="), 0, "データ行が残っている");
-    assert_eq!(count(&html, "data-list-error=\"limit\""), 2, "親と通知の行");
+    // 1. 畳みが効き、データ行と要約行の合計が目安（1,000）以下。通知の行は出ない（TASK-360 1/2）。
+    let folds = count(&html, "data-fold=");
+    assert!(folds >= 1, "畳まれていない");
+    assert!(
+        count(&html, "data-event=") + folds <= LIST_ITEMS_TARGET,
+        "目安を超えた: {} + {folds}",
+        count(&html, "data-event=")
+    );
+    assert_eq!(count(&html, LIST_ERROR_ATTR), 0, "上限の通知が出た");
     // 2. KeyedList の field ごとに親がちょうど 1 つ。
     let mut fields: Vec<&str> = host
         .registry()
