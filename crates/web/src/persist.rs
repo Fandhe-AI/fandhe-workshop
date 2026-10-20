@@ -7,9 +7,11 @@
 //! 試験用の口（`test_hooks` の `debug_storage_*`・`debug_save_*`）は、別の保存先と保留を持ち続ける。そのため試験の設定では
 //! IndexedDB の接続が 2 本になるが、どちらも `versionchange` で閉じる（`storage_idb`）ため、互いの更新を塞がない。
 //!
-//! 変更のたびには書き出さない（打鍵ごとに履歴の全体を書き出す費用を避ける）。離れる直前に、ホストが「保存する値」を
-//! 持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が `None`）ので、
-//! 未操作のページを離れても保存先には何も書かれない（SAVE-28）。保存の遅延のタイマーは置かない（TASK-318）。
+//! 書き出す時機は 2 つある。状態を変える操作のたび（ホストの `update` の末尾が [`save_now`] を呼ぶ。SAVE-10・TASK-323 1/2）と、
+//! 離れる直前（`pagehide`）である。下書きだけの変更では書かない（打鍵ごとに履歴の全体を書き出す費用を避け、下書きは離れる直前に書く）。
+//! どちらもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
+//! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。保存の遅延・畳み込みは置かない（TASK-318）。
+//! 変更のたびの書き込みが容量超過で失敗したときは、ホストが理由を表示する。書けなかった値は保留に残り、次の書き出しで再び試す。
 //!
 //! 鍵は呼び出し元が `HistoryKey` の構築子で作ったものだけを受ける。値・鍵の文字列は、結果にも記録にも出さない
 //! （履歴は下書きを含む受講者のデータである）。
@@ -84,6 +86,24 @@ pub fn install_save_on_leave(
     })
 }
 
+/// 変更のたびの保存（SAVE-10）。`value` を `key` の保留に積んで書き、最初の失敗の種類を返す。
+///
+/// 保存先が開いていない・借用中は `Unavailable`。書けなかった値は保留に残る（既存の保存は、保存先の `write` が失敗しても
+/// 同じ鍵の旧い値を消さない）。値・鍵の文字列は返さない。
+fn save_now(key: &HistoryKey, value: &str) -> Result<(), StorageError> {
+    PENDING.with(|p| {
+        p.stage(key.clone(), value.to_owned());
+        STORAGE.with(|s| {
+            let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
+            let st = slot.as_ref().ok_or(StorageError::Unavailable)?;
+            match p.flush(st).first_error {
+                Some(e) => Err(e),
+                None => Ok(()),
+            }
+        })
+    })
+}
+
 /// 配信先の区間。URL のパス名（サブパスの下で配られても鍵が衝突しない）から `DeliveryScope` の構築子で作る。
 fn delivery_scope() -> DeliveryScope {
     let path = web_sys::window()
@@ -148,6 +168,9 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
             host.block_saving();
         }
     }
+    // 変更のたびの保存の口は mount の前に結ぶ（mount の後はホストを `&mut` で触れない）。
+    let saver_key = key.clone();
+    host.set_history_saver(Box::new(move |v| save_now(&saver_key, v)));
     crate::glue::mount_host(root_id, host)?;
     install_save_on_leave(key, crate::glue::history_to_save)
 }

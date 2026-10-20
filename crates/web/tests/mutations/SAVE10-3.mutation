@@ -1,0 +1,8 @@
+id: SAVE10-3
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/save_notice.rs
+find: pub const SAVE_QUOTA_NOTICE: &str = "保存できませんでした（QuotaExceededError）";
+replace: pub const SAVE_QUOTA_NOTICE: &str = "保存できませんでした";
+expect-fail: 容量超過で理由が出て状態は進み既存の保存は変わらず_空けた後の次の変更で消える
+note: 容量超過の文が SAVE-10 の文言と違う

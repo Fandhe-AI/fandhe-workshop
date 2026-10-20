@@ -49,6 +49,7 @@ use crate::log_lines::{line_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
+use crate::save_notice::{save_notice_text, SAVE_NOTICE_FIELD};
 use crate::step_status::step_status;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
 use crate::view_select::{
@@ -84,6 +85,11 @@ const F_LOG: &[PartField] = &[
     // 末尾に足す（[2]..[4] は位置で参照している）。遷移の上限で止めた理由の通知欄（SAFE-34）。
     PartField {
         name: "log_notice",
+        kind: FieldKind::Bound,
+    },
+    // 履歴を保存できなかったことの通知欄（SAVE-10。TASK-323 1/2）。`log_notice` と責務を分ける。
+    PartField {
+        name: SAVE_NOTICE_FIELD,
         kind: FieldKind::Bound,
     },
 ];
@@ -353,6 +359,13 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[5].name,
                     limit_notice(model.session()).as_str(),
                 ),
+                // 履歴を保存できなかったことの通知欄（SAVE-10）。配置は仮で、TASK-534 が決める。
+                bind_text(
+                    "p",
+                    vec![("data-testid", "save-notice"), ("role", "status")],
+                    F_LOG[6].name,
+                    save_notice_text(model.save_failure()),
+                ),
                 bind_text(
                     "span",
                     vec![("data-testid", "part-log-consumed")],
@@ -369,6 +382,9 @@ impl DisplayPart<HostModel> for LogPart {
             f if f == F_LOG[3].name => Some(BoundValue::Text(status.data_state().to_owned())),
             f if f == F_LOG[4].name => Some(BoundValue::Text(step_status_text(model).to_owned())),
             f if f == F_LOG[5].name => Some(BoundValue::Text(limit_notice(model.session()))),
+            f if f == F_LOG[6].name => Some(BoundValue::Text(
+                save_notice_text(model.save_failure()).to_owned(),
+            )),
             _ => consumed_bound(field, F_LOG[1].name, model),
         }
     }

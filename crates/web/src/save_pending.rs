@@ -2,7 +2,7 @@
 //!
 //! 変更の直後に保存の遅延を待たずにページを離れても、直前の変更が残るようにするための型である。
 //! 呼び出し元は、変更を保存先へ流す経路（TASK-318・TASK-319）が [`PendingSave::stage`] で値を積み、
-//! `leave_flush`（wasm のみ）が `pagehide` の中で [`PendingSave::flush`] を同期に呼ぶ。
+//! `persist::save_now`（状態を変える操作のたび。TASK-323 1/2）と `leave_flush`（wasm のみ）が `pagehide` の中で [`PendingSave::flush`] を同期に呼ぶ。
 //! 呼び出し先は contract の [`HistoryStore`] だけで、ブラウザの API には触れない（native で試験できる）。
 //!
 //! 保留は鍵ごとに最後の 1 つへ畳む。書き出しで書けなかった鍵は保留に残し、次の書き出しで再び試す
