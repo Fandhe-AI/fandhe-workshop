@@ -4980,6 +4980,87 @@ FEND-20 は、glue（web-sys）がキー入力・タイマー・変換中の印�
 `FEND15-4`・`FEND22-1` の `expect-fail` は、本節で試験名を改めた。
 未実施: ブラウザ試験（`?fixture=list-limit` の開始状態は未実装）。左のビューの畳みは TASK-484。
 
+### 5.166 DOM 操作の許可一覧の層全体への検査と、glue の行数・web-sys の feature の記録（TASK-362 2/2）
+
+FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限り、glue のコード行と web-sys の feature の数を記録して、増えたら理由を求める。従来の `crates/web/tests/glue_contract.rs` は `glue.rs` だけを読んでいた。本節で、許可一覧の検査を層全体（5.164 と同じ 7 モジュール）に広げ、行数と feature の増加を止める試験を足した。状態を変える経路の検査は 5.164（1/2）が受け持つ。
+
+置き場: spec の変更対象は `tools/check-deps.sh` と CI だが、5.164 と同じく、DOM の値の読み取りは `check-deps.sh`（`make check-dom-reads`）、それ以外の静的検査は `crates/web/tests/` の native 試験、と分担を保った。呼び出し名の表は試験の側にだけ置く（`src/` の走査対象に DOM 読み取りの綴りを持ち込まないため）。試験は `make test` を通して CI の `rust-test` ジョブで流れる。`glue_ops.rs`・`GlueOp`・`PARTS_CONTRACT_VERSION` は変えていない（契約の変更は spec が先）。spec の人間の承認点「CI のガードの変更」と、置き場が spec の指定と違うことは、自動運転のため承認を得ていない。PR で要確認とする。
+
+#### 層全体の許可一覧（`glue_contract.rs`）
+
+| 規則 | 内容 |
+|---|---|
+| L1 | 構造を変える操作（`set_inner_html`・`append_child`・`create_element` など）は、層のどのモジュールにも 0 件 |
+| L2 | glue 以外のモジュールは、モジュールごとの許可表（`MODULE_RULES`）と、層で共有する DOM ではない呼び出し名（`LAYER_NON_DOM_CALLS`・`NON_DOM_CALLS`）に無い呼び出し名を持たない。glue は従来の 7 種の厳密な表のまま（緩めない） |
+| L3 | リスナー登録の第 1 引数は文字列リテラルで、モジュールの許可イベントにある。glue は 4 種、`leave_flush` は `pagehide` だけ、他は 0 種（リスナー登録の呼び出し自体も許さない） |
+| L4 | glue 固有の DOM 操作（`query_selector`・`set_attribute`・`click`・`set_value`・`prevent_default` など）は、他のモジュールの許可表に書けない。例外は別の意味で使う `window`・`root`・`contains`・`key` だけ。glue の外の `.query_selector(` は 0 件、`.root(` は `test_hooks` の 1 件だけ |
+| L5 | 層の列挙が空、glue が無い、許可表に無いモジュールがある（新しい wasm32 専用モジュールが増えた）、層に無いモジュールの行が表にある、のどれも失敗にする（fail-closed） |
+
+| モジュール | 用途 |
+|---|---|
+| `glue` | 7 種（要素の取得・属性の書き込み・click・タイマー・keydown の受け取り・変換中の印・textarea の値の反映）。厳密な表 |
+| `storage_idb`・`storage_local` | 保存先（IndexedDB・localStorage） |
+| `history_download` | 書き出し（Blob と object URL） |
+| `leave_flush` | 離脱時の保存（`pagehide` の通知を受けるだけ） |
+| `persist` | 起動時の URL（`location.pathname`）から保存先を決めてマウントする |
+| `test_hooks` | 試験用の口（配信物に入らない。それでも fail-closed の表を持たせる。配信物に無いことは `check-delivery.sh` が受け持つ） |
+
+#### glue の規模（2026-10-20、`26520cb`）
+
+数え方は 5.92 と同じ（コード行は空行と `//` で始まる行を除いた数）。関門にするのは `glue.rs` のコード行だけで、他は記録のみ。
+
+| ファイル | `wc -l` | コード行 | 関門 |
+|---|---|---|---|
+| `glue.rs` | 611 | 401 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 401`（`<=` で照合。増えたら失敗） |
+| `key_route.rs` | 553 | 394 | なし |
+| `test_hooks.rs` | 524 | 376 | なし |
+| `storage_idb.rs` | 319 | 236 | なし |
+| `persist.rs` | 153 | 98 | なし |
+| `storage_local.rs` | 83 | 64 | なし |
+| `glue_ops.rs` | 97 | 42 | なし |
+| `history_download.rs` | 59 | 30 | なし |
+| `leave_flush.rs` | 53 | 27 | なし |
+
+5.92 の `bddd086` は glue.rs が 500 行・コード 324 行だった。今は 401 行で、増分は TASK-343 以降のキー処理・タイマー・root の外の Esc などによる。spec の「349 行」は決定時点の PoC の値で、数え方と範囲が今と違うため目標にしない（5.92）。今の実測を上限に固定し、増えたときだけ失敗にして理由を求める。上限を上げる PR は、`MAX_GLUE_CODE_LINES` と本節の表を同時に更新し、PR 本文に理由を書く。
+
+#### web-sys の feature（2026-10-20、`26520cb`）
+
+ルート `Cargo.toml` の `[workspace.dependencies]` に 24 個ある。`frontend_features.rs` の `WEB_SYS_FEATURES`（用途つき）と中身まで完全に一致することを確かめる（個数だけでなく入れ替えにも気づく）。`default-features = false` と、`crates/web/Cargo.toml` の web-sys が `workspace = true` だけで feature を足していないことも確かめる。
+
+| 用途 | 個数 | feature |
+|---|---|---|
+| キー入力・textarea・左の行・root の外の Esc | 11 | `Document`・`Node`・`Element`・`Event`・`EventTarget`・`HtmlElement`・`HtmlTextAreaElement`・`HtmlLiElement`・`InputEvent`・`KeyboardEvent`・`Window` |
+| 保存先（localStorage・IndexedDB） | 10 | `Location`・`Storage`・`DomException`・`IdbFactory`・`IdbOpenDbRequest`・`IdbRequest`・`IdbDatabase`・`IdbTransaction`・`IdbTransactionMode`・`IdbObjectStore` |
+| 書き出し | 3 | `Blob`・`BlobPropertyBag`・`Url` |
+
+5.92 の 21 個からの増分 3 個は `Document`・`Node`・`HtmlLiElement` で、root の外の Esc（TASK-353）と左の行の識別が入れた。決定時点の「9 個」より多いが、保存先・書き出しなどの用途が後から加わったためで、今の値を基点にする。
+
+限界:
+
+- 文字列の照合のため、マクロ展開・`use` の別名を介した呼び出しは見ない
+- 名前の衝突（DOM でない同名の呼び出し）は検出側に倒す。誤検出が出たら、許可表に理由つきで足す
+- 行数の関門は `glue.rs` だけで、`key_route.rs` など分割した先の増加は止めない（記録のみ）
+
+変異注入の記録（`FEND20-7`〜`FEND20-10` は新規。`FEND20-1`・`G1`・`G2` は範囲を広げた後も検出することの再確認）。
+
+```text
+実行日: 2026-10-20
+元にしたコミット: 26520cb（未コミットの差分つき）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/{FEND20-7,FEND20-8,FEND20-9,FEND20-10,FEND20-1,G1,G2}.mutation
+```
+
+| ID | 入れた誤り | 規則 | 結果 |
+|---|---|---|---|
+| FEND20-7 | `persist.rs` に `el.set_inner_html("")` | L1・L2（glue 以外） | DETECTED |
+| FEND20-8 | `leave_flush.rs` のリスナーのイベントを `click` にする | L3 | DETECTED |
+| FEND20-9 | `glue.rs` のコメント 1 行をコードの行にする（401 行を超える） | 行数の上限 | DETECTED |
+| FEND20-10 | ルートの web-sys の feature に `HtmlInputElement` を足す | feature の一覧 | DETECTED |
+| FEND20-1 | glue に `el.set_inner_html("")` | glue 固有・L1 | DETECTED |
+| G1 | glue の `component()` を 2 箇所にする | glue 固有 | DETECTED |
+| G2 | glue に状態を変える呼び出しを足す | glue 固有 | DETECTED |
+
+本番コード（`crates/web/src/**`）は変えていない。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。節番号は、並行する PR（#1637）が 5.164 の次を使う見込みのため、5.166 とした。
+
 ### 5.167 版上げの手順書の机上の照合（TASK-363）
 
 実行日: 2026-10-20、元にしたコミット: a1995f8 に本変更を載せた作業ツリー。

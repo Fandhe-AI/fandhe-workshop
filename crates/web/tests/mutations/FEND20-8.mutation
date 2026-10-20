@@ -1,0 +1,8 @@
+id: FEND20-8
+package: fandhe-workshop-web
+test: glue_contract
+target: crates/web/src/leave_flush.rs
+find: window.add_event_listener_with_callback("pagehide", on_hide.as_ref().unchecked_ref())?;
+replace: window.add_event_listener_with_callback("click", on_hide.as_ref().unchecked_ref())?;
+expect-fail: 層全体は許可表に無い_dom_操作を持たない
+note: 離脱時の保存のモジュールが pagehide 以外のイベントを受け取る（モジュールごとの許可イベントの照合）

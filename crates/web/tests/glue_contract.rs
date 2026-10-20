@@ -4,12 +4,14 @@
 //! （走査の道具は `tests/common`）。照合は fail-closed で、表に載っていない呼び出し名が 1 つでもあれば失敗する。
 //! 表は試験の側にだけ置く（`make check-dom-reads` の走査対象に DOM 読み取りの綴りを持ち込まないため）。
 //! 状態を変える経路が無いことは `state_paths` が持つ。本試験は DOM に対する操作の種類と数を固定する。
+//! `glue.rs` は厳密な表（7 種）で、glue 以外の wasm32 専用モジュールは用途ごとの許可表で照合する
+//! （層全体への拡張。TASK-362 2/2）。glue の行数と web-sys の feature の記録は `glue_scale`・`frontend_features`。
 
 mod common;
 
 use std::collections::HashSet;
 
-use common::{count, glue_code, glue_source};
+use common::{count, glue_code, glue_source, wasm_layer_sources};
 use fandhe_workshop_web::glue_ops::{
     tab_prevents_default, GlueOp, KeyHandlingOwner, MAX_ELEMENT_LOOKUPS, OUTSIDE_ROOT_ESC_OWNER,
     STATEFUL_PREVENT_DEFAULT_OWNER,
@@ -399,4 +401,443 @@ fn 負例_document_に_keydown_以外のリスナーを足すと検出する() {
         "root.add_event_listener_with_callback(\"input\", f)?; document.add_event_listener_with_callback(\"click\", h)?;",
     );
     assert!(violations(&src).iter().any(|m| m.contains("click")));
+}
+
+// ---- 層全体（glue 以外の wasm32 専用モジュール）の許可表（FEND-20・TASK-362 2/2） ----
+//
+// FEND-20 の「DOM 操作は 7 種に限る」は glue だけでなく、web-sys を使う層の全モジュールに及ぶ。
+// glue は上の厳密な表で照合する。glue 以外は、モジュールごとに用途と呼び出し名の許可表を持ち、
+// 表に無い呼び出し名・許可外のイベント・構造を変える操作を失敗にする（fail-closed）。
+// 保存先・書き出し・離脱時の保存・起動時の URL は、7 種の外にある用途で、ここで口を列挙して広がりを止める。
+
+/// glue 以外のモジュールの許可表の 1 行。
+struct ModuleRule {
+    /// `lib.rs` の `mod` の名前。
+    name: &'static str,
+    /// 用途（なぜ web-sys を使ってよいか）。
+    purpose: &'static str,
+    /// このモジュールだけが使ってよい呼び出し名（web-sys の口と、このモジュール固有の名前）。
+    calls: &'static [&'static str],
+    /// リスナーに登録してよいイベント名。
+    events: &'static [&'static str],
+}
+
+/// 層で共有する、DOM ではない呼び出し名（Rust 標準・`Option`/`Result`・js-sys・wasm-bindgen の型変換）。
+/// glue の照合には使わない（glue は `NON_DOM_CALLS` だけで照合し、緩めない）。
+const LAYER_NON_DOM_CALLS: &[&str] = &[
+    "to_string",
+    "as_deref",
+    "ok_or",
+    "push",
+    "take",
+    "borrow",
+    "borrow_mut",
+    "insert",
+    "parse",
+    "default",
+    "as_str",
+    "as_bytes",
+    "unwrap_or_default",
+    "unwrap_or_else",
+    "is_none",
+    "is_err",
+    "from",
+    "of1",
+    "from_utf8",
+    "as_string",
+    "unchecked_into",
+    "call0",
+    "call1",
+    "len",
+];
+
+/// glue 以外のモジュールの許可表。新しい wasm32 専用モジュールが増えたら、ここに行を足すまで失敗する。
+const MODULE_RULES: &[ModuleRule] = &[
+    ModuleRule {
+        name: "storage_idb",
+        purpose: "保存先（IndexedDB）",
+        calls: &[
+            "window",
+            "indexed_db",
+            "open_with_u32",
+            "set_onversionchange",
+            "set_oncomplete",
+            "set_onabort",
+            "set_onupgradeneeded",
+            "set_onblocked",
+            "set_onerror",
+            "set_onsuccess",
+            "close",
+            "error",
+            "transaction_with_str_and_mode",
+            "transaction_with_str",
+            "object_store",
+            "put_with_key",
+            "get",
+            "get_all",
+            "get_all_keys",
+            "delete",
+            "result",
+            "create_object_store",
+            "length",
+            // このモジュール固有の名前（DOM ではない）。
+            "set",
+            "name",
+            "start",
+        ],
+        events: &[],
+    },
+    ModuleRule {
+        name: "storage_local",
+        purpose: "保存先（localStorage）",
+        calls: &[
+            "window",
+            "local_storage",
+            "get_item",
+            "set_item",
+            "remove_item",
+            // `Storage::key` と `Storage::length`。glue の `KeyboardEvent::key` とは別物で、ここでだけ許す。
+            "key",
+            "length",
+            // このモジュール固有の名前（DOM ではない）。
+            "storage",
+            "keys",
+        ],
+        events: &[],
+    },
+    ModuleRule {
+        name: "history_download",
+        purpose: "書き出し（Blob と object URL）",
+        calls: &[
+            "revoke_object_url",
+            "create_object_url_with_blob",
+            "new_with_u8_array_sequence_and_options",
+            "set_type",
+        ],
+        events: &[],
+    },
+    ModuleRule {
+        name: "leave_flush",
+        purpose: "離脱時の保存（`pagehide` の通知を受けるだけ）",
+        calls: &[
+            "window",
+            "add_event_listener_with_callback",
+            // `str::contains`（DOM の `Node::contains` ではない）。glue の keydown の判定とは別。
+            "contains",
+        ],
+        events: &["pagehide"],
+    },
+    ModuleRule {
+        name: "persist",
+        purpose: "起動時の URL（`location.pathname`）から保存先を決めてマウントする",
+        calls: &[
+            "window",
+            "location",
+            "pathname",
+            // このモジュール固有の名前（DOM ではない）。
+            "read",
+            "stage",
+            "flush",
+            "resolve",
+            "reject",
+            "from_pathname",
+            "history_key",
+            "mount_host",
+            "for_mount_with",
+            "mount_fixture_from_url",
+            "boot",
+            "block_saving",
+        ],
+        events: &[],
+    },
+    ModuleRule {
+        name: "test_hooks",
+        purpose: "試験用の口（配信物に入らない。`test-hooks` feature のときだけ）",
+        calls: &[
+            "window",
+            "location",
+            "pathname",
+            "search",
+            // 試験用の口が glue の行の識別を配線するための 1 件（件数は `root` の試験で固定する）。
+            "root",
+            // このモジュール固有の名前（DOM ではない）。
+            "mount_fixture_from_search",
+            "last_import_state",
+            "keydown_probe_count",
+            "draft_snapshot",
+            "engine_snapshot",
+            "is_mounted",
+            "check_json_depth",
+            "parse_json_value",
+            "stage",
+            "Limit",
+            "load_json",
+            "render",
+            "render_doc_node",
+            "flush",
+            "for_pack",
+            "from_pathname",
+            "open_history_storage",
+            "write",
+            "read",
+            "last_async_error",
+            "kind_for",
+            "idb_available",
+            "kind",
+            "render_tree_sample",
+            "request_complete",
+            "load",
+            "wire_row_keys",
+            "selected",
+            "variant",
+            "phase",
+            "last_point",
+            "view",
+            "row",
+            "point_count",
+            "pending_len",
+            "install_pagehide_flush",
+            "two_rounds_envelope",
+            "loadable_envelope",
+            "export_bytes",
+            "object_url",
+            "file_name",
+        ],
+        events: &[],
+    },
+];
+
+/// glue の表と同じ綴りだが、別モジュールでは別の意味で使う名前。許可表に書いてよい。
+/// `window` は DOM の入口、`root` は試験用の口が 1 件だけ、`contains`・`key` は DOM ではない同名の呼び出し。
+const GLUE_SHARED_NAMES: &[&str] = &["window", "root", "contains", "key"];
+
+/// glue 以外のモジュールに持ち込めない glue 固有の DOM 操作（L4）。許可表に書けるのは `GLUE_SHARED_NAMES` だけ。
+fn glue_only_names() -> Vec<&'static str> {
+    DOM_CALLS
+        .iter()
+        .map(|(n, _)| *n)
+        .filter(|n| !GLUE_SHARED_NAMES.contains(n))
+        .collect()
+}
+
+/// 層全体の違反を文字列で返す（空なら合格）。glue は `violations` の厳密な照合を使う。
+fn layer_violations(sources: &[(String, String)]) -> Vec<String> {
+    let mut v = Vec::new();
+    if sources.is_empty() {
+        v.push("層のモジュールが 0 件".to_owned());
+    }
+    if !sources.iter().any(|(n, _)| n == "glue") {
+        v.push("層に glue が無い".to_owned());
+    }
+    for (name, src) in sources {
+        if name == "glue" {
+            v.extend(violations(src).into_iter().map(|m| format!("glue: {m}")));
+            continue;
+        }
+        let Some(rule) = MODULE_RULES.iter().find(|r| r.name == name) else {
+            v.push(format!("{name}: 許可表に無いモジュール"));
+            continue;
+        };
+        let code = glue_code(src);
+        let known: HashSet<&str> = NON_DOM_CALLS
+            .iter()
+            .chain(LAYER_NON_DOM_CALLS)
+            .chain(rule.calls)
+            .copied()
+            .collect();
+        for n in call_names(&code) {
+            if !known.contains(n.as_str()) {
+                v.push(format!("{name}: 表に無い呼び出し: {n}"));
+            }
+        }
+        for pat in STRUCTURAL {
+            let needle = if pat.ends_with('(') {
+                format!(".{pat}")
+            } else {
+                format!(".{pat}(")
+            };
+            if count(&code, &needle) != 0 {
+                v.push(format!("{name}: 構造を変える操作: {pat}"));
+            }
+        }
+        for event in listener_events(&code) {
+            if !rule.events.contains(&event.as_str()) {
+                v.push(format!("{name}: 許されないイベントのリスナー: {event:?}"));
+            }
+        }
+        // リスナー登録の呼び出し自体も、イベントを許すモジュールでなければ許さない。
+        if rule.events.is_empty() {
+            for call in LISTENER_CALLS {
+                if count(&code, &format!("{call}(")) != 0 {
+                    v.push(format!("{name}: リスナー登録: {call}"));
+                }
+            }
+        }
+        if count(&code, ".query_selector(") != 0 {
+            v.push(format!("{name}: glue の外で要素を取得している"));
+        }
+        if name != "test_hooks" && count(&code, ".root(") != 0 {
+            v.push(format!("{name}: glue の外で root を取得している"));
+        }
+    }
+    v
+}
+
+#[test]
+fn 層全体は許可表に無い_dom_操作を持たない() {
+    assert_eq!(
+        layer_violations(&wasm_layer_sources()),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn 層の全モジュールに許可表がある() {
+    let sources = wasm_layer_sources();
+    assert!(sources.len() >= 7, "{}", sources.len());
+    for (n, _) in &sources {
+        assert!(
+            n == "glue" || MODULE_RULES.iter().any(|r| r.name == n),
+            "許可表に無いモジュール: {n}"
+        );
+    }
+    for r in MODULE_RULES {
+        assert!(!r.purpose.is_empty(), "{}: 用途が空", r.name);
+        assert!(
+            sources.iter().any(|(n, _)| n == r.name),
+            "{}: 層に無いモジュールの行（古い表）",
+            r.name
+        );
+    }
+}
+
+#[test]
+fn 許可表は_glue_固有の_dom_操作を持ち込まない() {
+    let glue_only = glue_only_names();
+    for r in MODULE_RULES {
+        for c in r.calls {
+            assert!(
+                !glue_only.contains(c),
+                "{}: glue 固有の操作 {c} を許可表に書いている",
+                r.name
+            );
+        }
+    }
+}
+
+#[test]
+fn リスナーを登録してよいモジュールは_glue_と_leave_flush_だけ() {
+    let with_events: Vec<&str> = MODULE_RULES
+        .iter()
+        .filter(|r| !r.events.is_empty())
+        .map(|r| r.name)
+        .collect();
+    assert_eq!(with_events, vec!["leave_flush"]);
+    let leave = MODULE_RULES.iter().find(|r| r.name == "leave_flush");
+    assert_eq!(leave.map(|r| r.events), Some(&["pagehide"][..]));
+}
+
+#[test]
+fn 試験用の口の_root_の取得は_1_件() {
+    let src = wasm_layer_sources()
+        .into_iter()
+        .find(|(n, _)| n == "test_hooks")
+        .map(|(_, s)| s)
+        .expect("test_hooks");
+    assert_eq!(count(&glue_code(&src), ".root("), 1);
+}
+
+fn layer(name: &str, body: &str) -> Vec<(String, String)> {
+    vec![
+        ("glue".to_owned(), GOOD.to_owned()),
+        (name.to_owned(), body.to_owned()),
+    ]
+}
+
+const PERSIST_OK: &str = "fn f() { let l = window().location(); l.pathname(); }";
+
+#[test]
+fn 負例_層の基準となる合成ソースは違反なし() {
+    assert_eq!(
+        layer_violations(&layer("persist", PERSIST_OK)),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn 負例_glue_以外に構造を変える操作を足すと検出する() {
+    let src = PERSIST_OK.replace("l.pathname();", "l.pathname(); el.set_inner_html(\"\");");
+    assert!(layer_violations(&layer("persist", &src))
+        .iter()
+        .any(|m| m.contains("構造")));
+}
+
+#[test]
+fn 負例_保存先に未知の呼び出しを足すと検出する() {
+    let src = "fn f() { s.get_item(\"k\"); s.focus_somewhere(); }";
+    assert!(layer_violations(&layer("storage_local", src))
+        .iter()
+        .any(|m| m.contains("focus_somewhere")));
+}
+
+#[test]
+fn 負例_leave_flush_に_click_のリスナーを足すと検出する() {
+    let src = "fn f() { window().add_event_listener_with_callback(\"click\", f); }";
+    assert!(layer_violations(&layer("leave_flush", src))
+        .iter()
+        .any(|m| m.contains("click")));
+}
+
+#[test]
+fn 正例_leave_flush_の_pagehide_は違反なし() {
+    let src = "fn f() { window().add_event_listener_with_callback(\"pagehide\", f); }";
+    assert_eq!(
+        layer_violations(&layer("leave_flush", src)),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn 負例_イベントを許さないモジュールにリスナーを足すと検出する() {
+    let src = "fn f() { window().add_event_listener_with_callback(\"pagehide\", f); }";
+    assert!(layer_violations(&layer("persist", src))
+        .iter()
+        .any(|m| m.contains("リスナー")));
+}
+
+#[test]
+fn 負例_glue_以外で要素を取得すると検出する() {
+    let src = "fn f() { doc.query_selector(\"a\"); }";
+    assert!(layer_violations(&layer("persist", src))
+        .iter()
+        .any(|m| m.contains("要素を取得")));
+}
+
+#[test]
+fn 負例_glue_固有の操作を別モジュールに足すと検出する() {
+    let src = "fn f() { el.set_attribute(\"a\", \"b\"); el.click(); }";
+    let v = layer_violations(&layer("storage_local", src));
+    assert!(v.iter().any(|m| m.contains("set_attribute")), "{v:?}");
+    assert!(v.iter().any(|m| m.contains("click")), "{v:?}");
+}
+
+#[test]
+fn 負例_表に無いモジュールを検出する() {
+    assert!(layer_violations(&layer("new_module", PERSIST_OK))
+        .iter()
+        .any(|m| m.contains("許可表に無いモジュール")));
+}
+
+#[test]
+fn 負例_層の列挙が空なら失敗にする() {
+    assert!(!layer_violations(&[]).is_empty());
+}
+
+#[test]
+fn 負例_層の_glue_の違反も検出する() {
+    let src = GOOD.replace("return; };", "return; }; root.set_inner_html(\"\");");
+    let sources = vec![("glue".to_owned(), src)];
+    assert!(layer_violations(&sources)
+        .iter()
+        .any(|m| m.starts_with("glue:")));
 }
