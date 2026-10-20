@@ -484,6 +484,9 @@ const MODULE_RULES: &[ModuleRule] = &[
             "set",
             "name",
             "start",
+            // 開いた結果の enum の構築子と、読めなかった保存先の構築子（SAVE-11）。
+            "Ready",
+            "unreadable",
         ],
         events: &[],
     },
@@ -549,6 +552,10 @@ const MODULE_RULES: &[ModuleRule] = &[
             "block_saving",
             // 変更のたびの保存の口（SAVE-10）。ホストへ結ぶだけで DOM には触れない。
             "set_history_saver",
+            // 非同期の保存の失敗を読む口（SAVE-11）。読み取りの口をホストへ結ぶだけで DOM には触れない。
+            "set_save_failure_probe",
+            "idb_unreadable",
+            "last_async_error",
             "clone",
             "try_borrow",
             "map_err",

@@ -199,20 +199,31 @@ pub type OpenedStorage = HistoryStorage<LocalStore, IdbStore>;
 
 type Ready = Rc<RefCell<Option<Box<dyn FnOnce(OpenedStorage)>>>>;
 
+/// 開いた結果。`Unreadable` は開けたが全件を読めなかった場合で、中身が分からないため保存を止める保存先にする（SAVE-11）。
+enum Opened {
+    /// 開けなかった（localStorage だけで動く）。
+    Unavailable,
+    /// 開けて全件を読めた。
+    Ready(IdbStore, BTreeMap<String, String>),
+    /// 開けたが全件を読めなかった（接続は閉じ済み）。
+    Unreadable,
+}
+
 /// 準備完了の合図を出す（2 回目以降は何もしない）。合図を出した後に開けた接続が届いたら、破棄して（[`Drop`] で閉じて）残さない。
-fn finish(ready: &Ready, idb: Option<(IdbStore, BTreeMap<String, String>)>) {
+fn finish(ready: &Ready, opened: Opened) {
     let taken = ready.borrow_mut().take();
-    match (taken, idb) {
-        (Some(f), Some((store, initial))) => {
+    match (taken, opened) {
+        (Some(f), Opened::Ready(store, initial)) => {
             f(HistoryStorage::new(LocalStore::new(), Some(store), initial))
         }
-        (Some(f), None) => f(HistoryStorage::new(
+        (Some(f), Opened::Unavailable) => f(HistoryStorage::new(
             LocalStore::new(),
             None,
             BTreeMap::new(),
         )),
-        (None, Some((store, _))) => drop(store),
-        (None, None) => {}
+        (Some(f), Opened::Unreadable) => f(HistoryStorage::unreadable(LocalStore::new())),
+        (None, Opened::Ready(store, _)) => drop(store),
+        (None, _) => {}
     }
 }
 
@@ -244,7 +255,8 @@ fn detach_open(req: &IdbOpenDbRequest, keep: &Handlers) {
 }
 
 /// 非同期に IndexedDB を開き、全件を手元の写しへ読んでから `on_ready` を呼ぶ（準備完了の合図）。
-/// 開けないときは IndexedDB 無しの保存先（localStorage だけ）で呼ぶ。`on_ready` は必ず 1 回だけ呼ばれる
+/// 開けないときは IndexedDB 無しの保存先（localStorage だけ）で呼ぶ。開けたが全件を読めなかったときは、保存を止める保存先
+/// （[`HistoryStorage::unreadable`]。`read`・`write` が `Unavailable`）で呼ぶ（SAVE-11。旧い値による巻き戻りを避ける）。`on_ready` は必ず 1 回だけ呼ばれる
 /// （開く要求の `error`・`blocked`・`success` と、全件の読み取りの完了・中断のどの経路でも）。
 /// 他のタブに塞がれて（`blocked`）合図を出した後に遅れて開けたとき、および全件を読めなかったときは、接続を閉じる。
 /// 開けた後に別のタブが新しい版で開こうとしたときの扱いは [`IdbStore`] の doc。
@@ -252,11 +264,11 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
     let ready: Ready = Rc::new(RefCell::new(Some(Box::new(on_ready))));
     let factory = web_sys::window().and_then(|w| w.indexed_db().ok().flatten());
     let Some(factory) = factory else {
-        finish(&ready, None);
+        finish(&ready, Opened::Unavailable);
         return;
     };
     let Ok(req) = factory.open_with_u32(DB_NAME, DB_VERSION) else {
-        finish(&ready, None);
+        finish(&ready, Opened::Unavailable);
         return;
     };
     let keep: Handlers = Rc::default();
@@ -272,16 +284,18 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
     let (r, k, req_err) = (Rc::clone(&ready), Rc::clone(&keep), req.clone());
     req.set_onerror(Some(&handler(&keep, move || {
         detach_open(&req_err, &k);
-        finish(&r, None);
+        finish(&r, Opened::Unavailable);
     })));
     let r = Rc::clone(&ready);
-    req.set_onblocked(Some(&handler(&keep, move || finish(&r, None))));
+    req.set_onblocked(Some(&handler(&keep, move || {
+        finish(&r, Opened::Unavailable)
+    })));
 
     let (r, k, req_ok) = (Rc::clone(&ready), Rc::clone(&keep), req.clone());
     req.set_onsuccess(Some(&handler(&keep, move || {
         detach_open(&req_ok, &k);
         let Ok(db) = req_ok.result().and_then(|v| v.dyn_into::<IdbDatabase>()) else {
-            finish(&r, None);
+            finish(&r, Opened::Unavailable);
             return;
         };
         if r.borrow().is_none() {
@@ -298,7 +312,7 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
             .and_then(|(tx, s)| Ok((tx, s.get_all_keys()?, s.get_all()?)));
         let Ok((tx, keys, values)) = reads else {
             drop(store);
-            finish(&r, None);
+            finish(&r, Opened::Unreadable);
             return;
         };
         // 完了・中断のどちらでも合図を出す（watch は abort でも確定する）。
@@ -307,11 +321,11 @@ pub fn open_history_storage(on_ready: impl FnOnce(OpenedStorage) + 'static) {
             Box::new(move |res| match res {
                 Ok(()) => {
                     let initial = collect(&keys, &values);
-                    finish(&r, Some((store, initial)));
+                    finish(&r, Opened::Ready(store, initial));
                 }
                 Err(_) => {
                     drop(store);
-                    finish(&r, None);
+                    finish(&r, Opened::Unreadable);
                 }
             }),
         );

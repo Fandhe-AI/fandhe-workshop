@@ -5080,6 +5080,21 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 - 変異注入 `SAVE10-1`〜`SAVE10-4`: 4 件とも DETECTED（`scripts/check-mutations.sh`）。表示が消えない・変更で保存しない・文言違い・下書きでも保存する
 - 既知の限界: 失敗の後、`HistoryStorage::write` は使用量を全走査し直すが、試験が外から別の鍵を消した場合は古い値のままになる。IndexedDB が無いと切り替えの経路を通らないため、判定には影響しない。IndexedDB へ切り替えた後の非同期の失敗の表示は TASK-323 2/2。操作ごとの書き込みによる再描画の測定（`make measure`）は未計測
 
+### 5.169 IndexedDB の保存失敗で状態を壊さない（TASK-323 2/2。SAVE-11・SHELL-19）
+
+実行日: 2026-10-20、元にしたコミット: 6c6d214 に本変更を載せた作業ツリー。5.168 の「IndexedDB へ切り替えた後の非同期の失敗の表示は TASK-323 2/2」は、本節で解消した。
+
+- 経路: IndexedDB の確定（`Done`）のコールバックからホストへは触れない（`state_paths`）ため、`persist` が保存先の失敗の種類を読み取り専用の probe（`async_save_failure`）にして `EngineHost::set_save_failure_probe` で mount の前に 1 回だけ結ぶ。ホストは `update` の末尾で毎回、「同期の保存の失敗、無ければ probe の値」を求め直し、前と違うときだけ `save-notice` を dirty に積む。結んだ時点でも 1 回引く
+- `HistoryStorage::last_async_error` は、後の put の確定で `None` に戻す（戻さないと表示が消えない）。delete の失敗は従来どおり記録だけ
+- 全件の読み取りの失敗（Issue のコメントで引き継いだ D-52 の巻き戻り）: IndexedDB を開けたが全件を読めなかったときは、接続を閉じたうえで `HistoryStorage::unreadable` にする。`read`・`write` は `Unavailable` を返し、`persist::boot_and_mount` の既存の経路で保存が止まる。どちらの保存先の既存の値も変えない。probe も `Unavailable` を返す。この fail-closed の採用は自動運転での判断で、人の承認は無い（採らなかった案は、localStorage に失敗の印を残して次の起動で照合する方式）
+- 限界 1: 非同期の失敗は、失敗した操作の時点ではなく次の `update`（打鍵・送信・進行）で表示される。操作の時点で出すには、action の契約（FEND-4・版 1）に action を足す必要があり、spec を先に変える必要がある。本タスクでは行わない
+- 限界 2: IndexedDB を開けない（`error`・`blocked`）間に localStorage だけへ書いたセッションでは、再読み込みで D-52 により旧い IndexedDB の値が勝つ危険が残る。本タスクで直したのは「開けたが読めない」場合だけ
+- 限界 3: 実際の容量超過（`QuotaExceededError`）の再現（CDP の `Storage.overrideQuotaForOrigin`）は試していない（未検証）。ブラウザ試験は put の直後に `transaction.abort()` を呼ぶ包みで中断を起こし、種類は `Failed` になる。`QuotaExceeded` の文は native 試験で確かめた
+- native 試験 `crates/web/tests/save_failure_idb.rs`: 確定の失敗で次の `update` に理由が出る・状態は進む・IndexedDB の既存の値は不変・続く間は dirty に積まない、種類ごとの文、後の確定で表示が消える、localStorage の写しは確定の失敗で消えない、全件を読めない保存先は最初から理由を出し `read`・`write` を断る
+- ブラウザ試験 `tools/browser/save-idb-failure.test.mjs`（CSP あり・なし）: localStorage を閾値の手前まで埋めて 1 手目を IndexedDB へ向け、put を中断させた 2 手目の後に理由が出て IndexedDB の値が不変、中断を外した 3 手目で更新・表示が消え、再読み込みで復元される。`getAll` を失敗させて起動すると、起動の直後から理由が出て、操作しても既存の localStorage の値は変わらない。`make test-browser` は 584 件が通った（5.168 の 580 件に 4 件）
+- 変異注入 `SAVE11-1`〜`SAVE11-3`: 3 件とも DETECTED（`scripts/check-mutations.sh`。SAVE10-1 も DETECTED のまま）。put の成功で失敗を消さない・`update` の末尾で求め直さない・全件を読めない印を持たない
+- 範囲外: 文言（`Unavailable`・`Failed`）の確定と保存停止の専用の通知は TASK-534 の持ち分。SAVE-11・SHELL-19 を確定にするかは spec 側で扱う
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

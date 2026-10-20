@@ -15,6 +15,9 @@
 //! - 切り替えは一方向で、そのセッションの中で localStorage へ戻らない
 //! - IndexedDB への書き込みの確定の後にだけ、同じ鍵の localStorage の写しを消す（確定前・失敗時は唯一の写しを失わない）
 //! - 起動時に同じ鍵が両方にあれば、IndexedDB を正とする
+//! - IndexedDB の書き込みの失敗は `last_async_error` に種類だけ残り、後の put の確定で消える。ホストが次の `update` で読んで
+//!   表示する（SAVE-11・TASK-323 2/2）。IndexedDB を開けたが全件を読めなかったときは [`HistoryStorage::unreadable`] で
+//!   `read`・`write` を断り、旧い値で巻き戻さない（自動運転での判断。人の承認は無い）
 //! - IndexedDB が使えない（開けない）ときは localStorage だけで動く。localStorage の想定外の上限超過は
 //!   [`StorageError::QuotaExceeded`] をそのまま返す（変更のたびの保存の失敗は `save_notice` が表示する。TASK-323 1/2）
 //!
@@ -162,6 +165,9 @@ pub struct HistoryStorage<L, I> {
     /// IndexedDB の手元の写し。読みは同期で、書き込みの確定は後から届く（口が同期のため）。
     mirror: RefCell<BTreeMap<String, String>>,
     active: Cell<StorageKind>,
+    /// IndexedDB を開けたが全件を読めなかった印（SAVE-11）。中身が分からないまま書くと、再読み込みで両方が読めたときに
+    /// D-52（IndexedDB を正とする）で旧い値が勝って履歴が巻き戻るため、`read`・`write` を `Unavailable` で断る（fail-closed）。
+    idb_unreadable: bool,
 }
 
 impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
@@ -182,7 +188,21 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
             idb,
             mirror: RefCell::new(mirror),
             active: Cell::new(DEFAULT_STORAGE_KIND),
+            idb_unreadable: false,
         }
+    }
+
+    /// IndexedDB を開けたが全件を読めなかった保存先（SAVE-11）。`read`・`write` は [`StorageError::Unavailable`] を返し、
+    /// どちらの保存先の既存の値も変えない。呼び出し元（`storage_idb`）は接続を閉じてから呼ぶ。
+    pub fn unreadable(local: L) -> Self {
+        let mut s = Self::new(local, None, BTreeMap::new());
+        s.idb_unreadable = true;
+        s
+    }
+
+    /// IndexedDB の中身を読めなかった保存先か（[`HistoryStorage::unreadable`]）。
+    pub fn idb_unreadable(&self) -> bool {
+        self.idb_unreadable
     }
 
     /// IndexedDB を使えるか（開けたか）。
@@ -190,7 +210,10 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
         self.idb.is_some()
     }
 
-    /// 最後の非同期の失敗（種類だけ）。表示は TASK-323 が行う。
+    /// 直近の IndexedDB への書き込み（put）の失敗の種類。値・鍵・例外の文は持たない。
+    ///
+    /// put の確定で `None` に戻る（後の保存の成功で、表示が消えるようにするため。SAVE-11）。呼び出し元の `persist` が
+    /// ホストの表示の元として読み、`save_notice` が文にする。
     pub fn last_async_error(&self) -> Option<StorageError> {
         self.shared.last_async_error.get()
     }
@@ -211,7 +234,8 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
     /// put が後から失敗したときの状態（設計上の限界）: 手元の写しは未保存の値を持ち、このセッションの `read` は
     /// その値（メモリ上の最新の状態と同じ）を返す。localStorage の写しは消さずに残す（既存の保存を壊さない）。
     /// 失敗の種類は `last_async_error` に残る。再読み込みすると、IndexedDB・localStorage に残った旧い値が復元される。
-    /// 失敗の利用者への表示と、写しと保存先のずれの扱いは TASK-323（保存の失敗）の責務で、ここでは扱わない。
+    /// 失敗の利用者への表示は、ホストが `last_async_error` を次の `update` で読んで行う（SAVE-11。TASK-323 2/2）。
+    /// 写しと保存先のずれは直さない（次の書き込みが同じ鍵の写しを上書きし、その確定で表示が消える）。
     fn write_idb(&self, idb: &I, k: &str, value: &str) -> Result<(), StorageError> {
         self.active.set(StorageKind::IndexedDb);
         // 順序: 手元の写しを更新 → put を発行 → 確定の通知で localStorage の写しを消す。
@@ -224,7 +248,11 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
             k,
             value,
             Box::new(move |r| match r {
-                Ok(()) => shared.drop_local_copy(&key),
+                Ok(()) => {
+                    shared.drop_local_copy(&key);
+                    // 後の保存の成功で、前の失敗の表示が残り続けないようにする（SAVE-11）。
+                    shared.last_async_error.set(None);
+                }
                 Err(e) => shared.last_async_error.set(Some(e)),
             }),
         );
@@ -242,6 +270,9 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
     }
 
     fn write(&self, key: &HistoryKey, value: &str) -> Result<(), StorageError> {
+        if self.idb_unreadable {
+            return Err(StorageError::Unavailable);
+        }
         let k = key.render();
         if let Some(idb) = &self.idb {
             // 写しに鍵があれば、kind_for が未呼び出しでも IndexedDB へ書く（read が写しを先に引くため）。
@@ -290,6 +321,9 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
     }
 
     fn read(&self, key: &HistoryKey) -> Result<Option<String>, StorageError> {
+        if self.idb_unreadable {
+            return Err(StorageError::Unavailable);
+        }
         let k = key.render();
         if let Some(v) = self.mirror.borrow().get(&k) {
             return Ok(Some(v.clone()));
