@@ -18,8 +18,8 @@
 //! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
 //!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
 //! - ログと復習は、1 リストが約 1,000 項目を超えないよう古い側を要約行へ畳む（TASK-360 1/2。
-//!   `list_policy::plan_fold`）。4,096 件の安全弁は残り、超えたら親の `data-bind-list` を保ったまま
-//!   `data-list-error="limit"` と固定の通知の行を出し、全再描画を避ける（`list_policy::keyed_view_or_notice`）。
+//!   `list_policy::plan_fold`）。4,096 件の安全弁は残り、超えたら先頭の 4,095 件と状態の行（`data-list-limit`）に打ち切り、
+//!   親の `data-bind-list` を保って全再描画を避ける（`list_policy::keyed_view_or_notice`。TASK-360 2/2）。
 //!
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
@@ -448,8 +448,8 @@ impl DisplayPart<HostModel> for ArtifactPart {
             } else {
                 Vec::new()
             };
-            // 上限超過などの `Err` は、元の行で `keyed_view_or_notice` が通知の行と `data-list-error` に倒す
-            // （FEND-22・D-46。`data-bind-list` は保つ）。黙って行 0 件の一覧にしない。
+            // 上限超過は、元の行を `keyed_view_or_notice` が先頭だけに打ち切り状態の行で知らせる（FEND-22・D-46）。
+            // 件数以外の `Err` は通知の行と `data-list-error` に倒す。どちらも `data-bind-list` は保つ。
             let list = keyed_view_or_notice(
                 "ul",
                 list_attrs(kind, is_selected),

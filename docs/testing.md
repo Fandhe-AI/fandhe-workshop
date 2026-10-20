@@ -4963,6 +4963,23 @@ FEND-20 は、glue（web-sys）がキー入力・タイマー・変換中の印�
 
 本番コード（`crates/web/src/**`）は変えていない。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。
 
+### 5.165 4,096 件の打ち切りを安全弁にする（TASK-360 2/2）
+
+実行日: 2026-10-20。元にしたコミット: fa795da。
+
+| 項目 | 決定 |
+|---|---|
+| 置き場 | `list_policy::keyed_view_or_notice` の前段（製品の全 keyed list の入口）。`keyed_view` は変えない |
+| 表示 | 先頭の 4,095 件と、最後の状態の行 1 件（合計 4,096 項目）。文言は「上限超過: 先頭 4,095 件だけ表示（全 N 件）」 |
+| 属性 | 親と状態の行に `data-list-limit="<全件数>"`。状態の行に `data-event` は付けない。キーは `list-limit` |
+| 件数以外の `Err` | 従来の通知（`data-list-error="limit"`・`data-bind-list` を保つ） |
+| `PARTS_CONTRACT_VERSION` | 上げない（方針は変わらず、実現だけが変わる） |
+
+試験: `crates/web/tests/list_limit.rs`（4,097・10,000 件の打ち切り、再構築、キー重複の通知）、`crates/web/tests/view_select.rs`（4,095・4,096・4,097 経路）。
+変異 `FEND15-4`・`FEND22-1`・`FEND22-5`・`FEND22-6` は 4 件とも DETECTED（`FEND15-2`・`FEND15-3` は base からの `find` の不一致で、ファイルを指定して流した）。
+`FEND15-4`・`FEND22-1` の `expect-fail` は、本節で試験名を改めた。
+未実施: ブラウザ試験（`?fixture=list-limit` の開始状態は未実装）。左のビューの畳みは TASK-484。
+
 ### 5.166 DOM 操作の許可一覧の層全体への検査と、glue の行数・web-sys の feature の記録（TASK-362 2/2）
 
 FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限り、glue のコード行と web-sys の feature の数を記録して、増えたら理由を求める。従来の `crates/web/tests/glue_contract.rs` は `glue.rs` だけを読んでいた。本節で、許可一覧の検査を層全体（5.164 と同じ 7 モジュール）に広げ、行数と feature の増加を止める試験を足した。状態を変える経路の検査は 5.164（1/2）が受け持つ。
@@ -5043,6 +5060,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 | G2 | glue に状態を変える呼び出しを足す | glue 固有 | DETECTED |
 
 本番コード（`crates/web/src/**`）は変えていない。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。節番号は、並行する PR（#1637）が 5.164 の次を使う見込みのため、5.166 とした。
+
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

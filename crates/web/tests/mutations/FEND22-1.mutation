@@ -4,5 +4,5 @@ test: view_select
 target: crates/web/src/engine_parts.rs
 find: view_rows,
 replace: if view_rows.len() > 4_096 { Vec::new() } else { view_rows },
-expect-fail: 行が上限を超えると選ばれたビューの_list_に通知と_data_list_error_が出る
-note: 上限を超えた行を空の一覧に倒し、通知の行と data-list-error を出さない（FEND-22・D-46。読み込み失敗の握りつぶし）
+expect-fail: 行が上限を超えると選ばれたビューの_list_は先頭だけを出し状態の行で知らせる
+note: 上限を超えた行を空の一覧に倒し、先頭の行と状態の行を出さない（FEND-22・D-46。読み込み失敗の握りつぶし）

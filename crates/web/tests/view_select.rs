@@ -312,24 +312,35 @@ fn host_with_paths(ir: Ir, n: usize) -> EngineHost {
 }
 
 #[test]
-fn 行が上限を超えると選ばれたビューの_list_に通知と_data_list_error_が出る() {
+fn 行が上限を超えると選ばれたビューの_list_は先頭だけを出し状態の行で知らせる() {
     let host = host_with_paths(multi_view_ir(), 4_097);
     assert_eq!(host.model().world().len(), 4_097);
     let html = render_component_html(&host);
     let (tag, body) = view_list_html(&html, ViewKind::Diff);
     assert!(!is_hidden(&tag), "{tag}");
-    assert!(tag.contains("data-list-error=\"limit\""), "{tag}");
+    assert!(tag.contains("data-list-limit=\"4097\""), "{tag}");
+    assert!(!tag.contains("data-list-error"), "{tag}");
     assert!(tag.contains("data-bind-list=\"view_diff\""), "{tag}");
-    assert!(body.contains("一覧を表示できません"));
-    assert_eq!(rows_in(&body), 0);
-    // 選ばれていない list には通知を出さない。
+    assert!(body.contains("上限超過: 先頭 4,095 件だけ表示（全 4,097 件）"));
+    assert_eq!(rows_in(&body), 4_095);
+    // 選ばれていない list は空で、印も出さない。
     for kind in ViewKind::ALL {
         if kind != ViewKind::Diff {
             let (tag, body) = view_list_html(&html, kind);
             assert!(!tag.contains("data-list-error"), "{}", kind.as_str());
+            assert!(!tag.contains("data-list-limit"), "{}", kind.as_str());
             assert!(!body.contains("<li"), "{}", kind.as_str());
         }
     }
+}
+
+#[test]
+fn 行が上限の直前なら状態の行を出さない() {
+    let host = host_with_paths(multi_view_ir(), 4_095);
+    let html = render_component_html(&host);
+    let (tag, body) = view_list_html(&html, ViewKind::Diff);
+    assert!(!tag.contains("data-list-limit"), "{tag}");
+    assert_eq!(rows_in(&body), 4_095);
 }
 
 #[test]
@@ -338,6 +349,7 @@ fn 行が上限ちょうどなら通知を出さない() {
     let html = render_component_html(&host);
     let (tag, body) = view_list_html(&html, ViewKind::Diff);
     assert!(!tag.contains("data-list-error"), "{tag}");
+    assert!(!tag.contains("data-list-limit"), "{tag}");
     assert_eq!(rows_in(&body), 4_096);
 }
 
