@@ -108,6 +108,14 @@ const NON_DOM_CALLS: &[&str] = &[
     "set_tick_reset",
     "wrapping_add",
     "set_draft_sync_request",
+    // 変更の後の遅延保存（TASK-318）。通知先の結線・畳み込みの判定・時刻・書き出しの入口。DOM には触れない。
+    "set_save_request",
+    "on_change",
+    "on_fire",
+    "now",
+    "save_now",
+    "is_scheduled",
+    "is_ok_and",
     "engine_snapshot_json",
     // 開いた直後の状態の読み取り（試験の設定だけ。TASK-175 2/2）。DOM には触れない。
     "last_import_state_json",
@@ -543,6 +551,12 @@ const MODULE_RULES: &[ModuleRule] = &[
             "from_pathname",
             "history_key",
             "mount_host",
+            // 変更の後の遅延保存（TASK-318）。履歴の読み取りと試験の計数で、DOM には触れない。
+            "history_to_save",
+            "set",
+            "get",
+            "saturating_add",
+            "kind",
             "for_mount_with",
             "mount_fixture_from_url",
             "boot",
@@ -561,6 +575,11 @@ const MODULE_RULES: &[ModuleRule] = &[
             // 試験用の口が glue の行の識別を配線するための 1 件（件数は `root` の試験で固定する）。
             "root",
             // このモジュール固有の名前（DOM ではない）。
+            // 変更の後の遅延保存の状態の読み取り（TASK-318）。
+            "save_scheduled",
+            "history_to_save",
+            "storage_kind_name",
+            "autosave_count",
             "mount_fixture_from_search",
             "last_import_state",
             "keydown_probe_count",

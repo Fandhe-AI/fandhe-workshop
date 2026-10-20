@@ -104,7 +104,11 @@ test('入力の後の進行が実タイマーで 1 回ずつ届き、処理が�
     // 完了の後も進行が増えないこと（重複の予約が無い）。
     await page.waitForTimeout(interval * 2);
     assert.deepEqual((await engine(page)).ticks, expectTicks(1));
-    const delays = await page.evaluate(() => window.__delays.filter((d) => d > 0));
+    // 変更の後の遅延保存（TASK-318）も setTimeout を使う。その遅延は debounce 以下で、進行の間隔より短い実装の値のため、
+    // 進行の予約（間隔より長い値）だけを数える。遅延保存の予約が進行の間隔と同じ値にならないことも確かめる。
+    const { debounce_ms: saveMax } = JSON.parse(await page.evaluate(() => window.__fandheTest.autosaveState()));
+    assert.ok(saveMax < interval, '遅延保存の遅延（debounce 以下）は進行の間隔より短い');
+    const delays = await page.evaluate((cut) => window.__delays.filter((d) => d > cut), saveMax);
     assert.deepEqual(delays, Array(TOTAL_TICKS).fill(interval), JSON.stringify(delays));
     const counts = await collectSafety(page, rec);
     assert.deepEqual(nonZero(counts), [], JSON.stringify({ counts, rec }));

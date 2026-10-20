@@ -483,6 +483,10 @@ pub struct EngineHost {
     tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
+    /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
+    save_request: Option<DraftSyncRequest>,
+    /// この `update` で履歴（op の列・下書きの記録）が変わった印。`update` の末尾で通知して下ろす。
+    history_changed: bool,
     /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
     command_prefix: Option<String>,
     /// 開始時の状態の控え。履歴ファイルを適用し直す出発点になる。session が無ければ `None`。
@@ -547,6 +551,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            save_request: None,
+            history_changed: false,
             command_prefix: None,
             initial: None,
             draft_recorded: String::new(),
@@ -612,6 +618,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            save_request: None,
+            history_changed: false,
             command_prefix: d.command_prefix,
             initial,
             draft_recorded: String::new(),
@@ -730,6 +738,7 @@ impl EngineHost {
         let draft = self.input.draft().to_owned();
         if let Some(recorded) = self.model.recorded.as_mut() {
             recorded.draft(draft.clone());
+            self.history_changed = true;
         }
         self.draft_recorded = draft;
     }
@@ -781,6 +790,14 @@ impl EngineHost {
     /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
     pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
         self.draft_sync_request = Some(f);
+    }
+
+    /// 履歴が変わった `update` の末尾で呼ぶ通知先を結ぶ（変更の後の遅延保存。TASK-318）。
+    ///
+    /// 通知は `Component::update` の中から呼ばれる。通知先は Runtime にも App にも触れず、タイマーを予約するだけにする（再入になる）。
+    /// 起動（`boot`）は `update` を通らないので通知しない（未操作の再読み込みは保存しない。SAVE-28）。
+    pub fn set_save_request(&mut self, f: DraftSyncRequest) {
+        self.save_request = Some(f);
     }
 
     /// 部品が読む値。
@@ -1215,6 +1232,7 @@ impl EngineHost {
         };
         let len_before = recorded.session().log().len();
         let (returned, rejected) = f(recorded);
+        self.history_changed = true;
         let session = recorded.session();
         // extend はログの全体を受け取る（処理済みの先頭は読み飛ばす）。返ったイベントの列を渡さない。
         let log = session.log();
@@ -1509,6 +1527,12 @@ impl Component for EngineHost {
         }
         // 入力欄の値が変わっていれば下書きとして記録する。どの action の後でも 1 か所で行う。
         self.record_draft_change();
+        if self.history_changed {
+            self.history_changed = false;
+            if let Some(f) = self.save_request.as_ref() {
+                f();
+            }
+        }
     }
 
     fn view(&self) -> Node {

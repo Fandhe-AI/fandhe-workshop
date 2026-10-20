@@ -1,7 +1,7 @@
 //! 未保存の変更の保留と、同期の書き出し（TASK-317 2/2。D-52・SAVE-9）。
 //!
 //! 変更の直後に保存の遅延を待たずにページを離れても、直前の変更が残るようにするための型である。
-//! 呼び出し元は、変更を保存先へ流す経路（TASK-318・TASK-319）が [`PendingSave::stage`] で値を積み、
+//! 呼び出し元は、変更を保存先へ流す経路（`persist`。TASK-318・TASK-319）が [`PendingSave::stage`] で値を積み、
 //! `leave_flush`（wasm のみ）が `pagehide` の中で [`PendingSave::flush`] を同期に呼ぶ。
 //! 呼び出し先は contract の [`HistoryStore`] だけで、ブラウザの API には触れない（native で試験できる）。
 //!
@@ -12,7 +12,7 @@
 //! - 保存先が localStorage のときは `write` が同期で `setItem` まで終わるため、`flush` の戻りの時点で書き込みは完了している。
 //!   IndexedDB へ切り替えた後は `put` の発行までで、確定は保証しない。離れる直前の変更は落ちうる
 //! - 準備完了（`storage_idb::open_history_storage` の合図）の前の保留は書かない。呼び出し側が保存先を持った後にだけ書き出す
-//! - 保存の遅延のタイマーと、Session の変更を保留へ積む配線はこの module の外（TASK-318・TASK-319）にある
+//! - 保存の遅延のタイマーは `glue`、判定は `save_schedule`、Session の変更を保留へ積む配線は `persist`（TASK-318・TASK-319）にあり、この module の外である
 //!
 //! 値と鍵の文字列は、結果にも記録にも含めない（履歴は下書きを含む受講者のデータである）。
 

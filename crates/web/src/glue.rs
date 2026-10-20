@@ -24,6 +24,7 @@ use fandhe_workshop_core::addr::TickAddr;
 use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction};
 use crate::host::EngineHost;
 use crate::key_route::{effect_for, field_state, outside_root_esc, row_key_effect};
+use crate::save_schedule::{Fire, SaveDebounce};
 use crate::tick_interval::TICK_INTERVAL_MS;
 use fandhe_frontend_wasm_full::events::{KeyModifiers, KeydownInput};
 
@@ -44,6 +45,8 @@ thread_local! {
     /// 印の寿命は書き戻し 1 回分に限る。立てるのは `on_draft_sync_request` だけで、下ろすのは
     /// `clear_draft_sync_pending` だけ。残ると、後の通常の変換の終わりに変換前の下書きを欄へ書き、確定した文字を消す。
     static DRAFT_SYNC_PENDING: RefCell<bool> = const { RefCell::new(false) };
+    /// 変更の後の遅延保存の畳み込み（TASK-318）。古いタイマーは `clearTimeout` でなく token で捨てる。
+    static SAVE_DEBOUNCE: RefCell<SaveDebounce> = const { RefCell::new(SaveDebounce::new()) };
 }
 
 /// マウント済みかどうか。試験用の口が状態を読むために使う。
@@ -158,6 +161,41 @@ fn on_tick_request(next: Option<TickAddr>) {
     if fresh {
         schedule_action(RuntimeAction::Tick(addr), tick_delay_ms());
     }
+}
+
+/// ホストが通知する「履歴が変わった」を受け、遅延保存のタイマーを予約する（`EngineHost::set_save_request` の通知先。TASK-318。SAVE-7）。
+///
+/// `Component::update` の中から呼ばれるため、Runtime にも App にも触れず予約するだけにする（再入を避ける）。
+/// 連続する変更は最後の 1 回に畳み、最初の変更から最大の待ちを超えない（`save_schedule`）。
+/// 書き出しは別のスタックのタイマーの中で `persist::save_now` が行い、書けない・保存しない値は書かない（fail-closed）。
+fn on_save_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let Some(plan) = SAVE_DEBOUNCE.with(|d| {
+        d.try_borrow_mut()
+            .ok()
+            .map(|mut d| d.on_change(js_sys::Date::now()))
+    }) else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        let fire =
+            SAVE_DEBOUNCE.with(|d| d.try_borrow_mut().ok().map(|mut d| d.on_fire(plan.token)));
+        if fire == Some(Fire::Save) {
+            crate::persist::save_now();
+        }
+    });
+    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+        callback.unchecked_ref(),
+        plan.delay_ms as i32,
+    );
+}
+
+/// 遅延保存を待っている変更があるか。試験用の口が読む。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn save_scheduled() -> bool {
+    SAVE_DEBOUNCE.with(|d| d.try_borrow().is_ok_and(|d| d.is_scheduled()))
 }
 
 /// ホストが通知する下書きの書き戻しの要求を受け、`set_timeout(0)` で `sync_draft` を予約する
@@ -577,6 +615,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_tick_request(Box::new(on_tick_request));
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
+        host.set_save_request(Box::new(on_save_request));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
         DRAFT_ROOT.with(|r| {

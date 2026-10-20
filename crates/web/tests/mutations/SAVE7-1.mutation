@@ -1,0 +1,8 @@
+id: SAVE7-1
+package: fandhe-workshop-web
+test: save_request
+target: crates/web/src/host.rs
+find:         if self.history_changed {
+replace:         if self.history_changed && self.save_request.is_none() {
+expect-fail: 下書きの変更ごとに_1_回通知する
+note: 履歴が変わっても保存の通知を出さない（変更の後の遅延保存が働かず、保存は離れる直前だけに戻る。SAVE-7）

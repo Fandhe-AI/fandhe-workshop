@@ -7,9 +7,10 @@
 //! 試験用の口（`test_hooks` の `debug_storage_*`・`debug_save_*`）は、別の保存先と保留を持ち続ける。そのため試験の設定では
 //! IndexedDB の接続が 2 本になるが、どちらも `versionchange` で閉じる（`storage_idb`）ため、互いの更新を塞がない。
 //!
-//! 変更のたびには書き出さない（打鍵ごとに履歴の全体を書き出す費用を避ける）。離れる直前に、ホストが「保存する値」を
-//! 持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が `None`）ので、
-//! 未操作のページを離れても保存先には何も書かれない（SAVE-28）。保存の遅延のタイマーは置かない（TASK-318）。
+//! 書き出しは 2 つの契機で行う。(1) 変更の後の遅延保存（`glue` のタイマーが `save_now` を呼ぶ。連続する変更は畳む。
+//! 判定は `save_schedule`。TASK-318・SAVE-7）、(2) 離れる直前（`pagehide`）。どちらも、ホストが「保存する値」を持つときだけ
+//! 保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が `None`）ので、
+//! 未操作のページを離れても保存先には何も書かれない（SAVE-28）。
 //!
 //! 鍵は呼び出し元が `HistoryKey` の構築子で作ったものだけを受ける。値・鍵の文字列は、結果にも記録にも出さない
 //! （履歴は下書きを含む受講者のデータである）。
@@ -29,6 +30,11 @@ thread_local! {
     static STORAGE: RefCell<Option<OpenedStorage>> = const { RefCell::new(None) };
     /// 離れる直前に書き出す未保存の値の保留。
     static PENDING: PendingSave = PendingSave::new();
+    /// 変更の後の遅延保存が書く鍵。`boot_and_mount` が結ぶ（鍵を作れない設定では空のままで、遅延保存は何もしない）。
+    static SAVE_KEY: RefCell<Option<HistoryKey>> = const { RefCell::new(None) };
+    /// 試験の設定だけ: 遅延保存で書けた回数。値・鍵は持たない。
+    #[cfg(feature = "test-hooks")]
+    static AUTOSAVES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
 /// 保存先を非同期に開く。準備ができたら（開けなくても localStorage だけで）`on_ready` を 1 回呼ぶ。
@@ -55,6 +61,55 @@ pub fn read(key: &HistoryKey) -> Result<Option<String>, StorageError> {
     })
 }
 
+/// 保存の値を保留へ積み、保存先が開いていれば書き出す。書けなかった値は保留に残る。
+fn stage_and_flush(key: &HistoryKey, value: String) {
+    PENDING.with(|p| {
+        p.stage(key.clone(), value);
+        STORAGE.with(|s| {
+            if let Ok(slot) = s.try_borrow() {
+                if let Some(st) = slot.as_ref() {
+                    p.flush(st);
+                }
+            }
+        });
+    });
+}
+
+/// 変更の後の遅延保存の書き出し（`glue` のタイマーが呼ぶ。TASK-318。SAVE-7）。
+///
+/// 保存しない場合（未操作・上限超え・開けなかった履歴がある・未マウント）は何も書かない（`history_to_save` が `None`）。
+/// 呼ぶのは別のスタックのタイマーの中だけで、Runtime・`dispatch_action` には触れない（読み取りの `history_to_save` と保留だけ）。
+pub(crate) fn save_now() {
+    let Some(key) = SAVE_KEY.with(|k| k.try_borrow().ok().and_then(|k| k.clone())) else {
+        return;
+    };
+    let Some(v) = crate::glue::history_to_save() else {
+        return;
+    };
+    stage_and_flush(&key, v);
+    #[cfg(feature = "test-hooks")]
+    AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
+}
+
+/// 本番の保存先の種類（`local` か `idb`）。開いていなければ `None`。試験の設定だけ。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn storage_kind_name() -> Option<&'static str> {
+    use fandhe_workshop_contract::storage::StorageKind;
+    STORAGE.with(|s| {
+        let slot = s.try_borrow().ok()?;
+        Some(match slot.as_ref()?.kind() {
+            StorageKind::LocalStorage => "local",
+            StorageKind::IndexedDb => "idb",
+        })
+    })
+}
+
+/// 遅延保存を試みた回数。試験の設定だけ。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn autosave_count() -> u32 {
+    AUTOSAVES.with(std::cell::Cell::get)
+}
+
 /// `pagehide` で `value` が返す値を `key` に書き出すリスナーを付ける（登録は 1 回だけ）。
 ///
 /// `value` は離れる直前に呼ばれ、保存しないとき（未操作・開けなかった履歴がある）は `None` を返す。
@@ -71,16 +126,7 @@ pub fn install_save_on_leave(
         let Some(v) = value() else {
             return;
         };
-        PENDING.with(|p| {
-            p.stage(key.clone(), v);
-            STORAGE.with(|s| {
-                if let Ok(slot) = s.try_borrow() {
-                    if let Some(st) = slot.as_ref() {
-                        p.flush(st);
-                    }
-                }
-            });
-        });
+        stage_and_flush(&key, v);
     })
 }
 
@@ -149,5 +195,10 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
         }
     }
     crate::glue::mount_host(root_id, host)?;
+    SAVE_KEY.with(|k| {
+        if let Ok(mut slot) = k.try_borrow_mut() {
+            *slot = Some(key.clone());
+        }
+    });
     install_save_on_leave(key, crate::glue::history_to_save)
 }

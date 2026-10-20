@@ -4,7 +4,7 @@
 //! 2 つの保存先を contract の口 [`HistoryStore`] に載せる合成の保存先 [`HistoryStorage`] と、切り替えの閾値を置く。
 //! ブラウザの API は直接呼ばず、小さな backend の trait（[`SyncKv`]・[`IdbBackend`]）を介す。
 //! wasm 側の実体は `storage_local`・`storage_idb`、native の試験は手元の写しの偽物を渡す。
-//! 呼び出し元は、離れる直前の書き込み（TASK-317 2/2。`save_pending`・`leave_flush`）・保存の遅延の測定（TASK-318）・再読み込み（TASK-319）・復元（TASK-331）である。
+//! 呼び出し元は、離れる直前の書き込み（TASK-317 2/2。`save_pending`・`leave_flush`）・変更の後の遅延保存と測定（`save_schedule`・`persist`。TASK-318）・再読み込み（TASK-319）・復元（TASK-331）である。
 //!
 //! 仕様が決めていない点を、次のとおり決めた（推論）。SAVE-8 を確定にするかは spec 側で扱う。
 //!
