@@ -1,0 +1,8 @@
+id: FEND20-5
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/leave_flush.rs
+find: use std::cell::RefCell;
+replace: use std::cell::RefCell; fn _x() { fandhe_frontend_wasm_full::Runtime::hydrate("r", c); }
+expect-fail: 層全体は_update_を通らない状態の変更を持たない
+note: update を通らず DOM の属性から状態を復元する Runtime::hydrate が保存の層に入る（R1）

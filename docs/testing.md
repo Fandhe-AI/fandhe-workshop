@@ -4923,6 +4923,46 @@ FEND-22・D-46 の案 3（Step ごとに分け、古い Step を 1 行の要約�
 
 未実施: 左のビュー（7 本の view list。TASK-484）、4,096 件の打ち切りと状態の文字（TASK-360 2/2）、再描画の傾きの測定（TASK-232・TASK-454）。上流への報告は、D-46 に従い行わない。`scripts/expected-test-counts.txt` は更新していない。
 
+### 5.164 状態を変える経路が update だけであることの検査（TASK-362 1/2）
+
+FEND-20 は、glue（web-sys）がキー入力・タイマー・変換中の印・保存の通知を受けても、状態を変える経路は `Component::update` だけであることを求める。従来の `crates/web/tests/state_paths.rs` は `glue.rs` だけを読んでいた。本節で、`lib.rs` の `cfg(target_arch = "wasm32")` つきの `mod` 宣言から求めた層全体（`glue`・`persist`・`leave_flush`・`storage_idb`・`storage_local`・`history_download`・`test_hooks`）に広げた。DOM 操作の許可一覧と glue の行数・web-sys の feature 数の記録は 2/2（TASK-362）が受け持つ。
+
+置き場: spec の変更対象は `tools/check-deps.sh` と CI だが、`check-deps.sh` と `state_paths.rs` は「DOM 読み取りは前者、状態経路は後者」と分担を決めている。同じ規則を二か所に持たないため、本検査は `state_paths.rs` に置いた。`make test` を通して CI の `rust-test` ジョブで流れる。層の列挙が失敗・空の場合、`host.rs` から `&mut self` のメソッドを列挙できない場合は、失敗にする（fail-closed）。
+
+| 規則 | 内容 |
+|---|---|
+| R1 | 層のどのファイルにも `.update(`・`::update(`・`component_mut`・`.borrow_mut().as_mut()`・`apply_with_view_transition`・`::hydrate(`・`.hydrate(` が無い（`hydrate` は DOM の属性から状態を復元し、`update` を通らない） |
+| R2 | `RUNTIME`・`Runtime<EngineHost>` は glue の外に無い。glue の外の `.dispatch_action(` は `test_hooks::debug_view_fixture_dispatch` の 1 件、`.component()` は `debug_view_fixture_state` の 1 件、`Runtime::mount(` は `glue::mount_host` と `debug_view_fixture_mount` の各 1 件だけ（件数は増減とも失敗） |
+| R3 | `host.rs` の `&mut self` のメソッド（実測 2026-10-20 で 19 名）は、層の中では許可表の呼び出しだけを許す（`persist::boot_and_mount` の `boot` 2 件・`block_saving` 1 件、`glue::mount_host` の `set_tick_request`・`set_tick_reset`・`set_draft_sync_request` 各 1 件）。許可した呼び出しは mount より前に位置する。呼び出しは `.method(` と UFCS 形式の `::method(` の両方を数える |
+| R4 | `host.rs` に内部可変性の綴り（`std::cell`・`RefCell`・`Cell<`・`UnsafeCell`・`OnceCell`・`Mutex`・`RwLock`・`Atomic`）が無い。`with_app` の `&EngineHost` で状態を変えられない前提を固定する |
+
+限界:
+
+- `EngineHost` が持つ他の crate・他のモジュールの型の内部可変性を推移的にたどる検査はしない。2026-10-20 時点で core・contract の `src` に内部可変性は 0 件である（人が確認した事実で、機械の検査ではない）
+- 名前の衝突（層のコードが別の型の同名メソッドを呼ぶ）は検出側に倒す。誤検出が出たら、許可表に理由つきで足す
+- 文字列の照合のため、マクロ展開や別名の `use` を介した呼び出しは見ない
+
+変異注入の記録（`FEND20-2`〜`FEND20-6` は新規。`G1`・`G2`・`FEND4-1` は範囲を広げた後も検出することの再確認）。
+
+```text
+実行日: 2026-10-20
+元にしたコミット: 50a74a0（未コミットの差分つき）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/{FEND20-2,FEND20-3,FEND20-4,FEND20-5,FEND20-6,G1,G2,FEND4-1}.mutation
+```
+
+| ID | 入れた誤り | 規則 | 結果 |
+|---|---|---|---|
+| FEND20-2 | `persist.rs` の `mount_host` の直後に `host.boot(None);` | R3（位置） | DETECTED |
+| FEND20-3 | `persist.rs` に許可表に無い `host.open_history(&[]);` | R3（許可表） | DETECTED |
+| FEND20-4 | `test_hooks.rs` の読み取りの口に `rt.dispatch_action("x", "");` | R2 | DETECTED |
+| FEND20-5 | `leave_flush.rs` に `Runtime::hydrate(..)` | R1 | DETECTED |
+| FEND20-6 | `persist.rs` に UFCS 形式の `EngineHost::open_history(&mut host, &[]);` | R3（許可表・UFCS） | DETECTED |
+| G1 | glue の `component()` を 2 箇所にする | glue 固有 | DETECTED |
+| G2 | glue に状態を変える呼び出しを足す | glue 固有 | DETECTED |
+| FEND4-1 | 配送を `set_timeout` を通さず直接届ける | glue 固有 | DETECTED |
+
+本番コード（`crates/web/src/**`）は変えていない。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

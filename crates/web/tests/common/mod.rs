@@ -112,3 +112,56 @@ pub fn web_src_sources() -> Vec<(String, String)> {
         })
         .collect()
 }
+
+/// `src/host.rs` の全文。
+pub fn host_source() -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/host.rs");
+    std::fs::read_to_string(path).expect("src/host.rs を読めない")
+}
+
+/// `lib.rs` の本文から、`cfg` に `target_arch = "wasm32"` を含む属性の直後にある `mod X;` の名前を求める。
+///
+/// wasm32 でしかコンパイルされない web-sys 層（glue・保存・書き出し・試験用の口）を、
+/// ファイル名の決め打ちではなく宣言から求めるための関数。属性と宣言の間の doc コメント・他の属性は読み飛ばす。
+pub fn wasm_layer_module_names(lib_src: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut pending = false;
+    for line in lib_src.lines() {
+        let t = line.trim();
+        if t.starts_with("#[cfg(") {
+            if t.contains("target_arch = \"wasm32\"") {
+                pending = true;
+            }
+        } else if t.starts_with("#[") || t.starts_with("//") {
+            // 属性の続き・コメントは読み飛ばす。
+        } else {
+            if pending {
+                let rest = t.strip_prefix("pub ").unwrap_or(t);
+                if let Some(n) = rest.strip_prefix("mod ").and_then(|r| r.strip_suffix(';')) {
+                    names.push(n.trim().to_owned());
+                }
+            }
+            pending = false;
+        }
+    }
+    names
+}
+
+/// wasm32 専用の web-sys 層のモジュールを（名前, 全文）の組で返す。読めない・空なら panic（fail-closed）。
+pub fn wasm_layer_sources() -> Vec<(String, String)> {
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let lib = std::fs::read_to_string(src_dir.join("lib.rs")).expect("src/lib.rs を読めない");
+    let names = wasm_layer_module_names(&lib);
+    assert!(
+        !names.is_empty(),
+        "wasm32 専用のモジュールを 1 件も求められない"
+    );
+    names
+        .into_iter()
+        .map(|n| {
+            let body = std::fs::read_to_string(src_dir.join(format!("{n}.rs")))
+                .unwrap_or_else(|e| panic!("src/{n}.rs を読めない: {e}"));
+            (n, body)
+        })
+        .collect()
+}
