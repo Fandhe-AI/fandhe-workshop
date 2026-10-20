@@ -8,18 +8,23 @@
 //! 修飾キー（Ctrl・Alt・Meta。Shift との組み合わせを含む）付きの Enter が送信にも `preventDefault` にもならない契約（JUDGE-22・D-60）を外す変異（JUDGE22-3）の検出先でもある（TASK-282 2/2）。
 //! 入力欄の Space が状態に関わらず `preventDefault` も送信もしない契約（FEND-7・D-42）を外す変異（FEND7-1）の検出先でもある（TASK-352 1/3）。
 //! 標準でない要素の Enter・Space の効果（`row_key_effect`。FEND-7）を外す変異（FEND7-2）と、修飾なしの Enter が送信ボタンへの click と `preventDefault` になる契約（FEND-14）を外す変異（FEND14-1）の検出先でもある（TASK-352 2/3）。
+//! root の外の Esc（`outside_root_esc`。FEND-6・FEND-8）が root の中を重ねて届けない契約を外す変異（FEND8-1）の検出先でもある（TASK-353 1/2）。
 //! DOM での結果（改行が欄に入り、複数行が 1 件で送信される）は `tools/browser/enter-submit.test.mjs` が確かめる。
 
+use fandhe_frontend_wasm_full::events::{
+    action_from_keydown, AttrSource, KeyModifiers, KeydownInput,
+};
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_contract::key_decide::{decide, Decision, KeyAction, KeyDecision, KeyInput};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{apply, load_ir};
+use fandhe_workshop_web::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use fandhe_workshop_web::glue_ops::tab_prevents_default;
 use fandhe_workshop_web::key_route::{
-    after_esc, completion_choice, effect_for, esc_input, esc_route, field_state, row_key_effect,
-    EscRoute, RowKeyEffect,
+    after_esc, completion_choice, effect_for, esc_input, esc_route, field_state, outside_root_esc,
+    row_key_effect, EscRoute, RowKeyEffect,
 };
 use std::path::PathBuf;
 
@@ -637,5 +642,113 @@ fn fend7_標準でない要素は宛先なし_修飾付き_変換中_他のキ�
         let mut c = plain(key);
         c.is_composing = true;
         assert!(none(row_key_effect(&c, false, true)), "{key:?} composing");
+    }
+}
+
+fn kd(key: &str, mods: KeyModifiers, composing: bool, code: u32, repeat: bool) -> KeydownInput<'_> {
+    KeydownInput {
+        key,
+        modifiers: mods,
+        is_composing: composing,
+        key_code: code,
+        repeat,
+    }
+}
+
+const NO_MODS: KeyModifiers = KeyModifiers {
+    ctrl: false,
+    alt: false,
+    shift: false,
+    meta: false,
+};
+
+fn only_mod(i: usize) -> KeyModifiers {
+    KeyModifiers {
+        ctrl: i == 0,
+        alt: i == 1,
+        shift: i == 2,
+        meta: i == 3,
+    }
+}
+
+#[test]
+fn root_の外の_esc_は届ける() {
+    let input = kd("Escape", NO_MODS, false, 27, false);
+    assert_eq!(outside_root_esc(&input, false), Some(RuntimeAction::Esc));
+}
+
+#[test]
+fn root_の中の_esc_は二重に届けない() {
+    let input = kd("Escape", NO_MODS, false, 27, false);
+    assert_eq!(outside_root_esc(&input, true), None);
+}
+
+#[test]
+fn 修飾キー付きの_esc_は届けない() {
+    for i in 0..4 {
+        let input = kd("Escape", only_mod(i), false, 27, false);
+        assert_eq!(outside_root_esc(&input, false), None, "i={i}");
+    }
+}
+
+#[test]
+fn 変換中の_esc_は届けない() {
+    assert_eq!(
+        outside_root_esc(&kd("Escape", NO_MODS, true, 27, false), false),
+        None
+    );
+    assert_eq!(
+        outside_root_esc(&kd("Escape", NO_MODS, false, 229, false), false),
+        None
+    );
+}
+
+#[test]
+fn 自動リピートの_esc_は_root_の中と同じく届ける() {
+    let input = kd("Escape", NO_MODS, false, 27, true);
+    assert_eq!(outside_root_esc(&input, false), Some(RuntimeAction::Esc));
+}
+
+#[test]
+fn esc_以外のキーは届けない() {
+    for key in ["Enter", "Tab", " ", "a"] {
+        assert_eq!(
+            outside_root_esc(&kd(key, NO_MODS, false, 0, false), false),
+            None,
+            "{key:?}"
+        );
+    }
+}
+
+struct Attrs;
+
+impl AttrSource for Attrs {
+    fn attr(&self, name: &str) -> Option<String> {
+        ESC_KEYDOWN_ATTRS
+            .iter()
+            .find(|(k, _)| *k == name)
+            .map(|(_, v)| (*v).to_owned())
+    }
+}
+
+#[test]
+fn root_の外の判定は_root_の中の属性の照合と同じ結果になる() {
+    let mut cases = vec![
+        kd("Escape", NO_MODS, false, 27, false),
+        kd("Escape", NO_MODS, true, 27, false),
+        kd("Escape", NO_MODS, false, 229, false),
+        kd("Escape", NO_MODS, false, 27, true),
+        kd("Enter", NO_MODS, false, 13, false),
+        kd("a", NO_MODS, false, 65, false),
+    ];
+    for i in 0..4 {
+        cases.push(kd("Escape", only_mod(i), false, 27, false));
+    }
+    for input in &cases {
+        assert_eq!(
+            outside_root_esc(input, false).is_some(),
+            action_from_keydown(&Attrs, input).is_some(),
+            "{input:?}"
+        );
     }
 }

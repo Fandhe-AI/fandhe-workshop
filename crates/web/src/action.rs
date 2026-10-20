@@ -1,6 +1,6 @@
 //! Runtime が Component に届ける action の名前と宛先の形の契約（TASK-343 2/3）。
 //!
-//! 呼び出し元は、タイマーと補完を結線する glue（TASK-349。root の外の Esc は後続）と、ホストの
+//! 呼び出し元は、タイマーと補完を結線する glue（TASK-349。root の外の Esc は `glue::wire_outside_esc` が結ぶ。TASK-353）と、ホストの
 //! `Component::decode_action`（[`RuntimeAction::decode`] に委ねる）である。native の rlib で試験できるよう、
 //! wasm 専用にしない。
 //!
