@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -62,6 +62,15 @@ check-dom-reads: ## web crate が DOM の値を読まないこと（例外は件
 
 test-check-dom-reads: ## DOM 読み取りの検査自体の回帰テスト。直接: scripts/test-check-dom-reads.sh
 	@scripts/test-check-dom-reads.sh
+
+check-frontend-bump: ## 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル）を検査する。直接: scripts/check-frontend-bump.sh guard
+	@scripts/check-frontend-bump.sh guard
+
+test-check-frontend-bump: ## 版上げの受け入れ確認の関門自体の回帰テスト（模擬の版上げ）。直接: scripts/test-check-frontend-bump.sh
+	@scripts/test-check-frontend-bump.sh
+
+update-test-counts: ## 試験の件数の期待値（scripts/expected-test-counts.txt）を実測で書き直す（遅い。ブラウザ試験も流す）。直接: scripts/update-test-counts.sh
+	@scripts/update-test-counts.sh
 
 check-toolchain: ## 固定ファイルの版と docs/toolchain.md の一致を検査する。直接: scripts/check-toolchain.sh
 	@scripts/check-toolchain.sh

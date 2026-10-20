@@ -41,6 +41,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
 │   ├── check-fork-ci.sh      # fork が secret 無しで CI を通せる構成か（A〜C）と教材 repo の ENGINE_REV の正準の形（D。指定時のみ）をパーサ復号で検査（回帰テストは test-check-fork-ci.sh。ruby・jq・cargo が必要）
 │   ├── ci-rust-toolchain.sh  # CI で導入された rustc の版と docs/toolchain.md の照合
+│   ├── check-frontend-bump.sh # 版上げ PR の受け入れ確認 (1)(2)(4)(5) の関門（detect・guard・counts。回帰テストは test-check-frontend-bump.sh。期待値は expected-test-counts.txt、更新は update-test-counts.sh）
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
@@ -90,6 +91,9 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
+| `make check-frontend-bump` | 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル。(2) の件数の照合は CI の rust-test・browser-test が行う） |
+| `make test-check-frontend-bump` | 上の関門自体の回帰テスト（模擬の版上げ） |
+| `make update-test-counts` | 試験の件数の期待値（`scripts/expected-test-counts.txt`）を実測で書き直す（遅い。ブラウザ試験も流す） |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |
 | `make test-browser` | 前段で `fandhe-pack` の debug ビルドを行い `FANDHE_PACK_BIN` で渡す（TASK-91）。ブラウザ試験の共通ヘルパ（`tools/browser/`）・最小の画面・keydown の属性の試験・Enter の送信・Shift+Enter の改行・複数行の送信の試験・貼り付け（改行の保持・自動送信 0 件・合成の paste）の試験・IME の模擬（CDP）と入力欄の層 3 の試験・保存済みの履歴が無い場合と未操作の再読み込みで新しく始まる試験（SAVE-3・SAVE-28）・保存・復元・書き出し・版の層 3 の試験・版の違う履歴 15 件の判定と写しの一致の試験（VER-2）・入力方式ごとの入力の口の切り替えの試験（TERM-23）・入力欄なしの教材の表示の試験（PACK-20）・CH-0〜CH-3 の形の 20 Step の通しと CH-1 のキーボードだけの完走の試験（TERM-23）・巡回する IR と長い連鎖の遷移 1,000 回の上限の試験（transition-limit。SAFE-23・SAFE-34・SAFE-35。TASK-160 1/3・2/3・3/3。止めた後は操作の前の Step に戻る）・対照の自己確認（SAFE-8。CSP あり・なし）・安全性の観察の記録（safety-observe。BUILD-4。観察値は assert せず diagnostic に残す）・旧いエンジンが新しい教材を理由つきで断り保存済みの履歴が書き換わらない試験（VER-13。TASK-181 2/2。`docs/testing.md` 5.140。Playwright。`npm ci` と `npx playwright install chromium` が前提。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本（記録は `docs/testing.md` 5.128）。CI は `browser-test` ジョブが Chromium で流す） |
