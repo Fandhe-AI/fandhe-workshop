@@ -1,8 +1,8 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 5
-決定日: 2026-10-18
+診断コードの一覧の版: 6
+決定日: 2026-10-20
 状態: 固定（契約）
 ```
 
@@ -13,7 +13,9 @@
 - 「一覧の版」は本文書の整数の版である。語彙の版・`ir_format`・`LIMITS_CONTRACT_VERSION` とは別に管理する
 - 区分の「語彙の文書」は、PoC の語彙の文書（v1 の 13 節、v1.1、v1.3）を指す。repo の `docs/vocabulary/vocabulary.md` ではない（同文書の 10 節が診断コードを本一覧に委ねている）
 - 条件は要旨である。検査の中身の正は、04 の各 PACK と各実装タスク（TASK-46・TASK-47・TASK-49〜TASK-55 など）とする
-- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致の自動検査は TASK-400 が持つ。版 5 は自動検査を持たない
+- 診断コードの一覧の正は本文書である。語彙の文書（PoC の v1・v1.1・v1.3）は書き換えない（D-21・D-64。TASK-398）
+- 一覧と実装（`crates/pack/src/diag.rs` の `DiagCode`）の一致は、`crates/pack/tests/diagnostics_doc.rs`（TASK-400）が検査する。2 節・4 節・5 節の 3 区分の和集合が `DiagCode::ALL` と一致し、区分が重ならず、記録した件数が合うことを確かめる。CI の `rust-test`（`cargo test --workspace`）で流れ、記録は `docs/testing.md` の 5.152 にある
+- 試験は節の番号（`## 2.`・`## 4.`・`## 5.`）で区分を取り出す。節の番号を変えるときは、試験も同じ変更で直す
 - 仕様は private のため、本文を転記せず ID で参照する
 
 ### 変更規則
@@ -66,6 +68,7 @@
 - `E-PROFILE-*`・`E-LEFT-*` は、`pack.profile`・`pack.left_pane` を既定から変えたときだけ検査される
 - `E-VOCAB-MISMATCH` の対象には、上の行の拡張点に加えて、番号を持たない `confirm.options[].label`（語彙 1.3。`answer` の選択肢の表示名）も含まれる（版 4。固定した行は書き換えず、本注で補う）。入力方式 `choice` の `options[].label`（語彙 v1）は別の欄で、対象ではない
 - `E-VOCAB-MISMATCH` の対象には、EP-13（`view.document_body`。`views.<ID>.body`、語彙 1.4）も含まれる（版 5。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
+- 語彙の文書（v1.1）は、本文の上限超過を `E-REF-BODY` の条件に含める。実装では、この上限超過は `E-REF-BODY` ではなく上限超過のコードに当たり、4 節の参照のみの区分にある。`.md` 以外の本文は素の `E-LIMIT`、`.md` の本文は事前走査の `E-LIMIT-MD-SIZE` である。実装の `E-REF-BODY` は、本文の参照が解決できない場合（安全でない本文パス・参照先の不存在・存在するファイルの読み込み時の I/O エラー）に出る。上限超過は含まない（版 6。D-64。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 
 ## 3. 件数の記録
 
@@ -117,14 +120,14 @@
 
 - `E-LIMIT-PACK-SIZE`・`E-LIMIT-MD-SIZE`: SAFE-22・AUTHOR-10
 - `E-LIMIT-DEPTH`・`E-LIMIT-SYMLINK`: SAFE-43・AUTHOR-10
-- `E-LIMIT`: AUTHOR-10（AUTHOR-11 が検討中）
+- `E-LIMIT`: AUTHOR-10・AUTHOR-11
 
-- 素の `E-LIMIT` は contract の `PackLimitCode` に無い。扱いは TASK-398・TASK-400 が決める
+- 素の `E-LIMIT` は contract の `PackLimitCode` に無い。専用の `PackLimitCode` を持たない上限超過（エントリ数・`.md` 以外の本文・展開後の大きさなど）に使うコードとして、参照のみの区分に置き、件数に数えない（D-64）。語彙の文書の本文の上限超過との対応は、2 節の注を参照する
 - 上限超過は、中身を読まずに拒否する（SAFE-22・SAFE-43）。本一覧はこの条件を緩めない
 
 ## 5. 本表に入れないコード
 
-- `E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH`: PoC の語彙 v1 の 13 節と骨格の列挙にはあるが、04 に出所が無い。版 1 では固定せず、件数に数えない。扱いは TASK-398・TASK-400 が決める
+- `E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH`: PoC の語彙 v1 の 13 節と骨格の列挙にはあるが、04 に出所が無い。版 1 では固定せず、件数に数えない。本表外に置く扱いは D-64 で確定した。一致の検査は本表外の区分として照合する。どちらも `fandhe-pack test`（TASK-404）が出すコードで、今は未実装のため出ない。04 に出所ができ、`test` が実装されたら、本表に行を足して版を上げる
 - `E-INSTR-*`: PACK-49・INSTR-18 の検討中の案である。講師資料の契約（TASK-559）が持つ
 - 実行時の読み込みの拒否理由（`too_large`・`too_deep` など）: CLI の診断コードではない。contract の `LimitReason` が持つ
 
@@ -141,3 +144,4 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 3 | 2026-10-18 | `E-VOCAB-MISMATCH` を足し、34 件にした。04 の PACK-31 は宣言と使用の食い違いを診断にすると定めるがコード名を持たず、名前は実装の側で付けた。既存の行は変えていない | TASK-59 1/2・D-43 |
 | 4 | 2026-10-18 | `E-VOCAB-MISMATCH` の対象に `confirm.options[].label`（語彙 1.3）を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | TASK-59 2/2・D-43 |
 | 5 | 2026-10-18 | `E-VOCAB-MISMATCH` の対象に EP-13（`views.<ID>.body`、語彙 1.4）を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | TASK-66 1/2・D-43 |
+| 6 | 2026-10-20 | 一覧の正の明記、`E-REF-BODY` と上限超過のコードの対応の注、`E-LIMIT*`・`E-PLAY-*` の区分の確定、一致の検査の所在を加えた。行は書き換えず、件数は 34 件のまま | TASK-400 2/2・D-64 |

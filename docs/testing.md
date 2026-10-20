@@ -4648,7 +4648,7 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 | `diag.rs` の `DiagCode::RefElement` の `as_str` を `E-REF-ELEM` にする | 同じ試験が「一覧にだけある: E-REF-ELEMENT」「実装にだけある: E-REF-ELEM」を示す | 検出 |
 | `diag.rs` の `ALL` から `DiagCode::Parse` を消し、`d5` の件数を合わせる | `d9_all_covers_every_variant` が失敗する | 検出 |
 
-未確認: 区分の置き場（節の番号）を #474（TASK-400 2/2）が変える場合は、同じ変更で `diagnostics_doc.rs` の節の取り出しを合わせる。
+TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変えていない。2026-10-20 に `author11_*` 7 件が通ることを確かめた。
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
