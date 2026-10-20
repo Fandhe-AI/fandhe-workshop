@@ -1,0 +1,8 @@
+id: FEND20-7
+package: fandhe-workshop-web
+test: glue_contract
+target: crates/web/src/persist.rs
+find: install_save_on_leave(key, crate::glue::history_to_save)
+replace: el.set_inner_html(""); install_save_on_leave(key, crate::glue::history_to_save)
+expect-fail: 層全体は許可表に無い_dom_操作を持たない
+note: glue 以外のモジュールが要素の中身を書き換える（FEND20-1 は glue.rs だけ。許可表を層全体へ広げたことの確認）

@@ -1,0 +1,8 @@
+id: FEND20-10
+package: fandhe-workshop-web
+test: frontend_features
+target: Cargo.toml
+find: "Blob", "BlobPropertyBag", "Url"]
+replace: "Blob", "BlobPropertyBag", "Url", "HtmlInputElement"]
+expect-fail: web_sys_の_feature_は一覧と一致する
+note: web-sys の feature を 1 つ足す（web-sys の口が理由の記録なしに広がる）

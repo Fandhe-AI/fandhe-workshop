@@ -1,0 +1,8 @@
+id: FEND20-9
+package: fandhe-workshop-web
+test: glue_scale
+target: crates/web/src/glue.rs
+find: //! wasm の入口。JS（`static/app.js`）が呼ぶ `mount_app` を書き出す。
+replace: const PAD: u8 = 0;
+expect-fail: glue_のコード行は上限以下
+note: glue のコード行を上限より 1 行増やす（コメントの行をコードの行に置き換える。増加が黙って通らなくなる）
