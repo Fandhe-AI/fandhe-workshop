@@ -1,4 +1,4 @@
-// Step の本文（教材パックの Markdown）への注入 49 件が、画面で何も実行されないことの試験（SAFE-1。TASK-144 1/2。CSP あり）。
+// Step の本文（教材パックの Markdown）への注入 49 件が、画面で何も実行されないことの試験（SAFE-1。TASK-144。CSP あり・なし）。
 //
 // データの正は testdata の xss-cases.md の「入り口に E1（Step の本文の Markdown）を含む」49 件（xss-cases.mjs が読む。
 // ペイロードをここへ書き写さない）。1 件ごとに最小教材 min-3step-pack を一時ディレクトリへ写し、st-1.md をペイロードで置き換えて
@@ -12,7 +12,10 @@
 // 上の 2 件が入った後に、配信する設定の画面で実際の本文の区画を見る形へ差し替える。
 // 補い: 試験 A で試験の設定と配信する設定の CSP の meta が同一であることを固定し、試験 C で得た HTML を配信する設定のページへ入れて数える。
 //
-// CSP なしは TASK-144 2/2 が、下の csp のループへ false を足して担当する。
+// CSP あり・なしの両方を、下の csp のループが流す。CSP なしは index.html の CSP の meta を除いた一時の写し（withCspMode）で、
+// CSP に頼らず描画の経路（checkDoc → renderDoc）だけで全区分が 0 になることを確かめる。
+// 計数の語の対応（harness の SAFETY_KEYS）: 実行 = hits、外部通信 = external、ダイアログ = dialogs・popups、危険な要素 = danger、
+// on* 属性 = onAttrs、style 属性 = styleAttrs、http(s) の出現 = extHttp・nonHttp、ページ内エラー = pageErrors・crashed・scanError。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_WEB_DIR（配信設定）・FANDHE_PACK_BIN（前提バイナリ）。
 // どれも未設定・不在は skip にせず失敗にする。URL は example.invalid だけを使う（ペイロード側）。
@@ -122,8 +125,8 @@ test('A: 試験の設定と配信する設定の CSP の meta が同一', () => 
 
 const htmlOf = new Map();
 
-// CSP のループ。TASK-144 2/2 が false を足す。
-for (const csp of [true]) {
+// CSP あり・なしのループ（なしは CSP の meta を除いた写しで流す）。
+for (const csp of [true, false]) {
   test(`B: E1 の 49 件が Step の本文として画面に出ても、実行・通信・危険な要素が 0 件で生の HTML は文字（CSP ${csp ? 'あり' : 'なし'}）`, async (t) => {
     let rawChecked = 0;
     await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
