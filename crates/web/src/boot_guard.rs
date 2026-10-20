@@ -16,11 +16,15 @@
 //!   履歴の鍵の一覧（`keys`）にも SAVE-32 の削除の対象にも入らない
 //! - 値は `<n>:<tag>`: `n` は前の値に 1 を足した 10 進、`tag` は 8 桁の小文字 16 進。localStorage の読み書きはタブ間で原子的でなく、
 //!   ほぼ同時に起動した 2 つのタブが同じ `n` を書きうるため、`tag` で最後に書いた 1 つだけを一致させる。`tag` は一意化のためで、秘密ではない
-//! - fail-closed: 取得の書き込みに失敗した・照合で読めない・値が違う・取得前、はいずれも書かない。上書きを防ぐ側に倒し、保存済みの履歴は消さない
-//! - 古いタブの `write` は `Ok` を返して捨てる: `Err` にすると古いタブに保存失敗の表示が出るが、その表示は SHELL-23 の持ち分である
+//! - fail-closed: 取得の書き込みに失敗した・照合で読めない・meta が無い、はいずれも書かない。上書きを防ぐ側に倒し、保存済みの履歴は消さない。
+//!   この 3 つは古いタブではなく保存の失敗なので、`write` は取得・照合の `StorageError` を `Err` で返す（SAVE-11 の通知経路へ届く）
+//! - 古いタブ（meta が別の値）の `write` だけは `Ok` を返して捨てる: `Err` にすると古いタブに保存失敗の表示が出るが、その表示は SHELL-23 の持ち分である
+//! - 書いた直後にもう一度照合する: 照合と書き込みの間の隙間で他のタブが起動していれば、以後の書き込みを止める
 //!
 //! 限界:
 //!
+//! - 照合と書き込みは、タブ間で原子的ではない。localStorage には排他の仕組みが無く、`navigator.locks` は非同期で同期の口に使えない。
+//!   照合の後から書き込みの完了までの間に別のタブが起動して書くと、その 1 回だけは上書きしうる。書いた直後の再照合で、2 回目以降を止める
 //! - localStorage が使えず IndexedDB だけが使える環境では、起動番号を確かめられないため保存が止まる
 //! - SAVE-32 の教材ごとの削除は meta の鍵を消さない（値は小さい）
 //! - meta の鍵は `HistoryStorage` の使用量の見積もり（localStorage の全鍵の合計）にわずかに含まれる
@@ -69,8 +73,8 @@ pub fn parse_boot(s: &str) -> Option<u64> {
 pub struct BootGuard<K: SyncKv> {
     kv: K,
     meta_key: String,
-    /// 自分の値。取得に失敗したときは `None`（以後は書かない）。
-    mine: Option<String>,
+    /// 自分の値。取得の書き込みに失敗したときはその理由（以後は書かず、`write` がこの理由を返す）。
+    mine: Result<String, StorageError>,
     /// 一度でも他のタブに追い越されたか。立てたら戻さない。
     stale: Cell<bool>,
 }
@@ -85,7 +89,7 @@ impl<K: SyncKv> BootGuard<K> {
             _ => 0,
         };
         let value = format_boot(prev.saturating_add(1), tag);
-        let mine = kv.set(&meta_key, &value).ok().map(|()| value);
+        let mine = kv.set(&meta_key, &value).map(|()| value);
         BootGuard {
             kv,
             meta_key,
@@ -94,23 +98,26 @@ impl<K: SyncKv> BootGuard<K> {
         }
     }
 
-    /// 保存してよいか。meta が自分の値と一致するときだけ `true`。違う値なら古いタブとして記憶する。
-    /// 読めない・無い・自分の値を持たないときは `false`（古いとは記憶しない）。
-    pub fn is_current(&self) -> bool {
+    /// 保存してよいか。`Ok(true)` は meta が自分の値と一致、`Ok(false)` は別の値（古いタブとして記憶する）。
+    /// 取得に失敗した・読めない・meta が無いときは、その `StorageError`（古いとは記憶しない）。
+    pub fn verify(&self) -> Result<bool, StorageError> {
         if self.stale.get() {
-            return false;
+            return Ok(false);
         }
-        let Some(mine) = &self.mine else {
-            return false;
-        };
-        match self.kv.get(&self.meta_key) {
-            Ok(Some(v)) if v == *mine => true,
-            Ok(Some(_)) => {
+        let mine = self.mine.as_ref().map_err(|e| *e)?;
+        match self.kv.get(&self.meta_key)? {
+            Some(v) if v == *mine => Ok(true),
+            Some(_) => {
                 self.stale.set(true);
-                false
+                Ok(false)
             }
-            _ => false,
+            None => Err(StorageError::Failed),
         }
+    }
+
+    /// 保存してよいか。[`BootGuard::verify`] が `Ok(true)` のときだけ `true`。
+    pub fn is_current(&self) -> bool {
+        matches!(self.verify(), Ok(true))
     }
 
     /// 他のタブに追い越されたことがあるか。
@@ -134,10 +141,13 @@ impl<S: HistoryStore + ?Sized, K: SyncKv> HistoryStore for Guarded<'_, S, K> {
     }
 
     fn write(&self, key: &HistoryKey, value: &str) -> Result<(), StorageError> {
-        if !self.guard.is_current() {
+        if !self.guard.verify()? {
             return Ok(());
         }
-        self.inner.write(key, value)
+        let out = self.inner.write(key, value);
+        // 書いた直後の再照合。隙間で他のタブが起動していれば、以後の書き込みを止める。
+        let _ = self.guard.verify();
+        out
     }
 
     fn read(&self, key: &HistoryKey) -> Result<Option<String>, StorageError> {

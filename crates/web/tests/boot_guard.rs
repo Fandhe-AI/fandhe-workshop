@@ -171,12 +171,12 @@ fn 取得の書き込みが失敗すると書かない() {
         assert!(!g.is_current());
         assert!(!g.is_stale());
         let st = storage(&local, None);
-        Guarded {
+        let r = Guarded {
             inner: &st,
             guard: &g,
         }
-        .write(&k, "v")
-        .unwrap();
+        .write(&k, "v");
+        assert_eq!(r, Err(e), "取得の失敗は保存の失敗として返す");
         assert_eq!(history_raw(&local, &k), None);
     }
 }
@@ -194,6 +194,48 @@ fn 照合の読み取りが失敗すると書かないが_古いとは決めな�
     let h = BootGuard::claim(unreadable, &k, 3);
     assert!(!h.is_current());
     assert!(!h.is_stale());
+    let st = storage(&local, None);
+    let r = Guarded {
+        inner: &st,
+        guard: &h,
+    }
+    .write(&k, "v");
+    assert_eq!(r, Err(StorageError::Failed), "読めない失敗は返す");
+    assert_eq!(history_raw(&local, &k), None);
+}
+
+#[test]
+fn meta_が消えていると書かずに失敗を返す() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let g = BootGuard::claim(Rc::clone(&local), &k, 1);
+    local.remove(&boot_meta_key(&k)).unwrap();
+    let st = storage(&local, None);
+    let r = Guarded {
+        inner: &st,
+        guard: &g,
+    }
+    .write(&k, "v");
+    assert_eq!(r, Err(StorageError::Failed));
+    assert!(!g.is_stale());
+    assert_eq!(history_raw(&local, &k), None);
+}
+
+#[test]
+fn 書いた直後の再照合で追い越されていれば以後は書かない() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let a = BootGuard::claim(Rc::clone(&local), &k, 1);
+    let st = storage(&local, None);
+    let ga = Guarded {
+        inner: &st,
+        guard: &a,
+    };
+    ga.write(&k, "1").unwrap();
+    let _b = BootGuard::claim(Rc::clone(&local), &k, 2);
+    ga.write(&k, "2").unwrap();
+    assert!(a.is_stale());
+    assert_eq!(history_raw(&local, &k).as_deref(), Some("1"));
 }
 
 #[test]
