@@ -16,6 +16,8 @@
 //! 遷移の上限（SAFE-23）の試験は、巡回する IR 4 本（`cycle_session`）と巡回しない長い連鎖（`chain_session`）を `load-fixture:cycle-*`・`load-fixture:chain-*` で使う（TASK-160 1/3）。
 //! 旧いエンジンが読めない未来の IR（`?fixture=future-ir-format`・`?fixture=future-ir-field`。既定の教材から作り、`pack.id` は同じ）は、
 //! 起動の前に選ぶと `mount_refusal` が理由を返し、ホストは通知だけを描く（VER-13。TASK-181 2/2）。
+//! 同じ教材の別の章（`pack.id` が同じで開始点だけが違う IR 2 本。`?fixture=chapter-a`・`?fixture=chapter-b`）も起動の前に選ぶ。
+//! 章ごとの保存先の鍵で別の章の履歴が混ざらないことの試験が使う（SAVE-14・DLV-8。TASK-326 1/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -66,6 +68,10 @@ pub(crate) enum MountFixture {
     NoInput,
     /// 章をまたいで 20 Step を通す教材（TASK-450 3/3）。
     Ch03,
+    /// 同じ教材の章 A（開始点は `starts` の先頭のまま。SAVE-14。TASK-326 1/2）。
+    ChapterA,
+    /// 同じ教材の章 B（章 A と `pack.id` が同じで、開始点だけが違う。SAVE-14。TASK-326 1/2）。
+    ChapterB,
     /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
@@ -99,6 +105,36 @@ pub(crate) fn future_ir_bytes(kind: FutureIr) -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 章の試験の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CHAPTER_PACK_ID: &str = "chapter-links";
+
+/// 同じ教材の別の章（開始点の違う IR）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Chapter {
+    /// 開始点は元の IR の `starts` のまま。
+    A,
+    /// 開始点を、別の Step の節点を指す 1 件に置き換える。
+    B,
+}
+
+/// 8 Step の教材から、同じ教材の別の章の IR を作る。`pack.id` は章によらず同じで、`starts` と内容のハッシュが違う。
+/// 新しい試験データのファイルは作らず、埋め込みの IR を書き換える（`version` を変える変種は、版・内容が変わっても
+/// 鍵が変わらないことの試験が足す）。
+pub(crate) fn chapter_ir_bytes(chapter: Chapter) -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(RELOAD_POINTS_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CHAPTER_PACK_ID.into());
+    pack.insert("title".to_owned(), "章のリンクの試験データ".into());
+    if chapter == Chapter::B {
+        obj.insert(
+            "starts".to_owned(),
+            serde_json::json!([{ "id": "s-4", "node": "main/st-4", "effects": [] }]),
+        );
+    }
+    serde_json::to_vec(&value).ok()
+}
+
 /// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
 pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
     let kind = match fixture {
@@ -117,6 +153,8 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
+        "?fixture=chapter-a" => MountFixture::ChapterA,
+        "?fixture=chapter-b" => MountFixture::ChapterB,
         "?fixture=future-ir-format" => MountFixture::FutureFormat,
         "?fixture=future-ir-field" => MountFixture::FutureField,
         _ => MountFixture::Default,
@@ -130,6 +168,8 @@ pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
         MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
         MountFixture::NoInput => session_of(NO_INPUT_IR),
         MountFixture::Ch03 => session_of(CH03_IR),
+        MountFixture::ChapterA => session_of(&chapter_ir_bytes(Chapter::A)?),
+        MountFixture::ChapterB => session_of(&chapter_ir_bytes(Chapter::B)?),
         // 読めない想定の IR。万一読めたら session になり、通知が出ないのでブラウザ試験が失敗する（fail-closed）。
         MountFixture::FutureFormat => session_of(&future_ir_bytes(FutureIr::Format)?),
         MountFixture::FutureField => session_of(&future_ir_bytes(FutureIr::Field)?),
@@ -724,6 +764,58 @@ mod tests {
         assert_eq!(mount_refusal(MountFixture::Default), None);
         assert!(mount_session(MountFixture::FutureFormat).is_none());
         assert!(mount_session(MountFixture::FutureField).is_none());
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが章の教材を選ぶ() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=chapter-a"),
+            MountFixture::ChapterA
+        );
+        assert_eq!(
+            mount_fixture_from_search("?fixture=chapter-b"),
+            MountFixture::ChapterB
+        );
+        for other in [
+            "?fixture=chapter-a&x=1",
+            "?x=1&fixture=chapter-b",
+            "?fixture=chapter-a2",
+            "?fixture=Chapter-B",
+            "?fixture=chapter-",
+            "fixture=chapter-a",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 章の教材は同じ教材の_id_で開始点と内容のハッシュと鍵が違う() {
+        use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+        let a = mount_session(MountFixture::ChapterA).unwrap();
+        let b = mount_session(MountFixture::ChapterB).unwrap();
+        let d = mount_session(MountFixture::Default).unwrap();
+        assert_eq!(a.ir().pack.id, CHAPTER_PACK_ID);
+        assert_eq!(a.ir().pack.id, b.ir().pack.id);
+        assert_ne!(a.ir().starts[0].id, b.ir().starts[0].id);
+        assert_ne!(
+            fandhe_workshop_contract::content_hash::content_hash(a.ir()).unwrap(),
+            fandhe_workshop_contract::content_hash::content_hash(b.ir()).unwrap()
+        );
+        assert_eq!(a.state().run.current.as_ref().unwrap().0, "main/st-1");
+        assert_eq!(b.state().run.current.as_ref().unwrap().0, "main/st-4");
+        let scope = DeliveryScope::named("site");
+        let ka = HistoryKey::from_ir(scope.clone(), a.ir()).unwrap().render();
+        let kb = HistoryKey::from_ir(scope.clone(), b.ir()).unwrap().render();
+        let kd = HistoryKey::from_ir(scope.clone(), d.ir()).unwrap().render();
+        let prefix = fandhe_workshop_contract::storage::pack_prefix(&scope, CHAPTER_PACK_ID);
+        assert_ne!(ka, kb);
+        assert_ne!(ka, kd);
+        assert_ne!(kb, kd);
+        assert!(ka.starts_with(&prefix) && kb.starts_with(&prefix));
     }
 
     #[test]
