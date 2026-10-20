@@ -30,7 +30,7 @@ cat <<'EOF'
   check-frontend-bump          scripts/check-frontend-bump.sh          版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示・変えてはいけないファイル）を検査する
   test-check-frontend-bump     scripts/test-check-frontend-bump.sh     版上げの受け入れ確認の関門自体の回帰テスト（模擬の版上げ）
   update-test-counts           scripts/update-test-counts.sh           試験の件数の期待値を実測で書き直す（遅い。ブラウザ試験も流す）
-  check-toolchain              scripts/check-toolchain.sh             固定ファイルの版と docs/toolchain.md の一致を検査する
+  check-toolchain              scripts/check-toolchain.sh              固定ファイルの版と docs/toolchain.md の一致を検査する
   test-check-toolchain         scripts/test-check-toolchain.sh         ツールチェーンの一致の検査自体の回帰テスト
   check-workflow-secrets       scripts/check-workflow-secrets.sh       ci.yml が secret を参照していないことを検査する
   test-check-workflow-secrets  scripts/test-check-workflow-secrets.sh  secret 参照の検査自体の回帰テスト
