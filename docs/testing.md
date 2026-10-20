@@ -4683,6 +4683,22 @@ TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変�
 - 実物の確認（手元）: `CI_EVENT_NAME=pull_request scripts/check-frontend-bump.sh --base HEAD^1 --assume-bump wasm-gzip` で base と head の両方を実際にビルドした。両側とも 353359 bytes、差分 0 で合格。実行後に一時の worktree と作業ツリーの変更は残らなかった
 - 未確認: GitHub Actions 上の版上げ PR での実際のビルド（本変更は版上げ PR ではないため、CI では skip の log を出して 0 で終わる見込み）。初回の版上げで確かめる。CI での所要時間の増加（版上げ PR のときだけ release ビルドが 2 回増える）も初回の実測で確かめる
 
+### 5.156 配信用・試験用の 2 設定のビルド検査（TASK-78 1/2）
+
+実行日: 2026-10-20
+元にしたコミット: 70af5ce（origin/main）に本変更を加えた作業ツリー
+
+`scripts/test-build-web.sh`（`make test-build-web`）に節 (e) を足し、CI の `browser-test` ジョブに step を 1 つ足した。ジョブ・`needs`・ruleset は変えていない。
+
+- 使う教材: `testdata/engine-event-consistency/test-data/min-3step-pack`（`fandhe-pack compile` で診断 0 件）。`scripts/build-pack-bin.sh` で解決した `fandhe-pack` の標準出力を `IR_FILE` に渡す（`docs/cli.md` 10 節。画面に配る IR は compile の出力そのもの）
+- (e) の検査: `release` を明示し `TEST_HOOKS` を空にした配信する設定のビルドが通ること、ログに `config: delivery / profile: release` があること、`ir/main.json` が compile の出力とバイト一致すること、`format_version`（数値）と `pack.id`（文字列）を持つこと、`mount_app` があり `debug_*` の書き出しが無いこと
+- (c) に追加: 試験の設定のログに `config: test / profile: release` があること
+- `tools/check-delivery.sh` は `wasm-opt` を適用したときだけ流す。未適用（CI の `SKIP_WASM_OPT=1`）の WASM には core の名前（`debug_struct` 等）が残り、バイト列の `debug_` の検査が誤検出するため。2026-10-20 に `SKIP_WASM_OPT=1` のビルドで確認した。適用したビルドでは通る
+- 実行結果: `make test-build-web`（`wasm-opt` 適用）と `SKIP_WASM_OPT=1 make test-build-web` の両方がすべて ok。後者は約 47 秒
+- 負の対照（手元で一時的に試し、コミットしていない）: compile の出力を仮の JSON `{"ir":"sample"}` に差し替えると「IR の形」の検査が失敗する
+- 限界: web はまだ `ir/main.json` を読まない（読み込みは TASK-109・TASK-121）ため、「IR が入る」は配信物のファイルの水準で確かめる。WASM の `gzip -9` の関門と基点の記録は TASK-78 2/2
+- 未確認: CI 上での所要時間の増分（初回の実行後に測る）
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

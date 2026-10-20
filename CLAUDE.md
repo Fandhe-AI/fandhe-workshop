@@ -109,7 +109,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make check-fork-ci` | fork が secret 無しで CI を通せる構成かの検査（A〜C。D は教材 repo 用で `--pack-workflow` と `--engine-rev` の指定時のみ。パーサで復号して判定。ruby・jq・cargo が必要） |
 | `make test-check-fork-ci` | fork CI 検査自体の回帰テスト |
 | `make build-web` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定） |
-| `make test-build-web` | `build-web` の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する |
+| `make test-build-web` | `build-web` の受入基準（配信物に試験用の口が無い・compile した IR が配信する設定の `ir/main.json` に入る等）を実ビルドで検査する。CI の `browser-test` が流す |
 | `make check-delivery` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査（`tools/check-delivery.sh`。CI には未組み込み） |
 | `make test-check-delivery` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
 | `make check-mutations` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |

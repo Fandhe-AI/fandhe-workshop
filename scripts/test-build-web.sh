@@ -8,7 +8,11 @@
 # (a) の配信物の検査は tools/check-delivery.sh（make check-delivery）と同種の項目を持つ。こちらは build-web 固有の
 # 受入基準（keydown-probe・ir/ の有無・誤用）も確かめる。検査の一本化は TASK-82 の拡張時に行う。
 #
-# 終了コード: 0 = すべて成功 / 1 = 失敗が 1 件以上 / 2 = 誤用。CI への組み込みは TASK-33。
+# (e) は BUILD-3（TASK-78 1/2）の受入基準で、fandhe-pack compile の出力（本物の IR）を IR_FILE に渡した配信する設定が
+# ビルドでき、ir/main.json が compile の出力とバイト一致で入ること（docs/cli.md 10 節）。WASM の大きさの関門は TASK-78 2/2。
+#
+# 前提: cargo と scripts/build-pack-bin.sh（fandhe-pack の位置の解決。CARGO_TARGET_DIR に追従する）。
+# 終了コード: 0 = すべて成功 / 1 = 失敗が 1 件以上 / 2 = 誤用。CI は browser-test ジョブが流す（TASK-78）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -17,6 +21,7 @@ source "${DIR}/lib.sh"
 reject_args "$(basename "$0")" "$@"
 require_cmd node
 require_cmd jq
+require_cmd cargo
 
 BUILD="${ROOT_DIR}/tools/build-web.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-test-build-web.XXXXXX")"
@@ -90,7 +95,23 @@ log "building delivery config with IR_FILE"
 # 相対パスの IR_FILE が、ビルド中の cd に影響されず呼び出し元の cwd 基準で解決されることも確かめる。
 (cd "${TMP}" && OUT_DIR="${DELIVERY_IR}" IR_FILE="ir.json" "${BUILD}" >/dev/null)
 log "building test config"
-OUT_DIR="${TESTCFG}" TEST_HOOKS=1 "${BUILD}" >/dev/null
+OUT_DIR="${TESTCFG}" TEST_HOOKS=1 "${BUILD}" >/dev/null 2>"${TMP}/test.log" || { cat "${TMP}/test.log" >&2; exit 1; }
+
+# (e) 用: 本物の IR（fandhe-pack compile の標準出力。画面に配る IR はこの出力そのもの）を作り、配信する設定に入れる。
+FANDHE_PACK_BIN="$("${DIR}/build-pack-bin.sh")"
+PACK_DIR="${ROOT_DIR}/testdata/engine-event-consistency/test-data/min-3step-pack"
+COMPILED="${TMP}/ir-compiled.json"
+if ! "${FANDHE_PACK_BIN}" compile "${PACK_DIR}" >"${COMPILED}"; then
+  echo "error: fandhe-pack compile failed" >&2
+  exit 1
+fi
+DELIVERY_PACK="${TMP}/delivery-pack"
+log "building delivery config (release) with compiled IR"
+if ! OUT_DIR="${DELIVERY_PACK}" IR_FILE="${COMPILED}" TEST_HOOKS="" "${BUILD}" release >/dev/null 2>"${TMP}/delivery-pack.log"; then
+  cat "${TMP}/delivery-pack.log" >&2
+  echo "error: delivery config (release) with compiled IR failed to build" >&2
+  exit 1
+fi
 
 WASM="wasm/fandhe_workshop_web_bg.wasm"
 
@@ -118,6 +139,23 @@ check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
 # 配信設定の「keydown-probe が無い」検査が空振りしていないことの対照（試験の設定には有る）。
 check "keydown-probe is in the test config wasm" grep -aq 'keydown-probe' "${TESTCFG}/${WASM}"
 check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
+check_status "test config built as config: test / profile: release" 0 grep -q 'config: test / profile: release' "${TMP}/test.log"
+
+echo "-- (e) delivery config (release) with compiled IR" >&2
+check_status "built as config: delivery / profile: release" 0 grep -q 'config: delivery / profile: release' "${TMP}/delivery-pack.log"
+check "ir/main.json is byte-identical to fandhe-pack compile output" cmp -s "${COMPILED}" "${DELIVERY_PACK}/ir/main.json"
+check "ir/main.json has the IR shape" jq -e '(.format_version | type == "number") and (.pack.id | type == "string")' "${DELIVERY_PACK}/ir/main.json"
+check "mount_app is exported (compiled IR)" has_export '^mount_app$' "${DELIVERY_PACK}/${WASM}"
+check "no debug_* export (compiled IR)" no_debug_export "${DELIVERY_PACK}/${WASM}"
+# check-delivery の WASM のバイト列の検査（debug_）は、wasm-opt 適用後の配信物を前提にする。未適用のビルド（CI の
+# SKIP_WASM_OPT=1）の WASM には core の名前（debug_struct 等）が残り誤検出するため、適用したときだけ流す。
+if grep -q 'wasm-opt: applied' "${TMP}/delivery-pack.log"; then
+  check "tools/check-delivery.sh passes" "${ROOT_DIR}/tools/check-delivery.sh" "${DELIVERY_PACK}"
+else
+  log "skip: tools/check-delivery.sh (wasm-opt not applied)"
+fi
+# 記録のみ（判定に使わない）。基点の様式は TASK-78 2/2。
+echo "info: $(grep -m1 'wasm-opt' "${TMP}/delivery-pack.log" || echo 'wasm-opt: (no line)')" >&2
 
 echo "-- (d) misuse" >&2
 check_fails "TEST_HOOKS=0 is rejected" env TEST_HOOKS=0 OUT_DIR="${TMP}/m1" "${BUILD}"

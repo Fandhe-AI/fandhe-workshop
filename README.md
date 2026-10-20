@@ -272,7 +272,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-pack-bin` | `scripts/test-build-pack-bin.sh` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` の別置きと既定の両方で動くことの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-keydown-control` | `scripts/test-keydown-control.sh` | `action-keydown` を外した写しで keydown の試験が「キーが届かない」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |
 | `make build-web` | `tools/build-web.sh` | web を wasm にビルドして `dist/web` に配る一式を作る（`TEST_HOOKS=1` で試験の設定、`IR_FILE` で IR を同梱） |
-| `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準を実ビルドで検査する |
+| `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準（compile した IR が配信する設定に入ることを含む）を実ビルドで検査する |
 | `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。CI には未組み込み |
 | `make test-check-delivery` | `scripts/test-check-delivery.sh` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
