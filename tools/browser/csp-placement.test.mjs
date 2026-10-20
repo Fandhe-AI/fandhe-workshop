@@ -48,6 +48,10 @@ const cases = [
   ['CSP の meta を 2 つにする', /CSP meta count is 2/, (h, c) => h.replace(c, c + c)],
   ['CSP の meta を charset より前に置く', /not immediately after charset/, (h, c) =>
     h.replace(c, '').replace(CHARSET_LINE, (m) => c + m)],
+  ['http-equiv を data-http-equiv にする', /CSP meta count is 0/, (h) =>
+    h.replace(/\bhttp-equiv=/i, 'data-http-equiv=')],
+  ['content を data-content にする', /no content attribute/, (h, c) =>
+    h.replace(c, c.replace(/\scontent=/i, ' data-content='))],
   ['charset と CSP の間にコメントを挟む', /not immediately after charset/, (h, c) =>
     h.replace(c, '  <!-- x -->\n' + c)],
 ];

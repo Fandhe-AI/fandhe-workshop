@@ -82,23 +82,44 @@ export const SAFETY_KEYS = [
   'danger', 'onAttrs', 'styleAttrs', 'nonHttp', 'extHttp', 'scanError',
 ];
 
-const CSP_META_RE = /<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi;
+const META_TAG_RE = /<meta(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+// meta 要素を属性単位で解析する。属性名は完全一致で比べる（data-http-equiv 等の部分一致を許さない）。
+function parseMetaTags(html) {
+  return [...String(html).matchAll(META_TAG_RE)].map((m) => {
+    const attrs = new Map();
+    const inner = m[0].slice('<meta'.length, -1);
+    for (const a of inner.matchAll(ATTR_RE)) {
+      const name = a[1].toLowerCase();
+      if (!attrs.has(name)) attrs.set(name, a[2] ?? a[3] ?? a[4] ?? '');
+    }
+    return { index: m.index, raw: m[0], attrs };
+  });
+}
+
+function isCspMeta(t) {
+  const v = t.attrs.get('http-equiv');
+  return v !== undefined && v.trim().toLowerCase() === 'content-security-policy';
+}
 
 // HTML から CSP の meta を除去する純関数。除去した件数も返す。
 export function stripCspMeta(html) {
-  let removed = 0;
-  const out = String(html).replace(CSP_META_RE, () => {
-    removed += 1;
-    return '';
-  });
-  return { html: out, removed };
+  const src = String(html);
+  const targets = parseMetaTags(src).filter(isCspMeta);
+  let out = '';
+  let pos = 0;
+  for (const t of targets) {
+    out += src.slice(pos, t.index);
+    pos = t.index + t.raw.length;
+  }
+  out += src.slice(pos);
+  return { html: out, removed: targets.length };
 }
 
 // 配信する index.html の CSP の正（SAFE-13。TASK-151 1/2）。完全一致で比べ、正規化はしない（緩む・並び替えも退行として止める）。
 export const DELIVERY_CSP =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self'";
-
-const CHARSET_META_RE = /<meta\b[^>]*\bcharset\s*=[^>]*>/gi;
 
 // CSP の meta の位置と内容を検査する純関数（fail-closed）。
 // <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
@@ -115,8 +136,9 @@ export function inspectCspMeta(html) {
   const headStart = heads[0].index + heads[0][0].length;
   const headEnd = headEnds[0].index;
   const inHead = (m) => m.index >= headStart && m.index < headEnd;
-  const charsets = [...src.matchAll(CHARSET_META_RE)];
-  const csps = [...src.matchAll(CSP_META_RE)];
+  const metas = parseMetaTags(src);
+  const charsets = metas.filter((t) => t.attrs.has('charset'));
+  const csps = metas.filter(isCspMeta);
   if (charsets.length !== 1 || !inHead(charsets[0])) {
     problems.push(`charset meta count is ${charsets.length} (expected exactly 1, inside head)`);
   }
@@ -126,15 +148,15 @@ export function inspectCspMeta(html) {
   if (problems.length > 0) return { ok: false, problems };
   const cs = charsets[0];
   const csp = csps[0];
-  const between = src.slice(cs.index + cs[0].length, csp.index);
+  const between = src.slice(cs.index + cs.raw.length, csp.index);
   if (csp.index < cs.index || !/^\s*$/.test(between)) {
     problems.push(`CSP meta is not immediately after charset meta (between: ${JSON.stringify(between.slice(0, 80))})`);
   }
-  const content = /\bcontent\s*=\s*"([^"]*)"/i.exec(csp[0]);
-  if (content === null) {
-    problems.push('CSP meta has no double-quoted content attribute');
-  } else if (content[1] !== DELIVERY_CSP) {
-    problems.push(`CSP content mismatch: ${JSON.stringify(content[1])}`);
+  const content = csp.attrs.get('content');
+  if (content === undefined) {
+    problems.push('CSP meta has no content attribute');
+  } else if (content !== DELIVERY_CSP) {
+    problems.push(`CSP content mismatch: ${JSON.stringify(content)}`);
   }
   return { ok: problems.length === 0, problems };
 }
