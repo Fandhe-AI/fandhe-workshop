@@ -451,7 +451,8 @@ fn layer_violations(files: &[(String, String)], host_src: &str) -> Vec<String> {
     for (n, c) in &codes {
         for m in &methods {
             let pat = format!(".{m}(");
-            let total = count(c, &pat);
+            // `EngineHost::boot(&mut host, ..)` の UFCS 形式も数える（R1・R2 と同じ網羅）。
+            let total = count(c, &pat) + count(c, &format!("::{m}("));
             let allowed: usize = INIT_ALLOWED
                 .iter()
                 .filter(|(f, _, name, _, _)| f == n && name == m)
