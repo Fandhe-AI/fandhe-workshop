@@ -10,6 +10,8 @@ source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
 require_cmd jq
+require_cmd mktemp
+require_cmd rm
 
 CHECK="${DIR}/check-wasm-size.sh"
 TMP_DIR="$(mktemp -d)"
