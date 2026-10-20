@@ -85,9 +85,19 @@ export const SAFETY_KEYS = [
 const META_TAG_RE = /<meta(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
 const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
+// ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea の中身）を同じ長さの空白に置き換える。
+// 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
+function maskInactive(html) {
+  const blank = (s) => s.replace(/[^\r\n]/g, ' ');
+  return String(html)
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
+    .replace(/(<(script|style|title|textarea)\b[^>]*>)([\s\S]*?)(?=<\/\2\s*>|$)/gi, (_m, open, _t, body) => open + blank(body));
+}
+
 // meta 要素を属性単位で解析する。属性名は完全一致で比べる（data-http-equiv 等の部分一致を許さない）。
+// コメント等の無効な領域の meta は数えない（ブラウザでは効かないため）。
 function parseMetaTags(html) {
-  return [...String(html).matchAll(META_TAG_RE)].map((m) => {
+  return [...maskInactive(html).matchAll(META_TAG_RE)].map((m) => {
     const attrs = new Map();
     const inner = m[0].slice('<meta'.length, -1);
     for (const a of inner.matchAll(ATTR_RE)) {
@@ -127,8 +137,9 @@ export const DELIVERY_CSP =
 export function inspectCspMeta(html) {
   const problems = [];
   const src = String(html);
-  const heads = [...src.matchAll(/<head\b[^>]*>/gi)];
-  const headEnds = [...src.matchAll(/<\/head\s*>/gi)];
+  const active = maskInactive(src);
+  const heads = [...active.matchAll(/<head\b[^>]*>/gi)];
+  const headEnds = [...active.matchAll(/<\/head\s*>/gi)];
   if (heads.length !== 1 || headEnds.length !== 1) {
     problems.push(`head element count is ${heads.length}/${headEnds.length} (open/close)`);
     return { ok: false, problems };
