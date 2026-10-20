@@ -93,6 +93,8 @@ fn refused_host_shows_the_notice_with_the_code_only() {
     assert!(!html.contains(SENTINEL));
     assert!(!html.contains("draft-input"));
     assert!(!html.contains("raw-trigger"));
+    // 入力欄が無く Esc の宛先が無いので、root に Esc の属性は付けない。
+    assert!(!html.contains("data-action-keydown"), "{html}");
     assert_eq!(snapshot(&h)["irRefusal"], "format_newer");
 }
 

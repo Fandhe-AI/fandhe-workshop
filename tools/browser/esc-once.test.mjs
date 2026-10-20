@@ -1,13 +1,15 @@
-// root の外の Esc が「ちょうど 1 回」届くことの補助確認の試験（TASK-353 1/2。FEND-6・FEND-8・D-42。PoC の probe-esc に相当）。
+// Esc が「ちょうど 1 回」届くことの補助確認の試験（TASK-353 1/2・2/2。FEND-6・FEND-8・D-42。PoC の probe-esc に相当）。
 //
-// 受け持ち: root（#app）の外の Esc は glue が document の keydown で受けて届ける（root の中は上流の属性が届ける）。
-// 4 つの場面（処理中か否か × フォーカスなし（body）か root の外のボタンか）のそれぞれで、
+// 受け持ち: root（#app）の外の Esc は glue が document の keydown で受けて届ける。root の中は上流の属性が届ける
+// （main と workshop-root の両方に付くが、上流は最も近い 1 つにだけ届けるので入れ子でも 1 回）。
+// 処理中か否か × フォーカス先（body・root の外のボタン・入力欄・root の中のボタン（main の中の停止ボタン）・
+// main の外の部品（workshop-parts の中の左の成果物の行））のそれぞれで、
 //   - Esc の受信回数（stateJson().escCount）の増分がちょうど 1
 //   - 処理中でなければ取り消しの入力（input_received と judged（拒否）が各 1 件。停止は 0 件）
 //   - 処理中なら停止（stopped が 1 件。input_received・judged・changed は 0 件）
 // を確かめる。Esc の後に 2 フレームと数十 ms 待ち、遅れて届く 2 回目（配送は set_timeout(0)）が無いことも見る。
 //
-// 範囲外: 入力欄・root の中のボタンの 4 場面は TASK-353 2/2。SCENES に行を足して受け継ぐ。
+// 範囲外: 変換中の root の中の Esc は TASK-354、押しっぱなしの扱いは FEND-18・TASK-364。
 //
 // 処理中の作り方: 実 UI で下書きを送り、進行の行が 3 以上 5 未満（まだ終わっていない）になるのを待ってから Esc を押す。
 // 停止は run を入口の写しへ戻すだけで、世界状態は戻さない。そのため停止では changed が出ない（2026-10-20 に実測。0 件を期待に固定する）。
@@ -31,13 +33,30 @@ const PROGRESS = `${LOG} li[data-kind="progress"]`;
 const REJECTED = `${LOG} li[data-kind="rejected"]`;
 const BODY = '/make-note first-note';
 
-// 場面の表。#625 が textarea・inside-button の行を足す。
+const STOP = '[data-testid="stop-btn"]';
+const ROW = '[data-testid="part-artifact-view"] li[data-row="notes/draft"]';
+const CAND = '[data-testid="part-candidates"]';
+
+// 場面の表。parts-row は main の外・#app の中（workshop-parts）の部品で、上流の属性が workshop-root に無いと 0 回になる穴の回帰。
 const SCENES = [
   { busy: false, where: 'body' },
   { busy: false, where: 'outside-button' },
+  { busy: false, where: 'textarea' },
+  { busy: false, where: 'inside-button' },
+  { busy: false, where: 'parts-row' },
   { busy: true, where: 'body' },
   { busy: true, where: 'outside-button' },
+  { busy: true, where: 'textarea' },
+  { busy: true, where: 'inside-button' },
+  { busy: true, where: 'parts-row' },
 ];
+const LABEL = {
+  body: 'フォーカスなし',
+  'outside-button': 'root の外のボタン',
+  textarea: '入力欄',
+  'inside-button': 'root の中のボタン（main の中）',
+  'parts-row': 'root の中の部品（main の外）',
+};
 
 let browser;
 
@@ -99,6 +118,26 @@ async function focusAt(page, where) {
       return a?.getAttribute('data-testid') === 'outside-btn' && !document.getElementById('app').contains(a);
     });
     assert.equal(ok, true, 'フォーカスが root の外のボタンにない');
+  } else if (where === 'textarea') {
+    await page.focus(DRAFT);
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-testid')), 'draft-input', 'フォーカスが入力欄にない');
+  } else if (where === 'inside-button' || where === 'parts-row') {
+    const sel = where === 'inside-button' ? STOP : ROW;
+    await page.waitForSelector(sel);
+    await page.focus(sel);
+    const info = await page.evaluate((s) => {
+      const a = document.activeElement;
+      return {
+        match: a === document.querySelector(s),
+        inApp: document.getElementById('app').contains(a),
+        inMain: !!a.closest('main'),
+        inParts: !!a.closest('[data-testid="workshop-parts"]'),
+      };
+    }, sel);
+    assert.equal(info.match, true, 'フォーカスが対象にない');
+    assert.equal(info.inApp, true);
+    assert.equal(info.inMain, where === 'inside-button');
+    assert.equal(info.inParts, where === 'parts-row');
   } else {
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     const ok = await page.evaluate(() => document.activeElement === document.body);
@@ -114,16 +153,30 @@ async function makeBusy(page) {
   await waitUntil('progress>=3', () => count(page, PROGRESS), (n) => n >= 3);
 }
 
+// 処理中でなく、左の成果物の行がある状態を作る。入力を送って進行が終わる（処理中でなくなる）のを待つ。
+async function makeIdleWithRow(page) {
+  await page.fill(DRAFT, BODY);
+  await page.click(SUBMIT);
+  await waitUntil('busy', () => statusState(page), (s) => s === 'busy');
+  await waitUntil('idle', () => statusState(page), (s) => s !== 'busy', 20000);
+  await page.waitForSelector(ROW);
+}
+
 for (const csp of [true, false]) {
   const cspLabel = csp ? 'あり' : 'なし';
   const run = (fn) => withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, fn));
 
   for (const scene of SCENES) {
-    const name = `${scene.busy ? '処理中' : '処理中でない'} × ${scene.where === 'body' ? 'フォーカスなし' : 'root の外のボタン'} の Esc はちょうど 1 回届く（CSP ${cspLabel}）`;
+    const name = `${scene.busy ? '処理中' : '処理中でない'} × ${LABEL[scene.where]} の Esc はちょうど 1 回届く（CSP ${cspLabel}）`;
     test(name, async () => {
       await run(async (srv) => {
         const { page, context, rec } = await open(srv);
         if (scene.busy) await makeBusy(page);
+        else if (scene.where === 'parts-row') await makeIdleWithRow(page);
+        if (!scene.busy && scene.where === 'textarea') {
+          assert.equal(await page.inputValue(DRAFT), '', '下書きが空でない');
+          assert.equal(await page.locator(`${CAND}:not([hidden])`).count(), 0, '候補が開いている');
+        }
         await focusAt(page, scene.where);
         if (scene.busy) {
           assert.equal(await statusState(page), 'busy', 'Esc の前に処理中でない');

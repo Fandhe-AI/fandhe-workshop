@@ -39,7 +39,10 @@ pub const ACTION_ESC: &str = "esc";
 /// 分かれないよう 1 つにそろえる。
 pub const ESC_KEY_TOKEN: &str = "Escape";
 
-/// ホストが `main` の属性列に足す、root の中の Esc の keydown 属性（FEND-5）。
+/// ホストが `main` と `workshop-root` の属性列に足す、root の中の Esc の keydown 属性（FEND-5）。
+///
+/// `workshop-root` にも付けるのは、`main` の外の部品（`workshop-parts`）の Esc も上流の属性で届けるため。入れ子でも、
+/// 上流は `closest` で最も近い 1 つにだけ届けるので二重にならない（TASK-353 2/2）。
 ///
 /// `data-keydown-prevent-default`・`data-keydown-ignore-repeat` は付けない（FEND-5・FEND-18 の現状）。
 pub const ESC_KEYDOWN_ATTRS: [(&str, &str); 2] = [

@@ -23,7 +23,8 @@
 //!   `document` にもなる。root の中の Esc は届けず、二重配送は作らない（`glue::wire_outside_esc`。TASK-353 1/2）。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
-//! （`action::ESC_KEYDOWN_ATTRS`）で届く。
+//! （`action::ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）で届く。root の外の Esc を受ける `document` の
+//! リスナーは捕捉の段で登録する（上流の配送による再描画で target が外れ、二重に届くのを避ける。TASK-353 2/2）。
 //!
 //! 変える場合は、先に spec を直し、`parts::PARTS_CONTRACT_VERSION` を上げる。
 

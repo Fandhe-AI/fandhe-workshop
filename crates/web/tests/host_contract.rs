@@ -162,6 +162,29 @@ fn 既定のホストの描画に入力欄の_testid_が揃い_a11y_を満たす
     assert!(check_no_undefined(&host.view()).is_ok());
 }
 
+/// `main` の外の部品（`workshop-parts`）の Esc を上流の属性で届けるため、`workshop-root` が Esc の keydown 属性を持つ
+/// （FEND-5・FEND-6・TASK-353 2/2）。`main` の属性と入れ子でも、上流は最も近い 1 つにだけ届ける。
+#[test]
+fn workshop_root_は_esc_の_keydown_属性を持つ() {
+    let h = html(&EngineHost::new());
+    let tag = |id: &str| {
+        let at = h.find(&format!("data-testid=\"{id}\"")).unwrap();
+        let start = h[..at].rfind('<').unwrap();
+        let end = at + h[at..].find('>').unwrap();
+        h[start..end].to_owned()
+    };
+    for id in ["workshop-root", "hello-root"] {
+        let t = tag(id);
+        assert!(t.contains("data-action-keydown=\"esc\""), "{id}: {t}");
+        assert!(t.contains("data-keys=\"Escape\""), "{id}: {t}");
+    }
+    // 部品の置き場は root の中にあり、root の属性が届く範囲に入る。
+    assert!(
+        h.find("workshop-root").unwrap() < h.find("workshop-parts").unwrap(),
+        "{h}"
+    );
+}
+
 #[test]
 fn action_の復号は入力欄と互換で_未知の名前は_none() {
     assert!(matches!(

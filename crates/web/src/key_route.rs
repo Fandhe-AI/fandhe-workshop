@@ -314,7 +314,7 @@ impl AttrSource for EscAttrs {
 /// root の外で受けた keydown が、Component へ届ける Esc かを判定する（TASK-353 1/2。FEND-6・FEND-8・D-42）。
 ///
 /// 呼び出し元は `glue::wire_outside_esc` の `document` の keydown リスナーである。root の中の Esc は上流の属性
-/// （`ESC_KEYDOWN_ATTRS`）が届けるため、`in_root` が真なら `None` を返して二重に届けない（FEND-5・FEND-6）。
+/// （`ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）が届けるため、`in_root` が真なら `None` を返して二重に届けない（FEND-5・FEND-6）。
 /// 照合は上流の `action_from_keydown` に同じ属性を与えて行う。キーの完全一致・修飾キーの完全一致・変換中の除外が
 /// root の中と同じ関数でそろう（FEND-21・TERM-40）。停止にするか取り消しにするかはここでは決めず、
 /// 届いた後に `esc_route` が決める。
