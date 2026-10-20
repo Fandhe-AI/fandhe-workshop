@@ -4714,10 +4714,31 @@ TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変�
 - 未確認: CI 上での所要時間の増分と、GitHub Actions 上の実行（初回の PR の実行後に測る）。`actionlint` は手元で通した
 - 範囲外: CI への binaryen の導入と適用後の値での判定、`scripts/check-frontend-bump.sh` の `GUARDED_FILES` への関門の追加。`ci.yml` 自体の書き換えは本関門では防げず、ai-review とレビュースレッドの解決必須で補う。spec の人間の承認点（CI の関門を加えること）は PR で承認を求める
 
-### 5.158 root の外の Esc の受け持ちと「ちょうど 1 回」（TASK-353 1/2）
+### 5.158 更新の dirty field と束縛点・keyed list の対応（TASK-348 1/3）
 
 実行日: 2026-10-20
 元にしたコミット: 0edd8b3（origin/main）に本変更を加えた作業ツリー
+
+`crates/web/tests/dirty_binding_points.rs` を足した（FEND-3）。上流の `Runtime::apply_update_for_dirty` は、mount 時の束縛点の表にも DOM の `data-bind-list` にも無い field が dirty に 1 件でもあると、`root` の全子ノードを作り直す。この条件を、`view()` の目印（`collect_binding_specs` の束縛点と `data-bind-list`）で模して確かめる。各回で、(1) dirty の field が mount 時の目印に含まれる、(2) 更新後の目印の集合が mount 時と同じ、(3) `unresolved_binding_specs` が空、の 3 点を見る。`src/` と依存は変えていない。
+
+- 試験 1: 33 回の更新（入力の受付 10・進行と停止と受け付け直し 11・保存 1・ビューの選択 3・確認と選択 2・移動と復帰と範囲外 5・候補の開き直し 1）。出力は `updates=33 with_dirty=28`。dirty になった field は 16 種で、固定した 11 種（`input_notice`・`input_candidates`・`learner_log`・`engine_log_rows`・`engine_log_consumed`・`run_status_word`・`run_status_state`・`artifact_consumed`・`review_items`・`review_consumed`・`offer_choices`）をすべて含む
+- 試験 2: mount 時に描かれる全 field が一度は dirty になる。除外は `NEEDS_OTHER_FIXTURES` の 5 件で、`log_notice`（遷移 1,000 回の上限の教材は試験の設定だけにある）と、33 回の列の教材が宣言していない 4 種のビューの list（`view_app_demo`・`view_check_list`・`view_document`・`view_task_tree`）
+- 試験 3: 承認を持つ教材で `decide` と `revise-target` を送る（33 回には数えない）
+- 試験 4: 入力欄なしの教材（PACK-20）。候補の list が無く、下書き・送信・補完が dirty を積まず、他の更新は試験 1 と同じ条件を満たす
+
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/FEND3-1.mutation crates/web/tests/mutations/FEND3-2.mutation
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| FEND3-1 | crates/web/src/engine_parts.rs: 復習の消費済みの件数の束縛点の field 名を登録簿と違う綴りにする | DETECTED（試験 1〜4 が失敗） |
+| FEND3-2 | crates/web/src/host.rs: ビューの選択で目印の無い field 名を dirty に積む | DETECTED（試験 1・2 が失敗） |
+
+限界: native の試験は上流の判定条件を `view()` の目印で模したもので、実 DOM での要素の同一性・フォーカスと入力途中の値の保持（B-7）、`rerender` の負の対照（B-7n）は後続のブラウザ試験が確かめる。`scripts/expected-test-counts.txt` は更新していない。
+
+### 5.159 root の外の Esc の受け持ちと「ちょうど 1 回」（TASK-353 1/2）
+
+実行日: 2026-10-20
+元にしたコミット: cfd7755（origin/main）に本変更を加えた作業ツリー
 
 root（`#app`）の外の Esc は、glue が `document` の keydown で受けて Component に届ける（FEND-8・D-42。`glue::wire_outside_esc`）。root の中の Esc は上流の属性（`ESC_KEYDOWN_ATTRS`）が届けるため、target が root の中なら glue は届けない（二重配送を作らない。FEND-6）。判定は native で試せる純関数 `key_route::outside_root_esc` が持ち、上流の `action_from_keydown` に同じ属性を与えて照合する（キー・修飾キー 4 つ・変換中の除外が root の中と同じ関数でそろう）。
 
