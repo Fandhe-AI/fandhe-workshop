@@ -90,7 +90,11 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/cli.md` | CLI の外部仕様（版 6）。`fandhe-pack` のバイナリ名・コマンド 6 つと引数の形・使い方・終了コード 0/1/2・診断 1 行・項目の書式・最終行（`OK:`・`NG:`）・診断の出し先・`compile` の出力（`-o`・末尾・バイト単位の決定性）・`metrics` の出力・`vocab` の出力（表・集計行。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）。文書との一致は `crates/pack/tests/cli_contract_doc.rs`、実行ファイルの挙動は `crates/pack/tests/cli_contract.rs` が検査する |
 | `docs/history-format.md` | 履歴の形式の文書（版 1）。包みの 7 欄・4 軸の版・追記だけで増える列（EXT-5・D-53）。冒頭の版と欄の並びは `crates/contract/tests/history_format_doc.rs` が型と照合する |
 | `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の書き方の規約（検査は採らず作成者の規約。D-52）。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |
-| `docs/known-gaps.md` | 既知の不足（忠実さの限界）。受講者が選んだ値を差し込めないこと（H-3）と、属性を書き換える回避を記録する。根拠の試験は `crates/pack/tests/chosen_value_gap.rs` |
+| `docs/known-gaps.md` | 既知の不足（忠実さの限界）。受講者が選んだ値を差し込めないこと（H-3）と属性を書き換える回避に加え、PoC の記録の H-6・H-7・H-8・AUTHOR-13 の今の状態を記録する。確かめていない ID は明記する。根拠の試験は `crates/pack/tests/chosen_value_gap.rs` ほか |
+| `docs/schema-format-b.md` | 構造定義（形式 B）の文書（版 1）。`workshop.yaml`・`chapter.yaml`・`module.yaml`・`tests/playthrough.yaml` の欄・型・必須・既定と、`{{...}}` を引用符で囲む注意書き（AUTHOR-13。試験は `crates/pack/tests/format_b.rs` の `author13_`）。末尾に机上の照合の記録 |
+| `docs/vocabulary/README.md` | 語彙の資料の索引（版 1）。EP-1〜EP-13 の書き方の資料と作成者への注意の道案内。語と版の正は `docs/vocabulary/vocabulary.md` |
+| `docs/operation-profile.md` | 操作プロファイル（接頭辞・入力欄）と外観で選べるもの・選べないもの、外観 4 値の定義（版 1）。外観ごとの見た目が画面に未反映であることも記録する |
+| `docs/views.md` | ビュー 7 種・要素の属性・`pack.left_pane` の効き方・「指す」入力の宛先・表示件数の上限（版 1）。製品の画面への結線の進み具合を記録する |
 | `docs/spec/` | 仕様・フェーズ文書（private の submodule。前述の「仕様」） |
 | `.gitmodules` | submodule 定義（`docs/spec` を `update = none` で登録） |
 | `LICENSE-MIT`・`LICENSE-APACHE` | ライセンス（前述の「ライセンス」） |

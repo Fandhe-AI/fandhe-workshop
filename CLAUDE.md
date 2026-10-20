@@ -61,14 +61,17 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── CONTRIBUTING.md           # 貢献ガイド（人向けの入口）
 ├── docs/glossary.md          # 用語集（章・Step・IR・語彙など）
 ├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
-├── docs/vocabulary/          # 語彙の文書（語彙 v1〜v1.4 の語の版・拡張点 EP-1〜EP-13 の固定）
+├── docs/vocabulary/          # 語彙の文書（vocabulary.md が固定の契約、README.md が作成者向けの索引）
 ├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 6。TASK-195・TASK-58・TASK-59・TASK-400）
 ├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力。版 6。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）
-├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3 など）
+├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3・H-6〜H-8・AUTHOR-13 など）
+├── docs/schema-format-b.md   # 構造定義（形式 B）の欄・型・必須と YAML の注意書き（版 1。TASK-411）
+├── docs/operation-profile.md # 操作プロファイルと外観で選べるもの・外観 4 値の定義（版 1。TASK-411）
+├── docs/views.md             # ビュー 7 種・左エリアの絞り込み・「指す」入力の宛先（版 1。TASK-411）
 ├── docs/spec/                # 仕様（private submodule。update = none）
 └── _/                        # スキルが使うローカル状態（git 管理外。_/local-plans/ 等）
 ```

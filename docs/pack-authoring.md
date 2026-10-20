@@ -4,6 +4,8 @@
 
 版と保存済みの履歴の節（TASK-180）に続けて、主版を上げる条件と `pack.vocab` の書き方の規約（TASK-179）を書いています。
 
+公開の資料は、この文書のほかに 4 種類あります（TASK-411、AUTHOR-12）。欄の名前と型は `docs/schema-format-b.md`、語の一覧は `docs/vocabulary/README.md`（正は `docs/vocabulary/vocabulary.md`）、操作プロファイルと外観は `docs/operation-profile.md`、ビューは `docs/views.md`、書けないことと回避は `docs/known-gaps.md` です。
+
 ## 教材の版と保存済みの履歴
 
 保存済みの履歴は、4 軸の版（エンジン・教材形式・教材内容・参照元）を記録します。教材内容の軸は、`pack.version` と
@@ -216,7 +218,7 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - 分類が限られた枠は、分類を持たない問い返しの文面では使えません
 - 代替の文は、値が無い（または空白だけの）ときに使われます。空になりうる枠に代替の文が無い、または空白だけの場合は拒否します
 - 差し込んだ値の中の `{{...}}` は展開されません。受講者の入力に枠の形が混ざっても、そのまま文字として表示されます
-- 枠を含む値は、YAML で必ず引用符で囲みます。flow 形式（`{...}`）の中で、引用符なしの `{{` は `E-PARSE` になります（AUTHOR-13）
+- 枠を含む値は、YAML で必ず引用符で囲みます。flow 形式（`{...}`）の中の引用符なしの `{{` と、block 形式で値が `{{` で始まる引用符なしの値は、`E-PARSE` になります（AUTHOR-13。診断は行と桁だけで、値を写しません）。値の途中にある `{{` は block 形式では通りますが、書き方の保証ではないので引用符で囲んでください。4 つの場合の表と根拠の試験は `docs/schema-format-b.md` の 9 節にあります
 
 | 診断 | 条件 | ファイル・項目 |
 |---|---|---|
@@ -265,9 +267,9 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `theme` | 意味 |
 |---|---|
 | `standard` | 標準（既定） |
-| `mono` | モノクロ |
-| `high_contrast` | 高コントラスト |
-| `reading` | 読みやすさ重視 |
+| `mono` | 色に頼らないモノクロ |
+| `high_contrast` | 文字と背景の差を大きくする |
+| `reading` | 読みやすさ重視（仕様は文字 18px 以上・行間 1.7 倍以上を定める） |
 
 ```yaml
 pack:
@@ -277,6 +279,7 @@ pack:
 - 外観は見た目だけを変えます。入力の判定・状態変化・遷移・履歴には影響しません
 - 名前にない値（`dark` など）や、`theme` 以外の欄は `E-PARSE` になります。色・フォント・CSS を指定する欄はありません
 - 診断には書いた値を写しません
+- 外観は `main` 要素の `data-theme` で表し、どの外観でも変化の印は残ります。外観の定義の全体（契約・2026-10-20 時点の実装の状態・「Claude Code 風の外観」の読み方）は `docs/operation-profile.md` の 2 節にあります。外観ごとの見た目は、2026-10-20 時点では画面にまだ反映されません
 
 ## 左エリア（`left_pane`）
 
@@ -449,6 +452,7 @@ views:
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
 | `crates/pack/tests/format_b.rs` の `pack4_` | YAML の値の文字列としての読み取り・重複キーの拒否・構文エラーの行と桁（PACK-4） |
+| `crates/pack/tests/format_b.rs` の `author13_` | 差し込みの枠 `{{step_do}}` を引用符なしで書いたとき、flow 形式の中と、block 形式で値が `{{` で始まる場合が `E-PARSE`（行と桁だけ）になり、引用符ありと、値の途中の `{{` は通ること（AUTHOR-13） |
 | `crates/pack/tests/yaml_features.rs` の `pack5_` | アンカー・エイリアス・マージキー・タグ・複数文書をどの欄でも `E-PARSE` で拒否し、名前・字面を写さないこと（PACK-5） |
 | `crates/pack/tests/no_starts.rs` の `pack25_` | 開始点が 0 件のパックを `validate` の段階で `E-STRUCTURE` として拒否すること（PACK-25） |
 | `crates/pack/tests/radix_literals.rs` の `pack5_` | 10 進でない整数（`0x1f` 等）をどの位置でも両形式で `E-PARSE` で拒否し、値を写さないこと（PACK-5） |

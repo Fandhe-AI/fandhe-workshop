@@ -474,3 +474,70 @@ fn pack4_operation_testdata_packs_still_load() {
         assert_eq!(p.format, Format::Yaml, "{rel}");
     }
 }
+
+/// AUTHOR-13 の注意書き（`docs/schema-format-b.md` 9 節）の根拠。差し込みの枠 `{{step_do}}` を引用符なしで
+/// 書いたときの YAML の読み方を、4 つの場合で固定する。
+fn author13_pack(rejection: &str) -> Tmp {
+    let t = Tmp::new("author13");
+    t.put(
+        "workshop.yaml",
+        format!(
+            "{WORKSHOP}commands: {{help: builtin}}\nrejections:\n{rejection}\ndefaults: {{wrong_order: rj}}\n"
+        )
+        .as_bytes(),
+    );
+    t.put(
+        "chapters/c1/chapter.yaml",
+        concat!(
+            "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
+            "  - {id: a, title: A, do: x, body: a.md, next: [{to: b}]}\n",
+            "  - {id: b, title: B, final: true}\n",
+        )
+        .as_bytes(),
+    );
+    t.put("chapters/c1/a.md", b"# a\n");
+    t
+}
+
+#[test]
+fn author13_unquoted_slot_inside_flow_mapping_is_e_parse_with_position_only() {
+    // (a) flow 形式の中で引用符なし。枠が途中にあっても同じ。
+    for rj in [
+        "  rj: { category: wrong_order, message: x, next_action: {{step_do}} }",
+        "  rj: {category: wrong_order, message: x, next_action: 今は {{step_do}}}",
+    ] {
+        let s = one_parse(&author13_pack(rj)).to_string();
+        assert!(s.contains("invalid syntax or structure at line "), "{s}");
+        assert!(s.contains(" column "), "{s}");
+        assert!(!s.contains("step_do"), "diagnostic echoes the value: {s}");
+    }
+}
+
+#[test]
+fn author13_quoted_slot_inside_flow_mapping_is_accepted() {
+    // (b) 引用符で囲めば通る。
+    let t =
+        author13_pack("  rj: { category: wrong_order, message: x, next_action: '{{step_do}}' }");
+    compile_dir(&t.0).expect("quoted slot compiles");
+}
+
+#[test]
+fn author13_block_value_starting_with_unquoted_slot_is_e_parse() {
+    // (c) block 形式でも、値が `{{` で始まれば YAML は flow の開始として読む。
+    for value in ["{{step_do}} 次へ", "{{step_do}}"] {
+        let rj =
+            format!("  rj:\n    category: wrong_order\n    message: x\n    next_action: {value}");
+        let s = one_parse(&author13_pack(&rj)).to_string();
+        assert!(s.contains("invalid syntax or structure at line "), "{s}");
+        assert!(!s.contains("step_do"), "diagnostic echoes the value: {s}");
+    }
+}
+
+#[test]
+fn author13_block_value_with_slot_in_the_middle_is_accepted() {
+    // (d) block 形式で、`{{` が値の途中にあれば引用符なしでも通る。
+    let t = author13_pack(
+        "  rj:\n    category: wrong_order\n    message: x\n    next_action: 今は {{step_do}}",
+    );
+    compile_dir(&t.0).expect("mid-value slot compiles");
+}
