@@ -314,6 +314,7 @@ Linux・macOS（標準の bash 3.2 を含む）について実行します。`sc
 | `ai-review.yml` | Fandhe-AI/actions の ai-review（codex）による PR 自動レビュー。Actions variable `CODEX_HOME_DIR` が未設定の間は skip される |
 | `update-external.yml` | エージェントスキル（`skills-lock.json`）と submodule（`.gitmodules`）の日次自動追従 PR。secrets は org の `SUBMODULE_PAT` を使う（`SKILLS_PAT` 未登録時は共通側が `SUBMODULE_PAT` へフォールバック）。作成する PR には `dependencies` / `automated` ラベルが付く |
 
+- `fandhe-frontend` の版上げ PR は、受け入れ確認 (1)〜(5) を CI で確かめます。判断・事前の PR・外れたときの対処は `docs/testing.md` の 6.6.2 にあります（TASK-363）
 - `main` は ruleset `main-protection` で保護しています（2026-10-11 適用）。直接 push はできず、変更はすべて PR を経由します。
   マージ方式は squash のみで、必須チェックがすべて成功し、レビュースレッドがすべて解決済みであることが条件です（承認数は 0）
 - ruleset の必須チェック（required status checks）には、PR の HEAD に報告される全チェック（`ci.yml` の全ジョブ・ai-review の `codex / *`・Cursor Bugbot）を登録しています。

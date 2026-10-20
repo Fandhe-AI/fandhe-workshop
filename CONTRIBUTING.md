@@ -30,6 +30,8 @@ make check        # editorconfig-checker + shellcheck
 make test-hooks   # scripts/hooks/ を変更したときに実行する
 ```
 
+`fandhe-frontend` の版を上げる場合は、`docs/testing.md` の 6.6.2 の手順に従ってください（受け入れ確認 (1)〜(5) は版上げ PR の CI が確かめます）。
+
 ## コミットと PR タイトル
 
 コミットの件名と PR タイトルは、Conventional Commits の形式で書きます。

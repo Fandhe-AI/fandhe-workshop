@@ -5061,6 +5061,13 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 本番コード（`crates/web/src/**`）は変えていない。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。節番号は、並行する PR（#1637）が 5.164 の次を使う見込みのため、5.166 とした。
 
+### 5.167 版上げの手順書の机上の照合（TASK-363）
+
+実行日: 2026-10-20、元にしたコミット: a1995f8 に本変更を載せた作業ツリー。
+
+- 6.6.2 の対応表の (1)〜(5) の各行を、FEND-17 の期待（D-63 で確定した版）、`ci.yml` の step 名（逐語）、`scripts/check-frontend-bump.sh` の usage と `error:` の文言、6.6 の表と突き合わせた。手元のコマンドの make ターゲット・オプションも実在を確かめた
+- 文書だけの変更で、試験は足していない。`scripts/`・`tools/`・`ci.yml` は変えていない
+- 未確認: 実際の版上げ PR での運用。初回の版上げで、CI 上の動作と所要時間を本節に追記する
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
@@ -5140,7 +5147,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 版上げ PR で変えてはいけないファイルは、期待値ファイル・`tools/check-deps.sh`・`scripts/check-frontend-bump.sh`・`tools/build-web.sh`（(3) の測定の手順を守る）である。
 限界: `ci.yml` 自体の書き換えは防げない（版上げで `wasm-bindgen` の版を合わせる正当な変更があるため）。ai-review とレビュースレッドの解決必須で補う。
 同名の結合試験が crate をまたいで重複する束は合算して数える。
-期待値は main の上では「最後に更新した基準値」であり、版を上げる前に別の PR で更新する。手順書は TASK-363 の範囲である。
+期待値は main の上では「最後に更新した基準値」であり、版を上げる前に別の PR で更新する。手順書は 6.6.2 に置く（TASK-363）。
 
 #### 6.6.1 (3) WASM の gzip +10% の判定（TASK-101 2/2）
 
@@ -5158,3 +5165,73 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 
 限界: `ci.yml` 自体と `Cargo.toml` の `[profile.release]` の書き換えは防げない（後者は版上げで `Cargo.toml` を変えるのが正当なため）。ai-review とレビュースレッドの解決必須で補う。
 `wasm-opt` を適用した基点での比較は将来の検討事項である。
+
+#### 6.6.2 版上げの手順書（TASK-363）
+
+D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認である。本節の手順書は CI の代わりにしない。
+補うのは次の 3 つだけである。
+
+- (a) 版を上げるかどうかの判断（人が決める）
+- (b) (3) の基点と (2) の期待値を、版上げ PR の前に揃える手順
+- (c) CI が外れたときの対処
+
+##### 判断（人が決める）
+
+- 版を上げるかどうか（Issue を立てて着手するか）は人が決める。エージェントは材料を揃えるところまでを行う
+- 材料: 上流の変更点（破壊的変更・セキュリティ修正・必要な機能）、`make inventory-deps` による取り下げと所有者の確認（`docs/dependency-inventory.md`）、新しい版が要求する `wasm-bindgen` と Rust toolchain の版、6 crate の版の組（6.1）
+- 閾値（+10%・例外の数・件数）は FEND-17 の契約である。版上げ PR の中で緩めない。変える場合は spec 側の決定が先に要る
+
+##### 事前の PR（版上げ PR より前に、別の PR で main に入れる）
+
+1. **(2) の期待値**: `scripts/expected-test-counts.txt` の先頭の注釈（更新日・元のコミット）が古い場合は、`make update-test-counts` で更新する。遅く、ブラウザ試験も流れる（`npm ci` と `npx playwright install chromium` が前提）。期待値だけを変える PR にする。この PR では CI が件数を照合する（6.6 の判定表の「いいえ／はい」）
+2. **(3) の基点**: 新しい版が新しい `wasm-bindgen` か Rust toolchain を要求する場合は、先に上げる（`docs/toolchain.md` の第 5 節。`web-sys`・`js-sys` の版も揃える。`ci.yml` の CLI の版と SHA256、`rust-toolchain.toml` も同じ PR で上げ、`make check-toolchain` を通す）。揃えないと `wasm-gzip` が終了コード 2 で止まる
+3. **守るファイル**: `tools/check-deps.sh`・`tools/build-web.sh`・`scripts/check-frontend-bump.sh`・期待値ファイルを変える必要があれば、別の PR で先に入れる（`guard` が版上げ PR での変更を拒む）
+
+(3) の基点は repo に記録しない。CI が同じジョブで base（`HEAD^1`）と `HEAD` をビルドして比べるため（6.6.1）。手元の値（`wasm-opt` あり）と CI の値（`SKIP_WASM_OPT=1`）は基点が違うので、比べない。
+
+##### 版上げ PR の作り方
+
+1. ルートの `Cargo.toml` の `[workspace.dependencies]` で `fandhe-frontend-*` の版を上げる。直接の依存の版は `Cargo.lock` の解決済みの版と同じにする
+2. 宣言を保つ。`wasm-full` は `default-features = false` と `features = ["action-keydown"]`（(5)）、`wasm-client` は `default-features = false`
+3. `cargo update -p <crate> --precise <版>` で `Cargo.lock` を更新し、`--locked` でビルドが通ることを確かめる
+4. 同じ PR で `crates/web/tests/frontend_features.rs` の `ADOPTED` と 6.1 の表を更新する
+5. 守るファイルの変更と無関係な変更を混ぜない。`fandhe-frontend-*` の行に触れると版上げ PR として検出される（6.6）
+
+##### push 前の手元の確認（CI の先取りであり、代わりではない）
+
+`<log>`・`<tap>` は repo の外の一時パスにする。`origin/main` を base とする。
+
+| 確認 | 手元のコマンド |
+|---|---|
+| (1) | `make lint`・`make test`・`make test-browser` |
+| (2) Rust | `make test 2>&1 \| tee <log>` のあと `CI_EVENT_NAME=pull_request scripts/check-frontend-bump.sh --base origin/main counts rust <log>` |
+| (2) ブラウザ | `FANDHE_TEST_TAP_OUT=<tap> make test-browser` のあと `CI_EVENT_NAME=pull_request scripts/check-frontend-bump.sh --base origin/main counts browser <tap>` |
+| (3) | `CI_EVENT_NAME=pull_request SKIP_WASM_OPT=1 scripts/check-frontend-bump.sh --base origin/main wasm-gzip`（base と head を 2 回ビルドするため遅い） |
+| (4) | `make check-dom-reads` |
+| (5) | `CI_EVENT_NAME=pull_request scripts/check-frontend-bump.sh --base origin/main guard`（`make check-frontend-bump` は feature の明示だけを確かめる） |
+| 参考（(1)〜(5) の外） | `make check-wasm-size`（1 MB の関門。TASK-78） |
+
+##### CI が外れたときの対処
+
+| 外れたもの | 対処 |
+|---|---|
+| (1) ビルド・lint・試験の失敗 | 版上げ PR の中で上流の API の変化に合わせて直す。`#[allow]` は理由つきでだけ使う（`coding-rust.md`） |
+| (2) 終了コード 1「test counts differ」 | 試験が増減した原因を版上げの中で突き止める。期待値を版上げ PR で書き換えない（`guard` でも失敗する）。期待値が古いだけなら、別の PR で `make update-test-counts` を入れ、版上げ PR を base に追従させる |
+| (2) 終了コード 2 | 失敗した試験・集計の欠落を直す |
+| (3) 終了コード 1「grew ... more than +10%」 | 増えた原因（feature の取り込み・上流の変化）を調べる。feature を絞るか、版を見送る（人が決める）。閾値は変えない |
+| (3) 終了コード 2 | toolchain・`wasm-bindgen` が base と違う場合は、事前の PR の 2 を先に入れる。base の欠落などの CI 側の前提の欠落は CI の不具合として扱う |
+| (4) `EXC_N` の不一致 | DOM を読むコードを直す。`tools/check-deps.sh` を版上げ PR で変えると `guard` が拒む |
+| (5) 「must be declared with default-features = false ...」、または `frontend_features.rs` の失敗 | 宣言を戻す。`ADOPTED` と `Cargo.lock` を揃える |
+| `guard`「must not change <file>」 | その変更を別の PR に分ける |
+
+禁止: `ci.yml` の step を外す・`if:` で飛ばして通すこと、`--no-verify`。`ci.yml` の書き換えは関門で防げない（6.6 の限界）ため、ai-review とレビュースレッドの解決必須で補う。
+
+##### 対応表（机上の照合。2026-10-20、元にしたコミット: a1995f8）
+
+| | FEND-17 の期待 | 版上げ PR での CI の確認（TASK-101。ジョブ・step） | 手元の先取り | 外れたときの対処 |
+|---|---|---|---|---|
+| (1) | ビルド・clippy・fmt が通る | `rust-lint`（`make lint`）・`rust-test`・`browser-test` | 手元の表の (1) | 「(1)」の行 |
+| (2) | 既存の試験の件数が減らない（期待値と一致） | `rust-test` の `Check Rust test counts (version bump gate)`・`browser-test` の `Check browser test counts (version bump gate)` | (2) Rust・(2) ブラウザ | 「(2)」の 2 行 |
+| (3) | 配信用 WASM の gzip の増加が +10% 以内 | `browser-test` の `Check WASM gzip growth (version bump gate)` | (3) | 「(3)」の 2 行 |
+| (4) | `check-deps.sh` の例外の数が増えない | `rust-lint` の `make check-dom-reads` と `make check-frontend-bump`（`guard`） | (4) | 「(4)」の行と `guard` の行 |
+| (5) | `wasm-full` の feature の明示 | `rust-test` の `frontend_features.rs` と `rust-lint` の `make check-frontend-bump`（`guard`） | (5) | 「(5)」の行 |
