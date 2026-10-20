@@ -1,0 +1,8 @@
+id: SAVE29-2
+package: fandhe-workshop-web
+test: export_notice
+target: crates/web/src/host.rs
+find:         if !self.fresh_start || self.first_save_hinted {
+replace:         if self.first_save_hinted {
+expect-fail: 保存済みを復元した起動では操作しても初回の案内は出ない
+note: 復元した起動でも初回の案内を出す（既に保存されている履歴の受講者へ毎回案内する。SAVE-29）

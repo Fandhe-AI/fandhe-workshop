@@ -89,6 +89,7 @@ use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIS
 use crate::artifact_view::{PointTarget, POINT_ACTION};
 use crate::candidates;
 use crate::engine_parts::standard_registry;
+use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
@@ -125,9 +126,17 @@ pub struct HostModel {
     /// 保存に成功すると `None` に戻る。同期の保存の結果（`EngineHost::save_after_change`）と、非同期の保存の失敗の probe
     /// （`EngineHost::refresh_save_failure`）から決まる。
     save_failure: Option<StorageError>,
+    /// 履歴の書き出しの案内（SAVE-29・D-57。`export-notice` の元）。表示の状態で、履歴（`ops`）にも保存先にも書かない。
+    /// 次の起点・履歴の差し替えで置き換わり、再読み込みでは出ない（消える時機は仮置き）。
+    export_hint: Option<ExportHint>,
 }
 
 impl HostModel {
+    /// 書き出しの案内の種類。無ければ `None`（`export-notice` が空になる）。
+    pub fn export_hint(&self) -> Option<ExportHint> {
+        self.export_hint
+    }
+
     /// 左の成果物で今見せるビュー。保持した選択が今の Step のもので、今の宣言に含まれるときだけそれを返し、
     /// それ以外は既定のビュー（宣言の先頭。`view_select::effective_view`）を返す。
     pub fn selected_view(&self) -> ViewKind {
@@ -525,6 +534,10 @@ pub struct EngineHost {
     /// 今の `update` で状態を変えた（ログが伸びた）印。`update` の末尾で 1 回だけ保存を試して下ろす。
     /// 下書きだけの変更では立てない（打鍵ごとに履歴の全体を書く費用を避ける。下書きは離れる直前に書く）。
     save_due: bool,
+    /// 保存済みの履歴が無い状態で起動した（`boot` が `Fresh`）印。本番でも使う（`boot_kind` は試験の設定だけ）。
+    fresh_start: bool,
+    /// 初回の保存時の案内を 1 度出した印（SAVE-29）。
+    first_save_hinted: bool,
     /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
     command_prefix: Option<String>,
     /// 開始時の状態の控え。履歴ファイルを適用し直す出発点になる。session が無ければ `None`。
@@ -583,6 +596,7 @@ impl EngineHost {
                 judged_texts: BTreeMap::new(),
                 view_choice: None,
                 save_failure: None,
+                export_hint: None,
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -598,6 +612,8 @@ impl EngineHost {
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
+            fresh_start: false,
+            first_save_hinted: false,
             command_prefix: None,
             initial: None,
             draft_recorded: String::new(),
@@ -657,6 +673,7 @@ impl EngineHost {
                 judged_texts: d.judged_texts,
                 view_choice: None,
                 save_failure: None,
+                export_hint: None,
             },
             registry,
             input,
@@ -672,6 +689,8 @@ impl EngineHost {
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
+            fresh_start: false,
+            first_save_hinted: false,
             command_prefix: d.command_prefix,
             initial,
             draft_recorded: String::new(),
@@ -774,6 +793,8 @@ impl EngineHost {
             self.boot_kind = Some(kind);
         }
         self.install_recorded(recorded);
+        // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
+        self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
         if let Some(text) = restored_draft.filter(|_| self.input.shows_input_area()) {
             self.input.update(HelloAction::SetDraft(text));
@@ -882,6 +903,19 @@ impl EngineHost {
         if failure != self.model.save_failure {
             self.model.save_failure = failure;
             self.dirty.push(SAVE_NOTICE_FIELD);
+        }
+    }
+
+    /// 起動が `Fresh` だったページで最初に状態を変えたとき、書き出しの案内を出す（SAVE-29・D-57）。
+    /// 保存を止めた状態でも出す（失う場面ほど必要）。同じ操作で章の終わりが立っていればそれを残す。
+    fn note_first_save(&mut self) {
+        if !self.fresh_start || self.first_save_hinted {
+            return;
+        }
+        self.first_save_hinted = true;
+        if self.model.export_hint.is_none() {
+            self.model.export_hint = Some(ExportHint::FirstSave);
+            self.dirty.push(EXPORT_NOTICE_FIELD);
         }
     }
 
@@ -1230,6 +1264,9 @@ impl EngineHost {
         // 拒否の文面の控えはイベントの位置がキーのため、差し替え前の控えを残さず新しいログから作り直す。
         self.model.judged_texts = d.judged_texts;
         self.model.view_choice = None;
+        // 差し替えた履歴では、前の案内も初回の印も持ち越さない。
+        self.model.export_hint = None;
+        self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
@@ -1367,6 +1404,10 @@ impl EngineHost {
             .is_some_and(|c| Some(&c.step) != session.state().run.current.as_ref())
         {
             self.model.view_choice = None;
+        }
+        // 今の操作で伸びたログに章の終わりがあれば、書き出しを案内する（SAVE-29。起動時に復元した分は見ない）。
+        if chapter_end_in(session.ir(), &log[len_before.min(log.len())..]) {
+            self.model.export_hint = Some(ExportHint::ChapterEnd);
         }
         for (name, old) in before {
             if self.registry.bound_value(name, &self.model) != old {
@@ -1650,6 +1691,7 @@ impl Component for EngineHost {
         // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。遅延保存の予約は、この即時の保存が書くので不要になる。
         if self.save_due {
             self.save_due = false;
+            self.note_first_save();
             self.history_changed = false;
             if let Some(f) = self.save_cancel.as_ref() {
                 f();

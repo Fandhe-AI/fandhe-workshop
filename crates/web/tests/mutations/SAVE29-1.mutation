@@ -1,0 +1,9 @@
+id: SAVE29-1
+package: fandhe-workshop-web
+test: export_notice
+target: crates/web/src/host.rs
+find:             self.model.export_hint = Some(ExportHint::FirstSave);
+replace:             let _ = ExportHint::FirstSave;
+expect-fail: 新しい起動の最初の操作で初回の案内が出て_二手目では動かない
+expect-fail: 保存を試せない起動でも最初の操作で案内が出る
+note: 初回の保存時の案内を立てない（保存領域を失う場面で書き出しを案内できなくなる。SAVE-29・D-57）

@@ -257,6 +257,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "log_notice",
     // 保存の失敗の表示は、保存の口（`set_history_saver`）を結んだホストが要る。`save_failure.rs` が dirty を確かめる。
     "save_notice",
+    // 書き出しの案内は、`boot` が Fresh のホストの最初の操作か章の終わりで立つ。`export_notice.rs` が dirty を確かめる。
+    "export_notice",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",
