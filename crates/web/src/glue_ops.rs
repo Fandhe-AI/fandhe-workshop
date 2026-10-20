@@ -19,6 +19,8 @@
 //!   「mount の時に 2 要素」とは異なる。呼び出し箇所は共有の取得関数 1 つにまとめ、数は 2 のまま保つ。
 //! - FEND-4 はタイマーのコールバックから `dispatch_action` を呼ぶ前提のため、`tests/state_paths.rs` の規則を
 //!   「`deliver` の 1 箇所だけ・`schedule_action` が `set_timeout` を通して呼ぶ」に見直した（TASK-349）。
+//! - root の外の Esc（フォーカスなし・root の外の部品。FEND-8・D-42）のため、keydown の受け手が root に加えて
+//!   `document` にもなる。root の中の Esc は届けず、二重配送は作らない（`glue::wire_outside_esc`。TASK-353 1/2）。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
 //! （`action::ESC_KEYDOWN_ATTRS`）で届く。
@@ -83,7 +85,7 @@ pub enum KeyHandlingOwner {
 /// Enter・Tab・Space の状態依存の `preventDefault` の受け持ち（D-42）。
 pub const STATEFUL_PREVENT_DEFAULT_OWNER: KeyHandlingOwner = KeyHandlingOwner::Glue;
 
-/// root の外の Esc の受け持ち（D-42。root の中の Esc は上流の属性が受け持つ）。
+/// root の外の Esc の受け持ち（D-42。root の中の Esc は上流の属性が受け持つ）。結線先は `glue::wire_outside_esc`（TASK-353 1/2）。
 pub const OUTSIDE_ROOT_ESC_OWNER: KeyHandlingOwner = KeyHandlingOwner::Glue;
 
 /// Tab で `preventDefault` するか（FEND-21）。候補が開いていて、入力欄に文字があるときだけ真である。

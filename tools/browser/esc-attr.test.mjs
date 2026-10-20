@@ -6,7 +6,7 @@
 // （実機は FEND-9・TASK-354）。
 // keydown-probe のボタンは対象にしない。そのボタンにフォーカスがあると closest が probe で止まり、esc ではなく
 // keydown-probe に届くため（試験の設定にしかない要素）。
-// root の外の Esc は FEND-8 の glue の担当。TASK-347・TASK-352 の結線の後は body での期待が変わるので、そのとき直す。
+// root の外の Esc は FEND-8 の glue の担当で、document の keydown で届く（TASK-353 1/2）。4 場面の「ちょうど 1 回」は esc-once.test.mjs が確かめる。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -148,13 +148,17 @@ test('修飾付き（Shift+Escape）は届かない', async () => {
   });
 });
 
-test('root の外（body）の Esc は、今は届かない（FEND-8 の glue の担当。TASK-352 で期待が変わる）', async () => {
+test('root の外（body）の Esc はちょうど 1 回届く（FEND-8。glue の document の keydown。TASK-353 1/2）', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
     const { page, context, rec } = await open(srv);
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.keyboard.press('Escape');
     await settle(page);
-    assert.equal(await escCount(page), 0);
+    assert.equal(await escCount(page), 1);
+    // 2 回押して 2（二重配送が無い）。
+    await page.keyboard.press('Escape');
+    await settle(page);
+    assert.equal(await escCount(page), 2);
     assertClean(rec);
     await context.close();
   });
