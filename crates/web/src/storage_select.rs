@@ -16,7 +16,7 @@
 //! - IndexedDB への書き込みの確定の後にだけ、同じ鍵の localStorage の写しを消す（確定前・失敗時は唯一の写しを失わない）
 //! - 起動時に同じ鍵が両方にあれば、IndexedDB を正とする
 //! - IndexedDB が使えない（開けない）ときは localStorage だけで動く。localStorage の想定外の上限超過は
-//!   [`StorageError::QuotaExceeded`] をそのまま返す（表示は TASK-323）
+//!   [`StorageError::QuotaExceeded`] をそのまま返す（変更のたびの保存の失敗は `save_notice` が表示する。TASK-323 1/2）
 //!
 //! 離れる直前の書き込み: 保存先が localStorage の間は `write` が同期で終わるため `pagehide` の中で足りる。IndexedDB へ切り替えた後は
 //! `put` の発行までで確定を保証しない（SAVE-9 の検討中の論点で、仕様の決定を待つ）。

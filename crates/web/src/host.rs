@@ -63,7 +63,7 @@ use fandhe_workshop_contract::history_version::{
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_contract::load_reason::LoadReason;
-use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
 use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::addr::TickAddr;
 use fandhe_workshop_core::changed::replay_changes;
@@ -92,6 +92,7 @@ use crate::engine_parts::standard_registry;
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
+use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
 use fandhe_workshop_contract::profile::InputFieldMode;
@@ -120,6 +121,9 @@ pub struct HostModel {
     /// 読み方は [`HostModel::selected_view`] が決め、宣言に無い種類のときは読まれない。今の Step が変わると
     /// `step_engine` が捨てる（ART-12。元の Step へ戻っても以前の選択は戻らない）。
     view_choice: Option<ViewChoice>,
+    /// 直近の保存の失敗の種類（SAVE-10）。`save-notice` の元で、履歴（`ops`）には記録しない表示の状態。
+    /// 保存に成功すると `None` に戻る。状態を変える操作の後の保存の結果だけが入れる（`EngineHost::save_after_change`）。
+    save_failure: Option<StorageError>,
 }
 
 impl HostModel {
@@ -127,6 +131,11 @@ impl HostModel {
     /// それ以外は既定のビュー（宣言の先頭。`view_select::effective_view`）を返す。
     pub fn selected_view(&self) -> ViewKind {
         view_select::effective_view(self.session(), self.view_choice.as_ref())
+    }
+
+    /// 直近の保存の失敗の種類。失敗していなければ `None`（`save-notice` が空になる）。
+    pub fn save_failure(&self) -> Option<StorageError> {
+        self.save_failure
     }
 
     /// 位置 `event` の拒否の理由の文面（core の `filled_text` が返した値）。控えが無ければ `None`。
@@ -417,6 +426,12 @@ pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
 /// glue が `<textarea>` の値の同期（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
 pub type DraftSyncRequest = Box<dyn Fn()>;
 
+/// 変更のたびに履歴の値を保存先へ書く口（SAVE-10。TASK-323 1/2）。引数は `history_to_save` の値で、結果は書けたかどうか。
+///
+/// 実体は `persist` が mount の前に注入する（保留と保存先を持つのは `persist` だけ）。書けなかった値は注入側が保留に残す。
+/// 値・鍵の文字列は結果に含めない（`StorageError` は種類だけ）。`Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
+
 /// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
 ///
 /// 問い返しの後の扱いは JUDGE-27・TERM-22（検討中）に属するため、ここでは固定しない。
@@ -483,6 +498,11 @@ pub struct EngineHost {
     tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
+    /// 変更のたびの保存の口。未設定（native の試験など）なら保存を試さない。
+    history_saver: Option<HistorySaver>,
+    /// 今の `update` で状態を変えた（ログが伸びた）印。`update` の末尾で 1 回だけ保存を試して下ろす。
+    /// 下書きだけの変更では立てない（打鍵ごとに履歴の全体を書く費用を避ける。下書きは離れる直前に書く）。
+    save_due: bool,
     /// 操作プロファイルのコマンド接頭辞。session が無い・読めないときは `None`（送信をエンジンへ送らない）。
     command_prefix: Option<String>,
     /// 開始時の状態の控え。履歴ファイルを適用し直す出発点になる。session が無ければ `None`。
@@ -540,6 +560,7 @@ impl EngineHost {
                 world_consumed: 0,
                 judged_texts: BTreeMap::new(),
                 view_choice: None,
+                save_failure: None,
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -547,6 +568,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            history_saver: None,
+            save_due: false,
             command_prefix: None,
             initial: None,
             draft_recorded: String::new(),
@@ -605,6 +628,7 @@ impl EngineHost {
                 world_consumed: d.world_consumed,
                 judged_texts: d.judged_texts,
                 view_choice: None,
+                save_failure: None,
             },
             registry,
             input,
@@ -612,6 +636,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            history_saver: None,
+            save_due: false,
             command_prefix: d.command_prefix,
             initial,
             draft_recorded: String::new(),
@@ -781,6 +807,31 @@ impl EngineHost {
     /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
     pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
         self.draft_sync_request = Some(f);
+    }
+
+    /// 変更のたびの保存の口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
+    ///
+    /// 保存の起点は状態を変える操作の `update` の末尾に 1 回で、遅延も畳み込みも無い（TASK-318 が調整する）。
+    pub fn set_history_saver(&mut self, f: HistorySaver) {
+        self.history_saver = Some(f);
+    }
+
+    /// 状態を変えた操作の後に履歴を保存し、結果を `save_failure` と dirty に反映する（SAVE-10）。
+    ///
+    /// 保存する値が無い（未操作・保存停止・上限超過）ときは何もしない。表示も変えない（それぞれ別の規則が持つ）。
+    /// 失敗しても状態は巻き戻さない。書けなかった値は注入側の保留に残り、次の変更か離れる直前に再び試される。
+    fn save_after_change(&mut self) {
+        let Some(saver) = self.history_saver.as_ref() else {
+            return;
+        };
+        let Some(value) = self.history_to_save() else {
+            return;
+        };
+        let failure = saver(&value).err();
+        if failure != self.model.save_failure {
+            self.model.save_failure = failure;
+            self.dirty.push(SAVE_NOTICE_FIELD);
+        }
     }
 
     /// 部品が読む値。
@@ -1247,6 +1298,7 @@ impl EngineHost {
             notify(next_tick(session));
         }
         if changed {
+            self.save_due = true;
             self.push_changed_lists(prev_view, prev_step);
         }
         rejected
@@ -1509,6 +1561,11 @@ impl Component for EngineHost {
         }
         // 入力欄の値が変わっていれば下書きとして記録する。どの action の後でも 1 か所で行う。
         self.record_draft_change();
+        // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。
+        if self.save_due {
+            self.save_due = false;
+            self.save_after_change();
+        }
     }
 
     fn view(&self) -> Node {

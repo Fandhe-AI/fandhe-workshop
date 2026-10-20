@@ -382,6 +382,7 @@ pub fn is_defined_testid(id: &str) -> bool {
         || InputPort::ALL.iter().any(|p| p.testid() == id)
         || LiveRegion::ALL.iter().any(|l| l.testid() == id)
         || StatusNotice::ALL.iter().any(|n| n.testid() == id)
+        || id == crate::a11y::SAVE_NOTICE_TESTID
         || [
             LOG_LIST_TESTID,
             TABLIST_TESTID,

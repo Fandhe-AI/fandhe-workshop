@@ -547,6 +547,13 @@ const MODULE_RULES: &[ModuleRule] = &[
             "mount_fixture_from_url",
             "boot",
             "block_saving",
+            // 変更のたびの保存の口（SAVE-10）。ホストへ結ぶだけで DOM には触れない。
+            "set_history_saver",
+            "clone",
+            "try_borrow",
+            "map_err",
+            "ok_or",
+            "first_error",
         ],
         events: &[],
     },

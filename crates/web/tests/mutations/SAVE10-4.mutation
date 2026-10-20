@@ -1,0 +1,8 @@
+id: SAVE10-4
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/host.rs
+find:         // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。
+replace:         self.save_due = true; // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。
+expect-fail: 下書きだけの変更では保存を試さない
+note: 下書きだけの変更でも保存を試す

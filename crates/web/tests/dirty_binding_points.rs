@@ -255,6 +255,8 @@ const EXPECTED_SEEN: &[&str] = &[
 const NEEDS_OTHER_FIXTURES: &[&str] = &[
     // 遷移 1,000 回の上限の教材が要り、その教材は試験の設定（`test-hooks`）にだけある。
     "log_notice",
+    // 保存の失敗の表示は、保存の口（`set_history_saver`）を結んだホストが要る。`save_failure.rs` が dirty を確かめる。
+    "save_notice",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",
