@@ -4759,6 +4759,31 @@ root（`#app`）の外の Esc は、glue が `document` の keydown で受けて
 - 未検証: `make test-browser` の全体と `make check-mutations` の全件、CI 上の実行（初回の PR の実行後に確かめる）。`scripts/expected-test-counts.txt` は更新していない（別の PR で行う）
 - 範囲外・申し送り: 入力欄・root の中のボタンの 4 場面は TASK-353 2/2。root の中でも `main` の外にある部品（`workshop-parts` の中のボタン）にフォーカスがあるときの Esc は、上流の属性にも本件の glue（root の外だけ）にも当たらず 0 回になる見込みで、本件では直していない
 
+### 5.159b 入力欄・root の中のボタンの Esc と「ちょうど 1 回」（TASK-353 2/2）
+
+実行日: 2026-10-20
+元にしたコミット: 4c2f7bc（origin/main）に本変更を加えた作業ツリー
+
+5.159 の場面の表 `SCENES` を 10 行に広げた（処理中か否か × 5 つのフォーカス先）。CSP あり・なしで計 20 件と、対照 2 件。
+
+| フォーカス先 | 場所 | 期待 |
+|---|---|---|
+| フォーカスなし（`body`）・root の外のボタン | 5.159 のとおり | 5.159 のとおり |
+| 入力欄（`draft-input`） | `main` の中 | `escCount` +1。処理中でなければ取り消しの入力（`input_received`・`judged` 各 1 件）、処理中なら停止（`stopped` 1 件） |
+| root の中のボタン（停止ボタン `stop-btn`） | `main` の中 | 同上 |
+| 左の成果物の行（`notes/draft`） | `#app` の中・`main` の外（`workshop-parts`） | 同上 |
+
+- 仕様の「8 つの場面」は body・root の外のボタン・入力欄・root の中のボタンの 4 × 2。`main` の外の部品の 2 行は、5.159 の申し送りの穴を確かめる追加の行である
+- 処理中でない × 入力欄は、Esc の前に下書きが空で候補の一覧が閉じていることを assert する（候補が開いていると Esc は閉じるだけになるため）。処理中でない × 部品は、`/make-note first-note` を送って進行が終わる（`run-status` が処理中でない）のを待ち、行が出てからフォーカスする。Esc の結果は拒否（`not_in_this_step`）で、場面ごとに期待を変える必要は無かった
+- 実測した穴 1（5.159 の申し送りの確認）: 修正前は `main` の外の部品（`workshop-parts`）の Esc が 0 回（`escCount` の増分 0）。上流の属性が `main` にしか無く、glue は root の外だけを受け持つため。`host.rs` の `view()` が `workshop-root` に `ESC_KEYDOWN_ATTRS` を足して塞いだ（`main` の属性は残す。入れ子でも上流は `closest` の最も近い 1 つにだけ届け、`main` の中の 3 場面は 1 回のまま）。教材を読めずに起動した場合の通知の root には付けない
+- 実測した穴 2（穴 1 を塞いだ直後に出た）: 処理中の部品の行で Esc を押すと 2 回届いた（停止の後に 2 回目の入力が `ignored` で残る）。上流の配送が先に停止して画面を作り直すと、押された行が DOM から外れ、泡立ちの段で受ける glue の `contains` が偽になって root の外として届けていた。glue の `document` のリスナーを捕捉の段（`add_event_listener_with_callback_and_bool`）に変えて、画面が作り直される前に target を判定する。契約の表（`glue_contract.rs`）の許可済みの呼び出し名の範囲に収まり、変更は不要だった
+- 受け持ちを変えても同じ結果であること: 新しい切り替えの仕組みは作っていない。既存の場面（body・root の外のボタン）と `main` の中の場面が受け持ちの変更の前後で同じ結果であることを `esc-once` の表で見た。比較として `esc-attr`・`esc-outcomes`・`esc-key`・`keydown-action`・`stop-redo`・`point-keys`・`keyboard-confirm` と TASK-351 の 5 ファイル（`key-invariants`・`tab-cycle`・`tab-complete`・`shift-tab`・`candidates`）を流した。`scripts/test-browser.sh` の全体（575 件）が pass した（2026-10-20）。`esc-once` は 3 回続けて 22 件 pass
+- 試験: `crates/web/tests/host_contract.rs` の `workshop_root_は_esc_の_keydown_属性を持つ`（`workshop-root` と `hello-root` が Esc の属性を持つ）、`crates/web/tests/ir_refusal_host.rs`（通知の root は持たない）
+- 変異 `FEND6-1`（`workshop-root` への `ESC_KEYDOWN_ATTRS` の追加を外す）: `scripts/check-mutations.sh crates/web/tests/mutations/FEND6-1.mutation` で DETECTED。`FEND8-1` も DETECTED のまま。捕捉の段への変更を戻す変異は、ブラウザ試験（`esc-once` の処理中 × 部品）が検出する
+- 実行した検査（手元。2026-10-20）: `make check`・`make lint`・`make test`・`make check-deps`・`make check-dom-reads` は通った
+- 未検証: `make check-mutations` の全件、CI 上の実行。`scripts/expected-test-counts.txt` は更新していない（別の PR で行う）。5.160 は別の PR（#1631）が使うため、本節は 5.159b とした
+- 範囲外: `main` の Esc の属性を `workshop-root` に一本化する整理、変換中の root の中の Esc（TASK-354）、押しっぱなしの扱い（FEND-18・TASK-364）
+
 ### 5.160 要素の同一性とフォーカスの保持（TASK-348 2/3）
 
 実行日: 2026-10-20

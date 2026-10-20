@@ -489,7 +489,7 @@ pub(crate) fn wire_row_keys(root: &web_sys::Element) -> Result<(), JsValue> {
 
 /// root の外の Esc（フォーカスなし・root の外の部品）を、`document` の keydown で受けて Component に届ける（TASK-353 1/2。FEND-8・D-42）。
 ///
-/// 呼び出し元は [`mount_host`] である。root の中の Esc は上流の属性（`action::ESC_KEYDOWN_ATTRS`）が届けるため、
+/// 呼び出し元は [`mount_host`] である。root の中の Esc は上流の属性（`action::ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）が届けるため、
 /// target が root の中なら何もしない（二重に届けない。FEND-6）。target が無い・Node でないときは root の外として届ける。
 /// 判定は `key_route::outside_root_esc`（上流と同じ照合）、停止か取り消しかの判断は届いた後の `esc_route` が持つ。
 /// 届けるのは `schedule_action` 経由に限る（リスナーの中で直接 `dispatch_action` すると `Reentrant` で捨てられる）。
@@ -529,7 +529,13 @@ fn wire_outside_esc(root: &web_sys::Element) -> Result<(), JsValue> {
             schedule_action(action, 0);
         }
     });
-    document.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref())?;
+    // 捕捉の段で受ける。泡立ちの段で受けると、root の中の Esc を先に処理した上流の配送が画面を作り直し、
+    // 押された要素（左の行など）が DOM から外れて `contains` が偽になり、root の外として 2 回目が届く（TASK-353 2/2）。
+    document.add_event_listener_with_callback_and_bool(
+        "keydown",
+        on_keydown.as_ref().unchecked_ref(),
+        true,
+    )?;
     on_keydown.forget();
     Ok(())
 }

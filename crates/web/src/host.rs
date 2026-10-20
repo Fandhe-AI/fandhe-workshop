@@ -84,7 +84,7 @@ use fandhe_workshop_core::version_record::record_versions_with;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
-use crate::action::RuntimeAction;
+use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
 use crate::artifact_view::{PointTarget, POINT_ACTION};
 use crate::candidates;
@@ -1552,7 +1552,12 @@ impl Component for EngineHost {
             ],
             vec![text("raw")],
         ));
-        el("div", vec![("data-testid", "workshop-root")], children)
+        // `main` の外の部品（`workshop-parts`）の Esc も上流の属性で届けるため、Esc の keydown 属性を root にも付ける。
+        // `main` の属性と入れ子になっても、上流は最も近い 1 つにだけ届ける（二重に届かない。FEND-5・FEND-6・TASK-353 2/2）。
+        // 教材を読めない場合の通知の root には付けない（入力欄が無く、Esc の宛先が無い）。
+        let mut root_attrs = vec![("data-testid", "workshop-root")];
+        root_attrs.extend(ESC_KEYDOWN_ATTRS);
+        el("div", root_attrs, children)
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
