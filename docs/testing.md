@@ -4626,6 +4626,14 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 | AUTHOR10-1 | crates/pack/src/source.rs: `.md` 以外の本文を `.md` として扱う | author10_non_md_body_over_is_e_limit | DETECTED |
 | AUTHOR10-2 | crates/pack/src/source.rs: 事前走査の結果を捨てて読み込みへ進む | author10_multiple_limits_listed_and_nothing_read, author10_pack_size_over_on_every_entry | DETECTED |
 
+### 5.153 版上げ PR の受け入れ確認の模擬（TASK-101 1/2）
+
+実行日: 2026-10-20、元にしたコミット: 47162a5 に本変更を載せた作業ツリー。
+
+- `make test-check-frontend-bump`: 一時の repo で版上げを模擬した 29 件がすべて通る。版上げの検出（`Cargo.lock` の版だけの変更・ルートの feature の変更・無関係な変更・base の欠落）、版上げ PR での期待値・`tools/check-deps.sh` の `EXC_N`（1 から 2）・関門自体の変更の拒否、件数が 1 件減る・増える場合の失敗、ANSI つきの一致、skip の条件、`cargo metadata` の `default-features` 有効・`action-keydown` 欠落・壊れた JSON、誤用を含む
+- 実物での確認: `make update-test-counts` で期待値を作り（Rust 2,535 件・ignored 4 件・239 束、ブラウザ 553 件）、実際の `make test` の出力を使って、試験 1 件を ignored にした写しの log が `counts rust` で終了コード 1 になり、元の log は 0 になることを確かめた（変更ファイルの一覧を `--changed-files` で渡して PR を模擬した）
+- 未確認: 実際の GitHub Actions 上の動作（初回の CI で確かめる）。`make check-fork-ci` は `ruby` が無い環境のためローカルでは未実行
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -4661,37 +4669,47 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 
 ### 6.3 Rust の native の試験（`cargo test --locked --workspace`）
 
-| 試験のバイナリ | passed | failed | ignored |
-|---|---|---|---|
-| contract（unittests） | 0 | 0 | 0 |
-| contract（limits_contract） | 8 | 0 | 0 |
-| core（unittests） | 0 | 0 | 0 |
-| core（property_sample） | 6 | 0 | 0 |
-| core（provider_contract） | 4 | 0 | 0 |
-| pack（unittests lib） | 12 | 0 | 0 |
-| pack（unittests bin） | 0 | 0 | 0 |
-| pack（cli） | 3 | 0 | 0 |
-| pack（testdata_min_3step） | 3 | 0 | 0 |
-| web（unittests） | 3 | 0 | 0 |
-| web（frontend_features） | 3 | 0 | 0 |
-| doctest（contract・core・pack・web） | 0 | 0 | 0 |
-| 合計 | 42 | 0 | 0 |
-
-`web（unittests）` の 3 件のうち 1 件（配信設定の描画に probe が入らないこと）と `frontend_features` の 3 件は、TASK-346 で足した。
-`test-hooks` を付けた native の試験（`cargo test -p fandhe-workshop-web --features test-hooks`）は web の unittests が 3 件、`frontend_features` が 3 件である。
+件数の基準値は `scripts/expected-test-counts.txt` に固定する（束ごとの passed・ignored と合計。更新日と元にしたコミットは先頭の注釈）。
+この文書に件数の表を二重に持たない。2026-10-14 の 42 件の表は古くなったため、2026-10-20 に参照へ置き換えた。
+更新は `make update-test-counts`（遅い）で、版を上げる前に別の PR で行う。
 
 ### 6.4 node:test の件数
 
-| 対象 | tests | pass | fail | skipped |
-|---|---|---|---|---|
-| `tools/serve.test.mjs`（`make test-serve`） | 18 | 18 | 0 | 0 |
-| `tools/measure/browser.test.mjs` | 11 | 11 | 0 | 0 |
-| `tools/browser/*.test.mjs`（`make test-browser`） | 11 | 11 | 0 | 0 |
-
-`make test-browser` の 11 件のうち `keydown-action.test.mjs` の 1 件は TASK-346 で足した。
+`tools/browser/*.test.mjs`（`make test-browser`）の件数は、同じ `scripts/expected-test-counts.txt` の `browser|total|...` の行に固定する。
+`tools/serve.test.mjs`（`make test-serve`）と `tools/measure/browser.test.mjs` は、版上げの受け入れ確認の対象にしていない。
 `make test-keydown-control` は、feature を外した写しで `keydown-action.test.mjs` が `ACTION-KEYDOWN-NOT-DISPATCHED` で失敗することを確かめ、成立した（2026-10-14）。
 
 ### 6.5 未計測のもの
 
 - CI での実行結果。wasm32 のビルドとブラウザの試験は CI に組み込まれていない（上表はローカルの計測）
 - `tools/measure/` の shell を伴う試験（`make test-measure`・`make test-measure-wasm-size`）の件数
+
+### 6.6 版上げ PR の受け入れ確認（FEND-17・D-63・TASK-101）
+
+`fandhe-frontend` の版上げ PR は、受け入れ確認 (1)〜(5) をすべて CI の確認にし、1 つでも外れたら通さない（D-63。2026-10-20）。
+本リポジトリでは、既存のジョブへの step の追加で実現する。ジョブの集合・名前・`ci-complete` の `needs`・ruleset の必須チェックは変わらない。
+
+| 確認 | 守る場所 | 備考 |
+|---|---|---|
+| (1) ビルド・clippy・fmt | `rust-lint`（`make lint`）・`rust-test`（`make test`）・`browser-test`（`make test-browser` が wasm32 の配信設定と `test-hooks` をビルド） | 全 PR で流れる |
+| (2) 既存の試験の件数 | `rust-test` の `counts rust`・`browser-test` の `counts browser`（`scripts/check-frontend-bump.sh`）。期待値は `scripts/expected-test-counts.txt` | 下の判定表。TASK-101 1/2 |
+| (3) WASM の gzip +10% | 別の Issue（TASK-101 2/2）が受け持つ | 判定は `scripts/check-frontend-bump.sh detect` を再利用できる |
+| (4) `check-deps.sh` の例外の数 | `rust-lint` の `make check-dom-reads`（`EXC_N=1`。増減とも失敗）と、`guard` による `tools/check-deps.sh` の固定 | 版上げ PR で例外の定義を緩めて通すことを禁じる |
+| (5) `wasm-full` の feature の明示 | `crates/web/tests/frontend_features.rs`（`rust-test`）と、`guard` の `cargo metadata` の確認 | `guard` は版上げ PR かどうかに関係なく毎回流す |
+
+版上げ PR の見分け方: base（`HEAD^1`。PR の merge commit の第 1 親）と `HEAD` で、`Cargo.lock` の `fandhe-frontend-*` の `name`・`version`・`source`・`checksum`、ルートと `crates/web` の `Cargo.toml` の `fandhe-frontend-*` の行のどれかが違えば版上げ PR とする。
+
+件数の照合は、PR のイベント（`pull_request`）のときだけ行う。
+
+| 版上げ PR | 期待値ファイルを変えた | 結果 |
+|---|---|---|
+| はい | はい | 失敗。版上げ PR の中で期待値を書き換えて試験の減少を隠すことを禁じる |
+| はい | いいえ | 件数を照合する。差があれば失敗 |
+| いいえ | はい | 件数を照合する（期待値を更新する PR の値を CI で確かめる） |
+| いいえ | いいえ | skip（実際の件数を log に出す） |
+
+判定できない場合（base が無い・差分の取得の失敗・`test result` の行が 0 件・TAP の集計の欠落・失敗した試験がある）は、終了コード 2 で失敗する（fail-closed）。
+版上げ PR で変えてはいけないファイルは、期待値ファイル・`tools/check-deps.sh`・`scripts/check-frontend-bump.sh` である。
+限界: `ci.yml` 自体の書き換えは防げない（版上げで `wasm-bindgen` の版を合わせる正当な変更があるため）。ai-review とレビュースレッドの解決必須で補う。
+同名の結合試験が crate をまたいで重複する束は合算して数える。
+期待値は main の上では「最後に更新した基準値」であり、版を上げる前に別の PR で更新する。手順書は TASK-363 の範囲である。
