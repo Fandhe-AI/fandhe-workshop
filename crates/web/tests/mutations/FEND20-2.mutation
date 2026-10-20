@@ -1,0 +1,8 @@
+id: FEND20-2
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/persist.rs
+find: crate::glue::mount_host(root_id, host)?;
+replace: crate::glue::mount_host(root_id, host)?; host.boot(None);
+expect-fail: 層全体は_update_を通らない状態の変更を持たない
+note: mount の後に update を通らず状態を変える初期化の呼び出しが入る（R3 の位置の規則）

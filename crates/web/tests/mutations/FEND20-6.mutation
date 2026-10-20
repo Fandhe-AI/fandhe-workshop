@@ -1,0 +1,8 @@
+id: FEND20-6
+package: fandhe-workshop-web
+test: state_paths
+target: crates/web/src/persist.rs
+find: install_save_on_leave(key, crate::glue::history_to_save)
+replace: EngineHost::open_history(&mut host, &[]); install_save_on_leave(key, crate::glue::history_to_save)
+expect-fail: 層全体は_update_を通らない状態の変更を持たない
+note: UFCS 形式（EngineHost::method(&mut host, ..)）の状態変更が保存の層に入る（R3 の許可表。FEND20-3 の UFCS 版）
