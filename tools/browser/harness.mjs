@@ -94,6 +94,51 @@ export function stripCspMeta(html) {
   return { html: out, removed };
 }
 
+// 配信する index.html の CSP の正（SAFE-13。TASK-151 1/2）。完全一致で比べ、正規化はしない（緩む・並び替えも退行として止める）。
+export const DELIVERY_CSP =
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self'";
+
+const CHARSET_META_RE = /<meta\b[^>]*\bcharset\s*=[^>]*>/gi;
+
+// CSP の meta の位置と内容を検査する純関数（fail-closed）。
+// <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
+// ちょうど 1 つあり、content が DELIVERY_CSP と一致することを求める。呼び出し元は csp-placement.test.mjs（make test-browser）。
+export function inspectCspMeta(html) {
+  const problems = [];
+  const src = String(html);
+  const heads = [...src.matchAll(/<head\b[^>]*>/gi)];
+  const headEnds = [...src.matchAll(/<\/head\s*>/gi)];
+  if (heads.length !== 1 || headEnds.length !== 1) {
+    problems.push(`head element count is ${heads.length}/${headEnds.length} (open/close)`);
+    return { ok: false, problems };
+  }
+  const headStart = heads[0].index + heads[0][0].length;
+  const headEnd = headEnds[0].index;
+  const inHead = (m) => m.index >= headStart && m.index < headEnd;
+  const charsets = [...src.matchAll(CHARSET_META_RE)];
+  const csps = [...src.matchAll(CSP_META_RE)];
+  if (charsets.length !== 1 || !inHead(charsets[0])) {
+    problems.push(`charset meta count is ${charsets.length} (expected exactly 1, inside head)`);
+  }
+  if (csps.length !== 1 || !inHead(csps[0])) {
+    problems.push(`CSP meta count is ${csps.length} (expected exactly 1, inside head)`);
+  }
+  if (problems.length > 0) return { ok: false, problems };
+  const cs = charsets[0];
+  const csp = csps[0];
+  const between = src.slice(cs.index + cs[0].length, csp.index);
+  if (csp.index < cs.index || !/^\s*$/.test(between)) {
+    problems.push(`CSP meta is not immediately after charset meta (between: ${JSON.stringify(between.slice(0, 80))})`);
+  }
+  const content = /\bcontent\s*=\s*"([^"]*)"/i.exec(csp[0]);
+  if (content === null) {
+    problems.push('CSP meta has no double-quoted content attribute');
+  } else if (content[1] !== DELIVERY_CSP) {
+    problems.push(`CSP content mismatch: ${JSON.stringify(content[1])}`);
+  }
+  return { ok: problems.length === 0, problems };
+}
+
 // CSP あり・なしの両方で同じ画面を開くための配信ディレクトリを fn に渡す。
 // csp: true は dir をそのまま渡す。false は index.html の CSP の meta だけを除いた一時の写しを渡し、成否にかかわらず消す。
 // route での本文の書き換えは使わない（配信は gzip で、見出しが引き継がれると画面が壊れて空振りの 0 件になりうるため）。

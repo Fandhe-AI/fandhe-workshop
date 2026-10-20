@@ -5469,3 +5469,32 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 - 書き出しの可視の操作と案内からの導線（TASK-531）・通知欄の配置（TASK-534）・案内の確定（ユーザー）
 - 受講者による履歴の削除（SAVE-32・TASK-341）
+
+### 5.175 CSP の meta の配置と内容の検査（TASK-151 1/2。SAFE-13）
+
+元にしたコミット: `fe45d81`（実行日 2026-10-20）。`<meta http-equiv>` の CSP は、その要素より後に現れた内容にしか効かない。そのため配信する `index.html` で、CSP の meta が `<meta charset>` の直後にあり、内容が仕様の文字列と完全一致することを、失敗で止める検査として足した。修正前は `crates/web/static/index.html` で viewport の meta が charset と CSP の間にあったため、CSP を charset の直後へ移した（内容の文字列は変えていない）。
+
+#### 判定の規則（fail-closed）
+
+`tools/browser/harness.mjs` の `inspectCspMeta(html)`（正の文字列は `DELIVERY_CSP`。1 か所だけに置く）が次をすべて満たすときだけ合格にする。
+
+- `<head>` と `</head>` がちょうど 1 つずつ
+- charset の meta と CSP の meta が、どちらも head の中にちょうど 1 つずつ
+- charset の meta の終わりから CSP の meta の始まりまでが空白だけ（「直後」を厳しい側に解釈した。コメントや他の要素を挟むと不合格）
+- CSP の meta の `content`（二重引用符）が `DELIVERY_CSP` と完全一致（正規化しない。指令の並び替え・空白の違いも不合格）
+- 解析できない形は例外にせず問題として返す
+
+#### 試験
+
+`tools/browser/csp-placement.test.mjs`（11 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 7 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・コメントを挟む）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
+
+#### 件数・確認（2026-10-20）
+
+- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh debug` で作り、`csp-placement` の 11 件が通った。環境変数なしでは 10 件が失敗する（skip しない）。`harness`・`safety-observe` の 18 件も通った。`make check`・`make test` は通った
+- `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない
+
+#### 限界・範囲外
+
+- `tools/check-delivery.sh` には組み込まない（CI に入っておらず、二重定義を避けるため）
+- 誘導での完走・「移動」での全 Step・CSP あり・なしの対照での通信と違反の計数・インライン不使用の検査の CI 化は TASK-151 2/2（#540）
+- 要確認: CI のガードの追加は TASK-151 の人間の承認点。既存の `browser-test` ジョブに試験を 1 つ足しただけで、ジョブ・ruleset・必須チェックは変えていない

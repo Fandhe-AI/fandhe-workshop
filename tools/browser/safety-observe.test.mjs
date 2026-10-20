@@ -13,7 +13,7 @@
 //   oversize: 10 倍の水準は TASK-154（#855）・TASK-155
 //   nest   : 深い入れ子・巨大な配列
 //   cycle  : 巡回する IR の画面での起動は TASK-168（#549 の ?ir=）・TASK-160（#444 の遷移の上限）
-//   csp    : 配置の検査は TASK-151（#538〜#540）
+//   csp    : 配置と内容の検査は csp-placement.test.mjs（TASK-151 1/2）
 //   secret : 警告の挙動は TASK-164（#541〜#544）
 //
 // 入力: 環境変数 FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。
@@ -243,7 +243,7 @@ test('csp: index.html の CSP とスクリプトの配置、マウント後の�
       await context.close();
     }));
   }
-  log(t, 'csp', '配置の検査そのものは TASK-151（#538〜#540）で育てる');
+  log(t, 'csp', '配置と内容の検査は csp-placement.test.mjs（TASK-151 1/2）。インライン不使用は TASK-151 2/2（#540）');
 });
 
 // 7. secret: 秘密情報らしい文字列。
