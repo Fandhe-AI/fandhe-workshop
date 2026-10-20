@@ -4845,7 +4845,7 @@ FEND-22・D-46 の案 3（Step ごとに分け、古い Step を 1 行の要約�
 | 開き方 | 未実装（`docs/known-gaps.md` の FEND-22） |
 
 - native: `crates/web/tests/list_fold.rs` の 9 件（恒等・1,001 での畳み・形ごとの上限・古い側だけが畳まれる・追記・擬似乱数 1,000 通り・長さ 0 と巨大値で panic しない・要約行の文言と属性）。`list_limit.rs` のホストの試験は、表示前の行が 4,096 を超えるまで入力を続け、畳みで 1,000 項目以下・通知なし・dirty の解決を確かめる形に書き直した（4,097 件の `Err` の経路は単位の試験が守る）
-- ブラウザ: `tools/browser/list-fold.test.mjs`（`raw-trigger` から拒否される入力を送り続け、50 回ごとに 1,000 項目以下・通知 0 件・要約行に `data-event` なし・畳みの発生を確かめ、最後に親と枠の同一性・安全性の観察 0 件を確かめる。所要約 4 秒）。復習の 1,000 件超は IR から作れないため native の試験で守る
+- ブラウザ: `tools/browser/list-fold.test.mjs`（`raw-trigger` から拒否される入力を送り続け、50 回ごとに 1,000 項目以下・通知 0 件・要約行に `data-event` なし・畳みの発生を確かめ、最後に親と枠の同一性・安全性の観察 0 件を確かめる。所要約 4 秒）。復習の 1,000 件超は IR から作れないため native の試験で守る（`crates/web/tests/review_fold.rs` の 2 件。達成済みの Step を 1,001 件ログに積んだホストを `ReviewPart` まで描き、要約を含む項目数が 1,000 以下・`older` の要約 1 行と畳んだ件数・最新の項目の保持・残る行の連続・通知なし・束縛点 1 つを確かめる。1,000 件ちょうどでは畳まない）
 - 変異: `FEND22-2`（計画が畳まない）・`FEND22-3`（ログがグループの長さを渡さない）・`FEND22-4`（先頭を畳んだ後も畳んだ行を出す）が DETECTED。`FEND15-4` は host の試験を書き直したため、`expect-fail` から host の試験を外した
 - 既知: `FEND15-2`・`FEND15-3` の `find` が base の `engine_parts.rs`（`keyed_view_or_notice`）と一致せず、`check-mutations.sh` が終了コード 2 で止まる（本変更の前から。未対応）
 
