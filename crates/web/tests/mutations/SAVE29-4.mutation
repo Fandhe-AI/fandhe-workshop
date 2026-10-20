@@ -1,0 +1,8 @@
+id: SAVE29-4
+package: fandhe-workshop-web
+test: export_notice
+target: crates/web/src/export_notice.rs
+find:         Some(ExportHint::FirstSave) => FIRST_SAVE_TEXT,
+replace:         Some(ExportHint::FirstSave) => "",
+expect-fail: 新しい起動の最初の操作で初回の案内が出て_二手目では動かない
+note: 初回の案内の文を空にする（案内の欄が出ても何も伝えない）

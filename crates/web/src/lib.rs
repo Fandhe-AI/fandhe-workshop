@@ -55,6 +55,7 @@ pub mod diff_view;
 pub mod doc_view;
 pub mod document_view;
 pub mod engine_parts;
+pub mod export_notice;
 pub mod file_tree_view;
 pub mod glue_ops;
 mod hello;

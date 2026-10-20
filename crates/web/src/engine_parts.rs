@@ -39,6 +39,7 @@ use crate::artifact_view::{
     declared_kinds, list_attrs, RowId, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
     VIEW_LIST_FIELDS,
 };
+use crate::export_notice::{export_notice_text, EXPORT_NOTICE_FIELD};
 use crate::host::HostModel;
 use crate::limit_notice::limit_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
@@ -90,6 +91,11 @@ const F_LOG: &[PartField] = &[
     // 履歴を保存できなかったことの通知欄（SAVE-10。TASK-323 1/2）。`log_notice` と責務を分ける。
     PartField {
         name: SAVE_NOTICE_FIELD,
+        kind: FieldKind::Bound,
+    },
+    // 履歴の書き出しの案内の通知欄（SAVE-29・D-57。TASK-340）。末尾に足す（[2]..[6] は位置で参照している）。
+    PartField {
+        name: EXPORT_NOTICE_FIELD,
         kind: FieldKind::Bound,
     },
 ];
@@ -366,6 +372,13 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[6].name,
                     save_notice_text(model.save_failure()),
                 ),
+                // 履歴の書き出しの案内（SAVE-29）。配置は仮で、TASK-534 が決める。
+                bind_text(
+                    "p",
+                    vec![("data-testid", "export-notice"), ("role", "status")],
+                    F_LOG[7].name,
+                    export_notice_text(model.export_hint()),
+                ),
                 bind_text(
                     "span",
                     vec![("data-testid", "part-log-consumed")],
@@ -384,6 +397,9 @@ impl DisplayPart<HostModel> for LogPart {
             f if f == F_LOG[5].name => Some(BoundValue::Text(limit_notice(model.session()))),
             f if f == F_LOG[6].name => Some(BoundValue::Text(
                 save_notice_text(model.save_failure()).to_owned(),
+            )),
+            f if f == F_LOG[7].name => Some(BoundValue::Text(
+                export_notice_text(model.export_hint()).to_owned(),
             )),
             _ => consumed_bound(field, F_LOG[1].name, model),
         }
