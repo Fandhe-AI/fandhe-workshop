@@ -4699,6 +4699,21 @@ TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変�
 - 限界: web はまだ `ir/main.json` を読まない（読み込みは TASK-109・TASK-121）ため、「IR が入る」は配信物のファイルの水準で確かめる。WASM の `gzip -9` の関門と基点の記録は TASK-78 2/2
 - 未確認: CI 上での所要時間の増分（初回の実行後に測る）
 
+### 5.157 WASM の大きさの関門（TASK-78 2/2）
+
+実行日: 2026-10-20
+元にしたコミット: b83741d（origin/main）に本変更を加えた作業ツリー
+
+`scripts/check-wasm-size.sh`（`make check-wasm-size`）を足し、CI の `browser-test` ジョブに step「Check WASM size (1MB gate)」を足した。ジョブ・`needs`・ruleset は変えていない。
+
+- 判定: 配信する設定（`delivery`・`release`・機能の追加なし）の WASM の `gzip -9` が 1,048,576 bytes（DLV-27。R-33 の提案値）以下なら 0、超えたら 1。上限はスクリプトの定数で、環境変数・引数では変えられない。様式の欠落・試験の設定・`wasm_gzip` の欠落や重複・複数の JSON 値は 2（fail-closed）。`dirty` は失敗にせず記録する
+- 出力: 標準エラーに 1 行（値・commit・dirty・`wasm-opt` の状態・設定）。標準出力に、判定に使った結果の JSON へ `gate {limit_bytes, verdict}` を足したものを出す。CI のログに基点つきの値が残る
+- `wasm-opt`: CI に入れない（5.155 と同じ判断。供給網の面を増やさない）ため、CI の step は `SKIP_WASM_OPT=1` で測る。基点に `wasm_opt.applied: false` が残る。未適用の値は適用後より大きい見込みで、上限以下なら適用後も以下になる側の判定だが、`-Os` が `gzip` の大きさを増やさない保証は無い（経験則）。受入基準の「`wasm-opt` 適用後」とは測る対象が違う
+- `make test-check-wasm-size`: 20 件すべて pass（ちょうど 1,048,576 は合格・1 byte 超過は失敗・試験の設定と release でない設定・`wasm_gzip` の欠落と重複・基点の欠落・連結した JSON・壊れた入力・誤用は 2）
+- 実物の確認（手元。2026-10-20）: `SKIP_WASM_OPT=1 make check-wasm-size` は 353,359 bytes で合格（`wasm-opt` 未適用。約 19 秒）。`wasm-opt` を適用した `make check-wasm-size` は 298,392 bytes（`wasm-opt version 116`）で合格。いずれも `dirty: true`（本変更が未コミットのため）
+- 未確認: CI 上での所要時間の増分と、GitHub Actions 上の実行（初回の PR の実行後に測る）。`actionlint` は手元で通した
+- 範囲外: CI への binaryen の導入と適用後の値での判定、`scripts/check-frontend-bump.sh` の `GUARDED_FILES` への関門の追加。`ci.yml` 自体の書き換えは本関門では防げず、ai-review とレビュースレッドの解決必須で補う。spec の人間の承認点（CI の関門を加えること）は PR で承認を求める
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

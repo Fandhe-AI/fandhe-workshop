@@ -376,7 +376,7 @@ jobs:
         run: make test-browser
 
       # 配信用・試験用の 2 設定のビルド検査（BUILD-3・TASK-78 1/2）。compile した IR が配信する設定に入ることも確かめる。
-      # 大きさの関門は TASK-78 2/2。wasm-opt は CI に入れない（SKIP_WASM_OPT は呼び出し元の値のまま）。
+      # 大きさの関門は次の step（TASK-78 2/2）。wasm-opt は CI に入れない（SKIP_WASM_OPT は呼び出し元の値のまま）。
       # ジョブ・needs・ruleset は変わらない。CARGO_TARGET_DIR は make test-browser と同じにして、ビルドを使い回す。
       - name: make test-build-web (BUILD-3)
         env:
@@ -400,6 +400,20 @@ jobs:
           CI_EVENT_NAME: ${{ github.event_name }}
           CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
         run: bash scripts/check-frontend-bump.sh wasm-gzip
+
+      # WASM の大きさの関門（TASK-78 2/2。BUILD-3・DLV-27）。配信する設定の WASM の gzip -9 が 1,048,576 bytes 以下であることを、
+      # 版上げかどうかによらず PR と push の両方で確かめる（判定は scripts/check-wasm-size.sh。基点つきの JSON をログに残す）。
+      # wasm-opt は CI に入れず（TASK-101 2/2 と同じ理由）、SKIP_WASM_OPT=1 の未適用の値で判定する。未適用の値は適用後より大きい見込みで、厳しい側の判定になる。
+      # CARGO_TARGET_DIR は make test-browser と同じ値にして、release の配信する設定のビルドを使い回す。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: Check WASM size (1MB gate)
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+          SKIP_WASM_OPT: "1"
+        run: |
+          set -euo pipefail
+          make check-wasm-size
+          make test-check-wasm-size
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。

@@ -42,6 +42,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-fork-ci.sh      # fork が secret 無しで CI を通せる構成か（A〜C）と教材 repo の ENGINE_REV の正準の形（D。指定時のみ）をパーサ復号で検査（回帰テストは test-check-fork-ci.sh。ruby・jq・cargo が必要）
 │   ├── ci-rust-toolchain.sh  # CI で導入された rustc の版と docs/toolchain.md の照合
 │   ├── check-frontend-bump.sh # 版上げ PR の受け入れ確認 (1)〜(5) の関門（detect・guard・counts・wasm-gzip。回帰テストは test-check-frontend-bump.sh。期待値は expected-test-counts.txt、更新は update-test-counts.sh）
+│   ├── check-wasm-size.sh    # 配信する設定の WASM の gzip -9 が 1 MB 以下であることの関門（回帰テストは test-check-wasm-size.sh）
 │   ├── ci-changes.sh         # CI の test-hooks-macos の実行要否の判定
 │   └── hooks/                # lefthook から呼ばれるフックの実体と回帰テスト
 ├── .github/workflows/
@@ -96,6 +97,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル。(2) の件数の照合は CI の rust-test・browser-test が、(3) の WASM の gzip +10% の判定は browser-test の wasm-gzip が行う） |
 | `make test-check-frontend-bump` | 上の関門自体の回帰テスト（模擬の版上げ） |
+| `make check-wasm-size` | 配信する設定の WASM の `gzip -9` が 1 MB（1,048,576 bytes）以下であることの関門（TASK-78 2/2。CI の `browser-test` が `SKIP_WASM_OPT=1` で流す。基点つきの値をログに残す。遅い） |
+| `make test-check-wasm-size` | 上の関門自体の回帰テスト（ビルドなし） |
 | `make update-test-counts` | 試験の件数の期待値（`scripts/expected-test-counts.txt`）を実測で書き直す（遅い。ブラウザ試験も流す） |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |

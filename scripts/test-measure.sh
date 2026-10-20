@@ -3,7 +3,7 @@
 #
 # 確かめること: 束（fandhe-workshop/measure-run/v1）の検証、誤用の拒否、基点を集められないとき・ブラウザの測定が失敗したときの
 # fail-closed（標準出力が空）、実行の結果が基点つきで正しい構成であること、統計関数の試験（node:test）。
-# 実ビルドと Chromium を使うため遅い。make check・フック・CI には入れない（CI の関門は TASK-78）。
+# 実ビルドと Chromium を使うため遅い。make check・フック・CI には入れない（CI の大きさの関門は scripts/check-wasm-size.sh）。
 # Playwright や Chromium が無い場合はスキップせず失敗にする（未検査の成功を作らない）。
 # 生成物は mktemp -d の一時ディレクトリにだけ書き、終了時に消す。単体の様式の試験は scripts/test-measure-wasm-size.sh。
 #
