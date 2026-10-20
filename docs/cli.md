@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 5
-決定日: 2026-10-19
+CLI の外部仕様の版: 6
+決定日: 2026-10-20
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9）
-- 後続のタスク（TASK-401〜TASK-408・TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 5」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 6」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -197,7 +197,7 @@ m1,s4,step,EP-3
 - 表: 先頭はヘッダ `scope,step,kind,extension_points` で、1 行が 1 つの Step の定義である。`scope` は章・モジュールの ID、`step` は Step の ID。行の順は、章の名前の昇順、続いてモジュールの名前の昇順で、各ファイルの中は書かれた順である。呼ばれないモジュールの Step も含め、展開後の複製は数えない
 - `kind` は `step` か `use`。`use` は他モジュールの呼び出しで、`extension_points` は空にし、（i）（ii）にも数えない（展開した先の Step で数える）
 - `extension_points` は、その Step が使った拡張点の ID を半角空白でつないだもの。並びは拡張点の番号順（`EP-2` の後に `EP-13`）で、使っていなければ空
-- 数える拡張点は EP-1〜EP-8 と EP-13 である。EP-3・EP-4 は条件の欄（`next[].when`・規則と効果の `when`）の中の `param`・`clarifying` を数える。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の `guidance_levels`・開始点の `guidance` は数えない。EP-9（`starts[].requires`）と `confirm.options[].label` は数えない（TASK-409）
+- 数える拡張点は EP-1〜EP-9 と EP-13 である。EP-3・EP-4 は条件の欄（`next[].when`・規則と効果の `when`）の中の `param`・`clarifying` を数える。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の `guidance_levels`・開始点の `guidance` は数えない。EP-9（開始条件）は、`requires` または `unmet` を持つ開始点が指す Step（`node`）の行に、Step 単位で 1 回数える（語彙の文書が EP-9 を `starts[].requires`・`starts[].unmet` の 2 欄で定めるため、`validate` の使用の判定と同じにする）。同じ Step を指す開始点が複数あっても 1 回で、モジュールの開始点はそのモジュールの Step の行に数える。`use` の Step を指す開始点は、`use` 行の拡張点を空に保つため数えない（13 節）。`confirm.options[].label` は拡張点の番号を持たないため数えない（`pack.vocab` の宣言と使用の一致は `validate` が検査する）。決定: D-64、AUTHOR-17
 - 集計行は `# ` で始まる。（i）は拡張点を 1 つも使わなかった `step` 行の数、（ii）は 1 つ以上使った `step` 行の数。続けて、1 回以上使われた拡張点だけを、番号順に `# EP-n を使った Step: N` として出す
 - 教材パック全体の行（EP-10〜EP-12）は、`pack.profile`・`pack.appearance`・`pack.left_pane` を**読んだ値が既定と違う**ときだけ、末尾に番号順で出す。欄を既定と同じ値で書いても出さない。これらは Step ごとの数（i）（ii）に入れない
 - ID の欄に含まれる制御文字（改行を含む）・`,`・`"`・U+2028・U+2029、および `scope` の先頭の `#` は、`\u{XXXX}`（16 進 4 桁・大文字）に直す。1 行が 4 欄に保たれ、表の行が集計行に見えない。出力に写すのは ID・拡張点の ID・固定の欄名だけで、本文・練習データ・条件の値は写さない
@@ -206,7 +206,7 @@ m1,s4,step,EP-3
 
 ## 13. 本版で扱わない事項
 
-- `vocab` の EP-9（`starts[].requires`）と `confirm.options[].label` の数え上げ（TASK-409）
+- `use` の Step を指す開始点の EP-9 の数え上げ（`use` 行は拡張点を持たない契約のため数えない）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403）
 - `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
 - 引数の数の検査と振り分け（TASK-401）
@@ -253,11 +253,17 @@ m1,s4,step,EP-3
 | `author8_diagnostics_do_not_write_output` | 診断があればファイルを作らず、既存にも触れない |
 | `author8_unwritable_output_exits_2` | 書き出せないとき 2 と `error:` の 1 行で、一時ファイルを残さない |
 | `author8_no_temporary_file_is_left_after_success` | 成功後に一時ファイルが残らない |
-| `cli_doc_vocab_example_matches_contract`（`cli_contract_doc.rs`） | 11 節の例のブロックが `VOCAB_HEADER`・`vocab_row`・`vocab_summary_lines`・`vocab_pack_line` の出力と完全一致する |
+| `cli_doc_vocab_example_matches_contract`（`cli_contract_doc.rs`） | 12 節の例のブロックが `VOCAB_HEADER`・`vocab_row`・`vocab_summary_lines`・`vocab_pack_line` の出力と完全一致する |
 | `author9_table_and_summary`（`vocab_command.rs`） | 表・`use` 行・（i）（ii）・拡張点ごとの行が期待どおりで、並びが番号順 |
 | `author9_pack_wide_lines_only_when_changed` | 教材パック全体の行が、既定から変えた欄だけ末尾に番号順で出る |
 | `author9_explicit_default_values_emit_nothing` | 既定と同じ値の明示では教材パック全体の行が出ない |
-| `author9_ep9_and_label_not_counted` | `starts[].requires`・`confirm.options[].label` を足しても出力が変わらない |
+| `author17_ep9_counted_on_start_node_row` | 開始点に `requires` を足すと、`node` の Step の行に EP-9 が付き、EP-9 の集計行が EP-8 と EP-13 の間に出る |
+| `author17_ep9_attributed_to_target_step_not_first` | EP-9 は先頭の Step ではなく開始点の指す Step の行に付く |
+| `author17_unmet_only_counts_as_ep9` | `unmet` だけでも EP-9 を数える |
+| `author17_two_starts_same_step_counted_once` | 同じ Step を指す開始点が 2 つでも 1 回 |
+| `author17_module_start_counts_on_module_row` | モジュールの開始点はそのモジュールの行に付く |
+| `author17_start_on_use_step_is_not_counted` | `use` の Step を指す開始点は数えず、出力が変わらない |
+| `author17_label_not_counted` | `confirm.options[].label` を足しても出力が変わらない |
 | `author9_load_failure_prints_diagnostics_only` | 読み込めないときは 1・診断だけ・標準エラー出力は空 |
 | `author9_compile_failure_prints_diagnostics_only` | `compile` に診断があるときは 1・表を出さない |
 | `author9_hostile_ids_are_escaped` | ID の `,`・`"`・改行・先頭の `#` を直し、各行が 4 欄に保たれる |
@@ -272,3 +278,4 @@ m1,s4,step,EP-3
 | 3 | 2026-10-19 | `compile` の出力（`-o` の書き出し・標準出力との同一バイト・末尾・決定性）を 10 節に固定し、以降の節を繰り下げる（TASK-407、AUTHOR-8） |
 | 4 | 2026-10-19 | `metrics` の出力の形（ヘッダ・行・`TOTAL`・数え方・診断時の扱い）を足す（TASK-402） |
 | 5 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 12 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |
+| 6 | 2026-10-20 | `vocab` が EP-9 を数える（`requires` または `unmet` を持つ開始点が指す Step の行。`label` は数えない）。`use` の Step を指す開始点は数えないことを 13 節に足す（TASK-409、AUTHOR-17、D-64） |

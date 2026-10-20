@@ -4590,7 +4590,7 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 - 試験用の教材は `crates/pack/tests/data/vocab-pack`（架空。語彙の付録 A の語を使わない）。EP-1〜EP-8・EP-13 を 1 つずつ・併用・使わない・`use`・呼ばれるモジュール・呼ばれないモジュールの形で置く
 - 関門は `source::load` と `compile::compile` で、診断があれば表を出さず終了コード 1 で診断だけを出す。`validate` 専用の検査は関門に入れない
 - 教材パック全体の行は、欄の有無ではなく読んだ値が既定と違うかで判定する（`vocab_check` の「欄がある」とは規則が違う）。`author9_explicit_default_values_emit_nothing` が固定する
-- EP-9（`starts[].requires`）と `confirm.options[].label` は数えない（TASK-409）。`author9_ep9_and_label_not_counted` が、足しても出力が変わらないことで固定する
+- EP-9 と `confirm.options[].label` は、この時点では数えなかった（TASK-409）。数えるようにした記録は 5.154
 - ID の `,`・`"`・制御文字・先頭の `#` は `\u{XXXX}` に直し、偽の欄や偽の集計行を作れないようにする（`author9_hostile_ids_are_escaped`）
 - `fandhe-pack vocab` の振り分けは `tests/cli.rs` の `i11_vocab_is_dispatched_to_vocab` が見る。これに合わせて AUTHOR1-5 の変異の期待する失敗の試験を直した
 
@@ -4649,6 +4649,22 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 | `diag.rs` の `ALL` から `DiagCode::Parse` を消し、`d5` の件数を合わせる | `d9_all_covers_every_variant` が失敗する | 検出 |
 
 TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変えていない。2026-10-20 に `author11_*` 7 件が通ることを確かめた。
+
+### 5.154 vocab の EP-9 の数え上げ（TASK-409）
+
+`fandhe-pack vocab` が EP-9（開始条件）を数えるようにした（AUTHOR-17、D-64）。契約は `docs/cli.md` 版 6 の 12 節。
+
+- 判定は `vocab_check::start_uses_ep9`（`requires` または `unmet`）に寄せ、`validate` の使用の判定と `vocab` の数え上げが食い違わないようにした
+- 付く行は開始点の `node` の Step の行。同じ Step は 1 回。モジュールの開始点はそのモジュールの行。`use` の Step を指す開始点は数えない（`use` 行は拡張点を持たない契約。限界として `docs/cli.md` 13 節に記す）。`label` は数えない
+- 結合試験は `vocab_command.rs` の `author17_` 7 件。旧 `author9_ep9_and_label_not_counted` は置き換えた
+
+変異注入（実行日: 2026-10-20、元にしたコミット: cfa60c8 に本変更を載せた作業ツリー、コマンド: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR17-1.mutation crates/pack/tests/mutations/AUTHOR17-2.mutation` と `AUTHOR9-*.mutation`）。
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR17-1 | crates/pack/src/vocab_report.rs: EP-9 の数え上げが働かない | author17_ep9_counted_on_start_node_row | DETECTED |
+| AUTHOR17-2 | crates/pack/src/vocab_report.rs: EP-9 が scope の先頭の Step の行に付く | author17_ep9_attributed_to_target_step_not_first | DETECTED |
+| AUTHOR9-1〜AUTHOR9-6 | crates/pack/src/vocab_report.rs ほか（既存） | 各 `author9_` の試験 | 全件 DETECTED（`find:` が崩れていないことの確認） |
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 

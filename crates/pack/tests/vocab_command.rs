@@ -1,5 +1,5 @@
 //! `fandhe-pack vocab`（TASK-408、AUTHOR-9）の結合試験。実行ファイルを起動して、表・集計行・教材パック全体の行・
-//! 失敗時の扱い・ID のエスケープを確かめる。試験名の `author9_` で 04 の ID を追える。
+//! 失敗時の扱い・ID のエスケープを確かめる。試験名の `author9_`・`author17_` で 04 の ID を追える。
 //!
 //! 試験用の教材は `tests/data/vocab-pack`（架空）。欄を変える試験は、一時ディレクトリへ写してから書き換える。
 
@@ -155,27 +155,154 @@ fn author9_explicit_default_values_emit_nothing() {
     assert_eq!(out, EXPECTED);
 }
 
-/// EP-9（`starts[].requires`）と `confirm.options[].label` は数えない（TASK-409 の範囲）。足しても出力が変わらない。
+const START: &str = "{id: \"s1\", node: \"plain\"}";
+
+/// EP-9 を足した期待値。`plain` の行は `row` に置き換え、（i）（ii）と EP-9 の集計行を直す。
+fn with_ep9(row_from: &str, row_to: &str, plain_delta: bool) -> String {
+    let mut e = EXPECTED.replacen(row_from, row_to, 1);
+    if plain_delta {
+        e = e
+            .replace(
+                "(i) 既存の語彙の組み合わせだけで書けた Step: 3",
+                "(i) 既存の語彙の組み合わせだけで書けた Step: 2",
+            )
+            .replace(
+                "(ii) 名前つき拡張点を使って書けた Step: 11",
+                "(ii) 名前つき拡張点を使って書けた Step: 12",
+            );
+    }
+    e.replacen(
+        "# EP-13 を使った",
+        "# EP-9 を使った Step: 1\n# EP-13 を使った",
+        1,
+    )
+}
+
+/// 開始点が指す Step の行に EP-9 を数える（AUTHOR-17）。EP-9 の行は EP-8 と EP-13 の間に出る。
 #[test]
-fn author9_ep9_and_label_not_counted() {
+fn author17_ep9_counted_on_start_node_row() {
     let t = edited(
-        "v-ep9",
-        &[
-            (
-                CHAPTER,
-                "{id: \"s1\", node: \"plain\"}",
-                "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}",
-            ),
-            (
-                CHAPTER,
-                "{id: \"opt-a\", correct: true}",
-                "{id: \"opt-a\", label: \"A\", correct: true}",
-            ),
-        ],
+        "v-ep9a",
+        &[(
+            CHAPTER,
+            START,
+            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}",
+        )],
     );
     let (code, out, err) = vocab(&t.0);
     assert_eq!(code, 0, "{out}");
     assert!(err.is_empty());
+    assert_eq!(
+        out,
+        with_ep9("c1,plain,step,\n", "c1,plain,step,EP-9\n", true)
+    );
+}
+
+/// 付く行は開始点の `node` の行で、scope の先頭の Step ではない。
+#[test]
+fn author17_ep9_attributed_to_target_step_not_first() {
+    let t = edited(
+        "v-ep9b",
+        &[(
+            CHAPTER,
+            START,
+            "{id: \"s1\", node: \"ep7\", requires: {flag: \"f\"}}",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        out,
+        with_ep9("c1,ep7,step,EP-7\n", "c1,ep7,step,EP-7 EP-9\n", false)
+    );
+}
+
+/// `unmet` だけでも EP-9 を使ったと数える（`validate` の使用の判定と同じ）。
+#[test]
+fn author17_unmet_only_counts_as_ep9() {
+    let t = edited(
+        "v-ep9c",
+        &[(
+            CHAPTER,
+            START,
+            "{id: \"s1\", node: \"plain\", unmet: \"rj-wrong\"}",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        out,
+        with_ep9("c1,plain,step,\n", "c1,plain,step,EP-9\n", true)
+    );
+}
+
+/// 同じ Step を指す開始点が複数あっても、その Step に 1 回だけ数える。
+#[test]
+fn author17_two_starts_same_step_counted_once() {
+    let t = edited(
+        "v-ep9d",
+        &[(
+            CHAPTER,
+            START,
+            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}\n  - {id: \"s2\", node: \"plain\", requires: {flag: \"g\"}}",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        out,
+        with_ep9("c1,plain,step,\n", "c1,plain,step,EP-9\n", true)
+    );
+}
+
+/// モジュールの開始点は、そのモジュールの Step の行に数える。
+#[test]
+fn author17_module_start_counts_on_module_row() {
+    let t = edited(
+        "v-ep9e",
+        &[(
+            "modules/m2/module.yaml",
+            "steps:",
+            "starts:\n  - {id: \"ms\", node: \"m2a\", requires: {flag: \"f\"}}\nsteps:",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        out,
+        with_ep9("m2,m2a,step,EP-7\n", "m2,m2a,step,EP-7 EP-9\n", false)
+    );
+}
+
+/// `use` の Step を指す開始点は数えない（`use` 行は拡張点を持たない契約を保つ）。
+#[test]
+fn author17_start_on_use_step_is_not_counted() {
+    let t = edited(
+        "v-ep9f",
+        &[(
+            CHAPTER,
+            START,
+            "{id: \"s1\", node: \"call\", requires: {flag: \"f\"}}",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(out, EXPECTED);
+}
+
+/// `confirm.options[].label` は拡張点の番号を持たないため数えない。足しても出力が変わらない。
+#[test]
+fn author17_label_not_counted() {
+    let t = edited(
+        "v-label",
+        &[(
+            CHAPTER,
+            "{id: \"opt-a\", correct: true}",
+            "{id: \"opt-a\", label: \"A\", correct: true}",
+        )],
+    );
+    let (code, out, _) = vocab(&t.0);
+    assert_eq!(code, 0, "{out}");
     assert_eq!(out, EXPECTED);
 }
 

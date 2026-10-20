@@ -1,7 +1,7 @@
 //! `fandhe-pack vocab` の数え上げ（TASK-408、AUTHOR-9）。
 //!
 //! 作成者が、書いた教材が既存の語彙の組み合わせだけで書けたのか、名前つき拡張点に頼ったのかを機械で確かめる。
-//! `cli::run_vocab` から呼ばれ、表と集計の文字列を返す。行・集計行の形は `cli_contract`（`docs/cli.md` 版 5 の
+//! `cli::run_vocab` から呼ばれ、表と集計の文字列を返す。行・集計行の形は `cli_contract`（`docs/cli.md` 版 6 の
 //! 12 節）が持ち、拡張点の ID は [`crate::vocab::EXTENSION_POINTS`] から引いて、ここに書き写さない。
 //!
 //! - 関門: 読み込み（`source::load`）と `compile::compile` のどちらかが診断を返したら、表は出さずその診断を返す
@@ -11,15 +11,16 @@
 //!   `vocab` で確かめられるようにするためである
 //! - 数える単位: `pack.scopes` の順（章、続いてモジュール）にある Step の定義。呼ばれないモジュールも含め、
 //!   展開後の複製は数えない。`use` を持つ Step は `use` 行として出し、（i）（ii）に入れない
-//! - 数える拡張点: EP-1〜EP-8・EP-13。EP-9（`starts.requires`）と `confirm.options[].label` は TASK-409 の範囲で
-//!   数えない。EP-7 は `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
+//! - 数える拡張点: EP-1〜EP-9・EP-13（TASK-409、AUTHOR-17、D-64）。EP-9 は `requires` または `unmet` を持つ
+//!   開始点が指す Step（`node`）の行に、Step 単位で 1 回数える。`use` の Step を指す場合は `use` 行を空に保つため
+//!   数えない。`confirm.options[].label` は拡張点の番号を持たないため数えない。EP-7 は `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
 //!   `guidance_levels`・開始点の `guidance` は数えない（試作と同じ）
 //! - 教材パック全体の EP-10〜EP-12: 読んだ値が既定と違うときだけ末尾に出し、Step ごとの数（i）（ii）に入れない。
 //!   欄の有無ではなく値で判定する（`vocab_check` の「欄がある」とは規則が違う）
 //!
 //! 出力に写すのは ID・EP の ID・固定の欄名だけで、本文・練習データ・条件の値は写さない。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use fandhe_workshop_contract::appearance::{read_appearance, Theme};
@@ -36,6 +37,7 @@ use crate::cli_contract::{
 use crate::diag::Diagnostic;
 use crate::source::{self, LoadedPack};
 use crate::vocab::EXTENSION_POINTS;
+use crate::vocab_check::start_uses_ep9;
 
 /// 読み込み・`compile` の関門を通してから、表と集計を作る。診断があれば表は作らずに返す。
 pub fn report_dir(dir: &Path) -> Result<String, Vec<Diagnostic>> {
@@ -53,13 +55,26 @@ pub fn report(pack: &LoadedPack) -> Result<String, Vec<Diagnostic>> {
     let (mut plain, mut with_ep) = (0usize, 0usize);
     let mut per_ep: BTreeMap<&'static str, usize> = BTreeMap::new();
     for scope in &pack.scopes {
+        // EP-9 は開始点が指す Step の行に数える（先頭の Step ではない）。
+        let started: BTreeSet<&str> = scope
+            .src
+            .starts
+            .iter()
+            .filter(|st| start_uses_ep9(st))
+            .map(|st| st.node.as_str())
+            .collect();
         for step in &scope.src.steps {
             if step.use_module.is_some() {
                 out.push_str(&vocab_row(&scope.src.id, &step.id, VocabRowKind::Use, &[]));
                 out.push('\n');
                 continue;
             }
-            let eps = eps_of(step, &pack.workshop.views, &pack.workshop.hints);
+            let eps = eps_of(
+                step,
+                &pack.workshop.views,
+                &pack.workshop.hints,
+                started.contains(step.id.as_str()),
+            );
             if eps.is_empty() {
                 plain += 1;
             } else {
@@ -130,15 +145,19 @@ fn ep_id(name: &str) -> &'static str {
         .map_or("", |e| e.id)
 }
 
-/// 1 つの Step が使った拡張点の ID を、`EXTENSION_POINTS` の順で返す（EP-1〜EP-8・EP-13）。
+/// 1 つの Step が使った拡張点の ID を、`EXTENSION_POINTS` の順で返す（EP-1〜EP-9・EP-13）。
 ///
-/// `views`・`hints` は `workshop.views`・`workshop.hints`。`use` の Step は呼び出し側が除くため、ここでは見ない。
+/// `views`・`hints` は `workshop.views`・`workshop.hints`。`started` は、この Step を指す開始点が EP-9 を使うか。`use` の Step は呼び出し側が除くため、ここでは見ない。
 pub(crate) fn eps_of(
     step: &Step,
     views: &BTreeMap<String, Value>,
     hints: &BTreeMap<String, Value>,
+    started: bool,
 ) -> Vec<&'static str> {
     let mut used: Vec<&str> = Vec::new();
+    if started {
+        used.push("starts.requires");
+    }
     if step
         .input
         .as_ref()
@@ -319,7 +338,7 @@ mod tests {
             ("h-lv".to_string(), json!({"levels": ["B"]})),
         ]
         .into();
-        eps_of(&step(v), &views, &hints)
+        eps_of(&step(v), &views, &hints, false)
     }
 
     #[test]
@@ -356,6 +375,8 @@ mod tests {
         assert_eq!(eps(json!({"body_levels": {"B": "b.md"}})), ["EP-8"]);
         assert_eq!(eps(json!({"hints": ["h-lv"]})), ["EP-8"]);
         assert_eq!(eps(json!({"views": ["v-doc"]})), ["EP-13"]);
+        let got = eps_of(&step(json!({})), &BTreeMap::new(), &BTreeMap::new(), true);
+        assert_eq!(got, ["EP-9"]);
     }
 
     #[test]
@@ -372,7 +393,7 @@ mod tests {
         assert!(eps(json!({"hints": ["h-plain", "h-empty", "h-missing"]})).is_empty());
         assert!(eps(json!({"views": ["v-doc-hidden", "v-undefined"]})).is_empty());
         assert!(eps(json!({"rules": [{"id": "r", "on": {"cancel": false}}]})).is_empty());
-        // EP-9 と label は数えない（TASK-409）。
+        // label は数えない（拡張点の番号を持たない。D-64）。
         assert!(eps(
             json!({"confirm": {"kind": "answer", "options": [{"id": "a", "label": "A"}]}})
         )
@@ -411,6 +432,7 @@ mod tests {
             "condition.clarifying",
             "view.card_list",
             "confirm.answer.option_on_wrong",
+            "starts.requires",
             "text.slot",
             "guidance.variant",
             "view.document_body",

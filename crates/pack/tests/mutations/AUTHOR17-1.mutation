@@ -1,0 +1,8 @@
+id: AUTHOR17-1
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:     if started {
+replace:     if started && false {
+expect-fail: author17_ep9_counted_on_start_node_row
+note: EP-9 の数え上げが働かず、開始条件を使った Step が（i）に残る

@@ -1,0 +1,8 @@
+id: AUTHOR17-2
+package: fandhe-workshop-pack
+test: vocab_command
+target: crates/pack/src/vocab_report.rs
+find:             .map(|st| st.node.as_str())
+replace:             .map(|_| scope.src.steps[0].id.as_str())
+expect-fail: author17_ep9_attributed_to_target_step_not_first
+note: EP-9 が開始点の指す Step ではなく scope の先頭の Step の行に付く
