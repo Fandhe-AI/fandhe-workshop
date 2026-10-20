@@ -9,7 +9,7 @@
 //! 純関数だけを持ち、DOM・保存先・通信に触れない。文は固定の定数だけで作り、教材・受講者の値を含めない（A03）。
 //! 書き出しの操作そのもの（リンク・ボタン）は TASK-531、通知欄の配置は TASK-534 が持つ。
 //! `Event::ChapterCompleted` は core がまだ出さない（TASK-233 以降）ため、章の終わりは
-//! 「章（`main` の根）の最後の Step（`is_final`）の達成」でも判定する（SHELL-10）。TASK-339 が別に定めたら一本化する。
+//! 「章（`main` の根）の最後の Step（`is_final`）の達成、またはモジュールからその Step への復帰（`ModuleExited`）」でも判定する（SHELL-10）。TASK-339 が別に定めたら一本化する。
 
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::event::Event;
@@ -50,19 +50,26 @@ pub fn export_hint_name(hint: Option<ExportHint>) -> Option<&'static str> {
     }
 }
 
-/// 1 件のイベントが章の終わりか。`ChapterCompleted`、または `main` の根の最後の Step の `Achieved`。
+/// `uid` が `main` の根の最後の Step（`is_final`）か。IR に無い Step は偽（fail-closed）。
+fn is_main_final(ir: &Ir, uid: &str) -> bool {
+    uid.starts_with("main/")
+        && ir
+            .nodes
+            .iter()
+            .find(|n| n.uid == uid)
+            .is_some_and(|n| n.step.is_final)
+}
+
+/// 1 件のイベントが章の終わりか。`ChapterCompleted`、`main` の根の最後の Step の `Achieved`、または
+/// 学習モジュールから戻った先がその Step の `ModuleExited`。
+/// モジュールからの復帰では core が呼び出し元の `Achieved` を出さず `ModuleExited` だけを出すため、
+/// 最後の Step がモジュールを呼ぶ章でも章の終わりを検出できるようにする。
 /// IR に無い Step は偽（fail-closed）。学習モジュールの最後の Step は呼び出し元へ戻るため数えない。
 pub fn is_chapter_end(ir: &Ir, ev: &Event) -> bool {
     match ev {
         Event::ChapterCompleted { .. } => true,
-        Event::Achieved { at, .. } => {
-            let uid = at.step.0.as_str();
-            uid.starts_with("main/")
-                && ir
-                    .nodes
-                    .iter()
-                    .find(|n| n.uid == uid)
-                    .is_some_and(|n| n.step.is_final)
+        Event::Achieved { at, .. } | Event::ModuleExited { at, .. } => {
+            is_main_final(ir, at.step.0.as_str())
         }
         _ => false,
     }
@@ -83,6 +90,44 @@ mod tests {
         let a = export_notice_text(Some(ExportHint::FirstSave));
         let b = export_notice_text(Some(ExportHint::ChapterEnd));
         assert!(!a.is_empty() && !b.is_empty() && a != b);
+    }
+
+    fn ir_with_final(uid: &str) -> Ir {
+        let mut ir = fandhe_workshop_core::load_ir(
+            &std::fs::read(
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../testdata/engine-event-consistency/test-data/min-3step.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        for n in &mut ir.nodes {
+            n.step.is_final = n.uid == uid;
+        }
+        ir
+    }
+
+    fn stamp(uid: &str) -> fandhe_workshop_core::addr::Stamp {
+        fandhe_workshop_core::addr::Stamp {
+            generation: fandhe_workshop_core::addr::Generation::INITIAL,
+            step: fandhe_workshop_core::addr::StepUid(uid.to_owned()),
+        }
+    }
+
+    #[test]
+    fn モジュールから最後の_step_へ戻る復帰は章の終わり() {
+        let ir = ir_with_final("main/st-3");
+        let exited = |uid: &str| Event::ModuleExited {
+            at: stamp(uid),
+            instance: "m".to_owned(),
+        };
+        assert!(is_chapter_end(&ir, &exited("main/st-3")));
+        assert!(!is_chapter_end(&ir, &exited("main/st-2")));
+        assert!(!is_chapter_end(&ir, &exited("m/st-9")));
+        assert!(chapter_end_in(
+            &ir,
+            &[exited("main/st-2"), exited("main/st-3")]
+        ));
     }
 
     #[test]
