@@ -249,6 +249,9 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
 | `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
 | `make test-check-dom-reads` | `scripts/test-check-dom-reads.sh` | DOM 読み取りの検査自体の回帰テスト |
+| `make check-frontend-bump` | `scripts/check-frontend-bump.sh guard` | 版上げ PR の受け入れ確認 (4)(5)（FEND-17・D-63）の関門。`wasm-full` の `default-features = false` と `action-keydown` の明示を `cargo metadata` で確かめ、`CI_EVENT_NAME=pull_request` の版上げ PR では期待値・`tools/check-deps.sh`・関門自体が base と同じことを求める |
+| `make test-check-frontend-bump` | `scripts/test-check-frontend-bump.sh` | 上の関門自体の回帰テスト（一時の repo での模擬の版上げ） |
+| `make update-test-counts` | `scripts/update-test-counts.sh` | 試験の件数の期待値 `scripts/expected-test-counts.txt` を実測で書き直す（遅い。ブラウザ試験も流す。版を上げる前に別の PR で行う） |
 | `make check-toolchain` | `scripts/check-toolchain.sh` | 固定ファイルの版と `docs/toolchain.md` の一致、README の「前提」の表との一致を検査する |
 | `make test-check-toolchain` | `scripts/test-check-toolchain.sh` | ツールチェーンの一致の検査自体の回帰テスト |
 | `make check-workflow-secrets` | `scripts/check-workflow-secrets.sh` | `ci.yml` が secret を参照していないことを検査する |

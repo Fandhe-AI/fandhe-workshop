@@ -12,6 +12,8 @@
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
 # Chrome の原本で流すときは FANDHE_BROWSER_CHANNEL=chrome を付ける（既定は同梱 Chromium）。Chrome の安定版は別に導入する
 # （`npx playwright install chrome`）。扱いは README の「Chrome の原本と Chromium の扱い」、記録は docs/testing.md 5.128。
+# 任意: FANDHE_TEST_TAP_OUT=<ファイル> を渡すと、画面の spec 出力に加えて TAP をそのファイルへも書く。件数の照合
+# （scripts/check-frontend-bump.sh counts browser。FEND-17 (2)・TASK-101）が読む。未指定なら node --test の引数は従来のまま。
 # CI では browser-test ジョブが流す（TASK-79。Playwright とブラウザの導入はジョブ側の step が行う）。
 #
 # 終了コード: 0 = 全試験が通過 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・不正な channel）。
@@ -67,7 +69,14 @@ if [[ "${emitted}" != "15" ]]; then
 fi
 export FANDHE_VERSION_HISTORIES_DIR="${TMP}/version-histories"
 
-FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test \
+# 空配列の展開は bash 3.2 の set -u で未定義扱いになるため、要素がある場合だけ渡す。
+REPORTER_ARGS=()
+if [[ -n "${FANDHE_TEST_TAP_OUT:-}" ]]; then
+  REPORTER_ARGS=(--test-reporter=spec --test-reporter-destination=stdout \
+    --test-reporter=tap "--test-reporter-destination=${FANDHE_TEST_TAP_OUT}")
+fi
+
+FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${REPORTER_ARGS[@]+"${REPORTER_ARGS[@]}"} \
   "${ROOT_DIR}/tools/browser/harness.test.mjs" \
   "${ROOT_DIR}/tools/browser/pack-bin.test.mjs" \
   "${ROOT_DIR}/tools/browser/safety.test.mjs" \

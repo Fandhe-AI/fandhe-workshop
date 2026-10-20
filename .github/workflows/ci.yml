@@ -221,7 +221,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
@@ -248,6 +248,19 @@ jobs:
           make check-dom-reads
           make test-check-dom-reads
 
+      # 版上げ PR の受け入れ確認 (4)(5)（FEND-17・D-63・TASK-101）。(5) の feature の明示を cargo metadata で独立に確かめ、
+      # fandhe-frontend の版上げ PR では tools/check-deps.sh・期待値・本関門が base と同じであることを求める（関門を緩めて通すことの禁止）。
+      # (4) 自体は直前の make check-dom-reads が守る。fetch-depth: 2 は PR の merge commit の第 1 親（base）との比較のため。
+      # 限界: ci.yml 自体の書き換えは防げない（版上げで wasm-bindgen の版を合わせる正当な変更があるため）。ai-review とレビュースレッドの解決必須で補う。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-frontend-bump
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          make check-frontend-bump
+          make test-check-frontend-bump
+
   # Rust のビルドと試験の骨格。ネイティブのビルドは make test（cargo test --locked --workspace）が兼ねる。
   # --workspace の枠は scripts/test.sh が持ち、web を含む全 crate を試験する（default-members は web を含まない）。
   # wasm32 のビルド（tools/build-web.sh）は TASK-27 が足す。ブラウザ試験は別ジョブ browser-test が流す。
@@ -265,7 +278,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
@@ -276,7 +289,17 @@ jobs:
         run: bash scripts/ci-rust-toolchain.sh
 
       - name: make test
-        run: make test
+        # 件数の照合（(2)）のため出力を残す。pipefail により make test の失敗はそのまま step の失敗になる。
+        run: |
+          set -euo pipefail
+          make test 2>&1 | tee "${RUNNER_TEMP}/rust-test.log"
+
+      # 版上げ PR の受け入れ確認 (2)（FEND-17・D-63・TASK-101）。版上げ PR か期待値ファイルを変えた PR のときだけ、
+      # scripts/expected-test-counts.txt と件数を比べる（それ以外は skip）。fetch-depth: 2 は base との比較のため。
+      - name: Check Rust test counts (version bump gate)
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+        run: bash scripts/check-frontend-bump.sh counts rust "${RUNNER_TEMP}/rust-test.log"
 
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
   # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
@@ -300,7 +323,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 1
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
@@ -346,9 +369,17 @@ jobs:
 
       - name: make test-browser
         # BUILD-16（TASK-91）: 既定でない target でも前提（fandhe-pack・web）が揃うことを毎回確かめる
+        # 件数の照合（(2)）のため、FANDHE_TEST_TAP_OUT で TAP も書き出す（scripts/test-browser.sh）。
         env:
           CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+          FANDHE_TEST_TAP_OUT: ${{ runner.temp }}/browser-test.tap
         run: make test-browser
+
+      # 版上げ PR の受け入れ確認 (2)（FEND-17・D-63・TASK-101）のブラウザ試験の件数。rust-test の同名 step と同じ規則。
+      - name: Check browser test counts (version bump gate)
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+        run: bash scripts/check-frontend-bump.sh counts browser "${RUNNER_TEMP}/browser-test.tap"
 
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
