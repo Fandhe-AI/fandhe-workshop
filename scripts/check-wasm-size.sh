@@ -77,10 +77,13 @@ if ! jq -e -s '.[0].baseline.features
   exit 2
 fi
 
-# wasm_gzip はちょうど 1 件で、単位は bytes。
+# wasm_gzip はちょうど 1 件で、単位は bytes、値は 0 以上 2^53-1 以下の整数。
+# 1e20 のような値は jq が 1e+20 と出し、bash の整数比較がエラーになる（if 内では set -e が働かず合格になる）ため、ここで断る。
 if ! jq -e -s '[.[0].measurements[] | select(.name == "wasm_gzip")]
-    | length == 1 and .[0].unit == "bytes"' "${RESULT_FILE}" >/dev/null 2>&1; then
-  echo "error: result needs exactly one wasm_gzip measurement in bytes; cannot judge" >&2
+    | length == 1 and .[0].unit == "bytes"
+      and (.[0].value | type == "number" and . == floor and . >= 0 and . <= 9007199254740991)' \
+  "${RESULT_FILE}" >/dev/null 2>&1; then
+  echo "error: result needs exactly one wasm_gzip measurement in bytes with an integer value in 0..2^53-1; cannot judge" >&2
   exit 2
 fi
 
@@ -93,6 +96,11 @@ OPT_DETAIL="$(jq -s -r '.[0].baseline.wasm_opt.detail' "${RESULT_FILE}")"
 if [ "${OPT_APPLIED}" = "true" ]; then OPT_TEXT="applied"; else OPT_TEXT="not applied"; fi
 SUMMARY="wasm gzip -9 ${GZ} bytes (limit ${LIMIT_BYTES}) / commit ${SHA} (dirty: ${DIRTY}) / wasm-opt: ${OPT_TEXT} (${OPT_DETAIL}) / config: delivery"
 
+# 比較に渡せる形（桁数の上限つきの 10 進整数）でなければ判定しない（fail-closed）。
+if ! [[ "${GZ}" =~ ^[0-9]{1,16}$ ]]; then
+  echo "error: cannot compare wasm_gzip value '${GZ}' with the limit; cannot judge" >&2
+  exit 2
+fi
 VERDICT="pass"
 if [ "${GZ}" -gt "${LIMIT_BYTES}" ]; then VERDICT="fail"; fi
 
