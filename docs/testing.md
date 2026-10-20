@@ -5339,3 +5339,46 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 | (3) | 配信用 WASM の gzip の増加が +10% 以内 | `browser-test` の `Check WASM gzip growth (version bump gate)` | (3) | 「(3)」の 2 行 |
 | (4) | `check-deps.sh` の例外の数が増えない | `rust-lint` の `make check-dom-reads` と `make check-frontend-bump`（`guard`） | (4) | 「(4)」の行と `guard` の行 |
 | (5) | `wasm-full` の feature の明示 | `rust-test` の `frontend_features.rs` と `rust-lint` の `make check-frontend-bump`（`guard`） | (5) | 「(5)」の行 |
+
+### 5.172 章ごとの保存先の鍵で別の章の履歴が混ざらない（TASK-326 1/2。SAVE-14・DLV-8）
+
+実行日: 2026-10-20、元にしたコミット: `a7c3363` に本変更を載せた作業ツリー（dirty）。
+
+試作の F-1（同じオリジンで同じ教材の別の章のリンクを順に開くと、先に保存した別の章の履歴が出た）が、章ごとの保存先の鍵で起きないことを確かめる。鍵の規則（`HistoryKey::from_ir`。`pack.id` と `starts[0].id` だけを読む）と、本番の経路への結線（`EngineHost::history_key`・`persist::mount_with_history`）は実装済みのため、本タスクは試験と対照だけを足し、本番のコードは変えていない。
+
+#### 章の教材（試験の設定だけ）
+
+`src/test_fixture.rs` の `chapter_ir_bytes`。8 Step の教材（`tests/data/reload_points_ch2/ir.json`）の `pack.id` を `chapter-links` に置き換えたものを章 A（`starts` は元のまま。開始点 `s-1`）、さらに `starts` を `s-4`（`main/st-4`。選択肢 1 手で受付になる Step）の 1 件に置き換えたものを章 B とする。新しい試験データのファイルは作らない。`?fixture=chapter-a`・`?fixture=chapter-b` の完全一致だけが選ぶ。2 本は `pack.id` が同じで、開始点・内容のハッシュ・鍵が違う（単体試験が確かめる）。
+
+#### native の試験と変異
+
+- `crates/web/tests/chapter_keys_host.rs`（2 件）: 章 A を保存してから章 B を開くと章 B は `Fresh` で章 B の開始の Step から始まり、章 A の値は変わらず、章 B も保存でき（鍵がちょうど 2 本）、それぞれの鍵で開き直すと `Restored` で保存した時点の Step に戻る。別の教材の鍵は 2 本のどちらとも違い、開いても `Fresh` で鍵が増えない
+- 変異（`scripts/check-mutations.sh` の結果は 2 件とも DETECTED）
+
+| ID | 置き換え | 失敗した試験 |
+|---|---|---|
+| `SAVE14-4` | 鍵が `starts[0].id` を無視して `pack.id` だけになる | `chapter_keys_host` の 2 件 |
+| `SAVE14-5` | 教材にも章にも依らない固定の鍵（試作の修正前に当たる） | `chapter_keys_host` の 2 件 |
+
+#### ブラウザ試験
+
+`tools/browser/chapter-keys.test.mjs`（CSP あり・なし。2 件）。1 つの browser context で、章 A を 1 手進める → 同じタブで章 B（`fresh`・章 B の開始・`reloaded` の行 0 件・章 A の値の長さ不変）→ 章 B を 1 手進める（履歴の鍵がちょうど 2 本）→ 章 A・章 B へ戻る（`restored`・保存した Step）→ 各章で再読み込み（同じ）→ 別の教材（既定。`fresh`・鍵が 3 本目）を確かめる。章 B を開いた直後の判定が外れたときは固定の印 `CHAPTER-HISTORY-MIXED` を失敗の文に含める。出力に保存の値・鍵の文字列・下書きを出さない（有無・長さ・本数・比較の結果だけ）。
+
+#### 修正前の鍵との対照（ブラウザの層）
+
+`make test-chapter-key-control`（`scripts/test-chapter-key-control.sh`。遅く、CI・フック・`make check` には入れない）。`mktemp -d` の写しで `host.rs` の `history_key` の式を固定の鍵（`SAVE14-5` と同じ）に置き換え、`TEST_HOOKS=1` でビルドして上の試験を流す。作業ツリーは書き換えない。
+
+- 結果（2026-10-20）: 終了コード 0（対照が成立）。写しでは試験が `CHAPTER-HISTORY-MIXED` の印で失敗した。置き換えた鍵では章 A の履歴が章 B の起動で開かれ、章 B は新しい状態で始まらない（章 B の `bootKind`・現在の Step の観測値は記録していない）
+- 試験の口が求める鍵（`storageKey`）は本番の `history_key` を通らないため、対照では画面が実際に書いた鍵を見て章 B の判定へ進めるようにしてある
+
+#### 件数・確認（2026-10-20）
+
+- `make lint`・`make test`（2,653 件・失敗 0）・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make check`・`make check-delivery`（`make build-web` の後）は通った
+- `make test-browser`: 592 件中 591 件が通り、1 件（`safety.test.mjs` の「対照: タブの異常終了（chrome://crash）が数えられる」）が失敗した。本変更が触れない試験で、実行環境の Chromium の異常終了の扱いによる可能性がある。base での再現は未確認（未検証）。`chapter-keys` の 2 件は通った
+- `scripts/expected-test-counts.txt` は変えていない（CI の件数の照合は版上げ PR か期待値の変更のときだけ働く）
+
+#### 範囲外
+
+- 教材の版・内容が変わっても鍵が変わらないことの画面の確認と、IR が読めないときの鍵 `unreadable/<IR の名前>`（TASK-326 2/2）
+- 配信先の区間による別の配信先との衝突（SAVE-15。TASK-327）
+- 起動時の変換の告知の表示（未実装。本試験は告知の行が出ないことだけを見る）

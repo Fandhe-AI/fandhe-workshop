@@ -1,0 +1,8 @@
+id: SAVE14-4
+package: fandhe-workshop-web
+test: chapter_keys_host
+target: crates/web/src/host.rs
+find:         HistoryKey::from_ir(scope, self.model.session()?.ir())
+replace:         Some(HistoryKey::for_pack(scope, &self.model.session()?.ir().pack.id, ""))
+expect-fail: 章_a_を保存してから章_b_を開くと章_b_は新しく始まり章_a_の履歴は変わらない
+note: 鍵が最初の開始点の ID を無視して教材の ID だけになる（同じ教材の別の章が同じ鍵になり、章 B を開くと章 A の履歴が出る。SAVE-14）
