@@ -4923,6 +4923,23 @@ FEND-22・D-46 の案 3（Step ごとに分け、古い Step を 1 行の要約�
 
 未実施: 左のビュー（7 本の view list。TASK-484）、4,096 件の打ち切りと状態の文字（TASK-360 2/2）、再描画の傾きの測定（TASK-232・TASK-454）。上流への報告は、D-46 に従い行わない。`scripts/expected-test-counts.txt` は更新していない。
 
+### 5.164 4,096 件の打ち切りを安全弁にする（TASK-360 2/2）
+
+実行日: 2026-10-20。元にしたコミット: fa795da。
+
+| 項目 | 決定 |
+|---|---|
+| 置き場 | `list_policy::keyed_view_or_notice` の前段（製品の全 keyed list の入口）。`keyed_view` は変えない |
+| 表示 | 先頭の 4,095 件と、最後の状態の行 1 件（合計 4,096 項目）。文言は「上限超過: 先頭 4,095 件だけ表示（全 N 件）」 |
+| 属性 | 親と状態の行に `data-list-limit="<全件数>"`。状態の行に `data-event` は付けない。キーは `list-limit` |
+| 件数以外の `Err` | 従来の通知（`data-list-error="limit"`・`data-bind-list` を保つ） |
+| `PARTS_CONTRACT_VERSION` | 上げない（方針は変わらず、実現だけが変わる） |
+
+試験: `crates/web/tests/list_limit.rs`（4,097・10,000 件の打ち切り、再構築、キー重複の通知）、`crates/web/tests/view_select.rs`（4,095・4,096・4,097 経路）。
+変異 `FEND15-4`・`FEND22-1`・`FEND22-5`・`FEND22-6` は 4 件とも DETECTED（`FEND15-2`・`FEND15-3` は base からの `find` の不一致で、ファイルを指定して流した）。
+`FEND15-4`・`FEND22-1` の `expect-fail` は、本節で試験名を改めた。
+未実施: ブラウザ試験（`?fixture=list-limit` の開始状態は未実装）。左のビューの畳みは TASK-484。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

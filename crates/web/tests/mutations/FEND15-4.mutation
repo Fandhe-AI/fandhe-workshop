@@ -4,5 +4,5 @@ test: list_limit
 target: crates/web/src/list_policy.rs
 find: keyed_view(tag, marked.clone(), field, notice).unwrap_or_else(|_| el(tag, marked, vec![]))
 replace: { let _ = (field, notice); el(tag, marked, vec![]) }
-expect-fail: limit_4097_fallback_keeps_bind_list_with_zero_data_rows
+expect-fail: notice_fallback_keeps_bind_list_on_duplicate_keys
 note: Err の代替から data-bind-list を外す（dirty な field が解決できず全再描画になる）

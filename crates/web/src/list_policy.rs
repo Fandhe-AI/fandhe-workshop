@@ -31,8 +31,9 @@
 //! 章の単位のグループは作らず、集約行で代える。要約行は表示だけで、開く操作は未実装である
 //! （`docs/known-gaps.md`）。左の成果物の 7 本の list への適用は TASK-484 が持つ。
 //!
-//! 上限を超えた場合は [`keyed_view`] が `Err` をそのまま返し、切り詰めで黙って続けない。呼び出し側の復帰は
-//! [`keyed_view_or_notice`] に一本化する。`Err` のときも親要素は `data-bind-list` を保った keyed list
+//! [`keyed_view`] は上限を超えると `Err` をそのまま返す。呼び出し側の復帰は [`keyed_view_or_notice`] に
+//! 一本化し、上限を超えた場合は先頭を残して打ち切り、状態の行（「上限超過: 先頭 … 件だけ表示（全 … 件）」。
+//! ART-14・TASK-360 2/2）で知らせる。黙って切り詰めない。件数以外の `Err` のときも親要素は `data-bind-list` を保った keyed list
 //! （データの行は 0 件）で描く。`data-bind-list` を持たない空の要素に落とすと、上流は dirty な field を束縛点にも
 //! keyed list にも解決できず、構造のフォールバックで `app-root` の子を丸ごと置き換える（全再描画。
 //! FEND-15・PoC-8。TASK-359 2/2）ためである。
@@ -60,7 +61,7 @@ pub enum ListSize {
     Within,
     /// 目安を超えているが安全弁以内。部品の側で分割する。
     OverTarget,
-    /// 安全弁を超えている。`keyed_view` は拒否する。
+    /// 安全弁を超えている。`keyed_view` は拒否し、`keyed_view_or_notice` は先頭を残して打ち切る。
     OverLimit,
 }
 
@@ -120,10 +121,39 @@ pub const LIST_ERROR_ATTR: &str = "data-list-error";
 /// 通知の行のキー。データ行のキーの接頭辞（`r`・`p`・`i`・`v`・`e`）と重ならない。
 const NOTICE_KEY: &str = "list-error";
 
-/// [`keyed_view`] の結果を返し、`Err` のときは `data-bind-list` を保った「データ行 0 件の keyed list」に落とす。
+/// 打ち切りの印の属性名。値は全件数の 10 進だけ（区切りなし）。親と状態の行の両方に付く。
+pub const LIST_LIMIT_ATTR: &str = "data-list-limit";
+
+/// 状態の行のキー。データ行のキーの接頭辞や通知のキーと重ならない。
+const LIMIT_KEY: &str = "list-limit";
+
+/// 打ち切ったときに残すデータ行の数。状態の行 1 件の余地を残し、合計を [`LIST_ITEMS_LIMIT`] 項目に収める。
+const LIMIT_SHOWN: usize = LIST_ITEMS_LIMIT - 1;
+
+/// 打ち切りの状態の行を作る。文言は固定で、数は 3 桁区切りの 10 進だけを入れる（教材・受講者の値を連結しない。
+/// SAFE-11）。`data-event` は付けない（データ行の数え上げと区別するため）。
+pub fn limit_node(shown: usize, total: usize) -> Node {
+    let n = |v: usize| group_digits(u32::try_from(v).unwrap_or(u32::MAX));
+    let total_attr = total.to_string();
+    el(
+        "li",
+        vec![(LIST_LIMIT_ATTR, total_attr.as_str())],
+        vec![text(format!(
+            "上限超過: 先頭 {} 件だけ表示（全 {} 件）",
+            n(shown),
+            n(total)
+        ))],
+    )
+}
+
+/// 項目が [`LIST_ITEMS_LIMIT`] を超えるときは先頭を残して打ち切り、[`keyed_view`] の結果を返す。それ以外の
+/// `Err` のときは `data-bind-list` を保った「データ行 0 件の keyed list」に落とす。
 ///
-/// 呼び出し元は keyed list を持つ表示部品（ログ・成果物・復習・入力欄の送信済み一覧）。`Err` を握りつぶすのでは
-/// なく、親に [`LIST_ERROR_ATTR`] の印と固定の通知の行を 1 件だけ出し、利用者にも試験にも分かる形にする。
+/// 呼び出し元は keyed list を持つ表示部品（ログ・成果物・復習・入力欄の送信済み一覧）。安全弁（D-46・ART-14・
+/// TASK-360 2/2）として、上限を超えたら先頭の `LIMIT_SHOWN` 件と状態の行 1 件（[`limit_node`]）を出し、
+/// 親と状態の行に [`LIST_LIMIT_ATTR`] を付ける。`Err` にならず、黙って切り詰めることもない。
+///
+/// 件数以外の `Err`（キーの重複など）は、親に [`LIST_ERROR_ATTR`] の印と固定の通知の行を 1 件だけ出す。
 /// 親が keyed list のまま残るため、上流は差分更新として扱い、全再描画にならない（モジュールの doc）。
 ///
 /// 通知の行と印は固定の文字列だけで、教材の値を含めない（SAFE-11）。`keyed_view` さえ拒否する場合
@@ -133,9 +163,19 @@ pub fn keyed_view_or_notice(
     tag: &'static str,
     attrs: Vec<(&str, &str)>,
     field: &PartField,
-    items: Vec<(String, Node)>,
+    mut items: Vec<(String, Node)>,
 ) -> Node {
-    if let Ok(node) = keyed_view(tag, attrs.clone(), field, items) {
+    if items.len() > LIST_ITEMS_LIMIT {
+        let total = items.len();
+        let total_attr = total.to_string();
+        items.truncate(LIMIT_SHOWN);
+        items.push((LIMIT_KEY.to_owned(), limit_node(LIMIT_SHOWN, total)));
+        let mut limited = attrs.clone();
+        limited.push((LIST_LIMIT_ATTR, total_attr.as_str()));
+        if let Ok(node) = keyed_view(tag, limited, field, items) {
+            return node;
+        }
+    } else if let Ok(node) = keyed_view(tag, attrs.clone(), field, items) {
         return node;
     }
     let mut marked = attrs;

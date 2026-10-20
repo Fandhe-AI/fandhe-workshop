@@ -1,0 +1,8 @@
+id: FEND22-6
+package: fandhe-workshop-web
+test: list_limit
+target: crates/web/src/list_policy.rs
+find: items.push((LIMIT_KEY.to_owned(), limit_node(LIMIT_SHOWN, total)));
+replace: let _ = (LIMIT_KEY, limit_node(LIMIT_SHOWN, total));
+expect-fail: limit_4097_is_truncated_to_head_with_status_row
+note: 状態の行を出さずに黙って切り詰める（ART-14 の違反）
