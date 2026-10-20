@@ -1,7 +1,7 @@
 // xss-cases.mjs（XSS の試験用入力のパーサ）の単体試験。ブラウザは使わない。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadXssCases, e5Payloads, parseXssCases } from './xss-cases.mjs';
+import { loadXssCases, e1Payloads, e5Payloads, parseXssCases } from './xss-cases.mjs';
 
 const block = (id, entries, payload) => `### ${id}\n- 分類: 1\n- 入り口: ${entries}\n- 発火: hit\n\n~~~~~~text\n${payload}\n~~~~~~\n`;
 const opts = { total: 1, e5: 1 };
@@ -42,4 +42,17 @@ test('壊れた入力は例外にする', () => {
   assert.throws(() => parseXssCases(block('XSS-01', 'E1', 'a'), opts), /E5 cases/);
   assert.throws(() => parseXssCases(block('XSS-01', 'E5', 'a') + block('XSS-01', 'E5', 'b'), { total: 2, e5: 2 }), /duplicate/);
   assert.throws(() => parseXssCases(block('XSS-01', 'E5', 'a'), { total: 2, e5: 1 }), /expected 2 cases/);
+});
+
+test('入り口に E1 を含む 49 件を読み、E1 を含まないケースは入らない', () => {
+  const all = loadXssCases();
+  const cases = e1Payloads();
+  assert.equal(cases.length, 49);
+  assert.ok(cases.every((c) => c.entries.includes('E1')));
+  const ids = cases.map((c) => c.id);
+  assert.ok(ids.includes('XSS-01'));
+  assert.ok(ids.includes('XSS-47'));
+  const excluded = all.filter((c) => !c.entries.includes('E1'));
+  assert.equal(excluded.length, 15);
+  for (const c of excluded) assert.ok(!ids.includes(c.id), c.id);
 });

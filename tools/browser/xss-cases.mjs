@@ -1,7 +1,7 @@
 // XSS の試験用の入力（testdata/untrusted-input-safety/test-data/xss-cases.md）を読む純粋な Node のモジュール。
 //
 // データの正は testdata の写し 1 か所に置き、ペイロードを tools 側へ書き写さない（試験用入力を重複して作らない。TASK-147）。
-// ブラウザ試験（log-lines-xss.test.mjs など）から呼ばれ、ケースの ID・入り口・ペイロードを返す。
+// ブラウザ試験（log-lines-xss.test.mjs・pack-body-xss.test.mjs など）から呼ばれ、ケースの ID・入り口・ペイロードを返す。
 // 件数・ブロックの数・`\u{HEX}` の範囲が合わなければ例外にする（fail-closed。0 件のまま通る空振りを防ぐ）。
 // 文字列は返すだけで、評価（eval・Function）はしない。
 import fs from 'node:fs';
@@ -13,6 +13,7 @@ export const DEFAULT_FILE = path.resolve(
   '../../testdata/untrusted-input-safety/test-data/xss-cases.md',
 );
 export const EXPECTED_TOTAL = 64;
+export const EXPECTED_E1 = 49;
 export const EXPECTED_E5 = 49;
 
 const FENCE = '~~~~~~';
@@ -62,4 +63,11 @@ export function loadXssCases(file = DEFAULT_FILE) {
 // 入り口に E5（入力欄）を含むケースだけ。
 export function e5Payloads(file = DEFAULT_FILE) {
   return loadXssCases(file).filter((c) => c.entries.includes('E5'));
+}
+
+// 入り口に E1（Step の本文の Markdown）を含むケースだけ（TASK-144。SAFE-1）。件数が違えば例外（fail-closed）。
+export function e1Payloads(file = DEFAULT_FILE) {
+  const out = loadXssCases(file).filter((c) => c.entries.includes('E1'));
+  if (out.length !== EXPECTED_E1) throw new Error(`expected ${EXPECTED_E1} E1 cases, got ${out.length}`);
+  return out;
 }
