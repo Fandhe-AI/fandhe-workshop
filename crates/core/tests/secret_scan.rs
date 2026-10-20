@@ -193,3 +193,9 @@ proptest! {
         let _ = scan_text(&v[..end]);
     }
 }
+
+#[test]
+fn private_key_without_an_end_line_is_still_detected() {
+    let text = ["-----BEGIN RSA ", "PRIVATE KEY-----\nAAAA"].concat();
+    assert!(ids(&scan_text(&text)) == ["private_key"]);
+}

@@ -130,3 +130,16 @@ fn secret_hold_action_accepts_exact_payloads_only() {
     assert!(warning_ids(&h).is_empty());
     assert_eq!(notice(&h), "");
 }
+
+#[test]
+fn stale_save_result_does_not_clear_the_warning_of_a_held_value() {
+    let (mut h, _) = setup();
+    submit(&mut h, "/make-note first-note");
+    // 無害な値の遅延保存の結果が配送待ちの間に、秘密を含む即時保存が止められる。
+    let epoch_before = h.save_epoch();
+    let (_, _, value) = secret_values::shapes().remove(0);
+    submit(&mut h, &value);
+    assert!(!warning_ids(&h).is_empty());
+    h.update(HostAction::SaveResult(epoch_before, None));
+    assert!(!warning_ids(&h).is_empty(), "stale result cleared warning");
+}

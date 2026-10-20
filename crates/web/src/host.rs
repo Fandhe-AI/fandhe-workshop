@@ -945,14 +945,14 @@ impl EngineHost {
             return;
         };
         // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。形だけを警告に出す。世代・保存の失敗の表示は変えない。
+        // 止めた場合も世代を進め、それ以前の値の遅延保存の結果が警告を消さないようにする。
+        self.save_epoch = self.save_epoch.wrapping_add(1);
         let held = secret_hold(&value);
         let found = !held.is_empty();
         self.set_secret_warning(held);
         if found {
             return;
         }
-        // 即時の保存のたびに世代を進め、配送待ちの遅延保存の結果を古くする。
-        self.save_epoch = self.save_epoch.wrapping_add(1);
         let Some(saver) = self.history_saver.as_ref() else {
             return;
         };

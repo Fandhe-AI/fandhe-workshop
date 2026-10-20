@@ -9,6 +9,9 @@
 //!
 //! 限界（確認した事実）:
 //! - 規則は固定の 10 形（[`SecretShape::ALL`]）に合わせたもので、一般の秘密情報の検出率を示さない。
+//! - 秘密鍵は、BEGIN 行と種類の語（`PRIVATE KEY-----`）が揃えば END 行が無くても検出する（切り詰めた貼り付けも止める）。
+//! - 接頭辞の直前が英数字のときは接頭辞として扱わない。二重エンコードの JSON 中の `\n` の直後に続くトークン（`\nghp_...`）のような
+//!   エスケープ残りは検出できない。
 //! - 履歴ファイルの読み込み（インポート）の内容は調べない（TASK-165 の範囲）。
 //! - 費用は値の大きさに比例する。WASM での検査時間は未計測である。
 //!
@@ -247,8 +250,10 @@ fn scan_private_key(out: &mut Vec<Finding>, s: &str) {
             continue;
         }
         let after = from + t + TAIL.len();
-        if let Some(e) = s.get(after..).and_then(|r| r.find(END)) {
-            push(out, SecretShape::PrivateKey, s, i, after + e + END.len());
+        match s.get(after..).and_then(|r| r.find(END)) {
+            Some(e) => push(out, SecretShape::PrivateKey, s, i, after + e + END.len()),
+            // END 行が無い切り詰め・途中までの貼り付けも、鍵本体が続く前提として止める。
+            None => push(out, SecretShape::PrivateKey, s, i, after),
         }
     }
 }
