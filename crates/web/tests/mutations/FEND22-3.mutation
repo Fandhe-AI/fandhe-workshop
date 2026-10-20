@@ -1,0 +1,8 @@
+id: FEND22-3
+package: fandhe-workshop-web
+test: list_limit
+target: crates/web/src/engine_parts.rs
+find: to - from
+replace: (to - from) * 0
+expect-fail: over_limit_host_log_is_folded_and_does_not_trigger_full_rerender
+note: ログの部品が畳みの計画にグループの長さを渡さない（畳まれず 4,097 行で上流が拒否する。FEND-22・FEND-15）
