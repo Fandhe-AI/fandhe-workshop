@@ -1,0 +1,9 @@
+id: FEND22-2
+package: fandhe-workshop-web
+test: list_fold
+target: crates/web/src/list_policy.rs
+find: if total <= target || n == 0 {
+replace: if total <= target || n == 0 || total > 0 {
+expect-fail: over_target_folds_to_within_target
+expect-fail: shapes_stay_within_target
+note: 畳みの計画が常に何も畳まない（1 リストが目安を超える。FEND-22・D-46）

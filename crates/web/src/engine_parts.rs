@@ -17,9 +17,9 @@
 //!   配置は TASK-517・TASK-438 が決める。Step の状態表示 `step-status`（TASK-435）も同じ位置に置く。
 //! - 受講者の入力文字列は、ログの行（`log_lines`）が `learner_text::learner_part` の文字ノードで描く。
 //!   入力欄の送信済み一覧は `learner_text::learner_line` で描く。
-//! - 1 リストが 4,096 件を超えるログの分割は EVT-26（TASK-225）の担当である。超えたら
-//!   親の `data-bind-list` を保ったまま `data-list-error="limit"` と固定の通知の行を出し、全再描画を避ける
-//!   （`list_policy::keyed_view_or_notice`）。
+//! - ログと復習は、1 リストが約 1,000 項目を超えないよう古い側を要約行へ畳む（TASK-360 1/2。
+//!   `list_policy::plan_fold`）。4,096 件の安全弁は残り、超えたら親の `data-bind-list` を保ったまま
+//!   `data-list-error="limit"` と固定の通知の行を出し、全再描画を避ける（`list_policy::keyed_view_or_notice`）。
 //!
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
@@ -29,7 +29,7 @@ use std::collections::BTreeMap;
 use fandhe_frontend_core::{bind_attr_token, bind_text, el, text, Node};
 use fandhe_frontend_wasm_client::BoundValue;
 use fandhe_workshop_core::event::Event;
-use fandhe_workshop_core::projection::{Mark, MarkKind};
+use fandhe_workshop_core::projection::{Mark, MarkKind, ReviewItem};
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
@@ -41,8 +41,10 @@ use crate::artifact_view::{
 };
 use crate::host::HostModel;
 use crate::limit_notice::limit_notice;
-use crate::list_policy::keyed_view_or_notice;
 pub use crate::list_policy::LIST_ERROR_ATTR;
+use crate::list_policy::{
+    fold_node, keyed_view_or_notice, plan_fold, FoldEntry, FoldKind, LIST_ITEMS_TARGET,
+};
 use crate::log_lines::{line_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
@@ -269,7 +271,8 @@ impl DisplayPart<HostModel> for LogPart {
     }
     fn view(&self, model: &HostModel) -> Node {
         let events = model.session().map(|s| s.log()).unwrap_or(&[]);
-        let items: Vec<(String, Node)> = model
+        // 表示される行を先に集め、(世代, Step) が同じ連続の範囲をグループにする。畳まれる行のノードは作らない。
+        let shown: Vec<_> = model
             .projection()
             .log()
             .iter()
@@ -278,13 +281,63 @@ impl DisplayPart<HostModel> for LogPart {
                     events.get(row.event as usize)?,
                     model.judged_text(row.event),
                 )?;
-                let node = line_node(row.at.generation.0, &line)?;
-                Some((
-                    format!("r{}", row.event),
-                    with_trace(node, row.event, row.at.step.0.as_str()),
-                ))
+                Some((row, line))
             })
             .collect();
+        let mut starts: Vec<usize> = Vec::new();
+        for (i, (row, _)) in shown.iter().enumerate() {
+            let same = i
+                .checked_sub(1)
+                .and_then(|p| shown.get(p))
+                .is_some_and(|(prev, _)| prev.at == row.at);
+            if !same {
+                starts.push(i);
+            }
+        }
+        let bounds = |g: usize| {
+            let from = starts.get(g).copied().unwrap_or(shown.len());
+            let to = starts.get(g + 1).copied().unwrap_or(shown.len());
+            (from, to)
+        };
+        let lens: Vec<usize> = (0..starts.len())
+            .map(|g| {
+                let (from, to) = bounds(g);
+                to - from
+            })
+            .collect();
+        let data_row = |i: usize| {
+            let (row, line) = shown.get(i)?;
+            let node = line_node(row.at.generation.0, line)?;
+            Some((
+                format!("r{}", row.event),
+                with_trace(node, row.event, row.at.step.0.as_str()),
+            ))
+        };
+        let mut items: Vec<(String, Node)> = Vec::new();
+        for entry in plan_fold(&lens, LIST_ITEMS_TARGET) {
+            match entry {
+                FoldEntry::Rows { group, skip } => {
+                    let (from, to) = bounds(group);
+                    items.extend((from.saturating_add(skip)..to).filter_map(data_row));
+                }
+                FoldEntry::Summary { group, rows } => {
+                    if let Some((row, _)) = shown.get(bounds(group).0) {
+                        items.push((
+                            format!("s{}", row.event),
+                            fold_node(FoldKind::Step, 1, rows, Some(row.at.step.0.as_str()), false),
+                        ));
+                    }
+                }
+                FoldEntry::Older { groups, rows } => items.push((
+                    "fold-older".to_owned(),
+                    fold_node(FoldKind::Older, groups, rows, None, false),
+                )),
+                FoldEntry::Head { rows, .. } => items.push((
+                    "fold-head".to_owned(),
+                    fold_node(FoldKind::Head, 1, rows, None, false),
+                )),
+            }
+        }
         let list = keyed_view_or_notice("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items);
         el(
             "section",
@@ -465,35 +518,25 @@ impl DisplayPart<HostModel> for ReviewPart {
         F_REVIEW
     }
     fn view(&self, model: &HostModel) -> Node {
-        let items: Vec<(String, Node)> = model
-            .projection()
-            .review()
-            .iter()
-            .enumerate()
-            .map(|(i, item)| {
-                let count = item.changes.len().to_string();
-                let paths = item
-                    .changes
-                    .iter()
-                    .map(|c| c.path.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let node = el(
-                    "li",
-                    vec![
-                        ("data-step", item.step.0.as_str()),
-                        (
-                            "data-achieved",
-                            if item.achieved { "true" } else { "false" },
-                        ),
-                        ("data-skipped", if item.skipped { "true" } else { "false" }),
-                        ("data-change-count", count.as_str()),
-                    ],
-                    vec![text(paths)],
-                );
-                (format!("v{i}"), node)
-            })
-            .collect();
+        // 復習の項目 1 件を 1 グループ（長さ 1）として畳む。キーは全体の位置のまま（残る項目の要素を保つ）。
+        let all = model.projection().review();
+        let lens = vec![1usize; all.len()];
+        let mut items: Vec<(String, Node)> = Vec::new();
+        for entry in plan_fold(&lens, LIST_ITEMS_TARGET) {
+            match entry {
+                FoldEntry::Older { groups, rows } => items.push((
+                    "fold-older".to_owned(),
+                    fold_node(FoldKind::Older, groups, rows, None, true),
+                )),
+                FoldEntry::Rows { group, .. } => {
+                    if let Some(item) = all.get(group) {
+                        items.push(review_row(group, item));
+                    }
+                }
+                // 長さ 1 のグループだけなので要約・先頭の畳みは起きない。
+                FoldEntry::Summary { .. } | FoldEntry::Head { .. } => {}
+            }
+        }
         let list = keyed_view_or_notice("ul", REVIEW_LIST_ATTRS.to_vec(), &F_REVIEW[0], items);
         el(
             "section",
@@ -512,4 +555,29 @@ impl DisplayPart<HostModel> for ReviewPart {
     fn bound_value(&self, field: &str, model: &HostModel) -> Option<BoundValue> {
         consumed_bound(field, F_REVIEW[1].name, model)
     }
+}
+
+/// 復習の項目 1 件の行。キーは全体での位置（`v{i}`）。
+fn review_row(i: usize, item: &ReviewItem) -> (String, Node) {
+    let count = item.changes.len().to_string();
+    let paths = item
+        .changes
+        .iter()
+        .map(|c| c.path.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let node = el(
+        "li",
+        vec![
+            ("data-step", item.step.0.as_str()),
+            (
+                "data-achieved",
+                if item.achieved { "true" } else { "false" },
+            ),
+            ("data-skipped", if item.skipped { "true" } else { "false" }),
+            ("data-change-count", count.as_str()),
+        ],
+        vec![text(paths)],
+    );
+    (format!("v{i}"), node)
 }
