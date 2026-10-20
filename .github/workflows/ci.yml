@@ -375,6 +375,14 @@ jobs:
           FANDHE_TEST_TAP_OUT: ${{ runner.temp }}/browser-test.tap
         run: make test-browser
 
+      # 配信用・試験用の 2 設定のビルド検査（BUILD-3・TASK-78 1/2）。compile した IR が配信する設定に入ることも確かめる。
+      # 大きさの関門は TASK-78 2/2。wasm-opt は CI に入れない（SKIP_WASM_OPT は呼び出し元の値のまま）。
+      # ジョブ・needs・ruleset は変わらない。CARGO_TARGET_DIR は make test-browser と同じにして、ビルドを使い回す。
+      - name: make test-build-web (BUILD-3)
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+        run: make test-build-web
+
       # 版上げ PR の受け入れ確認 (2)（FEND-17・D-63・TASK-101）のブラウザ試験の件数。rust-test の同名 step と同じ規則。
       - name: Check browser test counts (version bump gate)
         env:
