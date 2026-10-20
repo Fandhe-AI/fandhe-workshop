@@ -5529,11 +5529,11 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - charset の meta の終わりから CSP の meta の始まりまでが空白だけ（「直後」を厳しい側に解釈した。コメントや他の要素を挟むと不合格）
 - CSP の meta の `content`（二重引用符）が `DELIVERY_CSP` と完全一致（正規化しない。指令の並び替え・空白の違いも不合格）
 - 解析できない形は例外にせず問題として返す
-- HTML コメント・`script`・`style`・`title`・`textarea` の中身にある meta は数えない（ブラウザでは効かないため。同じ長さの空白に置き換えてから解析する。2026-10-20 のレビュー指摘で追加）
+- HTML コメント・`script`・`style`・`title`・`textarea`・`noscript` の中身にある meta は数えない（ブラウザでは効かないため。noscript は scripting 有効のブラウザでテキスト扱いになる。同じ長さの空白に置き換えてから解析する。2026-10-20 のレビュー指摘で追加）
 
 #### 試験
 
-`tools/browser/csp-placement.test.mjs`（16 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 10 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
+`tools/browser/csp-placement.test.mjs`（18 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 12 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
 
 #### 件数・確認（2026-10-20）
 

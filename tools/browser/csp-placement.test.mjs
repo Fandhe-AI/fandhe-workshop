@@ -60,6 +60,9 @@ const cases = [
   ['CSP を script の中身に置く', /CSP meta count is 0/, (h, c) => h.replace(c, '<script>"' + c.replace(/"/g, "'") + '"</script>')],
   ['charset と CSP をまとめて template で囲む', /charset meta count is 0/, (h, c) =>
     h.replace(CHARSET_LINE, (m) => '<template>' + m).replace(c, c + '</template>')],
+  ['charset と CSP をまとめて noscript で囲む', /charset meta count is 0/, (h, c) =>
+    h.replace(CHARSET_LINE, (m) => '<noscript>' + m).replace(c, c + '</noscript>')],
+  ['CSP だけを noscript で囲む', /CSP meta count is 0/, (h, c) => h.replace(c, '<noscript>' + c + '</noscript>')],
   ['CSP だけを入れ子の template で囲む', /CSP meta count is 0/, (h, c) =>
     h.replace(c, '<template><template></template>' + c + '</template>')],
 ];

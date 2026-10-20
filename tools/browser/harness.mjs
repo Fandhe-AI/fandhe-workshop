@@ -85,13 +85,13 @@ export const SAFETY_KEYS = [
 const META_TAG_RE = /<meta(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
 const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
-// ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea の中身）を同じ長さの空白に置き換える。
+// ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea・noscript の中身。noscript は scripting 有効のブラウザでテキスト扱いになる）を同じ長さの空白に置き換える。
 // 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
 function maskInactive(html) {
   const blank = (s) => s.replace(/[^\r\n]/g, ' ');
   const masked = String(html)
     .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
-    .replace(/(<(script|style|title|textarea)\b[^>]*>)([\s\S]*?)(?=<\/\2\s*>|$)/gi, (_m, open, _t, body) => open + blank(body));
+    .replace(/(<(script|style|title|textarea|noscript)\b[^>]*>)([\s\S]*?)(?=<\/\2\s*>|$)/gi, (_m, open, _t, body) => open + blank(body));
   return maskTemplates(masked, blank);
 }
 
