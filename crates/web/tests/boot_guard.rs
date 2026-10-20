@@ -431,3 +431,16 @@ fn 取得に失敗している間に別のタブが起動していれば再取�
     assert!(g.is_stale());
     assert!(b.is_current(), "後から起動したタブを追い越さない");
 }
+
+#[test]
+fn 取得に失敗している間に_meta_が消えても古いタブとは決めず失敗を返す() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let _earlier = BootGuard::claim(Rc::clone(&local), &k, 2);
+    let (g, full) = toggled(&local, &k);
+    full.set(false);
+    // 容量超過の回復などで保存領域が消えた。
+    local.remove(&boot_meta_key(&k)).unwrap();
+    assert_eq!(g.verify(), Err(StorageError::Failed));
+    assert!(!g.is_stale(), "消失は他のタブの取得ではない");
+}

@@ -107,11 +107,16 @@ impl<K: SyncKv> BootGuard<K> {
     }
 
     /// 取得に失敗していたときの再取得。meta が取得の直前に読んだ値のままのときだけ、自分の値を書く。
-    /// 変わっていれば他のタブが先に起動したので、古いタブとして記憶する（後から起動したタブを追い越さない）。
+    /// 別の値に変わっていれば他のタブが先に起動したので、古いタブとして記憶する（後から起動したタブを追い越さない）。
+    /// 値が消えていれば保存領域の消失なので、古いとは記憶せず失敗を返す。
     /// 取得の直前に meta を読めていなければ、基準が無いので再取得しない。
     fn reclaim(&self, err: StorageError) -> Result<(), StorageError> {
         let base = self.base.as_ref().ok_or(err)?;
         let current = self.kv.get(&self.meta_key)?;
+        // 取得の前に在った meta が消えているのは、他のタブの取得ではなく保存領域の消失である。verify と同じく失敗として返し、古いとは確定させない。
+        if current.is_none() && base.is_some() {
+            return Err(StorageError::Failed);
+        }
         if current != *base {
             self.stale.set(true);
             return Ok(());
