@@ -1,0 +1,8 @@
+id: FEND6-1
+package: fandhe-workshop-web
+test: host_contract
+target: crates/web/src/host.rs
+find:         root_attrs.extend(ESC_KEYDOWN_ATTRS);
+replace:         let _ = ESC_KEYDOWN_ATTRS;
+expect-fail: workshop_root_は_esc_の_keydown_属性を持つ
+note: workshop-root に Esc の属性が無く、main の外の部品（workshop-parts）の Esc が 0 回になる

@@ -6,7 +6,8 @@
 // （実機は FEND-9・TASK-354）。
 // keydown-probe のボタンは対象にしない。そのボタンにフォーカスがあると closest が probe で止まり、esc ではなく
 // keydown-probe に届くため（試験の設定にしかない要素）。
-// root の外の Esc は FEND-8 の glue の担当で、document の keydown で届く（TASK-353 1/2）。4 場面の「ちょうど 1 回」は esc-once.test.mjs が確かめる。
+// root の外の Esc は FEND-8 の glue の担当で、document の keydown で届く（TASK-353 1/2）。root の中の Esc の属性は main と workshop-root の
+// 両方に付く（上流は最も近い 1 つにだけ届ける。TASK-353 2/2）。各場面の「ちょうど 1 回」は esc-once.test.mjs が確かめる。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
