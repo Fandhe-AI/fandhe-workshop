@@ -4784,6 +4784,28 @@ root（`#app`）の外の Esc は、glue が `document` の keydown で受けて
 - 未検証: `make check-mutations` の全件、CI 上の実行。`scripts/expected-test-counts.txt` は更新していない（別の PR で行う）。5.160 は別の PR（#1631）が使うため、本節は 5.159b とした
 - 範囲外: `main` の Esc の属性を `workshop-root` に一本化する整理、変換中の root の中の Esc（TASK-354）、押しっぱなしの扱い（FEND-18・TASK-364）
 
+### 5.160 要素の同一性とフォーカスの保持（TASK-348 2/3）
+
+実行日: 2026-10-20
+元にしたコミット: cfd7755（origin/main）に本変更を加えた作業ツリー
+
+`tools/browser/element-identity.test.mjs` を足した（FEND-3。PoC-1 の B-7 相当）。試験の設定の画面で、入力の受付・進行・保存・確認の順に操作し、上流の構造フォールバック（root の子の全置換）が起きないことを実際の DOM で確かめる。`src/` と依存は変えていない。
+
+- 操作の列: 入力欄にフォーカスして `/make-note first-note` を打ち Enter で送信 → 実タイマーの進行 5 回を上限つきのポーリングで待つ → `save` → `/make-no` を途中まで打つ → 確認の Op（`ui` の `v-files`・`notes/draft`）→ 選択（`opt-memo`）→ もう一度 `save`。入力欄にフォーカスした後は、フォーカスを動かす操作をしない（`raw-trigger` は JS の `click()`）
+- 確かめる項目: (1) `#app` の子の取り除きが 0 回（`MutationObserver` の計数。読むときに未配送の記録も数える）、(2) 参照を保持した 18 要素が `===` かつ `isConnected`、(3) `document.activeElement` が入力欄、(4) 入力欄の値と `__fandheTest.draft()` が `/make-no`、(5) 空振りでない（`log-list` が 1 件・ログの行と `engine.logLen` の増加・進行 5 回・確認と選択のログの増加）、(6) CSP 違反・ページ内エラー・コンソールのエラーが 0 件
+- 保持する 18 要素（`#app` の中でちょうど 1 件。PoC の id は製品に無いため `data-testid` で選ぶ）: `workshop-root`・`hello-root`・`workshop-parts`・`draft-input`・`submit-input`・`stop-btn`・`input-notice`・`part-log`・`part-log-consumed`・`run-status`・`step-status`・`part-artifact-view`、リストの親 6 本（`log-list`・`part-log-list`・`part-review-list`・`candidate-list`・`view-select`・`view-list[data-view=file_tree]`）
+
+手元の確認（コミットしない。2026-10-20）:
+
+| 確認 | 内容 | 結果 |
+|---|---|---|
+| (a) 対照 | 検査の直前に `__fandheTest.rerender()` を呼ぶ | 失敗（root の子の取り除きが 1 回） |
+| (b) 変異 | `crates/web/src/hello.rs` の送信で、目印の無い field 名を dirty に積む | 失敗（root の子の取り除きが 1 回） |
+
+通常の試験は 3 回続けて通過した。
+
+限界: 負の対照（`rerender` で保持した要素が残らないことの試験）は TASK-348 3/3 が担当する。ブラウザ試験には変異注入（`.mutation`）の仕組みが無いため、(a)(b) は手元の確認に留める。配信設定の画面での変種は入れていない（`raw-trigger` が無く、入力・Enter・実タイマーの進行だけになるため）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
