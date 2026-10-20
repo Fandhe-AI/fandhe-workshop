@@ -11,7 +11,9 @@
 //   (3) 入力欄のフォーカスが保たれる（入力欄にフォーカスした後は、フォーカスを動かす操作をしない）
 //   (4) 入力欄の入力途中の値が保たれる
 //   (5) 空振りでない。送信・進行・保存・確認が実際に起きている
-// 範囲外: 負の対照（`rerender` で保持した要素が残らない）は TASK-348 3/3 が担当する。
+// 負の対照 B-7n（TASK-348 3/3）: 試験用の口の全再描画（`rerender`）を起こすと、参照を保持した 6 要素が 1 つも残らず、
+// 入力欄のフォーカスが失われることを確かめる。B-7 の検査器（changedRefs・readSwaps・フォーカスの判定）が、
+// 実際に差を検出できることの裏づけである（検査器が常に通る空振りの否定）。
 // 呼び出し元は make test-browser（scripts/test-browser.sh）。1 件ごとに新しい context を使う。
 //
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
@@ -184,6 +186,54 @@ test('B-7: 入力・進行・保存・確認の間 root が置き換わらず �
       assert.ok((await count(page, '[data-testid="part-log-list"] > li')) > logStart, 'ログの行が増えた');
       assert.ok(run.logLen > start.logLen);
       assert.equal(run.ticks.filter(([g]) => g === run.generation).length, TOTAL_TICKS);
+
+      const counts = await collectSafety(page, rec);
+      assert.deepEqual(nonZero(counts), [], JSON.stringify({ counts, rec }));
+      const s = summarize(rec);
+      assert.equal(s.csp + s.pageErrors + s.consoleErrors, 0, JSON.stringify(rec));
+    } finally {
+      await context.close();
+    }
+  });
+});
+
+// 負の対照の 6 要素。PINNED の部分集合で、選択子を B-7 と同じにする（PoC の B-7n の 6 要素に対応）。
+const CONTROL_KEYS = ['root', 'draft', 'submit', 'stop', 'viewList', 'partLogList'];
+const CONTROL = Object.fromEntries(CONTROL_KEYS.map((k) => [k, PINNED[k]]));
+
+test('B-7n: 全再描画を起こすと 保持した 6 要素が 1 つも残らず 入力欄のフォーカスが失われる', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await openPage(browser, { origin: srv.origin });
+    try {
+      await page.goto(srv.url);
+      await waitMounted(page);
+      const names = await pinRefs(page, CONTROL);
+      assert.equal(names.length, 6);
+      await installSwapCounter(page);
+
+      await page.locator(DRAFT).focus();
+      await page.keyboard.type('/make-no');
+
+      // 前提: 作り直しの前は、検査器が何も検出せず、フォーカスが入力欄にある（別の理由で失敗していないことの確認）。
+      assert.deepEqual(await changedRefs(page, CONTROL), [], '作り直しの前に外れた要素が無い');
+      assert.equal(await readSwaps(page), 0, '作り直しの前の取り除きが 0 回');
+      assert.equal(await page.evaluate(() => document.activeElement === window.__pinned.draft), true);
+
+      assert.equal(await page.evaluate(() => window.__fandheTest.rerender()), true, 'rerender が実行された');
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+      // 期待どおりの失敗: B-7 の検査器が差を検出する。
+      assert.ok((await readSwaps(page)) >= 1, 'root の子の取り除きが起きた');
+      const changed = await changedRefs(page, CONTROL);
+      const kept = CONTROL_KEYS.filter((k) => !changed.includes(k));
+      assert.equal(changed.length, 6, `残った要素が 0 件であること。残った要素: ${JSON.stringify(kept)}`);
+      const active = await page.evaluate(() => ({
+        tag: document.activeElement?.tagName ?? null,
+        testid: document.activeElement?.getAttribute?.('data-testid') ?? null,
+        isPinned: document.activeElement === window.__pinned.draft,
+        isNewDraft: document.activeElement === document.querySelector('#app [data-testid="draft-input"]'),
+      }));
+      assert.equal(active.isPinned || active.isNewDraft, false, `フォーカスが失われた。観察値: ${JSON.stringify(active)}`);
 
       const counts = await collectSafety(page, rec);
       assert.deepEqual(nonZero(counts), [], JSON.stringify({ counts, rec }));
