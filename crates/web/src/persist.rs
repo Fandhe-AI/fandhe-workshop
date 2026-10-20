@@ -98,19 +98,19 @@ pub(crate) fn save_deferred() {
     let Some(v) = crate::glue::history_to_save() else {
         return;
     };
-    // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。形だけをホストへ配り、警告を出す（SAFE-27）。
+    // 検出・書き込みの直前の保存世代。配送が遅れる間に即時の保存や履歴の差し替えが走れば、この世代は古くなる。
+    let Some(epoch) = crate::glue::save_epoch() else {
+        return;
+    };
+    // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。世代と形だけをホストへ配り、警告を出す（SAFE-27）。
     // 解除は、次に書けた保存の `save-result`（成功）がホストで行う。
     let held = secret_hold(&v);
     if !held.is_empty() {
         #[cfg(feature = "test-hooks")]
         SECRET_HOLDS.with(|c| c.set(c.get().saturating_add(1)));
-        crate::glue::schedule_action(crate::action::Scheduled::SecretHold(held), 0);
+        crate::glue::schedule_action(crate::action::Scheduled::SecretHold(epoch, held), 0);
         return;
     }
-    // 書き込む直前の保存世代。結果の配送が遅れる間に即時の保存が走れば、この世代は古くなる。
-    let Some(epoch) = crate::glue::save_epoch() else {
-        return;
-    };
     let result = stage_and_flush(&key, v);
     #[cfg(feature = "test-hooks")]
     AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));

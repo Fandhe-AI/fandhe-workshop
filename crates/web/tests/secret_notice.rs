@@ -117,16 +117,36 @@ fn later_saves_stay_held_while_the_history_holds_the_value() {
 #[test]
 fn secret_hold_action_accepts_exact_payloads_only() {
     let (mut h, _) = setup();
-    h.update(act("secret-hold", "jwt"));
+    let epoch = h.save_epoch();
+    h.update(act("secret-hold", &format!("{epoch} jwt")));
     assert!(warning_ids(&h) == ["jwt"]);
     assert!(notice(&h).contains(SecretShape::Jwt.label()));
-    for bad in ["unknown", "jwt,", " jwt", "jwt,jwt", "private_key,jwt"] {
+    for bad in [
+        "jwt",
+        "1 unknown",
+        "1 jwt,",
+        "1  jwt",
+        "1 jwt,jwt",
+        "1 private_key,jwt",
+        "01 jwt",
+    ] {
         assert!(
             EngineHost::decode_action("secret-hold", bad).is_none(),
             "{bad:?} was accepted"
         );
     }
-    h.update(act("secret-hold", ""));
+    h.update(act("secret-hold", &format!("{epoch} ")));
+    assert!(warning_ids(&h).is_empty());
+    assert_eq!(notice(&h), "");
+}
+
+#[test]
+fn stale_secret_hold_is_dropped_after_the_epoch_moves() {
+    let (mut h, _) = setup();
+    let stale = h.save_epoch();
+    submit(&mut h, "/make-note first-note");
+    assert_ne!(stale, h.save_epoch());
+    h.update(act("secret-hold", &format!("{stale} jwt")));
     assert!(warning_ids(&h).is_empty());
     assert_eq!(notice(&h), "");
 }

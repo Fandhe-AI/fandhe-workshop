@@ -21,14 +21,30 @@ pub fn secret_hold(value: &str) -> Vec<SecretShape> {
     shapes_of(&scan_json_text(value))
 }
 
-/// 検出の payload。形の ID をカンマでつないだ固定の ASCII（値は含めない）。空の配列は空文字列。
-pub fn encode_secret_hold(shapes: &[SecretShape]) -> String {
-    shapes.iter().map(|s| s.id()).collect::<Vec<_>>().join(",")
+/// 検出の payload。`<保存世代> <形の ID をカンマでつないだ列>` の固定の ASCII（値は含めない）。形が無ければ列は空。
+///
+/// 世代は、検出した時点のホストの保存世代。配送が遅れる間に履歴の差し替えや即時の保存が走れば、古い検出は捨てられる。
+pub fn encode_secret_hold(epoch: u64, shapes: &[SecretShape]) -> String {
+    let ids = shapes.iter().map(|s| s.id()).collect::<Vec<_>>().join(",");
+    format!("{epoch} {ids}")
 }
 
-/// [`encode_secret_hold`] の逆。完全一致だけを受け、未知の ID・空の要素・重複・固定の順序と違う並びは `None`
-/// （信頼しない入力）。空文字列は「警告なし」を表す。
-pub fn decode_secret_hold(payload: &str) -> Option<Vec<SecretShape>> {
+/// [`encode_secret_hold`] の逆。完全一致だけを受け、正規形でない世代・未知の ID・空の要素・重複・固定の順序と違う並びは
+/// `None`（信頼しない入力）。形の列が空なら「警告なし」を表す。
+pub fn decode_secret_hold(payload: &str) -> Option<(u64, Vec<SecretShape>)> {
+    let (epoch, ids) = payload.split_once(' ')?;
+    if epoch.is_empty()
+        || (epoch.len() > 1 && epoch.starts_with('0'))
+        || !epoch.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    let epoch = epoch.parse::<u64>().ok()?;
+    decode_shapes(ids).map(|shapes| (epoch, shapes))
+}
+
+/// 形の ID の列の復号。空文字列は空の列。
+fn decode_shapes(payload: &str) -> Option<Vec<SecretShape>> {
     if payload.is_empty() {
         return Some(Vec::new());
     }
@@ -64,8 +80,8 @@ mod tests {
     #[test]
     fn empty_is_empty_text_and_empty_payload() {
         assert_eq!(secret_notice_text(&[]), "");
-        assert_eq!(encode_secret_hold(&[]), "");
-        assert_eq!(decode_secret_hold(""), Some(Vec::new()));
+        assert_eq!(encode_secret_hold(3, &[]), "3 ");
+        assert_eq!(decode_secret_hold("3 "), Some((3, Vec::new())));
     }
 
     #[test]
@@ -73,8 +89,8 @@ mod tests {
         for n in 1..=SecretShape::ALL.len() {
             let shapes = SecretShape::ALL[..n].to_vec();
             assert_eq!(
-                decode_secret_hold(&encode_secret_hold(&shapes)),
-                Some(shapes)
+                decode_secret_hold(&encode_secret_hold(7, &shapes)),
+                Some((7, shapes))
             );
         }
     }
@@ -82,15 +98,23 @@ mod tests {
     #[test]
     fn decode_rejects_malformed_payloads() {
         for bad in [
-            "unknown",
-            "jwt,",
-            ",jwt",
-            "jwt,,jwt",
-            "jwt,jwt",
+            "",
+            "jwt",
+            "1",
+            "1 unknown",
+            "1 jwt,",
+            "1 ,jwt",
+            "1 jwt,,jwt",
+            "1 jwt,jwt",
+            "1  jwt",
+            "1 jwt ",
+            "1 JWT",
+            "1 private_key,jwt",
             " jwt",
-            "jwt ",
-            "JWT",
-            "private_key,jwt",
+            "01 jwt",
+            "-1 jwt",
+            "+1 jwt",
+            "18446744073709551616 jwt",
         ] {
             assert_eq!(decode_secret_hold(bad), None, "{bad:?}");
         }

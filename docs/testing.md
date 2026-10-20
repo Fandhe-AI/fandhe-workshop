@@ -5523,7 +5523,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 #### 経路
 
 - 検出（core の `secret_scan`）: 接頭辞と文字種・長さで判定する純関数。正規表現の crate は足していない。JSON は値として読み直してから、文字列の値だけを調べる（キーは見ない）。`Finding` は形と 32 ビットの指紋だけを持ち、値を持たない。指紋は TASK-164 3/3 が確認済みの照合に使う
-- 3 つの保存の入口が同じ判定（web の `secret_notice::secret_hold`）を使う。(1) 状態を変える操作の直後の即時保存（`EngineHost::save_after_change`）は、検出したら saver を呼ばず、警告を出す。(2) 下書きの遅延保存（`persist::save_deferred`）は、積まず、形だけを `secret-hold` の action でホストへ配って警告を出す。(3) 離れる直前の書き出しは、積まないだけで、警告は出さない（離れる最中のため）
+- 3 つの保存の入口が同じ判定（web の `secret_notice::secret_hold`）を使う。(1) 状態を変える操作の直後の即時保存（`EngineHost::save_after_change`）は、検出したら saver を呼ばず、警告を出す。(2) 下書きの遅延保存（`persist::save_deferred`）は、積まず、保存世代と形だけを `secret-hold` の action でホストへ配って警告を出す（世代が進んでいれば古い検出は捨てる）。(3) 離れる直前の書き出しは、積まないだけで、警告は出さない（離れる最中のため）
 - 警告の解除: 即時の経路は、次の保存で検出に掛からなければ空にする。遅延の経路は、書けた保存の `save-result`（成功）が空にする。ただし履歴の `ops` に値が残る間は、以後の保存も同じ値で止まる。値を履歴から外す選択は TASK-164 3/3 が持つ
 - 表示は `secret-notice`（`role="status"`）。配置・文言は仮置きで、確定は TASK-534 が持つ。`A11Y_CONTRACT_VERSION` と `CONTRACT_VERSION` は上げていない
 
@@ -5532,7 +5532,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 | 試験 | 内容 |
 |---|---|
 | `crates/core/tests/secret_scan.rs`（9 件） | 部品から組み立てた 10 形がすべて期待の ID で検出される（入れ子の JSON の中でも）。対照 6 件は 0 件。語の途中の接頭辞・キーだけにある値は検出しない。任意の文字列・切り詰めた値で panic しない（proptest） |
-| `crates/web/tests/secret_notice.rs`（4 件） | 10 形の入力で saver が 0 回・警告が期待の形・描画の文に名前が出て値が出ない。対照 6 件は警告が空で saver が 1 回。警告の後の保存も止まる。`secret-hold` は完全一致の payload だけを受ける |
+| `crates/web/tests/secret_notice.rs`（6 件） | 10 形の入力で saver が 0 回・警告が期待の形・描画の文に名前が出て値が出ない。対照 6 件は警告が空で saver が 1 回。警告の後の保存も止まる。`secret-hold` は世代つきの完全一致の payload だけを受け、世代が古い検出は捨てる |
 | `tools/browser/secret-warning.test.mjs`（3 件） | 10 形を下書き・送信の両方の経路で入れ、入力の直後は警告が空・遅延の後に名前が出る・`engine.secretWarning` が期待の形・履歴の鍵への書き込みが 0 件。対照 6 件は警告が空で書き込みが 1 件以上。値は `secret-values.mjs` が部品から実行時に組み立てる |
 | 変異 `SAFE27-1`〜`SAFE27-6`（core 4 件・web 2 件） | 3 部の規則を落とす・長さの下限を 0 にする・キーも調べる・語の境界を外す・検出しても saver を呼ぶ・警告の文を空にする。すべて DETECTED（2026-10-20） |
 

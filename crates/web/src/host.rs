@@ -197,7 +197,7 @@ pub enum HostAction {
     /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
     SaveResult(u64, Option<StorageError>),
     /// 遅延保存の直前の検出（SAFE-27・TASK-164 1/3）。見つけた形だけを持ち、値は持たない。
-    SecretHold(Vec<SecretShape>),
+    SecretHold(u64, Vec<SecretShape>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -1301,6 +1301,8 @@ impl EngineHost {
         // 差し替えた履歴では、前の案内も初回の印も持ち越さない。
         self.model.export_hint = None;
         self.model.secret_warning = Vec::new();
+        // 差し替え前に予約された検出・保存結果が、差し替え後の警告・失敗を書き換えないよう世代を進める。
+        self.save_epoch = self.save_epoch.wrapping_add(1);
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
@@ -1639,7 +1641,12 @@ impl Component for EngineHost {
                     self.set_save_failure(failure);
                 }
             }
-            HostAction::SecretHold(shapes) => self.set_secret_warning(shapes),
+            // 履歴の差し替え・即時の保存で世代が進んでいれば、古い検出は捨てる（存在しない警告を出さない）。
+            HostAction::SecretHold(epoch, shapes) => {
+                if epoch == self.save_epoch {
+                    self.set_secret_warning(shapes);
+                }
+            }
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1878,7 +1885,8 @@ impl Component for EngineHost {
         // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
         // 遅延保存の検出（SAFE-27）。payload は完全一致だけを受け、未知の値は何もしない。
         if name == crate::secret_notice::ACTION_SECRET_HOLD {
-            return crate::secret_notice::decode_secret_hold(payload).map(HostAction::SecretHold);
+            return crate::secret_notice::decode_secret_hold(payload)
+                .map(|(epoch, shapes)| HostAction::SecretHold(epoch, shapes));
         }
         if name == crate::save_notice::ACTION_SAVE_RESULT {
             return crate::save_notice::decode_save_result(payload)
