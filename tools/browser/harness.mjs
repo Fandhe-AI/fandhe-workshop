@@ -89,9 +89,36 @@ const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))
 // 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
 function maskInactive(html) {
   const blank = (s) => s.replace(/[^\r\n]/g, ' ');
-  return String(html)
+  const masked = String(html)
     .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
     .replace(/(<(script|style|title|textarea)\b[^>]*>)([\s\S]*?)(?=<\/\2\s*>|$)/gi, (_m, open, _t, body) => open + blank(body));
+  return maskTemplates(masked, blank);
+}
+
+// template の中身は文書に属さず meta が効かないため、入れ子を数えて最も外側の template ごと空白にする。閉じていなければ末尾まで。
+function maskTemplates(src, blank) {
+  const re = /<(\/?)template(?=[\s/>])[^>]*>/gi;
+  let out = '';
+  let pos = 0;
+  let depth = 0;
+  let start = 0;
+  for (const m of src.matchAll(re)) {
+    if (m[1] === '') {
+      if (depth === 0) start = m.index;
+      depth += 1;
+    } else if (depth > 0) {
+      depth -= 1;
+      if (depth === 0) {
+        out += src.slice(pos, start) + blank(src.slice(start, m.index + m[0].length));
+        pos = m.index + m[0].length;
+      }
+    }
+  }
+  if (depth > 0) {
+    out += src.slice(pos, start) + blank(src.slice(start));
+    pos = src.length;
+  }
+  return out + src.slice(pos);
 }
 
 // meta 要素を属性単位で解析する。属性名は完全一致で比べる（data-http-equiv 等の部分一致を許さない）。

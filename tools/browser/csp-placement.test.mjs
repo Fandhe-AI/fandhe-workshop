@@ -58,6 +58,10 @@ const cases = [
     h.replace(CHARSET_LINE, (m) => '<!-- ' + m).replace(c, c + ' -->')],
   ['CSP だけをコメントで囲む', /CSP meta count is 0/, (h, c) => h.replace(c, '<!-- ' + c + ' -->')],
   ['CSP を script の中身に置く', /CSP meta count is 0/, (h, c) => h.replace(c, '<script>"' + c.replace(/"/g, "'") + '"</script>')],
+  ['charset と CSP をまとめて template で囲む', /charset meta count is 0/, (h, c) =>
+    h.replace(CHARSET_LINE, (m) => '<template>' + m).replace(c, c + '</template>')],
+  ['CSP だけを入れ子の template で囲む', /CSP meta count is 0/, (h, c) =>
+    h.replace(c, '<template><template></template>' + c + '</template>')],
 ];
 for (const [label, reason, fn] of cases) {
   test(`csp-placement: 対照 ${label}`, () => {
