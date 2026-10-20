@@ -31,6 +31,11 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
     ("meta_key", GlueOp::KeydownReceive),
     ("repeat", GlueOp::KeydownReceive),
     ("target", GlueOp::KeydownReceive),
+    // root の外の Esc（TASK-353 1/2。FEND-8・D-42）: keydown を登録する先の `document` を取り、
+    // target が root の中かを `contains` で判定する。どちらも keydown の受け取りのための操作で、
+    // 要素の取得（`ElementLookup`）には分類しない（root の取得ではなく、上限の対象外）。
+    ("document", GlueOp::KeydownReceive),
+    ("contains", GlueOp::KeydownReceive),
     ("prevent_default", GlueOp::KeydownReceive),
     ("window", GlueOp::Timer),
     (
@@ -74,6 +79,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "dyn_ref",
     "unchecked_ref",
     "is_some_and",
+    "ok_or_else",
     "is_some",
     "chars",
     "count",
@@ -374,4 +380,23 @@ fn tab_は候補が開いていて文字があるときだけ_prevent_default() 
     assert!(!tab_prevents_default(true, false));
     assert!(!tab_prevents_default(false, true));
     assert!(!tab_prevents_default(false, false));
+}
+
+#[test]
+fn 正例_document_の_keydown_のリスナーは違反なし() {
+    let src = GOOD.replace(
+        "root.add_event_listener_with_callback(\"input\", f)?;",
+        "root.add_event_listener_with_callback(\"input\", f)?; document.add_event_listener_with_callback(\"keydown\", h)?;",
+    );
+    assert_ne!(src, GOOD);
+    assert_eq!(violations(&src), Vec::<String>::new());
+}
+
+#[test]
+fn 負例_document_に_keydown_以外のリスナーを足すと検出する() {
+    let src = GOOD.replace(
+        "root.add_event_listener_with_callback(\"input\", f)?;",
+        "root.add_event_listener_with_callback(\"input\", f)?; document.add_event_listener_with_callback(\"click\", h)?;",
+    );
+    assert!(violations(&src).iter().any(|m| m.contains("click")));
 }

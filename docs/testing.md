@@ -4735,6 +4735,30 @@ TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変�
 
 限界: native の試験は上流の判定条件を `view()` の目印で模したもので、実 DOM での要素の同一性・フォーカスと入力途中の値の保持（B-7）、`rerender` の負の対照（B-7n）は後続のブラウザ試験が確かめる。`scripts/expected-test-counts.txt` は更新していない。
 
+### 5.159 root の外の Esc の受け持ちと「ちょうど 1 回」（TASK-353 1/2）
+
+実行日: 2026-10-20
+元にしたコミット: cfd7755（origin/main）に本変更を加えた作業ツリー
+
+root（`#app`）の外の Esc は、glue が `document` の keydown で受けて Component に届ける（FEND-8・D-42。`glue::wire_outside_esc`）。root の中の Esc は上流の属性（`ESC_KEYDOWN_ATTRS`）が届けるため、target が root の中なら glue は届けない（二重配送を作らない。FEND-6）。判定は native で試せる純関数 `key_route::outside_root_esc` が持ち、上流の `action_from_keydown` に同じ属性を与えて照合する（キー・修飾キー 4 つ・変換中の除外が root の中と同じ関数でそろう）。
+
+| 場面 | 期待 |
+|---|---|
+| 処理中でない × フォーカスなし（`body`） | `escCount` +1。`input_received` と `judged`（拒否。`not_in_this_step`）が各 1 件・世代は不変・`stopped` は 0 件 |
+| 処理中でない × root の外のボタン | 同上 |
+| 処理中 × フォーカスなし（`body`） | `escCount` +1。世代 +1・`run-status` は `stopped`・`stopped` が 1 件・`input_received`・`judged`・`changed` は 0 件 |
+| 処理中 × root の外のボタン | 同上 |
+
+- 試験: `tools/browser/esc-once.test.mjs`（`scripts/test-browser.sh` に追加。CSP あり・なし）。場面の表 `SCENES` に行を足せば TASK-353 2/2（入力欄・root の中のボタン）が受け継げる。Esc の後に 2 フレームと 80ms 待ち、遅れて届く 2 回目が無いことを見る。対照として `Shift+Escape`・変換中の合成イベント・`Enter` が 0 件であることも見る（シミュレーターであり、実 IME ではない）。root の外のボタンは試験のページにだけ作る要素で、配信物には無い
+- 計画との差（実測で確かめた）: 計画は「処理中の停止では `changed` が 1 件」としたが、実測では 0 件だった。停止は `run` を入口の写しへ戻すだけで世界状態を戻さないため、`changed` は出ない。期待を 0 件に直した
+- `esc-attr.test.mjs`: 最後の試験を「root の外（`body`）の Esc は今は届かない」から「ちょうど 1 回届く（2 回押して 2）」に改めた
+- 契約の表（`tests/glue_contract.rs`）: `DOM_CALLS` に `document`・`contains`（いずれも `KeydownReceive`）、`NON_DOM_CALLS` に `ok_or_else` を足した。`GlueOp` の変種は増やしていない（7 件のまま。`PARTS_CONTRACT_VERSION` は 1）。`document` に `keydown` 以外のリスナーを足すと検出する負例と、`keydown` の正例を足した。要素の取得（`.root(`・`.query_selector(`）の箇所は増やしていない（`root` の clone を closure に持ち込む）
+- `web-sys` の feature に `Document`・`Node` を足した（`Cargo.lock` は変わらない）
+- 変異 `FEND8-1`（`outside_root_esc` の root の中の早期 `None` を外す）: `scripts/check-mutations.sh crates/web/tests/mutations/FEND8-1.mutation` で DETECTED（失敗した試験は `root_の中の_esc_は二重に届けない`）
+- 実行した検査（手元。2026-10-20）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads` は通った。ブラウザ試験は `esc-once`（3 回続けて pass）・`esc-attr`・`esc-outcomes`・`esc-key`・`keydown-action`・`key-invariants`・`stop-redo`・`candidates`・`point-keys` が pass（CSP あり・なしを含む）
+- 未検証: `make test-browser` の全体と `make check-mutations` の全件、CI 上の実行（初回の PR の実行後に確かめる）。`scripts/expected-test-counts.txt` は更新していない（別の PR で行う）
+- 範囲外・申し送り: 入力欄・root の中のボタンの 4 場面は TASK-353 2/2。root の中でも `main` の外にある部品（`workshop-parts` の中のボタン）にフォーカスがあるときの Esc は、上流の属性にも本件の glue（root の外だけ）にも当たらず 0 回になる見込みで、本件では直していない
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。

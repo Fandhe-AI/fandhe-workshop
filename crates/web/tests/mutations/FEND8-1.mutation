@@ -1,0 +1,8 @@
+id: FEND8-1
+package: fandhe-workshop-web
+test: key_route_contract
+target: crates/web/src/key_route.rs
+find:     if in_root {
+replace:     if false && in_root {
+expect-fail: root_の中の_esc_は二重に届けない
+note: root の中の Esc も glue が届け、上流の属性の配送と合わせて 2 回届く

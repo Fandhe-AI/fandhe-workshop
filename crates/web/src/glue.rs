@@ -23,8 +23,9 @@ use fandhe_workshop_core::addr::TickAddr;
 
 use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction};
 use crate::host::EngineHost;
-use crate::key_route::{effect_for, field_state, row_key_effect};
+use crate::key_route::{effect_for, field_state, outside_root_esc, row_key_effect};
 use crate::tick_interval::TICK_INTERVAL_MS;
+use fandhe_frontend_wasm_full::events::{KeyModifiers, KeydownInput};
 
 thread_local! {
     static RUNTIME: RefCell<Option<Runtime<EngineHost>>> = const { RefCell::new(None) };
@@ -486,6 +487,53 @@ pub(crate) fn wire_row_keys(root: &web_sys::Element) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// root の外の Esc（フォーカスなし・root の外の部品）を、`document` の keydown で受けて Component に届ける（TASK-353 1/2。FEND-8・D-42）。
+///
+/// 呼び出し元は [`mount_host`] である。root の中の Esc は上流の属性（`action::ESC_KEYDOWN_ATTRS`）が届けるため、
+/// target が root の中なら何もしない（二重に届けない。FEND-6）。target が無い・Node でないときは root の外として届ける。
+/// 判定は `key_route::outside_root_esc`（上流と同じ照合）、停止か取り消しかの判断は届いた後の `esc_route` が持つ。
+/// 届けるのは `schedule_action` 経由に限る（リスナーの中で直接 `dispatch_action` すると `Reentrant` で捨てられる）。
+/// `preventDefault` は呼ばない（root の中の属性も付けていない）。`root` の clone を持ち込むのは、要素の取得の箇所を増やさないため。
+/// `Closure::forget` は mount が 1 回限りのため、リークは定数個に収まる。
+///
+/// # Errors
+///
+/// `window`・`document` が無い場合、リスナーの登録に失敗した場合に `Err` を返す。
+fn wire_outside_esc(root: &web_sys::Element) -> Result<(), JsValue> {
+    let document = web_sys::window()
+        .and_then(|w| w.document())
+        .ok_or_else(|| JsValue::from_str("no document"))?;
+    let root = root.clone();
+    let on_keydown = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+        let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+            return;
+        };
+        let in_root = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Node>().ok())
+            .is_some_and(|node| root.contains(Some(&node)));
+        let key = kev.key();
+        let input = KeydownInput {
+            key: &key,
+            modifiers: KeyModifiers {
+                ctrl: kev.ctrl_key(),
+                alt: kev.alt_key(),
+                shift: kev.shift_key(),
+                meta: kev.meta_key(),
+            },
+            is_composing: kev.is_composing(),
+            key_code: kev.key_code(),
+            repeat: kev.repeat(),
+        };
+        if let Some(action) = outside_root_esc(&input, in_root) {
+            schedule_action(action, 0);
+        }
+    });
+    document.add_event_listener_with_callback("keydown", on_keydown.as_ref().unchecked_ref())?;
+    on_keydown.forget();
+    Ok(())
+}
+
 /// 画面を root 配下ごと再構築する。再描画の時間の測定（tools/measure/redraw.sh）が試験用の口経由で呼ぶ。
 ///
 /// 戻り値は、再構築を実行したかどうか。未マウント、または他の借用中は何もせず `false` を返す
@@ -533,6 +581,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         wire_draft_sync(root)?;
         wire_enter_submit(root)?;
         wire_row_keys(root)?;
+        wire_outside_esc(root)?;
         *slot = Some(runtime);
         Ok(())
     })

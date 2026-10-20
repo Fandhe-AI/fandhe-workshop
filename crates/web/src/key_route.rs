@@ -22,6 +22,8 @@
 //!   入力欄の Space（`KeyboardEvent.key` は `" "`）もここに当たる。`preventDefault` せず、textarea の既定動作で空白が入る
 //!   （FEND-7・D-42。TASK-352 1/3。ブラウザ試験は `tools/browser/field-space.test.mjs`）
 //!
+//! root の外の Esc（フォーカスなし・root の外の部品）は `outside_root_esc` が判定する（TASK-353 1/2。FEND-8・D-42）。結線は `glue::wire_outside_esc` である。
+//!
 //! 標準でない要素（左の行）の Enter・Space は `row_key_effect` が受け持つ（TASK-352 2/3。A11Y-18・D-42）。結線は `glue::wire_row_keys` である（TASK-358 1/2）。
 //!
 //! 候補が開いているときの Esc の 2 回と補完の選び方は、`after_esc`・`completion_choice` が受け持つ
@@ -31,10 +33,13 @@
 //! それ以外の Tab は呼ばず、ブラウザの通常のフォーカス移動に任せる。補完の挿入そのものは `HelloView::complete` が持つ
 //! （TASK-440 2/2）。ここでは行わない。
 
+use fandhe_frontend_wasm_full::events::{action_from_keydown, AttrSource, KeydownInput};
 use fandhe_workshop_contract::key_decide::{
     first_completion, Decision, FieldState, KeyAction, KeyDecision, KeyInput,
 };
 use fandhe_workshop_core::input::{Control, Input, Op};
+
+use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 
 /// glue が keydown に対して行う効果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -291,6 +296,40 @@ pub fn completion_choice<T>(decision: Decision, candidates: &[T]) -> Option<&T> 
             | KeyAction::Nothing => None,
         },
         Decision::Pending(_) => None,
+    }
+}
+
+/// root の中の Esc と同じ属性（`ESC_KEYDOWN_ATTRS`）を返す固定の属性源。
+struct EscAttrs;
+
+impl AttrSource for EscAttrs {
+    fn attr(&self, name: &str) -> Option<String> {
+        ESC_KEYDOWN_ATTRS
+            .iter()
+            .find(|(k, _)| *k == name)
+            .map(|(_, v)| (*v).to_owned())
+    }
+}
+
+/// root の外で受けた keydown が、Component へ届ける Esc かを判定する（TASK-353 1/2。FEND-6・FEND-8・D-42）。
+///
+/// 呼び出し元は `glue::wire_outside_esc` の `document` の keydown リスナーである。root の中の Esc は上流の属性
+/// （`ESC_KEYDOWN_ATTRS`）が届けるため、`in_root` が真なら `None` を返して二重に届けない（FEND-5・FEND-6）。
+/// 照合は上流の `action_from_keydown` に同じ属性を与えて行う。キーの完全一致・修飾キーの完全一致・変換中の除外が
+/// root の中と同じ関数でそろう（FEND-21・TERM-40）。停止にするか取り消しにするかはここでは決めず、
+/// 届いた後に `esc_route` が決める。
+#[must_use]
+pub fn outside_root_esc(input: &KeydownInput<'_>, in_root: bool) -> Option<RuntimeAction> {
+    if in_root {
+        return None;
+    }
+    let matched = action_from_keydown(&EscAttrs, input)?;
+    if matched.repeat_suppressed {
+        return None;
+    }
+    match RuntimeAction::decode(&matched.action_ref.action, &matched.action_ref.payload) {
+        Some(RuntimeAction::Esc) => Some(RuntimeAction::Esc),
+        _ => None,
     }
 }
 
