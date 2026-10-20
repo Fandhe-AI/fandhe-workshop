@@ -4626,12 +4626,36 @@ AUTHOR1-7 は実効行数がコメント行を除かず、AUTHOR1-8 は `TOTAL` 
 | AUTHOR10-1 | crates/pack/src/source.rs: `.md` 以外の本文を `.md` として扱う | author10_non_md_body_over_is_e_limit | DETECTED |
 | AUTHOR10-2 | crates/pack/src/source.rs: 事前走査の結果を捨てて読み込みへ進む | author10_multiple_limits_listed_and_nothing_read, author10_pack_size_over_on_every_entry | DETECTED |
 
+### 5.152 診断コードの一覧と実装の一致の検査（TASK-400 1/2）
+
+`docs/diagnostics.md` の 3 つの区分（2 節の本表、4 節の参照のみ、5 節の本表外）と、実装の `DiagCode::ALL` の一致を固定した（AUTHOR-11）。試験は `crates/pack/tests/diagnostics_doc.rs` の `author11_` 7 件と、`crates/pack/src/diag.rs` の `d9_all_covers_every_variant` である。`rust-test` ジョブの `cargo test --workspace` で実行されるため、CI の変更は無い。
+
+- 区分は見出しの番号（`## 2.` など）で探した節から取り出す。コードの一覧も件数も試験に書かない。文書が無い・節が無い・本表の 1 列目がコードの形でない場合は失敗する
+- `author11_doc_and_impl_codes_match`: 3 区分の和集合と `DiagCode::ALL` の集合が一致する。食い違いは「一覧にだけある」「実装にだけある」の形でコード名を示す
+- `author11_buckets_are_disjoint_and_unique`: 本表の重複と、区分どうしの重複が無い
+- `author11_recorded_counts_match`: 2 節の「一覧の件数」、3 節の「本表は N 件」と、実装の列挙との対応の記述（全体・本表・本表外・上限超過）が、実際の件数と一致する
+- `author11_limit_codes_follow_contract`: contract の `PackLimitCode::ALL` が参照のみの区分と `DiagCode::ALL` にあり、参照のみの区分にあって `PackLimitCode` に無いのは素の `E-LIMIT` だけである
+- 自己確認 3 件（`author11_detects_*`）: 文書の写しの文字列を書き換えて、「一覧にだけある」「実装にだけある」と区分の重複が検出されることを確かめる
+- `d9_all_covers_every_variant`: 全変種を網羅する `match` の番号が `ALL` と過不足なく一致する。`ALL` への入れ忘れを検出する
+
+変異注入は使わない。`scripts/check-mutations.sh` は `docs/` を写さないため、文書を読む試験は元の状態で失敗し、終了コード 2 になる（5.144 と同じ制約）。代わりに、手元で次を行い、行ったあとに元へ戻した。
+
+実行日: 2026-10-20、元にしたコミット: 47162a5 に本変更を載せた作業ツリー。
+
+| 変更 | 期待した失敗 | 結果 |
+|---|---|---|
+| `docs/diagnostics.md` の本表から `E-REF-ELEMENT` の行を消す | `author11_doc_and_impl_codes_match` が「実装にだけある: E-REF-ELEMENT」を示す | 検出 |
+| `diag.rs` の `DiagCode::RefElement` の `as_str` を `E-REF-ELEM` にする | 同じ試験が「一覧にだけある: E-REF-ELEMENT」「実装にだけある: E-REF-ELEM」を示す | 検出 |
+| `diag.rs` の `ALL` から `DiagCode::Parse` を消し、`d5` の件数を合わせる | `d9_all_covers_every_variant` が失敗する | 検出 |
+
+未確認: 区分の置き場（節の番号）を #474（TASK-400 2/2）が変える場合は、同じ変更で `diagnostics_doc.rs` の節の取り出しを合わせる。
+
 ### 5.153 版上げ PR の受け入れ確認の模擬（TASK-101 1/2）
 
 実行日: 2026-10-20、元にしたコミット: 47162a5 に本変更を載せた作業ツリー。
 
 - `make test-check-frontend-bump`: 一時の repo で版上げを模擬した 29 件がすべて通る。版上げの検出（`Cargo.lock` の版だけの変更・ルートの feature の変更・無関係な変更・base の欠落）、版上げ PR での期待値・`tools/check-deps.sh` の `EXC_N`（1 から 2）・関門自体の変更の拒否、件数が 1 件減る・増える場合の失敗、ANSI つきの一致、skip の条件、`cargo metadata` の `default-features` 有効・`action-keydown` 欠落・壊れた JSON、誤用を含む
-- 実物での確認: `make update-test-counts` で期待値を作り（Rust 2,535 件・ignored 4 件・239 束、ブラウザ 553 件）、実際の `make test` の出力を使って、試験 1 件を ignored にした写しの log が `counts rust` で終了コード 1 になり、元の log は 0 になることを確かめた（変更ファイルの一覧を `--changed-files` で渡して PR を模擬した）
+- 実物での確認: `make update-test-counts` で期待値を作り（Rust 2,543 件・ignored 4 件・240 束、ブラウザ 553 件）、実際の `make test` の出力を使って、試験 1 件を ignored にした写しの log が `counts rust` で終了コード 1 になり、元の log は 0 になることを確かめた（変更ファイルの一覧を `--changed-files` で渡して PR を模擬した）
 - 未確認: 実際の GitHub Actions 上の動作（初回の CI で確かめる）。`make check-fork-ci` は `ruby` が無い環境のためローカルでは未実行
 
 ## 6. 既存の自動テストの件数の基準値（TASK-346）

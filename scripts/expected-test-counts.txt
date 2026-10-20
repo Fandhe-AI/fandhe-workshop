@@ -71,6 +71,7 @@ rust|tests/content_hash_contract.rs [content_hash_contract]|passed=9|ignored=0
 rust|tests/contract_conformance.rs [contract_conformance]|passed=19|ignored=0
 rust|tests/contract_sample.rs [contract_sample]|passed=6|ignored=0
 rust|tests/defect_packs.rs [defect_packs]|passed=10|ignored=3
+rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
 rust|tests/diff_view_a_contract.rs [diff_view_a_contract]|passed=10|ignored=0
 rust|tests/diff_view_contract.rs [diff_view_contract]|passed=14|ignored=0
 rust|tests/doc_depth.rs [doc_depth]|passed=17|ignored=0
@@ -235,10 +236,10 @@ rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6
 rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=10|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=239|passed=2535|ignored=4
+rust|total|binaries=240|passed=2543|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=41|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=92|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=94|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
 browser|total|tests=553|pass=553|skipped=0|todo=0|cancelled=0

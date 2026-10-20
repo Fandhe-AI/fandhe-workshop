@@ -1,6 +1,6 @@
 //! 作成者向けの診断（エラー）の型と、1 行の出力形。
 //!
-//! コードの一覧は `docs/diagnostics.md`（一覧の版 4、TASK-195）で固定した。出力形と終了コードは
+//! コードの一覧は `docs/diagnostics.md`（TASK-195）で固定した。出力形と終了コードは
 //! `docs/cli.md`（版 4）の 6〜9 節で固定した（TASK-399）。`cli` の各コマンドが診断を集め、
 //! ここの関数で出力と終了コードに変える。
 
@@ -9,9 +9,10 @@ use std::io;
 
 use crate::cli::{EXIT_DIAGNOSTICS, EXIT_OK};
 
-/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md`（一覧の版 4）である。
+/// 診断コード（`E-` で始まる）。一覧の正は `docs/diagnostics.md` である。
 ///
-/// 一覧と本列挙の一致の自動検査は TASK-400 が持つ。`E-LIMIT-*` の拒否理由の型は contract
+/// 一覧と本列挙の一致は `crates/pack/tests/diagnostics_doc.rs`（TASK-400）が検査する。
+/// `E-LIMIT-*` の拒否理由の型は contract
 /// （TASK-199 の `PackLimitCode`）が持ち、一覧には参照だけを置く。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -401,6 +402,65 @@ mod tests {
             assert!(seen.insert(s), "duplicate {s}");
             assert_eq!(c.to_string(), s);
         }
+    }
+
+    /// `ALL` が全変種を過不足なく含むこと。`match` にワイルドカードが無いので、変種を足すとここの更新が
+    /// コンパイルで強制され、`ALL` への入れ忘れは番号の不足として失敗する（文書との一致は
+    /// `tests/diagnostics_doc.rs` が見る）。
+    #[test]
+    fn d9_all_covers_every_variant() {
+        fn index(c: DiagCode) -> usize {
+            match c {
+                DiagCode::Parse => 0,
+                DiagCode::FormatVersion => 1,
+                DiagCode::Structure => 2,
+                DiagCode::RefStep => 3,
+                DiagCode::RefRejection => 4,
+                DiagCode::RefBody => 5,
+                DiagCode::RefFixture => 6,
+                DiagCode::RefHint => 7,
+                DiagCode::RefElement => 8,
+                DiagCode::VocabMismatch => 9,
+                DiagCode::RefModule => 10,
+                DiagCode::RefCommand => 11,
+                DiagCode::RefView => 12,
+                DiagCode::DupId => 13,
+                DiagCode::Unreachable => 14,
+                DiagCode::DeadEnd => 15,
+                DiagCode::ModuleCycle => 16,
+                DiagCode::EmptyNextAction => 17,
+                DiagCode::NoConfirm => 18,
+                DiagCode::SlotSyntax => 19,
+                DiagCode::SlotUnknown => 20,
+                DiagCode::SlotContext => 21,
+                DiagCode::SlotNeedsDo => 22,
+                DiagCode::SlotNoFallback => 23,
+                DiagCode::GuidanceLeak => 24,
+                DiagCode::HintHidden => 25,
+                DiagCode::ProfilePrefix => 26,
+                DiagCode::ProfileCommandName => 27,
+                DiagCode::ProfileText => 28,
+                DiagCode::ProfileNoInput => 29,
+                DiagCode::PlayInputClass => 30,
+                DiagCode::PlayIncomplete => 31,
+                DiagCode::PlayCategoryMismatch => 32,
+                DiagCode::LeftMultiView => 33,
+                DiagCode::LeftTargetRow => 34,
+                DiagCode::LeftTargetView => 35,
+                DiagCode::Limit => 36,
+                DiagCode::LimitDepth => 37,
+                DiagCode::LimitMdSize => 38,
+                DiagCode::LimitPackSize => 39,
+                DiagCode::LimitSymlink => 40,
+            }
+        }
+        let mut got: Vec<usize> = DiagCode::ALL.iter().map(|c| index(*c)).collect();
+        got.sort_unstable();
+        // 期待する変種数は `ALL` から作らない（`ALL` の入れ忘れが want 側にも現れず見逃されるため）。
+        // 上の `index` の最大値 + 1 と同じ値を、変種を足すたびに手で更新する。
+        const VARIANTS: usize = 41;
+        let want: Vec<usize> = (0..VARIANTS).collect();
+        assert_eq!(got, want);
     }
 
     #[test]
