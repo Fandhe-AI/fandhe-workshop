@@ -2,6 +2,7 @@
 //!
 //! 呼び出し元は `engine_parts` の `LogPart` で、描画のたびと束縛点の更新のたびに [`save_notice_text`] を引く。
 //! 引く値は `HostModel::save_failure`（`EngineHost` が、変更のたびの保存の結果から入れる）である。
+//! IndexedDB の保存の失敗（SAVE-11。非同期で届き、ホストが次の `update` で probe から求める）も同じ欄・同じ文で出す。
 //! 文は固定の定数だけで作り、例外の文・鍵・値・教材・受講者の値を含めない（履歴は受講者のデータである。`storage_local` と同じ方針）。
 //!
 //! `QuotaExceeded` の文は SAVE-10 の文言どおり。`Unavailable`・`Failed` の文は仮置きで、確定は TASK-534 と TASK-323 2/2 が持つ。

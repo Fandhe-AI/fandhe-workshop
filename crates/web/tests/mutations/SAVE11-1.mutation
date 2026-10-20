@@ -1,0 +1,8 @@
+id: SAVE11-1
+package: fandhe-workshop-web
+test: save_failure_idb
+target: crates/web/src/storage_select.rs
+find:                     shared.last_async_error.set(None);
+replace:                     let _ = &shared;
+expect-fail: 後の書き込みの確定で表示が消える
+note: IndexedDB への書き込みの成功で、前の失敗が消えない

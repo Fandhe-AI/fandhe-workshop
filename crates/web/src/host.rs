@@ -121,8 +121,9 @@ pub struct HostModel {
     /// 読み方は [`HostModel::selected_view`] が決め、宣言に無い種類のときは読まれない。今の Step が変わると
     /// `step_engine` が捨てる（ART-12。元の Step へ戻っても以前の選択は戻らない）。
     view_choice: Option<ViewChoice>,
-    /// 直近の保存の失敗の種類（SAVE-10）。`save-notice` の元で、履歴（`ops`）には記録しない表示の状態。
-    /// 保存に成功すると `None` に戻る。状態を変える操作の後の保存の結果だけが入れる（`EngineHost::save_after_change`）。
+    /// 直近の保存の失敗の種類（SAVE-10・SAVE-11）。`save-notice` の元で、履歴（`ops`）には記録しない表示の状態。
+    /// 保存に成功すると `None` に戻る。同期の保存の結果（`EngineHost::save_after_change`）と、非同期の保存の失敗の probe
+    /// （`EngineHost::refresh_save_failure`）から決まる。
     save_failure: Option<StorageError>,
 }
 
@@ -432,6 +433,12 @@ pub type DraftSyncRequest = Box<dyn Fn()>;
 /// 値・鍵の文字列は結果に含めない（`StorageError` は種類だけ）。`Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
 
+/// 非同期の保存の失敗（IndexedDB。SAVE-11）を読む口。読み取り専用で、`update` のたびに引かれる。
+///
+/// IndexedDB の確定は後から届き、そのコールバックからホストへは触れない（`state_paths`）。そのため実体（`persist`）は失敗の種類を
+/// 保存先に残し、ホストがこの口で引く。`Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type SaveFailureProbe = Box<dyn Fn() -> Option<StorageError>>;
+
 /// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
 ///
 /// 問い返しの後の扱いは JUDGE-27・TERM-22（検討中）に属するため、ここでは固定しない。
@@ -500,6 +507,10 @@ pub struct EngineHost {
     draft_sync_request: Option<DraftSyncRequest>,
     /// 変更のたびの保存の口。未設定（native の試験など）なら保存を試さない。
     history_saver: Option<HistorySaver>,
+    /// 非同期の保存の失敗を読む口（SAVE-11）。未設定なら同期の保存の結果だけで表示を決める。
+    save_failure_probe: Option<SaveFailureProbe>,
+    /// 直近の同期の保存（saver）の失敗。表示は「これ、無ければ probe の値」で決める。
+    sync_save_failure: Option<StorageError>,
     /// 今の `update` で状態を変えた（ログが伸びた）印。`update` の末尾で 1 回だけ保存を試して下ろす。
     /// 下書きだけの変更では立てない（打鍵ごとに履歴の全体を書く費用を避ける。下書きは離れる直前に書く）。
     save_due: bool,
@@ -569,6 +580,8 @@ impl EngineHost {
             tick_reset: None,
             draft_sync_request: None,
             history_saver: None,
+            save_failure_probe: None,
+            sync_save_failure: None,
             save_due: false,
             command_prefix: None,
             initial: None,
@@ -637,6 +650,8 @@ impl EngineHost {
             tick_reset: None,
             draft_sync_request: None,
             history_saver: None,
+            save_failure_probe: None,
+            sync_save_failure: None,
             save_due: false,
             command_prefix: d.command_prefix,
             initial,
@@ -816,6 +831,27 @@ impl EngineHost {
         self.history_saver = Some(f);
     }
 
+    /// 非同期の保存の失敗を読む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
+    ///
+    /// 結んだ時点で 1 回引き、最初の描画から表示に反映する（開けたが読めなかった保存先は、操作の前から理由が出る）。
+    pub fn set_save_failure_probe(&mut self, f: SaveFailureProbe) {
+        self.save_failure_probe = Some(f);
+        self.refresh_save_failure();
+    }
+
+    /// 表示する保存の失敗を求め直し、前と違うときだけ `save_failure` を更新して dirty に積む。
+    /// 同期の保存の失敗を先に採り、無ければ非同期の probe の値を採る（SAVE-10・SAVE-11）。
+    /// `update` の末尾で毎回呼ぶ。非同期の失敗は次の `update` で表示される（IndexedDB の確定が後から届くため）。
+    fn refresh_save_failure(&mut self) {
+        let failure = self
+            .sync_save_failure
+            .or_else(|| self.save_failure_probe.as_ref().and_then(|probe| probe()));
+        if failure != self.model.save_failure {
+            self.model.save_failure = failure;
+            self.dirty.push(SAVE_NOTICE_FIELD);
+        }
+    }
+
     /// 状態を変えた操作の後に履歴を保存し、結果を `save_failure` と dirty に反映する（SAVE-10）。
     ///
     /// 保存する値が無い（未操作・保存停止・上限超過）ときは何もしない。表示も変えない（それぞれ別の規則が持つ）。
@@ -828,10 +864,8 @@ impl EngineHost {
             return;
         };
         let failure = saver(&value).err();
-        if failure != self.model.save_failure {
-            self.model.save_failure = failure;
-            self.dirty.push(SAVE_NOTICE_FIELD);
-        }
+        self.sync_save_failure = failure;
+        self.refresh_save_failure();
     }
 
     /// 部品が読む値。
@@ -1566,6 +1600,8 @@ impl Component for EngineHost {
             self.save_due = false;
             self.save_after_change();
         }
+        // 非同期の保存の失敗（IndexedDB）の表示を、打鍵・送信・進行のどの `update` でも求め直す（SAVE-11）。
+        self.refresh_save_failure(); // update の末尾
     }
 
     fn view(&self) -> Node {
