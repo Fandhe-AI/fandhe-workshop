@@ -381,6 +381,18 @@ jobs:
           CI_EVENT_NAME: ${{ github.event_name }}
         run: bash scripts/check-frontend-bump.sh counts browser "${RUNNER_TEMP}/browser-test.tap"
 
+      # 版上げ PR の受け入れ確認 (3)（FEND-17・D-63・TASK-101 2/2）の配信用 WASM の gzip -9 の増加 +10%。
+      # 版上げ PR のときだけ、base（HEAD^1）と HEAD を同じ手順でビルドして比べる（fetch-depth: 2 で足りる。判定はスクリプトの中。skip も log に残す）。
+      # 基点は repo に記録せず、同じ runner の同じジョブで測る。wasm-opt は CI に入れず、両側とも SKIP_WASM_OPT=1 の基点で比べる
+      # （binaryen を足すと供給網の面と SHA256 の固定が増える）。toolchain と wasm-bindgen の版が base と違う PR は、別の PR で先に上げる。
+      # CARGO_TARGET_DIR は make test-browser と同じ値にして、依存のビルドを使い回す。
+      # 限界: ci.yml 自体と Cargo.toml の [profile.release] の書き換えは防げない。ai-review とレビュースレッドの解決必須で補う。
+      - name: Check WASM gzip growth (version bump gate)
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+        run: bash scripts/check-frontend-bump.sh wasm-gzip
+
   # squash merge では PR タイトルがそのままコミット件名になるため、commit-msg フックと
   # 同じスクリプトで Conventional Commits 形式を検証する（フックの CI 側の対）。
   # PR タイトルは任意文字列のため、${{ }} を run へ直接展開せず env 経由でファイルへ書き出す
