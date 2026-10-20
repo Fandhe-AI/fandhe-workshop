@@ -15,6 +15,7 @@
 //! 語（拡張点・欄）ごとに 1 件だけ報告する。診断の文面は静的な ID・名前と、読み取った数値の宣言だけで組み立てる。
 
 use fandhe_workshop_contract::history_version::VocabVersion as Declared;
+use fandhe_workshop_contract::ir::Start;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
@@ -99,12 +100,14 @@ fn uses_view_body(pack: &LoadedPack) -> bool {
 
 /// 章・モジュール（呼ばれないものを含む）の開始点に `requires`・`unmet` があるか。
 fn uses_start_condition(pack: &LoadedPack) -> bool {
-    pack.scopes.iter().any(|s| {
-        s.src
-            .starts
-            .iter()
-            .any(|st| st.requires.is_some() || st.unmet.is_some())
-    })
+    pack.scopes
+        .iter()
+        .any(|s| s.src.starts.iter().any(start_uses_ep9))
+}
+
+/// 開始点 1 件が EP-9（開始条件）を使うか。`vocab_report` の数え上げと使用の判定を食い違わせないため共有する。
+pub(crate) fn start_uses_ep9(st: &Start) -> bool {
+    st.requires.is_some() || st.unmet.is_some()
 }
 
 /// 宣言を読んで、使用と比べる。`pack.vocab` が無いときは空を返す。

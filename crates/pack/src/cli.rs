@@ -225,7 +225,7 @@ fn run_test<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
 
 /// `vocab` の実行。表と集計を標準出力に書いて `EXIT_OK`。読み込みか `compile` に診断があれば、表は出さず診断を
 /// 1 件 1 行で標準出力に書いて `EXIT_DIAGNOSTICS` を返す（失敗を成功とみなさない。標準エラー出力には書かない）。
-/// 出力の形の正は `docs/cli.md` 版 5 の 12 節で、数え方は `vocab_report`。
+/// 出力の形の正は `docs/cli.md` 版 6 の 12 節で、数え方は `vocab_report`。
 fn run_vocab<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
     match report_dir(dir) {
         Ok(text) => {
