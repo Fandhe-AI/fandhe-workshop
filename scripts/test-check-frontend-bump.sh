@@ -145,6 +145,61 @@ commit_head
 run pull_request detect
 expect_out "detect: unrelated file -> false" false
 
+# テーブル形式の宣言の中身が変わる（Cargo.lock は不変）
+new_repo
+printf '[workspace.dependencies.fandhe-frontend-wasm-full]\nversion = "0.46.0"\ndefault-features = false\nfeatures = ["action-keydown"]\n\n[workspace.dependencies.serde]\nversion = "1"\n' >"${REPO}/Cargo.toml"
+git -C "${REPO}" commit -q -am base2
+printf '[workspace.dependencies.fandhe-frontend-wasm-full]\nversion = "0.46.0"\ndefault-features = true\nfeatures = ["action-keydown"]\n\n[workspace.dependencies.serde]\nversion = "1"\n' >"${REPO}/Cargo.toml"
+commit_head
+run pull_request detect
+expect_out "detect: table-form declaration changed -> true" true
+
+# テーブル形式の外（別の依存）だけが変わる
+new_repo
+printf '[workspace.dependencies.fandhe-frontend-wasm-full]\nversion = "0.46.0"\n\n[workspace.dependencies.serde]\nversion = "1"\n' >"${REPO}/Cargo.toml"
+git -C "${REPO}" commit -q -am base2
+printf '[workspace.dependencies.fandhe-frontend-wasm-full]\nversion = "0.46.0"\n\n[workspace.dependencies.serde]\nversion = "2"\n' >"${REPO}/Cargo.toml"
+commit_head
+run pull_request detect
+expect_out "detect: other table changed -> false" false
+
+# 複数行の features の変更（Cargo.lock は不変）
+new_repo
+printf '[workspace.dependencies]\nfandhe-frontend-wasm-full = { version = "0.46.0", default-features = false, features = [\n  "action-keydown",\n] }\nserde = "1"\n' >"${REPO}/Cargo.toml"
+git -C "${REPO}" commit -q -am base2
+printf '[workspace.dependencies]\nfandhe-frontend-wasm-full = { version = "0.46.0", default-features = false, features = [\n  "action-keydown",\n  "extra",\n] }\nserde = "1"\n' >"${REPO}/Cargo.toml"
+commit_head
+run pull_request detect
+expect_out "detect: multi-line features changed -> true" true
+
+# 複数行の宣言の外の変更は無視する
+new_repo
+printf '[workspace.dependencies]\nfandhe-frontend-wasm-full = { version = "0.46.0", features = [\n  "action-keydown",\n] }\nserde = "1"\n' >"${REPO}/Cargo.toml"
+git -C "${REPO}" commit -q -am base2
+printf '[workspace.dependencies]\nfandhe-frontend-wasm-full = { version = "0.46.0", features = [\n  "action-keydown",\n] }\nserde = "2"\n' >"${REPO}/Cargo.toml"
+commit_head
+run pull_request detect
+expect_out "detect: change after a multi-line declaration -> false" false
+
+# 抽出の異常（awk の失敗）は「変更なし」にせず判定不能で止める
+FAKE_AWK_BIN="${TMP_DIR}/fakeawk"
+mkdir -p "${FAKE_AWK_BIN}"
+REAL_AWK="$(command -v awk)"
+cat >"${FAKE_AWK_BIN}/awk" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  case "\${a}" in *.toml) exit 2 ;; esac
+done
+exec "${REAL_AWK}" "\$@"
+EOF
+chmod +x "${FAKE_AWK_BIN}/awk"
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+commit_head
+RC=0
+OUT="$(PATH="${FAKE_AWK_BIN}:${PATH}" CI_EVENT_NAME=pull_request "${SCRIPT}" --repo "${REPO}" --base HEAD^1 detect 2>&1)" || RC=$?
+expect "detect: declaration extraction failure fails closed" 2 "${RC}"
+
 new_repo
 commit_head_empty() { git -C "${REPO}" commit -q --allow-empty -m head; }
 commit_head_empty

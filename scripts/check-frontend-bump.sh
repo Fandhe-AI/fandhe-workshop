@@ -92,6 +92,27 @@ is_pr() {
   [ "${CI_EVENT_NAME:-}" = "pull_request" ]
 }
 
+# toml_decls <prefix> <file>: fandhe-frontend-* の依存宣言の全体を prefix つきの行にして出す。
+# 対象は 1 行の宣言・複数行の配列や inline table（括弧の深さで追う）・[...fandhe-frontend-x] 形式のテーブルとその中身。
+# 該当 0 行は正常（空出力。宣言が無いこと自体は detect_bump の HEAD の空判定で扱う）。awk の異常は終了状態で伝える。
+toml_decls() {
+  awk -v prefix="$1" '
+    function delta(l,   t, o, c) {
+      t = l; o = gsub(/[\[{]/, "", t)
+      t = l; c = gsub(/[\]}]/, "", t)
+      return o - c
+    }
+    depth == 0 && /^[ \t]*\[/ {
+      in_table = ($0 ~ /fandhe-frontend-/)
+      if (in_table) print prefix "|" $0
+      next
+    }
+    in_table { if ($0 !~ /^[ \t]*$/) print prefix "|" $0; depth += delta($0); next }
+    depth > 0 { print prefix "|" $0; depth += delta($0); next }
+    /^[ \t]*"?fandhe-frontend-/ { print prefix "|" $0; depth = delta($0) }
+  ' "$2"
+}
+
 # frontend_state <rev> <out>: その rev の fandhe-frontend-* の宣言と解決済みの版を、並べ替えた行にして書く。
 # git show の失敗は呼び出し側で終了状態を見る（$(...) の中の失敗を見逃さない）。
 frontend_state() {
@@ -99,23 +120,22 @@ frontend_state() {
   git -C "${REPO}" show "${rev}:Cargo.lock" >"${TMP}/lock.txt" || return 1
   git -C "${REPO}" show "${rev}:Cargo.toml" >"${TMP}/root.toml" || return 1
   git -C "${REPO}" show "${rev}:crates/web/Cargo.toml" >"${TMP}/web.toml" || return 1
-  {
-    awk '
-      function flush() {
-        if (name ~ /^fandhe-frontend-/) print "lock|" name "|" version "|" source "|" checksum
-        name = ""; version = ""; source = ""; checksum = ""
-      }
-      /^\[\[package\]\]/ { flush(); next }
-      /^name = / { name = $0; sub(/^name = "/, "", name); sub(/"$/, "", name) }
-      /^version = / { version = $0; sub(/^version = "/, "", version); sub(/"$/, "", version) }
-      /^source = / { source = $0; sub(/^source = "/, "", source); sub(/"$/, "", source) }
-      /^checksum = / { checksum = $0; sub(/^checksum = "/, "", checksum); sub(/"$/, "", checksum) }
-      END { flush() }
-    ' "${TMP}/lock.txt"
-    # grep は該当 0 行で 1 を返す。宣言が無いこと自体は HEAD の空判定（detect_bump）で扱うため、ここでは許容する。
-    grep '^fandhe-frontend-' "${TMP}/root.toml" | sed 's/^/root|/' || true
-    grep '^fandhe-frontend-' "${TMP}/web.toml" | sed 's/^/web|/' || true
-  } | LC_ALL=C sort >"${out}"
+  # 各抽出は別々に実行して終了状態を見る。呼び出し側は || の文脈で set -e が効かないため、群の途中の失敗が消える。
+  awk '
+    function flush() {
+      if (name ~ /^fandhe-frontend-/) print "lock|" name "|" version "|" source "|" checksum
+      name = ""; version = ""; source = ""; checksum = ""
+    }
+    /^\[\[package\]\]/ { flush(); next }
+    /^name = / { name = $0; sub(/^name = "/, "", name); sub(/"$/, "", name) }
+    /^version = / { version = $0; sub(/^version = "/, "", version); sub(/"$/, "", version) }
+    /^source = / { source = $0; sub(/^source = "/, "", source); sub(/"$/, "", source) }
+    /^checksum = / { checksum = $0; sub(/^checksum = "/, "", checksum); sub(/"$/, "", checksum) }
+    END { flush() }
+  ' "${TMP}/lock.txt" >"${TMP}/state-lock.txt" || return 1
+  toml_decls root "${TMP}/root.toml" >"${TMP}/state-root.txt" || return 1
+  toml_decls web "${TMP}/web.toml" >"${TMP}/state-web.txt" || return 1
+  cat "${TMP}/state-lock.txt" "${TMP}/state-root.txt" "${TMP}/state-web.txt" | LC_ALL=C sort >"${out}"
 }
 
 detect_bump() {
