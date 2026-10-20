@@ -173,6 +173,8 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
+    /// 遅延保存の結果（SAVE-10）。`None` は成功で、通知を消す。`Some` は失敗の種類で、通知を出す。
+    SaveResult(Option<StorageError>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -500,6 +502,8 @@ pub struct EngineHost {
     draft_sync_request: Option<DraftSyncRequest>,
     /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
     save_request: Option<DraftSyncRequest>,
+    /// 即時の保存が済んだとき、予約済みの遅延保存を無効にさせる通知先（TASK-318）。未設定なら通知しない。
+    save_cancel: Option<DraftSyncRequest>,
     /// この `update` で履歴（op の列・下書きの記録）が変わった印。`update` の末尾で通知して下ろす。
     history_changed: bool,
     /// 変更のたびの保存の口。未設定（native の試験など）なら保存を試さない。
@@ -573,6 +577,7 @@ impl EngineHost {
             tick_reset: None,
             draft_sync_request: None,
             save_request: None,
+            save_cancel: None,
             history_changed: false,
             history_saver: None,
             save_due: false,
@@ -643,6 +648,7 @@ impl EngineHost {
             tick_reset: None,
             draft_sync_request: None,
             save_request: None,
+            save_cancel: None,
             history_changed: false,
             history_saver: None,
             save_due: false,
@@ -826,6 +832,11 @@ impl EngineHost {
         self.save_request = Some(f);
     }
 
+    /// 即時の保存が済んだときに、予約済みの遅延保存を無効にさせる通知先を結ぶ（同じ履歴の二重の書き込みを避ける）。
+    pub fn set_save_cancel(&mut self, f: DraftSyncRequest) {
+        self.save_cancel = Some(f);
+    }
+
     /// 変更のたびの保存の口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
     ///
     /// 保存の起点は状態を変える操作の `update` の末尾に 1 回で、遅延も畳み込みも無い。下書きだけの変更は `set_save_request` の遅延保存が受ける（TASK-318）。
@@ -845,6 +856,11 @@ impl EngineHost {
             return;
         };
         let failure = saver(&value).err();
+        self.set_save_failure(failure);
+    }
+
+    /// 保存の結果を `save_failure` に入れ、変わったときだけ通知欄を dirty にする。
+    fn set_save_failure(&mut self, failure: Option<StorageError>) {
         if failure != self.model.save_failure {
             self.model.save_failure = failure;
             self.dirty.push(SAVE_NOTICE_FIELD);
@@ -1493,6 +1509,7 @@ impl Component for EngineHost {
             HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
             | HostAction::Complete
                 if !self.input.shows_input_area() => {}
+            HostAction::SaveResult(failure) => self.set_save_failure(failure),
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1583,6 +1600,9 @@ impl Component for EngineHost {
         if self.save_due {
             self.save_due = false;
             self.history_changed = false;
+            if let Some(f) = self.save_cancel.as_ref() {
+                f();
+            }
             self.save_after_change();
         } else if self.history_changed {
             // 下書きだけの変更は、打鍵ごとに書かず遅延保存へ畳む（TASK-318。SAVE-7）。
@@ -1721,6 +1741,10 @@ impl Component for EngineHost {
                     target: Some(payload.to_owned()),
                 }))
             });
+        }
+        // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
+        if name == crate::save_notice::ACTION_SAVE_RESULT {
+            return crate::save_notice::decode_save_result(payload).map(HostAction::SaveResult);
         }
         // `tick`・`complete` は `RuntimeAction::decode` の正規形の検査を必ず通す（payload は信頼しない）。
         // `esc` と未知の名前は、これまでどおり入力欄に委ねる。

@@ -64,17 +64,20 @@ pub fn read(key: &HistoryKey) -> Result<Option<String>, StorageError> {
 }
 
 /// 保存の値を保留へ積み、保存先が開いていれば書き出す。書けなかった値は保留に残る。
-fn stage_and_flush(key: &HistoryKey, value: String) {
+///
+/// 結果は最初の失敗の種類で、保存先が開いていない・借用中は `Unavailable`。離れる直前の書き出しは結果を使わない。
+fn stage_and_flush(key: &HistoryKey, value: String) -> Result<(), StorageError> {
     PENDING.with(|p| {
         p.stage(key.clone(), value);
         STORAGE.with(|s| {
-            if let Ok(slot) = s.try_borrow() {
-                if let Some(st) = slot.as_ref() {
-                    p.flush(st);
-                }
+            let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
+            let st = slot.as_ref().ok_or(StorageError::Unavailable)?;
+            match p.flush(st).first_error {
+                Some(e) => Err(e),
+                None => Ok(()),
             }
-        });
-    });
+        })
+    })
 }
 
 /// 変更の後の遅延保存の書き出し（`glue` のタイマーが呼ぶ。TASK-318。SAVE-7）。
@@ -88,9 +91,11 @@ pub(crate) fn save_deferred() {
     let Some(v) = crate::glue::history_to_save() else {
         return;
     };
-    stage_and_flush(&key, v);
+    let result = stage_and_flush(&key, v);
     #[cfg(feature = "test-hooks")]
     AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
+    // 失敗・成功を保存通知へ反映する（SAVE-10）。配送は別のスタックのタイマーで行う。
+    crate::glue::report_save_result(result);
 }
 
 /// 本番の保存先の種類（`local` か `idb`）。開いていなければ `None`。試験の設定だけ。
@@ -128,7 +133,7 @@ pub fn install_save_on_leave(
         let Some(v) = value() else {
             return;
         };
-        stage_and_flush(&key, v);
+        let _ = stage_and_flush(&key, v);
     })
 }
 

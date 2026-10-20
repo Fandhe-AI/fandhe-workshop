@@ -73,6 +73,12 @@ impl SaveDebounce {
         }
     }
 
+    /// 予約を無効にする（即時の保存が済んだとき）。畳み込みの状態も空に戻し、待っていた古いタイマーは token の不一致で捨てる。
+    pub fn cancel(&mut self) {
+        self.first = None;
+        self.token = self.token.wrapping_add(1);
+    }
+
     /// 発火を待っている変更があるか。
     pub fn is_scheduled(&self) -> bool {
         self.first.is_some()
@@ -82,6 +88,20 @@ impl SaveDebounce {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn 無効にすると古いタイマーは書かず_畳み込みも空に戻る() {
+        let mut d = SaveDebounce::new();
+        let s = d.on_change(1000.0);
+        d.cancel();
+        assert!(!d.is_scheduled());
+        assert_eq!(d.on_fire(s.token), Fire::Ignore);
+        let s2 = d.on_change(5000.0);
+        assert_eq!(
+            s2.delay_ms, SAVE_DEBOUNCE_MS,
+            "最初の変更の時刻は持ち越さない"
+        );
+    }
 
     #[test]
     fn 一回の変更は遅延ののち一回だけ発火する() {

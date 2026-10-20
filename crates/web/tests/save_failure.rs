@@ -160,3 +160,21 @@ fn 保存停止のときは保存を試さず表示も変えない() {
     assert!(f.local.map.borrow().is_empty());
     assert_eq!(notice(&h), "");
 }
+
+#[test]
+fn 遅延保存の結果の_action_が通知を出し_成功で消す() {
+    let (mut h, _, _, _) = setup();
+    h.update(act("save-result", "quota"));
+    assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
+    assert_eq!(notice(&h), QUOTA_TEXT);
+    assert!(h.dirty_fields().contains(&"save_notice"));
+    h.update(act("save-result", "ok"));
+    assert_eq!(h.model().save_failure(), None);
+    assert_eq!(notice(&h), "");
+}
+
+#[test]
+fn 遅延保存の結果の未知の_payload_は受けない() {
+    assert!(EngineHost::decode_action("save-result", "").is_none());
+    assert!(EngineHost::decode_action("save-result", "OK").is_none());
+}

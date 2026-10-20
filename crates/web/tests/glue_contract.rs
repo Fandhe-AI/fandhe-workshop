@@ -110,10 +110,18 @@ const NON_DOM_CALLS: &[&str] = &[
     "set_draft_sync_request",
     // 変更の後の遅延保存（TASK-318）。通知先の結線・畳み込みの判定・時刻・書き出しの入口。DOM には触れない。
     "set_save_request",
+    // 即時の保存が済んだときの予約の無効化と、遅延保存の結果の配送（SAVE-10）。どれも DOM には触れない。
+    "set_save_cancel",
+    "cancel",
+    "SaveResult",
+    "Runtime",
+    "encode_save_result",
+    "into",
     "on_change",
     "on_fire",
     "now",
     "save_deferred",
+    "report_save_result",
     "is_scheduled",
     "is_ok_and",
     "engine_snapshot_json",

@@ -21,7 +21,7 @@ use fandhe_workshop_contract::key_decide::{decide, KeyInput};
 
 use fandhe_workshop_core::addr::TickAddr;
 
-use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction};
+use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction, Scheduled};
 use crate::host::EngineHost;
 use crate::key_route::{effect_for, field_state, outside_root_esc, row_key_effect};
 use crate::save_schedule::{Fire, SaveDebounce};
@@ -76,7 +76,7 @@ fn with_app<T>(f: impl FnOnce(&EngineHost) -> T) -> Option<T> {
 /// Runtime の更新の最中ではないため、再入にならない。借用は共有参照の `try_borrow` で取り、未マウントは `None`。
 /// `Reentrant` は `Dropped` として返す。再送もキューイングもしない（古い宛先の再送は EVT-8 で無視になるだけで、
 /// 進行は次の更新が新しい宛先で予約し直す）。
-fn deliver(action: &RuntimeAction) -> Option<DispatchEffect> {
+fn deliver(action: &Scheduled) -> Option<DispatchEffect> {
     RUNTIME.with(|cell| {
         let slot = cell.try_borrow().ok()?;
         let rt = slot.as_ref()?;
@@ -90,13 +90,14 @@ fn deliver(action: &RuntimeAction) -> Option<DispatchEffect> {
 /// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。進行は予約時の世代（`TICK_EPOCH`）を持ち、配送の時点で
 /// 世代が進んでいれば捨てる（履歴の差し替え前のタイマー）。それ以外の古い宛先は届いても core が無視する。同じ世代で届いた進行の宛先は、
 /// その宛先の予約の印を外す。
-fn schedule_action(action: RuntimeAction, delay_ms: i32) {
+fn schedule_action(action: impl Into<Scheduled>, delay_ms: i32) {
+    let action: Scheduled = action.into();
     let Some(window) = web_sys::window() else {
         return;
     };
     let epoch = TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0));
     let callback = Closure::once_into_js(move || {
-        if let RuntimeAction::Tick(addr) = &action {
+        if let Scheduled::Runtime(RuntimeAction::Tick(addr)) = &action {
             if TICK_EPOCH.with(|e| e.try_borrow().map(|e| *e).unwrap_or(0)) != epoch {
                 return;
             }
@@ -190,6 +191,26 @@ fn on_save_request() {
         callback.unchecked_ref(),
         plan.delay_ms as i32,
     );
+}
+
+/// ホストが通知する「即時の保存が済んだ」を受け、予約済みの遅延保存を無効にする（`EngineHost::set_save_cancel` の通知先）。
+///
+/// 畳み込みの状態だけを触る。古いタイマーは token の不一致で何もせず、同じ履歴を二重に書かない。
+fn on_save_cancel() {
+    SAVE_DEBOUNCE.with(|d| {
+        if let Ok(mut d) = d.try_borrow_mut() {
+            d.cancel();
+        }
+    });
+}
+
+/// 遅延保存の結果をホストへ届ける（`persist::save_deferred` が呼ぶ。SAVE-10）。
+///
+/// 呼ぶのは遅延保存のタイマーの中（別のスタック）だけだが、配送は他の action と同じく `schedule_action` の `set_timeout(0)` に回す。
+pub(crate) fn report_save_result(
+    result: Result<(), fandhe_workshop_contract::storage::StorageError>,
+) {
+    schedule_action(Scheduled::SaveResult(result), 0);
 }
 
 /// 遅延保存を待っている変更があるか。試験用の口が読む。
@@ -616,6 +637,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
         host.set_save_request(Box::new(on_save_request));
+        host.set_save_cancel(Box::new(on_save_cancel));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
         DRAFT_ROOT.with(|r| {

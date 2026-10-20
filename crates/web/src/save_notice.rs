@@ -8,6 +8,30 @@
 
 use fandhe_workshop_contract::storage::StorageError;
 
+/// 遅延保存の結果をホストへ届ける action の名前（`decode_action` が受ける私的な名前。`RuntimeAction` の契約には入れない）。
+pub const ACTION_SAVE_RESULT: &str = "save-result";
+
+/// 遅延保存の結果の payload。成功は `ok`、失敗は種類の名前（値・鍵は含めない）。
+pub fn encode_save_result(result: Result<(), StorageError>) -> &'static str {
+    match result {
+        Ok(()) => "ok",
+        Err(StorageError::QuotaExceeded) => "quota",
+        Err(StorageError::Unavailable) => "unavailable",
+        Err(StorageError::Failed) => "failed",
+    }
+}
+
+/// [`encode_save_result`] の逆。完全一致だけを受け、未知の payload は `None`（信頼しない入力）。
+pub fn decode_save_result(payload: &str) -> Option<Option<StorageError>> {
+    match payload {
+        "ok" => Some(None),
+        "quota" => Some(Some(StorageError::QuotaExceeded)),
+        "unavailable" => Some(Some(StorageError::Unavailable)),
+        "failed" => Some(Some(StorageError::Failed)),
+        _ => None,
+    }
+}
+
 /// 通知欄の束縛点の名前（`engine_parts` の `F_LOG` の末尾と同じ。ホストが dirty に積むときに使う）。
 pub const SAVE_NOTICE_FIELD: &str = "save_notice";
 

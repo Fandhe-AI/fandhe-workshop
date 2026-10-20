@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 650 | 431 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 431`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.169） |
+| `glue.rs` | 672 | 445 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 445`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げた。5.169） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -5135,6 +5135,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 - 変更のたびに遅延保存が走るため、`tools/browser/tick-dispatch.test.mjs` の「`setTimeout` の遅延が進行の間隔だけ」を、進行の予約（debounce より長い値）だけを数える形に直した（遅延保存の遅延が進行の間隔より短いことも確かめる。assert の意味は保つ）
 - `make test-browser` は 584 件すべて通過（`save-latency` の 6 件を含む）。`ir-refusal`・`version-histories`・`reload-fresh`・`reload-points`・`storage-leave`・`storage-select`・`element-identity` は変更なしで通る
 - `glue.rs` のコード行が 401 から 431 に増えた（遅延保存のタイマーと試験用の読み取り）。`glue_scale.rs` の上限と 5.166 の表を同時に更新した（5.166 が定める手続き。PR 本文に理由を書く）
+- 続けて 431 から 445 に増えた（遅延保存の結果と予約の無効化の配送。`Scheduled` は `action.rs` に置いて glue の増加を抑えた）。上限と 5.166 の表を同時に更新した。遅延保存の失敗・成功は私的な action `save-result` でホストへ届け、保存通知（SAVE-10）を更新する。即時の保存は予約済みの遅延保存を無効にする（`SaveDebounce::cancel`）
 - `state_paths.rs` の `INIT_ALLOWED` に `set_save_request`、`glue_contract.rs` の許可表に新しい呼び出し名（DOM ではない名前）を足した。web-sys の feature は増やしていない（24 個のまま）
 - `scripts/expected-test-counts.txt` は更新していない（5.166 と同じ。件数の照合は版上げ PR でだけ働く）
 

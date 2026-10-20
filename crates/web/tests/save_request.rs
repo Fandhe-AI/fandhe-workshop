@@ -75,7 +75,11 @@ fn 状態を変える送信は即時の保存が書くので遅延保存の通�
     h.update(act("draft", "x"));
     let before = n.get();
     h.update(act("submit", ""));
-    assert_eq!(n.get(), before, "送信は変更のたびの保存（SAVE-10）が書くので通知は要らない");
+    assert_eq!(
+        n.get(),
+        before,
+        "送信は変更のたびの保存（SAVE-10）が書くので通知は要らない"
+    );
 }
 
 #[test]
@@ -83,4 +87,16 @@ fn 通知先が無いホストの_update_は何も起きない() {
     let mut h = bare_host();
     h.update(act("draft", "a"));
     h.update(act("submit", ""));
+}
+
+#[test]
+fn 状態を変える送信は予約済みの遅延保存を無効にさせる() {
+    let (mut h, _) = host();
+    let cancels = Rc::new(Cell::new(0));
+    let c = Rc::clone(&cancels);
+    h.set_save_cancel(Box::new(move || c.set(c.get() + 1)));
+    h.update(act("draft", "x"));
+    assert_eq!(cancels.get(), 0, "下書きだけの変更では無効にしない");
+    h.update(act("submit", ""));
+    assert_eq!(cancels.get(), 1);
 }
