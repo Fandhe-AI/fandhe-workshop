@@ -17,7 +17,7 @@
 | H-8 | `vocab` コマンドが EP-9 を数えなかった | 解消。`requires` または `unmet` を持つ開始点が指す Step の行に数える（TASK-409、AUTHOR-17、D-64） | 不要 | `crates/pack/tests/vocab_command.rs` の `author17_` |
 | AUTHOR-13（1） | flow 形式の中で引用符なしの `{{step_do}}` を書くと `E-PARSE` になるが、その注意書きが無かった | 資料の説明の欠けとして解消（`docs/schema-format-b.md` の 9 節、TASK-411） | 差し込みの枠を含む値は引用符で囲む | `crates/pack/tests/format_b.rs` の `author13_` |
 | AUTHOR-13（2） | 「Claude Code 風」に当たる外観の定義が無かった | 資料の説明の欠けとして解消（`docs/operation-profile.md` の 2 節、TASK-411）。外観ごとの見た目の画面への反映は未実装 | 外観の 4 値の意味と、製品名つきの外観が無いことを読む | `crates/pack/tests/appearance.rs`（4 値の閉じた集合と、スタイル欄が 0 件であること） |
-| FEND-22 | 1,000 項目を超えて畳んだ右のログ・復習の要約行は、開いて中身を見られない。章の単位のグループは無く、古い Step をまとめた集約行で代える。左のビューの畳みは未実装 | 未実装（TASK-360 1/2。開き方は開くと目安を超えうるため未試作。左のビューは TASK-484） | 古い行は畳まれる前に右のログで読む。畳まれる前の行数は要約行の `data-fold-rows` に出る | `crates/web/tests/list_fold.rs`・`crates/web/tests/list_limit.rs` |
+| FEND-22 | 4,096 件の安全弁に当たった list は、4,096 件目以降が見えない（先頭の 4,095 件と状態の行だけを出す。ログ・復習は畳みで届かないが、届けば最新の側が隠れる。今届くのは畳みの無い左のビュー）。1,000 項目を超えて畳んだ右のログ・復習の要約行は、開いて中身を見られない。章の単位のグループは無く、古い Step をまとめた集約行で代える。左のビューの畳みは未実装 | 未実装（TASK-360 1/2・2/2。開き方は開くと目安を超えうるため未試作。左のビューは TASK-484） | 古い行は畳まれる前に右のログで読む。畳まれる前の行数は要約行の `data-fold-rows` に出る | `crates/web/tests/list_fold.rs`・`crates/web/tests/list_limit.rs` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 

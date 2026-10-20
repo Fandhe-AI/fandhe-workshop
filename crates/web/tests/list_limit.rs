@@ -5,7 +5,9 @@
 //! （`[data-bind-list="<field>"]`）にも解決できないと、構造のフォールバックで `app-root` の子を丸ごと置き換える
 //! （全再描画）。そのため `Err` の代替も `data-bind-list` を持つ親を保つ。本試験は次を固定する。
 //! - 4,096 件は通り、4,097 件は `keyed_view` が `TooManyItems` で拒否する。
-//! - 代替（`keyed_view_or_notice`）は `data-bind-list` を保った親を 1 つ描き、データ行は 0 件・通知の行は 1 件である。
+//! - 安全弁（`keyed_view_or_notice`。TASK-360 2/2）は 4,097 件以上を先頭の 4,095 件と状態の行 1 件に打ち切り、
+//!   `Err` にならず `data-list-limit` を親と行に付ける。件数以外の `Err`（キーの重複など）は
+//!   `data-bind-list` を保った親を 1 つ描き、データ行は 0 件・通知の行は 1 件である。
 //! - ホスト全体で、ログの表示前の行が 4,097 行を超えても、畳みで 1,000 項目以内に収まり通知は出ず、dirty な field がすべて描画結果の束縛点として解決でき
 //!   （全再描画の条件が成り立たない）、部品の `section` と束縛点が残る。
 //!
@@ -24,6 +26,7 @@ use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::list_policy::{
     keyed_view, keyed_view_or_notice, ListError, LIST_ERROR_ATTR, LIST_ITEMS_TARGET,
+    LIST_LIMIT_ATTR,
 };
 use fandhe_workshop_web::log_lines::line_from_event;
 use fandhe_workshop_web::parts::{Component, DirtyTracked, FieldKind, PartField};
@@ -54,6 +57,7 @@ fn limit_4096_items_pass_without_notice() {
     let html = render(&node);
     assert_eq!(count(&html, "<li"), 4_096);
     assert_eq!(count(&html, LIST_ERROR_ATTR), 0);
+    assert_eq!(count(&html, LIST_LIMIT_ATTR), 0);
 }
 
 #[test]
@@ -69,7 +73,7 @@ fn limit_4097_items_are_rejected_with_too_many_items() {
 }
 
 #[test]
-fn limit_4097_fallback_keeps_bind_list_with_zero_data_rows() {
+fn limit_4097_is_truncated_to_head_with_status_row() {
     let node = keyed_view_or_notice("ul", vec![("data-testid", "t")], &LIST_FIELD, items(4_097));
     let html = render(&node);
     assert_eq!(
@@ -77,10 +81,60 @@ fn limit_4097_fallback_keeps_bind_list_with_zero_data_rows() {
         1,
         "親が 1 つでない"
     );
-    assert_eq!(count(&html, "data-testid=\"t\""), 1);
+    assert_eq!(count(&html, "<li"), 4_096);
+    assert_eq!(count(&html, "data-event="), 4_095);
+    assert_eq!(
+        count(&html, "上限超過: 先頭 4,095 件だけ表示（全 4,097 件）"),
+        1
+    );
+    assert_eq!(count(&html, "data-list-limit=\"4097\""), 2, "親と状態の行");
+    assert_eq!(count(&html, LIST_ERROR_ATTR), 0);
+}
+
+#[test]
+fn limit_far_over_is_truncated_without_err() {
+    let node = keyed_view_or_notice("ul", vec![], &LIST_FIELD, items(10_000));
+    let html = render(&node);
+    assert_eq!(count(&html, "<li"), 4_096);
+    assert_eq!(count(&html, "全 10,000 件"), 1);
+    assert_eq!(count(&html, LIST_ERROR_ATTR), 0);
+}
+
+#[test]
+fn truncated_result_is_buildable_by_strict_keyed_view() {
+    // 打ち切った後の項目は、厳格な `keyed_view` にも通る（構築が `Err` にならない）。
+    let node = keyed_view_or_notice("ul", vec![], &LIST_FIELD, items(4_097));
+    let html = render(&node);
+    assert_eq!(count(&html, "<li"), 4_096);
+    assert!(keyed_view("ul", vec![], &LIST_FIELD, items(4_096)).is_ok());
+}
+
+#[test]
+fn notice_fallback_keeps_bind_list_on_duplicate_keys() {
+    let dup = vec![
+        (
+            "k".to_owned(),
+            el("li", vec![("data-event", "x")], vec![text("x")]),
+        ),
+        (
+            "k".to_owned(),
+            el("li", vec![("data-event", "x")], vec![text("x")]),
+        ),
+        (
+            "k".to_owned(),
+            el("li", vec![("data-event", "x")], vec![text("x")]),
+        ),
+    ];
+    let node = keyed_view_or_notice("ul", vec![("data-testid", "t")], &LIST_FIELD, dup);
+    let html = render(&node);
+    assert_eq!(
+        count(&html, "data-bind-list=\"rows\""),
+        1,
+        "親が 1 つでない"
+    );
     assert_eq!(count(&html, "data-list-error=\"limit\""), 2, "親と通知の行");
     assert_eq!(count(&html, "data-event="), 0, "データ行が残っている");
-    assert_eq!(count(&html, "<li"), 1, "通知の行が 1 件でない");
+    assert_eq!(count(&html, "<li"), 1);
 }
 
 fn begun_host() -> EngineHost {

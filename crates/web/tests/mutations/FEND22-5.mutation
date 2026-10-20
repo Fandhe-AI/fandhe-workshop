@@ -1,0 +1,8 @@
+id: FEND22-5
+package: fandhe-workshop-web
+test: list_limit
+target: crates/web/src/list_policy.rs
+find: const LIMIT_SHOWN: usize = LIST_ITEMS_LIMIT - 1;
+replace: const LIMIT_SHOWN: usize = LIST_ITEMS_LIMIT;
+expect-fail: limit_4097_is_truncated_to_head_with_status_row
+note: 表示件数に状態の行の余地を残さない（4,097 項目で Err になり通知に倒れる）
