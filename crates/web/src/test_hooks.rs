@@ -10,7 +10,8 @@
 //! `debug_storage_state` は、`kind_for` を通して試験用の保存先の切り替えの状態（このセッションの保存先）だけを変えうる。
 //! `debug_save_stage`・`debug_save_install_pagehide`・`debug_save_flush`（TASK-317 2/2）は、試験用の保留（`PENDING`）へ積む・
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
-//! `debug_save_flush`）だけで、保存の遅延のタイマーは置かない（値が残ったのが `pagehide` の書き込みによることを試験で示すため）。
+//! `debug_save_flush`）だけで、この試験用の保留に遅延保存のタイマーは触れない（値が残ったのが `pagehide` の書き込みによることを試験で示すため。本番の保存先への遅延保存は `persist::save_deferred`、TASK-318）。
+//! `debug_autosave_state`・`debug_history_save_len`（TASK-318）は読み取りのみである。
 //! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
 //! 状態は変えない。取り込みはファイルの選択（`static/test-hooks.js`）から `raw-trigger` 経由でホストの `open_history` に届く。
@@ -302,6 +303,31 @@ pub fn debug_storage_state(pack_id: &str, start_id: &str) -> String {
             )
         }
     })
+}
+
+/// 変更の後の遅延保存の状態を固定形の JSON で返す（読み取りのみ。TASK-318・SAVE-7）。
+///
+/// `debounce_ms`・`max_wait_ms` は実装の値（期待にしない）、`scheduled` は待っている変更の有無、`saves` は遅延保存の書き出しを試みた回数、
+/// `kind` は本番の保存先の種類（開いていなければ `null`）。値・鍵は含めない。
+#[wasm_bindgen]
+pub fn debug_autosave_state() -> String {
+    let kind = crate::persist::storage_kind_name()
+        .map(|k| format!("\"{k}\""))
+        .unwrap_or_else(|| "null".to_string());
+    format!(
+        "{{\"debounce_ms\":{},\"max_wait_ms\":{},\"scheduled\":{},\"saves\":{},\"kind\":{}}}",
+        crate::save_schedule::SAVE_DEBOUNCE_MS,
+        crate::save_schedule::SAVE_MAX_WAIT_MS,
+        crate::glue::save_scheduled(),
+        crate::persist::autosave_count(),
+        kind
+    )
+}
+
+/// いま保存する値の長さ（バイト）。保存しない（未操作・止められている）ときは 0。中身は返さない（読み取りのみ。TASK-318）。
+#[wasm_bindgen]
+pub fn debug_history_save_len() -> usize {
+    crate::glue::history_to_save().map(|v| v.len()).unwrap_or(0)
 }
 
 /// ツリーの試料（ファイルツリー・タスクツリー）を、後の状態で描いた HTML 文字列を返す（読み取りのみ）。

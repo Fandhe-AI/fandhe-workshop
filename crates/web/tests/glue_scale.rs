@@ -9,11 +9,11 @@ mod common;
 
 use common::glue_source;
 
-/// glue.rs のコード行の上限（2026-10-20 の実測は 401 行。`wc -l` は 611 行）。
+/// glue.rs のコード行の上限（2026-10-20 の実測は 449 行。401 から上げた理由は TASK-318 の遅延保存のタイマーと、その結果・予約の無効化・保存世代の配送。`docs/testing.md` 5.166・5.170）。
 ///
 /// spec（FEND-7・FEND-20）の「349 行」は決定時点の PoC の追試の値で、数え方と範囲が今と違う
 /// （`docs/testing.md` 5.92）。今のソースが通らなくなるため目標にしない。今の実測値を上限とし、増えたときだけ理由を求める。
-const MAX_GLUE_CODE_LINES: usize = 401;
+const MAX_GLUE_CODE_LINES: usize = 449;
 
 /// 空行と、前後の空白を除いて `//` で始まる行を除いた行数。`/* */` は glue に 0 件（数え方は 5.92 と同じ）。
 fn code_lines(src: &str) -> usize {

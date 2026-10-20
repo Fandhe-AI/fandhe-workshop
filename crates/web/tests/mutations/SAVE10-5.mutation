@@ -1,0 +1,8 @@
+id: SAVE10-5
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/host.rs
+find:                 if epoch == self.save_epoch {
+replace:                 if epoch == self.save_epoch || true {
+expect-fail: 配送待ちの古い成功は_後の即時保存の失敗の通知を消さない
+note: 結果の世代を見ずに反映する（古い結果が新しい通知を上書きする）
