@@ -51,6 +51,8 @@ cat <<'EOF'
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   check-mutations              scripts/check-mutations.sh              変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）
   test-check-mutations         scripts/test-check-mutations.sh         変異注入の検査自体の回帰テスト
+  check-wasm-size              scripts/check-wasm-size.sh              配信する設定の WASM の gzip -9 が 1 MB 以下であることの関門（遅い。CI の browser-test）
+  test-check-wasm-size         scripts/test-check-wasm-size.sh         大きさの関門自体の回帰テスト（ビルドなし）
   measure-wasm-size            tools/measure/wasm-size.sh              WASM の gzip -9 の大きさを基点つきで測り JSON を出す
   test-measure-wasm-size       scripts/test-measure-wasm-size.sh       wasm-size の様式検証と実ビルドの回帰テスト（遅い）
   measure                      tools/measure/all.sh                    3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）

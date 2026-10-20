@@ -11,7 +11,7 @@
 - 基点の違う値どうしで増減を論じると誤った結論を招く。過去の PoC の記録には、commit・`wasm-opt` の有無・圧縮の設定が違う値が
   混在していた。結果の側で基点を必須にして、この事故を構造的に防ぐ
 - 測るものは 3 つ。WASM の `gzip -9` の大きさ、最小の画面（Hello）の初回表示の時間、再描画の時間である
-- CI の関門（WASM 1 MB）は TASK-78 の担当で、本文書の範囲外である。CI への測定ジョブの追加も範囲外である
+- CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、`SKIP_WASM_OPT=1` の基点で判定する。ジョブの追加はしていない
 
 ## 2. 実行
 
@@ -34,7 +34,7 @@ make measure | jq .
 - 終了コード: 0 = 成功 / 1 = ビルド・測定・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用
 - 基点の 1 つでも欠けた結果は出さない（fail-closed）。出力は `tools/measure/lib.sh` の `measure_emit`（単体）と
   `measure_emit_run`（束）だけが行う。3 つのうち 1 つでも失敗するか、実行中に HEAD や作業ツリーが動けば、束は出ない
-- 遅く、ブラウザを要する。`make check`・フック・CI には入れない
+- 遅く、ブラウザを要する。`make check`・フック・CI には入れない（`make measure` 全体について。WASM の大きさの関門 `make check-wasm-size` だけは CI で動く）
 - 回帰テストは `make test-measure-wasm-size`（単体の様式）と `make test-measure`（束・fail-closed・一括実行）
 
 ## 3. 基点の 4 項目

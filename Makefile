@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control check-mutations test-check-mutations measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -128,6 +128,12 @@ check-mutations: ## 変異注入の検査（誤りを入れると対応する試
 
 test-check-mutations: ## 変異注入の検査自体の回帰テスト。直接: scripts/test-check-mutations.sh
 	@scripts/test-check-mutations.sh
+
+check-wasm-size: ## 配信する設定の WASM の gzip -9 が 1 MB 以下であることの関門（CI の browser-test。遅い）。直接: scripts/check-wasm-size.sh
+	@scripts/check-wasm-size.sh
+
+test-check-wasm-size: ## 大きさの関門自体の回帰テスト（ビルドなし）。直接: scripts/test-check-wasm-size.sh
+	@scripts/test-check-wasm-size.sh
 
 measure-wasm-size: ## WASM の gzip -9 の大きさを基点つきで測り JSON を出す。直接: tools/measure/wasm-size.sh
 	@tools/measure/wasm-size.sh
