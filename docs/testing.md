@@ -4674,6 +4674,15 @@ TASK-400 2/2（#474）は節の番号を変えず、`diagnostics_doc.rs` を変�
 | AUTHOR17-2 | crates/pack/src/vocab_report.rs: EP-9 が scope の先頭の Step の行に付く | author17_ep9_attributed_to_target_step_not_first | DETECTED |
 | AUTHOR9-1〜AUTHOR9-6 | crates/pack/src/vocab_report.rs ほか（既存） | 各 `author9_` の試験 | 全件 DETECTED（`find:` が崩れていないことの確認） |
 
+### 5.155 版上げ PR の WASM の gzip +10% の判定（TASK-101 2/2）
+
+実行日: 2026-10-20
+元にしたコミット: bfc039b（origin/main）に本変更を加えた作業ツリー
+
+- `make test-check-frontend-bump`: 57 件すべて pass（1/2 の 29 件に、`wasm-gzip` の 27 件と `tools/build-web.sh` の変更を `guard` が拒むケース 1 件を追加）。+10% ちょうどは合格、1 byte 超過は失敗（模擬の版上げ PR で基準を外すと失敗する）、減少・同じは合格、基点の不一致・ログの欠落や重複・base の値が 0・toolchain と `wasm-bindgen` の版の違いは終了コード 2
+- 実物の確認（手元）: `CI_EVENT_NAME=pull_request scripts/check-frontend-bump.sh --base HEAD^1 --assume-bump wasm-gzip` で base と head の両方を実際にビルドした。両側とも 353359 bytes、差分 0 で合格。実行後に一時の worktree と作業ツリーの変更は残らなかった
+- 未確認: GitHub Actions 上の版上げ PR での実際のビルド（本変更は版上げ PR ではないため、CI では skip の log を出して 0 で終わる見込み）。初回の版上げで確かめる。CI での所要時間の増加（版上げ PR のときだけ release ビルドが 2 回増える）も初回の実測で確かめる
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -4733,7 +4742,7 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 |---|---|---|
 | (1) ビルド・clippy・fmt | `rust-lint`（`make lint`）・`rust-test`（`make test`）・`browser-test`（`make test-browser` が wasm32 の配信設定と `test-hooks` をビルド） | 全 PR で流れる |
 | (2) 既存の試験の件数 | `rust-test` の `counts rust`・`browser-test` の `counts browser`（`scripts/check-frontend-bump.sh`）。期待値は `scripts/expected-test-counts.txt` | 下の判定表。TASK-101 1/2 |
-| (3) WASM の gzip +10% | 別の Issue（TASK-101 2/2）が受け持つ | 判定は `scripts/check-frontend-bump.sh detect` を再利用できる |
+| (3) WASM の gzip +10% | `browser-test` の `wasm-gzip`（`scripts/check-frontend-bump.sh`）。版上げ PR のときだけ base と HEAD をビルドして比べる | 下の 6.6.1。TASK-101 2/2 |
 | (4) `check-deps.sh` の例外の数 | `rust-lint` の `make check-dom-reads`（`EXC_N=1`。増減とも失敗）と、`guard` による `tools/check-deps.sh` の固定 | 版上げ PR で例外の定義を緩めて通すことを禁じる |
 | (5) `wasm-full` の feature の明示 | `crates/web/tests/frontend_features.rs`（`rust-test`）と、`guard` の `cargo metadata` の確認 | `guard` は版上げ PR かどうかに関係なく毎回流す |
 
@@ -4749,7 +4758,24 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 | いいえ | いいえ | skip（実際の件数を log に出す） |
 
 判定できない場合（base が無い・差分の取得の失敗・`test result` の行が 0 件・TAP の集計の欠落・失敗した試験がある）は、終了コード 2 で失敗する（fail-closed）。
-版上げ PR で変えてはいけないファイルは、期待値ファイル・`tools/check-deps.sh`・`scripts/check-frontend-bump.sh` である。
+版上げ PR で変えてはいけないファイルは、期待値ファイル・`tools/check-deps.sh`・`scripts/check-frontend-bump.sh`・`tools/build-web.sh`（(3) の測定の手順を守る）である。
 限界: `ci.yml` 自体の書き換えは防げない（版上げで `wasm-bindgen` の版を合わせる正当な変更があるため）。ai-review とレビュースレッドの解決必須で補う。
 同名の結合試験が crate をまたいで重複する束は合算して数える。
 期待値は main の上では「最後に更新した基準値」であり、版を上げる前に別の PR で更新する。手順書は TASK-363 の範囲である。
+
+#### 6.6.1 (3) WASM の gzip +10% の判定（TASK-101 2/2）
+
+`scripts/check-frontend-bump.sh wasm-gzip` が、版上げ PR のときだけ、同じ runner・同じジョブの中で base（`HEAD^1`）と `HEAD` を一時の worktree に取り出して `tools/build-web.sh release` でビルドし、配信用 WASM の `gzip -9` の大きさを比べる。
+`head * 100 <= base * 110` なら合格（ちょうど +10% は合格）、超えたら終了コード 1 で失敗する。base・head の sha・大きさ・差分・千分率を log に出す。
+
+| 決めたこと | 内容と理由 |
+|---|---|
+| 基点の取り方 | repo に値を記録せず、同じジョブで base と head の両方を測る。記録した値は版上げ以外の PR で古くなり、手元（`wasm-opt` あり）と CI（なし）で基点が食い違うため（`docs/measurement.md` の 6 章が禁じる比較） |
+| `wasm-opt` | CI へ binaryen を入れない（供給網の面と SHA256 の固定が増えるため）。両側とも `SKIP_WASM_OPT=1` を明示し、`wasm-opt` なしの基点で比べる。両側の `wasm-opt:` の行が違えば判定不能 |
+| 基点を揃えられない場合 | `rust-toolchain.toml` か `Cargo.lock` の `wasm-bindgen` の版が base と違えば、終了コード 2 で失敗し、別の PR で先に上げるよう案内する（CI は 1 つの版の CLI しか持たない） |
+| fail-closed | ビルドの失敗・ログの行の欠落や重複・配信の設定でない・ログの値と自分で測った値の不一致・base の値が 0 以下は、すべて終了コード 2 |
+| skip | `pull_request` でないとき、版上げ PR でないときだけ。後者はビルドしない |
+| 回帰テスト用の口 | `--base-build-log`・`--head-build-log`（ビルドを省いてログの解析と判定だけを行う）。`--assume-bump` は版上げの検出を飛ばして測る（手元の確認用）。CI はどれも渡さない |
+
+限界: `ci.yml` 自体と `Cargo.toml` の `[profile.release]` の書き換えは防げない（後者は版上げで `Cargo.toml` を変えるのが正当なため）。ai-review とレビュースレッドの解決必須で補う。
+`wasm-opt` を適用した基点での比較は将来の検討事項である。

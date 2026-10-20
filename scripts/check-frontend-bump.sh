@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# fandhe-frontend の版上げ PR の受け入れ確認 (1)(2)(4)(5) の関門（FEND-17・D-63・TASK-101 1/2）。
+# fandhe-frontend の版上げ PR の受け入れ確認 (1)〜(5) の関門（FEND-17・D-63・TASK-101 1/2・2/2）。
 #
 # なぜ存在するか: 版上げは (1) ビルド・clippy・fmt、(2) 既存の試験の件数、(3) WASM の gzip +10%、(4) check-deps.sh の
 # 例外の数、(5) wasm-full の feature の明示 の 5 項目すべてが外れないことを、版上げ PR の CI で確かめて通す（D-63）。
 # (1)(4)(5) は ci.yml の既存ジョブがすでに全 PR で流している。本スクリプトは次の 2 つの穴を塞ぐ。
 #   - 版上げ PR の中で (4)(5) の関門自体（tools/check-deps.sh・期待値・本スクリプト）を緩めて通すこと
 #   - (2) の件数の照合が無いこと。期待値は scripts/expected-test-counts.txt に固定する
-# (3) は別の Issue（TASK-101 2/2）が受け持ち、版上げ PR の判定（detect）を本スクリプトから再利用する。
+# (3) は wasm-gzip が受け持つ（TASK-101 2/2）。版上げ PR のときだけ、同じ runner・同じジョブの中で base と HEAD を
+# 同じ手順（release・TEST_HOOKS なし・SKIP_WASM_OPT=1）でビルドし、配信用 WASM の gzip -9 の大きさの増加が +10% 以内かを判定する。
+# 値を repo に記録しないのは、版上げ以外の PR で古くなるため、また手元（wasm-opt あり）と CI（なし）で基点が食い違うため
+# （docs/measurement.md の 6 章が禁じる比較）。wasm-opt は CI に入れない（供給網の面を増やさない）。
+# 基点を揃えられない場合（toolchain・wasm-bindgen の版が base と違う）は、別の PR で先に上げるよう案内して失敗する。
 #
-# 呼び出し元: ci.yml の rust-lint（guard）・rust-test（counts rust）・browser-test（counts browser）。
+# 呼び出し元: ci.yml の rust-lint（guard）・rust-test（counts rust）・browser-test（counts browser・wasm-gzip）。
 # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
 # 件数の照合は版上げ PR か期待値ファイルを変えた PR に限る。試験を足す PR のすべてが同じファイルを書き換える運用を避けるため。
 #
@@ -19,11 +23,15 @@
 #   counts browser <tap>       node --test の TAP の件数を期待値と照合する（同上）
 #   normalize rust <log>       件数を正規化した行を出す（期待値の書式）
 #   normalize browser <tap>    同上（ブラウザ）
+#   wasm-gzip                  (3) 版上げ PR のとき、base と HEAD の配信用 WASM の gzip -9 の増加が +10% 以内かを判定する
+#                              （head*100 <= base*110 なら合格。ちょうど +10% は合格）。ビルドを 2 回行う（遅い）
 # オプション: --repo <dir>（既定は repo ルート）・--base <rev>（既定 HEAD^1。PR の merge commit の第 1 親 = base）・
-#   --changed-files <file>・--cargo-metadata-json <file>・--expected <file>（後ろの 3 つは回帰テスト用。CI は渡さない）。
+#   --changed-files <file>・--cargo-metadata-json <file>・--expected <file>・--base-build-log <file>・--head-build-log <file>
+#   （これらは回帰テスト用。CI は渡さない。build-log を渡すとビルドを省き、ログの解析と判定だけを行う）・
+#   --assume-bump（wasm-gzip で版上げの検出を飛ばして測る。手元での実物の確認用で、判定を厳しくする向きにしか働かない。CI は渡さない）。
 # 入力: CI_EVENT_NAME（pull_request のときだけ git の差分で判定する。それ以外は skip）。
-# 限界: ci.yml 自体の書き換えは防げない（版上げで wasm-bindgen の版を合わせる正当な変更があるため守る対象にしない）。
-# それは ai-review とレビュースレッドの解決必須で補う。
+# 限界: ci.yml 自体の書き換えは防げない（守る対象にしない）。Cargo.toml の [profile.release] の変更も防げない
+# （版上げで Cargo.toml を変えるのは正当なため）。それは ai-review とレビュースレッドの解決必須で補う。
 #
 # 終了コード: 0 = 合格か skip / 1 = 基準外 / 2 = 誤用か判定不能（fail-closed）。
 set -euo pipefail
@@ -33,11 +41,12 @@ source "${DIR}/lib.sh"
 
 EXPECTED_REL="scripts/expected-test-counts.txt"
 # 版上げ PR で base と同じであることを求めるファイル（穴 A を塞ぐ）。
-GUARDED_FILES=("${EXPECTED_REL}" "tools/check-deps.sh" "scripts/check-frontend-bump.sh")
+# tools/build-web.sh は (3) の測定の手順（wasm-opt の扱い・出力の作り方）を、版上げ PR の中で head 側だけ変えて通すことを防ぐ。
+GUARDED_FILES=("${EXPECTED_REL}" "tools/check-deps.sh" "scripts/check-frontend-bump.sh" "tools/build-web.sh")
 
 usage() {
-  echo "usage: check-frontend-bump.sh [options] {detect|guard|counts rust <log>|counts browser <tap>|normalize rust <log>|normalize browser <tap>}" >&2
-  echo "options: --repo <dir> --base <rev> --changed-files <file> --cargo-metadata-json <file> --expected <file>" >&2
+  echo "usage: check-frontend-bump.sh [options] {detect|guard|wasm-gzip|counts rust <log>|counts browser <tap>|normalize rust <log>|normalize browser <tap>}" >&2
+  echo "options: --repo <dir> --base <rev> --changed-files <file> --cargo-metadata-json <file> --expected <file> --base-build-log <file> --head-build-log <file> --assume-bump" >&2
 }
 
 REPO="${ROOT_DIR}"
@@ -45,10 +54,13 @@ BASE="HEAD^1"
 CHANGED_FILES=""
 METADATA_JSON=""
 EXPECTED_FILE=""
+BASE_BUILD_LOG=""
+HEAD_BUILD_LOG=""
+ASSUME_BUMP="false"
 ARGS=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --repo | --base | --changed-files | --cargo-metadata-json | --expected)
+    --repo | --base | --changed-files | --cargo-metadata-json | --expected | --base-build-log | --head-build-log)
       if [ "$#" -lt 2 ]; then
         usage
         exit 2
@@ -59,8 +71,14 @@ while [ "$#" -gt 0 ]; do
         --changed-files) CHANGED_FILES="$2" ;;
         --cargo-metadata-json) METADATA_JSON="$2" ;;
         --expected) EXPECTED_FILE="$2" ;;
+        --base-build-log) BASE_BUILD_LOG="$2" ;;
+        --head-build-log) HEAD_BUILD_LOG="$2" ;;
       esac
       shift 2
+      ;;
+    --assume-bump)
+      ASSUME_BUMP="true"
+      shift
       ;;
     --*)
       usage
@@ -81,7 +99,19 @@ fi
 require_cmd grep
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-bump.XXXXXX")"
-trap 'rm -rf "${TMP}"' EXIT
+# wasm-gzip が作る一時の worktree。TMP の削除の前に git から外し、.git/worktrees の残骸も掃除する。
+WORKTREES=()
+cleanup() {
+  local w
+  for w in ${WORKTREES[@]+"${WORKTREES[@]}"}; do
+    git -C "${REPO}" worktree remove --force "${w}" >/dev/null 2>&1 || true
+  done
+  rm -rf "${TMP}"
+  if [ "${#WORKTREES[@]}" -gt 0 ]; then
+    git -C "${REPO}" worktree prune >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 fail2() {
   echo "error: $*" >&2
@@ -223,6 +253,151 @@ cmd_guard() {
   return "${rc}"
 }
 
+# bindgen_version <rev>: その rev の Cargo.lock の wasm-bindgen の版（build-web.sh と同じ抽出）。
+bindgen_version() {
+  git -C "${REPO}" show "$1:Cargo.lock" | awk '/^name = "wasm-bindgen"$/ {getline; gsub(/version = |"/, ""); print}'
+}
+
+# check_same_baseline: 基点を揃えられるかを確かめる。rustc の版（rust-toolchain.toml）と wasm-bindgen の版（Cargo.lock）が
+# base と HEAD で違うと、大きさの差が frontend の版以外の理由で出る。tools/build-web.sh は CLI と lock の版の一致を求め、
+# CI は 1 つの版の CLI しか持たないため、2 つの版は扱わない。別の PR で先に上げることを案内して止める（fail-closed）。
+check_same_baseline() {
+  local a b
+  git -C "${REPO}" show "${BASE}:rust-toolchain.toml" >"${TMP}/tc-base.txt" || fail2 "cannot read rust-toolchain.toml at base ${BASE}"
+  git -C "${REPO}" show "HEAD:rust-toolchain.toml" >"${TMP}/tc-head.txt" || fail2 "cannot read rust-toolchain.toml at HEAD"
+  if ! cmp -s "${TMP}/tc-base.txt" "${TMP}/tc-head.txt"; then
+    fail2 "(3) rust-toolchain.toml differs between base and HEAD, so the WASM size baselines differ. Bump the toolchain in a separate PR before the frontend bump."
+  fi
+  a="$(bindgen_version "${BASE}")" || fail2 "cannot read Cargo.lock at base ${BASE}"
+  b="$(bindgen_version "HEAD")" || fail2 "cannot read Cargo.lock at HEAD"
+  if [ "$(printf '%s\n' "${a}" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "${b}" | grep -c .)" -ne 1 ]; then
+    fail2 "(3) Cargo.lock must contain exactly one wasm-bindgen entry at base and at HEAD"
+  fi
+  if [ "${a}" != "${b}" ]; then
+    fail2 "(3) wasm-bindgen differs between base (${a}) and HEAD (${b}), so the WASM size baselines differ. Bump wasm-bindgen in a separate PR before the frontend bump."
+  fi
+}
+
+# build_log_line <log> <prefix>: build-web.sh のログからその接頭辞の行をちょうど 1 行取り出し、接頭辞を除いた残りを返す。
+build_log_line() {
+  local logf="$1" prefix="$2" n
+  n="$(grep -c -F -- "[build-web.sh] ${prefix}" "${logf}" || true)"
+  if [ "${n}" != "1" ]; then
+    echo "error: (3) expected exactly one '${prefix}' line in the build log ${logf} (got ${n})" >&2
+    return 1
+  fi
+  grep -F -- "[build-web.sh] ${prefix}" "${logf}" | sed -e "s/^\[build-web.sh\] ${prefix} *//"
+}
+
+# build_side <side> <rev>: rev を一時の worktree へ取り出し、release・配信の設定・wasm-opt なしでビルドしたログを TMP/build-<side>.log に残す。
+# HEAD も worktree から取り出すのは、手元の作業ツリーの未コミットの変更に左右されず、両側の扱いを揃えるため。
+build_side() {
+  local side="$1" rev="$2" wt="${TMP}/wt-$1"
+  git -C "${REPO}" worktree add --detach "${wt}" "${rev}" >"${TMP}/wt-${side}.out" 2>&1 ||
+    fail2 "(3) cannot check out ${rev} for the ${side} build: $(cat "${TMP}/wt-${side}.out")"
+  WORKTREES+=("${wt}")
+  log "(3) building ${side} (${rev})"
+  # 出力先は存在しない一時の場所にする（build-web.sh の削除の安全策をそのまま使う）。dist/ と作業ツリーは変えない。
+  if ! (cd "${wt}" && TEST_HOOKS="" IR_FILE="" SKIP_WASM_OPT=1 OUT_DIR="${TMP}/out-${side}" \
+    bash tools/build-web.sh release) >"${TMP}/build-${side}.log" 2>&1; then
+    tail -n 30 "${TMP}/build-${side}.log" >&2
+    fail2 "(3) the ${side} build failed; cannot compare WASM sizes"
+  fi
+}
+
+# measured_gzip <side>: 出力された WASM を自分でも gzip -9 で測る（ログの値の取り違えの検出。tools/measure/wasm-size.sh と同じ考え方）。
+measured_gzip() {
+  local f="${TMP}/out-$1/wasm/fandhe_workshop_web_bg.wasm"
+  [ -f "${f}" ] || fail2 "(3) built WASM not found: ${f}"
+  gzip -9 -c "${f}" | wc -c | tr -d ' '
+}
+
+# parse_side <side> <log>: ログを解析し、wasm-opt の行と gzip の大きさを SIDE_OPT・SIDE_GZ に入れる。
+parse_side() {
+  local side="$1" logf="$2" config_line size_line
+  [ -r "${logf}" ] || fail2 "cannot read ${logf}"
+  config_line="$(build_log_line "${logf}" "config:")" || fail2 "(3) cannot parse the ${side} build log"
+  SIDE_OPT="$(build_log_line "${logf}" "wasm-opt:")" || fail2 "(3) cannot parse the ${side} build log"
+  size_line="$(build_log_line "${logf}" "wasm size:")" || fail2 "(3) cannot parse the ${side} build log"
+  [ "${config_line}" = "delivery / profile: release" ] ||
+    fail2 "(3) the ${side} build is not the delivery release configuration: ${config_line}"
+  case "${size_line}" in
+    "raw "*" bytes, gzip -9 "*" bytes") ;;
+    *) fail2 "(3) unexpected wasm size line in the ${side} build log" ;;
+  esac
+  SIDE_GZ="${size_line#*gzip -9 }"
+  SIDE_GZ="${SIDE_GZ% bytes}"
+  case "${SIDE_GZ}" in
+    '' | *[!0-9]*) fail2 "(3) the gzip size in the ${side} build log is not a number" ;;
+  esac
+}
+
+# cmd_wasm_gzip: (3) 配信用 WASM の gzip -9 の増加が +10% 以内か。判定は整数だけで行う（head*100 <= base*110）。
+cmd_wasm_gzip() {
+  local bump base_sha head_sha base_gz head_gz base_opt head_opt injected="false" delta pm
+  if ! is_pr && [ "${ASSUME_BUMP}" != "true" ]; then
+    log "not a pull_request event; skipping WASM gzip growth check"
+    return 0
+  fi
+  if [ "${ASSUME_BUMP}" = "true" ]; then
+    bump=true
+    git -C "${REPO}" rev-parse --verify --quiet "${BASE}^{commit}" >/dev/null ||
+      fail2 "base revision not found: ${BASE} (checkout needs fetch-depth: 2)"
+  else
+    bump="$(detect_bump)"
+  fi
+  if [ "${bump}" != "true" ]; then
+    log "not a frontend version bump; WASM gzip growth check not applicable"
+    return 0
+  fi
+  # 片方だけの注入は誤用（半端な入力で測定を省かない）
+  if [ -n "${BASE_BUILD_LOG}" ] || [ -n "${HEAD_BUILD_LOG}" ]; then
+    if [ -z "${BASE_BUILD_LOG}" ] || [ -z "${HEAD_BUILD_LOG}" ]; then
+      echo "error: --base-build-log and --head-build-log must be given together" >&2
+      exit 2
+    fi
+    injected="true"
+  fi
+  check_same_baseline
+  base_sha="$(git -C "${REPO}" rev-parse --short "${BASE}^{commit}")" || fail2 "cannot resolve ${BASE}"
+  head_sha="$(git -C "${REPO}" rev-parse --short HEAD)" || fail2 "cannot resolve HEAD"
+  if [ "${injected}" = "true" ]; then
+    parse_side base "${BASE_BUILD_LOG}"
+    base_gz="${SIDE_GZ}"
+    base_opt="${SIDE_OPT}"
+    parse_side head "${HEAD_BUILD_LOG}"
+    head_gz="${SIDE_GZ}"
+    head_opt="${SIDE_OPT}"
+  else
+    require_cmd gzip
+    require_cmd wc
+    build_side base "${BASE}"
+    build_side head HEAD
+    parse_side base "${TMP}/build-base.log"
+    base_gz="${SIDE_GZ}"
+    base_opt="${SIDE_OPT}"
+    [ "$(measured_gzip base)" = "${base_gz}" ] || fail2 "(3) the base gzip size in the build log differs from the measured one"
+    parse_side head "${TMP}/build-head.log"
+    head_gz="${SIDE_GZ}"
+    head_opt="${SIDE_OPT}"
+    [ "$(measured_gzip head)" = "${head_gz}" ] || fail2 "(3) the head gzip size in the build log differs from the measured one"
+  fi
+  [ "${base_opt}" = "${head_opt}" ] ||
+    fail2 "(3) wasm-opt status differs between base (${base_opt}) and head (${head_opt}); the baselines differ"
+  [ "${base_gz}" -gt 0 ] || fail2 "(3) the base gzip size is not positive: ${base_gz}"
+  [ "${head_gz}" -gt 0 ] || fail2 "(3) the head gzip size is not positive: ${head_gz}"
+  delta=$((head_gz - base_gz))
+  # 増加率は千分率の整数（0 に向けて切り捨て）。表示だけに使い、判定には使わない。
+  pm=$((delta * 1000 / base_gz))
+  log "(3) base ${base_sha}: gzip -9 ${base_gz} bytes / head ${head_sha}: gzip -9 ${head_gz} bytes / diff ${delta} bytes (${pm} per mille; limit 100) / wasm-opt: ${base_opt}"
+  if [ $((head_gz * 100)) -le $((base_gz * 110)) ]; then
+    log "(3) ok: WASM gzip growth is within +10%"
+    return 0
+  fi
+  echo "error: (3) WASM gzip -9 grew from ${base_gz} to ${head_gz} bytes (${pm} per mille), more than +10% (FEND-17 / D-63). Find the cause of the growth in the bump." >&2
+  return 1
+}
+
 # normalize_rust <log>: ANSI を除いて test result 行を記述子ごとに合算し、期待値の書式で出す。
 normalize_rust() {
   local logf="$1" esc
@@ -358,6 +533,13 @@ case "${ARGS[0]}" in
       exit 2
     }
     cmd_guard
+    ;;
+  wasm-gzip)
+    [ "${#ARGS[@]}" -eq 1 ] || {
+      usage
+      exit 2
+    }
+    cmd_wasm_gzip
     ;;
   counts)
     [ "${#ARGS[@]}" -eq 3 ] || {

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# scripts/check-frontend-bump.sh（版上げ PR の受け入れ確認 (1)(2)(4)(5)。TASK-101 1/2）自体の回帰テスト
+# scripts/check-frontend-bump.sh（版上げ PR の受け入れ確認 (1)〜(5)。TASK-101 1/2・2/2）自体の回帰テスト
 # （`make test-check-frontend-bump` から呼ばれる）。
 #
 # 版上げを模擬する。mktemp -d の一時 git repo に base と head のコミットを作り、基準を外すと失敗することを確かめる。
 # 作業ツリーは変えない。件数の入力は見本のログと TAP で、実際の試験は流さない。
+# (3) の WASM の gzip は build-web.sh のログの見本を注入して判定だけを確かめる（実際のビルドは流さない）。
 # 出力は TAP 風。終了コード: 0 = 全 pass / 1 = 失敗あり。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,8 +63,9 @@ write_metadata() {
     "${default_features}" "${features}" >"${dest}"
 }
 
+# write_lock <dest> <frontend-version> [wasm-bindgen-version]
 write_lock() {
-  printf '[[package]]\nname = "fandhe-frontend-core"\nversion = "%s"\nsource = "registry+https://example.invalid/index"\nchecksum = "aa"\n\n[[package]]\nname = "other"\nversion = "1.0.0"\n' "$2" >"$1"
+  printf '[[package]]\nname = "fandhe-frontend-core"\nversion = "%s"\nsource = "registry+https://example.invalid/index"\nchecksum = "aa"\n\n[[package]]\nname = "other"\nversion = "1.0.0"\n\n[[package]]\nname = "wasm-bindgen"\nversion = "%s"\n' "$2" "${3:-0.2.100}" >"$1"
 }
 
 write_root_toml() {
@@ -91,6 +93,8 @@ new_repo() {
   printf '[dependencies]\nfandhe-frontend-wasm-full.workspace = true\n' >"${REPO}/crates/web/Cargo.toml"
   printf 'EXC_N=1\n' >"${REPO}/tools/check-deps.sh"
   printf '# gate\n' >"${REPO}/scripts/check-frontend-bump.sh"
+  printf '# build\n' >"${REPO}/tools/build-web.sh"
+  printf '[toolchain]\nchannel = "1.90.0"\n' >"${REPO}/rust-toolchain.toml"
   cp "${EXPECTED_BASE}" "${REPO}/scripts/expected-test-counts.txt"
   echo "unrelated 1" >"${REPO}/README.md"
   git -C "${REPO}" init -q
@@ -337,6 +341,110 @@ expect "counts rust: grep failure on the changed list fails closed" 2 "${RC}"
 # changed.txt の読み取り失敗（--changed-files が読めない）も判定不能
 run pull_request guard --changed-files "${TMP_DIR}/no-such-list.txt" --cargo-metadata-json "${TMP_DIR}/md-ok.json"
 expect "guard: unreadable changed-files list fails closed" 2 "${RC}"
+
+# --- guard: tools/build-web.sh も版上げ PR で変えてはいけない（(3) の測定の手順を守る） ---
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+echo "# weaker" >>"${REPO}/tools/build-web.sh"
+commit_head
+run pull_request guard --cargo-metadata-json "${TMP_DIR}/md-ok.json"
+expect "guard: bump + tools/build-web.sh changed fails" 1 "${RC}"
+
+# --- wasm-gzip (3) ---
+# write_build_log <dest> <gzip-bytes> [config] [wasm-opt-detail]: build-web.sh の終わりの 3 行の見本。
+write_build_log() {
+  local dest="$1" gz="$2" config="${3:-delivery}" opt="${4:-not applied (SKIP_WASM_OPT=1)}"
+  {
+    printf '[build-web.sh] cargo build --locked\n'
+    printf '[build-web.sh] config: %s / profile: release\n' "${config}"
+    printf '[build-web.sh] wasm-opt: %s\n' "${opt}"
+    printf '[build-web.sh] wasm size: raw %s bytes, gzip -9 %s bytes\n' "$((gz * 3))" "${gz}"
+    printf '[build-web.sh] output: /x\n'
+  } >"${dest}"
+}
+write_build_log "${TMP_DIR}/b1000.log" 1000
+write_build_log "${TMP_DIR}/h1100.log" 1100
+write_build_log "${TMP_DIR}/h1101.log" 1101
+write_build_log "${TMP_DIR}/h900.log" 900
+write_build_log "${TMP_DIR}/h1000.log" 1000
+write_build_log "${TMP_DIR}/h-test.log" 1000 test
+write_build_log "${TMP_DIR}/h-opt.log" 1000 delivery "applied (wasm-opt version 1)"
+write_build_log "${TMP_DIR}/b0.log" 0
+{
+  printf '[build-web.sh] config: delivery / profile: release\n'
+  printf '[build-web.sh] wasm-opt: not applied (SKIP_WASM_OPT=1)\n'
+} >"${TMP_DIR}/h-nosize.log"
+{
+  cat "${TMP_DIR}/h1000.log"
+  printf '[build-web.sh] wasm size: raw 3 bytes, gzip -9 1 bytes\n'
+} >"${TMP_DIR}/h-dup.log"
+
+# gz <head-log> [args...]: 版上げ PR（Cargo.lock の frontend の版が違う）で wasm-gzip を流す。
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+commit_head
+gz() {
+  local headlog="$1"
+  shift
+  run pull_request wasm-gzip --base-build-log "${TMP_DIR}/b1000.log" --head-build-log "${headlog}" "$@"
+}
+gz "${TMP_DIR}/h1100.log"
+expect "wasm-gzip: bump with exactly +10% passes" 0 "${RC}"
+gz "${TMP_DIR}/h1101.log"
+expect "wasm-gzip: bump with one byte over +10% fails" 1 "${RC}"
+gz "${TMP_DIR}/h900.log"
+expect "wasm-gzip: bump with a smaller WASM passes" 0 "${RC}"
+gz "${TMP_DIR}/h1000.log"
+expect "wasm-gzip: bump with the same size passes" 0 "${RC}"
+gz "${TMP_DIR}/h-test.log"
+expect "wasm-gzip: non-delivery config fails closed" 2 "${RC}"
+gz "${TMP_DIR}/h-opt.log"
+expect "wasm-gzip: wasm-opt status differs fails closed" 2 "${RC}"
+gz "${TMP_DIR}/h-nosize.log"
+expect "wasm-gzip: missing wasm size line fails closed" 2 "${RC}"
+gz "${TMP_DIR}/h-dup.log"
+expect "wasm-gzip: duplicated wasm size line fails closed" 2 "${RC}"
+run pull_request wasm-gzip --base-build-log "${TMP_DIR}/b0.log" --head-build-log "${TMP_DIR}/h1000.log"
+expect "wasm-gzip: base gzip size 0 fails closed" 2 "${RC}"
+run pull_request wasm-gzip --base-build-log "${TMP_DIR}/b1000.log" --head-build-log "${TMP_DIR}/no-such.log"
+expect "wasm-gzip: unreadable head log fails closed" 2 "${RC}"
+run pull_request wasm-gzip --base-build-log "${TMP_DIR}/b1000.log"
+expect "wasm-gzip: only one build log is a misuse" 2 "${RC}"
+run pull_request wasm-gzip extra
+expect "wasm-gzip: extra argument is a misuse" 2 "${RC}"
+run push wasm-gzip --base-build-log "${TMP_DIR}/b1000.log" --head-build-log "${TMP_DIR}/h1101.log"
+expect "wasm-gzip: non-PR event skips" 0 "${RC}"
+run push wasm-gzip --assume-bump --base-build-log "${TMP_DIR}/b1000.log" --head-build-log "${TMP_DIR}/h1101.log"
+expect "wasm-gzip: --assume-bump measures even outside a PR (over limit fails)" 1 "${RC}"
+
+# 版上げでない PR は測らない（外れる値でも skip）。--assume-bump なら測る。
+new_repo
+echo "unrelated 2" >"${REPO}/README.md"
+commit_head
+gz "${TMP_DIR}/h1101.log"
+expect "wasm-gzip: non-bump PR skips" 0 "${RC}"
+gz "${TMP_DIR}/h1101.log" --assume-bump
+expect "wasm-gzip: non-bump PR with --assume-bump fails over the limit" 1 "${RC}"
+
+# 基点が揃わない版上げ PR は判定不能（別の PR で先に上げる）
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4" "0.2.101"
+commit_head
+gz "${TMP_DIR}/h1000.log"
+expect "wasm-gzip: wasm-bindgen differs fails closed" 2 "${RC}"
+
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+printf '[toolchain]\nchannel = "1.91.0"\n' >"${REPO}/rust-toolchain.toml"
+commit_head
+gz "${TMP_DIR}/h1000.log"
+expect "wasm-gzip: rust-toolchain.toml differs fails closed" 2 "${RC}"
+
+new_repo
+write_lock "${REPO}/Cargo.lock" "0.4.4"
+commit_head
+run pull_request wasm-gzip --base no-such-rev --base-build-log "${TMP_DIR}/b1000.log" --head-build-log "${TMP_DIR}/h1000.log"
+expect "wasm-gzip: missing base rev fails closed" 2 "${RC}"
 
 # --- misuse ---
 run pull_request --no-such-option detect
