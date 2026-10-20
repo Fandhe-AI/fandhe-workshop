@@ -1,0 +1,9 @@
+id: FEND3-1
+package: fandhe-workshop-web
+test: dirty_binding_points
+target: crates/web/src/engine_parts.rs
+find:                     F_REVIEW[1].name,
+replace:                     "review_consumed_unbound",
+expect-fail: 更新_33_回の_dirty_field_はすべて束縛点か_keyed_list_に対応し_11_種以上を確かめる
+expect-fail: 描画される_field_はすべて一度は_dirty_になる_他の教材が要るものを除く
+note: 復習の消費済みの件数の束縛点の field 名を、登録簿の名前と違う綴りにする（dirty の review_consumed に対応する目印が無くなり、上流は root を全置換する。FEND-3）
