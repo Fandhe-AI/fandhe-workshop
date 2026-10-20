@@ -16,7 +16,7 @@
 //!   履歴の鍵の一覧（`keys`）にも SAVE-32 の削除の対象にも入らない
 //! - 値は `<n>:<tag>`: `n` は前の値に 1 を足した 10 進、`tag` は 8 桁の小文字 16 進。localStorage の読み書きはタブ間で原子的でなく、
 //!   ほぼ同時に起動した 2 つのタブが同じ `n` を書きうるため、`tag` で最後に書いた 1 つだけを一致させる。`tag` は一意化のためで、秘密ではない
-//! - fail-closed: 取得の書き込みに失敗した・照合で読めない・meta が無い、はいずれも書かない。上書きを防ぐ側に倒し、保存済みの履歴は消さない。
+//! - fail-closed: 取得の書き込みに失敗した・照合で読めない・meta が無い、はいずれも書かない。取得の失敗（容量超過など）は照合のたびに再取得を試みるが、meta が取得の直前の値のままのときに限る（変わっていれば後から起動したタブがあるので古いタブとして止める）。上書きを防ぐ側に倒し、保存済みの履歴は消さない。
 //!   この 3 つは古いタブではなく保存の失敗なので、`write` は取得・照合の `StorageError` を `Err` で返す（SAVE-11 の通知経路へ届く）
 //! - 古いタブ（meta が別の値）の `write` だけは `Ok` を返して捨てる: `Err` にすると古いタブに保存失敗の表示が出るが、その表示は SHELL-23 の持ち分である
 //! - 書いた直後にもう一度照合する: 照合と書き込みの間の隙間で他のタブが起動していれば、以後の書き込みを止める
@@ -31,7 +31,7 @@
 //!
 //! 値・鍵の文字列は、結果にも記録にも出さない。meta は同じオリジンの誰でも書ける未信頼の値として厳格に解析する。
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use fandhe_workshop_contract::storage::{
     HistoryKey, HistoryStore, StorageError, StorageKind, HISTORY_KEY_PREFIX,
@@ -69,44 +69,75 @@ pub fn parse_boot(s: &str) -> Option<u64> {
     }
 }
 
+/// 取得の元になった meta の生の値から、自分の値を組み立てる。前の値が無い・壊れていれば 1 から始める。
+fn next_value(base: Option<&str>, tag: u32) -> String {
+    let prev = base.and_then(parse_boot).unwrap_or(0);
+    format_boot(prev.saturating_add(1), tag)
+}
+
 /// このページの起動番号。保存の直前の照合（[`BootGuard::is_current`]）を持つ。
 pub struct BootGuard<K: SyncKv> {
     kv: K,
     meta_key: String,
-    /// 自分の値。取得の書き込みに失敗したときはその理由（以後は書かず、`write` がこの理由を返す）。
-    mine: Result<String, StorageError>,
+    tag: u32,
+    /// 取得の直前に読んだ meta の生の値（外側の `None` は「読めなかった」）。再取得の条件の基準になる。
+    base: Option<Option<String>>,
+    /// 自分の値。取得の書き込みに失敗したときはその理由（照合のたびに再取得を試み、成功するまで書かない）。
+    mine: RefCell<Result<String, StorageError>>,
     /// 一度でも他のタブに追い越されたか。立てたら戻さない。
     stale: Cell<bool>,
 }
 
 impl<K: SyncKv> BootGuard<K> {
     /// ページを開いた時点の起動番号を取得して meta に書く。前の値が無い・壊れていれば 1 から始める。
-    /// 書き込みに失敗したときは自分の値を持たず、以後は書かない（fail-closed）。
+    /// 書き込みに失敗したときは自分の値を持たず、書かない（fail-closed）。容量が戻れば [`BootGuard::verify`] が再取得する。
     pub fn claim(kv: K, key: &HistoryKey, tag: u32) -> Self {
         let meta_key = boot_meta_key(key);
-        let prev = match kv.get(&meta_key) {
-            Ok(Some(v)) => parse_boot(&v).unwrap_or(0),
-            _ => 0,
-        };
-        let value = format_boot(prev.saturating_add(1), tag);
+        let base = kv.get(&meta_key).ok();
+        let value = next_value(base.as_ref().and_then(|b| b.as_deref()), tag);
         let mine = kv.set(&meta_key, &value).map(|()| value);
         BootGuard {
             kv,
             meta_key,
-            mine,
+            tag,
+            base,
+            mine: RefCell::new(mine),
             stale: Cell::new(false),
         }
     }
 
+    /// 取得に失敗していたときの再取得。meta が取得の直前に読んだ値のままのときだけ、自分の値を書く。
+    /// 変わっていれば他のタブが先に起動したので、古いタブとして記憶する（後から起動したタブを追い越さない）。
+    /// 取得の直前に meta を読めていなければ、基準が無いので再取得しない。
+    fn reclaim(&self, err: StorageError) -> Result<(), StorageError> {
+        let base = self.base.as_ref().ok_or(err)?;
+        let current = self.kv.get(&self.meta_key)?;
+        if current != *base {
+            self.stale.set(true);
+            return Ok(());
+        }
+        let value = next_value(base.as_deref(), self.tag);
+        self.kv.set(&self.meta_key, &value)?;
+        *self.mine.borrow_mut() = Ok(value);
+        Ok(())
+    }
+
     /// 保存してよいか。`Ok(true)` は meta が自分の値と一致、`Ok(false)` は別の値（古いタブとして記憶する）。
-    /// 取得に失敗した・読めない・meta が無いときは、その `StorageError`（古いとは記憶しない）。
+    /// 取得に失敗した・読めない・meta が無いときは、その `StorageError`（古いとは記憶しない）。取得に失敗していれば先に再取得を試みる。
     pub fn verify(&self) -> Result<bool, StorageError> {
         if self.stale.get() {
             return Ok(false);
         }
-        let mine = self.mine.as_ref().map_err(|e| *e)?;
+        let failed = self.mine.borrow().as_ref().err().copied();
+        if let Some(e) = failed {
+            self.reclaim(e)?;
+            if self.stale.get() {
+                return Ok(false);
+            }
+        }
+        let mine = self.mine.borrow().clone()?;
         match self.kv.get(&self.meta_key)? {
-            Some(v) if v == *mine => Ok(true),
+            Some(v) if v == mine => Ok(true),
             Some(_) => {
                 self.stale.set(true);
                 Ok(false)

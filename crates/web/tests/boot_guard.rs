@@ -360,3 +360,74 @@ fn 書き出しの経路は_flush_guarded_の_1_か所だけ() {
     assert!(call > start, "flush は flush_guarded の中にある");
     assert!(code[call..].contains("Guarded"), "照合の包みを通す");
 }
+
+/// 容量の回復を模す kv。`full` が真の間は `set` が容量超過になる。
+struct Toggle {
+    inner: Rc<FakeLocal>,
+    full: Rc<std::cell::Cell<bool>>,
+}
+
+impl SyncKv for Toggle {
+    fn get(&self, key: &str) -> Result<Option<String>, StorageError> {
+        self.inner.get(key)
+    }
+    fn set(&self, key: &str, value: &str) -> Result<(), StorageError> {
+        if self.full.get() {
+            Err(StorageError::QuotaExceeded)
+        } else {
+            self.inner.set(key, value)
+        }
+    }
+    fn remove(&self, key: &str) -> Result<(), StorageError> {
+        self.inner.remove(key)
+    }
+    fn keys(&self) -> Result<Vec<String>, StorageError> {
+        self.inner.keys()
+    }
+    fn total_utf16(&self) -> Result<u64, StorageError> {
+        self.inner.total_utf16()
+    }
+}
+
+fn toggled(
+    local: &Rc<FakeLocal>,
+    k: &HistoryKey,
+) -> (BootGuard<Toggle>, Rc<std::cell::Cell<bool>>) {
+    let full = Rc::new(std::cell::Cell::new(true));
+    let kv = Toggle {
+        inner: Rc::clone(local),
+        full: Rc::clone(&full),
+    };
+    (BootGuard::claim(kv, k, 1), full)
+}
+
+#[test]
+fn 容量が戻れば取得をやり直して保存を再開する() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let (g, full) = toggled(&local, &k);
+    assert_eq!(g.verify(), Err(StorageError::QuotaExceeded));
+    full.set(false);
+    assert_eq!(g.verify(), Ok(true));
+    let st = storage(&local, None);
+    Guarded {
+        inner: &st,
+        guard: &g,
+    }
+    .write(&k, "v")
+    .unwrap();
+    assert_eq!(history_raw(&local, &k).as_deref(), Some("v"));
+}
+
+#[test]
+fn 取得に失敗している間に別のタブが起動していれば再取得せず古いタブになる() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let (g, full) = toggled(&local, &k);
+    full.set(false);
+    // 後から起動したタブが先に取得する。
+    let b = BootGuard::claim(Rc::clone(&local), &k, 2);
+    assert_eq!(g.verify(), Ok(false));
+    assert!(g.is_stale());
+    assert!(b.is_current(), "後から起動したタブを追い越さない");
+}
