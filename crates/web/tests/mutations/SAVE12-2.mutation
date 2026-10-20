@@ -1,0 +1,8 @@
+id: SAVE12-2
+package: fandhe-workshop-web
+test: boot_guard
+target: crates/web/src/boot_guard.rs
+find:         let value = format_boot(prev.saturating_add(1), tag);
+replace:         let value = format_boot(prev, tag);
+expect-fail: 起動番号は前の値に_1_を足し_壊れた値や無い値からは_1_で始める
+note: 起動番号を増やさない（再読み込みで同じ番号を使い、前のタブを古いと見なせない）

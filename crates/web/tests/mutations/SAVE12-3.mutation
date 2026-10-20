@@ -1,0 +1,8 @@
+id: SAVE12-3
+package: fandhe-workshop-web
+test: boot_guard
+target: crates/web/src/boot_guard.rs
+find:         if !self.guard.is_current() {
+replace:         if false && !self.guard.is_current() {
+expect-fail: 古いタブの保留の書き出しは新しいタブの保存を上書きせず_保留は空になる
+note: 包みが照合せずに委ねると、古いタブの保留の書き出しが上書きする
