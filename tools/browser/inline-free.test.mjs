@@ -85,12 +85,20 @@ const cases = [
   ['プロトコル相対の画像を足す', /src on <img> is an external URL/, 1, ({ html }) => ({
     html: html.replace('</body>', '<img src="//example.invalid/x.png"></body>'),
   })],
+  ['文字参照で書いた外部の画像（https&#58;//）を足す', /src on <img> is an external URL/, 1, ({ html }) => ({
+    html: html.replace('</body>', '<img src="https&#58;//example.invalid/x.png"></body>'),
+  })],
+  ['文字参照で書いた javascript&#58; を足す', /src on <img> uses a data\/javascript\/blob URL/, 1, ({ html }) => ({
+    html: html.replace('</body>', '<img src="javascript&#x3a;alert(1)"></body>'),
+  })],
   ['script の src を app.js 以外にする', /script is not type=module src=\.\/app\.js/, 1, ({ html }) => ({
     html: html.replace('src="./app.js"', 'src="./other.js"'),
   })],
   ['favicon の link を消す', /favicon link is not exactly one/, 1, ({ html }) => ({ html: html.replace(/\s*<link rel="icon"[^>]*>/, '') })],
   ['app.css に url(data:) を足す', /app\.css uses url\(/, 1, ({ css }) => ({ css: `${css}\nbody{background:url(data:image/gif;base64,AAAA)}\n` })],
   ['app.css に外部の @import を足す', /app\.css uses @import/, 1, ({ css }) => ({ css: `@import "https://example.invalid/a.css";\n${css}` })],
+  ['app.css に CSS エスケープで書いた url( を足す', /app\.css uses url\(/, 1, ({ css }) => ({ css: `${css}\nbody{background:\\75rl("./icon.svg")}\n` })],
+  ['app.css に CSS エスケープで書いた @import を足す', /app\.css uses @import/, 1, ({ css }) => ({ css: `@\\69mport "./other.css";\n${css}` })],
   ['配信する設定に試験用の meta を足す', /test hooks meta found in the delivery/, 1, ({ html }) => ({
     html: html.replace('</head>', '<meta name="fandhe-test-hooks" content="1"></head>'),
   })],

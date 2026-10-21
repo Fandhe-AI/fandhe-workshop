@@ -520,7 +520,8 @@ export function inspectInlineFree({ html, css, testHooks = false }) {
     }
   }
   if (links !== 1 || iconOk !== 1) problems.push(`favicon link is not exactly one <link rel=icon href=./icon.svg> (found ${links}, ok ${iconOk})`);
-  const c = String(css);
+  // CSS のエスケープ（\75rl( や @\69mport）は解釈してから判定する。
+  const c = decodeCssEscapes(String(css));
   if (/url\(/i.test(c)) problems.push('app.css uses url(');
   if (/@import/i.test(c)) problems.push('app.css uses @import');
   if (/expression\(/i.test(c)) problems.push('app.css uses expression(');
@@ -532,7 +533,34 @@ function attrMap(inner) {
   const attrs = new Map();
   for (const a of String(inner).matchAll(ATTR_RE)) {
     const name = a[1].toLowerCase();
-    if (!attrs.has(name)) attrs.set(name, a[2] ?? a[3] ?? a[4] ?? '');
+    if (!attrs.has(name)) attrs.set(name, decodeCharRefs(a[2] ?? a[3] ?? a[4] ?? ''));
   }
   return attrs;
+}
+
+const NAMED_REFS = { colon: ':', sol: '/', Tab: '\t', NewLine: '\n', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', lpar: '(', rpar: ')', period: '.', num: '#', excl: '!', semi: ';', comma: ',', equals: '=', quest: '?', lowbar: '_', hyphen: '-', dash: '-' };
+
+// 属性値の HTML 文字参照を復号する（href="https&#58;//..." を禁止の URL として判定するため）。
+// 数値参照は末尾の ; を省いた形も復号し、知らない名前つき参照は復号せずそのまま残す（残った & は許可する URL の形に合わないので、許可側には倒れない）。
+function decodeCharRefs(v) {
+  let cur = String(v);
+  for (let i = 0; i < 3; i += 1) {
+    const next = cur.replace(/&(?:#[xX]([0-9a-fA-F]{1,6})|#([0-9]{1,7})|([A-Za-z][A-Za-z0-9]*));?/g, (all, hex, dec, name) => {
+      if (name !== undefined) return Object.hasOwn(NAMED_REFS, name) && all.endsWith(';') ? NAMED_REFS[name] : all;
+      const cp = hex !== undefined ? parseInt(hex, 16) : parseInt(dec, 10);
+      return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '�';
+    });
+    if (next === cur) break;
+    cur = next;
+  }
+  return cur;
+}
+
+// CSS のエスケープ（\ + 1〜6 桁の 16 進 + 任意の空白 1 つ、または \ + 任意の 1 文字）を復号する。
+function decodeCssEscapes(css) {
+  return css.replace(/\\(?:([0-9a-fA-F]{1,6})(?:\r\n|[\t\n\f\r ])?|([^\n\r\f0-9a-fA-F]))/g, (all, hex, ch) => {
+    if (ch !== undefined) return ch;
+    const cp = parseInt(hex, 16);
+    return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : '�';
+  });
 }

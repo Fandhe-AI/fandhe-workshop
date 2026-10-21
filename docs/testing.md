@@ -5605,7 +5605,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 #### 試験
 
-- `tools/browser/inline-free.test.mjs`（SAFE-15。20 件。ブラウザを使うのは 1 件。harness の追加分は別に数える）: `harness.mjs` の `inspectInlineFree` が、配信・試験の両設定の `index.html`・`app.css` で、`script` は `type="module" src="./app.js"` の 1 つだけ（インラインの script 0）、`style` 属性・`on*` 属性・`style` 要素 0、`href`・`src` 等が `data:`・`javascript:`・`blob:`・外部の `http(s):`・`//` でない、favicon の `link` が `./icon.svg` の 1 つ、`app.css` に `url(`・`@import`・`expression(` が無い、試験用の meta が配信する設定に無い、を満たすことを確かめる（fail-closed。問題の一覧を返す）。`app.js`・`icon.svg` が配信元から直接取れる（200・`javascript`・`image/svg+xml`）ことも確かめる。実物の写しを加工した対照 14 種（インラインの script・src つきの script への中身の同居・`style` 属性・`on*` 属性・`style` 要素・`data:` の favicon〔PoC-7 の修正前〕・外部の script・外部の画像・プロトコル相対の画像・script の `src` の差し替え・favicon の link の削除・`app.css` の `url(data:)`・外部の `@import`・配信する設定への試験用の meta）が、期待の理由と件数で不合格になる。ブラウザの対照として、配信する設定の写しの body に `data:` の画像を 1 つ足すと、CSP ありでは違反がちょうど 1 件（`img-src`）、CSP なしでは 0 件、加工前の実物では両方 0 件になる
+- `tools/browser/inline-free.test.mjs`（SAFE-15。24 件。ブラウザを使うのは 1 件。harness の追加分は別に数える）: `harness.mjs` の `inspectInlineFree` が、配信・試験の両設定の `index.html`・`app.css` で、`script` は `type="module" src="./app.js"` の 1 つだけ（インラインの script 0）、`style` 属性・`on*` 属性・`style` 要素 0、`href`・`src` 等が `data:`・`javascript:`・`blob:`・外部の `http(s):`・`//` でない、favicon の `link` が `./icon.svg` の 1 つ、`app.css` に `url(`・`@import`・`expression(` が無い、試験用の meta が配信する設定に無い、を満たすことを確かめる（fail-closed。問題の一覧を返す）。`app.js`・`icon.svg` が配信元から直接取れる（200・`javascript`・`image/svg+xml`）ことも確かめる。実物の写しを加工した対照 14 種（インラインの script・src つきの script への中身の同居・`style` 属性・`on*` 属性・`style` 要素・`data:` の favicon〔PoC-7 の修正前〕・外部の script・外部の画像・プロトコル相対の画像・script の `src` の差し替え・favicon の link の削除・`app.css` の `url(data:)`・外部の `@import`・配信する設定への試験用の meta）が、期待の理由と件数で不合格になる。ブラウザの対照として、配信する設定の写しの body に `data:` の画像を 1 つ足すと、CSP ありでは違反がちょうど 1 件（`img-src`）、CSP なしでは 0 件、加工前の実物では両方 0 件になる
 - `tools/browser/csp-runs.test.mjs`（SAFE-13。6 件）: 場面ごとに CSP あり → なしの順で流し、各回と各 Step で、配信元以外への通信 0・CSP の違反 0・コンソールの CSP 関連の出力 0（`harness.mjs` の `cspConsoleMessages`。`rec` に `consoleWarnings` を足した）・ページ内エラー 0・失敗した要求 0・HTTP 400 以上 0（いずれも favicon を除く）・安全の計数（`scanDom` を含む）がすべて 0 であることを主張する。場面の終わりに、CSP の有無で配信元への要求の種類（`requestKinds`。相対パス・種類・状態の組）が等しいことも比べる
   - D1（配信する設定）: 最小の画面の起動と入力欄への入力・送信。`window.__fandheTest` が無い
   - T1（試験の設定）: 最小教材 `min-3step` の 3 Step を実クリックと実入力で達成まで進める
@@ -5616,7 +5616,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 #### 確認（2026-10-21）
 
-- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`inline-free` と `harness` の 32 件、`csp-runs` の 6 件、`ch0-3-run` の 4 件がすべて通った。追加分の実行時間は `csp-runs` 約 13 秒、`inline-free` 約 3 秒で、`browser-test` ジョブの timeout（60 分）に対して無視できる。環境変数なしでは `csp-runs`・`inline-free` の 25 件が失敗する（skip しない）
+- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`inline-free` と `harness` の 36 件、`csp-runs` の 6 件、`ch0-3-run` の 4 件がすべて通った。追加分の実行時間は `csp-runs` 約 13 秒、`inline-free` 約 3 秒で、`browser-test` ジョブの timeout（60 分）に対して無視できる。環境変数なしでは `csp-runs`・`inline-free` の 25 件が失敗する（skip しない）
 - T3 の巡回でエンジンの警告は 0 件だった（件数は診断の行に出すだけで assert しない）
 - `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない（CI の実測と完全一致が要るため、並列の PR とずれる危険を避けた。更新は別の機会に `make update-test-counts`）
 
