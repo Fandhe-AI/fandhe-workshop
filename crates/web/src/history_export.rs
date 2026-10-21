@@ -7,6 +7,22 @@
 //! ファイル名の `pack_id` は教材由来で信頼できない。`[a-z0-9-]` 以外を `-` に置き換え、64 文字で切るため、
 //! パスの区切り・`..`・NUL・改行は残らない。日時は入れない（時刻に依存させず、書き出しを決定的に保つ）。
 
+use fandhe_workshop_core::secret_scan::SecretShape;
+
+/// 受講中の履歴を書き出してよいかの判定（SAFE-27・SAFE-28・D-44。TASK-164 2/3）。
+///
+/// 返すのは `EngineHost::export_live` で、呼び出し元は後続の書き出しの画面（TASK-531）と試験用の状態 JSON である。
+/// 値を持つのは `Ready` だけ。`Held` は形の ID しか持たず、受講者の値を含めない。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportGate {
+    /// 書き出せる。中身は core の `export_bytes` のバイト列（保存と同じ包み）。
+    Ready(Vec<u8>),
+    /// 秘密情報らしい文字列の警告の間。選ぶまで書き出さない（D-44 の失敗側）。
+    Held(Vec<SecretShape>),
+    /// 書き出す履歴が無い（未読込・未操作・包みを組み立てられない・書き出せない）。
+    Empty,
+}
+
 /// 書き出しファイルの MIME。
 pub const MIME: &str = "application/json";
 
