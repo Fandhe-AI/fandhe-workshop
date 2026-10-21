@@ -662,6 +662,7 @@ const MODULE_RULES: &[ModuleRule] = &[
             "install_pagehide_flush",
             "two_rounds_envelope",
             "loadable_envelope",
+            "from_name",
             "export_bytes",
             "object_url",
             "file_name",

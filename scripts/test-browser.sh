@@ -9,6 +9,7 @@
 # （csp-runs。SAFE-13。TASK-151 2/2）を含む。
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）と、信頼できない入力への安全性の観察の記録
 # （safety-observe。BUILD-4。TASK-79 2/2。観察値は assert せず diagnostic に残し、完走して終了コード 0 になることを関門にする）を含む。
+# 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
 # CARGO_TARGET_DIR に追従する）、FANDHE_PACK_BIN で node:test へ渡す（pack-bin。BUILD-16。TASK-91）。
@@ -150,6 +151,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/element-identity.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-leave.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-latency.test.mjs" \
+  "${ROOT_DIR}/tools/browser/secret-scan-time.test.mjs" \
   "${ROOT_DIR}/tools/browser/secret-warning.test.mjs" \
   "${ROOT_DIR}/tools/browser/secret-hold.test.mjs" \
   "${ROOT_DIR}/tools/browser/secret-choice.test.mjs" \

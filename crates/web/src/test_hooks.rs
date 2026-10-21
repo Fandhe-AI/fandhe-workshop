@@ -12,6 +12,8 @@
 //! `pagehide` のリスナーを付ける・保留を試験用の保存先へ書き出すだけである。保留から保存先へ値が届く経路はこの 2 つ（`pagehide`・
 //! `debug_save_flush`）だけで、この試験用の保留に遅延保存のタイマーは触れない（値が残ったのが `pagehide` の書き込みによることを試験で示すため。本番の保存先への遅延保存は `persist::save_deferred`、TASK-318）。
 //! `debug_autosave_state`・`debug_history_save_len`（TASK-318）は読み取りのみである。
+//! `debug_large_history_text`・`debug_secret_gate_len`（TASK-166・SAFE-31）は読み取りのみである。前者は 10MB に近い合成の履歴の文字列を返し、
+//! 後者は保存の直前の関門（直列化・秘密情報の検査）を本番と同じ関数で 1 回走らせて、大きさと検出した形の数だけを返す。
 //! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
 //! 状態は変えない。取り込みはファイルの選択（`static/test-hooks.js`）から `raw-trigger` 経由でホストの `open_history` に届く。
@@ -329,6 +331,32 @@ pub fn debug_autosave_state() -> String {
 #[wasm_bindgen]
 pub fn debug_history_save_len() -> usize {
     crate::glue::history_to_save().map(|v| v.len()).unwrap_or(0)
+}
+
+/// 10MB に近い合成の履歴の JSON 文字列を返す（読み取りのみ。TASK-166・SAFE-31）。
+///
+/// `kind` は `plain`・`dense`・`marker` の完全一致だけ。未知の名前・作れない場合は空文字列を返し、黙って別の種類に退避しない。
+/// 受講者のデータではなく、試験の出力・失敗の文には出さない。ページの外へ出さず、同じ evaluate の中で `importText` に渡す。
+#[wasm_bindgen]
+pub fn debug_large_history_text(kind: &str) -> String {
+    crate::test_fixture::LargeKind::from_name(kind)
+        .and_then(crate::test_fixture::large_loadable_envelope)
+        .and_then(|env| fandhe_workshop_core::history_export::export_bytes(&env).ok())
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_default()
+}
+
+/// 保存の直前の関門を本番と同じ関数で 1 回走らせ、固定形の JSON `{"bytes":n,"shapes":k}` を返す（読み取りのみ。TASK-166・SAFE-31）。
+///
+/// 直列化（`history_to_save`）と、値の読み直しと走査（`secret_gate`）を通す。保存先へは書かず、警告・dirty も変えない。
+/// 保存しない（未操作・止められている・上限超え）ときは `{"bytes":0,"shapes":0}`。値・形の名前は返さない。時刻は JS 側で取る。
+#[wasm_bindgen]
+pub fn debug_secret_gate_len() -> String {
+    let (bytes, shapes) = match crate::glue::history_to_save() {
+        Some(v) => (v.len(), crate::glue::secret_gate(&v).len()),
+        None => (0, 0),
+    };
+    format!("{{\"bytes\":{bytes},\"shapes\":{shapes}}}")
 }
 
 /// ツリーの試料（ファイルツリー・タスクツリー）を、後の状態で描いた HTML 文字列を返す（読み取りのみ）。
