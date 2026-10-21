@@ -16,6 +16,7 @@
 //! 送信（Enter・送信ボタン。TASK-438）は、入力欄の一覧に積んだ後、操作プロファイルの接頭辞で分類して
 //! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への
 //! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
+//! 拒否で残した下書きは全体を選択状態にし（D-67。JUDGE-27・TERM-22）、その要求は `set_draft_select_request` の通知先へ渡す。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
 //! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）・試験用の教材への差し替え（`raw` の固定の接頭辞 `load-fixture:`。TASK-445 2/2）を持つ（BUILD-27・SHELL-35）。
@@ -470,8 +471,9 @@ fn derive(session: &Session) -> Derived {
 pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
 
 /// 下書きの書き戻しの要求の通知先。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+/// 拒否の後に下書きの全体を選択状態にする要求（`set_draft_select_request`）の通知先にも同じ型を使う。
 ///
-/// glue が `<textarea>` の値の同期（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
+/// glue が `<textarea>` の値の同期・選択（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
 pub type DraftSyncRequest = Box<dyn Fn()>;
 
 /// 変更のたびに履歴の値を保存先へ書く口（SAVE-10。TASK-323 1/2）。引数は `history_to_save` の値で、結果は書けたかどうか。
@@ -508,9 +510,16 @@ pub type StaleProbe = Box<dyn Fn() -> bool>;
 ///
 /// 問い返しの後は空にし、拒否の後は下書きを選択状態で残すと 2026-10-21 に確定した（D-67。JUDGE-27・TERM-22）。
 /// 拒否でなければ空にする（問い返しは拒否に数えない）。問い返しの後に空になることは、試験 `clarify_draft` と
-/// ブラウザ試験 `clarify-draft` が固定する（TASK-284 1/2）。拒否の後に選択状態にする処理は TASK-284 2/2 の範囲で、
-/// ここでは持たない。
+/// ブラウザ試験 `clarify-draft` が固定する（TASK-284 1/2）。拒否の後の選択状態は `selects_draft` が決める（TASK-284 2/2）。
 pub(crate) fn keeps_draft(rejected: bool) -> bool {
+    rejected
+}
+
+/// 送信の後に、残した下書きの全体を選択状態にするか。エンジンが拒否したときだけ選ぶ（D-67。JUDGE-27・TERM-22）。
+///
+/// 選ぶと、続けて打った文字が下書きの後ろに連結されず、下書きを置き換える。問い返し・受け付けでは選ばない
+/// （問い返しの後は空、受け付けの後も空）。接頭辞を読めずに残した下書きは拒否ではないので選ばない。
+pub(crate) fn selects_draft(rejected: bool) -> bool {
     rejected
 }
 
@@ -574,6 +583,11 @@ pub struct EngineHost {
     tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
+    /// 拒否の後に下書きの全体を選択状態にする要求の通知先。未設定なら通知しない（D-67）。
+    draft_select_request: Option<DraftSyncRequest>,
+    /// 拒否で残した下書きが、まだ選択されるべき状態にある印。下書きが変わる・次の送信が来ると下りる。
+    /// 打鍵がタイマーより先に届いたとき、glue が打った文字を消す全選択をしないための印である。
+    draft_select_pending: bool,
     /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
     save_request: Option<DraftSyncRequest>,
     /// 即時の保存が済んだとき、予約済みの遅延保存を無効にさせる通知先（TASK-318）。未設定なら通知しない。
@@ -677,6 +691,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            draft_select_request: None,
+            draft_select_pending: false,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -791,6 +807,8 @@ impl EngineHost {
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            draft_select_request: None,
+            draft_select_pending: false,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -1045,6 +1063,17 @@ impl EngineHost {
     /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
     pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
         self.draft_sync_request = Some(f);
+    }
+
+    /// 拒否の後に下書きの全体を選択状態にする通知先を結ぶ（D-67）。`update` の中から呼ばれ、Runtime にも App にも触れてはならない。
+    pub fn set_draft_select_request(&mut self, f: DraftSyncRequest) {
+        self.draft_select_request = Some(f);
+    }
+
+    /// 拒否で残した下書きを、まだ選択するべきか。glue が選択の直前に読む（読み取り専用）。
+    #[must_use]
+    pub fn draft_select_pending(&self) -> bool {
+        self.draft_select_pending
     }
 
     /// 履歴が変わった `update` の末尾で呼ぶ通知先を結ぶ（変更の後の遅延保存。TASK-318）。
@@ -1903,6 +1932,8 @@ impl EngineHost {
         }
         self.input.update(HelloAction::Submit);
         let mut clear = true;
+        let mut select = false;
+        self.draft_select_pending = false;
         if self.model.recorded.is_some() {
             match self.command_prefix.clone() {
                 None => clear = false,
@@ -1914,6 +1945,7 @@ impl EngineHost {
                     // この後の `record_draft_change` が記録し直す。
                     self.draft_recorded.clear();
                     clear = !keeps_draft(rejected);
+                    select = selects_draft(rejected);
                 }
                 Some(_) => {}
             }
@@ -1929,6 +1961,11 @@ impl EngineHost {
                 }
             }
             if let Some(f) = self.draft_sync_request.as_ref() {
+                f();
+            }
+        } else if select {
+            self.draft_select_pending = true;
+            if let Some(f) = self.draft_select_request.as_ref() {
                 f();
             }
         }
@@ -2028,7 +2065,12 @@ impl Component for EngineHost {
                 }
             }
             HostAction::Input(a) => {
+                let before = self.input.draft().to_owned();
                 self.input.update(a);
+                // 打鍵が選択のタイマーより先に届いたら、予約は取り下げる（打った文字を消す全選択をさせない）。
+                if self.input.draft() != before {
+                    self.draft_select_pending = false;
+                }
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
             HostAction::Engine(op) => {
@@ -2098,6 +2140,7 @@ impl Component for EngineHost {
                     self.complete_count = self.complete_count.saturating_add(1);
                 }
                 if self.input.complete() {
+                    self.draft_select_pending = false;
                     self.extend_input_dirty();
                     if let Some(f) = self.draft_sync_request.as_ref() {
                         f();

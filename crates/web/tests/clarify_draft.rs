@@ -4,7 +4,7 @@
 //! `/advance-phase` が `/new-idea/advance-phase` につながり、期待した順序違い（`wrong_order`）ではなく
 //! 未知のコマンドで拒否される。`clarify_lines` は `HostAction::Engine` で流すため入力欄を通らない。
 //! 本試験は画面から届く `draft`・`submit` の action で流し、入力欄の値を「いまの下書き + 打った文字」
-//! として模す。拒否の後に下書きを選択状態にする処理は TASK-284 2/2 の範囲で、ここでは確かめない。
+//! として模す。拒否の後に下書きを選択状態にする処理は TASK-284 2/2 の試験 `reject_draft_select` が確かめる。
 //! 試験では `unwrap` を使ってよい。
 
 use std::cell::Cell;

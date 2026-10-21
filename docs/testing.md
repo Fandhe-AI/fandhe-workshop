@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 491`（2026-10-21 に TASK-283 の `wire_paste_clip` で 452 から上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 509`（2026-10-21 に TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -6310,7 +6310,7 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 
 限界・申し送り:
 
-- 960px 未満の挙動は TASK-517 2/2（#699。5.200）が持つ。本件の時点では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれていた。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
+- 960px 未満の挙動は TASK-517 2/2（#699。5.201）が持つ。本件の時点では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれていた。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
 - ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（a11y の `live-in-tabpanel`）。TASK-450 が足す。a11y の `check_complete` をホストの view に掛けるのは、領域の `aria-label` が揃ってからである
 - `shell-left` にだけ `aria-label="成果物"` を付けた。右の「案内とログ」「コマンドの入力」は TERM（TASK-431・450）の担当である
 
@@ -6339,10 +6339,50 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 
 確かめないこと・限界:
 
-- 拒否の後に下書きを選択状態にして次の入力で置き換える処理は TASK-284 2/2（#585）の範囲。`ch0-3-journey.mjs` のドライバの全選択（`replaceDraft`）もそこで見直す
+- 拒否の後に下書きを選択状態にして次の入力で置き換える処理は 5.200（TASK-284 2/2）で足した。`ch0-3-journey.mjs` のドライバの全選択（`replaceDraft`）の見直しの結果も 5.200 に書いた
 - フォーカスの位置、実 IME、人の確認は扱わない
 - 書き戻しは 0 ミリ秒のタイマーで非同期のため、それより速く打った場合の取りこぼしは観察も固定もしていない
 - `scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR だけで働く。更新は別の PR で `make update-test-counts`）
+
+### 5.200 拒否の後の下書きが選択状態になり連結されない（TASK-284 2/2。JUDGE-27・TERM-22。D-67）
+
+D-67（2026-10-21）で、拒否の後は拒否された下書きを入力欄に残し（JUDGE-5）、下書きの全体を選択状態にして、次に打った文字で置き換える（末尾に続けて入力されない）と確定した。選択の範囲は下書きの全体と読む。問い返しの後に空にする前半は 5.198（1/2）で固定済みで、本件は後半を実装した。
+
+実装:
+
+- `host.rs`: 純関数 `selects_draft`（拒否のときだけ真）、通知先 `set_draft_select_request`、選択の予約の印 `draft_select_pending`。`submit` が拒否で下書きを残したときに印を立てて通知する。印は、下書きが変わる action（`draft`・`complete`）と次の送信で下りる。進行の tick など下書きを変えない `update` では下りない
+- `glue.rs`: `on_draft_select_request` が `set_timeout(0)` で `sync_draft(root, true)` を予約する。`sync_draft` は印が立っているときだけ `set_selection_range(0, u32::MAX)` を呼ぶ（終端は欄の長さへ丸められるので長さを数えない）。変換中は選ばない。`field.value()` の読みは 1 か所のまま（`make check-dom-reads`）
+- 打鍵が 0 ミリ秒のタイマーより先に届いた場合は、`draft` の action で印が下りるため全選択しない（打った文字を消さない。そのとき文字は下書きに続く）
+
+証拠の種類: 自動ブラウザ・シミュレーター（人の評価ではない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/reject_draft_select.rs`（5 件） | 拒否の後に選択の要求が 1 回・書き戻しが 0 回・印が真、問い返しの後は要求が 0 回で次の拒否で 1 回、打鍵で印が下りる、下書きを変えない操作で印が残る、通知先が無くても落ちない。受け付けの後は選ぶ下書きが無く、`st-1-4` に受け付けになる入力が無いため確かめない |
+| `tools/browser/reject-draft-select.test.mjs`（4 件） | `?fixture=ch0-3` の `main/st-1-4` で、`/new-idea` → `/advance-phase`（拒否）の後に選択が欄の全体になり、全選択せずに `/new-idea` と打つと欄の値と状態の下書きがちょうど打った文字列になり、Enter で送ると受け取った入力が打った文字列ちょうどになる。送信は Enter と送信ボタン（Tab で移って Enter）、CSP あり・なし。いずれも 35 項目が通った |
+| `tools/browser/reject-keeps-draft.test.mjs` | `assertKept` に、選択が下書きの全体であることを足した（`page.fill` の後のキャレットは末尾なので、選択が無ければ失敗する）。busy の分類は処理の終了後も見る |
+| `tools/browser/ch0-3-journey.mjs` | 台帳の項目「main/st-1-4 拒否の後の下書きが全体の選択状態」を足した（`ch0-3-run`・`csp-runs` の両方に効く） |
+
+`replaceDraft`（Ctrl/Cmd+A）の見直し: 受け付けの後の空欄など他の場面でも無害で、ドライバの操作を変えると通しの他の段に影響するため、残した。選択の確認は `reject-draft-select` が全選択を使わずに受け持つ。
+
+変異（実行日 2026-10-21。元にしたコミット 298e9d7 に本件の変更を載せた状態）:
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| JUDGE27-2 | `host.rs` の `submit`: 拒否の後に下書きを選択状態にしない | `拒否の後は選択の要求が出て_下書きは送った本文のまま残り_書き戻しは要求されない` | DETECTED（5 件が失敗） |
+| JUDGE27-1・JUDGE5-4 | 既存 | 既存の試験 | DETECTED のまま |
+
+手元の対照: ブラウザ試験側の対照（`select = false` を入れた試験用ビルドで `reject-draft-select` などが失敗すること）は未検証。
+
+glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 の表にも記録）。`INIT_ALLOWED` に `set_draft_select_request` を足し、`glue_contract.rs` の許可に `set_draft_select_request`・`draft_select_pending` を足した。
+
+確かめないこと・限界:
+
+- 送信ボタンの click で拒否された場合のフォーカスの位置。選択は欄に残るが、フォーカスはボタンにある（D-67 にフォーカスの記述が無い）。試験の観察では、Tab で欄へ戻っても選択は保たれ、置き換えが成立した（Chromium）
+- 実 IME・Safari・Firefox での `setSelectionRange` の挙動（CI は Chromium だけ）
+- 0 ミリ秒のタイマーより速い打鍵（全選択を止める側に倒すが、そのとき打った文字は下書きに続く）
+- 接頭辞を読めずに残した下書き（拒否ではない）は選ばない
+- `scripts/expected-test-counts.txt` は更新していない（別の PR で `make update-test-counts`）。人の確認は扱わない
 
 ### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
 
@@ -6360,7 +6400,7 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
 - 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ
 
-### 5.200 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
+### 5.201 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
 
 幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
 
@@ -6386,3 +6426,17 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - CH-1 から始める直接リンクが無い（TASK-109）ため、CH-1 の 6 Step は CH-0 から通して確かめた
 - 360px の横スクロールと 24px 未満の操作対象は TASK-518・TASK-368 の担当で、assert せず `shell-widths` の diagnostic に件数だけを残す（2026-10-21 の実測は、横スクロール 0px・24px 未満の対象 1 件。4 幅とも同じ）
 - 960px 以上で tabpanel の役割が 2 つ残ることの読み上げは A11Y-21 の担当である。右の領域の `aria-label` とライブの欄（tabpanel の外に置く）は TASK-450 の担当である
+
+### 5.202 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
+
+開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
+
+- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
+- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
+- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
+- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
+
+限界・申し送り:
+
+- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
+- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
