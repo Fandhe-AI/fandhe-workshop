@@ -153,7 +153,7 @@
 
 | 欄 | 決まる場所 | 内容 |
 |---|---|---|
-| `input` | `crates/pack/src/input.rs`・contract の `input_spec` | `kind` は `command`・`text`・`choice`・`ui_action`・`approval`・`wait`。欄は `docs/pack-authoring.md` の「入力方式」の表 |
+| `input` | `crates/pack/src/input.rs`・contract の `input_spec` | `kind` は `command`・`text`・`choice`・`ui_action`・`approval`・`wait`。欄は `docs/pack-authoring.md` の「入力方式」の表。`approval` は省略可の `revise`（`candidates` の要素は `id`・`label`。語彙 1.5） |
 | `confirm` | `crates/pack/src/confirm.rs`・contract の `confirm_spec` | `kind` は `point_at`・`answer`・`approve`・`none`。入力を持つ Step には必須（`E-NO-CONFIRM`） |
 | `rules[]` | `crates/pack/src/rejection.rs`・`effect_check.rs`・`condition_check.rs` | `id`・`on`（`command`・`args`・`ui`・`cancel` など）・`when`（省略可）・`outcome`（`kind`: `accept`・`reject`・`clarify`） |
 | `processing[]` | `crates/pack/src/effect_check.rs` | `name`（空でない文字列）と `effects` だけ。間隔の欄は書けません（PACK-44） |

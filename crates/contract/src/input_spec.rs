@@ -23,7 +23,9 @@ use crate::judgment::{Category, JudgmentKind};
 
 /// この契約の版。欄・判定の規則を変えたら上げる。`wait` は同じ TASK-44 の 2/2 で足した版 1 の範囲の
 /// 完成であり、利用者（core）がまだ型を読んでいないため、版は上げない。
-pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 1;
+/// 版 2（TASK-62 2/2、PACK-42）は `approval` に省略可の欄 `revise`（「直す」の誤った対象の候補と表示名）を足した。
+/// 欄を省略した宣言は版 1 と同じ値で読め、直列化しても欄は出ない。
+pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 2;
 
 /// 取り消し（EP-2）を受ける規則の `on` のキー。`input.kind` の語ではない。
 /// 意味を持つのは、この規則を書いた Step だけである。検査は pack が行う。
@@ -314,10 +316,68 @@ impl UiActionSpec {
     }
 }
 
-/// `approval` の宣言。欄を持たない。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// 「直す」の対象の候補 1 つ（PACK-42）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ApprovalSpec {}
+pub struct ReviseCandidate {
+    /// 候補の ID。規則の `on.target` と同じ綴りで書く。
+    pub id: String,
+    /// 表示名（`confirm.options[].label` と同じ型）。書かなければ ID を表示する。書くなら空白だけにしない。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl ReviseCandidate {
+    /// 画面に出す表示名。`label` が空白以外を含めばそれ、無ければ ID。
+    /// 検査は空白だけの `label` を拒否するが、検査を経ない呼び出し元でも空の表示を出さないよう ID に倒す。
+    pub fn display(&self) -> &str {
+        match self.label.as_deref() {
+            Some(l) if !l.trim().is_empty() => l,
+            _ => &self.id,
+        }
+    }
+}
+
+/// `approval` の `revise`（PACK-42）。正しい対象と誤った候補を並べる順に宣言する。
+/// どの候補が正しいかは宣言せず、規則の `on: { approval: revise, target }` を持つ ID が正しい対象である。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviseSpec {
+    /// 候補。空にできない。
+    pub candidates: Vec<ReviseCandidate>,
+}
+
+/// `approval` の宣言。欄 `revise` は省略できる。
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalSpec {
+    /// 「直す」の対象の候補と表示名（版 2）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revise: Option<ReviseSpec>,
+}
+
+impl ApprovalSpec {
+    /// 意味の制約を検査する。`revise` が無ければ常に通る。
+    pub fn check(&self) -> Result<(), SpecError> {
+        let Some(revise) = &self.revise else {
+            return Ok(());
+        };
+        if revise.candidates.is_empty() {
+            return Err(SpecError::EmptyList);
+        }
+        let mut seen = BTreeSet::new();
+        for c in &revise.candidates {
+            non_empty(&c.id)?;
+            if let Some(label) = &c.label {
+                non_empty(label)?;
+            }
+            if !seen.insert(c.id.as_str()) {
+                return Err(SpecError::Duplicate);
+            }
+        }
+        Ok(())
+    }
+}
 
 /// `wait` の宣言。欄を持たない。進行は Step の `processing` が表す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

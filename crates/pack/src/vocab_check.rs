@@ -6,9 +6,10 @@
 //! - `pack.vocab` を省略した教材は検査しない。PACK-31 の前提は「`pack.vocab` を書く」であり、書き方の
 //!   規約は TASK-179 の持ち分である（contract の `DEFAULT` は履歴を書くときの値で、検査の既定ではない）
 //! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-13（`pack.profile`・
-//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）。v1.1 の語は対象外
+//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）。v1.1 の語は対象外
 //! - `confirm.options[].label` は確認の `confirm` だけを見る。入力方式 `choice` の `input.options[].label`
-//!   （v1 の語。PACK-23）は別の欄であり、`step.input` は読まない
+//!   （v1 の語。PACK-23）は別の欄であり、この判定は `step.input` を読まない。`input.revise` だけは `step.input` の
+//!   `kind: approval` を読む
 //! - 必要な版は [`crate::vocab::EXTENSION_POINTS`]・[`crate::vocab::term`] から引き、ここに書き写さない
 //! - 読めない宣言（文字列でない・正規の `主.副` でない）は `E-PARSE` とし、値は診断に写さない（fail-closed）
 //!
@@ -37,6 +38,8 @@ type Probe = (Source, fn(&LoadedPack) -> bool);
 
 const LABEL: Source = Source::Term("field", "confirm.options[].label");
 
+const REVISE: Source = Source::Term("field", "input.revise.candidates");
+
 const PROBES: &[Probe] = &[
     (Source::Ep("starts.requires"), uses_start_condition),
     (Source::Ep("pack.profile"), |p| {
@@ -50,6 +53,7 @@ const PROBES: &[Probe] = &[
     }),
     (Source::Ep("view.document_body"), uses_view_body),
     (LABEL, uses_answer_label),
+    (REVISE, uses_revise_candidates),
 ];
 
 /// 語の版（主・副）と、診断の文面の接頭を表から引く。引けない項目は `None`（単体試験で全項目が引けることを保証する）。
@@ -85,6 +89,19 @@ fn uses_answer_label(pack: &LoadedPack) -> bool {
                     opts.iter()
                         .any(|o| o.get("label").is_some_and(|l| !l.is_null()))
                 })
+        })
+    })
+}
+
+/// 全 Step の `input`（`kind: approval`）が `revise` を持つか。生の値を辿り、`revise` の中身は見ない（読めない
+/// 宣言は別に `E-PARSE`）。`null` は使用に数えない。他の入力方式の `revise` は語彙の語ではないので数えない。
+fn uses_revise_candidates(pack: &LoadedPack) -> bool {
+    pack.scopes.iter().any(|s| {
+        s.src.steps.iter().any(|step| {
+            step.input.as_ref().is_some_and(|i| {
+                i.get("kind").and_then(Value::as_str) == Some("approval")
+                    && i.get("revise").is_some_and(|r| !r.is_null())
+            })
         })
     })
 }
@@ -177,9 +194,12 @@ mod tests {
                 }
             }
         }
+        assert!(PROBES
+            .iter()
+            .any(|(s, _)| matches!(s, Source::Term(_, "confirm.options[].label"))));
         assert!(matches!(
             PROBES.last(),
-            Some((Source::Term(_, "confirm.options[].label"), _))
+            Some((Source::Term(_, "input.revise.candidates"), _))
         ));
     }
 

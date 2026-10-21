@@ -1,0 +1,8 @@
+id: PACK42-1
+package: fandhe-workshop-contract
+test: input_spec_contract
+target: crates/contract/src/input_spec.rs
+find:             if !seen.insert(c.id.as_str()) {
+replace:             if false && !seen.insert(c.id.as_str()) {
+expect-fail: revise_check_reports_each_violation
+note: 「直す」の候補の ID の重複の検査を外す（同じ ID の候補が 2 つ並んでも通る）
