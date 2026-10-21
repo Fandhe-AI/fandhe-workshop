@@ -54,3 +54,31 @@ export function controls() {
   const f = load();
   return [...f.controls, ...f.extra_controls].map((c) => ({ id: c.id, text: c.text }));
 }
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'testdata', 'secret-shapes-added');
+
+// SAFE-30 で足した 5 形（S-11〜S-15。TASK-165 1/2）。{ id, expect, value }。
+export function addedShapes() {
+  const f = JSON.parse(fs.readFileSync(path.join(ROOT, 'added-shapes.json'), 'utf8'));
+  return f.shapes.map((s) => ({ id: s.id, expect: s.expect, value: s.parts.map(expand).join('') }));
+}
+
+// 追加の対照 4 件（N-07〜N-10）。{ id, text }。
+export function addedControls() {
+  const f = JSON.parse(fs.readFileSync(path.join(ROOT, 'added-shapes.json'), 'utf8'));
+  return f.controls.map((c) => ({ id: c.id, text: c.text }));
+}
+
+// 追加 5 形の測定用の試料（TASK-165 2/2）。{ samples: [{ id, shape, secret, category, value }], expected }。
+// expected は試料の側に記録した形ごとの件数で、core の試験と同じ表を使う。
+export function measureCorpus() {
+  const f = JSON.parse(fs.readFileSync(path.join(ROOT, 'measure-corpus.json'), 'utf8'));
+  const samples = f.samples.map((s) => ({
+    id: s.id,
+    shape: s.shape,
+    secret: s.truth === 'secret',
+    category: s.category,
+    value: s.parts.map(expand).join(''),
+  }));
+  return { samples, expected: f.expected };
+}

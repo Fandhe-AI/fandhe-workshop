@@ -5,6 +5,9 @@
 //! 写しで開けないため、試料の `ops` を適用し直した結果を写しにした「開ける包み」を、この試験の中で作る。
 //! `tests/` は `no_progress.rs` の対象外である。試験では `unwrap` を使ってよい。
 
+#[path = "common/secret_values.rs"]
+mod secret_values;
+
 use std::path::PathBuf;
 
 use fandhe_frontend_interactive::{Component, DirtyTracked};
@@ -69,6 +72,61 @@ fn derived_matches(host: &EngineHost) -> bool {
     host.model().projection() == &Projection::from_events(log)
         && host.model().world() == &world
         && host.model().world_consumed() == log.len()
+}
+
+/// 試料の入力の語を `word` に置き換えた、開ける包み。`word` は JSON の文字列にそのまま入れられる文字だけで作る。
+fn loadable_with(word: &str) -> Vec<u8> {
+    let ir = ir();
+    let text = std::fs::read_to_string(testdata().join("contract/history/two-rounds.json"))
+        .unwrap()
+        .replace("first-note", word);
+    let env = parse_history_envelope(parse_history_json(text.as_bytes()).unwrap()).unwrap();
+    let state = replay(&ir, initial(), &env.ops).unwrap();
+    let built = build_envelope(&ir, &env.start, env.ops, state).unwrap();
+    export_bytes(&built).unwrap()
+}
+
+/// 履歴の読み込みは中身の秘密情報を検査しない（SAFE-30・決定 D-45 で拡大を見送り。TASK-165 2/2）。
+///
+/// 読み込みの前後で警告は出ず、保存の口も呼ばれない。読み込んだ後の最初の保存で、保存の直前の関門が履歴の
+/// 全体を検査して保存を止め、形の ID だけを警告に入れる。見送りの現状を固定し、規則を変えるときに気づけるようにする。
+/// 値は部品から組み立て、assert のメッセージには試験データの ID だけを入れる。
+#[test]
+fn opening_a_history_does_not_warn_and_the_first_save_after_it_does() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let (id, expect, value) = secret_values::added_shapes().remove(3);
+    let bytes = loadable_with(&value);
+    let mut h = host();
+    let calls = Rc::new(Cell::new(0));
+    let c2 = Rc::clone(&calls);
+    h.set_history_saver(Box::new(move |_| {
+        c2.set(c2.get() + 1);
+        Ok(())
+    }));
+    assert_eq!(
+        h.open_history(&bytes),
+        ImportOutcome::Open,
+        "{id}: not opened"
+    );
+    assert!(
+        h.model().secret_warning().is_empty(),
+        "{id}: warned on open"
+    );
+    assert_eq!(calls.get(), 0, "{id}: saver called on open");
+
+    let act = |h: &mut EngineHost, name: &str, payload: &str| {
+        h.update(EngineHost::decode_action(name, payload).unwrap());
+    };
+    act(&mut h, "draft", "/make-note second-note");
+    act(&mut h, "submit", "");
+    let ids: Vec<&str> = h.model().secret_warning().iter().map(|s| s.id()).collect();
+    assert!(
+        ids == [expect.as_str()],
+        "{id}: warning after the first save differs"
+    );
+    assert_eq!(calls.get(), 0, "{id}: saver called while held");
 }
 
 #[test]

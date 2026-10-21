@@ -365,3 +365,120 @@ fn repeated_prefixes_are_scanned_in_linear_time() {
         );
     }
 }
+
+/// 測定用の試料 1 件（TASK-165 2/2）。値は部品から組み立てた文で、失敗の文には出さない。
+struct Sample {
+    id: String,
+    shape: String,
+    secret: bool,
+    category: String,
+    value: String,
+}
+
+fn measure_corpus() -> (Vec<Sample>, Value) {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../testdata/secret-shapes-added/measure-corpus.json"
+    );
+    let text = std::fs::read_to_string(path).expect("measure-corpus.json is readable");
+    let f: Value = serde_json::from_str(&text).expect("measure-corpus.json is JSON");
+    let samples = f["samples"]
+        .as_array()
+        .expect("samples")
+        .iter()
+        .map(|s| Sample {
+            id: s["id"].as_str().expect("id").to_owned(),
+            shape: s["shape"].as_str().expect("shape").to_owned(),
+            secret: match s["truth"].as_str().expect("truth") {
+                "secret" => true,
+                "clean" => false,
+                _ => panic!("unknown truth"),
+            },
+            category: s["category"].as_str().expect("category").to_owned(),
+            value: s["parts"]
+                .as_array()
+                .expect("parts")
+                .iter()
+                .map(|p| expand(p.as_str().expect("part")))
+                .collect(),
+        })
+        .collect();
+    (samples, f["expected"].clone())
+}
+
+const ADDED_SHAPE_IDS: [&str; 5] = [
+    "sk_ant_api_key",
+    "sk_proj_api_key",
+    "gitlab_token",
+    "npm_token",
+    "pypi_token",
+];
+
+fn bump(c: &mut Value, k: &str) {
+    let n = c[k].as_u64().expect("count");
+    c[k] = json!(n + 1);
+}
+
+/// 追加 5 形の試料を `scan_text` に当て、形ごとの件数を集計する（失敗の文には ID と件数だけを出す）。
+///
+/// 陽性は期待の形が出れば検出。陰性は 15 形のどれかが出れば誤検出。
+/// 分類（known_miss・known_fp とそれ以外）と実測が食い違った試料の ID は返り値の後ろに集める。
+fn measure() -> (Value, Vec<String>) {
+    let (samples, _) = measure_corpus();
+    let mut counts = serde_json::Map::new();
+    for id in ADDED_SHAPE_IDS {
+        counts.insert(
+            id.to_owned(),
+            json!({"secret": 0, "detected": 0, "missed": 0, "clean": 0, "false_positive": 0}),
+        );
+    }
+    let mut mismatch = Vec::new();
+    for s in &samples {
+        let found = ids(&scan_text(&s.value));
+        let hit = if s.secret {
+            found.contains(&s.shape.as_str())
+        } else {
+            !found.is_empty()
+        };
+        let expected_hit = match s.category.as_str() {
+            "known_miss" => false,
+            "known_fp" => true,
+            _ => s.secret,
+        };
+        if hit != expected_hit {
+            mismatch.push(s.id.clone());
+        }
+        // scan_json_value は文字列 1 本と同じ結果になる。
+        let via_json = ids(&scan_json_value(&json!({ "k": [s.value.clone()] })));
+        assert!(
+            found == via_json,
+            "{}: json scan differs from text scan",
+            s.id
+        );
+        let c = counts.get_mut(&s.shape).expect("known shape");
+        if s.secret {
+            bump(c, "secret");
+            bump(c, if hit { "detected" } else { "missed" });
+        } else {
+            bump(c, "clean");
+            if hit {
+                bump(c, "false_positive");
+            }
+        }
+    }
+    (Value::Object(counts), mismatch)
+}
+
+#[test]
+fn added_shapes_measure_matches_the_recorded_counts() {
+    let (_, expected) = measure_corpus();
+    let (actual, mismatch) = measure();
+    assert!(
+        mismatch.is_empty(),
+        "category differs from the measured result: {mismatch:?}"
+    );
+    assert!(
+        actual == expected,
+        "recorded counts differ from the measured counts: {actual}"
+    );
+}
