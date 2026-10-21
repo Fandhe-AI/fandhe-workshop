@@ -75,6 +75,7 @@ use fandhe_workshop_core::history_load::load_session;
 use fandhe_workshop_core::history_open::OpeningCaps;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::ir_load::IrLoadError;
+use fandhe_workshop_core::learner_os::LearnerOs;
 use fandhe_workshop_core::ops_record::OpsRecorder;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
@@ -815,6 +816,13 @@ impl EngineHost {
             }
         }
         Self::new()
+    }
+
+    /// 推定した受講者の OS を入力欄の表示に渡す（TASK-285 1/2。JUDGE-28）。
+    ///
+    /// `persist::mount_with_history` が mount の前に 1 度だけ呼ぶ。表示だけの値で、履歴・実行環境には入れない。
+    pub fn set_learner_os(&mut self, os: LearnerOs) {
+        self.input.set_learner_os(os);
     }
 
     /// 起動時に保存済みの履歴（あれば）を渡し、新しく始めるか復元するかを決めて実行環境を差し替える（TASK-319 1/3。SAVE-3・SAVE-28）。
@@ -1913,8 +1921,10 @@ impl Component for EngineHost {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
-            // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完を受けても状態を変えない（fail-closed）。
-            HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
+            // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完・OS の選択を受けても状態を変えない（fail-closed）。
+            HostAction::Input(
+                HelloAction::SetDraft(_) | HelloAction::Submit | HelloAction::SetOs(_),
+            )
             | HostAction::Complete
                 if !self.input.shows_input_area() => {}
             // 書き込みの後に即時の保存が走っていれば（世代が進んでいる）、古い結果は捨てる。新しい通知を消さない・古い失敗を出さない。

@@ -1,0 +1,8 @@
+id: JUDGE28-1
+package: fandhe-workshop-core
+test: learner_os
+target: crates/core/src/learner_os.rs
+find:     if user_agent.contains("Windows") {
+replace:     if user_agent.contains("Windows-disabled") {
+expect-fail: windows_の_ua_は_windows
+note: Windows の判定の分岐を外す（Windows の UA が Unknown になり、修飾キーの表示が消える。JUDGE-28）

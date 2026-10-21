@@ -1,8 +1,8 @@
 //! 入力欄なしの教材（`pack.profile.input_field: hidden`）の表示の試験（TASK-450 2/3。PACK-20・TERM-23）。
 //!
 //! 入力欄・送信ボタン・補完の候補の一覧が DOM に 0 件で、停止と選択肢・画面操作・承認・確認の操作は出ることを、
-//! 3 Step の教材（`tests/data/input_field_hidden/ir.json`）の各段で数える。キーの案内・OS の選択は未実装（TERM-38）の
-//! ため、`select` 要素の 0 件で確かめる。口が無い教材では、下書き・送信・補完の action が状態を変えないことも固定する。
+//! 3 Step の教材（`tests/data/input_field_hidden/ir.json`）の各段で数える。キーの案内・OS の選択（TASK-285）は
+//! `select` 要素の 0 件で確かめる。口が無い教材では、下書き・送信・補完の action が状態を変えないことも固定する。
 //! ブラウザでの実クリックによる完走は `tools/browser/input-field-hidden.test.mjs` の担当である。
 //! 試験では `unwrap` を使ってよい。
 
@@ -98,7 +98,7 @@ fn log_len(h: &EngineHost) -> usize {
 /// 入力の口として出てはならない 5 つのうち、DOM で数えられるものが 0 件であること。
 ///
 /// 補完の候補（一覧とボタン）・入力欄・送信は testid と要素名、OS の選択は `select` 要素で数える。
-/// キーの案内は部品が未実装（TERM-38）で、実装されたときもこの判定の下に置く。
+/// キーの案内（`key-hint`）と OS の選択欄（`os-select`）は同じ判定の下に置き、0 件になる。
 fn assert_no_input_area(h: &EngineHost, at: &str) {
     let out = html(h);
     for testid in [
@@ -111,6 +111,8 @@ fn assert_no_input_area(h: &EngineHost, at: &str) {
     }
     assert!(!out.contains("<textarea"), "{at}\n{out}");
     assert!(!out.contains("<select"), "{at}\n{out}");
+    assert_eq!(count(h, "key-hint"), 0, "{at}\n{out}");
+    assert_eq!(count(h, "os-select"), 0, "{at}\n{out}");
     assert!(!out.contains("data-action-input"), "{at}\n{out}");
     // 停止と Esc の経路は、入力欄がなくても出る。
     assert_eq!(count(h, "stop-btn"), 1, "{at}\n{out}");
@@ -187,6 +189,18 @@ fn 入力欄なしでは下書き_送信_補完が状態を変えない() {
     assert_eq!(log_len(&h), before_log);
     assert_eq!(html(&h), before_html);
     assert_eq!(current(&h), "main/st-1");
+}
+
+#[test]
+fn 入力欄なしでは_os_の選択を受けても状態を変えない() {
+    let mut h = no_input();
+    let before_html = html(&h);
+    let before_log = log_len(&h);
+    h.update(act("os", "windows"));
+    h.update(act("os", "mac"));
+    assert!(h.dirty_fields().is_empty());
+    assert_eq!(log_len(&h), before_log);
+    assert_eq!(html(&h), before_html);
 }
 
 #[test]

@@ -96,6 +96,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 |---|---|---|
 | `Session`、`apply(状態, 入力) → (新しい状態, イベント列)`、`Input`・`Control`・イベント（`Changed`・`Refused`・`Judged`・`HintOpened` など）、Step の状態、`Projection`、宛先、世代、`RunState` | core | TASK-204 |
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
+| 受講者の OS の推定（`learner_os::estimate`・`LearnerOs`。User-Agent の部分一致の純関数で、履歴・`Session` には入れない）。修飾キーの語と案内文（`modifier_key`）と `key-hint` の束縛は web が持つ。受講者が選ぶ欄（`os-select`・`data-action-change="os"`・`HelloAction::SetOs`）で表示を切り替えられ、選んだ値は保存しない。JUDGE-28 | core（推定）・web（表示） | TASK-285 |
 | 秘密情報らしい文字列の検出（`secret_scan`。固定の 15 形（SAFE-27 の 10 形と SAFE-30 の 5 形）・値を持たない `Finding`。純関数で、保存の直前の警告は web の `secret_notice`・`host`・`persist` が、書き出しの関門（`EngineHost::export_live`）と、警告の選択（「このまま保存する」の確認済みの除外・「この入力を残さない」の読み直し。確認済みは形と指紋だけを持つ）は web の `host` が持ち、教材を取り込むときの検査は pack が再利用する）。SAFE-27 | core | TASK-164 |
 | 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
 | 履歴を開く可否の判定（`history_open::open_history`）・開く側の上限 `OpeningCaps`・エンジンが読める語彙の上限 `VOCAB_MAX`（pack の `vocab::LATEST` との一致は pack の試験が見る） | core | TASK-174 |
