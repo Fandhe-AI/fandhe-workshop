@@ -6156,7 +6156,7 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 限界・未実施:
 
 - web は実行時に IR を取得しないため、「ページが IR を取得する」ことは確かめていない（TASK-109・TASK-121 の後に取得資源の集合へ含める）。`ir/main.json` が `IR_FILE` とバイト一致で入ることは `scripts/test-build-web.sh` の (b)(e) が保証する
-- 直接リンク 10 件は TASK-106 2/3（5.194）、名前の違う 2 か所のサブパスとルート配信は 3/3 の範囲
+- 直接リンク 10 件は TASK-106 2/3（5.194）、名前の違う 2 か所のサブパスとルート配信は 5.196（3/3）
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
 
 ### 5.193 枠の区画と操作の名前の契約（TASK-511 1/2。SHELL-1・SHELL-10・SHELL-17）
@@ -6220,5 +6220,33 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 
 - 配信する設定の `app.js` はクエリもハッシュも読まず、10 件とも既定の教材で開く。確かめたのは配信の側の性質（静的な解決・取得資源・エラー 0 件）だけである。章の開始点の題と状態（DLV-7）は TASK-110、リンクの形の決定は TASK-11、実装は TASK-109 の範囲
 - web は実行時に IR を取得しないため、「ちょうど 7 件（IR を含む）」は確かめていない。TASK-109・TASK-121 の後に取得資源へ含める
-- 名前の違う 2 か所のサブパスとルート配信は 3/3
+- 名前の違う 2 か所のサブパスとルート配信は 5.196（3/3）で確かめた
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.196 名前の違うサブパス 2 か所とルート配信（TASK-106 3/3。DLV-2）
+
+同じ成果物（1 つの写しのディレクトリ）を 3 通りの配信で順に配り、どれにも同じ判定を流す。ビルド時に base を書き換えないこと（DLV-2）は、配信の前後で写しの全ファイルの sha256 が一致することで確かめる。判定と直接リンクは `tools/browser/delivery.mjs`（5.192・5.194）をそのまま使う。
+
+| 名前 | base | 意図 |
+|---|---|---|
+| A | `/fandhe-bases-a/` | サブパス 1 つめ。他の試験の base と重ならない |
+| B | `/another-repo-name/` | サブパス 2 つめ。A と長さ・文字が違う 1 段の名前（GitHub Pages のプロジェクトサイトを模す） |
+| root | `/` | ルート配信 |
+
+DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external・failed・httpErrors が 0 件）は `pageRequestProblems` が含む。
+
+試験（`tools/browser/delivery-bases.test.mjs`。4 件。配信物の写しに `fandhe-pack compile` の出力を `ir/main.json` として置く）:
+
+- base が互いに違い、A・B がルートでないこと（1 件）
+- 正（1 件）: 静的検査が 0 件。3 通りの base それぞれで、入口（`./ir/main.json`・`./icon.svg` が base の下に解決され 200、`window.__fandheTest` が無い）と直接リンク 10 件×2 形（query・hash）が `pageRequestProblems` で 0 件。全ページの要求の集合（base からの相対）が 1 通りで、配信の前後で写しの sha256 が一致する
+- 負の対照（実ブラウザ。入口の判定を [A, B, root] の順に並べて期待と比べる。静的検査が `root-absolute` を出すことも確かめる）2 件
+  - `./app.css` を `/app.css` にした写し: [不合格, 不合格, 合格]。ルート配信だけではルート絶対の参照を見逃す
+  - `./app.css` を `/fandhe-bases-a/app.css` にした写し（base を書き換えたときの形）: [合格, 不合格, 不合格]。サブパス 1 か所だけでは base に固定した参照を見逃す
+
+実測（2026-10-21、Chromium、配信する設定。`SKIP_WASM_OPT=1`）: 正の試験は約 35 秒、負の対照は 1 件あたり約 3.2 秒。ルート配信でも `/favicon.ico` の要求は起きず、除外は足していない。
+
+限界・未実施:
+
+- web は実行時に IR を取得しないため、「ちょうど 7 件（IR を含む）」は確かめていない。TASK-109・TASK-121 の後に取得資源へ含める
+- 直接リンクは配信の側の性質しか確かめない。章の開始点で開くこと（DLV-7）は TASK-110
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
