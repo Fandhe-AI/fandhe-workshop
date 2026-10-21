@@ -25,7 +25,7 @@
 
 - `pack.vocab` には、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.4"`）。引用符で囲みます
 - エンジンが読める語彙の上限は 1.5 です。宣言が上限を超える履歴は開きません（`vocab_newer`）
-- 宣言より新しい版の拡張点（EP-9〜EP-13 と、確認の選択肢の `label`、承認の `input.revise.candidates`）を使うと、`validate` が拡張点ごとに 1 件の `E-VOCAB-MISMATCH` を報告します（PACK-31）。語彙 1.1 までの語（EP-1〜EP-8）は、この検査の対象ではありません
+- 宣言より新しい版の拡張点（EP-9〜EP-13 と、確認の選択肢の `label`、承認の `input.revise.candidates`、実行環境の操作 `env_action`）を使うと、`validate` が拡張点ごとに 1 件の `E-VOCAB-MISMATCH` を報告します（PACK-31）。語彙 1.1 までの語（EP-1〜EP-8）は、この検査の対象ではありません
 - 詳しい規約は `docs/pack-authoring.md` の「`pack.vocab` の書き方」「`pack.vocab` の宣言と使用の一致」を見てください
 
 ## 3. 名前つき拡張点の索引
@@ -52,6 +52,7 @@
 
 - `confirm.options[].label`（v1.3、PACK-23）: 確認 `answer` の選択肢の表示名です。入力方式 `choice` の `options[].label` とは別の欄で、取り違えると宣言と使用の検査がずれます。`vocab` コマンドは `label` を数えません（AUTHOR-17）。出力の形は `docs/cli.md` の 12 節と 13 節にあります
 - `input.revise.candidates` と `input.revise.candidates[].label`（v1.5、PACK-42）: 承認の「直す」の誤った対象の候補と表示名です。どの候補が正しいかは宣言せず、規則の `on: { approval: revise, target }` が決めます。`vocab` コマンドは数えません。書き方は `docs/pack-authoring.md` の「承認の『直す』の候補と表示名」にあります
+- `env_action`・`input.action`・`input.action=save`・`input.action=export`（v1.5、PACK-34）: 保存・書き出しの操作を Step の入力として宣言する語です。値は `save` と `export` の 2 つだけで、操作が成功したら受付になります。受講者の値は持ちません。`export` は実行時の結線が未実装です（`docs/known-gaps.md`）。`vocab` コマンドは数えません。書き方は `docs/pack-authoring.md` の「保存・書き出しを入力とする Step」にあります
 - `pack.vocab` 自体は宣言の欄で、語には数えません（PACK-31）
 
 ## 5. 足さないと決まっている語

@@ -24,6 +24,7 @@
 | JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
 | PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
+| PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
 | PACK-19（両方無い） | 確認も持たない、入力も `use` も無い終端でない Step は、まだ拒否しない（確認を持つものだけを `E-STRUCTURE` にした。2026-10-21）。全面の拒否は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台に影響する（30c1ff0 での実測。workspace の残りは未測定） | 一部を実装。残りは別の Issue で扱う | 途中の Step には入力を書く | `crates/pack/tests/read_only_step.rs` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
@@ -214,3 +215,26 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 ### 根拠の試験
 
 - `tools/browser/shell-tabs.test.mjs` の「キーで切り替えるとフォーカスが選んだタブへ移り、Enter で選択が戻らない」が確かめます（記録は `docs/testing.md` 5.203）
+
+## PACK-34: 書き出しを入力とする Step は達成にならない
+
+### 限界
+
+- `input: {kind: env_action, action: export}` を書いた Step は `validate` を通ります。しかし、今はどの操作でも達成になりません。この Step を置いた教材は、そこで先へ進めません
+- 保存（`action: save`）の Step は、保存の成功で受付になります。チェックポイントの写しは達成の前の状態で控えるため、その写しへ復帰すると保存の Step に戻ります
+- 保存・書き出しのボタンの画面は未実装です。保存の操作を受講者が行う入口は、2026-10-21 時点の画面にありません
+
+### 理由
+
+- 書き出しの成否は web が持ち、core には書き出しの成功を伝える `Op` がありません。結ぶには `Control` に新しい種類を足す必要があり、世代の表・`CONTRACT_VERSION`・契約サンプル・履歴の `ops` の形・書き出しの画面（TASK-531）に影響が及びます
+- 本タスクは語と保存の結線までとし、書き出しの結線は別に扱うことにしました（2026-10-21。TASK-64 1/2）
+- 保存の成功を受付にする結線は `crates/core/src/env_input.rs` に置きました。保存の分岐（`checkpoint`）は教材を読まない不変条件を持つためです
+
+### 回避
+
+- 書き出しを案内する Step は、`env_action` を使わず、別の入力（1 択の `choice` など）で達成にします
+- 保存を入力とする Step は、`confirm: { kind: none, reason }` と組みます。画面に保存の入口が出るまで、実際の教材では使わないでください
+
+### 根拠の試験
+
+- `crates/pack/tests/env_action_input.rs` の `pack34_`（宣言の検査）と `crates/core/tests/env_action_save.rs` の `pack34_`（`pack34_export_step_is_not_achieved_by_save` が、書き出しの Step を保存で達成にしないことを固定する）。記録は `docs/testing.md` 5.209

@@ -268,11 +268,6 @@ fn revise_display_falls_back_to_id_for_blank_label() {
 }
 
 #[test]
-fn input_spec_contract_version_is_2() {
-    assert_eq!(INPUT_SPEC_CONTRACT_VERSION, 2);
-}
-
-#[test]
 fn spec_errors_are_fixed_sentences() {
     for e in [
         SpecError::MinAboveMax,
@@ -297,4 +292,50 @@ fn only_wait_is_an_extension_point() {
         assert_eq!(k.extension_point(), None, "{}", k.as_str());
     }
     assert_eq!(CANCEL_RULE_KEY, "cancel");
+}
+
+#[test]
+fn env_action_reads_save_and_export() {
+    let save: EnvActionSpec = serde_json::from_value(json!({"action": "save"})).expect("save");
+    assert_eq!(save.action, EnvAction::Save);
+    let export: EnvActionSpec =
+        serde_json::from_value(json!({"action": "export"})).expect("export");
+    assert_eq!(export.action, EnvAction::Export);
+    assert_eq!(
+        serde_json::to_value(save).expect("ser"),
+        json!({"action": "save"})
+    );
+}
+
+#[test]
+fn env_action_rejects_unknown_value_missing_field_and_unknown_field() {
+    for v in [
+        json!({"action": "delete"}),
+        json!({"action": "Save"}),
+        json!({}),
+        json!({"action": "save", "name": "x"}),
+        json!({"action": 1}),
+    ] {
+        assert!(
+            serde_json::from_value::<EnvActionSpec>(v.clone()).is_err(),
+            "{v}"
+        );
+    }
+}
+
+#[test]
+fn env_action_kind_round_trips_and_is_not_an_extension_point() {
+    assert_eq!(InputKind::EnvAction.as_str(), "env_action");
+    assert_eq!(
+        InputKind::from_str_opt("env_action"),
+        Some(InputKind::EnvAction)
+    );
+    assert_eq!(InputKind::EnvAction.extension_point(), None);
+    assert!(InputKind::ALL.contains(&InputKind::EnvAction));
+    assert_eq!(InputKind::ALL.len(), 7);
+}
+
+#[test]
+fn input_spec_contract_version_is_3() {
+    assert_eq!(INPUT_SPEC_CONTRACT_VERSION, 3);
 }

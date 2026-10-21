@@ -210,6 +210,29 @@ fn revise_candidates_are_v15_without_number() {
 }
 
 #[test]
+fn env_action_terms_are_v15_without_number() {
+    let d = doc();
+    let terms = doc_terms(&d);
+    let v15 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.5")
+        .expect("v1.5 の行");
+    for term in [
+        "env_action",
+        "input.action",
+        "input.action=save",
+        "input.action=export",
+    ] {
+        let row = terms
+            .iter()
+            .find(|(_, t, _, _)| t == term)
+            .unwrap_or_else(|| panic!("{term} が 7 節にあること"));
+        assert_eq!((row.2.as_str(), row.3.as_str()), ("v1.5", "—"));
+        assert!(v15[2].contains(term), "8 節の v1.5 の番号なしの語に {term}");
+    }
+}
+
+#[test]
 fn every_extension_point_appears_in_terms() {
     let d = doc();
     let used: BTreeSet<String> = doc_terms(&d).into_iter().map(|t| t.3).collect();
@@ -229,13 +252,15 @@ fn crosswalk_terms_exist() {
     let rows = section_rows(&d, "## 9. ");
     let ids: Vec<String> = rows.iter().map(|r| r[0].clone()).collect();
     let mut want: Vec<String> = (8..=23).map(|n| format!("PACK-{n}")).collect();
+    // 語彙 v1.5 の PACK-34（TASK-64 1/2）。7 節の順に合わせ、PACK-38 の前へ置く。
+    want.push("PACK-34".to_string());
     // 語彙 v1.4（TASK-66 1/2）の出所。
     want.push("PACK-38".to_string());
     // 語彙 v1.5（TASK-62 2/2）の出所。
     want.push("PACK-42".to_string());
     assert_eq!(
         ids, want,
-        "PACK-8〜PACK-23・PACK-38・PACK-42 の 18 行がそろう"
+        "PACK-8〜PACK-23・PACK-34・PACK-38・PACK-42 の 19 行がそろう"
     );
     for row in &rows {
         for term in row[1].split('`').skip(1).step_by(2) {

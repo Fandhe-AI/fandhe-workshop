@@ -1,0 +1,181 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "env-action-pack",
+    "title": "保存と書き出しの入力",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A",
+    "vocab": "1.5"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {
+    "v-cards": {
+      "kind": "card_list"
+    }
+  },
+  "fixtures": {},
+  "hints": {},
+  "rejections": {
+    "rj-default": {
+      "category": "not_in_this_step",
+      "message": "この Step では、その操作は使いません。",
+      "next_action": "今の Step の目的を読み直します。"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "not_in_this_step": "rj-default"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-save",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "st-save",
+        "title": "途中の状態を保存する",
+        "body": "a.md",
+        "views": [
+          "v-cards"
+        ],
+        "input": {
+          "action": "save",
+          "kind": "env_action"
+        },
+        "confirm": {
+          "kind": "none",
+          "reason": "保存の操作が成功したこと自体が達成の根拠のため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-export"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "直す対象を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "案のどこを直すかを選びます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-export",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "st-export",
+        "title": "履歴を書き出す",
+        "body": "a.md",
+        "views": [
+          "v-cards"
+        ],
+        "input": {
+          "action": "export",
+          "kind": "env_action"
+        },
+        "confirm": {
+          "kind": "none",
+          "reason": "書き出しの操作が成功したこと自体が達成の根拠のため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-end"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "直す対象を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "案のどこを直すかを選びます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-end",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "st-end",
+        "title": "おわり",
+        "body": "b.md",
+        "final": true
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "おわり"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "直す対象が選ばれました。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/st-save",
+      "effects": []
+    }
+  ]
+}

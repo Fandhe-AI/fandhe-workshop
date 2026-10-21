@@ -13,14 +13,18 @@
 //! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` の他のキーとの
 //! 組み合わせ・入力方式との整合は TASK-45 が受け持つ。
 //!
+//! `env_action`（TASK-64 1/2、PACK-34、D-69）は保存・書き出しの操作を入力とする宣言である。`action` は閉じた
+//! 2 値で、型で読めなければ `E-PARSE`、`processing` を持つ Step は `E-STRUCTURE` にする（保存による受付には
+//! 処理中を始める経路が無く、先へ進めない書き方になるため）。
+//!
 //! `approval` の `revise`（TASK-62 2/2、PACK-42）は「直す」の誤った対象の候補と表示名の宣言である。型と意味の
 //! 制約（空・重複・空白だけの `label`）に加え、`revise` を宣言した Step では、対象つきの `revise` の規則
 //! （`on: { approval: revise, target }`）の `target` がすべて候補に入っていることを確かめる。正しい対象が候補から
 //! 漏れると、画面（候補のボタン）と判定（規則）が食い違うためである。どの候補が正しいかは宣言せず、規則が決める。
 
 use fandhe_workshop_contract::input_spec::{
-    ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec, WaitSpec,
-    CANCEL_RULE_KEY,
+    ApprovalSpec, ChoiceSpec, CommandSpec, EnvActionSpec, InputKind, SpecError, TextSpec,
+    UiActionSpec, WaitSpec, CANCEL_RULE_KEY,
 };
 use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
@@ -152,6 +156,17 @@ fn check_input(
             match rules {
                 Some(r) => check_revise_targets(&rest, r),
                 None => Ok(()),
+            }
+        }
+        InputKind::EnvAction => {
+            check_one::<EnvActionSpec>(rest, name, |_| Ok(()))?;
+            if has_processing {
+                Err((
+                    DiagCode::Structure,
+                    "input (env_action): processing is not allowed".to_string(),
+                ))
+            } else {
+                Ok(())
             }
         }
         InputKind::Wait => {

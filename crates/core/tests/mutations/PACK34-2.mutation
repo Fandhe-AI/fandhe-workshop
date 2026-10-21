@@ -1,0 +1,8 @@
+id: PACK34-2
+package: fandhe-workshop-core
+test: env_action_save
+target: crates/core/src/session.rs
+find:                 .any(|e| matches!(e, Event::CheckpointSaved { .. }))
+replace:                 .any(|e| matches!(e, Event::CheckpointSaved { .. } | Event::Warning { .. }))
+expect-fail: pack34_failed_save_does_not_accept
+note: 保存の成功の判定を外し、保存に失敗した（Warning だけの）ときも受付にする
