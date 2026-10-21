@@ -585,17 +585,18 @@ views:
 案内レベルは `A`・`B`・`C` の 3 水準です（EP-8。PACK-17）。`A` が最も手厚く、`C` が最も薄い水準です。
 
 - 水準 L で出す本文は、`C` なら `body_levels.C`、`body_levels.B`、`body` の順に探します。`B` なら `body_levels.B`、`body` の順です。`A` は `body` だけです
-- 水準 A の本文は `body` に書きます。`body_levels` に `A` の鍵は書きません（これを拒否する検査は TASK-49 2/2 の持ち分です）
+- 水準 A の本文は `body` に書きます。`body_levels` に `A` の鍵は書きません。書くと `validate` も `compile` も `E-STRUCTURE`（Step ごとに 1 件）で止めます
 - ヒントは `levels` に出す水準を列で書きます。省略と空の列は全水準を意味します
 - `pack.guidance`・`starts[].guidance`・`body_levels` のキー・`pack.guidance_levels` のキー・ヒントの `levels` の要素が `A`・`B`・`C` でなければ、読み込みで `E-PARSE` になります。小文字も拒否します。診断に書いた値は写しません
 - `pack.guidance_levels.<水準>` は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます
-- 隠す語の漏れ（`E-GUIDANCE-LEAK`）とヒントが 0 件になる水準（`E-HINT-HIDDEN`）の検査は、TASK-49 2/2 の持ち分で未実装です（2026-10-21 時点）
+- 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または定義の段の `do` に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査で、実体の引数で渡す `do`（`${...}`）・ヒントの文面・宣言の無い章の本文は見ません。診断に隠す語・本文は写しません
+- ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
 ## 根拠となる試験
 
 | 試験 | 確かめること |
 |---|---|
-| `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2） |
+| `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |

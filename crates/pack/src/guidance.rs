@@ -1,7 +1,8 @@
 //! 案内レベル（EP-8。PACK-17）の語の読み取りと、水準ごとの本文の選択（TASK-49 1/2）。
 //!
-//! 呼び出し元は読み込み層 `source::load`（`check_workshop_levels`・`check_scope_levels`）と、後続の
-//! 静的検査（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。TASK-49 2/2）である。語彙 v1.1 の 5.3 節に従い、
+//! 呼び出し元は読み込み層 `source::load`（`check_workshop_levels`・`check_scope_levels`）と、静的検査
+//! （`E-STRUCTURE`・`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。TASK-49 2/2）である。
+//! `body_levels` の鍵 `A` の拒否は `validate`・`compile` の両方、漏れとヒントの検査は `validate` だけが行う。語彙 v1.1 の 5.3 節に従い、
 //! 水準の名前が `A`・`B`・`C` でない教材は読み込みで `E-PARSE` にする。読めない水準は IR に載せない
 //! （教材データは信頼しない入力のため、失敗は安全側へ倒す）。
 //!
@@ -9,15 +10,16 @@
 //! 契約の `visible_hints` が持つ。実行時の本文の木の選択は core（TASK-292）の持ち分である。
 //! 診断の文面は固定の英語で、書かれた値・`hide_words`・本文は写さない。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use fandhe_workshop_contract::guidance::GuidanceLevel;
-use fandhe_workshop_contract::ir::Step;
+use fandhe_workshop_contract::guidance::{visible_hints, GuidanceLevel};
+use fandhe_workshop_contract::ir::{Ir, Step};
 use fandhe_workshop_core::command_class::CommandKind;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::{safe_ident, ScopeSrc, WorkshopSrc};
+use crate::source::{safe_ident, LoadedPack, LoadedScope, ScopeKind, ScopeSrc, WorkshopSrc};
+use crate::validate::diag;
 
 /// 水準ごとに隠す語（`pack.guidance_levels.<水準>`）。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -60,7 +62,7 @@ impl GuidanceLevelsError {
 
 /// 水準 `level` で出す本文のパスを選ぶ。C → B → A の順に探す。
 ///
-/// 水準 A の本文は `body` に書く。`body_levels` の鍵 `A` は本文として使わない（`E-STRUCTURE` は TASK-49 2/2）。
+/// 水準 A の本文は `body` に書く。`body_levels` の鍵 `A` は本文として使わない（`check_body_levels_a` が `E-STRUCTURE` にする）。
 /// ディスクには触れず、パスの文字列だけを返す純関数である。
 pub fn body_for(step: &Step, level: GuidanceLevel) -> Option<&str> {
     for l in level.fallback_chain() {
@@ -168,7 +170,7 @@ pub(crate) fn check_workshop_levels(workshop_file: &str, w: &WorkshopSrc) -> Vec
 
 /// 章・モジュールの水準の語（`starts[].guidance`・`body_levels` の鍵）を検査する。
 ///
-/// 鍵 `A` はここでは通す（`E-STRUCTURE` にするのは TASK-49 2/2 の静的検査）。
+/// 鍵 `A` はここでは通す（`E-STRUCTURE` にするのは `check_body_levels_a`。`validate`・`compile` の段）。
 pub(crate) fn check_scope_levels(file: &str, src: &ScopeSrc) -> Vec<Diagnostic> {
     let mut out = Vec::new();
     for s in &src.starts {
@@ -191,6 +193,209 @@ pub(crate) fn check_scope_levels(file: &str, src: &ScopeSrc) -> Vec<Diagnostic> 
                 "scope",
                 "body_levels keys must be A, B or C",
             ));
+        }
+    }
+    out
+}
+
+/// `body_levels` の鍵 `A` を `E-STRUCTURE` にする。水準 A の本文は `body` に書くため、鍵 `A` は
+/// 使われないまま残り、書き手の意図と実行時の本文が食い違う。`validate` と `compile` の両方から呼ぶ
+/// （IR に `body_levels.A` を載せない。fail-closed）。
+pub(crate) fn check_body_levels_a(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for st in &scope.src.steps {
+            if st.body_levels.contains_key("A") {
+                out.push(diag(
+                    &scope.file,
+                    &format!("step:{}", st.id),
+                    DiagCode::Structure,
+                    "body_levels must not have key A (write the level A body in body)",
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// 水準ごとの隠す語の列。`workshop.commands` のうち種類が `hide_command_kinds` に含まれるコマンドの
+/// 名前と、`hide_words`。空・空白だけの語は、どの文字列にも含まれて全件を誤検出するため飛ばす。
+fn hidden_words(w: &WorkshopSrc, rule: &GuideRule) -> Vec<String> {
+    let mut words: Vec<String> = Vec::new();
+    for (name, def) in &w.commands {
+        if CommandKind::from_value(def).is_some_and(|k| rule.hide_command_kinds.contains(&k)) {
+            words.push(name.clone());
+        }
+    }
+    words.extend(rule.hide_words.iter().cloned());
+    words.retain(|x| !x.trim().is_empty());
+    words
+}
+
+/// `use.module` が指すモジュールの ID。文字列でない・引数（`${`）を含むものは `None`。
+fn used_module(step: &Step) -> Option<&str> {
+    let m = step.use_module.as_ref()?.get("module")?.as_str()?;
+    (!m.contains("${")).then_some(m)
+}
+
+/// `scope` の Step が入れ子を含めて呼ぶモジュールの Step を、`out` に (スコープの添字, Step の添字) で足す。
+/// 巡回は訪問済みの集合で止める（教材データは信頼しない入力）。
+fn collect_module_steps(
+    pack: &LoadedPack,
+    scope: &LoadedScope,
+    visited: &mut BTreeSet<String>,
+    out: &mut Vec<(usize, usize)>,
+) {
+    for st in &scope.src.steps {
+        let Some(m) = used_module(st) else {
+            continue;
+        };
+        if !visited.insert(m.to_string()) {
+            continue;
+        }
+        for (i, ms) in pack.scopes.iter().enumerate() {
+            if ms.kind == ScopeKind::Module && ms.src.id == m {
+                out.extend((0..ms.src.steps.len()).map(|j| (i, j)));
+                collect_module_steps(pack, ms, visited, out);
+            }
+        }
+    }
+}
+
+/// 隠すと宣言した語が、その水準で出る本文または `do` に含まれていれば `E-GUIDANCE-LEAK`（`validate` だけ）。
+///
+/// 対象は、(i) `body_levels` を持つ Step の水準 B・C と、(ii) 開始点の `guidance` が B・C の章の全 Step と
+/// その章が呼ぶモジュールの全 Step の同じ水準。単純な部分文字列の包含で判定する近似の検査で、
+/// 実体の引数で渡す `do`・ヒントの文面・宣言の無い章の本文は見ない（GUIDE-5。TASK-38・TASK-71）。
+/// ディスクには触れず `pack.bodies` だけを読む。診断は語・本文を写さない。
+pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let Ok(rules) = read_guidance_levels(pack.workshop.pack.guidance_levels.as_ref()) else {
+        return Vec::new();
+    };
+    let rules: BTreeMap<GuidanceLevel, Vec<String>> = rules
+        .iter()
+        .filter(|(l, _)| **l != GuidanceLevel::A)
+        .map(|(l, r)| (*l, hidden_words(&pack.workshop, r)))
+        .filter(|(_, w)| !w.is_empty())
+        .collect();
+    if rules.is_empty() {
+        return Vec::new();
+    }
+    // (スコープの添字, Step の添字, 水準)。
+    let mut targets: BTreeSet<(usize, usize, GuidanceLevel)> = BTreeSet::new();
+    for (i, scope) in pack.scopes.iter().enumerate() {
+        for (j, st) in scope.src.steps.iter().enumerate() {
+            if !st.body_levels.is_empty() {
+                for l in [GuidanceLevel::B, GuidanceLevel::C] {
+                    targets.insert((i, j, l));
+                }
+            }
+        }
+        if scope.kind != ScopeKind::Chapter {
+            continue;
+        }
+        let start_levels: BTreeSet<GuidanceLevel> = scope
+            .src
+            .starts
+            .iter()
+            .filter_map(|s| {
+                s.guidance
+                    .as_ref()
+                    .and_then(Value::as_str)
+                    .and_then(GuidanceLevel::parse)
+            })
+            .filter(|l| *l != GuidanceLevel::A)
+            .collect();
+        if start_levels.is_empty() {
+            continue;
+        }
+        let mut steps: Vec<(usize, usize)> = (0..scope.src.steps.len()).map(|j| (i, j)).collect();
+        let mut visited = BTreeSet::new();
+        collect_module_steps(pack, scope, &mut visited, &mut steps);
+        for (si, sj) in steps {
+            for l in &start_levels {
+                targets.insert((si, sj, *l));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for (i, j, level) in targets {
+        let Some(words) = rules.get(&level) else {
+            continue;
+        };
+        let scope = &pack.scopes[i];
+        let step = &scope.src.steps[j];
+        let item = format!("step:{}", step.id);
+        let in_body = body_for(step, level)
+            .and_then(|p| pack.bodies.get(&format!("{}/{p}", scope.dir)))
+            .is_some_and(|text| words.iter().any(|w| text.contains(w.as_str())));
+        if in_body {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::GuidanceLeak,
+                format!(
+                    "a word hidden at guidance level {} appears in the body",
+                    level.as_str()
+                ),
+            ));
+        }
+        let in_do = step
+            .do_
+            .as_deref()
+            .is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+        if in_do {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::GuidanceLeak,
+                format!(
+                    "a word hidden at guidance level {} appears in do",
+                    level.as_str()
+                ),
+            ));
+        }
+    }
+    out
+}
+
+/// ヒントを持つ Step で、ある水準ではヒントが 1 つも出なければ `E-HINT-HIDDEN`（`validate` だけ）。
+/// 出し分けの規則は契約 `visible_hints` をそのまま使う。未定義のヒント ID は `E-REF-HINT` の担当で、
+/// 定義のあるヒントを 1 つも持たない Step は対象にしない。
+pub(crate) fn check_hint_hidden(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let w = &pack.workshop;
+    let view = Ir {
+        format_version: w.pack.ir_format,
+        pack: w.pack.clone(),
+        refs: Vec::new(),
+        commands: BTreeMap::new(),
+        views: BTreeMap::new(),
+        fixtures: BTreeMap::new(),
+        hints: w.hints.clone(),
+        rejections: BTreeMap::new(),
+        clarifications: BTreeMap::new(),
+        defaults: BTreeMap::new(),
+        instances: Vec::new(),
+        nodes: Vec::new(),
+        starts: Vec::new(),
+        fixture_docs: BTreeMap::new(),
+    };
+    let mut out = Vec::new();
+    for scope in &pack.scopes {
+        for st in &scope.src.steps {
+            if !st.hints.iter().any(|h| w.hints.contains_key(h)) {
+                continue;
+            }
+            for level in GuidanceLevel::ALL {
+                if visible_hints(&view, st, level).is_empty() {
+                    out.push(diag(
+                        &scope.file,
+                        &format!("step:{}", st.id),
+                        DiagCode::HintHidden,
+                        format!("no hint is shown at guidance level {}", level.as_str()),
+                    ));
+                }
+            }
         }
     }
     out

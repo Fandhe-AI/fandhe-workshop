@@ -182,6 +182,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     diags.extend(crate::start_check::check_start_pairs(&pack.scopes));
     diags.extend(input::check_inputs(&pack.scopes));
     diags.extend(confirm::check_confirms(&pack.scopes));
+    // `body_levels` の鍵 `A` は IR に載せない（PACK-17。TASK-49 2/2）。
+    diags.extend(crate::guidance::check_body_levels_a(&pack.scopes));
     // 拒否の分類の語（`rejections`・`defaults`・`on_reject`）を contract の 8 語で検査する（TASK-45）。
     diags.extend(crate::rejection::check_categories(pack));
     // 差し込みの枠と次の行動（TASK-46）。不正な枠を含む IR を出さない（fail-closed）。

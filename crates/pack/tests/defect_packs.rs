@@ -11,9 +11,8 @@
 //!   検出を必須にし、24/24 は TASK-404・TASK-398 の完了後に `#[ignore]` を外して確かめる
 //!
 //! 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3・#416）は、末尾の `pack29_v1_1_*` が確かめる。
-//! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。今の必須の検出は `validate` の 9 種で、D21・D22 は
-//! 検査器の側（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`）が TASK-49 2/2（#496）の
-//! 持ち分で未実装のため `#[ignore]` で置く。D23 は TASK-49 1/2（#495）で検出する。11/11 は #496 の完了後に `#[ignore]` を外して確かめる。
+//! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。必須の検出は `validate` の 11/11 である。D21・D22 は
+//! TASK-49 2/2（#496）の `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`、D23 は TASK-49 1/2（#495）で検出する。
 //!
 //! 正しいパックの誤検出 0 件（TASK-56 3/3・#417）は、末尾の `pack29_correct_packs_*` が確かめる。
 //! `validate` と、`test` の段の静的な検査（`E-PLAY-INPUT-CLASS`・誤入力の `expect` の読み取り）は必須で、
@@ -323,13 +322,6 @@ fn pack29_play_defects_reported_by_test() {
 
 // ---- 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3、#416）----
 
-/// v1.1 の欠陥の検出の状況。`PendingTask49` は検査器の側が未実装で、今は報告されない。
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum V11Status {
-    Detect,
-    PendingTask49,
-}
-
 /// v1.1 の期待の表の 1 行。`overlay` は重ねるファイル、`file` は期待のファイルで、どちらも拡張子つき。
 /// D21（本文）と D22（`workshop.yaml`）は、重ねるファイルと診断の付くファイルが違う。
 struct DefectV11 {
@@ -338,7 +330,6 @@ struct DefectV11 {
     file: &'static str,
     item: &'static str,
     overlay: &'static str,
-    status: V11Status,
 }
 
 const CH1: &str = "chapters/ch-1/chapter.yaml";
@@ -352,7 +343,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH2,
         item: "step:st-2-7",
         overlay: CH2,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D14",
@@ -360,7 +350,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH1,
         item: "step:st-1-4",
         overlay: CH1,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D15",
@@ -368,7 +357,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: WORKSHOP_B,
         item: "rejection:rj-default-unknown-command",
         overlay: WORKSHOP_B,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D16",
@@ -376,7 +364,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: WORKSHOP_B,
         item: "rejection:rj-default-wrong-order",
         overlay: WORKSHOP_B,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D17",
@@ -384,7 +371,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: WORKSHOP_B,
         item: "rejection:rj-default-unknown-command",
         overlay: WORKSHOP_B,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D18",
@@ -392,7 +378,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH2,
         item: "step:st-2-3",
         overlay: CH2,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D19",
@@ -400,7 +385,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: WORKSHOP_B,
         item: "rejection:rj-default-busy",
         overlay: WORKSHOP_B,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D20",
@@ -408,7 +392,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH13,
         item: "step:st-13-2",
         overlay: CH13,
-        status: V11Status::Detect,
     },
     DefectV11 {
         id: "D21",
@@ -416,7 +399,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH13,
         item: "step:st-13-2",
         overlay: "chapters/ch-13/st-13-2.b.md",
-        status: V11Status::PendingTask49,
     },
     DefectV11 {
         id: "D22",
@@ -424,7 +406,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH13,
         item: "step:st-13-2",
         overlay: WORKSHOP_B,
-        status: V11Status::PendingTask49,
     },
     DefectV11 {
         id: "D23",
@@ -432,7 +413,6 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH13,
         item: "scope",
         overlay: CH13,
-        status: V11Status::Detect,
     },
 ];
 
@@ -506,10 +486,7 @@ fn pack29_v1_1_defect_dirs_match_table_and_only_replace_base_files() {
 fn pack29_v1_1_static_defects_reported_at_expected_location() {
     let mut missed = Vec::new();
     let mut detected = 0;
-    for d in DEFECTS_V1_1
-        .iter()
-        .filter(|d| d.status == V11Status::Detect)
-    {
+    for d in DEFECTS_V1_1.iter() {
         let diags = validate_dir(&assemble_v1_1(d).0);
         assert_no_secret(&diags);
         if diags.iter().any(|x| matches_v1_1(x, d)) {
@@ -530,58 +507,8 @@ fn pack29_v1_1_static_defects_reported_at_expected_location() {
         "undetected defects:\n{}",
         missed.join("\n")
     );
-    assert_eq!(detected, 9);
-    println!("PACK-29 v1.1 static defects detected {detected}/9");
-}
-
-#[test]
-fn pack29_v1_1_pending_defects_have_no_unrelated_diagnostics() {
-    for d in DEFECTS_V1_1
-        .iter()
-        .filter(|d| d.status == V11Status::PendingTask49)
-    {
-        let diags = validate_dir(&assemble_v1_1(d).0);
-        assert_no_secret(&diags);
-        let stray: Vec<String> = describe(&diags)
-            .into_iter()
-            .zip(&diags)
-            .filter(|(_, x)| x.code() != d.code)
-            .map(|(s, _)| s)
-            .collect();
-        assert!(
-            stray.is_empty(),
-            "{}: unrelated diagnostics {stray:?}",
-            d.id
-        );
-    }
-}
-
-#[test]
-#[ignore = "E-GUIDANCE-LEAK / E-HINT-HIDDEN are TASK-49 2/2 (#496)"]
-fn pack29_v1_1_guidance_defects_reported_at_expected_location() {
-    let mut missed = Vec::new();
-    for d in DEFECTS_V1_1
-        .iter()
-        .filter(|d| d.status == V11Status::PendingTask49)
-    {
-        let diags = validate_dir(&assemble_v1_1(d).0);
-        assert_no_secret(&diags);
-        if !diags.iter().any(|x| matches_v1_1(x, d)) {
-            missed.push(format!(
-                "{}: want {} {} {}; got {:?}",
-                d.id,
-                d.code,
-                d.file,
-                d.item,
-                describe(&diags)
-            ));
-        }
-    }
-    assert!(
-        missed.is_empty(),
-        "undetected defects:\n{}",
-        missed.join("\n")
-    );
+    assert_eq!(detected, 11);
+    println!("PACK-29 v1.1 static defects detected {detected}/11");
 }
 
 // ---- 正しいパックの誤検出 0 件（TASK-56 3/3、#417）----
