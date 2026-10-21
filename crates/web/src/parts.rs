@@ -13,7 +13,7 @@
 //! 3 分割の境界: 本モジュールは口の型・登録・振り分けまでを持つ。action の名前と宛先（`action`）・操作
 //! プロファイルと設定の渡し方（`profile`）は 2/3 で足した。glue の許される操作（`glue_ops`）・keyed list の
 //! 親の属性と項目数の方針（`list_policy`）・契約の版番号 [`PARTS_CONTRACT_VERSION`] は 3/3 で足し、
-//! TASK-343 の契約は版 1 で確定した。
+//! TASK-343 の契約は版 1 で確定した。TASK-283 で版 2 に上げ（spec の FEND-20・D-65）、上限を超える貼り付けの切り捨て（`beforeinput`・選択の位置の読み取り・キャレット・合成の `input`）を欄の値の反映の範囲に足した。
 //!
 //! 意図して固定しないもの（持ち主が別にあるため）:
 //! - 行の型、`data-testid`、束縛点の名前（TASK-431・TASK-467・TASK-511 が持つ。部品は自分の field 名を宣言するだけ）
@@ -33,7 +33,7 @@ use crate::profile::DisplaySettings;
 ///
 /// 口の型・名前・payload の書式・許される操作の一覧・項目数の方針・不変条件を変えたら上げる。先に spec を直す。
 /// アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。
-pub const PARTS_CONTRACT_VERSION: u32 = 1;
+pub const PARTS_CONTRACT_VERSION: u32 = 2;
 
 pub use fandhe_frontend_interactive::{Component, DirtyTracked};
 pub use fandhe_frontend_wasm_client::{BindingSource, BoundValue};

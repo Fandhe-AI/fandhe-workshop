@@ -6,7 +6,7 @@
 use fandhe_workshop_contract::limits::{
     BoundarySample, LimitId, BOUNDARY_SAMPLES, INPUT_TOO_LONG_MESSAGE, MAX_INPUT_CODE_POINTS,
 };
-use fandhe_workshop_web::input_limit::{clamp_draft, notice_for};
+use fandhe_workshop_web::input_limit::{clamp_draft, clip_paste, notice_for};
 
 fn cp(s: &str) -> usize {
     s.chars().count()
@@ -198,4 +198,116 @@ fn judge23_5つの操作を順に流すと期待どおりに受け付け_拒否�
     let (s, over) = clamp_draft(&big);
     assert_eq!((s, over), (f.as_str(), true));
     assert_eq!(notice_for(over), INPUT_TOO_LONG_MESSAGE);
+}
+
+// ---- JUDGE-24（TASK-283）: 上限を超える貼り付けは貼った分だけを切る（D-60） ----
+
+fn doc(before: usize, after: usize) -> String {
+    format!("{}{}", "a".repeat(before), "b".repeat(after))
+}
+
+#[test]
+fn judge24_収まる貼り付けは介入しない() {
+    let d = doc(10, 10);
+    assert_eq!(clip_paste(&d, 10, 10, "xxxxx"), None);
+}
+
+#[test]
+fn judge24_途中への貼り付けは貼った分だけを切り_後ろの既存の文字を残す() {
+    let d = doc(10_000, 9_990);
+    let plan = clip_paste(&d, 10_000, 10_000, &"x".repeat(20)).expect("介入するはず");
+    let (v, over) = clamp_draft(&plan.value);
+    assert!(over);
+    assert_eq!(
+        v,
+        format!(
+            "{}{}{}",
+            "a".repeat(10_000),
+            "x".repeat(10),
+            "b".repeat(9_990)
+        )
+    );
+    assert_eq!(plan.caret_utf16, 10_010);
+}
+
+#[test]
+fn judge24_上限ちょうどで途中に貼ると値は変わらず_超過の印が立ち_キャレットは残る() {
+    let d = doc(10_000, 10_000);
+    let plan = clip_paste(&d, 10_000, 10_000, "xyz").expect("介入するはず");
+    let (v, over) = clamp_draft(&plan.value);
+    assert_eq!(v, d);
+    assert!(over);
+    assert_eq!(plan.caret_utf16, 10_000);
+}
+
+#[test]
+fn judge24_選択範囲の置き換えは選択した分だけ入る量が増える() {
+    let d = doc(10_000, 9_995);
+    // 5 文字選ぶと room は 5 + 5 = 10。
+    let plan = clip_paste(&d, 9_998, 10_003, &"x".repeat(30)).expect("介入するはず");
+    let (v, over) = clamp_draft(&plan.value);
+    assert!(over);
+    assert_eq!(cp(v), MAX_INPUT_CODE_POINTS);
+    assert_eq!(v.matches('x').count(), 10);
+    assert_eq!(plan.caret_utf16, 9_998 + 10);
+}
+
+#[test]
+fn judge24_後ろが空なら介入せず_末尾で切る安全網に任せる() {
+    let d = doc(10_000, 0);
+    assert_eq!(clip_paste(&d, 10_000, 10_000, &"x".repeat(20_000)), None);
+}
+
+#[test]
+fn judge24_サロゲートペアは貼った側を割らない() {
+    let d = doc(10, 19_989);
+    // room = 1。先頭の 1 文字（ペア）だけ残る。
+    let plan = clip_paste(&d, 10, 10, "😀😀😀").expect("介入するはず");
+    let (v, over) = clamp_draft(&plan.value);
+    assert!(over);
+    assert_eq!(cp(v), MAX_INPUT_CODE_POINTS);
+    assert_eq!(v.matches('😀').count(), 1);
+    assert_eq!(plan.caret_utf16, 12);
+}
+
+#[test]
+fn judge24_既存の側のペアの途中を指す位置は介入しない() {
+    let d = format!("a😀{}", "b".repeat(19_990));
+    assert_eq!(clip_paste(&d, 2, 2, &"x".repeat(100)), None);
+}
+
+#[test]
+fn judge24_改行は_lf_として数える() {
+    let d = doc(10, 19_985);
+    // room = 5。CRLF は 1 文字、CR も 1 文字。
+    let plan = clip_paste(&d, 10, 10, "1\r\n2\r3\n4xyz").expect("介入するはず");
+    let (v, _) = clamp_draft(&plan.value);
+    assert_eq!(&v[10..15], "1\n2\n3");
+    assert_eq!(plan.caret_utf16, 15);
+}
+
+#[test]
+fn judge24_不正な位置は介入しない() {
+    let d = doc(5, 19_990);
+    let big = "x".repeat(100);
+    assert_eq!(clip_paste(&d, 6, 5, &big), None);
+    assert_eq!(clip_paste(&d, 5, 20_000, &big), None);
+    assert_eq!(clip_paste(&d, 20_000, 20_000, &big), None);
+}
+
+#[test]
+fn judge24_選択の外だけで上限を超えるなら介入しない() {
+    let d = doc(10_000, 10_001);
+    assert_eq!(clip_paste(&d, 10_000, 10_000, "x"), None);
+}
+
+#[test]
+fn judge24_巨大な貼り付けでも結果は正しい() {
+    let d = doc(100, 19_000);
+    let plan = clip_paste(&d, 100, 100, &"あ".repeat(200_000)).expect("介入するはず");
+    let (v, over) = clamp_draft(&plan.value);
+    assert!(over);
+    assert_eq!(cp(v), MAX_INPUT_CODE_POINTS);
+    assert_eq!(v.matches('あ').count(), 900);
+    assert!(v.ends_with(&"b".repeat(19_000)));
 }

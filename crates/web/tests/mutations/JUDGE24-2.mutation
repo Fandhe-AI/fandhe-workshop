@@ -1,0 +1,9 @@
+id: JUDGE24-2
+package: fandhe-workshop-web
+test: input_limit
+target: crates/web/src/input_limit.rs
+find:         caret_utf16: start_utf16.checked_add(kept_utf16)?,
+replace:         caret_utf16: start_utf16.checked_add(kept_utf16)?.saturating_add(1),
+expect-fail: judge24_途中への貼り付けは貼った分だけを切り_後ろの既存の文字を残す
+expect-fail: judge24_上限ちょうどで途中に貼ると値は変わらず_超過の印が立ち_キャレットは残る
+note: キャレットを残した貼り付け部分の直後からずらす

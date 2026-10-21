@@ -23,6 +23,7 @@ use fandhe_workshop_core::addr::TickAddr;
 
 use crate::action::{dispatch_effect, DispatchEffect, RuntimeAction, Scheduled};
 use crate::host::EngineHost;
+use crate::input_limit::clip_paste;
 use crate::key_route::{effect_for, field_state, outside_root_esc, row_key_effect};
 use crate::save_schedule::{Fire, SaveDebounce};
 use crate::tick_interval::TICK_INTERVAL_MS;
@@ -443,6 +444,53 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     Ok(())
 }
 
+/// 上限を超える貼り付けを、貼った分だけで切る（TASK-283。JUDGE-24・D-60）。`mount_host` が 1 回だけ呼ぶ。
+///
+/// `beforeinput` の `insertFromPaste` で、貼り付けの前に挿入を止める。介入するのは、下書きの欄で、変換中でなく、
+/// 欄と状態が揃っていて、途中への貼り付けが上限を超えるときだけである。それ以外は何もせず、既定の挿入と
+/// 状態側の末尾で切る安全網（`clamp_draft`）に任せる。計画は純粋関数 `clip_paste` が持つ。
+/// 欄の今の値は読まず、状態の下書きから取る。借用は計画を求めた時点で解く（上流の同期の `update` を妨げないため）。
+/// 欄へ書いた後は泡立つ `input` を合成し、上流の通常の入力の経路で `SetDraft` を届ける。glue は状態を直接変えない
+/// （`wire_enter_submit` が `click()` で上流へ届けるのと同じ扱い）。キャレットは書き戻しの後に置く。
+/// 欄の値をプログラムで書くため、Ctrl+Z では貼り付けの前に戻らない（`docs/testing.md` 5.189）。
+fn wire_paste_clip(root: &web_sys::Element) -> Result<(), JsValue> {
+    let on_before = Closure::<dyn FnMut(web_sys::Event)>::new(move |ev: web_sys::Event| {
+        let Some(iev) = ev.dyn_ref::<web_sys::InputEvent>() else {
+            return;
+        };
+        if iev.is_composing() || iev.input_type() != "insertFromPaste" || draft_sync_pending() {
+            return;
+        }
+        let Some(field) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::HtmlTextAreaElement>().ok())
+        else {
+            return;
+        };
+        let Some(pasted) = iev.data() else {
+            return;
+        };
+        let (Ok(Some(start)), Ok(Some(end))) = (field.selection_start(), field.selection_end())
+        else {
+            return;
+        };
+        let Some(Some(plan)) = with_app(|app| clip_paste(app.draft(), start, end, &pasted)) else {
+            return;
+        };
+        ev.prevent_default();
+        field.set_value(&plan.value);
+        let init = web_sys::EventInit::new();
+        init.set_bubbles(true);
+        if let Ok(input) = web_sys::Event::new_with_event_init_dict("input", &init) {
+            let _ = field.dispatch_event(&input);
+        }
+        let _ = field.set_selection_range(plan.caret_utf16, plan.caret_utf16);
+    });
+    root.add_event_listener_with_callback("beforeinput", on_before.as_ref().unchecked_ref())?;
+    on_before.forget();
+    Ok(())
+}
+
 /// 入力欄の Enter を、送信ボタンへの click に結ぶ（TASK-275。JUDGE-12・FEND-14）。`mount_app` が 1 回だけ呼ぶ。
 ///
 /// root に登録するのは、再描画で欄が作り直されてもリスナーが外れないため。対象は下書きの `<textarea>` だけで（左の行は `wire_row_keys` が受け持つ）、
@@ -654,6 +702,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
             }
         });
         wire_draft_sync(root)?;
+        wire_paste_clip(root)?;
         wire_enter_submit(root)?;
         wire_row_keys(root)?;
         wire_outside_esc(root)?;
