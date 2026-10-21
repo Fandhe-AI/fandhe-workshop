@@ -6432,3 +6432,14 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 
 - 配信する設定は実行時に IR を取得しないため、ハッシュは試験の設定の保存先でだけ確かめる。配信する設定の `ir/main.json` は `tools/build-web.sh` がそのまま入れる（`scripts/test-build-web.sh` が確かめる）ので、P1 は写しに置いて静的に検査する。配信する設定での開始点つきの取得とハッシュの照合は、TASK-217・TASK-294 の後
 - 開始点の数が違う 2 つの IR のハッシュの一致は確かめない（設計上違う）
+
+### 5.202 承認の差し戻しの再承認を Step を分けて書く（TASK-62 1/2。PACK-32・D-69）
+
+1 Step の `approval` で承認 → 差し戻し → 再承認を表す語は足さないと決まった（D-69、2026-10-21）。この決定の下で、差し戻しの Step と再承認の Step を分けた教材が書けることを、`crates/pack/tests/approval_revise_split.rs` の `pack32_` の 4 件と実パック `crates/pack/tests/data/revise-split-pack` で固定する。
+
+- `validate` が診断 0 件で通ること。`pack.vocab` は `1.0` のままで、`E-VOCAB-MISMATCH` が出ない
+- `compile` した IR の承認の `input` が `{"kind":"approval"}` だけで、差し戻しの Step の `next` が再承認の Step を指すこと
+- IR を core の `Session` で動かし、差し戻しの Step での承認・却下の拒否、差し戻しでの達成と再承認の Step への移動、再承認の Step での差し戻し・却下の拒否、承認での達成と終端への移動、案の `state` が「差し戻し」から「承認済み」へ変わることを確かめる
+- 1 Step で再承認を表すつもりの欄（`reapprove: true`）を承認の `input` に足すと、`validate` と `compile` が `E-PARSE` になること（語を足していないことの対照）
+
+変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである（5.125 と同じ扱い）。`next` の `when` による枝分かれは、core が実行時に評価しないため範囲外とした。
