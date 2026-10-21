@@ -10,6 +10,7 @@ rust|tests/a11y_tree_contract.rs [a11y_tree_contract]|passed=3|ignored=0
 rust|tests/accept_confirm_boundary.rs [accept_confirm_boundary]|passed=7|ignored=0
 rust|tests/accept_input.rs [accept_input]|passed=21|ignored=0
 rust|tests/action_profile_contract.rs [action_profile_contract]|passed=11|ignored=0
+rust|tests/answer_label_required.rs [answer_label_required]|passed=9|ignored=0
 rust|tests/api_types.rs [api_types]|passed=6|ignored=0
 rust|tests/app_demo_view_a_contract.rs [app_demo_view_a_contract]|passed=15|ignored=0
 rust|tests/app_demo_view_b_contract.rs [app_demo_view_b_contract]|passed=17|ignored=0

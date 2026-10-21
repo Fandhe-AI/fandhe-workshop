@@ -4,7 +4,7 @@
 //! 決定（D-69、2026-10-21）は「入力のない確認だけの Step を表す語は足さず、選択肢が 1 つだけの `choice` で表す」である。
 //! 受講者の操作が 1 回増えることは限界として受け入れる（TERM-30）。本試験は次を固定する。
 //!
-//! - 実パック（`tests/data/read-only-step-pack`）が、新しい語彙の版を宣言せず（`pack.vocab: '1.0'`）検査を通り、IR になる
+//! - 実パック（`tests/data/read-only-step-pack`）が、新しい語彙の版を宣言せず（`pack.vocab: '1.3'`。`answer` の `label` の必須化〔PACK-37〕で、1.3 未満では書けない）検査を通り、IR になる
 //! - 達成までの操作が「1 択の選択 1 回 + 回答」であること（限界の観察）
 //! - 入力も `use` も無く終端でもない Step が `confirm` だけを持つと、確認が届かないため `E-STRUCTURE` になる
 //!   （章・モジュールの定義ごとに 1 件。`confirm` 側で重ねて報告しない）。終端の Step は対象外
@@ -170,8 +170,8 @@ fn pack35_one_extra_operation_then_answer() {
     assert_eq!(records[0].reselection, Reselection::Correct);
 }
 
-const WORKSHOP: &str = "pack: {id: p, title: P, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.0'}\nrejections:\n  rj-wrong: {category: not_in_this_step, message: no, next_action: retry}\n";
-const CONFIRM_ANSWER: &str = "{kind: answer, on_wrong: rj-wrong, options: [{id: ans-ID-MARK, correct: true}, {id: ans-ng, correct: false}]}";
+const WORKSHOP: &str = "pack: {id: p, title: P, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.3'}\nrejections:\n  rj-wrong: {category: not_in_this_step, message: no, next_action: retry}\n";
+const CONFIRM_ANSWER: &str = "{kind: answer, on_wrong: rj-wrong, options: [{id: ans-ID-MARK, label: A, correct: true}, {id: ans-ng, label: B, correct: false}]}";
 
 fn chapter_with(steps: &str) -> Tmp {
     let t = Tmp::new("pack35");

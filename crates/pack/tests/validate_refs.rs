@@ -11,7 +11,7 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use common::{assert_no_secret, copy_dir, testdata, Tmp, SECRET};
+use common::{assert_no_secret, copy_dir, testdata, without_answer_label_required, Tmp, SECRET};
 
 use fandhe_workshop_pack::source::load;
 use fandhe_workshop_pack::validate::{validate, validate_dir};
@@ -378,7 +378,10 @@ fn load_failure_is_returned_without_running_ref_checks() {
 fn copied_correct_pack_has_no_diagnostics() {
     let t = Tmp::new("refs-toml");
     copy_dir(&testdata("input-field-ime/test-data/ch1-pack"), &t.0);
-    assert!(validate_dir(&t.0).is_empty());
+    // spec の写しは編集できず、`label` の必須化（PACK-37・D-67）の前の形のため、その診断だけを除く。
+    let (rest, removed) = without_answer_label_required(validate_dir(&t.0));
+    assert!(rest.is_empty(), "{rest:?}");
+    assert!(removed > 0, "除外が空振りしていない");
 }
 
 /// 教材パックの根（`workshop.yaml`・`workshop.toml` を持つディレクトリ）を再帰的に集める。
@@ -416,6 +419,7 @@ fn correct_testdata_packs_have_no_false_positives() {
         &mut roots,
     );
     let mut checked = 0;
+    let mut excluded = 0;
     for root in roots {
         // 欠陥パックの差し替えファイルの置き場（`pack-defects/v1*/<形式>/D*`）は、パックの断片であり
         // 完全なパックではない（章が無い・欠陥を意図して含む）。完全な土台（`base/`）は対象に残す。
@@ -430,8 +434,11 @@ fn correct_testdata_packs_have_no_false_positives() {
         // 読み込みに失敗するパック（欠陥を含む試験データ等）は、参照の検査の対象外にする。
         let Ok(pack) = load(&root) else { continue };
         checked += 1;
-        let d = validate(&pack);
+        // spec の写しと `fill-pack` は `label` の必須化（PACK-37・D-67）の前の形で編集できないため、その診断だけを除く。
+        let (d, removed) = without_answer_label_required(validate(&pack));
+        excluded += removed;
         assert!(d.is_empty(), "{}: {d:?}", root.display());
     }
+    assert!(excluded > 0, "除外が空振りしていない");
     assert!(checked >= 3, "too few packs checked: {checked}");
 }

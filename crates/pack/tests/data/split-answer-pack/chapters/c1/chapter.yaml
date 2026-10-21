@@ -12,7 +12,7 @@ steps:
       - {id: r-defect, on: {option: kind-defect}, outcome: {kind: accept}}
       - {id: r-look, on: {option: kind-look}, outcome: {kind: accept}}
       - {id: r-wish, on: {option: kind-wish}, outcome: {kind: accept}}
-    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, correct: true}, {id: kind-look, correct: false}, {id: kind-wish, correct: false}]}
+    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, label: 選択肢 kind-defect, correct: true}, {id: kind-look, label: 選択肢 kind-look, correct: false}, {id: kind-wish, label: 選択肢 kind-wish, correct: false}]}
     next: [{to: card-b}]
   - id: card-b
     title: Card B
@@ -23,7 +23,7 @@ steps:
       - {id: r-defect, on: {option: kind-defect}, outcome: {kind: accept}}
       - {id: r-look, on: {option: kind-look}, outcome: {kind: accept}}
       - {id: r-wish, on: {option: kind-wish}, outcome: {kind: accept}}
-    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, correct: false}, {id: kind-look, correct: true}, {id: kind-wish, correct: false}]}
+    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, label: 選択肢 kind-defect, correct: false}, {id: kind-look, label: 選択肢 kind-look, correct: true}, {id: kind-wish, label: 選択肢 kind-wish, correct: false}]}
     next: [{to: card-c}]
   - id: card-c
     title: Card C
@@ -34,6 +34,6 @@ steps:
       - {id: r-defect, on: {option: kind-defect}, outcome: {kind: accept}}
       - {id: r-look, on: {option: kind-look}, outcome: {kind: accept}}
       - {id: r-wish, on: {option: kind-wish}, outcome: {kind: accept}}
-    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, correct: false}, {id: kind-look, correct: false}, {id: kind-wish, correct: true}]}
+    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: kind-defect, label: 選択肢 kind-defect, correct: false}, {id: kind-look, label: 選択肢 kind-look, correct: false}, {id: kind-wish, label: 選択肢 kind-wish, correct: true}]}
     next: [{to: end}]
   - {id: end, title: End, body: a.md, final: true}

@@ -24,7 +24,7 @@ rejections:
     rj-other: {category: not_in_this_step, message: m, next_action: n}
 ";
 
-const OPTIONS: &str = "{id: ok, correct: true}, {id: wrong-own, correct: false, on_wrong: rj-own}, {id: wrong-default, correct: false}";
+const OPTIONS: &str = "{id: ok, label: A, correct: true}, {id: wrong-own, label: B, correct: false, on_wrong: rj-own}, {id: wrong-default, label: C, correct: false}";
 
 /// Step `a` の `confirm` に、Step の `on_wrong` と選択肢の並びを差し込んだパックを書き出す。
 fn pack(step_on_wrong: &str, options: &str) -> Tmp {
@@ -62,8 +62,8 @@ fn pack15_on_wrong_on_correct_option_is_structure() {
     let t = pack(
         "rj-default",
         &OPTIONS.replace(
-            "{id: ok, correct: true}",
-            "{id: ok, correct: true, on_wrong: rj-other}",
+            "{id: ok, label: A, correct: true}",
+            "{id: ok, label: A, correct: true, on_wrong: rj-other}",
         ),
     );
     only(&validate_dir(&t.0), DiagCode::Structure);
@@ -95,7 +95,7 @@ fn pack15_module_placeholder_on_correct_option_is_structure() {
     );
     t.put(
         "modules/m/module.yaml",
-        b"id: m\ntitle: M\nparams: {w: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: choice, options: [{id: ok, label: A}]}, confirm: {kind: answer, on_wrong: rj-default, options: [{id: ok, correct: true, on_wrong: \"${w}\"}]}}\n",
+        b"id: m\ntitle: M\nparams: {w: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: choice, options: [{id: ok, label: A}]}, confirm: {kind: answer, on_wrong: rj-default, options: [{id: ok, label: A, correct: true, on_wrong: \"${w}\"}]}}\n",
     );
     let d = compile_dir(&t.0).expect_err("structure");
     assert_eq!(d.len(), 1, "{d:?}");

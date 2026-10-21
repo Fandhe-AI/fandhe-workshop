@@ -49,8 +49,8 @@ steps:
       kind: answer
       on_wrong: rj-wrong-answer
       options:
-        - { id: ans-a, correct: true }
-        - { id: ans-b, correct: true }
+        - { id: ans-a, correct: true, label: 選択肢 ans-a }
+        - { id: ans-b, correct: true, label: 選択肢 ans-b }
 
   - id: st-2-3
     title: 追求判定
@@ -180,8 +180,8 @@ steps:
       kind: answer
       on_wrong: rj-wrong-answer
       options:
-        - { id: ans-1, correct: true }
-        - { id: ans-2, correct: false }
+        - { id: ans-1, correct: true, label: 選択肢 ans-1 }
+        - { id: ans-2, correct: false, label: 選択肢 ans-2 }
 
   - id: st-2-8
     title: 着手を判定する

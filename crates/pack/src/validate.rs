@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 確認 `answer` の選択肢の `label` の必須（`E-STRUCTURE`。PACK-37・D-67。`compile` は行わない）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定、終端でない入力の無い Step の `confirm`。PACK-35）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
@@ -50,6 +50,10 @@ pub(crate) fn diag(
     Diagnostic::new(file, item, code, message).expect("file and item are non-empty")
 }
 
+/// 確認 `answer` の選択肢に `label` が無いときの診断の文面（`E-STRUCTURE`。PACK-37・D-67）。
+/// 試験の除外の補助が、コードと文面の完全一致で絞るために公開する。
+pub const ANSWER_LABEL_REQUIRED: &str = "confirm (answer): label is required";
+
 /// ディレクトリを読み込んで検査する。読み込みに失敗したときはその診断を返し、参照の検査は流さない。
 /// 診断が 0 件なら空の Vec。
 pub fn validate_dir(dir: &Path) -> Vec<Diagnostic> {
@@ -68,6 +72,8 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut out = check_dup_ids(pack);
     out.extend(check_refs(pack));
     out.extend(check_structure(pack));
+    // 確認 `answer` の選択肢の `label` の必須（PACK-37・D-67）。`validate` だけの検査で、`compile` は行わない。
+    out.extend(crate::confirm::check_answer_labels(&pack.scopes));
     out.extend(crate::slot_check::check_texts(pack));
     out.extend(check_reachability(pack));
     out.extend(crate::element_check::check_missing_elements(pack));

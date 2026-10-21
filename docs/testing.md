@@ -6647,3 +6647,38 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 - 画面での前後の切り替えの見え方（ART-19）はブラウザで確かめていない。画面のタスクの持ち分である
 - 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
 - `rejections.<id>` に未知の欄を足したときの挙動は、試験では固定していない（未確認）
+
+### 5.211 確認 `answer` の選択肢の `label` を必須にする検査（TASK-65 1/2。PACK-37・D-67）
+
+決定（D-67、2026-10-21）は「`label` を必須にし、無い選択肢は検証で診断として止める」である。`crates/pack/tests/answer_label_required.rs` は、`label` の無い（欄が無い・`null`）選択肢を持つ教材パックを `validate_dir` に通し、`E-STRUCTURE`（文面は `validate::ANSWER_LABEL_REQUIRED`）が Step ごとに 1 件、終了コード（`diag::exit_code`）が 1 になることを固定する。`validate` だけの検査で、`compile` は検査しない。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack37_missing_label_is_reported_with_exit_code_1` | 選択肢の 1 つに `label` が無い教材が、1 件の `E-STRUCTURE`（定義ファイルと `step:<id>`）・終了コード 1 になること |
+| `pack37_null_label_is_reported` | `label: null` も同じ |
+| `pack37_all_labels_validate_clean` | 対照。全選択肢に `label` があれば 0 件・終了コード 0 |
+| `pack37_one_diagnostic_per_step` | 1 つの Step で複数の選択肢が欠けても 1 件。2 つの Step で欠ければ 2 件 |
+| `pack37_format_a` | 形式 A（TOML）でも検出すること |
+| `pack37_module_step_is_reported_at_the_module_file` | モジュールの Step の欠けが、モジュールのファイルに付くこと |
+| `pack37_choice_label_is_not_confused` | 入力方式 `choice` の `label` を取り違えないこと |
+| `pack37_compile_does_not_check` | 同じ教材の `compile_dir` が成功し、`validate` だけが止めること |
+| `pack37_message_has_no_values` | 秘密情報に似た選択肢の ID・`label` が診断に写らないこと |
+
+既存の試験への影響（2026-10-21 に `cargo test -p fandhe-workshop-pack` で洗い出した）と扱い。
+
+- 編集してよい教材パック（`testdata/condition-vocab-pack`、`testdata/pack-defects/base/format-b-v1_1` と上書き 3 件、`crates/pack/tests/data/vocab-pack`・`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack`）と、試験のコード中のインラインの宣言は、`label` を足した
+- 編集できない教材パック（spec の写し、IR の凍結物を持つ `fill-pack`）は、試験の共通部の `without_answer_label_required` で、この 1 種の診断だけを除いて見る。除いた件数が 0 でないことも確かめる
+- 語彙の版 `1.0` を宣言して `answer` を使っていた 4 つの教材（`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack` と `split_answer.rs` の対照）は、`label` が語彙 1.3 の語のため `1.3` の宣言に変えた。1.3 より前を宣言した教材は `answer` を使えなくなる（`docs/pack-authoring.md`）
+- `vocab_declaration.rs` の `pack31_correct_packs_have_no_false_positives` は、確認の `label` を持つようになった 2 つの教材を、入力方式 `choice` の `label` だけを持つ前提の一覧から外した（残る 3 件で取り違えの確認は続く）
+- `vocab_command.rs` の `author17_label_not_counted` は、土台の教材が `label` を持つようになったため、足す向きから外す向きに変えた
+- `metrics.rs` の `me3_` は、`condition-vocab-pack` に `label` を足して増えたバイト数に合わせた
+
+変異（`crates/pack/tests/mutations/`）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK37-1 | `validate` が `label` の欠けを検査する呼び出しを外す | `pack37_missing_label_is_reported_with_exit_code_1` |
+
+2026-10-21 に呼び出しを手で外して確かめ、`answer_label_required` の 9 件のうち 7 件が失敗し、戻すと全件通った（`make check-mutations` は流していない）。
+
+範囲外: `fandhe-pack validate` の CLI からの終了コードの確認（本体は TASK-403。ここでは `diag::exit_code` で代えた）。`compile` だけを通した IR では `label` の無い選択肢が ID のまま出る（`docs/pack-authoring.md` に明記した）。置換後に `label` が空になる場合は扱わない。

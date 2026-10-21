@@ -26,6 +26,8 @@
 //!
 //! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、
 //! `E-STRUCTURE` の固定文になる（2026-10-15、TASK-47 2/2）。選択肢の `on_wrong` が空白だけの場合と、正答の選択肢に書かれた場合も同じ `AnswerSpec::check` が拒否する（TASK-46 1/2）。
+//! 選択肢の `label` の欠け（欄が無い・`null`）は、`validate` だけが `E-STRUCTURE` にする（[`check_answer_labels`]。
+//! PACK-37、2026-10-21 D-67）。`compile` は検査しない（`label` の無い IR の golden・凍結物・古い教材を保つため）。
 //! `on_miss`・`on_wrong` の参照先の解決は `validate` の参照検査（`E-REF-REJECTION`）の担当である。
 
 use fandhe_workshop_contract::confirm_spec::{
@@ -159,6 +161,44 @@ pub(crate) fn check_confirms(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                 check_one_step(step.confirm.as_ref(), step.input.is_some(), false)
             {
                 out.push(diag(scope, &step.id, code, msg));
+            }
+        }
+    }
+    out
+}
+
+/// `validate` だけが呼ぶ。確認 `answer` の選択肢に `label`（表示名）が無い Step を `E-STRUCTURE` にする（PACK-37・D-67）。
+///
+/// 欠けは「欄が無い」か `null`（serde で `None` に読まれる）。置換記号を含む文字列は「有る」とみなす。
+/// 生の値を辿り、型で読めない宣言は `check_confirms` が `E-PARSE` にするので黙って飛ばす。
+/// 診断は Step ごとに 1 件で、選択肢の ID・値は写さない。入力方式 `choice` の `label` は別の欄で読まない。
+pub(crate) fn check_answer_labels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for step in &scope.src.steps {
+            if step.use_module.is_some() {
+                continue;
+            }
+            let Some(confirm) = step.confirm.as_ref().and_then(Value::as_object) else {
+                continue;
+            };
+            if confirm.get("kind").and_then(Value::as_str) != Some("answer") {
+                continue;
+            }
+            let Some(options) = confirm.get("options").and_then(Value::as_array) else {
+                continue;
+            };
+            let missing = options.iter().any(|o| {
+                o.as_object()
+                    .is_some_and(|o| o.get("label").is_none_or(Value::is_null))
+            });
+            if missing {
+                out.push(diag(
+                    scope,
+                    &step.id,
+                    DiagCode::Structure,
+                    crate::validate::ANSWER_LABEL_REQUIRED.to_string(),
+                ));
             }
         }
     }

@@ -3,7 +3,7 @@
 //! 決定（D-69、2026-10-21）は「`answer` に複数の問いを持たせる語は足さず、対象ごとに Step を分けて書く」である。
 //! 本試験は、実パック（`tests/data/split-answer-pack`。3 枚のカードを `card-a`・`card-b`・`card-c` の 3 Step に分けた形）で次を固定する。
 //!
-//! - 新しい語彙の版を宣言しなくても（`pack.vocab: '1.0'`）検査を通り、IR になる。名前つき拡張点も使わない
+//! - 新しい語彙の版を宣言しなくても（`pack.vocab: '1.3'`。`answer` の `label` の必須化〔PACK-37〕で、1.3 未満では書けない）検査を通り、IR になる。名前つき拡張点も使わない
 //! - 1 枚ごとの正誤が、Step ごとの確認の結果として別々に取れる（判定の表と、セッションの通し）
 //! - 対照として、3 枚をまとめた 1 つの `answer` の Step では記録が 1 件しかできず、1 枚ずつの正誤を区別できない
 //!   （PACK-33 の「決定の前の現状の観察」に当たる）
@@ -242,7 +242,7 @@ fn merged_pack() -> Tmp {
     t.put(
         "workshop.yaml",
         concat!(
-            "pack: {id: merged-answer-pack, title: まとめた分類, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.0'}\n",
+            "pack: {id: merged-answer-pack, title: まとめた分類, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.3'}\n",
             "rejections:\n",
             "  rj-wrong-kind: {category: not_in_this_step, message: その分類ではありません。, next_action: もう一度送ります。}\n",
         )
@@ -259,7 +259,7 @@ fn merged_pack() -> Tmp {
             "      - {{id: r-{c}, on: {{option: {c}}}, outcome: {{kind: accept}}}}\n"
         ));
     }
-    ch.push_str("    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: combo-1, correct: true}, {id: combo-2, correct: false}]}\n");
+    ch.push_str("    confirm: {kind: answer, on_wrong: rj-wrong-kind, options: [{id: combo-1, label: 組 1, correct: true}, {id: combo-2, label: 組 2, correct: false}]}\n");
     ch.push_str("    next: [{to: end}]\n  - {id: end, title: End, body: a.md, final: true}\n");
     t.put("chapters/c1/chapter.yaml", ch.as_bytes());
     t

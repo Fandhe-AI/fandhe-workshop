@@ -9,7 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use fandhe_workshop_pack::Diagnostic;
+use fandhe_workshop_pack::validate::ANSWER_LABEL_REQUIRED;
+use fandhe_workshop_pack::{DiagCode, Diagnostic};
 
 pub const SECRET: &str = "SECRET-BODY-MARKER-4711";
 
@@ -135,4 +136,19 @@ pub fn assert_no_secret(d: &[Diagnostic]) {
         let s = x.to_string();
         assert!(!s.contains(SECRET), "diagnostic leaks body: {s}");
     }
+}
+
+/// `validate` の診断から、確認 `answer` の `label` の欠け（`E-STRUCTURE`・[`ANSWER_LABEL_REQUIRED`]）だけを除く。
+///
+/// `label` の必須化（PACK-37・D-67）の前に作られた教材パック（spec の写し・IR の凍結物を持つ `fill-pack`）は
+/// 編集できず、`label` の無い選択肢を持つ。それらを「`validate` が 0 件」「特定のコードだけ」と見る試験が、
+/// この 1 種の診断だけを除いて残りを見るために使う。除いた件数も返し、除外が空振りしていないことを呼び出し側が確かめられる。
+pub fn without_answer_label_required(diags: Vec<Diagnostic>) -> (Vec<Diagnostic>, usize) {
+    let total = diags.len();
+    let rest: Vec<Diagnostic> = diags
+        .into_iter()
+        .filter(|d| !(d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED))
+        .collect();
+    let removed = total - rest.len();
+    (rest, removed)
 }
