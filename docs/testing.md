@@ -6343,3 +6343,19 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - フォーカスの位置、実 IME、人の確認は扱わない
 - 書き戻しは 0 ミリ秒のタイマーで非同期のため、それより速く打った場合の取りこぼしは観察も固定もしていない
 - `scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR だけで働く。更新は別の PR で `make update-test-counts`）
+
+### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
+
+直接リンクは IR を 1 つ（固定の `./ir/main.json`）に保ち、URL の `start` を IR の `starts` の ID と完全一致で照らして開始点を選ぶ（D-68。2026-10-21）。一致すればその開始点で開き、一致しなければ開かずに固定のコード（`start_unknown`・`start_missing`）だけの通知を出す。値は画面・タイトル・コンソール・保存先に出さない。履歴の鍵の開始点は URL の `start` が指す開始点に当たる（SAVE-14 の読み。指定なしは先頭の開始点なので既存の鍵は変わらない）。
+
+実装: `static/app.js` が `start` だけを読み（`new URLSearchParams(location.search).getAll("start")`。2 件以上は一致し得ない値に倒して断らせる）、`mount_app` の第 3 引数で渡す。照合は純関数 `crates/web/src/start_select.rs`（バイト単位の完全一致のみ。前方一致・大文字小文字の無視・正規化・復号をしない）、断ったホストは `EngineHost::refused_start`（session なし・鍵なし・保存先を開かない）、選んだ開始点は `EngineHost::with_session_at` で記録・鍵・起動の分岐に通る。通知の文言（`ir_notice.rs`）は仮置きである。
+
+- Rust の試験: `start_select.rs` の単体試験（指定なし・一致・不一致 14 形・開始点なし・コードに入力値が無い）、`test_fixture.rs` の単体試験（`start=` の対だけを取り除いた完全一致の選択と既存の否定が変わらないこと・開始点ごとの節点・不一致の拒否・鍵）、`crates/web/tests/start_link_host.rs`（3 件。通知がコードだけ・断ったホストが鍵を持たず保存済みの履歴を開かない・選んだ開始点が鍵に入り指定なしの鍵が従来と同じ）、`tick_interval.rs`（`app.js` の URL の読み取りをファイル・件数・形・読むキーで限定する例外を足した）
+- ブラウザの試験: `tools/browser/direct-link-start.test.mjs`（試験の設定。CSP あり・なしの 4 件）。開始点 3 件の教材（`?fixture=multi-start`）を、指定なし（先頭で新しく始まる）・各開始点（クエリの順序違いを含む）・一致しない値 10 形（未知の ID・`../` を含む 2 形・大文字違い・前方一致・末尾の空白・空・重複・センチネル・5,000 文字）で開く。一致で現在の Step が変わり、`s-1` の履歴は `start=s-4` で開かれず `start=s-1` で復元される。不一致は通知が 1 件・入力欄とログが 0 件・`irRefusal` が `start_unknown`・センチネルが DOM・タイトル・コンソールに 0 件・保存先の全体が断っている間も再読み込みの前後も不変・断った後も指定なしで履歴が開く・配信元以外への通信が 0 件・CSP 違反・ページ内エラーが 0 件
+- 配信する設定の `delivery-direct-links`・`delivery-bases` は、採らなかった hash の形を外して query の 1 形で流す（5.194・5.196 の「2 形」の記録は当時のもの）
+
+限界・申し送り:
+
+- 配信する設定の web は実行時に IR を取得しないため、`start` を受け取っても照合する IR が無く、画面は今までどおり（session なし）である。配信する設定で直接リンクが開始点で開くことは、`./ir/main.json` の実行時の取得と開始（`Control::Begin`・開始点からの初期状態の構築。TASK-217・TASK-294）が入った後でなければ確かめられない。本件では取得を実装していない
+- 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
+- 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ

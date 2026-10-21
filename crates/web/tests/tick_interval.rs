@@ -2,8 +2,10 @@
 //!
 //! 分担: 画面上で 300ms ごとに進むことの観察は、タイマー（TASK-349）と処理中の画面ができた後の TASK-453 が持つ。
 //! 本試験は「値が 300 であること」と「配信する経路に URL を読む処理が無いこと」を機械的に固定する。
-//! 照合はコメントを除き、空白を除いた形で行う。例外は 1 件だけ（`persist.rs` の保存先の鍵を決めるパス名の読み取り。
-//! クエリは読まない。TASK-319）。試験の設定でだけ教材を選ぶクエリの読み取り（TASK-319 3/3）は、走査の対象外の `test_hooks.rs` に置く。将来 `?ir` を読む実装が入るときは、ファイルと件数で限定して足す。
+//! 照合はコメントを除き、空白を除いた形で行う。例外は 2 件だけ。(1) `persist.rs` の保存先の鍵を決めるパス名の読み取り
+//! （クエリは読まない。TASK-319）。(2) `static/app.js` の直接リンクの読み取り（D-68・TASK-109。クエリの `start` だけを読み、
+//! 値は Rust 側が IR の `starts` と完全一致で照合する）。試験の設定でだけ教材を選ぶクエリの読み取り（TASK-319 3/3）は、走査の対象外の `test_hooks.rs` に置く。
+//! 将来 `?ir` を読む実装が入るときは、ファイルと件数で限定して足す。
 
 mod common;
 
@@ -24,6 +26,15 @@ const FORBIDDEN: &[&str] = &[
 /// 例外: 履歴の鍵の区間を決めるパス名の読み取り（ファイル名、`location` の出現数、読み取りの形）。
 /// 読むのは `pathname` だけで、クエリ（`search`）は読まない。
 const LOCATION_EXCEPTION: (&str, usize, &str) = ("persist.rs", 1, ".location().pathname()");
+
+/// 例外: `app.js` の直接リンクの読み取り（`location` の出現数・`URLSearchParams` の出現数・読み取りの形・読むキー）。
+/// 読むのは `start` の 1 つだけで、ほかのキー・ハッシュは読まない。
+const APP_JS_EXCEPTION: (usize, usize, &str, &str) = (
+    1,
+    1,
+    "newURLSearchParams(location.search)",
+    ".getAll(\"start\")",
+);
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -68,7 +79,21 @@ fn 配信する経路は_url_を読まない() {
     }
     assert!(scanned >= 1, "走査したファイルが 0 件");
     let app = std::fs::read_to_string(root().join("static/app.js")).expect("app.js を読めない");
-    for h in hits(&glue_code(&app)) {
+    let app_code = glue_code(&app);
+    let app_excused = app_code.matches("location").count() == APP_JS_EXCEPTION.0
+        && app_code.matches("URLSearchParams").count() == APP_JS_EXCEPTION.1
+        && app_code.matches(APP_JS_EXCEPTION.2).count() == 1
+        && app_code.matches(APP_JS_EXCEPTION.3).count() == 1
+        // 読むキーは start の 1 つだけ（get・has・entries など他の読み方・ハッシュを持たない）。
+        && !app_code.contains(".get(")
+        && !app_code.contains(".has(")
+        && !app_code.contains(".entries(")
+        && !app_code.contains("location.hash")
+        && !app_code.contains("location.href");
+    for h in hits(&app_code) {
+        if app_excused && matches!(h, "location" | "URLSearchParams") {
+            continue;
+        }
         bad.push(format!("app.js: {h}"));
     }
     assert!(bad.is_empty(), "{bad:?}");
