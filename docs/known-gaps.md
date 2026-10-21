@@ -22,6 +22,7 @@
 | SAVE-13 | 古いタブで行った操作は保存されず、新しいタブの履歴とも合流しない | 合流の規則は足さないと決定（D-56。TASK-325 2/2）。古いタブには保存されていない旨の表示を出す | 同じ教材は 1 つのタブで開く。古いタブで続けたいときは再読み込みする（新しいタブの保存済みの履歴から続く） | `tools/browser/stale-tab.test.mjs`・`crates/web/tests/boot_guard.rs` の交互 10 回ずつの試験 |
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
 | JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
+| PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 

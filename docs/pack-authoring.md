@@ -163,6 +163,21 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 - 確認の `options[].label` は、入力方式 `choice` の `options[].label`（必須）とは別の欄です。表示名の解決は 1 つの Step の確認の選択肢の中だけで行い、入力方式 `choice` の `label` へは落ちません
 - `on_miss`・`on_wrong`（Step・選択肢とも）の参照先が `rejections` に無ければ `validate` が `E-REF-REJECTION` にします。`targets[].view` は `E-REF-VIEW` です
 
+## 複数の対象を 1 つずつ分類する確認（Step を分ける）
+
+1 つの確認で複数の対象（例: 3 枚の指摘カード）を分類させ、対象ごとの正誤を取る語はありません。`answer` に複数の問いを持たせる語は足さないことが D-69（2026-10-21）で決まっています（PACK-33）。対象ごとに Step を分けて書きます。
+
+- 対象ごとに Step を 1 つ置き（例: `card-a`・`card-b`・`card-c`）、各 Step の `answer` で 1 つの対象だけを問います。Step は `next` でつなぎます
+- 各 Step には、次の 3 つが要ります。どれかが欠けると、その対象の確認に進めません
+    - 入力方式 `choice`（選択肢の `id` と `label`）
+    - 選択肢ごとの受付の規則（`rules[].on.option` と `outcome: {kind: accept}`）。規則に一致しない選択は `not_in_this_step` で拒否され、確認の段に進みません
+    - `answer` の確認（`options` の `correct` と `on_wrong`）
+- 1 枚ごとの正誤は、Step ごとの確認の結果（最初の回答の正誤）として別々に残ります。各 Step に `lo` を書くと、学習目標の記録の対象になります
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+- 学習目標の数え方（L4 など）は本節で扱いません（spec の TASK-3）
+
+書き方の実例は `crates/pack/tests/data/split-answer-pack` です。
+
 ## 承認の差し戻しと再承認（Step を分ける）
 
 1 つの Step の `approval` で「承認 → 差し戻し → 再承認」を表す語はありません。足さないことは D-69（2026-10-21）で決まっています（PACK-32）。入力方式 `approval` は欄を持たず、欄を足すと `E-PARSE` です。
@@ -555,3 +570,4 @@ views:
 | `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
+| `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
