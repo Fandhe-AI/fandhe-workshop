@@ -6556,3 +6556,30 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 - CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
 - `Event` から `CheckObservation` への写像は TASK-304 の担当で未実装のため、試験の中の `choose` が代用する（`crates/core/tests/confirm_record_boundary.rs` と同じ規則）
 - 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+
+### 5.208 入力のない確認だけの Step と 1 択の `choice`（TASK-63 2/2。PACK-35・PACK-19・D-69）
+
+決定（D-69、2026-10-21）は「入力のない確認だけの Step を表す語は足さず、選択肢が 1 つだけの `choice` で表す」である。受講者の操作が 1 回増えることは限界として受け入れる（TERM-30）。`crates/pack/tests/read_only_step.rs`（実パックは `crates/pack/tests/data/read-only-step-pack`。`pack.vocab` は `'1.0'`）が、次の 7 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack35_one_choice_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack35_cli_compile_and_vocab_accept_one_choice_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の拡張点の欄が空・(ii) が 0 であること |
+| `pack35_one_extra_operation_then_answer` | `Session` で、1 択の選択 1 回は受付で止まり、誤答は受付のまま、正答で達成になること。`derive_records` が 1 件で、最初の回答が誤答、再選択が正答 |
+| `pack35_inputless_confirm_step_is_structure_error` | 入力が無く `confirm` だけを持つ終端でない Step が、`validate_dir`・`compile_dir` の両方で `E-STRUCTURE` を 1 件返すこと。選択肢の ID・拒否文の ID が診断に出ない |
+| `pack35_inputless_confirm_in_module_is_structure_error` | モジュールの定義の同じ形（`confirm` が `${` を含む場合を含む）が、実体の数によらず定義ごとに 1 件になること |
+| `pack35_cli_compile_rejects_inputless_confirm_step` | CLI の `compile` が終了コード 1・診断を標準出力・標準エラー出力が空であること |
+| `pack35_final_step_without_input_is_allowed` | 終端の Step は、入力が無くても `confirm` を持てること（PACK-19 の除外） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 範囲外: PACK-19 の「両方無い」のうち確認も持たない途中の Step の拒否（既存の教材・試験が依存するため。`docs/known-gaps.md`）。読むだけの Step の画面（TERM-30）
+
+変異 PACK35-1（入力のない確認だけの Step の拒否を外す）の確認。
+
+実行日: 2026-10-21
+元にしたコミット: 30c1ff0-dirty
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK35-1.mutation
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK35-1 | crates/pack/src/expand.rs: 入力のない確認だけの Step の拒否を外す | pack35_inputless_confirm_step_is_structure_error | pack35_inputless_confirm_step_is_structure_error, pack35_inputless_confirm_in_module_is_structure_error, pack35_cli_compile_rejects_inputless_confirm_step | DETECTED |

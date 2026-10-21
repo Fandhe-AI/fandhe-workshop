@@ -23,6 +23,8 @@
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
 | JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
 | PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
+| PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
+| PACK-19（両方無い） | 確認も持たない、入力も `use` も無い終端でない Step は、まだ拒否しない（確認を持つものだけを `E-STRUCTURE` にした。2026-10-21）。全面の拒否は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台に影響する（30c1ff0 での実測。workspace の残りは未測定） | 一部を実装。残りは別の Issue で扱う | 途中の Step には入力を書く | `crates/pack/tests/read_only_step.rs` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 
