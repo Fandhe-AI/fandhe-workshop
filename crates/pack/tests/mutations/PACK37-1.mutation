@@ -1,0 +1,8 @@
+id: PACK37-1
+package: fandhe-workshop-pack
+test: answer_label_required
+target: crates/pack/src/validate.rs
+find:     out.extend(crate::confirm::check_answer_labels(&pack.scopes));
+replace:     out.extend(Vec::<Diagnostic>::new());
+expect-fail: pack37_missing_label_is_reported_with_exit_code_1
+note: validate が確認 answer の選択肢の label の欠けを検査する呼び出しを外す（label の無い教材パックが validate を通る）

@@ -135,13 +135,16 @@ pub struct AnswerOption {
     /// この選択肢の誤答の文面（EP-6）。書くなら空白だけにせず、正答の選択肢には書けない（`check` が拒否する）。
     #[serde(default)]
     pub on_wrong: Option<String>,
-    /// 表示名（v1.3）。書かなければ ID を表示する。書くなら空白だけにしない（`check` が拒否する）。
+    /// 表示名（v1.3）。教材では必須（`validate` が欠けを `E-STRUCTURE` にする。PACK-37・D-67）。型を `Option` のままにするのは、
+    /// 検証を経ない IR・D-67 の前の IR を読めるようにするため。書くなら空白だけにしない（`check` が拒否する）。
     #[serde(default)]
     pub label: Option<String>,
 }
 
 impl AnswerOption {
     /// 画面と操作のログに出す表示名。`label` が空白以外を含めばそれ、無ければ ID。
+    /// `label` は教材の側では必須で、`validate` が欠けを `E-STRUCTURE` にする（PACK-37・D-67）。ここで ID に倒すのは、
+    /// 検証を経ない IR（`compile` だけを通したもの・古い IR）でも画面が空にならないための防御である。
     /// 検証（`check`）は空白だけの `label` を拒否するが、検証を経ない呼び出し元でも空の表示を出さないよう ID に倒す。
     pub fn display_name(&self) -> &str {
         match self.label.as_deref() {

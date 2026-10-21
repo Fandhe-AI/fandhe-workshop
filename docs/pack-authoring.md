@@ -151,7 +151,7 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境�
 | `kind` | 欄 | 意味の制約 |
 |---|---|---|
 | `point_at` | `targets`（各要素は `view`・`path`）、`on_miss`（任意） | `targets` は 1 件以上で、どれも空でない |
-| `answer` | `options`（各要素は `id`・`correct`、任意で `on_wrong`・`label`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない。`label` と選択肢の `on_wrong` は書くなら空でなく、選択肢の `on_wrong` は `correct: true` の選択肢に書けない |
+| `answer` | `options`（各要素は `id`・`correct`・`label`、任意で `on_wrong`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない。`label` は必須で空白だけにできない（欠けは `validate` が `E-STRUCTURE` にする）。選択肢の `on_wrong` は書くなら空でなく、`correct: true` の選択肢に書けない |
 | `approve` | なし | 欄を足すと `E-PARSE` |
 | `none` | `reason` | `reason` が前後の空白を除いて空でないこと。無い・空・空白だけは `E-NO-CONFIRM` |
 
@@ -159,7 +159,8 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境�
 - `none` の理由の欠けを `E-PARSE` でなく `E-NO-CONFIRM` にするのは、PACK-13 の「理由つき」の違反として扱うためです（2026-10-15 の決定）
 - 終端でない入力の無い Step（`use` も無い）に `confirm` を書くと `E-STRUCTURE` です。確認は入力の受付の後に届くため、この形の確認は永久に届きません（PACK-35・PACK-19、D-69、2026-10-21）。終端の Step（`final: true`）の `confirm` は、形だけを検査します
 - `answer` の選択肢の `on_wrong`（EP-6）は、その選択肢を選んだ誤答に返す文面です。選択肢が持たなければ Step の `on_wrong` を返します。正答の選択肢に書くと `E-STRUCTURE`、書くなら空白だけにはできません（2026-10-15 の決定。契約の版を 3 に上げました）
-- `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。省略すると ID がそのまま出ます。前後の空白を除いて空になる `label` は `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
+- `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。必須です。`label` の無い（欄が無い・`null`）選択肢は、`validate` が `E-STRUCTURE` で止めます（2026-10-21 の D-67。PACK-37）。`compile` は検査しないため、`label` の無いまま `compile` だけを通すと IR では ID のまま出ます。教材の CI では `validate` も流してください。前後の空白を除いて空になる `label` も `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
+- `label` は語彙 1.3 の語です。`pack.vocab` を宣言する教材が `answer` を使うなら、1.3 以上を宣言するか、宣言を省略してください。1.3 より前を宣言すると、`label` を書かなければ `E-STRUCTURE`、書けば `E-VOCAB-MISMATCH` になり、どちらでも通りません
 - 履歴に残る値は選択肢の ID で、表示名ではありません。`label` を後で直しても、記録した履歴の再生は変わりません
 - 確認の `options[].label` は、入力方式 `choice` の `options[].label`（必須）とは別の欄です。表示名の解決は 1 つの Step の確認の選択肢の中だけで行い、入力方式 `choice` の `label` へは落ちません
 - `on_miss`・`on_wrong`（Step・選択肢とも）の参照先が `rejections` に無ければ `validate` が `E-REF-REJECTION` にします。`targets[].view` は `E-REF-VIEW` です
@@ -604,6 +605,7 @@ views:
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
 | `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22）。`pack23_` は選択肢の表示名の解決・ログの文面・履歴に残す値が ID であること・空白だけの `label` の拒否（PACK-23）。`pack15_` は選択肢の `on_wrong` の規則（契約の版 3） |
+| `crates/pack/tests/answer_label_required.rs` の `pack37_` | `label` の無い（欄が無い・`null`）選択肢が `validate` で Step ごとに 1 件の `E-STRUCTURE`・終了コード 1 になること、形式 A・モジュールの Step でも同じこと、`compile` は検査しないこと、診断が値を写さないこと（PACK-37・D-67） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/confirm_on_wrong.rs` の `pack15_` | 正答の選択肢の `on_wrong` が `E-STRUCTURE`（モジュールの置換後も）、存在しない文面が `E-REF-REJECTION`、誤答の文面が選択肢、無ければ Step の順で決まること（PACK-15） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |

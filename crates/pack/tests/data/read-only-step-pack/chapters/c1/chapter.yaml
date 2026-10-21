@@ -10,6 +10,6 @@ steps:
     input: {kind: choice, options: [{id: opt-read, label: 読みました}]}
     rules:
       - {id: r-read, on: {option: opt-read}, outcome: {kind: accept}}
-    confirm: {kind: answer, on_wrong: rj-wrong-answer, options: [{id: ans-ok, correct: true}, {id: ans-ng, correct: false}]}
+    confirm: {kind: answer, on_wrong: rj-wrong-answer, options: [{id: ans-ok, label: 選択肢 ans-ok, correct: true}, {id: ans-ng, label: 選択肢 ans-ng, correct: false}]}
     next: [{to: end}]
   - {id: end, title: End, body: a.md, final: true}

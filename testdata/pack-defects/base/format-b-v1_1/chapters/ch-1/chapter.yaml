@@ -18,8 +18,8 @@ steps:
       kind: answer
       on_wrong: rj-answer-wrong
       options:
-        - { id: asked-back, correct: true }
-        - { id: rejected, correct: false, on_wrong: rj-1-4-expl-rejected }
+        - { id: asked-back, correct: true, label: 選択肢 asked-back }
+        - { id: rejected, correct: false, on_wrong: rj-1-4-expl-rejected, label: 選択肢 rejected }
     next: [{ to: st-1-5 }]
 
   - id: st-1-5

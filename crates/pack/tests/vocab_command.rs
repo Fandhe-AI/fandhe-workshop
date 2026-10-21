@@ -293,15 +293,17 @@ fn author17_start_on_use_step_is_not_counted() {
     assert_eq!(out, EXPECTED);
 }
 
-/// `confirm.options[].label` は拡張点の番号を持たないため数えない。足しても出力が変わらない。
+/// `confirm.options[].label` は拡張点の番号を持たないため数えない。外しても出力が変わらない。
+/// 土台の教材は、`label` の必須化（PACK-37・D-67）に合わせて `label` を持つ。`vocab` は `compile` の結果だけを見るので、
+/// `label` を外した教材でも出力を出せる。
 #[test]
 fn author17_label_not_counted() {
     let t = edited(
         "v-label",
         &[(
             CHAPTER,
+            "{id: \"opt-a\", correct: true, label: \"答え A\"}",
             "{id: \"opt-a\", correct: true}",
-            "{id: \"opt-a\", label: \"A\", correct: true}",
         )],
     );
     let (code, out, _) = vocab(&t.0);

@@ -22,6 +22,6 @@ steps:
     rules:
       - {id: r-alpha, on: {option: pick-alpha}, outcome: {kind: accept}}
       - {id: r-beta, on: {option: pick-beta}, outcome: {kind: accept}}
-    confirm: {kind: answer, on_wrong: rj-unchanged, options: [{id: pick-alpha, correct: false}, {id: pick-beta, correct: true}]}
+    confirm: {kind: answer, on_wrong: rj-unchanged, options: [{id: pick-alpha, label: 選択肢 pick-alpha, correct: false}, {id: pick-beta, label: 選択肢 pick-beta, correct: true}]}
     next: [{to: end}]
   - {id: end, title: End, body: a.md, final: true}
