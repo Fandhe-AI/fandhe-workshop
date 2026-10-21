@@ -1,0 +1,25 @@
+id: c1
+title: 直す対象を選ぶ章
+starts: [{id: s1, node: st-pick}]
+steps:
+  - id: st-pick
+    title: 直す対象を選ぶ
+    body: a.md
+    next: [{to: st-end}]
+    views: [v-cards]
+    input:
+      kind: approval
+      revise:
+        candidates:
+          - {id: expect, label: 期待する結果}
+          - {id: reason, label: 理由}
+          - {id: scope}
+    rules:
+      - id: r-revise-expect
+        on: {approval: revise, target: expect}
+        outcome: {kind: accept}
+    confirm: {kind: none, reason: 直す対象を選ぶこと自体が意思表示のため、別の確認を置かない。}
+  - id: st-end
+    title: おわり
+    body: b.md
+    final: true

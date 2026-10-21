@@ -69,7 +69,7 @@ use crate::session::SessionState;
 /// 正は `docs/vocabulary/` の最新版で、pack の `vocab::LATEST` と一致することを pack の試験が見る。
 /// 語彙の版を上げるときは、両方を同時に変える。契約（contract）ではなく判定が持つのは、開く側の上限が
 /// 判定（TASK-174）の持ち物だからである（`history_version` の境界の節）。
-pub const VOCAB_MAX: VocabVersion = VocabVersion { major: 1, minor: 4 };
+pub const VOCAB_MAX: VocabVersion = VocabVersion { major: 1, minor: 5 };
 
 /// 開く側が読める上限。履歴の外から渡し、既定値で黙って緩めない（`Default` は実装しない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
