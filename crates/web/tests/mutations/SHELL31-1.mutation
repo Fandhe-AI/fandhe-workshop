@@ -1,0 +1,8 @@
+id: SHELL31-1
+package: fandhe-workshop-web
+test: shell_notice_sample
+target: crates/web/src/shell.rs
+find:     let kind = attr(attrs, NOTICE_KIND_ATTR).and_then(NoticeKind::parse);
+replace:     let kind = attr(attrs, NOTICE_KIND_ATTR).and_then(NoticeKind::parse).or(Some(NoticeKind::SaveFailed));
+expect-fail: 未定義の通知の種類は失敗する
+note: 検査器が未定義の通知の種類を違反にしない（SHELL-31・TASK-511）

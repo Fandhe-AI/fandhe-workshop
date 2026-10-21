@@ -36,7 +36,9 @@ const ROUTED_ACTIONS: [&str; 6] = [
 const RAW_TRIGGER: (&str, &str) = ("raw-trigger", "host.rs");
 
 /// `data-payload` の出現の許可（相対パス, `"data-payload"` の件数, `PAYLOAD_ATTR` の件数）。表に無いファイルは 0 件。
-const PAYLOAD_ALLOWED: [(&str, usize, usize); 4] = [
+const PAYLOAD_ALLOWED: [(&str, usize, usize); 5] = [
+    // 枠の適合の検査器（TASK-511 2/2）が `data-payload` を読んで照合する。use の行 1 と読み取り 3。要素には書かない。
+    ("shell.rs", 0, 4),
     // 属性名の定義 1 と、指せる行（`data-action="ui"`）での使用 1。
     ("artifact_view.rs", 1, 2),
     // 試験の設定でだけ出る `raw-trigger` の 1 件。

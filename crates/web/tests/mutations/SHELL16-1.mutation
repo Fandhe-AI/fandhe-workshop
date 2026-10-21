@@ -1,0 +1,8 @@
+id: SHELL16-1
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find:             NoticeKind::VersionConverted => ReasonRule::Optional,
+replace:             NoticeKind::VersionConverted | NoticeKind::ImportRefused => ReasonRule::Optional,
+expect-fail: 理由の規則
+note: 読み込みの拒否の理由コードを任意にする（SHELL-16・TASK-511）

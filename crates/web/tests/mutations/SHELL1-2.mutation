@@ -1,0 +1,8 @@
+id: SHELL1-2
+package: fandhe-workshop-web
+test: shell_notice_sample
+target: crates/web/src/shell.rs
+find:             if t.starts_with(SHELL_PREFIX) && !is_defined_testid(t) {
+replace:             if t.starts_with(SHELL_PREFIX) && is_defined_testid(t) && false {
+expect-fail: 未定義の区画は失敗する
+note: 検査器が未定義の shell- の識別子を違反にしない（SHELL-1・TASK-511）

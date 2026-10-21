@@ -97,7 +97,7 @@ fn parse_と_from_name_は往復し未知を拒否する() {
 #[test]
 fn 本契約の識別子は_shell_で始まり互いに重複しない() {
     let ids: Vec<_> = shell_testids().collect();
-    assert_eq!(ids.len(), 6 + 2 + 1 + 4);
+    assert_eq!(ids.len(), 6 + 2 + 1 + 3 + 4);
     assert!(ids.iter().all(|i| i.starts_with(SHELL_PREFIX)));
     let set: HashSet<_> = ids.iter().collect();
     assert_eq!(set.len(), ids.len());
@@ -234,6 +234,192 @@ fn 読み込みの_debug_は本文を出さない() {
     let dbg = format!("{:?}", ShellAction::Import(secret.to_owned()));
     assert!(!dbg.contains(secret));
     assert!(dbg.contains(&secret.len().to_string()));
+}
+
+#[test]
+fn 通知の識別子と種類の値の固定() {
+    assert_eq!(NOTICE_AREA_TESTID, "shell-notice");
+    assert_eq!(NOTICE_ITEM_TESTID, "shell-notice-item");
+    assert_eq!(NOTICE_TEXT_TESTID, "shell-notice-text");
+    assert_eq!(NOTICE_KIND_ATTR, "data-notice-kind");
+    assert_eq!(NOTICE_REASON_ATTR, "data-notice-reason");
+    assert_eq!(NOTICE_MESSAGE_ATTR, "data-notice-message");
+    let kinds: Vec<_> = NoticeKind::ALL.iter().map(|k| k.as_str()).collect();
+    assert_eq!(
+        kinds,
+        [
+            "save-failed",
+            "corrupt-history",
+            "import-refused",
+            "version-converted",
+            "pack-unloadable"
+        ]
+    );
+    let msgs: Vec<_> = MessageId::ALL.iter().map(|m| m.as_str()).collect();
+    assert_eq!(
+        msgs,
+        [
+            "msg-save-failed",
+            "msg-corrupt-history",
+            "msg-import-refused",
+            "msg-version-converted",
+            "msg-pack-unloadable"
+        ]
+    );
+}
+
+#[test]
+fn 通知の_parse_と_as_str_は往復し未知を拒否する() {
+    for k in NoticeKind::ALL {
+        assert_eq!(NoticeKind::parse(k.as_str()), Some(k));
+    }
+    for m in MessageId::ALL {
+        assert_eq!(MessageId::parse(m.as_str()), Some(m));
+    }
+    for bad in ["", "Save-failed", "delete-history", "save-failed "] {
+        assert_eq!(NoticeKind::parse(bad), None);
+    }
+    assert_eq!(MessageId::parse("save-failed"), None);
+}
+
+#[test]
+fn 全ての種類の値は_dismiss_notice_で受理される() {
+    for k in NoticeKind::ALL {
+        assert_eq!(
+            ShellAction::decode(ACTION_DISMISS_NOTICE, k.as_str()),
+            Some(ShellAction::DismissNotice(k.as_str().to_owned()))
+        );
+    }
+}
+
+#[test]
+fn 許す操作の表の固定() {
+    assert_eq!(NoticeKind::SaveFailed.allowed_ops(), []);
+    assert_eq!(NoticeKind::PackUnloadable.allowed_ops(), []);
+    assert_eq!(
+        NoticeKind::CorruptHistory.allowed_ops(),
+        [ShellOp::DiscardAndStart]
+    );
+    assert_eq!(
+        NoticeKind::ImportRefused.allowed_ops(),
+        [ShellOp::DismissNotice]
+    );
+    assert_eq!(
+        NoticeKind::VersionConverted.allowed_ops(),
+        [ShellOp::DismissNotice]
+    );
+    for k in NoticeKind::ALL {
+        assert!(!k.allowed_ops().contains(&ShellOp::Export));
+        assert!(!k.allowed_ops().contains(&ShellOp::Import));
+        assert_eq!(k.messages().len(), 1);
+    }
+}
+
+#[test]
+fn 理由の規則() {
+    for k in NoticeKind::ALL {
+        let want = if k == NoticeKind::VersionConverted {
+            ReasonRule::Optional
+        } else {
+            ReasonRule::Required
+        };
+        assert_eq!(k.reason_rule(), want, "{}", k.as_str());
+    }
+}
+
+fn msg(k: NoticeKind) -> MessageId {
+    k.messages()[0]
+}
+
+#[test]
+fn notice_new_の_5_つのエラー() {
+    let k = NoticeKind::ImportRefused;
+    assert_eq!(
+        Notice::new(k, None, msg(k), &[]),
+        Err(NoticeError::ReasonRequired)
+    );
+    assert_eq!(
+        Notice::new(k, Some("<b>"), msg(k), &[]),
+        Err(NoticeError::ReasonFormat)
+    );
+    assert_eq!(
+        Notice::new(k, Some("format_newer"), MessageId::SaveFailed, &[]),
+        Err(NoticeError::MessageNotAllowed(MessageId::SaveFailed))
+    );
+    assert_eq!(
+        Notice::new(k, Some("x"), msg(k), &[ShellOp::Export]),
+        Err(NoticeError::OpNotAllowed(ShellOp::Export))
+    );
+    assert_eq!(
+        Notice::new(
+            k,
+            Some("x"),
+            msg(k),
+            &[ShellOp::DismissNotice, ShellOp::DismissNotice]
+        ),
+        Err(NoticeError::DuplicateOp(ShellOp::DismissNotice))
+    );
+    let ok = Notice::new(k, Some("format_newer"), msg(k), &[ShellOp::DismissNotice]).unwrap();
+    assert_eq!(ok.kind(), k);
+    assert_eq!(ok.reason().map(|r| r.as_str()), Some("format_newer"));
+    assert_eq!(ok.message(), msg(k));
+    assert_eq!(ok.ops(), [ShellOp::DismissNotice]);
+    let v = NoticeKind::VersionConverted;
+    assert!(Notice::new(v, None, msg(v), &[]).is_ok());
+}
+
+#[test]
+fn 理由コードの正規形() {
+    for ok in [
+        "a",
+        "missing_version",
+        "format_newer",
+        "QuotaExceededError",
+        "a-b_1",
+    ] {
+        assert!(ReasonCode::parse(ok).is_some(), "{ok}");
+    }
+    assert!(ReasonCode::parse(&"a".repeat(64)).is_some());
+    for bad in ["", "1a", "_a", "a b", "a<b", "あ", "a\n", "a.b"] {
+        assert!(ReasonCode::parse(bad).is_none(), "{bad:?}");
+    }
+    assert!(ReasonCode::parse(&"a".repeat(65)).is_none());
+}
+
+#[test]
+fn 理由コードは_task_310_の列挙の値を結ばずに受ける() {
+    for r in fandhe_workshop_contract::load_reason::LoadReason::ALL {
+        assert!(ReasonCode::parse(r.as_str()).is_some(), "{}", r.as_str());
+    }
+}
+
+#[test]
+fn notice_の属性と宛先() {
+    let k = NoticeKind::CorruptHistory;
+    let n = Notice::new(k, Some("malformed"), msg(k), &[ShellOp::DiscardAndStart]).unwrap();
+    let attrs = n.attrs();
+    assert!(attrs.contains(&("data-testid", NOTICE_ITEM_TESTID.to_owned())));
+    assert!(attrs.contains(&(NOTICE_KIND_ATTR, "corrupt-history".to_owned())));
+    assert!(attrs.contains(&(NOTICE_REASON_ATTR, "malformed".to_owned())));
+    assert!(attrs.contains(&(NOTICE_MESSAGE_ATTR, "msg-corrupt-history".to_owned())));
+    assert_eq!(n.actions(), [ShellAction::DiscardAndStart]);
+    let k = NoticeKind::ImportRefused;
+    let n = Notice::new(k, Some("x"), msg(k), &[ShellOp::DismissNotice]).unwrap();
+    assert_eq!(
+        n.actions(),
+        [ShellAction::DismissNotice("import-refused".to_owned())]
+    );
+}
+
+#[test]
+fn 検討中の通知の項目は版_1_に無い() {
+    for name in ["next-action", "reload", "delete-history", "stale-tab"] {
+        assert_eq!(NoticeKind::parse(name), None);
+    }
+    for id in MessageId::ALL {
+        assert!(!id.as_str().contains("next-action"));
+    }
+    assert_eq!(NoticeKind::ALL.len(), 5);
 }
 
 #[test]

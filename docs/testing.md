@@ -6184,3 +6184,48 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 - 予約の区画の中身は TASK-512・TASK-516 の決定の後に版 2 が足す。TASK-516 の本文との照合は spec を参照した範囲では矛盾を見つけていないが、決定前のため未確定である
 - 読み込みでファイルの本文を得る glue の仕組みは `glue_ops` の許される操作に無く、TASK-531 が持つ（`parts::PARTS_CONTRACT_VERSION` の版上げが要る可能性がある）。ホストの `decode_action` への結線もしていない
 - 「次の章へ進む」の action の名前と宛先は TASK-526 が決める
+
+### 5.194 通知の口の契約（TASK-511 2/2。SHELL-16・SHELL-17・SHELL-18・SHELL-20・SHELL-31）
+
+通知の種類 5 つ・通知の値 4 つ・通知欄の識別子・適合の検査器を、`shell` に版 1 のまま足した（2026-10-21、元にしたコミット bd475af）。版は上げない（1/2 の方針）。
+
+- 方式: 通知欄の識別子 `shell-notice` は `shell` が持つ（`shell-` の接頭辞は `shell` の持ち分という 1/2 の境界を守る）。`a11y` は `shell::NOTICE_AREA_TESTID` を参照し、`save-notice`・`export-notice`・`stale-notice`・`secret-notice` と同じ任意の通知欄として扱う（`role="status"` を必須にし、`check_complete` では 2 個以上でないことだけを求める）。必須の 3 つは変えないため `A11Y_CONTRACT_VERSION` は 2 のままとした。`a11y.rs` 冒頭の「枠の通知欄を 4 つ目として足す場合は版上げ」は、必須の通知欄 `StatusNotice::ALL` を指すと読んだ
+- 理由コードは版 1 では不透明な文字列（ASCII の英字で始まり、英数字・`_`・`-` の 1〜64 バイト）で、TASK-310 の `LoadReason` には結ばない。結ぶのは TASK-516。`LoadReason::ALL` の全件が形として通ることだけを試験で確かめる
+- `dismiss-notice` の `decode` は正規形だけを見る 1/2 の方針を変えず、種類への結びは `NoticeKind::parse`（ホスト側）に置く
+- 検査器は `view()` に定義にない区画・通知の種類・文面の識別子・操作の置き方が出ると違反を全件集める。生 HTML・通知欄の外の通知・種類に許されない操作・読み込みの本文の DOM への配置も違反にする。違反の文面に文字ノードの中身は含めない
+
+机上の照合（spec の期待と定義の対応）:
+
+| 要件 | 定義 |
+|---|---|
+| SHELL-1 | 区画・取り付け点の識別子は `shell-` に集まり、未定義は `undefined-testid`。左右はちょうど 1 個（`check_complete`） |
+| SHELL-10 | 「次の章へ進む」の識別子と文字の形（1/2。変更なし） |
+| SHELL-16 | `ImportRefused`。理由は必須、操作は `DismissNotice` |
+| SHELL-17 | `CorruptHistory`。理由は必須、操作は `DiscardAndStart` |
+| SHELL-18 | `SaveFailed`。理由は必須、操作なし（保存に成功すると消える） |
+| SHELL-20 | `VersionConverted`。理由は任意、操作は `DismissNotice` |
+| SHELL-31 | `PackUnloadable`。理由は必須、操作なし |
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/shell_contract.rs` | 通知の識別子・種類・文面の識別子の値の固定、`parse` の往復、`dismiss-notice` の受理、許す操作の表、理由の規則、`Notice::new` の 5 つのエラー、理由コードの正規形と `LoadReason::ALL` が形として通ること、属性と宛先、検討中の項目が無いこと |
+| `crates/web/tests/shell_notice_sample.rs` | ダミーの通知 5 種を載せた枠が `shell::check_complete`・`a11y::check_no_undefined` の両方を通ること、危険な文字列のエスケープ、負の見本（未定義の区画・種類・文面の識別子、許されない操作、payload の食い違い、理由の欠落と不正、通知欄の外、重複、文面の部品の中身、取り付け点の重複と欠落、生 HTML、操作の置き方）、`role` なしで `a11y` が `notice-role` で失敗すること、違反の文面に文字ノードを含めないこと |
+| `crates/web/tests/a11y_contract.rs` | `shell-notice` が役割つきで通り、役割なしで `notice-role`、2 個で `check_complete` が失敗すること |
+
+変異注入（実行日 2026-10-21、元にしたコミット bd475af の作業ツリー。`scripts/check-mutations.sh` に SHELL の定義を渡した出力）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SHELL1-2 | `shell.rs`: 検査器が未定義の `shell-` の識別子を違反にしない | DETECTED（`未定義の区画は失敗する`） |
+| SHELL16-1 | `shell.rs`: 読み込みの拒否の理由を任意にする | DETECTED（`理由の規則` ほか） |
+| SHELL17-2 | `shell.rs`: 壊れた履歴の通知から `DiscardAndStart` を外す | DETECTED（`許す操作の表の固定` ほか） |
+| SHELL18-1 | `shell.rs`: 保存の失敗の値を正規形でなくする | DETECTED（`通知の識別子と種類の値の固定` ほか） |
+| SHELL31-1 | `shell.rs`: 検査器が未定義の種類を違反にしない | DETECTED（`未定義の通知の種類は失敗する`） |
+
+既存の SHELL1-1・SHELL10-1・SHELL17-1 も引き続き DETECTED である。`make check-mutations` の全件実行は、本件と無関係の `crates/core/tests/mutations/EVT12-11.mutation` の `find` が `projection.rs` に無く、定義の不正（終了コード 2）で止まるため未実施である。
+
+限界・未実施:
+
+- ホストの `decode_action` への `ShellAction` の結線と、通知欄の実際の描画・配置は画面のタスク（TASK-517・TASK-531〜TASK-534・TASK-545）が持つ。既存の `save-notice` を枠の通知欄へ寄せるかは TASK-534 が決める
+- 通知の文面と次の行動（SHELL-36）は TASK-516・TASK-549 が持つ。理由コードを列挙に結ぶのは TASK-516
+- 観察: `host.rs` の `ir-notice` は `role="status"` を持つが `a11y` の通知欄の一覧に無く、この画面に `a11y::check_no_undefined` を掛けると `status-on-non-notice` になる見込みである（未検証）。SHELL-31 を枠の通知 `pack-unloadable` へ移すのは TASK-545 の範囲

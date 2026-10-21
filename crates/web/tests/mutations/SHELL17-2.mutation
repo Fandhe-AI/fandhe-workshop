@@ -1,0 +1,8 @@
+id: SHELL17-2
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find:             NoticeKind::CorruptHistory => &[ShellOp::DiscardAndStart],
+replace:             NoticeKind::CorruptHistory => &[],
+expect-fail: 許す操作の表の固定
+note: 壊れた履歴の通知から履歴を捨てて始める操作を外す（SHELL-17・TASK-511）

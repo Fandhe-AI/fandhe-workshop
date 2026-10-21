@@ -1,0 +1,9 @@
+id: SHELL18-1
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find:             NoticeKind::SaveFailed => "save-failed",
+replace:             NoticeKind::SaveFailed => "Save-failed",
+expect-fail: 通知の識別子と種類の値の固定
+expect-fail: 全ての種類の値は_dismiss_notice_で受理される
+note: 保存の失敗の種類の値を正規形でなくする（SHELL-18・TASK-511）
