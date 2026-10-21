@@ -5954,3 +5954,39 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 
 - `scripts/test-browser.sh` の明示の一覧に `reject-keeps-draft.test.mjs` を足した。`scripts/expected-test-counts.txt` は更新していない（5.186 と同じ。版上げの前に `make update-test-counts` で更新する）
 - `host.rs`・`glue.rs`・`testdata/**` は変えていない
+
+### 5.188 拒否の後に状態が変わらないこと（TASK-270。JUDGE-5）
+
+拒否された入力（`Judged` が拒否）が、Step を受付済みにせず、世界状態も変えないことを、`reject_invariant`（新規の統合試験）が 1,000 通りの入力列で確かめる。拒否のたびに、戻りのイベントがちょうど `InputReceived` と拒否の `Judged` の 2 件であること、`run` と `log` 以外の全欄が操作の前と一致すること、`log` が追記だけであること、操作の前に受付済みでなかった Step が受付済みにならないこと、次の行動が空でないことを確かめる。
+
+実装は、`accept` の拒否の分岐が `state.run` を書く前に返る構造（変更なし）と、`session::apply` の関門 `reject_guard` である。関門は、拒否を含む結果が状態を変えた、または余分なイベントを含むときに、`run`・`entry` を操作前へ戻し、イベントを `InputReceived`・`Judged` だけにして固定文の `Warning` を 1 件足す。黙って戻すと誤りが状態から消えて試験が検出できないため、見える形にした。正しい実装では発火しない。関門そのものの行は、変異注入が統合試験だけを対象にするため記録していない。単体の試験（`reject_guard` の `tests`）で振る舞いを確かめた。
+
+#### 性質テスト（2026-10-21）
+
+3 本とも 7 分類（`RejectCategory::ALL`）のすべてが 1 件以上出た（assert する。件数は種に依存するため assert しない）。
+
+| 試験 | IR・入力 | ケース数 | 種 | UnknownCommand | WrongOrder | MissingArg | BadArgShape | Busy | NotInThisStep | NotSupported |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rejections_keep_state_on_random_sequences | min-3step・固定の操作列 | 1,000 | 既定 | 940 | 1076 | 630 | 639 | 1770 | 17469 | 937 |
+| rejections_keep_state_on_guided_sequences | min-3step・誘導つきの操作列 | 1,000 | 既定 | 382 | 524 | 96 | 62 | 4830 | 9911 | 338 |
+| rejections_keep_state_from_any_status | judgment-ir・Step と状態を指定した入力列 | 1,000 | 既定 | 184 | 829 | 17 | 27 | 5205 | 4145 | 157 |
+
+#### 変異注入
+
+```text
+実行日: 2026-10-21
+元にしたコミット: ed16219-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/core/tests/mutations/JUDGE5-4.mutation crates/core/tests/mutations/JUDGE5-5.mutation crates/core/tests/mutations/JUDGE5-6.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|
+| JUDGE5-4 | crates/core/src/accept.rs: 処理中・達成済みの拒否で処理中を解く | rejections_keep_state_on_random_sequences, rejections_keep_state_from_any_status（実際は 3 本とも失敗） | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (0, 0, true, [Command("/help")]) |
+| JUDGE5-5 | crates/core/src/accept.rs: 入力の段の拒否で Step を受付済みにする | 3 本すべて | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: [Cmd(1)] |
+| JUDGE5-6 | crates/core/src/accept.rs: 確認の段の拒否でフラグを立てる | rejections_keep_state_on_random_sequences, rejections_keep_state_from_any_status（実際は 3 本とも失敗） | DETECTED | cases=1000 seed=46414e4448452d50524f50544553542d534545442d7631000000000000000001; minimal input: (0, 2, false, [Command("/help")]) |
+
+#### 限界・未確認
+
+- 関門は `run` と `entry` だけを戻す。`checkpoints`・`next_checkpoint`・`drafts`・`hints_opened` は `Op::Input` の経路が書かない欄で、戻さず、性質テストの一致の検査だけで守る
+- 関門の行そのものへの変異は、統合試験だけを対象にする `check-mutations.sh` では記録できない
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）

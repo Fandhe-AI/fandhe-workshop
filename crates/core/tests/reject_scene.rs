@@ -10,7 +10,7 @@
 //! 誤入力の組の出所は `tests/data/reject_scene_1/judgment-ir.json` で、pack の `judgment-pack` の compile の結果の写しである
 //! （`e-busy-1`・`e-busy-2`・`e-nits-1〜5`・`e-unsupported-1`・`e-unsupported-2` に対応する。core は pack に依存できないため、
 //! 手元の写しを使う。写しのずれは pack の `error_input_expect.rs` が検出する）。
-//! 拒否の前後の状態の同一性の性質テストは TASK-270、入力欄に残すことは TASK-271 が受け持つため、ここでは例の確認に留める。
+//! 拒否の前後の状態の同一性の性質テストは TASK-270（`reject_invariant.rs`）、入力欄に残すことは TASK-271 が受け持つため、ここでは例の確認に留める。
 
 mod common;
 

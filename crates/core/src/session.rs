@@ -22,6 +22,7 @@
 //! - [`apply`] が返すイベント列は、新しい状態の [`SessionState::log`] の末尾に足された分と一致する
 //! - 操作 1 件の中で、経路ごとに `Changed` は高々 1 件で、変更前は操作前の値である（EVT-13、[`crate::changed`]）
 //! - 世代は減らない（変わり方の表は [`crate::input::GenerationRule`]）
+//! - 拒否された入力は状態を変えない。破る実装があれば、`apply` が戻して `Warning` を足す（`reject_guard`、JUDGE-5）
 //!
 //! 状態の値は教材・利用者由来の文字列を含みうる。HTML への埋め込みのエスケープは web 層の責務である。
 //! 直列化は `BTreeMap`・`BTreeSet` で順を決定的にし、未知の欄は拒否する。欄の追加・変更は版上げになる。
@@ -199,6 +200,9 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         changed::cause_of(&op)
     };
     let events = step(ir, &mut state, op);
+    // 拒否は状態を変えない（JUDGE-5）。破っていれば戻して `Warning` で見える形にする。上限の戻しより前に行う。
+    let events =
+        crate::reject_guard::guard_rejection(events, &mut state, &run_before, &entry_before);
     // 上限で止めたら、操作の前の Step・状態へ戻す（SAFE-35、D-45）。世代の強制より前に行う。
     let mut cause = cause;
     let mut returned_generation = None;
