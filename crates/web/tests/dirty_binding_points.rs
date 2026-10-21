@@ -253,6 +253,9 @@ const EXPECTED_SEEN: &[&str] = &[
 
 /// 33 回の列では dirty にできない field。理由は各行のコメントに書く。除外は最小にする。
 const NEEDS_OTHER_FIXTURES: &[&str] = &[
+    // 修飾キーの案内は mount の前に OS を設定するだけで、操作では変わらない（TASK-285 1/2）。
+    // mount 後の切り替え（受講者が選ぶ欄）は TASK-285 2/2 が dirty を足し、そのとき確かめる。`modifier_key_hint.rs` が値と dirty なしを確かめる。
+    "key_hint",
     // 遷移 1,000 回の上限の教材が要り、その教材は試験の設定（`test-hooks`）にだけある。
     "log_notice",
     // 保存の失敗の表示は、保存の口（`set_history_saver`）を結んだホストが要る。`save_failure.rs` が dirty を確かめる。

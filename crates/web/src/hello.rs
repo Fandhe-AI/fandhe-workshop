@@ -19,6 +19,7 @@ use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
 
 use fandhe_workshop_contract::key_decide::{decide, FieldState};
+use fandhe_workshop_core::learner_os::LearnerOs;
 
 use crate::a11y::LOG_LIST_TESTID;
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
@@ -29,6 +30,7 @@ use crate::key_route::{
 };
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
+use crate::modifier_key::paste_key_hint;
 use crate::parts::{FieldKind, PartField};
 use crate::profile::InputField;
 use crate::terminal_area::InputPort;
@@ -54,8 +56,12 @@ const CANDIDATES_FIELD: PartField = PartField {
     kind: FieldKind::KeyedList,
 };
 
+/// 修飾キーの案内（`key-hint`）が束縛される field 名（TASK-285 1/2。JUDGE-28）。
+const FIELD_KEY_HINT: &str = "key_hint";
+
 /// この入力欄が持つ field 名。ホストが、部品の field との衝突の検査に使う。
-pub(crate) const HELLO_FIELDS: [&str; 3] = [FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES];
+pub(crate) const HELLO_FIELDS: [&str; 4] =
+    [FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES, FIELD_KEY_HINT];
 
 /// 送信済みの一覧に残す最大の件数。超えたら古い順に捨てる。
 /// `keyed_list` の上限（4,096 件）に届かない値にして、`Err` を通常の経路にしない。
@@ -81,6 +87,8 @@ pub struct HelloView {
     closed_for: Option<String>,
     /// 入力欄の表示（PACK-20）。`Hidden` なら入力欄・候補の一覧・送信を DOM に出さない。
     input_field: InputField,
+    /// 推定した受講者の OS（D-48・JUDGE-28）。修飾キーの案内の文言だけを決める表示の状態で、履歴・実行環境には入れない。
+    learner_os: LearnerOs,
     /// 直近の `update` で変わった field。上流が束縛点の更新に使う。
     dirty: Vec<&'static str>,
     /// keydown の probe が受け取った回数。配信する設定には存在しない。
@@ -133,7 +141,15 @@ impl HelloView {
         self.input_field = field;
     }
 
-    /// 入力欄を出すか。キーの案内・OS の選択（TERM-38。未実装）を足すときも、この判定の下に置く。
+    /// 推定した受講者の OS を受ける（TASK-285 1/2）。`persist::mount_with_history` が mount の前に 1 度だけ呼ぶ。
+    ///
+    /// 束縛点の差分更新には乗せない（dirty にしない）。mount 後の切り替え（受講者が選ぶ欄。TASK-285 2/2）は、
+    /// このあと dirty に `key_hint` を積む経路で足す。
+    pub(crate) fn set_learner_os(&mut self, os: LearnerOs) {
+        self.learner_os = os;
+    }
+
+    /// 入力欄を出すか。キーの案内（`key-hint`）もこの判定の下に置く。OS の選択欄（TERM-38。TASK-285 2/2）も同じ。
     pub(crate) fn shows_input_area(&self) -> bool {
         self.input_field.shows_input_area()
     }
@@ -369,6 +385,15 @@ impl Component for HelloView {
                 cand_items,
             ));
         }
+        if shows_input {
+            // 貼り付けのキーの案内。推定できない OS では空の文字（修飾キーを出さない）。role・aria は付けない。
+            children.push(bind_text(
+                "p",
+                vec![("data-testid", "key-hint")],
+                FIELD_KEY_HINT,
+                paste_key_hint(self.learner_os),
+            ));
+        }
         children.push(bind_text(
             "p",
             vec![("data-testid", "input-notice"), ("role", "status")],
@@ -441,7 +466,11 @@ impl DirtyTracked for HelloView {
 
 impl BindingSource for HelloView {
     fn bound_value(&self, field: &str) -> Option<BoundValue> {
-        (field == FIELD_NOTICE).then(|| BoundValue::Text(notice_for(self.over_limit).to_owned()))
+        match field {
+            FIELD_NOTICE => Some(BoundValue::Text(notice_for(self.over_limit).to_owned())),
+            FIELD_KEY_HINT => Some(BoundValue::Text(paste_key_hint(self.learner_os).to_owned())),
+            _ => None,
+        }
     }
 }
 
@@ -811,6 +840,31 @@ mod tests {
         assert_eq!(count_of(&out, "data-testid=\"hello-root\""), 1, "{out}");
         assert!(out.contains("data-action-keydown"), "{out}");
         assert_eq!(crate::a11y::check_no_undefined(&v.view()), Ok(()));
+    }
+
+    #[test]
+    fn 修飾キーの案内は推定した_os_の文言で_入力欄なしでは出ない() {
+        let hint = |os: LearnerOs, hidden: bool| {
+            let mut v = HelloView::new();
+            v.set_learner_os(os);
+            if hidden {
+                v.set_input_field(InputField::Hidden);
+            }
+            assert!(v.dirty_fields().is_empty());
+            render_component_html(&v)
+        };
+        let mac = hint(LearnerOs::Mac, false);
+        assert!(mac.contains("貼り付け: Cmd+V"), "{mac}");
+        let win = hint(LearnerOs::Windows, false);
+        assert!(win.contains("貼り付け: Ctrl+V"), "{win}");
+        let unknown = hint(LearnerOs::Unknown, false);
+        assert!(!unknown.contains("貼り付け"), "{unknown}");
+        for out in [&mac, &win, &unknown] {
+            assert_eq!(count_of(out, "data-testid=\"key-hint\""), 1, "{out}");
+            assert!(out.contains("data-bind-text=\"key_hint\""), "{out}");
+        }
+        let hidden = hint(LearnerOs::Mac, true);
+        assert_eq!(count_of(&hidden, "data-testid=\"key-hint\""), 0, "{hidden}");
     }
 
     #[test]

@@ -265,8 +265,9 @@ export async function withCspMode({ dir, csp }, fn) {
 
 // page・context を作り、記録器 rec を付ける。配信元（origin）以外への要求はすべて abort し、external に数える。
 // CSP 違反は context.exposeBinding で Node 側へ送る。遷移しても失われず、ページのスクリプトより先に登録される。
-export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 } }) {
-  const context = await browser.newContext({ viewport });
+// userAgent を指定すると、その context の User-Agent を差し替える（OS の推定の試験。TASK-285 1/2）。未指定なら既定のまま。
+export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 }, userAgent } = {}) {
+  const context = await browser.newContext(userAgent === undefined ? { viewport } : { viewport, userAgent });
   const rec = { requests: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
   await context.exposeBinding('__fandheHitRec', (_src, id) => {
     rec.hits.push(String(id));
