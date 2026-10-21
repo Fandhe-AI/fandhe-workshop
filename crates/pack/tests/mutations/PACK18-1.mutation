@@ -1,0 +1,8 @@
+id: PACK18-1
+package: fandhe-workshop-pack
+test: start_requires
+target: crates/pack/src/start_check.rs
+find:                     (true, false) => "unmet",
+replace:                     (true, false) => return None,
+expect-fail: pack18_requires_without_unmet_is_e_structure
+note: requires だけの開始点を見逃す（条件があるのに断る文面が無い開始点が IR に載る）

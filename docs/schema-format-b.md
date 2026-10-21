@@ -115,8 +115,8 @@
 | `node` | 文字列 | 必須 | なし | 開始する Step の ID（`E-REF-STEP` で照合） |
 | `effects` | 列（状態変化。7 節） | 省略可 | 空 | 開始時の世界状態を作る |
 | `guidance` | 値 | 省略可 | 省略 | EP-8。開始点ごとの案内レベル |
-| `requires` | 条件（7 節） | 省略可 | 省略 | EP-9。開始の条件 |
-| `unmet` | 文字列 | 省略可 | 省略 | EP-9。満たさないときの文面 |
+| `requires` | 条件（7 節） | 省略可 | 省略 | EP-9。開始の条件。`unmet` と両方そろえる（片方だけは `E-STRUCTURE`。`null` は省略と同じ） |
+| `unmet` | 文字列 | 省略可 | 省略 | EP-9。満たさないときの文面（`rejections` の ID）。`requires` と両方そろえる（片方だけは `E-STRUCTURE`） |
 
 ## 5. Step
 
