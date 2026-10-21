@@ -66,7 +66,7 @@ test('inline-free: 試験用の meta は試験の設定にだけ有り、配信�
 
 // 対照。実物（配信する設定）を加工した写しが、期待の理由で問題になる。問題の件数は expected で固定する。
 const cases = [
-  ['インラインの script を足す', /inline script found/, 1, ({ html }) => ({ html: html.replace('</body>', '<script>window.x = 1;</script></body>') })],
+  ['インラインの script を足す', /inline script found \(no src attribute\); script element has inline content/, 2, ({ html }) => ({ html: html.replace('</body>', '<script>window.x = 1;</script></body>') })],
   ['style 属性を足す', /style attribute found on <div>/, 1, ({ html }) => ({ html: html.replace('<div id="app">', '<div id="app" style="color:red">') })],
   ['on* 属性を足す', /event handler attribute onclick/, 1, ({ html }) => ({ html: html.replace('<div id="app">', '<div id="app" onclick="x()">') })],
   ['style 要素を足す', /style element found/, 1, ({ html }) => ({ html: html.replace('</head>', '<style>a{}</style></head>') })],

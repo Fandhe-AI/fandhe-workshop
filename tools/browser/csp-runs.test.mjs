@@ -99,11 +99,10 @@ test('D1: 配信する設定の最小の画面は、起動と入力欄への入�
       const input = page.locator(DRAFT);
       const n = await input.count();
       console.log(`D1: 入力欄 ${n} 件`);
-      if (n > 0) {
-        await input.fill('x');
-        await input.press('Enter');
-        await page.waitForTimeout(300);
-      }
+      assert.equal(n, 1, '配信する設定の入力欄がちょうど 1 件ではない（入力と送信を省略しない）');
+      await input.fill('x');
+      await input.press('Enter');
+      await page.waitForTimeout(300);
     },
   });
 });
