@@ -1,0 +1,8 @@
+id: SAFE44-2
+package: fandhe-workshop-web
+test: secret_hold_export
+target: crates/web/src/host.rs
+find:         if found.is_empty() {
+replace:         if true {
+expect-fail: draft_only_value_is_held_before_the_deferred_detection_arrives
+note: 関門自身の走査を外す（遅延保存の検出が届く前の下書きだけの値が書き出される。D-44・SAFE-28）

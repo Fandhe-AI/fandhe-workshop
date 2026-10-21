@@ -1,0 +1,9 @@
+id: SAFE44-1
+package: fandhe-workshop-web
+test: secret_hold_export
+target: crates/web/src/host.rs
+find:             return ExportGate::Held(self.model.secret_warning.clone());
+replace:             return ExportGate::Ready(bytes);
+expect-fail: every_shape_holds_the_export
+expect-fail: progress_after_a_warning_stays_unsaved_and_unexported
+note: 警告の間でも書き出しを通す（秘密情報が書き出される。D-44・SAFE-28）。警告の判定と関門自身の走査は二重の守りで、どちらか片方を外しても止まるため、警告の分岐の戻り値を変える

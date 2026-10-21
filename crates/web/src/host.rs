@@ -91,6 +91,7 @@ use crate::candidates;
 use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
+use crate::history_export::ExportGate;
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
@@ -867,6 +868,41 @@ impl EngineHost {
         String::from_utf8(bytes).ok()
     }
 
+    /// 受講中の履歴を書き出す唯一の入口（SAFE-27・SAFE-28・D-44。TASK-164 2/3）。
+    ///
+    /// 呼び出し元は書き出しの画面（TASK-531）と試験用の状態 JSON。リンクを描く前にここを呼び、`Held` なら出さない。
+    /// 判定の順は、(1) 書き出す履歴が無ければ `Empty`、(2) 警告の間は `Held`、(3) 遅延保存の検出が届く前の下書きだけの値も
+    /// 自分で走査して `Held`（fail-closed）、(4) それ以外は `Ready`。UTF-8 として読めないときも `Empty` に倒す。
+    /// 読み取りだけで、警告・dirty は変えない（警告の表示は保存の経路が持つ）。
+    ///
+    /// `save_blocked` と `history_limit::check_save` は見ない。書き出しは保存先を上書きせず、保存できない場面ほど要るため（SAVE-29）。
+    /// 読み込みの上限を超える書き出しの扱いは TASK-531 に残す。TASK-164 3/3 は、確認済みの値をここで除外する前提である。
+    pub fn export_live(&self) -> ExportGate {
+        let Some(envelope) = self
+            .model
+            .recorded
+            .as_ref()
+            .and_then(|r| r.envelope_for_save())
+        else {
+            return ExportGate::Empty;
+        };
+        let Ok(bytes) = export_bytes(&envelope) else {
+            return ExportGate::Empty;
+        };
+        if !self.model.secret_warning.is_empty() {
+            return ExportGate::Held(self.model.secret_warning.clone());
+        }
+        let Ok(text) = std::str::from_utf8(&bytes) else {
+            return ExportGate::Empty;
+        };
+        let found = secret_hold(text);
+        if found.is_empty() {
+            ExportGate::Ready(bytes)
+        } else {
+            ExportGate::Held(found)
+        }
+    }
+
     /// 保存先の鍵。教材の `pack.id` と最初の開始点から求める（`HistoryKey::from_ir`）。IR が無い・開始点が無いときは `None`。
     pub fn history_key(&self, scope: DeliveryScope) -> Option<HistoryKey> {
         HistoryKey::from_ir(scope, self.model.session()?.ir())
@@ -1066,6 +1102,7 @@ impl EngineHost {
             .to_string();
         };
         let log = session.log();
+        let gate = self.export_live();
         let bulk = Projection::from_events(log);
         let mut world = World::new();
         replay_changes(&mut world, log);
@@ -1191,6 +1228,16 @@ impl EngineHost {
             "irLoaded": true,
             // 警告に出す形の ID だけ（値は入れない。SAFE-27）。
             "secretWarning": self.model.secret_warning.iter().map(|s| s.id()).collect::<Vec<_>>(),
+            // 書き出しの関門の判定と長さ（中身は入れない。SAFE-28）。
+            "exportGate": match &gate {
+                ExportGate::Ready(_) => "ready",
+                ExportGate::Held(_) => "held",
+                ExportGate::Empty => "empty",
+            },
+            "exportBytes": match &gate {
+                ExportGate::Ready(b) => Some(b.len()),
+                _ => None,
+            },
             "irRefusal": self.ir_refusal,
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
