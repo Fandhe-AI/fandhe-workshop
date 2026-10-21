@@ -5998,7 +5998,7 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 - 実行日: 2026-10-21。元にしたコミット: 13b7156（dirty。本変更を含む）
 - コマンド: `cargo test --locked -p fandhe-workshop-web --test input_limit`・`scripts/check-mutations.sh crates/web/tests/mutations/JUDGE24-1.mutation`（JUDGE24-2 も同様）・`make test-browser`（通過。`input-limit.test.mjs` の JUDGE-24 の 7 件を含む）
 
-#### 決めたこと（自動運転のため承認は得ていない。PR で要確認）
+#### 決めたこと（2026-10-21 に spec の D-65 として記録された）
 
 | 論点 | 決定 |
 |---|---|
@@ -6012,7 +6012,7 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 
 - 純粋関数 `input_limit::clip_paste`（DOM に触れない）。範囲外・逆順・サロゲートペアの途中・選択の外だけで上限を超える場合は `None`（介入せず安全網に倒す）。改行は LF として数える。はみ出した先頭 1 文字を値の末尾に置き、状態側の `clamp_draft` がちょうどその 1 文字を切って超過の印を立てる（超過の判定を 1 か所に保つため）
 - glue の `wire_paste_clip`（`beforeinput`）。計画があれば `preventDefault`・欄へ値を書く・泡立つ `input` を合成・キャレットを置く。合成の `input` は上流の通常の入力の経路で `SetDraft` を届け、glue は状態を直接変えない。欄の今の値は読まず、状態の下書きから取る（`.value()` の例外は 1 件のまま）
-- 変えたガード（要確認）: `glue_contract.rs` の許可イベントに `beforeinput` を足し（4 種から 5 種）、DOM の呼び出し名（`input_type`・`data`・`selection_start`・`selection_end`・`set_selection_range`・`dispatch_event`・`new_with_event_init_dict`・`set_bubbles`）を `TextareaSync` として足した。`glue_scale.rs` の上限を 452 から 491 に、web-sys の feature に `EventInit` を足した（24 個から 25 個）。`GlueOp` の変種は増やさないが、操作範囲が従来の値の書き戻しを超えるため `PARTS_CONTRACT_VERSION` を 1 から 2 に上げた（codex の P1 指摘への対応）。選択の位置と貼り付けた文字列は利用者の入力であり描画の結果ではないが、BUILD-6・FEND-20 の趣旨との整合は解釈が要る。要対応: spec（`docs/spec`。編集不可）側で許される操作の範囲と契約の版 2 を反映する（spec のリポジトリで行う）
+- 変えたガード: `glue_contract.rs` の許可イベントに `beforeinput` を足し（4 種から 5 種）、DOM の呼び出し名（`input_type`・`data`・`selection_start`・`selection_end`・`set_selection_range`・`dispatch_event`・`new_with_event_init_dict`・`set_bubbles`）を `TextareaSync` として足した。`glue_scale.rs` の上限を 452 から 491 に、web-sys の feature に `EventInit` を足した（24 個から 25 個）。`GlueOp` の変種は増やさないが、操作範囲が従来の値の書き戻しを超えるため `PARTS_CONTRACT_VERSION` を 1 から 2 に上げた（codex の P1 指摘への対応）。許される操作の範囲（読むのは利用者の入力である選択の位置と貼り付けた文字列で、描画の結果ではない境界を含む）と契約の版 2 は、spec の FEND-20 と D-65 に反映した（2026-10-21）
 
 #### 確認した事実（Chromium。Playwright の `ControlOrMeta+V`）
 
@@ -6045,9 +6045,9 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 - `insertFromDrop`・上限ちょうどでの途中への打鍵（`insertText`）は、末尾の既存の文字が消えうる（JUDGE-23 の K-1 は末尾でしか確かめていない）
 - Chromium だけ。Firefox・Safari・実 IME は扱わない
 
-#### spec の更新待ち（`docs/spec` は変えていない）
+#### spec への反映（D-65）
 
-JUDGE-24・TERM-16 の証拠への `beforeinput` の自動ブラウザ試験の合格の追記、「検討中」から「確定」への変更、キャレットの位置の決定は、spec のリポジトリで行う。
+JUDGE-24・TERM-16 の証拠への `beforeinput` の自動ブラウザ試験の合格の追記、「検討中」から「確定」への変更、キャレットの位置の決定は、spec の D-65（2026-10-21）で記録した。`docs/spec` の参照は D-65 を含む版に上げた。
 
 #### 既存の試験への影響
 
