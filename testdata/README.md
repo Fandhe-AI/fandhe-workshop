@@ -185,5 +185,6 @@
 | 行き先 | 出所 | 用途 |
 |---|---|---|
 | `secret-shapes-added/added-shapes.json` | この repo で作成（2026-10-21。TASK-165 1/2。SAFE-30） | 秘密情報の検出で足した 5 形と対照 4 件の部品。形式は `untrusted-input-safety/test-data-addendum-4/secret-shapes.json` と同じです。core と web の 2 crate の試験が使います |
+| `secret-shapes-added/measure-corpus.json` | この repo で作成（2026-10-21。TASK-165 2/2。SAFE-30） | 追加 5 形の見逃しと誤検出の測定用の試料 44 件（秘密情報らしい値・既知の見逃し・秘密情報でない文・既知の誤検出）と期待の件数の表。件数は試料に対する集計で、検出率ではありません。core の試験と自動ブラウザの試験が使います |
 
 spec repo の写しではないため、`.sha256` の manifest はありません。完成した値は置かず、試験のときに部品から組み立てます。

@@ -6,6 +6,10 @@
 //   (B) 送信の経路: 送信（即時の保存）でも同じ。
 //   (C) 対照 N-01〜N-06: 警告が出ず、履歴の鍵への書き込みが 1 件以上ある。
 //   (D) 値の非漏洩: console・pageerror の文に、どの値も含まれない。
+//   (E) 追加 5 形（S-11〜S-15。TASK-165）を (A)(B) と同じ 2 経路で確かめる。
+//   (F) 追加の対照 N-07〜N-10: 警告が出ず、履歴は書かれる。
+//   (G) 追加 5 形の測定用の試料（TASK-165 2/2）を下書きの経路に流し、形ごとの検出・見逃し・誤検出の件数が
+//       試料に記録した表（core の試験と同じ表）と一致する。診断には試料の ID・分類・警告の有無・件数だけを出す。
 // 値は `secret-values.mjs` が部品から組み立て、変数の中だけに置く。assert・diagnostic には試験データの ID と形の ID だけを出す。
 // 保存の前は入力欄と画面に値が出る（PoC の限界 (2)）。画面からの消去は TASK-164 3/3 の範囲のため、ここでは確かめない。
 // 警告が出るまでの時間は diagnostic に数値だけを残し、assert しない（遅延の定数は期待にしない。SAVE-7）。
@@ -17,7 +21,9 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, openPage, waitMounted,
 } from './harness.mjs';
-import { secretShapes, controls } from './secret-values.mjs';
+import {
+  secretShapes, controls, addedShapes, addedControls, measureCorpus,
+} from './secret-values.mjs';
 
 const BASE = '/fandhe-secret-warning/';
 const INPUT = '[data-testid="draft-input"]';
@@ -36,6 +42,11 @@ const LABELS = {
   jwt: 'JWT 風のトークン',
   private_key: '秘密鍵',
   connection_string: '資格情報つきの接続文字列',
+  sk_ant_api_key: 'sk-ant- 形式の API キー',
+  sk_proj_api_key: 'sk-proj- 形式の API キー',
+  gitlab_token: 'GitLab 風のトークン',
+  npm_token: 'npm 風のトークン',
+  pypi_token: 'PyPI 風のトークン',
 };
 
 let browser;
@@ -99,10 +110,10 @@ function assertNoLeak(id, texts, value) {
   for (const t of texts) assert.ok(!t.includes(value), `${id}: value leaked`);
 }
 
-for (const via of ['draft', 'submit']) {
-  test(`10 形: ${via} の経路で警告に形の名前が出て、値は出ず、履歴は書かれない`, async (t) => {
+for (const [label, source] of [['10 形', secretShapes], ['追加 5 形', addedShapes]]) for (const via of ['draft', 'submit']) {
+  test(`${label}: ${via} の経路で警告に形の名前が出て、値は出ず、履歴は書かれない`, async (t) => {
     await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
-      for (const s of secretShapes()) {
+      for (const s of source()) {
         const { page, context, logs } = await open(srv);
         const t0 = await typeValue(page, s.value);
         assert.deepEqual(await warning(page), [], `${s.id}: warning before the save`);
@@ -125,10 +136,10 @@ for (const via of ['draft', 'submit']) {
   });
 }
 
-test('対照 N-01〜N-06: 警告が出ず、履歴は書かれる', async () => {
+for (const [label, source, count] of [['N-01〜N-06', controls, 6], ['N-07〜N-10', addedControls, 4]]) test(`対照 ${label}: 警告が出ず、履歴は書かれる`, async () => {
   await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
-    const cs = controls();
-    assert.equal(cs.length, 6);
+    const cs = source();
+    assert.equal(cs.length, count);
     for (const c of cs) {
       const { page, context } = await open(srv);
       await typeValue(page, c.text);
@@ -140,4 +151,32 @@ test('対照 N-01〜N-06: 警告が出ず、履歴は書かれる', async () => 
       await context.close();
     }
   });
+});
+
+test('測定用の試料: 形ごとの検出・見逃し・誤検出の件数が記録した表と一致する', async (t) => {
+  const { samples, expected } = measureCorpus();
+  const counts = {};
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    for (const s of samples) {
+      const { page, context, logs } = await open(srv);
+      await typeValue(page, s.value);
+      await settle(page);
+      const shapes = await warning(page);
+      const hit = s.secret ? shapes.includes(s.shape) : shapes.length > 0;
+      t.diagnostic(`[secret-measure] ${JSON.stringify({ id: s.id, category: s.category, warned: shapes.length > 0 })}`);
+      const c = (counts[s.shape] ??= {
+        secret: 0, detected: 0, missed: 0, clean: 0, false_positive: 0,
+      });
+      if (s.secret) {
+        c.secret += 1;
+        c[hit ? 'detected' : 'missed'] += 1;
+      } else {
+        c.clean += 1;
+        if (hit) c.false_positive += 1;
+      }
+      assertNoLeak(s.id, logs, s.value);
+      await context.close();
+    }
+  });
+  assert.deepEqual(counts, expected, 'measured counts differ from the recorded table');
 });

@@ -1,0 +1,552 @@
+{
+  "note": "SAFE-30（決定 D-45。TASK-165 2/2）で足した 5 形の見逃しと誤検出の測定用の試料。spec repo の写しではなく、この repo で作った。件数は実装者が作った試料に対する集計で、一般の検出率ではない。完成した値はどこにも書かない。接頭辞は必ず部品に分け、試験のとき部品を空文字で連結して {N×c} と \\n を展開する。truth は secret（秘密情報らしい値）か clean（秘密情報でない文）。known_miss は検出しないと分かっている秘密情報、known_fp は検出してしまうと分かっている秘密情報でない文。",
+  "expand": {
+    "N×c": "文字 c を N 個並べる",
+    "\\n": "改行 1 文字"
+  },
+  "samples": [
+    {
+      "id": "M-01",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "sk",
+        "-ant-",
+        "api03-{90×A}"
+      ]
+    },
+    {
+      "id": "M-02",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "ANTHROPIC_API_KEY=\"",
+        "sk",
+        "-ant-",
+        "api03-{40×b}",
+        "\""
+      ]
+    },
+    {
+      "id": "M-03",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "キーは ",
+        "sk",
+        "-ant-",
+        "{45×c}",
+        " です。"
+      ]
+    },
+    {
+      "id": "M-04",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "x",
+        "sk",
+        "-ant-",
+        "{45×d}"
+      ]
+    },
+    {
+      "id": "M-05",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "SK",
+        "-ANT-",
+        "{45×e}"
+      ]
+    },
+    {
+      "id": "M-06",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "sk",
+        "-ant-",
+        "{39×f}"
+      ]
+    },
+    {
+      "id": "M-07",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "sk",
+        "-ant-",
+        "{20×g}",
+        "​",
+        "{25×g}"
+      ]
+    },
+    {
+      "id": "M-08",
+      "shape": "sk_ant_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "sk",
+        "-ant-",
+        "{20×h}",
+        "\\n",
+        "{25×h}"
+      ]
+    },
+    {
+      "id": "M-09",
+      "shape": "sk_ant_api_key",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "sk",
+        "-ant- という接頭辞だけの説明です"
+      ]
+    },
+    {
+      "id": "M-10",
+      "shape": "sk_ant_api_key",
+      "truth": "clean",
+      "category": "known_fp",
+      "parts": [
+        "sk",
+        "-ant-",
+        "how-to-write-a-very-long-document-slug-for-the-docs-site"
+      ]
+    },
+    {
+      "id": "M-11",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "sk",
+        "-proj-",
+        "{20×J}_{20×K}-{40×L}"
+      ]
+    },
+    {
+      "id": "M-12",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "sk",
+        "-svcacct-",
+        "{60×M}"
+      ]
+    },
+    {
+      "id": "M-13",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "api_key: \"",
+        "sk",
+        "-proj-",
+        "{48×n}",
+        "\""
+      ]
+    },
+    {
+      "id": "M-14",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "a",
+        "sk",
+        "-admin-",
+        "{45×o}"
+      ]
+    },
+    {
+      "id": "M-15",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "sk",
+        "-proj-",
+        "{39×p}"
+      ]
+    },
+    {
+      "id": "M-16",
+      "shape": "sk_proj_api_key",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "SK",
+        "-PROJ-",
+        "{45×q}"
+      ]
+    },
+    {
+      "id": "M-17",
+      "shape": "sk_proj_api_key",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "sk",
+        "-proj- と sk",
+        "-admin- という接頭辞だけの説明です"
+      ]
+    },
+    {
+      "id": "M-18",
+      "shape": "sk_proj_api_key",
+      "truth": "clean",
+      "category": "known_fp",
+      "parts": [
+        "class=\"",
+        "sk",
+        "-proj-",
+        "card-header-title-large-variant-with-extra-padding\""
+      ]
+    },
+    {
+      "id": "M-19",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "glpat",
+        "-",
+        "{20×T}"
+      ]
+    },
+    {
+      "id": "M-20",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "https://gitlab.example.invalid/api/v4/projects?private_token=",
+        "glpat",
+        "-",
+        "{20×u}",
+        "&per_page=5"
+      ]
+    },
+    {
+      "id": "M-21",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "トークン: ",
+        "glpat",
+        "-",
+        "{20×v}",
+        "。"
+      ]
+    },
+    {
+      "id": "M-22",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "glpat",
+        "-",
+        "{19×w}"
+      ]
+    },
+    {
+      "id": "M-23",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "z",
+        "glpat",
+        "-",
+        "{20×x}"
+      ]
+    },
+    {
+      "id": "M-24",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "GLPAT",
+        "-",
+        "{20×y}"
+      ]
+    },
+    {
+      "id": "M-25",
+      "shape": "gitlab_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "glpat",
+        "-",
+        "{10×z}",
+        "\\n",
+        "{10×z}"
+      ]
+    },
+    {
+      "id": "M-26",
+      "shape": "gitlab_token",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "glpat",
+        "- という接頭辞だけの説明です"
+      ]
+    },
+    {
+      "id": "M-27",
+      "shape": "gitlab_token",
+      "truth": "clean",
+      "category": "known_fp",
+      "parts": [
+        "glpat",
+        "-",
+        "documentation-section-title-example"
+      ]
+    },
+    {
+      "id": "M-28",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "npm",
+        "_",
+        "{36×i}"
+      ]
+    },
+    {
+      "id": "M-29",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "NPM_TOKEN=",
+        "npm",
+        "_",
+        "{36×j}"
+      ]
+    },
+    {
+      "id": "M-30",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "//registry.example.invalid/:_authToken=",
+        "npm",
+        "_",
+        "{36×k}"
+      ]
+    },
+    {
+      "id": "M-31",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "npm",
+        "_",
+        "{35×l}"
+      ]
+    },
+    {
+      "id": "M-32",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "x",
+        "npm",
+        "_",
+        "{36×m}"
+      ]
+    },
+    {
+      "id": "M-33",
+      "shape": "npm_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "NPM",
+        "_",
+        "{36×n}"
+      ]
+    },
+    {
+      "id": "M-34",
+      "shape": "npm_token",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "npm",
+        "_config_registry と npm",
+        "_lifecycle_event の説明です"
+      ]
+    },
+    {
+      "id": "M-35",
+      "shape": "npm_token",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "commit {40×a} と 123e4567-e89b-12d3-a456-426614174000"
+      ]
+    },
+    {
+      "id": "M-36",
+      "shape": "npm_token",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "npm",
+        "_modules と npm",
+        "_install_dependencies の説明です"
+      ]
+    },
+    {
+      "id": "M-37",
+      "shape": "npm_token",
+      "truth": "clean",
+      "category": "known_fp",
+      "parts": [
+        "npm",
+        "_",
+        "pneumonoultramicroscopicsilicovolcanoconiosis"
+      ]
+    },
+    {
+      "id": "M-38",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "realistic",
+      "parts": [
+        "pypi",
+        "-AgEIcHlwaS5vcmc",
+        "{60×w}"
+      ]
+    },
+    {
+      "id": "M-39",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "password = ",
+        "pypi",
+        "-AgEIcHlwaS5vcmc",
+        "{50×X}"
+      ]
+    },
+    {
+      "id": "M-40",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "context",
+      "parts": [
+        "TWINE_PASSWORD=\"",
+        "pypi",
+        "-AgEIcHlwaS5vcmc",
+        "{50×Y}",
+        "\""
+      ]
+    },
+    {
+      "id": "M-41",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "pypi",
+        "-AgEIcHlwaS5vcmc",
+        "{49×Z}"
+      ]
+    },
+    {
+      "id": "M-42",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "q",
+        "pypi",
+        "-AgEIcHlwaS5vcmc",
+        "{50×a}"
+      ]
+    },
+    {
+      "id": "M-43",
+      "shape": "pypi_token",
+      "truth": "secret",
+      "category": "known_miss",
+      "parts": [
+        "PYPI",
+        "-AgEIcHlwaS5vcmc",
+        "{50×b}"
+      ]
+    },
+    {
+      "id": "M-44",
+      "shape": "pypi_token",
+      "truth": "clean",
+      "category": "prefix_only",
+      "parts": [
+        "pypi",
+        "-AgEIcHlwaS5vcmc という接頭辞だけの説明です。https://pypi.org/project/example/"
+      ]
+    }
+  ],
+  "expected": {
+    "sk_ant_api_key": {
+      "secret": 8,
+      "detected": 3,
+      "missed": 5,
+      "clean": 2,
+      "false_positive": 1
+    },
+    "sk_proj_api_key": {
+      "secret": 6,
+      "detected": 3,
+      "missed": 3,
+      "clean": 2,
+      "false_positive": 1
+    },
+    "gitlab_token": {
+      "secret": 7,
+      "detected": 3,
+      "missed": 4,
+      "clean": 2,
+      "false_positive": 1
+    },
+    "npm_token": {
+      "secret": 6,
+      "detected": 3,
+      "missed": 3,
+      "clean": 4,
+      "false_positive": 1
+    },
+    "pypi_token": {
+      "secret": 6,
+      "detected": 3,
+      "missed": 3,
+      "clean": 1,
+      "false_positive": 0
+    }
+  }
+}
