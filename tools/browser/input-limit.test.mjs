@@ -5,7 +5,7 @@
 //
 // TASK-280（JUDGE-23）: キーと貼り付けの側の 5 つの操作（20,000 文字の貼り付け・20,001 文字の貼り付け・
 // 上限ちょうどでの 1 文字の入力・UTF-16 で 20,001 単位の貼り付け・1 文字消す）を、打鍵の 3 経路・Delete・
-// 送信まで含めて確かめる。試験名の K-1〜K-4 は計画の番号。カーソルは末尾に置く（途中への貼り付けは JUDGE-24）。
+// 送信まで含めて確かめる。試験名の K-1〜K-4 は計画の番号。カーソルは末尾に置く（途中への貼り付けの切り捨ては本ファイル末尾の JUDGE-24 の試験が受け持つ）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定。利用者から見える振る舞い）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1。状態と DOM の一致）。
 // どちらも未設定・不在は skip にせず失敗にする。文字列は試験の中で組み立て、fixture のファイルは置かない。
@@ -301,6 +301,126 @@ test('試験の設定（JUDGE-23）: 打鍵で超過した状態と、Backspace 
     assert.equal(s.draftCodePoints, MAX - 1);
     assert.equal(s.inputOverLimit, false);
     assert.equal(await page.evaluate(() => window.__fandheTest.draft()), await value(page));
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+// ---- JUDGE-24（TASK-283。D-60）: 上限を超える貼り付けは貼った分だけを切る ----
+//
+// `beforeinput`（insertFromPaste）で挿入の前に止め、入る分だけを残す。末尾の既存の文字が消えないことが、
+// 全体の末尾で切る安全網でなく `beforeinput` が切った証拠になる。キャレットは残した貼り付けの直後に置く。
+
+// 欄の [start, end) を選んだ状態にして text を貼り付ける（欄は空にしない）。
+async function pasteAt(page, text, start, end = start) {
+  await page.evaluate((t) => navigator.clipboard.writeText(t), text);
+  await page.focus(INPUT);
+  await page.evaluate(([sel, s, e]) => document.querySelector(sel).setSelectionRange(s, e), [INPUT, start, end]);
+  await page.keyboard.press('ControlOrMeta+V');
+}
+
+const caret = (page) => page.evaluate((sel) => {
+  const el = document.querySelector(sel);
+  return [el.selectionStart, el.selectionEnd];
+}, INPUT);
+
+for (const csp of [true, false]) {
+  const mode = `CSP ${csp ? 'あり' : 'なし'}`;
+
+  test(`JUDGE-24 J-1: 途中への超過の貼り付けは貼った分だけを切り、後ろの既存の文字を残し、キャレットは貼った分の直後（${mode}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page, context, rec } = await open(srv);
+      await paste(page, 'a'.repeat(10000) + 'b'.repeat(9990));
+      assert.equal(await notice(page), '');
+      await pasteAt(page, 'x'.repeat(20), 10000);
+      assert.equal(await value(page), 'a'.repeat(10000) + 'x'.repeat(10) + 'b'.repeat(9990));
+      assert.equal(await notice(page), NOTICE);
+      assert.deepEqual(await caret(page), [10010, 10010]);
+      assertClean(rec);
+      await context.close();
+    }));
+  });
+}
+
+test('JUDGE-24 J-2: 上限ちょうどで途中に貼っても値は変わらず、案内が出て、キャレットは残り、1 文字消すと案内が消える', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    const base = 'a'.repeat(10000) + 'b'.repeat(10000);
+    await paste(page, base);
+    await pasteAt(page, 'xyz', 10000);
+    assert.equal(await value(page), base);
+    assert.equal(await notice(page), NOTICE);
+    assert.deepEqual(await caret(page), [10000, 10000]);
+    await page.keyboard.press('Backspace');
+    assert.equal(cpLen(await value(page)), MAX - 1);
+    assert.equal(await notice(page), '');
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('JUDGE-24 J-3: 選択範囲を置き換える貼り付けは、選択した分だけ入る量が増える', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await paste(page, 'a'.repeat(10000) + 'b'.repeat(10000));
+    await pasteAt(page, 'x'.repeat(30), 9998, 10003);
+    const v = await value(page);
+    assert.equal(cpLen(v), MAX);
+    assert.equal(v, 'a'.repeat(9998) + 'x'.repeat(5) + 'b'.repeat(9997));
+    assert.equal(await notice(page), NOTICE);
+    assert.deepEqual(await caret(page), [10003, 10003]);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('JUDGE-24 J-4: サロゲートペアの貼り付けは境界で切り、ペアを割らない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await paste(page, 'a'.repeat(19990));
+    // 先頭へ貼る（後ろに 19,990 文字が残り、入る分は 10 文字）。
+    await pasteAt(page, '😀'.repeat(30), 0);
+    const v = await value(page);
+    assert.equal(v.isWellFormed(), true);
+    assert.equal(cpLen(v), MAX);
+    assert.equal(v, '😀'.repeat(10) + 'a'.repeat(19990));
+    assert.equal(await notice(page), NOTICE);
+    assert.deepEqual(await caret(page), [20, 20]);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('JUDGE-24 J-5: 対照。末尾への超過の貼り付けは今までと同じ、収まる途中への貼り付けは既定の挿入で案内なし', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await paste(page, 'a'.repeat(19990));
+    await pasteAt(page, 'x'.repeat(20), 19990);
+    assert.equal(await value(page), 'a'.repeat(19990) + 'x'.repeat(10));
+    assert.equal(await notice(page), NOTICE);
+    assert.deepEqual(await caret(page), [MAX, MAX]);
+
+    await paste(page, 'a'.repeat(100) + 'b'.repeat(100));
+    await pasteAt(page, 'xyz', 100);
+    assert.equal(await value(page), 'a'.repeat(100) + 'xyz' + 'b'.repeat(100));
+    assert.equal(await notice(page), '');
+    assert.deepEqual(await caret(page), [103, 103]);
+    assertClean(rec);
+    await context.close();
+  });
+});
+
+test('試験の設定（JUDGE-24）: 途中への超過の貼り付けの後、状態の下書き・超過の印が欄の value と一致する', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    assert.equal(await page.evaluate(() => typeof window.__fandheTest?.draft), 'function', 'test hooks are missing');
+    await paste(page, 'a'.repeat(10000) + 'b'.repeat(9990));
+    await pasteAt(page, 'x'.repeat(20), 10000);
+    const s = JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson()));
+    assert.equal(s.draftCodePoints, MAX);
+    assert.equal(s.inputOverLimit, true);
+    assert.equal(await page.evaluate(() => window.__fandheTest.draft()), await value(page));
+    assert.equal(await value(page), 'a'.repeat(10000) + 'x'.repeat(10) + 'b'.repeat(9990));
     assertClean(rec);
     await context.close();
   });

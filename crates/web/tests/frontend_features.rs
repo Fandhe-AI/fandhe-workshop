@@ -96,12 +96,12 @@ fn cargo_lock_の解決済みの版が採用版と一致する() {
     }
 }
 
-/// `web-sys` の feature の一覧と用途（FEND-20・TASK-362 2/2。2026-10-20 時点で 24 個）。
+/// `web-sys` の feature の一覧と用途（FEND-20・TASK-362 2/2。2026-10-21 時点で 25 個）。
 ///
 /// FEND-20 は web-sys の feature の数を記録し、増えたら理由を求める。個数だけでなく中身も比べるので、
 /// 追加にも入れ替えにも気づける。足すときは、ここに用途を書き、`docs/testing.md` 5.166 の表を同時に更新する。
 /// spec の「9 個」は決定時点の PoC の値で、その後に保存先（10 個）・書き出し（3 個）などが加わった（5.92・5.166）。
-const WEB_SYS_FEATURES: [(&str, &str); 24] = [
+const WEB_SYS_FEATURES: [(&str, &str); 25] = [
     (
         "Document",
         "キー入力等: root の外の Esc の keydown の登録先",
@@ -112,6 +112,10 @@ const WEB_SYS_FEATURES: [(&str, &str); 24] = [
     ),
     ("Element", "キー入力等: 要素の取得と属性の書き込み"),
     ("Event", "キー入力等: イベントの受け取り"),
+    (
+        "EventInit",
+        "貼り付けの切り捨て: 泡立つ input の合成（JUDGE-24）",
+    ),
     ("EventTarget", "キー入力等: リスナーの登録"),
     ("HtmlElement", "キー入力等: click"),
     ("HtmlTextAreaElement", "キー入力等: textarea の値の反映"),

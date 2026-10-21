@@ -1,0 +1,10 @@
+id: JUDGE24-1
+package: fandhe-workshop-web
+test: input_limit
+target: crates/web/src/input_limit.rs
+find:     if after.is_empty() {
+replace:     if !after.is_empty() {
+expect-fail: judge24_途中への貼り付けは貼った分だけを切り_後ろの既存の文字を残す
+expect-fail: judge24_上限ちょうどで途中に貼ると値は変わらず_超過の印が立ち_キャレットは残る
+expect-fail: judge24_後ろが空なら介入せず_末尾で切る安全網に任せる
+note: 介入の条件を反転する（途中への貼り付けで介入せず、末尾で切る安全網に任せるため、後ろの既存の文字が消える）

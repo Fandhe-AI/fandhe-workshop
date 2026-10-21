@@ -4992,7 +4992,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 |---|---|
 | L1 | 構造を変える操作（`set_inner_html`・`append_child`・`create_element` など）は、層のどのモジュールにも 0 件 |
 | L2 | glue 以外のモジュールは、モジュールごとの許可表（`MODULE_RULES`）と、層で共有する DOM ではない呼び出し名（`LAYER_NON_DOM_CALLS`・`NON_DOM_CALLS`）に無い呼び出し名を持たない。glue は従来の 7 種の厳密な表のまま（緩めない） |
-| L3 | リスナー登録の第 1 引数は文字列リテラルで、モジュールの許可イベントにある。glue は 4 種、`leave_flush` は `pagehide` だけ、他は 0 種（リスナー登録の呼び出し自体も許さない） |
+| L3 | リスナー登録の第 1 引数は文字列リテラルで、モジュールの許可イベントにある。glue は 5 種（TASK-283 で `beforeinput` を足した。5.189）、`leave_flush` は `pagehide` だけ、他は 0 種（リスナー登録の呼び出し自体も許さない） |
 | L4 | glue 固有の DOM 操作（`query_selector`・`set_attribute`・`click`・`set_value`・`prevent_default` など）は、他のモジュールの許可表に書けない。例外は別の意味で使う `window`・`root`・`contains`・`key` だけ。glue の外の `.query_selector(` は 0 件、`.root(` は `test_hooks` の 1 件だけ |
 | L5 | 層の列挙が空、glue が無い、許可表に無いモジュールがある（新しい wasm32 専用モジュールが増えた）、層に無いモジュールの行が表にある、のどれも失敗にする（fail-closed） |
 
@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 452`（`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 491`（2026-10-21 に TASK-283 の `wire_paste_clip` で 452 から上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -5025,7 +5025,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 #### web-sys の feature（2026-10-20、`26520cb`）
 
-ルート `Cargo.toml` の `[workspace.dependencies]` に 24 個ある。`frontend_features.rs` の `WEB_SYS_FEATURES`（用途つき）と中身まで完全に一致することを確かめる（個数だけでなく入れ替えにも気づく）。`default-features = false` と、`crates/web/Cargo.toml` の web-sys が `workspace = true` だけで feature を足していないことも確かめる。
+ルート `Cargo.toml` の `[workspace.dependencies]` に 25 個ある（2026-10-21 に TASK-283 が `EventInit` を足して 24 個から増えた。5.189。下の表の個数は 24 個の時点のまま）。`frontend_features.rs` の `WEB_SYS_FEATURES`（用途つき）と中身まで完全に一致することを確かめる（個数だけでなく入れ替えにも気づく）。`default-features = false` と、`crates/web/Cargo.toml` の web-sys が `workspace = true` だけで feature を足していないことも確かめる。
 
 | 用途 | 個数 | feature |
 |---|---|---|
@@ -5993,6 +5993,68 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 - 関門は `run` と `entry` だけを戻す。`checkpoints`・`next_checkpoint`・`drafts`・`hints_opened` は `Op::Input` の経路が書かない欄で、戻さず、性質テストの一致の検査だけで守る
 - 関門の行そのものへの変異は、統合試験だけを対象にする `check-mutations.sh` では記録できない
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.189 上限を超える貼り付けの切り捨て位置（TASK-283。JUDGE-24・TERM-16・D-60）
+
+入力欄は 1 回の入力を 20,000 コードポイントまでとする（5.3 系。TASK-158・TASK-280）。従来は値全体の末尾で切っていたため、上限に近い下書きの途中へ長い文字列を貼ると、貼った分でなく入力済みの末尾が消えた（PoC-2 の F-9）。D-60（2026-10-15）は「貼った分だけを切る。`beforeinput` で挿入の前に止める。全体の末尾で切る処理は安全網として残す。ブラウザの自動試験への合格を採用の条件とする」と決めた。本節は、その実装と試験の記録である。
+
+- 実行日: 2026-10-21。元にしたコミット: 13b7156（dirty。本変更を含む）
+- コマンド: `cargo test --locked -p fandhe-workshop-web --test input_limit`・`scripts/check-mutations.sh crates/web/tests/mutations/JUDGE24-1.mutation`（JUDGE24-2 も同様）・`make test-browser`（通過。`input-limit.test.mjs` の JUDGE-24 の 7 件を含む）
+
+#### 決めたこと（2026-10-21 に spec の D-65 として記録された）
+
+| 論点 | 決定 |
+|---|---|
+| 切る位置 | 貼った文字列の先頭から、入る分（上限 − 選択の外の文字数）だけ残し、残りを捨てる（D-60） |
+| 介入する条件 | `insertFromPaste`・変換中でない・下書きの `<textarea>`・欄と状態が揃っている・選択の終わりより後ろに既存の文字がある・合計が上限を超える、のすべてを満たすとき。選択の終わりが末尾なら末尾で切っても結果が同じなので、従来の安全網に任せる |
+| キャレット | 残した貼り付けの直後（選択の始まり + 残した分の UTF-16 の長さ）。D-60 は位置を決めていないため本実装で決めた。spec の観察（末尾へ移る）とは違う |
+| 案内 | 切ったときも JUDGE-23 の案内を出す。1 文字消すと消える |
+| 対象外 | `insertFromDrop`・`insertText`（上限ちょうどでの途中への 1 文字）・`insertReplacementText`。安全網（末尾で切る）が受け持つ |
+
+#### 実装
+
+- 純粋関数 `input_limit::clip_paste`（DOM に触れない）。範囲外・逆順・サロゲートペアの途中・選択の外だけで上限を超える場合は `None`（介入せず安全網に倒す）。改行は LF として数える。はみ出した先頭 1 文字を値の末尾に置き、状態側の `clamp_draft` がちょうどその 1 文字を切って超過の印を立てる（超過の判定を 1 か所に保つため）
+- glue の `wire_paste_clip`（`beforeinput`）。計画があれば `preventDefault`・欄へ値を書く・泡立つ `input` を合成・キャレットを置く。合成の `input` は上流の通常の入力の経路で `SetDraft` を届け、glue は状態を直接変えない。欄の今の値は読まず、状態の下書きから取る（`.value()` の例外は 1 件のまま）
+- 変えたガード: `glue_contract.rs` の許可イベントに `beforeinput` を足し（4 種から 5 種）、DOM の呼び出し名（`input_type`・`data`・`selection_start`・`selection_end`・`set_selection_range`・`dispatch_event`・`new_with_event_init_dict`・`set_bubbles`）を `TextareaSync` として足した。`glue_scale.rs` の上限を 452 から 491 に、web-sys の feature に `EventInit` を足した（24 個から 25 個）。`GlueOp` の変種は増やさないが、操作範囲が従来の値の書き戻しを超えるため `PARTS_CONTRACT_VERSION` を 1 から 2 に上げた（codex の P1 指摘への対応）。許される操作の範囲（読むのは利用者の入力である選択の位置と貼り付けた文字列で、描画の結果ではない境界を含む）と契約の版 2 は、spec の FEND-20 と D-65 に反映した（2026-10-21）
+
+#### 確認した事実（Chromium。Playwright の `ControlOrMeta+V`）
+
+`beforeinput` は `inputType === 'insertFromPaste'` で発火し、`data` に貼り付けた平文が入る。`data_transfer` を使う必要はなかった（web-sys の `DataTransfer` は足していない）。
+
+#### 試験
+
+| 種別 | 試験 | 内容 |
+|---|---|---|
+| native | `input_limit.rs` の `judge24_` 11 件 | 収まる貼り付けは介入しない・途中の超過で後ろが残る・上限ちょうど・選択の置き換え・後ろが空・サロゲートペア・既存側のペアの途中・CRLF/CR・不正な位置・選択の外だけで超過・200,000 文字 |
+| ブラウザ | J-1（CSP あり・なし） | 19,990 文字の 10,000 の位置へ 20 文字を貼ると、10 文字だけ入り末尾の既存の文字が残り、案内が出て、キャレットは 10,010 |
+| ブラウザ | J-2 | 上限ちょうどで途中に貼っても値は変わらず、案内が出て、キャレットは残り、Backspace で案内が消える |
+| ブラウザ | J-3 | 選択した 5 文字を置き換える貼り付けは、入る量が 5 文字増える |
+| ブラウザ | J-4 | サロゲートペアを境界で切り、`isWellFormed()` が真 |
+| ブラウザ | J-5（対照） | 末尾への超過の貼り付けは従来と同じ。収まる途中への貼り付けは既定の挿入で案内なし |
+| ブラウザ | 試験の設定 | 状態の下書き・超過の印が欄の値と一致する |
+
+#### 変異の結果（2026-10-21）
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| JUDGE24-1 | `input_limit.rs`: 介入の条件を反転する | DETECTED |
+| JUDGE24-2 | `input_limit.rs`: キャレットを貼り付けの直後からずらす | DETECTED |
+
+ブラウザの試験への変異の対照は行っていない（未実施）。
+
+#### 既知の限界
+
+- 欄の値をプログラムで書くため、Ctrl+Z で貼り付けの前に戻らない
+- `insertFromDrop`・上限ちょうどでの途中への打鍵（`insertText`）は、末尾の既存の文字が消えうる（JUDGE-23 の K-1 は末尾でしか確かめていない）
+- Chromium だけ。Firefox・Safari・実 IME は扱わない
+
+#### spec への反映（D-65）
+
+JUDGE-24・TERM-16 の証拠への `beforeinput` の自動ブラウザ試験の合格の追記、「検討中」から「確定」への変更、キャレットの位置の決定は、spec の D-65（2026-10-21）で記録した。`docs/spec` の参照は D-65 を含む版に上げた。
+
+#### 既存の試験への影響
+
+`scripts/expected-test-counts.txt` は更新していない（5.186 と同じ。版上げの前に `make update-test-counts` で更新する）。`scripts/test-browser.sh` は変えていない（`input-limit.test.mjs` は既に一覧にある）。
 
 ### 5.190 推定した OS ごとの修飾キーの表示（TASK-285 1/2。JUDGE-28・D-48）
 

@@ -17,7 +17,7 @@
 //! - 進行の宛先を DOM の `data-payload` に書いて click する経路と、隠し要素 `tick-trigger`・`esc-trigger`・
 //!   `complete-trigger` は置かない（FEND-4）。`tick`・`complete` は `dispatch_action` からだけ届く。
 //!
-//! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 1）。変える場合は先に spec を直して版を上げる。
+//! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 2）。変える場合は先に spec を直して版を上げる。
 //!
 //! 意図して固定しないもの（持ち主が別にあるため）: 宛先の照合（TASK-210）、タイマーの間隔、glue の結線
 //! （TASK-349 で結線済み）、キー処理の受け持ち（FEND-7・FEND-8）。
