@@ -275,3 +275,84 @@ fn history_derived_strings_are_not_shown_in_the_notice() {
     assert_eq!(s.matches("1.1.0").count(), 0);
     assert!(s.contains(VERSION_CONVERTED_NOTICE));
 }
+
+// ここから TASK-535 2/2（SHELL-20）。変換して開いた後の操作の保存が、開いた側の版で書かれることを固定する。
+// 保存の値の `versions` は `build_envelope` がいま載っている IR から求め直すので、履歴を書いた側の版は引き継がれない。
+
+/// `version` の教材から求めた、いま載せるべき 4 軸の版（保存の値の `versions` の期待）。
+fn expected_versions(version: &str) -> fandhe_workshop_contract::history_version::HistoryVersions {
+    let ir = load_ir(&ir_json(version, "")).unwrap();
+    let hash = fandhe_workshop_contract::content_hash::content_hash(&ir).unwrap();
+    fandhe_workshop_core::version_record::record_versions(&ir, &hash).unwrap()
+}
+
+fn act(name: &str, payload: &str) -> HostAction {
+    EngineHost::decode_action(name, payload).unwrap()
+}
+
+/// 秘密情報の検査に当たらない固定の文を送って、状態を変える。
+fn operate(h: &mut EngineHost) {
+    h.update(act("draft", "/make-note second-note"));
+    h.update(act("submit", ""));
+}
+
+fn saved_ops(h: &EngineHost) -> usize {
+    h.history_to_save()
+        .map(|t| {
+            parse_history_envelope(parse_history_json(t.as_bytes()).unwrap())
+                .unwrap()
+                .ops
+                .len()
+        })
+        .unwrap_or(0)
+}
+
+fn saved_versions(h: &EngineHost) -> fandhe_workshop_contract::history_version::HistoryVersions {
+    let text = h.history_to_save().expect("saved value exists");
+    parse_history_envelope(parse_history_json(text.as_bytes()).unwrap())
+        .unwrap()
+        .versions
+}
+
+#[test]
+fn a_save_after_a_converted_open_is_written_with_the_opening_versions() {
+    let mut h = host("1.1.0");
+    assert_eq!(h.open_history(&history("1.0.0")), ImportOutcome::Converted);
+    let opened_ops = saved_ops(&h);
+    operate(&mut h);
+    let versions = saved_versions(&h);
+    assert!(
+        versions == expected_versions("1.1.0"),
+        "versions follow the opening ir"
+    );
+    assert!(
+        versions != expected_versions("1.0.0"),
+        "versions differ from the history's"
+    );
+    assert!(saved_ops(&h) > opened_ops, "ops are appended");
+
+    // 書かれた値は新しい版では変換なしで開け、古い版では変換になる（版が本当に変わったことの対照）。
+    let bytes = h.history_to_save().unwrap().into_bytes();
+    let mut again = host("1.1.0");
+    assert_eq!(again.open_history(&bytes), ImportOutcome::Open);
+    assert_eq!(items(&again), 0);
+    let mut older = host("1.0.0");
+    assert_eq!(older.open_history(&bytes), ImportOutcome::Converted);
+}
+
+#[test]
+fn a_save_after_a_boot_restore_conversion_is_written_with_the_opening_versions() {
+    let mut h = host("1.1.0");
+    assert_eq!(h.boot(Some(&history("1.0.0"))), BootKind::Restored);
+    assert_eq!(items(&h), 1);
+    operate(&mut h);
+    assert!(saved_versions(&h) == expected_versions("1.1.0"));
+}
+
+#[test]
+fn control_a_same_version_open_keeps_writing_the_same_versions() {
+    let mut h = host("1.0.0");
+    assert_eq!(h.open_history(&history("1.0.0")), ImportOutcome::Open);
+    operate(&mut h);
+    assert!(saved_versions(&h) == expected_versions("1.0.0"));
+}
