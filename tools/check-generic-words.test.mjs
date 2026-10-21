@@ -24,6 +24,7 @@ const APPENDIX = `# 語彙
 | 掲示板 | \`bbs\` | 部分一致 |
 | 掲示板 | \`thread\` | 語の一致 |
 | GitHub | \`github\` | 部分一致 |
+| GitHub | \`gh\` | 語の一致 |
 | GitHub | \`pr\` | 語の一致 |
 | GitHub | \`issue\` | 語の一致 |
 | Claude Code | \`skill\` | 語の一致 |
@@ -33,6 +34,9 @@ const APPENDIX = `# 語彙
 
 // command_class.rs の例外（skill が 3 件）を満たす最小の写し。
 const COMMAND_CLASS = 'enum K { Skill }\nfn f() { let _ = "skill"; let _ = "skill"; }\n';
+
+// secret_scan.rs の例外（github が 5 件・gh が 2 件）を満たす最小の写し。
+const SECRET_SCAN = 'const A: &str = "github";\n'.repeat(5) + 'const B: &str = "gh";\n'.repeat(2);
 
 const dirs = [];
 afterEach(() => {
@@ -50,6 +54,7 @@ function makeRoot(files = {}, { appendix = APPENDIX, commandClass = COMMAND_CLAS
   if (appendix !== null) put('docs/vocabulary/vocabulary.md', appendix);
   put('crates/core/src/lib.rs', 'pub fn ok() {}\n');
   put('crates/core/src/command_class.rs', commandClass);
+  put('crates/core/src/secret_scan.rs', SECRET_SCAN);
   for (const [rel, body] of Object.entries(files)) put(rel, body);
   return root;
 }
@@ -157,6 +162,17 @@ test('例外の件数: command_class.rs の skill を 1 増やしても 1 減ら
   assert.equal(run(makeRoot({}, { commandClass: 'enum K { Skill }\nfn f() { let _ = "skill"; }\n' })).code, 1);
   // 例外は command_class.rs の skill だけ。別のファイルの skill は違反。
   assert.equal(run(makeRoot({ 'crates/x/src/a.rs': 'enum K { Skill }\n' })).code, 1);
+});
+
+test('例外の件数: secret_scan.rs の github と gh は増減で 1、別のファイルの github は違反', () => {
+  const rs = (n, w) => `const A: &str = "${w}";\n`.repeat(n);
+  const root = (github, gh) => makeRoot({ 'crates/core/src/secret_scan.rs': rs(github, 'github') + rs(gh, 'gh') });
+  assert.equal(run(root(5, 2)).code, 0);
+  assert.equal(run(root(6, 2)).code, 1);
+  assert.equal(run(root(4, 2)).code, 1);
+  assert.equal(run(root(5, 3)).code, 1);
+  assert.equal(run(root(5, 1)).code, 1);
+  assert.equal(run(makeRoot({ 'crates/x/src/a.rs': 'const A: &str = "github";\n' })).code, 1);
 });
 
 test('許可は字句の完全一致だけ: thread_local は 0、thread_pool は 1', () => {

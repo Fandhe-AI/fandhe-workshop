@@ -90,7 +90,7 @@ fn deliver(action: &Scheduled) -> Option<DispatchEffect> {
 /// 戻りのタイマー ID は捨て、`clearTimeout` は使わない。進行は予約時の世代（`TICK_EPOCH`）を持ち、配送の時点で
 /// 世代が進んでいれば捨てる（履歴の差し替え前のタイマー）。それ以外の古い宛先は届いても core が無視する。同じ世代で届いた進行の宛先は、
 /// その宛先の予約の印を外す。
-fn schedule_action(action: impl Into<Scheduled>, delay_ms: i32) {
+pub(crate) fn schedule_action(action: impl Into<Scheduled>, delay_ms: i32) {
     let action: Scheduled = action.into();
     let Some(window) = web_sys::window() else {
         return;

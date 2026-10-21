@@ -122,6 +122,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "now",
     "save_deferred",
     "report_save_result",
+    // 遅延保存の直前の検出の配送（SAFE-27。TASK-164 1/3）。形だけを運び、DOM には触れない。
+    "SecretHold",
     "save_epoch",
     "is_scheduled",
     "is_ok_and",
@@ -565,6 +567,8 @@ const MODULE_RULES: &[ModuleRule] = &[
             "mount_host",
             // 変更の後の遅延保存（TASK-318）。履歴の読み取りと試験の計数で、DOM には触れない。
             "history_to_save",
+            // 遅延保存の直前の検出の配送（SAFE-27）。形だけを予約して運ぶ。DOM には触れない。
+            "schedule_action",
             "set",
             "get",
             "saturating_add",
@@ -608,6 +612,7 @@ const MODULE_RULES: &[ModuleRule] = &[
             "history_to_save",
             "storage_kind_name",
             "autosave_count",
+            "secret_hold_count",
             "mount_fixture_from_search",
             // 古いタブかの真偽だけを返す口（SAVE-12。TASK-324 1/2）。
             "stale_tab",

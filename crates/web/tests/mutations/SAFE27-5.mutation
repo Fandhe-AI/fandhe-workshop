@@ -1,0 +1,9 @@
+id: SAFE27-5
+package: fandhe-workshop-web
+test: secret_notice
+target: crates/web/src/secret_notice.rs
+find:     if shapes.is_empty() {
+replace:     if true {
+expect-fail: every_shape_stops_the_save_and_shows_only_its_name
+expect-fail: secret_hold_action_accepts_exact_payloads_only
+note: 警告の文を常に空にする（検出しても形の名前が出ない。SAFE-29）

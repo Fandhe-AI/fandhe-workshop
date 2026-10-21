@@ -1,0 +1,9 @@
+id: SAFE27-1
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:     scan_jwt(&mut out, s);
+replace:     let _ = scan_jwt;
+expect-fail: all_ten_shapes_are_detected_with_the_expected_id
+expect-fail: shapes_are_detected_inside_json_strings_and_nested_values
+note: 3 部の連なりの規則を落とす（S-08 が検出されない。SAFE-27）
