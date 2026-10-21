@@ -163,7 +163,7 @@ export function inspectDeliveryRefs(dir) {
 }
 
 // 章への直接リンク 10 件（DLV-1）。出所は PoC-10 が実行より前に固定した表（spec の 03-poc/static-delivery-localhost/test-data/direct-links.md）。
-// エンジンは現時点でリンクを解釈しないので、start は不透明な識別子として扱う。開始点を 10 以上持つ IR ができたら（TASK-109・TASK-110）差し替える。
+// エンジンは現時点でリンクを解釈しないので、start は不透明な識別子として扱う。試験の設定の `?fixture=ch0-3-links`（`src/test_fixture.rs` の `CH03_LINK_POINTS`）がこの 10 件を開始点に持ち、DLV-7 は direct-link-reload.test.mjs（TASK-110 1/2）が確かめる。
 export const DIRECT_LINKS = Object.freeze([
   ['ch0', 's-0-1'], ['ch0', 's-0-2b'],
   ['ch1', 's-1-1'], ['ch1', 's-1-4'], ['ch1', 's-1-5'], ['ch1', 's-1-6'],
