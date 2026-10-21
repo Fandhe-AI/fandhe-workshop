@@ -559,6 +559,43 @@ fn 限界_照合の後に別のタブが取得すると_1_回だけ書くが_後
 }
 
 #[test]
+fn 交互に_10_回ずつ書いても保存先には新しいタブの最後の書き込みだけが残る() {
+    // 合流の規則は足さない（D-56。SAVE-13）。古いタブの書き込みは何度重ねても新しいタブの値を壊さない。
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    let a = BootGuard::claim(Rc::clone(&local), &k, 0xa);
+    let b = BootGuard::claim(Rc::clone(&local), &k, 0xb);
+    let st = storage(&local, None);
+    let ga = Guarded {
+        inner: &st,
+        guard: &a,
+    };
+    let gb = Guarded {
+        inner: &st,
+        guard: &b,
+    };
+
+    for i in 1..=10 {
+        let before = history_raw(&local, &k);
+        ga.write(&k, &format!("a-{i}")).unwrap();
+        assert_eq!(
+            history_raw(&local, &k),
+            before,
+            "古いタブの書き込みは届かない"
+        );
+        let from_b = format!("b-{i}");
+        gb.write(&k, &from_b).unwrap();
+        assert_eq!(
+            history_raw(&local, &k).as_deref(),
+            Some(from_b.as_str()),
+            "新しいタブの書き込みは届く（陽性の対照）"
+        );
+    }
+    assert!(a.is_stale());
+    assert!(!b.is_stale());
+}
+
+#[test]
 fn 限界_書いた直後の再照合が古い値を読んでも次の保存の照合で止まる() {
     let local = Rc::new(FakeLocal::default());
     let k = key("pack-a");

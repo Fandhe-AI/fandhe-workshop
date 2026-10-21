@@ -16,6 +16,9 @@
 //   (1) の後 A の `stale-notice` は空、(2) の後 B のそれも空（出ない側の対照）。(3) の後 A のそれは空でなくなり、
 //   保存失敗の `save-notice` は空のまま、B のそれは空のままである。(5) の後も A の通知は消えない。
 //   文面は仮置きのため、文そのものは固定せず「空でない」だけを確かめる。
+// 合流の規則は足さない（TASK-325 2/2。SAVE-13・D-56）。その下で、2 つのタブが交互に 10 回ずつ操作した後も保存先が
+// 壊れず、新しいタブの履歴が再読み込みで開く（bootKind が restored で、写しと一致する）ことを別の試験で確かめる。
+// 古いタブの操作は合流されないため、古いタブを再読み込みしても新しいタブの履歴から続く。
 // 照合と書き込みの間の競合の窓は対象外（逐次の場面だけを確かめる。docs/known-gaps.md の SAVE-12）。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。CSP あり・なしの両方で流す。
@@ -196,6 +199,53 @@ for (const csp of [true, false]) {
       await b.reload();
       await waitMounted(b);
       await assertRestored(b, cSnap, 'B after second reload');
+      clean(rec);
+      await context.close();
+    }));
+  });
+
+  test(`交互に 10 回ずつ操作しても保存先は壊れず、新しいタブの履歴が開く（CSP ${label}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const { page: a, context, rec } = await openPage(browser, { origin: srv.origin });
+      await a.goto(srv.url);
+      await waitMounted(a);
+      const key = await keyOf(a);
+      await sendStep(a);
+      assert.notEqual(await saved(a, key), null, 'A saved its first change');
+
+      const b = await secondTab(context, srv.url);
+      let last = await saved(b, key);
+      for (let i = 1; i <= 10; i += 1) {
+        // 古いタブ A の操作は保存先に届かない。
+        await sendStep(a);
+        assert.deepEqual(await saved(b, key), last, `round ${i}: A did not overwrite`);
+        // 新しいタブ B の操作は保存される。最後の回だけ確認まで進めて Step を A と変える。
+        if (i < 10) await sendStep(b);
+        else {
+          await sendStep(b);
+          await b.click(ROW);
+          await waitCurrent(b, 'main/st-2');
+        }
+        last = await waitSavedChange(b, key, last);
+        await idle(b);
+      }
+      assert.equal(await stale(a), true);
+      assert.equal(await stale(b), false);
+      assert.notEqual(await staleNotice(a), '');
+      assert.equal(await staleNotice(b), '');
+      assert.equal((await engine(a)).current !== (await engine(b)).current, true, 'A and B are on different steps');
+      const bSnap = await snapshot(b);
+
+      // 新しいタブの履歴が開く（replay_mismatch なら bootKind は restored にならない）。
+      await b.reload();
+      await waitMounted(b);
+      await assertRestored(b, bSnap, 'B after reload');
+      await idle(b);
+
+      // 古いタブ A を再読み込みしても、合流されず新しいタブの履歴から続く。
+      await a.reload();
+      await waitMounted(a);
+      await assertRestored(a, bSnap, 'A after reload');
       clean(rec);
       await context.close();
     }));
