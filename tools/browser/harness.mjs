@@ -482,6 +482,11 @@ export function inspectInlineFree({ html, css, testHooks = false }) {
     const attrs = attrMap(m[1]);
     if (!attrs.has('src')) problems.push('inline script found (no src attribute)');
     else srcScripts.push(attrs);
+    // src を持っても、同じ要素に中身が同居する形（<script src=./app.js>alert(1)</script>）は CSP が止めるが、検査でも落とす。
+    const from = m.index + m[0].length;
+    const close = src.slice(from).search(/<\/script[\t\n\f\r ]*>/i);
+    const body = close === -1 ? src.slice(from) : src.slice(from, from + close);
+    if (/\S/.test(body)) problems.push('script element has inline content');
   }
   if (srcScripts.length !== 1) problems.push(`script with src count is ${srcScripts.length} (expected exactly 1)`);
   else if (srcScripts[0].get('src') !== './app.js' || srcScripts[0].get('type') !== 'module') {

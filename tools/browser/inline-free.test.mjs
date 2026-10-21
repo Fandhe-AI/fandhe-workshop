@@ -76,6 +76,9 @@ const cases = [
   ['外部の script を足す', /script with src count is 2/, 2, ({ html }) => ({
     html: html.replace('</body>', '<script src="https://example.invalid/x.js"></script></body>'),
   })],
+  ['src つきの script に中身を同居させる', /script element has inline content/, 1, ({ html }) => ({
+    html: html.replace(/(<script[^>]*src="\.\/app\.js"[^>]*>)(<\/script>)/, '$1alert(1)$2'),
+  })],
   ['外部の画像を足す', /src on <img> is an external URL/, 1, ({ html }) => ({
     html: html.replace('</body>', '<img src="https://example.invalid/x.png"></body>'),
   })],
