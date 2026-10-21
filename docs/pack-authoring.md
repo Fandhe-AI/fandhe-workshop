@@ -139,7 +139,9 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境�
 
 取り消し（EP-2）は `input.kind` ではなく、規則の `on: { cancel: true }` で受けます。`kind: cancel` は未知の `kind` として
 `E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
-`E-PARSE`、`false` は `E-STRUCTURE` です。`on` の他のキーとの組み合わせや入力方式との整合は、ここでは検査しません。
+`E-PARSE`、`false` は `E-STRUCTURE` です。`on` のキー同士の組み合わせは検査しません。
+
+自然文の内容で規則を分ける書き方（`on: {text: true, contains: ...}` など）は書けません（PACK-41、D-43）。判定語は語彙に足さない決定で、`text` の Step が判定するのは空でないことと文字数だけです。`text` を含む `on`、または `text` の Step の規則の `on` に、規則の `on` の語彙（`command`・`args`・`missing`・`option`・`approval`・`target`・`ui`・`text`・`cancel`）にないキーがあるか、`on.text` が真偽値でないか、`on` が mapping でない（`text` の Step）と、`validate` も `compile` も `E-PARSE` にします。黙って通すと、内容を見ない規則（当たらない規則・常に当たる規則）になるためです。分けたいときは、Step を分ける、入力方式を `choice` にする、受け付けた後の確認で人が判断する、のいずれかにします。限界は `docs/known-gaps.md` の H-2 です。
 
 ## 確認（`confirm`）
 
@@ -582,6 +584,7 @@ views:
 
 | 試験 | 確かめること |
 |---|---|
+| `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
