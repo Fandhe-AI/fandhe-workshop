@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use fandhe_frontend_interactive::{Component, DirtyTracked};
-use fandhe_workshop_contract::judgment::Judgment;
+use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::Input;
 use fandhe_workshop_core::session::SessionState;
@@ -103,6 +103,66 @@ fn 拒否された送信は記録され_下書きは残り_書き戻しは要求
     assert_eq!(rejected(&h), 1);
     assert_eq!(h.draft(), "/unknown-x");
     assert_eq!(sync.get(), 0);
+}
+
+/// 直近の拒否の分類。拒否でなければ `None`。
+fn last_rejection(h: &EngineHost) -> Option<RejectCategory> {
+    h.model()
+        .session()
+        .unwrap()
+        .log()
+        .iter()
+        .rev()
+        .find_map(|e| match e {
+            Event::Judged {
+                judgment: Judgment::Rejected(r),
+                ..
+            } => Some(r.category),
+            _ => None,
+        })
+}
+
+#[test]
+fn 全拒否の分類で_拒否の後の下書きは送った本文のまま_書き戻しは要求されない() {
+    // (期待の分類, 先に受け付けさせる本文（busy のときだけ）, 欄の本文)
+    let cases: [(RejectCategory, Option<&str>, &str); 8] = [
+        (RejectCategory::UnknownCommand, None, "/nothing"),
+        (RejectCategory::WrongOrder, None, "/publish-note"),
+        (RejectCategory::MissingArg, None, "/make-note"),
+        (RejectCategory::BadArgShape, None, "/make-note Bad_Name"),
+        (RejectCategory::NotSupported, None, "/sync-cloud"),
+        (RejectCategory::NotInThisStep, None, "/help"),
+        (
+            RejectCategory::NotInThisStep,
+            None,
+            "メモを書く\n\n  二行目  ",
+        ),
+        (
+            RejectCategory::Busy,
+            Some("/make-note first-note"),
+            "/make-note second-note",
+        ),
+    ];
+    let mut seen = Vec::new();
+    for (want, first, body) in cases {
+        let (mut h, sync) = host();
+        let mut base = 0;
+        if let Some(f) = first {
+            type_and_submit(&mut h, f);
+            assert_eq!(rejected(&h), 0, "先の送信は受け付けられる: {f}");
+            assert_eq!(h.draft(), "");
+            base = sync.get();
+            assert_eq!(base, 1);
+        }
+        type_and_submit(&mut h, body);
+        assert_eq!(last_rejection(&h), Some(want), "分類: {body:?}");
+        assert_eq!(h.draft(), body, "下書きが送った本文のまま: {body:?}");
+        assert_eq!(sync.get(), base, "書き戻しが増えない: {body:?}");
+        seen.push(want);
+    }
+    for c in RejectCategory::ALL {
+        assert!(seen.contains(&c), "分類 {c:?} の試験が無い");
+    }
 }
 
 #[test]

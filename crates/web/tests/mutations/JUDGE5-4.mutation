@@ -1,0 +1,8 @@
+id: JUDGE5-4
+package: fandhe-workshop-web
+test: submit_wiring
+target: crates/web/src/host.rs
+find: clear = !keeps_draft(rejected);
+replace: clear = true; let _ = rejected;
+expect-fail: 全拒否の分類で_拒否の後の下書きは送った本文のまま_書き戻しは要求されない
+note: 拒否の後も下書きを空にする（拒否された入力が入力欄から消える。JUDGE-5）
