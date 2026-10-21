@@ -11,9 +11,19 @@ pub const IR_NOTICE_BEFORE: &str = "教材を読み込めませんでした。�
 /// 通知文で、コードの後に置く固定の文言。
 pub const IR_NOTICE_AFTER: &str = "）";
 
+/// 開始点の指定（`?start=`）を断るときの、コードの前に置く固定の文言（TASK-109 1/2。DLV-9）。値は文に入れない。
+pub const START_NOTICE_BEFORE: &str = "指定された開始点を開けませんでした。（";
+
 /// 通知文を作る。文言は決定に記録が無く、エンジンの側の仮置き。
+///
+/// コードが開始点の断り（`start_select::START_CODE_PREFIX`）なら開始点の文言、それ以外は教材の読み込みの文言にする。
 pub fn ir_notice_text(code: &'static str) -> String {
-    format!("{IR_NOTICE_BEFORE}{code}{IR_NOTICE_AFTER}")
+    let before = if code.starts_with(crate::start_select::START_CODE_PREFIX) {
+        START_NOTICE_BEFORE
+    } else {
+        IR_NOTICE_BEFORE
+    };
+    format!("{before}{code}{IR_NOTICE_AFTER}")
 }
 
 #[cfg(test)]
@@ -25,6 +35,14 @@ mod tests {
         assert_eq!(
             ir_notice_text("format_newer"),
             "教材を読み込めませんでした。（format_newer）"
+        );
+    }
+
+    #[test]
+    fn start_code_uses_start_wording() {
+        assert_eq!(
+            ir_notice_text("start_unknown"),
+            "指定された開始点を開けませんでした。（start_unknown）"
         );
     }
 }
