@@ -6156,5 +6156,42 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 限界・未実施:
 
 - web は実行時に IR を取得しないため、「ページが IR を取得する」ことは確かめていない（TASK-109・TASK-121 の後に取得資源の集合へ含める）。`ir/main.json` が `IR_FILE` とバイト一致で入ることは `scripts/test-build-web.sh` の (b)(e) が保証する
-- 直接リンク 10 件は TASK-106 2/3、名前の違う 2 か所のサブパスとルート配信は 3/3 の範囲
+- 直接リンク 10 件は TASK-106 2/3（5.193）、名前の違う 2 か所のサブパスとルート配信は 3/3 の範囲
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.193 章への直接リンク 10 件のサブパス配信（TASK-106 2/3。DLV-1）
+
+直接リンク 10 件を、新しい文脈（保存領域が空）で順に開き、1 ページが取得する資源が構成要素だけであることを確かめる。リンクと判定は `tools/browser/delivery.mjs`（`DIRECT_LINKS`・`DIRECT_LINK_FORMS`・`directLinkUrl`・`pageRequestProblems`）に置く。判定は `base` を引数で受けるので、3/3 の別のサブパス・ルート配信の試験もそのまま使える。
+
+リンク 10 件（出所: PoC-10 が実行より前に固定した表。spec の `03-poc/static-delivery-localhost/test-data/direct-links.md`。エンジンは現時点でリンクを解釈しないため、開始点は不透明な識別子として扱う）:
+
+| 章 | 開始点 |
+|---|---|
+| CH-0 | `s-0-1`・`s-0-2b` |
+| CH-1 | `s-1-1`・`s-1-4`・`s-1-5`・`s-1-6` |
+| CH-2 | `s-2-1`・`s-2-3` |
+| CH-3 | `s-3-1`・`s-3-2` |
+
+リンクの形は DLV-9 の案 (a)・(b) の 2 つを両方流す（どちらもサーバ側の経路を要さない）。`query` は `<base>?start=<開始点>`、`hash` は `<base>#/<章>/<開始点>`。TASK-11 の決定の後は、採らなかった形を `DIRECT_LINK_FORMS` から外す。開始点を 10 以上持つ IR は repo に無いため、TASK-109・TASK-110 で差し替える。
+
+判定（`pageRequestProblems`。fail-closed。0 件が合格）:
+
+- すべての要求が構成要素に写る。status 200・Content-Type が表どおり・gzip
+- 同じ構成要素への要求が 2 回以上ない。必須の要求（`index.html`・`app.js`・`app.css`・glue・wasm）がそろう（`icon.svg` は揺れるため必須にしない）
+- external・失敗・HTTP エラー・CSP 違反・ページ内エラー・console error・dialog・popup・クラッシュが 0 件。console warning は CSP に限らず 0 件
+- 入口の応答が 200 で、開いた URL のまま（転送・書き換えなし）。10 ページの要求の集合（`requestKinds`）が同じ
+
+試験（`tools/browser/delivery-direct-links.test.mjs`。15 件。サブパス `/fandhe-direct-links/`。配信物の写しに `fandhe-pack compile` の出力を `ir/main.json` として置く）:
+
+- 正 2 件（`query`・`hash`）: 10 件ずつ開いて上の判定を満たす
+- 負の対照（判定）11 件: 基準の記録が 0 件、構成要素の外の要求・404・Content-Type の違い・gzip なし・external・重複・必須の欠落・CSP 以外の警告・ページ内エラー・空の記録がそれぞれ期待の理由で検出される
+- 負の対照（実ブラウザ）2 件: `index.html` の `./app.css` をルート絶対にした写しの検出、パスの形のリンク（DLV-9 の案 (d)。未採用）で入口が 404 になり検出されること
+
+実測（2026-10-21、Chromium、配信する設定。`SKIP_WASM_OPT=1`）: 正の試験は 1 件あたり約 5.5 秒。console warning は 0 件だった。
+
+限界・未実施:
+
+- 配信する設定の `app.js` はクエリもハッシュも読まず、10 件とも既定の教材で開く。確かめたのは配信の側の性質（静的な解決・取得資源・エラー 0 件）だけである。章の開始点の題と状態（DLV-7）は TASK-110、リンクの形の決定は TASK-11、実装は TASK-109 の範囲
+- web は実行時に IR を取得しないため、「ちょうど 7 件（IR を含む）」は確かめていない。TASK-109・TASK-121 の後に取得資源へ含める
+- 名前の違う 2 か所のサブパスとルート配信は 3/3
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）

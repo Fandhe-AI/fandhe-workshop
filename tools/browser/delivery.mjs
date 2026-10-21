@@ -2,14 +2,18 @@
 //
 // 役割: 構成要素の一覧を 1 か所で宣言し、後続の試験（TASK-106 2/3・3/3。章への直接リンク・複数サブパス・ルート配信）が
 // このモジュールを import して再宣言しないようにする。Playwright に依存しない純関数と定数だけを置く。
-// 呼び出し元: delivery-subpath.test.mjs。
+// 呼び出し元: delivery-subpath.test.mjs（1/3）・delivery-direct-links.test.mjs（2/3。直接リンク 10 件。DLV-1）。
+// 直接リンク（DIRECT_LINKS・directLinkUrl）と 1 ページの取得資源の判定（pageRequestProblems）もここに置く。判定は base を引数で
+// 受けるので、3/3 の別のサブパス・ルート配信の試験もそのまま使える。
 //
-// 限界: web は現時点で実行時に ir/main.json を取得しない（読み込みは TASK-109・TASK-121）。そのため ir/main.json は
+// 限界: 配信する設定の app.js は URL のクエリもハッシュも読まず、常に既定の教材を開く。直接リンクの形は DLV-9・TASK-11 が未決で、
+// 章の開始点で開くこと（DLV-7）は TASK-110 の範囲である。ここで確かめるのは配信の側の性質（静的な解決・取得資源・エラー 0 件）だけ。
+// web は現時点で実行時に ir/main.json を取得しない（読み込みは TASK-109・TASK-121）。そのため ir/main.json は
 // required: false（IR_FILE 指定時だけ存在）とし、「ページが IR を取得する」ことは確かめない。取得するようになった時点で
 // 必須の要素へ見直す。inspectDeliveryRefs は配信する設定の専用で、試験の設定（test-hooks.js・試験用の meta がある配信物）は対象外。
 import fs from 'node:fs';
 import path from 'node:path';
-import { maskInactive } from './harness.mjs';
+import { maskInactive, summarize, cspConsoleMessages } from './harness.mjs';
 
 // Content-Type の期待値は tools/serve.mjs の MIME 表と一致させる。二重管理になるため、試験が実際の応答と照合する。
 export const DELIVERY_COMPONENTS = Object.freeze([
@@ -153,5 +157,54 @@ export function inspectDeliveryRefs(dir) {
   for (const [file, ref] of ANCHORS) {
     if (!found.has(`${file}\n${ref}`)) problems.push(`anchor not found (extractor may be broken): ${file} -> ${ref}`);
   }
+  return problems;
+}
+
+// 章への直接リンク 10 件（DLV-1）。出所は PoC-10 が実行より前に固定した表（spec の 03-poc/static-delivery-localhost/test-data/direct-links.md）。
+// エンジンは現時点でリンクを解釈しないので、start は不透明な識別子として扱う。開始点を 10 以上持つ IR ができたら（TASK-109・TASK-110）差し替える。
+export const DIRECT_LINKS = Object.freeze([
+  ['ch0', 's-0-1'], ['ch0', 's-0-2b'],
+  ['ch1', 's-1-1'], ['ch1', 's-1-4'], ['ch1', 's-1-5'], ['ch1', 's-1-6'],
+  ['ch2', 's-2-1'], ['ch2', 's-2-3'],
+  ['ch3', 's-3-1'], ['ch3', 's-3-2'],
+].map(([chapter, start]) => Object.freeze({ chapter, start })));
+
+// リンクの形の候補（DLV-9 の案 (a)・(b)。どちらもサーバ側の経路を要さない）。TASK-11 の決定の後は、採らなかった形をここから外すだけでよい。
+export const DIRECT_LINK_FORMS = Object.freeze(['query', 'hash']);
+
+// baseUrl は <origin><base>（末尾 /）。形が未知なら例外にする。
+export function directLinkUrl(baseUrl, link, form) {
+  const start = encodeURIComponent(link.start);
+  if (form === 'query') return `${baseUrl}?start=${start}`;
+  if (form === 'hash') return `${baseUrl}#/${encodeURIComponent(link.chapter)}/${start}`;
+  throw new Error(`unknown direct link form: ${String(form)}`);
+}
+
+// 1 ページの記録 rec の問題の一覧を返す純関数（fail-closed。0 件が合格）。問題の文には URL・種別・件数だけを出す。
+const REQUIRED_REQUESTS = ['index.html', 'app.js', 'app.css', 'wasm/fandhe_workshop_web.js', 'wasm/fandhe_workshop_web_bg.wasm'];
+export function pageRequestProblems(rec, { origin, base }) {
+  const problems = [];
+  const seen = new Map();
+  for (const r of rec.requests) {
+    const c = componentFromUrl(r.url, { origin, base });
+    if (!c) {
+      problems.push(`request outside the delivery components: ${r.url} (status ${r.status})`);
+      continue;
+    }
+    if (r.status !== 200) problems.push(`status ${r.status}: ${r.url}`);
+    if (r.contentType !== c.contentType) problems.push(`content-type ${JSON.stringify(r.contentType)} (expected ${JSON.stringify(c.contentType)}): ${r.url}`);
+    const enc = c.gzip ? 'gzip' : '';
+    if (r.contentEncoding !== enc) problems.push(`content-encoding ${JSON.stringify(r.contentEncoding)} (expected ${JSON.stringify(enc)}): ${r.url}`);
+    seen.set(c.path, (seen.get(c.path) ?? 0) + 1);
+  }
+  for (const [p, n] of seen) if (n > 1) problems.push(`duplicate request: ${p} x${n}`);
+  for (const p of REQUIRED_REQUESTS) if (!seen.has(p)) problems.push(`missing request: ${p}`);
+  const s = summarize(rec);
+  for (const k of ['external', 'failed', 'httpErrors', 'csp', 'pageErrors', 'consoleErrors', 'dialogs', 'popups', 'crashed']) {
+    if (s[k] !== 0) problems.push(`${k}: ${s[k]}`);
+  }
+  if (rec.consoleWarnings.length !== 0) problems.push(`consoleWarnings: ${rec.consoleWarnings.length}`);
+  const csp = cspConsoleMessages(rec);
+  if (csp.length !== 0) problems.push(`csp console messages: ${csp.length}`);
   return problems;
 }
