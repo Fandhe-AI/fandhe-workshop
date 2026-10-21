@@ -30,7 +30,7 @@ use crate::key_route::{
 };
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
-use crate::modifier_key::paste_key_hint;
+use crate::modifier_key::{os_choice_value, parse_os_choice, paste_key_hint};
 use crate::parts::{FieldKind, PartField};
 use crate::profile::InputField;
 use crate::terminal_area::InputPort;
@@ -106,6 +106,9 @@ pub enum HelloAction {
     SetDraft(String),
     /// 送信（`data-action="submit"`）。本文は状態の下書きから取り、DOM は読まない。
     Submit,
+    /// OS の選択（`data-action-change="os"`。payload は option の値 `mac`・`windows`。TASK-285 2/2）。
+    /// 表示（`key-hint`）だけを変え、`Session`・履歴・保存には入らない。
+    SetOs(LearnerOs),
     /// root の中の Esc（`data-action-keydown="esc"`。FEND-5）。状態を変えない。
     ///
     /// 単体では「Component に届いた」ことと候補を閉じることだけを表す。処理中の停止（`esc_route`）は
@@ -143,10 +146,47 @@ impl HelloView {
 
     /// 推定した受講者の OS を受ける（TASK-285 1/2）。`persist::mount_with_history` が mount の前に 1 度だけ呼ぶ。
     ///
-    /// 束縛点の差分更新には乗せない（dirty にしない）。mount 後の切り替え（受講者が選ぶ欄。TASK-285 2/2）は、
-    /// このあと dirty に `key_hint` を積む経路で足す。
+    /// 束縛点の差分更新には乗せない（dirty にしない）。mount 後の切り替え（受講者が選ぶ欄）は
+    /// [`HelloAction::SetOs`] が `key_hint` を dirty にして行う。
     pub(crate) fn set_learner_os(&mut self, os: LearnerOs) {
         self.learner_os = os;
+    }
+
+    /// OS を選ぶ欄。option はすべて固定の文字列で、いまの OS に合うものにだけ静的な `selected` を付ける。
+    /// 変更後の DOM の選択は受講者の操作の値のまま状態と一致するため、束縛にはしない。
+    fn os_field(&self) -> Node {
+        let current = os_choice_value(self.learner_os);
+        let opt = |value: &'static str, label: &'static str| {
+            let mut attrs = vec![("value", value)];
+            if current == Some(value) {
+                attrs.push(("selected", ""));
+            }
+            el("option", attrs, vec![text(label)])
+        };
+        let mut placeholder = vec![("value", ""), ("disabled", "")];
+        if current.is_none() {
+            placeholder.push(("selected", ""));
+        }
+        el(
+            "p",
+            vec![("data-testid", "os-field")],
+            vec![el(
+                "label",
+                vec![],
+                vec![
+                    text("お使いの OS（キーの表示用）: "),
+                    el(
+                        "select",
+                        vec![("data-testid", "os-select"), ("data-action-change", "os")],
+                        vec![
+                            el("option", placeholder, vec![text("選んでください")]),
+                            opt("mac", "macOS"),
+                            opt("windows", "Windows"),
+                        ],
+                    ),
+                ],
+            )],
+        )
     }
 
     /// 入力欄を出すか。キーの案内（`key-hint`）もこの判定の下に置く。OS の選択欄（TERM-38。TASK-285 2/2）も同じ。
@@ -304,6 +344,12 @@ impl Component for HelloView {
                 }
                 self.dirty.push(FIELD_LOG);
             }
+            HelloAction::SetOs(os) => {
+                if self.learner_os != os {
+                    self.learner_os = os;
+                    self.dirty.push(FIELD_KEY_HINT);
+                }
+            }
             HelloAction::Esc => {
                 self.esc(false);
             }
@@ -410,6 +456,8 @@ impl Component for HelloView {
                 ],
                 vec![text("送信")],
             ));
+            // OS を選ぶ欄は送信の後ろに置く。Tab の順（入力欄、送信）を変えないため（補完・Esc の試験が前提にしている）。
+            children.push(self.os_field());
         }
         // 停止ボタン（TERM-33）。ラベルは固定の文字だけで、payload・教材の文字列は持たない。
         children.push(el(
@@ -438,6 +486,9 @@ impl Component for HelloView {
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+        if name == "os" {
+            return parse_os_choice(payload).map(HelloAction::SetOs);
+        }
         if name == "draft" {
             return Some(HelloAction::SetDraft(payload.to_owned()));
         }
@@ -858,13 +909,38 @@ mod tests {
         let win = hint(LearnerOs::Windows, false);
         assert!(win.contains("貼り付け: Ctrl+V"), "{win}");
         let unknown = hint(LearnerOs::Unknown, false);
-        assert!(!unknown.contains("貼り付け"), "{unknown}");
+        assert!(unknown.contains("OS を選ぶと"), "{unknown}");
+        assert!(
+            !unknown.contains("Cmd") && !unknown.contains("Ctrl"),
+            "{unknown}"
+        );
         for out in [&mac, &win, &unknown] {
             assert_eq!(count_of(out, "data-testid=\"key-hint\""), 1, "{out}");
             assert!(out.contains("data-bind-text=\"key_hint\""), "{out}");
         }
         let hidden = hint(LearnerOs::Mac, true);
         assert_eq!(count_of(&hidden, "data-testid=\"key-hint\""), 0, "{hidden}");
+    }
+
+    #[test]
+    fn os_の選ぶ欄は_入力欄の下にだけ出し_selected_は推定に合う() {
+        let render = |os: LearnerOs, hidden: bool| {
+            let mut v = HelloView::new();
+            v.set_learner_os(os);
+            if hidden {
+                v.set_input_field(InputField::Hidden);
+            }
+            render_component_html(&v)
+        };
+        for os in [LearnerOs::Mac, LearnerOs::Windows, LearnerOs::Unknown] {
+            let out = render(os, false);
+            assert_eq!(count_of(&out, "data-testid=\"os-select\""), 1, "{out}");
+            assert_eq!(count_of(&out, "selected"), 1, "{out}");
+        }
+        assert_eq!(count_of(&render(LearnerOs::Mac, true), "<select"), 0);
+        assert!(HelloView::decode_action("os", "windows").is_some());
+        assert!(HelloView::decode_action("os", "Windows").is_none());
+        assert!(HelloView::decode_action("os", "").is_none());
     }
 
     #[test]

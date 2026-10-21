@@ -137,3 +137,9 @@
 [data-view="document"] > [data-mark="remove"] > .dc-block {
   text-decoration: line-through;
 }
+
+/* OS を選ぶ欄（TASK-285 2/2）。select は操作の対象の最小寸法（24px）の判定に掛かる。色は足さない。 */
+[data-testid="os-select"] {
+  min-height: 24px;
+  min-width: 24px;
+}

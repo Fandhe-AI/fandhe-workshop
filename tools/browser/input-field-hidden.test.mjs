@@ -15,7 +15,7 @@
 //
 // 確かめないこと:
 //   - CH-0〜CH-3 の通しとキーボードだけでの完走は TASK-450 3/3（#406）の担当
-//   - キーの案内・OS の選択の部品そのものは未実装（TERM-38）。置き場の `select` 要素の 0 件だけを数える
+//   - キーの案内・OS の選択（TASK-285）の切り替えそのものは modifier-key-hint の担当。ここでは `select` 要素の 0 件だけを数える
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';

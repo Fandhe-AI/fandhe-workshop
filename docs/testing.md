@@ -5993,11 +5993,11 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 
 ### 5.190 推定した OS ごとの修飾キーの表示（TASK-285 1/2。JUDGE-28・D-48）
 
-案内文に出す修飾キー（Cmd／Ctrl）を、ブラウザの User-Agent からの推定で出し分ける機構の試験である（2026-10-21）。受講者が選ぶ欄と選んだときの切り替えは TASK-285 2/2（#588）が足す。
+案内文に出す修飾キー（Cmd／Ctrl）を、ブラウザの User-Agent からの推定で出し分ける機構の試験である（2026-10-21）。受講者が選ぶ欄と選んだときの切り替えは TASK-285 2/2（#588）が足した（5.191）。
 
 - 方式: `static/app.js` が `navigator.userAgent` を `mount_app(root_id, user_agent)` の第 2 引数で渡す。Rust 側（`persist::mount_with_history`）が core の `learner_os::estimate` で `LearnerOs` を求め、`EngineHost::set_learner_os` で入力欄の表示（`key_hint` の束縛点）に渡す。Rust 側はブラウザの値を読まず、web-sys の feature は増えない（24 個のまま）。`glue.rs` のコード行も増えない。OS は表示だけの値で、`Session`・履歴には入れない
 - 推定の規則: `Windows` を含めば `Windows`、`Macintosh` か `Mac OS` を含めば `Mac`（iPhone・iPad の UA を含む）、それ以外は `Unknown`。`Unknown` は修飾キーを出さない（Ctrl に倒さない）。UA-CH（`userAgentData`）は扱わない
-- 表示: 入力欄の下の `[data-testid="key-hint"]`。Mac は「貼り付け: Cmd+V」、Windows は「貼り付け: Ctrl+V」、`Unknown` は空。入力欄なしの教材では出さない。`role`・`aria-*` は付けない
+- 表示: 入力欄の下の `[data-testid="key-hint"]`。Mac は「貼り付け: Cmd+V」、Windows は「貼り付け: Ctrl+V」、`Unknown` は 1/2 の時点では空（2/2 で 5.191 の促す文言に変えた）。入力欄なしの教材では出さない。`role`・`aria-*` は付けない
 
 | 試験 | 内容 |
 |---|---|
@@ -6016,7 +6016,41 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 限界・未実施:
 
 - 推定が外れたときに受講者が選択欄で直せるかの確認、Windows の実機・人の目での表示の確認は未実施（自動試験は UA の差し替えで macOS・Windows・Linux を模擬するだけである）
-- 受講者が選ぶ欄、`Unknown` のときに選ぶよう促す文言、mount 後の切り替え（`key_hint` の dirty）は TASK-285 2/2（#588）
+- 受講者が選ぶ欄、`Unknown` のときに選ぶよう促す文言、mount 後の切り替え（`key_hint` の dirty）は TASK-285 2/2（#588）で実装済み（5.191）
 - 操作プロファイルの説明への適用と OS によらない操作の試験は TASK-392、右の案内文への結線の確認は TASK-456
-- `dirty_binding_points.rs` の「一度は dirty になる」の検査からは `key_hint` を除いた（mount の前の設定だけで、操作では変わらないため。#588 で外す）
+- `dirty_binding_points.rs` の「一度は dirty になる」の検査から除いていた `key_hint` は、#588 で外した（5.191）
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.191 受講者が選ぶ欄による修飾キーの表示の切り替え（TASK-285 2/2。JUDGE-28・D-48）
+
+5.190 の推定に、受講者が OS を選ぶ欄を併用する（2026-10-21、元にしたコミット 8855857）。推定が外れたときに受講者が直せるようにするためで、両方の併記・Ctrl での統一は採らない。
+
+- 方式: 入力欄の下、送信ボタンの直後（Tab の順は入力欄、送信、選ぶ欄、停止。入力欄と送信の間に挟まない）に `<select data-testid="os-select" data-action-change="os">` を `<label>` の中に置く。上流の `wire_events` が `change` を `select.value` を payload にして dispatch する。web crate は DOM の値を読まない（`check-dom-reads` に影響しない）。`Cargo.toml` の feature・web-sys の feature・`glue.rs` は変えない
+- 復号: 名前 `os` と payload が `mac`・`windows` に完全一致するときだけ `HelloAction::SetOs` にする。空・未知・大文字違いは `None`（何もしない）。値と OS の対応は `modifier_key.rs` の `os_choice_value`・`parse_os_choice` の 1 か所に置く
+- 更新: 値が変わったときだけ `learner_os` を更新し `key_hint` を dirty にする。同じ値の選び直しは dirty を積まない。option の `selected` は推定に合うものにだけ静的に付け、束縛にはしない（目印の集合が mount 時から変わらない）
+- 履歴・保存: OS は `Session`・履歴・保存先に入れず、保存の経路も動かさない。選んだ値は保存しない（再読み込みでは推定に戻る）
+- `Unknown` の文言: 「OS を選ぶと、貼り付けのキーが表示されます」。Cmd・Ctrl は出さない（`modifier_label(Unknown)` は `None` のまま）
+- 入力欄なしの教材: 欄を出さず、`os` の action を受けても状態を変えない（fail-closed）
+- 寸法: `select` は操作の対象の最小寸法の判定に掛かるため、`static/app.css` で 24px の最小寸法を与える
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/modifier_key_hint.rs` | 選択の復号（`mac`・`windows` だけ）、選ぶと `key_hint` だけが dirty で値が切り替わること、同じ値と不正な値は何も変えないこと、`selected` が推定と選択に合うこと、欄に `role`・`aria-*` が無いこと、履歴・下書き・世代が変わらないこと |
+| `crates/web/tests/dirty_binding_points.rs` | `run_os()` の列で `key_hint` が dirty になり、各回で束縛点への対応・目印の集合の不変を確かめる。「一度は dirty になる」の除外から `key_hint` を外した |
+| `crates/web/tests/input_field_hidden.rs` | 入力欄なしで `key-hint`・`os-select` が 0 件、`os` の action が状態を変えない |
+| `tools/browser/modifier-key-hint.test.mjs` | PoC-2 の OS-1〜OS-5 に相当。UA ごとの欄の値、選ぶと案内が変わること、案内と欄が同じノードのままであること、24x24 以上・`role`・`aria-*` なし・`label` の中、入力欄なしで 0 件（CSP あり・なし） |
+
+変異注入（実行日 2026-10-21、元にしたコミット 8855857 の作業ツリー）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| JUDGE28-3 | `modifier_key.rs`: 選ぶ欄の `mac` を Windows に取り違える | DETECTED（`選ぶ欄の値の復号は_mac_と_windows_の完全一致だけを受ける` ほか） |
+| JUDGE28-4 | `hello.rs`: 選んだときの `key_hint` の dirty を外す | DETECTED（`選ぶと_key_hint_だけが_dirty_になり_値が切り替わる`） |
+
+限界・未実施:
+
+- 推定が外れたときに受講者が選択欄で直せるかの人の確認は未実施（TASK-393・TASK-460）。自動試験は機構だけを確かめる
+- Windows の実機・人の目での表示の確認は未実施（TASK-20 の計画・TASK-286・TASK-395）。自動試験は UA の差し替えによる模擬である
+- 選んだ値は保存しない（再読み込みで推定に戻る）。安全側の既定である
+- 操作プロファイルの説明への適用は TASK-392、右の案内文への結線の確認は TASK-456、欄の最終的な置き場は枠の担当。UA-CH による推定の強化は扱わない
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
