@@ -6687,3 +6687,35 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 - `label` の無い教材パックは `validate` が止めるため、検査を通った教材パックで選択肢が ID のまま画面に出る経路は無い（PACK-37・TERM-25）。例外は `compile` だけを通した IR で、`docs/pack-authoring.md` に記載済みである
 - `st-1-4`・`st-2-7` の画面で表示名が出ることの確認は、TERM-25（画面のタスク TASK-446）と INTRO-18（教材のタスク）が担う。教材パックは教材 repo にあり、この repo の `testdata/` の spec の写しは D-67 の前の形（`label` 無し）のまま残す
+
+### 5.212 自然文の内容で規則を分ける書き方の拒否（TASK-68。PACK-41・D-43）
+
+決定（D-43、2026-10-12）は「判定語（部分一致・正規表現など）を語彙に足さず、内容で規則を分ける書き方は `validate` が拒否する」である。2026-10-21 の確認で、現状は `on.text` に `{contains: ...}` を書いても `validate`・`compile` とも 0 件で通り、実行時は `on.text == true` だけを見るため内容の条件が無視されると分かった。そのため `input.rs` に `E-PARSE` の検査を足した（診断コードは増やさない）。`crates/pack/tests/text_rule_content.rs` が `validate_dir` と `compile_dir` の両方で固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack41_content_value_in_on_text_is_rejected` | 真偽値でない `on.text`（mapping・文字列・数値・null）が `E-PARSE` 1 件で、値が出ないこと |
+| `pack41_unknown_key_beside_text_is_rejected` | `text: true` と並ぶ未知のキー（`contains` など）が `E-PARSE` で、キー名だけが出ること |
+| `pack41_unknown_key_on_text_step_is_rejected` | `text` の Step で `text` キーのない `on` の未知のキーと、mapping でない `on` |
+| `pack41_unsafe_key_name_is_not_echoed` | 識別子として安全でないキー名を写さないこと |
+| `pack41_plain_text_rules_pass` | 対照。`text: true`・`false`・`cancel`・既知のキーの組み合わせと 5 方式の教材が通ること |
+| `pack41_other_steps_are_not_checked` | `text` でない Step で `text` キーのない `on` は本検査の対象外であること |
+| `pack41_module_text_rule_is_checked` | モジュールの `text` の Step の規則が、モジュールのファイルに付いて拒否されること |
+| `pack41_format_a_is_rejected_too` | 形式 A（TOML）でも同じ |
+| `pack41_when_content_condition_is_rejected_by_compile` | `when: {contains: ...}` を `compile` が `E-PARSE` で拒否すること |
+| `pack41_rule_choice_ignores_words`（core の `text_judge`） | 語を含む文と含まない文で、選ばれる規則・分類（`free_text_unjudged`）が変わらないこと |
+
+変異（`crates/pack/tests/mutations/`）。
+
+```text
+実行日: 2026-10-21
+元にしたコミット: af94c08（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK41-1.mutation crates/pack/tests/mutations/PACK41-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| PACK41-1 | crates/pack/src/input.rs: 規則の `on` の未知のキーの拒否を外す | pack41_unknown_key_beside_text_is_rejected | DETECTED |
+| PACK41-2 | crates/pack/src/input.rs: `on.text` が真偽値でないことの拒否を外す | pack41_content_value_in_on_text_is_rejected | DETECTED |
+
+範囲外: `validate` が `when` の条件の語彙を検査しない全般の不足（TASK-42 の領域）。`text` でない Step の規則で `text` キーのない `on` の未知のキーは検査しない（core は黙って飛ばす）。規則の `on` の 9 キーの集合は core（private 定数）と pack（`RULE_ON_KEYS`）の二重管理である。spec の TASK-68 の「Rust の変更は無い」という見積もりは、現状が拒否していなかったため成り立たなかった（spec 側への差し戻し事項）。`fandhe-pack validate` の CLI からの終了コードの確認は TASK-403 の実装待ち。

@@ -109,7 +109,7 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     out
 }
 
-/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM` と、展開の打ち切りを示す
+/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM`・展開の後の自然文の規則の `E-PARSE` と、展開の打ち切りを示す
 /// `E-LIMIT` だけを返す。`E-LIMIT` を捨てると、打ち切られた後ろの巡回・確認の欠落を検査しないまま
 /// 診断なしで成功に見えるため、検査が未完了であることを示すものとして必ず残す（fail-closed）。
 /// `E-NO-CONFIRM` は、`check_confirms` が飛ばす `${` を含む `confirm` の置換後の検査でだけ出るため、
@@ -164,6 +164,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::LeftTargetRow
                     | DiagCode::RefElement
             ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED)
+                // 引数で `kind` が `text` に決まる Step の内容の条件（PACK-41、D-43）は展開の後でしか見えない。
+                || (d.code() == DiagCode::Parse && d.message().starts_with("rule (text):"))
         })
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()

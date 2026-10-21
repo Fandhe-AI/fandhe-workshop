@@ -10,8 +10,10 @@
 //! `wait`（EP-1）は欄を持たず、Step の `processing` が空だと進行の完了で受付になれず先へ進めないので
 //! `E-STRUCTURE` にする（向きは片方だけで、`processing` があって `wait` でない Step は許す）。`processing` の
 //! 中身は TASK-43 の担当で、ここでは件数だけを見る。取り消し（EP-2）は `input.kind` ではなく規則の
-//! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` の他のキーとの
-//! 組み合わせ・入力方式との整合は TASK-45 が受け持つ。
+//! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` のキーの組み合わせは
+//! 検査しない。拒否するのは、`text` を含む `on`、または `text` の Step の規則の `on` にある未知のキーと、真偽値
+//! でない `on.text`、mapping でない `on`（`text` の Step）だけである。自然文の内容で規則を分ける書き方
+//! （`contains` など）を黙って通さないためである（PACK-41、D-43）。
 //!
 //! `env_action`（TASK-64 1/2、PACK-34、D-69）は保存・書き出しの操作を入力とする宣言である。`action` は閉じた
 //! 2 値で、型で読めなければ `E-PARSE`、`processing` を持つ Step は `E-STRUCTURE` にする（保存による受付には
@@ -264,6 +266,86 @@ fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
         .collect()
 }
 
+/// 規則の `on` が取れるキー。core の `command_rule.rs` の `KNOWN_KEYS`・`OTHER_KEYS` と `select_judge.rs` が
+/// 読むキーの和である。core に `on` のキーを足したら両方を直す。core の定数を公開して参照する案は、公開 API
+/// と `docs/engine-api.md` の追従が要り本タスクの規模を超えるため採らない。
+const RULE_ON_KEYS: [&str; 9] = [
+    "command",
+    "args",
+    "missing",
+    "option",
+    "approval",
+    "target",
+    "ui",
+    "text",
+    CANCEL_RULE_KEY,
+];
+
+/// 自然文の内容で規則を分ける書き方（PACK-41、D-43）を `E-PARSE` にする。判定語は語彙に無く、`on.text` は
+/// 真偽値だけを見るため、内容の条件は実行時に無視される（当たらない規則・常に当たる規則）。静的に拒否して
+/// 作成者が Step を分ける・`choice` にするなどへ進めるようにする。メッセージに値・規則の ID は写さない。
+/// `text_step` が偽でも、`on` が `text` を持つ規則は検査する。
+fn check_text_rules(rules: &[Value], text_step: bool) -> Vec<(DiagCode, String)> {
+    let mut out = Vec::new();
+    for r in rules {
+        let Some(on) = r.get("on") else { continue };
+        let Some(map) = on.as_object() else {
+            if text_step {
+                out.push((
+                    DiagCode::Parse,
+                    "rule (text): on must be a mapping".to_string(),
+                ));
+            }
+            continue;
+        };
+        let has_text = map.contains_key("text");
+        if !has_text && !text_step {
+            continue;
+        }
+        if has_text && !map["text"].is_boolean() {
+            out.push((
+                DiagCode::Parse,
+                "rule (text): on.text must be a boolean".to_string(),
+            ));
+            continue;
+        }
+        if let Some(k) = map.keys().find(|k| !RULE_ON_KEYS.contains(&k.as_str())) {
+            let msg = if safe_ident(k) {
+                format!("rule (text): unknown field {k}")
+            } else {
+                "rule (text): unknown field".to_string()
+            };
+            out.push((DiagCode::Parse, msg));
+        }
+    }
+    out
+}
+
+/// `input.kind` が文字列 `text` として書かれているか。
+fn step_kind_is_text(input: &Option<Value>) -> bool {
+    input
+        .as_ref()
+        .and_then(|i| i.get("kind"))
+        .and_then(Value::as_str)
+        == Some("text")
+}
+
+/// 展開で `kind` が置換記号から `text` に決まった Step の `on` を検査する。置換前に `kind` が `text` と
+/// 書かれていた Step は置換前の検査が済んでいるので、ここでは検査しない（同じ違反を 2 回報告しない）。
+pub(crate) fn check_step_text_rules(
+    scope: &LoadedScope,
+    before: &Step,
+    expanded: &Step,
+) -> Vec<Diagnostic> {
+    if step_kind_is_text(&before.input) || !step_kind_is_text(&expanded.input) {
+        return Vec::new();
+    }
+    check_text_rules(&expanded.rules, true)
+        .into_iter()
+        .map(|(code, msg)| diag(scope, &expanded.id, code, msg))
+        .collect()
+}
+
 /// 宣言（`input`・`confirm`）が引数の置換記号 `${` を含むか。含まない宣言は置換で変わらないので、
 /// 置換前の検査の結果が置換後にもそのまま当てはまる。
 pub(crate) fn has_placeholder(decl: &Option<Value>) -> bool {
@@ -298,6 +380,12 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                 }
             }
             for (code, msg) in check_cancel_rules(&step.rules) {
+                out.push(diag(scope, &step.id, code, msg));
+            }
+            // `kind` が文字列で書かれていれば置換記号が他の欄にあっても読める。`kind` 自体が置換記号のときは
+            // 偽になり、展開後に `check_step_text_rules` が検査する。
+            let text_step = step_kind_is_text(&step.input);
+            for (code, msg) in check_text_rules(&step.rules, text_step) {
                 out.push(diag(scope, &step.id, code, msg));
             }
         }

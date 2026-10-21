@@ -10,6 +10,7 @@
 
 | ID | 限界 | 状態 | 回避 | 根拠の試験 |
 |---|---|---|---|---|
+| H-2 | 自然文の内容（含む語など）で規則を分けられない | 足さないと決定（D-43、PACK-41）。内容で分ける書き方は `E-PARSE`。`when` の内容らしい条件は `compile` だけが拒否し、`validate` は条件の語彙を検査しないため通す | Step を分ける、`choice` にする、受け付けた後の確認で人が判断する | `crates/pack/tests/text_rule_content.rs` の `pack41_`・`crates/core/tests/text_judge.rs` の `pack41_rule_choice_ignores_words` |
 | H-3 | 受講者が選んだ値を、文中・経路・属性に差し込めない | 足さないと決定（D-50、PACK-39） | 起こりうる入力を規則として列挙する | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` |
 | G-4 | 本文を出せなかった時代の回避（属性の書き換え）。本文を出すことは解消済み | 一部を語彙 1.4 で解消（EP-13、PACK-38） | 選択ごとに属性へ固定値を書く | 同上と `crates/pack/tests/view_body.rs` |
 | H-6 | 無い要素への `remove`・`set_attr` が、実行時の警告になるまで分からなかった | 一部を解消。`validate` が `E-REF-ELEMENT` で静的に報告する（PACK-30、D-43）。順序に依る不在などの近似の限界は残る | 教材テストの模範解答と実行時の警告で補う（`docs/pack-authoring.md` の「存在しない要素への `remove`・`set_attr`」） | `crates/pack/tests/missing_elements.rs` の `pack30_` |
