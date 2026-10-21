@@ -63,6 +63,7 @@ pub mod glue_ops;
 mod hello;
 pub mod history_export;
 pub mod host;
+pub mod stale_notice;
 
 pub mod input_limit;
 pub mod ir_notice;

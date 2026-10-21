@@ -173,8 +173,8 @@ fn flush_guarded(p: &PendingSave) -> Option<FlushOutcome> {
     })
 }
 
-/// このタブが他のタブに追い越された（古いタブ）か。試験の設定の口 `debug_save_stale` だけが読む。真偽だけを返す。
-#[cfg(feature = "test-hooks")]
+/// このタブが他のタブに追い越された（古いタブ）か。ホストの probe（`stale-notice`。SAVE-13）と、
+/// 試験の設定の口 `debug_save_stale` が読む。真偽だけを返し、保存領域は読まない。
 pub fn stale_tab() -> bool {
     GUARD.with(|g| {
         g.try_borrow()
@@ -285,6 +285,7 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
     let saver_key = key.clone();
     host.set_history_saver(Box::new(move |v| save_now(&saver_key, v)));
     host.set_save_failure_probe(Box::new(async_save_failure));
+    host.set_stale_probe(Box::new(stale_tab));
     crate::glue::mount_host(root_id, host)?;
     SAVE_KEY.with(|k| {
         if let Ok(mut slot) = k.try_borrow_mut() {
