@@ -6722,7 +6722,7 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 ### 5.213 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
 
-水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は TASK-49 2/2（#496）の持ち分である。
+水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は 5.214（TASK-49 2/2）が確かめる。
 
 | 試験 | 内容 |
 |---|---|
@@ -6742,3 +6742,29 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 - `Node.body_levels_doc` からの実行時の木の選択は TASK-292（#589）、開始点の水準と周回の切り替えは TASK-294 が持つ
 - ヒントの `levels` 以外の欄の形は検査しない
+
+### 5.214 案内レベルの 3 つの診断（TASK-49 2/2。PACK-17）
+
+`body_levels` の鍵 `A` を `E-STRUCTURE`（`validate` と `compile`）、隠すと宣言した語が水準 B・C の本文または `do` に出ることを `E-GUIDANCE-LEAK`（`validate` だけ）、ヒントを持つ Step で出ない水準があることを `E-HINT-HIDDEN`（`validate` だけ）にすることを確かめる。検査は `LoadedPack` だけを見る純関数で、本文は読み込み済みの `pack.bodies` から引く。診断に隠す語・本文・ヒントの ID は写さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_levels.rs` の `body_levels_key_a_is_a_structure_error` | 鍵 `A` は `load` を通り、`validate`・`compile` が `E-STRUCTURE`・`chapters/c1/chapter.yaml`・`step:a` を 1 件返すこと |
+| 同 `guidance_leak_*` | 本文（コマンド名・`hide_words`、水準 B・C）、水準 A と規則の無い水準で出ないこと、開始点の `guidance` とモジュールの Step、定義の段の `do`（引数だけの `do` は見ない）、空の語を飛ばすこと、値を写さないこと、`compile` は通すこと |
+| 同 `hint_hidden_*` | B・C だけのヒントで水準 A が 1 件、A だけで 2 件、全水準・両方持つ Step・ヒント無し・未定義のヒントだけの Step では出ないこと（後者は `E-REF-HINT`）、ID を写さないこと、`compile` は通すこと |
+| `crates/pack/tests/defect_packs.rs` | D21・D22 が `chapters/ch-13/chapter.yaml`・`step:st-13-2` で検出され、語彙 v1.1 の静的な検出が 11/11 になること。`#[ignore]` の試験は無くなった |
+
+変異注入（実行日 2026-10-21、元にしたコミット 7f46482 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK17-4.mutation crates/pack/tests/mutations/PACK17-5.mutation crates/pack/tests/mutations/PACK17-6.mutation`）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| PACK17-4 | `validate.rs`: 構造の検査が鍵 `A` を検査しない | DETECTED（`body_levels_key_a_is_a_structure_error`） |
+| PACK17-5 | `guidance.rs`: 漏れの検査が定義の段の `do` を見ない | DETECTED（`guidance_leak_in_do_is_reported_but_argument_do_is_not_seen`） |
+| PACK17-6 | `guidance.rs`: ヒントの検査が水準 B しか判定しない | DETECTED（`hint_hidden_is_reported_per_level` ほか） |
+
+誤検出の掃除（2026-10-21）: `testdata/module-reuse-rounds/test-data/pack`・`testdata/save-restore-versions/test-data/packs/*`・`testdata/pack-defects/base/format-b-v1_1`・`crates/pack/tests/data/vocab-pack`・`crates/pack/tests/data/fixture-pack` に `validate_dir` を流し、`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・鍵 `A` の `E-STRUCTURE` が 0 件であることを確かめた（既存の確認 `answer` の `label` の `E-STRUCTURE` は別件）。
+
+限界:
+
+- 部分文字列の包含による近似で、語の境界は見ない。実体の引数で渡す `do`・ヒントの文面・宣言の無い章の本文は調べない（GUIDE-5。TASK-38・TASK-71）
+- `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは決めていない（今は `validate` だけ）

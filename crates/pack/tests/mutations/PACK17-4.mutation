@@ -1,0 +1,8 @@
+id: PACK17-4
+package: fandhe-workshop-pack
+test: guidance_levels
+target: crates/pack/src/validate.rs
+find:     out.extend(crate::guidance::check_body_levels_a(&pack.scopes));
+replace:     let _ = crate::guidance::check_body_levels_a(&pack.scopes);
+expect-fail: body_levels_key_a_is_a_structure_error
+note: validate が body_levels の鍵 A を E-STRUCTURE にしない（構造の検査から外す）

@@ -1,0 +1,8 @@
+id: PACK17-6
+package: fandhe-workshop-pack
+test: guidance_levels
+target: crates/pack/src/guidance.rs
+find:             for level in GuidanceLevel::ALL {
+replace:             for level in [GuidanceLevel::B] {
+expect-fail: hint_hidden_is_reported_per_level
+note: ヒントの検査が水準 B しか判定しない（A と C で出ないヒントを見逃す）

@@ -7,7 +7,7 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 確認 `answer` の選択肢の `label` の必須（`E-STRUCTURE`。PACK-37・D-67。`compile` は行わない）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 確認 `answer` の選択肢の `label` の必須（`E-STRUCTURE`。PACK-37・D-67。`compile` は行わない）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）→ 案内レベルの漏れとヒントの出し分け（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。`guidance`、TASK-49 2/2。`compile` は行わない。構造の検査の `body_levels` の鍵 `A` の `E-STRUCTURE` は `compile` も行う）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
 //! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定、終端でない入力の無い Step の `confirm`。PACK-35）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
@@ -93,6 +93,9 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     }
     out.extend(left_parse);
     out.extend(crate::vocab_check::check_vocab_declaration(pack));
+    // 案内レベルの漏れとヒントの出し分け（PACK-17。TASK-49 2/2）。`validate` だけの検査で、`compile` は行わない。
+    out.extend(crate::guidance::check_guidance_leak(pack));
+    out.extend(crate::guidance::check_hint_hidden(pack));
     // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO`・`E-LEFT-TARGET-*`・`E-REF-ELEMENT` は、
     // 同じ内容のものを 1 件にする（`compile` と同じ。`E-REF-ELEMENT` は `validate` だけの検査）。
     let mut seen = BTreeSet::new();
@@ -278,6 +281,7 @@ pub fn check_structure(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(crate::start_check::check_start_pairs(&pack.scopes));
     out.extend(crate::input::check_inputs(&pack.scopes));
     out.extend(crate::confirm::check_confirms(&pack.scopes));
+    out.extend(crate::guidance::check_body_levels_a(&pack.scopes));
     out
 }
 

@@ -2,7 +2,8 @@
 //!
 //! 水準 L で出す本文は C → B → A の順に探す（`guidance::body_for`）。ヒントは契約の `visible_hints` が
 //! 選ぶ。`A`・`B`・`C` でない水準の名前は読み込みで `E-PARSE` にし、IR に載せない。
-//! `body_levels` の鍵 `A` の `E-STRUCTURE` と、隠す語の漏れ・ヒントが 0 件になる水準の検査は TASK-49 2/2（#496）。
+//! TASK-49 2/2 の診断（`body_levels` の鍵 `A` の `E-STRUCTURE`、隠す語の漏れの `E-GUIDANCE-LEAK`、ヒントが出ない水準の
+//! `E-HINT-HIDDEN`）の試験も置く。漏れとヒントは `validate` だけの検査で、`compile` は通す。
 
 mod common;
 
@@ -148,14 +149,179 @@ fn every_valid_level_spelling_is_accepted() {
     }
 }
 
-/// 鍵 `A` を `E-STRUCTURE` にするのは TASK-49 2/2（#496）。読み込みでは `E-PARSE` にしない。
+/// 鍵 `A` は読み込みでは通り、`validate`・`compile` が `E-STRUCTURE` にする（PACK-17。TASK-49 2/2）。
 #[test]
-fn body_levels_key_a_is_not_a_load_error_here() {
+fn body_levels_key_a_is_a_structure_error() {
     let t = pack(
         WORKSHOP_HEAD,
         &chapter_with("{id: s1, node: a}", ", body_levels: {A: x.md}"),
     );
     assert!(load(&t.0).is_ok());
+    let v = validate_dir(&t.0);
+    let c = compile_dir(&t.0).expect_err("compile must reject");
+    for d in [&v, &c] {
+        assert_no_secret(d);
+        let hit: Vec<_> = d
+            .iter()
+            .filter(|x| x.code() == DiagCode::Structure)
+            .collect();
+        assert_eq!(hit.len(), 1, "{d:?}");
+        assert_eq!(hit[0].file(), "chapters/c1/chapter.yaml");
+        assert_eq!(hit[0].item(), "step:a");
+    }
+}
+
+const LEAK_WS: &str = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A, guidance_levels: {B: {hide_command_kinds: [skill], hide_words: ['秘匿語']}, C: {hide_words: ['cword']}}}\ncommands:\n  help: builtin\n  make-item: skill\n";
+
+fn leaks(t: &Tmp) -> Vec<Diagnostic> {
+    let d = validate_dir(&t.0);
+    assert_no_secret(&d);
+    d.into_iter()
+        .filter(|x| x.code() == DiagCode::GuidanceLeak)
+        .collect()
+}
+
+#[test]
+fn guidance_leak_in_body_levels_body_is_reported() {
+    // (i) body_levels を持つ Step の水準 B・C。
+    for (word, body_file, extra) in [
+        ("/make-item", "a.b.md", ", body_levels: {B: a.b.md}"),
+        ("秘匿語", "a.b.md", ", body_levels: {B: a.b.md}"),
+        ("cword", "a.c.md", ", body_levels: {C: a.c.md}"),
+    ] {
+        let t = pack(LEAK_WS, &chapter_with("{id: s1, node: a}", extra));
+        t.put(
+            &format!("chapters/c1/{body_file}"),
+            format!("# x\n{word} を使う。\n").as_bytes(),
+        );
+        let d = leaks(&t);
+        assert_eq!(d.len(), 1, "{word}: {d:?}");
+        assert_eq!(d[0].file(), "chapters/c1/chapter.yaml");
+        assert_eq!(d[0].item(), "step:a");
+        // 検査は validate だけで、compile は通す。
+        assert!(compile_dir(&t.0).is_ok());
+    }
+}
+
+#[test]
+fn guidance_leak_ignores_level_a_and_levels_without_rule() {
+    // 水準 B は C の本文を飛ばして a.md を探すため、B で漏れる。水準 C は安全な a.c.md で、漏れない。
+    let t = pack(
+        LEAK_WS,
+        &chapter_with("{id: s1, node: a}", ", body_levels: {C: a.c.md}"),
+    );
+    t.put("chapters/c1/a.md", "/make-item 秘匿語 cword\n".as_bytes());
+    t.put("chapters/c1/a.c.md", "安全な本文\n".as_bytes());
+    let d = leaks(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    // 規則の無い水準（B の規則だけの教材の C）では出ない。
+    let ws = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A, guidance_levels: {B: {hide_words: ['w']}}}\n";
+    let t = pack(
+        ws,
+        &chapter_with("{id: s1, node: a}", ", body_levels: {C: a.c.md}"),
+    );
+    t.put("chapters/c1/a.c.md", "w\n".as_bytes());
+    assert!(leaks(&t).is_empty());
+}
+
+#[test]
+fn guidance_leak_follows_start_guidance_and_modules() {
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: ms, title: MS, body: a.md, final: true}\n";
+    let chapter = |g: &str| {
+        format!("id: c1\ntitle: C\nstarts: [{{id: s1, node: u1{g}}}]\nsteps:\n  - {{id: u1, title: U1, use: {{module: m, instance: i1}}, final: true}}\n")
+    };
+    for (g, expect) in [
+        (", guidance: B", true),
+        (", guidance: C", false), // C の語は cword だけ。本文は /make-item のみ
+        (", guidance: A", false),
+        ("", false),
+    ] {
+        let t = pack(LEAK_WS, &chapter(g));
+        t.put("modules/m/module.yaml", module.as_bytes());
+        t.put("modules/m/a.md", "/make-item\n".as_bytes());
+        let d = leaks(&t);
+        assert_eq!(
+            d.iter().any(|x| x.item() == "step:ms"),
+            expect,
+            "{g}: {d:?}"
+        );
+        if expect {
+            assert!(d.iter().any(|x| x.file() == "modules/m/module.yaml"));
+        }
+    }
+}
+
+#[test]
+fn guidance_leak_in_do_is_reported_but_argument_do_is_not_seen() {
+    let t = pack(
+        LEAK_WS,
+        &chapter_with(
+            "{id: s1, node: a, guidance: B}",
+            ", do: '/make-item を打つ'",
+        ),
+    );
+    let d = leaks(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].item(), "step:a");
+    let t = pack(
+        LEAK_WS,
+        &chapter_with("{id: s1, node: a, guidance: B}", ", do: '${cmd}'"),
+    );
+    assert!(leaks(&t).is_empty());
+}
+
+#[test]
+fn guidance_leak_skips_blank_hide_words_and_does_not_echo_values() {
+    let ws = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A, guidance_levels: {B: {hide_words: ['', '  ']}}}\n";
+    let t = pack(ws, &chapter_with("{id: s1, node: a, guidance: B}", ""));
+    assert!(leaks(&t).is_empty());
+    let ws = format!("pack: {{id: p, title: t, version: '0', ir_format: 1, guidance: A, guidance_levels: {{B: {{hide_words: ['{SECRET}']}}}}}}\n");
+    let t = pack(&ws, &chapter_with("{id: s1, node: a, guidance: B}", ""));
+    t.put("chapters/c1/a.md", format!("{SECRET}\n").as_bytes());
+    assert_eq!(leaks(&t).len(), 1);
+}
+
+fn hidden(t: &Tmp) -> Vec<Diagnostic> {
+    let d = validate_dir(&t.0);
+    assert_no_secret(&d);
+    d.into_iter()
+        .filter(|x| x.code() == DiagCode::HintHidden)
+        .collect()
+}
+
+#[test]
+fn hint_hidden_is_reported_per_level() {
+    let ws = format!("{WORKSHOP_HEAD}hints:\n  hb: {{text: t, levels: [B, C]}}\n  ha: {{text: t, levels: [A]}}\n  hall: {{text: t}}\n");
+    let hs = |ids: &str| chapter_with("{id: s1, node: a}", &format!(", hints: [{ids}]"));
+    // B・C だけのヒントしか無い Step では水準 A が空になる。
+    let t = pack(&ws, &hs("hb"));
+    let d = hidden(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].file(), "chapters/c1/chapter.yaml");
+    assert_eq!(d[0].item(), "step:a");
+    assert!(compile_dir(&t.0).is_ok());
+    // A だけのヒントでは B・C が空になる（2 件）。
+    assert_eq!(hidden(&pack(&ws, &hs("ha"))).len(), 2);
+    // 全水準で出るヒント、両方を持つ Step は出ない。
+    assert!(hidden(&pack(&ws, &hs("hall"))).is_empty());
+    assert!(hidden(&pack(&ws, &hs("ha, hb"))).is_empty());
+    // ヒントの無い Step・未定義のヒントだけの Step は対象外（後者は E-REF-HINT の担当）。
+    assert!(hidden(&pack(&ws, &hs(""))).is_empty());
+    let t = pack(&ws, &hs("nope"));
+    assert!(hidden(&t).is_empty());
+    assert!(validate_dir(&t.0)
+        .iter()
+        .any(|x| x.code() == DiagCode::RefHint));
+}
+
+#[test]
+fn hint_hidden_does_not_echo_hint_ids() {
+    let ws = format!("{WORKSHOP_HEAD}hints:\n  h-{SECRET}: {{text: t, levels: [B]}}\n");
+    let t = pack(
+        &ws,
+        &chapter_with("{id: s1, node: a}", &format!(", hints: [h-{SECRET}]")),
+    );
+    assert_eq!(hidden(&t).len(), 2);
 }
 
 #[test]
