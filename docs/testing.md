@@ -6400,6 +6400,30 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
 - 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ
 
+### 5.204 変換して開いたときの版の違いの通知（TASK-535 1/2。SHELL-20）
+
+版の違いを変換して開いたときに、枠の通知欄（`shell-notice`）へ通知を 1 件出す。実装は `crates/web/src/shell_notice.rs`（通知欄の描画。keyed list `shell_notices`）・`crates/web/src/host.rs`（表示の状態 `version_notice`、`dismiss-notice` の action）である。判定は core の `history_open` のままで、web は条件を複製しない。
+
+経路:
+
+- `install_recorded`（実行環境の差し替え）で通知を一度消し、変換して開いたときだけ立て直す。立てるのは履歴ファイルの読み込み（`open_history` が `Converted`）と起動時の復元（`boot_session` の `Restored` が `notes` を持つ）である。配信する設定で変換して開くのは起動時の復元だけである
+- 開かなかったとき（表示だけ・開かない）は通知にも状態にも触れない（SAVE-19）。前に変換して開いた実行環境は残るので、通知も残る
+- 閉じる操作（`dismiss-notice`、payload は `version-converted`）は表示の真偽だけを変える。正規形でない payload・既知でない種類・他の枠の操作（`export-history`・`import-history`・`discard-and-start`）は受けない。描いていない種類は何も変えない
+- 通知は root の先頭（tabpanel の外）に置く。幅 960px 未満でも見える。親は常に 1 個で、項目の出し入れだけで表すので root は全置換にならない
+- 画面に出すのは固定の文と固定の識別子だけで、履歴由来の文字列（版・参照元）は出さない（SAFE-40）
+
+試験:
+
+- Rust: `crates/web/tests/version_notice.rs`（8 件）。同じ版・変換して開く・変換の後の同じ版・開かない場合に触れない・起動時の復元 4 通り・閉じる操作の復号と効果・束縛の目印・履歴由来の文字列を出さない。`dirty_binding_points.rs` は `shell_notices` を他の教材が要る field に足し、`no_hidden_triggers.rs` は `shell_notice.rs` の `data-payload` の使用を許可の表に足した。単体の試験は `shell_notice.rs`（2 件）
+- ブラウザ: `tools/browser/version-notice.test.mjs`（4 件。CSP あり・なし）。V-i-1 で通知が 1 件出て文が一致し、幅 360px で成果物のタブを選んでも見え、閉じると 0 件になり root が同じ要素のままであること、V-0（変換なし）・V-iii-1（表示だけ）で 0 件であること。`make test-browser` は 2026-10-21 に全件通った（失敗 0）
+
+限界・申し送り:
+
+- 文面（`VERSION_CONVERTED_NOTICE`）と置き場は仮置きである。最終の文面・配置・見た目は TASK-549・TASK-534 が持つ
+- 内容以外の軸（エンジン・語彙・参照元）だけの変換でも通知を出す。SHELL-20 が直接は決めていない判断である（推論）
+- 操作の後の保存が新しい版で書かれることの確認は TASK-535 2/2（#730）、他の通知の種類の移設と書き出し・読み込みの結線は TASK-516・TASK-531 などの担当である
+- 変異注入の定義は足していない
+
 ### 5.203 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
 
 幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
