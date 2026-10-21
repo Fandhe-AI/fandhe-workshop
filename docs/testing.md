@@ -5561,7 +5561,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 #### 限界・範囲外
 
 - `tools/check-delivery.sh` には組み込まない（CI に入っておらず、二重定義を避けるため）
-- 誘導での完走・「移動」での全 Step・CSP あり・なしの対照での通信と違反の計数・インライン不使用の検査の CI 化は TASK-151 2/2（#540）
+- 誘導での完走・「移動」での全 Step・CSP あり・なしの対照での通信と違反の計数・インライン不使用の検査の CI 化は TASK-151 2/2（#540。5.180）
 - 要確認: CI のガードの追加は TASK-151 の人間の承認点。既存の `browser-test` ジョブに試験を 1 つ足しただけで、ジョブ・ruleset・必須チェックは変えていない
 
 ### 5.177 新しいタブの操作が再読み込みで戻る（TASK-324 2/2。SAVE-12・PoC-6 の S-8 相当）
@@ -5598,3 +5598,34 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
   - native 試験 `crates/web/tests/boot_guard.rs` の `交互に_10_回ずつ書いても保存先には新しいタブの最後の書き込みだけが残る`: 同じ交互の書き込みを偽の localStorage で確かめる
 - 「`replay_mismatch` 0 件」の表し方: 起動で開けなかった理由は `stateJson` に出ない（`BootOutcome::NotOpened` の理由は捨てている）ため、`bootKind === 'restored'`（開けなければ `not_opened`）と、復元した Step・スライス・増分の射影・世界の一致で表した。理由を出す口は足していない
 - 範囲外: 合流の規則そのもの、spec 側の SAVE-13・SHELL-23 の状態の更新、起動時の理由を `stateJson` に出す口、IndexedDB の保存先でのブラウザ試験（native 試験が照合を確かめる）、`scripts/expected-test-counts.txt` の更新（別 PR で `make update-test-counts`）
+
+### 5.180 インラインを使わない画面の検査と CSP あり・なしの計数（TASK-151 2/2。SAFE-13・SAFE-15）
+
+実行日: 2026-10-21、元にしたコミット: 3fd422b に本変更を載せた作業ツリー。5.176 の範囲外としていた 3 点を、既存の `browser-test` ジョブ（`make test-browser`）の中の試験として足した。本番のコード（`crates/**`）は変えていない。
+
+#### 試験
+
+- `tools/browser/inline-free.test.mjs`（SAFE-15。32 件のうち harness を除く 29 件。ブラウザを使うのは 1 件）: `harness.mjs` の `inspectInlineFree` が、配信・試験の両設定の `index.html`・`app.css` で、`script` は `type="module" src="./app.js"` の 1 つだけ（インラインの script 0）、`style` 属性・`on*` 属性・`style` 要素 0、`href`・`src` 等が `data:`・`javascript:`・`blob:`・外部の `http(s):`・`//` でない、favicon の `link` が `./icon.svg` の 1 つ、`app.css` に `url(`・`@import`・`expression(` が無い、試験用の meta が配信する設定に無い、を満たすことを確かめる（fail-closed。問題の一覧を返す）。`app.js`・`icon.svg` が配信元から直接取れる（200・`javascript`・`image/svg+xml`）ことも確かめる。実物の写しを加工した対照 13 種（インラインの script・`style` 属性・`on*` 属性・`style` 要素・`data:` の favicon〔PoC-7 の修正前〕・外部の script・外部の画像・プロトコル相対の画像・script の `src` の差し替え・favicon の link の削除・`app.css` の `url(data:)`・外部の `@import`・配信する設定への試験用の meta）が、期待の理由と件数で不合格になる。ブラウザの対照として、配信する設定の写しの body に `data:` の画像を 1 つ足すと、CSP ありでは違反がちょうど 1 件（`img-src`）、CSP なしでは 0 件、加工前の実物では両方 0 件になる
+- `tools/browser/csp-runs.test.mjs`（SAFE-13。6 件）: 場面ごとに CSP あり → なしの順で流し、各回と各 Step で、配信元以外への通信 0・CSP の違反 0・コンソールの CSP 関連の出力 0（`harness.mjs` の `cspConsoleMessages`。`rec` に `consoleWarnings` を足した）・ページ内エラー 0・失敗した要求 0・HTTP 400 以上 0（いずれも favicon を除く）・安全の計数（`scanDom` を含む）がすべて 0 であることを主張する。場面の終わりに、CSP の有無で配信元への要求の種類（`requestKinds`。相対パス・種類・状態の組）が等しいことも比べる
+  - D1（配信する設定）: 最小の画面の起動と入力欄への入力・送信。`window.__fandheTest` が無い
+  - T1（試験の設定）: 最小教材 `min-3step` の 3 Step を実クリックと実入力で達成まで進める
+  - T2: CH-1 の 6 Step を含む区間（`st-0-1` から `st-2-1`）をキーボードだけで進め、Step の到達ごとに走査する。誘導は `ch0-3-journey.mjs`（`ch0-3-run.test.mjs` から移した補助。試験の名前・件数・判定は変えていない）の `journey` に `onStep` の口を足して共有した
+  - T3: 掲示板教材の代わりの試験用の教材の全 Step を「移動」（`raw-trigger` へ `go_to`）で順に開き、各 Step で走査する。`ch0-3` の 20 Step と `reload-points` の 8 Step の 2 件。Step の一覧は教材の IR から読み、個数を固定する
+  - T4: 表示部品 7 種 × 変種 (a)・(b) の 14 通りすべてを `artifact-view-check.mjs` の `CASES` から mount し、前後の両方で走査する。文書 (a)・差分 (a) は対照の口から描く。部品が増えれば `CASES` に入り、自動で対象になる
+- `harness.test.mjs` に `cspConsoleMessages` と `requestKinds` の純関数の対照を 2 件足した（CSP の文言だけを拾う・余計な要求が差に現れる・除外は引数で明示した分だけ）
+
+#### 確認（2026-10-21）
+
+- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`inline-free` と `harness` の 32 件、`csp-runs` の 6 件、`ch0-3-run` の 4 件がすべて通った。追加分の実行時間は `csp-runs` 約 13 秒、`inline-free` 約 3 秒で、`browser-test` ジョブの timeout（60 分）に対して無視できる。環境変数なしでは `csp-runs`・`inline-free` の 25 件が失敗する（skip しない）
+- T3 の巡回でエンジンの警告は 0 件だった（件数は診断の行に出すだけで assert しない）
+- `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない（CI の実測と完全一致が要るため、並列の PR とずれる危険を避けた。更新は別の機会に `make update-test-counts`）
+
+#### 限界・範囲外
+
+- 配信する設定は実行時に教材を読み込まない（`EngineHost::for_mount` は session なしで、`crates/web/src` に `ir/main.json` を取得する処理が無い）ため、配信する設定での誘導の完走・「移動」は確かめていない。D1 は起動と入力欄への入力・送信までである。実行時の教材の読み込みが入った後に、同じ場面を配信する設定へ広げる
+- 掲示板教材は repo に無い（D-11。公開可否は TASK-14）。「全 Step を移動で開く」は、CH-2 の形を写した試験用の教材で代えた。本物の掲示板教材では未確認である
+- favicon は要求の種類の比較から外した（ヘッドレスでの取得が揺れるため）。代わりに静的な検査と直接の取得で確かめる
+- 静的な検査は `index.html`・`app.css` が対象である。Rust が実行時に描く DOM は `scanDom`（`style` 属性・`on*` 属性・危険な要素・URL）が各場面で数える
+- CH-0〜CH-3 の全 Step の CSP 計数つきの完走は TASK-152 の範囲
+- `tools/check-delivery.sh` には組み込まない（5.176 と同じ判断）
+- 要確認: CI のガード（インライン不使用と CSP の計数を失敗で止める検査）の追加は TASK-151 の人間の承認点で、承認は未取得である。既存の `browser-test` ジョブに試験を足しただけで、ジョブ・ruleset・必須チェックは変えていない
