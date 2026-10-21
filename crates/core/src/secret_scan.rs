@@ -8,13 +8,17 @@
 //! 「確認済みの値か」を照合するために置く。画面・ログ・保存先のどこにも出力しない。
 //!
 //! 限界（確認した事実）:
-//! - 規則は固定の 10 形（[`SecretShape::ALL`]）に合わせたもので、一般の秘密情報の検出率を示さない。
+//! - 規則は固定の 15 形（[`SecretShape::ALL`]。SAFE-27 の 10 形と、SAFE-30・決定 D-45 で足した 5 形）に合わせたもので、
+//!   一般の秘密情報の検出率を保証しない。見逃しも過剰な検出もありうる。追加の 5 形の選定は実装の案で、ユーザーの確定を待つ。
+//! - 見送った形（旧い接頭辞なしの長いキー・Webhook の URL・区切りが複数ある形・OAuth のクライアントシークレット・
+//!   一般の高エントロピー文字列）は検出しない。値を分けて入力した場合や符号化した値も見逃す。
+//! - 接頭辞のあとに下限以上の文字種が続く説明文や試験用の値は、過剰に検出しうる（受講者は「このまま保存する」で保存できる）。
 //! - 秘密鍵は、BEGIN 行と種類の語（`PRIVATE KEY-----`）が揃えば END 行が無くても検出する（切り詰めた貼り付けも止める）。
 //! - 英数字に接した接頭辞は検出しない（`xAKIA...`・`aghp_...` など、直前が英数字のものは語の途中として扱う。秘密鍵の枠と
 //!   接続文字列を除く形に当たる）。その結果、二重エンコードの JSON 中の `\n` の直後に続くトークン（`\nghp_...`）のような
 //!   エスケープ残りも検出できない。
 //! - 接頭辞の大文字小文字は区別する。名前つきの形（`aws_secret_access_key`）の名前だけは、ASCII の大文字小文字を区別しない。
-//! - 履歴ファイルの読み込み（インポート）の内容は調べない（TASK-165 の範囲）。
+//! - 履歴ファイルの読み込み（インポート）の内容は調べない（D-45 で拡大を見送った）。
 //! - 費用は値の大きさに比例する（接頭辞の反復でも二次にならない。見つけた範囲の中の候補は数え直さず、連なりの終端は再利用する）。WASM での検査時間は未計測である。
 //!
 //! 形の ID と名前は、秘密情報の検出の規則を識別する固定の名前であり、教材の知識ではない。
@@ -42,11 +46,21 @@ pub enum SecretShape {
     PrivateKey,
     /// 資格情報つきの接続文字列。
     ConnectionString,
+    /// `sk-ant-` 接頭辞の API キー（SAFE-30 で足した形。名前は接頭辞の形で表す）。
+    SkAntKey,
+    /// `sk-proj-`・`sk-svcacct-`・`sk-admin-` 接頭辞の API キー（SAFE-30）。
+    SkProjKey,
+    /// GitLab 風のトークン（SAFE-30）。
+    GitLabToken,
+    /// npm 風のトークン（SAFE-30）。
+    NpmToken,
+    /// PyPI 風のトークン（SAFE-30）。
+    PypiToken,
 }
 
 impl SecretShape {
     /// 固定の順序の全形。
-    pub const ALL: [SecretShape; 10] = [
+    pub const ALL: [SecretShape; 15] = [
         SecretShape::PrefixedToken,
         SecretShape::FineGrainedToken,
         SecretShape::SlackToken,
@@ -57,6 +71,11 @@ impl SecretShape {
         SecretShape::Jwt,
         SecretShape::PrivateKey,
         SecretShape::ConnectionString,
+        SecretShape::SkAntKey,
+        SecretShape::SkProjKey,
+        SecretShape::GitLabToken,
+        SecretShape::NpmToken,
+        SecretShape::PypiToken,
     ];
 
     /// 形の ID（ASCII。試験データ `secret-shapes.json` の `expect` と同じ）。
@@ -72,6 +91,11 @@ impl SecretShape {
             SecretShape::Jwt => "jwt",
             SecretShape::PrivateKey => "private_key",
             SecretShape::ConnectionString => "connection_string",
+            SecretShape::SkAntKey => "sk_ant_api_key",
+            SecretShape::SkProjKey => "sk_proj_api_key",
+            SecretShape::GitLabToken => "gitlab_token",
+            SecretShape::NpmToken => "npm_token",
+            SecretShape::PypiToken => "pypi_token",
         }
     }
 
@@ -88,6 +112,11 @@ impl SecretShape {
             SecretShape::Jwt => "JWT 風のトークン",
             SecretShape::PrivateKey => "秘密鍵",
             SecretShape::ConnectionString => "資格情報つきの接続文字列",
+            SecretShape::SkAntKey => "sk-ant- 形式の API キー",
+            SecretShape::SkProjKey => "sk-proj- 形式の API キー",
+            SecretShape::GitLabToken => "GitLab 風のトークン",
+            SecretShape::NpmToken => "npm 風のトークン",
+            SecretShape::PypiToken => "PyPI 風のトークン",
         }
     }
 
@@ -405,7 +434,22 @@ pub fn scan_text(s: &str) -> Vec<Finding> {
     scan_jwt(&mut out, s);
     scan_private_key(&mut out, s);
     scan_connection(&mut out, s);
+    scan_added_shapes(&mut out, s);
     out
+}
+
+/// SAFE-30（決定 D-45）で足した 5 形。接頭辞と文字種・長さだけで判定する。
+///
+/// 形の選定は実装の案で、ユーザーの確定を待つ（`docs/known-gaps.md` の SAFE-30）。
+/// 既存の 10 形と接頭辞が重ならないため、順序と指紋は既存の形に影響しない。
+fn scan_added_shapes(out: &mut Vec<Finding>, s: &str) {
+    prefixed(out, s, SecretShape::SkAntKey, &["sk-ant-"], is_b64url, 40);
+    let proj = ["sk-proj-", "sk-svcacct-", "sk-admin-"];
+    prefixed(out, s, SecretShape::SkProjKey, &proj, is_b64url, 40);
+    prefixed(out, s, SecretShape::GitLabToken, &["glpat-"], is_b64url, 20);
+    prefixed(out, s, SecretShape::NpmToken, &["npm_"], is_alnum, 36);
+    let pypi = ["pypi-AgEIcHlwaS5vcmc"];
+    prefixed(out, s, SecretShape::PypiToken, &pypi, is_b64url, 50);
 }
 
 /// JSON の値を調べる。文字列の値だけを見て、オブジェクトのキーは見ない。

@@ -1,0 +1,8 @@
+id: SAFE30-3
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:     let proj = ["sk-proj-", "sk-svcacct-", "sk-admin-"];
+replace:     let proj = ["sk-proj-", "sk-svcacct-"];
+expect-fail: every_prefix_of_the_added_shapes_is_detected
+note: sk-proj- 形式の接頭辞のうち 1 つを落とす（接頭辞ごとの検出が欠ける。SAFE-30）

@@ -1,0 +1,8 @@
+id: SAFE30-1
+package: fandhe-workshop-core
+test: secret_scan
+target: crates/core/src/secret_scan.rs
+find:     prefixed(out, s, SecretShape::SkAntKey, &["sk-ant-"], is_b64url, 40);
+replace:     let _ = SecretShape::SkAntKey;
+expect-fail: added_five_shapes_are_detected_with_the_expected_id
+note: 追加の sk-ant- 形式の規則を落とす（S-11 が検出されない。SAFE-30）

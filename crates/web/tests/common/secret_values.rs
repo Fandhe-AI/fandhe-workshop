@@ -14,6 +14,14 @@ fn fixture() -> Value {
     serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
 }
 
+fn added_fixture() -> Value {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../testdata/secret-shapes-added/added-shapes.json"
+    );
+    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+}
+
 fn expand(part: &str) -> String {
     let mut out = String::new();
     let mut rest = part;
@@ -75,6 +83,43 @@ pub fn controls() -> Vec<(String, String)> {
     ["controls", "extra_controls"]
         .iter()
         .flat_map(|k| f[*k].as_array().unwrap().clone())
+        .map(|c| {
+            (
+                c["id"].as_str().unwrap().to_owned(),
+                c["text"].as_str().unwrap().to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// SAFE-30 で足した 5 形の（試験データの ID, 期待する形の ID, 組み立てた値）。`shapes()` は 10 形のまま。
+pub fn added_shapes() -> Vec<(String, String, String)> {
+    added_fixture()["shapes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            let v: String = s["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| expand(p.as_str().unwrap()))
+                .collect();
+            (
+                s["id"].as_str().unwrap().to_owned(),
+                s["expect"].as_str().unwrap().to_owned(),
+                v,
+            )
+        })
+        .collect()
+}
+
+/// SAFE-30 で足した対照 4 件の（ID, 文）。
+pub fn added_controls() -> Vec<(String, String)> {
+    added_fixture()["controls"]
+        .as_array()
+        .unwrap()
+        .iter()
         .map(|c| {
             (
                 c["id"].as_str().unwrap().to_owned(),

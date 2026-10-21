@@ -92,6 +92,38 @@ fn every_shape_stops_the_save_and_shows_only_its_name() {
 }
 
 #[test]
+fn every_added_shape_stops_the_save_and_shows_only_its_name() {
+    let added = secret_values::added_shapes();
+    assert_eq!(added.len(), 5);
+    for (id, expect, value) in added {
+        let (mut h, calls) = setup();
+        submit(&mut h, &value);
+        assert_eq!(calls.get(), 0, "{id}: saver was called");
+        assert!(
+            warning_ids(&h) == [expect.as_str()],
+            "{id}: warning differs"
+        );
+        let shape = SecretShape::from_id(&expect).unwrap();
+        let text = notice(&h);
+        assert!(text.contains(shape.label()), "{id}: name missing");
+        assert!(!text.contains(&value), "{id}: value leaked to the notice");
+    }
+}
+
+#[test]
+fn added_controls_save_without_a_warning() {
+    let controls = secret_values::added_controls();
+    assert_eq!(controls.len(), 4);
+    for (id, text) in controls {
+        let (mut h, calls) = setup();
+        submit(&mut h, &text);
+        assert!(warning_ids(&h).is_empty(), "{id}: false positive");
+        assert_eq!(notice(&h), "", "{id}: notice not empty");
+        assert_eq!(calls.get(), 1, "{id}: saver call count");
+    }
+}
+
+#[test]
 fn controls_save_without_a_warning() {
     let controls = secret_values::controls();
     assert_eq!(controls.len(), 6);
