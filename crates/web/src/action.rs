@@ -142,7 +142,7 @@ pub(crate) enum Scheduled {
     /// 遅延保存の直前の検出（検出した時点の保存世代と、見つけた形だけ。値は持たない。SAFE-27）。
     SecretHold(u64, Vec<fandhe_workshop_core::secret_scan::SecretShape>),
     /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた。SAFE-28）。
-    SecretDiscardRead(bool),
+    SecretDiscardRead(bool, u64),
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -161,9 +161,9 @@ impl Scheduled {
                 crate::secret_notice::ACTION_SECRET_HOLD,
                 crate::secret_notice::encode_secret_hold(*epoch, shapes),
             ),
-            Scheduled::SecretDiscardRead(ok) => (
+            Scheduled::SecretDiscardRead(ok, generation) => (
                 crate::secret_notice::ACTION_SECRET_DISCARD_READ,
-                (if *ok { "ok" } else { "fail" }).to_owned(),
+                format!("{} {generation}", if *ok { "ok" } else { "fail" }),
             ),
             Scheduled::SaveResult(e, r) => (
                 crate::save_notice::ACTION_SAVE_RESULT,

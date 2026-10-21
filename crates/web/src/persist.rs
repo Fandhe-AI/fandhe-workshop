@@ -336,12 +336,12 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
     host.set_saved_reader(Box::new(move || read(&reader_key)));
     // 読み直しの前に、保存先の実データを取り直す。完了は配送のタイマーでホストへ届ける（コールバックからホストへは触れない）。
     let refresh_key = key.clone();
-    host.set_saved_refresh(Box::new(move || {
+    host.set_saved_refresh(Box::new(move |generation| {
         refetch(
             &refresh_key,
-            Box::new(|r| {
+            Box::new(move |r| {
                 crate::glue::schedule_action(
-                    crate::action::Scheduled::SecretDiscardRead(r.is_ok()),
+                    crate::action::Scheduled::SecretDiscardRead(r.is_ok(), generation),
                     0,
                 );
             }),

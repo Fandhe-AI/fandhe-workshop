@@ -420,7 +420,7 @@ fn setup_with_refresh() -> (EngineHost, Store, Rc<Cell<u32>>) {
     let (mut h, _, store) = setup();
     let asked = Rc::new(Cell::new(0));
     let a2 = Rc::clone(&asked);
-    h.set_saved_refresh(Box::new(move || a2.set(a2.get() + 1)));
+    h.set_saved_refresh(Box::new(move |_| a2.set(a2.get() + 1)));
     (h, store, asked)
 }
 
@@ -437,7 +437,7 @@ fn discard_waits_for_refresh_then_reads_fresh_store() {
     assert!(!warning_ids(&h).is_empty(), "{id}: discarded early");
     // 取り直しの間に別のタブが保存した、という状態を保存先の写しに置く。
     *mut_store.borrow_mut() = Some(base.clone());
-    h.update(act("secret-discard-read", "ok"));
+    h.update(act("secret-discard-read", "ok 0"));
     assert!(warning_ids(&h).is_empty(), "{id}: warning remains");
     assert_eq!(h.history_to_save(), reopened(&base), "{id}: not restored");
     assert!(!html(&h).contains(&value), "{id}: value in page");
@@ -451,7 +451,7 @@ fn discard_read_failure_starts_fresh_and_blocks_saving() {
     submit(&mut h, &value);
     h.update(act("secret-discard", ""));
     assert_eq!(asked.get(), 1);
-    h.update(act("secret-discard-read", "fail"));
+    h.update(act("secret-discard-read", "fail 0"));
     assert!(warning_ids(&h).is_empty(), "{id}: warning remains");
     assert!(!html(&h).contains(&value), "{id}: value in page");
     assert!(h.history_to_save().is_none(), "{id}: saving not blocked");
@@ -463,21 +463,42 @@ fn discard_read_without_request_is_ignored() {
     let (mut h, store, _) = setup_with_refresh();
     baseline(&mut h, &store);
     submit(&mut h, &value);
-    h.update(act("secret-discard-read", "ok"));
+    h.update(act("secret-discard-read", "ok 0"));
     assert!(!warning_ids(&h).is_empty(), "{id}: forged completion acted");
+}
+
+#[test]
+fn stale_discard_completion_does_not_hit_a_new_warning() {
+    let mut shapes = secret_values::shapes();
+    let (_, _, first) = shapes.remove(0);
+    let (_, _, second) = shapes.remove(0);
+    let (mut h, store, asked) = setup_with_refresh();
+    baseline(&mut h, &store);
+    submit(&mut h, &first);
+    h.update(act("secret-discard", ""));
+    assert_eq!(asked.get(), 1);
+    // 取り直しの待ちの間に「このまま保存する」を選び、別の秘密情報で新しい警告が出る。
+    h.update(act("secret-keep", ""));
+    submit(&mut h, &second);
+    assert!(!warning_ids(&h).is_empty());
+    // 古い要求（世代 0）の完了は新しい警告に対して何もしない。
+    h.update(act("secret-discard-read", "ok 0"));
+    assert!(!warning_ids(&h).is_empty(), "stale completion discarded");
 }
 
 #[test]
 fn discard_read_decodes_exact_payloads_only() {
     assert!(matches!(
-        EngineHost::decode_action("secret-discard-read", "ok"),
-        Some(HostAction::SecretDiscardRead(true))
+        EngineHost::decode_action("secret-discard-read", "ok 0"),
+        Some(HostAction::SecretDiscardRead(true, 0))
     ));
     assert!(matches!(
-        EngineHost::decode_action("secret-discard-read", "fail"),
-        Some(HostAction::SecretDiscardRead(false))
+        EngineHost::decode_action("secret-discard-read", "fail 7"),
+        Some(HostAction::SecretDiscardRead(false, 7))
     ));
-    for bad in ["", "OK", "ok ", "1"] {
+    for bad in [
+        "", "OK", "ok", "fail", "ok ", "ok 01", "ok x", "ok 1 2", "1",
+    ] {
         assert!(
             EngineHost::decode_action("secret-discard-read", bad).is_none(),
             "{bad:?} decoded"

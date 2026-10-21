@@ -207,7 +207,7 @@ rust|tests/save_failure.rs [save_failure]|passed=9|ignored=0
 rust|tests/save_failure_idb.rs [save_failure_idb]|passed=5|ignored=0
 rust|tests/save_pending.rs [save_pending]|passed=8|ignored=0
 rust|tests/save_request.rs [save_request]|passed=6|ignored=0
-rust|tests/secret_choice.rs [secret_choice]|passed=18|ignored=0
+rust|tests/secret_choice.rs [secret_choice]|passed=19|ignored=0
 rust|tests/secret_hold_export.rs [secret_hold_export]|passed=6|ignored=0
 rust|tests/secret_notice.rs [secret_notice]|passed=6|ignored=0
 rust|tests/secret_scan.rs [secret_scan]|passed=12|ignored=0
@@ -258,4 +258,4 @@ rust|unittests src/lib.rs [fandhe_workshop_core]|passed=41|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=115|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=644|pass=644|skipped=0|todo=0|cancelled=0
+browser|total|tests=699|pass=699|skipped=0|todo=0|cancelled=0

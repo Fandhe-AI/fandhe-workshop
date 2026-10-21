@@ -212,8 +212,8 @@ pub enum HostAction {
     SecretKeep,
     /// 「この入力を残さない」（SAFE-28）。保存せずに保存先の内容から読み直す。payload は読まない。
     SecretDiscard,
-    /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた）。取り直しを頼んでいないときは何もしない。
-    SecretDiscardRead(bool),
+    /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた）と、頼んだときの世代。今の要求の世代と違う完了は捨てる。
+    SecretDiscardRead(bool, u64),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -483,7 +483,7 @@ pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
 ///
 /// IndexedDB は取得の完了が非同期で、保存先の写しは他のタブの保存や自タブの書き込みの失敗を反映していない。呼ぶと取り直しを始め、
 /// 完了したら `secret-discard-read` を配送する。ホストは届くまで読み直さない。未設定なら、`SavedReader` をその場で読む。
-pub type SavedRefresh = Box<dyn Fn()>;
+pub type SavedRefresh = Box<dyn Fn(u64)>;
 
 /// 非同期の保存の失敗（IndexedDB。SAVE-11）を読む口。読み取り専用で、`update` のたびに引かれる。
 ///
@@ -577,6 +577,8 @@ pub struct EngineHost {
     saved_refresh: Option<SavedRefresh>,
     /// 取り直しを頼んで、完了を待っている印。完了（`SecretDiscardRead`）でだけ読み直しを行う。
     discard_pending: bool,
+    /// 取り直しの要求の世代。「このまま保存する」・履歴の差し替えで進め、古い要求の完了を捨てる（SAFE-28）。
+    discard_gen: u64,
     /// 「このまま保存する」で確認済みにした検出（形と指紋だけ。値は持たない）。このページの実行中だけ持ち、保存先にも履歴にも書かない。
     /// 起動時に保存済みの値から種を入れない（旧いエンジンが書いた値・読み込んだ履歴を黙って確認済みにしないため）。差し替え・読み直しで空にする。
     secret_acknowledged: Vec<Finding>,
@@ -670,6 +672,7 @@ impl EngineHost {
             saved_reader: None,
             saved_refresh: None,
             discard_pending: false,
+            discard_gen: 0,
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
@@ -754,6 +757,7 @@ impl EngineHost {
             saved_reader: None,
             saved_refresh: None,
             discard_pending: false,
+            discard_gen: 0,
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
@@ -1119,7 +1123,21 @@ impl EngineHost {
         if self.model.secret_warning.is_empty() {
             return;
         }
-        let Some(value) = self.history_to_save() else {
+        // 取り直し待ちの「残さない」は、選び直した時点で取り下げる（古い完了が新しい警告を破棄しないため）。
+        self.invalidate_discard();
+        // 確認対象は保存の可否と独立に包みから取る（上限超過でも確認と書き出しの解除は行う）。
+        let Some(envelope) = self
+            .model
+            .recorded
+            .as_ref()
+            .and_then(|r| r.envelope_for_save())
+        else {
+            return;
+        };
+        let Ok(bytes) = export_bytes(&envelope) else {
+            return;
+        };
+        let Ok(value) = String::from_utf8(bytes) else {
             return;
         };
         let pending = unacknowledged(&value, &self.secret_acknowledged);
@@ -1139,6 +1157,15 @@ impl EngineHost {
             f();
         }
         self.save_after_change();
+        // 保存できない場合（上限超過など）も、確認済みになった分だけ警告と書き出しの保留を解く。保存できた場合は同じ結果で変わらない。
+        let held = self.secret_gate(&value);
+        self.set_secret_warning(held);
+    }
+
+    /// 取り直しの要求を取り下げる。世代を進めるので、届く前の完了は捨てられる。
+    fn invalidate_discard(&mut self) {
+        self.discard_pending = false;
+        self.discard_gen = self.discard_gen.wrapping_add(1);
     }
 
     /// 「この入力を残さない」（SAFE-28）。保存せずに、保存先の内容から起動の分岐を読み直す。
@@ -1155,7 +1182,7 @@ impl EngineHost {
         if let Some(refresh) = self.saved_refresh.as_ref() {
             if !self.discard_pending {
                 self.discard_pending = true;
-                refresh();
+                refresh(self.discard_gen);
             }
             return;
         }
@@ -1163,8 +1190,8 @@ impl EngineHost {
     }
 
     /// 取り直しの完了を受けて読み直しを行う。頼んでいない完了・警告が消えた後の完了は捨てる。
-    fn secret_discard_read(&mut self, ok: bool) {
-        if !self.discard_pending {
+    fn secret_discard_read(&mut self, ok: bool, generation: u64) {
+        if !self.discard_pending || generation != self.discard_gen {
             return;
         }
         self.discard_pending = false;
@@ -1557,6 +1584,7 @@ impl EngineHost {
         self.model.export_hint = None;
         self.model.secret_warning = Vec::new();
         self.secret_acknowledged.clear();
+        self.invalidate_discard();
         // 差し替え前に予約された検出・保存結果が、差し替え後の警告・失敗を書き換えないよう世代を進める。
         self.save_epoch = self.save_epoch.wrapping_add(1);
         self.fresh_start = false;
@@ -1905,7 +1933,9 @@ impl Component for EngineHost {
             }
             HostAction::SecretKeep => self.secret_keep(),
             HostAction::SecretDiscard => self.secret_discard(),
-            HostAction::SecretDiscardRead(ok) => self.secret_discard_read(ok),
+            HostAction::SecretDiscardRead(ok, generation) => {
+                self.secret_discard_read(ok, generation)
+            }
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -2152,9 +2182,19 @@ impl Component for EngineHost {
             return Some(HostAction::SecretDiscard);
         }
         if name == crate::secret_notice::ACTION_SECRET_DISCARD_READ {
-            return match payload {
-                "ok" => Some(HostAction::SecretDiscardRead(true)),
-                "fail" => Some(HostAction::SecretDiscardRead(false)),
+            // payload は `ok <世代>` か `fail <世代>`（世代は 10 進の正規形）。
+            let (word, generation) = payload.split_once(' ')?;
+            if generation.is_empty()
+                || generation.len() > 20
+                || !generation.bytes().all(|b| b.is_ascii_digit())
+                || (generation.len() > 1 && generation.starts_with('0'))
+            {
+                return None;
+            }
+            let generation = generation.parse::<u64>().ok()?;
+            return match word {
+                "ok" => Some(HostAction::SecretDiscardRead(true, generation)),
+                "fail" => Some(HostAction::SecretDiscardRead(false, generation)),
                 _ => None,
             };
         }
