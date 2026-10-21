@@ -276,8 +276,8 @@ fn violations(src: &str) -> Vec<String> {
 }
 
 #[test]
-fn 契約の版は_2() {
-    assert_eq!(PARTS_CONTRACT_VERSION, 2);
+fn 契約の版は_3() {
+    assert_eq!(PARTS_CONTRACT_VERSION, 3);
 }
 
 #[test]

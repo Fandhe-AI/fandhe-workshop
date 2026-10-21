@@ -26,8 +26,9 @@
 //!   欄へ書いた後は泡立つ `input` を合成し、上流の通常の入力の経路で状態へ届ける（`glue::wire_paste_clip`）。
 //!   この範囲の拡張のため `PARTS_CONTRACT_VERSION` を 2 に上げた（spec の FEND-20・D-65）。
 //! - キーで選んだタブへのフォーカス移動（TASK-517 2/2。`a11y::tab_key_target` の契約）のため、`focus` の呼び出しを
-//!   `Click`（要素への作用）に分類して足した。操作の種類は増やしていない。spec 側の整理は未了で、`docs/known-gaps.md` の
-//!   A11Y-5 に記録した。
+//!   `Click`（要素への作用）の範囲に足した。操作の種類は増やしていない（7 種のまま）。許す呼び出しは、選んだタブ 1 要素への
+//!   `focus` に限り、要素の取得・値の読み取りは足さない。この範囲の拡張のため `PARTS_CONTRACT_VERSION` を 3 に上げた。
+//!   spec 側（FEND-20 の文言）の更新は private の spec repo で行う要対応事項で、`docs/known-gaps.md` の A11Y-5 に記録した。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
 //! （`action::ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）で届く。root の外の Esc を受ける `document` の
@@ -42,7 +43,7 @@ pub enum GlueOp {
     ElementLookup,
     /// 属性の書き込み。
     AttributeWrite,
-    /// click の呼び出し。
+    /// 要素への作用の呼び出し（click と、キーで選んだタブへの `focus`。版 3）。
     Click,
     /// タイマー。
     Timer,
