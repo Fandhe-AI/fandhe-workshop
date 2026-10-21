@@ -22,7 +22,7 @@
 //   - 配信する設定は実行時に IR を取得しないため、試験の設定（TEST_HOOKS=1）の画面で確かめる。
 //   - 対照は修正前の配信物の再ビルドではなく、保存先の写しによる再現である。
 //
-// 試験の出力・失敗の文に、鍵の文字列・履歴の値・下書きの中身を出さない（リンクの番号・節点の ID・真偽・件数・長さだけ）。
+// 試験の出力・失敗の文に、鍵の文字列・履歴の値・下書きの中身を出さない（リンクの番号・節点の ID・真偽・件数だけ。値の同一性は SHA-256 の一致で判定し、要約も出さない）。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。CSP あり・なしの両方で流す。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,10 +70,12 @@ const historyKeys = (page) => page.evaluate((prefix) => {
   return keys.sort();
 }, HISTORY_PREFIX);
 const keyOf = (page, start) => page.evaluate(([p, s]) => window.__fandheTest.storageKey(p, s), [PACK, start]);
-// 値そのものは node へ出さず、page の中で取り出して長さだけを返す。値の同一性は valueOf で page 内に保持した写しと比べる。
-const savedLen = (page, key) => page.evaluate((k) => {
+// 値そのものは node へ出さず、page の中で SHA-256 の 16 進だけを返す。値の同一性はこの要約の一致で比べる（同じ長さの書き換えも検出する）。
+const savedDigest = (page, key) => page.evaluate(async (k) => {
   const v = localStorage.getItem(k);
-  return v === null ? null : v.length;
+  if (v === null) return null;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
 }, key);
 const reloadedRows = (eng) => eng.log.filter((r) => r.kind === 'reloaded').length;
 const slicesOf = (e) => JSON.stringify(e.stateWithoutLog.run.slices);
@@ -121,18 +123,18 @@ async function advanceA(page, srv) {
   return keyA;
 }
 
-// 章 B のリンクを開いたときの混入の判定（1 つの式）。章 A の値の長さが保存の前後で変わることも含める。
-async function mixedAt(page, startLink, keyA, lenA) {
+// 章 B のリンクを開いたときの混入の判定（1 つの式）。章 A の値の SHA-256 が保存の前後で変わることも含める。
+async function mixedAt(page, startLink, keyA, digestA) {
   const e = await engine(page);
-  const len = await savedLen(page, keyA);
+  const digest = await savedDigest(page, keyA);
   return {
     e,
-    mixed: e.bootKind !== 'fresh' || e.current !== uidOf(startLink) || reloadedRows(e) > 0 || len !== lenA,
+    mixed: e.bootKind !== 'fresh' || e.current !== uidOf(startLink) || reloadedRows(e) > 0 || digest !== digestA,
   };
 }
 
-async function assertNotMixed(page, startLink, keyA, lenA, tag) {
-  const { e, mixed } = await mixedAt(page, startLink, keyA, lenA);
+async function assertNotMixed(page, startLink, keyA, digestA, tag) {
+  const { e, mixed } = await mixedAt(page, startLink, keyA, digestA);
   assert.equal(mixed, false, `${MIXED}: ${tag}: boot=${e.bootKind} current=${e.current} reloaded=${reloadedRows(e)}`);
   assert.equal(e.generation, 1, `${tag}: generation`);
   assert.equal(await page.evaluate(() => window.__fandheTest.nextTick()), 'null', `${tag}: not processing`);
@@ -160,24 +162,24 @@ for (const csp of [true, false]) {
       page.on('request', (r) => requested.push(r.url()));
 
       const keyA = await advanceA(page, srv);
-      const lenA = await savedLen(page, keyA);
-      assert.ok(lenA > 0, 'chapter A value is saved');
+      const digestA = await savedDigest(page, keyA);
+      assert.ok(typeof digestA === 'string' && digestA.length === 64, 'chapter A value is saved');
       const aEng = await engine(page);
       const aSlices = slicesOf(aEng);
 
       // 章 B（リンク 7）。
       await open(page, srv, B);
-      await assertNotMixed(page, B, keyA, lenA, 'chapter B link');
+      await assertNotMixed(page, B, keyA, digestA, 'chapter B link');
       const bKey = await keyOf(page, B.start);
       assert.notEqual(bKey, keyA, 'chapter B has its own key');
       await reopen(page);
-      await assertNotMixed(page, B, keyA, lenA, 'chapter B reload');
+      await assertNotMixed(page, B, keyA, digestA, 'chapter B reload');
 
       // 他の 8 件。
       for (let i = 0; i < DIRECT_LINKS.length; i += 1) {
         if (i === 0 || i === 6) continue;
         await open(page, srv, DIRECT_LINKS[i]);
-        await assertNotMixed(page, DIRECT_LINKS[i], keyA, lenA, `link ${i + 1}`);
+        await assertNotMixed(page, DIRECT_LINKS[i], keyA, digestA, `link ${i + 1}`);
       }
 
       // 章 A へ戻る。
@@ -212,7 +214,7 @@ for (const csp of [true, false]) {
       await at(page, B_START, 'accepted');
       await page.waitForFunction((k) => localStorage.getItem(k) !== null, bKey, { timeout: T });
       assert.deepEqual(await historyKeys(page), [keyA, bKey].sort(), 'two keys: chapter A and chapter B');
-      assert.ok((await savedLen(page, keyA)) > 0, 'chapter A value still exists');
+      assert.ok((await savedDigest(page, keyA)) > 0, 'chapter A value still exists');
 
       const foreign = requested.filter((u) => !u.startsWith(origin) && !u.startsWith('data:') && !u.startsWith('blob:'));
       assert.equal(foreign.length, 0, `requests to other origins: ${foreign.length}`);
@@ -225,13 +227,13 @@ for (const csp of [true, false]) {
     await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
       const { page, context, rec } = await openPage(browser, { origin: srv.origin });
       const keyA = await advanceA(page, srv);
-      const lenA = await savedLen(page, keyA);
+      const digestA = await savedDigest(page, keyA);
       const keyB = await keyOf(page, B.start);
       // 値は page の中で写し、node へ出さない。
       await page.evaluate(([a, b]) => localStorage.setItem(b, localStorage.getItem(a)), [keyA, keyB]);
 
       await open(page, srv, B);
-      const { e, mixed } = await mixedAt(page, B, keyA, lenA);
+      const { e, mixed } = await mixedAt(page, B, keyA, digestA);
       assert.equal(mixed, true, `control: the mixing check must react (boot=${e.bootKind} current=${e.current})`);
       await page.evaluate((b) => localStorage.removeItem(b), keyB);
       await context.close();
