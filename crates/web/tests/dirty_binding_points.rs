@@ -236,6 +236,20 @@ fn run_33() -> Run {
     r
 }
 
+/// OS を選ぶ欄の操作の列（TASK-285 2/2）。`key_hint` を dirty にできる唯一の操作で、33 回の列とは別に流す。
+/// 各回で束縛点への対応・目印の集合の不変・値を答えない束縛点なしを確かめる。
+fn run_os() -> Run {
+    let mut r = Run::new(multi_view_host());
+    r.input("os", "windows");
+    r.input("os", "mac");
+    // 同じ値の再選択は dirty を積まない。
+    r.input("os", "mac");
+    assert!(r.host.dirty_fields().is_empty());
+    assert!(EngineHost::decode_action("os", "").is_none());
+    assert!(EngineHost::decode_action("os", "linux").is_none());
+    r
+}
+
 /// 33 回の更新で、dirty になったことを確かめる 11 種の field。空振り（何も dirty にならない列）を検出する。
 const EXPECTED_SEEN: &[&str] = &[
     "input_notice",
@@ -253,9 +267,6 @@ const EXPECTED_SEEN: &[&str] = &[
 
 /// 33 回の列では dirty にできない field。理由は各行のコメントに書く。除外は最小にする。
 const NEEDS_OTHER_FIXTURES: &[&str] = &[
-    // 修飾キーの案内は mount の前に OS を設定するだけで、操作では変わらない（TASK-285 1/2）。
-    // mount 後の切り替え（受講者が選ぶ欄）は TASK-285 2/2 が dirty を足し、そのとき確かめる。`modifier_key_hint.rs` が値と dirty なしを確かめる。
-    "key_hint",
     // 遷移 1,000 回の上限の教材が要り、その教材は試験の設定（`test-hooks`）にだけある。
     "log_notice",
     // 保存の失敗の表示は、保存の口（`set_history_saver`）を結んだホストが要る。`save_failure.rs` が dirty を確かめる。
@@ -291,11 +302,17 @@ fn 更新_33_回の_dirty_field_はすべて束縛点か_keyed_list_に対応し
 #[test]
 fn 描画される_field_はすべて一度は_dirty_になる_他の教材が要るものを除く() {
     let r = run_33();
+    let os = run_os();
+    assert!(os.seen.contains("key_hint"), "{:?}", os.seen);
     let missing: Vec<String> = r
         .mount
         .all()
         .into_iter()
-        .filter(|f| !r.seen.contains(f.as_str()) && !NEEDS_OTHER_FIXTURES.contains(&f.as_str()))
+        .filter(|f| {
+            !r.seen.contains(f.as_str())
+                && !os.seen.contains(f.as_str())
+                && !NEEDS_OTHER_FIXTURES.contains(&f.as_str())
+        })
         .collect();
     assert!(
         missing.is_empty(),

@@ -1,0 +1,8 @@
+id: JUDGE28-3
+package: fandhe-workshop-web
+test: modifier_key_hint
+target: crates/web/src/modifier_key.rs
+find:         "mac" => Some(LearnerOs::Mac),
+replace:         "mac" => Some(LearnerOs::Windows),
+expect-fail: 選ぶ欄の値の復号は_mac_と_windows_の完全一致だけを受ける
+note: 選ぶ欄の mac を Windows に取り違える（Mac の受講者が選んでも Ctrl が出る。JUDGE-28）

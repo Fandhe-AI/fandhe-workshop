@@ -1921,8 +1921,10 @@ impl Component for EngineHost {
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
         match action {
-            // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完を受けても状態を変えない（fail-closed）。
-            HostAction::Input(HelloAction::SetDraft(_) | HelloAction::Submit)
+            // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完・OS の選択を受けても状態を変えない（fail-closed）。
+            HostAction::Input(
+                HelloAction::SetDraft(_) | HelloAction::Submit | HelloAction::SetOs(_),
+            )
             | HostAction::Complete
                 if !self.input.shows_input_area() => {}
             // 書き込みの後に即時の保存が走っていれば（世代が進んでいる）、古い結果は捨てる。新しい通知を消さない・古い失敗を出さない。
