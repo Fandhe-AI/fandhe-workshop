@@ -82,16 +82,165 @@ export const SAFETY_KEYS = [
   'danger', 'onAttrs', 'styleAttrs', 'nonHttp', 'extHttp', 'scanError',
 ];
 
-const CSP_META_RE = /<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi;
+// タグ名の終わりと属性の区切りは HTML の空白（タブ・LF・FF・CR・空白）だけで判定する。JS の \s は NBSP・垂直タブ等も
+// 含むが、ブラウザではそれらは区切りにならず（属性名やタグ名の一部になる）、CSP として働かない meta を合格させてしまうため。
+// 2026-10-21 のレビュー指摘で \s を外した。
+const META_TAG_RE = /<meta(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+const ATTR_RE = /([^\t\n\f\r "'<>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r "'=<>`]+)))?/g;
+
+// ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea・noscript の中身。noscript は scripting 有効のブラウザでテキスト扱いになる）を同じ長さの空白に置き換える。
+// 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
+function maskInactive(html) {
+  const blank = (s) => s.replace(/[^\r\n]/g, ' ');
+  const masked = String(html)
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
+    .replace(/(<(script|style|title|textarea|noscript)(?=[\t\n\f\r />])[^>]*>)([\s\S]*?)(?=<\/\2[\t\n\f\r ]*>|$)/gi, (_m, open, _t, body) => open + blank(body));
+  return maskTemplates(masked, blank);
+}
+
+// template の中身は文書に属さず meta が効かないため、入れ子を数えて最も外側の template ごと空白にする。閉じていなければ末尾まで。
+function maskTemplates(src, blank) {
+  const re = /<(\/?)template(?=[\t\n\f\r />])[^>]*>/gi;
+  let out = '';
+  let pos = 0;
+  let depth = 0;
+  let start = 0;
+  for (const m of src.matchAll(re)) {
+    if (m[1] === '') {
+      if (depth === 0) start = m.index;
+      depth += 1;
+    } else if (depth > 0) {
+      depth -= 1;
+      if (depth === 0) {
+        out += src.slice(pos, start) + blank(src.slice(start, m.index + m[0].length));
+        pos = m.index + m[0].length;
+      }
+    }
+  }
+  if (depth > 0) {
+    out += src.slice(pos, start) + blank(src.slice(start));
+    pos = src.length;
+  }
+  return out + src.slice(pos);
+}
+
+// meta 要素を属性単位で解析する。属性名は完全一致で比べる（data-http-equiv 等の部分一致を許さない）。
+// コメント等の無効な領域の meta は数えない（ブラウザでは効かないため）。
+function parseMetaTags(html) {
+  return [...maskInactive(html).matchAll(META_TAG_RE)].map((m) => {
+    const attrs = new Map();
+    const inner = m[0].slice('<meta'.length, -1);
+    for (const a of inner.matchAll(ATTR_RE)) {
+      const name = a[1].toLowerCase();
+      if (!attrs.has(name)) attrs.set(name, a[2] ?? a[3] ?? a[4] ?? '');
+    }
+    return { index: m.index, raw: m[0], attrs };
+  });
+}
+
+// http-equiv は列挙属性で、ブラウザは ASCII の大文字小文字だけを無視して照合し、前後の空白は除かない
+// （" Content-Security-Policy " は CSP として働かない）。働かない meta を CSP と数えて合格させないよう、
+// trim せず ASCII の大文字だけを小文字にして完全一致で比べる。2026-10-21 のレビュー指摘で trim を外した。
+function isCspMeta(t) {
+  const v = t.attrs.get('http-equiv');
+  return v !== undefined && v.replace(/[A-Z]/g, (c) => c.toLowerCase()) === 'content-security-policy';
+}
 
 // HTML から CSP の meta を除去する純関数。除去した件数も返す。
 export function stripCspMeta(html) {
-  let removed = 0;
-  const out = String(html).replace(CSP_META_RE, () => {
-    removed += 1;
-    return '';
-  });
-  return { html: out, removed };
+  const src = String(html);
+  const targets = parseMetaTags(src).filter(isCspMeta);
+  let out = '';
+  let pos = 0;
+  for (const t of targets) {
+    out += src.slice(pos, t.index);
+    pos = t.index + t.raw.length;
+  }
+  out += src.slice(pos);
+  return { html: out, removed: targets.length };
+}
+
+// 配信する index.html の CSP の正（SAFE-13。TASK-151 1/2）。完全一致で比べ、正規化はしない（緩む・並び替えも退行として止める）。
+export const DELIVERY_CSP =
+  "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self'";
+// charset と CSP の meta の正の形（crates/web/static/index.html と一致させる。inspectCspMeta が完全一致で比べる）。
+const CANONICAL_CHARSET_META = '<meta charset="utf-8">';
+const CANONICAL_CSP_META = `<meta http-equiv="Content-Security-Policy" content="${DELIVERY_CSP}">`;
+// head より前と head の開始タグの正の形（同じく index.html と一致させる）。間には HTML の空白だけを許す。
+const CANONICAL_PREFIX_RE = /^[\t\n\f\r ]*<!doctype html>[\t\n\f\r ]*<html lang="ja">[\t\n\f\r ]*$/;
+const CANONICAL_HEAD_START = '<head>';
+
+// CSP の meta の位置と内容を検査する純関数（fail-closed）。
+// <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
+// ちょうど 1 つあり、content が DELIVERY_CSP と一致することを求める。head が暗黙に閉じていないことは、head より前と
+// head の開始から charset までの構造を限ることで保証する（下の prefix・leading の検査）。呼び出し元は csp-placement.test.mjs（make test-browser）。
+export function inspectCspMeta(html) {
+  const problems = [];
+  const src = String(html);
+  const active = maskInactive(src);
+  const heads = [...active.matchAll(/<head(?=[\t\n\f\r />])[^>]*>/gi)];
+  const headEnds = [...active.matchAll(/<\/head[\t\n\f\r ]*>/gi)];
+  if (heads.length !== 1 || headEnds.length !== 1) {
+    problems.push(`head element count is ${heads.length}/${headEnds.length} (open/close)`);
+    return { ok: false, problems };
+  }
+  const headStart = heads[0].index + heads[0][0].length;
+  const headEnd = headEnds[0].index;
+  // head の所属は開始・終了タグの文字列上の位置だけでは決まらない（ブラウザは head に置けない要素や文字が来た時点で
+  // head を暗黙に閉じ、以降の meta は body に入って CSP が効かない）。HTML パーサを持ち込まずに所属を保証するため、
+  // 構造を次の形に限る: head より前は doctype と html の開始タグと空白だけ（body が先に始まると後の <head> は無視される）、
+  // head の開始の直後は空白だけを挟んで charset の meta（後段の「charset の直後に空白だけを挟んで CSP」と合わせ、
+  // CSP までに head を閉じうるものが入らない）。空白は HTML の空白（タブ・LF・FF・CR・空白）に限る（NBSP 等は文字として head を閉じる）。
+  // 2026-10-21 のレビュー指摘（<head><div></div> で後続の CSP が body に入るのに合格していた）で追加。
+  // head より前と head の開始タグは、原文（マスクする前）を正の形と完全一致で比べる。開始タグを [^>]*> で切ると、
+  // 引用符つきの属性値の中の > で切れて後続の charset・CSP が属性値に飲み込まれた形（<head data-x='> 等）を見逃すため、
+  // 属性の解析はせず形を 1 つに固定する（コメントも置かせない厳しい側の規則）。2026-10-21 のレビュー指摘で変更。
+  // BOM は文字として書かず \uFEFF で書く（整形で消えないように）。
+  const prefix = src.slice(0, heads[0].index).replace(/^\uFEFF/, '');
+  if (!CANONICAL_PREFIX_RE.test(prefix)) {
+    problems.push(`unexpected content before head (head may not be the real head): ${JSON.stringify(prefix.trim().slice(0, 80))}`);
+  }
+  const headTag = src.slice(heads[0].index, headStart);
+  if (headTag !== CANONICAL_HEAD_START) {
+    problems.push(`head start tag is not in the canonical form: ${JSON.stringify(headTag.slice(0, 80))}`);
+  }
+  const inHead = (m) => m.index >= headStart && m.index < headEnd;
+  const metas = parseMetaTags(src);
+  const charsets = metas.filter((t) => t.attrs.has('charset'));
+  const csps = metas.filter(isCspMeta);
+  if (charsets.length !== 1 || !inHead(charsets[0])) {
+    problems.push(`charset meta count is ${charsets.length} (expected exactly 1, inside head)`);
+  }
+  if (csps.length !== 1 || !inHead(csps[0])) {
+    problems.push(`CSP meta count is ${csps.length} (expected exactly 1, inside head)`);
+  }
+  if (problems.length > 0) return { ok: false, problems };
+  const cs = charsets[0];
+  const csp = csps[0];
+  const leading = src.slice(headStart, cs.index);
+  if (!/^[\t\n\f\r ]*$/.test(leading)) {
+    problems.push(`charset meta is not the first content of head (head may be implicitly closed; before: ${JSON.stringify(leading.slice(0, 80))})`);
+  }
+  const between = src.slice(cs.index + cs.raw.length, csp.index);
+  if (csp.index < cs.index || !/^[\t\n\f\r ]*$/.test(between)) {
+    problems.push(`CSP meta is not immediately after charset meta (between: ${JSON.stringify(between.slice(0, 80))})`);
+  }
+  // 2 つの meta は要素の文字列そのものを正の形と完全一致で比べる。配信する index.html は自前で書くので形は 1 つに決められ、
+  // 属性の解析の抜け道（読めない文字を飛ばして途中から属性名と読む・区切りの空白の違い等。ブラウザでは CSP にならない）に
+  // 判定を依存させない。属性の順序の入れ替えなど、ブラウザでは有効な形も拒否する厳しい側の規則。2026-10-21 のレビュー指摘で追加。
+  if (cs.raw !== CANONICAL_CHARSET_META) {
+    problems.push(`charset meta is not in the canonical form: ${JSON.stringify(cs.raw.slice(0, 80))}`);
+  }
+  if (csp.raw !== CANONICAL_CSP_META) {
+    problems.push(`CSP meta is not in the canonical form: ${JSON.stringify(csp.raw.slice(0, 80))}`);
+  }
+  const content = csp.attrs.get('content');
+  if (content === undefined) {
+    problems.push('CSP meta has no content attribute');
+  } else if (content !== DELIVERY_CSP) {
+    problems.push(`CSP content mismatch: ${JSON.stringify(content)}`);
+  }
+  return { ok: problems.length === 0, problems };
 }
 
 // CSP あり・なしの両方で同じ画面を開くための配信ディレクトリを fn に渡す。
