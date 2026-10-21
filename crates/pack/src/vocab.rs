@@ -1,6 +1,6 @@
-//! 語彙の版の表（語彙 v1〜v1.4 の語と名前つき拡張点 EP-1〜EP-13）。
+//! 語彙の版の表（語彙 v1〜v1.5 の語と名前つき拡張点 EP-1〜EP-13）。
 //!
-//! 正は `docs/vocabulary/vocabulary.md`（版 3）で、本モジュールは実装側の写しである。
+//! 正は `docs/vocabulary/vocabulary.md`（版 4）で、本モジュールは実装側の写しである。
 //! `fandhe-pack vocab`（TASK-408）の数え上げと、宣言と使用の一致の検査（TASK-59）が、
 //! 語ごとの語彙の版を引くために使う。文書と本表の一致は `tests/vocabulary_terms.rs` が確かめる。
 //! 純粋な定数の表で、I/O も panic も持たない。
@@ -23,6 +23,8 @@ pub enum VocabVersion {
     V1_3,
     /// 語彙 v1.4（EP-13 と `views.body`）。
     V1_4,
+    /// 語彙 v1.5（`input.revise.candidates` と `input.revise.candidates[].label`。PACK-34 の語も同じ版に足す）。
+    V1_5,
 }
 
 impl VocabVersion {
@@ -34,6 +36,7 @@ impl VocabVersion {
             VocabVersion::V1_2 => "v1.2",
             VocabVersion::V1_3 => "v1.3",
             VocabVersion::V1_4 => "v1.4",
+            VocabVersion::V1_5 => "v1.5",
         }
     }
 
@@ -45,6 +48,7 @@ impl VocabVersion {
             VocabVersion::V1_2 => (1, 2),
             VocabVersion::V1_3 => (1, 3),
             VocabVersion::V1_4 => (1, 4),
+            VocabVersion::V1_5 => (1, 5),
         }
     }
 }
@@ -55,7 +59,7 @@ pub fn extension_point(name: &str) -> Option<&'static ExtensionPoint> {
 }
 
 /// このエンジンが知る語彙の版の上限。
-pub const LATEST: VocabVersion = VocabVersion::V1_4;
+pub const LATEST: VocabVersion = VocabVersion::V1_5;
 
 /// 名前つき拡張点の 1 件。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -688,6 +692,18 @@ pub const TERMS: &[VocabTerm] = &[
         term: "views.body=hidden",
         version: VocabVersion::V1_4,
         extension_point: Some("EP-13"),
+    },
+    VocabTerm {
+        kind: "field",
+        term: "input.revise.candidates",
+        version: VocabVersion::V1_5,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "field",
+        term: "input.revise.candidates[].label",
+        version: VocabVersion::V1_5,
+        extension_point: None,
     },
 ];
 

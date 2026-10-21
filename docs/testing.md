@@ -6491,10 +6491,33 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 - 配信する設定は実行時に IR を取得しないため、DLV-7 は試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
 - Step の題は DOM に出ていない（TASK-525）ため、現在の節点と IR の題の対応で判定した。TASK-525 の後に DOM の題の照合を足す
 - 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
-- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.205 を参照）。本件の `?fixture=ch0-3-links` を使える
+- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.206 を参照）。本件の `?fixture=ch0-3-links` を使える
 - 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
 
-### 5.205 章 A と章 B の往復で保存済みの履歴を壊さない（TASK-110 2/2。DLV-8・SAVE-14・D-68）
+### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
+
+対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_2`）。
+
+確かめること:
+
+- 候補 3 件（表示名つき 2 件・省略 1 件）の宣言が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言の順・値のまま出ること
+- 空の候補・空白だけの `id`・`id` の重複・空白だけの `label` が `E-STRUCTURE`、未知の欄・型の違いが `E-PARSE` になること
+- 規則の `target` が候補に無いと `E-STRUCTURE`、候補に入れた対象は通ること。診断に候補・`label`・`target` の値が出ないこと
+- `pack.vocab` が 1.4 で `revise` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと。`choice` の `revise` は語彙の語に数えないこと
+- core の `Session` で、正しい対象の「直す」だけが受付になり、誤った候補・宣言に無い対象・対象なしは受付にならず Step が進まないこと（拒否の文面・分類は判定の持ち分で固定しない）
+- モジュールの Step の規則の `target` に `${...}` を使うと、置換前の値では誤検出せず、展開後の値を `compile` が検査すること
+
+変異（`crates/pack/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK42-1 | 候補の ID の重複の検査を外す | `revise_check_reports_each_violation` |
+| PACK42-2 | `input.revise` を使用と数える判定を常に偽にする | `pack42_older_vocab_declaration_is_a_mismatch` |
+| PACK42-3 | 規則の `target` と候補の突き合わせを外す | `pack42_rule_target_must_be_a_declared_candidate` |
+
+語彙の上限は 1.5 になった（5.1xx の「上限は 1.4」は当時の記録で、書き換えない）。版の上限を前提にする試験（`history_open.rs` の `ver7_`・`vocabulary_terms.rs`）は 1.5 に追従した。
+
+### 5.206 章 A と章 B の往復で保存済みの履歴を壊さない（TASK-110 2/2。DLV-8・SAVE-14・D-68）
 
 DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを開いても章 A の履歴が消えず、「変換して開きました」の通知も出ず、章 A のリンクへ戻ると続きが出ることを求める。D-68 のリンクは `?start=<開始点 ID>` で IR は 1 つであり、保存先の鍵は教材の ID と開始点の ID で決まる（SAVE-14。`host.rs` の `history_key`）。このため章ごとに履歴が分かれるはずである。試験の設定（`TEST_HOOKS=1`）の画面で、5.204 と同じ `?fixture=ch0-3-links` を使って確かめる。章 A はリンク 1（`s-0-1`）、章 B はリンク 7（`s-2-1`）。
 
@@ -6512,4 +6535,4 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 - 開始点の `effects` は空で、前の章の世界状態を持たない（5.199 と同じ）
 - 対照は修正前の配信物の再ビルドではなく、保存先の写しによる再現である
 - `scripts/test-chapter-key-control.sh` の置換前の文字列が #1681 以降の `host.rs` と合わず、対照が動かない。本件の範囲外として別に扱う
-- 節番号は並行する PR とマージ順で衝突しうる（5.205 は作業時点で未使用の番号）
+- 節番号は並行する PR とマージ順で衝突しうる（5.206 は作業時点で未使用の番号）
