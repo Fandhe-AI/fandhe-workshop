@@ -155,6 +155,8 @@ pub const EXPORT_NOTICE_TESTID: &str = "export-notice";
 /// 秘密情報らしい文字列の警告の通知欄の識別子（SAFE-27・TASK-164 1/3）。`EXPORT_NOTICE_TESTID` と同じ扱いの任意の通知欄で、
 /// 全体の適合では「2 個以上でない」だけを求める。
 pub const SECRET_NOTICE_TESTID: &str = "secret-notice";
+/// 古いタブの「保存されていない」通知欄の識別子（SAVE-13・D-56・TASK-325）。`EXPORT_NOTICE_TESTID` と同じ扱いの任意の通知欄。
+pub const STALE_NOTICE_TESTID: &str = "stale-notice";
 
 /// ログの一覧の識別子。ライブの欄の外に置き、`aria-live`・`role` を持たせない（A11Y-7）。
 pub const LOG_LIST_TESTID: &str = "log-list";
@@ -719,7 +721,8 @@ fn check_element(
     let is_notice = StatusNotice::ALL.iter().any(|n| Some(n.testid()) == testid)
         || testid == Some(SAVE_NOTICE_TESTID)
         || testid == Some(EXPORT_NOTICE_TESTID)
-        || testid == Some(SECRET_NOTICE_TESTID);
+        || testid == Some(SECRET_NOTICE_TESTID)
+        || testid == Some(STALE_NOTICE_TESTID);
     if is_notice {
         tally.notice.push(testid.unwrap_or_default().to_string());
         if role != Some("status") {
@@ -1011,6 +1014,12 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
         format!("notice {SECRET_NOTICE_TESTID}"),
         secrets.min(1),
         secrets,
+    );
+    let stales = n(&t.notice, STALE_NOTICE_TESTID);
+    count(
+        format!("notice {STALE_NOTICE_TESTID}"),
+        stales.min(1),
+        stales,
     );
     count("log-list".to_string(), 1, t.log_lists);
     count("tablist".to_string(), 1, t.tablists);

@@ -581,6 +581,11 @@ const MODULE_RULES: &[ModuleRule] = &[
             "set_history_saver",
             // 非同期の保存の失敗を読む口（SAVE-11）。読み取りの口をホストへ結ぶだけで DOM には触れない。
             "set_save_failure_probe",
+            // 古いタブかを読む口（SAVE-13）。読み取りの口をホストへ結ぶだけで DOM には触れない。
+            "set_stale_probe",
+            // 起動番号の取得（SAVE-12）。`Math::random` は一意化の `tag` だけに使い、DOM には触れない。
+            "claim",
+            "random",
             "idb_unreadable",
             "last_async_error",
             "clone",
@@ -609,6 +614,8 @@ const MODULE_RULES: &[ModuleRule] = &[
             "autosave_count",
             "secret_hold_count",
             "mount_fixture_from_search",
+            // 古いタブかの真偽だけを返す口（SAVE-12。TASK-324 1/2）。
+            "stale_tab",
             "last_import_state",
             "keydown_probe_count",
             "draft_snapshot",

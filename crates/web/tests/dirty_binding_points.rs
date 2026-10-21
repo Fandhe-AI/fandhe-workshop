@@ -261,6 +261,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "export_notice",
     // 秘密情報らしい文字列の警告は、保存の口を結んだホストの保存の直前の検出で立つ。`secret_notice.rs` が dirty を確かめる。
     "secret_notice",
+    // 古いタブの通知は、起動番号の照合で追い越されたホストの操作で立つ。`stale_notice.rs` が dirty を確かめる。
+    "stale_notice",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",

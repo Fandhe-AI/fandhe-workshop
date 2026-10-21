@@ -39,6 +39,7 @@
 //! 受講中の履歴の保存先の結線（起動前に保存先を開いて読み、離れる直前に書き出す。wasm のみ。TASK-319）は `persist` に置く。
 //! 候補の一覧の開閉の規則とコマンド表（TASK-440）は `candidates` に置く。
 //! 履歴の書き出しファイルの名前と種類（TASK-330 1/2。SAVE-16）は `history_export` に、書き出しのバイト列から `blob:` URL を作る処理（wasm のみ）は `history_download` に置く。
+//! 保存の直前に起動番号を照合して古いタブの保存を止める処理（TASK-324 1/2。SAVE-12）は `boot_guard` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
@@ -48,6 +49,7 @@ pub mod artifact_doc_rows;
 pub mod artifact_mark;
 pub mod artifact_rows;
 pub mod artifact_view;
+pub mod boot_guard;
 pub mod candidates;
 pub mod card_view;
 pub mod check_view;
@@ -61,6 +63,7 @@ pub mod glue_ops;
 mod hello;
 pub mod history_export;
 pub mod host;
+pub mod stale_notice;
 
 pub mod input_limit;
 pub mod ir_notice;

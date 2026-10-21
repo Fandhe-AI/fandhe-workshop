@@ -5161,6 +5161,18 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 |---|---|---|---|
 | SAVE7-1 | 履歴が変わっても保存の通知を出さない（`crates/web/src/host.rs`） | `save_request` の「下書きの変更ごとに 1 回通知する」 | DETECTED（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE7-1.mutation`。送信の試験も失敗した） |
 
+### 5.171 保存の直前に起動番号を照合して古いタブを止める（TASK-324 1/2。SAVE-12・D-56）
+
+実行日: 2026-10-20、元にしたコミット: b8b2fc9 に本変更を載せた作業ツリー。5.170 は別の open PR（TASK-318）が使う見込みのため空けた。
+
+- 経路: ページを開くたびに起動番号を補助の鍵（meta）へ書き、保存の直前に meta が自分の値と違えば書かない。`crates/web/src/boot_guard.rs`（`BootGuard`・`Guarded`）が持ち、`persist::mount_with_history` が鍵の決定の直後（保存先を開く前）に 1 回だけ取得する。書き出しは `persist::flush_guarded` が唯一の関所で、`save_now` と `pagehide` のリスナーはここを通る。古いタブの `write` は `Ok` を返して捨てる（`Err` にすると保存失敗の表示が出るため。古いタブの表示は 5.178 で実装）
+- 自動運転での判断（人の承認は無い）: (a) contract は版上げせず、meta は web が持つ。(b) meta の鍵は `fandhe-workshop/meta/boot/<配信の区間>/<教材の ID>/<開始点の ID>` で、教材ごとに分ける（全体で 1 つにすると別の教材のタブ同士が互いを古くする）。`HistoryKey::parse` が拒むため `keys()`・SAVE-32 の削除の対象に入らない。(c) 値は `<n>:<tag>`（`tag` は 8 桁の 16 進）。タブ間の読み書きは原子的でなく、同時の起動が同じ `n` を書きうるため、最後に書いた 1 つだけを一致させる。(d) 取得の書き込みの失敗・照合で読めない・取得前は、いずれも書かない（fail-closed）
+- native 試験 `crates/web/tests/boot_guard.rs`: 古いタブの書き込みが届かず新しいタブは届く（陽性の対照）、古いタブの保留の書き出しが上書きしない、照合が無ければ上書きされる（対照）、古いタブは戻らない、別の鍵のタブは互いを古くしない、取得・照合の失敗で書かない、起動番号の加算と壊れた値・飽和、同じ `n` で `tag` が違う同時の起動、IndexedDB へ切り替えた保存先でも `put` を発行しない、meta の鍵が一覧・削除の対象外、`flush` の呼び出しが `flush_guarded` の 1 か所だけ。照合の窓の限界（`限界_` の 3 件。2026-10-21 に追加）: 照合の読み取りの直後に別のタブの取得を割り込ませ、古いタブの 1 回分が届くこと・後のタブの保存が上書きして残ること・後のタブが未操作なら古いタブの 1 回分が残ることを固定する。偽の保存領域にはタブ間の遅れが無く、書いた直後の再照合が効く。再照合が古い値を読む（効かない）場合は、割り込みの後の 1 回だけ前の値を返す kv で模し、次の保存の照合で止まることを固定する。実ブラウザで同じタスクの中の再照合がどちらになるかは未確認
+- ブラウザ試験 `tools/browser/stale-tab.test.mjs`（PoC-6 S-8 相当。CSP あり・なし）: 2 枚のタブで、A の 1 手が保存され、B の 1 手で保存値が変わり（陽性の対照）、A の次の 1 手はメモリ上だけ進んで保存値は B のまま、A は古いタブになり、A を `pagehide` つきで閉じても保存値は変わらない。`make test-browser` は 586 件が通った（5.169 の 584 件に 2 件）
+- 変異注入 `SAVE12-1`〜`SAVE12-3`: 3 件とも DETECTED（`scripts/check-mutations.sh`）。照合を外す・起動番号を増やさない・包みが照合せずに委ねる。当初案の「取得の書き込みの失敗を無視する」変異は、照合の読み取りが二重に止めるため SURVIVED となり、採らなかった。SAVE12-1・SAVE12-3 の find は実装（`Some(v) if v == mine => Ok(true),`・`if !self.guard.verify()? {`）に合わせて直し、2026-10-20 に実際に流して 3 件の DETECTED を確かめた
+- 既知の限界: localStorage が使えず IndexedDB だけが使える環境では、起動番号を確かめられないため保存が止まる。SAVE-32 の教材ごとの削除は meta の鍵を消さない（値は小さい）。meta の鍵は `HistoryStorage` の使用量の見積もりにわずかに含まれる。実ブラウザでの同時の起動の競合（`tag` の効果）は試していない（未検証）。照合と書き込みはタブ間で原子的でなく、照合の直後に別のタブが取得すると古いタブが 1 回だけ書きうる（`docs/known-gaps.md` の SAVE-12）。競合の窓はブラウザ試験の対象外（`stale-tab.test.mjs` と #605 は逐次の場面だけを確かめる）
+- 範囲外: 新しいタブの操作が再読み込みで戻ることの試験は TASK-324 2/2（5.177 で済み）。古いタブに出す「保存されていない」表示は 5.178 で実装。合流の規則（D-56）は採らない
+
 ## 6. 既存の自動テストの件数の基準値（TASK-346）
 
 採用した版（FEND-1・D-30）でのビルド・lint の確認と、既存の自動テストの件数を記録する。
@@ -5516,7 +5528,109 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - ブラウザ試験の件数は 1 件増える。`scripts/expected-test-counts.txt` は変えていない（先行の #1648 と同じ扱い。版上げの前に `make update-test-counts` で更新する）
 - `make test-browser` の全体は流していない（未検証）。CI の `browser-test` ジョブで確かめる
 
-### 5.177 秘密情報らしい文字列の検出と保存の直前の警告（TASK-164 1/3。SAFE-27・SAFE-29）
+### 5.176 CSP の meta の配置と内容の検査（TASK-151 1/2。SAFE-13）
+
+元にしたコミット: `fe45d81`（実行日 2026-10-20）。`<meta http-equiv>` の CSP は、その要素より後に現れた内容にしか効かない。そのため配信する `index.html` で、CSP の meta が `<meta charset>` の直後にあり、内容が仕様の文字列と完全一致することを、失敗で止める検査として足した。修正前は `crates/web/static/index.html` で viewport の meta が charset と CSP の間にあったため、CSP を charset の直後へ移した（内容の文字列は変えていない）。
+
+#### 判定の規則（fail-closed）
+
+`tools/browser/harness.mjs` の `inspectCspMeta(html)`（正の文字列は `DELIVERY_CSP`。1 か所だけに置く）が次をすべて満たすときだけ合格にする。
+
+- `<head>` と `</head>` がちょうど 1 つずつ
+- charset の meta と CSP の meta が、どちらも head の中にちょうど 1 つずつ
+- charset の meta の終わりから CSP の meta の始まりまでが空白だけ（「直後」を厳しい側に解釈した。コメントや他の要素を挟むと不合格）
+- CSP の meta の `content`（二重引用符）が `DELIVERY_CSP` と完全一致（正規化しない。指令の並び替え・空白の違いも不合格）
+- head より前は doctype・`<html>` の開始タグ・空白だけで、head の開始の直後は空白だけを挟んで charset の meta が来る（空白は HTML の空白〔タブ・LF・FF・CR・空白〕に限る）。ブラウザは head に置けない要素や文字が来た時点で head を暗黙に閉じ、後続の meta が body に入って CSP が効かなくなる。開始・終了タグの文字列上の位置だけでは所属を判定できないため、HTML パーサを持ち込まずに構造を限って暗黙の終了を拒否した（`title` など head に置ける要素も charset より前には置かせない厳しい側。2026-10-21 のレビュー指摘で追加）
+- 解析できない形は例外にせず問題として返す
+- HTML コメント・`script`・`style`・`title`・`textarea`・`noscript` の中身にある meta は数えない（ブラウザでは効かないため。noscript は scripting 有効のブラウザでテキスト扱いになる。同じ長さの空白に置き換えてから解析する。2026-10-20 のレビュー指摘で追加）
+
+#### 試験
+
+`tools/browser/csp-placement.test.mjs`（34 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 30 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・`http-equiv` を `data-http-equiv` にする・`http-equiv` の値の前後に空白を足す・`http-equiv` の直前の区切りを NBSP にする・`http-equiv`・`charset` の属性名の前に `<` を付ける・`content` を `data-content` にする・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `template` で囲む・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む・CSP だけを入れ子の `template` で囲む・head の開始の直後に `div`・文字・NBSP を置く・head の開始と charset の間に `title` を置く・head より前に `body` を始める・head より前に文字を置く・head を空にして閉じ直す・head の開始タグの属性値に後続を飲み込ませる・html の開始タグの属性値に head を飲み込ませる・head より前にコメントを置く）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
+
+#### 件数・確認（2026-10-20）
+
+- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh debug` で作り、`csp-placement` の 11 件が通った。環境変数なしでは 10 件が失敗する（skip しない）。`harness`・`safety-observe` の 18 件も通った。`make check`・`make test` は通った
+- `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない
+- 2026-10-21（暗黙の head の終了の拒否）: 両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`csp-placement` の 27 件と `harness` の 11 件が通った。環境変数なしでは 26 件が失敗する（skip しない）。修正前の `harness.mjs` に戻すと、追加した対照 7 種のうち 6 種が合格してしまう（失敗する）ことを確かめた（head を空にして閉じ直す形は修正前も `head element count` で不合格）。`scripts/expected-test-counts.txt` のブラウザの合計は、CI の実測 628 件（`924b943`）に追加の 7 件を足した 635 件にした
+- 2026-10-21（`http-equiv` の前後の空白）: ブラウザは列挙属性の前後の空白を除かず、`" Content-Security-Policy "` は CSP として働かないため、判定から `trim()` を外し ASCII の大文字小文字だけを無視する完全一致にした。対照を 1 種足し、`csp-placement` は 28 件、ブラウザの合計は 636 件にした
+- 2026-10-21（タグ・属性の区切り）: ブラウザはタグ名の終わりと属性の区切りを HTML の空白（タブ・LF・FF・CR・空白）だけで判定し、NBSP や垂直タブは名前の一部になる。解析の正規表現の `\s` と `\b` を HTML の空白に置き換え、`http-equiv` の直前の区切りを NBSP にした対照を 1 種足した（修正前は合格してしまう）。`csp-placement` は 29 件、ブラウザの合計は 637 件にした
+- 2026-10-21（正の形との完全一致）: 属性の解析の抜け道（`<http-equiv=` のように読めない文字を飛ばして途中から属性名と読む等）に判定を依存させないため、charset と CSP の meta は要素の文字列を正の形（`<meta charset="utf-8">`・`<meta http-equiv="Content-Security-Policy" content="…">`）と完全一致で比べるようにした（属性の順序の入れ替えなど、ブラウザでは有効な形も拒否する厳しい側の規則）。対照を 2 種足し、`csp-placement` は 31 件にした。main の取り込みで増えた試験（`boot_guard` の 21 件・ブラウザの 2 件）を含め、件数の期待値は Rust 2688 件・ブラウザ 641 件にした
+- 2026-10-21（開始タグの完全一致）: head の開始タグを `[^>]*>` で切ると、`<head data-x='>` のように引用符つきの属性値の中の `>` で切れ、後続の charset・CSP が属性値に飲み込まれた形（ブラウザでは meta が生成されない）を合格させていた。head より前（doctype・html の開始タグ）と head の開始タグは、原文を正の形（`<!doctype html>`・`<html lang="ja">`・`<head>`。間は HTML の空白だけ）と完全一致で比べるようにした（head より前のコメントも拒否する厳しい側の規則）。対照を 3 種足し、修正前の `harness.mjs` では 3 種とも合格してしまうことを確かめた。`csp-placement` は 34 件、ブラウザの合計は 644 件にした
+
+#### 限界・範囲外
+
+- `tools/check-delivery.sh` には組み込まない（CI に入っておらず、二重定義を避けるため）
+- 誘導での完走・「移動」での全 Step・CSP あり・なしの対照での通信と違反の計数・インライン不使用の検査の CI 化は TASK-151 2/2（#540。5.180）
+- 要確認: CI のガードの追加は TASK-151 の人間の承認点。既存の `browser-test` ジョブに試験を 1 つ足しただけで、ジョブ・ruleset・必須チェックは変えていない
+
+### 5.177 新しいタブの操作が再読み込みで戻る（TASK-324 2/2。SAVE-12・PoC-6 の S-8 相当）
+
+実行日: 2026-10-21、元にしたコミット: 9b8fd10 に本変更を載せた作業ツリー。5.176 は別の open PR（TASK-151 1/2）が使うため空けた。
+
+- 変えたもの: ブラウザ試験 `tools/browser/stale-tab.test.mjs`（5.171）の既存の 2 件（CSP あり・なし）の手順を広げた。試験の件数は変わらない。本番のコードは変えていない
+- 手順: (1) A の 1 手が保存される。(2) B を開いて 1 手を送り、左の成果物の行（`notes/draft`）で確認して `main/st-2` へ進める。保存値が変わる（陽性の対照）。(3) A の 1 手はメモリ上だけ進み（Step は `main/st-1` のまま）、保存値は B のまま、A は古いタブになる。(4) B を再読み込みすると `restored` で `main/st-2` が戻り、各スライスの状態・増分の射影・世界の一致が通り、B は新しいタブのまま。(5) 再読み込みの後も A の 1 手は保存されない。(6) 再読み込みの後の B の選択（`main/st-3` へ）は保存される（陽性の対照）。(7) A を `pagehide` つきで閉じても保存値は変わらない。(8) B をもう一度再読み込みすると `main/st-3` が戻る
+- 判別の前提: 5.171 の手順は B が 1 手送るだけで、2 手目は拒否でログが伸びるだけだったため、復元された状態を A のメモリ上の状態とも復元の失敗とも区別できなかった。B に Step を変える操作（確認・選択）をさせ、A が B と違う Step にいることを試験の中で assert する。陰性の対照として、一時の写しで B の確認を外すと「A が B と違う Step にいる」の assert で CSP あり・なしの両方が失敗することを手元で確かめた（コミットしない）
+- 揺れの対策: 保存値の変化は即時の読み取りでなく `waitForFunction` で待ち、再読み込みの後は処理待ちが無くなってから基準を取り直す（`pagehide` で書き直されうるため）。assert は緩めていない。単体で 5 回流して毎回 2 件とも通った
+- 出力: 失敗の文には、保存値・鍵・起動番号・ログの本文を出さない（長さと簡易の digest・真偽・Step の uid だけ）
+- 変異注入は足さない: `crates/web/tests/mutations/` の形式は cargo の試験を対象にし、ブラウザ試験を対象にできない。照合を外す変異は SAVE12-1〜3（5.171）が native 試験で検出する
+- 範囲外: 古いタブに出す「保存されていない」表示（SHELL-23）、合流の規則（SAVE-13）、照合と書き込みの間の競合の窓、実ブラウザでの同時の起動、古いタブ A 自身の再読み込み
+
+### 5.178 古いタブの画面に「保存されていない」表示を出す（TASK-325 1/2。SAVE-13・SHELL-23・D-56）
+
+実行日: 2026-10-21、元にしたコミット: aaca452 に本変更を載せた作業ツリー。5.176 は別の open PR が使う見込みのため空けた。
+
+- 経路: 古いタブの `Guarded::write` は `Ok` を返して捨てるため、契約（`StorageError`）は変えず、SAVE-11 の probe と同じ形の読み取り専用の口 `StaleProbe` を `host.rs` に足した。`persist::boot_and_mount` が `persist::stale_tab`（`BootGuard::is_stale` の真偽だけ。保存領域は読まない）を結び、`EngineHost::update` の末尾（保存の試みの後）で `refresh_stale` が引く。真なら `HostModel::stale_tab` を立て、`stale_notice` を dirty に積む。一度立てたら戻さず、再び積まない。表示は新しい通知欄 `stale-notice`（`stale_notice.rs`、`engine_parts` の `F_LOG[8]`、`role="status"`）で、保存失敗の `save-notice` とは別の欄にした（あちらは保存に成功すると消えるが、こちらは消えない）
+- 自動運転での判断（人の承認は無い）: (a) probe の形を選び契約を変えない。(b) `save-notice` と別の通知欄にする。(c) 一度出したら消さない。(d) 文面は仮置き（最終の文面は TASK-549、配置は TASK-534 が決める）。教材・鍵・起動番号の値を含めない固定の文だけ
+- native 試験 `crates/web/tests/stale_notice.rs`（5 件）: 追い越された古いタブだけが同じ `update` で通知を出し `save-notice` は空のまま・新しいタブは空（陽性の対照）、出た通知は消えず dirty に再び積まれない、probe を結ばないホストは出ない、文に教材の値が含まれない、照合の無い保存先では出ない（対照）。既存の `host_contract`（field 数 21）・`dirty_binding_points`・`glue_contract`・`state_paths` を追従させた
+- ブラウザ試験 `tools/browser/stale-tab.test.mjs`（CSP あり・なし）に通知の確認を足した。A は追い越される前と B の 1 手の前は空、追い越された後の 1 手で空でなくなり、再読み込みの後の A の操作でも消えない。B は常に空。文面は固定せず「空でない」だけを確かめる。試験の件数は変わらない（`make test-browser` は 610 件が通った）
+- 変異注入 `SAVE13-1`〜`SAVE13-3`: 3 件とも DETECTED。`update` の末尾の `refresh_stale` を外す・通知の文を常に空にする・一度立てた後も dirty に積み直す
+- 既知の限界: 通知が出るのは古いタブが保存を試みたとき（操作の後）で、別のタブが開いた瞬間には出ない（`storage` イベントは使わない。照合は保存の直前だけ）。保存を止めている間・保存する値が無い間（未操作・上限超過）は照合しないので出ない。書いた直後の再照合でも stale が立つため、その 1 回の書き込みが届いた場面でも「以後は保存されない」通知が出る（文面は今後の保存について述べる）
+- 範囲外: 通知の最終の文面・配置（TASK-549・TASK-534）、別のタブが開いた瞬間に知らせること、合流の規則（D-56 で採らないと決定。TASK-325 2/2）、`export-notice` が `terminal_area::is_defined_testid` に無い既存の不整合
+
+### 5.179 交互 10 回ずつの操作の後も新しいタブの履歴が開く（TASK-325 2/2。SAVE-13・D-56）
+
+実行日: 2026-10-21、元にしたコミット: 74d84e3 に本変更を載せた作業ツリー。
+
+- 条件の判定: Issue #608 は「TASK-311 の決定が合流の規則を採った場合」に限る。決定 D-56（2026-10-12）は合流の規則を採らず、古いタブは保存しない（SAVE-12）にとどめて表示を出す（TASK-325 1/2）と決めた。よって合流は実装せず、本番のコード（`crates/*/src/**`）は変えない。自動運転での判断（人の承認は無い）であり、#608・#606 を不要として閉じるかの最終判断は人に残す
+- 代わりに、受け入れ条件の場面（2 つのタブで交互に 10 回ずつ操作して再読み込みする）を、採用した規則の下で確かめた
+  - ブラウザ試験 `tools/browser/stale-tab.test.mjs`（CSP あり・なしで 2 件増）: 10 ラウンド、各ラウンドで古いタブ A の 1 手の後に保存値が直前の値のままであること、新しいタブ B の 1 手の後に保存値が変わること（陽性の対照）を確かめる。最後のラウンドで B だけ確認まで進めて st-2 にし、A（st-1）と Step を分ける。その後 A が古いタブで通知が出ること、B は出ないことを確かめ、B の再読み込みで `bootKind` が `restored` かつ写しと一致すること、A の再読み込みでも B の履歴が復元されること（A のメモリ上の操作は合流されない）を確かめる。5 回流して毎回 4 件とも通った
+  - native 試験 `crates/web/tests/boot_guard.rs` の `交互に_10_回ずつ書いても保存先には新しいタブの最後の書き込みだけが残る`: 同じ交互の書き込みを偽の localStorage で確かめる
+- 「`replay_mismatch` 0 件」の表し方: 起動で開けなかった理由は `stateJson` に出ない（`BootOutcome::NotOpened` の理由は捨てている）ため、`bootKind === 'restored'`（開けなければ `not_opened`）と、復元した Step・スライス・増分の射影・世界の一致で表した。理由を出す口は足していない
+- 範囲外: 合流の規則そのもの、spec 側の SAVE-13・SHELL-23 の状態の更新、起動時の理由を `stateJson` に出す口、IndexedDB の保存先でのブラウザ試験（native 試験が照合を確かめる）、`scripts/expected-test-counts.txt` の更新（別 PR で `make update-test-counts`）
+
+### 5.180 インラインを使わない画面の検査と CSP あり・なしの計数（TASK-151 2/2。SAFE-13・SAFE-15）
+
+実行日: 2026-10-21、元にしたコミット: 3fd422b に本変更を載せた作業ツリー。5.176 の範囲外としていた 3 点を、既存の `browser-test` ジョブ（`make test-browser`）の中の試験として足した。本番のコード（`crates/**`）は変えていない。
+
+#### 試験
+
+- `tools/browser/inline-free.test.mjs`（SAFE-15。24 件。ブラウザを使うのは 1 件。harness の追加分は別に数える）: `harness.mjs` の `inspectInlineFree` が、配信・試験の両設定の `index.html`・`app.css` で、`script` は `type="module" src="./app.js"` の 1 つだけ（インラインの script 0）、`style` 属性・`on*` 属性・`style` 要素 0、`href`・`src` 等が `data:`・`javascript:`・`blob:`・外部の `http(s):`・`//` でない、favicon の `link` が `./icon.svg` の 1 つ、`app.css` に `url(`・`@import`・`expression(` が無い、試験用の meta が配信する設定に無い、を満たすことを確かめる（fail-closed。問題の一覧を返す）。`app.js`・`icon.svg` が配信元から直接取れる（200・`javascript`・`image/svg+xml`）ことも確かめる。実物の写しを加工した対照 14 種（インラインの script・src つきの script への中身の同居・`style` 属性・`on*` 属性・`style` 要素・`data:` の favicon〔PoC-7 の修正前〕・外部の script・外部の画像・プロトコル相対の画像・script の `src` の差し替え・favicon の link の削除・`app.css` の `url(data:)`・外部の `@import`・配信する設定への試験用の meta）が、期待の理由と件数で不合格になる。ブラウザの対照として、配信する設定の写しの body に `data:` の画像を 1 つ足すと、CSP ありでは違反がちょうど 1 件（`img-src`）、CSP なしでは 0 件、加工前の実物では両方 0 件になる
+- `tools/browser/csp-runs.test.mjs`（SAFE-13。6 件）: 場面ごとに CSP あり → なしの順で流し、各回と各 Step で、配信元以外への通信 0・CSP の違反 0・コンソールの CSP 関連の出力 0（`harness.mjs` の `cspConsoleMessages`。`rec` に `consoleWarnings` を足した）・ページ内エラー 0・失敗した要求 0・HTTP 400 以上 0（いずれも favicon を除く）・安全の計数（`scanDom` を含む）がすべて 0 であることを主張する。場面の終わりに、CSP の有無で配信元への要求の種類（`requestKinds`。相対パス・種類・状態の組）が等しいことも比べる
+  - D1（配信する設定）: 最小の画面の起動と入力欄への入力・送信。`window.__fandheTest` が無い
+  - T1（試験の設定）: 最小教材 `min-3step` の 3 Step を実クリックと実入力で達成まで進める
+  - T2: CH-1 の 6 Step を含む区間（`st-0-1` から `st-2-1`）をキーボードだけで進め、Step の到達ごとに走査する。誘導は `ch0-3-journey.mjs`（`ch0-3-run.test.mjs` から移した補助。試験の名前・件数・判定は変えていない）の `journey` に `onStep` の口を足して共有した
+  - T3: 掲示板教材の代わりの試験用の教材の全 Step を「移動」（`raw-trigger` へ `go_to`）で順に開き、各 Step で走査する。`ch0-3` の 20 Step と `reload-points` の 8 Step の 2 件。Step の一覧は教材の IR から読み、個数を固定する
+  - T4: 表示部品 7 種 × 変種 (a)・(b) の 14 通りすべてを `artifact-view-check.mjs` の `CASES` から mount し、前後の両方で走査する。文書 (a)・差分 (a) は対照の口から描く。部品が増えれば `CASES` に入り、自動で対象になる
+- `harness.test.mjs` に `cspConsoleMessages` と `requestKinds` の純関数の対照を 2 件足した（CSP の文言だけを拾う・余計な要求が差に現れる・除外は引数で明示した分だけ）
+
+#### 確認（2026-10-21）
+
+- 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`inline-free` と `harness` の 36 件、`csp-runs` の 6 件、`ch0-3-run` の 4 件がすべて通った。追加分の実行時間は `csp-runs` 約 13 秒、`inline-free` 約 3 秒で、`browser-test` ジョブの timeout（60 分）に対して無視できる。環境変数なしでは `csp-runs`・`inline-free` の 25 件が失敗する（skip しない）
+- T3 の巡回でエンジンの警告は 0 件だった（件数は診断の行に出すだけで assert しない）
+- `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない（CI の実測と完全一致が要るため、並列の PR とずれる危険を避けた。更新は別の機会に `make update-test-counts`）
+
+#### 限界・範囲外
+
+- 配信する設定は実行時に教材を読み込まない（`EngineHost::for_mount` は session なしで、`crates/web/src` に `ir/main.json` を取得する処理が無い）ため、配信する設定での誘導の完走・「移動」は確かめていない。D1 は起動と入力欄への入力・送信までである。実行時の教材の読み込みが入った後に、同じ場面を配信する設定へ広げる
+- 掲示板教材は repo に無い（D-11。公開可否は TASK-14）。「全 Step を移動で開く」は、CH-2 の形を写した試験用の教材で代えた。本物の掲示板教材では未確認である
+- favicon は要求の種類の比較から外した（ヘッドレスでの取得が揺れるため）。代わりに静的な検査と直接の取得で確かめる
+- 静的な検査は `index.html`・`app.css` が対象である。Rust が実行時に描く DOM は `scanDom`（`style` 属性・`on*` 属性・危険な要素・URL）が各場面で数える
+- CH-0〜CH-3 の全 Step の CSP 計数つきの完走は TASK-152 の範囲
+- `tools/check-delivery.sh` には組み込まない（5.176 と同じ判断）
+- 要確認: CI のガード（インライン不使用と CSP の計数を失敗で止める検査）の追加は TASK-151 の人間の承認点で、承認は未取得である。既存の `browser-test` ジョブに試験を足しただけで、ジョブ・ruleset・必須チェックは変えていない
+
+### 5.181 秘密情報らしい文字列の検出と保存の直前の警告（TASK-164 1/3。SAFE-27・SAFE-29）
 
 保存の直前に、固定の 10 形（S-01〜S-10）の秘密情報らしい文字列を検出して警告する。警告には形の名前だけを出し、値は出さない。対照 6 件（N-01〜N-06）では出さない。検出した値は保存先へ積まない（D-44 の失敗側。一度書かれた秘密情報は保存先に残り、元に戻せないため）。
 

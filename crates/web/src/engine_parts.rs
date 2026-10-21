@@ -52,6 +52,7 @@ use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
 use crate::save_notice::{save_notice_text, SAVE_NOTICE_FIELD};
 use crate::secret_notice::{secret_notice_text, SECRET_NOTICE_FIELD};
+use crate::stale_notice::{stale_notice_text, STALE_NOTICE_FIELD};
 use crate::step_status::step_status;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
 use crate::view_select::{
@@ -102,6 +103,11 @@ const F_LOG: &[PartField] = &[
     // 秘密情報らしい文字列の警告の通知欄（SAFE-27・TASK-164 1/3）。末尾に足す（[2]..[7] は位置で参照している）。
     PartField {
         name: SECRET_NOTICE_FIELD,
+        kind: FieldKind::Bound,
+    },
+    // 古いタブの「保存されていない」通知欄（SAVE-13・D-56。TASK-325）。末尾に足す（[2]..[7] は位置で参照している）。
+    PartField {
+        name: STALE_NOTICE_FIELD,
         kind: FieldKind::Bound,
     },
 ];
@@ -392,6 +398,13 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[8].name,
                     secret_notice_text(model.secret_warning()).as_str(),
                 ),
+                // 古いタブの通知（SAVE-13）。保存失敗の `save-notice` とは別の欄で、一度出たら消えない。配置は仮。
+                bind_text(
+                    "p",
+                    vec![("data-testid", "stale-notice"), ("role", "status")],
+                    F_LOG[9].name,
+                    stale_notice_text(model.stale_tab()),
+                ),
                 bind_text(
                     "span",
                     vec![("data-testid", "part-log-consumed")],
@@ -413,6 +426,9 @@ impl DisplayPart<HostModel> for LogPart {
             )),
             f if f == F_LOG[7].name => Some(BoundValue::Text(
                 export_notice_text(model.export_hint()).to_owned(),
+            )),
+            f if f == F_LOG[9].name => Some(BoundValue::Text(
+                stale_notice_text(model.stale_tab()).to_owned(),
             )),
             f if f == F_LOG[8].name => {
                 Some(BoundValue::Text(secret_notice_text(model.secret_warning())))

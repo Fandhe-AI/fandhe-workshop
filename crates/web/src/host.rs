@@ -95,6 +95,7 @@ use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::secret_notice::{secret_hold, SECRET_NOTICE_FIELD};
+use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
 use fandhe_workshop_contract::profile::InputFieldMode;
@@ -134,12 +135,20 @@ pub struct HostModel {
     /// 保存の直前に見つけた秘密情報らしい文字列の形（SAFE-27・TASK-164 1/3。`secret-notice` の元）。形だけを持ち、値は持たない。
     /// 表示の状態で、履歴（`ops`）にも保存先にも書かない。見つけた間は、その値を保存先へ積まない。
     secret_warning: Vec<SecretShape>,
+    /// このタブが他のタブに追い越された（古いタブ）ことの表示（SAVE-13・D-56。`stale-notice` の元）。
+    /// 表示の状態で、履歴（`ops`）にも保存先にも書かない。一度立てたら戻さない（`BootGuard` の stale も戻らない）。
+    stale_tab: bool,
 }
 
 impl HostModel {
     /// 警告に出す形。無ければ空（`secret-notice` が空になる）。
     pub fn secret_warning(&self) -> &[SecretShape] {
         &self.secret_warning
+    }
+
+    /// 古いタブか。真なら `stale-notice` に文が出る。
+    pub fn stale_tab(&self) -> bool {
+        self.stale_tab
     }
 
     /// 書き出しの案内の種類。無ければ `None`（`export-notice` が空になる）。
@@ -463,6 +472,12 @@ pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
 /// 保存先に残し、ホストがこの口で引く。`Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type SaveFailureProbe = Box<dyn Fn() -> Option<StorageError>>;
 
+/// このタブが古いタブ（起動番号の照合で追い越された）かを読む口（SAVE-13・D-56）。読み取り専用で、`update` のたびに引かれる。
+///
+/// 実体（`persist`）は `BootGuard` が覚えた真偽を返すだけで、保存領域は読まない。
+/// `Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type StaleProbe = Box<dyn Fn() -> bool>;
+
 /// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
 ///
 /// 問い返しの後の扱いは JUDGE-27・TERM-22（検討中）に属するため、ここでは固定しない。
@@ -539,6 +554,8 @@ pub struct EngineHost {
     history_saver: Option<HistorySaver>,
     /// 非同期の保存の失敗を読む口（SAVE-11）。未設定なら同期の保存の結果だけで表示を決める。
     save_failure_probe: Option<SaveFailureProbe>,
+    /// 古いタブかを読む口（SAVE-13）。未設定なら通知は出ない。
+    stale_probe: Option<StaleProbe>,
     /// 直近の同期の保存（saver）の失敗。表示は「これ、無ければ probe の値」で決める。
     sync_save_failure: Option<StorageError>,
     /// 即時の保存の世代。遅延保存の結果は、書き込んだ時点の世代が今と一致するときだけ反映する。
@@ -610,6 +627,7 @@ impl EngineHost {
                 save_failure: None,
                 export_hint: None,
                 secret_warning: Vec::new(),
+                stale_tab: false,
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -622,6 +640,7 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             save_failure_probe: None,
+            stale_probe: None,
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
@@ -688,6 +707,7 @@ impl EngineHost {
                 save_failure: None,
                 export_hint: None,
                 secret_warning: Vec::new(),
+                stale_tab: false,
             },
             registry,
             input,
@@ -700,6 +720,7 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             save_failure_probe: None,
+            stale_probe: None,
             sync_save_failure: None,
             save_epoch: 0,
             save_due: false,
@@ -917,6 +938,24 @@ impl EngineHost {
         if failure != self.model.save_failure {
             self.model.save_failure = failure;
             self.dirty.push(SAVE_NOTICE_FIELD);
+        }
+    }
+
+    /// 古いタブかを読む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。結んだ時点で 1 回引く。
+    pub fn set_stale_probe(&mut self, f: StaleProbe) {
+        self.stale_probe = Some(f);
+        self.refresh_stale();
+    }
+
+    /// probe が古いタブを示したとき、`stale_tab` を立てて dirty に積む（SAVE-13）。一度立てたら戻さず、再び積まない。
+    /// `update` の末尾で、保存の試みの直後に毎回呼ぶ（その `update` の保存で追い越しが分かった場合に同じ描画で出す）。
+    fn refresh_stale(&mut self) {
+        if self.model.stale_tab {
+            return;
+        }
+        if self.stale_probe.as_ref().is_some_and(|probe| probe()) {
+            self.model.stale_tab = true;
+            self.dirty.push(STALE_NOTICE_FIELD);
         }
     }
 
@@ -1751,6 +1790,7 @@ impl Component for EngineHost {
         }
         // 非同期の保存の失敗（IndexedDB）の表示を、打鍵・送信・進行のどの `update` でも求め直す（SAVE-11）。
         self.refresh_save_failure(); // update の末尾
+        self.refresh_stale(); // 保存の試み（照合）の後に求める
     }
 
     fn view(&self) -> Node {

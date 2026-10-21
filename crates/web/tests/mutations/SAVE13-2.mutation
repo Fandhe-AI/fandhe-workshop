@@ -1,0 +1,8 @@
+id: SAVE13-2
+package: fandhe-workshop-web
+test: stale_notice
+target: crates/web/src/stale_notice.rs
+find:     if stale {
+replace:     if false && stale {
+expect-fail: 追い越された古いタブだけが_同じ_update_で通知を出し_保存失敗の通知は空のまま
+note: 通知の文が常に空だと、古いタブに表示が出ない

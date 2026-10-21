@@ -1,0 +1,8 @@
+id: SAVE12-1
+package: fandhe-workshop-web
+test: boot_guard
+target: crates/web/src/boot_guard.rs
+find:             Some(v) if v == mine => Ok(true),
+replace:             Some(_) => Ok(true),
+expect-fail: 古いタブの書き込みは保存先に届かず_新しいタブの書き込みは届く
+note: 照合を外すと古いタブの書き込みが保存先へ届く
