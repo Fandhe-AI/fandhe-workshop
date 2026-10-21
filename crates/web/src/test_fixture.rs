@@ -19,6 +19,7 @@
 //! 同じ教材の別の章（`pack.id` が同じで開始点だけが違う IR 2 本。`?fixture=chapter-a`・`?fixture=chapter-b`）も起動の前に選ぶ。
 //! 章ごとの保存先の鍵で別の章の履歴が混ざらないことの試験が使う（SAVE-14・DLV-8。TASK-326 1/2）。
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
+//! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -73,6 +74,8 @@ pub(crate) enum MountFixture {
     ChapterANext,
     /// 開始点を 3 件持つ教材（直接リンク `?start=` の試験。TASK-109 1/2）。
     MultiStart,
+    /// 20 Step の通しの教材に、章の開始点 10 件を持たせた教材（直接リンクと再読み込みの試験。DLV-7。TASK-110 1/2）。
+    Ch03Links,
     /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
@@ -167,6 +170,42 @@ pub(crate) fn multi_start_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 章の開始点 10 件を持つ教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CH03_LINKS_PACK_ID: &str = "ch0-3-links";
+
+/// 章の開始点 10 件の、開始点の ID と節点（先頭から順）。ブラウザ試験の直接リンク 10 件（`delivery.mjs` の `DIRECT_LINKS`）と揃える。
+pub(crate) const CH03_LINK_POINTS: [(&str, &str); 10] = [
+    ("s-0-1", "main/st-0-1"),
+    ("s-0-2b", "main/st-0-2b"),
+    ("s-1-1", "main/st-1-1"),
+    ("s-1-4", "main/st-1-4"),
+    ("s-1-5", "main/st-1-5"),
+    ("s-1-6", "main/st-1-6"),
+    ("s-2-1", "main/st-2-1"),
+    ("s-2-3", "main/st-2-3"),
+    ("s-3-1", "main/st-3-1"),
+    ("s-3-2", "main/st-3-2"),
+];
+
+/// 20 Step の通しの教材から、開始点を 10 件持つ IR を作る（`pack.id` だけ別にする）。試験データのファイルは増やさず、埋め込みの IR を書き換える。
+/// 開始点の `effects` は空のままで、前の Step の効果は持たない（`docs/testing.md` 5.199 と同じ限界）。
+pub(crate) fn ch03_links_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CH03_LINKS_PACK_ID.into());
+    pack.insert(
+        "title".to_owned(),
+        "章のリンクの再読み込みの試験データ".into(),
+    );
+    let starts: Vec<serde_json::Value> = CH03_LINK_POINTS
+        .iter()
+        .map(|(id, node)| serde_json::json!({ "id": id, "node": node, "effects": [] }))
+        .collect();
+    obj.insert("starts".to_owned(), starts.into());
+    serde_json::to_vec(&value).ok()
+}
+
 /// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
 pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
     let kind = match fixture {
@@ -188,6 +227,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
+        "?fixture=ch0-3-links" => MountFixture::Ch03Links,
         "?fixture=multi-start" => MountFixture::MultiStart,
         "?fixture=chapter-a" => MountFixture::ChapterA,
         "?fixture=chapter-b" => MountFixture::ChapterB,
@@ -217,6 +257,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::ReloadPoints => RELOAD_POINTS_IR.to_vec(),
         MountFixture::NoInput => NO_INPUT_IR.to_vec(),
         MountFixture::Ch03 => CH03_IR.to_vec(),
+        MountFixture::Ch03Links => ch03_links_ir_bytes()?,
         MountFixture::MultiStart => multi_start_ir_bytes()?,
         MountFixture::ChapterA => chapter_ir_bytes(Chapter::A)?,
         MountFixture::ChapterB => chapter_ir_bytes(Chapter::B)?,
@@ -1099,6 +1140,13 @@ mod tests {
                 MountFixture::MultiStart,
             ),
             ("?fixture=chapter-a&start=s-1", MountFixture::ChapterA),
+            ("?fixture=ch0-3-links", MountFixture::Ch03Links),
+            ("?fixture=ch0-3-links&start=s-2-1", MountFixture::Ch03Links),
+            ("?start=s-2-1&fixture=ch0-3-links", MountFixture::Ch03Links),
+            (
+                "?fixture=ch0-3-links&start=s-2-1&x=1",
+                MountFixture::Default,
+            ),
             ("?start=s-4", MountFixture::Default),
             ("?start=", MountFixture::Default),
             // start 以外の余分なキー・大文字違いは既定に倒す（既存の否定と同じ）。
@@ -1228,5 +1276,42 @@ mod tests {
         let distinct: std::collections::BTreeSet<_> =
             hashes.iter().map(|h| h.as_str().to_owned()).collect();
         assert_eq!(distinct.len(), hashes.len());
+    }
+
+    #[test]
+    fn 章の開始点_10_件の教材は各開始点でその節点で開き_鍵が分かれる() {
+        use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+        let ir = load_ir(&ch03_links_ir_bytes().unwrap()).unwrap();
+        assert_eq!(ir.pack.id, CH03_LINKS_PACK_ID);
+        assert_eq!(ir.starts.len(), 10);
+        let (first, first_id) = mount_session_at(MountFixture::Ch03Links, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (first_id.as_str(), current_node(&first).as_str()),
+            CH03_LINK_POINTS[0]
+        );
+        let mut keys = std::collections::BTreeSet::new();
+        for (id, node) in CH03_LINK_POINTS {
+            assert!(ir.nodes.iter().any(|n| n.uid == node), "{id}");
+            let (s, got) = mount_session_at(MountFixture::Ch03Links, Some(id))
+                .unwrap()
+                .unwrap();
+            assert_eq!((got.as_str(), current_node(&s).as_str()), (id, node));
+            keys.insert(
+                HistoryKey::for_pack(DeliveryScope::named("scope-x"), CH03_LINKS_PACK_ID, id)
+                    .render(),
+            );
+        }
+        assert_eq!(keys.len(), CH03_LINK_POINTS.len());
+        assert_eq!(
+            mount_session_at(MountFixture::Ch03Links, Some("nope")).err(),
+            Some(StartRefusal::Unknown)
+        );
+        // 対照: 開始点 1 件の既存の教材は、同じ ID を断る。
+        assert_eq!(
+            mount_session_at(MountFixture::Ch03, Some("s-2-1")).err(),
+            Some(StartRefusal::Unknown)
+        );
     }
 }
