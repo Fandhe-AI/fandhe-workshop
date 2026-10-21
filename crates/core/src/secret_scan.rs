@@ -15,7 +15,7 @@
 //!   エスケープ残りも検出できない。
 //! - 接頭辞の大文字小文字は区別する。名前つきの形（`aws_secret_access_key`）の名前だけは、ASCII の大文字小文字を区別しない。
 //! - 履歴ファイルの読み込み（インポート）の内容は調べない（TASK-165 の範囲）。
-//! - 費用は値の大きさに比例する。WASM での検査時間は未計測である。
+//! - 費用は値の大きさに比例する（接頭辞の反復でも二次にならない。見つけた範囲の中の候補は数え直さず、連なりの終端は再利用する）。WASM での検査時間は未計測である。
 //!
 //! 形の ID と名前は、秘密情報の検出の規則を識別する固定の名前であり、教材の知識ではない。
 
@@ -139,6 +139,29 @@ fn run_len(s: &str, from: usize, class: fn(u8) -> bool) -> usize {
         .map_or(0, |rest| rest.iter().take_while(|b| class(**b)).count())
 }
 
+/// 直前に数えた連なり（`start..end`）の記憶。同じ連なりの中から始まる問い合わせは再走査せず終端を返す。
+///
+/// 接頭辞の反復（`-eyJ` を繰り返す入力など）で、各候補が残り全体を数え直す二次時間を避ける。
+#[derive(Default)]
+struct RunCache {
+    start: usize,
+    end: usize,
+}
+
+impl RunCache {
+    /// [`run_len`] と同じ値を返す。`from` が記憶した連なりの中なら、その終端までの長さを再利用する。
+    /// 1 つの記憶は 1 つの文字の種類にだけ使う（呼び出し側が種類ごとに別の記憶を持つ）。
+    fn run_len(&mut self, s: &str, from: usize, class: fn(u8) -> bool) -> usize {
+        if from >= self.start && from < self.end {
+            return self.end - from;
+        }
+        let n = run_len(s, from, class);
+        self.start = from;
+        self.end = from + n;
+        n
+    }
+}
+
 /// `idx` の直前が英数字でないか（接頭辞が語の途中でないこと）。`idx` は `match_indices` が返す文字の境界。
 fn boundary_before(s: &str, idx: usize) -> bool {
     s.get(..idx)
@@ -164,14 +187,17 @@ fn prefixed(
     min: usize,
 ) {
     for prefix in prefixes {
+        // 見つけた範囲の中にある同じ接頭辞は、その範囲に含まれるため数え直さない（指紋の計算も含めて線形にする）。
+        let mut covered = 0;
         for (i, _) in s.match_indices(prefix) {
-            if !boundary_before(s, i) {
+            if i < covered || !boundary_before(s, i) {
                 continue;
             }
             let body = i + prefix.len();
             let n = run_len(s, body, class);
             if n >= min {
                 push(out, shape, s, i, body + n);
+                covered = body + n;
             }
         }
     }
@@ -190,8 +216,9 @@ fn scan_aws_secret(out: &mut Vec<Finding>, s: &str) {
     // 名前は環境変数の `AWS_SECRET_ACCESS_KEY` などの大文字・混在も受ける。ASCII だけを小文字にした写しで位置を探し、
     // 長さと文字の境界が変わらないため、以後の判定と指紋は元の `s` で行う。
     let lower = s.to_ascii_lowercase();
+    let mut covered = 0;
     for (i, _) in lower.match_indices(NAME) {
-        if !boundary_before(s, i) {
+        if i < covered || !boundary_before(s, i) {
             continue;
         }
         let p = skip_quote_space(s, i + NAME.len());
@@ -202,19 +229,27 @@ fn scan_aws_secret(out: &mut Vec<Finding>, s: &str) {
         let n = run_len(s, p, is_b64);
         if n >= 40 {
             push(out, SecretShape::AwsSecretKey, s, i, p + n);
+            covered = p + n;
         }
     }
 }
 
 fn scan_jwt(out: &mut Vec<Finding>, s: &str) {
     const HEAD: &str = "eyJ";
+    // 3 部それぞれの連なりを別々に記憶する。同じ連なりの中の候補が、同じ終端を何度も数え直さないため。
+    let (mut c1, mut c2, mut c3) = (
+        RunCache::default(),
+        RunCache::default(),
+        RunCache::default(),
+    );
+    let mut covered = 0;
     for (i, _) in s.match_indices(HEAD) {
-        if !boundary_before(s, i) {
+        if i < covered || !boundary_before(s, i) {
             continue;
         }
         let b = s.as_bytes();
         let mut p = i + HEAD.len();
-        let n1 = run_len(s, p, is_b64url);
+        let n1 = c1.run_len(s, p, is_b64url);
         if n1 < 8 {
             continue;
         }
@@ -223,7 +258,7 @@ fn scan_jwt(out: &mut Vec<Finding>, s: &str) {
             continue;
         }
         p += 1 + HEAD.len();
-        let n2 = run_len(s, p, is_b64url);
+        let n2 = c2.run_len(s, p, is_b64url);
         if n2 < 8 {
             continue;
         }
@@ -232,9 +267,10 @@ fn scan_jwt(out: &mut Vec<Finding>, s: &str) {
             continue;
         }
         p += 1;
-        let n3 = run_len(s, p, is_b64url);
+        let n3 = c3.run_len(s, p, is_b64url);
         if n3 >= 10 {
             push(out, SecretShape::Jwt, s, i, p + n3);
+            covered = p + n3;
         }
     }
 }
@@ -243,22 +279,54 @@ fn scan_private_key(out: &mut Vec<Finding>, s: &str) {
     const BEGIN: &str = "-----BEGIN ";
     const TAIL: &str = "PRIVATE KEY-----";
     const END: &str = "-----END ";
+    // 種類の語（RSA・EC など）の上限。TAIL を探す範囲をここまでに限り、BEGIN 行の反復で残り全体を探さない。
+    const KIND_MAX: usize = 16;
+    // 見つけた範囲の中の BEGIN は数え直さない。
+    let mut covered = 0;
+    // END 行の探索の記憶（探し始めた位置、見つかった絶対位置。見つからなければ None）。
+    let mut end_cache: Option<(usize, Option<usize>)> = None;
     for (i, _) in s.match_indices(BEGIN) {
+        if i < covered {
+            continue;
+        }
         let from = i + BEGIN.len();
-        let Some(rest) = s.get(from..) else { continue };
-        // 種類の語（RSA・EC など）は短い大文字と空白だけ。離れた語は枠として扱わない。
-        let Some(t) = rest.find(TAIL) else { continue };
-        let kind_ok = rest.as_bytes().get(..t).is_some_and(|k| {
-            k.len() <= 16 && k.iter().all(|b| b.is_ascii_uppercase() || *b == b' ')
+        let Some(rest) = s.as_bytes().get(from..) else {
+            continue;
+        };
+        let window = rest
+            .get(..rest.len().min(KIND_MAX + TAIL.len()))
+            .unwrap_or_default();
+        let Some(t) = window
+            .windows(TAIL.len())
+            .position(|w| w == TAIL.as_bytes())
+        else {
+            continue;
+        };
+        let kind_ok = window.get(..t).is_some_and(|k| {
+            k.len() <= KIND_MAX && k.iter().all(|b| b.is_ascii_uppercase() || *b == b' ')
         });
         if !kind_ok {
             continue;
         }
         let after = from + t + TAIL.len();
-        match s.get(after..).and_then(|r| r.find(END)) {
-            Some(e) => push(out, SecretShape::PrivateKey, s, i, after + e + END.len()),
+        let found = match end_cache {
+            Some((searched, pos)) if after >= searched && pos.is_none_or(|e| after <= e) => pos,
+            _ => {
+                let pos = s.get(after..).and_then(|r| r.find(END)).map(|e| after + e);
+                end_cache = Some((after, pos));
+                pos
+            }
+        };
+        match found {
+            Some(e) => {
+                push(out, SecretShape::PrivateKey, s, i, e + END.len());
+                covered = e + END.len();
+            }
             // END 行が無い切り詰め・途中までの貼り付けも、鍵本体が続く前提として止める。
-            None => push(out, SecretShape::PrivateKey, s, i, after),
+            None => {
+                push(out, SecretShape::PrivateKey, s, i, after);
+                covered = after;
+            }
         }
     }
 }

@@ -220,3 +220,43 @@ fn aws_secret_name_is_matched_ignoring_ascii_case() {
         );
     }
 }
+
+/// 接頭辞の反復で二次時間にならないこと（履歴の保存のたびにメインスレッドで同期実行されるため）。
+/// 二次なら数十秒かかる大きさを与え、十分に余裕のある上限で線形を確かめる。
+#[test]
+fn repeated_prefixes_are_scanned_in_linear_time() {
+    let n = 200_000;
+    let key_line = ["-----BEGIN PRIVATE", " KEY-----\n"].concat();
+    let jwt_head = format!("eyJ{}", "a".repeat(8));
+    let cases: Vec<(&str, String)> = vec![
+        ("jwt_dash_eyj", "-eyJ".repeat(n)),
+        (
+            "jwt_second_part",
+            format!("{}.eyJ{}", "eyJaaaaaaaa-".repeat(n), "b".repeat(n)),
+        ),
+        ("slack", "xoxb-".repeat(n)),
+        ("aws_access", "AKIA".repeat(n)),
+        ("aws_secret", "aws_secret_access_key=".repeat(n)),
+        ("private_key_no_tail", "-----BEGIN ".repeat(n)),
+        ("private_key_no_end", key_line.repeat(n)),
+        (
+            "private_key_with_end",
+            format!("{}-----END ", key_line.repeat(n)),
+        ),
+        ("jwt_head_only", jwt_head.repeat(n)),
+    ];
+    for (name, text) in &cases {
+        let start = std::time::Instant::now();
+        let found = scan_text(text);
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(5),
+            "case {name} took {elapsed:?}"
+        );
+        assert!(
+            found.len() <= n,
+            "case {name} produced {} findings",
+            found.len()
+        );
+    }
+}
