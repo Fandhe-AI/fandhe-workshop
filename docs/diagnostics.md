@@ -69,7 +69,7 @@
 - `E-VOCAB-MISMATCH` の対象には、上の行の拡張点に加えて、番号を持たない `confirm.options[].label`（語彙 1.3。`answer` の選択肢の表示名）も含まれる（版 4。固定した行は書き換えず、本注で補う）。入力方式 `choice` の `options[].label`（語彙 v1）は別の欄で、対象ではない
 - `E-VOCAB-MISMATCH` の対象には、EP-13（`view.document_body`。`views.<ID>.body`、語彙 1.4）も含まれる（版 5。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 - `E-VOCAB-MISMATCH` の対象には、承認の `input.revise`（`input.revise.candidates`。語彙 1.5、拡張点の番号なし）も含まれる（版 7。固定した行は書き換えず、本注で補う）。件数は 34 件のまま。`E-PARSE`・`E-STRUCTURE` は、`input.revise` の型の誤りと、意味の制約・規則の `target` が候補に無いことにも使う（新しいコードは足さない。PACK-42）
-- `E-VOCAB-MISMATCH` の対象には、実行環境の操作の入力方式 `env_action`（語彙 1.5、拡張点の番号なし）も含まれる（版 8。固定した行は書き換えず、本注で補う）。件数は 34 件のまま。`E-PARSE`・`E-STRUCTURE` は、`env_action` の型の誤り（未知の値・欄の欠け・未知の欄）と、`processing` を持つ Step にも使う（新しいコードは足さない。PACK-34）
+- `E-VOCAB-MISMATCH` の対象には、実行環境の操作の入力方式 `env_action`（語彙 1.5、拡張点の番号なし）も含まれる（版 8。固定した行は書き換えず、本注で補う）。件数は 34 件のまま。`E-PARSE`・`E-STRUCTURE` は、`env_action` の型の誤り（未知の値・欄の欠け・未知の欄）と、`processing` を持つ Step・取り消しの規則（`on.cancel`）を持つ Step にも使う（新しいコードは足さない。PACK-34）
 - 語彙の文書（v1.1）は、本文の上限超過を `E-REF-BODY` の条件に含める。実装では、この上限超過は `E-REF-BODY` ではなく上限超過のコードに当たり、4 節の参照のみの区分にある。`.md` 以外の本文は素の `E-LIMIT`、`.md` の本文は事前走査の `E-LIMIT-MD-SIZE` である。実装の `E-REF-BODY` は、本文の参照が解決できない場合（安全でない本文パス・参照先の不存在・存在するファイルの読み込み時の I/O エラー）に出る。上限超過は含まない（版 6。D-64。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 
 ## 3. 件数の記録

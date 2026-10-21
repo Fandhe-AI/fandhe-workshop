@@ -164,3 +164,85 @@ fn pack34_hidden_input_field_profile_is_allowed() {
     let d = validate_dir(&tmp.0);
     assert!(d.is_empty(), "{d:?}");
 }
+
+#[test]
+fn pack34_cancel_rule_is_a_structure_error() {
+    // 取り消しの規則があると、保存・書き出しを実行せずに受付になるため宣言で拒否する。
+    let tmp = edited(
+        "env-action-cancel",
+        CHAPTER,
+        "    input: {kind: env_action, action: save}\n",
+        "    input: {kind: env_action, action: save}\n    rules: [{id: r-c, on: {cancel: true}, outcome: {kind: accept}}]\n",
+    );
+    let d = validate_dir(&tmp.0);
+    assert!(
+        d.iter().any(|d| d.code() == DiagCode::Structure
+            && d.to_string().contains("env_action")
+            && d.to_string().contains("cancel rule is not allowed")),
+        "{d:?}"
+    );
+    assert!(compile_dir(&tmp.0).is_err());
+    // 対照: 取り消しの規則が無い宣言は通る。
+    assert!(validate_dir(&pack_dir()).is_empty());
+}
+
+/// 章の 2 つの `env_action` を `wait` に替え、`env_action` の使用がモジュール引数 `k` 経由の 1 件だけになる写しを作る。
+fn module_arg_pack(tag: &str, vocab: &str) -> Tmp {
+    let tmp = edited(tag, WORKSHOP, "vocab: '1.5'", vocab);
+    let chapter = tmp.0.join(CHAPTER);
+    let text = std::fs::read_to_string(&chapter).unwrap();
+    let wait = "input: {kind: wait}\n    processing: [{name: p1}]";
+    let text = text
+        .replace("input: {kind: env_action, action: save}", wait)
+        .replace("input: {kind: env_action, action: export}", wait)
+        .replace(
+            "    next: [{to: st-end}]",
+            "    next: [{to: call}]",
+        )
+        .replace(
+            "  - id: st-end\n",
+            "  - id: call\n    title: モジュール\n    next: [{to: st-end}]\n    use: {module: m1, instance: i1, args: {k: env_action}}\n  - id: st-end\n",
+        );
+    std::fs::write(&chapter, text).unwrap();
+    let dir = tmp.0.join("modules/m1");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.md"), "# 保存する\n\n保存します。\n").unwrap();
+    std::fs::write(
+        dir.join("module.yaml"),
+        concat!(
+            "id: m1\n",
+            "title: 引数で入力の方式が決まるモジュール\n",
+            "params: {k: text}\n",
+            "steps:\n",
+            "  - id: ma\n",
+            "    title: 操作\n",
+            "    body: a.md\n",
+            "    next: [{to: mb}]\n",
+            "    input: {kind: '${k}', action: save}\n",
+            "    confirm: {kind: none, reason: 操作の成功が達成の根拠のため、別の確認を置かない。}\n",
+            "  - id: mb\n",
+            "    title: おわり\n",
+            "    final: true\n",
+        ),
+    )
+    .unwrap();
+    tmp
+}
+
+#[test]
+fn pack34_env_action_through_module_args_counts_for_vocab() {
+    let old = module_arg_pack("env-action-module-arg", "vocab: '1.4'");
+    let d = validate_dir(&old.0);
+    assert!(
+        d.iter()
+            .any(|d| d.code() == DiagCode::VocabMismatch && d.to_string().contains("env_action")),
+        "{d:?}"
+    );
+    // 対照: 宣言が 1.5 なら出ない。
+    let ok = module_arg_pack("env-action-module-arg-ok", "vocab: '1.5'");
+    let d = validate_dir(&ok.0);
+    assert!(
+        !d.iter().any(|d| d.code() == DiagCode::VocabMismatch),
+        "{d:?}"
+    );
+}

@@ -18,8 +18,12 @@ use fandhe_workshop_contract::history_version::VocabVersion as Declared;
 use fandhe_workshop_contract::ir::Start;
 use serde_json::Value;
 
+use fandhe_workshop_contract::limits::MAX_IR_BYTES;
+
+use crate::compile::Budget;
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::LoadedPack;
+use crate::expand::Expander;
+use crate::source::{LoadedPack, ScopeKind};
 use crate::validate::diag;
 use crate::vocab::{extension_point, term};
 
@@ -111,12 +115,48 @@ fn uses_revise_candidates(pack: &LoadedPack) -> bool {
 /// 全 Step の `input` が `kind: env_action`（PACK-34）か。生の値で `kind` だけを見る（欄の中身が読めない宣言は
 /// 別に `E-PARSE`）。置換前の値でも使用を取りこぼさない。
 fn uses_env_action(pack: &LoadedPack) -> bool {
+    uses_env_action_raw(pack) || uses_env_action_expanded(pack)
+}
+
+/// 置換前の Step の `input` が `kind: env_action` か。
+fn uses_env_action_raw(pack: &LoadedPack) -> bool {
     pack.scopes.iter().any(|s| {
         s.src.steps.iter().any(|step| {
             step.input
                 .as_ref()
                 .is_some_and(|i| i.get("kind").and_then(Value::as_str) == Some("env_action"))
         })
+    })
+}
+
+/// モジュールの `input` の `kind` が引数に由来する（`${` を含む）教材だけ、展開後の Step の `input` も見る。
+/// 引数経由で `env_action` が渡る場合、置換前の値では使用を取りこぼすため。含まない教材は展開しない。
+fn uses_env_action_expanded(pack: &LoadedPack) -> bool {
+    let templated = pack
+        .scopes
+        .iter()
+        .filter(|s| s.kind == ScopeKind::Module)
+        .any(|s| {
+            s.src.steps.iter().any(|step| {
+                step.input
+                    .as_ref()
+                    .and_then(|i| i.get("kind"))
+                    .is_some_and(|k| k.to_string().contains("${"))
+            })
+        });
+    if !templated {
+        return false;
+    }
+    let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
+    let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
+        ex.expand_chapter(scope);
+    }
+    ex.nodes.iter().any(|n| {
+        n.step
+            .input
+            .as_ref()
+            .is_some_and(|i| i.get("kind").and_then(Value::as_str) == Some("env_action"))
     })
 }
 

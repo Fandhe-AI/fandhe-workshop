@@ -119,6 +119,24 @@ fn check_revise_targets(rest: &Value, rules: &[Value]) -> Result<(), (DiagCode, 
     Ok(())
 }
 
+/// `env_action` の Step は取り消しの規則（`on.cancel`）を持てない（PACK-34）。持つと、保存・書き出しを
+/// 実行せずに取り消しの入力だけで受付になり、「操作の成功で受付」に反するため宣言で拒否する。
+fn check_env_action_rules(rules: &[Value]) -> Result<(), (DiagCode, String)> {
+    let has_cancel = rules.iter().any(|r| {
+        r.get("on")
+            .and_then(Value::as_object)
+            .is_some_and(|on| on.contains_key(CANCEL_RULE_KEY))
+    });
+    if has_cancel {
+        Err((
+            DiagCode::Structure,
+            "input (env_action): cancel rule is not allowed".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 fn check_input(
     input: &Value,
     rules: Option<&[Value]>,
@@ -160,6 +178,9 @@ fn check_input(
         }
         InputKind::EnvAction => {
             check_one::<EnvActionSpec>(rest, name, |_| Ok(()))?;
+            if let Some(r) = rules {
+                check_env_action_rules(r)?;
+            }
             if has_processing {
                 Err((
                     DiagCode::Structure,
@@ -266,6 +287,13 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                         check_input(input, rules, !step.processing.is_empty(), false)
                     {
                         out.push(diag(scope, &step.id, code, msg));
+                    } else if rules.is_none()
+                        && input.get("kind").and_then(Value::as_str) == Some("env_action")
+                    {
+                        // 規則が置換記号を含むモジュールでも `on.cancel` の鍵は置換されないので、ここで検査する。
+                        if let Err((code, msg)) = check_env_action_rules(&step.rules) {
+                            out.push(diag(scope, &step.id, code, msg));
+                        }
                     }
                 }
             }
