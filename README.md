@@ -208,7 +208,7 @@ make test-browser                   # fandhe-pack（debug）と web（配信設�
 
 前提のバイナリ `fandhe-pack` の debug ビルドは `make test-browser` が先に行い（`scripts/build-pack-bin.sh`）、位置を環境変数 `FANDHE_PACK_BIN` で試験へ渡します。位置は cargo の出力から解決するため、`CARGO_TARGET_DIR` を変えても止まりません。CI は既定でない target で流し、毎回これを確かめます。`node --test` で試験を直接流すときは、`FANDHE_PACK_BIN`（と `FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）を自分で設定してください。未設定は `FANDHE_PACK_BIN` を名指すエラーで失敗します。`npm ci`・`npx playwright install chromium`・wasm-bindgen CLI は、従来どおり自分で用意する前提です。手元で位置の解決だけを確かめるには `make test-build-pack-bin` を使います（遅いため CI には入れていません）。
 
-CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chromium)`）は、同じ `make test-browser` を同梱の Chromium（`FANDHE_BROWSER_CHANNEL` なし）で流します。pass／fail 型の試験（`tools/browser/*.test.mjs` の全件。PoC-1・2・6 と語彙の結線に当たる試験を含む）と、最小の画面の試験（`smoke-hello`。web は先に一度だけビルドし、試験自体はビルドし直さない）、信頼できない入力への安全性の観察の記録（`safety-observe`。観察値は assert せず CI のログに残し、完走して終了コード 0 になることが関門）が対象です。1 本でも失敗すればジョブが失敗し、`ci-complete` が CI 全体を失敗にします。ジョブの手順は次のとおりで、手元でも同じ順で再現できます。
+CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chromium)`）は、同じ `make test-browser` を同梱の Chromium（`FANDHE_BROWSER_CHANNEL` なし）で流します。pass／fail 型の試験（`tools/browser/*.test.mjs` の全件。PoC-1・2・6 と語彙の結線に当たる試験を含む）と、最小の画面の試験（`smoke-hello`。web は先に一度だけビルドし、試験自体はビルドし直さない）、サブパス配信の構成要素と相対パスの参照の試験（`delivery-subpath`。DLV-1・DLV-2。TASK-106 1/3）、信頼できない入力への安全性の観察の記録（`safety-observe`。観察値は assert せず CI のログに残し、完走して終了コード 0 になることが関門）が対象です。1 本でも失敗すればジョブが失敗し、`ci-complete` が CI 全体を失敗にします。ジョブの手順は次のとおりで、手元でも同じ順で再現できます。
 
 1. 固定した Rust と、SHA256 を検証した wasm-bindgen CLI（`docs/toolchain.md`）を導入する
 2. Node.js 24 系を導入する（版は `package.json` の `engines`）

@@ -6120,7 +6120,45 @@ JUDGE-24・TERM-16 の証拠への `beforeinput` の自動ブラウザ試験の�
 - 操作プロファイルの説明への適用は TASK-392、右の案内文への結線の確認は TASK-456、欄の最終的な置き場は枠の担当。UA-CH による推定の強化は扱わない
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
 
-### 5.192 枠の区画と操作の名前の契約（TASK-511 1/2。SHELL-1・SHELL-10・SHELL-17）
+### 5.192 サブパス配信の構成と相対パスの参照（TASK-106 1/3。DLV-1・DLV-2）
+
+配信物（配信する設定の `dist/web`）の構成要素を 1 か所（`tools/browser/delivery.mjs` の `DELIVERY_COMPONENTS`）で宣言し、資源の参照がすべて相対パスで構成要素だけを指すことと、1 つのサブパスで開いたページの取得資源が構成要素だけであることを確かめる。後続の TASK-106 2/3（章への直接リンク 10 件）・3/3（名前の違う 2 か所のサブパスとルート配信）はこのモジュールを使う。
+
+構成要素:
+
+| 要素 | Content-Type | 備考 |
+|---|---|---|
+| `index.html` | `text/html; charset=utf-8` | サブパスの `/` で要求されたものも入口として扱う |
+| `app.css` | `text/css; charset=utf-8` | |
+| `icon.svg` | `image/svg+xml` | ヘッドレスでは取得が揺れるため、ページの要求の有無は問わず直接取得で確かめる |
+| `app.js` | `text/javascript; charset=utf-8` | |
+| `wasm/fandhe_workshop_web.js` | `text/javascript; charset=utf-8` | wasm-bindgen の glue |
+| `wasm/fandhe_workshop_web_bg.wasm` | `application/wasm` | |
+| `ir/main.json` | `application/json` | `IR_FILE` 指定時だけ存在（必須ではない） |
+
+静的検査（`inspectDeliveryRefs`。ブラウザ不要・fail-closed）:
+
+- ファイル集合は必須の構成要素をすべて含み、構成要素以外を含まない。通常ファイル以外は問題にする
+- 参照の抽出: `index.html` の `href`・`src`、JS の静的 import・`export from`・動的 `import("…")`・`new URL("…", import.meta.url)`・`fetch("…")`、CSS の `url(…)`・`@import`
+- 参照の規則: `./` 始まりか、スキームも `/` も持たない名前だけを許す。先頭 `/`・`//`・スキーム・`..`・`\` は問題。解決先が構成要素で実在することも確かめる
+- 既知の例外 1 件: `app.js` の `./test-hooks.js` の動的 import は、`index.html` に `fandhe-test-hooks` の meta が無い（配信する設定）ときは取得されない経路として許す。件数が 1 でない・meta がある場合は問題にする
+- 空振り防止の錨: index → `./app.css`・`./icon.svg`・`./app.js`、`app.js` → `./wasm/fandhe_workshop_web.js`、glue → `fandhe_workshop_web_bg.wasm` が抽出できなければ問題にする
+
+glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/fandhe_workshop_web.js` は `new URL('fandhe_workshop_web_bg.wasm', import.meta.url)` で本体を解決し、絶対パス・外部 URL・文字列リテラルの `fetch` を持たない（`fetch(module_or_path)` は変数）。このため `index.html`・`app.js`・`app.css`・`tools/build-web.sh`・`tools/serve.mjs` は変更していない。
+
+試験（`tools/browser/delivery-subpath.test.mjs`。11 件）:
+
+- 静的検査が 0 件であること
+- 負の対照 8 件（配信物の写しを 1 か所ずつ壊す）: ルート絶対・外部・スキーム相対・root の外へ出る参照、構成要素以外のファイル、必須の構成要素の欠落、参照先の無い相対参照、試験用の meta。期待した理由の問題が出ること
+- サブパス `/fandhe-delivery/` で開いたページの全要求が構成要素で、status 200・Content-Type が表どおり・gzip で、external・失敗・CSP 違反・ページ内エラーが 0 件であること
+- `fandhe-pack compile` の出力を `ir/main.json` に置いた写しで、静的検査が 0 件、ページ内からの `./ir/main.json`・`./icon.svg` の相対の解決と取得がサブパスの下に閉じること
+
+限界・未実施:
+
+- web は実行時に IR を取得しないため、「ページが IR を取得する」ことは確かめていない（TASK-109・TASK-121 の後に取得資源の集合へ含める）。`ir/main.json` が `IR_FILE` とバイト一致で入ることは `scripts/test-build-web.sh` の (b)(e) が保証する
+- 直接リンク 10 件は TASK-106 2/3、名前の違う 2 か所のサブパスとルート配信は 3/3 の範囲
+
+### 5.193 枠の区画と操作の名前の契約（TASK-511 1/2。SHELL-1・SHELL-10・SHELL-17）
 
 画面の枠の区画・左右の取り付け点・枠が受け取る操作の名前と宛先の形を、版 1 の型として固定した（2026-10-21、元にしたコミット f26e94b）。置き場は `crates/web/src/shell.rs`（版は `shell::SHELL_CONTRACT_VERSION`）である。
 
@@ -6146,4 +6184,3 @@ JUDGE-24・TERM-16 の証拠への `beforeinput` の自動ブラウザ試験の�
 - 予約の区画の中身は TASK-512・TASK-516 の決定の後に版 2 が足す。TASK-516 の本文との照合は spec を参照した範囲では矛盾を見つけていないが、決定前のため未確定である
 - 読み込みでファイルの本文を得る glue の仕組みは `glue_ops` の許される操作に無く、TASK-531 が持つ（`parts::PARTS_CONTRACT_VERSION` の版上げが要る可能性がある）。ホストの `decode_action` への結線もしていない
 - 「次の章へ進む」の action の名前と宛先は TASK-526 が決める
-- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
