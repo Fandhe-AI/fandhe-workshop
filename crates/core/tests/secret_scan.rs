@@ -89,6 +89,52 @@ fn controls() -> Vec<(String, String)> {
         .collect()
 }
 
+fn added_fixture() -> Value {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../testdata/secret-shapes-added/added-shapes.json"
+    );
+    let text = std::fs::read_to_string(path).expect("added-shapes.json is readable");
+    serde_json::from_str(&text).expect("added-shapes.json is JSON")
+}
+
+/// SAFE-30 で足した 5 形の（試験データの ID, 期待する形の ID, 組み立てた値）。
+fn added_shapes() -> Vec<(String, String, String)> {
+    let f = added_fixture();
+    f["shapes"]
+        .as_array()
+        .expect("shapes")
+        .iter()
+        .map(|s| {
+            let parts: String = s["parts"]
+                .as_array()
+                .expect("parts")
+                .iter()
+                .map(|p| expand(p.as_str().expect("part")))
+                .collect();
+            (
+                s["id"].as_str().expect("id").to_owned(),
+                s["expect"].as_str().expect("expect").to_owned(),
+                parts,
+            )
+        })
+        .collect()
+}
+
+fn added_controls() -> Vec<(String, String)> {
+    added_fixture()["controls"]
+        .as_array()
+        .expect("controls")
+        .iter()
+        .map(|c| {
+            (
+                c["id"].as_str().expect("id").to_owned(),
+                c["text"].as_str().expect("text").to_owned(),
+            )
+        })
+        .collect()
+}
+
 fn ids(v: &[fandhe_workshop_core::secret_scan::Finding]) -> Vec<&'static str> {
     shapes_of(v).into_iter().map(SecretShape::id).collect()
 }
@@ -107,8 +153,49 @@ fn all_ten_shapes_are_detected_with_the_expected_id() {
 }
 
 #[test]
+fn added_five_shapes_are_detected_with_the_expected_id() {
+    let added = added_shapes();
+    assert_eq!(added.len(), 5, "five added shapes in the fixture");
+    for (id, expect, value) in added {
+        let found = ids(&scan_text(&value));
+        assert!(
+            found == [expect.as_str()],
+            "{id}: detected shape differs from {expect}"
+        );
+    }
+}
+
+#[test]
+fn every_prefix_of_the_added_shapes_is_detected() {
+    let body = "R".repeat(40);
+    for prefix in ["sk-proj-", "sk-svcacct-", "sk-admin-"] {
+        let found = ids(&scan_text(&format!("{prefix}{body}")));
+        assert!(found == ["sk_proj_api_key"], "{prefix}: not detected");
+    }
+}
+
+#[test]
+fn every_shape_of_all_fifteen_is_detected_only_as_itself() {
+    let all: Vec<_> = shapes().into_iter().chain(added_shapes()).collect();
+    assert_eq!(all.len(), SecretShape::ALL.len(), "one value per shape");
+    for (id, expect, value) in &all {
+        assert!(
+            ids(&scan_text(value)) == [expect.as_str()],
+            "{id}: detected as more than {expect}"
+        );
+    }
+    for s in SecretShape::ALL {
+        assert!(
+            all.iter().any(|(_, expect, _)| expect == s.id()),
+            "{}: no value in the fixtures",
+            s.id()
+        );
+    }
+}
+
+#[test]
 fn shapes_are_detected_inside_json_strings_and_nested_values() {
-    for (id, expect, value) in shapes() {
+    for (id, expect, value) in shapes().into_iter().chain(added_shapes()) {
         let doc = json!({"ops": [{"kind": "input", "text": value}], "draft": {"a": [value]}});
         let found = ids(&scan_json_value(&doc));
         assert!(
@@ -137,8 +224,21 @@ fn controls_are_not_detected() {
 }
 
 #[test]
+fn added_controls_are_not_detected() {
+    let cs = added_controls();
+    assert_eq!(cs.len(), 4, "four added controls in the fixture");
+    for (id, text) in cs {
+        assert!(scan_text(&text).is_empty(), "{id}: false positive");
+        assert!(
+            scan_json_text(&json!({ "t": text }).to_string()).is_empty(),
+            "{id}: false positive in json"
+        );
+    }
+}
+
+#[test]
 fn a_prefix_inside_a_longer_word_is_not_detected() {
-    for (id, _, value) in shapes() {
+    for (id, _, value) in shapes().into_iter().chain(added_shapes()) {
         if id == "S-05" || id == "S-09" || id == "S-10" {
             continue;
         }
@@ -244,6 +344,11 @@ fn repeated_prefixes_are_scanned_in_linear_time() {
             format!("{}-----END ", key_line.repeat(n)),
         ),
         ("jwt_head_only", jwt_head.repeat(n)),
+        ("sk_ant", "sk-ant-".repeat(n)),
+        ("sk_proj", "sk-proj-".repeat(n)),
+        ("gitlab", "glpat-".repeat(n)),
+        ("npm", "npm_".repeat(n)),
+        ("pypi", "pypi-AgEIcHlwaS5vcmc".repeat(n)),
     ];
     for (name, text) in &cases {
         let start = std::time::Instant::now();

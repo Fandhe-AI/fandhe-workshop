@@ -1,0 +1,19 @@
+{
+  "note": "SAFE-30（決定 D-45。TASK-165 1/2）で足した 5 形の試験データ。spec repo の写しではなく、この repo で作った。形式と展開の記法は untrusted-input-safety/test-data-addendum-4/secret-shapes.json と同じ。完成した値はどこにも書かない。接頭辞は必ず部品に分け、試験のとき部品を空文字で連結して {N×c} を展開する。形の選定は実装の案で、ユーザーの確定を待つ。",
+  "expand": {
+    "N×c": "文字 c を N 個並べる"
+  },
+  "shapes": [
+    { "id": "S-11", "expect": "sk_ant_api_key", "parts": ["sk", "-ant-", "api03-{40×Q}"] },
+    { "id": "S-12", "expect": "sk_proj_api_key", "parts": ["sk", "-proj-", "{40×R}"] },
+    { "id": "S-13", "expect": "gitlab_token", "parts": ["glpat", "-", "{20×T}"] },
+    { "id": "S-14", "expect": "npm_token", "parts": ["npm", "_", "{36×u}"] },
+    { "id": "S-15", "expect": "pypi_token", "parts": ["pypi", "-AgEIcHlwaS5vcmc", "{50×w}"] }
+  ],
+  "controls": [
+    { "id": "N-07", "text": "sk-ant- という接頭辞だけの説明です。sk-proj- と sk-admin- もあります" },
+    { "id": "N-08", "text": "glpat- と npm_ と pypi-AgEIcHlwaS5vcmc という接頭辞だけの説明です" },
+    { "id": "N-09", "text": "npm_modules と npm_config_registry と npm_install_dependencies の説明です" },
+    { "id": "N-10", "text": "sk-ant-short と glpat-short と pypi-packages の説明です" }
+  ]
+}
