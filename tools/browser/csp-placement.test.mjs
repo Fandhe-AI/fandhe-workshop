@@ -65,7 +65,8 @@ const cases = [
   ['CSP だけを noscript で囲む', /CSP meta count is 0/, (h, c) => h.replace(c, '<noscript>' + c + '</noscript>')],
   ['CSP だけを入れ子の template で囲む', /CSP meta count is 0/, (h, c) =>
     h.replace(c, '<template><template></template>' + c + '</template>')],
-  // head を暗黙に閉じる形（ブラウザでは後続の meta が body に入り CSP が効かない。2026-10-21 のレビュー指摘）。
+  // head を暗黙に閉じる形（ブラウザでは後続の meta が body に入り CSP が効かない。2026-10-21 のレビュー指摘）と、
+  // head の開始の直後を charset に限る厳しい側の規則（title は head を閉じないが charset より前には置かせない）。
   ['head の開始の直後に div を置く', /charset meta is not the first content of head/, (h) =>
     h.replace(/<head>/i, '<head><div></div>')],
   ['head の開始の直後に文字を置く', /charset meta is not the first content of head/, (h) => h.replace(/<head>/i, '<head>x')],
