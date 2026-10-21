@@ -6560,3 +6560,19 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 - 対照は修正前の配信物の再ビルドではなく、保存先の写しによる再現である
 - `scripts/test-chapter-key-control.sh` の置換前の文字列が #1681 以降の `host.rs` と合わず、対照が動かない。本件の範囲外として別に扱う
 - 節番号は並行する PR とマージ順で衝突しうる（5.206 は作業時点で未使用の番号）
+
+### 5.207 複数の対象を 1 つずつ分けた確認の正誤（TASK-63 1/2。PACK-33・D-69）
+
+決定（D-69、2026-10-21）は「`answer` に複数の問いを持たせる語は足さず、対象ごとに Step を分けて書く」である。`crates/pack/tests/split_answer.rs`（実パックは `crates/pack/tests/data/split-answer-pack`。3 枚のカードを 3 Step に分けた形で、`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack33_split_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack33_cli_compile_and_vocab_accept_split_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の 3 Step の拡張点の欄が空・(ii) が 0 であること |
+| `pack33_each_card_has_its_own_verdict` | カードごとに `judge_confirm` が正答のちょうど 1 つだけ `Confirmed` を返し、他は `rj-wrong-kind` の誤答になること。3 枚の正答は互いに違う |
+| `pack33_session_records_per_card_correctness` | `Session` で 3 枚を順に通し、`derive_records` が 3 件で最初の回答が正答・誤答・正答になること。誤答の後の再選択は正答の記録になる |
+| `pack33_merged_step_yields_a_single_record` | 対照。まとめた 1 つの `answer` の Step も検査を通るが、記録は 1 件しかできないこと（PACK-33 の「決定の前の現状の観察」） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
+- `Event` から `CheckObservation` への写像は TASK-304 の担当で未実装のため、試験の中の `choose` が代用する（`crates/core/tests/confirm_record_boundary.rs` と同じ規則）
+- 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
