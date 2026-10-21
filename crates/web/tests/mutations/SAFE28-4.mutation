@@ -1,0 +1,9 @@
+id: SAFE28-4
+package: fandhe-workshop-web
+test: secret_choice
+target: crates/web/src/host.rs
+find:         self.restore_from_saved(saved.as_deref().map(str::as_bytes));
+replace:         let _ = saved;
+expect-fail: discard_leaves_no_value
+expect-fail: discard_without_saved_history_starts_fresh
+note: 「この入力を残さない」で保存先からの読み直しを外す（記録した状態に値が残る。SAFE-28）

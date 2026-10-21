@@ -1,0 +1,9 @@
+id: SAFE28-2
+package: fandhe-workshop-web
+test: secret_choice
+target: crates/web/src/host.rs
+find:         self.input.reset_for_reload();
+replace:         let _ = &self.input;
+expect-fail: discard_leaves_no_value
+expect-fail: discard_draft_only
+note: 「この入力を残さない」で入力欄の初期化を外す（入力欄の下書きと送信済みの一覧に値が残る。SAFE-28）

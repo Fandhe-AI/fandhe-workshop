@@ -669,6 +669,14 @@ pub(crate) fn history_to_save() -> Option<String> {
     with_app(EngineHost::history_to_save).flatten()
 }
 
+/// 保存の直前の判定（確認済みの検出を除いた形。SAFE-27・SAFE-28）。`persist` の遅延保存と離れる直前の保存が呼ぶ。
+///
+/// 読み取りだけで、状態は変えない。ホストを借りられないとき（未マウント・借用中）は、確認済みを除かない厳しい側
+/// （`secret_hold`）に倒す（fail-closed）。
+pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::SecretShape> {
+    with_app(|h| h.secret_gate(text)).unwrap_or_else(|| crate::secret_notice::secret_hold(text))
+}
+
 /// `root_id` の要素にホストをマウントする Promise を返す。2 回目以降は拒否する。
 ///
 /// 保存済みの履歴の読み込みは非同期のため、保存先が準備できてから起動の分岐を行いマウントする（`persist`、TASK-319）。

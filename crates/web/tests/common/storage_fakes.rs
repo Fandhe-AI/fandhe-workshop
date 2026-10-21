@@ -9,7 +9,9 @@
 )]
 
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
-use fandhe_workshop_web::storage_select::{utf16_len, Done, HistoryStorage, IdbBackend, SyncKv};
+use fandhe_workshop_web::storage_select::{
+    utf16_len, Done, Fetched, HistoryStorage, IdbBackend, SyncKv,
+};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -75,6 +77,8 @@ type Pending = (Option<(String, String)>, Done);
 pub struct FakeIdb {
     pub store: RefCell<BTreeMap<String, String>>,
     pending: RefCell<Vec<Pending>>,
+    /// 次の `get` を失敗させる種類（1 回で消える）。
+    pub get_error: Cell<Option<StorageError>>,
 }
 
 impl FakeIdb {
@@ -96,6 +100,13 @@ impl FakeIdb {
 }
 
 impl IdbBackend for FakeIdb {
+    fn get(&self, key: &str, done: Fetched) {
+        // 確定済みの書き込みだけが見える（保留中の put は store に入っていない）。
+        match self.get_error.take() {
+            Some(e) => done(Err(e)),
+            None => done(Ok(self.store.borrow().get(key).cloned())),
+        }
+    }
     fn put(&self, key: &str, value: &str, done: Done) {
         self.pending
             .borrow_mut()

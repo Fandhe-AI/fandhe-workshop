@@ -304,6 +304,20 @@ const INIT_ALLOWED: &[(&str, &str, &str, usize, &str)] = &[
     (
         "persist",
         "boot_and_mount(",
+        "set_saved_reader",
+        1,
+        "glue::mount_host(",
+    ),
+    (
+        "persist",
+        "boot_and_mount(",
+        "set_saved_refresh",
+        1,
+        "glue::mount_host(",
+    ),
+    (
+        "persist",
+        "boot_and_mount(",
         "set_save_failure_probe",
         1,
         "glue::mount_host(",
@@ -581,6 +595,8 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: K) -> R {
     }
     host.set_history_saver(g);
     host.set_save_failure_probe(p);
+    host.set_saved_reader(r);
+    host.set_saved_refresh(h);
     host.set_stale_probe(q);
     crate::glue::mount_host(root_id, host)?;
     install_save_on_leave(key, f)
@@ -604,7 +620,7 @@ fn debug_view_fixture_dispatch(n: &str) -> String { VIEW_FIXTURE.with(|c| { rt.d
 fn debug_view_fixture_state() -> String { let f = rt.component(); s }
 "#;
 const L_LEAVE: &str = "fn flush() { // c.update(a)\n let x = 1; }";
-const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} }";
+const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} }";
 
 fn layer(persist: &str, glue: &str, hooks: &str, leave: &str) -> Vec<(String, String)> {
     [

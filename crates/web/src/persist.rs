@@ -12,9 +12,10 @@
 //! TASK-318・SAVE-7）、(3) 離れる直前（`pagehide`）である。打鍵ごとに履歴の全体を書き出す費用を避けるため、下書きは (2) で畳む。
 //! どれもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
 //! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。
-//! 3 つとも、書く直前の値を `secret_notice::secret_hold` で調べ、秘密情報らしい文字列があれば保留へ積まない（SAFE-27。TASK-164 1/3）。
-//! 警告の表示は (1)(2) が行い、(3) は積まないだけである。選択（保存する・残さない）は TASK-164 3/3 が持つ。
-//! (3) で積まないのは D-44・SAFE-44 で決めた振る舞いで、選ぶまで、その間の進行も含めて保存先へ書かない（放置して閉じても書かれない）。警告の状態は保存しないため、開き直した後は直前の無害な保存から復元され、警告は出ない。
+//! 3 つとも、書く直前の値を `EngineHost::secret_gate`（遅延保存と離れる直前は `glue::secret_gate` 経由）で調べ、確認済みでない秘密情報らしい文字列があれば保留へ積まない（SAFE-27。TASK-164 1/3）。
+//! 警告の表示は (1)(2) が行い、(3) は積まないだけである。選択（このまま保存する・この入力を残さない）はホストの `update` が持ち（SAFE-28。TASK-164 3/3）、
+//! 「このまま保存する」で確認済みにした値は (3) でも書く。「この入力を残さない」の読み直しは、`set_saved_refresh` で保存先の実データを取り直してから、`set_saved_reader` で結んだ `read` を使う。
+//! (3) で積まないのは D-44・SAFE-44 で決めた振る舞いで、選ぶまで、その間の進行も含めて保存先へ書かない（放置して閉じても書かれない）。警告の状態も確認済みも保存しないため、開き直した後は直前の無害な保存から復元され、警告は出ない。
 //! 書き出しは必ず保存の直前の起動番号の照合（SAVE-12・`boot_guard`。TASK-324 1/2）を通す。他のタブに追い越された古いタブは、
 //! 保存先へ書かない（`flush_guarded` が唯一の関所）。試験用の保存先の口（`debug_storage_*`・`debug_save_*`）は照合を通さない。
 //! IndexedDB への書き込みの失敗は確定が非同期で届くため、ホストが次の `update` で probe（[`async_save_failure`]）を引いて表示する（SAVE-11）。
@@ -32,7 +33,6 @@ use crate::boot_guard::{BootGuard, Guarded};
 use crate::host::EngineHost;
 use crate::leave_flush::install_pagehide_flush_as;
 use crate::save_pending::{FlushOutcome, PendingSave};
-use crate::secret_notice::secret_hold;
 use crate::storage_idb::{open_history_storage, OpenedStorage};
 use crate::storage_local::LocalStore;
 
@@ -77,6 +77,25 @@ pub fn read(key: &HistoryKey) -> Result<Option<String>, StorageError> {
     })
 }
 
+/// 保存先の実データから写しを取り直し、終わったら `done` を呼ぶ（「この入力を残さない」の読み直し用。SAFE-28）。
+///
+/// 保存先が開いていない・借用中は `done(Err(Unavailable))`。IndexedDB の取得は非同期で、`done` は後から届く。
+pub fn refetch(key: &HistoryKey, done: Box<dyn FnOnce(Result<(), StorageError>)>) {
+    let mut done = Some(done);
+    STORAGE.with(|s| {
+        if let Ok(slot) = s.try_borrow() {
+            if let Some(storage) = slot.as_ref() {
+                if let Some(d) = done.take() {
+                    storage.refetch(key, d);
+                }
+            }
+        }
+    });
+    if let Some(d) = done {
+        d(Err(StorageError::Unavailable));
+    }
+}
+
 /// 保存の値を保留へ積み、保存先が開いていれば書き出す。書けなかった値は保留に残る。
 ///
 /// 結果は最初の失敗の種類で、保存先が開いていない・借用中は `Unavailable`。離れる直前の書き出しは結果を使わない。
@@ -110,7 +129,7 @@ pub(crate) fn save_deferred() {
     };
     // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。世代と形だけをホストへ配り、警告を出す（SAFE-27）。
     // 解除は、次に書けた保存の `save-result`（成功）がホストで行う。
-    let held = secret_hold(&v);
+    let held = crate::glue::secret_gate(&v);
     if !held.is_empty() {
         #[cfg(feature = "test-hooks")]
         SECRET_HOLDS.with(|c| c.set(c.get().saturating_add(1)));
@@ -166,7 +185,7 @@ pub fn install_save_on_leave(
             return;
         };
         // 秘密情報らしい文字列は、離れる直前にも書かない。警告は出せない（離れる最中のため）。
-        if !secret_hold(&v).is_empty() {
+        if !crate::glue::secret_gate(&v).is_empty() {
             #[cfg(feature = "test-hooks")]
             SECRET_HOLDS.with(|c| c.set(c.get().saturating_add(1)));
             return;
@@ -312,6 +331,22 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
     // 変更のたびの保存の口は mount の前に結ぶ（mount の後はホストを `&mut` で触れない）。
     let saver_key = key.clone();
     host.set_history_saver(Box::new(move |v| save_now(&saver_key, v)));
+    // 「この入力を残さない」の読み直しは、起動と同じ保存先を同じ鍵で読む（SAFE-28）。
+    let reader_key = key.clone();
+    host.set_saved_reader(Box::new(move || read(&reader_key)));
+    // 読み直しの前に、保存先の実データを取り直す。完了は配送のタイマーでホストへ届ける（コールバックからホストへは触れない）。
+    let refresh_key = key.clone();
+    host.set_saved_refresh(Box::new(move |generation| {
+        refetch(
+            &refresh_key,
+            Box::new(move |r| {
+                crate::glue::schedule_action(
+                    crate::action::Scheduled::SecretDiscardRead(r.is_ok(), generation),
+                    0,
+                );
+            }),
+        );
+    }));
     host.set_save_failure_probe(Box::new(async_save_failure));
     host.set_stale_probe(Box::new(stale_tab));
     crate::glue::mount_host(root_id, host)?;

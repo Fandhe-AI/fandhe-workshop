@@ -7,7 +7,7 @@ use fandhe_workshop_contract::storage::{
     DeliveryScope, HistoryKey, HistoryStore, StorageError, StorageKind,
 };
 use fandhe_workshop_web::storage_select::{
-    initial_kind, should_switch, utf16_len, Done, HistoryStorage, IdbBackend, SyncKv,
+    initial_kind, should_switch, utf16_len, Done, Fetched, HistoryStorage, IdbBackend, SyncKv,
     LOCAL_STORAGE_MAX_UTF16, SWITCH_THRESHOLD_UTF16,
 };
 use std::cell::{Cell, RefCell};
@@ -84,6 +84,8 @@ type Pending = (Option<(String, String)>, Done);
 struct FakeIdb {
     store: RefCell<BTreeMap<String, String>>,
     pending: RefCell<Vec<Pending>>,
+    /// 次の `get` を失敗させる種類（1 回で消える）。
+    pub get_error: Cell<Option<StorageError>>,
 }
 
 impl FakeIdb {
@@ -105,6 +107,13 @@ impl FakeIdb {
 }
 
 impl IdbBackend for FakeIdb {
+    fn get(&self, key: &str, done: Fetched) {
+        // 確定済みの書き込みだけが見える（保留中の put は store に入っていない）。
+        match self.get_error.take() {
+            Some(e) => done(Err(e)),
+            None => done(Ok(self.store.borrow().get(key).cloned())),
+        }
+    }
     fn put(&self, key: &str, value: &str, done: Done) {
         self.pending
             .borrow_mut()
@@ -399,4 +408,70 @@ fn 全走査に失敗した見積もりは_cache_せず悲観側で_indexeddb_�
     f.storage.write(&k, "v").unwrap();
     assert_eq!(f.storage.kind(), StorageKind::IndexedDb);
     assert!(!f.local.has(&k.render()));
+}
+
+/// 取り直しの結果を受ける入れ物。
+fn reload_result(f: &Fixture, k: &HistoryKey) -> Result<(), StorageError> {
+    let out = Rc::new(Cell::new(None));
+    let o = Rc::clone(&out);
+    f.storage.refetch(k, Box::new(move |r| o.set(Some(r))));
+    out.take().expect("done was not called")
+}
+
+#[test]
+fn 取り直しは別のタブが保存した内容を写しに取り込む() {
+    let k = key("p");
+    let f = fixture_with(&[(&k, "from-start")], true);
+    f.idb
+        .store
+        .borrow_mut()
+        .insert(k.render(), "from-start".to_string());
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("from-start"));
+    // 別のタブが保存した（DB の実データだけが変わり、このタブの写しは古いまま）。
+    f.idb
+        .store
+        .borrow_mut()
+        .insert(k.render(), "other-tab".to_string());
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("from-start"));
+    assert_eq!(reload_result(&f, &k), Ok(()));
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("other-tab"));
+}
+
+#[test]
+fn 取り直しは失敗した書き込みの未保存の値を写しから消す() {
+    let k = key("p");
+    let f = fixture_with(&[(&k, "saved")], true);
+    f.idb
+        .store
+        .borrow_mut()
+        .insert(k.render(), "saved".to_string());
+    f.storage.write(&k, "unsaved").unwrap();
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("unsaved"));
+    f.idb.settle(Err(StorageError::Failed));
+    // 失敗しても写しは未保存の値を持つ（既存の限界）。取り直しで DB の実データに戻る。
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("unsaved"));
+    assert_eq!(reload_result(&f, &k), Ok(()));
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("saved"));
+}
+
+#[test]
+fn 取り直しの失敗は写しを変えず失敗を返す() {
+    let k = key("p");
+    let f = fixture_with(&[(&k, "saved")], true);
+    f.idb
+        .store
+        .borrow_mut()
+        .insert(k.render(), "db".to_string());
+    f.idb.get_error.set(Some(StorageError::Failed));
+    assert_eq!(reload_result(&f, &k), Err(StorageError::Failed));
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("saved"));
+}
+
+#[test]
+fn 取り直しは_indexeddb_が無ければ即座に成功し_localstorage_を変えない() {
+    let k = key("p");
+    let f = fixture_with(&[], false);
+    f.storage.write(&k, "v").unwrap();
+    assert_eq!(reload_result(&f, &k), Ok(()));
+    assert_eq!(f.storage.read(&k).unwrap().as_deref(), Some("v"));
 }

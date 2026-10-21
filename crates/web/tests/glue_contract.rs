@@ -124,6 +124,15 @@ const NON_DOM_CALLS: &[&str] = &[
     "report_save_result",
     // 遅延保存の直前の検出の配送（SAFE-27。TASK-164 1/3）。形だけを運び、DOM には触れない。
     "SecretHold",
+    // 保存の直前の判定（確認済みを除く。SAFE-28。TASK-164 3/3）と、読み直しの口の結線。読み取りと結線だけで、DOM には触れない。
+    "secret_gate",
+    "secret_hold",
+    "unwrap_or_else",
+    "set_saved_reader",
+    "set_saved_refresh",
+    "refetch",
+    "is_ok",
+    "SecretDiscardRead",
     "save_epoch",
     "is_scheduled",
     "is_ok_and",

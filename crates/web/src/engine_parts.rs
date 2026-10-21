@@ -51,7 +51,11 @@ use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
 use crate::save_notice::{save_notice_text, SAVE_NOTICE_FIELD};
-use crate::secret_notice::{secret_notice_text, SECRET_NOTICE_FIELD};
+use crate::secret_notice::{
+    secret_notice_text, ACTION_SECRET_DISCARD, ACTION_SECRET_KEEP, SECRET_CHOICE_FIELD,
+    SECRET_CHOICE_TESTID, SECRET_DISCARD_LABEL, SECRET_DISCARD_TESTID, SECRET_KEEP_LABEL,
+    SECRET_KEEP_TESTID, SECRET_NOTICE_FIELD,
+};
 use crate::stale_notice::{stale_notice_text, STALE_NOTICE_FIELD};
 use crate::step_status::step_status;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
@@ -109,6 +113,12 @@ const F_LOG: &[PartField] = &[
     PartField {
         name: STALE_NOTICE_FIELD,
         kind: FieldKind::Bound,
+    },
+    // 秘密情報の警告の選択のボタンの一覧（SAFE-28・TASK-164 3/3）。末尾に足す（[2]..[9] は位置で参照している）。
+    // 静的な子にせず keyed list に置くのは、警告の有無だけの更新で dirty な field を束縛点に解決するため（全再描画にしない）。
+    PartField {
+        name: SECRET_CHOICE_FIELD,
+        kind: FieldKind::KeyedList,
     },
 ];
 /// 左の成果物の束縛点。ビューごとの keyed list 7 本・選択のボタンの list・世界状態の読み終えた長さの 9 件。
@@ -398,6 +408,8 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[8].name,
                     secret_notice_text(model.secret_warning()).as_str(),
                 ),
+                // 警告の選択のボタン（SAFE-28）。警告があるときだけ 2 つ出す。配置と文言は仮で、TASK-534 が決める。
+                secret_choice_list(model),
                 // 古いタブの通知（SAVE-13）。保存失敗の `save-notice` とは別の欄で、一度出たら消えない。配置は仮。
                 bind_text(
                     "p",
@@ -437,6 +449,56 @@ impl DisplayPart<HostModel> for LogPart {
         }
     }
 }
+
+/// 警告の選択のボタンの一覧（SAFE-28）。警告が無いときは空の一覧（`hidden`）。文字・属性値は閉じた集合の固定値だけ（SAFE-11）。
+fn secret_choice_list(model: &HostModel) -> Node {
+    let button = |key: &str, testid: &'static str, action: &'static str, label: &'static str| {
+        (
+            key.to_owned(),
+            el(
+                "li",
+                vec![],
+                vec![el(
+                    "button",
+                    vec![
+                        ("type", "button"),
+                        (TESTID_ATTR, testid),
+                        (ACTION_ATTR, action),
+                    ],
+                    vec![text(label)],
+                )],
+            ),
+        )
+    };
+    let (attrs, items) = if model.secret_warning().is_empty() {
+        (
+            vec![(TESTID_ATTR, SECRET_CHOICE_TESTID), ("hidden", "")],
+            Vec::new(),
+        )
+    } else {
+        (
+            vec![(TESTID_ATTR, SECRET_CHOICE_TESTID)],
+            vec![
+                button(
+                    "keep",
+                    SECRET_KEEP_TESTID,
+                    ACTION_SECRET_KEEP,
+                    SECRET_KEEP_LABEL,
+                ),
+                button(
+                    "discard",
+                    SECRET_DISCARD_TESTID,
+                    ACTION_SECRET_DISCARD,
+                    SECRET_DISCARD_LABEL,
+                ),
+            ],
+        )
+    };
+    keyed_view_or_notice("ul", attrs, &F_LOG[LOG_SECRET_CHOICE], items)
+}
+
+/// `F_LOG` の中の `secret_choice` の位置。
+const LOG_SECRET_CHOICE: usize = 10;
 
 /// 経路をそのまま行のキーにしてよい長さの上限（バイト）。
 const ARTIFACT_KEY_PATH_MAX: usize = 256;

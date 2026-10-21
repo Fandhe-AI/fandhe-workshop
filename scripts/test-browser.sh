@@ -152,6 +152,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/save-latency.test.mjs" \
   "${ROOT_DIR}/tools/browser/secret-warning.test.mjs" \
   "${ROOT_DIR}/tools/browser/secret-hold.test.mjs" \
+  "${ROOT_DIR}/tools/browser/secret-choice.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-quota.test.mjs" \
   "${ROOT_DIR}/tools/browser/stale-tab.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-idb-failure.test.mjs" \
