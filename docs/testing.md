@@ -6719,3 +6719,26 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 | PACK41-2 | crates/pack/src/input.rs: `on.text` が真偽値でないことの拒否を外す | pack41_content_value_in_on_text_is_rejected | DETECTED |
 
 範囲外: `validate` が `when` の条件の語彙を検査しない全般の不足（TASK-42 の領域）。`text` でない Step の規則で `text` キーのない `on` の未知のキーは検査しない（core は黙って飛ばす）。規則の `on` の 9 キーの集合は core（private 定数）と pack（`RULE_ON_KEYS`）の二重管理である。spec の TASK-68 の「Rust の変更は無い」という見積もりは、現状が拒否していなかったため成り立たなかった（spec 側への差し戻し事項）。`fandhe-pack validate` の CLI からの終了コードの確認は TASK-403 の実装待ち。
+
+### 5.213 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
+
+水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は TASK-49 2/2（#496）の持ち分である。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_levels.rs` | 本文の倒れ方 4 種 × 3 水準、ヒント 4 種の水準ごとの選択、モジュールの 2 実体の一致、受け付ける水準の全組、拒否する値（`pack.guidance`・`guidance_levels`・`starts[].guidance`・`body_levels` の鍵・ヒントの `levels`）の項目と 1 件の `E-PARSE`、値を診断に写さないこと、形式 A（TOML）でも同じこと |
+| `crates/pack/tests/defect_packs.rs` | D23 が `E-PARSE`・`chapters/ch-13/chapter.yaml`・`scope` で検出され、static の検出が 9/9 になること |
+| `crates/pack/src/guidance.rs` の単体試験 | `body_for`・`read_guidance_levels`・ヒントの `levels` の形 |
+
+変異注入（実行日 2026-10-21、元にしたコミット 11cc0c8 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK17-1.mutation crates/pack/tests/mutations/PACK17-2.mutation crates/pack/tests/mutations/PACK17-3.mutation`）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| PACK17-1 | `guidance.rs`: 本文の探し方が `fallback_chain` に従わない | DETECTED（`body_is_chosen_c_then_b_then_a`） |
+| PACK17-2 | `source.rs`: 章の水準の語の診断を捨てる | DETECTED（`start_guidance_rejects_unknown_levels` ほか） |
+| PACK17-3 | `guidance.rs`: ヒントの `levels` の要素を検査しない | DETECTED（`hint_levels_rejects_bad_shapes`） |
+
+限界・未実施:
+
+- `Node.body_levels_doc` からの実行時の木の選択は TASK-292（#589）、開始点の水準と周回の切り替えは TASK-294 が持つ
+- ヒントの `levels` 以外の欄の形は検査しない

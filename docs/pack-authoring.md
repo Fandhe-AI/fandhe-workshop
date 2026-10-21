@@ -580,10 +580,22 @@ views:
 - 配信物には `IR_FILE=<file> tools/build-web.sh` で入ります（`ir/main.json`）。配信の実装は TASK-109・TASK-121 の側です
 - 外部仕様は `docs/cli.md` の 10 節（AUTHOR-8）です
 
+## 案内レベル（`guidance`・`body_levels`・ヒントの `levels`）
+
+案内レベルは `A`・`B`・`C` の 3 水準です（EP-8。PACK-17）。`A` が最も手厚く、`C` が最も薄い水準です。
+
+- 水準 L で出す本文は、`C` なら `body_levels.C`、`body_levels.B`、`body` の順に探します。`B` なら `body_levels.B`、`body` の順です。`A` は `body` だけです
+- 水準 A の本文は `body` に書きます。`body_levels` に `A` の鍵は書きません（これを拒否する検査は TASK-49 2/2 の持ち分です）
+- ヒントは `levels` に出す水準を列で書きます。省略と空の列は全水準を意味します
+- `pack.guidance`・`starts[].guidance`・`body_levels` のキー・`pack.guidance_levels` のキー・ヒントの `levels` の要素が `A`・`B`・`C` でなければ、読み込みで `E-PARSE` になります。小文字も拒否します。診断に書いた値は写しません
+- `pack.guidance_levels.<水準>` は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます
+- 隠す語の漏れ（`E-GUIDANCE-LEAK`）とヒントが 0 件になる水準（`E-HINT-HIDDEN`）の検査は、TASK-49 2/2 の持ち分で未実装です（2026-10-21 時点）
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
 |---|---|
+| `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |

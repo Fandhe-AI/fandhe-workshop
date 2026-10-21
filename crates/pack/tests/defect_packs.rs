@@ -11,9 +11,9 @@
 //!   検出を必須にし、24/24 は TASK-404・TASK-398 の完了後に `#[ignore]` を外して確かめる
 //!
 //! 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3・#416）は、末尾の `pack29_v1_1_*` が確かめる。
-//! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。今の必須の検出は `validate` の 8 種で、D21〜D23 は
-//! 検査器の側（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・`starts[].guidance` の `E-PARSE`）が TASK-49（#495・#496）の
-//! 持ち分で未実装のため `#[ignore]` で置く。11/11 は TASK-49 の完了後に `#[ignore]` を外して確かめる。
+//! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。今の必須の検出は `validate` の 9 種で、D21・D22 は
+//! 検査器の側（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`）が TASK-49 2/2（#496）の
+//! 持ち分で未実装のため `#[ignore]` で置く。D23 は TASK-49 1/2（#495）で検出する。11/11 は #496 の完了後に `#[ignore]` を外して確かめる。
 //!
 //! 正しいパックの誤検出 0 件（TASK-56 3/3・#417）は、末尾の `pack29_correct_packs_*` が確かめる。
 //! `validate` と、`test` の段の静的な検査（`E-PLAY-INPUT-CLASS`・誤入力の `expect` の読み取り）は必須で、
@@ -432,7 +432,7 @@ const DEFECTS_V1_1: [DefectV11; 11] = [
         file: CH13,
         item: "scope",
         overlay: CH13,
-        status: V11Status::PendingTask49,
+        status: V11Status::Detect,
     },
 ];
 
@@ -530,8 +530,8 @@ fn pack29_v1_1_static_defects_reported_at_expected_location() {
         "undetected defects:\n{}",
         missed.join("\n")
     );
-    assert_eq!(detected, 8);
-    println!("PACK-29 v1.1 static defects detected {detected}/8");
+    assert_eq!(detected, 9);
+    println!("PACK-29 v1.1 static defects detected {detected}/9");
 }
 
 #[test]
@@ -557,7 +557,7 @@ fn pack29_v1_1_pending_defects_have_no_unrelated_diagnostics() {
 }
 
 #[test]
-#[ignore = "E-GUIDANCE-LEAK / E-HINT-HIDDEN / starts[].guidance E-PARSE are TASK-49 (#495, #496)"]
+#[ignore = "E-GUIDANCE-LEAK / E-HINT-HIDDEN are TASK-49 2/2 (#496)"]
 fn pack29_v1_1_guidance_defects_reported_at_expected_location() {
     let mut missed = Vec::new();
     for d in DEFECTS_V1_1

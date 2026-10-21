@@ -1,0 +1,8 @@
+id: PACK17-2
+package: fandhe-workshop-pack
+test: guidance_levels
+target: crates/pack/src/source.rs
+find:     if !bad.is_empty() {
+replace:     if false && !bad.is_empty() {
+expect-fail: start_guidance_rejects_unknown_levels
+note: 章の水準の語の診断を捨てる（starts[].guidance・body_levels の鍵の E-PARSE が出ない）
