@@ -21,6 +21,7 @@
 | SAVE-12 | 古いタブの保存を止める照合（起動番号）と書き込みは、タブ間で原子的ではない。照合の直後に別のタブが同じ教材を開くと、古いタブが 1 回だけ書きうる | 排他は入れないと判断（TASK-324 1/2。原子性を要件にするには仕様の決定が要る） | 同じ教材は 1 つのタブで開く。古いタブは再読み込みする | `crates/web/tests/boot_guard.rs` の `限界_` |
 | SAVE-13 | 古いタブで行った操作は保存されず、新しいタブの履歴とも合流しない | 合流の規則は足さないと決定（D-56。TASK-325 2/2）。古いタブには保存されていない旨の表示を出す | 同じ教材は 1 つのタブで開く。古いタブで続けたいときは再読み込みする（新しいタブの保存済みの履歴から続く） | `tools/browser/stale-tab.test.mjs`・`crates/web/tests/boot_guard.rs` の交互 10 回ずつの試験 |
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
+| JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 
@@ -173,3 +174,28 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 - `crates/core/tests/secret_scan.rs` の `added_` で始まる試験と、`crates/web/tests/secret_notice.rs` の `every_added_shape_`（記録は `docs/testing.md` 5.184）
 - 件数（見逃しと誤検出）の測定は `crates/core/tests/secret_scan.rs` の `added_shapes_measure_` で始まる試験と `tools/browser/secret-warning.test.mjs`、読み込みの扱いは `crates/web/tests/history_import.rs` の `opening_a_history_`（記録は `docs/testing.md` 5.185）
+
+## JUDGE-24: 上限を超える貼り付けは Ctrl+Z で取り消せない
+
+### 限界
+
+- 入力欄の途中へ上限を超える文字列を貼ると、エンジンは貼った分だけを切って値を書きます（`crates/web/src/glue.rs` の `wire_paste_clip`）。既定の挿入を止め、`set_value` で値を書き、合成の `input` を発火させます
+- このため、Ctrl+Z を 1 回押しても貼り付けの前に戻りません。2 回押しても戻らず、取り消しの履歴がまるごと消えます
+- 上限ちょうどの欄へ貼り付けると、何も挿入されません。このとき Ctrl+Z を押すと、その前の操作が取り消されます
+- 末尾への超過の貼り付けと、上限での打鍵も `set_value` を通ります。このため、同じく取り消しの履歴が消えると推測します（推論・未確認）
+- 確かめたのは Chromium（Playwright・Linux）だけです（2026-10-21）。Firefox・Safari・実際の IME では確かめていません
+
+### 理由
+
+- 取り消しは対象外とし、限界として記録すると決めました（2026-10-21。#1667）
+- 超過の印（案内と `inputOverLimit`）は、はみ出した 1 文字を欄の末尾に置き、`clamp_draft` がそれを切る書き戻し（`sync_draft` の `set_value`）で立てています。この書き戻しが、取り消しの履歴を消します
+- `document.execCommand('insertText')` で書く案を、Chromium の試作で 3 通り試しました（2026-10-21）。末尾にはみ出し 1 文字を置く案と、2 回に分けて挿入する案は、取り消しが効きませんでした（後者は `input` が 2 件になります）。残す分だけを挿入する案は、Ctrl+Z 1 回で値と選択範囲が戻り、やり直しも効きましたが、超過の印が立たず、ブラウザ試験 J-1〜J-5 のうち 6 件が失敗しました
+- 両立させるには、欄の値を通らずに印を立てる新しい経路（`RuntimeAction` など）が要ります。判定が 2 か所に分かれ、glue に新しい種類の操作が加わり（FEND-20）、部品の契約の版上げと spec の変更が要るため、範囲に見合わないと判断しました
+
+### 回避
+
+- 貼り付けを取り消したいときは、貼った分を手で消してください。上限を超えそうな長い文字列は、貼り付ける前に短くしてください
+
+### 根拠の試験
+
+- 切り捨ての位置は `tools/browser/input-limit.test.mjs` の J-1〜J-5 と `crates/web/tests/input_limit.rs` の `judge24_` が確かめます。取り消しは試験しません。試作の結果は `docs/testing.md` 5.189 の「既知の限界」に記録しました
