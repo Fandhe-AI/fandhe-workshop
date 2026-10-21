@@ -214,7 +214,7 @@ for (const csp of [true, false]) {
       await at(page, B_START, 'accepted');
       await page.waitForFunction((k) => localStorage.getItem(k) !== null, bKey, { timeout: T });
       assert.deepEqual(await historyKeys(page), [keyA, bKey].sort(), 'two keys: chapter A and chapter B');
-      assert.ok((await savedDigest(page, keyA)) > 0, 'chapter A value still exists');
+      assert.ok((await savedDigest(page, keyA)) !== null, 'chapter A value still exists');
 
       const foreign = requested.filter((u) => !u.startsWith(origin) && !u.startsWith('data:') && !u.startsWith('blob:'));
       assert.equal(foreign.length, 0, `requests to other origins: ${foreign.length}`);
