@@ -204,8 +204,13 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
   await enter('main/st-1-3', plain);
   await d.sendMultiline('memo line 1', 'memo line 2');
   await enter('main/st-1-4', plain);
+  if (stopAt === 'main/st-1-4') return;
   await d.send('/new-idea');
   await clarify('main/st-1-4');
+  // 問い返しの後は欄が空になる（JUDGE-27・TERM-22。D-67）。書き戻しは 0 ミリ秒のタイマーで非同期のため、空になるのを待つ。
+  const emptied = await page.waitForFunction((sel) => document.querySelector(sel)?.value === '', DRAFT, { timeout: T })
+    .then(() => true, () => false);
+  L.check(scene, 'main/st-1-4 問い返しの後の入力欄が空', emptied);
   await d.send('/advance-phase');
   await reject('main/st-1-4');
   await d.esc();
