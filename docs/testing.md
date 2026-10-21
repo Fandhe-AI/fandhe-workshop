@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 491`（2026-10-21 に TASK-283 の `wire_paste_clip` で 452 から上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 509`（2026-10-21 に TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -6339,10 +6339,50 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 
 確かめないこと・限界:
 
-- 拒否の後に下書きを選択状態にして次の入力で置き換える処理は TASK-284 2/2（#585）の範囲。`ch0-3-journey.mjs` のドライバの全選択（`replaceDraft`）もそこで見直す
+- 拒否の後に下書きを選択状態にして次の入力で置き換える処理は 5.200（TASK-284 2/2）で足した。`ch0-3-journey.mjs` のドライバの全選択（`replaceDraft`）の見直しの結果も 5.200 に書いた
 - フォーカスの位置、実 IME、人の確認は扱わない
 - 書き戻しは 0 ミリ秒のタイマーで非同期のため、それより速く打った場合の取りこぼしは観察も固定もしていない
 - `scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR だけで働く。更新は別の PR で `make update-test-counts`）
+
+### 5.200 拒否の後の下書きが選択状態になり連結されない（TASK-284 2/2。JUDGE-27・TERM-22。D-67）
+
+D-67（2026-10-21）で、拒否の後は拒否された下書きを入力欄に残し（JUDGE-5）、下書きの全体を選択状態にして、次に打った文字で置き換える（末尾に続けて入力されない）と確定した。選択の範囲は下書きの全体と読む。問い返しの後に空にする前半は 5.198（1/2）で固定済みで、本件は後半を実装した。
+
+実装:
+
+- `host.rs`: 純関数 `selects_draft`（拒否のときだけ真）、通知先 `set_draft_select_request`、選択の予約の印 `draft_select_pending`。`submit` が拒否で下書きを残したときに印を立てて通知する。印は、下書きが変わる action（`draft`・`complete`）と次の送信で下りる。進行の tick など下書きを変えない `update` では下りない
+- `glue.rs`: `on_draft_select_request` が `set_timeout(0)` で `sync_draft(root, true)` を予約する。`sync_draft` は印が立っているときだけ `set_selection_range(0, u32::MAX)` を呼ぶ（終端は欄の長さへ丸められるので長さを数えない）。変換中は選ばない。`field.value()` の読みは 1 か所のまま（`make check-dom-reads`）
+- 打鍵が 0 ミリ秒のタイマーより先に届いた場合は、`draft` の action で印が下りるため全選択しない（打った文字を消さない。そのとき文字は下書きに続く）
+
+証拠の種類: 自動ブラウザ・シミュレーター（人の評価ではない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/reject_draft_select.rs`（5 件） | 拒否の後に選択の要求が 1 回・書き戻しが 0 回・印が真、問い返しの後は要求が 0 回で次の拒否で 1 回、打鍵で印が下りる、下書きを変えない操作で印が残る、通知先が無くても落ちない。受け付けの後は選ぶ下書きが無く、`st-1-4` に受け付けになる入力が無いため確かめない |
+| `tools/browser/reject-draft-select.test.mjs`（4 件） | `?fixture=ch0-3` の `main/st-1-4` で、`/new-idea` → `/advance-phase`（拒否）の後に選択が欄の全体になり、全選択せずに `/new-idea` と打つと欄の値と状態の下書きがちょうど打った文字列になり、Enter で送ると受け取った入力が打った文字列ちょうどになる。送信は Enter と送信ボタン（Tab で移って Enter）、CSP あり・なし。いずれも 35 項目が通った |
+| `tools/browser/reject-keeps-draft.test.mjs` | `assertKept` に、選択が下書きの全体であることを足した（`page.fill` の後のキャレットは末尾なので、選択が無ければ失敗する）。busy の分類は処理の終了後も見る |
+| `tools/browser/ch0-3-journey.mjs` | 台帳の項目「main/st-1-4 拒否の後の下書きが全体の選択状態」を足した（`ch0-3-run`・`csp-runs` の両方に効く） |
+
+`replaceDraft`（Ctrl/Cmd+A）の見直し: 受け付けの後の空欄など他の場面でも無害で、ドライバの操作を変えると通しの他の段に影響するため、残した。選択の確認は `reject-draft-select` が全選択を使わずに受け持つ。
+
+変異（実行日 2026-10-21。元にしたコミット 298e9d7 に本件の変更を載せた状態）:
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| JUDGE27-2 | `host.rs` の `submit`: 拒否の後に下書きを選択状態にしない | `拒否の後は選択の要求が出て_下書きは送った本文のまま残り_書き戻しは要求されない` | DETECTED（5 件が失敗） |
+| JUDGE27-1・JUDGE5-4 | 既存 | 既存の試験 | DETECTED のまま |
+
+手元の対照: ブラウザ試験側の対照（`select = false` を入れた試験用ビルドで `reject-draft-select` などが失敗すること）は未検証。
+
+glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 の表にも記録）。`INIT_ALLOWED` に `set_draft_select_request` を足し、`glue_contract.rs` の許可に `set_draft_select_request`・`draft_select_pending` を足した。
+
+確かめないこと・限界:
+
+- 送信ボタンの click で拒否された場合のフォーカスの位置。選択は欄に残るが、フォーカスはボタンにある（D-67 にフォーカスの記述が無い）。試験の観察では、Tab で欄へ戻っても選択は保たれ、置き換えが成立した（Chromium）
+- 実 IME・Safari・Firefox での `setSelectionRange` の挙動（CI は Chromium だけ）
+- 0 ミリ秒のタイマーより速い打鍵（全選択を止める側に倒すが、そのとき打った文字は下書きに続く）
+- 接頭辞を読めずに残した下書き（拒否ではない）は選ばない
+- `scripts/expected-test-counts.txt` は更新していない（別の PR で `make update-test-counts`）。人の確認は扱わない
 
 ### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
 

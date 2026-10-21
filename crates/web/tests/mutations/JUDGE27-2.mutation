@@ -1,0 +1,8 @@
+id: JUDGE27-2
+package: fandhe-workshop-web
+test: reject_draft_select
+target: crates/web/src/host.rs
+find: select = selects_draft(rejected);
+replace: select = false;
+expect-fail: 拒否の後は選択の要求が出て_下書きは送った本文のまま残り_書き戻しは要求されない
+note: 拒否の後に下書きを選択状態にしない（続けて打った文字が下書きの後ろに連結される。JUDGE-27）
