@@ -24,6 +24,7 @@
 //! - 上限を超える貼り付けの切り捨て（`beforeinput`。D-60・JUDGE-24。TASK-283）は、下書きの欄の値の反映
 //!   （`TextareaSync`）として受ける。選択の位置と貼り付けた文字列（利用者の入力）を読み、描画の結果は読まない。
 //!   欄へ書いた後は泡立つ `input` を合成し、上流の通常の入力の経路で状態へ届ける（`glue::wire_paste_clip`）。
+//!   この範囲の拡張のため `PARTS_CONTRACT_VERSION` を 2 に上げた（spec 側の反映は未了。要対応）。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
 //! （`action::ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）で届く。root の外の Esc を受ける `document` の
