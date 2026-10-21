@@ -3,13 +3,13 @@
 // 配信する設定の web を幅 959px と 360px で開き、次を確かめる。
 //   - tablist（pane-tabs）が見え、tab が 2 つ（24×24px 以上）あり、既定は「操作」で、見える領域は操作（shell-right）だけである
 //   - 「成果物」のクリックで成果物（shell-left）だけが見え、aria-selected・tabindex が入れ替わる
-//   - 矢印（左右。端は巡回）・Home・End で切り替わり、フォーカスは押したタブに残る。Home・End はページを動かさない
+//   - 矢印（左右。端は巡回）・Home・End で切り替わり、フォーカスも選んだタブへ移る（続けて Enter・Space を押しても選択は戻らない）。Home・End はページを動かさない
 //     （keydown の defaultPrevented が真）。対照として Alt+ArrowRight では何も変わらない
 //   - 境目: 959px で成果物を選んだ後に 960px へ広げると、両方が見えて tablist が隠れ、959px へ戻すと選んだ側だけが見える
 // 試験の設定（FANDHE_WEB_TEST_DIR）では、tab にフォーカスがある Esc がちょうど 1 回届くこと（FEND-6）を確かめる。
 // どちらも、CSP 違反・ページ内のエラー・コンソールのエラーが 0 件である。
 //
-// 確かめないこと: フォーカスの置き方の仕様（A11Y-21・未決）、既定のタブと Step をまたぐ保持（SHELL-2・未決。仮置き）、
+// 確かめないこと: フォーカスの置き方の細部（A11Y-21・未決）、既定のタブと Step をまたぐ保持（SHELL-2・未決。仮置き）、
 // 360px の横スクロールと 24px 未満の操作対象の件数（TASK-518・TASK-368 の担当）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -102,7 +102,7 @@ for (const width of [959, 360]) {
     });
   });
 
-  test(`幅 ${width}px: 矢印・Home・End で切り替わり、フォーカスは残る。Alt つきでは変わらない`, async () => {
+  test(`幅 ${width}px: 矢印・Home・End で切り替わり、フォーカスも選んだタブへ移る。Alt つきでは変わらない`, async () => {
     await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
       const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
       await page.goto(srv.url);
@@ -126,6 +126,18 @@ for (const width of [959, 360]) {
       for (const [key, id, panes] of steps) {
         await page.keyboard.press(key);
         await expectSelected(page, id, panes, key);
+        // フォーカスは選んだタブへ移る（glue が set_timeout(0) で移すので待つ）。
+        await page.waitForFunction((want) => document.activeElement && document.activeElement.id === want, id, { timeout: 2000 });
+      }
+      // キーで選んだタブにフォーカスがあるので、Enter・Space を押しても元のタブの select-pane は発火せず、選択は戻らない。
+      for (const activate of ['Enter', 'Space']) {
+        await page.keyboard.press('ArrowRight');
+        await page.waitForFunction(() => document.activeElement?.id === 'pane-tab-artifacts', null, { timeout: 2000 });
+        await page.keyboard.press(activate);
+        await expectSelected(page, 'pane-tab-artifacts', ['left'], activate);
+        await page.keyboard.press('Home');
+        await expectSelected(page, 'pane-tab-ops', ['right'], 'Home');
+        await page.waitForFunction(() => document.activeElement?.id === 'pane-tab-ops', null, { timeout: 2000 });
       }
       const prevented = await page.evaluate(() => window.__prevented);
       for (const key of ['Home', 'End']) {

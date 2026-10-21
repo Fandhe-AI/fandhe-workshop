@@ -25,6 +25,9 @@
 //!   （`TextareaSync`）として受ける。選択の位置と貼り付けた文字列（利用者の入力）を読み、描画の結果は読まない。
 //!   欄へ書いた後は泡立つ `input` を合成し、上流の通常の入力の経路で状態へ届ける（`glue::wire_paste_clip`）。
 //!   この範囲の拡張のため `PARTS_CONTRACT_VERSION` を 2 に上げた（spec の FEND-20・D-65）。
+//! - キーで選んだタブへのフォーカス移動（TASK-517 2/2。`a11y::tab_key_target` の契約）のため、`focus` の呼び出しを
+//!   `Click`（要素への作用）に分類して足した。操作の種類は増やしていない。spec 側の整理は未了で、`docs/known-gaps.md` の
+//!   A11Y-5 に記録した。
 //!
 //! キー処理は本文に入れない。ここには不変条件と、決定の受け持ちだけを置く。root の中の Esc は上流の属性
 //! （`action::ESC_KEYDOWN_ATTRS`。`main` と `workshop-root` に付く）で届く。root の外の Esc を受ける `document` の

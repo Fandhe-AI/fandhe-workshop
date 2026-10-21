@@ -16,8 +16,10 @@
 //!   含めないとタブにフォーカスがある Esc が root の Esc に届かなくなる（ちょうど 1 回、FEND-6）ためである。
 //!   `data-keydown-prevent-default` は Esc にも掛かるが、ボタンの上の Esc に既定の動作は無く、観察できる差は無い。
 //!   Home・End はこれが無いとページを先頭・末尾へ動かす。
-//! - キーで切り替えてもフォーカスは移さない（押したタブに残る）。glue の操作は 7 種に閉じており（FEND-20）、
-//!   フォーカスの置き方は A11Y-21 が未決のためである（`docs/known-gaps.md`）。
+//! - キーで切り替えたときは、選んだタブへフォーカスも移す（`a11y::tab_key_target` の契約）。移さないと、元のタブに
+//!   フォーカスが残り Enter・Space で元の選択へ戻る。ホストが `set_pane_focus_request` の通知先へ要求し、glue が
+//!   描画の後に `aria-selected="true"` のタブへ `focus()` する。クリックでは移さない。置き方の細部は A11Y-21 が未決である
+//!   （`docs/known-gaps.md`）。
 //!
 //! TASK-450 への申し送り: ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く。
 //! tabpanel の中に置くと a11y の `live-in-tabpanel` に違反する。

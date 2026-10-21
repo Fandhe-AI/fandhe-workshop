@@ -294,6 +294,24 @@ fn pane_key_follows_tab_key_target() {
 }
 
 #[test]
+fn pane_key_requests_focus_but_click_and_noop_do_not() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    let count = Rc::new(Cell::new(0u32));
+    let mut h = EngineHost::new();
+    let c = Rc::clone(&count);
+    h.set_pane_focus_request(Box::new(move || c.set(c.get() + 1)));
+    // キーで選んだときは、選択に合わせてフォーカスの要求が 1 回出る。
+    h.update(HostAction::PaneKey(TabKey::ArrowRight));
+    assert_eq!(count.get(), 1);
+    h.update(HostAction::PaneKey(TabKey::Home));
+    assert_eq!(count.get(), 2);
+    // クリックでは出さない（押した要素が既にフォーカスを持つ）。
+    h.update(HostAction::SelectPane(PaneTab::Artifacts));
+    assert_eq!(count.get(), 2);
+}
+
+#[test]
 fn dirty_pane_field_is_a_bind_list() {
     let h = EngineHost::new();
     let v = h.view();

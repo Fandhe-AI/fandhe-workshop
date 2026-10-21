@@ -588,6 +588,8 @@ pub struct EngineHost {
     /// 拒否で残した下書きが、まだ選択されるべき状態にある印。下書きが変わる・次の送信が来ると下りる。
     /// 打鍵がタイマーより先に届いたとき、glue が打った文字を消す全選択をしないための印である。
     draft_select_pending: bool,
+    /// キーで選んだタブへフォーカスを移す要求の通知先。未設定なら通知しない（`a11y::tab_key_target` の契約）。
+    pane_focus_request: Option<DraftSyncRequest>,
     /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
     save_request: Option<DraftSyncRequest>,
     /// 即時の保存が済んだとき、予約済みの遅延保存を無効にさせる通知先（TASK-318）。未設定なら通知しない。
@@ -693,6 +695,7 @@ impl EngineHost {
             draft_sync_request: None,
             draft_select_request: None,
             draft_select_pending: false,
+            pane_focus_request: None,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -809,6 +812,7 @@ impl EngineHost {
             draft_sync_request: None,
             draft_select_request: None,
             draft_select_pending: false,
+            pane_focus_request: None,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -1068,6 +1072,11 @@ impl EngineHost {
     /// 拒否の後に下書きの全体を選択状態にする通知先を結ぶ（D-67）。`update` の中から呼ばれ、Runtime にも App にも触れてはならない。
     pub fn set_draft_select_request(&mut self, f: DraftSyncRequest) {
         self.draft_select_request = Some(f);
+    }
+
+    /// キーで選んだタブへフォーカスを移す通知先を結ぶ。`pane-key` の `update` の中から呼ばれ、Runtime にも App にも触れてはならない。
+    pub fn set_pane_focus_request(&mut self, f: DraftSyncRequest) {
+        self.pane_focus_request = Some(f);
     }
 
     /// 拒否で残した下書きを、まだ選択するべきか。glue が選択の直前に読む（読み取り専用）。
@@ -2087,6 +2096,10 @@ impl Component for EngineHost {
                     .and_then(|i| PaneTab::ALL.get(i).copied());
                 if let Some(tab) = target {
                     self.select_pane(tab);
+                    // 選択に合わせてフォーカスも移す（クリックでは移さない。押した要素が既にフォーカスを持つため）。
+                    if let Some(f) = self.pane_focus_request.as_ref() {
+                        f();
+                    }
                 }
             }
             #[cfg(feature = "test-hooks")]
