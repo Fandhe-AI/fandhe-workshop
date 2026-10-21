@@ -353,6 +353,8 @@ impl<'a> Expander<'a> {
                     self.diags
                         .extend(crate::input::check_step_input(scope, &s, true));
                     self.diags
+                        .extend(crate::input::check_step_text_rules(scope, step, &s));
+                    self.diags
                         .extend(crate::profile::check_profile_step(self.profile, scope, &s));
                 } else if crate::input::rules_have_placeholder(&step.rules) {
                     self.diags

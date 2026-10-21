@@ -163,3 +163,56 @@ fn pack41_when_content_condition_is_rejected_by_compile() {
     let d = compile_diags(&t);
     assert!(d.iter().any(|x| x.code() == DiagCode::Parse), "{d:?}");
 }
+
+/// モジュールの text Step を章から `use` で使うパックを作る（`input` と引数は呼び出し側で決める）。
+fn placeholder_module(input: &str, args: &str) -> Tmp {
+    let t = Tmp::new("pack41-ph");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    let chapter = format!(
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: u}}]\nsteps:\n  - {{id: u, title: U, final: true, use: {{module: m, instance: i, args: {args}}}}}\n"
+    );
+    t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
+    let module = format!(
+        "id: m\ntitle: M\nparams: {{kind: d, n: d}}\nsteps:\n  - {{id: x, title: X, input: {input}, confirm: {{kind: approve}}, rules: [{{id: r, on: {{contains: q}}, outcome: {{kind: accept}}}}], final: true}}\n"
+    );
+    t.put("modules/m/module.yaml", module.as_bytes());
+    t
+}
+
+fn text_hits(d: &[Diagnostic]) -> Vec<&Diagnostic> {
+    d.iter()
+        .filter(|x| x.code() == DiagCode::Parse && x.message().starts_with("rule (text):"))
+        .collect()
+}
+
+#[test]
+fn pack41_module_literal_text_with_placeholder_elsewhere_is_checked() {
+    let t = placeholder_module(
+        "{kind: text, min: 1, max: \"${n}\"}",
+        "{kind: text, n: \"10\"}",
+    );
+    for d in [validate_dir(&t.0), compile_diags(&t)] {
+        assert_eq!(text_hits(&d).len(), 1, "{d:?}");
+    }
+}
+
+#[test]
+fn pack41_module_kind_resolved_to_text_is_checked() {
+    let t = placeholder_module(
+        "{kind: \"${kind}\", min: 1, max: 10}",
+        "{kind: text, n: \"10\"}",
+    );
+    for d in [validate_dir(&t.0), compile_diags(&t)] {
+        let hit = text_hits(&d);
+        assert_eq!(hit.len(), 1, "{d:?}");
+        assert_eq!(hit[0].file(), "modules/m/module.yaml");
+        assert_no_secret(&d);
+    }
+    let t = placeholder_module(
+        "{kind: \"${kind}\", commands: [x]}",
+        "{kind: command, n: \"10\"}",
+    );
+    for d in [validate_dir(&t.0), compile_diags(&t)] {
+        assert!(text_hits(&d).is_empty(), "{d:?}");
+    }
+}

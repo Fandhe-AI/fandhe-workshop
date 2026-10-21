@@ -321,6 +321,31 @@ fn check_text_rules(rules: &[Value], text_step: bool) -> Vec<(DiagCode, String)>
     out
 }
 
+/// `input.kind` が文字列 `text` として書かれているか。
+fn step_kind_is_text(input: &Option<Value>) -> bool {
+    input
+        .as_ref()
+        .and_then(|i| i.get("kind"))
+        .and_then(Value::as_str)
+        == Some("text")
+}
+
+/// 展開で `kind` が置換記号から `text` に決まった Step の `on` を検査する。置換前に `kind` が `text` と
+/// 書かれていた Step は置換前の検査が済んでいるので、ここでは検査しない（同じ違反を 2 回報告しない）。
+pub(crate) fn check_step_text_rules(
+    scope: &LoadedScope,
+    before: &Step,
+    expanded: &Step,
+) -> Vec<Diagnostic> {
+    if step_kind_is_text(&before.input) || !step_kind_is_text(&expanded.input) {
+        return Vec::new();
+    }
+    check_text_rules(&expanded.rules, true)
+        .into_iter()
+        .map(|(code, msg)| diag(scope, &expanded.id, code, msg))
+        .collect()
+}
+
 /// 宣言（`input`・`confirm`）が引数の置換記号 `${` を含むか。含まない宣言は置換で変わらないので、
 /// 置換前の検査の結果が置換後にもそのまま当てはまる。
 pub(crate) fn has_placeholder(decl: &Option<Value>) -> bool {
@@ -357,14 +382,9 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
             for (code, msg) in check_cancel_rules(&step.rules) {
                 out.push(diag(scope, &step.id, code, msg));
             }
-            // 置換前の `kind` が読めないモジュールの Step は、`text` の Step としての検査だけ飛ばす。
-            let text_step = (scope.kind == ScopeKind::Chapter || !has_placeholder(&step.input))
-                && step
-                    .input
-                    .as_ref()
-                    .and_then(|i| i.get("kind"))
-                    .and_then(Value::as_str)
-                    == Some("text");
+            // `kind` が文字列で書かれていれば置換記号が他の欄にあっても読める。`kind` 自体が置換記号のときは
+            // 偽になり、展開後に `check_step_text_rules` が検査する。
+            let text_step = step_kind_is_text(&step.input);
             for (code, msg) in check_text_rules(&step.rules, text_step) {
                 out.push(diag(scope, &step.id, code, msg));
             }
