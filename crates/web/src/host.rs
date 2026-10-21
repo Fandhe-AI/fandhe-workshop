@@ -720,6 +720,16 @@ impl EngineHost {
         host
     }
 
+    /// 直接リンクの開始点の指定（`?start=`）を断ったホストを作る（TASK-109 1/2。DLV-9・SAFE-33）。
+    ///
+    /// [`EngineHost::refused`] と同じく session なしで、理由コード（固定の ASCII。入力値は持たない）だけを入れる。
+    /// `history_key` は `None` になり、保存先を開かず何も書かない（保存済みの履歴を壊さない）。
+    pub fn refused_start(refusal: crate::start_select::StartRefusal) -> Self {
+        let mut host = Self::new();
+        host.ir_refusal = Some(refusal.reason_code());
+        host
+    }
+
     /// 教材を読めなかった理由コード。読めた・断っていないときは `None`。
     pub fn ir_refusal(&self) -> Option<&'static str> {
         self.ir_refusal
@@ -734,6 +744,22 @@ impl EngineHost {
         session: Session,
         registry: PartRegistry<HostModel>,
     ) -> Result<Self, HostError> {
+        let start = RecordedSession::first_start(session.ir());
+        Self::with_session_at(session, registry, start)
+    }
+
+    /// [`EngineHost::with_session`] の開始点を、教材の先頭でなく呼び出し側が選んだ ID にしたもの（直接リンク。TASK-109 1/2）。
+    ///
+    /// `start` は記録の開始点と、保存先の鍵・起動の分岐が使う開始点になる。選ぶ規則は `start_select::select_start`。
+    ///
+    /// # Errors
+    ///
+    /// [`EngineHost::with_session`] と同じ。
+    pub fn with_session_at(
+        session: Session,
+        registry: PartRegistry<HostModel>,
+        start: String,
+    ) -> Result<Self, HostError> {
         if let Some(f) = registry
             .fields()
             .find(|f| HELLO_FIELDS.contains(&f.name) || f.name == PANE_TABS_FIELD.name)
@@ -745,7 +771,6 @@ impl EngineHost {
         let initial = Some(session.state().clone());
         let d = derive(&session);
         input.set_input_field(d.input_field);
-        let start = RecordedSession::first_start(session.ir());
         Ok(Self {
             model: HostModel {
                 recorded: Some(RecordedSession::new(session, start)),
@@ -821,14 +846,22 @@ impl EngineHost {
     ///
     /// `persist::mount_with_history` が URL のクエリから選んだ教材を渡す。読み込みに失敗したら session なしに倒す。
     #[cfg(feature = "test-hooks")]
-    pub(crate) fn for_mount_with(fixture: crate::test_fixture::MountFixture) -> Self {
+    pub(crate) fn for_mount_with(
+        fixture: crate::test_fixture::MountFixture,
+        start: Option<&str>,
+    ) -> Self {
         if let Some(err) = crate::test_fixture::mount_refusal(fixture) {
             return Self::refused(&err);
         }
-        if let Some(session) = crate::test_fixture::mount_session(fixture) {
-            if let Ok(host) = Self::with_session(session, standard_registry()) {
-                return host;
+        match crate::test_fixture::mount_session_at(fixture, start) {
+            Ok(Some((session, start_id))) => {
+                if let Ok(host) = Self::with_session_at(session, standard_registry(), start_id) {
+                    return host;
+                }
             }
+            // 指定された開始点を選べない。session を作らず、理由だけを出して開かない（fail-closed）。
+            Err(refusal) => return Self::refused_start(refusal),
+            Ok(None) => {}
         }
         Self::new()
     }
@@ -864,7 +897,10 @@ impl EngineHost {
             return BootKind::NoSession;
         };
         let ir = session.ir().clone();
-        let start = RecordedSession::first_start(&ir);
+        let start = self.model.recorded.as_ref().map_or_else(
+            || RecordedSession::first_start(&ir),
+            |r| r.start().to_owned(),
+        );
         let initial = initial.clone();
         let Ok(hash) = content_hash(&ir) else {
             self.save_blocked = true;
@@ -974,9 +1010,13 @@ impl EngineHost {
         }
     }
 
-    /// 保存先の鍵。教材の `pack.id` と最初の開始点から求める（`HistoryKey::from_ir`）。IR が無い・開始点が無いときは `None`。
+    /// 保存先の鍵。教材の `pack.id` と、開いている開始点（直接リンクで選んだもの。指定なしは先頭）から求める（SAVE-14。D-68）。
+    /// IR が無い・開始点が無いときは `None`。指定なしの鍵は `HistoryKey::from_ir` と同じ文字列になる。
     pub fn history_key(&self, scope: DeliveryScope) -> Option<HistoryKey> {
-        HistoryKey::from_ir(scope, self.model.session()?.ir())
+        let recorded = self.model.recorded.as_ref()?;
+        let ir = recorded.session().ir();
+        ir.starts.first()?;
+        Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))
     }
 
     /// 起動の前に、保存先の読み込みに失敗したことを伝える。保存済みの値を読めなかったまま保存すると失うため、保存を止める。

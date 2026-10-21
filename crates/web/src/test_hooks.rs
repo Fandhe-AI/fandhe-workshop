@@ -24,7 +24,8 @@ use wasm_bindgen::prelude::*;
 ///
 /// `persist::mount_with_history` が呼ぶ。クエリの読み取りを配信する経路のファイルに置かないため、ここに置く
 /// （`tests/tick_interval.rs` が配信する経路に URL の読み取りが無いことを固定する）。選択の規則は
-/// `test_fixture::mount_fixture_from_search` の完全一致だけで、読めないときは既定の教材に倒す。状態は変えない。
+/// `test_fixture::mount_fixture_from_search` の完全一致だけで（直接リンクの `start=` の対だけは取り除いて照合する。値は解釈しない。
+/// 開始点の値の出所は `app.js` が渡す引数である。TASK-109 1/2）、読めないときは既定の教材に倒す。状態は変えない。
 pub(crate) fn mount_fixture_from_url() -> crate::test_fixture::MountFixture {
     let search = web_sys::window()
         .and_then(|w| w.location().search().ok())

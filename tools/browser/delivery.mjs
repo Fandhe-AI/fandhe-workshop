@@ -6,10 +6,11 @@
 // 直接リンク（DIRECT_LINKS・directLinkUrl）と 1 ページの取得資源の判定（pageRequestProblems）もここに置く。判定は base を引数で
 // 受けるので、3/3 の別のサブパス・ルート配信の試験もそのまま使える。
 //
-// 限界: 配信する設定の app.js は URL のクエリもハッシュも読まず、常に既定の教材を開く。直接リンクの形は 2026-10-21 に
-// `?start=<開始点 ID>` に確定した（D-68。DLV-9）が、読み取りは TASK-109 の範囲で、章の開始点で開くこと（DLV-7）は TASK-110 の範囲である。
+// 限界: 配信する設定の app.js は `start`（`?start=<開始点 ID>`。D-68・DLV-9）だけを読んで渡すが、web は実行時に IR を取得せず
+// 照合する先が無いため、常に既定の画面（session なし）のままである。`start` で開くこと自体の試験は試験の設定の
+// direct-link-start.test.mjs（TASK-109 1/2）が持ち、章の開始点で開くこと（DLV-7）は TASK-110 の範囲である。
 // ここで確かめるのは配信の側の性質（静的な解決・取得資源・エラー 0 件）だけ。
-// web は現時点で実行時に ir/main.json を取得しない（読み込みは TASK-109・TASK-121）。そのため ir/main.json は
+// web は現時点で実行時に ir/main.json を取得しない（読み込みは後続のタスク）。そのため ir/main.json は
 // required: false（IR_FILE 指定時だけ存在）とし、「ページが IR を取得する」ことは確かめない。取得するようになった時点で
 // 必須の要素へ見直す。inspectDeliveryRefs は配信する設定の専用で、試験の設定（test-hooks.js・試験用の meta がある配信物）は対象外。
 import fs from 'node:fs';
@@ -170,15 +171,14 @@ export const DIRECT_LINKS = Object.freeze([
   ['ch3', 's-3-1'], ['ch3', 's-3-2'],
 ].map(([chapter, start]) => Object.freeze({ chapter, start })));
 
-// リンクの形の候補（DLV-9 の案 (a)・(b)。どちらもサーバ側の経路を要さない）。形は 2026-10-21 に
-// (a) の query に確定した（D-68）。採らなかった hash をここから外すのは TASK-109（#527）で行い、それまでは両方を流す。
-export const DIRECT_LINK_FORMS = Object.freeze(['query', 'hash']);
+// リンクの形（DLV-9。サーバ側の経路を要さない）。2026-10-21 に query（`?start=<開始点 ID>`）に確定した（D-68）。
+// 採らなかった hash は TASK-109 1/2 で外した（未知の形として例外にする）。
+export const DIRECT_LINK_FORMS = Object.freeze(['query']);
 
 // baseUrl は <origin><base>（末尾 /）。形が未知なら例外にする。
 export function directLinkUrl(baseUrl, link, form) {
   const start = encodeURIComponent(link.start);
   if (form === 'query') return `${baseUrl}?start=${start}`;
-  if (form === 'hash') return `${baseUrl}#/${encodeURIComponent(link.chapter)}/${start}`;
   throw new Error(`unknown direct link form: ${String(form)}`);
 }
 

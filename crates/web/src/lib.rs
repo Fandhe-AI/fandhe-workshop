@@ -28,6 +28,7 @@
 //! 差分のビューの変種 (b) の本体（TASK-475 1/2。ART-1・ART-8）は `diff_view` に置く。
 //! 文書のビューの変種 (b) の本体（TASK-476 1/2。ART-1・ART-7。本文の木の `Block` を行の中身に結ぶ）と、対照専用の変種 (a)（TASK-476 2/2。製品では選べない）は `document_view` に置く。
 //! 左のビューの共通の検査器（TASK-471 2/3）がマウントする代役の部品（試験の設定だけ）は `view_fixture` に置く。
+//! 直接リンク `?start=` の値を IR の `starts` と完全一致で照らして開始点を選ぶ純関数（TASK-109 1/2。DLV-9・SAFE-33）は `start_select` に置く。
 //! 教材（IR）を読めなかったホストが出す、旧いエンジンの断りの通知文（VER-13。仮置き）は `ir_notice` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
@@ -85,6 +86,7 @@ pub mod save_schedule;
 pub mod secret_notice;
 pub mod shell;
 pub mod shell_frame;
+pub mod start_select;
 pub mod step_status;
 pub mod storage_select;
 pub mod task_tree;
