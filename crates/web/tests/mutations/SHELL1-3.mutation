@@ -1,0 +1,8 @@
+id: SHELL1-3
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/src/shell_frame.rs
+find:         PartKind::ArtifactView => PaneMount::Left,
+replace:         PartKind::ArtifactView => PaneMount::Right,
+expect-fail: mounts_exist_once_and_hold_their_parts
+note: 成果物のビューが右の領域に振り分けられる（SHELL-1・TASK-517 1/2）
