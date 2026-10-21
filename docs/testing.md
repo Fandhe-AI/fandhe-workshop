@@ -6422,8 +6422,8 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 保存の値の `versions` は、`history_to_save`（`RecordedSession::envelope_for_save` → `build_envelope`）がいま載っている IR から求め直す。変換して開いた後の保存は、履歴を書いた側の版を引き継がず、開いた側の版で書かれる。実装は変えず、試験で固定した
 - Rust: `crates/web/tests/version_notice.rs` に 3 件を足した（計 12 件）。履歴ファイルの読み込みで変換した後の操作の保存の `versions` が開いた側の `record_versions` と一致し、元の履歴の版とは違い、`ops` が続きに増え、その値が新しい版では変換なしで・古い版では変換で開く。起動時の復元で変換した場合も同じ。対照として同じ版で開くと同じ版のまま書かれる
 - ブラウザ: `tools/browser/version-notice.test.mjs` に 6 件を足した（計 10 件。CSP あり・なし）。V-i-1・V-ii-2 は、読み込みでは保存先へ書かれず（`storageRead` が空・localStorage の鍵が 0 件）、開いた直後の Step が履歴の `snapshot` と同じで、操作の後に保存された `versions.content` が開いた側の教材の `pack.version` と一致し、履歴の `content`・`content_hash` と違い、その値を新しいページで開くと `open` で通知が 0 件である（hash の求め方は JS に持ち込まない）。起動時の復元は、開ける包みの `content_hash` だけを書き換えて保存先へ置き、再読み込みで `restored` と通知 1 件になり、操作の後の `versions` が書き換える前の値と一致する。値は `versions` だけを読み、本文・`ops`・`snapshot` は出さない
-- 実行の結果（2026-10-21）: `cargo test --locked -p fandhe-workshop-web --test version_notice` は 12 件が通った。`tools/browser/version-notice.test.mjs` を `scripts/test-browser.sh` と同じ準備で単独に流し、10 件が通った。`make test-browser` の全件は手元では流していない（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新していない（別の chore で `make update-test-counts`）
-- 対照の自己確認（保存の IR を開いた履歴の版に変えて落ちることの確認）は未実施である
+- 実行の結果（2026-10-21）: `cargo test --locked -p fandhe-workshop-web --test version_notice` は 12 件が通った。`tools/browser/version-notice.test.mjs` を `scripts/test-browser.sh` と同じ準備で単独に流し、10 件が通った。`make test-browser` の全件は手元では流していない（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新した（元にしたコミット dac8dcb。TASK-535 とは無関係な束の増減も実測のまま含む）
+- 対照の自己確認（保存の IR を開いた履歴の版に変えて落ちることの確認）は未実施である。試験が正しい理由で落ちることの確認は残っており、別の機会に行う
 
 限界・申し送り:
 
