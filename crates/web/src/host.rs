@@ -100,6 +100,7 @@ use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
+use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
@@ -209,6 +210,8 @@ pub enum HostAction {
     SelectView(ViewKind),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
     SelectPane(PaneTab),
+    /// 枠の通知の「閉じる」（`dismiss-notice`。TASK-535 1/2）。いま描いている種類（変換して開いた）だけを消し、状態・履歴には触れない。
+    DismissNotice(crate::shell::NoticeKind),
     /// tablist の上の矢印・Home・End（`pane-key`。TASK-517 2/2）。選択の移り先は `a11y::tab_key_target` が決める。
     PaneKey(TabKey),
     /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
@@ -575,6 +578,9 @@ pub struct EngineHost {
     input: HelloView,
     /// 960px 未満で見せる領域（TASK-517 2/2）。表示の状態で、履歴・保存先には書かず、Step が変わっても捨てない。
     pane: PaneTab,
+    /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
+    /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
+    version_notice: bool,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -689,6 +695,7 @@ impl EngineHost {
             registry: standard_registry(),
             input: HelloView::new(),
             pane: PaneTab::Ops,
+            version_notice: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -779,10 +786,11 @@ impl EngineHost {
         registry: PartRegistry<HostModel>,
         start: String,
     ) -> Result<Self, HostError> {
-        if let Some(f) = registry
-            .fields()
-            .find(|f| HELLO_FIELDS.contains(&f.name) || f.name == PANE_TABS_FIELD.name)
-        {
+        if let Some(f) = registry.fields().find(|f| {
+            HELLO_FIELDS.contains(&f.name)
+                || f.name == PANE_TABS_FIELD.name
+                || f.name == SHELL_NOTICES_FIELD.name
+        }) {
             return Err(HostError::FieldCollision(f.name));
         }
         let mut input = HelloView::new();
@@ -806,6 +814,7 @@ impl EngineHost {
             registry,
             input,
             pane: PaneTab::Ops,
+            version_notice: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -940,9 +949,13 @@ impl EngineHost {
             initial,
             &start,
         );
+        let mut converted = false;
         let (recorded, kind) = match outcome {
             BootOutcome::Fresh(r) => (r, BootKind::Fresh),
-            BootOutcome::Restored { session, .. } => (session, BootKind::Restored),
+            BootOutcome::Restored { session, notes } => {
+                converted = notes.is_some();
+                (session, BootKind::Restored)
+            }
             BootOutcome::NotOpened { session, .. } => {
                 self.save_blocked = true;
                 (session, BootKind::NotOpened)
@@ -958,6 +971,8 @@ impl EngineHost {
             .map(StepUid::root)
             .and_then(|root| recorded.session().state().drafts.get(&root).cloned());
         self.install_recorded(recorded);
+        // 版の違いを変換して復元したときだけ通知を出す（配信する設定で変換して開く経路はここだけ。SHELL-20）。
+        self.set_version_notice(converted);
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
@@ -1613,6 +1628,8 @@ impl EngineHost {
                     loaded.start,
                 );
                 self.install_recorded(recorded);
+                // 変換して開いたときだけ通知を出す。開かなかったときは触れない（SAVE-19）。
+                self.set_version_notice(outcome == ImportOutcome::Converted);
                 outcome
             }
             Err(Verdict::ViewOnly { code }) => self.closed(ImportOutcome::ViewOnly(code)),
@@ -1691,6 +1708,12 @@ impl EngineHost {
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
+        // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
+        self.version_notice = false;
+        // `shell_notices` は registry の外にあり、dirty の作り直しに入らない。前の通知を DOM から消すため明示して積む（FEND-15）。
+        if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -1905,6 +1928,18 @@ impl EngineHost {
         self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
     }
 
+    /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    ///
+    /// `install_recorded` の後（dirty が全 field で作り直された後）に呼ぶ。そのとき `shell_notices` は `install_recorded` が dirty に積み済みなので重ねて積まない。
+    fn set_version_notice(&mut self, on: bool) {
+        if self.version_notice != on {
+            self.version_notice = on;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
     /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     fn select_pane(&mut self, tab: PaneTab) {
         if self.pane != tab {
@@ -2087,6 +2122,12 @@ impl Component for EngineHost {
             }
             HostAction::SelectView(kind) => self.select_view(kind),
             HostAction::SelectPane(tab) => self.select_pane(tab),
+            // 描いている通知（変換して開いた）だけを閉じる。他の種類は枠の通知欄に描いていないので何もしない（fail-closed）。
+            HostAction::DismissNotice(kind) => {
+                if kind == crate::shell::NoticeKind::VersionConverted {
+                    self.set_version_notice(false);
+                }
+            }
             HostAction::PaneKey(key) => {
                 let current = PaneTab::ALL.iter().position(|t| *t == self.pane);
                 let target = current
@@ -2212,7 +2253,12 @@ impl Component for EngineHost {
         let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
         let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
-        let mut children = vec![tablist, panes];
+        // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
+        let mut children = vec![
+            crate::shell_notice::notice_area(self.version_notice),
+            tablist,
+            panes,
+        ];
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
         // 試験は `data-payload` を書き換えて click する。
         #[cfg(feature = "test-hooks")]
@@ -2293,6 +2339,16 @@ impl Component for EngineHost {
                 return Some(HostAction::Input(HelloAction::Esc));
             }
             return TabKey::from_key(payload).map(HostAction::PaneKey);
+        }
+        // 通知を閉じる（TASK-535 1/2）。枠の復号（正規形・32 バイト以下）と種類の既知の照合の両方を通ったものだけを受ける。
+        // 書き出し・読み込み・捨てて始めるはここでは受けない（担当は TASK-531 など）。
+        if name == crate::shell::ACTION_DISMISS_NOTICE {
+            return match crate::shell::ShellAction::decode(name, payload) {
+                Some(crate::shell::ShellAction::DismissNotice(kind)) => {
+                    crate::shell::NoticeKind::parse(&kind).map(HostAction::DismissNotice)
+                }
+                _ => None,
+            };
         }
         if name == view_select::ACTION_SELECT_VIEW {
             return ViewKind::parse(payload).map(HostAction::SelectView);
