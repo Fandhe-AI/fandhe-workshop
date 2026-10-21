@@ -82,8 +82,11 @@ export const SAFETY_KEYS = [
   'danger', 'onAttrs', 'styleAttrs', 'nonHttp', 'extHttp', 'scanError',
 ];
 
-const META_TAG_RE = /<meta(?=[\s/>])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
-const ATTR_RE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+// タグ名の終わりと属性の区切りは HTML の空白（タブ・LF・FF・CR・空白）だけで判定する。JS の \s は NBSP・垂直タブ等も
+// 含むが、ブラウザではそれらは区切りにならず（属性名やタグ名の一部になる）、CSP として働かない meta を合格させてしまうため。
+// 2026-10-21 のレビュー指摘で \s を外した。
+const META_TAG_RE = /<meta(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+const ATTR_RE = /([^\t\n\f\r "'<>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'([^']*)'|([^\t\n\f\r "'=<>`]+)))?/g;
 
 // ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea・noscript の中身。noscript は scripting 有効のブラウザでテキスト扱いになる）を同じ長さの空白に置き換える。
 // 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
@@ -91,13 +94,13 @@ function maskInactive(html) {
   const blank = (s) => s.replace(/[^\r\n]/g, ' ');
   const masked = String(html)
     .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
-    .replace(/(<(script|style|title|textarea|noscript)\b[^>]*>)([\s\S]*?)(?=<\/\2\s*>|$)/gi, (_m, open, _t, body) => open + blank(body));
+    .replace(/(<(script|style|title|textarea|noscript)(?=[\t\n\f\r />])[^>]*>)([\s\S]*?)(?=<\/\2[\t\n\f\r ]*>|$)/gi, (_m, open, _t, body) => open + blank(body));
   return maskTemplates(masked, blank);
 }
 
 // template の中身は文書に属さず meta が効かないため、入れ子を数えて最も外側の template ごと空白にする。閉じていなければ末尾まで。
 function maskTemplates(src, blank) {
-  const re = /<(\/?)template(?=[\s/>])[^>]*>/gi;
+  const re = /<(\/?)template(?=[\t\n\f\r />])[^>]*>/gi;
   let out = '';
   let pos = 0;
   let depth = 0;
@@ -169,8 +172,8 @@ export function inspectCspMeta(html) {
   const problems = [];
   const src = String(html);
   const active = maskInactive(src);
-  const heads = [...active.matchAll(/<head\b[^>]*>/gi)];
-  const headEnds = [...active.matchAll(/<\/head\s*>/gi)];
+  const heads = [...active.matchAll(/<head(?=[\t\n\f\r />])[^>]*>/gi)];
+  const headEnds = [...active.matchAll(/<\/head[\t\n\f\r ]*>/gi)];
   if (heads.length !== 1 || headEnds.length !== 1) {
     problems.push(`head element count is ${heads.length}/${headEnds.length} (open/close)`);
     return { ok: false, problems };
