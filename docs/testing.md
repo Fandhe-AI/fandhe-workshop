@@ -6413,3 +6413,22 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 
 - `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
 - `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
+
+### 5.201 開始点の数を増やしても IR の合計と内容のハッシュが変わらない（TASK-109 2/2。DLV-9・D-68）
+
+5.199 の直接リンクは IR を 1 つ（`ir/main.json`）に保つ。旧方式（PoC-10 の `make-start-irs.mjs`）は開始点ごとに `starts` の順を変えた写しを `ir/start-<id>.json` として配り、開始点の数だけ IR が複製され（20 開始点で約 1.8MB）、写しごとに内容のハッシュが別になった（F-1。別の章のリンクで「変換して開きました」が出た）。新方式のこの利点が崩れないことを回帰から守る。
+
+定義: `content_hash`（`crates/contract/src/content_hash.rs`。版 1）は本文の木だけを除いた IR の SHA-256 で、`starts` を含む。開始点を足した教材（別の IR）のハッシュは変わるのが正しい。確かめるのは「同じ IR を別の開始点から開いたとき同じ」であり、「バイト数がまったく増えない」ではない（`starts` の項目の分は増える）。
+
+- ブラウザの試験: `tools/browser/start-count-invariance.test.mjs`（5 件）
+  - (P1) 配信する設定。`min-3step-pack` の開始点 1 件と、`chapter.toml` に固定の文字列で 2 件足した 3 件の教材を compile し、それぞれ `ir/main.json` に置いた配信物の写しを作る。どちらも `inspectDeliveryRefs` が 0 件、IR のファイルが `ir/main.json` の 1 つだけ、`starts` の数が 1 と 3（空振り防止）、`starts` を除いた IR が一致、3 件の IR の大きさが 1 件の 2 倍未満（かつ増える）。指定なしと各 `?start=` を新しい文脈で開き、`pageRequestProblems` が 0 件、要求の種類が全ページ・両配信物で同じ（開始点ごとの資源が無い）
+  - (P1 対照) 3 件の配信物に旧方式の写し `ir/start-<id>.json`（`starts` の先頭を入れ替えたもの）を足すと、IR のファイルが 3 件増え、合計が 2 倍以上になり、静的な検査が「構成要素でないファイル」を 3 件出す
+  - (P2) 試験の設定（CSP あり・なしの 2 件）。開始点 3 件の 1 つの IR（`?fixture=multi-start`）を `start=s-1`・`s-4`・`s-7` で、新しい文脈ごとに開く。現在の節点が開始点の節点（空振り防止）で、1 手進めて保存させた履歴の `versions.content_hash` が 3 件とも同じ小文字 16 進 64 文字、`start` の欄・鍵は開始点ごとに違う
+  - (P2 対照) 開始点ごとに別の IR を配る `?fixture=chapter-a`・`?fixture=chapter-b` では `content_hash` が割れる（測り方に感度があることを示す）
+- Rust の試験: `crates/web/src/test_fixture.rs` の単体試験 2 件。同じ IR は指定なしと 3 開始点のどれで開いても `content_hash` が同じで、開いた開始点と節点の組が 3 通りある。旧方式を模した `starts` の先頭の入れ替えの写しは、`content_hash` が互いに違う
+- 出力の規則: 失敗の文・診断に IR の中身・鍵・ハッシュの値・履歴の中身を出さない（件数・真偽・記号名だけ）。一時ディレクトリは必ず消す
+
+限界・申し送り:
+
+- 配信する設定は実行時に IR を取得しないため、ハッシュは試験の設定の保存先でだけ確かめる。配信する設定の `ir/main.json` は `tools/build-web.sh` がそのまま入れる（`scripts/test-build-web.sh` が確かめる）ので、P1 は写しに置いて静的に検査する。配信する設定での開始点つきの取得とハッシュの照合は、TASK-217・TASK-294 の後
+- 開始点の数が違う 2 つの IR のハッシュの一致は確かめない（設計上違う）
