@@ -6157,4 +6157,30 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 
 - web は実行時に IR を取得しないため、「ページが IR を取得する」ことは確かめていない（TASK-109・TASK-121 の後に取得資源の集合へ含める）。`ir/main.json` が `IR_FILE` とバイト一致で入ることは `scripts/test-build-web.sh` の (b)(e) が保証する
 - 直接リンク 10 件は TASK-106 2/3、名前の違う 2 か所のサブパスとルート配信は 3/3 の範囲
-- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.193 枠の区画と操作の名前の契約（TASK-511 1/2。SHELL-1・SHELL-10・SHELL-17）
+
+画面の枠の区画・左右の取り付け点・枠が受け取る操作の名前と宛先の形を、版 1 の型として固定した（2026-10-21、元にしたコミット f26e94b）。置き場は `crates/web/src/shell.rs`（版は `shell::SHELL_CONTRACT_VERSION`）である。
+
+- 方式: 識別子は予約の接頭辞 `shell-` に集め、`a11y` の `live-`・`terminal_area` の `line-` と同じく衝突を機械的に防ぐ。`tablist`・tab・tabpanel の id は `a11y` が持つため再定義せず、`PaneMount::pane_tab` で参照として結ぶ
+- 上部の区画のうちヒント・チェックポイントは確定（`SectionStatus::Fixed`）、教材名・位置・「模擬」は名前と識別子だけの予約（`Reserved`。0 か 1 個、中身は固定しない）。決定の後に版 2 が足す
+- action は `export-history`（空）・`import-history`（本文そのもの。検査は `open_history` に任せる）・`discard-and-start`（空）・`dismiss-notice`（`[a-z][a-z0-9-]*`、32 バイト以下）。`ShellAction::decode` は正規形だけを受け、`Debug` は読み込みの本文を出さない（SAFE-27）
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/shell_contract.rs` | 版と値の固定、`parse`・`from_name` の往復、`shell-` 接頭辞と内部の非重複、`a11y`・`terminal_area` の識別子・`aria-label` との非重複（受け入れ条件）、タブとの全単射、既存の action の名前との非衝突、decode と encode の往復、payload の拒否、`Debug` が本文を出さないこと、検討中の項目が版 1 に無いこと |
+
+変異注入（実行日 2026-10-21、元にしたコミット f26e94b の作業ツリー。`scripts/check-mutations.sh` の出力）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| SHELL1-1 | `shell.rs`: ヒントの識別子を `a11y` の tablist の値にする | DETECTED（`a11y_と_terminal_area_の識別子と重複しない` ほか） |
+| SHELL10-1 | `shell.rs`: 「次の章へ進む」の接頭辞を崩す | DETECTED（`次の章へ進むの文字の形` ほか） |
+| SHELL17-1 | `shell.rs`: 捨てて始めるが空でない payload を受理する | DETECTED（`書き出しと捨てて始めるは空でない_payload_を拒否する`） |
+
+限界・未実施:
+
+- 通知の種類・通知の値・`view()` に定義にない区画や識別子が出ると失敗する適合の検査器は 2/2（#690）が持つ
+- 予約の区画の中身は TASK-512・TASK-516 の決定の後に版 2 が足す。TASK-516 の本文との照合は spec を参照した範囲では矛盾を見つけていないが、決定前のため未確定である
+- 読み込みでファイルの本文を得る glue の仕組みは `glue_ops` の許される操作に無く、TASK-531 が持つ（`parts::PARTS_CONTRACT_VERSION` の版上げが要る可能性がある）。ホストの `decode_action` への結線もしていない
+- 「次の章へ進む」の action の名前と宛先は TASK-526 が決める

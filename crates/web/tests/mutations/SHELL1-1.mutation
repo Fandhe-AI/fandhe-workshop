@@ -1,0 +1,9 @@
+id: SHELL1-1
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find:             TopSection::Hint => "shell-hint",
+replace:             TopSection::Hint => "pane-tabs",
+expect-fail: 識別子と名前の値の固定
+expect-fail: a11y_と_terminal_area_の識別子と重複しない
+note: ヒントの区画の識別子を a11y の tablist の識別子と同じ値にする（識別子の重複。SHELL-1・TASK-511）

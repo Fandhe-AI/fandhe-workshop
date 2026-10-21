@@ -1,0 +1,8 @@
+id: SHELL17-1
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find:             ShellOp::DiscardAndStart => payload.is_empty().then_some(ShellAction::DiscardAndStart),
+replace:             ShellOp::DiscardAndStart => Some(ShellAction::DiscardAndStart),
+expect-fail: 書き出しと捨てて始めるは空でない_payload_を拒否する
+note: 履歴を捨てて始めるが空でない payload も受理する（SHELL-17・TASK-511）
