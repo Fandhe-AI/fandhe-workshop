@@ -65,6 +65,18 @@ const cases = [
   ['CSP だけを noscript で囲む', /CSP meta count is 0/, (h, c) => h.replace(c, '<noscript>' + c + '</noscript>')],
   ['CSP だけを入れ子の template で囲む', /CSP meta count is 0/, (h, c) =>
     h.replace(c, '<template><template></template>' + c + '</template>')],
+  // head を暗黙に閉じる形（ブラウザでは後続の meta が body に入り CSP が効かない。2026-10-21 のレビュー指摘）。
+  ['head の開始の直後に div を置く', /charset meta is not the first content of head/, (h) =>
+    h.replace(/<head>/i, '<head><div></div>')],
+  ['head の開始の直後に文字を置く', /charset meta is not the first content of head/, (h) => h.replace(/<head>/i, '<head>x')],
+  ['head の開始の直後に NBSP を置く', /charset meta is not the first content of head/, (h) =>
+    h.replace(/<head>/i, '<head> ')],
+  ['head の開始と charset の間に title を置く', /charset meta is not the first content of head/, (h) =>
+    h.replace(/<head>/i, '<head><title>t</title>')],
+  ['head より前に body を始める', /unexpected content before head/, (h) =>
+    h.replace(/<head>/i, '<body><head>')],
+  ['head より前に文字を置く', /unexpected content before head/, (h) => h.replace(/<head>/i, 'x<head>')],
+  ['head を空にして閉じ直す', /head element count is 1\/2/, (h) => h.replace(/<head>/i, '<head></head>')],
 ];
 for (const [label, reason, fn] of cases) {
   test(`csp-placement: 対照 ${label}`, () => {

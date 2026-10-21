@@ -160,7 +160,8 @@ export const DELIVERY_CSP =
 
 // CSP の meta の位置と内容を検査する純関数（fail-closed）。
 // <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
-// ちょうど 1 つあり、content が DELIVERY_CSP と一致することを求める。呼び出し元は csp-placement.test.mjs（make test-browser）。
+// ちょうど 1 つあり、content が DELIVERY_CSP と一致することを求める。head が暗黙に閉じていないことは、head より前と
+// head の開始から charset までの構造を限ることで保証する（下の prefix・leading の検査）。呼び出し元は csp-placement.test.mjs（make test-browser）。
 export function inspectCspMeta(html) {
   const problems = [];
   const src = String(html);
@@ -173,6 +174,16 @@ export function inspectCspMeta(html) {
   }
   const headStart = heads[0].index + heads[0][0].length;
   const headEnd = headEnds[0].index;
+  // head の所属は開始・終了タグの文字列上の位置だけでは決まらない（ブラウザは head に置けない要素や文字が来た時点で
+  // head を暗黙に閉じ、以降の meta は body に入って CSP が効かない）。HTML パーサを持ち込まずに所属を保証するため、
+  // 構造を次の形に限る: head より前は doctype と html の開始タグと空白だけ（body が先に始まると後の <head> は無視される）、
+  // head の開始の直後は空白だけを挟んで charset の meta（後段の「charset の直後に空白だけを挟んで CSP」と合わせ、
+  // CSP までに head を閉じうるものが入らない）。空白は HTML の空白（タブ・LF・FF・CR・空白）に限る（NBSP 等は文字として head を閉じる）。
+  // 2026-10-21 のレビュー指摘（<head><div></div> で後続の CSP が body に入るのに合格していた）で追加。
+  const prefix = active.slice(0, heads[0].index).replace(/^﻿/, '');
+  if (!/^[\t\n\f\r ]*(?:<!doctype\b[^>]*>[\t\n\f\r ]*)?(?:<html(?=[\t\n\f\r />])[^>]*>[\t\n\f\r ]*)?$/i.test(prefix)) {
+    problems.push(`unexpected content before head (head may not be the real head): ${JSON.stringify(prefix.trim().slice(0, 80))}`);
+  }
   const inHead = (m) => m.index >= headStart && m.index < headEnd;
   const metas = parseMetaTags(src);
   const charsets = metas.filter((t) => t.attrs.has('charset'));
@@ -186,8 +197,12 @@ export function inspectCspMeta(html) {
   if (problems.length > 0) return { ok: false, problems };
   const cs = charsets[0];
   const csp = csps[0];
+  const leading = src.slice(headStart, cs.index);
+  if (!/^[\t\n\f\r ]*$/.test(leading)) {
+    problems.push(`charset meta is not the first content of head (head may be implicitly closed; before: ${JSON.stringify(leading.slice(0, 80))})`);
+  }
   const between = src.slice(cs.index + cs.raw.length, csp.index);
-  if (csp.index < cs.index || !/^\s*$/.test(between)) {
+  if (csp.index < cs.index || !/^[\t\n\f\r ]*$/.test(between)) {
     problems.push(`CSP meta is not immediately after charset meta (between: ${JSON.stringify(between.slice(0, 80))})`);
   }
   const content = csp.attrs.get('content');

@@ -5528,17 +5528,19 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - charset の meta と CSP の meta が、どちらも head の中にちょうど 1 つずつ
 - charset の meta の終わりから CSP の meta の始まりまでが空白だけ（「直後」を厳しい側に解釈した。コメントや他の要素を挟むと不合格）
 - CSP の meta の `content`（二重引用符）が `DELIVERY_CSP` と完全一致（正規化しない。指令の並び替え・空白の違いも不合格）
+- head より前は doctype・`<html>` の開始タグ・空白だけで、head の開始の直後は空白だけを挟んで charset の meta が来る（空白は HTML の空白〔タブ・LF・FF・CR・空白〕に限る）。ブラウザは head に置けない要素や文字が来た時点で head を暗黙に閉じ、後続の meta が body に入って CSP が効かなくなる。開始・終了タグの文字列上の位置だけでは所属を判定できないため、HTML パーサを持ち込まずに構造を限って暗黙の終了を拒否した（`title` など head に置ける要素も charset より前には置かせない厳しい側。2026-10-21 のレビュー指摘で追加）
 - 解析できない形は例外にせず問題として返す
 - HTML コメント・`script`・`style`・`title`・`textarea`・`noscript` の中身にある meta は数えない（ブラウザでは効かないため。noscript は scripting 有効のブラウザでテキスト扱いになる。同じ長さの空白に置き換えてから解析する。2026-10-20 のレビュー指摘で追加）
 
 #### 試験
 
-`tools/browser/csp-placement.test.mjs`（18 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 12 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
+`tools/browser/csp-placement.test.mjs`（27 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 23 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・`http-equiv` を `data-http-equiv` にする・`content` を `data-content` にする・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `template` で囲む・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む・CSP だけを入れ子の `template` で囲む・head の開始の直後に `div`・文字・NBSP を置く・head の開始と charset の間に `title` を置く・head より前に `body` を始める・head より前に文字を置く・head を空にして閉じ直す）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
 
 #### 件数・確認（2026-10-20）
 
 - 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh debug` で作り、`csp-placement` の 11 件が通った。環境変数なしでは 10 件が失敗する（skip しない）。`harness`・`safety-observe` の 18 件も通った。`make check`・`make test` は通った
 - `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない
+- 2026-10-21（暗黙の head の終了の拒否）: 両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`csp-placement` の 27 件と `harness` の 11 件が通った。環境変数なしでは 26 件が失敗する（skip しない）。修正前の `harness.mjs` に戻すと、追加した対照 7 種のうち 6 種が合格してしまう（失敗する）ことを確かめた（head を空にして閉じ直す形は修正前も `head element count` で不合格）。`scripts/expected-test-counts.txt` のブラウザの合計は、CI の実測 628 件（`924b943`）に追加の 7 件を足した 635 件にした
 
 #### 限界・範囲外
 
