@@ -75,8 +75,13 @@ pub trait SyncKv {
 /// 非同期の完了の通知。確定・失敗は後から 1 回だけ届く。
 pub type Done = Box<dyn FnOnce(Result<(), StorageError>)>;
 
+/// 値の取得の完了の通知。無い鍵は `Ok(None)`。1 回だけ届く。
+pub type Fetched = Box<dyn FnOnce(Result<Option<String>, StorageError>)>;
+
 /// 完了を通知で返す key-value（IndexedDB）の backend。手元の写しへの反映は呼び出し側が同期で行う。
 pub trait IdbBackend {
+    /// 値を DB から取り直す。確定済みの書き込みだけが見え、手元の写しは使わない。完了で `done` が呼ばれる。
+    fn get(&self, key: &str, done: Fetched);
     /// 値を書く。トランザクションの完了で `done` が呼ばれる。
     fn put(&self, key: &str, value: &str, done: Done);
     /// 値を消す。トランザクションの完了で `done` が呼ばれる。
@@ -102,6 +107,9 @@ impl<T: SyncKv + ?Sized> SyncKv for Rc<T> {
 }
 
 impl<T: IdbBackend + ?Sized> IdbBackend for Rc<T> {
+    fn get(&self, key: &str, done: Fetched) {
+        (**self).get(key, done)
+    }
     fn put(&self, key: &str, value: &str, done: Done) {
         (**self).put(key, value, done)
     }
@@ -163,7 +171,7 @@ pub struct HistoryStorage<L, I> {
     shared: Rc<Shared<L>>,
     idb: Option<I>,
     /// IndexedDB の手元の写し。読みは同期で、書き込みの確定は後から届く（口が同期のため）。
-    mirror: RefCell<BTreeMap<String, String>>,
+    mirror: Rc<RefCell<BTreeMap<String, String>>>,
     active: Cell<StorageKind>,
     /// IndexedDB を開けたが全件を読めなかった印（SAVE-11）。中身が分からないまま書くと、再読み込みで両方が読めたときに
     /// D-52（IndexedDB を正とする）で旧い値が勝って履歴が巻き戻るため、`read`・`write` を `Unavailable` で断る（fail-closed）。
@@ -186,7 +194,7 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
                 last_async_error: Cell::new(None),
             }),
             idb,
-            mirror: RefCell::new(mirror),
+            mirror: Rc::new(RefCell::new(mirror)),
             active: Cell::new(DEFAULT_STORAGE_KIND),
             idb_unreadable: false,
         }
@@ -227,6 +235,39 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
             self.active.set(StorageKind::IndexedDb);
         }
         kind
+    }
+
+    /// 保存先の実データから手元の写しを取り直す（「この入力を残さない」の読み直し用。SAFE-28）。
+    ///
+    /// IndexedDB を使えるときは DB から鍵の値を取得し、完了してから写しを DB の内容に合わせて `done(Ok)` を呼ぶ。
+    /// 別のタブの保存は取り込まれ、自タブの put が失敗していれば未保存の値は写しから消える。取得に失敗したときは
+    /// 写しを変えずに `done(Err)` を呼ぶ（呼び出し元は古い写しで復元してはならない）。IndexedDB を使えない・localStorage の
+    /// 読みは常に実データなので、取り直さずに `done(Ok)` を即座に呼ぶ。
+    pub fn refetch(&self, key: &HistoryKey, done: Box<dyn FnOnce(Result<(), StorageError>)>) {
+        if self.idb_unreadable {
+            done(Err(StorageError::Unavailable));
+            return;
+        }
+        let Some(idb) = &self.idb else {
+            done(Ok(()));
+            return;
+        };
+        let k = key.render();
+        let mirror = Rc::clone(&self.mirror);
+        let kk = k.clone();
+        idb.get(
+            &k,
+            Box::new(move |r| match r {
+                Ok(v) => {
+                    match v {
+                        Some(v) => mirror.borrow_mut().insert(kk, v),
+                        None => mirror.borrow_mut().remove(&kk),
+                    };
+                    done(Ok(()));
+                }
+                Err(e) => done(Err(e)),
+            }),
+        );
     }
 
     /// IndexedDB へ書く。put の確定を待たずに手元の写しを更新して `Ok` を返す（口の [`HistoryStore::write`] が同期のため）。

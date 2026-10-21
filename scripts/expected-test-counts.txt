@@ -217,7 +217,7 @@ rust|tests/step_status_contract.rs [step_status_contract]|passed=10|ignored=0
 rust|tests/stop_restore.rs [stop_restore]|passed=15|ignored=0
 rust|tests/stop_scene.rs [stop_scene]|passed=2|ignored=0
 rust|tests/storage_contract.rs [storage_contract]|passed=17|ignored=0
-rust|tests/storage_select.rs [storage_select]|passed=17|ignored=0
+rust|tests/storage_select.rs [storage_select]|passed=21|ignored=0
 rust|tests/storage_store_contract.rs [storage_store_contract]|passed=3|ignored=0
 rust|tests/submit_wiring.rs [submit_wiring]|passed=6|ignored=0
 rust|tests/task_tree_contract.rs [task_tree_contract]|passed=17|ignored=0

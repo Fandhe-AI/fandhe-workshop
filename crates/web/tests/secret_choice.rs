@@ -414,3 +414,73 @@ fn decode_exact_names_only() {
         );
     }
 }
+
+/// 取り直しの口を結んだホストでは、読み直しは完了の action が届くまで行わない（SAFE-28。IndexedDB の取得は非同期）。
+fn setup_with_refresh() -> (EngineHost, Store, Rc<Cell<u32>>) {
+    let (mut h, _, store) = setup();
+    let asked = Rc::new(Cell::new(0));
+    let a2 = Rc::clone(&asked);
+    h.set_saved_refresh(Box::new(move || a2.set(a2.get() + 1)));
+    (h, store, asked)
+}
+
+#[test]
+fn discard_waits_for_refresh_then_reads_fresh_store() {
+    let (id, _, value) = secret_values::shapes().remove(0);
+    let (mut h, mut_store, asked) = setup_with_refresh();
+    let base = baseline(&mut h, &mut_store);
+    submit(&mut h, &value);
+    h.update(act("secret-discard", ""));
+    h.update(act("secret-discard", ""));
+    assert_eq!(asked.get(), 1, "{id}: refresh asked twice");
+    // 完了の前は読み直さない（警告も入力も残る）。
+    assert!(!warning_ids(&h).is_empty(), "{id}: discarded early");
+    // 取り直しの間に別のタブが保存した、という状態を保存先の写しに置く。
+    *mut_store.borrow_mut() = Some(base.clone());
+    h.update(act("secret-discard-read", "ok"));
+    assert!(warning_ids(&h).is_empty(), "{id}: warning remains");
+    assert_eq!(h.history_to_save(), reopened(&base), "{id}: not restored");
+    assert!(!html(&h).contains(&value), "{id}: value in page");
+}
+
+#[test]
+fn discard_read_failure_starts_fresh_and_blocks_saving() {
+    let (id, _, value) = secret_values::shapes().remove(0);
+    let (mut h, store, asked) = setup_with_refresh();
+    baseline(&mut h, &store);
+    submit(&mut h, &value);
+    h.update(act("secret-discard", ""));
+    assert_eq!(asked.get(), 1);
+    h.update(act("secret-discard-read", "fail"));
+    assert!(warning_ids(&h).is_empty(), "{id}: warning remains");
+    assert!(!html(&h).contains(&value), "{id}: value in page");
+    assert!(h.history_to_save().is_none(), "{id}: saving not blocked");
+}
+
+#[test]
+fn discard_read_without_request_is_ignored() {
+    let (id, _, value) = secret_values::shapes().remove(0);
+    let (mut h, store, _) = setup_with_refresh();
+    baseline(&mut h, &store);
+    submit(&mut h, &value);
+    h.update(act("secret-discard-read", "ok"));
+    assert!(!warning_ids(&h).is_empty(), "{id}: forged completion acted");
+}
+
+#[test]
+fn discard_read_decodes_exact_payloads_only() {
+    assert!(matches!(
+        EngineHost::decode_action("secret-discard-read", "ok"),
+        Some(HostAction::SecretDiscardRead(true))
+    ));
+    assert!(matches!(
+        EngineHost::decode_action("secret-discard-read", "fail"),
+        Some(HostAction::SecretDiscardRead(false))
+    ));
+    for bad in ["", "OK", "ok ", "1"] {
+        assert!(
+            EngineHost::decode_action("secret-discard-read", bad).is_none(),
+            "{bad:?} decoded"
+        );
+    }
+}

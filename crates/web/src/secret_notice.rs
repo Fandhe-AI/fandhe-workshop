@@ -24,6 +24,12 @@ pub const ACTION_SECRET_KEEP: &str = "secret-keep";
 /// 「この入力を残さない」の action の名前（payload は読まない。`decode_action` が完全一致で受ける。SAFE-28）。
 pub const ACTION_SECRET_DISCARD: &str = "secret-discard";
 
+/// 「この入力を残さない」の読み直しが済んだことをホストへ届ける action の名前（私的な名前。payload は `ok` か `fail`。SAFE-28）。
+///
+/// IndexedDB の取り直しは非同期で、完了のコールバックからホストへ触れないため、配送のタイマーに載せる。`fail` は取り直せなかったことで、
+/// ホストは新しく始めて保存を止める（fail-closed）。
+pub const ACTION_SECRET_DISCARD_READ: &str = "secret-discard-read";
+
 /// 選択のボタンの一覧が束縛される field 名（`engine_parts` の `F_LOG` の末尾と同じ。警告の空・非空が変わるとき dirty に積む）。
 pub const SECRET_CHOICE_FIELD: &str = "secret_choice";
 

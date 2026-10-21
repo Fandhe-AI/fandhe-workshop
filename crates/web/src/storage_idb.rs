@@ -13,7 +13,7 @@
 //! 例外の文は読まない・記録しない。DOM の値は読まない（`DomException::name` と要求の結果だけを使う）。
 
 use crate::storage_local::LocalStore;
-use crate::storage_select::{Done, HistoryStorage, IdbBackend};
+use crate::storage_select::{Done, Fetched, HistoryStorage, IdbBackend};
 use fandhe_workshop_contract::storage::{HistoryKey, StorageError};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -167,6 +167,31 @@ impl IdbStore {
 }
 
 impl IdbBackend for IdbStore {
+    fn get(&self, key: &str, done: Fetched) {
+        if self.closed.get() {
+            done(Err(StorageError::Unavailable));
+            return;
+        }
+        let Ok(tx) = self.db.transaction_with_str(STORE) else {
+            done(Err(StorageError::Failed));
+            return;
+        };
+        let Ok(req) = tx
+            .object_store(STORE)
+            .and_then(|s| s.get(&JsValue::from_str(key)))
+        else {
+            done(Err(StorageError::Failed));
+            return;
+        };
+        // 完了の後に結果を読む。文字列以外（未定義）は鍵が無いこととして扱う。
+        watch(
+            &tx,
+            Box::new(move |r| {
+                done(r.map(|()| req.result().ok().and_then(|v| v.as_string())));
+            }),
+        );
+    }
+
     fn put(&self, key: &str, value: &str, done: Done) {
         let Some((tx, done)) = self.start(done) else {
             return;

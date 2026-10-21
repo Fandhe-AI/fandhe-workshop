@@ -212,6 +212,8 @@ pub enum HostAction {
     SecretKeep,
     /// 「この入力を残さない」（SAFE-28）。保存せずに保存先の内容から読み直す。payload は読まない。
     SecretDiscard,
+    /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた）。取り直しを頼んでいないときは何もしない。
+    SecretDiscardRead(bool),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -477,6 +479,12 @@ pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
 
+/// 保存先の実データの取り直しを頼む口（「この入力を残さない」。SAFE-28）。`persist::boot_and_mount` が結ぶ。
+///
+/// IndexedDB は取得の完了が非同期で、保存先の写しは他のタブの保存や自タブの書き込みの失敗を反映していない。呼ぶと取り直しを始め、
+/// 完了したら `secret-discard-read` を配送する。ホストは届くまで読み直さない。未設定なら、`SavedReader` をその場で読む。
+pub type SavedRefresh = Box<dyn Fn()>;
+
 /// 非同期の保存の失敗（IndexedDB。SAVE-11）を読む口。読み取り専用で、`update` のたびに引かれる。
 ///
 /// IndexedDB の確定は後から届き、そのコールバックからホストへは触れない（`state_paths`）。そのため実体（`persist`）は失敗の種類を
@@ -565,6 +573,10 @@ pub struct EngineHost {
     history_saver: Option<HistorySaver>,
     /// 保存済みの履歴を読む口（「この入力を残さない」の読み直し。SAFE-28）。未設定なら保存済みの履歴が無いものとして読み直す。
     saved_reader: Option<SavedReader>,
+    /// 保存先の取り直しを頼む口。未設定ならその場で読み直す。
+    saved_refresh: Option<SavedRefresh>,
+    /// 取り直しを頼んで、完了を待っている印。完了（`SecretDiscardRead`）でだけ読み直しを行う。
+    discard_pending: bool,
     /// 「このまま保存する」で確認済みにした検出（形と指紋だけ。値は持たない）。このページの実行中だけ持ち、保存先にも履歴にも書かない。
     /// 起動時に保存済みの値から種を入れない（旧いエンジンが書いた値・読み込んだ履歴を黙って確認済みにしないため）。差し替え・読み直しで空にする。
     secret_acknowledged: Vec<Finding>,
@@ -656,6 +668,8 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             saved_reader: None,
+            saved_refresh: None,
+            discard_pending: false,
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
@@ -738,6 +752,8 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             saved_reader: None,
+            saved_refresh: None,
+            discard_pending: false,
             secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
@@ -1089,6 +1105,11 @@ impl EngineHost {
         self.saved_reader = Some(f);
     }
 
+    /// 保存先の取り直しを頼む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
+    pub fn set_saved_refresh(&mut self, f: SavedRefresh) {
+        self.saved_refresh = Some(f);
+    }
+
     /// 「このまま保存する」（SAFE-28）。警告の対象の値を確認済みにして、今の履歴を保存する。
     ///
     /// 警告が無いとき（古いクリック）は何もしない。警告に出した形と、今の履歴の未確認の検出の形が違うとき（警告の後に
@@ -1124,12 +1145,43 @@ impl EngineHost {
     ///
     /// ページの再読み込みではなくホストの中で行う（ブラウザが `<textarea>` の値を復元しうるため）。実行環境・入力欄の下書き・送信済みの一覧・
     /// 警告・確認済みを作り直し、`<textarea>` へ書き戻す。保存先へは何も書かない。読めなかったときは新しく始めて保存を止める（fail-closed）。
+    ///
+    /// 取り直しの口があるときは、保存先の実データの取得が終わってから読み直す（IndexedDB の写しは他のタブの保存や自タブの
+    /// 失敗した書き込みを反映しないため。SAFE-28）。頼んだ後の連打は取り直しを重ねない。
     fn secret_discard(&mut self) {
         if self.model.secret_warning.is_empty() || self.model.recorded.is_none() {
             return;
         }
+        if let Some(refresh) = self.saved_refresh.as_ref() {
+            if !self.discard_pending {
+                self.discard_pending = true;
+                refresh();
+            }
+            return;
+        }
+        self.finish_discard(true);
+    }
+
+    /// 取り直しの完了を受けて読み直しを行う。頼んでいない完了・警告が消えた後の完了は捨てる。
+    fn secret_discard_read(&mut self, ok: bool) {
+        if !self.discard_pending {
+            return;
+        }
+        self.discard_pending = false;
+        if self.model.secret_warning.is_empty() || self.model.recorded.is_none() {
+            return;
+        }
+        self.finish_discard(ok);
+    }
+
+    /// 読み直し本体。`fetched` が偽（取り直せなかった）なら保存先を読まずに新しく始めて保存を止める。
+    fn finish_discard(&mut self, fetched: bool) {
         let saved = match self.saved_reader.as_ref() {
             None => None,
+            Some(_) if !fetched => {
+                self.save_blocked = true;
+                None
+            }
             Some(read) => match read() {
                 Ok(v) => v,
                 Err(_) => {
@@ -1853,6 +1905,7 @@ impl Component for EngineHost {
             }
             HostAction::SecretKeep => self.secret_keep(),
             HostAction::SecretDiscard => self.secret_discard(),
+            HostAction::SecretDiscardRead(ok) => self.secret_discard_read(ok),
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -2097,6 +2150,13 @@ impl Component for EngineHost {
         }
         if name == crate::secret_notice::ACTION_SECRET_DISCARD {
             return Some(HostAction::SecretDiscard);
+        }
+        if name == crate::secret_notice::ACTION_SECRET_DISCARD_READ {
+            return match payload {
+                "ok" => Some(HostAction::SecretDiscardRead(true)),
+                "fail" => Some(HostAction::SecretDiscardRead(false)),
+                _ => None,
+            };
         }
         if name == crate::secret_notice::ACTION_SECRET_HOLD {
             return crate::secret_notice::decode_secret_hold(payload)
