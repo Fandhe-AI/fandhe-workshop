@@ -86,6 +86,12 @@ const cases = [
     h.replace(/<head>/i, '<body><head>')],
   ['head より前に文字を置く', /unexpected content before head/, (h) => h.replace(/<head>/i, 'x<head>')],
   ['head を空にして閉じ直す', /head element count is 1\/2/, (h) => h.replace(/<head>/i, '<head></head>')],
+  // 開始タグの引用符つきの属性値に後続を飲み込ませる形（ブラウザでは charset・CSP が属性値になり meta が生成されない）。
+  ['head の開始タグの属性値に後続を飲み込ませる', /head start tag is not in the canonical form/, (h) =>
+    h.replace(/<head>/i, "<head data-x='>")],
+  ['html の開始タグの属性値に head を飲み込ませる', /unexpected content before head/, (h) =>
+    h.replace(/<html lang="ja">/i, "<html lang=\"ja\" data-x='>")],
+  ['head より前にコメントを置く', /unexpected content before head/, (h) => h.replace(/<head>/i, '<!-- x --><head>')],
 ];
 for (const [label, reason, fn] of cases) {
   test(`csp-placement: 対照 ${label}`, () => {

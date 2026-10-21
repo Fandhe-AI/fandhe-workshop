@@ -253,4 +253,4 @@ rust|unittests src/lib.rs [fandhe_workshop_core]|passed=41|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=107|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=641|pass=641|skipped=0|todo=0|cancelled=0
+browser|total|tests=644|pass=644|skipped=0|todo=0|cancelled=0

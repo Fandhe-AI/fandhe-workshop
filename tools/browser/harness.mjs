@@ -166,6 +166,9 @@ export const DELIVERY_CSP =
 // charset と CSP の meta の正の形（crates/web/static/index.html と一致させる。inspectCspMeta が完全一致で比べる）。
 const CANONICAL_CHARSET_META = '<meta charset="utf-8">';
 const CANONICAL_CSP_META = `<meta http-equiv="Content-Security-Policy" content="${DELIVERY_CSP}">`;
+// head より前と head の開始タグの正の形（同じく index.html と一致させる）。間には HTML の空白だけを許す。
+const CANONICAL_PREFIX_RE = /^[\t\n\f\r ]*<!doctype html>[\t\n\f\r ]*<html lang="ja">[\t\n\f\r ]*$/;
+const CANONICAL_HEAD_START = '<head>';
 
 // CSP の meta の位置と内容を検査する純関数（fail-closed）。
 // <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
@@ -189,11 +192,17 @@ export function inspectCspMeta(html) {
   // head の開始の直後は空白だけを挟んで charset の meta（後段の「charset の直後に空白だけを挟んで CSP」と合わせ、
   // CSP までに head を閉じうるものが入らない）。空白は HTML の空白（タブ・LF・FF・CR・空白）に限る（NBSP 等は文字として head を閉じる）。
   // 2026-10-21 のレビュー指摘（<head><div></div> で後続の CSP が body に入るのに合格していた）で追加。
-  // active はコメント・script・style の中身を空白にした写しなので、head より前のコメントはここで許容される
-  // （コメントは head を閉じない）。BOM は文字として書かず \uFEFF で書く（整形で消えないように）。
-  const prefix = active.slice(0, heads[0].index).replace(/^\uFEFF/, '');
-  if (!/^[\t\n\f\r ]*(?:<!doctype\b[^>]*>[\t\n\f\r ]*)?(?:<html(?=[\t\n\f\r />])[^>]*>[\t\n\f\r ]*)?$/i.test(prefix)) {
+  // head より前と head の開始タグは、原文（マスクする前）を正の形と完全一致で比べる。開始タグを [^>]*> で切ると、
+  // 引用符つきの属性値の中の > で切れて後続の charset・CSP が属性値に飲み込まれた形（<head data-x='> 等）を見逃すため、
+  // 属性の解析はせず形を 1 つに固定する（コメントも置かせない厳しい側の規則）。2026-10-21 のレビュー指摘で変更。
+  // BOM は文字として書かず \uFEFF で書く（整形で消えないように）。
+  const prefix = src.slice(0, heads[0].index).replace(/^\uFEFF/, '');
+  if (!CANONICAL_PREFIX_RE.test(prefix)) {
     problems.push(`unexpected content before head (head may not be the real head): ${JSON.stringify(prefix.trim().slice(0, 80))}`);
+  }
+  const headTag = src.slice(heads[0].index, headStart);
+  if (headTag !== CANONICAL_HEAD_START) {
+    problems.push(`head start tag is not in the canonical form: ${JSON.stringify(headTag.slice(0, 80))}`);
   }
   const inHead = (m) => m.index >= headStart && m.index < headEnd;
   const metas = parseMetaTags(src);
