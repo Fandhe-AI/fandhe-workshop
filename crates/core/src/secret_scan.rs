@@ -10,8 +10,10 @@
 //! 限界（確認した事実）:
 //! - 規則は固定の 10 形（[`SecretShape::ALL`]）に合わせたもので、一般の秘密情報の検出率を示さない。
 //! - 秘密鍵は、BEGIN 行と種類の語（`PRIVATE KEY-----`）が揃えば END 行が無くても検出する（切り詰めた貼り付けも止める）。
-//! - 接頭辞の直前が英数字のときは接頭辞として扱わない。二重エンコードの JSON 中の `\n` の直後に続くトークン（`\nghp_...`）のような
-//!   エスケープ残りは検出できない。
+//! - 英数字に接した接頭辞は検出しない（`xAKIA...`・`aghp_...` など、直前が英数字のものは語の途中として扱う。秘密鍵の枠と
+//!   接続文字列を除く形に当たる）。その結果、二重エンコードの JSON 中の `\n` の直後に続くトークン（`\nghp_...`）のような
+//!   エスケープ残りも検出できない。
+//! - 接頭辞の大文字小文字は区別する。名前つきの形（`aws_secret_access_key`）の名前だけは、ASCII の大文字小文字を区別しない。
 //! - 履歴ファイルの読み込み（インポート）の内容は調べない（TASK-165 の範囲）。
 //! - 費用は値の大きさに比例する。WASM での検査時間は未計測である。
 //!
@@ -185,7 +187,10 @@ fn skip_quote_space(s: &str, mut p: usize) -> usize {
 
 fn scan_aws_secret(out: &mut Vec<Finding>, s: &str) {
     const NAME: &str = "aws_secret_access_key";
-    for (i, _) in s.match_indices(NAME) {
+    // 名前は環境変数の `AWS_SECRET_ACCESS_KEY` などの大文字・混在も受ける。ASCII だけを小文字にした写しで位置を探し、
+    // 長さと文字の境界が変わらないため、以後の判定と指紋は元の `s` で行う。
+    let lower = s.to_ascii_lowercase();
+    for (i, _) in lower.match_indices(NAME) {
         if !boundary_before(s, i) {
             continue;
         }

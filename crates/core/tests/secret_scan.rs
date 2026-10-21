@@ -199,3 +199,24 @@ fn private_key_without_an_end_line_is_still_detected() {
     let text = ["-----BEGIN RSA ", "PRIVATE KEY-----\nAAAA"].concat();
     assert!(ids(&scan_text(&text)) == ["private_key"]);
 }
+
+#[test]
+fn aws_secret_name_is_matched_ignoring_ascii_case() {
+    let (_, _, value) = shapes()
+        .into_iter()
+        .find(|(id, _, _)| id == "S-05")
+        .expect("S-05 in the fixture");
+    let name = "aws_secret_access_key";
+    assert!(value.starts_with(name), "S-05 starts with the name");
+    for variant in ["AWS_SECRET_ACCESS_KEY", "AWS_Secret_Access_Key"] {
+        let text = value.replacen(name, variant, 1);
+        assert!(
+            ids(&scan_text(&text)) == ["aws_secret_key"],
+            "{variant}: not detected"
+        );
+        assert!(
+            scan_text(&format!("x{text}")).is_empty(),
+            "{variant}: glued name detected"
+        );
+    }
+}
