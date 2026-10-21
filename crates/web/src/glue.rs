@@ -758,7 +758,8 @@ pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::
 /// `static/app.js` が `await` し、`data-mounted` はその完了後に立てる。要素が無い場合、イベント配線に失敗した場合、
 /// すでにマウント済みの場合は拒否する。`user_agent` は `static/app.js` が `navigator.userAgent` を読んで渡す値で、
 /// 修飾キーの表示のための OS の推定にだけ使う（D-48・JUDGE-28。Rust 側はブラウザの値を読まない）。
+/// `start` は直接リンク `?start=` の値（`app.js` が読む。指定なしは `undefined`。TASK-109 1/2）で、開始点の照合だけに使う。
 #[wasm_bindgen]
-pub fn mount_app(root_id: &str, user_agent: &str) -> js_sys::Promise {
-    crate::persist::mount_with_history(root_id, user_agent)
+pub fn mount_app(root_id: &str, user_agent: &str, start: Option<String>) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id, user_agent, start)
 }
