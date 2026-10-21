@@ -358,6 +358,14 @@ const INIT_ALLOWED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "Runtime::mount(",
     ),
+    // 拒否の後の下書きの全選択の通知先（TASK-284 2/2）。通知先はタイマーを予約するだけで、Runtime・App に触れない。
+    (
+        "glue",
+        "mount_host(",
+        "set_draft_select_request",
+        1,
+        "Runtime::mount(",
+    ),
     // 変更の後の遅延保存の通知先（TASK-318）。通知先はタイマーを予約するだけで、Runtime・App に触れない。
     (
         "glue",
@@ -621,6 +629,7 @@ fn mount_host(root_id: &str, mut host: EngineHost) -> R {
     host.set_tick_request(a);
     host.set_tick_reset(b);
     host.set_draft_sync_request(c);
+    host.set_draft_select_request(c2);
     host.set_save_request(d);
     host.set_save_cancel(e);
     let runtime = Runtime::mount(root_id, host)?;
@@ -633,7 +642,7 @@ fn debug_view_fixture_dispatch(n: &str) -> String { VIEW_FIXTURE.with(|c| { rt.d
 fn debug_view_fixture_state() -> String { let f = rt.component(); s }
 "#;
 const L_LEAVE: &str = "fn flush() { // c.update(a)\n let x = 1; }";
-const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} }";
+const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_draft_select_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} }";
 
 fn layer(persist: &str, glue: &str, hooks: &str, leave: &str) -> Vec<(String, String)> {
     [
