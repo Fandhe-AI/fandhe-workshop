@@ -1,0 +1,9 @@
+id: JUDGE5-6
+package: fandhe-workshop-core
+test: reject_invariant
+target: crates/core/src/accept.rs
+find:             if outcome.judgment != Judgment::Confirmed {
+replace:             if outcome.judgment != Judgment::Confirmed { state.run.global_flags.insert("mutated".to_string());
+expect-fail: rejections_keep_state_on_random_sequences
+expect-fail: rejections_keep_state_from_any_status
+note: 確認の段の拒否でフラグを立てる（世界状態が変わる）

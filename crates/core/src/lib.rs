@@ -40,6 +40,7 @@
 //! 1 回の操作で起きる内部の遷移のたどりと上限 1,000 回での停止と、止めた後に操作の前の状態へ戻すこと（`transit`、TASK-160、SAFE-23・SAFE-35。公開しない）も持つ。
 //! 処理中の再読み込みでの世代 +1（`reload`、TASK-320 1/2。公開しない）も持つ。
 //! 操作を `ops` に記録しながら進める実行環境（[`recorded_session`]、TASK-319 1/3）と、起動時に保存済みの履歴の有無で新しく始めるか復元するかを分ける処理（[`history_boot`]）も持つ。
+//! 拒否された入力が状態を変えないことの関門（`reject_guard`、TASK-270、JUDGE-5。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -77,6 +78,7 @@ pub mod ops_record;
 pub mod projection;
 pub mod provider;
 pub mod recorded_session;
+mod reject_guard;
 pub mod rejection_text;
 mod reload;
 pub mod secret_scan;

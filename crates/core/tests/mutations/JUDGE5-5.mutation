@@ -1,0 +1,10 @@
+id: JUDGE5-5
+package: fandhe-workshop-core
+test: reject_invariant
+target: crates/core/src/accept.rs
+find:     if !matches!(outcome.judgment, Judgment::Accepted(_)) {
+replace:     if !matches!(outcome.judgment, Judgment::Accepted(_)) { state.run.slices.entry(current.root()).or_default().status.insert(current.clone(), StepStatus::Accepted);
+expect-fail: rejections_keep_state_on_random_sequences
+expect-fail: rejections_keep_state_on_guided_sequences
+expect-fail: rejections_keep_state_from_any_status
+note: 入力の段の拒否で Step を受付済みにする

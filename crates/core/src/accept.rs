@@ -52,6 +52,9 @@
 //! - 進行 `Op::Tick` の照合と進め方（`tick`、TASK-210）
 //! - 問い返しの待ちの欄（`Slice::clarifying`）を立てる処理と、評価器の `VocabConditions` への結線（評価は実装済み。立てる・消す処理と結線は TASK-207・TASK-267。それまで `NoConditions` で評価するため当たらない）
 //!
+//! 拒否（規則 6〜8 の拒否の分岐）は `state.run` を書く前に返り、状態を変えない（JUDGE-5、TASK-270）。この性質は
+//! `tests/reject_invariant.rs` が確かめ、破られたときは [`crate::session::apply`] の関門（`reject_guard`）が戻す。
+//!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!` を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! `Warning` の文面は固定文で、入力値・教材の値を埋め込まない。入力値は未信頼で、HTML への埋め込みの
 //! エスケープは web 層の責務である。
