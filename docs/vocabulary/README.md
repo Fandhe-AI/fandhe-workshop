@@ -64,6 +64,7 @@
 | 進行の間隔の宣言欄 | 足さないと決定（PACK-44、D-43） | `docs/pack-authoring.md` の「処理中の進行」 |
 | 入力のない確認だけの Step を表す語（読むだけの Step） | 足さないと決定（PACK-35、D-69） | `docs/pack-authoring.md` の「読むだけの Step」 |
 | 確認 `answer` に複数の問いを持たせる語（複数の対象の分類） | 足さないと決定（PACK-33、D-69） | `docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」 |
+| 誤答の拒否に前後比較のビューを結ぶ語 | 足さないと決定（PACK-36、D-69） | `docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」 |
 
 ## 6. この索引の保守
 

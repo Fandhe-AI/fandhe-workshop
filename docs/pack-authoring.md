@@ -192,6 +192,19 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境�
 
 書き方の実例は `crates/pack/tests/data/read-only-step-pack` です。
 
+## 誤答の拒否で前後の比較を案内する（拒否文で案内する）
+
+誤答の拒否に前後比較のビューを結ぶ語はありません。足さないことが D-69（2026-10-21）で決まっています（PACK-36）。誤答の拒否文で、左エリアの前後の切り替え（ART-2）を案内します。
+
+- `answer` の `on_wrong`（Step か選択肢）で拒否の文面を指し、その `message`・`next_action` に前後の切り替えで見比べるよう書きます
+- Step には `views` で `diff` などのビューを宣言しておきます
+- 誤答のときに、比較は自動では表示されません。限界として受け入れています（`docs/known-gaps.md` の PACK-36）
+- `confirm.answer` に比較のビューを結ぶ欄を足すと `E-PARSE` です
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+- 2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていません。画面での見え方は未確認です（ART-19。画面のタスクの持ち分）
+
+書き方の実例は `crates/pack/tests/data/wrong-answer-compare-pack` です。
+
 ## 承認の差し戻しと再承認（Step を分ける）
 
 1 つの Step の `approval` で「承認 → 差し戻し → 再承認」を表す語はありません。足さないことは D-69（2026-10-21）で決まっています（PACK-32）。入力方式 `approval` は欄を持たず、欄を足すと `E-PARSE` です。
@@ -606,3 +619,4 @@ views:
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
 | `crates/pack/tests/read_only_step.rs` の `pack35_` | 1 択の `choice` と `answer` の Step が新しい語彙の版の宣言なしで通ること、入力のない確認だけの終端でない Step が `E-STRUCTURE` になること（PACK-35・D-69） |
 | `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
+| `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` | 誤答の拒否文で前後の切り替えを案内する教材が新しい語彙の版の宣言なしで `validate` を通ること、誤答が案内つきの拒否になり Step が受付のまま達成にならないこと、`answer` に比較のビューを結ぶ欄を足すと `E-PARSE` になること（PACK-36・D-69） |

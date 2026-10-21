@@ -6630,3 +6630,20 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 | PACK34-3 | `action` の照合を外す（書き出しの Step も保存で達成になる） | `pack34_export_step_is_not_achieved_by_save` |
 
 範囲外: 書き出しの成功を達成に結ぶ実行時の経路（`docs/known-gaps.md` の PACK-34）。保存・書き出しのボタンの画面。
+
+### 5.210 誤答の拒否文で前後の切り替えを案内する形（TASK-64 2/2。PACK-36・D-69）
+
+決定（D-69、2026-10-21）は「誤答の拒否に前後比較のビューを結ぶ語は足さず、拒否文（`message`・`next_action`）で前後の切り替え（ART-2）を案内する。比較を自動で見せないことは限界として受け入れる」である。`crates/pack/tests/wrong_answer_compare.rs`（実パックは `crates/pack/tests/data/wrong-answer-compare-pack`。`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack36_guide_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack36_cli_compile_and_vocab_accept_guide_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の (ii) が 0 であること |
+| `pack36_wrong_answer_resolves_to_guide_text` | 誤答が `rj-unchanged` の誤答になり、拒否文の次の行動が前後の切り替えの案内であること。正答は `Confirmed` |
+| `pack36_session_shows_guide_and_stays_on_step` | `Session` で誤答を送ると受付のまま達成が増えず、判定が拒否で、差し込み後の文面が案内であること。誤答で出るイベントは判定と入力の記録だけで、比較を自動で見せないこと。続く正答で達成になること |
+| `pack36_binding_field_on_answer_is_rejected` | 対照。`confirm.answer` に比較のビューを結ぶ欄を足した写しは `E-PARSE` になり、IR を出さないこと（語を足していないこと） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 画面での前後の切り替えの見え方（ART-19）はブラウザで確かめていない。画面のタスクの持ち分である
+- 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+- `rejections.<id>` に未知の欄を足したときの挙動は、試験では固定していない（未確認）
