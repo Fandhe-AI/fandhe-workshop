@@ -5907,7 +5907,55 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - `test_fixture.rs` の単体試験を 3 件足した（大きさの範囲と上限の内側、`plain`・`dense` の検出 0 件と `marker` の 1 形、種類の名前の完全一致）
 - 依存の crate・`glue.rs` は変えていない
 
-### 5.187 拒否の後に状態が変わらないこと（TASK-270。JUDGE-5）
+### 5.187 拒否された入力が入力欄に残る（TASK-271。JUDGE-5・TERM-17）
+
+JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（消えない）ことを求める。保持の実装は `crates/web/src/host.rs` の `submit` の `keeps_draft`（TASK-438）にある。本節は、その証拠を拒否の 7 分類すべてへ広げる試験の記録である。本番のコードは変えていない。
+
+- 実行日: 2026-10-21。元にしたコミット: ed16219（dirty。本変更を含む）
+- コマンド: `cargo test --locked -p fandhe-workshop-web --test submit_wiring`・`scripts/check-mutations.sh crates/web/tests/mutations/JUDGE5-4.mutation crates/web/tests/mutations/TERM1-1.mutation`・`make test-browser`（740 件が通過）
+
+#### 方式
+
+- native: `submit_wiring.rs` の `全拒否の分類で_拒否の後の下書きは送った本文のまま_書き戻しは要求されない`。分類ごとに新しいホストを作り、ログ末尾の拒否の分類・下書きが送った本文とバイト単位で同じこと・書き戻しの要求が増えないことを確かめる。`RejectCategory::ALL` の 7 語すべてが流れたことも assert する
+- ブラウザ: `tools/browser/reject-keeps-draft.test.mjs`。入力欄へ本文を入れ、Enter と送信ボタンの click の両方で送る。拒否の後に、欄の値（DOM）と状態の下書き（`__fandheTest.draft()`）がどちらも本文のままであること、安全性の計数が 0 であることを CSP あり・なしで確かめる。`reject-lines` は入力欄を通らない経路で、JUDGE-5 の証拠にはならないため別に足した
+
+#### 入力欄の本文と分類
+
+`min-3step` の開始点 `s-1`（Step の入力は `make-note`）で実測した。試験は毎回、得た分類を assert する。
+
+| 分類 | 入力欄の本文 | 元の error_inputs |
+|---|---|---|
+| `unknown_command` | `/nothing` | `e-unknown` |
+| `wrong_order` | `/publish-note` | `e-wrong-order` |
+| `missing_arg` | `/make-note` | `e-missing-arg` |
+| `bad_arg_shape` | `/make-note Bad_Name` | `e-bad-shape` |
+| `not_supported` | `/sync-cloud` | `e-not-supported` |
+| `not_in_this_step` | `/help` | `e-not-in-step`（`choice` のため置き換え） |
+| `not_in_this_step` | 前後の空白・空行を含む自然文の複数行 | 追加（trim されないことの確認） |
+| `busy` | 受付の `/make-note first-note` の後、処理中に `/make-note second-note` | `e-busy`（`choice` のため置き換え） |
+
+`e-busy` と `e-not-in-step` は `choice` の入力で入力欄から送れないため、入力欄の本文に置き換えた。対応表に無い分類は例外にし、得た分類の集合が error_inputs の 7 分類と一致することも最後に assert する。busy は、`run-status` が busy になるのを待ってから送る（固定の sleep は使わない）。処理が終わった後にも、欄が書き換わっていないことを確かめる。
+
+#### 変異の結果
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| JUDGE5-4 | `host.rs`: 拒否の後も下書きを空にする | `全拒否の分類で_拒否の後の下書きは送った本文のまま_書き戻しは要求されない` | 上の試験と既存の `拒否された送信は記録され_下書きは残り_書き戻しは要求されない` | DETECTED |
+| TERM1-1 | `host.rs`: 受付の後に下書きを空にしない | `拒否されない送信は本文つきで記録され_下書きが空になり_書き戻しが要求される` | 同じ試験ほか 3 件（新しい試験も含む） | DETECTED |
+
+#### 限界・未確認
+
+- ブラウザの試験への変異の対照（変異を入れた写しで `TEST_HOOKS=1` をビルドして失敗を見る）は行っていない（未実施）。変異は native の層で検出している
+- Chromium だけ。`min-3step` の教材だけで確かめた。Firefox・Safari・実 IME は扱わない
+- 拒否の後の選択状態・フォーカスの位置・問い返しの後の欄は扱わない（TASK-5・TASK-284・JUDGE-27・TERM-22 の範囲）。問い返しを持つ教材が試験の設定の画面に無いことも同じ限界である（5.3.1d）
+- busy は処理中の窓（5 段 × 300ms）に依存する。窓を外れた場合は分類が busy にならず失敗するため、黙って通ることはない
+
+#### 既存の試験への影響
+
+- `scripts/test-browser.sh` の明示の一覧に `reject-keeps-draft.test.mjs` を足した。`scripts/expected-test-counts.txt` は更新していない（5.186 と同じ。版上げの前に `make update-test-counts` で更新する）
+- `host.rs`・`glue.rs`・`testdata/**` は変えていない
+
+### 5.188 拒否の後に状態が変わらないこと（TASK-270。JUDGE-5）
 
 拒否された入力（`Judged` が拒否）が、Step を受付済みにせず、世界状態も変えないことを、`reject_invariant`（新規の統合試験）が 1,000 通りの入力列で確かめる。拒否のたびに、戻りのイベントがちょうど `InputReceived` と拒否の `Judged` の 2 件であること、`run` と `log` 以外の全欄が操作の前と一致すること、`log` が追記だけであること、操作の前に受付済みでなかった Step が受付済みにならないこと、次の行動が空でないことを確かめる。
 
