@@ -90,7 +90,7 @@ const ATTR_RE = /([^\t\n\f\r "'<>/=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"|'
 
 // ブラウザが要素として解釈しない領域（HTML コメント・script・style・title・textarea・noscript の中身。noscript は scripting 有効のブラウザでテキスト扱いになる）を同じ長さの空白に置き換える。
 // 長さを保つので、返した文字列での位置は元の文字列でもそのまま使える。閉じていないコメントは末尾まで無効として扱う。
-function maskInactive(html) {
+export function maskInactive(html) {
   const blank = (s) => s.replace(/[^\r\n]/g, ' ');
   const masked = String(html)
     .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
