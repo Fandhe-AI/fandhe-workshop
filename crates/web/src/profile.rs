@@ -13,7 +13,7 @@
 //! 外観は見た目だけを変え、入力判定・状態変化・遷移・履歴に影響しない（PACK-21）。外観は `main` の
 //! `data-theme` 属性だけで表し、`style` 属性・`<style>` 要素は使わない。
 //!
-//! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 2）である。
+//! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 3）である。
 //!
 //! 既定値: `command_prefix` は `"/"`、`theme` は `standard`、`view_tabs` は `all`（PACK-48）、`world_list` は
 //! `shown`（語彙 v1.3 の 5 節）。`input_field` の既定は spec の本文に明記が無く、prototype の試験の観察から

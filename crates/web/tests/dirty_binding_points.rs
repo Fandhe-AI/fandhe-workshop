@@ -20,6 +20,7 @@ use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
+use fandhe_workshop_web::a11y::{PaneTab, TabKey};
 use fandhe_workshop_web::artifact_view::ViewKind;
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
@@ -250,6 +251,19 @@ fn run_os() -> Run {
     r
 }
 
+/// 960px 未満のタブの切り替えの列（TASK-517 2/2）。`pane_tabs` を dirty にできる唯一の操作で、33 回の列とは別に流す。
+/// 各回で束縛点への対応・目印の集合の不変・値を答えない束縛点なしを確かめる。
+fn run_pane() -> Run {
+    let mut r = Run::new(multi_view_host());
+    r.step(HostAction::SelectPane(PaneTab::Artifacts), "select-pane");
+    r.step(HostAction::PaneKey(TabKey::Home), "pane-key");
+    r.step(HostAction::PaneKey(TabKey::End), "pane-key");
+    // 同じ値への切り替えは dirty を積まない。
+    r.step(HostAction::SelectPane(PaneTab::Artifacts), "select-pane");
+    assert!(r.host.dirty_fields().is_empty());
+    r
+}
+
 /// 33 回の更新で、dirty になったことを確かめる 11 種の field。空振り（何も dirty にならない列）を検出する。
 const EXPECTED_SEEN: &[&str] = &[
     "input_notice",
@@ -304,6 +318,8 @@ fn 描画される_field_はすべて一度は_dirty_になる_他の教材が�
     let r = run_33();
     let os = run_os();
     assert!(os.seen.contains("key_hint"), "{:?}", os.seen);
+    let pane = run_pane();
+    assert!(pane.seen.contains("pane_tabs"), "{:?}", pane.seen);
     let missing: Vec<String> = r
         .mount
         .all()
@@ -311,6 +327,7 @@ fn 描画される_field_はすべて一度は_dirty_になる_他の教材が�
         .filter(|f| {
             !r.seen.contains(f.as_str())
                 && !os.seen.contains(f.as_str())
+                && !pane.seen.contains(f.as_str())
                 && !NEEDS_OTHER_FIXTURES.contains(&f.as_str())
         })
         .collect();

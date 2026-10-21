@@ -199,3 +199,15 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 ### 根拠の試験
 
 - 切り捨ての位置は `tools/browser/input-limit.test.mjs` の J-1〜J-5 と `crates/web/tests/input_limit.rs` の `judge24_` が確かめます。取り消しは試験しません。試作の結果は `docs/testing.md` 5.189 の「既知の限界」に記録しました
+
+## A11Y-5: キーでタブを切り替えたときのフォーカスの置き方
+
+### 限界
+
+- 幅 960px 未満で、tablist の上の矢印・Home・End を押すと、選択とフォーカスが選ばれたタブへ移ります（`a11y::tab_key_target` の契約）。クリックではフォーカスを移しません（押した要素が既に持つため）
+- フォーカスの移動は glue の `focus()` 1 か所です。glue の操作の分類（`glue_ops.rs`。FEND-20 の 7 種）には新しい種類を足さず、`Click`（要素への作用）に分類しました。実装側の契約（`glue_ops.rs` の `Click` の範囲）は記述し、部品の契約の版を 3 に上げました。spec 側（FEND-20 の文言）の更新は private の spec repo で行う要対応事項で、未了です
+- 切り替えたときのフォーカスの置き方の細部は A11Y-21 が未決です。決まった内容と食い違った場合は直します（2026-10-21。TASK-517 2/2）
+
+### 根拠の試験
+
+- `tools/browser/shell-tabs.test.mjs` の「キーで切り替えるとフォーカスが選んだタブへ移り、Enter で選択が戻らない」が確かめます（記録は `docs/testing.md` 5.203）

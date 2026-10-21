@@ -270,6 +270,28 @@ fn on_draft_select_request() {
         window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
 }
 
+/// ホストが通知する「キーで選んだタブへのフォーカス移動」の要求を受け、`set_timeout(0)` でフォーカスを移す
+/// （`EngineHost::set_pane_focus_request` の通知先。TASK-517 2/2。`a11y::tab_key_target` の契約）。
+///
+/// 予約するだけにして再入を避ける。コールバックの時点で描画は済んでおり、`aria-selected="true"` のタブが移り先である。
+/// 要素が無い・フォーカスできないときは何もしない（安全側）。
+fn on_pane_focus_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        if let Some(root) = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone())) {
+            if let Some(tab) = find_in_root(&root, SELECTED_TAB_SELECTOR)
+                .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = tab.focus();
+            }
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+}
+
 /// 予約済みの進行の宛先。試験用の口が読む。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn scheduled_tick() -> Option<TickAddr> {
@@ -328,6 +350,7 @@ pub(crate) fn draft_snapshot() -> Option<(usize, bool, String)> {
 
 /// 下書きの欄・送信ボタンのセレクタ（`hello.rs` の `data-testid` と対応する）。
 const DRAFT_SELECTOR: &str = "[data-testid=\"draft-input\"]";
+const SELECTED_TAB_SELECTOR: &str = "[role=\"tab\"][aria-selected=\"true\"]";
 const SUBMIT_SELECTOR: &str = "[data-testid=\"submit-input\"]";
 
 /// root 配下の要素を引く。要素の取得の呼び出し箇所をここ 1 つに保つ（`glue_contract` が箇所数を固定する）。
@@ -718,6 +741,7 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
         host.set_draft_select_request(Box::new(on_draft_select_request));
+        host.set_pane_focus_request(Box::new(on_pane_focus_request));
         host.set_save_request(Box::new(on_save_request));
         host.set_save_cancel(Box::new(on_save_cancel));
         let runtime = Runtime::mount(root_id, host)?;

@@ -2,7 +2,7 @@ id: SHELL1-4
 package: fandhe-workshop-web
 test: shell_frame_host
 target: crates/web/src/shell_frame.rs
-find:     let tabs = PaneTab::ALL
-replace:     let tabs = [PaneTab::Artifacts, PaneTab::Ops]
+find:     let items = PaneTab::ALL
+replace:     let items = [PaneTab::Artifacts, PaneTab::Ops]
 expect-fail: tabs_are_in_order_with_ops_selected
 note: tab の順が a11y の定める順（操作→成果物）の逆になる（A11Y-5・TASK-517 1/2）

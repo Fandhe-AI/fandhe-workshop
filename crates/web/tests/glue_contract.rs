@@ -56,6 +56,9 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
     ),
     ("set_attribute", GlueOp::AttributeWrite),
     ("click", GlueOp::Click),
+    // キーで選んだタブへフォーカスを移す（TASK-517 2/2。`a11y::tab_key_target` の契約）。要素への作用として
+    // click の呼び出しと同じ分類にする（操作の種類は増やさない）。spec 側の整理は `docs/known-gaps.md` A11Y-5。
+    ("focus", GlueOp::Click),
 ];
 
 /// リスナーの登録。イベント名で操作の種類が決まる。
@@ -121,6 +124,7 @@ const NON_DOM_CALLS: &[&str] = &[
     "set_draft_sync_request",
     // 拒否の後の下書きの全選択（TASK-284 2/2）。通知先の結線と、host の印の読み取り。DOM の値は読まない。
     "set_draft_select_request",
+    "set_pane_focus_request",
     "draft_select_pending",
     // 変更の後の遅延保存（TASK-318）。通知先の結線・畳み込みの判定・時刻・書き出しの入口。DOM には触れない。
     "set_save_request",
@@ -272,8 +276,8 @@ fn violations(src: &str) -> Vec<String> {
 }
 
 #[test]
-fn 契約の版は_2() {
-    assert_eq!(PARTS_CONTRACT_VERSION, 2);
+fn 契約の版は_3() {
+    assert_eq!(PARTS_CONTRACT_VERSION, 3);
 }
 
 #[test]

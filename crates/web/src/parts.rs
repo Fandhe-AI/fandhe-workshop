@@ -33,7 +33,7 @@ use crate::profile::DisplaySettings;
 ///
 /// 口の型・名前・payload の書式・許される操作の一覧・項目数の方針・不変条件を変えたら上げる。先に spec を直す。
 /// アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。
-pub const PARTS_CONTRACT_VERSION: u32 = 2;
+pub const PARTS_CONTRACT_VERSION: u32 = 3;
 
 pub use fandhe_frontend_interactive::{Component, DirtyTracked};
 pub use fandhe_frontend_wasm_client::{BindingSource, BoundValue};
