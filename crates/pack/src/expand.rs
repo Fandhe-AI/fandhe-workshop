@@ -249,6 +249,8 @@ pub(crate) struct Expander<'a> {
     pending: Vec<PendingStarts<'a>>,
     /// 今展開している経路のモジュール（宣言された ID、呼び出しのモジュール名が引数に由来したか）。章は積まない。
     module_stack: Vec<(String, bool)>,
+    /// 置換後の確認 `answer` の `label` 欠落も検査するか（`validate` だけ。`compile` は欠落を許容する）。
+    require_answer_labels: bool,
 }
 
 impl<'a> Expander<'a> {
@@ -280,7 +282,13 @@ impl<'a> Expander<'a> {
             inst_ids: BTreeSet::new(),
             pending: Vec::new(),
             module_stack: Vec::new(),
+            require_answer_labels: false,
         }
+    }
+
+    /// 置換後の確認 `answer` の `label` 欠落を検査する（`validate` が呼ぶ。PACK-37・D-67）。
+    pub(crate) fn require_answer_labels(&mut self) {
+        self.require_answer_labels = true;
     }
 
     /// 章の Step を実体 `main` として展開する。
@@ -353,6 +361,10 @@ impl<'a> Expander<'a> {
                 if has_placeholder(&step.confirm) {
                     self.diags
                         .extend(crate::confirm::check_step_confirm(scope, &s));
+                    if self.require_answer_labels {
+                        self.diags
+                            .extend(crate::confirm::check_step_answer_label(scope, &s));
+                    }
                 }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);

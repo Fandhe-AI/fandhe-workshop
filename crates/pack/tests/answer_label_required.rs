@@ -155,3 +155,27 @@ fn pack37_message_has_no_values() {
     assert_eq!(label_diags(&d).len(), 1, "{d:?}");
     assert_no_secret(&d);
 }
+
+/// 引数置換で `kind` が `answer` になる確認も、展開後に検査する（呼び出しが 2 回でも 1 件）。
+fn placeholder_kind_pack(kind_arg: &str) -> Tmp {
+    let t = Tmp::new("answer-label-subst");
+    t.put("workshop.yaml", WORKSHOP_YAML.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        format!("id: c1\ntitle: C\nstarts: [{{id: s1, node: u1}}]\nsteps:\n  - {{id: u1, title: U, use: {{module: m, instance: i1, args: {{k: {kind_arg}}}}}, next: [{{to: u2}}]}}\n  - {{id: u2, title: U, use: {{module: m, instance: i2, args: {{k: {kind_arg}}}}}, next: [{{to: z}}]}}\n  - {{id: z, title: Z, final: true}}\n").as_bytes(),
+    );
+    t.put(
+        "modules/m/module.yaml",
+        b"id: m\ntitle: M\nparams: {k: d}\nsteps:\n  - {id: a, title: T, final: true, input: {kind: choice, options: [{id: ok, label: A}]}, confirm: {kind: '${k}', on_wrong: rj-a, options: [{id: ok, correct: true}]}}\n",
+    );
+    t
+}
+
+#[test]
+fn pack37_substituted_answer_kind_is_reported_once() {
+    let t = placeholder_kind_pack("answer");
+    let d = validate_dir(&t.0);
+    assert_eq!(label_diags(&d).len(), 1, "{d:?}");
+    assert_eq!(exit_code(&d), 1);
+    assert!(compile_dir(&t.0).is_ok());
+}

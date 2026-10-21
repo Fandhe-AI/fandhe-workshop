@@ -97,13 +97,14 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     // 同じ内容のものを 1 件にする（`compile` と同じ。`E-REF-ELEMENT` は `validate` だけの検査）。
     let mut seen = BTreeSet::new();
     out.retain(|d| {
-        !matches!(
+        !(matches!(
             d.code(),
             DiagCode::SlotNeedsDo
                 | DiagCode::LeftTargetView
                 | DiagCode::LeftTargetRow
                 | DiagCode::RefElement
-        ) || seen.insert(format!("{d:?}"))
+        ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED))
+            || seen.insert(format!("{d:?}"))
     });
     out
 }
@@ -117,6 +118,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     // `E-PROFILE-*` は TASK-46 の持ち分のため、設定だけ取り出して診断は捨てる。
     let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    ex.require_answer_labels();
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         ex.expand_chapter(scope);
     }
@@ -161,7 +163,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::LeftTargetView
                     | DiagCode::LeftTargetRow
                     | DiagCode::RefElement
-            )
+            ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED)
         })
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()

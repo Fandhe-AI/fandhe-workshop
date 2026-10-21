@@ -179,28 +179,46 @@ pub(crate) fn check_answer_labels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
             if step.use_module.is_some() {
                 continue;
             }
-            let Some(confirm) = step.confirm.as_ref().and_then(Value::as_object) else {
-                continue;
-            };
-            if confirm.get("kind").and_then(Value::as_str) != Some("answer") {
-                continue;
-            }
-            let Some(options) = confirm.get("options").and_then(Value::as_array) else {
-                continue;
-            };
-            let missing = options.iter().any(|o| {
-                o.as_object()
-                    .is_some_and(|o| o.get("label").is_none_or(Value::is_null))
-            });
-            if missing {
-                out.push(diag(
-                    scope,
-                    &step.id,
-                    DiagCode::Structure,
-                    crate::validate::ANSWER_LABEL_REQUIRED.to_string(),
-                ));
+            if answer_label_missing(step) {
+                out.push(answer_label_diag(scope, step));
             }
         }
     }
     out
+}
+
+/// 確認 `answer` の選択肢に `label` が欠けた Step か（欠けは「欄が無い」か `null`。生の値を辿る）。
+fn answer_label_missing(step: &Step) -> bool {
+    let Some(confirm) = step.confirm.as_ref().and_then(Value::as_object) else {
+        return false;
+    };
+    if confirm.get("kind").and_then(Value::as_str) != Some("answer") {
+        return false;
+    }
+    let Some(options) = confirm.get("options").and_then(Value::as_array) else {
+        return false;
+    };
+    options.iter().any(|o| {
+        o.as_object()
+            .is_some_and(|o| o.get("label").is_none_or(Value::is_null))
+    })
+}
+
+fn answer_label_diag(scope: &LoadedScope, step: &Step) -> Diagnostic {
+    diag(
+        scope,
+        &step.id,
+        DiagCode::Structure,
+        crate::validate::ANSWER_LABEL_REQUIRED.to_string(),
+    )
+}
+
+/// `validate` だけが呼ぶ。引数を置換した後の Step の確認 `answer` に `label` が無ければ診断を返す。
+/// 置換前の `kind` が `${k}` のような Step は [`check_answer_labels`] が `answer` と判定できず飛ばすため、
+/// 展開後にここで検査する。診断は定義元の Step に紐付く（呼び出しごとの重複は `validate` が 1 件にまとめる）。
+pub(crate) fn check_step_answer_label(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
+    if step.use_module.is_some() {
+        return None;
+    }
+    answer_label_missing(step).then(|| answer_label_diag(scope, step))
 }
