@@ -1,0 +1,15 @@
+# read-only-step-pack の章。読むだけの Step を、選択肢が 1 つだけの choice と確認 answer で書く（PACK-35・D-69）。架空の内容だけを置く。
+id: c1
+title: 読むだけの Step
+starts: [{id: s1, node: read-1}]
+steps:
+  - id: read-1
+    title: Read 1
+    body: a.md
+    lo: [lo-read]
+    input: {kind: choice, options: [{id: opt-read, label: 読みました}]}
+    rules:
+      - {id: r-read, on: {option: opt-read}, outcome: {kind: accept}}
+    confirm: {kind: answer, on_wrong: rj-wrong-answer, options: [{id: ans-ok, correct: true}, {id: ans-ng, correct: false}]}
+    next: [{to: end}]
+  - {id: end, title: End, body: a.md, final: true}

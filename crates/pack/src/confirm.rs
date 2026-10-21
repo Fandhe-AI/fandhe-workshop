@@ -20,7 +20,8 @@
 //!   （例: `kind: "${k}"`）、置換後に違反になりうる（例: `reason: "${why}"` に空文字）ため、展開（`expand`）が
 //!   置換後の Step を [`check_step_confirm`] で検査する（2026-10-15。`input` と同じ扱い）。置換後の診断には、
 //!   引数の値を含みうる `kind` の名前を写さない
-//! - 入力の無い Step の `confirm` は、形だけを検査し、それ自体は診断にしない（該当する診断コードが spec に無い）
+//! - 終端でない入力の無い Step の `confirm` は、`expand::check_use_steps` が `E-STRUCTURE` で拒否する（PACK-35・PACK-19、
+//!   D-69、2026-10-21）。拒否した Step はここで重ねて検査しない。終端の Step の `confirm` は、形だけを検査し、それ自体は診断にしない
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
 //! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、
@@ -35,6 +36,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::expand::is_inputless_confirm;
 use crate::input::{diag, has_placeholder};
 use crate::source::{safe_ident, LoadedScope, ScopeKind};
 
@@ -134,7 +136,7 @@ fn check_one_step(
 /// 置換で `reason` が空になる・選択肢の ID が重なるなど、置換前の検査では見えない違反を拾う。
 /// 診断は定義元のモジュールのファイルと Step に紐付け、引数の値は写さない。
 pub(crate) fn check_step_confirm(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
-    if step.use_module.is_some() {
+    if step.use_module.is_some() || is_inputless_confirm(step) {
         return None;
     }
     let (code, msg) = check_one_step(step.confirm.as_ref(), step.input.is_some(), true).err()?;
@@ -148,6 +150,7 @@ pub(crate) fn check_confirms(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     for scope in scopes {
         for step in &scope.src.steps {
             if step.use_module.is_some()
+                || is_inputless_confirm(step)
                 || (scope.kind == ScopeKind::Module && has_placeholder(&step.confirm))
             {
                 continue;

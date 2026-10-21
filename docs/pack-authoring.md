@@ -156,7 +156,7 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 
 - 未知の欄・未知の `kind`・欄の欠け・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE` です
 - `none` の理由の欠けを `E-PARSE` でなく `E-NO-CONFIRM` にするのは、PACK-13 の「理由つき」の違反として扱うためです（2026-10-15 の決定）
-- 入力の無い Step に `confirm` を書いても、形が正しければ診断しません。該当する診断コードが spec に無いためで、spec 側の判断が要ります（2026-10-15）
+- 終端でない入力の無い Step（`use` も無い）に `confirm` を書くと `E-STRUCTURE` です。確認は入力の受付の後に届くため、この形の確認は永久に届きません（PACK-35・PACK-19、D-69、2026-10-21）。終端の Step（`final: true`）の `confirm` は、形だけを検査します
 - `answer` の選択肢の `on_wrong`（EP-6）は、その選択肢を選んだ誤答に返す文面です。選択肢が持たなければ Step の `on_wrong` を返します。正答の選択肢に書くと `E-STRUCTURE`、書くなら空白だけにはできません（2026-10-15 の決定。契約の版を 3 に上げました）
 - `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。省略すると ID がそのまま出ます。前後の空白を除いて空になる `label` は `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
 - 履歴に残る値は選択肢の ID で、表示名ではありません。`label` を後で直しても、記録した履歴の再生は変わりません
@@ -177,6 +177,19 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 - 学習目標の数え方（L4 など）は本節で扱いません（spec の TASK-3）
 
 書き方の実例は `crates/pack/tests/data/split-answer-pack` です。
+
+## 読むだけの Step（1 択の `choice`）
+
+入力のない、確認だけの Step を表す語はありません。足さないことが D-69（2026-10-21）で決まっています（PACK-35）。読むだけの Step は、選択肢が 1 つだけの `choice` と、確認 `answer` で書きます。
+
+- 入力方式 `choice` に選択肢を 1 つだけ置きます（例: 表示名「読みました」）
+- その選択肢の受付の規則（`rules[].on.option` と `outcome: {kind: accept}`）を書きます
+- 確認は `answer` で書きます
+- 受講者の操作が 1 回増えます（1 択を選び、続けて回答します）。限界として受け入れています（TERM-30。`docs/known-gaps.md` の PACK-35）
+- 入力も `use` も無い終端でない Step に `confirm` だけを書くと `E-STRUCTURE` です
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+
+書き方の実例は `crates/pack/tests/data/read-only-step-pack` です。
 
 ## 承認の差し戻しと再承認（Step を分ける）
 
@@ -570,4 +583,5 @@ views:
 | `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
+| `crates/pack/tests/read_only_step.rs` の `pack35_` | 1 択の `choice` と `answer` の Step が新しい語彙の版の宣言なしで通ること、入力のない確認だけの終端でない Step が `E-STRUCTURE` になること（PACK-35・D-69） |
 | `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |

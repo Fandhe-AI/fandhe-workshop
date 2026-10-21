@@ -1,0 +1,4 @@
+# read-only-step-pack（形式 B）。読むだけの Step を 1 択の choice と確認 answer で書く（PACK-35・D-69）試験用。架空の内容だけを持つ。
+pack: {id: read-only-step-pack, title: 読むだけの Step, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.0'}
+rejections:
+  rj-wrong-answer: {category: not_in_this_step, message: その答えではありません。, next_action: 別の選択肢を選んで、もう一度送ります。}
