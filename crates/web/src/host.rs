@@ -1710,6 +1710,10 @@ impl EngineHost {
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
+        // `shell_notices` は registry の外にあり、dirty の作り直しに入らない。前の通知を DOM から消すため明示して積む（FEND-15）。
+        if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -1926,7 +1930,7 @@ impl EngineHost {
 
     /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     ///
-    /// `install_recorded` の後（dirty が全 field で作り直された後）に呼ぶ。そのとき `shell_notices` は既に dirty にあるので重ねて積まない。
+    /// `install_recorded` の後（dirty が全 field で作り直された後）に呼ぶ。そのとき `shell_notices` は `install_recorded` が dirty に積み済みなので重ねて積まない。
     fn set_version_notice(&mut self, on: bool) {
         if self.version_notice != on {
             self.version_notice = on;

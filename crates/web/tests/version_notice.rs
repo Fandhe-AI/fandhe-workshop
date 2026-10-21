@@ -160,6 +160,19 @@ fn a_same_version_open_after_a_conversion_clears_the_notice() {
 }
 
 #[test]
+fn a_same_version_open_marks_the_notice_list_dirty_so_the_dom_drops_it() {
+    let mut h = host("1.1.0");
+    assert_eq!(h.open_history(&history("1.0.0")), ImportOutcome::Converted);
+    // 描いていない種類の閉じる操作は表示を変えず、dirty だけを空にする（前の dirty を持ち越さないため）。
+    h.update(EngineHost::decode_action("dismiss-notice", "save-failed").unwrap());
+    assert!(!h.dirty_fields().contains(&"shell_notices"));
+    assert_eq!(items(&h), 1);
+    assert_eq!(h.open_history(&history("1.1.0")), ImportOutcome::Open);
+    assert_eq!(items(&h), 0);
+    assert!(h.dirty_fields().contains(&"shell_notices"));
+}
+
+#[test]
 fn a_closed_open_does_not_touch_the_notice() {
     let mut h = host("1.0.0");
     let before = log_len(&h);
