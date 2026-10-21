@@ -2068,18 +2068,20 @@ impl Component for EngineHost {
                 )],
             );
         }
-        let parts: Vec<Node> = self
-            .registry
-            .views(&self.model)
-            .into_iter()
-            .map(|(_, node)| node)
-            .collect();
-        // 部品の画面上の配置は、TASK-517 が決めるまでの仮のもの（入力欄の後ろに登録順に並べる）。
+        // 部品は種類ごとに左（成果物）・右（操作）へ振り分け、枠（`shell_frame`）の取り付け点に載せる（TASK-517 1/2）。
+        // 左は `workshop-parts` に包んで置く。右は入力欄の `main` の後ろに、部品を登録順に直接並べる。
+        let mut left: Vec<Node> = Vec::new();
+        let mut right: Vec<Node> = vec![self.input.view()];
+        for (kind, node) in self.registry.views(&self.model) {
+            match crate::shell_frame::pane_of(kind) {
+                crate::shell::PaneMount::Left => left.push(node),
+                crate::shell::PaneMount::Right => right.push(node),
+            }
+        }
+        let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
+        let [tablist, panes] = crate::shell_frame::frame(left, right);
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
-        let mut children = vec![
-            self.input.view(),
-            el("div", vec![("data-testid", "workshop-parts")], parts),
-        ];
+        let mut children = vec![tablist, panes];
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
         // 試験は `data-payload` を書き換えて click する。
         #[cfg(feature = "test-hooks")]

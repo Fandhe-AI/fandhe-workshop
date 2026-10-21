@@ -6295,3 +6295,18 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - ホストの `decode_action` への `ShellAction` の結線と、通知欄の実際の描画・配置は画面のタスク（TASK-517・TASK-531〜TASK-534・TASK-545）が持つ。既存の `save-notice` を枠の通知欄へ寄せるかは TASK-534 が決める
 - 通知の文面と次の行動（SHELL-36）は TASK-516・TASK-549 が持つ。理由コードを列挙に結ぶのは TASK-516
 - 観察: `host.rs` の `ir-notice` は `role="status"` を持つが `a11y` の通知欄の一覧に無く、この画面に `a11y::check_no_undefined` を掛けると `status-on-non-notice` になる見込みである（未検証）。SHELL-31 を枠の通知 `pack-unloadable` へ移すのは TASK-545 の範囲
+
+### 5.197 幅 960px 以上の 2 列の骨格（TASK-517 1/2。SHELL-1）
+
+ホストの `view()` を、`tablist`・2 つの tabpanel・取り付け点（`shell-left`・`shell-right`）の枠で組み、幅 960px 以上で成果物（左）と操作（右）を横に並べて `tablist` を隠す。実装は `crates/web/src/shell_frame.rs`、見た目は `crates/web/static/app.css` の節で、部品は `ArtifactView` だけを左、他を右に置く（`Review`・`Checkpoints` の置き場は暫定）。
+
+- Rust の試験: `crates/web/tests/shell_frame_host.rs`（9 件）。既定のホスト・教材を読んだホスト（Step を進めた各段）・入力欄なしの教材のホストの `view()` が `shell::check_complete`・`shell::check_no_undefined`・`a11y::check_no_undefined` を通ること、取り付け点が 1 個ずつで部品が正しい側にあること、tab が `PaneTab::ALL` の順で選択が「操作」だけであること、各 tabpanel が対応する取り付け点を持つこと、`pane_of` の表、CSS の `@media (min-width: 960px)` の規則を固定する
+- ブラウザの試験: `tools/browser/shell-columns.test.mjs`。幅 1280px と 960px で 2 領域が横に並び（上端が一致・左の右端が右の左端以下）、`pane-tabs` が `display: none`、横スクロールが無く、CSP 違反・ページ内エラーが 0 件。対照の 959px では `pane-tabs` が見え、2 領域は横に並ばない
+- 変異: SHELL1-3（成果物を右へ振り分ける）・SHELL1-4（tab の順を逆にする）・SHELL1-5（境目を 1024px にする）。`FEND4-3` は `host.rs` の該当行が変わったため `find` を新しい行に合わせた。実行日 2026-10-21、元にしたコミット 11cc0c8 に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
+- `make test-browser` の全件（794 件）が通った（2026-10-21）
+
+限界・申し送り:
+
+- 960px 未満の挙動は TASK-517 2/2（#699）が持つ。本件では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれる。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
+- ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（a11y の `live-in-tabpanel`）。TASK-450 が足す。a11y の `check_complete` をホストの view に掛けるのは、領域の `aria-label` が揃ってからである
+- `shell-left` にだけ `aria-label="成果物"` を付けた。右の「案内とログ」「コマンドの入力」は TERM（TASK-431・450）の担当である

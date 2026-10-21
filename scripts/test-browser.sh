@@ -94,6 +94,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/delivery-subpath.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-direct-links.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-bases.test.mjs" \
+  "${ROOT_DIR}/tools/browser/shell-columns.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-once.test.mjs" \

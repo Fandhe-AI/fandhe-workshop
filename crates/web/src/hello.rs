@@ -974,7 +974,9 @@ mod tests {
 
     #[test]
     fn view_has_no_undefined_a11y_items() {
-        // 教材の画面に置き換わったら check_complete へ切り替える（TASK-517・TASK-450）。
+        // 枠の組み立て（TASK-517 1/2）はホストの view が担い、shell の check_complete は
+        // `tests/shell_frame_host.rs` で通す。a11y の check_complete は、ライブの欄などの領域を TERM（TASK-450）が
+        // 足すのを待つ（入力欄だけの部分的な画面では check_no_undefined にとどめる）。
         let view = HelloView::new().view();
         assert_eq!(crate::a11y::check_no_undefined(&view), Ok(()));
     }
