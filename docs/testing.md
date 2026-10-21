@@ -6520,7 +6520,7 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 
 ### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
 
-対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_2`）。
+対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_3`（5.209 で 2 から 3 に更新））。
 
 確かめること:
 
@@ -6603,3 +6603,30 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
 |---|---|---|---|---|
 | PACK35-1 | crates/pack/src/expand.rs: 入力のない確認だけの Step の拒否を外す | pack35_inputless_confirm_step_is_structure_error | pack35_inputless_confirm_step_is_structure_error, pack35_inputless_confirm_in_module_is_structure_error, pack35_cli_compile_rejects_inputless_confirm_step | DETECTED |
+
+### 5.209 保存・書き出しを Step の入力として宣言する語（TASK-64 1/2。PACK-34・D-69）
+
+対象: 入力方式 `env_action`（語彙 1.5。`env_action`・`input.action`・`input.action=save`・`input.action=export`）。契約の型は `crates/contract/tests/input_spec_contract.rs`（`env_action_`・`input_spec_contract_version_is_3`）、宣言の検査は `crates/pack/tests/env_action_input.rs`（実パックは `crates/pack/tests/data/env-action-pack`）、実行時の受付は `crates/core/tests/env_action_save.rs`（IR は `crates/core/tests/data/env_action_1/ir.json`。教材の `compile` とバイト一致することを pack 側の `pack34_core_test_ir_matches_the_pack` が確かめる）。
+
+確かめること:
+
+- 保存の Step が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言のまま出ること。`input_field: hidden` の教材でも診断が出ないこと
+- `action` の欠け・未知の値・型の違い・未知の欄が `E-PARSE`、`processing` を持つ Step が `E-STRUCTURE` になること。診断に宣言の値が出ないこと
+- `pack.vocab` が 1.4 で `env_action` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと
+- core で、保存の成功が保存の Step を受付にし、確認を省く宣言なら達成して次の Step へ進むこと（`CheckpointSaved` → `Accepted` → `Achieved` → `Transitioned` → `Entered`）。世代が変わらないこと
+- 確認の宣言が `none` でないと `Accepted` で止まり、`none` の理由が空白だけなら `Warning` だけで状態が変わらないこと
+- 書き出しの Step・`env_action` の無い Step・宣言が読めない Step・処理中の Step・保存に失敗したとき（ID のあふれ）は、保存で受付にならないこと
+- 受講者のコマンド・選択・取り消しの入力が `env_action` の Step を受付にせず、状態が変わらないこと
+- 同じ操作列から同じログと状態になり、そのログから `Projection` を導けること
+
+実装の過程で `Projection::take_starts` に `CheckpointSaved` を操作の先頭として加えた（`InputReceived` を伴わない `Accepted` が保存の直後に続くため）。上限で止めた操作の巻き戻しの範囲を保存の操作の分だけにするための変更で、保存の後に遷移の上限で止まる場合の試験は足していない（未検証）。
+
+変異（`crates/pack/tests/mutations/`・`crates/core/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK34-1 | `env_action` の宣言を型で読む検査を飛ばす | `pack34_unreadable_declarations_are_parse_errors` |
+| PACK34-2 | 保存の成功の判定を外し、保存に失敗したときも受付にする | `pack34_failed_save_does_not_accept` |
+| PACK34-3 | `action` の照合を外す（書き出しの Step も保存で達成になる） | `pack34_export_step_is_not_achieved_by_save` |
+
+範囲外: 書き出しの成功を達成に結ぶ実行時の経路（`docs/known-gaps.md` の PACK-34）。保存・書き出しのボタンの画面。

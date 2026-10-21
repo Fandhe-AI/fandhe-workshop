@@ -1,0 +1,8 @@
+id: PACK34-3
+package: fandhe-workshop-core
+test: env_action_save
+target: crates/core/src/env_input.rs
+find:     if declared_action(node.step.input.as_ref()) != Some(EnvAction::Save) {
+replace:     if declared_action(node.step.input.as_ref()).is_none() {
+expect-fail: pack34_export_step_is_not_achieved_by_save
+note: action の照合を外す（書き出しの Step も保存で達成になる）

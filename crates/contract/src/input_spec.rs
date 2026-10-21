@@ -25,7 +25,11 @@ use crate::judgment::{Category, JudgmentKind};
 /// 完成であり、利用者（core）がまだ型を読んでいないため、版は上げない。
 /// 版 2（TASK-62 2/2、PACK-42）は `approval` に省略可の欄 `revise`（「直す」の誤った対象の候補と表示名）を足した。
 /// 欄を省略した宣言は版 1 と同じ値で読め、直列化しても欄は出ない。
-pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 2;
+///
+/// 版 3（TASK-64 1/2、PACK-34、D-69）は入力方式 `env_action`（実行環境の操作。保存・書き出し）を足した。
+/// 値は閉じた 2 つ（`save`・`export`）で、受講者の入力は持たず教材へも差し込まない（D-50）。
+/// 既存の方式の宣言は版 2 と同じ値で読める。
+pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 3;
 
 /// 取り消し（EP-2）を受ける規則の `on` のキー。`input.kind` の語ではない。
 /// 意味を持つのは、この規則を書いた Step だけである。検査は pack が行う。
@@ -46,17 +50,20 @@ pub enum InputKind {
     Approval,
     /// 待機（EP-1）。進行イベントの完了で受付になる。
     Wait,
+    /// 実行環境の操作（保存・書き出し。PACK-34）。操作の成功で受付になる。
+    EnvAction,
 }
 
 impl InputKind {
-    /// 全方式（5 方式と待機）。
-    pub const ALL: [InputKind; 6] = [
+    /// 全方式（5 方式・待機・実行環境の操作）。
+    pub const ALL: [InputKind; 7] = [
         Self::Command,
         Self::Text,
         Self::Choice,
         Self::UiAction,
         Self::Approval,
         Self::Wait,
+        Self::EnvAction,
     ];
 
     /// 教材に書く `kind` の語。
@@ -68,6 +75,7 @@ impl InputKind {
             Self::UiAction => "ui_action",
             Self::Approval => "approval",
             Self::Wait => "wait",
+            Self::EnvAction => "env_action",
         }
     }
 
@@ -383,6 +391,24 @@ impl ApprovalSpec {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WaitSpec {}
+
+/// 実行環境の操作の種類。閉じた集合（PACK-34、D-69）。未知の値は型で拒否する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvAction {
+    /// チェックポイントの保存。保存の成功で受付になる。
+    Save,
+    /// 履歴の書き出し。実行時の結線は未実装（`docs/known-gaps.md`）。
+    Export,
+}
+
+/// `env_action` の宣言。欄は操作の種類だけで、受講者の値を持たない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnvActionSpec {
+    /// 操作の種類。
+    pub action: EnvAction,
+}
 
 #[cfg(test)]
 mod tests {

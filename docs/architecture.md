@@ -132,6 +132,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | Step の移動（`go_to`。公開しない。移動先の `on_enter`・入口の写しの作り直しは含まない） | core | TASK-213 |
 | 1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）のたどりと、1,000 回の上限での停止（`transit`。公開しない。再帰を使わずループでたどり、上限に達したら `Warning` と専用の `Event::TransitionLimitReached` を 1 件ずつ残し、`session::apply` が操作の前の `run`・入口の写しへ戻す（`busy` は空、世代は減らさない。SAFE-35）。受講者向けの見出し・通知欄・まとめ表示は web の `log_lines`・`limit_notice` が持つ。実体ごとの状態・`on_enter` の効果は含まない） | core | TASK-160 |
 | チェックポイントの保存と復帰（`checkpoint`。公開しない。実体ごとの戻り方は含まない。復習・変化の印の作り直しは `projection` が導き、`apply()` を通した試験は TASK-214 2/3 で追加済み。復帰前の進行の無視と処理中の再開は TASK-214 3/3 で試験済み） | core | TASK-214 |
+| 保存の成功を Step の入力として受け付ける結線（`env_input`。公開しない。`input: {kind: env_action, action: save}` の Step を、保存の成功の直後に受付・達成にする。書き出しの結線は含まない。PACK-34） | core | TASK-64 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表と Step の状態によるコマンドの拒否の分類（`command_class`。未知・順序違い・教材未対応・この Step では使わない。`judge::judge_input` が結線して使う。`Judged` の発行は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268・TASK-269 |
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |

@@ -13,14 +13,18 @@
 //! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` の他のキーとの
 //! 組み合わせ・入力方式との整合は TASK-45 が受け持つ。
 //!
+//! `env_action`（TASK-64 1/2、PACK-34、D-69）は保存・書き出しの操作を入力とする宣言である。`action` は閉じた
+//! 2 値で、型で読めなければ `E-PARSE`、`processing` を持つ Step は `E-STRUCTURE` にする（保存による受付には
+//! 処理中を始める経路が無く、先へ進めない書き方になるため）。
+//!
 //! `approval` の `revise`（TASK-62 2/2、PACK-42）は「直す」の誤った対象の候補と表示名の宣言である。型と意味の
 //! 制約（空・重複・空白だけの `label`）に加え、`revise` を宣言した Step では、対象つきの `revise` の規則
 //! （`on: { approval: revise, target }`）の `target` がすべて候補に入っていることを確かめる。正しい対象が候補から
 //! 漏れると、画面（候補のボタン）と判定（規則）が食い違うためである。どの候補が正しいかは宣言せず、規則が決める。
 
 use fandhe_workshop_contract::input_spec::{
-    ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec, WaitSpec,
-    CANCEL_RULE_KEY,
+    ApprovalSpec, ChoiceSpec, CommandSpec, EnvActionSpec, InputKind, SpecError, TextSpec,
+    UiActionSpec, WaitSpec, CANCEL_RULE_KEY,
 };
 use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
@@ -115,6 +119,24 @@ fn check_revise_targets(rest: &Value, rules: &[Value]) -> Result<(), (DiagCode, 
     Ok(())
 }
 
+/// `env_action` の Step は取り消しの規則（`on.cancel`）を持てない（PACK-34）。持つと、保存・書き出しを
+/// 実行せずに取り消しの入力だけで受付になり、「操作の成功で受付」に反するため宣言で拒否する。
+fn check_env_action_rules(rules: &[Value]) -> Result<(), (DiagCode, String)> {
+    let has_cancel = rules.iter().any(|r| {
+        r.get("on")
+            .and_then(Value::as_object)
+            .is_some_and(|on| on.contains_key(CANCEL_RULE_KEY))
+    });
+    if has_cancel {
+        Err((
+            DiagCode::Structure,
+            "input (env_action): cancel rule is not allowed".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 fn check_input(
     input: &Value,
     rules: Option<&[Value]>,
@@ -152,6 +174,20 @@ fn check_input(
             match rules {
                 Some(r) => check_revise_targets(&rest, r),
                 None => Ok(()),
+            }
+        }
+        InputKind::EnvAction => {
+            check_one::<EnvActionSpec>(rest, name, |_| Ok(()))?;
+            if let Some(r) = rules {
+                check_env_action_rules(r)?;
+            }
+            if has_processing {
+                Err((
+                    DiagCode::Structure,
+                    "input (env_action): processing is not allowed".to_string(),
+                ))
+            } else {
+                Ok(())
             }
         }
         InputKind::Wait => {
@@ -251,6 +287,13 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                         check_input(input, rules, !step.processing.is_empty(), false)
                     {
                         out.push(diag(scope, &step.id, code, msg));
+                    } else if rules.is_none()
+                        && input.get("kind").and_then(Value::as_str) == Some("env_action")
+                    {
+                        // 規則が置換記号を含むモジュールでも `on.cancel` の鍵は置換されないので、ここで検査する。
+                        if let Err((code, msg)) = check_env_action_rules(&step.rules) {
+                            out.push(diag(scope, &step.id, code, msg));
+                        }
                     }
                 }
             }

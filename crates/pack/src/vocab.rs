@@ -1,6 +1,6 @@
 //! 語彙の版の表（語彙 v1〜v1.5 の語と名前つき拡張点 EP-1〜EP-13）。
 //!
-//! 正は `docs/vocabulary/vocabulary.md`（版 4）で、本モジュールは実装側の写しである。
+//! 正は `docs/vocabulary/vocabulary.md`（版 5）で、本モジュールは実装側の写しである。
 //! `fandhe-pack vocab`（TASK-408）の数え上げと、宣言と使用の一致の検査（TASK-59）が、
 //! 語ごとの語彙の版を引くために使う。文書と本表の一致は `tests/vocabulary_terms.rs` が確かめる。
 //! 純粋な定数の表で、I/O も panic も持たない。
@@ -23,7 +23,7 @@ pub enum VocabVersion {
     V1_3,
     /// 語彙 v1.4（EP-13 と `views.body`）。
     V1_4,
-    /// 語彙 v1.5（`input.revise.candidates` と `input.revise.candidates[].label`。PACK-34 の語も同じ版に足す）。
+    /// 語彙 v1.5（`input.revise.candidates` と `input.revise.candidates[].label`。`env_action` と `input.action` の語（PACK-34）も同じ版に足す）。
     V1_5,
 }
 
@@ -702,6 +702,30 @@ pub const TERMS: &[VocabTerm] = &[
     VocabTerm {
         kind: "field",
         term: "input.revise.candidates[].label",
+        version: VocabVersion::V1_5,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "input",
+        term: "env_action",
+        version: VocabVersion::V1_5,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "field",
+        term: "input.action",
+        version: VocabVersion::V1_5,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "value",
+        term: "input.action=save",
+        version: VocabVersion::V1_5,
+        extension_point: None,
+    },
+    VocabTerm {
+        kind: "value",
+        term: "input.action=export",
         version: VocabVersion::V1_5,
         extension_point: None,
     },

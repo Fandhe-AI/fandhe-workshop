@@ -60,6 +60,7 @@ pub mod condition;
 mod confirm;
 pub mod effect;
 mod entry_derive;
+mod env_input;
 pub mod event;
 mod go_to;
 pub mod history_boot;
