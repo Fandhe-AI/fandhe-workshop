@@ -151,7 +151,7 @@ fn web_のソースは_raw_html_を使わない() {
         );
         let raw_variant = code.matches("RawHtml").count();
         // RawHtml を検査として拒むために名指しする契約の検査だけが例外（描くのではなく、禁じる側）。
-        if name == "a11y.rs" || name == "terminal_area.rs" {
+        if name == "a11y.rs" || name == "terminal_area.rs" || name == "shell.rs" {
             assert!(raw_variant > 0, "{name} の検査が消えている");
         } else {
             assert_eq!(raw_variant, 0, "{name} が RawHtml を扱っている");

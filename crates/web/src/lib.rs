@@ -40,7 +40,7 @@
 //! 候補の一覧の開閉の規則とコマンド表（TASK-440）は `candidates` に置く。
 //! 履歴の書き出しファイルの名前と種類（TASK-330 1/2。SAVE-16）は `history_export` に、書き出しのバイト列から `blob:` URL を作る処理（wasm のみ）は `history_download` に置く。受講中の履歴を書き出す唯一の入口 `EngineHost::export_live` は、秘密情報の警告の間は書き出さない `ExportGate` を返す（TASK-164 2/3）。
 //! 保存の直前に起動番号を照合して古いタブの保存を止める処理（TASK-324 1/2。SAVE-12）は `boot_guard` に置く。
-//! 画面の枠の区画・取り付け点・操作の名前と宛先の契約（TASK-511）は `shell` に置く。版は `shell::SHELL_CONTRACT_VERSION`。
+//! 画面の枠の区画・取り付け点・操作の名前と宛先・通知の口（種類・値・適合の検査器）の契約（TASK-511）は `shell` に置く。版は `shell::SHELL_CONTRACT_VERSION`。
 #![forbid(unsafe_code)]
 
 pub mod a11y;

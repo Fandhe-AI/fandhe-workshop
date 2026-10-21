@@ -718,6 +718,30 @@ fn complete_requires_exactly_one_log_list() {
 }
 
 #[test]
+fn 枠の通知欄は役割つきで通り_個数は_0_か_1() {
+    let shell_notice = |role: bool| {
+        let mut attrs = vec![(TESTID_ATTR, "shell-notice")];
+        if role {
+            attrs.push(("role", "status"));
+        }
+        elem(attrs, vec![])
+    };
+    let ok = with_children(|c| c.push(shell_notice(true)));
+    assert_eq!(check_no_undefined(&ok), Ok(()));
+    assert_eq!(check_complete(&ok), Ok(()));
+
+    let no_role = with_children(|c| c.push(shell_notice(false)));
+    assert!(rules(check_no_undefined(&no_role)).contains(&"notice-role"));
+
+    let dup = with_children(|c| {
+        c.push(shell_notice(true));
+        c.push(shell_notice(true));
+    });
+    assert_eq!(check_no_undefined(&dup), Ok(()));
+    assert!(rules(check_complete(&dup)).contains(&"count"));
+}
+
+#[test]
 fn reserved_ids_are_checked_regardless_of_role() {
     for id in [
         "pane-ops",

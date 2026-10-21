@@ -47,7 +47,8 @@
 //! - tab 以外の要素の静的な `tabindex`（例: `div` の `tabindex="0"`）と、aria・role・`tabindex`・`data-mark`
 //!   以外の束縛（`data-bind-class` など）は検査しない
 //! - 通知欄 3 つの識別子は試作 PoC-12 の値からの推論である（A11Y-7 は個数 3 だけを確定している）。
-//!   TASK-511 が枠の通知欄を 4 つ目として足す場合は、版上げを立てる
+//!   TASK-511 は枠の通知欄 `shell-notice` を、`save-notice` などと同じ任意の通知欄として加えた（必須の 3 つは
+//!   変えないため版は上げない）。識別子の持ち主は `shell` で、本契約は `role=status` の規則と個数（0 か 1）だけを課す
 //! - `data-mark` の値（`add`・`remove`・`change`、印なしは空文字）は試作の値からの推論である
 //!   （ART-3 は記号・文字・`data-mark` の対応だけを確定している）
 //! - `aria-describedby`・`aria-hidden`、role の `group`・`list`・`listitem` は別タスクの決定の後に版を
@@ -722,7 +723,8 @@ fn check_element(
         || testid == Some(SAVE_NOTICE_TESTID)
         || testid == Some(EXPORT_NOTICE_TESTID)
         || testid == Some(SECRET_NOTICE_TESTID)
-        || testid == Some(STALE_NOTICE_TESTID);
+        || testid == Some(STALE_NOTICE_TESTID)
+        || testid == Some(crate::shell::NOTICE_AREA_TESTID);
     if is_notice {
         tally.notice.push(testid.unwrap_or_default().to_string());
         if role != Some("status") {
@@ -1020,6 +1022,12 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
         format!("notice {STALE_NOTICE_TESTID}"),
         stales.min(1),
         stales,
+    );
+    let shells = n(&t.notice, crate::shell::NOTICE_AREA_TESTID);
+    count(
+        format!("notice {}", crate::shell::NOTICE_AREA_TESTID),
+        shells.min(1),
+        shells,
     );
     count("log-list".to_string(), 1, t.log_lists);
     count("tablist".to_string(), 1, t.tablists);
