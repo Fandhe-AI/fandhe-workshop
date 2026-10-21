@@ -698,6 +698,9 @@ fn check_notice_item(w: &mut Walk, id: usize, attrs: &[(String, String)], ctx: C
     if !ctx.in_area {
         w.bad(id, "notice-item-outside-area", NOTICE_ITEM_TESTID);
     }
+    if let Some(role) = attr(attrs, "role") {
+        w.bad(id, "notice-item-has-role", role);
+    }
     let kind = attr(attrs, NOTICE_KIND_ATTR).and_then(NoticeKind::parse);
     match kind {
         None => w.bad(

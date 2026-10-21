@@ -161,6 +161,25 @@ fn 未定義の区画は失敗する() {
 }
 
 #[test]
+fn 通知要素に_role_を付けると失敗する() {
+    for role in ["tree", "status", "alert"] {
+        let view = items_with(|v| {
+            v[0] = item_with(
+                vec![
+                    (TESTID_ATTR, NOTICE_ITEM_TESTID),
+                    (NOTICE_KIND_ATTR, "save-failed"),
+                    (NOTICE_REASON_ATTR, "x"),
+                    (NOTICE_MESSAGE_ATTR, "msg-save-failed"),
+                    ("role", role),
+                ],
+                vec![],
+            );
+        });
+        assert_rule(&view, "notice-item-has-role");
+    }
+}
+
+#[test]
 fn 未定義の通知の種類は失敗する() {
     let view = items_with(|v| {
         v.push(item_with(
