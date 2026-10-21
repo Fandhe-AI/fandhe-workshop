@@ -1,0 +1,9 @@
+id: SHELL10-1
+package: fandhe-workshop-web
+test: shell_contract
+target: crates/web/src/shell.rs
+find: pub const NEXT_CHAPTER_LABEL_PREFIX: &str = "次の章へ進む: ";
+replace: pub const NEXT_CHAPTER_LABEL_PREFIX: &str = "次へ: ";
+expect-fail: 識別子と名前の値の固定
+expect-fail: 次の章へ進むの文字の形
+note: 「次の章へ進む」の表示の文字の形を崩す（SHELL-10・TASK-511）
