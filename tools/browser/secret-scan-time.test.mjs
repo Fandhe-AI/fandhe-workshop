@@ -193,13 +193,20 @@ async function measure(srv, kind) {
     await settle(page);
     await page.evaluate(() => { window.__saveWrites.length = 0; });
     const before = await autosave(page);
+    const lenBefore = await histLen(page);
     const t0 = await submitOne(page, `imm-${i}`);
     await page.waitForFunction(() => window.__saveWrites.length > 0 && window.__saveWrites.every((w) => w.tOut !== null), null, { timeout: 15000, polling: 5 });
     await settle(page);
     const writes = await writesOf(page);
+    const after = await autosave(page);
+    // 遅延保存（約 200 ms 後）を即時保存として測らないための確認。saves は変更後の保存の全試行を数えるため、即時の 1 回だけなら +1、遅延が続けば +2 になる。
+    assert.equal(writes.length, 1, 'exactly one history write for an immediate save');
+    assert.equal(writes[0].kind, 'idb');
+    assert.equal(after.saves, before.saves + 1, 'exactly one save was attempted (the immediate one; no deferred save followed)');
+    assert.ok((await histLen(page)) > lenBefore, 'the submission was recorded in the history');
+    assert.equal(after.secretHolds, before.secretHolds, 'no hold');
     immediateWrites.push(writes.length);
-    immediate.push(Math.min(...writes.map((w) => w.tOut)) - t0);
-    assert.equal((await autosave(page)).secretHolds, before.secretHolds, 'no hold');
+    immediate.push(writes[0].tOut - t0);
   }
   const s = summarize(rec);
   assert.equal(s.external, 0, 'no external request');
