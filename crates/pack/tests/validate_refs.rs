@@ -39,7 +39,7 @@ defaults: {unknown: rj-default}
 const CHAPTER: &str = "\
 id: c1
 title: C
-starts: [{id: s1, node: a, unmet: rj-start, effects: [{put: {path: x, fixture: fx-start}}]}]
+starts: [{id: s1, node: a, requires: {flag: f}, unmet: rj-start, effects: [{put: {path: x, fixture: fx-start}}]}]
 steps:
 -   id: a
     title: A

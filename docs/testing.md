@@ -6399,3 +6399,17 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 配信する設定の web は実行時に IR を取得しないため、`start` を受け取っても照合する IR が無く、画面は今までどおり（session なし）である。配信する設定で直接リンクが開始点で開くことは、`./ir/main.json` の実行時の取得と開始（`Control::Begin`・開始点からの初期状態の構築。TASK-217・TASK-294）が入った後でなければ確かめられない。本件では取得を実装していない
 - 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
 - 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ
+
+### 5.200 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
+
+開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
+
+- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
+- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
+- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
+- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
+
+限界・申し送り:
+
+- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
+- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
