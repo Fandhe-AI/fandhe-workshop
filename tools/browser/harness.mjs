@@ -135,9 +135,12 @@ function parseMetaTags(html) {
   });
 }
 
+// http-equiv は列挙属性で、ブラウザは ASCII の大文字小文字だけを無視して照合し、前後の空白は除かない
+// （" Content-Security-Policy " は CSP として働かない）。働かない meta を CSP と数えて合格させないよう、
+// trim せず ASCII の大文字だけを小文字にして完全一致で比べる。2026-10-21 のレビュー指摘で trim を外した。
 function isCspMeta(t) {
   const v = t.attrs.get('http-equiv');
-  return v !== undefined && v.trim().toLowerCase() === 'content-security-policy';
+  return v !== undefined && v.replace(/[A-Z]/g, (c) => c.toLowerCase()) === 'content-security-policy';
 }
 
 // HTML から CSP の meta を除去する純関数。除去した件数も返す。

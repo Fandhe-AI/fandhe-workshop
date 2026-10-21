@@ -5534,13 +5534,14 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 #### 試験
 
-`tools/browser/csp-placement.test.mjs`（27 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 23 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・`http-equiv` を `data-http-equiv` にする・`content` を `data-content` にする・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `template` で囲む・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む・CSP だけを入れ子の `template` で囲む・head の開始の直後に `div`・文字・NBSP を置く・head の開始と charset の間に `title` を置く・head より前に `body` を始める・head より前に文字を置く・head を空にして閉じ直す）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
+`tools/browser/csp-placement.test.mjs`（28 件。ブラウザ不要。`make test-browser` の列挙に加え、CI の `browser-test` ジョブが流す）。配信設定・試験の設定の `index.html`（`FANDHE_WEB_DIR`・`FANDHE_WEB_TEST_DIR`）が合格すること、および実物を加工した写しの対照 24 種（viewport を挟む・`'wasm-unsafe-eval'` を外す・`img-src *`・meta を消す・meta を 2 つにする・charset より前に置く・`http-equiv` を `data-http-equiv` にする・`http-equiv` の値の前後に空白を足す・`content` を `data-content` にする・コメントを挟む・charset と CSP をまとめてコメントで囲む・CSP だけをコメントで囲む・`script` の中身に置く・charset と CSP をまとめて `template` で囲む・charset と CSP をまとめて `noscript` で囲む・CSP だけを `noscript` で囲む・CSP だけを入れ子の `template` で囲む・head の開始の直後に `div`・文字・NBSP を置く・head の開始と charset の間に `title` を置く・head より前に `body` を始める・head より前に文字を置く・head を空にして閉じ直す）が期待の理由で不合格になることを確かめる。環境変数が無ければ skip せず失敗にする。
 
 #### 件数・確認（2026-10-20）
 
 - 配信・試験の両設定を `SKIP_WASM_OPT=1 tools/build-web.sh debug` で作り、`csp-placement` の 11 件が通った。環境変数なしでは 10 件が失敗する（skip しない）。`harness`・`safety-observe` の 18 件も通った。`make check`・`make test` は通った
 - `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない
 - 2026-10-21（暗黙の head の終了の拒否）: 両設定を `SKIP_WASM_OPT=1 tools/build-web.sh` で作り、`csp-placement` の 27 件と `harness` の 11 件が通った。環境変数なしでは 26 件が失敗する（skip しない）。修正前の `harness.mjs` に戻すと、追加した対照 7 種のうち 6 種が合格してしまう（失敗する）ことを確かめた（head を空にして閉じ直す形は修正前も `head element count` で不合格）。`scripts/expected-test-counts.txt` のブラウザの合計は、CI の実測 628 件（`924b943`）に追加の 7 件を足した 635 件にした
+- 2026-10-21（`http-equiv` の前後の空白）: ブラウザは列挙属性の前後の空白を除かず、`" Content-Security-Policy "` は CSP として働かないため、判定から `trim()` を外し ASCII の大文字小文字だけを無視する完全一致にした。対照を 1 種足し、`csp-placement` は 28 件、ブラウザの合計は 636 件にした
 
 #### 限界・範囲外
 

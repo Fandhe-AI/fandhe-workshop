@@ -50,6 +50,8 @@ const cases = [
     h.replace(c, '').replace(CHARSET_LINE, (m) => c + m)],
   ['http-equiv を data-http-equiv にする', /CSP meta count is 0/, (h) =>
     h.replace(/\bhttp-equiv=/i, 'data-http-equiv=')],
+  ['http-equiv の値の前後に空白を足す', /CSP meta count is 0/, (h) =>
+    h.replace(/\bhttp-equiv=(["'])Content-Security-Policy\1/i, 'http-equiv=$1 Content-Security-Policy $1')],
   ['content を data-content にする', /no content attribute/, (h, c) =>
     h.replace(c, c.replace(/\scontent=/i, ' data-content='))],
   ['charset と CSP の間にコメントを挟む', /not immediately after charset/, (h, c) =>
