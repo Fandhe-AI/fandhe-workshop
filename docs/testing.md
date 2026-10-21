@@ -3765,7 +3765,7 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 | 節 | 今のビルドでの観察 | 育てる先（未実装の部分） |
 |---|---|---|
 | data | 5 つの `.sha256` を `node:crypto` で照合（16 件、不一致 0。追補 3 を 5 行に作り直したため試作の 17 件ではない） | なし |
-| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1〜E4・E6 の画面の経路は TASK-144・145・146・147 |
+| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1 は 5.175（TASK-144。CSP あり・なし）で済み。E2〜E4・E6 の画面の経路は TASK-145・146・147 |
 | oversize | IR 20MB・履歴 10MB のちょうど・1 バイト超を `checkJsonLoad` へ。入力 20,000・20,001 文字 | 10 倍の水準は TASK-154（#855）・TASK-155 |
 | nest | 10,000 段の入れ子と 1,000,000 要素の配列（IR・履歴の両方） | 同上 |
 | cycle | 巡回する IR 4 本を関門へ | 画面での起動は TASK-168（#549）・TASK-160（#444） |
@@ -5382,3 +5382,148 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - 教材の版・内容が変わっても鍵が変わらないことの画面の確認と、IR が読めないときの鍵 `unreadable/<IR の名前>`（TASK-326 2/2）
 - 配信先の区間による別の配信先との衝突（SAVE-15。TASK-327）
 - 起動時の変換の告知の表示（未実装。本試験は告知の行が出ないことだけを見る）
+
+### 5.173 教材の版・内容が変わっても鍵が変わらず、読めない IR で保存先を書き換えない（TASK-326 2/2。SAVE-14・DLV-8）
+
+実行日: 2026-10-20、元にしたコミット: `ec7d025` に本変更を載せた作業ツリー（dirty）。
+
+保存先の鍵は教材の ID と最初の開始点の ID だけで決まり、教材の版・内容に依らない（試作 F-1）。契約の層（`HistoryKey::from_ir`・`HistoryKey::unreadable`・`SAVE14-1`〜`SAVE14-3`・`SAVE15-2`）は固定済みのため、本タスクは web の層（ホスト・保存の経路）と実際の画面で、次の 2 点を確かめる。
+
+1. 教材の版・内容が変わっても鍵が変わらない（同じ鍵で保存済みの履歴が読まれ、新しい鍵が増えない）
+2. 読めない IR で保存済みの履歴を書き換えない。IR が読めないときの鍵が教材の鍵の範囲（`pack_prefix`・`belongs_to`）に入らない
+
+#### 本番のコードを変えない理由
+
+5.172 と同じく、試験・試験の設定・文書だけを足し、本番のコード（`host.rs`・`persist.rs`）は変えていない。
+
+- 配信する設定には「IR の名前」が無い（IR の取得 `?ir=` は TASK-168 の担当）。読めない IR の鍵 `unreadable/<IR の名前>` は、本番の経路ではまだ作れない
+- 今の経路は、仕様の鍵より厳しい fail-closed である。`EngineHost::refused` のとき `history_key` は `None` で、`persist::mount_with_history` は保存先を開かず、`pagehide` の書き出しも付けない。このため「読めない IR で保存済みの履歴を書き換えない」は、鍵を経由するより厳しく満たされる
+- 読めない IR に鍵を与えて通常の mount の経路へ流すと、断った画面で保存先への書き込み（起動番号の記録等）が起きうる。5.140 の「保存先が不変」を壊すため、結線は IR の名前が生まれる TASK-168 と同時に決める
+
+#### 教材の変種（試験の設定だけ）
+
+`src/test_fixture.rs` の `Chapter::ANext`。章 A と `pack.id`・`starts` が同じで、`pack.version` を `0.1.0`（主版は 0 のまま）、題名を別の文字列にしたもの。内容のハッシュは章 A と違い、鍵は同じ（単体試験が確かめる）。`?fixture=chapter-a-next` の完全一致だけが選ぶ。新しい試験データのファイルと、新しい試験用の口は足さない。
+
+#### native の試験と変異
+
+- `crates/web/tests/key_stability_host.rs`（4 件）: (a) 版・題名を変えた教材（同じ主版）が同じ鍵で `Restored` になり、保存しても鍵が 1 本のまま。(b) 主版を変えた教材は同じ鍵で読んだうえで `NotOpened` になり、`history_to_save` が `None` で保存先は 1 文字も変わらない。(c) 読めない IR のホストは `history_key` が `None`・`boot` が `NoSession`・保存する値が無く、保存先は不変。(d) `HistoryKey::unreadable` の鍵は教材の接頭辞で始まらず `belongs_to` が偽で、保存先に置いても教材の履歴の起動は変わらない
+- 変異（`scripts/check-mutations.sh` の結果は DETECTED）。既存の `SAVE14-4`・`SAVE14-5` も DETECTED のまま
+
+| ID | 置き換え | 失敗した試験 |
+|---|---|---|
+| `SAVE14-6` | web の鍵に教材の版（`pack.version`）を混ぜる | `key_stability_host` の (a)・(b) |
+
+#### ブラウザ試験
+
+`tools/browser/key-stability.test.mjs`（CSP あり・なし。2 件）。1 つの browser context で、章 A を 1 手進める（履歴の鍵が 1 本）→ 版・題名を変えた教材へ移る（鍵は 1 本のまま・`restored`・Step と各 Step の状態が同じ）→ もう 1 手進める（鍵は 1 本のまま）→ 再読み込み（同じ）→ 読めない IR（`?fixture=future-ir-format`）へ移る（断った画面のマウント後の localStorage の全体が、断っている間と `pagehide` の後で一致し、鍵は増えない）→ 章 A へ戻る（`restored`）を確かめる。版が変わって鍵が変わったときは固定の印 `KEY-CHANGED-BY-VERSION` を失敗の文に含める。出力に保存の値・鍵の文字列・下書きを出さない。`chapter-keys` は 5.172 の対照（`test-chapter-key-control`）が前提とするため、手順は足さず別のファイルにした。
+
+#### 件数・確認（2026-10-20）
+
+- `make lint`・`make test`（2,657 件・失敗 0）・`make check-deps`・`make check-dom-reads`・`make check-generic-words`・`make check`・`make check-delivery`（`make build-web` の後）は通った
+- ブラウザ試験は、`TEST_HOOKS=1` の web を作り `key-stability`・`chapter-keys`・`ir-refusal` の 3 ファイル（計 10 件）を単独で流し、すべて通った。`make test-browser` の全体は流していない（未検証）
+- `make test-chapter-key-control` は流していない（未実施。本変更は `chapter-keys` に触れない）
+- `scripts/expected-test-counts.txt` は変えていない
+
+#### 限界
+
+- 読めない IR の鍵 `unreadable/<IR の名前>` を本番の経路で使うのは、IR の名前が存在するようになってから（TASK-168 の `?ir=`）。それまでは保存先を開かない fail-closed で満たす
+- `load_ir` は `starts: []` を受ける。このとき `HistoryKey::from_ir` は `None` で、ホストは保存なしで mount する（契約の doc comment は `unreadable` へ倒すと書くが、web は倒していない）。作成側は `validate` が `E-STRUCTURE` で拒否する（PACK-25）ため、配られる IR では起きにくい。名前が無い点は同じで、実行時の扱いは先送りする
+
+#### 範囲外
+
+- 配信先の区間による別の配信先との衝突（SAVE-15。TASK-327）
+- 起動時の変換の告知の表示（未実装。本試験は告知の行が出ないことだけを見る）
+
+### 5.174 保存領域が失われたときの案内（TASK-340。SAVE-29・D-57）
+
+元にしたコミット: `ffaf5f3`（実行日 2026-10-20）。受講者が保存領域を消す・ブラウザが自動で削除する・保存できない状態で開く場面では、再び開くと新しい状態で始まる。そのとき履歴を失わない手段として、書き出しを案内する通知欄 `export-notice`（`role="status"`。`LogPart` の末尾の束縛点 `export_notice`）を足した。
+
+#### 起点の規則（仮置き）
+
+- 初回の保存時（`FirstSave`）: 起動が `Fresh`（保存済みの履歴が無い・読めない）だったページで、最初に状態を変える操作の `update` の末尾に出す。保存を試す時点と同じで、保存を止めた状態（シークレットなど）でも出す（成功を起点にすると、失う場面で案内が出なくなるため）。復元（`Restored`）・下書きだけの変更・2 回目以降の操作では出さない
+- 章の終わり（`ChapterEnd`）: その操作で伸びたログに、`main` の根の最後の Step（`is_final`）の `Achieved`、または `ChapterCompleted` が現れたとき。起動時に復元したログの分は見ない。学習モジュールの最後の Step は呼び出し元へ戻るため数えない。同じ操作で両方が起きたときは `ChapterEnd`
+- 案内は表示の状態で、`ops`・保存先に書かない（新しい保存の鍵も作らない）。次の起点・履歴の差し替え（`open_history`・`install_recorded`）で置き換わり、再読み込みでは出ない
+
+#### 未決の点
+
+- 文面・回数・消える時機は未決（D-57 は「実装のタスクで案を出し、ユーザーが決める」）。本実装は仮置きで、変えるときは `crates/web/src/export_notice.rs` の定数と規則だけを直す。試験は文そのものでなく「空か・種類で違うか」を固定する
+- 書き出しの操作（リンク・ボタン）は TASK-531、通知欄の配置は TASK-534 が持つ。本タスクは文だけを出す
+
+#### native の試験と変異
+
+- `crates/web/tests/export_notice.rs`（7 件）: 初回の案内と 2 手目で動かないこと・dirty、復元では出ないこと、保存を試せない起動でも出ること、章の終わり、途中の Step の達成では章の終わりにならないこと、復元した章の終わりは起動の直後に出ず履歴の差し替えで消えること、文に教材の値が含まれないこと
+- 変異（`scripts/check-mutations.sh` の結果はすべて DETECTED）
+
+| ID | 置き換え | 失敗した試験 |
+|---|---|---|
+| `SAVE29-1` | 初回の案内を立てない | `export_notice` の初回・保存を試せない起動 |
+| `SAVE29-2` | 復元した起動でも初回の案内を出す（`fresh_start` の条件を外す） | 復元の試験 |
+| `SAVE29-3` | 最後の Step でなくても章の終わりにする（`is_final` の判定を外す） | 途中の Step の達成の試験 |
+| `SAVE29-4` | 初回の案内の文を空にする | 初回の案内の試験 |
+
+#### ブラウザ試験
+
+`tools/browser/storage-lost.test.mjs`（CSP あり・なし。8 件）。(A) 1 手を送って保存し、CDP の `Storage.clearDataForOrigin` で保存領域を消して開き直すと、`fresh`・世代 1・`reloaded` 0 件・最初の Step・鍵なしで始まり、案内は操作の前は空・最初の操作で再び出る。(C) `localStorage` の取得が例外・`indexedDB` なしの状態でも `fresh` で始まり、最初の操作で案内が出て、再読み込みしても `fresh`・世代 1。(D) `load-fixture:approval` を最後まで進めると章の終わりの案内が出る（途中は空）。(E) 対照として、消さずに再読み込みして `restored` になった後は操作しても案内が出ない。いずれも CSP 違反・pageerror・console error は 0 件。
+
+#### 件数・確認（2026-10-20）
+
+- `make lint`・`make test` は通った。`storage-lost` の 8 件は `TEST_HOOKS=1` の web を作って単独で流し、すべて通った。`make test-browser` の全体は流していない（未検証）
+- `scripts/expected-test-counts.txt` は変えていない（件数の照合は版上げ PR のときだけ）
+
+#### 限界
+
+- (B) ブラウザの自動削除（eviction）は本物を起こせない。保存済みの履歴が消える点で同じ状態になる CDP の消去で代える（`storageTypes: "all"` は IndexedDB も含む）
+- (C) では保存を止めるため `save-notice` は出ない（保存を試さないため。SAVE-10・SHELL-18 の範囲）
+- `ChapterCompleted` は core がまだ出さない（TASK-233 以降）ため、`main` の最後の Step の達成で代える。TASK-339 が章の終わりの判定を別に定めたら一本化する
+- `load-fixture`（試験の設定だけ）は `install_recorded` を通るため初回の印を落とす。(D) の途中で初回の案内が出ないのはこのため（本番の経路には無い）
+
+#### 範囲外
+
+- 書き出しの可視の操作と案内からの導線（TASK-531）・通知欄の配置（TASK-534）・案内の確定（ユーザー）
+- 受講者による履歴の削除（SAVE-32・TASK-341）
+
+### 5.175 Step の本文への注入 49 件（TASK-144。SAFE-1）
+
+元にしたコミット: `fe45d81`（実行日 2026-10-20）。教材パックの Markdown（Step の本文）に注入用の試験入力を入れても、画面で何も実行されず、生の HTML が文字として出ることを確かめる試験 `tools/browser/pack-body-xss.test.mjs` を足した（1/2。#536）。試験 B は CSP あり・なしの両方で 49 件を流す（CSP なしは 2/2。#537。下の「CSP なし」）。
+
+#### 何を確かめるか
+
+データの正は `xss-cases.md` の「入り口に E1 を含む」49 件（`xss-cases.mjs` の `e1Payloads`。件数が違えば例外）。1 件ごとに `min-3step-pack` を一時ディレクトリへ写し、`st-1.md` をペイロードで置き換えて実物の `fandhe-pack compile` を流す（終了コード 0・IR 版 2・`st-1` の `body_doc` を確かめる。拒否は飛ばさず失敗にする）。
+
+| 試験 | 内容 |
+|---|---|
+| A | 試験の設定と配信する設定の `index.html` の CSP の meta が、各 1 件で同一 |
+| B | CSP あり・なしの各 49 件ごとに新しい context で `loadIr` → `installCount` の増加と `current` が `st-1` を確かめ、本文の木を関門と描画に通した HTML を容器へ入れ、計数の全区分が 0。生の HTML（`text` の節で `<` を含むもの）が `textContent` に含まれ（U+0000 は除く。確かめた数は 12 件以上）、`img` が 0 件で、`a[href]` は同一オリジンか http(s) だけ |
+| C | B で得た 49 件の HTML を、試験の口の無い配信する設定のページへ入れても全区分 0 |
+| D | 対照。描画を通さない生の入力（XSS-01・XSS-07）は、数え方が 0 でなく数える |
+
+#### 注入の口と代え方
+
+配信する設定は IR をまだ読まず（TASK-109・TASK-121）、Step の本文も枠に出していない（TASK-525 1/2）。このため「配信する設定の画面で本文が出るまで操作する」は、試験の設定の `loadIr` と、`checkDoc` → `renderDoc` の文字列を `#app` の外の容器へ入れる経路（`doc-links.test.mjs` と同じ）で代える。この口は `showStepBody` の 1 か所にまとめてある。試験 A・C で、配信する設定の CSP と画面を補う。
+
+#### 観察（通るのが正しい件）
+
+- XSS-29: `/a` の相対リンクは同一オリジンの `a` になる
+- XSS-45: 全角の `：` の形は相対として `a` になり、基点の下の同一オリジンに解決される
+- XSS-47: U+0000 は構文解析で落ちるため、除いて比べる
+- XSS-20・26: 外部・スキーム相対の画像は `img` にならず代替の文字になる
+
+#### 限界
+
+- 枠の本文の区画は未実装（TASK-525 1/2）で、配信する設定は IR を読まない（TASK-109・TASK-121）。両方が入ったら `showStepBody` を、配信する設定の画面で実際の本文の区画を見る形へ差し替える
+- 49 件は網羅ではない
+
+#### 件数・確認（2026-10-20）
+
+- `pack-body-xss` の 4 件と `safety-observe` の 7 件は、`TEST_HOOKS` ありなしの 2 つの web を作って単独で流し、すべて通った（確かめた生の HTML の文字は 66 箇所）
+- 手元の変異: 描画した HTML の `&lt;` を `<` に戻して容器へ入れると、B・C が失敗した（戻して再び通ることも確認）
+- `make test-browser` の全体は流していない（未検証）。`scripts/expected-test-counts.txt` は変えていない
+
+#### CSP なし（TASK-144 2/2。2026-10-20）
+
+元にしたコミット: `ef137ee`。試験 B のループを `[true, false]` にし、`index.html` の CSP の meta を除いた一時の写し（`withCspMode`）で同じ 49 件を流す。CSP に頼らず、描画の経路（`checkDoc` → `renderDoc`）だけで全区分が 0 になることを確かめる。受け入れ条件の語と計数の対応は、実行 = `hits`、外部通信 = `external`、ダイアログ = `dialogs`・`popups`、危険な要素 = `danger`、`on*` 属性 = `onAttrs`、`style` 属性 = `styleAttrs`、`http(s)` の出現 = `extHttp`・`nonHttp`、ページ内エラー = `pageErrors`・`crashed`・`scanError` である。
+
+- 単独の実行: A・B（CSP あり）・B（CSP なし）・C・D の 5 件がすべて通った。確かめた生の HTML の文字は、B の 2 回とも 66 箇所
+- 手元の変異（描画した HTML の `&lt;` を `<` に戻して容器へ入れる）: B（CSP あり）・B（CSP なし）・C が失敗した（B は XSS-01 で生の HTML が文字として出ていないことを検出）。戻して再び通ることを確認した。実行の計数そのものが CSP なしで数えられることは、試験 D（対照）が担う
+- ブラウザ試験の件数は 1 件増える。`scripts/expected-test-counts.txt` は変えていない（先行の #1648 と同じ扱い。版上げの前に `make update-test-counts` で更新する）
+- `make test-browser` の全体は流していない（未検証）。CI の `browser-test` ジョブで確かめる
