@@ -71,7 +71,7 @@ const cases = [
     h.replace(/<head>/i, '<head><div></div>')],
   ['head の開始の直後に文字を置く', /charset meta is not the first content of head/, (h) => h.replace(/<head>/i, '<head>x')],
   ['head の開始の直後に NBSP を置く', /charset meta is not the first content of head/, (h) =>
-    h.replace(/<head>/i, '<head> ')],
+    h.replace(/<head>/i, '<head>\u00a0')],
   ['head の開始と charset の間に title を置く', /charset meta is not the first content of head/, (h) =>
     h.replace(/<head>/i, '<head><title>t</title>')],
   ['head より前に body を始める', /unexpected content before head/, (h) =>
