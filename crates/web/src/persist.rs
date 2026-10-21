@@ -12,6 +12,8 @@
 //! TASK-318・SAVE-7）、(3) 離れる直前（`pagehide`）である。打鍵ごとに履歴の全体を書き出す費用を避けるため、下書きは (2) で畳む。
 //! どれもホストが「保存する値」を持つときだけ保留へ積んで書く。最初の変更まで保存しない（`EngineHost::history_to_save` が
 //! `None`）ので、未操作のページを離れても保存先には何も書かれない（SAVE-28）。
+//! 書き出しは必ず保存の直前の起動番号の照合（SAVE-12・`boot_guard`。TASK-324 1/2）を通す。他のタブに追い越された古いタブは、
+//! 保存先へ書かない（`flush_guarded` が唯一の関所）。試験用の保存先の口（`debug_storage_*`・`debug_save_*`）は照合を通さない。
 //! IndexedDB への書き込みの失敗は確定が非同期で届くため、ホストが次の `update` で probe（[`async_save_failure`]）を引いて表示する（SAVE-11）。
 //! 変更のたびの書き込みが容量超過で失敗したときは、ホストが理由を表示する。書けなかった値は保留に残り、次の書き出しで再び試す。
 //!
@@ -23,16 +25,20 @@ use std::cell::RefCell;
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, HistoryStore, StorageError};
 use wasm_bindgen::JsValue;
 
+use crate::boot_guard::{BootGuard, Guarded};
 use crate::host::EngineHost;
 use crate::leave_flush::install_pagehide_flush_as;
-use crate::save_pending::PendingSave;
+use crate::save_pending::{FlushOutcome, PendingSave};
 use crate::storage_idb::{open_history_storage, OpenedStorage};
+use crate::storage_local::LocalStore;
 
 thread_local! {
     /// 開いた保存先。準備完了の合図の後に入る。
     static STORAGE: RefCell<Option<OpenedStorage>> = const { RefCell::new(None) };
     /// 離れる直前に書き出す未保存の値の保留。
     static PENDING: PendingSave = PendingSave::new();
+    /// このページの起動番号（SAVE-12）。鍵が決まった直後に 1 回だけ取得する。取得前は書かない。
+    static GUARD: RefCell<Option<BootGuard<LocalStore>>> = const { RefCell::new(None) };
     /// 変更の後の遅延保存が書く鍵。`boot_and_mount` が結ぶ（鍵を作れない設定では空のままで、遅延保存は何もしない）。
     static SAVE_KEY: RefCell<Option<HistoryKey>> = const { RefCell::new(None) };
     /// 試験の設定だけ: 変更の後の保存（変更のたび・遅延の両方）を試みた回数。値・鍵は持たない。
@@ -70,14 +76,13 @@ pub fn read(key: &HistoryKey) -> Result<Option<String>, StorageError> {
 fn stage_and_flush(key: &HistoryKey, value: String) -> Result<(), StorageError> {
     PENDING.with(|p| {
         p.stage(key.clone(), value);
-        STORAGE.with(|s| {
-            let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
-            let st = slot.as_ref().ok_or(StorageError::Unavailable)?;
-            match p.flush(st).first_error {
+        match flush_guarded(p) {
+            Some(outcome) => match outcome.first_error {
                 Some(e) => Err(e),
                 None => Ok(()),
-            }
-        })
+            },
+            None => Err(StorageError::Unavailable),
+        }
     })
 }
 
@@ -149,17 +154,45 @@ pub fn install_save_on_leave(
 fn save_now(key: &HistoryKey, value: &str) -> Result<(), StorageError> {
     #[cfg(feature = "test-hooks")]
     AUTOSAVES.with(|c| c.set(c.get().saturating_add(1)));
-    PENDING.with(|p| {
-        p.stage(key.clone(), value.to_owned());
-        STORAGE.with(|s| {
-            let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
-            let st = slot.as_ref().ok_or(StorageError::Unavailable)?;
-            match p.flush(st).first_error {
-                Some(e) => Err(e),
-                None => Ok(()),
-            }
+    stage_and_flush(key, value.to_owned())
+}
+
+/// 保留を保存先へ書き出す唯一の関所（SAVE-12）。呼び出し元は `stage_and_flush`（`save_now`・`save_deferred`・`pagehide` のリスナーが通る）である。
+///
+/// 書き込みの直前に起動番号を照合し（[`Guarded`]）、古いタブの値は保存先へ届けない。起動番号の取得前（ガードが無い）も書かない。
+/// 保存先が開いていない・借用中は `None`。古いタブは `Ok` の結果（失敗 0 件）を返す。保存先へ書く経路を増やすときも、この関数を通す。
+fn flush_guarded(p: &PendingSave) -> Option<FlushOutcome> {
+    STORAGE.with(|s| {
+        let slot = s.try_borrow().ok()?;
+        let st = slot.as_ref()?;
+        GUARD.with(|g| {
+            let guard_slot = g.try_borrow().ok()?;
+            let guard = guard_slot.as_ref()?;
+            Some(p.flush(&Guarded { inner: st, guard }))
         })
     })
+}
+
+/// このタブが他のタブに追い越された（古いタブ）か。試験の設定の口 `debug_save_stale` だけが読む。真偽だけを返す。
+#[cfg(feature = "test-hooks")]
+pub fn stale_tab() -> bool {
+    GUARD.with(|g| {
+        g.try_borrow()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(BootGuard::is_stale))
+            .unwrap_or(false)
+    })
+}
+
+/// 起動番号の `tag`。同時に起動したタブを区別するための一意化で、秘密・認証には使わない。
+fn boot_tag() -> u32 {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "Math.random() は 0 以上 1 未満で、4294967296 を掛けた値は u32 に収まる"
+    )]
+    let tag = (js_sys::Math::random() * 4_294_967_296.0) as u32;
+    tag
 }
 
 /// IndexedDB の保存失敗の probe の実体（SAVE-11。TASK-323 2/2）。読み取り専用で、ホストが `update` のたびに引く。
@@ -200,6 +233,12 @@ pub fn mount_with_history(root_id: &str) -> js_sys::Promise {
             Err(e) => js_sys::Promise::reject(&e),
         };
     };
+    // 起動番号は鍵が決まった直後（保存先を開く前。ページを開いた時点に最も近い）に 1 回だけ取得する（SAVE-12）。
+    GUARD.with(|g| {
+        if let Ok(mut slot) = g.try_borrow_mut() {
+            *slot = Some(BootGuard::claim(LocalStore::new(), &key, boot_tag()));
+        }
+    });
     let mut pending = Some((root_id.to_owned(), host, key));
     js_sys::Promise::new(&mut move |resolve, reject| {
         let Some((root_id, host, key)) = pending.take() else {

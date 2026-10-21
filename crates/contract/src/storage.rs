@@ -15,7 +15,7 @@
 //! | SAVE-14: 鍵は教材の版・内容に依らず、教材 ID と最初の開始点の ID で決まる | [`HistoryKey::from_ir`] は `pack.id` と `starts[0].id` だけを読む |
 //! | SAVE-15: IR が読めないときは `unreadable/<IR の名前>` | [`HistoryKey::unreadable`] |
 //! | D-56: 配信先のパスの先頭 1 区間を含め、全体は含めない | [`DeliveryScope`]（[`DeliveryScope::from_pathname`]） |
-//! | SAVE-12: 古いタブは保存しない。合流の規則は足さない | 鍵に起動番号を含めない。口に合流の操作は無い |
+//! | SAVE-12: 古いタブは保存しない。合流の規則は足さない | 鍵に起動番号を含めない。口に合流の操作は無い。起動番号の照合は web の `boot_guard` が持つ |
 //!
 //! 鍵の形（版 1）。区間は常に 5 つで、区間の中に `/` は現れない。
 //!
@@ -41,7 +41,8 @@
 //!
 //! 本契約が定義しないもの:
 //!
-//! - 起動番号の `fandhe-workshop/meta/…` の鍵（SAVE-12）と、秘密情報の警告の `sessionStorage` の鍵。必要なら版上げで足す
+//! - 起動番号の `fandhe-workshop/meta/…` の鍵（SAVE-12）。web の `boot_guard` が持ち、版 1 の契約には含めない（接頭辞が違うため [`HistoryKey::parse`] は拒み、一覧・削除の対象に入らない）
+//! - 秘密情報の警告の `sessionStorage` の鍵。必要なら版上げで足す
 //! - localStorage に書ける最大の判定と、IndexedDB の失敗時の挙動（TASK-317）
 //! - 判定の順序（TASK-310 3/3）と読み込みの拒否理由コード（TASK-310 2/3）は [`crate::load_reason`] にある
 //!   （順序の正は [`crate::load_reason::HISTORY_LOAD_ORDER`]）。どちらも同じ版 1 の範囲で、
