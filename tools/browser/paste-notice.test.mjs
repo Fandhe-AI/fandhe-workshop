@@ -11,7 +11,7 @@
 //   - P-10 の後に案内が出ず、ログが増えないこと。
 //
 // 対象外: 他アプリからの実際の貼り付け（TERM-20。TASK-287 の人の確認）、途中への貼り付けで貼った分だけを切る
-// beforeinput（TERM-16・JUDGE-24。別タスク）、案内文の文言の確定（spec の側）。
+// beforeinput（TERM-16・JUDGE-24。input-limit.test.mjs が受け持つ）、案内文の文言の確定（spec の側）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1。教材は min-3step.json）。
 // どちらも未設定・不在は skip にせず失敗にする。失敗の文面には、長い値そのものでなく長さを出す。

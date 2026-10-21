@@ -7,7 +7,7 @@
 // textarea の値は CRLF を LF に正規化するため、期待値は試料の CRLF を LF にしたものとする（P-8）。
 //
 // 対象外: 他アプリからの実際の貼り付け（JUDGE-26・TERM-20。TASK-287 の人の確認）、途中への貼り付けで
-// 上限を超える分だけ切る beforeinput（JUDGE-24。別タスク）、候補の一覧（`/` 始まりでも候補が
+// 上限を超える分だけ切る beforeinput（JUDGE-24。input-limit.test.mjs が受け持つ）、候補の一覧（`/` 始まりでも候補が
 // 開かないことは、コマンド表を持つ試験の設定が要るため paste-notice.test.mjs の P-9 が確かめる）。
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1。状態と欄の一致）。

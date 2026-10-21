@@ -24,6 +24,16 @@ const DOM_CALLS: &[(&str, GlueOp)] = &[
     ("root", GlueOp::ElementLookup),
     ("set_value", GlueOp::TextareaSync),
     ("value", GlueOp::TextareaSync),
+    // 上限を超える貼り付けの切り捨て（TASK-283。JUDGE-24・D-60）: 貼り付けの種別・文字列・選択の位置を読み、
+    // 切った値を書いて泡立つ input を合成し、キャレットを置く。どれも欄の値の反映（`TextareaSync`）の一部。
+    ("input_type", GlueOp::TextareaSync),
+    ("data", GlueOp::TextareaSync),
+    ("selection_start", GlueOp::TextareaSync),
+    ("selection_end", GlueOp::TextareaSync),
+    ("set_selection_range", GlueOp::TextareaSync),
+    ("dispatch_event", GlueOp::TextareaSync),
+    ("new_with_event_init_dict", GlueOp::TextareaSync),
+    ("set_bubbles", GlueOp::TextareaSync),
     ("is_composing", GlueOp::CompositionMark),
     ("key", GlueOp::KeydownReceive),
     ("key_code", GlueOp::KeydownReceive),
@@ -59,6 +69,7 @@ const LISTENER_CALLS: &[&str] = &[
 /// リスナーに登録してよいイベント名と、対応する許される操作。
 const ALLOWED_EVENTS: &[(&str, GlueOp)] = &[
     ("input", GlueOp::TextareaSync),
+    ("beforeinput", GlueOp::TextareaSync),
     ("compositionend", GlueOp::CompositionMark),
     ("compositionstart", GlueOp::CompositionMark),
     ("keydown", GlueOp::KeydownReceive),
@@ -144,6 +155,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "flatten",
     "and_then",
     "is_empty",
+    // 上限を超える貼り付けの計画（純粋関数。TASK-283）。DOM には触れない。
+    "clip_paste",
 ];
 
 /// 構造を変える操作。許される操作の一覧に無く、glue に 1 件も書かない。
@@ -289,7 +302,7 @@ fn glue_の呼び出し名はすべて表に載る() {
 }
 
 #[test]
-fn リスナーのイベントは許可の4種に限られる() {
+fn リスナーのイベントは許可の5種に限られる() {
     let events = listener_events(&glue_code(&glue_source()));
     assert!(!events.is_empty());
     for e in &events {
