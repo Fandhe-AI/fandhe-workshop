@@ -4,9 +4,13 @@
 //! どれも書く直前の値を [`secret_hold`] で調べ、見つかれば保存先へ積まない（D-44 の失敗側。元に戻せない書き込みを避ける）。
 //! 表示は `engine_parts` の `LogPart` が [`secret_notice_text`] を引く。
 //! 文は固定の定数と形の名前（`SecretShape::label`）だけで作り、値・指紋・教材の文字列・受講者の値を含めない。
-//! 文言と配置は仮置きで、確定は TASK-534 が持つ。「このまま保存する」などの選択は TASK-164 3/3 が持つ。
+//! 文言と配置は仮置きで、確定は TASK-534 が持つ。
+//!
+//! 警告には 2 つの選択を付ける（SAFE-28・D-44。TASK-164 3/3）。「このまま保存する」（[`ACTION_SECRET_KEEP`]）は、見つかった値を
+//! 確認済みとして扱う。確認済みは形と指紋（`Finding`）だけを持ち、判定の入口 [`secret_hold_except`] で除かれる。
+//! 「この入力を残さない」（[`ACTION_SECRET_DISCARD`]）は、保存せずにホストの中で起動の分岐を読み直す。どちらの処理も `EngineHost::update` が持つ。
 
-use fandhe_workshop_core::secret_scan::{scan_json_text, shapes_of, SecretShape};
+use fandhe_workshop_core::secret_scan::{scan_json_text, shapes_of, Finding, SecretShape};
 
 /// 通知欄の束縛点の名前（`engine_parts` の `F_LOG` の末尾と同じ。ホストが dirty に積むときに使う）。
 pub const SECRET_NOTICE_FIELD: &str = "secret_notice";
@@ -14,11 +18,51 @@ pub const SECRET_NOTICE_FIELD: &str = "secret_notice";
 /// 遅延保存の検出をホストへ届ける action の名前（`decode_action` が受ける私的な名前。`RuntimeAction` の契約には入れない）。
 pub const ACTION_SECRET_HOLD: &str = "secret-hold";
 
+/// 「このまま保存する」の action の名前（payload は読まない。`decode_action` が完全一致で受ける。SAFE-28）。
+pub const ACTION_SECRET_KEEP: &str = "secret-keep";
+
+/// 「この入力を残さない」の action の名前（payload は読まない。`decode_action` が完全一致で受ける。SAFE-28）。
+pub const ACTION_SECRET_DISCARD: &str = "secret-discard";
+
+/// 選択のボタンの一覧が束縛される field 名（`engine_parts` の `F_LOG` の末尾と同じ。警告の空・非空が変わるとき dirty に積む）。
+pub const SECRET_CHOICE_FIELD: &str = "secret_choice";
+
+/// 選択のボタンの一覧の `data-testid`。
+pub const SECRET_CHOICE_TESTID: &str = "secret-choice";
+
+/// 「このまま保存する」のボタンの `data-testid`。
+pub const SECRET_KEEP_TESTID: &str = "secret-keep";
+
+/// 「この入力を残さない」のボタンの `data-testid`。
+pub const SECRET_DISCARD_TESTID: &str = "secret-discard";
+
+/// 「このまま保存する」のボタンの文言（仮置き。確定は TASK-534）。
+pub const SECRET_KEEP_LABEL: &str = "このまま保存する";
+
+/// 「この入力を残さない」のボタンの文言（仮置き。確定は TASK-534）。
+pub const SECRET_DISCARD_LABEL: &str = "この入力を残さない";
+
 /// 保存する値を調べ、見つかった形を固定の順序で返す。無ければ空。
 ///
-/// 3 つの保存の入口が同じ判定を使うための唯一の入口。値は返さず、保存もしない。
+/// 確認済みを除かない（厳しい側）。ホストを借りられない場面の後退先と、確認済みが 0 件の判定に使う。値は返さず、保存もしない。
 pub fn secret_hold(value: &str) -> Vec<SecretShape> {
-    shapes_of(&scan_json_text(value))
+    secret_hold_except(value, &[])
+}
+
+/// 保存する値を調べ、確認済みの検出を除いた形を固定の順序で返す（SAFE-28）。
+///
+/// 4 つの入口（即時の保存・遅延保存・離れる直前・書き出し）が `EngineHost::secret_gate` を通して使う判定の本体。
+/// 確認済みは形と指紋の組で照合するため、同じ形でも別の値は除かれない。
+pub fn secret_hold_except(value: &str, acknowledged: &[Finding]) -> Vec<SecretShape> {
+    shapes_of(&unacknowledged(value, acknowledged))
+}
+
+/// 値の検出から、確認済みでないものを返す。
+pub fn unacknowledged(value: &str, acknowledged: &[Finding]) -> Vec<Finding> {
+    scan_json_text(value)
+        .into_iter()
+        .filter(|f| !acknowledged.contains(f))
+        .collect()
 }
 
 /// 検出の payload。`<保存世代> <形の ID をカンマでつないだ列>` の固定の ASCII（値は含めない）。形が無ければ列は空。
@@ -126,6 +170,27 @@ mod tests {
         assert!(t.contains(SecretShape::Jwt.label()));
         assert!(t.contains(SecretShape::PrivateKey.label()));
         assert!(!t.contains(SecretShape::GoogleApiKey.label()));
+    }
+
+    /// 単体試験用の JWT の形の文字列（実行時に組み立てる）。
+    fn jwt_like() -> String {
+        let seg = |n: usize| "a".repeat(n);
+        format!("eyJ{}.eyJ{}.{}", seg(20), seg(20), seg(20))
+    }
+
+    #[test]
+    fn acknowledged_findings_are_excluded_by_shape_and_fingerprint() {
+        let value = serde_json::json!({ "draft": jwt_like() }).to_string();
+        let all = scan_json_text(&value);
+        assert!(!all.is_empty());
+        assert_eq!(secret_hold_except(&value, &[]), secret_hold(&value));
+        assert!(secret_hold_except(&value, &all).is_empty());
+        // 指紋が違えば除かれない。
+        let other = Finding {
+            shape: all[0].shape,
+            fingerprint: all[0].fingerprint ^ 1,
+        };
+        assert!(!secret_hold_except(&value, &[other]).is_empty());
     }
 
     #[test]

@@ -1,0 +1,9 @@
+id: SAFE28-1
+package: fandhe-workshop-web
+test: secret_choice
+target: crates/web/src/host.rs
+find:                 self.secret_acknowledged.push(f);
+replace:                 let _ = f;
+expect-fail: keep_saves_every_shape
+expect-fail: acknowledged_value_stays_saved_on_later_changes
+note: 「このまま保存する」で確認済みに加えない（選んでも保存されず、書き出しも通らない。SAFE-28）

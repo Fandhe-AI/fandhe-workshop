@@ -1,0 +1,9 @@
+id: SAFE28-3
+package: fandhe-workshop-web
+test: secret_choice
+target: crates/web/src/host.rs
+find:         shapes_of(&unacknowledged(text, &self.secret_acknowledged))
+replace:         shapes_of(&unacknowledged(text, &[]))
+expect-fail: keep_saves_every_shape
+expect-fail: keep_after_draft_only_warning
+note: 保存・書き出しの判定で確認済みを除かない（確認しても保存も書き出しも止まったままになる。SAFE-28）

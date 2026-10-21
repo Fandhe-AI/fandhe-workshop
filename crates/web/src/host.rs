@@ -95,12 +95,12 @@ use crate::history_export::ExportGate;
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
-use crate::secret_notice::{secret_hold, SECRET_NOTICE_FIELD};
+use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
 use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
 use fandhe_workshop_contract::profile::InputFieldMode;
-use fandhe_workshop_core::secret_scan::SecretShape;
+use fandhe_workshop_core::secret_scan::{shapes_of, Finding, SecretShape};
 
 /// 部品が読む表示用の値。読み出しの口だけを持ち、可変の口は持たない。
 #[derive(Debug)]
@@ -208,6 +208,10 @@ pub enum HostAction {
     SaveResult(u64, Option<StorageError>),
     /// 遅延保存の直前の検出（SAFE-27・TASK-164 1/3）。見つけた形だけを持ち、値は持たない。
     SecretHold(u64, Vec<SecretShape>),
+    /// 「このまま保存する」（SAFE-28）。警告の対象の値を確認済みにして保存する。payload は読まない。
+    SecretKeep,
+    /// 「この入力を残さない」（SAFE-28）。保存せずに保存先の内容から読み直す。payload は読まない。
+    SecretDiscard,
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -467,6 +471,12 @@ pub type DraftSyncRequest = Box<dyn Fn()>;
 /// 値・鍵の文字列は結果に含めない（`StorageError` は種類だけ）。`Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
 
+/// 保存済みの履歴を読む口（「この入力を残さない」の読み直し用。SAFE-28）。`persist::boot_and_mount` が結ぶ。
+///
+/// 起動の読み取り（`persist::read`）と同じ値を返す。読めなかったときは `Err` で、ホストは新しく始めて保存を止める（fail-closed）。
+/// `Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
+
 /// 非同期の保存の失敗（IndexedDB。SAVE-11）を読む口。読み取り専用で、`update` のたびに引かれる。
 ///
 /// IndexedDB の確定は後から届き、そのコールバックからホストへは触れない（`state_paths`）。そのため実体（`persist`）は失敗の種類を
@@ -553,6 +563,11 @@ pub struct EngineHost {
     history_changed: bool,
     /// 変更のたびの保存の口。未設定（native の試験など）なら保存を試さない。
     history_saver: Option<HistorySaver>,
+    /// 保存済みの履歴を読む口（「この入力を残さない」の読み直し。SAFE-28）。未設定なら保存済みの履歴が無いものとして読み直す。
+    saved_reader: Option<SavedReader>,
+    /// 「このまま保存する」で確認済みにした検出（形と指紋だけ。値は持たない）。このページの実行中だけ持ち、保存先にも履歴にも書かない。
+    /// 起動時に保存済みの値から種を入れない（旧いエンジンが書いた値・読み込んだ履歴を黙って確認済みにしないため）。差し替え・読み直しで空にする。
+    secret_acknowledged: Vec<Finding>,
     /// 非同期の保存の失敗を読む口（SAVE-11）。未設定なら同期の保存の結果だけで表示を決める。
     save_failure_probe: Option<SaveFailureProbe>,
     /// 古いタブかを読む口（SAVE-13）。未設定なら通知は出ない。
@@ -640,6 +655,8 @@ impl EngineHost {
             save_cancel: None,
             history_changed: false,
             history_saver: None,
+            saved_reader: None,
+            secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
             sync_save_failure: None,
@@ -720,6 +737,8 @@ impl EngineHost {
             save_cancel: None,
             history_changed: false,
             history_saver: None,
+            saved_reader: None,
+            secret_acknowledged: Vec::new(),
             save_failure_probe: None,
             stale_probe: None,
             sync_save_failure: None,
@@ -785,6 +804,19 @@ impl EngineHost {
     /// 保存済みの値を上書きしないよう保存を止める（fail-closed）。実行環境が無い（IR 未読込）ときは何もせず
     /// [`BootKind::NoSession`] を返す。`mount` の前に 1 度だけ呼ぶ。
     pub fn boot(&mut self, saved: Option<&[u8]>) -> BootKind {
+        let kind = self.restore_from_saved(saved);
+        #[cfg(feature = "test-hooks")]
+        if kind != BootKind::NoSession {
+            self.boot_kind = Some(kind);
+        }
+        kind
+    }
+
+    /// 起動の分岐の本体。[`EngineHost::boot`] と「この入力を残さない」の読み直しが共有する（SAFE-28）。
+    ///
+    /// 条件は複製せず `boot_session` に任せる。実行環境の差し替えで警告・確認済み・予約済みの保存の世代を落とすのは `install_recorded` である。
+    /// 入力欄の下書きは、復元した値があればそれに置き換え、無ければ呼び出し側が先に空にしておく。
+    fn restore_from_saved(&mut self, saved: Option<&[u8]>) -> BootKind {
         let (Some(session), Some(initial)) = (self.model.session(), self.initial.as_ref()) else {
             return BootKind::NoSession;
         };
@@ -824,10 +856,6 @@ impl EngineHost {
             .as_ref()
             .map(StepUid::root)
             .and_then(|root| recorded.session().state().drafts.get(&root).cloned());
-        #[cfg(feature = "test-hooks")]
-        {
-            self.boot_kind = Some(kind);
-        }
         self.install_recorded(recorded);
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
@@ -876,7 +904,7 @@ impl EngineHost {
     /// 読み取りだけで、警告・dirty は変えない（警告の表示は保存の経路が持つ）。
     ///
     /// `save_blocked` と `history_limit::check_save` は見ない。書き出しは保存先を上書きせず、保存できない場面ほど要るため（SAVE-29）。
-    /// 読み込みの上限を超える書き出しの扱いは TASK-531 に残す。TASK-164 3/3 は、確認済みの値をここで除外する前提である。
+    /// 読み込みの上限を超える書き出しの扱いは TASK-531 に残す。「このまま保存する」で確認済みにした値は、`secret_gate` が除く（TASK-164 3/3）。
     pub fn export_live(&self) -> ExportGate {
         let Some(envelope) = self
             .model
@@ -895,7 +923,7 @@ impl EngineHost {
         let Ok(text) = std::str::from_utf8(&bytes) else {
             return ExportGate::Empty;
         };
-        let found = secret_hold(text);
+        let found = self.secret_gate(text);
         if found.is_empty() {
             ExportGate::Ready(bytes)
         } else {
@@ -1022,7 +1050,7 @@ impl EngineHost {
         // 秘密情報らしい文字列は保存先へ積まない（D-44 の失敗側）。形だけを警告に出す。世代・保存の失敗の表示は変えない。
         // 止めた場合も世代を進め、それ以前の値の遅延保存の結果が警告を消さないようにする。
         self.save_epoch = self.save_epoch.wrapping_add(1);
-        let held = secret_hold(&value);
+        let held = self.secret_gate(&value);
         let found = !held.is_empty();
         self.set_secret_warning(held);
         if found {
@@ -1035,11 +1063,98 @@ impl EngineHost {
         self.set_save_failure(failure);
     }
 
-    /// 警告の形を置き換え、変わったときだけ dirty に積む。
+    /// 警告の形を置き換え、変わったときだけ dirty に積む（文の欄と、選択のボタンの一覧）。
     fn set_secret_warning(&mut self, shapes: Vec<SecretShape>) {
         if self.model.secret_warning != shapes {
+            let toggled = self.model.secret_warning.is_empty() != shapes.is_empty();
             self.model.secret_warning = shapes;
             self.dirty.push(SECRET_NOTICE_FIELD);
+            // ボタンは警告の有無だけで出入りする。形が変わるだけなら一覧は変わらない。
+            if toggled {
+                self.dirty.push(SECRET_CHOICE_FIELD);
+            }
+        }
+    }
+
+    /// 保存・書き出しの直前の判定の唯一の入口（SAFE-27・SAFE-28）。確認済みの検出を除いた形を、固定の順序で返す。
+    ///
+    /// 呼び出し元は即時の保存・書き出し（このファイル）と、`glue::secret_gate` 経由の遅延保存・離れる直前の保存（`persist`）。
+    /// 値は返さず、保存もしない。
+    pub(crate) fn secret_gate(&self, text: &str) -> Vec<SecretShape> {
+        shapes_of(&unacknowledged(text, &self.secret_acknowledged))
+    }
+
+    /// 保存済みの履歴を読む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ（「この入力を残さない」の読み直し用）。
+    pub fn set_saved_reader(&mut self, f: SavedReader) {
+        self.saved_reader = Some(f);
+    }
+
+    /// 「このまま保存する」（SAFE-28）。警告の対象の値を確認済みにして、今の履歴を保存する。
+    ///
+    /// 警告が無いとき（古いクリック）は何もしない。警告に出した形と、今の履歴の未確認の検出の形が違うとき（警告の後に
+    /// 別の形の値が入った）は、見ていない値を確認済みにせず、警告を今の形へ置き換えて終える。
+    /// 同じ形の別の値は区別できない（指紋を action に載せないため。`docs/testing.md` 5.183 の限界）。
+    fn secret_keep(&mut self) {
+        if self.model.secret_warning.is_empty() {
+            return;
+        }
+        let Some(value) = self.history_to_save() else {
+            return;
+        };
+        let pending = unacknowledged(&value, &self.secret_acknowledged);
+        let shapes = shapes_of(&pending);
+        if !shapes.is_empty() && shapes != self.model.secret_warning {
+            self.set_secret_warning(shapes);
+            return;
+        }
+        for f in pending {
+            if !self.secret_acknowledged.contains(&f) {
+                self.secret_acknowledged.push(f);
+            }
+        }
+        // 予約済みの遅延保存は、この即時の保存が書くので不要になる。`save_due` には依存しない（下書きだけの検出も保存する）。
+        self.history_changed = false;
+        if let Some(f) = self.save_cancel.as_ref() {
+            f();
+        }
+        self.save_after_change();
+    }
+
+    /// 「この入力を残さない」（SAFE-28）。保存せずに、保存先の内容から起動の分岐を読み直す。
+    ///
+    /// ページの再読み込みではなくホストの中で行う（ブラウザが `<textarea>` の値を復元しうるため）。実行環境・入力欄の下書き・送信済みの一覧・
+    /// 警告・確認済みを作り直し、`<textarea>` へ書き戻す。保存先へは何も書かない。読めなかったときは新しく始めて保存を止める（fail-closed）。
+    fn secret_discard(&mut self) {
+        if self.model.secret_warning.is_empty() || self.model.recorded.is_none() {
+            return;
+        }
+        let saved = match self.saved_reader.as_ref() {
+            None => None,
+            Some(read) => match read() {
+                Ok(v) => v,
+                Err(_) => {
+                    self.save_blocked = true;
+                    None
+                }
+            },
+        };
+        self.input.reset_for_reload();
+        self.secret_acknowledged.clear();
+        self.restore_from_saved(saved.as_deref().map(str::as_bytes));
+        // 差し替えが積んだ dirty（部品の全 field）に、入力欄の field を足す。
+        for f in HELLO_FIELDS {
+            if !self.dirty.contains(&f) {
+                self.dirty.push(f);
+            }
+        }
+        // 保存しない。予約済みの遅延保存と、この `update` の保存の印を取り下げる。
+        self.save_due = false;
+        self.history_changed = false;
+        if let Some(f) = self.save_cancel.as_ref() {
+            f();
+        }
+        if let Some(f) = self.draft_sync_request.as_ref() {
+            f();
         }
     }
 
@@ -1228,6 +1343,8 @@ impl EngineHost {
             "irLoaded": true,
             // 警告に出す形の ID だけ（値は入れない。SAFE-27）。
             "secretWarning": self.model.secret_warning.iter().map(|s| s.id()).collect::<Vec<_>>(),
+            // 確認済みの件数だけ（形・指紋・値は入れない。SAFE-28）。
+            "secretAcknowledged": self.secret_acknowledged.len(),
             // 書き出しの関門の判定と長さ（中身は入れない。SAFE-28）。
             "exportGate": match &gate {
                 ExportGate::Ready(_) => "ready",
@@ -1387,6 +1504,7 @@ impl EngineHost {
         // 差し替えた履歴では、前の案内も初回の印も持ち越さない。
         self.model.export_hint = None;
         self.model.secret_warning = Vec::new();
+        self.secret_acknowledged.clear();
         // 差し替え前に予約された検出・保存結果が、差し替え後の警告・失敗を書き換えないよう世代を進める。
         self.save_epoch = self.save_epoch.wrapping_add(1);
         self.fresh_start = false;
@@ -1733,6 +1851,8 @@ impl Component for EngineHost {
                     self.set_secret_warning(shapes);
                 }
             }
+            HostAction::SecretKeep => self.secret_keep(),
+            HostAction::SecretDiscard => self.secret_discard(),
             HostAction::Input(HelloAction::Submit) => self.submit(),
             HostAction::Input(HelloAction::Esc) => {
                 let busy = self.is_busy();
@@ -1971,6 +2091,13 @@ impl Component for EngineHost {
         }
         // 遅延保存の結果（SAVE-10）。payload は完全一致だけを受け、未知の値は何もしない。
         // 遅延保存の検出（SAFE-27）。payload は完全一致だけを受け、未知の値は何もしない。
+        // 警告の選択（SAFE-28）。名前は完全一致だけで、payload は読まない。警告が無いときの扱いは `update` が決める。
+        if name == crate::secret_notice::ACTION_SECRET_KEEP {
+            return Some(HostAction::SecretKeep);
+        }
+        if name == crate::secret_notice::ACTION_SECRET_DISCARD {
+            return Some(HostAction::SecretDiscard);
+        }
         if name == crate::secret_notice::ACTION_SECRET_HOLD {
             return crate::secret_notice::decode_secret_hold(payload)
                 .map(|(epoch, shapes)| HostAction::SecretHold(epoch, shapes));

@@ -174,6 +174,21 @@ impl HelloView {
         }
     }
 
+    /// ページを読み直した直後と同じ状態に戻す（「この入力を残さない」。SAFE-28）。
+    ///
+    /// 下書き・上限の案内・閉じた印・送信済みの一覧を空にする。受講者が入れた値が画面に残らないようにするのが目的で、
+    /// 呼び出し元はホスト（`EngineHost::secret_discard`）だけ。通し番号は戻さない（一覧のキーを一意に保つ）。
+    /// 3 つの field を dirty にし、`<textarea>` への書き戻しはホストが頼む。
+    pub(crate) fn reset_for_reload(&mut self) {
+        self.draft.clear();
+        self.over_limit = false;
+        self.closed_for = None;
+        self.entries.clear();
+        self.dirty.clear();
+        self.dirty
+            .extend([FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES]);
+    }
+
     /// 直近の入力で切り捨てが起きたか（試験用の口が読む）。
     #[cfg(feature = "test-hooks")]
     pub(crate) fn over_limit(&self) -> bool {
@@ -686,6 +701,24 @@ mod tests {
         v.update(HelloAction::SetDraft("下書き<b>".to_owned()));
         let html = render_component_html(&v);
         assert!(html.contains("下書き&lt;b&gt;</textarea>"), "{html}");
+    }
+
+    #[test]
+    fn 読み直しの初期化は下書き_送信済みの一覧_案内を空にし_通し番号は戻さない() {
+        let mut v = HelloView::new();
+        v.update(HelloAction::SetDraft("first".to_owned()));
+        v.update(HelloAction::Submit);
+        v.update(HelloAction::SetDraft("second".to_owned()));
+        let seq = v.next_seq;
+        v.reset_for_reload();
+        assert_eq!(v.draft(), "");
+        assert!(v.entries.is_empty());
+        assert_eq!(v.next_seq, seq);
+        assert_eq!(
+            v.dirty_fields(),
+            [FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES]
+        );
+        assert!(!render_component_html(&v).contains("first"));
     }
 
     #[test]
