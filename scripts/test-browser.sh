@@ -11,7 +11,7 @@
 # （safety-observe。BUILD-4。TASK-79 2/2。観察値は assert せず diagnostic に残し、完走して終了コード 0 になることを関門にする）を含む。
 # サブパス配信の構成要素と相対パスの参照の検査（delivery-subpath。DLV-1・DLV-2。TASK-106 1/3。取得資源が構成要素だけで、壊した写しの対照で不合格になる）と、
 # 章への直接リンク 10 件のサブパス配信の検査（delivery-direct-links。DLV-1。TASK-106 2/3。query の 1 形で取得資源・警告 0 件・要求の集合の一致）と、名前の違うサブパス 2 か所とルート配信の検査（delivery-bases。DLV-2。TASK-106 3/3）を含む。
-# 開始点を指す直接リンク `?start=` の試験（direct-link-start。試験の設定で、開始点 3 件の教材を指定なし・各開始点・一致しない値 10 形で開く。一致で節点が変わり開始点ごとに履歴の鍵が分かれ、不一致は値を出さず保存先を変えず断る。DLV-9・SAFE-33。TASK-109 1/2。記録は docs/testing.md 5.198）を含む。
+# 開始点を指す直接リンク `?start=` の試験（direct-link-start。試験の設定で、開始点 3 件の教材を指定なし・各開始点・一致しない値 10 形で開く。一致で節点が変わり開始点ごとに履歴の鍵が分かれ、不一致は値を出さず保存先を変えず断る。DLV-9・SAFE-33。TASK-109 1/2。記録は docs/testing.md 5.199）と、開始点を増やしても配信物の IR が写しで増えず、同じ IR のどの開始点から開いても履歴の内容のハッシュが同じことの試験（start-count-invariance。旧方式の写しと開始点ごとの別 IR の対照つき。DLV-9。TASK-109 2/2。記録は docs/testing.md 5.201）を含む。
 # 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
@@ -171,6 +171,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/storage-lost.test.mjs" \
   "${ROOT_DIR}/tools/browser/chapter-keys.test.mjs" \
   "${ROOT_DIR}/tools/browser/direct-link-start.test.mjs" \
+  "${ROOT_DIR}/tools/browser/start-count-invariance.test.mjs" \
   "${ROOT_DIR}/tools/browser/key-stability.test.mjs" \
   "${ROOT_DIR}/tools/browser/idb-versionchange.test.mjs" \
   "${ROOT_DIR}/tools/browser/history-export.test.mjs" \

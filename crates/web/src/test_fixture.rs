@@ -1185,4 +1185,48 @@ mod tests {
         assert_eq!(bad.ir_refusal(), Some("start_unknown"));
         assert!(bad.history_key(scope()).is_none());
     }
+
+    /// 開始点ごとに `starts` の先頭を入れ替えた IR の写し（旧方式。PoC-10 の `make-start-irs.mjs` の模写）を作る。
+    fn per_start_copy(id: &str) -> Vec<u8> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&multi_start_ir_bytes().unwrap()).unwrap();
+        let starts = value["starts"].as_array_mut().unwrap();
+        let at = starts.iter().position(|s| s["id"] == id).unwrap();
+        starts.swap(0, at);
+        serde_json::to_vec(&value).unwrap()
+    }
+
+    #[test]
+    fn 同じ_ir_はどの開始点から開いても内容のハッシュが同じ() {
+        use fandhe_workshop_contract::content_hash::content_hash;
+        let want = content_hash(&load_ir(&multi_start_ir_bytes().unwrap()).unwrap()).unwrap();
+        let mut opened = std::collections::BTreeSet::new();
+        for id in [None, Some("s-1"), Some("s-4"), Some("s-7")] {
+            let (session, got_id) = mount_session_at(MountFixture::MultiStart, id)
+                .unwrap()
+                .unwrap();
+            let got = content_hash(session.ir()).unwrap();
+            assert_eq!(
+                got, want,
+                "{id:?}: content_hash is the same for every start"
+            );
+            opened.insert((got_id, current_node(&session)));
+        }
+        // 空振り防止: 指定なしは s-1 と同じ開始点で、開いた開始点と節点の組は開始点ごとに違う。
+        assert_eq!(opened.len(), MULTI_START_POINTS.len());
+    }
+
+    #[test]
+    fn 開始点ごとに先頭を入れ替えた写しは内容のハッシュが割れる() {
+        use fandhe_workshop_contract::content_hash::content_hash;
+        let hash_of = |bytes: &[u8]| content_hash(&load_ir(bytes).unwrap()).unwrap();
+        let mut hashes = vec![hash_of(&multi_start_ir_bytes().unwrap())];
+        for (id, _) in MULTI_START_POINTS.into_iter().skip(1) {
+            hashes.push(hash_of(&per_start_copy(id)));
+        }
+        // 先頭の入れ替えは `starts` の順を変えるだけだが、`starts` は内容のハッシュに含まれるので、写しごとに違う値になる。
+        let distinct: std::collections::BTreeSet<_> =
+            hashes.iter().map(|h| h.as_str().to_owned()).collect();
+        assert_eq!(distinct.len(), hashes.len());
+    }
 }
