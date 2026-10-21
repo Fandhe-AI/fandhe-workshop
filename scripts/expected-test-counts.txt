@@ -186,6 +186,7 @@ rust|tests/ops_record.rs [ops_record]|passed=10|ignored=0
 rust|tests/pack_dir_limits.rs [pack_dir_limits]|passed=10|ignored=0
 rust|tests/pack_size_limits.rs [pack_size_limits]|passed=7|ignored=0
 rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
+rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
 rust|tests/point_click_contract.rs [point_click_contract]|passed=7|ignored=0
 rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0

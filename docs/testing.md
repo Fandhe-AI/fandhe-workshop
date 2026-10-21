@@ -6768,3 +6768,25 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 - 部分文字列の包含による近似で、語の境界は見ない。実体の引数で渡す `do`・ヒントの文面・宣言の無い章の本文は調べない（GUIDE-5。TASK-38・TASK-71）
 - `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは決めていない（今は `validate` だけ）
+
+### 5.215 実体ごとの案内レベルの引数（TASK-70 1/2。PACK-45）
+
+決定 D-55（2026-10-12）は、実体ごとの案内レベル `use.guidance` を語彙に足さないとした（GUIDE-13）。本文への引数の値の差し込み（GUIDE-15）とヒントの文面を実体ごとに変えることには決定が無い。このため #512 の受け入れ条件のうち「語彙を足す案」の側は D-55 が採っておらず、「足さない案では、現状の回避の限界の記録が文書にある」の側で満たす。語彙・診断コードは足さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_use_guidance_is_rejected_by_compile` | `use` の `guidance` が `E-PARSE` ちょうど 1 件になること |
+| 同 `pack45_use_guidance_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと（修正前は 0 件で通した。`validate` が展開の `E-PARSE` を捨てていた） |
+| 同 `pack45_use_guidance_value_is_not_echoed` | 値が診断に写らないこと |
+| 同 `pack45_hint_ids_can_differ_per_instance_but_texts_are_not_substituted` | ヒントの ID を引数で渡すと実体ごとに別のヒントが水準別に出ること、定義の文面の `${}` が残ること、IR の実体が案内レベルの欄を持たないこと |
+
+変更: `validate` の `check_module_expansion` が、読めない `use` の `E-PARSE`（`expand::INVALID_USE`）を残す。`compile` を通る教材の結果は変わらない。
+
+変異注入（実行日 2026-10-21、元にしたコミット b68aec4 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK45-1.mutation`）: PACK45-1（`validate.rs`: 読めない `use` の `E-PARSE` を捨てる）は DETECTED（`pack45_use_guidance_is_rejected_by_validate`）。
+
+限界・範囲外:
+
+- 置換後のヒント ID の `E-REF-HINT` の検査は無い。未定義の値を渡すとヒントが黙って消える。`E-HINT-HIDDEN` も `${}` のヒントを持つモジュールの Step を見ない（TASK-71 の領域）
+- `validate` が `expand_use` のほかの `E-STRUCTURE` を捨てているかは未確認
+- 本文の差し込みとヒントの文面の実体ごとの語は、決定が要る
+- `do_levels` は #513（TASK-70 2/2）
