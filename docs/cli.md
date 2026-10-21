@@ -197,7 +197,7 @@ m1,s4,step,EP-3
 - 表: 先頭はヘッダ `scope,step,kind,extension_points` で、1 行が 1 つの Step の定義である。`scope` は章・モジュールの ID、`step` は Step の ID。行の順は、章の名前の昇順、続いてモジュールの名前の昇順で、各ファイルの中は書かれた順である。呼ばれないモジュールの Step も含め、展開後の複製は数えない
 - `kind` は `step` か `use`。`use` は他モジュールの呼び出しで、`extension_points` は空にし、（i）（ii）にも数えない（展開した先の Step で数える）
 - `extension_points` は、その Step が使った拡張点の ID を半角空白でつないだもの。並びは拡張点の番号順（`EP-2` の後に `EP-13`）で、使っていなければ空
-- 数える拡張点は EP-1〜EP-9 と EP-13 である。EP-3・EP-4 は条件の欄（`next[].when`・規則と効果の `when`）の中の `param`・`clarifying` を数える。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の `guidance_levels`・開始点の `guidance` は数えない。EP-9（開始条件）は、`requires` または `unmet` を持つ開始点が指す Step（`node`）の行に、Step 単位で 1 回数える（語彙の文書が EP-9 を `starts[].requires`・`starts[].unmet` の 2 欄で定めるため、`validate` の使用の判定と同じにする）。同じ Step を指す開始点が複数あっても 1 回で、モジュールの開始点はそのモジュールの Step の行に数える。`use` の Step を指す開始点は、`use` 行の拡張点を空に保つため数えない（13 節）。`confirm.options[].label` は拡張点の番号を持たないため数えない（`pack.vocab` の宣言と使用の一致は `validate` が検査する）。決定: D-64、AUTHOR-17
+- 数える拡張点は EP-1〜EP-9 と EP-13 である。EP-3・EP-4 は条件の欄（`next[].when`・規則と効果の `when`）の中の `param`・`clarifying` を数える。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の `guidance_levels`・開始点の `guidance` は数えない。EP-9（開始条件）は、`requires` または `unmet` を持つ開始点が指す Step（`node`）の行に、Step 単位で 1 回数える（語彙の文書が EP-9 を `starts[].requires`・`starts[].unmet` の 2 欄で定めるため、`validate` の使用の判定と同じにする）。片方だけの開始点は `compile` の関門が `E-STRUCTURE` で止めるため、表は出ない（TASK-51）。同じ Step を指す開始点が複数あっても 1 回で、モジュールの開始点はそのモジュールの Step の行に数える。`use` の Step を指す開始点は、`use` 行の拡張点を空に保つため数えない（13 節）。`confirm.options[].label` は拡張点の番号を持たないため数えない（`pack.vocab` の宣言と使用の一致は `validate` が検査する）。決定: D-64、AUTHOR-17
 - 集計行は `# ` で始まる。（i）は拡張点を 1 つも使わなかった `step` 行の数、（ii）は 1 つ以上使った `step` 行の数。続けて、1 回以上使われた拡張点だけを、番号順に `# EP-n を使った Step: N` として出す
 - 教材パック全体の行（EP-10〜EP-12）は、`pack.profile`・`pack.appearance`・`pack.left_pane` を**読んだ値が既定と違う**ときだけ、末尾に番号順で出す。欄を既定と同じ値で書いても出さない。これらは Step ごとの数（i）（ii）に入れない
 - ID の欄に含まれる制御文字（改行を含む）・`,`・`"`・U+2028・U+2029、および `scope` の先頭の `#` は、`\u{XXXX}`（16 進 4 桁・大文字）に直す。1 行が 4 欄に保たれ、表の行が集計行に見えない。出力に写すのは ID・拡張点の ID・固定の欄名だけで、本文・練習データ・条件の値は写さない
@@ -259,7 +259,7 @@ m1,s4,step,EP-3
 | `author9_explicit_default_values_emit_nothing` | 既定と同じ値の明示では教材パック全体の行が出ない |
 | `author17_ep9_counted_on_start_node_row` | 開始点に `requires` を足すと、`node` の Step の行に EP-9 が付き、EP-9 の集計行が EP-8 と EP-13 の間に出る |
 | `author17_ep9_attributed_to_target_step_not_first` | EP-9 は先頭の Step ではなく開始点の指す Step の行に付く |
-| `author17_unmet_only_counts_as_ep9` | `unmet` だけでも EP-9 を数える |
+| `author17_one_sided_ep9_is_refused_by_compile_gate` | `requires` だけ・`unmet` だけの開始点は `compile` の関門で `E-STRUCTURE`（item は `start:s1`）になり、表を出さず終了コード 1 になる（TASK-51） |
 | `author17_two_starts_same_step_counted_once` | 同じ Step を指す開始点が 2 つでも 1 回 |
 | `author17_module_start_counts_on_module_row` | モジュールの開始点はそのモジュールの行に付く |
 | `author17_start_on_use_step_is_not_counted` | `use` の Step を指す開始点は数えず、出力が変わらない |

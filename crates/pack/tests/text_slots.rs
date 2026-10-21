@@ -631,7 +631,7 @@ fn pack16_needs_do_for_start_unmet() {
     t.put("workshop.yaml", MODULE_WORKSHOP.as_bytes());
     t.put(
         "chapters/c1/chapter.yaml",
-        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a, unmet: rj-wo}]\nsteps:\n    - {id: a, title: A, body: a.md, next: [{to: b}]}\n    - {id: b, title: B, final: true}\n",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a, requires: {flag: f}, unmet: rj-wo}]\nsteps:\n    - {id: a, title: A, body: a.md, next: [{to: b}]}\n    - {id: b, title: B, final: true}\n",
     );
     t.put("chapters/c1/a.md", b"# a\n");
     both_only(&t, DiagCode::SlotNeedsDo, CHAPTER_FILE, "step:a");

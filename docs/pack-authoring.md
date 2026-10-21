@@ -104,6 +104,7 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - `module` と `instance` は `[A-Za-z0-9_.-]` の短い識別子にします（`@`・`/` は使えません）。
 - `use` を持つ Step には `input` を書けません。同時に書くと `E-STRUCTURE` です（章の Step・モジュールの中の Step のどちらも）。
 - モジュールの `starts` は、実体ごとに `<実体 ID>#<開始 ID>` として展開します。置き換えるのは `effects` と `requires` だけです。
+- 開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）は、両方そろえて書きます。片方だけは `E-STRUCTURE` です。`requires: null` は省略と同じ扱いで、`unmet` だけが残ります。開始の前に、開始先の Step が属する実体の根で条件を評価します。満たすときだけ開始し、満たさない・評価できないときは開始せず `unmet` の文面を示します。状態は変わりません（TASK-51、PACK-18）
 - 展開中の経路にあるモジュールを再び呼ぶ巡回（自分を呼ぶ場合を含む）は `E-MODULE-CYCLE` です。巡回を閉じる `use` の Step に `a → b → a` の形の経路つきで付きます。モジュール名が `${名前}` に由来する場合は、引数の値を出さないため経路は付きません。
 - 入れ子は 8 段までです。9 段目の呼び出しは展開せず `E-MODULE-CYCLE` にします。これは巡回とは別の検査で、巡回しない深い入れ子にだけ効きます。未定義のモジュールは `E-REF-MODULE`、未定義の `${名前}` は `E-STRUCTURE` です。
 - 呼ばれないモジュールは IR に出ません。
@@ -376,7 +377,7 @@ views:
 - 現在のエンジンが読める語彙の上限は 1.4 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
   履歴は開きません（`vocab_newer`。VER-7）。`validate` は、上限を超える宣言を報告しません（2026-10-19 時点）
 - 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-1〜EP-9 と EP-13 を Step ごとに数えます。EP-9 は、`requires` または `unmet` を持つ開始点が指す Step の行に数え
-  （`use` の Step を指す開始点は数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
+  （`use` の Step を指す開始点は数えません。片方だけの開始点は `compile` が `E-STRUCTURE` で止めるため数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
 - `fandhe-pack vocab <pack-dir>` は、Step ごとの拡張点の使用と、既存の語彙の組み合わせだけで書けた Step の数を出します（AUTHOR-9。出力の形は
   `docs/cli.md` の 12 節）。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
   `guidance_levels` と開始点の `guidance` は数えません。`pack.profile`・`pack.appearance`・`pack.left_pane` は、既定から変えたときだけ末尾に出し、Step ごとの数に入れません。

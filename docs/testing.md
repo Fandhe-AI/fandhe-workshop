@@ -6313,3 +6313,17 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - 960px 未満の挙動は TASK-517 2/2（#699）が持つ。本件では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれる。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
 - ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（a11y の `live-in-tabpanel`）。TASK-450 が足す。a11y の `check_complete` をホストの view に掛けるのは、領域の `aria-label` が揃ってからである
 - `shell-left` にだけ `aria-label="成果物"` を付けた。右の「案内とログ」「コマンドの入力」は TERM（TASK-431・450）の担当である
+
+### 5.198 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
+
+開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
+
+- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
+- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
+- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
+- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
+
+限界・申し送り:
+
+- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
+- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
