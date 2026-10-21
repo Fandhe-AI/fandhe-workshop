@@ -121,7 +121,7 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `text` | `min`・`max`（0 以上の整数。どちらも必須） | `min` は `max` 以下 |
 | `choice` | `options`（各要素は `id`・`label`） | 1 件以上で、`id` は重複しない |
 | `ui_action` | `targets`（各要素は `view`・`path`） | 1 件以上で、どれも空でない |
-| `approval` | なし | 欄を足すと `E-PARSE` |
+| `approval` | `revise`（省略可。語彙 1.5。「承認の『直す』の候補と表示名」の節） | `revise` 以外の欄を足すと `E-PARSE` |
 | `wait`（EP-1） | なし | 欄を足すと `E-PARSE`。Step の `processing` が 1 件以上でないと `E-STRUCTURE` |
 
 `text` が判定するのは、空でないことと文字数だけです。内容の良し悪しを判定する欄は書けません（`contains` や
@@ -204,7 +204,35 @@ steps:
 - 現在のエンジンは `next` の `when` を実行時に評価せず、`when` の無い最初の辺だけをたどります。承認と差し戻しで行き先を分ける書き方はできないため、Step を一直線に並べます
 - 遷移先の `on_enter` の効果は、現在のエンジンがまだ適用しません（TASK-242）。状態変化は、規則の `outcome.effects` に前の状態に依らない形（`replace`）で書きます
 - 分けて書いた教材は、新しい語彙の版を宣言しなくても `validate` を通ります。`pack.vocab` は、使った語に合わせて書きます
-- 「直す」の誤った対象の候補と表示名の欄は、別のタスクの範囲です（PACK-42）
+- 「直す」の誤った対象の候補と表示名は、`input.revise` で宣言します（次の節。PACK-42）
+
+## 承認の「直す」の候補と表示名（`input.revise`）
+
+承認の Step で「直す」の対象を選ばせるとき、規則（`on: { approval: revise, target: X }`）に書いた対象だけをボタンにすると、
+正しい対象のボタンだけが並んで答えが見え、ボタンの文言も対象の ID のままになります。これを避けるため、承認の `input` に、
+正しい対象と誤った候補を並べる順に宣言し、表示名を付けられます（PACK-42・D-69。語彙 1.5。拡張点の番号は持ちません）。
+
+```yaml
+input:
+  kind: approval
+  revise:
+    candidates:
+      - {id: expect, label: 期待する結果}
+      - {id: reason, label: 理由}
+      - {id: scope}      # 誤った候補（規則に無い）
+rules:
+  - id: r-revise-expect
+    on: {approval: revise, target: expect}
+    outcome: {kind: accept}
+```
+
+- `candidates` は 1 件以上で、各要素は `id`（必須）と `label`（省略可）です。未知の欄・型の違いは `E-PARSE`、空の一覧・空白だけの `id`・`id` の重複・空白だけの `label` は `E-STRUCTURE` です。`label` の型は確認の選択肢の `label`（`confirm.options[].label`）と同じで、省略すると ID を表示します
+- どの候補が正しいかは宣言しません。対象つきの「直す」の規則（`on.target`）を持つ ID が正しい対象で、それ以外の候補が誤った候補です。正誤の正は規則に 1 か所だけ置きます
+- `revise` を宣言した Step では、規則の `target` がすべて候補に入っていないと `E-STRUCTURE` です。正しい対象が候補から漏れて、画面と判定が食い違うのを防ぎます。診断に候補・対象の値は写しません
+- 誤った候補を 1 件以上入れてください。入れないと、選ぶ余地がなく、答えが見えてしまいます（強制はしません）
+- モジュールの Step で `${...}` を使った宣言は、置換前の値では突き合わせず、展開後の値を `compile` が検査します
+- `revise` を書く教材は、`pack.vocab` に `1.5` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- 2026-10-21 時点では、誤った候補への拒否の文面・分類と候補の一覧を返す判定（JUDGE-11。#579）、候補のボタンの表示（TERM-28。#666）は結線されていません。誤った候補の「直す」は、既定の `not_in_this_step` の拒否になり、受付にはなりません
 
 ## 処理中の進行（`processing`）
 
@@ -416,8 +444,8 @@ views:
 
 `pack.vocab` は必ず書きます（VER-11）。省略すると、履歴には `1.0` と記録され、`validate` の一致の検査も働きません（PACK-31）。
 
-- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.4"`）。YAML では引用符で囲みます
-- 現在のエンジンが読める語彙の上限は 1.4 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
+- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.5"`）。YAML では引用符で囲みます
+- 現在のエンジンが読める語彙の上限は 1.5 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
   履歴は開きません（`vocab_newer`。VER-7）。`validate` は、上限を超える宣言を報告しません（2026-10-19 時点）
 - 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-1〜EP-9 と EP-13 を Step ごとに数えます。EP-9 は、`requires` または `unmet` を持つ開始点が指す Step の行に数え
   （`use` の Step を指す開始点は数えません。片方だけの開始点は `compile` が `E-STRUCTURE` で止めるため数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
@@ -433,12 +461,12 @@ views:
 ## `pack.vocab` の宣言と使用の一致（`E-VOCAB-MISMATCH`）
 
 宣言より新しい語彙を使う教材は、履歴の「語彙の軸」が宣言に頼るため、版違いの履歴の理由を特定できません。
-`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 5）。
+`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 7）。
 
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）です。
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）です。
   値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
@@ -504,6 +532,7 @@ views:
 | `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
 | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` | 選んだ値の差し込みの語が無いこと（差し込みらしい欄が `E-PARSE`、受講者の値の枠が `E-SLOT-UNKNOWN`、章の `${}` が文字のまま、値が世界状態に入らない）と、列挙・固定値の属性の回避が書けて、列挙にない値が拒否されること（PACK-39・D-50） |
 | `crates/pack/tests/approval_revise_split.rs` の `pack32_` | 差し戻しの Step と再承認の Step を分けた教材が、語彙の版を足さずに `validate` を通ること、承認の `input` が欄なしのままであること、core で差し戻し → 再承認の順に進み早すぎる承認ともう一度の差し戻しが拒否されること、1 Step で再承認を表す欄が `E-PARSE` になること（PACK-32・D-69） |
+| `crates/pack/tests/approval_revise_candidates.rs` の `pack42_` | 「直す」の候補と表示名の宣言が `validate`・`compile` を通り IR に宣言のまま出ること、型の誤りが `E-PARSE`・意味の制約と規則の `target` の漏れが `E-STRUCTURE` で値を写さないこと、1.4 の宣言が `E-VOCAB-MISMATCH` になること、core で正しい対象の「直す」だけが受付になること、モジュールの置換後に検査されること（PACK-42・D-69）。変異は PACK42-1〜PACK42-3 |
 | `crates/core/tests/version_histories.rs` の `fifteen_histories_match_the_fixed_expectations` | 副版で Step を足すと先へ進んだ履歴が `replay_diverged`・手前の履歴が変換になること、主版が違えば位置によらず `content_major` で表示だけになること（VER-5・VER-6・VER-18） |
 | `crates/core/tests/version_record.rs` の `t2_default_vocab_record`・`t6_fail_closed` | `pack.vocab` の省略が `1.0` で記録されること、読めない `pack.version` で記録を作らないこと |
 | `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-13）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |

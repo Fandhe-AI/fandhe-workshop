@@ -1,0 +1,8 @@
+# revise-candidates-pack（形式 B）。承認の「直す」の誤った対象の候補と表示名（PACK-42・D-69）の試験用。架空の内容だけを持つ。
+pack: {id: revise-candidates-pack, title: 直す対象の候補, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.5'}
+views:
+  v-cards: {kind: card_list}
+rejections:
+  rj-default: {category: not_in_this_step, message: この Step では、その操作は使いません。, next_action: 今の Step の目的を読み直します。}
+defaults:
+  not_in_this_step: rj-default

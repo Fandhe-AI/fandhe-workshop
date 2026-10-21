@@ -6493,3 +6493,26 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 - 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
 - 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2。本件の `?fixture=ch0-3-links` を使える
 - 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
+
+### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
+
+対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_2`）。
+
+確かめること:
+
+- 候補 3 件（表示名つき 2 件・省略 1 件）の宣言が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言の順・値のまま出ること
+- 空の候補・空白だけの `id`・`id` の重複・空白だけの `label` が `E-STRUCTURE`、未知の欄・型の違いが `E-PARSE` になること
+- 規則の `target` が候補に無いと `E-STRUCTURE`、候補に入れた対象は通ること。診断に候補・`label`・`target` の値が出ないこと
+- `pack.vocab` が 1.4 で `revise` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと。`choice` の `revise` は語彙の語に数えないこと
+- core の `Session` で、正しい対象の「直す」だけが受付になり、誤った候補・宣言に無い対象・対象なしは受付にならず Step が進まないこと（拒否の文面・分類は判定の持ち分で固定しない）
+- モジュールの Step の規則の `target` に `${...}` を使うと、置換前の値では誤検出せず、展開後の値を `compile` が検査すること
+
+変異（`crates/pack/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK42-1 | 候補の ID の重複の検査を外す | `revise_check_reports_each_violation` |
+| PACK42-2 | `input.revise` を使用と数える判定を常に偽にする | `pack42_older_vocab_declaration_is_a_mismatch` |
+| PACK42-3 | 規則の `target` と候補の突き合わせを外す | `pack42_rule_target_must_be_a_declared_candidate` |
+
+語彙の上限は 1.5 になった（5.1xx の「上限は 1.4」は当時の記録で、書き換えない）。版の上限を前提にする試験（`history_open.rs` の `ver7_`・`vocabulary_terms.rs`）は 1.5 に追従した。
