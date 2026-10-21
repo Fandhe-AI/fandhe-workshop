@@ -12,6 +12,10 @@
 //   (6) 再読み込みの後の B の操作（選択で st-3 へ）は保存される（陽性の対照）。
 //   (7) A を `pagehide` つきで閉じても、保存値は変わらない。
 //   (8) B をもう一度再読み込みすると、st-3 が復元される。
+// 古いタブの画面の通知（TASK-325 1/2。SAVE-13・SHELL-23・D-56）も同じ流れで確かめる。
+//   (1) の後 A の `stale-notice` は空、(2) の後 B のそれも空（出ない側の対照）。(3) の後 A のそれは空でなくなり、
+//   保存失敗の `save-notice` は空のまま、B のそれは空のままである。(5) の後も A の通知は消えない。
+//   文面は仮置きのため、文そのものは固定せず「空でない」だけを確かめる。
 // 照合と書き込みの間の競合の窓は対象外（逐次の場面だけを確かめる。docs/known-gaps.md の SAVE-12）。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。CSP あり・なしの両方で流す。
@@ -46,6 +50,8 @@ after(async () => {
 
 const engine = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
 const keyOf = (page) => page.evaluate(([p, s]) => window.__fandheTest.storageKey(p, s), [PACK, START]);
+const staleNotice = (page) => page.textContent('[data-testid="stale-notice"]');
+const saveNotice = (page) => page.textContent('[data-testid="save-notice"]');
 const stale = (page) => page.evaluate(() => window.__fandheTest.stale());
 
 // 保存値の長さと簡易の digest（値そのものは返さない）。無ければ null。
@@ -129,6 +135,7 @@ for (const csp of [true, false]) {
       await sendStep(a);
       assert.notEqual(await saved(a, key), null, 'A saved its first change');
       assert.equal(await stale(a), false);
+      assert.equal(await staleNotice(a), '', 'A has no stale notice before being overtaken');
 
       // (2) B を開いて 1 手を送り、確認して st-2 へ進める（陽性の対照）。
       const b = await secondTab(context, srv.url);
@@ -139,6 +146,7 @@ for (const csp of [true, false]) {
       const dB = await waitSavedChange(b, key, beforeB);
       assert.notDeepEqual(dB, beforeB, 'B wrote to the store');
       assert.equal(await stale(b), false);
+      assert.equal(await staleNotice(b), '', 'B (the newer tab) has no stale notice');
       await idle(b);
       const bSnap = await snapshot(b);
 
@@ -151,6 +159,9 @@ for (const csp of [true, false]) {
       assert.deepEqual(await saved(b, key), dB, 'A did not overwrite the newer tab');
       assert.equal(await stale(a), true);
       assert.equal(await stale(b), false);
+      await a.waitForFunction(() => document.querySelector('[data-testid="stale-notice"]')?.textContent !== '');
+      assert.equal(await saveNotice(a), '', 'the stale notice is not a save-failure notice');
+      assert.equal(await staleNotice(b), '', 'B still has no stale notice');
 
       // (4) B を再読み込みすると B の操作が戻る。
       await b.reload();
@@ -166,6 +177,7 @@ for (const csp of [true, false]) {
       assert.deepEqual(await saved(b, key), dR, 'A still did not overwrite after the reload');
       assert.equal(await stale(a), true);
       assert.equal(await stale(b), false);
+      assert.notEqual(await staleNotice(a), '', 'the stale notice stays on A');
 
       // (6) 再読み込みの後の B の操作は保存される（陽性の対照）。
       await b.click(CHOICE);

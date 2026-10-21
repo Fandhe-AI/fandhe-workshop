@@ -1,0 +1,8 @@
+id: SAVE13-1
+package: fandhe-workshop-web
+test: stale_notice
+target: crates/web/src/host.rs
+find:         self.refresh_stale(); // 保存の試み（照合）の後に求める
+replace:         // self.refresh_stale();
+expect-fail: 追い越された古いタブだけが_同じ_update_で通知を出し_保存失敗の通知は空のまま
+note: update の末尾で古いタブかを求めないと、通知が出ない

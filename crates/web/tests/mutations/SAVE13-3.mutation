@@ -1,0 +1,8 @@
+id: SAVE13-3
+package: fandhe-workshop-web
+test: stale_notice
+target: crates/web/src/host.rs
+find:         if self.model.stale_tab {
+replace:         if false {
+expect-fail: 出た通知は消えず_dirty_にも再び積まれない
+note: 一度立てた後も dirty に積み直すと、再描画が毎回起きる
