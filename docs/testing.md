@@ -6310,6 +6310,33 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 
 限界・申し送り:
 
-- 960px 未満の挙動は TASK-517 2/2（#699）が持つ。本件では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれる。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
+- 960px 未満の挙動は TASK-517 2/2（#699。5.199）が持つ。本件の時点では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれていた。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
 - ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（a11y の `live-in-tabpanel`）。TASK-450 が足す。a11y の `check_complete` をホストの view に掛けるのは、領域の `aria-label` が揃ってからである
 - `shell-left` にだけ `aria-label="成果物"` を付けた。右の「案内とログ」「コマンドの入力」は TERM（TASK-431・450）の担当である
+
+### 5.199 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
+
+幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
+
+要点:
+
+- 選択は表示の状態で、`ops`・履歴・保存先には書かない。再読み込みで既定（操作）に戻り、Step が変わっても捨てない。切り替えは保存を起こさない
+- `aria-selected`・`tabindex` は束縛では書けない（a11y 版 2）ので、`tablist` を keyed list にした。項目の root を `button[role=tab]` そのものにして、子の作り直しでフォーカスが失われないようにした。tabpanel と `.sh-panes` は静的なまま描き直さない（要素の同一性。FEND-3）
+- キーの action の `data-keys` に Esc を含める。keydown の属性は最も近い 1 つにしか届かず、含めないと tab にフォーカスがある Esc が root の Esc に届かず 0 回になる（FEND-6）。`data-keydown-prevent-default` は Esc にも掛かるが、ボタンの上の Esc に既定の動作は無い。Home・End はこれが無いとページを先頭・末尾へ動かす
+- 境目は 960px 以上の規則と補い合う `not all and (min-width: 960px)` にした（`max-width: 959px` だと小数の幅に穴が空く）。`hidden`・`aria-hidden` は 960px 以上で両方を見せる必要があるため使わない
+- 受け付けない payload は `None`（fail-closed）。`select-pane` は `PaneTab::id` の完全一致だけ、`pane-key` は矢印・Home・End・Escape だけを受ける
+
+試験:
+
+- Rust: `crates/web/tests/shell_frame_host.rs`（16 件。本件で 7 件追加）。keyed list の親・`data-pane`・キーの属性・項目の root、選択と dirty（`pane_tabs` だけ。同じ値では空）、`a11y::tab_key_target` に沿った巡回、`pane_tabs` が `data-bind-list` にあること、`decode_action` の許可と拒否、切り替えが Session に触れないこと、CSS の規則。`dirty_binding_points.rs` は `pane_tabs` を dirty にする列（`run_pane`）を足し、`no_hidden_triggers.rs` は `shell_frame.rs` の `data-payload` の使用を許可の表に足した
+- ブラウザ: `tools/browser/shell-tabs.test.mjs`（9 件）は 959px・360px で、tablist の表示・tab の大きさ（24px 以上）・既定は操作だけが見えること、クリック、矢印・Home・End（`keydown` の `defaultPrevented`）、Alt+ArrowRight で変わらない対照、試験の設定で tab にフォーカスがある Esc が `escCount` でちょうど 1 回であること、959px→960px→959px の境目を確かめる。`tools/browser/shell-widths.test.mjs`（4 件）は 1280px・960px・959px・360px で CH-0 から CH-1 の 6 Step（`main/st-1-1`〜`st-1-6`）を通して `main/st-2-1` に入るまで進める。960px 未満では操作の前に要るタブをクリックし、959px・360px で 6 回切り替えた。台帳は 4 幅とも 30/30。`shell-columns.test.mjs` の 959px の対照は、隠れた側の矩形が 0 になって空振りで通る「縦に積む」の判定をやめ、見える領域がちょうど 1 つであることに直した
+- 変異: SHELL1-4（`find` を新しい行に合わせた）・SHELL1-6（矢印・Home・End が修飾キーつきとして扱われる）・SHELL1-7（Escape を root の Esc に結ばない）・SHELL1-8（操作を選んだときに成果物の領域が隠れない）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
+- `make test-browser`: 807 件のうち 805 件が通った（2026-10-21）。失敗 2 件の内訳は、`tick-dispatch`（`data-payload` を持つ要素を指せる行だけに限っていた検査に `select-pane` を許可して直した。修正後に単独で通過）と、`secret-scan-time` の dense（10MB の保存の p95。単独で再実行すると通過し、p95 は 287ms で、全件を流している間の負荷による揺れと見ている。推測）である。修正後の全件の流し直しは未実施である。`esc-once` の 1 件も 1 回目の全件実行で失敗したが、単独の再実行では 22 件とも通った（再現せず）
+
+限界・申し送り:
+
+- キーで切り替えてもフォーカスは移さない（押したタブに残る）。glue の操作は 7 種に閉じており（FEND-20）、フォーカスの置き方は A11Y-21 が未決のためである。`a11y.rs` の `tab_key_target` の doc の「フォーカスも移す」との差が残る（`docs/known-gaps.md`）
+- 既定のタブと Step をまたぐ保持は仮置きである（SHELL-2 が未決）。変化があった側の印は SHELL-5 の担当である
+- CH-1 から始める直接リンクが無い（TASK-109）ため、CH-1 の 6 Step は CH-0 から通して確かめた
+- 360px の横スクロールと 24px 未満の操作対象は TASK-518・TASK-368 の担当で、assert せず `shell-widths` の diagnostic に件数だけを残す（2026-10-21 の実測は、横スクロール 0px・24px 未満の対象 1 件。4 幅とも同じ）
+- 960px 以上で tabpanel の役割が 2 つ残ることの読み上げは A11Y-21 の担当である。右の領域の `aria-label` とライブの欄（tabpanel の外に置く）は TASK-450 の担当である

@@ -1,0 +1,8 @@
+id: SHELL1-6
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/src/host.rs
+find: PaneTab::ALL.len(), KeyModifiers::default())
+replace: PaneTab::ALL.len(), KeyModifiers { alt: true, ..KeyModifiers::default() })
+expect-fail: pane_key_follows_tab_key_target
+note: 矢印・Home・End が修飾キーつきとして扱われ、選択が動かない（A11Y-5・TASK-517 2/2）

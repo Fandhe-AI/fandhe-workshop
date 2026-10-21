@@ -1,8 +1,8 @@
 // 画面の枠の 2 列の骨格の試験（SHELL-1。TASK-517 1/2）。
 //
 // 配信する設定の web をサブパスで配り、幅 1280px と 960px で成果物（shell-left）と操作（shell-right）が横に並んで同時に見え、
-// tablist（pane-tabs）が隠れることを確かめる。対照として 959px では tablist が見え、2 つの領域が横に並ばない。
-// 960px 未満で片方だけを表示する挙動と切り替えは TASK-517 2/2 の担当で、ここでは確かめない。
+// tablist（pane-tabs）が隠れることを確かめる。対照として 959px では tablist が見え、見える領域がちょうど 1 つで
+// 横に並ばない。切り替えの操作は shell-tabs（TASK-517 2/2）の担当で、ここでは確かめない。
 //
 // 入力: 環境変数 FANDHE_WEB_DIR（tools/build-web.sh が出力した配信設定のディレクトリ）。未設定・不在は失敗にする。
 import { test, before, after } from 'node:test';
@@ -69,7 +69,7 @@ for (const width of [1280, 960]) {
   });
 }
 
-test('対照: 幅 959px では tablist が見え、2 つの領域は横に並ばない', async () => {
+test('対照: 幅 959px では tablist が見え、見える領域はちょうど 1 つ', async () => {
   await withServer({ dir: process.env.FANDHE_WEB_DIR, base: BASE }, async (srv) => {
     const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 959, height: 800 } });
     await page.goto(srv.url);
@@ -78,7 +78,9 @@ test('対照: 幅 959px では tablist が見え、2 つの領域は横に並ば
     assert.ok(m.left && m.right && m.tabs, JSON.stringify(m));
     assert.notEqual(m.tabs.display, 'none');
     assert.ok(m.tabs.width > 0 && m.tabs.height > 0, 'pane-tabs must be visible');
-    assert.ok(m.right.top >= m.left.bottom - 0.5, `panes must be stacked: ${JSON.stringify(m)}`);
+    // 選ばれていない領域は display: none で矩形が 0 になるため、「縦に積む」の判定は空振りで通る。見える領域の数で見る。
+    const shown = [m.left, m.right].filter((b) => b.display !== 'none' && b.width > 0 && b.height > 0);
+    assert.equal(shown.length, 1, `exactly one pane must be visible: ${JSON.stringify(m)}`);
     await context.close();
   });
 });

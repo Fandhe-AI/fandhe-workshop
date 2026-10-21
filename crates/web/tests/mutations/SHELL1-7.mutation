@@ -1,0 +1,8 @@
+id: SHELL1-7
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/src/host.rs
+find: return Some(HostAction::Input(HelloAction::Esc));
+replace: return None;
+expect-fail: decode_pane_actions
+note: tablist の上の Escape が root の Esc に結ばれず、タブにフォーカスがある Esc が 0 回になる（FEND-6・TASK-517 2/2）

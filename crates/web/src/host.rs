@@ -85,6 +85,7 @@ use fandhe_workshop_core::version_record::record_versions_with;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
+use crate::a11y::{self, KeyModifiers, PaneTab, TabKey};
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
 use crate::artifact_view::{PointTarget, POINT_ACTION};
@@ -97,6 +98,7 @@ use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
+use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
@@ -204,6 +206,10 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
+    /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
+    SelectPane(PaneTab),
+    /// tablist の上の矢印・Home・End（`pane-key`。TASK-517 2/2）。選択の移り先は `a11y::tab_key_target` が決める。
+    PaneKey(TabKey),
     /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
     /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
     SaveResult(u64, Option<StorageError>),
@@ -556,6 +562,8 @@ pub struct EngineHost {
     registry: PartRegistry<HostModel>,
     /// 既存の入力欄。
     input: HelloView,
+    /// 960px 未満で見せる領域（TASK-517 2/2）。表示の状態で、履歴・保存先には書かず、Step が変わっても捨てない。
+    pane: PaneTab,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -662,6 +670,7 @@ impl EngineHost {
             },
             registry: standard_registry(),
             input: HelloView::new(),
+            pane: PaneTab::Ops,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -723,7 +732,10 @@ impl EngineHost {
         session: Session,
         registry: PartRegistry<HostModel>,
     ) -> Result<Self, HostError> {
-        if let Some(f) = registry.fields().find(|f| HELLO_FIELDS.contains(&f.name)) {
+        if let Some(f) = registry
+            .fields()
+            .find(|f| HELLO_FIELDS.contains(&f.name) || f.name == PANE_TABS_FIELD.name)
+        {
             return Err(HostError::FieldCollision(f.name));
         }
         let mut input = HelloView::new();
@@ -747,6 +759,7 @@ impl EngineHost {
             },
             registry,
             input,
+            pane: PaneTab::Ops,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1812,6 +1825,14 @@ impl EngineHost {
         self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
     }
 
+    /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    fn select_pane(&mut self, tab: PaneTab) {
+        if self.pane != tab {
+            self.pane = tab;
+            self.dirty.push(PANE_TABS_FIELD.name);
+        }
+    }
+
     /// 処理中の Step があるか（Esc・停止ボタンが停止を送るかの判断に使う）。
     fn is_busy(&self) -> bool {
         self.model
@@ -1972,6 +1993,18 @@ impl Component for EngineHost {
                 self.apply_engine(op);
             }
             HostAction::SelectView(kind) => self.select_view(kind),
+            HostAction::SelectPane(tab) => self.select_pane(tab),
+            HostAction::PaneKey(key) => {
+                let current = PaneTab::ALL.iter().position(|t| *t == self.pane);
+                let target = current
+                    .and_then(|c| {
+                        a11y::tab_key_target(key, c, PaneTab::ALL.len(), KeyModifiers::default())
+                    })
+                    .and_then(|i| PaneTab::ALL.get(i).copied());
+                if let Some(tab) = target {
+                    self.select_pane(tab);
+                }
+            }
             #[cfg(feature = "test-hooks")]
             HostAction::Reload => self.reload_engine(),
             #[cfg(feature = "test-hooks")]
@@ -2079,7 +2112,7 @@ impl Component for EngineHost {
             }
         }
         let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
-        let [tablist, panes] = crate::shell_frame::frame(left, right);
+        let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         let mut children = vec![tablist, panes];
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
@@ -2152,6 +2185,17 @@ impl Component for EngineHost {
             .map(HostAction::Engine);
         }
         // ビューの選択（TASK-470）。payload は種類の綴りの完全一致だけ。宣言に含まれるかは `update` が照合する。
+        // タブのクリック（TASK-517 2/2）。payload は `PaneTab::id` の完全一致だけで、引けなければ何もしない。
+        if name == ACTION_SELECT_PANE {
+            return pane_from_payload(payload).map(HostAction::SelectPane);
+        }
+        // tablist の上のキー。Esc は root の Esc と同じ経路（`HelloAction::Esc`）へ渡し、他は矢印・Home・End だけを受ける。
+        if name == ACTION_PANE_KEY {
+            if payload == crate::action::ESC_KEY_TOKEN {
+                return Some(HostAction::Input(HelloAction::Esc));
+            }
+            return TabKey::from_key(payload).map(HostAction::PaneKey);
+        }
         if name == view_select::ACTION_SELECT_VIEW {
             return ViewKind::parse(payload).map(HostAction::SelectView);
         }

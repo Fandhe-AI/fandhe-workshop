@@ -9,12 +9,15 @@ use fandhe_frontend_core::Node;
 use fandhe_workshop_core::input::Op;
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
+use fandhe_workshop_web::a11y::TabKey;
 use fandhe_workshop_web::a11y::{self, PaneTab};
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
-use fandhe_workshop_web::parts::{Component, PartKind};
+use fandhe_workshop_web::parts::{Component, DirtyTracked, PartKind};
 use fandhe_workshop_web::shell::{self, PaneMount};
-use fandhe_workshop_web::shell_frame::{pane_of, PANES_CLASS};
+use fandhe_workshop_web::shell_frame::{
+    pane_from_payload, pane_of, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANES_CLASS, PANE_TABS_FIELD,
+};
 use serde_json::Value;
 
 const APP_CSS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/static/app.css"));
@@ -192,8 +195,10 @@ fn pane_of_table_is_fixed() {
 fn css_has_two_columns_and_hides_tabs_from_960px() {
     assert!(APP_CSS.contains("@media (min-width: 960px)"));
     let start = APP_CSS.find("@media (min-width: 960px)").unwrap();
-    // 枠の節の最後の規則が @media なので、そこから末尾までを見る。
-    let block = &APP_CSS[start..];
+    // 960px 以上の節だけを見る（次の @media の前まで）。
+    let rest = &APP_CSS[start + 1..];
+    let end = rest.find("@media").map_or(APP_CSS.len(), |i| start + 1 + i);
+    let block = &APP_CSS[start..end];
     assert!(block.contains("[data-testid=\"pane-tabs\"]"));
     assert!(block.contains("display: none"));
     assert!(block.contains(&format!(".{PANES_CLASS}")));
@@ -213,4 +218,156 @@ fn root_keeps_esc_keydown_attrs_and_container_has_no_testid() {
         .find(|c| attr(c, "class") == Some(PANES_CLASS))
         .expect("panes container");
     assert_eq!(attr(panes, "data-testid"), None);
+}
+
+fn selected_tabs(v: &Node) -> Vec<&str> {
+    find(v, "pane-tab")
+        .iter()
+        .filter(|t| attr(t, "aria-selected") == Some("true"))
+        .map(|t| attr(t, "id").unwrap())
+        .collect()
+}
+
+fn dirty_of(h: &EngineHost) -> Vec<&'static str> {
+    h.dirty_fields().to_vec()
+}
+
+#[test]
+fn tablist_is_keyed_list_before_panes() {
+    let h = EngineHost::new();
+    let v = h.view();
+    let list = find(&v, "pane-tabs")[0];
+    assert_eq!(attr(list, "data-bind-list"), Some(PANE_TABS_FIELD.name));
+    assert_eq!(attr(list, "data-pane"), Some("ops"));
+    assert_eq!(attr(list, "data-action-keydown"), Some(ACTION_PANE_KEY));
+    assert!(attr(list, "data-keys").unwrap().contains("Escape"));
+    assert_eq!(attr(list, "data-keydown-prevent-default"), Some(""));
+    // 項目の root が button[role=tab] そのもの（フォーカスを保つため li で包まない）。
+    for t in find(list, "pane-tab") {
+        assert_eq!(tag(t), "button");
+        assert_eq!(attr(t, "role"), Some("tab"));
+    }
+    let kids = children(&v);
+    let i = kids
+        .iter()
+        .position(|c| attr(c, "data-testid") == Some("pane-tabs"))
+        .unwrap();
+    assert_eq!(attr(&kids[i + 1], "class"), Some(PANES_CLASS));
+}
+
+#[test]
+fn select_pane_switches_selection_and_dirty() {
+    let mut h = EngineHost::new();
+    h.update(HostAction::SelectPane(PaneTab::Artifacts));
+    assert_eq!(dirty_of(&h), vec!["pane_tabs"]);
+    let v = h.view();
+    assert_eq!(
+        attr(find(&v, "pane-tabs")[0], "data-pane"),
+        Some("artifacts")
+    );
+    assert_eq!(selected_tabs(&v), vec![PaneTab::Artifacts.tab_id()]);
+    for t in find(&v, "pane-tab") {
+        let on = attr(t, "aria-selected") == Some("true");
+        assert_eq!(attr(t, "tabindex"), Some(if on { "0" } else { "-1" }));
+    }
+    assert_frame_ok(&v);
+    h.update(HostAction::SelectPane(PaneTab::Artifacts));
+    assert!(dirty_of(&h).is_empty());
+}
+
+#[test]
+fn pane_key_follows_tab_key_target() {
+    let mut h = EngineHost::new();
+    let steps = [
+        (TabKey::ArrowRight, PaneTab::Artifacts),
+        (TabKey::ArrowRight, PaneTab::Ops),
+        (TabKey::ArrowLeft, PaneTab::Artifacts),
+        (TabKey::Home, PaneTab::Ops),
+        (TabKey::End, PaneTab::Artifacts),
+    ];
+    for (k, want) in steps {
+        h.update(HostAction::PaneKey(k));
+        let v = h.view();
+        assert_eq!(selected_tabs(&v), vec![want.tab_id()], "{k:?}");
+        assert_frame_ok(&v);
+    }
+}
+
+#[test]
+fn dirty_pane_field_is_a_bind_list() {
+    let h = EngineHost::new();
+    let v = h.view();
+    let mut lists = Vec::new();
+    collect_bind_lists(&v, &mut lists);
+    assert!(lists.contains(&PANE_TABS_FIELD.name.to_owned()));
+}
+
+fn collect_bind_lists(n: &Node, out: &mut Vec<String>) {
+    if let Some(l) = attr(n, "data-bind-list") {
+        out.push(l.to_owned());
+    }
+    for c in children(n) {
+        collect_bind_lists(c, out);
+    }
+}
+
+#[test]
+fn decode_pane_actions() {
+    assert!(matches!(
+        EngineHost::decode_action(ACTION_SELECT_PANE, "ops"),
+        Some(HostAction::SelectPane(PaneTab::Ops))
+    ));
+    assert!(matches!(
+        EngineHost::decode_action(ACTION_SELECT_PANE, "artifacts"),
+        Some(HostAction::SelectPane(PaneTab::Artifacts))
+    ));
+    for bad in ["", "Ops", "ops ", "other"] {
+        assert!(
+            EngineHost::decode_action(ACTION_SELECT_PANE, bad).is_none(),
+            "{bad:?}"
+        );
+        assert!(pane_from_payload(bad).is_none());
+    }
+    assert!(matches!(
+        EngineHost::decode_action(ACTION_PANE_KEY, "Escape"),
+        Some(HostAction::Input(_))
+    ));
+    for (k, want) in [
+        ("ArrowLeft", TabKey::ArrowLeft),
+        ("ArrowRight", TabKey::ArrowRight),
+        ("Home", TabKey::Home),
+        ("End", TabKey::End),
+    ] {
+        match EngineHost::decode_action(ACTION_PANE_KEY, k) {
+            Some(HostAction::PaneKey(got)) => assert_eq!(got, want),
+            other => panic!("{k}: {other:?}"),
+        }
+    }
+    for k in ["Enter", " ", "Tab", ""] {
+        assert!(
+            EngineHost::decode_action(ACTION_PANE_KEY, k).is_none(),
+            "{k:?}"
+        );
+    }
+}
+
+#[test]
+fn selection_does_not_touch_the_session() {
+    let mut h = host_of(testdata().join("engine-event-consistency/test-data/min-3step.json"));
+    let before = h.model().session().map(|s| s.state().clone());
+    h.update(HostAction::SelectPane(PaneTab::Artifacts));
+    h.update(HostAction::PaneKey(TabKey::Home));
+    let after = h.model().session().map(|s| s.state().clone());
+    assert_eq!(before, after);
+}
+
+#[test]
+fn css_hides_unselected_pane_below_960px() {
+    let start = APP_CSS
+        .find("@media not all and (min-width: 960px)")
+        .unwrap();
+    let block = &APP_CSS[start..];
+    assert!(block.contains("[data-pane=\"ops\"] ~ .sh-panes > #pane-artifacts"));
+    assert!(block.contains("[data-pane=\"artifacts\"] ~ .sh-panes > #pane-ops"));
+    assert!(block.contains("display: none"));
 }
