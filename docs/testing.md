@@ -6682,3 +6682,8 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 2026-10-21 に呼び出しを手で外して確かめ、`answer_label_required` の 9 件のうち 7 件が失敗し、戻すと全件通った（`make check-mutations` は流していない）。
 
 範囲外: `fandhe-pack validate` の CLI からの終了コードの確認（本体は TASK-403。ここでは `diag::exit_code` で代えた）。`compile` だけを通した IR では `label` の無い選択肢が ID のまま出る（`docs/pack-authoring.md` に明記した）。置換後に `label` が空になる場合は扱わない。
+
+TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての選択肢に `label` を付ける案は、D-67（2026-10-21）が採らなかった。そのため、教材側の規約と、全 Step の画面で選択肢に ID の文字列が出る件数を数える試験は、この repo では足さない。結論: 変更なし（Rust・試験・試験の件数のいずれも変えない）。
+
+- `label` の無い教材パックは `validate` が止めるため、検査を通った教材パックで選択肢が ID のまま画面に出る経路は無い（PACK-37・TERM-25）。例外は `compile` だけを通した IR で、`docs/pack-authoring.md` に記載済みである
+- `st-1-4`・`st-2-7` の画面で表示名が出ることの確認は、TERM-25（画面のタスク TASK-446）と INTRO-18（教材のタスク）が担う。教材パックは教材 repo にあり、この repo の `testdata/` の spec の写しは D-67 の前の形（`label` 無し）のまま残す
