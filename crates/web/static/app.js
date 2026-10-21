@@ -6,7 +6,8 @@ const root = document.documentElement;
 
 try {
   await init();
-  await mount_app("app");
+  // OS の推定（修飾キーの表示。D-48）のため、ブラウザの User-Agent を渡す。Rust 側はブラウザの値を読まない。
+  await mount_app("app", navigator.userAgent ?? "");
   if (document.querySelector('meta[name="fandhe-test-hooks"]')) {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;

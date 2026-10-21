@@ -681,8 +681,9 @@ pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::
 ///
 /// 保存済みの履歴の読み込みは非同期のため、保存先が準備できてから起動の分岐を行いマウントする（`persist`、TASK-319）。
 /// `static/app.js` が `await` し、`data-mounted` はその完了後に立てる。要素が無い場合、イベント配線に失敗した場合、
-/// すでにマウント済みの場合は拒否する。
+/// すでにマウント済みの場合は拒否する。`user_agent` は `static/app.js` が `navigator.userAgent` を読んで渡す値で、
+/// 修飾キーの表示のための OS の推定にだけ使う（D-48・JUDGE-28。Rust 側はブラウザの値を読まない）。
 #[wasm_bindgen]
-pub fn mount_app(root_id: &str) -> js_sys::Promise {
-    crate::persist::mount_with_history(root_id)
+pub fn mount_app(root_id: &str, user_agent: &str) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id, user_agent)
 }

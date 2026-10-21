@@ -1,0 +1,8 @@
+id: JUDGE28-2
+package: fandhe-workshop-web
+test: modifier_key_hint
+target: crates/web/src/modifier_key.rs
+find:         LearnerOs::Mac => Some("Cmd"),
+replace:         LearnerOs::Mac => Some("Ctrl"),
+expect-fail: 修飾キーの語は_os_ごとに合う
+note: Mac の修飾キーの語を Ctrl に取り違える（Mac の受講者に Windows の語を出す。JUDGE-28）

@@ -5990,3 +5990,33 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 - 関門は `run` と `entry` だけを戻す。`checkpoints`・`next_checkpoint`・`drafts`・`hints_opened` は `Op::Input` の経路が書かない欄で、戻さず、性質テストの一致の検査だけで守る
 - 関門の行そのものへの変異は、統合試験だけを対象にする `check-mutations.sh` では記録できない
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
+
+### 5.190 推定した OS ごとの修飾キーの表示（TASK-285 1/2。JUDGE-28・D-48）
+
+案内文に出す修飾キー（Cmd／Ctrl）を、ブラウザの User-Agent からの推定で出し分ける機構の試験である（2026-10-21）。受講者が選ぶ欄と選んだときの切り替えは TASK-285 2/2（#588）が足す。
+
+- 方式: `static/app.js` が `navigator.userAgent` を `mount_app(root_id, user_agent)` の第 2 引数で渡す。Rust 側（`persist::mount_with_history`）が core の `learner_os::estimate` で `LearnerOs` を求め、`EngineHost::set_learner_os` で入力欄の表示（`key_hint` の束縛点）に渡す。Rust 側はブラウザの値を読まず、web-sys の feature は増えない（24 個のまま）。`glue.rs` のコード行も増えない。OS は表示だけの値で、`Session`・履歴には入れない
+- 推定の規則: `Windows` を含めば `Windows`、`Macintosh` か `Mac OS` を含めば `Mac`（iPhone・iPad の UA を含む）、それ以外は `Unknown`。`Unknown` は修飾キーを出さない（Ctrl に倒さない）。UA-CH（`userAgentData`）は扱わない
+- 表示: 入力欄の下の `[data-testid="key-hint"]`。Mac は「貼り付け: Cmd+V」、Windows は「貼り付け: Ctrl+V」、`Unknown` は空。入力欄なしの教材では出さない。`role`・`aria-*` は付けない
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/learner_os.rs` | Windows の Chrome・Edge、macOS の Chrome・Safari、iPhone、Linux・Android・ChromeOS・空文字・無関係な文字列、64 KiB の文字列と制御文字・非 ASCII（落ちない） |
+| `crates/web/tests/modifier_key_hint.rs` | 修飾キーの語と案内文、ホストへ渡した OS が束縛値と描画に届くこと、dirty を立てないこと、`role`・`aria-*` が無いこと |
+| `hello.rs` の単体試験 | OS ごとの文言と、入力欄なしで 0 件 |
+| `tools/browser/modifier-key-hint.test.mjs` | `openPage` の `userAgent` で Windows・macOS・Linux の UA を与え、CSP あり・なしで案内の文字が合うこと、`?fixture=no-input` で 0 件、安全性の計数が 0 |
+
+変異注入（実行日 2026-10-21、元にしたコミット 075246a の作業ツリー）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| JUDGE28-1 | `learner_os.rs`: Windows の判定の分岐を外す | DETECTED（`windows_の_ua_は_windows` ほか） |
+| JUDGE28-2 | `modifier_key.rs`: Mac の語を Ctrl に取り違える | DETECTED（`修飾キーの語は_os_ごとに合う`） |
+
+限界・未実施:
+
+- 推定が外れたときに受講者が選択欄で直せるかの確認、Windows の実機・人の目での表示の確認は未実施（自動試験は UA の差し替えで macOS・Windows・Linux を模擬するだけである）
+- 受講者が選ぶ欄、`Unknown` のときに選ぶよう促す文言、mount 後の切り替え（`key_hint` の dirty）は TASK-285 2/2（#588）
+- 操作プロファイルの説明への適用と OS によらない操作の試験は TASK-392、右の案内文への結線の確認は TASK-456
+- `dirty_binding_points.rs` の「一度は dirty になる」の検査からは `key_hint` を除いた（mount の前の設定だけで、操作では変わらないため。#588 で外す）
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）

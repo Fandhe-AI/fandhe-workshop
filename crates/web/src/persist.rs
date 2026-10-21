@@ -27,6 +27,7 @@
 use std::cell::RefCell;
 
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, HistoryStore, StorageError};
+use fandhe_workshop_core::learner_os::estimate;
 use wasm_bindgen::JsValue;
 
 use crate::boot_guard::{BootGuard, Guarded};
@@ -272,8 +273,10 @@ fn delivery_scope() -> DeliveryScope {
 /// 持つとき（試験の設定）は、保存先を開いて保存済みの値を読み、`EngineHost::boot` で新しく始めるか復元するかを決めてから
 /// マウントし、離れる直前の書き出しを付ける。保存済みの値を読めなかったときは、上書きして失わないよう保存を止める。
 /// 要素が無い・二重のマウント・配線の失敗は Promise の拒否になる（`app.js` が `data-mounted="error"` にする）。
-pub fn mount_with_history(root_id: &str) -> js_sys::Promise {
-    let host = mount_host_for_page();
+pub fn mount_with_history(root_id: &str, user_agent: &str) -> js_sys::Promise {
+    let mut host = mount_host_for_page();
+    // User-Agent は OS の推定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
+    host.set_learner_os(estimate(user_agent));
     let Some(key) = host.history_key(delivery_scope()) else {
         return match crate::glue::mount_host(root_id, host) {
             Ok(()) => js_sys::Promise::resolve(&JsValue::UNDEFINED),
