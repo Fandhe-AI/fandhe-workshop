@@ -7,7 +7,7 @@
 #[path = "common/storage_fakes.rs"]
 mod storage_fakes;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -451,20 +451,32 @@ type Hook = Rc<RefCell<Option<Box<dyn FnOnce()>>>>;
 
 /// 照合の窓（SAVE-12 の限界。`docs/known-gaps.md`）を模す kv。meta の読み取りが値を返す直前に 1 回だけ `hook` を走らせる。
 /// 照合の後・書き込みの前に別のタブが取得する順序を、同期の試験の中で再現する。
+/// `lag` は、割り込みの後もなお割り込みの前の値を返す meta の読み取りの回数（タブ間の伝播の遅れを模す）。
+/// 0 なら直後の読み取りから他のタブの値が見える（同期の fake の素の振る舞い）。
 struct Interpose {
     inner: Rc<FakeLocal>,
     meta: String,
     hook: Hook,
+    lag: Cell<usize>,
+    seen: RefCell<Option<Option<String>>>,
 }
 
 impl SyncKv for Interpose {
     fn get(&self, key: &str) -> Result<Option<String>, StorageError> {
-        let out = self.inner.get(key);
-        if key == self.meta {
-            let hook = self.hook.borrow_mut().take();
-            if let Some(f) = hook {
-                f();
+        if key != self.meta {
+            return self.inner.get(key);
+        }
+        if let Some(old) = self.seen.borrow().clone() {
+            if self.lag.get() > 0 {
+                self.lag.set(self.lag.get() - 1);
+                return Ok(old);
             }
+        }
+        let out = self.inner.get(key);
+        let hook = self.hook.borrow_mut().take();
+        if let Some(f) = hook {
+            f();
+            *self.seen.borrow_mut() = Some(out.clone()?);
         }
         out
     }
@@ -485,13 +497,16 @@ impl SyncKv for Interpose {
 type Slot = Rc<RefCell<Option<BootGuard<Rc<FakeLocal>>>>>;
 
 /// タブ A を取得し、A の次の照合の読み取りの直後に別のタブ B が取得するよう仕掛ける。B は `Slot` に入る。
-fn racing_tabs(local: &Rc<FakeLocal>, k: &HistoryKey) -> (BootGuard<Interpose>, Slot) {
+/// `lag` は [`Interpose`] の同名の欄。
+fn racing_tabs(local: &Rc<FakeLocal>, k: &HistoryKey, lag: usize) -> (BootGuard<Interpose>, Slot) {
     let hook: Hook = Rc::new(RefCell::new(None));
     let a = BootGuard::claim(
         Interpose {
             inner: Rc::clone(local),
             meta: boot_meta_key(k),
             hook: Rc::clone(&hook),
+            lag: Cell::new(lag),
+            seen: RefCell::new(None),
         },
         k,
         0xa,
@@ -509,7 +524,7 @@ fn racing_tabs(local: &Rc<FakeLocal>, k: &HistoryKey) -> (BootGuard<Interpose>, 
 fn 限界_照合の後に別のタブが取得すると_1_回だけ書くが_後のタブの保存が残る() {
     let local = Rc::new(FakeLocal::default());
     let k = key("pack-a");
-    let (a, slot) = racing_tabs(&local, &k);
+    let (a, slot) = racing_tabs(&local, &k, 0);
     let st = storage(&local, None);
     let ga = Guarded {
         inner: &st,
@@ -519,14 +534,17 @@ fn 限界_照合の後に別のタブが取得すると_1_回だけ書くが_後
     // A の照合（古い meta を読む）→ B の取得 → A の書き込み。この 1 回は届く（原子的でない限界）。
     ga.write(&k, "from-a").unwrap();
     assert_eq!(history_raw(&local, &k).as_deref(), Some("from-a"));
+    // この fake にはタブ間の遅れが無いので、書いた直後の再照合が B の値を読んで古いタブと記憶する。
+    // 実ブラウザで同じタスクの中の再照合が B の値を読むか（効くか）は未確認。効かない場合は
+    // `限界_書いた直後の再照合が古い値を読んでも次の保存の照合で止まる` が固定する。
+    assert!(a.is_stale(), "fake では書いた直後の再照合が効く");
     let b = slot
         .borrow_mut()
         .take()
         .expect("B は A の照合の中で取得した");
 
-    // A の次の保存は照合で止まる。
+    // A の次の保存は届かない（ここでは上の再照合で立てた古いタブの記憶が止める）。
     ga.write(&k, "from-a-2").unwrap();
-    assert!(a.is_stale());
     assert_eq!(history_raw(&local, &k).as_deref(), Some("from-a"));
 
     // B が操作して保存すれば、B の値が上書きして残る。
@@ -541,10 +559,33 @@ fn 限界_照合の後に別のタブが取得すると_1_回だけ書くが_後
 }
 
 #[test]
+fn 限界_書いた直後の再照合が古い値を読んでも次の保存の照合で止まる() {
+    let local = Rc::new(FakeLocal::default());
+    let k = key("pack-a");
+    // 割り込みの後の 1 回（書いた直後の再照合）だけ、B の取得の前の値を読ませる。
+    let (a, slot) = racing_tabs(&local, &k, 1);
+    let st = storage(&local, None);
+    let ga = Guarded {
+        inner: &st,
+        guard: &a,
+    };
+
+    ga.write(&k, "from-a").unwrap();
+    assert_eq!(history_raw(&local, &k).as_deref(), Some("from-a"));
+    assert!(!a.is_stale(), "再照合は古い値を読み、古いとは決めていない");
+    assert!(slot.borrow().is_some(), "B は A の照合の中で取得した");
+
+    // 次の保存の照合が B の値を読み、書かない。
+    ga.write(&k, "from-a-2").unwrap();
+    assert!(a.is_stale());
+    assert_eq!(history_raw(&local, &k).as_deref(), Some("from-a"));
+}
+
+#[test]
 fn 限界_照合の後に取得したタブが未操作なら_先のタブの_1_回分が残る() {
     let local = Rc::new(FakeLocal::default());
     let k = key("pack-a");
-    let (a, slot) = racing_tabs(&local, &k);
+    let (a, slot) = racing_tabs(&local, &k, 0);
     let st = storage(&local, None);
     Guarded {
         inner: &st,
@@ -558,10 +599,12 @@ fn 限界_照合の後に取得したタブが未操作なら_先のタブの_1_
         .expect("B は A の照合の中で取得した");
     assert!(b.is_current(), "B は追い越されていない");
 
-    // B を未操作のまま再読み込みすると、新しい取得のもとで A の最後の 1 回分を読む。
+    // 主張の本体: B を未操作のまま再読み込みすると、新しい取得のもとで A の最後の 1 回分を読む。
     drop(b);
     let reloaded = BootGuard::claim(Rc::clone(&local), &k, 0xc);
     assert_eq!(st.read(&k).unwrap().as_deref(), Some("from-a"));
     assert!(reloaded.is_current());
+    // 付随の確認: A が以後書かないこと。fake では書いた直後の再照合で既に古いと記憶しているため、
+    // ここは再照合の効果を見ているだけである（効かない場合は上の `限界_書いた直後の…` が次の保存の照合で止まることを固定する）。
     assert!(!a.is_current(), "A は以後も書かない");
 }
