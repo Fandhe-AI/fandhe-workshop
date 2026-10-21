@@ -468,6 +468,12 @@ pub fn debug_save_install_pagehide() -> String {
     }
 }
 
+/// このタブが古いタブ（他のタブの起動番号に追い越された）かの真偽（TASK-324 1/2。SAVE-12）。読み取りのみで、鍵・値は返さない。
+#[wasm_bindgen]
+pub fn debug_save_stale() -> bool {
+    crate::persist::stale_tab()
+}
+
 /// 保留を試験から明示的に書き出す。固定形の JSON（件数と失敗の種類）を返し、値・鍵は返さない。
 #[wasm_bindgen]
 pub fn debug_save_flush() -> String {
