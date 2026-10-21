@@ -27,6 +27,7 @@ rust|tests/artifact_view_contract.rs [artifact_view_contract]|passed=16|ignored=
 rust|tests/artifact_view_generic_names.rs [artifact_view_generic_names]|passed=4|ignored=0
 rust|tests/artifact_view_sample.rs [artifact_view_sample]|passed=7|ignored=0
 rust|tests/body_docs.rs [body_docs]|passed=5|ignored=0
+rust|tests/boot_guard.rs [boot_guard]|passed=21|ignored=0
 rust|tests/boot_store.rs [boot_store]|passed=7|ignored=0
 rust|tests/busy_resend.rs [busy_resend]|passed=8|ignored=0
 rust|tests/button_burst.rs [button_burst]|passed=3|ignored=0
@@ -246,10 +247,10 @@ rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6
 rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=10|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=250|passed=2667|ignored=4
+rust|total|binaries=251|passed=2688|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=41|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=107|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=637|pass=637|skipped=0|todo=0|cancelled=0
+browser|total|tests=641|pass=641|skipped=0|todo=0|cancelled=0

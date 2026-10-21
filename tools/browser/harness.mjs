@@ -163,6 +163,9 @@ export function stripCspMeta(html) {
 // 配信する index.html の CSP の正（SAFE-13。TASK-151 1/2）。完全一致で比べ、正規化はしない（緩む・並び替えも退行として止める）。
 export const DELIVERY_CSP =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; img-src 'self'";
+// charset と CSP の meta の正の形（crates/web/static/index.html と一致させる。inspectCspMeta が完全一致で比べる）。
+const CANONICAL_CHARSET_META = '<meta charset="utf-8">';
+const CANONICAL_CSP_META = `<meta http-equiv="Content-Security-Policy" content="${DELIVERY_CSP}">`;
 
 // CSP の meta の位置と内容を検査する純関数（fail-closed）。
 // <meta http-equiv> の CSP は要素より後の内容にしか効かないため、head の中で charset の meta の直後（空白だけを挟む）に
@@ -212,6 +215,15 @@ export function inspectCspMeta(html) {
   const between = src.slice(cs.index + cs.raw.length, csp.index);
   if (csp.index < cs.index || !/^[\t\n\f\r ]*$/.test(between)) {
     problems.push(`CSP meta is not immediately after charset meta (between: ${JSON.stringify(between.slice(0, 80))})`);
+  }
+  // 2 つの meta は要素の文字列そのものを正の形と完全一致で比べる。配信する index.html は自前で書くので形は 1 つに決められ、
+  // 属性の解析の抜け道（読めない文字を飛ばして途中から属性名と読む・区切りの空白の違い等。ブラウザでは CSP にならない）に
+  // 判定を依存させない。属性の順序の入れ替えなど、ブラウザでは有効な形も拒否する厳しい側の規則。2026-10-21 のレビュー指摘で追加。
+  if (cs.raw !== CANONICAL_CHARSET_META) {
+    problems.push(`charset meta is not in the canonical form: ${JSON.stringify(cs.raw.slice(0, 80))}`);
+  }
+  if (csp.raw !== CANONICAL_CSP_META) {
+    problems.push(`CSP meta is not in the canonical form: ${JSON.stringify(csp.raw.slice(0, 80))}`);
   }
   const content = csp.attrs.get('content');
   if (content === undefined) {

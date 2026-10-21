@@ -52,6 +52,10 @@ const cases = [
     h.replace(/\bhttp-equiv=/i, 'data-http-equiv=')],
   ['http-equiv の値の前後に空白を足す', /CSP meta count is 0/, (h) =>
     h.replace(/\bhttp-equiv=(["'])Content-Security-Policy\1/i, 'http-equiv=$1 Content-Security-Policy $1')],
+  ['http-equiv の属性名の前に < を付ける', /CSP meta is not in the canonical form/, (h, c) =>
+    h.replace(c, c.replace(/\bhttp-equiv=/i, '<http-equiv='))],
+  ['charset の属性名の前に < を付ける', /charset meta is not in the canonical form/, (h) =>
+    h.replace(/<meta charset=/i, '<meta <charset=')],
   ['http-equiv の直前の区切りを NBSP にする', /CSP meta count is 0/, (h, c) =>
     h.replace(c, c.replace(/[ \t]+http-equiv=/i, '\u00a0http-equiv='))],
   ['content を data-content にする', /no content attribute/, (h, c) =>
