@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted,
+  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, requestKinds,
 } from './harness.mjs';
 
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'";
@@ -120,4 +120,32 @@ test('packBinFromEnv: 未設定・存在しない・通常ファイルでない�
   }
   const file = path.join(tmp, 'csp.html');
   assert.equal(packBinFromEnv({ FANDHE_PACK_BIN: file }), file);
+});
+
+// 純関数の対照（SAFE-13。TASK-151 2/2）。csp-runs.test.mjs の「CSP 関連のコンソール出力 0 件」と「要求の種類が同じ」が
+// 空振りでないこと（CSP の文言を拾う・差を検出する・除外は明示した分だけ）を示す。
+test('cspConsoleMessages: error と warning のうち CSP の文言だけを拾う', () => {
+  const rec = {
+    consoleErrors: ["Refused to load the image 'data:...' because it violates the following Content Security Policy directive", 'boom'],
+    consoleWarnings: ['The Content-Security-Policy directive x is ignored', 'deprecated api'],
+  };
+  assert.equal(cspConsoleMessages(rec).length, 2);
+  assert.deepEqual(cspConsoleMessages({ consoleErrors: ['boom'], consoleWarnings: [] }), []);
+  assert.deepEqual(cspConsoleMessages({ consoleErrors: [] }), [], 'consoleWarnings が無い記録でも落ちない');
+});
+
+test('requestKinds: 配信元の要求を相対パス・種類・状態の組にし、クエリを除き、重複と除外を畳む', () => {
+  const o = 'http://127.0.0.1:1';
+  const mk = (u, resourceType, status) => ({ url: u, resourceType, status });
+  const rec = {
+    requests: [
+      mk(`${o}/b/`, 'document', 200), mk(`${o}/b/?fixture=x`, 'document', 200), mk(`${o}/b/app.js`, 'script', 200),
+      mk(`${o}/b/icon.svg`, 'other', 200), mk(`${o}/other/x.js`, 'script', 200),
+    ],
+  };
+  const k = requestKinds(rec, { origin: o, base: '/b/' });
+  assert.deepEqual(k, ['(root) document 200', 'app.js script 200']);
+  assert.deepEqual(requestKinds(rec, { origin: o, base: '/b/', exclude: [] }).length, 3, '除外は引数で明示した分だけ');
+  const withExtra = { requests: [...rec.requests, mk(`${o}/b/x.png`, 'image', 200)] };
+  assert.notDeepEqual(requestKinds(withExtra, { origin: o, base: '/b/' }), k, '余計な要求は差に現れる');
 });
