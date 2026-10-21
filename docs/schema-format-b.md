@@ -55,7 +55,7 @@
 | `commands` | 表（キーはコマンド名、値は任意の値） | 省略可 | 空 | キーを、Step の `input`・規則が指す名前と照合します（`E-REF-COMMAND`）。値の型は検査しません |
 | `views` | 表（キーはビューの ID、値は任意の値） | 省略可 | 空 | キーを `E-REF-VIEW` で照合します。値のうち `body` だけ検査します（`docs/views.md`）。`kind` の綴りは検査しません |
 | `fixtures` | 表（キーは練習データの ID、値は `path` と `kind`） | 省略可 | 空 | 3.2 のとおり |
-| `hints` | 表（キーはヒントの ID、値は任意の値） | 省略可 | 空 | キーを `E-REF-HINT` で照合します。値の型は検査しません |
+| `hints` | 表（キーはヒントの ID、値は任意の値） | 省略可 | 空 | キーを `E-REF-HINT` で照合します。値のうち `levels` だけ検査し、`A`・`B`・`C` の文字列の列でなければ `E-PARSE`（項目 `hint:<ID>`）です。他の欄の型は検査しません |
 | `rejections` | 表（キーは文面の ID） | 省略可 | 空 | 3.3 のとおり |
 | `clarifications` | 表（キーは文面の ID） | 省略可 | 空 | 3.3 のとおり |
 | `defaults` | 表（キーは拒否の分類、値は文面の ID） | 省略可 | 空 | キーは 8 語の分類に限ります（`E-PARSE`） |
@@ -70,9 +70,9 @@
 | `title` | 文字列 | 必須 | なし | 教材の題名 |
 | `version` | 文字列 | 必須 | なし | 教材の版。`主.副.修` の 10 進で書く運用です（`docs/pack-authoring.md` の「主版を上げる条件」）。形は検査しません |
 | `ir_format` | 整数 | 必須 | なし | 1 または 2。それ以外は `E-FORMAT-VERSION` |
-| `guidance` | 文字列 | 必須 | なし | 案内の水準。`A`・`B`・`C` の運用です（EP-8）。pack crate は値を検査しません（2026-10-20 時点） |
+| `guidance` | 文字列 | 必須 | なし | 案内の水準。`A`・`B`・`C` のどれかで、それ以外は読み込みで `E-PARSE`（項目 `pack:guidance`）です（EP-8。2026-10-21 時点） |
 | `vocab` | 文字列（`主.副`） | 省略可 | 省略 | 語彙の版の宣言。省略は非推奨です（`docs/pack-authoring.md` の「`pack.vocab` の書き方」） |
-| `guidance_levels` | 表 | 省略可 | 省略 | EP-8。案内レベルと隠す語の宣言 |
+| `guidance_levels` | 表 | 省略可 | 省略 | EP-8。案内レベルと隠す語の宣言。キーは `A`・`B`・`C`、値は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます。読めない形は `E-PARSE`（項目 `pack:guidance_levels`） |
 | `profile` | 表 | 省略可 | 省略（接頭辞 `/`・入力欄あり） | EP-10。`docs/operation-profile.md` |
 | `appearance` | 表 | 省略可 | 省略（`standard`） | EP-11。`docs/operation-profile.md` |
 | `left_pane` | 表 | 省略可 | 省略（`shown`・`all`） | EP-12。`docs/pack-authoring.md` の「左エリア」 |
@@ -114,7 +114,7 @@
 | `id` | 文字列 | 必須 | なし | 開始点の ID |
 | `node` | 文字列 | 必須 | なし | 開始する Step の ID（`E-REF-STEP` で照合） |
 | `effects` | 列（状態変化。7 節） | 省略可 | 空 | 開始時の世界状態を作る |
-| `guidance` | 値 | 省略可 | 省略 | EP-8。開始点ごとの案内レベル |
+| `guidance` | 値 | 省略可 | 省略 | EP-8。開始点ごとの案内レベル。`A`・`B`・`C` のどれかで、それ以外は `E-PARSE`（項目 `scope`） |
 | `requires` | 条件（7 節） | 省略可 | 省略 | EP-9。開始の条件 |
 | `unmet` | 文字列 | 省略可 | 省略 | EP-9。満たさないときの文面 |
 
@@ -127,7 +127,7 @@
 | `id` | 文字列 | 必須 | なし | Step の ID。重複は `E-DUP-ID` |
 | `title` | 文字列 | 必須 | なし | 題名 |
 | `body` | 文字列（パス） | 省略可 | 省略 | 本文の Markdown。章・モジュールのディレクトリからの相対 |
-| `body_levels` | 表（水準から本文のパス） | 省略可 | 空 | EP-8。水準ごとの本文 |
+| `body_levels` | 表（水準から本文のパス） | 省略可 | 空 | EP-8。水準ごとの本文。キーが `A`・`B`・`C` でなければ `E-PARSE`（項目 `scope`）です。水準 A の本文は `body` に書きます |
 | `do` | 文字列 | 省略可 | 省略 | 今やるべきことの文。枠 `{{step_do}}` の元（EP-7） |
 | `lo` | 列（文字列） | 省略可 | 空 | 学習目標（LO）。要素の中身の検査は未確認です |
 | `final` | 真偽値 | 省略可 | `false` | 終端の Step |

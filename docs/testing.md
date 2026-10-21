@@ -6295,3 +6295,26 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - ホストの `decode_action` への `ShellAction` の結線と、通知欄の実際の描画・配置は画面のタスク（TASK-517・TASK-531〜TASK-534・TASK-545）が持つ。既存の `save-notice` を枠の通知欄へ寄せるかは TASK-534 が決める
 - 通知の文面と次の行動（SHELL-36）は TASK-516・TASK-549 が持つ。理由コードを列挙に結ぶのは TASK-516
 - 観察: `host.rs` の `ir-notice` は `role="status"` を持つが `a11y` の通知欄の一覧に無く、この画面に `a11y::check_no_undefined` を掛けると `status-on-non-notice` になる見込みである（未検証）。SHELL-31 を枠の通知 `pack-unloadable` へ移すのは TASK-545 の範囲
+
+### 5.197 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
+
+水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は TASK-49 2/2（#496）の持ち分である。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_levels.rs` | 本文の倒れ方 4 種 × 3 水準、ヒント 4 種の水準ごとの選択、モジュールの 2 実体の一致、受け付ける水準の全組、拒否する値（`pack.guidance`・`guidance_levels`・`starts[].guidance`・`body_levels` の鍵・ヒントの `levels`）の項目と 1 件の `E-PARSE`、値を診断に写さないこと、形式 A（TOML）でも同じこと |
+| `crates/pack/tests/defect_packs.rs` | D23 が `E-PARSE`・`chapters/ch-13/chapter.yaml`・`scope` で検出され、static の検出が 9/9 になること |
+| `crates/pack/src/guidance.rs` の単体試験 | `body_for`・`read_guidance_levels`・ヒントの `levels` の形 |
+
+変異注入（実行日 2026-10-21、元にしたコミット 11cc0c8 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK17-1.mutation crates/pack/tests/mutations/PACK17-2.mutation crates/pack/tests/mutations/PACK17-3.mutation`）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| PACK17-1 | `guidance.rs`: 本文の探し方が `fallback_chain` に従わない | DETECTED（`body_is_chosen_c_then_b_then_a`） |
+| PACK17-2 | `source.rs`: 章の水準の語の診断を捨てる | DETECTED（`start_guidance_rejects_unknown_levels` ほか） |
+| PACK17-3 | `guidance.rs`: ヒントの `levels` の要素を検査しない | DETECTED（`hint_levels_rejects_bad_shapes`） |
+
+限界・未実施:
+
+- `Node.body_levels_doc` からの実行時の木の選択は TASK-292（#589）、開始点の水準と周回の切り替えは TASK-294 が持つ
+- ヒントの `levels` 以外の欄の形は検査しない

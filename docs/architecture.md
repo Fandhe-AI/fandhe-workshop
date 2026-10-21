@@ -32,7 +32,7 @@
 |---|---|---|---|
 | `fandhe-workshop-contract` | lib | 責務をまたぐ共有の契約。データ型・定数・版・スキーマ・サンプル・純粋な表・純関数。I/O・状態遷移・時刻・乱数を持たない | `serde`・`serde_json` のみ |
 | `fandhe-workshop-core` | lib | DOM 非依存の純 Rust の中核。`Session`・`apply`・入力・イベント・Step の状態・`Projection`・進行管理・周回・停止・チェックポイント・保存復元の処理・状態変化の提供元の境界 | contract、`serde`・`serde_json` |
-| `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`saphyr-parser`（アンカー・タグの拒否。TASK-57 2/2）・`pulldown-cmark`（native のみ） |
+| `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI（案内レベルの語の読み取りと本文の選択を含む） | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`saphyr-parser`（アンカー・タグの拒否。TASK-57 2/2）・`pulldown-cmark`（native のみ） |
 | `fandhe-workshop-web` | lib（`cdylib`・`rlib`） | `fandhe-frontend` の Component 実装と glue。wasm32 向け。native でも `rlib` として試験できる | core、contract、`fandhe-frontend-*`（wasm-full 0.46.0。TASK-26。headless-ui 0.69.2 は `tree_view::item_text`、wireframe-ui 0.52.0 は `rich_text` のため。TASK-473）、`wasm-bindgen`、`web-sys`（`cfg(target_arch = "wasm32")` のみ） |
 
 - バイナリ名 `fandhe-pack` は TASK-399（CLI の外部仕様）の契約が持つ。本文書は pack crate に置くことだけを固定する
@@ -286,3 +286,4 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-21: 第 6 節の秘密情報の行に、書き出しの関門（TASK-164 2/3）は web の host が持つことを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-21: 第 6 節の秘密情報の行に、警告の選択（TASK-164 3/3。確認済みの除外と読み直し）は web の host が持つことを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-21: 第 6 節の秘密情報の行を固定の 15 形に直した（SAFE-30・TASK-165 1/2。追加の 5 形は core の `secret_scan` の中）。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-21: 第 6 節の置き場の表の pack の行に、案内レベルの語の読み取りと本文の選択（`guidance`。TASK-49 1/2）を含めることを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
