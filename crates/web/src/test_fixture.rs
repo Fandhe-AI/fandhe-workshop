@@ -593,14 +593,14 @@ pub(crate) fn render_tree_sample(kind: &str, variant: &str) -> Option<String> {
 }
 
 /// 契約の試料の「2 周分」の履歴。書き出しの試験（TASK-330 1/2）が使う。
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 const TWO_ROUNDS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../testdata/contract/history/two-rounds.json"
 ));
 
 /// 2 周分の履歴の包みを返す。`Session` を作らず、読み込みの入口（段 1〜5）だけで読む。読めなければ `None`。
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) fn two_rounds_envelope(
 ) -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope> {
     use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
@@ -623,6 +623,101 @@ pub(crate) fn loadable_envelope() -> Option<fandhe_workshop_core::history_envelo
     let env = two_rounds_envelope()?;
     let state = replay(&ir, start_state_at(SAMPLE_START)?, &env.ops).ok()?;
     build_envelope(&ir, &env.start, env.ops, state).ok()
+}
+
+/// 10MB に近い履歴の合成の種類（TASK-166・SAFE-31）。`large_loadable_envelope` が完全一致で受ける。
+#[cfg(any(target_arch = "wasm32", test))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LargeKind {
+    /// 秘密情報の形の接頭辞を含まない ASCII の文。
+    Plain,
+    /// 接頭辞の候補が密に現れるが、長さ・枠を満たさず検出には掛からない文（走査の最悪側）。
+    Dense,
+    /// `Plain` の中ほどの 1 件にだけ、検出に掛かる値を置く対照。
+    Marker,
+}
+
+#[cfg(any(target_arch = "wasm32", test))]
+impl LargeKind {
+    /// 試験用の口が渡す名前から種類を引く。完全一致だけを受け、未知の名前は `None`。
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "plain" => Some(Self::Plain),
+            "dense" => Some(Self::Dense),
+            "marker" => Some(Self::Marker),
+            _ => None,
+        }
+    }
+}
+
+/// 合成の送信 1 件の文字数と件数。直列化した大きさが 9.5MiB〜10MiB に入るように決めた値
+/// （単体試験が範囲を縛る）。受け付けられない入力は状態の写しにも残るため、本文は履歴の中に 2 回入る。1 件は `MAX_INPUT_CODE_POINTS` より十分に小さい。
+#[cfg(any(target_arch = "wasm32", test))]
+const LARGE_OP_CHARS: usize = 8_000;
+#[cfg(any(target_arch = "wasm32", test))]
+const LARGE_OP_COUNT: usize = 620;
+
+/// 送信 1 件の合成の本文。乱数は使わず、`index` だけで決まる。
+#[cfg(any(target_arch = "wasm32", test))]
+fn large_op_text(kind: LargeKind, index: usize) -> String {
+    // 接頭辞は 1 つの文字列に連続させない（完成した値の形を repo に置かない）。
+    let dense: [String; 10] = [
+        format!("{}{} short", "ey", "J"),
+        format!("{}{}//x", "ht", "tp:"),
+        format!("{}{} x", "-----BEG", "IN "),
+        format!("{}{}ZZ", "AK", "IA"),
+        format!("{}{}ab", "sk", "-"),
+        format!("{}{}b-1", "xo", "x"),
+        format!("{}{}=k", "aws_secret_", "access_key"),
+        format!("{}{}x", "sk", "_live_"),
+        format!("{}{}://u", "my", "sql"),
+        format!("{}{}x", "AI", "za"),
+    ];
+    let mut out = String::with_capacity(LARGE_OP_CHARS + 32);
+    let mut n = index;
+    while out.len() < LARGE_OP_CHARS {
+        match kind {
+            LargeKind::Dense => out.push_str(&dense[n % dense.len()]),
+            _ => out.push_str("the quick brown fox jumps over the lazy dog"),
+        }
+        out.push_str(&format!(" note {n} "));
+        n += 1;
+    }
+    out.truncate(LARGE_OP_CHARS);
+    if kind == LargeKind::Marker && index == LARGE_OP_COUNT / 2 {
+        // 検出に掛かる 1 件。部品から実行時に組み立てる。
+        let value = format!(
+            "{}{}{}-{}-{}",
+            "xo",
+            "xb-",
+            "1".repeat(12),
+            "2".repeat(12),
+            "a".repeat(24)
+        );
+        out.replace_range(0..value.len(), &value);
+    }
+    out
+}
+
+/// 10MB に近い開ける包みを返す（TASK-166・SAFE-31）。
+///
+/// 契約の試料（2 周分）の `ops` の後ろに、合成の送信を `LARGE_OP_COUNT` 件足し、適用し直して包み直す
+/// （写しが一致するので、読み込みの段 8 で `replay_mismatch` にならない）。UI から送信を重ねて伸ばさないのは、
+/// 送信のたびに履歴の全体を再直列化・再検査するため、準備の費用が二次になるから。受講者のデータではない。
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn large_loadable_envelope(
+    kind: LargeKind,
+) -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope> {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_replay::replay;
+    use fandhe_workshop_core::ops_record::SessionOp;
+
+    let ir = load_ir(IR).ok()?;
+    let env = two_rounds_envelope()?;
+    let mut ops = env.ops;
+    ops.extend((0..LARGE_OP_COUNT).map(|i| SessionOp::Submit(large_op_text(kind, i))));
+    let state = replay(&ir, start_state_at(SAMPLE_START)?, &ops).ok()?;
+    build_envelope(&ir, &env.start, ops, state).ok()
 }
 
 #[cfg(test)]
@@ -880,5 +975,51 @@ mod tests {
         let b = mount_session(MountFixture::ReloadPoints).unwrap();
         assert_ne!(a.ir().pack.id, b.ir().pack.id);
         assert_eq!(b.ir().nodes.len(), 8);
+    }
+
+    fn large_text(kind: LargeKind) -> String {
+        let env = large_loadable_envelope(kind).expect("large envelope");
+        String::from_utf8(fandhe_workshop_core::history_export::export_bytes(&env).unwrap())
+            .unwrap()
+    }
+
+    #[test]
+    fn 大きい履歴は保存の上限の内側で_9_5mib_以上になる() {
+        use fandhe_workshop_core::history_limit::check_save;
+        for kind in [LargeKind::Plain, LargeKind::Dense, LargeKind::Marker] {
+            let env = large_loadable_envelope(kind).unwrap();
+            let bytes = fandhe_workshop_core::history_export::export_bytes(&env).unwrap();
+            assert!(
+                (9_961_472..=10_485_760).contains(&bytes.len()),
+                "{kind:?}: {}",
+                bytes.len()
+            );
+            assert!(env.ops.len() <= 20_000);
+            assert!(check_save(bytes.len(), env.ops.len()).is_ok(), "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn plain_と_dense_は検出が_0_件で_marker_は_1_形だけ() {
+        use fandhe_workshop_core::secret_scan::scan_json_text;
+        assert!(scan_json_text(&large_text(LargeKind::Plain)).is_empty());
+        assert!(scan_json_text(&large_text(LargeKind::Dense)).is_empty());
+        // 同じ値が `ops` と状態の写しの 2 か所に入るため、検出は 1 件とは限らない。形は 1 つだけである。
+        let found = scan_json_text(&large_text(LargeKind::Marker));
+        assert!(!found.is_empty());
+        assert_eq!(
+            fandhe_workshop_core::secret_scan::shapes_of(&found),
+            vec![fandhe_workshop_core::secret_scan::SecretShape::SlackToken]
+        );
+    }
+
+    #[test]
+    fn 大きい履歴の種類は完全一致の名前だけを受ける() {
+        assert_eq!(LargeKind::from_name("plain"), Some(LargeKind::Plain));
+        assert_eq!(LargeKind::from_name("dense"), Some(LargeKind::Dense));
+        assert_eq!(LargeKind::from_name("marker"), Some(LargeKind::Marker));
+        for other in ["", "Plain", "plain ", "marker2", "x"] {
+            assert_eq!(LargeKind::from_name(other), None, "{other:?}");
+        }
     }
 }
