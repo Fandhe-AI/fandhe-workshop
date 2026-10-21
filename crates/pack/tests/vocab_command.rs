@@ -186,7 +186,7 @@ fn author17_ep9_counted_on_start_node_row() {
         &[(
             CHAPTER,
             START,
-            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}",
+            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}, unmet: \"rj-wrong\"}",
         )],
     );
     let (code, out, err) = vocab(&t.0);
@@ -206,7 +206,7 @@ fn author17_ep9_attributed_to_target_step_not_first() {
         &[(
             CHAPTER,
             START,
-            "{id: \"s1\", node: \"ep7\", requires: {flag: \"f\"}}",
+            "{id: \"s1\", node: \"ep7\", requires: {flag: \"f\"}, unmet: \"rj-wrong\"}",
         )],
     );
     let (code, out, _) = vocab(&t.0);
@@ -217,23 +217,26 @@ fn author17_ep9_attributed_to_target_step_not_first() {
     );
 }
 
-/// `unmet` だけでも EP-9 を使ったと数える（`validate` の使用の判定と同じ）。
+/// 片方だけの開始点は `compile` の関門（`E-STRUCTURE`）で止まり、表を出さない（TASK-51）。
 #[test]
-fn author17_unmet_only_counts_as_ep9() {
-    let t = edited(
-        "v-ep9c",
-        &[(
-            CHAPTER,
-            START,
+fn author17_one_sided_ep9_is_refused_by_compile_gate() {
+    for (name, start) in [
+        (
+            "v-ep9c1",
             "{id: \"s1\", node: \"plain\", unmet: \"rj-wrong\"}",
-        )],
-    );
-    let (code, out, _) = vocab(&t.0);
-    assert_eq!(code, 0, "{out}");
-    assert_eq!(
-        out,
-        with_ep9("c1,plain,step,\n", "c1,plain,step,EP-9\n", true)
-    );
+        ),
+        (
+            "v-ep9c2",
+            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}",
+        ),
+    ] {
+        let t = edited(name, &[(CHAPTER, START, start)]);
+        let (code, out, _) = vocab(&t.0);
+        assert_eq!(code, 1, "{out}");
+        assert!(out.contains("E-STRUCTURE"), "{out}");
+        assert!(out.contains("start:s1"), "{out}");
+        assert!(!out.contains("EP-9"), "{out}");
+    }
 }
 
 /// 同じ Step を指す開始点が複数あっても、その Step に 1 回だけ数える。
@@ -244,7 +247,7 @@ fn author17_two_starts_same_step_counted_once() {
         &[(
             CHAPTER,
             START,
-            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}}\n  - {id: \"s2\", node: \"plain\", requires: {flag: \"g\"}}",
+            "{id: \"s1\", node: \"plain\", requires: {flag: \"f\"}, unmet: \"rj-wrong\"}\n  - {id: \"s2\", node: \"plain\", requires: {flag: \"g\"}, unmet: \"rj-wrong\"}",
         )],
     );
     let (code, out, _) = vocab(&t.0);
@@ -263,7 +266,7 @@ fn author17_module_start_counts_on_module_row() {
         &[(
             "modules/m2/module.yaml",
             "steps:",
-            "starts:\n  - {id: \"ms\", node: \"m2a\", requires: {flag: \"f\"}}\nsteps:",
+            "starts:\n  - {id: \"ms\", node: \"m2a\", requires: {flag: \"f\"}, unmet: \"rj-wrong\"}\nsteps:",
         )],
     );
     let (code, out, _) = vocab(&t.0);
@@ -282,7 +285,7 @@ fn author17_start_on_use_step_is_not_counted() {
         &[(
             CHAPTER,
             START,
-            "{id: \"s1\", node: \"call\", requires: {flag: \"f\"}}",
+            "{id: \"s1\", node: \"call\", requires: {flag: \"f\"}, unmet: \"rj-wrong\"}",
         )],
     );
     let (code, out, _) = vocab(&t.0);
@@ -290,15 +293,17 @@ fn author17_start_on_use_step_is_not_counted() {
     assert_eq!(out, EXPECTED);
 }
 
-/// `confirm.options[].label` は拡張点の番号を持たないため数えない。足しても出力が変わらない。
+/// `confirm.options[].label` は拡張点の番号を持たないため数えない。外しても出力が変わらない。
+/// 土台の教材は、`label` の必須化（PACK-37・D-67）に合わせて `label` を持つ。`vocab` は `compile` の結果だけを見るので、
+/// `label` を外した教材でも出力を出せる。
 #[test]
 fn author17_label_not_counted() {
     let t = edited(
         "v-label",
         &[(
             CHAPTER,
+            "{id: \"opt-a\", correct: true, label: \"答え A\"}",
             "{id: \"opt-a\", correct: true}",
-            "{id: \"opt-a\", label: \"A\", correct: true}",
         )],
     );
     let (code, out, _) = vocab(&t.0);

@@ -104,6 +104,7 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - `module` と `instance` は `[A-Za-z0-9_.-]` の短い識別子にします（`@`・`/` は使えません）。
 - `use` を持つ Step には `input` を書けません。同時に書くと `E-STRUCTURE` です（章の Step・モジュールの中の Step のどちらも）。
 - モジュールの `starts` は、実体ごとに `<実体 ID>#<開始 ID>` として展開します。置き換えるのは `effects` と `requires` だけです。
+- 開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）は、両方そろえて書きます。片方だけは `E-STRUCTURE` です。`requires: null` は省略と同じ扱いで、`unmet` だけが残ります。開始の前に、開始先の Step が属する実体の根で条件を評価します。満たすときだけ開始し、満たさない・評価できないときは開始せず `unmet` の文面を示します。状態は変わりません（TASK-51、PACK-18）
 - 展開中の経路にあるモジュールを再び呼ぶ巡回（自分を呼ぶ場合を含む）は `E-MODULE-CYCLE` です。巡回を閉じる `use` の Step に `a → b → a` の形の経路つきで付きます。モジュール名が `${名前}` に由来する場合は、引数の値を出さないため経路は付きません。
 - 入れ子は 8 段までです。9 段目の呼び出しは展開せず `E-MODULE-CYCLE` にします。これは巡回とは別の検査で、巡回しない深い入れ子にだけ効きます。未定義のモジュールは `E-REF-MODULE`、未定義の `${名前}` は `E-STRUCTURE` です。
 - 呼ばれないモジュールは IR に出ません。
@@ -111,7 +112,7 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 
 ## 入力方式（`input`）
 
-Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びます（PACK-10）。ここに書けるのは次の欄だけで、未知の欄・
+Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境の操作（`env_action`）から選びます（PACK-10・PACK-34）。ここに書けるのは次の欄だけで、未知の欄・
 未知の `kind` は `E-PARSE`、意味の制約に反する宣言は `E-STRUCTURE` になります。
 
 | `kind` | 欄 | 意味の制約 |
@@ -120,8 +121,9 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `text` | `min`・`max`（0 以上の整数。どちらも必須） | `min` は `max` 以下 |
 | `choice` | `options`（各要素は `id`・`label`） | 1 件以上で、`id` は重複しない |
 | `ui_action` | `targets`（各要素は `view`・`path`） | 1 件以上で、どれも空でない |
-| `approval` | なし | 欄を足すと `E-PARSE` |
+| `approval` | `revise`（省略可。語彙 1.5。「承認の『直す』の候補と表示名」の節） | `revise` 以外の欄を足すと `E-PARSE` |
 | `wait`（EP-1） | なし | 欄を足すと `E-PARSE`。Step の `processing` が 1 件以上でないと `E-STRUCTURE` |
+| `env_action` | `action`（必須。`save` か `export`。語彙 1.5。「保存・書き出しを入力とする Step」の節） | 未知の値・欄の欠け・未知の欄は `E-PARSE`。Step の `processing` を持つと `E-STRUCTURE` |
 
 `text` が判定するのは、空でないことと文字数だけです。内容の良し悪しを判定する欄は書けません（`contains` や
 `pattern` は `E-PARSE`）。受け付けた入力の分類は `free_text_unjudged`、範囲外は `bad_arg_shape` で拒否します。
@@ -137,7 +139,9 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 
 取り消し（EP-2）は `input.kind` ではなく、規則の `on: { cancel: true }` で受けます。`kind: cancel` は未知の `kind` として
 `E-PARSE` です。どの入力方式の Step にも書け、意味を持つのはその規則を書いた Step だけです。`on.cancel` の値が真偽値でなければ
-`E-PARSE`、`false` は `E-STRUCTURE` です。`on` の他のキーとの組み合わせや入力方式との整合は、ここでは検査しません。
+`E-PARSE`、`false` は `E-STRUCTURE` です。`on` のキー同士の組み合わせは検査しません。
+
+自然文の内容で規則を分ける書き方（`on: {text: true, contains: ...}` など）は書けません（PACK-41、D-43）。判定語は語彙に足さない決定で、`text` の Step が判定するのは空でないことと文字数だけです。`text` を含む `on`、または `text` の Step の規則の `on` に、規則の `on` の語彙（`command`・`args`・`missing`・`option`・`approval`・`target`・`ui`・`text`・`cancel`）にないキーがあるか、`on.text` が真偽値でないか、`on` が mapping でない（`text` の Step）と、`validate` も `compile` も `E-PARSE` にします。黙って通すと、内容を見ない規則（当たらない規則・常に当たる規則）になるためです。分けたいときは、Step を分ける、入力方式を `choice` にする、受け付けた後の確認で人が判断する、のいずれかにします。限界は `docs/known-gaps.md` の H-2 です。
 
 ## 確認（`confirm`）
 
@@ -149,18 +153,150 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 | `kind` | 欄 | 意味の制約 |
 |---|---|---|
 | `point_at` | `targets`（各要素は `view`・`path`）、`on_miss`（任意） | `targets` は 1 件以上で、どれも空でない |
-| `answer` | `options`（各要素は `id`・`correct`、任意で `on_wrong`・`label`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない。`label` と選択肢の `on_wrong` は書くなら空でなく、選択肢の `on_wrong` は `correct: true` の選択肢に書けない |
+| `answer` | `options`（各要素は `id`・`correct`・`label`、任意で `on_wrong`）、`on_wrong` | 1 件以上で、`id` は空でなく重複しない。`correct: true` が 1 件以上。`on_wrong` は空でない。`label` は必須で空白だけにできない（欠けは `validate` が `E-STRUCTURE` にする）。選択肢の `on_wrong` は書くなら空でなく、`correct: true` の選択肢に書けない |
 | `approve` | なし | 欄を足すと `E-PARSE` |
 | `none` | `reason` | `reason` が前後の空白を除いて空でないこと。無い・空・空白だけは `E-NO-CONFIRM` |
 
 - 未知の欄・未知の `kind`・欄の欠け・型の違いは `E-PARSE`、意味の制約の違反は `E-STRUCTURE` です
 - `none` の理由の欠けを `E-PARSE` でなく `E-NO-CONFIRM` にするのは、PACK-13 の「理由つき」の違反として扱うためです（2026-10-15 の決定）
-- 入力の無い Step に `confirm` を書いても、形が正しければ診断しません。該当する診断コードが spec に無いためで、spec 側の判断が要ります（2026-10-15）
+- 終端でない入力の無い Step（`use` も無い）に `confirm` を書くと `E-STRUCTURE` です。確認は入力の受付の後に届くため、この形の確認は永久に届きません（PACK-35・PACK-19、D-69、2026-10-21）。終端の Step（`final: true`）の `confirm` は、形だけを検査します
 - `answer` の選択肢の `on_wrong`（EP-6）は、その選択肢を選んだ誤答に返す文面です。選択肢が持たなければ Step の `on_wrong` を返します。正答の選択肢に書くと `E-STRUCTURE`、書くなら空白だけにはできません（2026-10-15 の決定。契約の版を 3 に上げました）
-- `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。省略すると ID がそのまま出ます。前後の空白を除いて空になる `label` は `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
+- `answer` の選択肢の `label`（v1.3）は表示名です。画面の選択肢と、操作のログの「選択: …」に同じ表示名が出ます。必須です。`label` の無い（欄が無い・`null`）選択肢は、`validate` が `E-STRUCTURE` で止めます（2026-10-21 の D-67。PACK-37）。`compile` は検査しないため、`label` の無いまま `compile` だけを通すと IR では ID のまま出ます。教材の CI では `validate` も流してください。前後の空白を除いて空になる `label` も `E-STRUCTURE` で拒否します（2026-10-15 の決定。契約の版を 2 に上げました）
+- `label` は語彙 1.3 の語です。`pack.vocab` を宣言する教材が `answer` を使うなら、1.3 以上を宣言するか、宣言を省略してください。1.3 より前を宣言すると、`label` を書かなければ `E-STRUCTURE`、書けば `E-VOCAB-MISMATCH` になり、どちらでも通りません
 - 履歴に残る値は選択肢の ID で、表示名ではありません。`label` を後で直しても、記録した履歴の再生は変わりません
 - 確認の `options[].label` は、入力方式 `choice` の `options[].label`（必須）とは別の欄です。表示名の解決は 1 つの Step の確認の選択肢の中だけで行い、入力方式 `choice` の `label` へは落ちません
 - `on_miss`・`on_wrong`（Step・選択肢とも）の参照先が `rejections` に無ければ `validate` が `E-REF-REJECTION` にします。`targets[].view` は `E-REF-VIEW` です
+
+## 複数の対象を 1 つずつ分類する確認（Step を分ける）
+
+1 つの確認で複数の対象（例: 3 枚の指摘カード）を分類させ、対象ごとの正誤を取る語はありません。`answer` に複数の問いを持たせる語は足さないことが D-69（2026-10-21）で決まっています（PACK-33）。対象ごとに Step を分けて書きます。
+
+- 対象ごとに Step を 1 つ置き（例: `card-a`・`card-b`・`card-c`）、各 Step の `answer` で 1 つの対象だけを問います。Step は `next` でつなぎます
+- 各 Step には、次の 3 つが要ります。どれかが欠けると、その対象の確認に進めません
+    - 入力方式 `choice`（選択肢の `id` と `label`）
+    - 選択肢ごとの受付の規則（`rules[].on.option` と `outcome: {kind: accept}`）。規則に一致しない選択は `not_in_this_step` で拒否され、確認の段に進みません
+    - `answer` の確認（`options` の `correct` と `on_wrong`）
+- 1 枚ごとの正誤は、Step ごとの確認の結果（最初の回答の正誤）として別々に残ります。各 Step に `lo` を書くと、学習目標の記録の対象になります
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+- 学習目標の数え方（L4 など）は本節で扱いません（spec の TASK-3）
+
+書き方の実例は `crates/pack/tests/data/split-answer-pack` です。
+
+## 読むだけの Step（1 択の `choice`）
+
+入力のない、確認だけの Step を表す語はありません。足さないことが D-69（2026-10-21）で決まっています（PACK-35）。読むだけの Step は、選択肢が 1 つだけの `choice` と、確認 `answer` で書きます。
+
+- 入力方式 `choice` に選択肢を 1 つだけ置きます（例: 表示名「読みました」）
+- その選択肢の受付の規則（`rules[].on.option` と `outcome: {kind: accept}`）を書きます
+- 確認は `answer` で書きます
+- 受講者の操作が 1 回増えます（1 択を選び、続けて回答します）。限界として受け入れています（TERM-30。`docs/known-gaps.md` の PACK-35）
+- 入力も `use` も無い終端でない Step に `confirm` だけを書くと `E-STRUCTURE` です
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+
+書き方の実例は `crates/pack/tests/data/read-only-step-pack` です。
+
+## 誤答の拒否で前後の比較を案内する（拒否文で案内する）
+
+誤答の拒否に前後比較のビューを結ぶ語はありません。足さないことが D-69（2026-10-21）で決まっています（PACK-36）。誤答の拒否文で、左エリアの前後の切り替え（ART-2）を案内します。
+
+- `answer` の `on_wrong`（Step か選択肢）で拒否の文面を指し、その `message`・`next_action` に前後の切り替えで見比べるよう書きます
+- Step には `views` で `diff` などのビューを宣言しておきます
+- 誤答のときに、比較は自動では表示されません。限界として受け入れています（`docs/known-gaps.md` の PACK-36）
+- `confirm.answer` に比較のビューを結ぶ欄を足すと `E-PARSE` です
+- 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
+- 2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていません。画面での見え方は未確認です（ART-19。画面のタスクの持ち分）
+
+書き方の実例は `crates/pack/tests/data/wrong-answer-compare-pack` です。
+
+## 承認の差し戻しと再承認（Step を分ける）
+
+1 つの Step の `approval` で「承認 → 差し戻し → 再承認」を表す語はありません。足さないことは D-69（2026-10-21）で決まっています（PACK-32）。入力方式 `approval` は欄を持たず、欄を足すと `E-PARSE` です。
+
+書き方は、差し戻しの Step と、直した結果を承認する再承認の Step を分けることです。
+
+- 差し戻しの Step: `on: {approval: revise}` を受付にし、承認・却下は次の行動つきの拒否にします。案の状態などの状態変化は、受付の規則の `outcome.effects` に書きます
+- 再承認の Step: `on: {approval: approve}` を受付にし、もう一度の差し戻し・却下は拒否にします
+- 差し戻しの後の遷移（差し戻しの Step から再承認の Step へ）は、作者が `next` に書きます
+- 確認は、受け付けたこと自体が意思表示になるなら、どちらの Step も `confirm: {kind: none, reason: …}` で書けます。別に確かめたいものがあるなら `point_at` などを使います
+
+```yaml
+steps:
+  - id: st-revise
+    next: [{to: st-reapprove}]
+    input: {kind: approval}
+    rules:
+      - id: r-revise
+        on: {approval: revise}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 差し戻し}}
+      - id: r-approve-early
+        on: {approval: approve}
+        outcome: {kind: reject, rejection: rj-revise-first}
+    confirm: {kind: none, reason: 差し戻すこと自体が意思表示のため、別の確認を置かない。}
+  - id: st-reapprove
+    input: {kind: approval}
+    rules:
+      - id: r-approve-fixed
+        on: {approval: approve}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 承認済み}}
+```
+
+- 現在のエンジンは `next` の `when` を実行時に評価せず、`when` の無い最初の辺だけをたどります。承認と差し戻しで行き先を分ける書き方はできないため、Step を一直線に並べます
+- 遷移先の `on_enter` の効果は、現在のエンジンがまだ適用しません（TASK-242）。状態変化は、規則の `outcome.effects` に前の状態に依らない形（`replace`）で書きます
+- 分けて書いた教材は、新しい語彙の版を宣言しなくても `validate` を通ります。`pack.vocab` は、使った語に合わせて書きます
+- 「直す」の誤った対象の候補と表示名は、`input.revise` で宣言します（次の節。PACK-42）
+
+## 承認の「直す」の候補と表示名（`input.revise`）
+
+承認の Step で「直す」の対象を選ばせるとき、規則（`on: { approval: revise, target: X }`）に書いた対象だけをボタンにすると、
+正しい対象のボタンだけが並んで答えが見え、ボタンの文言も対象の ID のままになります。これを避けるため、承認の `input` に、
+正しい対象と誤った候補を並べる順に宣言し、表示名を付けられます（PACK-42・D-69。語彙 1.5。拡張点の番号は持ちません）。
+
+```yaml
+input:
+  kind: approval
+  revise:
+    candidates:
+      - {id: expect, label: 期待する結果}
+      - {id: reason, label: 理由}
+      - {id: scope}      # 誤った候補（規則に無い）
+rules:
+  - id: r-revise-expect
+    on: {approval: revise, target: expect}
+    outcome: {kind: accept}
+```
+
+- `candidates` は 1 件以上で、各要素は `id`（必須）と `label`（省略可）です。未知の欄・型の違いは `E-PARSE`、空の一覧・空白だけの `id`・`id` の重複・空白だけの `label` は `E-STRUCTURE` です。`label` の型は確認の選択肢の `label`（`confirm.options[].label`）と同じで、省略すると ID を表示します
+- どの候補が正しいかは宣言しません。対象つきの「直す」の規則（`on.target`）を持つ ID が正しい対象で、それ以外の候補が誤った候補です。正誤の正は規則に 1 か所だけ置きます
+- `revise` を宣言した Step では、規則の `target` がすべて候補に入っていないと `E-STRUCTURE` です。正しい対象が候補から漏れて、画面と判定が食い違うのを防ぎます。診断に候補・対象の値は写しません
+- 誤った候補を 1 件以上入れてください。入れないと、選ぶ余地がなく、答えが見えてしまいます（強制はしません）
+- モジュールの Step で `${...}` を使った宣言は、置換前の値では突き合わせず、展開後の値を `compile` が検査します
+- `revise` を書く教材は、`pack.vocab` に `1.5` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- 2026-10-21 時点では、誤った候補への拒否の文面・分類と候補の一覧を返す判定（JUDGE-11。#579）、候補のボタンの表示（TERM-28。#666）は結線されていません。誤った候補の「直す」は、既定の `not_in_this_step` の拒否になり、受付にはなりません
+
+## 保存・書き出しを入力とする Step（`env_action`）
+
+「途中の状態を保存する」「履歴を書き出す」のように、実行環境の操作そのものを Step の入力にできます（PACK-34・D-69。語彙 1.5。拡張点の番号は持ちません）。操作が成功したら受付になります。受講者の入力を教材へ差し込む語ではありません（D-50）。
+
+```yaml
+- id: st-save
+  title: 途中の状態を保存する
+  body: save.md
+  next: [{to: st-export}]
+  input: {kind: env_action, action: save}
+  confirm: {kind: none, reason: 保存の操作が成功したこと自体が達成の根拠のため、別の確認を置かない。}
+```
+
+- `action` は `save`（チェックポイントの保存）か `export`（履歴の書き出し）のどちらかです。未知の値・欄の欠け・未知の欄は `E-PARSE`、`processing` を持つ Step は `E-STRUCTURE` です（保存による受付には処理中を始める経路が無く、先へ進めなくなるため）。診断に宣言の値は写しません
+- 受付と達成は別です。`confirm: { kind: none, reason }` と組むと、保存の成功と同時に達成になり、効果（`on_achieved`）と遷移が続きます。それ以外の `confirm` では受付済みで止まり、確認の操作を待ちます。規則（`rules`）は照合しないため、状態変化は `on_achieved` に書きます
+- 保存の Step が受付になるのは、保存が成功し、その Step が入力待ちで処理中でないときだけです。保存に失敗したときは受付になりません。受講者のコマンド・選択などの入力は、この Step を受付にしません
+- `env_action` を書く教材は、`pack.vocab` に `1.5` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
+- `action: export` は宣言して `validate` を通せますが、2026-10-21 時点では実行時に達成になる経路がありません。この Step を置いた教材は、そこで先へ進めません。限界と回避は `docs/known-gaps.md` の PACK-34 です
 
 ## 処理中の進行（`processing`）
 
@@ -372,11 +508,11 @@ views:
 
 `pack.vocab` は必ず書きます（VER-11）。省略すると、履歴には `1.0` と記録され、`validate` の一致の検査も働きません（PACK-31）。
 
-- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.4"`）。YAML では引用符で囲みます
-- 現在のエンジンが読める語彙の上限は 1.4 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
+- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.5"`）。YAML では引用符で囲みます
+- 現在のエンジンが読める語彙の上限は 1.5 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
   履歴は開きません（`vocab_newer`。VER-7）。`validate` は、上限を超える宣言を報告しません（2026-10-19 時点）
 - 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-1〜EP-9 と EP-13 を Step ごとに数えます。EP-9 は、`requires` または `unmet` を持つ開始点が指す Step の行に数え
-  （`use` の Step を指す開始点は数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
+  （`use` の Step を指す開始点は数えません。片方だけの開始点は `compile` が `E-STRUCTURE` で止めるため数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
 - `fandhe-pack vocab <pack-dir>` は、Step ごとの拡張点の使用と、既存の語彙の組み合わせだけで書けた Step の数を出します（AUTHOR-9。出力の形は
   `docs/cli.md` の 12 節）。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
   `guidance_levels` と開始点の `guidance` は数えません。`pack.profile`・`pack.appearance`・`pack.left_pane` は、既定から変えたときだけ末尾に出し、Step ごとの数に入れません。
@@ -389,12 +525,12 @@ views:
 ## `pack.vocab` の宣言と使用の一致（`E-VOCAB-MISMATCH`）
 
 宣言より新しい語彙を使う教材は、履歴の「語彙の軸」が宣言に頼るため、版違いの履歴の理由を特定できません。
-`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 5）。
+`validate` は、`pack.vocab` を書いた教材について、次のように報告します（PACK-31・VER-14・D-43。診断コード一覧の版 7）。
 
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）です。
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）です。
   値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
@@ -460,6 +596,7 @@ views:
 | 試験 | 確かめること |
 |---|---|
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2） |
+| `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
 | `crates/contract/tests/fixed_histories.rs` | 固定の履歴 4 本の版の記録が全軸で同一で、期待値を D-51 に合わせて変えていないこと |
@@ -471,6 +608,9 @@ views:
 | `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性・Step の巡回・規則の遮蔽を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
 | `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
 | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` | 選んだ値の差し込みの語が無いこと（差し込みらしい欄が `E-PARSE`、受講者の値の枠が `E-SLOT-UNKNOWN`、章の `${}` が文字のまま、値が世界状態に入らない）と、列挙・固定値の属性の回避が書けて、列挙にない値が拒否されること（PACK-39・D-50） |
+| `crates/pack/tests/approval_revise_split.rs` の `pack32_` | 差し戻しの Step と再承認の Step を分けた教材が、語彙の版を足さずに `validate` を通ること、承認の `input` が欄なしのままであること、core で差し戻し → 再承認の順に進み早すぎる承認ともう一度の差し戻しが拒否されること、1 Step で再承認を表す欄が `E-PARSE` になること（PACK-32・D-69） |
+| `crates/pack/tests/approval_revise_candidates.rs` の `pack42_` | 「直す」の候補と表示名の宣言が `validate`・`compile` を通り IR に宣言のまま出ること、型の誤りが `E-PARSE`・意味の制約と規則の `target` の漏れが `E-STRUCTURE` で値を写さないこと、1.4 の宣言が `E-VOCAB-MISMATCH` になること、core で正しい対象の「直す」だけが受付になること、モジュールの置換後に検査されること（PACK-42・D-69）。変異は PACK42-1〜PACK42-3 |
+| `crates/pack/tests/env_action_input.rs` の `pack34_`・`crates/core/tests/env_action_save.rs` の `pack34_` | 保存・書き出しの入力の宣言が `validate`・`compile` を通り IR に宣言のまま出ること、型の誤りが `E-PARSE`・`processing` が `E-STRUCTURE`・宣言が古い `pack.vocab` が `E-VOCAB-MISMATCH` になること、core で保存の成功が保存の Step を受付・達成にし、書き出しの Step・宣言の無い Step・保存の失敗では受付にならないこと |
 | `crates/core/tests/version_histories.rs` の `fifteen_histories_match_the_fixed_expectations` | 副版で Step を足すと先へ進んだ履歴が `replay_diverged`・手前の履歴が変換になること、主版が違えば位置によらず `content_major` で表示だけになること（VER-5・VER-6・VER-18） |
 | `crates/core/tests/version_record.rs` の `t2_default_vocab_record`・`t6_fail_closed` | `pack.vocab` の省略が `1.0` で記録されること、読めない `pack.version` で記録を作らないこと |
 | `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-13）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |
@@ -480,6 +620,7 @@ views:
 | `crates/contract/tests/input_spec_contract.rs` | `text` の空・下限・上限・コードポイントの数え方と、各方式の意味の制約（PACK-10） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack13_` | 確認 4 種が検証を通ること、確認の無い入力つき Step と理由の無い `none` が `E-NO-CONFIRM` になること、検証を通った教材に確認なしで達成になりうる Step が 0 件であること（PACK-13） |
 | `crates/contract/tests/confirm_spec_contract.rs` | 確認 4 種の型の形・意味の制約と、受付と達成の分け方（`none` だけが受付で達成になる。R-22）。`pack23_` は選択肢の表示名の解決・ログの文面・履歴に残す値が ID であること・空白だけの `label` の拒否（PACK-23）。`pack15_` は選択肢の `on_wrong` の規則（契約の版 3） |
+| `crates/pack/tests/answer_label_required.rs` の `pack37_` | `label` の無い（欄が無い・`null`）選択肢が `validate` で Step ごとに 1 件の `E-STRUCTURE`・終了コード 1 になること、形式 A・モジュールの Step でも同じこと、`compile` は検査しないこと、診断が値を写さないこと（PACK-37・D-67） |
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/confirm_on_wrong.rs` の `pack15_` | 正答の選択肢の `on_wrong` が `E-STRUCTURE`（モジュールの置換後も）、存在しない文面が `E-REF-REJECTION`、誤答の文面が選択肢、無ければ Step の順で決まること（PACK-15） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
@@ -493,3 +634,6 @@ views:
 | `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
+| `crates/pack/tests/read_only_step.rs` の `pack35_` | 1 択の `choice` と `answer` の Step が新しい語彙の版の宣言なしで通ること、入力のない確認だけの終端でない Step が `E-STRUCTURE` になること（PACK-35・D-69） |
+| `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
+| `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` | 誤答の拒否文で前後の切り替えを案内する教材が新しい語彙の版の宣言なしで `validate` を通ること、誤答が案内つきの拒否になり Step が受付のまま達成にならないこと、`answer` に比較のビューを結ぶ欄を足すと `E-PARSE` になること（PACK-36・D-69） |

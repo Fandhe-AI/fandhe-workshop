@@ -19,9 +19,11 @@
 //! 同じ教材の別の章（`pack.id` が同じで開始点だけが違う IR 2 本。`?fixture=chapter-a`・`?fixture=chapter-b`）も起動の前に選ぶ。
 //! 章ごとの保存先の鍵で別の章の履歴が混ざらないことの試験が使う（SAVE-14・DLV-8。TASK-326 1/2）。
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
+//! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
+use crate::start_select::{select_start, StartRefusal};
 use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::{load_ir, IrLoadError, Session, SessionState};
 
@@ -33,11 +35,6 @@ const SAMPLE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../testdata/contract/event-sequence.json"
 ));
-
-/// 試験用の教材と開始直後の状態から実行環境を作る。読めなければ `None`（呼び出し側は session なしに倒す）。
-pub(crate) fn start_session() -> Option<Session> {
-    session_of(IR)
-}
 
 /// 再読み込みの一致の試験用の 8 Step の教材（`crates/web/tests/data/reload_points_ch2/ir.json`。`pack.id` は mount の既定と別）。
 const RELOAD_POINTS_IR: &[u8] = include_bytes!(concat!(
@@ -75,6 +72,10 @@ pub(crate) enum MountFixture {
     ChapterB,
     /// 章 A と `pack.id`・開始点が同じで、`pack.version` と題名だけが違う IR（SAVE-14。TASK-326 2/2）。
     ChapterANext,
+    /// 開始点を 3 件持つ教材（直接リンク `?start=` の試験。TASK-109 1/2）。
+    MultiStart,
+    /// 20 Step の通しの教材に、章の開始点 10 件を持たせた教材（直接リンクと再読み込みの試験。DLV-7。TASK-110 1/2）。
+    Ch03Links,
     /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
@@ -144,6 +145,67 @@ pub(crate) fn chapter_ir_bytes(chapter: Chapter) -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 開始点を複数持つ教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const MULTI_START_PACK_ID: &str = "start-links";
+
+/// 開始点の複数ある教材の、開始点の ID と節点（先頭から順）。ブラウザ試験の期待値と揃える。
+pub(crate) const MULTI_START_POINTS: [(&str, &str); 3] = [
+    ("s-1", "main/st-1"),
+    ("s-4", "main/st-4"),
+    ("s-7", "main/st-7"),
+];
+
+/// 8 Step の教材から、開始点を 3 件持つ IR を作る（`pack.id` だけ別にする）。新しい試験データのファイルは作らず、埋め込みの IR を書き換える。
+pub(crate) fn multi_start_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(RELOAD_POINTS_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), MULTI_START_PACK_ID.into());
+    pack.insert("title".to_owned(), "開始点のリンクの試験データ".into());
+    let starts: Vec<serde_json::Value> = MULTI_START_POINTS
+        .iter()
+        .map(|(id, node)| serde_json::json!({ "id": id, "node": node, "effects": [] }))
+        .collect();
+    obj.insert("starts".to_owned(), starts.into());
+    serde_json::to_vec(&value).ok()
+}
+
+/// 章の開始点 10 件を持つ教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CH03_LINKS_PACK_ID: &str = "ch0-3-links";
+
+/// 章の開始点 10 件の、開始点の ID と節点（先頭から順）。ブラウザ試験の直接リンク 10 件（`delivery.mjs` の `DIRECT_LINKS`）と揃える。
+pub(crate) const CH03_LINK_POINTS: [(&str, &str); 10] = [
+    ("s-0-1", "main/st-0-1"),
+    ("s-0-2b", "main/st-0-2b"),
+    ("s-1-1", "main/st-1-1"),
+    ("s-1-4", "main/st-1-4"),
+    ("s-1-5", "main/st-1-5"),
+    ("s-1-6", "main/st-1-6"),
+    ("s-2-1", "main/st-2-1"),
+    ("s-2-3", "main/st-2-3"),
+    ("s-3-1", "main/st-3-1"),
+    ("s-3-2", "main/st-3-2"),
+];
+
+/// 20 Step の通しの教材から、開始点を 10 件持つ IR を作る（`pack.id` だけ別にする）。試験データのファイルは増やさず、埋め込みの IR を書き換える。
+/// 開始点の `effects` は空のままで、前の Step の効果は持たない（`docs/testing.md` 5.199 と同じ限界）。
+pub(crate) fn ch03_links_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CH03_LINKS_PACK_ID.into());
+    pack.insert(
+        "title".to_owned(),
+        "章のリンクの再読み込みの試験データ".into(),
+    );
+    let starts: Vec<serde_json::Value> = CH03_LINK_POINTS
+        .iter()
+        .map(|(id, node)| serde_json::json!({ "id": id, "node": node, "effects": [] }))
+        .collect();
+    obj.insert("starts".to_owned(), starts.into());
+    serde_json::to_vec(&value).ok()
+}
+
 /// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
 pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
     let kind = match fixture {
@@ -157,11 +219,16 @@ pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
 /// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
 /// 8 Step の教材、`?fixture=no-input` の完全一致だけが入力欄なしの教材、`?fixture=ch0-3` の完全一致だけが 20 Step の通しの教材を選び、
 /// 空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
+/// 例外は直接リンクの `start`（TASK-109 1/2）で、`start=...` の対だけを取り除いた残りで同じ完全一致を行う。
+/// `start` の値はここでは解釈しない（開始点の照合は `start_select` が行い、値の出所は `static/app.js` が渡す引数に一本化する）。
 pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
-    match search {
+    let stripped = strip_start_pairs(search);
+    match stripped.as_str() {
         "?fixture=reload-points" => MountFixture::ReloadPoints,
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
+        "?fixture=ch0-3-links" => MountFixture::Ch03Links,
+        "?fixture=multi-start" => MountFixture::MultiStart,
         "?fixture=chapter-a" => MountFixture::ChapterA,
         "?fixture=chapter-b" => MountFixture::ChapterB,
         "?fixture=chapter-a-next" => MountFixture::ChapterANext,
@@ -171,20 +238,59 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
     }
 }
 
-/// 選んだ教材と開始直後の状態から実行環境を作る。読めなければ `None`。
-pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
-    match fixture {
-        MountFixture::Default => start_session(),
-        MountFixture::ReloadPoints => session_of(RELOAD_POINTS_IR),
-        MountFixture::NoInput => session_of(NO_INPUT_IR),
-        MountFixture::Ch03 => session_of(CH03_IR),
-        MountFixture::ChapterA => session_of(&chapter_ir_bytes(Chapter::A)?),
-        MountFixture::ChapterB => session_of(&chapter_ir_bytes(Chapter::B)?),
-        MountFixture::ChapterANext => session_of(&chapter_ir_bytes(Chapter::ANext)?),
+/// クエリ（`?` 付き）から `start=` で始まる対をすべて取り除く。残りが `?` だけなら `?` を返す。
+fn strip_start_pairs(search: &str) -> String {
+    let Some(rest) = search.strip_prefix('?') else {
+        return search.to_owned();
+    };
+    let kept: Vec<&str> = rest
+        .split('&')
+        .filter(|pair| !pair.starts_with("start="))
+        .collect();
+    format!("?{}", kept.join("&"))
+}
+
+/// 選んだ教材の IR のバイト列。読めない想定の IR（未来の版）も含む。作れなければ `None`。
+fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
+    Some(match fixture {
+        MountFixture::Default => IR.to_vec(),
+        MountFixture::ReloadPoints => RELOAD_POINTS_IR.to_vec(),
+        MountFixture::NoInput => NO_INPUT_IR.to_vec(),
+        MountFixture::Ch03 => CH03_IR.to_vec(),
+        MountFixture::Ch03Links => ch03_links_ir_bytes()?,
+        MountFixture::MultiStart => multi_start_ir_bytes()?,
+        MountFixture::ChapterA => chapter_ir_bytes(Chapter::A)?,
+        MountFixture::ChapterB => chapter_ir_bytes(Chapter::B)?,
+        MountFixture::ChapterANext => chapter_ir_bytes(Chapter::ANext)?,
         // 読めない想定の IR。万一読めたら session になり、通知が出ないのでブラウザ試験が失敗する（fail-closed）。
-        MountFixture::FutureFormat => session_of(&future_ir_bytes(FutureIr::Format)?),
-        MountFixture::FutureField => session_of(&future_ir_bytes(FutureIr::Field)?),
-    }
+        MountFixture::FutureFormat => future_ir_bytes(FutureIr::Format)?,
+        MountFixture::FutureField => future_ir_bytes(FutureIr::Field)?,
+    })
+}
+
+/// 選んだ教材と開始直後の状態から実行環境を作る。読めなければ `None`（単体試験が使う。ホストは `mount_session_at` を使う）。
+#[cfg(test)]
+pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
+    session_of(&mount_ir_bytes(fixture)?)
+}
+
+/// [`mount_session`] を、直接リンクの `start`（`None` は指定なし）で開始点を選べるようにしたもの（TASK-109 1/2）。
+///
+/// 照合は `start_select::select_start`（完全一致だけ）。一致しなければ `Err`（呼び出し側は session を作らず開かない）。
+/// 教材を読めない・開始の節点が無いときは `Ok(None)`（呼び出し側は session なしに倒す）。
+/// 成功したときは、実行環境と選んだ開始点の ID を返す。
+pub(crate) fn mount_session_at(
+    fixture: MountFixture,
+    start: Option<&str>,
+) -> Result<Option<(Session, String)>, StartRefusal> {
+    let Some(bytes) = mount_ir_bytes(fixture) else {
+        return Ok(None);
+    };
+    let Ok(ir) = load_ir(&bytes) else {
+        return Ok(None);
+    };
+    let id = select_start(&ir, start)?.id.clone();
+    Ok(session_at(&bytes, Some(&id)).map(|session| (session, id)))
 }
 
 /// 教材のバイト列と開始直後の状態から実行環境を作る。`Session::from_state` の唯一の呼び出し（`tests/no_progress.rs`）。
@@ -323,7 +429,7 @@ pub(crate) fn chain_session(len: usize) -> Option<Session> {
 /// 確認が `answer` の Step を持つ試験用の実行環境（TASK-445 2/2。`load-fixture:answer` が差し替える）。
 ///
 /// 埋め込みの教材の `main/st-1` の確認を、選択肢 2 件（誤り・正解）の `answer` に置き換える。誤答の文面は教材が
-/// もともと持つ `rj-decline` を指す。mount の教材（`start_session`）は、st-1 の `point_at` に依る既存の試験のため変えない。
+/// もともと持つ `rj-decline` を指す。mount の既定の教材（`min-3step`）は、st-1 の `point_at` に依る既存の試験のため変えない。
 /// 読めない・節点が無い・`load_ir` を通らないときは `None`（呼び出し側は何もしない）。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn answer_session() -> Option<Session> {
@@ -1021,5 +1127,191 @@ mod tests {
         for other in ["", "Plain", "plain ", "marker2", "x"] {
             assert_eq!(LargeKind::from_name(other), None, "{other:?}");
         }
+    }
+
+    #[test]
+    fn start_の対だけは取り除いて完全一致で教材を選ぶ() {
+        for (q, want) in [
+            ("?fixture=multi-start", MountFixture::MultiStart),
+            ("?fixture=multi-start&start=s-4", MountFixture::MultiStart),
+            ("?start=s-4&fixture=multi-start", MountFixture::MultiStart),
+            (
+                "?fixture=multi-start&start=a&start=b",
+                MountFixture::MultiStart,
+            ),
+            ("?fixture=chapter-a&start=s-1", MountFixture::ChapterA),
+            ("?fixture=ch0-3-links", MountFixture::Ch03Links),
+            ("?fixture=ch0-3-links&start=s-2-1", MountFixture::Ch03Links),
+            ("?start=s-2-1&fixture=ch0-3-links", MountFixture::Ch03Links),
+            (
+                "?fixture=ch0-3-links&start=s-2-1&x=1",
+                MountFixture::Default,
+            ),
+            ("?start=s-4", MountFixture::Default),
+            ("?start=", MountFixture::Default),
+            // start 以外の余分なキー・大文字違いは既定に倒す（既存の否定と同じ）。
+            ("?fixture=multi-start&start=s-4&x=1", MountFixture::Default),
+            ("?x=1&fixture=multi-start&start=s-4", MountFixture::Default),
+            ("?fixture=multi-start&Start=s-4", MountFixture::Default),
+            ("?fixture=multi-start&xstart=s-4", MountFixture::Default),
+            ("fixture=multi-start&start=s-4", MountFixture::Default),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+    }
+
+    fn current_node(s: &Session) -> String {
+        s.state().run.current.as_ref().map(|u| u.0.clone()).unwrap()
+    }
+
+    #[test]
+    fn 開始点の指定で開く_step_が変わる() {
+        let (first, id) = mount_session_at(MountFixture::MultiStart, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (id.as_str(), current_node(&first).as_str()),
+            ("s-1", "main/st-1")
+        );
+        for (want_id, want_node) in MULTI_START_POINTS {
+            let (s, id) = mount_session_at(MountFixture::MultiStart, Some(want_id))
+                .unwrap()
+                .unwrap();
+            assert_eq!(id, want_id);
+            assert_eq!(current_node(&s), want_node);
+        }
+    }
+
+    #[test]
+    fn 一致しない指定は開かずに断る() {
+        for v in ["", "S-4", "s-4 ", "s-", "../x", "unknown", "\u{0}"] {
+            assert_eq!(
+                mount_session_at(MountFixture::MultiStart, Some(v)).err(),
+                Some(StartRefusal::Unknown),
+                "{v:?}"
+            );
+        }
+        // 開始点が 1 件の既存の教材は、その ID 以外を断る。
+        assert!(mount_session_at(MountFixture::ReloadPoints, Some("s-1")).is_ok());
+        assert!(mount_session_at(MountFixture::ReloadPoints, Some("s-4")).is_err());
+    }
+
+    #[test]
+    fn ホストは選んだ開始点で鍵を作り_断ったら_session_も鍵も持たない() {
+        use crate::host::EngineHost;
+        use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+        let scope = || DeliveryScope::named("scope-x");
+        let none = EngineHost::for_mount_with(MountFixture::MultiStart, None);
+        let ir = mount_session_at(MountFixture::MultiStart, None)
+            .unwrap()
+            .unwrap()
+            .0
+            .ir()
+            .clone();
+        // 指定なしの鍵は、これまでの `from_ir`（先頭の開始点）と同じ文字列である。
+        assert_eq!(
+            none.history_key(scope()).unwrap().render(),
+            HistoryKey::from_ir(scope(), &ir).unwrap().render()
+        );
+        let s4 = EngineHost::for_mount_with(MountFixture::MultiStart, Some("s-4"));
+        let (k1, k4) = (
+            none.history_key(scope()).unwrap().render(),
+            s4.history_key(scope()).unwrap().render(),
+        );
+        assert_ne!(k1, k4);
+        assert_eq!(
+            k4,
+            HistoryKey::for_pack(scope(), MULTI_START_PACK_ID, "s-4").render()
+        );
+        let bad = EngineHost::for_mount_with(MountFixture::MultiStart, Some("nope"));
+        assert!(bad.history_key(scope()).is_none());
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&bad.engine_snapshot_json()).unwrap()
+                ["irLoaded"],
+            false
+        );
+        assert_eq!(bad.ir_refusal(), Some("start_unknown"));
+        assert!(bad.history_key(scope()).is_none());
+    }
+
+    /// 開始点ごとに `starts` の先頭を入れ替えた IR の写し（旧方式。PoC-10 の `make-start-irs.mjs` の模写）を作る。
+    fn per_start_copy(id: &str) -> Vec<u8> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&multi_start_ir_bytes().unwrap()).unwrap();
+        let starts = value["starts"].as_array_mut().unwrap();
+        let at = starts.iter().position(|s| s["id"] == id).unwrap();
+        starts.swap(0, at);
+        serde_json::to_vec(&value).unwrap()
+    }
+
+    #[test]
+    fn 同じ_ir_はどの開始点から開いても内容のハッシュが同じ() {
+        use fandhe_workshop_contract::content_hash::content_hash;
+        let want = content_hash(&load_ir(&multi_start_ir_bytes().unwrap()).unwrap()).unwrap();
+        let mut opened = std::collections::BTreeSet::new();
+        for id in [None, Some("s-1"), Some("s-4"), Some("s-7")] {
+            let (session, got_id) = mount_session_at(MountFixture::MultiStart, id)
+                .unwrap()
+                .unwrap();
+            let got = content_hash(session.ir()).unwrap();
+            assert_eq!(
+                got, want,
+                "{id:?}: content_hash is the same for every start"
+            );
+            opened.insert((got_id, current_node(&session)));
+        }
+        // 空振り防止: 指定なしは s-1 と同じ開始点で、開いた開始点と節点の組は開始点ごとに違う。
+        assert_eq!(opened.len(), MULTI_START_POINTS.len());
+    }
+
+    #[test]
+    fn 開始点ごとに先頭を入れ替えた写しは内容のハッシュが割れる() {
+        use fandhe_workshop_contract::content_hash::content_hash;
+        let hash_of = |bytes: &[u8]| content_hash(&load_ir(bytes).unwrap()).unwrap();
+        let mut hashes = vec![hash_of(&multi_start_ir_bytes().unwrap())];
+        for (id, _) in MULTI_START_POINTS.into_iter().skip(1) {
+            hashes.push(hash_of(&per_start_copy(id)));
+        }
+        // 先頭の入れ替えは `starts` の順を変えるだけだが、`starts` は内容のハッシュに含まれるので、写しごとに違う値になる。
+        let distinct: std::collections::BTreeSet<_> =
+            hashes.iter().map(|h| h.as_str().to_owned()).collect();
+        assert_eq!(distinct.len(), hashes.len());
+    }
+
+    #[test]
+    fn 章の開始点_10_件の教材は各開始点でその節点で開き_鍵が分かれる() {
+        use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey};
+        let ir = load_ir(&ch03_links_ir_bytes().unwrap()).unwrap();
+        assert_eq!(ir.pack.id, CH03_LINKS_PACK_ID);
+        assert_eq!(ir.starts.len(), 10);
+        let (first, first_id) = mount_session_at(MountFixture::Ch03Links, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (first_id.as_str(), current_node(&first).as_str()),
+            CH03_LINK_POINTS[0]
+        );
+        let mut keys = std::collections::BTreeSet::new();
+        for (id, node) in CH03_LINK_POINTS {
+            assert!(ir.nodes.iter().any(|n| n.uid == node), "{id}");
+            let (s, got) = mount_session_at(MountFixture::Ch03Links, Some(id))
+                .unwrap()
+                .unwrap();
+            assert_eq!((got.as_str(), current_node(&s).as_str()), (id, node));
+            keys.insert(
+                HistoryKey::for_pack(DeliveryScope::named("scope-x"), CH03_LINKS_PACK_ID, id)
+                    .render(),
+            );
+        }
+        assert_eq!(keys.len(), CH03_LINK_POINTS.len());
+        assert_eq!(
+            mount_session_at(MountFixture::Ch03Links, Some("nope")).err(),
+            Some(StartRefusal::Unknown)
+        );
+        // 対照: 開始点 1 件の既存の教材は、同じ ID を断る。
+        assert_eq!(
+            mount_session_at(MountFixture::Ch03, Some("s-2-1")).err(),
+            Some(StartRefusal::Unknown)
+        );
     }
 }

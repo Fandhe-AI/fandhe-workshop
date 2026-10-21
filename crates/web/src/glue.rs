@@ -245,8 +245,47 @@ fn on_draft_sync_request() {
     let callback = Closure::once_into_js(move || {
         let root = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone()));
         match root {
-            Some(root) => sync_draft(&root),
+            Some(root) => sync_draft(&root, false),
             None => clear_draft_sync_pending(),
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+}
+
+/// ホストが通知する「拒否の後の下書きの全選択」の要求を受け、`set_timeout(0)` で `sync_draft` を予約する
+/// （`EngineHost::set_draft_select_request` の通知先。TASK-284 2/2。D-67）。
+///
+/// `on_draft_sync_request` と同じ理由で、予約するだけにする（再入を避ける）。
+fn on_draft_select_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        if let Some(root) = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone())) {
+            sync_draft(&root, true);
+        }
+    });
+    let _ =
+        window.set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), 0);
+}
+
+/// ホストが通知する「キーで選んだタブへのフォーカス移動」の要求を受け、`set_timeout(0)` でフォーカスを移す
+/// （`EngineHost::set_pane_focus_request` の通知先。TASK-517 2/2。`a11y::tab_key_target` の契約）。
+///
+/// 予約するだけにして再入を避ける。コールバックの時点で描画は済んでおり、`aria-selected="true"` のタブが移り先である。
+/// 要素が無い・フォーカスできないときは何もしない（安全側）。
+fn on_pane_focus_request() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let callback = Closure::once_into_js(move || {
+        if let Some(root) = DRAFT_ROOT.with(|r| r.try_borrow().ok().and_then(|slot| slot.clone())) {
+            if let Some(tab) = find_in_root(&root, SELECTED_TAB_SELECTOR)
+                .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+            {
+                let _ = tab.focus();
+            }
         }
     });
     let _ =
@@ -311,6 +350,7 @@ pub(crate) fn draft_snapshot() -> Option<(usize, bool, String)> {
 
 /// 下書きの欄・送信ボタンのセレクタ（`hello.rs` の `data-testid` と対応する）。
 const DRAFT_SELECTOR: &str = "[data-testid=\"draft-input\"]";
+const SELECTED_TAB_SELECTOR: &str = "[role=\"tab\"][aria-selected=\"true\"]";
 const SUBMIT_SELECTOR: &str = "[data-testid=\"submit-input\"]";
 
 /// root 配下の要素を引く。要素の取得の呼び出し箇所をここ 1 つに保つ（`glue_contract` が箇所数を固定する）。
@@ -334,7 +374,7 @@ fn find_in_root(root: &web_sys::Element, selector: &str) -> Option<web_sys::Elem
 /// `compositionend` である。そこで変換前の下書きを書くと確定した文字を消すため、下ろす側を選ぶ。落とした場合は
 /// 送信済みの本文が欄に残るが、次の入力で上流が欄の値を状態へ届け、欄と状態は揃う（文字は消えない）。
 /// `with_app` はタイマー・リスナーの中では借用中にならない（`mount_app` の外）ため、実際には通らない安全側の分岐である。
-fn sync_draft(root: &web_sys::Element) {
+fn sync_draft(root: &web_sys::Element, select: bool) {
     if is_composing() {
         return;
     }
@@ -346,9 +386,17 @@ fn sync_draft(root: &web_sys::Element) {
             if field.value() != draft {
                 field.set_value(draft);
             }
+            // 拒否で残した下書きの全体を選ぶ（D-67）。終端は欄の長さへ丸められるので、長さを数えない。
+            // 打鍵が先に届いて印が下りていれば選ばない（打った文字を消さない）。
+            if select && app.draft_select_pending() {
+                let _ = field.set_selection_range(0, u32::MAX);
+            }
         });
     }
-    clear_draft_sync_pending();
+    // 選択の要求は書き戻しの保留を立てないので、下ろさない（別の書き戻しの印を消さない）。
+    if !select {
+        clear_draft_sync_pending();
+    }
 }
 
 /// 書き戻しの保留があるかどうか。借用中は `false`（変換の終わりに書かない側＝確定した入力を消さない側）。
@@ -406,7 +454,7 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
         {
             return;
         }
-        sync_draft(&target);
+        sync_draft(&target, false);
     });
     let on_start = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
         mark_composing(true);
@@ -425,13 +473,13 @@ fn wire_draft_sync(root: &web_sys::Element) -> Result<(), JsValue> {
     let on_end = Closure::<dyn FnMut(web_sys::Event)>::new(move |_ev: web_sys::Event| {
         mark_composing(false);
         if draft_sync_pending() {
-            sync_draft(&target);
+            sync_draft(&target, false);
         }
         let Some(window) = web_sys::window() else {
             return;
         };
         let target = target.clone();
-        let deferred = Closure::once_into_js(move || sync_draft(&target));
+        let deferred = Closure::once_into_js(move || sync_draft(&target, false));
         let _ = window
             .set_timeout_with_callback_and_timeout_and_arguments_0(deferred.unchecked_ref(), 0);
     });
@@ -692,6 +740,8 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_tick_request(Box::new(on_tick_request));
         host.set_tick_reset(Box::new(on_tick_reset));
         host.set_draft_sync_request(Box::new(on_draft_sync_request));
+        host.set_draft_select_request(Box::new(on_draft_select_request));
+        host.set_pane_focus_request(Box::new(on_pane_focus_request));
         host.set_save_request(Box::new(on_save_request));
         host.set_save_cancel(Box::new(on_save_cancel));
         let runtime = Runtime::mount(root_id, host)?;
@@ -732,7 +782,8 @@ pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::
 /// `static/app.js` が `await` し、`data-mounted` はその完了後に立てる。要素が無い場合、イベント配線に失敗した場合、
 /// すでにマウント済みの場合は拒否する。`user_agent` は `static/app.js` が `navigator.userAgent` を読んで渡す値で、
 /// 修飾キーの表示のための OS の推定にだけ使う（D-48・JUDGE-28。Rust 側はブラウザの値を読まない）。
+/// `start` は直接リンク `?start=` の値（`app.js` が読む。指定なしは `undefined`。TASK-109 1/2）で、開始点の照合だけに使う。
 #[wasm_bindgen]
-pub fn mount_app(root_id: &str, user_agent: &str) -> js_sys::Promise {
-    crate::persist::mount_with_history(root_id, user_agent)
+pub fn mount_app(root_id: &str, user_agent: &str, start: Option<String>) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id, user_agent, start)
 }

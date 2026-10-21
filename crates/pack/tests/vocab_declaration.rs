@@ -361,12 +361,12 @@ fn pack31_correct_packs_have_no_false_positives() {
     }
     // 入力方式 `choice` の `label` を持つ教材に最低の版を宣言しても、`label` の診断は 0 件。
     let mut checked = 0;
+    // `condition-vocab-pack`・`pack-defects/base/format-b-v1_1` は、確認 `answer` の `label` が必須になった（PACK-37・D-67）ため、
+    // 入力方式 `choice` の `label` だけを持つ前提から外れた。取り違えの確認は、残る 3 件で続ける。
     for p in [
-        "condition-vocab-pack",
         "module-reuse-rounds/test-data/pack",
         "input-field-ime/test-data/ch1-pack",
         "engine-event-consistency/test-data/min-3step-pack",
-        "pack-defects/base/format-b-v1_1",
     ] {
         let t = declare(&testdata(p), "1.0");
         assert!(label_mismatches(&t).is_empty(), "{p}");

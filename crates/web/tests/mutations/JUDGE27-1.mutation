@@ -1,0 +1,8 @@
+id: JUDGE27-1
+package: fandhe-workshop-web
+test: clarify_draft
+target: crates/web/src/host.rs
+find: judgment: Judgment::Rejected(_),
+replace: judgment: Judgment::Rejected(_) | Judgment::Clarified(_),
+expect-fail: 問い返しの後は下書きが空になり_書き戻しが要求される
+note: 問い返しも下書きを残す判定に数える（問い返しの後に下書きが残り、続けて打った入力が連結される。JUDGE-27）

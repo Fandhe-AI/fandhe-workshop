@@ -1,0 +1,8 @@
+id: PACK18-2
+package: fandhe-workshop-core
+test: start_gate
+target: crates/core/src/start_gate.rs
+find:     if met == Some(true) {
+replace:     if met != None {
+expect-fail: pack18_unmet_refuses_with_text_and_state_unchanged
+note: 開始条件が偽でも開始してよいとする（真だけを通す規則を、評価できた場合は何でも通す規則に変える）

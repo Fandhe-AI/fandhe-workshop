@@ -10,17 +10,24 @@
 
 | ID | 限界 | 状態 | 回避 | 根拠の試験 |
 |---|---|---|---|---|
+| H-2 | 自然文の内容（含む語など）で規則を分けられない | 足さないと決定（D-43、PACK-41）。内容で分ける書き方は `E-PARSE`。`when` の内容らしい条件は `compile` だけが拒否し、`validate` は条件の語彙を検査しないため通す | Step を分ける、`choice` にする、受け付けた後の確認で人が判断する | `crates/pack/tests/text_rule_content.rs` の `pack41_`・`crates/core/tests/text_judge.rs` の `pack41_rule_choice_ignores_words` |
 | H-3 | 受講者が選んだ値を、文中・経路・属性に差し込めない | 足さないと決定（D-50、PACK-39） | 起こりうる入力を規則として列挙する | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` |
 | G-4 | 本文を出せなかった時代の回避（属性の書き換え）。本文を出すことは解消済み | 一部を語彙 1.4 で解消（EP-13、PACK-38） | 選択ごとに属性へ固定値を書く | 同上と `crates/pack/tests/view_body.rs` |
 | H-6 | 無い要素への `remove`・`set_attr` が、実行時の警告になるまで分からなかった | 一部を解消。`validate` が `E-REF-ELEMENT` で静的に報告する（PACK-30、D-43）。順序に依る不在などの近似の限界は残る | 教材テストの模範解答と実行時の警告で補う（`docs/pack-authoring.md` の「存在しない要素への `remove`・`set_attr`」） | `crates/pack/tests/missing_elements.rs` の `pack30_` |
 | H-7 | 開始点（`starts`）が 0 件の教材が `validate` を通った | 解消。`E-STRUCTURE` で拒否する（PACK-25） | 不要（章に 1 件以上の開始点を書く） | `crates/pack/tests/no_starts.rs` の `pack25_` |
-| H-8 | `vocab` コマンドが EP-9 を数えなかった | 解消。`requires` または `unmet` を持つ開始点が指す Step の行に数える（TASK-409、AUTHOR-17、D-64） | 不要 | `crates/pack/tests/vocab_command.rs` の `author17_` |
+| H-8 | `vocab` コマンドが EP-9 を数えなかった | 解消。`requires` または `unmet` を持つ開始点が指す Step の行に数える（TASK-409、AUTHOR-17、D-64）。TASK-51 以降、片方だけの開始点は `compile` の関門で `E-STRUCTURE` になるため、`vocab` は `unmet` だけの開始点を数えない（`validate` の語彙の検査は片方だけでも EP-9 を使ったと判定する） | 不要 | `crates/pack/tests/vocab_command.rs` の `author17_` |
 | AUTHOR-13（1） | flow 形式の中で引用符なしの `{{step_do}}` を書くと `E-PARSE` になるが、その注意書きが無かった | 資料の説明の欠けとして解消（`docs/schema-format-b.md` の 9 節、TASK-411） | 差し込みの枠を含む値は引用符で囲む | `crates/pack/tests/format_b.rs` の `author13_` |
 | AUTHOR-13（2） | 「Claude Code 風」に当たる外観の定義が無かった | 資料の説明の欠けとして解消（`docs/operation-profile.md` の 2 節、TASK-411）。外観ごとの見た目の画面への反映は未実装 | 外観の 4 値の意味と、製品名つきの外観が無いことを読む | `crates/pack/tests/appearance.rs`（4 値の閉じた集合と、スタイル欄が 0 件であること） |
 | FEND-22 | 4,096 件の安全弁に当たった list は、4,096 件目以降が見えない（先頭の 4,095 件と状態の行だけを出す。ログ・復習は畳みで届かないが、届けば最新の側が隠れる。今届くのは畳みの無い左のビュー）。1,000 項目を超えて畳んだ右のログ・復習の要約行は、開いて中身を見られない。章の単位のグループは無く、古い Step をまとめた集約行で代える。左のビューの畳みは未実装 | 未実装（TASK-360 1/2・2/2。開き方は開くと目安を超えうるため未試作。左のビューは TASK-484） | 古い行は畳まれる前に右のログで読む。畳まれる前の行数は要約行の `data-fold-rows` に出る | `crates/web/tests/list_fold.rs`・`crates/web/tests/list_limit.rs` |
 | SAVE-12 | 古いタブの保存を止める照合（起動番号）と書き込みは、タブ間で原子的ではない。照合の直後に別のタブが同じ教材を開くと、古いタブが 1 回だけ書きうる | 排他は入れないと判断（TASK-324 1/2。原子性を要件にするには仕様の決定が要る） | 同じ教材は 1 つのタブで開く。古いタブは再読み込みする | `crates/web/tests/boot_guard.rs` の `限界_` |
 | SAVE-13 | 古いタブで行った操作は保存されず、新しいタブの履歴とも合流しない | 合流の規則は足さないと決定（D-56。TASK-325 2/2）。古いタブには保存されていない旨の表示を出す | 同じ教材は 1 つのタブで開く。古いタブで続けたいときは再読み込みする（新しいタブの保存済みの履歴から続く） | `tools/browser/stale-tab.test.mjs`・`crates/web/tests/boot_guard.rs` の交互 10 回ずつの試験 |
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
+| JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
+| PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
+| PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。画面での見え方は未確認（ART-19） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` |
+| PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
+| PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
+| PACK-19（両方無い） | 確認も持たない、入力も `use` も無い終端でない Step は、まだ拒否しない（確認を持つものだけを `E-STRUCTURE` にした。2026-10-21）。全面の拒否は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台に影響する（30c1ff0 での実測。workspace の残りは未測定） | 一部を実装。残りは別の Issue で扱う | 途中の Step には入力を書く | `crates/pack/tests/read_only_step.rs` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 
@@ -173,3 +180,63 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 - `crates/core/tests/secret_scan.rs` の `added_` で始まる試験と、`crates/web/tests/secret_notice.rs` の `every_added_shape_`（記録は `docs/testing.md` 5.184）
 - 件数（見逃しと誤検出）の測定は `crates/core/tests/secret_scan.rs` の `added_shapes_measure_` で始まる試験と `tools/browser/secret-warning.test.mjs`、読み込みの扱いは `crates/web/tests/history_import.rs` の `opening_a_history_`（記録は `docs/testing.md` 5.185）
+
+## JUDGE-24: 上限を超える貼り付けは Ctrl+Z で取り消せない
+
+### 限界
+
+- 入力欄の途中へ上限を超える文字列を貼ると、エンジンは貼った分だけを切って値を書きます（`crates/web/src/glue.rs` の `wire_paste_clip`）。既定の挿入を止め、`set_value` で値を書き、合成の `input` を発火させます
+- このため、Ctrl+Z を 1 回押しても貼り付けの前に戻りません。2 回押しても戻らず、取り消しの履歴がまるごと消えます
+- 上限ちょうどの欄へ貼り付けると、何も挿入されません。このとき Ctrl+Z を押すと、その前の操作が取り消されます
+- 末尾への超過の貼り付けと、上限での打鍵も `set_value` を通ります。このため、同じく取り消しの履歴が消えると推測します（推論・未確認）
+- 確かめたのは Chromium（Playwright・Linux）だけです（2026-10-21）。Firefox・Safari・実際の IME では確かめていません
+
+### 理由
+
+- 取り消しは対象外とし、限界として記録すると決めました（2026-10-21。#1667）
+- 超過の印（案内と `inputOverLimit`）は、はみ出した 1 文字を欄の末尾に置き、`clamp_draft` がそれを切る書き戻し（`sync_draft` の `set_value`）で立てています。この書き戻しが、取り消しの履歴を消します
+- `document.execCommand('insertText')` で書く案を、Chromium の試作で 3 通り試しました（2026-10-21）。末尾にはみ出し 1 文字を置く案と、2 回に分けて挿入する案は、取り消しが効きませんでした（後者は `input` が 2 件になります）。残す分だけを挿入する案は、Ctrl+Z 1 回で値と選択範囲が戻り、やり直しも効きましたが、超過の印が立たず、ブラウザ試験 J-1〜J-5 のうち 6 件が失敗しました
+- 両立させるには、欄の値を通らずに印を立てる新しい経路（`RuntimeAction` など）が要ります。判定が 2 か所に分かれ、glue に新しい種類の操作が加わり（FEND-20）、部品の契約の版上げと spec の変更が要るため、範囲に見合わないと判断しました
+
+### 回避
+
+- 貼り付けを取り消したいときは、貼った分を手で消してください。上限を超えそうな長い文字列は、貼り付ける前に短くしてください
+
+### 根拠の試験
+
+- 切り捨ての位置は `tools/browser/input-limit.test.mjs` の J-1〜J-5 と `crates/web/tests/input_limit.rs` の `judge24_` が確かめます。取り消しは試験しません。試作の結果は `docs/testing.md` 5.189 の「既知の限界」に記録しました
+
+## A11Y-5: キーでタブを切り替えたときのフォーカスの置き方
+
+### 限界
+
+- 幅 960px 未満で、tablist の上の矢印・Home・End を押すと、選択とフォーカスが選ばれたタブへ移ります（`a11y::tab_key_target` の契約）。クリックではフォーカスを移しません（押した要素が既に持つため）
+- フォーカスの移動は glue の `focus()` 1 か所です。glue の操作の分類（`glue_ops.rs`。FEND-20 の 7 種）には新しい種類を足さず、`Click`（要素への作用）に分類しました。実装側の契約（`glue_ops.rs` の `Click` の範囲）は記述し、部品の契約の版を 3 に上げました。spec 側（FEND-20 の文言）の更新は private の spec repo で行う要対応事項で、未了です
+- 切り替えたときのフォーカスの置き方の細部は A11Y-21 が未決です。決まった内容と食い違った場合は直します（2026-10-21。TASK-517 2/2）
+
+### 根拠の試験
+
+- `tools/browser/shell-tabs.test.mjs` の「キーで切り替えるとフォーカスが選んだタブへ移り、Enter で選択が戻らない」が確かめます（記録は `docs/testing.md` 5.203）
+
+## PACK-34: 書き出しを入力とする Step は達成にならない
+
+### 限界
+
+- `input: {kind: env_action, action: export}` を書いた Step は `validate` を通ります。しかし、今はどの操作でも達成になりません。この Step を置いた教材は、そこで先へ進めません
+- 保存（`action: save`）の Step は、保存の成功で受付になります。チェックポイントの写しは達成の前の状態で控えるため、その写しへ復帰すると保存の Step に戻ります
+- 保存・書き出しのボタンの画面は未実装です。保存の操作を受講者が行う入口は、2026-10-21 時点の画面にありません
+
+### 理由
+
+- 書き出しの成否は web が持ち、core には書き出しの成功を伝える `Op` がありません。結ぶには `Control` に新しい種類を足す必要があり、世代の表・`CONTRACT_VERSION`・契約サンプル・履歴の `ops` の形・書き出しの画面（TASK-531）に影響が及びます
+- 本タスクは語と保存の結線までとし、書き出しの結線は別に扱うことにしました（2026-10-21。TASK-64 1/2）
+- 保存の成功を受付にする結線は `crates/core/src/env_input.rs` に置きました。保存の分岐（`checkpoint`）は教材を読まない不変条件を持つためです
+
+### 回避
+
+- 書き出しを案内する Step は、`env_action` を使わず、別の入力（1 択の `choice` など）で達成にします
+- 保存を入力とする Step は、`confirm: { kind: none, reason }` と組みます。画面に保存の入口が出るまで、実際の教材では使わないでください
+
+### 根拠の試験
+
+- `crates/pack/tests/env_action_input.rs` の `pack34_`（宣言の検査）と `crates/core/tests/env_action_save.rs` の `pack34_`（`pack34_export_step_is_not_achieved_by_save` が、書き出しの Step を保存で達成にしないことを固定する）。記録は `docs/testing.md` 5.209

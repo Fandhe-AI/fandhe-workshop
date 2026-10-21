@@ -196,9 +196,75 @@ fn ui_action_check() {
 }
 
 #[test]
-fn approval_takes_no_fields() {
+fn approval_takes_only_revise() {
     assert!(serde_json::from_value::<ApprovalSpec>(json!({})).is_ok());
     assert!(serde_json::from_value::<ApprovalSpec>(json!({"x": 1})).is_err());
+}
+
+#[test]
+fn approval_without_revise_round_trips_without_the_field() {
+    let a: ApprovalSpec = serde_json::from_value(json!({})).expect("read");
+    assert_eq!(a, ApprovalSpec::default());
+    assert_eq!(serde_json::to_value(&a).expect("write"), json!({}));
+    let n: ApprovalSpec = serde_json::from_value(json!({"revise": null})).expect("null");
+    assert!(n.revise.is_none());
+}
+
+fn revise(v: serde_json::Value) -> ApprovalSpec {
+    serde_json::from_value(json!({"revise": v})).expect("read")
+}
+
+#[test]
+fn approval_reads_revise_candidates_in_order() {
+    let a = revise(json!({"candidates": [{"id": "a", "label": "A 名"}, {"id": "b"}]}));
+    let c = &a.revise.as_ref().expect("revise").candidates;
+    assert_eq!(c.len(), 2);
+    assert_eq!(c[0].display(), "A 名");
+    assert_eq!(c[1].display(), "b");
+    assert_eq!(a.check(), Ok(()));
+}
+
+#[test]
+fn revise_rejects_unknown_fields() {
+    for v in [
+        json!({"candidates": [{"id": "a", "labels": "x"}]}),
+        json!({"candidates": [{"id": "a"}], "extra": 1}),
+        json!({"candidates": [{"id": "a", "label": 1}]}),
+    ] {
+        assert!(
+            serde_json::from_value::<ApprovalSpec>(json!({"revise": v})).is_err(),
+            "must be refused"
+        );
+    }
+}
+
+#[test]
+fn revise_check_reports_each_violation() {
+    assert_eq!(
+        revise(json!({"candidates": []})).check(),
+        Err(SpecError::EmptyList)
+    );
+    assert_eq!(
+        revise(json!({"candidates": [{"id": " "}]})).check(),
+        Err(SpecError::EmptyName)
+    );
+    assert_eq!(
+        revise(json!({"candidates": [{"id": "a", "label": " "}]})).check(),
+        Err(SpecError::EmptyName)
+    );
+    assert_eq!(
+        revise(json!({"candidates": [{"id": "a"}, {"id": "a"}]})).check(),
+        Err(SpecError::Duplicate)
+    );
+}
+
+#[test]
+fn revise_display_falls_back_to_id_for_blank_label() {
+    let c = ReviseCandidate {
+        id: "x".to_string(),
+        label: Some("  ".to_string()),
+    };
+    assert_eq!(c.display(), "x");
 }
 
 #[test]
@@ -226,4 +292,50 @@ fn only_wait_is_an_extension_point() {
         assert_eq!(k.extension_point(), None, "{}", k.as_str());
     }
     assert_eq!(CANCEL_RULE_KEY, "cancel");
+}
+
+#[test]
+fn env_action_reads_save_and_export() {
+    let save: EnvActionSpec = serde_json::from_value(json!({"action": "save"})).expect("save");
+    assert_eq!(save.action, EnvAction::Save);
+    let export: EnvActionSpec =
+        serde_json::from_value(json!({"action": "export"})).expect("export");
+    assert_eq!(export.action, EnvAction::Export);
+    assert_eq!(
+        serde_json::to_value(save).expect("ser"),
+        json!({"action": "save"})
+    );
+}
+
+#[test]
+fn env_action_rejects_unknown_value_missing_field_and_unknown_field() {
+    for v in [
+        json!({"action": "delete"}),
+        json!({"action": "Save"}),
+        json!({}),
+        json!({"action": "save", "name": "x"}),
+        json!({"action": 1}),
+    ] {
+        assert!(
+            serde_json::from_value::<EnvActionSpec>(v.clone()).is_err(),
+            "{v}"
+        );
+    }
+}
+
+#[test]
+fn env_action_kind_round_trips_and_is_not_an_extension_point() {
+    assert_eq!(InputKind::EnvAction.as_str(), "env_action");
+    assert_eq!(
+        InputKind::from_str_opt("env_action"),
+        Some(InputKind::EnvAction)
+    );
+    assert_eq!(InputKind::EnvAction.extension_point(), None);
+    assert!(InputKind::ALL.contains(&InputKind::EnvAction));
+    assert_eq!(InputKind::ALL.len(), 7);
+}
+
+#[test]
+fn input_spec_contract_version_is_3() {
+    assert_eq!(INPUT_SPEC_CONTRACT_VERSION, 3);
 }

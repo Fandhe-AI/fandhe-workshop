@@ -13,12 +13,18 @@ use fandhe_workshop_pack::{DiagCode, Diagnostic};
 
 /// Step `a` の `next`・`rules`・追加欄と、開始点の `requires` を差し込んだパックを作る。
 fn pack(next_when: &str, rule_when: &str, step_extra: &str, requires: &str) -> Tmp {
+    // `requires: null` は省略と同じ扱いで、`unmet` だけを残すと片方だけの `E-STRUCTURE` になる（TASK-51）。
+    let unmet = if requires == "null" {
+        ""
+    } else {
+        ", unmet: rj-x"
+    };
     let t = Tmp::new("condition");
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     t.put(
         "chapters/c1/chapter.yaml",
         format!(
-            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, requires: {requires}, unmet: rj-x}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b, when: {next_when}}}], rules: [{{id: r1, when: {rule_when}}}]{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
+            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, requires: {requires}{unmet}}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b, when: {next_when}}}], rules: [{{id: r1, when: {rule_when}}}]{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
         )
         .as_bytes(),
     );

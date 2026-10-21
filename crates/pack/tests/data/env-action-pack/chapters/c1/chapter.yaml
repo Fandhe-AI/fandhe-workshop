@@ -1,0 +1,22 @@
+id: c1
+title: 保存と書き出しの章
+starts: [{id: s1, node: st-save}]
+steps:
+  - id: st-save
+    title: 途中の状態を保存する
+    body: a.md
+    next: [{to: st-export}]
+    views: [v-cards]
+    input: {kind: env_action, action: save}
+    confirm: {kind: none, reason: 保存の操作が成功したこと自体が達成の根拠のため、別の確認を置かない。}
+  - id: st-export
+    title: 履歴を書き出す
+    body: a.md
+    next: [{to: st-end}]
+    views: [v-cards]
+    input: {kind: env_action, action: export}
+    confirm: {kind: none, reason: 書き出しの操作が成功したこと自体が達成の根拠のため、別の確認を置かない。}
+  - id: st-end
+    title: おわり
+    body: b.md
+    final: true

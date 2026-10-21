@@ -99,6 +99,8 @@ export async function keyTo(page, sel, key = 'Tab') {
 }
 
 // 入力欄にフォーカスを移し、残っている下書き（拒否の後は残る）を全選択して、次の入力で置き換わるようにする。
+// 拒否の後は下書きが本番でも選択状態になる（TASK-284 2/2）が、通しの他の場面（受け付けの後の空欄など）でも無害で、
+// ドライバの操作を変えると通しの他の段に影響するので、見直した結果として全選択は残す。選択の確認は reject-draft-select が受け持つ。
 export async function replaceDraft(page) {
   await keyTo(page, DRAFT);
   await page.keyboard.press('ControlOrMeta+A');
@@ -204,10 +206,23 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
   await enter('main/st-1-3', plain);
   await d.sendMultiline('memo line 1', 'memo line 2');
   await enter('main/st-1-4', plain);
+  if (stopAt === 'main/st-1-4') return;
   await d.send('/new-idea');
   await clarify('main/st-1-4');
+  // 問い返しの後は欄が空になる（JUDGE-27・TERM-22。D-67）。書き戻しは 0 ミリ秒のタイマーで非同期のため、空になるのを待つ。
+  const emptied = await page.waitForFunction((sel) => document.querySelector(sel)?.value === '', DRAFT, { timeout: T })
+    .then(() => true, () => false);
+  L.check(scene, 'main/st-1-4 問い返しの後の入力欄が空', emptied);
   await d.send('/advance-phase');
   await reject('main/st-1-4');
+  // 拒否の後は下書きの全体が選択状態になる（TASK-284 2/2。JUDGE-27）。選択は 0 ミリ秒のタイマーで付くので待つ。
+  const selected = await page.waitForFunction(
+    (sel) => {
+      const el = document.querySelector(sel);
+      return el?.value === '/advance-phase' && el.selectionStart === 0 && el.selectionEnd === el.value.length;
+    }, DRAFT, { timeout: T },
+  ).then(() => true, () => false);
+  L.check(scene, 'main/st-1-4 拒否の後の下書きが全体の選択状態', selected);
   await d.esc();
   await wait('main/st-1-4', [2, 0, 1, 1]);
   await d.choose('asked-back');

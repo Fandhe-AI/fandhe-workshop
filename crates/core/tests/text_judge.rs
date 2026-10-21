@@ -142,6 +142,22 @@ fn content_is_not_judged() {
 }
 
 #[test]
+fn pack41_rule_choice_ignores_words() {
+    // 判定語は無い（PACK-41、D-43）。語を含む文と含まない文で、選ばれる規則も分類も変わらない。
+    let rules = json!([
+        { "id": "r-first", "on": { "text": true }, "outcome": { "kind": "accept", "effects": [] } },
+        { "id": "r-second", "on": { "text": true }, "outcome": { "kind": "accept", "effects": [] } },
+    ]);
+    let s = text_step(1, 40, rules);
+    for t in ["contains foo", "no such word", "foo"] {
+        let a = accepted(&s, t);
+        assert_eq!(a.rule_id.as_deref(), Some("r-first"), "{t:?}");
+        let j = judge(&s, t).expect("valid");
+        assert_eq!(j.category(), Category::FreeTextUnjudged, "{t:?}");
+    }
+}
+
+#[test]
 fn text_is_kept_verbatim() {
     let s = text_step(1, 100, memo_rules());
     for t in [

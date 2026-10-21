@@ -143,3 +143,41 @@
   min-height: 24px;
   min-width: 24px;
 }
+
+/* 画面の枠（TASK-517）。幅 960px 以上で成果物（左）と操作（右）を 2 列に並べ、tablist を隠す。
+  960px 未満では tablist の data-pane（選択の写し。持ち主は crates/web/src/shell_frame.rs の PANE_ATTR）を読み、
+  選んでいない tabpanel を display: none にする（tablist と .sh-panes が兄弟であることが前提）。hidden・aria-hidden は
+  960px 以上で両方を見せる必要があるため使わない。tablist のキーは Esc も受ける（data-keydown-prevent-default は
+  Esc にも掛かるが、ボタンの上の Esc に既定の動作は無い）。
+  クラス名は crates/web/src/shell_frame.rs の PANES_CLASS と一致させる（shell- の識別子は shell 契約の閉じた一覧が持つため、
+  入れ物にはクラスだけを付ける）。 */
+.sh-panes > * {
+  min-width: 0;
+}
+
+/* tab は操作の対象の最小寸法（24px。A11Y-3）を満たす。 */
+[data-testid="pane-tab"] {
+  min-width: 24px;
+  min-height: 24px;
+}
+
+@media (min-width: 960px) {
+  [data-testid="pane-tabs"] {
+    display: none;
+  }
+
+  .sh-panes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+}
+
+/* 960px 以上の規則とちょうど補い合う（max-width: 959px だと小数の幅に穴が空く）。 */
+@media not all and (min-width: 960px) {
+  [data-testid="pane-tabs"][data-pane="ops"] ~ .sh-panes > #pane-artifacts,
+  [data-testid="pane-tabs"][data-pane="artifacts"] ~ .sh-panes > #pane-ops {
+    display: none;
+  }
+}

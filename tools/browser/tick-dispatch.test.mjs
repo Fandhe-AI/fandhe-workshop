@@ -180,12 +180,12 @@ test('配信設定には試験の口も、進行・補完を届ける隠し要�
     for (const id of ['tick-trigger', 'esc-trigger', 'complete-trigger', 'raw-trigger']) {
       assert.equal(await page.locator(`[data-testid="${id}"]`).count(), 0, id);
     }
-    // 進行の宛先（tick・complete・esc）を data-action に持つ要素が無く、data-payload を持つ要素は指せる行（ui）だけ。
+    // 進行の宛先（tick・complete・esc）を data-action に持つ要素が無く、data-payload を持つ要素は指せる行（ui）と、見えるタブ（select-pane。TASK-517 2/2）だけ。
     for (const action of ['tick', 'complete', 'esc']) {
       assert.equal(await page.locator(`[data-action="${action}"]`).count(), 0, `data-action=${action}`);
     }
     const payloadActions = await page.$$eval('[data-payload]', (els) => els.map((e) => e.getAttribute('data-action')));
-    assert.ok(payloadActions.every((a) => a === 'ui'), `data-payload outside ui: ${payloadActions}`);
+    assert.ok(payloadActions.every((a) => a === 'ui' || a === 'select-pane'), `data-payload outside ui: ${payloadActions}`);
     await context.close();
   });
 });

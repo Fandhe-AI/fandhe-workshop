@@ -115,8 +115,8 @@
 | `node` | 文字列 | 必須 | なし | 開始する Step の ID（`E-REF-STEP` で照合） |
 | `effects` | 列（状態変化。7 節） | 省略可 | 空 | 開始時の世界状態を作る |
 | `guidance` | 値 | 省略可 | 省略 | EP-8。開始点ごとの案内レベル。`A`・`B`・`C` のどれかで、それ以外は `E-PARSE`（項目 `scope`） |
-| `requires` | 条件（7 節） | 省略可 | 省略 | EP-9。開始の条件 |
-| `unmet` | 文字列 | 省略可 | 省略 | EP-9。満たさないときの文面 |
+| `requires` | 条件（7 節） | 省略可 | 省略 | EP-9。開始の条件。`unmet` と両方そろえる（片方だけは `E-STRUCTURE`。`null` は省略と同じ） |
+| `unmet` | 文字列 | 省略可 | 省略 | EP-9。満たさないときの文面（`rejections` の ID）。`requires` と両方そろえる（片方だけは `E-STRUCTURE`） |
 
 ## 5. Step
 
@@ -153,7 +153,7 @@
 
 | 欄 | 決まる場所 | 内容 |
 |---|---|---|
-| `input` | `crates/pack/src/input.rs`・contract の `input_spec` | `kind` は `command`・`text`・`choice`・`ui_action`・`approval`・`wait`。欄は `docs/pack-authoring.md` の「入力方式」の表 |
+| `input` | `crates/pack/src/input.rs`・contract の `input_spec` | `kind` は `command`・`text`・`choice`・`ui_action`・`approval`・`wait`・`env_action`。欄は `docs/pack-authoring.md` の「入力方式」の表。`approval` は省略可の `revise`（`candidates` の要素は `id`・`label`。語彙 1.5）。`env_action` は必須の `action`（`save`・`export`。語彙 1.5） |
 | `confirm` | `crates/pack/src/confirm.rs`・contract の `confirm_spec` | `kind` は `point_at`・`answer`・`approve`・`none`。入力を持つ Step には必須（`E-NO-CONFIRM`） |
 | `rules[]` | `crates/pack/src/rejection.rs`・`effect_check.rs`・`condition_check.rs` | `id`・`on`（`command`・`args`・`ui`・`cancel` など）・`when`（省略可）・`outcome`（`kind`: `accept`・`reject`・`clarify`） |
 | `processing[]` | `crates/pack/src/effect_check.rs` | `name`（空でない文字列）と `effects` だけ。間隔の欄は書けません（PACK-44） |

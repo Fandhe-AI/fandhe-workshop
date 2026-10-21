@@ -6,9 +6,9 @@
 //! - `pack.vocab` を省略した教材は検査しない。PACK-31 の前提は「`pack.vocab` を書く」であり、書き方の
 //!   規約は TASK-179 の持ち分である（contract の `DEFAULT` は履歴を書くときの値で、検査の既定ではない）
 //! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-13（`pack.profile`・
-//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）。v1.1 の語は対象外
+//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）。v1.1 の語は対象外
 //! - `confirm.options[].label` は確認の `confirm` だけを見る。入力方式 `choice` の `input.options[].label`
-//!   （v1 の語。PACK-23）は別の欄であり、`step.input` は読まない
+//!   （v1 の語。PACK-23）は別の欄であり、この判定は `step.input` を読まない。`input.revise`（`kind: approval`）と `env_action`（PACK-34）だけは `step.input` を読む
 //! - 必要な版は [`crate::vocab::EXTENSION_POINTS`]・[`crate::vocab::term`] から引き、ここに書き写さない
 //! - 読めない宣言（文字列でない・正規の `主.副` でない）は `E-PARSE` とし、値は診断に写さない（fail-closed）
 //!
@@ -18,8 +18,12 @@ use fandhe_workshop_contract::history_version::VocabVersion as Declared;
 use fandhe_workshop_contract::ir::Start;
 use serde_json::Value;
 
+use fandhe_workshop_contract::limits::MAX_IR_BYTES;
+
+use crate::compile::Budget;
 use crate::diag::{DiagCode, Diagnostic};
-use crate::source::LoadedPack;
+use crate::expand::Expander;
+use crate::source::{LoadedPack, ScopeKind};
 use crate::validate::diag;
 use crate::vocab::{extension_point, term};
 
@@ -37,6 +41,10 @@ type Probe = (Source, fn(&LoadedPack) -> bool);
 
 const LABEL: Source = Source::Term("field", "confirm.options[].label");
 
+const REVISE: Source = Source::Term("field", "input.revise.candidates");
+
+const ENV_ACTION: Source = Source::Term("input", "env_action");
+
 const PROBES: &[Probe] = &[
     (Source::Ep("starts.requires"), uses_start_condition),
     (Source::Ep("pack.profile"), |p| {
@@ -50,6 +58,8 @@ const PROBES: &[Probe] = &[
     }),
     (Source::Ep("view.document_body"), uses_view_body),
     (LABEL, uses_answer_label),
+    (REVISE, uses_revise_candidates),
+    (ENV_ACTION, uses_env_action),
 ];
 
 /// 語の版（主・副）と、診断の文面の接頭を表から引く。引けない項目は `None`（単体試験で全項目が引けることを保証する）。
@@ -86,6 +96,67 @@ fn uses_answer_label(pack: &LoadedPack) -> bool {
                         .any(|o| o.get("label").is_some_and(|l| !l.is_null()))
                 })
         })
+    })
+}
+
+/// 全 Step の `input`（`kind: approval`）が `revise` を持つか。生の値を辿り、`revise` の中身は見ない（読めない
+/// 宣言は別に `E-PARSE`）。`null` は使用に数えない。他の入力方式の `revise` は語彙の語ではないので数えない。
+fn uses_revise_candidates(pack: &LoadedPack) -> bool {
+    pack.scopes.iter().any(|s| {
+        s.src.steps.iter().any(|step| {
+            step.input.as_ref().is_some_and(|i| {
+                i.get("kind").and_then(Value::as_str) == Some("approval")
+                    && i.get("revise").is_some_and(|r| !r.is_null())
+            })
+        })
+    })
+}
+
+/// 全 Step の `input` が `kind: env_action`（PACK-34）か。生の値で `kind` だけを見る（欄の中身が読めない宣言は
+/// 別に `E-PARSE`）。置換前の値でも使用を取りこぼさない。
+fn uses_env_action(pack: &LoadedPack) -> bool {
+    uses_env_action_raw(pack) || uses_env_action_expanded(pack)
+}
+
+/// 置換前の Step の `input` が `kind: env_action` か。
+fn uses_env_action_raw(pack: &LoadedPack) -> bool {
+    pack.scopes.iter().any(|s| {
+        s.src.steps.iter().any(|step| {
+            step.input
+                .as_ref()
+                .is_some_and(|i| i.get("kind").and_then(Value::as_str) == Some("env_action"))
+        })
+    })
+}
+
+/// モジュールの `input` の `kind` が引数に由来する（`${` を含む）教材だけ、展開後の Step の `input` も見る。
+/// 引数経由で `env_action` が渡る場合、置換前の値では使用を取りこぼすため。含まない教材は展開しない。
+fn uses_env_action_expanded(pack: &LoadedPack) -> bool {
+    let templated = pack
+        .scopes
+        .iter()
+        .filter(|s| s.kind == ScopeKind::Module)
+        .any(|s| {
+            s.src.steps.iter().any(|step| {
+                step.input
+                    .as_ref()
+                    .and_then(|i| i.get("kind"))
+                    .is_some_and(|k| k.to_string().contains("${"))
+            })
+        });
+    if !templated {
+        return false;
+    }
+    let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
+    let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
+        ex.expand_chapter(scope);
+    }
+    ex.nodes.iter().any(|n| {
+        n.step
+            .input
+            .as_ref()
+            .is_some_and(|i| i.get("kind").and_then(Value::as_str) == Some("env_action"))
     })
 }
 
@@ -177,9 +248,12 @@ mod tests {
                 }
             }
         }
+        assert!(PROBES
+            .iter()
+            .any(|(s, _)| matches!(s, Source::Term(_, "confirm.options[].label"))));
         assert!(matches!(
             PROBES.last(),
-            Some((Source::Term(_, "confirm.options[].label"), _))
+            Some((Source::Term(_, "env_action"), _))
         ));
     }
 

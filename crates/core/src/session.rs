@@ -307,7 +307,17 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（作り直しは TASK-242）。
         Op::Control(Control::GoTo(to)) => go_to::on_go_to(ir, state, to),
         // 保存と復帰は `checkpoint`（TASK-214 1/3）。保存は世代を変えず、復帰は成功したときだけ +1 になる（`apply` の関門）。
-        Op::Control(Control::Save) => checkpoint::on_save(state),
+        // 保存が成功し、現在の Step が保存を入力とする宣言（`env_action`）なら受付にする（TASK-64 1/2、PACK-34）。
+        Op::Control(Control::Save) => {
+            let mut events = checkpoint::on_save(state);
+            if events
+                .iter()
+                .any(|e| matches!(e, Event::CheckpointSaved { .. }))
+            {
+                events.extend(crate::env_input::on_saved(ir, state));
+            }
+            events
+        }
         Op::Control(Control::Restore(id)) => checkpoint::on_restore(state, id),
         // TASK-217 途中開始、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),

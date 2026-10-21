@@ -28,5 +28,5 @@ steps:
       kind: answer
       on_wrong: rj-wrong-answer
       options:
-        - { id: asked-back, correct: true }
-        - { id: rejected, correct: false }
+        - { id: asked-back, correct: true, label: 選択肢 asked-back }
+        - { id: rejected, correct: false, label: 選択肢 rejected }

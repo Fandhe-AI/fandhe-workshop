@@ -367,11 +367,14 @@ impl Projection {
     }
 
     /// 操作の先頭と入口の控えを取る。上限で止めた操作の `Achieved`・`Changed` を復習から取り除くために使う。
+    /// 保存（`CheckpointSaved`）も先頭に数える。保存を入力とする Step（`env_action`。TASK-64 1/2）では
+    /// `InputReceived` を伴わない `Accepted` が保存の直後に続くため、先頭が無いと前の操作の控えが残る。
     /// 控えは取り消し差分の長さで、復習・印の元を複製しない。
     fn take_starts(&mut self, event: &Event) {
         if matches!(
             event,
             Event::InputReceived { .. }
+                | Event::CheckpointSaved { .. }
                 | Event::Accepted { .. }
                 | Event::Progress { .. }
                 | Event::Moved { .. }

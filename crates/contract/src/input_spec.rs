@@ -23,7 +23,13 @@ use crate::judgment::{Category, JudgmentKind};
 
 /// この契約の版。欄・判定の規則を変えたら上げる。`wait` は同じ TASK-44 の 2/2 で足した版 1 の範囲の
 /// 完成であり、利用者（core）がまだ型を読んでいないため、版は上げない。
-pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 1;
+/// 版 2（TASK-62 2/2、PACK-42）は `approval` に省略可の欄 `revise`（「直す」の誤った対象の候補と表示名）を足した。
+/// 欄を省略した宣言は版 1 と同じ値で読め、直列化しても欄は出ない。
+///
+/// 版 3（TASK-64 1/2、PACK-34、D-69）は入力方式 `env_action`（実行環境の操作。保存・書き出し）を足した。
+/// 値は閉じた 2 つ（`save`・`export`）で、受講者の入力は持たず教材へも差し込まない（D-50）。
+/// 既存の方式の宣言は版 2 と同じ値で読める。
+pub const INPUT_SPEC_CONTRACT_VERSION: u32 = 3;
 
 /// 取り消し（EP-2）を受ける規則の `on` のキー。`input.kind` の語ではない。
 /// 意味を持つのは、この規則を書いた Step だけである。検査は pack が行う。
@@ -44,17 +50,20 @@ pub enum InputKind {
     Approval,
     /// 待機（EP-1）。進行イベントの完了で受付になる。
     Wait,
+    /// 実行環境の操作（保存・書き出し。PACK-34）。操作の成功で受付になる。
+    EnvAction,
 }
 
 impl InputKind {
-    /// 全方式（5 方式と待機）。
-    pub const ALL: [InputKind; 6] = [
+    /// 全方式（5 方式・待機・実行環境の操作）。
+    pub const ALL: [InputKind; 7] = [
         Self::Command,
         Self::Text,
         Self::Choice,
         Self::UiAction,
         Self::Approval,
         Self::Wait,
+        Self::EnvAction,
     ];
 
     /// 教材に書く `kind` の語。
@@ -66,6 +75,7 @@ impl InputKind {
             Self::UiAction => "ui_action",
             Self::Approval => "approval",
             Self::Wait => "wait",
+            Self::EnvAction => "env_action",
         }
     }
 
@@ -314,15 +324,91 @@ impl UiActionSpec {
     }
 }
 
-/// `approval` の宣言。欄を持たない。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// 「直す」の対象の候補 1 つ（PACK-42）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ApprovalSpec {}
+pub struct ReviseCandidate {
+    /// 候補の ID。規則の `on.target` と同じ綴りで書く。
+    pub id: String,
+    /// 表示名（`confirm.options[].label` と同じ型）。書かなければ ID を表示する。書くなら空白だけにしない。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl ReviseCandidate {
+    /// 画面に出す表示名。`label` が空白以外を含めばそれ、無ければ ID。
+    /// 検査は空白だけの `label` を拒否するが、検査を経ない呼び出し元でも空の表示を出さないよう ID に倒す。
+    pub fn display(&self) -> &str {
+        match self.label.as_deref() {
+            Some(l) if !l.trim().is_empty() => l,
+            _ => &self.id,
+        }
+    }
+}
+
+/// `approval` の `revise`（PACK-42）。正しい対象と誤った候補を並べる順に宣言する。
+/// どの候補が正しいかは宣言せず、規則の `on: { approval: revise, target }` を持つ ID が正しい対象である。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviseSpec {
+    /// 候補。空にできない。
+    pub candidates: Vec<ReviseCandidate>,
+}
+
+/// `approval` の宣言。欄 `revise` は省略できる。
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApprovalSpec {
+    /// 「直す」の対象の候補と表示名（版 2）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revise: Option<ReviseSpec>,
+}
+
+impl ApprovalSpec {
+    /// 意味の制約を検査する。`revise` が無ければ常に通る。
+    pub fn check(&self) -> Result<(), SpecError> {
+        let Some(revise) = &self.revise else {
+            return Ok(());
+        };
+        if revise.candidates.is_empty() {
+            return Err(SpecError::EmptyList);
+        }
+        let mut seen = BTreeSet::new();
+        for c in &revise.candidates {
+            non_empty(&c.id)?;
+            if let Some(label) = &c.label {
+                non_empty(label)?;
+            }
+            if !seen.insert(c.id.as_str()) {
+                return Err(SpecError::Duplicate);
+            }
+        }
+        Ok(())
+    }
+}
 
 /// `wait` の宣言。欄を持たない。進行は Step の `processing` が表す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WaitSpec {}
+
+/// 実行環境の操作の種類。閉じた集合（PACK-34、D-69）。未知の値は型で拒否する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvAction {
+    /// チェックポイントの保存。保存の成功で受付になる。
+    Save,
+    /// 履歴の書き出し。実行時の結線は未実装（`docs/known-gaps.md`）。
+    Export,
+}
+
+/// `env_action` の宣言。欄は操作の種類だけで、受講者の値を持たない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EnvActionSpec {
+    /// 操作の種類。
+    pub action: EnvAction,
+}
 
 #[cfg(test)]
 mod tests {

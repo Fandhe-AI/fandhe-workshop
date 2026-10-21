@@ -80,14 +80,14 @@ fn me3_condition_vocab_pack_with_modules() {
     assert_eq!(
         stdout(&o),
         table(&[
-            "chapters/ch-1/chapter.yaml,32,29,1045,8",
+            "chapters/ch-1/chapter.yaml,32,29,1101,8",
             "chapters/ch-13/chapter.yaml,95,88,2815,10",
-            "chapters/ch-2/chapter.yaml,202,191,6315,10",
+            "chapters/ch-2/chapter.yaml,202,191,6411,10",
             "chapters/ch-7/chapter.yaml,40,36,1059,10",
-            "modules/impl-run/module.yaml,71,65,2114,9",
+            "modules/impl-run/module.yaml,71,65,2176,9",
             "modules/merge-gate/module.yaml,31,28,972,9",
             "workshop.yaml,89,80,3495,3",
-            "TOTAL,560,517,17815,10",
+            "TOTAL,560,517,18029,10",
         ])
     );
 }

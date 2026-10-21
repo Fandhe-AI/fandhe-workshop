@@ -42,7 +42,9 @@ pub fn world_diff(before: &World, after: &World) -> Vec<PathChange> {
 
 /// 操作から `Changed` の原因を決める。
 ///
-/// `Save`・`OpenHint`・`SetGuidance` は世界状態を変えず差分が空になるため、原因は使われない（`Input` を返す）。
+/// `OpenHint`・`SetGuidance` は世界状態を変えず差分が空になるため、原因は使われない（`Input` を返す）。
+/// `Save` は、保存を入力とする Step（`env_action`。TASK-64 1/2）が達成の効果を持つときだけ世界状態を変えうる。
+/// その差分は受付と達成の結果なので、原因は入力として扱う。
 /// 処理中でない停止は取り消しの入力として扱うため、`apply` が `Cause::Input` に置き換える（TASK-212）。
 pub fn cause_of(op: &Op) -> Cause {
     match op {

@@ -16,6 +16,7 @@
 //! 送信（Enter・送信ボタン。TASK-438）は、入力欄の一覧に積んだ後、操作プロファイルの接頭辞で分類して
 //! `Op::Input` として `apply_engine` に渡す。下書きは、エンジンが拒否したとき以外は空にし、`<textarea>` への
 //! 書き戻しは `set_draft_sync_request` の通知先に頼む（上流は `<textarea>` の値を同期しないため）。
+//! 拒否で残した下書きは全体を選択状態にし（D-67。JUDGE-27・TERM-22）、その要求は `set_draft_select_request` の通知先へ渡す。
 //! 進行の宛先は、`update` の後に `set_tick_request` の通知先へ渡す（表示側のタイマーが予約する）。試験の設定（`test-hooks`）だけ、`raw` の action（`Op` の JSON）・見えない `raw-trigger`・
 //! 状態の書き出し（`engine_snapshot_json`）・試験用の教材の読み込み（`for_mount`）・再読み込みの模擬（`raw` の
 //! 固定の合図。TASK-221 2/2）・履歴ファイルの読み込み（`raw` の固定の接頭辞。TASK-330 2/2）・試験用の教材への差し替え（`raw` の固定の接頭辞 `load-fixture:`。TASK-445 2/2）を持つ（BUILD-27・SHELL-35）。
@@ -85,6 +86,7 @@ use fandhe_workshop_core::version_record::record_versions_with;
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::{Projection, Session, SessionState};
 
+use crate::a11y::{self, KeyModifiers, PaneTab, TabKey};
 use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
 use crate::artifact_view::{PointTarget, POINT_ACTION};
@@ -97,6 +99,8 @@ use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
+use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
+use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
 use crate::view_select::{self, ViewChoice};
@@ -204,6 +208,12 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
+    /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
+    SelectPane(PaneTab),
+    /// 枠の通知の「閉じる」（`dismiss-notice`。TASK-535 1/2）。いま描いている種類（変換して開いた）だけを消し、状態・履歴には触れない。
+    DismissNotice(crate::shell::NoticeKind),
+    /// tablist の上の矢印・Home・End（`pane-key`。TASK-517 2/2）。選択の移り先は `a11y::tab_key_target` が決める。
+    PaneKey(TabKey),
     /// 遅延保存の結果（SAVE-10）。先頭は書き込んだ時点の保存世代で、今の世代と違えば古い結果として捨てる。
     /// `None` は成功で通知を消し、`Some` は失敗の種類で通知を出す。
     SaveResult(u64, Option<StorageError>),
@@ -464,8 +474,9 @@ fn derive(session: &Session) -> Derived {
 pub type TickRequest = Box<dyn Fn(Option<TickAddr>)>;
 
 /// 下書きの書き戻しの要求の通知先。送信で下書きを空にしたとき、`update` の中から呼ばれる。
+/// 拒否の後に下書きの全体を選択状態にする要求（`set_draft_select_request`）の通知先にも同じ型を使う。
 ///
-/// glue が `<textarea>` の値の同期（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
+/// glue が `<textarea>` の値の同期・選択（タイマー経由）に使う。通知先は Runtime にも App にも触れてはならない（再入になる）。
 pub type DraftSyncRequest = Box<dyn Fn()>;
 
 /// 変更のたびに履歴の値を保存先へ書く口（SAVE-10。TASK-323 1/2）。引数は `history_to_save` の値で、結果は書けたかどうか。
@@ -501,8 +512,17 @@ pub type StaleProbe = Box<dyn Fn() -> bool>;
 /// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
 ///
 /// 問い返しの後は空にし、拒否の後は下書きを選択状態で残すと 2026-10-21 に確定した（D-67。JUDGE-27・TERM-22）。
-/// 拒否でなければ空にする。拒否の後に選択状態にする処理は TASK-284（#583）の範囲で、ここでは持たない。
+/// 拒否でなければ空にする（問い返しは拒否に数えない）。問い返しの後に空になることは、試験 `clarify_draft` と
+/// ブラウザ試験 `clarify-draft` が固定する（TASK-284 1/2）。拒否の後の選択状態は `selects_draft` が決める（TASK-284 2/2）。
 pub(crate) fn keeps_draft(rejected: bool) -> bool {
+    rejected
+}
+
+/// 送信の後に、残した下書きの全体を選択状態にするか。エンジンが拒否したときだけ選ぶ（D-67。JUDGE-27・TERM-22）。
+///
+/// 選ぶと、続けて打った文字が下書きの後ろに連結されず、下書きを置き換える。問い返し・受け付けでは選ばない
+/// （問い返しの後は空、受け付けの後も空）。接頭辞を読めずに残した下書きは拒否ではないので選ばない。
+pub(crate) fn selects_draft(rejected: bool) -> bool {
     rejected
 }
 
@@ -556,6 +576,11 @@ pub struct EngineHost {
     registry: PartRegistry<HostModel>,
     /// 既存の入力欄。
     input: HelloView,
+    /// 960px 未満で見せる領域（TASK-517 2/2）。表示の状態で、履歴・保存先には書かず、Step が変わっても捨てない。
+    pane: PaneTab,
+    /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
+    /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
+    version_notice: bool,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -564,6 +589,13 @@ pub struct EngineHost {
     tick_reset: Option<Box<dyn Fn()>>,
     /// 下書きの書き戻しの通知先。未設定なら通知しない。
     draft_sync_request: Option<DraftSyncRequest>,
+    /// 拒否の後に下書きの全体を選択状態にする要求の通知先。未設定なら通知しない（D-67）。
+    draft_select_request: Option<DraftSyncRequest>,
+    /// 拒否で残した下書きが、まだ選択されるべき状態にある印。下書きが変わる・次の送信が来ると下りる。
+    /// 打鍵がタイマーより先に届いたとき、glue が打った文字を消す全選択をしないための印である。
+    draft_select_pending: bool,
+    /// キーで選んだタブへフォーカスを移す要求の通知先。未設定なら通知しない（`a11y::tab_key_target` の契約）。
+    pane_focus_request: Option<DraftSyncRequest>,
     /// 履歴が変わったときの通知先（変更の後の遅延保存。TASK-318）。未設定なら通知しない。
     save_request: Option<DraftSyncRequest>,
     /// 即時の保存が済んだとき、予約済みの遅延保存を無効にさせる通知先（TASK-318）。未設定なら通知しない。
@@ -662,10 +694,15 @@ impl EngineHost {
             },
             registry: standard_registry(),
             input: HelloView::new(),
+            pane: PaneTab::Ops,
+            version_notice: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            draft_select_request: None,
+            draft_select_pending: false,
+            pane_focus_request: None,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -709,6 +746,16 @@ impl EngineHost {
         host
     }
 
+    /// 直接リンクの開始点の指定（`?start=`）を断ったホストを作る（TASK-109 1/2。DLV-9・SAFE-33）。
+    ///
+    /// [`EngineHost::refused`] と同じく session なしで、理由コード（固定の ASCII。入力値は持たない）だけを入れる。
+    /// `history_key` は `None` になり、保存先を開かず何も書かない（保存済みの履歴を壊さない）。
+    pub fn refused_start(refusal: crate::start_select::StartRefusal) -> Self {
+        let mut host = Self::new();
+        host.ir_refusal = Some(refusal.reason_code());
+        host
+    }
+
     /// 教材を読めなかった理由コード。読めた・断っていないときは `None`。
     pub fn ir_refusal(&self) -> Option<&'static str> {
         self.ir_refusal
@@ -723,7 +770,27 @@ impl EngineHost {
         session: Session,
         registry: PartRegistry<HostModel>,
     ) -> Result<Self, HostError> {
-        if let Some(f) = registry.fields().find(|f| HELLO_FIELDS.contains(&f.name)) {
+        let start = RecordedSession::first_start(session.ir());
+        Self::with_session_at(session, registry, start)
+    }
+
+    /// [`EngineHost::with_session`] の開始点を、教材の先頭でなく呼び出し側が選んだ ID にしたもの（直接リンク。TASK-109 1/2）。
+    ///
+    /// `start` は記録の開始点と、保存先の鍵・起動の分岐が使う開始点になる。選ぶ規則は `start_select::select_start`。
+    ///
+    /// # Errors
+    ///
+    /// [`EngineHost::with_session`] と同じ。
+    pub fn with_session_at(
+        session: Session,
+        registry: PartRegistry<HostModel>,
+        start: String,
+    ) -> Result<Self, HostError> {
+        if let Some(f) = registry.fields().find(|f| {
+            HELLO_FIELDS.contains(&f.name)
+                || f.name == PANE_TABS_FIELD.name
+                || f.name == SHELL_NOTICES_FIELD.name
+        }) {
             return Err(HostError::FieldCollision(f.name));
         }
         let mut input = HelloView::new();
@@ -731,7 +798,6 @@ impl EngineHost {
         let initial = Some(session.state().clone());
         let d = derive(&session);
         input.set_input_field(d.input_field);
-        let start = RecordedSession::first_start(session.ir());
         Ok(Self {
             model: HostModel {
                 recorded: Some(RecordedSession::new(session, start)),
@@ -747,10 +813,15 @@ impl EngineHost {
             },
             registry,
             input,
+            pane: PaneTab::Ops,
+            version_notice: false,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
             draft_sync_request: None,
+            draft_select_request: None,
+            draft_select_pending: false,
+            pane_focus_request: None,
             save_request: None,
             save_cancel: None,
             history_changed: false,
@@ -806,14 +877,22 @@ impl EngineHost {
     ///
     /// `persist::mount_with_history` が URL のクエリから選んだ教材を渡す。読み込みに失敗したら session なしに倒す。
     #[cfg(feature = "test-hooks")]
-    pub(crate) fn for_mount_with(fixture: crate::test_fixture::MountFixture) -> Self {
+    pub(crate) fn for_mount_with(
+        fixture: crate::test_fixture::MountFixture,
+        start: Option<&str>,
+    ) -> Self {
         if let Some(err) = crate::test_fixture::mount_refusal(fixture) {
             return Self::refused(&err);
         }
-        if let Some(session) = crate::test_fixture::mount_session(fixture) {
-            if let Ok(host) = Self::with_session(session, standard_registry()) {
-                return host;
+        match crate::test_fixture::mount_session_at(fixture, start) {
+            Ok(Some((session, start_id))) => {
+                if let Ok(host) = Self::with_session_at(session, standard_registry(), start_id) {
+                    return host;
+                }
             }
+            // 指定された開始点を選べない。session を作らず、理由だけを出して開かない（fail-closed）。
+            Err(refusal) => return Self::refused_start(refusal),
+            Ok(None) => {}
         }
         Self::new()
     }
@@ -849,7 +928,10 @@ impl EngineHost {
             return BootKind::NoSession;
         };
         let ir = session.ir().clone();
-        let start = RecordedSession::first_start(&ir);
+        let start = self.model.recorded.as_ref().map_or_else(
+            || RecordedSession::first_start(&ir),
+            |r| r.start().to_owned(),
+        );
         let initial = initial.clone();
         let Ok(hash) = content_hash(&ir) else {
             self.save_blocked = true;
@@ -867,9 +949,13 @@ impl EngineHost {
             initial,
             &start,
         );
+        let mut converted = false;
         let (recorded, kind) = match outcome {
             BootOutcome::Fresh(r) => (r, BootKind::Fresh),
-            BootOutcome::Restored { session, .. } => (session, BootKind::Restored),
+            BootOutcome::Restored { session, notes } => {
+                converted = notes.is_some();
+                (session, BootKind::Restored)
+            }
             BootOutcome::NotOpened { session, .. } => {
                 self.save_blocked = true;
                 (session, BootKind::NotOpened)
@@ -885,6 +971,8 @@ impl EngineHost {
             .map(StepUid::root)
             .and_then(|root| recorded.session().state().drafts.get(&root).cloned());
         self.install_recorded(recorded);
+        // 版の違いを変換して復元したときだけ通知を出す（配信する設定で変換して開く経路はここだけ。SHELL-20）。
+        self.set_version_notice(converted);
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
@@ -959,9 +1047,13 @@ impl EngineHost {
         }
     }
 
-    /// 保存先の鍵。教材の `pack.id` と最初の開始点から求める（`HistoryKey::from_ir`）。IR が無い・開始点が無いときは `None`。
+    /// 保存先の鍵。教材の `pack.id` と、開いている開始点（直接リンクで選んだもの。指定なしは先頭）から求める（SAVE-14。D-68）。
+    /// IR が無い・開始点が無いときは `None`。指定なしの鍵は `HistoryKey::from_ir` と同じ文字列になる。
     pub fn history_key(&self, scope: DeliveryScope) -> Option<HistoryKey> {
-        HistoryKey::from_ir(scope, self.model.session()?.ir())
+        let recorded = self.model.recorded.as_ref()?;
+        let ir = recorded.session().ir();
+        ir.starts.first()?;
+        Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))
     }
 
     /// 起動の前に、保存先の読み込みに失敗したことを伝える。保存済みの値を読めなかったまま保存すると失うため、保存を止める。
@@ -990,6 +1082,22 @@ impl EngineHost {
     /// 下書きの書き戻しの通知先を結ぶ。送信で下書きを空にしたとき、`update` の中から呼ばれる。
     pub fn set_draft_sync_request(&mut self, f: DraftSyncRequest) {
         self.draft_sync_request = Some(f);
+    }
+
+    /// 拒否の後に下書きの全体を選択状態にする通知先を結ぶ（D-67）。`update` の中から呼ばれ、Runtime にも App にも触れてはならない。
+    pub fn set_draft_select_request(&mut self, f: DraftSyncRequest) {
+        self.draft_select_request = Some(f);
+    }
+
+    /// キーで選んだタブへフォーカスを移す通知先を結ぶ。`pane-key` の `update` の中から呼ばれ、Runtime にも App にも触れてはならない。
+    pub fn set_pane_focus_request(&mut self, f: DraftSyncRequest) {
+        self.pane_focus_request = Some(f);
+    }
+
+    /// 拒否で残した下書きを、まだ選択するべきか。glue が選択の直前に読む（読み取り専用）。
+    #[must_use]
+    pub fn draft_select_pending(&self) -> bool {
+        self.draft_select_pending
     }
 
     /// 履歴が変わった `update` の末尾で呼ぶ通知先を結ぶ（変更の後の遅延保存。TASK-318）。
@@ -1520,6 +1628,8 @@ impl EngineHost {
                     loaded.start,
                 );
                 self.install_recorded(recorded);
+                // 変換して開いたときだけ通知を出す。開かなかったときは触れない（SAVE-19）。
+                self.set_version_notice(outcome == ImportOutcome::Converted);
                 outcome
             }
             Err(Verdict::ViewOnly { code }) => self.closed(ImportOutcome::ViewOnly(code)),
@@ -1598,6 +1708,12 @@ impl EngineHost {
         self.fresh_start = false;
         self.command_prefix = d.command_prefix;
         self.dirty = self.registry.fields().map(|f| f.name).collect();
+        // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
+        self.version_notice = false;
+        // `shell_notices` は registry の外にあり、dirty の作り直しに入らない。前の通知を DOM から消すため明示して積む（FEND-15）。
+        if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -1812,6 +1928,26 @@ impl EngineHost {
         self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
     }
 
+    /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    ///
+    /// `install_recorded` の後（dirty が全 field で作り直された後）に呼ぶ。そのとき `shell_notices` は `install_recorded` が dirty に積み済みなので重ねて積まない。
+    fn set_version_notice(&mut self, on: bool) {
+        if self.version_notice != on {
+            self.version_notice = on;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
+    /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    fn select_pane(&mut self, tab: PaneTab) {
+        if self.pane != tab {
+            self.pane = tab;
+            self.dirty.push(PANE_TABS_FIELD.name);
+        }
+    }
+
     /// 処理中の Step があるか（Esc・停止ボタンが停止を送るかの判断に使う）。
     fn is_busy(&self) -> bool {
         self.model
@@ -1840,6 +1976,8 @@ impl EngineHost {
         }
         self.input.update(HelloAction::Submit);
         let mut clear = true;
+        let mut select = false;
+        self.draft_select_pending = false;
         if self.model.recorded.is_some() {
             match self.command_prefix.clone() {
                 None => clear = false,
@@ -1851,6 +1989,7 @@ impl EngineHost {
                     // この後の `record_draft_change` が記録し直す。
                     self.draft_recorded.clear();
                     clear = !keeps_draft(rejected);
+                    select = selects_draft(rejected);
                 }
                 Some(_) => {}
             }
@@ -1866,6 +2005,11 @@ impl EngineHost {
                 }
             }
             if let Some(f) = self.draft_sync_request.as_ref() {
+                f();
+            }
+        } else if select {
+            self.draft_select_pending = true;
+            if let Some(f) = self.draft_select_request.as_ref() {
                 f();
             }
         }
@@ -1965,13 +2109,40 @@ impl Component for EngineHost {
                 }
             }
             HostAction::Input(a) => {
+                let before = self.input.draft().to_owned();
                 self.input.update(a);
+                // 打鍵が選択のタイマーより先に届いたら、予約は取り下げる（打った文字を消す全選択をさせない）。
+                if self.input.draft() != before {
+                    self.draft_select_pending = false;
+                }
                 self.dirty.extend_from_slice(self.input.dirty_fields());
             }
             HostAction::Engine(op) => {
                 self.apply_engine(op);
             }
             HostAction::SelectView(kind) => self.select_view(kind),
+            HostAction::SelectPane(tab) => self.select_pane(tab),
+            // 描いている通知（変換して開いた）だけを閉じる。他の種類は枠の通知欄に描いていないので何もしない（fail-closed）。
+            HostAction::DismissNotice(kind) => {
+                if kind == crate::shell::NoticeKind::VersionConverted {
+                    self.set_version_notice(false);
+                }
+            }
+            HostAction::PaneKey(key) => {
+                let current = PaneTab::ALL.iter().position(|t| *t == self.pane);
+                let target = current
+                    .and_then(|c| {
+                        a11y::tab_key_target(key, c, PaneTab::ALL.len(), KeyModifiers::default())
+                    })
+                    .and_then(|i| PaneTab::ALL.get(i).copied());
+                if let Some(tab) = target {
+                    self.select_pane(tab);
+                    // 選択に合わせてフォーカスも移す（クリックでは移さない。押した要素が既にフォーカスを持つため）。
+                    if let Some(f) = self.pane_focus_request.as_ref() {
+                        f();
+                    }
+                }
+            }
             #[cfg(feature = "test-hooks")]
             HostAction::Reload => self.reload_engine(),
             #[cfg(feature = "test-hooks")]
@@ -2023,6 +2194,7 @@ impl Component for EngineHost {
                     self.complete_count = self.complete_count.saturating_add(1);
                 }
                 if self.input.complete() {
+                    self.draft_select_pending = false;
                     self.extend_input_dirty();
                     if let Some(f) = self.draft_sync_request.as_ref() {
                         f();
@@ -2068,17 +2240,24 @@ impl Component for EngineHost {
                 )],
             );
         }
-        let parts: Vec<Node> = self
-            .registry
-            .views(&self.model)
-            .into_iter()
-            .map(|(_, node)| node)
-            .collect();
-        // 部品の画面上の配置は、TASK-517 が決めるまでの仮のもの（入力欄の後ろに登録順に並べる）。
+        // 部品は種類ごとに左（成果物）・右（操作）へ振り分け、枠（`shell_frame`）の取り付け点に載せる（TASK-517 1/2）。
+        // 左は `workshop-parts` に包んで置く。右は入力欄の `main` の後ろに、部品を登録順に直接並べる。
+        let mut left: Vec<Node> = Vec::new();
+        let mut right: Vec<Node> = vec![self.input.view()];
+        for (kind, node) in self.registry.views(&self.model) {
+            match crate::shell_frame::pane_of(kind) {
+                crate::shell::PaneMount::Left => left.push(node),
+                crate::shell::PaneMount::Right => right.push(node),
+            }
+        }
+        let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
+        let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
+        // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         let mut children = vec![
-            self.input.view(),
-            el("div", vec![("data-testid", "workshop-parts")], parts),
+            crate::shell_notice::notice_area(self.version_notice),
+            tablist,
+            panes,
         ];
         // 試験の設定だけ: `raw` の action を送る見えないボタン。hidden のため Tab の巡回に入らない。
         // 試験は `data-payload` を書き換えて click する。
@@ -2150,6 +2329,27 @@ impl Component for EngineHost {
             .map(HostAction::Engine);
         }
         // ビューの選択（TASK-470）。payload は種類の綴りの完全一致だけ。宣言に含まれるかは `update` が照合する。
+        // タブのクリック（TASK-517 2/2）。payload は `PaneTab::id` の完全一致だけで、引けなければ何もしない。
+        if name == ACTION_SELECT_PANE {
+            return pane_from_payload(payload).map(HostAction::SelectPane);
+        }
+        // tablist の上のキー。Esc は root の Esc と同じ経路（`HelloAction::Esc`）へ渡し、他は矢印・Home・End だけを受ける。
+        if name == ACTION_PANE_KEY {
+            if payload == crate::action::ESC_KEY_TOKEN {
+                return Some(HostAction::Input(HelloAction::Esc));
+            }
+            return TabKey::from_key(payload).map(HostAction::PaneKey);
+        }
+        // 通知を閉じる（TASK-535 1/2）。枠の復号（正規形・32 バイト以下）と種類の既知の照合の両方を通ったものだけを受ける。
+        // 書き出し・読み込み・捨てて始めるはここでは受けない（担当は TASK-531 など）。
+        if name == crate::shell::ACTION_DISMISS_NOTICE {
+            return match crate::shell::ShellAction::decode(name, payload) {
+                Some(crate::shell::ShellAction::DismissNotice(kind)) => {
+                    crate::shell::NoticeKind::parse(&kind).map(HostAction::DismissNotice)
+                }
+                _ => None,
+            };
+        }
         if name == view_select::ACTION_SELECT_VIEW {
             return ViewKind::parse(payload).map(HostAction::SelectView);
         }

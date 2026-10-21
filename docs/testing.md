@@ -292,7 +292,7 @@ native の適合試験 `submit_wiring` が検出する。
 `<textarea>` への書き戻しは非同期（`set_timeout` の 0 ミリ秒）のため、欄の値は空になるのを待って読む。
 
 - hello の `log-list` の退役は TASK-517 に回した（配信設定には教材が無く、エンジンのログが空のため）
-- 問い返しの後の欄は、2026-10-21 に空にすると確定した（D-67。JUDGE-27・TERM-22）。この試験では固定しない（拒否のときだけ残す）
+- 問い返しの後の欄は、2026-10-21 に空にすると確定した（D-67。JUDGE-27・TERM-22）。この試験では固定しない（拒否のときだけ残す）。固定する試験は 5.198 にある
 - IME の模擬（試験文 30 文）は TASK-276・TASK-439 の担当
 
 ```text
@@ -344,7 +344,7 @@ native の試験 `clarify_lines` は `ch1-pack` の `main/st-1-4` で、引数�
 拒否の行の件数に数えられないこと、拒否の行が入力の行の直後に出ること、復元と履歴の差し替えで控えが作り直されることを確かめる。
 
 - 212 文字の応答は試作パック（公開の可否が未決。D-11・TASK-14）で測った値で、実文は repo に無い。`ch1-pack` の ST-1.4 と、240 文字の合成の理由・問い（`log_lines_contract`。切り詰めず文字ノード 1 つで出る）で代える
-- 問い返しのブラウザ試験は未対応。試験の設定の mount は `min-3step` の IR を埋め込み、その `clarifications` は空で、`open_history` は IR を固定するため、問い返しを起こせない。別の Issue で扱う
+- 問い返しのブラウザ試験は未対応。試験の設定の mount は `min-3step` の IR を埋め込み、その `clarifications` は空で、`open_history` は IR を固定するため、問い返しを起こせない。別の Issue で扱う（2026-10-21 に `?fixture=ch0-3` の教材で問い返しを起こせるようになり、問い返しの後の欄の試験を 5.198 に足した。この記述は当時のもの）
 
 ```text
 実行日: 2026-10-16
@@ -5011,7 +5011,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 491`（2026-10-21 に TASK-283 の `wire_paste_clip` で 452 から上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 527`（2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -6044,9 +6044,12 @@ JUDGE-5 と TERM-17（Must）は、拒否された入力が入力欄に残る（
 
 #### 既知の限界
 
-- 欄の値をプログラムで書くため、Ctrl+Z で貼り付けの前に戻らない
+- 取り消しは対象外（2026-10-21 決定。#1667）。`wire_paste_clip` は既定の挿入を止め、`set_value` で値を書いて合成の `input` を発火させるため、Ctrl+Z で貼り付けの前に戻らない。2 回押しても戻らず、取り消しの履歴がまるごと消える。詳細と理由は `docs/known-gaps.md` の JUDGE-24
+- `document.execCommand('insertText')` で書く案を Chromium の試作で 3 通り試した（2026-10-21）。(1) 末尾にはみ出し 1 文字を置く: 取り消しは効かない。(2) 残す分だけを挿入する: Ctrl+Z 1 回で値と選択範囲が戻り、やり直しも効くが、超過の印（案内と `inputOverLimit`）が立たず J-1〜J-5 のうち 6 件が失敗する。(3) 2 回に分けて挿入する: 取り消しは効かず、`input` が 2 件になる
+- 両立しないのは、超過の印を、末尾に置いたはみ出し 1 文字を `clamp_draft` が切る書き戻し（`sync_draft` の `set_value`）で立てており、この書き戻しが取り消しの履歴を消すためである。欄の値を通らずに印を立てる新しい経路（`RuntimeAction` など）は、判定が 2 か所に分かれ、glue に新しい種類の操作が加わり（FEND-20）、部品の契約の版上げと spec の変更が要るため、範囲に見合わないと判断した
+- 上限ちょうどの欄への貼り付けは何も挿入せず、その後の Ctrl+Z はその前の操作を取り消す（観察）。末尾への超過の貼り付けと上限での打鍵も `set_value` を通るため、同じく取り消しの履歴が消えると推測する（推論・未確認）
 - `insertFromDrop`・上限ちょうどでの途中への打鍵（`insertText`）は、末尾の既存の文字が消えうる（JUDGE-23 の K-1 は末尾でしか確かめていない）
-- Chromium だけ。Firefox・Safari・実 IME は扱わない
+- Chromium だけ。Firefox・Safari・実 IME は扱わない。取り消しの試作も Chromium（Playwright・Linux）だけで確かめた
 
 #### spec への反映（D-65）
 
@@ -6296,7 +6299,428 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - 通知の文面と次の行動（SHELL-36）は TASK-516・TASK-549 が持つ。理由コードを列挙に結ぶのは TASK-516
 - 観察: `host.rs` の `ir-notice` は `role="status"` を持つが `a11y` の通知欄の一覧に無く、この画面に `a11y::check_no_undefined` を掛けると `status-on-non-notice` になる見込みである（未検証）。SHELL-31 を枠の通知 `pack-unloadable` へ移すのは TASK-545 の範囲
 
-### 5.197 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
+### 5.197 幅 960px 以上の 2 列の骨格（TASK-517 1/2。SHELL-1）
+
+ホストの `view()` を、`tablist`・2 つの tabpanel・取り付け点（`shell-left`・`shell-right`）の枠で組み、幅 960px 以上で成果物（左）と操作（右）を横に並べて `tablist` を隠す。実装は `crates/web/src/shell_frame.rs`、見た目は `crates/web/static/app.css` の節で、部品は `ArtifactView` だけを左、他を右に置く（`Review`・`Checkpoints` の置き場は暫定）。
+
+- Rust の試験: `crates/web/tests/shell_frame_host.rs`（9 件）。既定のホスト・教材を読んだホスト（Step を進めた各段）・入力欄なしの教材のホストの `view()` が `shell::check_complete`・`shell::check_no_undefined`・`a11y::check_no_undefined` を通ること、取り付け点が 1 個ずつで部品が正しい側にあること、tab が `PaneTab::ALL` の順で選択が「操作」だけであること、各 tabpanel が対応する取り付け点を持つこと、`pane_of` の表、CSS の `@media (min-width: 960px)` の規則を固定する
+- ブラウザの試験: `tools/browser/shell-columns.test.mjs`。幅 1280px と 960px で 2 領域が横に並び（上端が一致・左の右端が右の左端以下）、`pane-tabs` が `display: none`、横スクロールが無く、CSP 違反・ページ内エラーが 0 件。対照の 959px では `pane-tabs` が見え、2 領域は横に並ばない
+- 変異: SHELL1-3（成果物を右へ振り分ける）・SHELL1-4（tab の順を逆にする）・SHELL1-5（境目を 1024px にする）。`FEND4-3` は `host.rs` の該当行が変わったため `find` を新しい行に合わせた。実行日 2026-10-21、元にしたコミット 11cc0c8 に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
+- `make test-browser` の全件（794 件）が通った（2026-10-21）
+
+限界・申し送り:
+
+- 960px 未満の挙動は TASK-517 2/2（#699。5.203）が持つ。本件の時点では `tablist` が見えるが押しても何も起きず、2 領域は縦に積まれていた。片方だけを表示する CSS・クリックと矢印・Home・End の切り替え・4 つの幅の通しの試験は 2/2 が足す。選択を描き直すときは `keyed_list` を使う見込みである（束縛では aria・`tabindex` を書けない）
+- ライブの欄（`live-response`・`live-left`）は tabpanel の外（root の直下）に置く（a11y の `live-in-tabpanel`）。TASK-450 が足す。a11y の `check_complete` をホストの view に掛けるのは、領域の `aria-label` が揃ってからである
+- `shell-left` にだけ `aria-label="成果物"` を付けた。右の「案内とログ」「コマンドの入力」は TERM（TASK-431・450）の担当である
+
+### 5.198 問い返しの後の下書きが連結されない（TASK-284 1/2。JUDGE-27・TERM-22。D-67）
+
+試作（PoC-13 の AI 代理の準備）で、`st-1-4` の引数なしの `/new-idea`（問い返し）の後に全選択せず `/advance-phase` と打つと、残った下書きにつながって `/new-idea/advance-phase` になり、順序違い（`wrong_order`）ではなく `unknown_command` で拒否された。D-67（2026-10-21）で、問い返しの後は欄を空にすると確定した。
+
+本番の `host.rs` の `submit` は、すでに問い返しを拒否に数えず（`events_summary`）、問い返しの後に下書きを空にして書き戻しを要求している。この動作を固定する試験が無かったため、本件は動作を変えず、入力欄を通る経路の試験と変異を足した。
+
+証拠の種類: 自動ブラウザ・シミュレーター（AI の代理と同じ操作の再現。人の評価ではない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/clarify_draft.rs`（3 件） | `ch1-pack` の `main/st-1-4` で、画面から届く `draft`・`submit` の action を流す。入力欄の値は「いまの下書き + 打った文字」と模す。問い返しの後に下書きが空で書き戻しが 1 回・拒否が 0 件、続けて打った入力の本文が `/advance-phase` ちょうどで分類が `wrong_order`（`unknown_command` でない）、その拒否の後に下書きが残り書き戻しが増えないこと |
+| `tools/browser/clarify-draft.test.mjs`（4 件） | `?fixture=ch0-3` で `main/st-1-4` まで `page.keyboard` だけで進み、全選択せずに `/new-idea` → `/advance-phase` と打つ。送信は Enter と送信ボタン（Tab で移って Enter）、CSP あり・なし。問い返しの後に欄の値と状態の下書きが空・拒否の行が増えない・Step が進まない、続けた入力が `wrong_order`、拒否の後に欄と状態の下書きが残る。`raw-trigger` の click 0 回・安全の計数 0・エンジンの警告と無視 0 件 |
+| `tools/browser/ch0-3-journey.mjs` | 台帳の項目「問い返しの後の入力欄が空」を 1 つ足した（`ch0-3-run`・`csp-runs` の両方に効く）。`journey` が `main/st-1-4` でも止まれるようにした |
+
+変異（実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態）:
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| JUDGE27-1 | `host.rs` の `events_summary`: 問い返しも下書きを残す判定に数える | `問い返しの後は下書きが空になり_書き戻しが要求される` | 同左・`問い返しの後の拒否では下書きが残り_書き戻しは増えない`・`問い返しの後に続けて打った入力は順序違いの拒否になり_未知のコマンドにならない` | DETECTED |
+| JUDGE5-4 | `host.rs`: 拒否の後も下書きを空にする（既存） | `全拒否の分類で…` | 既存の 2 件 | DETECTED |
+
+手元の対照（コミットしない）: 上の置換を入れて配信の設定外の試験用ビルドを作り、`clarify-draft` の 4 件と `ch0-3-run` の 4 件が失敗した。`clarify-draft` は問い返しの後に欄が空にならず待ちが時間切れになり、`ch0-3-run` は台帳の項目「問い返しの後の入力欄が空」で失敗した。置換を戻すと全件が通った。
+
+確かめないこと・限界:
+
+- 拒否の後に下書きを選択状態にして次の入力で置き換える処理は 5.200（TASK-284 2/2）で足した。`ch0-3-journey.mjs` のドライバの全選択（`replaceDraft`）の見直しの結果も 5.200 に書いた
+- フォーカスの位置、実 IME、人の確認は扱わない
+- 書き戻しは 0 ミリ秒のタイマーで非同期のため、それより速く打った場合の取りこぼしは観察も固定もしていない
+- `scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR だけで働く。更新は別の PR で `make update-test-counts`）
+
+### 5.200 拒否の後の下書きが選択状態になり連結されない（TASK-284 2/2。JUDGE-27・TERM-22。D-67）
+
+D-67（2026-10-21）で、拒否の後は拒否された下書きを入力欄に残し（JUDGE-5）、下書きの全体を選択状態にして、次に打った文字で置き換える（末尾に続けて入力されない）と確定した。選択の範囲は下書きの全体と読む。問い返しの後に空にする前半は 5.198（1/2）で固定済みで、本件は後半を実装した。
+
+実装:
+
+- `host.rs`: 純関数 `selects_draft`（拒否のときだけ真）、通知先 `set_draft_select_request`、選択の予約の印 `draft_select_pending`。`submit` が拒否で下書きを残したときに印を立てて通知する。印は、下書きが変わる action（`draft`・`complete`）と次の送信で下りる。進行の tick など下書きを変えない `update` では下りない
+- `glue.rs`: `on_draft_select_request` が `set_timeout(0)` で `sync_draft(root, true)` を予約する。`sync_draft` は印が立っているときだけ `set_selection_range(0, u32::MAX)` を呼ぶ（終端は欄の長さへ丸められるので長さを数えない）。変換中は選ばない。`field.value()` の読みは 1 か所のまま（`make check-dom-reads`）
+- 打鍵が 0 ミリ秒のタイマーより先に届いた場合は、`draft` の action で印が下りるため全選択しない（打った文字を消さない。そのとき文字は下書きに続く）
+
+証拠の種類: 自動ブラウザ・シミュレーター（人の評価ではない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/reject_draft_select.rs`（5 件） | 拒否の後に選択の要求が 1 回・書き戻しが 0 回・印が真、問い返しの後は要求が 0 回で次の拒否で 1 回、打鍵で印が下りる、下書きを変えない操作で印が残る、通知先が無くても落ちない。受け付けの後は選ぶ下書きが無く、`st-1-4` に受け付けになる入力が無いため確かめない |
+| `tools/browser/reject-draft-select.test.mjs`（4 件） | `?fixture=ch0-3` の `main/st-1-4` で、`/new-idea` → `/advance-phase`（拒否）の後に選択が欄の全体になり、全選択せずに `/new-idea` と打つと欄の値と状態の下書きがちょうど打った文字列になり、Enter で送ると受け取った入力が打った文字列ちょうどになる。送信は Enter と送信ボタン（Tab で移って Enter）、CSP あり・なし。いずれも 35 項目が通った |
+| `tools/browser/reject-keeps-draft.test.mjs` | `assertKept` に、選択が下書きの全体であることを足した（`page.fill` の後のキャレットは末尾なので、選択が無ければ失敗する）。busy の分類は処理の終了後も見る |
+| `tools/browser/ch0-3-journey.mjs` | 台帳の項目「main/st-1-4 拒否の後の下書きが全体の選択状態」を足した（`ch0-3-run`・`csp-runs` の両方に効く） |
+
+`replaceDraft`（Ctrl/Cmd+A）の見直し: 受け付けの後の空欄など他の場面でも無害で、ドライバの操作を変えると通しの他の段に影響するため、残した。選択の確認は `reject-draft-select` が全選択を使わずに受け持つ。
+
+変異（実行日 2026-10-21。元にしたコミット 298e9d7 に本件の変更を載せた状態）:
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| JUDGE27-2 | `host.rs` の `submit`: 拒否の後に下書きを選択状態にしない | `拒否の後は選択の要求が出て_下書きは送った本文のまま残り_書き戻しは要求されない` | DETECTED（5 件が失敗） |
+| JUDGE27-1・JUDGE5-4 | 既存 | 既存の試験 | DETECTED のまま |
+
+手元の対照: ブラウザ試験側の対照（`select = false` を入れた試験用ビルドで `reject-draft-select` などが失敗すること）は未検証。
+
+glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 の表にも記録）。`INIT_ALLOWED` に `set_draft_select_request` を足し、`glue_contract.rs` の許可に `set_draft_select_request`・`draft_select_pending` を足した。
+
+確かめないこと・限界:
+
+- 送信ボタンの click で拒否された場合のフォーカスの位置。選択は欄に残るが、フォーカスはボタンにある（D-67 にフォーカスの記述が無い）。試験の観察では、Tab で欄へ戻っても選択は保たれ、置き換えが成立した（Chromium）
+- 実 IME・Safari・Firefox での `setSelectionRange` の挙動（CI は Chromium だけ）
+- 0 ミリ秒のタイマーより速い打鍵（全選択を止める側に倒すが、そのとき打った文字は下書きに続く）
+- 接頭辞を読めずに残した下書き（拒否ではない）は選ばない
+- `scripts/expected-test-counts.txt` は更新していない（別の PR で `make update-test-counts`）。人の確認は扱わない
+
+### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
+
+直接リンクは IR を 1 つ（固定の `./ir/main.json`）に保ち、URL の `start` を IR の `starts` の ID と完全一致で照らして開始点を選ぶ（D-68。2026-10-21）。一致すればその開始点で開き、一致しなければ開かずに固定のコード（`start_unknown`・`start_missing`）だけの通知を出す。値は画面・タイトル・コンソール・保存先に出さない。履歴の鍵の開始点は URL の `start` が指す開始点に当たる（SAVE-14 の読み。指定なしは先頭の開始点なので既存の鍵は変わらない）。
+
+実装: `static/app.js` が `start` だけを読み（`new URLSearchParams(location.search).getAll("start")`。2 件以上は一致し得ない値に倒して断らせる）、`mount_app` の第 3 引数で渡す。照合は純関数 `crates/web/src/start_select.rs`（バイト単位の完全一致のみ。前方一致・大文字小文字の無視・正規化・復号をしない）、断ったホストは `EngineHost::refused_start`（session なし・鍵なし・保存先を開かない）、選んだ開始点は `EngineHost::with_session_at` で記録・鍵・起動の分岐に通る。通知の文言（`ir_notice.rs`）は仮置きである。
+
+- Rust の試験: `start_select.rs` の単体試験（指定なし・一致・不一致 14 形・開始点なし・コードに入力値が無い）、`test_fixture.rs` の単体試験（`start=` の対だけを取り除いた完全一致の選択と既存の否定が変わらないこと・開始点ごとの節点・不一致の拒否・鍵）、`crates/web/tests/start_link_host.rs`（3 件。通知がコードだけ・断ったホストが鍵を持たず保存済みの履歴を開かない・選んだ開始点が鍵に入り指定なしの鍵が従来と同じ）、`tick_interval.rs`（`app.js` の URL の読み取りをファイル・件数・形・読むキーで限定する例外を足した）
+- ブラウザの試験: `tools/browser/direct-link-start.test.mjs`（試験の設定。CSP あり・なしの 4 件）。開始点 3 件の教材（`?fixture=multi-start`）を、指定なし（先頭で新しく始まる）・各開始点（クエリの順序違いを含む）・一致しない値 10 形（未知の ID・`../` を含む 2 形・大文字違い・前方一致・末尾の空白・空・重複・センチネル・5,000 文字）で開く。一致で現在の Step が変わり、`s-1` の履歴は `start=s-4` で開かれず `start=s-1` で復元される。不一致は通知が 1 件・入力欄とログが 0 件・`irRefusal` が `start_unknown`・センチネルが DOM・タイトル・コンソールに 0 件・保存先の全体が断っている間も再読み込みの前後も不変・断った後も指定なしで履歴が開く・配信元以外への通信が 0 件・CSP 違反・ページ内エラーが 0 件
+- 配信する設定の `delivery-direct-links`・`delivery-bases` は、採らなかった hash の形を外して query の 1 形で流す（5.194・5.196 の「2 形」の記録は当時のもの）
+
+限界・申し送り:
+
+- 配信する設定の web は実行時に IR を取得しないため、`start` を受け取っても照合する IR が無く、画面は今までどおり（session なし）である。配信する設定で直接リンクが開始点で開くことは、`./ir/main.json` の実行時の取得と開始（`Control::Begin`・開始点からの初期状態の構築。TASK-217・TASK-294）が入った後でなければ確かめられない。本件では取得を実装していない
+- 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
+- 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ
+
+### 5.204 変換して開いたときの版の違いの通知（TASK-535 1/2。SHELL-20）
+
+版の違いを変換して開いたときに、枠の通知欄（`shell-notice`）へ通知を 1 件出す。実装は `crates/web/src/shell_notice.rs`（通知欄の描画。keyed list `shell_notices`）・`crates/web/src/host.rs`（表示の状態 `version_notice`、`dismiss-notice` の action）である。判定は core の `history_open` のままで、web は条件を複製しない。
+
+経路:
+
+- `install_recorded`（実行環境の差し替え）で通知を一度消し、変換して開いたときだけ立て直す。立てるのは履歴ファイルの読み込み（`open_history` が `Converted`）と起動時の復元（`boot_session` の `Restored` が `notes` を持つ）である。配信する設定で変換して開くのは起動時の復元だけである
+- 開かなかったとき（表示だけ・開かない）は通知にも状態にも触れない（SAVE-19）。前に変換して開いた実行環境は残るので、通知も残る
+- 閉じる操作（`dismiss-notice`、payload は `version-converted`）は表示の真偽だけを変える。正規形でない payload・既知でない種類・他の枠の操作（`export-history`・`import-history`・`discard-and-start`）は受けない。描いていない種類は何も変えない
+- 通知は root の先頭（tabpanel の外）に置く。幅 960px 未満でも見える。親は常に 1 個で、項目の出し入れだけで表すので root は全置換にならない
+- 画面に出すのは固定の文と固定の識別子だけで、履歴由来の文字列（版・参照元）は出さない（SAFE-40）
+
+試験:
+
+- Rust: `crates/web/tests/version_notice.rs`（8 件）。同じ版・変換して開く・変換の後の同じ版・開かない場合に触れない・起動時の復元 4 通り・閉じる操作の復号と効果・束縛の目印・履歴由来の文字列を出さない。`dirty_binding_points.rs` は `shell_notices` を他の教材が要る field に足し、`no_hidden_triggers.rs` は `shell_notice.rs` の `data-payload` の使用を許可の表に足した。単体の試験は `shell_notice.rs`（2 件）
+- ブラウザ: `tools/browser/version-notice.test.mjs`（4 件。CSP あり・なし）。V-i-1 で通知が 1 件出て文が一致し、幅 360px で成果物のタブを選んでも見え、閉じると 0 件になり root が同じ要素のままであること、V-0（変換なし）・V-iii-1（表示だけ）で 0 件であること。`make test-browser` は 2026-10-21 に全件通った（失敗 0）
+
+限界・申し送り:
+
+- 文面（`VERSION_CONVERTED_NOTICE`）と置き場は仮置きである。最終の文面・配置・見た目は TASK-549・TASK-534 が持つ
+- 内容以外の軸（エンジン・語彙・参照元）だけの変換でも通知を出す。SHELL-20 が直接は決めていない判断である（推論）
+- 操作の後の保存が新しい版で書かれることの確認は TASK-535 2/2（#730）、他の通知の種類の移設と書き出し・読み込みの結線は TASK-516・TASK-531 などの担当である
+- 変異注入の定義は足していない
+
+### 5.203 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
+
+幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
+
+要点:
+
+- 選択は表示の状態で、`ops`・履歴・保存先には書かない。再読み込みで既定（操作）に戻り、Step が変わっても捨てない。切り替えは保存を起こさない
+- `aria-selected`・`tabindex` は束縛では書けない（a11y 版 2）ので、`tablist` を keyed list にした。項目の root を `button[role=tab]` そのものにして、子の作り直しでフォーカスが失われないようにした。tabpanel と `.sh-panes` は静的なまま描き直さない（要素の同一性。FEND-3）
+- キーの action の `data-keys` に Esc を含める。keydown の属性は最も近い 1 つにしか届かず、含めないと tab にフォーカスがある Esc が root の Esc に届かず 0 回になる（FEND-6）。`data-keydown-prevent-default` は Esc にも掛かるが、ボタンの上の Esc に既定の動作は無い。Home・End はこれが無いとページを先頭・末尾へ動かす
+- 境目は 960px 以上の規則と補い合う `not all and (min-width: 960px)` にした（`max-width: 959px` だと小数の幅に穴が空く）。`hidden`・`aria-hidden` は 960px 以上で両方を見せる必要があるため使わない
+- 受け付けない payload は `None`（fail-closed）。`select-pane` は `PaneTab::id` の完全一致だけ、`pane-key` は矢印・Home・End・Escape だけを受ける
+
+試験:
+
+- Rust: `crates/web/tests/shell_frame_host.rs`（16 件。本件で 7 件追加）。keyed list の親・`data-pane`・キーの属性・項目の root、選択と dirty（`pane_tabs` だけ。同じ値では空）、`a11y::tab_key_target` に沿った巡回、`pane_tabs` が `data-bind-list` にあること、`decode_action` の許可と拒否、切り替えが Session に触れないこと、CSS の規則。`dirty_binding_points.rs` は `pane_tabs` を dirty にする列（`run_pane`）を足し、`no_hidden_triggers.rs` は `shell_frame.rs` の `data-payload` の使用を許可の表に足した
+- ブラウザ: `tools/browser/shell-tabs.test.mjs`（9 件）は 959px・360px で、tablist の表示・tab の大きさ（24px 以上）・既定は操作だけが見えること、クリック、矢印・Home・End（`keydown` の `defaultPrevented`）、Alt+ArrowRight で変わらない対照、試験の設定で tab にフォーカスがある Esc が `escCount` でちょうど 1 回であること、959px→960px→959px の境目を確かめる。`tools/browser/shell-widths.test.mjs`（4 件）は 1280px・960px・959px・360px で CH-0 から CH-1 の 6 Step（`main/st-1-1`〜`st-1-6`）を通して `main/st-2-1` に入るまで進める。960px 未満では操作の前に要るタブをクリックし、959px・360px で 6 回切り替えた。台帳は 4 幅とも 30/30。`shell-columns.test.mjs` の 959px の対照は、隠れた側の矩形が 0 になって空振りで通る「縦に積む」の判定をやめ、見える領域がちょうど 1 つであることに直した
+- 変異: SHELL1-4（`find` を新しい行に合わせた）・SHELL1-6（矢印・Home・End が修飾キーつきとして扱われる）・SHELL1-7（Escape を root の Esc に結ばない）・SHELL1-8（操作を選んだときに成果物の領域が隠れない）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
+- `make test-browser`: 807 件のうち 805 件が通った（2026-10-21）。失敗 2 件の内訳は、`tick-dispatch`（`data-payload` を持つ要素を指せる行だけに限っていた検査に `select-pane` を許可して直した。修正後に単独で通過）と、`secret-scan-time` の dense（10MB の保存の p95。単独で再実行すると通過し、p95 は 287ms で、全件を流している間の負荷による揺れと見ている。推測）である。修正後の全件の流し直しは未実施である。`esc-once` の 1 件も 1 回目の全件実行で失敗したが、単独の再実行では 22 件とも通った（再現せず）
+
+限界・申し送り:
+
+- キーで切り替えると、選んだタブへフォーカスも移す（ホストの要求の通知先を glue が受け、描画の後に `focus()` する。`glue_contract` の呼び出しの表に `focus` を `Click` として足した。分類の整理は `docs/known-gaps.md` A11Y-5）。ブラウザ試験が、移ったことと Enter で選択が戻らないことを確かめる
+- 既定のタブと Step をまたぐ保持は仮置きである（SHELL-2 が未決）。変化があった側の印は SHELL-5 の担当である
+- CH-1 から始める直接リンクが無い（TASK-109）ため、CH-1 の 6 Step は CH-0 から通して確かめた
+- 360px の横スクロールと 24px 未満の操作対象は TASK-518・TASK-368 の担当で、assert せず `shell-widths` の diagnostic に件数だけを残す（2026-10-21 の実測は、横スクロール 0px・24px 未満の対象 1 件。4 幅とも同じ）
+- 960px 以上で tabpanel の役割が 2 つ残ることの読み上げは A11Y-21 の担当である。右の領域の `aria-label` とライブの欄（tabpanel の外に置く）は TASK-450 の担当である
+
+### 5.202 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
+
+開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
+
+- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
+- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
+- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
+- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
+
+限界・申し送り:
+
+- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
+- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
+
+### 5.201 開始点の数を増やしても IR の合計と内容のハッシュが変わらない（TASK-109 2/2。DLV-9・D-68）
+
+5.199 の直接リンクは IR を 1 つ（`ir/main.json`）に保つ。旧方式（PoC-10 の `make-start-irs.mjs`）は開始点ごとに `starts` の順を変えた写しを `ir/start-<id>.json` として配り、開始点の数だけ IR が複製され（20 開始点で約 1.8MB）、写しごとに内容のハッシュが別になった（F-1。別の章のリンクで「変換して開きました」が出た）。新方式のこの利点が崩れないことを回帰から守る。
+
+定義: `content_hash`（`crates/contract/src/content_hash.rs`。版 1）は本文の木だけを除いた IR の SHA-256 で、`starts` を含む。開始点を足した教材（別の IR）のハッシュは変わるのが正しい。確かめるのは「同じ IR を別の開始点から開いたとき同じ」であり、「バイト数がまったく増えない」ではない（`starts` の項目の分は増える）。
+
+- ブラウザの試験: `tools/browser/start-count-invariance.test.mjs`（5 件）
+  - (P1) 配信する設定。`min-3step-pack` の開始点 1 件と、`chapter.toml` に固定の文字列で 2 件足した 3 件の教材を compile し、それぞれ `ir/main.json` に置いた配信物の写しを作る。どちらも `inspectDeliveryRefs` が 0 件、IR のファイルが `ir/main.json` の 1 つだけ、`starts` の数が 1 と 3（空振り防止）、`starts` を除いた IR が一致、3 件の IR の大きさが 1 件の 2 倍未満（かつ増える）。指定なしと各 `?start=` を新しい文脈で開き、`pageRequestProblems` が 0 件、要求の種類が全ページ・両配信物で同じ（開始点ごとの資源が無い）
+  - (P1 対照) 3 件の配信物に旧方式の写し `ir/start-<id>.json`（`starts` の先頭を入れ替えたもの）を足すと、IR のファイルが 3 件増え、合計が 2 倍以上になり、静的な検査が「構成要素でないファイル」を 3 件出す
+  - (P2) 試験の設定（CSP あり・なしの 2 件）。開始点 3 件の 1 つの IR（`?fixture=multi-start`）を `start=s-1`・`s-4`・`s-7` で、新しい文脈ごとに開く。現在の節点が開始点の節点（空振り防止）で、1 手進めて保存させた履歴の `versions.content_hash` が 3 件とも同じ小文字 16 進 64 文字、`start` の欄・鍵は開始点ごとに違う
+  - (P2 対照) 開始点ごとに別の IR を配る `?fixture=chapter-a`・`?fixture=chapter-b` では `content_hash` が割れる（測り方に感度があることを示す）
+- Rust の試験: `crates/web/src/test_fixture.rs` の単体試験 2 件。同じ IR は指定なしと 3 開始点のどれで開いても `content_hash` が同じで、開いた開始点と節点の組が 3 通りある。旧方式を模した `starts` の先頭の入れ替えの写しは、`content_hash` が互いに違う
+- 出力の規則: 失敗の文・診断に IR の中身・鍵・ハッシュの値・履歴の中身を出さない（件数・真偽・記号名だけ）。一時ディレクトリは必ず消す
+
+限界・申し送り:
+
+- 配信する設定は実行時に IR を取得しないため、ハッシュは試験の設定の保存先でだけ確かめる。配信する設定の `ir/main.json` は `tools/build-web.sh` がそのまま入れる（`scripts/test-build-web.sh` が確かめる）ので、P1 は写しに置いて静的に検査する。配信する設定での開始点つきの取得とハッシュの照合は、TASK-217・TASK-294 の後
+- 開始点の数が違う 2 つの IR のハッシュの一致は確かめない（設計上違う）
+
+### 5.202 承認の差し戻しの再承認を Step を分けて書く（TASK-62 1/2。PACK-32・D-69）
+
+1 Step の `approval` で承認 → 差し戻し → 再承認を表す語は足さないと決まった（D-69、2026-10-21）。この決定の下で、差し戻しの Step と再承認の Step を分けた教材が書けることを、`crates/pack/tests/approval_revise_split.rs` の `pack32_` の 4 件と実パック `crates/pack/tests/data/revise-split-pack` で固定する。
+
+- `validate` が診断 0 件で通ること。`pack.vocab` は `1.0` のままで、`E-VOCAB-MISMATCH` が出ない
+- `compile` した IR の承認の `input` が `{"kind":"approval"}` だけで、差し戻しの Step の `next` が再承認の Step を指すこと
+- IR を core の `Session` で動かし、差し戻しの Step での承認・却下の拒否、差し戻しでの達成と再承認の Step への移動、再承認の Step での差し戻し・却下の拒否、承認での達成と終端への移動、案の `state` が「差し戻し」から「承認済み」へ変わることを確かめる
+- 1 Step で再承認を表すつもりの欄（`reapprove: true`）を承認の `input` に足すと、`validate` と `compile` が `E-PARSE` になること（語を足していないことの対照）
+
+変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである（5.125 と同じ扱い）。`next` の `when` による枝分かれは、core が実行時に評価しないため範囲外とした。
+
+### 5.204 直接リンク 10 件と再読み込みの状態（TASK-110 1/2。DLV-7・D-68）
+
+DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開くと章 X の開始点の Step と状態で開き、再読み込みしても同じ章・同じ状態になることを求める。PoC-10 は決定の前の形（`?ir=` と開始点ごとの IR）で 10 件を確かめただけで、D-68 の `?start=` の形では未確認だった。これを試験の設定（`TEST_HOOKS=1`）の画面で確かめる。
+
+- 教材: `?fixture=ch0-3-links`（`crates/web/src/test_fixture.rs` の `ch03_links_ir_bytes`）。20 Step の通しの教材の `starts` を 10 件に書き換え、`pack.id` を `ch0-3-links` にした IR を実行時に作る。`ch0_3/ir.json` は変えない。10 件の ID と節点は `CH03_LINK_POINTS` で、ブラウザ試験のリンクの表（`delivery.mjs` の `DIRECT_LINKS`）と揃える
+- ブラウザの試験: `tools/browser/direct-link-reload.test.mjs`（CSP あり・なしで各 3 件）
+  - (T1) 10 件それぞれを新しい文脈で開く。保存先が空であること、現在の節点が開始点の節点で、その単位が `DIRECT_LINKS` の章と一致すること、状態が入った直後（`entered`・導出の状態なし・状態の語が空・処理中でない・通知なし）であること、再読み込みの後も同じ状態で、操作が無いので保存先が空のままであること、配信元以外への通信・ページ内エラー・CSP 違反・コンソールのエラーが 0 件であること
+  - (T2) リンク 1 を開き、選択肢 `opt-right` を実クリックして「受付済み（確認待ち）」にし、保存を待ってから再読み込みする。履歴が復元され、同じ節点・同じ状態・同じ Step ごとの状態・同じ状態の語で開く
+  - (対照) 10 件の期待の節点が互いに異なり、`start` なしで開いた節点は 10 件のうち 9 件と違う（`start` を無視する誤りなら 9 件が落ちる）。開始点が 1 件の `?fixture=ch0-3` に `start=s-2-1` を付けると `start_unknown` で断られる
+- Rust の試験: `test_fixture.rs` の単体試験。`?fixture=ch0-3-links` の選択（`start` の併用と余分なキー）と、10 件それぞれで開く節点・鍵が 10 通りに分かれること・未知の ID と 1 件の教材の断り
+- 期待の題・章: 実行時に `ch0_3/ir.json` から節点の単位と題を引き、リンク 1 の題（`画面の右側を選ぶ`）を固定の文字列の錨にして読み取りの空振りを防ぐ
+- 出力の規則: 失敗の文にリンクの番号・真偽・件数だけを出し、鍵・履歴の中身を出さない
+
+実行の記録（2026-10-21）: ローカルで Chromium により 6 件が通った。`start` を無視する改変での落ち方の手元の確認は行っていない（各リンクの現在の節点を 1 件ずつ照合するため、無視すれば 9 件が落ちる設計である。確認は未実施）。
+
+限界・申し送り:
+
+- 配信する設定は実行時に IR を取得しないため、DLV-7 は試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
+- Step の題は DOM に出ていない（TASK-525）ため、現在の節点と IR の題の対応で判定した。TASK-525 の後に DOM の題の照合を足す
+- 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
+- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.206 を参照）。本件の `?fixture=ch0-3-links` を使える
+- 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
+
+### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
+
+対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_3`（5.209 で 2 から 3 に更新））。
+
+確かめること:
+
+- 候補 3 件（表示名つき 2 件・省略 1 件）の宣言が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言の順・値のまま出ること
+- 空の候補・空白だけの `id`・`id` の重複・空白だけの `label` が `E-STRUCTURE`、未知の欄・型の違いが `E-PARSE` になること
+- 規則の `target` が候補に無いと `E-STRUCTURE`、候補に入れた対象は通ること。診断に候補・`label`・`target` の値が出ないこと
+- `pack.vocab` が 1.4 で `revise` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと。`choice` の `revise` は語彙の語に数えないこと
+- core の `Session` で、正しい対象の「直す」だけが受付になり、誤った候補・宣言に無い対象・対象なしは受付にならず Step が進まないこと（拒否の文面・分類は判定の持ち分で固定しない）
+- モジュールの Step の規則の `target` に `${...}` を使うと、置換前の値では誤検出せず、展開後の値を `compile` が検査すること
+
+変異（`crates/pack/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK42-1 | 候補の ID の重複の検査を外す | `revise_check_reports_each_violation` |
+| PACK42-2 | `input.revise` を使用と数える判定を常に偽にする | `pack42_older_vocab_declaration_is_a_mismatch` |
+| PACK42-3 | 規則の `target` と候補の突き合わせを外す | `pack42_rule_target_must_be_a_declared_candidate` |
+
+語彙の上限は 1.5 になった（5.1xx の「上限は 1.4」は当時の記録で、書き換えない）。版の上限を前提にする試験（`history_open.rs` の `ver7_`・`vocabulary_terms.rs`）は 1.5 に追従した。
+
+### 5.206 章 A と章 B の往復で保存済みの履歴を壊さない（TASK-110 2/2。DLV-8・SAVE-14・D-68）
+
+DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを開いても章 A の履歴が消えず、「変換して開きました」の通知も出ず、章 A のリンクへ戻ると続きが出ることを求める。D-68 のリンクは `?start=<開始点 ID>` で IR は 1 つであり、保存先の鍵は教材の ID と開始点の ID で決まる（SAVE-14。`host.rs` の `history_key`）。このため章ごとに履歴が分かれるはずである。試験の設定（`TEST_HOOKS=1`）の画面で、5.204 と同じ `?fixture=ch0-3-links` を使って確かめる。章 A はリンク 1（`s-0-1`）、章 B はリンク 7（`s-2-1`）。
+
+- ブラウザの試験: `tools/browser/direct-link-roundtrip.test.mjs`（CSP あり・なしで各 2 件）。1 つの browser context（同じ保存領域）で進める
+  - (T1) 章 A を実クリック 2 手（`opt-right`、行 `cards/notice`）で、どの開始点でもない `main/st-0-2a` まで進め、保存の鍵が章 A の 1 本だけであることを確かめる。次に、章 B のリンクを開く。`fresh`・開始点の節点・`reloaded` の行 0 件・章 A の値の SHA-256 が不変、の 1 つの式 `mixed` が偽で、世代が 1・処理中でなく・通知が出ず（契約の属性・通知の枠・本文の語）・鍵が章 A の 1 本のままであること。再読み込みと、他の 8 件のリンクでも同じ。章 A のリンクへ戻ると `restored` で `main/st-0-2a`・同じ Step ごとの状態・増分と世界の一致で開き、再読み込みしても同じ。章 A を次の 1 手進めても鍵は章 A の 1 本のまま。章 B を 1 手進めると鍵がちょうど 2 本になる。配信元以外への通信・ページ内エラー・CSP 違反・コンソールのエラーは 0 件
+  - (対照) 章 A の値を章 B の鍵の位置へ写し（鍵が章で分かれない修正前の症状の再現）、章 B のリンクを開くと `mixed` が真になる。失敗の文には固定の印 `DIRECT-LINK-HISTORY-MIXED` を含める
+- 出力の規則: 失敗の文にリンクの番号・節点の ID・真偽・件数だけを出し、鍵・履歴の値・下書きを出さない。要約（SHA-256）は page の中で計算し node へ出さない
+
+実行の記録（2026-10-21）: ローカルで Chromium により 4 件が通った。回帰として `chapter-keys`・`direct-link-reload`・`direct-link-start`・`key-stability` の 14 件も通った。鍵を固定の文字列にした配信物で T1 が落ちることの確認は未実施（対照の写しで `mixed` の感度を確かめた）。
+
+限界・申し送り:
+
+- 起動時の「変換して開きました」の通知は host がまだ描かない（TASK-535 1/2）。通知の 0 件の判定は描画された後に効き、それまでは `fresh`（変換して開く経路は `restored` の一種）が実質の判定である
+- 配信する設定は実行時に IR を取得しないため、試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
+- 開始点の `effects` は空で、前の章の世界状態を持たない（5.199 と同じ）
+- 対照は修正前の配信物の再ビルドではなく、保存先の写しによる再現である
+- `scripts/test-chapter-key-control.sh` の置換前の文字列が #1681 以降の `host.rs` と合わず、対照が動かない。本件の範囲外として別に扱う
+- 節番号は並行する PR とマージ順で衝突しうる（5.206 は作業時点で未使用の番号）
+
+### 5.207 複数の対象を 1 つずつ分けた確認の正誤（TASK-63 1/2。PACK-33・D-69）
+
+決定（D-69、2026-10-21）は「`answer` に複数の問いを持たせる語は足さず、対象ごとに Step を分けて書く」である。`crates/pack/tests/split_answer.rs`（実パックは `crates/pack/tests/data/split-answer-pack`。3 枚のカードを 3 Step に分けた形で、`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack33_split_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack33_cli_compile_and_vocab_accept_split_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の 3 Step の拡張点の欄が空・(ii) が 0 であること |
+| `pack33_each_card_has_its_own_verdict` | カードごとに `judge_confirm` が正答のちょうど 1 つだけ `Confirmed` を返し、他は `rj-wrong-kind` の誤答になること。3 枚の正答は互いに違う |
+| `pack33_session_records_per_card_correctness` | `Session` で 3 枚を順に通し、`derive_records` が 3 件で最初の回答が正答・誤答・正答になること。誤答の後の再選択は正答の記録になる |
+| `pack33_merged_step_yields_a_single_record` | 対照。まとめた 1 つの `answer` の Step も検査を通るが、記録は 1 件しかできないこと（PACK-33 の「決定の前の現状の観察」） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
+- `Event` から `CheckObservation` への写像は TASK-304 の担当で未実装のため、試験の中の `choose` が代用する（`crates/core/tests/confirm_record_boundary.rs` と同じ規則）
+- 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+
+### 5.208 入力のない確認だけの Step と 1 択の `choice`（TASK-63 2/2。PACK-35・PACK-19・D-69）
+
+決定（D-69、2026-10-21）は「入力のない確認だけの Step を表す語は足さず、選択肢が 1 つだけの `choice` で表す」である。受講者の操作が 1 回増えることは限界として受け入れる（TERM-30）。`crates/pack/tests/read_only_step.rs`（実パックは `crates/pack/tests/data/read-only-step-pack`。`pack.vocab` は `'1.0'`）が、次の 7 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack35_one_choice_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack35_cli_compile_and_vocab_accept_one_choice_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の拡張点の欄が空・(ii) が 0 であること |
+| `pack35_one_extra_operation_then_answer` | `Session` で、1 択の選択 1 回は受付で止まり、誤答は受付のまま、正答で達成になること。`derive_records` が 1 件で、最初の回答が誤答、再選択が正答 |
+| `pack35_inputless_confirm_step_is_structure_error` | 入力が無く `confirm` だけを持つ終端でない Step が、`validate_dir`・`compile_dir` の両方で `E-STRUCTURE` を 1 件返すこと。選択肢の ID・拒否文の ID が診断に出ない |
+| `pack35_inputless_confirm_in_module_is_structure_error` | モジュールの定義の同じ形（`confirm` が `${` を含む場合を含む）が、実体の数によらず定義ごとに 1 件になること |
+| `pack35_cli_compile_rejects_inputless_confirm_step` | CLI の `compile` が終了コード 1・診断を標準出力・標準エラー出力が空であること |
+| `pack35_final_step_without_input_is_allowed` | 終端の Step は、入力が無くても `confirm` を持てること（PACK-19 の除外） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 範囲外: PACK-19 の「両方無い」のうち確認も持たない途中の Step の拒否（既存の教材・試験が依存するため。`docs/known-gaps.md`）。読むだけの Step の画面（TERM-30）
+
+変異 PACK35-1（入力のない確認だけの Step の拒否を外す）の確認。
+
+実行日: 2026-10-21
+元にしたコミット: 30c1ff0-dirty
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK35-1.mutation
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK35-1 | crates/pack/src/expand.rs: 入力のない確認だけの Step の拒否を外す | pack35_inputless_confirm_step_is_structure_error | pack35_inputless_confirm_step_is_structure_error, pack35_inputless_confirm_in_module_is_structure_error, pack35_cli_compile_rejects_inputless_confirm_step | DETECTED |
+
+### 5.209 保存・書き出しを Step の入力として宣言する語（TASK-64 1/2。PACK-34・D-69）
+
+対象: 入力方式 `env_action`（語彙 1.5。`env_action`・`input.action`・`input.action=save`・`input.action=export`）。契約の型は `crates/contract/tests/input_spec_contract.rs`（`env_action_`・`input_spec_contract_version_is_3`）、宣言の検査は `crates/pack/tests/env_action_input.rs`（実パックは `crates/pack/tests/data/env-action-pack`）、実行時の受付は `crates/core/tests/env_action_save.rs`（IR は `crates/core/tests/data/env_action_1/ir.json`。教材の `compile` とバイト一致することを pack 側の `pack34_core_test_ir_matches_the_pack` が確かめる）。
+
+確かめること:
+
+- 保存の Step が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言のまま出ること。`input_field: hidden` の教材でも診断が出ないこと
+- `action` の欠け・未知の値・型の違い・未知の欄が `E-PARSE`、`processing` を持つ Step が `E-STRUCTURE` になること。診断に宣言の値が出ないこと
+- `pack.vocab` が 1.4 で `env_action` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと
+- core で、保存の成功が保存の Step を受付にし、確認を省く宣言なら達成して次の Step へ進むこと（`CheckpointSaved` → `Accepted` → `Achieved` → `Transitioned` → `Entered`）。世代が変わらないこと
+- 確認の宣言が `none` でないと `Accepted` で止まり、`none` の理由が空白だけなら `Warning` だけで状態が変わらないこと
+- 書き出しの Step・`env_action` の無い Step・宣言が読めない Step・処理中の Step・保存に失敗したとき（ID のあふれ）は、保存で受付にならないこと
+- 受講者のコマンド・選択・取り消しの入力が `env_action` の Step を受付にせず、状態が変わらないこと
+- 同じ操作列から同じログと状態になり、そのログから `Projection` を導けること
+
+実装の過程で `Projection::take_starts` に `CheckpointSaved` を操作の先頭として加えた（`InputReceived` を伴わない `Accepted` が保存の直後に続くため）。上限で止めた操作の巻き戻しの範囲を保存の操作の分だけにするための変更で、保存の後に遷移の上限で止まる場合の試験は足していない（未検証）。
+
+変異（`crates/pack/tests/mutations/`・`crates/core/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK34-1 | `env_action` の宣言を型で読む検査を飛ばす | `pack34_unreadable_declarations_are_parse_errors` |
+| PACK34-2 | 保存の成功の判定を外し、保存に失敗したときも受付にする | `pack34_failed_save_does_not_accept` |
+| PACK34-3 | `action` の照合を外す（書き出しの Step も保存で達成になる） | `pack34_export_step_is_not_achieved_by_save` |
+
+範囲外: 書き出しの成功を達成に結ぶ実行時の経路（`docs/known-gaps.md` の PACK-34）。保存・書き出しのボタンの画面。
+
+### 5.210 誤答の拒否文で前後の切り替えを案内する形（TASK-64 2/2。PACK-36・D-69）
+
+決定（D-69、2026-10-21）は「誤答の拒否に前後比較のビューを結ぶ語は足さず、拒否文（`message`・`next_action`）で前後の切り替え（ART-2）を案内する。比較を自動で見せないことは限界として受け入れる」である。`crates/pack/tests/wrong_answer_compare.rs`（実パックは `crates/pack/tests/data/wrong-answer-compare-pack`。`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack36_guide_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack36_cli_compile_and_vocab_accept_guide_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の (ii) が 0 であること |
+| `pack36_wrong_answer_resolves_to_guide_text` | 誤答が `rj-unchanged` の誤答になり、拒否文の次の行動が前後の切り替えの案内であること。正答は `Confirmed` |
+| `pack36_session_shows_guide_and_stays_on_step` | `Session` で誤答を送ると受付のまま達成が増えず、判定が拒否で、差し込み後の文面が案内であること。誤答で出るイベントは判定と入力の記録だけで、比較を自動で見せないこと。続く正答で達成になること |
+| `pack36_binding_field_on_answer_is_rejected` | 対照。`confirm.answer` に比較のビューを結ぶ欄を足した写しは `E-PARSE` になり、IR を出さないこと（語を足していないこと） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 画面での前後の切り替えの見え方（ART-19）はブラウザで確かめていない。画面のタスクの持ち分である
+- 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+- `rejections.<id>` に未知の欄を足したときの挙動は、試験では固定していない（未確認）
+
+### 5.211 確認 `answer` の選択肢の `label` を必須にする検査（TASK-65 1/2。PACK-37・D-67）
+
+決定（D-67、2026-10-21）は「`label` を必須にし、無い選択肢は検証で診断として止める」である。`crates/pack/tests/answer_label_required.rs` は、`label` の無い（欄が無い・`null`）選択肢を持つ教材パックを `validate_dir` に通し、`E-STRUCTURE`（文面は `validate::ANSWER_LABEL_REQUIRED`）が Step ごとに 1 件、終了コード（`diag::exit_code`）が 1 になることを固定する。`validate` だけの検査で、`compile` は検査しない。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack37_missing_label_is_reported_with_exit_code_1` | 選択肢の 1 つに `label` が無い教材が、1 件の `E-STRUCTURE`（定義ファイルと `step:<id>`）・終了コード 1 になること |
+| `pack37_null_label_is_reported` | `label: null` も同じ |
+| `pack37_all_labels_validate_clean` | 対照。全選択肢に `label` があれば 0 件・終了コード 0 |
+| `pack37_one_diagnostic_per_step` | 1 つの Step で複数の選択肢が欠けても 1 件。2 つの Step で欠ければ 2 件 |
+| `pack37_format_a` | 形式 A（TOML）でも検出すること |
+| `pack37_module_step_is_reported_at_the_module_file` | モジュールの Step の欠けが、モジュールのファイルに付くこと |
+| `pack37_choice_label_is_not_confused` | 入力方式 `choice` の `label` を取り違えないこと |
+| `pack37_compile_does_not_check` | 同じ教材の `compile_dir` が成功し、`validate` だけが止めること |
+| `pack37_message_has_no_values` | 秘密情報に似た選択肢の ID・`label` が診断に写らないこと |
+
+既存の試験への影響（2026-10-21 に `cargo test -p fandhe-workshop-pack` で洗い出した）と扱い。
+
+- 編集してよい教材パック（`testdata/condition-vocab-pack`、`testdata/pack-defects/base/format-b-v1_1` と上書き 3 件、`crates/pack/tests/data/vocab-pack`・`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack`）と、試験のコード中のインラインの宣言は、`label` を足した
+- 編集できない教材パック（spec の写し、IR の凍結物を持つ `fill-pack`）は、試験の共通部の `without_answer_label_required` で、この 1 種の診断だけを除いて見る。除いた件数が 0 でないことも確かめる
+- 語彙の版 `1.0` を宣言して `answer` を使っていた 4 つの教材（`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack` と `split_answer.rs` の対照）は、`label` が語彙 1.3 の語のため `1.3` の宣言に変えた。1.3 より前を宣言した教材は `answer` を使えなくなる（`docs/pack-authoring.md`）
+- `vocab_declaration.rs` の `pack31_correct_packs_have_no_false_positives` は、確認の `label` を持つようになった 2 つの教材を、入力方式 `choice` の `label` だけを持つ前提の一覧から外した（残る 3 件で取り違えの確認は続く）
+- `vocab_command.rs` の `author17_label_not_counted` は、土台の教材が `label` を持つようになったため、足す向きから外す向きに変えた
+- `metrics.rs` の `me3_` は、`condition-vocab-pack` に `label` を足して増えたバイト数に合わせた
+
+変異（`crates/pack/tests/mutations/`）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK37-1 | `validate` が `label` の欠けを検査する呼び出しを外す | `pack37_missing_label_is_reported_with_exit_code_1` |
+
+2026-10-21 に呼び出しを手で外して確かめ、`answer_label_required` の 9 件のうち 7 件が失敗し、戻すと全件通った（`make check-mutations` は流していない）。
+
+範囲外: `fandhe-pack validate` の CLI からの終了コードの確認（本体は TASK-403。ここでは `diag::exit_code` で代えた）。`compile` だけを通した IR では `label` の無い選択肢が ID のまま出る（`docs/pack-authoring.md` に明記した）。置換後に `label` が空になる場合は扱わない。
+
+TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての選択肢に `label` を付ける案は、D-67（2026-10-21）が採らなかった。そのため、教材側の規約と、全 Step の画面で選択肢に ID の文字列が出る件数を数える試験は、この repo では足さない。結論: 変更なし（Rust・試験・試験の件数のいずれも変えない）。
+
+- `label` の無い教材パックは `validate` が止めるため、検査を通った教材パックで選択肢が ID のまま画面に出る経路は無い（PACK-37・TERM-25）。例外は `compile` だけを通した IR で、`docs/pack-authoring.md` に記載済みである
+- `st-1-4`・`st-2-7` の画面で表示名が出ることの確認は、TERM-25（画面のタスク TASK-446）と INTRO-18（教材のタスク）が担う。教材パックは教材 repo にあり、この repo の `testdata/` の spec の写しは D-67 の前の形（`label` 無し）のまま残す
+
+### 5.212 自然文の内容で規則を分ける書き方の拒否（TASK-68。PACK-41・D-43）
+
+決定（D-43、2026-10-12）は「判定語（部分一致・正規表現など）を語彙に足さず、内容で規則を分ける書き方は `validate` が拒否する」である。2026-10-21 の確認で、現状は `on.text` に `{contains: ...}` を書いても `validate`・`compile` とも 0 件で通り、実行時は `on.text == true` だけを見るため内容の条件が無視されると分かった。そのため `input.rs` に `E-PARSE` の検査を足した（診断コードは増やさない）。`crates/pack/tests/text_rule_content.rs` が `validate_dir` と `compile_dir` の両方で固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack41_content_value_in_on_text_is_rejected` | 真偽値でない `on.text`（mapping・文字列・数値・null）が `E-PARSE` 1 件で、値が出ないこと |
+| `pack41_unknown_key_beside_text_is_rejected` | `text: true` と並ぶ未知のキー（`contains` など）が `E-PARSE` で、キー名だけが出ること |
+| `pack41_unknown_key_on_text_step_is_rejected` | `text` の Step で `text` キーのない `on` の未知のキーと、mapping でない `on` |
+| `pack41_unsafe_key_name_is_not_echoed` | 識別子として安全でないキー名を写さないこと |
+| `pack41_plain_text_rules_pass` | 対照。`text: true`・`false`・`cancel`・既知のキーの組み合わせと 5 方式の教材が通ること |
+| `pack41_other_steps_are_not_checked` | `text` でない Step で `text` キーのない `on` は本検査の対象外であること |
+| `pack41_module_text_rule_is_checked` | モジュールの `text` の Step の規則が、モジュールのファイルに付いて拒否されること |
+| `pack41_format_a_is_rejected_too` | 形式 A（TOML）でも同じ |
+| `pack41_when_content_condition_is_rejected_by_compile` | `when: {contains: ...}` を `compile` が `E-PARSE` で拒否すること |
+| `pack41_rule_choice_ignores_words`（core の `text_judge`） | 語を含む文と含まない文で、選ばれる規則・分類（`free_text_unjudged`）が変わらないこと |
+
+変異（`crates/pack/tests/mutations/`）。
+
+```text
+実行日: 2026-10-21
+元にしたコミット: af94c08（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK41-1.mutation crates/pack/tests/mutations/PACK41-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| PACK41-1 | crates/pack/src/input.rs: 規則の `on` の未知のキーの拒否を外す | pack41_unknown_key_beside_text_is_rejected | DETECTED |
+| PACK41-2 | crates/pack/src/input.rs: `on.text` が真偽値でないことの拒否を外す | pack41_content_value_in_on_text_is_rejected | DETECTED |
+
+範囲外: `validate` が `when` の条件の語彙を検査しない全般の不足（TASK-42 の領域）。`text` でない Step の規則で `text` キーのない `on` の未知のキーは検査しない（core は黙って飛ばす）。規則の `on` の 9 キーの集合は core（private 定数）と pack（`RULE_ON_KEYS`）の二重管理である。spec の TASK-68 の「Rust の変更は無い」という見積もりは、現状が拒否していなかったため成り立たなかった（spec 側への差し戻し事項）。`fandhe-pack validate` の CLI からの終了コードの確認は TASK-403 の実装待ち。
+
+### 5.213 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
 
 水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は TASK-49 2/2（#496）の持ち分である。
 

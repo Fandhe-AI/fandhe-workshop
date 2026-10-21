@@ -1,0 +1,8 @@
+id: SHELL1-8
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/static/app.css
+find: [data-testid="pane-tabs"][data-pane="ops"] ~ .sh-panes > #pane-artifacts,
+replace: [data-testid="pane-tabs"][data-pane="ops"] ~ .sh-panes > #pane-artifactz,
+expect-fail: css_hides_unselected_pane_below_960px
+note: 操作を選んだときに成果物の領域が 960px 未満で隠れない（SHELL-1・TASK-517 2/2）

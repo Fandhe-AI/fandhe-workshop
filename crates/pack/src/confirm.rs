@@ -20,11 +20,14 @@
 //!   （例: `kind: "${k}"`）、置換後に違反になりうる（例: `reason: "${why}"` に空文字）ため、展開（`expand`）が
 //!   置換後の Step を [`check_step_confirm`] で検査する（2026-10-15。`input` と同じ扱い）。置換後の診断には、
 //!   引数の値を含みうる `kind` の名前を写さない
-//! - 入力の無い Step の `confirm` は、形だけを検査し、それ自体は診断にしない（該当する診断コードが spec に無い）
+//! - 終端でない入力の無い Step の `confirm` は、`expand::check_use_steps` が `E-STRUCTURE` で拒否する（PACK-35・PACK-19、
+//!   D-69、2026-10-21）。拒否した Step はここで重ねて検査しない。終端の Step の `confirm` は、形だけを検査し、それ自体は診断にしない
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
 //! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、
 //! `E-STRUCTURE` の固定文になる（2026-10-15、TASK-47 2/2）。選択肢の `on_wrong` が空白だけの場合と、正答の選択肢に書かれた場合も同じ `AnswerSpec::check` が拒否する（TASK-46 1/2）。
+//! 選択肢の `label` の欠け（欄が無い・`null`）は、`validate` だけが `E-STRUCTURE` にする（[`check_answer_labels`]。
+//! PACK-37、2026-10-21 D-67）。`compile` は検査しない（`label` の無い IR の golden・凍結物・古い教材を保つため）。
 //! `on_miss`・`on_wrong` の参照先の解決は `validate` の参照検査（`E-REF-REJECTION`）の担当である。
 
 use fandhe_workshop_contract::confirm_spec::{
@@ -35,6 +38,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
+use crate::expand::is_inputless_confirm;
 use crate::input::{diag, has_placeholder};
 use crate::source::{safe_ident, LoadedScope, ScopeKind};
 
@@ -134,7 +138,7 @@ fn check_one_step(
 /// 置換で `reason` が空になる・選択肢の ID が重なるなど、置換前の検査では見えない違反を拾う。
 /// 診断は定義元のモジュールのファイルと Step に紐付け、引数の値は写さない。
 pub(crate) fn check_step_confirm(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
-    if step.use_module.is_some() {
+    if step.use_module.is_some() || is_inputless_confirm(step) {
         return None;
     }
     let (code, msg) = check_one_step(step.confirm.as_ref(), step.input.is_some(), true).err()?;
@@ -148,6 +152,7 @@ pub(crate) fn check_confirms(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     for scope in scopes {
         for step in &scope.src.steps {
             if step.use_module.is_some()
+                || is_inputless_confirm(step)
                 || (scope.kind == ScopeKind::Module && has_placeholder(&step.confirm))
             {
                 continue;
@@ -160,4 +165,60 @@ pub(crate) fn check_confirms(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
         }
     }
     out
+}
+
+/// `validate` だけが呼ぶ。確認 `answer` の選択肢に `label`（表示名）が無い Step を `E-STRUCTURE` にする（PACK-37・D-67）。
+///
+/// 欠けは「欄が無い」か `null`（serde で `None` に読まれる）。置換記号を含む文字列は「有る」とみなす。
+/// 生の値を辿り、型で読めない宣言は `check_confirms` が `E-PARSE` にするので黙って飛ばす。
+/// 診断は Step ごとに 1 件で、選択肢の ID・値は写さない。入力方式 `choice` の `label` は別の欄で読まない。
+pub(crate) fn check_answer_labels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for step in &scope.src.steps {
+            if step.use_module.is_some() {
+                continue;
+            }
+            if answer_label_missing(step) {
+                out.push(answer_label_diag(scope, step));
+            }
+        }
+    }
+    out
+}
+
+/// 確認 `answer` の選択肢に `label` が欠けた Step か（欠けは「欄が無い」か `null`。生の値を辿る）。
+fn answer_label_missing(step: &Step) -> bool {
+    let Some(confirm) = step.confirm.as_ref().and_then(Value::as_object) else {
+        return false;
+    };
+    if confirm.get("kind").and_then(Value::as_str) != Some("answer") {
+        return false;
+    }
+    let Some(options) = confirm.get("options").and_then(Value::as_array) else {
+        return false;
+    };
+    options.iter().any(|o| {
+        o.as_object()
+            .is_some_and(|o| o.get("label").is_none_or(Value::is_null))
+    })
+}
+
+fn answer_label_diag(scope: &LoadedScope, step: &Step) -> Diagnostic {
+    diag(
+        scope,
+        &step.id,
+        DiagCode::Structure,
+        crate::validate::ANSWER_LABEL_REQUIRED.to_string(),
+    )
+}
+
+/// `validate` だけが呼ぶ。引数を置換した後の Step の確認 `answer` に `label` が無ければ診断を返す。
+/// 置換前の `kind` が `${k}` のような Step は [`check_answer_labels`] が `answer` と判定できず飛ばすため、
+/// 展開後にここで検査する。診断は定義元の Step に紐付く（呼び出しごとの重複は `validate` が 1 件にまとめる）。
+pub(crate) fn check_step_answer_label(scope: &LoadedScope, step: &Step) -> Option<Diagnostic> {
+    if step.use_module.is_some() {
+        return None;
+    }
+    answer_label_missing(step).then(|| answer_label_diag(scope, step))
 }

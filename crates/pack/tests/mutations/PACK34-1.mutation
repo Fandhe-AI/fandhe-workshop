@@ -1,0 +1,8 @@
+id: PACK34-1
+package: fandhe-workshop-pack
+test: env_action_input
+target: crates/pack/src/input.rs
+find:             check_one::<EnvActionSpec>(rest, name, |_| Ok(()))?;
+replace:             let _ = (rest, name);
+expect-fail: pack34_unreadable_declarations_are_parse_errors
+note: env_action の宣言を型で読む検査を飛ばす（未知の値・欄の欠けが通る）

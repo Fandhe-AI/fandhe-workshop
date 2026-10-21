@@ -1,0 +1,8 @@
+id: PACK42-2
+package: fandhe-workshop-pack
+test: approval_revise_candidates
+target: crates/pack/src/vocab_check.rs
+find:                     && i.get("revise").is_some_and(|r| !r.is_null())
+replace:                     && i.get("revise").is_some_and(|r| !r.is_null()) && false
+expect-fail: pack42_older_vocab_declaration_is_a_mismatch
+note: input.revise を使用と数える判定を常に偽にする（1.4 を宣言して revise を使っても不一致が報告されない）

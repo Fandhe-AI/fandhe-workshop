@@ -42,8 +42,8 @@ steps:
       kind: answer
       on_wrong: rj-answer-wrong
       options:
-        - { id: ans-login-1, correct: true }
-        - { id: ans-login-2, correct: false, on_wrong: rj-nowhere }
+        - { id: ans-login-1, correct: true, label: 選択肢 ans-login-1 }
+        - { id: ans-login-2, correct: false, on_wrong: rj-nowhere, label: 選択肢 ans-login-2 }
     next: [{ to: st-2-8 }]
 
   - id: st-2-8

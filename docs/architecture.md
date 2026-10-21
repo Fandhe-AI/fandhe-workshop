@@ -117,6 +117,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈は contract、1 語ごとの適用は core、読み込み時の検査と診断は pack（spec の TASK-43 は「pack crate」と書くが、判定規則に従い分ける。IR の型は `Value` のまま変えない。進行 `processing` は contract が解釈し core が適用、`when` は core に評価器を注入する形で条件の語彙は TASK-42 が与える。TASK-43 2/2） | contract・core・pack | TASK-43 |
 | 条件の語彙（状態・世界状態・論理。`step`・`flag`・`world_has`・`world_attr`・`count`・`chose`・`all`・`any`・`not`）の型と `Value` からの解釈は contract、評価と `ConditionEval` の実体は core、読み込み時の検査と診断は pack（IR の型は `Value` のまま変えない。`param`・`clarifying` も型と評価を持ち、`param` は `VocabConditions` が借りる IR の実体の引数、`clarifying` は `Slice.clarifying`（`CONTRACT_VERSION` 5）を読む。TASK-42 1/2・2/2） | contract・core・pack | TASK-42 |
+| 開始条件（EP-9。`requires`・`unmet`）の評価 `start_gate::check_start` は core（状態を読むだけの純関数で、`Control::Begin` への結線と `Refused` の記録は TASK-217・TASK-240）、片方だけの開始点の `E-STRUCTURE` は pack（spec の TASK-51 は「pack crate」と書くが、後続の core のタスクが呼ぶため判定規則に従い分ける。`SessionState`・`Event`・`CONTRACT_VERSION` は変えない） | core・pack | TASK-51 |
 | 操作 1 件の世界状態の差分から変更前の値つきの `Changed` を作る記録（`changed`。契約の版の対象外で、`apply` が呼ぶ。復習の導出は TASK-215 2/2） | core | TASK-215 |
 | コマンドの字句化の処理と宣言との照合（`command_lex::lex_command`・`command_judge::judge_command`。結果の型は contract の `judgment`、接頭辞の分けは contract の `profile`、宣言の型は contract の `input_spec`） | core | TASK-262 |
 | 選択肢・画面操作・承認の判定の処理（`select_judge::judge_select`・`judge_confirm`。LLM なし。状態の変更と `Judged` の発行は含まない） | core | TASK-263 |
@@ -131,6 +132,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | Step の移動（`go_to`。公開しない。移動先の `on_enter`・入口の写しの作り直しは含まない） | core | TASK-213 |
 | 1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）のたどりと、1,000 回の上限での停止（`transit`。公開しない。再帰を使わずループでたどり、上限に達したら `Warning` と専用の `Event::TransitionLimitReached` を 1 件ずつ残し、`session::apply` が操作の前の `run`・入口の写しへ戻す（`busy` は空、世代は減らさない。SAFE-35）。受講者向けの見出し・通知欄・まとめ表示は web の `log_lines`・`limit_notice` が持つ。実体ごとの状態・`on_enter` の効果は含まない） | core | TASK-160 |
 | チェックポイントの保存と復帰（`checkpoint`。公開しない。実体ごとの戻り方は含まない。復習・変化の印の作り直しは `projection` が導き、`apply()` を通した試験は TASK-214 2/3 で追加済み。復帰前の進行の無視と処理中の再開は TASK-214 3/3 で試験済み） | core | TASK-214 |
+| 保存の成功を Step の入力として受け付ける結線（`env_input`。公開しない。`input: {kind: env_action, action: save}` の Step を、保存の成功の直後に受付・達成にする。書き出しの結線は含まない。PACK-34） | core | TASK-64 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表と Step の状態によるコマンドの拒否の分類（`command_class`。未知・順序違い・教材未対応・この Step では使わない。`judge::judge_input` が結線して使う。`Judged` の発行は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268・TASK-269 |
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
@@ -165,7 +167,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 - 本表は「どの crate に置くか」だけを固定する。型の中身は各契約タスクが固定し、本文書は型を再定義しない
 - `Input`・`Judged` の位置づけは、公開 API の契約（TASK-204）を正とする。TASK-256 の判定の型はそれに従う
 - web 側の契約（TASK-343 など）の型は wasm 専用にしない。契約適合試験を native で流せるようにする
-- TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 2）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。TASK-283 で版 2 に上げ、上限を超える貼り付けの切り捨てのための操作範囲（`beforeinput` の登録・選択位置の読み取り・キャレット・合成の `input`）を足した
+- TASK-343 の契約（`parts`・`action`・`profile`・`glue_ops`・`list_policy`）の版は `parts::PARTS_CONTRACT_VERSION`（版 3）が持つ。アクセシビリティの構造の契約の版（`a11y::A11Y_CONTRACT_VERSION`）とは別に管理する。TASK-283 で版 2 に上げ、上限を超える貼り付けの切り捨てのための操作範囲（`beforeinput` の登録・選択位置の読み取り・キャレット・合成の `input`）を足した
 - TASK-431 の契約（`terminal_area`。ログの行・状態表示・Step の状態の語・入力の口の識別子・観察点の制約）の版は `terminal_area::TERMINAL_AREA_CONTRACT_VERSION`（版 3）が持つ。`parts`・`a11y` の版とは別に管理する
 - CLI の外部仕様（TASK-399・TASK-407・TASK-402・TASK-408。バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）の版は `cli_contract::CLI_CONTRACT_VERSION`（版 5）が持ち、文書は `docs/cli.md`。他の契約の版とは別に管理する
 - TASK-511 の契約（`shell`。枠の区画・左右の取り付け点・操作の名前と宛先の形）の版は `shell::SHELL_CONTRACT_VERSION`（版 1）が持つ。1/2・2/2 で版 1 を書き上げた。通知の口（種類 5 つ・値 4 つ・通知欄 `shell-notice`・適合の検査器）は 2/2 が版を上げずに足した。他の版とは別に管理する

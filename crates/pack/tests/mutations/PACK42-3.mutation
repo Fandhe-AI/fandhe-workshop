@@ -1,0 +1,8 @@
+id: PACK42-3
+package: fandhe-workshop-pack
+test: approval_revise_candidates
+target: crates/pack/src/input.rs
+find:         if !declared.contains(target) {
+replace:         if false && !declared.contains(target) {
+expect-fail: pack42_rule_target_must_be_a_declared_candidate
+note: 規則の target と候補の突き合わせを外す（正しい対象が候補から漏れても通り、画面と判定が食い違う）

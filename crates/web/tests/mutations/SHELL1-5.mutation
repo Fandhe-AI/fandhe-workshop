@@ -1,0 +1,8 @@
+id: SHELL1-5
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/static/app.css
+find: @media (min-width: 960px) {
+replace: @media (min-width: 1024px) {
+expect-fail: css_has_two_columns_and_hides_tabs_from_960px
+note: 2 列にする境目が 960px から外れる（SHELL-1・TASK-517 1/2）

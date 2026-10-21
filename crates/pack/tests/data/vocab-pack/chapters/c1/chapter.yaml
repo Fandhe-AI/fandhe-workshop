@@ -55,8 +55,8 @@ steps:
       kind: "answer"
       on_wrong: "rj-wrong"
       options:
-        - {id: "opt-a", correct: true}
-        - {id: "opt-b", correct: false, on_wrong: "rj-wrong-own"}
+        - {id: "opt-a", correct: true, label: "答え A"}
+        - {id: "opt-b", correct: false, on_wrong: "rj-wrong-own", label: "答え B"}
     next: [{to: "ep7"}]
   - id: "ep7"
     title: "差し込み枠"

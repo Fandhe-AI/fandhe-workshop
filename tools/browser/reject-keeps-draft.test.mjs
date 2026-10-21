@@ -15,7 +15,9 @@
 // 固定の sleep は使わない。窓（5 段 × 300ms）を外れたら分類が busy にならず失敗する（偶発的に通らない）。
 // 処理が終わった後に、進行の描画・受付済みへの遷移で欄が書き換わっていないことも見る。
 //
-// 範囲外: 拒否の後の選択状態・フォーカスの位置・問い返しの後の欄の扱い（TASK-284・JUDGE-27・TERM-22。扱いは 2026-10-21 に確定した。D-67）。
+// 拒否の後は下書きの全体が選択状態になる（TASK-284 2/2・JUDGE-27・TERM-22。D-67）ので、`assertKept` が選択も見る。
+// 選択に続けて打った文字が置き換わることは reject-draft-select.test.mjs が受け持つ。
+// 範囲外: フォーカスの位置。問い返しの後の欄が空になることは clarify-draft.test.mjs が受け持つ（TASK-284 1/2）。
 // 欄の値は読むだけで、DOM の値を状態へ流さない（BUILD-6）。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。CSP あり・なしの両方で流す。
@@ -114,6 +116,9 @@ async function assertKept(page, body, when) {
   await settle(page);
   assert.equal(await page.inputValue(DRAFT), body, `${when}: 欄の値が変わった`);
   assert.equal(await stateDraft(page), body, `${when}: 状態の下書きが変わった`);
+  // `page.fill` の後のキャレットは末尾なので、選択が無ければここで失敗する（D-67）。
+  const sel = await page.$eval(DRAFT, (el) => [el.selectionStart, el.selectionEnd, el.value.length]);
+  assert.deepEqual(sel, [0, sel[2], sel[2]], `${when}: 下書きの全体が選択されていない`);
 }
 
 for (const csp of [true, false]) {

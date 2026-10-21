@@ -186,7 +186,7 @@ fn a_third_round_is_added_by_adding_one_file() {
         .instances
         .iter()
         .any(|i| i.id == "issue-to-merge@round3"));
-    // `requires`・`unmet` は値として通す（評価は TASK-51）。
+    // `requires`・`unmet` は値として通す（評価は core の `start_gate`。TASK-51）。
     let s = after
         .starts
         .iter()
