@@ -2,7 +2,7 @@
 //
 // 役割: 構成要素の一覧を 1 か所で宣言し、後続の試験（TASK-106 2/3・3/3。章への直接リンク・複数サブパス・ルート配信）が
 // このモジュールを import して再宣言しないようにする。Playwright に依存しない純関数と定数だけを置く。
-// 呼び出し元: delivery-subpath.test.mjs（1/3）・delivery-direct-links.test.mjs（2/3。直接リンク 10 件。DLV-1）。
+// 呼び出し元: delivery-subpath.test.mjs（1/3）・delivery-direct-links.test.mjs（2/3。直接リンク 10 件。DLV-1）・delivery-bases.test.mjs（3/3。DLV-2）。
 // 直接リンク（DIRECT_LINKS・directLinkUrl）と 1 ページの取得資源の判定（pageRequestProblems）もここに置く。判定は base を引数で
 // 受けるので、3/3 の別のサブパス・ルート配信の試験もそのまま使える。
 //
