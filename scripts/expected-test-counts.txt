@@ -252,7 +252,7 @@ rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6
 rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=10|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=256|passed=2748|ignored=4
+rust|total|binaries=256|passed=2749|ignored=4
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=41|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
