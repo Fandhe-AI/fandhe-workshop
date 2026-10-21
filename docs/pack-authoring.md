@@ -163,6 +163,49 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）から選びま�
 - 確認の `options[].label` は、入力方式 `choice` の `options[].label`（必須）とは別の欄です。表示名の解決は 1 つの Step の確認の選択肢の中だけで行い、入力方式 `choice` の `label` へは落ちません
 - `on_miss`・`on_wrong`（Step・選択肢とも）の参照先が `rejections` に無ければ `validate` が `E-REF-REJECTION` にします。`targets[].view` は `E-REF-VIEW` です
 
+## 承認の差し戻しと再承認（Step を分ける）
+
+1 つの Step の `approval` で「承認 → 差し戻し → 再承認」を表す語はありません。足さないことは D-69（2026-10-21）で決まっています（PACK-32）。入力方式 `approval` は欄を持たず、欄を足すと `E-PARSE` です。
+
+書き方は、差し戻しの Step と、直した結果を承認する再承認の Step を分けることです。
+
+- 差し戻しの Step: `on: {approval: revise}` を受付にし、承認・却下は次の行動つきの拒否にします。案の状態などの状態変化は、受付の規則の `outcome.effects` に書きます
+- 再承認の Step: `on: {approval: approve}` を受付にし、もう一度の差し戻し・却下は拒否にします
+- 差し戻しの後の遷移（差し戻しの Step から再承認の Step へ）は、作者が `next` に書きます
+- 確認は、受け付けたこと自体が意思表示になるなら、どちらの Step も `confirm: {kind: none, reason: …}` で書けます。別に確かめたいものがあるなら `point_at` などを使います
+
+```yaml
+steps:
+  - id: st-revise
+    next: [{to: st-reapprove}]
+    input: {kind: approval}
+    rules:
+      - id: r-revise
+        on: {approval: revise}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 差し戻し}}
+      - id: r-approve-early
+        on: {approval: approve}
+        outcome: {kind: reject, rejection: rj-revise-first}
+    confirm: {kind: none, reason: 差し戻すこと自体が意思表示のため、別の確認を置かない。}
+  - id: st-reapprove
+    input: {kind: approval}
+    rules:
+      - id: r-approve-fixed
+        on: {approval: approve}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 承認済み}}
+```
+
+- 現在のエンジンは `next` の `when` を実行時に評価せず、`when` の無い最初の辺だけをたどります。承認と差し戻しで行き先を分ける書き方はできないため、Step を一直線に並べます
+- 遷移先の `on_enter` の効果は、現在のエンジンがまだ適用しません（TASK-242）。状態変化は、規則の `outcome.effects` に前の状態に依らない形（`replace`）で書きます
+- 分けて書いた教材は、新しい語彙の版を宣言しなくても `validate` を通ります。`pack.vocab` は、使った語に合わせて書きます
+- 「直す」の誤った対象の候補と表示名の欄は、別のタスクの範囲です（PACK-42）
+
 ## 処理中の進行（`processing`）
 
 `processing` の要素に書ける欄は、`name`（空でない文字列）と `effects`（効果の列）だけです。未知の欄は `E-PARSE`、空の名前は
@@ -460,6 +503,7 @@ views:
 | `crates/pack/tests/static_limits.rs` の `pack30_` | 条件の充足可能性・Step の巡回・規則の遮蔽を含む限界パックを `validate` が報告しないこと（PACK-30・D-43） |
 | `crates/pack/tests/missing_elements.rs` の `pack30_` | 置かれない経路への `remove`・`set_attr` が `E-REF-ELEMENT` になること、置かれる経路（`put`・`replace`・`${}` つきの `put`・開始点）は報告しないこと、経路以外の値を写さないこと（PACK-30・D-43） |
 | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` | 選んだ値の差し込みの語が無いこと（差し込みらしい欄が `E-PARSE`、受講者の値の枠が `E-SLOT-UNKNOWN`、章の `${}` が文字のまま、値が世界状態に入らない）と、列挙・固定値の属性の回避が書けて、列挙にない値が拒否されること（PACK-39・D-50） |
+| `crates/pack/tests/approval_revise_split.rs` の `pack32_` | 差し戻しの Step と再承認の Step を分けた教材が、語彙の版を足さずに `validate` を通ること、承認の `input` が欄なしのままであること、core で差し戻し → 再承認の順に進み早すぎる承認ともう一度の差し戻しが拒否されること、1 Step で再承認を表す欄が `E-PARSE` になること（PACK-32・D-69） |
 | `crates/core/tests/version_histories.rs` の `fifteen_histories_match_the_fixed_expectations` | 副版で Step を足すと先へ進んだ履歴が `replay_diverged`・手前の履歴が変換になること、主版が違えば位置によらず `content_major` で表示だけになること（VER-5・VER-6・VER-18） |
 | `crates/core/tests/version_record.rs` の `t2_default_vocab_record`・`t6_fail_closed` | `pack.vocab` の省略が `1.0` で記録されること、読めない `pack.version` で記録を作らないこと |
 | `crates/pack/tests/vocab_declaration.rs` の `pack31_` | 宣言より新しい拡張点（EP-9〜EP-13）と確認の選択肢の `label` の使用が語ごとに 1 件の `E-VOCAB-MISMATCH` になること、入力方式 `choice` の `label` を取り違えないこと、宣言と使用が一致する教材で誤検出が 0 件であること、一致する宣言と `pack.vocab` の省略は報告しないこと、読めない宣言が値を写さない `E-PARSE` になること（PACK-31・D-43） |

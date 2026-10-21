@@ -1,0 +1,50 @@
+id: c1
+title: 差し戻しと再承認の章
+starts: [{id: s1, node: st-revise}]
+steps:
+  - id: st-revise
+    title: 案を差し戻す
+    body: a.md
+    next: [{to: st-reapprove}]
+    on_enter:
+      - put: {path: plan/draft, attrs: {state: 承認待ち}}
+    views: [v-cards]
+    input: {kind: approval}
+    rules:
+      - id: r-revise
+        on: {approval: revise}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 差し戻し}}
+      - id: r-approve-early
+        on: {approval: approve}
+        outcome: {kind: reject, rejection: rj-revise-first}
+      - id: r-reject-early
+        on: {approval: reject}
+        outcome: {kind: reject, rejection: rj-revise-first}
+    confirm: {kind: none, reason: 差し戻すこと自体が意思表示のため、別の確認を置かない。}
+  - id: st-reapprove
+    title: 直した案を再承認する
+    body: b.md
+    next: [{to: st-end}]
+    views: [v-cards]
+    input: {kind: approval}
+    rules:
+      - id: r-approve-fixed
+        on: {approval: approve}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: plan/draft, attrs: {state: 承認済み}}
+      - id: r-revise-again
+        on: {approval: revise}
+        outcome: {kind: reject, rejection: rj-approve-fixed}
+      - id: r-reject-again
+        on: {approval: reject}
+        outcome: {kind: reject, rejection: rj-approve-fixed}
+    confirm: {kind: none, reason: 承認すること自体が意思表示のため、別の確認を置かない。}
+  - id: st-end
+    title: おわり
+    body: c.md
+    final: true
