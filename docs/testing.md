@@ -7011,3 +7011,27 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 件数の期待値 `scripts/expected-test-counts.txt` は版上げ PR の関門の値で、本変更では更新しない
 - 限界: 配信する設定は実行時に IR を取得しないため、「一覧にある値は開く」は試験の設定でだけ確かめる。`?ir=` の値は無視され、理由は出ない。`?fixture=` と `?ir=` は併用しない（試験の設定の教材の選び方の制約）
 - 範囲外: 配信する設定で `./ir/main.json` を実行時に取得して開始点で開く処理、読めない IR の鍵の本番の経路への結線、旧方式の `?ir=` のリンクへの案内
+
+### 5.225 Step ごとの上流の行（対応表の欄）を語彙に持たない代用の記録（TASK-72。PACK-46・D-70）
+
+決定 D-70（2026-10-22）は、対応表の欄を語彙に持たないとした。対応表は読み込まれない教材 repo の別の文書に置き、教材テストで Step ID と突き合わせる。ヒントの 3 段目の括弧書きは、コマンドの外（ヒントの別の文）に置く教材側の約束で、語は足さない。#518 の受け入れ条件は「持たない案」の側（代用の記録が文書にあること）で満たす。語彙・診断コード・IR・CLI は変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/upstream_map_gap.rs` の `pack46_step_upstream_field_is_rejected_by_compile` | Step に `upstream`・`upstream_ref`・`source` を書くと `compile` が `E-PARSE` ちょうど 1 件で止まること |
+| 同 `pack46_step_upstream_field_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと |
+| 同 `pack46_upstream_field_value_is_not_echoed` | 値が診断に写らないこと |
+| 同 `pack46_pack_refs_pass_and_are_copied_to_ir` | パック全体の `refs` が診断 0 件で通り IR に写ること。存在しない Step ID らしい値を足しても検査されないこと |
+| 同 `pack46_vocab_table_yields_step_ids_for_external_map` | `vocab` の表から全 Step の `scope,step` が取れ、展開後の複製を含まないこと。別の文書の行を模した表との突き合わせで、表に無い Step ID の検出と、参照名ごとの影響する Step の決定的な列挙が組めること（教材テストの形の例示で、エンジンの機能ではない） |
+| 同 `pack46_hint_bracket_outside_command_is_plain_text` | 括弧書きをコマンドの外に置いたヒントも、続けた形（約束の違反）も、診断 0 件で通り文面が IR に残ること（検査が無いことの記録） |
+
+変更: 製品のコードの変更は無い。
+
+変異注入: 置かない。製品のコードの変更が無く、Step の未知の欄の拒否（`deny_unknown_fields`）を 1 行で一意に緩める置換が無いためである。
+
+限界・範囲外:
+
+- 教材 repo の対応表の文書、Step ID の対応を検査する教材テスト、影響する Step を列挙するスクリプトは教材 repo の担当（TASK-720・TASK-730）
+- 参照版の置き場の最終の形（TASK-717）。`refs` の形の検査は足さない
+- spec への書き戻しと、`docs/spec` の submodule の更新（D-70 の取り込み）は本変更では行わない
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
