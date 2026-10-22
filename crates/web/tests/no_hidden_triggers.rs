@@ -10,7 +10,7 @@
 //! 指せる行（`data-action="ui"`。`artifact_view`）が正当に出力する属性名であり、同じ文字列リテラルは 1 つに
 //! まとめられるため、件数では新しい経路を検出できないからである。そこで「経路」を、進行の宛先
 //! （`tick`・`complete`・`esc`）を `data-action` に書く形、許可の外の `data-payload`、DOM への属性の書き込み、
-//! 送信ボタンと左の行（`row_key_effect` の結果）以外への `.click()` と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
+//! 送信ボタンと左の行（`row_key_effect` の結果）以外への `.click()`、`static/app.js` の `blob:` の検査つきの 1 件（`STATIC_HREF_WRITE`）以外の `href` への代入と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
 //! `static/test-hooks.js` は試験の設定でだけ配信されるため対象外である。
 //! 解析は、コメントを除き、空白と `r#` を除いた文字列で照合する（`common::glue_code` と同じ）。
 
@@ -58,6 +58,16 @@ const PAYLOAD_ALLOWED: [(&str, usize, usize); 8] = [
 
 /// 配信する静的ファイルで禁止する文字列（コメントも含めて生の本文で照合する）。
 const STATIC_FORBIDDEN: [&str; 3] = ["data-payload", ".click(", "setAttribute("];
+
+/// 配信する `static/app.js` で許す唯一の属性の書き込み（TASK-531 1/2）。履歴の書き出しのリンクの `href` へ、
+/// 自分のオリジンの `blob:` URL を 1 回写す `a.href = url` である。契約は次の 3 点。
+/// 対象は書き出しのリンク（`data-testid="export-download"`）の `href` だけ。値は `blob:${window.origin}/` で始まる
+/// 文字列だけ（上流の属性の検査が `blob:` の href を落とすため、URL は `data-export-url` に載って届く）。
+/// リンクは履歴が変わるたびに view が作り直すので、写した値は次の描画で消える。件数は 1 件に固定する（増減で失敗する）。
+const STATIC_HREF_WRITE: &str = ".href=";
+const STATIC_HREF_WRITE_COUNT: usize = 1;
+/// 上の書き込みが必ず通る前置きの検査（空白を除いた本文で照合する）。
+const STATIC_HREF_GUARD: &str = "url.startsWith(blobPrefix)";
 
 /// 違反を 1 件ずつ文にして返す。`src` は（src からの相対パス, 本文）、`statics` は（static からの相対パス, 本文）。
 fn violations(src: &[(String, String)], statics: &[(String, String)]) -> Vec<String> {
@@ -149,6 +159,18 @@ fn violations(src: &[(String, String)], statics: &[(String, String)]) -> Vec<Str
             if body.contains(name) {
                 out.push(format!("static/{rel}: 禁止の文字列 {name}"));
             }
+        }
+        let squeezed: String = body.split_whitespace().collect();
+        let writes = squeezed.matches(STATIC_HREF_WRITE).count();
+        if rel.ends_with(".js") {
+            let guarded = squeezed.contains(STATIC_HREF_GUARD.replace(' ', "").as_str());
+            if writes != STATIC_HREF_WRITE_COUNT || !guarded {
+                out.push(format!(
+                    "static/{rel}: href への書き込みは blob: の検査つきの {STATIC_HREF_WRITE_COUNT} 件だけのはず（{writes} 件・検査 {guarded}）"
+                ));
+            }
+        } else if writes != 0 {
+            out.push(format!("static/{rel}: href への書き込み"));
         }
     }
     out
@@ -321,6 +343,7 @@ fn 配信する静的ファイルの違反を検出する() {
         "const t = 'tick-trigger';",
         "el.setAttribute('data-payload', x);",
         "document.querySelector('x').click();",
+        "a.href = url; b.href = 'x';",
     ] {
         let v = violations(&good_src(), &s(bad));
         assert!(any(&v, "static/app.js"), "{bad} を検出できない: {v:?}");

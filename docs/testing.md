@@ -7198,7 +7198,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 設計（仮置きの点は `docs/known-gaps.md`）:
 
 - 書き出しは 2 段。「履歴を書き出す」（`shell-export`）でホストが `export_live` を通し、`Ready` のときだけリンク（`export-download`）を出す。`Held`・`Empty`・URL を作る口が無いときは、固定の文（`export-status`）だけを出す（fail-closed）。受講者の値は文に入れない
-- 上流の属性の検査（`is_safe_url`）は `blob:` の `href` を落とす。リンクの URL は `data-export-url` に載せ、`static/app.js` が自分のオリジンの `blob:` だけを `a.href` へ写す（`setAttribute` は使わない）
+- 上流の属性の検査（`is_safe_url`）は `blob:` の `href` を落とす。リンクの URL は `data-export-url` に載せ、`static/app.js` が自分のオリジンの `blob:` だけを `a.href` へ写す（`setAttribute` は使わない）。この書き込みは `crates/web/tests/no_hidden_triggers.rs` が許す唯一の例外で、対象は書き出しのリンクの `href` だけ・値は `blob:${window.origin}/` で始まるものだけ・件数は 1 件に固定し、`blob:` の前置き検査が無い場合や件数が増減した場合は失敗する
 - 書き出しの結果は 0 か 1 件の keyed list（`export_result`）。履歴（ログ・下書き）が変わる・履歴を開く・表示だけに入るとリンクを外し、URL を破棄する（drop で `revokeObjectURL`）。選択の切り替えでは外さない
 - 読み込みは `shell-import`（`data-action="import-history"`、`data-payload` なし）の入れ物の中に `label` と `input[type=file]` を置く。入れ物は `display: contents` で、label・input は上流の対話要素の境界で止まるため、ファイル画面を開くクリックでは `import-history` が届かない（空の本文と区別できないため）。選んだファイルは `app.js` が `file.slice(0, 上限 + 1).text()` で読み、wasm の `import_history` で届ける。Rust は DOM の値を読まない。上限は `history_read_limit`（`MAX_HISTORY_BYTES + 1`）
 - 表示だけの間の allowlist に 2 つの action を足した。書き出しは読み込んだバイト列そのものを返す
