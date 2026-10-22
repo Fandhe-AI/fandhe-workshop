@@ -1,0 +1,8 @@
+id: JUDGE11-4
+package: fandhe-workshop-core
+test: revise_candidates
+target: crates/core/src/select_judge.rs
+find: if let Some(revise) = spec.revise {
+replace: if let Some(revise) = spec.revise.filter(|_| false) {
+expect-fail: judge11_candidates_in_declared_order_with_labels
+note: 候補の宣言を無視して常に規則の対象へ倒す（表示名が失われる）

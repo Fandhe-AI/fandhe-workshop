@@ -1,0 +1,8 @@
+id: JUDGE11-3
+package: fandhe-workshop-core
+test: revise_candidates
+target: crates/core/src/select_judge.rs
+find: return Ok(revise_targets(step)?.contains(t));
+replace: return Ok(true);
+expect-fail: judge11_undeclared_target_is_rejected_by_category
+note: 宣言に無い対象を宣言にあるものとみなす（宣言に無い対象に対象なしの拒否の規則が当たる）

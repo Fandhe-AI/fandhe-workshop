@@ -1,0 +1,531 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "revise-candidates",
+    "title": "直すの候補の試験",
+    "version": "0.0.1",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "rejections": {
+    "rj-wrong-target": {
+      "category": "not_in_this_step",
+      "message": "その箇所には、曖昧な語がありません。",
+      "next_action": "別の箇所を選びます。"
+    },
+    "rj-unfixed": {
+      "category": "not_in_this_step",
+      "message": "まだ直していません。",
+      "next_action": "先に直す対象を選びます。"
+    },
+    "rj-override": {
+      "category": "not_in_this_step",
+      "message": "この Step 専用の拒否です。",
+      "next_action": "次の行動です。"
+    },
+    "rj-default": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直します。"
+    }
+  },
+  "defaults": {
+    "not_in_this_step": "rj-default"
+  },
+  "nodes": [
+    {
+      "uid": "main/st-cand",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand",
+        "title": "候補つき",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-other",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-target"
+            }
+          },
+          {
+            "id": "r-approve-early",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-unfixed"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-reapprove"
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "操作自体が意思表示のため"
+        }
+      }
+    },
+    {
+      "uid": "main/st-reapprove",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-reapprove",
+        "title": "再承認",
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-reapprove",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-again",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-unfixed"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-end"
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "操作自体が意思表示のため"
+        }
+      }
+    },
+    {
+      "uid": "main/st-end",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-end",
+        "title": "おわり",
+        "final": true
+      }
+    },
+    {
+      "uid": "main/st-cand-norule",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-norule",
+        "title": "拒否の規則なし",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-cand-trap",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-trap",
+        "title": "矛盾した教材",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-bare-accept",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-bare-clarify",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "clarify",
+              "clarification": "cl-x"
+            }
+          },
+          {
+            "id": "r-revise-other",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-target"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-cand-when",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-when",
+        "title": "when つき",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-other",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-target"
+            },
+            "when": {
+              "always": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-cand-override",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-override",
+        "title": "文面の上書き",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "on_reject": {
+          "not_in_this_step": "rj-override"
+        }
+      }
+    },
+    {
+      "uid": "main/st-cand-only",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-only",
+        "title": "対象つきの規則なし",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-hold",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-approve",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-legacy",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-legacy",
+        "title": "候補の宣言なし",
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-reason",
+            "on": {
+              "approval": "revise",
+              "target": "reason"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-other",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-target"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-cand-wide",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-cand-wide",
+        "title": "コンパイル済みの形",
+        "input": {
+          "kind": "approval",
+          "revise": {
+            "candidates": [
+              {
+                "id": "expect",
+                "label": "期待する結果"
+              },
+              {
+                "id": "reason",
+                "label": "理由"
+              },
+              {
+                "id": "scope"
+              }
+            ]
+          }
+        },
+        "rules": [
+          {
+            "id": "r-revise-expect",
+            "on": {
+              "approval": "revise",
+              "target": "expect",
+              "text": null,
+              "cancel": null
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise-other",
+            "on": {
+              "approval": "revise",
+              "target": null,
+              "text": null,
+              "cancel": null
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-target"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-choice",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-choice",
+        "title": "別の方式",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "a",
+              "label": "A"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "uid": "main/st-noinput",
+      "scope": "main",
+      "unit": "u",
+      "step": {
+        "id": "st-noinput",
+        "title": "入力なし"
+      }
+    }
+  ],
+  "starts": []
+}
