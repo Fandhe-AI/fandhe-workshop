@@ -6957,3 +6957,30 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 | 既存の試験 | `history_import.rs` の不変の確認を「積む field は `shell_notices` だけ」に、`version_notice.rs` に併存の確認を足した。`view_only.rs` の旧い回帰は壊れた履歴の試験に改めた |
 
 実行結果（2026-10-22）: `make lint`・`cargo test --locked -p fandhe-workshop-web --features test-hooks` は全件 pass。ブラウザ試験は `refused-history`・`view-only`・`version-notice`・`version-histories`・`history-versions`・`history-import` の 6 ファイル 36 件が pass（配信設定と試験の設定を `SKIP_WASM_OPT=1` でビルドし、版の違う履歴 15 件を書き出して単独に実行した）。全件の `make test-browser` は CI の `browser-test` に任せる（ローカルでは未実行）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
+
+### 5.222 「直す」の対象の候補と再承認の判定（TASK-265。JUDGE-11・D-69）
+
+決定（D-69、2026-10-21）は、再承認を「承認（差し戻し）の Step」と「再承認の Step」に分けて書くこと（PACK-32）と、`approval.revise.candidates` で誤った対象の候補と表示名を宣言すること（PACK-42）である。語彙と検査は TASK-62 で入っており、本変更で core の判定を結んだ。
+
+- 候補を宣言した Step の対象つきの「直す」は、対象が候補か規則の対象にあるときだけ宣言にあるものとする。無ければ `not_in_this_step` の分類による拒否で、対象なしの拒否の規則は当てない
+- 対象が候補にあり規則の対象に無い（誤った候補）ときは、対象つきの規則に一致が無ければ、対象なしの「直す」の規則のうち拒否だけを上から採る（2 段目）。受付・問い返しは飛ばす。`when` は `Some(true)` のときだけ採る。拒否の規則が無ければ分類による拒否
+- 候補を宣言した Step の対象なしの「直す」は、対象つきの規則が無くても拒否の規則だけを採る。候補を宣言しない Step は従来のまま
+- `select_judge::revise_candidates` が、宣言の順の候補と表示名を返す。宣言が無ければ規則の対象を表示名なしで返す。`input` が無い・方式が `approval` でなければ空で、宣言が壊れていれば `InvalidDeclaration`（受付へ倒さない）
+- 判断（推論）: D-69 と JUDGE-11 の文面は、誤った候補に対象なしの規則を当てるかを書かない。TASK-264 が試作の「対象なしの規則を任意の対象に当てる」照合を採らずに本タスクへ送ったこと、testdata の ST-2.6 の `rj-2-6-wrong-target` が誤った対象向けの文面であることから、拒否の規則に限って採った。拒否にしか倒れないため受付の安全性は変わらない
+
+| 試験 | 内容 |
+|---|---|
+| `crates/core/tests/revise_candidates.rs`（16 件） | 候補が宣言の順で表示名つきで返ること。宣言が無ければ規則の対象が表示名なしで返ること。他の方式・入力なしで空。壊れた宣言（未知の欄・空の一覧・ID の重複・空白だけの `label`）が `InvalidDeclaration` で、どの入力も受付にならず、`Display` に値が入らないこと。正しい対象の受付。誤った候補が対象なしの拒否の規則で拒否され分類と次の行動が付くこと。拒否の規則が無い・`on_reject` の上書き・`when` が偽か評価不能の場合。矛盾した教材（受付・問い返しの規則が前にある）で受付にも問い返しにもならないこと。宣言に無い対象が分類による拒否になること。候補を宣言しない形が従来のままであること。コンパイル済みの形（`null` 込みの `on`）。差し戻し → 再承認を `Session` で通すこと（早すぎる承認・誤った候補は拒否で Step が変わらず、正しい対象で再承認の Step へ進み、承認で達成）。性質テスト（判定が決定的で、対象つきの「直す」の受付は完全一致する受付の規則があるときに限り、拒否に次の行動が付く） |
+| 既存の `revise_target.rs`・`select_judge.rs`・`judge.rs`・pack の `approval_revise_candidates.rs`・`approval_revise_split.rs` | 変えずに通る |
+
+変異注入（実行日 2026-10-22、元にしたコミット 59e64d1 の作業ツリー。`scripts/check-mutations.sh crates/core/tests/mutations/JUDGE11-1.mutation` から `JUDGE11-4.mutation` と `JUDGE10-1.mutation`・`JUDGE10-3.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| JUDGE11-1 | 2 段目で拒否以外の規則を飛ばさない | DETECTED |
+| JUDGE11-2 | 誤った候補への 2 段目を行わない | DETECTED |
+| JUDGE11-3 | 宣言に無い対象を宣言にあるとみなす | DETECTED |
+| JUDGE11-4 | 候補の宣言を無視して規則の対象へ倒す | DETECTED |
+| JUDGE10-1・JUDGE10-3 | 既存の変異（`find` を新しい構造に合わせて JUDGE10-1 を直した） | DETECTED |
+
+範囲外: 承認のボタンを `revise_candidates` から出し表示名で描くこと、`label` のエスケープ、差し戻し → 再承認の画面とブラウザ試験は #666（TASK-448）。`next` の `when` による枝分かれの実行時の評価は既存の別タスク。spec の JUDGE-11・PACK-42 の状態の書き戻しは spec repo の持ち分。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。

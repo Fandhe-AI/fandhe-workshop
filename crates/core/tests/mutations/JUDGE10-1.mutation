@@ -2,7 +2,7 @@ id: JUDGE10-1
 package: fandhe-workshop-core
 test: revise_target
 target: crates/core/src/select_judge.rs
-find: if revise_without_target && matches!(kind, Some("accept" | "clarify")) {
-replace: if false && matches!(kind, Some("accept" | "clarify")) {
+find: if let Some(v) = scan_rules(step, input, when, revise_without_target)? {
+replace: if let Some(v) = scan_rules(step, input, when, false)? {
 expect-fail: contradictory_pack_never_accepts_bare_revise
 note: 対象なしの「直す」で拒否以外の規則を飛ばす検査を外す（対象つきの規則がある Step で受付・問い返しになる）

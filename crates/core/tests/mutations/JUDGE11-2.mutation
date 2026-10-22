@@ -1,0 +1,8 @@
+id: JUDGE11-2
+package: fandhe-workshop-core
+test: revise_candidates
+target: crates/core/src/select_judge.rs
+find: if declares_revise && !revise_targets(step)?.contains(t) {
+replace: if false && !revise_targets(step)?.contains(t) {
+expect-fail: judge11_wrong_candidate_takes_targetless_reject_rule
+note: 誤った候補への 2 段目の照合を外す（教材が書いた対象なしの拒否の文面が届かず分類による拒否に落ちる）
