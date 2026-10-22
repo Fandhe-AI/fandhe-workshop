@@ -1,0 +1,8 @@
+id: SHELL11-1
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/next_chapter.rs
+find: let next_unit = *units.get(at + 1)?;
+replace: let next_unit = *units.get(at + 2).or(units.get(at + 1))?;
+expect-fail: 章の飛ばし_選択の部品を出さず_開始点は提示中の_1_件だけ_ch0_から_ch3_の全時点
+note: 次の章を飛ばして 2 つ先の章の入口を出す（SHELL-11・D-73・TASK-528）

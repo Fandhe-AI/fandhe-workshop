@@ -7293,6 +7293,32 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界・申し送り: 次の行動の押せる結線は TASK-538、削除の操作と確認の画面と文言は TASK-539、書き出しの案内の画面と下書きの有無の口は該当の画面のタスク、再読み込みの二重の通知の確認は TASK-536、文面は TASK-549。D-57 の次の行動の割り当ては決定が出ていない案のまま。ブラウザ試験は描画の構造を変えず属性が 1 つ増えるだけなので流していない。
 - 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の失敗（`crates/pack/src/guidance.rs:606`）があり、新しい失敗は増えていない（範囲外）。`scripts/expected-test-counts.txt` は更新しない（版上げ PR だけが照合する）。
 
+### 5.240 章の飛ばし・選択を出さないことの観察（TASK-528。SHELL-11・D-73）
+
+決定 D-73（2026-10-22）は、章を飛ばす・選ぶ操作を受講者の画面に出さないと決めた。章をまたぐ操作は SHELL-10 の「次の章へ進む」の 1 つだけで、特定の章から始める手段は直接リンク `?start=`（DLV-9。5.199・5.204 が証拠）である。本件は製品のコードを変えず、この観察を native とブラウザで固定する。
+
+確かめること:
+
+- 初期・各章の途中・各章の完了の直後・最後の章の後の全時点で、章を選ぶ部品（`select`・`option`、`role` が `listbox`・`menu`・`menuitem`・`option`・`combobox`）・開始点へのリンク・「移動」ボタンが 0 件である。OS を選ぶ欄（TERM-38）は章の選択ではないので除く
+- 次の章へ進むの個数は 0 か 1 で、画面に現れる開始点の ID は提示中の 1 件（直後の章の先頭を指すもの）だけである。途中の Step を指す開始点・`#` つきの開始点・提示と関係のない開始点は出ない。飛ばさない
+- 開始点が 6 件・10 件あっても同じである
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/next_chapter.rs` の末尾の 3 件（章の飛ばし_選択の部品を出さず…、開始点が章の数より多くても…、検出器の対照…） | CH-0 から CH-3 を通し、毎手で上の不変条件を確かめる。10 件の並びは `test_fixture::CH03_LINK_POINTS` と揃えて保つ |
+| `tools/browser/chapter-select-absent.test.mjs`（CSP あり・なしで 6 件） | `?fixture=ch0-3-chapters` の実クリックの通しの全 Step と境目、`?fixture=ch0-3-links` の初期と途中の Step で検出器が 0 件。DOM へ足した部品を数える検出器の対照つき |
+
+変異: `SHELL11-1`（次の章を飛ばして 2 つ先の章の入口を出す）を `crates/web/tests/mutations/` に足した。2026-10-22 に `scripts/check-mutations.sh` で DETECTED。
+
+実行結果（2026-10-22）: native は `next_chapter` 20 件が通った。ブラウザは `SKIP_WASM_OPT=1` の試験の設定のビルドで `chapter-select-absent` 6 件が通った。全件の `make test-browser` は CI の `browser-test` に任せる（ローカルでは未実行）。
+
+限界:
+
+- 配信する設定は実行時に IR を取得しないので、配信する設定で章の境目まで進める試験は持たない（配信物に試験用の口が 0 件であることは SHELL-35・TASK-547 の担当）
+- 代わりの手段（直接リンク）の証拠は 5.199・5.204 を引くだけで、本件では試さない
+
+範囲外: spec の SHELL-11 の「証拠の種類」の書き戻し、開始点を選ぶ操作（SHELL-34）・講師の追いつき（SHELL-33。どちらも TASK-515）、`Control::Begin`（TASK-217）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
+
 ### 5.239 Rust のない模擬環境での L2 の完走試験（TASK-112 2/2。DLV-13・D-58・D-71）
 
 - 目的: L2 の配布物（zip）を `PATH=/usr/bin:/bin`（cargo・rustc・rustup・node が見えない）の模擬環境に展開し、`./start.sh` を起動して、自動ブラウザ（Chromium）で URL を開き、CH-0〜CH-1（`main/st-2-1` に入るまで）を最後まで進めることを 3 回確かめる。人の操作は「展開・`./start.sh`・URL を開く」の 3 つだけで、各回でページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外の応答・配信元以外への要求が 0 件、同梱の IR が 200 で 1 回取得されることを求める。
