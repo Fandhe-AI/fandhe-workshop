@@ -1,0 +1,8 @@
+id: SHELL8-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:         (1 <= m && m <= k).then_some(StepPosition { m, k })
+replace:         (1 <= m).then_some(StepPosition { m, k })
+expect-fail: 位置は_1_以上_m_以下_k_だけを受ける
+note: 位置の範囲の検査が外れる（SHELL-8・D-72・TASK-516）

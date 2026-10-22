@@ -7241,3 +7241,26 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: 字面の検査で、手順の意味の正しさは人が読んで確かめる。
 - 範囲外: 実際の記録と最終の承認（人間の承認点）・道具の CI への組み込み・教材 repo の試験。
 - 実行結果（2026-10-22）: 5 件が通った。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.237 枠の契約の版 2 の区画と識別子（TASK-516 1/2。SHELL-6・SHELL-8・SHELL-24・SHELL-30）
+
+- 目的: 枠の契約（`shell`）を版 1 から版 2 に上げ、D-72（上部の「模擬」・教材名・位置）・D-54（早送りの切り替えの区画）・D-74（ブラウザの案内）の区画と識別子を足したことを確かめる。版 1 を使う画面が壊れないことも示す。再読み込み・書き出しの案内・履歴の削除・理由コードの束縛は TASK-516 2/2（#696）が持つ。
+- 期待と定義の対応:
+
+| 要件 | 決定 | 定義 |
+|---|---|---|
+| SHELL-6 | D-72 | `TopSection::Mock` が `Fixed` かつ `ExactlyOne`。文字は `MOCK_LABEL`。必須の検査は `check_complete_v2` |
+| SHELL-8 | D-72 | `TopSection::Title`・`Position` が `Fixed`。位置は `StepPosition`（`1 <= m <= k`）と属性 `data-position-m`・`data-position-k`。上部の外の置き場は `top-section-outside-top` |
+| SHELL-24 | D-54 | `ControlSection::FastForward`（`shell-fast-forward`）。入・切は `ops` に入れない（`OPS_RECORDS_FAST_FORWARD` が偽であることを参照） |
+| SHELL-30 | D-74 | `NoticeKind::BrowserNotice`（`browser-notice`）・`MessageId::BrowserNotice`・`BROWSER_NOTICE_TEXT`。理由は任意、操作は `DismissNotice` だけ |
+
+- 版 1 から版 2 の差分:
+  - 足したもの: 上の定義、`check_complete_v2`、検査の規則 `top-section-outside-top`・`position-format`、`shell-fast-forward` の計数。
+  - 値を変えたもの: `SHELL_CONTRACT_VERSION` が 2。`TopSection` の `status` が全件 `Fixed`、`Mock` の `cardinality` が `ExactlyOne`。`NoticeKind::ALL`・`MessageId::ALL` が 6 件（末尾に追加）。
+  - 変えていないもの: 版 1 の識別子・action の名前・通知の種類・文面の識別子の値と順、`check_complete`・`check_no_undefined` の版 1 の規則、host・描画。
+  - 版 1 の試験で直した 5 か所（`crates/web/tests/shell_contract.rs`）: (1) `版は_1` を版 1 の値が残ることの試験へ（版の値は `shell_contract_v2` が固定する）、(2) 区画の確定と個数、(3) 識別子の件数（`+ 1`）、(4) 通知の種類・文面の識別子の列と理由・操作の表に `BrowserNotice` を追加、(5) 「検討中の項目は版 1 に無い」から `shell-fast-forward` を外し、通知の種類の件数を 6 に。
+- 版 1 を使う画面が壊れない根拠: 版 1 の値はすべて不変で `ALL` の先頭に残る。足した規則は、版 1 の画面が描かない識別子（`shell-title`・`shell-position`・`shell-mock`・`shell-fast-forward`・`browser-notice`）にだけ掛かる。`check_complete` は変えず、`shell-mock` の必須化は `check_complete_v2` に分けた。既存の利用者（`shell_frame_host`・`shell_notice_sample`・`a11y_contract` ほか）は変更なしで通った。
+- 試験（`crates/web/tests/shell_contract_v2.rs`。14 件）: 版・版 1 の値の保存・区画の状態と個数・位置の範囲と属性・早送りの区画・ブラウザの案内の値と UA らしい理由の拒否・正の見本（4 つの検査器）・負の見本（模擬の欠落は版 2 だけが失敗、重複、上部の外、位置の形、許されない操作）。
+- 変異注入（2026-10-22。元にしたコミット `b6da7c6` の作業ツリー）: SHELL6-1・SHELL8-1・SHELL24-1・SHELL30-1 と既存の SHELL1-1・SHELL1-2・SHELL10-1・SHELL16-1・SHELL17-1・SHELL17-2・SHELL18-1・SHELL31-1 の 12 件がすべて DETECTED。
+- 限界・申し送り: 画面が `check_complete_v2` へ移るのは TASK-523 の実装の後。「模擬」・位置の文言と「Step の ID は出さない」は TASK-524、早送りの action・状態の文字・無効の表示は TASK-540、ブラウザの案内の「一度だけ」と旧版の基準は TASK-544。理由コードを TASK-310 の `LoadReason` に結ぶことは 2/2。ブラウザ試験は画面の描画を変えないため流していない。
+- 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の 1 件（`crates/pack/src/guidance.rs:606`）で失敗する（範囲外）。`scripts/expected-test-counts.txt` は更新しない。
