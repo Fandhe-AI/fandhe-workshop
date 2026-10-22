@@ -203,6 +203,83 @@ test('書き換えたファイルと空のファイルは開かず、状態を�
   });
 });
 
+// arrayBuffer() の完了を操作する。大きいファイル（200 バイト超）は gate を解くまで待たせ、reject なら全部拒否する。
+async function patchRead(page) {
+  await page.evaluate(() => {
+    const orig = Blob.prototype.arrayBuffer;
+    window.__readGate = { release: null, reject: false };
+    Blob.prototype.arrayBuffer = async function () {
+      if (window.__readGate.reject) throw new Error('forced read failure');
+      const buf = await orig.call(this);
+      if (this.size > 200) await new Promise((r) => (window.__readGate.release = r));
+      return buf;
+    };
+  });
+}
+
+test('先に選んだファイルの読み取りが後から終わっても、後に選んだファイルの結果を差し替えない', async () => {
+  const dir = process.env.FANDHE_WEB_TEST_DIR;
+  await withServer({ dir, base: BASE }, async (srv) => {
+    const P = await openOrigin(srv);
+    const text = await call(P.page, 'loadableHistoryText');
+    assert.equal(await call(P.page, 'importText', text), true);
+    await waitImport(P.page, 'open');
+    await settle(P.page);
+    const { file } = await exportByUi(P.page);
+    const broken = path.join(tmpDir, 'order-broken.json');
+    fs.writeFileSync(broken, '{not json');
+    assert.ok(fs.statSync(file).size > 200, 'the good file is larger than the gate threshold');
+    await patchRead(P.page);
+    const stateBefore = JSON.stringify((await engine(P.page)).stateWithoutLog);
+
+    await P.page.setInputFiles(FILE_INPUT, file); // 読み取りが止まる
+    await P.page.setInputFiles(FILE_INPUT, broken); // 先に終わり、断られる
+    await P.page.locator(NOTICE_ITEM).first().waitFor({ state: 'visible', timeout: 10000 });
+    await P.page.waitForFunction(() => window.__readGate.release !== null, null, { timeout: 10000 });
+    await P.page.evaluate(() => window.__readGate.release());
+    await P.page.waitForTimeout(500);
+
+    const e = await engine(P.page);
+    assert.notEqual(e.lastImport.verdict, 'open', 'the stale selection is not applied');
+    assert.equal(JSON.stringify(e.stateWithoutLog), stateBefore, 'state unchanged');
+    assert.equal(await P.page.locator(NOTICE_ITEM).count(), 1, 'the notice of the latest selection stays');
+    assertQuiet(P.rec, 'stale read');
+    await P.context.close();
+  });
+});
+
+test('ファイルの読み取りに失敗すると、状態と保存先を変えず通知が 1 件出る', async () => {
+  const dir = process.env.FANDHE_WEB_TEST_DIR;
+  await withServer({ dir, base: BASE }, async (srv) => {
+    const P = await openOrigin(srv);
+    const text = await call(P.page, 'loadableHistoryText');
+    assert.equal(await call(P.page, 'importText', text), true);
+    await waitImport(P.page, 'open');
+    await settle(P.page);
+    const f = path.join(tmpDir, 'read-fail.json');
+    fs.writeFileSync(f, text);
+    const stateBefore = JSON.stringify((await engine(P.page)).stateWithoutLog);
+    const logBefore = (await engine(P.page)).logLen;
+    const storeBefore = await P.page.evaluate(() => JSON.stringify(Object.entries(localStorage)));
+    await patchRead(P.page);
+    await P.page.evaluate(() => { window.__readGate.reject = true; });
+
+    await P.page.setInputFiles(FILE_INPUT, f);
+    await P.page.locator(NOTICE_ITEM).first().waitFor({ state: 'visible', timeout: 10000 });
+    await P.page.waitForTimeout(300);
+    const e = await engine(P.page);
+    assert.notEqual(e.lastImport.verdict, 'open', 'not opened');
+    assert.equal(await P.page.locator(NOTICE_ITEM).count(), 1, 'one notice');
+    assert.equal(JSON.stringify(e.stateWithoutLog), stateBefore, 'state unchanged');
+    assert.equal(e.logLen, logBefore, 'log unchanged');
+    assert.equal(await P.page.evaluate(() => JSON.stringify(Object.entries(localStorage))), storeBefore, 'storage unchanged');
+    const body = await P.page.locator(NOTICE_ITEM).first().innerText();
+    assert.ok(!body.includes('read-fail') && !body.includes('forced'), 'no file name or exception message');
+    assertQuiet(P.rec, 'read failure');
+    await P.context.close();
+  });
+});
+
 test('配信する設定（試験用の口なし）でも、画面の操作だけで書き出しの文が出る', async () => {
   const dir = process.env.FANDHE_WEB_DIR;
   await withServer({ dir, base: BASE }, async (srv) => {

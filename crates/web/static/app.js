@@ -17,7 +17,10 @@ try {
     window.__fandheTest = hooks;
   }
   // 履歴の読み込み: 枠の shell-import の中の input[type=file] で選んだファイルを読み、バイト列のまま Rust へ渡す（文字列にすると不正な UTF-8 が置換されるため）（SHELL-15）。
-  // 読むのは上限 + 1 バイトまで（大きさの断りは Rust 側）。同じファイルを選び直せるよう値は戻す。失敗は握り、本文は出力しない。
+  // 読むのは上限 + 1 バイトまで（大きさの断りは Rust 側）。同じファイルを選び直せるよう値は戻す。本文・ファイル名・例外の message は出力しない。
+  // 読み取りの完了順で古い選択が適用されないよう、選択のたびに要求番号を進め、完了時に最新の要求だけを配送する（古い要求は捨てる）。
+  // 読み取りが失敗したときは、状態を変えずに固定の「途切れた履歴」（1 バイトの `{`）を配送し、開かない通知を 1 件出させる。
+  let importSeq = 0;
   document.addEventListener("change", async (ev) => {
     const input = ev.target;
     if (!(input instanceof HTMLInputElement) || input.type !== "file") return;
@@ -25,11 +28,15 @@ try {
     const file = input.files && input.files[0];
     input.value = "";
     if (!file) return;
+    const seq = ++importSeq;
+    let bytes;
     try {
-      import_history(new Uint8Array(await file.slice(0, history_read_limit()).arrayBuffer()));
+      bytes = new Uint8Array(await file.slice(0, history_read_limit()).arrayBuffer());
     } catch (_) {
-      // 読めなかったファイルは何も起こさない（状態を変えない側）。
+      bytes = new Uint8Array([0x7b]);
     }
+    if (seq !== importSeq) return;
+    import_history(bytes);
   });
   // 書き出しのリンク: 上流の属性の検査は blob: の href を落とすため、URL は data-export-url に載る。自分のオリジンの blob: だけを href へ写す
   // （setAttribute は使わない）。リンクは履歴が変わるたびに作り直され、写し損ねたものだけを探す。
