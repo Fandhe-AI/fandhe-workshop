@@ -328,6 +328,15 @@ pub(crate) fn engine_snapshot() -> Option<String> {
     with_app(|app| app.engine_snapshot_json())
 }
 
+/// 受講中のホストの書き出し（`EngineHost::export_live`）の結果。未マウント・借用中は `None`。
+///
+/// 表示だけの履歴を書き出したバイト列が読み込んだ履歴そのままであること（SAVE-25）を、ブラウザ試験が確かめるために
+/// `test_hooks::debug_export_prepare_live` が呼ぶ。読み取りだけで、状態は変えない。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn export_live() -> Option<crate::history_export::ExportGate> {
+    with_app(EngineHost::export_live)
+}
+
 /// 直近に開いた履歴の、開いた直後の状態の JSON。開いていない・未マウント・借用中は `None`。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn last_import_state() -> Option<String> {

@@ -5020,7 +5020,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 527`（2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 531`（2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -6937,7 +6937,7 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 理由は通知欄 `view-only-notice`（`role=status`）に出す。文は固定の文言と理由のコードだけで、履歴の値を含めない（SAFE-40）。枠の通知（`shell` の `NoticeKind`、契約は版 1）は spec が先に変わらないと足せないため、`stale-notice` と同じ任意の欄にした。文面は仮置きで、最終の文面は TASK-549、配置は TASK-534 が決める
 - 操作の関門は `update` の先頭にある。表示だけの間、`Engine`（指せる行・選択肢・承認のクリックと、保存・停止・進行の tick を含む raw の `Op`）、送信・Esc・停止・下書きの変更、補完を捨てる。下書きの変更を捨てたときは `<textarea>` の値を戻させる。表示だけを変える action と、モードから出る経路（試験の設定の読み込み・差し替え）は通す
 - 保存は `history_to_save` が `None` を返して止める。`save_blocked` は消えない印で、読み込みで入ったモードが開ける履歴の読み込みで終わった後も保存が止まるため使わない。進行の宛先（`next_tick`）も `None` にし、予約済みのタイマーは無効にする
-- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335）。秘密情報の検査は通常の書き出しと同じく通す
+- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335。5.231）。秘密情報の検査は通常の書き出しと同じく通す
 - 開ける履歴の読み込み（`install_recorded`）で、モードと控えを捨てる。開かない（`Refused`）の動作と理由の表示は #733 の範囲で、従来の挙動を保つ
 
 | 試験 | 内容 |
@@ -7150,3 +7150,22 @@ D-57（2026-10-12）は、読み込めない履歴に理由ごとの次の行動
 
 - 実行: 2026-10-22 に contract・web（`--features test-hooks`）の native 試験が通ることを確認した。ブラウザ試験は未実行・未作成（`make test-browser` は CI に任せる）
 - 範囲外: 押せる操作と shell 契約の版上げ（TASK-538）、文面の確定（TASK-549・TASK-534）、割り当ての決定と spec の SAVE-22・SHELL-36 への反映、表示だけで開いた履歴への提示（VER-8）、起動時の壊れた履歴の案内（TASK-533）、ブラウザでの理由ごとの確認。`scripts/expected-test-counts.txt` は更新しない
+
+### 5.231 表示だけの履歴の保存領域と書き出し（TASK-335。SAVE-25）
+
+TASK-176（5.220）は操作が状態・ログを変えないことを固定した。本件は保存の側を、ブラウザで実際の保存先と実際のダウンロードで確かめる。PoC-6 の S-14・S-15（1.2.0・2.0.0 で表示だけ）に当たる。
+
+- 試験用の口（feature `test-hooks` のときだけ）: `debug_export_prepare_live`（`static/test-hooks.js` の `exportPrepareLive`）。受講中のホストの `export_live` が返すバイト列を、直列化し直さずに `blob:` URL にする。履歴の中身は返さず、書き出せないときは `{"ok":false,"gate":…}`。既存の `exportPrepare` の戻りには `gate: null` が加わった
+- `tools/browser/view-only-storage.test.mjs`（6 件）
+
+| 場面 | 保存先 | CSP | 確かめること |
+|---|---|---|---|
+| 起動時の復元で主版違い | localStorage | あり・なし | 入力・クリック・保存・停止の後、保存の待ちを過ぎても保存の試行・履歴の鍵への書き込みが 0 件。保存先の値が置いた値のまま。書き出したファイルが置いた値とバイト単位で同一。再読み込み（`pagehide`）の後も同じ |
+| 同上 | IndexedDB（localStorage を閾値の手前まで埋めて選ばせる） | あり | 同上 |
+| 読み込みで表示だけ（表の `view_only` の全 6 行） | localStorage | あり・なし | 保存先の全体の digest の一覧が読み込みの前後と離脱・開き直しの後で同じ。書き出しが読み込んだファイルと同一 |
+| 対照: 開ける履歴 | localStorage | あり | 同じ操作で保存先の値と書き出しが変わる（比較が変化を検出できる） |
+
+- 実行結果（2026-10-22）: 新しい試験 6 件と、`view-only`・`history-export`・`history-import`・`version-histories`・`secret-hold` を含む 28 件が通った。`make lint` は通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）
+- 自己確認: `export_live` が控えを返さず作り直す写しで 5 件が「書き出しの門が ready でない」で失敗した（2026-10-22）。`history_to_save` の表示だけの判定を外した写しは失敗しなかった。表示だけの間は履歴の記録が無く `envelope_for_save` が `None` になるため、その判定は二重の防御であり、保存先の不変は結果（書き込み 0 件・値の一致）で見ている
+- 限界: Chromium だけ。IndexedDB への切り替え後の `pagehide` の書き込みは確定を保証しない（SAVE-9）。CSP なしは localStorage の場面だけ。書き出しの名前の教材 ID は空で、名前の検査は `history-export` が持つ
+- 範囲外: 表示だけの動作の実装と状態・ログの不変（5.220）、見せ方（REVIEW-4/5・SHELL-20）。`scripts/expected-test-counts.txt` は更新しない
