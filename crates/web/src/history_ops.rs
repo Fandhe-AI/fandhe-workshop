@@ -137,8 +137,10 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
 ///
 /// JS 側で文字列にすると不正な UTF-8 が U+FFFD に置換されて検証をすり抜けるため、バイト列のまま受けてここで検証する。
 /// UTF-8 として読めるものはそのまま文字列にする。読めないものは、`parse_history_json` と同じ理由（途切れ → `truncated`、
-/// それ以外 → `not_json`）で断られる固定の本文に置き換える（置換した文字で通ることはない）。大きさなどの上限の理由は
-/// 先に出るので、その場合は元の長さが保たれる変換にする。本文は出力しない。
+/// それ以外 → `not_json`）で断られる固定の本文に置き換える（置換した文字で通ることはない）。大きさ・入れ子の上限の理由は
+/// UTF-8 の検査より先に出るので、その場合は [`same_shape_ascii`] で長さと括弧・引用符の並びを保つ本文にし、同じ理由で
+/// 断られるようにする（`from_utf8_lossy` は U+FFFD で長さが変わり、入れ子の理由が大きさの理由に変わりうるため使わない）。
+/// 本文は出力しない。
 #[must_use]
 pub fn import_body(bytes: &[u8]) -> String {
     use fandhe_workshop_contract::load_reason::LoadReason;
@@ -147,9 +149,20 @@ pub fn import_body(bytes: &[u8]) -> String {
         Err(_) => match fandhe_workshop_core::history_load::parse_history_json(bytes) {
             Err(LoadReason::Truncated) => "{".to_owned(),
             Err(LoadReason::NotJson) => "\u{1}".to_owned(),
-            _ => String::from_utf8_lossy(bytes).into_owned(),
+            _ => same_shape_ascii(bytes),
         },
     }
+}
+
+/// 不正な UTF-8 のバイトを 1 バイトずつ ASCII の `?` に置き換える。長さはバイト単位で変わらず、深さの検査
+/// （`json_depth`）が見る ASCII の `"`・`\`・括弧の位置も変わらないため、大きさ・入れ子の判定は元のバイト列と同じになる。
+fn same_shape_ascii(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len());
+    for chunk in bytes.utf8_chunks() {
+        out.push_str(chunk.valid());
+        out.extend(std::iter::repeat_n('?', chunk.invalid().len()));
+    }
+    out
 }
 
 /// `import_body` の本文を読み込みの操作にする（`glue::import_history` の配送の 1 か所）。
@@ -228,5 +241,27 @@ mod tests {
         );
         // 正しい UTF-8 はそのまま。
         assert_eq!(import_body("{\"a\":\"あ\"}".as_bytes()), "{\"a\":\"あ\"}");
+    }
+
+    #[test]
+    fn 上限の理由で断られる不正な_utf8_は長さを保ち同じ理由で断られる() {
+        use fandhe_workshop_contract::limits::{MAX_HISTORY_BYTES, MAX_JSON_DEPTH};
+        use fandhe_workshop_core::history_load::parse_history_json;
+        let max = usize::try_from(MAX_HISTORY_BYTES).unwrap_or(usize::MAX);
+        // 大きさ: 上限 + 1 バイトの読み取り（`history_read_limit`）で、不正なバイトと途切れた列を含む形。
+        let mut large = b"{\"a\":\"".to_vec();
+        large.resize(max + 1 - 3, b'x');
+        large.extend_from_slice(b"\xFF\xE3\x81");
+        // 入れ子: 上限ちょうどの長さで、不正なバイトを U+FFFD（3 バイト）にすると上限を超える形。
+        let mut deep = vec![b'['; MAX_JSON_DEPTH + 1];
+        deep.extend_from_slice(b"\"");
+        deep.resize(max, 0xFF);
+        for bad in [large, deep] {
+            let reason = parse_history_json(&bad).unwrap_err();
+            let body = import_body(&bad);
+            assert_eq!(body.len(), bad.len());
+            assert!(!body.contains('\u{FFFD}'));
+            assert_eq!(parse_history_json(body.as_bytes()).unwrap_err(), reason);
+        }
     }
 }
