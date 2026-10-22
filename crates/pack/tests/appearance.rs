@@ -92,7 +92,7 @@ fn toml_form() {
         t.put("workshop.toml", w.as_bytes());
         let chapter = concat!(
             "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
-            "[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\nnext = [{ to = \"b\" }]\n",
+            "[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\nnext = [{ to = \"b\" }]\ninput = { kind = \"choice\", options = [{ id = \"ok\", label = \"OK\" }] }\nrules = [{ id = \"r-a\", on = { option = \"ok\" }, outcome = { kind = \"accept\" } }]\nconfirm = { kind = \"none\", reason = \"r\" }\n",
             "[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n",
         );
         t.put("chapters/c1/chapter.toml", chapter.as_bytes());

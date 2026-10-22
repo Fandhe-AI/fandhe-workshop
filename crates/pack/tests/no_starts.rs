@@ -15,7 +15,7 @@ use fandhe_workshop_pack::{DiagCode, Diagnostic};
 
 const NO_START_CHAPTER: &str = concat!(
     "id: c1\ntitle: C\nsteps:\n",
-    "  - {id: a, title: A, body: a.md, next: [{to: b}]}\n",
+    "  - {id: a, title: A, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
     "  - {id: b, title: B, final: true}\n",
 );
 

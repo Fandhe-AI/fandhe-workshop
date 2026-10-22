@@ -27,7 +27,7 @@ fn pack(step_extra: &str, start_effects: &str) -> Tmp {
     t.put(
         "chapters/c1/chapter.yaml",
         format!(
-            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, effects: {start_effects}}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}]{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
+            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, effects: {start_effects}}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
         )
         .as_bytes(),
     );

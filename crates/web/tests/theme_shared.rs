@@ -25,7 +25,7 @@ fn theme_flows_from_pack_to_data_theme() {
         .unwrap();
         fs::write(
             dir.join("chapters/c1/chapter.yaml"),
-            "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n  - {id: a, title: A, body: a.md, next: [{to: b}]}\n  - {id: b, title: B, final: true}\n",
+            "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n  - {id: a, title: A, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n  - {id: b, title: B, final: true}\n",
         )
         .unwrap();
         fs::write(dir.join("chapters/c1/a.md"), "# a\n").unwrap();

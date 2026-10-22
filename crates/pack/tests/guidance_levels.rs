@@ -31,7 +31,7 @@ fn pack(workshop: &str, chapter: &str) -> Tmp {
 
 fn chapter_with(start: &str, step_extra: &str) -> String {
     format!(
-        "id: c1\ntitle: C\nstarts: [{start}]\nsteps:\n  - {{id: a, title: A, body: a.md{step_extra}, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+        "id: c1\ntitle: C\nstarts: [{start}]\nsteps:\n  - {{id: a, title: A, body: a.md{step_extra}, next: [{{to: b}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}}}\n  - {{id: b, title: B, final: true}}\n"
     )
 }
 

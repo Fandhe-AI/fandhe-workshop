@@ -24,7 +24,7 @@ const WORKSHOP: &str = "pack: {id: p, title: t, version: '0', ir_format: 1, guid
 
 fn chapter(start: &str) -> String {
     format!(
-        "id: c1\ntitle: C\nstarts: [{start}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
+        "id: c1\ntitle: C\nstarts: [{start}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}}}\n  - {{id: b, title: B, final: true}}\n"
     )
 }
 

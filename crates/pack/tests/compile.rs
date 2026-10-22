@@ -449,7 +449,7 @@ fn neg_use_of_undefined_module_is_reported_and_other_targets_are_checked() {
         "chapters/c1/chapter.yaml",
         concat!(
             "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-            "  - {id: a, title: A, body: a.md, next: [{to: u}]}\n",
+            "  - {id: a, title: A, body: a.md, next: [{to: u}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
             "  - {id: u, title: U, next: [{to: zz}], use: {module: m, instance: i, args: {}}}\n",
         )
         .as_bytes(),
