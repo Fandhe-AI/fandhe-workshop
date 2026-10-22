@@ -6820,3 +6820,27 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 - 開始点の水準の結線は未実装（TASK-294）。試験は `RunState` を直接組む。画面の確認は対象外
 - `${}` の引数で渡す `do`・`do_levels` は漏れの検査が見ない（PACK-52。TASK-71）
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.217 モジュールの先頭の Step を省く語が無いこと（TASK-71 1/3。PACK-51・D-43）
+
+決定 D-43（2026-10-12）の項 7 は、モジュールの先頭の Step を省ける語を足さず、作成者の規約として受け入れるとした（PACK-51・MOD-17 (a)）。#515 の受け入れ条件は、「省けないことを診断にしてよい」の側で満たす。語彙・診断コード・コードは変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/module_first_step_gap.rs` の `pack51_use_enters_the_first_step_even_when_args_route_around_steps` | testdata の 1 周目・2 周目（`setup: "false"`）とも `enter` が先頭の `st-3-2` であること。2 周目で通らない `st-4-1`・`st-5-1` も IR に残り、先頭の Step の `next` が引数の条件で分かれること |
+| 同 `pack51_enter_is_the_first_step_for_a_small_module` | 小さなモジュールで、先頭の Step が後ろを飛ばす引数（`skip`）の真偽によらず `enter` が先頭であること |
+| 同 `pack51_skip_like_use_field_is_rejected_by_compile` | `use` の `start`・`skip_first`・`from` が `E-PARSE` ちょうど 1 件になること |
+| 同 `pack51_skip_like_use_field_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと |
+| 同 `pack51_step_level_skip_field_is_rejected` | Step に `skip` を書くと `E-PARSE` が 1 件になること |
+| 同 `pack51_skip_like_values_are_not_echoed` | 値が診断に写らないこと |
+
+変更: 製品のコードの変更は無い。
+
+変異注入（実行日 2026-10-22、元にしたコミット 6d8627b の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK51-1.mutation`）: PACK51-1（`expand.rs`: `use` の入り口を 2 つ目の Step にする）は DETECTED（`pack51_enter_is_the_first_step_for_a_small_module`、`pack51_use_enters_the_first_step_even_when_args_route_around_steps`）。
+
+限界・範囲外:
+
+- 引数の型と範囲外の値の拒否は #516（TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）
+- 飛ばした Step が実行時に未着手のまま残り、途中開始の「省略」と区別されること（MOD-17 (b) の実行時の側）は対象外
+- 規約を spec の `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本 PR では docs/spec を変えない）
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない

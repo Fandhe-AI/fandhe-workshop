@@ -1,0 +1,8 @@
+id: PACK51-1
+package: fandhe-workshop-pack
+test: module_first_step_gap
+target: crates/pack/src/expand.rs
+find:         let Some(first) = module.src.steps.first() else {
+replace:         let Some(first) = module.src.steps.get(1).or(module.src.steps.first()) else {
+expect-fail: pack51_enter_is_the_first_step_for_a_small_module
+note: use の入り口を先頭の Step でなく 2 つ目の Step にする（先頭を省ける状態）
