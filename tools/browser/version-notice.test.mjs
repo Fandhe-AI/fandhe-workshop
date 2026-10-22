@@ -8,6 +8,8 @@
 //   - V-i-1（変換して開く）: 通知が 1 件出て文が仮置きの定数と一致し、幅 360px で成果物のタブを選んでも見えている。
 //     閉じると 0 件になり、root の要素は同じ要素のままである
 //   - V-0（変換なしで開く）・V-iii-1（表示だけ）: 通知は 0 件
+//   - 変換して開いた後の操作の保存が開いた側の新しい版で書かれる（V-i-1・V-ii-2 の読み込みと、起動時の復元。TASK-535 2/2・#730）。
+//     読み込みでは書かれず、保存された値は新しい版の教材で変換なしに開ける
 //   - 外部への要求・CSP 違反・ページのエラー・dialog・popup が 0 件
 // 文の定数は crates/web/src/shell_notice.rs の VERSION_CONVERTED_NOTICE（仮置き。最終の文面は TASK-549・TASK-534）。
 // 失敗の文には行 ID・件数・真偽だけを出す（履歴の中身を出さない）。
@@ -128,6 +130,140 @@ for (const csp of [true, false]) {
         assertQuiet(opened.rec, id);
         await opened.context.close();
       }
+    }));
+  });
+}
+
+// ここから TASK-535 2/2（#730。S-13 相当）。変換して開いた後の操作の保存が、開いた側の新しい版で書かれることを確かめる。
+// 保存の値の versions は版の文字列と hash だけで、受講者の入力を含まない。履歴の本文・ops・snapshot は出さない。
+const PACK = 'min-3step';
+const START = 's-1';
+const INPUT = '[data-testid="draft-input"]';
+const SUBMIT = '[data-testid="submit-input"]';
+// 秘密情報の形に当たらない固定の文。
+const OPERATION = '/make-note second-note';
+const HISTORY_KEY_PREFIX = 'fandhe-workshop/history/';
+
+const readText = (id) => fs.readFileSync(path.join(historiesDir, `${id}.history.json`), 'utf8');
+const packVersion = (name) => JSON.parse(fs.readFileSync(path.join(historiesDir, 'packs', `${name}.ir.json`), 'utf8')).pack.version;
+
+async function openStorage(page) {
+  await call(page, 'storageOpen');
+  await page.waitForFunction(([p, s]) => JSON.parse(window.__fandheTest.storageState(p, s)).opened === true, [PACK, START], { timeout: 10000 });
+}
+
+// 保存先を開き直して、保存された値の versions だけを返す。値が無ければ null。開き直すので IndexedDB の書き込みも見える。
+async function savedVersions(page) {
+  await openStorage(page);
+  const text = await call(page, 'storageRead', PACK, START);
+  if (text == null) return null;
+  return JSON.parse(text).versions ?? null;
+}
+
+async function waitSaved(page) {
+  const deadline = Date.now() + 15000;
+  for (;;) {
+    const v = await savedVersions(page);
+    if (v) return v;
+    assert.ok(Date.now() < deadline, 'a saved history appears');
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
+// localStorage の履歴の鍵の件数。IndexedDB は鍵を数えないので、保存の有無は savedVersions で見る。
+const localKeys = (page) => page.evaluate((prefix) => {
+  let n = 0;
+  for (let i = 0; i < localStorage.length; i += 1) if (localStorage.key(i).startsWith(prefix)) n += 1;
+  return n;
+}, HISTORY_KEY_PREFIX);
+
+async function operate(page) {
+  await page.locator(INPUT).fill(OPERATION);
+  await page.locator(SUBMIT).click();
+  await settle(page);
+}
+
+for (const csp of [true, false]) {
+  const label = csp ? 'あり' : 'なし';
+
+  for (const [id, opening] of [['V-i-1', 'text-1.1.0'], ['V-ii-2', 'step-added-1.2.0']]) {
+    test(`${id} 変換して開いた後の操作の保存は、開いた側の新しい版で書かれる（CSP ${label}）`, async () => {
+      await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+        const history = JSON.parse(readText(id)).versions;
+        const opened = await openRow(srv, id, 'converted');
+        const { page } = opened;
+        assert.equal(await page.locator(ITEM).count(), 1, `${id}: one notice`);
+        // 読み込みは保存先へ書かない。
+        assert.equal(await savedVersions(page), null, `${id}: nothing saved before an operation`);
+        assert.equal(await localKeys(page), 0, `${id}: no local key before an operation`);
+
+        // 開いた直後の Step は履歴の snapshot の Step と同じで、そこから操作できる。
+        const imported = JSON.parse(await call(page, 'lastImportStateJson'));
+        const eng = await engine(page);
+        assert.equal(JSON.stringify(eng.current), JSON.stringify(imported.run.current), `${id}: same step after open`);
+
+        await operate(page);
+        const saved = await waitSaved(page);
+        assert.equal(saved.content, packVersion(opening), `${id}: saved content is the opening version`);
+        assert.notEqual(saved.content, history.content, `${id}: content differs from the history's`);
+        assert.notEqual(saved.content_hash, history.content_hash, `${id}: content_hash differs from the history's`);
+        for (const k of ['vocab', 'ir_format']) assert.ok(saved[k] !== undefined, `${id}: versions.${k} exists`);
+
+        // 往復: 保存された値は、開いた側の教材では変換なしで開ける（通知 0 件）。hash の求め方は JS に持ち込まない。
+        const savedText = await call(page, 'storageRead', PACK, START);
+        const irText = fs.readFileSync(path.join(historiesDir, 'packs', `${opening}.ir.json`), 'utf8');
+        const second = await openPage(browser, { origin: srv.origin });
+        await second.page.goto(srv.url);
+        await waitMounted(second.page);
+        await settle(second.page);
+        const before = (await engine(second.page)).installCount;
+        assert.equal(await call(second.page, 'loadIr', irText), true, `${id}: load-ir sent`);
+        await second.page.waitForFunction((n) => JSON.parse(window.__fandheTest.stateJson()).engine.installCount > n, before, { timeout: 15000 });
+        await settle(second.page);
+        assert.equal(await call(second.page, 'importText', savedText), true, `${id}: import sent`);
+        await second.page.waitForFunction(() => {
+          const e = JSON.parse(window.__fandheTest.stateJson()).engine;
+          return e && e.lastImport != null;
+        }, null, { timeout: 15000 });
+        assert.equal((await engine(second.page)).lastImport.verdict, 'open', `${id}: saved value opens without conversion`);
+        await settle(second.page);
+        assert.equal(await second.page.locator(ITEM).count(), 0, `${id}: no notice for the saved value`);
+        assertQuiet(second.rec, `${id} round trip`);
+        await second.context.close();
+
+        assertQuiet(opened.rec, id);
+        await opened.context.close();
+      }));
+    });
+  }
+
+  test(`起動時の復元で変換して開いた後の操作の保存も、新しい版で書かれる（CSP ${label}）`, async () => {
+    await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const opened = await openPage(browser, { origin: srv.origin });
+      const { page } = opened;
+      await page.goto(srv.url);
+      await waitMounted(page);
+      await settle(page);
+      // 開ける包みの content_hash だけを書き換えた履歴を保存先へ置く（内容の違い。結果は converted）。
+      const current = JSON.parse(await call(page, 'loadableHistoryText'));
+      const flipped = (current.versions.content_hash.startsWith('0') ? '1' : '0') + current.versions.content_hash.slice(1);
+      const stored = { ...current, versions: { ...current.versions, content_hash: flipped } };
+      await openStorage(page);
+      assert.equal(JSON.parse(await call(page, 'storageWrite', PACK, START, JSON.stringify(stored))).ok, true, 'stored history written');
+
+      await page.reload();
+      await waitMounted(page);
+      await settle(page);
+      const eng = await engine(page);
+      assert.equal(eng.bootKind, 'restored', 'boot restored');
+      assert.equal(await page.locator(ITEM).count(), 1, 'one notice after the restore');
+
+      await operate(page);
+      const saved = await waitSaved(page);
+      assert.equal(JSON.stringify(saved), JSON.stringify(current.versions), 'saved versions are the opening ones');
+      assert.notEqual(saved.content_hash, flipped, 'content_hash is not the stale one');
+      assertQuiet(opened.rec, 'boot restore');
+      await opened.context.close();
     }));
   });
 }

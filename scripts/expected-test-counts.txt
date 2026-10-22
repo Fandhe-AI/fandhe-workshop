@@ -81,6 +81,7 @@ rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
 rust|tests/diff_view_a_contract.rs [diff_view_a_contract]|passed=10|ignored=0
 rust|tests/diff_view_contract.rs [diff_view_contract]|passed=14|ignored=0
 rust|tests/dirty_binding_points.rs [dirty_binding_points]|passed=4|ignored=0
+rust|tests/do_levels.rs [do_levels]|passed=19|ignored=0
 rust|tests/doc_depth.rs [doc_depth]|passed=17|ignored=0
 rust|tests/doc_links.rs [doc_links]|passed=12|ignored=0
 rust|tests/doc_load.rs [doc_load]|passed=7|ignored=0
@@ -106,6 +107,7 @@ rust|tests/glue_contract.rs [glue_contract]|passed=38|ignored=0
 rust|tests/glue_scale.rs [glue_scale]|passed=4|ignored=0
 rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
 rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
+rust|tests/guidance_leak_scope.rs [guidance_leak_scope]|passed=11|ignored=0
 rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
 rust|tests/history_append_only.rs [history_append_only]|passed=8|ignored=0
 rust|tests/history_boot.rs [history_boot]|passed=6|ignored=0
@@ -173,6 +175,8 @@ rust|tests/log_lines_contract.rs [log_lines_contract]|passed=13|ignored=0
 rust|tests/metrics.rs [metrics]|passed=10|ignored=0
 rust|tests/missing_elements.rs [missing_elements]|passed=10|ignored=0
 rust|tests/modifier_key_hint.rs [modifier_key_hint]|passed=9|ignored=0
+rust|tests/module_arg_types.rs [module_arg_types]|passed=14|ignored=0
+rust|tests/module_first_step_gap.rs [module_first_step_gap]|passed=6|ignored=0
 rust|tests/modules.rs [modules]|passed=39|ignored=0
 rust|tests/move_step.rs [move_step]|passed=17|ignored=0
 rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=9|ignored=0
@@ -263,7 +267,7 @@ rust|tests/validate_refs.rs [validate_refs]|passed=8|ignored=0
 rust|tests/validate_structure.rs [validate_structure]|passed=4|ignored=0
 rust|tests/version_histories.rs [version_histories]|passed=4|ignored=1
 rust|tests/version_histories_host.rs [version_histories_host]|passed=0|ignored=0
-rust|tests/version_notice.rs [version_notice]|passed=9|ignored=0
+rust|tests/version_notice.rs [version_notice]|passed=12|ignored=0
 rust|tests/version_record.rs [version_record]|passed=12|ignored=0
 rust|tests/view_body.rs [view_body]|passed=7|ignored=0
 rust|tests/view_body_contract.rs [view_body_contract]|passed=7|ignored=0
@@ -271,14 +275,14 @@ rust|tests/view_select.rs [view_select]|passed=16|ignored=0
 rust|tests/vocab_command.rs [vocab_command]|passed=15|ignored=0
 rust|tests/vocab_declaration.rs [vocab_declaration]|passed=17|ignored=0
 rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6|ignored=0
-rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=12|ignored=0
+rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=279|passed=3009|ignored=3
-rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_core]|passed=45|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=96|ignored=0
+rust|total|binaries=283|passed=3070|ignored=3
+rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=29|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_core]|passed=46|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=100|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=125|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=837|pass=837|skipped=0|todo=0|cancelled=0
+browser|total|tests=843|pass=843|skipped=0|todo=0|cancelled=0

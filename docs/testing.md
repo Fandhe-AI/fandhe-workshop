@@ -6400,7 +6400,7 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
 - 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` の読み込み先の許可は TASK-168 が持つ
 
-### 5.204 変換して開いたときの版の違いの通知（TASK-535 1/2。SHELL-20）
+### 5.204 変換して開いたときの版の違いの通知（TASK-535 1/2・2/2。SHELL-20）
 
 版の違いを変換して開いたときに、枠の通知欄（`shell-notice`）へ通知を 1 件出す。実装は `crates/web/src/shell_notice.rs`（通知欄の描画。keyed list `shell_notices`）・`crates/web/src/host.rs`（表示の状態 `version_notice`、`dismiss-notice` の action）である。判定は core の `history_open` のままで、web は条件を複製しない。
 
@@ -6417,11 +6417,20 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - Rust: `crates/web/tests/version_notice.rs`（8 件）。同じ版・変換して開く・変換の後の同じ版・開かない場合に触れない・起動時の復元 4 通り・閉じる操作の復号と効果・束縛の目印・履歴由来の文字列を出さない。`dirty_binding_points.rs` は `shell_notices` を他の教材が要る field に足し、`no_hidden_triggers.rs` は `shell_notice.rs` の `data-payload` の使用を許可の表に足した。単体の試験は `shell_notice.rs`（2 件）
 - ブラウザ: `tools/browser/version-notice.test.mjs`（4 件。CSP あり・なし）。V-i-1 で通知が 1 件出て文が一致し、幅 360px で成果物のタブを選んでも見え、閉じると 0 件になり root が同じ要素のままであること、V-0（変換なし）・V-iii-1（表示だけ）で 0 件であること。`make test-browser` は 2026-10-21 に全件通った（失敗 0）
 
+操作の後の保存（TASK-535 2/2。#730。SHELL-20・VER-4。PoC-6 の S-13 相当）:
+
+- 保存の値の `versions` は、`history_to_save`（`RecordedSession::envelope_for_save` → `build_envelope`）がいま載っている IR から求め直す。変換して開いた後の保存は、履歴を書いた側の版を引き継がず、開いた側の版で書かれる。実装は変えず、試験で固定した
+- Rust: `crates/web/tests/version_notice.rs` に 3 件を足した（計 12 件）。履歴ファイルの読み込みで変換した後の操作の保存の `versions` が開いた側の `record_versions` と一致し、元の履歴の版とは違い、`ops` が続きに増え、その値が新しい版では変換なしで・古い版では変換で開く。起動時の復元で変換した場合も同じ。対照として同じ版で開くと同じ版のまま書かれる
+- ブラウザ: `tools/browser/version-notice.test.mjs` に 6 件を足した（計 10 件。CSP あり・なし）。V-i-1・V-ii-2 は、読み込みでは保存先へ書かれず（`storageRead` が空・localStorage の鍵が 0 件）、開いた直後の Step が履歴の `snapshot` と同じで、操作の後に保存された `versions.content` が開いた側の教材の `pack.version` と一致し、履歴の `content`・`content_hash` と違い、その値を新しいページで開くと `open` で通知が 0 件である（hash の求め方は JS に持ち込まない）。起動時の復元は、開ける包みの `content_hash` だけを書き換えて保存先へ置き、再読み込みで `restored` と通知 1 件になり、操作の後の `versions` が書き換える前の値と一致する。値は `versions` だけを読み、本文・`ops`・`snapshot` は出さない
+- 実行の結果（2026-10-21）: `cargo test --locked -p fandhe-workshop-web --test version_notice` は 12 件が通った。`tools/browser/version-notice.test.mjs` を `scripts/test-browser.sh` と同じ準備で単独に流し、10 件が通った。`make test-browser` の全件は手元では流していない（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新した（元にしたコミット dac8dcb。TASK-535 とは無関係な束の増減も実測のまま含む）。2026-10-22 に main を取り込んだときは、main の値（元にしたコミット 04fae88）を基準にし、Rust の行はマージ後の `make test` の実測に合わせ（`version_notice` は 12 件。main の後続の変更の分も含む）、ブラウザの合計は main の 837 件に本変更の 6 件を足した 843 件とした（ブラウザ試験は手元で流していない）
+- 対照の自己確認（保存の IR を開いた履歴の版に変えて落ちることの確認）は未実施である。試験が正しい理由で落ちることの確認は残っており、別の機会に行う
+
 限界・申し送り:
 
 - 文面（`VERSION_CONVERTED_NOTICE`）と置き場は仮置きである。最終の文面・配置・見た目は TASK-549・TASK-534 が持つ
 - 内容以外の軸（エンジン・語彙・参照元）だけの変換でも通知を出す。SHELL-20 が直接は決めていない判断である（推論）
-- 操作の後の保存が新しい版で書かれることの確認は TASK-535 2/2（#730）、他の通知の種類の移設と書き出し・読み込みの結線は TASK-516・TASK-531 などの担当である
+- 他の通知の種類の移設と書き出し・読み込みの結線は TASK-516・TASK-531 などの担当である
+- 開く側のエンジンの上書き（`openingOverride`。V-iv-1 など）を使う行は 2/2 の対象外である。保存の `engine` は実物の版になり、上書きした版にはならない（試験の口の限界。配信する設定には上書きが無い）
 - 変異注入の定義は足していない
 
 ### 5.203 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
