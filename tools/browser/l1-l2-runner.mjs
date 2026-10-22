@@ -80,6 +80,24 @@ export function reqLabel(u) {
 }
 
 /**
+ * IR（`irUrl`）の取得の計数と、合否に数える失敗した要求の一覧を返す（`runOnce` の `ir-fetch`・`failed` の判定）。
+ * 要求は Request の同一性（`rec` の id）で response・requestfailed を対応付ける。IR の応答（`irCount`）はちょうど 1 件で 200 であること。
+ * 除くのは、その 1 件の要求自体が応答の後に `net::ERR_ABORTED` と通知される競合（CI の Chromium で、完了の通知の代わりに届く
+ * ことがある。アプリは本文を読み切って起動している）だけで、同じ Request に限る。id の違う IR の要求（応答のある重複の取得・
+ * 応答のない中断）、応答が 2 件以上・200 以外のときの中断、別の資源・別のエラー種別は従来どおり数える（重複の取得を見逃さない）。
+ */
+export function irFetchCheck(rec, irUrl) {
+  const irReqs = rec.requests.filter((r) => r.url === irUrl);
+  const sole = irReqs.length === 1 && irReqs[0].status === 200 ? irReqs[0] : null;
+  const isRaceAbort = (f) => sole !== null && f.id === sole.id && f.url === irUrl && f.error === 'net::ERR_ABORTED';
+  return {
+    irCount: irReqs.length,
+    irOk: irReqs.some((r) => r.status === 200),
+    failed: rec.failed.filter((f) => !isRaceAbort(f)),
+  };
+}
+
+/**
  * `url` を新しい browser context で開いて入力列を流し、観察・snapshot・history と計数を返す。
  * `stopAt` を指定すると、その Step に入ったところで止める（対照用）。`keep` が真なら context を閉じず page を返す。
  * `drive(page, { L, onStep })` があれば、既定の誘導（journey）の代わりに呼ぶ（固定の列の再生・凍結の記録）。
@@ -111,27 +129,9 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
     const counts = summarize(rec);
     const irUrl = `${origin}${new URL(url).pathname}ir/main.json`;
-    // IR の取得の完了（requestfinished）は、中断の通知と前後して届くことがある。完了の通知を最大 2 秒待ってから数える。
-    for (let i = 0; i < 40 && !rec.finished.includes(irUrl); i += 1) await new Promise((res) => setTimeout(res, 50));
-    const irReqs = rec.requests.filter((r) => r.url === irUrl);
-    // 要求は Request の同一性（id）で response・requestfinished・requestfailed を対応付ける。
-    // 本文の取得まで完了した 200 の IR（別の要求）がある実行に限り、応答を受けた後に ERR_ABORTED になった同じ URL の要求
-    // （完了後に中断された重複の要求）だけを、失敗にも要求の件数にも数えない。応答のない中断・query の違う要求・
-    // 別の資源・別のエラー種別・完了した取得が無いときの中断は従来どおり数える（IR の 200 応答はちょうど 1 件であること）。
-    const respondedIds = new Set(irReqs.map((r) => r.id));
-    const isAbortedIr = (f) => f.url === irUrl && f.error === 'net::ERR_ABORTED' && respondedIds.has(f.id);
-    const abortedIds = new Set(rec.failed.filter(isAbortedIr).map((f) => f.id));
-    const completedOk = irReqs.filter((r) => r.status === 200 && rec.finishedIds.includes(r.id) && !abortedIds.has(r.id));
-    // 200 の応答が 1 件だけで、その要求自体が応答の後に ERR_ABORTED と通知され、完了の通知が届かない競合がある
-    // （アプリは本文を読み切って起動している）。この 1 件に限り、応答を受けた後の中断として失敗にも数えない。
-    // 応答が複数・200 以外・応答のない中断は、従来どおり数える。
-    const soleAborted = irReqs.length === 1 && irReqs[0].status === 200 && abortedIds.has(irReqs[0].id);
-    const irDone = completedOk.length >= 1 || soleAborted;
-    const failed = rec.failed.filter((f) => !(irDone && isAbortedIr(f)));
-    const counted = soleAborted ? irReqs : irDone ? irReqs.filter((r) => !abortedIds.has(r.id)) : irReqs;
-    const irCount = counted.length;
+    const { irCount, irOk, failed } = irFetchCheck(rec, irUrl);
     const problems = [];
-    if (irCount !== 1 || !counted.some((r) => r.status === 200)) problems.push('ir-fetch');
+    if (irCount !== 1 || !irOk) problems.push('ir-fetch');
     if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
     if (counts.pageErrors !== 0) problems.push('page-error');
     if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');

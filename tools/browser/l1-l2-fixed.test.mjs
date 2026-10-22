@@ -9,7 +9,8 @@
 // 構成:
 //   1. 前提: 差し替えた L1 の木と L2 の木が、同じファイルの集合で同じ SHA-256（差がビルドでなく配信の差だけであること）
 //   2. 固定の列を 3 配信先 × 3 回（9 回）流し、凍結した期待（口の数・`ops`・content_hash）と 9 回の相互の一致（観察の列・snapshot・history）を求める
-//   3. 対照: 配信する IR が別でも差し替えて再生できる／差し替えなしでは最初に断る／期待を 1 つ変えると不一致のパスを報告する
+//   3. 対照: 配信する IR が別でも差し替えて再生できる／差し替えなしでは最初に断る／期待を 1 つ変えると不一致のパスを報告する／
+//      IR の取得の計数が id の違う重複の取得・中断を数える
 //   4. 履歴の `ops` の揺れる欄: 許可リストの検査・時計と乱数をずらした 2 回の実行が 9 回と同じバイト列・検出器の対照
 //   5. 凍結（FANDHE_FREEZE_SEQUENCE の指定時だけ。CI では流さない）: journey の操作を記録して列を書き出す。書き出した後は必ず失敗で終える
 //
@@ -29,7 +30,7 @@ import { journey, mouseDriver } from './ch0-3-journey.mjs';
 import { stepOrder, domObserver, L2_STOP } from './l2-journey.mjs';
 import { unzipTo } from './l2-server.mjs';
 import { sha256, firstDiffPath } from './screen-snapshot.mjs';
-import { runOnce as runOnceWith, withTarget as withTargetWith, treeDiff, overlaidSite, IR_REL } from './l1-l2-runner.mjs';
+import { runOnce as runOnceWith, withTarget as withTargetWith, treeDiff, overlaidSite, irFetchCheck, IR_REL } from './l1-l2-runner.mjs';
 import {
   recordingDriver, recordingObserver, loadSequence, assertServedIr, replaySequence, compareOps, volatileOps, opKinds, SEQUENCE_FORMAT,
 } from './fixed-sequence.mjs';
@@ -311,6 +312,28 @@ if (FREEZE) {
     } finally {
       await context.close().catch(() => {});
     }
+  });
+
+  test('対照: IR の取得の計数は、同じ Request の応答後の中断だけを除き、id の違う重複の取得・中断を数える', () => {
+    const ir = 'http://127.0.0.1:1/b/ir/main.json';
+    const ok = (id, status = 200) => ({ id, url: ir, status });
+    const ab = (id, error = 'net::ERR_ABORTED', url = ir) => ({ id, url, error });
+    const check = (requests, failed) => {
+      const r = irFetchCheck({ requests, failed }, ir);
+      return { irCount: r.irCount, irOk: r.irOk, failedIds: r.failed.map((f) => f.id) };
+    };
+    // 正常: 1 件の 200。
+    assert.deepEqual(check([ok(1)], []), { irCount: 1, irOk: true, failedIds: [] });
+    // 競合: 1 件の 200 の要求自体が応答の後に ERR_ABORTED と通知される。これだけを除く。
+    assert.deepEqual(check([ok(1)], [ab(1)]), { irCount: 1, irOk: true, failedIds: [] });
+    // 重複の取得: 200 の要求が 2 件で、片方が応答の後に中断。件数 2 で、中断も失敗に数える。
+    assert.deepEqual(check([ok(1), ok(2)], [ab(2)]), { irCount: 2, irOk: true, failedIds: [2] });
+    // 応答のない別の要求の中断は、200 が 1 件でも失敗に数える。
+    assert.deepEqual(check([ok(1)], [ab(2)]), { irCount: 1, irOk: true, failedIds: [2] });
+    // 同じ Request でも、別のエラー種別・別の URL は除かない。200 以外の応答の中断も除かない。
+    assert.deepEqual(check([ok(1)], [ab(1, 'net::ERR_FAILED')]), { irCount: 1, irOk: true, failedIds: [1] });
+    assert.deepEqual(check([ok(1)], [ab(1, 'net::ERR_ABORTED', `${ir}?x=1`)]), { irCount: 1, irOk: true, failedIds: [1] });
+    assert.deepEqual(check([ok(1, 404)], [ab(1)]), { irCount: 1, irOk: false, failedIds: [1] });
   });
 
   test('対照: 検出器は、時刻・未知の鍵・時刻らしい値を持つ合成の ops のそれぞれのパスを返す', () => {
