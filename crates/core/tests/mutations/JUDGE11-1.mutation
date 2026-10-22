@@ -1,0 +1,8 @@
+id: JUDGE11-1
+package: fandhe-workshop-core
+test: revise_candidates
+target: crates/core/src/select_judge.rs
+find: if reject_only && matches!(kind, Some("accept" | "clarify")) {
+replace: if false && matches!(kind, Some("accept" | "clarify")) {
+expect-fail: judge11_wrong_candidate_never_accepts_or_clarifies
+note: 2 段目で拒否以外の規則を飛ばす検査を外す（誤った候補が対象なしの受付・問い返しの規則に当たる）

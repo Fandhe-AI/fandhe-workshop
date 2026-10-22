@@ -4,7 +4,7 @@
 //! （`input`・`rules`・`confirm`）との照合だけで判定できる。本モジュールはその照合の純関数を置く。
 //! 呼び出し元は、受付・達成の遷移（TASK-207）、`Judged` の発行（[`crate::judge`]、TASK-267）、対象つきの「直す」（TASK-264）、
 //! 誤答の文面の差し込み（[`crate::text_fill`]、TASK-274）、画面（web、TASK-445・TASK-447・TASK-450）である。
-//! 承認の「直す」の対象つき入力（JUDGE-10、TASK-264）の判定もここに置く。
+//! 承認の「直す」の対象つき入力（JUDGE-10、TASK-264）と、誤った対象の候補の判定（JUDGE-11、TASK-265）もここに置く。
 //! 結果の型の語彙は `fandhe_workshop_contract::judgment`、入力・確認の宣言の型は `input_spec`・`confirm_spec`
 //! が正で、ここでは再定義しない。
 //!
@@ -21,7 +21,14 @@
 //! - 規則の `on` のキーは、その方式の照合キーとちょうど一致するものだけを一致とする。余分なキーのある規則は一致しない
 //! - 承認の `target` は完全一致で、規則に無ければ入力も `None` でなければならない（対象つきの規則に
 //!   対象なしの入力を一致させない）。宣言に無い対象を受付にしないため、対象なしの規則を任意の対象に
-//!   当てる照合（試作の挙動）は採らない
+//!   当てる照合（試作の挙動）は全面には採らない
+//! - `approval.revise.candidates` を宣言した Step（PACK-42）では、対象つきの「直す」の対象が「候補または
+//!   規則の対象」に無ければ、宣言に無い対象として `not_in_this_step` の分類で拒否する。対象が候補にあり
+//!   規則の対象に無い（誤った候補）ときは、対象つきの規則に一致が無い場合に限り、対象なしの「直す」の規則の
+//!   うち拒否だけを上から採る（受付・問い返しは飛ばす）。教材が誤った対象向けに書いた文面を届けつつ、
+//!   受付にならないことを保つため、当てるのは拒否の規則だけである。無ければ分類による拒否になる
+//! - 候補を宣言した Step の対象なしの「直す」も、対象つきの規則が無くても拒否の規則だけを採る
+//!   （対象を選ばせる Step とみなす）。候補を宣言しない Step（v1.4 以前）は従来の判定から変えない
 //! - 対象つきの「直す」の規則が 1 つでもある Step では、対象なしの「直す」を受付・問い返しにしない
 //!   （[`revise_targets`]）。対象なしの規則のうち拒否だけを採り、無ければ `not_in_this_step` の分類による拒否にする。
 //!   この判定のため、対象なしの「直す」では規則の全件を先に走査し、一致より後ろの不正な規則も
@@ -48,7 +55,7 @@ use fandhe_workshop_contract::confirm_spec::{
     answer_spec_of, ApproveSpec, ConfirmKind, NoneSpec, PointAtSpec,
 };
 use fandhe_workshop_contract::input_spec::{
-    ApprovalSpec, ChoiceOption, ChoiceSpec, InputKind, UiActionSpec,
+    ApprovalSpec, ChoiceOption, ChoiceSpec, InputKind, ReviseCandidate, UiActionSpec,
 };
 use fandhe_workshop_contract::ir::Step;
 use fandhe_workshop_contract::judgment::{JudgmentKind, RejectCategory};
@@ -178,7 +185,8 @@ fn decision_word(d: Decision) -> &'static str {
 /// 承認の対象の照合。完全一致で、規則に無ければ入力も `None` でなければならない。
 ///
 /// 試作のように対象なしの規則を任意の対象に当てると、宣言に無い対象つきの入力が受付になるため、
-/// 完全一致のままにする（TASK-264 の判断）。誤った対象の候補の判定は TASK-265 が決める。
+/// 完全一致のままにする（TASK-264 の判断）。誤った候補への対象なしの拒否の規則の適用は、この照合ではなく
+/// [`judge_select`] の 2 段目が行う（TASK-265）。
 fn approval_target_matches(rule_target: Option<&str>, input_target: Option<&str>) -> bool {
     rule_target == input_target
 }
@@ -286,6 +294,51 @@ pub fn choice_options(step: &Step) -> Result<Vec<ChoiceOption>, SelectJudgeError
     Ok(spec.options)
 }
 
+/// 承認の宣言を型で読む。`input` が無い、または方式が `approval` でなければ `None`。
+///
+/// `declared`・`judge_select`・[`revise_candidates`] が共有する唯一の読み口。読めない・`check()` に通らない
+/// 宣言は [`SelectJudgeError::InvalidDeclaration`]（受付へ倒さない）。
+fn approval_spec(step: &Step) -> Result<Option<ApprovalSpec>, SelectJudgeError> {
+    let Some(decl) = &step.input else {
+        return Ok(None);
+    };
+    let decl = decl
+        .as_object()
+        .ok_or(SelectJudgeError::InvalidDeclaration)?;
+    let kind = decl
+        .get("kind")
+        .and_then(Value::as_str)
+        .and_then(InputKind::from_str_opt)
+        .ok_or(SelectJudgeError::InvalidDeclaration)?;
+    if kind != InputKind::Approval {
+        return Ok(None);
+    }
+    let spec: ApprovalSpec = read_spec(decl).ok_or(SelectJudgeError::InvalidDeclaration)?;
+    spec.check()
+        .map_err(|_| SelectJudgeError::InvalidDeclaration)?;
+    Ok(Some(spec))
+}
+
+/// 入力方式 `approval` の Step が「直す」の対象として出せる候補（JUDGE-11、TASK-265）。
+///
+/// 画面（TASK-448）が承認の「直す」のボタンを表示名つきで出すときの正で、web に宣言の JSON を読ませない
+/// ために core が返す。`revise` を宣言していれば宣言の順の候補（正しい対象と誤った候補を含む。表示は
+/// [`ReviseCandidate::display`]）。宣言していなければ、規則に書かれた対象（[`revise_targets`]）を表示名なし
+/// （ID が表示になる）の候補にして返す。`input` が無い、または方式が `approval` でなければ空。
+/// 宣言が読めない・`check()` に通らないときは [`SelectJudgeError::InvalidDeclaration`]。
+pub fn revise_candidates(step: &Step) -> Result<Vec<ReviseCandidate>, SelectJudgeError> {
+    let Some(spec) = approval_spec(step)? else {
+        return Ok(Vec::new());
+    };
+    if let Some(revise) = spec.revise {
+        return Ok(revise.candidates);
+    }
+    Ok(revise_targets(step)?
+        .into_iter()
+        .map(|id| ReviseCandidate { id, label: None })
+        .collect())
+}
+
 /// 宣言の方式と入力の種類が合い、宣言にある値なら `Ok(true)`。方式違い・宣言に無い値は `Ok(false)`。
 fn declared(step: &Step, input: &Input) -> Result<bool, SelectJudgeError> {
     let Some(decl) = &step.input else {
@@ -311,8 +364,15 @@ fn declared(step: &Step, input: &Input) -> Result<bool, SelectJudgeError> {
                 .iter()
                 .any(|t| t.view == *view && t.path == *path))
         }
-        (InputKind::Approval, Input::Approval { .. }) => {
-            read_spec::<ApprovalSpec>(decl).ok_or(SelectJudgeError::InvalidDeclaration)?;
+        (InputKind::Approval, Input::Approval { decision, target }) => {
+            let spec = approval_spec(step)?.ok_or(SelectJudgeError::InvalidDeclaration)?;
+            // 候補を宣言した Step の対象つきの「直す」は、候補か規則の対象にある対象だけを宣言にあるものとする。
+            if let (Some(revise), Decision::Revise, Some(t)) = (&spec.revise, decision, target) {
+                if revise.candidates.iter().any(|c| c.id == *t) {
+                    return Ok(true);
+                }
+                return Ok(revise_targets(step)?.contains(t));
+            }
             Ok(true)
         }
         _ => Ok(false),
@@ -335,14 +395,52 @@ pub fn judge_select(
     if !declared(step, input)? {
         return Ok(SelectVerdict::Rejected(RejectCategory::NotInThisStep));
     }
-    // 対象つきの「直す」の規則がある Step では、対象なしの「直す」に対して拒否の規則だけを採る（JUDGE-10）。
+    // 対象なしの「直す」は、対象つきの規則がある Step か候補を宣言した Step では拒否の規則だけを採る
+    // （JUDGE-10・JUDGE-11）。
+    let declares_revise = match input {
+        Input::Approval { .. } => approval_spec(step)?.is_some_and(|s| s.revise.is_some()),
+        _ => false,
+    };
     let revise_without_target = matches!(
         input,
         Input::Approval {
             decision: Decision::Revise,
             target: None
         }
-    ) && !revise_targets(step)?.is_empty();
+    ) && (declares_revise || !revise_targets(step)?.is_empty());
+    if let Some(v) = scan_rules(step, input, when, revise_without_target)? {
+        return Ok(v);
+    }
+    // 誤った候補（候補にあり、規則の対象に無い）は、対象なしの「直す」の拒否の規則を 2 段目として採る（JUDGE-11）。
+    // 1 段で規則の順に見ると、前にある対象なしの規則が後ろの対象つきの規則より先に当たるため分ける。
+    if let Input::Approval {
+        decision: Decision::Revise,
+        target: Some(t),
+    } = input
+    {
+        if declares_revise && !revise_targets(step)?.contains(t) {
+            let bare = Input::Approval {
+                decision: Decision::Revise,
+                target: None,
+            };
+            if let Some(v) = scan_rules(step, &bare, when, true)? {
+                return Ok(v);
+            }
+        }
+    }
+    Ok(SelectVerdict::Rejected(RejectCategory::NotInThisStep))
+}
+
+/// `rules` を上から見て、最初に一致した規則の結果を返す。一致が無ければ `None`。
+///
+/// `reject_only` が真なら、受付・問い返しの規則は飛ばす（拒否だけを採る）。[`judge_select`] の 1 段目と、
+/// 誤った候補への 2 段目（TASK-265）が共有する。
+fn scan_rules(
+    step: &Step,
+    input: &Input,
+    when: &dyn Fn(&Value) -> Option<bool>,
+    reject_only: bool,
+) -> Result<Option<SelectVerdict>, SelectJudgeError> {
     for (rule_index, rule) in step.rules.iter().enumerate() {
         let rule = rule
             .as_object()
@@ -376,28 +474,28 @@ pub fn judge_select(
         };
         let rule_id = rule_id.to_string();
         let kind = outcome.get("kind").and_then(Value::as_str);
-        if revise_without_target && matches!(kind, Some("accept" | "clarify")) {
+        if reject_only && matches!(kind, Some("accept" | "clarify")) {
             continue;
         }
         return match kind {
-            Some("accept") => Ok(SelectVerdict::Accepted {
+            Some("accept") => Ok(Some(SelectVerdict::Accepted {
                 rule_index,
                 rule_id,
-            }),
-            Some("reject") => Ok(SelectVerdict::RejectedByRule {
+            })),
+            Some("reject") => Ok(Some(SelectVerdict::RejectedByRule {
                 rule_index,
                 rule_id,
                 rejection: text_of("rejection")?,
-            }),
-            Some("clarify") => Ok(SelectVerdict::Clarified {
+            })),
+            Some("clarify") => Ok(Some(SelectVerdict::Clarified {
                 rule_index,
                 rule_id,
                 clarification: text_of("clarification")?,
-            }),
+            })),
             _ => Err(SelectJudgeError::InvalidDeclaration),
         };
     }
-    Ok(SelectVerdict::Rejected(RejectCategory::NotInThisStep))
+    Ok(None)
 }
 
 /// 確認の段の判定。`Step.confirm` に照らす。`confirm` が無い Step は `approve` として扱う

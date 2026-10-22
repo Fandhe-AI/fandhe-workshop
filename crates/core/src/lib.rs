@@ -13,7 +13,8 @@
 //! 受講者の 1 行をコマンド名と引数に分ける字句化（[`command_lex`]、TASK-262 1/2）も持つ。
 //! 字句化の結果を宣言の名前・引数の個数と形で判定する照合（[`command_judge`]、TASK-262 2/2）も持つ。
 //! 選択肢・画面操作・承認の判定（[`select_judge`]、TASK-263）も持つ。
-//! 承認の「直す」の対象の一覧と対象なしの規則（[`select_judge::revise_targets`]）、拒否の文面の解決と
+//! 承認の「直す」の対象の一覧と対象なしの規則（[`select_judge::revise_targets`]）、対象の候補と表示名
+//! （[`select_judge::revise_candidates`]、TASK-265）、拒否の文面の解決と
 //! 空でない次の行動（[`rejection_text`]、TASK-264）も持つ。
 //! 自然文の受付の判定と、規則の効果の適用（[`text_judge`]、TASK-266）も持つ。
 //! 判定結果の統合と `Judged` の材料（[`judge`]、TASK-267）も持つ。
