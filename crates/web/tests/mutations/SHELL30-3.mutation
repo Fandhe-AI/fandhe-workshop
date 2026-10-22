@@ -1,0 +1,8 @@
+id: SHELL30-3
+package: fandhe-workshop-web
+test: browser_notice
+target: crates/web/src/browser_notice.rs
+find:                 Some(m) if m >= MIN_CHROME_MAJOR => {}
+replace:                 Some(m) if m + 1 >= MIN_CHROME_MAJOR => {}
+expect-fail: other_browsers_and_old_chrome_are_noticed
+note: 旧版の基準が 1 版ずれる（SHELL-30・D-74・TASK-544）

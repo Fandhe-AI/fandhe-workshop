@@ -1,0 +1,8 @@
+id: SHELL30-4
+package: fandhe-workshop-web
+test: browser_notice_host
+target: crates/web/src/host.rs
+find:                 crate::browser_notice::DISMISSED,
+replace:                 "",
+expect-fail: shows_once_and_dismiss_records
+note: 閉じた記録の値が書かれなくなる（SHELL-30・D-74・TASK-544）

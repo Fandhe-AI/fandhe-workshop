@@ -294,6 +294,14 @@ const INIT_ALLOWED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "glue::mount_host(",
     ),
+    // ブラウザの案内の表示と閉じた記録の書き先の設定（TASK-544）。mount の前に 1 度だけ渡す。
+    (
+        "persist",
+        "mount_with_history(",
+        "set_browser_notice",
+        1,
+        "glue::mount_host(",
+    ),
     ("persist", "boot_and_mount(", "boot", 2, "glue::mount_host("),
     (
         "persist",
@@ -623,6 +631,7 @@ const L_PERSIST: &str = r#"
 fn mount_with_history(root_id: &str, user_agent: &str) -> P {
     let mut host = mount_host_for_page();
     host.set_learner_os(estimate(user_agent));
+    host.set_browser_notice(true, None);
     let Some(key) = k else { return glue::mount_host(root_id, host); };
 }
 fn boot_and_mount(root_id: &str, mut host: EngineHost, key: K) -> R {
@@ -660,7 +669,7 @@ fn debug_view_fixture_dispatch(n: &str) -> String { VIEW_FIXTURE.with(|c| { rt.d
 fn debug_view_fixture_state() -> String { let f = rt.component(); s }
 "#;
 const L_LEAVE: &str = "fn flush() { // c.update(a)\n let x = 1; }";
-const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_draft_select_request(&mut self, f: F) {} fn set_pane_focus_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_export_url_maker(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} }";
+const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_draft_select_request(&mut self, f: F) {} fn set_pane_focus_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_export_url_maker(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} fn set_browser_notice(&mut self, s: bool, k: K) {} }";
 
 fn layer(persist: &str, glue: &str, hooks: &str, leave: &str) -> Vec<(String, String)> {
     [

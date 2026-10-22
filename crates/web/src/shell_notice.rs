@@ -83,13 +83,14 @@ pub struct RefusedNotice {
 const DISMISS_LABEL: &str = "閉じる";
 
 /// 通知欄を作る。`save_failure` があれば保存の失敗の通知を、`version_converted` が真なら「変換して開いた」通知を、
-/// `import_refused` があれば開かない通知を出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
+/// `import_refused` があれば開かない通知を、`browser_notice` が真ならブラウザの案内（`browser_notice` モジュールの判定）を出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
 ///
 /// 通知の値が契約に反して作れなければ（起きない想定）、項目を出さず panic もしない。
 pub fn notice_area(
     version_converted: bool,
     import_refused: Option<RefusedNotice>,
     save_failure: Option<StorageError>,
+    browser_notice: bool,
 ) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
     if let Some(failure) = save_failure {
@@ -104,6 +105,11 @@ pub fn notice_area(
     }
     if version_converted {
         if let Some(item) = version_converted_item() {
+            items.push(item);
+        }
+    }
+    if browser_notice {
+        if let Some(item) = browser_notice_item() {
             items.push(item);
         }
     }
@@ -137,6 +143,18 @@ fn version_converted_item() -> Option<(String, Node)> {
     )
     .ok()?;
     Some(item_of(&notice, VERSION_CONVERTED_NOTICE))
+}
+
+/// 「Chrome 以外のブラウザへの案内」の項目（SHELL-30・D-74。TASK-544）。文は契約の固定の定数で、閉じる操作だけを置く。
+fn browser_notice_item() -> Option<(String, Node)> {
+    let notice = Notice::new(
+        NoticeKind::BrowserNotice,
+        None,
+        MessageId::BrowserNotice,
+        &[ShellOp::DismissNotice],
+    )
+    .ok()?;
+    Some(item_of(&notice, crate::shell::BROWSER_NOTICE_TEXT))
 }
 
 /// 「開かない履歴」の通知の項目。理由のコードは契約の形（`ReasonCode::parse`）を通ったものだけを属性に載せる。
@@ -196,14 +214,26 @@ mod tests {
     }
 
     #[test]
+    fn browser_notice_area_has_one_item_and_dismiss() {
+        let n = notice_area(false, None, None, true);
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
+        assert!(s.contains("browser-notice"), "{s}");
+        assert!(s.contains(crate::shell::BROWSER_NOTICE_TEXT), "{s}");
+        assert_eq!(s.matches("shell-dismiss").count(), 1, "{s}");
+        assert!(crate::shell::check_no_undefined(&n).is_ok());
+        assert!(crate::a11y::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
     fn empty_area_has_no_items() {
-        let s = format!("{:?}", notice_area(false, None, None));
+        let s = format!("{:?}", notice_area(false, None, None, false));
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None, None);
+        let n = notice_area(true, None, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -214,7 +244,7 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true), None);
+        let n = notice_area(false, refused(true), None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -226,14 +256,14 @@ mod tests {
 
     #[test]
     fn refused_without_dismiss_has_no_button() {
-        let s = format!("{:?}", notice_area(false, refused(false), None));
+        let s = format!("{:?}", notice_area(false, refused(false), None, false));
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
     }
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true), None);
+        let n = notice_area(true, refused(true), None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -269,7 +299,7 @@ mod tests {
             StorageError::Unavailable,
             StorageError::Failed,
         ] {
-            let n = notice_area(false, None, Some(f));
+            let n = notice_area(false, None, Some(f), false);
             let s = format!("{n:?}");
             assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
             assert!(s.contains("save-failed"), "{s}");
@@ -283,7 +313,12 @@ mod tests {
 
     #[test]
     fn all_three_notices_show_three_items_with_save_failed_first() {
-        let n = notice_area(true, refused(true), Some(StorageError::QuotaExceeded));
+        let n = notice_area(
+            true,
+            refused(true),
+            Some(StorageError::QuotaExceeded),
+            false,
+        );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
         assert!(s.find("save-failed") < s.find("import-refused"), "{s}");
