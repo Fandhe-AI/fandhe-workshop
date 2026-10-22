@@ -490,7 +490,7 @@ fn author13_pack(rejection: &str) -> Tmp {
         "chapters/c1/chapter.yaml",
         concat!(
             "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-            "  - {id: a, title: A, do: x, body: a.md, next: [{to: b}]}\n",
+            "  - {id: a, title: A, do: x, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
             "  - {id: b, title: B, final: true}\n",
         )
         .as_bytes(),

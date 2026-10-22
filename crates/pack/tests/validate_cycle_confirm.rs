@@ -32,7 +32,7 @@ id: c1
 title: C1
 starts: [{id: s1, node: a}]
 steps:
-    - {id: a, title: A, next: [{to: u}]}
+    - {id: a, title: A, next: [{to: u}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
     - {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: f}]}
     - {id: f, title: F, final: true}
 ";
@@ -45,7 +45,7 @@ steps:
     - {id: ma, title: MA, final: true}
 ";
 
-const A: &str = "    - {id: a, title: A, next: [{to: u}]}";
+const A: &str = "    - {id: a, title: A, next: [{to: u}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}";
 
 fn module(id: &str, steps: &str) -> String {
     format!("id: {id}\ntitle: M\nparams: {{x: ''}}\nsteps:\n{steps}")

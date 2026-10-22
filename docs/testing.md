@@ -3803,6 +3803,15 @@ min-3step-pack-b.ir.json   7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45
 min-3step-pack.ir.json     7f29c18a1bddb4e1720f0d68ce3efc9d3fe43c86e17c6fda6ec45cdd192bd9a4
 ```
 
+2026-10-22 追記（PACK-19、#1708）: `fixture-pack` の途中の Step `a` に 1 択の `choice` と `confirm: none` を足したため、上の `fixture-pack.ir.json` は compile の出力と一致しなくなった。この凍結物は書き換えず、0fa7146 のエンジンで作り直した 2 本を `crates/pack/tests/data/ir_before_ep13/` に別名で足した。compile の出力との比較（`ir_format` の `ir2_golden_bytes_match`、`ext9_ir_identity`、`content_hash`）はこの 2 本を使う。旧い IR の実例としての読み込みの試験（`ir_compat`・`ir_old_engine`）は、従来の `golden/fixture-pack.ir.json` を読み続ける。
+
+```text
+fixture-pack-choice.ir.json    3a9fa6e83f5468c48e4fcb8709039f2dd6ba1ac5bb72e7a7b227a99ba02f639a
+no-tree-pack-choice.ir.json    e721d6146b01c8914fc9b37c18ed40741c358f11c3efa14791e2f7a229f69314
+```
+
+`content_hash` の期待値 `FIXTURE_PACK_HASH` は `6cad339caadef18fe3747fefdd6432bbfa8bd646dcf94fbfd83d5b5ebc87116b` に求め直した。`fixture-pack-choice.ir.json` から本文の木（`body_doc`・`body_levels_doc`）を除き、compact の JSON にして Python の `hashlib.sha256` で独立に計算した。同じ手順で従来の golden が従来の期待値 `8837847d…` になることを先に確かめた。
+
 懸念（コードと試験に残っている事実）。
 
 - 所有者が 1 人で 2026-01 に公開された。継続は未確認（spec に記録された調査時点の情報）

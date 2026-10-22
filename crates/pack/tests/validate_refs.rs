@@ -72,7 +72,7 @@ const MODULE: &str = "\
 id: m1
 title: M
 steps:
-    - {id: m-a, title: MA, next: [{to: m-b}]}
+    - {id: m-a, title: MA, next: [{to: m-b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
     - {id: m-b, title: MB, final: true}
 ";
 

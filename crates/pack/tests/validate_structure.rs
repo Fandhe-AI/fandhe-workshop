@@ -52,7 +52,7 @@ const MODULE: &str = "\
 id: m1
 title: M
 steps:
-    - {id: m-a, title: MA, next: [{to: m-b}, {to: m-c}]}
+    - {id: m-a, title: MA, next: [{to: m-b}, {to: m-c}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
     - {id: m-b, title: MB, final: true}
     - {id: m-c, title: MC, final: true}
 ";
@@ -107,7 +107,7 @@ fn cases() -> Vec<Case> {
             "dup-step-across-chapters",
             C2,
             "- {id: c2z, title: Z, final: true}",
-            "- {id: c2z, title: Z, next: [{to: b}]}\n    - {id: b, title: Z2, final: true}",
+            "- {id: c2z, title: Z, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-c2z, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n    - {id: b, title: Z2, final: true}",
             DupId,
             C2,
             "step:b",

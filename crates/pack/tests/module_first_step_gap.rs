@@ -22,7 +22,7 @@ use fandhe_workshop_pack::DiagCode;
 
 const PACK: &str = "module-reuse-rounds/test-data/pack";
 
-const MODULE: &str = "id: m\ntitle: M\nparams: {skip: \"false\"}\nsteps:\n  - id: a\n    title: A\n    next:\n      - {to: c, when: {param: {name: skip, eq: \"true\"}}}\n      - {to: b}\n  - {id: b, title: B, next: [{to: c}]}\n  - {id: c, title: C, final: true}\n";
+const MODULE: &str = "id: m\ntitle: M\nparams: {skip: \"false\"}\nsteps:\n  - id: a\n    title: A\n    input: {kind: choice, options: [{id: ok, label: OK}]}\n    rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}]\n    confirm: {kind: none, reason: r}\n    next:\n      - {to: c, when: {param: {name: skip, eq: \"true\"}}}\n      - {to: b}\n  - {id: b, title: B, next: [{to: c}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-b, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n  - {id: c, title: C, final: true}\n";
 
 fn pack_with(module: &str, steps: &str) -> Tmp {
     let t = Tmp::new("p51");

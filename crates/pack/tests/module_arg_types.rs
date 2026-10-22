@@ -26,7 +26,7 @@ fn module(params: &str, types: &str) -> String {
         format!("param_types: {types}\n")
     };
     format!(
-        "id: m\ntitle: M\nparams: {params}\n{types}steps:\n  - {{id: a, title: A, next: [{{to: z}}]}}\n{END}"
+        "id: m\ntitle: M\nparams: {params}\n{types}steps:\n  - {{id: a, title: A, next: [{{to: z}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}}}\n{END}"
     )
 }
 

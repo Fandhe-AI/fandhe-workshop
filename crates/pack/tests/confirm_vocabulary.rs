@@ -27,10 +27,18 @@ fn pack_dir(name: &str) -> PathBuf {
         .join(name)
 }
 
+const READ_ONLY: &str = "input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r},";
+
 /// 先頭の Step `a` だけが `step_fields` を持つ最小パックの診断を返す（通れば空）。
 fn diags_for(step_fields: &str) -> Vec<Diagnostic> {
     let t = Tmp::new("confirm");
     t.put("workshop.yaml", WORKSHOP.as_bytes());
+    // 途中の Step は入力か `use` を持つ（PACK-19）。呼び出し側が `input` を渡さないときは 1 択の `choice` を足す。
+    let step_fields = if step_fields.contains("input:") {
+        step_fields.to_string()
+    } else {
+        format!("{READ_ONLY} {step_fields}")
+    };
     let chapter = format!(
         "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, {step_fields} next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n"
     );
@@ -134,7 +142,14 @@ fn pack13_none_without_reason_is_no_confirm() {
 
 #[test]
 fn pack13_step_without_input_needs_no_confirm() {
-    assert!(diags_for("").is_empty());
+    // 入力の無い Step は終端だけである（PACK-19）。終端の Step は確認を持たなくてよい。
+    let t = Tmp::new("confirm-final");
+    t.put("workshop.yaml", WORKSHOP.as_bytes());
+    t.put(
+        "chapters/c1/chapter.yaml",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n  - {id: a, title: A, final: true}\n",
+    );
+    assert!(compile_dir(&t.0).is_ok());
 }
 
 #[test]
