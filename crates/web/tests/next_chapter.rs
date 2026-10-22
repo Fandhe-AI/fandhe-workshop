@@ -5,6 +5,8 @@
 //! 2/2 では押下の結線（今の提示と完全一致したときだけ次の章の入口へ `Control::GoTo` で移る）と、CH-0 から CH-3 の通し、
 //! 記録（`ops`）からの復元を固定する。`Control::Begin` でないこと・開始点の `effects` を適用しないことは `next_chapter` のモジュールの doc に書いた限界である。
 //! 変種の作り方はブラウザ用の教材（`test_fixture::ch03_chapters_ir_bytes`）と同じで、2 か所を揃えて保つ。
+//! 範囲外の章へ進まないこと（SHELL-12・D-67。TASK-527）は末尾の節で固定する。CH-4 のノードを IR に残し、開始点だけを CH-0〜CH-3 の先頭 4 件にした絞った IR
+//! （`test_fixture::ch03_trial_ir_bytes` と同じ作り方で、2 か所を揃えて保つ）を使う。
 //! 試験では `unwrap` を使ってよい。失敗の文面には教材由来の値を出さない。
 
 use std::path::PathBuf;
@@ -19,9 +21,11 @@ use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{load_ir, Session};
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction};
+use fandhe_workshop_web::next_chapter::press_target;
 use fandhe_workshop_web::next_chapter::{next_chapter, ACTION_NEXT_CHAPTER, NEXT_CHAPTER_FIELD};
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::shell::{check_complete, NEXT_CHAPTER_TESTID};
+use fandhe_workshop_web::start_select::{select_start, StartRefusal};
 use serde_json::{json, Value};
 
 fn manifest(p: &str) -> PathBuf {
@@ -523,4 +527,123 @@ fn 出ている状態で履歴が表示だけになると_next_chapter_が_dirty
         "FEND-3: 消える項目を dirty で通知する"
     );
     assert_eq!(count_next(&h.view()), 0, "表示だけの間は出さない");
+}
+
+/// CH-3 を最後に使う IR。範囲外の章 CH-4 のノード（`main/st-4-1`）は残し、開始点は CH-4 を含めない。
+/// `with_ch4_start` が真なら CH-4 の開始点 `s-4-1` を足した対照にする。
+fn trial_json(with_ch4_start: bool) -> Value {
+    let mut starts = json!([
+        {"id": "s-0-1", "node": "main/st-0-1", "effects": []},
+        {"id": "s-1-1", "node": "main/st-1-1", "effects": []},
+        {"id": "s-2-1", "node": "main/st-2-1", "effects": []},
+        {"id": "s-3-1", "node": "main/st-3-1", "effects": []}
+    ]);
+    if with_ch4_start {
+        starts
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id": "s-4-1", "node": "main/st-4-1", "effects": []}));
+    }
+    let mut d = variant_json(starts);
+    let mut ch4 = d["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["uid"] == "main/st-3-2")
+        .unwrap()
+        .clone();
+    ch4["uid"] = json!("main/st-4-1");
+    ch4["unit"] = json!("ch-4");
+    ch4["step"]["id"] = json!("st-4-1");
+    ch4["step"]["title"] = json!("範囲外の章の最初の Step");
+    d["nodes"].as_array_mut().unwrap().push(ch4);
+    d
+}
+
+fn ready_ch3(d: &Value) -> EngineHost {
+    EngineHost::with_session(
+        Session::from_state(ir_of(d), at("main/st-3-2", StepStatus::Achieved)),
+        standard_registry(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn 範囲外の章のノードが_ir_にあっても開始点が無ければ_ch3_の後に出さず_他の章の導線は残る() {
+    let ir = ir_of(&trial_json(false));
+    assert!(
+        ir.nodes.iter().any(|n| n.uid == "main/st-4-1"),
+        "前提: CH-4 のノードが IR にある"
+    );
+    assert!(
+        !ir.starts.iter().any(|s| s.node == "main/st-4-1"),
+        "前提: CH-4 の開始点が無い"
+    );
+    let a = StepStatus::Achieved;
+    assert_eq!(
+        offer(&ir, "main/st-3-2", a),
+        None,
+        "D-67: 範囲外の章への導線は 0 件"
+    );
+    for (uid, next) in [
+        ("main/st-0-2c", "s-1-1"),
+        ("main/st-1-6", "s-2-1"),
+        ("main/st-2-8", "s-3-1"),
+    ] {
+        assert_eq!(offer(&ir, uid, a).map(|o| o.0).as_deref(), Some(next));
+    }
+}
+
+#[test]
+fn 対照_範囲外の章の開始点があれば_ch3_の後に出る() {
+    let ir = ir_of(&trial_json(true));
+    let o = offer(&ir, "main/st-3-2", StepStatus::Achieved).expect("対照では出る");
+    assert_eq!(o.0, "s-4-1");
+}
+
+#[test]
+fn 絞った_ir_では範囲外の章への押下を送っても状態も導線も変わらない() {
+    let d = trial_json(false);
+    let ir = ir_of(&d);
+    let st = at("main/st-3-2", StepStatus::Achieved);
+    for payload in ["s-4-1", "main/st-4-1", "s-3-1", ""] {
+        assert_eq!(press_target(&ir, &st, payload), None, "press_target");
+    }
+    let mut h = ready_ch3(&d);
+    let before = h.model().session().unwrap().state().clone();
+    for payload in ["s-4-1", "main/st-4-1"] {
+        h.update(act(ACTION_NEXT_CHAPTER, payload));
+        assert_eq!(
+            before,
+            *h.model().session().unwrap().state(),
+            "状態が変わらない"
+        );
+        assert_eq!(count_next(&h.view()), 0, "導線が 0 件のまま");
+    }
+    assert_eq!(cur(&h), ("main/st-3-2".to_owned(), StepStatus::Achieved));
+    // 対照: 開始点があれば同じ押下が通る。
+    let mut c = ready_ch3(&trial_json(true));
+    assert_eq!(count_next(&c.view()), 1);
+    c.update(act(ACTION_NEXT_CHAPTER, "s-4-1"));
+    assert_eq!(cur(&c).0, "main/st-4-1");
+}
+
+#[test]
+fn 絞った_ir_では範囲外の開始点の指定を_start_unknown_で断る() {
+    let trial = ir_of(&trial_json(false));
+    assert_eq!(
+        select_start(&trial, Some("s-4-1")).err(),
+        Some(StartRefusal::Unknown)
+    );
+    assert_eq!(
+        select_start(&trial, Some("s-3-1")).unwrap().id,
+        "s-3-1",
+        "範囲内は開く"
+    );
+    let full = ir_of(&trial_json(true));
+    assert_eq!(
+        select_start(&full, Some("s-4-1")).unwrap().id,
+        "s-4-1",
+        "対照"
+    );
 }

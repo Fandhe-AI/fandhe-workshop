@@ -21,6 +21,8 @@
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
 //! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
 //! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
+//! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
+//! 対照の `?fixture=ch0-4-full`（同じ IR に CH-4 の開始点を足したもの）は、範囲外の章へ進まないことの試験が使う（SHELL-12・D-67。TASK-527）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -79,6 +81,10 @@ pub(crate) enum MountFixture {
     Ch03Links,
     /// 20 Step の通しの教材の各章の最後を `final` にし、開始点を章の先頭 4 件にした教材（「次の章へ進む」の通しの試験。TASK-526 2/2）。
     Ch03Chapters,
+    /// CH-3 を最後に使う絞った IR。範囲外の章 CH-4 のノードを持つが、開始点には CH-4 を含めない（SHELL-12・D-67。TASK-527）。
+    Ch03Trial,
+    /// [`MountFixture::Ch03Trial`] に CH-4 の開始点を足した対照（範囲外の開始点があれば出ることを示す。TASK-527）。
+    Ch04Full,
     /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
@@ -241,6 +247,46 @@ pub(crate) fn ch03_chapters_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 範囲外の章（CH-4）の最初の Step の uid・開始点の ID・題。ブラウザ試験の期待値と揃える（`tools/browser/out-of-range-chapter.test.mjs`）。
+pub(crate) const OUT_OF_RANGE_NODE: &str = "main/st-4-1";
+pub(crate) const OUT_OF_RANGE_START_ID: &str = "s-4-1";
+pub(crate) const OUT_OF_RANGE_TITLE: &str = "範囲外の章の最初の Step";
+
+/// CH-3 を最後に使う IR を作る。`ch03_chapters_ir_bytes` と同じ書き換え（各章の最後を `final` にする）をしたうえで、
+/// 範囲外の章 `ch-4` のノードを 1 つ足す。開始点は CH-0〜CH-3 の先頭 4 件で、`with_out_of_range_start` が真のときだけ CH-4 の開始点を足す。
+/// CH-3 の最後（`main/st-3-2`）は `final` のままで、CH-4 への `next` は作らない（他の章への `next` は `compile` が `E-REF-STEP` にする形。TASK-67）。
+/// 試行の IR を `compile` で絞る指定は TASK-67 が持つので、本関数は試験の中で手で作る。
+pub(crate) fn ch03_trial_ir_bytes(with_out_of_range_start: bool) -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(&ch03_chapters_ir_bytes()?).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    let (id, title) = if with_out_of_range_start {
+        ("ch0-4-full", "範囲外の開始点を持つ対照の試験データ")
+    } else {
+        ("ch0-3-trial", "CH-3 を最後に使う絞った試験データ")
+    };
+    pack.insert("id".to_owned(), id.into());
+    pack.insert("title".to_owned(), title.into());
+    let nodes = obj.get_mut("nodes")?.as_array_mut()?;
+    let mut out_of_range = nodes
+        .iter()
+        .find(|n| n.get("uid").and_then(serde_json::Value::as_str) == Some("main/st-3-2"))?
+        .clone();
+    out_of_range["uid"] = OUT_OF_RANGE_NODE.into();
+    out_of_range["unit"] = "ch-4".into();
+    out_of_range["step"]["id"] = "st-4-1".into();
+    out_of_range["step"]["title"] = OUT_OF_RANGE_TITLE.into();
+    nodes.push(out_of_range);
+    if with_out_of_range_start {
+        obj.get_mut("starts")?
+            .as_array_mut()?
+            .push(serde_json::json!({
+                "id": OUT_OF_RANGE_START_ID, "node": OUT_OF_RANGE_NODE, "effects": []
+            }));
+    }
+    serde_json::to_vec(&value).ok()
+}
+
 /// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
 pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
     let kind = match fixture {
@@ -264,6 +310,8 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=ch0-3" => MountFixture::Ch03,
         "?fixture=ch0-3-links" => MountFixture::Ch03Links,
         "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
+        "?fixture=ch0-3-trial" => MountFixture::Ch03Trial,
+        "?fixture=ch0-4-full" => MountFixture::Ch04Full,
         "?fixture=multi-start" => MountFixture::MultiStart,
         "?fixture=chapter-a" => MountFixture::ChapterA,
         "?fixture=chapter-b" => MountFixture::ChapterB,
@@ -295,6 +343,8 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::Ch03 => CH03_IR.to_vec(),
         MountFixture::Ch03Links => ch03_links_ir_bytes()?,
         MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
+        MountFixture::Ch03Trial => ch03_trial_ir_bytes(false)?,
+        MountFixture::Ch04Full => ch03_trial_ir_bytes(true)?,
         MountFixture::MultiStart => multi_start_ir_bytes()?,
         MountFixture::ChapterA => chapter_ir_bytes(Chapter::A)?,
         MountFixture::ChapterB => chapter_ir_bytes(Chapter::B)?,
@@ -949,6 +999,35 @@ mod tests {
         assert!(finals.contains(&"main/st-2-8"));
         assert_eq!(ir.starts.len(), 4);
         assert!(mount_session(MountFixture::Ch03Chapters).is_some());
+    }
+
+    #[test]
+    fn 絞った教材は範囲外の章のノードを持ち開始点には含めない() {
+        for (q, f) in [
+            ("?fixture=ch0-3-trial", MountFixture::Ch03Trial),
+            ("?fixture=ch0-4-full", MountFixture::Ch04Full),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), f);
+            assert_eq!(
+                mount_fixture_from_search(&format!("{q}&x=1")),
+                MountFixture::Default
+            );
+            assert!(mount_session(f).is_some());
+        }
+        let trial = load_ir(&ch03_trial_ir_bytes(false).unwrap()).unwrap();
+        let full = load_ir(&ch03_trial_ir_bytes(true).unwrap()).unwrap();
+        for ir in [&trial, &full] {
+            assert!(ir
+                .nodes
+                .iter()
+                .any(|n| n.uid == OUT_OF_RANGE_NODE && n.unit == "ch-4"));
+        }
+        assert_eq!(trial.starts.len(), 4);
+        assert!(!trial.starts.iter().any(|s| s.node == OUT_OF_RANGE_NODE));
+        assert_eq!(full.starts.len(), 5);
+        assert!(full.starts.iter().any(|s| s.id == OUT_OF_RANGE_START_ID));
+        assert_ne!(trial.pack.id, full.pack.id);
+        assert_ne!(trial.pack.id, "ch0-3-chapters");
     }
 
     #[test]
