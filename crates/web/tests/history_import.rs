@@ -186,7 +186,12 @@ fn assert_untouched(h: &mut EngineHost, bytes: &[u8], reason: LoadReason) {
     assert_eq!(state_of(h), state, "state is unchanged");
     assert_eq!(h.model().projection(), &projection);
     assert_eq!(h.model().world(), &world);
-    assert!(h.dirty_fields().is_empty(), "nothing becomes dirty");
+    // 開かない理由は通知欄にだけ出る（TASK-176 2/2）。状態・導出した値の field は積まない。
+    assert_eq!(
+        h.dirty_fields(),
+        vec!["shell_notices"],
+        "only the notice is dirty"
+    );
 }
 
 #[test]
