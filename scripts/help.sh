@@ -38,6 +38,8 @@ cat <<'EOF'
   test-check-fork-ci           scripts/test-check-fork-ci.sh           fork CI 検査自体の回帰テスト
   build-web                    tools/build-web.sh                      web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
   test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
+  build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web）
+  test-build-l2                scripts/test-build-l2.sh                build-l2 の回帰テスト（合成の配信物。ビルドなし）
   check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する
   test-check-delivery          scripts/test-check-delivery.sh          配信検査自体の回帰テスト（実ビルドを行うため遅い）
   serve                        node tools/serve.mjs                    dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）

@@ -383,6 +383,10 @@ jobs:
           CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
         run: make test-build-web
 
+      # L2 の配布物の作成スクリプトの回帰テスト（TASK-112 1/2）。合成の配信物だけを使いビルドは要らない。
+      - name: make test-build-l2 (TASK-112)
+        run: make test-build-l2
+
       # 版上げ PR の受け入れ確認 (2)（FEND-17・D-63・TASK-101）のブラウザ試験の件数。rust-test の同名 step と同じ規則。
       - name: Check browser test counts (version bump gate)
         env:
