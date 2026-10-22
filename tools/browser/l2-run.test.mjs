@@ -25,7 +25,7 @@
 // 出力に入力した値は載せない（件数・所要時間・合否だけ。非 loopback のアドレスも件数で出す）。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -35,13 +35,15 @@ import {
 } from './harness.mjs';
 import { ledger } from './ch0-3-journey.mjs';
 import { runL2Journey, stepOrder, L2_STOP } from './l2-journey.mjs';
+import { SIM_PATH, startL2 as startL2In, stopL2 } from './l2-server.mjs';
 
-const SIM_PATH = '/usr/bin:/bin';
 const TOOLS = ['cargo', 'rustc', 'rustup', 'node'];
 const RUNS = 3;
 let browser;
 let zip;
 let order;
+// zip は before で確定するため、共有の起動の手順へ渡す薄い包みにする。
+const startL2 = (work, opts) => startL2In(zip, work, opts);
 const startTimes = [];
 const mountTimes = [];
 
@@ -56,31 +58,6 @@ export function visibleTools(pathValue, tools = TOOLS) {
     if (r.status === 0 && r.stdout.trim() !== '') found.push(r.stdout.trim());
   }
   return found;
-}
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const s = net.createServer();
-    s.once('error', reject);
-    s.listen(0, '127.0.0.1', () => {
-      const { port } = s.address();
-      s.close(() => resolve(port));
-    });
-  });
-}
-
-async function waitOk(url, ms = 20000, interval = 100) {
-  const end = Date.now() + ms;
-  for (;;) {
-    try {
-      const r = await fetch(url);
-      if (r.status === 200) return;
-    } catch {
-      // まだ待ち受けていない。
-    }
-    if (Date.now() > end) throw new Error('server did not become ready');
-    await new Promise((r) => setTimeout(r, interval));
-  }
 }
 
 /** /proc/net/tcp の 16 進の 1 アドレス（IPv4 は 8 桁、IPv6 は 32 桁。4 バイトずつ little-endian）を文字列にする。 */
@@ -158,51 +135,6 @@ export function connectOutcome(host, port, ms = 3000) {
 export function median(xs) {
   const a = [...xs].sort((x, y) => x - y);
   return a[Math.floor(a.length / 2)];
-}
-
-/** 展開して start.sh を模擬環境で起動する。`mutate` があれば start.sh の本文を書き換える（対照用。展開先の写しだけ）。 */
-async function startL2(work, { mutate } = {}) {
-  const un = spawnSync('/usr/bin/unzip', ['-q', zip, '-d', work], { env: { PATH: SIM_PATH }, encoding: 'utf8' });
-  assert.equal(un.status, 0, 'unzip failed');
-  const top = path.join(work, 'fandhe-workshop-l2');
-  if (mutate) {
-    const f = path.join(top, 'start.sh');
-    fs.writeFileSync(f, mutate(fs.readFileSync(f, 'utf8')));
-  }
-  const port = await freePort();
-  const t0 = process.hrtime.bigint();
-  const child = spawn('./start.sh', [], {
-    cwd: top,
-    env: { PATH: SIM_PATH, HOME: work, PORT: String(port), FANDHE_NO_OPEN: '1' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  });
-  const run = { child, port, url: `http://127.0.0.1:${port}/`, out: '', startMs: 0 };
-  child.stdout.on('data', (d) => { run.out += d; });
-  child.stderr.on('data', (d) => { run.out += d; });
-  try {
-    await waitOk(run.url, 20000, 10);
-  } catch (e) {
-    // 呼び出し側は run を受け取れないため、ここで子の群を止めてから投げ直す。
-    await stopL2(run);
-    throw e;
-  }
-  run.startMs = Number(process.hrtime.bigint() - t0) / 1e6;
-  return run;
-}
-
-async function stopL2(run) {
-  if (!run?.child?.pid) return;
-  const { child } = run;
-  try {
-    process.kill(-child.pid, 'SIGTERM');
-  } catch {
-    // すでに終了している。
-  }
-  await new Promise((r) => {
-    if (child.exitCode !== null || child.signalCode !== null) r();
-    else child.once('exit', r);
-  });
 }
 
 /** 非 loopback の IPv4（と Linux では 127.0.0.2）への接続の結果。宛先の値は返さず、件数と結果だけにする。 */

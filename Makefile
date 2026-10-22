@@ -102,7 +102,7 @@ build-l2: ## L2 の配布物（zip）を作る。L2_SERVER に miniserve の実�
 test-build-l2: ## build-l2 の回帰テスト（合成の配信物。ビルド・通信なし）。直接: scripts/test-build-l2.sh
 	@scripts/test-build-l2.sh
 
-test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間を確かめる（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
+test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間・L1 と L2 の 3 配信先 × 3 回の 9 回で観察・snapshot・history が一致すること（DLV-15）を確かめる（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
 	@scripts/test-l2-run.sh
 
 check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh
