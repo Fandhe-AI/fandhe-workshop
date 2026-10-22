@@ -1,0 +1,8 @@
+id: SHELL12-1
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/next_chapter.rs
+find: .find(|s| s.node == first.uid)?;
+replace: .find(|s| s.node == first.uid).or_else(|| ir.starts.first())?;
+expect-fail: 範囲外の章のノードが_ir_にあっても開始点が無ければ_ch3_の後に出さず_他の章の導線は残る
+note: 範囲外の章の開始点が無くても別の入口を出す（SHELL-12・D-67・TASK-527）

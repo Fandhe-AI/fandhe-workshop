@@ -7025,7 +7025,7 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 既存の固定の更新: `no_hidden_triggers.rs` の `PAYLOAD_ALLOWED` に `next_chapter.rs`、`dirty_binding_points.rs` の除外と `history_import.rs` の期待に `next_chapter` を足した
 - 実行結果（2026-10-22）: `cargo test --workspace` と `make lint` は通った。`make test-browser` は未実行（CI の `browser-test` に任せる。ブラウザ試験は 5.227 で追加）
 - 限界（2/2 で結線し、5.227 に移した）: 1/2 では action を結線しないので、押しても状態・ログ・保存先は変わらない（`next-chapter` は `decode_action` に無く、未知の action として捨てられる）。押下の試験は状態が変わらないことだけを固定し、host に履歴の `ops` の読み口が無いため `ops` は照合していない。置き場（右のエリアの末尾）は仮置きである
-- 範囲外: （押下の結線・ブラウザ用の fixture・自動ブラウザ試験は 5.227 で済んだ）試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章を出さないことの画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）
+- 範囲外: （押下の結線・ブラウザ用の fixture・自動ブラウザ試験は 5.227 で済んだ）試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章を出さないことの画面での確認（5.228 で済んだ。TASK-527）、最終の配置（TASK-534・TASK-548）
 
 ### 5.225 Step ごとの上流の行（対応表の欄）を語彙に持たない代用の記録（TASK-72。PACK-46・D-70）
 
@@ -7085,4 +7085,27 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 変異: `SHELL10-4`（payload を今の提示と照らさない）を `crates/web/tests/mutations/` に足した。手で当てて「不一致の押下は状態を変えない」試験が失敗することを確かめた（2026-10-22）。`make check-mutations` の全件は未実行
 - 実行結果（2026-10-22）: `cargo test -p fandhe-workshop-web` の該当試験・`test_fixture` の単体試験は通った。ブラウザは `next-chapter` 6 件と上の共有する 4 ファイル（18 件）が `SKIP_WASM_OPT=1` の試験の設定のビルドで通った。全件の `make test-browser` は CI の `browser-test` に任せる
 - 限界: core に `Control::Begin`（TASK-217）が無いので `Control::GoTo` で移る。開始点の `effects` は適用せず、章をまたぐ継続では前の章の世界状態を引き継ぐ（試験用の教材の開始点は `effects` が空）。周回の開始ではない。章の完了は引き続き状態から導き、`ChapterCompleted` 等のイベントでは表さない
-- 範囲外: `Begin` への置き換えと開始点の `effects` の適用（TASK-217）、2 周目の開始（TASK-254）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章の画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）
+- 範囲外: `Begin` への置き換えと開始点の `effects` の適用（TASK-217）、2 周目の開始（TASK-254）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章の画面での確認（5.228 で済んだ。TASK-527）、最終の配置（TASK-534・TASK-548）
+
+### 5.228 範囲外の章へ進まないことの観察（TASK-527。SHELL-12・D-67）
+
+決定 D-67（2026-10-21）は、試行や体験で一部の章だけを使うとき「IR を絞る」案を採った。配る IR の `starts` に範囲外の開始点を含めなければ、範囲外の章の最初の Step へ入る操作は画面に出ない（`next_chapter` は開始点が無いと `None`、`start_select` は `starts` に無い ID を `start_unknown` で断る）。本件は製品のコードを変えず、この性質を CH-3 を最後に使う設定で固定する。
+
+試験の設定に 2 つの教材を足した（`crates/web/src/test_fixture.rs` の `ch03_trial_ir_bytes`）。`?fixture=ch0-3-trial` は範囲外の章 CH-4 のノード `main/st-4-1` を IR に残し、開始点を CH-0〜CH-3 の先頭 4 件だけにした IR（`pack.id` は `ch0-3-trial`）。対照の `?fixture=ch0-4-full` は CH-4 の開始点 `s-4-1` を足したもの（`ch0-4-full`）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/next_chapter.rs` の 4 件（範囲外の章のノードが_ir_にあっても…、対照_範囲外の章の開始点があれば…、絞った_ir_では範囲外の章への押下を…、絞った_ir_では範囲外の開始点の指定を…） | 絞った IR では CH-3 の後の提示が `None`・CH-0〜CH-2 の導線は残る。対照では `s-4-1` が出る。範囲外の ID・節点の uid を payload で送っても状態も導線も変わらない。`select_start` が `Unknown` で断る |
+| `crates/web/src/test_fixture.rs` の単体試験 | 2 教材が読め、クエリは完全一致だけで選ばれ、絞った IR は CH-4 のノードを持つが開始点には含まれない |
+| `tools/browser/out-of-range-chapter.test.mjs`（CSP あり・なしで 6 件） | 絞った IR で CH-0 から CH-3 の最後まで通し、完了直後・少し後・再読み込みの後に、次の章へ進む・範囲外の ID の要素・「移動」ボタン・範囲外の章の題が 0 件。`?start=s-4-1` は `start_unknown` で断り、値は DOM・コンソールに出ず保存先が変わらない。対照では CH-3 の後にちょうど 1 個出て押すと `main/st-4-1` に入り、`?start=s-4-1` もその節点で開く。安全の計数・外部通信・警告と無視は 0 件 |
+
+変異: `SHELL12-1`（開始点が無いとき別の開始点で代える）を `crates/web/tests/mutations/` に足した。2026-10-22 に `scripts/check-mutations.sh` で DETECTED（失敗した試験は上の native の 4 件のうち 2 件と、既存の 2 件）。
+
+実行結果（2026-10-22）: native は既定の feature と `--features test-hooks` の両方で `next_chapter` 17 件が通った。ブラウザは `SKIP_WASM_OPT=1` の試験の設定のビルドで `out-of-range-chapter` 6 件と、共有する `next-chapter`・`direct-link-start` が通った。全件の `make test-browser` は CI の `browser-test` に任せる（ローカルでは未実行）。
+
+限界:
+
+- 絞った IR は試験の中で手で作ったもので、`compile` で絞る指定は TASK-67（PACK-43）にある。他の章への `next` を残した IR は実行時には拒否されず、`compile` の `E-REF-STEP` に任せる
+- 開始点の `effects` は適用しない（5.227 と同じ）。INTRO-36 の「CH-3 の完了を伝える文」は教材 repo の側にある
+
+範囲外: TASK-67、spec の SHELL-12 の「証拠の種類」の書き戻し、INTRO-36 の台本・文、`Control::Begin`（TASK-217）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
