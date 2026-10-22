@@ -3,6 +3,8 @@
 # （`make test-l2-run` と CI の browser-test ジョブから呼ばれる。TASK-112 2/2。D-58・D-71・DLV-13）。
 # あわせて、待ち受けが 127.0.0.1 だけで他のアドレスからの接続が拒否されること、起動とマウントの時間の記録を試験が行う
 # （TASK-113。DLV-14。待ち受けの一覧は Linux では /proc/net/tcp*、macOS では /usr/sbin/lsof で読む）。
+# 続けて、L1（手元のサブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で、操作ごとの観察・snapshot.json・history.json が
+# バイト単位で一致することを確かめる（TASK-114 1/2。DLV-15。tools/browser/l1-l2-match.test.mjs）。
 #
 # 流れ: 配信する設定の web（release・同梱の IR あり）をビルド → tools/build-l2.mjs で zip を作る →
 # tools/browser/l2-run.test.mjs が mkdtemp の下へ展開し、PATH=/usr/bin:/bin だけで ./start.sh を起動して 3 回通す。
@@ -15,7 +17,7 @@
 # 呼ぶ）は WASM のバイト列に debug_ が無いことを求めるが、wasm-opt を使わない CI のビルドには名前（debug_struct 等）が残る。
 # CARGO_PROFILE_RELEASE_STRIP は本スクリプトのビルドだけに効かせ、共有の target のキャッシュを壊さない。
 #
-# 終了コード: 0 = 3/3 通過 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
+# 終了コード: 0 = 3/3 通過と 9 回の一致 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -64,3 +66,8 @@ L2_SITE="${TMP}/site" L2_OUT="${TMP}/out" L2_PLATFORM="${PLATFORM}" node "${ROOT
 log "running the mock-environment run"
 FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" \
   node --test "${ROOT_DIR}/tools/browser/l2-run.test.mjs"
+
+# 一致の試験には、zip の元にした配信する木（${TMP}/site）も渡す。差が配信の差であることを、展開した木との SHA-256 の照合で先に確かめるため。
+log "running the L1 and L2 match run (3 targets x 3 runs)"
+FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" FANDHE_L2_SITE="${TMP}/site" \
+  node --test "${ROOT_DIR}/tools/browser/l1-l2-match.test.mjs"

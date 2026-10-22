@@ -280,7 +280,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準（compile した IR が配信する設定に入ることを含む）を実ビルドで検査する |
 | `make build-l2` | `tools/build-l2.mjs` | L2 の配布物（`fandhe-workshop-l2/{start.sh, miniserve, site/}` の zip）を `dist/l2` に作る。`L2_SERVER` に miniserve 0.35.0 の実行ファイルが要り、`tools/l2/miniserve.sha256` の固定値と照合する。`L2_SITE`（既定 `dist/web`）・`L2_OUT`・`L2_PLATFORM`（`macos-arm64` 既定・`linux-x64`） |
 | `make test-build-l2` | `scripts/test-build-l2.sh` | `build-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
-| `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）も確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241） |
+| `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）、L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致することも確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241・5.242） |
 | `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。CI には未組み込み |
 | `make test-check-delivery` | `scripts/test-check-delivery.sh` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
