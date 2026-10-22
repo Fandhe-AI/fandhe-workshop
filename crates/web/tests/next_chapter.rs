@@ -24,7 +24,7 @@ use fandhe_workshop_web::host::{EngineHost, HostAction};
 use fandhe_workshop_web::next_chapter::press_target;
 use fandhe_workshop_web::next_chapter::{next_chapter, ACTION_NEXT_CHAPTER, NEXT_CHAPTER_FIELD};
 use fandhe_workshop_web::parts::Component;
-use fandhe_workshop_web::shell::{check_complete, NEXT_CHAPTER_TESTID};
+use fandhe_workshop_web::shell::{check_complete_v2, NEXT_CHAPTER_TESTID};
 use fandhe_workshop_web::start_select::{select_start, StartRefusal};
 use serde_json::{json, Value};
 
@@ -203,7 +203,7 @@ fn ホストは_ch0_の最後の達成でちょうど_1_個出し_途中では�
             h.update(HostAction::Engine(Op::Tick(addr)));
         }
         let v = h.view();
-        assert!(check_complete(&v).is_ok(), "手 {i}: 枠の適合");
+        assert!(check_complete_v2(&v).is_ok(), "手 {i}: 枠の適合");
         assert!(
             fandhe_workshop_web::a11y::check_no_undefined(&v).is_ok(),
             "手 {i}"
@@ -268,7 +268,7 @@ fn 一致した押下は次の章の最初の_step_へ移り提示が消える()
     assert!(h.dirty_fields().contains(&NEXT_CHAPTER_FIELD.name));
     let v = h.view();
     assert_eq!(count_next(&v), 0);
-    assert!(check_complete(&v).is_ok());
+    assert!(check_complete_v2(&v).is_ok());
     assert!(fandhe_workshop_web::a11y::check_no_undefined(&v).is_ok());
     assert_no_goto(&v);
 }

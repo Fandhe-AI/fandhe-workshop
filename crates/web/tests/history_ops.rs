@@ -124,7 +124,7 @@ fn loadable() -> String {
 #[test]
 fn 完成した画面は契約を通り操作が1つずつある() {
     let v = host().view();
-    shell::check_complete(&v).unwrap();
+    shell::check_complete_v2(&v).unwrap();
     a11y::check_no_undefined(&v).unwrap();
     assert_eq!(all(&v, "shell-export").len(), 1);
     assert_eq!(all(&v, "shell-import").len(), 1);
@@ -156,7 +156,7 @@ fn 書き出しを押すとリンクが1件出てもう一度押すと作り直�
         attr(links[0], "download"),
         Some(file_name(&ir().pack.id).as_str())
     );
-    shell::check_complete(&v).unwrap();
+    shell::check_complete_v2(&v).unwrap();
     a11y::check_no_undefined(&v).unwrap();
     act(&mut h, "export-history", "");
     assert_eq!(p.made.get(), 2);

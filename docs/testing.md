@@ -7318,3 +7318,24 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 代わりの手段（直接リンク）の証拠は 5.199・5.204 を引くだけで、本件では試さない
 
 範囲外: spec の SHELL-11 の「証拠の種類」の書き戻し、開始点を選ぶ操作（SHELL-34）・講師の追いつき（SHELL-33。どちらも TASK-515）、`Control::Begin`（TASK-217）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
+
+### 5.240 「模擬」の常時表示（TASK-523。SHELL-6・D-72）
+
+- 目的: 画面の枠の上部（`shell-top`）に「模擬」（`shell-mock`）を常に置き、どの Step・幅・通知の有無でも消えず、アクセシビリティツリーにも出ることを確かめる。`SHELL_CONTRACT_VERSION` は 2 のまま変えない（契約の追加ではなく、画面への結線）。
+- 期待と定義の対応:
+
+| 要件 | 決定 | 実装・試験 |
+|---|---|---|
+| SHELL-6 | D-72 | `shell_frame::top_bar`（定数 `MOCK_LABEL` を `text()` で描く）を `host::EngineHost::view` の root の先頭に置く。`check_complete_v2` が必須にする |
+
+- 置き方: `role`・`aria-label` は付けない（a11y 契約の閉じた一覧を増やさない）。tabpanel の外・root の先頭の子なので 960px 未満のタブの切り替えで隠れない。静的なノードで要素の同一性（FEND-3）を変えない。TASK-524 は `top_bar` の `rest` に教材名・位置を渡して足す。
+- 試験:
+  - native（`crates/web/tests/shell_frame_host.rs`）: 画面の照合を `check_complete_v2` へ移し、`mock_label_is_always_shown`・`mock_label_stays_for_every_selected_pane` を追加。`ch0_3_run_host`（20 Step の各手の後）・`next_chapter`・`refused_history`・`history_ops`・`version_notice` も `check_complete_v2` で照合する。
+  - ブラウザ（`tools/browser/shell-mock.test.mjs`）: 20 Step の通しと章の移動（CSP あり・なし）、幅 360px・959px・1280px のタブの切り替え、通知の表示中・閉じた後、再読み込みの後、配信する設定。判定は個数 1・文字・可視・tabpanel の外・`shell-top` の中・アクセシビリティツリー（`ariaSnapshot`）。対照として `display: none` を付けると可視とアクセシビリティツリーの判定が不合格になる。
+- 変異注入（2026-10-22）: SHELL6-2（識別子が外れる）・SHELL6-3（root の子から外れる）を追加。SHELL6-1・SHELL6-2・SHELL6-3・SHELL1-1・SHELL1-2 が DETECTED。他の変異は未実行。
+- 限界:
+  - spec の検証方法は「CH-0〜CH-3 の全 22 Step」だが、試験用の教材 `ch0_3` は 20 Step（本物の CH-0〜CH-3 は TASK-642）。20 Step で確かめた。
+  - 「模擬」は教材に依存しない静的なノードで構造上すべての画面に出るが、ブラウザでの証拠は CH-0〜CH-3 の形の教材だけである。
+  - 教材を読めない画面（`ir-notice` だけの画面）には置かない。教材も枠も描かない画面で、`ir-refusal` の試験がこの構造を固定している。
+  - `.sh-mock` は `display: inline-block` を持つため、`hidden` 属性では隠れない（対照は `display: none` で行う）。
+- 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make test-browser`（899 件）が通った。
