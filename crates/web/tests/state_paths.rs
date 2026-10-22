@@ -390,6 +390,14 @@ const INIT_ALLOWED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "Runtime::mount(",
     ),
+    // 書き出しの URL を作る口（TASK-531 1/2）。口は `blob:` の URL を作って返すだけで、Runtime・App に触れない。
+    (
+        "glue",
+        "mount_host(",
+        "set_export_url_maker",
+        1,
+        "Runtime::mount(",
+    ),
 ];
 
 /// `host.rs` から `fn <name>(&mut self` / `fn <name><..>(&mut self` の名前を求める（可視性は問わない）。
@@ -641,6 +649,7 @@ fn mount_host(root_id: &str, mut host: EngineHost) -> R {
     host.set_pane_focus_request(c3);
     host.set_save_request(d);
     host.set_save_cancel(e);
+    host.set_export_url_maker(g);
     let runtime = Runtime::mount(root_id, host)?;
     Ok(())
 }
@@ -651,7 +660,7 @@ fn debug_view_fixture_dispatch(n: &str) -> String { VIEW_FIXTURE.with(|c| { rt.d
 fn debug_view_fixture_state() -> String { let f = rt.component(); s }
 "#;
 const L_LEAVE: &str = "fn flush() { // c.update(a)\n let x = 1; }";
-const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_draft_select_request(&mut self, f: F) {} fn set_pane_focus_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} }";
+const L_HOST: &str = "impl EngineHost { pub fn boot(&mut self, s: Option<&[u8]>) {} pub(crate) fn block_saving(&mut self) {} pub fn open_history(&mut self, b: &[u8]) {} fn set_history_saver(&mut self, f: F) {} fn set_saved_reader(&mut self, f: F) {} fn set_saved_refresh(&mut self, f: F) {} fn set_save_failure_probe(&mut self, f: F) {} fn set_stale_probe(&mut self, f: F) {} fn set_tick_request(&mut self, f: F) {} fn set_tick_reset(&mut self, f: F) {} fn set_draft_sync_request(&mut self, f: F) {} fn set_draft_select_request(&mut self, f: F) {} fn set_pane_focus_request(&mut self, f: F) {} fn set_save_request(&mut self, f: F) {} fn set_save_cancel(&mut self, f: F) {} fn set_export_url_maker(&mut self, f: F) {} fn set_learner_os(&mut self, os: O) {} }";
 
 fn layer(persist: &str, glue: &str, hooks: &str, leave: &str) -> Vec<(String, String)> {
     [

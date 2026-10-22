@@ -164,6 +164,13 @@ const NON_DOM_CALLS: &[&str] = &[
     "is_empty",
     // 上限を超える貼り付けの計画（純粋関数。TASK-283）。DOM には触れない。
     "clip_paste",
+    // 履歴の書き出し・読み込みの結線（TASK-531 1/2）。URL を作る口の結線（`blob:` の作成と破棄。DOM に書かない）と、
+    // 読み込みの本文の配送（`app.js` が読んだ文字列を届けるだけ。Rust は DOM の値を読まない）。
+    "set_export_url_maker",
+    "object_url",
+    "as_str",
+    "Shell",
+    "Import",
 ];
 
 /// 構造を変える操作。許される操作の一覧に無く、glue に 1 件も書かない。

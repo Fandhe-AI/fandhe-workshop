@@ -753,6 +753,15 @@ pub(crate) fn mount_host(root_id: &str, mut host: EngineHost) -> Result<(), JsVa
         host.set_pane_focus_request(Box::new(on_pane_focus_request));
         host.set_save_request(Box::new(on_save_request));
         host.set_save_cancel(Box::new(on_save_cancel));
+        // 書き出しの URL は `blob:`（履歴の中身を URL に載せない。SAVE-16）。drop で破棄する。作れなければリンクを出さない。
+        host.set_export_url_maker(Box::new(|bytes| {
+            crate::history_download::object_url(bytes)
+                .ok()
+                .map(|u| crate::host::ExportLink {
+                    url: u.as_str().to_owned(),
+                    guard: Box::new(u),
+                })
+        }));
         let runtime = Runtime::mount(root_id, host)?;
         let root = runtime.root();
         DRAFT_ROOT.with(|r| {
@@ -783,6 +792,27 @@ pub(crate) fn history_to_save() -> Option<String> {
 /// （`secret_hold`）に倒す（fail-closed）。
 pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::SecretShape> {
     with_app(|h| h.secret_gate(text)).unwrap_or_else(|| crate::secret_notice::secret_hold(text))
+}
+
+/// 選んだ履歴ファイルの本文をホストへ届ける（`static/app.js` が読んで呼ぶ。TASK-531 1/2。SHELL-15）。
+///
+/// 本文は未検査の文字列で、大きさ・JSON・版の断りは `open_history` の段 1〜8 が行う。Rust は DOM の値を読まない（BUILD-6）。
+/// 配送は他の action と同じく `schedule_action` の `set_timeout(0)` に回す。未マウントなら何もしない。本文は出力しない。
+#[wasm_bindgen]
+pub fn import_history(text: String) {
+    schedule_action(Scheduled::Shell(crate::shell::ShellAction::Import(text)), 0);
+}
+
+/// 読み込みで読むバイト数の上限（`MAX_HISTORY_BYTES + 1`）。`app.js` が `file.slice(0, 上限)` で読み、巨大なファイルを
+/// 全部は読まない。上限を 1 超える長さを渡すので、大きさの断りは Rust 側の段 1 が出す。定数を JS に二重に持たない。
+#[wasm_bindgen]
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "10 MiB + 1 は f64 で正確に表せる"
+)]
+pub fn history_read_limit() -> f64 {
+    (fandhe_workshop_contract::limits::MAX_HISTORY_BYTES + 1) as f64
 }
 
 /// `root_id` の要素にホストをマウントする Promise を返す。2 回目以降は拒否する。

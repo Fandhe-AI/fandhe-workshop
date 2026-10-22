@@ -1,6 +1,6 @@
 // ページの入口。wasm を読み込んで Hello をマウントし、結果を html の data-mounted に残す。
 // ブラウザ試験はこの属性を待つ。試験用の meta がある設定でだけ test-hooks.js を読む。
-import init, { mount_app } from "./wasm/fandhe_workshop_web.js";
+import init, { mount_app, import_history, history_read_limit } from "./wasm/fandhe_workshop_web.js";
 
 const root = document.documentElement;
 
@@ -16,6 +16,31 @@ try {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;
   }
+  // 履歴の読み込み: 枠の shell-import の中の input[type=file] で選んだファイルを読み、本文を Rust へ渡す（SHELL-15）。
+  // 読むのは上限 + 1 バイトまで（大きさの断りは Rust 側）。同じファイルを選び直せるよう値は戻す。失敗は握り、本文は出力しない。
+  document.addEventListener("change", async (ev) => {
+    const input = ev.target;
+    if (!(input instanceof HTMLInputElement) || input.type !== "file") return;
+    if (!input.closest('[data-testid="shell-import"]')) return;
+    const file = input.files && input.files[0];
+    input.value = "";
+    if (!file) return;
+    try {
+      import_history(await file.slice(0, history_read_limit()).text());
+    } catch (_) {
+      // 読めなかったファイルは何も起こさない（状態を変えない側）。
+    }
+  });
+  // 書き出しのリンク: 上流の属性の検査は blob: の href を落とすため、URL は data-export-url に載る。自分のオリジンの blob: だけを href へ写す
+  // （setAttribute は使わない）。リンクは履歴が変わるたびに作り直され、写し損ねたものだけを探す。
+  const blobPrefix = `blob:${window.origin}/`;
+  const wireExportLink = () => {
+    for (const a of document.querySelectorAll('[data-testid="export-download"]:not([href])')) {
+      const url = a.getAttribute("data-export-url") ?? "";
+      if (url.startsWith(blobPrefix)) a.href = url;
+    }
+  };
+  new MutationObserver(wireExportLink).observe(document.body, { childList: true, subtree: true });
   root.dataset.mounted = "true";
 } catch (e) {
   console.error(e);

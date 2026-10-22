@@ -1,6 +1,6 @@
 //! 履歴の書き出しファイルの名前と種類（TASK-330 1/2、SAVE-16）。
 //!
-//! 呼び出し元は、ダウンロードの URL を作る `history_download`（wasm のみ）と、後続の画面（TASK-531）である。
+//! 呼び出し元は、ダウンロードの URL を作る `history_download`（wasm のみ）と、枠の書き出しの操作を描く `history_ops`（TASK-531 1/2）である。
 //! バイト列そのものは core の `history_export::export_bytes` が作る。ここは DOM にも通信にも触れない純関数だけを置き、
 //! native の試験で確かめる。
 //!
@@ -50,5 +50,39 @@ pub fn file_name(pack_id: &str) -> String {
         format!("{PREFIX}.json")
     } else {
         format!("{PREFIX}-{cleaned}.json")
+    }
+}
+
+/// 書き出しのリンクの文字。受講者がこのリンクを押してファイルを保存する（書き出しは 2 段。TASK-531 1/2）。
+pub const LINK_LABEL: &str = "履歴のファイルを保存する";
+
+/// 秘密情報の警告の間に書き出しを押したときの固定の文（仮置き。最終の文面は TASK-534・TASK-537 などが持つ）。
+/// 受講者の値・形の名前は含めない（SAFE-27）。
+pub const HELD_STATUS: &str = "確認が済むまで書き出せません。";
+
+/// 書き出す履歴が無いときに書き出しを押したときの固定の文（仮置き）。
+pub const EMPTY_STATUS: &str = "書き出す履歴がまだありません。";
+
+/// 書き出しを押した結果が履歴のファイルを出せない理由のときの文を返す。`Ready` には文が無く `None`。
+#[must_use]
+pub fn status_text(gate: &ExportGate) -> Option<&'static str> {
+    match gate {
+        ExportGate::Ready(_) => None,
+        ExportGate::Held(_) => Some(HELD_STATUS),
+        ExportGate::Empty => Some(EMPTY_STATUS),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn 文は種類ごとに違い空でない() {
+        let held = status_text(&ExportGate::Held(Vec::new())).unwrap();
+        let empty = status_text(&ExportGate::Empty).unwrap();
+        assert!(!held.is_empty() && !empty.is_empty());
+        assert_ne!(held, empty);
+        assert!(status_text(&ExportGate::Ready(Vec::new())).is_none());
     }
 }

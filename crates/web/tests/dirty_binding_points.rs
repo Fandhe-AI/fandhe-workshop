@@ -297,6 +297,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "shell_notices",
     // 「次の章へ進む」は、章の最後が final の教材で最後の Step を達成したときに立つ。`next_chapter.rs` が dirty を確かめる（TASK-526 1/2）。
     "next_chapter",
+    // 書き出しの結果は、書き出しの操作（`export-history`）の後に立つ。`history_ops.rs` が dirty を確かめる（TASK-531 1/2）。
+    "export_result",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",

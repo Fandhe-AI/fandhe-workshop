@@ -5020,7 +5020,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 531`（2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 552`（2026-10-22 に TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -7169,3 +7169,27 @@ TASK-176（5.220）は操作が状態・ログを変えないことを固定し�
 - 自己確認: `export_live` が控えを返さず作り直す写しで 5 件が「書き出しの門が ready でない」で失敗した（2026-10-22）。`history_to_save` の表示だけの判定を外した写しは失敗しなかった。表示だけの間は履歴の記録が無く `envelope_for_save` が `None` になるため、その判定は二重の防御であり、保存先の不変は結果（書き込み 0 件・値の一致）で見ている
 - 限界: Chromium だけ。IndexedDB への切り替え後の `pagehide` の書き込みは確定を保証しない（SAVE-9）。CSP なしは localStorage の場面だけ。書き出しの名前の教材 ID は空で、名前の検査は `history-export` が持つ
 - 範囲外: 表示だけの動作の実装と状態・ログの不変（5.220）、見せ方（REVIEW-4/5・SHELL-20）。`scripts/expected-test-counts.txt` は更新しない
+
+### 5.232 履歴の書き出しと読み込みの操作を枠に置く（TASK-531 1/2。SHELL-15）
+
+TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識別子と宛先の形を入れたが、受講者が押せる操作は画面に無かった（読み込みは試験の設定の `test-hooks.js` からだけ届いた）。本件は枠に操作を置き、`EngineHost::export_live`・`open_history` に結線する。同じ状態の詳しい照合と書き出しのバイト単位の一致は 2/2（#724）が持つ。
+
+設計（仮置きの点は `docs/known-gaps.md`）:
+
+- 書き出しは 2 段。「履歴を書き出す」（`shell-export`）でホストが `export_live` を通し、`Ready` のときだけリンク（`export-download`）を出す。`Held`・`Empty`・URL を作る口が無いときは、固定の文（`export-status`）だけを出す（fail-closed）。受講者の値は文に入れない
+- 上流の属性の検査（`is_safe_url`）は `blob:` の `href` を落とす。リンクの URL は `data-export-url` に載せ、`static/app.js` が自分のオリジンの `blob:` だけを `a.href` へ写す（`setAttribute` は使わない）
+- 書き出しの結果は 0 か 1 件の keyed list（`export_result`）。履歴（ログ・下書き）が変わる・履歴を開く・表示だけに入るとリンクを外し、URL を破棄する（drop で `revokeObjectURL`）。選択の切り替えでは外さない
+- 読み込みは `shell-import`（`data-action="import-history"`、`data-payload` なし）の入れ物の中に `label` と `input[type=file]` を置く。入れ物は `display: contents` で、label・input は上流の対話要素の境界で止まるため、ファイル画面を開くクリックでは `import-history` が届かない（空の本文と区別できないため）。選んだファイルは `app.js` が `file.slice(0, 上限 + 1).text()` で読み、wasm の `import_history` で届ける。Rust は DOM の値を読まない。上限は `history_read_limit`（`MAX_HISTORY_BYTES + 1`）
+- 表示だけの間の allowlist に 2 つの action を足した。書き出しは読み込んだバイト列そのものを返す
+- 置き場所は root の直下で通知欄の後ろ・`tablist` の前（仮置き。TASK-534・TASK-548）
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/history_ops.rs`（10 件） | 完成した画面の `shell`・`a11y` の検査と操作が 1 つずつ。入れ物が `data-payload` を持たず中の部品が `data-action` を持たない。押すとリンクが 1 件・もう一度押すと作り直して前を破棄。状態を変える操作でリンクが消え選択の切り替えでは消えない。履歴が無い・警告の間・口が無いときは文だけ。読み込みの結線（壊れた本文・空は状態を変えず通知）。開いた履歴で前のリンクが外れる。復号は 2 つだけ受ける |
+| `crates/web/src/history_ops.rs`・`history_export.rs` の単体試験 | 描画の形・固定の文 |
+| `tools/browser/history-ops.test.mjs`（4 件） | 画面の操作だけで書き出し（`Download`）→ 別のオリジンの input へ `setInputFiles` → 開いて同じログの長さ・状態。ファイル画面を選ばずに閉じても結果・通知が変わらない。書き換えた・壊れた・空のファイルは開かず状態・ログが変わらず通知が出る。配信する設定でも書き出しの文が出る。外部への要求・CSP 違反・ページのエラー・ダイアログ・ポップアップが 0 件、URL に状態が載らない |
+
+- 既存の試験の更新: `version_notice.rs`（書き出し・読み込みの復号は受ける）、`dirty_binding_points.rs`（`export_result` は書き出しの操作の後に立つ）、`glue_contract.rs`・`state_paths.rs`（新しい呼び出しの許可）、`glue_scale.rs`（上限 531 から 552。`import_history`・`history_read_limit`・URL の口の結線）
+- 実行結果（2026-10-22）: `make lint`・`make test`・`--features test-hooks` の native 試験・`make check-deps`・`make check-dom-reads`・`make check`・`make build-web` と `make check-delivery` が通った。ブラウザ試験は新しい 4 件と、関連する `history-export`・`history-import`・`view-only`・`view-only-storage`・`refused-history`・`version-notice`・`version-histories`・`history-versions`・`secret-hold`・`secret-choice`・`inline-free`・`csp-runs`・`shell-columns`・`shell-tabs`・`shell-widths`・`element-identity`・`esc-once`・`smoke-hello`・`safety`・`csp-placement`・`next-chapter` を単独で流して通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で失敗する（既存）
+- 限界: Chromium だけ。OS のファイル画面（macOS）は人の確認（TASK-342）、配布物は TASK-114 が持つ。配信する設定は IR を持たないため、開く経路の確認は試験の設定で行う（配信する設定では `app.js` から `import_history` までの例外・外部要求が 0 件のことだけを見る）
+- 範囲外: 読めない履歴 7 種の理由の表示（TASK-532）、未送信の下書きの案内（TASK-537）、通知欄・枠の最終の配置（TASK-534・TASK-548）。`scripts/expected-test-counts.txt` は更新しない
