@@ -12,7 +12,7 @@
 //   xss    : E1 は pack-body-xss.test.mjs（TASK-144）が pass／fail で確かめる。E2〜E4・E6 は TASK-145・146・147、E5 は配信設定の入力欄から送って記録する
 //   oversize: 10 倍の水準は TASK-154（#855）・TASK-155
 //   nest   : 深い入れ子・巨大な配列
-//   cycle  : 巡回する IR の画面での起動は TASK-168（#549 の ?ir=）・TASK-160（#444 の遷移の上限）
+//   cycle  : 巡回する IR の画面での起動口は無い（D-68 で `?ir=` の入り口は無くなった。実行時の教材の取得が入った後の課題）。遷移の上限は TASK-160（#444）
 //   csp    : 配置と内容の検査は csp-placement.test.mjs（TASK-151 1/2）
 //   secret : 警告の挙動は TASK-164（#541〜#544）
 //
@@ -217,7 +217,7 @@ test('cycle: 巡回する IR の 4 ファイルを関門に渡した結果を記
       const out = JSON.parse(await page.evaluate(([e, s]) => window.__fandheTest.checkJsonLoad(e, s), ['ir', text]));
       log(t, 'cycle', `${f} bytes=${Buffer.byteLength(text)} ok=${out.ok} stage=${out.stage ?? '-'} reason=${out.reason ?? '-'}`);
     }
-    log(t, 'cycle', '画面での起動は未実装（?ir= は TASK-168・#549）。遷移の上限は transition-limit.test.mjs が確かめる（TASK-160・#444）');
+    log(t, 'cycle', '画面での起動口は無い（D-68 で ?ir= は読まない。実行時の教材の取得が入った後の課題）。遷移の上限は transition-limit.test.mjs が確かめる（TASK-160・#444）');
     assertNoPageErrors(rec, 'cycle');
     await context.close();
   });

@@ -318,3 +318,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 限界（開かない履歴）: 開かない履歴の理由は枠の通知欄に出しますが、文面は仮置きで、理由ごとの次の行動（SHELL-36）は出しません。起動時の復元は版の判定の段の拒否にだけ通知を出し、壊れた履歴（他の段）は TASK-533 まで通知が出ません。起動時に開けなかった場合は、その回の保存が止まったままで、通知は閉じられません。
 
 根拠の試験: `crates/web/tests/refused_history.rs`、`tools/browser/refused-history.test.mjs`。記録は `docs/testing.md` の 5.221。
+
+限界（`?ir=` の許可）: 配信する設定は実行時に `./ir/main.json` を取得しないため、「許可した開始点で開く」は試験の設定でだけ確かめています。`?ir=` の値は読まれず、理由も出ません（SAFE-33 は読み込み先が変わらないことだけを求めます）。
+
+根拠の試験: `crates/web/tests/tick_interval.rs`、`tools/browser/ir-location.test.mjs`。記録は `docs/testing.md` の 5.223。
