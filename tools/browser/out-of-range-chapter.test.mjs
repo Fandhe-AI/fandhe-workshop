@@ -128,7 +128,7 @@ for (const csp of [true, false]) {
       const e = await engine(page);
       L.check(scene, '教材を読まず理由が start_unknown', e.irLoaded === false && e.irRefusal === 'start_unknown');
       const html = await page.evaluate(() => document.documentElement.outerHTML);
-      L.check(scene, '値が DOM に出ない', !html.includes(`start=${OUT_ID}`) && !html.includes(OUT_NODE));
+      L.check(scene, '値が DOM に出ない', !html.includes(OUT_ID) && !html.includes(OUT_NODE));
       L.check(scene, '値がコンソールに出ない', !consoleTexts.some((t) => t.includes(OUT_ID) || t.includes(OUT_NODE)));
       await page.reload();
       await waitMounted(page);
