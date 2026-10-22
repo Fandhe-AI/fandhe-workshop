@@ -252,7 +252,7 @@ fn guidance_leak_follows_start_guidance_and_modules() {
 }
 
 #[test]
-fn guidance_leak_in_do_is_reported_but_argument_do_is_not_seen() {
+fn guidance_leak_in_do_is_reported_and_chapter_placeholder_is_literal() {
     let t = pack(
         LEAK_WS,
         &chapter_with(

@@ -17,6 +17,9 @@
 //! 引数は `params` の隣の `param_types` で宣言した型・範囲に合わなければ、実体を作らず `E-STRUCTURE` にする
 //! （PACK-51。判定は [`crate::param_check`]）。
 //!
+//! `validate` だけは、置換後の `do`・`do_levels` に案内レベルで隠す語が出ないかも調べる（`E-GUIDANCE-LEAK`。PACK-52）。
+//! 置換前の字面にすでに語がある水準は、定義の段の検査が報告するので重ねない。
+//!
 //! 診断に引数の値・本文は入れない。名前は `safe_ident` を通るものだけを入れる。
 //!
 //! `use` と `input`、`use` と `confirm` を同時に持つ Step は、展開とは別に [`check_use_steps`] が章・モジュールの定義ごとに拒否する
@@ -31,6 +34,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use fandhe_workshop_contract::doc::Doc;
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_contract::ir::{Instance, Node, Start, Step};
 use fandhe_workshop_contract::limits::MAX_COLLECTION_ELEMENTS;
 use fandhe_workshop_contract::profile::ProfileSetting;
@@ -239,6 +243,14 @@ struct PendingStarts<'a> {
     args: BTreeMap<String, String>,
 }
 
+/// 置換の前の `do`・`do_levels` のどれかが `${` を含むか（PACK-52。置換で変わりうる宣言だけを置換後に検査する）。
+fn has_placeholder_do(step: &Step) -> bool {
+    step.do_
+        .iter()
+        .chain(step.do_levels.values())
+        .any(|d| d.contains("${"))
+}
+
 /// 章とモジュールを実体に展開し、node・実体・遷移の検査対象を集める。`compile` が章ごとに呼ぶ。
 pub(crate) struct Expander<'a> {
     pack: &'a LoadedPack,
@@ -259,6 +271,14 @@ pub(crate) struct Expander<'a> {
     module_stack: Vec<(String, bool)>,
     /// 置換後の確認 `answer` の `label` 欠落も検査するか（`validate` だけ。`compile` は欠落を許容する）。
     require_answer_labels: bool,
+    /// 置換後の `do`・`do_levels` の隠す語の検査（`validate` だけ。`None` なら行わない。PACK-52）。
+    leak: Option<LeakCheck>,
+}
+
+/// 置換後の `do` の漏れの検査の状態。`rules` は水準ごとの隠す語、`levels` は今展開している章の開始点の水準。
+struct LeakCheck {
+    rules: BTreeMap<GuidanceLevel, Vec<String>>,
+    levels: BTreeSet<GuidanceLevel>,
 }
 
 impl<'a> Expander<'a> {
@@ -291,6 +311,7 @@ impl<'a> Expander<'a> {
             pending: Vec::new(),
             module_stack: Vec::new(),
             require_answer_labels: false,
+            leak: None,
         }
     }
 
@@ -299,8 +320,23 @@ impl<'a> Expander<'a> {
         self.require_answer_labels = true;
     }
 
+    /// 置換後の `do`・`do_levels` に隠す語が出ないかを検査する（`validate` が呼ぶ。`compile` は呼ばないので
+    /// 結果は変わらない。PACK-52・D-43）。隠す語が宣言されていなければ何もしない。
+    pub(crate) fn check_guidance_leak(&mut self) {
+        let rules = crate::guidance::leak_rules(self.pack);
+        if !rules.is_empty() {
+            self.leak = Some(LeakCheck {
+                rules,
+                levels: BTreeSet::new(),
+            });
+        }
+    }
+
     /// 章の Step を実体 `main` として展開する。
     pub(crate) fn expand_chapter(&mut self, scope: &'a LoadedScope) {
+        if let Some(l) = &mut self.leak {
+            l.levels = crate::guidance::chapter_start_levels(scope);
+        }
         self.expand_scope("main", scope, None, 0, None);
     }
 
@@ -374,6 +410,24 @@ impl<'a> Expander<'a> {
                     if self.require_answer_labels {
                         self.diags
                             .extend(crate::confirm::check_step_answer_label(scope, &s));
+                    }
+                }
+                if let Some(l) = &self.leak {
+                    if has_placeholder_do(step) {
+                        // 調べる水準は定義の段の検査と同じ決め方（章の開始点の水準 ∪ 宣言を持つ Step の B・C）。
+                        let mut levels = l.levels.clone();
+                        if !step.body_levels.is_empty() || !step.do_levels.is_empty() {
+                            levels.extend([GuidanceLevel::B, GuidanceLevel::C]);
+                        }
+                        for lv in
+                            crate::guidance::expanded_do_leak_levels(&l.rules, &levels, step, &s)
+                        {
+                            self.diags.push(crate::guidance::expanded_do_leak_diag(
+                                &scope.file,
+                                &item,
+                                lv,
+                            ));
+                        }
                     }
                 }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。

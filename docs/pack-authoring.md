@@ -610,7 +610,8 @@ views:
 - ヒントは `levels` に出す水準を列で書きます。省略と空の列は全水準を意味します
 - `pack.guidance`・`starts[].guidance`・`body_levels` のキー・`pack.guidance_levels` のキー・ヒントの `levels` の要素が `A`・`B`・`C` でなければ、読み込みで `E-PARSE` になります。小文字も拒否します。診断に書いた値は写しません
 - `pack.guidance_levels.<水準>` は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます
-- 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または `do`（`do_levels` があればその水準の文）に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査で、実体の引数で渡す `do`（`${...}`）・ヒントの文面・宣言の無い章の本文は見ません。診断に隠す語・本文は写しません
+- 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または `do`（`do_levels` があればその水準の文）に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査です。実体の引数で渡す `do`・`do_levels`（`${...}`）は、引数と既定値を置換した後の文字列まで調べます（PACK-52、TASK-71 3/3）。置換の前の字面にすでに語がある水準は、定義の側の 1 件にまとめます。診断に隠す語・引数の値・本文は写しません
+- 次の 2 つは検査の外で、作成者の規約です（D-43。PACK-52）。ヒントの文面（段 2・3）に隠す語を書く場合は、ヒントの `levels` で B・C に出さないようにします。水準 B・C で使う章には、開始点の `guidance` か `body_levels` を宣言します。宣言の無い章の本文は、どの水準で出るかが決まらないため、検査しません
 - 案内レベルは実行全体で 1 つです。モジュールの実体ごとには変えられず、章の開始点の `starts[].guidance` で渡します（PACK-45）
 - ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
@@ -619,6 +620,7 @@ views:
 | 試験 | 確かめること |
 |---|---|
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
+| `crates/pack/tests/guidance_leak_scope.rs` | 置換後の `do`・`do_levels` の漏れの検出・既定値と入れ子の引数・重複しない 1 件・ヒントの文面と宣言の無い章の本文を検出しないこと・診断に値が写らないこと（PACK-52。TASK-71 3/3） |
 | `crates/pack/tests/do_levels.rs` の `pack50_` | 案内レベル B の順序違いの次の行動に skill の名前が出ないこと（A は `do`、C は B に倒れる）、`do_levels` の鍵 `A`・空の値・`do` の欠落の `E-STRUCTURE`、未知の鍵の `E-PARSE`、語彙の版の食い違い、漏れの検査、モジュールの引数の置換、値を診断に写さないこと（PACK-50。TASK-70 2/2） |
 | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
