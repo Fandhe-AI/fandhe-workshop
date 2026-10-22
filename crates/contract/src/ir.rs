@@ -160,6 +160,9 @@ pub struct Step {
     /// 「今の Step でやること」の短い文。
     #[serde(default, rename = "do", skip_serializing_if = "Option::is_none")]
     pub do_: Option<String>,
+    /// 水準ごとの `do`（語彙 v1.6。PACK-50）。鍵は `B`・`C` で、水準 A の文は `do` に書く。空なら書き出さない。
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub do_levels: BTreeMap<String, String>,
     /// 学習目標の ID。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lo: Vec<String>,
@@ -394,5 +397,18 @@ mod tests {
         assert!(s.is_final);
         let back: Step = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(s, back);
+    }
+
+    #[test]
+    fn ir6_do_levels_roundtrip_and_omitted_when_empty() {
+        let j = r#"{"id":"a","title":"t","do":"x","do_levels":{"B":"y"}}"#;
+        let s: Step = serde_json::from_str(j).unwrap();
+        assert_eq!(s.do_levels.get("B").map(String::as_str), Some("y"));
+        assert_eq!(serde_json::to_string(&s).unwrap(), j);
+        let r: Result<Step, _> =
+            serde_json::from_str(r#"{"id":"a","title":"t","do_levels":{"B":null}}"#);
+        assert!(r.is_err());
+        let e = serde_json::to_string(&step("a")).unwrap();
+        assert!(!e.contains("do_levels"));
     }
 }

@@ -222,8 +222,19 @@ fn uses_step_do(value: &Value, kind: TextKind) -> bool {
 }
 
 /// `do` が実質的にあるか。空・空白だけは無いものとして扱う（モジュールの `${...}` を含む値は空白だけにならない）。
+///
+/// `do_levels` の値が空白だけの水準があれば、その水準で次の行動が崩れるので「無い」とする（PACK-50）。
 fn has_do(step: &Step) -> bool {
-    step.do_.as_deref().is_some_and(|d| !d.trim().is_empty())
+    worst_do(step).is_some_and(|d| !d.trim().is_empty())
+}
+
+/// 最悪の場合の `step_do`。`do_levels` に空白だけの値があれば値なし、なければ `do`
+/// （水準ごとの値は空白でなければ `do` と同じく「ある」ので、`do` で代表させる）。
+fn worst_do(step: &Step) -> Option<&str> {
+    if step.do_levels.values().any(|v| v.trim().is_empty()) {
+        return None;
+    }
+    step.do_.as_deref()
 }
 
 /// Step で出うる文面を、決定的な順で重複なく返す。静的検査と動的な数え上げの両方が使う。
@@ -522,7 +533,7 @@ pub fn tally_empty_next_actions(ir: &Ir) -> NextActionTally {
                 .and_then(|v| v.get("category"))
                 .and_then(Value::as_str)
                 == Some(Category::Busy.as_str());
-        let values = worst_case(&node.step.title, node.step.do_.as_deref(), counted);
+        let values = worst_case(&node.step.title, worst_do(&node.step), counted);
         // 描画できない組（文面が IR に無い・次の行動の欄が無い・文字列でない・差し込めない）も空として数える。
         let result = render(ir, &text, &values);
         tally.checked += 1;

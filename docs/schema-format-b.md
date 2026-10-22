@@ -129,6 +129,7 @@
 | `body` | 文字列（パス） | 省略可 | 省略 | 本文の Markdown。章・モジュールのディレクトリからの相対 |
 | `body_levels` | 表（水準から本文のパス） | 省略可 | 空 | EP-8。水準ごとの本文。キーが `A`・`B`・`C` でなければ `E-PARSE`（項目 `scope`）です。水準 A の本文は `body` に書きます |
 | `do` | 文字列 | 省略可 | 省略 | 今やるべきことの文。枠 `{{step_do}}` の元（EP-7） |
+| `do_levels` | 表（水準から文） | 省略可 | 空 | 語彙 1.6（PACK-50）。水準ごとの `do`。キーは `B`・`C` だけで、水準 A の文は `do` に書きます。`do` が必須です。キーが `A` または空の値は `E-STRUCTURE`、キーが `A`・`B`・`C` でなければ `E-PARSE`（項目 `scope`）です。探す順は `C`・`B`・`do` です |
 | `lo` | 列（文字列） | 省略可 | 空 | 学習目標（LO）。要素の中身の検査は未確認です |
 | `final` | 真偽値 | 省略可 | `false` | 終端の Step |
 | `views` | 列（ビューの ID） | 省略可 | 空 | この Step が宣言するビュー（`E-REF-VIEW`） |
@@ -240,7 +241,7 @@ rejections:
 | 3.2 `fixtures` | `FixtureDef`（`path`・`kind` とも必須） | 同上 |
 | 4 節の 5 欄 | `ScopeSrc`（`deny_unknown_fields`。`id`・`title`・`steps` が必須） | `crates/pack/src/source.rs` |
 | 開始点 | `Start`（`id`・`node` が必須。`effects` は既定が空） | `crates/contract/src/ir.rs` |
-| 5 節の Step の 19 欄 | `Step`（`deny_unknown_fields`。`id`・`title` が必須。`do`・`final`・`use` は欄名の付け替えあり） | 同上 |
+| 5 節の Step の 20 欄 | `Step`（`deny_unknown_fields`。`id`・`title` が必須。`do`・`final`・`use` は欄名の付け替えあり） | 同上 |
 | `next[]` | `Transition`（`to` が必須、`when` は省略可） | 同上 |
 | 8 節の 4 欄 | `TestsSrc`（`deny_unknown_fields`。4 欄とも既定が空） | `crates/pack/src/source.rs` |
 | 6 節・7 節の閉じた集合 | `input_spec`・`confirm_spec`・`condition`・`effect` の各モジュール | `crates/contract/src/` |

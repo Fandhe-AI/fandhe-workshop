@@ -6789,4 +6789,34 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 - 置換後のヒント ID の `E-REF-HINT` の検査は無い。未定義の値を渡すとヒントが黙って消える。`E-HINT-HIDDEN` も `${}` のヒントを持つモジュールの Step を見ない（TASK-71 の領域）
 - `validate` が `expand_use` のほかの `E-STRUCTURE` を捨てているかは未確認
 - 本文の差し込みとヒントの文面の実体ごとの語は、決定が要る
-- `do_levels` は #513（TASK-70 2/2）
+- `do_levels` は #513（TASK-70 2/2）。5.216 に記録した
+
+### 5.216 `do` を案内レベルごとに書き分ける欄 `do_levels`（TASK-70 2/2。PACK-50・GUIDE-14）
+
+決定 D-55（2026-10-12）の項 4 は、`do` を水準別に書く語 `do_levels` を語彙に足すとした（引数化は続けない）。#513 は「語彙を足す案」の側で受け入れ条件を満たす。形は D-55 が決めていなかったため、次のとおり決めた。鍵は `B`・`C` だけで水準 A の文は `do`、`do` は必須、探す順は本文と同じ C → B → A、値は空にできない。語彙の版は v1.6、拡張点の番号なし、`ir_format` は 1 のまま（空なら書き出さない）。この形を spec の PACK-50・GUIDE-14 へ書き戻し、検討中から確定へ移す判断は spec の持ち分である（本 PR では docs/spec を変えない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/do_levels.rs` の `pack50_level_b_wrong_order_next_action_hides_skill_name` | 受け入れ条件。案内レベル B で順序違いの次の行動に skill の名前が出ず、B の文が入ること |
+| 同 `pack50_level_a_keeps_do` | 負の対照。A では `do` が入ること |
+| 同 `pack50_level_c_falls_back_to_b` | C は B の文に倒れ、C の文があれば C が入ること |
+| 同 `pack50_ir_carries_do_levels_only_when_used` | 使う教材の IR にだけ `do_levels` が載ること |
+| 同 `pack50_leak_is_clean_with_do_levels`・`pack50_leak_detects_hidden_word_in_do_levels_b`・`pack50_leak_check_reads_the_do_shown_at_that_level` | 漏れの検査がその水準で出る `do` を読み、`do_levels` だけの Step で本文の誤検出を出さないこと |
+| 同 `pack50_key_a_is_structure`・`pack50_blank_value_is_structure`・`pack50_requires_do` | `E-STRUCTURE` がちょうど 1 件（`validate`・`compile` の両方） |
+| 同 `pack50_unknown_key_is_parse`・`pack50_non_string_value_is_parse` | `E-PARSE` |
+| 同 `pack50_vocab_mismatch_below_1_6` | `pack.vocab` が 1.6 未満なら `E-VOCAB-MISMATCH` 1 件、省略なら検査しない |
+| 同 `pack50_module_arg_substitution`・`pack50_module_blank_arg_is_caught_after_expansion` | モジュールの引数が置換され、空になった水準の文が展開の後に止まること |
+| 同 `pack50_values_are_not_echoed` | 値・鍵が診断に写らないこと |
+| `crates/pack/tests/vocabulary_terms.rs` の `do_levels_is_v16_without_number`・`latest_is_v16` | 語彙の文書の v1.6 の行と表の一致 |
+| `crates/core/src/text_fill.rs` の `step_do_at_falls_back_c_to_b_to_a`・`crates/contract/src/ir.rs` の `ir6_` | 選択の倒れ方・欄の往復と空のとき書き出さないこと |
+
+変更: contract の `Step` に任意の欄 `do_levels`、core の `text_fill::step_do_at`（`slot_values` の `step_do` と漏れの検査が共用）、pack の `guidance::check_do_levels`（`validate`・`compile`）、`vocab` の v1.6、core の `VOCAB_MAX` を 1.6。使わない教材の IR はバイト単位で変わらない（golden は書き換えない）。
+
+変異注入（実行日 2026-10-22、元にしたコミット 886d34f の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK50-<n>.mutation`）: PACK50-1（`slot_values` の `step_do` を `do` に戻す）・PACK50-2（`step_do_at` が自分の水準だけを見る）・PACK50-3（鍵 `A` の判定を外す）・PACK50-4（漏れの検査が `do` そのものを見る）はいずれも DETECTED。
+
+限界・範囲外:
+
+- 復元の後の `message` の再充填は水準 A になる（`docs/known-gaps.md` の PACK-50。TASK-307・TASK-308）
+- 開始点の水準の結線は未実装（TASK-294）。試験は `RunState` を直接組む。画面の確認は対象外
+- `${}` の引数で渡す `do`・`do_levels` は漏れの検査が見ない（PACK-52。TASK-71）
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
