@@ -108,14 +108,19 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
     const counts = summarize(rec);
     const irUrl = `${origin}${new URL(url).pathname}ir/main.json`;
+    // IR の取得の完了（requestfinished）は、中断の通知と前後して届くことがある。完了の通知を最大 2 秒待ってから数える。
+    for (let i = 0; i < 40 && !rec.finished.includes(irUrl); i += 1) await new Promise((res) => setTimeout(res, 50));
     const irReqs = rec.requests.filter((r) => r.url === irUrl);
-    // 本文の取得まで完了（requestfinished）した 200 の IR が 1 件ある実行に限り、query なしで URL 全体が一致する
-    // IR への ERR_ABORTED（完了後に中断された重複の要求）だけを失敗に数えない。query の違う要求・別の資源・
-    // 別のエラー種別・完了した取得が無いときの中断は従来どおり失敗に数える。
-    const irDone = irReqs.length === 1 && irReqs[0].status === 200 && rec.finished.filter((u) => u === irUrl).length === 1;
-    const failed = rec.failed.filter((f) => !(irDone && f.url === irUrl && f.error === 'net::ERR_ABORTED'));
+    // 本文の取得まで完了（requestfinished）した 200 の IR が 1 件以上ある実行に限り、query なしで URL 全体が一致する
+    // IR への ERR_ABORTED（完了後に中断された重複の要求。応答の頭だけ届いて response に数えられる場合もある）を、
+    // 失敗にも要求の件数にも数えない。query の違う要求・別の資源・別のエラー種別・完了した取得が無いときの中断は従来どおり数える。
+    const irDone = rec.finished.includes(irUrl) && irReqs.some((r) => r.status === 200);
+    const isAbortedIr = (f) => f.url === irUrl && f.error === 'net::ERR_ABORTED';
+    const abortedIr = irDone ? rec.failed.filter(isAbortedIr).length : 0;
+    const failed = rec.failed.filter((f) => !(irDone && isAbortedIr(f)));
+    const irCount = irReqs.length - Math.min(abortedIr, irReqs.length - 1);
     const problems = [];
-    if (irReqs.length !== 1 || irReqs[0].status !== 200) problems.push('ir-fetch');
+    if (irCount !== 1 || !irReqs.some((r) => r.status === 200)) problems.push('ir-fetch');
     if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
     if (counts.pageErrors !== 0) problems.push('page-error');
     if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
