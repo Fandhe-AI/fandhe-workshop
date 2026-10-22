@@ -11,6 +11,7 @@
 //   - 入力待ち: `step-status` の語が「達成」で（直前の Step の達成の後に次の Step へ入った状態）、idle で、
 //     ログの最後の行の `data-step` が直前の Step。先頭の Step はログが 0 行
 //   - 拒否・問い返しの後に動かない: ログの最後の行が拒否（rejected）か問い返し（clarified）で、その `data-step` が当の Step
+//   - 終点（`main/st-2-1`）の入力待ちは、上に加えて入力の口が下書き・送信の各 1 個で選択肢が 0 個（直前の選択肢の Step で止まった状態を除く）
 // 現在の Step の ID は DOM に出ないため、IR の node の並び（章をまたぐ無条件の `next` で線形）から直前の Step を引く。
 import { journey, mouseDriver, DRAFT } from './ch0-3-journey.mjs';
 
@@ -38,6 +39,9 @@ export function inspectDom([order, uid, status, waiting = false]) {
     rows: rows.length,
     lastStep: last?.getAttribute('data-step') ?? null,
     lastKind: last?.getAttribute('data-kind') ?? null,
+    choices: document.querySelectorAll('[data-testid="choice-btn"]').length,
+    draft: document.querySelectorAll('[data-testid="draft-input"]').length,
+    submit: document.querySelectorAll('[data-testid="submit-input"]').length,
   };
   const i = order.indexOf(uid);
   let ok = false;
@@ -47,6 +51,9 @@ export function inspectDom([order, uid, status, waiting = false]) {
       ok = i === 0
         ? d.rows === 0 || (d.word === '' && d.lastStep === uid)
         : d.word === '達成' && d.lastStep === order[i - 1];
+      // 終点（main/st-2-1。コマンドの入力）は、直前の main/st-1-6（選択肢）の達成の画面と入力の口で区別する。
+      // 直前の Step の達成だけでは、次の Step への遷移が欠落した状態（直前で止まった状態）も同じ語・同じログになる。
+      if (ok && uid === 'main/st-2-1') ok = d.choices === 0 && d.draft === 1 && d.submit === 1;
     }
   }
   // 待つ呼び出し（waitForFunction）は真偽だけを返し、読む呼び出しは読み取りと判定を返す。

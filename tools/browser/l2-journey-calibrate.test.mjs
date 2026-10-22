@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { launchBrowser, channelFromEnv, withServer, openPage, waitMounted } from './harness.mjs';
 import { engine, ledger } from './ch0-3-journey.mjs';
-import { domObserver, inspectDom, runL2JourneyWith, stepOrder } from './l2-journey.mjs';
+import { domObserver, inspectDom, runL2JourneyWith, stepOrder, L2_STOP } from './l2-journey.mjs';
 
 const IR = new URL('../../crates/web/tests/data/ch0_3/ir.json', import.meta.url);
 const ORDER = stepOrder(fs.readFileSync(IR, 'utf8'));
@@ -75,6 +75,27 @@ test('対照: 1 Step 先の期待は DOM が示さず、正しい期待だけを
     assert.equal(await probe('main/st-0-1', 'entered'), true);
     assert.equal(await probe('main/st-0-2a', 'entered'), false);
     assert.equal(await probe('main/st-0-1', 'accepted'), false);
+    await context.close();
+  });
+});
+
+test('対照: 終点の直前の Step で止まった画面は終点の入力待ちと判定しない', async () => {
+  await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: '/fandhe-l2-calibrate-stuck/' }, async (srv) => {
+    const { page, context } = await open(srv);
+    const L = ledger();
+    await runL2JourneyWith(page, L, { order: ORDER });
+    const probe = async () => (await page.evaluate(inspectDom, [ORDER, L2_STOP, 'entered'])).ok;
+    assert.equal(await probe(), true, '終点に入った画面は入力待ちと判定される');
+    // main/st-1-6 の達成の後で遷移が欠落した画面を模す: 下書き・送信の口が無く、選択肢が出ている。ログと語は終点のままである。
+    await page.evaluate(() => {
+      for (const sel of ['[data-testid="draft-input"]', '[data-testid="submit-input"]']) {
+        document.querySelectorAll(sel).forEach((el) => el.remove());
+      }
+      const b = document.createElement('button');
+      b.setAttribute('data-testid', 'choice-btn');
+      document.body.appendChild(b);
+    });
+    assert.equal(await probe(), false, '直前の Step で止まった画面を終点の入力待ちとしてしまった');
     await context.close();
   });
 });
