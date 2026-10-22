@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-21・元にしたコミット: 4cfb3f2
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-22・元にしたコミット: 04fae88
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -76,7 +76,7 @@ rust|tests/content_hash.rs [content_hash]|passed=2|ignored=0
 rust|tests/content_hash_contract.rs [content_hash_contract]|passed=9|ignored=0
 rust|tests/contract_conformance.rs [contract_conformance]|passed=19|ignored=0
 rust|tests/contract_sample.rs [contract_sample]|passed=6|ignored=0
-rust|tests/defect_packs.rs [defect_packs]|passed=10|ignored=3
+rust|tests/defect_packs.rs [defect_packs]|passed=9|ignored=2
 rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
 rust|tests/diff_view_a_contract.rs [diff_view_a_contract]|passed=10|ignored=0
 rust|tests/diff_view_contract.rs [diff_view_contract]|passed=14|ignored=0
@@ -106,6 +106,7 @@ rust|tests/glue_contract.rs [glue_contract]|passed=38|ignored=0
 rust|tests/glue_scale.rs [glue_scale]|passed=4|ignored=0
 rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
 rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
+rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
 rust|tests/history_append_only.rs [history_append_only]|passed=8|ignored=0
 rust|tests/history_boot.rs [history_boot]|passed=6|ignored=0
 rust|tests/history_envelope_binding.rs [history_envelope_binding]|passed=4|ignored=0
@@ -186,6 +187,7 @@ rust|tests/ops_record.rs [ops_record]|passed=10|ignored=0
 rust|tests/pack_dir_limits.rs [pack_dir_limits]|passed=10|ignored=0
 rust|tests/pack_size_limits.rs [pack_size_limits]|passed=7|ignored=0
 rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
+rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
 rust|tests/point_click_contract.rs [point_click_contract]|passed=7|ignored=0
 rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0
@@ -247,7 +249,8 @@ rust|tests/task_tree_contract.rs [task_tree_contract]|passed=17|ignored=0
 rust|tests/terminal_area_contract.rs [terminal_area_contract]|passed=21|ignored=0
 rust|tests/testdata_min_3step.rs [testdata_min_3step]|passed=3|ignored=0
 rust|tests/text_fill.rs [text_fill]|passed=12|ignored=0
-rust|tests/text_judge.rs [text_judge]|passed=11|ignored=0
+rust|tests/text_judge.rs [text_judge]|passed=12|ignored=0
+rust|tests/text_rule_content.rs [text_rule_content]|passed=11|ignored=0
 rust|tests/text_slots.rs [text_slots]|passed=22|ignored=0
 rust|tests/theme_shared.rs [theme_shared]|passed=1|ignored=0
 rust|tests/tick_interval.rs [tick_interval]|passed=4|ignored=0
@@ -272,10 +275,10 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=12|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=276|passed=2972|ignored=4
+rust|total|binaries=279|passed=3009|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=45|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=96|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=125|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
 browser|total|tests=837|pass=837|skipped=0|todo=0|cancelled=0

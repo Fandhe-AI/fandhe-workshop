@@ -169,6 +169,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
             ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED)
                 // 引数で `kind` が `text` に決まる Step の内容の条件（PACK-41、D-43）は展開の後でしか見えない。
                 || (d.code() == DiagCode::Parse && d.message().starts_with("rule (text):"))
+                // 読めない `use`（`guidance` など採らなかった欄を含む。PACK-45、D-55）。捨てると `compile` で止まる教材を通す。
+                || (d.code() == DiagCode::Parse && d.message() == crate::expand::INVALID_USE)
         })
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()

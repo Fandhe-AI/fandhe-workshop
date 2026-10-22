@@ -48,6 +48,11 @@ pub(crate) const MAX_MODULE_DEPTH: usize = 8;
 /// 読み込み済みで、置換すると引き当てを外す・パスを書き換える経路になる）。`next[].to` は別に除く。
 const NO_SUBST_STEP_KEYS: [&str; 3] = ["id", "body", "body_levels"];
 
+/// `use` が読めないときの `E-PARSE` の文面。`validate` が同じ診断を残す（`compile` と一致させる）ために共有する。
+/// `use.guidance` のような決定で採らなかった欄（D-55、PACK-45）もここで止まる。値は文面に含めない。
+pub(crate) const INVALID_USE: &str =
+    "invalid `use`: expected module, instance and string args (quote argument values)";
+
 /// `use` の中身。契約の `Step.use_module` は自由な値のまま残し、pack の中でだけ型にする。
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -499,12 +504,8 @@ impl<'a> Expander<'a> {
     fn expand_use(&mut self, site: &UseSite<'_>, use_value: &Value) {
         let (file, item) = (&site.scope.file, site.item);
         let Ok(u) = serde_json::from_value::<UseSrc>(use_value.clone()) else {
-            self.diags.push(diag(
-                file,
-                item,
-                DiagCode::Parse,
-                "invalid `use`: expected module, instance and string args (quote argument values)",
-            ));
+            self.diags
+                .push(diag(file, item, DiagCode::Parse, INVALID_USE));
             return;
         };
         if !safe_ident(&u.module) || !safe_ident(&u.instance) {

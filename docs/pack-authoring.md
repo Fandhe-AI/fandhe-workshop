@@ -107,6 +107,8 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - 開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）は、両方そろえて書きます。片方だけは `E-STRUCTURE` です。`requires: null` は省略と同じ扱いで、`unmet` だけが残ります。開始の前に、開始先の Step が属する実体の根で条件を評価します。満たすときだけ開始し、満たさない・評価できないときは開始せず `unmet` の文面を示します。状態は変わりません（TASK-51、PACK-18）
 - 展開中の経路にあるモジュールを再び呼ぶ巡回（自分を呼ぶ場合を含む）は `E-MODULE-CYCLE` です。巡回を閉じる `use` の Step に `a → b → a` の形の経路つきで付きます。モジュール名が `${名前}` に由来する場合は、引数の値を出さないため経路は付きません。
 - 入れ子は 8 段までです。9 段目の呼び出しは展開せず `E-MODULE-CYCLE` にします。これは巡回とは別の検査で、巡回しない深い入れ子にだけ効きます。未定義のモジュールは `E-REF-MODULE`、未定義の `${名前}` は `E-STRUCTURE` です。
+- `use` に書けるのは `module`・`instance`・`args` だけです。実体ごとの案内レベルの `guidance` は語彙に無く、書くと `compile` も `validate` も `E-PARSE` です（D-55、PACK-45）。案内レベルは開始点で渡します
+- ヒントは、`hints` の ID を `${名前}` で渡せば実体ごとに変えられます。ただし置換後の ID が定義されているかは検査しないので、未定義の ID を渡すとヒントが出ません。本文の Markdown とヒントの定義（文面・`levels`）は置換しません（`docs/known-gaps.md` の PACK-45）
 - 呼ばれないモジュールは IR に出ません。
 - モジュールの `input`・`confirm` が `${名前}` を含む場合は、置き換えた後の宣言を、入力方式・確認・操作プロファイル（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`）の規則で検査します。置き換える前の宣言は検査しないので、`kind: "${k}"` のように書けます。診断はモジュールの定義ファイルと Step で示し、引数の値は含めません。
 
@@ -590,6 +592,7 @@ views:
 - `pack.guidance`・`starts[].guidance`・`body_levels` のキー・`pack.guidance_levels` のキー・ヒントの `levels` の要素が `A`・`B`・`C` でなければ、読み込みで `E-PARSE` になります。小文字も拒否します。診断に書いた値は写しません
 - `pack.guidance_levels.<水準>` は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます
 - 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または定義の段の `do` に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査で、実体の引数で渡す `do`（`${...}`）・ヒントの文面・宣言の無い章の本文は見ません。診断に隠す語・本文は写しません
+- 案内レベルは実行全体で 1 つです。モジュールの実体ごとには変えられず、章の開始点の `starts[].guidance` で渡します（PACK-45）
 - ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
 ## 根拠となる試験
@@ -597,6 +600,7 @@ views:
 | 試験 | 確かめること |
 |---|---|
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
+| `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
