@@ -144,14 +144,13 @@ fn 次の章の開始点が_ir_に無ければ出さない() {
 }
 
 #[test]
-fn 先頭の節点に一致する開始点が無ければ次の章の節点に入る最初の開始点を使う() {
+fn 先頭の節点に一致する開始点が無ければ途中の節点を指す開始点へ代えず出さない() {
     let starts = json!([
         {"id": "s-0-1", "node": "main/st-0-1", "effects": []},
         {"id": "s-1-4", "node": "main/st-1-4", "effects": []}
     ]);
     let ir = ir_of(&variant_json(starts));
-    let got = offer(&ir, "main/st-0-2c", StepStatus::Achieved).unwrap();
-    assert_eq!(got.0, "s-1-4");
+    assert_eq!(offer(&ir, "main/st-0-2c", StepStatus::Achieved), None);
 }
 
 fn count_next(v: &Node) -> usize {

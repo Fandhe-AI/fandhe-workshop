@@ -10,7 +10,7 @@
 //! 1. 現在の Step が `main` の根の最後の Step（`export_notice::is_main_final` と同じ判定）である。
 //! 2. その Step が達成（`Achieved`）である。
 //! 3. 処理中でない。
-//! 4. 次の章があり、その最初の Step を指す開始点が IR にある。D-67（SHELL-12）は試行で配る IR から範囲外の開始点を除くので、
+//! 4. 次の章があり、その最初の Step を指す開始点が IR にある（途中の Step を指す開始点へは代えない）。D-67（SHELL-12）は試行で配る IR から範囲外の開始点を除くので、
 //!    開始点が無い章へは出さない。モジュールの展開で生える `#` を含む開始点は章の入口ではないので選ばない。
 //!
 //! 受講者の画面には全 Step 分の「移動: …」ボタンを出さない。本モジュールの出すボタンは 0 か 1 個である。
@@ -73,20 +73,16 @@ pub fn next_chapter(ir: &Ir, state: &SessionState) -> Option<NextChapter> {
     }
     let at = units.iter().position(|u| *u == current.unit)?;
     let next_unit = *units.get(at + 1)?;
-    let in_next = |uid: &str| {
-        ir.nodes
-            .iter()
-            .any(|n| n.scope == "main" && n.unit == next_unit && n.uid == uid)
-    };
     let first = ir
         .nodes
         .iter()
         .find(|n| n.scope == "main" && n.unit == next_unit)?;
-    let mut entries = ir.starts.iter().filter(|s| !s.id.contains('#'));
-    let start = entries
-        .clone()
-        .find(|s| s.node == first.uid)
-        .or_else(|| entries.find(|s| in_next(&s.node)))?;
+    // 先頭の Step を指す開始点だけを選ぶ。途中の Step を指す開始点は章の冒頭を飛ばす入口なので、代わりに使わない。
+    let start = ir
+        .starts
+        .iter()
+        .filter(|s| !s.id.contains('#'))
+        .find(|s| s.node == first.uid)?;
     let node = ir.nodes.iter().find(|n| n.uid == start.node)?;
     Some(NextChapter {
         start_id: start.id.clone(),
