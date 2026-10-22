@@ -7215,7 +7215,16 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: Chromium だけ。OS のファイル画面（macOS）は人の確認（TASK-342）、配布物は TASK-114 が持つ。配信する設定は IR を持たないため、開く経路の確認は試験の設定で行う（配信する設定では `app.js` から `import_history` までの例外・外部要求が 0 件のことだけを見る）
 - 範囲外: 読めない履歴 7 種の理由の表示（TASK-532）、未送信の下書きの案内（TASK-537）、通知欄・枠の最終の配置（TASK-534・TASK-548）。`scripts/expected-test-counts.txt` は更新しない
 
-### 5.235 影響する Step の洗い出し道具（TASK-182 1/2。VER-15・UMAP-5）
+### 5.235 L2 の配布物の作成スクリプト（TASK-112 1/2。DLV-13・DLV-18）
+
+- 目的: D-58・D-71 の形（miniserve 0.35.0 と静的ファイル）で、人の操作が「展開・`./start.sh`・URL を開く」の 3 つになる zip を作る。`tools/build-l2.mjs` が `fandhe-workshop-l2/{start.sh, miniserve, site/}` を作り、`site/` は配信する設定の配信物そのものにする。
+- 決定（自動運転のため人の承認は得ていない）: zip は Node の `zlib` で自前に書く（`zip` が前提の道具に無いため。時刻・順序・mode を固定して決定的にする）。miniserve は上流の Release のビルド済み実行ファイルを使い、sha256 を `tools/l2/miniserve.sha256` に固定して照合する（固定値を上書きする口は無い。2026-10-22 に Release の digest との一致を確認。実行ファイル自体の取得・実行は未実施）。`L2_PLATFORM=linux-x64` は模擬環境の試験（#532）のための追加で、仕様に明記は無い。
+- 試験（`tools/build-l2.test.mjs`。22 件）: 木の完全一致・mode（`start.sh`・`miniserve` が 0755、他が 0644）・`site/` のバイト一致・決定性・`start.sh` の起動（`PATH=/usr/bin:/bin` の環境で URL を表示し、引数が `--index index.html -i 127.0.0.1 -p <PORT> site` と完全一致。不正な `PORT` は 2）・fail-closed（digest の不一致、試験用の口・`.d.ts`・シンボリックリンク・`ir/main.json` の欠落、誤用、出力先の不正で zip が作られない）・固定表の形。
+- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文・推移的な依存の棚卸し（TASK-137）。
+- 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る。
+- 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.236 影響する Step の洗い出し道具（TASK-182 1/2。VER-15・UMAP-5）
 
 - 目的: 対応表（CSV 版 1）と変わった参照名・ファイルから、影響する Step を機械的に列挙する道具 `tools/upstream-impact.mjs` が、期待どおりの Step を決定的に出し、不正な入力を fail-closed で止めることを確かめる。
 - 試験（`tools/upstream-impact.test.mjs`。`make test-upstream-impact`。`node:test`、試験用の対応表を内蔵）: 1 参照名の全体の変更と同名の Step の scope 区別・2 和集合と整列・3 `--changes` のファイル単位と `path` 空の行・4 併用・5 該当なし・6 入力の行順によらずバイト一致・7 `--vocab`（教材に無い Step・誤った scope で 1、全行が一覧にあれば 0、`use` 行と集計行の読み取り）・8 表に無い参照名・9 不正な入力 21 形が 2 で標準出力が空・10 自由記述の列と不正なセルの値を写さない・11 `--help`。ほかに純粋な関数の試験 1 件。
