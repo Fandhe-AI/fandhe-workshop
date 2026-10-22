@@ -113,6 +113,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | 学習目標の確認の記録の型と導出（`lo_check`） | contract | TASK-291 |
 | 保存先の口 `HistoryStore`・配信の区間・履歴の鍵の生成規則と読み戻し（`storage`。鍵に教材の版・内容を混ぜない） | contract | TASK-310 |
 | 履歴の 4 軸の版の型、判定の結果の型、履歴の包みの型、保存先の口、拒否理由コードと判定の順序（`load_reason`。順序は `HISTORY_LOAD_ORDER`、`STORAGE_CONTRACT_VERSION` 1） | contract | TASK-173・TASK-309・TASK-310 |
+| 読み込みの拒否理由から次の行動への対応づけ（`load_next_action`。割り当ては案で D-57 の決定待ち） | contract | TASK-334 |
 | 未信頼入力の上限の定数と拒否理由の型 | contract | TASK-199 |
 | `content_hash` の求め方の仕様・サンプル・計算の関数（`content_hash::content_hash`） | contract（pack と core・web が同じ関数を呼ぶ。TASK-180 の本文は計算を pack と書くが、ブラウザで開く経路が履歴と現在の IR のハッシュを比べる（TASK-174）ため、pack だけに置かない） | TASK-180 |
 | 状態変化の語彙（要素・属性・フラグ）の効果の型と `Value` からの解釈は contract、1 語ごとの適用は core、読み込み時の検査と診断は pack（spec の TASK-43 は「pack crate」と書くが、判定規則に従い分ける。IR の型は `Value` のまま変えない。進行 `processing` は contract が解釈し core が適用、`when` は core に評価器を注入する形で条件の語彙は TASK-42 が与える。TASK-43 2/2） | contract・core・pack | TASK-43 |
