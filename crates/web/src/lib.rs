@@ -32,7 +32,7 @@
 //! 教材（IR）を読めなかったホストが出す、旧いエンジンの断りの通知文（VER-13。仮置き）は `ir_notice` に置く。
 //! 右のログの行のモデルと描画（TASK-434）は `log_lines` に置く。
 //! 状態表示（待機中・処理中。TASK-436）の導出は `run_status` に置く。
-//! 章の完了後の「次の章へ進む」（SHELL-10。TASK-526 1/2）は `next_chapter` に置く。
+//! 章の完了後の「次の章へ進む」（SHELL-10。TASK-526）は `next_chapter` に置く。
 //! `answer` の選択肢のボタン（表示名で出す。TASK-445 1/2）は `offers` に置く。
 //! 入力方式 `choice` の入力待ちの選択肢（TASK-450 1/3）も `offers` が同じ口で出す。
 //! 履歴の保存先の実装と選択の規則（localStorage 既定・IndexedDB への一方向の切り替え。TASK-317）は `storage_select` に置く。

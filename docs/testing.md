@@ -3586,7 +3586,7 @@ CH-0〜CH-3 の形の 20 Step を 1 つのページで最後まで自動操作�
 | 区分 | 内容 | 理由 |
 |---|---|---|
 | 形を変えて再現した | 4 + 6 + 8 + 2 = 20 Step の通し、5 方式・4 種の確認、拒否・問い返し・補完・複数行・Esc の取り消し・処理中の完了待ち、CH-1 のキーボードだけの完走 | 教材は試作の文面ではなく、形を写した試験用の教材 |
-| 再現していない | 章の完了と「次の章へ進む」の表示 | core が章の完了（`ChapterCompleted`・`completed`）をまだ扱わず（`confirm.rs` の「扱わないこと」。TASK-233 以降）、製品の画面にも口が無い |
+| 再現していない | 章の完了イベント（`ChapterCompleted`・`completed`） | core がまだ扱わない（`confirm.rs` の「扱わないこと」。TASK-233 以降）。「次の章へ進む」の表示と移動は状態から導いて画面に出し `Control::GoTo` で移る（5.224・5.227） |
 | 再現していない | 遷移先の `on_enter` の名札の行、入口の写しの作り直し | core が遷移で入口の写しを作り直さない（`go_to.rs`・`checkpoint.rs` だけが代入する） |
 | 再現していない | 規則の `when`（`clarifying` など）、条件つきの辺 | core が評価しない（`accept.rs` の `NoConditions`） |
 | 再現していない | チェックポイントの復帰、本文と do の表示 | 製品の画面にボタンも表示も無い |
@@ -7023,9 +7023,9 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
   - 既定の feature（`test-hooks` なし）と `--features test-hooks` の両方で通す。`raw-trigger` が無いことの確認は既定の feature だけで行う
 - 変異: `SHELL10-2`（達成の条件を外す）・`SHELL10-3`（同じ章を指す）を `crates/web/tests/mutations/` に足した。手で当てて、それぞれ試験が失敗することを確かめた（2026-10-22）。`make check-mutations` の全件は未実行
 - 既存の固定の更新: `no_hidden_triggers.rs` の `PAYLOAD_ALLOWED` に `next_chapter.rs`、`dirty_binding_points.rs` の除外と `history_import.rs` の期待に `next_chapter` を足した
-- 実行結果（2026-10-22）: `cargo test --workspace` と `make lint` は通った。`make test-browser` は未実行（CI の `browser-test` に任せる。ブラウザ試験の追加は #715）
-- 限界: 1/2 では action を結線しないので、押しても状態・ログ・保存先は変わらない（`next-chapter` は `decode_action` に無く、未知の action として捨てられる）。押下の試験は状態が変わらないことだけを固定し、host に履歴の `ops` の読み口が無いため `ops` は照合していない。置き場（右のエリアの末尾）は仮置きである
-- 範囲外: 押して次の章の最初の Step へ移る処理と復号・ブラウザ用の fixture と自動ブラウザ試験（#715。前提は core の `Control::Begin`・TASK-217）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章を出さないことの画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）
+- 実行結果（2026-10-22）: `cargo test --workspace` と `make lint` は通った。`make test-browser` は未実行（CI の `browser-test` に任せる。ブラウザ試験は 5.227 で追加）
+- 限界（2/2 で結線し、5.227 に移した）: 1/2 では action を結線しないので、押しても状態・ログ・保存先は変わらない（`next-chapter` は `decode_action` に無く、未知の action として捨てられる）。押下の試験は状態が変わらないことだけを固定し、host に履歴の `ops` の読み口が無いため `ops` は照合していない。置き場（右のエリアの末尾）は仮置きである
+- 範囲外: （押下の結線・ブラウザ用の fixture・自動ブラウザ試験は 5.227 で済んだ）試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章を出さないことの画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）
 
 ### 5.225 Step ごとの上流の行（対応表の欄）を語彙に持たない代用の記録（TASK-72。PACK-46・D-70）
 
@@ -7066,3 +7066,23 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 範囲外: 画面の側の挙動、`fandhe-pack validate` の CLI（TASK-403）
 - 変異 PACK19-1（`is_bare_step` に `&& false`）: 2026-10-22、`scripts/check-mutations.sh crates/pack/tests/mutations/PACK19-1.mutation`。結果は DETECTED（失敗した試験は上の 3 件）。既存の PACK35-1 も DETECTED のまま
 - 件数の期待値 `scripts/expected-test-counts.txt` は版上げ PR の関門の値で、本変更では更新しない
+
+### 5.227 「次の章へ進む」の押下と CH-0 から CH-3 の通し（TASK-526 2/2。SHELL-10・INTRO-3）
+
+「次の章へ進む」の押下を `decode_action`（`next-chapter`。空の payload は復号しない）と `update` に結線した。payload は今の提示（`next_chapter`）の開始点の ID とバイト単位で完全一致したときだけ受け（`press_target`。SAFE-33）、移動先の節点は一致した開始点を IR の `starts` から引く。移動は core の `Control::GoTo`（TASK-213）で、世代が +1 になり、処理中が解け、移動先へ入り、`ops` に記録されて履歴の復元でも再現する。提示なし・処理中・不一致・表示だけの間は core を呼ばない（fail-closed）。
+
+- native: `crates/web/tests/next_chapter.rs`（13 件）
+  - 一致の押下で `main/st-1-1` に入り、世代が +1・処理中でなく、提示が消えて `next_chapter` が dirty になり、枠の適合と a11y の検査が通る
+  - 不一致の 8 形（提示していない開始点・`#` つき・節点の uid そのもの・前後の空白・大文字違い・未知の ID）は状態を変えない。空は復号しない
+  - 提示が無い 3 場面（途中の Step・達成の前・最後の章の後）と表示だけの間は、正しい ID でも何もしない
+  - 通し: 変種の IR で、画面から送れる手と各章の後の 1 個のボタンだけで CH-0 から CH-3 まで進む。途中は 0 個、各章の完了後はちょうど 1 個、最後の章の後は 0 個
+  - 記録と復元: 越えた後の `history_to_save` の `ops` に移動先が `main/st-1-1` の `go_to` が 1 件あり、同じ履歴を新しいホストで開くと `main/st-1-1` が再現する（5.224 の「`ops` を照合していない」を閉じた）
+- ブラウザ: `tools/browser/next-chapter.test.mjs`（CSP あり・なしで 6 件）。試験の設定の `?fixture=ch0-3-chapters`（`test_fixture.rs` の `ch03_chapters_ir_bytes`。各章の最後を `final` にし開始点を章の先頭 4 件にした変種。`pack.id` は `ch0-3-chapters`）で開く
+  - 通し（実クリック）: `journey` の `chaptered` の経路で、各章の完了後にボタンがちょうど 1 個・「移動」ボタンが 0 件で、押すと次の章の先頭へ入り世代が進み、20 Step が達成になる。各章の途中と最後の章の後は 0 個
+  - キーボードだけ: CH-0 から CH-1 の `main/st-1-4` まで、信頼されたマウスのイベント 0 件で境目を越える
+  - 再読み込み: 章を越えた後の再読み込みで同じ Step に戻り、ボタンは 0 件
+  - どれも安全の計数・配信元の外への通信・エンジンの警告と無視が 0 件。`journey` の既定の経路は変えず、共有する `ch0-3-run`・`clarify-draft`・`shell-widths`・`direct-link-reload` は変わらず通る
+- 変異: `SHELL10-4`（payload を今の提示と照らさない）を `crates/web/tests/mutations/` に足した。手で当てて「不一致の押下は状態を変えない」試験が失敗することを確かめた（2026-10-22）。`make check-mutations` の全件は未実行
+- 実行結果（2026-10-22）: `cargo test -p fandhe-workshop-web` の該当試験・`test_fixture` の単体試験は通った。ブラウザは `next-chapter` 6 件と上の共有する 4 ファイル（18 件）が `SKIP_WASM_OPT=1` の試験の設定のビルドで通った。全件の `make test-browser` は CI の `browser-test` に任せる
+- 限界: core に `Control::Begin`（TASK-217）が無いので `Control::GoTo` で移る。開始点の `effects` は適用せず、章をまたぐ継続では前の章の世界状態を引き継ぐ（試験用の教材の開始点は `effects` が空）。周回の開始ではない。章の完了は引き続き状態から導き、`ChapterCompleted` 等のイベントでは表さない
+- 範囲外: `Begin` への置き換えと開始点の `effects` の適用（TASK-217）、2 周目の開始（TASK-254）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章の画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）

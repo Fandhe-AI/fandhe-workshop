@@ -20,6 +20,7 @@
 //! 章ごとの保存先の鍵で別の章の履歴が混ざらないことの試験が使う（SAVE-14・DLV-8。TASK-326 1/2）。
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
 //! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
+//! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -76,6 +77,8 @@ pub(crate) enum MountFixture {
     MultiStart,
     /// 20 Step の通しの教材に、章の開始点 10 件を持たせた教材（直接リンクと再読み込みの試験。DLV-7。TASK-110 1/2）。
     Ch03Links,
+    /// 20 Step の通しの教材の各章の最後を `final` にし、開始点を章の先頭 4 件にした教材（「次の章へ進む」の通しの試験。TASK-526 2/2）。
+    Ch03Chapters,
     /// 既定の教材と同じ `pack.id` で、版が新しい IR（`format_version`・`pack.ir_format` が 3。VER-13。TASK-181 2/2）。
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
@@ -206,6 +209,38 @@ pub(crate) fn ch03_links_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 章の先頭 4 件の開始点の ID と節点（先頭から順）。
+pub(crate) const CH03_CHAPTER_POINTS: [(&str, &str); 4] = [
+    ("s-0-1", "main/st-0-1"),
+    ("s-1-1", "main/st-1-1"),
+    ("s-2-1", "main/st-2-1"),
+    ("s-3-1", "main/st-3-1"),
+];
+
+/// 章の境目を無条件の `next` でつなぐ埋め込みの IR を、各章の最後（st-0-2c・st-1-6・st-2-8）を `final` にした形へ書き換える（`pack.id` だけ別にする）。
+/// 章の完了が起きるので、「次の章へ進む」が出る。`tests/next_chapter.rs` の `variant_json` と同じ書き換えで、2 か所を揃えて保つ。
+pub(crate) fn ch03_chapters_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), "ch0-3-chapters".into());
+    pack.insert("title".to_owned(), "章の移動の通しの試験データ".into());
+    for n in obj.get_mut("nodes")?.as_array_mut()? {
+        let uid = n.get("uid")?.as_str()?.to_owned();
+        if ["main/st-0-2c", "main/st-1-6", "main/st-2-8"].contains(&uid.as_str()) {
+            let step = n.get_mut("step")?.as_object_mut()?;
+            step.insert("final".to_owned(), true.into());
+            step.insert("next".to_owned(), serde_json::json!([]));
+        }
+    }
+    let starts: Vec<serde_json::Value> = CH03_CHAPTER_POINTS
+        .iter()
+        .map(|(id, node)| serde_json::json!({ "id": id, "node": node, "effects": [] }))
+        .collect();
+    obj.insert("starts".to_owned(), starts.into());
+    serde_json::to_vec(&value).ok()
+}
+
 /// 起動の前に選んだ教材の IR が読めないとき、その理由。読める・読めない教材の選択でなければ `None`。
 pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
     let kind = match fixture {
@@ -228,6 +263,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
         "?fixture=ch0-3-links" => MountFixture::Ch03Links,
+        "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
         "?fixture=multi-start" => MountFixture::MultiStart,
         "?fixture=chapter-a" => MountFixture::ChapterA,
         "?fixture=chapter-b" => MountFixture::ChapterB,
@@ -258,6 +294,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::NoInput => NO_INPUT_IR.to_vec(),
         MountFixture::Ch03 => CH03_IR.to_vec(),
         MountFixture::Ch03Links => ch03_links_ir_bytes()?,
+        MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
         MountFixture::MultiStart => multi_start_ir_bytes()?,
         MountFixture::ChapterA => chapter_ir_bytes(Chapter::A)?,
         MountFixture::ChapterB => chapter_ir_bytes(Chapter::B)?,
@@ -889,6 +926,29 @@ mod tests {
             profile.input_field,
             fandhe_workshop_contract::profile::InputFieldMode::Hidden
         );
+    }
+
+    #[test]
+    fn 章の移動の教材は_final_が3か所と開始点4件で読める() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=ch0-3-chapters"),
+            MountFixture::Ch03Chapters
+        );
+        assert_eq!(
+            mount_fixture_from_search("?fixture=ch0-3-chapters&x=1"),
+            MountFixture::Default
+        );
+        let ir = load_ir(&ch03_chapters_ir_bytes().unwrap()).unwrap();
+        let finals: Vec<&str> = ir
+            .nodes
+            .iter()
+            .filter(|n| n.step.is_final)
+            .map(|n| n.uid.as_str())
+            .collect();
+        assert!(finals.contains(&"main/st-0-2c") && finals.contains(&"main/st-1-6"));
+        assert!(finals.contains(&"main/st-2-8"));
+        assert_eq!(ir.starts.len(), 4);
+        assert!(mount_session(MountFixture::Ch03Chapters).is_some());
     }
 
     #[test]

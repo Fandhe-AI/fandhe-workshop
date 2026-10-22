@@ -1,0 +1,8 @@
+id: SHELL10-4
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/next_chapter.rs
+find: if offer.start_id != payload {
+replace: if false {
+expect-fail: 不一致
+note: 押下の payload を今の提示と照らさず、書き換えられた開始点へ移る（SHELL-10・SAFE-33・TASK-526 2/2）

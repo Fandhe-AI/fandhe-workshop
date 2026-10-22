@@ -2,7 +2,9 @@
 //!
 //! 試験用の教材 `tests/data/ch0_3/ir.json` は章の境目を無条件の `next` でつなぐため、試験の中で変種を作る。
 //! 各章の最後の Step を `final` にし、開始点を並べ替えて `#` つきの開始点を混ぜる。
-//! 1/2 では押しても状態が変わらないこと（action を結線しない）も固定する。結線は #715（2/2）が足し、この試験を書き換える。
+//! 2/2 では押下の結線（今の提示と完全一致したときだけ次の章の入口へ `Control::GoTo` で移る）と、CH-0 から CH-3 の通し、
+//! 記録（`ops`）からの復元を固定する。`Control::Begin` でないこと・開始点の `effects` を適用しないことは `next_chapter` のモジュールの doc に書いた限界である。
+//! 変種の作り方はブラウザ用の教材（`test_fixture::ch03_chapters_ir_bytes`）と同じで、2 か所を揃えて保つ。
 //! 試験では `unwrap` を使ってよい。失敗の文面には教材由来の値を出さない。
 
 use std::path::PathBuf;
@@ -11,7 +13,7 @@ use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::DirtyTracked;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::StepUid;
-use fandhe_workshop_core::input::{Input, Op};
+use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{load_ir, Session};
@@ -229,16 +231,264 @@ fn 初期の画面は親の_list_だけを描き移動ボタンを持たない()
     );
 }
 
+fn ready_ch0() -> EngineHost {
+    let ir = ir_of(&variant_json(all_starts()));
+    EngineHost::with_session(
+        Session::from_state(ir, at("main/st-0-2c", StepStatus::Achieved)),
+        standard_registry(),
+    )
+    .unwrap()
+}
+
+fn cur(h: &EngineHost) -> (String, StepStatus) {
+    let s = h.model().session().unwrap().state();
+    let uid = s.run.current.clone().unwrap();
+    let st = s.run.slices[&uid.root()].status[&uid];
+    (uid.0, st)
+}
+
 #[test]
-fn 次の章へ進む_の押下は_1_2_では状態を変えない() {
+fn 一致した押下は次の章の最初の_step_へ移り提示が消える() {
+    let mut h = ready_ch0();
+    let gen_before = h.model().session().unwrap().state().run.generation;
+    let _ = h.dirty_fields();
+    h.update(act(ACTION_NEXT_CHAPTER, "s-1-1"));
+    assert_eq!(cur(&h), ("main/st-1-1".to_owned(), StepStatus::Entered));
+    let s = h.model().session().unwrap().state();
+    assert_eq!(
+        s.run.generation,
+        fandhe_workshop_core::addr::Generation(gen_before.0 + 1),
+        "世代が +1"
+    );
+    assert!(s.run.busy.is_none());
+    assert!(h.dirty_fields().contains(&NEXT_CHAPTER_FIELD.name));
+    let v = h.view();
+    assert_eq!(count_next(&v), 0);
+    assert!(check_complete(&v).is_ok());
+    assert!(fandhe_workshop_web::a11y::check_no_undefined(&v).is_ok());
+    assert_no_goto(&v);
+}
+
+#[test]
+fn 一致しない押下は状態もログも変えない() {
+    for payload in [
+        "s-2-1",
+        "s-0-1",
+        "m#x",
+        "main/st-1-1",
+        " s-1-1",
+        "s-1-1 ",
+        "S-1-1",
+        "unknown",
+    ] {
+        let mut h = ready_ch0();
+        let before = h.model().session().unwrap().state().clone();
+        h.update(act(ACTION_NEXT_CHAPTER, payload));
+        assert_eq!(before, *h.model().session().unwrap().state(), "不一致");
+    }
+    assert!(
+        EngineHost::decode_action(ACTION_NEXT_CHAPTER, "").is_none(),
+        "空は復号しない"
+    );
+}
+
+#[test]
+fn 提示が無いときは正しい_id_でも何もしない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    for (uid, st) in [
+        ("main/st-0-2b", StepStatus::Achieved),
+        ("main/st-0-2c", StepStatus::Accepted),
+        ("main/st-3-2", StepStatus::Achieved),
+    ] {
+        let mut h = EngineHost::with_session(
+            Session::from_state(ir.clone(), at(uid, st)),
+            standard_registry(),
+        )
+        .unwrap();
+        let before = h.model().session().unwrap().state().clone();
+        h.update(act(ACTION_NEXT_CHAPTER, "s-1-1"));
+        assert_eq!(before, *h.model().session().unwrap().state());
+    }
+}
+
+#[test]
+fn 表示だけの間は押下を捨てる() {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_export::export_bytes;
+    use fandhe_workshop_web::host::ImportOutcome;
+
+    let d = variant_json(all_starts());
+    let mut h = ready_ch0();
+    let mut d2 = d.clone();
+    d2["pack"]["version"] = json!("9.0.0");
+    let env = build_envelope(&ir_of(&d2), "s-0-1", vec![], initial("main/st-0-1")).unwrap();
+    let outcome = h.open_history(&export_bytes(&env).unwrap());
+    assert!(matches!(outcome, ImportOutcome::ViewOnly(_)));
+    let before = h.model().session().unwrap().state().clone();
+    h.update(act(ACTION_NEXT_CHAPTER, "s-1-1"));
+    assert_eq!(before, *h.model().session().unwrap().state());
+}
+
+/// 画面から送れる手（選択肢・左の行・承認・下書きの送信）。
+#[derive(Clone, Copy)]
+enum M {
+    C(&'static str),
+    P(&'static str, &'static str),
+    D(&'static str),
+    R(&'static str),
+    S(&'static str),
+    E,
+}
+
+fn play(h: &mut EngineHost, m: M) {
+    match m {
+        M::C(id) => h.update(act("choose", id)),
+        M::D(d) => h.update(act("decide", d)),
+        M::R(t) => h.update(act("revise-target", t)),
+        M::P(v, p) => h.update(HostAction::Engine(Op::Input(Input::Ui {
+            view: v.into(),
+            path: p.into(),
+        }))),
+        M::E => h.update(HostAction::Engine(Op::Control(Control::Stop))),
+        M::S(t) => {
+            h.update(act("draft", t));
+            h.update(act("submit", ""));
+        }
+    }
+    while let Some(addr) = h.next_tick() {
+        h.update(HostAction::Engine(Op::Tick(addr)));
+    }
+}
+
+fn chapter_moves() -> [Vec<M>; 4] {
+    use M::*;
+    let (v, f) = ("v-cards", "v-files");
+    [
+        vec![
+            C("opt-left"),
+            C("opt-top"),
+            C("opt-right"),
+            P(v, "cards/notice"),
+            C("opt-read-a"),
+            C("ans-a-ok"),
+            C("opt-read-b"),
+            C("ans-b-ok"),
+            C("opt-read-c"),
+            C("ans-c-ok"),
+        ],
+        vec![
+            S("/help"),
+            P(v, "cards/help-1"),
+            S("/help"),
+            S("1 行目のメモ\n2 行目のメモ"),
+            S("/new-idea"),
+            S("/advance-phase"),
+            E,
+            C("asked-back"),
+            S("/make-card sample"),
+            P(v, "cards/sample"),
+            C("opt-right"),
+            C("ans-restored"),
+        ],
+        vec![
+            S("/new-idea ideas"),
+            P(f, "docs/readme"),
+            C("opt-view"),
+            C("ans-readme"),
+            D("approve"),
+            P(f, "docs/plan"),
+            S("状況を書いた自然文"),
+            S("/run-check"),
+            P(f, "checks/result"),
+            D("revise"),
+            R("t-expect"),
+            D("approve"),
+            P(f, "tasks/t-1"),
+            C("ans-t1"),
+            C("opt-go"),
+        ],
+        vec![
+            C("opt-place-ok"),
+            P(f, "work/place"),
+            D("approve"),
+            D("approve"),
+        ],
+    ]
+}
+
+#[test]
+fn ch0_から_ch3_まで_次の章へ進む_だけで章をまたいで通る() {
     let ir = ir_of(&variant_json(all_starts()));
     let mut h = host_of(ir, "main/st-0-1");
-    let before = h.model().session().unwrap().state().clone();
-    // 1/2 では復号されない（None）。#715 が結線したら、この試験を書き換える。
-    if let Some(a) = EngineHost::decode_action(ACTION_NEXT_CHAPTER, "s-1-1") {
-        h.update(a);
+    let firsts = ["main/st-1-1", "main/st-2-1", "main/st-3-1"];
+    let ids = ["s-1-1", "s-2-1", "s-3-1"];
+    let chapters = chapter_moves();
+    let mut generations = Vec::new();
+    for (ci, moves) in chapters.iter().enumerate() {
+        let n = moves.len();
+        for (i, m) in moves.iter().enumerate() {
+            play(&mut h, *m);
+            let v = h.view();
+            assert_no_goto(&v);
+            if i + 1 < n {
+                assert_eq!(count_next(&v), 0, "章 {ci} 手 {i}: 途中は出さない");
+            }
+        }
+        let v = h.view();
+        if ci < 3 {
+            assert_eq!(count_next(&v), 1, "章 {ci} の完了後はちょうど 1 個");
+            h.update(act(ACTION_NEXT_CHAPTER, ids[ci]));
+            assert_eq!(cur(&h), (firsts[ci].to_owned(), StepStatus::Entered));
+            assert_eq!(count_next(&h.view()), 0);
+            generations.push(h.model().session().unwrap().state().run.generation);
+        } else {
+            assert_eq!(count_next(&v), 0, "最後の章の後は出さない");
+            assert_eq!(cur(&h), ("main/st-3-2".to_owned(), StepStatus::Achieved));
+        }
     }
-    assert_eq!(before, *h.model().session().unwrap().state());
+    assert!(generations.windows(2).all(|w| w[0] < w[1]));
+}
+
+#[test]
+fn 越えた移動は_ops_に残り_同じ履歴から復元できる() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let mut h = host_of(ir.clone(), "main/st-0-1");
+    for m in chapter_moves()[0].iter() {
+        play(&mut h, *m);
+    }
+    h.update(act(ACTION_NEXT_CHAPTER, "s-1-1"));
+    let text = h.history_to_save().expect("保存する履歴がある");
+    let v: Value = serde_json::from_str(&text).unwrap();
+    let ops = find_ops(&v).expect("ops");
+    let n = ops
+        .iter()
+        .filter(|o| o.to_string().contains("go_to") && o.to_string().contains("main/st-1-1"))
+        .count();
+    assert_eq!(n, 1, "移動先が main/st-1-1 の go_to が 1 件");
+    // 同じ履歴を新しいホストで開くと、移動の後の位置が再現する。
+    let mut fresh = host_of(ir, "main/st-0-1");
+    let outcome = fresh.open_history(text.as_bytes());
+    assert!(
+        !matches!(
+            outcome,
+            fandhe_workshop_web::host::ImportOutcome::ViewOnly(_)
+        ),
+        "開ける"
+    );
+    assert_eq!(cur(&fresh).0, "main/st-1-1");
+    assert_eq!(count_next(&fresh.view()), 0);
+}
+
+fn find_ops(v: &Value) -> Option<&Vec<Value>> {
+    match v {
+        Value::Object(m) => {
+            if let Some(Value::Array(a)) = m.get("ops") {
+                return Some(a);
+            }
+            m.values().find_map(find_ops)
+        }
+        _ => None,
+    }
 }
 
 #[test]
