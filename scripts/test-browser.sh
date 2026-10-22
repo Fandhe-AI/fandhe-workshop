@@ -139,6 +139,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/modifier-key-hint.test.mjs" \
   "${ROOT_DIR}/tools/browser/ch0-3-run.test.mjs" \
   "${ROOT_DIR}/tools/browser/l2-journey-calibrate.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ir-recv-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/next-chapter.test.mjs" \
   "${ROOT_DIR}/tools/browser/out-of-range-chapter.test.mjs" \
   "${ROOT_DIR}/tools/browser/tree-attrs.test.mjs" \

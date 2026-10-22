@@ -816,6 +816,13 @@ pub fn history_read_limit() -> f64 {
     (fandhe_workshop_contract::limits::MAX_HISTORY_BYTES + 1) as f64
 }
 
+/// 同梱の IR の受信で読むバイト数の上限（`MAX_IR_BYTES + 1`）。`app.js` が応答の本体をここまでだけ読む（`start_select::ir_read_limit`）。
+#[wasm_bindgen]
+#[must_use]
+pub fn ir_read_limit() -> f64 {
+    crate::start_select::ir_read_limit()
+}
+
 /// `root_id` の要素にホストをマウントする Promise を返す。2 回目以降は拒否する。
 ///
 /// 保存済みの履歴の読み込みは非同期のため、保存先が準備できてから起動の分岐を行いマウントする（`persist`、TASK-319）。

@@ -319,7 +319,7 @@ pub fn mount_with_history(
 /// クエリは選択の名前としてだけ使い、経路・URL には使わない。
 ///
 /// 開始点の指定（`start`）は、試験の設定では選んだ教材の、配信する設定では同梱の IR（`ir`。`static/app.js` が固定の `./ir/main.json` を
-/// 取得して渡す。印の meta が無い配信物では `None` で、挙動は変わらない）の `starts` と照合して開始点を選ぶ（TASK-112 2/2。`docs/testing.md` 5.237）。
+/// 取得して渡す。印の meta が無い配信物では `None` で、挙動は変わらない）の `starts` と照合して開始点を選ぶ（TASK-112 2/2。`docs/testing.md` 5.238）。
 fn mount_host_for_page(start: Option<&str>, ir: Option<&[u8]>) -> EngineHost {
     #[cfg(feature = "test-hooks")]
     {

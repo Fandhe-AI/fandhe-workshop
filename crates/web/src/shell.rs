@@ -1,8 +1,10 @@
-//! 画面の枠（全体のレイアウト）の区画と、枠が受け取る操作の名前・宛先の形、通知の口の契約（TASK-511 1/2・2/2）。
+//! 画面の枠（全体のレイアウト）の区画と、枠が受け取る操作の名前・宛先の形、通知の口の契約（TASK-511 1/2・2/2、版 2 は TASK-516 1/2）。
 //!
 //! 呼び出し元は、枠を組む画面のタスク（TASK-517・TASK-526・TASK-529〜TASK-533）と画面の試験である。
 //! 各担当が識別子や action の名前を別々に決めると統合で食い違うため、先に版つきの型として固定する。
 //! native の rlib で試験できるよう、wasm 専用にしない。2/2（通知の種類・値・検査器）は版を上げずに足した。
+//! 版 2（TASK-516 1/2）は、決定の入った区画と識別子（上部の「模擬」・教材名・位置、早送りの切り替えの区画、
+//! ブラウザの案内）を足して版を上げた。版 1 の値はすべて同じ値・同じ順で残る。
 //!
 //! 出所は spec の SHELL-1（2 領域とタブ）・SHELL-10（次の章へ進む）・SHELL-13（チェックポイント）・
 //! SHELL-14（ヒント。D-55）・SHELL-15（書き出しと読み込み）・SHELL-17（履歴を捨てて始める）と、PoC-12 の
@@ -16,14 +18,19 @@
 //!   `TABLIST_LABEL`・`PaneTab`）と領域の `aria-label`・通知欄・ライブの欄・印の識別子、`terminal_area` の
 //!   識別子。これらは再定義しない。[`PaneMount::pane_tab`] で参照として結ぶ。
 //! - 管轄外: 右のエリアの中（TASK-431）、Step の本文・題・「いまやること」（TASK-525）、通知の文面そのもの（TASK-516・TASK-534・
-//!   TASK-545・TASK-549）と通知欄の描画・配置（画面のタスク）。
+//!   TASK-545・TASK-549）と通知欄の描画・配置（画面のタスク）。ブラウザの案内の文は D-74 が決めたので本契約が持つ。
 //! - 通知の口（2/2）: 通知の種類 5 つ（SHELL-16・17・18・20・31）、値 4 つ（種類・理由コード・文面の識別子・
 //!   押せる操作）、通知欄の識別子 `shell-notice`（`role="status"` の規則と個数は `a11y` が課す）、適合の検査器
-//!   [`check_no_undefined`]・[`check_complete`]。理由コードは版 1 では不透明な文字列で、TASK-310 の列挙には
-//!   結ばない（結ぶのは TASK-516）。
+//!   [`check_no_undefined`]・[`check_complete`]。理由コードは不透明な文字列で、TASK-310 の列挙には
+//!   まだ結ばない（結ぶのは TASK-516 2/2）。
+//! - 版 2 で足したもの: 上部の区画の確定（SHELL-6・SHELL-8。D-72）、早送りの切り替えの区画
+//!   [`ControlSection::FastForward`]（SHELL-24。D-54）、通知の種類 [`NoticeKind::BrowserNotice`]（SHELL-30。D-74）、
+//!   完成した画面の検査器 [`check_complete_v2`]。
 //!
-//! 意図して固定しないもの: 検討中の項目（再読み込みの告知・次の行動の文面・古いタブ・ブラウザの案内・
-//! 早送りの切り替え・履歴の削除）、予約の区画（[`SectionStatus::Reserved`]）の中身と常設の有無、
+//! 意図して固定しないもの: 検討中の項目（再読み込みの告知・次の行動の文面・古いタブ・履歴の削除。
+//! 再読み込み・書き出しの案内・削除は 2/2）、早送りの切り替えの action の名前・状態の文字・無効の表示（TASK-540）、
+//! 「模擬」・位置の文言の細目（TASK-524）、ブラウザの案内の「一度だけ」の記憶と旧版の基準（TASK-544）、
+//! 予約の区画（[`SectionStatus::Reserved`]。版 2 では該当が無い）の中身と常設の有無、
 //! 「次の章へ進む」の action の名前と宛先（TASK-526）、読み込みのファイルの読み取りの仕組み（TASK-531）、
 //! 枠の要素への `role`・`aria-*` の付与（`a11y` の閉じた一覧を変えない）。
 //!
@@ -35,7 +42,7 @@ use fandhe_frontend_core::Node;
 use std::fmt;
 
 /// 本契約の版。`parts`・`a11y`・`terminal_area`・`artifact_view` の版とは別に管理する。
-pub const SHELL_CONTRACT_VERSION: u32 = 1;
+pub const SHELL_CONTRACT_VERSION: u32 = 2;
 
 /// 本契約の識別子の予約の接頭辞。`a11y` の `live-`、`terminal_area` の `line-` と同じ考え方で、
 /// 他の契約との衝突を機械的に防ぐ。
@@ -43,6 +50,17 @@ pub const SHELL_PREFIX: &str = "shell-";
 
 /// 「次の章へ進む」の表示の文字の接頭辞（SHELL-10。`次の章へ進む: <Step の題>`）。
 pub const NEXT_CHAPTER_LABEL_PREFIX: &str = "次の章へ進む: ";
+
+/// 「模擬」の表示の文字（SHELL-6。D-72）。検査器は文字ノードの中身を見ないので、照合は画面の試験が行う。
+pub const MOCK_LABEL: &str = "模擬";
+
+/// ブラウザの案内の文（SHELL-30。D-74）。
+pub const BROWSER_NOTICE_TEXT: &str = "この教材は Chrome の最新版で確かめています";
+
+/// 位置の要素に載せる、章の中の現在の Step の番号（M）の属性名。
+pub const POSITION_M_ATTR: &str = "data-position-m";
+/// 位置の要素に載せる、章の中の Step の総数（K）の属性名。
+pub const POSITION_K_ATTR: &str = "data-position-k";
 
 /// 「次の章へ進む」の識別子。画面全体で 0 か 1 個（SHELL-10・SHELL-35）。
 pub const NEXT_CHAPTER_TESTID: &str = "shell-next-chapter";
@@ -79,9 +97,9 @@ pub enum Cardinality {
 /// 区画の確定の度合い。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionStatus {
-    /// 版 1 で確定した区画。
+    /// 確定した区画（版 1 で確定、または版 2 で確定）。
     Fixed,
-    /// 名前と識別子だけを予約した区画。中身の形と常設の有無は固定しない（検討中。決定の後に版 2 が足す）。
+    /// 名前と識別子だけを予約した区画。中身の形と常設の有無は固定しない（検討中。決定の後に版を上げて確定する。版 2 では該当する区画が無い）。
     Reserved,
 }
 
@@ -94,11 +112,11 @@ pub enum TopSection {
     Hint,
     /// チェックポイント（SHELL-13）。
     Checkpoint,
-    /// 教材名（SHELL-8。検討中のため予約）。
+    /// 教材名（SHELL-8。D-72。版 2 で確定）。
     Title,
-    /// 章と Step の位置（SHELL-8。検討中のため予約）。
+    /// 章と Step の位置（SHELL-8。D-72。版 2 で確定）。
     Position,
-    /// 「模擬」の表示（SHELL-6。検討中のため予約）。
+    /// 「模擬」の表示（SHELL-6。D-72。版 2 で確定し、完成した画面でちょうど 1 個）。
     Mock,
 }
 
@@ -130,15 +148,82 @@ impl TopSection {
         Self::ALL.into_iter().find(|s| s.testid() == id)
     }
 
-    /// 確定か予約か。
+    /// 確定か予約か。版 2 では全区画が確定である。
     pub const fn status(self) -> SectionStatus {
+        SectionStatus::Fixed
+    }
+
+    /// 個数の規則。「模擬」だけが必須（SHELL-6）。必須の検査は [`check_complete_v2`] が行い、
+    /// 版 1 の [`check_complete`] は変えない。
+    pub const fn cardinality(self) -> Cardinality {
         match self {
-            TopSection::Top | TopSection::Hint | TopSection::Checkpoint => SectionStatus::Fixed,
-            TopSection::Title | TopSection::Position | TopSection::Mock => SectionStatus::Reserved,
+            TopSection::Mock => Cardinality::ExactlyOne,
+            _ => Cardinality::AtMostOne,
+        }
+    }
+}
+
+/// 位置の区画に載せる、章の中の現在の Step の番号 M と総数 K（D-72。Step の ID は出さない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepPosition {
+    m: u32,
+    k: u32,
+}
+
+impl StepPosition {
+    /// `1 <= m <= k` だけを受ける。それ以外は `None`。panic しない。
+    pub fn new(m: u32, k: u32) -> Option<StepPosition> {
+        (1 <= m && m <= k).then_some(StepPosition { m, k })
+    }
+
+    /// M。
+    pub fn m(self) -> u32 {
+        self.m
+    }
+
+    /// K。
+    pub fn k(self) -> u32 {
+        self.k
+    }
+
+    /// 位置の要素に付ける属性の組（10 進の ASCII）。
+    pub fn attrs(self) -> [(&'static str, String); 2] {
+        [
+            (POSITION_M_ATTR, self.m.to_string()),
+            (POSITION_K_ATTR, self.k.to_string()),
+        ]
+    }
+}
+
+/// 右の領域の中の操作の区画（版 2）。上部ではないので [`TopSection`] には含めない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ControlSection {
+    /// 早送りの切り替え（SHELL-24。D-54）。action の名前・状態の文字・無効の表示は固定しない（TASK-540）。
+    FastForward,
+}
+
+impl ControlSection {
+    /// 全種類。
+    pub const ALL: [ControlSection; 1] = [ControlSection::FastForward];
+
+    /// `data-testid` の値。
+    pub const fn testid(self) -> &'static str {
+        match self {
+            ControlSection::FastForward => "shell-fast-forward",
         }
     }
 
-    /// 個数の規則。予約の区画は必須にしない。
+    /// 識別子から区画を求める。未知は `None`。
+    pub fn parse(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.testid() == id)
+    }
+
+    /// 確定か予約か。
+    pub const fn status(self) -> SectionStatus {
+        SectionStatus::Fixed
+    }
+
+    /// 個数の規則。
     pub const fn cardinality(self) -> Cardinality {
         Cardinality::AtMostOne
     }
@@ -184,12 +269,13 @@ impl PaneMount {
     }
 }
 
-/// 本契約の識別子の全件（区画・取り付け点・次の章へ進む・操作の部品）。
+/// 本契約の識別子の全件（区画・操作の区画・取り付け点・次の章へ進む・操作の部品）。
 pub fn shell_testids() -> impl Iterator<Item = &'static str> {
     TopSection::ALL
         .into_iter()
         .map(TopSection::testid)
         .chain(PaneMount::ALL.into_iter().map(PaneMount::testid))
+        .chain(ControlSection::ALL.into_iter().map(ControlSection::testid))
         .chain([
             NEXT_CHAPTER_TESTID,
             NOTICE_AREA_TESTID,
@@ -330,7 +416,7 @@ fn is_notice_kind(s: &str) -> bool {
         && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-/// 通知の種類。出所は SHELL-16（読み込みの拒否）・SHELL-17（壊れた履歴）・SHELL-18（保存の失敗）・
+/// 通知の種類。出所は SHELL-30（ブラウザの案内。版 2）・SHELL-16（読み込みの拒否）・SHELL-17（壊れた履歴）・SHELL-18（保存の失敗）・
 /// SHELL-20（版の違いを変換して開いた）・SHELL-31（教材を読み込めない）。
 ///
 /// 検討中の項目（次の行動の文面 SHELL-36・SHELL-19・履歴の削除・再読み込みの告知）は種類に含めない。
@@ -346,6 +432,8 @@ pub enum NoticeKind {
     VersionConverted,
     /// 教材を読み込めない（SHELL-31）。
     PackUnloadable,
+    /// ブラウザの案内（SHELL-30。D-74。版 2 で追加）。
+    BrowserNotice,
 }
 
 /// 理由コードの要否。
@@ -359,12 +447,13 @@ pub enum ReasonRule {
 
 impl NoticeKind {
     /// 全種類。
-    pub const ALL: [NoticeKind; 5] = [
+    pub const ALL: [NoticeKind; 6] = [
         NoticeKind::SaveFailed,
         NoticeKind::CorruptHistory,
         NoticeKind::ImportRefused,
         NoticeKind::VersionConverted,
         NoticeKind::PackUnloadable,
+        NoticeKind::BrowserNotice,
     ];
 
     /// 属性と `dismiss-notice` の payload に使う値（`[a-z][a-z0-9-]*`、32 バイト以下）。
@@ -375,6 +464,7 @@ impl NoticeKind {
             NoticeKind::ImportRefused => "import-refused",
             NoticeKind::VersionConverted => "version-converted",
             NoticeKind::PackUnloadable => "pack-unloadable",
+            NoticeKind::BrowserNotice => "browser-notice",
         }
     }
 
@@ -390,6 +480,7 @@ impl NoticeKind {
     pub const fn reason_rule(self) -> ReasonRule {
         match self {
             NoticeKind::VersionConverted => ReasonRule::Optional,
+            NoticeKind::BrowserNotice => ReasonRule::Optional,
             _ => ReasonRule::Required,
         }
     }
@@ -400,6 +491,7 @@ impl NoticeKind {
             NoticeKind::SaveFailed | NoticeKind::PackUnloadable => &[],
             NoticeKind::CorruptHistory => &[ShellOp::DiscardAndStart],
             NoticeKind::ImportRefused | NoticeKind::VersionConverted => &[ShellOp::DismissNotice],
+            NoticeKind::BrowserNotice => &[ShellOp::DismissNotice],
         }
     }
 
@@ -411,6 +503,7 @@ impl NoticeKind {
             NoticeKind::ImportRefused => &[MessageId::ImportRefused],
             NoticeKind::VersionConverted => &[MessageId::VersionConverted],
             NoticeKind::PackUnloadable => &[MessageId::PackUnloadable],
+            NoticeKind::BrowserNotice => &[MessageId::BrowserNotice],
         }
     }
 }
@@ -428,16 +521,19 @@ pub enum MessageId {
     VersionConverted,
     /// 教材を読み込めない。
     PackUnloadable,
+    /// ブラウザの案内。文は [`BROWSER_NOTICE_TEXT`]。
+    BrowserNotice,
 }
 
 impl MessageId {
     /// 全種類。
-    pub const ALL: [MessageId; 5] = [
+    pub const ALL: [MessageId; 6] = [
         MessageId::SaveFailed,
         MessageId::CorruptHistory,
         MessageId::ImportRefused,
         MessageId::VersionConverted,
         MessageId::PackUnloadable,
+        MessageId::BrowserNotice,
     ];
 
     /// 属性に載せる値。
@@ -448,6 +544,7 @@ impl MessageId {
             MessageId::ImportRefused => "msg-import-refused",
             MessageId::VersionConverted => "msg-version-converted",
             MessageId::PackUnloadable => "msg-pack-unloadable",
+            MessageId::BrowserNotice => "msg-browser-notice",
         }
     }
 
@@ -460,8 +557,8 @@ impl MessageId {
 /// 理由コードの最大バイト数。
 const MAX_REASON_BYTES: usize = 64;
 
-/// 通知の理由コード。版 1 では意味を解釈しない不透明な文字列で、属性に安全な形（ASCII の英字で始まり、
-/// 英数字・`_`・`-` が続く 1〜64 バイト）だけを受ける。TASK-310 の列挙に結ぶのは TASK-516。
+/// 通知の理由コード。意味を解釈しない不透明な文字列で、属性に安全な形（ASCII の英字で始まり、
+/// 英数字・`_`・`-` が続く 1〜64 バイト）だけを受ける。TASK-310 の列挙に結ぶのは TASK-516 2/2。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReasonCode(String);
 
@@ -655,6 +752,7 @@ struct Item {
 
 #[derive(Clone, Copy)]
 struct Ctx {
+    in_top: bool,
     in_area: bool,
     item: Option<usize>,
 }
@@ -776,6 +874,23 @@ fn check_op(w: &mut Walk, id: usize, op: ShellOp, attrs: &[(String, String)], ct
     }
 }
 
+/// 位置の要素の属性を検査する。属性は任意で、あれば M・K が 10 進の `1 <= M <= K` であること。
+fn check_position(w: &mut Walk, id: usize, attrs: &[(String, String)]) {
+    let m = attr(attrs, POSITION_M_ATTR);
+    let k = attr(attrs, POSITION_K_ATTR);
+    if m.is_none() && k.is_none() {
+        return;
+    }
+    let dec = |v: Option<&str>| {
+        v.filter(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|s| s.parse::<u32>().ok())
+    };
+    let ok = matches!((dec(m), dec(k)), (Some(m), Some(k)) if StepPosition::new(m, k).is_some());
+    if !ok {
+        w.bad(id, "position-format", POSITION_M_ATTR);
+    }
+}
+
 fn walk(view: &Node) -> Walk {
     let mut w = Walk {
         out: Vec::new(),
@@ -786,6 +901,7 @@ fn walk(view: &Node) -> Walk {
     };
     // 再帰しない。深い木でもスタックあふれを起こさないため。
     let ctx0 = Ctx {
+        in_top: false,
         in_area: false,
         item: None,
     };
@@ -811,6 +927,20 @@ fn walk(view: &Node) -> Walk {
             }
             if let Some(s) = TopSection::parse(t) {
                 w.count(s.testid(), id);
+                if s == TopSection::Top {
+                    child_ctx.in_top = true;
+                } else if matches!(
+                    s,
+                    TopSection::Title | TopSection::Position | TopSection::Mock
+                ) && !ctx.in_top
+                {
+                    w.bad(id, "top-section-outside-top", t);
+                }
+                if s == TopSection::Position {
+                    check_position(&mut w, id, attrs);
+                }
+            } else if let Some(c) = ControlSection::parse(t) {
+                w.count(c.testid(), id);
             } else if let Some(m) = PaneMount::parse(t) {
                 w.count(m.testid(), id);
             } else if t == NEXT_CHAPTER_TESTID {
@@ -890,4 +1020,37 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
         }
     }
     finish(out)
+}
+
+/// 版 2 の完成した画面を照合する。[`check_complete`] に加え、個数の規則が必須の上部の区画（「模擬」。
+/// SHELL-6）がちょうど 1 個あることを求める（重複は `duplicate` が検出する）。
+///
+/// 画面が [`check_complete`] からここへ移るのは、「模擬」を描く TASK-523 の実装の後である。それまでの画面は
+/// 版 1 の検査器で通る。
+pub fn check_complete_v2(view: &Node) -> Result<(), Vec<Violation>> {
+    let w = walk(view);
+    let mut out = w.out;
+    for m in PaneMount::ALL {
+        required_count(&w.counts, &mut out, m.testid());
+    }
+    for s in TopSection::ALL {
+        if s.cardinality() == Cardinality::ExactlyOne {
+            required_count(&w.counts, &mut out, s.testid());
+        }
+    }
+    finish(out)
+}
+
+fn required_count(counts: &[(&'static str, usize)], out: &mut Vec<Violation>, testid: &str) {
+    let found = counts
+        .iter()
+        .find(|(t, _)| *t == testid)
+        .map_or(0, |(_, n)| *n);
+    if found == 0 {
+        out.push(Violation::Count {
+            what: testid.to_owned(),
+            expected: 1,
+            found,
+        });
+    }
 }

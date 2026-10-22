@@ -1,8 +1,32 @@
 // ページの入口。wasm を読み込んで Hello をマウントし、結果を html の data-mounted に残す。
 // ブラウザ試験はこの属性を待つ。試験用の meta がある設定でだけ test-hooks.js を読む。
-import init, { mount_app, import_history, history_read_limit } from "./wasm/fandhe_workshop_web.js";
+import init, { mount_app, import_history, history_read_limit, ir_read_limit } from "./wasm/fandhe_workshop_web.js";
 
 const root = document.documentElement;
+
+// reader を limit バイトまで読み、1 つの Uint8Array にまとめる。limit に達したら残りを読まず reader.cancel() で中止する。
+async function readBounded(reader, limit) {
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const take = Math.min(value.length, limit - total);
+      chunks.push(take === value.length ? value : value.subarray(0, take));
+      total += take;
+    }
+  } finally {
+    if (total >= limit) await reader.cancel().catch(() => {});
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
 
 try {
   await init();
@@ -16,8 +40,10 @@ try {
   let ir;
   if (document.querySelector('meta[name="fandhe-ir"]')) {
     try {
+      // 受信量は上限 + 1 バイトまでに制限する（Content-Length は信用せず、実際に受けた量で数える）。超えたら読み取りを中止し、
+      // 上限 + 1 バイトを渡して Rust 側（load_ir）に大きさで断らせる。全体を一度に確保しない。
       const r = await fetch("./ir/main.json");
-      ir = r.ok ? new Uint8Array(await r.arrayBuffer()) : new Uint8Array(0);
+      ir = r.ok && r.body ? await readBounded(r.body.getReader(), ir_read_limit()) : new Uint8Array(0);
     } catch {
       ir = new Uint8Array(0);
     }

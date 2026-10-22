@@ -13,8 +13,20 @@ use fandhe_workshop_web::{action, offers, save_notice, secret_notice, view_selec
 use std::collections::HashSet;
 
 #[test]
-fn 版は_1() {
-    assert_eq!(SHELL_CONTRACT_VERSION, 1);
+fn 版_1_の値は版_2_でも同じ値と順で残る() {
+    // 版の値そのものは shell_contract_v2 が固定する。
+    const { assert!(SHELL_CONTRACT_VERSION >= 1) };
+    let kinds: Vec<_> = NoticeKind::ALL.iter().take(5).map(|k| k.as_str()).collect();
+    assert_eq!(
+        kinds,
+        [
+            "save-failed",
+            "corrupt-history",
+            "import-refused",
+            "version-converted",
+            "pack-unloadable"
+        ]
+    );
 }
 
 #[test]
@@ -63,11 +75,17 @@ fn 区画の確定と予約と個数の規則() {
     for s in [TopSection::Top, TopSection::Hint, TopSection::Checkpoint] {
         assert_eq!(s.status(), SectionStatus::Fixed);
     }
+    // 版 2 で Title・Position・Mock は確定し、Mock だけが必須になった（shell_contract_v2 が詳細を見る）。
     for s in [TopSection::Title, TopSection::Position, TopSection::Mock] {
-        assert_eq!(s.status(), SectionStatus::Reserved);
+        assert_eq!(s.status(), SectionStatus::Fixed);
     }
     for s in TopSection::ALL {
-        assert_eq!(s.cardinality(), Cardinality::AtMostOne);
+        let want = if s == TopSection::Mock {
+            Cardinality::ExactlyOne
+        } else {
+            Cardinality::AtMostOne
+        };
+        assert_eq!(s.cardinality(), want);
     }
     for m in PaneMount::ALL {
         assert_eq!(m.cardinality(), Cardinality::ExactlyOne);
@@ -97,7 +115,7 @@ fn parse_と_from_name_は往復し未知を拒否する() {
 #[test]
 fn 本契約の識別子は_shell_で始まり互いに重複しない() {
     let ids: Vec<_> = shell_testids().collect();
-    assert_eq!(ids.len(), 6 + 2 + 1 + 3 + 4);
+    assert_eq!(ids.len(), 6 + 2 + 1 + 1 + 3 + 4);
     assert!(ids.iter().all(|i| i.starts_with(SHELL_PREFIX)));
     let set: HashSet<_> = ids.iter().collect();
     assert_eq!(set.len(), ids.len());
@@ -253,7 +271,8 @@ fn 通知の識別子と種類の値の固定() {
             "corrupt-history",
             "import-refused",
             "version-converted",
-            "pack-unloadable"
+            "pack-unloadable",
+            "browser-notice"
         ]
     );
     let msgs: Vec<_> = MessageId::ALL.iter().map(|m| m.as_str()).collect();
@@ -264,7 +283,8 @@ fn 通知の識別子と種類の値の固定() {
             "msg-corrupt-history",
             "msg-import-refused",
             "msg-version-converted",
-            "msg-pack-unloadable"
+            "msg-pack-unloadable",
+            "msg-browser-notice"
         ]
     );
 }
@@ -309,6 +329,10 @@ fn 許す操作の表の固定() {
         NoticeKind::VersionConverted.allowed_ops(),
         [ShellOp::DismissNotice]
     );
+    assert_eq!(
+        NoticeKind::BrowserNotice.allowed_ops(),
+        [ShellOp::DismissNotice]
+    );
     for k in NoticeKind::ALL {
         assert!(!k.allowed_ops().contains(&ShellOp::Export));
         assert!(!k.allowed_ops().contains(&ShellOp::Import));
@@ -319,7 +343,7 @@ fn 許す操作の表の固定() {
 #[test]
 fn 理由の規則() {
     for k in NoticeKind::ALL {
-        let want = if k == NoticeKind::VersionConverted {
+        let want = if matches!(k, NoticeKind::VersionConverted | NoticeKind::BrowserNotice) {
             ReasonRule::Optional
         } else {
             ReasonRule::Required
@@ -420,7 +444,7 @@ fn 検討中の通知の項目は版_1_に無い() {
     for id in MessageId::ALL {
         assert!(!id.as_str().contains("next-action"));
     }
-    assert_eq!(NoticeKind::ALL.len(), 5);
+    assert_eq!(NoticeKind::ALL.len(), 6);
 }
 
 #[test]
@@ -428,7 +452,7 @@ fn 検討中の項目は版_1_に無い() {
     for name in ["delete-history", "reload-notice", "fast-forward"] {
         assert_eq!(ShellOp::from_name(name), None);
     }
-    for id in ["shell-delete", "shell-fast-forward", "shell-reload"] {
+    for id in ["shell-delete", "shell-reload"] {
         assert!(!is_defined_testid(id));
     }
 }

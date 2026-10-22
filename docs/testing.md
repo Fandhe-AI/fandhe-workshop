@@ -5020,7 +5020,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 557`（2026-10-22 に TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 562`（2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -7221,7 +7221,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 決定（自動運転のため人の承認は得ていない）: zip は Node の `zlib` で自前に書く（`zip` が前提の道具に無いため。時刻・順序・mode を固定して決定的にする）。miniserve は上流の Release のビルド済み実行ファイルを使い、sha256 を `tools/l2/miniserve.sha256` に固定して照合する（固定値を上書きする口は無い。2026-10-22 に Release の digest との一致を確認。実行ファイル自体の取得・実行は未実施）。`L2_PLATFORM=linux-x64` は模擬環境の試験（#532）のための追加で、仕様に明記は無い。
 - 試験（`tools/build-l2.test.mjs`。22 件）: 木の完全一致・mode（`start.sh`・`miniserve` が 0755、他が 0644）・`site/` のバイト一致・決定性・`start.sh` の起動（`PATH=/usr/bin:/bin` の環境で URL を表示し、引数が `--index index.html -i 127.0.0.1 -p <PORT> site` と完全一致。不正な `PORT` は 2）・fail-closed（digest の不一致、試験用の口・`.d.ts`・シンボリックリンク・`ir/main.json` の欠落、誤用、出力先の不正で zip が作られない）・固定表の形。
 - 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文・推移的な依存の棚卸し（TASK-137）。
-- 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.237 で最小限を入れて解消した）。
+- 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.238 で最小限を入れて解消した）。
 - 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
 ### 5.236 影響する Step の洗い出し道具（TASK-182 1/2。VER-15・UMAP-5）
@@ -7242,11 +7242,35 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 範囲外: 実際の記録と最終の承認（人間の承認点）・道具の CI への組み込み・教材 repo の試験。
 - 実行結果（2026-10-22）: 5 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
-### 5.237 Rust のない模擬環境での L2 の完走試験（TASK-112 2/2。DLV-13・D-58・D-71）
+### 5.237 枠の契約の版 2 の区画と識別子（TASK-516 1/2。SHELL-6・SHELL-8・SHELL-24・SHELL-30）
+
+- 目的: 枠の契約（`shell`）を版 1 から版 2 に上げ、D-72（上部の「模擬」・教材名・位置）・D-54（早送りの切り替えの区画）・D-74（ブラウザの案内）の区画と識別子を足したことを確かめる。版 1 を使う画面が壊れないことも示す。再読み込み・書き出しの案内・履歴の削除・理由コードの束縛は TASK-516 2/2（#696）が持つ。
+- 期待と定義の対応:
+
+| 要件 | 決定 | 定義 |
+|---|---|---|
+| SHELL-6 | D-72 | `TopSection::Mock` が `Fixed` かつ `ExactlyOne`。文字は `MOCK_LABEL`。必須の検査は `check_complete_v2` |
+| SHELL-8 | D-72 | `TopSection::Title`・`Position` が `Fixed`。位置は `StepPosition`（`1 <= m <= k`）と属性 `data-position-m`・`data-position-k`。上部の外の置き場は `top-section-outside-top` |
+| SHELL-24 | D-54 | `ControlSection::FastForward`（`shell-fast-forward`）。入・切は `ops` に入れない（`OPS_RECORDS_FAST_FORWARD` が偽であることを参照） |
+| SHELL-30 | D-74 | `NoticeKind::BrowserNotice`（`browser-notice`）・`MessageId::BrowserNotice`・`BROWSER_NOTICE_TEXT`。理由は任意、操作は `DismissNotice` だけ |
+
+- 版 1 から版 2 の差分:
+  - 足したもの: 上の定義、`check_complete_v2`、検査の規則 `top-section-outside-top`・`position-format`、`shell-fast-forward` の計数。
+  - 値を変えたもの: `SHELL_CONTRACT_VERSION` が 2。`TopSection` の `status` が全件 `Fixed`、`Mock` の `cardinality` が `ExactlyOne`。`NoticeKind::ALL`・`MessageId::ALL` が 6 件（末尾に追加）。
+  - 変えていないもの: 版 1 の識別子・action の名前・通知の種類・文面の識別子の値と順、`check_complete`・`check_no_undefined` の版 1 の規則、host・描画。
+  - 版 1 の試験で直した 5 か所（`crates/web/tests/shell_contract.rs`）: (1) `版は_1` を版 1 の値が残ることの試験へ（版の値は `shell_contract_v2` が固定する）、(2) 区画の確定と個数、(3) 識別子の件数（`+ 1`）、(4) 通知の種類・文面の識別子の列と理由・操作の表に `BrowserNotice` を追加、(5) 「検討中の項目は版 1 に無い」から `shell-fast-forward` を外し、通知の種類の件数を 6 に。
+- 版 1 を使う画面が壊れない根拠: 版 1 の値はすべて不変で `ALL` の先頭に残る。足した規則は、版 1 の画面が描かない識別子（`shell-title`・`shell-position`・`shell-mock`・`shell-fast-forward`・`browser-notice`）にだけ掛かる。`check_complete` は変えず、`shell-mock` の必須化は `check_complete_v2` に分けた。既存の利用者（`shell_frame_host`・`shell_notice_sample`・`a11y_contract` ほか）は変更なしで通った。
+- 試験（`crates/web/tests/shell_contract_v2.rs`。14 件）: 版・版 1 の値の保存・区画の状態と個数・位置の範囲と属性・早送りの区画・ブラウザの案内の値と UA らしい理由の拒否・正の見本（4 つの検査器）・負の見本（模擬の欠落は版 2 だけが失敗、重複、上部の外、位置の形、許されない操作）。
+- 変異注入（2026-10-22。元にしたコミット `b6da7c6` の作業ツリー）: SHELL6-1・SHELL8-1・SHELL24-1・SHELL30-1 と既存の SHELL1-1・SHELL1-2・SHELL10-1・SHELL16-1・SHELL17-1・SHELL17-2・SHELL18-1・SHELL31-1 の 12 件がすべて DETECTED。
+- 限界・申し送り: 画面が `check_complete_v2` へ移るのは TASK-523 の実装の後。「模擬」・位置の文言と「Step の ID は出さない」は TASK-524、早送りの action・状態の文字・無効の表示は TASK-540、ブラウザの案内の「一度だけ」と旧版の基準は TASK-544。理由コードを TASK-310 の `LoadReason` に結ぶことは 2/2。ブラウザ試験は画面の描画を変えないため流していない。
+- 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の 1 件（`crates/pack/src/guidance.rs:606`）で失敗する（範囲外）。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.238 Rust のない模擬環境での L2 の完走試験（TASK-112 2/2。DLV-13・D-58・D-71）
 
 - 目的: L2 の配布物（zip）を `PATH=/usr/bin:/bin`（cargo・rustc・rustup・node が見えない）の模擬環境に展開し、`./start.sh` を起動して、自動ブラウザ（Chromium）で URL を開き、CH-0〜CH-1（`main/st-2-1` に入るまで）を最後まで進めることを 3 回確かめる。人の操作は「展開・`./start.sh`・URL を開く」の 3 つだけで、各回でページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外の応答・配信元以外への要求が 0 件、同梱の IR が 200 で 1 回取得されることを求める。
 - 前提の変更（自動運転のため人の承認は得ていない。Issue ツリーに担当が無い）: 配信する設定の web は実行時に IR を取得せず、教材が 1 つも開かなかった（`EngineHost::for_mount` が `new()` だけ。5.223・5.235 に既出）。本タスクで最小限を入れた。(1) `tools/build-web.sh` は配信する設定で `IR_FILE` があるときだけ、`index.html` の印 `<!--fandhe:ir-->` を `<meta name="fandhe-ir" content="1">` にする（ほかは印の行を消す）。(2) `static/app.js` はこの meta があるときだけ固定の `./ir/main.json` を取得してバイト列を `mount_app` の第 4 引数に渡す（失敗は空のバイト列で断りに倒す。URL の値から場所は作らない。SAFE-33）。(3) `start_select::open_bundled_ir` が `load_ir`（大きさ・深さ・版・参照の上限）を通し、`start` を `starts` と完全一致で照合し、開始点の節点に入った直後の状態を core の `Session::entered_at` で組み立てる（表示層は状態を組み立てない規則 `no_progress` のため core に置いた。`Control::Begin`（TASK-217・TASK-294）が未実装の間の暫定。試験の設定の `test_fixture::session_at` と同じ状態）。読めない・選べないときは `refused`・`refused_start` の断りの画面に倒す。meta が無い配信物は取得せず従来どおり（既存の配信系のブラウザ試験の結果を変えない）。`tick_interval.rs` の `ir` の字句の検査は、`app.js` の固定の `fetch("./ir/main.json")` がちょうど 1 件のときだけ許す。
 - 試験の構成: (a) `scripts/test-l2-run.sh`（`make test-l2-run`。`L2_SERVER` 必須。遅く、`make test-browser` には入れず CI の `browser-test` が流す）が web を専用の target・`CARGO_PROFILE_RELEASE_STRIP=symbols`・`SKIP_WASM_OPT=1`・`IR_FILE=crates/web/tests/data/ch0_3/ir.json` でビルドし、`tools/build-l2.mjs`（`L2_PLATFORM` は `uname` から）で zip を作り、`tools/browser/l2-run.test.mjs` を流す。専用の target と strip は、`check-delivery.sh` が WASM のバイト列に `debug_` が無いことを求めるのに、wasm-opt を使わない CI のビルドには名前情報が残るため。(b) `l2-run.test.mjs`: 前提の検査（模擬環境の PATH に 4 つのコマンドが見えない。見えるコマンドを検出する対照つき。`command -v` は dash が先頭の 1 件しか見ないため 1 件ずつ呼ぶ）・3 回の完走（毎回新しい展開先・起動・browser context。環境は PATH・HOME・PORT・`FANDHE_NO_OPEN` だけ）。(c) `l2-journey.mjs`: `ch0-3-journey.mjs` の `journey` の操作の列を共有し（`mouseDriver` の実クリック・fill・Enter だけ。隠し要素は使わない）、状態の観察だけを DOM に差し替える（`journey` の `observe`）。確認待ちは「`step-status` が受付済み・idle・ログの最後の行の `data-step` が当の Step」、入力待ちは「`step-status` が達成・idle・最後の行が直前の Step（先頭はログ 0 行）」、拒否後は「最後の行が rejected か clarified で当の Step」。(d) `l2-journey-calibrate.test.mjs`（`make test-browser` に入る。2 件）: 試験の設定の `?fixture=ch0-3` に同じ誘導を DOM の観察で流し、各観察（22 回）で `stateJson` の現在の Step・状態と一致することを確かめる。1 Step 先の期待を DOM が示さない対照つき。
 - 限界: 教材は本物の CH-0〜CH-1 の 50 操作でなく `ch0_3` の試験データ（20 Step のうち 11 Step 目まで）。Linux の musl 版の miniserve で模擬し、Apple シリコンでの起動は TASK-118・119。Chromium だけで流した。現在の Step の ID は DOM に出ないため、DOM の観察は IR の node の並びから直前の Step を引く（較正の試験が守る）。meta の無い配信物は IR を取得しない（SHELL-32・BUILD-11 の観察は TASK-545・546 で見直す）。開始時の効果・案内の水準は反映しない（TASK-217・294）。CI の `check-workflow-secrets`・`check-fork-ci` はこの環境に ruby が無く未実行。
+- 受信量の上限（レビュー指摘の対応）: `app.js` は同梱の IR を `r.body` の reader で `ir_read_limit()`（`MAX_IR_BYTES + 1`。`start_select.rs`。定数を JS に二重に持たない）バイトまでだけ読み、超えたら `reader.cancel()` で中止して 1 つの `Uint8Array` にまとめる（Content-Length は使わず実際の受信量で数える）。大きさの断りは `load_ir` の `TooLarge` が出す。`tools/browser/ir-recv-limit.test.mjs`（`make test-browser` に入る。2 件）が、1 GiB の本体を流す配信側が最後まで送れず（送出量が上限 + 64 MiB 未満）断りの通知に倒れること、上限未満の本体は最後まで送られること（対照）を確かめる。2026-10-22 に Chromium で 2 件が通った。
 - 範囲外: TASK-113（待ち受けと起動時間）、TASK-114・115（L1 と L2 の一致とオリジンの分離）、TASK-117（案内文）、TASK-118・119（人の起動）、TASK-137（ライセンス文）、本物の教材での通し。5.236 の番号が既存で重複している（直さない）。
 - 実行結果（2026-10-22。Linux x86_64・Chromium）: `L2_SERVER=<miniserve 0.35.0 の linux musl 版。sha256 は固定値と一致> make test-l2-run` で前提の 2 件と 3 回の完走が 3/3 通った（各回 34 項目・要求 6 件・約 2.4 秒）。`l2-journey-calibrate` の 2 件（54 項目）が通った。`scripts/expected-test-counts.txt` は更新しない。

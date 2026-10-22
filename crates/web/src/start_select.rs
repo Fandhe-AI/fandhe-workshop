@@ -11,6 +11,17 @@
 use fandhe_workshop_contract::ir::{Ir, Start};
 use fandhe_workshop_core::{load_ir, IrLoadError, Session};
 
+/// 同梱の IR の受信で読むバイト数の上限（`MAX_IR_BYTES + 1`）。`app.js` が応答の本体をここまでだけ読み、超えたら読み取りを
+/// 中止する（メモリ確保の前に止める）。上限を 1 超える長さを渡すので、大きさの断りは `load_ir` が出す。定数を JS に二重に持たない（wasm への公開は `glue::ir_read_limit`）。
+#[must_use]
+#[allow(
+    clippy::cast_precision_loss,
+    reason = "20 MiB + 1 は f64 で正確に表せる"
+)]
+pub fn ir_read_limit() -> f64 {
+    (fandhe_workshop_contract::limits::MAX_IR_BYTES + 1) as f64
+}
+
 /// 開始点を選べなかった理由。固定のコードだけを持つ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartRefusal {

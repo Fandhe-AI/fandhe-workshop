@@ -1,0 +1,8 @@
+id: SHELL6-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:             TopSection::Mock => Cardinality::ExactlyOne,
+replace:             TopSection::Mock => Cardinality::AtMostOne,
+expect-fail: 上部の三区画は確定しモックだけが必須
+note: 「模擬」の必須が外れる（SHELL-6・D-72・TASK-516）
