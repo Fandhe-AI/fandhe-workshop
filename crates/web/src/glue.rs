@@ -794,13 +794,14 @@ pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::
     with_app(|h| h.secret_gate(text)).unwrap_or_else(|| crate::secret_notice::secret_hold(text))
 }
 
-/// 選んだ履歴ファイルの本文をホストへ届ける（`static/app.js` が読んで呼ぶ。TASK-531 1/2。SHELL-15）。
+/// 選んだ履歴ファイルのバイト列をホストへ届ける（`static/app.js` が読んで呼ぶ。TASK-531 1/2。SHELL-15）。
 ///
 /// 本文は未検査の文字列で、大きさ・JSON・版の断りは `open_history` の段 1〜8 が行う。Rust は DOM の値を読まない（BUILD-6）。
 /// 配送は他の action と同じく `schedule_action` の `set_timeout(0)` に回す。未マウントなら何もしない。本文は出力しない。
 #[wasm_bindgen]
-pub fn import_history(text: String) {
-    schedule_action(Scheduled::Shell(crate::shell::ShellAction::Import(text)), 0);
+pub fn import_history(bytes: &[u8]) {
+    // 文字列への変換は Rust 側で行い、不正な UTF-8 は置換せず断る（`history_ops::import_body`）。
+    schedule_action(Scheduled::Shell(crate::history_ops::import_op(bytes)), 0);
 }
 
 /// 読み込みで読むバイト数の上限（`MAX_HISTORY_BYTES + 1`）。`app.js` が `file.slice(0, 上限)` で読み、巨大なファイルを

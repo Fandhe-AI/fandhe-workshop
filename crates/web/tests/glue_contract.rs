@@ -171,6 +171,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "as_str",
     "Shell",
     "Import",
+    // 読み込みのバイト列の検証（不正な UTF-8 を置換せず断る。純粋関数で DOM には触れない）。
+    "import_op",
 ];
 
 /// 構造を変える操作。許される操作の一覧に無く、glue に 1 件も書かない。

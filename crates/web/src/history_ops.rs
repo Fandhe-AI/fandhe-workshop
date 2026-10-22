@@ -133,6 +133,31 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
     )
 }
 
+/// 選んだファイルのバイト列を、読み込みの配送に載せる本文の文字列にする（SHELL-15・SAFE。入力の検証は `parse_history_json` が持つ）。
+///
+/// JS 側で文字列にすると不正な UTF-8 が U+FFFD に置換されて検証をすり抜けるため、バイト列のまま受けてここで検証する。
+/// UTF-8 として読めるものはそのまま文字列にする。読めないものは、`parse_history_json` と同じ理由（途切れ → `truncated`、
+/// それ以外 → `not_json`）で断られる固定の本文に置き換える（置換した文字で通ることはない）。大きさなどの上限の理由は
+/// 先に出るので、その場合は元の長さが保たれる変換にする。本文は出力しない。
+#[must_use]
+pub fn import_body(bytes: &[u8]) -> String {
+    use fandhe_workshop_contract::load_reason::LoadReason;
+    match String::from_utf8(bytes.to_vec()) {
+        Ok(text) => text,
+        Err(_) => match fandhe_workshop_core::history_load::parse_history_json(bytes) {
+            Err(LoadReason::Truncated) => "{".to_owned(),
+            Err(LoadReason::NotJson) => "\u{1}".to_owned(),
+            _ => String::from_utf8_lossy(bytes).into_owned(),
+        },
+    }
+}
+
+/// `import_body` の本文を読み込みの操作にする（`glue::import_history` の配送の 1 か所）。
+#[must_use]
+pub fn import_op(bytes: &[u8]) -> crate::shell::ShellAction {
+    crate::shell::ShellAction::Import(import_body(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,5 +207,26 @@ mod tests {
         let s = dump(&history_ops(None));
         assert_eq!(s.matches(&format!("data-{}", "payload")).count(), 0, "{s}");
         assert_eq!(s.matches("import-history").count(), 1, "{s}");
+    }
+
+    #[test]
+    fn 不正な_utf8_は置換されず理由つきで断られる() {
+        use fandhe_workshop_core::history_load::parse_history_json;
+        // JSON の文字列の中の不正なバイト（0xFF）。置換されると正常な JSON になってしまう形。
+        let bad = b"{\"a\":\"x\xFFy\"}";
+        let body = import_body(bad);
+        assert_eq!(
+            parse_history_json(body.as_bytes()).unwrap_err(),
+            parse_history_json(bad).unwrap_err()
+        );
+        assert!(!body.contains('\u{FFFD}'));
+        // 末尾で途切れた列は truncated。
+        let cut = b"{\"a\":\"\xE3\x81";
+        assert_eq!(
+            parse_history_json(import_body(cut).as_bytes()).unwrap_err(),
+            parse_history_json(cut).unwrap_err()
+        );
+        // 正しい UTF-8 はそのまま。
+        assert_eq!(import_body("{\"a\":\"あ\"}".as_bytes()), "{\"a\":\"あ\"}");
     }
 }

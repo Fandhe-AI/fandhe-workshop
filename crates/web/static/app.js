@@ -16,7 +16,7 @@ try {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;
   }
-  // 履歴の読み込み: 枠の shell-import の中の input[type=file] で選んだファイルを読み、本文を Rust へ渡す（SHELL-15）。
+  // 履歴の読み込み: 枠の shell-import の中の input[type=file] で選んだファイルを読み、バイト列のまま Rust へ渡す（文字列にすると不正な UTF-8 が置換されるため）（SHELL-15）。
   // 読むのは上限 + 1 バイトまで（大きさの断りは Rust 側）。同じファイルを選び直せるよう値は戻す。失敗は握り、本文は出力しない。
   document.addEventListener("change", async (ev) => {
     const input = ev.target;
@@ -26,7 +26,7 @@ try {
     input.value = "";
     if (!file) return;
     try {
-      import_history(await file.slice(0, history_read_limit()).text());
+      import_history(new Uint8Array(await file.slice(0, history_read_limit()).arrayBuffer()));
     } catch (_) {
       // 読めなかったファイルは何も起こさない（状態を変えない側）。
     }

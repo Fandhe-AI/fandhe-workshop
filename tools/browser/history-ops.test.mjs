@@ -181,11 +181,20 @@ test('書き換えたファイルと空のファイルは開かず、状態を�
     obj.snapshot = { tampered: true };
     fs.writeFileSync(tampered, JSON.stringify(obj));
 
-    for (const [label, f] of [['empty', empty], ['broken', broken], ['tampered', tampered]]) {
+    // 文字列の中に不正な UTF-8（0xFF）を 1 バイト入れた、元は開ける履歴。置換されると正常な JSON になる形（SAFE。入力の検証）。
+    const badUtf8 = path.join(tmpDir, 'bad-utf8.json');
+    const raw = fs.readFileSync(file);
+    const marker = Buffer.from('"ops"');
+    const at = raw.indexOf(marker);
+    assert.ok(at > 0, 'file has an ops key to anchor the corruption');
+    fs.writeFileSync(badUtf8, Buffer.concat([raw.subarray(0, at), Buffer.from([0x22, 0x78, 0xff, 0x22, 0x3a, 0x30, 0x2c]), raw.subarray(at)]));
+
+    for (const [label, f] of [['empty', empty], ['broken', broken], ['tampered', tampered], ['bad-utf8', badUtf8]]) {
       await P.page.setInputFiles(FILE_INPUT, f);
       await P.page.locator(NOTICE_ITEM).first().waitFor({ state: 'visible', timeout: 10000 });
       const e = await engine(P.page);
       assert.ok(e.lastImport && e.lastImport.verdict !== 'open', `${label}: not opened`);
+      if (label === 'bad-utf8') assert.equal(e.lastImport.reason, 'not_json', 'invalid UTF-8 is refused as not_json');
       assert.equal(JSON.stringify(e.stateWithoutLog), stateBefore, `${label}: state unchanged`);
       assert.equal(e.logLen, logBefore, `${label}: log unchanged`);
     }
