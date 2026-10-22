@@ -40,6 +40,7 @@ cat <<'EOF'
   test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
   build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web）
   test-build-l2                scripts/test-build-l2.sh                build-l2 の回帰テスト（合成の配信物。ビルドなし）
+  test-l2-run                  scripts/test-l2-run.sh                  L2 の配布物を Rust のない模擬環境で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走する（L2_SERVER 必須。遅い）
   check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する
   test-check-delivery          scripts/test-check-delivery.sh          配信検査自体の回帰テスト（実ビルドを行うため遅い）
   serve                        node tools/serve.mjs                    dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）

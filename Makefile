@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -101,6 +101,9 @@ build-l2: ## L2 の配布物（zip）を作る。L2_SERVER に miniserve の実�
 
 test-build-l2: ## build-l2 の回帰テスト（合成の配信物。ビルド・通信なし）。直接: scripts/test-build-l2.sh
 	@scripts/test-build-l2.sh
+
+test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走する（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
+	@scripts/test-l2-run.sh
 
 check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh
 	@tools/check-delivery.sh

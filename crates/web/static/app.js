@@ -1,8 +1,32 @@
 // ページの入口。wasm を読み込んで Hello をマウントし、結果を html の data-mounted に残す。
 // ブラウザ試験はこの属性を待つ。試験用の meta がある設定でだけ test-hooks.js を読む。
-import init, { mount_app, import_history, history_read_limit } from "./wasm/fandhe_workshop_web.js";
+import init, { mount_app, import_history, history_read_limit, ir_read_limit } from "./wasm/fandhe_workshop_web.js";
 
 const root = document.documentElement;
+
+// reader を limit バイトまで読み、1 つの Uint8Array にまとめる。limit に達したら残りを読まず reader.cancel() で中止する。
+async function readBounded(reader, limit) {
+  const chunks = [];
+  let total = 0;
+  try {
+    while (total < limit) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const take = Math.min(value.length, limit - total);
+      chunks.push(take === value.length ? value : value.subarray(0, take));
+      total += take;
+    }
+  } finally {
+    if (total >= limit) await reader.cancel().catch(() => {});
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
 
 try {
   await init();
@@ -11,7 +35,20 @@ try {
   const starts = new URLSearchParams(location.search).getAll("start");
   const start = starts.length === 0 ? undefined : starts.length === 1 ? starts[0] : "\u0000";
   // OS の推定（修飾キーの表示。D-48）のため、ブラウザの User-Agent も渡す。Rust 側はブラウザの値を読まない。
-  await mount_app("app", navigator.userAgent ?? "", start);
+  // 同梱の IR（TASK-112 2/2）。印の meta がある配信物でだけ、固定の ./ir/main.json を取得して渡す（URL の値から場所は作らない。SAFE-33）。
+  // 取得に失敗したら空のバイト列を渡し、Rust 側が断りの画面に倒す（fail-closed）。印が無ければ取得せず、IR を持たないまま起動する。
+  let ir;
+  if (document.querySelector('meta[name="fandhe-ir"]')) {
+    try {
+      // 受信量は上限 + 1 バイトまでに制限する（Content-Length は信用せず、実際に受けた量で数える）。超えたら読み取りを中止し、
+      // 上限 + 1 バイトを渡して Rust 側（load_ir）に大きさで断らせる。全体を一度に確保しない。
+      const r = await fetch("./ir/main.json");
+      ir = r.ok && r.body ? await readBounded(r.body.getReader(), ir_read_limit()) : new Uint8Array(0);
+    } catch {
+      ir = new Uint8Array(0);
+    }
+  }
+  await mount_app("app", navigator.userAgent ?? "", start, ir);
   if (document.querySelector('meta[name="fandhe-test-hooks"]')) {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;

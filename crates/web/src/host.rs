@@ -929,14 +929,29 @@ impl EngineHost {
         Self::with_session(Session::new(ir), registry)
     }
 
-    /// `persist::mount_with_history` が mount するホスト（配信する設定）。[`EngineHost::new`] と同じである。
+    /// `persist::mount_with_history` が mount するホスト（配信する設定）。
+    ///
+    /// `ir` は `static/app.js` が固定の `./ir/main.json` から取得して渡したバイト列で、同梱の印（meta）が無い配信物では `None`
+    /// （[`EngineHost::new`] と同じ。IR を持たない）。`Some` なら `start_select::open_bundled_ir` で開き、読めない・開始点を選べない
+    /// ときは session なしの断りのホスト（`refused`・`refused_start`）に倒す（fail-closed。VER-13・DLV-9）。
     ///
     /// 試験の設定（`test-hooks`）では代わりに [`EngineHost::for_mount_with`] が、試験データの教材（既定は
     /// `min-3step.json`）と開始直後の状態を埋め込んで読み込み、3 つの表示が動く状態から始める。
     /// 読み込みに失敗したら session なしに倒す（ブラウザ試験が `irLoaded: true` を必須にするため、失敗は試験で検出される）。
     #[cfg(not(feature = "test-hooks"))]
-    pub(crate) fn for_mount() -> Self {
-        Self::new()
+    pub(crate) fn for_mount(ir: Option<&[u8]>, start: Option<&str>) -> Self {
+        use crate::start_select::{open_bundled_ir, BundledIrRefusal};
+        let Some(bytes) = ir else {
+            return Self::new();
+        };
+        match open_bundled_ir(bytes, start) {
+            Ok((session, start_id)) => {
+                Self::with_session_at(session, standard_registry(), start_id)
+                    .unwrap_or_else(|_| Self::new())
+            }
+            Err(BundledIrRefusal::Load(err)) => Self::refused(&err),
+            Err(BundledIrRefusal::Start(refusal)) => Self::refused_start(refusal),
+        }
     }
 
     /// 起動の前に選んだ教材で mount するホスト（試験の設定だけ。TASK-319 3/3）。

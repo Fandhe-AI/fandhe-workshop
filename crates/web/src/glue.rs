@@ -816,6 +816,13 @@ pub fn history_read_limit() -> f64 {
     (fandhe_workshop_contract::limits::MAX_HISTORY_BYTES + 1) as f64
 }
 
+/// 同梱の IR の受信で読むバイト数の上限（`MAX_IR_BYTES + 1`）。`app.js` が応答の本体をここまでだけ読む（`start_select::ir_read_limit`）。
+#[wasm_bindgen]
+#[must_use]
+pub fn ir_read_limit() -> f64 {
+    crate::start_select::ir_read_limit()
+}
+
 /// `root_id` の要素にホストをマウントする Promise を返す。2 回目以降は拒否する。
 ///
 /// 保存済みの履歴の読み込みは非同期のため、保存先が準備できてから起動の分岐を行いマウントする（`persist`、TASK-319）。
@@ -823,7 +830,14 @@ pub fn history_read_limit() -> f64 {
 /// すでにマウント済みの場合は拒否する。`user_agent` は `static/app.js` が `navigator.userAgent` を読んで渡す値で、
 /// 修飾キーの表示のための OS の推定にだけ使う（D-48・JUDGE-28。Rust 側はブラウザの値を読まない）。
 /// `start` は直接リンク `?start=` の値（`app.js` が読む。指定なしは `undefined`。TASK-109 1/2）で、開始点の照合だけに使う。
+/// `ir` は同梱の印（meta）がある配信物で `app.js` が固定の `./ir/main.json` から取得したバイト列（TASK-112 2/2。取得に失敗したら
+/// 空のバイト列で、断りの画面に倒す）。印が無い配信物・試験の設定では `undefined` で、試験の設定は渡されても使わない。
 #[wasm_bindgen]
-pub fn mount_app(root_id: &str, user_agent: &str, start: Option<String>) -> js_sys::Promise {
-    crate::persist::mount_with_history(root_id, user_agent, start)
+pub fn mount_app(
+    root_id: &str,
+    user_agent: &str,
+    start: Option<String>,
+    ir: Option<Vec<u8>>,
+) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id, user_agent, start, ir)
 }

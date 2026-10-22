@@ -127,11 +127,23 @@ fn ir_hits(code: &str) -> Vec<&'static str> {
         .collect()
 }
 
-/// 将来、固定の `./ir/main.json` を取得する処理が入るときは、ファイルと件数で限定して足す（URL の値を含めない）。
+/// `app.js` が同梱の IR を取得する固定の呼び出し（正規化後。TASK-112 2/2）。ファイルは `app.js` だけ・件数は 1 件に限り、
+/// URL の値を含めない（リテラルの完全一致）。これ以外の `./ir/` の形は従来どおり禁止する。
+const BUNDLED_IR_FETCH: &str = "fetch(\"./ir/main.json\")";
+
 #[test]
 fn ir_のクエリは読まず場所を組み立てない() {
     let app = std::fs::read_to_string(root().join("static/app.js")).expect("app.js を読めない");
-    assert!(ir_hits(&glue_code(&app)).is_empty(), "app.js が ir を読む");
+    let app_code = glue_code(&app);
+    assert_eq!(
+        app_code.matches(BUNDLED_IR_FETCH).count(),
+        1,
+        "固定の取得がちょうど 1 件でない"
+    );
+    assert!(
+        ir_hits(&app_code.replace(BUNDLED_IR_FETCH, "")).is_empty(),
+        "app.js が ir を読む"
+    );
     let mut scanned = 0;
     let mut bad = Vec::new();
     for entry in std::fs::read_dir(root().join("src")).expect("src を読めない") {
