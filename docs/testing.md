@@ -7025,3 +7025,27 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 実行結果（2026-10-22）: `cargo test --workspace` と `make lint` は通った。`make test-browser` は未実行（CI の `browser-test` に任せる。ブラウザ試験の追加は #715）
 - 限界: 1/2 では action を結線しないので、押しても状態・ログ・保存先は変わらない（`next-chapter` は `decode_action` に無く、未知の action として捨てられる）。押下の試験は状態が変わらないことだけを固定し、host に履歴の `ops` の読み口が無いため `ops` は照合していない。置き場（右のエリアの末尾）は仮置きである
 - 範囲外: 押して次の章の最初の Step へ移る処理と復号・ブラウザ用の fixture と自動ブラウザ試験（#715。前提は core の `Control::Begin`・TASK-217）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章を出さないことの画面での確認（TASK-527）、最終の配置（TASK-534・TASK-548）
+
+### 5.225 Step ごとの上流の行（対応表の欄）を語彙に持たない代用の記録（TASK-72。PACK-46・D-70）
+
+決定 D-70（2026-10-22）は、対応表の欄を語彙に持たないとした。対応表は読み込まれない教材 repo の別の文書に置き、教材テストで Step ID と突き合わせる。ヒントの 3 段目の括弧書きは、コマンドの外（ヒントの別の文）に置く教材側の約束で、語は足さない。#518 の受け入れ条件は「持たない案」の側（代用の記録が文書にあること）で満たす。語彙・診断コード・IR・CLI は変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/upstream_map_gap.rs` の `pack46_step_upstream_field_is_rejected_by_compile` | Step に `upstream`・`upstream_ref`・`source` を書くと `compile` が `E-PARSE` ちょうど 1 件で止まること |
+| 同 `pack46_step_upstream_field_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと |
+| 同 `pack46_upstream_field_value_is_not_echoed` | 値が診断に写らないこと |
+| 同 `pack46_pack_refs_pass_and_are_copied_to_ir` | パック全体の `refs` が診断 0 件で通り IR に写ること。存在しない Step ID らしい値を足しても検査されないこと |
+| 同 `pack46_vocab_table_yields_step_ids_for_external_map` | `vocab` の表から全 Step の `scope,step` が取れ、展開後の複製を含まないこと。別の文書の行を模した表との突き合わせで、表に無い Step ID の検出と、参照名ごとの影響する Step の決定的な列挙が組めること（教材テストの形の例示で、エンジンの機能ではない） |
+| 同 `pack46_hint_bracket_outside_command_is_plain_text` | 括弧書きをコマンドの外に置いたヒントも、続けた形（約束の違反）も、診断 0 件で通り文面が IR に残ること（検査が無いことの記録） |
+
+変更: 製品のコードの変更は無い。
+
+変異注入: 置かない。製品のコードの変更が無く、Step の未知の欄の拒否（`deny_unknown_fields`）を 1 行で一意に緩める置換が無いためである。
+
+限界・範囲外:
+
+- 教材 repo の対応表の文書、Step ID の対応を検査する教材テスト、影響する Step を列挙するスクリプトは教材 repo の担当（TASK-720・TASK-730）
+- 参照版の置き場の最終の形（TASK-717）。`refs` の形の検査は足さない
+- spec への書き戻しと、`docs/spec` の submodule の更新（D-70 の取り込み）は本変更では行わない
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
