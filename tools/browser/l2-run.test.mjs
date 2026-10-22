@@ -180,7 +180,13 @@ async function startL2(work, { mutate } = {}) {
   const run = { child, port, url: `http://127.0.0.1:${port}/`, out: '', startMs: 0 };
   child.stdout.on('data', (d) => { run.out += d; });
   child.stderr.on('data', (d) => { run.out += d; });
-  await waitOk(run.url, 20000, 10);
+  try {
+    await waitOk(run.url, 20000, 10);
+  } catch (e) {
+    // 呼び出し側は run を受け取れないため、ここで子の群を止めてから投げ直す。
+    await stopL2(run);
+    throw e;
+  }
   run.startMs = Number(process.hrtime.bigint() - t0) / 1e6;
   return run;
 }
