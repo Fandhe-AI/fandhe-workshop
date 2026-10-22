@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 6;
+pub const CLI_CONTRACT_VERSION: u32 = 7;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -77,7 +77,7 @@ impl Subcommand {
     /// 引数の形（使い方と文書の表に出す文字列）。
     pub const fn args(self) -> &'static str {
         match self {
-            Subcommand::Compile => "<pack-dir> [-o <file>]",
+            Subcommand::Compile => "<pack-dir> [--chapters <id>[,<id>...]] [-o <file>]",
             Subcommand::Compare => "<pack-dir-a> <pack-dir-b>",
             Subcommand::Validate | Subcommand::Test | Subcommand::Vocab | Subcommand::Metrics => {
                 "<pack-dir>"

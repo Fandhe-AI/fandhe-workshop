@@ -5,7 +5,7 @@
 //! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate`・`test` は形を受け付けたうえで
 //! 経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク（TASK-403・TASK-404）が各 `run_*` の中身を差し替えて作る。
 //! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 4）で、
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 7）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）と `metrics` の走査だけで、引数の解釈は
 //! ファイルシステムに触れない。
@@ -16,9 +16,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{compare_differ_line, compare_same_line, compare_unreadable_line};
 use crate::compare::{compare_dirs, Outcome};
-use crate::compile::compile_dir;
+use crate::compile::{compile_dir_with, CompileError, CompileOptions};
 use crate::diag::write_diagnostics;
 use crate::vocab_report::report_dir;
 
@@ -35,6 +36,7 @@ enum Invocation {
     },
     Compile {
         pack_dir: PathBuf,
+        chapters: Option<Vec<String>>,
         output: Option<PathBuf>,
     },
     Vocab {
@@ -60,6 +62,8 @@ enum UsageError {
     UnknownOption(Subcommand, OsString),
     /// `-o` の後ろに値が無い、または値が `-` で始まる。
     MissingOptionValue(Subcommand),
+    /// `--chapters` の値が空・空の要素・重複を含む、または `--chapters`・`-o` が 2 回目。
+    BadChapters(Subcommand),
 }
 
 impl fmt::Display for UsageError {
@@ -78,6 +82,11 @@ impl fmt::Display for UsageError {
             Self::MissingOptionValue(c) => {
                 write!(f, "fandhe-pack {}: -o requires <file>", c.name())
             }
+            Self::BadChapters(c) => write!(
+                f,
+                "fandhe-pack {}: --chapters requires <id>[,<id>...] (once; no empty or duplicate ids)",
+                c.name()
+            ),
         }
     }
 }
@@ -110,27 +119,45 @@ fn expect_end<I: Iterator<Item = OsString>>(
     }
 }
 
-/// `compile` の `<pack-dir>` の後ろ。`-o <file>` を高々 1 つ受ける。
-fn compile_output<I: Iterator<Item = OsString>>(
+/// `compile` の `<pack-dir>` の後ろ。`--chapters <ids>` と `-o <file>` を、順不同で各高々 1 つ受ける。
+fn compile_options<I: Iterator<Item = OsString>>(
     args: &mut I,
-) -> Result<Option<PathBuf>, UsageError> {
+) -> Result<(Option<Vec<String>>, Option<PathBuf>), UsageError> {
     let cmd = Subcommand::Compile;
-    let Some(opt) = args.next() else {
-        return Ok(None);
-    };
-    if opt != "-o" {
-        return Err(if is_dashed(&opt) {
-            UsageError::UnknownOption(cmd, opt)
+    let mut chapters: Option<Vec<String>> = None;
+    let mut output: Option<PathBuf> = None;
+    while let Some(opt) = args.next() {
+        if opt == "-o" {
+            if output.is_some() {
+                return Err(UsageError::UnknownOption(cmd, opt));
+            }
+            let value = args
+                .next()
+                .filter(|v| !is_dashed(v))
+                .ok_or(UsageError::MissingOptionValue(cmd))?;
+            output = Some(PathBuf::from(value));
+        } else if opt == "--chapters" {
+            if chapters.is_some() {
+                return Err(UsageError::BadChapters(cmd));
+            }
+            let value = args
+                .next()
+                .filter(|v| !is_dashed(v))
+                .ok_or(UsageError::BadChapters(cmd))?;
+            let text = value.to_str().ok_or(UsageError::BadChapters(cmd))?;
+            let ids: Vec<String> = text.split(',').map(str::to_string).collect();
+            let unique: std::collections::BTreeSet<&String> = ids.iter().collect();
+            if ids.iter().any(String::is_empty) || unique.len() != ids.len() {
+                return Err(UsageError::BadChapters(cmd));
+            }
+            chapters = Some(ids);
+        } else if is_dashed(&opt) {
+            return Err(UsageError::UnknownOption(cmd, opt));
         } else {
-            UsageError::UnexpectedArg(cmd, opt)
-        });
+            return Err(UsageError::UnexpectedArg(cmd, opt));
+        }
     }
-    let value = args
-        .next()
-        .filter(|v| !is_dashed(v))
-        .ok_or(UsageError::MissingOptionValue(cmd))?;
-    expect_end(Subcommand::Compile, args)?;
-    Ok(Some(PathBuf::from(value)))
+    Ok((chapters, output))
 }
 
 /// コマンド名の後ろの引数を `docs/cli.md` 3 節の形に従って解釈する。ファイルシステムには触れない。
@@ -146,9 +173,11 @@ fn parse<I: Iterator<Item = OsString>>(
             b: positional(cmd, args)?,
         },
         Subcommand::Compile => {
+            let (chapters, output) = compile_options(args)?;
             return Ok(Invocation::Compile {
                 pack_dir: first,
-                output: compile_output(args)?,
+                chapters,
+                output,
             });
         }
         Subcommand::Validate => Invocation::Validate { pack_dir: first },
@@ -194,9 +223,11 @@ where
     match inv {
         Invocation::Validate { pack_dir } => run_validate(&pack_dir, err),
         Invocation::Test { pack_dir } => run_test(&pack_dir, err),
-        Invocation::Compile { pack_dir, output } => {
-            run_compile(&pack_dir, output.as_deref(), out, err)
-        }
+        Invocation::Compile {
+            pack_dir,
+            chapters,
+            output,
+        } => run_compile(&pack_dir, chapters, output.as_deref(), out, err),
         Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, out),
         Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, out, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
@@ -253,12 +284,18 @@ fn run_metrics<O: Write, E: Write>(pack_dir: &Path, out: &mut O, _err: &mut E) -
 /// 取り込む事故を防ぐ fail-closed）。書き出せないときは理由を `error:` 行で標準エラーに出して `EXIT_USAGE` を
 /// 返す（`docs/cli.md` 版 4 の 10 節。AUTHOR-8）。書き出しの I/O エラーは `main` へ伝播させず、ここで理由つきの
 /// 終了に変える（伝播すると理由なしの 2 になるため）。
-fn run_compile<O, E>(dir: &Path, output: Option<&Path>, out: &mut O, err: &mut E) -> io::Result<u8>
+fn run_compile<O, E>(
+    dir: &Path,
+    chapters: Option<Vec<String>>,
+    output: Option<&Path>,
+    out: &mut O,
+    err: &mut E,
+) -> io::Result<u8>
 where
     O: Write,
     E: Write,
 {
-    match compile_dir(dir) {
+    match compile_dir_with(dir, &CompileOptions { chapters }) {
         Ok(bytes) => match output {
             None => {
                 out.write_all(&bytes)?;
@@ -276,7 +313,16 @@ where
                 }
             },
         },
-        Err(diags) => write_diagnostics(out, &diags),
+        Err(CompileError::Diagnostics(diags)) => write_diagnostics(out, &diags),
+        // 章の選択の誤りは使い方の誤り。IR もファイルも出さず、教材の本文は写さない。
+        Err(CompileError::Chapter(e)) => {
+            let (kind, id) = match e {
+                ChapterSelectError::Unknown(id) => ("unknown", id),
+                ChapterSelectError::Ambiguous(id) => ("ambiguous", id),
+            };
+            writeln!(err, "error: fandhe-pack compile: {kind} chapter: {id:?}")?;
+            Ok(EXIT_USAGE)
+        }
     }
 }
 
@@ -422,6 +468,15 @@ mod tests {
             parse_args(Compile, &["d", "-o", "f"]),
             Ok(Invocation::Compile {
                 pack_dir: pd("d"),
+                chapters: None,
+                output: Some(pd("f"))
+            })
+        );
+        assert_eq!(
+            parse_args(Compile, &["d", "-o", "f", "--chapters", "a,b"]),
+            Ok(Invocation::Compile {
+                pack_dir: pd("d"),
+                chapters: Some(vec!["a".to_string(), "b".to_string()]),
                 output: Some(pd("f"))
             })
         );

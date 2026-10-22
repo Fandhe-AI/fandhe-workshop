@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 6
-決定日: 2026-10-20
+CLI の外部仕様の版: 7
+決定日: 2026-10-22
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
 - 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9・AUTHOR-17）
-- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 6」の形で書ける
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 7」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -24,7 +24,7 @@ CLI の外部仕様の版: 6
 |---|---|---|
 | `validate` | `<pack-dir>` | 静的検査（TASK-403） |
 | `test` | `<pack-dir>` | 検査の後に、模範解答の完走と誤入力の分類（TASK-404） |
-| `compile` | `<pack-dir> [-o <file>]` | IR（JSON）を標準出力、または `-o` のファイルへ出す |
+| `compile` | `<pack-dir> [--chapters <id>[,<id>...]] [-o <file>]` | IR（JSON）を標準出力、または `-o` のファイルへ出す。`--chapters` で選んだ章だけに絞る |
 | `vocab` | `<pack-dir>` | 拡張点を使った Step の数え上げ（TASK-408） |
 | `metrics` | `<pack-dir>` | ファイルごとの行数・実効行数・バイト数・入れ子の深さ（TASK-402） |
 | `compare` | `<pack-dir-a> <pack-dir-b>` | 2 つの教材パックの IR の完全一致の比較 |
@@ -43,7 +43,7 @@ usage: fandhe-pack <command> [<args>]
 commands:
   validate <pack-dir>
   test <pack-dir>
-  compile <pack-dir> [-o <file>]
+  compile <pack-dir> [--chapters <id>[,<id>...]] [-o <file>]
   vocab <pack-dir>
   metrics <pack-dir>
   compare <pack-dir-a> <pack-dir-b>
@@ -134,7 +134,7 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 
 ## 10. compile の出力
 
-`compile <pack-dir> [-o <file>]` の出力の契約（AUTHOR-8、TASK-407）。
+`compile <pack-dir> [--chapters <id>[,<id>...]] [-o <file>]` の出力の契約（AUTHOR-8、TASK-407、TASK-67）。
 
 | 場面 | 標準出力 | 標準エラー出力 | `-o` のファイル | 終了コード |
 |---|---|---|---|---|
@@ -150,6 +150,10 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 - `-o` の値は `-` で始められない。`-o -` を標準出力の意味にはしない
 - 末尾の形は、整形した JSON の最後の `}` の後に LF が 1 つだけで、CRLF・BOM を含まず、UTF-8 である
 - 同じ内容の教材パックの IR は、何度 compile しても、別のディレクトリへ写しても、ファイルの列挙順が違っても、絶対パスでも相対パスでも、バイト単位で同じになる。IR に絶対パス・時刻・乱数は入らない
+- `--chapters <id>[,<id>...]` は、章の定義の `id` で章の範囲を選ぶ（PACK-43・SHELL-12・D-67。試行で配る IR に範囲外の開始点を含めないため）。`-o` と順不同で、どちらも高々 1 回。値が無い・`-` で始まる・空の要素・同じ ID の重複・2 回目の指定は使い方の誤り（終了コード 2）
+- 教材パック全体を従来どおり検査してから絞る。診断は指定の有無で変わらず、診断があれば 1 の通り IR を出さない。選んだ ID に該当する章が無い、または同じ ID の章が 2 つ以上あるときは、`error: fandhe-pack compile: unknown chapter: "<id>"`（または `ambiguous chapter: "<id>"`）の 1 行を標準エラー出力に出して終了コード 2。標準出力は空で、`-o` のファイルは作らない
+- 絞った IR は、選んだ章の Step・その章から `use` で呼ばれた実体（入れ子を含む）・それらを指す開始点だけを持つ。範囲外の章の開始点・Step・実体と、範囲外の章を宛先にした開始点は含まない。絞った後に開始点が 0 件なら `E-STRUCTURE`（終了コード 1）。全章を選ぶと、指定なしとバイト単位で同じ IR になる。`ir_format` は残った項目に足りる最小の版に求め直す
+- 章の `next` は同じ章の中に限る。他の章の Step を指す `next` は `validate`・`compile` とも `E-REF-STEP`（`docs/diagnostics.md` の版 15 の注）
 - 画面に配る IR は、この `compile` の出力そのものである。配信物には `IR_FILE=<file> tools/build-web.sh` で `ir/main.json` として入る。配信の実装は TASK-109・TASK-121 の側にある
 
 ## 11. `metrics` の出力
@@ -226,7 +230,7 @@ m1,s4,step,EP-3
 | `cli_doc_item_kinds_table_matches` | 7 節の表の種別が `ITEM_KINDS_V2` と一致し、AUTHOR-2 の 5 種を含む |
 | `cli_doc_final_line_examples_match` | 8 節の例のブロックが `final_line`・`compare_*_line` の出力と完全一致する |
 | `cli_doc_destination_section_present` | 9 節に標準出力と標準エラー出力の両方がある |
-| `usage_declares_compile_output_option` | 使い方に `compile <pack-dir> [-o <file>]` の行がある（動作は `compile_output.rs`） |
+| `usage_declares_compile_output_option` | 使い方に `compile <pack-dir> [--chapters <id>[,<id>...]] [-o <file>]` の行がある（動作は `compile_output.rs`） |
 | `exit_codes_are_fixed_values` | 終了コードの定数が 0・1・2 である |
 | `commands_are_the_six_in_contract_order` | コマンドが 6 つで、AUTHOR-1 の順である |
 | `defects_is_not_an_author_command` | `defects` が未知のコマンドで、使い方に出ない |
@@ -279,3 +283,4 @@ m1,s4,step,EP-3
 | 4 | 2026-10-19 | `metrics` の出力の形（ヘッダ・行・`TOTAL`・数え方・診断時の扱い）を足す（TASK-402） |
 | 5 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 12 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |
 | 6 | 2026-10-20 | `vocab` が EP-9 を数える（`requires` または `unmet` を持つ開始点が指す Step の行。`label` は数えない）。`use` の Step を指す開始点は数えないことを 13 節に足す（TASK-409、AUTHOR-17、D-64） |
+| 7 | 2026-10-22 | `compile` に章の範囲の指定 `--chapters <id>[,<id>...]` を足す（絞った IR・選択の誤りの終了コード 2・全章の指定で同じバイト列。10 節）（TASK-67、PACK-43、D-67） |

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod appearance;
+pub mod chapter_range;
 pub mod cli;
 pub mod cli_contract;
 pub mod compare;

@@ -1,0 +1,8 @@
+id: PACK43-1
+package: fandhe-workshop-pack
+test: compile_chapters
+target: crates/pack/src/chapter_range.rs
+find:         .retain(|s| keep.contains(&s.node) && !foreign_starts.contains(&s.id));
+replace:         .retain(|_| true);
+expect-fail: pack43_narrowed_ir_has_no_out_of_range_start
+note: 刈り込みで開始点の絞り込みが外れ、範囲外の章の開始点が IR に残る（PACK-43）

@@ -25,20 +25,22 @@ pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}
 commands: {help: {description: d}}
 ";
 
-/// `cond` は条件つきの辺だけで入る Step。`c2a` は別の章の Step で、章をまたぐ辺で入る。
+/// `cond` は条件つきの辺だけで入る Step。`next` は同じ章の中に限る（TASK-67）ため、終端は `c1z`。
 const CHAPTER_1: &str = "\
 id: c1
 title: C1
 starts: [{id: s1, node: a}]
 steps:
 -   {id: a, title: A, next: [{to: cond, when: {flag: f}}, {to: u}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
--   {id: cond, title: Cond, next: [{to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
--   {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: c2a}]}
+-   {id: cond, title: Cond, next: [{to: c1z}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
+-   {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: c1z}]}
+-   {id: c1z, title: C1Z, final: true}
 ";
 
 const CHAPTER_2: &str = "\
 id: c2
 title: C2
+starts: [{id: s2, node: c2a}]
 steps:
     - {id: c2a, title: C2A, final: true}
 ";
@@ -55,7 +57,7 @@ steps:
 ";
 
 const C2A: &str = "- {id: c2a, title: C2A, final: true}";
-const COND: &str = "-   {id: cond, title: Cond, next: [{to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}";
+const COND: &str = "-   {id: cond, title: Cond, next: [{to: c1z}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}";
 
 fn base() -> Tmp {
     let t = Tmp::new("reach");
@@ -148,7 +150,7 @@ fn cases() -> Vec<Case> {
             "dead-end-all-conditional",
             C1,
             COND,
-            "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
+            "-   {id: cond, title: Cond, next: [{to: c1z, when: {flag: f}}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             DeadEnd,
             C1,
             "step:cond",
@@ -156,7 +158,7 @@ fn cases() -> Vec<Case> {
         (
             "dead-end-use-step",
             C1,
-            "-   {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: c2a}]}",
+            "-   {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: c1z}]}",
             "-   {id: u, title: U, use: {module: m1, instance: i1, args: {}}}",
             DeadEnd,
             C1,
@@ -200,7 +202,7 @@ fn one_unconditional_edge_is_enough() {
         &t,
         C1,
         COND,
-        "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}, {to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
+        "-   {id: cond, title: Cond, next: [{to: c1z, when: {flag: f}}, {to: c1z}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
     );
     let d = validate_dir(&t.0);
     assert!(d.is_empty(), "{d:?}");
