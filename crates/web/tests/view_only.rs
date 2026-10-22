@@ -5,7 +5,12 @@
 //! 読み込み（`open_history`）と起動時の復元（`boot`）の両方を覆う。開かない場合（#733）は対象外で、従来の挙動の回帰だけを置く。
 //! 失敗の文には件数・真偽・固定のコードだけを出す（履歴の中身を出さない）。試験では `unwrap` を使ってよい。
 
+#[path = "common/secret_values.rs"]
+mod secret_values;
+
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use fandhe_frontend_interactive::{Component, DirtyTracked};
 use fandhe_frontend_wasm_client::BoundValue;
@@ -198,4 +203,56 @@ fn 通知の文に履歴の値は入らない() {
     let t = notice(&h);
     assert!(!t.contains("2.0.0"));
     assert!(!t.contains("min-3step"));
+}
+
+/// 秘密情報の警告と取り直しの要求を持ったまま、表示だけの履歴を読み込む。
+fn held_then_view_only() -> (EngineHost, Vec<u8>, Rc<RefCell<Option<String>>>) {
+    let (_, _, value) = secret_values::shapes().remove(0);
+    let mut h = host("1.0.0");
+    let store = Rc::new(RefCell::new(None));
+    let s2 = Rc::clone(&store);
+    h.set_history_saver(Box::new(move |v: &str| {
+        *s2.borrow_mut() = Some(v.to_owned());
+        Ok(())
+    }));
+    h.set_saved_refresh(Box::new(|_| {}));
+    h.update(act("draft", &value));
+    h.update(act("submit", ""));
+    assert!(!h.model().secret_warning().is_empty(), "警告が出ない");
+    h.update(act("secret-discard", ""));
+    let bytes = history("2.0.0");
+    assert!(matches!(h.open_history(&bytes), ImportOutcome::ViewOnly(_)));
+    (h, bytes, store)
+}
+
+#[test]
+fn 警告を持ったまま表示だけになると_破棄と保留の操作は何も変えない() {
+    let (mut h, bytes, store) = held_then_view_only();
+    assert!(h.model().secret_warning().is_empty(), "警告が残った");
+    let before = snapshot(&h);
+    let saved_before = store.borrow().clone();
+    let epoch = h.save_epoch();
+    let shape = fandhe_workshop_core::secret_scan::SecretShape::from_id(
+        secret_values::shapes().remove(0).1.as_str(),
+    )
+    .unwrap();
+    let hold = fandhe_workshop_web::secret_notice::encode_secret_hold(epoch, &[shape]);
+    for (name, a) in [
+        ("discard-read", act("secret-discard-read", "ok 0")),
+        ("discard-read-1", act("secret-discard-read", "ok 1")),
+        ("discard", act("secret-discard", "")),
+        ("keep", act("secret-keep", "")),
+        ("hold", act("secret-hold", &hold)),
+        ("save-result", HostAction::SaveResult(epoch, None)),
+    ] {
+        h.update(a);
+        assert_eq!(snapshot(&h), before, "{name} が状態・ログ・下書きを変えた");
+        assert_eq!(h.model().view_only_reason(), Some(LoadReason::ContentMajor));
+        assert!(
+            h.model().secret_warning().is_empty(),
+            "{name} が警告を出した"
+        );
+        assert_eq!(*store.borrow(), saved_before, "{name} が保存先を変えた");
+        assert_eq!(h.export_live(), ExportGate::Ready(bytes.clone()), "{name}");
+    }
 }

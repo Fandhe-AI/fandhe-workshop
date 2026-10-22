@@ -1984,6 +1984,10 @@ impl EngineHost {
     fn enter_view_only(&mut self, code: LoadReason, bytes: Vec<u8>) {
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
+        // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。
+        self.set_secret_warning(Vec::new());
+        self.invalidate_discard();
+        self.save_epoch = self.save_epoch.wrapping_add(1);
         if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
             self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
         }
@@ -2131,31 +2135,34 @@ impl Component for EngineHost {
 
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
-        // 表示だけの間は、状態・ログを変える action を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
-        // モードから出る経路（試験の設定の読み込み・差し替え）に限る。下書きの変更を捨てたときは、DOM の値を戻させる。
+        // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
+        // モードから出る経路（試験の設定の読み込み・差し替え）に限る。新しい action は既定で捨てられる。
+        // 下書きの変更を捨てたときは、DOM の値を戻させる。
         if self.model.view_only.is_some() {
-            match &action {
-                HostAction::Engine(_)
-                | HostAction::Input(
-                    HelloAction::Submit
-                    | HelloAction::Esc
-                    | HelloAction::Stop
-                    | HelloAction::SetDraft(_),
-                )
-                | HostAction::Complete => {
-                    if matches!(
-                        action,
-                        HostAction::Input(HelloAction::SetDraft(_)) | HostAction::Complete
-                    ) {
-                        if let Some(f) = self.draft_sync_request.as_ref() {
-                            f();
-                        }
-                    }
-                    return;
-                }
+            let allowed = match &action {
+                HostAction::SelectView(_)
+                | HostAction::SelectPane(_)
+                | HostAction::DismissNotice(_)
+                | HostAction::PaneKey(_)
+                | HostAction::Input(HelloAction::SetOs(_)) => true,
                 #[cfg(feature = "test-hooks")]
-                HostAction::Reload => return,
-                _ => {}
+                HostAction::Input(HelloAction::KeydownProbe)
+                | HostAction::OpenHistory(_)
+                | HostAction::LoadFixture(_)
+                | HostAction::LoadIr(_)
+                | HostAction::OpeningOverride(_) => true,
+                _ => false,
+            };
+            if !allowed {
+                if matches!(
+                    action,
+                    HostAction::Input(HelloAction::SetDraft(_)) | HostAction::Complete
+                ) {
+                    if let Some(f) = self.draft_sync_request.as_ref() {
+                        f();
+                    }
+                }
+                return;
             }
         }
         match action {
