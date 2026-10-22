@@ -195,6 +195,9 @@ pub struct ScopeSrc {
     /// モジュールの引数と既定値。
     #[serde(default)]
     pub params: BTreeMap<String, String>,
+    /// 引数の型と範囲の宣言（鍵は `params` の名前。TASK-71 2/3、PACK-51）。IR には載せない。
+    #[serde(default)]
+    pub param_types: BTreeMap<String, crate::param_check::ParamTypeSrc>,
     /// 途中開始。
     #[serde(default)]
     pub starts: Vec<Start>,

@@ -83,10 +83,10 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/dependency-inventory.md` | 依存の棚卸しの手順と日付つきの結果の記録（BUILD-25・D-58）。実行は `make inventory-deps` |
 | `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
-| `docs/vocabulary/vocabulary.md` | 語彙の文書（版 6）。語彙 v1〜v1.6 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
+| `docs/vocabulary/vocabulary.md` | 語彙の文書（版 7）。語彙 v1〜v1.7 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
 | `docs/extension-point-procedure.md` | 拡張点の追加の手続きの文書（版 1）。汎用であることの説明・語彙の文書の固定・診断コードの追加・公開の一覧への追記・既存の教材パックが同じ IR になることの確認を固定する。実行時の登録の仕組みは作らない（D-53）。形の検査は `crates/pack/tests/extension_point_procedure_doc.rs` |
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
-| `docs/diagnostics.md` | 診断コードの一覧（版 11。一覧の正）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH` の 34 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致は `crates/pack/tests/diagnostics_doc.rs` が CI で検査する（TASK-400） |
+| `docs/diagnostics.md` | 診断コードの一覧（版 12。一覧の正）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH` の 34 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致は `crates/pack/tests/diagnostics_doc.rs` が CI で検査する（TASK-400） |
 | `docs/cli.md` | CLI の外部仕様（版 6）。`fandhe-pack` のバイナリ名・コマンド 6 つと引数の形・使い方・終了コード 0/1/2・診断 1 行・項目の書式・最終行（`OK:`・`NG:`）・診断の出し先・`compile` の出力（`-o`・末尾・バイト単位の決定性）・`metrics` の出力・`vocab` の出力（表・集計行。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）。文書との一致は `crates/pack/tests/cli_contract_doc.rs`、実行ファイルの挙動は `crates/pack/tests/cli_contract.rs` が検査する |
 | `docs/history-format.md` | 履歴の形式の文書（版 1）。包みの 7 欄・4 軸の版・追記だけで増える列（EXT-5・D-53）。冒頭の版と欄の並びは `crates/contract/tests/history_format_doc.rs` が型と照合する |
 | `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の書き方の規約（検査は採らず作成者の規約。D-52）。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |

@@ -1,0 +1,8 @@
+id: PACK51-3
+package: fandhe-workshop-pack
+test: module_arg_types
+target: crates/pack/src/validate.rs
+find:                     || crate::param_check::is_arg_range_message(d.message())))
+replace:                     || false))
+expect-fail: pack51_bool_arg_out_of_range_is_rejected_by_validate
+note: validate の展開の診断の許可リストから範囲外の引数を外す（compile だけが拒否し validate が通す）

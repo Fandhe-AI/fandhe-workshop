@@ -1,0 +1,8 @@
+id: PACK51-5
+package: fandhe-workshop-pack
+test: module_arg_types
+target: crates/pack/src/param_check.rs
+find:                 if !value_fits(decl, default) {
+replace:                 if false && !value_fits(decl, default) {
+expect-fail: pack51_default_out_of_range_is_rejected_once
+note: params の既定値の検査を外す（範囲外の既定値が通る）

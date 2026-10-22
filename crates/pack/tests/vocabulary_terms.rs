@@ -10,7 +10,7 @@ use std::path::Path;
 
 use fandhe_workshop_pack::vocab::{VocabVersion, EXTENSION_POINTS, LATEST, TERMS};
 
-const VERSIONS: [&str; 7] = ["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6"];
+const VERSIONS: [&str; 8] = ["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"];
 
 fn doc() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/vocabulary/vocabulary.md");
@@ -259,6 +259,41 @@ fn do_levels_is_v16_without_number() {
 }
 
 #[test]
+fn param_types_terms_are_v17_without_number() {
+    let d = doc();
+    let terms = doc_terms(&d);
+    for name in [
+        "param_types",
+        "param_types.type",
+        "param_types.values",
+        "param_types.min",
+        "param_types.max",
+        "param_types.type=bool",
+        "param_types.type=int",
+        "param_types.type=enum",
+    ] {
+        let row = terms
+            .iter()
+            .find(|(_, t, _, _)| t == name)
+            .unwrap_or_else(|| panic!("{name} が 7 節にあること"));
+        assert_eq!((row.2.as_str(), row.3.as_str()), ("v1.7", "—"), "{name}");
+    }
+    let v17 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.7")
+        .expect("v1.7 の行");
+    assert_eq!(strip(&v17[1]), "—", "v1.7 は拡張点を持たない");
+    assert!(
+        v17[2].contains("param_types"),
+        "8 節の v1.7 の番号なしの語に param_types"
+    );
+    assert!(
+        ep_rows(&d).iter().all(|r| !r[1].starts_with("param_types")),
+        "param_types は拡張点ではない"
+    );
+}
+
+#[test]
 fn every_extension_point_appears_in_terms() {
     let d = doc();
     let used: BTreeSet<String> = doc_terms(&d).into_iter().map(|t| t.3).collect();
@@ -286,9 +321,11 @@ fn crosswalk_terms_exist() {
     want.push("PACK-42".to_string());
     // 語彙 v1.6（TASK-70 2/2）の出所。
     want.push("PACK-50".to_string());
+    // 語彙 v1.7（TASK-71 2/3）の出所。
+    want.push("PACK-51".to_string());
     assert_eq!(
         ids, want,
-        "PACK-8〜PACK-23・PACK-34・PACK-38・PACK-42・PACK-50 の 20 行がそろう"
+        "PACK-8〜PACK-23・PACK-34・PACK-38・PACK-42・PACK-50・PACK-51 の 21 行がそろう"
     );
     for row in &rows {
         for term in row[1].split('`').skip(1).step_by(2) {
@@ -298,8 +335,8 @@ fn crosswalk_terms_exist() {
 }
 
 #[test]
-fn latest_is_v16() {
-    assert_eq!(LATEST, VocabVersion::V1_6);
+fn latest_is_v17() {
+    assert_eq!(LATEST, VocabVersion::V1_7);
     let max = TERMS.iter().map(|t| t.version).max().expect("語がある");
     assert_eq!(max, LATEST);
 }

@@ -6840,7 +6840,41 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 限界・範囲外:
 
-- 引数の型と範囲外の値の拒否は #516（TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）
+- 引数の型と範囲外の値の拒否は 5.218（#516。TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）
 - 飛ばした Step が実行時に未着手のまま残り、途中開始の「省略」と区別されること（MOD-17 (b) の実行時の側）は対象外
 - 規約を spec の `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本 PR では docs/spec を変えない）
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.218 モジュールの引数の型と範囲外の値の拒否（TASK-71 2/3。PACK-51・MOD-17 (c)・D-43）
+
+決定 D-43（2026-10-12）の項 7 は、引数の型と範囲外の値を `validate` が検査で拒否するとした。型と範囲を宣言する欄の形は仕様に無いため、`params` の隣の任意の欄 `param_types`（語彙 v1.7、拡張点の番号なし）として本変更で決めた。`params` の読み方（PACK-4）は変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/module_arg_types.rs` の `pack51_bool_arg_out_of_range_is_rejected_by_compile` | `bool` に `"flase"` を渡すと `compile` が `E-STRUCTURE` ちょうど 1 件で止まること |
+| 同 `pack51_bool_arg_out_of_range_is_rejected_by_validate` | `validate` も同じ `E-STRUCTURE` を 1 件返すこと（展開の診断の許可リストの回帰） |
+| 同 `pack51_int_arg_outside_min_max_is_rejected` | `min`-1・`max`+1 は拒否、両端は通ること |
+| 同 `pack51_int_arg_non_canonical_is_rejected` | `"01"`・`"+1"`・`"1.0"`・`"abc"`・空・`"-0"`・`i64` の溢れは拒否、`0`・負数・`i64` の端は通ること |
+| 同 `pack51_enum_arg_not_in_values_is_rejected` | `values` に無い値・大文字小文字の違い・空は拒否、一致は通ること |
+| 同 `pack51_in_range_args_compile_and_ir_matches_untyped` | 範囲内の値は `compile`・`validate` とも 0 件で、`param_types` を消した教材と IR がバイト単位で一致すること（負の対照） |
+| 同 `pack51_untyped_params_are_not_checked` | 宣言しない引数は従来どおり任意の文字列で通ること |
+| 同 `pack51_default_out_of_range_is_rejected_once` | 既定値が範囲外なら、呼び出し 0 回・2 回とも宣言の側の 1 件になること |
+| 同 `pack51_declaration_errors_are_structure` | 鍵が `params` に無い・`enum` の `values` が無い／空／重複・型に合わない欄・`min` が `max` を超える、がそれぞれ `E-STRUCTURE` 1 件になること |
+| 同 `pack51_declaration_unknown_type_or_field_is_parse` | 未知の型・欄・整数でない `min` が `E-PARSE` になること |
+| 同 `pack51_nested_arg_is_checked_after_substitution` | 入れ子の `${名前}` を置換した後の値で判定されること |
+| 同 `pack51_format_a_toml_param_types` | 形式 A（TOML）でも同じ判定になること |
+| 同 `pack51_vocab_mismatch_below_1_7` | `pack.vocab` が 1.7 未満なら `E-VOCAB-MISMATCH` が 1 件、1.7 以上と省略では 0 件であること |
+| 同 `pack51_arg_values_are_not_echoed` | 引数・既定値・`values` の値が診断に写らないこと |
+| `crates/pack/tests/vocabulary_terms.rs` の `param_types_terms_are_v17_without_number` | 語彙 v1.7 の 8 語が 7 節にあり、拡張点の番号を持たないこと |
+| `crates/pack/src/param_check.rs` の単体試験 | `value_fits` の境界と、診断の文面に値が入らないこと |
+
+変更: `ScopeSrc` に `param_types` を足し、宣言の検査（`compile`・`validate`）と呼び出しの引数の検査（`expand_use`。`validate` の許可リストにも追加）を `param_check.rs` に置いた。語彙 v1.7（文書の版 7）、`VOCAB_MAX` 1.7、診断の一覧の版 12 を同期した。IR と `ir_format`（1）は変えない。
+
+変異注入（実行日 2026-10-22、元にしたコミット 1b178a7 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK51-2.mutation` から `PACK51-5.mutation`）: PACK51-2（`expand.rs`: 呼び出しの引数の範囲外の判定を外す）、PACK51-3（`validate.rs`: 許可リストから範囲外の引数を外す）、PACK51-4（`param_check.rs`: `int` の上限を含まない比較にする）、PACK51-5（`param_check.rs`: 既定値の検査を外す）は、いずれも DETECTED。
+
+限界・範囲外:
+
+- `condition.param` の `eq` の値が宣言した型・範囲に入るかの検査は対象外（`docs/known-gaps.md` の PACK-51）
+- 決めた `param_types` の形を spec の PACK-51・MOD-17 と `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本変更では docs/spec を変えない）
+- `E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）、MOD-17 (b) の実行時の側はエンジンの担当
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない

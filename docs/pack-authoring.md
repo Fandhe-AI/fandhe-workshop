@@ -110,6 +110,20 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - `use` に書けるのは `module`・`instance`・`args` だけです。実体ごとの案内レベルの `guidance` は語彙に無く、書くと `compile` も `validate` も `E-PARSE` です（D-55、PACK-45）。案内レベルは開始点で渡します
 - `use` で呼ぶと、実体は必ずモジュールの先頭の Step から始まります。先頭の Step を省く語は無く、`use` に省く指定（`start` など）を書くと `compile` も `validate` も `E-PARSE` です（D-43、PACK-51）。実体ごとに後ろの Step を飛ばしたいときは、先頭の Step を振り分けの Step にして、`next` に `when: {param: {name: <引数>, eq: "<値>"}}` を書きます（例は `issue-to-merge` の `st-3-2` と `setup`）。飛ばした Step は IR に残り、遷移で通らないだけです（途中開始の「省略」とは別です）。
 - ヒントは、`hints` の ID を `${名前}` で渡せば実体ごとに変えられます。ただし置換後の ID が定義されているかは検査しないので、未定義の ID を渡すとヒントが出ません。本文の Markdown とヒントの定義（文面・`levels`）は置換しません（`docs/known-gaps.md` の PACK-45）
+- 引数の型と範囲は、`params` の隣の `param_types` で宣言できます（語彙 1.7、PACK-51）。宣言した引数に型や範囲に合わない値を渡す（`"flase"` など）と、`compile` も `validate` も `E-STRUCTURE` で止めます。引数は文字列のままなので、書き間違いが `condition.param` の `eq` と一致せず、黙って別の分岐に倒れるのを防ぐためです。
+
+    ```yaml
+    params: {setup: "true", rounds: "2", mode: fast}
+    param_types:
+      setup: {type: bool}                 # "true" か "false" だけ
+      rounds: {type: int, min: 1, max: 3} # 10 進の整数（"01"・"+1" は不可）。両端を含む
+      mode: {type: enum, values: [fast, slow]}
+    ```
+
+    - 既定値（`params`）も同じ規則で検査します。呼ばれないモジュールの宣言も検査します
+    - 宣言のない引数は、従来どおり検査しません。`pack.vocab` が 1.7 未満で `param_types` を使うと `E-VOCAB-MISMATCH` です
+    - `condition.param` の `eq` に書く値が宣言に入るかは検査しません（`docs/known-gaps.md` の PACK-51）
+    - 入れ子の呼び出しは、`${名前}` を置き換えた後の値で検査します。診断に値は含めません
 - 呼ばれないモジュールは IR に出ません。
 - モジュールの `input`・`confirm` が `${名前}` を含む場合は、置き換えた後の宣言を、入力方式・確認・操作プロファイル（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`）の規則で検査します。置き換える前の宣言は検査しないので、`kind: "${k}"` のように書けます。診断はモジュールの定義ファイルと Step で示し、引数の値は含めません。
 
