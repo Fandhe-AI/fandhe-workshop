@@ -7360,3 +7360,26 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 教材を読めない画面（`ir-notice` だけの画面）には置かない。教材も枠も描かない画面で、`ir-refusal` の試験がこの構造を固定している。
   - `.sh-mock` は `display: inline-block` を持つため、`hidden` 属性では隠れない（対照は `display: none` で行う）。
 - 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make test-browser`（899 件）が通った。
+
+### 5.242 上部の教材名・章の ID・Step の位置の表示（TASK-524。SHELL-8・D-72）
+
+- 目的: 上部（`shell-top`）に教材名（`shell-title`）と「<章の ID>　Step M / K」（`shell-position`）を文字で出し、Step の ID は出さない。Step を進めると M が 1 増え、章が変わると章の ID と K が変わる。再読み込み・書き出し→読み込みの後も復元した Step の位置が出る。`SHELL_CONTRACT_VERSION` は 2 のまま（契約は変えず、画面への結線）。
+- 期待と定義の対応:
+
+| 要件 | 決定 | 実装・試験 |
+|---|---|---|
+| SHELL-8 | D-72 | `top_position::top_position`（IR と現在の uid から章の ID・M・K を導く）を `host::EngineHost::top_place` が使い、`shell_frame::top_place_list`（registry の外の keyed list。field は `top_place`）を `top_bar` の `rest` に渡す |
+
+- 置き方: 項目は教材名（キー `title:<pack.id>`）と位置（キー `position:<章>:<M>:<K>`）の 0〜2 件。親の `div.sh-place` は常に描き、Step が変わると位置の項目だけが差し替わる（要素の同一性。FEND-3）。`update` の前後で値を比べて dirty に積み、`install_recorded`（履歴を開く・教材の差し替え）でも積む。値は文字ノードにだけ入れる。位置を導けないとき（教材なし・現在の Step なし・caller をたどれない・循環）は位置を出さない（`check_position` の違反を作らない）。モジュールの展開した Step は `Instance::caller` をたどって呼び出した章の Step に読み替える（上限は実体の数 + 1 回）。
+- 文言の細目（D-72 が本タスクに任せた点）: 章の ID と位置は全角空白 1 つで区切り、「Step」と `/` の前後は半角空白（例: `ch-1　Step 3 / 6`）。表示だけのモードでも復元した Step の位置を出す。
+- 試験:
+  - native: `top_position` の単体 3 件、`crates/web/tests/top_position_host.rs`（全 20 Step の文字・属性を IR から独自に数えた期待値と照合・教材なしの画面・位置を変えない更新で dirty にしない・履歴を開くと dirty と復元した位置・モジュールの Step の読み替え）、`ch0_3_run_host`（各手の後で、位置が変わったら `top_place` が dirty）。
+  - ブラウザ（`tools/browser/shell-position.test.mjs`）: 20 Step の通しで教材名・位置・属性を IR から独自に数えた期待値と照合し、CH-1 の M が 1〜6、K が 6、章ごとに章の ID と K が変わる（CSP あり・なし）。再読み込みの後と、書き出し→別の文脈での読み込みの後に `ch-1　Step 4 / 6`。幅 360px・959px で見えて横スクロールなし。配信する設定（IR なし）では位置が出ず枠が崩れない。対照として位置を `display: none` にすると判定が不合格になる。
+- 変異注入（2026-10-22）: SHELL8-2（M が 0 始まり）・SHELL8-3（caller をたどらない）・SHELL8-4（dirty を積まない）を追加。この 3 件と SHELL6-2 が DETECTED。他の変異は未実行。
+- 限界:
+  - 章の ID は IR の `unit`（教材の ID の綴り）をそのまま出す。spec の例の `CH-1` と大小が違う（`docs/known-gaps.md`）。
+  - 分岐のある章では、分岐の Step も K に数えるので M が 2 以上飛ぶことがある。`ir.nodes` は章の定義順に並ぶ（`crates/pack/src/expand.rs` の push の順）。
+  - 確かめたのは試験用の教材 `ch0_3`（20 Step）と、モジュールを含む試験データの導出だけで、本物の CH-1 は教材 repo の担当（TASK-642）。
+  - 配信する設定のブラウザ試験は、IR を同梱しない組み立てなので教材ありの表示を確かめない。
+  - Step の題・本文は TASK-525、上部の区画の配置の最終の決定は TASK-534・TASK-548 の担当。
+- 実行結果（2026-10-22）: `cargo test`（web の新しい試験）・`tools/browser/shell-position.test.mjs`・`element-identity`・`next-chapter`・`shell-mock`・`shell-widths`・`csp-runs` が通った。全体の `make` 系は本節の末尾の追記を参照（未実施の項目はそこに書く）。

@@ -46,6 +46,7 @@
 //! 画面の枠の区画・取り付け点・操作の名前と宛先・通知の口（種類・値・適合の検査器）の契約（TASK-511。版 2 は TASK-516 1/2・2/2）は `shell` に置く。版は `shell::SHELL_CONTRACT_VERSION`。
 //! 枠の通知欄（`shell-notice`）の描画（変換して開いたときの版の違いの通知。TASK-535 1/2。SHELL-20）は `shell_notice` に置く。
 //! 画面の枠の組み立て（幅 960px 以上の 2 列の骨格・`tablist`・部品の左右の振り分け・960px 未満のタブの切り替え。TASK-517）は `shell_frame` に置く。
+//! 上部の教材名・章の ID・Step の位置（M / K）の導出（TASK-524。SHELL-8）は `top_position` に、描画は `shell_frame::top_place_list` に置く。
 #![forbid(unsafe_code)]
 
 pub mod a11y;
@@ -100,6 +101,7 @@ pub mod task_tree;
 pub mod terminal_area;
 pub mod tick_interval;
 pub mod tick_schedule;
+pub mod top_position;
 pub mod tree_attrs;
 pub mod view_select;
 
