@@ -16,7 +16,7 @@ mod common;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use common::{copy_dir, testdata, Tmp};
+use common::{copy_dir, testdata, without_answer_label_required, Tmp};
 use fandhe_workshop_contract::ir::{Ir, Node};
 use fandhe_workshop_contract::judgment::Judgment;
 use fandhe_workshop_core::addr::StepUid;
@@ -262,7 +262,10 @@ fn fill_checks() -> (Ir, Vec<Check>) {
 
 #[test]
 fn judge8_fill_pack_has_no_diagnostics() {
-    assert_eq!(validate_dir(&fill_pack_dir()), vec![]);
+    // `fill-pack` は IR の凍結物を持ち編集できないため、`label` の必須化（PACK-37・D-67）の診断だけを除く。
+    let (rest, removed) = without_answer_label_required(validate_dir(&fill_pack_dir()));
+    assert_eq!(rest, vec![]);
+    assert_eq!(removed, 1, "除外が空振りしていない");
 }
 
 #[test]
@@ -382,7 +385,9 @@ fn prefixed(prefix: &str) -> Tmp {
 #[test]
 fn judge8_non_default_prefix() {
     let t = prefixed("!");
-    assert_eq!(validate_dir(&t.0), vec![]);
+    let (rest, removed) = without_answer_label_required(validate_dir(&t.0));
+    assert_eq!(rest, vec![]);
+    assert_eq!(removed, 1, "除外が空振りしていない");
     let ir = compile(&t.0);
     let mk = |line: &str| Check {
         id: "prefix".into(),

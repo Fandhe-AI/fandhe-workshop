@@ -1,0 +1,8 @@
+id: PACK50-3
+package: fandhe-workshop-pack
+test: do_levels
+target: crates/pack/src/guidance.rs
+find:             if st.do_levels.contains_key("A") {
+replace:             if false && st.do_levels.contains_key("A") {
+expect-fail: pack50_key_a_is_structure
+note: do_levels の鍵 A の E-STRUCTURE を捨てる

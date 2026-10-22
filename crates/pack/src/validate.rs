@@ -7,10 +7,10 @@
 //!
 //! CLI の `validate` への接続・最終行・終了コードは TASK-401・TASK-403、モジュールの展開は TASK-50 の
 //! 持ち分である。[`validate`] は、形式の版（`E-FORMAT-VERSION`）→ ID の重複（`E-DUP-ID`）→ 参照
-//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
+//! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 確認 `answer` の選択肢の `label` の必須（`E-STRUCTURE`。PACK-37・D-67。`compile` は行わない）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）→ 案内レベルの漏れとヒントの出し分け（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。`guidance`、TASK-49 2/2。`compile` は行わない。構造の検査の `body_levels` の鍵 `A` と `do_levels` の構造（鍵 `A`・空の値・`do` の欠落。TASK-70 2/2）と `param_types` の宣言（TASK-71 2/3）の `E-STRUCTURE` は `compile` も行う）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
-//! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
+//! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定、終端でない入力の無い Step の `confirm`。PACK-35）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
 //! `confirm::check_confirms`（正答の無い `answer` は `E-STRUCTURE`）を再利用し、結果を絞らずに返す。絞ると
 //! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
 //! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。
@@ -50,6 +50,10 @@ pub(crate) fn diag(
     Diagnostic::new(file, item, code, message).expect("file and item are non-empty")
 }
 
+/// 確認 `answer` の選択肢に `label` が無いときの診断の文面（`E-STRUCTURE`。PACK-37・D-67）。
+/// 試験の除外の補助が、コードと文面の完全一致で絞るために公開する。
+pub const ANSWER_LABEL_REQUIRED: &str = "confirm (answer): label is required";
+
 /// ディレクトリを読み込んで検査する。読み込みに失敗したときはその診断を返し、参照の検査は流さない。
 /// 診断が 0 件なら空の Vec。
 pub fn validate_dir(dir: &Path) -> Vec<Diagnostic> {
@@ -68,6 +72,8 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     let mut out = check_dup_ids(pack);
     out.extend(check_refs(pack));
     out.extend(check_structure(pack));
+    // 確認 `answer` の選択肢の `label` の必須（PACK-37・D-67）。`validate` だけの検査で、`compile` は行わない。
+    out.extend(crate::confirm::check_answer_labels(&pack.scopes));
     out.extend(crate::slot_check::check_texts(pack));
     out.extend(check_reachability(pack));
     out.extend(crate::element_check::check_missing_elements(pack));
@@ -87,22 +93,27 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     }
     out.extend(left_parse);
     out.extend(crate::vocab_check::check_vocab_declaration(pack));
+    // 案内レベルの漏れとヒントの出し分け（PACK-17。TASK-49 2/2）。`validate` だけの検査で、`compile` は行わない。
+    out.extend(crate::guidance::check_guidance_leak(pack));
+    out.extend(crate::guidance::check_hint_hidden(pack));
     // 展開の前と後の検査が同じ Step を重ねて報告しうる `E-SLOT-NEEDS-DO`・`E-LEFT-TARGET-*`・`E-REF-ELEMENT` は、
     // 同じ内容のものを 1 件にする（`compile` と同じ。`E-REF-ELEMENT` は `validate` だけの検査）。
     let mut seen = BTreeSet::new();
     out.retain(|d| {
-        !matches!(
+        !(matches!(
             d.code(),
             DiagCode::SlotNeedsDo
                 | DiagCode::LeftTargetView
                 | DiagCode::LeftTargetRow
                 | DiagCode::RefElement
-        ) || seen.insert(format!("{d:?}"))
+                | DiagCode::GuidanceLeak
+        ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED))
+            || seen.insert(format!("{d:?}"))
     });
     out
 }
 
-/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM` と、展開の打ち切りを示す
+/// モジュールの展開を `compile` と同じ順で走らせ、`E-MODULE-CYCLE`・`E-NO-CONFIRM`・展開の後の自然文の規則の `E-PARSE` と、展開の打ち切りを示す
 /// `E-LIMIT` だけを返す。`E-LIMIT` を捨てると、打ち切られた後ろの巡回・確認の欠落を検査しないまま
 /// 診断なしで成功に見えるため、検査が未完了であることを示すものとして必ず残す（fail-closed）。
 /// `E-NO-CONFIRM` は、`check_confirms` が飛ばす `${` を含む `confirm` の置換後の検査でだけ出るため、
@@ -111,6 +122,9 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     // `E-PROFILE-*` は TASK-46 の持ち分のため、設定だけ取り出して診断は捨てる。
     let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
+    ex.require_answer_labels();
+    // 置換後の `do`・`do_levels` の隠す語（PACK-52。`validate` だけ）。
+    ex.check_guidance_leak();
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         ex.expand_chapter(scope);
     }
@@ -131,6 +145,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     ex.diags.splice(0..0, module_diags);
     let needs_do = crate::slot_check::check_expanded(pack, &ex.nodes, &starts);
     ex.diags.extend(needs_do);
+    ex.diags
+        .extend(crate::guidance::check_do_levels_expanded(pack, &ex.nodes));
     // 引数に依存する左エリアの宛先は、展開の後の Step で検査する（読めない設定は別に `E-PARSE`）。
     let (left_pane, left_parse) =
         crate::left_pane::check_left_pane(&pack.workshop_file, &pack.workshop);
@@ -155,7 +171,16 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::LeftTargetView
                     | DiagCode::LeftTargetRow
                     | DiagCode::RefElement
-            )
+                    | DiagCode::GuidanceLeak
+            ) || (d.code() == DiagCode::Structure
+                && (d.message() == ANSWER_LABEL_REQUIRED
+                    || crate::guidance::is_do_levels_expanded_message(d.message())
+                    // 宣言した型・範囲に合わない引数（PACK-51）。捨てると `compile` で止まる教材を通す。
+                    || crate::param_check::is_arg_range_message(d.message())))
+                // 引数で `kind` が `text` に決まる Step の内容の条件（PACK-41、D-43）は展開の後でしか見えない。
+                || (d.code() == DiagCode::Parse && d.message().starts_with("rule (text):"))
+                // 読めない `use`（`guidance` など採らなかった欄を含む。PACK-45、D-55）。捨てると `compile` で止まる教材を通す。
+                || (d.code() == DiagCode::Parse && d.message() == crate::expand::INVALID_USE)
         })
         .filter(|d| seen.insert(format!("{d:?}")))
         .collect()
@@ -268,6 +293,9 @@ pub fn check_structure(pack: &LoadedPack) -> Vec<Diagnostic> {
     out.extend(crate::start_check::check_start_pairs(&pack.scopes));
     out.extend(crate::input::check_inputs(&pack.scopes));
     out.extend(crate::confirm::check_confirms(&pack.scopes));
+    out.extend(crate::guidance::check_body_levels_a(&pack.scopes));
+    out.extend(crate::guidance::check_do_levels(&pack.scopes));
+    out.extend(crate::param_check::check_param_types(&pack.scopes));
     out
 }
 

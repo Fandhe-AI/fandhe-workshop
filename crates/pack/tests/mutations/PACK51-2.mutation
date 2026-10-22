@@ -1,0 +1,8 @@
+id: PACK51-2
+package: fandhe-workshop-pack
+test: module_arg_types
+target: crates/pack/src/expand.rs
+find:             if let Some(msg) = crate::param_check::arg_message(&module.src.param_types, k, v) {
+replace:             if let Some(msg) = crate::param_check::arg_message(&module.src.param_types, k, v).filter(|_| false) {
+expect-fail: pack51_bool_arg_out_of_range_is_rejected_by_compile
+note: 呼び出しの引数の範囲外の判定を外す（範囲外の値が実体になる）

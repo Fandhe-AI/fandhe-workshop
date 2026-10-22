@@ -182,12 +182,20 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     diags.extend(crate::start_check::check_start_pairs(&pack.scopes));
     diags.extend(input::check_inputs(&pack.scopes));
     diags.extend(confirm::check_confirms(&pack.scopes));
+    // `body_levels` の鍵 `A` は IR に載せない（PACK-17。TASK-49 2/2）。
+    diags.extend(crate::guidance::check_body_levels_a(&pack.scopes));
+    // `do_levels` の鍵 `A`・空の値・`do` の欠落も IR に載せない（PACK-50。TASK-70 2/2）。
+    diags.extend(crate::guidance::check_do_levels(&pack.scopes));
+    // 引数の型と範囲の宣言（既定値を含む）の誤りも IR に載せない（PACK-51。TASK-71 2/3）。
+    diags.extend(crate::param_check::check_param_types(&pack.scopes));
     // 拒否の分類の語（`rejections`・`defaults`・`on_reject`）を contract の 8 語で検査する（TASK-45）。
     diags.extend(crate::rejection::check_categories(pack));
     // 差し込みの枠と次の行動（TASK-46）。不正な枠を含む IR を出さない（fail-closed）。
     diags.extend(crate::slot_check::check_texts(pack));
     // 展開の後（引数の置換の後）の Step と開始点でも、`step_do` を使う文面に `do` があることを検査する。
     diags.extend(crate::slot_check::check_expanded(pack, &ex.nodes, &starts));
+    // 引数の置換の後に `do_levels` の値や `do` が空になる組も止める（PACK-50）。
+    diags.extend(crate::guidance::check_do_levels_expanded(pack, &ex.nodes));
     diags.extend(crate::profile::check_profile_steps(&profile, &pack.scopes));
     // 実体ごとに同じ定義から同じ診断が重なるため、同じ内容のものは 1 件にする。
     let mut seen = BTreeSet::new();

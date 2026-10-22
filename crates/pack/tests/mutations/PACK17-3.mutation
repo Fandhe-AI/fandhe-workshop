@@ -1,0 +1,8 @@
+id: PACK17-3
+package: fandhe-workshop-pack
+test: guidance_levels
+target: crates/pack/src/guidance.rs
+find:         .is_some_and(|arr| arr.iter().all(is_level))
+replace:         .is_some_and(|arr| arr.iter().all(|_| true))
+expect-fail: hint_levels_rejects_bad_shapes
+note: ヒントの levels の要素を検査しない（未知の水準・数・入れ子が通る）

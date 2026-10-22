@@ -1,0 +1,27 @@
+# wrong-answer-compare-pack の章。変化を起こした後の確認で、誤答の拒否文が前後の切り替えを案内する（PACK-36・D-69）。架空の内容だけを置く。
+id: c1
+title: 誤答の案内
+starts: [{id: s1, node: change}]
+steps:
+  - id: change
+    title: Change
+    body: a.md
+    views: [v-files, v-diff]
+    on_enter: [{put: {path: f/alpha, attrs: {k: v}}}, {put: {path: f/beta, attrs: {k: v}}}]
+    input: {kind: choice, options: [{id: opt-edit, label: beta を変える}]}
+    rules:
+      - {id: r-edit, on: {option: opt-edit}, outcome: {kind: accept, effects: [{set_attr: {path: f/beta, attr: k, value: w}}]}}
+    confirm: {kind: none, reason: 変更を起こすだけで、確認は次の Step で行うため。}
+    next: [{to: pick}]
+  - id: pick
+    title: Pick
+    body: a.md
+    views: [v-files, v-diff]
+    lo: [lo-compare]
+    input: {kind: choice, options: [{id: pick-alpha, label: alpha}, {id: pick-beta, label: beta}]}
+    rules:
+      - {id: r-alpha, on: {option: pick-alpha}, outcome: {kind: accept}}
+      - {id: r-beta, on: {option: pick-beta}, outcome: {kind: accept}}
+    confirm: {kind: answer, on_wrong: rj-unchanged, options: [{id: pick-alpha, label: 選択肢 pick-alpha, correct: false}, {id: pick-beta, label: 選択肢 pick-beta, correct: true}]}
+    next: [{to: end}]
+  - {id: end, title: End, body: a.md, final: true}

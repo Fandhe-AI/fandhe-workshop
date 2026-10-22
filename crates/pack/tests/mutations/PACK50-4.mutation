@@ -1,0 +1,8 @@
+id: PACK50-4
+package: fandhe-workshop-pack
+test: do_levels
+target: crates/pack/src/guidance.rs
+find: step_do_at(step, level).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+replace: step.do_.as_deref().is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+expect-fail: pack50_leak_is_clean_with_do_levels
+note: 漏れの検査が水準の do ではなく do そのものを見る（B の文が清潔でも誤検出する）

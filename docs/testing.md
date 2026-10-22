@@ -6422,7 +6422,7 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 保存の値の `versions` は、`history_to_save`（`RecordedSession::envelope_for_save` → `build_envelope`）がいま載っている IR から求め直す。変換して開いた後の保存は、履歴を書いた側の版を引き継がず、開いた側の版で書かれる。実装は変えず、試験で固定した
 - Rust: `crates/web/tests/version_notice.rs` に 3 件を足した（計 12 件）。履歴ファイルの読み込みで変換した後の操作の保存の `versions` が開いた側の `record_versions` と一致し、元の履歴の版とは違い、`ops` が続きに増え、その値が新しい版では変換なしで・古い版では変換で開く。起動時の復元で変換した場合も同じ。対照として同じ版で開くと同じ版のまま書かれる
 - ブラウザ: `tools/browser/version-notice.test.mjs` に 6 件を足した（計 10 件。CSP あり・なし）。V-i-1・V-ii-2 は、読み込みでは保存先へ書かれず（`storageRead` が空・localStorage の鍵が 0 件）、開いた直後の Step が履歴の `snapshot` と同じで、操作の後に保存された `versions.content` が開いた側の教材の `pack.version` と一致し、履歴の `content`・`content_hash` と違い、その値を新しいページで開くと `open` で通知が 0 件である（hash の求め方は JS に持ち込まない）。起動時の復元は、開ける包みの `content_hash` だけを書き換えて保存先へ置き、再読み込みで `restored` と通知 1 件になり、操作の後の `versions` が書き換える前の値と一致する。値は `versions` だけを読み、本文・`ops`・`snapshot` は出さない
-- 実行の結果（2026-10-21）: `cargo test --locked -p fandhe-workshop-web --test version_notice` は 12 件が通った。`tools/browser/version-notice.test.mjs` を `scripts/test-browser.sh` と同じ準備で単独に流し、10 件が通った。`make test-browser` の全件は手元では流していない（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新した（元にしたコミット dac8dcb。TASK-535 とは無関係な束の増減も実測のまま含む）
+- 実行の結果（2026-10-21）: `cargo test --locked -p fandhe-workshop-web --test version_notice` は 12 件が通った。`tools/browser/version-notice.test.mjs` を `scripts/test-browser.sh` と同じ準備で単独に流し、10 件が通った。`make test-browser` の全件は手元では流していない（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新した（元にしたコミット dac8dcb。TASK-535 とは無関係な束の増減も実測のまま含む）。2026-10-22 に main を取り込んだときは、main の値（元にしたコミット 04fae88）を基準にし、Rust の行はマージ後の `make test` の実測に合わせ（`version_notice` は 12 件。main の後続の変更の分も含む）、ブラウザの合計は main の 837 件に本変更の 6 件を足した 843 件とした（ブラウザ試験は手元で流していない）
 - 対照の自己確認（保存の IR を開いた履歴の版に変えて落ちることの確認）は未実施である。試験が正しい理由で落ちることの確認は残っており、別の機会に行う
 
 限界・申し送り:
@@ -6524,12 +6524,12 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 - 配信する設定は実行時に IR を取得しないため、DLV-7 は試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
 - Step の題は DOM に出ていない（TASK-525）ため、現在の節点と IR の題の対応で判定した。TASK-525 の後に DOM の題の照合を足す
 - 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
-- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2。本件の `?fixture=ch0-3-links` を使える
+- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.206 を参照）。本件の `?fixture=ch0-3-links` を使える
 - 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
 
 ### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
 
-対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_2`）。
+対象: 承認の `input.revise`（語彙 1.5。`input.revise.candidates`・`input.revise.candidates[].label`）。`crates/pack/tests/approval_revise_candidates.rs`（`pack42_`）と、実パック `crates/pack/tests/data/revise-candidates-pack`。契約の型は `crates/contract/tests/input_spec_contract.rs`（`input_spec_contract_version_is_3`（5.209 で 2 から 3 に更新））。
 
 確かめること:
 
@@ -6550,6 +6550,26 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 
 語彙の上限は 1.5 になった（5.1xx の「上限は 1.4」は当時の記録で、書き換えない）。版の上限を前提にする試験（`history_open.rs` の `ver7_`・`vocabulary_terms.rs`）は 1.5 に追従した。
 
+### 5.206 章 A と章 B の往復で保存済みの履歴を壊さない（TASK-110 2/2。DLV-8・SAVE-14・D-68）
+
+DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを開いても章 A の履歴が消えず、「変換して開きました」の通知も出ず、章 A のリンクへ戻ると続きが出ることを求める。D-68 のリンクは `?start=<開始点 ID>` で IR は 1 つであり、保存先の鍵は教材の ID と開始点の ID で決まる（SAVE-14。`host.rs` の `history_key`）。このため章ごとに履歴が分かれるはずである。試験の設定（`TEST_HOOKS=1`）の画面で、5.204 と同じ `?fixture=ch0-3-links` を使って確かめる。章 A はリンク 1（`s-0-1`）、章 B はリンク 7（`s-2-1`）。
+
+- ブラウザの試験: `tools/browser/direct-link-roundtrip.test.mjs`（CSP あり・なしで各 2 件）。1 つの browser context（同じ保存領域）で進める
+  - (T1) 章 A を実クリック 2 手（`opt-right`、行 `cards/notice`）で、どの開始点でもない `main/st-0-2a` まで進め、保存の鍵が章 A の 1 本だけであることを確かめる。次に、章 B のリンクを開く。`fresh`・開始点の節点・`reloaded` の行 0 件・章 A の値の SHA-256 が不変、の 1 つの式 `mixed` が偽で、世代が 1・処理中でなく・通知が出ず（契約の属性・通知の枠・本文の語）・鍵が章 A の 1 本のままであること。再読み込みと、他の 8 件のリンクでも同じ。章 A のリンクへ戻ると `restored` で `main/st-0-2a`・同じ Step ごとの状態・増分と世界の一致で開き、再読み込みしても同じ。章 A を次の 1 手進めても鍵は章 A の 1 本のまま。章 B を 1 手進めると鍵がちょうど 2 本になる。配信元以外への通信・ページ内エラー・CSP 違反・コンソールのエラーは 0 件
+  - (対照) 章 A の値を章 B の鍵の位置へ写し（鍵が章で分かれない修正前の症状の再現）、章 B のリンクを開くと `mixed` が真になる。失敗の文には固定の印 `DIRECT-LINK-HISTORY-MIXED` を含める
+- 出力の規則: 失敗の文にリンクの番号・節点の ID・真偽・件数だけを出し、鍵・履歴の値・下書きを出さない。要約（SHA-256）は page の中で計算し node へ出さない
+
+実行の記録（2026-10-21）: ローカルで Chromium により 4 件が通った。回帰として `chapter-keys`・`direct-link-reload`・`direct-link-start`・`key-stability` の 14 件も通った。鍵を固定の文字列にした配信物で T1 が落ちることの確認は未実施（対照の写しで `mixed` の感度を確かめた）。
+
+限界・申し送り:
+
+- 起動時の「変換して開きました」の通知は host がまだ描かない（TASK-535 1/2）。通知の 0 件の判定は描画された後に効き、それまでは `fresh`（変換して開く経路は `restored` の一種）が実質の判定である
+- 配信する設定は実行時に IR を取得しないため、試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
+- 開始点の `effects` は空で、前の章の世界状態を持たない（5.199 と同じ）
+- 対照は修正前の配信物の再ビルドではなく、保存先の写しによる再現である
+- `scripts/test-chapter-key-control.sh` の置換前の文字列が #1681 以降の `host.rs` と合わず、対照が動かない。本件の範囲外として別に扱う
+- 節番号は並行する PR とマージ順で衝突しうる（5.206 は作業時点で未使用の番号）
+
 ### 5.207 複数の対象を 1 つずつ分けた確認の正誤（TASK-63 1/2。PACK-33・D-69）
 
 決定（D-69、2026-10-21）は「`answer` に複数の問いを持たせる語は足さず、対象ごとに Step を分けて書く」である。`crates/pack/tests/split_answer.rs`（実パックは `crates/pack/tests/data/split-answer-pack`。3 枚のカードを 3 Step に分けた形で、`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
@@ -6565,3 +6585,337 @@ DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開く�
 - CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
 - `Event` から `CheckObservation` への写像は TASK-304 の担当で未実装のため、試験の中の `choose` が代用する（`crates/core/tests/confirm_record_boundary.rs` と同じ規則）
 - 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+
+### 5.208 入力のない確認だけの Step と 1 択の `choice`（TASK-63 2/2。PACK-35・PACK-19・D-69）
+
+決定（D-69、2026-10-21）は「入力のない確認だけの Step を表す語は足さず、選択肢が 1 つだけの `choice` で表す」である。受講者の操作が 1 回増えることは限界として受け入れる（TERM-30）。`crates/pack/tests/read_only_step.rs`（実パックは `crates/pack/tests/data/read-only-step-pack`。`pack.vocab` は `'1.0'`）が、次の 7 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack35_one_choice_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack35_cli_compile_and_vocab_accept_one_choice_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の拡張点の欄が空・(ii) が 0 であること |
+| `pack35_one_extra_operation_then_answer` | `Session` で、1 択の選択 1 回は受付で止まり、誤答は受付のまま、正答で達成になること。`derive_records` が 1 件で、最初の回答が誤答、再選択が正答 |
+| `pack35_inputless_confirm_step_is_structure_error` | 入力が無く `confirm` だけを持つ終端でない Step が、`validate_dir`・`compile_dir` の両方で `E-STRUCTURE` を 1 件返すこと。選択肢の ID・拒否文の ID が診断に出ない |
+| `pack35_inputless_confirm_in_module_is_structure_error` | モジュールの定義の同じ形（`confirm` が `${` を含む場合を含む）が、実体の数によらず定義ごとに 1 件になること |
+| `pack35_cli_compile_rejects_inputless_confirm_step` | CLI の `compile` が終了コード 1・診断を標準出力・標準エラー出力が空であること |
+| `pack35_final_step_without_input_is_allowed` | 終端の Step は、入力が無くても `confirm` を持てること（PACK-19 の除外） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 範囲外: PACK-19 の「両方無い」のうち確認も持たない途中の Step の拒否（既存の教材・試験が依存するため。`docs/known-gaps.md`）。読むだけの Step の画面（TERM-30）
+
+変異 PACK35-1（入力のない確認だけの Step の拒否を外す）の確認。
+
+実行日: 2026-10-21
+元にしたコミット: 30c1ff0-dirty
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK35-1.mutation
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 |
+|---|---|---|---|---|
+| PACK35-1 | crates/pack/src/expand.rs: 入力のない確認だけの Step の拒否を外す | pack35_inputless_confirm_step_is_structure_error | pack35_inputless_confirm_step_is_structure_error, pack35_inputless_confirm_in_module_is_structure_error, pack35_cli_compile_rejects_inputless_confirm_step | DETECTED |
+
+### 5.209 保存・書き出しを Step の入力として宣言する語（TASK-64 1/2。PACK-34・D-69）
+
+対象: 入力方式 `env_action`（語彙 1.5。`env_action`・`input.action`・`input.action=save`・`input.action=export`）。契約の型は `crates/contract/tests/input_spec_contract.rs`（`env_action_`・`input_spec_contract_version_is_3`）、宣言の検査は `crates/pack/tests/env_action_input.rs`（実パックは `crates/pack/tests/data/env-action-pack`）、実行時の受付は `crates/core/tests/env_action_save.rs`（IR は `crates/core/tests/data/env_action_1/ir.json`。教材の `compile` とバイト一致することを pack 側の `pack34_core_test_ir_matches_the_pack` が確かめる）。
+
+確かめること:
+
+- 保存の Step が `validate`・`compile` を診断 0 件で通り、IR の `input` に宣言のまま出ること。`input_field: hidden` の教材でも診断が出ないこと
+- `action` の欠け・未知の値・型の違い・未知の欄が `E-PARSE`、`processing` を持つ Step が `E-STRUCTURE` になること。診断に宣言の値が出ないこと
+- `pack.vocab` が 1.4 で `env_action` を使うと `E-VOCAB-MISMATCH` が 1 件、省略では出ないこと
+- core で、保存の成功が保存の Step を受付にし、確認を省く宣言なら達成して次の Step へ進むこと（`CheckpointSaved` → `Accepted` → `Achieved` → `Transitioned` → `Entered`）。世代が変わらないこと
+- 確認の宣言が `none` でないと `Accepted` で止まり、`none` の理由が空白だけなら `Warning` だけで状態が変わらないこと
+- 書き出しの Step・`env_action` の無い Step・宣言が読めない Step・処理中の Step・保存に失敗したとき（ID のあふれ）は、保存で受付にならないこと
+- 受講者のコマンド・選択・取り消しの入力が `env_action` の Step を受付にせず、状態が変わらないこと
+- 同じ操作列から同じログと状態になり、そのログから `Projection` を導けること
+
+実装の過程で `Projection::take_starts` に `CheckpointSaved` を操作の先頭として加えた（`InputReceived` を伴わない `Accepted` が保存の直後に続くため）。上限で止めた操作の巻き戻しの範囲を保存の操作の分だけにするための変更で、保存の後に遷移の上限で止まる場合の試験は足していない（未検証）。
+
+変異（`crates/pack/tests/mutations/`・`crates/core/tests/mutations/`）。2026-10-21 に 3 件を個別に流し、すべて DETECTED だった（全件の `make check-mutations` は流していない）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK34-1 | `env_action` の宣言を型で読む検査を飛ばす | `pack34_unreadable_declarations_are_parse_errors` |
+| PACK34-2 | 保存の成功の判定を外し、保存に失敗したときも受付にする | `pack34_failed_save_does_not_accept` |
+| PACK34-3 | `action` の照合を外す（書き出しの Step も保存で達成になる） | `pack34_export_step_is_not_achieved_by_save` |
+
+範囲外: 書き出しの成功を達成に結ぶ実行時の経路（`docs/known-gaps.md` の PACK-34）。保存・書き出しのボタンの画面。
+
+### 5.210 誤答の拒否文で前後の切り替えを案内する形（TASK-64 2/2。PACK-36・D-69）
+
+決定（D-69、2026-10-21）は「誤答の拒否に前後比較のビューを結ぶ語は足さず、拒否文（`message`・`next_action`）で前後の切り替え（ART-2）を案内する。比較を自動で見せないことは限界として受け入れる」である。`crates/pack/tests/wrong_answer_compare.rs`（実パックは `crates/pack/tests/data/wrong-answer-compare-pack`。`pack.vocab` は `'1.0'`）が、次の 5 件を固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack36_guide_pack_validates_without_newer_vocab` | `validate_dir` が 0 件で、`compile_dir` が成功すること |
+| `pack36_cli_compile_and_vocab_accept_guide_pack` | `fandhe-pack compile` が終了コード 0・標準エラー出力が空で、`vocab` の (ii) が 0 であること |
+| `pack36_wrong_answer_resolves_to_guide_text` | 誤答が `rj-unchanged` の誤答になり、拒否文の次の行動が前後の切り替えの案内であること。正答は `Confirmed` |
+| `pack36_session_shows_guide_and_stays_on_step` | `Session` で誤答を送ると受付のまま達成が増えず、判定が拒否で、差し込み後の文面が案内であること。誤答で出るイベントは判定と入力の記録だけで、比較を自動で見せないこと。続く正答で達成になること |
+| `pack36_binding_field_on_answer_is_rejected` | 対照。`confirm.answer` に比較のビューを結ぶ欄を足した写しは `E-PARSE` になり、IR を出さないこと（語を足していないこと） |
+
+- CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
+- 画面での前後の切り替えの見え方（ART-19）はブラウザで確かめていない。画面のタスクの持ち分である
+- 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
+- `rejections.<id>` に未知の欄を足したときの挙動は、試験では固定していない（未確認）
+
+### 5.211 確認 `answer` の選択肢の `label` を必須にする検査（TASK-65 1/2。PACK-37・D-67）
+
+決定（D-67、2026-10-21）は「`label` を必須にし、無い選択肢は検証で診断として止める」である。`crates/pack/tests/answer_label_required.rs` は、`label` の無い（欄が無い・`null`）選択肢を持つ教材パックを `validate_dir` に通し、`E-STRUCTURE`（文面は `validate::ANSWER_LABEL_REQUIRED`）が Step ごとに 1 件、終了コード（`diag::exit_code`）が 1 になることを固定する。`validate` だけの検査で、`compile` は検査しない。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack37_missing_label_is_reported_with_exit_code_1` | 選択肢の 1 つに `label` が無い教材が、1 件の `E-STRUCTURE`（定義ファイルと `step:<id>`）・終了コード 1 になること |
+| `pack37_null_label_is_reported` | `label: null` も同じ |
+| `pack37_all_labels_validate_clean` | 対照。全選択肢に `label` があれば 0 件・終了コード 0 |
+| `pack37_one_diagnostic_per_step` | 1 つの Step で複数の選択肢が欠けても 1 件。2 つの Step で欠ければ 2 件 |
+| `pack37_format_a` | 形式 A（TOML）でも検出すること |
+| `pack37_module_step_is_reported_at_the_module_file` | モジュールの Step の欠けが、モジュールのファイルに付くこと |
+| `pack37_choice_label_is_not_confused` | 入力方式 `choice` の `label` を取り違えないこと |
+| `pack37_compile_does_not_check` | 同じ教材の `compile_dir` が成功し、`validate` だけが止めること |
+| `pack37_message_has_no_values` | 秘密情報に似た選択肢の ID・`label` が診断に写らないこと |
+
+既存の試験への影響（2026-10-21 に `cargo test -p fandhe-workshop-pack` で洗い出した）と扱い。
+
+- 編集してよい教材パック（`testdata/condition-vocab-pack`、`testdata/pack-defects/base/format-b-v1_1` と上書き 3 件、`crates/pack/tests/data/vocab-pack`・`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack`）と、試験のコード中のインラインの宣言は、`label` を足した
+- 編集できない教材パック（spec の写し、IR の凍結物を持つ `fill-pack`）は、試験の共通部の `without_answer_label_required` で、この 1 種の診断だけを除いて見る。除いた件数が 0 でないことも確かめる
+- 語彙の版 `1.0` を宣言して `answer` を使っていた 4 つの教材（`read-only-step-pack`・`split-answer-pack`・`wrong-answer-compare-pack` と `split_answer.rs` の対照）は、`label` が語彙 1.3 の語のため `1.3` の宣言に変えた。1.3 より前を宣言した教材は `answer` を使えなくなる（`docs/pack-authoring.md`）
+- `vocab_declaration.rs` の `pack31_correct_packs_have_no_false_positives` は、確認の `label` を持つようになった 2 つの教材を、入力方式 `choice` の `label` だけを持つ前提の一覧から外した（残る 3 件で取り違えの確認は続く）
+- `vocab_command.rs` の `author17_label_not_counted` は、土台の教材が `label` を持つようになったため、足す向きから外す向きに変えた
+- `metrics.rs` の `me3_` は、`condition-vocab-pack` に `label` を足して増えたバイト数に合わせた
+
+変異（`crates/pack/tests/mutations/`）。
+
+| ID | 誤り | 検出する試験 |
+|---|---|---|
+| PACK37-1 | `validate` が `label` の欠けを検査する呼び出しを外す | `pack37_missing_label_is_reported_with_exit_code_1` |
+
+2026-10-21 に呼び出しを手で外して確かめ、`answer_label_required` の 9 件のうち 7 件が失敗し、戻すと全件通った（`make check-mutations` は流していない）。
+
+範囲外: `fandhe-pack validate` の CLI からの終了コードの確認（本体は TASK-403。ここでは `diag::exit_code` で代えた）。`compile` だけを通した IR では `label` の無い選択肢が ID のまま出る（`docs/pack-authoring.md` に明記した）。置換後に `label` が空になる場合は扱わない。
+
+TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての選択肢に `label` を付ける案は、D-67（2026-10-21）が採らなかった。そのため、教材側の規約と、全 Step の画面で選択肢に ID の文字列が出る件数を数える試験は、この repo では足さない。結論: 変更なし（Rust・試験・試験の件数のいずれも変えない）。
+
+- `label` の無い教材パックは `validate` が止めるため、検査を通った教材パックで選択肢が ID のまま画面に出る経路は無い（PACK-37・TERM-25）。例外は `compile` だけを通した IR で、`docs/pack-authoring.md` に記載済みである
+- `st-1-4`・`st-2-7` の画面で表示名が出ることの確認は、TERM-25（画面のタスク TASK-446）と INTRO-18（教材のタスク）が担う。教材パックは教材 repo にあり、この repo の `testdata/` の spec の写しは D-67 の前の形（`label` 無し）のまま残す
+
+### 5.212 自然文の内容で規則を分ける書き方の拒否（TASK-68。PACK-41・D-43）
+
+決定（D-43、2026-10-12）は「判定語（部分一致・正規表現など）を語彙に足さず、内容で規則を分ける書き方は `validate` が拒否する」である。2026-10-21 の確認で、現状は `on.text` に `{contains: ...}` を書いても `validate`・`compile` とも 0 件で通り、実行時は `on.text == true` だけを見るため内容の条件が無視されると分かった。そのため `input.rs` に `E-PARSE` の検査を足した（診断コードは増やさない）。`crates/pack/tests/text_rule_content.rs` が `validate_dir` と `compile_dir` の両方で固定する。
+
+| 試験 | 確かめること |
+|---|---|
+| `pack41_content_value_in_on_text_is_rejected` | 真偽値でない `on.text`（mapping・文字列・数値・null）が `E-PARSE` 1 件で、値が出ないこと |
+| `pack41_unknown_key_beside_text_is_rejected` | `text: true` と並ぶ未知のキー（`contains` など）が `E-PARSE` で、キー名だけが出ること |
+| `pack41_unknown_key_on_text_step_is_rejected` | `text` の Step で `text` キーのない `on` の未知のキーと、mapping でない `on` |
+| `pack41_unsafe_key_name_is_not_echoed` | 識別子として安全でないキー名を写さないこと |
+| `pack41_plain_text_rules_pass` | 対照。`text: true`・`false`・`cancel`・既知のキーの組み合わせと 5 方式の教材が通ること |
+| `pack41_other_steps_are_not_checked` | `text` でない Step で `text` キーのない `on` は本検査の対象外であること |
+| `pack41_module_text_rule_is_checked` | モジュールの `text` の Step の規則が、モジュールのファイルに付いて拒否されること |
+| `pack41_format_a_is_rejected_too` | 形式 A（TOML）でも同じ |
+| `pack41_when_content_condition_is_rejected_by_compile` | `when: {contains: ...}` を `compile` が `E-PARSE` で拒否すること |
+| `pack41_rule_choice_ignores_words`（core の `text_judge`） | 語を含む文と含まない文で、選ばれる規則・分類（`free_text_unjudged`）が変わらないこと |
+
+変異（`crates/pack/tests/mutations/`）。
+
+```text
+実行日: 2026-10-21
+元にしたコミット: af94c08（作業ツリーに本変更）
+コマンド: scripts/check-mutations.sh crates/pack/tests/mutations/PACK41-1.mutation crates/pack/tests/mutations/PACK41-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| PACK41-1 | crates/pack/src/input.rs: 規則の `on` の未知のキーの拒否を外す | pack41_unknown_key_beside_text_is_rejected | DETECTED |
+| PACK41-2 | crates/pack/src/input.rs: `on.text` が真偽値でないことの拒否を外す | pack41_content_value_in_on_text_is_rejected | DETECTED |
+
+範囲外: `validate` が `when` の条件の語彙を検査しない全般の不足（TASK-42 の領域）。`text` でない Step の規則で `text` キーのない `on` の未知のキーは検査しない（core は黙って飛ばす）。規則の `on` の 9 キーの集合は core（private 定数）と pack（`RULE_ON_KEYS`）の二重管理である。spec の TASK-68 の「Rust の変更は無い」という見積もりは、現状が拒否していなかったため成り立たなかった（spec 側への差し戻し事項）。`fandhe-pack validate` の CLI からの終了コードの確認は TASK-403 の実装待ち。
+
+### 5.213 案内レベルの語と本文・ヒントの出し分け（TASK-49 1/2。PACK-17）
+
+水準 L で出す本文を C → B → A の順に選ぶこと（`guidance::body_for`）、ヒントを契約の `visible_hints` で選ぶこと、`A`・`B`・`C` 以外の水準の語を読み込みで `E-PARSE` にすることを確かめる。`body_levels` の鍵 `A` の `E-STRUCTURE`、`E-GUIDANCE-LEAK`、`E-HINT-HIDDEN` は 5.214（TASK-49 2/2）が確かめる。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_levels.rs` | 本文の倒れ方 4 種 × 3 水準、ヒント 4 種の水準ごとの選択、モジュールの 2 実体の一致、受け付ける水準の全組、拒否する値（`pack.guidance`・`guidance_levels`・`starts[].guidance`・`body_levels` の鍵・ヒントの `levels`）の項目と 1 件の `E-PARSE`、値を診断に写さないこと、形式 A（TOML）でも同じこと |
+| `crates/pack/tests/defect_packs.rs` | D23 が `E-PARSE`・`chapters/ch-13/chapter.yaml`・`scope` で検出され、static の検出が 9/9 になること |
+| `crates/pack/src/guidance.rs` の単体試験 | `body_for`・`read_guidance_levels`・ヒントの `levels` の形 |
+
+変異注入（実行日 2026-10-21、元にしたコミット 11cc0c8 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK17-1.mutation crates/pack/tests/mutations/PACK17-2.mutation crates/pack/tests/mutations/PACK17-3.mutation`）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| PACK17-1 | `guidance.rs`: 本文の探し方が `fallback_chain` に従わない | DETECTED（`body_is_chosen_c_then_b_then_a`） |
+| PACK17-2 | `source.rs`: 章の水準の語の診断を捨てる | DETECTED（`start_guidance_rejects_unknown_levels` ほか） |
+| PACK17-3 | `guidance.rs`: ヒントの `levels` の要素を検査しない | DETECTED（`hint_levels_rejects_bad_shapes`） |
+
+限界・未実施:
+
+- `Node.body_levels_doc` からの実行時の木の選択は TASK-292（#589）、開始点の水準と周回の切り替えは TASK-294 が持つ
+- ヒントの `levels` 以外の欄の形は検査しない
+
+### 5.214 案内レベルの 3 つの診断（TASK-49 2/2。PACK-17）
+
+`body_levels` の鍵 `A` を `E-STRUCTURE`（`validate` と `compile`）、隠すと宣言した語が水準 B・C の本文または `do` に出ることを `E-GUIDANCE-LEAK`（`validate` だけ）、ヒントを持つ Step で出ない水準があることを `E-HINT-HIDDEN`（`validate` だけ）にすることを確かめる。検査は `LoadedPack` だけを見る純関数で、本文は読み込み済みの `pack.bodies` から引く。診断に隠す語・本文・ヒントの ID は写さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_levels.rs` の `body_levels_key_a_is_a_structure_error` | 鍵 `A` は `load` を通り、`validate`・`compile` が `E-STRUCTURE`・`chapters/c1/chapter.yaml`・`step:a` を 1 件返すこと |
+| 同 `guidance_leak_*` | 本文（コマンド名・`hide_words`、水準 B・C）、水準 A と規則の無い水準で出ないこと、開始点の `guidance` とモジュールの Step、定義の段の `do`（引数だけの `do` は見ない）、空の語を飛ばすこと、値を写さないこと、`compile` は通すこと |
+| 同 `hint_hidden_*` | B・C だけのヒントで水準 A が 1 件、A だけで 2 件、全水準・両方持つ Step・ヒント無し・未定義のヒントだけの Step では出ないこと（後者は `E-REF-HINT`）、ID を写さないこと、`compile` は通すこと |
+| `crates/pack/tests/defect_packs.rs` | D21・D22 が `chapters/ch-13/chapter.yaml`・`step:st-13-2` で検出され、語彙 v1.1 の静的な検出が 11/11 になること。`#[ignore]` の試験は無くなった |
+
+変異注入（実行日 2026-10-21、元にしたコミット 7f46482 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK17-4.mutation crates/pack/tests/mutations/PACK17-5.mutation crates/pack/tests/mutations/PACK17-6.mutation`）:
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| PACK17-4 | `validate.rs`: 構造の検査が鍵 `A` を検査しない | DETECTED（`body_levels_key_a_is_a_structure_error`） |
+| PACK17-5 | `guidance.rs`: 漏れの検査が定義の段の `do` を見ない | DETECTED（`guidance_leak_in_do_is_reported_and_chapter_placeholder_is_literal`。2026-10-22 に試験名を改めた） |
+| PACK17-6 | `guidance.rs`: ヒントの検査が水準 B しか判定しない | DETECTED（`hint_hidden_is_reported_per_level` ほか） |
+
+誤検出の掃除（2026-10-21）: `testdata/module-reuse-rounds/test-data/pack`・`testdata/save-restore-versions/test-data/packs/*`・`testdata/pack-defects/base/format-b-v1_1`・`crates/pack/tests/data/vocab-pack`・`crates/pack/tests/data/fixture-pack` に `validate_dir` を流し、`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・鍵 `A` の `E-STRUCTURE` が 0 件であることを確かめた（既存の確認 `answer` の `label` の `E-STRUCTURE` は別件）。
+
+限界:
+
+- 部分文字列の包含による近似で、語の境界は見ない。ヒントの文面・宣言の無い章の本文は調べない（GUIDE-5。TASK-38・TASK-71）。実体の引数で渡す `do` は 5.219（TASK-71 3/3）で置換後まで調べるようになった（2026-10-22。上の「誤検出の掃除」はそれより前の記録）
+- `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは決めていない（今は `validate` だけ）
+
+### 5.215 実体ごとの案内レベルの引数（TASK-70 1/2。PACK-45）
+
+決定 D-55（2026-10-12）は、実体ごとの案内レベル `use.guidance` を語彙に足さないとした（GUIDE-13）。本文への引数の値の差し込み（GUIDE-15）とヒントの文面を実体ごとに変えることには決定が無い。このため #512 の受け入れ条件のうち「語彙を足す案」の側は D-55 が採っておらず、「足さない案では、現状の回避の限界の記録が文書にある」の側で満たす。語彙・診断コードは足さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_use_guidance_is_rejected_by_compile` | `use` の `guidance` が `E-PARSE` ちょうど 1 件になること |
+| 同 `pack45_use_guidance_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと（修正前は 0 件で通した。`validate` が展開の `E-PARSE` を捨てていた） |
+| 同 `pack45_use_guidance_value_is_not_echoed` | 値が診断に写らないこと |
+| 同 `pack45_hint_ids_can_differ_per_instance_but_texts_are_not_substituted` | ヒントの ID を引数で渡すと実体ごとに別のヒントが水準別に出ること、定義の文面の `${}` が残ること、IR の実体が案内レベルの欄を持たないこと |
+
+変更: `validate` の `check_module_expansion` が、読めない `use` の `E-PARSE`（`expand::INVALID_USE`）を残す。`compile` を通る教材の結果は変わらない。
+
+変異注入（実行日 2026-10-21、元にしたコミット b68aec4 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK45-1.mutation`）: PACK45-1（`validate.rs`: 読めない `use` の `E-PARSE` を捨てる）は DETECTED（`pack45_use_guidance_is_rejected_by_validate`）。
+
+限界・範囲外:
+
+- 置換後のヒント ID の `E-REF-HINT` の検査は無い。未定義の値を渡すとヒントが黙って消える。`E-HINT-HIDDEN` も `${}` のヒントを持つモジュールの Step を見ない（TASK-71 の領域）
+- `validate` が `expand_use` のほかの `E-STRUCTURE` を捨てているかは未確認
+- 本文の差し込みとヒントの文面の実体ごとの語は、決定が要る
+- `do_levels` は #513（TASK-70 2/2）。5.216 に記録した
+
+### 5.216 `do` を案内レベルごとに書き分ける欄 `do_levels`（TASK-70 2/2。PACK-50・GUIDE-14）
+
+決定 D-55（2026-10-12）の項 4 は、`do` を水準別に書く語 `do_levels` を語彙に足すとした（引数化は続けない）。#513 は「語彙を足す案」の側で受け入れ条件を満たす。形は D-55 が決めていなかったため、次のとおり決めた。鍵は `B`・`C` だけで水準 A の文は `do`、`do` は必須、探す順は本文と同じ C → B → A、値は空にできない。語彙の版は v1.6、拡張点の番号なし、`ir_format` は 1 のまま（空なら書き出さない）。この形を spec の PACK-50・GUIDE-14 へ書き戻し、検討中から確定へ移す判断は spec の持ち分である（本 PR では docs/spec を変えない）。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/do_levels.rs` の `pack50_level_b_wrong_order_next_action_hides_skill_name` | 受け入れ条件。案内レベル B で順序違いの次の行動に skill の名前が出ず、B の文が入ること |
+| 同 `pack50_level_a_keeps_do` | 負の対照。A では `do` が入ること |
+| 同 `pack50_level_c_falls_back_to_b` | C は B の文に倒れ、C の文があれば C が入ること |
+| 同 `pack50_ir_carries_do_levels_only_when_used` | 使う教材の IR にだけ `do_levels` が載ること |
+| 同 `pack50_leak_is_clean_with_do_levels`・`pack50_leak_detects_hidden_word_in_do_levels_b`・`pack50_leak_check_reads_the_do_shown_at_that_level` | 漏れの検査がその水準で出る `do` を読み、`do_levels` だけの Step で本文の誤検出を出さないこと |
+| 同 `pack50_key_a_is_structure`・`pack50_blank_value_is_structure`・`pack50_requires_do` | `E-STRUCTURE` がちょうど 1 件（`validate`・`compile` の両方） |
+| 同 `pack50_unknown_key_is_parse`・`pack50_non_string_value_is_parse` | `E-PARSE` |
+| 同 `pack50_vocab_mismatch_below_1_6` | `pack.vocab` が 1.6 未満なら `E-VOCAB-MISMATCH` 1 件、省略なら検査しない |
+| 同 `pack50_module_arg_substitution`・`pack50_module_blank_arg_is_caught_after_expansion` | モジュールの引数が置換され、空になった水準の文が展開の後に止まること |
+| 同 `pack50_values_are_not_echoed` | 値・鍵が診断に写らないこと |
+| `crates/pack/tests/vocabulary_terms.rs` の `do_levels_is_v16_without_number`・`latest_is_v16` | 語彙の文書の v1.6 の行と表の一致 |
+| `crates/core/src/text_fill.rs` の `step_do_at_falls_back_c_to_b_to_a`・`crates/contract/src/ir.rs` の `ir6_` | 選択の倒れ方・欄の往復と空のとき書き出さないこと |
+
+変更: contract の `Step` に任意の欄 `do_levels`、core の `text_fill::step_do_at`（`slot_values` の `step_do` と漏れの検査が共用）、pack の `guidance::check_do_levels`（`validate`・`compile`）、`vocab` の v1.6、core の `VOCAB_MAX` を 1.6。使わない教材の IR はバイト単位で変わらない（golden は書き換えない）。
+
+変異注入（実行日 2026-10-22、元にしたコミット 886d34f の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK50-<n>.mutation`）: PACK50-1（`slot_values` の `step_do` を `do` に戻す）・PACK50-2（`step_do_at` が自分の水準だけを見る）・PACK50-3（鍵 `A` の判定を外す）・PACK50-4（漏れの検査が `do` そのものを見る）はいずれも DETECTED。
+
+限界・範囲外:
+
+- 復元の後の `message` の再充填は水準 A になる（`docs/known-gaps.md` の PACK-50。TASK-307・TASK-308）
+- 開始点の水準の結線は未実装（TASK-294）。試験は `RunState` を直接組む。画面の確認は対象外
+- `${}` の引数で渡す `do`・`do_levels` は漏れの検査が見ない（PACK-52。TASK-71）
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.217 モジュールの先頭の Step を省く語が無いこと（TASK-71 1/3。PACK-51・D-43）
+
+決定 D-43（2026-10-12）の項 7 は、モジュールの先頭の Step を省ける語を足さず、作成者の規約として受け入れるとした（PACK-51・MOD-17 (a)）。#515 の受け入れ条件は、「省けないことを診断にしてよい」の側で満たす。語彙・診断コード・コードは変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/module_first_step_gap.rs` の `pack51_use_enters_the_first_step_even_when_args_route_around_steps` | testdata の 1 周目・2 周目（`setup: "false"`）とも `enter` が先頭の `st-3-2` であること。2 周目で通らない `st-4-1`・`st-5-1` も IR に残り、先頭の Step の `next` が引数の条件で分かれること |
+| 同 `pack51_enter_is_the_first_step_for_a_small_module` | 小さなモジュールで、先頭の Step が後ろを飛ばす引数（`skip`）の真偽によらず `enter` が先頭であること |
+| 同 `pack51_skip_like_use_field_is_rejected_by_compile` | `use` の `start`・`skip_first`・`from` が `E-PARSE` ちょうど 1 件になること |
+| 同 `pack51_skip_like_use_field_is_rejected_by_validate` | `validate` も同じ `E-PARSE` を 1 件返すこと |
+| 同 `pack51_step_level_skip_field_is_rejected` | Step に `skip` を書くと `E-PARSE` が 1 件になること |
+| 同 `pack51_skip_like_values_are_not_echoed` | 値が診断に写らないこと |
+
+変更: 製品のコードの変更は無い。
+
+変異注入（実行日 2026-10-22、元にしたコミット 6d8627b の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK51-1.mutation`）: PACK51-1（`expand.rs`: `use` の入り口を 2 つ目の Step にする）は DETECTED（`pack51_enter_is_the_first_step_for_a_small_module`、`pack51_use_enters_the_first_step_even_when_args_route_around_steps`）。
+
+限界・範囲外:
+
+- 引数の型と範囲外の値の拒否は 5.218（#516。TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は 5.219（#517。TASK-71 3/3）
+- 飛ばした Step が実行時に未着手のまま残り、途中開始の「省略」と区別されること（MOD-17 (b) の実行時の側）は対象外
+- 規約を spec の `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本 PR では docs/spec を変えない）
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.218 モジュールの引数の型と範囲外の値の拒否（TASK-71 2/3。PACK-51・MOD-17 (c)・D-43）
+
+決定 D-43（2026-10-12）の項 7 は、引数の型と範囲外の値を `validate` が検査で拒否するとした。型と範囲を宣言する欄の形は仕様に無いため、`params` の隣の任意の欄 `param_types`（語彙 v1.7、拡張点の番号なし）として本変更で決めた。`params` の読み方（PACK-4）は変えない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/module_arg_types.rs` の `pack51_bool_arg_out_of_range_is_rejected_by_compile` | `bool` に `"flase"` を渡すと `compile` が `E-STRUCTURE` ちょうど 1 件で止まること |
+| 同 `pack51_bool_arg_out_of_range_is_rejected_by_validate` | `validate` も同じ `E-STRUCTURE` を 1 件返すこと（展開の診断の許可リストの回帰） |
+| 同 `pack51_int_arg_outside_min_max_is_rejected` | `min`-1・`max`+1 は拒否、両端は通ること |
+| 同 `pack51_int_arg_non_canonical_is_rejected` | `"01"`・`"+1"`・`"1.0"`・`"abc"`・空・`"-0"`・`i64` の溢れは拒否、`0`・負数・`i64` の端は通ること |
+| 同 `pack51_enum_arg_not_in_values_is_rejected` | `values` に無い値・大文字小文字の違い・空は拒否、一致は通ること |
+| 同 `pack51_in_range_args_compile_and_ir_matches_untyped` | 範囲内の値は `compile`・`validate` とも 0 件で、`param_types` を消した教材と IR がバイト単位で一致すること（負の対照） |
+| 同 `pack51_untyped_params_are_not_checked` | 宣言しない引数は従来どおり任意の文字列で通ること |
+| 同 `pack51_default_out_of_range_is_rejected_once` | 既定値が範囲外なら、呼び出し 0 回・2 回とも宣言の側の 1 件になること |
+| 同 `pack51_declaration_errors_are_structure` | 鍵が `params` に無い・`enum` の `values` が無い／空／重複・型に合わない欄・`min` が `max` を超える、がそれぞれ `E-STRUCTURE` 1 件になること |
+| 同 `pack51_declaration_unknown_type_or_field_is_parse` | 未知の型・欄・整数でない `min` が `E-PARSE` になること |
+| 同 `pack51_nested_arg_is_checked_after_substitution` | 入れ子の `${名前}` を置換した後の値で判定されること |
+| 同 `pack51_format_a_toml_param_types` | 形式 A（TOML）でも同じ判定になること |
+| 同 `pack51_vocab_mismatch_below_1_7` | `pack.vocab` が 1.7 未満なら `E-VOCAB-MISMATCH` が 1 件、1.7 以上と省略では 0 件であること |
+| 同 `pack51_arg_values_are_not_echoed` | 引数・既定値・`values` の値が診断に写らないこと |
+| `crates/pack/tests/vocabulary_terms.rs` の `param_types_terms_are_v17_without_number` | 語彙 v1.7 の 8 語が 7 節にあり、拡張点の番号を持たないこと |
+| `crates/pack/src/param_check.rs` の単体試験 | `value_fits` の境界と、診断の文面に値が入らないこと |
+
+変更: `ScopeSrc` に `param_types` を足し、宣言の検査（`compile`・`validate`）と呼び出しの引数の検査（`expand_use`。`validate` の許可リストにも追加）を `param_check.rs` に置いた。語彙 v1.7（文書の版 7）、`VOCAB_MAX` 1.7、診断の一覧の版 12 を同期した。IR と `ir_format`（1）は変えない。
+
+変異注入（実行日 2026-10-22、元にしたコミット 1b178a7 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK51-2.mutation` から `PACK51-5.mutation`）: PACK51-2（`expand.rs`: 呼び出しの引数の範囲外の判定を外す）、PACK51-3（`validate.rs`: 許可リストから範囲外の引数を外す）、PACK51-4（`param_check.rs`: `int` の上限を含まない比較にする）、PACK51-5（`param_check.rs`: 既定値の検査を外す）は、いずれも DETECTED。
+
+限界・範囲外:
+
+- `condition.param` の `eq` の値が宣言した型・範囲に入るかの検査は対象外（`docs/known-gaps.md` の PACK-51）
+- 決めた `param_types` の形を spec の PACK-51・MOD-17 と `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本変更では docs/spec を変えない）
+- `E-GUIDANCE-LEAK` の範囲は 5.219（#517。TASK-71 3/3）、MOD-17 (b) の実行時の側はエンジンの担当
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.219 隠す語の検査の範囲（TASK-71 3/3。PACK-52・GUIDE-5・D-43）
+
+決定 D-43（2026-10-12）と 04 の PACK-52・GUIDE-5 に従い、`E-GUIDANCE-LEAK` の範囲に足すのは (a) モジュールの実体の引数（`${名前}`）で渡す `do`・`do_levels` の置換後の文字列だけである。(b) ヒントの段 2・3 と (c) 開始点の `guidance` も `body_levels` も持たない章の本文は、検査の外に置き、作成者の規約として受け入れる（ヒントの段ごとに隠す語を宣言する欄も足さない）。#517 の受け入れ条件の文面は (a)(b)(c) の検出と読めるが、これは TASK-71 の完了条件にある、決定前の「範囲を広げる案では」の条件つきの文の写しである。完了条件の前半「04 の PACK-52 の文が自動テストで確かめられ、通る」を正とし、(a) の検出と、(b)(c) を報告しないことの観察を固定した。「誤検出 0 件」は (c) 型の本文で確かめる。#515（5.217）・#516（5.218）と同じく、決定で採った側で受け入れ条件を満たす。語彙・診断コード・IR・`ir_format` は変えず、`compile` の結果も変わらない。
+
+検出は展開器（`expand.rs`）に `validate` 専用の任意の検査として足した。既定値の重ね合わせ・入れ子の引数・予算・巡回の停止を二重に持たないためである。置換前に `${` を含む `do`・`do_levels` の Step について、調べる水準（章の開始点の B・C ∪ `body_levels` か `do_levels` を持つ Step の B・C）ごとに、置換の前に語が無く置換の後に語が出る場合だけ 1 件にする。置換の前の字面にすでに語がある水準は、定義の側の検査が報告するので重ねない。同じ内容の診断は 1 件にまとめる。診断は固定の英語で、語・引数の値・本文を写さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_leak_scope.rs` の `pack52_a_argument_do_leak_is_reported` | 引数で渡した skill 名が水準 B で 1 件になり、モジュールの定義ファイルと Step で報告され、`compile` は通ること |
+| 同 `pack52_a_default_param_leak_is_reported` | 引数を渡さず既定値が漏れる場合も 1 件になること |
+| 同 `pack52_a_do_levels_argument_is_checked_at_that_level` | `do_levels` は、その水準で出る文だけが読まれること |
+| 同 `pack52_a_nested_argument_is_substituted` | 入れ子の `use.args` を経由した値の漏れを検出すること |
+| 同 `pack52_a_clean_argument_and_level_a_have_no_leak` | 安全な値・開始点が A か無しの章・規則の無い水準では 0 件であること（負の対照） |
+| 同 `pack52_a_not_double_reported` | 定義の段の字面にすでに語がある `do` と、同じモジュールの 2 実体は 1 件であること |
+| 同 `pack52_a_parameterized_module_name_is_not_suppressed` | 引数つきのモジュール名で呼ばれる Step は定義の段が辿らないため、置換の前の字面に語があっても置換後の診断が 1 件出ること（抑制は定義の段の対象だった Step・水準に限る） |
+| 同 `pack52_b_hint_tiers_are_not_checked` | B・C に出るヒントの文面に skill 名があっても 0 件であること（D-43 の観察） |
+| 同 `pack52_c_undeclared_chapter_body_has_no_false_positive` | 宣言の無い章の本文・`do` は 0 件で、開始点を `guidance: B` にすると検出されること（誤検出 0 件と、対象が宣言に結びつくことの対照） |
+| 同 `pack52_values_are_not_echoed` | 引数・既定値・隠す語が診断に写らないこと |
+| 同 `pack52_rounds_testdata_reports_known_true_leaks` | `module-reuse-rounds` の `validate` が、5 つの Step（`idea-cycle` の `st-2-1`、`issue-to-merge` の `st-4-1`・`st-5-1`・`st-6-1`・`st-7-1`）を水準 B・C の 2 件ずつ報告すること |
+
+testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E-GUIDANCE-LEAK` が 0 件、実装の後は 10 件（上の 5 Step × B・C）になった。原因は R-5 が記録した真の漏れで、`ch-round1` が引数を渡さず、既定値の skill 名（`/new-idea`・`/init-claude` など）が、`body_levels` を宣言したモジュールの Step の水準 B・C に出る。`ch-round2` は skill 名を含まない値を渡しており、元ではない。計画で見込んだ 2 件（`st-6-1`・`st-7-1`）より多かったが、`ch-round1` も `body_levels` を持つ Step を水準 B・C で検査する定義（既存の対象の決め方 (i)）のためで、誤検出ではない。写しは編集できないため、「`validate` が 0 件」を見る `validate_refs.rs` の `correct_testdata_packs_have_no_false_positives` は、この 1 種の診断だけを `common::without_expanded_do_leak` で除き、除外が空振りしていないことを確かめる。
+
+変異注入（実行日 2026-10-22、元にしたコミット 41f2e44 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK52-1.mutation` から `PACK52-3.mutation` と `PACK17-5.mutation`）: PACK52-1（`expand.rs`: 置換後の漏れの検査を行わない）、PACK52-2（`validate.rs`: 許可リストから `GuidanceLeak` を外す）、PACK52-3（`guidance.rs`: 置換後の判定が水準ごとの `do` を見ない）、PACK17-5（試験名を改めた後の再実行）が、いずれも DETECTED。
+
+限界・範囲外:
+
+- 部分文字列の包含による近似で、語の境界は見ない。モジュールの本文の Markdown は引数で置換されない（PACK-45・GUIDE-15）ため、(a) の対象は `do`・`do_levels` だけである。展開が `E-LIMIT` で打ち切られた後ろは調べない（`E-LIMIT` が検査の未完了を示す）
+- (b)(c) の規約と、PACK-52・GUIDE-5 の「現状の観察」の文（引数の `do` も報告されない）の更新、`04-behavior/pack-authoring.md` への書き戻しは spec の持ち分である（本変更では docs/spec を変えない）。#517 の受け入れ条件の文面の差し戻しも spec 側の持ち分である
+- `module-reuse-rounds` の写し（と同形の写し）の真の漏れ（`ch-round1` の既定値）は、教材の側（spec repo の PoC データ）で直す
+- `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは未決のまま
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない

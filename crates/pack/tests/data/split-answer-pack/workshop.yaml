@@ -1,4 +1,4 @@
 # split-answer-pack（形式 B）。複数の対象を 1 つずつ分類する確認を Step に分けて書く（PACK-33・D-69）試験用。架空の内容だけを持つ。
-pack: {id: split-answer-pack, title: 分けた分類, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.0'}
+pack: {id: split-answer-pack, title: 分けた分類, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.3'}
 rejections:
   rj-wrong-kind: {category: not_in_this_step, message: その分類ではありません。, next_action: 別の分類を選んで、もう一度送ります。}

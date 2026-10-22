@@ -10,6 +10,7 @@
 //! 拒否（`unknown field`。PACK-3）は本モジュールが扱う。引用符なしの値の文字列としての読み取り・重複キーの拒否・
 //! 構文エラーの行と桁（PACK-4）も本モジュールと `yaml_strict` が扱う。モジュールの展開は `compile`（`expand`）が行う。
 //! 形式 B のアンカー・エイリアス・タグ・複数文書の拒否（PACK-5）も `yaml_strict` が行い、ここで診断文にする。
+//! 水準の語（`guidance`・`body_levels` の鍵・ヒントの `levels`）が `A`・`B`・`C` でない教材は `guidance` の検査で `E-PARSE` にする（TASK-49 1/2）。
 
 use std::collections::BTreeMap;
 use std::fs::{self, File};
@@ -194,6 +195,9 @@ pub struct ScopeSrc {
     /// モジュールの引数と既定値。
     #[serde(default)]
     pub params: BTreeMap<String, String>,
+    /// 引数の型と範囲の宣言（鍵は `params` の名前。TASK-71 2/3、PACK-51）。IR には載せない。
+    #[serde(default)]
+    pub param_types: BTreeMap<String, crate::param_check::ParamTypeSrc>,
     /// 途中開始。
     #[serde(default)]
     pub starts: Vec<Start>,
@@ -651,6 +655,12 @@ fn read_scope(
             }
         }
     }
+    // 水準の名前が読めない章は型つきの読み込みの失敗と同じ扱いにする（TASK-49 1/2）。
+    let bad = crate::guidance::check_scope_levels(file, &src);
+    if !bad.is_empty() {
+        diags.extend(bad);
+        return None;
+    }
     Some(src)
 }
 
@@ -984,6 +994,10 @@ pub fn load(dir: &Path) -> Result<LoadedPack, Vec<Diagnostic>> {
             return Err(vec![d]);
         }
         workshop = parse_diag(format, &text, &workshop_file, "pack", &mut diags);
+        if let Some(w) = &workshop {
+            // 水準の名前は読み込みで拒否する（語彙 v1.1 の 5.3 節。TASK-49 1/2）。
+            diags.extend(crate::guidance::check_workshop_levels(&workshop_file, w));
+        }
         if workshop.is_some() && format == Format::Yaml {
             vocab_explicit_null = yaml_serde::from_str::<Value>(&text)
                 .ok()

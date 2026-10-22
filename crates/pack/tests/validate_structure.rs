@@ -34,7 +34,7 @@ steps:
 -   id: a
     title: A
     input: {kind: command, name: help}
-    confirm: {kind: answer, options: [{id: o1, correct: true}, {id: o2, correct: false}], on_wrong: rj-a}
+    confirm: {kind: answer, options: [{id: o1, label: A, correct: true}, {id: o2, label: B, correct: false}], on_wrong: rj-a}
     next: [{to: b}, {to: b2}]
 -   {id: b, title: B, final: true}
 -   {id: b2, title: B2, final: true}

@@ -1,0 +1,8 @@
+id: PACK45-1
+package: fandhe-workshop-pack
+test: per_instance_guidance_gap
+target: crates/pack/src/validate.rs
+find:                 || (d.code() == DiagCode::Parse && d.message() == crate::expand::INVALID_USE)
+replace:                 || (d.code() == DiagCode::Parse && false && d.message() == crate::expand::INVALID_USE)
+expect-fail: pack45_use_guidance_is_rejected_by_validate
+note: validate が読めない use の E-PARSE を捨てる

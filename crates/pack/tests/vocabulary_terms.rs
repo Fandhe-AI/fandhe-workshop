@@ -10,7 +10,7 @@ use std::path::Path;
 
 use fandhe_workshop_pack::vocab::{VocabVersion, EXTENSION_POINTS, LATEST, TERMS};
 
-const VERSIONS: [&str; 6] = ["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5"];
+const VERSIONS: [&str; 8] = ["v1", "v1.1", "v1.2", "v1.3", "v1.4", "v1.5", "v1.6", "v1.7"];
 
 fn doc() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/vocabulary/vocabulary.md");
@@ -210,6 +210,90 @@ fn revise_candidates_are_v15_without_number() {
 }
 
 #[test]
+fn env_action_terms_are_v15_without_number() {
+    let d = doc();
+    let terms = doc_terms(&d);
+    let v15 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.5")
+        .expect("v1.5 の行");
+    for term in [
+        "env_action",
+        "input.action",
+        "input.action=save",
+        "input.action=export",
+    ] {
+        let row = terms
+            .iter()
+            .find(|(_, t, _, _)| t == term)
+            .unwrap_or_else(|| panic!("{term} が 7 節にあること"));
+        assert_eq!((row.2.as_str(), row.3.as_str()), ("v1.5", "—"));
+        assert!(v15[2].contains(term), "8 節の v1.5 の番号なしの語に {term}");
+    }
+}
+
+#[test]
+fn do_levels_is_v16_without_number() {
+    let d = doc();
+    let row = doc_terms(&d)
+        .into_iter()
+        .find(|(_, t, _, _)| t == "do_levels")
+        .expect("do_levels が 7 節にあること");
+    assert_eq!(
+        (row.0.as_str(), row.2.as_str(), row.3.as_str()),
+        ("field", "v1.6", "—")
+    );
+    let v16 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.6")
+        .expect("v1.6 の行");
+    assert_eq!(strip(&v16[1]), "—", "v1.6 は拡張点を持たない");
+    assert!(
+        v16[2].contains("do_levels"),
+        "8 節の v1.6 の番号なしの語に do_levels"
+    );
+    assert!(
+        ep_rows(&d).iter().all(|r| r[1] != "do_levels"),
+        "do_levels は拡張点ではない"
+    );
+}
+
+#[test]
+fn param_types_terms_are_v17_without_number() {
+    let d = doc();
+    let terms = doc_terms(&d);
+    for name in [
+        "param_types",
+        "param_types.type",
+        "param_types.values",
+        "param_types.min",
+        "param_types.max",
+        "param_types.type=bool",
+        "param_types.type=int",
+        "param_types.type=enum",
+    ] {
+        let row = terms
+            .iter()
+            .find(|(_, t, _, _)| t == name)
+            .unwrap_or_else(|| panic!("{name} が 7 節にあること"));
+        assert_eq!((row.2.as_str(), row.3.as_str()), ("v1.7", "—"), "{name}");
+    }
+    let v17 = section_rows(&d, "## 8. ")
+        .into_iter()
+        .find(|r| strip(&r[0]) == "v1.7")
+        .expect("v1.7 の行");
+    assert_eq!(strip(&v17[1]), "—", "v1.7 は拡張点を持たない");
+    assert!(
+        v17[2].contains("param_types"),
+        "8 節の v1.7 の番号なしの語に param_types"
+    );
+    assert!(
+        ep_rows(&d).iter().all(|r| !r[1].starts_with("param_types")),
+        "param_types は拡張点ではない"
+    );
+}
+
+#[test]
 fn every_extension_point_appears_in_terms() {
     let d = doc();
     let used: BTreeSet<String> = doc_terms(&d).into_iter().map(|t| t.3).collect();
@@ -229,13 +313,19 @@ fn crosswalk_terms_exist() {
     let rows = section_rows(&d, "## 9. ");
     let ids: Vec<String> = rows.iter().map(|r| r[0].clone()).collect();
     let mut want: Vec<String> = (8..=23).map(|n| format!("PACK-{n}")).collect();
+    // 語彙 v1.5 の PACK-34（TASK-64 1/2）。7 節の順に合わせ、PACK-38 の前へ置く。
+    want.push("PACK-34".to_string());
     // 語彙 v1.4（TASK-66 1/2）の出所。
     want.push("PACK-38".to_string());
     // 語彙 v1.5（TASK-62 2/2）の出所。
     want.push("PACK-42".to_string());
+    // 語彙 v1.6（TASK-70 2/2）の出所。
+    want.push("PACK-50".to_string());
+    // 語彙 v1.7（TASK-71 2/3）の出所。
+    want.push("PACK-51".to_string());
     assert_eq!(
         ids, want,
-        "PACK-8〜PACK-23・PACK-38・PACK-42 の 18 行がそろう"
+        "PACK-8〜PACK-23・PACK-34・PACK-38・PACK-42・PACK-50・PACK-51 の 21 行がそろう"
     );
     for row in &rows {
         for term in row[1].split('`').skip(1).step_by(2) {
@@ -245,8 +335,8 @@ fn crosswalk_terms_exist() {
 }
 
 #[test]
-fn latest_is_v15() {
-    assert_eq!(LATEST, VocabVersion::V1_5);
+fn latest_is_v17() {
+    assert_eq!(LATEST, VocabVersion::V1_7);
     let max = TERMS.iter().map(|t| t.version).max().expect("語がある");
     assert_eq!(max, LATEST);
 }

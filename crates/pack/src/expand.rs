@@ -14,10 +14,17 @@
 //! - `${名前}` の置換は 1 回だけで、差し込んだ値を再び展開しない。`id`・`body`・`body_levels`・`next[].to` は
 //!   置換しない（構造の識別子と本文の参照を、引数で書き換えさせない）。
 //!
+//! 引数は `params` の隣の `param_types` で宣言した型・範囲に合わなければ、実体を作らず `E-STRUCTURE` にする
+//! （PACK-51。判定は [`crate::param_check`]）。
+//!
+//! `validate` だけは、置換後の `do`・`do_levels` に案内レベルで隠す語が出ないかも調べる（`E-GUIDANCE-LEAK`。PACK-52）。
+//! 置換前の字面にすでに語がある水準は、定義の段の検査が報告するので重ねない。
+//!
 //! 診断に引数の値・本文は入れない。名前は `safe_ident` を通るものだけを入れる。
 //!
 //! `use` と `input`、`use` と `confirm` を同時に持つ Step は、展開とは別に [`check_use_steps`] が章・モジュールの定義ごとに拒否する
-//! （PACK-19）。`expand_use` 自体は呼び出し元の Step の `input` を見ない。
+//! （PACK-19）。同じ関数は、入力も `use` も無く終端でもない Step が `confirm` だけを持つ場合も `E-STRUCTURE` で拒否する
+//! （PACK-35、D-69）。`expand_use` 自体は呼び出し元の Step の `input` を見ない。
 //!
 //! 置換前の値では検査できない宣言（`input`・`confirm` が `${` を含むモジュールの Step）は、置換後の Step を
 //! ここで検査する（入力方式・確認・操作プロファイル。PACK-10・PACK-13・PACK-20）。置換前の検査
@@ -27,6 +34,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use fandhe_workshop_contract::doc::Doc;
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_contract::ir::{Instance, Node, Start, Step};
 use fandhe_workshop_contract::limits::MAX_COLLECTION_ELEMENTS;
 use fandhe_workshop_contract::profile::ProfileSetting;
@@ -46,6 +54,11 @@ pub(crate) const MAX_MODULE_DEPTH: usize = 8;
 /// 置換しない Step の最上位の欄。構造の識別子と本文の参照である（本文は `source::load` が置換前の参照で
 /// 読み込み済みで、置換すると引き当てを外す・パスを書き換える経路になる）。`next[].to` は別に除く。
 const NO_SUBST_STEP_KEYS: [&str; 3] = ["id", "body", "body_levels"];
+
+/// `use` が読めないときの `E-PARSE` の文面。`validate` が同じ診断を残す（`compile` と一致させる）ために共有する。
+/// `use.guidance` のような決定で採らなかった欄（D-55、PACK-45）もここで止まる。値は文面に含めない。
+pub(crate) const INVALID_USE: &str =
+    "invalid `use`: expected module, instance and string args (quote argument values)";
 
 /// `use` の中身。契約の `Step.use_module` は自由な値のまま残し、pack の中でだけ型にする。
 #[derive(Debug, Deserialize)]
@@ -230,6 +243,14 @@ struct PendingStarts<'a> {
     args: BTreeMap<String, String>,
 }
 
+/// 置換の前の `do`・`do_levels` のどれかが `${` を含むか（PACK-52。置換で変わりうる宣言だけを置換後に検査する）。
+fn has_placeholder_do(step: &Step) -> bool {
+    step.do_
+        .iter()
+        .chain(step.do_levels.values())
+        .any(|d| d.contains("${"))
+}
+
 /// 章とモジュールを実体に展開し、node・実体・遷移の検査対象を集める。`compile` が章ごとに呼ぶ。
 pub(crate) struct Expander<'a> {
     pack: &'a LoadedPack,
@@ -248,6 +269,18 @@ pub(crate) struct Expander<'a> {
     pending: Vec<PendingStarts<'a>>,
     /// 今展開している経路のモジュール（宣言された ID、呼び出しのモジュール名が引数に由来したか）。章は積まない。
     module_stack: Vec<(String, bool)>,
+    /// 置換後の確認 `answer` の `label` 欠落も検査するか（`validate` だけ。`compile` は欠落を許容する）。
+    require_answer_labels: bool,
+    /// 置換後の `do`・`do_levels` の隠す語の検査（`validate` だけ。`None` なら行わない。PACK-52）。
+    leak: Option<LeakCheck>,
+}
+
+/// 置換後の `do` の漏れの検査の状態。`rules` は水準ごとの隠す語、`levels` は今展開している章の開始点の水準。
+struct LeakCheck {
+    rules: BTreeMap<GuidanceLevel, Vec<String>>,
+    levels: BTreeSet<GuidanceLevel>,
+    /// 定義の段の検査が実際に調べる (スコープの添字, Step の添字, 水準)。
+    covered: BTreeSet<(usize, usize, GuidanceLevel)>,
 }
 
 impl<'a> Expander<'a> {
@@ -279,11 +312,35 @@ impl<'a> Expander<'a> {
             inst_ids: BTreeSet::new(),
             pending: Vec::new(),
             module_stack: Vec::new(),
+            require_answer_labels: false,
+            leak: None,
+        }
+    }
+
+    /// 置換後の確認 `answer` の `label` 欠落を検査する（`validate` が呼ぶ。PACK-37・D-67）。
+    pub(crate) fn require_answer_labels(&mut self) {
+        self.require_answer_labels = true;
+    }
+
+    /// 置換後の `do`・`do_levels` に隠す語が出ないかを検査する（`validate` が呼ぶ。`compile` は呼ばないので
+    /// 結果は変わらない。PACK-52・D-43）。隠す語が宣言されていなければ何もしない。
+    pub(crate) fn check_guidance_leak(&mut self) {
+        let rules = crate::guidance::leak_rules(self.pack);
+        if !rules.is_empty() {
+            let (targets, do_targets) = crate::guidance::definition_leak_targets(self.pack);
+            self.leak = Some(LeakCheck {
+                rules,
+                levels: BTreeSet::new(),
+                covered: targets.union(&do_targets).copied().collect(),
+            });
         }
     }
 
     /// 章の Step を実体 `main` として展開する。
     pub(crate) fn expand_chapter(&mut self, scope: &'a LoadedScope) {
+        if let Some(l) = &mut self.leak {
+            l.levels = crate::guidance::chapter_start_levels(scope);
+        }
         self.expand_scope("main", scope, None, 0, None);
     }
 
@@ -344,6 +401,8 @@ impl<'a> Expander<'a> {
                     self.diags
                         .extend(crate::input::check_step_input(scope, &s, true));
                     self.diags
+                        .extend(crate::input::check_step_text_rules(scope, step, &s));
+                    self.diags
                         .extend(crate::profile::check_profile_step(self.profile, scope, &s));
                 } else if crate::input::rules_have_placeholder(&step.rules) {
                     self.diags
@@ -352,6 +411,34 @@ impl<'a> Expander<'a> {
                 if has_placeholder(&step.confirm) {
                     self.diags
                         .extend(crate::confirm::check_step_confirm(scope, &s));
+                    if self.require_answer_labels {
+                        self.diags
+                            .extend(crate::confirm::check_step_answer_label(scope, &s));
+                    }
+                }
+                if let Some(l) = &self.leak {
+                    if has_placeholder_do(step) {
+                        // 調べる水準は定義の段の検査と同じ決め方（章の開始点の水準 ∪ 宣言を持つ Step の B・C）。
+                        let mut levels = l.levels.clone();
+                        if !step.body_levels.is_empty() || !step.do_levels.is_empty() {
+                            levels.extend([GuidanceLevel::B, GuidanceLevel::C]);
+                        }
+                        let si = self.pack.scopes.iter().position(|x| std::ptr::eq(x, scope));
+                        let sj = scope.src.steps.iter().position(|x| x.id == step.id);
+                        let covered = |lv: GuidanceLevel| match (si, sj) {
+                            (Some(i), Some(j)) => l.covered.contains(&(i, j, lv)),
+                            _ => false,
+                        };
+                        for lv in crate::guidance::expanded_do_leak_levels(
+                            &l.rules, &levels, step, &s, &covered,
+                        ) {
+                            self.diags.push(crate::guidance::expanded_do_leak_diag(
+                                &scope.file,
+                                &item,
+                                lv,
+                            ));
+                        }
+                    }
                 }
                 // 展開した Step の大きさを予算から引く。ファンアウトが `check_output` の前に止まる。
                 let size = serde_json::to_vec(&s).map_or(u64::MAX, |b| b.len() as u64);
@@ -484,12 +571,8 @@ impl<'a> Expander<'a> {
     fn expand_use(&mut self, site: &UseSite<'_>, use_value: &Value) {
         let (file, item) = (&site.scope.file, site.item);
         let Ok(u) = serde_json::from_value::<UseSrc>(use_value.clone()) else {
-            self.diags.push(diag(
-                file,
-                item,
-                DiagCode::Parse,
-                "invalid `use`: expected module, instance and string args (quote argument values)",
-            ));
+            self.diags
+                .push(diag(file, item, DiagCode::Parse, INVALID_USE));
             return;
         };
         if !safe_ident(&u.module) || !safe_ident(&u.instance) {
@@ -562,6 +645,17 @@ impl<'a> Expander<'a> {
             }
         }
         if unknown {
+            return;
+        }
+        // 宣言した型・範囲に合わない値は実体を作らず拒否する（PACK-51。値は診断に写さない）。
+        let mut out_of_range = false;
+        for (k, v) in &u.args {
+            if let Some(msg) = crate::param_check::arg_message(&module.src.param_types, k, v) {
+                out_of_range = true;
+                self.diags.push(diag(file, item, DiagCode::Structure, msg));
+            }
+        }
+        if out_of_range {
             return;
         }
         let mut args = module.src.params.clone();
@@ -671,34 +765,40 @@ impl<'a> Expander<'a> {
 /// 1 つの Step が両方に違反するときは、`input`、`confirm` の順に 2 件を報告する。
 /// 判定は宣言の有無だけで行う。置換は値を変えても欄の有無を変えないため、`${` を含むモジュールの宣言も
 /// 置換前に判定でき、実体の数によらず定義ごとに 1 件になる。診断は固定文で、引数の値・宣言の中身を写さない。
+///
+/// あわせて、入力も `use` も無く終端でもない Step が `confirm` だけを持つ場合を拒否する（PACK-35・PACK-19、D-69。
+/// 条件は [`is_inputless_confirm`]）。PACK-19 の「両方無い」のうち確認も持たない途中の Step は、既存の教材・試験が
+/// 依存しているため未拒否である（`docs/known-gaps.md`）。
 pub(crate) fn check_use_steps(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     scopes
         .iter()
         .flat_map(|scope| {
-            scope
-                .src
-                .steps
-                .iter()
-                .filter(|s| s.use_module.is_some())
-                .flat_map(move |s| {
-                    [
-                        (
-                            s.input.is_some(),
-                            "a step cannot declare both `use` and `input`",
-                        ),
-                        (
-                            s.confirm.is_some(),
-                            "a step cannot declare both `use` and `confirm`",
-                        ),
-                    ]
-                    .into_iter()
-                    .filter(|(has, _)| *has)
-                    .map(move |(_, msg)| {
-                        crate::input::diag(scope, &s.id, DiagCode::Structure, msg.to_string())
-                    })
+            scope.src.steps.iter().flat_map(move |s| {
+                let mut found: Vec<&'static str> = Vec::new();
+                if s.use_module.is_some() {
+                    if s.input.is_some() {
+                        found.push("a step cannot declare both `use` and `input`");
+                    }
+                    if s.confirm.is_some() {
+                        found.push("a step cannot declare both `use` and `confirm`");
+                    }
+                } else if is_inputless_confirm(s) {
+                    found.push("a step with `confirm` needs `input` unless it is final");
+                }
+                found.into_iter().map(move |msg| {
+                    crate::input::diag(scope, &s.id, DiagCode::Structure, msg.to_string())
                 })
+            })
         })
         .collect()
+}
+
+/// 入力が無く、`use` も無く、終端でもないのに `confirm` だけを持つ Step か（PACK-35・PACK-19、D-69）。
+/// 確認は入力の受付の後に届くため、この形の確認は永久に届かない。読むだけの Step は 1 択の `choice` で書く。
+/// 欄の有無だけで判定するので、`${` の置換で結果が変わらない。[`check_use_steps`] が拒否し、
+/// `confirm::check_confirms`・`check_step_confirm` はこの Step を飛ばす（同じ定義に診断を 2 件出さない）。
+pub(crate) fn is_inputless_confirm(step: &Step) -> bool {
+    step.use_module.is_none() && step.input.is_none() && !step.is_final && step.confirm.is_some()
 }
 
 /// `use` を持つ Step の位置。展開の文脈を 1 つにまとめて渡す。

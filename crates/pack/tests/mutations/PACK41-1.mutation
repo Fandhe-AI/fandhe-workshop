@@ -1,0 +1,8 @@
+id: PACK41-1
+package: fandhe-workshop-pack
+test: text_rule_content
+target: crates/pack/src/input.rs
+find:         if let Some(k) = map.keys().find(|k| !RULE_ON_KEYS.contains(&k.as_str())) {
+replace:         if let Some(k) = map.keys().find(|k| false && !RULE_ON_KEYS.contains(&k.as_str())) {
+expect-fail: pack41_unknown_key_beside_text_is_rejected
+note: 規則の on の未知のキー（contains など）の拒否を外す（内容で分ける書き方が通る）

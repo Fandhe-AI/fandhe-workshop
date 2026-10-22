@@ -1,0 +1,8 @@
+id: PACK50-1
+package: fandhe-workshop-pack
+test: do_levels
+target: crates/core/src/text_fill.rs
+find: step_do: step_do_at(step, run.guidance_level).map(str::to_string),
+replace: step_do: step.do_.clone(),
+expect-fail: pack50_level_b_wrong_order_next_action_hides_skill_name
+note: 差し込む step_do を水準によらず do に戻す（案内レベル B で skill 名が次の行動に出る）

@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-21・元にしたコミット: dac8dcb
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-22・元にしたコミット: 04fae88
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -10,6 +10,7 @@ rust|tests/a11y_tree_contract.rs [a11y_tree_contract]|passed=3|ignored=0
 rust|tests/accept_confirm_boundary.rs [accept_confirm_boundary]|passed=7|ignored=0
 rust|tests/accept_input.rs [accept_input]|passed=21|ignored=0
 rust|tests/action_profile_contract.rs [action_profile_contract]|passed=11|ignored=0
+rust|tests/answer_label_required.rs [answer_label_required]|passed=10|ignored=0
 rust|tests/api_types.rs [api_types]|passed=6|ignored=0
 rust|tests/app_demo_view_a_contract.rs [app_demo_view_a_contract]|passed=15|ignored=0
 rust|tests/app_demo_view_b_contract.rs [app_demo_view_b_contract]|passed=17|ignored=0
@@ -75,11 +76,12 @@ rust|tests/content_hash.rs [content_hash]|passed=2|ignored=0
 rust|tests/content_hash_contract.rs [content_hash_contract]|passed=9|ignored=0
 rust|tests/contract_conformance.rs [contract_conformance]|passed=19|ignored=0
 rust|tests/contract_sample.rs [contract_sample]|passed=6|ignored=0
-rust|tests/defect_packs.rs [defect_packs]|passed=10|ignored=3
+rust|tests/defect_packs.rs [defect_packs]|passed=9|ignored=2
 rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
 rust|tests/diff_view_a_contract.rs [diff_view_a_contract]|passed=10|ignored=0
 rust|tests/diff_view_contract.rs [diff_view_contract]|passed=14|ignored=0
 rust|tests/dirty_binding_points.rs [dirty_binding_points]|passed=4|ignored=0
+rust|tests/do_levels.rs [do_levels]|passed=19|ignored=0
 rust|tests/doc_depth.rs [doc_depth]|passed=17|ignored=0
 rust|tests/doc_links.rs [doc_links]|passed=12|ignored=0
 rust|tests/doc_load.rs [doc_load]|passed=7|ignored=0
@@ -89,6 +91,8 @@ rust|tests/effect_apply.rs [effect_apply]|passed=13|ignored=0
 rust|tests/effect_contract.rs [effect_contract]|passed=15|ignored=0
 rust|tests/effects.rs [effects]|passed=17|ignored=0
 rust|tests/engine_api_doc.rs [engine_api_doc]|passed=2|ignored=0
+rust|tests/env_action_input.rs [env_action_input]|passed=9|ignored=0
+rust|tests/env_action_save.rs [env_action_save]|passed=12|ignored=0
 rust|tests/error_input_expect.rs [error_input_expect]|passed=10|ignored=0
 rust|tests/export_notice.rs [export_notice]|passed=7|ignored=0
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
@@ -103,6 +107,8 @@ rust|tests/glue_contract.rs [glue_contract]|passed=38|ignored=0
 rust|tests/glue_scale.rs [glue_scale]|passed=4|ignored=0
 rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
 rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
+rust|tests/guidance_leak_scope.rs [guidance_leak_scope]|passed=11|ignored=0
+rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
 rust|tests/history_append_only.rs [history_append_only]|passed=8|ignored=0
 rust|tests/history_boot.rs [history_boot]|passed=6|ignored=0
 rust|tests/history_envelope_binding.rs [history_envelope_binding]|passed=4|ignored=0
@@ -130,7 +136,7 @@ rust|tests/input_field_hidden.rs [input_field_hidden]|passed=7|ignored=0
 rust|tests/input_limit.rs [input_limit]|passed=25|ignored=0
 rust|tests/input_notice.rs [input_notice]|passed=6|ignored=0
 rust|tests/input_ports.rs [input_ports]|passed=7|ignored=0
-rust|tests/input_spec_contract.rs [input_spec_contract]|passed=26|ignored=0
+rust|tests/input_spec_contract.rs [input_spec_contract]|passed=29|ignored=0
 rust|tests/input_spec_vocabulary.rs [input_spec_vocabulary]|passed=1|ignored=0
 rust|tests/input_vocabulary.rs [input_vocabulary]|passed=18|ignored=0
 rust|tests/ir_compat.rs [ir_compat]|passed=13|ignored=0
@@ -169,6 +175,8 @@ rust|tests/log_lines_contract.rs [log_lines_contract]|passed=13|ignored=0
 rust|tests/metrics.rs [metrics]|passed=10|ignored=0
 rust|tests/missing_elements.rs [missing_elements]|passed=10|ignored=0
 rust|tests/modifier_key_hint.rs [modifier_key_hint]|passed=9|ignored=0
+rust|tests/module_arg_types.rs [module_arg_types]|passed=14|ignored=0
+rust|tests/module_first_step_gap.rs [module_first_step_gap]|passed=6|ignored=0
 rust|tests/modules.rs [modules]|passed=39|ignored=0
 rust|tests/move_step.rs [move_step]|passed=17|ignored=0
 rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=9|ignored=0
@@ -183,6 +191,7 @@ rust|tests/ops_record.rs [ops_record]|passed=10|ignored=0
 rust|tests/pack_dir_limits.rs [pack_dir_limits]|passed=10|ignored=0
 rust|tests/pack_size_limits.rs [pack_size_limits]|passed=7|ignored=0
 rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
+rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
 rust|tests/point_click_contract.rs [point_click_contract]|passed=7|ignored=0
 rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0
@@ -193,6 +202,7 @@ rust|tests/property_sample.rs [property_sample]|passed=6|ignored=0
 rust|tests/provider_contract.rs [provider_contract]|passed=4|ignored=0
 rust|tests/provider_swap.rs [provider_swap]|passed=7|ignored=0
 rust|tests/radix_literals.rs [radix_literals]|passed=7|ignored=0
+rust|tests/read_only_step.rs [read_only_step]|passed=7|ignored=0
 rust|tests/recorded_session.rs [recorded_session]|passed=5|ignored=0
 rust|tests/reject_draft_select.rs [reject_draft_select]|passed=5|ignored=0
 rust|tests/reject_four_scenes.rs [reject_four_scenes]|passed=4|ignored=0
@@ -243,7 +253,8 @@ rust|tests/task_tree_contract.rs [task_tree_contract]|passed=17|ignored=0
 rust|tests/terminal_area_contract.rs [terminal_area_contract]|passed=21|ignored=0
 rust|tests/testdata_min_3step.rs [testdata_min_3step]|passed=3|ignored=0
 rust|tests/text_fill.rs [text_fill]|passed=12|ignored=0
-rust|tests/text_judge.rs [text_judge]|passed=11|ignored=0
+rust|tests/text_judge.rs [text_judge]|passed=12|ignored=0
+rust|tests/text_rule_content.rs [text_rule_content]|passed=11|ignored=0
 rust|tests/text_slots.rs [text_slots]|passed=22|ignored=0
 rust|tests/theme_shared.rs [theme_shared]|passed=1|ignored=0
 rust|tests/tick_interval.rs [tick_interval]|passed=4|ignored=0
@@ -264,13 +275,14 @@ rust|tests/view_select.rs [view_select]|passed=16|ignored=0
 rust|tests/vocab_command.rs [vocab_command]|passed=15|ignored=0
 rust|tests/vocab_declaration.rs [vocab_declaration]|passed=17|ignored=0
 rust|tests/vocabulary_extension_points.rs [vocabulary_extension_points]|passed=6|ignored=0
-rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=11|ignored=0
+rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
+rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=271|passed=2928|ignored=4
-rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=28|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_core]|passed=45|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=93|ignored=0
+rust|total|binaries=283|passed=3070|ignored=3
+rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=29|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_core]|passed=46|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=100|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=125|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=839|pass=839|skipped=0|todo=0|cancelled=0
+browser|total|tests=843|pass=843|skipped=0|todo=0|cancelled=0

@@ -139,6 +139,8 @@
 
 ## 既知の扱い
 
+- D-67（2026-10-21）の前の教材パック（spec の写しと `crates/pack/tests/data/fill-pack`）は、`label` の無い確認 `answer` の選択肢を
+  持ちます。`validate` の試験では、その診断（`E-STRUCTURE`・`confirm (answer): label is required`）だけを除いて見ます。
 - md の中の `../env.md`・`../README.md`・`../logs/...`・`../measurements/...` は、spec repo 側の文書を指す
   記録上のリンクです。本 repo には宛先がなく、試験も読みません。
 - `XSS-IR3` や `XSS-54/etc/passwd` に `../` を重ねたパス遡りは、入力の安全性を確かめる試験値です。

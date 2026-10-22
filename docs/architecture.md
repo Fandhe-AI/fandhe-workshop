@@ -32,7 +32,7 @@
 |---|---|---|---|
 | `fandhe-workshop-contract` | lib | 責務をまたぐ共有の契約。データ型・定数・版・スキーマ・サンプル・純粋な表・純関数。I/O・状態遷移・時刻・乱数を持たない | `serde`・`serde_json` のみ |
 | `fandhe-workshop-core` | lib | DOM 非依存の純 Rust の中核。`Session`・`apply`・入力・イベント・Step の状態・`Projection`・進行管理・周回・停止・チェックポイント・保存復元の処理・状態変化の提供元の境界 | contract、`serde`・`serde_json` |
-| `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`saphyr-parser`（アンカー・タグの拒否。TASK-57 2/2）・`pulldown-cmark`（native のみ） |
+| `fandhe-workshop-pack` | lib + bin `fandhe-pack` | 教材パックの読み込み・検査・コンパイル・教材テストと、作成者向け CLI（案内レベルの語の読み取りと本文の選択を含む） | core、contract、`serde`・`serde_json`・`toml`・`yaml_serde`・`saphyr-parser`（アンカー・タグの拒否。TASK-57 2/2）・`pulldown-cmark`（native のみ） |
 | `fandhe-workshop-web` | lib（`cdylib`・`rlib`） | `fandhe-frontend` の Component 実装と glue。wasm32 向け。native でも `rlib` として試験できる | core、contract、`fandhe-frontend-*`（wasm-full 0.46.0。TASK-26。headless-ui 0.69.2 は `tree_view::item_text`、wireframe-ui 0.52.0 は `rich_text` のため。TASK-473）、`wasm-bindgen`、`web-sys`（`cfg(target_arch = "wasm32")` のみ） |
 
 - バイナリ名 `fandhe-pack` は TASK-399（CLI の外部仕様）の契約が持つ。本文書は pack crate に置くことだけを固定する
@@ -132,6 +132,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 | Step の移動（`go_to`。公開しない。移動先の `on_enter`・入口の写しの作り直しは含まない） | core | TASK-213 |
 | 1 回の操作で起きる内部の遷移（`next`・`use` の `enter`・`final` の `exit_to`）のたどりと、1,000 回の上限での停止（`transit`。公開しない。再帰を使わずループでたどり、上限に達したら `Warning` と専用の `Event::TransitionLimitReached` を 1 件ずつ残し、`session::apply` が操作の前の `run`・入口の写しへ戻す（`busy` は空、世代は減らさない。SAFE-35）。受講者向けの見出し・通知欄・まとめ表示は web の `log_lines`・`limit_notice` が持つ。実体ごとの状態・`on_enter` の効果は含まない） | core | TASK-160 |
 | チェックポイントの保存と復帰（`checkpoint`。公開しない。実体ごとの戻り方は含まない。復習・変化の印の作り直しは `projection` が導き、`apply()` を通した試験は TASK-214 2/3 で追加済み。復帰前の進行の無視と処理中の再開は TASK-214 3/3 で試験済み） | core | TASK-214 |
+| 保存の成功を Step の入力として受け付ける結線（`env_input`。公開しない。`input: {kind: env_action, action: save}` の Step を、保存の成功の直後に受付・達成にする。書き出しの結線は含まない。PACK-34） | core | TASK-64 |
 | 受け付けたうえで止まる場面の判定（`command_accept`。規則の受付の効果の読み出しと適用。`Judged` の発行・`session::apply` への結線は含まない） | core | TASK-273 |
 | コマンドの表と Step の状態によるコマンドの拒否の分類（`command_class`。未知・順序違い・教材未対応・この Step では使わない。`judge::judge_input` が結線して使う。`Judged` の発行は含まない。引数不足と引数の形は `command_judge`・`judge` が返し、4 場面の教材テストは pack の結合試験に置く） | core | TASK-268・TASK-269 |
 | 処理中の入力の `busy` の分類（`busy_class`。`Judged` の発行・文面の差し込みは含まない） | core | TASK-209 |
@@ -287,3 +288,4 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-21: 第 6 節の秘密情報の行に、書き出しの関門（TASK-164 2/3）は web の host が持つことを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-21: 第 6 節の秘密情報の行に、警告の選択（TASK-164 3/3。確認済みの除外と読み直し）は web の host が持つことを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-21: 第 6 節の秘密情報の行を固定の 15 形に直した（SAFE-30・TASK-165 1/2。追加の 5 形は core の `secret_scan` の中）。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-21: 第 6 節の置き場の表の pack の行に、案内レベルの語の読み取りと本文の選択（`guidance`。TASK-49 1/2）を含めることを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

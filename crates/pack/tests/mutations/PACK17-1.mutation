@@ -1,0 +1,8 @@
+id: PACK17-1
+package: fandhe-workshop-pack
+test: guidance_levels
+target: crates/pack/src/guidance.rs
+find:         if let Some(p) = step.body_levels.get(l.as_str()) {
+replace:         if let Some(p) = step.body_levels.get(level.as_str()) {
+expect-fail: body_is_chosen_c_then_b_then_a
+note: 本文の探し方が fallback_chain に従わず、水準 L の鍵だけを見る（C が B に倒れない）

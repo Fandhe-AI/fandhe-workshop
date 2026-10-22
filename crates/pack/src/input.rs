@@ -10,8 +10,14 @@
 //! `wait`（EP-1）は欄を持たず、Step の `processing` が空だと進行の完了で受付になれず先へ進めないので
 //! `E-STRUCTURE` にする（向きは片方だけで、`processing` があって `wait` でない Step は許す）。`processing` の
 //! 中身は TASK-43 の担当で、ここでは件数だけを見る。取り消し（EP-2）は `input.kind` ではなく規則の
-//! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` の他のキーとの
-//! 組み合わせ・入力方式との整合は TASK-45 が受け持つ。
+//! `on: { cancel: true }` で受けるため、ここで見るのは `on.cancel` の値だけである。`on` のキーの組み合わせは
+//! 検査しない。拒否するのは、`text` を含む `on`、または `text` の Step の規則の `on` にある未知のキーと、真偽値
+//! でない `on.text`、mapping でない `on`（`text` の Step）だけである。自然文の内容で規則を分ける書き方
+//! （`contains` など）を黙って通さないためである（PACK-41、D-43）。
+//!
+//! `env_action`（TASK-64 1/2、PACK-34、D-69）は保存・書き出しの操作を入力とする宣言である。`action` は閉じた
+//! 2 値で、型で読めなければ `E-PARSE`、`processing` を持つ Step は `E-STRUCTURE` にする（保存による受付には
+//! 処理中を始める経路が無く、先へ進めない書き方になるため）。
 //!
 //! `approval` の `revise`（TASK-62 2/2、PACK-42）は「直す」の誤った対象の候補と表示名の宣言である。型と意味の
 //! 制約（空・重複・空白だけの `label`）に加え、`revise` を宣言した Step では、対象つきの `revise` の規則
@@ -19,8 +25,8 @@
 //! 漏れると、画面（候補のボタン）と判定（規則）が食い違うためである。どの候補が正しいかは宣言せず、規則が決める。
 
 use fandhe_workshop_contract::input_spec::{
-    ApprovalSpec, ChoiceSpec, CommandSpec, InputKind, SpecError, TextSpec, UiActionSpec, WaitSpec,
-    CANCEL_RULE_KEY,
+    ApprovalSpec, ChoiceSpec, CommandSpec, EnvActionSpec, InputKind, SpecError, TextSpec,
+    UiActionSpec, WaitSpec, CANCEL_RULE_KEY,
 };
 use fandhe_workshop_contract::ir::Step;
 use serde::de::DeserializeOwned;
@@ -115,6 +121,24 @@ fn check_revise_targets(rest: &Value, rules: &[Value]) -> Result<(), (DiagCode, 
     Ok(())
 }
 
+/// `env_action` の Step は取り消しの規則（`on.cancel`）を持てない（PACK-34）。持つと、保存・書き出しを
+/// 実行せずに取り消しの入力だけで受付になり、「操作の成功で受付」に反するため宣言で拒否する。
+fn check_env_action_rules(rules: &[Value]) -> Result<(), (DiagCode, String)> {
+    let has_cancel = rules.iter().any(|r| {
+        r.get("on")
+            .and_then(Value::as_object)
+            .is_some_and(|on| on.contains_key(CANCEL_RULE_KEY))
+    });
+    if has_cancel {
+        Err((
+            DiagCode::Structure,
+            "input (env_action): cancel rule is not allowed".to_string(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 fn check_input(
     input: &Value,
     rules: Option<&[Value]>,
@@ -152,6 +176,20 @@ fn check_input(
             match rules {
                 Some(r) => check_revise_targets(&rest, r),
                 None => Ok(()),
+            }
+        }
+        InputKind::EnvAction => {
+            check_one::<EnvActionSpec>(rest, name, |_| Ok(()))?;
+            if let Some(r) = rules {
+                check_env_action_rules(r)?;
+            }
+            if has_processing {
+                Err((
+                    DiagCode::Structure,
+                    "input (env_action): processing is not allowed".to_string(),
+                ))
+            } else {
+                Ok(())
             }
         }
         InputKind::Wait => {
@@ -228,6 +266,86 @@ fn check_cancel_rules(rules: &[Value]) -> Vec<(DiagCode, String)> {
         .collect()
 }
 
+/// 規則の `on` が取れるキー。core の `command_rule.rs` の `KNOWN_KEYS`・`OTHER_KEYS` と `select_judge.rs` が
+/// 読むキーの和である。core に `on` のキーを足したら両方を直す。core の定数を公開して参照する案は、公開 API
+/// と `docs/engine-api.md` の追従が要り本タスクの規模を超えるため採らない。
+const RULE_ON_KEYS: [&str; 9] = [
+    "command",
+    "args",
+    "missing",
+    "option",
+    "approval",
+    "target",
+    "ui",
+    "text",
+    CANCEL_RULE_KEY,
+];
+
+/// 自然文の内容で規則を分ける書き方（PACK-41、D-43）を `E-PARSE` にする。判定語は語彙に無く、`on.text` は
+/// 真偽値だけを見るため、内容の条件は実行時に無視される（当たらない規則・常に当たる規則）。静的に拒否して
+/// 作成者が Step を分ける・`choice` にするなどへ進めるようにする。メッセージに値・規則の ID は写さない。
+/// `text_step` が偽でも、`on` が `text` を持つ規則は検査する。
+fn check_text_rules(rules: &[Value], text_step: bool) -> Vec<(DiagCode, String)> {
+    let mut out = Vec::new();
+    for r in rules {
+        let Some(on) = r.get("on") else { continue };
+        let Some(map) = on.as_object() else {
+            if text_step {
+                out.push((
+                    DiagCode::Parse,
+                    "rule (text): on must be a mapping".to_string(),
+                ));
+            }
+            continue;
+        };
+        let has_text = map.contains_key("text");
+        if !has_text && !text_step {
+            continue;
+        }
+        if has_text && !map["text"].is_boolean() {
+            out.push((
+                DiagCode::Parse,
+                "rule (text): on.text must be a boolean".to_string(),
+            ));
+            continue;
+        }
+        if let Some(k) = map.keys().find(|k| !RULE_ON_KEYS.contains(&k.as_str())) {
+            let msg = if safe_ident(k) {
+                format!("rule (text): unknown field {k}")
+            } else {
+                "rule (text): unknown field".to_string()
+            };
+            out.push((DiagCode::Parse, msg));
+        }
+    }
+    out
+}
+
+/// `input.kind` が文字列 `text` として書かれているか。
+fn step_kind_is_text(input: &Option<Value>) -> bool {
+    input
+        .as_ref()
+        .and_then(|i| i.get("kind"))
+        .and_then(Value::as_str)
+        == Some("text")
+}
+
+/// 展開で `kind` が置換記号から `text` に決まった Step の `on` を検査する。置換前に `kind` が `text` と
+/// 書かれていた Step は置換前の検査が済んでいるので、ここでは検査しない（同じ違反を 2 回報告しない）。
+pub(crate) fn check_step_text_rules(
+    scope: &LoadedScope,
+    before: &Step,
+    expanded: &Step,
+) -> Vec<Diagnostic> {
+    if step_kind_is_text(&before.input) || !step_kind_is_text(&expanded.input) {
+        return Vec::new();
+    }
+    check_text_rules(&expanded.rules, true)
+        .into_iter()
+        .map(|(code, msg)| diag(scope, &expanded.id, code, msg))
+        .collect()
+}
+
 /// 宣言（`input`・`confirm`）が引数の置換記号 `${` を含むか。含まない宣言は置換で変わらないので、
 /// 置換前の検査の結果が置換後にもそのまま当てはまる。
 pub(crate) fn has_placeholder(decl: &Option<Value>) -> bool {
@@ -251,10 +369,23 @@ pub(crate) fn check_inputs(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                         check_input(input, rules, !step.processing.is_empty(), false)
                     {
                         out.push(diag(scope, &step.id, code, msg));
+                    } else if rules.is_none()
+                        && input.get("kind").and_then(Value::as_str) == Some("env_action")
+                    {
+                        // 規則が置換記号を含むモジュールでも `on.cancel` の鍵は置換されないので、ここで検査する。
+                        if let Err((code, msg)) = check_env_action_rules(&step.rules) {
+                            out.push(diag(scope, &step.id, code, msg));
+                        }
                     }
                 }
             }
             for (code, msg) in check_cancel_rules(&step.rules) {
+                out.push(diag(scope, &step.id, code, msg));
+            }
+            // `kind` が文字列で書かれていれば置換記号が他の欄にあっても読める。`kind` 自体が置換記号のときは
+            // 偽になり、展開後に `check_step_text_rules` が検査する。
+            let text_step = step_kind_is_text(&step.input);
+            for (code, msg) in check_text_rules(&step.rules, text_step) {
                 out.push(diag(scope, &step.id, code, msg));
             }
         }

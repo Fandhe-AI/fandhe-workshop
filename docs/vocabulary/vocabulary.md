@@ -1,19 +1,22 @@
 # 語彙の文書
 
 ```text
-語彙の文書の版: 4
-決定日: 2026-10-21
+語彙の文書の版: 7
+決定日: 2026-10-22
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.5）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
+- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.7）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
 - 「語彙の文書の版」は本文書の版（整数）であり、語ごとの「語彙の版」（`v1`・`v1.1` など）とは別物である。IR の形式の版 `ir_format`（TASK-41）とも別に管理する
 - 版 1 は名前つき拡張点 EP-1〜EP-5（語彙 v1）だけを固定した。版 2 は加算で、EP-6〜EP-12、拡張点の番号を持たない `confirm.options[].label`、条件・状態変化・入力方式などを含む語彙 v1〜v1.3 の全語（7 節）、版と拡張点の対応表（8 節）を足す
 - 版 3 は加算で、EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を足す（TASK-66 1/2、PACK-38、D-50・D-51）。文書のビューが練習データの本文を出す宣言である
 - 版 4 は加算で、語彙 v1.5 の 2 語（`input.revise.candidates` と `input.revise.candidates[].label`）を足す。承認の「直す」の誤った対象の候補と表示名の宣言で、拡張点の番号は持たない（TASK-62 2/2、PACK-42、D-69）。v1.5 は D-69 で PACK-34（保存・書き出しの語。TASK-64 1/2）の語とまとめると決めた版である。PACK-34 の語は、v1.5 の行へ語を足す形で加え、文書の版は上げるが語彙の版は上げない
-- TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）と TASK-62 の「直す」の候補の語（v1.5）を除き、本版に含めない。足すときは新しい語彙の版の行（v1.5 の語は既存の行）として加え、文書の版を上げる
+- 版 5 は加算で、PACK-34 の 4 語（入力方式 `env_action`・欄 `input.action`・値 `input.action=save`・`input.action=export`）を v1.5 の行へ足す。保存・書き出しの実行環境の操作を Step の入力として宣言する語で、拡張点の番号は持たない。語彙の版は v1.5 のままである（TASK-64 1/2、PACK-34、D-69）。値は閉じた 2 つで、受講者の入力を教材へ差し込む語ではない（D-50）
+- 版 6 は加算で、語彙 v1.6 の 1 語（`do_levels`）を足す。Step の `do` を案内レベルごとに書き分ける欄で、鍵は `B`・`C`、水準 A の文は `do` に書く。探す順は本文と同じ C → B → A で、`do_levels` を持つ Step は `do` を必須にする。拡張点の番号は持たず、IR の形式の版 `ir_format` は 1 のままである（TASK-70 2/2、PACK-50、D-55）
+- 版 7 は加算で、語彙 v1.7 の 8 語（`param_types`・`param_types.type`・`param_types.values`・`param_types.min`・`param_types.max` と、型の値 `param_types.type=bool`・`param_types.type=int`・`param_types.type=enum`）を足す。章・モジュールの引数 `params` の型と範囲の宣言で、`bool`・`int`（10 進の正準形。`min`・`max` は両端を含む）・`enum`（`values` のどれか）を選び、宣言に合わない既定値と呼び出しの引数を `validate`・`compile` が拒否する。`params` の形は変えず、`param_types` は IR に載せない。拡張点の番号は持たず、IR の形式の版 `ir_format` は 1 のままである（TASK-71 2/3、PACK-51、D-43）
+- TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）、TASK-62 の「直す」の候補の語（v1.5）、TASK-70 の `do_levels`（v1.6）、TASK-71 の `param_types`（v1.7）を除き、本版に含めない。足すときは新しい語彙の版の行（v1.5 の語は既存の行）として加え、文書の版を上げる
 - 変更規則: 固定した行は書き換えない・消さない・改名しない。足すときは新しい語彙の版の行として加え、文書の版を上げ、変更履歴に記録する
 - 名前を変える必要が出た場合は、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
 - 仕様は private のため、本文を転記せず ID（PACK-14、EXT-8）で参照する
@@ -87,11 +90,12 @@
 | TASK-66 | 2 節の EP-13・7 節の `views.body` の語 |
 | TASK-59 | 7 節の語の一覧（宣言と使用の一致の検査の対象） |
 | TASK-256 | 7 節の `result`・`rejection` の語 |
+| TASK-64 | 7 節の `env_action` の語（PACK-34） |
 | TASK-408 | `vocab` コマンドの数え上げ |
 
 ## 7. 語の一覧
 
-語彙 v1〜v1.5 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
+語彙 v1〜v1.7 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
 
 - 種別の列は分類のキーであり、2 節の拡張点の種別とは別物である
 - 語の列の `a.b` は欄の経路、`x=y` は欄 `x` の値 `y` を指す
@@ -190,6 +194,19 @@
 | `value` | `views.body=hidden` | `v1.4` | EP-13 | PACK-38 | 本文の値（閉じた集合。省略と同じ） |
 | `field` | `input.revise.candidates` | `v1.5` | — | PACK-42 | 承認の「直す」の対象の候補（正しい対象と誤った候補を並べる順）。`approval` の入力だけが持つ |
 | `field` | `input.revise.candidates[].label` | `v1.5` | — | PACK-42 | 候補の表示名（`confirm.options[].label` と同じ型。省略は ID） |
+| `input` | `env_action` | `v1.5` | — | PACK-34 | 実行環境の操作（チェックポイントの保存・履歴の書き出し）の成功で受付になる入力方式。受講者の値を持たない |
+| `field` | `input.action` | `v1.5` | — | PACK-34 | `env_action` の操作の種類（閉じた集合）。必須 |
+| `value` | `input.action=save` | `v1.5` | — | PACK-34 | チェックポイントの保存が成功したら受付になる |
+| `value` | `input.action=export` | `v1.5` | — | PACK-34 | 履歴の書き出しが成功したら受付になる（実行時の結線は未実装。`docs/known-gaps.md`） |
+| `field` | `do_levels` | `v1.6` | — | PACK-50 | Step の `do` を案内レベル（`B`・`C`）ごとに書き分ける。水準 A は `do`。`do` が必須で、探す順は C → B → A |
+| `field` | `param_types` | `v1.7` | — | PACK-51 | `params` の引数ごとの型と範囲の宣言（鍵は `params` の名前）。省略した引数は検査しない。IR には載せない |
+| `field` | `param_types.type` | `v1.7` | — | PACK-51 | 型。`bool`・`int`・`enum` の閉じた集合。必須 |
+| `field` | `param_types.values` | `v1.7` | — | PACK-51 | `enum` の取りうる値（空・重複は不可） |
+| `field` | `param_types.min` | `v1.7` | — | PACK-51 | `int` の下限（含む） |
+| `field` | `param_types.max` | `v1.7` | — | PACK-51 | `int` の上限（含む） |
+| `value` | `param_types.type=bool` | `v1.7` | — | PACK-51 | `true` か `false` の文字列だけ |
+| `value` | `param_types.type=int` | `v1.7` | — | PACK-51 | 10 進の正準形の整数だけ（先頭の 0・`+`・`-0` は不可） |
+| `value` | `param_types.type=enum` | `v1.7` | — | PACK-51 | `values` のどれかと完全一致 |
 
 ## 8. 版と拡張点の対応表
 
@@ -200,12 +217,16 @@
 | `v1.2` | EP-9 | — | PACK-18 |
 | `v1.3` | EP-10・EP-11・EP-12 | `confirm.options[].label` | PACK-20〜PACK-23 |
 | `v1.4` | EP-13 | — | PACK-38 |
-| `v1.5` | — | `input.revise.candidates`・`input.revise.candidates[].label` | PACK-42 |
+| `v1.5` | — | `input.revise.candidates`・`input.revise.candidates[].label`・`env_action`・`input.action`・`input.action=save`・`input.action=export` | PACK-34・PACK-42 |
+| `v1.6` | — | `do_levels` | PACK-50 |
+| `v1.7` | — | `param_types`・`param_types.type`・`param_types.values`・`param_types.min`・`param_types.max`・`param_types.type=bool`・`param_types.type=int`・`param_types.type=enum` | PACK-51 |
 
 - v1.1〜v1.3 は加算だけで、IR の形式の版 `ir_format` は 1 のままである（PACK-24）
 - v1.4 も加算だけである。`views` は値を通す欄のため、IR の型は変わらない
 - v1.5 も加算だけである。`input` は未型付けの値のまま IR に通るため、IR の型は変わらない。拡張点の番号は持たない（`confirm.options[].label` と同じ）
-- 語彙の版の上限は `v1.5` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
+- v1.6 も加算だけである。`Step` に任意の欄 `do_levels` を足すが、空なら書き出さないため、使わない教材の IR は変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
+- v1.7 も加算だけである。`ScopeSrc` に任意の欄 `param_types` を足すが、検査のための宣言で IR には載せないため、IR の形も使わない教材の IR も変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
+- 語彙の版の上限は `v1.7` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
 
 ## 9. 仕様との照合表
 
@@ -229,8 +250,11 @@
 | PACK-21 | `pack.appearance.theme`・`pack.appearance.theme=standard`・`pack.appearance.theme=mono`・`pack.appearance.theme=high_contrast`・`pack.appearance.theme=reading` |
 | PACK-22 | `pack.left_pane.world_list`・`pack.left_pane.view_tabs`・`pack.left_pane.world_list=shown`・`pack.left_pane.world_list=hidden`・`pack.left_pane.view_tabs=all`・`pack.left_pane.view_tabs=declared`・`pack.left_pane.view_tabs=hidden` |
 | PACK-23 | `confirm.options[].label` |
+| PACK-34 | `env_action`・`input.action`・`input.action=save`・`input.action=export` |
 | PACK-38 | `views.body`・`views.body=shown`・`views.body=hidden` |
 | PACK-42 | `input.revise.candidates`・`input.revise.candidates[].label` |
+| PACK-50 | `do_levels` |
+| PACK-51 | `param_types`・`param_types.type`・`param_types.values`・`param_types.min`・`param_types.max`・`param_types.type=bool`・`param_types.type=int`・`param_types.type=enum` |
 
 ## 10. 本文書に入れないもの
 
@@ -240,7 +264,7 @@
 - `pack.vocab` の宣言と使用の一致の検査: 検査は TASK-59 が持つ。`pack.vocab` は宣言の欄であり、語には数えない（PACK-31）
 - 判定結果の残り（確認・進行・無視）: 入力判定の契約（TASK-256、JUDGE-3）が持つ
 - ビューの種類（EP-5 を除く）: 画面の契約が持つ
-- TASK-62〜TASK-72 で決まる語彙（TASK-66 の文書ビューの本文の語と、TASK-62 の「直す」の候補の語は 7 節に足した）: 決まった後に、新しい語彙の版の行として足す
+- TASK-62〜TASK-72 で決まる語彙（TASK-66 の文書ビューの本文の語と、TASK-62 の「直す」の候補の語・TASK-71 の引数の型の語は 7 節に足した）: 決まった後に、新しい語彙の版の行として足す
 
 ## 付録 A. 固有の語の一覧
 
@@ -279,5 +303,9 @@
 | 2 | 2026-10-15 | EP-6〜EP-12・`confirm.options[].label`・語彙 v1〜v1.3 の語の一覧・版と拡張点の対応表を加算。名前の形を 2 段以上に拡張 | TASK-194、PACK-8〜PACK-23 |
 | 3 | 2026-10-18 | EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を加算。TASK-66 1/2 | TASK-66、PACK-38、D-50・D-51 |
 | 4 | 2026-10-21 | 語彙 v1.5 の 2 語（`input.revise.candidates`・`input.revise.candidates[].label`）を加算。拡張点の番号なし。TASK-62 2/2 | TASK-62、PACK-42、D-69 |
+| 5 | 2026-10-21 | 語彙 v1.5 の行へ PACK-34 の 4 語（`env_action`・`input.action`・`input.action=save`・`input.action=export`）を加算。語彙の版は据え置き。TASK-64 1/2 | TASK-64、PACK-34、D-69 |
+
+| 6 | 2026-10-22 | 語彙 v1.6 の 1 語（`do_levels`）を加算。拡張点の番号なし。TASK-70 2/2 | TASK-70、PACK-50、D-55 |
+| 7 | 2026-10-22 | 語彙 v1.7 の 8 語（`param_types` と `type`・`values`・`min`・`max`・型の値 3 つ）を加算。拡張点の番号なし。TASK-71 2/3 | TASK-71、PACK-51、D-43 |
 
 2026-10-19: 5 節に手続きの文書（TASK-189）への参照を足した。固定した行は変わらないため、文書の版は 3 のまま据え置く。

@@ -1,0 +1,8 @@
+id: PACK52-3
+package: fandhe-workshop-pack
+test: guidance_leak_scope
+target: crates/pack/src/guidance.rs
+find:         step_do_at(st, l).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())))
+replace:         st.do_.as_deref().is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())))
+expect-fail: pack52_a_do_levels_argument_is_checked_at_that_level
+note: 置換後の判定が水準ごとの do を見ず do だけを見る

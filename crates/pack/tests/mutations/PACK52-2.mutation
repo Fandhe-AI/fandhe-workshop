@@ -1,0 +1,8 @@
+id: PACK52-2
+package: fandhe-workshop-pack
+test: guidance_leak_scope
+target: crates/pack/src/validate.rs
+find:                     | DiagCode::GuidanceLeak
+replace:                     | DiagCode::Parse
+expect-fail: pack52_a_argument_do_leak_is_reported
+note: validate が展開で見つけた漏れを捨てる（許可リストから外す）

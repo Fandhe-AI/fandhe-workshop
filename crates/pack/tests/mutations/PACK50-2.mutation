@@ -1,0 +1,8 @@
+id: PACK50-2
+package: fandhe-workshop-pack
+test: do_levels
+target: crates/core/src/text_fill.rs
+find: for l in level.fallback_chain() {
+replace: for l in [&level] {
+expect-fail: pack50_level_c_falls_back_to_b
+note: step_do_at が fallback_chain ではなく自分の水準だけを見る（C から B に倒れない）

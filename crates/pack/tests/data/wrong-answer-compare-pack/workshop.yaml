@@ -1,0 +1,7 @@
+# wrong-answer-compare-pack（形式 B）。誤答の拒否文で前後の切り替えを案内する（PACK-36・D-69）試験用。架空の内容だけを持つ。
+pack: {id: wrong-answer-compare-pack, title: 誤答の案内, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.3'}
+views:
+  v-files: {kind: file_tree}
+  v-diff: {kind: diff}
+rejections:
+  rj-unchanged: {category: not_in_this_step, message: その箇所は変わっていません。, next_action: 左の前後の切り替えで変更の前と後を見比べてから、選び直します。}

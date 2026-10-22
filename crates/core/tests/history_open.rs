@@ -282,7 +282,7 @@ fn fail_closed_for_versions_that_must_not_open() {
     check(&|h| h.versions.engine = "1.0.0".to_owned(), &ir);
     check(&|h| h.versions.engine = "0.0.1".to_owned(), &ir);
     check(&|h| h.versions.ir_format = 3, &ir);
-    check(&|h| h.versions.vocab = "1.6".to_owned(), &ir);
+    check(&|h| h.versions.vocab = "1.8".to_owned(), &ir);
     check(&|h| h.versions.vocab = "x".to_owned(), &ir);
     // 開く側の教材の主版が違う。
     let major = variant(|v| v["pack"]["version"] = json!("1.0.0"));
@@ -509,7 +509,7 @@ fn ver7_view_only_order_follows_the_contract() {
         .insert(StepUid("main/st-1".to_owned()).root(), "改ざん".to_owned());
     view(&open(&major, &tampered), LoadReason::ContentMajor);
     // 「新しい」側は 3 種より先（厳密な試験は 3/3）。
-    let vocab = edited(&older, |h| h.versions.vocab = "1.6".to_owned());
+    let vocab = edited(&older, |h| h.versions.vocab = "1.8".to_owned());
     assert_closed(
         &open(&old, &vocab),
         Disposition::Refused,
@@ -609,10 +609,10 @@ fn ver7_vocab_newer_is_refused() {
         LoadReason::VocabNewer,
     );
     // 副版・主版が新しい。
-    refused(&open(&ir, &hv("1.6")), LoadReason::VocabNewer);
+    refused(&open(&ir, &hv("1.8")), LoadReason::VocabNewer);
     refused(&open(&ir, &hv("2.0")), LoadReason::VocabNewer);
     // 等しい版は開く側に入り、段 6 を通って写しと一致すれば変換して開く。
-    assert!(axes(&open(&ir, &hv("1.5"))).contains("Vocab"));
+    assert!(axes(&open(&ir, &hv("1.7"))).contains("Vocab"));
     // 数値の比較（文字列の辞書順ではない）。
     assert!(axes(&open_with_vocab_max(&ir, vocab(1, 10), &hv("1.9"))).contains("Vocab"));
     refused(
@@ -627,7 +627,7 @@ fn ver7_vocab_newer_on_the_opening_side_is_refused() {
     let h = envelope(&ir, within_st1(&ir));
     // 履歴は 1.0 のままで、開く側の語彙の版だけが上限を超える（作り物）。
     let mut opening = versions_of(&ir);
-    opening.vocab = "1.6".to_owned();
+    opening.vocab = "1.8".to_owned();
     let o = open_history(&ir, &opening, &OpeningCaps::current(), initial(), &h);
     refused(&o, LoadReason::VocabNewer);
 }
@@ -722,7 +722,7 @@ fn ver7_stage6_order_follows_history_load_order() {
     let mut h = edited(&base, |h| {
         h.versions.content = "x".to_owned();
         h.versions.ir_format = 3;
-        h.versions.vocab = "1.6".to_owned();
+        h.versions.vocab = "1.8".to_owned();
         h.versions.engine = "9.9.9".to_owned();
     });
     let mut got = Vec::new();
@@ -743,7 +743,7 @@ fn ver7_stage6_order_follows_history_load_order() {
     // 3 種は段 7（開始点）・段 8（写しの照合）より先に当たる。
     let no_start = edited(&base, |h| {
         h.start = "s-none".to_owned();
-        h.versions.vocab = "1.6".to_owned();
+        h.versions.vocab = "1.8".to_owned();
     });
     refused(&open(&ir, &no_start), LoadReason::VocabNewer);
     let mut tampered = edited(&base, |h| h.versions.engine = "9.9.9".to_owned());
@@ -764,7 +764,7 @@ fn refused_reasons_are_non_empty_and_classified() {
             ReasonKind::HistoryNewer(VersionAxis::IrFormat),
         ),
         (
-            open(&ir, &edited(&h, |h| h.versions.vocab = "1.6".to_owned())),
+            open(&ir, &edited(&h, |h| h.versions.vocab = "1.8".to_owned())),
             ReasonKind::HistoryNewer(VersionAxis::Vocab),
         ),
         (

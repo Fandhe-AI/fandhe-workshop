@@ -1,0 +1,8 @@
+id: PACK41-2
+package: fandhe-workshop-pack
+test: text_rule_content
+target: crates/pack/src/input.rs
+find:         if has_text && !map["text"].is_boolean() {
+replace:         if has_text && false && !map["text"].is_boolean() {
+expect-fail: pack41_content_value_in_on_text_is_rejected
+note: on.text が真偽値でないことの拒否を外す（text: {contains: ...} が通る）
