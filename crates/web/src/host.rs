@@ -48,6 +48,7 @@
 use core::fmt;
 use std::collections::BTreeMap;
 
+use crate::shell_notice::RefusedNotice;
 #[cfg(feature = "test-hooks")]
 use fandhe_frontend_core::text;
 use fandhe_frontend_core::{el, Node};
@@ -63,7 +64,7 @@ use fandhe_workshop_contract::history_version::{
 };
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::Judgment;
-use fandhe_workshop_contract::load_reason::LoadReason;
+use fandhe_workshop_contract::load_reason::{HistoryLoadStage, LoadReason};
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
 use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::addr::TickAddr;
@@ -591,6 +592,9 @@ pub struct EngineHost {
     /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
     /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
     version_notice: bool,
+    /// 開かない履歴の理由の通知（`shell-notice`。TASK-176 2/2。VER-8・SHELL-16）。表示の状態で、`ops`・履歴・保存先には書かず、控えのバイト列も持たない。
+    /// 読み込みで開かなかったとき、または起動時の復元が版の判定の段で開かなかったときに立つ。開ける履歴に替えると消える。
+    refused_notice: Option<RefusedNotice>,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -710,6 +714,7 @@ impl EngineHost {
             input: HelloView::new(),
             pane: PaneTab::Ops,
             version_notice: false,
+            refused_notice: None,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -831,6 +836,7 @@ impl EngineHost {
             input,
             pane: PaneTab::Ops,
             version_notice: false,
+            refused_notice: None,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -968,6 +974,7 @@ impl EngineHost {
         );
         let mut converted = false;
         let mut view_only: Option<(LoadReason, Vec<u8>)> = None;
+        let mut refused: Option<LoadReason> = None;
         let (recorded, kind) = match outcome {
             BootOutcome::Fresh(r) => (r, BootKind::Fresh),
             BootOutcome::Restored { session, notes } => {
@@ -976,9 +983,18 @@ impl EngineHost {
             }
             BootOutcome::NotOpened { session, verdict } => {
                 self.save_blocked = true;
-                // 表示だけの判定のときだけ、理由と控えを持つ（開かないは #733 の範囲で、従来の挙動を保つ）。
-                if let (Verdict::ViewOnly { code }, Some(bytes)) = (verdict, saved) {
-                    view_only = Some((code, bytes.to_vec()));
+                // 表示だけの判定のときだけ、理由と控えを持つ。
+                match (verdict, saved) {
+                    (Verdict::ViewOnly { code }, Some(bytes)) => {
+                        view_only = Some((code, bytes.to_vec()));
+                    }
+                    // 開かないは版の判定の段のものだけ理由を出す。壊れた履歴（他の段）の案内は TASK-533 の範囲。
+                    (Verdict::Refused { code }, _)
+                        if code.stage() == HistoryLoadStage::VersionJudgment =>
+                    {
+                        refused = Some(code);
+                    }
+                    _ => {}
                 }
                 (session, BootKind::NotOpened)
             }
@@ -998,6 +1014,11 @@ impl EngineHost {
         if let Some((code, bytes)) = view_only {
             self.enter_view_only(code, bytes);
         }
+        // 起動時に開けなかった通知は閉じられない（保存が止まったままであることの手がかりを隠さない）。
+        self.set_refused_notice(refused.map(|code| RefusedNotice {
+            code,
+            dismissable: false,
+        }));
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
@@ -1637,7 +1658,7 @@ impl EngineHost {
     ///
     /// 判定は core の `load_session`（段 1〜8）に任せ、条件は複製しない。開く側の版は、いま載せている教材の IR から求める。
     /// 実行環境・開始時の状態・開く側の版のどれかが無ければ、何も変えずに `Unavailable` を返す（開けない側に倒す）。
-    /// 開かない（表示だけ・開かない）ときも、状態・導出した値・dirty のどれにも触れない。
+    /// 開かない（表示だけ・開かない）ときも、状態・導出した値には触れない。開かないときは理由の通知（`shell_notices`）だけを dirty に積む。
     /// 差し替えでは、導出した値を作り直し、全 field を dirty に積み、次の進行の宛先を通知する。
     /// 保存先へは書かない（離れる直前の書き出しは `persist`。TASK-319）。入力欄の下書きも変えない（SHELL-22・TASK-531）。
     /// 開いた履歴の `ops` の続きに以後の操作を記録する。
@@ -1676,10 +1697,19 @@ impl EngineHost {
                 outcome
             }
             Err(Verdict::ViewOnly { code }) => {
+                // 読み込みの通知は直近の結果を表す。表示だけになるときは前の開かない通知を消す。
+                self.set_refused_notice(None);
                 self.enter_view_only(code, bytes.to_vec());
                 self.closed(ImportOutcome::ViewOnly(code))
             }
-            Err(Verdict::Refused { code }) => self.closed(ImportOutcome::Refused(code)),
+            Err(Verdict::Refused { code }) => {
+                // 状態・ログ・下書き・保存先には触れず、理由だけを通知する。
+                self.set_refused_notice(Some(RefusedNotice {
+                    code,
+                    dismissable: true,
+                }));
+                self.closed(ImportOutcome::Refused(code))
+            }
             // `load_session` は開く 2 種を `Err` にしない。来ても開かない側に倒す。
             Err(_) => self.closed(ImportOutcome::Unavailable),
         }
@@ -1756,6 +1786,7 @@ impl EngineHost {
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
+        self.refused_notice = None;
         // 表示だけのモードも前の履歴のものなので、開ける履歴に替えるときに出る（`dirty` は全 field で作り直し済み）。
         self.model.view_only = None;
         self.view_only_bytes = None;
@@ -2011,6 +2042,18 @@ impl EngineHost {
         }
     }
 
+    /// 開かない履歴の通知を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    ///
+    /// 読み込みは `install_recorded` を通らず `update` が先頭で dirty を空にするため、変えたときは `shell_notices` を自分で積む。
+    fn set_refused_notice(&mut self, notice: Option<RefusedNotice>) {
+        if self.refused_notice != notice {
+            self.refused_notice = notice;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
     /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     fn select_pane(&mut self, tab: PaneTab) {
         if self.pane != tab {
@@ -2225,8 +2268,15 @@ impl Component for EngineHost {
             HostAction::SelectPane(tab) => self.select_pane(tab),
             // 描いている通知（変換して開いた）だけを閉じる。他の種類は枠の通知欄に描いていないので何もしない（fail-closed）。
             HostAction::DismissNotice(kind) => {
-                if kind == crate::shell::NoticeKind::VersionConverted {
-                    self.set_version_notice(false);
+                match kind {
+                    crate::shell::NoticeKind::VersionConverted => self.set_version_notice(false),
+                    // 起動時の通知は閉じない（`dismissable` が偽。保存が止まっていることを隠さない）。
+                    crate::shell::NoticeKind::ImportRefused
+                        if self.refused_notice.is_some_and(|n| n.dismissable) =>
+                    {
+                        self.set_refused_notice(None);
+                    }
+                    _ => {}
                 }
             }
             HostAction::PaneKey(key) => {
@@ -2356,7 +2406,7 @@ impl Component for EngineHost {
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         let mut children = vec![
-            crate::shell_notice::notice_area(self.version_notice),
+            crate::shell_notice::notice_area(self.version_notice, self.refused_notice),
             tablist,
             panes,
         ];

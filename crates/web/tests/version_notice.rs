@@ -191,6 +191,15 @@ fn a_closed_open_does_not_touch_the_notice() {
     let bytes = history("3.0.0");
     assert!(matches!(h.open_history(&bytes), ImportOutcome::ViewOnly(_)));
     assert_eq!(items(&h), 1);
+
+    // 開かない履歴は理由の通知を足す。変換して開いた通知は残る（TASK-176 2/2）。
+    let mut bad: serde_json::Value = serde_json::from_slice(&history("1.0.0")).unwrap();
+    bad["versions"]["ir_format"] = serde_json::json!(99);
+    assert!(matches!(
+        h.open_history(&serde_json::to_vec(&bad).unwrap()),
+        ImportOutcome::Refused(_)
+    ));
+    assert_eq!(items(&h), 2);
 }
 
 #[test]

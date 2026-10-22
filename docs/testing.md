@@ -6939,3 +6939,21 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 実行結果（2026-10-22）: `cargo test --locked -p fandhe-workshop-web`（既定と `--features test-hooks`）は全件 pass。ブラウザ試験は `view-only`・`version-histories`・`history-versions`・`version-notice` の 4 ファイル 25 件が pass（配信設定と試験の設定を `SKIP_WASM_OPT=1` でビルドし、版の違う履歴 15 件を書き出して単独に実行した。全件の `make test-browser` は CI の `browser-test` に任せる）。
 
 【推論】表示だけの間に履歴の写し（`snapshot`）を今の IR で描くことはしない。版の違う IR では Step が存在しない場合があり、誤って描く危険があるため。履歴の中身の表示は REVIEW-4/5（TASK-505）の範囲で、`docs/known-gaps.md` に記録した。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
+
+### 5.221 開かない履歴の動作（TASK-176 2/2。VER-8・SHELL-16）
+
+版の違う履歴の判定（TASK-174）で「開かない」になった履歴について、理由を画面に出すようにした。保存領域・`Session` の状態・ログ・入力欄の下書きは、5.220 と同じく変えない（読み込みは `install_recorded` を呼ばず、起動時は `save_blocked` が上書きを止める）。
+
+- 理由は枠の通知欄（`shell-notice`）に `NoticeKind::ImportRefused`（契約の版 1。`reason_rule` は必須）で出す。項目は `data-notice-kind=import-refused` と `data-notice-reason`（`LoadReason` のコード）を持ち、文は固定の文言と理由のコードだけで作る（履歴由来の値を含めない。SAFE-40）。文面は仮置きで、最終の文面は TASK-549・TASK-534、次の行動（SHELL-36）は TASK-538 が決める
+- 読み込み（`open_history`）は `Refused` をすべて通知する。理由の種類では絞らない。閉じる操作（`dismiss-notice`）で消え、状態は変わらない。次に開ける履歴・表示だけの履歴を読み込むと消える。表示だけの間に開かない履歴を読み込んでも、表示だけのまま・控えのバイト列も変えない
+- 起動時の復元は、版の判定の段（`LoadReason::stage() == VersionJudgment`。`format_newer`・`vocab_newer`・`engine_newer`・`bad_version`）の拒否だけに通知を出す。それ以外の段（壊れた履歴）の案内は TASK-533（SHELL-17）の範囲で、従来どおり通知を出さない。【推論】`history_format_newer` は版に関わるが版の軸を持たないため、TASK-533 側に残した
+- 起動時の通知には閉じる操作を置かない。起動時に開けなかった場合は `save_blocked` がセッションの終わりまで立ったままで、通知が「保存していない」ことの唯一の手がかりになるため。生の `dismiss-notice` が届いても閉じない（fail-closed）
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/src/shell_notice.rs`（単体 6 件） | 項目の数・属性・閉じるボタンの有無・2 通知の並び・全 `LoadReason` で項目が作れること |
+| `crates/web/tests/refused_history.rs`（11 件） | 読み込みで状態・ログ・下書き・導出した値・保存の値が不変で積む field が通知欄だけ。読み込みの後も操作が効く。閉じる操作。続けて開く履歴での消去。表示だけの間の読み込み。変換して開いた通知との併存。起動時の閉じられない通知と生の閉じる操作の無視。壊れた履歴で通知が出ない。履歴由来の値が出ない。読み込み先の無いホスト |
+| `tools/browser/refused-history.test.mjs`（CSP あり・なしで 8 件） | 表の refused の 3 行（V-iv-2・V-iv-3・V-v-2）で、結果・理由が表と合い、実行環境の差し替え 0 回・状態・入力欄・保存先の値が不変で、通知が 1 件出て、操作が効き、閉じるボタンで消える。起動時の復元（`ir_format` を上げた履歴）で閉じるボタンの無い通知が出て、操作の後も保存先の値が書いた値のまま。外部通信・CSP 違反・ページのエラーが 0 件 |
+| 既存の試験 | `history_import.rs` の不変の確認を「積む field は `shell_notices` だけ」に、`version_notice.rs` に併存の確認を足した。`view_only.rs` の旧い回帰は壊れた履歴の試験に改めた |
+
+実行結果（2026-10-22）: `make lint`・`cargo test --locked -p fandhe-workshop-web --features test-hooks` は全件 pass。ブラウザ試験は `refused-history`・`view-only`・`version-notice`・`version-histories`・`history-versions`・`history-import` の 6 ファイル 36 件が pass（配信設定と試験の設定を `SKIP_WASM_OPT=1` でビルドし、版の違う履歴 15 件を書き出して単独に実行した）。全件の `make test-browser` は CI の `browser-test` に任せる（ローカルでは未実行）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
