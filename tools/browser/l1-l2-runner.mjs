@@ -107,14 +107,19 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     const history = await exportByUi(page, tmpDir);
     // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
     const counts = summarize(rec);
-    const irReqs = rec.requests.filter((r) => r.url === `${origin}${new URL(url).pathname}ir/main.json`);
+    const irUrl = `${origin}${new URL(url).pathname}ir/main.json`;
+    const irReqs = rec.requests.filter((r) => r.url === irUrl);
+    // IR の取得が 200 で完了している実行に限り、同じ IR への ERR_ABORTED（完了後に中断された重複の要求）は失敗に数えない。
+    // 完了した取得が無いときの中断、別の資源の失敗、別のエラー種別は従来どおり失敗に数える。
+    const irDone = irReqs.length === 1 && irReqs[0].status === 200;
+    const failed = rec.failed.filter((f) => !(irDone && f.url.split(/[?#]/)[0] === irUrl && f.error === 'net::ERR_ABORTED'));
     const problems = [];
     if (irReqs.length !== 1 || irReqs[0].status !== 200) problems.push('ir-fetch');
     if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
     if (counts.pageErrors !== 0) problems.push('page-error');
     if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
     if (counts.consoleErrors !== 0 || rec.consoleWarnings.length !== 0) problems.push('console');
-    if (counts.external !== 0 || counts.failed !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${counts.failed}:${rec.failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
+    if (counts.external !== 0 || failed.length !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${failed.length}:${failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
     if (counts.dialogs !== 0 || counts.popups !== 0 || counts.crashed !== 0) problems.push('dialog-popup-crash');
     const parsed = JSON.parse(history.toString('utf8'));
     assert.ok(Array.isArray(parsed.ops) && parsed.ops.length >= 1, `${label}: history has ops`);
