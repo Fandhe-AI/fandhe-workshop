@@ -455,7 +455,7 @@ fn neg_post_expansion_diagnostics_do_not_carry_the_argument_value() {
 #[test]
 fn exit_to_is_set_only_on_the_final_step_of_an_instance() {
     // a → b（b が final）のモジュールでは、b だけが呼び出し元へ戻る。
-    let module = "id: m\ntitle: M\nsteps:\n  - {id: a, title: A, next: [{to: b}]}\n  - {id: b, title: B, final: true}\n";
+    let module = "id: m\ntitle: M\nsteps:\n  - {id: a, title: A, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n  - {id: b, title: B, final: true}\n";
     let t = mini(&chapter_using("{module: m, instance: i}"), module);
     let ir = ir_of(&t.0);
     assert_eq!(node(&ir, "m@i/a").exit_to, None);

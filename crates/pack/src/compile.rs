@@ -380,7 +380,7 @@ mod tests {
         let body = "a".repeat(500_000);
         let n = (MAX_IR_BYTES / body.len() as u64) as usize + 2;
         let steps: String = (0..n)
-            .map(|i| format!("  - {{id: s{i}, title: t, body: b.md}}\n"))
+            .map(|i| format!("  - {{id: s{i}, title: t, body: b.md, final: true}}\n"))
             .collect();
         let scope = yaml_serde::from_str(&format!("id: c\ntitle: c\nsteps:\n{steps}")).unwrap();
         let pack = LoadedPack {

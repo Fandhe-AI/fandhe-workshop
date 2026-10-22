@@ -34,7 +34,7 @@ fn data(rel: &str) -> PathBuf {
         .join(rel)
 }
 
-/// `ir_format.rs` の `packs()` と同じ組。出力の正は `golden/<名前>.ir.json`。
+/// `ir_format.rs` の `packs()` と同じ組。出力の正は `golden/<名前>.ir.json`（`fixture-pack` だけ [`frozen_golden`] の注を参照）。
 fn golden_packs() -> Vec<(&'static str, PathBuf)> {
     vec![
         (
@@ -70,11 +70,21 @@ fn no_tree_pack() -> Tmp {
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     let chapter = concat!(
         "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-        "  - {id: a, title: A, next: [{to: b}]}\n",
+        "  - {id: a, title: A, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
         "  - {id: b, title: B, final: true}\n",
     );
     t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
     t
+}
+
+/// golden の組の凍結物。`fixture-pack` は途中の Step に 1 択の `choice` を足した（PACK-19、#1708）ため、
+/// 同じ旧いエンジン（0fa7146）で作り直した `ir_before_ep13/fixture-pack-choice.ir.json` を正にする。
+/// `golden/fixture-pack.ir.json` は入力を足す前の凍結物で、読み込みの試験だけが使う。
+fn frozen_golden(name: &str) -> Vec<u8> {
+    match name {
+        "fixture-pack" => frozen("ir_before_ep13", "fixture-pack-choice"),
+        _ => frozen("golden", name),
+    }
 }
 
 fn frozen(dir: &str, name: &str) -> Vec<u8> {
@@ -143,7 +153,7 @@ fn ext9_premise_frozen_set_does_not_use_new_items() {
 fn ext9_golden_packs_are_byte_identical_across_ep13() {
     for (name, dir) in golden_packs() {
         let got = compile_dir(&dir).unwrap_or_else(|_| panic!("{name} must compile"));
-        assert_identical(name, &got, &frozen("golden", name));
+        assert_identical(name, &got, &frozen_golden(name));
     }
 }
 
@@ -165,7 +175,7 @@ fn ext9_pack_without_trees_stays_v1_and_identical_across_ep13() {
     assert_identical(
         "no-tree-pack",
         &got,
-        &frozen("ir_before_ep13", "no-tree-pack"),
+        &frozen("ir_before_ep13", "no-tree-pack-choice"),
     );
 }
 

@@ -27,7 +27,7 @@ fn yaml_pack(pack_extra: &str, start_extra: &str) -> Tmp {
     );
     t.put(
         "chapters/c1/chapter.yaml",
-        format!("id: c1\ntitle: C\nstarts: [{{id: s1, node: a{start_extra}}}]\nsteps:\n  - {{id: a, title: A, body: a.md, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n")
+        format!("id: c1\ntitle: C\nstarts: [{{id: s1, node: a{start_extra}}}]\nsteps:\n  - {{id: a, title: A, body: a.md, next: [{{to: b}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}}}\n  - {{id: b, title: B, final: true}}\n")
             .as_bytes(),
     );
     t.put("chapters/c1/a.md", b"# a\n");
@@ -44,7 +44,7 @@ fn toml_pack(pack_extra: &str, start_extra: &str) -> Tmp {
     );
     t.put(
         "chapters/c1/chapter.toml",
-        format!("id = \"c1\"\ntitle = \"C\"\n\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n{start_extra}\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\n[[steps.next]]\nto = \"b\"\n\n[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n")
+        format!("id = \"c1\"\ntitle = \"C\"\n\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n{start_extra}\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\ninput = {{ kind = \"choice\", options = [{{ id = \"ok\", label = \"OK\" }}] }}\nrules = [{{ id = \"r-a\", on = {{ option = \"ok\" }}, outcome = {{ kind = \"accept\" }} }}]\nconfirm = {{ kind = \"none\", reason = \"r\" }}\n[[steps.next]]\nto = \"b\"\n\n[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n")
             .as_bytes(),
     );
     t.put("chapters/c1/a.md", b"# a\n");
@@ -128,7 +128,7 @@ fn pack31_one_diagnostic_per_extension_point() {
     let t = yaml_pack("  vocab: \"1.0\"\n", &req_unmet());
     t.put(
         "chapters/c2/chapter.yaml",
-        format!("id: c2\ntitle: C2\nstarts: [{{id: s2, node: a, requires: {REQ}}}, {{id: s3, node: b, unmet: rj-x}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}]}}\n  - {{id: b, title: B, final: true}}\n").as_bytes(),
+        format!("id: c2\ntitle: C2\nstarts: [{{id: s2, node: a, requires: {REQ}}}, {{id: s3, node: b, unmet: rj-x}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, rules: [{{id: r-a, on: {{option: ok}}, outcome: {{kind: accept}}}}], confirm: {{kind: none, reason: r}}}}\n  - {{id: b, title: B, final: true}}\n").as_bytes(),
     );
     assert_eq!(mismatches(&t).len(), 1);
 }

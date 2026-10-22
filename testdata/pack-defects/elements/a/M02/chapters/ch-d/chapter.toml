@@ -16,34 +16,52 @@ title = "場面を読む"
 body = "st-2-1.md"
 views = ["v-files"]
 next = [{ to = "st-2-2" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-1", label = "読みました" }] }
+rules = [{ id = "r-st-2-1", on = { option = "opt-st-2-1" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-2"
 title = "練習データを開く"
 fixtures = ["fx-note"]
 next = [{ to = "st-2-3" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-2", label = "読みました" }] }
+rules = [{ id = "r-st-2-2", on = { option = "opt-st-2-2" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-3"
 title = "ヒントを見る"
 hints = ["h-a"]
 next = [{ to = "st-2-4" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-3", label = "読みました" }] }
+rules = [{ id = "r-st-2-3", on = { option = "opt-st-2-3" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-4"
 title = "次へ進む準備をする"
 next = [{ to = "st-2-5" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-4", label = "読みました" }] }
+rules = [{ id = "r-st-2-4", on = { option = "opt-st-2-4" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-5"
 title = "途中の場面"
 on_achieved = [{ set_attr = { path = "lost-item", attr = "state", value = "done" } }]
 next = [{ to = "st-2-6" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-5", label = "読みました" }] }
+rules = [{ id = "r-st-2-5", on = { option = "opt-st-2-5" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-6"
 title = "分かれ道の手前"
 next = [{ to = "st-2-7" }]
+input = { kind = "choice", options = [{ id = "opt-st-2-6", label = "読みました" }] }
+rules = [{ id = "r-st-2-6", on = { option = "opt-st-2-6" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
 
 [[steps]]
 id = "st-2-7"

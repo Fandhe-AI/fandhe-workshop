@@ -22,8 +22,14 @@ use common::{minimal, testdata, Tmp, WORKSHOP};
 use fandhe_workshop_contract::ir::{to_canonical_json, Ir};
 use fandhe_workshop_pack::compile::compile_dir;
 
+/// compile の出力との比較先。`fixture-pack` は途中の Step に 1 択の `choice` を足した（PACK-19、#1708）ため、
+/// 0fa7146 のエンジンで作り直した `ir_before_ep13/fixture-pack-choice.ir.json` を使う（`golden/fixture-pack.ir.json` は
+/// 入力を足す前の凍結物で、書き換えない）。
 fn golden(name: &str) -> Vec<u8> {
-    golden_in("golden", name)
+    match name {
+        "fixture-pack" => golden_in("ir_before_ep13", "fixture-pack-choice"),
+        _ => golden_in("golden", name),
+    }
 }
 
 fn golden_in(dir: &str, name: &str) -> Vec<u8> {
@@ -106,7 +112,7 @@ fn ir1_pack_without_trees_stays_version_one() {
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     let chapter = concat!(
         "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-        "  - {id: a, title: A, next: [{to: b}]}\n",
+        "  - {id: a, title: A, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
         "  - {id: b, title: B, final: true}\n",
     );
     t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
@@ -128,7 +134,7 @@ fn ir_declared_two_without_trees_is_emitted_as_one() {
     );
     let chapter = concat!(
         "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-        "  - {id: a, title: A, next: [{to: b}]}\n",
+        "  - {id: a, title: A, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
         "  - {id: b, title: B, final: true}\n",
     );
     t.put("chapters/c1/chapter.yaml", chapter.as_bytes());
@@ -166,7 +172,8 @@ fn ir3_explicit_defaults_match_omitted() {
     let chapter = concat!(
         "id: c1\ntitle: C\nstarts: [{id: s1, node: a, effects: []}]\nsteps:\n",
         "  - {id: a, title: A, body: a.md, final: false, lo: [], views: [], fixtures: [], hints: [],\n",
-        "     body_levels: {}, on_reject: {}, on_enter: [], processing: [], rules: [], on_achieved: [],\n",
+        "     body_levels: {}, on_reject: {}, on_enter: [], processing: [], on_achieved: [],\n",
+        "     input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r},\n",
         "     next: [{to: b, when: null}]}\n",
         "  - {id: b, title: B, final: true, next: []}\n",
     );

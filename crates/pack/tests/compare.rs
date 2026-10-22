@@ -94,7 +94,7 @@ fn pack6_format_b_rewritten_notation_matches() {
         "chapters/c1/chapter.yaml",
         concat!(
             "steps:\n",
-            "  - title: A\n    body: 'a.md'\n    next:\n      - to: b\n    id: a\n\n",
+            "  - title: A\n    body: 'a.md'\n    next:\n      - to: b\n    id: a\n    input: {kind: choice, options: [{id: ok, label: OK}]}\n    rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}]\n    confirm: {kind: none, reason: r}\n\n",
             "  # the last step\n",
             "  - {final: true, title: \"B\", id: b}\n",
             "starts:\n  - node: a\n    id: s1\n",
@@ -186,7 +186,7 @@ fn pack6_different_content_differs_at_the_first_differing_byte() {
         concat!(
             "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
             "  - {id: b, title: B, final: true}\n",
-            "  - {id: a, title: A, body: a.md, next: [{to: b}]}\n",
+            "  - {id: a, title: A, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
         )
         .as_bytes(),
     );

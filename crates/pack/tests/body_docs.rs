@@ -138,7 +138,7 @@ fn deeply_nested_body_compiles_to_a_loadable_ir() {
             "chapters/c1/chapter.yaml",
             concat!(
                 "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-                "  - {id: a, title: A, body: a.md, body_levels: {B: a.md}, next: [{to: b}]}\n",
+                "  - {id: a, title: A, body: a.md, body_levels: {B: a.md}, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
                 "  - {id: b, title: B, final: true}\n",
             )
             .as_bytes(),
@@ -161,7 +161,7 @@ fn deeply_nested_table_cell_compiles_to_a_loadable_ir() {
         "chapters/c1/chapter.yaml",
         concat!(
             "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-            "  - {id: a, title: A, body: a.md, next: [{to: b}]}\n",
+            "  - {id: a, title: A, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
             "  - {id: b, title: B, final: true}\n",
         )
         .as_bytes(),

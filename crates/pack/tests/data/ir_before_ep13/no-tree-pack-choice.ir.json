@@ -1,0 +1,81 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "p",
+    "title": "t",
+    "version": "0",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/a",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "a",
+        "title": "A",
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "ok",
+              "label": "OK"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-a",
+            "on": {
+              "option": "ok"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "r"
+        },
+        "next": [
+          {
+            "to": "main/b"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/b",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "b",
+        "title": "B",
+        "final": true
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/a",
+      "effects": []
+    }
+  ]
+}
