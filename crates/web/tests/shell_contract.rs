@@ -5,7 +5,7 @@
 use fandhe_workshop_web::a11y::{
     LiveRegion, PaneTab, StatusNotice, ARIA_LABEL_VALUES, EXPORT_NOTICE_TESTID, LOG_LIST_TESTID,
     MARK_GLYPH_TESTID, MARK_TEXT_TESTID, SAVE_NOTICE_TESTID, SECRET_NOTICE_TESTID,
-    STALE_NOTICE_TESTID, TABLIST_TESTID, TAB_TESTID,
+    STALE_NOTICE_TESTID, TABLIST_TESTID, TAB_TESTID, VIEW_ONLY_NOTICE_TESTID,
 };
 use fandhe_workshop_web::shell::*;
 use fandhe_workshop_web::terminal_area::{InputPort, TERMINAL_AREA_TESTIDS};
@@ -114,6 +114,7 @@ fn a11y_と_terminal_area_の識別子と重複しない() {
         EXPORT_NOTICE_TESTID,
         SECRET_NOTICE_TESTID,
         STALE_NOTICE_TESTID,
+        VIEW_ONLY_NOTICE_TESTID,
         LOG_LIST_TESTID,
         TABLIST_TESTID,
         TAB_TESTID,

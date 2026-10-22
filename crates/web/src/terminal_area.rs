@@ -384,6 +384,7 @@ pub fn is_defined_testid(id: &str) -> bool {
         || StatusNotice::ALL.iter().any(|n| n.testid() == id)
         || id == crate::a11y::SAVE_NOTICE_TESTID
         || id == crate::a11y::STALE_NOTICE_TESTID
+        || id == crate::a11y::VIEW_ONLY_NOTICE_TESTID
         || [
             LOG_LIST_TESTID,
             TABLIST_TESTID,

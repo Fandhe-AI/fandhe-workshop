@@ -158,6 +158,8 @@ pub const EXPORT_NOTICE_TESTID: &str = "export-notice";
 pub const SECRET_NOTICE_TESTID: &str = "secret-notice";
 /// 古いタブの「保存されていない」通知欄の識別子（SAVE-13・D-56・TASK-325）。`EXPORT_NOTICE_TESTID` と同じ扱いの任意の通知欄。
 pub const STALE_NOTICE_TESTID: &str = "stale-notice";
+/// 表示だけで開いた履歴の理由の通知欄（VER-8。任意の欄で、`stale-notice` と同じ数え方）。
+pub const VIEW_ONLY_NOTICE_TESTID: &str = "view-only-notice";
 
 /// ログの一覧の識別子。ライブの欄の外に置き、`aria-live`・`role` を持たせない（A11Y-7）。
 pub const LOG_LIST_TESTID: &str = "log-list";
@@ -724,6 +726,7 @@ fn check_element(
         || testid == Some(EXPORT_NOTICE_TESTID)
         || testid == Some(SECRET_NOTICE_TESTID)
         || testid == Some(STALE_NOTICE_TESTID)
+        || testid == Some(VIEW_ONLY_NOTICE_TESTID)
         || testid == Some(crate::shell::NOTICE_AREA_TESTID);
     if is_notice {
         tally.notice.push(testid.unwrap_or_default().to_string());
@@ -1022,6 +1025,12 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
         format!("notice {STALE_NOTICE_TESTID}"),
         stales.min(1),
         stales,
+    );
+    let view_onlys = n(&t.notice, VIEW_ONLY_NOTICE_TESTID);
+    count(
+        format!("notice {VIEW_ONLY_NOTICE_TESTID}"),
+        view_onlys.min(1),
+        view_onlys,
     );
     let shells = n(&t.notice, crate::shell::NOTICE_AREA_TESTID);
     count(

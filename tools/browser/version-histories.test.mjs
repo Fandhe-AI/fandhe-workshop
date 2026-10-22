@@ -58,9 +58,10 @@ after(async () => {
 const call = (page, fn, ...args) => page.evaluate(([f, a]) => window.__fandheTest[f](...a), [fn, args]);
 const engine = async (page) => JSON.parse(await call(page, 'stateJson')).engine;
 const urlState = (page) => page.evaluate(() => ({ href: location.href, hash: location.hash, length: history.length, state: history.state }));
-// 読み込みの結果（lastImport）以外の書き出し。比べるのは文字列の一致の真偽だけにする。
+// 読み込みの結果（lastImport）と、表示だけのモード（viewOnly・書き出しの2欄。TASK-176 1/2）以外の書き出し。
+// 比べるのは文字列の一致の真偽だけにする。表示だけの3欄は下で明示して確かめる。
 const comparable = (e) => {
-  const { lastImport, ...rest } = e;
+  const { lastImport, viewOnly, exportGate, exportBytes, ...rest } = e;
   return JSON.stringify(rest);
 };
 
@@ -176,7 +177,9 @@ async function openRow(srv, row) {
     out.snapshotMatches = isDeepStrictEqual(restored, snapshot);
   } else {
     await settle(page);
-    const unchanged = comparable(await engine(page)) === stateBefore
+    const e2 = await engine(page);
+    const unchanged = comparable(e2) === stateBefore
+      && e2.viewOnly === (got.verdict === 'view_only' ? got.reason : null)
       && isDeepStrictEqual(await storageFingerprint(page), storeBefore)
       && isDeepStrictEqual(await urlState(page), urlBefore)
       && (await call(page, 'lastImportStateJson')) === 'null';

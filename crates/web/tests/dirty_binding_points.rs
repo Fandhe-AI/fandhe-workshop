@@ -291,6 +291,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "secret_notice",
     // 古いタブの通知は、起動番号の照合で追い越されたホストの操作で立つ。`stale_notice.rs` が dirty を確かめる。
     "stale_notice",
+    // 表示だけの通知は、表示だけと判定された履歴の読み込みで立つ。`view_only.rs` が dirty を確かめる。
+    "view_only_notice",
     // 変換して開いた通知は、版の違う履歴を開いたか復元したホストで立つ。`version_notice.rs` が dirty を確かめる（TASK-535 1/2）。
     "shell_notices",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、

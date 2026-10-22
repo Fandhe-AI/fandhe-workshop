@@ -18,8 +18,8 @@
 //   S-1〜S-9・S-12・S-19: 実際の再読み込みでの復元。起動時の分岐は TASK-319 1/3 で入ったが、地点ごとの復元の一致は後続（#342・#343）
 //   S-10 の「B の保存領域に履歴がある」: 読み込みは保存先へ書かない（TASK-319）。ここは「書かない」ことを確かめる
 //   受講中の操作の書き出し: ホストは受講中の ops を記録する（TASK-319 1/3）が、ここでは契約の試料の開ける包みを使う
-//   S-14・S-15 の「表示だけで開き操作を受け付けない」画面: web は view_only で状態を変えず、表示だけの画面が無い
-//     （試作との差）。ここは今の挙動（状態不変）を固定する
+//   S-14・S-15 の「表示だけで開き操作を受け付けない」画面: web は view_only で状態を変え、理由を通知欄に出す
+//     （TASK-176 1/2。view-only.test.mjs）。履歴の中身の表示は無い（REVIEW-4/5。試作との差）。ここは状態不変を固定する
 //   engine_major: 開く側のエンジンの版が 0.0.0 で、履歴の側でこれより小さい主版を作れない（大きくすると engine_newer に先に当たる）
 //   S-16（保存の遅延）・S-17（容量超過の表示）・S-18（IndexedDB の 20MB）: それぞれ別タスク・表示経路なし・記録だけの場面
 // 試験の出力・失敗の文に、履歴の中身を出さない（受講者のデータのため。真偽・件数・固定のコードだけを比べる）。
@@ -65,7 +65,8 @@ const engine = async (page) => JSON.parse(await call(page, 'stateJson')).engine;
 const urlState = (page) => page.evaluate(() => ({ href: location.href, hash: location.hash, length: history.length, state: history.state }));
 // 読み込みの結果（lastImport）以外の書き出し。比べるのは文字列の一致の真偽だけにする。
 const comparable = (e) => {
-  const { lastImport, ...rest } = e;
+  // 表示だけのモード（viewOnly・書き出しの2欄。TASK-176 1/2）は、expectImport が明示して確かめる。
+  const { lastImport, viewOnly, exportGate, exportBytes, ...rest } = e;
   return JSON.stringify(rest);
 };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -287,6 +288,7 @@ async function expectImport(srvB, baseline, { name, file, verdict, reason, uncha
   const after = await engine(B.page);
   assert.equal(after.lastImport.verdict, verdict, `${name}: verdict`);
   assert.equal(after.lastImport.reason ?? null, reason, `${name}: reason`);
+  assert.equal(after.viewOnly ?? null, verdict === 'view_only' ? reason : null, `${name}: viewOnly`);
   if (unchanged) assert.equal(comparable(after) === before, true, `${name}: state unchanged`);
   else {
     assert.equal(comparable(after) === comparable(baseline), true, `${name}: same as baseline`);
