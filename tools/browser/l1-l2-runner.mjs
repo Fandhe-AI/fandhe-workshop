@@ -119,9 +119,13 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     const isAbortedIr = (f) => f.url === irUrl && f.error === 'net::ERR_ABORTED' && respondedIds.has(f.id);
     const abortedIds = new Set(rec.failed.filter(isAbortedIr).map((f) => f.id));
     const completedOk = irReqs.filter((r) => r.status === 200 && rec.finishedIds.includes(r.id) && !abortedIds.has(r.id));
-    const irDone = completedOk.length >= 1;
+    // 200 の応答が 1 件だけで、その要求自体が応答の後に ERR_ABORTED と通知され、完了の通知が届かない競合がある
+    // （アプリは本文を読み切って起動している）。この 1 件に限り、応答を受けた後の中断として失敗にも数えない。
+    // 応答が複数・200 以外・応答のない中断は、従来どおり数える。
+    const soleAborted = irReqs.length === 1 && irReqs[0].status === 200 && abortedIds.has(irReqs[0].id);
+    const irDone = completedOk.length >= 1 || soleAborted;
     const failed = rec.failed.filter((f) => !(irDone && isAbortedIr(f)));
-    const counted = irDone ? irReqs.filter((r) => !abortedIds.has(r.id)) : irReqs;
+    const counted = soleAborted ? irReqs : irDone ? irReqs.filter((r) => !abortedIds.has(r.id)) : irReqs;
     const irCount = counted.length;
     const problems = [];
     if (irCount !== 1 || !counted.some((r) => r.status === 200)) problems.push('ir-fetch');
