@@ -6919,3 +6919,23 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - `module-reuse-rounds` の写し（と同形の写し）の真の漏れ（`ch-round1` の既定値）は、教材の側（spec repo の PoC データ）で直す
 - `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは未決のまま
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.220 表示だけの履歴の動作（TASK-176 1/2。VER-8）
+
+版の違う履歴の判定（TASK-174）で「表示だけ」になった履歴について、web の動作を入れた。表示だけの履歴を読み込んだとき（`open_history`）と、起動時の復元（`boot` の `NotOpened`）で、ホストが理由のコード（`LoadReason`）と読み込んだバイト列の控えを持つ。実行環境は作らない（`install_recorded` は呼ばず、VER-2・TASK-175 の「表示だけで `Session` を作った例 0 件」を保つ）。画面に出す状態は、起動時は初期状態、読み込み時は直前の状態のままである。
+
+- 理由は通知欄 `view-only-notice`（`role=status`）に出す。文は固定の文言と理由のコードだけで、履歴の値を含めない（SAFE-40）。枠の通知（`shell` の `NoticeKind`、契約は版 1）は spec が先に変わらないと足せないため、`stale-notice` と同じ任意の欄にした。文面は仮置きで、最終の文面は TASK-549、配置は TASK-534 が決める
+- 操作の関門は `update` の先頭にある。表示だけの間、`Engine`（指せる行・選択肢・承認のクリックと、保存・停止・進行の tick を含む raw の `Op`）、送信・Esc・停止・下書きの変更、補完を捨てる。下書きの変更を捨てたときは `<textarea>` の値を戻させる。表示だけを変える action と、モードから出る経路（試験の設定の読み込み・差し替え）は通す
+- 保存は `history_to_save` が `None` を返して止める。`save_blocked` は消えない印で、読み込みで入ったモードが開ける履歴の読み込みで終わった後も保存が止まるため使わない。進行の宛先（`next_tick`）も `None` にし、予約済みのタイマーは無効にする
+- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335）。秘密情報の検査は通常の書き出しと同じく通す
+- 開ける履歴の読み込み（`install_recorded`）で、モードと控えを捨てる。開かない（`Refused`）の動作と理由の表示は #733 の範囲で、従来の挙動を保つ
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/view_only.rs`（7 件） | 読み込みで理由が出て、7 種の操作（下書き・送信・Esc・停止ボタン・補完・raw の保存・raw の停止）の前後で状態・ログ・下書きが同じで保存の値と進行の宛先が出ないこと。対照として、開ける履歴では同じ操作が状態を変えること。書き出しが読み込んだバイト列と一致すること。起動時の復元でも同じこと。開かない履歴は表示だけにならないこと（#733 で変わる前提の回帰）。開ける履歴の読み込みでモードから出ること。通知の文に履歴の版が入らないこと |
+| `tools/browser/view-only.test.mjs`（CSP あり・なしで 4 件） | 読み込み（V-iii-1）と起動時の復元で、`stateJson().engine.viewOnly` が理由のコードになり、通知欄にコードを含む文が出ること。打鍵・Enter・送信ボタン・Esc・raw の保存・raw の停止の後で状態・ログ・世代が変わらず入力欄が空のままであること。復元では保存先の値が書き換わらないこと。外部通信・CSP 違反・ページのエラーが 0 件 |
+| `tools/browser/version-histories.test.mjs`・`history-versions.test.mjs` | 状態の比較から `viewOnly`・`exportGate`・`exportBytes` を外し、`viewOnly` が表示だけの行でだけ理由と一致することを明示で確かめるようにした |
+
+実行結果（2026-10-22）: `cargo test --locked -p fandhe-workshop-web`（既定と `--features test-hooks`）は全件 pass。ブラウザ試験は `view-only`・`version-histories`・`history-versions`・`version-notice` の 4 ファイル 25 件が pass（配信設定と試験の設定を `SKIP_WASM_OPT=1` でビルドし、版の違う履歴 15 件を書き出して単独に実行した。全件の `make test-browser` は CI の `browser-test` に任せる）。
+
+【推論】表示だけの間に履歴の写し（`snapshot`）を今の IR で描くことはしない。版の違う IR では Step が存在しない場合があり、誤って描く危険があるため。履歴の中身の表示は REVIEW-4/5（TASK-505）の範囲で、`docs/known-gaps.md` に記録した。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。

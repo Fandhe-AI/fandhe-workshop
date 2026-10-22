@@ -103,6 +103,7 @@ use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE,
 use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
 use crate::tick_schedule::next_tick;
+use crate::view_only_notice::VIEW_ONLY_NOTICE_FIELD;
 use crate::view_select::{self, ViewChoice};
 use fandhe_workshop_contract::profile::InputFieldMode;
 use fandhe_workshop_core::secret_scan::{shapes_of, Finding, SecretShape};
@@ -144,9 +145,18 @@ pub struct HostModel {
     /// このタブが他のタブに追い越された（古いタブ）ことの表示（SAVE-13・D-56。`stale-notice` の元）。
     /// 表示の状態で、履歴（`ops`）にも保存先にも書かない。一度立てたら戻さない（`BootGuard` の stale も戻らない）。
     stale_tab: bool,
+    /// 表示だけで開いた履歴の理由（VER-8・TASK-176 1/2。`view-only-notice` の元）。`Some` の間は、操作の関門（`update`）が
+    /// 状態・ログを変える action を捨て、保存と進行も止める。表示の状態で、履歴（`ops`）にも保存先にも書かない。
+    /// 開ける履歴の読み込み（`install_recorded`）で `None` に戻る。
+    view_only: Option<LoadReason>,
 }
 
 impl HostModel {
+    /// 表示だけで開いた理由。表示だけでなければ `None`（`view-only-notice` が空になる）。
+    pub fn view_only_reason(&self) -> Option<LoadReason> {
+        self.view_only
+    }
+
     /// 警告に出す形。無ければ空（`secret-notice` が空になる）。
     pub fn secret_warning(&self) -> &[SecretShape] {
         &self.secret_warning
@@ -641,6 +651,9 @@ pub struct EngineHost {
     draft_recorded: String,
     /// 保存を止める印。起動時に保存済みの履歴を開けなかった（上書きすると失う）、または読めなかったときに立てる（fail-closed）。
     save_blocked: bool,
+    /// 表示だけで開いた履歴のバイト列の控え（VER-8・TASK-176 1/2）。書き出しが読み込んだバイト列そのものを返すための値で、
+    /// 保存先へは書かず、ログ・結果にも出さない（履歴は受講者のデータである）。`model.view_only` と同時に入り、同時に消える。
+    view_only_bytes: Option<Vec<u8>>,
     /// 教材（IR）を読めなかった理由コード（VER-13。固定の ASCII だけで、入力値・ID を含めない）。
     ///
     /// 起動で断ったホスト（[`EngineHost::refused`]）は session が無く、`view` がこのコードの通知だけを描く。
@@ -691,6 +704,7 @@ impl EngineHost {
                 export_hint: None,
                 secret_warning: Vec::new(),
                 stale_tab: false,
+                view_only: None,
             },
             registry: standard_registry(),
             input: HelloView::new(),
@@ -723,6 +737,7 @@ impl EngineHost {
             initial: None,
             draft_recorded: String::new(),
             save_blocked: false,
+            view_only_bytes: None,
             ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
@@ -810,6 +825,7 @@ impl EngineHost {
                 export_hint: None,
                 secret_warning: Vec::new(),
                 stale_tab: false,
+                view_only: None,
             },
             registry,
             input,
@@ -842,6 +858,7 @@ impl EngineHost {
             initial,
             draft_recorded: String::new(),
             save_blocked: false,
+            view_only_bytes: None,
             ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
@@ -950,14 +967,19 @@ impl EngineHost {
             &start,
         );
         let mut converted = false;
+        let mut view_only: Option<(LoadReason, Vec<u8>)> = None;
         let (recorded, kind) = match outcome {
             BootOutcome::Fresh(r) => (r, BootKind::Fresh),
             BootOutcome::Restored { session, notes } => {
                 converted = notes.is_some();
                 (session, BootKind::Restored)
             }
-            BootOutcome::NotOpened { session, .. } => {
+            BootOutcome::NotOpened { session, verdict } => {
                 self.save_blocked = true;
+                // 表示だけの判定のときだけ、理由と控えを持つ（開かないは #733 の範囲で、従来の挙動を保つ）。
+                if let (Verdict::ViewOnly { code }, Some(bytes)) = (verdict, saved) {
+                    view_only = Some((code, bytes.to_vec()));
+                }
                 (session, BootKind::NotOpened)
             }
         };
@@ -973,6 +995,9 @@ impl EngineHost {
         self.install_recorded(recorded);
         // 版の違いを変換して復元したときだけ通知を出す（配信する設定で変換して開く経路はここだけ。SHELL-20）。
         self.set_version_notice(converted);
+        if let Some((code, bytes)) = view_only {
+            self.enter_view_only(code, bytes);
+        }
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
@@ -985,7 +1010,8 @@ impl EngineHost {
 
     /// 入力欄の値が最後に記録した下書きと違うときだけ、下書きとして記録する。
     fn record_draft_change(&mut self) {
-        if self.input.draft() == self.draft_recorded {
+        // 表示だけの間は記録を増やさない（二重の防御。関門が下書きの変更を先に捨てる）。
+        if self.model.view_only.is_some() || self.input.draft() == self.draft_recorded {
             return;
         }
         let draft = self.input.draft().to_owned();
@@ -1002,7 +1028,8 @@ impl EngineHost {
     /// （上書きすると失う）、包みを組み立てられない・書き出せない（fail-closed）。値は呼び出し側が保存先へ渡すだけで、
     /// ログにも結果にも出さない（履歴は下書きを含む受講者のデータである）。
     pub fn history_to_save(&self) -> Option<String> {
-        if self.save_blocked {
+        // 表示だけの間は保存しない。`save_blocked` は消えない印なので、読み込みで入ったモードには使わない。
+        if self.save_blocked || self.model.view_only.is_some() {
             return None;
         }
         let envelope = self.model.recorded.as_ref()?.envelope_for_save()?;
@@ -1022,6 +1049,18 @@ impl EngineHost {
     /// `save_blocked` と `history_limit::check_save` は見ない。書き出しは保存先を上書きせず、保存できない場面ほど要るため（SAVE-29）。
     /// 読み込みの上限を超える書き出しの扱いは TASK-531 に残す。「このまま保存する」で確認済みにした値は、`secret_gate` が除く（TASK-164 3/3）。
     pub fn export_live(&self) -> ExportGate {
+        // 表示だけの間は、読み込んだバイト列そのものを返す（作り直さない。SAVE-25）。秘密情報の検査は通常の書き出しと同じく通す。
+        if let Some(bytes) = self.view_only_bytes.as_ref() {
+            let Ok(text) = std::str::from_utf8(bytes) else {
+                return ExportGate::Empty;
+            };
+            let found = self.secret_gate(text);
+            return if found.is_empty() {
+                ExportGate::Ready(bytes.clone())
+            } else {
+                ExportGate::Held(found)
+            };
+        }
         let Some(envelope) = self
             .model
             .recorded
@@ -1063,6 +1102,9 @@ impl EngineHost {
 
     /// 次に届けるべき進行の宛先。処理中でなければ・未読込なら `None`。
     pub fn next_tick(&self) -> Option<TickAddr> {
+        if self.model.view_only.is_some() {
+            return None;
+        }
         self.model.session().and_then(next_tick)
     }
 
@@ -1553,6 +1595,7 @@ impl EngineHost {
             "irRefusal": self.ir_refusal,
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
+            "viewOnly": self.model.view_only.map(LoadReason::as_str),
             "installCount": self.probe.install_count,
             "logLen": log.len(),
             "judgedCategories": judged_categories,
@@ -1632,7 +1675,10 @@ impl EngineHost {
                 self.set_version_notice(outcome == ImportOutcome::Converted);
                 outcome
             }
-            Err(Verdict::ViewOnly { code }) => self.closed(ImportOutcome::ViewOnly(code)),
+            Err(Verdict::ViewOnly { code }) => {
+                self.enter_view_only(code, bytes.to_vec());
+                self.closed(ImportOutcome::ViewOnly(code))
+            }
             Err(Verdict::Refused { code }) => self.closed(ImportOutcome::Refused(code)),
             // `load_session` は開く 2 種を `Err` にしない。来ても開かない側に倒す。
             Err(_) => self.closed(ImportOutcome::Unavailable),
@@ -1710,6 +1756,9 @@ impl EngineHost {
         self.dirty = self.registry.fields().map(|f| f.name).collect();
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
+        // 表示だけのモードも前の履歴のものなので、開ける履歴に替えるときに出る（`dirty` は全 field で作り直し済み）。
+        self.model.view_only = None;
+        self.view_only_bytes = None;
         // `shell_notices` は registry の外にあり、dirty の作り直しに入らない。前の通知を DOM から消すため明示して積む（FEND-15）。
         if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
             self.dirty.push(SHELL_NOTICES_FIELD.name);
@@ -1928,6 +1977,24 @@ impl EngineHost {
         self.dirty.push(view_select::VIEW_SELECT_FIELD.name);
     }
 
+    /// 表示だけのモードに入る（VER-8・TASK-176 1/2）。実行環境は差し替えず、理由と読み込んだバイト列の控えだけを持つ。
+    ///
+    /// 以後の操作の関門は `update`、保存の停止は `history_to_save`、書き出しは `export_live` が見る。
+    /// 予約済みの進行のタイマーは無効にし、宛先も取り下げる。通知欄の field を dirty に積む。
+    fn enter_view_only(&mut self, code: LoadReason, bytes: Vec<u8>) {
+        self.model.view_only = Some(code);
+        self.view_only_bytes = Some(bytes);
+        if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
+            self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
+        }
+        if let Some(reset) = self.tick_reset.as_ref() {
+            reset();
+        }
+        if let Some(notify) = self.tick_request.as_ref() {
+            notify(None);
+        }
+    }
+
     /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     ///
     /// `install_recorded` の後（dirty が全 field で作り直された後）に呼ぶ。そのとき `shell_notices` は `install_recorded` が dirty に積み済みなので重ねて積まない。
@@ -2064,6 +2131,33 @@ impl Component for EngineHost {
 
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
+        // 表示だけの間は、状態・ログを変える action を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
+        // モードから出る経路（試験の設定の読み込み・差し替え）に限る。下書きの変更を捨てたときは、DOM の値を戻させる。
+        if self.model.view_only.is_some() {
+            match &action {
+                HostAction::Engine(_)
+                | HostAction::Input(
+                    HelloAction::Submit
+                    | HelloAction::Esc
+                    | HelloAction::Stop
+                    | HelloAction::SetDraft(_),
+                )
+                | HostAction::Complete => {
+                    if matches!(
+                        action,
+                        HostAction::Input(HelloAction::SetDraft(_)) | HostAction::Complete
+                    ) {
+                        if let Some(f) = self.draft_sync_request.as_ref() {
+                            f();
+                        }
+                    }
+                    return;
+                }
+                #[cfg(feature = "test-hooks")]
+                HostAction::Reload => return,
+                _ => {}
+            }
+        }
         match action {
             // 入力欄なしの教材（PACK-20）は、口が無いので下書き・送信・補完・OS の選択を受けても状態を変えない（fail-closed）。
             HostAction::Input(

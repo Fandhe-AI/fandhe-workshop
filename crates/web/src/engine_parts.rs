@@ -59,6 +59,7 @@ use crate::secret_notice::{
 use crate::stale_notice::{stale_notice_text, STALE_NOTICE_FIELD};
 use crate::step_status::step_status;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
+use crate::view_only_notice::{view_only_notice_text, VIEW_ONLY_NOTICE_FIELD};
 use crate::view_select::{
     declared_views, view_label, ACTION_SELECT_VIEW, SELECTED_ATTR, VIEW_SELECT_BUTTON_TESTID,
     VIEW_SELECT_FIELD, VIEW_SELECT_TESTID,
@@ -119,6 +120,11 @@ const F_LOG: &[PartField] = &[
     PartField {
         name: SECRET_CHOICE_FIELD,
         kind: FieldKind::KeyedList,
+    },
+    // 表示だけで開いた履歴の理由の通知欄（VER-8・TASK-176 1/2）。末尾に足す（[2]..[10] は位置で参照している）。
+    PartField {
+        name: VIEW_ONLY_NOTICE_FIELD,
+        kind: FieldKind::Bound,
     },
 ];
 /// 左の成果物の束縛点。ビューごとの keyed list 7 本・選択のボタンの list・世界状態の読み終えた長さの 9 件。
@@ -417,6 +423,13 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[9].name,
                     stale_notice_text(model.stale_tab()),
                 ),
+                // 表示だけで開いた履歴の理由（VER-8）。固定の文言と理由のコードだけで、履歴の値を含めない。配置は仮。
+                bind_text(
+                    "p",
+                    vec![("data-testid", "view-only-notice"), ("role", "status")],
+                    F_LOG[11].name,
+                    view_only_notice_text(model.view_only_reason()).as_str(),
+                ),
                 bind_text(
                     "span",
                     vec![("data-testid", "part-log-consumed")],
@@ -442,6 +455,9 @@ impl DisplayPart<HostModel> for LogPart {
             f if f == F_LOG[9].name => Some(BoundValue::Text(
                 stale_notice_text(model.stale_tab()).to_owned(),
             )),
+            f if f == F_LOG[11].name => Some(BoundValue::Text(view_only_notice_text(
+                model.view_only_reason(),
+            ))),
             f if f == F_LOG[8].name => {
                 Some(BoundValue::Text(secret_notice_text(model.secret_warning())))
             }
