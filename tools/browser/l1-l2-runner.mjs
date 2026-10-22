@@ -1,0 +1,187 @@
+// L1・L2 の一致の試験（l1-l2-match.test.mjs。TASK-114 1/2）と固定の入力列の試験（l1-l2-fixed.test.mjs。TASK-114 2/2）が
+// 共有する、配信先の起動・1 回の実行・木の照合の部品。
+//
+// 役割: 2 つの試験が「同じ配信先を同じやり方で起動し、同じ計数と合否で 1 回の実行を評価する」ための一か所の定義。
+// 試験ではないため `.test.mjs` にしない（試験ファイルを import すると、試験が二重に登録されるため）。
+// 呼び出し元は ctx = { browser, order, tmpDir, zip, siteDir } を渡す（試験の before で用意する）。
+// 出力に履歴の本文・入力した値・DOM の文字を載せない。
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { withServer, openPage, waitMounted, summarize, cspConsoleMessages } from './harness.mjs';
+import { ledger, journey, mouseDriver } from './ch0-3-journey.mjs';
+import { runL2JourneyWith, domObserver, L2_STOP } from './l2-journey.mjs';
+import { startL2, stopL2 } from './l2-server.mjs';
+import { takeSnapshot, observeStep, sha256 } from './screen-snapshot.mjs';
+
+export const BASES = { 'L1-a': '/fandhe-workshop/', 'L1-b': '/another-repo-name/' };
+export const EXPORT_BTN = '[data-testid="shell-export"]';
+export const LINK = '[data-testid="export-download"]';
+export const IR_REL = 'ir/main.json';
+
+/** ディレクトリの木を、相対パス（/ 区切り）から SHA-256 への Map にする。 */
+export function treeHashes(dir) {
+  const out = new Map();
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.isFile()) out.set(path.relative(dir, p).split(path.sep).join('/'), sha256(fs.readFileSync(p)));
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+/** 2 つの木の差の件数（片方だけにあるファイルと、内容が違うファイル）。 */
+export function treeDiff(a, b) {
+  const ha = treeHashes(a);
+  const hb = treeHashes(b);
+  const names = new Set([...ha.keys(), ...hb.keys()]);
+  let onlyOne = 0;
+  let differ = 0;
+  for (const n of names) {
+    if (!ha.has(n) || !hb.has(n)) onlyOne += 1;
+    else if (ha.get(n) !== hb.get(n)) differ += 1;
+  }
+  return { files: names.size, onlyOne, differ };
+}
+
+/** 配信する木を `tmpDir` の下へ写し、`ir/main.json` を `irBytes` に差し替えた木のパスを返す（元の木は変えない）。 */
+export function overlaidSite(siteDir, tmpDir, irBytes) {
+  const dest = fs.mkdtempSync(path.join(tmpDir, 'site-'));
+  fs.cpSync(siteDir, dest, { recursive: true });
+  fs.writeFileSync(path.join(dest, IR_REL), irBytes);
+  return dest;
+}
+
+/** 画面の操作だけで履歴を書き出し、保存したファイルのバイト列を返す。 */
+export async function exportByUi(page, tmpDir) {
+  await page.locator(EXPORT_BTN).click();
+  const link = page.locator(LINK);
+  await link.waitFor({ state: 'visible', timeout: 10000 });
+  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
+  const file = path.join(tmpDir, `${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  await download.saveAs(file);
+  const bytes = fs.readFileSync(file);
+  fs.rmSync(file, { force: true });
+  return bytes;
+}
+
+/** 失敗・配信元以外の要求の診断用の名前。query と fragment は落とし、origin 内は path だけにする。 */
+export function reqLabel(u) {
+  try {
+    const x = new URL(typeof u === 'string' ? u : u.url);
+    return x.hostname === '127.0.0.1' ? x.pathname : `${x.origin}${x.pathname}`;
+  } catch {
+    return '(unparsable)';
+  }
+}
+
+/**
+ * IR（`irUrl`）の取得の計数と、合否に数える失敗した要求の一覧を返す（`runOnce` の `ir-fetch`・`failed` の判定）。
+ * 要求は Request の同一性（`rec` の id）で response・requestfailed を対応付ける。IR の応答（`irCount`）はちょうど 1 件で 200 であること。
+ * 除くのは、その 1 件の要求自体が応答の後に `net::ERR_ABORTED` と通知される競合（CI の Chromium で、完了の通知の代わりに届く
+ * ことがある。アプリは本文を読み切って起動している）だけで、同じ Request に限る。id の違う IR の要求（応答のある重複の取得・
+ * 応答のない中断）、応答が 2 件以上・200 以外のときの中断、別の資源・別のエラー種別は従来どおり数える（重複の取得を見逃さない）。
+ */
+export function irFetchCheck(rec, irUrl) {
+  const irReqs = rec.requests.filter((r) => r.url === irUrl);
+  const sole = irReqs.length === 1 && irReqs[0].status === 200 ? irReqs[0] : null;
+  const isRaceAbort = (f) => sole !== null && f.id === sole.id && f.url === irUrl && f.error === 'net::ERR_ABORTED';
+  return {
+    irCount: irReqs.length,
+    irOk: irReqs.some((r) => r.status === 200),
+    failed: rec.failed.filter((f) => !isRaceAbort(f)),
+  };
+}
+
+/**
+ * `url` を新しい browser context で開いて入力列を流し、観察・snapshot・history と計数を返す。
+ * `stopAt` を指定すると、その Step に入ったところで止める（対照用）。`keep` が真なら context を閉じず page を返す。
+ * `drive(page, { L, onStep })` があれば、既定の誘導（journey）の代わりに呼ぶ（固定の列の再生・凍結の記録）。
+ * `prepare({ page, context })` は最初の遷移の前に呼ぶ（時計・乱数をずらす試験用）。
+ * `precheck()` は page を開く前（遷移・マウント待ちより前）に呼ぶ。配信される資源の前提を確かめ、違えば例外で断る用途
+ * （固定の列の再生で、凍結した IR と違う IR がマウントに失敗・時間切れになる前に `ir-mismatch` で断るため）。
+ */
+export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep = false, drive = null, prepare = null, precheck = null } = {}) {
+  const { browser, order, tmpDir } = ctx;
+  const t0 = Date.now();
+  if (precheck) await precheck();
+  const { page, context, rec } = await openPage(browser, { origin });
+  try {
+    if (prepare) await prepare({ page, context });
+    await page.goto(url);
+    await waitMounted(page);
+    const L = ledger();
+    const steps = [];
+    const onStep = async (uid, status) => { steps.push(await observeStep(page, order, uid, status)); };
+    if (drive) {
+      await drive(page, { L, onStep });
+    } else if (stopAt === L2_STOP) {
+      await runL2JourneyWith(page, L, { order, scene: 'match', onStep });
+    } else {
+      await journey(page, mouseDriver(page), 'match', L, stopAt, { observe: domObserver(order), onStep });
+    }
+    const snapshot = await takeSnapshot(page);
+    const history = await exportByUi(page, tmpDir);
+    // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
+    const counts = summarize(rec);
+    const irUrl = `${origin}${new URL(url).pathname}ir/main.json`;
+    const { irCount, irOk, failed } = irFetchCheck(rec, irUrl);
+    const problems = [];
+    if (irCount !== 1 || !irOk) problems.push('ir-fetch');
+    if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
+    if (counts.pageErrors !== 0) problems.push('page-error');
+    if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
+    if (counts.consoleErrors !== 0 || rec.consoleWarnings.length !== 0) problems.push('console');
+    if (counts.external !== 0 || failed.length !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${failed.length}:${failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
+    if (counts.dialogs !== 0 || counts.popups !== 0 || counts.crashed !== 0) problems.push('dialog-popup-crash');
+    const parsed = JSON.parse(history.toString('utf8'));
+    assert.ok(Array.isArray(parsed.ops) && parsed.ops.length >= 1, `${label}: history has ops`);
+    const obsText = JSON.stringify(steps);
+    const stepsText = JSON.stringify({ steps, ledger: L.items.map(({ name, ok }) => ({ name, ok })) });
+    const r = {
+      label,
+      stepsText,
+      obsText,
+      snapshot,
+      history: history.toString('utf8'),
+      parsed,
+      hashes: { steps: sha256(stepsText), obs: sha256(obsText), snapshot: sha256(snapshot), history: sha256(history) },
+      failedItems: L.failed(),
+      problems,
+      requests: counts.requests,
+      ms: Date.now() - t0,
+    };
+    return keep ? { ...r, page, context } : r;
+  } finally {
+    if (!keep) await context.close().catch(() => {});
+  }
+}
+
+/**
+ * 配信先 `target` を起動して fn(origin, url) を呼び、必ず片づける。
+ * `overlay`（Buffer）があれば、配信する木の `ir/main.json` をそれに差し替えた写しを配る（元の木・zip は変えない）。
+ */
+export async function withTarget(ctx, target, fn, { overlay = null } = {}) {
+  const { zip, siteDir, tmpDir } = ctx;
+  if (target === 'L2') {
+    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-run-'));
+    let run = null;
+    try {
+      run = await startL2(zip, work, overlay ? { overlay: { [`site/${IR_REL}`]: overlay } } : {});
+      return await fn(`http://127.0.0.1:${run.port}`, run.url);
+    } finally {
+      await stopL2(run);
+      fs.rmSync(work, { recursive: true, force: true });
+    }
+  }
+  const dir = overlay ? overlaidSite(siteDir, tmpDir, overlay) : siteDir;
+  try {
+    return await withServer({ dir, base: BASES[target] }, (srv) => fn(srv.origin, srv.url));
+  } finally {
+    if (overlay) fs.rmSync(dir, { recursive: true, force: true });
+  }
+}

@@ -52,6 +52,16 @@ export function channelFromEnv(env = process.env) {
 }
 
 // ブラウザを起動する。呼び出し側が close する。
+// Request（オブジェクト）ごとに 1 から始まる連番を返す関数を作る。WeakMap には size が無いため、数えるのは別の整数カウンターで行う。
+export function makeRequestIdOf() {
+  const ids = new WeakMap();
+  let next = 0;
+  return (req) => {
+    if (!ids.has(req)) ids.set(req, ++next);
+    return ids.get(req);
+  };
+}
+
 export function launchBrowser(opts = {}) {
   return chromium.launch(resolveLaunchOptions(opts));
 }
@@ -268,7 +278,7 @@ export async function withCspMode({ dir, csp }, fn) {
 // userAgent を指定すると、その context の User-Agent を差し替える（OS の推定の試験。TASK-285 1/2）。未指定なら既定のまま。
 export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 }, userAgent } = {}) {
   const context = await browser.newContext(userAgent === undefined ? { viewport } : { viewport, userAgent });
-  const rec = { requests: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
+  const rec = { requests: [], finished: [], finishedIds: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
   await context.exposeBinding('__fandheHitRec', (_src, id) => {
     rec.hits.push(String(id));
   });
@@ -302,9 +312,12 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
   page.on('crash', () => {
     rec.crashed = true;
   });
+  // Request の同一性で response・requestfinished・requestfailed を対応付けるための連番。
+  const idOf = makeRequestIdOf();
   page.on('response', (res) => {
     const h = res.headers();
     rec.requests.push({
+      id: idOf(res.request()),
       url: res.url(),
       status: res.status(),
       resourceType: res.request().resourceType(),
@@ -312,7 +325,11 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
       contentEncoding: h['content-encoding'] ?? '',
     });
   });
-  page.on('requestfailed', (req) => rec.failed.push({ url: req.url(), error: req.failure()?.errorText ?? '' }));
+  page.on('requestfinished', (req) => {
+    rec.finished.push(req.url());
+    rec.finishedIds.push(idOf(req));
+  });
+  page.on('requestfailed', (req) => rec.failed.push({ id: idOf(req), url: req.url(), error: req.failure()?.errorText ?? '' }));
   page.on('pageerror', (err) => rec.pageErrors.push(String(err && err.message ? err.message : err)));
   page.on('console', (msg) => {
     if (msg.type() === 'error') rec.consoleErrors.push(msg.text());

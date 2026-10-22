@@ -14,7 +14,9 @@
 // 対照（空振りの防止）: 途中で止めた回はハッシュが違う／直列化は文字の書き換えを検出し blob の href の違いは除く／照合は 1 バイトの違いを検出する。
 // 限界: 教材は試験データ（ch0_3）で本物の CH-0〜CH-1 の 50 操作ではない。題は画面に描かれていない（shell-title は未結線）ため
 // Step の ID で代える。拒否・問い返しの直後は観察を積まず、台帳の「進まない」の合否で比べる。Chromium・Linux の miniserve だけ。
-// 履歴に揺れる欄が無いことの検査と固定の入力列の比較は TASK-114 2/2 が持つ。
+// 9 回それぞれの履歴の `ops` に揺れる欄が無いことも確かめる（2/2 で追加。許可リストの検査は fixed-sequence.mjs の volatileOps）。
+// 固定の入力列（凍結した IR と組）での比較と、時計・乱数をずらした実行は l1-l2-fixed.test.mjs が持つ（TASK-114 2/2）。
+// 共有の部品（配信先の起動・1 回の実行・木の照合）は l1-l2-runner.mjs にある。
 //
 // 入力（環境変数。未設定・不在は skip にせず失敗にする）:
 //   FANDHE_L2_ZIP   tools/build-l2.mjs が作った zip
@@ -26,169 +28,47 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  launchBrowser, channelFromEnv, withServer, openPage, waitMounted, summarize, cspConsoleMessages,
-} from './harness.mjs';
-import { ledger, journey, mouseDriver } from './ch0-3-journey.mjs';
-import { runL2JourneyWith, stepOrder, domObserver, L2_STOP } from './l2-journey.mjs';
-import { startL2, stopL2, unzipTo } from './l2-server.mjs';
-import { takeSnapshot, observeStep, sha256, firstDiffPath, readScreen, serializeScreen } from './screen-snapshot.mjs';
+import { launchBrowser, channelFromEnv } from './harness.mjs';
+import { stepOrder } from './l2-journey.mjs';
+import { unzipTo } from './l2-server.mjs';
+import { takeSnapshot, sha256, firstDiffPath, readScreen, serializeScreen } from './screen-snapshot.mjs';
+import { runOnce as runOnceWith, withTarget as withTargetWith, treeHashes, treeDiff, LINK } from './l1-l2-runner.mjs';
+import { volatileOps } from './fixed-sequence.mjs';
 
 const RUNS = 3;
 const TARGETS = ['L1-a', 'L1-b', 'L2'];
-const BASES = { 'L1-a': '/fandhe-workshop/', 'L1-b': '/another-repo-name/' };
-const EXPORT_BTN = '[data-testid="shell-export"]';
-const LINK = '[data-testid="export-download"]';
 const MID_STOP = 'main/st-1-4'; // journey が止まれる Step は main/st-1-4 と main/st-2-1 だけ
-let browser;
-let zip;
-let siteDir;
-let order;
-let tmpDir;
+const ctx = { browser: null, order: null, tmpDir: null, zip: null, siteDir: null };
 const results = [];
-
-/** ディレクトリの木を、相対パス（/ 区切り）から SHA-256 への Map にする。 */
-export function treeHashes(dir) {
-  const out = new Map();
-  const walk = (d) => {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.isFile()) out.set(path.relative(dir, p).split(path.sep).join('/'), sha256(fs.readFileSync(p)));
-    }
-  };
-  walk(dir);
-  return out;
-}
-
-/** 2 つの木の差の件数（片方だけにあるファイルと、内容が違うファイル）。 */
-export function treeDiff(a, b) {
-  const ha = treeHashes(a);
-  const hb = treeHashes(b);
-  const names = new Set([...ha.keys(), ...hb.keys()]);
-  let onlyOne = 0;
-  let differ = 0;
-  for (const n of names) {
-    if (!ha.has(n) || !hb.has(n)) onlyOne += 1;
-    else if (ha.get(n) !== hb.get(n)) differ += 1;
-  }
-  return { files: names.size, onlyOne, differ };
-}
+const runOnce = (label, origin, url, opts) => runOnceWith(ctx, label, origin, url, opts);
+const withTarget = (target, fn) => withTargetWith(ctx, target, fn);
 
 before(async () => {
-  zip = process.env.FANDHE_L2_ZIP;
+  const zip = process.env.FANDHE_L2_ZIP;
   const irFile = process.env.FANDHE_L2_IR;
-  siteDir = process.env.FANDHE_L2_SITE;
+  const siteDir = process.env.FANDHE_L2_SITE;
   assert.ok(zip && fs.statSync(zip, { throwIfNoEntry: false })?.isFile(), 'FANDHE_L2_ZIP must point to the L2 zip');
   assert.ok(irFile && fs.statSync(irFile, { throwIfNoEntry: false })?.isFile(), 'FANDHE_L2_IR must point to the IR json');
   assert.ok(siteDir && fs.statSync(siteDir, { throwIfNoEntry: false })?.isDirectory(), 'FANDHE_L2_SITE must point to the delivery directory');
-  order = stepOrder(fs.readFileSync(irFile, 'utf8'));
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-match-'));
-  browser = await launchBrowser({ channel: channelFromEnv() });
+  ctx.zip = zip;
+  ctx.siteDir = siteDir;
+  ctx.order = stepOrder(fs.readFileSync(irFile, 'utf8'));
+  ctx.tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-match-'));
+  ctx.browser = await launchBrowser({ channel: channelFromEnv() });
 });
 
 after(async () => {
-  if (browser) await browser.close();
-  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (ctx.browser) await ctx.browser.close();
+  if (ctx.tmpDir) fs.rmSync(ctx.tmpDir, { recursive: true, force: true });
 });
-
-/** 画面の操作だけで履歴を書き出し、保存したファイルのバイト列を返す。 */
-async function exportByUi(page) {
-  await page.locator(EXPORT_BTN).click();
-  const link = page.locator(LINK);
-  await link.waitFor({ state: 'visible', timeout: 10000 });
-  const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
-  const file = path.join(tmpDir, `${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
-  await download.saveAs(file);
-  const bytes = fs.readFileSync(file);
-  fs.rmSync(file, { force: true });
-  return bytes;
-}
-
-/** 失敗・配信元以外の要求の診断用の名前。query と fragment は落とし、origin 内は path だけにする。 */
-function reqLabel(u) {
-  try {
-    const x = new URL(typeof u === 'string' ? u : u.url);
-    return x.hostname === '127.0.0.1' ? x.pathname : `${x.origin}${x.pathname}`;
-  } catch {
-    return '(unparsable)';
-  }
-}
-
-/**
- * `url` を新しい browser context で開いて入力列を流し、観察・snapshot・history と計数を返す。
- * `stopAt` を指定すると、その Step に入ったところで止める（対照用）。`keep` が真なら context を閉じず page を返す。
- */
-async function runOnce(label, origin, url, { stopAt = L2_STOP, keep = false } = {}) {
-  const t0 = Date.now();
-  const { page, context, rec } = await openPage(browser, { origin });
-  try {
-    await page.goto(url);
-    await waitMounted(page);
-    const L = ledger();
-    const steps = [];
-    const onStep = async (uid, status) => { steps.push(await observeStep(page, order, uid, status)); };
-    if (stopAt === L2_STOP) {
-      await runL2JourneyWith(page, L, { order, scene: 'match', onStep });
-    } else {
-      await journey(page, mouseDriver(page), 'match', L, stopAt, { observe: domObserver(order), onStep });
-    }
-    const snapshot = await takeSnapshot(page);
-    const history = await exportByUi(page);
-    // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
-    const counts = summarize(rec);
-    const irReqs = rec.requests.filter((r) => r.url === `${origin}${new URL(url).pathname}ir/main.json`);
-    const problems = [];
-    if (irReqs.length !== 1 || irReqs[0].status !== 200) problems.push('ir-fetch');
-    if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
-    if (counts.pageErrors !== 0) problems.push('page-error');
-    if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
-    if (counts.consoleErrors !== 0 || rec.consoleWarnings.length !== 0) problems.push('console');
-    if (counts.external !== 0 || counts.failed !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${counts.failed}:${rec.failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
-    if (counts.dialogs !== 0 || counts.popups !== 0 || counts.crashed !== 0) problems.push('dialog-popup-crash');
-    const parsed = JSON.parse(history.toString('utf8'));
-    assert.ok(Array.isArray(parsed.ops) && parsed.ops.length >= 1, `${label}: history has ops`);
-    const stepsText = JSON.stringify({ steps, ledger: L.items.map(({ name, ok }) => ({ name, ok })) });
-    const r = {
-      label,
-      stepsText,
-      snapshot,
-      history: history.toString('utf8'),
-      hashes: { steps: sha256(stepsText), snapshot: sha256(snapshot), history: sha256(history) },
-      failedItems: L.failed(),
-      problems,
-      requests: counts.requests,
-      ms: Date.now() - t0,
-    };
-    return keep ? { ...r, page, context } : r;
-  } finally {
-    if (!keep) await context.close().catch(() => {});
-  }
-}
-
-/** 配信先 `target` を起動して fn(origin, url) を呼び、必ず片づける。 */
-async function withTarget(target, fn) {
-  if (target === 'L2') {
-    const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-run-'));
-    let run = null;
-    try {
-      run = await startL2(zip, work);
-      return await fn(`http://127.0.0.1:${run.port}`, run.url);
-    } finally {
-      await stopL2(run);
-      fs.rmSync(work, { recursive: true, force: true });
-    }
-  }
-  return withServer({ dir: siteDir, base: BASES[target] }, (srv) => fn(srv.origin, srv.url));
-}
 
 const short = (h) => h.slice(0, 12);
 
 test('前提: zip を展開した site/ と配信する木が、同じファイルの集合で同じ SHA-256 である', () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-tree-'));
   try {
-    const top = unzipTo(zip, work);
-    const d = treeDiff(siteDir, path.join(top, 'site'));
+    const top = unzipTo(ctx.zip, work);
+    const d = treeDiff(ctx.siteDir, path.join(top, 'site'));
     console.log(`同梱物の照合: ファイル ${d.files} 件・片方だけ ${d.onlyOne} 件・内容の違い ${d.differ} 件`);
     assert.ok(d.files >= 1);
     assert.deepEqual({ onlyOne: d.onlyOne, differ: d.differ }, { onlyOne: 0, differ: 0 });
@@ -200,15 +80,15 @@ test('前提: zip を展開した site/ と配信する木が、同じファイ�
 test('対照: 照合は、展開した写しの 1 バイトの違いと余分なファイルを検出する（zip・配信する木は変えない）', () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-l1-l2-tree-ctl-'));
   try {
-    const top = unzipTo(zip, work);
+    const top = unzipTo(ctx.zip, work);
     const copy = path.join(top, 'site');
     const f = path.join(copy, 'index.html');
     const original = fs.readFileSync(f);
     fs.writeFileSync(f, Buffer.concat([original, Buffer.from('\n')]));
-    assert.deepEqual(treeDiff(siteDir, copy), { files: treeHashes(siteDir).size, onlyOne: 0, differ: 1 });
+    assert.deepEqual(treeDiff(ctx.siteDir, copy), { files: treeHashes(ctx.siteDir).size, onlyOne: 0, differ: 1 });
     fs.writeFileSync(f, original);
     fs.writeFileSync(path.join(copy, 'extra.txt'), 'x');
-    assert.equal(treeDiff(siteDir, copy).onlyOne, 1);
+    assert.equal(treeDiff(ctx.siteDir, copy).onlyOne, 1);
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
@@ -224,6 +104,8 @@ for (const target of TARGETS) {
           + `steps ${short(r.hashes.steps)}・snapshot ${short(r.hashes.snapshot)}・history ${short(r.hashes.history)}・${r.ms} ms`);
         assert.deepEqual(r.failedItems, []);
         assert.deepEqual(r.problems, []);
+        // 履歴の `ops` に、時刻などの実行のたびに変わる欄が無い（DLV-15 の (2)）。パスだけを出す。
+        assert.deepEqual(volatileOps(r.parsed.ops), [], `${r.label}: volatile fields in ops`);
       });
     });
   }
