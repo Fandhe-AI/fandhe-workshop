@@ -134,6 +134,21 @@ fn pack52_a_not_double_reported() {
 }
 
 #[test]
+fn pack52_a_parameterized_module_name_is_not_suppressed() {
+    // 引数つきのモジュール名で呼ばれる inner は定義の段が辿らない（検査の対象外）。
+    // 置換の前の字面にすでに語があっても、置換後の診断を抑えてはならない（1 件出る）。
+    let outer = "id: m\ntitle: M\nparams: {target: n, d: x}\nsteps:\n  - {id: mu, title: MU, use: {module: '${target}', instance: j1, args: {d: '${d}'}}, final: true}\n";
+    let inner = "id: n\ntitle: N\nparams: {d: safe}\nsteps:\n  - {id: ns, title: NS, body: a.md, do: '/make-item ${d}', final: true}\n";
+    let t = pack(WS, &chapter(", guidance: B", ""), outer);
+    t.put("modules/n/module.yaml", inner.as_bytes());
+    t.put("modules/n/a.md", "# a\n".as_bytes());
+    let d = leaks(&t);
+    assert_eq!(d.len(), 1, "{d:?}");
+    assert_eq!(d[0].file(), "modules/n/module.yaml");
+    assert_eq!(d[0].item(), "step:ns");
+}
+
+#[test]
 fn pack52_b_hint_tiers_are_not_checked() {
     // D-43: ヒントの段 2・3 は作成者の規約で、検出しない。
     let ws = format!("{WS}hints:\n  h1: {{text: '/make-item を打つ', levels: [B, C]}}\n");

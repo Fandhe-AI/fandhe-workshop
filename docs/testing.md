@@ -6893,6 +6893,7 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 | 同 `pack52_a_nested_argument_is_substituted` | 入れ子の `use.args` を経由した値の漏れを検出すること |
 | 同 `pack52_a_clean_argument_and_level_a_have_no_leak` | 安全な値・開始点が A か無しの章・規則の無い水準では 0 件であること（負の対照） |
 | 同 `pack52_a_not_double_reported` | 定義の段の字面にすでに語がある `do` と、同じモジュールの 2 実体は 1 件であること |
+| 同 `pack52_a_parameterized_module_name_is_not_suppressed` | 引数つきのモジュール名で呼ばれる Step は定義の段が辿らないため、置換の前の字面に語があっても置換後の診断が 1 件出ること（抑制は定義の段の対象だった Step・水準に限る） |
 | 同 `pack52_b_hint_tiers_are_not_checked` | B・C に出るヒントの文面に skill 名があっても 0 件であること（D-43 の観察） |
 | 同 `pack52_c_undeclared_chapter_body_has_no_false_positive` | 宣言の無い章の本文・`do` は 0 件で、開始点を `guidance: B` にすると検出されること（誤検出 0 件と、対象が宣言に結びつくことの対照） |
 | 同 `pack52_values_are_not_echoed` | 引数・既定値・隠す語が診断に写らないこと |

@@ -279,6 +279,8 @@ pub(crate) struct Expander<'a> {
 struct LeakCheck {
     rules: BTreeMap<GuidanceLevel, Vec<String>>,
     levels: BTreeSet<GuidanceLevel>,
+    /// 定義の段の検査が実際に調べる (スコープの添字, Step の添字, 水準)。
+    covered: BTreeSet<(usize, usize, GuidanceLevel)>,
 }
 
 impl<'a> Expander<'a> {
@@ -325,9 +327,11 @@ impl<'a> Expander<'a> {
     pub(crate) fn check_guidance_leak(&mut self) {
         let rules = crate::guidance::leak_rules(self.pack);
         if !rules.is_empty() {
+            let (targets, do_targets) = crate::guidance::definition_leak_targets(self.pack);
             self.leak = Some(LeakCheck {
                 rules,
                 levels: BTreeSet::new(),
+                covered: targets.union(&do_targets).copied().collect(),
             });
         }
     }
@@ -419,9 +423,15 @@ impl<'a> Expander<'a> {
                         if !step.body_levels.is_empty() || !step.do_levels.is_empty() {
                             levels.extend([GuidanceLevel::B, GuidanceLevel::C]);
                         }
-                        for lv in
-                            crate::guidance::expanded_do_leak_levels(&l.rules, &levels, step, &s)
-                        {
+                        let si = self.pack.scopes.iter().position(|x| std::ptr::eq(x, scope));
+                        let sj = scope.src.steps.iter().position(|x| x.id == step.id);
+                        let covered = |lv: GuidanceLevel| match (si, sj) {
+                            (Some(i), Some(j)) => l.covered.contains(&(i, j, lv)),
+                            _ => false,
+                        };
+                        for lv in crate::guidance::expanded_do_leak_levels(
+                            &l.rules, &levels, step, &s, &covered,
+                        ) {
                             self.diags.push(crate::guidance::expanded_do_leak_diag(
                                 &scope.file,
                                 &item,

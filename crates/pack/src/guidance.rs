@@ -398,12 +398,15 @@ pub(crate) fn chapter_start_levels(scope: &LoadedScope) -> BTreeSet<GuidanceLeve
 
 /// モジュールの引数を置換した後の `do`・`do_levels` で、隠す語が出る水準の列（PACK-52・D-43）。
 /// `before` は置換の前の Step、`after` は置換の後の Step、`levels` は調べる水準。置換の前の字面にすでに
-/// 語がある水準は、定義の段の `check_guidance_leak` が報告するので重ねない。
+/// 語がある水準は、定義の段の `check_guidance_leak` が報告するので重ねない。ただし重ねないのは、その Step・水準が
+/// 実際に定義の段の対象（`covered`）だった場合に限る。引数つきのモジュール名で呼ばれた Step は定義の段が
+/// 辿らないので、置換の前に語があっても置換の後の診断を抑えない。
 pub(crate) fn expanded_do_leak_levels(
     rules: &BTreeMap<GuidanceLevel, Vec<String>>,
     levels: &BTreeSet<GuidanceLevel>,
     before: &Step,
     after: &Step,
+    covered: &dyn Fn(GuidanceLevel) -> bool,
 ) -> Vec<GuidanceLevel> {
     let leaks = |st: &Step, l: GuidanceLevel, words: &[String]| {
         step_do_at(st, l).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())))
@@ -412,7 +415,7 @@ pub(crate) fn expanded_do_leak_levels(
         .iter()
         .filter_map(|l| {
             let words = rules.get(l)?;
-            (!leaks(before, *l, words) && leaks(after, *l, words)).then_some(*l)
+            (!(covered(*l) && leaks(before, *l, words)) && leaks(after, *l, words)).then_some(*l)
         })
         .collect()
 }
@@ -430,22 +433,14 @@ pub(crate) fn expanded_do_leak_diag(file: &str, item: &str, level: GuidanceLevel
     )
 }
 
-/// 隠すと宣言した語が、その水準で出る本文または `do` に含まれていれば `E-GUIDANCE-LEAK`（`validate` だけ）。
-///
-/// 対象は、(i) `body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、(ii) 開始点の `guidance` が B・C の章の全 Step と
-/// その章が呼ぶモジュールの全 Step の同じ水準。単純な部分文字列の包含で判定する近似の検査で、
-/// ここは置換の前（定義の段）の文字列を見る。実体の引数で渡す `do`・`do_levels` の置換後は、展開器が
-/// 同じ対象で調べる（PACK-52。TASK-71 3/3。`validate::check_module_expansion`）。ヒントの文面（段 2・3）と
-/// 開始点の `guidance` も `body_levels` も持たない章の本文は見ない（D-43 で作成者の規約として受け入れた）。
-/// ディスクには触れず `pack.bodies` だけを読む。診断は語・本文を写さない。
-pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
-    let rules = leak_rules(pack);
-    if rules.is_empty() {
-        return Vec::new();
-    }
-    // (スコープの添字, Step の添字, 水準)。本文と `do` の両方を見る組。
+/// 定義の段の検査の対象 (スコープの添字, Step の添字, 水準)。前者は本文と `do` の両方を見る組、後者は
+/// `do_levels` だけを持つ Step の B・C（本文は宣言が無いので見ず、`do` だけを見る）。
+/// 引数（`${`）を含むモジュール名の呼び出しは `collect_module_steps` が辿らないため、その先の Step は
+/// 開始点の水準では入らない。
+type LeakTargets = BTreeSet<(usize, usize, GuidanceLevel)>;
+
+pub(crate) fn definition_leak_targets(pack: &LoadedPack) -> (LeakTargets, LeakTargets) {
     let mut targets: BTreeSet<(usize, usize, GuidanceLevel)> = BTreeSet::new();
-    // `do_levels` だけを持つ Step の B・C。本文は宣言が無いので見ず、`do` だけを見る。
     let mut do_targets: BTreeSet<(usize, usize, GuidanceLevel)> = BTreeSet::new();
     for (i, scope) in pack.scopes.iter().enumerate() {
         for (j, st) in scope.src.steps.iter().enumerate() {
@@ -476,6 +471,23 @@ pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
             }
         }
     }
+    (targets, do_targets)
+}
+
+/// 隠すと宣言した語が、その水準で出る本文または `do` に含まれていれば `E-GUIDANCE-LEAK`（`validate` だけ）。
+///
+/// 対象は、(i) `body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、(ii) 開始点の `guidance` が B・C の章の全 Step と
+/// その章が呼ぶモジュールの全 Step の同じ水準。単純な部分文字列の包含で判定する近似の検査で、
+/// ここは置換の前（定義の段）の文字列を見る。実体の引数で渡す `do`・`do_levels` の置換後は、展開器が
+/// 同じ対象で調べる（PACK-52。TASK-71 3/3。`validate::check_module_expansion`）。ヒントの文面（段 2・3）と
+/// 開始点の `guidance` も `body_levels` も持たない章の本文は見ない（D-43 で作成者の規約として受け入れた）。
+/// ディスクには触れず `pack.bodies` だけを読む。診断は語・本文を写さない。
+pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
+    let rules = leak_rules(pack);
+    if rules.is_empty() {
+        return Vec::new();
+    }
+    let (targets, do_targets) = definition_leak_targets(pack);
     let mut out = Vec::new();
     let all: BTreeSet<_> = targets.iter().chain(do_targets.iter()).copied().collect();
     for (i, j, level) in all {
