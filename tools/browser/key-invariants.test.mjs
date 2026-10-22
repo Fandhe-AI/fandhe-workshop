@@ -54,8 +54,8 @@ const ROWS = [
   enter('CTRL-ALT-ENTER', 'Control+Alt+Enter', 'x', false, [], 'x'),
   { id: 'TAB-TEXT', web: 'delivery', open: false, press: 'Tab', key: 'Tab', draft: 'x', prevented: false, lines: [], value: 'x', focus: 'submit-input' },
   { id: 'TAB-EMPTY', web: 'delivery', open: false, press: 'Tab', key: 'Tab', draft: '', prevented: false, lines: [], value: '', focus: 'submit-input' },
-  { id: 'SHIFT-TAB-TEXT', web: 'delivery', open: false, press: 'Shift+Tab', key: 'Tab', draft: 'x', prevented: false, lines: [], value: 'x', focus: 'BODY' },
-  { id: 'SHIFT-TAB-EMPTY', web: 'delivery', open: false, press: 'Shift+Tab', key: 'Tab', draft: '', prevented: false, lines: [], value: '', focus: 'BODY' },
+  { id: 'SHIFT-TAB-TEXT', web: 'delivery', open: false, press: 'Shift+Tab', key: 'Tab', draft: 'x', prevented: false, lines: [], value: 'x', focus: 'IMPORT-FILE' },
+  { id: 'SHIFT-TAB-EMPTY', web: 'delivery', open: false, press: 'Shift+Tab', key: 'Tab', draft: '', prevented: false, lines: [], value: '', focus: 'IMPORT-FILE' },
   { id: 'TAB-OPEN', web: 'test', open: true, press: 'Tab', key: 'Tab', draft: '/he', prevented: true, lines: [], value: '/help', focus: 'draft-input' },
   { id: 'SHIFT-TAB-OPEN', web: 'test', open: true, press: 'Shift+Tab', key: 'Tab', draft: '/he', prevented: false, lines: [], value: '/he', focus: 'keydown-probe' },
   { id: 'TAB-NOMATCH', web: 'test', open: false, press: 'Tab', key: 'Tab', draft: '/zzz', prevented: false, lines: [], value: '/zzz', focus: 'submit-input' },
@@ -137,7 +137,10 @@ for (const row of ROWS) {
       assert.equal(
         await page.evaluate(() => {
           const a = document.activeElement;
-          return !a || a === document.body ? 'BODY' : a.getAttribute('data-testid');
+          if (!a || a === document.body) return 'BODY';
+          // 履歴の読み込みのファイル入力（枠の操作。TASK-531 1/2）は識別子を持たないため、入れ物の中かで見分ける。
+          if (a.matches('input[type="file"]') && a.closest('[data-testid="shell-import"]')) return 'IMPORT-FILE';
+          return a.getAttribute('data-testid');
         }),
         row.focus,
         '押した後のフォーカス先',

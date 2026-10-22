@@ -241,9 +241,8 @@ fn dismiss_decodes_strictly_and_changes_only_the_display() {
             bad.len()
         );
     }
-    for name in ["export-history", "discard-and-start", "import-history"] {
-        assert!(EngineHost::decode_action(name, "").is_none(), "{name}");
-    }
+    // 書き出し・読み込みは TASK-531 1/2 で受ける（`tests/history_ops.rs`）。捨てて始めるはまだ受けない。
+    assert!(EngineHost::decode_action("discard-and-start", "").is_none());
 
     let mut h = host("1.1.0");
     h.open_history(&history("1.0.0"));

@@ -5,8 +5,8 @@
 //! URL に載せるため採らない（SAVE-16。URL に状態を載せない）。`blob:` の URL は文書の中でだけ有効で、
 //! 履歴の中身は含まない。
 //!
-//! 引き継ぎ（TASK-531）。画面は、受講者がクリックする可視のリンク（`href` に [`ExportUrl::as_str`]、`download` に
-//! [`crate::history_export::file_name`]）を view で描く。プログラムからの `.click()` と属性の書き込みは
+//! 引き継ぎ（TASK-531）。画面は、受講者がクリックする可視のリンク（URL は [`ExportUrl::as_str`]。上流が `blob:` の `href` を落とすため `data-export-url` に載せ `app.js` が `href` へ写す。`download` に
+//! [`crate::history_export::file_name`]）を view で描く（結線済み。TASK-531 1/2）。プログラムからの `.click()` と属性の書き込みは
 //! `tests/no_hidden_triggers.rs` が禁止しており、ここでは行わない。リンクを使い終えたら [`ExportUrl::revoke`]
 //! （または drop）で URL を破棄する。
 //!
