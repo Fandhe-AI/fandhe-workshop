@@ -620,6 +620,18 @@ views:
 - 案内レベルは実行全体で 1 つです。モジュールの実体ごとには変えられず、章の開始点の `starts[].guidance` で渡します（PACK-45）
 - ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
+## 上流との対応表（Step ごとの上流の行）とヒントの括弧書き
+
+Step ごとの上流の行を持つ欄は、語彙にありません。足さないと決めました（D-70、2026-10-22。PACK-46）。Step に `upstream` のような欄を書くと、`compile` も `validate` も `E-PARSE` で止まります。値は診断に写りません。
+
+- 対応表は、教材パックでは読み込まれない別の文書（教材 repo 側）に置きます。鍵は章・モジュールの ID と Step の ID です
+- Step の ID の一覧は `fandhe-pack vocab` の表の `scope,step` 列から取れます（`docs/cli.md` の 12 節。展開後の複製は含みません）。別の文書の行と突き合わせ、存在しない Step ID を教材テストで検出してください
+- 参照版（参照元の名前・commit・版つきのリンク）は、パック全体の `refs` に書けます。型は検査せず、IR にそのまま写ります。Step とは結びつかず、上流の文面は写しません（D-11）。置き場の最終の形は教材の部品の定義（TASK-717）が決めます
+- 参照元の版を上げたときに影響する Step の洗い出しは、教材 repo の教材テスト・スクリプトの担当です。エンジンは持ちません
+- ヒントの 3 段目の日本語の括弧書き（「組み立ての例」など）は、コマンドの文字列の外（ヒントの別の文）に置きます。教材側の約束で、語彙に語は足さず（D-55 と同じ扱い）、守られているかの検査もありません
+
+根拠の試験: `crates/pack/tests/upstream_map_gap.rs` の `pack46_`（`docs/known-gaps.md` の PACK-46）。
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
@@ -628,6 +640,7 @@ views:
 | `crates/pack/tests/guidance_leak_scope.rs` | 置換後の `do`・`do_levels` の漏れの検出・既定値と入れ子の引数・重複しない 1 件・ヒントの文面と宣言の無い章の本文を検出しないこと・診断に値が写らないこと（PACK-52。TASK-71 3/3） |
 | `crates/pack/tests/do_levels.rs` の `pack50_` | 案内レベル B の順序違いの次の行動に skill の名前が出ないこと（A は `do`、C は B に倒れる）、`do_levels` の鍵 `A`・空の値・`do` の欠落の `E-STRUCTURE`、未知の鍵の `E-PARSE`、語彙の版の食い違い、漏れの検査、モジュールの引数の置換、値を診断に写さないこと（PACK-50。TASK-70 2/2） |
 | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
+| `crates/pack/tests/upstream_map_gap.rs` の `pack46_` | Step の上流らしい欄が `compile`・`validate` とも `E-PARSE` で値を写さないこと、パック全体の `refs` が検査されず IR に写ること、`vocab` の表から Step ID が漏れなく取れて別の文書との突き合わせが組めること、括弧書きの位置が検査されないこと（PACK-46・D-70） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
 | `crates/core/tests/version_record.rs` の `body_only_edit_yields_the_same_version_record` | 本文だけを直した IR から作る版の記録が、全欄で同じになること |
