@@ -48,6 +48,7 @@ cat <<'EOF'
   test-check-generic-words     scripts/test-check-generic-words.sh     教材固有の語の検査自体の回帰テスト
   inventory-deps               tools/inventory-deps.mjs                Cargo.lock の依存の取り下げ・所有者の数を調べる（通信が要り数分かかる。CI 未組み込み）
   test-inventory-deps          scripts/test-inventory-deps.sh          依存の棚卸し自体の回帰テスト（通信なし）
+  test-upstream-impact         scripts/test-upstream-impact.sh         影響する Step の洗い出し道具の回帰テスト（通信なし。CI 未組み込み）
   test-browser                 scripts/test-browser.sh                 ブラウザ試験（Playwright の共通ヘルパ + 最小の画面 + keydown + 対照の自己確認。FANDHE_BROWSER_CHANNEL=chrome で原本）
   test-build-pack-bin          scripts/test-build-pack-bin.sh          fandhe-pack の前提バイナリの解決が CARGO_TARGET_DIR に追従することの回帰テスト（遅い）
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）

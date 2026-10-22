@@ -13,7 +13,7 @@
 | H-2 | 自然文の内容（含む語など）で規則を分けられない | 足さないと決定（D-43、PACK-41）。内容で分ける書き方は `E-PARSE`。`when` の内容らしい条件は `compile` だけが拒否し、`validate` は条件の語彙を検査しないため通す | Step を分ける、`choice` にする、受け付けた後の確認で人が判断する | `crates/pack/tests/text_rule_content.rs` の `pack41_`・`crates/core/tests/text_judge.rs` の `pack41_rule_choice_ignores_words` |
 | H-3 | 受講者が選んだ値を、文中・経路・属性に差し込めない | 足さないと決定（D-50、PACK-39） | 起こりうる入力を規則として列挙する | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` |
 | PACK-45 | 案内レベル・本文に出す引数の値・ヒントの文面を、モジュールの実体ごとに変えられない | 案内レベルは足さないと決定（D-55、GUIDE-13）。`use` に `guidance` を書くと `compile`・`validate` とも `E-PARSE`。本文への差し込みとヒントの文面は決定が無い（GUIDE-15。IR 版 2 の本文の木と合わせて決める） | 水準は章の開始点の `starts[].guidance` で渡す。ヒントは ID を引数で渡し、実体ごとに別のヒントを定義する。本文は言い換え、水準別の版は `body_levels` で書く | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` |
-| PACK-46 | Step ごとの上流の行（対応表）を教材パックに持てず、エンジンは Step と結びつけない。参照元の版を上げたときに影響する Step の洗い出しもエンジンに無い。ヒントの括弧書きをコマンドの外に置く約束は検査されない | 足さないと決定（D-70（2026-10-22）、PACK-46）。Step に上流らしい欄を書くと `compile`・`validate` とも `E-PARSE` | 対応表は教材 repo の読み込まれない別の文書に置き、教材テストで Step ID と突き合わせる。Step ID は `fandhe-pack vocab` の表の `scope,step` で取る。参照版はパック全体の `refs` に書く。ヒントの括弧書きはコマンドの外（ヒントの別の文）に置く | `crates/pack/tests/upstream_map_gap.rs` の `pack46_` |
+| PACK-46 | Step ごとの上流の行（対応表）を教材パックに持てず、エンジンは Step と結びつけない。参照元の版を上げたときに影響する Step の洗い出しもエンジンに無い。ヒントの括弧書きをコマンドの外に置く約束は検査されない | 足さないと決定（D-70（2026-10-22）、PACK-46）。Step に上流らしい欄を書くと `compile`・`validate` とも `E-PARSE` | 対応表は教材 repo の読み込まれない別の文書に置き、教材テストで Step ID と突き合わせる。Step ID は `fandhe-pack vocab` の表の `scope,step` で取る。洗い出しは `tools/upstream-impact.mjs`（対応表の CSV 版 1。`docs/pack-authoring.md`）で行う。参照版はパック全体の `refs` に書く。ヒントの括弧書きはコマンドの外（ヒントの別の文）に置く | `crates/pack/tests/upstream_map_gap.rs` の `pack46_` |
 | PACK-51 | モジュールの先頭の Step を、呼び出しごとに省けない | 省ける語は足さないと決定（D-43、PACK-51）。`use` や Step に省く欄を書くと `compile`・`validate` とも `E-PARSE`。引数の型と範囲は `param_types`（v1.7）で宣言すれば拒否する（宣言しない引数は検査しない） | 先頭の Step を振り分けの Step にし、`next[].when` の `param` で後ろの Step を飛ばす。引数は `param_types` で宣言する | `crates/pack/tests/module_first_step_gap.rs`・`module_arg_types.rs` の `pack51_` |
 | PACK-50 | 復元（再読み込み）の後の拒否行の `message` に `{{step_do}}` があると、案内レベルによらず水準 A の `do` が出うる | `do_levels`（語彙 1.6）は実装済み（D-55）。次の行動は判定の時点で充填済みの値を保持するため影響しない。`message` の再充填の水準は未結線（GUIDE-16、TASK-307・TASK-308）。開始点の水準の結線も未実装（TASK-294） | `message` に `{{step_do}}` を使わず、`next_action` に置く | `crates/pack/tests/do_levels.rs` の `pack50_`（復元の経路は未試験） |
 | G-4 | 本文を出せなかった時代の回避（属性の書き換え）。本文を出すことは解消済み | 一部を語彙 1.4 で解消（EP-13、PACK-38） | 選択ごとに属性へ固定値を書く | 同上と `crates/pack/tests/view_body.rs` |
@@ -263,7 +263,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 ## PACK-46: Step ごとの上流の行（対応表）とヒントの括弧書き
 
-限界: Step ごとに上流の行（repo・ファイル・行・commit）を持つ欄は教材パックにありません。参照元の版を上げたときに影響する Step の洗い出しも、エンジンはしません。ヒントの 3 段目の括弧書きをコマンドの外に置く約束は、機械では確かめられません。
+限界: Step ごとに上流の行（repo・ファイル・行・commit）を持つ欄は教材パックにありません。参照元の版を上げたときに影響する Step の洗い出しも、エンジン（crate）はしません（`tools/upstream-impact.mjs` で代用できます）。ヒントの 3 段目の括弧書きをコマンドの外に置く約束は、機械では確かめられません。
 
 理由: 対応表の欄は語彙に持たないと決めました（D-70、2026-10-22。PACK-46）。対応表は教材 repo の別の文書に置き、教材テストで Step ID と突き合わせます。括弧書きの置き場は教材側の約束で、語は足しません（D-55 と同じ扱い）。
 

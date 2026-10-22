@@ -31,7 +31,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・serve.mjs・inventory-deps.mjs・build-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・serve.mjs・inventory-deps.mjs・upstream-impact.mjs・build-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -127,6 +127,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
 | `make inventory-deps` | `Cargo.lock` の依存の取り下げ・所有者の数を crates.io で調べる（`tools/inventory-deps.mjs`。通信が要り数分かかる。CI 未組み込み。手順と記録は `docs/dependency-inventory.md`） |
 | `make test-inventory-deps` | 依存の棚卸し自体の回帰テスト（通信なし） |
+| `make test-upstream-impact` | 影響する Step の洗い出し道具（`tools/upstream-impact.mjs`。TASK-182）の回帰テスト（通信なし。CI 未組み込み） |
 | `make measure` | 3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し、束の JSON を出す（遅く、ブラウザを要する） |
 | `make test-measure` | 一括測定の束の検証・fail-closed・実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 
