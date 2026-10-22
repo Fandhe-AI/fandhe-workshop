@@ -367,6 +367,15 @@ fn consistent_with_a11y() {
     assert_eq!(excluded, mine);
     assert!(a11y::counts_for_live_response(LineKind::Response.as_str()));
     assert!(!a11y::counts_for_live_response(LineKind::Received.as_str()));
+    // 再読み込みの行は応答の読み上げの単位に数える側にある（SHELL-21。枠の通知にせず、右のログの行が運ぶ）。
+    let reloaded = LineKind::Reloaded.as_str();
+    assert!(a11y::counts_for_live_response(reloaded));
+    assert_eq!(a11y::live_response_updates(&[reloaded]), 1);
+    assert_eq!(a11y::live_response_updates(&[reloaded, reloaded]), 1);
+    assert_eq!(
+        a11y::live_response_updates(&[LineKind::Received.as_str(), reloaded]),
+        1
+    );
     assert!(!TERMINAL_AREA_TESTIDS.contains(&LOG_LIST_TESTID));
 }
 

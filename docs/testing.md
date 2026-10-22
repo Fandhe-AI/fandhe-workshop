@@ -7447,3 +7447,12 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-22。Linux・Chromium。試験の設定のビルドで `FANDHE_WEB_TEST_DIR` だけ指定）: 3 件が 4 回続けて通った（揺れなし）。Rust は変更なし。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない
 - 限界: チェックポイントの一覧の画面での確認は TASK-529 2/2・TASK-548。配信する設定は教材を持たないため、教材を動かす確認は試験の設定で行う。L2 の配布物は TASK-114、macOS のファイル画面と公開サイトは TASK-342。Chromium だけ
 - 範囲外: 未送信の下書きの案内（TASK-537）、読めない履歴の理由（TASK-532）、通知欄・枠の最終の配置（TASK-534・TASK-548）
+
+### 5.245 処理中の再読み込みの告知の画面（TASK-536。SHELL-21・SAVE-6・D-57）
+
+- 目的: 処理中の再読み込みの告知は、D-57 の決定どおり右のログの `reloaded` 行だけが運び、枠が二重に知らせないことを固定する。枠の契約の版 2（TASK-516 2/2）は再読み込みを枠の通知の種類にしない。本件は画面側の確認と記録で、本番コード（`crates/web/src`）は変えていない。
+- 読み上げの定義: 「読み上げが 1 回だけ届く」を、次の観察で表す。(1) 「再読み込みしました」の文字が DOM に現れる場所は右のログの `reloaded` 行だけで、行の数は再読み込みの回数と同じ。(2) `role="status"`・`role="alert"`・`aria-live`（`off` を除く）の欄の中に、この文字の変化が 0 件（ページ内の `MutationObserver` で全件を記録）。枠の通知欄 `shell-notice` の項目・`data-notice-kind` は 0 件。(3) 行の種類 `reloaded` は応答の読み上げの単位（A11Y-6）に数える側にある（native 試験）。
+- 設計: `tools/browser/reload-notice.test.mjs` の N-1（1 回）・N-2（2 回）に、完走の前と後の 2 点で上の (1)(2) の計数を足した。native 試験は `terminal_area_contract` の `consistent_with_a11y` に `reloaded` の assert を足した。変異は `SHELL21-1`（`LIVE_EXCLUDED_LINE_KINDS` に `reloaded` を足す）。
+- 実行結果（2026-10-22。Linux・Chromium。試験の設定と配信設定のビルド）: `reload-notice` の 3 件が通った。`SHELL21-1` は DETECTED。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
+- 限界: 再読み込みはページ内の模擬の合図（5.74 と同じ）で、実際の `page.reload()` で処理中の継続を確かめる場面は未検証（保存の書き出しの段と復元後の進行の再開の確認が要る。TASK-319・TASK-320 の領域）。ライブの欄（`live-response`）は実画面にまだ描かれておらず、実 DOM の更新回数の観察は TASK-370、支援技術での読まれ方は TASK-381。本件の観察は読み上げそのものの証拠ではない。
+- 範囲外: 行の言い回しの確定・通知の文面（TASK-549）。5.236・5.241 の番号の重複（既存）は直さない。
