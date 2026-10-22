@@ -155,6 +155,20 @@
   min-width: 0;
 }
 
+/* 上部の区画の「模擬」（TASK-523。SHELL-6）。どの幅・どの Step でも消さない。色だけに頼らず枠線と文字で示す。
+  クラス名は crates/web/src/shell_frame.rs の TOP_CLASS・MOCK_CLASS と一致させる。 */
+.sh-top {
+  padding: 0.25rem 0;
+}
+
+.sh-mock {
+  display: inline-block;
+  padding: 0 0.5rem;
+  border: 1px solid currentcolor;
+  border-radius: 0.25rem;
+  font-weight: bold;
+}
+
 /* tab は操作の対象の最小寸法（24px。A11Y-3）を満たす。 */
 [data-testid="pane-tab"] {
   min-width: 24px;

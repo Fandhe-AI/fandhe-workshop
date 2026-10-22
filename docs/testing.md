@@ -7328,3 +7328,24 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 受信量の上限（レビュー指摘の対応）: `app.js` は同梱の IR を `r.body` の reader で `ir_read_limit()`（`MAX_IR_BYTES + 1`。`start_select.rs`。定数を JS に二重に持たない）バイトまでだけ読み、超えたら `reader.cancel()` で中止して 1 つの `Uint8Array` にまとめる（Content-Length は使わず実際の受信量で数える）。大きさの断りは `load_ir` の `TooLarge` が出す。`tools/browser/ir-recv-limit.test.mjs`（`make test-browser` に入る。2 件）が、1 GiB の本体を流す配信側が最後まで送れず（送出量が上限 + 64 MiB 未満）断りの通知に倒れること、上限未満の本体は最後まで送られること（対照）を確かめる。2026-10-22 に Chromium で 2 件が通った。
 - 範囲外: TASK-113（待ち受けと起動時間）、TASK-114・115（L1 と L2 の一致とオリジンの分離）、TASK-117（案内文）、TASK-118・119（人の起動）、TASK-137（ライセンス文）、本物の教材での通し。5.236 の番号が既存で重複している（直さない）。
 - 実行結果（2026-10-22。Linux x86_64・Chromium）: `L2_SERVER=<miniserve 0.35.0 の linux musl 版。sha256 は固定値と一致> make test-l2-run` で前提の 2 件と 3 回の完走が 3/3 通った（各回 34 項目・要求 6 件・約 2.4 秒）。`l2-journey-calibrate` の 2 件（54 項目）が通った。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.241 「模擬」の常時表示（TASK-523。SHELL-6・D-72）
+
+- 目的: 画面の枠の上部（`shell-top`）に「模擬」（`shell-mock`）を常に置き、どの Step・幅・通知の有無でも消えず、アクセシビリティツリーにも出ることを確かめる。`SHELL_CONTRACT_VERSION` は 2 のまま変えない（契約の追加ではなく、画面への結線）。
+- 期待と定義の対応:
+
+| 要件 | 決定 | 実装・試験 |
+|---|---|---|
+| SHELL-6 | D-72 | `shell_frame::top_bar`（定数 `MOCK_LABEL` を `text()` で描く）を `host::EngineHost::view` の root の先頭に置く。`check_complete_v2` が必須にする |
+
+- 置き方: `role`・`aria-label` は付けない（a11y 契約の閉じた一覧を増やさない）。tabpanel の外・root の先頭の子なので 960px 未満のタブの切り替えで隠れない。静的なノードで要素の同一性（FEND-3）を変えない。TASK-524 は `top_bar` の `rest` に教材名・位置を渡して足す。
+- 試験:
+  - native（`crates/web/tests/shell_frame_host.rs`）: 画面の照合を `check_complete_v2` へ移し、`mock_label_is_always_shown`・`mock_label_stays_for_every_selected_pane` を追加。`ch0_3_run_host`（20 Step の各手の後）・`next_chapter`・`refused_history`・`history_ops`・`version_notice` も `check_complete_v2` で照合する。
+  - ブラウザ（`tools/browser/shell-mock.test.mjs`）: 20 Step の通しと章の移動（CSP あり・なし）、幅 360px・959px・1280px のタブの切り替え、通知の表示中・閉じた後、再読み込みの後、配信する設定。判定は個数 1・文字・可視・tabpanel の外・`shell-top` の中・アクセシビリティツリー（`ariaSnapshot`）。対照として `display: none` を付けると可視とアクセシビリティツリーの判定が不合格になる。
+- 変異注入（2026-10-22）: SHELL6-2（識別子が外れる）・SHELL6-3（root の子から外れる）を追加。SHELL6-1・SHELL6-2・SHELL6-3・SHELL1-1・SHELL1-2 が DETECTED。他の変異は未実行。
+- 限界:
+  - spec の検証方法は「CH-0〜CH-3 の全 22 Step」だが、試験用の教材 `ch0_3` は 20 Step（本物の CH-0〜CH-3 は TASK-642）。20 Step で確かめた。
+  - 「模擬」は教材に依存しない静的なノードで構造上すべての画面に出るが、ブラウザでの証拠は CH-0〜CH-3 の形の教材だけである。
+  - 教材を読めない画面（`ir-notice` だけの画面）には置かない。教材も枠も描かない画面で、`ir-refusal` の試験がこの構造を固定している。
+  - `.sh-mock` は `display: inline-block` を持つため、`hidden` 属性では隠れない（対照は `display: none` で行う）。
+- 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make test-browser`（899 件）が通った。

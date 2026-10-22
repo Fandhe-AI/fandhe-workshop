@@ -1,0 +1,8 @@
+id: SHELL6-2
+package: fandhe-workshop-web
+test: shell_frame_host
+target: crates/web/src/shell_frame.rs
+find:             ("data-testid", TopSection::Mock.testid()),
+replace:             ("data-testid", "shell-top-mock"),
+expect-fail: mock_label_is_always_shown
+note: 上部の区画から「模擬」の識別子が外れる（SHELL-6・D-72・TASK-523）

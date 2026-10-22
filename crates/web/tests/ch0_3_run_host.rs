@@ -211,6 +211,13 @@ fn run_journey(h: &mut EngineHost) -> SessionState {
             "手 {i} {mv:?}: 現在の Step"
         );
         assert_eq!(status_of(&s, current), status, "手 {i} {mv:?}: 状態");
+        // 「模擬」を含む版 2 の枠が、どの手の後にも残る（TASK-523。SHELL-6）。
+        let v = h.view();
+        assert_eq!(
+            fandhe_workshop_web::shell::check_complete_v2(&v),
+            Ok(()),
+            "手 {i} {mv:?}: 枠の適合（模擬を含む）"
+        );
     }
     state(h)
 }

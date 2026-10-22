@@ -82,7 +82,7 @@ fn host_of(path: PathBuf) -> EngineHost {
 }
 
 fn assert_frame_ok(view: &Node) {
-    assert_eq!(shell::check_complete(view), Ok(()));
+    assert_eq!(shell::check_complete_v2(view), Ok(()));
     assert_eq!(shell::check_no_undefined(view), Ok(()));
     assert_eq!(a11y::check_no_undefined(view), Ok(()));
 }
@@ -111,6 +111,81 @@ fn input_hidden_pack_view_passes() {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/input_field_hidden/ir.json");
     let h = host_of(p);
     assert_frame_ok(&h.view());
+}
+
+/// 画面の先頭から、`shell-mock` の祖先の `testid` の並びを返す（見つからなければ `None`）。
+fn mock_ancestors(n: &Node, path: &mut Vec<String>) -> Option<Vec<String>> {
+    if attr(n, "data-testid") == Some("shell-mock") {
+        return Some(path.clone());
+    }
+    path.push(
+        attr(n, "role")
+            .map(|r| format!("role={r}"))
+            .or_else(|| attr(n, "data-testid").map(str::to_owned))
+            .unwrap_or_default(),
+    );
+    for c in children(n) {
+        if let Some(a) = mock_ancestors(c, path) {
+            return Some(a);
+        }
+    }
+    path.pop();
+    None
+}
+
+/// 「模擬」の構造（SHELL-6・D-72）を確かめる。
+fn assert_mock_ok(view: &Node) {
+    let mocks = find(view, "shell-mock");
+    assert_eq!(mocks.len(), 1, "shell-mock はちょうど 1 個");
+    assert_eq!(children(mocks[0]).len(), 1);
+    assert_eq!(
+        children(mocks[0])[0],
+        fandhe_frontend_core::text(shell::MOCK_LABEL)
+    );
+    assert_eq!(attr(mocks[0], "aria-hidden"), None);
+    assert_eq!(attr(mocks[0], "hidden"), None);
+    let anc = mock_ancestors(view, &mut Vec::new()).unwrap();
+    assert!(anc.iter().any(|a| a == "shell-top"), "shell-top の中にある");
+    assert!(
+        !anc.iter().any(|a| a == "role=tabpanel"),
+        "tabpanel の外にある"
+    );
+    let kids = children(view);
+    let top = kids
+        .iter()
+        .position(|c| attr(c, "data-testid") == Some("shell-top"))
+        .unwrap();
+    let tabs = kids
+        .iter()
+        .position(|c| attr(c, "role") == Some("tablist"))
+        .unwrap();
+    assert_eq!(top, 0, "root の先頭の子");
+    assert!(top < tabs);
+}
+
+#[test]
+fn mock_label_is_always_shown() {
+    assert_mock_ok(&EngineHost::new().view());
+    let mut h = host_of(testdata().join("engine-event-consistency/test-data/min-3step.json"));
+    assert_mock_ok(&h.view());
+    let mut guard = 0;
+    while let Some(addr) = h.next_tick() {
+        h.update(HostAction::Engine(Op::Tick(addr)));
+        assert_mock_ok(&h.view());
+        guard += 1;
+        assert!(guard < 50);
+    }
+    let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/input_field_hidden/ir.json");
+    assert_mock_ok(&host_of(p).view());
+}
+
+#[test]
+fn mock_label_stays_for_every_selected_pane() {
+    let mut h = EngineHost::new();
+    for t in PaneTab::ALL {
+        h.update(HostAction::SelectPane(t));
+        assert_mock_ok(&h.view());
+    }
 }
 
 #[test]

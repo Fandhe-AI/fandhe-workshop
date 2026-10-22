@@ -155,7 +155,7 @@ fn 読み込みで開かないと理由が出て_状態は変わらない() {
     // 次の行動の文（期待値は実装から引かず直書きする。TASK-334。割り当ては案）。
     assert!(text_of(item[0]).contains("この履歴を書き出したときの版の教材で開いてください。"));
     assert_eq!(dismiss_buttons(&h), 1);
-    assert!(shell::check_complete(&view).is_ok());
+    assert!(shell::check_complete_v2(&view).is_ok());
     assert!(a11y::check_no_undefined(&view).is_ok());
 }
 
@@ -252,7 +252,7 @@ fn 変換して開いた後に開かない履歴を読むと通知が二つ並�
     assert_eq!(items_of(&h, "import-refused"), 1);
     assert_eq!(items_of(&h, "version-converted"), 1);
     let view = h.view();
-    assert!(shell::check_complete(&view).is_ok());
+    assert!(shell::check_complete_v2(&view).is_ok());
     assert!(a11y::check_no_undefined(&view).is_ok());
 }
 

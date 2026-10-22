@@ -31,7 +31,7 @@ use crate::a11y::{PaneTab, TABLIST_LABEL, TABLIST_TESTID, TAB_TESTID};
 use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField, PartKind};
-use crate::shell::PaneMount;
+use crate::shell::{PaneMount, TopSection, MOCK_LABEL};
 
 /// タブのクリック（と Enter・Space による click）の action 名。payload は [`PaneTab::id`] の完全一致だけを受ける。
 pub const ACTION_SELECT_PANE: &str = "select-pane";
@@ -146,4 +146,39 @@ pub fn frame(left: Vec<Node>, right: Vec<Node>, selected: PaneTab) -> [Node; 2] 
         vec![pane(PaneMount::Left, left), pane(PaneMount::Right, right)],
     );
     [tablist(selected), panes]
+}
+
+/// 上部の区画の CSS クラス。`static/app.css` の同名のクラスと一致させる（識別子は `data-testid` が持つ）。
+pub const TOP_CLASS: &str = "sh-top";
+
+/// 「模擬」の表示の CSS クラス。`static/app.css` の同名のクラスと一致させる。
+pub const MOCK_CLASS: &str = "sh-mock";
+
+/// 画面の枠の上部（`shell-top`）。「模擬」（`shell-mock`）を常に先頭に置く（TASK-523。SHELL-6・D-72）。
+///
+/// 教材が本物の環境と取り違えられないよう、どの Step・どの幅・通知の有無でも消えない表示にする。
+/// 呼び出し元は `host::EngineHost::view` で、root の先頭の子として置く。tabpanel の外なので 960px 未満でも隠れない。
+/// 静的なノードで、dirty の field にも registry にも入れない（要素の同一性。FEND-3）。
+/// `role`・`aria-label` は付けない（a11y 契約の閉じた一覧を増やさない）。見えている文字ノードとして
+/// アクセシビリティツリーに載る。文字は定数 [`MOCK_LABEL`] だけで、教材由来の値・利用者の入力は使わない。
+///
+/// TASK-524 への申し送り: 教材名（`shell-title`）・位置（`shell-position`）は `rest` に渡して「模擬」の後ろに足す。
+pub fn top_bar(rest: Vec<Node>) -> Node {
+    let mut children = vec![el(
+        "span",
+        vec![
+            ("data-testid", TopSection::Mock.testid()),
+            ("class", MOCK_CLASS),
+        ],
+        vec![text(MOCK_LABEL)],
+    )];
+    children.extend(rest);
+    el(
+        "div",
+        vec![
+            ("data-testid", TopSection::Top.testid()),
+            ("class", TOP_CLASS),
+        ],
+        children,
+    )
 }

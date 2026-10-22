@@ -145,7 +145,7 @@ fn converted_open_shows_one_notice() {
     assert_eq!(d.len(), 1);
     assert_eq!(attr(d[0], "data-action"), Some("dismiss-notice"));
     assert_eq!(attr(d[0], "data-payload"), Some("version-converted"));
-    assert!(shell::check_complete(&view).is_ok());
+    assert!(shell::check_complete_v2(&view).is_ok());
     assert!(shell::check_no_undefined(&view).is_ok());
     assert!(a11y::check_no_undefined(&view).is_ok());
 }

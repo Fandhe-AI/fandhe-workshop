@@ -1174,8 +1174,7 @@ pub fn check_complete(view: &Node) -> Result<(), Vec<Violation>> {
 /// 版 2 の完成した画面を照合する。[`check_complete`] に加え、個数の規則が必須の上部の区画（「模擬」。
 /// SHELL-6）がちょうど 1 個あることを求める（重複は `duplicate` が検出する）。
 ///
-/// 画面が [`check_complete`] からここへ移るのは、「模擬」を描く TASK-523 の実装の後である。それまでの画面は
-/// 版 1 の検査器で通る。
+/// ホストの画面はこの検査器で照合する（「模擬」を描く TASK-523 で版 1 から移った）。
 pub fn check_complete_v2(view: &Node) -> Result<(), Vec<Violation>> {
     let mut w = walk(view);
     let mut out = Vec::new();

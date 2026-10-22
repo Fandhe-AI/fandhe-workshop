@@ -2579,7 +2579,9 @@ impl Component for EngineHost {
         });
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
+        // 上部の区画（「模擬」。TASK-523）は通知欄より前に置く。tabpanel の外なので、どのタブでも・通知が出ても見える。
         let mut children = vec![
+            crate::shell_frame::top_bar(Vec::new()),
             crate::shell_notice::notice_area(
                 self.version_notice,
                 self.refused_notice,
