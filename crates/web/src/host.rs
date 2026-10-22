@@ -96,6 +96,7 @@ use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::history_export::ExportGate;
+use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::save_notice::SAVE_NOTICE_FIELD;
@@ -810,6 +811,7 @@ impl EngineHost {
             HELLO_FIELDS.contains(&f.name)
                 || f.name == PANE_TABS_FIELD.name
                 || f.name == SHELL_NOTICES_FIELD.name
+                || f.name == NEXT_CHAPTER_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
         }
@@ -1795,6 +1797,10 @@ impl EngineHost {
         if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
             self.dirty.push(SHELL_NOTICES_FIELD.name);
         }
+        // 「次の章へ進む」も registry の外にある。前の教材の項目を DOM から消すため明示して積む。
+        if !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
+            self.dirty.push(NEXT_CHAPTER_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2014,6 +2020,8 @@ impl EngineHost {
     /// 以後の操作の関門は `update`、保存の停止は `history_to_save`、書き出しは `export_live` が見る。
     /// 予約済みの進行のタイマーは無効にし、宛先も取り下げる。通知欄の field を dirty に積む。
     fn enter_view_only(&mut self, code: LoadReason, bytes: Vec<u8>) {
+        // 「次の章へ進む」が出ていたかは、表示だけに入る前に調べる。
+        let offered = self.next_chapter_offer().is_some();
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
         // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。
@@ -2023,12 +2031,25 @@ impl EngineHost {
         if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
             self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
         }
+        // 「次の章へ進む」は表示だけの間は出さない。`update` を経由しない公開 API からの切り替えでも、出ていた項目の削除を通知する（FEND-3）。出ていなかったときは変えない（SAVE-19）。
+        if offered && !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
+            self.dirty.push(NEXT_CHAPTER_FIELD.name);
+        }
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
         }
         if let Some(notify) = self.tick_request.as_ref() {
             notify(None);
         }
+    }
+
+    /// 今提示する「次の章へ進む」。表示だけの間と session が無いときは出さない（fail-closed。update が押下を捨てるため）。
+    fn next_chapter_offer(&self) -> Option<NextChapter> {
+        if self.model.view_only.is_some() {
+            return None;
+        }
+        let s = self.model.session()?;
+        next_chapter(s.ir(), s.state())
     }
 
     /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
@@ -2179,6 +2200,8 @@ impl Component for EngineHost {
 
     fn update(&mut self, action: Self::Action) {
         self.dirty.clear();
+        // 「次の章へ進む」の提示は、どの経路の更新でも前後で比べて 1 か所で dirty に積む（FEND-3）。
+        let offer_before = self.next_chapter_offer();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
         // モードから出る経路（試験の設定の読み込み・差し替え）に限る。新しい action は既定で捨てられる。
         // 下書きの変更を捨てたときは、DOM の値を戻させる。
@@ -2375,6 +2398,11 @@ impl Component for EngineHost {
         // 非同期の保存の失敗（IndexedDB）の表示を、打鍵・送信・進行のどの `update` でも求め直す（SAVE-11）。
         self.refresh_save_failure(); // update の末尾
         self.refresh_stale(); // 保存の試み（照合）の後に求める
+        if self.next_chapter_offer() != offer_before
+            && !self.dirty.contains(&NEXT_CHAPTER_FIELD.name)
+        {
+            self.dirty.push(NEXT_CHAPTER_FIELD.name);
+        }
     }
 
     fn view(&self) -> Node {
@@ -2403,6 +2431,8 @@ impl Component for EngineHost {
             }
         }
         let left = vec![el("div", vec![("data-testid", "workshop-parts")], left)];
+        // 「次の章へ進む」は右のエリアの末尾に置く（仮置き。最終の配置は TASK-534・TASK-548）。
+        right.push(next_chapter_list(self.next_chapter_offer().as_ref()));
         let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。

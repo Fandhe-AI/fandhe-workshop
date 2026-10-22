@@ -1,0 +1,276 @@
+//! 章の完了後の「次の章へ進む」の試験（SHELL-10。TASK-526 1/2）。native で、受講者の画面と同じ既定の feature（`test-hooks` なし）で流れる。
+//!
+//! 試験用の教材 `tests/data/ch0_3/ir.json` は章の境目を無条件の `next` でつなぐため、試験の中で変種を作る。
+//! 各章の最後の Step を `final` にし、開始点を並べ替えて `#` つきの開始点を混ぜる。
+//! 1/2 では押しても状態が変わらないこと（action を結線しない）も固定する。結線は #715（2/2）が足し、この試験を書き換える。
+//! 試験では `unwrap` を使ってよい。失敗の文面には教材由来の値を出さない。
+
+use std::path::PathBuf;
+
+use fandhe_frontend_core::Node;
+use fandhe_frontend_interactive::DirtyTracked;
+use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::addr::StepUid;
+use fandhe_workshop_core::input::{Input, Op};
+use fandhe_workshop_core::session::SessionState;
+use fandhe_workshop_core::step_status::StepStatus;
+use fandhe_workshop_core::{load_ir, Session};
+use fandhe_workshop_web::engine_parts::standard_registry;
+use fandhe_workshop_web::host::{EngineHost, HostAction};
+use fandhe_workshop_web::next_chapter::{next_chapter, ACTION_NEXT_CHAPTER, NEXT_CHAPTER_FIELD};
+use fandhe_workshop_web::parts::Component;
+use fandhe_workshop_web::shell::{check_complete, NEXT_CHAPTER_TESTID};
+use serde_json::{json, Value};
+
+fn manifest(p: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(p)
+}
+
+/// 章の最後を `final` にし、開始点を差し替えた変種の IR（JSON）。
+fn variant_json(starts: Value) -> Value {
+    let mut d: Value =
+        serde_json::from_slice(&std::fs::read(manifest("tests/data/ch0_3/ir.json")).unwrap())
+            .unwrap();
+    for n in d["nodes"].as_array_mut().unwrap() {
+        let uid = n["uid"].as_str().unwrap().to_owned();
+        if ["main/st-0-2c", "main/st-1-6", "main/st-2-8"].contains(&uid.as_str()) {
+            n["step"]["final"] = json!(true);
+            n["step"]["next"] = json!([]);
+        }
+    }
+    d["starts"] = starts;
+    d
+}
+
+fn all_starts() -> Value {
+    json!([
+        {"id": "s-0-1", "node": "main/st-0-1", "effects": []},
+        {"id": "s-1-4", "node": "main/st-1-4", "effects": []},
+        {"id": "s-1-1", "node": "main/st-1-1", "effects": []},
+        {"id": "m#x", "node": "main/st-2-1", "effects": []},
+        {"id": "s-2-1", "node": "main/st-2-1", "effects": []},
+        {"id": "s-3-1", "node": "main/st-3-1", "effects": []}
+    ])
+}
+
+fn ir_of(d: &Value) -> Ir {
+    load_ir(&serde_json::to_vec(d).unwrap()).unwrap()
+}
+
+fn initial(first: &str) -> SessionState {
+    let sample: Value = serde_json::from_slice(
+        &std::fs::read(manifest("../../testdata/contract/event-sequence.json")).unwrap(),
+    )
+    .unwrap();
+    let text = serde_json::to_string(&sample["initial"])
+        .unwrap()
+        .replace("\"main/st-1\"", &format!("\"{first}\""));
+    serde_json::from_str(&text).unwrap()
+}
+
+fn host_of(ir: Ir, first: &str) -> EngineHost {
+    EngineHost::with_session(Session::from_state(ir, initial(first)), standard_registry()).unwrap()
+}
+
+fn act(name: &str, payload: &str) -> HostAction {
+    EngineHost::decode_action(name, payload).unwrap()
+}
+
+/// `uid` を現在の Step にして、状態を `status`（処理中でない）にした状態。
+fn at(uid: &str, status: StepStatus) -> SessionState {
+    let mut s = initial(uid);
+    let uid = StepUid(uid.to_owned());
+    s.run.busy = None;
+    s.run
+        .slices
+        .entry(uid.root())
+        .or_default()
+        .status
+        .insert(uid.clone(), status);
+    s.run.current = Some(uid);
+    s
+}
+
+fn offer(ir: &Ir, uid: &str, status: StepStatus) -> Option<(String, String)> {
+    next_chapter(ir, &at(uid, status)).map(|o| (o.start_id, o.title))
+}
+
+#[test]
+fn 各章の最後の達成で次の章の入口を選び_最後の章では出さない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let a = StepStatus::Achieved;
+    let ch0 = offer(&ir, "main/st-0-2c", a).expect("CH-0 の後");
+    assert_eq!(ch0.0, "s-1-1", "先頭の節点に一致する開始点を選ぶ");
+    let ch1 = offer(&ir, "main/st-1-6", a).expect("CH-1 の後");
+    assert_eq!(ch1.0, "s-2-1", "# つきの開始点は選ばない");
+    let ch2 = offer(&ir, "main/st-2-8", a).expect("CH-2 の後");
+    assert_eq!(ch2.0, "s-3-1");
+    assert!(!ch0.1.is_empty() && !ch1.1.is_empty() && !ch2.1.is_empty());
+    assert_eq!(offer(&ir, "main/st-3-2", a), None, "最後の章の後は出さない");
+}
+
+#[test]
+fn 達成の前と最後でない_step_では出さない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    for st in [
+        StepStatus::NotStarted,
+        StepStatus::Entered,
+        StepStatus::Accepted,
+        StepStatus::Skipped,
+    ] {
+        assert_eq!(offer(&ir, "main/st-0-2c", st), None, "達成の前は出さない");
+    }
+    assert_eq!(
+        offer(&ir, "main/st-0-2b", StepStatus::Achieved),
+        None,
+        "最後でない Step"
+    );
+}
+
+#[test]
+fn 次の章の開始点が_ir_に無ければ出さない() {
+    let starts = json!([
+        {"id": "s-0-1", "node": "main/st-0-1", "effects": []},
+        {"id": "s-2-1", "node": "main/st-2-1", "effects": []}
+    ]);
+    let ir = ir_of(&variant_json(starts));
+    let a = StepStatus::Achieved;
+    assert_eq!(
+        offer(&ir, "main/st-0-2c", a),
+        None,
+        "D-67: 範囲外の章へは出さない"
+    );
+    assert!(offer(&ir, "main/st-1-6", a).is_some());
+}
+
+#[test]
+fn 先頭の節点に一致する開始点が無ければ途中の節点を指す開始点へ代えず出さない() {
+    let starts = json!([
+        {"id": "s-0-1", "node": "main/st-0-1", "effects": []},
+        {"id": "s-1-4", "node": "main/st-1-4", "effects": []}
+    ]);
+    let ir = ir_of(&variant_json(starts));
+    assert_eq!(offer(&ir, "main/st-0-2c", StepStatus::Achieved), None);
+}
+
+fn count_next(v: &Node) -> usize {
+    format!("{v:?}").matches(NEXT_CHAPTER_TESTID).count()
+}
+
+/// 「移動」ボタンも、進行を直接送る口も無いこと（feature `test-hooks` なしの画面）。
+fn assert_no_goto(v: &Node) {
+    let s = format!("{v:?}");
+    assert!(!s.contains("移動"), "移動ボタン");
+    // 試験の設定（`test-hooks`）では見えない `raw-trigger` が 1 件ある。受講者の画面（既定）にだけ無いことを求める。
+    #[cfg(not(feature = "test-hooks"))]
+    assert!(!s.contains("raw-trigger"), "raw-trigger");
+}
+
+#[test]
+fn ホストは_ch0_の最後の達成でちょうど_1_個出し_途中では出さない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let mut h = host_of(ir, "main/st-0-1");
+    let steps = [
+        "choose:opt-left",
+        "choose:opt-top",
+        "choose:opt-right",
+        "point:v-cards:cards/notice",
+        "choose:opt-read-a",
+        "choose:ans-a-ok",
+        "choose:opt-read-b",
+        "choose:ans-b-ok",
+        "choose:opt-read-c",
+        "choose:ans-c-ok",
+    ];
+    let mut last_dirty_has = false;
+    for (i, m) in steps.iter().enumerate() {
+        let parts: Vec<&str> = m.split(':').collect();
+        if parts[0] == "choose" {
+            h.update(act("choose", parts[1]));
+        } else {
+            h.update(HostAction::Engine(Op::Input(Input::Ui {
+                view: parts[1].into(),
+                path: parts[2].into(),
+            })));
+        }
+        while let Some(addr) = h.next_tick() {
+            h.update(HostAction::Engine(Op::Tick(addr)));
+        }
+        let v = h.view();
+        assert!(check_complete(&v).is_ok(), "手 {i}: 枠の適合");
+        assert!(
+            fandhe_workshop_web::a11y::check_no_undefined(&v).is_ok(),
+            "手 {i}"
+        );
+        assert_no_goto(&v);
+        if i + 1 < steps.len() {
+            assert_eq!(count_next(&v), 0, "手 {i}: 最後より前は出さない");
+        } else {
+            assert_eq!(count_next(&v), 1, "最後の達成の後はちょうど 1 個");
+            let s = format!("{v:?}");
+            assert!(s.contains("次の章へ進む: "), "表示の文字");
+            assert!(s.contains("s-1-1"), "payload は開始点の ID");
+            last_dirty_has = h.dirty_fields().contains(&NEXT_CHAPTER_FIELD.name);
+        }
+    }
+    assert!(last_dirty_has, "出たとき next_chapter が dirty");
+}
+
+#[test]
+fn 初期の画面は親の_list_だけを描き移動ボタンを持たない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let h = host_of(ir, "main/st-0-1");
+    let v = h.view();
+    assert_eq!(count_next(&v), 0);
+    assert_no_goto(&v);
+    assert!(
+        format!("{v:?}").contains("next_chapter"),
+        "親の list は常に描く"
+    );
+}
+
+#[test]
+fn 次の章へ進む_の押下は_1_2_では状態を変えない() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let mut h = host_of(ir, "main/st-0-1");
+    let before = h.model().session().unwrap().state().clone();
+    // 1/2 では復号されない（None）。#715 が結線したら、この試験を書き換える。
+    if let Some(a) = EngineHost::decode_action(ACTION_NEXT_CHAPTER, "s-1-1") {
+        h.update(a);
+    }
+    assert_eq!(before, *h.model().session().unwrap().state());
+}
+
+#[test]
+fn 出ている状態で履歴が表示だけになると_next_chapter_が_dirty_になり項目が消える() {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_export::export_bytes;
+    use fandhe_workshop_web::host::ImportOutcome;
+
+    let d = variant_json(all_starts());
+    let ir = ir_of(&d);
+    let mut h = EngineHost::with_session(
+        Session::from_state(ir, at("main/st-0-2c", StepStatus::Achieved)),
+        standard_registry(),
+    )
+    .unwrap();
+    assert_eq!(count_next(&h.view()), 1, "前提: 項目が出ている");
+    // 主版の違う教材で書いた履歴は、表示だけで開く。
+    let mut d2 = d.clone();
+    d2["pack"]["version"] = json!("9.0.0");
+    let ir2 = ir_of(&d2);
+    let env = build_envelope(&ir2, "s-0-1", vec![], initial("main/st-0-1")).unwrap();
+    let bytes = export_bytes(&env).unwrap();
+    // `update` を経由しない公開 API で切り替える前に、前の dirty を使い切る。
+    let _ = h.dirty_fields();
+    let outcome = h.open_history(&bytes);
+    assert!(
+        matches!(outcome, ImportOutcome::ViewOnly(_)),
+        "前提: 表示だけ"
+    );
+    assert!(
+        h.dirty_fields().contains(&NEXT_CHAPTER_FIELD.name),
+        "FEND-3: 消える項目を dirty で通知する"
+    );
+    assert_eq!(count_next(&h.view()), 0, "表示だけの間は出さない");
+}

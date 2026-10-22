@@ -51,7 +51,7 @@ pub fn export_hint_name(hint: Option<ExportHint>) -> Option<&'static str> {
 }
 
 /// `uid` が `main` の根の最後の Step（`is_final`）か。IR に無い Step は偽（fail-closed）。
-fn is_main_final(ir: &Ir, uid: &str) -> bool {
+pub(crate) fn is_main_final(ir: &Ir, uid: &str) -> bool {
     uid.starts_with("main/")
         && ir
             .nodes

@@ -295,6 +295,8 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     "view_only_notice",
     // 変換して開いた通知は、版の違う履歴を開いたか復元したホストで立つ。`version_notice.rs` が dirty を確かめる（TASK-535 1/2）。
     "shell_notices",
+    // 「次の章へ進む」は、章の最後が final の教材で最後の Step を達成したときに立つ。`next_chapter.rs` が dirty を確かめる（TASK-526 1/2）。
+    "next_chapter",
     // 33 回の列の教材が宣言していない種類のビューの list。選ばれない種類は空・`hidden` で描かれるだけで、
     // dirty にするには種類ごとの宣言を持つ教材が要る。
     "view_app_demo",
