@@ -64,6 +64,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/glossary.md          # 用語集（章・Step・IR・語彙など）
 ├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
 ├── docs/vocabulary/          # 語彙の文書（vocabulary.md が固定の契約、README.md が作成者向けの索引）
+├── docs/upstream-bump-procedure.md # 参照元の版を上げる手順書（洗い出し・教材テスト・公開前の人の確認と記録・生成物を無検証で公開しない。版 1。TASK-182 2/2）
 ├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 15。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71）
