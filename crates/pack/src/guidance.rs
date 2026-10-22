@@ -2,7 +2,7 @@
 //!
 //! 呼び出し元は読み込み層 `source::load`（`check_workshop_levels`・`check_scope_levels`）と、静的検査
 //! （`E-STRUCTURE`・`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。TASK-49 2/2）である。
-//! `body_levels` の鍵 `A` の拒否は `validate`・`compile` の両方、漏れとヒントの検査は `validate` だけが行う。語彙 v1.1 の 5.3 節に従い、
+//! `body_levels`・`do_levels` の構造の拒否（鍵 `A`・空の値・`do` の欠落。`do_levels` は TASK-70 2/2）は `validate`・`compile` の両方、漏れとヒントの検査は `validate` だけが行う。語彙 v1.1 の 5.3 節に従い、
 //! 水準の名前が `A`・`B`・`C` でない教材は読み込みで `E-PARSE` にする。読めない水準は IR に載せない
 //! （教材データは信頼しない入力のため、失敗は安全側へ倒す）。
 //!
@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use fandhe_workshop_contract::guidance::{visible_hints, GuidanceLevel};
 use fandhe_workshop_contract::ir::{Ir, Step};
 use fandhe_workshop_core::command_class::CommandKind;
+use fandhe_workshop_core::text_fill::step_do_at;
 use serde_json::Value;
 
 use crate::diag::{DiagCode, Diagnostic};
@@ -194,6 +195,17 @@ pub(crate) fn check_scope_levels(file: &str, src: &ScopeSrc) -> Vec<Diagnostic> 
                 "body_levels keys must be A, B or C",
             ));
         }
+        if st
+            .do_levels
+            .keys()
+            .any(|k| GuidanceLevel::parse(k).is_none())
+        {
+            out.push(parse_diag(
+                file,
+                "scope",
+                "do_levels keys must be A, B or C",
+            ));
+        }
     }
     out
 }
@@ -216,6 +228,97 @@ pub(crate) fn check_body_levels_a(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
         }
     }
     out
+}
+
+/// `do_levels` の構造を `E-STRUCTURE` にする（語彙 v1.6。PACK-50。TASK-70 2/2）。`validate` と `compile` の両方から呼ぶ。
+///
+/// - 鍵 `A`: 水準 A の文は `do` に書くため、鍵 `A` は使われないまま残る
+/// - 空・空白だけの値: B でだけ次の行動が崩れる（黙って A の文へ倒れず、書き手の誤りとして止める）
+/// - `do` が無い・空白だけ: 探す順が必ず A の `do` に行き着くことを前提にしているため
+///
+/// 鍵が A・B・C でないものは読み込みの `E-PARSE`（`check_scope_levels`）の担当で、ここでは見ない。
+/// 診断は固定の英語で、書かれた値を写さない。
+pub(crate) fn check_do_levels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
+    let mut out = Vec::new();
+    for scope in scopes {
+        for st in &scope.src.steps {
+            if st.do_levels.is_empty() {
+                continue;
+            }
+            let item = format!("step:{}", st.id);
+            if st.do_levels.contains_key("A") {
+                out.push(diag(
+                    &scope.file,
+                    &item,
+                    DiagCode::Structure,
+                    "do_levels must not have key A (write the level A text in do)",
+                ));
+            }
+            if st.do_levels.values().any(|v| v.trim().is_empty()) {
+                out.push(diag(
+                    &scope.file,
+                    &item,
+                    DiagCode::Structure,
+                    "do_levels values must not be empty",
+                ));
+            }
+            if st.do_.as_deref().is_none_or(|d| d.trim().is_empty()) {
+                out.push(diag(
+                    &scope.file,
+                    &item,
+                    DiagCode::Structure,
+                    "do_levels requires do",
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// 展開の後（モジュールの引数の置換の後）の node で、`do_levels` の空の値と `do` の欠落を `E-STRUCTURE` にする
+/// （PACK-50。`step_do` を使う文面の有無に依らない）。`check_do_levels` は置換の前の Step しか見ないため、
+/// 引数が空になって初めて違反する組をここで捕まえる。置換の前から同じ違反がある Step は `check_do_levels` が
+/// 報告するので、ここでは重ねない。診断は Step を定義した章・モジュールの定義ファイルに付け、書かれた値を写さない。
+pub(crate) fn check_do_levels_expanded(
+    pack: &LoadedPack,
+    nodes: &[fandhe_workshop_contract::ir::Node],
+) -> Vec<Diagnostic> {
+    let blank = |st: &Step| st.do_levels.values().any(|v| v.trim().is_empty());
+    let no_do = |st: &Step| st.do_.as_deref().is_none_or(|d| d.trim().is_empty());
+    let mut out = Vec::new();
+    for node in nodes {
+        let st = &node.step;
+        if st.do_levels.is_empty() {
+            continue;
+        }
+        let Some(scope) = pack.scopes.iter().find(|s| s.src.id == node.unit) else {
+            continue;
+        };
+        let orig = scope.src.steps.iter().find(|x| x.id == st.id);
+        let item = format!("step:{}", st.id);
+        if blank(st) && !orig.is_some_and(|o| !o.do_levels.is_empty() && blank(o)) {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::Structure,
+                "do_levels values must not be empty",
+            ));
+        }
+        if no_do(st) && !orig.is_some_and(|o| !o.do_levels.is_empty() && no_do(o)) {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::Structure,
+                "do_levels requires do",
+            ));
+        }
+    }
+    out
+}
+
+/// `check_do_levels_expanded` が出す診断の文言か（`validate` が展開の後の診断を選ぶのに使う）。
+pub(crate) fn is_do_levels_expanded_message(m: &str) -> bool {
+    m == "do_levels values must not be empty" || m == "do_levels requires do"
 }
 
 /// 水準ごとの隠す語の列。`workshop.commands` のうち種類が `hide_command_kinds` に含まれるコマンドの
@@ -264,7 +367,7 @@ fn collect_module_steps(
 
 /// 隠すと宣言した語が、その水準で出る本文または `do` に含まれていれば `E-GUIDANCE-LEAK`（`validate` だけ）。
 ///
-/// 対象は、(i) `body_levels` を持つ Step の水準 B・C と、(ii) 開始点の `guidance` が B・C の章の全 Step と
+/// 対象は、(i) `body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、(ii) 開始点の `guidance` が B・C の章の全 Step と
 /// その章が呼ぶモジュールの全 Step の同じ水準。単純な部分文字列の包含で判定する近似の検査で、
 /// 実体の引数で渡す `do`・ヒントの文面・宣言の無い章の本文は見ない（GUIDE-5。TASK-38・TASK-71）。
 /// ディスクには触れず `pack.bodies` だけを読む。診断は語・本文を写さない。
@@ -281,13 +384,20 @@ pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
     if rules.is_empty() {
         return Vec::new();
     }
-    // (スコープの添字, Step の添字, 水準)。
+    // (スコープの添字, Step の添字, 水準)。本文と `do` の両方を見る組。
     let mut targets: BTreeSet<(usize, usize, GuidanceLevel)> = BTreeSet::new();
+    // `do_levels` だけを持つ Step の B・C。本文は宣言が無いので見ず、`do` だけを見る。
+    let mut do_targets: BTreeSet<(usize, usize, GuidanceLevel)> = BTreeSet::new();
     for (i, scope) in pack.scopes.iter().enumerate() {
         for (j, st) in scope.src.steps.iter().enumerate() {
             if !st.body_levels.is_empty() {
                 for l in [GuidanceLevel::B, GuidanceLevel::C] {
                     targets.insert((i, j, l));
+                }
+            }
+            if !st.do_levels.is_empty() {
+                for l in [GuidanceLevel::B, GuidanceLevel::C] {
+                    do_targets.insert((i, j, l));
                 }
             }
         }
@@ -319,16 +429,19 @@ pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
         }
     }
     let mut out = Vec::new();
-    for (i, j, level) in targets {
+    let all: BTreeSet<_> = targets.iter().chain(do_targets.iter()).copied().collect();
+    for (i, j, level) in all {
+        let in_body_scope = targets.contains(&(i, j, level));
         let Some(words) = rules.get(&level) else {
             continue;
         };
         let scope = &pack.scopes[i];
         let step = &scope.src.steps[j];
         let item = format!("step:{}", step.id);
-        let in_body = body_for(step, level)
-            .and_then(|p| pack.bodies.get(&format!("{}/{p}", scope.dir)))
-            .is_some_and(|text| words.iter().any(|w| text.contains(w.as_str())));
+        let in_body = in_body_scope
+            && body_for(step, level)
+                .and_then(|p| pack.bodies.get(&format!("{}/{p}", scope.dir)))
+                .is_some_and(|text| words.iter().any(|w| text.contains(w.as_str())));
         if in_body {
             out.push(diag(
                 &scope.file,
@@ -340,10 +453,8 @@ pub(crate) fn check_guidance_leak(pack: &LoadedPack) -> Vec<Diagnostic> {
                 ),
             ));
         }
-        let in_do = step
-            .do_
-            .as_deref()
-            .is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+        let in_do =
+            step_do_at(step, level).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
         if in_do {
             out.push(diag(
                 &scope.file,

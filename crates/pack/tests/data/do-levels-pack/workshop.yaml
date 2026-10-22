@@ -1,0 +1,28 @@
+# TASK-70 2/2（PACK-50）の試験用の架空の教材（形式 B）。`do_levels` を案内レベル B で使い、順序違いの拒否の
+# 次の行動に skill の名前が出ないことを確かめる。上流の教材の文面・構成は含まない。
+# `{{` を含む値は、flow 形式の中で E-PARSE になる罠を避けるため、必ず引用符で囲む（AUTHOR-13）。
+pack:
+  id: "do-levels-demo"
+  title: "do_levels の試験用教材"
+  version: "0.0.1"
+  ir_format: 1
+  vocab: "1.6"
+  guidance: "A"
+  guidance_levels:
+    B:
+      hide_command_kinds: ["skill"]
+commands:
+  alpha-cmd: "skill"
+  beta-cmd: "flow"
+rejections:
+  rj-wrong-order:
+    category: "wrong_order"
+    message: "その操作を使うのは、まだ先です。"
+    next_action: "今の Step では、{{step_do}}。"
+  rj-unknown-command:
+    category: "unknown_command"
+    message: "この教材の一覧にない操作です。"
+    next_action: "今の Step の目的を読み直します。"
+defaults:
+  unknown_command: "rj-unknown-command"
+  wrong_order: "rj-wrong-order"

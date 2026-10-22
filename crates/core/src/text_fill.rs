@@ -17,7 +17,7 @@
 //! | `input_head` | コマンドとして字句化できた入力だけ、教材の接頭辞とコマンド名。それ以外は値なし（代替の文） |
 //! | `nearest_command` | 分類が `unknown_command` のときだけ。`commands` の名前から、編集距離（隣り合う 2 文字の入れ替えを 1 と数える）が [`NEAREST_MAX_DISTANCE`] 以下で最小のもの。`unsupported` と読めない値は除く。同じ距離なら名前の辞書順の先頭。接頭辞を付ける。[`NEAREST_MAX_NAME_CHARS`] 文字を超える入力・候補は計算せず候補なしにする |
 //! | `step_title` | 現在の Step の題名 |
-//! | `step_do` | 現在の Step の `do`。無ければ値なし（題名で代えない） |
+//! | `step_do` | 現在の案内レベルの `do`（`do_levels` を C → B → A の順に探す。A は `do`）。無ければ値なし（題名で代えない） |
 //! | `remaining` | 処理中の残りの回数。処理中でなければ値なし |
 //! | `total` | 処理中の全体の回数。処理中でなければ値なし |
 //!
@@ -36,6 +36,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use fandhe_workshop_contract::guidance::GuidanceLevel;
 use fandhe_workshop_contract::ir::{Ir, Step};
 use fandhe_workshop_contract::judgment::{Judgment, LexedCommand, NextAction, RejectCategory};
 use fandhe_workshop_contract::profile::read_profile;
@@ -219,10 +220,27 @@ pub fn slot_values(
         input_head,
         nearest_command: nearest,
         step_title: step.title.clone(),
-        step_do: step.do_.clone(),
+        step_do: step_do_at(step, run.guidance_level).map(str::to_string),
         remaining,
         total,
     })
+}
+
+/// 案内レベル `level` で出す `do` を選ぶ（語彙 v1.6 の `do_levels`。PACK-50）。
+///
+/// 探す順は契約 `GuidanceLevel::fallback_chain` をそのまま使い（C → B → A。A は `do`）、規則を二重に持たない。
+/// 呼び出し元は [`slot_values`] と、漏れの検査をする pack の `guidance` で、どちらも同じ選択を読む。
+/// `do_levels` が空なら従来どおり `do` を返す。純関数で、教材の値は読むだけで書き換えない。
+pub fn step_do_at(step: &Step, level: GuidanceLevel) -> Option<&str> {
+    for l in level.fallback_chain() {
+        if *l == GuidanceLevel::A {
+            return step.do_.as_deref();
+        }
+        if let Some(d) = step.do_levels.get(l.as_str()) {
+            return Some(d.as_str());
+        }
+    }
+    None
 }
 
 /// 文面 1 件を充填する。未知の枠・構文の誤りは [`TextFillError::InvalidSlot`]。
@@ -349,6 +367,32 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::*;
+
+    fn step_with_do(do_: Option<&str>, levels: &[(&str, &str)]) -> Step {
+        let mut s: Step =
+            serde_json::from_value(serde_json::json!({"id": "s", "title": "t"})).unwrap();
+        s.do_ = do_.map(str::to_string);
+        for (k, v) in levels {
+            s.do_levels.insert((*k).to_string(), (*v).to_string());
+        }
+        s
+    }
+
+    #[test]
+    fn step_do_at_falls_back_c_to_b_to_a() {
+        let none = step_with_do(Some("a"), &[]);
+        let b = step_with_do(Some("a"), &[("B", "b")]);
+        let c = step_with_do(Some("a"), &[("C", "c")]);
+        let bc = step_with_do(Some("a"), &[("B", "b"), ("C", "c")]);
+        fn got(s: &Step) -> [Option<&str>; 3] {
+            [GuidanceLevel::A, GuidanceLevel::B, GuidanceLevel::C].map(|l| step_do_at(s, l))
+        }
+        assert_eq!(got(&none), [Some("a"), Some("a"), Some("a")]);
+        assert_eq!(got(&b), [Some("a"), Some("b"), Some("b")]);
+        assert_eq!(got(&c), [Some("a"), Some("a"), Some("c")]);
+        assert_eq!(got(&bc), [Some("a"), Some("b"), Some("c")]);
+        assert_eq!(step_do_at(&step_with_do(None, &[]), GuidanceLevel::C), None);
+    }
 
     #[test]
     fn osa_counts_transposition_as_one() {

@@ -6,7 +6,7 @@
 //! - `pack.vocab` を省略した教材は検査しない。PACK-31 の前提は「`pack.vocab` を書く」であり、書き方の
 //!   規約は TASK-179 の持ち分である（contract の `DEFAULT` は履歴を書くときの値で、検査の既定ではない）
 //! - 検査する語は番号つき拡張点 EP-9（`starts[].requires`・`unmet`）と EP-10〜EP-13（`pack.profile`・
-//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）。v1.1 の語は対象外
+//!   `appearance`・`left_pane`・`views.<ID>.body`）、番号を持たない `confirm.options[].label`（v1.3。TASK-59 2/2）と `input.revise.candidates`（v1.5。TASK-62 2/2。`label` は候補の中の欄なので候補で代表する）・`do_levels`（v1.6。TASK-70 2/2）。v1.1 の語は対象外
 //! - `confirm.options[].label` は確認の `confirm` だけを見る。入力方式 `choice` の `input.options[].label`
 //!   （v1 の語。PACK-23）は別の欄であり、この判定は `step.input` を読まない。`input.revise`（`kind: approval`）と `env_action`（PACK-34）だけは `step.input` を読む
 //! - 必要な版は [`crate::vocab::EXTENSION_POINTS`]・[`crate::vocab::term`] から引き、ここに書き写さない
@@ -45,6 +45,8 @@ const REVISE: Source = Source::Term("field", "input.revise.candidates");
 
 const ENV_ACTION: Source = Source::Term("input", "env_action");
 
+const DO_LEVELS: Source = Source::Term("field", "do_levels");
+
 const PROBES: &[Probe] = &[
     (Source::Ep("starts.requires"), uses_start_condition),
     (Source::Ep("pack.profile"), |p| {
@@ -60,6 +62,7 @@ const PROBES: &[Probe] = &[
     (LABEL, uses_answer_label),
     (REVISE, uses_revise_candidates),
     (ENV_ACTION, uses_env_action),
+    (DO_LEVELS, uses_do_levels),
 ];
 
 /// 語の版（主・副）と、診断の文面の接頭を表から引く。引けない項目は `None`（単体試験で全項目が引けることを保証する）。
@@ -110,6 +113,14 @@ fn uses_revise_candidates(pack: &LoadedPack) -> bool {
             })
         })
     })
+}
+
+/// いずれかの Step が空でない `do_levels` を持つか（v1.6。PACK-50）。置換前の Step を見るので、モジュールの
+/// 引数経由の値でも使用を取りこぼさない。
+fn uses_do_levels(pack: &LoadedPack) -> bool {
+    pack.scopes
+        .iter()
+        .any(|s| s.src.steps.iter().any(|step| !step.do_levels.is_empty()))
 }
 
 /// 全 Step の `input` が `kind: env_action`（PACK-34）か。生の値で `kind` だけを見る（欄の中身が読めない宣言は
@@ -253,7 +264,7 @@ mod tests {
             .any(|(s, _)| matches!(s, Source::Term(_, "confirm.options[].label"))));
         assert!(matches!(
             PROBES.last(),
-            Some((Source::Term(_, "env_action"), _))
+            Some((Source::Term(_, "do_levels"), _))
         ));
     }
 

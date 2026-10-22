@@ -1,0 +1,42 @@
+# do_levels の試験用の章（架空）。先頭の Step の do が skill の名前を含み、水準 B の文は含まない。
+id: "c1"
+title: "水準ごとの do"
+starts:
+  - {id: "s1", node: "a"}
+steps:
+  - id: "a"
+    title: "最初の操作"
+    body: "a.md"
+    do: "alpha-cmd を送って始める"
+    do_levels:
+      B: "アイデアを書くコマンドを送る"
+    next: [{to: "b"}]
+    input:
+      kind: "command"
+      name: "alpha-cmd"
+    rules:
+      - id: "r-alpha"
+        on: {command: "alpha-cmd"}
+        outcome: {kind: "accept"}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "b"
+    title: "次の操作"
+    body: "b.md"
+    do: "beta-cmd を送る"
+    next: [{to: "c"}]
+    input:
+      kind: "command"
+      name: "beta-cmd"
+    rules:
+      - id: "r-beta"
+        on: {command: "beta-cmd"}
+        outcome: {kind: "accept"}
+    confirm:
+      kind: "none"
+      reason: "送った結果がそのまま次の Step の前提になるため、別の確認を置かない。"
+  - id: "c"
+    title: "おわり"
+    body: "c.md"
+    final: true

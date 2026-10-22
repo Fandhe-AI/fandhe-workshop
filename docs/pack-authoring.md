@@ -349,7 +349,7 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 | `input_head` | 受講者の入力の先頭の語 | なりうる（代替の文が要る） | すべて |
 | `nearest_command` | 近いコマンド | なりうる（代替の文が要る） | 分類が `unknown_command` の拒否だけ |
 | `step_title` | 今の Step の `title` | ならない | すべて |
-| `step_do` | 今の Step の `do` | ならない（Step に `do` が要る） | すべて |
+| `step_do` | 今の Step の `do`（案内レベルごとの `do_levels` があればその水準の文） | ならない（Step に `do` が要る） | すべて |
 | `remaining` | 処理中の残りの回数 | ならない | 分類が `busy` の拒否だけ |
 | `total` | 処理中の全体の回数 | ならない | 分類が `busy` の拒否だけ |
 
@@ -377,7 +377,7 @@ TERM-34 の担当で、2026-10-15 時点では済んでいません。
 - `input_head` と `nearest_command` には、教材の接頭辞（`profile.command_prefix`）が付きます。`/` を決め打ちにしません
 - `input_head` は、コマンドとして読めた入力だけに値があります。自然文・選択・画面操作・承認・取り消しでは値なしになり、代替の文が使われます
 - `nearest_command` は、分類が `unknown_command` のときだけ計算します。コマンド表から、編集距離（隣り合う 2 文字の入れ替えを 1 と数えます）が 2 以下で最小のものを選び、`unsupported` は選びません。同じ距離なら名前の辞書順の先頭です
-- `step_do` は Step の `do` だけを使い、無いときに題名で代えません。`remaining` は残りの回数、`total` は全体の回数です
+- `step_do` は現在の案内レベルの `do`（`do_levels` を C → B → A の順に探します）を使い、無いときに題名で代えません。`remaining` は残りの回数、`total` は全体の回数です
 
 ## 教材テストの誤入力の期待（`expect`）
 
@@ -510,13 +510,13 @@ views:
 
 `pack.vocab` は必ず書きます（VER-11）。省略すると、履歴には `1.0` と記録され、`validate` の一致の検査も働きません（PACK-31）。
 
-- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.5"`）。YAML では引用符で囲みます
-- 現在のエンジンが読める語彙の上限は 1.5 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
+- 値は、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.6"`）。YAML では引用符で囲みます
+- 現在のエンジンが読める語彙の上限は 1.6 です（`docs/vocabulary/vocabulary.md` の版と拡張点の対応表）。上限を超える宣言の
   履歴は開きません（`vocab_newer`。VER-7）。`validate` は、上限を超える宣言を報告しません（2026-10-19 時点）
 - 語彙 1.1 の語は、`validate` がまだ検査しません。作成者が対応表で確かめます。`fandhe-pack vocab` は EP-1〜EP-9 と EP-13 を Step ごとに数えます。EP-9 は、`requires` または `unmet` を持つ開始点が指す Step の行に数え
   （`use` の Step を指す開始点は数えません。片方だけの開始点は `compile` が `E-STRUCTURE` で止めるため数えません）、`label` は拡張点の番号を持たないため数えません（AUTHOR-17）
 - `fandhe-pack vocab <pack-dir>` は、Step ごとの拡張点の使用と、既存の語彙の組み合わせだけで書けた Step の数を出します（AUTHOR-9。出力の形は
-  `docs/cli.md` の 12 節）。EP-7 は Step の `do` だけ、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
+  `docs/cli.md` の 12 節）。EP-7 は Step の `do` だけ（`do_levels` は数えません）、EP-8 は Step の `body_levels` とヒントの `levels` だけを数え、教材パック全体の
   `guidance_levels` と開始点の `guidance` は数えません。`pack.profile`・`pack.appearance`・`pack.left_pane` は、既定から変えたときだけ末尾に出し、Step ごとの数に入れません。
   読み込みか `compile` に診断があるときは表を出しません。`pack.vocab` に何を宣言するかを確かめるときは、先に `compile` を通します
 - 語彙の版を上げるだけの変更は流れを変えないため、主版ではなく副版か修正版の扱いです。語彙が古い履歴は、適用し直して一致すれば
@@ -532,7 +532,7 @@ views:
 - 宣言より新しい版の拡張点を使うと、拡張点ごとに 1 件の `E-VOCAB-MISMATCH` です。`compile` は報告しません
   （`validate` だけの検査です）
 - 対象は EP-9（`starts[].requires`・`unmet`。語彙 1.2）と、EP-10〜EP-12（`pack.profile`・`pack.appearance`・
-  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）です。
+  `pack.left_pane`。語彙 1.3）と、EP-13（`views.<ID>.body`。語彙 1.4）と、確認 `answer` の選択肢の `label`（`confirm.options[].label`。語彙 1.3）と、承認の `input.revise`（`input.revise.candidates`。語彙 1.5）と、実行環境の操作 `env_action`（語彙 1.5）と、`do_levels`（語彙 1.6）です。
   値が既定と同じでも、欄を書けば使用です。呼ばれないモジュールの開始点・Step も数えます。何か所で使っても 1 件です
 - 入力方式 `choice` の `input.options[].label`（語彙 v1）は別の欄で、対象ではありません。`confirm` の側だけを見ます
 - `pack.vocab` を省略した教材は検査しません。書き方の規約は別に定めます
@@ -582,16 +582,20 @@ views:
 - 配信物には `IR_FILE=<file> tools/build-web.sh` で入ります（`ir/main.json`）。配信の実装は TASK-109・TASK-121 の側です
 - 外部仕様は `docs/cli.md` の 10 節（AUTHOR-8）です
 
-## 案内レベル（`guidance`・`body_levels`・ヒントの `levels`）
+## 案内レベル（`guidance`・`body_levels`・`do_levels`・ヒントの `levels`）
 
 案内レベルは `A`・`B`・`C` の 3 水準です（EP-8。PACK-17）。`A` が最も手厚く、`C` が最も薄い水準です。
 
 - 水準 L で出す本文は、`C` なら `body_levels.C`、`body_levels.B`、`body` の順に探します。`B` なら `body_levels.B`、`body` の順です。`A` は `body` だけです
 - 水準 A の本文は `body` に書きます。`body_levels` に `A` の鍵は書きません。書くと `validate` も `compile` も `E-STRUCTURE`（Step ごとに 1 件）で止めます
+- `do` も水準ごとに書き分けられます（`do_levels`。語彙 1.6、PACK-50）。鍵は `B` と `C` だけで、水準 A の文は `do` に書きます。例: `do: "<コマンド名> を送る"` と `do_levels: {B: "アイデアを書くコマンドを送る"}`。順序違いの拒否の次の行動に `{{step_do}}` を置くと、現在の水準の文が入り、水準 B で隠すコマンド名が出ません
+- 水準 L で出す `do` は、`C` なら `do_levels.C`、`do_levels.B`、`do` の順に探します。`B` なら `do_levels.B`、`do` の順です。`A` は `do` だけです。本文と同じ倒れ方です
+- `do_levels` を持つ Step は `do` が必須です。値は空にできません。鍵 `A`・空の値・`do` の欠落は、`validate` も `compile` も `E-STRUCTURE` で止めます。値は文字列で、モジュールの Step では `${名前}` を置換します（置換の後に空になると `E-SLOT-NEEDS-DO` などで止まります）
+- `do_levels` を書く教材は、`pack.vocab` に `1.6` 以上を宣言してください。宣言が古いと `validate` が `E-VOCAB-MISMATCH` を報告します
 - ヒントは `levels` に出す水準を列で書きます。省略と空の列は全水準を意味します
 - `pack.guidance`・`starts[].guidance`・`body_levels` のキー・`pack.guidance_levels` のキー・ヒントの `levels` の要素が `A`・`B`・`C` でなければ、読み込みで `E-PARSE` になります。小文字も拒否します。診断に書いた値は写しません
 - `pack.guidance_levels.<水準>` は `hide_command_kinds`（`builtin`・`skill`・`flow`・`unsupported`）と `hide_words`（文字列の列）だけを持てます
-- 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または定義の段の `do` に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査で、実体の引数で渡す `do`（`${...}`）・ヒントの文面・宣言の無い章の本文は見ません。診断に隠す語・本文は写しません
+- 隠す語の漏れ（`E-GUIDANCE-LEAK`）は `validate` だけが検出します。水準 B・C について、`hide_command_kinds` に当たる種類のコマンド名と `hide_words` が、その水準で出る本文または `do`（`do_levels` があればその水準の文）に含まれると報告します。対象は、`body_levels` を持つ Step の水準 B・C（本文と `do`）と、`do_levels` を持つ Step の水準 B・C（`do` だけ）と、開始点の `guidance` が B・C の章の全 Step およびその章が呼ぶモジュールの全 Step の同じ水準です。単純な部分文字列の包含で調べる近似の検査で、実体の引数で渡す `do`（`${...}`）・ヒントの文面・宣言の無い章の本文は見ません。診断に隠す語・本文は写しません
 - 案内レベルは実行全体で 1 つです。モジュールの実体ごとには変えられず、章の開始点の `starts[].guidance` で渡します（PACK-45）
 - ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
@@ -600,6 +604,7 @@ views:
 | 試験 | 確かめること |
 |---|---|
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
+| `crates/pack/tests/do_levels.rs` の `pack50_` | 案内レベル B の順序違いの次の行動に skill の名前が出ないこと（A は `do`、C は B に倒れる）、`do_levels` の鍵 `A`・空の値・`do` の欠落の `E-STRUCTURE`、未知の鍵の `E-PARSE`、語彙の版の食い違い、漏れの検査、モジュールの引数の置換、値を診断に写さないこと（PACK-50。TASK-70 2/2） |
 | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |

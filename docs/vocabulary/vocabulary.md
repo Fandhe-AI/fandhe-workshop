@@ -1,20 +1,21 @@
 # 語彙の文書
 
 ```text
-語彙の文書の版: 5
-決定日: 2026-10-21
+語彙の文書の版: 6
+決定日: 2026-10-22
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.5）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
+- 本文書は、教材パックが使う語彙の全体（語彙 v1〜v1.6）を、語ごとの語彙の版つきで固定する契約である。名前つき拡張点の名前・種別・語彙の版もここで固定する（TASK-48、TASK-194、PACK-8〜PACK-23）
 - 「語彙の文書の版」は本文書の版（整数）であり、語ごとの「語彙の版」（`v1`・`v1.1` など）とは別物である。IR の形式の版 `ir_format`（TASK-41）とも別に管理する
 - 版 1 は名前つき拡張点 EP-1〜EP-5（語彙 v1）だけを固定した。版 2 は加算で、EP-6〜EP-12、拡張点の番号を持たない `confirm.options[].label`、条件・状態変化・入力方式などを含む語彙 v1〜v1.3 の全語（7 節）、版と拡張点の対応表（8 節）を足す
 - 版 3 は加算で、EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を足す（TASK-66 1/2、PACK-38、D-50・D-51）。文書のビューが練習データの本文を出す宣言である
 - 版 4 は加算で、語彙 v1.5 の 2 語（`input.revise.candidates` と `input.revise.candidates[].label`）を足す。承認の「直す」の誤った対象の候補と表示名の宣言で、拡張点の番号は持たない（TASK-62 2/2、PACK-42、D-69）。v1.5 は D-69 で PACK-34（保存・書き出しの語。TASK-64 1/2）の語とまとめると決めた版である。PACK-34 の語は、v1.5 の行へ語を足す形で加え、文書の版は上げるが語彙の版は上げない
 - 版 5 は加算で、PACK-34 の 4 語（入力方式 `env_action`・欄 `input.action`・値 `input.action=save`・`input.action=export`）を v1.5 の行へ足す。保存・書き出しの実行環境の操作を Step の入力として宣言する語で、拡張点の番号は持たない。語彙の版は v1.5 のままである（TASK-64 1/2、PACK-34、D-69）。値は閉じた 2 つで、受講者の入力を教材へ差し込む語ではない（D-50）
-- TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）と TASK-62 の「直す」の候補の語（v1.5）を除き、本版に含めない。足すときは新しい語彙の版の行（v1.5 の語は既存の行）として加え、文書の版を上げる
+- 版 6 は加算で、語彙 v1.6 の 1 語（`do_levels`）を足す。Step の `do` を案内レベルごとに書き分ける欄で、鍵は `B`・`C`、水準 A の文は `do` に書く。探す順は本文と同じ C → B → A で、`do_levels` を持つ Step は `do` を必須にする。拡張点の番号は持たず、IR の形式の版 `ir_format` は 1 のままである（TASK-70 2/2、PACK-50、D-55）
+- TASK-62〜TASK-72 の語彙は、TASK-66 の文書ビューの本文の語（v1.4）、TASK-62 の「直す」の候補の語（v1.5）、TASK-70 の `do_levels`（v1.6）を除き、本版に含めない。足すときは新しい語彙の版の行（v1.5 の語は既存の行）として加え、文書の版を上げる
 - 変更規則: 固定した行は書き換えない・消さない・改名しない。足すときは新しい語彙の版の行として加え、文書の版を上げ、変更履歴に記録する
 - 名前を変える必要が出た場合は、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
 - 仕様は private のため、本文を転記せず ID（PACK-14、EXT-8）で参照する
@@ -93,7 +94,7 @@
 
 ## 7. 語の一覧
 
-語彙 v1〜v1.5 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
+語彙 v1〜v1.6 の語を、語ごとの語彙の版つきで固定する。（種別, 語）の組が一意のキーである。試験は、この表と `crates/pack/src/vocab.rs` の表の一致を確かめる。
 
 - 種別の列は分類のキーであり、2 節の拡張点の種別とは別物である
 - 語の列の `a.b` は欄の経路、`x=y` は欄 `x` の値 `y` を指す
@@ -196,6 +197,7 @@
 | `field` | `input.action` | `v1.5` | — | PACK-34 | `env_action` の操作の種類（閉じた集合）。必須 |
 | `value` | `input.action=save` | `v1.5` | — | PACK-34 | チェックポイントの保存が成功したら受付になる |
 | `value` | `input.action=export` | `v1.5` | — | PACK-34 | 履歴の書き出しが成功したら受付になる（実行時の結線は未実装。`docs/known-gaps.md`） |
+| `field` | `do_levels` | `v1.6` | — | PACK-50 | Step の `do` を案内レベル（`B`・`C`）ごとに書き分ける。水準 A は `do`。`do` が必須で、探す順は C → B → A |
 
 ## 8. 版と拡張点の対応表
 
@@ -207,11 +209,13 @@
 | `v1.3` | EP-10・EP-11・EP-12 | `confirm.options[].label` | PACK-20〜PACK-23 |
 | `v1.4` | EP-13 | — | PACK-38 |
 | `v1.5` | — | `input.revise.candidates`・`input.revise.candidates[].label`・`env_action`・`input.action`・`input.action=save`・`input.action=export` | PACK-34・PACK-42 |
+| `v1.6` | — | `do_levels` | PACK-50 |
 
 - v1.1〜v1.3 は加算だけで、IR の形式の版 `ir_format` は 1 のままである（PACK-24）
 - v1.4 も加算だけである。`views` は値を通す欄のため、IR の型は変わらない
 - v1.5 も加算だけである。`input` は未型付けの値のまま IR に通るため、IR の型は変わらない。拡張点の番号は持たない（`confirm.options[].label` と同じ）
-- 語彙の版の上限は `v1.5` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
+- v1.6 も加算だけである。`Step` に任意の欄 `do_levels` を足すが、空なら書き出さないため、使わない教材の IR は変わらず、`ir_format` は 1 のままである。拡張点の番号は持たない
+- 語彙の版の上限は `v1.6` である。それ以降の語彙は、新しい語彙の版の行として版上げで足す
 
 ## 9. 仕様との照合表
 
@@ -238,6 +242,7 @@
 | PACK-34 | `env_action`・`input.action`・`input.action=save`・`input.action=export` |
 | PACK-38 | `views.body`・`views.body=shown`・`views.body=hidden` |
 | PACK-42 | `input.revise.candidates`・`input.revise.candidates[].label` |
+| PACK-50 | `do_levels` |
 
 ## 10. 本文書に入れないもの
 
@@ -287,5 +292,7 @@
 | 3 | 2026-10-18 | EP-13（`view.document_body`）と語彙 v1.4 の 3 語（`views.body` と値 2 つ）を加算。TASK-66 1/2 | TASK-66、PACK-38、D-50・D-51 |
 | 4 | 2026-10-21 | 語彙 v1.5 の 2 語（`input.revise.candidates`・`input.revise.candidates[].label`）を加算。拡張点の番号なし。TASK-62 2/2 | TASK-62、PACK-42、D-69 |
 | 5 | 2026-10-21 | 語彙 v1.5 の行へ PACK-34 の 4 語（`env_action`・`input.action`・`input.action=save`・`input.action=export`）を加算。語彙の版は据え置き。TASK-64 1/2 | TASK-64、PACK-34、D-69 |
+
+| 6 | 2026-10-22 | 語彙 v1.6 の 1 語（`do_levels`）を加算。拡張点の番号なし。TASK-70 2/2 | TASK-70、PACK-50、D-55 |
 
 2026-10-19: 5 節に手続きの文書（TASK-189）への参照を足した。固定した行は変わらないため、文書の版は 3 のまま据え置く。
