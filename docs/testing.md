@@ -7197,5 +7197,14 @@ TASK-176（5.220）は操作が状態・ログを変えないことを固定し�
 - 試験（`tools/upstream-impact.test.mjs`。`make test-upstream-impact`。`node:test`、試験用の対応表を内蔵）: 1 参照名の全体の変更と同名の Step の scope 区別・2 和集合と整列・3 `--changes` のファイル単位と `path` 空の行・4 併用・5 該当なし・6 入力の行順によらずバイト一致・7 `--vocab`（教材に無い Step・誤った scope で 1、全行が一覧にあれば 0、`use` 行と集計行の読み取り）・8 表に無い参照名・9 不正な入力 21 形が 2 で標準出力が空・10 自由記述の列と不正なセルの値を写さない・11 `--help`。ほかに純粋な関数の試験 1 件。
 - 変異注入: 置かない。`crates/` の変更が無く、`scripts/check-mutations.sh` の対象外の Node の道具であり、負の対照は試験 7・9 が担う。
 - 限界: 行番号では照合しない（版を上げると行がずれるため。`lines` 列は人が読む欄）。引用符つきの CSV は読めない。表の形は参照版の置き場（TASK-717）の決定で版 2 になりうる。
-- 範囲外: 手順書（TASK-182 2/2）・CI への組み込み（人間の承認点）・教材 repo の実際の対応表と教材テスト・出典の検査。
+- 範囲外: 手順書（TASK-182 2/2。5.236 で追加）・CI への組み込み（人間の承認点）・教材 repo の実際の対応表と教材テスト・出典の検査。
 - 実行結果（2026-10-22）: 12 件が通った。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.236 参照元の版を上げる手順書の形（TASK-182 2/2。VER-15・UMAP-13・BUILD-26）
+
+- 目的: 手順書 `docs/upstream-bump-procedure.md` が、教材テストを通すこと・公開前に人が対応表を確かめて記録を残すこと・生成物を無検証で公開しないことを固定し、引用したパスが実在することを確かめる。
+- 試験（`crates/pack/tests/upstream_bump_procedure_doc.rs`。5 件）: 1 版の欄 `procedure_has_version_block`・2 節の順 `procedure_has_sections_in_order`・3 固定の文 `procedure_states_acceptance_rules`・4 パスの実在 `procedure_paths_exist`・5 終了コードの表 `procedure_tool_exit_codes_match`。
+- 変異注入: 置かない。文書の形の検査で、負の対照は固定の文を 1 つ消すと失敗することの手元の確認とした（2026-10-22 に確認し、元に戻した）。
+- 限界: 字面の検査で、手順の意味の正しさは人が読んで確かめる。
+- 範囲外: 実際の記録と最終の承認（人間の承認点）・道具の CI への組み込み・教材 repo の試験。
+- 実行結果（2026-10-22）: 5 件が通った。`scripts/expected-test-counts.txt` は更新しない。
