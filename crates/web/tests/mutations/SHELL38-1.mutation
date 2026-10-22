@@ -1,0 +1,8 @@
+id: SHELL38-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:     if op == ShellOp::DeleteHistory && ctx.in_top {
+replace:     if false {
+expect-fail: 削除の置き場の負の見本
+note: 上部に置いた削除が違反にならない（SHELL-38・D-75・TASK-516 2/2）

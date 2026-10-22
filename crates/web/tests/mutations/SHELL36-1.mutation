@@ -1,0 +1,8 @@
+id: SHELL36-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:                 next = Some(next_action(bound));
+replace:                 next = None;
+expect-fail: 次の行動は理由から導かれ属性に出る
+note: 次の行動の導出が外れる（SHELL-36・D-57・TASK-516 2/2）

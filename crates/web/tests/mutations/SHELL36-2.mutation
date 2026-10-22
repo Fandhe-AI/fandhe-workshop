@@ -1,0 +1,8 @@
+id: SHELL36-2
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:     if k.reason_binding() == ReasonBinding::LoadReason && reason.is_some() && bound.is_none() {
+replace:     if false {
+expect-fail: 理由の束縛と次の行動の負の見本
+note: 理由コードの束縛の検査が外れる（SHELL-36・TASK-310・TASK-516 2/2）

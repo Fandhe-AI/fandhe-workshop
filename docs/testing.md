@@ -7264,3 +7264,31 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 変異注入（2026-10-22。元にしたコミット `b6da7c6` の作業ツリー）: SHELL6-1・SHELL8-1・SHELL24-1・SHELL30-1 と既存の SHELL1-1・SHELL1-2・SHELL10-1・SHELL16-1・SHELL17-1・SHELL17-2・SHELL18-1・SHELL31-1 の 12 件がすべて DETECTED。
 - 限界・申し送り: 画面が `check_complete_v2` へ移るのは TASK-523 の実装の後。「模擬」・位置の文言と「Step の ID は出さない」は TASK-524、早送りの action・状態の文字・無効の表示は TASK-540、ブラウザの案内の「一度だけ」と旧版の基準は TASK-544。理由コードを TASK-310 の `LoadReason` に結ぶことは 2/2。ブラウザ試験は画面の描画を変えないため流していない。
 - 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の 1 件（`crates/pack/src/guidance.rs:606`）で失敗する（範囲外）。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.238 枠の契約の版 2 の通知・操作の口（TASK-516 2/2。SHELL-21・SHELL-22・SHELL-36・SHELL-38）
+
+- 目的: 5.237 で上げた版 2 に、残りの決定（D-57・D-52・D-75）を反映し、版 1・版 2 の適合試験が通ることを確かめる。版は 2 のまま据え置く（版 1 の 2/2 が版を上げずに足したのと同じ形）。
+- 8 件の期待と決定と定義の対応（食い違いは spec の `d850232` の SHELL-6・8・21・22・24・30・36・38 と D-52・D-54・D-57・D-72・D-74・D-75 に照らして数えた。2026-10-22）:
+
+| 要件 | 決定 | 定義 | 食い違い |
+|---|---|---|---|
+| SHELL-6 | D-72 | 5.237 の定義を再掲。`TopSection::Mock`（`ExactlyOne`。必須の検査は `check_complete_v2`） | 0 件 |
+| SHELL-8 | D-72 | 5.237 の定義を再掲。`Title`・`Position`・`StepPosition` | 0 件 |
+| SHELL-21 | D-57 の 1 | 枠の通知には足さない。運び手は `terminal_area` の `LineKind::Reloaded`（`reloaded`。TASK-322）。`NoticeKind::parse("reload")`・`ShellOp::from_name("reload-notice")` が `None` であることを試験が固定する | 0 件 |
+| SHELL-22 | D-52 | `NoticeKind::ExportDraft`（`export-draft`）・`MessageId::ExportDraft`。理由は任意、操作は `DismissNotice` だけ。文面は固定しない。SAVE-29 の書き出しの案内とは別物 | 0 件 |
+| SHELL-24 | D-54 | 5.237 の定義を再掲。`ControlSection::FastForward` | 0 件 |
+| SHELL-30 | D-74 | 5.237 の定義を再掲。`NoticeKind::BrowserNotice`・`BROWSER_NOTICE_TEXT` | 0 件 |
+| SHELL-36 | D-57 の 2 | 属性 `data-notice-next-action`（値は `LoadNextAction` の 3 値）。`import-refused` だけが持ち、理由から `next_action` で導く（割り当ては TASK-334 の案のまま）。規則 `next-action-missing`・`next-action-mismatch`。理由コードを `LoadReason` に結ぶ（`NoticeKind::reason_binding`。規則 `reason-unbound`） | 0 件 |
+| SHELL-38 | D-75 | 操作 `DeleteHistory`（`shell-delete`）・`ConfirmDelete`・`CancelDelete`（空の payload だけ）、通知の種類 `DeleteConfirm`（`delete-confirm`）。上部に置くと `delete-in-top`、確定・取り消しが通知の外にあると `op-outside-notice`、確認に両方が無いと `check_complete_v2` の `delete-confirm-ops`。文言は固定しない | 0 件 |
+
+- 版 2 の 1/2 からの差分:
+  - 足したもの: 上の定義、検査の規則 5 件（`reason-unbound`・`next-action-missing`・`next-action-mismatch`・`delete-in-top`・`delete-confirm-ops`）、`NoticeError::ReasonUnbound`、`Notice::next_action`。
+  - 値を変えたもの: `ShellOp::ALL` が 7 件、`NoticeKind::ALL`・`MessageId::ALL` が 8 件（すべて末尾に追加）。
+  - 変えていないもの: 版 1 と 1/2 の識別子・action の名前・種類・文面の識別子の値と順、`SHELL_CONTRACT_VERSION`（2）、host・描画の呼び出し。
+- 版 1 と版 2 の試験で直した 9 か所: `shell_contract.rs` の (1) 識別子と名前の値の固定（先頭 4 件の一致へ）、(2) 識別子の件数（`+ 7`）、(3) 通知の識別子と種類の値の固定（先頭 6 件の一致へ）、(4) 理由の規則、(5) 許す操作の表の固定（新しい 2 種を追加）、(6) `notice_new_の_5_つのエラー`・`notice_の属性と宛先` の理由を `format_newer` へ（束縛で `ReasonUnbound` が先に出るため）、(7) 検討中の項目の否定の列から `delete-history`・`shell-delete` を外す、(8) 通知の種類の件数 8。`shell_notice_sample.rs` の未定義の種類を `stale-tab` へ。`shell_contract_v2.rs` の先頭 4 件の一致と、まだ無いものの列から `shell-delete` を外す。
+- 版 1 を使う画面が壊れない根拠: 版 1 の値は不変で `ALL` の先頭に残る。host の開かない通知の理由は `LoadReason::as_str` なので束縛を通る。属性が 1 つ増えるだけで、`refused_history`・`version_notice`・`history_ops`・`shell_frame_host` を含む web の全試験が通った。
+- 束縛しなかった種類: `save-failed` は値が `StorageError` の写し（`save_notice::save_failure_reason`）、`pack-unloadable` は core の `IrLoadError::reason_code` が作り、どちらも TASK-310 の拒否理由の列挙ではないため不透明のままにした。
+- 試験（`shell_contract.rs` 26 件・`shell_contract_v2.rs` 23 件・`shell_notice_sample.rs` 18 件）: 2/2 で `shell_contract_v2.rs` に 9 件を追加した。削除の操作の値と往復・書き出しの案内と削除の確認の値・理由コードの束縛（19 種と列挙外の 3 値）・次の行動（19 種）・再読み込みを足さないこと・正の見本（4 つの検査器）・束縛と次の行動の負の見本・削除の置き場の負の見本・確認の欠落（版 2 だけが失敗）。
+- 変異注入（2026-10-22。元にしたコミット `b99123d` の作業ツリー）: 新しい SHELL22-1・SHELL36-1・SHELL36-2・SHELL38-1・SHELL38-2 と、既存の SHELL6-1・8-1・16-1・17-1・17-2・18-1・18-2・24-1・30-1・31-1 の 15 件がすべて DETECTED。最初の実行で SHELL22-1 が SURVIVED だった（期待した試験が許す操作を見ていなかった）ため、その試験に許す操作の検査を足して DETECTED にした。ブラウザ試験を使う SHELL1-* と SHELL10-*・12 は描画を変えないため流していない（未検証）。
+- 限界・申し送り: 次の行動の押せる結線は TASK-538、削除の操作と確認の画面と文言は TASK-539、書き出しの案内の画面と下書きの有無の口は該当の画面のタスク、再読み込みの二重の通知の確認は TASK-536、文面は TASK-549。D-57 の次の行動の割り当ては決定が出ていない案のまま。ブラウザ試験は描画の構造を変えず属性が 1 つ増えるだけなので流していない。
+- 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の失敗（`crates/pack/src/guidance.rs:606`）があり、新しい失敗は増えていない（範囲外）。`scripts/expected-test-counts.txt` は更新しない（版上げ PR だけが照合する）。
