@@ -4,7 +4,7 @@
 // 方針: 試験用の口（exportClick・importInstall）を使わず、画面の操作だけで書き出しと読み込みを通す足場を作る。
 //   書き出しは「履歴を書き出す」ボタン → 現れたリンクのクリックを Playwright の `Download` で受ける。
 //   読み込みは `shell-import` の中の input[type=file] へ `setInputFiles` で渡す（OS のファイル画面は使わない）。
-// 確かめること: (1) 書き出しのリンクで履歴のファイルが得られ、JSON として読める。(2) 別のオリジンでそのファイルを選ぶと開く。
+// 確かめること: (1) 書き出しのリンクで履歴のファイルが得られ、JSON として読める。もう一度押すとリンクが新しい URL で作り直され、href がその URL と一致する。(2) 別のオリジンでそのファイルを選ぶと開く。
 //   (3) ファイル画面を開く（選ばずに閉じる）クリックで読み込みの結果・通知が変わらない（空の本文が届かない）。
 //   (4) 書き換えたファイル・空のファイルは開かず、状態を変えず、通知が出る。(5) 外部への要求・CSP 違反・ページのエラー・ダイアログ・
 //   ポップアップが 0 件で、URL に状態が載らない。(6) 配信する設定（試験用の口なし）でも、画面の操作だけで書き出しの文が出る。
@@ -115,6 +115,30 @@ test('書き出しのリンクで履歴のファイルが得られ、別のオ�
       const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
       assert.ok(Array.isArray(parsed.ops), 'file has ops');
       assert.deepEqual(await urlState(A.page), urlBefore, 'URL does not carry the state');
+
+      // もう一度押すと、リンクは新しい URL で作り直され（前の URL は破棄済み）、`app.js` が写した href は新しい URL と一致する。
+      // 写した href が view の `data-export-url` と乖離しないこと（同じ要素が残って古い href を指し続けないこと）を見る。
+      const linkUrls = (page) =>
+        page.evaluate((sel) => [...document.querySelectorAll(sel)].map((a) => [a.getAttribute('data-export-url'), a.getAttribute('href')]), LINK);
+      const [[firstUrl, firstHref]] = await linkUrls(A.page);
+      assert.equal(firstHref, firstUrl, 'first link: href equals data-export-url');
+      await A.page.locator(EXPORT_BTN).click();
+      await A.page.waitForFunction(
+        ([sel, prev]) => {
+          const a = document.querySelector(sel);
+          return a !== null && a.getAttribute('data-export-url') !== prev && a.getAttribute('href') === a.getAttribute('data-export-url');
+        },
+        [LINK, firstUrl],
+        { timeout: 10000 },
+      );
+      const second = await linkUrls(A.page);
+      assert.equal(second.length, 1, 'one link after the second export');
+      assert.notEqual(second[0][0], firstUrl, 'second link has a new URL');
+      assert.equal(second[0][1], second[0][0], 'second link: href equals data-export-url');
+      const [download2] = await Promise.all([A.page.waitForEvent('download'), A.page.locator(LINK).click()]);
+      const file2 = path.join(tmpDir, `${Date.now()}-second.json`);
+      await download2.saveAs(file2);
+      assert.equal(JSON.parse(fs.readFileSync(file2, 'utf8')).ops.length, parsed.ops.length, 'second download has the same ops length');
       assertQuiet(A.rec, 'origin A');
 
       // B: 画面のファイル入力へ渡す。
