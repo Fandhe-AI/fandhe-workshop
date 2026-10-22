@@ -52,6 +52,16 @@ export function channelFromEnv(env = process.env) {
 }
 
 // ブラウザを起動する。呼び出し側が close する。
+// Request（オブジェクト）ごとに 1 から始まる連番を返す関数を作る。WeakMap には size が無いため、数えるのは別の整数カウンターで行う。
+export function makeRequestIdOf() {
+  const ids = new WeakMap();
+  let next = 0;
+  return (req) => {
+    if (!ids.has(req)) ids.set(req, ++next);
+    return ids.get(req);
+  };
+}
+
 export function launchBrowser(opts = {}) {
   return chromium.launch(resolveLaunchOptions(opts));
 }
@@ -303,11 +313,7 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
     rec.crashed = true;
   });
   // Request の同一性で response・requestfinished・requestfailed を対応付けるための連番。
-  const reqIds = new WeakMap();
-  const idOf = (req) => {
-    if (!reqIds.has(req)) reqIds.set(req, reqIds.size + 1);
-    return reqIds.get(req);
-  };
+  const idOf = makeRequestIdOf();
   page.on('response', (res) => {
     const h = res.headers();
     rec.requests.push({

@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, requestKinds,
+  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, requestKinds, makeRequestIdOf,
 } from './harness.mjs';
 
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'";
@@ -148,4 +148,19 @@ test('requestKinds: 配信元の要求を相対パス・種類・状態の組に
   assert.deepEqual(requestKinds(rec, { origin: o, base: '/b/', exclude: [] }).length, 3, '除外は引数で明示した分だけ');
   const withExtra = { requests: [...rec.requests, mk(`${o}/b/x.png`, 'image', 200)] };
   assert.notDeepEqual(requestKinds(withExtra, { origin: o, base: '/b/' }), k, '余計な要求は差に現れる');
+});
+
+test('makeRequestIdOf: 別の Request には別の整数の id、同じ Request には同じ id（NaN で同一化しない）', () => {
+  const idOf = makeRequestIdOf();
+  const a = {};
+  const b = {};
+  const ia = idOf(a);
+  const ib = idOf(b);
+  assert.ok(Number.isInteger(ia) && Number.isInteger(ib), 'id は整数');
+  assert.notEqual(ia, ib);
+  assert.equal(idOf(a), ia);
+  assert.equal(idOf(b), ib);
+  // 完了した IR の取得の後に別の要求が ERR_ABORTED になっても、完了した側の id と一致しない。
+  const done = new Set([ia]);
+  assert.equal(done.has(ib), false);
 });
