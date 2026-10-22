@@ -92,6 +92,7 @@ fn pack46_pack_refs_pass_and_are_copied_to_ir() {
 
 /// 別の文書の 1 行を模した記録。教材 repo の教材テストが持つ表の形の例示である。
 struct MapRow {
+    scope: &'static str,
     step: &'static str,
     reference: &'static str,
 }
@@ -106,7 +107,7 @@ fn pack46_vocab_table_yields_step_ids_for_external_map() {
     );
     t.put(
         "modules/m/module.yaml",
-        b"id: m\ntitle: M\nsteps:\n  - {id: m1, title: M1, next: [{to: m2}]}\n  - {id: m2, title: M2, final: true}\n",
+        b"id: m\ntitle: M\nsteps:\n  - {id: m1, title: M1, next: [{to: m2}]}\n  - {id: m2, title: M2, next: [{to: a}]}\n  - {id: a, title: MA, final: true}\n",
     );
     let table = report_dir(&t.0).expect("vocab");
     let mut lines = table.lines();
@@ -119,53 +120,81 @@ fn pack46_vocab_table_yields_step_ids_for_external_map() {
         }
     }
     // 定義した Step がすべて出る。展開後の複製（instance 付き）は出ない。
-    for want in [("c1", "a"), ("c1", "b"), ("m", "m1"), ("m", "m2")] {
+    for want in [
+        ("c1", "a"),
+        ("c1", "b"),
+        ("m", "m1"),
+        ("m", "m2"),
+        ("m", "a"),
+    ] {
         assert!(
             ids.contains(&(want.0.to_string(), want.1.to_string())),
             "{want:?} in {ids:?}"
         );
     }
     assert!(ids.iter().all(|(_, s)| !s.contains("i1")), "{ids:?}");
-    let step_ids: BTreeSet<&str> = ids.iter().map(|(_, s)| s.as_str()).collect();
 
-    // 別の文書の行を模した表と、Step ID の突き合わせ。
+    // 別の文書の行を模した表と、(scope, Step ID) の組の突き合わせ。章 c1 とモジュール m に同名の Step `a` がある。
     let map = [
         MapRow {
+            scope: "c1",
             step: "a",
             reference: "upstream-a",
         },
         MapRow {
+            scope: "m",
             step: "m1",
             reference: "upstream-b",
         },
         MapRow {
+            scope: "m",
+            step: "a",
+            reference: "upstream-b",
+        },
+        MapRow {
+            scope: "m",
             step: "m2",
             reference: "upstream-a",
         },
         MapRow {
+            scope: "c1",
             step: "gone",
             reference: "upstream-a",
         },
+        // Step ID だけなら存在するが、その scope には無い組（誤った scope）。
+        MapRow {
+            scope: "c1",
+            step: "m1",
+            reference: "upstream-a",
+        },
     ];
-    let unknown: Vec<&str> = map
+    let known = |r: &MapRow| ids.contains(&(r.scope.to_string(), r.step.to_string()));
+    let unknown: Vec<(&str, &str)> = map
         .iter()
-        .filter(|r| !step_ids.contains(r.step))
-        .map(|r| r.step)
+        .filter(|r| !known(r))
+        .map(|r| (r.scope, r.step))
         .collect();
-    assert_eq!(unknown, ["gone"], "表に無い Step ID を持つ行は検出できる");
+    assert_eq!(
+        unknown,
+        [("c1", "gone"), ("c1", "m1")],
+        "表に無い組と誤った scope の行は検出できる"
+    );
 
-    // 参照名 upstream-a の commit を上げたときに影響する Step は、決定的に列挙できる。
-    let mut by_ref: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
-    for r in map.iter().filter(|r| step_ids.contains(r.step)) {
-        by_ref.entry(r.reference).or_default().insert(r.step);
+    // 参照名の commit を上げたときに影響する Step は、同名の Step も区別して決定的に列挙できる。
+    let mut by_ref: BTreeMap<&str, BTreeSet<(&str, &str)>> = BTreeMap::new();
+    for r in map.iter().filter(|r| known(r)) {
+        by_ref
+            .entry(r.reference)
+            .or_default()
+            .insert((r.scope, r.step));
     }
     assert_eq!(
         by_ref["upstream-a"].iter().copied().collect::<Vec<_>>(),
-        ["a", "m2"]
+        [("c1", "a"), ("m", "m2")]
     );
     assert_eq!(
         by_ref["upstream-b"].iter().copied().collect::<Vec<_>>(),
-        ["m1"]
+        [("m", "a"), ("m", "m1")]
     );
 }
 
