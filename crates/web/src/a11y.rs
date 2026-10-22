@@ -147,6 +147,8 @@ impl StatusNotice {
 ///
 /// 通知欄（`role="status"`）として扱うが、`StatusNotice::ALL` には入れない。保存の口を持たない画面（右のエリアだけの
 /// 描画など）には出ないため、全体の適合では「1 個」でなく「2 個以上でない」だけを求める（任意の通知欄）。
+///
+/// TASK-534 1/2 から本識別子の欄は描かず、保存の失敗は枠の通知欄 `shell-notice` の `save-failed` 項目に出す（現在は 0 個）。
 pub const SAVE_NOTICE_TESTID: &str = "save-notice";
 
 /// 履歴の書き出しの案内の通知欄の識別子（SAVE-29・D-57・TASK-340）。`SAVE_NOTICE_TESTID` と同じ扱いの任意の通知欄で、

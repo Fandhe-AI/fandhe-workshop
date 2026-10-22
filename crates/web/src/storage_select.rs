@@ -19,7 +19,7 @@
 //!   表示する（SAVE-11・TASK-323 2/2）。IndexedDB を開けたが全件を読めなかったときは [`HistoryStorage::unreadable`] で
 //!   `read`・`write` を断り、旧い値で巻き戻さない（自動運転での判断。人の承認は無い）
 //! - IndexedDB が使えない（開けない）ときは localStorage だけで動く。localStorage の想定外の上限超過は
-//!   [`StorageError::QuotaExceeded`] をそのまま返す（変更のたびの保存の失敗は `save_notice` が表示する。TASK-323 1/2）
+//!   [`StorageError::QuotaExceeded`] をそのまま返す（変更のたびの保存の失敗は `shell_notice` が表示する。TASK-323 1/2）
 //!
 //! 離れる直前の書き込み: 保存先が localStorage の間は `write` が同期で終わるため `pagehide` の中で足りる。IndexedDB へ切り替えた後は
 //! `put` の発行までで確定を保証しない（SAVE-9 の検討中の論点で、仕様の決定を待つ）。
@@ -221,7 +221,7 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
     /// 直近の IndexedDB への書き込み（put）の失敗の種類。値・鍵・例外の文は持たない。
     ///
     /// put の確定で `None` に戻る（後の保存の成功で、表示が消えるようにするため。SAVE-11）。呼び出し元の `persist` が
-    /// ホストの表示の元として読み、`save_notice` が文にする。
+    /// ホストの表示の元として読み、`shell_notice` が文にする。
     pub fn last_async_error(&self) -> Option<StorageError> {
         self.shared.last_async_error.get()
     }

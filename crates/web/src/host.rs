@@ -99,7 +99,6 @@ use crate::history_export::ExportGate;
 use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
-use crate::save_notice::SAVE_NOTICE_FIELD;
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::shell_notice::SHELL_NOTICES_FIELD;
@@ -134,7 +133,7 @@ pub struct HostModel {
     /// 読み方は [`HostModel::selected_view`] が決め、宣言に無い種類のときは読まれない。今の Step が変わると
     /// `step_engine` が捨てる（ART-12。元の Step へ戻っても以前の選択は戻らない）。
     view_choice: Option<ViewChoice>,
-    /// 直近の保存の失敗の種類（SAVE-10・SAVE-11）。`save-notice` の元で、履歴（`ops`）には記録しない表示の状態。
+    /// 直近の保存の失敗の種類（SAVE-10・SAVE-11）。`shell-notice` の `save-failed` 項目の元で、履歴（`ops`）には記録しない表示の状態。
     /// 保存に成功すると `None` に戻る。同期の保存の結果（`EngineHost::save_after_change`）と、非同期の保存の失敗の probe
     /// （`EngineHost::refresh_save_failure`）から決まる。
     save_failure: Option<StorageError>,
@@ -180,7 +179,7 @@ impl HostModel {
         view_select::effective_view(self.session(), self.view_choice.as_ref())
     }
 
-    /// 直近の保存の失敗の種類。失敗していなければ `None`（`save-notice` が空になる）。
+    /// 直近の保存の失敗の種類。失敗していなければ `None`（`shell-notice` の `save-failed` 項目が消える）。
     pub fn save_failure(&self) -> Option<StorageError> {
         self.save_failure
     }
@@ -1204,7 +1203,9 @@ impl EngineHost {
             .or_else(|| self.save_failure_probe.as_ref().and_then(|probe| probe()));
         if failure != self.model.save_failure {
             self.model.save_failure = failure;
-            self.dirty.push(SAVE_NOTICE_FIELD);
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
         }
     }
 
@@ -2450,7 +2451,11 @@ impl Component for EngineHost {
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         let mut children = vec![
-            crate::shell_notice::notice_area(self.version_notice, self.refused_notice),
+            crate::shell_notice::notice_area(
+                self.version_notice,
+                self.refused_notice,
+                self.model.save_failure,
+            ),
             tablist,
             panes,
         ];

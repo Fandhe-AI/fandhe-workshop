@@ -7169,3 +7169,14 @@ TASK-176（5.220）は操作が状態・ログを変えないことを固定し�
 - 自己確認: `export_live` が控えを返さず作り直す写しで 5 件が「書き出しの門が ready でない」で失敗した（2026-10-22）。`history_to_save` の表示だけの判定を外した写しは失敗しなかった。表示だけの間は履歴の記録が無く `envelope_for_save` が `None` になるため、その判定は二重の防御であり、保存先の不変は結果（書き込み 0 件・値の一致）で見ている
 - 限界: Chromium だけ。IndexedDB への切り替え後の `pagehide` の書き込みは確定を保証しない（SAVE-9）。CSP なしは localStorage の場面だけ。書き出しの名前の教材 ID は空で、名前の検査は `history-export` が持つ
 - 範囲外: 表示だけの動作の実装と状態・ログの不変（5.220）、見せ方（REVIEW-4/5・SHELL-20）。`scripts/expected-test-counts.txt` は更新しない
+
+### 5.232 保存の失敗の枠の通知欄への表示（TASK-534 1/2。SHELL-18・SAVE-10）
+
+- 目的: localStorage の容量超過で「保存できませんでした（QuotaExceededError）」が通知欄に出て、状態は進み既存の保存は変わらず、容量を空けた後の次の変更で表示が消えることを、実際の画面（S-17 相当）で確かめる。IndexedDB の失敗の確認（SHELL-19）は 2/2（#727）が持つ。
+- 決定（案 A）: 右のログ部品の `save-notice` を外し、枠の通知欄 `shell-notice` に `NoticeKind::SaveFailed`（識別子 `save-failed`・文面 `msg-save-failed`・押せる操作なし）の項目として出す。案 B（両方に出す）は `role="status"` の欄 2 つが同じ失敗を読み上げるため、案 C（ログ部品に残す）は幅 960px 未満で成果物のタブを選ぶと見えず SHELL-18（Must）を満たさないため退けた。自動運転のため人の承認は得ていない。
+- 理由コード（`data-notice-reason`）: 閉じた列挙 `StorageError` から固定の ASCII へ写す（`QuotaExceeded`→`quota_exceeded`・`Unavailable`→`storage_unavailable`・`Failed`→`write_failed`。`save_notice::save_failure_reason`）。文は `save_notice_text` のまま（`Unavailable`・`Failed` は仮置き）。
+- 追従: native 試験 `save_failure`・`save_failure_idb`・`stale_notice`（`common/storage_fakes.rs` の `save_failed_item` で通知欄の項目を読む。試験名は変えない）、`dirty_binding_points`・`host_contract`（field 24 → 23）、ブラウザ試験 `save-quota`・`save-idb-failure`・`stale-tab`。`a11y::SAVE_NOTICE_TESTID` は任意の通知欄として残し、現在は 0 個。
+- ブラウザ試験 `save-quota`: 通知欄がちょうど 1 個、容量超過で項目が 1 件（理由 `quota_exceeded`・文面 `msg-save-failed`・ボタン 0）、旧来の `save-notice` が 0 件、空けた後に項目 0 件。新しい場面として幅 360px で操作の面で失敗を起こし成果物のタブへ切り替えても項目が見える。
+- 変異: `SHELL18-2`（保存の失敗の項目を足さない）を `save_failure` が検出する。`SAVE10-1`・`SAVE10-3`・`SAVE11-2`・`SAVE13-1` も引き続き検出した（2026-10-22）。
+- 過去の記録（5.x の `save-notice` の記述）は、TASK-534 1/2 で `shell-notice` の `save-failed` 項目へ移した。
+- 実行結果（2026-10-22）: `make lint`・`cargo test -p fandhe-workshop-web`・上の 3 本と `element-identity`・`secret-warning`・`storage-lost`（Chromium）が通った。`make test-browser` の全件・`version-notice`・`refused-history`・`csp-runs` は未実行（環境変数の前提が要るため CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。

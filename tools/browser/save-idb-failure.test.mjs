@@ -1,11 +1,11 @@
 // IndexedDB への保存の失敗で状態を壊さないことの試験（TASK-323 2/2。SAVE-11・SHELL-19）。
 //
 // 実際の画面で、次を確かめる。
-//   (a) 起動の前に localStorage を閾値の手前まで別の鍵で埋めると、1 手目の保存は IndexedDB へ届く。`save-notice` は空。
+//   (a) 起動の前に localStorage を閾値の手前まで別の鍵で埋めると、1 手目の保存は IndexedDB へ届く。`shell-notice` の `save-failed` 項目 は空。
 //   (b) IndexedDB の put を中断させる（`put` の直後に `transaction.abort()` を呼ぶ包み）と、2 手目の後、次の `update`
-//       （下書きの打鍵）で `save-notice` が理由の文になる。IndexedDB の値は 1 手目のまま変わらず、エンジンのログは伸びている。
+//       （下書きの打鍵）で `shell-notice` の `save-failed` 項目 が理由の文になる。IndexedDB の値は 1 手目のまま変わらず、エンジンのログは伸びている。
 //   (c) 中断を外して 3 手目を送ると IndexedDB の値が更新され、次の打鍵で表示が消える。再読み込みすると 3 手目まで復元される。
-//   (d) IndexedDB を開けたが全件の読み取りが失敗すると、起動の直後から `save-notice` が出て、操作しても保存せず、
+//   (d) IndexedDB を開けたが全件の読み取りが失敗すると、起動の直後から `shell-notice` の `save-failed` 項目 が出て、操作しても保存せず、
 //       既存の localStorage の値は変わらない（旧い値で巻き戻さない）。
 //
 // 失敗の起こし方: put の包み（試験の設定の初期化スクリプトの中だけ）で `abort` を呼ぶ。`tx.error` が無いので失敗の種類は
@@ -27,7 +27,8 @@ const PACK = 'min-3step';
 const START = 's-1';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const NOTICE = '[data-testid="save-notice"]';
+// 保存の失敗は枠の通知欄（shell-notice）の save-failed 項目に出る（TASK-534 1/2）。項目が無いときの文は空文字列。
+const ITEM = '[data-testid="shell-notice-item"][data-notice-kind="save-failed"]';
 const ACCEPTED = '/make-note first-note';
 const FAILED_TEXT = '保存できませんでした（書き込みに失敗しました）';
 const UNAVAILABLE_TEXT = '保存できませんでした（保存領域を使えません）';
@@ -95,7 +96,10 @@ const localValue = (page, key) => page.evaluate((k) => {
   return { len: v.length, h };
 }, key);
 
-const noticeText = (page) => page.$eval(NOTICE, (el) => el.textContent);
+const noticeText = (page) => page.evaluate((sel) => {
+  const item = document.querySelector(sel);
+  return item ? item.querySelector('[data-testid="shell-notice-text"]').textContent : '';
+}, ITEM);
 
 async function sendStep(page) {
   const before = (await engine(page)).logLen;

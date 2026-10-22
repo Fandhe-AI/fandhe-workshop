@@ -2,7 +2,7 @@
 //!
 //! 2 つのタブは、同じ localStorage の偽物を共有する 2 つの `BootGuard` と、それを関所にした保存先で模す（`boot_guard.rs` と同じ形）。
 //! 確かめるのは、(a) 追い越される前は出ない、(b) 追い越された後の最初の保存の試みと同じ `update` で出て、保存失敗の
-//! `save-notice` は空のまま、(c) 新しいタブには出ない（陽性の対照）、(d) 出た後は消えず dirty に再び積まれない、
+//! `shell-notice` の `save-failed` 項目は無いまま、(c) 新しいタブには出ない（陽性の対照）、(d) 出た後は消えず dirty に再び積まれない、
 //! (e) probe が無い・偽のホストでは出ない、(f) 文に教材の値が含まれない、(g) 照合の無い保存先では出ない（対照）の 7 点である。
 //! 文面は仮置きのため、文そのものでなく「空でない」を固定する。試験では `unwrap` を使ってよい。
 
@@ -127,7 +127,10 @@ fn 追い越された古いタブだけが_同じ_update_で通知を出し_保�
     assert!(a.model().stale_tab());
     let notice = text(&a, "stale_notice");
     assert!(!notice.is_empty(), "古いタブには出る");
-    assert_eq!(text(&a, "save_notice"), "", "保存失敗の表示とは別の欄");
+    assert!(
+        storage_fakes::save_failed_item(&a).is_none(),
+        "保存失敗の表示とは別の欄"
+    );
     assert_eq!(text(&b, "stale_notice"), "");
     assert!(a.model().save_failure().is_none());
 }
