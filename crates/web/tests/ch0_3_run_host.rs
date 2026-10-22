@@ -187,13 +187,47 @@ fn status_of(s: &SessionState, uid: &str) -> StepStatus {
         .unwrap_or_default()
 }
 
+/// 画面の上部の位置の文字（無ければ空）。
+fn place_text(h: &EngineHost) -> String {
+    fn go(n: &fandhe_frontend_core::Node, out: &mut String) {
+        if let fandhe_frontend_core::Node::Element {
+            attrs, children, ..
+        } = n
+        {
+            if attrs
+                .iter()
+                .any(|(k, v)| k == "data-testid" && v == "shell-position")
+            {
+                if let Some(fandhe_frontend_core::Node::Text(t)) = children.first() {
+                    out.push_str(t);
+                }
+            }
+            for c in children {
+                go(c, out);
+            }
+        }
+    }
+    let mut s = String::new();
+    go(&h.view(), &mut s);
+    s
+}
+
 /// 通しを流し、最後の状態を返す。各手の判定・現在の Step・状態を確かめる。
 fn run_journey(h: &mut EngineHost) -> SessionState {
     let moves = journey();
     assert!(moves.len() < MOVE_LIMIT);
     for (i, (mv, kind, current, status)) in moves.into_iter().enumerate() {
         let before = state(h).log.len();
+        let place_before = place_text(h);
         mv.apply(h);
+        // 上部の位置が変わった手の直後は、その field が dirty に積まれる（TASK-524。FEND-3）。
+        if place_text(h) != place_before {
+            assert!(
+                fandhe_workshop_web::parts::DirtyTracked::dirty_fields(&*h)
+                    .contains(&fandhe_workshop_web::shell_frame::TOP_PLACE_FIELD.name),
+                "手 {i} {mv:?}: 位置が変わったのに dirty が無い"
+            );
+        }
         let s = state(h);
         let first = s.log[before..]
             .iter()

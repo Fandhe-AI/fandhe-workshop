@@ -161,6 +161,16 @@
   padding: 0.25rem 0;
 }
 
+.sh-place {
+  display: inline;
+}
+
+.sh-title,
+.sh-position {
+  margin-left: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .sh-mock {
   display: inline-block;
   padding: 0 0.5rem;
