@@ -77,7 +77,7 @@ fn hidden_rejects_command_and_text() {
     let steps = concat!(
         "  - {id: a, title: A, body: a.md, input: {kind: command}, confirm: {kind: approve}, next: [{to: b}]}\n",
         "  - {id: b, title: B, input: {kind: text, min: 1, max: 9}, confirm: {kind: approve}, next: [{to: c}]}\n",
-        "  - {id: c, title: C, rules: [{id: r, on: {command: x}, outcome: {kind: accept}}], next: [{to: d}]}\n",
+        "  - {id: c, title: C, input: {kind: approval}, confirm: {kind: approve}, rules: [{id: r, on: {command: x}, outcome: {kind: accept}}], next: [{to: d}]}\n",
         "  - {id: d, title: D, rules: [{id: r, on: {text: true}, outcome: {kind: accept}}], final: true}\n",
     );
     let t = chapter_pack("{input_field: hidden}", steps, None);

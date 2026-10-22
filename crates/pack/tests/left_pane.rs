@@ -26,6 +26,16 @@ fn workshop(left_pane: &str) -> String {
 fn pack(left_pane: &str, a_extra: &str) -> Tmp {
     let t = Tmp::new("left-pane");
     t.put("workshop.yaml", workshop(left_pane).as_bytes());
+    // 途中の Step は入力か `use` を持つ（PACK-19）。呼び出し側が入力・規則・確認を渡さないときだけ 1 択の `choice` を足す。
+    let read_only = "input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}";
+    let a_extra = if ["input:", "rules:", "confirm:"]
+        .iter()
+        .any(|k| a_extra.contains(k))
+    {
+        a_extra.to_string()
+    } else {
+        format!("{read_only}, {a_extra}")
+    };
     let chapter = format!(
         "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - {{id: a, title: A, body: a.md, next: [{{to: b}}], {a_extra}}}\n  - {{id: b, title: B, final: true}}\n"
     );
@@ -310,7 +320,7 @@ fn toml_form_reports_the_same_codes() {
     );
     let chapter = concat!(
         "id = \"c1\"\ntitle = \"C\"\nstarts = [{ id = \"s1\", node = \"a\" }]\n",
-        "[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\nviews = [\"v1\", \"v2\"]\nnext = [{ to = \"b\" }]\n",
+        "[[steps]]\nid = \"a\"\ntitle = \"A\"\nbody = \"a.md\"\nviews = [\"v1\", \"v2\"]\nnext = [{ to = \"b\" }]\ninput = { kind = \"choice\", options = [{ id = \"ok\", label = \"OK\" }] }\nrules = [{ id = \"r-a\", on = { option = \"ok\" }, outcome = { kind = \"accept\" } }]\nconfirm = { kind = \"none\", reason = \"r\" }\n",
         "[[steps]]\nid = \"b\"\ntitle = \"B\"\nfinal = true\n",
     );
     t.put("chapters/c1/chapter.toml", chapter.as_bytes());

@@ -31,8 +31,8 @@ id: c1
 title: C1
 starts: [{id: s1, node: a}]
 steps:
--   {id: a, title: A, next: [{to: cond, when: {flag: f}}, {to: u}]}
--   {id: cond, title: Cond, next: [{to: c2a}]}
+-   {id: a, title: A, next: [{to: cond, when: {flag: f}}, {to: u}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
+-   {id: cond, title: Cond, next: [{to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
 -   {id: u, title: U, use: {module: m1, instance: i1, args: {}}, next: [{to: c2a}]}
 ";
 
@@ -49,13 +49,13 @@ id: m1
 title: M
 starts: [{id: ms, node: m-mid}]
 steps:
-    - {id: m-a, title: MA, next: [{to: m-b}]}
+    - {id: m-a, title: MA, next: [{to: m-b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
     - {id: m-b, title: MB, final: true}
-    - {id: m-mid, title: MM, next: [{to: m-b}]}
+    - {id: m-mid, title: MM, next: [{to: m-b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-mid, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
 ";
 
 const C2A: &str = "- {id: c2a, title: C2A, final: true}";
-const COND: &str = "-   {id: cond, title: Cond, next: [{to: c2a}]}";
+const COND: &str = "-   {id: cond, title: Cond, next: [{to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}";
 
 fn base() -> Tmp {
     let t = Tmp::new("reach");
@@ -95,8 +95,8 @@ fn step_reached_only_by_conditional_edges_is_reachable() {
     mutate(
         &t,
         C1,
-        "next: [{to: cond, when: {flag: f}}, {to: u}]}",
-        "next: [{to: cond, when: {flag: f}}, {to: u, when: {flag: g}}]}",
+        "next: [{to: cond, when: {flag: f}}, {to: u}],",
+        "next: [{to: cond, when: {flag: f}}, {to: u, when: {flag: g}}],",
     );
     let d = validate_dir(&t.0);
     assert!(d.iter().all(|d| d.code() != DiagCode::Unreachable), "{d:?}");
@@ -121,7 +121,7 @@ fn cases() -> Vec<Case> {
             "unreachable-chapter-step",
             C2,
             C2A,
-            "- {id: c2a, title: C2A, final: true}\n    - {id: orphan, title: O, next: [{to: c2a}]}",
+            "- {id: c2a, title: C2A, final: true}\n    - {id: orphan, title: O, next: [{to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-orphan, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             Unreachable,
             C2,
             "step:orphan",
@@ -130,7 +130,7 @@ fn cases() -> Vec<Case> {
             "unreachable-module-step",
             M1,
             "- {id: m-b, title: MB, final: true}",
-            "- {id: m-b, title: MB, final: true}\n    - {id: m-orphan, title: MO, next: [{to: m-b}]}",
+            "- {id: m-b, title: MB, final: true}\n    - {id: m-orphan, title: MO, next: [{to: m-b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-orphan, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             Unreachable,
             M1,
             "step:m-orphan",
@@ -139,7 +139,7 @@ fn cases() -> Vec<Case> {
             "dead-end-empty-next",
             C1,
             COND,
-            "-   {id: cond, title: Cond}",
+            "-   {id: cond, title: Cond, input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             DeadEnd,
             C1,
             "step:cond",
@@ -148,7 +148,7 @@ fn cases() -> Vec<Case> {
             "dead-end-all-conditional",
             C1,
             COND,
-            "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}]}",
+            "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             DeadEnd,
             C1,
             "step:cond",
@@ -165,8 +165,8 @@ fn cases() -> Vec<Case> {
         (
             "dead-end-module-step",
             M1,
-            "- {id: m-mid, title: MM, next: [{to: m-b}]}",
-            "- {id: m-mid, title: MM}",
+            "- {id: m-mid, title: MM, next: [{to: m-b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-mid, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
+            "- {id: m-mid, title: MM, input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-m-mid, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
             DeadEnd,
             M1,
             "step:m-mid",
@@ -200,7 +200,7 @@ fn one_unconditional_edge_is_enough() {
         &t,
         C1,
         COND,
-        "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}, {to: c2a}]}",
+        "-   {id: cond, title: Cond, next: [{to: c2a, when: {flag: f}}, {to: c2a}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
     );
     let d = validate_dir(&t.0);
     assert!(d.is_empty(), "{d:?}");
@@ -213,14 +213,14 @@ fn dangling_refs_report_only_ref_step() {
             "next-to",
             C1,
             COND,
-            "-   {id: cond, title: Cond, next: [{to: nowhere}]}",
+            "-   {id: cond, title: Cond, next: [{to: nowhere}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-cond, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
         ),
         ("start-node", C1, "node: a}", "node: nowhere}"),
         (
             "module-next",
             M1,
-            "{id: m-a, title: MA, next: [{to: m-b}]}",
-            "{id: m-a, title: MA, next: [{to: nowhere}]}",
+            "{id: m-a, title: MA, next: [{to: m-b}],",
+            "{id: m-a, title: MA, next: [{to: nowhere}],",
         ),
     ];
     for (name, file, from, to) in cases {
@@ -260,7 +260,7 @@ fn diagnostics_order_is_deterministic() {
         &t,
         C2,
         C2A,
-        "- {id: c2a, title: C2A, final: true}\n    - {id: o1, title: O}\n    - {id: o2, title: O}",
+        "- {id: c2a, title: C2A, final: true}\n    - {id: o1, title: O, input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-o1, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n    - {id: o2, title: O, input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-o2, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}",
     );
     let a = validate_dir(&t.0);
     let b = validate_dir(&t.0);

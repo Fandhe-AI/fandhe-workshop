@@ -27,6 +27,8 @@ JSON はコメントを書けないため、説明は本ファイルに置きま
 | `judgment-pack.ir.json` | 2 |
 | `slot-pack.ir.json` | 2 |
 | `no-tree-pack.ir.json` | 1 |
+| `fixture-pack-choice.ir.json` | 2 |
+| `no-tree-pack-choice.ir.json` | 1 |
 
 `no-tree-pack` は本文も練習データも持たない最小パックで、入力は試験の定数と同じ。
 
@@ -44,6 +46,27 @@ title: C
 starts: [{id: s1, node: a}]
 steps:
   - {id: a, title: A, next: [{to: b}]}
+  - {id: b, title: B, final: true}
+```
+
+## 後から足した 2 本（2026-10-22、PACK-19、#1708）
+
+`fixture-pack` と `no-tree-pack` の途中の Step `a` に、入力を足した（入力も `use` も無い終端でもない Step を `E-STRUCTURE`
+で拒否する PACK-19 の準備）。入力を足すと compile の出力が変わるため、上の凍結物を書き換えずに、同じ手順
+（0fa7146 のソースの展開、`cargo build --locked -p fandhe-workshop-pack`、`fandhe-pack compile <ディレクトリ>` の標準出力を保存）で
+別名の 2 本を足した。今のエンジンの出力と、バイト一致することを確かめた。出力に絶対パスは入っていない。
+
+- `fixture-pack-choice.ir.json`: 入力は今の `tests/data/fixture-pack`。`a` に `input: {kind: choice, options: [{id: ok, label: 読みました}]}`、規則 `r-a`、`confirm: {kind: none, ...}` を足した
+- `no-tree-pack-choice.ir.json`: 入力は下の 2 つ目の `chapters/c1/chapter.yaml`
+
+`chapters/c1/chapter.yaml`（`no-tree-pack-choice`）:
+
+```yaml
+id: c1
+title: C
+starts: [{id: s1, node: a}]
+steps:
+  - {id: a, title: A, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}
   - {id: b, title: B, final: true}
 ```
 

@@ -24,7 +24,7 @@ fn pack(next_when: &str, rule_when: &str, step_extra: &str, requires: &str) -> T
     t.put(
         "chapters/c1/chapter.yaml",
         format!(
-            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, requires: {requires}{unmet}}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b, when: {next_when}}}], rules: [{{id: r1, when: {rule_when}}}]{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
+            "id: c1\ntitle: C\nstarts: [{{id: s1, node: a, requires: {requires}{unmet}}}]\nsteps:\n  - {{id: a, title: A, next: [{{to: b, when: {next_when}}}], input: {{kind: choice, options: [{{id: ok, label: OK}}]}}, confirm: {{kind: none, reason: r}}, rules: [{{id: r1, when: {rule_when}}}]{step_extra}}}\n  - {{id: b, title: B, final: true}}\n"
         )
         .as_bytes(),
     );

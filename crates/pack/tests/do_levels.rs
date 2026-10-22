@@ -75,10 +75,11 @@ fn with_chapter(workshop_extra: &str, chapter: &str) -> Tmp {
     t
 }
 
-/// 先頭の Step `a` だけを差し替えた章。`a_extra` は `a` の欄（`do` と `do_levels` など）に挿す行。
+/// 終端の Step `a` だけを持つ章。`a_extra` は `a` の欄（`do` と `do_levels` など）に挿す行。入力を持たない途中の Step は
+/// 作れない（PACK-19）ため、`do` の検査を確かめる `a` は終端にする。
 fn chapter_with(a_extra: &str) -> String {
     format!(
-        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - id: a\n    title: A\n    body: a.md\n{a_extra}    next: [{{to: b}}]\n  - {{id: b, title: B, body: b.md, final: true}}\n"
+        "id: c1\ntitle: C\nstarts: [{{id: s1, node: a}}]\nsteps:\n  - id: a\n    title: A\n    body: a.md\n{a_extra}    final: true\n"
     )
 }
 

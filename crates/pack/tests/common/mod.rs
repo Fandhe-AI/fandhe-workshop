@@ -118,7 +118,7 @@ pub fn reversed_copy(from: &Path, tag: &str) -> Tmp {
 pub const WORKSHOP: &str = "pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}\n";
 pub const CHAPTER: &str = concat!(
     "id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n",
-    "  - {id: a, title: A, body: a.md, next: [{to: b}]}\n",
+    "  - {id: a, title: A, body: a.md, next: [{to: b}], input: {kind: choice, options: [{id: ok, label: OK}]}, rules: [{id: r-a, on: {option: ok}, outcome: {kind: accept}}], confirm: {kind: none, reason: r}}\n",
     "  - {id: b, title: B, final: true}\n",
 );
 
