@@ -128,7 +128,10 @@ async function installSpokenObserver(page) {
     const obs = new MutationObserver((records) => {
       for (const r of records) {
         const nodes = [r.target, ...r.addedNodes];
-        if (nodes.some((n) => inSpoken(n) && (n.textContent || '').includes(notice))) hits.push(r.type);
+        // 追加された部分木の内側にある読み上げの欄（外側の div ごと挿入された場合）も調べる。
+        const inSubtree = [...r.addedNodes].some((n) => n.nodeType === 1
+          && [...n.querySelectorAll(spoken)].some((el) => (el.textContent || '').includes(notice)));
+        if (inSubtree || nodes.some((n) => inSpoken(n) && (n.textContent || '').includes(notice))) hits.push(r.type);
       }
     });
     obs.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
