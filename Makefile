@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -155,3 +155,6 @@ inventory-deps: ## Cargo.lock の依存の取り下げ・所有者の数を crat
 
 test-inventory-deps: ## 依存の棚卸し自体の回帰テスト（node:test。通信なし）。直接: scripts/test-inventory-deps.sh
 	@scripts/test-inventory-deps.sh
+
+test-upstream-impact: ## 影響する Step の洗い出し道具の回帰テスト（node:test。通信なし）。道具は直接: node tools/upstream-impact.mjs --help
+	@scripts/test-upstream-impact.sh
