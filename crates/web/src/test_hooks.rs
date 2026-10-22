@@ -14,6 +14,7 @@
 //! `debug_autosave_state`・`debug_history_save_len`（TASK-318）は読み取りのみである。
 //! `debug_large_history_text`・`debug_secret_gate_len`（TASK-166・SAFE-31）は読み取りのみである。前者は 10MB に近い合成の履歴の文字列を返し、
 //! 後者は保存の直前の関門（直列化・秘密情報の検査）を本番と同じ関数で 1 回走らせて、大きさと検出した形の数だけを返す。
+//! `debug_export_prepare_live`（TASK-335）は、受講中のホストの書き出しを読んで `blob:` URL にするだけで、状態は変えない。
 //! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
 //! 状態は変えない。取り込みはファイルの選択（`static/test-hooks.js`）から `raw-trigger` 経由でホストの `open_history` に届く。
@@ -564,19 +565,41 @@ fn export_prepare(env: Option<fandhe_workshop_core::history_envelope::SessionEnv
     let Ok(bytes) = fandhe_workshop_core::history_export::export_bytes(&env) else {
         return "{\"ok\":false}".to_string();
     };
+    prepare_bytes(&bytes, &env.pack_id, None)
+}
+
+/// バイト列をそのまま `blob:` URL にして保持し、固定形の JSON（`ok`・`url`・`name`・`bytes`・`gate`）を返す。直列化し直さない。`gate` は書き出しの口からの呼び出しだけが入れる（それ以外は `null`）。
+fn prepare_bytes(bytes: &[u8], pack_id: &str, gate: Option<&str>) -> String {
     EXPORT_URL.with(|u| u.borrow_mut().take());
-    let Ok(url) = crate::history_download::object_url(&bytes) else {
+    let Ok(url) = crate::history_download::object_url(bytes) else {
         return "{\"ok\":false}".to_string();
     };
     let json = serde_json::json!({
         "ok": true,
         "url": url.as_str(),
-        "name": crate::history_export::file_name(&env.pack_id),
+        "name": crate::history_export::file_name(pack_id),
         "bytes": bytes.len(),
+        "gate": gate,
     })
     .to_string();
     EXPORT_URL.with(|u| *u.borrow_mut() = Some(url));
     json
+}
+
+/// 受講中のホストの書き出し（`export_live`）が返すバイト列を、そのまま `blob:` URL にして保持する（TASK-335・SAVE-25）。
+///
+/// 表示だけで開いた履歴の書き出しが、読み込んだファイルとバイト単位で同一であることを、実際のダウンロードで確かめるための口。
+/// 書き出せるときだけ `{"ok":true,"gate":"ready","url":…,"name":…,"bytes":n}`、それ以外は `{"ok":false,"gate":"held"|"empty"|null}`。
+/// 履歴の中身・形の ID は返さない。ファイル名の教材 ID は空（接頭辞だけ）で、名前の検査は `history-export` の試験が持つ。
+#[wasm_bindgen]
+pub fn debug_export_prepare_live() -> String {
+    use crate::history_export::ExportGate;
+    match crate::glue::export_live() {
+        Some(ExportGate::Ready(bytes)) => prepare_bytes(&bytes, "", Some("ready")),
+        Some(ExportGate::Held(_)) => "{\"ok\":false,\"gate\":\"held\"}".to_string(),
+        Some(ExportGate::Empty) => "{\"ok\":false,\"gate\":\"empty\"}".to_string(),
+        None => "{\"ok\":false,\"gate\":null}".to_string(),
+    }
 }
 
 /// 保持している書き出しの URL を破棄する。破棄したら `true`、保持が無ければ `false`。

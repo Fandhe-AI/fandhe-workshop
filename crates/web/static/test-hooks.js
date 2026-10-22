@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_export_prepare_live, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -82,6 +82,11 @@ export function saveFlush() {
 // 履歴の書き出し（TASK-330 1/2）。exportPrepare は契約の試料（2 周分）の blob: URL を作り、JSON（ok / url / name / bytes）を返す。中身は返さない。
 export function exportPrepare() {
   return debug_export_prepare();
+}
+
+// 受講中のホストの書き出し（export_live）を直列化し直さずに blob: URL にする（TASK-335）。JSON（ok / gate / url / name / bytes）を返す。中身は返さない。
+export function exportPrepareLive() {
+  return debug_export_prepare_live();
 }
 
 // 保持している blob: URL を破棄する。破棄したら true。

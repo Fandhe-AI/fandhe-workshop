@@ -6937,7 +6937,7 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 理由は通知欄 `view-only-notice`（`role=status`）に出す。文は固定の文言と理由のコードだけで、履歴の値を含めない（SAFE-40）。枠の通知（`shell` の `NoticeKind`、契約は版 1）は spec が先に変わらないと足せないため、`stale-notice` と同じ任意の欄にした。文面は仮置きで、最終の文面は TASK-549、配置は TASK-534 が決める
 - 操作の関門は `update` の先頭にある。表示だけの間、`Engine`（指せる行・選択肢・承認のクリックと、保存・停止・進行の tick を含む raw の `Op`）、送信・Esc・停止・下書きの変更、補完を捨てる。下書きの変更を捨てたときは `<textarea>` の値を戻させる。表示だけを変える action と、モードから出る経路（試験の設定の読み込み・差し替え）は通す
 - 保存は `history_to_save` が `None` を返して止める。`save_blocked` は消えない印で、読み込みで入ったモードが開ける履歴の読み込みで終わった後も保存が止まるため使わない。進行の宛先（`next_tick`）も `None` にし、予約済みのタイマーは無効にする
-- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335）。秘密情報の検査は通常の書き出しと同じく通す
+- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335。5.230）。秘密情報の検査は通常の書き出しと同じく通す
 - 開ける履歴の読み込み（`install_recorded`）で、モードと控えを捨てる。開かない（`Refused`）の動作と理由の表示は #733 の範囲で、従来の挙動を保つ
 
 | 試験 | 内容 |
@@ -7131,3 +7131,22 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 変異: `PACK43-1`（開始点の絞り込みを外す）・`PACK43-2`（章をまたぐ `next` の検査を無効にする）を `crates/pack/tests/mutations/` に足し、2026-10-22 に `scripts/check-mutations.sh` で 2 件とも DETECTED。`make check-mutations` の全件は未実行
 - 限界: 開始点（`starts[].node`）が他の章の Step を指すことは制限しない（spec は `next` だけを挙げる）。絞った IR で `E-LEFT-TARGET-ROW` の静的な近似は再実行しない。条件が範囲外の Step を参照する場合の評価は未確認。モジュールの `#` 開始点は、そのモジュールが範囲内の章から呼ばれるときだけ残る
 - 範囲外: spec の SHELL-12・PACK-43・INTRO-36 の「証拠の種類」の書き戻し、教材 repo の試行用の配信設定への `--chapters` の記載、章の ID の重複の一般の診断化（`--chapters` の指定時だけ「曖昧」で止める）、到達性（`reach.rs`）を章ごとの名前空間に分けること。`scripts/expected-test-counts.txt` は更新しない
+
+### 5.230 表示だけの履歴の保存領域と書き出し（TASK-335。SAVE-25）
+
+TASK-176（5.220）は操作が状態・ログを変えないことを固定した。本件は保存の側を、ブラウザで実際の保存先と実際のダウンロードで確かめる。PoC-6 の S-14・S-15（1.2.0・2.0.0 で表示だけ）に当たる。
+
+- 試験用の口（feature `test-hooks` のときだけ）: `debug_export_prepare_live`（`static/test-hooks.js` の `exportPrepareLive`）。受講中のホストの `export_live` が返すバイト列を、直列化し直さずに `blob:` URL にする。履歴の中身は返さず、書き出せないときは `{"ok":false,"gate":…}`。既存の `exportPrepare` の戻りには `gate: null` が加わった
+- `tools/browser/view-only-storage.test.mjs`（6 件）
+
+| 場面 | 保存先 | CSP | 確かめること |
+|---|---|---|---|
+| 起動時の復元で主版違い | localStorage | あり・なし | 入力・クリック・保存・停止の後、保存の待ちを過ぎても保存の試行・履歴の鍵への書き込みが 0 件。保存先の値が置いた値のまま。書き出したファイルが置いた値とバイト単位で同一。再読み込み（`pagehide`）の後も同じ |
+| 同上 | IndexedDB（localStorage を閾値の手前まで埋めて選ばせる） | あり | 同上 |
+| 読み込みで表示だけ（表の `view_only` の全 6 行） | localStorage | あり・なし | 保存先の全体の digest の一覧が読み込みの前後と離脱・開き直しの後で同じ。書き出しが読み込んだファイルと同一 |
+| 対照: 開ける履歴 | localStorage | あり | 同じ操作で保存先の値と書き出しが変わる（比較が変化を検出できる） |
+
+- 実行結果（2026-10-22）: 新しい試験 6 件と、`view-only`・`history-export`・`history-import`・`version-histories`・`secret-hold` を含む 28 件が通った。`make lint` は通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）
+- 自己確認: `export_live` が控えを返さず作り直す写しで 5 件が「書き出しの門が ready でない」で失敗した（2026-10-22）。`history_to_save` の表示だけの判定を外した写しは失敗しなかった。表示だけの間は履歴の記録が無く `envelope_for_save` が `None` になるため、その判定は二重の防御であり、保存先の不変は結果（書き込み 0 件・値の一致）で見ている
+- 限界: Chromium だけ。IndexedDB への切り替え後の `pagehide` の書き込みは確定を保証しない（SAVE-9）。CSP なしは localStorage の場面だけ。書き出しの名前の教材 ID は空で、名前の検査は `history-export` が持つ
+- 範囲外: 表示だけの動作の実装と状態・ログの不変（5.220）、見せ方（REVIEW-4/5・SHELL-20）。`scripts/expected-test-counts.txt` は更新しない
