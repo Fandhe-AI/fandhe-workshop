@@ -175,6 +175,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/storage-lost.test.mjs" \
   "${ROOT_DIR}/tools/browser/chapter-keys.test.mjs" \
   "${ROOT_DIR}/tools/browser/direct-link-start.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ir-location.test.mjs" \
   "${ROOT_DIR}/tools/browser/start-count-invariance.test.mjs" \
   "${ROOT_DIR}/tools/browser/direct-link-reload.test.mjs" \
   "${ROOT_DIR}/tools/browser/direct-link-roundtrip.test.mjs" \

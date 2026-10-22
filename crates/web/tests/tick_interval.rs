@@ -5,7 +5,7 @@
 //! 照合はコメントを除き、空白を除いた形で行う。例外は 2 件だけ。(1) `persist.rs` の保存先の鍵を決めるパス名の読み取り
 //! （クエリは読まない。TASK-319）。(2) `static/app.js` の直接リンクの読み取り（D-68・TASK-109。クエリの `start` だけを読み、
 //! 値は Rust 側が IR の `starts` と完全一致で照合する）。試験の設定でだけ教材を選ぶクエリの読み取り（TASK-319 3/3）は、走査の対象外の `test_hooks.rs` に置く。
-//! 将来 `?ir` を読む実装が入るときは、ファイルと件数で限定して足す。
+//! IR の場所は固定の `./ir/main.json` で、URL の `ir` は読まない（D-68・SAFE-33・TASK-168）。`ir` を読む実装は D-68 に反するため、例外として足さない。
 
 mod common;
 
@@ -107,6 +107,58 @@ fn 試験の口は間隔を書き換えない() {
     for p in ["debug_set_tick", "set_tick_interval", "TICK_INTERVAL_MS="] {
         assert!(!code.contains(p), "{p}");
     }
+}
+
+/// IR の場所を URL の `ir` から作る字句（正規化後）。`app.js` は `ir` のキーを読まず、本番の Rust は `./ir/` を組み立てない。
+const IR_QUERY_PATTERNS: &[&str] = &[
+    "\"ir\"",
+    "'ir'",
+    "`ir`",
+    "\"./ir/",
+    "format!(\"ir/",
+    "format!(\"./ir/",
+];
+
+fn ir_hits(code: &str) -> Vec<&'static str> {
+    IR_QUERY_PATTERNS
+        .iter()
+        .copied()
+        .filter(|p| code.contains(p))
+        .collect()
+}
+
+/// 将来、固定の `./ir/main.json` を取得する処理が入るときは、ファイルと件数で限定して足す（URL の値を含めない）。
+#[test]
+fn ir_のクエリは読まず場所を組み立てない() {
+    let app = std::fs::read_to_string(root().join("static/app.js")).expect("app.js を読めない");
+    assert!(ir_hits(&glue_code(&app)).is_empty(), "app.js が ir を読む");
+    let mut scanned = 0;
+    let mut bad = Vec::new();
+    for entry in std::fs::read_dir(root().join("src")).expect("src を読めない") {
+        let path = entry.expect("entry").path();
+        if path.extension().is_none_or(|e| e != "rs")
+            || path
+                .file_name()
+                .is_some_and(|n| n == "test_hooks.rs" || n == "test_fixture.rs")
+        {
+            continue;
+        }
+        scanned += 1;
+        let src = std::fs::read_to_string(&path).expect("読めない");
+        for h in ir_hits(&glue_code(&src)) {
+            bad.push(format!("{}: {h}", path.display()));
+        }
+    }
+    assert!(scanned >= 1, "走査したファイルが 0 件");
+    assert!(bad.is_empty(), "{bad:?}");
+}
+
+#[test]
+fn ir_の検査の字句は空振りしない() {
+    assert_eq!(
+        ir_hits(&glue_code("p.getAll(\"ir\"); fetch(\"./ir/x.json\");")).len(),
+        2
+    );
 }
 
 #[test]
