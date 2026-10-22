@@ -1706,7 +1706,8 @@ impl EngineHost {
                 // 状態・ログ・下書き・保存先には触れず、理由だけを通知する。
                 self.set_refused_notice(Some(RefusedNotice {
                     code,
-                    dismissable: true,
+                    // 保存が止まっている間（起動時の拒否など）は、後続の拒否でも閉じられない通知のままにする。
+                    dismissable: !self.save_blocked,
                 }));
                 self.closed(ImportOutcome::Refused(code))
             }

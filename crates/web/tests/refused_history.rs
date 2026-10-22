@@ -256,6 +256,30 @@ fn 起動時に版の判定の段で開かないと閉じられない通知が�
 }
 
 #[test]
+fn 起動時の拒否の後に読み込みで開かなくても閉じられない通知のまま() {
+    let mut h = host("1.0.0");
+    assert_eq!(h.boot(Some(&format_newer())), BootKind::NotOpened);
+    assert_eq!(
+        h.open_history(&format_newer()),
+        ImportOutcome::Refused(LoadReason::FormatNewer)
+    );
+    assert_eq!(items_of(&h, "import-refused"), 1);
+    assert_eq!(
+        dismiss_buttons(&h),
+        0,
+        "保存が止まっている間は閉じる操作を置かない"
+    );
+    h.update(act("dismiss-notice", "import-refused"));
+    assert_eq!(
+        items_of(&h, "import-refused"),
+        1,
+        "閉じても保存停止の案内は残る"
+    );
+    operate(&mut h);
+    assert!(h.history_to_save().is_none());
+}
+
+#[test]
 fn 起動時の壊れた履歴には通知を出さない() {
     let mut h = host("1.0.0");
     assert_eq!(h.boot(Some(b"{broken")), BootKind::NotOpened);
