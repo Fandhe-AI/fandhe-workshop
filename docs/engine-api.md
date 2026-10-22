@@ -39,7 +39,7 @@
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
 - 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
-- `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
+- `Session::new`・`Session::from_state`・`Session::apply` が実行環境の入口である（開始点に入った直後の状態で作る `Session::entered_at` は、`Control::Begin` が実装されるまでの暫定の入口。TASK-112 2/2）。状態を明示して呼ぶ関数が `apply(ir, state, op)` である
 - 利用者由来の文字列（`Input` の文字列、`Changed` の値、`Warning::message`）は信頼できない。HTML へ埋め込むときのエスケープは web 層の責務であり、core は値を保持するだけである
 
 ## 3. 世代の変わり方の表

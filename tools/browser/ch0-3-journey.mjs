@@ -28,6 +28,13 @@ export const at = (page, uid, status) => page.waitForFunction(([u, st]) => {
     && window.__fandheTest.nextTick() === 'null';
 }, [uid, status], { timeout: T });
 
+// 状態の観察の既定（試験の設定の `__fandheTest` を読む）。配信する設定には `__fandheTest` が無いため、
+// L2 の完走試験（l2-journey.mjs）は DOM だけを読む観察を `journey` の opts.observe で差し替える（TASK-112 2/2）。
+export const hookObserver = {
+  at,
+  stillAt: async (page, uid) => (await engine(page)).current === uid,
+};
+
 export const rowSel = (path) => `[data-testid="part-artifact-view"] [data-row="${path}"]`;
 export const choiceSel = (id) => `${CHOICE}[data-choice="${id}"]`;
 export const decideSel = (d) => `${APPROVAL}[data-decision="${d}"]:not([data-revise-target])`;
@@ -152,7 +159,8 @@ export function keyboardDriver(page) {
 // 通し。`d` の操作で教材の 20 Step を上から進める。`stopAt` の Step に入った時点で返す（指定なしは最後の達成まで）。
 // `chaptered` が真のとき（教材は `?fixture=ch0-3-chapters`）、章の境目は「次の章へ進む」のボタン 1 個を押して越える（TASK-526 2/2）。
 // 偽（既定）のときは、章の境目を無条件の `next` が越えるのを待つだけで、従来の経路から変わらない。
-export async function journey(page, d, scene, L, stopAt = null, { onStep = null, chaptered = false } = {}) {
+export async function journey(page, d, scene, L, stopAt = null, { onStep = null, chaptered = false, observe = hookObserver } = {}) {
+  const at = (pg, uid, status) => observe.at(pg, uid, status);
   let rejected = 0;
   let clarified = 0;
   const enter = async (uid, expected) => {
@@ -168,12 +176,12 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null,
   const reject = async (uid) => {
     rejected += 1;
     await waitCount(page, REJECTED, rejected);
-    L.check(scene, `${uid} 拒否で進まない`, (await engine(page)).current === uid);
+    L.check(scene, `${uid} 拒否で進まない`, await observe.stillAt(page, uid));
   };
   const clarify = async (uid) => {
     clarified += 1;
     await waitCount(page, CLARIFIED, clarified);
-    L.check(scene, `${uid} 問い返しで進まない`, (await engine(page)).current === uid);
+    L.check(scene, `${uid} 問い返しで進まない`, await observe.stillAt(page, uid));
   };
   const plain = [0, 0, 1, 1];
   // 章の境目。`chaptered` なら、章の最後の達成の後にボタンがちょうど 1 個出て「移動」ボタンが無いことを確かめ、押して次の章の先頭へ入る。

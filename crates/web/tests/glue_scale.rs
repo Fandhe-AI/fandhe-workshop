@@ -9,11 +9,11 @@ mod common;
 
 use common::glue_source;
 
-/// glue.rs のコード行の上限（2026-10-22 の実測は 531 行。527 から上げた理由は TASK-335 の試験用の口 `export_live`（表示だけで開いた履歴の書き出しの読み取り。`test-hooks` のときだけ）、509 から上げた理由は TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`。`a11y::tab_key_target` の契約）、491 から上げた理由は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`。D-67）、401 から上げた理由は TASK-318 の遅延保存のタイマーと、その結果・予約の無効化・保存世代の配送、449 から上げた理由は TASK-164 3/3 の保存直前の判定 `secret_gate`（確認済みの除外。借りられなければ厳しい側）、452 から上げた理由は TASK-283 の `beforeinput`（上限を超える貼り付けの切り捨て。`wire_paste_clip`）。`docs/testing.md` 5.166・5.170・5.183・5.189・5.200）。
+/// glue.rs のコード行の上限（2026-10-22 の実測は 536 行。531 から上げた理由は TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が rustfmt で複数行になる分）、527 から上げた理由は TASK-335 の試験用の口 `export_live`（表示だけで開いた履歴の書き出しの読み取り。`test-hooks` のときだけ）、509 から上げた理由は TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`。`a11y::tab_key_target` の契約）、491 から上げた理由は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`。D-67）、401 から上げた理由は TASK-318 の遅延保存のタイマーと、その結果・予約の無効化・保存世代の配送、449 から上げた理由は TASK-164 3/3 の保存直前の判定 `secret_gate`（確認済みの除外。借りられなければ厳しい側）、452 から上げた理由は TASK-283 の `beforeinput`（上限を超える貼り付けの切り捨て。`wire_paste_clip`）。`docs/testing.md` 5.166・5.170・5.183・5.189・5.200）。
 ///
 /// spec（FEND-7・FEND-20）の「349 行」は決定時点の PoC の追試の値で、数え方と範囲が今と違う
 /// （`docs/testing.md` 5.92）。今のソースが通らなくなるため目標にしない。今の実測値を上限とし、増えたときだけ理由を求める。
-const MAX_GLUE_CODE_LINES: usize = 531;
+const MAX_GLUE_CODE_LINES: usize = 536;
 
 /// 空行と、前後の空白を除いて `//` で始まる行を除いた行数。`/* */` は glue に 0 件（数え方は 5.92 と同じ）。
 fn code_lines(src: &str) -> usize {

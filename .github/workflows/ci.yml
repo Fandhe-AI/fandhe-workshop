@@ -387,6 +387,23 @@ jobs:
       - name: make test-build-l2 (TASK-112)
         run: make test-build-l2
 
+      # L2 の配布物の模擬環境での完走試験（TASK-112 2/2。DLV-13）。miniserve の linux musl 版を固定版で取得し、
+      # tools/l2/miniserve.sha256 の該当行と照合してから実行する（照合できなければ実行せず失敗。build-l2.mjs も同じ固定値で再照合する）。
+      # 試験は PATH=/usr/bin:/bin だけの環境で zip を展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走する（scripts/test-l2-run.sh）。
+      # web は専用の target でビルドする（名前情報の strip がこのビルドだけに必要なため）。secret は使わない（fork でも通る）。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make test-l2-run (TASK-112)
+        run: |
+          set -euo pipefail
+          asset="miniserve-0.35.0-x86_64-unknown-linux-musl"
+          work="${RUNNER_TEMP}/miniserve"
+          mkdir -p "${work}"
+          curl -fsSLo "${work}/${asset}" \
+            "https://github.com/svenstaro/miniserve/releases/download/v0.35.0/${asset}"
+          grep -F "  ${asset}" tools/l2/miniserve.sha256 | (cd "${work}" && sha256sum -c -)
+          chmod +x "${work}/${asset}"
+          L2_SERVER="${work}/${asset}" make test-l2-run
+
       # 版上げ PR の受け入れ確認 (2)（FEND-17・D-63・TASK-101）のブラウザ試験の件数。rust-test の同名 step と同じ規則。
       - name: Check browser test counts (version bump gate)
         env:

@@ -162,12 +162,21 @@ wasm-bindgen --target web --out-dir "${OUT_ABS}/wasm" --out-name fandhe_workshop
 STATIC_DIR="${ROOT_DIR}/crates/web/static"
 cp "${STATIC_DIR}/app.js" "${STATIC_DIR}/app.css" "${STATIC_DIR}/icon.svg" "${OUT_ABS}/"
 # index.html の印は、試験の設定では meta に置き換え、配信する設定では行ごと消す。
+# 同梱の IR の印は、配信する設定で IR_FILE があるときだけ meta にする（app.js はこの meta があるときだけ ./ir/main.json を取得する。
+# 試験の設定は試験データの教材を埋め込むため meta を置かない。TASK-112 2/2）。
 if [ "${CONFIG}" = "test" ]; then
-  sed 's|<!--fandhe:test-hooks-->|<meta name="fandhe-test-hooks" content="1">|' \
+  sed -e 's|<!--fandhe:test-hooks-->|<meta name="fandhe-test-hooks" content="1">|' \
+    -e '/<!--fandhe:ir-->/d' \
     "${STATIC_DIR}/index.html" >"${OUT_ABS}/index.html"
   cp "${STATIC_DIR}/test-hooks.js" "${OUT_ABS}/"
 else
-  sed '/<!--fandhe:test-hooks-->/d' "${STATIC_DIR}/index.html" >"${OUT_ABS}/index.html"
+  if [ -n "${IR_ABS}" ]; then
+    IR_SED='s|<!--fandhe:ir-->|<meta name="fandhe-ir" content="1">|'
+  else
+    IR_SED='/<!--fandhe:ir-->/d'
+  fi
+  sed -e '/<!--fandhe:test-hooks-->/d' -e "${IR_SED}" \
+    "${STATIC_DIR}/index.html" >"${OUT_ABS}/index.html"
   rm -f "${OUT_ABS}"/wasm/*.d.ts
 fi
 

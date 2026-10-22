@@ -368,6 +368,32 @@ impl Session {
         }
     }
 
+    /// 開始点の節点に入った直後の状態で作る（配信する設定の起動。TASK-112 2/2）。
+    ///
+    /// 世代は初期値・現在の Step は `node`・その Step は `Entered`・入口の写しは同じ状態（ログの長さ 0）で、世界状態は空、
+    /// 案内の水準は既定。`Control::Begin`（開始時の効果・案内の水準の決定。TASK-217・TASK-294）が実装されるまでの暫定で、
+    /// 呼び出し元の web は表示層が状態を組み立てない規則（`no_progress`）のため、この入口を通す。`node` が教材に有るかの照合は
+    /// 呼び出し側が行う（`from_state` と同じ）。
+    pub fn entered_at(ir: Ir, node: &str) -> Self {
+        let uid = StepUid(node.to_owned());
+        let mut slice = Slice::default();
+        slice.status.insert(uid.clone(), StepStatus::Entered);
+        let mut run = RunState {
+            current: Some(uid.clone()),
+            ..RunState::default()
+        };
+        run.slices.insert(uid.root(), slice);
+        let state = SessionState {
+            entry: Some(EntryCopy {
+                run: run.clone(),
+                log_len: 0,
+            }),
+            run,
+            ..SessionState::default()
+        };
+        Session { ir, state }
+    }
+
     /// 既存の状態から作る。IR との照合はしない（保存復元の担当が行う）。
     pub fn from_state(ir: Ir, state: SessionState) -> Self {
         Session { ir, state }

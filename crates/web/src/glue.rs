@@ -792,7 +792,14 @@ pub(crate) fn secret_gate(text: &str) -> Vec<fandhe_workshop_core::secret_scan::
 /// すでにマウント済みの場合は拒否する。`user_agent` は `static/app.js` が `navigator.userAgent` を読んで渡す値で、
 /// 修飾キーの表示のための OS の推定にだけ使う（D-48・JUDGE-28。Rust 側はブラウザの値を読まない）。
 /// `start` は直接リンク `?start=` の値（`app.js` が読む。指定なしは `undefined`。TASK-109 1/2）で、開始点の照合だけに使う。
+/// `ir` は同梱の印（meta）がある配信物で `app.js` が固定の `./ir/main.json` から取得したバイト列（TASK-112 2/2。取得に失敗したら
+/// 空のバイト列で、断りの画面に倒す）。印が無い配信物・試験の設定では `undefined` で、試験の設定は渡されても使わない。
 #[wasm_bindgen]
-pub fn mount_app(root_id: &str, user_agent: &str, start: Option<String>) -> js_sys::Promise {
-    crate::persist::mount_with_history(root_id, user_agent, start)
+pub fn mount_app(
+    root_id: &str,
+    user_agent: &str,
+    start: Option<String>,
+    ir: Option<Vec<u8>>,
+) -> js_sys::Promise {
+    crate::persist::mount_with_history(root_id, user_agent, start, ir)
 }
