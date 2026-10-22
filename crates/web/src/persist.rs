@@ -36,6 +36,7 @@ use crate::leave_flush::install_pagehide_flush_as;
 use crate::save_pending::{FlushOutcome, PendingSave};
 use crate::storage_idb::{open_history_storage, OpenedStorage};
 use crate::storage_local::LocalStore;
+use crate::storage_select::SyncKv;
 
 thread_local! {
     /// 開いた保存先。準備完了の合図の後に入る。
@@ -283,8 +284,17 @@ pub fn mount_with_history(
     ir: Option<Vec<u8>>,
 ) -> js_sys::Promise {
     let mut host = mount_host_for_page(start.as_deref(), ir.as_deref());
-    // User-Agent は OS の推定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
+    // User-Agent は OS の推定とブラウザの案内の判定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
     host.set_learner_os(estimate(user_agent));
+    // 閉じた記録が読めない（保存領域なし）ときは、記録が無いものとして出す（TASK-544。SHELL-30）。
+    let dismissed = matches!(
+        LocalStore::new().get(crate::browser_notice::BROWSER_NOTICE_KEY),
+        Ok(Some(v)) if v == crate::browser_notice::DISMISSED
+    );
+    host.set_browser_notice(
+        crate::browser_notice::needs_notice(user_agent) && !dismissed,
+        Some(Box::new(LocalStore::new())),
+    );
     let Some(key) = host.history_key(delivery_scope()) else {
         return match crate::glue::mount_host(root_id, host) {
             Ok(()) => js_sys::Promise::resolve(&JsValue::UNDEFINED),

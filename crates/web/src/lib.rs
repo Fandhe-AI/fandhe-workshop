@@ -57,6 +57,7 @@ pub mod artifact_mark;
 pub mod artifact_rows;
 pub mod artifact_view;
 pub mod boot_guard;
+pub mod browser_notice;
 pub mod candidates;
 pub mod card_view;
 pub mod check_view;

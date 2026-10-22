@@ -105,6 +105,7 @@ use crate::shell_frame::TOP_PLACE_FIELD;
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
+use crate::storage_select::SyncKv;
 use crate::tick_schedule::next_tick;
 use crate::view_only_notice::VIEW_ONLY_NOTICE_FIELD;
 use crate::view_select::{self, ViewChoice};
@@ -626,6 +627,11 @@ pub struct EngineHost {
     /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
     /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
     version_notice: bool,
+    /// Chrome 以外のブラウザへの案内（SHELL-30・D-74。TASK-544）を出すか。表示の状態で、履歴・保存先（履歴の鍵）には書かない。
+    /// 実行環境の差し替えでは消さない（ブラウザは変わらないため）。閉じた記録は `browser_store` に書く。
+    browser_notice: bool,
+    /// 閉じた記録の書き先（`browser_notice::BROWSER_NOTICE_KEY`）。未設定（native の試験など）なら書かない。
+    browser_store: Option<Box<dyn SyncKv>>,
     /// 開かない履歴の理由の通知（`shell-notice`。TASK-176 2/2。VER-8・SHELL-16）。表示の状態で、`ops`・履歴・保存先には書かず、控えのバイト列も持たない。
     /// 読み込みで開かなかったとき、または起動時の復元が版の判定の段で開かなかったときに立つ。開ける履歴に替えると消える。
     refused_notice: Option<RefusedNotice>,
@@ -752,6 +758,8 @@ impl EngineHost {
             input: HelloView::new(),
             pane: PaneTab::Ops,
             version_notice: false,
+            browser_notice: false,
+            browser_store: None,
             refused_notice: None,
             dirty: Vec::new(),
             tick_request: None,
@@ -879,6 +887,8 @@ impl EngineHost {
             input,
             pane: PaneTab::Ops,
             version_notice: false,
+            browser_notice: false,
+            browser_store: None,
             refused_notice: None,
             dirty: Vec::new(),
             tick_request: None,
@@ -2203,6 +2213,36 @@ impl EngineHost {
         }
     }
 
+    /// ブラウザの案内の表示を替える。同じ値なら何もしない。`store` は閉じた記録の書き先（起動の配線が渡す）。
+    ///
+    /// 起動の配線から 1 回呼ぶ想定で、`update` の外なので変わったときは `shell_notices` を自分で積む。
+    pub fn set_browser_notice(&mut self, show: bool, store: Option<Box<dyn SyncKv>>) {
+        self.browser_store = store;
+        if self.browser_notice != show {
+            self.browser_notice = show;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
+    /// ブラウザの案内を閉じる。出ているときだけ消し、閉じた記録を書く（失敗は無視。そのページでは閉じたままにする）。
+    fn dismiss_browser_notice(&mut self) {
+        if !self.browser_notice {
+            return;
+        }
+        self.browser_notice = false;
+        if let Some(store) = self.browser_store.as_ref() {
+            let _ = store.set(
+                crate::browser_notice::BROWSER_NOTICE_KEY,
+                crate::browser_notice::DISMISSED,
+            );
+        }
+        if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+            self.dirty.push(SHELL_NOTICES_FIELD.name);
+        }
+    }
+
     /// 開かない履歴の通知を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     ///
     /// 読み込みは `install_recorded` を通らず `update` が先頭で dirty を空にするため、変えたときは `shell_notices` を自分で積む。
@@ -2452,6 +2492,7 @@ impl Component for EngineHost {
             HostAction::DismissNotice(kind) => {
                 match kind {
                     crate::shell::NoticeKind::VersionConverted => self.set_version_notice(false),
+                    crate::shell::NoticeKind::BrowserNotice => self.dismiss_browser_notice(),
                     // 起動時の通知は閉じない（`dismissable` が偽。保存が止まっていることを隠さない）。
                     crate::shell::NoticeKind::ImportRefused
                         if self.refused_notice.is_some_and(|n| n.dismissable) =>
@@ -2626,6 +2667,7 @@ impl Component for EngineHost {
                 self.version_notice,
                 self.refused_notice,
                 self.model.save_failure,
+                self.browser_notice,
             ),
             history_ops(shown.as_ref()),
             tablist,
