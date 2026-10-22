@@ -353,3 +353,15 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 回避: 教材の側で、分岐の Step を章の定義の末尾に置くと飛びを小さくできます。
 
 根拠の試験: `crates/web/tests/top_position_host.rs`、`tools/browser/shell-position.test.mjs`。記録は `docs/testing.md` の 5.242。
+
+## SHELL-30: Chrome 以外のブラウザへの案内は UA の文字列だけで判定する
+
+限界（判定）: 案内は `navigator.userAgent` の文字列だけで判定します。Chrome と同じ UA を返す Chromium 系（Brave など）と、UA を偽装した環境は、確かめた Chrome として扱い案内しません。User-Agent Client Hints は見ません。
+
+限界（基準）: 旧版の基準は、実時間の最新版ではなく、確かめた Chromium の主版から 1 引いた値（`MIN_CHROME_MAJOR`）です。時間が経つと、実際には古い Chrome でも案内が出なくなります。版の固定を上げたときは `crates/web/tests/browser_notice_pin.rs` が落ちるので、基準を見直します。
+
+限界（記録）: 閉じた記録は localStorage の鍵 `fandhe-workshop/meta/browser-notice` で、オリジンの単位です。同じオリジンの別の教材・サブパスで共有されます。サイトのデータを消すと再び出ます。
+
+限界（画面）: IR の拒否の画面では通知欄を描かないため、案内も出ません。
+
+根拠の試験: `crates/web/tests/browser_notice.rs`・`browser_notice_pin.rs`・`browser_notice_host.rs`、`tools/browser/browser-notice.test.mjs`。記録は `docs/testing.md` の 5.246。

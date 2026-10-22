@@ -1,0 +1,8 @@
+id: SHELL30-2
+package: fandhe-workshop-web
+test: browser_notice
+target: crates/web/src/browser_notice.rs
+find:         if !ALLOWED.contains(&name) {
+replace:         if false && !ALLOWED.contains(&name) {
+expect-fail: other_browsers_and_old_chrome_are_noticed
+note: 許可リスト外のトークン（Edge など）で案内する判定が外れる（SHELL-30・D-74・TASK-544）

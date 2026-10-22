@@ -7456,3 +7456,14 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-22。Linux・Chromium。試験の設定と配信設定のビルド）: `reload-notice` の 3 件が通った。`SHELL21-1` は DETECTED。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 - 限界: 再読み込みはページ内の模擬の合図（5.74 と同じ）で、実際の `page.reload()` で処理中の継続を確かめる場面は未検証（保存の書き出しの段と復元後の進行の再開の確認が要る。TASK-319・TASK-320 の領域）。ライブの欄（`live-response`）は実画面にまだ描かれておらず、実 DOM の更新回数の観察は TASK-370、支援技術での読まれ方は TASK-381。本件の観察は読み上げそのものの証拠ではない。
 - 範囲外: 行の言い回しの確定・通知の文面（TASK-549）。5.236・5.241 の番号の重複（既存）は直さない。
+
+### 5.246 Chrome 以外のブラウザへの案内（TASK-544。SHELL-30・D-74）
+
+- 目的: Chrome 以外（Edge・Safari・Firefox ほか）と旧版の Chrome で開いたときに、締め出さずに枠の通知欄へ案内を 1 件だけ出し、閉じられ、Chrome の最新版では出さないことを固定する。D-74 が TASK-544 に委ねた 2 点を決めた。
+- 決定（旧版の基準）: Chrome の主版が 152 未満。試験で確かめた Chromium の主版（`docs/toolchain.md`。153）から 1 引いた値で、段階配布の最新の安定版に誤って出さない余裕である。実時間の最新版は、外部への通信を CSP と SAFE が禁じるため知れない。`crates/web/tests/browser_notice_pin.rs` が `docs/toolchain.md` の主版と `MIN_CHROME_MAJOR + 1` の一致を確かめ、版の固定を上げると落ちて見直しを促す。
+- 決定（判定）: 括弧の中を除いた製品トークンがすべて許可リスト（Mozilla・AppleWebKit・Chrome・HeadlessChrome・Safari・Mobile）に入り、Chrome の主版がすべて基準以上のときだけ出さない。`HeadlessChrome` は試験の Chromium の既定の UA のため Chrome に数える。判定できないものは出す側に倒す（案内は閉じられる非破壊の表示）。全域の純関数で、UA は保持・出力・記録しない。
+- 決定（一度だけ）: ページの中では起動時に 1 件で、再描画・操作で増えず、閉じると 0 件。ページをまたいでは、閉じた記録（localStorage の `fandhe-workshop/meta/browser-notice` = `dismissed`）が同じオリジンにあれば出さない。閉じずに再読み込みすれば再び出る。鍵は履歴の鍵の空間の外で、履歴の一覧・削除の対象にならない。保存領域が読めなければ出し、書けなければそのページでは閉じたままにする。
+- 試験: native は `crates/web/src/browser_notice.rs`・`shell_notice.rs` の単体、`crates/web/tests/browser_notice.rs`（UA の表と壊れた入力）、`browser_notice_pin.rs`（基準と固定の版）、`browser_notice_host.rs`（表示・閉じる・記録・他の種類では閉じない・書けなくても閉じる）。ブラウザは `tools/browser/browser-notice.test.mjs`（19 件。CSP あり・なしで Edge・Safari・Firefox・旧版の Chrome に 1 件、Chrome 153 と既定の HeadlessChrome に 0 件、閉じる・再読み込み・新しい context、幅 360px、配信する設定）。変異は `SHELL30-2`（許可リストの検査）・`SHELL30-3`（基準のずれ）・`SHELL30-4`（閉じた記録の値）で、いずれも DETECTED。
+- 実行結果（2026-10-22。Linux・Chromium）: 上の native 試験とブラウザ試験 19 件が通った。`modifier-key-hint`・`element-identity`・`csp-runs` は変更なしで通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
+- 確かめないこと: 実機の Edge・Safari・Firefox での確認。UA を Playwright で差し替えた代理である。
+- 限界・範囲外: `docs/known-gaps.md` の SHELL-30。IR の拒否の画面では通知欄を描かないため案内も出ない（TASK-545・TASK-546）。
