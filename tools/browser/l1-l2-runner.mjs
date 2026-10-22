@@ -109,10 +109,11 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     const counts = summarize(rec);
     const irUrl = `${origin}${new URL(url).pathname}ir/main.json`;
     const irReqs = rec.requests.filter((r) => r.url === irUrl);
-    // IR の取得が 200 で完了している実行に限り、同じ IR への ERR_ABORTED（完了後に中断された重複の要求）は失敗に数えない。
-    // 完了した取得が無いときの中断、別の資源の失敗、別のエラー種別は従来どおり失敗に数える。
-    const irDone = irReqs.length === 1 && irReqs[0].status === 200;
-    const failed = rec.failed.filter((f) => !(irDone && f.url.split(/[?#]/)[0] === irUrl && f.error === 'net::ERR_ABORTED'));
+    // 本文の取得まで完了（requestfinished）した 200 の IR が 1 件ある実行に限り、query なしで URL 全体が一致する
+    // IR への ERR_ABORTED（完了後に中断された重複の要求）だけを失敗に数えない。query の違う要求・別の資源・
+    // 別のエラー種別・完了した取得が無いときの中断は従来どおり失敗に数える。
+    const irDone = irReqs.length === 1 && irReqs[0].status === 200 && rec.finished.filter((u) => u === irUrl).length === 1;
+    const failed = rec.failed.filter((f) => !(irDone && f.url === irUrl && f.error === 'net::ERR_ABORTED'));
     const problems = [];
     if (irReqs.length !== 1 || irReqs[0].status !== 200) problems.push('ir-fetch');
     if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');

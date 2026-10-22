@@ -268,7 +268,7 @@ export async function withCspMode({ dir, csp }, fn) {
 // userAgent を指定すると、その context の User-Agent を差し替える（OS の推定の試験。TASK-285 1/2）。未指定なら既定のまま。
 export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 }, userAgent } = {}) {
   const context = await browser.newContext(userAgent === undefined ? { viewport } : { viewport, userAgent });
-  const rec = { requests: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
+  const rec = { requests: [], finished: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
   await context.exposeBinding('__fandheHitRec', (_src, id) => {
     rec.hits.push(String(id));
   });
@@ -312,6 +312,7 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
       contentEncoding: h['content-encoding'] ?? '',
     });
   });
+  page.on('requestfinished', (req) => rec.finished.push(req.url()));
   page.on('requestfailed', (req) => rec.failed.push({ url: req.url(), error: req.failure()?.errorText ?? '' }));
   page.on('pageerror', (err) => rec.pageErrors.push(String(err && err.message ? err.message : err)));
   page.on('console', (msg) => {
