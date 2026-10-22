@@ -1,0 +1,8 @@
+id: SHELL21-1
+package: fandhe-workshop-web
+test: terminal_area_contract
+target: crates/web/src/a11y.rs
+find: pub const LIVE_EXCLUDED_LINE_KINDS: [&str; 2] = ["received", "progress"];
+replace: pub const LIVE_EXCLUDED_LINE_KINDS: [&str; 3] = ["received", "progress", "reloaded"];
+expect-fail: consistent_with_a11y
+note: 再読み込みの行を読み上げの更新から外す（再読み込みの告知が読み上げに届かなくなる。SHELL-21・SAVE-6）
