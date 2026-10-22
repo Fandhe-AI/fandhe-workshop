@@ -143,6 +143,8 @@ pub(crate) enum Scheduled {
     SecretHold(u64, Vec<fandhe_workshop_core::secret_scan::SecretShape>),
     /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた。SAFE-28）。
     SecretDiscardRead(bool, u64),
+    /// 枠の操作（読み込み。TASK-531 1/2）。符号化の正は `ShellAction::encode`。
+    Shell(crate::shell::ShellAction),
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -157,6 +159,7 @@ impl Scheduled {
     pub(crate) fn encode(&self) -> (&'static str, String) {
         match self {
             Scheduled::Runtime(a) => a.encode(),
+            Scheduled::Shell(a) => a.encode(),
             Scheduled::SecretHold(epoch, shapes) => (
                 crate::secret_notice::ACTION_SECRET_HOLD,
                 crate::secret_notice::encode_secret_hold(*epoch, shapes),

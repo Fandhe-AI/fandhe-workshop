@@ -53,7 +53,7 @@ for (const csp of [true, false]) {
   const cspLabel = csp ? 'あり' : 'なし';
   for (const text of ['hello', '']) {
     const label = text === '' ? '文字なし' : '文字あり';
-    test(`入力欄の Shift+Tab は preventDefault されずフォーカスが body へ出る（${label}・CSP ${cspLabel}）`, async () => {
+    test(`入力欄の Shift+Tab は preventDefault されずフォーカスが履歴の読み込みの部品へ移る（${label}・CSP ${cspLabel}）`, async () => {
       await withCspMode({ dir: process.env.FANDHE_WEB_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
         const { page, context, rec } = await open(srv);
         await page.fill(INPUT, text);
@@ -75,7 +75,11 @@ for (const csp of [true, false]) {
         });
         await page.keyboard.press('Shift+Tab');
         assert.deepEqual(await page.evaluate(() => window.__shiftTabPrevented), [false]);
-        assert.equal(await page.evaluate(() => document.activeElement === document.body), true);
+        // 入力欄の前に履歴の操作（TASK-531 1/2）があるため、フォーカスは body でなく、その最後の部品（読み込みのファイル入力）へ移る。
+        assert.equal(await page.evaluate(() => {
+          const a = document.activeElement;
+          return !!a && a.matches('input[type="file"]') && !!a.closest('[data-testid="shell-import"]');
+        }), true);
         assert.equal(await page.inputValue(INPUT), text);
         assertClean(rec);
         await context.close();

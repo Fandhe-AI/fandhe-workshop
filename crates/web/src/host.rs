@@ -96,6 +96,7 @@ use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
 use crate::history_export::ExportGate;
+use crate::history_ops::{history_ops, ExportResult, EXPORT_RESULT_FIELD};
 use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
@@ -210,9 +211,26 @@ impl HostModel {
     }
 }
 
+/// 画面に出している書き出しの結果。リンクは URL の破棄の責務（`link`）を持つ。
+enum ExportShown {
+    /// 受講者が押すリンク。
+    Link {
+        /// ファイル名。
+        file_name: String,
+        /// URL と破棄の責務。
+        link: ExportLink,
+    },
+    /// 出せない理由の固定の文。
+    Status(&'static str),
+}
+
 /// ホストが受ける action。
 #[derive(Debug)]
 pub enum HostAction {
+    /// 履歴の書き出し（`export-history`。TASK-531 1/2）。`export_live` の関門を通し、出せるときだけリンクを出す。
+    ExportHistory,
+    /// 履歴の読み込み（`import-history`。TASK-531 1/2）。本文はファイルの文字列そのもので、`open_history` の段 1〜8 が断る。
+    ImportHistory(String),
     /// 入力欄の action。
     Input(HelloAction),
     /// core への操作。
@@ -522,6 +540,19 @@ pub type SaveFailureProbe = Box<dyn Fn() -> Option<StorageError>>;
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type StaleProbe = Box<dyn Fn() -> bool>;
 
+/// 書き出しのバイト列からダウンロード用の URL を作る口（TASK-531 1/2）。未設定・作れないときは `None`（リンクを出さない）。
+///
+/// ホストは native でも試験するため `web_sys` に触れず、wasm 側（`glue`）が `history_download::object_url` を包んで結ぶ。
+pub type ExportUrlMaker = Box<dyn Fn(&[u8]) -> Option<ExportLink>>;
+
+/// 作った書き出しの URL と、その破棄の責務を持つ値（drop で破棄する）。
+pub struct ExportLink {
+    /// `blob:` URL。
+    pub url: String,
+    /// drop で URL を破棄する値（wasm では `ExportUrl`）。ホストは中身を読まず、リンクを外すときに捨てる。
+    pub guard: Box<dyn std::any::Any>,
+}
+
 /// 送信の後に下書きを残すか。エンジンが拒否したときだけ残す（TERM-1・JUDGE-5）。
 ///
 /// 問い返しの後は空にし、拒否の後は下書きを選択状態で残すと 2026-10-21 に確定した（D-67。JUDGE-27・TERM-22）。
@@ -660,6 +691,10 @@ pub struct EngineHost {
     /// 表示だけで開いた履歴のバイト列の控え（VER-8・TASK-176 1/2）。書き出しが読み込んだバイト列そのものを返すための値で、
     /// 保存先へは書かず、ログ・結果にも出さない（履歴は受講者のデータである）。`model.view_only` と同時に入り、同時に消える。
     view_only_bytes: Option<Vec<u8>>,
+    /// 書き出しの URL を作る口（TASK-531 1/2）。未設定ならリンクを出さない（fail-closed）。
+    export_url_maker: Option<ExportUrlMaker>,
+    /// 書き出しの結果（リンクか文。`export_result` の元）。表示の状態で、履歴・保存先には書かない。履歴が変わる・差し替わると外す。
+    export_result: Option<ExportShown>,
     /// 教材（IR）を読めなかった理由コード（VER-13。固定の ASCII だけで、入力値・ID を含めない）。
     ///
     /// 起動で断ったホスト（[`EngineHost::refused`]）は session が無く、`view` がこのコードの通知だけを描く。
@@ -745,6 +780,8 @@ impl EngineHost {
             draft_recorded: String::new(),
             save_blocked: false,
             view_only_bytes: None,
+            export_url_maker: None,
+            export_result: None,
             ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
@@ -813,6 +850,7 @@ impl EngineHost {
                 || f.name == PANE_TABS_FIELD.name
                 || f.name == SHELL_NOTICES_FIELD.name
                 || f.name == NEXT_CHAPTER_FIELD.name
+                || f.name == EXPORT_RESULT_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
         }
@@ -868,6 +906,8 @@ impl EngineHost {
             draft_recorded: String::new(),
             save_blocked: false,
             view_only_bytes: None,
+            export_url_maker: None,
+            export_result: None,
             ir_refusal: None,
             #[cfg(feature = "test-hooks")]
             boot_kind: None,
@@ -1147,6 +1187,48 @@ impl EngineHost {
         self.model.session().and_then(next_tick)
     }
 
+    /// 書き出しの URL を作る口を結ぶ（mount の前。TASK-531 1/2）。
+    pub fn set_export_url_maker(&mut self, f: ExportUrlMaker) {
+        self.export_url_maker = Some(f);
+    }
+
+    /// 書き出しの結果を外す（URL は drop で破棄する）。出ていたときだけ field を dirty に積む。
+    fn clear_export_result(&mut self) {
+        if self.export_result.take().is_some() && !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
+            self.dirty.push(EXPORT_RESULT_FIELD.name);
+        }
+    }
+
+    /// 「履歴を書き出す」の押下。前の結果を外してから `export_live` の関門を通し、出せるときだけリンクを作る。
+    /// 秘密情報の警告の間（`Held`）・履歴が無い（`Empty`）・URL を作る口が無い／作れないときは、リンクを出さず固定の文だけを出す。
+    fn export_press(&mut self) {
+        self.clear_export_result();
+        let shown = match self.export_live() {
+            ExportGate::Ready(bytes) => {
+                let pack = self
+                    .model
+                    .session()
+                    .map(|s| s.ir().pack.id.clone())
+                    .unwrap_or_default();
+                match self.export_url_maker.as_ref().and_then(|f| f(&bytes)) {
+                    Some(link) => ExportShown::Link {
+                        file_name: crate::history_export::file_name(&pack),
+                        link,
+                    },
+                    None => ExportShown::Status(crate::history_export::FAILED_STATUS),
+                }
+            }
+            other => ExportShown::Status(
+                crate::history_export::status_text(&other)
+                    .unwrap_or(crate::history_export::EMPTY_STATUS),
+            ),
+        };
+        self.export_result = Some(shown);
+        if !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
+            self.dirty.push(EXPORT_RESULT_FIELD.name);
+        }
+    }
+
     /// 履歴の差し替えで進行のタイマーを無効にする通知先を結ぶ。通知先は Runtime にも App にも触れてはならない。
     pub fn set_tick_reset(&mut self, f: Box<dyn Fn()>) {
         self.tick_reset = Some(f);
@@ -1291,6 +1373,10 @@ impl EngineHost {
             // ボタンは警告の有無だけで出入りする。形が変わるだけなら一覧は変わらない。
             if toggled {
                 self.dirty.push(SECRET_CHOICE_FIELD);
+            }
+            // 警告が解けたら、警告の間に出した書き出しの文（`HELD_STATUS`）は古いので外す。
+            if toggled && self.model.secret_warning.is_empty() {
+                self.clear_export_result();
             }
         }
     }
@@ -1808,6 +1894,8 @@ impl EngineHost {
         // 変換して開いた通知は前の実行環境のものなので、持ち越さない（立て直すのは呼び出し側）。dirty の作り直しの後に消す。
         self.version_notice = false;
         self.refused_notice = None;
+        // 書き出しのリンクは前の履歴のものなので外す（`dirty` の作り直しの後に積む）。
+        self.clear_export_result();
         // 表示だけのモードも前の履歴のものなので、開ける履歴に替えるときに出る（`dirty` は全 field で作り直し済み）。
         self.model.view_only = None;
         self.view_only_bytes = None;
@@ -2042,6 +2130,7 @@ impl EngineHost {
         let offered = self.next_chapter_offer().is_some();
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
+        self.clear_export_result();
         // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。
         self.set_secret_warning(Vec::new());
         self.invalidate_discard();
@@ -2229,6 +2318,9 @@ impl Component for EngineHost {
                 | HostAction::SelectPane(_)
                 | HostAction::DismissNotice(_)
                 | HostAction::PaneKey(_)
+                // 書き出しは読み込んだバイト列そのものを返す（状態を変えない）。読み込みは表示だけから出る経路（TASK-531 1/2）。
+                | HostAction::ExportHistory
+                | HostAction::ImportHistory(_)
                 | HostAction::Input(HelloAction::SetOs(_)) => true,
                 #[cfg(feature = "test-hooks")]
                 HostAction::Input(HelloAction::KeydownProbe)
@@ -2349,6 +2441,16 @@ impl Component for EngineHost {
             }
             #[cfg(feature = "test-hooks")]
             HostAction::Reload => self.reload_engine(),
+            HostAction::ExportHistory => self.export_press(),
+            HostAction::ImportHistory(text) => {
+                let outcome = self.open_history(text.as_bytes());
+                #[cfg(feature = "test-hooks")]
+                {
+                    self.last_import = Some(outcome);
+                }
+                #[cfg(not(feature = "test-hooks"))]
+                let _ = outcome;
+            }
             #[cfg(feature = "test-hooks")]
             HostAction::OpenHistory(text) => {
                 self.last_import = Some(self.open_history(text.as_bytes()));
@@ -2408,6 +2510,10 @@ impl Component for EngineHost {
         }
         // 入力欄の値が変わっていれば下書きとして記録する。どの action の後でも 1 か所で行う。
         self.record_draft_change();
+        // 履歴（ログ・下書き）が変わったら、出していた書き出しのリンクは古いので外す（下書きも書き出しに入る。SAVE-18）。
+        if self.save_due || self.history_changed {
+            self.clear_export_result();
+        }
         // 状態を変えた操作の後は、下書きの記録も済んだ値を保存する（SAVE-10）。遅延保存の予約は、この即時の保存が書くので不要になる。
         if self.save_due {
             self.save_due = false;
@@ -2463,6 +2569,14 @@ impl Component for EngineHost {
         // 「次の章へ進む」は右のエリアの末尾に置く（仮置き。最終の配置は TASK-534・TASK-548）。
         right.push(next_chapter_list(self.next_chapter_offer().as_ref()));
         let [tablist, panes] = crate::shell_frame::frame(left, right, self.pane);
+        // 履歴の書き出し・読み込みの操作は通知欄の後ろ・tablist の前に置く（仮置き。最終の配置は TASK-534・TASK-548）。
+        let shown = self.export_result.as_ref().map(|r| match r {
+            ExportShown::Link { file_name, link } => ExportResult::Link {
+                href: link.url.as_str(),
+                file_name: file_name.as_str(),
+            },
+            ExportShown::Status(m) => ExportResult::Status(m),
+        });
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         let mut children = vec![
@@ -2471,6 +2585,7 @@ impl Component for EngineHost {
                 self.refused_notice,
                 self.model.save_failure,
             ),
+            history_ops(shown.as_ref()),
             tablist,
             panes,
         ];
@@ -2560,11 +2675,23 @@ impl Component for EngineHost {
             return TabKey::from_key(payload).map(HostAction::PaneKey);
         }
         // 通知を閉じる（TASK-535 1/2）。枠の復号（正規形・32 バイト以下）と種類の既知の照合の両方を通ったものだけを受ける。
-        // 書き出し・読み込み・捨てて始めるはここでは受けない（担当は TASK-531 など）。
+        // 捨てて始めるはここでは受けない（書き出し・読み込みは下で別に受ける）。
         if name == crate::shell::ACTION_DISMISS_NOTICE {
             return match crate::shell::ShellAction::decode(name, payload) {
                 Some(crate::shell::ShellAction::DismissNotice(kind)) => {
                     crate::shell::NoticeKind::parse(&kind).map(HostAction::DismissNotice)
+                }
+                _ => None,
+            };
+        }
+        // 履歴の書き出し・読み込み（TASK-531 1/2）。復号は枠の契約（`ShellAction::decode`）の 1 か所で、受けるのはこの 2 つだけ。
+        if name == crate::shell::ACTION_EXPORT_HISTORY
+            || name == crate::shell::ACTION_IMPORT_HISTORY
+        {
+            return match crate::shell::ShellAction::decode(name, payload) {
+                Some(crate::shell::ShellAction::Export) => Some(HostAction::ExportHistory),
+                Some(crate::shell::ShellAction::Import(body)) => {
+                    Some(HostAction::ImportHistory(body))
                 }
                 _ => None,
             };

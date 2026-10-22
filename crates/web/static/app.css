@@ -181,3 +181,26 @@
     display: none;
   }
 }
+
+/* 履歴の書き出し・読み込みの操作（TASK-531 1/2。仮置き。最終の配置は TASK-534・TASK-548）。
+  shell-import の入れ物は data-action を持つため、箱を持たせずクリックの起点にしない（display: contents）。
+  label・input は上流の対話要素の境界で止まり、ファイル画面を開くクリックで import-history は届かない。
+  操作の対象は 24px 以上（A11Y-3）。クラス名は crates/web/src/history_ops.rs と一致させる。 */
+.sh-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sh-import {
+  display: contents;
+}
+
+.sh-import-label,
+.sh-history-link,
+[data-testid="shell-export"] {
+  display: inline-block;
+  min-width: 24px;
+  min-height: 24px;
+}

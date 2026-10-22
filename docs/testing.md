@@ -1483,7 +1483,7 @@ JUDGE17-2 は契約試験 `key_route_contract` が検出する。処理中の状
 ### 5.52 Shift+Tab の逆向きのフォーカス移動（TASK-278 2/3）
 
 JUDGE19-3 は、判定表 `decide` の Tab の行から Shift の条件を外す。候補が開いて文字があると Shift+Tab まで補完になり、逆向きのフォーカス移動を奪う。
-契約試験 `key_decide_contract` が検出する。候補が開く状態は TASK-440 が結ぶまで画面から作れないため、ブラウザ試験（`tools/browser/shift-tab.test.mjs`）は候補なしの行（`preventDefault` されない・入力欄から `body` へ出る・送信ボタンから入力欄へ戻る）だけを確かめる。
+契約試験 `key_decide_contract` が検出する。候補が開く状態は TASK-440 が結ぶまで画面から作れないため、ブラウザ試験（`tools/browser/shift-tab.test.mjs`）は候補なしの行（`preventDefault` されない・入力欄から履歴の読み込みの部品へ移る・送信ボタンから入力欄へ戻る）だけを確かめる。
 
 ```text
 実行日: 2026-10-16
@@ -2525,21 +2525,21 @@ static を素の文字列の照合へ作り直した後（2026-10-17）は、`ma
 Tab・Shift+Tab について、keydown の `preventDefault` の有無・ログの行・欄の値・押した後のフォーカス先を、5.86 と同じファイル `tools/browser/key-invariants.test.mjs` の表に 8 行足した（FEND-21）。Tab は、候補の一覧が開いていて入力欄に文字があるときだけ `preventDefault` され、それ以外では呼ばれない。Shift+Tab は常に `preventDefault` されない（JUDGE-19）。受け持ちは現状の glue（D-42）。TASK-352 は、置き換えの前後でこのファイルを同じ件数（20 件）で通して比べる。
 
 - 観察の方法の差分: 配信設定は IR を読まず候補の一覧が常に閉じるため、一覧が開いている行（TAB-OPEN・SHIFT-TAB-OPEN）と、一覧が閉じたままの `/zzz`・`/help` の行は試験の設定（`TEST_HOOKS=1`。埋め込み教材 `min-3step`）で観察する。基準を 1 ファイルに置き、置き換えの前後で件数を比べるためである。内部の印（`__fandheTest`・`data-action-keydown`）を読まない原則は保ち、DOM と捕捉した Event の `defaultPrevented` だけで観察する。入力は `FANDHE_WEB_DIR` と `FANDHE_WEB_TEST_DIR` の両方で、どちらかが未設定・不在なら skip でなく失敗にする
-- 列の追加（Enter の 11 行にも付与した）: `web`（`delivery` か `test`）・`open`（押す前の一覧の開閉。前提として照合する）・`key`（捕捉する `KeyboardEvent.key`）・`focus`（押した後の `document.activeElement` の `data-testid`。`body` は `BODY`）。ログの行は「押す前の行 + `lines` = 押した後の行」で照合する。欄の値が変わる行は `waitForFunction` で待つ（Tab の補完は `set_timeout(0)` を 2 段通る）
+- 列の追加（Enter の 11 行にも付与した）: `web`（`delivery` か `test`）・`open`（押す前の一覧の開閉。前提として照合する）・`key`（捕捉する `KeyboardEvent.key`）・`focus`（押した後の `document.activeElement` の `data-testid`。`body` は `BODY`、履歴の読み込みのファイル入力は `IMPORT-FILE`）。ログの行は「押す前の行 + `lines` = 押した後の行」で照合する。欄の値が変わる行は `waitForFunction` で待つ（Tab の補完は `set_timeout(0)` を 2 段通る）
 - Enter の 11 行の `focus` は全行 `draft-input` で、事前の見込みと一致した
 
 | id | web | 一覧（前提） | キー | 下書き | preventDefault | ログの行 | 欄の値 | フォーカス先 |
 |---|---|---|---|---|---|---|---|---|
 | TAB-TEXT | 配信 | 閉 | Tab | `x` | なし | なし | `x` | `submit-input` |
 | TAB-EMPTY | 配信 | 閉 | Tab | 空 | なし | なし | 空 | `submit-input` |
-| SHIFT-TAB-TEXT | 配信 | 閉 | Shift+Tab | `x` | なし | なし | `x` | `BODY` |
-| SHIFT-TAB-EMPTY | 配信 | 閉 | Shift+Tab | 空 | なし | なし | 空 | `BODY` |
+| SHIFT-TAB-TEXT | 配信 | 閉 | Shift+Tab | `x` | なし | なし | `x` | `IMPORT-FILE` |
+| SHIFT-TAB-EMPTY | 配信 | 閉 | Shift+Tab | 空 | なし | なし | 空 | `IMPORT-FILE` |
 | TAB-OPEN | 試験 | 開 | Tab | `/he` | あり | なし | `/help` | `draft-input` |
 | SHIFT-TAB-OPEN | 試験 | 開 | Shift+Tab | `/he` | なし | なし | `/he` | `keydown-probe` |
 | TAB-NOMATCH | 試験 | 閉 | Tab | `/zzz` | なし | なし | `/zzz` | `submit-input` |
 | TAB-EXACT | 試験 | 閉 | Tab | `/help` | なし | なし | `/help` | `submit-input` |
 
-現状で観察した値は、事前の見込み（`decide` と既存の試験）と全行で一致した。食い違いは無い。SHIFT-TAB-OPEN のフォーカス先 `keydown-probe` は、試験の設定にだけある入力欄の前の要素で、配信設定では `BODY` へ出る（SHIFT-TAB-TEXT）。
+現状で観察した値は、事前の見込み（`decide` と既存の試験）と全行で一致した。食い違いは無い。SHIFT-TAB-OPEN のフォーカス先 `keydown-probe` は、試験の設定にだけある入力欄の前の要素で、配信設定では、入力欄の前にある履歴の操作（TASK-531 1/2）の最後の部品（読み込みのファイル入力。表では `IMPORT-FILE`）へ移る（SHIFT-TAB-TEXT）。この PR より前は `BODY` だった。
 
 ```text
 実行日: 2026-10-17
@@ -5020,7 +5020,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 536`（2026-10-22 に TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）で 531 から上げた。5.237。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 557`（2026-10-22 に TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -7190,6 +7190,30 @@ TASK-176（5.220）は操作が状態・ログを変えないことを固定し�
 - 未確認: 実際の IndexedDB の容量超過で `storage_idb.rs` の `watch()` が `QuotaExceeded` に分類すること（`tx.error().name()`）。5.169 の限界 3 は解消していない。実機で容量が尽きる環境（小さな quota の別のブラウザ・OS の容量逼迫）での確認が要る。
 - 対照: 変異は足していない（Rust は変更なし）。
 - 実行結果（2026-10-22）: `save-idb-failure` 5 件（Chromium）が通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.234 履歴の書き出しと読み込みの操作を枠に置く（TASK-531 1/2。SHELL-15）
+
+TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識別子と宛先の形を入れたが、受講者が押せる操作は画面に無かった（読み込みは試験の設定の `test-hooks.js` からだけ届いた）。本件は枠に操作を置き、`EngineHost::export_live`・`open_history` に結線する。同じ状態の詳しい照合と書き出しのバイト単位の一致は 2/2（#724）が持つ。
+
+設計（仮置きの点は `docs/known-gaps.md`）:
+
+- 書き出しは 2 段。「履歴を書き出す」（`shell-export`）でホストが `export_live` を通し、`Ready` のときだけリンク（`export-download`）を出す。`Held`・`Empty`・URL を作る口が無いときは、固定の文（`export-status`）だけを出す（fail-closed）。受講者の値は文に入れない
+- 上流の属性の検査（`is_safe_url`）は `blob:` の `href` を落とす。リンクの URL は `data-export-url` に載せ、`static/app.js` が自分のオリジンの `blob:` だけを `a.href` へ写す（`setAttribute` は使わない）。この書き込みは `crates/web/tests/no_hidden_triggers.rs` が許す唯一の例外で、対象は書き出しのリンクの `href` だけ・値は `blob:${window.origin}/` で始まるものだけ・件数は 1 件に固定し、`blob:` の前置き検査が無い場合や件数が増減した場合は失敗する
+- 書き出しの結果は 0 か 1 件の keyed list（`export_result`）。履歴（ログ・下書き）が変わる・履歴を開く・表示だけに入るとリンクを外し、URL を破棄する（drop で `revokeObjectURL`）。選択の切り替えでは外さない
+- 読み込みは `shell-import`（`data-action="import-history"`、`data-payload` なし）の入れ物の中に `label` と `input[type=file]` を置く。入れ物は `display: contents` で、label・input は上流の対話要素の境界で止まるため、ファイル画面を開くクリックでは `import-history` が届かない（空の本文と区別できないため）。選んだファイルは `app.js` が `file.slice(0, 上限 + 1).arrayBuffer()` でバイト列のまま読み（文字列にすると不正な UTF-8 が置換されるため）、wasm の `import_history` で届ける。Rust は DOM の値を読まない。上限は `history_read_limit`（`MAX_HISTORY_BYTES + 1`）
+- 表示だけの間の allowlist に 2 つの action を足した。書き出しは読み込んだバイト列そのものを返す
+- 置き場所は root の直下で通知欄の後ろ・`tablist` の前（仮置き。TASK-534・TASK-548）
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/history_ops.rs`（13 件） | 完成した画面の `shell`・`a11y` の検査と操作が 1 つずつ。入れ物が `data-payload` を持たず中の部品が `data-action` を持たない。押すとリンクが 1 件・もう一度押すと作り直して前を破棄。状態を変える操作でリンクが消え選択の切り替えでは消えない。履歴が無い・警告の間・口が無いときは文だけ（URL の作成の失敗は「履歴が無い」と言わず、警告が解けると警告の間の文が消える）。書き出しを押しても同じ field を二重に積まない。読み込みの結線（壊れた本文・空は状態を変えず通知）。開いた履歴で前のリンクが外れる。復号は 2 つだけ受ける |
+| `crates/web/src/history_ops.rs`・`history_export.rs` の単体試験 | 描画の形・固定の文・不正な UTF-8 の本文の変換（大きさ・入れ子の上限で断られるものは長さと括弧の並びを保ち、同じ理由で断られる） |
+| `tools/browser/history-ops.test.mjs`（6 件） | 画面の操作だけで書き出し（`Download`）。もう一度押すとリンクが新しい URL で作り直され、`app.js` が写した `href` が `data-export-url` と一致し 2 つ目もダウンロードできる → 別のオリジンの input へ `setInputFiles` → 開いて同じログの長さ・状態。ファイル画面を選ばずに閉じても結果・通知が変わらない。書き換えた・壊れた・空のファイルは開かず状態・ログが変わらず通知が出る。先に選んだファイルの読み取りが後から終わっても後の選択の結果を差し替えない。読み取りの失敗では状態・保存先を変えず通知が 1 件出る。配信する設定でも書き出しの文が出る。外部への要求・CSP 違反・ページのエラー・ダイアログ・ポップアップが 0 件、URL に状態が載らない |
+
+- 既存の試験の更新: `version_notice.rs`（書き出し・読み込みの復号は受ける）、`dirty_binding_points.rs`（`export_result` は書き出しの操作の後に立つ）、`glue_contract.rs`・`state_paths.rs`（新しい呼び出しの許可）、`glue_scale.rs`（上限 531 から 552。`import_history`・`history_read_limit`・URL の口の結線）
+- 実行結果（2026-10-22）: `make lint`・`make test`・`--features test-hooks` の native 試験・`make check-deps`・`make check-dom-reads`・`make check`・`make build-web` と `make check-delivery` が通った。ブラウザ試験は新しい 6 件と、関連する `history-export`・`history-import`・`view-only`・`view-only-storage`・`refused-history`・`version-notice`・`version-histories`・`history-versions`・`secret-hold`・`secret-choice`・`inline-free`・`csp-runs`・`shell-columns`・`shell-tabs`・`shell-widths`・`element-identity`・`esc-once`・`smoke-hello`・`safety`・`csp-placement`・`next-chapter` を単独で流して通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で失敗する（既存）
+- 限界: Chromium だけ。OS のファイル画面（macOS）は人の確認（TASK-342）、配布物は TASK-114 が持つ。配信する設定は IR を持たないため、開く経路の確認は試験の設定で行う（配信する設定では `app.js` から `import_history` までの例外・外部要求が 0 件のことだけを見る）
+- 範囲外: 読めない履歴 7 種の理由の表示（TASK-532）、未送信の下書きの案内（TASK-537）、通知欄・枠の最終の配置（TASK-534・TASK-548）。`scripts/expected-test-counts.txt` は更新しない
 
 ### 5.235 L2 の配布物の作成スクリプト（TASK-112 1/2。DLV-13・DLV-18）
 
