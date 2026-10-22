@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # L2 の配布物を Rust のない模擬環境で展開・起動し、自動ブラウザで CH-0〜CH-1 を完走する試験を流す
 # （`make test-l2-run` と CI の browser-test ジョブから呼ばれる。TASK-112 2/2。D-58・D-71・DLV-13）。
+# あわせて、待ち受けが 127.0.0.1 だけで他のアドレスからの接続が拒否されること、起動とマウントの時間の記録を試験が行う
+# （TASK-113。DLV-14。待ち受けの一覧は Linux では /proc/net/tcp*、macOS では /usr/sbin/lsof で読む）。
 #
 # 流れ: 配信する設定の web（release・同梱の IR あり）をビルド → tools/build-l2.mjs で zip を作る →
 # tools/browser/l2-run.test.mjs が mkdtemp の下へ展開し、PATH=/usr/bin:/bin だけで ./start.sh を起動して 3 回通す。

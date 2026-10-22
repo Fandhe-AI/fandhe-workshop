@@ -33,4 +33,5 @@ if [ -z "${FANDHE_NO_OPEN:-}" ] && command -v open >/dev/null 2>&1; then
 fi
 
 # 全アドレスで待ち受ける既定を避けるため、-i で 127.0.0.1 に限る。引数は PoC-10 で完走を確かめた形のまま。
+# 他のホストから届かないことは tools/browser/l2-run.test.mjs が確かめる（LISTEN の一覧と接続の拒否。-i を外した対照つき。TASK-113）。
 exec ./miniserve --index index.html -i 127.0.0.1 -p "${PORT}" site
