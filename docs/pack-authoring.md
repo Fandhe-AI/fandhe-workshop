@@ -629,10 +629,10 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 - 対応表は、教材パックでは読み込まれない別の文書（教材 repo 側）に置きます。鍵は章・モジュールの ID と Step の ID です
 - Step の ID の一覧は `fandhe-pack vocab` の表の `scope,step` 列から取れます（`docs/cli.md` の 12 節。展開後の複製は含みません）。別の文書の行と突き合わせ、存在しない Step ID を教材テストで検出してください
 - 参照版（参照元の名前・commit・版つきのリンク）は、パック全体の `refs` に書けます。型は検査せず、IR にそのまま写ります。Step とは結びつかず、上流の文面は写しません（D-11）。置き場の最終の形は教材の部品の定義（TASK-717）が決めます
-- 参照元の版を上げたときに影響する Step の洗い出しは、教材 repo の教材テスト・スクリプトの担当です。エンジンは持ちません
+- 参照元の版を上げたときに影響する Step の洗い出しには、`tools/upstream-impact.mjs`（TASK-182）を使えます。エンジン（crate）は対応表を持たず、道具は `tools/` にあります。対応表は CSV（版 1）で、必須の列は `scope,step,ref`、任意の列は `path`（上流 repo の中の相対パス。空は参照名の全体に依拠）と `lines`（人が読む欄）です。`scope,step` は `fandhe-pack vocab` の表と同じ文字列で書きます。使い方は `node tools/upstream-impact.mjs --map <表> (--changed <参照名>... | --changes <ref,path の CSV>) [--vocab <vocab の出力>]` です。出力は `scope,step` の表と `# ` で始まる集計行で、終了コードは 0（列挙できた）・1（`--vocab` に無い Step を指す行がある）・2（入力の形が不正。標準出力は空）です。行番号では照合しません。実際の対応表と Step ID の突き合わせの教材テストは教材 repo の担当です
 - ヒントの 3 段目の日本語の括弧書き（「組み立ての例」など）は、コマンドの文字列の外（ヒントの別の文）に置きます。教材側の約束で、語彙に語は足さず（D-55 と同じ扱い）、守られているかの検査もありません
 
-根拠の試験: `crates/pack/tests/upstream_map_gap.rs` の `pack46_`（`docs/known-gaps.md` の PACK-46）。
+根拠の試験: `crates/pack/tests/upstream_map_gap.rs` の `pack46_`（`docs/known-gaps.md` の PACK-46）。洗い出しの道具の試験は `tools/upstream-impact.test.mjs`（`make test-upstream-impact`。`docs/testing.md` 5.235）。
 
 ## 根拠となる試験
 
