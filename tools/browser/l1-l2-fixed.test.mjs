@@ -4,7 +4,7 @@
 // ここでは、事前に固定した列（crates/web/tests/data/fixed_sequence_ch0_1/sequence.json）を、凍結した IR の写し（同ディレクトリの
 // ir.json。SHA-256 を列に書いて固定）と組にして流す。配信する木の `ir/main.json` を写しへ差し替えて配るため、ch0_3 や本物の教材が
 // 後で変わっても同じ IR で再生でき、再生できなくなることが無い（PoC-10 で凍結した列が教材の修正の後に再生できなくなった穴を埋める）。
-// 写しと違う IR に当たったときは、途中で時間切れになる前に `ir-mismatch` で断る。
+// 写しと違う IR に当たったときは、page を開く前（遷移・マウント待ちより前）に `ir-mismatch` で断る。
 //
 // 構成:
 //   1. 前提: 差し替えた L1 の木と L2 の木が、同じファイルの集合で同じ SHA-256（差がビルドでなく配信の差だけであること）
@@ -73,11 +73,32 @@ after(async () => {
 const runOnce = (label, origin, url, opts) => runOnceWith(ctx, label, origin, url, opts);
 const withTarget = (target, fn, opts) => withTargetWith(ctx, target, fn, opts);
 
-/** 固定の列を流す drive。流す前に配信されている IR が凍結した IR であることを確かめる。 */
-const replayDrive = (url) => async (page, { L, onStep }) => {
-  await assertServedIr(url, loaded.seq);
-  await replaySequence(page, loaded.seq, { order: ctx.order, L, onStep });
-};
+/**
+ * 固定の列を再生する runOnce の指定。配信されている IR が凍結した IR であることは、page を開く前（遷移・マウント待ちより前）に
+ * 確かめる（precheck）。違う IR がマウントに失敗・時間切れになるより先に、`ir-mismatch` の理由で断るため。
+ */
+const replayOpts = (url, extra = {}) => ({
+  precheck: () => assertServedIr(url, loaded.seq),
+  drive: (page, { L, onStep }) => replaySequence(page, loaded.seq, { order: ctx.order, L, onStep }),
+  ...extra,
+});
+
+/** `fn` の実行中に browser context が開かれた回数を数える（断りが page を開く前に来たことの確認用）。 */
+async function countContexts(fn) {
+  const browser = ctx.browser;
+  const orig = browser.newContext;
+  let opened = 0;
+  browser.newContext = (...args) => {
+    opened += 1;
+    return orig.apply(browser, args);
+  };
+  try {
+    await fn();
+  } finally {
+    browser.newContext = orig;
+  }
+  return opened;
+}
 
 /** 凍結した期待との照合。不一致の項目の名前（値は含まない）の一覧を返す。 */
 function expectationProblems(r) {
@@ -148,7 +169,7 @@ if (FREEZE) {
     for (let n = 1; n <= RUNS; n += 1) {
       test(`${target} ${n}/${RUNS} 回目: 固定の列を流し、凍結した期待と照合する`, async () => {
         await withTarget(target, async (origin, url) => {
-          const r = await runOnce(`${target}#${n}`, origin, url, { drive: replayDrive(url) });
+          const r = await runOnce(`${target}#${n}`, origin, url, replayOpts(url));
           results.push(r);
           console.log(`${r.label}: 観察 ${JSON.parse(r.obsText).length} 件・要求 ${r.requests} 件・obs ${short(r.hashes.obs)}・`
             + `snapshot ${short(r.hashes.snapshot)}・history ${short(r.hashes.history)}・${r.ms} ms`);
@@ -183,7 +204,7 @@ if (FREEZE) {
     try {
       ctx.siteDir = mutantSite;
       await withTarget('L1-a', async (origin, url) => {
-        const r = await runOnce('L1-a#mutant-overlay', origin, url, { drive: replayDrive(url) });
+        const r = await runOnce('L1-a#mutant-overlay', origin, url, replayOpts(url));
         assert.deepEqual(r.failedItems, []);
         assert.deepEqual(r.problems, []);
         assert.deepEqual(expectationProblems(r), []);
@@ -194,7 +215,7 @@ if (FREEZE) {
     }
   });
 
-  test('対照: 差し替えなしで別の IR に当たると、最初の操作の前に ir-mismatch で断る', async () => {
+  test('対照: 差し替えなしで別の IR に当たると、page を開く前に ir-mismatch で断る', async () => {
     const mutant = Buffer.concat([loaded.irBytes, Buffer.from('\n')]);
     const mutantSite = overlaidSite(ctx.siteDir, ctx.tmpDir, mutant);
     const saved = ctx.siteDir;
@@ -202,14 +223,37 @@ if (FREEZE) {
       ctx.siteDir = mutantSite;
       await withTarget('L1-a', async (origin, url) => {
         const t0 = Date.now();
-        await assert.rejects(runOnce('L1-a#mutant', origin, url, { drive: replayDrive(url) }), /ir-mismatch/);
+        const opened = await countContexts(() => assert.rejects(runOnce('L1-a#mutant', origin, url, replayOpts(url)), /ir-mismatch/));
         const ms = Date.now() - t0;
-        console.log(`ir-mismatch で断るまで ${ms} ms`);
+        console.log(`ir-mismatch で断るまで ${ms} ms・開いた context ${opened} 件`);
+        assert.equal(opened, 0, 'the refusal must come before the page is opened (before navigation and the mount wait)');
         assert.ok(ms < 15000, 'the refusal must come before any step times out');
       });
     } finally {
       ctx.siteDir = saved;
       fs.rmSync(mutantSite, { recursive: true, force: true });
+    }
+  });
+
+  test('対照: 差し替えなしで JSON として読めない IR に当たっても、page を開く前に ir-mismatch で断る', async () => {
+    // JSON として読めない IR（凍結した IR の前半だけ）。現状のエンジンは断りの画面でマウントを終えるが、IR の照合はマウントの
+    // 結果に依らない（マウントの失敗・時間切れより先に ir-mismatch で断る）ことを、page を開いた回数 0 件で確かめる。
+    const broken = loaded.irBytes.subarray(0, Math.floor(loaded.irBytes.length / 2));
+    const brokenSite = overlaidSite(ctx.siteDir, ctx.tmpDir, broken);
+    const saved = ctx.siteDir;
+    try {
+      ctx.siteDir = brokenSite;
+      await withTarget('L1-a', async (origin, url) => {
+        const t0 = Date.now();
+        const opened = await countContexts(() => assert.rejects(runOnce('L1-a#broken', origin, url, replayOpts(url)), /ir-mismatch/));
+        const ms = Date.now() - t0;
+        console.log(`不正な IR で ir-mismatch で断るまで ${ms} ms・開いた context ${opened} 件`);
+        assert.equal(opened, 0, 'the refusal must come before the page is opened (before navigation and the mount wait)');
+        assert.ok(ms < 15000, 'the refusal must come before the mount wait times out');
+      });
+    } finally {
+      ctx.siteDir = saved;
+      fs.rmSync(brokenSite, { recursive: true, force: true });
     }
   });
 
@@ -250,7 +294,7 @@ if (FREEZE) {
             };
           }, s.seed);
         };
-        const r = await runOnce(`L1-a#clock${s.seed}`, origin, url, { drive: replayDrive(url), prepare });
+        const r = await runOnce(`L1-a#clock${s.seed}`, origin, url, replayOpts(url, { prepare }));
         assert.deepEqual(r.failedItems, []);
         assert.deepEqual(r.problems, []);
         // 差し替えが効いていること（時計が本当に固定した時刻だったこと）は、別の画面の取得ではなく同じ構成の新しい page で確かめる。

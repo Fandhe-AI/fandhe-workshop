@@ -8,7 +8,8 @@
 //   { op, args }                         操作（mouseDriver の口の名前と引数）
 //   { expect, status, ports }            Step の状態と 4 つの口の数。画面の語は入れない（文面の変更で固定の列が壊れないため）
 //   { still, kind }                      拒否（rejected）・問い返し（clarified）の後も同じ Step のままであること
-// 再生は凍結した IR が配信されていることを先に確かめ（違えば `ir-mismatch` で最初に断る）、操作を順に流す。
+// 再生の前に、凍結した IR が配信されていることを `assertServedIr` で確かめ（呼び出し元が page を開く前に呼ぶ。違えば `ir-mismatch` で
+// 最初に断る）、`replaySequence` が操作を順に流す。
 // 出力に履歴の本文・入力した値・DOM の文字を載せない。
 import crypto from 'node:crypto';
 import fs from 'node:fs';

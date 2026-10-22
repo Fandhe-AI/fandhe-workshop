@@ -84,10 +84,13 @@ export function reqLabel(u) {
  * `stopAt` を指定すると、その Step に入ったところで止める（対照用）。`keep` が真なら context を閉じず page を返す。
  * `drive(page, { L, onStep })` があれば、既定の誘導（journey）の代わりに呼ぶ（固定の列の再生・凍結の記録）。
  * `prepare({ page, context })` は最初の遷移の前に呼ぶ（時計・乱数をずらす試験用）。
+ * `precheck()` は page を開く前（遷移・マウント待ちより前）に呼ぶ。配信される資源の前提を確かめ、違えば例外で断る用途
+ * （固定の列の再生で、凍結した IR と違う IR がマウントに失敗・時間切れになる前に `ir-mismatch` で断るため）。
  */
-export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep = false, drive = null, prepare = null } = {}) {
+export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep = false, drive = null, prepare = null, precheck = null } = {}) {
   const { browser, order, tmpDir } = ctx;
   const t0 = Date.now();
+  if (precheck) await precheck();
   const { page, context, rec } = await openPage(browser, { origin });
   try {
     if (prepare) await prepare({ page, context });
