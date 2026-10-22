@@ -1,0 +1,8 @@
+id: SHELL10-3
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/next_chapter.rs
+find: let next_unit = *units.get(at + 1)?;
+replace: let next_unit = *units.get(at)?;
+expect-fail: 先頭の節点に一致する開始点を選ぶ
+note: 次の章でなく同じ章を指す（SHELL-10・TASK-526 1/2）

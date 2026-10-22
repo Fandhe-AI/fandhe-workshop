@@ -152,6 +152,8 @@ fn open_marks_every_field_dirty_and_notifies_the_next_tick() {
     let mut expected: Vec<&str> = h.registry().fields().map(|f| f.name).collect();
     // `shell_notices` は registry の外にあり、`open` が前の通知を消すために明示して積む（FEND-15）。
     expected.push("shell_notices");
+    // `next_chapter` も registry の外で、前の教材の項目を消すために明示して積む。
+    expected.push("next_chapter");
     let mut dirty: Vec<&str> = h.dirty_fields().to_vec();
     expected.sort_unstable();
     dirty.sort_unstable();
