@@ -375,7 +375,14 @@ pub fn compile_dir_with(dir: &Path, opts: &CompileOptions) -> Result<Vec<u8>, Co
     let mut ir = compile(&pack).map_err(CompileError::Diagnostics)?;
     if let Some(ids) = &opts.chapters {
         let selected = resolve_selection(&pack.scopes, ids).map_err(CompileError::Chapter)?;
-        ir = narrow_chapters(ir, &selected, &pack.workshop_file)
+        // 範囲外の章が定義した開始点は、宛先が選んだ章の Step でも残さない。
+        let foreign_starts: BTreeSet<String> = pack
+            .scopes
+            .iter()
+            .filter(|s| s.kind == ScopeKind::Chapter && !selected.contains(&s.src.id))
+            .flat_map(|s| s.src.starts.iter().map(|st| st.id.clone()))
+            .collect();
+        ir = narrow_chapters(ir, &selected, &foreign_starts, &pack.workshop_file)
             .map_err(CompileError::Diagnostics)?;
     }
     let bytes = to_json(&ir).map_err(|_| {

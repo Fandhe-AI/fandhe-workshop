@@ -265,6 +265,48 @@ fn pack43_unknown_or_ambiguous_chapter_exits_2() {
 }
 
 #[test]
+fn pack43_foreign_start_into_selected_chapter_is_dropped() {
+    let t = pack(false);
+    // 範囲外の章 c2 が、選んだ章 c1 の Step を指す開始点を定義する。
+    edit(
+        &t,
+        "chapters/c2/chapter.yaml",
+        "starts: [{id: s2, node: x}]",
+        "starts: [{id: s2, node: x}, {id: s2a, node: a}]",
+    );
+    let ir = load_ir(&narrowed(&t, &["c1"])).expect("ir");
+    assert!(ir.starts.iter().all(|s| s.id != "s2a" && s.id != "s2"));
+    assert!(ir.starts.iter().any(|s| s.id == "s1"));
+}
+
+#[test]
+fn pack43_foreign_start_alone_does_not_make_selection_succeed() {
+    let t = pack(false);
+    edit(
+        &t,
+        "chapters/c1/chapter.yaml",
+        "starts: [{id: s1, node: a}]\n",
+        "",
+    );
+    edit(
+        &t,
+        "chapters/c2/chapter.yaml",
+        "starts: [{id: s2, node: x}]",
+        "starts: [{id: s2, node: x}, {id: s2a, node: a}]",
+    );
+    let e = compile_dir_with(
+        &t.0,
+        &CompileOptions {
+            chapters: ids(&["c1"]),
+        },
+    );
+    let Err(CompileError::Diagnostics(d)) = e else {
+        panic!("expected diagnostics");
+    };
+    assert_eq!(d[0].code(), DiagCode::Structure);
+}
+
+#[test]
 fn pack43_chapters_without_start_is_structure() {
     let t = pack(false);
     edit(

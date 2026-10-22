@@ -86,11 +86,12 @@ pub(crate) fn resolve_selection(
 /// 全章を展開した IR を、選んだ章とそこから呼ばれる実体だけに絞る。
 ///
 /// 残すのは、選んだ章の `main` の node と、その node から（入れ子を含めて）`use` で呼ばれた実体の node。
-/// `starts` は残した node を指すものだけにする。範囲外の node を指す辺・`enter`・`exit_to` が残るなら
+/// `starts` は、定義元が範囲外の章でなく（`foreign_starts` に無く）、残した node を指すものだけにする。範囲外の node を指す辺・`enter`・`exit_to` が残るなら
 /// `E-REF-STEP` で止める（`check_chapter_local_next` があれば起きない二重の安全網）。
 pub(crate) fn narrow_chapters(
     mut ir: Ir,
     selected: &BTreeSet<String>,
+    foreign_starts: &BTreeSet<String>,
     file: &str,
 ) -> Result<Ir, Vec<Diagnostic>> {
     let mut keep: BTreeSet<String> = ir
@@ -122,7 +123,8 @@ pub(crate) fn narrow_chapters(
     }
     ir.nodes.retain(|n| keep.contains(&n.uid));
     ir.instances.retain(|i| kept_instances.contains(&i.id));
-    ir.starts.retain(|s| keep.contains(&s.node));
+    ir.starts
+        .retain(|s| keep.contains(&s.node) && !foreign_starts.contains(&s.id));
     if ir.starts.is_empty() {
         return Err(vec![diag(
             "chapters",
