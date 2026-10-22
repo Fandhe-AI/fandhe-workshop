@@ -50,7 +50,6 @@ use crate::log_lines::{line_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::run_status::run_status;
-use crate::save_notice::{save_notice_text, SAVE_NOTICE_FIELD};
 use crate::secret_notice::{
     secret_notice_text, ACTION_SECRET_DISCARD, ACTION_SECRET_KEEP, SECRET_CHOICE_FIELD,
     SECRET_CHOICE_TESTID, SECRET_DISCARD_LABEL, SECRET_DISCARD_TESTID, SECRET_KEEP_LABEL,
@@ -93,11 +92,6 @@ const F_LOG: &[PartField] = &[
     // 末尾に足す（[2]..[4] は位置で参照している）。遷移の上限で止めた理由の通知欄（SAFE-34）。
     PartField {
         name: "log_notice",
-        kind: FieldKind::Bound,
-    },
-    // 履歴を保存できなかったことの通知欄（SAVE-10。TASK-323 1/2）。`log_notice` と責務を分ける。
-    PartField {
-        name: SAVE_NOTICE_FIELD,
         kind: FieldKind::Bound,
     },
     // 履歴の書き出しの案内の通知欄（SAVE-29・D-57。TASK-340）。末尾に足す（[2]..[6] は位置で参照している）。
@@ -393,25 +387,19 @@ impl DisplayPart<HostModel> for LogPart {
                     F_LOG[5].name,
                     limit_notice(model.session()).as_str(),
                 ),
-                // 履歴を保存できなかったことの通知欄（SAVE-10）。配置は仮で、TASK-534 が決める。
-                bind_text(
-                    "p",
-                    vec![("data-testid", "save-notice"), ("role", "status")],
-                    F_LOG[6].name,
-                    save_notice_text(model.save_failure()),
-                ),
+                // 履歴を保存できなかったことの表示はここに置かない。枠の通知欄 `shell-notice` の `save-failed` 項目が出す（SHELL-18。TASK-534 1/2）。
                 // 履歴の書き出しの案内（SAVE-29）。配置は仮で、TASK-534 が決める。
                 bind_text(
                     "p",
                     vec![("data-testid", "export-notice"), ("role", "status")],
-                    F_LOG[7].name,
+                    F_LOG[6].name,
                     export_notice_text(model.export_hint()),
                 ),
                 // 秘密情報らしい文字列の警告（SAFE-27）。形の名前だけを出す。配置は仮で、TASK-534 が決める。
                 bind_text(
                     "p",
                     vec![("data-testid", "secret-notice"), ("role", "status")],
-                    F_LOG[8].name,
+                    F_LOG[7].name,
                     secret_notice_text(model.secret_warning()).as_str(),
                 ),
                 // 警告の選択のボタン（SAFE-28）。警告があるときだけ 2 つ出す。配置と文言は仮で、TASK-534 が決める。
@@ -420,14 +408,14 @@ impl DisplayPart<HostModel> for LogPart {
                 bind_text(
                     "p",
                     vec![("data-testid", "stale-notice"), ("role", "status")],
-                    F_LOG[9].name,
+                    F_LOG[8].name,
                     stale_notice_text(model.stale_tab()),
                 ),
                 // 表示だけで開いた履歴の理由（VER-8）。固定の文言と理由のコードだけで、履歴の値を含めない。配置は仮。
                 bind_text(
                     "p",
                     vec![("data-testid", "view-only-notice"), ("role", "status")],
-                    F_LOG[11].name,
+                    F_LOG[10].name,
                     view_only_notice_text(model.view_only_reason()).as_str(),
                 ),
                 bind_text(
@@ -447,18 +435,15 @@ impl DisplayPart<HostModel> for LogPart {
             f if f == F_LOG[4].name => Some(BoundValue::Text(step_status_text(model).to_owned())),
             f if f == F_LOG[5].name => Some(BoundValue::Text(limit_notice(model.session()))),
             f if f == F_LOG[6].name => Some(BoundValue::Text(
-                save_notice_text(model.save_failure()).to_owned(),
-            )),
-            f if f == F_LOG[7].name => Some(BoundValue::Text(
                 export_notice_text(model.export_hint()).to_owned(),
             )),
-            f if f == F_LOG[9].name => Some(BoundValue::Text(
+            f if f == F_LOG[8].name => Some(BoundValue::Text(
                 stale_notice_text(model.stale_tab()).to_owned(),
             )),
-            f if f == F_LOG[11].name => Some(BoundValue::Text(view_only_notice_text(
+            f if f == F_LOG[10].name => Some(BoundValue::Text(view_only_notice_text(
                 model.view_only_reason(),
             ))),
-            f if f == F_LOG[8].name => {
+            f if f == F_LOG[7].name => {
                 Some(BoundValue::Text(secret_notice_text(model.secret_warning())))
             }
             _ => consumed_bound(field, F_LOG[1].name, model),
@@ -514,7 +499,7 @@ fn secret_choice_list(model: &HostModel) -> Node {
 }
 
 /// `F_LOG` の中の `secret_choice` の位置。
-const LOG_SECRET_CHOICE: usize = 10;
+const LOG_SECRET_CHOICE: usize = 9;
 
 /// 経路をそのまま行のキーにしてよい長さの上限（バイト）。
 const ARTIFACT_KEY_PATH_MAX: usize = 256;

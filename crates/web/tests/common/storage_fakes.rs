@@ -145,3 +145,55 @@ pub fn fixture(idb_available: bool) -> Fixture {
         storage,
     }
 }
+
+/// 枠の通知欄（`shell-notice`）の `save-failed` 項目の（理由コード, 文）。項目が無ければ `None`（TASK-534 1/2）。
+/// 項目は 0 件か 1 件で、2 件以上なら panic する（同じ失敗の二重表示を見逃さない）。
+pub fn save_failed_item(h: &fandhe_workshop_web::host::EngineHost) -> Option<(String, String)> {
+    use fandhe_frontend_core::Node;
+    use fandhe_frontend_interactive::Component;
+    fn attr<'a>(n: &'a Node, k: &str) -> Option<&'a str> {
+        match n {
+            Node::Element { attrs, .. } => attrs
+                .iter()
+                .find(|(name, _)| name == k)
+                .map(|(_, v)| v.as_str()),
+            _ => None,
+        }
+    }
+    fn text_of(n: &Node) -> String {
+        match n {
+            Node::Text(t) => t.clone(),
+            Node::Element { children, .. } => children.iter().map(text_of).collect(),
+            _ => String::new(),
+        }
+    }
+    fn find_text(n: &Node, out: &mut Vec<String>) {
+        if attr(n, "data-testid") == Some("shell-notice-text") {
+            out.push(text_of(n));
+        }
+        if let Node::Element { children, .. } = n {
+            for c in children {
+                find_text(c, out);
+            }
+        }
+    }
+    fn walk(n: &Node, out: &mut Vec<(String, String)>) {
+        if attr(n, "data-testid") == Some("shell-notice-item")
+            && attr(n, "data-notice-kind") == Some("save-failed")
+        {
+            let reason = attr(n, "data-notice-reason").unwrap_or("").to_owned();
+            let mut texts = Vec::new();
+            find_text(n, &mut texts);
+            out.push((reason, texts.concat()));
+        }
+        if let Node::Element { children, .. } = n {
+            for c in children {
+                walk(c, out);
+            }
+        }
+    }
+    let mut found = Vec::new();
+    walk(&h.view(), &mut found);
+    assert!(found.len() <= 1, "save-failed の項目が複数: {found:?}");
+    found.pop()
+}

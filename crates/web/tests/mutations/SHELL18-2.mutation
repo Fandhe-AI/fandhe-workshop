@@ -1,0 +1,8 @@
+id: SHELL18-2
+package: fandhe-workshop-web
+test: save_failure
+target: crates/web/src/shell_notice.rs
+find:         if let Some(item) = save_failed_item(failure) {
+replace:         if let Some(item) = save_failed_item(failure).filter(|_| false) {
+expect-fail: 容量超過で理由が出て状態は進み既存の保存は変わらず_空けた後の次の変更で消える
+note: 保存の失敗の項目を枠の通知欄に足さない（SHELL-18・TASK-534 1/2）

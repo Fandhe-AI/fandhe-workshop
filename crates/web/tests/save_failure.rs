@@ -1,6 +1,6 @@
 //! 変更のたびの保存の失敗の表示の試験（SAVE-10・SHELL-18・TASK-323 1/2）。
 //!
-//! localStorage だけの保存先（IndexedDB が無い）で容量が足りないとき、(1) 理由が `save-notice` に出る、
+//! localStorage だけの保存先（IndexedDB が無い）で容量が足りないとき、(1) 理由が `shell-notice` の `save-failed` 項目 に出る、
 //! (2) メモリ上の状態は進み、保存領域には直前に保存できた値が残る、(3) 容量を空けた後の次の変更で保存に成功し表示が消える、
 //! ことを、web の保存の経路（ホストの saver・保留と書き出し・保存先の偽物）を通して確かめる。
 //! 下書きだけの変更・未操作・保存停止では保存を試さないことも確かめる。試験では `unwrap` を使ってよい。
@@ -13,7 +13,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use fandhe_frontend_interactive::{Component, DirtyTracked};
-use fandhe_frontend_wasm_client::BoundValue;
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
@@ -78,10 +77,9 @@ fn log_len(h: &EngineHost) -> usize {
 }
 
 fn notice(h: &EngineHost) -> String {
-    match h.registry().bound_value("save_notice", h.model()) {
-        Some(BoundValue::Text(t)) => t,
-        other => panic!("save_notice の束縛が無い: {other:?}"),
-    }
+    storage_fakes::save_failed_item(h)
+        .map(|(_, text)| text)
+        .unwrap_or_default()
 }
 
 fn stored(f: &Fixture) -> Vec<String> {
@@ -122,14 +120,19 @@ fn 容量超過で理由が出て状態は進み既存の保存は変わらず_�
     step(&mut h);
     assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
     assert_eq!(notice(&h), QUOTA_TEXT);
-    assert!(h.dirty_fields().contains(&"save_notice"));
+    assert_eq!(
+        storage_fakes::save_failed_item(&h).map(|(reason, _)| reason),
+        Some("quota_exceeded".to_owned()),
+        "理由コードは固定の ASCII"
+    );
+    assert!(h.dirty_fields().contains(&"shell_notices"));
     assert!(log_len(&h) > before_len, "操作は適用され状態は進む");
     assert_eq!(stored(&f), saved, "保存領域には直前に保存できた値が残る");
 
     // 失敗が続く間は、値が変わらないので dirty に積まない。
     step(&mut h);
     assert_eq!(notice(&h), QUOTA_TEXT);
-    assert!(!h.dirty_fields().contains(&"save_notice"));
+    assert!(!h.dirty_fields().contains(&"shell_notices"));
     assert_eq!(stored(&f), saved);
 
     // 容量を空けた後の次の変更で保存に成功し、表示が消える。
@@ -137,7 +140,7 @@ fn 容量超過で理由が出て状態は進み既存の保存は変わらず_�
     step(&mut h);
     assert_eq!(h.model().save_failure(), None);
     assert_eq!(notice(&h), "");
-    assert!(h.dirty_fields().contains(&"save_notice"));
+    assert!(h.dirty_fields().contains(&"shell_notices"));
     assert_eq!(stored(&f), vec![h.history_to_save().unwrap()]);
 }
 
@@ -167,7 +170,7 @@ fn 遅延保存の結果の_action_が通知を出し_成功で消す() {
     h.update(act("save-result", "0 quota"));
     assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
     assert_eq!(notice(&h), QUOTA_TEXT);
-    assert!(h.dirty_fields().contains(&"save_notice"));
+    assert!(h.dirty_fields().contains(&"shell_notices"));
     h.update(act("save-result", "0 ok"));
     assert_eq!(h.model().save_failure(), None);
     assert_eq!(notice(&h), "");

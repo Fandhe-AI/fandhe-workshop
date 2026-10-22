@@ -283,8 +283,6 @@ const EXPECTED_SEEN: &[&str] = &[
 const NEEDS_OTHER_FIXTURES: &[&str] = &[
     // 遷移 1,000 回の上限の教材が要り、その教材は試験の設定（`test-hooks`）にだけある。
     "log_notice",
-    // 保存の失敗の表示は、保存の口（`set_history_saver`）を結んだホストが要る。`save_failure.rs` が dirty を確かめる。
-    "save_notice",
     // 書き出しの案内は、`boot` が Fresh のホストの最初の操作か章の終わりで立つ。`export_notice.rs` が dirty を確かめる。
     "export_notice",
     // 秘密情報らしい文字列の警告は、保存の口を結んだホストの保存の直前の検出で立つ。`secret_notice.rs` が dirty を確かめる。
@@ -294,6 +292,7 @@ const NEEDS_OTHER_FIXTURES: &[&str] = &[
     // 表示だけの通知は、表示だけと判定された履歴の読み込みで立つ。`view_only.rs` が dirty を確かめる。
     "view_only_notice",
     // 変換して開いた通知は、版の違う履歴を開いたか復元したホストで立つ。`version_notice.rs` が dirty を確かめる（TASK-535 1/2）。
+    // 保存の失敗の通知（TASK-534 1/2）も同じ field に載る。保存の口（`set_history_saver`）を結んだホストが要り、`save_failure.rs` が dirty を確かめる。
     "shell_notices",
     // 「次の章へ進む」は、章の最後が final の教材で最後の Step を達成したときに立つ。`next_chapter.rs` が dirty を確かめる（TASK-526 1/2）。
     "next_chapter",

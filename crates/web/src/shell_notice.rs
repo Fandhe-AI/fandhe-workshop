@@ -1,14 +1,16 @@
-//! 枠の通知欄（`shell-notice`）の描画。「版の違いを変換して開いた」通知（SHELL-20。TASK-535 1/2）と、
+//! 枠の通知欄（`shell-notice`）の描画。「保存できなかった」通知（SHELL-18・SAVE-10。TASK-534 1/2）と、
+//! 「版の違いを変換して開いた」通知（SHELL-20。TASK-535 1/2）と、
 //! 「開かない履歴」の理由の通知（SHELL-16・VER-8。TASK-176 2/2）を出す。
 //!
 //! 呼び出し元は `host::EngineHost::view` だけで、変換して開いたか（真偽）と開かない通知（理由のコードと閉じられるか）を
-//! 履歴ファイルの読み込みと起動時の復元の判定結果から受け取る。判定そのものは core（`history_open`）が持ち、本モジュールは条件を複製しない。
+//! 履歴ファイルの読み込みと起動時の復元の判定結果から、保存の失敗の種類を `HostModel::save_failure` から受け取る。判定そのものは core（`history_open`）が持ち、本モジュールは条件を複製しない。
 //! 従う契約は `shell`（版 1。通知の種類・文面の識別子・操作の表・属性）と `a11y`（通知欄は 0 か 1 個で role は status）である。
 //!
 //! 通知欄の親は常に 1 個描き、通知が無いときは項目 0 件の空の keyed list にする。
 //! 親の属性を切り替えず項目の出し入れだけで表すので、root は全置換にならない（FEND-3）。
 //!
-//! 管轄外: 文面の確定・配置・見た目（TASK-516・TASK-534・TASK-549）と、他の 4 種類の通知。
+//! 保存の失敗は閉じる操作を置かない（成功すると消える）。文は `save_notice` が持つ。
+//! 管轄外: 文面の確定・見た目（TASK-516・TASK-549）と、他の 3 種類の通知。
 //! 開かない通知には理由ごとの次の行動の文を添える（TASK-334。割り当ては案で contract の `load_next_action`）。
 //! 文面（[`VERSION_CONVERTED_NOTICE`]）と root の先頭という置き場は仮置きである。
 //!
@@ -18,10 +20,12 @@
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::load_next_action::{next_action, LoadNextAction};
 use fandhe_workshop_contract::load_reason::LoadReason;
+use fandhe_workshop_contract::storage::StorageError;
 
 use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
+use crate::save_notice::{save_failure_reason, save_notice_text};
 use crate::shell::{
     MessageId, Notice, NoticeKind, ShellOp, NOTICE_AREA_TESTID, NOTICE_TEXT_TESTID,
 };
@@ -76,12 +80,21 @@ pub struct RefusedNotice {
 /// 閉じるボタンの表示名（仮置き）。
 const DISMISS_LABEL: &str = "閉じる";
 
-/// 通知欄を作る。`version_converted` が真なら「変換して開いた」通知を、`import_refused` があれば開かない通知を出す。
-/// 並びは `NoticeKind::ALL` の順（開かない通知が先）。
+/// 通知欄を作る。`save_failure` があれば保存の失敗の通知を、`version_converted` が真なら「変換して開いた」通知を、
+/// `import_refused` があれば開かない通知を出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
 ///
 /// 通知の値が契約に反して作れなければ（起きない想定）、項目を出さず panic もしない。
-pub fn notice_area(version_converted: bool, import_refused: Option<RefusedNotice>) -> Node {
+pub fn notice_area(
+    version_converted: bool,
+    import_refused: Option<RefusedNotice>,
+    save_failure: Option<StorageError>,
+) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
+    if let Some(failure) = save_failure {
+        if let Some(item) = save_failed_item(failure) {
+            items.push(item);
+        }
+    }
     if let Some(refused) = import_refused {
         if let Some(item) = import_refused_item(refused) {
             items.push(item);
@@ -98,6 +111,18 @@ pub fn notice_area(version_converted: bool, import_refused: Option<RefusedNotice
         &SHELL_NOTICES_FIELD,
         items,
     )
+}
+
+/// 「保存できなかった」通知の項目。理由は閉じた列挙から写した固定の ASCII で、押せる操作は置かない。
+fn save_failed_item(failure: StorageError) -> Option<(String, Node)> {
+    let notice = Notice::new(
+        NoticeKind::SaveFailed,
+        Some(save_failure_reason(failure)),
+        MessageId::SaveFailed,
+        &[],
+    )
+    .ok()?;
+    Some(item_of(&notice, save_notice_text(Some(failure))))
 }
 
 /// 「変換して開いた」通知の項目（キーは種類の識別子）。
@@ -170,13 +195,13 @@ mod tests {
 
     #[test]
     fn empty_area_has_no_items() {
-        let s = format!("{:?}", notice_area(false, None));
+        let s = format!("{:?}", notice_area(false, None, None));
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None);
+        let n = notice_area(true, None, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -187,7 +212,7 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true));
+        let n = notice_area(false, refused(true), None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -199,14 +224,14 @@ mod tests {
 
     #[test]
     fn refused_without_dismiss_has_no_button() {
-        let s = format!("{:?}", notice_area(false, refused(false)));
+        let s = format!("{:?}", notice_area(false, refused(false), None));
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
     }
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true));
+        let n = notice_area(true, refused(true), None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -233,6 +258,34 @@ mod tests {
             .collect();
         assert!(t.iter().all(|x| !x.is_empty()));
         assert!(t[0] != t[1] && t[1] != t[2] && t[0] != t[2]);
+    }
+
+    #[test]
+    fn every_save_failure_makes_one_item_without_dismiss() {
+        for f in [
+            StorageError::QuotaExceeded,
+            StorageError::Unavailable,
+            StorageError::Failed,
+        ] {
+            let n = notice_area(false, None, Some(f));
+            let s = format!("{n:?}");
+            assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
+            assert!(s.contains("save-failed"), "{s}");
+            assert!(s.contains(save_failure_reason(f)), "{s}");
+            assert!(s.contains(save_notice_text(Some(f))), "{s}");
+            assert!(!s.contains("shell-dismiss"), "{s}");
+            assert!(crate::shell::check_no_undefined(&n).is_ok());
+            assert!(crate::a11y::check_no_undefined(&n).is_ok());
+        }
+    }
+
+    #[test]
+    fn all_three_notices_show_three_items_with_save_failed_first() {
+        let n = notice_area(true, refused(true), Some(StorageError::QuotaExceeded));
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
+        assert!(s.find("save-failed") < s.find("import-refused"), "{s}");
+        assert!(crate::shell::check_no_undefined(&n).is_ok());
     }
 
     #[test]
