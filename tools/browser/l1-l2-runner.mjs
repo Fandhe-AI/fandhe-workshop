@@ -111,16 +111,20 @@ export async function runOnce(ctx, label, origin, url, { stopAt = L2_STOP, keep 
     // IR の取得の完了（requestfinished）は、中断の通知と前後して届くことがある。完了の通知を最大 2 秒待ってから数える。
     for (let i = 0; i < 40 && !rec.finished.includes(irUrl); i += 1) await new Promise((res) => setTimeout(res, 50));
     const irReqs = rec.requests.filter((r) => r.url === irUrl);
-    // 本文の取得まで完了（requestfinished）した 200 の IR が 1 件以上ある実行に限り、query なしで URL 全体が一致する
-    // IR への ERR_ABORTED（完了後に中断された重複の要求。応答の頭だけ届いて response に数えられる場合もある）を、
-    // 失敗にも要求の件数にも数えない。query の違う要求・別の資源・別のエラー種別・完了した取得が無いときの中断は従来どおり数える。
-    const irDone = rec.finished.includes(irUrl) && irReqs.some((r) => r.status === 200);
-    const isAbortedIr = (f) => f.url === irUrl && f.error === 'net::ERR_ABORTED';
-    const abortedIr = irDone ? rec.failed.filter(isAbortedIr).length : 0;
+    // 要求は Request の同一性（id）で response・requestfinished・requestfailed を対応付ける。
+    // 本文の取得まで完了した 200 の IR（別の要求）がある実行に限り、応答を受けた後に ERR_ABORTED になった同じ URL の要求
+    // （完了後に中断された重複の要求）だけを、失敗にも要求の件数にも数えない。応答のない中断・query の違う要求・
+    // 別の資源・別のエラー種別・完了した取得が無いときの中断は従来どおり数える（IR の 200 応答はちょうど 1 件であること）。
+    const respondedIds = new Set(irReqs.map((r) => r.id));
+    const isAbortedIr = (f) => f.url === irUrl && f.error === 'net::ERR_ABORTED' && respondedIds.has(f.id);
+    const abortedIds = new Set(rec.failed.filter(isAbortedIr).map((f) => f.id));
+    const completedOk = irReqs.filter((r) => r.status === 200 && rec.finishedIds.includes(r.id) && !abortedIds.has(r.id));
+    const irDone = completedOk.length >= 1;
     const failed = rec.failed.filter((f) => !(irDone && isAbortedIr(f)));
-    const irCount = irReqs.length - Math.min(abortedIr, irReqs.length - 1);
+    const counted = irDone ? irReqs.filter((r) => !abortedIds.has(r.id)) : irReqs;
+    const irCount = counted.length;
     const problems = [];
-    if (irCount !== 1 || !irReqs.some((r) => r.status === 200)) problems.push('ir-fetch');
+    if (irCount !== 1 || !counted.some((r) => r.status === 200)) problems.push('ir-fetch');
     if (!rec.requests.every((r) => r.status >= 200 && r.status < 300)) problems.push('non-2xx');
     if (counts.pageErrors !== 0) problems.push('page-error');
     if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
