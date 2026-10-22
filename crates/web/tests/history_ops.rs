@@ -253,9 +253,11 @@ fn 書き出しを押しても同じ_field_は二重に積まれない() {
 fn 警告が解けると警告の間に出した文は消える() {
     let mut h = host();
     with_maker(&mut h);
+    h.set_history_saver(Box::new(|_| Ok(())));
     go(&mut h);
     let value = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
     act(&mut h, "draft", &value);
+    act(&mut h, "submit", "");
     act(&mut h, "export-history", "");
     assert_eq!(all(&h.view(), "export-status").len(), 1);
     act(&mut h, "secret-keep", "");

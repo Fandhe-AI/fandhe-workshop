@@ -14,7 +14,7 @@
 //   (8) B をもう一度再読み込みすると、st-3 が復元される。
 // 古いタブの画面の通知（TASK-325 1/2。SAVE-13・SHELL-23・D-56）も同じ流れで確かめる。
 //   (1) の後 A の `stale-notice` は空、(2) の後 B のそれも空（出ない側の対照）。(3) の後 A のそれは空でなくなり、
-//   保存失敗の `save-notice` は空のまま、B のそれは空のままである。(5) の後も A の通知は消えない。
+//   保存失敗の `shell-notice` の `save-failed` 項目 は空のまま、B のそれは空のままである。(5) の後も A の通知は消えない。
 //   文面は仮置きのため、文そのものは固定せず「空でない」だけを確かめる。
 // 合流の規則は足さない（TASK-325 2/2。SAVE-13・D-56）。その下で、2 つのタブが交互に 10 回ずつ操作した後も保存先が
 // 壊れず、新しいタブの履歴が再読み込みで開く（bootKind が restored で、写しと一致する）ことを別の試験で確かめる。
@@ -54,7 +54,8 @@ after(async () => {
 const engine = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
 const keyOf = (page) => page.evaluate(([p, s]) => window.__fandheTest.storageKey(p, s), [PACK, START]);
 const staleNotice = (page) => page.textContent('[data-testid="stale-notice"]');
-const saveNotice = (page) => page.textContent('[data-testid="save-notice"]');
+const SAVE_ITEM = '[data-testid="shell-notice-item"][data-notice-kind="save-failed"]';
+const saveNotice = (page) => page.evaluate((sel) => (document.querySelector(sel) ? 'shown' : ''), SAVE_ITEM);
 const stale = (page) => page.evaluate(() => window.__fandheTest.stale());
 
 // 保存値の長さと簡易の digest（値そのものは返さない）。無ければ null。

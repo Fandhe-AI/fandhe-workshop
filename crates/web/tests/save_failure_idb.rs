@@ -1,6 +1,6 @@
 //! IndexedDB への保存の失敗の表示の試験（SAVE-11・SHELL-19・TASK-323 2/2）。
 //!
-//! IndexedDB へ切り替えた後の書き込み（put）は確定が非同期で届く。(1) 失敗すると次の `update` で理由が `save-notice` に出る、
+//! IndexedDB へ切り替えた後の書き込み（put）は確定が非同期で届く。(1) 失敗すると次の `update` で理由が `shell-notice` の `save-failed` 項目 に出る、
 //! (2) メモリ上の状態は進み、IndexedDB の既存の値と localStorage の写しは変わらない、(3) 後の put の成功で表示が消える、
 //! (4) 開けたが全件を読めなかった保存先は最初から理由を出し、保存も試さず既存の値を変えない、ことを、
 //! ホストの probe と保存先の偽物を通して確かめる。試験では `unwrap` を使ってよい。
@@ -12,7 +12,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use fandhe_frontend_interactive::{Component, DirtyTracked};
-use fandhe_frontend_wasm_client::BoundValue;
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, HistoryStore, StorageError};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
@@ -78,10 +77,9 @@ fn keystroke(h: &mut EngineHost) {
 }
 
 fn notice(h: &EngineHost) -> String {
-    match h.registry().bound_value("save_notice", h.model()) {
-        Some(BoundValue::Text(t)) => t,
-        other => panic!("save_notice の束縛が無い: {other:?}"),
-    }
+    storage_fakes::save_failed_item(h)
+        .map(|(_, text)| text)
+        .unwrap_or_default()
 }
 
 fn log_len(h: &EngineHost) -> usize {
@@ -110,7 +108,7 @@ fn 確定の失敗は次の_update_で理由が出て状態は進み既存の保
     keystroke(&mut h);
     assert_eq!(h.model().save_failure(), Some(StorageError::QuotaExceeded));
     assert_eq!(notice(&h), QUOTA_TEXT);
-    assert!(h.dirty_fields().contains(&"save_notice"));
+    assert!(h.dirty_fields().contains(&"shell_notices"));
     assert!(log_len(&h) > before, "操作は適用され状態は進む");
     assert_eq!(
         f.idb.store.borrow().get(&key.render()),
@@ -120,7 +118,7 @@ fn 確定の失敗は次の_update_で理由が出て状態は進み既存の保
 
     // 続く間は値が変わらないので dirty に積まない。
     keystroke(&mut h);
-    assert!(!h.dirty_fields().contains(&"save_notice"));
+    assert!(!h.dirty_fields().contains(&"shell_notices"));
 }
 
 #[test]
@@ -149,7 +147,7 @@ fn 後の書き込みの確定で表示が消える() {
     keystroke(&mut h);
     assert_eq!(h.model().save_failure(), None);
     assert_eq!(notice(&h), "");
-    assert!(h.dirty_fields().contains(&"save_notice"));
+    assert!(h.dirty_fields().contains(&"shell_notices"));
     assert_eq!(f.idb.store.borrow().get(&key.render()).cloned(), want);
 }
 

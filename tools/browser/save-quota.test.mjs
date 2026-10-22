@@ -1,10 +1,10 @@
 // localStorage の容量超過で状態を壊さないことの試験（TASK-323 1/2。SAVE-10・SHELL-18。PoC-6 の S-17 相当）。
 //
 // 実際の画面で、次を確かめる。
-//   (1) 1 手を送信すると、離れる前に保存の鍵が書かれる（変更のたびに保存する経路の陽性の確認）。`save-notice` は空。
-//   (2) 保存領域を履歴の鍵ではない鍵で満たし、状態を変える 2 手目を送信すると、`save-notice` が
+//   (1) 1 手を送信すると、離れる前に保存の鍵が書かれる（変更のたびに保存する経路の陽性の確認）。`shell-notice` の `save-failed` 項目 は空。
+//   (2) 保存領域を履歴の鍵ではない鍵で満たし、状態を変える 2 手目を送信すると、`shell-notice` の `save-failed` 項目 が
 //       「保存できませんでした（QuotaExceededError）」になる。保存値は 1 手目のまま変わらず、エンジンのログは伸びている。
-//   (3) 容量を空けて 3 手目を送信すると、保存に成功して `save-notice` が空に戻り、保存値が更新される。
+//   (3) 容量を空けて 3 手目を送信すると、保存に成功して `shell-notice` の `save-failed` 項目 が空に戻り、保存値が更新される。
 //   (4) 再読み込みすると `restored` で、3 手目まで進んだ状態が戻る（最新の保存が成功している裏付け）。
 //
 // IndexedDB を無効にする理由: 容量が足りないとき、保存先は IndexedDB が使えれば切り替えて成功する（D-52）。
@@ -25,7 +25,10 @@ const PACK = 'min-3step';
 const START = 's-1';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const NOTICE = '[data-testid="save-notice"]';
+// 保存の失敗は枠の通知欄（shell-notice）の save-failed 項目に出る（SHELL-18。TASK-534 1/2）。
+const AREA = '[data-testid="shell-notice"]';
+const ITEM = '[data-testid="shell-notice-item"][data-notice-kind="save-failed"]';
+const OLD_NOTICE = '[data-testid="save-notice"]';
 const ACCEPTED = '/make-note first-note';
 const QUOTA_TEXT = '保存できませんでした（QuotaExceededError）';
 const PAD_PREFIX = 'pad/';
@@ -64,7 +67,11 @@ const saved = (page, key) => page.evaluate((k) => {
   return { len: v.length, h };
 }, key);
 
-const noticeText = (page) => page.$eval(NOTICE, (el) => el.textContent);
+const noticeText = (page) => page.evaluate((sel) => {
+  const item = document.querySelector(sel);
+  return item ? item.querySelector('[data-testid="shell-notice-text"]').textContent : '';
+}, ITEM);
+const itemCount = (page) => page.locator(ITEM).count();
 
 // 2 手目以降は同じ入力が拒否される（下書きが残る）が、拒否もログを伸ばす状態の変更なので、ログの長さの増加で待つ。
 async function sendStep(page) {
@@ -115,12 +122,18 @@ for (const csp of [true, false]) {
       const first = await saved(page, key);
       assert.notEqual(first, null, 'saved at the change, before leaving');
       assert.equal(await noticeText(page), '');
+      assert.equal(await page.locator(AREA).count(), 1, 'the notice area exists exactly once');
+      assert.equal(await page.locator(OLD_NOTICE).count(), 0, 'the old log-part notice is gone');
       const len1 = (await engine(page)).logLen;
 
       // (2) 容量を満たして 2 手目。
       assert.equal((await fillStorage(page)) > 0, true, 'padding was written');
       await sendStep(page);
-      await page.waitForFunction(([sel, t]) => document.querySelector(sel).textContent === t, [NOTICE, QUOTA_TEXT]);
+      await page.waitForFunction(([sel, t]) => document.querySelector(sel)?.querySelector('[data-testid="shell-notice-text"]')?.textContent === t, [ITEM, QUOTA_TEXT]);
+      assert.equal(await itemCount(page), 1);
+      assert.equal(await page.getAttribute(ITEM, 'data-notice-reason'), 'quota_exceeded');
+      assert.equal(await page.getAttribute(ITEM, 'data-notice-message'), 'msg-save-failed');
+      assert.equal(await page.locator(`${ITEM} button`).count(), 0, 'no operation on the notice');
       assert.deepEqual(await saved(page, key), first, 'the saved value is unchanged');
       const len2 = (await engine(page)).logLen;
       assert.equal(len2 > len1, true, 'the state advanced in memory');
@@ -128,7 +141,7 @@ for (const csp of [true, false]) {
       // (3) 空けた後の次の変更で成功し、表示が消える。
       await clearPad(page);
       await sendStep(page);
-      await page.waitForFunction((sel) => document.querySelector(sel).textContent === '', NOTICE);
+      await page.waitForFunction((sel) => document.querySelector(sel) === null, ITEM);
       const third = await saved(page, key);
       assert.equal(third !== null && third.len > first.len, true, 'the saved value is updated');
       const len3 = (await engine(page)).logLen;
@@ -145,3 +158,23 @@ for (const csp of [true, false]) {
     }));
   });
 }
+
+// 幅 360px では選んでいないタブの面が隠れる。成果物のタブを選んだままでも、枠の通知欄は面の外にあるので見える（失敗は操作の面で起こし、その後に成果物のタブへ切り替える）（SHELL-18）。
+test('幅 360px で成果物のタブに切り替えても保存の失敗の通知が見える', async () => {
+  await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp: true }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+    const { page, context, rec } = await open(srv);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await sendStep(page);
+    assert.equal(await itemCount(page), 0);
+    assert.equal((await fillStorage(page)) > 0, true, 'padding was written');
+    await sendStep(page);
+    await page.waitForSelector(ITEM);
+    await page.click('#pane-tab-artifacts');
+    assert.equal(await page.locator('#pane-ops').isVisible(), false, 'the operations pane is hidden');
+    assert.equal(await page.locator(ITEM).isVisible(), true, 'the notice is visible with the artifacts tab selected');
+    assert.notEqual(await page.locator(ITEM).boundingBox(), null);
+    assert.equal(await page.locator(OLD_NOTICE).count(), 0);
+    clean(rec);
+    await context.close();
+  }));
+});
