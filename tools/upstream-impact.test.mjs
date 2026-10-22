@@ -26,12 +26,12 @@ const MAP = [
 
 const VOCAB = [
   'scope,step,kind,extension_points',
-  'c1,a,skill,',
-  'c1,b,skill,',
-  'c2,c,skill,',
-  'm,a,skill,',
-  'm,m2,skill,',
-  'use,m,x,',
+  'c1,a,step,',
+  'c1,b,step,',
+  'c2,c,step,',
+  'm,a,step,',
+  'm,m2,step,',
+  'use,m,use,',
   '# steps: 5',
   '',
 ].join('\n');
@@ -170,6 +170,11 @@ test('9: 不正な入力はすべて 2 で標準出力が空', () => {
     ...cases,
     ok: MAP,
     badvocab: 'scope,step\nc1,a\n',
+    vocabcut: 'scope,step,kind,extension_points\nc1,a\n',
+    vocabkind: 'scope,step,kind,extension_points\nc1,a,skill,\n',
+    vocabempty: 'scope,step,kind,extension_points\n,a,step,\n',
+    badutf8: Buffer.concat([Buffer.from('scope,step,ref,path\nc1,a,upstream-a,'), Buffer.from([0xff, 0xfe]), Buffer.from('\n')]),
+    badutf8changes: Buffer.concat([Buffer.from('ref,path\nupstream-a,src/'), Buffer.from([0xc3, 0x28]), Buffer.from('\n')]),
     badchanges: 'path,ref\nx,y\n',
     huge: 'x'.repeat(MAX_INPUT_BYTES + 1),
   });
@@ -181,6 +186,11 @@ test('9: 不正な入力はすべて 2 で標準出力が空', () => {
     }
     const bad = [
       ['--map', t.p.ok, '--changed', 'upstream-a', '--vocab', t.p.badvocab],
+      ['--map', t.p.ok, '--changed', 'upstream-a', '--vocab', t.p.vocabcut],
+      ['--map', t.p.ok, '--changed', 'upstream-a', '--vocab', t.p.vocabkind],
+      ['--map', t.p.ok, '--changed', 'upstream-a', '--vocab', t.p.vocabempty],
+      ['--map', t.p.badutf8, '--changed', 'upstream-a'],
+      ['--map', t.p.ok, '--changes', t.p.badutf8changes],
       ['--map', t.p.ok, '--changes', t.p.badchanges],
       ['--map', t.p.ok, '--changed', 'upstream-a', '--nope'],
       ['--changed', 'upstream-a'],

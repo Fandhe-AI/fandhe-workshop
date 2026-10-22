@@ -16,7 +16,8 @@
 //     表の行の `ref` が一致し、かつ（表の行の `path` が空、または完全一致）なら影響する。
 //   --changed と --changes は少なくとも 1 つが必要で、併用すると和集合。
 //   --vocab <path>（任意）: `fandhe-pack vocab <pack-dir>` の標準出力を保存したもの。与えると、表の行の (scope, step) が
-//     一覧に無いとき要確認（終了コード 1）にする。
+//     一覧に無いとき要確認（終了コード 1）にする。本文は各行がちょうど 4 列で、scope・step が空でなく、kind が step か use であること。
+//   入力はすべて UTF-8 として厳密に復号し、不正なバイト列は誤り（終了コード 2）にする。
 //   行番号では照合しない（版を上げると行がずれ、行の重なりでは取りこぼすため）。
 //
 // 出力: 標準出力は結果だけ。ヘッダ `scope,step` のあと、影響する Step を重複なく (scope, step) の UTF-16 のコード単位順で
@@ -125,7 +126,9 @@ export function parseVocab(text) {
   }
   const set = new Set();
   for (const l of lines.slice(1)) {
-    if (l.cells.length < 2) throw new ImpactInputError('vocab', l.no, 'too few columns');
+    if (l.cells.length !== 4) throw new ImpactInputError('vocab', l.no, 'column count differs from header');
+    if (l.cells[0] === '' || l.cells[1] === '') throw new ImpactInputError('vocab', l.no, 'scope and step must not be empty');
+    if (l.cells[2] !== 'step' && l.cells[2] !== 'use') throw new ImpactInputError('vocab', l.no, 'kind must be step or use');
     set.add(`${l.cells[0]}\u0000${l.cells[1]}`);
   }
   return set;
@@ -189,10 +192,17 @@ function readInput(p, where) {
   }
   if (!st.isFile()) throw new ImpactInputError(where, 0, 'not a regular file');
   if (st.size > MAX_INPUT_BYTES) throw new ImpactInputError(where, 0, 'file too large');
+  let buf;
   try {
-    return fs.readFileSync(p, 'utf8');
+    buf = fs.readFileSync(p);
   } catch {
     throw new ImpactInputError(where, 0, 'cannot read file');
+  }
+  // 不正なバイト列は U+FFFD に置換されると照合から静かに外れるため、置換せず入力の誤りにする。
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    throw new ImpactInputError(where, 0, 'invalid UTF-8');
   }
 }
 
