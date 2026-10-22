@@ -1,6 +1,6 @@
 //! Chrome 以外のブラウザへの案内の判定（TASK-544。SHELL-30・D-74）の試験。
 //!
-//! 実在の形の UA の表で出す・出さないを固定し。基準の主版の照合は `browser_notice_pin`。
+//! 実在の形の UA の表で出す・出さないを固定する。基準の主版の照合は `browser_notice_pin`。
 //! 失敗の文には案件名だけを出す。
 
 use fandhe_workshop_web::browser_notice::needs_notice;

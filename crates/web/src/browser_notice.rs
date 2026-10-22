@@ -8,7 +8,7 @@
 //!
 //! - 旧版の基準: Chrome の主版が [`MIN_CHROME_MAJOR`]（152）未満。試験で確かめた Chromium の主版（`docs/toolchain.md`。153）から
 //!   1 を引いた値で、段階配布で最新の安定版の利用者に誤って出さないための余裕である。実時間の最新版は、外部への通信を
-//!   CSP と SAFE が禁じるため知れない。版の固定を上げたら、`tests/browser_notice.rs` が落ちて見直しを促す（fail-closed）。
+//!   CSP と SAFE が禁じるため知れない。版の固定を上げたら、`tests/browser_notice_pin.rs` が落ちて見直しを促す（fail-closed）。
 //! - 判定: 括弧の中を除いた製品トークンがすべて許可リストに入り、Chrome（`HeadlessChrome` を含む）の主版がすべて基準以上のときだけ出さない。
 //!   Edge・Opera・Safari・Firefox・iOS の Chrome・Android の WebView などは、許可リスト外のトークンで出す側になる。
 //! - 「一度だけ」: ページの中では起動時に 1 件で、再描画・操作で増えず、閉じると 0 件。ページをまたいでは、閉じた記録
