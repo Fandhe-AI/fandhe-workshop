@@ -21,7 +21,7 @@
 //!   置換後の Step を [`check_step_confirm`] で検査する（2026-10-15。`input` と同じ扱い）。置換後の診断には、
 //!   引数の値を含みうる `kind` の名前を写さない
 //! - 終端でない入力の無い Step の `confirm` は、`expand::check_use_steps` が `E-STRUCTURE` で拒否する（PACK-35・PACK-19、
-//!   D-69、2026-10-21）。拒否した Step はここで重ねて検査しない。終端の Step の `confirm` は、形だけを検査し、それ自体は診断にしない
+//!   D-69、2026-10-21）。確認も無い途中の Step も同じ関数が拒否し、確認の検査は診断を出さない（#1709）。拒否した Step はここで重ねて検査しない。終端の Step の `confirm` は、形だけを検査し、それ自体は診断にしない
 //! - `wait`（EP-1）の Step も入力を持つ Step として確認を要する
 //!
 //! `answer` の選択肢の `label`（表示名）が空白だけの場合は、contract の `AnswerSpec::check` が `EmptyName` を返し、

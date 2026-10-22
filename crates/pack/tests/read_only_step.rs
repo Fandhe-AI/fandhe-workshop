@@ -9,9 +9,9 @@
 //! - 入力も `use` も無く終端でもない Step が `confirm` だけを持つと、確認が届かないため `E-STRUCTURE` になる
 //!   （章・モジュールの定義ごとに 1 件。`confirm` 側で重ねて報告しない）。終端の Step は対象外
 //!
-//! 範囲外: PACK-19 の「両方無い」のうち確認も持たない途中の Step の拒否（既存の教材・試験が依存しているため未実装。
-//! `docs/known-gaps.md`）、`fandhe-pack validate` の CLI（TASK-403）、`Event` から `CheckObservation` への写像（TASK-304）、
-//! 読むだけの Step の画面（TERM-30）。`validate` の CLI は未実装のため、`validate_dir` と、同じ読み込みを通る
+//! 範囲外: `fandhe-pack validate` の CLI（TASK-403）、`Event` から `CheckObservation` への写像（TASK-304）、
+//! 読むだけの Step の画面（TERM-30）。確認も持たない途中の Step の拒否は `pack19_bare_step.rs`。
+//! `validate` の CLI は未実装のため、`validate_dir` と、同じ読み込みを通る
 //! `compile`・`vocab` の CLI で代える。
 //!
 //! 呼び出し元は CI の `make test` のみである。試験では `expect` を使ってよい。

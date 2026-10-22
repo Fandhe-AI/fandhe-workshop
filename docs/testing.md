@@ -6611,6 +6611,7 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 
 - CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた
 - 範囲外: PACK-19 の「両方無い」のうち確認も持たない途中の Step の拒否（既存の教材・試験が依存するため。`docs/known-gaps.md`）。読むだけの Step の画面（TERM-30）
+- 2026-10-22 追記（#1709）: 確認も持たない途中の Step の拒否を実装した。記録は 5.226
 
 変異 PACK35-1（入力のない確認だけの Step の拒否を外す）の確認。
 
@@ -7049,3 +7050,19 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 参照版の置き場の最終の形（TASK-717）。`refs` の形の検査は足さない
 - spec への書き戻しと、`docs/spec` の submodule の更新（D-70 の取り込み）は本変更では行わない
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.226 入力も確認も持たない途中の Step の拒否（#1709。PACK-19・D-69）
+
+`expand::check_use_steps` に `is_bare_step` の分岐を足し、入力も `use` も確認も無い終端でない Step を `validate`・`compile` の両方が `E-STRUCTURE` で拒否する。拒否の前に #1708 で試験データを直した。
+
+| 試験（`crates/pack/tests/pack19_bare_step.rs`） | 確かめること |
+|---|---|
+| `pack19_bare_intermediate_step_is_structure_error` | 章の裸の Step が `validate`・`compile` で `step:a` の `E-STRUCTURE` 1 件 |
+| `pack19_bare_step_in_module_is_reported_once` | モジュールの裸の Step は、実体が 2 つでも定義ごとに 1 件で、引数の値を写さない |
+| `pack19_cli_compile_rejects_bare_step` | `compile` の CLI が終了コード 1・標準出力に `E-STRUCTURE`・標準エラー出力が空 |
+| `pack19_controls_are_not_rejected` | 終端だけの章と、`input` を持つ途中の Step は拒否されない |
+| `pack19_confirm_only_step_keeps_one_diagnostic` | 確認だけの Step は既存の文面の 1 件のまま |
+
+- 範囲外: 画面の側の挙動、`fandhe-pack validate` の CLI（TASK-403）
+- 変異 PACK19-1（`is_bare_step` に `&& false`）: 2026-10-22、`scripts/check-mutations.sh crates/pack/tests/mutations/PACK19-1.mutation`。結果は DETECTED（失敗した試験は上の 3 件）。既存の PACK35-1 も DETECTED のまま
+- 件数の期待値 `scripts/expected-test-counts.txt` は版上げ PR の関門の値で、本変更では更新しない

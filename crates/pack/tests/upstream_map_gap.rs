@@ -103,11 +103,11 @@ fn pack46_vocab_table_yields_step_ids_for_external_map() {
     t.put("workshop.yaml", WORKSHOP.as_bytes());
     t.put(
         "chapters/c1/chapter.yaml",
-        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n  - {id: a, title: A, next: [{to: b}]}\n  - {id: b, title: B, use: {module: m, instance: i1}, final: true}\n",
+        b"id: c1\ntitle: C\nstarts: [{id: s1, node: a}]\nsteps:\n  - {id: a, title: A, input: {kind: choice, options: [{id: ok, label: OK}]}, confirm: {kind: none, reason: r}, next: [{to: b}]}\n  - {id: b, title: B, use: {module: m, instance: i1}, final: true}\n",
     );
     t.put(
         "modules/m/module.yaml",
-        b"id: m\ntitle: M\nsteps:\n  - {id: m1, title: M1, next: [{to: m2}]}\n  - {id: m2, title: M2, next: [{to: a}]}\n  - {id: a, title: MA, final: true}\n",
+        b"id: m\ntitle: M\nsteps:\n  - {id: m1, title: M1, input: {kind: choice, options: [{id: ok, label: OK}]}, confirm: {kind: none, reason: r}, next: [{to: m2}]}\n  - {id: m2, title: M2, input: {kind: choice, options: [{id: ok, label: OK}]}, confirm: {kind: none, reason: r}, next: [{to: a}]}\n  - {id: a, title: MA, final: true}\n",
     );
     let table = report_dir(&t.0).expect("vocab");
     let mut lines = table.lines();
