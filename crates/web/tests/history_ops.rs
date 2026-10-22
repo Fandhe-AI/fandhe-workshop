@@ -18,7 +18,7 @@ use fandhe_workshop_core::history_replay::replay;
 use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 use fandhe_workshop_web::engine_parts::standard_registry;
-use fandhe_workshop_web::history_export::{file_name, EMPTY_STATUS, HELD_STATUS};
+use fandhe_workshop_web::history_export::{file_name, EMPTY_STATUS, FAILED_STATUS, HELD_STATUS};
 use fandhe_workshop_web::host::{EngineHost, ExportLink, HostAction};
 use fandhe_workshop_web::parts::{Component, DirtyTracked};
 use fandhe_workshop_web::{a11y, shell};
@@ -211,13 +211,55 @@ fn 警告の間は文だけで値を含まない() {
 }
 
 #[test]
-fn url_を作る口が無ければリンクを出さない() {
+fn url_を作る口が無ければリンクを出さず作成失敗の文を出す() {
     let mut h = host();
     go(&mut h);
     act(&mut h, "export-history", "");
     let v = h.view();
     assert_eq!(all(&v, "export-download").len(), 0);
     assert_eq!(all(&v, "export-status").len(), 1);
+    let s = format!("{:?}", all(&v, "export-status"));
+    assert!(s.contains(FAILED_STATUS), "{s}");
+    assert!(!s.contains(EMPTY_STATUS), "{s}");
+}
+
+#[test]
+fn url_の作成に失敗しても履歴が無いとは言わない() {
+    let mut h = host();
+    h.set_export_url_maker(Box::new(|_| None));
+    go(&mut h);
+    act(&mut h, "export-history", "");
+    let s = format!("{:?}", all(&h.view(), "export-status"));
+    assert!(s.contains(FAILED_STATUS), "{s}");
+    assert!(!s.contains(EMPTY_STATUS), "{s}");
+}
+
+#[test]
+fn 書き出しを押しても同じ_field_は二重に積まれない() {
+    let mut h = host();
+    with_maker(&mut h);
+    go(&mut h);
+    act(&mut h, "export-history", "");
+    act(&mut h, "export-history", "");
+    let n = h
+        .dirty_fields()
+        .iter()
+        .filter(|f| **f == "export_result")
+        .count();
+    assert_eq!(n, 1);
+}
+
+#[test]
+fn 警告が解けると警告の間に出した文は消える() {
+    let mut h = host();
+    with_maker(&mut h);
+    go(&mut h);
+    let value = format!("{}{}", "AKIA", "IOSFODNN7EXAMPLE");
+    act(&mut h, "draft", &value);
+    act(&mut h, "export-history", "");
+    assert_eq!(all(&h.view(), "export-status").len(), 1);
+    act(&mut h, "secret-keep", "");
+    assert_eq!(all(&h.view(), "export-status").len(), 0);
 }
 
 #[test]

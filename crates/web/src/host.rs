@@ -1201,7 +1201,7 @@ impl EngineHost {
                         file_name: crate::history_export::file_name(&pack),
                         link,
                     },
-                    None => ExportShown::Status(crate::history_export::EMPTY_STATUS),
+                    None => ExportShown::Status(crate::history_export::FAILED_STATUS),
                 }
             }
             other => ExportShown::Status(
@@ -1210,7 +1210,9 @@ impl EngineHost {
             ),
         };
         self.export_result = Some(shown);
-        self.dirty.push(EXPORT_RESULT_FIELD.name);
+        if !self.dirty.contains(&EXPORT_RESULT_FIELD.name) {
+            self.dirty.push(EXPORT_RESULT_FIELD.name);
+        }
     }
 
     /// 履歴の差し替えで進行のタイマーを無効にする通知先を結ぶ。通知先は Runtime にも App にも触れてはならない。
@@ -1355,6 +1357,10 @@ impl EngineHost {
             // ボタンは警告の有無だけで出入りする。形が変わるだけなら一覧は変わらない。
             if toggled {
                 self.dirty.push(SECRET_CHOICE_FIELD);
+            }
+            // 警告が解けたら、警告の間に出した書き出しの文（`HELD_STATUS`）は古いので外す。
+            if toggled && self.model.secret_warning.is_empty() {
+                self.clear_export_result();
             }
         }
     }

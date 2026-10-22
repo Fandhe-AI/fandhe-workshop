@@ -63,6 +63,9 @@ pub const HELD_STATUS: &str = "確認が済むまで書き出せません。";
 /// 書き出す履歴が無いときに書き出しを押したときの固定の文（仮置き）。
 pub const EMPTY_STATUS: &str = "書き出す履歴がまだありません。";
 
+/// 履歴は出せるが書き出しのリンクを作れなかったときの固定の文（仮置き）。履歴が無い場合（`EMPTY_STATUS`）とは区別する。
+pub const FAILED_STATUS: &str = "書き出しのリンクを作れませんでした。";
+
 /// 書き出しを押した結果が履歴のファイルを出せない理由のときの文を返す。`Ready` には文が無く `None`。
 #[must_use]
 pub fn status_text(gate: &ExportGate) -> Option<&'static str> {

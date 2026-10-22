@@ -34,13 +34,14 @@ try {
   // 書き出しのリンク: 上流の属性の検査は blob: の href を落とすため、URL は data-export-url に載る。自分のオリジンの blob: だけを href へ写す
   // （setAttribute は使わない）。リンクは履歴が変わるたびに作り直され、写し損ねたものだけを探す。
   const blobPrefix = `blob:${window.origin}/`;
+  const resultBox = document.querySelector(".sh-history-result");
   const wireExportLink = () => {
-    for (const a of document.querySelectorAll('[data-testid="export-download"]:not([href])')) {
+    for (const a of (resultBox ?? document).querySelectorAll('[data-testid="export-download"]:not([href])')) {
       const url = a.getAttribute("data-export-url") ?? "";
       if (url.startsWith(blobPrefix)) a.href = url;
     }
   };
-  new MutationObserver(wireExportLink).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(wireExportLink).observe(resultBox ?? document.body, { childList: true, subtree: true });
   root.dataset.mounted = "true";
 } catch (e) {
   console.error(e);
