@@ -1,0 +1,8 @@
+id: SHELL38-2
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:             ShellOp::ConfirmDelete => payload.is_empty().then_some(ShellAction::ConfirmDelete),
+replace:             ShellOp::ConfirmDelete => Some(ShellAction::ConfirmDelete),
+expect-fail: 削除の操作の値と往復
+note: 削除の確定が空でない payload も受理する（SHELL-38・TASK-516 2/2）

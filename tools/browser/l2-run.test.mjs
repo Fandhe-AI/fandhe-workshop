@@ -7,7 +7,7 @@
 // 1 回ごとに新しい展開先・新しい起動・新しい browser context で行い、3 回すべてが通ることを求める（3/3）。
 // 各回の合否: ページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外の応答・配信元以外への要求がどれも 0 件で、
 // 同梱の IR（./ir/main.json）が 200 で 1 回取得され、CH-1 の 6 Step を通って `main/st-2-1` に入る。
-// 教材は試験データ（crates/web/tests/data/ch0_3/ir.json）で、本物の CH-0〜CH-1 の 50 操作ではない（docs/testing.md 5.238）。
+// 教材は試験データ（crates/web/tests/data/ch0_3/ir.json）で、本物の CH-0〜CH-1 の 50 操作ではない（docs/testing.md 5.239）。
 //
 // 入力（環境変数。未設定・不在は skip にせず失敗にする）:
 //   FANDHE_L2_ZIP  tools/build-l2.mjs が作った linux-x64 の zip（scripts/test-l2-run.sh が作る）

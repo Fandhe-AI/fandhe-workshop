@@ -48,7 +48,7 @@ fn 識別子と名前の値の固定() {
     assert_eq!(NEXT_CHAPTER_TESTID, "shell-next-chapter");
     let ops: Vec<_> = ShellOp::ALL.iter().map(|o| o.testid()).collect();
     assert_eq!(
-        ops,
+        ops[..4],
         [
             "shell-export",
             "shell-import",
@@ -58,7 +58,7 @@ fn 識別子と名前の値の固定() {
     );
     let names: Vec<_> = ShellOp::ALL.iter().map(|o| o.as_str()).collect();
     assert_eq!(
-        names,
+        names[..4],
         [
             "export-history",
             "import-history",
@@ -115,7 +115,7 @@ fn parse_と_from_name_は往復し未知を拒否する() {
 #[test]
 fn 本契約の識別子は_shell_で始まり互いに重複しない() {
     let ids: Vec<_> = shell_testids().collect();
-    assert_eq!(ids.len(), 6 + 2 + 1 + 1 + 3 + 4);
+    assert_eq!(ids.len(), 6 + 2 + 1 + 1 + 3 + 7);
     assert!(ids.iter().all(|i| i.starts_with(SHELL_PREFIX)));
     let set: HashSet<_> = ids.iter().collect();
     assert_eq!(set.len(), ids.len());
@@ -265,7 +265,7 @@ fn 通知の識別子と種類の値の固定() {
     assert_eq!(NOTICE_MESSAGE_ATTR, "data-notice-message");
     let kinds: Vec<_> = NoticeKind::ALL.iter().map(|k| k.as_str()).collect();
     assert_eq!(
-        kinds,
+        kinds[..6],
         [
             "save-failed",
             "corrupt-history",
@@ -277,7 +277,7 @@ fn 通知の識別子と種類の値の固定() {
     );
     let msgs: Vec<_> = MessageId::ALL.iter().map(|m| m.as_str()).collect();
     assert_eq!(
-        msgs,
+        msgs[..6],
         [
             "msg-save-failed",
             "msg-corrupt-history",
@@ -333,6 +333,14 @@ fn 許す操作の表の固定() {
         NoticeKind::BrowserNotice.allowed_ops(),
         [ShellOp::DismissNotice]
     );
+    assert_eq!(
+        NoticeKind::ExportDraft.allowed_ops(),
+        [ShellOp::DismissNotice]
+    );
+    assert_eq!(
+        NoticeKind::DeleteConfirm.allowed_ops(),
+        [ShellOp::ConfirmDelete, ShellOp::CancelDelete]
+    );
     for k in NoticeKind::ALL {
         assert!(!k.allowed_ops().contains(&ShellOp::Export));
         assert!(!k.allowed_ops().contains(&ShellOp::Import));
@@ -343,7 +351,13 @@ fn 許す操作の表の固定() {
 #[test]
 fn 理由の規則() {
     for k in NoticeKind::ALL {
-        let want = if matches!(k, NoticeKind::VersionConverted | NoticeKind::BrowserNotice) {
+        let want = if matches!(
+            k,
+            NoticeKind::VersionConverted
+                | NoticeKind::BrowserNotice
+                | NoticeKind::ExportDraft
+                | NoticeKind::DeleteConfirm
+        ) {
             ReasonRule::Optional
         } else {
             ReasonRule::Required
@@ -372,13 +386,13 @@ fn notice_new_の_5_つのエラー() {
         Err(NoticeError::MessageNotAllowed(MessageId::SaveFailed))
     );
     assert_eq!(
-        Notice::new(k, Some("x"), msg(k), &[ShellOp::Export]),
+        Notice::new(k, Some("format_newer"), msg(k), &[ShellOp::Export]),
         Err(NoticeError::OpNotAllowed(ShellOp::Export))
     );
     assert_eq!(
         Notice::new(
             k,
-            Some("x"),
+            Some("format_newer"),
             msg(k),
             &[ShellOp::DismissNotice, ShellOp::DismissNotice]
         ),
@@ -429,7 +443,7 @@ fn notice_の属性と宛先() {
     assert!(attrs.contains(&(NOTICE_MESSAGE_ATTR, "msg-corrupt-history".to_owned())));
     assert_eq!(n.actions(), [ShellAction::DiscardAndStart]);
     let k = NoticeKind::ImportRefused;
-    let n = Notice::new(k, Some("x"), msg(k), &[ShellOp::DismissNotice]).unwrap();
+    let n = Notice::new(k, Some("format_newer"), msg(k), &[ShellOp::DismissNotice]).unwrap();
     assert_eq!(
         n.actions(),
         [ShellAction::DismissNotice("import-refused".to_owned())]
@@ -444,15 +458,13 @@ fn 検討中の通知の項目は版_1_に無い() {
     for id in MessageId::ALL {
         assert!(!id.as_str().contains("next-action"));
     }
-    assert_eq!(NoticeKind::ALL.len(), 6);
+    assert_eq!(NoticeKind::ALL.len(), 8);
 }
 
 #[test]
 fn 検討中の項目は版_1_に無い() {
-    for name in ["delete-history", "reload-notice", "fast-forward"] {
+    for name in ["reload-notice", "fast-forward"] {
         assert_eq!(ShellOp::from_name(name), None);
     }
-    for id in ["shell-delete", "shell-reload"] {
-        assert!(!is_defined_testid(id));
-    }
+    assert!(!is_defined_testid("shell-reload"));
 }

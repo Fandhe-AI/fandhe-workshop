@@ -1,0 +1,8 @@
+id: SHELL22-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:             NoticeKind::ExportDraft => &[ShellOp::DismissNotice],
+replace:             NoticeKind::ExportDraft => &[],
+expect-fail: 書き出しの案内と削除の確認の値
+note: 書き出しの案内を閉じる操作が外れる（SHELL-22・D-52・TASK-516 2/2）

@@ -43,7 +43,7 @@
 //! 履歴の書き出しファイルの名前と種類（TASK-330 1/2。SAVE-16）は `history_export` に、書き出しのバイト列から `blob:` URL を作る処理（wasm のみ）は `history_download` に置く。受講中の履歴を書き出す唯一の入口 `EngineHost::export_live` は、秘密情報の警告の間は書き出さない `ExportGate` を返す（TASK-164 2/3）。
 //! 枠の履歴の書き出し・読み込みの操作の描画（TASK-531 1/2。SHELL-15）は `history_ops` に置く。
 //! 保存の直前に起動番号を照合して古いタブの保存を止める処理（TASK-324 1/2。SAVE-12）は `boot_guard` に置く。
-//! 画面の枠の区画・取り付け点・操作の名前と宛先・通知の口（種類・値・適合の検査器）の契約（TASK-511。版 2 は TASK-516 1/2）は `shell` に置く。版は `shell::SHELL_CONTRACT_VERSION`。
+//! 画面の枠の区画・取り付け点・操作の名前と宛先・通知の口（種類・値・適合の検査器）の契約（TASK-511。版 2 は TASK-516 1/2・2/2）は `shell` に置く。版は `shell::SHELL_CONTRACT_VERSION`。
 //! 枠の通知欄（`shell-notice`）の描画（変換して開いたときの版の違いの通知。TASK-535 1/2。SHELL-20）は `shell_notice` に置く。
 //! 画面の枠の組み立て（幅 960px 以上の 2 列の骨格・`tablist`・部品の左右の振り分け・960px 未満のタブの切り替え。TASK-517）は `shell_frame` に置く。
 #![forbid(unsafe_code)]

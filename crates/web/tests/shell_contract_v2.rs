@@ -1,4 +1,4 @@
-//! 枠の契約の版 2（`shell`、TASK-516 1/2。SHELL-6・8・24・30。D-72・D-54・D-74）の適合試験とサンプル。
+//! 枠の契約の版 2（`shell`、TASK-516 1/2・2/2。SHELL-6・8・21・22・24・30・36・38。D-72・D-54・D-74・D-57・D-52・D-75）の適合試験とサンプル。
 //!
 //! 版 1 の値が同じ値・同じ順で残ること（版 1 を使う画面が壊れない根拠）、上部の区画の確定、早送りの区画、
 //! ブラウザの案内、版 2 の検査器の正負の見本を確かめる。試験では `unwrap` を使ってよい。
@@ -30,7 +30,7 @@ fn 版_1_の識別子と名前が先頭に同じ順で残る() {
     );
     let ops: Vec<_> = ShellOp::ALL.iter().map(|o| o.as_str()).collect();
     assert_eq!(
-        ops,
+        ops[..4],
         [
             "export-history",
             "import-history",
@@ -145,9 +145,7 @@ fn 版_2_でもまだ無いもの() {
     for name in ["next-action", "reload", "delete-history", "stale-tab"] {
         assert_eq!(NoticeKind::parse(name), None);
     }
-    for id in ["shell-delete", "shell-reload"] {
-        assert!(!is_defined_testid(id));
-    }
+    assert!(!is_defined_testid("shell-reload"));
 }
 
 // ---- 見本 ----
@@ -333,4 +331,387 @@ fn ブラウザの案内に許されない操作は違反() {
         )],
     );
     assert!(rules(check_no_undefined(&f)).contains(&"op-not-allowed"));
+}
+
+// ---- 2/2: 通知・操作の口（SHELL-21・22・36・38） ----
+
+use fandhe_workshop_contract::load_next_action::next_action;
+use fandhe_workshop_contract::load_reason::LoadReason;
+
+#[test]
+fn 削除の操作の値と往復() {
+    let want = [
+        (ShellOp::DeleteHistory, "delete-history", "shell-delete"),
+        (
+            ShellOp::ConfirmDelete,
+            "confirm-delete-history",
+            "shell-delete-confirm",
+        ),
+        (
+            ShellOp::CancelDelete,
+            "cancel-delete-history",
+            "shell-delete-cancel",
+        ),
+    ];
+    for (op, name, testid) in want {
+        assert_eq!(op.as_str(), name);
+        assert_eq!(op.testid(), testid);
+        assert_eq!(ShellOp::from_name(name), Some(op));
+        let a = ShellAction::decode(name, "").unwrap();
+        assert_eq!(a.encode(), (name, String::new()));
+        assert_eq!(ShellAction::decode(name, "x"), None, "{name}");
+        assert_eq!(ShellAction::decode(name, " "), None, "{name}");
+        assert!(!format!("{a:?}").is_empty());
+    }
+    assert_eq!(ShellOp::ALL.len(), 7);
+}
+
+#[test]
+fn 書き出しの案内と削除の確認の値() {
+    let e = NoticeKind::ExportDraft;
+    assert_eq!(e.as_str(), "export-draft");
+    assert_eq!(NoticeKind::parse("export-draft"), Some(e));
+    assert_eq!(e.reason_rule(), ReasonRule::Optional);
+    assert_eq!(e.messages(), [MessageId::ExportDraft]);
+    assert_eq!(e.allowed_ops(), [ShellOp::DismissNotice]);
+    assert_eq!(MessageId::ExportDraft.as_str(), "msg-export-draft");
+    let d = NoticeKind::DeleteConfirm;
+    assert_eq!(d.as_str(), "delete-confirm");
+    assert_eq!(NoticeKind::parse("delete-confirm"), Some(d));
+    assert_eq!(d.reason_rule(), ReasonRule::Optional);
+    assert_eq!(d.messages(), [MessageId::DeleteConfirm]);
+    assert_eq!(MessageId::DeleteConfirm.as_str(), "msg-delete-confirm");
+    for k in [e, d] {
+        assert!(matches!(
+            ShellAction::decode("dismiss-notice", k.as_str()),
+            Some(ShellAction::DismissNotice(_))
+        ));
+    }
+    let n = Notice::new(
+        d,
+        None,
+        MessageId::DeleteConfirm,
+        &[ShellOp::ConfirmDelete, ShellOp::CancelDelete],
+    )
+    .unwrap();
+    assert_eq!(
+        n.actions(),
+        [ShellAction::ConfirmDelete, ShellAction::CancelDelete]
+    );
+    assert_eq!(
+        Notice::new(d, None, MessageId::DeleteConfirm, &[ShellOp::DeleteHistory]),
+        Err(NoticeError::OpNotAllowed(ShellOp::DeleteHistory))
+    );
+}
+
+#[test]
+fn 理由コードの束縛() {
+    for r in LoadReason::ALL {
+        for k in [NoticeKind::ImportRefused, NoticeKind::CorruptHistory] {
+            assert_eq!(k.reason_binding(), ReasonBinding::LoadReason);
+            assert!(
+                Notice::new(k, Some(r.as_str()), k.messages()[0], &[]).is_ok(),
+                "{} {}",
+                k.as_str(),
+                r.as_str()
+            );
+        }
+    }
+    for bad in ["x", "Malformed", "too-large"] {
+        let k = NoticeKind::ImportRefused;
+        assert_eq!(
+            Notice::new(k, Some(bad), k.messages()[0], &[]),
+            Err(NoticeError::ReasonUnbound),
+            "{bad}"
+        );
+    }
+    for (k, r) in [
+        (NoticeKind::SaveFailed, "quota_exceeded"),
+        (NoticeKind::PackUnloadable, "x"),
+    ] {
+        assert_eq!(k.reason_binding(), ReasonBinding::Opaque);
+        assert!(Notice::new(k, Some(r), k.messages()[0], &[]).is_ok());
+    }
+}
+
+#[test]
+fn 次の行動は理由から導かれ属性に出る() {
+    for r in LoadReason::ALL {
+        let k = NoticeKind::ImportRefused;
+        let n = Notice::new(k, Some(r.as_str()), k.messages()[0], &[]).unwrap();
+        let want = next_action(r);
+        assert_eq!(n.next_action(), Some(want));
+        assert!(n
+            .attrs()
+            .contains(&(NOTICE_NEXT_ACTION_ATTR, want.as_str().to_owned())));
+    }
+    for k in NoticeKind::ALL {
+        if k == NoticeKind::ImportRefused {
+            continue;
+        }
+        let reason = match k {
+            NoticeKind::SaveFailed | NoticeKind::PackUnloadable => Some("x"),
+            NoticeKind::CorruptHistory => Some("malformed"),
+            _ => None,
+        };
+        let n = Notice::new(k, reason, k.messages()[0], &[]).unwrap();
+        assert_eq!(n.next_action(), None, "{}", k.as_str());
+        assert!(n.attrs().iter().all(|(a, _)| *a != NOTICE_NEXT_ACTION_ATTR));
+    }
+    assert_eq!(NOTICE_NEXT_ACTION_ATTR, "data-notice-next-action");
+}
+
+#[test]
+fn 再読み込みの告知は枠に足さない() {
+    assert_eq!(NoticeKind::parse("reload"), None);
+    assert_eq!(NoticeKind::parse("reloaded"), None);
+    assert_eq!(ShellOp::from_name("reload-notice"), None);
+    assert!(!is_defined_testid("shell-reload"));
+    // 運び手は terminal_area の行の種類 `reloaded`（D-57。TASK-322）。
+    assert!(fandhe_workshop_web::terminal_area::LineKind::Reloaded.as_str() == "reloaded");
+}
+
+// ---- 2/2 の見本 ----
+
+fn notice_el(
+    kind: NoticeKind,
+    reason: Option<&str>,
+    ops: &[ShellOp],
+    mutate: impl Fn(&mut Vec<(&'static str, String)>),
+) -> Node {
+    let n = Notice::new(kind, reason, kind.messages()[0], ops).unwrap();
+    let mut attrs = n.attrs();
+    mutate(&mut attrs);
+    let refs: Vec<(&str, &str)> = attrs.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    let mut children = vec![el(
+        "p",
+        vec![(TESTID_ATTR, NOTICE_TEXT_TESTID)],
+        vec![text("文面")],
+    )];
+    for a in n.actions() {
+        let (name, payload) = a.encode();
+        let op = ShellOp::from_name(name).unwrap();
+        let mut at = vec![(TESTID_ATTR, op.testid()), (ACTION_ATTR, name)];
+        if !payload.is_empty() {
+            at.push((PAYLOAD_ATTR, kind.as_str()));
+        }
+        children.push(el("button", at, vec![text("操作")]));
+    }
+    el("div", refs, children)
+}
+
+fn area(items: Vec<Node>) -> Node {
+    el(
+        "div",
+        vec![(TESTID_ATTR, NOTICE_AREA_TESTID), ("role", "status")],
+        items,
+    )
+}
+
+fn delete_button() -> Node {
+    el(
+        "button",
+        vec![
+            (TESTID_ATTR, "shell-delete"),
+            (ACTION_ATTR, "delete-history"),
+        ],
+        vec![text("削除")],
+    )
+}
+
+fn page(top_children: Vec<Node>, right: Vec<Node>, items: Vec<Node>) -> Node {
+    el(
+        "div",
+        vec![],
+        vec![
+            top(top_children),
+            el("section", vec![(TESTID_ATTR, "shell-left")], vec![]),
+            el("section", vec![(TESTID_ATTR, "shell-right")], right),
+            area(items),
+        ],
+    )
+}
+
+fn confirm_item() -> Node {
+    notice_el(
+        NoticeKind::DeleteConfirm,
+        None,
+        &[ShellOp::ConfirmDelete, ShellOp::CancelDelete],
+        |_| {},
+    )
+}
+
+fn full_items() -> Vec<Node> {
+    vec![
+        notice_el(
+            NoticeKind::ExportDraft,
+            None,
+            &[ShellOp::DismissNotice],
+            |_| {},
+        ),
+        confirm_item(),
+        notice_el(
+            NoticeKind::ImportRefused,
+            Some("format_newer"),
+            &[ShellOp::DismissNotice],
+            |_| {},
+        ),
+    ]
+}
+
+fn full_page() -> Node {
+    page(good_top(), vec![delete_button()], full_items())
+}
+
+#[test]
+fn 版_2_の_2_分の正の見本は全ての検査器を通る() {
+    let f = full_page();
+    check_complete(&f).unwrap();
+    check_complete_v2(&f).unwrap();
+    check_no_undefined(&f).unwrap();
+    a11y::check_no_undefined(&f).unwrap();
+}
+
+fn refused_with(mutate: impl Fn(&mut Vec<(&'static str, String)>)) -> Node {
+    notice_el(
+        NoticeKind::ImportRefused,
+        Some("format_newer"),
+        &[ShellOp::DismissNotice],
+        mutate,
+    )
+}
+
+fn set_attr(a: &mut [(&'static str, String)], name: &str, val: &str) {
+    for (k, v) in a.iter_mut() {
+        if *k == name {
+            *v = val.to_owned();
+        }
+    }
+}
+
+#[test]
+fn 理由の束縛と次の行動の負の見本() {
+    let bad_reason = refused_with(|a| set_attr(a, NOTICE_REASON_ATTR, "x"));
+    assert!(rules(check_no_undefined(&page(
+        good_top(),
+        vec![],
+        vec![bad_reason]
+    )))
+    .contains(&"reason-unbound"));
+    let missing = refused_with(|a| a.retain(|(k, _)| *k != NOTICE_NEXT_ACTION_ATTR));
+    assert!(
+        rules(check_no_undefined(&page(good_top(), vec![], vec![missing])))
+            .contains(&"next-action-missing")
+    );
+    let want = next_action(LoadReason::parse("format_newer").unwrap()).as_str();
+    for val in [
+        "start_fresh",
+        "choose_another_file",
+        "open_with_source_version",
+        "nope",
+        "",
+    ] {
+        let item = refused_with(|a| set_attr(a, NOTICE_NEXT_ACTION_ATTR, val));
+        let res = check_no_undefined(&page(good_top(), vec![], vec![item]));
+        if val == want {
+            res.unwrap();
+        } else {
+            assert!(rules(res).contains(&"next-action-mismatch"), "{val}");
+        }
+    }
+    let stray = notice_el(
+        NoticeKind::CorruptHistory,
+        Some("malformed"),
+        &[ShellOp::DiscardAndStart],
+        |a| a.push((NOTICE_NEXT_ACTION_ATTR, "start_fresh".to_owned())),
+    );
+    assert!(
+        rules(check_no_undefined(&page(good_top(), vec![], vec![stray])))
+            .contains(&"next-action-mismatch")
+    );
+}
+
+#[test]
+fn 削除の置き場の負の見本() {
+    let mut t = good_top();
+    t.push(delete_button());
+    assert!(rules(check_no_undefined(&page(t, vec![], vec![]))).contains(&"delete-in-top"));
+    for (id, name) in [
+        ("shell-delete-confirm", "confirm-delete-history"),
+        ("shell-delete-cancel", "cancel-delete-history"),
+    ] {
+        let b = el(
+            "button",
+            vec![(TESTID_ATTR, id), (ACTION_ATTR, name)],
+            vec![],
+        );
+        assert!(
+            rules(check_no_undefined(&page(good_top(), vec![b], vec![])))
+                .contains(&"op-outside-notice"),
+            "{id}"
+        );
+    }
+    let mut item = notice_el(
+        NoticeKind::ExportDraft,
+        None,
+        &[ShellOp::DismissNotice],
+        |_| {},
+    );
+    if let Node::Element { children, .. } = &mut item {
+        children.push(delete_button());
+    }
+    assert!(
+        rules(check_no_undefined(&page(good_top(), vec![], vec![item])))
+            .contains(&"op-not-allowed")
+    );
+    let bad_payload = el(
+        "button",
+        vec![
+            (TESTID_ATTR, "shell-delete"),
+            (ACTION_ATTR, "delete-history"),
+            (PAYLOAD_ATTR, "x"),
+        ],
+        vec![],
+    );
+    assert!(rules(check_no_undefined(&page(
+        good_top(),
+        vec![bad_payload],
+        vec![]
+    )))
+    .contains(&"op-action"));
+    let undefined = tid("shell-reload", vec![]);
+    assert!(rules(check_no_undefined(&page(
+        good_top(),
+        vec![undefined],
+        vec![]
+    )))
+    .contains(&"undefined-testid"));
+}
+
+#[test]
+fn 確認に確定か取り消しが欠けると版_2_だけが失敗する() {
+    for keep in [ShellOp::ConfirmDelete, ShellOp::CancelDelete] {
+        let n = Notice::new(
+            NoticeKind::DeleteConfirm,
+            None,
+            MessageId::DeleteConfirm,
+            &[keep],
+        )
+        .unwrap();
+        let attrs = n.attrs();
+        let refs: Vec<(&str, &str)> = attrs.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let item = el(
+            "div",
+            refs,
+            vec![el(
+                "button",
+                vec![(TESTID_ATTR, keep.testid()), (ACTION_ATTR, keep.as_str())],
+                vec![],
+            )],
+        );
+        let f = page(good_top(), vec![], vec![item]);
+        check_no_undefined(&f).unwrap();
+        check_complete(&f).unwrap();
+        assert_eq!(rules(check_complete_v2(&f)), ["delete-confirm-ops"]);
+    }
 }
