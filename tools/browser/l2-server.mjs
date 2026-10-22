@@ -45,9 +45,17 @@ export function unzipTo(zip, work) {
   return path.join(work, 'fandhe-workshop-l2');
 }
 
-/** 展開して start.sh を模擬環境で起動する。`mutate` があれば start.sh の本文を書き換える（対照用。展開先の写しだけ）。 */
-export async function startL2(zip, work, { mutate } = {}) {
+/**
+ * 展開して start.sh を模擬環境で起動する。`mutate` があれば start.sh の本文を書き換える（対照用。展開先の写しだけ）。
+ * `overlay` は `{ '展開先の最上位からの相対パス': Buffer }` で、展開した写しのファイルだけを起動の前に差し替える
+ * （固定の入力列の試験が凍結した IR を配るため。TASK-114 2/2。zip は変えない）。パスは `..` と絶対パスを受け付けない。
+ */
+export async function startL2(zip, work, { mutate, overlay } = {}) {
   const top = unzipTo(zip, work);
+  for (const [rel, bytes] of Object.entries(overlay ?? {})) {
+    assert.ok(!path.isAbsolute(rel) && !rel.split('/').includes('..'), 'overlay path must stay inside the extracted tree');
+    fs.writeFileSync(path.join(top, rel), bytes);
+  }
   if (mutate) {
     const f = path.join(top, 'start.sh');
     fs.writeFileSync(f, mutate(fs.readFileSync(f, 'utf8')));

@@ -5,6 +5,8 @@ CH-0〜CH-3 の形を写した 20 Step の試験用の教材（`ir.json`）で�
 - native: `crates/web/tests/ch0_3_run_host.rs`
 - ブラウザ: `tools/browser/ch0-3-run.test.mjs`（試験の設定の画面を `?fixture=ch0-3` で開く。選択は `crates/web/src/test_fixture.rs`）
 
+`fixed_sequence_ch0_1/ir.json` は、この `ir.json` の凍結時点（2026-10-22）のバイト写しです。写しは追随させません（`fixed_sequence_ch0_1/README.md`）。
+
 ## 出所と位置づけ
 
 教材 repo の CH-0〜CH-3 はまだ無く（TASK-642 が未完了）、試作の教材パックの公開の可否も決まっていません（`testdata/README.md`）。

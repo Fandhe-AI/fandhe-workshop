@@ -1,0 +1,1534 @@
+{
+  "format_version": 1,
+  "pack": {
+    "id": "ch0-3-run",
+    "title": "CH-0〜CH-3 の通しの試験データ（20 Step）",
+    "version": "0.0.1",
+    "ir_format": 1,
+    "guidance": "A"
+  },
+  "refs": [],
+  "commands": {
+    "advance-phase": "flow",
+    "help": "builtin",
+    "make-card": "skill",
+    "new-idea": "skill",
+    "run-check": "skill",
+    "sync-cloud": "unsupported"
+  },
+  "views": {
+    "v-cards": {
+      "kind": "card_list"
+    },
+    "v-files": {
+      "kind": "file_tree"
+    }
+  },
+  "fixtures": {},
+  "hints": {
+    "h-0-1": {
+      "level": 1,
+      "text": "右側を選ぶ場面です。"
+    },
+    "h-1-1": {
+      "level": 1,
+      "text": "使えるコマンドの一覧を出す場面です。"
+    },
+    "h-1-5": {
+      "level": 1,
+      "text": "処理の途中を待つ場面です。"
+    }
+  },
+  "rejections": {
+    "rj-default-bad-arg-shape": {
+      "category": "bad_arg_shape",
+      "message": "引数または入力の形が合っていません。",
+      "next_action": "小文字・数字・ハイフンだけで書き直して、もう一度送ります。"
+    },
+    "rj-default-busy": {
+      "category": "busy",
+      "message": "いまは処理中です。",
+      "next_action": "終わるまで待つか、Esc で止めます。"
+    },
+    "rj-default-free-text-note": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容の良し悪しは、この教材では判定しません。",
+      "next_action": "自分の文を、自分で読み返します。"
+    },
+    "rj-default-missing-arg": {
+      "category": "missing_arg",
+      "message": "必要な引数が足りません。",
+      "next_action": "足りない引数を足して、もう一度送ります。"
+    },
+    "rj-default-not-in-this-step": {
+      "category": "not_in_this_step",
+      "message": "この Step では使いません。",
+      "next_action": "今の Step の目的を読み直します。"
+    },
+    "rj-default-not-supported": {
+      "category": "not_supported",
+      "message": "実際の環境ではできますが、この教材では扱いません。",
+      "next_action": "教材の操作に戻ります。"
+    },
+    "rj-default-unknown-command": {
+      "category": "unknown_command",
+      "message": "そのコマンドは、この教材の一覧にありません。",
+      "next_action": "つづりを確かめるか、/help で使えるコマンドを見ます。"
+    },
+    "rj-default-wrong-order": {
+      "category": "wrong_order",
+      "message": "このコマンドは、まだ使う順番ではありません。",
+      "next_action": "今の Step の目的を読み、示されたコマンドから始めます。"
+    },
+    "rj-miss-point": {
+      "category": "not_in_this_step",
+      "message": "そこは、変わった箇所ではありません。",
+      "next_action": "左の画面で、変化の印が付いた箇所を指します。"
+    },
+    "rj-wrong-answer": {
+      "category": "not_in_this_step",
+      "message": "その答えは、画面の内容と合いません。",
+      "next_action": "画面をもう一度見て、選び直します。"
+    },
+    "rj-wrong-place": {
+      "category": "not_in_this_step",
+      "message": "その場所は、この Step の対象ではありません。",
+      "next_action": "別の選択肢を選び直します。"
+    },
+    "rj-need-target": {
+      "category": "not_in_this_step",
+      "message": "直す対象が決まっていません。",
+      "next_action": "対象つきの「直す」を選びます。"
+    },
+    "rj-too-early": {
+      "category": "not_in_this_step",
+      "message": "まだ承認する段階ではありません。",
+      "next_action": "先に直す対象を決めます。"
+    },
+    "rj-wrong-row": {
+      "category": "not_in_this_step",
+      "message": "その行は、この Step の対象ではありません。",
+      "next_action": "左の画面で、別の行を指します。"
+    }
+  },
+  "clarifications": {
+    "cl-new-idea-name": {
+      "message": "名前が足りません。どんな名前にしますか。",
+      "how_to_answer": "名前を付けてもう一度送るか、Esc で取り消します。"
+    }
+  },
+  "defaults": {
+    "bad_arg_shape": "rj-default-bad-arg-shape",
+    "busy": "rj-default-busy",
+    "free_text_unjudged": "rj-default-free-text-note",
+    "missing_arg": "rj-default-missing-arg",
+    "not_in_this_step": "rj-default-not-in-this-step",
+    "not_supported": "rj-default-not-supported",
+    "unknown_command": "rj-default-unknown-command",
+    "wrong_order": "rj-default-wrong-order"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "module": null,
+      "args": {},
+      "caller": null
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-0-1",
+      "scope": "main",
+      "unit": "ch-0",
+      "step": {
+        "id": "st-0-1",
+        "title": "画面の右側を選ぶ",
+        "body": "st-0-1.md",
+        "do": "右を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [
+          "h-0-1"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-left",
+              "label": "左"
+            },
+            {
+              "id": "opt-right",
+              "label": "右"
+            },
+            {
+              "id": "opt-top",
+              "label": "上部"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-right",
+            "on": {
+              "option": "opt-right"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/notice",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-left",
+            "on": {
+              "option": "opt-left"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-place"
+            }
+          },
+          {
+            "id": "r-top",
+            "on": {
+              "option": "opt-top"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-place"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-cards",
+              "path": "cards/notice"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-0-2a"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-0-2a",
+      "scope": "main",
+      "unit": "ch-0",
+      "step": {
+        "id": "st-0-2a",
+        "title": "1 つ目の確認",
+        "body": "st-0-2a.md",
+        "do": "「読みました」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-read-a",
+              "label": "読みました"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-read-a",
+            "on": {
+              "option": "opt-read-a"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/repo-a",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                },
+                {
+                  "put": {
+                    "path": "cards/repo-b",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-a-ok",
+              "correct": true,
+              "label": "カードは 2 枚"
+            },
+            {
+              "id": "ans-a-ng",
+              "correct": false,
+              "label": "カードは 5 枚"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-0-2b"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-0-2b",
+      "scope": "main",
+      "unit": "ch-0",
+      "step": {
+        "id": "st-0-2b",
+        "title": "2 つ目の確認",
+        "body": "st-0-2b.md",
+        "do": "「読みました」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-read-b",
+              "label": "読みました"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-read-b",
+            "on": {
+              "option": "opt-read-b"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-b-ok",
+              "correct": true,
+              "label": "どちらも同じ場所"
+            },
+            {
+              "id": "ans-b-ng",
+              "correct": false,
+              "label": "別々の場所"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-0-2c"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-0-2c",
+      "scope": "main",
+      "unit": "ch-0",
+      "step": {
+        "id": "st-0-2c",
+        "title": "3 つ目の確認",
+        "body": "st-0-2c.md",
+        "do": "「読みました」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-read-c",
+              "label": "読みました"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-read-c",
+            "on": {
+              "option": "opt-read-c"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-c-ok",
+              "correct": true,
+              "label": "次へ進める"
+            },
+            {
+              "id": "ans-c-ng",
+              "correct": false,
+              "label": "まだ進めない"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-1-1"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-1",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-1",
+        "title": "/help を送る",
+        "body": "st-1-1.md",
+        "do": "/help を入力して送ります",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [
+          "h-1-1"
+        ],
+        "input": {
+          "kind": "command",
+          "name": "help",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-help",
+            "on": {
+              "command": "help"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/help-1",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-cards",
+              "path": "cards/help-1"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-1-2"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-2",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-2",
+        "title": "Tab で補完する",
+        "body": "st-1-2.md",
+        "do": "/he まで打って Tab で補完し、送ります",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "command",
+          "name": "help",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-help2",
+            "on": {
+              "command": "help"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/help-2",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "補完して送った結果が左のカードにそのまま出るため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-1-3"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-3",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-3",
+        "title": "2 行のメモを送る",
+        "body": "st-1-3.md",
+        "do": "Shift+Enter で改行して 2 行のメモを書き、Enter で送ります",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20000
+        },
+        "rules": [
+          {
+            "id": "r-memo",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/memo",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果が左のメモのカードにそのまま出るため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-1-4"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-4",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-4",
+        "title": "引数なしの /new-idea と、順序違いの /advance-phase",
+        "body": "st-1-4.md",
+        "do": "名前を付けずに /new-idea を送り、聞き返しを見ます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": false,
+              "shape": "kebab_case"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-ask-name",
+            "on": {
+              "command": "new-idea",
+              "missing": [
+                "name"
+              ]
+            },
+            "outcome": {
+              "kind": "clarify",
+              "clarification": "cl-new-idea-name"
+            }
+          },
+          {
+            "id": "r-cancel",
+            "on": {
+              "cancel": true
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/idea",
+                    "attrs": {
+                      "state": "shown"
+                    }
+                  }
+                },
+                {
+                  "set_flag": "cancelled"
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "asked-back",
+              "correct": true,
+              "label": "聞き返された"
+            },
+            {
+              "id": "rejected",
+              "correct": false,
+              "label": "拒否された"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-1-5"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-5",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-5",
+        "title": "処理中に待つ",
+        "body": "st-1-5.md",
+        "do": "/make-card sample を送り、処理が終わるのを待ちます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [
+          "h-1-5"
+        ],
+        "input": {
+          "kind": "command",
+          "name": "make-card",
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-card",
+            "on": {
+              "command": "make-card"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-cards",
+              "path": "cards/sample"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-1-6"
+          }
+        ],
+        "processing": [
+          {
+            "name": "p1-prepare",
+            "effects": []
+          },
+          {
+            "name": "p2-create",
+            "effects": [
+              {
+                "put": {
+                  "path": "cards/sample",
+                  "attrs": {
+                    "state": "building"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "p3-write",
+            "effects": []
+          },
+          {
+            "name": "p4-save",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "cards/sample",
+                  "attr": "state",
+                  "value": "saved"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-1-6",
+      "scope": "main",
+      "unit": "ch-1",
+      "step": {
+        "id": "st-1-6",
+        "title": "選択肢を選ぶ",
+        "body": "st-1-6.md",
+        "do": "選択肢を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-cards"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-right",
+              "label": "正しい選択肢"
+            },
+            {
+              "id": "opt-wrong",
+              "label": "誤った選択肢"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-right",
+            "on": {
+              "option": "opt-right"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/choice",
+                    "attrs": {
+                      "state": "right"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-wrong",
+            "on": {
+              "option": "opt-wrong"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "cards/choice",
+                    "attrs": {
+                      "state": "wrong"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-restored",
+              "correct": true,
+              "label": "選んだ内容が左に出た"
+            },
+            {
+              "id": "ans-reset",
+              "correct": false,
+              "label": "何も変わらなかった"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-2-1"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-1",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-1",
+        "title": "名前つきのコマンド",
+        "body": "st-2-1.md",
+        "do": "/new-idea ideas を送ります",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "command",
+          "name": "new-idea",
+          "args": [
+            {
+              "name": "name",
+              "positional": true,
+              "required": true,
+              "shape": "kebab_case"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-new",
+            "on": {
+              "command": "new-idea"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "docs/readme",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "docs/readme"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-2-2"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-2",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-2",
+        "title": "表示名で選ぶ",
+        "body": "st-2-2.md",
+        "do": "表示名の選択肢を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-view",
+              "label": "確認しました"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-view",
+            "on": {
+              "option": "opt-view"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-readme",
+              "correct": true,
+              "label": "readme が増えた"
+            },
+            {
+              "id": "ans-nothing",
+              "correct": false,
+              "label": "何も増えなかった"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-2-3"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-3",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-3",
+        "title": "計画を承認する",
+        "body": "st-2-3.md",
+        "do": "「はい」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-plan",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "docs/plan",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "docs/plan"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-2-4"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-4",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-4",
+        "title": "複数行の自然文",
+        "body": "st-2-4.md",
+        "do": "自然文で状況を書いて送ります",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "text",
+          "min": 1,
+          "max": 20000
+        },
+        "rules": [
+          {
+            "id": "r-notes",
+            "on": {
+              "text": true
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "docs/notes",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "送った結果が左の行にそのまま出るため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-2-5"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-5",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-5",
+        "title": "検査を流す",
+        "body": "st-2-5.md",
+        "do": "/run-check を送り、終わるのを待ちます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "command",
+          "name": "run-check",
+          "args": []
+        },
+        "rules": [
+          {
+            "id": "r-check",
+            "on": {
+              "command": "run-check"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "checks/result"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-2-6"
+          }
+        ],
+        "processing": [
+          {
+            "name": "p1-run",
+            "effects": [
+              {
+                "put": {
+                  "path": "checks/result",
+                  "attrs": {
+                    "state": "running"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "p2-done",
+            "effects": [
+              {
+                "set_attr": {
+                  "path": "checks/result",
+                  "attr": "state",
+                  "value": "done"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-6",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-6",
+        "title": "直す対象を決める",
+        "body": "st-2-6.md",
+        "do": "対象つきの「直す」を選び、続けて「はい」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-expect",
+            "on": {
+              "approval": "revise",
+              "target": "t-expect"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "tasks/t-1",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                },
+                {
+                  "put": {
+                    "path": "tasks/t-2",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-bare-revise",
+            "on": {
+              "approval": "revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-need-target"
+            }
+          },
+          {
+            "id": "r-early",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-too-early"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": [
+          {
+            "to": "main/st-2-7"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-7",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-7",
+        "title": "左の行を指す",
+        "body": "st-2-7.md",
+        "do": "tasks/t-1 の行を指します",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "tasks/t-1"
+            },
+            {
+              "view": "v-files",
+              "path": "tasks/t-2"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-t1",
+            "on": {
+              "ui": {
+                "view": "v-files",
+                "path": "tasks/t-1"
+              }
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-t2",
+            "on": {
+              "ui": {
+                "view": "v-files",
+                "path": "tasks/t-2"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-row"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "options": [
+            {
+              "id": "ans-t1",
+              "correct": true,
+              "label": "t-1 が対象"
+            },
+            {
+              "id": "ans-t2",
+              "correct": false,
+              "label": "t-2 が対象"
+            }
+          ],
+          "on_wrong": "rj-wrong-answer"
+        },
+        "next": [
+          {
+            "to": "main/st-2-8"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2-8",
+      "scope": "main",
+      "unit": "ch-2",
+      "step": {
+        "id": "st-2-8",
+        "title": "章の終わり",
+        "body": "st-2-8.md",
+        "do": "選択肢を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-go",
+              "label": "次へ進む"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-go",
+            "on": {
+              "option": "opt-go"
+            },
+            "outcome": {
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "none",
+          "reason": "選んだ時点で終わりが分かるため、別の確認を置かない。"
+        },
+        "next": [
+          {
+            "to": "main/st-3-1"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-3-1",
+      "scope": "main",
+      "unit": "ch-3",
+      "step": {
+        "id": "st-3-1",
+        "title": "置き場所を選ぶ",
+        "body": "st-3-1.md",
+        "do": "正しい置き場所を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": false,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-place-ok",
+              "label": "共有の場所"
+            },
+            {
+              "id": "opt-place-ng",
+              "label": "個人の場所"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-place-ok",
+            "on": {
+              "option": "opt-place-ok"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "work/place",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "id": "r-place-ng",
+            "on": {
+              "option": "opt-place-ng"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-wrong-place"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "targets": [
+            {
+              "view": "v-files",
+              "path": "work/place"
+            }
+          ],
+          "on_miss": "rj-miss-point"
+        },
+        "next": [
+          {
+            "to": "main/st-3-2"
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-3-2",
+      "scope": "main",
+      "unit": "ch-3",
+      "step": {
+        "id": "st-3-2",
+        "title": "引き継ぎを承認する",
+        "body": "st-3-2.md",
+        "do": "「はい」を選びます",
+        "lo": [
+          "LO-1"
+        ],
+        "final": true,
+        "views": [
+          "v-files"
+        ],
+        "hints": [],
+        "input": {
+          "kind": "approval"
+        },
+        "rules": [
+          {
+            "id": "r-handoff",
+            "on": {
+              "approval": "approve"
+            },
+            "outcome": {
+              "kind": "accept",
+              "effects": [
+                {
+                  "put": {
+                    "path": "docs/handoff",
+                    "attrs": {
+                      "state": "created"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "approve"
+        },
+        "next": []
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-0-1",
+      "node": "main/st-0-1",
+      "effects": []
+    }
+  ]
+}

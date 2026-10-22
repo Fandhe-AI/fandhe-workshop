@@ -5,6 +5,8 @@
 # （TASK-113。DLV-14。待ち受けの一覧は Linux では /proc/net/tcp*、macOS では /usr/sbin/lsof で読む）。
 # 続けて、L1（手元のサブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で、操作ごとの観察・snapshot.json・history.json が
 # バイト単位で一致することを確かめる（TASK-114 1/2。DLV-15。tools/browser/l1-l2-match.test.mjs）。
+# さらに、凍結した IR と組の固定の入力列（crates/web/tests/data/fixed_sequence_ch0_1/）を同じ 3 配信先 × 3 回で流して凍結した期待と照合し、
+# 履歴の ops に揺れる欄が無いことを確かめる（TASK-114 2/2。tools/browser/l1-l2-fixed.test.mjs）。
 #
 # 流れ: 配信する設定の web（release・同梱の IR あり）をビルド → tools/build-l2.mjs で zip を作る →
 # tools/browser/l2-run.test.mjs が mkdtemp の下へ展開し、PATH=/usr/bin:/bin だけで ./start.sh を起動して 3 回通す。
@@ -13,11 +15,14 @@
 # 環境変数:
 #   L2_SERVER  必須。miniserve の実行ファイル。sha256 は build-l2.mjs が tools/l2/miniserve.sha256 の固定値と照合する
 #              （取得はここでは行わない。CI の step が取得して照合する）
+#   FANDHE_FIXED_SEQ_DIR  任意。固定の入力列のディレクトリ（既定は crates/web/tests/data/fixed_sequence_ch0_1）
+#   FANDHE_FREEZE_SEQUENCE  任意。指定すると固定の列の凍結の試験だけを流して列を書き出す（一度だけ。書き出した後は必ず失敗で終わる。
+#              出力先は crates/web/tests/data/ の下の既存のディレクトリ。通常の実行・CI では指定しない）
 # 専用の target にする理由: WASM の名前情報を strip = symbols で落とす必要があるため。tools/check-delivery.sh（build-l2.mjs が
 # 呼ぶ）は WASM のバイト列に debug_ が無いことを求めるが、wasm-opt を使わない CI のビルドには名前（debug_struct 等）が残る。
 # CARGO_PROFILE_RELEASE_STRIP は本スクリプトのビルドだけに効かせ、共有の target のキャッシュを壊さない。
 #
-# 終了コード: 0 = 3/3 通過と 9 回の一致 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
+# 終了コード: 0 = 3 つの試験ファイルの通過と 9 回の一致 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -71,3 +76,13 @@ FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR
 log "running the L1 and L2 match run (3 targets x 3 runs)"
 FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" FANDHE_L2_SITE="${TMP}/site" \
   node --test "${ROOT_DIR}/tools/browser/l1-l2-match.test.mjs"
+
+SEQ_DIR="${FANDHE_FIXED_SEQ_DIR:-${ROOT_DIR}/crates/web/tests/data/fixed_sequence_ch0_1}"
+if [ -n "${FANDHE_FREEZE_SEQUENCE:-}" ]; then
+  log "freezing the fixed sequence (this run always ends in failure by design)"
+else
+  log "running the fixed sequence run (3 targets x 3 runs, frozen IR) and the ops volatility check"
+fi
+FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" FANDHE_L2_SITE="${TMP}/site" \
+  FANDHE_FIXED_SEQ_DIR="${SEQ_DIR}" FANDHE_FREEZE_SEQUENCE="${FANDHE_FREEZE_SEQUENCE:-}" \
+  node --test "${ROOT_DIR}/tools/browser/l1-l2-fixed.test.mjs"
