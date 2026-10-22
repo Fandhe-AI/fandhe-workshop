@@ -689,6 +689,10 @@ const MODULE_RULES: &[ModuleRule] = &[
             "export_bytes",
             "object_url",
             "file_name",
+            // 受講中のホストの書き出しの口（TASK-335）。DOM ではなく、`ExportGate` の列挙子と glue の読み取りの名前である。
+            "export_live",
+            "Ready",
+            "Held",
         ],
         events: &[],
     },
