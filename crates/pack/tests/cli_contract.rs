@@ -167,7 +167,7 @@ fn exit_0_and_1_follow_diagnostics() {
 #[test]
 fn usage_declares_compile_output_option() {
     // `-o` の動作は `compile_output.rs`（TASK-407）が見る。ここでは使い方に宣言されていることだけを見る。
-    assert!(usage().contains("  compile <pack-dir> [-o <file>]\n"));
+    assert!(usage().contains("  compile <pack-dir> [--chapters <id>[,<id>...]] [-o <file>]\n"));
     assert!(usage().starts_with("usage: fandhe-pack <command> [<args>]\n\ncommands:\n"));
 }
 

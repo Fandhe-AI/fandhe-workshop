@@ -33,6 +33,7 @@ use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Start};
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
 use fandhe_workshop_core::check_ir_limits;
 
+use crate::chapter_range::{narrow_chapters, resolve_selection, ChapterSelectError};
 use crate::condition_check::check_optional;
 use crate::confirm;
 use crate::diag::{DiagCode, Diagnostic};
@@ -162,6 +163,8 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
             }
         }
     }
+    // 章の `next` が他の章の Step を指すことを拒否する（TASK-67・PACK-43）。
+    diags.extend(crate::chapter_range::check_chapter_local_next(&pack.scopes));
     ex.diags = Vec::new();
     starts.extend(ex.module_starts(&mut start_ids));
     diags.append(&mut ex.diags);
@@ -331,21 +334,59 @@ fn check_output(bytes: &[u8], file: &str) -> Result<(), Vec<Diagnostic>> {
     })
 }
 
+/// `compile_dir_with` の指定。
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct CompileOptions {
+    /// 範囲に含める章の ID（章の定義の `id`）。`None` は全章。
+    pub chapters: Option<Vec<String>>,
+}
+
+/// `compile_dir_with` の失敗。診断は終了コード 1、章の選択の誤りは使い方の誤り（終了コード 2）に対応する。
+#[derive(Debug)]
+pub enum CompileError {
+    /// 教材パックの診断。
+    Diagnostics(Vec<Diagnostic>),
+    /// 章の選択が読み込んだ章と合わない。
+    Chapter(ChapterSelectError),
+}
+
 /// ディレクトリのパックを読み、IR のバイト列にする。`load`・`compile`・`to_json` をまとめた入口。
 ///
 /// 返すバイト列は `check_ir_limits` を通っており、`load_ir` が大きさ・深さで拒否することはない。
 pub fn compile_dir(dir: &Path) -> Result<Vec<u8>, Vec<Diagnostic>> {
-    let pack = source::load(dir)?;
-    let ir = compile(&pack)?;
+    match compile_dir_with(dir, &CompileOptions::default()) {
+        Ok(b) => Ok(b),
+        Err(CompileError::Diagnostics(d)) => Err(d),
+        // 章を選ばない呼び出しでは起きない。
+        Err(CompileError::Chapter(_)) => Err(vec![diag(
+            ".",
+            "pack",
+            DiagCode::Structure,
+            "unexpected chapter selection error",
+        )]),
+    }
+}
+
+/// 範囲つきの `compile_dir`（TASK-67・PACK-43）。教材パック全体を検査して IR を作ってから、選んだ章の外を刈り込む。
+///
+/// 全章を選ぶと、指定なしとバイト単位で同じ IR になる。
+pub fn compile_dir_with(dir: &Path, opts: &CompileOptions) -> Result<Vec<u8>, CompileError> {
+    let pack = source::load(dir).map_err(CompileError::Diagnostics)?;
+    let mut ir = compile(&pack).map_err(CompileError::Diagnostics)?;
+    if let Some(ids) = &opts.chapters {
+        let selected = resolve_selection(&pack.scopes, ids).map_err(CompileError::Chapter)?;
+        ir = narrow_chapters(ir, &selected, &pack.workshop_file)
+            .map_err(CompileError::Diagnostics)?;
+    }
     let bytes = to_json(&ir).map_err(|_| {
-        vec![diag(
+        CompileError::Diagnostics(vec![diag(
             &pack.workshop_file,
             "pack",
             DiagCode::Structure,
             "IR serialization failed",
-        )]
+        )])
     })?;
-    check_output(&bytes, &pack.workshop_file)?;
+    check_output(&bytes, &pack.workshop_file).map_err(CompileError::Diagnostics)?;
     Ok(bytes)
 }
 

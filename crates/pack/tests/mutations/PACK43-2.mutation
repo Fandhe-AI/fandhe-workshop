@@ -1,0 +1,8 @@
+id: PACK43-2
+package: fandhe-workshop-pack
+test: compile_chapters
+target: crates/pack/src/chapter_range.rs
+find:                 if !own.contains(to) && others.contains(to) {
+replace:                 if false {
+expect-fail: pack43_cross_chapter_next_is_ref_step
+note: 他の章への next が E-REF-STEP にならず通る（PACK-43）

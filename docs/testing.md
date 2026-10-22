@@ -7109,3 +7109,25 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 開始点の `effects` は適用しない（5.227 と同じ）。INTRO-36 の「CH-3 の完了を伝える文」は教材 repo の側にある
 
 範囲外: TASK-67、spec の SHELL-12 の「証拠の種類」の書き戻し、INTRO-36 の台本・文、`Control::Begin`（TASK-217）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
+
+### 5.229 `compile` の章の範囲と他の章への `next`（TASK-67。PACK-43・SHELL-12・D-67）
+
+決定 D-67（2026-10-21）は「IR を絞る」案を採った。画面の側は 5.228 で固定済みで、本件はその IR を `compile` で作る形式の面である。作り方は spec で未決のため、TASK-67 の変更対象に従い `compile` の引数（`--chapters <id>[,<id>...]`。`docs/cli.md` 版 7）にした。教材パック全体を検査してから、選んだ章の `main` の Step と、そこから `use` で呼ばれた実体（入れ子を含む）だけを残し、開始点は残した Step を指すものだけにする。他の章の Step を指す `next` は `validate`・`compile` とも `E-REF-STEP`（`docs/diagnostics.md` 版 15 の注）にする。
+
+| 試験（`crates/pack/tests/compile_chapters.rs`） | 内容 |
+|---|---|
+| `pack43_cross_chapter_next_is_ref_step` | 他の章への `next` が `validate`・`compile` で `E-REF-STEP` 1 件（file・item 固定）。`compile` は終了コード 1 |
+| `pack43_undefined_target_is_not_doubled` | どの章にも無い宛先は従来の 1 件のまま |
+| `pack43_narrowed_ir_has_no_out_of_range_start` | 範囲外の開始点・章の node・入れ子の実体が 0 件。範囲内の `m1` の実体は残り、`load_ir` が読めて辺がすべて解決する |
+| `pack43_all_chapters_is_byte_identical` | 全章の指定（順不同）が指定なしとバイト単位で同じ |
+| `pack43_narrowing_is_deterministic` | 同じ指定で標準出力と `-o` が同じバイト列 |
+| `pack43_format_version_recomputed` | 本文の木を持つ章を外すと版 2 から 1 に求め直す |
+| `pack43_unknown_or_ambiguous_chapter_exits_2` | 未知・重複した章 ID で終了コード 2・`error:` 1 行・標準出力が空・`-o` のファイルに触れない |
+| `pack43_chapters_without_start_is_structure` | 絞った後に開始点が 0 件なら `E-STRUCTURE`（終了コード 1） |
+| `pack43_option_shape_errors_exit_2` | 値なし・空の要素・重複・2 回の指定・`-` 始まりは終了コード 2。`-o` と順不同で通る |
+| `pack43_pack_diagnostics_are_unchanged_by_selection` | 範囲外の章の欠陥も、指定の有無で同じ診断になる |
+
+- 既存の `validate_reach.rs` の試験データは章をまたぐ `next` に依存していたため、章の中で閉じる形に直した（期待は弱めていない）
+- 変異: `PACK43-1`（開始点の絞り込みを外す）・`PACK43-2`（章をまたぐ `next` の検査を無効にする）を `crates/pack/tests/mutations/` に足し、2026-10-22 に `scripts/check-mutations.sh` で 2 件とも DETECTED。`make check-mutations` の全件は未実行
+- 限界: 開始点（`starts[].node`）が他の章の Step を指すことは制限しない（spec は `next` だけを挙げる）。絞った IR で `E-LEFT-TARGET-ROW` の静的な近似は再実行しない。条件が範囲外の Step を参照する場合の評価は未確認。モジュールの `#` 開始点は、そのモジュールが範囲内の章から呼ばれるときだけ残る
+- 範囲外: spec の SHELL-12・PACK-43・INTRO-36 の「証拠の種類」の書き戻し、教材 repo の試行用の配信設定への `--chapters` の記載、章の ID の重複の一般の診断化（`--chapters` の指定時だけ「曖昧」で止める）、到達性（`reach.rs`）を章ごとの名前空間に分けること。`scripts/expected-test-counts.txt` は更新しない

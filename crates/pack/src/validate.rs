@@ -71,6 +71,8 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
     }
     let mut out = check_dup_ids(pack);
     out.extend(check_refs(pack));
+    // 章の `next` は同じ章の中に限る（TASK-67・PACK-43）。
+    out.extend(crate::chapter_range::check_chapter_local_next(&pack.scopes));
     out.extend(check_structure(pack));
     // 確認 `answer` の選択肢の `label` の必須（PACK-37・D-67）。`validate` だけの検査で、`compile` は行わない。
     out.extend(crate::confirm::check_answer_labels(&pack.scopes));
