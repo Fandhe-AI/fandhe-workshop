@@ -102,6 +102,7 @@
 | `id` | 文字列 | 必須 | なし | 章・モジュールの ID |
 | `title` | 文字列 | 必須 | なし | 題名 |
 | `params` | 表（文字列から文字列） | 省略可 | 空 | モジュールの引数の既定値。値は文字列で書く（数値・真偽値は `E-PARSE`） |
+| `param_types` | 表（引数の名前から型の宣言） | 省略可 | 空 | 語彙 1.7（PACK-51）。`params` の引数ごとの型と範囲です。宣言は `type`（`bool`・`int`・`enum`）が必須で、`enum` は `values`（空・重複は不可）、`int` は `min`・`max`（両端を含む）を書けます。鍵が `params` に無い・組み合わせの誤り・既定値が範囲外は `E-STRUCTURE`、未知の型・欄は `E-PARSE` です。呼び出しの引数が範囲外でも `E-STRUCTURE` です。IR には載りません |
 | `starts` | 列（4 節の開始点） | 省略可 | 空 | 途中開始。全章を合わせて 1 件以上が要ります（`E-STRUCTURE`。PACK-25）。モジュールの `starts` は数えません |
 | `steps` | 列（5 節の Step） | 必須 | なし | Step の列（ファイルの中の順） |
 
@@ -239,7 +240,7 @@ rejections:
 | 3 節の最上位 9 欄 | `WorkshopSrc`（`deny_unknown_fields`。`pack` だけ既定なし） | `crates/pack/src/source.rs` |
 | 3.1 `pack` の 10 欄 | `PackInfo`（`deny_unknown_fields`。必須は `id`・`title`・`version`・`ir_format`・`guidance`） | `crates/contract/src/ir.rs` |
 | 3.2 `fixtures` | `FixtureDef`（`path`・`kind` とも必須） | 同上 |
-| 4 節の 5 欄 | `ScopeSrc`（`deny_unknown_fields`。`id`・`title`・`steps` が必須） | `crates/pack/src/source.rs` |
+| 4 節の 6 欄 | `ScopeSrc`（`deny_unknown_fields`。`id`・`title`・`steps` が必須） | `crates/pack/src/source.rs` |
 | 開始点 | `Start`（`id`・`node` が必須。`effects` は既定が空） | `crates/contract/src/ir.rs` |
 | 5 節の Step の 20 欄 | `Step`（`deny_unknown_fields`。`id`・`title` が必須。`do`・`final`・`use` は欄名の付け替えあり） | 同上 |
 | `next[]` | `Transition`（`to` が必須、`when` は省略可） | 同上 |

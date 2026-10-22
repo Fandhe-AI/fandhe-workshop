@@ -14,6 +14,9 @@
 //! - `${名前}` の置換は 1 回だけで、差し込んだ値を再び展開しない。`id`・`body`・`body_levels`・`next[].to` は
 //!   置換しない（構造の識別子と本文の参照を、引数で書き換えさせない）。
 //!
+//! 引数は `params` の隣の `param_types` で宣言した型・範囲に合わなければ、実体を作らず `E-STRUCTURE` にする
+//! （PACK-51。判定は [`crate::param_check`]）。
+//!
 //! 診断に引数の値・本文は入れない。名前は `safe_ident` を通るものだけを入れる。
 //!
 //! `use` と `input`、`use` と `confirm` を同時に持つ Step は、展開とは別に [`check_use_steps`] が章・モジュールの定義ごとに拒否する
@@ -578,6 +581,17 @@ impl<'a> Expander<'a> {
             }
         }
         if unknown {
+            return;
+        }
+        // 宣言した型・範囲に合わない値は実体を作らず拒否する（PACK-51。値は診断に写さない）。
+        let mut out_of_range = false;
+        for (k, v) in &u.args {
+            if let Some(msg) = crate::param_check::arg_message(&module.src.param_types, k, v) {
+                out_of_range = true;
+                self.diags.push(diag(file, item, DiagCode::Structure, msg));
+            }
+        }
+        if out_of_range {
             return;
         }
         let mut args = module.src.params.clone();

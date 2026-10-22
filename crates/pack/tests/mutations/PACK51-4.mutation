@@ -1,0 +1,8 @@
+id: PACK51-4
+package: fandhe-workshop-pack
+test: module_arg_types
+target: crates/pack/src/param_check.rs
+find:             .is_some_and(|n| decl.min.is_none_or(|m| n >= m) && decl.max.is_none_or(|m| n <= m)),
+replace:             .is_some_and(|n| decl.min.is_none_or(|m| n >= m) && decl.max.is_none_or(|m| n < m)),
+expect-fail: pack51_int_arg_outside_min_max_is_rejected
+note: int の上限を含まない比較にする（max ちょうどの値が拒否される）

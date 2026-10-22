@@ -1,7 +1,7 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 11
+診断コードの一覧の版: 12
 決定日: 2026-10-22
 状態: 固定（契約）
 ```
@@ -72,6 +72,7 @@
 - `E-VOCAB-MISMATCH` の対象には、実行環境の操作の入力方式 `env_action`（語彙 1.5、拡張点の番号なし）も含まれる（版 8。固定した行は書き換えず、本注で補う）。件数は 34 件のまま。`E-PARSE`・`E-STRUCTURE` は、`env_action` の型の誤り（未知の値・欄の欠け・未知の欄）と、`processing` を持つ Step・取り消しの規則（`on.cancel`）を持つ Step にも使う（新しいコードは足さない。PACK-34）
 - `E-STRUCTURE` は、確認 `answer` の選択肢に `label` が無い（欄が無い・`null`）教材パックにも使う（版 9。固定した行は書き換えず、本注で補う）。Step ごとに 1 件で、選択肢の ID・値は写さない。`validate` だけが検出し、`compile` は検出しない。件数は 34 件のまま（新しいコードは足さない。`docs/extension-point-procedure.md` の 5 節）
 - 案内レベルの 3 つの診断の検出の所在（版 10。固定した行は書き換えず、本注で補う）。`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` は `validate` だけが検出し、`compile` は検出しない。`E-STRUCTURE` の対象に加えた `body_levels` の鍵 `A`（Step ごとに 1 件）は `validate` と `compile` の両方が検出する。診断に隠す語・本文・ヒントの ID は写さない。件数は 34 件のまま
+- `param_types`（語彙 1.7、拡張点の番号なし。PACK-51）の診断（版 12。固定した行は書き換えず、本注で補う）。`E-VOCAB-MISMATCH` の対象に `param_types` が含まれる（`validate` だけ）。`E-PARSE` は、`type` が `bool`・`int`・`enum` でない・未知の欄・`values` が文字列の列でない・`min`・`max` が整数でないときに出る。`E-STRUCTURE` は、宣言の誤り（鍵が `params` に無い・`enum` の `values` が無い／空／重複・`values` を `enum` 以外に書いた・`min`・`max` を `int` 以外に書いた・`min` が `max` を超える・`params` の既定値が自分の型と範囲に合わない）と、呼び出しの引数が宣言した型・範囲に合わないときに出る（宣言の誤りは項目 `param_types:<名前>` で、呼び出しの引数は `use` の Step で、1 件ずつ。実体は作らない。`validate` と `compile` の両方が検出する）。診断に引数・既定値・`values` の値を写さず、名前は安全な識別子のときだけ写す。件数は 34 件のまま
 - `do_levels`（語彙 1.6、拡張点の番号なし。PACK-50）の診断（版 11。固定した行は書き換えず、本注で補う）。`E-VOCAB-MISMATCH` の対象に `do_levels` が含まれる（`validate` だけ）。`E-PARSE` は `do_levels` の鍵が `A`・`B`・`C` でないとき（項目 `scope`）と、値が文字列でないときに出る。`E-STRUCTURE` は、鍵 `A`・空または空白だけの値・`do` が無い（または空白だけの）`do_levels` に出る（Step ごとに種類別に 1 件ずつ。`validate` と `compile` の両方が検出する）。`E-GUIDANCE-LEAK` は、その水準で出る `do`（`do_levels` を C → B → A で探した文）も調べる。診断に値・鍵・隠す語を写さない。件数は 34 件のまま
 - 語彙の文書（v1.1）は、本文の上限超過を `E-REF-BODY` の条件に含める。実装では、この上限超過は `E-REF-BODY` ではなく上限超過のコードに当たり、4 節の参照のみの区分にある。`.md` 以外の本文は素の `E-LIMIT`、`.md` の本文は事前走査の `E-LIMIT-MD-SIZE` である。実装の `E-REF-BODY` は、本文の参照が解決できない場合（安全でない本文パス・参照先の不存在・存在するファイルの読み込み時の I/O エラー）に出る。上限超過は含まない（版 6。D-64。固定した行は書き換えず、本注で補う）。件数は 34 件のまま
 
@@ -155,3 +156,4 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 9 | 2026-10-21 | `E-STRUCTURE` の対象に、確認 `answer` の選択肢の `label` の欠けを加えた（`validate` だけが検出する）。行は書き換えず、表の後の注で補った。件数は 34 件のまま | TASK-65 1/2・PACK-37・D-67 |
 | 10 | 2026-10-21 | 案内レベルの 3 つの診断（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・`body_levels` の鍵 `A` の `E-STRUCTURE`）の検出の所在を、表の後の注で補った。`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` は `validate` だけが検出する。行は書き換えず、件数は 34 件のまま | TASK-49 2/2・PACK-17 |
 | 11 | 2026-10-22 | `do_levels`（語彙 1.6）の診断（`E-PARSE`・`E-STRUCTURE`・`E-VOCAB-MISMATCH`・`E-GUIDANCE-LEAK` の対象）を、表の後の注で補った。行は書き換えず、件数は 34 件のまま | TASK-70 2/2・PACK-50・D-55 |
+| 12 | 2026-10-22 | `param_types`（語彙 1.7）の診断（`E-PARSE`・`E-STRUCTURE`・`E-VOCAB-MISMATCH` の対象）を、表の後の注で補った。行は書き換えず、件数は 34 件のまま | TASK-71 2/3・PACK-51・D-43 |

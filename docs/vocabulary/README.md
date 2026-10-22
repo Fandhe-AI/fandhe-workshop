@@ -13,7 +13,7 @@
 | 語の一覧と、語ごとの語彙の版 | `vocabulary.md` の 7 節 |
 | 名前つき拡張点の名前・種別・語彙の版 | `vocabulary.md` の 2 節 |
 | 語彙の版と拡張点の対応 | `vocabulary.md` の 8 節 |
-| 語彙 v1〜v1.3 の写し | 別にありません。`vocabulary.md` が v1〜v1.6 の全体を、語ごとの版つきで固定しています |
+| 語彙 v1〜v1.3 の写し | 別にありません。`vocabulary.md` が v1〜v1.7 の全体を、語ごとの版つきで固定しています |
 | 欄の名前・型・必須 | `docs/schema-format-b.md` |
 | 書き方の詳細 | `docs/pack-authoring.md` |
 | 拡張点を足す手続き | `docs/extension-point-procedure.md` |
@@ -24,8 +24,8 @@
 ## 2. `pack.vocab`（語彙の版の宣言）
 
 - `pack.vocab` には、使っている語の中で最も新しい語彙の版以上を、`主.副` で書きます（例: `"1.4"`）。引用符で囲みます
-- エンジンが読める語彙の上限は 1.6 です。宣言が上限を超える履歴は開きません（`vocab_newer`）
-- 宣言より新しい版の拡張点（EP-9〜EP-13 と、確認の選択肢の `label`、承認の `input.revise.candidates`、実行環境の操作 `env_action`）を使うと、`validate` が拡張点ごとに 1 件の `E-VOCAB-MISMATCH` を報告します（PACK-31）。語彙 1.1 までの語（EP-1〜EP-8）は、この検査の対象ではありません
+- エンジンが読める語彙の上限は 1.7 です。宣言が上限を超える履歴は開きません（`vocab_newer`）
+- 宣言より新しい版の拡張点（EP-9〜EP-13 と、確認の選択肢の `label`、承認の `input.revise.candidates`、実行環境の操作 `env_action`、引数の型の宣言 `param_types`）を使うと、`validate` が拡張点ごとに 1 件の `E-VOCAB-MISMATCH` を報告します（PACK-31）。語彙 1.1 までの語（EP-1〜EP-8）は、この検査の対象ではありません
 - 詳しい規約は `docs/pack-authoring.md` の「`pack.vocab` の書き方」「`pack.vocab` の宣言と使用の一致」を見てください
 
 ## 3. 名前つき拡張点の索引
@@ -54,6 +54,7 @@
 - `input.revise.candidates` と `input.revise.candidates[].label`（v1.5、PACK-42）: 承認の「直す」の誤った対象の候補と表示名です。どの候補が正しいかは宣言せず、規則の `on: { approval: revise, target }` が決めます。`vocab` コマンドは数えません。書き方は `docs/pack-authoring.md` の「承認の『直す』の候補と表示名」にあります
 - `env_action`・`input.action`・`input.action=save`・`input.action=export`（v1.5、PACK-34）: 保存・書き出しの操作を Step の入力として宣言する語です。値は `save` と `export` の 2 つだけで、操作が成功したら受付になります。受講者の値は持ちません。`export` は実行時の結線が未実装です（`docs/known-gaps.md`）。`vocab` コマンドは数えません。書き方は `docs/pack-authoring.md` の「保存・書き出しを入力とする Step」にあります
 - `do_levels`（v1.6、PACK-50）: Step の `do` を案内レベルごとに書き分ける欄です。鍵は `B` と `C` で、水準 A の文は `do` に書きます。`do` が必須で、探す順は本文と同じ C → B → A です。拡張点の番号は持たず、`vocab` コマンドは数えません。書き方は `docs/pack-authoring.md` の「案内レベル」にあります
+- `param_types`（v1.7、PACK-51）: `params` の引数ごとの型と範囲の宣言です。`type` は `bool`・`int`・`enum` で、`enum` は `values`、`int` は `min`・`max`（両端を含む）を書けます。宣言に合わない既定値と呼び出しの引数は `E-STRUCTURE` で拒否します。拡張点の番号は持たず、IR には載りません。書き方は `docs/pack-authoring.md` の「学習モジュールの呼び出し」を見てください
 - `pack.vocab` 自体は宣言の欄で、語には数えません（PACK-31）
 
 ## 5. 足さないと決まっている語

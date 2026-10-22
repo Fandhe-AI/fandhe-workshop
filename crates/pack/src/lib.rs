@@ -20,6 +20,7 @@ mod input;
 pub mod left_pane;
 pub mod markdown;
 pub mod metrics;
+pub mod param_check;
 mod placed;
 pub mod play_expect;
 pub mod profile;

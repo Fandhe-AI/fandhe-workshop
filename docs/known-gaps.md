@@ -13,7 +13,7 @@
 | H-2 | 自然文の内容（含む語など）で規則を分けられない | 足さないと決定（D-43、PACK-41）。内容で分ける書き方は `E-PARSE`。`when` の内容らしい条件は `compile` だけが拒否し、`validate` は条件の語彙を検査しないため通す | Step を分ける、`choice` にする、受け付けた後の確認で人が判断する | `crates/pack/tests/text_rule_content.rs` の `pack41_`・`crates/core/tests/text_judge.rs` の `pack41_rule_choice_ignores_words` |
 | H-3 | 受講者が選んだ値を、文中・経路・属性に差し込めない | 足さないと決定（D-50、PACK-39） | 起こりうる入力を規則として列挙する | `crates/pack/tests/chosen_value_gap.rs` の `pack39_` |
 | PACK-45 | 案内レベル・本文に出す引数の値・ヒントの文面を、モジュールの実体ごとに変えられない | 案内レベルは足さないと決定（D-55、GUIDE-13）。`use` に `guidance` を書くと `compile`・`validate` とも `E-PARSE`。本文への差し込みとヒントの文面は決定が無い（GUIDE-15。IR 版 2 の本文の木と合わせて決める） | 水準は章の開始点の `starts[].guidance` で渡す。ヒントは ID を引数で渡し、実体ごとに別のヒントを定義する。本文は言い換え、水準別の版は `body_levels` で書く | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` |
-| PACK-51 | モジュールの先頭の Step を、呼び出しごとに省けない | 省ける語は足さないと決定（D-43、PACK-51）。`use` や Step に省く欄を書くと `compile`・`validate` とも `E-PARSE` | 先頭の Step を振り分けの Step にし、`next[].when` の `param` で後ろの Step を飛ばす | `crates/pack/tests/module_first_step_gap.rs` の `pack51_` |
+| PACK-51 | モジュールの先頭の Step を、呼び出しごとに省けない | 省ける語は足さないと決定（D-43、PACK-51）。`use` や Step に省く欄を書くと `compile`・`validate` とも `E-PARSE`。引数の型と範囲は `param_types`（v1.7）で宣言すれば拒否する（宣言しない引数は検査しない） | 先頭の Step を振り分けの Step にし、`next[].when` の `param` で後ろの Step を飛ばす。引数は `param_types` で宣言する | `crates/pack/tests/module_first_step_gap.rs`・`module_arg_types.rs` の `pack51_` |
 | PACK-50 | 復元（再読み込み）の後の拒否行の `message` に `{{step_do}}` があると、案内レベルによらず水準 A の `do` が出うる | `do_levels`（語彙 1.6）は実装済み（D-55）。次の行動は判定の時点で充填済みの値を保持するため影響しない。`message` の再充填の水準は未結線（GUIDE-16、TASK-307・TASK-308）。開始点の水準の結線も未実装（TASK-294） | `message` に `{{step_do}}` を使わず、`next_action` に置く | `crates/pack/tests/do_levels.rs` の `pack50_`（復元の経路は未試験） |
 | G-4 | 本文を出せなかった時代の回避（属性の書き換え）。本文を出すことは解消済み | 一部を語彙 1.4 で解消（EP-13、PACK-38） | 選択ごとに属性へ固定値を書く | 同上と `crates/pack/tests/view_body.rs` |
 | H-6 | 無い要素への `remove`・`set_attr` が、実行時の警告になるまで分からなかった | 一部を解消。`validate` が `E-REF-ELEMENT` で静的に報告する（PACK-30、D-43）。順序に依る不在などの近似の限界は残る | 教材テストの模範解答と実行時の警告で補う（`docs/pack-authoring.md` の「存在しない要素への `remove`・`set_attr`」） | `crates/pack/tests/missing_elements.rs` の `pack30_` |
@@ -273,7 +273,13 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 注意: 飛ばした Step は IR に残り、遷移で通らないだけです。実行時に未着手のまま残り、途中開始の「省略」と区別されることは、エンジンの側の担当で、本試験は見ません（MOD-17 (b)）。
 
-根拠の試験: `crates/pack/tests/module_first_step_gap.rs` の `pack51_`。
+引数の型と範囲（TASK-71 2/3）: `param_types`（語彙 1.7）で宣言した引数は、型と範囲に合わない既定値・呼び出しの引数を `E-STRUCTURE` で拒否します。残る限界は次のとおりです。
+
+- `param_types` を書かない引数は、従来どおり任意の文字列で通ります（加算の変更のため）
+- `condition.param` の `eq` に書く値が宣言した型・範囲に入るかは検査しません。入らない分岐は到達しないだけです
+- `int` は 10 進の正準形（`"01"`・`"+1"`・`"-0"` は不可）で、`i64` の範囲だけです
+
+根拠の試験: `crates/pack/tests/module_first_step_gap.rs`・`crates/pack/tests/module_arg_types.rs` の `pack51_`。
 
 ## PACK-50: 復元のあとの文面の再充填と案内レベル
 
