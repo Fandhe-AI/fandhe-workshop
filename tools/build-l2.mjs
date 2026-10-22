@@ -160,8 +160,12 @@ export function buildL2({ server, site, out, platform, pins, checkDelivery = tru
   }
   if (checkDelivery) {
     const r = spawnSync('bash', [path.join(HERE, 'check-delivery.sh'), site], { encoding: 'utf8' });
+    if (r.error) {
+      throw new L2Error(`check-delivery could not run for ${site}: ${r.error.message}`);
+    }
     if (r.status !== 0) {
-      throw new L2Error(`check-delivery failed (exit ${r.status}) for ${site}`);
+      const detail = `${r.stdout ?? ''}${r.stderr ?? ''}`.trim().slice(0, 4000);
+      throw new L2Error(`check-delivery failed (exit ${r.status ?? r.signal}) for ${site}${detail ? `:\n${detail}` : ''}`);
     }
   }
   const ir = path.join(site, 'ir', 'main.json');
