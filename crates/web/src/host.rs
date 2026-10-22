@@ -220,6 +220,8 @@ pub enum HostAction {
     Engine(Op),
     /// 左の成果物のビューの選択（TASK-470）。今の Step が宣言した種類だけを受け、それ以外は何も変えない。
     SelectView(ViewKind),
+    /// 「次の章へ進む」の押下（`next-chapter`。TASK-526 2/2）。payload は開始点の ID で、今の提示との照合は `update` が行う。
+    NextChapter(String),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
     SelectPane(PaneTab),
     /// 枠の通知の「閉じる」（`dismiss-notice`。TASK-535 1/2）。いま描いている種類（変換して開いた）だけを消し、状態・履歴には触れない。
@@ -2289,6 +2291,17 @@ impl Component for EngineHost {
                 self.apply_engine(op);
             }
             HostAction::SelectView(kind) => self.select_view(kind),
+            // 今の提示と完全一致したときだけ、一致した開始点の節点へ移る。提示なし・処理中・不一致は core を呼ばない（fail-closed）。
+            // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
+            HostAction::NextChapter(id) => {
+                let target = self
+                    .model
+                    .session()
+                    .and_then(|s| crate::next_chapter::press_target(s.ir(), s.state(), &id));
+                if let Some(node) = target {
+                    self.apply_engine(Op::Control(Control::GoTo(StepUid(node))));
+                }
+            }
             HostAction::SelectPane(tab) => self.select_pane(tab),
             // 描いている通知（変換して開いた）だけを閉じる。他の種類は枠の通知欄に描いていないので何もしない（fail-closed）。
             HostAction::DismissNotice(kind) => {
@@ -2512,6 +2525,10 @@ impl Component for EngineHost {
         }
         // ビューの選択（TASK-470）。payload は種類の綴りの完全一致だけ。宣言に含まれるかは `update` が照合する。
         // タブのクリック（TASK-517 2/2）。payload は `PaneTab::id` の完全一致だけで、引けなければ何もしない。
+        // 「次の章へ進む」（TASK-526 2/2）。空は何もしない。提示との照合は `update` が行う。
+        if name == crate::next_chapter::ACTION_NEXT_CHAPTER {
+            return (!payload.is_empty()).then(|| HostAction::NextChapter(payload.to_owned()));
+        }
         if name == ACTION_SELECT_PANE {
             return pane_from_payload(payload).map(HostAction::SelectPane);
         }

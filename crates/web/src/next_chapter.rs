@@ -15,9 +15,13 @@
 //!
 //! 受講者の画面には全 Step 分の「移動: …」ボタンを出さない。本モジュールの出すボタンは 0 か 1 個である。
 //!
-//! 1/2 では押しても何も起きない。[`ACTION_NEXT_CHAPTER`] は `host::decode_action` に結線せず、未知の action として捨てられる。
-//! 次の章への移動は core の `Control::Begin`（TASK-217。未実装）に依存するため #715（2/2）が決める。
-//! 結線するときは payload（DOM 上で書き換えられうる開始点の ID）を `starts` と完全一致で照らすこと（SAFE-33。`start_select` と同じ方針）。
+//! 押下（TASK-526 2/2）は `host::decode_action` が payload を包み、`update` が [`press_target`] で今の提示と完全一致するときだけ
+//! 次の章の入口へ `Control::GoTo` で移る（SAFE-33。`start_select` と同じ方針）。payload は DOM 上で書き換えられうるので、
+//! 移動先の節点は payload から作らず、一致した開始点を IR の `starts` から引く。提示していない章・途中の Step・前の章へは跳べない。
+//!
+//! `Control::Begin`（TASK-217）は core に未実装なので `GoTo` で移る。`GoTo` は世代を +1 し、処理中を解き、移動先へ入り、
+//! 記録（`ops`）に残るので履歴の復元でも再現する。限界は、開始点の `effects` を適用しないこと（章をまたぐ継続では前の章の
+//! 世界状態を引き継ぐ）と、周回の開始ではないことで、`Begin` への置き換えと 2 周目は TASK-217・TASK-254 が扱う。
 //!
 //! 教材由来の文字列（題・開始点の ID）は文字ノードと属性値にだけ入れ、既定のエスケープを通す（SAFE-11）。
 
@@ -32,8 +36,22 @@ use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
 use crate::shell::{next_chapter_label, NEXT_CHAPTER_TESTID};
 
-/// 「次の章へ進む」の action の名前。1/2 では `decode_action` に結線しない（#715 が結線する）。
+/// 「次の章へ進む」の action の名前。`host::decode_action` が payload（開始点の ID）を包み、`update` が [`press_target`] で照合する。
 pub const ACTION_NEXT_CHAPTER: &str = "next-chapter";
+
+/// 押下の payload が今の提示と完全一致するときだけ、移動先の節点の uid を返す（SAFE-33）。
+///
+/// 提示なし・処理中・不一致は `None`（fail-closed）。移動先は一致した開始点を `ir.starts` から引き、payload から作らない。
+pub fn press_target(ir: &Ir, state: &SessionState, payload: &str) -> Option<String> {
+    let offer = next_chapter(ir, state)?;
+    if offer.start_id != payload {
+        return None;
+    }
+    ir.starts
+        .iter()
+        .find(|s| s.id == offer.start_id)
+        .map(|s| s.node.clone())
+}
 
 /// 「次の章へ進む」の keyed list の field。提示が変わると `host::EngineHost` がこの名前を dirty に積む。
 pub const NEXT_CHAPTER_FIELD: PartField = PartField {

@@ -15,6 +15,7 @@ export const RAW = '[data-testid="raw-trigger"]';
 export const LOG = '[data-testid="part-log-list"]';
 export const REJECTED = `${LOG} li[data-kind="rejected"]`;
 export const CLARIFIED = `${LOG} li[data-kind="clarified"]`;
+export const NEXT = '[data-testid="shell-next-chapter"]';
 export const T = 30000;
 const TAB_LIMIT = 300;
 
@@ -80,6 +81,7 @@ export function mouseDriver(page) {
       await page.press(DRAFT, 'Enter');
     },
     esc: () => page.press(DRAFT, 'Escape'),
+    nextChapter: () => page.click(NEXT, { timeout: T }),
   };
 }
 
@@ -140,11 +142,17 @@ export function keyboardDriver(page) {
       await keyTo(page, DRAFT);
       await page.keyboard.press('Escape');
     },
+    async nextChapter() {
+      await keyTo(page, NEXT);
+      await page.keyboard.press('Enter');
+    },
   };
 }
 
 // 通し。`d` の操作で教材の 20 Step を上から進める。`stopAt` の Step に入った時点で返す（指定なしは最後の達成まで）。
-export async function journey(page, d, scene, L, stopAt = null, { onStep = null } = {}) {
+// `chaptered` が真のとき（教材は `?fixture=ch0-3-chapters`）、章の境目は「次の章へ進む」のボタン 1 個を押して越える（TASK-526 2/2）。
+// 偽（既定）のときは、章の境目を無条件の `next` が越えるのを待つだけで、従来の経路から変わらない。
+export async function journey(page, d, scene, L, stopAt = null, { onStep = null, chaptered = false } = {}) {
   let rejected = 0;
   let clarified = 0;
   const enter = async (uid, expected) => {
@@ -168,6 +176,27 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
     L.check(scene, `${uid} 問い返しで進まない`, (await engine(page)).current === uid);
   };
   const plain = [0, 0, 1, 1];
+  // 章の境目。`chaptered` なら、章の最後の達成の後にボタンがちょうど 1 個出て「移動」ボタンが無いことを確かめ、押して次の章の先頭へ入る。
+  const cross = async (last, next) => {
+    if (!chaptered) {
+      await at(page, next, 'entered');
+      return;
+    }
+    await at(page, last, 'achieved');
+    await waitCount(page, NEXT, 1);
+    const info = await page.evaluate((sel) => ({
+      texts: [...document.querySelectorAll(sel)].map((b) => b.textContent ?? ''),
+      moves: [...document.querySelectorAll('button')].filter((b) => (b.textContent ?? '').startsWith('移動')).length,
+    }), NEXT);
+    L.check(scene, `${last} の完了後に次の章へ進むが 1 個`, info.texts.length === 1 && info.texts[0].startsWith('次の章へ進む: '));
+    L.check(scene, `${last} の完了後に移動ボタンが 0 件`, info.moves === 0);
+    const before = (await engine(page)).stateWithoutLog.run.generation;
+    await d.nextChapter();
+    await at(page, next, 'entered');
+    const after = (await engine(page)).stateWithoutLog.run.generation;
+    L.check(scene, `${next} へ移って世代が進む`, after > before);
+    await waitCount(page, NEXT, 0);
+  };
 
   // CH-0: 選択肢（3 件）と、答える確認 3 つ。
   await enter('main/st-0-1', [3, 0, 1, 1]);
@@ -191,7 +220,8 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
       await reject(uid);
     }
     await d.choose(right, uid === 'main/st-0-2b' ? 'Space' : 'Enter');
-    await at(page, next, 'entered');
+    if (uid === 'main/st-0-2c') await cross(uid, next);
+    else await at(page, next, 'entered');
   }
 
   // CH-1: コマンド・補完・複数行・問い返しと取り消し・処理中・選択肢。
@@ -234,7 +264,7 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
   await d.choose('opt-right');
   await wait('main/st-1-6', [2, 0, 1, 1]);
   await d.choose('ans-restored');
-  await at(page, 'main/st-2-1', 'entered');
+  await cross('main/st-1-6', 'main/st-2-1');
   if (stopAt === 'main/st-2-1') return;
 
   // CH-2: コマンド・表示名の選択・承認・自然文・処理中・対象つきの直す・画面操作。
@@ -274,6 +304,7 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null 
   await d.choose('ans-t1');
   await enter('main/st-2-8', [1, 0, 1, 1]);
   await d.choose('opt-go');
+  await cross('main/st-2-8', 'main/st-3-1');
 
   // CH-3: 選択肢の誤答と指す確認、最後の承認。
   await enter('main/st-3-1', [2, 0, 1, 1]);
