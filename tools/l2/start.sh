@@ -1,10 +1,12 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # L2 の配布物（fandhe-workshop-l2）の起動スクリプト。zip の展開先にそのまま入る（D-58・D-71・DLV-13）。
 #
 # 目的: 受講者の操作を「展開・./start.sh・URL を開く」の 3 つにする。miniserve を 127.0.0.1 だけで待ち受け、
 # site/（配信する設定の配信物）を配る（DLV-14）。tools/build-l2.mjs が配布物へ写す。
 # 使い方: ./start.sh（PORT=<1〜65535> で待ち受けの番号を変えられる。既定 8787。FANDHE_NO_OPEN=1 で自動で開かない）
 # 終了コード: 2 = PORT が不正 / 1 = 展開先へ移れない / それ以外は miniserve の終了状態（exec で置き換える）
+set -euo pipefail
+
 cd "$(dirname "$0")" || exit 1
 
 PORT="${PORT:-8787}"
