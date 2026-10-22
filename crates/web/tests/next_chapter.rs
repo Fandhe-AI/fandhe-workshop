@@ -647,3 +647,124 @@ fn 絞った_ir_では範囲外の開始点の指定を_start_unknown_で断る(
         "対照"
     );
 }
+
+// ---- 章の飛ばし・選択を画面に出さないことの観察の固定（SHELL-11・D-73。TASK-528）----
+// 製品のコードは変えない。D-73 が「章を飛ばす・選ぶ操作を受講者の画面に出さない」と決めたので、全時点で選ぶ部品が 0 件であること、
+// 章をまたぐ操作が「次の章へ進む」の 0 か 1 個だけであること、画面に現れる開始点の ID が提示中の 1 件だけであることを固定する。
+// 特定の章から始める手段は直接リンク `?start=`（DLV-9）で、ブラウザ試験 `direct-link-start` が証拠である。
+
+/// 章を選ぶ・飛ばす部品らしい要素の数。`select`・`option` と、`role` が `listbox`・`menu`・`menuitem`・`option`・`combobox` のもの。
+/// ビューの木の `Debug` 表示で、引用符つきの完全一致だけを数える（部分一致の誤検出を避ける）。
+fn select_like_in(s: &str) -> usize {
+    [
+        "select", "option", "listbox", "menu", "menuitem", "combobox",
+    ]
+    .iter()
+    .map(|w| s.matches(&format!("\"{w}\"")).count())
+    .sum()
+}
+
+/// 画面に（引用符つきの完全一致で）現れる開始点の ID の集合。
+fn start_ids_in(s: &str, ir: &Ir) -> Vec<String> {
+    let mut v: Vec<String> = ir
+        .starts
+        .iter()
+        .filter(|st| s.contains(&format!("\"{}\"", st.id)))
+        .map(|st| st.id.clone())
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+/// 全時点で成り立つ不変条件。`offered` は今提示中の開始点（無ければ `None`）。失敗の文面には教材由来の値を出さない。
+fn assert_no_chapter_select(h: &EngineHost, ir: &Ir, offered: Option<&str>, at: &str) {
+    let v = h.view();
+    let s = format!("{v:?}");
+    assert_no_goto(&v);
+    // OS を選ぶ欄（TERM-38。select 1 個と option 3 個）は章の選択ではない。あれば固定の 4 件として除く。
+    let os_field = if s.contains("\"os-select\"") { 4 } else { 0 };
+    assert_eq!(select_like_in(&s), os_field, "{at}: 章を選ぶ部品");
+    let n = count_next(&v);
+    assert_eq!(
+        n,
+        usize::from(offered.is_some()),
+        "{at}: 次の章へ進むの個数"
+    );
+    let want: Vec<String> = offered.map(str::to_owned).into_iter().collect();
+    assert_eq!(start_ids_in(&s, ir), want, "{at}: 画面に出る開始点");
+}
+
+/// CH-0 から CH-3 まで「次の章へ進む」だけで通し、毎手で不変条件を確かめる。
+/// 各章の完了の直後に提示される開始点は、直後の章の先頭の Step を指す 1 件（飛ばさない）。
+fn walk_all_chapters(starts: Value) {
+    let ir = ir_of(&variant_json(starts));
+    let mut h = host_of(ir.clone(), "main/st-0-1");
+    let ids = ["s-1-1", "s-2-1", "s-3-1"];
+    let firsts = ["main/st-1-1", "main/st-2-1", "main/st-3-1"];
+    assert_no_chapter_select(&h, &ir, None, "初期");
+    for (ci, moves) in chapter_moves().iter().enumerate() {
+        let n = moves.len();
+        for (i, m) in moves.iter().enumerate() {
+            play(&mut h, *m);
+            let at = format!("章 {ci} 手 {i}");
+            if i + 1 < n || ci == 3 {
+                assert_no_chapter_select(&h, &ir, None, &at);
+            } else {
+                assert_no_chapter_select(&h, &ir, Some(ids[ci]), &at);
+            }
+        }
+        if ci < 3 {
+            h.update(act(ACTION_NEXT_CHAPTER, ids[ci]));
+            assert_eq!(
+                cur(&h),
+                (firsts[ci].to_owned(), StepStatus::Entered),
+                "飛ばさない"
+            );
+            assert_no_chapter_select(&h, &ir, None, &format!("章 {ci} の後"));
+        }
+    }
+    assert_eq!(cur(&h), ("main/st-3-2".to_owned(), StepStatus::Achieved));
+}
+
+#[test]
+fn 章の飛ばし_選択の部品を出さず_開始点は提示中の_1_件だけ_ch0_から_ch3_の全時点() {
+    // 開始点 6 件。途中の Step を指す `s-1-4` と `#` つきの `m#x` を含む。
+    walk_all_chapters(all_starts());
+}
+
+#[test]
+fn 開始点が章の数より多くても画面に一覧を出さない() {
+    // ブラウザ用の教材（`test_fixture::CH03_LINK_POINTS`）と同じ並びの 10 件。2 か所を揃えて保つ。
+    let pts = [
+        ("s-0-1", "main/st-0-1"),
+        ("s-0-2b", "main/st-0-2b"),
+        ("s-1-1", "main/st-1-1"),
+        ("s-1-4", "main/st-1-4"),
+        ("s-1-5", "main/st-1-5"),
+        ("s-1-6", "main/st-1-6"),
+        ("s-2-1", "main/st-2-1"),
+        ("s-2-3", "main/st-2-3"),
+        ("s-3-1", "main/st-3-1"),
+        ("s-3-2", "main/st-3-2"),
+    ];
+    let starts: Vec<Value> = pts
+        .iter()
+        .map(|(id, node)| json!({"id": id, "node": node, "effects": []}))
+        .collect();
+    walk_all_chapters(Value::Array(starts));
+}
+
+#[test]
+fn 検出器の対照_選ぶ部品と開始点の_id_を含む文字列では数える() {
+    let ir = ir_of(&variant_json(all_starts()));
+    assert_eq!(
+        select_like_in("Element { tag: \"select\" } \"option\" \"menu\""),
+        3
+    );
+    assert_eq!(select_like_in("tag: \"button\" selected options"), 0);
+    assert_eq!(
+        start_ids_in("value: \"s-2-1\" value: \"s-1-10\" \"m#x\"", &ir),
+        vec!["m#x".to_owned(), "s-2-1".to_owned()]
+    );
+}
