@@ -116,6 +116,23 @@ test('(D) ?ir= の値で取得する資源が変わらず、配信元の別の J
 });
 
 const engine = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
+const HISTORY_PREFIX = 'fandhe-workshop/history/';
+const INPUT = '[data-testid="draft-input"]';
+const SUBMIT = '[data-testid="submit-input"]';
+// 保存済みの履歴の鍵と値の長さ（値そのものは node へ出さない）。復元した画面は遷移元の pagehide で
+// 値を書き直しうる（行が増える）ため、同一性ではなく「同じ鍵が残り、値が縮まない」ことで判定する。
+const historySizes = (page) => page.evaluate((prefix) => {
+  const out = {};
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const k = localStorage.key(i);
+    if (k.startsWith(prefix)) out[k] = localStorage.getItem(k).length;
+  }
+  return out;
+}, HISTORY_PREFIX);
+function assertKept(seeded, now, tag) {
+  assert.deepEqual(Object.keys(now).sort(), Object.keys(seeded).sort(), `${tag}: same history keys`);
+  for (const k of Object.keys(seeded)) assert.equal(now[k] >= seeded[k], true, `${tag}: saved history did not shrink`);
+}
 const storageDump = (page) => page.evaluate(() => JSON.stringify(
   Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)]),
 ));
@@ -146,6 +163,20 @@ for (const csp of [true, false]) {
         assert.equal(await page.locator(NOTICE).count(), 0, 'no notice');
       }
 
+      // 断られる回の前に、空でない履歴を保存しておく（拒否が保存済みの履歴を消す退行を検出するため）。
+      await open('');
+      await page.fill(INPUT, '/make-note note-1');
+      await page.click(SUBMIT);
+      await page.waitForFunction((prefix) => {
+        for (let i = 0; i < localStorage.length; i += 1) if (localStorage.key(i).startsWith(prefix)) return true;
+        return false;
+      }, HISTORY_PREFIX, { timeout: 30000 });
+      await page.waitForFunction(() => window.__fandheTest.nextTick() === 'null', null, { timeout: 30000 });
+      // 遷移元の pagehide による保存が済むよう、一度開き直して値を確定させる。
+      await open('');
+      const seeded = await historySizes(page);
+      assert.equal(Object.keys(seeded).length >= 1 && Object.values(seeded).every((n) => n > 0), true, 'a non-empty history is saved before the refusals');
+
       // 断られる回。
       const refused = [
         ['dot-dot-start', '?ir=../something&start=..%2Fsomething'],
@@ -155,6 +186,7 @@ for (const csp of [true, false]) {
       for (const [name, query] of refused) {
         await open(query);
         const baseline = await storageDump(page);
+        assertKept(seeded, await historySizes(page), `${name}`);
         assert.equal(await page.locator(NOTICE).count(), 1, `${name}: one notice`);
         assert.equal(await page.locator(NOTICE).innerText(), REFUSED_TEXT, `${name}: fixed wording`);
         const eng = await engine(page);
@@ -168,6 +200,7 @@ for (const csp of [true, false]) {
         await page.reload();
         await waitMounted(page);
         assert.equal(await storageDump(page), baseline, `${name}: storage is unchanged`);
+        assertKept(seeded, await historySizes(page), `${name} after reload`);
       }
 
       assert.equal(rec.external.length, 0, `external requests: ${rec.external.length}`);
