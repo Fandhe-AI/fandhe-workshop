@@ -338,6 +338,10 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 根拠の試験: `crates/web/tests/history_ops.rs`、`tools/browser/history-ops.test.mjs`。記録は `docs/testing.md` の 5.234。
 
+限界（別のオリジンでの読み込みと続きの操作。TASK-531 2/2）: チェックポイントの一覧の画面（TASK-529）がまだ無いため、「同じチェックポイントの一覧」は状態の `checkpoints` の一致で確かめ、チェックポイントの保存だけは試験用の口（`raw-trigger` の `{control:'save'}`）で行います。配信する設定は教材を持たないため、教材を動かす読み込みと続きの操作は試験の設定で確かめます。配布物（L2）での確認は TASK-114、macOS のファイル画面と公開サイトでの読み込みは TASK-342 が持ちます。Chromium だけです。
+
+根拠の試験: `tools/browser/history-continue.test.mjs`。記録は `docs/testing.md` の 5.244。
+
 ## SHELL-8: 上部の章の ID は教材の ID の綴りのまま出し、分岐のある章では M が飛ぶ
 
 限界（綴り）: 上部の位置は、章の ID を IR の `unit`（教材に書かれた綴り。例 `ch-1`）のまま出します。spec の例の `CH-1` とは大小が違います。
