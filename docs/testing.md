@@ -6937,7 +6937,7 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 理由は通知欄 `view-only-notice`（`role=status`）に出す。文は固定の文言と理由のコードだけで、履歴の値を含めない（SAFE-40）。枠の通知（`shell` の `NoticeKind`、契約は版 1）は spec が先に変わらないと足せないため、`stale-notice` と同じ任意の欄にした。文面は仮置きで、最終の文面は TASK-549、配置は TASK-534 が決める
 - 操作の関門は `update` の先頭にある。表示だけの間、`Engine`（指せる行・選択肢・承認のクリックと、保存・停止・進行の tick を含む raw の `Op`）、送信・Esc・停止・下書きの変更、補完を捨てる。下書きの変更を捨てたときは `<textarea>` の値を戻させる。表示だけを変える action と、モードから出る経路（試験の設定の読み込み・差し替え）は通す
 - 保存は `history_to_save` が `None` を返して止める。`save_blocked` は消えない印で、読み込みで入ったモードが開ける履歴の読み込みで終わった後も保存が止まるため使わない。進行の宛先（`next_tick`）も `None` にし、予約済みのタイマーは無効にする
-- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335。5.230）。秘密情報の検査は通常の書き出しと同じく通す
+- 書き出し（`export_live`）は、読み込んだバイト列そのものを返す。作り直さない（SAVE-25 の実装側。正式な試験は TASK-335。5.231）。秘密情報の検査は通常の書き出しと同じく通す
 - 開ける履歴の読み込み（`install_recorded`）で、モードと控えを捨てる。開かない（`Refused`）の動作と理由の表示は #733 の範囲で、従来の挙動を保つ
 
 | 試験 | 内容 |
@@ -7132,7 +7132,26 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
 - 限界: 開始点（`starts[].node`）が他の章の Step を指すことは制限しない（spec は `next` だけを挙げる）。絞った IR で `E-LEFT-TARGET-ROW` の静的な近似は再実行しない。条件が範囲外の Step を参照する場合の評価は未確認。モジュールの `#` 開始点は、そのモジュールが範囲内の章から呼ばれるときだけ残る
 - 範囲外: spec の SHELL-12・PACK-43・INTRO-36 の「証拠の種類」の書き戻し、教材 repo の試行用の配信設定への `--chapters` の記載、章の ID の重複の一般の診断化（`--chapters` の指定時だけ「曖昧」で止める）、到達性（`reach.rs`）を章ごとの名前空間に分けること。`scripts/expected-test-counts.txt` は更新しない
 
-### 5.230 表示だけの履歴の保存領域と書き出し（TASK-335。SAVE-25）
+### 5.230 読み込めない・開けない履歴の次の行動（TASK-334。SAVE-22・D-57）
+
+D-57（2026-10-12）は、読み込めない履歴に理由ごとの次の行動を 1 つ示すと決めたが、理由ごとの割り当ては「実装のタスクで案を出し、ユーザーが決める」とした。本件の割り当ては案であり、決定は得ていない。割り当ては contract の `load_next_action::next_action`（網羅 match）、文は web の `shell_notice::next_action_text`（仮置き）で、通知の文の理由コードの後ろに付ける。押せる操作にすること（TASK-538）と文面の確定（TASK-549・TASK-534）は含まない。
+
+| 次の行動 | 理由コード（案） |
+|---|---|
+| 別のファイルを選ぶ | `too_large`・`too_deep`・`too_many_ops`・`truncated`・`not_json`・`missing_version`・`malformed`・`other_pack`・`bad_version`・`replay_mismatch` |
+| 書き出し元の版の教材で開く | `history_format_newer`・`format_newer`・`vocab_newer`・`engine_newer`・`format_older`・`engine_major`・`content_major`・`start_missing`・`replay_diverged` |
+| 新しく始める | どの理由にも割り当てない（読み込みの経路では今の進みを捨てる操作に誘わないため。起動時の壊れた履歴 SHELL-17 で使う余地として値だけを持つ） |
+
+| 試験 | 内容 |
+|---|---|
+| `crates/contract/src/load_next_action.rs` の単体試験 | 19 理由が独立の表と一致する・判定順の全件を網羅する・段ごとの方針・往復と未知の拒否・`StartFresh` が 0 件 |
+| `crates/web/src/shell_notice.rs` の単体試験 | 全 19 理由で文が理由コードと次の行動の文で終わる・3 つの文が空でなく互いに異なる |
+| `crates/web/tests/refused_history.rs` | 読み込み・起動時の `format_newer` で直書きの文が出る。壊れたファイルで「別の履歴ファイルを選ぶ」の文が出て、状態・保存の値が変わらない |
+
+- 実行: 2026-10-22 に contract・web（`--features test-hooks`）の native 試験が通ることを確認した。ブラウザ試験は未実行・未作成（`make test-browser` は CI に任せる）
+- 範囲外: 押せる操作と shell 契約の版上げ（TASK-538）、文面の確定（TASK-549・TASK-534）、割り当ての決定と spec の SAVE-22・SHELL-36 への反映、表示だけで開いた履歴への提示（VER-8）、起動時の壊れた履歴の案内（TASK-533）、ブラウザでの理由ごとの確認。`scripts/expected-test-counts.txt` は更新しない
+
+### 5.231 表示だけの履歴の保存領域と書き出し（TASK-335。SAVE-25）
 
 TASK-176（5.220）は操作が状態・ログを変えないことを固定した。本件は保存の側を、ブラウザで実際の保存先と実際のダウンロードで確かめる。PoC-6 の S-14・S-15（1.2.0・2.0.0 で表示だけ）に当たる。
 

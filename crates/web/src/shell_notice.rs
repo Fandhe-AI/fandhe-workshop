@@ -9,12 +9,14 @@
 //! 親の属性を切り替えず項目の出し入れだけで表すので、root は全置換にならない（FEND-3）。
 //!
 //! 管轄外: 文面の確定・配置・見た目（TASK-516・TASK-534・TASK-549）と、他の 4 種類の通知。
+//! 開かない通知には理由ごとの次の行動の文を添える（TASK-334。割り当ては案で contract の `load_next_action`）。
 //! 文面（[`VERSION_CONVERTED_NOTICE`]）と root の先頭という置き場は仮置きである。
 //!
 //! 【推論】SHELL-20 の前提は内容の副版の違いだが、変換して開いたときは違った軸（内容・語彙・エンジン・参照元）に
 //! 関わらず知らせる。黙って変換するより知らせる側に倒す。版の違いの中身は履歴由来の文字列を含むので、画面には出さない（SAFE-40）。
 
 use fandhe_frontend_core::{el, text, Node};
+use fandhe_workshop_contract::load_next_action::{next_action, LoadNextAction};
 use fandhe_workshop_contract::load_reason::LoadReason;
 
 use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
@@ -34,17 +36,31 @@ pub const SHELL_NOTICES_FIELD: PartField = PartField {
 pub const VERSION_CONVERTED_NOTICE: &str =
     "変換して開きました。教材の内容または版が、この履歴を書いたときから変わっています。";
 
-/// 「開かない履歴」の通知の文の前半と後半（仮置き。最終の文面と次の行動は TASK-549・TASK-534・TASK-538 が持つ）。
+/// 「開かない履歴」の通知の文の前半と後半（仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
+/// 末尾に、理由ごとの次の行動の文（[`next_action_text`]）を付ける。割り当ては contract の `load_next_action`（TASK-334。案）、
+/// 押せる操作にするのは TASK-538 である。
 /// 履歴由来の文字列は入れず、閉じた列挙の理由のコード（ASCII）だけを挟む（SAFE-40）。
 const IMPORT_REFUSED_HEAD: &str =
     "この履歴は開けません。保存された履歴と画面の状態は変えていません。（";
 const IMPORT_REFUSED_TAIL: &str = "）";
 
-/// 「開かない履歴」の通知の文を作る。
+/// 次の行動の文（仮置き。固定の文言だけで、履歴由来の値を含めない）。
+pub fn next_action_text(a: LoadNextAction) -> &'static str {
+    match a {
+        LoadNextAction::ChooseAnotherFile => "別の履歴ファイルを選んで読み込んでください。",
+        LoadNextAction::OpenWithSourceVersion => {
+            "この履歴を書き出したときの版の教材で開いてください。"
+        }
+        LoadNextAction::StartFresh => "この履歴は使わずに、新しく始めてください。",
+    }
+}
+
+/// 「開かない履歴」の通知の文を作る。理由のコードの後ろに、理由に対応する次の行動の文を付ける。
 pub fn import_refused_message(code: LoadReason) -> String {
     format!(
-        "{IMPORT_REFUSED_HEAD}{}{IMPORT_REFUSED_TAIL}",
-        code.as_str()
+        "{IMPORT_REFUSED_HEAD}{}{IMPORT_REFUSED_TAIL}{}",
+        code.as_str(),
+        next_action_text(next_action(code))
     )
 }
 
@@ -194,6 +210,29 @@ mod tests {
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
+    fn message_has_code_and_next_action_for_every_reason() {
+        for code in LoadReason::ALL {
+            let m = import_refused_message(code);
+            assert!(m.contains(code.as_str()), "{}", code.as_str());
+            assert!(
+                m.ends_with(next_action_text(next_action(code))),
+                "{}",
+                code.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn next_action_texts_are_distinct_and_non_empty() {
+        let t: Vec<&str> = LoadNextAction::ALL
+            .into_iter()
+            .map(next_action_text)
+            .collect();
+        assert!(t.iter().all(|x| !x.is_empty()));
+        assert!(t[0] != t[1] && t[1] != t[2] && t[0] != t[2]);
     }
 
     #[test]
