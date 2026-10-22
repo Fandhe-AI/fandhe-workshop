@@ -152,9 +152,27 @@ fn 読み込みで開かないと理由が出て_状態は変わらない() {
     assert_eq!(attr(item[0], "data-notice-kind"), Some("import-refused"));
     assert_eq!(attr(item[0], "data-notice-reason"), Some("format_newer"));
     assert!(text_of(item[0]).contains("format_newer"));
+    // 次の行動の文（期待値は実装から引かず直書きする。TASK-334。割り当ては案）。
+    assert!(text_of(item[0]).contains("この履歴を書き出したときの版の教材で開いてください。"));
     assert_eq!(dismiss_buttons(&h), 1);
     assert!(shell::check_complete(&view).is_ok());
     assert!(a11y::check_no_undefined(&view).is_ok());
+}
+
+#[test]
+fn 壊れたファイルの拒否には別のファイルを選ぶ行動が出て_保存は変わらない() {
+    let mut h = host("1.0.0");
+    operate(&mut h);
+    let saved = h.history_to_save();
+    let before = snapshot(&h);
+    let outcome = h.open_history(b"{ not json");
+    assert!(matches!(outcome, ImportOutcome::Refused(_)), "{outcome:?}");
+    assert_eq!(snapshot(&h), before);
+    assert_eq!(h.history_to_save(), saved);
+    let view = h.view();
+    let item = all(&view, shell::NOTICE_ITEM_TESTID);
+    assert_eq!(item.len(), 1);
+    assert!(text_of(item[0]).contains("別の履歴ファイルを選んで読み込んでください。"));
 }
 
 #[test]
@@ -243,6 +261,9 @@ fn 起動時に版の判定の段で開かないと閉じられない通知が�
     let mut h = host("1.0.0");
     assert_eq!(h.boot(Some(&format_newer())), BootKind::NotOpened);
     assert_eq!(items_of(&h, "import-refused"), 1);
+    assert!(
+        format!("{:?}", h.view()).contains("この履歴を書き出したときの版の教材で開いてください。")
+    );
     assert_eq!(dismiss_buttons(&h), 0);
     assert_eq!(h.model().view_only_reason(), None);
     operate(&mut h);
