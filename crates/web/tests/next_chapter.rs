@@ -241,3 +241,37 @@ fn 次の章へ進む_の押下は_1_2_では状態を変えない() {
     }
     assert_eq!(before, *h.model().session().unwrap().state());
 }
+
+#[test]
+fn 出ている状態で履歴が表示だけになると_next_chapter_が_dirty_になり項目が消える() {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_export::export_bytes;
+    use fandhe_workshop_web::host::ImportOutcome;
+
+    let d = variant_json(all_starts());
+    let ir = ir_of(&d);
+    let mut h = EngineHost::with_session(
+        Session::from_state(ir, at("main/st-0-2c", StepStatus::Achieved)),
+        standard_registry(),
+    )
+    .unwrap();
+    assert_eq!(count_next(&h.view()), 1, "前提: 項目が出ている");
+    // 主版の違う教材で書いた履歴は、表示だけで開く。
+    let mut d2 = d.clone();
+    d2["pack"]["version"] = json!("9.0.0");
+    let ir2 = ir_of(&d2);
+    let env = build_envelope(&ir2, "s-0-1", vec![], initial("main/st-0-1")).unwrap();
+    let bytes = export_bytes(&env).unwrap();
+    // `update` を経由しない公開 API で切り替える前に、前の dirty を使い切る。
+    let _ = h.dirty_fields();
+    let outcome = h.open_history(&bytes);
+    assert!(
+        matches!(outcome, ImportOutcome::ViewOnly(_)),
+        "前提: 表示だけ"
+    );
+    assert!(
+        h.dirty_fields().contains(&NEXT_CHAPTER_FIELD.name),
+        "FEND-3: 消える項目を dirty で通知する"
+    );
+    assert_eq!(count_next(&h.view()), 0, "表示だけの間は出さない");
+}

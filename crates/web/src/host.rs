@@ -2029,6 +2029,10 @@ impl EngineHost {
         if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
             self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
         }
+        // 「次の章へ進む」は表示だけの間は出さない。`update` を経由しない公開 API からの切り替えでも、出ていた項目の削除を通知する（FEND-3）。
+        if !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
+            self.dirty.push(NEXT_CHAPTER_FIELD.name);
+        }
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
         }
