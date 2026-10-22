@@ -5098,7 +5098,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 - 全件の読み取りの失敗（Issue のコメントで引き継いだ D-52 の巻き戻り）: IndexedDB を開けたが全件を読めなかったときは、接続を閉じたうえで `HistoryStorage::unreadable` にする。`read`・`write` は `Unavailable` を返し、`persist::boot_and_mount` の既存の経路で保存が止まる。どちらの保存先の既存の値も変えない。probe も `Unavailable` を返す。この fail-closed の採用は自動運転での判断で、人の承認は無い（採らなかった案は、localStorage に失敗の印を残して次の起動で照合する方式）
 - 限界 1: 非同期の失敗は、失敗した操作の時点ではなく次の `update`（打鍵・送信・進行）で表示される。操作の時点で出すには、action の契約（FEND-4・版 1）に action を足す必要があり、spec を先に変える必要がある。本タスクでは行わない
 - 限界 2: IndexedDB を開けない（`error`・`blocked`）間に localStorage だけへ書いたセッションでは、再読み込みで D-52 により旧い IndexedDB の値が勝つ危険が残る。本タスクで直したのは「開けたが読めない」場合だけ
-- 限界 3: 実際の容量超過（`QuotaExceededError`）の再現（CDP の `Storage.overrideQuotaForOrigin`）は試していない（未検証）。ブラウザ試験は put の直後に `transaction.abort()` を呼ぶ包みで中断を起こし、種類は `Failed` になる。`QuotaExceeded` の文は native 試験で確かめた
+- 限界 3: 実際の容量超過（`QuotaExceededError`）の再現（CDP の `Storage.overrideQuotaForOrigin`）は試していない（未検証。TASK-534 2/2 で試したが再現できなかった。5.233）。ブラウザ試験は put の直後に `transaction.abort()` を呼ぶ包みで中断を起こし、種類は `Failed` になる。`QuotaExceeded` の文は native 試験で確かめた
 - native 試験 `crates/web/tests/save_failure_idb.rs`: 確定の失敗で次の `update` に理由が出る・状態は進む・IndexedDB の既存の値は不変・続く間は dirty に積まない、種類ごとの文、後の確定で表示が消える、localStorage の写しは確定の失敗で消えない、全件を読めない保存先は最初から理由を出し `read`・`write` を断る
 - ブラウザ試験 `tools/browser/save-idb-failure.test.mjs`（CSP あり・なし）: localStorage を閾値の手前まで埋めて 1 手目を IndexedDB へ向け、put を中断させた 2 手目の後に理由が出て IndexedDB の値が不変、中断を外した 3 手目で更新・表示が消え、再読み込みで復元される。`getAll` を失敗させて起動すると、起動の直後から理由が出て、操作しても既存の localStorage の値は変わらない。`make test-browser` は 584 件が通った（5.168 の 580 件に 4 件）
 - 変異注入 `SAVE11-1`〜`SAVE11-3`: 3 件とも DETECTED（`scripts/check-mutations.sh`。SAVE10-1 も DETECTED のまま）。put の成功で失敗を消さない・`update` の末尾で求め直さない・全件を読めない印を持たない
@@ -7181,7 +7181,17 @@ TASK-176（5.220）は操作が状態・ログを変えないことを固定し�
 - 過去の記録（5.x の `save-notice` の記述）は、TASK-534 1/2 で `shell-notice` の `save-failed` 項目へ移した。
 - 実行結果（2026-10-22）: `make lint`・`cargo test -p fandhe-workshop-web`・上の 3 本と `element-identity`・`secret-warning`・`storage-lost`（Chromium）が通った。`make test-browser` の全件・`version-notice`・`refused-history`・`csp-runs` は未実行（環境変数の前提が要るため CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 
-### 5.233 履歴の書き出しと読み込みの操作を枠に置く（TASK-531 1/2。SHELL-15）
+### 5.233 IndexedDB の失敗の枠の通知欄への表示（TASK-534 2/2。SHELL-19・SAVE-11）
+
+- 目的: IndexedDB の容量超過・書き込みの失敗でも、localStorage の失敗（5.232）と同じ表示が枠の通知欄に出て、メモリ上の状態は進み、既存の保存は変わらないことを確かめる。
+- 観察（2026-10-22。Chromium 1243・Playwright の CDP）: 実際の容量超過は再現できなかった。1 手目が IndexedDB へ届いた後に `Storage.overrideQuotaForOrigin`（`quotaSize` 1 と 1,024）を送ると、`Storage.getUsageAndQuota` は `overrideActive: true`・quota 1,024・usage 73,728 を返す。それでもアプリの 2 手目の保存・ページの再読み込み後の保存・直接の `put`（10,000・1,000,000・8,000,000 文字）はすべて成功し、`transaction.abort` は起きなかった。この Chromium の IndexedDB は CDP の quota の上書きを書き込みの可否に使わない。
+- 判断（推奨案 A。自動運転のため人の承認は得ていない）: 容量超過でない失敗（`Failed`）は同じ欄・同じ項目の形で出し、文は理由ごとのまま。容量超過の文・理由コードの完全一致は、容量超過を実際に起こせる手段が見つかるまで native 試験（`save_failure_idb`。偽の IndexedDB が `QuotaExceeded` を返す）に任せる。案 B（全失敗を容量超過の文に寄せる）は誤った理由を出すため、案 C（`DOMException` の合成）は試験が試験自身を試すことになるため退けた。
+- 試験（`save-idb-failure`）: 既存の中断（`Failed`）の場面に表示の形の照合を足した（欄 1・項目 1・ボタン 0・旧来の `save-notice` 0・理由 `write_failed`・文面 `msg-save-failed`。`save-quota` と同じ形）。新しい場面として幅 360px で成果物のタブを選んでも項目が見える。
+- 未確認: 実際の IndexedDB の容量超過で `storage_idb.rs` の `watch()` が `QuotaExceeded` に分類すること（`tx.error().name()`）。5.169 の限界 3 は解消していない。実機で容量が尽きる環境（小さな quota の別のブラウザ・OS の容量逼迫）での確認が要る。
+- 対照: 変異は足していない（Rust は変更なし）。
+- 実行結果（2026-10-22）: `save-idb-failure` 5 件（Chromium）が通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.234 履歴の書き出しと読み込みの操作を枠に置く（TASK-531 1/2。SHELL-15）
 
 TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識別子と宛先の形を入れたが、受講者が押せる操作は画面に無かった（読み込みは試験の設定の `test-hooks.js` からだけ届いた）。本件は枠に操作を置き、`EngineHost::export_live`・`open_history` に結線する。同じ状態の詳しい照合と書き出しのバイト単位の一致は 2/2（#724）が持つ。
 
