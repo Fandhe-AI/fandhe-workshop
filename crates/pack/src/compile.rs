@@ -178,6 +178,7 @@ pub fn compile(pack: &LoadedPack) -> Result<Ir, Vec<Diagnostic>> {
     // 置換した後の Step を検査する（置換前は読めない・置換後に違反になりうるため）。
     // `use` と `input`、`use` と `confirm` の同時指定を拒否する（PACK-19）。確認の検査は `use` の Step を
     // 飛ばすため、ここで拒否しないと確認の無い入力が IR に載り、`use` の Step の `confirm` は無視される。
+    // 入力も `use` も確認も無い終端でない Step も同じ関数が拒否する（#1709）。
     diags.extend(crate::expand::check_use_steps(&pack.scopes));
     diags.extend(crate::start_check::check_start_pairs(&pack.scopes));
     diags.extend(input::check_inputs(&pack.scopes));

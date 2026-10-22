@@ -24,7 +24,7 @@
 //!
 //! `use` と `input`、`use` と `confirm` を同時に持つ Step は、展開とは別に [`check_use_steps`] が章・モジュールの定義ごとに拒否する
 //! （PACK-19）。同じ関数は、入力も `use` も無く終端でもない Step が `confirm` だけを持つ場合も `E-STRUCTURE` で拒否する
-//! （PACK-35、D-69）。`expand_use` 自体は呼び出し元の Step の `input` を見ない。
+//! （PACK-35、D-69）、確認も持たない場合も同じく拒否する（PACK-19、D-69）。`expand_use` 自体は呼び出し元の Step の `input` を見ない。
 //!
 //! 置換前の値では検査できない宣言（`input`・`confirm` が `${` を含むモジュールの Step）は、置換後の Step を
 //! ここで検査する（入力方式・確認・操作プロファイル。PACK-10・PACK-13・PACK-20）。置換前の検査
@@ -766,9 +766,9 @@ impl<'a> Expander<'a> {
 /// 判定は宣言の有無だけで行う。置換は値を変えても欄の有無を変えないため、`${` を含むモジュールの宣言も
 /// 置換前に判定でき、実体の数によらず定義ごとに 1 件になる。診断は固定文で、引数の値・宣言の中身を写さない。
 ///
-/// あわせて、入力も `use` も無く終端でもない Step が `confirm` だけを持つ場合を拒否する（PACK-35・PACK-19、D-69。
-/// 条件は [`is_inputless_confirm`]）。PACK-19 の「両方無い」のうち確認も持たない途中の Step は、既存の教材・試験が
-/// 依存しているため未拒否である（`docs/known-gaps.md`）。
+/// あわせて、入力も `use` も無く終端でもない Step を拒否する（PACK-19・PACK-35、D-69）。`confirm` だけを持つ場合は
+/// [`is_inputless_confirm`]、確認も持たない場合は [`is_bare_step`] が判定し、どちらも定義ごとに 1 件になる
+/// （両方が重なることはない）。
 pub(crate) fn check_use_steps(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     scopes
         .iter()
@@ -784,6 +784,8 @@ pub(crate) fn check_use_steps(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
                     }
                 } else if is_inputless_confirm(s) {
                     found.push("a step with `confirm` needs `input` unless it is final");
+                } else if is_bare_step(s) {
+                    found.push("a step needs `input` or `use` unless it is final");
                 }
                 found.into_iter().map(move |msg| {
                     crate::input::diag(scope, &s.id, DiagCode::Structure, msg.to_string())
@@ -799,6 +801,12 @@ pub(crate) fn check_use_steps(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
 /// `confirm::check_confirms`・`check_step_confirm` はこの Step を飛ばす（同じ定義に診断を 2 件出さない）。
 pub(crate) fn is_inputless_confirm(step: &Step) -> bool {
     step.use_module.is_none() && step.input.is_none() && !step.is_final && step.confirm.is_some()
+}
+
+/// 入力も `use` も確認も無く、終端でもない Step か（PACK-19、D-69）。受付が起きないため先へ進めない。
+/// 欄の有無だけで判定するので、`${` の置換で結果が変わらない。[`check_use_steps`] が拒否する。
+pub(crate) fn is_bare_step(step: &Step) -> bool {
+    step.use_module.is_none() && step.input.is_none() && !step.is_final && step.confirm.is_none()
 }
 
 /// `use` を持つ Step の位置。展開の文脈を 1 つにまとめて渡す。

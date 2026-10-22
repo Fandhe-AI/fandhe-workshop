@@ -207,7 +207,7 @@ Step の `input` は、`kind` で 5 方式と待機（`wait`）・実行環境�
 - その選択肢の受付の規則（`rules[].on.option` と `outcome: {kind: accept}`）を書きます
 - 確認は `answer` で書きます
 - 受講者の操作が 1 回増えます（1 択を選び、続けて回答します）。限界として受け入れています（TERM-30。`docs/known-gaps.md` の PACK-35）
-- 入力も `use` も無い終端でない Step に `confirm` だけを書くと `E-STRUCTURE` です
+- 入力も `use` も無い終端でない Step は、`confirm` の有無によらず `E-STRUCTURE` です（PACK-19、D-69）。受付が起きず、先へ進めないためです
 - 新しい語彙の版の宣言は要りません。`pack.vocab: '1.0'` のままで `validate` が通ります
 
 書き方の実例は `crates/pack/tests/data/read-only-step-pack` です。
@@ -667,5 +667,6 @@ views:
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
 | `crates/pack/tests/read_only_step.rs` の `pack35_` | 1 択の `choice` と `answer` の Step が新しい語彙の版の宣言なしで通ること、入力のない確認だけの終端でない Step が `E-STRUCTURE` になること（PACK-35・D-69） |
+| `crates/pack/tests/pack19_bare_step.rs` の `pack19_` | 入力も `use` も確認も無い終端でない Step が章・モジュールの定義ごとに 1 件の `E-STRUCTURE` になること（`validate`・`compile`・CLI）。終端・入力ありの Step は拒否されず、確認だけの Step は診断が重ならないこと（PACK-19、#1709） |
 | `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
 | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` | 誤答の拒否文で前後の切り替えを案内する教材が新しい語彙の版の宣言なしで `validate` を通ること、誤答が案内つきの拒否になり Step が受付のまま達成にならないこと、`answer` に比較のビューを結ぶ欄を足すと `E-PARSE` になること（PACK-36・D-69） |

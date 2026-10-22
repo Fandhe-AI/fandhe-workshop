@@ -30,7 +30,7 @@
 | PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。画面での見え方は未確認（ART-19） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
-| PACK-19（両方無い） | 確認も持たない、入力も `use` も無い終端でない Step は、まだ拒否しない（確認を持つものだけを `E-STRUCTURE` にした。2026-10-21）。全面の拒否は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台に影響する（30c1ff0 での実測。workspace の残りは未測定） | 一部を実装。残りは別の Issue で扱う | 途中の Step には入力を書く | `crates/pack/tests/read_only_step.rs` |
+| PACK-19（両方無い） | 解消した（2026-10-22、#1709）。確認も持たない、入力も `use` も無い終端でない Step も `E-STRUCTURE` で拒否する。拒否の前に試験データを直した（#1708）。経緯の実測: 全面の拒否の影響は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台（30c1ff0 での実測） | 解消 | 不要（途中の Step には入力か `use` を書く。読むだけの Step は 1 択の `choice`） | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 

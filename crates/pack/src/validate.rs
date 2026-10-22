@@ -10,7 +10,7 @@
 //! （`E-REF-*`）→ 構造（`E-STRUCTURE`）→ 確認 `answer` の選択肢の `label` の必須（`E-STRUCTURE`。PACK-37・D-67。`compile` は行わない）→ 文面の差し込みの枠と次の行動（`E-SLOT-*`・`E-EMPTY-NEXT-ACTION`。`slot_check`）→ 到達性・行き止まり → 存在しない要素への `remove`・`set_attr`（`E-REF-ELEMENT`。`element_check`、TASK-58 2/2。`compile` は行わない）→ モジュール展開（巡回・置換後の確認）→ 外観（`E-PARSE`。`appearance`、TASK-53）→ 左エリア（`E-PARSE`・`E-LEFT-*`。`left_pane`、TASK-53 2/2）→ 語彙の版の宣言と使用（`E-PARSE`・`E-VOCAB-MISMATCH`。`vocab_check`、TASK-59 1/2。`compile` は行わない）→ 案内レベルの漏れとヒントの出し分け（`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`。`guidance`、TASK-49 2/2。`compile` は行わない。構造の検査の `body_levels` の鍵 `A` と `do_levels` の構造（鍵 `A`・空の値・`do` の欠落。TASK-70 2/2）と `param_types` の宣言（TASK-71 2/3）の `E-STRUCTURE` は `compile` も行う）の順に検査する。形式の版が不一致なら、残りを解釈せずその 1 件だけを
 //! 返す（`compile` と同じ fail-closed）。
 //!
-//! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定、終端でない入力の無い Step の `confirm`。PACK-35）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
+//! 構造の検査は、`expand::check_use_steps`（`use` と `input`・`confirm` の同時指定、終端でない入力の無い Step。`confirm` だけを持つ場合は PACK-35、確認も無い場合は PACK-19 の残りの #1709）・`start_check::check_start_pairs`（`requires` と `unmet` の片方だけ。TASK-51）・`input::check_inputs`・
 //! `confirm::check_confirms`（正答の無い `answer` は `E-STRUCTURE`）を再利用し、結果を絞らずに返す。絞ると
 //! `validate` は通るが `compile` は失敗する状態になるため、`E-PARSE`・`E-NO-CONFIRM` も報告される。
 //! 「章が無い」「開始点が 0 件」の判定は `compile` と同じ文面で重複して持つ（一本化は別の変更で行う）。

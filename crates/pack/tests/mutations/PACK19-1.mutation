@@ -1,0 +1,8 @@
+id: PACK19-1
+package: fandhe-workshop-pack
+test: pack19_bare_step
+target: crates/pack/src/expand.rs
+find:     step.use_module.is_none() && step.input.is_none() && !step.is_final && step.confirm.is_none()
+replace:     step.use_module.is_none() && step.input.is_none() && !step.is_final && step.confirm.is_none() && false
+expect-fail: pack19_bare_intermediate_step_is_structure_error
+note: 入力も確認も無い途中の Step の拒否を外す（先へ進めない Step が検査を通る）
