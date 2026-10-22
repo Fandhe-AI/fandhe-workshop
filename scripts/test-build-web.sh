@@ -125,10 +125,15 @@ check_status "no test-hooks marker" 1 grep -q 'fandhe:test-hooks' "${DELIVERY}/i
 check_status "no keydown-probe in wasm" 1 grep -aq 'keydown-probe' "${DELIVERY}/${WASM}"
 check_status "no keydown-probe in glue js" 1 grep -q 'keydown-probe' "${DELIVERY}/wasm/fandhe_workshop_web.js"
 check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
+# 同梱の IR の印（TASK-112 2/2）。IR_FILE が無い配信物は meta も印も持たず、app.js は ./ir/main.json を取得しない。
+check_status "no fandhe-ir meta without IR_FILE" 1 grep -q 'fandhe-ir' "${DELIVERY}/index.html"
+check_status "no fandhe:ir marker without IR_FILE" 1 grep -q 'fandhe:ir' "${DELIVERY}/index.html"
 check "no .d.ts" test -z "$(find "${DELIVERY}" -name '*.d.ts')"
 
 echo "-- (b) delivery config with IR_FILE" >&2
 check "ir/main.json matches IR_FILE" cmp -s "${TMP}/ir.json" "${DELIVERY_IR}/ir/main.json"
+check "fandhe-ir meta exists with IR_FILE" grep -q '<meta name="fandhe-ir" content="1">' "${DELIVERY_IR}/index.html"
+check_status "no fandhe:ir marker with IR_FILE" 1 grep -q 'fandhe:ir' "${DELIVERY_IR}/index.html"
 check "mount_app is exported with IR_FILE" has_export '^mount_app$' "${DELIVERY_IR}/${WASM}"
 check "no debug_* export with IR_FILE" no_debug_export "${DELIVERY_IR}/${WASM}"
 
@@ -139,6 +144,9 @@ check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
 # 配信設定の「keydown-probe が無い」検査が空振りしていないことの対照（試験の設定には有る）。
 check "keydown-probe is in the test config wasm" grep -aq 'keydown-probe' "${TESTCFG}/${WASM}"
 check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
+# 試験の設定は試験データの教材を埋め込むため、同梱の IR の印は meta にも印のままにも残さない。
+check_status "no fandhe-ir meta in the test config" 1 grep -q 'fandhe-ir' "${TESTCFG}/index.html"
+check_status "no fandhe:ir marker in the test config" 1 grep -q 'fandhe:ir' "${TESTCFG}/index.html"
 check_status "test config built as config: test / profile: release" 0 grep -q 'config: test / profile: release' "${TMP}/test.log"
 
 echo "-- (e) delivery config (release) with compiled IR" >&2

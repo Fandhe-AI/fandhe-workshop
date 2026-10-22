@@ -280,8 +280,9 @@ pub fn mount_with_history(
     root_id: &str,
     user_agent: &str,
     start: Option<String>,
+    ir: Option<Vec<u8>>,
 ) -> js_sys::Promise {
-    let mut host = mount_host_for_page(start.as_deref());
+    let mut host = mount_host_for_page(start.as_deref(), ir.as_deref());
     // User-Agent は OS の推定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
     host.set_learner_os(estimate(user_agent));
     let Some(key) = host.history_key(delivery_scope()) else {
@@ -317,17 +318,18 @@ pub fn mount_with_history(
 /// 配信する設定では選択の経路を持たない（クエリを読む処理は試験の口の `test_hooks.rs` にだけ置き、`tick_interval` の試験が配信する経路に URL の読み取りが無いことを固定している）。
 /// クエリは選択の名前としてだけ使い、経路・URL には使わない。
 ///
-/// 開始点の指定（`start`）は試験の設定でだけ、選んだ教材の `starts` と照合して開始点を選ぶ。配信する設定は実行時に IR を取得しない
-/// ため照合する先が無く、`start` を受け取っても挙動は変わらない（既知の限界。`docs/testing.md` 5.198）。
-fn mount_host_for_page(start: Option<&str>) -> EngineHost {
+/// 開始点の指定（`start`）は、試験の設定では選んだ教材の、配信する設定では同梱の IR（`ir`。`static/app.js` が固定の `./ir/main.json` を
+/// 取得して渡す。印の meta が無い配信物では `None` で、挙動は変わらない）の `starts` と照合して開始点を選ぶ（TASK-112 2/2。`docs/testing.md` 5.239）。
+fn mount_host_for_page(start: Option<&str>, ir: Option<&[u8]>) -> EngineHost {
     #[cfg(feature = "test-hooks")]
     {
+        // 試験の設定は試験データの教材を埋め込んで使う。同梱の IR は無視する。
+        let _ = ir;
         EngineHost::for_mount_with(crate::test_hooks::mount_fixture_from_url(), start)
     }
     #[cfg(not(feature = "test-hooks"))]
     {
-        let _ = start;
-        EngineHost::for_mount()
+        EngineHost::for_mount(ir, start)
     }
 }
 

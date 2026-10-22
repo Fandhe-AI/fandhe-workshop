@@ -6,13 +6,13 @@
 // 直接リンク（DIRECT_LINKS・directLinkUrl）と 1 ページの取得資源の判定（pageRequestProblems）もここに置く。判定は base を引数で
 // 受けるので、3/3 の別のサブパス・ルート配信の試験もそのまま使える。
 //
-// 限界: 配信する設定の app.js は `start`（`?start=<開始点 ID>`。D-68・DLV-9）だけを読んで渡すが、web は実行時に IR を取得せず
-// 照合する先が無いため、常に既定の画面（session なし）のままである。`start` で開くこと自体の試験は試験の設定の
+// 限界: 配信する設定の app.js は `start`（`?start=<開始点 ID>`。D-68・DLV-9）だけを読んで渡す。IR を取得するのは同梱の印の meta
+// （`fandhe-ir`。build-web.sh が IR_FILE 指定時だけ置く。TASK-112 2/2）がある配信物だけで、この試験の配信物は IR_FILE なしの
+// ビルドのため取得せず、常に既定の画面（session なし）のままである。`start` で開くこと自体の試験は試験の設定の
 // direct-link-start.test.mjs（TASK-109 1/2）が持ち、章の開始点で開くこと（DLV-7）は TASK-110 の範囲である。
 // ここで確かめるのは配信の側の性質（静的な解決・取得資源・エラー 0 件）だけ。
-// web は現時点で実行時に ir/main.json を取得しない（読み込みは後続のタスク）。そのため ir/main.json は
-// required: false（IR_FILE 指定時だけ存在）とし、「ページが IR を取得する」ことは確かめない。取得するようになった時点で
-// 必須の要素へ見直す。inspectDeliveryRefs は配信する設定の専用で、試験の設定（test-hooks.js・試験用の meta がある配信物）は対象外。
+// この試験の配信物は meta を持たず ir/main.json を取得しない。そのため ir/main.json は required: false
+// （IR_FILE 指定時だけ存在）とし、「ページが IR を取得する」ことは確かめない（meta つきの配信物の取得は l2-run.test.mjs が確かめる）。inspectDeliveryRefs は配信する設定の専用で、試験の設定（test-hooks.js・試験用の meta がある配信物）は対象外。
 import fs from 'node:fs';
 import path from 'node:path';
 import { maskInactive, summarize, cspConsoleMessages } from './harness.mjs';
@@ -48,6 +48,8 @@ const ANCHORS = [
 ];
 // 配信する設定で取得されない経路として 1 件だけ許す動的 import（試験用の meta があるときだけ読まれる）。
 const HOOKS_REF = ['app.js', './test-hooks.js'];
+// 同梱の印の meta（fandhe-ir）があるときだけ取得する固定の IR（TASK-112 2/2）。IR_FILE なしの配信物には無いため、存在は問わず、app.js に 1 件だけ許す。
+const IR_REF = ['app.js', './ir/main.json'];
 
 function listFiles(dir, problems) {
   const out = [];
@@ -130,12 +132,17 @@ export function inspectDeliveryRefs(dir) {
   if (hooksMeta) problems.push('index.html has the test-hooks meta (this check is for the delivery configuration)');
 
   let hooksSeen = 0;
+  let irSeen = 0;
   const found = new Set();
   for (const [file, text] of texts) {
     for (const ref of extractRefs(file, text)) {
       found.add(`${file}\n${ref}`);
       if (file === HOOKS_REF[0] && ref === HOOKS_REF[1] && !hooksMeta) {
         hooksSeen += 1;
+        continue;
+      }
+      if (file === IR_REF[0] && ref === IR_REF[1]) {
+        irSeen += 1;
         continue;
       }
       const why = refRuleViolation(ref);
@@ -155,6 +162,9 @@ export function inspectDeliveryRefs(dir) {
   }
   if (!hooksMeta && hooksSeen !== 1 && texts.has('app.js')) {
     problems.push(`app.js: expected exactly 1 dynamic import of ./test-hooks.js, found ${hooksSeen}`);
+  }
+  if (texts.has('app.js') && irSeen !== 1) {
+    problems.push(`app.js: expected exactly 1 fetch of ./ir/main.json, found ${irSeen}`);
   }
   for (const [file, ref] of ANCHORS) {
     if (!found.has(`${file}\n${ref}`)) problems.push(`anchor not found (extractor may be broken): ${file} -> ${ref}`);
