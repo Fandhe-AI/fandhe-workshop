@@ -2020,6 +2020,8 @@ impl EngineHost {
     /// 以後の操作の関門は `update`、保存の停止は `history_to_save`、書き出しは `export_live` が見る。
     /// 予約済みの進行のタイマーは無効にし、宛先も取り下げる。通知欄の field を dirty に積む。
     fn enter_view_only(&mut self, code: LoadReason, bytes: Vec<u8>) {
+        // 「次の章へ進む」が出ていたかは、表示だけに入る前に調べる。
+        let offered = self.next_chapter_offer().is_some();
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
         // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。
@@ -2029,8 +2031,8 @@ impl EngineHost {
         if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
             self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
         }
-        // 「次の章へ進む」は表示だけの間は出さない。`update` を経由しない公開 API からの切り替えでも、出ていた項目の削除を通知する（FEND-3）。
-        if !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
+        // 「次の章へ進む」は表示だけの間は出さない。`update` を経由しない公開 API からの切り替えでも、出ていた項目の削除を通知する（FEND-3）。出ていなかったときは変えない（SAVE-19）。
+        if offered && !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
         }
         if let Some(reset) = self.tick_reset.as_ref() {
