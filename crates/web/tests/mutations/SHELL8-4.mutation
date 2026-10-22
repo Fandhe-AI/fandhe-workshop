@@ -1,0 +1,8 @@
+id: SHELL8-4
+package: fandhe-workshop-web
+test: ch0_3_run_host
+target: crates/web/src/host.rs
+find:         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
+replace:         if false && self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
+expect-fail: 画面から送れる手だけで二十の_step_を最後まで進める
+note: update の末尾で位置の変化を dirty に積まない（SHELL-8・FEND-3・TASK-524）

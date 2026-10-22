@@ -101,6 +101,7 @@ use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHA
 use crate::parts::{FieldKind, PartRegistry};
 use crate::profile::InputField;
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
+use crate::shell_frame::TOP_PLACE_FIELD;
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
@@ -850,6 +851,7 @@ impl EngineHost {
                 || f.name == PANE_TABS_FIELD.name
                 || f.name == SHELL_NOTICES_FIELD.name
                 || f.name == NEXT_CHAPTER_FIELD.name
+                || f.name == TOP_PLACE_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
@@ -1907,6 +1909,10 @@ impl EngineHost {
         if !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
         }
+        // 上部の教材名・位置も registry の外にある。教材・復元した Step が変わるので明示して積む（TASK-524）。
+        if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
+            self.dirty.push(TOP_PLACE_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2150,6 +2156,32 @@ impl EngineHost {
         }
     }
 
+    /// 上部に出す教材名・教材の ID・位置（章の ID と M / K）。表示だけのモードでも、復元した Step の位置を出す。
+    /// 位置は導けないとき `None`（出さない）。session が無いときは全体が `None`。
+    fn top_place(&self) -> Option<TopPlace> {
+        let s = self.model.session()?;
+        let ir = s.ir();
+        let pos = s
+            .state()
+            .run
+            .current
+            .as_ref()
+            .and_then(|uid| crate::top_position::top_position(ir, &uid.0));
+        Some((ir.pack.title.clone(), ir.pack.id.clone(), pos))
+    }
+
+    /// [`Self::top_place`] を描く keyed list。session が無いときは項目 0 件。
+    fn top_place_node(&self) -> Node {
+        match self.top_place() {
+            Some((title, id, pos)) => crate::shell_frame::top_place_list(
+                Some(title.as_str()),
+                &id,
+                pos.as_ref().map(|(c, p)| (c.as_str(), *p)),
+            ),
+            None => crate::shell_frame::top_place_list(None, "", None),
+        }
+    }
+
     /// 今提示する「次の章へ進む」。表示だけの間と session が無いときは出さない（fail-closed。update が押下を捨てるため）。
     fn next_chapter_offer(&self) -> Option<NextChapter> {
         if self.model.view_only.is_some() {
@@ -2302,6 +2334,9 @@ fn keeps_text(j: &Judgment) -> bool {
     matches!(j, Judgment::Rejected(_) | Judgment::Clarified(_))
 }
 
+/// 上部の教材名・教材の ID・位置。前後で比べて dirty を積むための値。
+type TopPlace = (String, String, Option<(String, crate::shell::StepPosition)>);
+
 impl Component for EngineHost {
     type Action = HostAction;
 
@@ -2309,6 +2344,8 @@ impl Component for EngineHost {
         self.dirty.clear();
         // 「次の章へ進む」の提示は、どの経路の更新でも前後で比べて 1 か所で dirty に積む（FEND-3）。
         let offer_before = self.next_chapter_offer();
+        // 上部の教材名・位置も同じく前後で比べる（TASK-524）。
+        let place_before = self.top_place();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
         // モードから出る経路（試験の設定の読み込み・差し替え）に限る。新しい action は既定で捨てられる。
         // 下書きの変更を捨てたときは、DOM の値を戻させる。
@@ -2538,6 +2575,9 @@ impl Component for EngineHost {
         {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
         }
+        if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
+            self.dirty.push(TOP_PLACE_FIELD.name);
+        }
     }
 
     fn view(&self) -> Node {
@@ -2581,7 +2621,7 @@ impl Component for EngineHost {
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         // 上部の区画（「模擬」。TASK-523）は通知欄より前に置く。tabpanel の外なので、どのタブでも・通知が出ても見える。
         let mut children = vec![
-            crate::shell_frame::top_bar(Vec::new()),
+            crate::shell_frame::top_bar(vec![self.top_place_node()]),
             crate::shell_notice::notice_area(
                 self.version_notice,
                 self.refused_notice,

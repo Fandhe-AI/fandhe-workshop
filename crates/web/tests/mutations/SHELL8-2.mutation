@@ -1,0 +1,8 @@
+id: SHELL8-2
+package: fandhe-workshop-web
+test: top_position_host
+target: crates/web/src/top_position.rs
+find:             m = k;
+replace:             m = k - 1;
+expect-fail: 全_step_で教材名と章の_id_と位置が決めた形で出る
+note: 位置の M が 1 始まりでなく 0 始まりになる（SHELL-8・D-72・TASK-524）

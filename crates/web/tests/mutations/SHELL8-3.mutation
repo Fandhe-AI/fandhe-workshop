@@ -1,0 +1,8 @@
+id: SHELL8-3
+package: fandhe-workshop-web
+test: top_position_host
+target: crates/web/src/top_position.rs
+find:         node = ir.nodes.iter().find(|n| n.uid == caller)?;
+replace:         let _ = caller;
+expect-fail: モジュールの_step_は呼び出した章の位置になる
+note: モジュールの Step が caller をたどらず、章の位置に読み替えられない（SHELL-8・D-72・TASK-524）

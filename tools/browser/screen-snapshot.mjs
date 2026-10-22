@@ -5,7 +5,8 @@
 // 試験ではないため `.test.mjs` にしない（試験ファイルを import すると、試験が二重に登録されるため）。
 //
 // snapshot の中身: 画面の根（#app）の複製を HTML にした文字列と、HTML に現れない値（下書き・選択・フォーカス）。
-//   除外するもの: 配信先ごとに変わる値（blob: や http の URL を値に持つ属性。書き出しのリンクの href・data-export-url・data-key）。複製の上で取り除く。
+//   除外するもの: 書き出しのリンク（data-testid=export-download）の blob: の URL を値に持つ属性（href・data-export-url・data-key）だけ。複製の上で取り除く。
+//   正規化するもの: 他の属性の値に含まれる現在の配信元とサブパスの部分だけを `<base>/` に置き換え、残りのパスの違いは比較に残す。
 //   自己検査: 直列化の結果に、オリジンやポートに依存する文字列（127.0.0.1・localhost・blob:・http の URL）が残っていれば、
 //   9 回の一致が壊れる前に理由つきで例外にする。
 // 出力に DOM の文字を出さない（呼び出し側は SHA-256 の先頭と、最初に違った欄の名前だけを出す）。
@@ -19,10 +20,18 @@ import { inspectDom } from './l2-journey.mjs';
 export function readScreen() {
   const root = document.getElementById('app');
   const clone = root.cloneNode(true);
+  // 現在の配信元とサブパス（例: http://127.0.0.1:1234/fandhe-workshop/）。配信先ごとに変わるのはこの部分だけ。
+  const baseUrl = new URL('.', location.href).href;
   for (const el of clone.querySelectorAll('*')) {
-    // 書き出しのリンクは href・data-export-url・data-key のどれにも blob の URL を持つため、属性の名前でなく値で取り除く。
+    const isExportLink = el.getAttribute('data-testid') === 'export-download';
     for (const attr of [...el.attributes]) {
-      if (/(blob:|https?:)/.test(attr.value)) el.removeAttribute(attr.name);
+      // 書き出しのリンクの href・data-export-url・data-key だけは、毎回変わる blob の URL を持つため取り除く。
+      if (isExportLink && /^blob:/.test(attr.value)) {
+        el.removeAttribute(attr.name);
+      } else if (attr.value.includes(baseUrl)) {
+        // それ以外は、現在の配信元とサブパスの部分だけを置き換え、残りのパスなどの比較を残す。
+        el.setAttribute(attr.name, attr.value.split(baseUrl).join('<base>/'));
+      }
     }
   }
   const draft = document.querySelector('[data-testid="draft-input"]');

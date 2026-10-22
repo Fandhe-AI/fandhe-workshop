@@ -133,6 +133,9 @@ async function runOnce(label, origin, url, { stopAt = L2_STOP, keep = false } = 
     } else {
       await journey(page, mouseDriver(page), 'match', L, stopAt, { observe: domObserver(order), onStep });
     }
+    const snapshot = await takeSnapshot(page);
+    const history = await exportByUi(page);
+    // 計数と problems は書き出し操作の後に評価する（書き出しで生じたエラー・CSP 違反・外部要求も合否に含める）。
     const counts = summarize(rec);
     const irReqs = rec.requests.filter((r) => r.url === `${origin}${new URL(url).pathname}ir/main.json`);
     const problems = [];
@@ -143,8 +146,6 @@ async function runOnce(label, origin, url, { stopAt = L2_STOP, keep = false } = 
     if (counts.consoleErrors !== 0 || rec.consoleWarnings.length !== 0) problems.push('console');
     if (counts.external !== 0 || counts.failed !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${counts.failed}:${rec.failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
     if (counts.dialogs !== 0 || counts.popups !== 0 || counts.crashed !== 0) problems.push('dialog-popup-crash');
-    const snapshot = await takeSnapshot(page);
-    const history = await exportByUi(page);
     const parsed = JSON.parse(history.toString('utf8'));
     assert.ok(Array.isArray(parsed.ops) && parsed.ops.length >= 1, `${label}: history has ops`);
     const stepsText = JSON.stringify({ steps, ledger: L.items.map(({ name, ok }) => ({ name, ok })) });

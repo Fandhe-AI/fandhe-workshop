@@ -31,7 +31,7 @@ use crate::a11y::{PaneTab, TABLIST_LABEL, TABLIST_TESTID, TAB_TESTID};
 use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField, PartKind};
-use crate::shell::{PaneMount, TopSection, MOCK_LABEL};
+use crate::shell::{PaneMount, StepPosition, TopSection, MOCK_LABEL};
 
 /// タブのクリック（と Enter・Space による click）の action 名。payload は [`PaneTab::id`] の完全一致だけを受ける。
 pub const ACTION_SELECT_PANE: &str = "select-pane";
@@ -162,7 +162,7 @@ pub const MOCK_CLASS: &str = "sh-mock";
 /// `role`・`aria-label` は付けない（a11y 契約の閉じた一覧を増やさない）。見えている文字ノードとして
 /// アクセシビリティツリーに載る。文字は定数 [`MOCK_LABEL`] だけで、教材由来の値・利用者の入力は使わない。
 ///
-/// TASK-524 への申し送り: 教材名（`shell-title`）・位置（`shell-position`）は `rest` に渡して「模擬」の後ろに足す。
+/// 教材名（`shell-title`）・位置（`shell-position`）は [`top_place_list`] を `rest` に渡して「模擬」の後ろに足す（TASK-524）。
 pub fn top_bar(rest: Vec<Node>) -> Node {
     let mut children = vec![el(
         "span",
@@ -181,4 +181,79 @@ pub fn top_bar(rest: Vec<Node>) -> Node {
         ],
         children,
     )
+}
+
+/// 教材名・位置を入れる親のクラス。`static/app.css` の同名のクラスと一致させる。
+pub const PLACE_CLASS: &str = "sh-place";
+
+/// 教材名の CSS クラス。
+pub const TITLE_CLASS: &str = "sh-title";
+
+/// 位置の CSS クラス。
+pub const POSITION_CLASS: &str = "sh-position";
+
+/// 上部の教材名・位置の keyed list の field。`host::EngineHost` が、教材・位置が変わると dirty に積む。
+pub const TOP_PLACE_FIELD: PartField = PartField {
+    name: "top_place",
+    kind: FieldKind::KeyedList,
+};
+
+/// 位置の文字。章の ID と「Step M / K」を全角空白 1 つで区切る（D-72 の例 `CH-1　Step 3 / 6`）。Step の ID は出さない。
+pub fn position_label(chapter: &str, p: StepPosition) -> String {
+    format!("{chapter}\u{3000}Step {} / {}", p.m(), p.k())
+}
+
+/// 上部の教材名・位置（TASK-524。SHELL-8・D-72）。呼び出し元は `host::EngineHost::view` で、[`top_bar`] の `rest` に渡す。
+///
+/// registry の外の keyed list で、項目は 0〜2 件（教材名・位置）。親は常に描き、項目の出し入れと差し替えだけで表す
+/// （要素の同一性・全再描画の回避。FEND-3・FEND-15）。値は文字ノードにだけ入れ、`RawHtml` を使わない（教材由来の値）。
+/// 位置は導けないときに出さない（`shell::check_position` の違反を作らない）。
+pub fn top_place_list(
+    title: Option<&str>,
+    pack_id: &str,
+    pos: Option<(&str, StepPosition)>,
+) -> Node {
+    let mut items = Vec::new();
+    if let Some(t) = title {
+        items.push((
+            format!("title:{pack_id}"),
+            el(
+                "span",
+                vec![
+                    ("data-testid", TopSection::Title.testid()),
+                    ("class", TITLE_CLASS),
+                ],
+                vec![text(t)],
+            ),
+        ));
+    }
+    if let Some((chapter, p)) = pos {
+        let label = position_label(chapter, p);
+        let [(ma, mv), (ka, kv)] = p.attrs();
+        items.push((
+            format!("position:{chapter}:{}:{}", p.m(), p.k()),
+            el(
+                "span",
+                vec![
+                    ("data-testid", TopSection::Position.testid()),
+                    ("class", POSITION_CLASS),
+                    (ma, mv.as_str()),
+                    (ka, kv.as_str()),
+                ],
+                vec![text(&label)],
+            ),
+        ));
+    }
+    keyed_view_or_notice("div", vec![("class", PLACE_CLASS)], &TOP_PLACE_FIELD, items)
+}
+
+#[cfg(test)]
+mod place_tests {
+    use super::*;
+
+    #[test]
+    fn label_has_fullwidth_space_and_no_step_id() {
+        let p = StepPosition::new(3, 6).expect("p");
+        assert_eq!(position_label("ch-1", p), "ch-1\u{3000}Step 3 / 6");
+    }
 }
