@@ -6,6 +6,14 @@
 //   N-2 2 回: 行が 2 件。`data-gen` は 1・2 の順。完走の後も 2 件
 //   N-3 配信設定: 試験の口が無い
 //
+// TASK-536（SHELL-21）: 枠が二重に知らせないことも、N-1・N-2 の中で確かめる。再読み込みの運び手は右のログの行だけで、
+// 枠の通知欄（`shell-notice`）に項目が増えず、読み上げに使われる欄（`role="status"`・`aria-live`）に
+// 「再読み込みしました」が入らない。ページ内に MutationObserver を据え、その欄とその子孫への文字の変化を全件記録する。
+// 「読み上げが 1 回だけ届く」は、現時点で観察できる範囲（行が回数と同数・他の欄に出ない）と、
+// `terminal_area_contract` の native 試験（行が応答の読み上げの単位に数えられる）で固定する。
+// 限界: ライブの欄（`live-response`）は実画面にまだ描かれておらず、その更新回数の観察は TASK-370、
+// 支援技術での読まれ方は TASK-381 の範囲である。本試験は読み上げそのものの証拠ではない。
+//
 // 注意: 実際の `page.reload()` ではなく、ページ内の模擬の再読み込みである（reload-ignore.test.mjs と同じ理由。
 // 保存した状態の復元の結線は TASK-319 で、#343 の後に実際の再読み込みの場面を足せる）。
 // 時機の待ちは時間ではなく進行の段数で決める。
@@ -28,6 +36,9 @@ const COMMAND = { input: { command: '/make-note first-note' } };
 const RELOAD_PAYLOAD = '{"reload":{}}';
 const NOTICE = '再読み込みしました';
 const TOTAL_TICKS = 5;
+const NOTICE_ITEM = '[data-testid="shell-notice-item"]';
+// 読み上げに使われる欄（aria-live="off" は読まれないので除く）。
+const SPOKEN = '[role="status"], [role="alert"], [aria-live]:not([aria-live="off"])';
 
 let browser;
 
@@ -106,6 +117,40 @@ const reloadedRows = (page) => page.evaluate((sel) => [...document.querySelector
   children: li.querySelector('[data-testid="line-body"]')?.children.length,
 })), ROW);
 
+// 読み上げの欄の中で「再読み込みしました」を含む文字の変化を記録する観察者を据える。件数だけを返す口を持つ。
+async function installSpokenObserver(page) {
+  await page.evaluate(([spoken, notice]) => {
+    const hits = [];
+    const inSpoken = (node) => {
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      return !!el && !!el.closest(spoken);
+    };
+    const obs = new MutationObserver((records) => {
+      for (const r of records) {
+        const nodes = [r.target, ...r.addedNodes];
+        if (nodes.some((n) => inSpoken(n) && (n.textContent || '').includes(notice))) hits.push(r.type);
+      }
+    });
+    obs.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true });
+    window.__spokenHits = hits;
+  }, [SPOKEN, NOTICE]);
+}
+
+// 「再読み込みしました」を含む要素の置き場所を数える。右のログの行の外・読み上げの欄の中の件数が 0 でなければならない。
+const noticeSites = (page) => page.evaluate(([spoken, notice, row, noticeItem]) => {
+  const leaves = [...document.querySelectorAll('body *')].filter(
+    (el) => (el.textContent || '').includes(notice) && ![...el.children].some((c) => (c.textContent || '').includes(notice)),
+  );
+  return {
+    leaves: leaves.length,
+    outsideRows: leaves.filter((el) => !el.closest(row)).length,
+    inSpoken: leaves.filter((el) => el.closest(spoken)).length,
+    noticeItems: document.querySelectorAll(noticeItem).length,
+    noticeKinds: document.querySelectorAll('[data-testid="shell-notice"] [data-notice-kind], [data-testid="shell-notice"][data-notice-kind]').length,
+    spokenHits: window.__spokenHits.length,
+  };
+}, [SPOKEN, NOTICE, ROW, NOTICE_ITEM]);
+
 async function openTestPage(srv) {
   const opened = await openPage(browser, { origin: srv.origin });
   await opened.page.goto(srv.url);
@@ -121,8 +166,11 @@ async function assertSafe(page, rec) {
 async function runOnce(times) {
   await withServer({ dir: process.env.FANDHE_WEB_TEST_DIR, base: BASE }, async (srv) => {
     const { page, context, rec } = await openTestPage(srv);
+    await installSpokenObserver(page);
+    assert.equal(await page.locator('[data-testid="shell-notice"]').count(), 1);
     await sendRaw(page, COMMAND);
     assert.deepEqual(await reloadedRows(page), []);
+    assert.equal((await noticeSites(page)).leaves, 0);
     await reloadWhenTicks(page, 2, times);
 
     const rows = await reloadedRows(page);
@@ -133,6 +181,9 @@ async function runOnce(times) {
       assert.equal(row.gen, String(i + 1));
     });
     assert.equal(await page.locator(STATUS).getAttribute('data-state'), 'busy');
+    // 枠は二重に知らせない（SHELL-21）: 文字の置き場所は右のログの行だけ（回数と同数）で、枠の通知欄は空のまま。
+    const sites = await noticeSites(page);
+    assert.deepEqual(sites, { leaves: times, outsideRows: 0, inSpoken: 0, noticeItems: 0, noticeKinds: 0, spokenHits: 0 });
 
     // 処理は続き、完走の後（古いタイマーの無視を含む）も reloaded の行は回数のまま。
     const done = await waitUntil(
@@ -144,6 +195,7 @@ async function runOnce(times) {
     assert.equal((await reloadedRows(page)).length, times);
     assert.equal((await engine(page)).log.filter((r) => r.kind === 'reloaded').length, times);
     assert.ok(done.ticks.length >= TOTAL_TICKS);
+    assert.deepEqual(await noticeSites(page), { leaves: times, outsideRows: 0, inSpoken: 0, noticeItems: 0, noticeKinds: 0, spokenHits: 0 });
     assert.notEqual(await page.locator(STATUS).getAttribute('data-state'), 'busy');
     await assertSafe(page, rec);
     await context.close();
