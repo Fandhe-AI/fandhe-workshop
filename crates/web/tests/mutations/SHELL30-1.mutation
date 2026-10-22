@@ -1,0 +1,8 @@
+id: SHELL30-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:             NoticeKind::BrowserNotice => &[ShellOp::DismissNotice],
+replace:             NoticeKind::BrowserNotice => &[],
+expect-fail: ブラウザの案内の値
+note: 案内を閉じる操作が外れる（SHELL-30・D-74・TASK-516）

@@ -1,0 +1,8 @@
+id: SHELL24-1
+package: fandhe-workshop-web
+test: shell_contract_v2
+target: crates/web/src/shell.rs
+find:             } else if let Some(c) = ControlSection::parse(t) {
+replace:             } else if let Some(c) = ControlSection::parse(t).filter(|_| false) {
+expect-fail: 重複は_duplicate
+note: 早送りの区画が数えられない（SHELL-24・D-54・TASK-516）
