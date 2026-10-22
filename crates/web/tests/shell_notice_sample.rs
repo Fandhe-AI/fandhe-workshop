@@ -185,7 +185,7 @@ fn 未定義の通知の種類は失敗する() {
         v.push(item_with(
             vec![
                 (TESTID_ATTR, NOTICE_ITEM_TESTID),
-                (NOTICE_KIND_ATTR, "delete-history"),
+                (NOTICE_KIND_ATTR, "stale-tab"),
             ],
             vec![],
         ));
