@@ -288,6 +288,55 @@ fn pack50_module_blank_arg_is_caught_after_expansion() {
     );
 }
 
+/// `step_do` を使う文面が無い教材で、引数の置換の後に `do_levels` の値・`do` が空になる組を `validate` と
+/// `compile` の両方が `E-STRUCTURE` で拒否する（PACK-50）。
+fn expanded_structure_pack(step_fields: &str, arg: &str) -> Tmp {
+    let t = with_chapter(
+        MODULE_WS,
+        "id: c1\ntitle: C\nstarts: [{id: s1, node: u1}]\nsteps:\n  - {id: u1, title: U, body: a.md, use: {module: m, instance: i, args: {x: ARG}}, final: true}\n"
+            .replace("ARG", arg)
+            .as_str(),
+    );
+    t.put(
+        "modules/m/module.yaml",
+        format!("id: m\ntitle: M\nparams: {{x: base}}\nsteps:\n  - {{id: a, title: T, body: a.md, {step_fields}, final: true}}\n")
+            .as_bytes(),
+    );
+    t.put("modules/m/a.md", b"body\n");
+    t
+}
+
+fn assert_structure_both(t: &Tmp, message: &str) {
+    let v = validate_dir(&t.0);
+    let c = compile_dir(&t.0).expect_err("compile rejects");
+    for d in [&v, &c] {
+        assert!(
+            d.iter()
+                .any(|x| x.code() == DiagCode::Structure && x.message() == message),
+            "{d:?}"
+        );
+        assert_no_secret(d);
+    }
+}
+
+#[test]
+fn pack50_blank_level_arg_without_step_do_is_rejected() {
+    let t = expanded_structure_pack("do: act, do_levels: {B: '${x}'}", "''");
+    assert_structure_both(&t, "do_levels values must not be empty");
+}
+
+#[test]
+fn pack50_blank_do_arg_with_levels_is_rejected() {
+    let t = expanded_structure_pack("do: '${x}', do_levels: {B: fine}", "''");
+    assert_structure_both(&t, "do_levels requires do");
+}
+
+#[test]
+fn pack50_nonblank_args_pass_expansion_check() {
+    let t = expanded_structure_pack("do: '${x}', do_levels: {B: '${x}'}", "abc");
+    assert!(compile_dir(&t.0).is_ok());
+}
+
 #[test]
 fn pack50_values_are_not_echoed() {
     for extra in [

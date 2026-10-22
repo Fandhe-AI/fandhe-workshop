@@ -142,6 +142,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     ex.diags.splice(0..0, module_diags);
     let needs_do = crate::slot_check::check_expanded(pack, &ex.nodes, &starts);
     ex.diags.extend(needs_do);
+    ex.diags
+        .extend(crate::guidance::check_do_levels_expanded(pack, &ex.nodes));
     // 引数に依存する左エリアの宛先は、展開の後の Step で検査する（読めない設定は別に `E-PARSE`）。
     let (left_pane, left_parse) =
         crate::left_pane::check_left_pane(&pack.workshop_file, &pack.workshop);
@@ -166,7 +168,9 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::LeftTargetView
                     | DiagCode::LeftTargetRow
                     | DiagCode::RefElement
-            ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED)
+            ) || (d.code() == DiagCode::Structure
+                && (d.message() == ANSWER_LABEL_REQUIRED
+                    || crate::guidance::is_do_levels_expanded_message(d.message())))
                 // 引数で `kind` が `text` に決まる Step の内容の条件（PACK-41、D-43）は展開の後でしか見えない。
                 || (d.code() == DiagCode::Parse && d.message().starts_with("rule (text):"))
                 // 読めない `use`（`guidance` など採らなかった欄を含む。PACK-45、D-55）。捨てると `compile` で止まる教材を通す。

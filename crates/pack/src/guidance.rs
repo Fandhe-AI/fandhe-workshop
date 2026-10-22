@@ -275,6 +275,52 @@ pub(crate) fn check_do_levels(scopes: &[LoadedScope]) -> Vec<Diagnostic> {
     out
 }
 
+/// 展開の後（モジュールの引数の置換の後）の node で、`do_levels` の空の値と `do` の欠落を `E-STRUCTURE` にする
+/// （PACK-50。`step_do` を使う文面の有無に依らない）。`check_do_levels` は置換の前の Step しか見ないため、
+/// 引数が空になって初めて違反する組をここで捕まえる。置換の前から同じ違反がある Step は `check_do_levels` が
+/// 報告するので、ここでは重ねない。診断は Step を定義した章・モジュールの定義ファイルに付け、書かれた値を写さない。
+pub(crate) fn check_do_levels_expanded(
+    pack: &LoadedPack,
+    nodes: &[fandhe_workshop_contract::ir::Node],
+) -> Vec<Diagnostic> {
+    let blank = |st: &Step| st.do_levels.values().any(|v| v.trim().is_empty());
+    let no_do = |st: &Step| st.do_.as_deref().is_none_or(|d| d.trim().is_empty());
+    let mut out = Vec::new();
+    for node in nodes {
+        let st = &node.step;
+        if st.do_levels.is_empty() {
+            continue;
+        }
+        let Some(scope) = pack.scopes.iter().find(|s| s.src.id == node.unit) else {
+            continue;
+        };
+        let orig = scope.src.steps.iter().find(|x| x.id == st.id);
+        let item = format!("step:{}", st.id);
+        if blank(st) && !orig.is_some_and(|o| !o.do_levels.is_empty() && blank(o)) {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::Structure,
+                "do_levels values must not be empty",
+            ));
+        }
+        if no_do(st) && !orig.is_some_and(|o| !o.do_levels.is_empty() && no_do(o)) {
+            out.push(diag(
+                &scope.file,
+                &item,
+                DiagCode::Structure,
+                "do_levels requires do",
+            ));
+        }
+    }
+    out
+}
+
+/// `check_do_levels_expanded` が出す診断の文言か（`validate` が展開の後の診断を選ぶのに使う）。
+pub(crate) fn is_do_levels_expanded_message(m: &str) -> bool {
+    m == "do_levels values must not be empty" || m == "do_levels requires do"
+}
+
 /// 水準ごとの隠す語の列。`workshop.commands` のうち種類が `hide_command_kinds` に含まれるコマンドの
 /// 名前と、`hide_words`。空・空白だけの語は、どの文字列にも含まれて全件を誤検出するため飛ばす。
 fn hidden_words(w: &WorkshopSrc, rule: &GuideRule) -> Vec<String> {
