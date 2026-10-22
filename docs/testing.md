@@ -6759,14 +6759,14 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 | ID | 対象 | 結果 |
 |---|---|---|
 | PACK17-4 | `validate.rs`: 構造の検査が鍵 `A` を検査しない | DETECTED（`body_levels_key_a_is_a_structure_error`） |
-| PACK17-5 | `guidance.rs`: 漏れの検査が定義の段の `do` を見ない | DETECTED（`guidance_leak_in_do_is_reported_but_argument_do_is_not_seen`） |
+| PACK17-5 | `guidance.rs`: 漏れの検査が定義の段の `do` を見ない | DETECTED（`guidance_leak_in_do_is_reported_and_chapter_placeholder_is_literal`。2026-10-22 に試験名を改めた） |
 | PACK17-6 | `guidance.rs`: ヒントの検査が水準 B しか判定しない | DETECTED（`hint_hidden_is_reported_per_level` ほか） |
 
 誤検出の掃除（2026-10-21）: `testdata/module-reuse-rounds/test-data/pack`・`testdata/save-restore-versions/test-data/packs/*`・`testdata/pack-defects/base/format-b-v1_1`・`crates/pack/tests/data/vocab-pack`・`crates/pack/tests/data/fixture-pack` に `validate_dir` を流し、`E-GUIDANCE-LEAK`・`E-HINT-HIDDEN`・鍵 `A` の `E-STRUCTURE` が 0 件であることを確かめた（既存の確認 `answer` の `label` の `E-STRUCTURE` は別件）。
 
 限界:
 
-- 部分文字列の包含による近似で、語の境界は見ない。実体の引数で渡す `do`・ヒントの文面・宣言の無い章の本文は調べない（GUIDE-5。TASK-38・TASK-71）
+- 部分文字列の包含による近似で、語の境界は見ない。ヒントの文面・宣言の無い章の本文は調べない（GUIDE-5。TASK-38・TASK-71）。実体の引数で渡す `do` は 5.219（TASK-71 3/3）で置換後まで調べるようになった（2026-10-22。上の「誤検出の掃除」はそれより前の記録）
 - `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは決めていない（今は `validate` だけ）
 
 ### 5.215 実体ごとの案内レベルの引数（TASK-70 1/2。PACK-45）
@@ -6840,7 +6840,7 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 限界・範囲外:
 
-- 引数の型と範囲外の値の拒否は 5.218（#516。TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）
+- 引数の型と範囲外の値の拒否は 5.218（#516。TASK-71 2/3）、`E-GUIDANCE-LEAK` の範囲は 5.219（#517。TASK-71 3/3）
 - 飛ばした Step が実行時に未着手のまま残り、途中開始の「省略」と区別されること（MOD-17 (b) の実行時の側）は対象外
 - 規約を spec の `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本 PR では docs/spec を変えない）
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
@@ -6876,5 +6876,37 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 - `condition.param` の `eq` の値が宣言した型・範囲に入るかの検査は対象外（`docs/known-gaps.md` の PACK-51）
 - 決めた `param_types` の形を spec の PACK-51・MOD-17 と `04-behavior/pack-authoring.md` へ書き戻すことは spec の持ち分である（本変更では docs/spec を変えない）
-- `E-GUIDANCE-LEAK` の範囲は #517（TASK-71 3/3）、MOD-17 (b) の実行時の側はエンジンの担当
+- `E-GUIDANCE-LEAK` の範囲は 5.219（#517。TASK-71 3/3）、MOD-17 (b) の実行時の側はエンジンの担当
+- `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+
+### 5.219 隠す語の検査の範囲（TASK-71 3/3。PACK-52・GUIDE-5・D-43）
+
+決定 D-43（2026-10-12）と 04 の PACK-52・GUIDE-5 に従い、`E-GUIDANCE-LEAK` の範囲に足すのは (a) モジュールの実体の引数（`${名前}`）で渡す `do`・`do_levels` の置換後の文字列だけである。(b) ヒントの段 2・3 と (c) 開始点の `guidance` も `body_levels` も持たない章の本文は、検査の外に置き、作成者の規約として受け入れる（ヒントの段ごとに隠す語を宣言する欄も足さない）。#517 の受け入れ条件の文面は (a)(b)(c) の検出と読めるが、これは TASK-71 の完了条件にある、決定前の「範囲を広げる案では」の条件つきの文の写しである。完了条件の前半「04 の PACK-52 の文が自動テストで確かめられ、通る」を正とし、(a) の検出と、(b)(c) を報告しないことの観察を固定した。「誤検出 0 件」は (c) 型の本文で確かめる。#515（5.217）・#516（5.218）と同じく、決定で採った側で受け入れ条件を満たす。語彙・診断コード・IR・`ir_format` は変えず、`compile` の結果も変わらない。
+
+検出は展開器（`expand.rs`）に `validate` 専用の任意の検査として足した。既定値の重ね合わせ・入れ子の引数・予算・巡回の停止を二重に持たないためである。置換前に `${` を含む `do`・`do_levels` の Step について、調べる水準（章の開始点の B・C ∪ `body_levels` か `do_levels` を持つ Step の B・C）ごとに、置換の前に語が無く置換の後に語が出る場合だけ 1 件にする。置換の前の字面にすでに語がある水準は、定義の側の検査が報告するので重ねない。同じ内容の診断は 1 件にまとめる。診断は固定の英語で、語・引数の値・本文を写さない。
+
+| 試験 | 内容 |
+|---|---|
+| `crates/pack/tests/guidance_leak_scope.rs` の `pack52_a_argument_do_leak_is_reported` | 引数で渡した skill 名が水準 B で 1 件になり、モジュールの定義ファイルと Step で報告され、`compile` は通ること |
+| 同 `pack52_a_default_param_leak_is_reported` | 引数を渡さず既定値が漏れる場合も 1 件になること |
+| 同 `pack52_a_do_levels_argument_is_checked_at_that_level` | `do_levels` は、その水準で出る文だけが読まれること |
+| 同 `pack52_a_nested_argument_is_substituted` | 入れ子の `use.args` を経由した値の漏れを検出すること |
+| 同 `pack52_a_clean_argument_and_level_a_have_no_leak` | 安全な値・開始点が A か無しの章・規則の無い水準では 0 件であること（負の対照） |
+| 同 `pack52_a_not_double_reported` | 定義の段の字面にすでに語がある `do` と、同じモジュールの 2 実体は 1 件であること |
+| 同 `pack52_a_parameterized_module_name_is_not_suppressed` | 引数つきのモジュール名で呼ばれる Step は定義の段が辿らないため、置換の前の字面に語があっても置換後の診断が 1 件出ること（抑制は定義の段の対象だった Step・水準に限る） |
+| 同 `pack52_b_hint_tiers_are_not_checked` | B・C に出るヒントの文面に skill 名があっても 0 件であること（D-43 の観察） |
+| 同 `pack52_c_undeclared_chapter_body_has_no_false_positive` | 宣言の無い章の本文・`do` は 0 件で、開始点を `guidance: B` にすると検出されること（誤検出 0 件と、対象が宣言に結びつくことの対照） |
+| 同 `pack52_values_are_not_echoed` | 引数・既定値・隠す語が診断に写らないこと |
+| 同 `pack52_rounds_testdata_reports_known_true_leaks` | `module-reuse-rounds` の `validate` が、5 つの Step（`idea-cycle` の `st-2-1`、`issue-to-merge` の `st-4-1`・`st-5-1`・`st-6-1`・`st-7-1`）を水準 B・C の 2 件ずつ報告すること |
+
+testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E-GUIDANCE-LEAK` が 0 件、実装の後は 10 件（上の 5 Step × B・C）になった。原因は R-5 が記録した真の漏れで、`ch-round1` が引数を渡さず、既定値の skill 名（`/new-idea`・`/init-claude` など）が、`body_levels` を宣言したモジュールの Step の水準 B・C に出る。`ch-round2` は skill 名を含まない値を渡しており、元ではない。計画で見込んだ 2 件（`st-6-1`・`st-7-1`）より多かったが、`ch-round1` も `body_levels` を持つ Step を水準 B・C で検査する定義（既存の対象の決め方 (i)）のためで、誤検出ではない。写しは編集できないため、「`validate` が 0 件」を見る `validate_refs.rs` の `correct_testdata_packs_have_no_false_positives` は、この 1 種の診断だけを `common::without_expanded_do_leak` で除き、除外が空振りしていないことを確かめる。
+
+変異注入（実行日 2026-10-22、元にしたコミット 41f2e44 の作業ツリー。`scripts/check-mutations.sh crates/pack/tests/mutations/PACK52-1.mutation` から `PACK52-3.mutation` と `PACK17-5.mutation`）: PACK52-1（`expand.rs`: 置換後の漏れの検査を行わない）、PACK52-2（`validate.rs`: 許可リストから `GuidanceLeak` を外す）、PACK52-3（`guidance.rs`: 置換後の判定が水準ごとの `do` を見ない）、PACK17-5（試験名を改めた後の再実行）が、いずれも DETECTED。
+
+限界・範囲外:
+
+- 部分文字列の包含による近似で、語の境界は見ない。モジュールの本文の Markdown は引数で置換されない（PACK-45・GUIDE-15）ため、(a) の対象は `do`・`do_levels` だけである。展開が `E-LIMIT` で打ち切られた後ろは調べない（`E-LIMIT` が検査の未完了を示す）
+- (b)(c) の規約と、PACK-52・GUIDE-5 の「現状の観察」の文（引数の `do` も報告されない）の更新、`04-behavior/pack-authoring.md` への書き戻しは spec の持ち分である（本変更では docs/spec を変えない）。#517 の受け入れ条件の文面の差し戻しも spec 側の持ち分である
+- `module-reuse-rounds` の写し（と同形の写し）の真の漏れ（`ch-round1` の既定値）は、教材の側（spec repo の PoC データ）で直す
+- `E-GUIDANCE-LEAK`・`E-HINT-HIDDEN` を `compile` の関門にするかは未決のまま
 - `scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない

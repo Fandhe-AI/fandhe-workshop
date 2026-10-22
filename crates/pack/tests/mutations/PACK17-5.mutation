@@ -2,7 +2,7 @@ id: PACK17-5
 package: fandhe-workshop-pack
 test: guidance_levels
 target: crates/pack/src/guidance.rs
-find:             .is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
-replace:             .is_some_and(|_| false);
-expect-fail: guidance_leak_in_do_is_reported_but_argument_do_is_not_seen
+find:             step_do_at(step, level).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+replace:             step_do_at(step, level).is_some_and(|_| false);
+expect-fail: guidance_leak_in_do_is_reported_and_chapter_placeholder_is_literal
 note: 漏れの検査が定義の段の do を見ない

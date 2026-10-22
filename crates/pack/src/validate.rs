@@ -106,6 +106,7 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
                 | DiagCode::LeftTargetView
                 | DiagCode::LeftTargetRow
                 | DiagCode::RefElement
+                | DiagCode::GuidanceLeak
         ) || (d.code() == DiagCode::Structure && d.message() == ANSWER_LABEL_REQUIRED))
             || seen.insert(format!("{d:?}"))
     });
@@ -122,6 +123,8 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
     let (profile, _) = crate::profile::check_profile(&pack.workshop_file, &pack.workshop);
     let mut ex = Expander::new(pack, &profile, Budget::new(MAX_IR_BYTES));
     ex.require_answer_labels();
+    // 置換後の `do`・`do_levels` の隠す語（PACK-52。`validate` だけ）。
+    ex.check_guidance_leak();
     for scope in pack.scopes.iter().filter(|s| s.kind == ScopeKind::Chapter) {
         ex.expand_chapter(scope);
     }
@@ -168,6 +171,7 @@ pub fn check_module_expansion(pack: &LoadedPack) -> Vec<Diagnostic> {
                     | DiagCode::LeftTargetView
                     | DiagCode::LeftTargetRow
                     | DiagCode::RefElement
+                    | DiagCode::GuidanceLeak
             ) || (d.code() == DiagCode::Structure
                 && (d.message() == ANSWER_LABEL_REQUIRED
                     || crate::guidance::is_do_levels_expanded_message(d.message())

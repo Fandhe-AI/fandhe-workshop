@@ -289,6 +289,16 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 回避: `{{step_do}}` は `next_action` に置きます。次の行動は判定の時点で充填した値を保持するため、再読み込みの後も水準の文のままです。`message` には `{{step_title}}` など水準に依らない枠を使います。
 
-注意: `${}` の引数で渡した `do`・`do_levels` は、隠す語の漏れの検査（`E-GUIDANCE-LEAK`）が見ません（PACK-52、TASK-71）。
+注意: `${}` の引数で渡した `do`・`do_levels` は、置換した後の文字列を `E-GUIDANCE-LEAK` が調べます（PACK-52、TASK-71 3/3。`validate` だけ）。
 
 根拠の試験: `crates/pack/tests/do_levels.rs` の `pack50_`。復元の経路そのものの試験は、水準の履歴への記録が決まるまで置きません。
+
+## PACK-52: ヒントの文面と宣言の無い章の本文は漏れの検査の外
+
+限界: `E-GUIDANCE-LEAK` は、ヒントの文面（段 2・3）と、開始点の `guidance` も `body_levels` も持たない章の本文を調べません。調べるのは、`body_levels`・`do_levels` を持つ Step と、開始点の `guidance` が B・C の章の Step（呼ぶモジュールを含む）と、引数を置換した後の `do`・`do_levels` です。部分文字列の包含による近似で、語の境界は見ません。展開が `E-LIMIT` で打ち切られた後ろは調べません。
+
+理由: 決定 D-43（2026-10-12）は、ヒントの段ごとに隠す語を宣言する欄を足さず、宣言の無い章の本文まで広げると水準の定義と衝突する本文を誤検出するため、作成者の規約として受け入れました（GUIDE-5）。
+
+回避: ヒントの文面に隠す語を書く場合は、ヒントの `levels` で B・C に出さないようにします。水準 B・C で使う章は、開始点の `guidance` か `body_levels` を宣言します。
+
+根拠の試験: `crates/pack/tests/guidance_leak_scope.rs` の `pack52_b_`・`pack52_c_`（検出しないことの観察）。記録は `docs/testing.md` の 5.219。

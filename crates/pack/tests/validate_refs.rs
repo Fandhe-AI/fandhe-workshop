@@ -11,7 +11,10 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use common::{assert_no_secret, copy_dir, testdata, without_answer_label_required, Tmp, SECRET};
+use common::{
+    assert_no_secret, copy_dir, testdata, without_answer_label_required, without_expanded_do_leak,
+    Tmp, SECRET,
+};
 
 use fandhe_workshop_pack::source::load;
 use fandhe_workshop_pack::validate::{validate, validate_dir};
@@ -420,6 +423,7 @@ fn correct_testdata_packs_have_no_false_positives() {
     );
     let mut checked = 0;
     let mut excluded = 0;
+    let mut leak_excluded = 0;
     for root in roots {
         // 欠陥パックの差し替えファイルの置き場（`pack-defects/v1*/<形式>/D*`）は、パックの断片であり
         // 完全なパックではない（章が無い・欠陥を意図して含む）。完全な土台（`base/`）は対象に残す。
@@ -437,8 +441,15 @@ fn correct_testdata_packs_have_no_false_positives() {
         // spec の写しと `fill-pack` は `label` の必須化（PACK-37・D-67）の前の形で編集できないため、その診断だけを除く。
         let (d, removed) = without_answer_label_required(validate(&pack));
         excluded += removed;
+        // 案内レベルの章が既定値の skill 名を出す写し（R-5。PACK-52）の診断だけを除く。
+        let (d, removed) = without_expanded_do_leak(d);
+        leak_excluded += removed;
         assert!(d.is_empty(), "{}: {d:?}", root.display());
     }
     assert!(excluded > 0, "除外が空振りしていない");
+    assert!(
+        leak_excluded > 0,
+        "置換後の do の漏れの除外が空振りしていない"
+    );
     assert!(checked >= 3, "too few packs checked: {checked}");
 }

@@ -1,0 +1,8 @@
+id: PACK52-1
+package: fandhe-workshop-pack
+test: guidance_leak_scope
+target: crates/pack/src/expand.rs
+find:                     if has_placeholder_do(step) {
+replace:                     if false && has_placeholder_do(step) {
+expect-fail: pack52_a_argument_do_leak_is_reported
+note: 置換後の do の漏れの検査を行わない

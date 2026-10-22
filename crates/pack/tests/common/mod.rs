@@ -152,3 +152,22 @@ pub fn without_answer_label_required(diags: Vec<Diagnostic>) -> (Vec<Diagnostic>
     let removed = total - rest.len();
     (rest, removed)
 }
+
+/// `validate` の診断から、置換後の `do` の隠す語の漏れ（`E-GUIDANCE-LEAK`。PACK-52・TASK-71 3/3）だけを除く。
+///
+/// spec の写し（`module-reuse-rounds` など）は、引数を渡さない章が既定値の skill 名を `body_levels` を宣言した Step へ
+/// 差し込む形のまま（R-5 が記録した真の漏れ）で、編集できない。「`validate` が 0 件」と見る試験が、この 1 種の診断だけを
+/// 除いて残りを見るために使う。除いた件数も返し、除外が空振りしていないことを呼び出し側が確かめられる。
+pub fn without_expanded_do_leak(diags: Vec<Diagnostic>) -> (Vec<Diagnostic>, usize) {
+    let total = diags.len();
+    let rest: Vec<Diagnostic> = diags
+        .into_iter()
+        .filter(|d| {
+            !(d.code() == DiagCode::GuidanceLeak
+                && d.message()
+                    .ends_with("appears in do after argument substitution"))
+        })
+        .collect();
+    let removed = total - rest.len();
+    (rest, removed)
+}
