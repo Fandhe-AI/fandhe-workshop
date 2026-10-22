@@ -105,6 +105,16 @@ async function exportByUi(page) {
   return bytes;
 }
 
+/** 失敗・配信元以外の要求の診断用の名前。query と fragment は落とし、origin 内は path だけにする。 */
+function reqLabel(u) {
+  try {
+    const x = new URL(typeof u === 'string' ? u : u.url);
+    return x.hostname === '127.0.0.1' ? x.pathname : `${x.origin}${x.pathname}`;
+  } catch {
+    return '(unparsable)';
+  }
+}
+
 /**
  * `url` を新しい browser context で開いて入力列を流し、観察・snapshot・history と計数を返す。
  * `stopAt` を指定すると、その Step に入ったところで止める（対照用）。`keep` が真なら context を閉じず page を返す。
@@ -131,7 +141,7 @@ async function runOnce(label, origin, url, { stopAt = L2_STOP, keep = false } = 
     if (counts.pageErrors !== 0) problems.push('page-error');
     if (counts.csp !== 0 || cspConsoleMessages(rec).length !== 0) problems.push('csp');
     if (counts.consoleErrors !== 0 || rec.consoleWarnings.length !== 0) problems.push('console');
-    if (counts.external !== 0 || counts.failed !== 0) problems.push(`external(${counts.external})/failed(${counts.failed}:${rec.failed.map((f) => f.error).join(',')})`);
+    if (counts.external !== 0 || counts.failed !== 0) problems.push(`external(${counts.external}:${rec.external.map(reqLabel).join(',')})/failed(${counts.failed}:${rec.failed.map((f) => `${reqLabel(f.url)}=${f.error}`).join(',')})`);
     if (counts.dialogs !== 0 || counts.popups !== 0 || counts.crashed !== 0) problems.push('dialog-popup-crash');
     const snapshot = await takeSnapshot(page);
     const history = await exportByUi(page);
