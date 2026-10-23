@@ -7935,13 +7935,13 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   | core・contract の normal 依存の閉包に `web-sys`・`js-sys`・`wasm-bindgen*`・`fandhe-frontend*` が無い（EVT-23） | `scripts/check-crate-deps.sh`（`make check-deps`）。回帰は `make test-check-deps` で、実物の `Cargo.toml` に 4 系統を足すと失敗し、戻すと通ることを確かめる。dev 依存は禁じない |
   | 状態を変える経路は `Session` の操作だけ | `crates/web/tests/no_progress.rs`（TASK-347）。「web は `Session` の操作と `Projection` を呼ぶ」の検査可能な読み方はこれである。web が使う core の経路の allowlist は、タスクのたびに一覧を直す負担が利点より大きいため作らない |
   | DOM の文字列の読み取りが 0 件 | `tools/check-deps.sh`（`make check-dom-reads`）と `state_paths.rs` |
-  | R1: 右の描画が左の状態を読まない | `pane_isolation.rs`。右 8 ファイルの `World`・`Mark`・`.world(` などと左のモジュールへの経路が 0 件（共有の定数 `ACTION_ATTR`・`PAYLOAD_ATTR` だけ可） |
+  | R1: 右の描画が左の状態を読まない | `pane_isolation.rs`。右 8 ファイルの `World`・`Mark`・`.world(`・`selected_view`・`view_choice` などと左のモジュールへの経路が 0 件（共有の定数 `ACTION_ATTR`・`PAYLOAD_ATTR` だけ可） |
   | R2: 左が右に出した文字列を読まない | 同上。左 13 ファイルの `line_from_event`・`judged_text`・右のモジュールへの経路が 0 件 |
   | R3: 両側を組む `engine_parts.rs` | 同上。`LogPart` と右の補助関数に R1、`ArtifactPart`・`ReviewPart` と左の補助関数に R2 を impl・関数の単位で適用する。切り出せなければ失敗する |
-  | R4: `host.rs` が左の状態を書く形 | 同上。書き込みの形と件数を固定し、新しい形が増えると失敗する |
+  | R4: `host.rs` が左の状態を書く形 | 同上。書き込みの形と件数を固定し、複合代入（`+=` など）と `&mut` の借用は許可した 1 件を除いて 0 件とし、新しい形が増えると失敗する |
 
 - DOM の読み取りの例外は 1 件で、`glue.rs` の `sync_draft` の `field.value()` である。上流の束縛が textarea の現在値を同期しないため、下書きと比べて違うときだけ書き戻す。読んだ値は状態に入れない。件数は `tools/check-deps.sh`（`EXC_N=1`）と `state_paths.rs` が固定している。規則の範囲外として、入力イベントの欄（`KeyboardEvent::key`・`InputEvent::data`・`selection_start` など）と保存先の `Storage::get_item` は表示の文字列ではないため禁止の一覧に入れない。
-- 実行結果（2026-10-23。元のコミット 88260ef）: `cargo test -p fandhe-workshop-web --test pane_isolation` は 14 件通過。`scripts/check-mutations.sh` で `EVT1-1`〜`EVT1-4` がすべて DETECTED（右が `model.world()` を読む・左が `judged_text` を読む・右が `ViewKind` を取り込む・`host.rs` に書き込みの形を足す）。`make test-check-deps` は 19 件通過。
+- 実行結果（2026-10-23。元のコミット 88260ef）: `cargo test -p fandhe-workshop-web --test pane_isolation` は 15 件通過（2026-10-23 の指摘対応で 14 件から増やした）。`scripts/check-mutations.sh` で `EVT1-1`〜`EVT1-4` がすべて DETECTED（右が `model.world()` を読む・左が `judged_text` を読む・右が `ViewKind` を取り込む・`host.rs` に書き込みの形を足す）。`make test-check-deps` は 19 件通過。
 - 限界:
   - 識別子の境界で照合し、マクロ・文字列の中は見分けない。モジュール名は `crate::`・`super::` の経路の形だけを数え、同名の変数は数えない。
   - `hello.rs` は入力欄を持つ右の部品のため右に入れた。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・`doc_view`・`shell*` は両側の共有または枠のため対象外にした。

@@ -57,6 +57,10 @@ const LEFT_STATE_TOKENS: &[&str] = &[
     ".marks(",
     "F_ARTIFACT",
     "ViewKind",
+    "ViewChoice",
+    "view_choice",
+    "selected_view",
+    "effective_view",
     "replay_changes",
 ];
 
@@ -108,6 +112,11 @@ const ALLOWED_LEFT_STATE_WRITES: &[(&str, usize)] = &[
     ("model.world.", 0),
     ("model.projection.", 1),
 ];
+
+/// 左の状態の欄。複合代入・可変借用でも書けるため、許可した形以外の書き方を 0 件で固定する（R4）。
+const LEFT_STATE_FIELDS: &[&str] = &["world", "world_consumed", "projection"];
+/// 複合代入の演算子（空白を除いた形。`==` を避けるため `=` を含む形で並べる）。
+const COMPOUND_OPS: &[&str] = &["+=", "-=", "*=", "/=", "%=", "|=", "&=", "^=", "<<=", ">>="];
 
 fn tight(s: &str) -> String {
     s.chars().filter(|c| !c.is_whitespace()).collect()
@@ -275,13 +284,40 @@ fn host_write_violations(files: &[(String, String)]) -> Vec<String> {
         return vec![format!("{HOST}: ファイルが無い")];
     };
     let code = tight(&spaced(src));
-    ALLOWED_LEFT_STATE_WRITES
+    let mut v: Vec<String> = ALLOWED_LEFT_STATE_WRITES
         .iter()
         .filter_map(|(pat, want)| {
             let got = count(&code, pat);
             (got != *want).then(|| format!("{HOST}: {pat} が {got} 箇所（{want} 箇所のはず）"))
         })
-        .collect()
+        .collect();
+    // 複合代入と、`replay_changes` 以外への可変借用（`mem::swap`・`take` などの経路）は 1 件も許さない。
+    for f in LEFT_STATE_FIELDS {
+        let compound = COMPOUND_OPS.iter().map(|op| format!("model.{f}{op}"));
+        let borrow = [format!("&mutself.model.{f}")];
+        for pat in compound.chain(borrow) {
+            // 許可した 1 件（`replay_changes(&mut self.model.world, ..)`）だけは別に数えている。
+            let allowed = usize::from(pat == "&mutself.model.world");
+            let got = count_borrow_or_op(&code, &pat);
+            if got != allowed {
+                v.push(format!(
+                    "{HOST}: {pat} が {got} 箇所（{allowed} 箇所のはず。複合代入・可変借用）"
+                ));
+            }
+        }
+    }
+    v
+}
+
+/// `pat` が識別子の途中でなく欄の名前の完全一致として現れる件数。`model.world` は `model.world_consumed` を数えない。
+fn count_borrow_or_op(code: &str, pat: &str) -> usize {
+    code.match_indices(pat)
+        .filter(|(i, _)| {
+            let after = code[i + pat.len()..].chars().next();
+            // 借用の形は名前の直後が識別子の文字なら別の欄（`world` と `world_consumed`）。
+            !(pat.starts_with('&') && after.is_some_and(|c| c.is_alphanumeric() || c == '_'))
+        })
+        .count()
 }
 
 fn with(mut v: Vec<(String, String)>, name: &str, src: &str) -> Vec<(String, String)> {
@@ -486,6 +522,13 @@ fn 負例_host_で左の状態を書く新しい形を足すと検出する() {
         "fn z() { self.model.world_consumed = 0; }",
         "fn z() { self.model.projection = Projection::new(); }",
         "fn z() { self.model.world.clear(); }",
+        "fn z() { self.model.world_consumed += 1; }",
+        "fn z() { self.model.world_consumed -= 1; }",
+        "fn z() { self.model.world_consumed *= 2; }",
+        "fn z() { self.model.world_consumed <<= 1; }",
+        "fn z() { std::mem::swap(&mut self.model.world_consumed, &mut n); }",
+        "fn z() { let p = &mut self.model.projection; }",
+        "fn z() { let w = &mut self.model.world; }",
     ] {
         let host = format!("{GOOD_HOST}\n{extra}");
         assert!(
@@ -495,6 +538,24 @@ fn 負例_host_で左の状態を書く新しい形を足すと検出する() {
     }
     // 書き込みが 0 件でも失敗する。
     assert!(!violations(&with(base(), HOST, "fn x() {}")).is_empty());
+}
+
+#[test]
+fn 負例_右が左の表示の選択を読むと各形を検出する() {
+    // ViewKind の経路を書かずに、取り込み済みの左のヘルパーを呼ぶ形。
+    for extra in [
+        "fn y(m: &HostModel) { let _ = m.selected_view(); }",
+        "fn y(m: &HostModel) { let _ = view_select::effective_view(None, None); }",
+        "fn y(m: &HostModel) { let _ = &m.view_choice; }",
+        "fn y(c: ViewChoice) {}",
+    ] {
+        assert!(
+            !violations(&with(base(), "run_status.rs", extra)).is_empty(),
+            "{extra} を検出できない（右）"
+        );
+    }
+    let a = GOOD_ENGINE.replace("let line =", "let v = model.selected_view(); let line =");
+    assert!(!violations(&with(base(), ENGINE_PARTS, &a)).is_empty());
 }
 
 #[test]
