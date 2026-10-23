@@ -5243,6 +5243,21 @@ PoC-1 の追試の 214 件は上流のリポジトリの値で、数える対象
 この文書に件数の表を二重に持たない。2026-10-14 の 42 件の表は古くなったため、2026-10-20 に参照へ置き換えた。
 更新は `make update-test-counts`（遅い）で、版を上げる前に別の PR で行う。
 
+#### 6.3.1 期待値の更新の方針（2026-10-23。#1764）
+
+試験を足す・減らす PR が期待値を書き換えると、並行する PR の分と合計の行がずれて衝突する（#593 / PR #1751 の事例）。
+照合は版上げ PR か期待値を変えた PR に限られる（`scripts/check-frontend-bump.sh` の冒頭）ため、更新の担い手を次に絞る。
+
+| 決めたこと | 内容 |
+|---|---|
+| 試験を足す・減らす PR | 期待値ファイルを変えない（既定）。件数の照合はその PR では skip され、実際の件数は log に出る（6.6 の判定表の「いいえ／いいえ」）。5.x の記録には「期待値は更新していない」と書く |
+| 期待値を変える PR | 期待値ファイルだけを変える専用の PR に限る。機能・試験の変更と混ぜない |
+| いつ | (a) 版上げの前（6.6.2「事前の PR」の 1）。(b) 期待値の追従を目的に立てた Issue があるとき |
+| 誰が | (a) は版上げの Issue の担当。(b) はその Issue の担当 |
+| 作り方 | 最新の `origin/main` から作ったブランチで `make update-test-counts` を流す。行を手で足し引きしない（先頭の注釈の元のコミットと実測が対応しなくなるため） |
+| main が進んだとき | マージ前に main へ試験が入り CI の `counts` が「test counts differ」で失敗したら、main を取り込んで `make update-test-counts` を流し直す |
+| 版上げ PR | 期待値を変えない（`guard` が拒む。6.6） |
+
 ### 6.4 node:test の件数
 
 `tools/browser/*.test.mjs`（`make test-browser`）の件数は、同じ `scripts/expected-test-counts.txt` の `browser|total|...` の行に固定する。
@@ -5318,7 +5333,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 ##### 事前の PR（版上げ PR より前に、別の PR で main に入れる）
 
-1. **(2) の期待値**: `scripts/expected-test-counts.txt` の先頭の注釈（更新日・元のコミット）が古い場合は、`make update-test-counts` で更新する。遅く、ブラウザ試験も流れる（`npm ci` と `npx playwright install chromium` が前提）。期待値だけを変える PR にする。この PR では CI が件数を照合する（6.6 の判定表の「いいえ／はい」）
+1. **(2) の期待値**: `scripts/expected-test-counts.txt` の先頭の注釈（更新日・元のコミット）が古い場合は、`make update-test-counts` で更新する。遅く、ブラウザ試験も流れる（`npm ci` と `npx playwright install chromium` が前提）。期待値だけを変える PR にする（方針は 6.3.1）。この PR では CI が件数を照合する（6.6 の判定表の「いいえ／はい」）
 2. **(3) の基点**: 新しい版が新しい `wasm-bindgen` か Rust toolchain を要求する場合は、先に上げる（`docs/toolchain.md` の第 5 節。`web-sys`・`js-sys` の版も揃える。`ci.yml` の CLI の版と SHA256、`rust-toolchain.toml` も同じ PR で上げ、`make check-toolchain` を通す）。揃えないと `wasm-gzip` が終了コード 2 で止まる
 3. **守るファイル**: `tools/check-deps.sh`・`tools/build-web.sh`・`scripts/check-frontend-bump.sh`・期待値ファイルを変える必要があれば、別の PR で先に入れる（`guard` が版上げ PR での変更を拒む）
 

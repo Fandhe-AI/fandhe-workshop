@@ -603,7 +603,7 @@ mod tests {
 
     #[test]
     fn levels_table_reads_and_rejects() {
-        let ok = json!({"B": {"hide_command_kinds": ["skill", "flow"], "hide_words": ["語 1"]}, "A": {}});
+        let ok = json!({"B": {"hide_command_kinds": ["builtin", "flow"], "hide_words": ["語 1"]}, "A": {}});
         let m = read_guidance_levels(Some(&ok)).expect("ok");
         assert_eq!(m[&GuidanceLevel::B].hide_command_kinds.len(), 2);
         assert!(read_guidance_levels(None).expect("none").is_empty());
