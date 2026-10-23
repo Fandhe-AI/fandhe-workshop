@@ -8262,3 +8262,25 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 5.180 の「配信する設定は実行時に教材を読み込まない」は、5.283 の B 以後、配信する設定の写しに `ir/main.json` を置けば読み込める。D1〜T4 を配信する設定へ広げるのは TASK-152 か別の範囲である。
   - `pack-body-xss.test.mjs`・`ir-recv-limit.test.mjs` に `withDeliveryCopy` 相当の重複が残る（本件では触れない）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.287 validate の出力・終了コード・読み込み失敗時の打ち切り（TASK-403。AUTHOR-2・AUTHOR-3）
+
+`fandhe-pack validate <pack-dir>` を `source::load` の成否で分岐させて結線した。契約は `docs/cli.md` 版 8 の 8 節。試験は `crates/pack/tests/validate_command.rs` の 8 件（`author2_` 4 件・`author3_` 4 件。Unix では `author3_symlink_is_unreadable` を含む）と、`tests/cli.rs` の `i16_validate_is_dispatched_to_validate`、`cli.rs` の単体試験 `c1_validate_missing_dir_is_unreadable` である。
+
+- 診断の行は `validate::validate` の結果と完全に一致し、最終行は `cli_contract::final_line` と完全に一致する。診断 0 件で 0、1 件以上で 1、標準エラー出力は空
+- 読み込みに失敗する 6 形（構文の誤り・未知の欄・型の違い・必須欄の欠け・深さの上限・シンボリックリンク）と存在しないパスは、`NG: 診断 N 件（読み込めません）` で終わり、検査は流れない。構文の誤りと参照の欠陥を同時に持つパックの負の対照では、`E-REF-`・`E-UNREACHABLE`・`E-DEAD-END`・`E-STRUCTURE` が出ず、構文の誤りだけを直した写しでは `E-REF-STEP` が出る
+- 実測で分かったこと: `E-FORMAT-VERSION` は `source::load` が先に出す（`probe_format_version`）ため、CLI では `読み込めません` 側になる。計画の想定（読み込めた側）は誤りだったので、試験と文書を実測に合わせた（`author3_format_version_mismatch_is_unreadable`）
+- 「診断の末尾の案内」は出力に行を足さず、`docs/cli.md` の 8 節と `docs/pack-authoring.md` に書いた（出力は「診断の行の後に最終行がちょうど 1 行」の契約のまま）
+- `scripts/expected-test-counts.txt` は本変更では更新しない（5.229 の前例）
+- 既知の不足: `AUTHOR1-3.mutation` は main の時点で `find` が一致せず実行できない（`Subcommand::Compile` の引数の形が `--chapters` を含む形に変わったため）。本変更の範囲外
+
+変異注入（実行日: 2026-10-23、元にしたコミット: 2c43e49 に本変更を載せた作業ツリー、コマンド: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR3-*.mutation crates/pack/tests/mutations/AUTHOR2-*.mutation crates/pack/tests/mutations/AUTHOR1-{1,2,4,5,6}.mutation`）。
+
+| ID | 対象 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| AUTHOR3-1 | crates/pack/src/cli.rs: 読み込みの失敗の分岐が別の経路の診断も書く | author3_unreadable_causes_end_with_unreadable_line | DETECTED |
+| AUTHOR3-2 | crates/pack/src/cli.rs: 診断があっても終了コードが 0 になる | author2_defective_pack_prints_diagnostics_then_ng_line_and_exits_1 | DETECTED |
+| AUTHOR2-1〜2-4 | 既存 | 既存 | すべて DETECTED |
+| AUTHOR1-1・1-2・1-4・1-5・1-6 | 既存 | 既存 | すべて DETECTED（1-4・1-6 は形の誤りが読み込みの前に報告されること） |
+
+集計: 11 件すべて DETECTED（2026-10-23）。

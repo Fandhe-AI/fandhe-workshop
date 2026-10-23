@@ -1,0 +1,8 @@
+id: AUTHOR3-1
+package: fandhe-workshop-pack
+test: validate_command
+target: crates/pack/src/cli.rs
+find: Err(diags) => {
+replace: Err(diags) => { let all = validate::validate_dir(dir); write_diagnostics(out, &all)?;
+expect-fail: author3_unreadable_causes_end_with_unreadable_line
+note: 読み込みの失敗の分岐が、読み込みの診断の後に別の経路の診断も書いてしまい、件数が最終行と合わなくなる

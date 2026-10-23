@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 7
-決定日: 2026-10-22
+CLI の外部仕様の版: 8
+決定日: 2026-10-23
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9・AUTHOR-17）
-- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 7」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 8」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -118,7 +118,9 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 
 - 「バイト目」は 1 始まりの序数である（先頭のバイトの不一致は 1 バイト目）。内部の 0 始まりのバイト位置に 1 を足して書く
 - 形式のラベルは、形式 A が `A(TOML)`、形式 B が `B(YAML)` である。章・モジュールは数、Step の定義はモジュールを含む全スコープの Step の定義の数である。数とラベルはコードが作り、教材データの文字列は写さない
-- `validate` の最終行の結線と、読み込み失敗での打ち切りは TASK-403 が行う。形の組み立ては `cli_contract::final_line` が持つ
+- `validate` の最終行の結線と、読み込み失敗での打ち切りは版 8（TASK-403）で `cli::run_validate` に結線した。形の組み立ては `cli_contract::final_line` が持つ
+- `validate` の最終行の材料は `source::load` の成否で決める。失敗なら参照などの検査を流さず、読み込みの診断だけを出して `NG: 診断 N 件（読み込めません）` で終わる。成功なら検査の診断を全件出し、要約つきの `OK:`・`NG:` で終わる。`E-REF-BODY`・`E-REF-FIXTURE` は読み込みの層が出すので `読み込めません` 側になり、`E-FORMAT-VERSION` も読み込みの層（`source::load`）が先に出すので `読み込めません` 側になる
+- 読み込みの失敗（`E-PARSE`・`E-LIMIT-*`）を直すと、次の実行で参照などの新しい診断が出ることがある。この案内は出力に行を足さず、文書（`docs/pack-authoring.md`）に置く。出力は診断の行の後に最終行がちょうど 1 行で、標準エラー出力は空である
 - `compile` は最終行を出さない。成功のときは IR だけを、診断があるときは診断の行だけを標準出力に出す（IR は出さない）。終了コードで区別する
 - 終了コードは 5 節のとおり（`OK:` は 0、`NG:` は 1）
 
@@ -211,7 +213,7 @@ m1,s4,step,EP-3
 ## 13. 本版で扱わない事項
 
 - `use` の Step を指す開始点の EP-9 の数え上げ（`use` 行は拡張点を持たない契約のため数えない）
-- `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403）
+- `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403。版 8 で実装した）
 - `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
 - 引数の数の検査と振り分け（TASK-401）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
@@ -272,6 +274,14 @@ m1,s4,step,EP-3
 | `author9_compile_failure_prints_diagnostics_only` | `compile` に診断があるときは 1・表を出さない |
 | `author9_hostile_ids_are_escaped` | ID の `,`・`"`・改行・先頭の `#` を直し、各行が 4 欄に保たれる |
 | `author9_module_scope_rows` | 呼ばれないモジュールの Step も数え、`use` 行は（i）（ii）に入らない |
+| `author2_ok_pack_prints_ok_line_and_exits_0` | 診断 0 件で `OK:` の 1 行だけ・終了コード 0（`validate_command.rs`） |
+| `author2_defective_pack_prints_diagnostics_then_ng_line_and_exits_1` | 診断の行の後に要約つきの `NG:`・件数一致・終了コード 1・標準エラー出力は空 |
+| `author2_diagnostic_lines_match_library` | 診断の行が `validate::validate` の結果と完全に一致する |
+| `author3_unreadable_causes_end_with_unreadable_line` | 構文・未知の欄・型・必須欄・上限超過・存在しないパスで `読み込めません` |
+| `author3_load_failure_suppresses_checks` | 読み込めないとき参照などの診断が出ない（直した写しでは出る負の対照） |
+| `author3_format_version_mismatch_is_unreadable` | `E-FORMAT-VERSION` は読み込みの層が出し `読み込めません` で終わる |
+| `author2_missing_dir_does_not_leak_path` | 存在しないパスの文字列を標準出力に写さない |
+| `i16_validate_is_dispatched_to_validate` | `validate` が未実装の案内ではなく本体に届く（`cli.rs`） |
 
 ## 15. 変更履歴
 
@@ -284,3 +294,4 @@ m1,s4,step,EP-3
 | 5 | 2026-10-19 | `vocab` の出力（表・集計行・教材パック全体の行・エスケープ・診断時に表を出さない）を 12 節に固定し、以降の節を繰り下げる（TASK-408、AUTHOR-9） |
 | 6 | 2026-10-20 | `vocab` が EP-9 を数える（`requires` または `unmet` を持つ開始点が指す Step の行。`label` は数えない）。`use` の Step を指す開始点は数えないことを 13 節に足す（TASK-409、AUTHOR-17、D-64） |
 | 7 | 2026-10-22 | `compile` に章の範囲の指定 `--chapters <id>[,<id>...]` を足す（絞った IR・選択の誤りの終了コード 2・全章の指定で同じバイト列。10 節）（TASK-67、PACK-43、D-67） |
+| 8 | 2026-10-23 | `validate` を結線する（診断の行・最終行・終了コード 0／1・読み込み失敗で検査を流さず `読み込めません` で終える。8 節の注を足す）（TASK-403、AUTHOR-2・AUTHOR-3） |

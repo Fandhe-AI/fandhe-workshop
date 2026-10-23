@@ -8,34 +8,25 @@ fn bin() -> Command {
 
 #[test]
 fn i1_subcommands_start() {
-    for name in ["validate", "test"] {
-        let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
-        assert_eq!(o.status.code(), Some(2), "{name}");
-        assert!(o.stdout.is_empty(), "{name}");
-        let err = String::from_utf8_lossy(&o.stderr);
-        assert!(err.contains("not implemented"), "{name}: {err}");
-    }
+    let o = bin().args(["test", "/nonexistent/path"]).output().unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    assert!(o.stdout.is_empty());
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("not implemented"), "{err}");
 }
 
 /// 形が正しい呼び出しは、そのコマンドの handler に届く（未実装の行が自分の名前だけを名指しする）。
+/// `validate` は実装済みなので未実装の案内を出さない（`i16`）。残る未実装は `test` だけである。
 #[test]
 fn i10_each_command_is_dispatched_to_its_handler() {
-    let names = ["validate", "test"];
-    for name in names {
-        let o = bin().args([name, "/nonexistent/path"]).output().unwrap();
-        assert_eq!(o.status.code(), Some(2), "{name}");
-        let err = String::from_utf8_lossy(&o.stderr);
-        assert!(
-            err.contains(&format!("fandhe-pack {name} is not implemented yet")),
-            "{name}: {err}"
-        );
-        for other in names.iter().filter(|n| **n != name) {
-            assert!(
-                !err.contains(&format!("fandhe-pack {other} is not")),
-                "{name}: {err}"
-            );
-        }
-    }
+    let o = bin().args(["test", "/nonexistent/path"]).output().unwrap();
+    assert_eq!(o.status.code(), Some(2));
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(
+        err.contains("fandhe-pack test is not implemented yet"),
+        "{err}"
+    );
+    assert!(!err.contains("fandhe-pack validate is not"), "{err}");
 }
 
 /// `vocab` は自分の handler に届く（標準出力の 1 行目が `VOCAB_HEADER`）。他のコマンドの振り分けとは取り違えない。
@@ -208,7 +199,7 @@ fn pack2_cli_exit_code_for_both_and_neither() {
 }
 
 /// PACK-5: 10 進でない整数を書いたパックは終了コード 1 で `E-PARSE` を出し、IR を出さない。
-/// `validate` は TASK-403 まで未実装なので、同じ読み込みを通る `compile` で確かめる。
+/// `validate` も同じ読み込みを通る（`validate_command.rs`）。ここでは `compile` で確かめる。
 #[test]
 fn pack5_cli_radix_literal_is_diagnostic_and_emits_no_ir() {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"))
@@ -380,4 +371,19 @@ fn i15_compile_non_md_body_over_limit_is_e_limit() {
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(out.contains(" E-LIMIT: "), "{out}");
     assert!(!out.contains("\"ir_format\""), "{out}");
+}
+
+/// `validate` は実装済みで、未実装の案内ではなく診断の行と最終行を標準出力に書く（TASK-403）。
+#[test]
+fn i16_validate_is_dispatched_to_validate() {
+    let o = bin()
+        .args(["validate", "/nonexistent/path"])
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1));
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.contains("E-PARSE"), "{out}");
+    assert_eq!(out.lines().last(), Some("NG: 診断 1 件（読み込めません）"));
+    assert!(o.stderr.is_empty());
+    assert!(!out.contains("not implemented"));
 }
