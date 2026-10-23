@@ -81,3 +81,9 @@ test('cli: log-redraw without --dir exits 2 with empty stdout', () => {
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
 });
+
+test('cli: input-paint without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'input-paint']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
