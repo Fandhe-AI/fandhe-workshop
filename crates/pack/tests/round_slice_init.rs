@@ -11,8 +11,15 @@
 //! (1) 遷移先の `on_enter` の効果を適用しない（`idea-cycle@round2` の結果の文書が世界状態に無い）ので、
 //! `st-2-5` の手前から `st-2-6` へ飛ぶ。(2) `wait` の Step で処理中が始まらないので、`st-7-2` から `st-7-4` へ飛ぶ。
 //! 2 周目の終了は、最後の Step の達成と呼び出し元の達成で判定する（`ChapterCompleted` は未実装）。
+//!
+//! TASK-237 2/2 として、世界状態と切り身のハッシュの一致を確かめる（`mod5_*`。定義は `scenarios.md` の A 節）。
+//! 1 周目は `pt-r1` の入力列で流す（`play_round1`）。未実装の部品のため、次の 3 か所は `GoTo` で飛ばす。
+//! (a) `st-2-5` の着地の `on_enter`（結果の文書を書く）、(b) `when` つき `next` の評価（`st-4-1`・`st-5-1` へ入る）、
+//! (c) `wait` の Step での処理中の開始（`st-7-2`）。記録は `docs/testing.md` の 5.260。
 
 mod common;
+#[path = "common/sha256.rs"]
+mod sha256;
 
 use common::testdata;
 use fandhe_workshop_contract::ir::Ir;
@@ -211,9 +218,21 @@ fn current(s: &Session) -> String {
     s.state().run.current.clone().expect("current").0
 }
 
+/// 2 周目の開始（`Control::Begin`）だけを行い、出たイベントを返す（TASK-237 1/2）。
+fn begin_round2(s: &mut Session) -> Vec<Event> {
+    s.apply(Op::Control(Control::Begin("s-r2".into()))).to_vec()
+}
+
 /// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `Control::Begin`（TASK-237 1/2）。
 /// 入力列は `pt-rounds` の `s-r2` の区間。飛ばす 2 か所の理由は冒頭の `//!` に書いた。
 fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
+    let mut events = begin_round2(s);
+    events.extend(play_round2(s, ir, r2));
+    events
+}
+
+/// 2 周目の開始の後の入力列。
+fn play_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
     let mut events = Vec::new();
     let ev = &mut events;
     let cmd = |c: &str| Input::Command(c.into());
@@ -226,7 +245,6 @@ fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
         decision: d,
         target: t.map(Into::into),
     };
-    ev.extend_from_slice(s.apply(Op::Control(Control::Begin("s-r2".into()))));
     input(s, ev, cmd("/new-idea bbs-search"));
     input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
     input(
@@ -420,4 +438,188 @@ fn begin_with_unmet_condition_is_refused_without_change() {
         "{events:?}"
     );
     assert_eq!(s.state().run, before);
+}
+
+/// 1 周目を `pt-r1` の入力列で最後まで流す（世界状態を持つ。`finished_round1` は状態を手で組むので世界状態が空）。
+/// 飛ばす 3 か所 (a)(b)(c) の理由は冒頭の `//!` に書いた。
+fn play_round1(ir: &Ir) -> Session {
+    let (r1, _) = round_roots(ir, "s-r1");
+    let mut session = Session::new(ir.clone());
+    let mut events = Vec::new();
+    let ev = &mut events;
+    let cmd = |c: &str| Input::Command(c.into());
+    let ui = |v: &str, p: &str| Input::Ui {
+        view: v.into(),
+        path: p.into(),
+    };
+    let ch = |c: &str| Input::Choice(c.into());
+    let ap = |d: Decision, t: Option<&str>| Input::Approval {
+        decision: d,
+        target: t.map(Into::into),
+    };
+    let s = &mut session;
+    ev.extend_from_slice(s.apply(Op::Control(Control::Begin("s-r1".into()))));
+    input(s, ev, cmd("/new-idea bbs-with-login"));
+    input(s, ev, ui("v-files", "ideas/bbs-with-login/README.md"));
+    input(
+        s,
+        ev,
+        Input::Text(
+            "ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい".into(),
+        ),
+    );
+    for _ in 0..3 {
+        tick(s, ev);
+    }
+    input(s, ev, ch("ans-login-first"));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-doc", "ideas/bbs-with-login/README.md#status"));
+    input(s, ev, ch("cand-session"));
+    // (a) 着地の `on_enter` が未実装で結果の文書が無いので、`go` と verdict の操作を飛ばす。
+    go(s, ev, ir, &r1, "st-2-6");
+    input(s, ev, ap(Decision::Revise, Some("expect")));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-tasks", "TASK-1"));
+    input(s, ev, ch("ans-login-1"));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-doc", "ideas/bbs-with-login/README.md#status"));
+    input(s, ev, ch("diff-only"));
+    input(s, ev, ui("v-files", "impl/docs/behavior-bbs-with-login.md"));
+    // (b) `when` つき `next` が評価されず `setup=true` の枝に入らないので、`st-4-1` へ飛んで 2 つの受付を送る。
+    go(s, ev, ir, &r1, "st-4-1");
+    input(s, ev, cmd("/init-claude"));
+    input(s, ev, cmd("/setup-repo-guards"));
+    input(s, ev, cmd("/create-issue-tree behavior-bbs-with-login.md"));
+    input(s, ev, ui("v-issue-tree", "issues/child-1"));
+    input(s, ev, cmd("/implement-issue-tree 42 --external-checks []"));
+    input(s, ev, ch("ans-none-explicit"));
+    // (c) `wait` の Step で処理中が始まらないので、tick 2 回を送らず次の Step へ飛ぶ。
+    go(s, ev, ir, &r1, "st-7-3");
+    input(s, ev, ui("v-pr-cards", "prs/pr-1-a"));
+    input(s, ev, cmd("/implement-issue-tree 42"));
+    input(s, ev, ch("ans-add-arg"));
+    input(s, ev, ui("v-pr-cards", "prs/pr-1-a#merge"));
+    input(s, ev, ui("v-issue-tree", "issues/child-1"));
+    // 2 周目の開始条件（`r1-impl` が達成）を満たす終了の状態であること。
+    assert_eq!(current(s), "main/r1-impl", "{events:?}");
+    for c in ["main/r1-idea", "main/r1-impl"] {
+        assert_eq!(s.step_status(&StepUid(c.into())), StepStatus::Achieved);
+    }
+    session
+}
+
+/// `World` の正準 JSON の SHA-256（16 進）。`World`・`Element.attrs` は `BTreeMap` で順が決まる。
+fn world_hash(s: &Session) -> String {
+    let json = serde_json::to_string(&s.state().run.world).expect("world json");
+    sha256::hex(&sha256::sha256(json.as_bytes()))
+}
+
+/// 根の切り身の正準 JSON の SHA-256（16 進）。`Slice` の欄は `BTreeMap`/`BTreeSet` で、`clarifying` は `None` なら出ない。
+fn slice_hash(s: &Session, root: &Root) -> String {
+    let slice = s.slice(root).expect("slice");
+    let json = serde_json::to_string(slice).expect("slice json");
+    sha256::hex(&sha256::sha256(json.as_bytes()))
+}
+
+/// 記録用の行。値は `docs/testing.md` の 5.260 に転記する（表明はしない）。
+fn record(point: &str, hash: &str) {
+    println!("STATE-HASH point={point} sha256={hash}");
+}
+
+#[test]
+fn mod5_sha256_known_answers() {
+    let h = |d: &[u8]| sha256::hex(&sha256::sha256(d));
+    assert_eq!(
+        h(b""),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(
+        h(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+    assert_eq!(
+        h(b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"),
+        "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"
+    );
+}
+
+#[test]
+fn mod5_world_hash_is_unchanged_by_begin_after_round1() {
+    let ir = ir();
+    let mut s = play_round1(&ir);
+    let world_end = s.state().run.world.clone();
+    let h_end = world_hash(&s);
+    assert!(!world_end.is_empty(), "round 1 left no world state");
+    let events = begin_round2(&mut s);
+    let h_start = world_hash(&s);
+    record("r1-end-world", &h_end);
+    record("r2-begin-world", &h_start);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::Begun { .. }))
+            .count(),
+        1,
+        "{events:?}"
+    );
+    assert!(
+        !events.iter().any(|e| matches!(e, Event::Changed { .. })),
+        "Begin changed the world: {events:?}"
+    );
+    assert_eq!(s.state().run.world, world_end);
+    assert_eq!(h_end, h_start);
+}
+
+/// 新しいセッションの `s-r2-fresh` の直後の世界状態は、1 周目の終了時の世界状態と等しくない。差は次の 2 経路だけで、
+/// どちらも fresh にだけある。(1) `ideas/bbs-with-login/03-poc/login-session/result.md` は `st-2-5` の着地の
+/// `on_enter` が書く（未実装のため `play_round1` が飛ばす）。(2) `prs/pr-1-a` は `st-7-2` の `on_enter` と `wait` の
+/// 進行が書く（未実装）。後続の部品が入ると差が縮み、この試験が落ちる。そのときは等式（`H_fresh == H_end_r1`）の
+/// 試験へ書き換える（`docs/testing.md` の 5.260）。
+#[test]
+fn mod5_fresh_start_world_differs_from_round1_end_only_by_unreachable_paths() {
+    let ir = ir();
+    let end = play_round1(&ir);
+    let mut fresh = Session::new(ir.clone());
+    fresh.apply(Op::Control(Control::Begin("s-r2-fresh".into())));
+    let (h_end, h_fresh) = (world_hash(&end), world_hash(&fresh));
+    record("r2-fresh-world", &h_fresh);
+    let (me, mf) = (&end.state().run.world, &fresh.state().run.world);
+    for (k, v) in me {
+        assert_eq!(
+            mf.get(k),
+            Some(v),
+            "path {k} differs or is missing in fresh"
+        );
+    }
+    let only_fresh: Vec<&str> = mf
+        .keys()
+        .filter(|k| !me.contains_key(*k))
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        only_fresh,
+        vec![
+            "ideas/bbs-with-login/03-poc/login-session/result.md",
+            "prs/pr-1-a"
+        ]
+    );
+    assert_ne!(h_end, h_fresh);
+}
+
+#[test]
+fn mod5_round1_slice_hashes_match_between_round1_end_and_round2_end() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, _) = round_roots(&ir, "s-r2");
+    assert_eq!(r1.len(), 2);
+    let mut s = play_round1(&ir);
+    let at_end: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    finish_round2(&mut s, &ir, &r2);
+    assert_eq!(current(&s), "main/r2-impl");
+    let at_r2: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    for ((r, a), b) in r1.iter().zip(&at_end).zip(&at_r2) {
+        record(&format!("r1-slice-{}-at-r1-end", r.0), a);
+        record(&format!("r1-slice-{}-at-r2-end", r.0), b);
+    }
+    assert_eq!(at_end, at_r2);
 }

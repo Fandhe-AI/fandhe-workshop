@@ -7636,5 +7636,35 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: 前の周回を終えた状態から、`Control::Begin` で新しい開始点の次の周回を始められることを固定する。
 - 決定: `crates/core/src/begin.rs` を足した。開始条件（`start_gate::check_start`）は状態に触れる前に評価し、満たさない・ID が無いときは `Refused` 1 件で状態を変えない。成功時は世代 +1、`Begun`、開始点の `effects`（原因 `Start`）、開始の節点への着地の順に進む。
 - 試験: `crates/core/tests/begin.rs`（`min-3step` で世代・`Begun` と `Entered` の順・不明な ID の不変・処理中と入口の写しの解除・下書きとヒントの引き継ぎ・3 つの入口の一致）、`crates/pack/tests/round_slice_init.rs`（`GoTo` を `Begin("s-r2")` に置き換えた既存 3 試験、`s-r2-fresh` の 13 経路が原因 `Start` で書かれること、開始条件を満たさない `s-r2` の拒否で状態が不変なこと）。
-- 限界: 飛ばした Step の `Skipped`（TASK-217）、`start.guidance` による案内の水準（TASK-294）、`${名前}` の置換（TASK-239）、入口の写しの作り直し（TASK-242、本件は `go_to` と同じく `None`）は扱わない。3 つの世界状態のハッシュの一致は TASK-237 2/2、拒否の完全な保証は TASK-240。変異注入は足していない。
+- 限界: 飛ばした Step の `Skipped`（TASK-217）、`start.guidance` による案内の水準（TASK-294）、`${名前}` の置換（TASK-239）、入口の写しの作り直し（TASK-242、本件は `go_to` と同じく `None`）は扱わない。3 つの世界状態のハッシュの一致は TASK-237 2/2（5.260）、拒否の完全な保証は TASK-240。変異注入は 5.260 で足した。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.260 世界状態と切り身のハッシュの一致（TASK-237 2/2。MOD-5）
+
+- 目的: `Control::Begin` による次の周回の開始が、世界状態と 1 周目の切り身を変えないことを、ハッシュで固定する。
+- 決定: エンジンのコードは変えず、試験と記録だけを足した。ハッシュの定義は `testdata/module-reuse-rounds/test-data/scenarios.md` の A 節（SHA-256。入力は `serde_json::to_string` の正準 JSON の UTF-8）に従う。SHA-256 は試験専用の小さな実装（`crates/pack/tests/common/sha256.rs`。依存は足さない）で、既知解（空文字列・`abc`・FIPS 180-4 の 2 ブロックの例）を `printf ... | sha256sum` と照合した。`testdata/` は spec repo の写しなので CSV は置かず、値は本節の表に記録する。
+- 試験: `crates/pack/tests/round_slice_init.rs`（`mod5_*` の 4 件）。1 周目は `play_round1` が `pt-r1` の入力列で流す。
+  - `mod5_sha256_known_answers`: 既知解 3 件。
+  - `mod5_world_hash_is_unchanged_by_begin_after_round1`: `Begin("s-r2")` の前後（H_end_r1・H_start_r2）で世界状態のハッシュと `==` が一致し、`Begun` が 1 件、`Changed` が 0 件。
+  - `mod5_fresh_start_world_differs_from_round1_end_only_by_unreachable_paths`: 新しいセッションの `Begin("s-r2-fresh")` の直後（H_fresh）は H_end_r1 と一致しない。1 周目の終了時の全経路は fresh に要素まで一致して含まれ、fresh にだけある経路がちょうど 2 件であることを表明する（下記）。
+  - `mod5_round1_slice_hashes_match_between_round1_end_and_round2_end`: 1 周目の根 2 件の切り身のハッシュが、1 周目の終了時と 2 周目の終了時で一致する。
+- 記録（測定日 2026-10-23・元にしたコミット 8080634。`cargo test --locked -p fandhe-workshop-pack --test round_slice_init -- --nocapture` の `STATE-HASH` 行。仕様の真値ではなく実測値）:
+
+| point | description | sha256 |
+|---|---|---|
+| r1-end-world | 1 周目の終了時の世界状態（H_end_r1） | `4ffc7541768aa5077273cd6b3e722879ef2e345b817c764892d0195ee845d70c` |
+| r2-begin-world | `Begin("s-r2")` の直後の世界状態（H_start_r2） | `4ffc7541768aa5077273cd6b3e722879ef2e345b817c764892d0195ee845d70c` |
+| r2-fresh-world | 新しいセッションの `Begin("s-r2-fresh")` の直後（H_fresh） | `291b8d8926c085b838ee69b67f922df2f9eba1e6c5d454b789a26e626c1b7f95` |
+| r1-slice-idea-cycle@round1-at-r1-end | `idea-cycle@round1` の切り身（1 周目の終了時） | `e7af71dc9062a668ca3e32181923e0415f8b00f2a68e502cd586b9041f98cc43` |
+| r1-slice-idea-cycle@round1-at-r2-end | 同（2 周目の終了時） | `e7af71dc9062a668ca3e32181923e0415f8b00f2a68e502cd586b9041f98cc43` |
+| r1-slice-issue-to-merge@round1-at-r1-end | `issue-to-merge@round1` の切り身（1 周目の終了時） | `c39fd66ad7e650ec12f00201ca1c8af8fce52eb840c0404cca95ca81853c4275` |
+| r1-slice-issue-to-merge@round1-at-r2-end | 同（2 周目の終了時） | `c39fd66ad7e650ec12f00201ca1c8af8fce52eb840c0404cca95ca81853c4275` |
+
+- H_fresh の差（未達）: 受け入れ条件の H_fresh == H_end_r1 は、本件では満たせない。差は fresh にだけある次の 2 経路で、いずれもエンジンの後続の部品が未実装のため 1 周目の流しが書けない。試験はこの差がちょうど 2 経路であることを固定し、部品が入って差が縮むと落ちる。そのときは等式の試験へ書き換える。
+  - `ideas/bbs-with-login/03-poc/login-session/result.md`: `st-2-5` の着地の `on_enter` が書く（未実装。`play_round1` が `GoTo` で飛ばす）。
+  - `prs/pr-1-a`: `st-7-2` の `on_enter` と `wait` の進行が書く（未実装）。
+- 1 周目の `GoTo` による回避 3 か所: (a) `st-2-4` の後に `st-2-6` へ（着地の `on_enter` が未実装）、(b) `st-3-2` の後の `st-4-1` へ（`when` つき `next` が評価されない。続けて `/init-claude`・`/setup-repo-guards` を送る）、(c) `ans-none-explicit` の後に `st-7-3` へ（`wait` の Step で処理中が始まらない）。
+- 変異注入: `MOD5-1`（`Begin` が世界状態を消す）・`MOD5-2`（`Begin` が切り身を消す）。2026-10-23 に `scripts/check-mutations.sh crates/pack/tests/mutations/MOD5-1.mutation crates/pack/tests/mutations/MOD5-2.mutation` はどちらも DETECTED（`MOD5-2` は既存の周回の試験 4 件も失敗）。
+- 限界: `ChapterCompleted` が未実装のため、1 周目の終了は最後の入力の直後で判定する。`st-7-4` の受付で `Warning` が出るが、表明しない。
+- 範囲外: 着地の `on_enter`・`wait` の処理中の開始・`when` つき `next` の評価（H_fresh の等式化に必要）、途中開始と `${名前}` の置換（TASK-239）、閉じた根の引き継ぎ（TASK-238）、拒否の完全な保証（TASK-240）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
