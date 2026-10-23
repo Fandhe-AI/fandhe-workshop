@@ -3,15 +3,16 @@
 // 役割: 世界状態の値に HTML・スクリプト・javascript: のリンク・属性の閉じ忘れの形を入れた行（escape の行）を、部品に直接渡して
 // 表示させ、値が文字として出て、危険な要素・属性と実行が 0 件であることを数える検査器（artifact-view-check.mjs の
 // runEscapeCase）の枠が、CSP あり・なしの両方で動くことと、差を検出できること（負の対照）を示す。
-// 代表の組み合わせはカードの (a)・(b) の前後（4 通り）。24 通りすべての合格と記録は TASK-482 2/2 の担当。
+// 文書を除く 6 ビュー x 2 変種 x 前後の 24 通りすべてを、CSP あり・なしで流す（TASK-482 2/2）。
 // 教材パック・IR からの注入は TASK-145 の担当で、ここでは扱わない。
 //
-// - E1: 代表の組み合わせが、CSP あり・なしの両方で違反 0・計数 0（期待の件数は escape の行から独立に数えた値）
-// - E2: 行を escape に切り替えなければ、検査器が口の空振りを違反として検出する
+// - E1: 12 組が、CSP あり・なしの両方で違反 0・計数 0（期待の項目数・値の件数は escape の行から独立に数えた固定の値）
+// - E2: 行を escape に切り替えなければ、6 ビューのそれぞれで検査器が口の空振りを違反として検出する。
+//   app_demo の value を書き換えると補足の照合が検出する
 // - N1: 同じ形の文字列は、不活性の文書で innerHTML に入れると危険な要素として 3 件数えられ、textContent なら 0
 // - N2: 表示した文字を innerHTML に入れ直すと検査器が検出する。CSP なしでは実行が、CSP ありでは CSP 違反が数えられる
 // - N3: 計数器の自己確認（alert・外部への fetch が数えられる）
-// 呼び出し元は make test-browser（scripts/test-browser.sh）。docs/testing.md の 5.288。1 件ごとに新しい context を使う。
+// 呼び出し元は make test-browser（scripts/test-browser.sh）。docs/testing.md の 5.289。1 件ごとに新しい context を使う。
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
 // 通信・実行の副作用は N2・N3 の意図した形だけで、外部の宛先は example.invalid だけを使う。
 import { test, before, after } from 'node:test';
@@ -20,7 +21,7 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, collectSafety, nonZero, cspConsoleMessages,
 } from './harness.mjs';
-import { DANGER_SELECTOR, ESCAPE_HIT, installEscapeTrap, runEscapeCase } from './artifact-view-check.mjs';
+import { DANGER_SELECTOR, ESCAPE_CASES, ESCAPE_HIT, installEscapeTrap, runEscapeCase } from './artifact-view-check.mjs';
 
 const BASE = '/fandhe-view-escape/';
 const ROOT = '#view-fixture-root';
@@ -91,16 +92,30 @@ async function waitFor(cond, ms = 4000) {
   return cond();
 }
 
-// --- E1: 代表の組み合わせ（CSP あり・なし x カードの (a)・(b)）---
+// --- E1: 文字として出ることを確かめる 12 組 x CSP あり・なし（前後で 24 通り x 2）---
+
+// 文字として見つかるべき値の件数（前・後・前）。escape の行（escape-rows.json）を目で数えた固定の表で、検査器の関数では計算しない。
+// 前は e1・e2・e3、後は e4 が加わる（e3 の後は null で前の中身のまま）。
+// ラベル・補足の 2 欄: 前 3 行 x 2 = 6、後 4 行 x 2 = 8。カードはタグも数え、前は e1 のタグ 1 を足した 7、後は 9。
+// 差分は補足が行番号に変換されるためラベルだけ（3・4）。app_demo は field の e4 だけが補足を出す（3・5）。
+const LITERAL_COUNTS = {
+  file_tree: [6, 8, 6],
+  task_tree: [6, 8, 6],
+  check_list: [6, 8, 6],
+  card_list: [7, 9, 7],
+  diff: [3, 4, 3],
+  app_demo: [3, 5, 3],
+};
 
 for (const csp of [true, false]) {
-  for (const variant of ['a', 'b']) {
-    test(`E1: CSP ${csp ? 'あり' : 'なし'} の card_list (${variant}) で escape の行が文字として出て、違反も計数も 0`, async () => {
+  for (const { kind, variant } of ESCAPE_CASES) {
+    test(`E1: CSP ${csp ? 'あり' : 'なし'} の ${kind} (${variant}) で escape の行が文字として出て、違反も計数も 0`, async () => {
       await withEscapePage(csp, async (page, rec) => {
-        const { violations, stats } = await runEscapeCase(page, fixtureAdapter(page), { kind: 'card_list', variant, rootSelector: ROOT });
+        const { violations, stats } = await runEscapeCase(page, fixtureAdapter(page), { kind, variant, rootSelector: ROOT });
         const detail = JSON.stringify({ violations, stats });
         assert.deepEqual(violations, [], detail);
         assert.deepEqual(stats.itemCounts, [3, 4, 3], detail);
+        assert.deepEqual(stats.literalCounts, LITERAL_COUNTS[kind], detail);
         assert.deepEqual(nonZero(await collectSafety(page, rec)), [], detail);
         assert.deepEqual(cspConsoleMessages(rec), []);
         assert.deepEqual(rec.hits, []);
@@ -110,13 +125,31 @@ for (const csp of [true, false]) {
   }
 }
 
-test('E2 対: 行を escape に切り替えなければ、検査器が空振りを違反として検出する', async () => {
+for (const { kind } of ESCAPE_CASES.filter((c) => c.variant === 'b')) {
+  test(`E2 対: 行を escape に切り替えなければ、${kind} で検査器が空振りを違反として検出する`, async () => {
+    await withEscapePage(true, async (page) => {
+      const { violations } = await runEscapeCase(page, fixtureAdapter(page), {
+        kind, variant: 'b', rootSelector: ROOT, skipData: true,
+      });
+      const detail = JSON.stringify(violations);
+      assert.ok(violations.some((m) => m.includes('item count or keys differ from the escape rows')), detail);
+      assert.ok(violations.some((m) => m.includes('a value is not shown as literal text')), detail);
+    });
+  });
+}
+
+// app_demo の (b) の field は補足を input の value に出す。value を書き換えると、補足の照合が value の経路で効いていることが分かる。
+test('E2 対: app_demo (b) の field の value を書き換えると、補足の照合が検出する', async () => {
   await withEscapePage(true, async (page) => {
     const { violations } = await runEscapeCase(page, fixtureAdapter(page), {
-      kind: 'card_list', variant: 'b', rootSelector: ROOT, skipData: true,
+      kind: 'app_demo', variant: 'b', rootSelector: ROOT,
+      mutateAfter: (p) => p.evaluate(() => {
+        const input = document.querySelector('#view-fixture-root [data-key="ke4"] input');
+        if (!input) throw new Error('input of e4 not found');
+        input.value = 'x';
+      }),
     });
     const detail = JSON.stringify(violations);
-    assert.ok(violations.some((m) => m.includes('item count or keys differ from the escape rows')), detail);
     assert.ok(violations.some((m) => m.includes('a value is not shown as literal text')), detail);
   });
 });
