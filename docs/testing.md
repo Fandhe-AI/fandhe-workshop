@@ -6759,7 +6759,7 @@ TASK-65 2/2（#509）の扱い: 任意のままにして教材側ですべての
 
 限界・未実施:
 
-- `Node.body_levels_doc` からの実行時の木の選択は TASK-292（#589）、開始点の水準と周回の切り替えは TASK-294 が持つ
+- `Node.body_levels_doc` からの実行時の木の選択は `crates/core/src/body_level.rs`（5.247）、開始点の水準と周回の切り替えは TASK-294 が持つ
 - ヒントの `levels` 以外の欄の形は検査しない
 
 ### 5.214 案内レベルの 3 つの診断（TASK-49 2/2。PACK-17）
@@ -7467,3 +7467,18 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-22。Linux・Chromium）: 上の native 試験とブラウザ試験 19 件が通った。`modifier-key-hint`・`element-identity`・`csp-runs` は変更なしで通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 - 確かめないこと: 実機の Edge・Safari・Firefox での確認。UA を Playwright で差し替えた代理である。
 - 限界・範囲外: `docs/known-gaps.md` の SHELL-30。IR の拒否の画面では通知欄を描かないため案内も出ない（TASK-545・TASK-546）。
+
+### 5.247 案内レベル別の本文の選択（TASK-292。GUIDE-1）
+
+- 目的: 現在の案内レベルに合う本文の木を選び、その水準の版が無ければ濃い側（C → B → A、B → A）へ倒れることを固定する。
+- 設計: core の `body_level::select_body`・`body_doc_at` が `Node::body_doc`・`body_levels_doc` を契約の `GuidanceLevel::fallback_chain` の順に探す純関数。見つかった版の水準を `SelectedBody::level` で返し、倒れたかを区別できる。`body_levels_doc` の鍵 `A` と `A`・`B`・`C` 以外の鍵は読まず、木を持たない版 1 の Node は `None`（パス文字列は実行時に解釈しない）。`CONTRACT_VERSION` は上げない。
+- 試験: `crates/core/tests/body_level_select.rs`（水準 3 × 版の有無 4 の 12 通りの表、`tests/data/body_level_1/ir.json` の目印の語による水準の定義への適合〔A は skill 名を含む、B は作業場所を含み skill 名を含まない、C はどちらも含まない〕と倒れた先、鍵 `A`・未知の鍵・木なし・版 1 の fail-closed、任意の鍵の組での全域性）。`crates/pack/tests/body_level_runtime.rs`（コンパイルした IR の各 Node × 各水準で、静的検査の `body_for` と実行時の `select_body` が同じ版を選ぶこと）。
+- 変異（2026-10-23。元にしたコミット a8c2215。`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE1-1.mutation crates/core/tests/mutations/GUIDE1-2.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE1-1 | `body_level.rs`: 倒れを外す（自分の水準だけを探す） | DETECTED（`twelve_combinations_pick_the_expected_body_and_fall_toward_the_dense_side`） |
+| GUIDE1-2 | `body_level.rs`: A の本文を `body_levels_doc` の鍵 `A` から受ける | DETECTED（`fail_closed_on_odd_irs`） |
+
+- 確かめないこと: 水準 B・C の本文が教育上適切か（教材側の INTRO-40・ROUND2-7）。
+- 限界・範囲外: 画面への結線は SHELL-7 のタスク。compile が成功する教材では水準の木は欠けない（本文ファイルが無ければ `E-REF-BODY`、埋め込みの予算超えは `E-LIMIT`）ため、欠けの倒れは手で作った IR で確かめた。版 1 の IR は本文を出さない。ヒントの出し分けは TASK-293、開始点の水準と切り替えは TASK-294。

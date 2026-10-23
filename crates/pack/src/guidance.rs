@@ -7,7 +7,7 @@
 //! （教材データは信頼しない入力のため、失敗は安全側へ倒す）。
 //!
 //! 探す順は契約 `GuidanceLevel::fallback_chain` をそのまま使い、規則を二重に持たない。ヒントの出し分けは
-//! 契約の `visible_hints` が持つ。実行時の本文の木の選択は core（TASK-292）の持ち分である。
+//! 契約の `visible_hints` が持つ。実行時の本文の木の選択は core の `body_level::select_body`（TASK-292）が持ち、同じ版を選ぶことは `tests/body_level_runtime.rs` で確かめる。
 //! 診断の文面は固定の英語で、書かれた値・`hide_words`・本文は写さない。
 
 use std::collections::{BTreeMap, BTreeSet};

@@ -1,0 +1,218 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "body-level-pack",
+    "title": "本文の水準",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A",
+    "vocab": "1.5"
+  },
+  "refs": [],
+  "commands": {},
+  "views": {},
+  "fixtures": {},
+  "hints": {},
+  "rejections": {},
+  "clarifications": {},
+  "defaults": {},
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/full",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "full",
+        "title": "full",
+        "body": "a.md",
+        "body_levels": {
+          "B": "a.b.md",
+          "C": "a.c.md"
+        },
+        "next": [
+          {
+            "to": "main/no-b"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "/sample-skill を実行し、作業場所: 実装リポジトリ で確認します。"
+              }
+            ]
+          }
+        ]
+      },
+      "body_levels_doc": {
+        "B": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "作業場所: 実装リポジトリ で確認します。"
+                }
+              ]
+            }
+          ]
+        },
+        "C": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "結果を確認します。"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "uid": "main/no-b",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "no-b",
+        "title": "no-b",
+        "body": "a.md",
+        "body_levels": {
+          "C": "a.c.md"
+        },
+        "next": [
+          {
+            "to": "main/no-c"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "/sample-skill を実行し、作業場所: 実装リポジトリ で確認します。"
+              }
+            ]
+          }
+        ]
+      },
+      "body_levels_doc": {
+        "C": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "結果を確認します。"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "uid": "main/no-c",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "no-c",
+        "title": "no-c",
+        "body": "a.md",
+        "body_levels": {
+          "B": "a.b.md"
+        },
+        "next": [
+          {
+            "to": "main/only-a"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "/sample-skill を実行し、作業場所: 実装リポジトリ で確認します。"
+              }
+            ]
+          }
+        ]
+      },
+      "body_levels_doc": {
+        "B": {
+          "version": 1,
+          "blocks": [
+            {
+              "t": "paragraph",
+              "children": [
+                {
+                  "t": "text",
+                  "text": "作業場所: 実装リポジトリ で確認します。"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "uid": "main/only-a",
+      "scope": "main",
+      "unit": "c1",
+      "step": {
+        "id": "only-a",
+        "title": "only-a",
+        "body": "a.md",
+        "final": true
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "/sample-skill を実行し、作業場所: 実装リポジトリ で確認します。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/full",
+      "effects": []
+    }
+  ]
+}
