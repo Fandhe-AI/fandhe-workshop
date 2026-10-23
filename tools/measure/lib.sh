@@ -25,6 +25,69 @@ measure_commit_json() {
   fi
 }
 
+# _measure_sha256 <file>: ファイルの SHA-256（16 進 64 桁）を返す。sha256sum（GNU）か shasum（macOS）のどちらか有る方を使い、
+# どちらも無い・64 桁でなければ失敗する。
+_measure_sha256() {
+  local out
+  if command -v sha256sum >/dev/null 2>&1; then
+    out="$(sha256sum -- "$1")" || return 1
+  elif command -v shasum >/dev/null 2>&1; then
+    out="$(shasum -a 256 -- "$1")" || return 1
+  else
+    return 1
+  fi
+  out="${out%% *}"
+  case "${out}" in
+    *[!0-9a-f]* | "") return 1 ;;
+  esac
+  [ "${#out}" -eq 64 ] || return 1
+  printf '%s\n' "${out}"
+}
+
+# measure_pack_json <ir-file>: 測った教材の基点 {"id","version","nodes","sha256"} を返す。log-redraw の基点の「教材」。
+# id・version は IR の pack 欄、nodes は IR の nodes の数（Step の数）。読めない・欠けていれば失敗する。
+measure_pack_json() {
+  local file="$1" sha
+  [ -r "${file}" ] || return 1
+  sha="$(_measure_sha256 "${file}")" || return 1
+  jq -e --arg sha "${sha}" '
+    def nes: type == "string" and length > 0;
+    select((.pack.id | nes) and (.pack.version | nes) and (.nodes | type == "array"))
+    | {id: .pack.id, version: .pack.version, nodes: (.nodes | length), sha256: $sha}
+  ' "${file}"
+}
+
+# measure_device_json: 測った端末の基点を返す。OS・アーキテクチャ・CPU の型番・論理コアの数・メモリの量だけを入れる
+# （public の repo に残るため、ホスト名・ユーザー名・パスは入れない）。Linux と macOS で動かし、bash 3.2 と BSD の道具で書く。
+# apple_silicon_macos は基準端末 A（Apple シリコンの macOS）の目印。取れない欄があれば失敗する（fail-closed）。
+measure_device_json() {
+  local os release arch cpu cores mem apple=false
+  os="$(uname -s)" || return 1
+  release="$(uname -r)" || return 1
+  arch="$(uname -m)" || return 1
+  case "${os}" in
+    Linux)
+      cpu="$(sed -n 's/^model name[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo | head -n 1)"
+      cores="$(getconf _NPROCESSORS_ONLN)" || return 1
+      mem="$(awk '/^MemTotal:/ { print $2 * 1024 }' /proc/meminfo)"
+      ;;
+    Darwin)
+      cpu="$(sysctl -n machdep.cpu.brand_string)" || return 1
+      cores="$(sysctl -n hw.ncpu)" || return 1
+      mem="$(sysctl -n hw.memsize)" || return 1
+      if [ "${arch}" = "arm64" ]; then apple=true; fi
+      ;;
+    *) return 1 ;;
+  esac
+  case "${cores}${mem}" in
+    *[!0-9]* | "") return 1 ;;
+  esac
+  [ -n "${cpu}" ] || return 1
+  jq -n --arg os "${os}" --arg release "${release}" --arg arch "${arch}" --arg cpu "${cpu}" \
+    --argjson cores "${cores}" --argjson mem "${mem}" --argjson apple "${apple}" \
+    '{os: $os, os_release: $release, arch: $arch, cpu: $cpu, logical_cores: $cores, memory_bytes: $mem, apple_silicon_macos: $apple}'
+}
+
 # jq の述語。様式 v1 の 1 件の検査（valid_v1）を、単体（measure_validate）と束（measure_validate_run）で共有する。
 MEASURE_JQ_VALID_V1='
   def nes: type == "string" and length > 0;
@@ -180,11 +243,21 @@ measure_assert_commit_unchanged() {
 
 # measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# <kind> は first-paint / redraw。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
+# <kind> は first-paint / redraw / log-redraw。log-redraw は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# 結果の baseline へ足す。log-redraw でこれが欠ける・pack か device が無いときは失敗にする。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
 measure_browser_result() {
-  local kind="$1" commit_json="$2" tmp="$3" rc=0 features
+  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" rc=0 features
+  if [ -z "${extra}" ]; then extra='{}'; fi
+  if [ "${kind}" = "log-redraw" ] && ! jq -e '
+    (.pack.id | type == "string" and length > 0) and (.pack.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.device.os | type == "string" and length > 0) and (.device.cpu | type == "string" and length > 0)
+    and (.device.logical_cores | type == "number") and (.device.memory_bytes | type == "number")
+    and (.device.apple_silicon_macos | type == "boolean")' <<<"${extra}" >/dev/null 2>&1; then
+    echo "error: log-redraw needs the pack and device baseline" >&2
+    return 1
+  fi
   measure_build "${tmp}" || rc=$?
   if [ "${rc}" -ne 0 ]; then return "${rc}"; fi
   features="$(measure_features_json "${MEASURE_CONFIG}")" || return 1
@@ -218,6 +291,7 @@ measure_browser_result() {
     --argjson features "${features}" \
     --arg rustc "$(rustc -V 2>/dev/null || true)" \
     --arg wbg "$(wasm-bindgen --version 2>/dev/null || true)" \
+    --argjson extra "${extra}" \
     --slurpfile b "${tmp}/browser.json" \
     '$b[0] as $b | {
       schema: "fandhe-workshop/measure/v1",
@@ -227,7 +301,7 @@ measure_browser_result() {
         wasm_opt: {applied: $applied, detail: $detail},
         features: {config: $config, cargo_features: $features, profile: "release"},
         compression: $b.compression
-      },
+      } + $extra,
       toolchain: {rustc: $rustc, wasm_bindgen: $wbg, browser: $b.browser, playwright: $b.playwright},
       conditions: $b.conditions,
       measurements: [$b.measurements[] | {name: .name, file: "index.html", unit: .unit, value: .value}]

@@ -27,6 +27,7 @@ make measure | jq .
 | WASM の大きさ | `make measure-wasm-size`（`tools/measure/wasm-size.sh`） | 配信する設定（`TEST_HOOKS=1` で試験の設定も測れる） |
 | 初回表示 | `tools/measure/first-paint.sh` | 配信する設定 |
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
+| 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
   進行状況とビルドログは標準エラーへ出す
@@ -45,6 +46,13 @@ make measure | jq .
 | `wasm-opt` の有無 | `baseline.wasm_opt` | `applied`（真偽）と `detail`（版、または未適用の理由） |
 | 機能の範囲 | `baseline.features` | `config`（`delivery` / `test`）・`cargo_features`・`profile`（`release`） |
 | 圧縮の設定 | `baseline.compression` | `command` と `implementation`（下表） |
+
+次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw` の結果では必須で、欠けたら結果を出さない。
+
+| 項目 | JSON のパス | 内容 |
+|---|---|---|
+| 教材 | `baseline.pack` | `id`・`version`・`nodes`（Step の数）・`sha256`（IR ファイルの SHA-256） |
+| 端末 | `baseline.device` | `os`・`os_release`・`arch`・`cpu`・`logical_cores`・`memory_bytes`・`apple_silicon_macos`（基準端末 A の目印）。ホスト名・ユーザー名・パスは入れない |
 
 | 測定 | `compression.command` | `compression.implementation` |
 |---|---|---|
@@ -72,6 +80,7 @@ make measure | jq .
 | 初回表示 | `first_contentful_paint_median` | `us` | First Contentful Paint の中央値 |
 | 初回表示 | `first_paint_wasm_transfer` | `bytes` | `.wasm` の転送量（`encodedBodySize`） |
 | 再描画 | `redraw_median`・`redraw_p95`・`redraw_max` | `us` | `Runtime::rerender` による root 配下の再構築 1 回あたりの時間 |
+| 再描画 1 回（ログ 100〜119 項目） | `log_redraw_median`・`log_redraw_p95`・`log_redraw_max` | `us` | 隠し要素の click 1 回の同期的な処理（イベントの委譲・状態の更新・DOM への反映）の時間 |
 
 検証は `measure_validate`（`tools/measure/lib.sh`）が行い、`schema` の一致・基点の各項目の存在と型・`measurements` の値を確かめる。
 
@@ -90,6 +99,14 @@ make measure | jq .
   - 各サンプルで、旧 root が DOM から外れ、新しい root が `Hello` を持つことを確かめる。何もしない再描画を「速い」と誤読しないため。戻り値が `false`（未マウントなど）なら失敗にする
   - 中央値は中央 2 値の平均、95 パーセンタイルは nearest-rank（`s[ceil(0.95n)-1]`）。PoC の `measure-poc1.mjs` と同じ定義である
   - 値は整数のマイクロ秒に丸める。0 に丸まる値は失敗にする（1 へ繰り上げない）
+
+- 再描画 1 回（ログ 100〜119 項目。出典: `docs/spec/03-poc/engine-event-consistency/env.md`、EVT-24）
+  - 既定の最小教材（`min-3step`）の試験の設定を、回線・CPU の制限なしで配信する。操作は見えない `raw-trigger` に拒否される入力（`/make-note Bad_Name`）を載せた click で、1 回でログが 2 件増える
+  - 1 試行は新しい context で、時間を測らずにログを 100 件にしてから、10 操作を 1 つずつ測る（ログは 100〜118 の間）。20 試行で計 200 値
+  - 測るのは `el.click()` の直前と直後の `performance.now()` の差だけ（ページ内で完結）。レイアウトと描画は含まない。サンプルの間に 20ms 待つ
+  - 各操作の直後に、操作前のログが窓（100〜119）の中、操作後が前より 2 件多い、ログの `li` が click から戻った時点で 2 件増えている、`[data-list-error]` が無いことを確かめる。外れたら失敗にする
+  - 統計と丸めは再描画と同じ。16ms（`conditions.threshold_p95_us`）を超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
+  - 値は最小教材のもので、教材全体を代表しない（`conditions.scope_note`）
 
 ## 5. 一括実行の束（`schema`: `fandhe-workshop/measure-run/v1`）
 
@@ -113,6 +130,7 @@ make measure | jq .
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
+- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw` の値は最小教材の値で、教材全体を代表しない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
@@ -124,4 +142,5 @@ make measure | jq .
 - 大きさと初回表示は配信する設定を 2 回ビルドする（cargo のキャッシュが効くため差は数秒）。1 回のビルドの使い回しは後続の改善とする
 - CPU 4 倍の減速・制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
+- `log-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
 - 操作の入る画面での操作可能まで（TTI）と、入力から描画までの時間は、後続の画面のタスクで扱う

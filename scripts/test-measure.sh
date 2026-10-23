@@ -147,7 +147,25 @@ else
   cat "${RUN}.err" >&2
 fi
 
-# --- (e) 統計関数と引数の試験 ---
+# --- (e) log-redraw（ログ 100〜119 項目の再描画。TASK-223 1/2。束には入れない単体の測定） ---
+check "log-redraw.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/log-redraw.sh" --unknown
+# 基点（教材・端末）が欠けた入力は拒否する（fail-closed）。ブラウザの測定の前に止まるため、標準出力は空になる。
+check_fails "log-redraw: missing pack/device baseline is refused" measure_browser_result log-redraw "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "log-redraw: missing device baseline is refused" measure_browser_result log-redraw "$(measure_commit_json)" "${TMP}" '{"pack":{"id":"x","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}'
+LOGR="${TMP}/log-redraw.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/log-redraw.sh" >"${LOGR}" 2>"${LOGR}.err"; then
+  check "log-redraw: passes the v1 validation" measure_validate "${LOGR}"
+  check "log-redraw: pack baseline is min-3step with a sha256" jq -e '.baseline.pack.id == "min-3step" and (.baseline.pack.sha256 | test("^[0-9a-f]{64}$"))' "${LOGR}"
+  check "log-redraw: device baseline has typed fields" jq -e '.baseline.device | (.os | type == "string") and (.cpu | type == "string") and (.logical_cores | type == "number") and (.memory_bytes | type == "number") and (.apple_silicon_macos | type == "boolean")' "${LOGR}"
+  check "log-redraw: three log_redraw measurements" jq -e '[.measurements[].name] == ["log_redraw_median", "log_redraw_p95", "log_redraw_max"]' "${LOGR}"
+  check "log-redraw: conditions record the window and the scope" jq -e '.conditions.log_window == [100, 119] and .conditions.trials * .conditions.samples_per_trial == 200 and (.conditions.scope_note | contains("not representative"))' "${LOGR}"
+  check "log-redraw: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${LOGR}"
+else
+  fail "log-redraw: log-redraw.sh failed (see ${LOGR}.err)"
+  cat "${LOGR}.err" >&2
+fi
+
+# --- (f) 統計関数と引数の試験 ---
 check "node:test for browser.mjs passes" node --test "${ROOT_DIR}/tools/measure/browser.test.mjs"
 
 if [ "${FAILURES}" -ne 0 ]; then
