@@ -160,9 +160,23 @@ export async function runShellJourney(page, { width, scene, L, hooks = {} }) {
     lastStep = uid;
   };
 
+  // フック（再読み込み・復帰）はログに行を足し、左のマークを消す。次の Step の変化の検査が古い基準で通らないよう、フックの後に基準を取り直す。
+  // ログ件数は全ての状態で取り直す。左の指紋と状態の成果物は、effects が効く前の entered の時点だけ取り直す。
+  const rebaseline = async (uid, status) => {
+    if (!prev || prev.uid !== uid) return;
+    prev.logs = await logCount(page);
+    if (status === 'entered') {
+      prev.print = await leftPrint(page);
+      prevArtifacts = JSON.stringify((await engine(page)).artifacts);
+    }
+  };
+
   const onStep = async (uid, status) => {
     if (status === 'entered') await observeEntered(uid);
-    if (hooks.afterStep) await hooks.afterStep(uid, status, { page, width, counter });
+    if (hooks.afterStep) {
+      await hooks.afterStep(uid, status, { page, width, counter });
+      await rebaseline(uid, status);
+    }
   };
   const d = paneAware(page, mouseDriver(page), counter);
   await journey(page, d, scene, L, null, { chaptered: true, onStep });
@@ -186,11 +200,12 @@ export async function runShellJourney(page, { width, scene, L, hooks = {} }) {
   };
 }
 
-// 記録の 1 行。入力した値や下書きの中身は出さない。様式は docs/testing.md 5.269。
-export function recordLine({ width, csp, result, L, rec }) {
+// 記録の 1 行。入力した値や下書きの中身は出さない。様式は docs/testing.md 5.269・5.270（挟んだ 4 区間の列は 5.270）。
+export function recordLine({ width, csp, result, L, rec, trips }) {
   const s = result.stat;
   const f = (p) => `${p[0]}/${p[1]}`;
   return `SHELL-JOURNEY width=${width} csp=${csp ? 'on' : 'off'} steps=${result.achieved}/${STEPS} crossings=${s.crossings}`
     + ` left-changes=${f(s.left)} right-changes=${f(s.right)} title=${f(s.title)} position=${f(s.position)}`
+    + ` checkpoint=${f(trips.checkpoint)} reload=${f(trips.reload)} export-import=${f(trips['export-import'])} save-failure=${f(trips['save-failure'])}`
     + ` tab-clicks=${result.counter.clicks} external=${rec.external.length} page-errors=${rec.pageErrors.length} ledger=${L.summary()}`;
 }
