@@ -28,6 +28,7 @@ make measure | jq .
 | 初回表示 | `tools/measure/first-paint.sh` | 配信する設定 |
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
   進行状況とビルドログは標準エラーへ出す
@@ -47,7 +48,7 @@ make measure | jq .
 | 機能の範囲 | `baseline.features` | `config`（`delivery` / `test`）・`cargo_features`・`profile`（`release`） |
 | 圧縮の設定 | `baseline.compression` | `command` と `implementation`（下表） |
 
-次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw` の結果では必須で、欠けたら結果を出さない。
+次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw`・`input-paint` の結果では必須で、欠けたら結果を出さない。
 
 | 項目 | JSON のパス | 内容 |
 |---|---|---|
@@ -108,6 +109,15 @@ make measure | jq .
   - 統計と丸めは再描画と同じ。16ms（`conditions.threshold_p95_us`）を超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
   - 値は最小教材のもので、教材全体を代表しない（`conditions.scope_note`）
 
+- 入力から描画まで（ログ 120〜158 項目。出典: 同じ `env.md` の「計測の条件」、EVT-24）
+  - 既定の最小教材（`min-3step`）の試験の設定を、回線・CPU の制限なしで配信する。操作は送信ボタン（`submit-input`）の CDP の信頼された click（`page.click`）。入力欄に拒否される `/make-note Bad_Name` を 1 回入れておくと、拒否された下書きは欄に残るため、同じ本文が毎回送られ、1 回でログが 2 件増える
+  - PoC は停止ボタンの click を使ったが、現行の実装では停止は処理中でなければ状態を変えない（`crates/web/src/hello.rs`）ため、ログへ項目を追加する操作に当たらない。そのため送信に置き換えた
+  - 1 試行は新しい context で、時間を測らずにログを 120 件にしてから、下書きを入れて 200ms 待ち、20 操作を 1 つずつ測る（操作前のログは 120, 122, …, 158）。10 試行で計 200 値（`log-redraw` の 20 × 10 とは逆の配分）。操作の間に 30ms 待つ
+  - 起点は click のキャプチャ段階の受け取りの時刻（参考値 `input_paint_capture_p95`）と `event.timeStamp`（判定値）。終点は次の `requestAnimationFrame` の中の `setTimeout(0)`。判定には値が大きくなる `timeStamp` 起点を使う
+  - 各操作で、`isTrusted` が真、操作前のログが窓の中、操作後が 2 件多く `li` も 2 件増える、Step が動かない、下書きが変わらない、`[data-list-error]` が無い、`fromEvent >= fromCapture >= 0` を確かめる。外れたら失敗にする。1 操作の完了待ちには 10 秒の上限を置く
+  - 統計と丸めは再描画と同じ。100ms（`conditions.threshold_p95_us`）を超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
+  - 値は最小教材のもので、教材全体を代表しない（`conditions.scope_note`）
+
 ## 5. 一括実行の束（`schema`: `fandhe-workshop/measure-run/v1`）
 
 `make measure` の出力。大きさと初回表示は配信する設定、再描画は試験の設定で測るため、基点の機能の範囲は結果ごとに違う。
@@ -130,7 +140,7 @@ make measure | jq .
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
-- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw` の値は最小教材の値で、教材全体を代表しない
+- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
@@ -142,5 +152,5 @@ make measure | jq .
 - 大きさと初回表示は配信する設定を 2 回ビルドする（cargo のキャッシュが効くため差は数秒）。1 回のビルドの使い回しは後続の改善とする
 - CPU 4 倍の減速・制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
-- `log-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
-- 操作の入る画面での操作可能まで（TTI）と、入力から描画までの時間は、後続の画面のタスクで扱う
+- `log-redraw`・`input-paint` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
+- 操作の入る画面での操作可能まで（TTI）は、後続の画面のタスクで扱う

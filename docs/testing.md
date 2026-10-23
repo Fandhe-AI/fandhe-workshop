@@ -8263,6 +8263,30 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - `pack-body-xss.test.mjs`・`ir-recv-limit.test.mjs` に `withDeliveryCopy` 相当の重複が残る（本件では触れない）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
+### 5.286 入力から描画までの速さ（ログ 120〜158 項目。TASK-223 2/2。EVT-24）
+
+- 目的: 最小教材でログが 120〜158 項目の状態にして、入力（送信ボタンの信頼された click）から描画（次の `requestAnimationFrame` の中の `setTimeout(0)`）までの 95 パーセンタイルが 100ms 以内かを、CPU の減速なしで測る。Rust は変えていない。
+- 方式（`tools/measure/input-paint.sh`、`tools/measure/browser.mjs --kind input-paint`。条件の詳細は `docs/measurement.md` §4）: 10 試行 × 20 操作の計 200 値。操作は送信ボタンの CDP の信頼された click で、入力欄の拒否される下書き（`/make-note Bad_Name`）は欄に残るため同じ本文が毎回送られ、1 回でログが 2 件増える。PoC の停止ボタンは、現行の実装では処理中でなければ状態を変えない（`crates/web/src/hello.rs` の注記）ため使わなかった。この点は注記の読みによる判断で、停止ボタンの click 単体でログが増えないことの実測は行っていない（未確認）。
+- 検査の確認: 全操作で、`isTrusted` が真、ログの長さが窓の中で 2 件増え、`li` も 2 件増え、Step が動かず、下書きが変わらず、上限の通知が無く、`fromEvent >= fromCapture >= 0` であることを確かめた（外れれば測定が失敗する。今回の測定は全 200 操作で通った）。
+- 結果（2026-10-23。開発機。Chromium 153.0.8010.12・Playwright 1.63.0。`SKIP_WASM_OPT=1`。試験の設定。実装の作業ツリー上の測定で `dirty: true`、基点の commit は 586754b）:
+
+| 測定 | 値 | 判定 |
+|---|---|---|
+| `input_paint_median` | 16,100 us | |
+| `input_paint_p95` | 16,600 us | 100,000 us 以内 |
+| `input_paint_max` | 16,800 us | |
+| `input_paint_capture_p95`（参考。キャプチャ起点） | 16,300 us | |
+
+- 値が約 16ms に揃うのは、終点が次のフレームの描画に結び付くためで、60Hz の 1 フレームの長さに当たる。
+- 基点: commit 586754b（作業ツリーに本件の変更あり）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`）・圧縮は `tools/serve.mjs` の gzip レベル 9。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cce...6961`）。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。
+- 最小教材の値で、教材全体を代表しない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる。
+- 限界・未確認:
+  - **未実施（基準端末 A）**: 上の端末は自動運転の開発機で、基準端末 A（Apple シリコンの macOS）ではない。受け入れ条件の「基準端末 A」は未達である。追記は人が行う。手順: macOS（Apple シリコン）で `npm ci && npx playwright install chromium` の後、`FANDHE_BROWSER_CHANNEL=chrome tools/measure/input-paint.sh | jq .`（`baseline.device.apple_silicon_macos` が `true` になる）。
+  - Chromium の headless だけで測った。Chrome の原本・Windows（TASK-224）は未測定。コミット後の `dirty: false` での再測定、`wasm-opt` 適用ありの測定も未実施。
+  - ログの長さによる傾き（TASK-232）は対象外。
+  - `make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
 ### 5.287 validate の出力・終了コード・読み込み失敗時の打ち切り（TASK-403。AUTHOR-2・AUTHOR-3）
 
 `fandhe-pack validate <pack-dir>` を `source::load` の成否で分岐させて結線した。契約は `docs/cli.md` 版 8 の 8 節。試験は `crates/pack/tests/validate_command.rs` の 8 件（`author2_` 4 件・`author3_` 4 件。Unix では `author3_symlink_is_unreadable` を含む）と、`tests/cli.rs` の `i16_validate_is_dispatched_to_validate`、`cli.rs` の単体試験 `c1_validate_missing_dir_is_unreadable` である。

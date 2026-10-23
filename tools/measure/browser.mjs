@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh から呼ばれる）。
+// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・input-paint.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -9,6 +9,10 @@
 // log-redraw（TASK-223 1/2。EVT-24）は redraw とは別の量で、ログが 100〜119 項目の状態での「隠し要素の click 1 回の同期的な処理」
 // （イベントの委譲・状態の更新・DOM への反映）を測る。出典は docs/spec/03-poc/engine-event-consistency/env.md。値は既定の最小教材
 // （min-3step）のもので、教材全体を代表しない。閾値（16ms）を超えても失敗にせず値を出す（合否は記録の文書に書く）。
+// input-paint（TASK-223 2/2。EVT-24）は、ログが 120〜158 項目の状態での「送信ボタンの信頼された click（CDP）から、次の
+// requestAnimationFrame の中の setTimeout(0) まで」を測る。起点は click のキャプチャ段階の受け取りと event.timeStamp の 2 通りで、
+// 判定には値が大きくなる timeStamp 起点を使う（出典は同じ env.md の「計測の条件」）。PoC の停止ボタンは現行の実装では処理中でなければ
+// 状態を変えないため、拒否される入力の送信（1 回でログが 2 件増える）に置き換えた。閾値（100ms）を超えても失敗にせず値を出す。
 // ブラウザは FANDHE_BROWSER_CHANNEL=chrome で Chrome の原本にできる（基準端末 A での人の測定用）。
 // 条件の出典は docs/spec/02-poc-plan.md §7（CPU 減速なし、下り・上り 10Mbps、遅延 40ms、キャッシュ無効、1 条件 10 回）。
 //
@@ -19,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -40,6 +44,21 @@ const LOG_TRIALS = 20;
 const LOG_SAMPLES = 10;
 const LOG_THRESHOLD_US = 16000;
 const LOG_START_STEP = 'main/st-1';
+
+// input-paint の条件。1 試行で窓の下端 120 まで時間を測らずに埋め、20 回の送信を測る（操作前のログは 120, 122, …, 158）。
+// 1 試行 20 操作 × 10 試行 = 計 200 値（PoC の「1 条件 10 試行 × 20 操作」と同じ）。
+const INPUT_DRAFT = '/make-note Bad_Name';
+const INPUT_DELTA = 2;
+const INPUT_WINDOW = [120, 158];
+const INPUT_START = 120;
+const INPUT_TRIALS = 10;
+const INPUT_SAMPLES = 20;
+const INPUT_THRESHOLD_US = 100000;
+const INPUT_GAP_MS = 30; // 操作の間の待ち（PoC と同じ）
+const INPUT_SETTLE_MS = 200; // 下書きを入れた後の待ち。保存などの後続の処理を最初の計測に入れないため
+const INPUT_WAIT_MS = 10000; // 1 操作の完了待ちの上限。rAF が来ない環境で止まらず失敗させる
+const SUBMIT_SEL = '[data-testid="submit-input"]';
+const DRAFT_SEL = '[data-testid="draft-input"]';
 
 // 中央値。偶数件は中央 2 値の平均（PoC の measure-poc1.mjs と同じ定義）。
 export function median(values) {
@@ -360,6 +379,148 @@ async function measureLogRedraw(browser, dir) {
   }
 }
 
+// ページ内: 時間を測らずにログを start まで埋める（隠し raw-trigger の click）。割り切れ・戻る向きの検査はここが唯一の実体。
+async function fillLogInPage({ op, delta, start, startStep }) {
+  const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
+  const el = document.querySelector('[data-testid="raw-trigger"]');
+  if (!el) throw new Error('raw-trigger is missing');
+  const first = st();
+  if (first.current !== startStep) throw new Error(`unexpected start step ${first.current} (not the minimal pack?)`);
+  el.setAttribute('data-payload', JSON.stringify(op));
+  const fillCount = (start - first.logLen) / delta;
+  if (!Number.isInteger(fillCount) || fillCount < 0) throw new Error('cannot fill the log to the start length');
+  for (let i = 0; i < fillCount; i++) el.click();
+  if (st().logLen !== start) throw new Error(`log length is ${st().logLen} after filling (expected ${start})`);
+  return st().logLen;
+}
+
+// ページ内: 送信ボタンへの click のキャプチャ段階のリスナ。click ごとに、キャプチャの受け取りと event.timeStamp を起点にして、
+// 次の requestAnimationFrame の中の setTimeout(0) までの時間（ミリ秒）を window.__inputPaint へ積む。固定の関数だけを渡す。
+function installInputPaintListener(submitSel) {
+  window.__inputPaint = [];
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest(submitSel)) return;
+      const cap = performance.now();
+      const stamp = e.timeStamp;
+      const trusted = e.isTrusted;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const end = performance.now();
+          window.__inputPaint.push({ fromEvent: end - stamp, fromCapture: end - cap, trusted });
+        }, 0);
+      });
+    },
+    true,
+  );
+}
+
+async function measureInputPaint(browser, dir) {
+  // 回線制限は掛けない。ブラウザ内の処理を測る。
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const fromEvent = [];
+    const fromCapture = [];
+    for (let i = 0; i < INPUT_TRIALS; i++) {
+      const { context, page } = await newPage(browser, false);
+      try {
+        await page.addInitScript(installMountObserver);
+        await page.goto(srv.url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+        await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+        const state = await page.evaluate(() => ({
+          mounted: window.__mountedValue,
+          hooks: typeof window.__fandheTest?.stateJson === 'function',
+        }));
+        if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+        if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+        await page.evaluate(fillLogInPage, { op: LOG_OP, delta: INPUT_DELTA, start: INPUT_START, startStep: LOG_START_STEP });
+        const snap = () =>
+          page.evaluate(() => {
+            const e = JSON.parse(window.__fandheTest.stateJson()).engine;
+            return {
+              logLen: e.logLen,
+              current: e.current,
+              rows: document.querySelectorAll('[data-testid="part-log-list"] > li').length,
+              listError: document.querySelector('[data-list-error]') !== null,
+            };
+          });
+        await page.fill(DRAFT_SEL, INPUT_DRAFT);
+        await page.waitForTimeout(INPUT_SETTLE_MS);
+        const base = await snap();
+        if (base.logLen !== INPUT_START) throw new Error(`typing the draft changed the log (${base.logLen})`);
+        await page.evaluate(installInputPaintListener, SUBMIT_SEL);
+        let prev = base;
+        for (let s = 0; s < INPUT_SAMPLES; s++) {
+          if (prev.logLen < INPUT_WINDOW[0] || prev.logLen > INPUT_WINDOW[1]) throw new Error(`log length ${prev.logLen} is outside the window`);
+          await page.click(SUBMIT_SEL);
+          await page.waitForFunction((n) => window.__inputPaint.length >= n, s + 1, { timeout: INPUT_WAIT_MS });
+          await page.waitForFunction(
+            (want) => JSON.parse(window.__fandheTest.stateJson()).engine.logLen === want,
+            prev.logLen + INPUT_DELTA,
+            { timeout: INPUT_WAIT_MS },
+          );
+          const now = await snap();
+          if (now.rows !== prev.rows + INPUT_DELTA) throw new Error(`log rows grew by ${now.rows - prev.rows} (expected ${INPUT_DELTA})`);
+          if (now.current !== LOG_START_STEP) throw new Error(`step moved to ${now.current}`);
+          if (now.listError) throw new Error('a list limit notice appeared');
+          const draft = await page.inputValue(DRAFT_SEL);
+          if (draft !== INPUT_DRAFT) throw new Error(`the draft changed to ${JSON.stringify(draft)} (the next click would mean something else)`);
+          prev = now;
+          await page.waitForTimeout(INPUT_GAP_MS);
+        }
+        if (prev.logLen !== INPUT_START + INPUT_DELTA * INPUT_SAMPLES) throw new Error('unexpected end state');
+        const got = await page.evaluate(() => window.__inputPaint);
+        if (!Array.isArray(got) || got.length !== INPUT_SAMPLES) throw new Error('unexpected sample count');
+        for (const g of got) {
+          if (g.trusted !== true) throw new Error('a click was not trusted (isTrusted false)');
+          if (!Number.isFinite(g.fromEvent) || !Number.isFinite(g.fromCapture) || g.fromCapture < 0 || g.fromEvent < g.fromCapture) {
+            throw new Error(`inconsistent timing ${JSON.stringify(g)}`);
+          }
+        }
+        fromEvent.push(...got.map((g) => g.fromEvent));
+        fromCapture.push(...got.map((g) => g.fromCapture));
+        progress(`input-paint trial ${i + 1}/${INPUT_TRIALS}: median ${(median(got.map((g) => g.fromEvent)) * 1000).toFixed(1)} us`);
+      } finally {
+        await context.close();
+      }
+    }
+    const p95us = toMicros(p95(fromEvent), 'input paint p95');
+    progress(`input-paint p95 ${p95us} us (threshold ${INPUT_THRESHOLD_US} us): ${p95us <= INPUT_THRESHOLD_US ? 'within' : 'over'}`);
+    return {
+      measurements: [
+        { name: 'input_paint_median', unit: 'us', value: toMicros(median(fromEvent), 'input paint median') },
+        { name: 'input_paint_p95', unit: 'us', value: p95us },
+        { name: 'input_paint_max', unit: 'us', value: toMicros(Math.max(...fromEvent), 'input paint max') },
+        { name: 'input_paint_capture_p95', unit: 'us', value: toMicros(p95(fromCapture), 'input paint capture p95') },
+      ],
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 1,
+        trials: INPUT_TRIALS,
+        samples_per_trial: INPUT_SAMPLES,
+        op: 'trusted click (CDP) on the submit button with the rejected draft /make-note Bad_Name',
+        log_delta: INPUT_DELTA,
+        log_window: INPUT_WINDOW,
+        threshold_p95_us: INPUT_THRESHOLD_US,
+        origin: 'event.timeStamp',
+        end: 'rAF + setTimeout(0)',
+        gap_ms: INPUT_GAP_MS,
+        settle_ms: INPUT_SETTLE_MS,
+        base: BASE,
+        scope_note: 'minimal pack (min-3step); not representative of a full pack',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
 async function main() {
   let values;
   try {
@@ -373,8 +534,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw', 'input-paint'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw|input-paint) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -407,7 +568,7 @@ async function main() {
       console.error('fix: npm ci && npx playwright install chromium');
       process.exit(1);
     }
-    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw };
+    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'input-paint': measureInputPaint };
     const result = await runs[values.kind](browser, values.dir);
     result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;
     result.playwright = playwrightVersion;
