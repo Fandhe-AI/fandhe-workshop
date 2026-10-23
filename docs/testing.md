@@ -402,6 +402,22 @@ TERM27-2 は、`crates/web/src/offers.rs` の `approval_offers` が対象つき�
 | TERM27-1 | crates/web/src/host.rs: revise-target の変換を無効にする | revise_target_は対象をそのまま_op_にし_空は何もしない | 左の 1 件に加え、受付・確認の段・拒否の流れの 4 件 | DETECTED | - |
 | TERM27-2 | crates/web/src/offers.rs: 対象つきのボタンを出さない | 入力の段は三つと対象の数だけのボタンが出る | 左の 1 件に加え、重複・太い形・拒否・エスケープの 5 件 | DETECTED | - |
 
+TASK-448 1/2（TERM-28）で、`approval_offers` の候補の元を規則の対象から `revise_candidates` に替えた。TERM27-2 の `find`・`replace` は新しい filter の行
+（`.filter(|c| !c.id.trim().is_empty())`）に合わせて更新した。TERM28-1 は対象つきの「直す」の文字を表示名でなく ID にする変異、
+TERM28-2 は表示名つきの候補をボタンにしない変異で、どちらも native の `crates/web/tests/approval_buttons.rs` が検出する。
+
+```text
+実行日: 2026-10-23
+元にしたコミット: fc777b1-dirty（本変更を含む作業ツリー）
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM27-2.mutation crates/web/tests/mutations/TERM28-1.mutation crates/web/tests/mutations/TERM28-2.mutation
+```
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| TERM27-2 | crates/web/src/offers.rs: 対象つきのボタンを出さない（find を更新） | 入力の段は三つと対象の数だけのボタンが出る | 左の 1 件に加え、重複・太い形・拒否・エスケープの複数件 | DETECTED | - |
+| TERM28-1 | crates/web/src/offers.rs: 対象つきの直すの文字を ID にする | 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る | 左の 1 件に加え、表示名の逃がしの 1 件 | DETECTED | - |
+| TERM28-2 | crates/web/src/offers.rs: 表示名つきの候補をボタンにしない | 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る | 左の 1 件に加え、逃がし・誤った候補の押下の 2 件 | DETECTED | - |
+
 ### 5.3.1g 承認の操作のログ文言と CH-2 相当の完走（TASK-447 2/2）
 
 TERM27-3 は、`crates/web/src/log_lines.rs` の承認の操作の行から接頭辞「承認の操作: 」の文字ノードを落とす変異である。
@@ -7922,4 +7938,28 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 操作のログの受付の行は、選んだ選択肢の ID を本文に出す（`crates/web/src/log_lines.rs`。`log-id-hits` は観察値で、assert していない）。`docs/pack-authoring.md` は「操作のログの『選択: …』に同じ表示名が出ます」と書いており、食い違う。ログの直しは host の挙動とログの契約に波及するため本件では直さず、範囲外として報告した。
   - `compile` だけを通した IR では、`label` の無い選択肢が ID のまま出る経路が残る（対照がその観察）。
   - 試験の件数の期待値は更新していない（5.268 の方針）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.273 承認の「直す」の候補と表示名の画面（TASK-448 1/2。TERM-28・INTRO-29・JUDGE-11）
+
+- 目的: 承認の Step の「直す」の対象ボタンが、誤った候補を含めて宣言順に、ID でなく表示名で出ることを画面で確かめる。D-69（2026-10-21）は、語彙に候補と表示名（`revise.candidates[].id/label`）を足す案を採った。前提の TASK-62（語彙）・TASK-265（core の `revise_candidates`）・TASK-447（承認の部品）は main にある。本件は部品を `revise_candidates` に結線した。
+- 期待と定義の対応: TERM-28（誤った候補を含むボタンが表示名で出る）・INTRO-29（正しい対象を画面が示さない）・JUDGE-11（誤った候補は受付にならず拒否になる。判定は core）。
+- 構成:
+  - `crates/web/src/offers.rs`: 候補は core の `select_judge::revise_candidates` だけから得る。見える文字は `直す（対象: 表示名）`、ID は `data-revise-target`・`data-payload` の属性値だけ（宛先の照合は ID）。候補を宣言しない Step は表示名なし（ID が文字）になる。契約（`terminal_area`）は変えていない。
+  - `crates/web/tests/approval_buttons.rs`: 候補の数・宣言順・文字と属性の分離・誤った候補の拒否・正しい対象の受付・エスケープ・検査に通らない宣言で 0 件・`load-fixture:approval-candidates`。
+  - `crates/web/src/test_fixture.rs`・`host.rs`: `load-fixture:approval-candidates` と `?fixture=ch0-3-revise`（ST-2.6 に候補 3 件と開始点 `s-2-6` を足した変種。いずれも `test-hooks` のときだけ。配信する設定の成果物に名前が無いことを確認した）。
+  - `tools/browser/approval-revise-labels.test.mjs`（新設。`scripts/test-browser.sh` に登録）: 承認の部品・ST-2.6・宣言なしの対照を CSP あり・なしで流す。期待値は試験の定数で独自に持つ。見える文字・`aria-label`・`title` に ID が出る件数 0、対象つきボタンの属性名の集合が全候補で同じ（正誤の印が無い）、誤った候補の実クリックで拒否の行が 1 件増えボタンが残る、正しい対象で確認の段の 3 件になる、`collectSafety` が 0 件。
+  - 変異: TERM28-1・TERM28-2（5.3.1f の表）。
+- 対照: 候補の宣言が無い `load-fixture:approval` では文字が ID になる（決定の前の現状の観察で、数え方が ID を検出できることの確認）。
+- 記録の様式（値・本文は出さない）:
+
+  ```text
+  REVISE-LABELS step=<節点> log-id-hits=<n>
+  ```
+
+- 実行結果（2026-10-23。元のコミット fc777b1 に本変更を載せた作業ツリー）: 新しい試験 6 件を含め、`approval-buttons`・`approval-flow`・`confirm-status`・`input-ports`・`reload-points`・`ch0-3-run` の計 29 件がブラウザ（Chromium）で通過した。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。`make check-generic-words` の失敗 1 件（`crates/pack/src/guidance.rs:606`）は本件の前からある。
+- 限界:
+  - 操作のログの行 `承認の操作: 直す（対象: <ID>）` は選んだ候補の ID を出したままである（`crates/web/src/log_lines.rs`。`log-id-hits` は観察値で assert していない）。ログの契約・L1/L2 の一致に波及するため本件では直さず、範囲外として報告した（5.271 と同じ種類）。
+  - ST-2.6 は本物の教材（教材 repo の持ち分）ではなく、CH-0〜CH-3 の形の試験用の教材の変種で確かめた。開始点からの直接の起動は前の Step の効果を持たない（5.199 と同じ限界）。
+  - 差し戻し → 再承認の画面の流れは TASK-448 2/2 が担う。試験の件数の期待値は更新していない（5.268 の方針）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

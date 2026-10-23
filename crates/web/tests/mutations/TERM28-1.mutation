@@ -1,0 +1,8 @@
+id: TERM28-1
+package: fandhe-workshop-web
+test: approval_buttons
+target: crates/web/src/offers.rs
+find: vec![text(format!("{word}（対象: {display}）"))]
+replace: vec![text(format!("{word}（対象: {t}）"))]
+expect-fail: 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る
+note: 対象つきの直すの文字を表示名でなく ID にする（表示名で出す受入を壊す。TERM-28・INTRO-29）
