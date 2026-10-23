@@ -1,0 +1,8 @@
+id: MOD5-1
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/begin.rs
+find:     state.run.completed = false;
+replace:     state.run.completed = false; state.run.world.clear();
+expect-fail: mod5_world_hash_is_unchanged_by_begin_after_round1
+note: 次の周回の開始が世界状態を消す（開始の前後で世界状態のハッシュが変わる）

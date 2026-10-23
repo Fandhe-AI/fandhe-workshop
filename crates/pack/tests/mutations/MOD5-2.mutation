@@ -1,0 +1,8 @@
+id: MOD5-2
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/begin.rs
+find:     state.run.completed = false;
+replace:     state.run.completed = false; state.run.slices.clear();
+expect-fail: mod5_round1_slice_hashes_match_between_round1_end_and_round2_end
+note: 次の周回の開始が前の周回の切り身を消す（2 周目の終了時に 1 周目の切り身のハッシュが変わる）
