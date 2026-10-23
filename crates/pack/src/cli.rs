@@ -2,8 +2,7 @@
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
 //! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。
-//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は形を受け付けたうえで
-//! 経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク（TASK-404）が `run_test` の中身を差し替えて作る。
+//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は TASK-404 1/3 で枠と終了コードを実装した（出力の行は後続）。
 //! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
 //! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 7）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
@@ -24,6 +23,7 @@ use crate::cli_contract::{
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
 use crate::diag::write_diagnostics;
+use crate::play_run::{self, TestOutcome};
 use crate::source;
 use crate::validate;
 use crate::vocab_report::report_dir;
@@ -200,7 +200,7 @@ fn parse<I: Iterator<Item = OsString>>(
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
 /// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
 /// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 4 の 9 節）。
-/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は未実装で `EXIT_USAGE` を返す（経過措置）。
+/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は関門の後に教材テストを流し、全件合格で `EXIT_OK`、それ以外は `EXIT_DIAGNOSTICS` を返す（TASK-404 1/3）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: IntoIterator<Item = OsString>,
@@ -227,7 +227,7 @@ where
     };
     match inv {
         Invocation::Validate { pack_dir } => run_validate(&pack_dir, out),
-        Invocation::Test { pack_dir } => run_test(&pack_dir, err),
+        Invocation::Test { pack_dir } => run_test(&pack_dir, out),
         Invocation::Compile {
             pack_dir,
             chapters,
@@ -237,16 +237,6 @@ where
         Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, out, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
     }
-}
-
-/// 受け付けた形の呼び出しが、本体の未実装のため終わることを伝える（経過措置。終了コードは 2）。
-fn not_implemented<E: Write>(cmd: Subcommand, err: &mut E) -> io::Result<u8> {
-    writeln!(
-        err,
-        "error: fandhe-pack {} is not implemented yet",
-        cmd.name()
-    )?;
-    Ok(EXIT_USAGE)
 }
 
 /// `validate` の実行（AUTHOR-2・AUTHOR-3）。診断を 1 件 1 行で標準出力に書き、続けて最終行を 1 行書く。
@@ -276,9 +266,35 @@ fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
     }
 }
 
-/// `test` の振り分け先。本体は TASK-404。
-fn run_test<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
-    not_implemented(Subcommand::Test, err)
+/// `test` の実行（AUTHOR-4、TASK-404 1/3）。関門（読み込み・`validate`・教材テストの読み取り・`compile`）に診断が
+/// 1 件でもあれば試験を流さず、`validate` と同じ形（診断の行と最終行）を標準出力に書いて `EXIT_DIAGNOSTICS` で終える。
+/// 流したときは全件が合格なら `EXIT_OK`、そうでなければ `EXIT_DIAGNOSTICS`。PASS・FAIL・集計の行は後続の
+/// タスク（TASK-404 2/3・3/3）が足すため、本版は流した後の標準出力に何も書かない。標準エラー出力には書かない。
+fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
+    match play_run::run_pack(dir) {
+        TestOutcome::Unreadable(diags) => {
+            write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Unreadable {
+                diagnostics: diags.len(),
+            });
+            writeln!(out, "{line}")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        TestOutcome::NotRun { diags, summary } => {
+            write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Checked {
+                diagnostics: diags.len(),
+                summary,
+            });
+            writeln!(out, "{line}")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        TestOutcome::Ran(report) => Ok(if report.all_passed() {
+            EXIT_OK
+        } else {
+            EXIT_DIAGNOSTICS
+        }),
+    }
 }
 
 /// `vocab` の実行。表と集計を標準出力に書いて `EXIT_OK`。読み込みか `compile` に診断があれば、表は出さず診断を
@@ -436,17 +452,11 @@ mod tests {
     }
 
     #[test]
-    fn c1_accepted_shapes_reach_their_handler() {
-        for c in Subcommand::ALL {
-            if !matches!(c, Subcommand::Test) {
-                continue;
-            }
-            let (code, out, err) = run_args(&[c.name(), "x"]);
-            assert_eq!(code, EXIT_USAGE);
-            assert!(out.is_empty());
-            assert!(err.contains("is not implemented yet"));
-            assert!(err.contains(c.name()));
-        }
+    fn c1_test_reaches_its_handler() {
+        let (code, out, err) = run_args(&["test", "/nonexistent/fandhe-test-unit"]);
+        assert_eq!(code, EXIT_DIAGNOSTICS);
+        assert!(err.is_empty());
+        assert_eq!(out.lines().last(), Some("NG: 診断 1 件（読み込めません）"));
     }
 
     #[test]

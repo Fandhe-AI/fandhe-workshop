@@ -1,6 +1,6 @@
 //! 教材テストの誤入力の期待 `expect` を、contract の判定の型で読む（TASK-45 2/2、PACK-11）。
 //!
-//! 呼び出し元は、結合試験（`tests/error_input_expect.rs`）と、後続の `fandhe-pack test`（TASK-404）である。
+//! 呼び出し元は、結合試験（`tests/error_input_expect.rs`）と、`fandhe-pack test` の実行系 `play_script`（TASK-404 1/3）である。
 //! `compile`・`validate` には結線しない（`profile::check_play_inputs` と同じ扱い）。
 //!
 //! 判定結果・分類の型は contract の `judgment`（TASK-256）が正で、本モジュールは定義しない。[`ResultExpect`] は、
@@ -8,9 +8,9 @@
 //! 語の解釈は [`crate::vocab::result_kind`]・[`crate::vocab::rejection_category`] を通す（`rejection.rs` と同じ入口）。
 //!
 //! 扱わないこと
-//! - 誤入力をエンジンへ流して実際の判定と期待を比べる実行系（TASK-404。core の判定は `judge::judge_input`（TASK-267）で、`apply` への結線は TASK-207 待ち）。
+//! - 誤入力をエンジンへ流して実際の判定と期待を比べる実行系（`play_run`、TASK-404 1/3）。
 //!   [`ResultExpect::matches`] は、その比較で使う照合の規則だけを持つ
-//! - `pre[].expect`・`playthroughs` の期待（`progress`・`achieved` など語彙外の書き方を含む。TASK-404）
+//! - `pre[].expect`・`playthroughs` の期待（`progress`・`achieved` など語彙外の書き方を含む。`play_script` が読む）
 //! - `next_action` が空の拒否・問い返しの診断（`E-EMPTY-NEXT-ACTION`。`slot_check`、TASK-46 2/2 が `validate`・`compile` で行う）
 //!
 //! 語彙の違反は `E-PARSE` にする（`rejection.rs` と同じ。`docs/diagnostics.md` 版 1 は

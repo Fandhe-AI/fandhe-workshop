@@ -16,7 +16,7 @@
 //!
 //! 正しいパックの誤検出 0 件（TASK-56 3/3・#417）は、末尾の `pack29_correct_packs_*` が確かめる。
 //! `validate` と、`test` の段の静的な検査（`E-PLAY-INPUT-CLASS`・誤入力の `expect` の読み取り）は必須で、
-//! 実行器を要する CLI `test` の誤検出 0 件は TASK-404（#648）の完了後に `#[ignore]` を外して確かめる。
+//! CLI `test` の誤検出 0 件は TASK-404 1/3（#649）の実行器で確かめる。
 //! 試験の限界は `testdata/pack-defects/README.md` の「試験の限界」に記録する。
 
 mod common;
@@ -294,7 +294,7 @@ fn pack29_play_defects_pass_static_checks() {
 }
 
 #[test]
-#[ignore = "fandhe-pack test is TASK-404 (#648); E-PLAY-* codes are fixed by TASK-398 (#468)"]
+#[ignore = "E-PLAY-* の行を出すのは TASK-404 3/3 以降（#651）。コードは TASK-398 (#468) で固定済み"]
 fn pack29_play_defects_reported_by_test() {
     for f in FORMATS {
         for d in DEFECTS.iter().filter(|d| d.phase == Phase::Test) {
@@ -578,10 +578,8 @@ fn pack29_correct_packs_have_no_false_positives_in_test_static_checks() {
     );
 }
 
-/// TASK-404（#648）の完了後に `#[ignore]` を外す。実行器が模範解答の完走と誤入力の分類を確かめ、
-/// 診断を 1 件も出さない（終了コード 0）ことを要求する。
+/// 実行器（TASK-404 1/3）が模範解答の完走と誤入力の分類を確かめ、診断を 1 件も出さない（終了コード 0）ことを要求する。
 #[test]
-#[ignore = "fandhe-pack test is TASK-404 (#648)"]
 fn pack29_correct_packs_have_no_false_positives_in_test() {
     for name in CORRECT_FOR_TEST {
         let o = Command::new(env!("CARGO_BIN_EXE_fandhe-pack"))
