@@ -3,7 +3,7 @@
 //! 「同じ入力列から同じ結果」を `determinism.rs` の実行で確かめても、たまたま一致しただけの非決定性は見逃す。
 //! 源になりうる語をソースから 0 件に固定し、例外は 1 件だけ（件数つき）にする。新しい源が入ると失敗する（fail-closed）。
 //! 依存の推移的な閉包は `make check-deps` の領分で、ここでは `[dependencies]` の直接の依存だけを見る。
-//! 照合は行コメントを除き、識別子の境界で行う。マクロ・文字列の中身は見分けない（限界は `docs/testing.md` 5.277）。
+//! 照合はコメントを除き（文字列中の `//` はコメントと見なさない）、識別子の境界で行う。マクロ・文字列の中身は見分けない（限界は `docs/testing.md` 5.277）。
 
 use std::path::{Path, PathBuf};
 
@@ -56,14 +56,92 @@ fn is_id(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// 行コメントとブロックコメントを除く。文字列・raw 文字列・文字リテラルの中の `//` は
+/// コメントの開始と見なさず、中身はそのまま残す（後続の実コードを検査から落とさないため）。
 fn strip_line_comments(src: &str) -> String {
-    src.lines()
-        .map(|l| match l.find("//") {
-            Some(i) => &l[..i],
-            None => l,
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let c: Vec<char> = src.chars().collect();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+    while i < c.len() {
+        let ch = c[i];
+        if ch == '/' && c.get(i + 1) == Some(&'/') {
+            while i < c.len() && c[i] != '\n' {
+                i += 1;
+            }
+        } else if ch == '/' && c.get(i + 1) == Some(&'*') {
+            let mut depth = 1;
+            i += 2;
+            while i < c.len() && depth > 0 {
+                if c[i] == '/' && c.get(i + 1) == Some(&'*') {
+                    depth += 1;
+                    i += 2;
+                } else if c[i] == '*' && c.get(i + 1) == Some(&'/') {
+                    depth -= 1;
+                    i += 2;
+                } else {
+                    if c[i] == '\n' {
+                        out.push('\n');
+                    }
+                    i += 1;
+                }
+            }
+        } else if ch == 'r' && (i == 0 || !is_id(c[i - 1])) && raw_open(&c, i).is_some() {
+            let (hashes, body) = raw_open(&c, i).expect("checked");
+            out.extend(&c[i..body]);
+            i = body;
+            while i < c.len() {
+                if c[i] == '"' && (1..=hashes).all(|k| c.get(i + k) == Some(&'#')) {
+                    out.extend(&c[i..=i + hashes]);
+                    i += hashes + 1;
+                    break;
+                }
+                out.push(c[i]);
+                i += 1;
+            }
+        } else if ch == '"' {
+            out.push(ch);
+            i += 1;
+            while i < c.len() {
+                if c[i] == '\\' && i + 1 < c.len() {
+                    out.push(c[i]);
+                    out.push(c[i + 1]);
+                    i += 2;
+                    continue;
+                }
+                out.push(c[i]);
+                i += 1;
+                if c[i - 1] == '"' {
+                    break;
+                }
+            }
+        } else if ch == '\'' && c.get(i + 1) == Some(&'\\') {
+            out.push(ch);
+            i += 1;
+            while i < c.len() {
+                out.push(c[i]);
+                i += 1;
+                if c[i - 1] == '\'' && c[i - 2] != '\\' {
+                    break;
+                }
+            }
+        } else if ch == '\'' && c.get(i + 2) == Some(&'\'') {
+            out.extend(&c[i..i + 3]);
+            i += 3;
+        } else {
+            out.push(ch);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `c[i]` が raw 文字列の開始（`r"`・`r#"` など）なら、`#` の数と本体の開始位置を返す。
+fn raw_open(c: &[char], i: usize) -> Option<(usize, usize)> {
+    let mut j = i + 1;
+    while c.get(j) == Some(&'#') {
+        j += 1;
+    }
+    (c.get(j) == Some(&'"')).then_some((j - i - 1, j + 1))
 }
 
 /// 識別子の境界で `needle` の出現数を数える。
@@ -167,6 +245,15 @@ fn detector_flags_synthetic_sources_and_ignores_comments() {
     assert!(!violations("x.rs", "use std::collections::HashMap;", none).is_empty());
     assert!(violations("x.rs", "// SystemTime is not used\n/// Instant", none).is_empty());
     assert!(violations("x.rs", "let instantiate = 1;", none).is_empty());
+    // 文字列・raw 文字列・文字リテラルの中の `//` は後続の実コードを隠さない。
+    let url = "let url = \"https://example.com\"; let t = std::time::Instant::now();";
+    assert!(!violations("x.rs", url, none).is_empty());
+    let raw = "let u = r#\"a//b\"#; let m = HashMap::new();";
+    assert!(!violations("x.rs", raw, none).is_empty());
+    let ch = "let c = '\"'; let u = \"//\"; let t = SystemTime::now();";
+    assert!(!violations("x.rs", ch, none).is_empty());
+    // 本物の行コメント・ブロックコメントは従来どおり除く。
+    assert!(violations("x.rs", "let s = \"a\"; // Instant\n/* HashMap */", none).is_empty());
     let one = [("x.rs", "HashSet", 2)];
     assert!(violations("x.rs", "let a: HashSet<u8>;", &one).is_empty());
     assert!(!violations(
