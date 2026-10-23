@@ -239,7 +239,7 @@ rust|tests/reload_after_control_store.rs [reload_after_control_store]|passed=4|i
 rust|tests/reload_busy.rs [reload_busy]|passed=14|ignored=0
 rust|tests/reload_points.rs [reload_points]|passed=2|ignored=0
 rust|tests/reload_points_host.rs [reload_points_host]|passed=2|ignored=0
-rust|tests/restore_owner_slice.rs [restore_owner_slice]|passed=5|ignored=0
+rust|tests/restore_owner_slice.rs [restore_owner_slice]|passed=6|ignored=0
 rust|tests/restore_resume.rs [restore_resume]|passed=11|ignored=0
 rust|tests/restore_review.rs [restore_review]|passed=7|ignored=0
 rust|tests/review_fold.rs [review_fold]|passed=2|ignored=0
@@ -312,7 +312,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=315|passed=3371|ignored=3
+rust|total|binaries=316|passed=3380|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0

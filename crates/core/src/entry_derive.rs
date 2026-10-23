@@ -84,6 +84,26 @@ pub(crate) fn stored_or_derived(
     }
 }
 
+/// 入口の写しの `run` を戻し先として使うとき、現在の Step の根以外の切り身は `keep`（いまの実行状態）のまま残す。
+///
+/// 写しは保存時点の `run` 全体（復帰の後はチェックポイントの `run`）で、他の根の切り身は古い。そのまま戻すと、
+/// 復帰が残した他の根の進行が停止で保存時点まで巻き戻る（MOD-9）。戻すのは現在の Step の根の切り身と位置だけにする。
+/// 写しが保存済みの `entry` でもログから導いたものでも同じ規則で適用する。
+pub(crate) fn keep_other_roots(
+    mut entry_run: RunState,
+    keep: &RunState,
+    current: &crate::addr::StepUid,
+) -> RunState {
+    let owner = crate::instance::root_of(current);
+    entry_run.slices.retain(|root, _| *root == owner);
+    for (root, slice) in &keep.slices {
+        if *root != owner {
+            entry_run.slices.insert(root.clone(), slice.clone());
+        }
+    }
+    entry_run
+}
+
 /// ログを末尾から逆にたどり、処理中の現在の Step の受付の時点の `run` を組み立てる（モジュールの規則 1〜5）。
 ///
 /// 処理中でない・現在の Step が無いときは `None`（写しが要らない）。受付の時点を一意に決められないときも `None`。

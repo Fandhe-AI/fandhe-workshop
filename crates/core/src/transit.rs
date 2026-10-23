@@ -166,7 +166,11 @@ pub(crate) fn return_after_limit(
         ) {
             Some(entry) => {
                 outcome = LimitReturn::RewoundToEntry;
-                entry.run
+                // 現在の Step の根以外の切り身は、操作の前の値のまま残す（写しの他の根は古い。MOD-9）。
+                match run_before.current.as_ref() {
+                    Some(cur) => crate::entry_derive::keep_other_roots(entry.run, run_before, cur),
+                    None => entry.run,
+                }
             }
             None => run_before.clone(),
         }

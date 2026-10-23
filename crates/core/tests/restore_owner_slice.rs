@@ -15,7 +15,7 @@ use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::{Generation, Root, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{CheckpointId, Control, Op};
-use fandhe_workshop_core::session::{Busy, SessionState, Slice};
+use fandhe_workshop_core::session::{Busy, EntryCopy, SessionState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{apply, load_ir};
 use proptest::collection::btree_set;
@@ -160,6 +160,42 @@ fn restore_keeps_drafts_and_hints() {
     let (next, _) = apply(&ir, st.clone(), restore());
     assert_eq!(next.drafts, st.drafts);
     assert_eq!(next.hints_opened, st.hints_opened);
+}
+
+/// 処理中の保存、別の根の変更、復帰、停止の順で、他の根の進行が保存時点へ巻き戻らない（保存済みの入口の写しがある場合）。
+#[test]
+fn stop_after_restore_keeps_other_roots() {
+    let ir = ir();
+    let mut st = base_state();
+    st.run.busy = Some(Busy { done: 1, total: 4 });
+    st.entry = Some(EntryCopy {
+        run: {
+            let mut r = st.run.clone();
+            r.busy = None;
+            r
+        },
+        log_len: 0,
+    });
+    let (mut st, _) = apply(&ir, st, save());
+    st.run
+        .slices
+        .insert(root("r-b"), slice(&["b1"], "r-b/y", StepStatus::Entered));
+    let (st, _) = apply(&ir, st, restore());
+    assert_eq!(
+        st.run.slices.get(&root("r-b")),
+        Some(&slice(&["b1"], "r-b/y", StepStatus::Entered))
+    );
+    let (stopped, events) = apply(&ir, st, Op::Control(Control::Stop));
+    assert!(events.iter().any(|e| matches!(e, Event::Stopped { .. })));
+    assert_eq!(
+        stopped.run.slices.get(&root("r-b")),
+        Some(&slice(&["b1"], "r-b/y", StepStatus::Entered))
+    );
+    assert_eq!(
+        stopped.run.slices.get(&root("r-a")),
+        Some(&slice(&["a0"], "r-a/x", StepStatus::Entered))
+    );
+    assert!(stopped.run.busy.is_none());
 }
 
 fn flags() -> impl Strategy<Value = BTreeSet<String>> {
