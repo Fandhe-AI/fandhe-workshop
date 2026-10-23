@@ -1,0 +1,8 @@
+id: GUIDE8-3
+package: fandhe-workshop-pack
+test: hint_stages
+target: crates/pack/src/hint_stages.rs
+find: .filter_map(|h| ir.hints.get(h))
+replace: .map(|h| ir.hints.get(h).unwrap_or(&Value::Null))
+expect-fail: guide8_answer_stage_must_resolve
+note: 定義に解決できないヒントの ID も段に数える

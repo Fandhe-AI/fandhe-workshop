@@ -7517,3 +7517,19 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE4-3 | `guidance.rs`: `body_levels` の経路を使わない | DETECTED（`guide4_leak_via_body_levels_only_detected`） |
 
 - 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
+
+### 5.253 ヒントの段の構造の確認（TASK-298。GUIDE-8・D-55）
+
+- 目的: 「ヒントは 3 段」を教材側の約束として扱い、段の数・答えの段・Step ごとの例外を教材テストが宣言として渡すと、宣言と違う Step が一覧で報告されることを固定する。エンジンは段の数を固定しない（D-55）。
+- 設計の判断: 段は `hints` の並び順で数え、ヒントの定義の `level`・`text` は読まない（語彙の語ではなく、読むには拡張点の手続きが要る）。`validate` には結線せず、新しい診断コードも足さない（結線すると「3 段」がエンジンの規則になる）。定義に解決できない ID は段に数えない。ヒントを持たない Step は対象外で、宣言が名指しした Step は段数 0 として確かめる。宣言の誤り（段数 0・答えの段が範囲外・欄の名前が空）は報告 0 件と区別するため `Err` にする。報告は `uid`・数・種類だけで、文面・答え・欄の値を写さない。
+- 試験: `crates/pack/tests/hint_stages.rs` の `guide8_` 10 件と `crates/pack/src/hint_stages.rs` の単体試験 2 件。同じ教材を宣言 2・3・4 で確かめて結果が変わること（対照）、4 段の Step でも `validate`・`compile` が診断なしで通り `visible_hints` が 4 件を返すこと、欄の名前を別名にしても答えの照合が働くこと、モジュールの実体ごとに `uid` で報告されることを含む。
+- 変異（2026-10-23。元にしたコミット 91e20b1。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE8-{1,2,3}.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE8-1 | `hint_stages.rs`: 段数の比較を `!=` から `>` にする | DETECTED（`guide8_steps_not_matching_the_declared_count_are_reported`） |
+| GUIDE8-2 | `hint_stages.rs`: 答えの照合を常に一致とみなす | DETECTED（`guide8_answer_text_contains_answer`） |
+| GUIDE8-3 | `hint_stages.rs`: 未定義の ID も段に数える | DETECTED（`guide8_answer_stage_must_resolve`） |
+
+- 限界: 段の中身（場所・道具の名前・完全なコマンド）の意味と教育上の適切さは確かめない（GUIDE-8 は検討中）。答えの照合は部分文字列の包含の近似である。`fandhe-pack test` は未実装（TASK-404）で、呼び出し元は試験だけである。プロトタイプの教材は private の submodule にあるため、一時ディレクトリの教材で確かめた。
+- spec 側の差分の案（spec repo の作業。自動運転のため人の承認は得ていない）: GUIDE-8 の証拠の種類「自動テスト（native。構造のみ）」を本節に結びつける。INTRO-39 の「3 段が揃わない Step を教材テストが検出するかは記録に無い」を、宣言どおりの段数でない Step を報告できる、に更新する。

@@ -622,6 +622,16 @@ views:
 - 案内レベルは実行全体で 1 つです。モジュールの実体ごとには変えられず、章の開始点の `starts[].guidance` で渡します（PACK-45）
 - ヒントが出ない水準（`E-HINT-HIDDEN`）も `validate` だけが検出します。定義のあるヒントを持つ Step で、ある水準にヒントが 1 つも出ないと、水準ごとに 1 件報告します。未定義のヒントの ID は `E-REF-HINT` の担当です
 
+## ヒントの段（段の意味は教材側の約束）
+
+ヒントの「3 段」は教材側の約束で、語彙にもエンジンにもありません（D-55。GUIDE-8）。ヒントを出せる数の上限は、現在の案内レベルで出せる数までです（GUIDE-17）。
+
+- 段は Step の `hints` の並び順で数えます。ヒントの定義の `level`・`text` などの欄はエンジンが読みません（語彙の語ではありません）
+- 推奨の約束は、1 段目が作業の場所・工程、2 段目が使う道具の名前、3 段目が完全なコマンド（または答えを含む文）です。GUIDE-8 は検討中で、教育上の適切さは人の試行で確かめていません
+- 約束どおりかの構造は、教材テストから `fandhe_workshop_pack::hint_stages::check_hint_stages` で確かめられます。段数・Step ごとの例外の段数・答えの段・任意の答えの照合（宣言した欄の文字列が答えを含むか）を宣言として渡すと、食い違う Step が `uid` つきの一覧で返ります。宣言の誤りは `Err` です
+- `validate` は段の数を報告しません。`fandhe-pack test` は未実装（TASK-404）で、2026-10-23 時点の呼び出し元は試験だけです
+- 中身の適切さ（場所・道具・コマンドの意味）は確かめません。答えの照合は部分文字列の包含の近似です
+
 ## 上流との対応表（Step ごとの上流の行）とヒントの括弧書き
 
 Step ごとの上流の行を持つ欄は、語彙にありません。足さないと決めました（D-70、2026-10-22。PACK-46）。Step に `upstream` のような欄を書くと、`compile` も `validate` も `E-PARSE` で止まります。値は診断に写りません。
@@ -640,6 +650,7 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 |---|---|
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
 | `crates/pack/tests/guidance_leak_scope.rs` | 置換後の `do`・`do_levels` の漏れの検出・既定値と入れ子の引数・重複しない 1 件・ヒントの文面と宣言の無い章の本文を検出しないこと・診断に値が写らないこと（PACK-52。TASK-71 3/3） |
+| `crates/pack/tests/hint_stages.rs` の `guide8_` | 段数・Step ごとの例外・答えの段・答えの照合の宣言と報告、宣言を 2・3・4 に変えても `validate`・`compile` が通ること、報告に値が写らないこと（GUIDE-8・D-55。TASK-298）。変異は GUIDE8-1〜GUIDE8-3 |
 | `crates/pack/tests/do_levels.rs` の `pack50_` | 案内レベル B の順序違いの次の行動に skill の名前が出ないこと（A は `do`、C は B に倒れる）、`do_levels` の鍵 `A`・空の値・`do` の欠落の `E-STRUCTURE`、未知の鍵の `E-PARSE`、語彙の版の食い違い、漏れの検査、モジュールの引数の置換、値を診断に写さないこと（PACK-50。TASK-70 2/2） |
 | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
 | `crates/pack/tests/upstream_map_gap.rs` の `pack46_` | Step の上流らしい欄が `compile`・`validate` とも `E-PARSE` で値を写さないこと、パック全体の `refs` が検査されず IR に写ること、`vocab` の表から Step ID が漏れなく取れて別の文書との突き合わせが組めること、括弧書きの位置が検査されないこと（PACK-46・D-70） |
