@@ -8121,3 +8121,28 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
   - 節番号は、open PR #1774 が 5.277 を使うため 5.279 とした。重なれば push の前に空き番号へ移す。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.280 案内の修飾キーの表示の右のエリアでの結線と OS によらない 4 操作（TASK-456。TERM-38・JUDGE-28・D-48）
+
+- 目的: 修飾キー（Cmd／Ctrl）の出し分けの機構は TASK-285 が実装済みである。本件は、その表示が枠（TASK-517 の 2 列とタブ）の右のエリア `shell-right` の中で働くことと、Enter 送信・Shift+Enter 改行・Tab 補完・Esc 停止の結果が OS によらず同じことを自動ブラウザ試験で固定する。製品コードは変えていない。
+- 既存の試験との差分: `modifier-key-hint` は幅 1024px で文言・欄の値・同一ノードを見るが、右のエリアの中にあること、幅 360px のタブとの関係、4 操作の OS 間の一致は見ていない。
+- 構成: `tools/browser/modifier-key-right-pane.test.mjs`（新設。`scripts/test-browser.sh` に登録）。CSP あり・なしで 6 件ずつ（12 件）。User-Agent は `openPage` の `userAgent` で差し替える。
+- 確かめる項目:
+
+| 場面 | 内容 |
+|---|---|
+| (A) 幅 1280px × Windows・macOS・Linux の UA | `key-hint`・`os-select` が各 1 件で `shell-right` の中にあり、`shell-left`・`shell-top` の中に無い。文言と欄の値が UA に合う。選ぶ欄で切り替えると文言が変わり、`shell-right`・案内・選ぶ欄が同じノードのまま、Step の本文が変わらない |
+| (B) 幅 360px × macOS・Windows の UA | 既定の「操作」で案内が見え、「成果物」で隠れ（件数は 1 のまま）、戻すと見える。選び直した値と文言がタブの往復で保たれる |
+| (C) 幅 1280px × macOS・Windows・Linux の UA と「macOS から windows へ選び直した後」 | 同じ列（Enter 送信・Shift+Enter・Tab 補完・Esc 停止）の観察が 4 条件で `deepEqual` し、条件ごとの期待（行が増える・下書きが `a\nb`・`/help`・停止で世代 +1 と停止の行 1 件）にも合う |
+
+- 共通: `collectSafety` の 4 計数（CSP 違反・pageerror・console error・ダイアログ）が 0 件。失敗の文面に UA の全文を出さない。
+- 観察で固定した値（2026-10-23。Chromium）: 試験の教材の最初の自由入力（`hello`）は拒否になり、行は増えるが下書きは選択状態で残る。そのため (C) は「下書きが空になる」ではなく「行が増える」で送信を確かめる。
+- 対照（2026-10-23）: 右のエリアの選択子を `shell-left` に向けると (A) の 6 件が失敗した（(B) と (C) の 6 件は通った）。
+- 実行結果（2026-10-23。Chromium、試験の設定と配信する設定の web を直接ビルド）: 12 件が通り、3 回続けて通った。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
+- 限界・未実施:
+  - **未実施（Windows 実機）**: Windows の実機・人の目での表示の確認は行っていない。User-Agent の差し替えによる模擬である（TASK-20・TASK-286・TASK-395）。
+  - **未実施（人の確認）**: 推定が外れたときに受講者が選ぶ欄で表示を直せるかの人の確認は行っていない（TASK-393・TASK-460）。自動試験の合格は人の評価に数えない（D-34）。
+  - 確かめた対象は `key-hint` と `os-select` だけである。ヒントの画面（SHELL-14 の `shell-hint`）は未描画で、結線の確認は実装するタスクで同じ試験に足す。Step の本文に作成者が書いた Cmd／Ctrl は切り替わらない（差し込みの仕組みは機構の側の判断）。
+  - 範囲外の記録: 右のエリアの識別子の契約の一覧（`crates/web/src/terminal_area.rs`）に `key-hint`・`os-select` が無い。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
