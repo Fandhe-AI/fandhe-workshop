@@ -1,0 +1,8 @@
+id: EVT21-7
+package: fandhe-workshop-core
+test: begin_skip_keep
+target: crates/core/src/projection.rs
+find:                     self.set_flags(item, achieved, true);
+replace:                     self.set_flags(item, achieved, false);
+expect-fail: progress_after_begin_keeps_skips_and_never_achieves_them
+note: 復習で省略の印を消す

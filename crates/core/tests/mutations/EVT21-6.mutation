@@ -1,0 +1,8 @@
+id: EVT21-6
+package: fandhe-workshop-core
+test: begin_skip_keep
+target: crates/core/src/begin.rs
+find:             .insert(uid.clone(), StepStatus::Skipped);
+replace:             .remove(&uid);
+expect-fail: skipped_count_equals_skipped_steps_in_events_log_and_status
+note: イベントは出すが状態を省略にしない（ログと状態の件数が食い違う）
