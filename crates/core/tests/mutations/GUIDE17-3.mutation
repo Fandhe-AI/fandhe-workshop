@@ -1,0 +1,8 @@
+id: GUIDE17-3
+package: fandhe-workshop-core
+test: hint_open
+target: crates/core/src/hint_open.rs
+find:         return refuse(StepUid(String::new()));
+replace:         return Vec::new();
+expect-fail: refuses_without_current_step
+note: 現在の Step が無いときの拒否を空のイベント列にする

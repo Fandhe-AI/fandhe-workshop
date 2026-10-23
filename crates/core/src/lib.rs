@@ -47,6 +47,7 @@
 //! 学習モジュールの実体ごとの状態の読み出しと根の決め方の一本化（[`instance`]、TASK-233 1/2、MOD-1）も持つ。
 //! 案内レベル別の本文の木の選択と濃い側への倒れ（[`body_level`]、TASK-292、GUIDE-1）も持つ。
 //! 現在の Step と案内レベルで出せるヒントの一覧（[`hint_select`]、TASK-293、GUIDE-2）も持つ。
+//! ヒントを 1 段開く操作と上限・Step 無しでの拒否（`hint_open`、TASK-295、GUIDE-17。公開しない）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -68,6 +69,7 @@ mod entry_derive;
 mod env_input;
 pub mod event;
 mod go_to;
+mod hint_open;
 pub mod hint_select;
 pub mod history_boot;
 pub mod history_envelope;

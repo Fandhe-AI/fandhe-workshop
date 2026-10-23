@@ -7516,9 +7516,83 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE4-2 | `guidance.rs`: 開始点の水準の経路を空にする | DETECTED（`guide4_leak_via_start_guidance_only_detected`） |
 | GUIDE4-3 | `guidance.rs`: `body_levels` の経路を使わない | DETECTED（`guide4_leak_via_body_levels_only_detected`） |
 
-- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
+- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は 5.253 が担当。人の確認は得ていない。
 
-### 5.253 ヒントの段の構造の確認（TASK-298。GUIDE-8・D-55）
+### 5.251 ヒントを開く操作と上限での拒否（TASK-295。GUIDE-17）
+
+- 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55 で固定しないと決まった。5.254 で確かめる）。
+- 設計: core の `hint_open::on_open_hint`（非公開）。Step が無いときは空の uid の印で拒否を記録する。案内レベルを下げて n が開いた段数を下回っても拒否し、段数は減らさない。処理中でも開ける。
+- 試験: `crates/core/tests/hint_open.rs`（水準ごとに n 段まで・超過の拒否で世代と状態が不変・Step 無し・ヒントの無い Step と IR に無い Step・水準を下げた後・水準ごとの上限）と性質テスト 2 本（各 1,000 件。宣言の組 × 水準 × 回数、Step の移動・水準の変更・操作の混在列）。
+- 実行結果（2026-10-23。元にしたコミット 05f8102）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE17-2.mutation crates/core/tests/mutations/GUIDE17-3.mutation crates/core/tests/mutations/GUIDE17-4.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| GUIDE17-2 | `hint_open.rs`: 上限の比較を緩め n+1 段目が開ける | refuses_beyond_n_without_changing_anything_but_the_log, property_open_up_to_visible_count | 左に加え the_limit_follows_the_current_level など 5 件 | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 0, 1)` |
+| GUIDE17-3 | `hint_open.rs`: Step 無しの拒否を空の列にする | refuses_without_current_step | refuses_without_current_step, property_mixed_sequences_keep_the_rules | DETECTED | cases=1000、最小の入力 `(false, [Open])` |
+| GUIDE17-4 | `hint_open.rs`: 開いた段数を記録しない | opens_one_by_one_up_to_n, property_open_up_to_visible_count | 6 件 | DETECTED | cases=1000、最小の入力 `([None], 0, 1)` |
+
+- 確かめないこと: 画面での表示と開く操作（TASK-530）。
+- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296。D-55 で固定しないと決まった。5.254 で確かめる）。
+
+### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
+
+- 目的: 教材全体が、モジュールの実体を静的に並べた有向非巡回グラフとして IR に載ることと、実体数・Step の実体数・開始数が教材の定義と一致することを固定する。
+- 決定: IR の形式は変えない。core の `instance` に読み取り専用の `instance_graph`（`InstanceGraph`・`InstanceGraphError`）を足し、呼び出しの実体の水準で有向非巡回（Kahn 法）と配線（`caller`・`scope`・`enter`・`exit_to`）を確かめ、根ごとの Step の実体・開始の数を返す。Step の `next` の後戻りはこのグラフに含めない。`load_ir` には結線しない（手で組んだ IR と 1/2 の試験の IR が読めなくなり、`IrLoadError` の契約に波及するため）。`CONTRACT_VERSION` は据え置いた。
+- 試験: `crates/core/tests/instance_graph.rs`（入れ子を含む受理と数、巡回 3 形と巡回の下流を返さないこと・未解決の呼び出し元・未知の `scope`・`scope` の食い違い・`main` の欠落と重複・`enter`/`exit_to` の誤りの拒否、決定性）、`crates/pack/tests/module_instance_graph.rs`（`module-reuse-rounds` の定義ファイルから導いた期待値と、compile した IR・`instance_graph` の数が一致すること。基点 36・5・19、辺、同じモジュールの 2 実体の Step 数、`--chapters` で絞った IR の不変条件）。
+- 変異注入: `MOD1-1`（巡回の判定を常に通す）。
+- 実行結果（2026-10-23。Linux。元にしたコミット 169a154）: 上の native 試験 18 件が通った。`scripts/check-mutations.sh crates/core/tests/mutations/MOD1-1.mutation` は DETECTED（期待した 3 件が失敗）。
+
+    | ID | 結果 |
+    |---|---|
+    | MOD1-1 | DETECTED |
+
+- 範囲外: `load_ir` への結線（拒否にするかの判断と理由コード）、web の `top_position.rs` の caller の追跡の置き換え、呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、3 周目の追加で実体が 7 になること（MOD-12、TASK-245）。
+
+### 5.253 検査の範囲の限界 3 項目（TASK-300 2/2。GUIDE-5）
+
+- 目的: 決定 D-43 の限界 3 項目を、欠陥パックで固定する。(a) 実体の引数で渡す `do` は展開後の文字列まで検査して検出する。(b) skill 名を含むヒントの段 2・3 は水準 B でも検査しない。(c) 開始点の `guidance` も `body_levels` も持たない章の本文は検査の対象外とする。(b)(c) は「検出しない」現状の観察である。
+- 試験: `crates/pack/tests/guide5_limits.rs`。差し替えは `testdata/pack-defects/guide5/b/G04〜G06`（土台は `base/format-b-v1_1`）。G04 は展開後の段の診断がちょうど 1 件で、引数を安全な値にすると 0 件になる対照つき。G05 は診断 0 件に加え、IR で水準 B に段 2・3 が見えること、同じ語を `do` に置くと検出される対照つき。G06 は診断 0 件で、正の対照は `guide4/b/G02`。`guidance_leak_scope.rs` の `pack52_` は範囲そのものの確認で、本試験は欠陥パックでの受け入れ試験である。
+- 変異（2026-10-23。元にしたコミット 3f5bbaf。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE5-{1,2}.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE5-1 | `expand.rs`: 置換後の `do` の漏れの検査を行わない | DETECTED（`guide5_a_argument_do_leak_detected`） |
+| GUIDE5-2 | `guidance.rs`: 宣言の無い章も水準 B で検査する | DETECTED（`guide5_c_undeclared_chapter_body_is_not_checked`） |
+
+- (b) に変異は置いていない。ヒントの文面を検査する経路がそもそも無く、1 行の置換で「検査する」状態を作れないためである。
+- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。人の確認は得ていない。
+
+### 5.254 ヒントの上限の規則（TASK-296。GUIDE-6・D-55）
+
+- 目的: ヒントの上限が「現在の案内レベルで出せる数 n まで」であり、3 段に固定されていないことを、n が 3 でない Step の試験と 39 本のヒントの確認で固定する。
+- 設計: D-55 で固定しないと決まっており、コードは変えない（`hint_open::on_open_hint` は `current_hints(..).len()` を上限にし、定数を持たない）。試験と変異で、3 段への固定と 3 段であることの要求を見分けられるようにした。
+- 試験: `crates/core/tests/hint_limit_rule.rs`（1・2・4・5・7 段の Step で、ちょうど n 段まで開け n+1 段目が `NoHint` で世代が不変・4 段以上が 3 段で打ち切られない・3 段未満でも拒否されない・水準を下げても開いた段数が減らない・出せる数が 4 以上の場合を毎回含む性質テスト 1,000 件）と、`crates/pack/tests/hint_limit_39.rs`（合成の教材 `tests/data/hint-limit-pack` を `compile_dir` で IR にし、13 Step x 3 段 = 39 本と水準で段数が変わる 2 Step の計 19 件の確認を core の `apply` まで通す。診断は 0 件）。
+- 実行結果（2026-10-23。実行時のコミット e9e2b78）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE6-1.mutation crates/core/tests/mutations/GUIDE6-2.mutation crates/pack/tests/mutations/GUIDE6-3.mutation`
+
+| ID | 対象 | 期待した失敗 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|
+| GUIDE6-1 | `hint_open.rs`: 上限を 3 段で打ち切る | four_or_more_visible_hints_are_not_capped_at_three, property_limit_is_visible_count_not_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)` |
+| GUIDE6-2 | `hint_open.rs`: 3 段でない Step を拒否する | fewer_than_three_hints_are_not_refused_for_being_short, opens_exactly_n_for_counts_other_than_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)`（GUIDE6-1 と同じ） |
+| GUIDE6-3 | `guidance.rs`: ヒントの `levels` を無視する | hint_checks_19_pass_through_compile_and_open | DETECTED | - |
+
+- 確かめないこと: 画面（TASK-530）。試作の 33/33 のうち開始点の案内レベルの確認 14 件（`starts[].guidance` の反映が前提。TASK-294）。`fandhe-pack test` の計数（TASK-404・TASK-84）。実教材の 3 段の記述（TASK-634）。試作の教材は private で写していないため、ヒントの確認 19 件は同じ形の合成の教材で流した。33/33 を達成したとは言えない。
+- 範囲外: 3 段の構造の確認（TASK-298）、鍵を実体ごとにすること（TASK-297）。
+
+### 5.255 本文・ヒントへの引数の値の差し込みの限界（TASK-302。GUIDE-15）
+
+- 目的: 本文の木（IR 版 2）とヒントの文面に引数の値が入らない現状を、観察として固定する。D-50（H-3 の差し込みを足さない）と D-55（実体ごとの案内レベルを足さない）の範囲に GUIDE-15 は含まれず、差し込み語を足す決定が無いため、実装の分岐は「限界の固定」を採った。差し込み語の採否は spec 側の決定待ちである。
+- 試験: `crates/pack/tests/body_arg_gap.rs`（`guide15_` 7 件）。(1) 本文の `${名前}` が木に字面で残る。(2) 実体どうしで水準 A・B・C の `select_body` が等しい。(3) 本文の未定義の名前は compile が通り、同じ字面を `do` に書くと `E-STRUCTURE`。本文の `{{step_do}}` は充填されない。(4) ヒントの ID と文面が実体で共有される（`pack45_` の観察を `hints_at` まで通す）。(5) 対照として、`do` は実体ごとに置換され、拒否の文面の `{{step_do}}` が実体ごとの値で埋まる。(6) 差し込みらしい未知の欄は `compile`・`validate` とも `E-PARSE` で、値を写さない。(7) PoC-4 の `round1`・`round2` は、同じ Step の本文が全水準で等しく、題材の名前を含まず、`do` は実体で異なる。
+- 変異（2026-10-23。元にしたコミット ecc1557。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE15-1.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE15-1 | `expand.rs`: `do` を引数の置換の対象から外す | DETECTED（`guide15_do_and_rejection_text_receive_argument_values` ほか 2 件） |
+
+- 本文側の変異（本文を置換するようにする）は置いていない。`bodies` が置換前の参照からファイルを読んで木を作るため、1 行の置換では作れない。
+- 確かめないこと: 画面での本文・ヒントの表示（TASK-530・SHELL-7）、差し込み語の採否。
+- 限界: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.256 ヒントの段の構造の確認（TASK-298。GUIDE-8・D-55）
 
 - 目的: 「ヒントは 3 段」を教材側の約束として扱い、段の数・答えの段・Step ごとの例外を教材テストが宣言として渡すと、宣言と違う Step が一覧で報告されることを固定する。エンジンは段の数を固定しない（D-55）。
 - 設計の判断: 段は `hints` の並び順で数え、ヒントの定義の `level`・`text` は読まない（語彙の語ではなく、読むには拡張点の手続きが要る）。`validate` には結線せず、新しい診断コードも足さない（結線すると「3 段」がエンジンの規則になる）。定義に解決できない ID は段に数えない。ヒントを持たない Step は対象外で、宣言が名指しした Step は段数 0 として確かめる。宣言の誤り（段数 0・答えの段が範囲外・欄の名前が空）は報告 0 件と区別するため `Err` にする。報告は `uid`・数・種類だけで、文面・答え・欄の値を写さない。

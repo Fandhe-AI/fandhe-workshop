@@ -1,0 +1,115 @@
+# ヒントの上限の試験用の章（架空）。各 Step は承認だけで進み、ヒントの数が試験の対象である。
+id: "c1"
+title: "ヒントの上限"
+starts:
+  - {id: "s1", node: "s01"}
+steps:
+  - id: "s01"
+    title: "Step s01"
+    body: "body.md"
+    hints: ["h-s01-1", "h-s01-2", "h-s01-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s02"}]
+  - id: "s02"
+    title: "Step s02"
+    body: "body.md"
+    hints: ["h-s02-1", "h-s02-2", "h-s02-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s03"}]
+  - id: "s03"
+    title: "Step s03"
+    body: "body.md"
+    hints: ["h-s03-1", "h-s03-2", "h-s03-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s04"}]
+  - id: "s04"
+    title: "Step s04"
+    body: "body.md"
+    hints: ["h-s04-1", "h-s04-2", "h-s04-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s05"}]
+  - id: "s05"
+    title: "Step s05"
+    body: "body.md"
+    hints: ["h-s05-1", "h-s05-2", "h-s05-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s06"}]
+  - id: "s06"
+    title: "Step s06"
+    body: "body.md"
+    hints: ["h-s06-1", "h-s06-2", "h-s06-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s07"}]
+  - id: "s07"
+    title: "Step s07"
+    body: "body.md"
+    hints: ["h-s07-1", "h-s07-2", "h-s07-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s08"}]
+  - id: "s08"
+    title: "Step s08"
+    body: "body.md"
+    hints: ["h-s08-1", "h-s08-2", "h-s08-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s09"}]
+  - id: "s09"
+    title: "Step s09"
+    body: "body.md"
+    hints: ["h-s09-1", "h-s09-2", "h-s09-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s10"}]
+  - id: "s10"
+    title: "Step s10"
+    body: "body.md"
+    hints: ["h-s10-1", "h-s10-2", "h-s10-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s11"}]
+  - id: "s11"
+    title: "Step s11"
+    body: "body.md"
+    hints: ["h-s11-1", "h-s11-2", "h-s11-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s12"}]
+  - id: "s12"
+    title: "Step s12"
+    body: "body.md"
+    hints: ["h-s12-1", "h-s12-2", "h-s12-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "s13"}]
+  - id: "s13"
+    title: "Step s13"
+    body: "body.md"
+    hints: ["h-s13-1", "h-s13-2", "h-s13-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "g3a"}]
+  - id: "g3a"
+    title: "Step g3a"
+    body: "body.md"
+    hints: ["h-g3a-1", "h-g3a-2"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "g3b"}]
+  - id: "g3b"
+    title: "Step g3b"
+    body: "body.md"
+    hints: ["h-g3b-1", "h-g3b-2", "h-g3b-3"]
+    input: {kind: "approval"}
+    confirm: {kind: "approve"}
+    next: [{to: "end"}]
+  - id: "end"
+    title: "Step end"
+    body: "body.md"
+    final: true

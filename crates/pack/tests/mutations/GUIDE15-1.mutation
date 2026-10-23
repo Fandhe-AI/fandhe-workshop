@@ -1,0 +1,8 @@
+id: GUIDE15-1
+package: fandhe-workshop-pack
+test: body_arg_gap
+target: crates/pack/src/expand.rs
+find: const NO_SUBST_STEP_KEYS: [&str; 3] = ["id", "body", "body_levels"];
+replace: const NO_SUBST_STEP_KEYS: [&str; 4] = ["id", "body", "body_levels", "do"];
+expect-fail: guide15_do_and_rejection_text_receive_argument_values
+note: `do` を引数の置換の対象から外す（対照の `do` が実体ごとの値を受けることの確認が働いているかを確かめる）

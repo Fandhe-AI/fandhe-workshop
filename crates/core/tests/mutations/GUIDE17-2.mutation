@@ -1,0 +1,9 @@
+id: GUIDE17-2
+package: fandhe-workshop-core
+test: hint_open
+target: crates/core/src/hint_open.rs
+find:     if opened >= total {
+replace:     if opened > total {
+expect-fail: refuses_beyond_n_without_changing_anything_but_the_log
+expect-fail: property_open_up_to_visible_count
+note: 上限の比較を 1 つ緩め、n+1 段目が開ける
