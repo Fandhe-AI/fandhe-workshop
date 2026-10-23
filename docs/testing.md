@@ -7501,7 +7501,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55。固定するかは TASK-296）。
 - 設計: core の `hint_open::on_open_hint`（非公開）。Step が無いときは空の uid の印で拒否を記録する。案内レベルを下げて n が開いた段数を下回っても拒否し、段数は減らさない。処理中でも開ける。
 - 試験: `crates/core/tests/hint_open.rs`（水準ごとに n 段まで・超過の拒否で世代と状態が不変・Step 無し・ヒントの無い Step と IR に無い Step・水準を下げた後・水準ごとの上限）と性質テスト 2 本（各 1,000 件。宣言の組 × 水準 × 回数、Step の移動・水準の変更・操作の混在列）。
-- 実行結果（2026-10-23。元にしたコミット 05f8102。作業ツリーは未コミットの状態）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE17-2.mutation crates/core/tests/mutations/GUIDE17-3.mutation crates/core/tests/mutations/GUIDE17-4.mutation`
+- 実行結果（2026-10-23。元にしたコミット 05f8102）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE17-2.mutation crates/core/tests/mutations/GUIDE17-3.mutation crates/core/tests/mutations/GUIDE17-4.mutation`
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|---|
