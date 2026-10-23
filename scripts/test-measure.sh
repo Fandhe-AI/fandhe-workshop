@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/measure/all.sh（初回表示・再描画を含む一括測定）と lib.sh の束の検証の受入基準を確かめる（make test-measure から呼ばれる）。
 #
-# 確かめること: 束（fandhe-workshop/measure-run/v1）の検証、誤用の拒否、基点を集められないとき・ブラウザの測定が失敗したときの
+# 確かめること: input-paint（TASK-223 2/2）の単体の結果、束（fandhe-workshop/measure-run/v1）の検証、誤用の拒否、基点を集められないとき・ブラウザの測定が失敗したときの
 # fail-closed（標準出力が空）、実行の結果が基点つきで正しい構成であること、統計関数の試験（node:test）。
 # 実ビルドと Chromium を使うため遅い。make check・フック・CI には入れない（CI の大きさの関門は scripts/check-wasm-size.sh）。
 # Playwright や Chromium が無い場合はスキップせず失敗にする（未検査の成功を作らない）。
@@ -165,7 +165,24 @@ else
   cat "${LOGR}.err" >&2
 fi
 
-# --- (f) 統計関数と引数の試験 ---
+# --- (f) input-paint（ログ 120〜158 項目の入力から描画まで。TASK-223 2/2。束には入れない単体の測定） ---
+check "input-paint.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/input-paint.sh" --unknown
+check_fails "input-paint: missing pack/device baseline is refused" measure_browser_result input-paint "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "input-paint: missing device baseline is refused" measure_browser_result input-paint "$(measure_commit_json)" "${TMP}" '{"pack":{"id":"x","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}'
+INP="${TMP}/input-paint.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/input-paint.sh" >"${INP}" 2>"${INP}.err"; then
+  check "input-paint: passes the v1 validation" measure_validate "${INP}"
+  check "input-paint: pack baseline is min-3step with a sha256" jq -e '.baseline.pack.id == "min-3step" and (.baseline.pack.sha256 | test("^[0-9a-f]{64}$"))' "${INP}"
+  check "input-paint: device baseline has typed fields" jq -e '.baseline.device | (.os | type == "string") and (.cpu | type == "string") and (.logical_cores | type == "number") and (.memory_bytes | type == "number") and (.apple_silicon_macos | type == "boolean")' "${INP}"
+  check "input-paint: four input_paint measurements" jq -e '[.measurements[].name] == ["input_paint_median", "input_paint_p95", "input_paint_max", "input_paint_capture_p95"]' "${INP}"
+  check "input-paint: conditions record the window and the scope" jq -e '.conditions.log_window == [120, 158] and .conditions.trials * .conditions.samples_per_trial == 200 and (.conditions.scope_note | contains("not representative"))' "${INP}"
+  check "input-paint: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${INP}"
+else
+  fail "input-paint: input-paint.sh failed (see ${INP}.err)"
+  cat "${INP}.err" >&2
+fi
+
+# --- (g) 統計関数と引数の試験 ---
 check "node:test for browser.mjs passes" node --test "${ROOT_DIR}/tools/measure/browser.test.mjs"
 
 if [ "${FAILURES}" -ne 0 ]; then

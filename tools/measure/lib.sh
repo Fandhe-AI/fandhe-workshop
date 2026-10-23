@@ -44,7 +44,7 @@ _measure_sha256() {
   printf '%s\n' "${out}"
 }
 
-# measure_pack_json <ir-file>: 測った教材の基点 {"id","version","nodes","sha256"} を返す。log-redraw の基点の「教材」。
+# measure_pack_json <ir-file>: 測った教材の基点 {"id","version","nodes","sha256"} を返す。log-redraw・input-paint の基点の「教材」。
 # id・version は IR の pack 欄、nodes は IR の nodes の数（Step の数）。読めない・欠けていれば失敗する。
 measure_pack_json() {
   local file="$1" sha
@@ -243,19 +243,23 @@ measure_assert_commit_unchanged() {
 
 # measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# <kind> は first-paint / redraw / log-redraw。log-redraw は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
-# 結果の baseline へ足す。log-redraw でこれが欠ける・pack か device が無いときは失敗にする。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
+# <kind> は first-paint / redraw / log-redraw / input-paint。log-redraw と input-paint は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# 結果の baseline へ足す。この 2 つでこれが欠ける・pack か device が無いときは失敗にする。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
 measure_browser_result() {
-  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" rc=0 features
+  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" rc=0 features need_extra
   if [ -z "${extra}" ]; then extra='{}'; fi
-  if [ "${kind}" = "log-redraw" ] && ! jq -e '
+  case "${kind}" in
+    log-redraw | input-paint) need_extra=1 ;;
+    *) need_extra=0 ;;
+  esac
+  if [ "${need_extra}" -eq 1 ] && ! jq -e '
     (.pack.id | type == "string" and length > 0) and (.pack.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
     and (.device.os | type == "string" and length > 0) and (.device.cpu | type == "string" and length > 0)
     and (.device.logical_cores | type == "number") and (.device.memory_bytes | type == "number")
     and (.device.apple_silicon_macos | type == "boolean")' <<<"${extra}" >/dev/null 2>&1; then
-    echo "error: log-redraw needs the pack and device baseline" >&2
+    echo "error: ${kind} needs the pack and device baseline" >&2
     return 1
   fi
   measure_build "${tmp}" || rc=$?
