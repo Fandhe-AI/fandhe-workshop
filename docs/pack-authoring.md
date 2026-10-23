@@ -110,6 +110,7 @@ YAML の型のままです。重複キーの拒否だけが及びます。
 - `use` に書けるのは `module`・`instance`・`args` だけです。実体ごとの案内レベルの `guidance` は語彙に無く、書くと `compile` も `validate` も `E-PARSE` です（D-55、PACK-45）。案内レベルは開始点で渡します
 - `use` で呼ぶと、実体は必ずモジュールの先頭の Step から始まります。先頭の Step を省く語は無く、`use` に省く指定（`start` など）を書くと `compile` も `validate` も `E-PARSE` です（D-43、PACK-51）。実体ごとに後ろの Step を飛ばしたいときは、先頭の Step を振り分けの Step にして、`next` に `when: {param: {name: <引数>, eq: "<値>"}}` を書きます（例は `issue-to-merge` の `st-3-2` と `setup`）。飛ばした Step は IR に残り、遷移で通らないだけです（途中開始の「省略」とは別です）。
 - ヒントは、`hints` の ID を `${名前}` で渡せば実体ごとに変えられます。ただし置換後の ID が定義されているかは検査しないので、未定義の ID を渡すとヒントが出ません。本文の Markdown とヒントの定義（文面・`levels`）は置換しません（`docs/known-gaps.md` の PACK-45）
+- 本文は実体ごとに同じ木になり、本文の未定義の `${名前}` も検査されません。実体ごとに変えたい語は、引数で `do` に渡し、拒否・問い返しの文面の `{{step_do}}` で出します（TASK-302）
 - 引数の型と範囲は、`params` の隣の `param_types` で宣言できます（語彙 1.7、PACK-51）。宣言した引数に型や範囲に合わない値を渡す（`"flase"` など）と、`compile` も `validate` も `E-STRUCTURE` で止めます。引数は文字列のままなので、書き間違いが `condition.param` の `eq` と一致せず、黙って別の分岐に倒れるのを防ぐためです。
 
     ```yaml
@@ -642,6 +643,7 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 | `crates/pack/tests/guidance_leak_scope.rs` | 置換後の `do`・`do_levels` の漏れの検出・既定値と入れ子の引数・重複しない 1 件・ヒントの文面と宣言の無い章の本文を検出しないこと・診断に値が写らないこと（PACK-52。TASK-71 3/3） |
 | `crates/pack/tests/do_levels.rs` の `pack50_` | 案内レベル B の順序違いの次の行動に skill の名前が出ないこと（A は `do`、C は B に倒れる）、`do_levels` の鍵 `A`・空の値・`do` の欠落の `E-STRUCTURE`、未知の鍵の `E-PARSE`、語彙の版の食い違い、漏れの検査、モジュールの引数の置換、値を診断に写さないこと（PACK-50。TASK-70 2/2） |
 | `crates/pack/tests/per_instance_guidance_gap.rs` の `pack45_` | `use.guidance` が `compile`・`validate` とも `E-PARSE` で値を写さないこと、実体が案内レベルの欄を持たないこと、ヒントの ID を引数で渡せて文面は置換されないこと（PACK-45・D-55） |
+| `crates/pack/tests/body_arg_gap.rs` の `guide15_` | 本文の木とヒントの文面に引数の値が入らず実体で共有されること、本文の未定義の名前が検査されないこと、`do` と拒否の文面の `{{step_do}}` は実体ごとの値を受けること（GUIDE-15・TASK-302） |
 | `crates/pack/tests/upstream_map_gap.rs` の `pack46_` | Step の上流らしい欄が `compile`・`validate` とも `E-PARSE` で値を写さないこと、パック全体の `refs` が検査されず IR に写ること、`vocab` の表から Step ID が漏れなく取れて別の文書との突き合わせが組めること、括弧書きの位置が検査されないこと（PACK-46・D-70） |
 | `crates/pack/tests/text_rule_content.rs` の `pack41_` | 自然文の内容で規則を分ける書き方（`on` の未知のキー・真偽値でない `on.text`）が `E-PARSE` になり、値が診断に出ないこと |
 | `crates/contract/tests/content_hash_contract.rs` | 本文の木を除いて求めること、本文だけの修正でハッシュが変わらないこと |
