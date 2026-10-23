@@ -232,7 +232,7 @@ pub(crate) fn apply_acceptance(
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
-    let root = uid.root();
+    let root = crate::instance::root_of(uid);
     run.slices
         .entry(root.clone())
         .or_default()

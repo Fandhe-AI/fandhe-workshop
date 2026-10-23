@@ -16,7 +16,8 @@
 //! 再読み込みは `apply` の外にあり、`reload` モジュールが世代を +1 する（[`reload()`]、TASK-320 1/2、SAVE-4）。
 //! ヒントを 1 段開く操作は `hint_open` モジュールが行い、出せる数を上限に拒否する（TASK-295、GUIDE-17）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
-//! （`Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
+//! （`Changed` と導出 TASK-215、途中開始 TASK-217、周回と呼び出しの Step の持ち主 TASK-235〜239・241）が埋める。
+//! 実体の根ごとの状態の読み出しは [`crate::instance`]（TASK-233 1/2）が持ち、[`Session`] の読み取り用メソッドから引ける。
 //!
 //! 不変条件:
 //! - [`apply`] は全域（panic しない）で決定的。I/O・時刻・乱数を使わない（EVT-22）
@@ -42,6 +43,7 @@ use crate::event::{Cause, Event};
 use crate::go_to;
 use crate::hint_open;
 use crate::input::{CheckpointId, Control, GenerationRule, Input, Op};
+use crate::instance;
 use crate::provider::StateChangeProvider;
 use crate::reload;
 use crate::step_status::StepStatus;
@@ -386,7 +388,7 @@ impl Session {
             current: Some(uid.clone()),
             ..RunState::default()
         };
-        run.slices.insert(uid.root(), slice);
+        run.slices.insert(crate::instance::root_of(&uid), slice);
         let state = SessionState {
             entry: Some(EntryCopy {
                 run: run.clone(),
@@ -439,6 +441,26 @@ impl Session {
         let (state, _events) = reload(state);
         self.state = state;
         self.state.log.get(before..).unwrap_or_default()
+    }
+
+    /// 教材の実体の根を IR の順に返す（章の実体 `main` を含む。MOD-1）。
+    pub fn instances(&self) -> Vec<Root> {
+        instance::instance_roots(&self.ir)
+    }
+
+    /// 実体の根の切り身。まだ何も書かれていない根は `None`。
+    pub fn slice(&self, root: &Root) -> Option<&Slice> {
+        instance::slice_of(&self.state.run, root)
+    }
+
+    /// Step の実体の状態。未登録は `NotStarted`。
+    pub fn step_status(&self, uid: &StepUid) -> StepStatus {
+        instance::status_of(&self.state.run, uid)
+    }
+
+    /// 実体の根に属する Step の実体を IR の順に返す。
+    pub fn steps_of(&self, root: &Root) -> Vec<StepUid> {
+        instance::steps_of(&self.ir, root)
     }
 
     /// 状態への可変の参照。下書きの写し（`drafts`）を `ops` の記録と同時に更新するためだけに、

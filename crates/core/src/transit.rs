@@ -28,8 +28,8 @@
 //!
 //! # 扱わないこと
 //!
-//! 実体の状態を `Session` に持つこと・切り身とフラグの分離・遷移先の `on_enter` の効果・`busy` を立てること・
-//! `ChapterCompleted`・`completed`・開始（`Begin`）での連鎖（TASK-217）は、TASK-233 以降が扱う。
+//! 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）・切り身とフラグの分離の周回の動き・遷移先の `on_enter` の効果・`busy` を立てること・
+//! `ChapterCompleted`・`completed`・開始（`Begin`）での連鎖（TASK-217）は、後続（TASK-235〜241）が扱う。
 //! それらは本モジュールの歩行器を通して拡張する前提で、巡回の検出に要る最小のたどりだけを置く。
 //! 遷移の条件（`when`）は評価できないので、`next` は無条件の最初の辺だけを採る（[`crate::confirm`] と同じ）。
 //!
@@ -42,6 +42,7 @@ use serde_json::Value;
 
 use crate::addr::{Generation, Stamp, StepUid};
 use crate::event::Event;
+use crate::instance;
 use crate::session::SessionState;
 use crate::step_status::StepStatus;
 
@@ -86,11 +87,7 @@ fn warning(at: Stamp, message: &str) -> Event {
 
 fn set_status(state: &mut SessionState, uid: &str, status: StepStatus) {
     let uid = StepUid(uid.to_string());
-    state
-        .run
-        .slices
-        .entry(uid.root())
-        .or_default()
+    instance::slice_mut(&mut state.run, instance::root_of(&uid))
         .status
         .insert(uid, status);
 }

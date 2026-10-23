@@ -79,7 +79,7 @@ pub(crate) fn on_save(state: &mut SessionState) -> Vec<Event> {
             run: state.run.clone(),
             entry: state.entry.clone(),
             log_len,
-            owner: Some(current.root()),
+            owner: Some(crate::instance::root_of(&current)),
         },
     );
     state.next_checkpoint = CheckpointId(next_id);

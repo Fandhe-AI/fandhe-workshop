@@ -7496,6 +7496,14 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 範囲外: `Control::OpenHint`・`SetGuidance` の結線（TASK-295・TASK-294）、本文の表示（TASK-530）。
 
+### 5.249 学習モジュールの実体ごとの状態の読み出し（TASK-233 1/2。MOD-1）
+
+- 目的: 同じ定義の Step が、`Session` の状態の上でも実体ごとに別の Step の実体として扱われ、片方の状態・フラグがもう片方へ漏れないことを固定する。
+- 決定: 状態の型・直列化の形は変えず、読み取り専用の `instance` モジュールと `Session::instances`・`slice`・`step_status`・`steps_of` を足した。根の決め方は `instance::root_of` の 1 か所に寄せ、中身は従来の `StepUid::root` のままにした。呼び出しの Step の持ち主の規則（`Instance.caller`）は書き込みと読み出しが一緒に変わる必要があるため入れず、TASK-235・TASK-241 が `root_of` を差し替える。`CONTRACT_VERSION` は据え置いた。
+- 試験: `crates/core/tests/module_instances.rs`（手元で組んだ 2 実体の IR。列挙・Step の実体の分離・移動後の非干渉・フラグの非漏洩・不正な根と uid への全域性）、`crates/pack/tests/module_instances_session.rs`（`module-reuse-rounds` の IR。実体の列挙、round1 と round2 の Step の実体が同数で uid が全部違うこと、片方へ入っても他方が `NotStarted` のままで切り身の鍵が混ざらないこと）。
+- 実行結果（2026-10-23。Linux）: 上の native 試験 8 件が通った。既存の試験は無改変で通る（最終の確認は PR の CI）。
+- 範囲外: 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、web の残りの `StepUid::root` の直呼び（`next_chapter.rs`・`start_select.rs`・`step_status.rs`・`glue.rs` と試験の部品。core と web の `offers.rs` は `root_of` に寄せ済み）の置き換え、実体数・Step の実体数・開始数の照合（TASK-233 2/2）。
+
 ### 5.251 ヒントを開く操作と上限での拒否（TASK-295。GUIDE-17）
 
 - 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55。固定するかは TASK-296）。
