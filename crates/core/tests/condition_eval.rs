@@ -76,7 +76,7 @@ fn args_of(root: &str) -> BTreeMap<String, String> {
 
 fn ev(v: Value) -> Option<bool> {
     let c = Condition::from_value(&v).expect("parse");
-    let got = eval_condition(&c, &state(), &root(), Some(&args_of("main")));
+    let got = eval_condition(&c, &state(), &root(), Some(&args_of("main")), &instances());
     // 評価器の経路でも同じ結果になる。
     let inst = instances();
     assert_eq!(VocabConditions::new(&inst).eval(&v, &state(), &root()), got);
@@ -108,7 +108,7 @@ fn step_compares_status_and_unregistered_is_not_started() {
     // 別の根の Step は見ない。
     let c = Condition::from_value(&json!({"step": {"step": "s1", "state": "achieved"}})).unwrap();
     assert_eq!(
-        eval_condition(&c, &state(), &Root("m@i".into()), None),
+        eval_condition(&c, &state(), &Root("m@i".into()), None, &[]),
         Some(false)
     );
 }
@@ -174,7 +174,7 @@ fn chose_reads_the_choice_of_the_root_and_step() {
     );
     let c = Condition::from_value(&json!({"chose": {"step": "s3", "option": "opt-a"}})).unwrap();
     assert_eq!(
-        eval_condition(&c, &state(), &Root("m@i".into()), None),
+        eval_condition(&c, &state(), &Root("m@i".into()), None, &[]),
         Some(true)
     );
 }
@@ -238,11 +238,11 @@ fn param_compares_the_arguments_of_the_root_instance() {
     );
     // 引数が分からないとき（None）は評価できず、論理に伝わる。
     let c = Condition::from_value(&p("n", "v")).unwrap();
-    assert_eq!(eval_condition(&c, &state(), &mi, None), None);
+    assert_eq!(eval_condition(&c, &state(), &mi, None, &[]), None);
     let all = Condition::from_value(&json!({"all": [{"flag": "absent"}, p("n", "v")]})).unwrap();
-    assert_eq!(eval_condition(&all, &state(), &mi, None), None);
+    assert_eq!(eval_condition(&all, &state(), &mi, None, &[]), None);
     let not = Condition::from_value(&json!({"not": p("n", "v")})).unwrap();
-    assert_eq!(eval_condition(&not, &state(), &mi, None), None);
+    assert_eq!(eval_condition(&not, &state(), &mi, None, &[]), None);
 }
 
 #[test]
@@ -355,4 +355,50 @@ fn apply_effects_when_param_differs_per_instance() {
     }
     assert!(!run.slices[&root()].flags.contains("hit"));
     assert!(run.slices[&Root("m@i".into())].flags.contains("hit"));
+}
+
+/// 呼び出しの Step の状態・選択は呼ばれた実体の切り身にある。条件はその持ち主から読む（MOD-3）。
+#[test]
+fn step_and_chose_read_the_callee_slice_for_a_call_step() {
+    let mut inst = instances();
+    inst[1].caller = Some("main/c1".into());
+    let mut run = RunState::default();
+    let mut callee = Slice::default();
+    callee
+        .status
+        .insert(StepUid("main/c1".into()), StepStatus::Entered);
+    callee
+        .choices
+        .insert(StepUid("main/c1".into()), "opt-a".into());
+    run.slices.insert(Root("m@i".into()), callee);
+    let step = |state: &str| json!({"step": {"step": "c1", "state": state}});
+    let eval = |run: &RunState, v: Value, instances: &[Instance]| {
+        let c = Condition::from_value(&v).expect("parse");
+        eval_condition(&c, run, &root(), None, instances)
+    };
+    assert_eq!(eval(&run, step("entered"), &inst), Some(true));
+    assert_eq!(eval(&run, step("not_started"), &inst), Some(false));
+    assert_eq!(eval(&run, step("achieved"), &inst), Some(false));
+    assert_eq!(
+        eval(
+            &run,
+            json!({"chose": {"step": "c1", "option": "opt-a"}}),
+            &inst
+        ),
+        Some(true)
+    );
+    // 対照: 持ち主を引けない（実体の一覧が空）と実体 ID の根を見て NotStarted になる。
+    assert_eq!(eval(&run, step("entered"), &[]), Some(false));
+    // 評価器の経路も同じ。
+    assert_eq!(
+        VocabConditions::new(&inst).eval(&step("entered"), &run, &root()),
+        Some(true)
+    );
+    // 達成後も同じ持ち主を読む。
+    run.slices
+        .get_mut(&Root("m@i".into()))
+        .expect("slice")
+        .status
+        .insert(StepUid("main/c1".into()), StepStatus::Achieved);
+    assert_eq!(eval(&run, step("achieved"), &inst), Some(true));
 }

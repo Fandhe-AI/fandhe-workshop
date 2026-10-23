@@ -35,7 +35,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use fandhe_workshop_contract::ir::{Ir, Node};
+use fandhe_workshop_contract::ir::{Instance, Ir, Node};
 
 use crate::addr::{Root, StepUid};
 use crate::session::{RunState, Slice};
@@ -54,7 +54,12 @@ pub fn root_of(uid: &StepUid) -> Root {
 /// 1 回の線形探索でたどらないので、巡回・重複を含む IR でも止まり決定的である（全域）。
 /// 呼び出し元は `transit`・`accept`・`confirm`・`env_input`・`Session` の書き読みで、web の読み取りもこれを通す。
 pub fn owner_of(ir: &Ir, uid: &StepUid) -> Root {
-    ir.instances
+    owner_in(&ir.instances, uid)
+}
+
+/// [`owner_of`] の実体。IR 全体を持たない呼び出し元（条件の評価）が実体の一覧だけで同じ持ち主を引く。
+pub fn owner_in(instances: &[Instance], uid: &StepUid) -> Root {
+    instances
         .iter()
         .find(|i| i.caller.as_deref() == Some(uid.0.as_str()))
         .map(|i| Root(i.id.clone()))

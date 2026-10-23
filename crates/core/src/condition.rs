@@ -17,9 +17,9 @@
 //! 不変条件: 全域（panic しない）で決定的。I/O・時刻・乱数を使わない。再帰の深さは、解釈が断る入れ子の
 //! 上限（`MAX_JSON_DEPTH`）に抑えられる。`count` は世界状態の件数に線形である。
 //!
-//! `step`・`chose` は `root` の切り身から実体 ID の根（`root_of`）で状態・選択を読む。呼び出しの Step（持ち主は
-//! `owner_of`）を指す条件は範囲外で、ここでは `NotStarted`・選択なしとして扱う（IR を受け取らないため。MOD-3、
-//! TASK-235 1/2 の範囲外。`docs/testing.md` 5.255）。
+//! `step`・`chose` は、指す Step の持ち主（[`crate::instance::owner_in`]。呼び出しの Step は呼ばれた実体の根）の
+//! 切り身から状態・選択を読む。持ち主を引くため実体の一覧（`Ir.instances`）を受け取る（MOD-3、TASK-235 1/2。
+//! `docs/testing.md` 5.256）。
 //!
 //! 経路・属性は世界状態のメモリ上の鍵で、ファイルパス・URL として扱わない。
 
@@ -31,6 +31,7 @@ use serde_json::Value;
 
 use crate::addr::{Root, StepUid};
 use crate::effect::ConditionEval;
+use crate::instance::owner_in;
 use crate::session::RunState;
 use crate::step_status::StepStatus;
 
@@ -54,19 +55,23 @@ fn uid(root: &Root, step: &str) -> StepUid {
 ///
 /// `flag` は実体ごとのフラグ（`run.slices[root].flags`）だけを読み、`global_flags` は読まない。
 /// `args` は `root` の実体の引数（`param` が比べる）で、分からないときは `None` を渡す。
+/// `instances` は `step`・`chose` が指す Step の持ち主（呼び出しの Step は呼ばれた実体）を引く実体の一覧で、
+/// 分からないときは空を渡す（そのときは実体 ID の根を持ち主とする）。
 /// `all([])` は真、`any([])` は偽。`args` が `None` のときの `param` と、それを含む論理は `None`（安全側）。
 pub fn eval_condition(
     c: &Condition,
     run: &RunState,
     root: &Root,
     args: Option<&BTreeMap<String, String>>,
+    instances: &[Instance],
 ) -> Option<bool> {
     match c {
         Condition::Step(s) => {
+            let target = uid(root, &s.step);
             let now = run
                 .slices
-                .get(root)
-                .and_then(|sl| sl.status.get(&uid(root, &s.step)))
+                .get(&owner_in(instances, &target))
+                .and_then(|sl| sl.status.get(&target))
                 .copied()
                 .unwrap_or(StepStatus::NotStarted);
             Some(now == status_of(s.state))
@@ -92,12 +97,15 @@ pub fn eval_condition(
                 .count();
             Some(k.op.holds(u64::try_from(n).unwrap_or(u64::MAX), k.n))
         }
-        Condition::Chose(ch) => Some(
-            run.slices
-                .get(root)
-                .and_then(|sl| sl.choices.get(&uid(root, &ch.step)))
-                .is_some_and(|o| *o == ch.option),
-        ),
+        Condition::Chose(ch) => {
+            let target = uid(root, &ch.step);
+            Some(
+                run.slices
+                    .get(&owner_in(instances, &target))
+                    .and_then(|sl| sl.choices.get(&target))
+                    .is_some_and(|o| *o == ch.option),
+            )
+        }
         Condition::Param(p) => args.map(|a| a.get(&p.name).is_some_and(|v| *v == p.eq)),
         Condition::Clarifying(id) => Some(
             run.slices
@@ -105,9 +113,9 @@ pub fn eval_condition(
                 .and_then(|sl| sl.clarifying.as_deref())
                 .is_some_and(|w| w == id),
         ),
-        Condition::All(list) => fold(list, run, root, args, true),
-        Condition::Any(list) => fold(list, run, root, args, false),
-        Condition::Not(inner) => eval_condition(inner, run, root, args).map(|b| !b),
+        Condition::All(list) => fold(list, run, root, args, instances, true),
+        Condition::Any(list) => fold(list, run, root, args, instances, false),
+        Condition::Not(inner) => eval_condition(inner, run, root, args, instances).map(|b| !b),
         // `Condition` は `#[non_exhaustive]`。将来の語は評価できないものとして安全側に倒す。
         _ => None,
     }
@@ -119,12 +127,13 @@ fn fold(
     run: &RunState,
     root: &Root,
     args: Option<&BTreeMap<String, String>>,
+    instances: &[Instance],
     all_of: bool,
 ) -> Option<bool> {
     let mut acc = all_of;
     let mut unknown = false;
     for c in list {
-        match eval_condition(c, run, root, args) {
+        match eval_condition(c, run, root, args, instances) {
             Some(b) => {
                 if all_of {
                     acc &= b;
@@ -167,6 +176,6 @@ impl ConditionEval for VocabConditions<'_> {
             .iter()
             .find(|i| i.id == root.0)
             .map(|i| &i.args);
-        eval_condition(&c, run, root, args)
+        eval_condition(&c, run, root, args, self.instances)
     }
 }
