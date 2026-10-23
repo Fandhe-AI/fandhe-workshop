@@ -20,6 +20,7 @@
 //! - ログと復習は、1 リストが約 1,000 項目を超えないよう古い側を要約行へ畳む（TASK-360 1/2。
 //!   `list_policy::plan_fold`）。4,096 件の安全弁は残り、超えたら先頭の 4,095 件と状態の行（`data-list-limit`）に打ち切り、
 //!   親の `data-bind-list` を保って全再描画を避ける（`list_policy::keyed_view_or_notice`。TASK-360 2/2）。
+//!   左の成果物も、行が目安を超えたら古い Step の行を要約へ畳む（`artifact_fold`。最新の Step の行は畳まない。TASK-484 1/2）。
 //!
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
@@ -34,6 +35,7 @@ use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
 use crate::a11y::{ChangeMark, TESTID_ATTR};
+use crate::artifact_fold::{fold_rows, ArtifactRow};
 use crate::artifact_mark::{point_all, pointed_item};
 use crate::artifact_view::{
     declared_kinds, list_attrs, RowId, Variant, ViewKind, ACTION_ATTR, PAYLOAD_ATTR,
@@ -525,7 +527,7 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 .find(|(k, _)| *k == selected)
                 .map(|(_, id)| id.to_owned())
         });
-        let items: Vec<(String, Node)> = artifact_rows(model.world(), model.projection().marks())
+        let rows: Vec<ArtifactRow> = artifact_rows(model.world(), model.projection().marks())
             .into_iter()
             .enumerate()
             .map(|(i, (path, mark))| {
@@ -551,9 +553,15 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 } else {
                     format!("i{i}")
                 };
-                (key, node)
+                (path, key, node)
             })
             .collect();
+        // 目安を超えたときだけ、古い Step の行を要約 1 行へ畳む（TASK-484 1/2。D-46）。
+        let log = model.session().map_or(&[][..], |s| {
+            let l = s.log();
+            l.get(..model.world_consumed()).unwrap_or(l)
+        });
+        let items: Vec<(String, Node)> = fold_rows(log, rows);
         // 選択のボタン。宣言が 2 種以上のときだけ出す（ART-12）。静的な子にせず keyed list に置くのは、
         // 選択だけの更新で dirty な field を束縛点に解決するため（上流は解決できないと全再描画にする）。
         let buttons = model

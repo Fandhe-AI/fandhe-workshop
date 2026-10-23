@@ -53,6 +53,7 @@ pub mod a11y;
 pub mod action;
 pub mod app_demo_view;
 pub mod artifact_doc_rows;
+pub mod artifact_fold;
 pub mod artifact_mark;
 pub mod artifact_rows;
 pub mod artifact_view;
