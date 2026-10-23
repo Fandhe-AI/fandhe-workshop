@@ -1,0 +1,8 @@
+id: MOD3-2
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/instance.rs
+find:     uid.root()
+replace:     Root(uid.root().0.split('@').next().unwrap_or_default().to_string())
+expect-fail: first_round_flags_are_not_set_in_second_round_instances
+note: 周回ごとの実体の根を混ぜる（前の周回のフラグが次の周回の切り身に立つ）
