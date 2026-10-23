@@ -26,6 +26,12 @@
 //! 着地先の `enter` が IR に無いときも、`UNKNOWN_TARGET` の `Warning` を 1 件足して同じ空の状態に確定する（移動元が現在位置に残らない）。
 //! 受講者向けの見出し・まとめ表示（SAFE-34）は web が `TransitionLimitReached` から作る。止めた後は、操作の前の Step が現在の Step に戻り、次の入力が受け付けられる（SAFE-35）。
 //!
+//! # 入口の写し（MOD-10、TASK-242 1/2）
+//!
+//! 状態の入口の写しは「無い」か「現在の Step のもの」の 1 つだけである（不変条件 I-1）。Step に入るたび
+//! （通常の着地・呼び出し元への戻り）に無効にし、新しい Step の写しは受付の時点をログから導く（SAFE-35）。
+//! 古い Step の写しが、巡回で同じ Step に戻った後の停止の戻り先やチェックポイントに残らない。
+//!
 //! # 扱わないこと
 //!
 //! 遷移先の `on_enter` の効果・`busy` を立てること・
@@ -90,6 +96,15 @@ fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) 
     instance::slice_mut(&mut state.run, instance::owner_of(ir, &uid))
         .status
         .insert(uid, status);
+}
+
+/// Step に入るたびに、状態の入口の写しを無効にする（MOD-10、TASK-242 1/2。不変条件 I-1）。
+///
+/// 状態が持つ写しは「無い」か「現在の Step のもの」の 1 つだけにする。置き換えの実体は、新しい Step の写しを
+/// [`crate::entry_derive`] がログから導くこと（SAFE-35）で、ここでは古い Step の写しを残さない。
+/// 呼び出し元は [`land`] の通常の Step への着地と、[`after_achieved`] の呼び出し元への戻りだけである。
+fn replace_entry_on_enter(state: &mut SessionState) {
+    state.entry = None; // I-1: 入った Step の写しは導く
 }
 
 /// 上限で止める。fail-closed で、現在の Step・処理中・入口の写しを空にする。
@@ -262,6 +277,7 @@ pub(crate) fn after_achieved(
         set_status(ir, state, &back.uid, StepStatus::Achieved);
         // 戻り先の先へ進めない場合に備え、現在位置も呼び出し元へ移す（ModuleExited の復帰先と一致させる）。
         state.run.current = Some(StepUid(back.uid.clone()));
+        replace_entry_on_enter(state);
         let back_at = stamp(generation, &back.uid);
         events.push(Event::ModuleExited {
             at: back_at.clone(),
@@ -286,6 +302,7 @@ fn land(
         let Some(enter) = node.enter.as_deref() else {
             let uid = StepUid(node.uid.clone());
             state.run.current = Some(uid.clone());
+            replace_entry_on_enter(state);
             set_status(ir, state, &node.uid, StepStatus::Entered);
             events.push(Event::Entered {
                 at: Stamp {

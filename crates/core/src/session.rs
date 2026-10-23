@@ -10,7 +10,7 @@
 //! 世代の規則の表（[`GenerationRule`]）は、[`apply`] が分岐の後に強制する（TASK-210 1/3、EVT-6）。
 //! 宛先が一致する進行 `Op::Tick` は `tick` モジュールが進め、食い違う進行は `Ignored` 1 件で記録する（TASK-210 2/3・3/3、EVT-8・EVT-16）。
 //! 処理中の停止は `stop` モジュールが入口の写しへ戻す（TASK-211 1/2、EVT-9）。
-//! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しの作り直しは TASK-242）。
+//! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しは Step に入るたびに `transit` が無効化し、ログから導く。MOD-10・TASK-242 1/2）。
 //! 処理中でない停止は取り消しの入力 `Input::Cancel` として `accept` へ委ねる（TASK-212、EVT-10）。
 //! チェックポイントの保存と復帰は `checkpoint` モジュールが行う（TASK-214 1/3、EVT-12）。
 //! 再読み込みは `apply` の外にあり、`reload` モジュールが世代を +1 する（[`reload()`]、TASK-320 1/2、SAVE-4）。
@@ -129,7 +129,8 @@ pub struct EntryCopy {
     pub log_len: u32,
 }
 
-/// 保存したチェックポイント（`Control::Save`）。
+/// 保存したチェックポイント（`Control::Save`）。全体の状態の写し（`run`）・入口の写し・保存の時点のログの長さ・持ち主の根の 4 つを持つ（MOD-10）。
+/// 通し番号は [`SessionState::next_checkpoint`] の 1 つで、実体・周回をまたいで振る。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Checkpoint {
@@ -309,7 +310,7 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
             accept::on_input(ir, state, Input::Cancel)
         }
         Op::Control(Control::Stop) => stop::on_stop(state),
-        // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（作り直しは TASK-242）。
+        // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（着地の無効化は `transit`。MOD-10）。
         Op::Control(Control::GoTo(to)) => go_to::on_go_to(ir, state, to),
         // 保存と復帰は `checkpoint`（TASK-214 1/3）。保存は世代を変えず、復帰は成功したときだけ +1 になる（`apply` の関門）。
         // 保存が成功し、現在の Step が保存を入力とする宣言（`env_action`）なら受付にする（TASK-64 1/2、PACK-34）。
