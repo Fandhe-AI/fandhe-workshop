@@ -7730,6 +7730,20 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 範囲外: 操作列全体の M-1（混ざり 0）の縦断は TASK-243、X2 の正式な検出記録は TASK-244。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
+### 5.265 Step の題・do・本文の表示（TASK-525 1/2。SHELL-7）
+
+- 目的: Step の題・「いまやること」（`do`）・本文が、章の最初の Step を含めて画面に出ること、本文が見出し・一覧・表の構造を保つこと、案内レベルに応じた版が出ることを確かめる。
+- 期待と定義の対応: SHELL-7 → `step_body`（`crates/web/src/step_body.rs`）。題は `h2[step-title]`、`do` は `p[step-do]`（固定の見出し「いまやること」つき）、本文は `div[step-body][data-body-level]`。親は `section[step-text]` で常に描く（FEND-3）。`shell-` の識別子は使わない（shell 契約は管轄外）。
+- 決定:
+  - 案内レベルは `RunState.guidance_level` を使い、本文は `select_body`、`do` は `step_do_at` が選ぶ（C → B → A の倒れは core が持つ）。
+  - 本文は `doc_view::render_doc` だけを通す。題・`do` は文字ノードにだけ入れ、`RawHtml` を使わない。
+  - 置き場は右の領域の先頭（仮置き。TASK-534・TASK-548）。Step か水準が変わったときだけ `step_body` を dirty に積む。
+- 試験: native は `crates/web/tests/step_body_host.rs`（8 件。20 Step の題と `do`・章の最初の Step・本文の構造と外部画像・記号の非解釈・A/B/C と倒れ・dirty・履歴を開く・教材なし）と、`ch0_3_run_host`（題が変わった手で dirty）・`history_import`（開いたときの dirty の一覧）。ブラウザは `tools/browser/step-body.test.mjs`（20 Step の DOM と IR の一致・親の同一性・実コンパイルした教材の本文の構造・幅 1280px と 360px・実行と通信が 0 件・hidden の対照）。CSP あり・なしの両方で流す。
+- 変異注入: `SHELL7-1`（本文の水準を A に固定）・`SHELL7-2`（Step の変化で dirty を積まない）・`SHELL7-3`（`do` の項目を作らない）。2026-10-23 に `scripts/check-mutations.sh` で 3 件とも DETECTED。
+- 限界: 実行時の水準は常に A（`Control::SetGuidance` が core で未実装。TASK-294）。B・C は native で状態を注入して確かめた。ブラウザでの B・C は未確認。`direct-link-reload` の DOM の題の照合（5.204）は足していない。
+- 範囲外: 49 件の注入を CSP あり・なしで画面の本文の区画に対して流す確認は #712（TASK-525 2/2）。
+- 実行の結果（2026-10-23）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make check` が通過。ブラウザは `step-body` の 4 件と、`element-identity`・`shell-widths`・`shell-position`・`shell-tabs`・`inline-free`・`csp-runs`・`next-chapter`・`history-ops`・`direct-link-start` が通過。`view-only` 系は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を用意せず未実行（未検証）。`make test-browser` 全体は未実施。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で既に失敗している。
+
 ### 5.266 チェックポイントの保存と復帰の操作（TASK-529 1/2。SHELL-13）
 
 - 目的: 上部の区画 `shell-checkpoint` に置いた保存・復帰のボタンの押下だけで、保存 → 先へ進む → 復帰が通り、左の成果物と右の位置が保存の時点に戻ることを確かめる。
@@ -7743,6 +7757,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - native: `crates/web/tests/checkpoint_ops_host.rs`（10 件）。出す条件・保存・保存 → 進む → 復帰・改ざんの復号・存在しない ID・現在の Step なし・検査器・dirty・表示だけ。
   - ブラウザ: `tools/browser/checkpoint-restore.test.mjs`。実際のボタンの click で場面 A（保存 → 4 Step 進む → 復帰。位置は IR から独自に数える）・場面 B（payload の書き換え 6 形）・場面 D（幅 360px・959px・配信する設定で 0 件）。CSP あり・なしで流す。
 - 変異: `SHELL13-1`（提示との照合を外す）・`SHELL13-2`（dirty を積まない）・`SHELL13-3`（先頭 `0` の拒否を外す）。2026-10-23 に `scripts/check-mutations.sh` で DETECTED。`SHELL6-3` の `find:` は base の時点で `host.rs` と一致していなかったので、同じ行を変える本件で直した（DETECTED を確認）。
+- 件数の多い場合（FEND-22・D-46）: 復帰のボタンは新しい側から 500 件ずつのページに分け、`checkpoint-page` のボタン（`checkpoint-older`・`checkpoint-newer`）で全件に届く。1 リストは目安以内で打ち切らない。試験は `checkpoint_ops.rs` の 5,000 件の単体試験。
 - 限界: 文言は最小。一覧としての表示と、再読み込み・書き出し・読み込みをまたぐ一致は TASK-529 2/2。章の終わりの自動保存と数の上限は TASK-339。表示だけのモードでの 0 件はブラウザでなく native の試験で確かめた。
 - 実行結果（2026-10-23）: `make lint`・`make test`・`make check`・`make check-deps`・`make check-dom-reads`・`make test-build-web` は通過。ブラウザは本試験 6 件と、shell-position・shell-mock・shell-widths・shell-columns・shell-tabs・element-identity・next-chapter・csp-runs・inline-free・restore-cancel が通過。`view-only`・`history-continue` の一部は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を単体実行で渡せず未確認。`make check-generic-words` は `crates/pack/src/guidance.rs:606` の既存の違反で失敗する（本件の変更と無関係）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

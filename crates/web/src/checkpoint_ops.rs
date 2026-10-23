@@ -50,6 +50,19 @@ pub const CHECKPOINT_OPS_FIELD: PartField = PartField {
     kind: FieldKind::KeyedList,
 };
 
+/// 1 ページに出す復帰のボタンの数。保存・ページ送りのボタンと合わせて 1 リストの目安（`LIST_ITEMS_TARGET`）に収める（FEND-22・D-46）。
+/// 新しい側から数えて分け、チェックポイントの数に関わらず、どれにもページ送りで届く（上限で黙って切らない）。
+pub const PAGE_SIZE: usize = 500;
+
+/// ページ送りの action の名前。payload はページ番号（新しい側が 0）の 10 進（正規形）だけを受ける。
+pub const ACTION_CHECKPOINT_PAGE: &str = "checkpoint-page";
+
+/// 「古い側のページへ」のボタンの `data-testid`（0 か 1 個）。
+pub const OLDER_TESTID: &str = "checkpoint-older";
+
+/// 「新しい側のページへ」のボタンの `data-testid`（0 か 1 個）。
+pub const NEWER_TESTID: &str = "checkpoint-newer";
+
 /// 復帰のボタンの文言。
 pub fn restore_label(id: u32) -> String {
     format!("チェックポイント {id} に戻る")
@@ -60,19 +73,55 @@ pub fn restore_label(id: u32) -> String {
 pub struct CheckpointOffer {
     /// 保存のボタンを出すか。
     pub can_save: bool,
-    /// 復帰のボタンを出すチェックポイントの ID（昇順）。
+    /// 今のページで復帰のボタンを出すチェックポイントの ID（昇順）。
     pub ids: Vec<u32>,
+    /// 今のページ（新しい側が 0）。ページ数に収まるよう丸めた値。
+    pub page: usize,
+    /// ページ数（チェックポイントが無いときは 0）。
+    pub page_count: usize,
 }
 
 /// 状態から提示を導く。現在の Step が無いときは空（core の保存・復帰が no-op になるため）。処理中は止めない（EVT-12）。
-pub fn offer(state: &SessionState) -> CheckpointOffer {
+/// `page` は希望のページで、ページ数を超えるときは最も古いページへ丸める。
+pub fn offer(state: &SessionState, page: usize) -> CheckpointOffer {
     if state.run.current.is_none() {
         return CheckpointOffer::default();
     }
+    let all: Vec<u32> = state.checkpoints.keys().map(|k| k.0).collect();
+    offer_for(&all, page)
+}
+
+/// 昇順の ID の列とページから提示を導く（`offer` の本体。native の試験で多数の ID を直接与えるため分ける）。
+pub fn offer_for(all: &[u32], page: usize) -> CheckpointOffer {
+    let page_count = all.len().div_ceil(PAGE_SIZE);
+    let page = page.min(page_count.saturating_sub(1));
+    // 新しい側から page 番目の窓。窓の中は昇順のまま。
+    let end = all.len().saturating_sub(page * PAGE_SIZE);
+    let start = end.saturating_sub(PAGE_SIZE);
     CheckpointOffer {
         can_save: true,
-        ids: state.checkpoints.keys().map(|k| k.0).collect(),
+        ids: all[start..end].to_vec(),
+        page,
+        page_count,
     }
+}
+
+/// ページ送りの payload をページ番号に直す。正規形の 10 進（`"0"` は許す。先頭 `0` は断る）だけを受ける。
+pub fn parse_page_payload(payload: &str) -> Option<usize> {
+    let b = payload.as_bytes();
+    if b.is_empty()
+        || b.len() > 10
+        || (b[0] == b'0' && b.len() > 1)
+        || !b.iter().all(u8::is_ascii_digit)
+    {
+        return None;
+    }
+    payload.parse::<u32>().ok().map(|n| n as usize)
+}
+
+/// ページ送りの押下が今の提示のページ数に収まるときだけ、そのページを返す。
+pub fn page_target(offer: &CheckpointOffer, page: usize) -> Option<usize> {
+    (page < offer.page_count).then_some(page)
 }
 
 /// 復帰の payload を ID に直す。正規形の 10 進（空でない・数字だけ・10 桁以下・先頭が `0` でない・`u32` に収まる）だけを受ける。
@@ -88,6 +137,21 @@ pub fn parse_restore_payload(payload: &str) -> Option<u32> {
 /// 押下が今の提示と一致するときだけ復帰先の ID を返す（SAFE-33）。
 pub fn restore_target(offer: &CheckpointOffer, id: u32) -> Option<u32> {
     offer.ids.contains(&id).then_some(id)
+}
+
+/// ページ送りのボタン。文言は定数だけで、押下の payload は移動先のページ番号。
+fn page_button(testid: &str, label: &str, target: usize) -> Node {
+    let payload = target.to_string();
+    el(
+        "button",
+        vec![
+            ("type", "button"),
+            ("data-testid", testid),
+            (ACTION_ATTR, ACTION_CHECKPOINT_PAGE),
+            (PAYLOAD_ATTR, payload.as_str()),
+        ],
+        vec![text(label)],
+    )
 }
 
 /// `shell-checkpoint` の入れ物。入れ物は常に描き、中の keyed list の項目の出し入れだけで表す（FEND-3）。
@@ -108,6 +172,18 @@ pub fn checkpoint_section(offer: &CheckpointOffer) -> Node {
                 vec![text(SAVE_LABEL)],
             ),
         ));
+        if offer.page + 1 < offer.page_count {
+            items.push((
+                "older".to_owned(),
+                page_button(OLDER_TESTID, "古いチェックポイントを表示", offer.page + 1),
+            ));
+        }
+        if offer.page > 0 {
+            items.push((
+                "newer".to_owned(),
+                page_button(NEWER_TESTID, "新しいチェックポイントを表示", offer.page - 1),
+            ));
+        }
         for id in &offer.ids {
             let id_s = id.to_string();
             items.push((
@@ -177,6 +253,8 @@ mod tests {
         let o = CheckpointOffer {
             can_save: true,
             ids: vec![1, 2],
+            page: 0,
+            page_count: 1,
         };
         let n = checkpoint_section(&o);
         let s = format!("{n:?}");
@@ -186,5 +264,36 @@ mod tests {
         assert!(crate::a11y::check_no_undefined(&n).is_ok());
         assert_eq!(restore_target(&o, 2), Some(2));
         assert_eq!(restore_target(&o, 999), None);
+    }
+
+    #[test]
+    fn 数千件でも最新の復帰にページ送りで届く() {
+        // 4,096 件超（keyed list の上限を超える数）。
+        let all: Vec<u32> = (1..=5_000).collect();
+        let mut seen = std::collections::BTreeSet::new();
+        let first = offer_for(&all, 0);
+        assert_eq!(first.page_count, 10);
+        assert_eq!(first.ids.last(), Some(&5_000));
+        for p in 0..first.page_count {
+            let o = offer_for(&all, p);
+            let n = checkpoint_section(&o);
+            let s = format!("{n:?}");
+            // 1 リストは目安以内で、上限超過の通知（打ち切り）は出ない。
+            assert!(o.ids.len() + 3 <= crate::list_policy::LIST_ITEMS_TARGET);
+            assert!(!s.contains("limit"), "{s}");
+            assert_eq!(s.matches(RESTORE_TESTID).count(), o.ids.len(), "{s}");
+            assert_eq!(s.matches(OLDER_TESTID).count(), usize::from(p + 1 < 10));
+            assert_eq!(s.matches(NEWER_TESTID).count(), usize::from(p > 0));
+            seen.extend(o.ids.iter().copied());
+        }
+        assert_eq!(seen.len(), 5_000);
+        // 範囲外のページは最も古いページへ丸める。
+        assert_eq!(offer_for(&all, 99).page, 9);
+        assert_eq!(page_target(&first, 10), None);
+        assert_eq!(page_target(&first, 9), Some(9));
+        assert_eq!(parse_page_payload("0"), Some(0));
+        assert_eq!(parse_page_payload("01"), None);
+        assert_eq!(parse_page_payload("-1"), None);
+        assert_eq!(parse_page_payload(""), None);
     }
 }

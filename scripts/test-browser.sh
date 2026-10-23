@@ -103,6 +103,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/shell-widths.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-mock.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-position.test.mjs" \
+  "${ROOT_DIR}/tools/browser/step-body.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-once.test.mjs" \

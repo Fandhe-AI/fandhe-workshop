@@ -106,6 +106,7 @@ use crate::shell_frame::TOP_PLACE_FIELD;
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
+use crate::step_body::STEP_BODY_FIELD;
 use crate::storage_select::SyncKv;
 use crate::tick_schedule::next_tick;
 use crate::view_only_notice::VIEW_ONLY_NOTICE_FIELD;
@@ -246,6 +247,8 @@ pub enum HostAction {
     SaveCheckpoint,
     /// チェックポイントへの復帰（`restore-checkpoint`。TASK-529 1/2）。payload は正規形の ID で、今の提示との照合は `update` が行う。
     RestoreCheckpoint(u32),
+    /// チェックポイントの一覧のページ送り（`checkpoint-page`。FEND-22）。payload は正規形のページ番号で、ページ数との照合は `update` が行う。
+    CheckpointPage(usize),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
     SelectPane(PaneTab),
     /// 枠の通知の「閉じる」（`dismiss-notice`。TASK-535 1/2）。いま描いている種類（変換して開いた）だけを消し、状態・履歴には触れない。
@@ -640,6 +643,8 @@ pub struct EngineHost {
     /// 開かない履歴の理由の通知（`shell-notice`。TASK-176 2/2。VER-8・SHELL-16）。表示の状態で、`ops`・履歴・保存先には書かず、控えのバイト列も持たない。
     /// 読み込みで開かなかったとき、または起動時の復元が版の判定の段で開かなかったときに立つ。開ける履歴に替えると消える。
     refused_notice: Option<RefusedNotice>,
+    /// チェックポイントの復帰ボタンのページ（新しい側が 0。FEND-22）。表示の状態で、履歴・保存先には書かない。ページ数を超える値は提示の導出で丸める。
+    checkpoint_page: usize,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -766,6 +771,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -866,6 +872,7 @@ impl EngineHost {
                 || f.name == NEXT_CHAPTER_FIELD.name
                 || f.name == CHECKPOINT_OPS_FIELD.name
                 || f.name == TOP_PLACE_FIELD.name
+                || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
@@ -896,6 +903,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1933,6 +1941,10 @@ impl EngineHost {
         if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
+        // Step の題・do・本文も registry の外にある。前の Step の文字を DOM から消すため明示して積む（TASK-525）。
+        if !self.dirty.contains(&STEP_BODY_FIELD.name) {
+            self.dirty.push(STEP_BODY_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2207,6 +2219,22 @@ impl EngineHost {
         }
     }
 
+    /// 題・`do`・本文を描く keyed list。session が無いときは項目 0 件。表示だけのモードでも復元した Step を出す。
+    fn step_text_node(&self) -> Node {
+        let t = self
+            .model
+            .session()
+            .and_then(|s| crate::step_body::step_text(s.ir(), s.state()));
+        crate::step_body::step_text_list(t.as_ref())
+    }
+
+    /// 本文の表示を決める値（現在の uid と案内レベル）。
+    fn step_text_key(&self) -> Option<(String, fandhe_workshop_contract::guidance::GuidanceLevel)> {
+        self.model
+            .session()
+            .and_then(|s| crate::step_body::step_text_key(s.state()))
+    }
+
     /// 今提示する「次の章へ進む」。表示だけの間と session が無いときは出さない（fail-closed。update が押下を捨てるため）。
     fn next_chapter_offer(&self) -> Option<NextChapter> {
         if self.model.view_only.is_some() {
@@ -2222,7 +2250,7 @@ impl EngineHost {
             return CheckpointOffer::default();
         }
         match self.model.session() {
-            Some(s) => crate::checkpoint_ops::offer(s.state()),
+            Some(s) => crate::checkpoint_ops::offer(s.state(), self.checkpoint_page),
             None => CheckpointOffer::default(),
         }
     }
@@ -2414,6 +2442,8 @@ impl Component for EngineHost {
         let place_before = self.top_place();
         // チェックポイントの操作の提示も前後で比べる（TASK-529）。
         let ops_before = self.checkpoint_offer();
+        // Step の題・do・本文も前後で比べる（TASK-525）。
+        let step_before = self.step_text_key();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
         // モードから出る経路（試験の設定の読み込み・差し替え）に限る。新しい action は既定で捨てられる。
         // 下書きの変更を捨てたときは、DOM の値を戻させる。
@@ -2529,6 +2559,13 @@ impl Component for EngineHost {
                     self.apply_engine(Op::Control(Control::Restore(
                         fandhe_workshop_core::input::CheckpointId(id),
                     )));
+                }
+            }
+            HostAction::CheckpointPage(page) => {
+                if let Some(page) =
+                    crate::checkpoint_ops::page_target(&self.checkpoint_offer(), page)
+                {
+                    self.checkpoint_page = page;
                 }
             }
             HostAction::SelectPane(tab) => self.select_pane(tab),
@@ -2667,6 +2704,9 @@ impl Component for EngineHost {
         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
+        if self.step_text_key() != step_before && !self.dirty.contains(&STEP_BODY_FIELD.name) {
+            self.dirty.push(STEP_BODY_FIELD.name);
+        }
     }
 
     fn view(&self) -> Node {
@@ -2687,7 +2727,8 @@ impl Component for EngineHost {
         // 部品は種類ごとに左（成果物）・右（操作）へ振り分け、枠（`shell_frame`）の取り付け点に載せる（TASK-517 1/2）。
         // 左は `workshop-parts` に包んで置く。右は入力欄の `main` の後ろに、部品を登録順に直接並べる。
         let mut left: Vec<Node> = Vec::new();
-        let mut right: Vec<Node> = vec![self.input.view()];
+        // Step の題・do・本文は右のエリアの先頭に置く（仮置き。最終の配置は TASK-534・TASK-548）。
+        let mut right: Vec<Node> = vec![self.step_text_node(), self.input.view()];
         for (kind, node) in self.registry.views(&self.model) {
             match crate::shell_frame::pane_of(kind) {
                 crate::shell::PaneMount::Left => left.push(node),
@@ -2807,6 +2848,10 @@ impl Component for EngineHost {
         if name == crate::checkpoint_ops::ACTION_RESTORE_CHECKPOINT {
             return crate::checkpoint_ops::parse_restore_payload(payload)
                 .map(HostAction::RestoreCheckpoint);
+        }
+        if name == crate::checkpoint_ops::ACTION_CHECKPOINT_PAGE {
+            return crate::checkpoint_ops::parse_page_payload(payload)
+                .map(HostAction::CheckpointPage);
         }
         if name == ACTION_SELECT_PANE {
             return pane_from_payload(payload).map(HostAction::SelectPane);

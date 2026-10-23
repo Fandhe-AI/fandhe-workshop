@@ -55,7 +55,8 @@ const PAYLOAD_ALLOWED: [(&str, usize, usize); 9] = [
     // 受講者が押す見える「次の章へ進む」のボタン（TASK-526 1/2）。use の行 1 と使用 1。payload は開始点の ID で、進行の宛先ではない。
     ("next_chapter.rs", 0, 2),
     // 受講者が押す見える保存・復帰のボタン（TASK-529 1/2）。use の行 1 と使用 2。payload は ID で、進行の宛先ではない。
-    ("checkpoint_ops.rs", 0, 3),
+    // ページ送りのボタン（FEND-22）は共通の関数 1 か所で使用が 1 増える。payload はページ番号で、進行の宛先ではない。
+    ("checkpoint_ops.rs", 0, 4),
 ];
 
 /// 配信する静的ファイルで禁止する文字列（コメントも含めて生の本文で照合する）。

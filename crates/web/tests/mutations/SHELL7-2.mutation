@@ -1,0 +1,8 @@
+id: SHELL7-2
+package: fandhe-workshop-web
+test: ch0_3_run_host
+target: crates/web/src/host.rs
+find:         if self.step_text_key() != step_before && !self.dirty.contains(&STEP_BODY_FIELD.name) {
+replace:         if false && self.step_text_key() != step_before && !self.dirty.contains(&STEP_BODY_FIELD.name) {
+expect-fail: 画面から送れる手だけで二十の_step_を最後まで進める
+note: update の末尾で Step の変化を dirty に積まない（SHELL-7・FEND-3・TASK-525）
