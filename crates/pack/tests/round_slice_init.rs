@@ -213,7 +213,7 @@ fn current(s: &Session) -> String {
 
 /// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `Control::Begin`（TASK-237 1/2）。
 /// 入力列は `pt-rounds` の `s-r2` の区間。飛ばす 2 か所の理由は冒頭の `//!` に書いた。
-fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root], call_node: &str) -> Vec<Event> {
+fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
     let mut events = Vec::new();
     let ev = &mut events;
     let cmd = |c: &str| Input::Command(c.into());
@@ -226,7 +226,6 @@ fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root], call_node: &str) -> Vec<
         decision: d,
         target: t.map(Into::into),
     };
-    let _ = call_node;
     ev.extend_from_slice(s.apply(Op::Control(Control::Begin("s-r2".into()))));
     input(s, ev, cmd("/new-idea bbs-search"));
     input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
@@ -288,10 +287,10 @@ fn flags_of(s: &Session, ir: &Ir, roots: &[Root], id: &str) -> Vec<String> {
 fn first_round_slices_are_unchanged_after_the_second_round_ends() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let (r2, call) = round_roots(&ir, "s-r2");
+    let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
     let before = slices_of(&s, &r1);
-    finish_round2(&mut s, &ir, &r2, &call);
+    finish_round2(&mut s, &ir, &r2);
     assert_eq!(current(&s), "main/r2-impl");
     assert_eq!(slices_of(&s, &r1), before);
     for u in steps(&ir, &r1) {
@@ -309,9 +308,9 @@ fn first_round_slices_are_unchanged_after_the_second_round_ends() {
 fn first_round_flags_are_not_set_in_second_round_instances() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let (r2, call) = round_roots(&ir, "s-r2");
+    let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
-    let ev = finish_round2(&mut s, &ir, &r2, &call);
+    let ev = finish_round2(&mut s, &ir, &r2);
     // 2 周目の切り身には、2 周目の受付が立てたものだけがある（`stopped` は無い）。
     assert_eq!(flags_of(&s, &ir, &r2, "st-7-1"), vec!["precheck_ok"]);
     assert_eq!(flags_of(&s, &ir, &r2, "st-2-4"), vec!["revised"]);
@@ -337,9 +336,9 @@ fn first_round_flags_are_not_set_in_second_round_instances() {
 fn second_round_end_matches_the_playthrough_asserts() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let (r2, call) = round_roots(&ir, "s-r2");
+    let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
-    finish_round2(&mut s, &ir, &r2, &call);
+    finish_round2(&mut s, &ir, &r2);
     let st = |ro: &[Root], id: &str| s.step_status(&step_in(&ir, ro, id));
     assert_eq!(st(&r1, "st-7-3"), StepStatus::Achieved);
     assert_ne!(st(&r2, "st-7-3"), StepStatus::Achieved);
