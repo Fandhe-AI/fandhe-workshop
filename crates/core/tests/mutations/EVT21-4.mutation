@@ -1,0 +1,8 @@
+id: EVT21-4
+package: fandhe-workshop-core
+test: begin_skip
+target: crates/core/src/begin.rs
+find: n.unit == node.unit && n.scope == node.scope &&
+replace: n.unit == node.unit &&
+expect-fail: midstart_leaves_other_units_and_scopes_alone
+note: 同じ実体の条件を外し、別の実体の Step も省略にする
