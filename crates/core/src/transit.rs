@@ -28,7 +28,7 @@
 //!
 //! # 扱わないこと
 //!
-//! 復帰の範囲への持ち主の規則（TASK-241）・遷移先の `on_enter` の効果・`busy` を立てること・
+//! 復帰の範囲のうち世界状態・案内レベル・呼び出しの Step の持ち主（TASK-241 2/2）・遷移先の `on_enter` の効果・`busy` を立てること・
 //! `ChapterCompleted`・`completed`・飛ばした Step の記録（TASK-217。開始の着地そのものは `begin` が `move_to` を通す）は、後続（TASK-235〜241）が扱う。
 //! それらは本モジュールの歩行器を通して拡張する前提で、巡回の検出に要る最小のたどりだけを置く。
 //! 遷移の条件（`when`）は評価できないので、`next` は無条件の最初の辺だけを採る（[`crate::confirm`] と同じ）。
@@ -166,7 +166,11 @@ pub(crate) fn return_after_limit(
         ) {
             Some(entry) => {
                 outcome = LimitReturn::RewoundToEntry;
-                entry.run
+                // 現在の Step の根以外の切り身は、操作の前の値のまま残す（写しの他の根は古い。MOD-9）。
+                match run_before.current.as_ref() {
+                    Some(cur) => crate::entry_derive::keep_other_roots(entry.run, run_before, cur),
+                    None => entry.run,
+                }
             }
             None => run_before.clone(),
         }

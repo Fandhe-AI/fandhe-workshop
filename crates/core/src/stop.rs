@@ -14,7 +14,8 @@
 //!    （fail-closed。戻り先が不確かなまま一部だけ戻さない）。写しは、状態に現在の Step の写しがあればそれを、
 //!    無ければログから導いたもの（受付の時点の `run`）を使う（[`crate::entry_derive`]）。通常の操作では状態の
 //!    写しは空なので、導いたものを使う。受付の時点を一意に決められないときは得られない
-//! 3. `run` を写しの `run` で置き換え、世代を操作前の +1、`busy` を `None` にする。
+//! 3. `run` を写しの `run` で置き換え（現在の Step の根以外の切り身は、いまの値のまま残す。復帰が残した他の根の
+//!    進行を巻き戻さない。MOD-9）、世代を操作前の +1、`busy` を `None` にする。
 //!    `Stopped`（`at` は操作前の世代と現在の Step）を 1 件返す
 //!
 //! 戻すのは `run` だけで、`log`・`drafts`・`hints_opened`・`checkpoints`・`entry` には触れない（MOD-4・GUIDE-7）。
@@ -66,7 +67,7 @@ pub(crate) fn on_stop(state: &mut SessionState) -> Vec<Event> {
     let Some(entry) = crate::entry_derive::entry_for_current(state) else {
         return warn(MISSING_ENTRY);
     };
-    let mut run = entry.run;
+    let mut run = crate::entry_derive::keep_other_roots(entry.run, &state.run, &current);
     run.generation = next;
     run.busy = None;
     state.run = run;

@@ -10,7 +10,7 @@
 //!
 //! # 扱わないこと
 //!
-//! - 復帰の範囲（`Checkpoint::owner`・`projection` の復習）への持ち主の規則の適用（TASK-241）。`Projection` は IR を持たない
+//! - 復帰の範囲のうち、呼び出しの Step の持ち主（[`owner_of`]）への切り替え（TASK-241 2/2）。`Projection` は IR を持たない
 //! - 根の定義（最後の `/` か最初の `/` か。#1413）。変えると `CONTRACT_VERSION` の版上げになる
 //!
 //! # 根の 2 つの概念（MOD-3、TASK-235 1/2）

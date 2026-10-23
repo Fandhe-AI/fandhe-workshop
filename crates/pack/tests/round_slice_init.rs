@@ -623,3 +623,122 @@ fn mod5_round1_slice_hashes_match_between_round1_end_and_round2_end() {
     }
     assert_eq!(at_end, at_r2);
 }
+
+// ---- TASK-241 1/2: 持ち主の根の切り身と位置だけを戻す復帰（MOD-9。記録は docs/testing.md の 5.261）----
+// 世界状態・`global_flags`・案内レベルは暫定で写しの値になるため、ここでは表明しない（TASK-241 2/2）。
+// (ii-b) は `wait` の Step で処理中が始まらないため、1 周目の Step への `GoTo` で 1 周目の切り身を変える代替にした。
+// 入力で届かない `issue-to-merge@round2` の `st-7-1` は `GoTo` で飛ぶ。
+
+/// 2 周目の開始の後、`idea-cycle` 側の `st-2-4` まで入力で進める。
+fn round2_inputs_to_st24(s: &mut Session) {
+    let mut events = Vec::new();
+    let ev = &mut events;
+    let ui = |v: &str, p: &str| Input::Ui {
+        view: v.into(),
+        path: p.into(),
+    };
+    input(s, ev, Input::Command("/new-idea bbs-search".into()));
+    input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
+    input(
+        s,
+        ev,
+        Input::Text(
+            "ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい".into(),
+        ),
+    );
+    for _ in 0..3 {
+        tick(s, ev);
+    }
+    input(s, ev, Input::Choice("ans-login-first".into()));
+    input(
+        s,
+        ev,
+        Input::Approval {
+            decision: Decision::Approve,
+            target: None,
+        },
+    );
+    input(s, ev, ui("v-doc", "ideas/bbs-search/README.md#status"));
+    assert!(current(s).ends_with("/st-2-4"), "at: {}", current(s));
+}
+
+fn save_op(s: &mut Session) {
+    s.apply(Op::Control(Control::Save));
+}
+
+fn restore_op(s: &mut Session) {
+    s.apply(Op::Control(Control::Restore(
+        fandhe_workshop_core::input::CheckpointId(1),
+    )));
+}
+
+fn cur_root(s: &Session) -> Root {
+    root_of(&s.state().run.current.clone().expect("current"))
+}
+
+#[test]
+fn mod9_restore_in_round2_keeps_other_instance_and_round1_slices() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, _) = round_roots(&ir, "s-r2");
+    let mut s = play_round1(&ir);
+    begin_round2(&mut s);
+    round2_inputs_to_st24(&mut s);
+    let owner = cur_root(&s);
+    let owner_slice = s.slice(&owner).cloned().expect("owner slice");
+    let pos = s.state().run.current.clone();
+    save_op(&mut s);
+    let mut ev = Vec::new();
+    go(&mut s, &mut ev, &ir, &r2, "st-7-1");
+    let other = cur_root(&s);
+    assert_ne!(other, owner);
+    let other_before = s.slice(&other).cloned().expect("other slice");
+    let r1_before: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    restore_op(&mut s);
+    assert_eq!(s.slice(&owner), Some(&owner_slice));
+    assert_eq!(s.state().run.current, pos);
+    assert_eq!(s.slice(&other), Some(&other_before));
+    let r1_after: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    assert_eq!(r1_before, r1_after);
+}
+
+#[test]
+fn mod9_restore_does_not_rewind_round1_changed_after_save() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let mut s = play_round1(&ir);
+    begin_round2(&mut s);
+    round2_inputs_to_st24(&mut s);
+    let r1_at_save: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    save_op(&mut s);
+    let mut ev = Vec::new();
+    go(&mut s, &mut ev, &ir, &r1, "st-7-3");
+    let h1: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    assert_ne!(h1, r1_at_save, "the go must change a round 1 slice");
+    restore_op(&mut s);
+    let h2: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    assert_eq!(h1, h2);
+}
+
+#[test]
+fn mod9_restore_to_round1_checkpoint_keeps_round2_progress() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, _) = round_roots(&ir, "s-r2");
+    let mut s = play_round1(&ir);
+    let mut ev = Vec::new();
+    go(&mut s, &mut ev, &ir, &r1, "st-7-3");
+    let owner = cur_root(&s);
+    let owner_slice = s.slice(&owner).cloned().expect("owner slice");
+    let pos = s.state().run.current.clone();
+    save_op(&mut s);
+    let events = begin_round2(&mut s);
+    assert!(events.iter().any(|e| matches!(e, Event::Begun { .. })));
+    round2_inputs_to_st24(&mut s);
+    let r2_before: Vec<_> = r2.iter().map(|r| s.slice(r).cloned()).collect();
+    restore_op(&mut s);
+    let r2_after: Vec<_> = r2.iter().map(|r| s.slice(r).cloned()).collect();
+    assert_eq!(r2_before, r2_after);
+    assert_eq!(s.slice(&owner), Some(&owner_slice));
+    assert_eq!(s.state().run.current, pos);
+}
