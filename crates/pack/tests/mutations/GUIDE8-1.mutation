@@ -1,0 +1,8 @@
+id: GUIDE8-1
+package: fandhe-workshop-pack
+test: hint_stages
+target: crates/pack/src/hint_stages.rs
+find: if defs.len() != declared {
+replace: if defs.len() > declared {
+expect-fail: guide8_steps_not_matching_the_declared_count_are_reported
+note: 段数の比較が多すぎる場合だけを報告し、段の少ない Step を見逃す

@@ -7602,6 +7602,22 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 条件の持ち主（レビュー対応）: `condition::eval_condition` に実体の一覧（`instances`）を渡し、`step`・`chose` の参照先を `instance::owner_in`（`owner_of` の実体）に揃えた。`call_step_owner.rs` ではなく `condition_eval.rs` の `step_and_chose_read_the_callee_slice_for_a_call_step` が、呼び出しの Step の `entered`・`achieved`・`not_started`・選択を呼ばれた実体の切り身から読むことと、実体の一覧が空の対照を確かめる。
 - 範囲外: 2 周目の終了後に 1 周目の切り身が不変なこと（TASK-235 2/2）、`Control::Begin`（TASK-237 1/2）、`Checkpoint.owner` と `projection` の復帰の範囲（TASK-241）、根の定義（#1413）。
 
+### 5.257 ヒントの段の構造の確認（TASK-298。GUIDE-8・D-55）
+
+- 目的: 「ヒントは 3 段」を教材側の約束として扱い、段の数・答えの段・Step ごとの例外を教材テストが宣言として渡すと、宣言と違う Step が一覧で報告されることを固定する。エンジンは段の数を固定しない（D-55）。
+- 設計の判断: 段は `hints` の並び順で数え、ヒントの定義の `level`・`text` は読まない（語彙の語ではなく、読むには拡張点の手続きが要る）。`validate` には結線せず、新しい診断コードも足さない（結線すると「3 段」がエンジンの規則になる）。定義に解決できない ID は段に数えない。`hints` が空の Step は対象外で、宣言が名指しした Step は段数 0 として確かめる。未定義の ID だけを持つ Step は参照を持つので対象にし、段数 0 として報告する。宣言の誤り（段数 0・答えの段が範囲外・欄の名前が空）は報告 0 件と区別するため `Err` にする。報告は `uid`・数・種類だけで、文面・答え・欄の値を写さない。
+- 試験: `crates/pack/tests/hint_stages.rs` の `guide8_` 11 件と `crates/pack/src/hint_stages.rs` の単体試験 2 件。同じ教材を宣言 2・3・4 で確かめて結果が変わること（対照）、4 段の Step でも `validate`・`compile` が診断なしで通り `visible_hints` が 4 件を返すこと、欄の名前を別名にしても答えの照合が働くこと、未定義の ID だけを持つ Step が段数 0 として報告されること、モジュールの実体ごとに `uid`（`<モジュール>@<実体>` を含む）で報告され表示でも伏せないことを含む。
+- 変異（2026-10-23。元にしたコミット 91e20b1。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE8-{1,2,3}.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE8-1 | `hint_stages.rs`: 段数の比較を `!=` から `>` にする | DETECTED（`guide8_steps_not_matching_the_declared_count_are_reported`） |
+| GUIDE8-2 | `hint_stages.rs`: 答えの照合を常に一致とみなす | DETECTED（`guide8_answer_text_contains_answer`） |
+| GUIDE8-3 | `hint_stages.rs`: 未定義の ID も段に数える | DETECTED（`guide8_answer_stage_must_resolve`） |
+
+- 限界: 段の中身（場所・道具の名前・完全なコマンド）の意味と教育上の適切さは確かめない（GUIDE-8 は検討中）。答えの照合は部分文字列の包含の近似である。`fandhe-pack test` は未実装（TASK-404）で、呼び出し元は試験だけである。プロトタイプの教材は private の submodule にあるため、一時ディレクトリの教材で確かめた。
+- spec 側の差分の案（spec repo の作業。自動運転のため人の承認は得ていない）: GUIDE-8 の証拠の種類「自動テスト（native。構造のみ）」を本節に結びつける。INTRO-39 の「3 段が揃わない Step を教材テストが検出するかは記録に無い」を、宣言どおりの段数でない Step を報告できる、に更新する。
+
 ### 5.258 前の周回の切り身とフラグの分離（TASK-235 2/2。MOD-3）
 
 - 目的: 2 周目を終えた後も、1 周目の切り身が 2 周目の開始の前と同じで、1 周目のフラグが 2 周目の実体の切り身で立たないことを固定する。
