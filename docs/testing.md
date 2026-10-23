@@ -7960,7 +7960,22 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（別 PR で `make update-test-counts`）。
   - 試験の作成者と実装の作成者が同じ AI である。
 
-### 5.273 承認の「直す」の候補と表示名の画面（TASK-448 1/2。TERM-28・INTRO-29・JUDGE-11）
+### 5.273 途中開始で飛ばした Step の省略（TASK-217 1/2。EVT-21・MOD-6）
+
+- 目的: 途中の Step から始めたとき、開始の節点より前の Step が「達成」ではなく「省略」と記録されることを確かめる。
+- 期待と定義の対応: EVT-21（飛ばした Step に `Skipped` を記録する）・MOD-6（前の周回の切り身は変わらない）。
+- 構成:
+  - `crates/core/src/begin.rs`: `Control::Begin` が、`Begun` の後・開始点の `effects` の前に、飛ばした Step を IR の順で `Skipped` にし、`Event::Skipped` を 1 件ずつ出す。
+  - `crates/core/tests/begin_skip.rs`: `min-3step` を 5 Step に増やした IR（メモリ上で組む）での 7 件。
+  - `crates/pack/tests/start_skip.rs`: `module-reuse-rounds` の `issue-to-merge@round2#s-6-1` で `st-3-2`・`st-4-1`・`st-5-1` の 3 件が `Skipped`、`st-6-1` が `Entered`、ほかの実体の切り身が開始の前と等しい。
+  - `crates/core/tests/mutations/EVT21-1`〜`EVT21-4`: 省略しない・達成にする・未着手の条件を外す・同じ実体の条件を外す。
+- 解釈: 対象は、開始の節点と同じ `unit`・同じ `scope` で、呼び出しの Step（`use`）でなく、状態が `NotStarted` の節点とした（試作 `begin_at` に合わせた）。呼び出しの Step は持ち主が呼び出し先の実体になるため省略にしない。拒否された開始（不明な ID・開始条件・世代のあふれ・効果を読めない）は、すべての関門の後で省略するため状態を変えない。状態とイベントを同じ分岐で出し、`Session::step_status` と射影の食い違いを作らない。
+- 本件と 2/2（#556）の境界: 本件は省略の規則と `Event::Skipped` の発行まで。`Skipped` の件数が飛ばした数とちょうど等しいこと、同じ開始点への再度の開始で重複しないこと、履歴の適用し直し・書き出し→読み込み・再読み込みの前後での保持、件数に向けた変異は 2/2 が担う。
+- 実行結果（2026-10-23）: `begin_skip` 7 件・`start_skip` 1 件が通過。
+- 限界: 実体ごとの途中開始と開始点の `${名前}` の置換は TASK-239、web の起動を `Session::entered_at` から `Control::Begin` へ置き換えるのは TASK-254。歩行器の上限（`TransitionLimitReached`）で止まった操作は状態を操作の前へ戻し、`on_begin` がイベント列から `Skipped` を取り消すため、ログに `Begun` は残るが `Skipped` は残らない。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.274 承認の「直す」の候補と表示名の画面（TASK-448 1/2。TERM-28・INTRO-29・JUDGE-11）
 
 - 目的: 承認の Step の「直す」の対象ボタンが、誤った候補を含めて宣言順に、ID でなく表示名で出ることを画面で確かめる。D-69（2026-10-21）は、語彙に候補と表示名（`revise.candidates[].id/label`）を足す案を採った。前提の TASK-62（語彙）・TASK-265（core の `revise_candidates`）・TASK-447（承認の部品）は main にある。本件は部品を `revise_candidates` に結線した。
 - 期待と定義の対応: TERM-28（誤った候補を含むボタンが表示名で出る）・INTRO-29（正しい対象を画面が示さない）・JUDGE-11（誤った候補は受付にならず拒否になる。判定は core）。
