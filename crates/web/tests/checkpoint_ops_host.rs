@@ -304,3 +304,123 @@ fn 表示だけのモードでは出さず押下も捨てる() {
     assert_eq!(snapshot(&h), before);
     assert!(h.history_to_save().is_none());
 }
+
+// ---- 一覧（TASK-529 2/2。SHELL-13）----
+
+type Entry = (String, String, String, String, String);
+
+/// 復帰のボタンの (ID, 章, M, K, 文字) を DOM の順に集める。属性が無いときは空の文字にする。
+fn list_of(h: &EngineHost) -> Vec<Entry> {
+    fn walk(n: &Node, out: &mut Vec<Entry>) {
+        if attr(n, "data-testid") == Some(RESTORE_TESTID) {
+            let g = |k: &str| attr(n, k).unwrap_or("").to_owned();
+            let label = kids(n)
+                .iter()
+                .map(|c| format!("{c:?}"))
+                .collect::<Vec<_>>()
+                .join("");
+            out.push((
+                g("data-checkpoint"),
+                g("data-checkpoint-chapter"),
+                g("data-checkpoint-m"),
+                g("data-checkpoint-k"),
+                label,
+            ));
+        }
+        kids(n).iter().for_each(|c| walk(c, out));
+    }
+    let mut out = Vec::new();
+    walk(&h.view(), &mut out);
+    out
+}
+
+/// IR から独自に数えた（章の ID, M, K）。`top_position` を使わない。
+fn expected_place(uid: &str) -> (String, u32, u32) {
+    let ir = ir();
+    let chapter = ir.nodes.iter().find(|n| n.uid == uid).unwrap().unit.clone();
+    let steps: Vec<&str> = ir
+        .nodes
+        .iter()
+        .filter(|n| n.scope == "main" && n.unit == chapter)
+        .map(|n| n.uid.as_str())
+        .collect();
+    let m = steps.iter().position(|u| *u == uid).unwrap() as u32 + 1;
+    (chapter, m, steps.len() as u32)
+}
+
+#[test]
+fn 一覧の各項目は保存した時点の章と位置を文字と属性に持つ() {
+    let mut h = host_at("main/st-0-2b");
+    save(&mut h);
+    h.update(goto("main/st-1-4"));
+    save(&mut h);
+    let l = list_of(&h);
+    assert_eq!(l.len(), 2);
+    for (entry, uid) in l.iter().zip(["main/st-0-2b", "main/st-1-4"]) {
+        let (chapter, m, k) = expected_place(uid);
+        assert_eq!(entry.1, chapter);
+        assert_eq!(entry.2, m.to_string());
+        assert_eq!(entry.3, k.to_string());
+        assert!(entry.4.contains(&format!("Step {m} / {k}")), "{}", entry.4);
+    }
+    assert_ne!(l[0].1, l[1].1, "章をまたぐ 2 件");
+}
+
+#[test]
+fn 先へ進んでも一覧は変わらない() {
+    let mut h = host_at("main/st-0-2b");
+    save(&mut h);
+    let before = list_of(&h);
+    h.update(goto("main/st-1-4"));
+    assert_eq!(list_of(&h), before);
+}
+
+#[test]
+fn 実ボタンの保存は履歴に記録され書き出し_読み込み_起動で一覧が一致する() {
+    use fandhe_workshop_web::host::ImportOutcome;
+
+    let mut h = host_at("main/st-0-2b");
+    save(&mut h);
+    h.update(goto("main/st-1-4"));
+    save(&mut h);
+    let before = list_of(&h);
+    let saved = h.history_to_save().expect("操作があれば保存する値がある");
+    let v: Value = serde_json::from_str(&saved).unwrap();
+    let ops = format!("{}", v["ops"]);
+    assert!(
+        ops.contains("Save") || ops.contains("save"),
+        "Save が記録される"
+    );
+
+    // 書き出しの値を別のホストで開く。
+    let mut h2 = host_at("main/st-0-2b");
+    assert_eq!(h2.open_history(saved.as_bytes()), ImportOutcome::Open);
+    assert_eq!(list_of(&h2), before);
+    assert_eq!(checkpoints(&h2), 2);
+
+    // 読み込んだ側で復帰すると、保存の時点に戻る。
+    h2.update(act(ACTION_RESTORE_CHECKPOINT, "1").unwrap());
+    assert_eq!(current(&h2), "main/st-0-2b");
+    assert_eq!(list_of(&h2), before, "復帰しても一覧は変わらない");
+
+    // 起動時の復元（再読み込みの相当）。
+    let mut h3 = host_at("main/st-0-2b");
+    let _ = h3.boot(Some(saved.as_bytes()));
+    assert_eq!(list_of(&h3), before);
+}
+
+#[test]
+fn 読み込みで同じ_id_の内容が替わるとラベルと属性が替わる() {
+    use fandhe_workshop_web::host::ImportOutcome;
+
+    let mut a = host_at("main/st-0-2b");
+    save(&mut a);
+    let mut b = host_at("main/st-0-2b");
+    b.update(goto("main/st-1-4"));
+    save(&mut b);
+    let lb = list_of(&b);
+    assert_ne!(list_of(&a), lb);
+    let saved = b.history_to_save().unwrap();
+    assert_eq!(a.open_history(saved.as_bytes()), ImportOutcome::Open);
+    assert_eq!(list_of(&a), lb);
+}

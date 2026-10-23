@@ -1,0 +1,8 @@
+id: SHELL13-4
+package: fandhe-workshop-web
+test: checkpoint_ops_host
+target: crates/web/src/checkpoint_ops.rs
+find:             .and_then(|(_, cp)| cp.run.current.as_ref())
+replace:             .and_then(|(_, _cp)| state.run.current.as_ref())
+expect-fail: 先へ進んでも一覧は変わらない
+note: 一覧の位置を保存した時点でなく今の Step から導く（SHELL-13・TASK-529 2/2）
