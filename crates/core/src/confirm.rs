@@ -24,7 +24,7 @@
 //! # 扱わないこと
 //!
 //! - 章の完了（`ChapterCompleted`・`completed`）、実体ごとの状態の切り分け、`use`・`exit_to` を通る間の効果（TASK-233 以降。たどり自体は `transit` が行う）
-//! - 遷移先の `on_enter` の効果、入口の写し `SessionState.entry` の更新（TASK-242・213・217）
+//! - 遷移先の `on_enter` の効果、（入口の写しは `transit` が着地で無効化する。MOD-10・TASK-242 1/2）
 //! - `on_miss`・`on_wrong` の文面の解決と `Judged` の発行（`crate::judge`、TASK-267）、`busy` の分類（[`crate::busy_class`]、TASK-209 1/2）。
 //!   どちらも受付の分岐が先に行い、本モジュールは判定が確認のときだけ呼ばれる
 //! - `processing` を持つ Step の省略の達成（進行の完了で [`crate::tick`] が達成にする。TASK-210 2/3）

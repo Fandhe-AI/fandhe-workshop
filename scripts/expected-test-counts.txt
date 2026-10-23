@@ -100,6 +100,7 @@ rust|tests/effect_apply.rs [effect_apply]|passed=13|ignored=0
 rust|tests/effect_contract.rs [effect_contract]|passed=15|ignored=0
 rust|tests/effects.rs [effects]|passed=17|ignored=0
 rust|tests/engine_api_doc.rs [engine_api_doc]|passed=2|ignored=0
+rust|tests/entry_copy_checkpoint.rs [entry_copy_checkpoint]|passed=9|ignored=0
 rust|tests/env_action_input.rs [env_action_input]|passed=9|ignored=0
 rust|tests/env_action_save.rs [env_action_save]|passed=12|ignored=0
 rust|tests/error_input_expect.rs [error_input_expect]|passed=10|ignored=0
@@ -313,7 +314,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=317|passed=3391|ignored=3
+rust|total|binaries=318|passed=3400|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0

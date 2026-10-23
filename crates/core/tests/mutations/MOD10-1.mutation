@@ -1,0 +1,10 @@
+id: MOD10-1
+package: fandhe-workshop-core
+test: entry_copy_checkpoint
+target: crates/core/src/transit.rs
+find:     state.entry = None; // I-1: 入った Step の写しは導く
+replace:     // state.entry = None; // I-1: 入った Step の写しは導く
+expect-fail: entering_next_step_replaces_the_entry_copy
+expect-fail: checkpoint_after_transition_has_no_stale_entry
+expect-fail: stop_after_reentering_the_same_step_keeps_earlier_world
+note: 着地で入口の写しを無効にしない（古い Step の写しが残り、チェックポイントと停止の戻り先に入る。MOD-10 の X2 相当）
