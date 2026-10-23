@@ -590,3 +590,36 @@ fn 負例_識別子の一部は数えない() {
     let src = "fn z() { let WorldX = 1; let MyMark = 2; let marks_len = 3; }";
     assert!(violations(&with(base(), "run_status.rs", src)).is_empty());
 }
+
+#[test]
+fn 負例_文字列と文字リテラルの波括弧で切り出しが閉じず_後ろの禁止参照を検出する() {
+    for lit in [
+        r#"let s = "}";"#,
+        r#"let s = "}}";"#,
+        r#"let s = "\"}";"#,
+        "let c = '}';",
+        r"let c = '\'';",
+        "let s: &'static str = \"{\";",
+    ] {
+        let mut files = base();
+        let parts = files.iter_mut().find(|(n, _)| n == ENGINE_PARTS).unwrap();
+        parts.1.push_str(&format!(
+            "\nimpl LogPart {{ fn z(&self) {{ {lit} let _ = World; }} }}\n"
+        ));
+        assert!(
+            !violations(&files).is_empty(),
+            "{lit} の後ろの禁止参照を検出できない"
+        );
+    }
+}
+
+#[test]
+fn block_fromは文字列と文字リテラルの波括弧を数えない() {
+    assert_eq!(block_from(r#"{ "}" }x"#, 0), Some(r#"{ "}" }"#));
+    assert_eq!(block_from(r#"{ "{" }x"#, 0), Some(r#"{ "{" }"#));
+    assert_eq!(block_from("{ '}' }x", 0), Some("{ '}' }"));
+    assert_eq!(
+        block_from("{ fn f<'a>(x: &'a u8) {} }x", 0),
+        Some("{ fn f<'a>(x: &'a u8) {} }")
+    );
+}

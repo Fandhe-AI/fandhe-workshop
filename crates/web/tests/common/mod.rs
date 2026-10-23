@@ -213,11 +213,36 @@ pub fn count_ident(hay: &str, needle: &str) -> usize {
 }
 
 /// `start` 以降の最初の `{` から対応する `}` までを返す。対応が取れなければ None。
+///
+/// 文字列（`"..."`・`r"..."`）と文字リテラル（`'{'`・`'\''`）の中の波括弧は深さに数えない。
+/// 数えると `let s = "}";` で範囲が早く閉じ、その後ろの禁止参照を見逃す。ライフタイム（`'a`）は文字リテラルとしない。
 pub fn block_from(code: &str, start: usize) -> Option<&str> {
     let open = start + code[start..].find('{')?;
+    let cs: Vec<(usize, char)> = code[open..].char_indices().collect();
+    let at = |k: usize| cs.get(k).map(|(_, c)| *c);
     let mut depth = 0usize;
-    for (i, c) in code[open..].char_indices() {
+    let mut k = 0;
+    while k < cs.len() {
+        let (i, c) = cs[k];
         match c {
+            '"' => {
+                // 直前が `r`（か `#`）なら生文字列として扱い、バックスラッシュを特別扱いしない。
+                let raw = k > 0 && (at(k - 1) == Some('r') || at(k - 1) == Some('#'));
+                k += 1;
+                while k < cs.len() && cs[k].1 != '"' {
+                    k += if !raw && cs[k].1 == '\\' { 2 } else { 1 };
+                }
+            }
+            '\'' => {
+                if at(k + 1) == Some('\\') {
+                    k += 2;
+                    while k < cs.len() && cs[k].1 != '\'' {
+                        k += 1;
+                    }
+                } else if at(k + 2) == Some('\'') {
+                    k += 2;
+                }
+            }
             '{' => depth += 1,
             '}' => {
                 depth = depth.checked_sub(1)?;
@@ -227,6 +252,7 @@ pub fn block_from(code: &str, start: usize) -> Option<&str> {
             }
             _ => {}
         }
+        k += 1;
     }
     None
 }
