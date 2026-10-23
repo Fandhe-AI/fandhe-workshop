@@ -7467,3 +7467,16 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-22。Linux・Chromium）: 上の native 試験とブラウザ試験 19 件が通った。`modifier-key-hint`・`element-identity`・`csp-runs` は変更なしで通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 - 確かめないこと: 実機の Edge・Safari・Firefox での確認。UA を Playwright で差し替えた代理である。
 - 限界・範囲外: `docs/known-gaps.md` の SHELL-30。IR の拒否の画面では通知欄を描かないため案内も出ない（TASK-545・TASK-546）。
+
+### 5.247 案内レベル別のヒントの出し分け（TASK-293。GUIDE-2）
+
+- 目的: 現在の Step と案内レベルで出せるヒントの一覧（core の `hint_select`）が水準ごとに `levels` の宣言どおりに変わり、pack の `E-HINT-HIDDEN` が報告する (定義ファイル, Step, 水準) の集合と、実行時に一覧が空になる組の集合が、モジュールの実体を含めて一致することを固定する。規則の正は契約の `visible_hints` の 1 か所で、検査と実行時は違う入力（展開の前の Step と定義元の表 / 展開の後の node と IR の表）から引く。
+- 試験: `crates/core/tests/hint_select.rs`（水準で一覧が変わる・Session の水準に従う・開始前と未知の Step は空・契約の規則と一致・性質テスト）、`crates/pack/tests/hint_hidden_runtime.rs`（base・D22・モジュールの実体・模擬の教材 8 組で一致）。base のヒントは `levels` なしで全水準に出し、D22 は `[B, C]` で水準 A だけが空になる。
+- 実行結果（2026-10-23。元にしたコミット a8c2215）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE2-1.mutation crates/pack/tests/mutations/GUIDE2-2.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| GUIDE2-1 | `crates/core/src/hint_select.rs`: 現在の案内レベルを無視して常に水準 A を返す | the_list_changes_with_the_level | the_list_changes_with_the_level, property_list_matches_independent_expectation | DETECTED | cases=256、固定の既定の種、最小の入力 `[Some([1])]` |
+| GUIDE2-2 | `crates/pack/src/guidance.rs`: 検査が水準 C を見落とす | agrees_on_synthetic_packs | agrees_on_synthetic_packs | DETECTED | - |
+
+- 範囲外: `Control::OpenHint`・`SetGuidance` の結線（TASK-295・TASK-294）、本文の表示（TASK-530）。
