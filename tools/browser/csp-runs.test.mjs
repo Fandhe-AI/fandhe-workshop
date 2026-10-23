@@ -15,8 +15,12 @@
 //                        全 Step を「移動」（`go_to`）で順に開く。各 Step で走査
 //   T4（試験の設定）    表示部品 7 種 × 変種 (a)・(b) の全 14 通りを実際の画面に mount して走査する。部品が増えれば
 //                        artifact-view-check の CASES に入り、自動でこの検査の対象になる
+//   T5（試験の設定）    CH-4〜CH-9 の形の 17 Step（`?fixture=ch4-9`）を実クリックと実キーで通す（TASK-674 2/2）。Step ごとに走査し、
+//                        章ごとの配信元以外への通信の件数を表にして 0 を主張する。WebSocket の接続も数える
+//   D2（配信する設定）  同じ 17 Step を、配信する設定の一時の写し（`ir/main.json` と fandhe-ir の meta を足したもの）で DOM だけの観察で通す
 //
 // 確かめないこと:
+//   - 本物の CH-4〜CH-9（TASK-672）での流し直し。T5・D2 は形だけを写した試験用の教材で数える。TASK-152 の完走の結果には頼らない
 //   - 本物の掲示板教材での移動（D-11。教材 repo の公開後）と配信する設定での教材の誘導の完走（実行時の教材の読み込みが未実装）。
 //     限界は docs/testing.md 5.180 と docs/known-gaps.md に記録する
 //   - favicon の取得。ヘッドレスでは揺れるため要求の種類の比較から外し、inline-free.test.mjs が直接の取得と静的検査で確かめる
@@ -28,6 +32,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, collectSafety, nonZero,
   cspConsoleMessages, requestKinds,
@@ -36,8 +41,14 @@ import {
   DRAFT, RAW, T, at, engine, rowSel, choiceSel, decideSel, ledger, keyboardDriver, journey, install,
 } from './ch0-3-journey.mjs';
 import { CASES } from './artifact-view-check.mjs';
+import {
+  FIXTURE_QUERY as FIXTURE_49, STEPS as STEPS_49, journey49, hookObserver49, domObserver49, mouseDriver, ledger as ledger49,
+  withDeliveryCopy,
+} from './ch4-9-journey.mjs';
+import { irFetchCheck } from './l1-l2-runner.mjs';
 
 const BASE = '/fandhe-csp-runs/';
+const IR_49 = fileURLToPath(new URL('../../crates/web/tests/data/ch4_9/ir.json', import.meta.url));
 let browser;
 
 before(async () => {
@@ -53,9 +64,10 @@ after(async () => {
 });
 
 // 0 件の主張。どの区分が 0 でないかを名前で出し、入力値は出さない。favicon は揺れるため失敗の数から除く。
-async function assertClean(page, rec, label, scanOpts = {}) {
+// failedFilter は失敗した要求の一覧から合否に数えないものを除く口（既定は何も除かない。配信元の外への通信は除けない）。
+async function assertClean(page, rec, label, scanOpts = {}, { failedFilter = (f) => f } = {}) {
   const counts = await collectSafety(page, rec, scanOpts);
-  const failed = rec.failed.filter((f) => !/\/icon\.svg(\?|$)/.test(f.url));
+  const failed = failedFilter(rec.failed.filter((f) => !/\/icon\.svg(\?|$)/.test(f.url)), rec);
   const extra = {
     cspConsole: cspConsoleMessages(rec).length,
     failed: failed.length,
@@ -68,16 +80,19 @@ async function assertClean(page, rec, label, scanOpts = {}) {
 const midScan = { settleMs: 0, provoke: false };
 
 // 1 つの場面を CSP あり → なしで流し、要求の種類を比べる。fn は (page, rec, srv) を受け取り、各所で assertClean を呼ぶ。
-async function runScene({ envName, query = '', fn }) {
+// dir は用意済みのディレクトリ（envName の代わり。D2 の配信する設定の写し）、prepareDir(dir) は withCspMode が渡す dir への追加の準備
+// （D2 の ir/main.json）、setup(page, rec, csp) は遷移の前に呼ぶ口、failedFilter は assertClean へ渡す失敗の除外。fn は第 4 引数に csp を受ける。
+async function runScene({ envName, dir: given, query = '', fn, prepareDir = null, setup = null, failedFilter }) {
   const kindsByMode = [];
   for (const csp of [true, false]) {
-    await withCspMode({ dir: process.env[envName], csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+    await withCspMode({ dir: given ?? process.env[envName], csp }, (dir) => withServer({ dir: (prepareDir?.(dir), dir), base: BASE }, async (srv) => {
       const { page, context, rec } = await openPage(browser, { origin: srv.origin });
       try {
+        if (setup) await setup(page, rec, csp);
         await page.goto(`${srv.url}${query}`);
         await waitMounted(page);
-        await fn(page, rec, srv);
-        await assertClean(page, rec, `CSP ${csp ? 'あり' : 'なし'} の終わり`);
+        await fn(page, rec, srv, csp);
+        await assertClean(page, rec, `CSP ${csp ? 'あり' : 'なし'} の終わり`, {}, { failedFilter: failedFilter?.(srv) });
         kindsByMode.push(requestKinds(rec, { origin: srv.origin, base: BASE }));
       } finally {
         await context.close();
@@ -222,4 +237,102 @@ test('T4: 表示部品 7 種 x 変種 (a)・(b) の全ケースを mount して�
       }
     },
   });
+});
+
+// T5・D2 共通。章ごとの配信元以外への通信・CSP の違反・配信元への要求の件数を、Step の観察ごとに積む。
+// 章は uid（`main/st-<章>-...`）から取る。章の件数は「その章の最初の観察から次の章の最初の観察の前まで」に増えた分。
+function chapterTally(page, rec, wsCount, label, opts = {}) {
+  const rows = new Map();
+  let scans = 0;
+  let prev = { external: 0, csp: 0, req: 0, ws: 0 };
+  return {
+    rows,
+    get scans() { return scans; },
+    async onStep(uid, phase) {
+      await assertClean(page, rec, `${label} ${uid} ${phase}`, midScan, opts);
+      scans += 1;
+      const ch = /^main\/st-(\d+)-/.exec(uid)?.[1];
+      assert.ok(ch, `章を取れない uid: ${uid}`);
+      const cur = { external: rec.external.length, csp: rec.csp.length, req: rec.requests.length, ws: wsCount() };
+      const row = rows.get(ch) ?? { external: 0, csp: 0, req: 0, ws: 0 };
+      for (const k of Object.keys(row)) row[k] += cur[k] - prev[k];
+      rows.set(ch, row);
+      prev = cur;
+    },
+    line(tag) {
+      const cells = [...rows].map(([ch, r]) => `CH-${ch} 外部${r.external}`).join(' / ');
+      const req = [...rows.values()].reduce((a, r) => a + r.req, 0);
+      return `${tag}: ${cells}、配信元への要求 ${req} 件、走査 ${scans} 回`;
+    },
+    assertZero() {
+      assert.equal(rows.size, 6, `章が 6 つ（CH-4〜CH-9）観察されない: ${[...rows.keys()].join(',')}`);
+      for (const [ch, r] of rows) {
+        assert.deepEqual({ ch, external: r.external, csp: r.csp, ws: r.ws }, { ch, external: 0, csp: 0, ws: 0 }, `CH-${ch} の外部通信・CSP の違反・WebSocket が 0 件ではない`);
+      }
+    },
+  };
+}
+
+// IR の取得が 200 の後に同じ要求だけ ERR_ABORTED になる競合（docs/testing.md 5.268）の 1 形だけを失敗から除く
+// （l1-l2-runner.mjs の irFetchCheck と同じ厳しさ）。外部通信（rec.external）は除かない。
+const irRaceFilter = (srv) => (failed, rec) => {
+  const kept = new Set(irFetchCheck(rec, `${srv.url}ir/main.json`).failed);
+  return failed.filter((f) => kept.has(f));
+};
+
+const wsCounter = () => {
+  const c = { n: 0 };
+  return { c, setup: async (page) => { page.on('websocket', () => { c.n += 1; }); } };
+};
+
+test('T5: CH-4〜CH-9 の形の 17 Step を実クリックと実キーで通しても、章ごとの配信元以外への通信が 0 件で、Step ごとの走査も 0 件', { timeout: 300000 }, async () => {
+  await runScene({
+    envName: 'FANDHE_WEB_TEST_DIR',
+    query: FIXTURE_49,
+    setup: async (page, rec) => { rec.ws = wsCounter(); await rec.ws.setup(page); },
+    fn: async (page, rec, srv, csp) => {
+      await hooksOk(page);
+      await install(page);
+      const L = ledger49();
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'T5');
+      const { presses } = await journey49(page, mouseDriver(page), 'csp-runs ch4-9', L, { observe: hookObserver49, onStep: (u, p) => tally.onStep(u, p) });
+      assert.deepEqual(L.failed(), []);
+      assert.equal(presses, 5);
+      assert.equal((await page.evaluate(() => window.__run)).raw, 0, 'raw-trigger の click が 0 回');
+      const status = (await engine(page)).stateWithoutLog.run.slices.main.status;
+      assert.ok(STEPS_49.every(([uid]) => status[uid] === 'achieved'), `${STEPS_49.length} Step がすべて達成`);
+      tally.assertZero();
+      console.log(tally.line(`T5 (CSP ${csp ? 'あり' : 'なし'})`));
+    },
+  });
+});
+
+test('D2: 配信する設定の写しで同じ 17 Step を DOM だけの観察で通しても、章ごとの配信元以外への通信が 0 件で、Step ごとの走査も 0 件', { timeout: 300000 }, async () => {
+  await withDeliveryCopy((copy) => runScene({
+    dir: copy,
+    prepareDir: (dir) => {
+      fs.mkdirSync(`${dir}/ir`, { recursive: true });
+      fs.copyFileSync(IR_49, `${dir}/ir/main.json`);
+    },
+    setup: async (page, rec) => { rec.ws = wsCounter(); await rec.ws.setup(page); },
+    failedFilter: irRaceFilter,
+    fn: async (page, rec, srv, csp) => {
+      assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口がある');
+      await install(page);
+      const L = ledger49();
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'D2', { failedFilter: irRaceFilter(srv) });
+      const { presses } = await journey49(page, mouseDriver(page), 'csp-runs ch4-9 配信', L, { observe: domObserver49(), onStep: (u, p) => tally.onStep(u, p) });
+      assert.deepEqual(L.failed(), []);
+      assert.equal(presses, 5);
+      assert.equal((await page.evaluate(() => window.__run)).raw, 0, 'raw-trigger の click が 0 回');
+      const review = await page.evaluate(() => [...document.querySelectorAll('[data-testid="part-review-list"] > li')]
+        .map((li) => ({ step: li.dataset.step, achieved: li.dataset.achieved, skipped: li.dataset.skipped })));
+      assert.ok(review.length === STEPS_49.length && STEPS_49.every(([u]) => review.some((r) => r.step === u && r.achieved === 'true')), '復習の行で全 Step が達成');
+      assert.ok(review.every((r) => r.skipped === 'false'), '復習の行で省略が 0 件');
+      const ir = irFetchCheck(rec, `${srv.url}ir/main.json`);
+      assert.ok(ir.irCount === 1 && ir.irOk, 'ir/main.json が 200 で 1 回');
+      tally.assertZero();
+      console.log(tally.line(`D2 (CSP ${csp ? 'あり' : 'なし'})`));
+    },
+  }));
 });

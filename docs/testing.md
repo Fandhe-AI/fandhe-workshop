@@ -8205,7 +8205,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-23。Chromium 153.0.8010.12、試験の設定と配信する設定の web を `SKIP_WASM_OPT=1` で直接ビルド）: A 92 項目×2、B 84 項目×2、C 225 項目、D 87 項目がすべて通った（全体で約 17 秒）。native の `ch4_9_run_host` 4 件と `test_fixture` の単体 1 件も通った。
 - 確かめないこと・限界:
   - **未実施（本物の教材）**: TASK-672 の本物の CH-4〜CH-9 での流し直し。教材 repo ができた後の作業である。分岐の Step 化・止まる場面の主経路への置き方・実際の保存と書き出しの Step・教材の文面は写していない。
-  - 配信元以外への通信の正式な計数と記録は TASK-674 2/2 の範囲である。ここでは各試験の台帳に「0 件」の 1 項目を置いただけで、`csp-runs` には登録していない（`journey49` の `onStep` の口と `?fixture=ch4-9` を引き渡す）。
+  - 配信元以外への通信の正式な計数と記録は TASK-674 2/2 の範囲である（→ 5.285）。ここでは各試験の台帳に「0 件」の 1 項目を置いただけで、`csp-runs` には登録していない（`journey49` の `onStep` の口と `?fixture=ch4-9` を引き渡す）。
   - 全周のキーボード完走は TASK-92 の範囲である。本試験は実クリックの通しだけを確かめる。
   - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
   - `make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
@@ -8231,6 +8231,36 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - Chromium の headless だけで測った。Chrome の原本・Windows（TASK-224）は未測定。
   - 「入力から描画まで」は #563（TASK-223 2/2）で扱う。ログの長さによる傾き（TASK-232）は対象外。
   - `make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.285 CH-4〜CH-9 の通しでの配信元以外への通信の計数（TASK-674 2/2。ROUND1-1・SAFE-13）
+
+- 目的: CH-4〜CH-9 の run で配信元以外への通信が 0 件であることを、TASK-151 の道具（`harness.mjs` の `openPage`・`collectSafety`・`cspConsoleMessages`・`requestKinds`、`csp-runs.test.mjs` の `runScene`・`assertClean`）で本タスク自身が数える。TASK-152 の結果には頼らない。
+- 構成（`tools/browser/csp-runs.test.mjs` に 2 場面を登録。`scripts/test-browser.sh` は登録済みのため変更なし）:
+  - T5（試験の設定。`?fixture=ch4-9`）: `journey49` で 17 Step を実クリックと実キーで通す。各 Step の観察ごとに走査（`assertClean`）し、章ごとに配信元以外への通信・CSP の違反・WebSocket の接続の増分を表にして 0 を主張する。
+  - D2（配信する設定）: `withDeliveryCopy`（`ch4-9-journey.mjs` へ移設。5.283 の B と共有）の写しに `ir/main.json` を置き、DOM だけの観察で同じ通しを行う。復習の行で 17 Step の達成・省略 0、`ir/main.json` が 200 で 1 回を確かめる。
+  - 両場面とも CSP あり → なしの順で流し、配信元への要求の種類が同じであることと、要求を観察できたこと（空振りでないこと）を `runScene` が確かめる。
+  - `runScene` に `dir`・`prepareDir`・`setup`・`failedFilter` の口を足し、`assertClean` に失敗の除外の口を足した。既存の D1・T1〜T4 の挙動は変えない。
+  - 失敗の除外は 1 形だけ。IR の取得が 200 の後に同じ要求だけ `net::ERR_ABORTED` になる競合（5.268）で、`l1-l2-runner.mjs` の `irFetchCheck` をそのまま使う。外部通信は除外の対象にしない。
+- 実行結果（2026-10-23。基点は `origin/main` の `7eafc45`。Chromium は Playwright 同梱。web は `SKIP_WASM_OPT=1` で試験の設定・配信する設定を別々に作成）:
+
+| 場面 | CSP | CH-4 | CH-5 | CH-6 | CH-7 | CH-8 | CH-9 | 配信元への要求 | 走査 |
+|---|---|---|---|---|---|---|---|---|---|
+| T5 | あり | 0 | 0 | 0 | 0 | 0 | 0 | 6 件 | 33 回 |
+| T5 | なし | 0 | 0 | 0 | 0 | 0 | 0 | 6 件 | 33 回 |
+| D2 | あり | 0 | 0 | 0 | 0 | 0 | 0 | 6 件 | 33 回 |
+| D2 | なし | 0 | 0 | 0 | 0 | 0 | 0 | 6 件 | 33 回 |
+
+  - 表の数字は章ごとの配信元以外への通信の件数。CSP の違反・WebSocket・ページ内エラー・コンソールの CSP 警告も全回 0 件。
+  - `csp-runs` は 8 件すべて合格、`ch4-9-run`（`withDeliveryCopy` の移設後）は 6 件すべて合格。
+  - 陽性の確認: T5 の CH-6 の観察の直前に `127.0.0.1:9` への `fetch` を 1 件起こすと T5 が失敗した（検出器が働く）。この変更はコミットしていない。検出器自体の対照は `harness.test.mjs`・`safety-control.test.mjs` が受け持つ。
+- 限界:
+  - 本物の CH-4〜CH-9（TASK-672）が無いため、形だけを写した試験用の教材（17 Step・6 章）で数えた。本物での流し直しは未実施。AI の代理の確認であり、人の評価には数えない（D-34）。
+  - WebSocket 以外の経路（Service Worker 等）は道具の範囲に依る。
+  - `scripts/expected-test-counts.txt` は更新していない（`csp-runs` が 6 件から 8 件になる。後で `make update-test-counts`）。
+  - `make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
+  - 5.180 の「配信する設定は実行時に教材を読み込まない」は、5.283 の B 以後、配信する設定の写しに `ir/main.json` を置けば読み込める。D1〜T4 を配信する設定へ広げるのは TASK-152 か別の範囲である。
+  - `pack-body-xss.test.mjs`・`ir-recv-limit.test.mjs` に `withDeliveryCopy` 相当の重複が残る（本件では触れない）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
 ### 5.286 入力から描画までの速さ（ログ 120〜158 項目。TASK-223 2/2。EVT-24）

@@ -9,6 +9,10 @@
 // 観察は 2 種。hookObserver 相当（試験の設定。`__fandheTest.stateJson` を読む）と、domObserver49（配信する設定。DOM だけを読む。
 // 配信する設定には `__fandheTest` が無い）。DOM の目印の正しさは、較正の試験が stateJson との一致で確かめる。
 // `Function`・`eval` は使わない（CSP が止める）。入力した値は台帳にも出力にも載せない。
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   NEXT, T, engine, ports, waitCount, hookObserver, REJECTED,
 } from './ch0-3-journey.mjs';
@@ -257,3 +261,22 @@ export async function journey49(page, d, scene, L, { observe = hookObserver49, o
   return { presses };
 }
 
+// 配信する設定の一時の写しに fandhe-ir の meta と ir/ を足して fn に渡し、成否にかかわらず消す（pack-body-xss と同じ足し方）。
+// ch4-9-run.test.mjs の B と csp-runs.test.mjs の D2 が共有する（.test.mjs は import できないため本モジュールに置く）。
+export async function withDeliveryCopy(fn) {
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-ch49-web-'));
+  try {
+    fs.cpSync(process.env.FANDHE_WEB_DIR, copy, { recursive: true });
+    const index = path.join(copy, 'index.html');
+    const html = fs.readFileSync(index, 'utf8');
+    assert.equal(html.split('</head>').length - 1, 1, 'exactly one </head>');
+    assert.ok(!/name\s*=\s*["']?fandhe-ir/i.test(html), 'delivery index has no fandhe-ir meta');
+    assert.ok(!/name\s*=\s*["']?fandhe-test-hooks/i.test(html), 'delivery index has no test-hooks meta');
+    assert.equal((html.match(/http-equiv\s*=\s*["']?content-security-policy/gi) ?? []).length, 1, 'exactly one CSP meta');
+    fs.writeFileSync(index, html.replace('</head>', '<meta name="fandhe-ir" content="1"></head>'));
+    fs.mkdirSync(path.join(copy, 'ir'), { recursive: true });
+    return await fn(copy);
+  } finally {
+    fs.rmSync(copy, { recursive: true, force: true });
+  }
+}
