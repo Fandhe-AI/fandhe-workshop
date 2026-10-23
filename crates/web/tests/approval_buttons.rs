@@ -165,7 +165,7 @@ fn ボタンは右のエリアの契約に通る() {
             approval_button(Decision::Approve, None),
             approval_button(Decision::Reject, None),
             approval_button(Decision::Revise, None),
-            approval_button(Decision::Revise, Some("t-alpha")),
+            approval_button(Decision::Revise, Some(("t-alpha", "表示"))),
         ],
     );
     check_area(&area).unwrap_or_else(|e| panic!("{e:?}"));
@@ -286,6 +286,81 @@ fn 教材由来の対象は逃がされ_空白だけの対象はボタンにな�
     assert_eq!(target_buttons(&h), 2, "{out}");
 }
 
+/// `main/st-1` に「直す」の候補（宣言順）と、規則の対象 `t-alpha`・`t-beta` を持たせたホスト。
+fn candidates_host(candidates: Value) -> EngineHost {
+    host_with(
+        Some(json!({ "kind": "approve" })),
+        thin_rules(&["t-alpha", "t-beta"]),
+        json!({ "kind": "approval", "revise": { "candidates": candidates } }),
+    )
+}
+
+fn three_candidates() -> Value {
+    json!([
+        { "id": "t-alpha", "label": "冒頭の見出し" },
+        { "id": "t-gamma", "label": "中ほどの図表" },
+        { "id": "t-beta" }
+    ])
+}
+
+#[test]
+fn 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る() {
+    let h = candidates_host(three_candidates());
+    let out = html(&h);
+    assert_eq!(target_buttons(&h), 3, "規則の対象数（2）より多い: {out}");
+    assert_eq!(buttons(&h), 6, "{out}");
+    let a = out.find("直す（対象: 冒頭の見出し）").expect(&out);
+    let g = out.find("直す（対象: 中ほどの図表）").expect(&out);
+    let b = out
+        .find("直す（対象: t-beta）")
+        .expect("label なしは ID が文字");
+    assert!(a < g && g < b, "宣言順: {out}");
+    for id in ["t-alpha", "t-gamma"] {
+        assert!(
+            out.contains(&format!("data-revise-target=\"{id}\"")),
+            "{out}"
+        );
+        assert!(
+            !out.contains(&format!("対象: {id}")),
+            "label ありは ID を文字にしない: {out}"
+        );
+    }
+    assert!(out.contains("data-payload=\"t-gamma\""), "{out}");
+}
+
+#[test]
+fn 誤った候補の押下は拒否になりボタンが残り_正しい対象は受付になる() {
+    let mut h = candidates_host(three_candidates());
+    click_target(&mut h, "t-gamma");
+    assert_eq!(rejected_rows(&h), 1, "{}", html(&h));
+    assert_eq!(buttons(&h), 6, "押し直せる");
+    assert_eq!(offers_len(&h), 6);
+    click_target(&mut h, "t-alpha");
+    drain(&mut h);
+    assert_eq!(rejected_rows(&h), 1, "{}", html(&h));
+    assert_eq!(buttons(&h), 3, "{}", html(&h));
+}
+
+#[test]
+fn 候補の表示名は文字ノードにだけ出て逃がされる() {
+    let h = candidates_host(json!([
+        { "id": "t-alpha", "label": "<img src=x onerror=alert(1)>" },
+        { "id": "t-beta", "label": "ok" }
+    ]));
+    let out = html(&h);
+    assert!(!out.contains("<img"), "{out}");
+    assert!(out.contains("&lt;img"), "{out}");
+    assert_eq!(target_buttons(&h), 2);
+}
+
+#[test]
+fn 宣言が検査に通らない候補では一つも出ない() {
+    let h = candidates_host(json!([]));
+    assert_eq!(buttons(&h), 0, "{}", html(&h));
+    let h = candidates_host(json!([{ "id": "t-alpha", "label": "   " }]));
+    assert_eq!(buttons(&h), 0, "{}", html(&h));
+}
+
 #[cfg(feature = "test-hooks")]
 mod load_fixture {
     use super::*;
@@ -306,6 +381,26 @@ mod load_fixture {
         click_decide(&mut h, "revise");
         assert_eq!(rejected_rows(&h), 1);
         click_target(&mut h, "t-alpha");
+        drain(&mut h);
+        assert_eq!(buttons(&h), 3, "{}", html(&h));
+    }
+
+    #[test]
+    fn 候補つきの差し替えは候補の数だけ表示名で出る() {
+        let mut h = EngineHost::new();
+        let action =
+            EngineHost::decode_action("raw", &format!("{RAW_LOAD_FIXTURE}approval-candidates"))
+                .unwrap();
+        assert!(matches!(
+            action,
+            HostAction::LoadFixture(FixtureName::ApprovalCandidates)
+        ));
+        h.update(action);
+        assert_eq!(target_buttons(&h), 3, "{}", html(&h));
+        assert!(html(&h).contains("直す（対象: 中ほどの図表）"));
+        click_target(&mut h, "t-gamma");
+        assert_eq!(rejected_rows(&h), 1);
+        click_target(&mut h, "t-beta");
         drain(&mut h);
         assert_eq!(buttons(&h), 3, "{}", html(&h));
     }
