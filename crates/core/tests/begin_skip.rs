@@ -160,3 +160,20 @@ fn two_entrances_agree_on_skips() {
     assert_eq!(&a, s.state());
     assert_eq!(skipped_steps(&ev_a).len(), 3);
 }
+
+#[test]
+fn midstart_halted_by_transition_limit_keeps_no_skips() {
+    let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
+        "../../testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/cycle-enter-self.json",
+    );
+    let ir = fandhe_workshop_core::load_ir(&std::fs::read(p).expect("read")).expect("load");
+    let (state, events) = apply(&ir, SessionState::default(), begin("s-enter-self"));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, Event::TransitionLimitReached { .. })));
+    assert!(skipped_steps(&events).is_empty(), "{events:?}");
+    assert!(skipped_steps(&state.log).is_empty());
+    for n in 1..=3 {
+        assert_eq!(status_of(&ir, &state.run, &uid(n)), StepStatus::NotStarted);
+    }
+}

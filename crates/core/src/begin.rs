@@ -14,7 +14,7 @@
 //! 4. 世代を +1、`busy` と完了を解く。入口の写しは無効化する（作り直しは `transit` の着地の無効化と導出。TASK-242 1/2。`go_to` の前例に合わせる）
 //! 5. `Begun` を返し、開始の節点より前の Step を省略にする（下記）。続けて開始点の `effects` を原因 `Start` で適用し、
 //!    開始の節点へ [`crate::transit`] で着地する。`use` の節点は呼び出し先まで進み、巡回は歩行器の予算で止まって
-//!    `apply` が操作の前へ戻す（状態は戻り、ログの `Begun`・`Skipped` は残る）
+//!    `apply` が操作の前へ戻す（状態は戻り、ログの `Begun` は残る。`Skipped` は止まったときに取り消し、ログにも残さない）
 //!
 //! # 飛ばした Step の省略（TASK-217 1/2、EVT-21・MOD-6）
 //!
@@ -125,6 +125,7 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
         .map(|n| StepUid(n.uid.clone()))
         .filter(|uid| instance::status_of(ir, &state.run, uid) == StepStatus::NotStarted)
         .collect();
+    let skipped_uids = skipped.clone();
     for uid in skipped {
         instance::slice_mut(&mut state.run, instance::owner_of(ir, &uid))
             .status
@@ -148,5 +149,18 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
         &VocabConditions::new(&ir.instances),
     ));
     transit::move_to(ir, state, next, &start.node, &mut events);
+    if events
+        .iter()
+        .any(|e| matches!(e, Event::TransitionLimitReached { .. }))
+    {
+        // 着地が上限で止まると `apply` が操作の前へ戻す（SAFE-35）。戻す先が無い新しい状態でも省略だけは
+        // 残さないよう、省略の状態とイベントをここで取り消す（`Begun` は残る）。
+        for uid in &skipped_uids {
+            instance::slice_mut(&mut state.run, instance::owner_of(ir, uid))
+                .status
+                .remove(uid);
+        }
+        events.retain(|e| !matches!(e, Event::Skipped { .. }));
+    }
     events
 }
