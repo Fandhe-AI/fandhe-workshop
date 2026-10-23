@@ -1,0 +1,8 @@
+id: GUIDE1-2
+package: fandhe-workshop-core
+test: body_level_select
+target: crates/core/src/body_level.rs
+find:         let doc = if *l == GuidanceLevel::A {
+replace:         let doc = if false {
+expect-fail: fail_closed_on_odd_irs
+note: A の本文を body_levels_doc の鍵 A から受ける（A のとき body_doc を見ない）
