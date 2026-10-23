@@ -14,6 +14,7 @@
 //! 処理中でない停止は取り消しの入力 `Input::Cancel` として `accept` へ委ねる（TASK-212、EVT-10）。
 //! チェックポイントの保存と復帰は `checkpoint` モジュールが行う（TASK-214 1/3、EVT-12）。
 //! 再読み込みは `apply` の外にあり、`reload` モジュールが世代を +1 する（[`reload()`]、TASK-320 1/2、SAVE-4）。
+//! ヒントを 1 段開く操作は `hint_open` モジュールが行い、出せる数を上限に拒否する（TASK-295、GUIDE-17）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
 //! （`Changed` と導出 TASK-215、途中開始 TASK-217、実体と周回 TASK-233〜239）が埋める。
 //!
@@ -39,6 +40,7 @@ use crate::changed;
 use crate::checkpoint;
 use crate::event::{Cause, Event};
 use crate::go_to;
+use crate::hint_open;
 use crate::input::{CheckpointId, Control, GenerationRule, Input, Op};
 use crate::provider::StateChangeProvider;
 use crate::reload;
@@ -157,7 +159,7 @@ pub struct SessionState {
     /// 根ごとの下書き。鍵は `StepUid::root`（入れ子の実体では `Instance.id`）。停止・復帰で戻さない（MOD-4・MOD-9）。下書きを変える操作は版 1 では固定しない。
     pub drafts: BTreeMap<Root, String>,
     /// Step の実体ごとに開いたヒントの段数。停止・復帰で戻さない（GUIDE-7）ため、`run` の外に置く。
-    /// 増やす処理と周回をまたぐ合計は TASK-295・TASK-297 が実装する。
+    /// 1 段ずつ増やす処理は `hint_open`（TASK-295）。実体ごとの鍵と周回をまたぐ合計は TASK-297 が実装する。
     pub hints_opened: BTreeMap<StepUid, u32>,
 }
 
@@ -319,7 +321,9 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
             events
         }
         Op::Control(Control::Restore(id)) => checkpoint::on_restore(state, id),
-        // TASK-217 途中開始、TASK-233〜239 周回。
+        // ヒントを 1 段開く操作と上限・Step 無しでの拒否は `hint_open`（TASK-295、GUIDE-17）。世代は変わらない（`Keep`）。
+        Op::Control(Control::OpenHint) => hint_open::on_open_hint(ir, state),
+        // TASK-217 途中開始、TASK-294 案内レベルの切り替え、TASK-233〜239 周回。
         Op::Control(_) => Vec::new(),
     }
 }
