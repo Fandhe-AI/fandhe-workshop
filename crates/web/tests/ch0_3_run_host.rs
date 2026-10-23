@@ -212,6 +212,31 @@ fn place_text(h: &EngineHost) -> String {
     s
 }
 
+/// 画面の Step の題（`step-title`）の文字。
+fn title_text(h: &EngineHost) -> String {
+    fn go(n: &fandhe_frontend_core::Node, out: &mut String) {
+        if let fandhe_frontend_core::Node::Element {
+            attrs, children, ..
+        } = n
+        {
+            if attrs
+                .iter()
+                .any(|(k, v)| k == "data-testid" && v == "step-title")
+            {
+                if let Some(fandhe_frontend_core::Node::Text(t)) = children.first() {
+                    out.push_str(t);
+                }
+            }
+            for c in children {
+                go(c, out);
+            }
+        }
+    }
+    let mut s = String::new();
+    go(&h.view(), &mut s);
+    s
+}
+
 /// 通しを流し、最後の状態を返す。各手の判定・現在の Step・状態を確かめる。
 fn run_journey(h: &mut EngineHost) -> SessionState {
     let moves = journey();
@@ -219,7 +244,16 @@ fn run_journey(h: &mut EngineHost) -> SessionState {
     for (i, (mv, kind, current, status)) in moves.into_iter().enumerate() {
         let before = state(h).log.len();
         let place_before = place_text(h);
+        let title_before = title_text(h);
         mv.apply(h);
+        // Step の題が変わった手の直後は、その field が dirty に積まれる（TASK-525。FEND-3）。
+        if title_text(h) != title_before {
+            assert!(
+                fandhe_workshop_web::parts::DirtyTracked::dirty_fields(&*h)
+                    .contains(&fandhe_workshop_web::step_body::STEP_BODY_FIELD.name),
+                "手 {i} {mv:?}: 題が変わったのに step_body の dirty が無い"
+            );
+        }
         // 上部の位置が変わった手の直後は、その field が dirty に積まれる（TASK-524。FEND-3）。
         if place_text(h) != place_before {
             assert!(

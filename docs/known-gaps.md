@@ -369,3 +369,15 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 限界（画面）: IR の拒否の画面では通知欄を描かないため、案内も出ません。
 
 根拠の試験: `crates/web/tests/browser_notice.rs`・`browser_notice_pin.rs`・`browser_notice_host.rs`、`tools/browser/browser-notice.test.mjs`。記録は `docs/testing.md` の 5.246。
+
+## SHELL-7: Step の題・do・本文の区画は仮置きで、水準は常に A である
+
+限界（配置）: 題・`do`・本文は右の領域の先頭に仮置きしています。最終の配置は TASK-534・TASK-548 が決めます。
+
+限界（見出し）: 題を `h2` で出すため、本文の `h1` と見出しの段の順が前後することがあります。
+
+限界（水準）: 案内レベルの変更（`Control::SetGuidance`）は core で未実装（TASK-294）のため、実行時の水準は常に A です。B・C の表示は native の試験で状態を注入して確かめています。
+
+限界（a11y）: 右の領域に `aria-label` を TERM の担当が付けたときは、`terminal_area::check_view` の閉じた一覧と本文の区画の関係を確かめ直す必要があります。
+
+根拠の試験: `crates/web/tests/step_body_host.rs`、`tools/browser/step-body.test.mjs`。記録は `docs/testing.md` の 5.265。
