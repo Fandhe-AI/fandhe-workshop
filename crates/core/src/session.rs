@@ -37,6 +37,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::accept;
 use crate::addr::{Generation, Root, StepUid};
+use crate::begin;
 use crate::changed;
 use crate::checkpoint;
 use crate::event::{Cause, Event};
@@ -325,7 +326,9 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         Op::Control(Control::Restore(id)) => checkpoint::on_restore(state, id),
         // ヒントを 1 段開く操作と上限・Step 無しでの拒否は `hint_open`（TASK-295、GUIDE-17）。世代は変わらない（`Keep`）。
         Op::Control(Control::OpenHint) => hint_open::on_open_hint(ir, state),
-        // TASK-217 途中開始、TASK-294 案内レベルの切り替え、TASK-233〜239 周回。
+        // 次の周回の開始は `begin`（TASK-237 1/2）。開始条件は状態に触れる前に評価し、世代は成功したときだけ +1 になる。
+        Op::Control(Control::Begin(start)) => begin::on_begin(ir, state, &start),
+        // TASK-294 案内レベルの切り替え。
         Op::Control(_) => Vec::new(),
     }
 }
@@ -377,7 +380,8 @@ impl Session {
     /// 開始点の節点に入った直後の状態で作る（配信する設定の起動。TASK-112 2/2）。
     ///
     /// 世代は初期値・現在の Step は `node`・その Step は `Entered`・入口の写しは同じ状態（ログの長さ 0）で、世界状態は空、
-    /// 案内の水準は既定。`Control::Begin`（開始時の効果・案内の水準の決定。TASK-217・TASK-294）が実装されるまでの暫定で、
+    /// 案内の水準は既定。`Control::Begin` は実装済みだが、飛ばした Step の記録（TASK-217）・案内の水準の決定（TASK-294）と
+    /// web の結線（TASK-254）が済むまでの暫定で、
     /// 呼び出し元の web は表示層が状態を組み立てない規則（`no_progress`）のため、この入口を通す。`node` が教材に有るかの照合は
     /// 呼び出し側が行う（`from_state` と同じ）。
     pub fn entered_at(ir: Ir, node: &str) -> Self {

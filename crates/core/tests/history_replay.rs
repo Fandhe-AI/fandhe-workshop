@@ -168,7 +168,7 @@ fn reload_bumps_the_generation_and_logs_reloaded() {
     assert!(matches!(added, [Event::Reloaded { .. }]), "{added:?}");
     // 下書きは再読み込みで変わらない。
     assert_eq!(state.drafts.len(), 1);
-    // `two-rounds` は再読み込みを含み、適用し直せる（写しとの一致は主張しない。`Control::Begin` が未実装）。
+    // `two-rounds` は再読み込みを含み、適用し直せる（写しとの一致は主張しない）。
     let sample = history_sample::load("two-rounds");
     assert!(replay(&ir, initial, &sample.ops).is_ok());
 }

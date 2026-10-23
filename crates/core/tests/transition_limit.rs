@@ -3,7 +3,7 @@
 //! 作成者向けの検査を通さずに配られた巡回する IR（`testdata/untrusted-input-safety/test-data-addendum-3/cycle-ir/`）で、
 //! 1,000 回に達した時点で止まり、`Warning` が 1 件だけ残り、現在の Step が空になって以降の入力が落ちずに無視されることを確かめる。
 //! 巡回しない長い連鎖は、1,000 回ちょうどなら通り、1,001 回で止まる（境界）。再帰を使っていないことは小さなスタックで確かめる。
-//! 開始（`Control::Begin`）は未実装（TASK-217）なので、`enter` の巡回は `Control::GoTo` で入口へ入って代わりにする。
+//! `enter` の巡回は `Control::GoTo` で入口へ入る（開始での連鎖と飛ばした Step の記録は TASK-217）。
 //! TASK-160 2/3（SAFE-34）で、止めたときに専用の `TransitionLimitReached` が `Warning` の直後に 1 件だけ残り、
 //! 着地の回数が上限と一致することを足した（止まらないときは 0 件）。
 //! 呼び出し元は CI の `make test` と変異注入（`tests/mutations/SAFE23-*.mutation`）である。

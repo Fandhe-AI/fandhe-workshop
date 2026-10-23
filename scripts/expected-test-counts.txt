@@ -29,6 +29,7 @@ rust|tests/artifact_view_binding_contract.rs [artifact_view_binding_contract]|pa
 rust|tests/artifact_view_contract.rs [artifact_view_contract]|passed=16|ignored=0
 rust|tests/artifact_view_generic_names.rs [artifact_view_generic_names]|passed=4|ignored=0
 rust|tests/artifact_view_sample.rs [artifact_view_sample]|passed=7|ignored=0
+rust|tests/begin.rs [begin]|passed=4|ignored=0
 rust|tests/body_arg_gap.rs [body_arg_gap]|passed=7|ignored=0
 rust|tests/body_docs.rs [body_docs]|passed=5|ignored=0
 rust|tests/body_level_runtime.rs [body_level_runtime]|passed=1|ignored=0
@@ -243,7 +244,7 @@ rust|tests/restore_review.rs [restore_review]|passed=7|ignored=0
 rust|tests/review_fold.rs [review_fold]|passed=2|ignored=0
 rust|tests/revise_candidates.rs [revise_candidates]|passed=16|ignored=0
 rust|tests/revise_target.rs [revise_target]|passed=17|ignored=0
-rust|tests/round_slice_init.rs [round_slice_init]|passed=3|ignored=0
+rust|tests/round_slice_init.rs [round_slice_init]|passed=8|ignored=0
 rust|tests/row_keys_wiring.rs [row_keys_wiring]|passed=3|ignored=0
 rust|tests/run_status_contract.rs [run_status_contract]|passed=15|ignored=0
 rust|tests/save_failure.rs [save_failure]|passed=9|ignored=0
@@ -310,7 +311,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=314|passed=3358|ignored=3
+rust|total|binaries=315|passed=3367|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0
