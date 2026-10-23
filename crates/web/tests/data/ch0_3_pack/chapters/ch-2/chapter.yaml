@@ -1,0 +1,174 @@
+# ch-2 の Step。
+id: ch-2
+title: "画面と操作"
+
+starts:
+  - { id: s-2-1, node: st-2-1 }
+
+steps:
+  - id: "st-2-1"
+    title: "名前つきのコマンド"
+    do: "/new-idea ideas を送ります"
+    body: "st-2-1.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-2"}]
+    input:
+      kind: "command"
+      name: "new-idea"
+      args:
+        - name: "name"
+          positional: true
+          required: true
+          shape: "kebab_case"
+    rules:
+      - id: "r-new"
+        on: {"command": "new-idea"}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "docs/readme", "attrs": {"state": "created"}}}]
+    confirm:
+      kind: "point_at"
+      targets: [{"view": "v-files", "path": "docs/readme"}]
+      on_miss: "rj-miss-point"
+
+  - id: "st-2-2"
+    title: "表示名で選ぶ"
+    do: "表示名の選択肢を選びます"
+    body: "st-2-2.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-3"}]
+    input: {"kind": "choice", "options": [{"id": "opt-view", "label": "確認しました"}]}
+    rules:
+      - id: "r-view"
+        on: {"option": "opt-view"}
+        outcome: {"kind": "accept"}
+    confirm:
+      kind: "answer"
+      options:
+        - {"id": "ans-readme", "correct": true, "label": "readme が増えた"}
+        - {"id": "ans-nothing", "correct": false, "label": "何も増えなかった"}
+      on_wrong: "rj-wrong-answer"
+
+  - id: "st-2-3"
+    title: "計画を承認する"
+    do: "「はい」を選びます"
+    body: "st-2-3.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-4"}]
+    input: {"kind": "approval"}
+    rules:
+      - id: "r-plan"
+        on: {"approval": "approve"}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "docs/plan", "attrs": {"state": "created"}}}]
+    confirm:
+      kind: "point_at"
+      targets: [{"view": "v-files", "path": "docs/plan"}]
+      on_miss: "rj-miss-point"
+
+  - id: "st-2-4"
+    title: "複数行の自然文"
+    do: "自然文で状況を書いて送ります"
+    body: "st-2-4.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-5"}]
+    input: {"kind": "text", "min": 1, "max": 20000}
+    rules:
+      - id: "r-notes"
+        on: {"text": true}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "docs/notes", "attrs": {"state": "created"}}}]
+    confirm: {"kind": "none", "reason": "送った結果が左の行にそのまま出るため、別の確認を置かない。"}
+
+  - id: "st-2-5"
+    title: "検査を流す"
+    do: "/run-check を送り、終わるのを待ちます"
+    body: "st-2-5.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    processing:
+      - name: "p1-run"
+        effects: [{"put": {"path": "checks/result", "attrs": {"state": "running"}}}]
+      - name: "p2-done"
+        effects:
+          - set_attr: {"path": "checks/result", "attr": "state", "value": "done"}
+    next: [{"to": "st-2-6"}]
+    input: {"kind": "command", "name": "run-check", "args": []}
+    rules:
+      - id: "r-check"
+        on: {"command": "run-check"}
+        outcome: {"kind": "accept"}
+    confirm:
+      kind: "point_at"
+      targets: [{"view": "v-files", "path": "checks/result"}]
+      on_miss: "rj-miss-point"
+
+  - id: "st-2-6"
+    title: "直す対象を決める"
+    do: "対象つきの「直す」を選び、続けて「はい」を選びます"
+    body: "st-2-6.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-7"}]
+    input: {"kind": "approval"}
+    rules:
+      - id: "r-expect"
+        on: {"approval": "revise", "target": "t-expect"}
+        outcome:
+          kind: "accept"
+          effects:
+            - {"put": {"path": "tasks/t-1", "attrs": {"state": "created"}}}
+            - {"put": {"path": "tasks/t-2", "attrs": {"state": "created"}}}
+      - id: "r-bare-revise"
+        on: {"approval": "revise"}
+        outcome: {"kind": "reject", "rejection": "rj-need-target"}
+      - id: "r-early"
+        on: {"approval": "approve"}
+        outcome: {"kind": "reject", "rejection": "rj-too-early"}
+    confirm: {"kind": "approve"}
+
+  - id: "st-2-7"
+    title: "左の行を指す"
+    do: "tasks/t-1 の行を指します"
+    body: "st-2-7.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-2-8"}]
+    input:
+      kind: "ui_action"
+      targets:
+        - {"view": "v-files", "path": "tasks/t-1"}
+        - {"view": "v-files", "path": "tasks/t-2"}
+    rules:
+      - id: "r-t1"
+        on: {"ui": {"view": "v-files", "path": "tasks/t-1"}}
+        outcome: {"kind": "accept"}
+      - id: "r-t2"
+        on: {"ui": {"view": "v-files", "path": "tasks/t-2"}}
+        outcome: {"kind": "reject", "rejection": "rj-wrong-row"}
+    confirm:
+      kind: "answer"
+      options:
+        - {"id": "ans-t1", "correct": true, "label": "t-1 が対象"}
+        - {"id": "ans-t2", "correct": false, "label": "t-2 が対象"}
+      on_wrong: "rj-wrong-answer"
+
+  - id: "st-2-8"
+    title: "章の終わり"
+    do: "選択肢を選びます"
+    body: "st-2-8.md"
+    lo: ["LO-1"]
+    final: true
+    views: ["v-files"]
+    input: {"kind": "choice", "options": [{"id": "opt-go", "label": "次へ進む"}]}
+    rules:
+      - id: "r-go"
+        on: {"option": "opt-go"}
+        outcome: {"kind": "accept"}
+    confirm: {"kind": "none", "reason": "選んだ時点で終わりが分かるため、別の確認を置かない。"}
