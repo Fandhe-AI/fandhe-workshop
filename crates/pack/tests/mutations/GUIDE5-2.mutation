@@ -1,0 +1,8 @@
+id: GUIDE5-2
+package: fandhe-workshop-pack
+test: guide5_limits
+target: crates/pack/src/guidance.rs
+find:         let start_levels = chapter_start_levels(scope);
+replace:         let start_levels: BTreeSet<GuidanceLevel> = chapter_start_levels(scope).into_iter().chain([GuidanceLevel::B]).collect();
+expect-fail: guide5_c_undeclared_chapter_body_is_not_checked
+note: 宣言の無い章も水準 B で検査する（限界 (c) の対象外を崩す）

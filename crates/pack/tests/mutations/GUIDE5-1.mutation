@@ -1,0 +1,8 @@
+id: GUIDE5-1
+package: fandhe-workshop-pack
+test: guide5_limits
+target: crates/pack/src/expand.rs
+find:                     if has_placeholder_do(step) {
+replace:                     if false && has_placeholder_do(step) {
+expect-fail: guide5_a_argument_do_leak_detected
+note: 置換後の do の漏れの検査を行わない（限界 (a) の検出を外す）
