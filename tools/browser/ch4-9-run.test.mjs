@@ -16,7 +16,8 @@
 //     除くと 0 に戻る。製品の左の成果物は行を描くだけで入力欄を持たないので、本検査は構造上ほぼ自明に通る。検出器が働くことは D で示す。
 //
 // 確かめないこと:
-//   - 配信元以外への通信の正式な計数と記録（TASK-674 2/2。TASK-151 の道具）。ここでは台帳に 0 件の 1 項目だけを置く
+//   - 配信元以外への通信の正式な計数と記録。csp-runs.test.mjs の T5・D2 が TASK-151 の道具で数える（TASK-674 2/2。
+//     `docs/testing.md` 5.285）。ここでは台帳に 0 件の 1 項目だけを置く
 //   - 本物の CH-4〜CH-9。分岐の Step 化・止まる場面の主経路・実際の保存と書き出しの Step・CH-10 への周回（TASK-254）
 //   - 処理中の送信が busy で拒否されること（ブラウザでは時間の窓に頼る。native の ch4_9_run_host.rs が受け持つ）
 //   - 全周のキーボード完走（TASK-92）
@@ -26,7 +27,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -34,7 +34,7 @@ import {
 } from './harness.mjs';
 import {
   FIXTURE_QUERY, STEPS, ORDER, LAST, ledger, mouseDriver, install, journey49, hookObserver49, domObserver49, inspectDom49,
-  passwordFields, positionText,
+  passwordFields, positionText, withDeliveryCopy,
 } from './ch4-9-journey.mjs';
 import { engine } from './ch0-3-journey.mjs';
 
@@ -131,25 +131,6 @@ for (const csp of [true, false]) {
     });
     assert.deepEqual(failed, []);
   });
-}
-
-// B 用: 配信する設定の一時の写しに fandhe-ir の meta と ir/ を足して fn に渡し、成否にかかわらず消す（pack-body-xss と同じ足し方）。
-async function withDeliveryCopy(fn) {
-  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-ch49-web-'));
-  try {
-    fs.cpSync(process.env.FANDHE_WEB_DIR, copy, { recursive: true });
-    const index = path.join(copy, 'index.html');
-    const html = fs.readFileSync(index, 'utf8');
-    assert.equal(html.split('</head>').length - 1, 1, 'exactly one </head>');
-    assert.ok(!/name\s*=\s*["']?fandhe-ir/i.test(html), 'delivery index has no fandhe-ir meta');
-    assert.ok(!/name\s*=\s*["']?fandhe-test-hooks/i.test(html), 'delivery index has no test-hooks meta');
-    assert.equal((html.match(/http-equiv\s*=\s*["']?content-security-policy/gi) ?? []).length, 1, 'exactly one CSP meta');
-    fs.writeFileSync(index, html.replace('</head>', '<meta name="fandhe-ir" content="1"></head>'));
-    fs.mkdirSync(path.join(copy, 'ir'), { recursive: true });
-    return await fn(copy);
-  } finally {
-    fs.rmSync(copy, { recursive: true, force: true });
-  }
 }
 
 for (const csp of [true, false]) {
