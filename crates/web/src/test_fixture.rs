@@ -21,6 +21,7 @@
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
 //! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
 //! 20 Step の通しの ST-2.6 に「直す」の候補と表示名を宣言した変種（`?fixture=ch0-3-revise`）は、誤った候補を含むボタンが表示名で出ることの試験に使う（TERM-28。TASK-448 1/2）。
+//! 差し戻しの後に再承認の Step を置いた変種（`?fixture=ch0-3-reapprove`）と、同じ形の `load-fixture:approval-reapprove` は、差し戻し → 再承認の画面の試験に使う（TERM-29。TASK-448 2/2）。
 //! 確認 `answer` の選択肢から `label` を外した変種（`?fixture=ch0-3-nolabel`）は、数え方が ID の表示を検出できることの対照に使う（TERM-25。TASK-446）。
 //! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
 //! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
@@ -85,6 +86,8 @@ pub(crate) enum MountFixture {
     Ch03NoLabel,
     /// 20 Step の通しの教材の ST-2.6 に、「直す」の対象の候補と表示名（誤った候補つき）を宣言した教材。開始点 `s-2-6` を足す（TERM-28。TASK-448 1/2）。
     Ch03Revise,
+    /// [`MountFixture::Ch03Revise`] と同じ候補の ST-2.6 の直後に、再承認の Step を足した教材。開始点 `s-2-6` を足す（TERM-29。TASK-448 2/2）。
+    Ch03Reapprove,
     /// 20 Step の通しの教材の各章の最後を `final` にし、開始点を章の先頭 4 件にした教材（「次の章へ進む」の通しの試験。TASK-526 2/2）。
     Ch03Chapters,
     /// CH-3 を最後に使う絞った IR。範囲外の章 CH-4 のノードを持つが、開始点には CH-4 を含めない（SHELL-12・D-67。TASK-527）。
@@ -289,6 +292,80 @@ pub(crate) fn ch03_revise_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 再承認の試験の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CH03_REAPPROVE_PACK_ID: &str = "ch0-3-reapprove";
+
+/// 再承認の Step の uid。ST-2.6 の直後に足す節点。
+pub(crate) const CH03_REAPPROVE_NODE: &str = "main/st-2-6b";
+
+/// 20 Step の通しの教材の ST-2.6 の直後に、再承認の Step（`main/st-2-6b`）を挿入した IR を作る（`pack.id` だけ別にする）。
+/// ST-2.6 は [`ch03_revise_ir_bytes`] と同じ候補 3 件を宣言し、規則と確認（`approve`）は元のまま。`next` を再承認の Step へ付け替え、
+/// 再承認の Step の `next` は元の `main/st-2-7` にする（決定 D-69: 差し戻しと再承認は別の Step）。
+/// 開始点 `s-2-6` を足す（前の Step の効果なしで開く限界は 5.199 と同じ）。呼び出し元は `?fixture=ch0-3-reapprove` の mount で、
+/// ブラウザ試験 `approval-reapprove` が使う（TERM-29・TERM-28。TASK-448 2/2）。本物の教材の宣言は教材 repo の持ち分。
+pub(crate) fn ch03_reapprove_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CH03_REAPPROVE_PACK_ID.into());
+    pack.insert("title".to_owned(), "差し戻し後の再承認の試験データ".into());
+    let nodes = obj.get_mut("nodes")?.as_array_mut()?;
+    let at = nodes
+        .iter()
+        .position(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-2-6"))?;
+    {
+        let step = nodes[at].get_mut("step")?.as_object_mut()?;
+        step.insert(
+            "input".to_owned(),
+            serde_json::json!({
+                "kind": "approval",
+                "revise": { "candidates": [
+                    { "id": "t-other-a", "label": "冒頭の見出し" },
+                    { "id": "t-expect", "label": "期待する結果" },
+                    { "id": "t-other-b", "label": "末尾の注記" }
+                ] }
+            }),
+        );
+        step.insert(
+            "next".to_owned(),
+            serde_json::json!([{ "to": CH03_REAPPROVE_NODE }]),
+        );
+    }
+    let reapprove = serde_json::json!({
+        "uid": CH03_REAPPROVE_NODE,
+        "scope": "main",
+        "unit": "ch-2",
+        "step": {
+            "id": "st-2-6b",
+            "title": "直した結果を再承認する",
+            "do": "直した結果を確かめて、「はい」を選びます",
+            "lo": ["LO-1"],
+            "final": false,
+            "views": ["v-files"],
+            "hints": [],
+            "input": { "kind": "approval" },
+            "rules": reapprove_rules("rj-approve-fixed"),
+            "confirm": reapprove_confirm_none(),
+            "next": [{ "to": "main/st-2-7" }]
+        }
+    });
+    nodes.insert(at + 1, reapprove);
+    obj.get_mut("rejections")?.as_object_mut()?.insert(
+        "rj-approve-fixed".to_owned(),
+        serde_json::json!({
+            "category": "not_in_this_step",
+            "message": "直した結果を認める場合だけ、この Step を先へ進められます。",
+            "next_action": "直した結果を確かめて、もう一度決めます。"
+        }),
+    );
+    obj.get_mut("starts")?
+        .as_array_mut()?
+        .push(serde_json::json!(
+            { "id": "s-2-6", "node": "main/st-2-6", "effects": [] }
+        ));
+    serde_json::to_vec(&value).ok()
+}
+
 /// 章の先頭 4 件の開始点の ID と節点（先頭から順）。
 pub(crate) const CH03_CHAPTER_POINTS: [(&str, &str); 4] = [
     ("s-0-1", "main/st-0-1"),
@@ -385,6 +462,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=ch0-3-links" => MountFixture::Ch03Links,
         "?fixture=ch0-3-nolabel" => MountFixture::Ch03NoLabel,
         "?fixture=ch0-3-revise" => MountFixture::Ch03Revise,
+        "?fixture=ch0-3-reapprove" => MountFixture::Ch03Reapprove,
         "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
         "?fixture=ch0-3-trial" => MountFixture::Ch03Trial,
         "?fixture=ch0-4-full" => MountFixture::Ch04Full,
@@ -420,6 +498,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::Ch03Links => ch03_links_ir_bytes()?,
         MountFixture::Ch03NoLabel => ch03_nolabel_ir_bytes()?,
         MountFixture::Ch03Revise => ch03_revise_ir_bytes()?,
+        MountFixture::Ch03Reapprove => ch03_reapprove_ir_bytes()?,
         MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
         MountFixture::Ch03Trial => ch03_trial_ir_bytes(false)?,
         MountFixture::Ch04Full => ch03_trial_ir_bytes(true)?,
@@ -755,6 +834,111 @@ pub(crate) fn approval_candidates_session() -> Option<Session> {
         ]),
     );
     session_of(&serde_json::to_vec(&value).ok()?)
+}
+
+/// 差し戻しの Step の次に、再承認の Step を置いた試験用の実行環境（TASK-448 2/2。`load-fixture:approval-reapprove`）。
+///
+/// 決定 D-69 の形で、差し戻しと再承認を別の Step に分ける（1 Step の `approval` に再承認の語は足さない）。
+/// `main/st-1` は [`approval_candidates_session`] と同じ候補 3 件（誤った候補 t-gamma を含む）の差し戻しの Step で、
+/// 確認は `none`（差し戻すこと自体が意思表示）。`main/st-2` は候補の宣言なしの再承認の Step で、「はい」だけが受付になり、
+/// 対象なしの「直す」と「いいえ」は拒否になる。`next` は元の教材のまま（st-1 → st-2 → st-3）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn approval_reapprove_session() -> Option<Session> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    for n in value.get_mut("nodes")?.as_array_mut()? {
+        let uid = n.get("uid").and_then(|u| u.as_str()).map(str::to_owned);
+        let step = n.get_mut("step")?.as_object_mut()?;
+        match uid.as_deref() {
+            Some("main/st-1") => {
+                step.insert(
+                    "input".to_owned(),
+                    serde_json::json!({
+                        "kind": "approval",
+                        "revise": { "candidates": [
+                            { "id": "t-alpha", "label": "冒頭の見出し" },
+                            { "id": "t-gamma", "label": "中ほどの図表" },
+                            { "id": "t-beta", "label": "末尾の注記" }
+                        ] }
+                    }),
+                );
+                step.insert("confirm".to_owned(), reapprove_confirm_none());
+                step.insert(
+                    "rules".to_owned(),
+                    serde_json::json!([
+                        approval_accept(
+                            "r-alpha",
+                            serde_json::json!({ "approval": "revise", "target": "t-alpha" })
+                        ),
+                        approval_accept(
+                            "r-beta",
+                            serde_json::json!({ "approval": "revise", "target": "t-beta" })
+                        ),
+                        approval_reject_with(
+                            "r-bare-revise",
+                            serde_json::json!({ "approval": "revise" }),
+                            "rj-decline"
+                        ),
+                        approval_reject_with(
+                            "r-early",
+                            serde_json::json!({ "approval": "approve" }),
+                            "rj-decline"
+                        ),
+                        approval_reject_with(
+                            "r-reject",
+                            serde_json::json!({ "approval": "reject" }),
+                            "rj-decline"
+                        ),
+                    ]),
+                );
+            }
+            Some("main/st-2") => {
+                step.insert(
+                    "input".to_owned(),
+                    serde_json::json!({ "kind": "approval" }),
+                );
+                step.insert("confirm".to_owned(), reapprove_confirm_none());
+                step.insert("rules".to_owned(), reapprove_rules("rj-decline"));
+            }
+            _ => {}
+        }
+    }
+    session_of(&serde_json::to_vec(&value).ok()?)
+}
+
+/// 確認なし（`none`）の宣言。差し戻し・再承認の Step で、操作そのものが意思表示であることを理由に書く。
+fn reapprove_confirm_none() -> serde_json::Value {
+    serde_json::json!({ "kind": "none", "reason": "操作そのものが意思表示のため、別の確認を置かない。" })
+}
+
+/// 再承認の Step の規則（細い形）。「はい」だけが受付で、対象なしの「直す」と「いいえ」は `rejection` で拒否する。
+fn reapprove_rules(rejection: &str) -> serde_json::Value {
+    serde_json::json!([
+        approval_accept("r-reapprove", serde_json::json!({ "approval": "approve" })),
+        approval_reject_with(
+            "r-revise-again",
+            serde_json::json!({ "approval": "revise" }),
+            rejection
+        ),
+        approval_reject_with(
+            "r-reject-again",
+            serde_json::json!({ "approval": "reject" }),
+            rejection
+        ),
+    ])
+}
+
+/// 受付になる規則（細い形）。`on` は承認の操作の条件。
+fn approval_accept(id: &str, on: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({ "id": id, "on": on, "outcome": { "kind": "accept" } })
+}
+
+/// `rejection` の拒否の ID で拒否する規則（細い形）。
+fn approval_reject_with(id: &str, on: serde_json::Value, rejection: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "on": on,
+        "outcome": { "kind": "reject", "rejection": rejection }
+    })
 }
 
 /// 入力方式が `ui_action` の Step を持つ試験用の実行環境（TASK-450 1/3。`load-fixture:ui-action`）。
@@ -1676,5 +1860,45 @@ mod tests {
                 .len(),
             3
         );
+    }
+
+    #[test]
+    fn 再承認の教材は_st_2_6_の直後に再承認の_step_を足し_完全一致でだけ選ばれる() {
+        for (q, want) in [
+            ("?fixture=ch0-3-reapprove", MountFixture::Ch03Reapprove),
+            (
+                "?fixture=ch0-3-reapprove&start=s-2-6",
+                MountFixture::Ch03Reapprove,
+            ),
+            ("?fixture=ch0-3-reapprove&x=1", MountFixture::Default),
+            ("?fixture=ch0-3-reapprove2", MountFixture::Default),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+        let base = load_ir(CH03_IR).unwrap();
+        let ir = load_ir(&ch03_reapprove_ir_bytes().unwrap()).unwrap();
+        assert_eq!(ir.pack.id, CH03_REAPPROVE_PACK_ID);
+        assert_ne!(ir.pack.id, base.pack.id);
+        assert_eq!(ir.nodes.len(), base.nodes.len() + 1);
+        assert_eq!(ir.starts.len(), base.starts.len() + 1);
+        assert!(mount_session_at(MountFixture::Ch03Reapprove, Some("s-2-6")).is_ok());
+        let raw: serde_json::Value =
+            serde_json::from_slice(&ch03_reapprove_ir_bytes().unwrap()).unwrap();
+        let nodes = raw["nodes"].as_array().unwrap();
+        let by = |u: &str| nodes.iter().find(|n| n["uid"] == u).unwrap();
+        assert_eq!(
+            by("main/st-2-6")["step"]["input"]["revise"]["candidates"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
+        assert_eq!(
+            by("main/st-2-6")["step"]["next"][0]["to"],
+            CH03_REAPPROVE_NODE
+        );
+        let re = by(CH03_REAPPROVE_NODE);
+        assert_eq!(re["step"]["next"][0]["to"], "main/st-2-7");
+        assert!(re["step"]["input"].get("revise").is_none());
     }
 }

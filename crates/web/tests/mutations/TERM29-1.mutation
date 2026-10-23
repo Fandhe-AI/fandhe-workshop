@@ -1,0 +1,8 @@
+id: TERM29-1
+package: fandhe-workshop-web
+test: approval_buttons
+target: crates/web/src/offers.rs
+find: Ok(t) => (true, t),
+replace: Ok(t) if !t.is_empty() => (true, t), Ok(_) => return Vec::new(),
+expect-fail: 差し戻しの後は再承認の_step_で三つが出て_はいで進み_直すといいえは拒否になる
+note: 候補が 0 件の承認の Step（再承認の Step）でボタンを出さない（再承認の Step で三つが出る受入を壊す。TERM-29・D-69）

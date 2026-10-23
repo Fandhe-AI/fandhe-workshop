@@ -361,6 +361,76 @@ fn 宣言が検査に通らない候補では一つも出ない() {
     assert_eq!(buttons(&h), 0, "{}", html(&h));
 }
 
+/// min-3step の st-1 を候補つきの差し戻しの Step、st-2 を再承認の Step（候補なし）に差し替えたホスト（決定 D-69。TASK-448 2/2）。
+fn reapprove_host() -> EngineHost {
+    let p = testdata().join("engine-event-consistency/test-data/min-3step.json");
+    let mut v: Value = serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap();
+    let none = json!({ "kind": "none", "reason": "操作そのものが意思表示のため" });
+    let first = v["nodes"][0]["step"].as_object_mut().unwrap();
+    first.insert(
+        "input".into(),
+        json!({ "kind": "approval", "revise": { "candidates": three_candidates() } }),
+    );
+    first.insert(
+        "rules".into(),
+        Value::Array(thin_rules(&["t-alpha", "t-beta"])),
+    );
+    first.insert("confirm".into(), none.clone());
+    let second = v["nodes"][1]["step"].as_object_mut().unwrap();
+    second.insert("input".into(), json!({ "kind": "approval" }));
+    second.insert(
+        "rules".into(),
+        json!([
+            rule("r-ok", json!({ "approval": "approve" }), "accept"),
+            rule("r-again", json!({ "approval": "revise" }), "reject"),
+            rule("r-no", json!({ "approval": "reject" }), "reject"),
+        ]),
+    );
+    second.insert("confirm".into(), none);
+    let ir: Ir = load_ir(&serde_json::to_vec(&v).unwrap()).unwrap();
+    let p = testdata().join("contract/event-sequence.json");
+    let s: Value = serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap();
+    let state: SessionState = serde_json::from_value(s["initial"].clone()).unwrap();
+    EngineHost::with_session(Session::from_state(ir, state), standard_registry()).unwrap()
+}
+
+fn current(h: &EngineHost) -> String {
+    h.model()
+        .session()
+        .unwrap()
+        .state()
+        .run
+        .current
+        .as_ref()
+        .unwrap()
+        .0
+        .clone()
+}
+
+#[test]
+fn 差し戻しの後は再承認の_step_で三つが出て_はいで進み_直すといいえは拒否になる() {
+    let mut h = reapprove_host();
+    click_target(&mut h, "t-gamma");
+    assert_eq!(rejected_rows(&h), 1, "{}", html(&h));
+    assert_eq!(current(&h), "main/st-1");
+    assert_eq!(buttons(&h), 6);
+    click_target(&mut h, "t-alpha");
+    drain(&mut h);
+    assert_eq!(current(&h), "main/st-2", "{}", html(&h));
+    assert_eq!(buttons(&h), 3, "{}", html(&h));
+    assert_eq!(target_buttons(&h), 0, "再承認の Step は対象つきを出さない");
+    click_decide(&mut h, "revise");
+    assert_eq!(rejected_rows(&h), 2);
+    click_decide(&mut h, "reject");
+    assert_eq!(rejected_rows(&h), 3);
+    assert_eq!(current(&h), "main/st-2");
+    assert_eq!(buttons(&h), 3, "拒否の後もボタンが残る");
+    click_decide(&mut h, "approve");
+    drain(&mut h);
+    assert_eq!(current(&h), "main/st-3", "{}", html(&h));
+    assert_eq!(buttons(&h), 3, "{}", html(&h));
+}
+
 #[cfg(feature = "test-hooks")]
 mod load_fixture {
     use super::*;
@@ -403,5 +473,30 @@ mod load_fixture {
         click_target(&mut h, "t-beta");
         drain(&mut h);
         assert_eq!(buttons(&h), 3, "{}", html(&h));
+    }
+
+    #[test]
+    fn 再承認の差し替えは差し戻しの後に再承認の_step_へ移る() {
+        let mut h = EngineHost::new();
+        let action =
+            EngineHost::decode_action("raw", &format!("{RAW_LOAD_FIXTURE}approval-reapprove"))
+                .unwrap();
+        assert!(matches!(
+            action,
+            HostAction::LoadFixture(FixtureName::ApprovalReapprove)
+        ));
+        h.update(action);
+        assert_eq!(target_buttons(&h), 3, "{}", html(&h));
+        click_target(&mut h, "t-gamma");
+        assert_eq!(rejected_rows(&h), 1);
+        click_target(&mut h, "t-alpha");
+        drain(&mut h);
+        assert_eq!(current(&h), "main/st-2");
+        assert_eq!((buttons(&h), target_buttons(&h)), (3, 0));
+        click_decide(&mut h, "revise");
+        assert_eq!(rejected_rows(&h), 2);
+        click_decide(&mut h, "approve");
+        drain(&mut h);
+        assert_eq!(current(&h), "main/st-3");
     }
 }

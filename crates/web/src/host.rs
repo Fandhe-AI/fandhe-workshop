@@ -352,6 +352,8 @@ pub enum FixtureName {
     Approval,
     /// 入力方式が `approval` で、「直す」の候補と表示名（誤った候補つき）を宣言した Step の教材（TASK-448 1/2）。
     ApprovalCandidates,
+    /// 差し戻しの Step の次に、再承認の Step を置いた教材（TASK-448 2/2）。
+    ApprovalReapprove,
     /// 複数の種類のビューを Step ごとに宣言する教材（ビューの切り替えの試験。TASK-470 2/2）。
     Views,
     /// 入力方式が `ui_action` の Step を持つ教材（入力方式ごとの入力の口の試験。TASK-450 1/3）。
@@ -372,7 +374,7 @@ pub enum FixtureName {
 
 /// `raw` の action で試験用の教材への差し替えを指す固定の接頭辞（試験の設定だけ）。
 ///
-/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`approval-candidates`・`views`・`ui-action`・`cycle-enter-self`・`cycle-enter-2`・`cycle-exit-2`・`cycle-d07`・`chain-1000`・`chain-1001`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
+/// 後ろは [`FixtureName`] の名前（`answer`・`approval`・`approval-candidates`・`approval-reapprove`・`views`・`ui-action`・`cycle-enter-self`・`cycle-enter-2`・`cycle-exit-2`・`cycle-d07`・`chain-1000`・`chain-1001`）だけ。`Op` の JSON は `{` か `[` で始まるため衝突しない。
 #[cfg(feature = "test-hooks")]
 pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 
@@ -2635,6 +2637,9 @@ impl Component for EngineHost {
                     FixtureName::ApprovalCandidates => {
                         crate::test_fixture::approval_candidates_session()
                     }
+                    FixtureName::ApprovalReapprove => {
+                        crate::test_fixture::approval_reapprove_session()
+                    }
                     FixtureName::Views => crate::test_fixture::views_session(),
                     FixtureName::UiAction => crate::test_fixture::ui_action_session(),
                     FixtureName::CycleEnterSelf => {
@@ -2823,6 +2828,9 @@ impl Component for EngineHost {
                     "approval" => Some(HostAction::LoadFixture(FixtureName::Approval)),
                     "approval-candidates" => {
                         Some(HostAction::LoadFixture(FixtureName::ApprovalCandidates))
+                    }
+                    "approval-reapprove" => {
+                        Some(HostAction::LoadFixture(FixtureName::ApprovalReapprove))
                     }
                     "views" => Some(HostAction::LoadFixture(FixtureName::Views)),
                     "ui-action" => Some(HostAction::LoadFixture(FixtureName::UiAction)),
