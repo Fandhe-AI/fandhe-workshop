@@ -23,15 +23,18 @@
 //! 範囲の境界: 入れ物の識別子と配置は `terminal_area` の版上げ・TASK-517 が決める
 //! ため、親の `ul` には `data-testid` を付けない。
 //!
-//! 承認のボタン（TASK-447 1/2。TERM-27）: 同じ部品に「はい」「いいえ」「直す」と、規則に書かれた対象ごとの
-//! 「直す（対象: …）」を足す。出すのは次の 2 つの状態だけである。
+//! 承認のボタン（TASK-447 1/2。TERM-27）: 同じ部品に「はい」「いいえ」「直す」と、候補ごとの
+//! 「直す（対象: 表示名）」を足す。出すのは次の 2 つの状態だけである。
 //!
 //! | 状態 | 宣言 | 出すボタン |
 //! |---|---|---|
 //! | 入力待ち（`Entered`） | 入力方式 `approval` | 3 つ ＋ 対象つきの「直す」 |
 //! | 確認待ち（`Accepted`） | 確認が `approve`、または `confirm` が無い | 3 つ（対象つきは出さない） |
 //!
-//! 対象の一覧は core の `select_judge::revise_targets` だけから得る（web は規則の JSON を読まない）。現在の Step が無い・
+//! 候補の一覧は core の `select_judge::revise_candidates` だけから得る（TASK-448。web は宣言・規則の JSON を読まない）。
+//! 候補を宣言した Step は宣言順に、誤った候補も含めて並ぶ。宣言しない Step は規則の対象が表示名なし（ID が文字）になる。
+//! 見える文字は表示名だけで、ID は `data-revise-target`・`data-payload` の属性値にだけ入れる（宛先は ID で照合するため）。
+//! どの候補が正しいかを示す属性は出さない（答えを DOM に出さない。誤った候補は core が拒否する）。現在の Step が無い・
 //! 処理中・宣言が読めない・一覧が取れないときは、1 つも出さない（fail-closed）。クリックは `data-action="decide"`
 //! （payload は `approve`・`reject`・`revise`）と `data-action="revise-target"`（payload は対象）で、ホストの
 //! `decode_action` が `Input::Approval` に変える。対象の照合・拒否の判定は core で、ホストは照合しない。
@@ -44,7 +47,7 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::confirm_spec::{answer_spec_of, ConfirmKind};
 use fandhe_workshop_contract::input_spec::InputKind;
 use fandhe_workshop_core::input::Decision;
-use fandhe_workshop_core::select_judge::{choice_options, revise_targets};
+use fandhe_workshop_core::select_judge::{choice_options, revise_candidates};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::Session;
 
@@ -141,8 +144,10 @@ pub const ACTION_CHOOSE: &str = "choose";
 pub struct ApprovalOffer {
     /// 承認の操作。
     pub decision: Decision,
-    /// 「直す」の対象（教材由来の文字列）。対象なしは `None`。
+    /// 「直す」の対象の ID（教材由来の文字列）。対象なしは `None`。入力の宛先で、見える文字には使わない。
     pub target: Option<String>,
+    /// 対象つきの「直す」の表示名（`ReviseCandidate::display` の値）。対象なしは `None`。見える文字だけに使う。
+    pub label: Option<String>,
     /// 入力の段のボタンなら `true`、確認の段なら `false`（keyed list のキーを分ける）。
     pub input_stage: bool,
 }
@@ -173,7 +178,7 @@ pub fn approval_offers(session: &Session) -> Vec<ApprovalOffer> {
             if !is_approval {
                 return Vec::new();
             }
-            match revise_targets(step) {
+            match revise_candidates(step) {
                 Ok(t) => (true, t),
                 Err(_) => return Vec::new(),
             }
@@ -201,17 +206,19 @@ pub fn approval_offers(session: &Session) -> Vec<ApprovalOffer> {
         .map(|decision| ApprovalOffer {
             decision,
             target: None,
+            label: None,
             input_stage,
         })
         .collect();
-    // 空・空白だけの対象はボタンにしない（`terminal_area::check_approval` の違反になるため）。
+    // 空・空白だけの ID はボタンにしない（`terminal_area::check_approval` の違反になるため）。
     out.extend(
         targets
             .into_iter()
-            .filter(|t| !t.trim().is_empty())
-            .map(|t| ApprovalOffer {
+            .filter(|c| !c.id.trim().is_empty())
+            .map(|c| ApprovalOffer {
                 decision: Decision::Revise,
-                target: Some(t),
+                label: Some(c.display().to_owned()),
+                target: Some(c.id),
                 input_stage,
             }),
     );
@@ -224,8 +231,9 @@ pub const ACTION_DECIDE: &str = "decide";
 /// 対象つきの「直す」のクリックの action 名。payload は対象の文字列で、分解しない。
 pub const ACTION_REVISE_TARGET: &str = "revise-target";
 
-/// 承認のボタン 1 つ。見える文字は語（対象なし）か `直す（対象: …）`、対象は属性値にだけ載せる。
-pub fn approval_button(decision: Decision, target: Option<&str>) -> Node {
+/// 承認のボタン 1 つ。見える文字は語（対象なし）か `直す（対象: 表示名）`。`target` は `(ID, 表示名)` で、
+/// ID は属性値（入力の宛先）にだけ、表示名は文字ノードにだけ載せる（TASK-448・TERM-28）。
+pub fn approval_button(decision: Decision, target: Option<(&str, &str)>) -> Node {
     let word = decision_word(decision);
     match target {
         None => el(
@@ -239,7 +247,7 @@ pub fn approval_button(decision: Decision, target: Option<&str>) -> Node {
             ],
             vec![text(word)],
         ),
-        Some(t) => el(
+        Some((t, display)) => el(
             "button",
             vec![
                 ("type", "button"),
@@ -249,7 +257,7 @@ pub fn approval_button(decision: Decision, target: Option<&str>) -> Node {
                 (ACTION_ATTR, ACTION_REVISE_TARGET),
                 (PAYLOAD_ATTR, t),
             ],
-            vec![text(format!("{word}（対象: {t}）"))],
+            vec![text(format!("{word}（対象: {display}）"))],
         ),
     }
 }
@@ -312,7 +320,10 @@ impl DisplayPart<HostModel> for OffersPart {
                 el(
                     "li",
                     vec![],
-                    vec![approval_button(o.decision, o.target.as_deref())],
+                    vec![approval_button(
+                        o.decision,
+                        o.target.as_deref().zip(o.label.as_deref()),
+                    )],
                 ),
             )
         }));

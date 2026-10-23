@@ -1,0 +1,8 @@
+id: TERM28-2
+package: fandhe-workshop-web
+test: approval_buttons
+target: crates/web/src/offers.rs
+find: .filter(|c| !c.id.trim().is_empty())
+replace: .filter(|c| !c.id.trim().is_empty() && c.label.is_none())
+expect-fail: 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る
+note: 表示名つきの候補をボタンにしない（誤った候補を含めて候補の数だけ出す受入を壊す。TERM-28）
