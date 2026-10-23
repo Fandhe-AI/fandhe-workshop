@@ -7520,7 +7520,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 ### 5.251 ヒントを開く操作と上限での拒否（TASK-295。GUIDE-17）
 
-- 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55。固定するかは TASK-296）。
+- 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55 で固定しないと決まった。5.254 で確かめる）。
 - 設計: core の `hint_open::on_open_hint`（非公開）。Step が無いときは空の uid の印で拒否を記録する。案内レベルを下げて n が開いた段数を下回っても拒否し、段数は減らさない。処理中でも開ける。
 - 試験: `crates/core/tests/hint_open.rs`（水準ごとに n 段まで・超過の拒否で世代と状態が不変・Step 無し・ヒントの無い Step と IR に無い Step・水準を下げた後・水準ごとの上限）と性質テスト 2 本（各 1,000 件。宣言の組 × 水準 × 回数、Step の移動・水準の変更・操作の混在列）。
 - 実行結果（2026-10-23。元にしたコミット 05f8102）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE17-2.mutation crates/core/tests/mutations/GUIDE17-3.mutation crates/core/tests/mutations/GUIDE17-4.mutation`
@@ -7532,7 +7532,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE17-4 | `hint_open.rs`: 開いた段数を記録しない | opens_one_by_one_up_to_n, property_open_up_to_visible_count | 6 件 | DETECTED | cases=1000、最小の入力 `([None], 0, 1)` |
 
 - 確かめないこと: 画面での表示と開く操作（TASK-530）。
-- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296）。
+- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296。D-55 で固定しないと決まった。5.254 で確かめる）。
 
 ### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
 
@@ -7561,6 +7561,22 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - (b) に変異は置いていない。ヒントの文面を検査する経路がそもそも無く、1 行の置換で「検査する」状態を作れないためである。
 - 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。人の確認は得ていない。
+
+### 5.254 ヒントの上限の規則（TASK-296。GUIDE-6・D-55）
+
+- 目的: ヒントの上限が「現在の案内レベルで出せる数 n まで」であり、3 段に固定されていないことを、n が 3 でない Step の試験と 39 本のヒントの確認で固定する。
+- 設計: D-55 で固定しないと決まっており、コードは変えない（`hint_open::on_open_hint` は `current_hints(..).len()` を上限にし、定数を持たない）。試験と変異で、3 段への固定と 3 段であることの要求を見分けられるようにした。
+- 試験: `crates/core/tests/hint_limit_rule.rs`（1・2・4・5・7 段の Step で、ちょうど n 段まで開け n+1 段目が `NoHint` で世代が不変・4 段以上が 3 段で打ち切られない・3 段未満でも拒否されない・水準を下げても開いた段数が減らない・出せる数が 4 以上の場合を毎回含む性質テスト 1,000 件）と、`crates/pack/tests/hint_limit_39.rs`（合成の教材 `tests/data/hint-limit-pack` を `compile_dir` で IR にし、13 Step x 3 段 = 39 本と水準で段数が変わる 2 Step の計 19 件の確認を core の `apply` まで通す。診断は 0 件）。
+- 実行結果（2026-10-23。実行時のコミット e9e2b78）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE6-1.mutation crates/core/tests/mutations/GUIDE6-2.mutation crates/pack/tests/mutations/GUIDE6-3.mutation`
+
+| ID | 対象 | 期待した失敗 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|
+| GUIDE6-1 | `hint_open.rs`: 上限を 3 段で打ち切る | four_or_more_visible_hints_are_not_capped_at_three, property_limit_is_visible_count_not_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)` |
+| GUIDE6-2 | `hint_open.rs`: 3 段でない Step を拒否する | fewer_than_three_hints_are_not_refused_for_being_short, opens_exactly_n_for_counts_other_than_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)`（GUIDE6-1 と同じ） |
+| GUIDE6-3 | `guidance.rs`: ヒントの `levels` を無視する | hint_checks_19_pass_through_compile_and_open | DETECTED | - |
+
+- 確かめないこと: 画面（TASK-530）。試作の 33/33 のうち開始点の案内レベルの確認 14 件（`starts[].guidance` の反映が前提。TASK-294）。`fandhe-pack test` の計数（TASK-404・TASK-84）。実教材の 3 段の記述（TASK-634）。試作の教材は private で写していないため、ヒントの確認 19 件は同じ形の合成の教材で流した。33/33 を達成したとは言えない。
+- 範囲外: 3 段の構造の確認（TASK-298）、鍵を実体ごとにすること（TASK-297）。
 
 ### 5.255 本文・ヒントへの引数の値の差し込みの限界（TASK-302。GUIDE-15）
 

@@ -1,0 +1,9 @@
+id: GUIDE6-2
+package: fandhe-workshop-core
+test: hint_limit_rule
+target: crates/core/src/hint_open.rs
+find:     if opened >= total {
+replace:     if opened >= total || total != 3 {
+expect-fail: fewer_than_three_hints_are_not_refused_for_being_short
+expect-fail: opens_exactly_n_for_counts_other_than_three
+note: 3 段でない Step を拒否する（3 段への固定）
