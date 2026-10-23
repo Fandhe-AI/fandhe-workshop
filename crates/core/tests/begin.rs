@@ -8,10 +8,10 @@ mod common;
 
 use common::contract_sample::{load, testdata_dir};
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::addr::StepUid;
+use fandhe_workshop_core::addr::{Root, StepUid};
 use fandhe_workshop_core::event::{ControlKind, Event, RefuseReason};
 use fandhe_workshop_core::input::{Control, Op};
-use fandhe_workshop_core::session::{apply, Busy, SessionState};
+use fandhe_workshop_core::session::{apply, Busy, EntryCopy, SessionState};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{load_ir, Session};
 
@@ -90,6 +90,11 @@ fn begin_clears_busy_and_entry_and_keeps_drafts_and_hints() {
     let state = SessionState::default();
     let (mut state, _) = apply(&ir, state, begin("s-1"));
     state.run.busy = Some(Busy { total: 3, done: 1 });
+    state.entry = Some(EntryCopy {
+        run: state.run.clone(),
+        log_len: 0,
+    });
+    state.drafts.insert(Root("main".into()), "draft".into());
     state.hints_opened.insert(StepUid("main/st-1".into()), 1);
     let (drafts, hints) = (state.drafts.clone(), state.hints_opened.clone());
     let (state, _) = apply(&ir, state, begin("s-1"));
