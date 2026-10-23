@@ -126,3 +126,43 @@ fn every_status_key_is_owned_by_its_slice() {
         }
     }
 }
+
+#[test]
+fn command_and_text_acceptance_write_the_called_instance_slice() {
+    use fandhe_workshop_core::addr::{Generation, Stamp};
+    use fandhe_workshop_core::command_accept::{accept_command, AcceptedCommand};
+    use fandhe_workshop_core::effect::NoConditions;
+    use fandhe_workshop_core::instance::status_of;
+    use fandhe_workshop_core::session::RunState;
+    use fandhe_workshop_core::text_judge::{accept_text, AcceptedText};
+
+    let ir = ir();
+    for via_text in [false, true] {
+        let mut run = RunState::default();
+        let at = Stamp {
+            generation: Generation::INITIAL,
+            step: uid("main/c1"),
+        };
+        if via_text {
+            let a = AcceptedText {
+                text: "x".into(),
+                rule_id: None,
+                effects: vec![],
+            };
+            accept_text(&ir, &mut run, &uid("main/c1"), &a, &at, &NoConditions);
+        } else {
+            let a = AcceptedCommand {
+                rule_id: "r".into(),
+                effects: vec![],
+            };
+            accept_command(&ir, &mut run, &uid("main/c1"), &a, &at, &NoConditions);
+        }
+        let r1 = run.slices.get(&root("m@r1")).expect("m@r1 slice");
+        assert_eq!(r1.status.get(&uid("main/c1")), Some(&StepStatus::Accepted));
+        assert!(run
+            .slices
+            .get(&root("main"))
+            .is_none_or(|s| !s.status.contains_key(&uid("main/c1"))));
+        assert_eq!(status_of(&ir, &run, &uid("main/c1")), StepStatus::Accepted);
+    }
+}

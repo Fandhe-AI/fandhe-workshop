@@ -32,7 +32,7 @@
 //! - `on_achieved`、確認による達成への遷移（TASK-207・TASK-306）
 
 use fandhe_workshop_contract::effect::EffectItem;
-use fandhe_workshop_contract::ir::Step;
+use fandhe_workshop_contract::ir::{Ir, Step};
 use serde_json::Value;
 
 use crate::addr::{Stamp, StepUid};
@@ -128,11 +128,12 @@ pub fn accepted_command(
 /// 変えず、`Achieved`・`Transitioned`・`ChapterCompleted` を出さない。操作 1 件の `Changed` の集約は
 /// `session::apply` が行う前提で、ここは語ごとの `Changed` を返す。
 pub fn accept_command(
+    ir: &Ir,
     run: &mut RunState,
     uid: &StepUid,
     accepted: &AcceptedCommand,
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
-    apply_acceptance(run, uid, &accepted.effects, at, cond)
+    apply_acceptance(ir, run, uid, &accepted.effects, at, cond)
 }

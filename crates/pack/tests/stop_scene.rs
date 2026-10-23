@@ -115,7 +115,7 @@ fn st_7_1_is_missing_arg_and_st_7_3_stops_the_world() {
         generation: Generation::INITIAL,
         step: step_uid.clone(),
     };
-    let ev = accept_command(&mut run, &step_uid, &acc, &at, &NoConditions);
+    let ev = accept_command(&ir, &mut run, &step_uid, &acc, &at, &NoConditions);
     assert!(!ev.iter().any(|e| matches!(e, Event::Warning { .. })));
 
     assert_eq!(run.world["issues/root-42"].attrs["state"], "blocked");

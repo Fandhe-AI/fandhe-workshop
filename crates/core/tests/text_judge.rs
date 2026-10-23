@@ -280,7 +280,14 @@ fn apply_flow(step: &Step, text: &str) -> (RunState, RunState, Vec<Event>) {
         .insert(uid(), StepStatus::Entered);
     let before = run.clone();
     let a = accepted(step, text);
-    let ev = accept_text(&mut run, &uid(), &a, &stamp(), &NoConditions);
+    let ev = accept_text(
+        &common::min_ir(),
+        &mut run,
+        &uid(),
+        &a,
+        &stamp(),
+        &NoConditions,
+    );
     (before, run, ev)
 }
 

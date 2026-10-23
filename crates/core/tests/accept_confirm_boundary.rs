@@ -236,7 +236,14 @@ fn stop_scene_stays_accepted_and_never_achieves() {
         generation: Generation(1),
         step: uid("main/st-1"),
     };
-    let events = accept_command(&mut state.run, &uid("main/st-1"), &acc, &at, &NoConditions);
+    let events = accept_command(
+        &base_ir(),
+        &mut state.run,
+        &uid("main/st-1"),
+        &acc,
+        &at,
+        &NoConditions,
+    );
     assert_eq!(achieved_events(&events), 0);
     assert_eq!(state.run.world["issues/root-42"].attrs["state"], "blocked");
     assert!(!state.run.completed);

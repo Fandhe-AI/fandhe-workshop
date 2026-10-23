@@ -112,7 +112,7 @@ pub(crate) fn on_tick(ir: &Ir, state: &mut SessionState, addr: TickAddr) -> Vec<
     } else {
         None
     };
-    // 効果の根（フラグ）なので `root_of`。処理中の Step は呼び出しの Step にならない。
+    // 効果の根（フラグ）なので `root_of`。Step の状態は `status_of` で持ち主から読む。
     let root = crate::instance::root_of(&current);
     let mut events = apply_tick(
         &mut state.run,
@@ -131,13 +131,7 @@ pub(crate) fn on_tick(ir: &Ir, state: &mut SessionState, addr: TickAddr) -> Vec<
         return events;
     }
     state.run.busy = None;
-    let accepted = state
-        .run
-        .slices
-        .get(&root)
-        .and_then(|s| s.status.get(&current))
-        .copied()
-        == Some(StepStatus::Accepted);
+    let accepted = crate::instance::status_of(ir, &state.run, &current) == StepStatus::Accepted;
     if let (Some(items), true) = (achieve_items, accepted) {
         events.extend(confirm::achieve_with(ir, state, node, &at, &items));
     }

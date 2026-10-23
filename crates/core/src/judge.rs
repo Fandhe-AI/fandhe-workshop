@@ -214,12 +214,7 @@ pub fn judge_input(
         return ctx.reject(RejectCategory::Busy);
     }
 
-    let status = run
-        .slices
-        .get(&root)
-        .and_then(|s| s.status.get(uid))
-        .copied()
-        .unwrap_or_default();
+    let status = crate::instance::status_of(ir, run, uid);
 
     let lexed = match input {
         Input::Command(raw) => match ctx.lex(raw)? {
