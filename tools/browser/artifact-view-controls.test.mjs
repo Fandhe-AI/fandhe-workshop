@@ -9,8 +9,8 @@
 // 呼び出し元は make test-browser（scripts/test-browser.sh）。代役の部品は #app の外の root にマウントする
 // （artifact-view-check.test.mjs と同じ）。1 件ごとに新しい context を使う。
 // 通信・実行の副作用を起こさない形だけを使う（img・iframe に src を持たせない。javascript: の a はクリックしない）。
-// 24 通り（6 ビュー × 2 変種 × 前後）で escape の行を実際に流す正の試験は、代役の部品が sample の JSON しか
-// 持たないため、ここでは扱わない（ART-6 の担当）。
+// 24 通り（6 ビュー × 2 変種 × 前後）で escape の行を実際に流す試験の骨格は view-escape.test.mjs（TASK-482 1/2）、
+// 全通りの合格は TASK-482 2/2 の担当で、ここでは扱わない。
 //
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。
 import { test, before, after } from 'node:test';

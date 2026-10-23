@@ -60,7 +60,7 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
-/// 行のデータを切り替える action の名前。payload は `cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）。
+/// 行のデータを切り替える action の名前。payload は 文書以外の 6 種の `<種類>:escape`（未信頼の値の表示の試験用の 4 行。TASK-482 1/2。ART-6）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample`、`cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）。
 pub(crate) const ACTION_DATA: &str = "fixture_data";
 
 /// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
@@ -91,6 +91,12 @@ const DIFF: &[u8] = include_bytes!(concat!(
 const TASKS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../testdata/artifact-view-parts/test-data/sample/tasks.json"
+));
+/// 未信頼の値の表示の試験用の 4 行（HTML・スクリプト・`javascript:`・属性の閉じ忘れの形を含む。出所は `testdata/README.md` の escape の行）。
+/// 6 種のどのビューにも同じ行を入れる（部品レベルの試験。教材パック・IR からの注入は別の担当）。値は文字のノードと属性値にだけ入る。
+const ESCAPE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../testdata/artifact-view-parts/test-data-addendum/escape-rows.json"
 ));
 const CARDS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -319,6 +325,8 @@ pub(crate) enum DataSet {
     Scale20,
     /// 名札の 3 行（アプリのデモだけ。指せる行は `screen/top` だけ）。
     Nameplate,
+    /// 未信頼の値の表示の試験用の 4 行（文書以外の 6 種。TASK-482 1/2）。
+    Escape,
 }
 
 impl ViewFixture {
@@ -479,6 +487,18 @@ impl Component for ViewFixture {
             }
             FixtureAction::Data(kind, data) => {
                 let bytes = match (kind, data) {
+                    (ViewKind::FileTree, DataSet::Sample) => FILETREE,
+                    (ViewKind::Diff, DataSet::Sample) => DIFF,
+                    (ViewKind::TaskTree, DataSet::Sample) => TASKS,
+                    (
+                        ViewKind::FileTree
+                        | ViewKind::Diff
+                        | ViewKind::TaskTree
+                        | ViewKind::CardList
+                        | ViewKind::CheckList
+                        | ViewKind::AppDemo,
+                        DataSet::Escape,
+                    ) => ESCAPE,
                     (ViewKind::CardList, DataSet::Sample) => CARDS,
                     (ViewKind::CardList, DataSet::Scale20) => CARDS_20,
                     (ViewKind::CheckList, DataSet::Sample) => CHECKS,
@@ -500,7 +520,9 @@ impl Component for ViewFixture {
                     if let Some(idx) = self.views.iter().position(|(k, _)| *k == kind) {
                         let new_rule = match data {
                             DataSet::Nameplate => PointRule::Only(NAMEPLATE_POINTABLE),
-                            DataSet::Sample | DataSet::Scale20 => PointRule::AllButFirst,
+                            DataSet::Sample | DataSet::Scale20 | DataSet::Escape => {
+                                PointRule::AllButFirst
+                            }
                         };
                         let slot = &mut self.views[idx].1;
                         let same = matches!(slot, ViewRows::Items(cur) if *cur == rows)
@@ -613,6 +635,15 @@ impl Component for ViewFixture {
                 _ => None,
             },
             ACTION_DATA => match payload {
+                "filetree:sample" => Some(FixtureAction::Data(ViewKind::FileTree, DataSet::Sample)),
+                "diff:sample" => Some(FixtureAction::Data(ViewKind::Diff, DataSet::Sample)),
+                "tasks:sample" => Some(FixtureAction::Data(ViewKind::TaskTree, DataSet::Sample)),
+                "filetree:escape" => Some(FixtureAction::Data(ViewKind::FileTree, DataSet::Escape)),
+                "diff:escape" => Some(FixtureAction::Data(ViewKind::Diff, DataSet::Escape)),
+                "tasks:escape" => Some(FixtureAction::Data(ViewKind::TaskTree, DataSet::Escape)),
+                "cards:escape" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Escape)),
+                "checks:escape" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Escape)),
+                "appdemo:escape" => Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Escape)),
                 "cards:sample" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Sample)),
                 "cards:20" => Some(FixtureAction::Data(ViewKind::CardList, DataSet::Scale20)),
                 "checks:sample" => Some(FixtureAction::Data(ViewKind::CheckList, DataSet::Sample)),
@@ -1248,6 +1279,116 @@ mod tests {
         assert_eq!(html.matches("data-scope=\"field\"").count(), 3, "{html}");
         assert_eq!(html.matches("<button type=\"button\"").count(), 1, "{html}");
         assert_eq!(html.matches("data-mark=\"change\"").count(), 3, "{html}");
+    }
+
+    const ESCAPE_PAYLOADS: [&str; 6] = [
+        "filetree:escape",
+        "diff:escape",
+        "tasks:escape",
+        "cards:escape",
+        "checks:escape",
+        "appdemo:escape",
+    ];
+
+    #[test]
+    fn 未信頼の値のデータの_payload_は閉じた集合で復号される() {
+        for p in ESCAPE_PAYLOADS
+            .iter()
+            .chain(&["filetree:sample", "diff:sample", "tasks:sample"])
+        {
+            assert!(ViewFixture::decode_action(ACTION_DATA, p).is_some(), "{p}");
+        }
+        for p in [
+            "document:escape",
+            "document:sample",
+            "cards:Escape",
+            "cards:escape ",
+            " cards:escape",
+            "escape",
+            "cards:escape2",
+            "",
+        ] {
+            assert!(ViewFixture::decode_action(ACTION_DATA, p).is_none(), "{p}");
+        }
+    }
+
+    fn apply_data(f: &mut ViewFixture, payload: &str) {
+        let a = ViewFixture::decode_action(ACTION_DATA, payload).unwrap();
+        f.update(a);
+    }
+
+    #[test]
+    fn 未信頼の値のデータへ切り替えると前3行後4行になり_sample_へ戻せる() {
+        let mut f = ViewFixture::load().unwrap();
+        let kinds = [
+            ViewKind::FileTree,
+            ViewKind::Diff,
+            ViewKind::TaskTree,
+            ViewKind::CardList,
+            ViewKind::CheckList,
+            ViewKind::AppDemo,
+        ];
+        let sample_counts: Vec<_> = kinds.iter().map(|k| row_counts(&f, *k)).collect();
+        for p in ESCAPE_PAYLOADS {
+            apply_data(&mut f, p);
+        }
+        for k in kinds {
+            assert_eq!(row_counts(&f, k), (3, 4), "{k:?}");
+        }
+        for p in [
+            "filetree:sample",
+            "diff:sample",
+            "tasks:sample",
+            "cards:sample",
+            "checks:sample",
+            "appdemo:sample",
+        ] {
+            apply_data(&mut f, p);
+        }
+        let back: Vec<_> = kinds.iter().map(|k| row_counts(&f, *k)).collect();
+        assert_eq!(back, sample_counts);
+    }
+
+    /// 24 通り（6 種 x 2 変種 x 前後。差分の (a) は対照の口）で、値が HTML の要素として出ない。
+    /// 失敗は値が HTML として解釈される欠陥であり、検査を緩めずに報告する。
+    #[test]
+    fn 未信頼の値は_24_通りのすべてで要素にならず文字として出る() {
+        let kinds = [
+            ViewKind::FileTree,
+            ViewKind::Diff,
+            ViewKind::TaskTree,
+            ViewKind::CardList,
+            ViewKind::CheckList,
+            ViewKind::AppDemo,
+        ];
+        let mut cases = 0;
+        for kind in kinds {
+            for variant in Variant::ALL {
+                for phase in [Phase::Before, Phase::After] {
+                    let mut f = ViewFixture::load().unwrap();
+                    for p in ESCAPE_PAYLOADS {
+                        apply_data(&mut f, p);
+                    }
+                    if VariantPolicy::new(&[(kind, variant)]).is_ok() {
+                        f.update(FixtureAction::Select(kind, variant));
+                    } else {
+                        assert_eq!((kind, variant), (ViewKind::Diff, Variant::A));
+                        f.update(FixtureAction::Contrast(kind));
+                    }
+                    f.update(FixtureAction::Phase(phase));
+                    let html = render(&f.view());
+                    for tag in ["<img", "<script", "<iframe", "<svg"] {
+                        assert!(!html.contains(tag), "{kind:?}/{variant:?}/{phase:?} {tag}");
+                    }
+                    assert!(
+                        html.contains("&lt;img"),
+                        "{kind:?}/{variant:?}/{phase:?} {html}"
+                    );
+                    cases += 1;
+                }
+            }
+        }
+        assert_eq!(cases, 24);
     }
 
     #[test]

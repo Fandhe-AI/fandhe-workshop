@@ -439,3 +439,124 @@ export async function holdRows(page, rootSelector, kind) {
 export async function compareHeldRows(page, a, b) {
   return page.evaluate(compareMapsInPage, [a, b]);
 }
+
+// --- 未信頼の値の表示（ART-6。TASK-482 1/2）---
+// 代役の部品の行のデータの payload の接頭辞（`<接頭辞>:escape`）。文書は行の JSON を持たないため含めない。
+export const ESCAPE_DATA = {
+  file_tree: 'filetree',
+  diff: 'diff',
+  task_tree: 'tasks',
+  card_list: 'cards',
+  check_list: 'checks',
+  app_demo: 'appdemo',
+};
+
+// 文書を除く 6 種 x 2 変種の 12 組（前後で 24 通り）。差分の (a) は契約が拒否するため、アダプタが対照の口へ送る。
+// TASK-482 2/2 が 24 通りすべてをここから流す。
+export const ESCAPE_CASES = KINDS.filter(({ kind }) => kind !== 'document').flatMap(({ kind }) =>
+  VARIANTS.map((variant) => ({ kind, variant })),
+);
+
+// escape の行の実行の合図（行が `window.__escape_hit = N` を代入する）。
+export const ESCAPE_HIT = '__escape_hit';
+
+// 文字として出ることを確かめる欄（cell の欄名）。既定はラベル、カードはラベル・補足・タグ。ビューごとの調整は TASK-482 2/2。
+export function literalFields(kind) {
+  return kind === 'card_list' ? ['label', 'detail', 'tags'] : ['label'];
+}
+
+// `window.__escape_hit` への代入を、accessor で Node 側の記録（rec.hits）へ送る。代入された値の番号だけを送る
+// （ペイロードの全文は出さない）。page.goto の前に呼ぶ。getter は最後の値を返し、未代入なら undefined のまま。
+export async function installEscapeTrap(page) {
+  await page.addInitScript((name) => {
+    let last;
+    Object.defineProperty(window, name, {
+      configurable: false,
+      get: () => last,
+      set: (v) => {
+        last = v;
+        window.__fandheHitRec(`escape:${String(v).slice(0, 8)}`);
+      },
+    });
+  }, ESCAPE_HIT);
+}
+
+// ページ内の検査（固定の関数。期待値は引数で渡す）。選ばれた list の項目の key・危険な要素・実行・文字としての表示を数える。
+function inspectEscapeInPage({ root, view, danger, hitName, wants }) {
+  const rootEl = document.querySelector(root);
+  if (!rootEl) return { error: true };
+  const list = [...rootEl.querySelectorAll('[data-testid="view-list"]')].find((l) => l.getAttribute('data-view') === view);
+  if (!list) return { error: true };
+  const items = [...list.children];
+  const keys = items.map((i) => i.getAttribute('data-key'));
+  let missing = 0;
+  items.forEach((item, idx) => {
+    const want = wants[idx] ?? [];
+    const haystacks = [item.textContent ?? '', ...[...item.querySelectorAll('input, textarea')].map((e) => e.value ?? '')];
+    for (const w of want) if (!haystacks.some((h) => h.includes(w))) missing += 1;
+  });
+  return {
+    error: false,
+    keys,
+    danger: rootEl.querySelectorAll(danger).length,
+    executed: window[hitName] !== undefined,
+    missing,
+  };
+}
+
+function escapeWants(rows, phase, fields) {
+  const cells = rows
+    .map((r) => (phase === 'after' ? (r.after ?? r.before) : r.before))
+    .filter((c) => c !== null);
+  return cells.map((c) => fields.flatMap((f) => (Array.isArray(c[f]) ? c[f] : [c[f]])));
+}
+
+// escape の行で 1 つの組を流す（前 -> 後 -> 前）。呼び出し側が先に installEscapeTrap を済ませる。
+// アダプタの契約は runViewCase に加えて data(payload) -> Promise<{ ok }>。
+// mutateAfter(page): 後の状態の直後に呼ぶ（負の対照用。画面だけを変える）。skipData: true は行を切り替えない（口の対照）。
+// 外部通信・CSP 違反・ダイアログは、呼び出し側が collectSafety と nonZero で主張する。
+export async function runEscapeCase(page, adapter, { kind, variant, rootSelector, fields, mutateAfter, skipData = false }) {
+  const v = [];
+  const stats = { states: 0, itemCounts: [] };
+  const rows = loadEscapeRows(kind).rows;
+  const exp = expectedFromRows(rows);
+  const keyOf = adapter.keyOf ?? ((id) => id);
+  const use = fields ?? literalFields(kind);
+  if (!skipData) {
+    const d = await adapter.data(`${ESCAPE_DATA[kind]}:escape`);
+    if (!d.ok) {
+      v.push(`${kind}/${variant}: the adapter refused to load the escape rows`);
+      return { violations: v, stats };
+    }
+  }
+  const sel = await adapter.select(kind, variant);
+  if (!sel.ok) {
+    v.push(`${kind}/${variant}: the adapter refused to select an allowed variant`);
+    return { violations: v, stats };
+  }
+  for (const phase of ['before', 'after', 'before']) {
+    const sw = await adapter.phase(phase);
+    if (!sw.ok) {
+      v.push(`${kind}/${variant}/${phase}: the adapter refused to switch the state`);
+      break;
+    }
+    if (phase === 'after' && mutateAfter) await mutateAfter(page);
+    const ids = phase === 'after' ? exp.afterIds : exp.beforeIds;
+    const info = await page.evaluate(inspectEscapeInPage, {
+      root: rootSelector, view: kind, danger: DANGER_SELECTOR, hitName: ESCAPE_HIT, wants: escapeWants(rows, phase, use),
+    });
+    const bad = (msg) => v.push(`${kind}/${variant}/${phase}: ${msg}`);
+    stats.states += 1;
+    if (info.error) {
+      bad('root element or selected list not found');
+      stats.itemCounts.push(-1);
+      continue;
+    }
+    stats.itemCounts.push(info.keys.length);
+    if (JSON.stringify(info.keys) !== JSON.stringify(ids.map(keyOf))) bad('item count or keys differ from the escape rows');
+    if (info.danger !== 0) bad('dangerous elements or attributes are present');
+    if (info.executed) bad('an escape payload was executed');
+    if (info.missing !== 0) bad('a value is not shown as literal text');
+  }
+  return { violations: v, stats };
+}

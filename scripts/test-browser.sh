@@ -172,6 +172,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/storage-select.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-view-check.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-view-controls.test.mjs" \
+  "${ROOT_DIR}/tools/browser/view-escape.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-mark-toggle.test.mjs" \
   "${ROOT_DIR}/tools/browser/file-tree-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/task-tree.test.mjs" \
