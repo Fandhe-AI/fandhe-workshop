@@ -2,7 +2,7 @@ id: SHELL6-3
 package: fandhe-workshop-web
 test: shell_frame_host
 target: crates/web/src/host.rs
-find:             crate::shell_frame::top_bar(Vec::new()),
+find:             crate::shell_frame::top_bar(top_children),
 replace:             el("div", vec![], vec![]),
 expect-fail: mock_label_is_always_shown
 note: root の子から上部の区画が外れる（SHELL-6・D-72・TASK-523）

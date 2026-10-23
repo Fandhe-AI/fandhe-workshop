@@ -63,7 +63,8 @@ pub const PANES_CLASS: &str = "sh-panes";
 /// 部品の種類から、置く領域を求める。
 ///
 /// 網羅的に `match` し、種類が増えたらコンパイルで気づけるようにする。左は成果物だけで、他は右（操作）に置く。
-/// `Review`・`Checkpoints` の置き場は暫定で、REVIEW-10 と上部の区画の担当が決めたら、ここの 1 行を移す。
+/// `Review` の置き場は暫定で、REVIEW-10 の担当が決めたら、ここの 1 行を移す。チェックポイントの操作は host が registry の外で
+/// 上部の `shell-checkpoint` に描く（TASK-529）ので、`Checkpoints` の DisplayPart は未登録で、この行は使われない。
 pub fn pane_of(kind: PartKind) -> PaneMount {
     match kind {
         PartKind::ArtifactView => PaneMount::Left,
@@ -163,6 +164,7 @@ pub const MOCK_CLASS: &str = "sh-mock";
 /// アクセシビリティツリーに載る。文字は定数 [`MOCK_LABEL`] だけで、教材由来の値・利用者の入力は使わない。
 ///
 /// 教材名（`shell-title`）・位置（`shell-position`）は [`top_place_list`] を `rest` に渡して「模擬」の後ろに足す（TASK-524）。
+/// チェックポイントの操作の区画（`checkpoint_ops::checkpoint_section`）も `rest` で受ける（TASK-529）。
 pub fn top_bar(rest: Vec<Node>) -> Node {
     let mut children = vec![el(
         "span",

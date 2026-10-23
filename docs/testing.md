@@ -7743,4 +7743,21 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: 実行時の水準は常に A（`Control::SetGuidance` が core で未実装。TASK-294）。B・C は native で状態を注入して確かめた。ブラウザでの B・C は未確認。`direct-link-reload` の DOM の題の照合（5.204）は足していない。
 - 範囲外: 49 件の注入を CSP あり・なしで画面の本文の区画に対して流す確認は #712（TASK-525 2/2）。
 - 実行の結果（2026-10-23）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make check` が通過。ブラウザは `step-body` の 4 件と、`element-identity`・`shell-widths`・`shell-position`・`shell-tabs`・`inline-free`・`csp-runs`・`next-chapter`・`history-ops`・`direct-link-start` が通過。`view-only` 系は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を用意せず未実行（未検証）。`make test-browser` 全体は未実施。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で既に失敗している。
+
+### 5.266 チェックポイントの保存と復帰の操作（TASK-529 1/2。SHELL-13）
+
+- 目的: 上部の区画 `shell-checkpoint` に置いた保存・復帰のボタンの押下だけで、保存 → 先へ進む → 復帰が通り、左の成果物と右の位置が保存の時点に戻ることを確かめる。
+- 期待と定義の対応: SHELL-13 → 実装は `crates/web/src/checkpoint_ops.rs` と `host.rs`、試験は下記。保存・復帰の規則（EVT-12・MOD-9）は core が持つ。
+- 置き方:
+  - 枠の契約（`shell` 版 2）は変えない。入れ物は契約済みの `shell-checkpoint`。ボタンの名前（action `save-checkpoint`・`restore-checkpoint`、`data-testid` `checkpoint-save`・`checkpoint-restore`）は `shell-` の外で定めた。
+  - registry の外の keyed list（field `checkpoint_ops`）。項目の root はボタンそのもの。`PartKind::Checkpoints` の DisplayPart は登録しない。
+  - 出す条件は、session があり、表示だけでなく、現在の Step があること（欠けたら 0 件）。処理中は止めない（EVT-12）。
+  - 押下は DOM の payload を信じない。保存は提示に保存のボタンがあるときだけ、復帰は正規形の 10 進（先頭 `0` なし・10 桁以下）で、今の `state.checkpoints` の鍵と一致したときだけ core へ送る（SAFE-33 と同じ方針）。
+- 試験:
+  - native: `crates/web/tests/checkpoint_ops_host.rs`（10 件）。出す条件・保存・保存 → 進む → 復帰・改ざんの復号・存在しない ID・現在の Step なし・検査器・dirty・表示だけ。
+  - ブラウザ: `tools/browser/checkpoint-restore.test.mjs`。実際のボタンの click で場面 A（保存 → 4 Step 進む → 復帰。位置は IR から独自に数える）・場面 B（payload の書き換え 6 形）・場面 D（幅 360px・959px・配信する設定で 0 件）。CSP あり・なしで流す。
+- 変異: `SHELL13-1`（提示との照合を外す）・`SHELL13-2`（dirty を積まない）・`SHELL13-3`（先頭 `0` の拒否を外す）。2026-10-23 に `scripts/check-mutations.sh` で DETECTED。`SHELL6-3` の `find:` は base の時点で `host.rs` と一致していなかったので、同じ行を変える本件で直した（DETECTED を確認）。
+- 件数の多い場合（FEND-22・D-46）: 復帰のボタンは新しい側から 500 件ずつのページに分け、`checkpoint-page` のボタン（`checkpoint-older`・`checkpoint-newer`）で全件に届く。1 リストは目安以内で打ち切らない。試験は `checkpoint_ops.rs` の 5,000 件の単体試験。
+- 限界: 文言は最小。一覧としての表示と、再読み込み・書き出し・読み込みをまたぐ一致は TASK-529 2/2。章の終わりの自動保存と数の上限は TASK-339。表示だけのモードでの 0 件はブラウザでなく native の試験で確かめた。
+- 実行結果（2026-10-23）: `make lint`・`make test`・`make check`・`make check-deps`・`make check-dom-reads`・`make test-build-web` は通過。ブラウザは本試験 6 件と、shell-position・shell-mock・shell-widths・shell-columns・shell-tabs・element-identity・next-chapter・csp-runs・inline-free・restore-cancel が通過。`view-only`・`history-continue` の一部は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を単体実行で渡せず未確認。`make check-generic-words` は `crates/pack/src/guidance.rs:606` の既存の違反で失敗する（本件の変更と無関係）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

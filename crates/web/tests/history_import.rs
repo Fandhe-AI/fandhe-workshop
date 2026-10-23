@@ -156,6 +156,8 @@ fn open_marks_every_field_dirty_and_notifies_the_next_tick() {
     expected.push("next_chapter");
     // 上部の教材名・位置（`top_place`）も registry の外で、教材と復元した Step が変わるので明示して積む（TASK-524）。
     expected.push("top_place");
+    // チェックポイントの操作（`checkpoint_ops`）も registry の外で、前の教材の項目を消すために明示して積む（TASK-529）。
+    expected.push("checkpoint_ops");
     // Step の題・do・本文（`step_body`）も registry の外で、同じ理由で積む（TASK-525）。
     expected.push("step_body");
     let mut dirty: Vec<&str> = h.dirty_fields().to_vec();

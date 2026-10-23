@@ -92,6 +92,7 @@ use crate::action::{RuntimeAction, ESC_KEYDOWN_ATTRS};
 use crate::artifact_view::{declared_kinds, dirty_list_fields, ViewKind, VIEW_LIST_FIELDS};
 use crate::artifact_view::{PointTarget, POINT_ACTION};
 use crate::candidates;
+use crate::checkpoint_ops::{checkpoint_section, CheckpointOffer, CHECKPOINT_OPS_FIELD};
 use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
@@ -242,6 +243,12 @@ pub enum HostAction {
     SelectView(ViewKind),
     /// 「次の章へ進む」の押下（`next-chapter`。TASK-526 2/2）。payload は開始点の ID で、今の提示との照合は `update` が行う。
     NextChapter(String),
+    /// チェックポイントの保存（`save-checkpoint`。TASK-529 1/2）。今の提示に保存のボタンがあるときだけ `Control::Save` を送る。
+    SaveCheckpoint,
+    /// チェックポイントへの復帰（`restore-checkpoint`。TASK-529 1/2）。payload は正規形の ID で、今の提示との照合は `update` が行う。
+    RestoreCheckpoint(u32),
+    /// チェックポイントの一覧のページ送り（`checkpoint-page`。FEND-22）。payload は正規形のページ番号で、ページ数との照合は `update` が行う。
+    CheckpointPage(usize),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
     SelectPane(PaneTab),
     /// 枠の通知の「閉じる」（`dismiss-notice`。TASK-535 1/2）。いま描いている種類（変換して開いた）だけを消し、状態・履歴には触れない。
@@ -636,6 +643,8 @@ pub struct EngineHost {
     /// 開かない履歴の理由の通知（`shell-notice`。TASK-176 2/2。VER-8・SHELL-16）。表示の状態で、`ops`・履歴・保存先には書かず、控えのバイト列も持たない。
     /// 読み込みで開かなかったとき、または起動時の復元が版の判定の段で開かなかったときに立つ。開ける履歴に替えると消える。
     refused_notice: Option<RefusedNotice>,
+    /// チェックポイントの復帰ボタンのページ（新しい側が 0。FEND-22）。表示の状態で、履歴・保存先には書かない。ページ数を超える値は提示の導出で丸める。
+    checkpoint_page: usize,
     /// 直近の `update` で変わった field。
     dirty: Vec<&'static str>,
     /// 次の進行の宛先の通知先。未設定（native の試験など）なら通知しない。
@@ -762,6 +771,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -860,6 +870,7 @@ impl EngineHost {
                 || f.name == PANE_TABS_FIELD.name
                 || f.name == SHELL_NOTICES_FIELD.name
                 || f.name == NEXT_CHAPTER_FIELD.name
+                || f.name == CHECKPOINT_OPS_FIELD.name
                 || f.name == TOP_PLACE_FIELD.name
                 || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
@@ -892,6 +903,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
             tick_reset: None,
@@ -1921,6 +1933,10 @@ impl EngineHost {
         if !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
         }
+        // 上部のチェックポイントの操作も registry の外にある。前の教材の項目を DOM から消すため明示して積む（TASK-529）。
+        if !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name) {
+            self.dirty.push(CHECKPOINT_OPS_FIELD.name);
+        }
         // 上部の教材名・位置も registry の外にある。教材・復元した Step が変わるので明示して積む（TASK-524）。
         if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
@@ -2150,6 +2166,7 @@ impl EngineHost {
     fn enter_view_only(&mut self, code: LoadReason, bytes: Vec<u8>) {
         // 「次の章へ進む」が出ていたかは、表示だけに入る前に調べる。
         let offered = self.next_chapter_offer().is_some();
+        let ops_shown = self.checkpoint_offer() != CheckpointOffer::default();
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
         self.clear_export_result();
@@ -2163,6 +2180,10 @@ impl EngineHost {
         // 「次の章へ進む」は表示だけの間は出さない。`update` を経由しない公開 API からの切り替えでも、出ていた項目の削除を通知する（FEND-3）。出ていなかったときは変えない（SAVE-19）。
         if offered && !self.dirty.contains(&NEXT_CHAPTER_FIELD.name) {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
+        }
+        // チェックポイントの操作も表示だけの間は出さない。出ていたときだけ削除を通知する。
+        if ops_shown && !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name) {
+            self.dirty.push(CHECKPOINT_OPS_FIELD.name);
         }
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2221,6 +2242,17 @@ impl EngineHost {
         }
         let s = self.model.session()?;
         next_chapter(s.ir(), s.state())
+    }
+
+    /// 今提示するチェックポイントの操作。表示だけの間と session が無いときは空（fail-closed。update が押下を捨てるため）。
+    fn checkpoint_offer(&self) -> CheckpointOffer {
+        if self.model.view_only.is_some() {
+            return CheckpointOffer::default();
+        }
+        match self.model.session() {
+            Some(s) => crate::checkpoint_ops::offer(s.state(), self.checkpoint_page),
+            None => CheckpointOffer::default(),
+        }
     }
 
     /// 変換して開いた通知の表示を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
@@ -2408,6 +2440,8 @@ impl Component for EngineHost {
         let offer_before = self.next_chapter_offer();
         // 上部の教材名・位置も同じく前後で比べる（TASK-524）。
         let place_before = self.top_place();
+        // チェックポイントの操作の提示も前後で比べる（TASK-529）。
+        let ops_before = self.checkpoint_offer();
         // Step の題・do・本文も前後で比べる（TASK-525）。
         let step_before = self.step_text_key();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
@@ -2509,6 +2543,29 @@ impl Component for EngineHost {
                     .and_then(|s| crate::next_chapter::press_target(s.ir(), s.state(), &id));
                 if let Some(node) = target {
                     self.apply_engine(Op::Control(Control::GoTo(StepUid(node))));
+                }
+            }
+            // 保存は今の提示に保存のボタンがあるときだけ、復帰は今の提示の ID と完全一致したときだけ core へ送る（fail-closed）。
+            // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
+            HostAction::SaveCheckpoint => {
+                if self.checkpoint_offer().can_save {
+                    self.apply_engine(Op::Control(Control::Save));
+                }
+            }
+            HostAction::RestoreCheckpoint(id) => {
+                if let Some(id) =
+                    crate::checkpoint_ops::restore_target(&self.checkpoint_offer(), id)
+                {
+                    self.apply_engine(Op::Control(Control::Restore(
+                        fandhe_workshop_core::input::CheckpointId(id),
+                    )));
+                }
+            }
+            HostAction::CheckpointPage(page) => {
+                if let Some(page) =
+                    crate::checkpoint_ops::page_target(&self.checkpoint_offer(), page)
+                {
+                    self.checkpoint_page = page;
                 }
             }
             HostAction::SelectPane(tab) => self.select_pane(tab),
@@ -2640,6 +2697,10 @@ impl Component for EngineHost {
         {
             self.dirty.push(NEXT_CHAPTER_FIELD.name);
         }
+        if self.checkpoint_offer() != ops_before && !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name)
+        {
+            self.dirty.push(CHECKPOINT_OPS_FIELD.name);
+        }
         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
@@ -2686,11 +2747,16 @@ impl Component for EngineHost {
             },
             ExportShown::Status(m) => ExportResult::Status(m),
         });
+        // 上部の区画の中身は教材名・位置とチェックポイントの操作（TASK-529）。
+        let top_children = vec![
+            self.top_place_node(),
+            checkpoint_section(&self.checkpoint_offer()),
+        ];
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
         // 上部の区画（「模擬」。TASK-523）は通知欄より前に置く。tabpanel の外なので、どのタブでも・通知が出ても見える。
         let mut children = vec![
-            crate::shell_frame::top_bar(vec![self.top_place_node()]),
+            crate::shell_frame::top_bar(top_children),
             crate::shell_notice::notice_area(
                 self.version_notice,
                 self.refused_notice,
@@ -2775,6 +2841,17 @@ impl Component for EngineHost {
         // 「次の章へ進む」（TASK-526 2/2）。空は何もしない。提示との照合は `update` が行う。
         if name == crate::next_chapter::ACTION_NEXT_CHAPTER {
             return (!payload.is_empty()).then(|| HostAction::NextChapter(payload.to_owned()));
+        }
+        if name == crate::checkpoint_ops::ACTION_SAVE_CHECKPOINT {
+            return payload.is_empty().then_some(HostAction::SaveCheckpoint);
+        }
+        if name == crate::checkpoint_ops::ACTION_RESTORE_CHECKPOINT {
+            return crate::checkpoint_ops::parse_restore_payload(payload)
+                .map(HostAction::RestoreCheckpoint);
+        }
+        if name == crate::checkpoint_ops::ACTION_CHECKPOINT_PAGE {
+            return crate::checkpoint_ops::parse_page_payload(payload)
+                .map(HostAction::CheckpointPage);
         }
         if name == ACTION_SELECT_PANE {
             return pane_from_payload(payload).map(HostAction::SelectPane);
