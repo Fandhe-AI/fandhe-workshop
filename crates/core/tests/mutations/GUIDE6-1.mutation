@@ -1,0 +1,9 @@
+id: GUIDE6-1
+package: fandhe-workshop-core
+test: hint_limit_rule
+target: crates/core/src/hint_open.rs
+find: hint_select::current_hints(ir, &state.run).len()
+replace: hint_select::current_hints(ir, &state.run).len().min(3)
+expect-fail: four_or_more_visible_hints_are_not_capped_at_three
+expect-fail: property_limit_is_visible_count_not_three
+note: 上限を 3 段で打ち切り、4 段目以降が開けない

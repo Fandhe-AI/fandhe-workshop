@@ -1,0 +1,8 @@
+id: GUIDE6-3
+package: fandhe-workshop-pack
+test: hint_limit_39
+target: crates/contract/src/guidance.rs
+find:     let Some(levels) = obj.get("levels") else {
+replace:     let Some(levels) = obj.get("no-such-key") else {
+expect-fail: hint_checks_19_pass_through_compile_and_open
+note: ヒントの levels を無視し、水準で段数が変わる Step の確認が崩れる
