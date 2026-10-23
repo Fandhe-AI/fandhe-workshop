@@ -7539,12 +7539,12 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: ヒントの上限が「現在の案内レベルで出せる数 n まで」であり、3 段に固定されていないことを、n が 3 でない Step の試験と 39 本のヒントの確認で固定する。
 - 設計: D-55 で固定しないと決まっており、コードは変えない（`hint_open::on_open_hint` は `current_hints(..).len()` を上限にし、定数を持たない）。試験と変異で、3 段への固定と 3 段であることの要求を見分けられるようにした。
 - 試験: `crates/core/tests/hint_limit_rule.rs`（1・2・4・5・7 段の Step で、ちょうど n 段まで開け n+1 段目が `NoHint` で世代が不変・4 段以上が 3 段で打ち切られない・3 段未満でも拒否されない・水準を下げても開いた段数が減らない・出せる数が 4 以上の場合を毎回含む性質テスト 1,000 件）と、`crates/pack/tests/hint_limit_39.rs`（合成の教材 `tests/data/hint-limit-pack` を `compile_dir` で IR にし、13 Step x 3 段 = 39 本と水準で段数が変わる 2 Step の計 19 件の確認を core の `apply` まで通す。診断は 0 件）。
-- 実行結果（2026-10-23。元にしたコミット 3f5bbaf）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE6-1.mutation crates/core/tests/mutations/GUIDE6-2.mutation crates/pack/tests/mutations/GUIDE6-3.mutation`
+- 実行結果（2026-10-23。実行時のコミット e9e2b78）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE6-1.mutation crates/core/tests/mutations/GUIDE6-2.mutation crates/pack/tests/mutations/GUIDE6-3.mutation`
 
 | ID | 対象 | 期待した失敗 | 結果 | 性質テストの種・ケース数・最小の反例 |
 |---|---|---|---|---|
 | GUIDE6-1 | `hint_open.rs`: 上限を 3 段で打ち切る | four_or_more_visible_hints_are_not_capped_at_three, property_limit_is_visible_count_not_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)` |
-| GUIDE6-2 | `hint_open.rs`: 3 段でない Step を拒否する | fewer_than_three_hints_are_not_refused_for_being_short, opens_exactly_n_for_counts_other_than_three | DETECTED | 同上 |
+| GUIDE6-2 | `hint_open.rs`: 3 段でない Step を拒否する | fewer_than_three_hints_are_not_refused_for_being_short, opens_exactly_n_for_counts_other_than_three | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 4, 0, 1)`（GUIDE6-1 と同じ） |
 | GUIDE6-3 | `guidance.rs`: ヒントの `levels` を無視する | hint_checks_19_pass_through_compile_and_open | DETECTED | - |
 
 - 確かめないこと: 画面（TASK-530）。試作の 33/33 のうち開始点の案内レベルの確認 14 件（`starts[].guidance` の反映が前提。TASK-294）。`fandhe-pack test` の計数（TASK-404・TASK-84）。実教材の 3 段の記述（TASK-634）。試作の教材は private で写していないため、ヒントの確認 19 件は同じ形の合成の教材で流した。33/33 を達成したとは言えない。
