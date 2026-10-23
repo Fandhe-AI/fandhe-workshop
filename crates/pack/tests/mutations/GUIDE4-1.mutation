@@ -1,0 +1,8 @@
+id: GUIDE4-1
+package: fandhe-workshop-pack
+test: guide4_defects
+target: crates/pack/src/guidance.rs
+find:             step_do_at(step, level).is_some_and(|d| words.iter().any(|w| d.contains(w.as_str())));
+replace:             step_do_at(step, level).is_some_and(|_| false);
+expect-fail: guide4_leak_in_do_detected
+note: do の漏れの判定が常に偽になる
