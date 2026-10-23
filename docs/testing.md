@@ -7924,7 +7924,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 試験の件数の期待値は更新していない（5.268 の方針）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
-### 5.272 core の依存境界と、右の描画から左の状態への参照 0 の検査（TASK-206。EVT-1・EVT-23）
+### 5.273 core の依存境界と、右の描画から左の状態への参照 0 の検査（TASK-206。EVT-1・EVT-23）
 
 - 目的: 表示層が描画の結果を読んで状態を作る経路を持たないこと（EVT-1）と、core が DOM・表示基盤を知らないこと（EVT-23）を、機械検査で固定する。CI の配線（ジョブ・make ターゲット）は変えない。CI のガードの変更にあたるため、人のレビューが必要である（承認は得ていない）。
 - 置き場の判断: spec の TASK-206 は変更対象を `tools/check-deps.sh` とするが、右と左の分離は `engine_parts.rs` の impl 単位の切り出しが要り、awk では脆い。そのため `make test`（CI の rust-test）で流れる Rust の静的試験 `crates/web/tests/pane_isolation.rs` に置いた。`tools/check-deps.sh` は冒頭の対応表だけを足し、論理は変えていない。
@@ -7947,3 +7947,23 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - `hello.rs` は入力欄を持つ右の部品のため右に入れた。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・`doc_view`・`shell*` は両側の共有または枠のため対象外にした。
   - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（版上げ PR ではない）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.272 問い返し・拒否の後の下書きが連結されないことの画面の結果（TASK-444。TERM-22・JUDGE-27・D-67）
+
+- 目的: PoC-13 の AI 代理の準備で起きた連結（問い返しの後に `/advance-phase` と打つと `/new-idea/advance-phase` になり、順序違いでなく未知のコマンドで拒否される）が、画面で起きないことを確かめる。エンジンの対処は TASK-284（5.198・5.200）で、本件は結果を画面で見る側を受け持つ。
+- 5.198・5.200 との差分:
+  - (A) 判定は画面の DOM だけで行う。右のログの `received` の本文（`line-body`）・`rejected` の `data-category` と理由・次の行動・`clarified` の文面と、欄の値・選択である。状態のフックは `main/st-1-4` までの通しと安全の計数にだけ使う。
+  - (B) 経路 `proxy` は AI 代理の道具（`proxyd.mjs`）の操作を写す。type は `locator.focus()` の後に `setSelectionRange(len, len)` でキャレットを末尾へ置いて `keyboard.type` し、Enter の前にも同じ focus を行う。全選択は使わない。経路 `enter`・`button` は `page.keyboard` だけである。
+  - (C) 外した対照（下記）。
+- 構成: `tools/browser/draft-no-concat-screen.test.mjs`（新設）。3 経路 × CSP あり・なしの 6 件。期待の文面は IR（`crates/web/tests/data/ch0_3/ir.json`）から読む。`scripts/test-browser.sh` の一覧に足した。
+- 場面 1（問い返しの後。3 経路）: `received` の本文が `/new-idea` ちょうど・`clarified` の文面が IR の文面・拒否の行が増えない・欄が空。続けた `/advance-phase` で `received` の本文が `/advance-phase` ちょうど（連結されない）・拒否の行がちょうど 1 件増え `wrong_order`・理由と次の行動が IR の文面・未知のコマンドの分類と文面が 0 件・Step が進まない・欄の値が残る（TASK-443 と両立）。
+- 場面 2（拒否の後）: `enter`・`button` は欄の全体が選択され、全選択せずに打った `/new-idea` が連結されず `clarified` になり、拒否の行が増えず欄が空になる。`proxy` は対照として、代理の道具がキャレットを末尾へ動かすため `received` の本文が `/advance-phase/new-idea` になり、問い返しにならないことを固定する。
+- 待ち: ST-1.3 の複数行の送信の後、欄が空になるのは 0 ミリ秒のタイマーの書き戻しで非同期である。待たずに打つと前の下書きに続くため、最初の送信の前に欄が空になるのを待つ（2026-10-23 に手元で観察した。待たない版は 6 件中 1〜2 件が不安定だった）。
+- 手元の対照（2026-10-23。元のコミット 88260ef。コミットしない）: `crates/web/src/host.rs` の `selects_draft` を常に偽にした試験用ビルドでは、`enter`・`button` の 4 件が失敗し（拒否の後に選択されず、打った文字が連結されて問い返しにならない）、`proxy` の 2 件は通った。置換は戻した。これは 5.200 が未検証と残したブラウザ側の対照にあたる。問い返しの後も下書きを残す置換（JUDGE27-1 と同じ）の対照は行っていない。
+- 実行結果（2026-10-23）: `proxy` 37 項目・`enter`/`button` 40 項目、6 件ともブラウザ（Chromium）で 3 回続けて通過。
+- 限界:
+  - 実 IME・Safari・Firefox での選択の挙動、0 ミリ秒のタイマーより速い打鍵、送信ボタンの経路のフォーカスの位置、人の確認は確かめない。
+  - 代理の道具の type は拒否の後に今も連結を起こす。道具の操作の性質で、エンジンの規則（D-67）の不足ではない。PoC で代理の道具を再び使うときは、拒否の後の入力で全選択を併用する。
+  - 上部の位置の表示は読まず、Step が進まないことは状態のフック（`engine().current`）で確かめた。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（別 PR で `make update-test-counts`）。
+  - 試験の作成者と実装の作成者が同じ AI である。

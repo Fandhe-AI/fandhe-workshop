@@ -8,7 +8,7 @@
 //! ファイル単位ではなく impl・関数の単位で検査する（R3）。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・
 //! `doc_view`・`shell*` と試験の設定だけのファイルは、両側が共有する部品または枠のため対象外である。
 //! 他の検査との分担: DOM の文字列の読み取りは `tools/check-deps.sh`、状態を変える経路は `no_progress.rs`・
-//! `state_paths.rs`、core の依存の閉包は `scripts/check-crate-deps.sh`。手順と限界は `docs/testing.md` 5.272。
+//! `state_paths.rs`、core の依存の閉包は `scripts/check-crate-deps.sh`。手順と限界は `docs/testing.md` 5.273。
 //! 解析は `common::spaced`（コメントを除き、識別子どうしの間以外の空白を詰める）で照合する。
 
 mod common;
