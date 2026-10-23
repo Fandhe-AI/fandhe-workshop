@@ -8381,3 +8381,21 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 5.288 の「#675 に渡す事項」（欄の調整と 24 通りの流し込み）は本節で済ませた
 - `make test-browser` の全体は手元では流していない（未実行。CI の `browser-test` に委ねる）。`scripts/expected-test-counts.txt` は更新しない
 - 限界: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.290 test の誤入力の行・FAIL の行・集計（TASK-404 3/3。AUTHOR-4）
+
+`fandhe-pack test` が、誤入力の PASS の行、不合格の FAIL の行（実際の結果つき）、集計の 3 行、試験の診断を、`docs/cli.md` 版 11 の 12.3 節・12.4 節の形で書くことを確かめた。
+
+| 試験 | 確かめること |
+|---|---|
+| `author4_pass_line_per_playthrough`・`author4_pass_line_counts_ticks`・`author4_pass_line_order_follows_script`・`author4_pass_line_does_not_echo_unsafe_id`（`test_command.rs`） | 標準出力の全体（PASS の行、誤入力の行、集計）が一致する |
+| `author4_error_input_fail_line_has_actual_result`・`author4_playthrough_fail_line_has_actual_result` | D09・D10 の FAIL の行に期待と実際の語が出る |
+| `author4_test_diagnostics_after_summary` | 診断が集計の後ろに 1 件出る |
+| `author4_fail_line_for_end_not_reached_has_fixed_words` | 終わりの条件の不成立が固定語で出て実体 ID を写さない |
+| `author4_fail_line_does_not_echo_unsafe_values` | 安全でない ID・入力の値が写らない |
+| `cli_doc_test_error_lines_example_matches`・`cli_doc_test_summary_example_matches`（`cli_contract_doc.rs`） | 文書の例と関数の出力が完全一致する |
+| `pack29_play_defects_reported_by_test`（`defect_packs.rs`） | `#[ignore]` を外し、D09・D10 の 4 パックで 24/24 |
+
+- 実行: `cargo test -p fandhe-workshop-pack --locked`
+- 経過措置: 最終行・R-22／R-21・入った実体の集計は TASK-405、文面・案内レベルの確認の判定は後続。判定していない定義があるときは終了コード 1 のまま
+

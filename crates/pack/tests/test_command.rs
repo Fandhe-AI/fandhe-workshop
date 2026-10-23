@@ -1,7 +1,7 @@
 //! `fandhe-pack test` の枠と終了コード（TASK-404 1/3、AUTHOR-4）の結合試験。
 //!
 //! 関門に失敗した教材パックでは試験が流れないこと（ライブラリの `run_pack` が `NotRun` を返す）、流れた試験の
-//! 合否が終了コード 0 / 1 になること、標準エラー出力が空であることを確かめる。模範解答の PASS の行（TASK-404 2/3）も見る。FAIL・集計の行は後続のタスクで足す。
+//! 合否が終了コード 0 / 1 になること、標準エラー出力が空であることを確かめる。模範解答の PASS の行（TASK-404 2/3）も見る。誤入力の行・FAIL の行・集計・試験の診断（TASK-404 3/3）も見る。
 
 mod common;
 
@@ -277,7 +277,10 @@ fn author4_pass_line_per_playthrough() {
     for dir in [defects("base/format-a"), defects("base/format-b")] {
         let r = cli("test", &dir);
         assert_eq!(r.code, Some(0), "{dir:?}: {}", r.out);
-        assert_eq!(r.out, "PASS pt-main（入力 2 件）\n");
+        assert_eq!(
+            r.out,
+            "PASS pt-main（入力 2 件）\nPASS e01 \u{2192} rejected:bad_arg_shape\nPASS e02 \u{2192} rejected:bad_arg_shape\nPASS e03 \u{2192} rejected:missing_arg\n模範解答: 1/1 完走\n誤入力: 3/3 が期待どおりの結果\n入力の総数: 5\n"
+        );
         assert!(r.err.is_empty());
     }
 }
@@ -287,8 +290,11 @@ fn author4_pass_line_counts_ticks() {
     let t = min_with_ticks();
     let r = cli("test", &t.0);
     assert_eq!(r.code, Some(0), "{}", r.out);
-    // cmd 1・tick 5・ui 1。誤入力 e-unknown の行は本版では出ない。
-    assert_eq!(r.out, "PASS pt-min（入力 7 件）\n");
+    // cmd 1・tick 5・ui 1。誤入力 e-unknown は 1 件。
+    assert_eq!(
+        r.out,
+        "PASS pt-min（入力 7 件）\nPASS e-unknown \u{2192} rejected:unknown_command\n模範解答: 1/1 完走\n誤入力: 1/1 が期待どおりの結果\n入力の総数: 8\n"
+    );
 }
 
 #[test]
@@ -309,7 +315,8 @@ fn author4_failed_playthrough_has_no_pass_line() {
     }
     let r = cli("test", &min_pack());
     assert_eq!(r.code, Some(1));
-    assert!(!r.out.contains("PASS"), "{}", r.out);
+    assert!(!r.out.contains("PASS pt-min"), "{}", r.out);
+    assert!(r.out.contains("FAIL pt-min: 期待 "), "{}", r.out);
 }
 
 #[test]
@@ -319,7 +326,7 @@ fn author4_pass_line_order_follows_script() {
     assert_eq!(r.code, Some(0), "{}", r.out);
     assert_eq!(
         r.out,
-        "PASS pt-zeta（入力 7 件）\nPASS pt-alpha（入力 7 件）\n"
+        "PASS pt-zeta（入力 7 件）\nPASS pt-alpha（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\n"
     );
 }
 
@@ -328,6 +335,136 @@ fn author4_pass_line_does_not_echo_unsafe_id() {
     let t = two_playthroughs("\"SECRET-X OK: y\"", "pt-ok", "t404-unsafe-id");
     let r = cli("test", &t.0);
     assert_eq!(r.code, Some(0), "{}", r.out);
-    assert_eq!(r.out, "PASS #1（入力 7 件）\nPASS pt-ok（入力 7 件）\n");
+    assert_eq!(
+        r.out,
+        "PASS #1（入力 7 件）\nPASS pt-ok（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\n"
+    );
     assert!(!r.out.contains("SECRET"));
+}
+
+#[test]
+fn author4_error_input_fail_line_has_actual_result() {
+    for f in ["a", "b"] {
+        let t = overlay(
+            &format!("base/format-{f}"),
+            &format!("v1/{f}/D10"),
+            &format!("t404-d10-line-{f}"),
+        );
+        let r = cli("test", &t.0);
+        assert_eq!(r.code, Some(1));
+        assert_exit_0_or_1(&r);
+        assert!(
+            r.out.lines().any(|l| l
+                == "FAIL e03: 期待 rejected:bad_arg_shape に対して結果は rejected:missing_arg"),
+            "{}",
+            r.out
+        );
+        assert!(
+            r.out.contains("誤入力: 2/3 が期待どおりの結果"),
+            "{}",
+            r.out
+        );
+    }
+}
+
+#[test]
+fn author4_playthrough_fail_line_has_actual_result() {
+    for f in ["a", "b"] {
+        let t = overlay(
+            &format!("base/format-{f}"),
+            &format!("v1/{f}/D09"),
+            &format!("t404-d09-line-{f}"),
+        );
+        let r = cli("test", &t.0);
+        assert_eq!(r.code, Some(1));
+        let line = r
+            .out
+            .lines()
+            .find(|l| l.starts_with("FAIL pt-main: 期待 "))
+            .unwrap_or_else(|| panic!("{}", r.out));
+        assert!(line.contains(" に対して結果は "), "{line}");
+        assert!(r.out.contains("模範解答: 0/1 完走"), "{}", r.out);
+    }
+}
+
+#[test]
+fn author4_test_diagnostics_after_summary() {
+    for (id, f, item, code) in [
+        ("D09", "a", "playthrough:pt-main", "E-PLAY-INCOMPLETE"),
+        ("D10", "b", "error_input:e03", "E-PLAY-CATEGORY-MISMATCH"),
+    ] {
+        let t = overlay(
+            &format!("base/format-{f}"),
+            &format!("v1/{f}/{id}"),
+            &format!("t404-diag-{id}"),
+        );
+        let r = cli("test", &t.0);
+        assert!(r.err.is_empty());
+        let lines: Vec<&str> = r.out.lines().collect();
+        let sum = lines
+            .iter()
+            .position(|l| l.starts_with("入力の総数: "))
+            .expect("summary");
+        let diags: Vec<&&str> = lines[sum + 1..].iter().collect();
+        assert_eq!(diags.len(), 1, "{}", r.out);
+        assert!(diags[0].starts_with("tests/"), "{}", diags[0]);
+        assert!(
+            diags[0].contains(&format!(": {item}: {code}: ")),
+            "{}",
+            diags[0]
+        );
+    }
+}
+
+#[test]
+fn author4_fail_line_for_end_not_reached_has_fixed_words() {
+    let t = min_with_ticks();
+    let base = fs::read_to_string(t.0.join("tests/playthrough.yaml")).expect("read");
+    t.put(
+        "tests/playthrough.yaml",
+        base.replace("end: main/st-2", "end: main/st-1").as_bytes(),
+    );
+    let r = cli("test", &t.0);
+    assert_eq!(r.code, Some(1), "{}", r.out);
+    assert!(
+        r.out
+            .lines()
+            .any(|l| l == "FAIL pt-min: 期待 end_step に対して結果は other_step（終わりの条件）"),
+        "{}",
+        r.out
+    );
+    assert!(!r.out.contains("main/st"), "{}", r.out);
+}
+
+#[test]
+fn author4_fail_line_does_not_echo_unsafe_values() {
+    let t = copy_min("t404-unsafe-fail");
+    t.put(
+        "tests/playthrough.yaml",
+        [
+            "playthroughs:",
+            "  - id: \"SECRET-X OK: y\"",
+            "    end: complete",
+            "    segments:",
+            "      - start: s-1",
+            "        steps:",
+            "          - {cmd: \"SECRET-CMD\", expect: accepted}",
+            "error_inputs:",
+            "  - id: \"SECRET-E NG: z\"",
+            "    start: s-1",
+            "    input: {cmd: \"SECRET-IN\", expect: \"rejected:missing_arg\"}",
+        ]
+        .join("\n")
+        .as_bytes(),
+    );
+    let r = cli("test", &t.0);
+    assert_eq!(r.code, Some(1), "{}", r.out);
+    assert!(!r.out.contains("SECRET"), "{}", r.out);
+    assert!(r.out.contains("FAIL #1: 期待 "), "{}", r.out);
+    assert!(
+        r.out.contains("FAIL #1: 期待 rejected:missing_arg"),
+        "{}",
+        r.out
+    );
+    assert_exit_0_or_1(&r);
 }
