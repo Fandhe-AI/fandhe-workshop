@@ -1,0 +1,8 @@
+id: GUIDE2-2
+package: fandhe-workshop-pack
+test: hint_hidden_runtime
+target: crates/pack/src/guidance.rs
+find:             for level in GuidanceLevel::ALL {
+replace:             for level in [GuidanceLevel::A, GuidanceLevel::B] {
+expect-fail: agrees_on_synthetic_packs
+note: E-HINT-HIDDEN の検査が水準 C を見落とす（実行時の一覧が空になる組と食い違う）

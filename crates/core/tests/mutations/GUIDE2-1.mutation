@@ -1,0 +1,8 @@
+id: GUIDE2-1
+package: fandhe-workshop-core
+test: hint_select
+target: crates/core/src/hint_select.rs
+find:         Some(uid) => hints_at(ir, uid, run.guidance_level),
+replace:         Some(uid) => hints_at(ir, uid, GuidanceLevel::A),
+expect-fail: the_list_changes_with_the_level
+note: 現在の案内レベルを無視して常に水準 A の一覧を返す
