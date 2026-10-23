@@ -1,0 +1,8 @@
+id: MOD9-3
+package: fandhe-workshop-core
+test: restore_call_step_owner
+target: crates/core/src/checkpoint.rs
+find:             owner: Some(crate::instance::owner_of(ir, &current)),
+replace:             owner: Some({ let _ = ir; crate::instance::root_of(&current) }),
+expect-fail: restore_returns_call_step_status_with_owner
+note: 保存の持ち主を呼び出しの Step の scope の根にする（X6 相当。呼び出しの Step の状態が持ち主と一緒に戻らない）

@@ -16,6 +16,12 @@
 //! 1 周目は `pt-r1` の入力列で流す（`play_round1`）。未実装の部品のため、次の 3 か所は `GoTo` で飛ばす。
 //! (a) `st-2-5` の着地の `on_enter`（結果の文書を書く）、(b) `when` つき `next` の評価（`st-4-1`・`st-5-1` へ入る）、
 //! (c) `wait` の Step での処理中の開始（`st-7-2`）。記録は `docs/testing.md` の 5.260。
+//!
+//! TASK-241 2/2 として、復帰の範囲のうち世界状態と呼び出しの Step の持ち主を確かめる（`mod9_restore_reverts_owner_world_*`・
+//! `mod9_restore_returns_call_step_status_with_owner`。記録は `docs/testing.md` の 5.262）。1 周目の世界状態の書き込みは、
+//! `wait` の処理中が未実装で `prs/pr-1-a` が作られないため、1 周目の `st-2-1` への `GoTo` と入力（`ideas/bbs-with-login/README.md`
+//! の `status` の書き換え）で代替する。案内レベルを戻すことの確認は、`Begin` が開始点の `guidance` を反映しない（TASK-294）ため
+//! core の試験（`restore_owner_slice`）が受け持つ。
 
 mod common;
 #[path = "common/sha256.rs"]
@@ -625,7 +631,7 @@ fn mod5_round1_slice_hashes_match_between_round1_end_and_round2_end() {
 }
 
 // ---- TASK-241 1/2: 持ち主の根の切り身と位置だけを戻す復帰（MOD-9。記録は docs/testing.md の 5.261）----
-// 世界状態・`global_flags`・案内レベルは暫定で写しの値になるため、ここでは表明しない（TASK-241 2/2）。
+// 世界状態・`global_flags`・案内レベルの戻り方は TASK-241 2/2（`mod9_*` の後半）が確かめる。
 // (ii-b) は `wait` の Step で処理中が始まらないため、1 周目の Step への `GoTo` で 1 周目の切り身を変える代替にした。
 // 入力で届かない `issue-to-merge@round2` の `st-7-1` は `GoTo` で飛ぶ。
 
@@ -741,4 +747,171 @@ fn mod9_restore_to_round1_checkpoint_keeps_round2_progress() {
     assert_eq!(r2_before, r2_after);
     assert_eq!(s.slice(&owner), Some(&owner_slice));
     assert_eq!(s.state().run.current, pos);
+}
+
+// ---- TASK-241 2/2: 世界状態・呼び出しの Step の復帰範囲（MOD-9。記録は docs/testing.md の 5.262）----
+
+/// 保存の後（ログの位置 `since` 以降）に `Changed` が書いた経路を、宛先の持ち主の根ごとに集める。
+fn changed_paths(s: &Session, since: usize) -> Vec<(Root, String)> {
+    let ir = s.ir();
+    s.state()
+        .log
+        .iter()
+        .skip(since)
+        .filter_map(|e| match e {
+            Event::Changed { at, path, .. } => Some((owner_of(ir, &at.step), path.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn mod9_restore_reverts_owner_world_paths_and_keeps_round1_world() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let mut s = play_round1(&ir);
+    begin_round2(&mut s);
+    round2_inputs_to_st24(&mut s);
+    let owner = cur_root(&s);
+    let world_at_save = s.state().run.world.clone();
+    save_op(&mut s);
+    let since = s.state().log.len();
+    let mut ev = Vec::new();
+    // 持ち主（2 周目の `idea-cycle`）の入力が結果の文書を書く。
+    input(&mut s, &mut ev, Input::Choice("cand-session".into()));
+    // 1 周目の宛先の `Changed`（1 周目の README の status の書き換え）。
+    go(&mut s, &mut ev, &ir, &r1, "st-2-1");
+    input(
+        &mut s,
+        &mut ev,
+        Input::Command("/new-idea bbs-with-login".into()),
+    );
+    input(
+        &mut s,
+        &mut ev,
+        Input::Ui {
+            view: "v-files".into(),
+            path: "ideas/bbs-with-login/README.md".into(),
+        },
+    );
+    let written = changed_paths(&s, since);
+    let owner_paths: Vec<&String> = written
+        .iter()
+        .filter(|(r, _)| *r == owner)
+        .map(|(_, p)| p)
+        .collect();
+    let r1_paths: Vec<&String> = written
+        .iter()
+        .filter(|(r, _)| r1.contains(r))
+        .map(|(_, p)| p)
+        .collect();
+    assert!(
+        !owner_paths.is_empty(),
+        "owner must write a path: {written:?}"
+    );
+    assert!(
+        !r1_paths.is_empty(),
+        "round 1 must write a path: {written:?}"
+    );
+    assert!(owner_paths.iter().all(|p| !r1_paths.contains(p)));
+    let world_before = s.state().run.world.clone();
+    let r1_hashes: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    restore_op(&mut s);
+    let world_after = &s.state().run.world;
+    for p in &owner_paths {
+        assert_eq!(world_after.get(*p), world_at_save.get(*p), "owner path {p}");
+    }
+    for p in &r1_paths {
+        assert_eq!(
+            world_after.get(*p),
+            world_before.get(*p),
+            "round 1 path {p}"
+        );
+    }
+    assert_ne!(
+        world_after, &world_before,
+        "the owner paths must be reverted"
+    );
+    let after_hashes: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
+    assert_eq!(r1_hashes, after_hashes);
+}
+
+#[test]
+fn mod9_restore_returns_call_step_status_with_owner() {
+    let ir = ir();
+    let mut s = play_round1(&ir);
+    begin_round2(&mut s);
+    round2_inputs_to_st24(&mut s);
+    let owner = cur_root(&s);
+    // 呼び出しの Step は実体の表から引く（uid を直書きしない）。
+    let call = StepUid(
+        ir.instances
+            .iter()
+            .find(|i| i.id == owner.0)
+            .and_then(|i| i.caller.clone())
+            .expect("caller of the owner instance"),
+    );
+    assert_eq!(owner_of(&ir, &call), owner);
+    // 呼び出しの Step の状態は呼ばれた実体の切り身にあり、持ち主の復帰で一緒に戻る。現在の Step が呼び出しの Step そのものに
+    // なる場面は `GoTo` でも入力でも作れない（着地先は呼ばれた実体の最初の Step）ので、保存の持ち主を呼ばれた実体の根にする
+    // 規則（変異 X6 の否定）は core の `restore_call_step_owner` が手組みの状態で確かめる。
+    let at_save = s.step_status(&call);
+    assert_eq!(at_save, StepStatus::Entered);
+    let (r2, _) = round_roots(&ir, "s-r2");
+    let other: Vec<_> = r2.iter().filter(|r| **r != owner).collect();
+    save_op(&mut s);
+    // 周回の終わりまで進める。`exit_to` が呼び出しの Step を達成にする。
+    let mut ev = Vec::new();
+    let ui = |v: &str, p: &str| Input::Ui {
+        view: v.into(),
+        path: p.into(),
+    };
+    let ap = |d: Decision, t: Option<&str>| Input::Approval {
+        decision: d,
+        target: t.map(Into::into),
+    };
+    input(&mut s, &mut ev, Input::Choice("cand-session".into()));
+    go(&mut s, &mut ev, &ir, &r2, "st-2-6");
+    input(&mut s, &mut ev, ap(Decision::Revise, Some("expect")));
+    input(&mut s, &mut ev, ap(Decision::Approve, None));
+    input(&mut s, &mut ev, ui("v-tasks", "TASK-1"));
+    input(&mut s, &mut ev, Input::Choice("ans-login-1".into()));
+    input(&mut s, &mut ev, ap(Decision::Approve, None));
+    input(
+        &mut s,
+        &mut ev,
+        ui("v-doc", "ideas/bbs-search/README.md#status"),
+    );
+    assert!(current(&s).ends_with("/st-3-2"), "at: {}", current(&s));
+    assert_eq!(s.step_status(&call), StepStatus::Achieved);
+    let other_before: Vec<_> = other.iter().map(|r| s.slice(r).cloned()).collect();
+    restore_op(&mut s);
+    assert_eq!(s.step_status(&call), at_save);
+    let other_after: Vec<_> = other.iter().map(|r| s.slice(r).cloned()).collect();
+    assert_eq!(other_before, other_after);
+}
+
+#[test]
+fn mod9_round1_checkpoint_restore_does_not_revert_round2_start_world() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let mut s = play_round1(&ir);
+    let mut ev = Vec::new();
+    go(&mut s, &mut ev, &ir, &r1, "st-7-3");
+    save_op(&mut s);
+    let since = s.state().log.len();
+    begin_round2(&mut s);
+    round2_inputs_to_st24(&mut s);
+    let written = changed_paths(&s, since);
+    assert!(!written.is_empty(), "round 2 must write world paths");
+    let world_before = s.state().run.world.clone();
+    restore_op(&mut s);
+    for (root, path) in &written {
+        assert!(!r1.contains(root), "{root:?} {path}");
+        assert_eq!(
+            s.state().run.world.get(path),
+            world_before.get(path),
+            "round 2 path {path}"
+        );
+    }
 }

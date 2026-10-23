@@ -139,7 +139,7 @@ pub struct Checkpoint {
     pub entry: Option<EntryCopy>,
     /// 保存時点のログの長さ。
     pub log_len: u32,
-    /// 持ち主の根（無ければ `None`）。
+    /// 保存時に `owner_of` で決めた持ち主の根（呼び出しの Step なら呼ばれた実体の根。無ければ `None`）。
     pub owner: Option<Root>,
 }
 
@@ -314,7 +314,7 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         // 保存と復帰は `checkpoint`（TASK-214 1/3）。保存は世代を変えず、復帰は成功したときだけ +1 になる（`apply` の関門）。
         // 保存が成功し、現在の Step が保存を入力とする宣言（`env_action`）なら受付にする（TASK-64 1/2、PACK-34）。
         Op::Control(Control::Save) => {
-            let mut events = checkpoint::on_save(state);
+            let mut events = checkpoint::on_save(ir, state);
             if events
                 .iter()
                 .any(|e| matches!(e, Event::CheckpointSaved { .. }))
@@ -323,7 +323,7 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
             }
             events
         }
-        Op::Control(Control::Restore(id)) => checkpoint::on_restore(state, id),
+        Op::Control(Control::Restore(id)) => checkpoint::on_restore(ir, state, id),
         // ヒントを 1 段開く操作と上限・Step 無しでの拒否は `hint_open`（TASK-295、GUIDE-17）。世代は変わらない（`Keep`）。
         Op::Control(Control::OpenHint) => hint_open::on_open_hint(ir, state),
         // 次の周回の開始は `begin`（TASK-237 1/2）。開始条件は状態に触れる前に評価し、世代は成功したときだけ +1 になる。

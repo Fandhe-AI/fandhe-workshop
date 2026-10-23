@@ -1,0 +1,8 @@
+id: MOD9-2
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/checkpoint.rs
+find:     for path in touched {
+replace:     run.world = cp.run.world.clone(); for path in touched {
+expect-fail: mod9_restore_reverts_owner_world_paths_and_keeps_round1_world
+note: 復帰が世界状態を写し全体へ戻す（X5 相当。持ち主が書いていない経路まで巻き戻る）

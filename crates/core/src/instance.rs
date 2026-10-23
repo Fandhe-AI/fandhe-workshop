@@ -10,7 +10,7 @@
 //!
 //! # 扱わないこと
 //!
-//! - 復帰の範囲のうち、呼び出しの Step の持ち主（[`owner_of`]）への切り替え（TASK-241 2/2）。`Projection` は IR を持たない
+//! - `Projection` は IR を持たないので、復帰の復習の根は [`root_of`] で引く（呼び出しの Step で保存したときだけ core の持ち主と食い違う）
 //! - 根の定義（最後の `/` か最初の `/` か。#1413）。変えると `CONTRACT_VERSION` の版上げになる
 //!
 //! # 根の 2 つの概念（MOD-3、TASK-235 1/2）
@@ -52,7 +52,7 @@ pub fn root_of(uid: &StepUid) -> Root {
 ///
 /// `Instance::caller` がこの Step の `uid` である実体があれば、IR の順で最初のその実体の根を返す。無ければ [`root_of`] と同じ。
 /// 1 回の線形探索でたどらないので、巡回・重複を含む IR でも止まり決定的である（全域）。
-/// 呼び出し元は `transit`・`accept`・`confirm`・`env_input`・`Session` の書き読みで、web の読み取りもこれを通す。
+/// 呼び出し元は `transit`・`accept`・`confirm`・`env_input`・`checkpoint`・`Session` の書き読みで、web の読み取りもこれを通す。
 pub fn owner_of(ir: &Ir, uid: &StepUid) -> Root {
     owner_in(&ir.instances, uid)
 }
