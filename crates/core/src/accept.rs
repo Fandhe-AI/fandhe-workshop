@@ -70,6 +70,7 @@ use crate::confirm;
 use crate::effect::{apply_effects, NoConditions};
 use crate::event::{Cause, Event};
 use crate::input::Input;
+use crate::instance;
 use crate::judge::{judge_input, judged_event, JudgeDetail};
 use crate::session::{Busy, RunState, SessionState};
 use crate::step_status::StepStatus;
@@ -300,8 +301,8 @@ fn accept(
     choice: Option<String>,
     at: &Stamp,
 ) -> Vec<Event> {
-    let root = uid.root();
-    let slice = run.slices.entry(root.clone()).or_default();
+    let root = instance::root_of(uid);
+    let slice = instance::slice_mut(run, root.clone());
     slice.status.insert(uid.clone(), StepStatus::Accepted);
     if let Some(id) = choice {
         slice.choices.insert(uid.clone(), id);

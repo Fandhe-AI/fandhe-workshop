@@ -7467,3 +7467,11 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-22。Linux・Chromium）: 上の native 試験とブラウザ試験 19 件が通った。`modifier-key-hint`・`element-identity`・`csp-runs` は変更なしで通った。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 - 確かめないこと: 実機の Edge・Safari・Firefox での確認。UA を Playwright で差し替えた代理である。
 - 限界・範囲外: `docs/known-gaps.md` の SHELL-30。IR の拒否の画面では通知欄を描かないため案内も出ない（TASK-545・TASK-546）。
+
+### 5.247 学習モジュールの実体ごとの状態の読み出し（TASK-233 1/2。MOD-1）
+
+- 目的: 同じ定義の Step が、`Session` の状態の上でも実体ごとに別の Step の実体として扱われ、片方の状態・フラグがもう片方へ漏れないことを固定する。
+- 決定: 状態の型・直列化の形は変えず、読み取り専用の `instance` モジュールと `Session::instances`・`slice`・`step_status`・`steps_of` を足した。根の決め方は `instance::root_of` の 1 か所に寄せ、中身は従来の `StepUid::root` のままにした。呼び出しの Step の持ち主の規則（`Instance.caller`）は書き込みと読み出しが一緒に変わる必要があるため入れず、TASK-235・TASK-241 が `root_of` を差し替える。`CONTRACT_VERSION` は据え置いた。
+- 試験: `crates/core/tests/module_instances.rs`（手元で組んだ 2 実体の IR。列挙・Step の実体の分離・移動後の非干渉・フラグの非漏洩・不正な根と uid への全域性）、`crates/pack/tests/module_instances_session.rs`（`module-reuse-rounds` の IR。実体の列挙、round1 と round2 の Step の実体が同数で uid が全部違うこと、片方へ入っても他方が `NotStarted` のままで切り身の鍵が混ざらないこと）。
+- 実行結果（2026-10-23。Linux）: 上の native 試験 8 件が通った。既存の試験は無改変で通る（最終の確認は PR の CI）。
+- 範囲外: 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、web の `slices.get(&uid.root())` の直書きの置き換え、実体数・Step の実体数・開始数の照合（TASK-233 2/2）。
