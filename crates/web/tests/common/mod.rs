@@ -10,13 +10,71 @@
 
 use std::path::PathBuf;
 
+/// `cs[i]` から始まる文字列・生文字列・バイト列・文字リテラルの直後の位置を返す。リテラルでなければ None。
+///
+/// 生文字列は開始時の `#` の数に一致する終端（`"` と同数の `#`）まで読む。ライフタイム（`'a`）と
+/// 生識別子（`r#name`）はリテラルとしない。
+pub fn literal_end(cs: &[char], i: usize) -> Option<usize> {
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let c = *cs.get(i)?;
+    if i > 0 && is_id(cs[i - 1]) {
+        return None;
+    }
+    // `b"..."`・`br#"..."#`・`b'x'` の `b` を飛ばす。
+    let j = if c == 'b' { i + 1 } else { i };
+    match cs.get(j)? {
+        '"' => {
+            let mut k = j + 1;
+            while k < cs.len() && cs[k] != '"' {
+                k += if cs[k] == '\\' { 2 } else { 1 };
+            }
+            Some((k + 1).min(cs.len()))
+        }
+        'r' => {
+            let mut n = 0;
+            while cs.get(j + 1 + n) == Some(&'#') {
+                n += 1;
+            }
+            if cs.get(j + 1 + n) != Some(&'"') {
+                return None;
+            }
+            let mut k = j + 2 + n;
+            while k < cs.len() {
+                if cs[k] == '"' && (1..=n).all(|m| cs.get(k + m) == Some(&'#')) {
+                    return Some(k + 1 + n);
+                }
+                k += 1;
+            }
+            Some(cs.len())
+        }
+        '\'' => {
+            if cs.get(j + 1) == Some(&'\\') {
+                let mut k = j + 3;
+                while k < cs.len() && cs[k] != '\'' {
+                    k += 1;
+                }
+                Some((k + 1).min(cs.len()))
+            } else if cs.get(j + 2) == Some(&'\'') {
+                Some(j + 3)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 /// コメント（`//` は行末まで、`/* */` は入れ子を数えて）を空白に置き換える。改行は残す。
+/// 文字列・生文字列・文字リテラルの中の `//` や `/*` はコメントとして削らず、そのまま残す。
 pub fn strip_comments(src: &str) -> String {
     let b: Vec<char> = src.chars().collect();
     let mut out = String::new();
     let mut i = 0;
     while i < b.len() {
-        if b[i] == '/' && b.get(i + 1) == Some(&'/') {
+        if let Some(e) = literal_end(&b, i) {
+            out.extend(&b[i..e]);
+            i = e;
+        } else if b[i] == '/' && b.get(i + 1) == Some(&'/') {
             while i < b.len() && b[i] != '\n' {
                 i += 1;
             }
@@ -166,18 +224,28 @@ pub fn wasm_layer_sources() -> Vec<(String, String)> {
         .collect()
 }
 
-/// コメントを除いたコードから `r#` を除き、空白を「識別子どうしの間の 1 個」だけ残して詰める（TASK-206）。
+/// コメントを除いたコードから生識別子の `r#` を除き、空白を「識別子どうしの間の 1 個」だけ残して詰める（TASK-206）。
 ///
 /// `normalize` は空白を全部除くため `&mut World` が `&mutWorld` になり、識別子の境界を判定できない。
 /// こちらは `&mut World` を保ち、`. world (` のような記号まわりの空白だけを詰める。
 pub fn spaced(code: &str) -> String {
-    let src = strip_comments(code).replace("r#", "");
+    let src = strip_comments(code);
     let is_id = |c: char| c.is_alphanumeric() || c == '_';
     let chars: Vec<char> = src.chars().collect();
     let mut out = String::new();
     let mut i = 0;
     while i < chars.len() {
-        if chars[i].is_whitespace() {
+        if let Some(e) = literal_end(&chars, i) {
+            // リテラルは中身をそのまま残す（生文字列の `r#` を壊さない）。
+            out.extend(&chars[i..e]);
+            i = e;
+        } else if chars[i] == 'r'
+            && chars.get(i + 1) == Some(&'#')
+            && !(i > 0 && is_id(chars[i - 1]))
+        {
+            // 生識別子（`r#update`）の `r#` を除く。
+            i += 2;
+        } else if chars[i].is_whitespace() {
             let prev = out.chars().next_back();
             while i < chars.len() && chars[i].is_whitespace() {
                 i += 1;
@@ -214,35 +282,21 @@ pub fn count_ident(hay: &str, needle: &str) -> usize {
 
 /// `start` 以降の最初の `{` から対応する `}` までを返す。対応が取れなければ None。
 ///
-/// 文字列（`"..."`・`r"..."`）と文字リテラル（`'{'`・`'\''`）の中の波括弧は深さに数えない。
+/// 文字列（`"..."`・`r#"..."#`）と文字リテラル（`'{'`・`'\''`）の中の波括弧は深さに数えない（`literal_end`）。
 /// 数えると `let s = "}";` で範囲が早く閉じ、その後ろの禁止参照を見逃す。ライフタイム（`'a`）は文字リテラルとしない。
 pub fn block_from(code: &str, start: usize) -> Option<&str> {
     let open = start + code[start..].find('{')?;
     let cs: Vec<(usize, char)> = code[open..].char_indices().collect();
-    let at = |k: usize| cs.get(k).map(|(_, c)| *c);
+    let chars: Vec<char> = cs.iter().map(|(_, c)| *c).collect();
     let mut depth = 0usize;
     let mut k = 0;
     while k < cs.len() {
+        if let Some(e) = literal_end(&chars, k) {
+            k = e;
+            continue;
+        }
         let (i, c) = cs[k];
         match c {
-            '"' => {
-                // 直前が `r`（か `#`）なら生文字列として扱い、バックスラッシュを特別扱いしない。
-                let raw = k > 0 && (at(k - 1) == Some('r') || at(k - 1) == Some('#'));
-                k += 1;
-                while k < cs.len() && cs[k].1 != '"' {
-                    k += if !raw && cs[k].1 == '\\' { 2 } else { 1 };
-                }
-            }
-            '\'' => {
-                if at(k + 1) == Some('\\') {
-                    k += 2;
-                    while k < cs.len() && cs[k].1 != '\'' {
-                        k += 1;
-                    }
-                } else if at(k + 2) == Some('\'') {
-                    k += 2;
-                }
-            }
             '{' => depth += 1,
             '}' => {
                 depth = depth.checked_sub(1)?;

@@ -600,6 +600,11 @@ fn 負例_文字列と文字リテラルの波括弧で切り出しが閉じず_
         "let c = '}';",
         r"let c = '\'';",
         "let s: &'static str = \"{\";",
+        r#"let s = "http://x}";"#,
+        r#"let s = "/*}";"#,
+        r##"let s = r#"/"}}"#;"##,
+        r###"let s = r##"a"#}"##;"###,
+        r#"let s = br"}";"#,
     ] {
         let mut files = base();
         let parts = files.iter_mut().find(|(n, _)| n == ENGINE_PARTS).unwrap();
@@ -611,6 +616,23 @@ fn 負例_文字列と文字リテラルの波括弧で切り出しが閉じず_
             "{lit} の後ろの禁止参照を検出できない"
         );
     }
+}
+
+#[test]
+fn 負例_リテラル中の斜線で検出が止まらず_生識別子は除く() {
+    let mut files = base();
+    let parts = files.iter_mut().find(|(n, _)| n == ENGINE_PARTS).unwrap();
+    parts.1.push_str(
+        "\nimpl LogPart { fn extra(model: &HostModel) { let s = \"http://x\"; let _ = model.world(); } }\n",
+    );
+    assert!(
+        !violations(&files).is_empty(),
+        "リテラル中の // で検出が止まる"
+    );
+    assert_eq!(
+        spaced(r#"let u = "http://a"; r#type"#),
+        r#"let u="http://a";type"#
+    );
 }
 
 #[test]
