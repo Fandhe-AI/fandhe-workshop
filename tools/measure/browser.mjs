@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh から呼ばれる）。
+// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
 // 配信は tools/serve.mjs の startServer（127.0.0.1 固定）を使い、外部へ通信しない。
+// log-redraw（TASK-223 1/2。EVT-24）は redraw とは別の量で、ログが 100〜119 項目の状態での「隠し要素の click 1 回の同期的な処理」
+// （イベントの委譲・状態の更新・DOM への反映）を測る。出典は docs/spec/03-poc/engine-event-consistency/env.md。値は既定の最小教材
+// （min-3step）のもので、教材全体を代表しない。閾値（16ms）を超えても失敗にせず値を出す（合否は記録の文書に書く）。
+// ブラウザは FANDHE_BROWSER_CHANNEL=chrome で Chrome の原本にできる（基準端末 A での人の測定用）。
 // 条件の出典は docs/spec/02-poc-plan.md §7（CPU 減速なし、下り・上り 10Mbps、遅延 40ms、キャッシュ無効、1 条件 10 回）。
 //
 // 終了コード: 0 = 成功 / 1 = 測定の失敗、または前提の欠如（playwright・Chromium が無い） / 2 = 誤用。
@@ -15,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -25,6 +29,17 @@ const GZIP_LEVEL = 9; // wasm-size.sh の gzip -9 とレベルを揃える
 const REDRAW_SAMPLES = 20;
 const REDRAW_BATCH = 200;
 const NAV_TIMEOUT_MS = 60000;
+
+// log-redraw の条件。拒否される入力 1 回でログが 2 件増える（受信と拒否）ため、100 から始めて 10 操作で 118 までに収まる。
+// 1 試行 10 操作 × 20 試行 = 計 200 値（EVT-24 の「1 条件 10 試行 × 20 操作」と値の数を揃える）。
+const LOG_OP = { input: { command: '/make-note Bad_Name' } };
+const LOG_DELTA = 2;
+const LOG_WINDOW = [100, 119];
+const LOG_START = 100;
+const LOG_TRIALS = 20;
+const LOG_SAMPLES = 10;
+const LOG_THRESHOLD_US = 16000;
+const LOG_START_STEP = 'main/st-1';
 
 // 中央値。偶数件は中央 2 値の平均（PoC の measure-poc1.mjs と同じ定義）。
 export function median(values) {
@@ -46,6 +61,24 @@ export function toMicros(ms, label = 'value') {
   const us = Math.round(ms * 1000);
   if (!Number.isFinite(us) || us < 1) throw new Error(`${label} rounds to 0 us (got ${ms} ms)`);
   return us;
+}
+
+// ブラウザの種類。tools/browser/harness.mjs の resolveLaunchOptions と同じ許可リスト（chromium|chrome）。そちらは playwright を
+// 静的に import するため、playwright が無いときの案内を出せるよう、ここでは同じ規則を持つ。chrome が無ければ起動の失敗にする（fail-closed）。
+export function resolveLaunchOptions(env = process.env) {
+  const c = env.FANDHE_BROWSER_CHANNEL === undefined || env.FANDHE_BROWSER_CHANNEL === '' ? 'chromium' : env.FANDHE_BROWSER_CHANNEL;
+  if (c !== 'chromium' && c !== 'chrome') throw new Error(`unsupported browser channel: ${JSON.stringify(c)} (allowed: chromium, chrome)`);
+  return c === 'chrome' ? { channel: 'chrome' } : {};
+}
+
+// 目標のログの長さまで、時間を測らない操作を何回行うか。割り切れない・戻る向きは失敗（想定外の状態で測らない）。
+export function planFill(current, target, delta) {
+  if (![current, target, delta].every(Number.isInteger) || delta < 1 || current < 0) {
+    throw new Error(`invalid fill plan inputs: ${current}, ${target}, ${delta}`);
+  }
+  const diff = target - current;
+  if (diff < 0 || diff % delta !== 0) throw new Error(`cannot reach log length ${target} from ${current} in steps of ${delta}`);
+  return diff / delta;
 }
 
 function progress(msg) {
@@ -242,6 +275,100 @@ async function measureRedraw(browser, dir) {
   }
 }
 
+// ページ内の 1 試行。固定の関数と数値・固定の JSON だけを受け取る。ログを start まで時間を測らずに埋め、samples 回の click を 1 回ずつ測る。
+// 測るのは el.click() の直前と直後の performance.now() の差だけ（Playwright の境界をまたがない）。
+// 各操作の直後に、ログの長さが窓の中で想定どおり増え、ログの li が同期的に同じだけ増え、[data-list-error] が無いことを確かめる。
+async function logRedrawInPage({ op, delta, win, start, samples, startStep }) {
+  const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
+  const el = document.querySelector('[data-testid="raw-trigger"]');
+  const list = document.querySelector('[data-testid="part-log-list"]');
+  if (!el || !list) throw new Error('raw-trigger or part-log-list is missing');
+  const rows = () => list.querySelectorAll(':scope > li').length;
+  const first = st();
+  if (first.current !== startStep) throw new Error(`unexpected start step ${first.current} (not the minimal pack?)`);
+  el.setAttribute('data-payload', JSON.stringify(op));
+  const fillCount = (start - first.logLen) / delta;
+  if (!Number.isInteger(fillCount) || fillCount < 0) throw new Error('cannot fill the log to the start length');
+  for (let i = 0; i < fillCount; i++) el.click();
+  if (st().logLen !== start) throw new Error(`log length is ${st().logLen} after filling (expected ${start})`);
+  const out = [];
+  for (let s = 0; s < samples; s++) {
+    const before = st().logLen;
+    const rowsBefore = rows();
+    if (before < win[0] || before > win[1]) throw new Error(`log length ${before} is outside the window`);
+    const t0 = performance.now();
+    el.click();
+    const t1 = performance.now();
+    const after = st().logLen;
+    if (after !== before + delta) throw new Error(`log grew by ${after - before} (expected ${delta})`);
+    if (rows() !== rowsBefore + delta) throw new Error(`log rows grew by ${rows() - rowsBefore} synchronously (expected ${delta})`);
+    if (document.querySelector('[data-list-error]')) throw new Error('a list limit notice appeared');
+    out.push(t1 - t0);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  const end = st();
+  if (end.logLen !== start + delta * samples || end.current !== startStep) throw new Error('unexpected end state');
+  return out;
+}
+
+async function measureLogRedraw(browser, dir) {
+  // 回線制限は掛けない。ブラウザ内の同期的な処理を測る。
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const all = [];
+    for (let i = 0; i < LOG_TRIALS; i++) {
+      const { context, page } = await newPage(browser, false);
+      try {
+        await page.addInitScript(installMountObserver);
+        await page.goto(srv.url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+        await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+        const state = await page.evaluate(() => ({
+          mounted: window.__mountedValue,
+          hooks: typeof window.__fandheTest?.stateJson === 'function',
+        }));
+        if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+        if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+        const samples = await page.evaluate(logRedrawInPage, {
+          op: LOG_OP, delta: LOG_DELTA, win: LOG_WINDOW, start: LOG_START, samples: LOG_SAMPLES, startStep: LOG_START_STEP,
+        });
+        if (!Array.isArray(samples) || samples.length !== LOG_SAMPLES) throw new Error('unexpected sample count');
+        all.push(...samples);
+        progress(`log-redraw trial ${i + 1}/${LOG_TRIALS}: median ${(median(samples) * 1000).toFixed(1)} us`);
+      } finally {
+        await context.close();
+      }
+    }
+    const p95us = toMicros(p95(all), 'log redraw p95');
+    progress(`log-redraw p95 ${p95us} us (threshold ${LOG_THRESHOLD_US} us): ${p95us <= LOG_THRESHOLD_US ? 'within' : 'over'}`);
+    return {
+      measurements: [
+        { name: 'log_redraw_median', unit: 'us', value: toMicros(median(all), 'log redraw median') },
+        { name: 'log_redraw_p95', unit: 'us', value: p95us },
+        { name: 'log_redraw_max', unit: 'us', value: toMicros(Math.max(...all), 'log redraw max') },
+      ],
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 1,
+        trials: LOG_TRIALS,
+        samples_per_trial: LOG_SAMPLES,
+        op: 'input /make-note Bad_Name (rejected; hidden raw-trigger click)',
+        log_delta: LOG_DELTA,
+        log_window: LOG_WINDOW,
+        threshold_p95_us: LOG_THRESHOLD_US,
+        base: BASE,
+        scope_note: 'minimal pack (min-3step); not representative of a full pack',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
 async function main() {
   let values;
   try {
@@ -255,8 +382,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if ((values.kind !== 'first-paint' && values.kind !== 'redraw') || !values.dir) {
-    console.error('error: --kind (first-paint|redraw) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -272,18 +399,26 @@ async function main() {
     process.exit(1);
   }
 
+  let launchOptions;
+  try {
+    launchOptions = resolveLaunchOptions();
+  } catch (e) {
+    console.error(`error: ${e.message}`);
+    process.exit(2);
+  }
+
   let browser;
   try {
     try {
-      browser = await chromium.launch();
+      browser = await chromium.launch(launchOptions);
     } catch {
       console.error('error: could not launch Chromium');
       console.error('fix: npm ci && npx playwright install chromium');
       process.exit(1);
     }
-    const run = values.kind === 'first-paint' ? measureFirstPaint : measureRedraw;
-    const result = await run(browser, values.dir);
-    result.browser = `chromium ${browser.version()}`;
+    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw };
+    const result = await runs[values.kind](browser, values.dir);
+    result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;
     result.playwright = playwrightVersion;
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (e) {

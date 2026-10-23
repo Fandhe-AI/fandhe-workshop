@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { median, p95, toMicros } from './browser.mjs';
+import { median, p95, toMicros, planFill, resolveLaunchOptions } from './browser.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
 
@@ -47,6 +47,25 @@ test('toMicros: rejects values that round to 0 or are not finite', () => {
   assert.throws(() => toMicros(Number.NaN));
 });
 
+test('planFill: counts the untimed operations to reach the target', () => {
+  assert.equal(planFill(0, 100, 2), 50);
+  assert.equal(planFill(100, 100, 2), 0);
+});
+
+test('planFill: rejects unreachable targets and bad inputs', () => {
+  assert.throws(() => planFill(0, 101, 2));
+  assert.throws(() => planFill(102, 100, 2));
+  assert.throws(() => planFill(0, 100, 0));
+  assert.throws(() => planFill(0.5, 100, 2));
+});
+
+test('resolveLaunchOptions: chromium by default, chrome by channel, anything else throws', () => {
+  assert.deepEqual(resolveLaunchOptions({}), {});
+  assert.deepEqual(resolveLaunchOptions({ FANDHE_BROWSER_CHANNEL: '' }), {});
+  assert.deepEqual(resolveLaunchOptions({ FANDHE_BROWSER_CHANNEL: 'chrome' }), { channel: 'chrome' });
+  assert.throws(() => resolveLaunchOptions({ FANDHE_BROWSER_CHANNEL: 'msedge' }));
+});
+
 function run(args) {
   return spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8' });
 }
@@ -65,6 +84,12 @@ test('cli: missing --dir exits 2', () => {
 
 test('cli: unknown --kind exits 2', () => {
   const r = run(['--kind', 'other', '--dir', '.']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
+
+test('cli: log-redraw without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'log-redraw']);
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
 });
