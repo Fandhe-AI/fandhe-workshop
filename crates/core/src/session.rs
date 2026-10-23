@@ -216,7 +216,7 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         .iter()
         .any(|e| matches!(e, Event::TransitionLimitReached { .. }))
     {
-        match crate::transit::return_after_limit(&mut state, &run_before, &entry_before) {
+        match crate::transit::return_after_limit(ir, &mut state, &run_before, &entry_before) {
             crate::transit::LimitReturn::Halted => {}
             crate::transit::LimitReturn::Restored => {
                 if was_busy {
@@ -304,12 +304,12 @@ fn step(ir: &Ir, state: &mut SessionState, op: Op) -> Vec<Event> {
         // 宛先が一致する進行の前進と食い違う進行の無視の記録は `tick`（TASK-210 2/3・3/3）。世代は変えない（1/3、`apply` の関門）。
         Op::Tick(addr) => tick::on_tick(ir, state, addr),
         // 処理中の停止と入口の写しへの復帰は `stop`（TASK-211 1/2）。世代は +1 になる（`apply` の関門が上限を守る）。
-        // 処理中でない停止は取り消しの入力 `Input::Cancel` として扱う（TASK-212、EVT-10）。`stop` は教材を読まない
+        // 処理中でない停止は取り消しの入力 `Input::Cancel` として扱う（TASK-212、EVT-10）。`stop` は教材から実体の表だけを読む
         // 不変条件を保つため、分岐はここで行う。世代は変わらない（`apply` の関門）。
         Op::Control(Control::Stop) if state.run.busy.is_none() => {
             accept::on_input(ir, state, Input::Cancel)
         }
-        Op::Control(Control::Stop) => stop::on_stop(state),
+        Op::Control(Control::Stop) => stop::on_stop(ir, state),
         // 移動は `go_to`（TASK-213 1/2）。世代は +1 になり、入口の写しは無効化する（着地の無効化は `transit`。MOD-10）。
         Op::Control(Control::GoTo(to)) => go_to::on_go_to(ir, state, to),
         // 保存と復帰は `checkpoint`（TASK-214 1/3）。保存は世代を変えず、復帰は成功したときだけ +1 になる（`apply` の関門）。

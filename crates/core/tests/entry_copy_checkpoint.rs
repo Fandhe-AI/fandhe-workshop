@@ -8,7 +8,7 @@
 //!   通し番号 `next_checkpoint` は `Session` で 1 つである
 //! - 任意の操作列でも I-1 と通し番号の規則が保たれる（性質テスト。統計は出力だけで assert しない）
 //!
-//! 範囲外（TASK-242 2/2）: 停止が世界状態を「写しの後に持ち主が書いた経路だけ」戻すこと。
+//! 停止が世界状態を「写しの後に持ち主が書いた経路だけ」戻すことは `tests/stop_owner_slice.rs`（TASK-242 2/2）。
 //! 変異の定義は `tests/mutations/MOD10-1.mutation`。呼び出し元は CI の `make test` のみ。
 
 mod common;

@@ -51,7 +51,9 @@
 //! 教材（IR）を読まない。ログ・チェックポイントは保存から読んだ信頼できない値でありうるため、食い違いは
 //! 導かない側に倒す（A04）。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+
+use crate::addr::Root;
 
 use crate::event::Event;
 use crate::input::CheckpointId;
@@ -86,24 +88,62 @@ pub(crate) fn stored_or_derived(
     }
 }
 
-/// 入口の写しの `run` を戻し先として使うとき、現在の Step の根以外の切り身は `keep`（いまの実行状態）のまま残す。
+/// `since` の `Changed` のうち、宛先の持ち主が `owner` のものの経路を集める（MOD-10）。
 ///
-/// 写しは保存時点の `run` 全体（復帰の後はチェックポイントの `run`）で、他の根の切り身は古い。そのまま戻すと、
-/// 復帰が残した他の根の進行が停止で保存時点まで巻き戻る（MOD-9）。戻すのは現在の Step の根の切り身と位置だけにする。
-/// 写しが保存済みの `entry` でもログから導いたものでも同じ規則で適用する。
-pub(crate) fn keep_other_roots(
-    mut entry_run: RunState,
+/// 停止・復帰・上限で止めた後の戻しが、世界状態のどの経路を写しの値へ戻すかを決める共有の規則である。
+/// 宛先の持ち主は実体の表から引く（[`crate::instance::owner_in`]）。宛先の無い（空の Step の）`Changed` は
+/// 持ち主と一致しないので含めない。原因（`Cause`）は問わない。ログを 1 回走査するだけで、決定的である。
+pub(crate) fn owner_touched_paths<'a>(
+    since: &'a [Event],
+    instances: &[fandhe_workshop_contract::ir::Instance],
+    owner: &Root,
+) -> BTreeSet<&'a str> {
+    since
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { at, path, .. }
+                if crate::instance::owner_in(instances, &at.step) == *owner =>
+            {
+                Some(path.as_str())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `keep`（いまの実行状態）を起点に、持ち主 `owner` の分だけを写し `copy` の値へ戻した実行状態を返す（MOD-10）。
+///
+/// 戻すのは、持ち主の根の切り身（写しに無ければ取り除く）・`current`・`busy`・`completed`・案内レベル・
+/// `touched` の経路の世界状態（写しに無ければ取り除く）である。他の根の切り身・`touched` 以外の経路・
+/// `global_flags`・世代は `keep` のまま残す。世代と `busy` は呼び出し側が決め直す。
+/// 停止（[`crate::stop`]）・復帰（[`crate::checkpoint`]）・上限で止めた後の戻し（[`crate::transit`]）が共有し、
+/// 規則の分岐を防ぐ。
+pub(crate) fn revert_owner(
     keep: &RunState,
-    current: &crate::addr::StepUid,
+    copy: &RunState,
+    owner: &Root,
+    touched: &BTreeSet<&str>,
 ) -> RunState {
-    let owner = crate::instance::root_of(current);
-    entry_run.slices.retain(|root, _| *root == owner);
-    for (root, slice) in &keep.slices {
-        if *root != owner {
-            entry_run.slices.insert(root.clone(), slice.clone());
+    let mut run = keep.clone();
+    run.slices.remove(owner);
+    if let Some(slice) = copy.slices.get(owner) {
+        run.slices.insert(owner.clone(), slice.clone());
+    }
+    run.current = copy.current.clone();
+    run.busy = copy.busy.clone();
+    run.completed = copy.completed;
+    for path in touched {
+        match copy.world.get(*path) {
+            Some(v) => {
+                run.world.insert((*path).to_string(), v.clone());
+            }
+            None => {
+                run.world.remove(*path);
+            }
         }
     }
-    entry_run
+    run.guidance_level = copy.guidance_level;
+    run
 }
 
 /// ログを末尾から逆にたどり、処理中の現在の Step の受付の時点の `run` を組み立てる（モジュールの規則 1〜5）。
