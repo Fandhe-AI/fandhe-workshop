@@ -2,7 +2,7 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 8）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 10）で、本モジュールは同じ内容のコード側の写しである。
 //! `vocab` の出力の形（ヘッダ・行・集計行・教材パック全体の行）は版 5 で足した（TASK-408）。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
@@ -12,8 +12,8 @@
 //! `metrics` の出力の形（ヘッダ・行・`TOTAL`）は版 4 で足した（TASK-402）。
 //!
 //! 診断 1 行の欄の分け方は `diag::Diagnostic` の Display が持ち、出し先（診断と最終行は標準出力、使い方と
-//! 使い方の誤りは標準エラー出力）は `cli` が守る。`validate` への最終行の結線は `cli::run_validate`（TASK-403）が行い、`test` の最終行と
-//! 集計は TASK-404・TASK-405 の担当で、本モジュールは `validate` の最終行の形と `compare` の結果行だけを持つ。
+//! 使い方の誤りは標準エラー出力）は `cli` が守る。`validate` への最終行の結線は `cli::run_validate`（TASK-403）が行い、`test` の模範解答の PASS の行は
+//! 版 10 で足した（TASK-404 2/3）。`test` の FAIL の行・集計・最終行は TASK-404 3/3・TASK-405 の担当である。
 
 use std::fmt;
 
@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 9;
+pub const CLI_CONTRACT_VERSION: u32 = 10;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -221,6 +221,16 @@ pub fn final_line(line: &FinalLine) -> String {
     }
 }
 
+/// `test` の模範解答 1 本が完走したことを示す PASS の行（AUTHOR-4、TASK-404 2/3）。
+///
+/// 呼び出し元は `cli::run_test` で、合格した模範解答ごとに 1 行書く。`id` は教材テストの読み取りが
+/// `safe_ident` を通したもの（通らなければ位置の `#n`）だけを渡す前提で、本関数は値を写すだけにする。
+/// `inputs` は流した入力の数（`tick` の進行を含み、開始点の切り替えは含まない）。
+/// ID と全角括弧の間に空白は置かない（04 の書き方。PoC の資料の空白は採らない）。
+pub fn test_pass_line(id: &str, inputs: usize) -> String {
+    format!("PASS {id}（入力 {inputs} 件）")
+}
+
 /// `compare` の一致の行。
 pub fn compare_same_line(len: usize) -> String {
     format!("OK: IR が一致しました（{len} バイト）")
@@ -328,6 +338,17 @@ pub fn vocab_summary_lines(i: usize, ii: usize, per_ep: &[(&str, usize)]) -> Vec
 /// `vocab` の教材パック全体の行。`field` は `pack.profile` のような固定の欄名で、教材データの値は写さない。
 pub fn vocab_pack_line(ep_id: &str, field: &str) -> String {
     format!("# {ep_id} を使った（教材パック全体）: {field}")
+}
+
+#[cfg(test)]
+mod test_line_tests {
+    use super::*;
+
+    #[test]
+    fn pass_line_shape() {
+        assert_eq!(test_pass_line("pt-main", 2), "PASS pt-main（入力 2 件）");
+        assert_eq!(test_pass_line("#1", 0), "PASS #1（入力 0 件）");
+    }
 }
 
 #[cfg(test)]
