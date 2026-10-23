@@ -510,7 +510,7 @@ impl Projection {
             Event::Restored { log_len, owner, .. } => {
                 self.push_row(i, event);
                 self.clear_pending();
-                self.restore_review(i, *log_len, &owner.root());
+                self.restore_review(i, *log_len, &crate::instance::root_of(owner));
             }
         }
     }
@@ -807,7 +807,7 @@ impl Projection {
         let others: Vec<ReviewItem> = self
             .review
             .iter()
-            .filter(|r| &r.step.root() != own)
+            .filter(|r| &crate::instance::root_of(&r.step) != own)
             .cloned()
             .collect();
         // 持ち主の根の項目は控えから、他の根の項目は復帰の時点の復習から取る。
@@ -816,7 +816,7 @@ impl Projection {
                 .map(|items| {
                     items
                         .iter()
-                        .filter(|r| &r.step.root() == own)
+                        .filter(|r| &crate::instance::root_of(&r.step) == own)
                         .cloned()
                         .collect()
                 })

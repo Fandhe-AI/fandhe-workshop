@@ -85,7 +85,7 @@ pub fn answer_offers(session: &Session) -> Vec<Offer> {
     let awaiting = state
         .run
         .slices
-        .get(&uid.root())
+        .get(&fandhe_workshop_core::instance::root_of(uid))
         .and_then(|s| s.status.get(uid))
         .is_some_and(|st| *st == StepStatus::Accepted);
     if !awaiting {
@@ -121,7 +121,7 @@ pub fn input_choice_offers(session: &Session) -> Vec<Offer> {
     let entered = state
         .run
         .slices
-        .get(&uid.root())
+        .get(&fandhe_workshop_core::instance::root_of(uid))
         .and_then(|s| s.status.get(uid))
         .is_some_and(|st| *st == StepStatus::Entered);
     if !entered {
@@ -169,7 +169,7 @@ pub fn approval_offers(session: &Session) -> Vec<ApprovalOffer> {
     let Some(status) = state
         .run
         .slices
-        .get(&uid.root())
+        .get(&fandhe_workshop_core::instance::root_of(uid))
         .and_then(|s| s.status.get(uid))
     else {
         return Vec::new();
