@@ -7,7 +7,7 @@
 //!
 //! TASK-235 2/2 として、2 周目を入力で終えた後も 1 周目の切り身が 2 周目の開始の前と同じで、1 周目のフラグが
 //! 2 周目の実体の切り身で立たないことも確かめる。2 周目の入力列は `pt-rounds` の `s-r2` の区間と同じである。
-//! 次の 2 か所は後続の部品が未実装のため、入力で進めず `GoTo` で飛ばす（`docs/testing.md` の 5.258）。
+//! 開始は `Control::Begin` で行う。次の 2 か所は後続の部品が未実装のため、入力で進めず `GoTo` で飛ばす（`docs/testing.md` の 5.258）。
 //! (1) 遷移先の `on_enter` の効果を適用しない（`idea-cycle@round2` の結果の文書が世界状態に無い）ので、
 //! `st-2-5` の手前から `st-2-6` へ飛ぶ。(2) `wait` の Step で処理中が始まらないので、`st-7-2` から `st-7-4` へ飛ぶ。
 //! 2 周目の終了は、最後の Step の達成と呼び出し元の達成で判定する（`ChapterCompleted` は未実装）。
@@ -141,8 +141,18 @@ fn second_round_starts_with_only_the_current_and_call_steps_entered() {
     let (r1, _) = round_roots(&ir, "s-r1");
     let (r2, call_node) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
-    // `Control::Begin`（TASK-237 1/2）が実装されたら、`GoTo` を `Begin` に置き換えて同じ表明を流し直す。
-    s.apply(Op::Control(Control::GoTo(StepUid(call_node.clone()))));
+    let before: Vec<_> = r1.iter().map(|r| s.slice(r).cloned()).collect();
+    let events = s.apply(Op::Control(Control::Begin("s-r2".into()))).to_vec();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::Begun { .. }))
+            .count(),
+        1,
+        "{events:?}"
+    );
+    let after: Vec<_> = r1.iter().map(|r| s.slice(r).cloned()).collect();
+    assert_eq!(before, after, "round 1 slices unchanged by Begin");
     let current = s.state().run.current.clone().expect("current");
     let all = steps(&ir, &r2);
     let entered: Vec<&StepUid> = all
@@ -201,7 +211,7 @@ fn current(s: &Session) -> String {
     s.state().run.current.clone().expect("current").0
 }
 
-/// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `GoTo`（`Control::Begin` は TASK-237 1/2）。
+/// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `Control::Begin`（TASK-237 1/2）。
 /// 入力列は `pt-rounds` の `s-r2` の区間。飛ばす 2 か所の理由は冒頭の `//!` に書いた。
 fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root], call_node: &str) -> Vec<Event> {
     let mut events = Vec::new();
@@ -216,7 +226,8 @@ fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root], call_node: &str) -> Vec<
         decision: d,
         target: t.map(Into::into),
     };
-    ev.extend_from_slice(s.apply(Op::Control(Control::GoTo(StepUid(call_node.into())))));
+    let _ = call_node;
+    ev.extend_from_slice(s.apply(Op::Control(Control::Begin("s-r2".into()))));
     input(s, ev, cmd("/new-idea bbs-search"));
     input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
     input(
@@ -337,4 +348,77 @@ fn second_round_end_matches_the_playthrough_asserts() {
     assert_eq!(st(&r2, "st-5-1"), StepStatus::NotStarted);
     assert_eq!(st(&r2, "st-7-4"), StepStatus::Achieved);
     assert_eq!(st(&r2, "st-2-8"), StepStatus::Achieved);
+}
+
+/// `s-r2-fresh` は前の周回なしで 2 周目を始める開始点で、`effects` の `put` の経路だけが世界状態に入る（TASK-237 1/2）。
+#[test]
+fn begin_fresh_start_writes_exactly_the_start_effects() {
+    let ir = ir();
+    let start = ir
+        .starts
+        .iter()
+        .find(|s| s.id == "s-r2-fresh")
+        .expect("start")
+        .clone();
+    let mut s = Session::new(ir.clone());
+    let events = s
+        .apply(Op::Control(Control::Begin("s-r2-fresh".into())))
+        .to_vec();
+    assert!(
+        matches!(events.first(), Some(Event::Begun { .. })),
+        "{events:?}"
+    );
+    let mut expected: Vec<String> = start
+        .effects
+        .iter()
+        .filter_map(|v| v.get("put").and_then(|p| p.get("path")))
+        .filter_map(|p| p.as_str().map(str::to_owned))
+        .collect();
+    expected.sort();
+    assert_eq!(expected.len(), 13, "{expected:?}");
+    let mut changed: Vec<String> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { path, cause, .. } => {
+                assert_eq!(*cause, fandhe_workshop_core::event::Cause::Start);
+                Some(path.to_string())
+            }
+            _ => None,
+        })
+        .collect();
+    changed.sort();
+    assert_eq!(changed, expected);
+    assert!(s.state().run.current.is_some());
+}
+
+/// 開始条件を満たさない Begin は `Refused` 1 件で状態を変えない（最小の確認。詳細は TASK-240）。
+#[test]
+fn begin_with_unmet_condition_is_refused_without_change() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let mut s = finished_round1(&ir, &r1);
+    let impl_step = step_in(&ir, &r1, "r1-impl");
+    let owner = owner_of(&ir, &impl_step);
+    let mut state = s.state().clone();
+    state
+        .run
+        .slices
+        .entry(owner)
+        .or_default()
+        .status
+        .insert(impl_step, StepStatus::Entered);
+    s = Session::from_state(ir.clone(), state);
+    let before = s.state().run.clone();
+    let events = s.apply(Op::Control(Control::Begin("s-r2".into()))).to_vec();
+    assert!(
+        matches!(
+            events.as_slice(),
+            [Event::Refused {
+                reason: fandhe_workshop_core::event::RefuseReason::StartUnmet,
+                ..
+            }]
+        ),
+        "{events:?}"
+    );
+    assert_eq!(s.state().run, before);
 }

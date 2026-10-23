@@ -7630,3 +7630,11 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 変異注入: `MOD3-2`（`root_of` が周回の接尾を落として根を混ぜる）。2026-10-23 に `scripts/check-mutations.sh crates/pack/tests/mutations/MOD3-2.mutation` は DETECTED（期待した試験を含む 6 件が失敗）。
 - 範囲外: `when` つきの `next` の評価・着地の `on_enter`・`wait` の自動開始、`Control::Begin`、3 つのハッシュの一致（TASK-237）、`Checkpoint.owner` の範囲（TASK-241）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。
+
+### 5.259 次の周回の開始 `Control::Begin`（TASK-237 1/2。MOD-3・MOD-5）
+
+- 目的: 前の周回を終えた状態から、`Control::Begin` で新しい開始点の次の周回を始められることを固定する。
+- 決定: `crates/core/src/begin.rs` を足した。開始条件（`start_gate::check_start`）は状態に触れる前に評価し、満たさない・ID が無いときは `Refused` 1 件で状態を変えない。成功時は世代 +1、`Begun`、開始点の `effects`（原因 `Start`）、開始の節点への着地の順に進む。
+- 試験: `crates/core/tests/begin.rs`（`min-3step` で世代・`Begun` と `Entered` の順・不明な ID の不変・処理中と入口の写しの解除・下書きとヒントの引き継ぎ・3 つの入口の一致）、`crates/pack/tests/round_slice_init.rs`（`GoTo` を `Begin("s-r2")` に置き換えた既存 3 試験、`s-r2-fresh` の 13 経路が原因 `Start` で書かれること、開始条件を満たさない `s-r2` の拒否で状態が不変なこと）。
+- 限界: 飛ばした Step の `Skipped`（TASK-217）、`start.guidance` による案内の水準（TASK-294）、`${名前}` の置換（TASK-239）、入口の写しの作り直し（TASK-242、本件は `go_to` と同じく `None`）は扱わない。3 つの世界状態のハッシュの一致は TASK-237 2/2、拒否の完全な保証は TASK-240。変異注入は足していない。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
