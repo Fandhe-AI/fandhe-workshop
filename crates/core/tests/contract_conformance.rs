@@ -465,9 +465,17 @@ fn sample_stop_entry_matches_apply() {
         .iter()
         .find(|e| e.id == "e06")
         .expect("sample has e06");
+    // 停止は持ち主が写しの後に書いた経路だけを戻す（MOD-10）ので、経路を決めるログも添える。
+    // 実際の経路（e02・e04・e05）が記録した `Changed` を、その順に並べる。
+    let log: Vec<Event> = ["e02", "e04", "e05"]
+        .iter()
+        .filter_map(|id| s.entries.iter().find(|x| x.id == *id))
+        .flat_map(|x| x.events.clone())
+        .collect();
     let state = SessionState {
         run: e.before.clone(),
         entry: s.initial.entry.clone(),
+        log,
         ..SessionState::default()
     };
     let (next, events) = apply(&ir, state, e.op.clone());

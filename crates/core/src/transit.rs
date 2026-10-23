@@ -156,6 +156,7 @@ pub(crate) enum LimitReturn {
 /// 止めた操作が出した `Accepted` 等はログに残る（ログは追記だけ）。復習は `Projection` が
 /// `TransitionLimitReached` で操作の前の復習へ戻して Step の状態と揃える。
 pub(crate) fn return_after_limit(
+    ir: &Ir,
     state: &mut SessionState,
     run_before: &crate::session::RunState,
     entry_before: &Option<crate::session::EntryCopy>,
@@ -180,11 +181,25 @@ pub(crate) fn return_after_limit(
             &state.checkpoints,
         ) {
             Some(entry) => {
-                outcome = LimitReturn::RewoundToEntry;
-                // 現在の Step の根以外の切り身は、操作の前の値のまま残す（写しの他の根は古い。MOD-9）。
-                match run_before.current.as_ref() {
-                    Some(cur) => crate::entry_derive::keep_other_roots(entry.run, run_before, cur),
-                    None => entry.run,
+                // 持ち主の分だけを写しへ戻し、他は操作の前の値のまま残す（停止と同じ規則。MOD-10）。
+                // 経路は操作の前のログ（`entry.log_len` 以降）から集める。止めた操作の内側の変化は起点が
+                // `run_before` なので捨てられる。ログ位置が範囲外なら、一部だけ戻さず `busy` だけ空にする側へ倒す。
+                match run_before.current.as_ref().and_then(|cur| {
+                    let since = usize::try_from(entry.log_len)
+                        .ok()
+                        .and_then(|n| state.log.get(n..))?;
+                    let owner = crate::instance::owner_of(ir, cur);
+                    let touched =
+                        crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner);
+                    Some(crate::entry_derive::revert_owner(
+                        run_before, &entry.run, &owner, &touched,
+                    ))
+                }) {
+                    Some(run) => {
+                        outcome = LimitReturn::RewoundToEntry;
+                        run
+                    }
+                    None => run_before.clone(),
                 }
             }
             None => run_before.clone(),

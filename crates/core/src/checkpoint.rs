@@ -44,13 +44,11 @@
 //!
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
-//! - 停止の世界状態の実体単位の戻り方（TASK-242 2/2。入口の写しは Step に入るたびに置き換わり、保存が控える写しは無いか現在の Step のもの。TASK-242 1/2）。案内レベルの切り替えと開始点の反映（TASK-294）
+//! - 案内レベルの切り替えと開始点の反映（TASK-294）
 //! - 開始前の保存・復帰（TASK-217）、章の終わりの自動保存、保存の数の上限
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! ID は履歴由来の信頼できない値で、鍵としてだけ使う。`Warning` の文面は固定文で値を埋め込まない。
-
-use std::collections::BTreeSet;
 
 use fandhe_workshop_contract::ir::Ir;
 
@@ -144,39 +142,9 @@ pub(crate) fn on_restore(ir: &Ir, state: &mut SessionState, id: CheckpointId) ->
         .clone()
         .unwrap_or_else(|| crate::instance::owner_of(ir, &owner));
     // 保存の後に持ち主が書いた世界状態の経路。宛先の持ち主は実体の表から引く。
-    let touched: BTreeSet<&str> = since
-        .iter()
-        .filter_map(|e| match e {
-            Event::Changed { at, path, .. }
-                if crate::instance::owner_in(&ir.instances, &at.step) == owner_root =>
-            {
-                Some(path.as_str())
-            }
-            _ => None,
-        })
-        .collect();
-    let mut run = state.run.clone();
-    // 切り身は持ち主の根の 1 つだけを写しへ戻す。写しに無ければ取り除いたままにする。他の根は触れない。
-    run.slices.remove(&owner_root);
-    if let Some(slice) = cp.run.slices.get(&owner_root) {
-        run.slices.insert(owner_root, slice.clone());
-    }
-    // 位置は写しのもの。
-    run.current = cp.run.current.clone();
-    run.busy = cp.run.busy.clone();
-    run.completed = cp.run.completed;
-    // 世界状態は持ち主が書いた経路だけを写しの値へ戻す。`global_flags` は戻さない（復帰の直前のまま）。
-    for path in touched {
-        match cp.run.world.get(path) {
-            Some(v) => {
-                run.world.insert(path.to_string(), v.clone());
-            }
-            None => {
-                run.world.remove(path);
-            }
-        }
-    }
-    run.guidance_level = cp.run.guidance_level;
+    let touched = crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner_root);
+    // 持ち主の根の切り身・位置・世界状態の経路・案内レベルだけを写しへ戻す。他は復帰の直前のまま（`global_flags` を含む）。
+    let mut run = crate::entry_derive::revert_owner(&state.run, &cp.run, &owner_root, &touched);
     run.generation = next;
     state.run = run;
     state.entry = entry;

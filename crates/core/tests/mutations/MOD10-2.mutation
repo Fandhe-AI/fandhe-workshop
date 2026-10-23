@@ -1,0 +1,10 @@
+id: MOD10-2
+package: fandhe-workshop-core
+test: stop_owner_slice
+target: crates/core/src/stop.rs
+find:     let touched = crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner);
+replace:     let _ = since; let touched: std::collections::BTreeSet<&str> = entry.run.world.keys().chain(state.run.world.keys()).map(String::as_str).collect();
+expect-fail: stop_reverts_only_paths_written_by_owner
+expect-fail: derived_entry_keeps_other_root_writes
+expect-fail: stop_owner_properties
+note: 停止で世界状態を持ち主以外の経路まで写しの値へ戻す（写しを丸ごと戻す F-3 の変異 X2 相当。他の実体が書いた経路が巻き戻る。MOD-10）

@@ -274,6 +274,7 @@ rust|tests/start_requires.rs [start_requires]|passed=7|ignored=0
 rust|tests/state_paths.rs [state_paths]|passed=30|ignored=0
 rust|tests/static_limits.rs [static_limits]|passed=4|ignored=0
 rust|tests/step_status_contract.rs [step_status_contract]|passed=10|ignored=0
+rust|tests/stop_owner_slice.rs [stop_owner_slice]|passed=9|ignored=0
 rust|tests/stop_restore.rs [stop_restore]|passed=15|ignored=0
 rust|tests/stop_scene.rs [stop_scene]|passed=2|ignored=0
 rust|tests/storage_contract.rs [storage_contract]|passed=17|ignored=0
@@ -314,7 +315,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=318|passed=3400|ignored=3
+rust|total|binaries=319|passed=3409|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0
