@@ -5549,7 +5549,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 | D | 対照。実際の区画へ生の入力（XSS-01・XSS-07）を入れると、数え方が 0 でなく数える |
 
 - 確かめた数（CSP あり・なしとも）: 生の HTML の文字 66 箇所、代わりの文字になった外部の画像 3 件（XSS-20・26 を含む。下限は 2）
-- `ir/main.json` の取得は、IR の読み取りが上限で `reader.cancel()` を呼ぶため、応答 200 のまま `net::ERR_ABORTED` として `failed` に載ることがある。この 1 形（`ir/main.json` の ERR_ABORTED）だけを除いて通信を判定する。本文は描画済みである
+- `ir/main.json` の取得は、IR の読み取りが上限で `reader.cancel()` を呼ぶため、応答 200 のまま `net::ERR_ABORTED` として `failed` に載ることがある。この 1 形（`ir/main.json` の ERR_ABORTED）だけを除いて通信を判定する。本文は描画済みである（訂正: 原因の調査は 5.268。上限での `cancel()` は IR が小さいため呼ばれず、この説明は成り立たない。原因は未確定）
 - U+0000（XSS-47）は、試験の設定と配信する設定の経路で区画の `innerHTML` に残る・落ちるの差が出る。B は `textContent` から除いて比べ、C は HTML から除いて比べる
 - 手元の変異（空振りの防止）: 代替の文字の件数の期待を 1 ずらすと B（2 件）・C が失敗した（戻して再び通ることも確認）
 - 限界: 実行時の水準は常に A（`Control::SetGuidance` が未実装。TASK-294）で、B・C の本文の 49 件の確認は行っていない。49 件は網羅ではない。試験の作成者と実装の作成者が同じ AI である
@@ -6253,34 +6253,6 @@ glue の確認（2026-10-21、配信する設定のビルドの実物）: `wasm/
 - 名前の違う 2 か所のサブパスとルート配信は 5.196（3/3）で確かめた
 - `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
 
-### 5.196 名前の違うサブパス 2 か所とルート配信（TASK-106 3/3。DLV-2）
-
-同じ成果物（1 つの写しのディレクトリ）を 3 通りの配信で順に配り、どれにも同じ判定を流す。ビルド時に base を書き換えないこと（DLV-2）は、配信の前後で写しの全ファイルの sha256 が一致することで確かめる。判定と直接リンクは `tools/browser/delivery.mjs`（5.192・5.194）をそのまま使う。
-
-| 名前 | base | 意図 |
-|---|---|---|
-| A | `/fandhe-bases-a/` | サブパス 1 つめ。他の試験の base と重ならない |
-| B | `/another-repo-name/` | サブパス 2 つめ。A と長さ・文字が違う 1 段の名前（GitHub Pages のプロジェクトサイトを模す） |
-| root | `/` | ルート配信 |
-
-DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external・failed・httpErrors が 0 件）は `pageRequestProblems` が含む。
-
-試験（`tools/browser/delivery-bases.test.mjs`。4 件。配信物の写しに `fandhe-pack compile` の出力を `ir/main.json` として置く）:
-
-- base が互いに違い、A・B がルートでないこと（1 件）
-- 正（1 件）: 静的検査が 0 件。3 通りの base それぞれで、入口（`./ir/main.json`・`./icon.svg` が base の下に解決され 200、`window.__fandheTest` が無い）と直接リンク 10 件×2 形（query・hash）が `pageRequestProblems` で 0 件。全ページの要求の集合（base からの相対）が 1 通りで、配信の前後で写しの sha256 が一致する
-- 負の対照（実ブラウザ。入口の判定を [A, B, root] の順に並べて期待と比べる。静的検査が `root-absolute` を出すことも確かめる）2 件
-  - `./app.css` を `/app.css` にした写し: [不合格, 不合格, 合格]。ルート配信だけではルート絶対の参照を見逃す
-  - `./app.css` を `/fandhe-bases-a/app.css` にした写し（base を書き換えたときの形）: [合格, 不合格, 不合格]。サブパス 1 か所だけでは base に固定した参照を見逃す
-
-実測（2026-10-21、Chromium、配信する設定。`SKIP_WASM_OPT=1`）: 正の試験は約 35 秒、負の対照は 1 件あたり約 3.2 秒。ルート配信でも `/favicon.ico` の要求は起きず、除外は足していない。
-
-限界・未実施:
-
-- web は実行時に IR を取得しないため、「ちょうど 7 件（IR を含む）」は確かめていない。TASK-109・TASK-121 の後に取得資源へ含める
-- 直接リンクは配信の側の性質しか確かめない。章の開始点で開くこと（DLV-7）は TASK-110
-- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
-
 ### 5.195 通知の口の契約（TASK-511 2/2。SHELL-16・SHELL-17・SHELL-18・SHELL-20・SHELL-31）
 
 通知の種類 5 つ・通知の値 4 つ・通知欄の識別子・適合の検査器を、`shell` に版 1 のまま足した（2026-10-21、元にしたコミット bd475af）。版は上げない（1/2 の方針）。
@@ -6325,6 +6297,34 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - ホストの `decode_action` への `ShellAction` の結線と、通知欄の実際の描画・配置は画面のタスク（TASK-517・TASK-531〜TASK-534・TASK-545）が持つ。既存の `save-notice` を枠の通知欄へ寄せるかは TASK-534 が決める
 - 通知の文面と次の行動（SHELL-36）は TASK-516・TASK-549 が持つ。理由コードを列挙に結ぶのは TASK-516
 - 観察: `host.rs` の `ir-notice` は `role="status"` を持つが `a11y` の通知欄の一覧に無く、この画面に `a11y::check_no_undefined` を掛けると `status-on-non-notice` になる見込みである（未検証）。SHELL-31 を枠の通知 `pack-unloadable` へ移すのは TASK-545 の範囲
+
+### 5.196 名前の違うサブパス 2 か所とルート配信（TASK-106 3/3。DLV-2）
+
+同じ成果物（1 つの写しのディレクトリ）を 3 通りの配信で順に配り、どれにも同じ判定を流す。ビルド時に base を書き換えないこと（DLV-2）は、配信の前後で写しの全ファイルの sha256 が一致することで確かめる。判定と直接リンクは `tools/browser/delivery.mjs`（5.192・5.194）をそのまま使う。
+
+| 名前 | base | 意図 |
+|---|---|---|
+| A | `/fandhe-bases-a/` | サブパス 1 つめ。他の試験の base と重ならない |
+| B | `/another-repo-name/` | サブパス 2 つめ。A と長さ・文字が違う 1 段の名前（GitHub Pages のプロジェクトサイトを模す） |
+| root | `/` | ルート配信 |
+
+DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external・failed・httpErrors が 0 件）は `pageRequestProblems` が含む。
+
+試験（`tools/browser/delivery-bases.test.mjs`。4 件。配信物の写しに `fandhe-pack compile` の出力を `ir/main.json` として置く）:
+
+- base が互いに違い、A・B がルートでないこと（1 件）
+- 正（1 件）: 静的検査が 0 件。3 通りの base それぞれで、入口（`./ir/main.json`・`./icon.svg` が base の下に解決され 200、`window.__fandheTest` が無い）と直接リンク 10 件×2 形（query・hash）が `pageRequestProblems` で 0 件。全ページの要求の集合（base からの相対）が 1 通りで、配信の前後で写しの sha256 が一致する
+- 負の対照（実ブラウザ。入口の判定を [A, B, root] の順に並べて期待と比べる。静的検査が `root-absolute` を出すことも確かめる）2 件
+  - `./app.css` を `/app.css` にした写し: [不合格, 不合格, 合格]。ルート配信だけではルート絶対の参照を見逃す
+  - `./app.css` を `/fandhe-bases-a/app.css` にした写し（base を書き換えたときの形）: [合格, 不合格, 不合格]。サブパス 1 か所だけでは base に固定した参照を見逃す
+
+実測（2026-10-21、Chromium、配信する設定。`SKIP_WASM_OPT=1`）: 正の試験は約 35 秒、負の対照は 1 件あたり約 3.2 秒。ルート配信でも `/favicon.ico` の要求は起きず、除外は足していない。
+
+限界・未実施:
+
+- web は実行時に IR を取得しないため、「ちょうど 7 件（IR を含む）」は確かめていない。TASK-109・TASK-121 の後に取得資源へ含める
+- 直接リンクは配信の側の性質しか確かめない。章の開始点で開くこと（DLV-7）は TASK-110
+- `scripts/expected-test-counts.txt` は更新していない（版上げの前に `make update-test-counts` で更新する）
 
 ### 5.197 幅 960px 以上の 2 列の骨格（TASK-517 1/2。SHELL-1）
 
@@ -6371,6 +6371,22 @@ DLV-2 の組 0 の確認 6 項目（csp・pageErrors・consoleErrors・external�
 - 書き戻しは 0 ミリ秒のタイマーで非同期のため、それより速く打った場合の取りこぼしは観察も固定もしていない
 - `scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR だけで働く。更新は別の PR で `make update-test-counts`）
 
+### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
+
+直接リンクは IR を 1 つ（固定の `./ir/main.json`）に保ち、URL の `start` を IR の `starts` の ID と完全一致で照らして開始点を選ぶ（D-68。2026-10-21）。一致すればその開始点で開き、一致しなければ開かずに固定のコード（`start_unknown`・`start_missing`）だけの通知を出す。値は画面・タイトル・コンソール・保存先に出さない。履歴の鍵の開始点は URL の `start` が指す開始点に当たる（SAVE-14 の読み。指定なしは先頭の開始点なので既存の鍵は変わらない）。
+
+実装: `static/app.js` が `start` だけを読み（`new URLSearchParams(location.search).getAll("start")`。2 件以上は一致し得ない値に倒して断らせる）、`mount_app` の第 3 引数で渡す。照合は純関数 `crates/web/src/start_select.rs`（バイト単位の完全一致のみ。前方一致・大文字小文字の無視・正規化・復号をしない）、断ったホストは `EngineHost::refused_start`（session なし・鍵なし・保存先を開かない）、選んだ開始点は `EngineHost::with_session_at` で記録・鍵・起動の分岐に通る。通知の文言（`ir_notice.rs`）は仮置きである。
+
+- Rust の試験: `start_select.rs` の単体試験（指定なし・一致・不一致 14 形・開始点なし・コードに入力値が無い）、`test_fixture.rs` の単体試験（`start=` の対だけを取り除いた完全一致の選択と既存の否定が変わらないこと・開始点ごとの節点・不一致の拒否・鍵）、`crates/web/tests/start_link_host.rs`（3 件。通知がコードだけ・断ったホストが鍵を持たず保存済みの履歴を開かない・選んだ開始点が鍵に入り指定なしの鍵が従来と同じ）、`tick_interval.rs`（`app.js` の URL の読み取りをファイル・件数・形・読むキーで限定する例外を足した）
+- ブラウザの試験: `tools/browser/direct-link-start.test.mjs`（試験の設定。CSP あり・なしの 4 件）。開始点 3 件の教材（`?fixture=multi-start`）を、指定なし（先頭で新しく始まる）・各開始点（クエリの順序違いを含む）・一致しない値 10 形（未知の ID・`../` を含む 2 形・大文字違い・前方一致・末尾の空白・空・重複・センチネル・5,000 文字）で開く。一致で現在の Step が変わり、`s-1` の履歴は `start=s-4` で開かれず `start=s-1` で復元される。不一致は通知が 1 件・入力欄とログが 0 件・`irRefusal` が `start_unknown`・センチネルが DOM・タイトル・コンソールに 0 件・保存先の全体が断っている間も再読み込みの前後も不変・断った後も指定なしで履歴が開く・配信元以外への通信が 0 件・CSP 違反・ページ内エラーが 0 件
+- 配信する設定の `delivery-direct-links`・`delivery-bases` は、採らなかった hash の形を外して query の 1 形で流す（5.194・5.196 の「2 形」の記録は当時のもの）
+
+限界・申し送り:
+
+- 配信する設定の web は実行時に IR を取得しないため、`start` を受け取っても照合する IR が無く、画面は今までどおり（session なし）である。配信する設定で直接リンクが開始点で開くことは、`./ir/main.json` の実行時の取得と開始（`Control::Begin`・開始点からの初期状態の構築。TASK-217・TASK-294）が入った後でなければ確かめられない。本件では取得を実装していない
+- 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
+- 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` を読まないことの試験は 5.222（TASK-168）
+
 ### 5.200 拒否の後の下書きが選択状態になり連結されない（TASK-284 2/2。JUDGE-27・TERM-22。D-67）
 
 D-67（2026-10-21）で、拒否の後は拒否された下書きを入力欄に残し（JUDGE-5）、下書きの全体を選択状態にして、次に打った文字で置き換える（末尾に続けて入力されない）と確定した。選択の範囲は下書きの全体と読む。問い返しの後に空にする前半は 5.198（1/2）で固定済みで、本件は後半を実装した。
@@ -6411,23 +6427,101 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 接頭辞を読めずに残した下書き（拒否ではない）は選ばない
 - `scripts/expected-test-counts.txt` は更新していない（別の PR で `make update-test-counts`）。人の確認は扱わない
 
-### 5.199 開始点を指す直接リンク `?start=`（TASK-109 1/2。DLV-9・SAFE-7・SAFE-33・D-68）
+### 5.201 開始点の数を増やしても IR の合計と内容のハッシュが変わらない（TASK-109 2/2。DLV-9・D-68）
 
-直接リンクは IR を 1 つ（固定の `./ir/main.json`）に保ち、URL の `start` を IR の `starts` の ID と完全一致で照らして開始点を選ぶ（D-68。2026-10-21）。一致すればその開始点で開き、一致しなければ開かずに固定のコード（`start_unknown`・`start_missing`）だけの通知を出す。値は画面・タイトル・コンソール・保存先に出さない。履歴の鍵の開始点は URL の `start` が指す開始点に当たる（SAVE-14 の読み。指定なしは先頭の開始点なので既存の鍵は変わらない）。
+5.199 の直接リンクは IR を 1 つ（`ir/main.json`）に保つ。旧方式（PoC-10 の `make-start-irs.mjs`）は開始点ごとに `starts` の順を変えた写しを `ir/start-<id>.json` として配り、開始点の数だけ IR が複製され（20 開始点で約 1.8MB）、写しごとに内容のハッシュが別になった（F-1。別の章のリンクで「変換して開きました」が出た）。新方式のこの利点が崩れないことを回帰から守る。
 
-実装: `static/app.js` が `start` だけを読み（`new URLSearchParams(location.search).getAll("start")`。2 件以上は一致し得ない値に倒して断らせる）、`mount_app` の第 3 引数で渡す。照合は純関数 `crates/web/src/start_select.rs`（バイト単位の完全一致のみ。前方一致・大文字小文字の無視・正規化・復号をしない）、断ったホストは `EngineHost::refused_start`（session なし・鍵なし・保存先を開かない）、選んだ開始点は `EngineHost::with_session_at` で記録・鍵・起動の分岐に通る。通知の文言（`ir_notice.rs`）は仮置きである。
+定義: `content_hash`（`crates/contract/src/content_hash.rs`。版 1）は本文の木だけを除いた IR の SHA-256 で、`starts` を含む。開始点を足した教材（別の IR）のハッシュは変わるのが正しい。確かめるのは「同じ IR を別の開始点から開いたとき同じ」であり、「バイト数がまったく増えない」ではない（`starts` の項目の分は増える）。
 
-- Rust の試験: `start_select.rs` の単体試験（指定なし・一致・不一致 14 形・開始点なし・コードに入力値が無い）、`test_fixture.rs` の単体試験（`start=` の対だけを取り除いた完全一致の選択と既存の否定が変わらないこと・開始点ごとの節点・不一致の拒否・鍵）、`crates/web/tests/start_link_host.rs`（3 件。通知がコードだけ・断ったホストが鍵を持たず保存済みの履歴を開かない・選んだ開始点が鍵に入り指定なしの鍵が従来と同じ）、`tick_interval.rs`（`app.js` の URL の読み取りをファイル・件数・形・読むキーで限定する例外を足した）
-- ブラウザの試験: `tools/browser/direct-link-start.test.mjs`（試験の設定。CSP あり・なしの 4 件）。開始点 3 件の教材（`?fixture=multi-start`）を、指定なし（先頭で新しく始まる）・各開始点（クエリの順序違いを含む）・一致しない値 10 形（未知の ID・`../` を含む 2 形・大文字違い・前方一致・末尾の空白・空・重複・センチネル・5,000 文字）で開く。一致で現在の Step が変わり、`s-1` の履歴は `start=s-4` で開かれず `start=s-1` で復元される。不一致は通知が 1 件・入力欄とログが 0 件・`irRefusal` が `start_unknown`・センチネルが DOM・タイトル・コンソールに 0 件・保存先の全体が断っている間も再読み込みの前後も不変・断った後も指定なしで履歴が開く・配信元以外への通信が 0 件・CSP 違反・ページ内エラーが 0 件
-- 配信する設定の `delivery-direct-links`・`delivery-bases` は、採らなかった hash の形を外して query の 1 形で流す（5.194・5.196 の「2 形」の記録は当時のもの）
+- ブラウザの試験: `tools/browser/start-count-invariance.test.mjs`（5 件）
+  - (P1) 配信する設定。`min-3step-pack` の開始点 1 件と、`chapter.toml` に固定の文字列で 2 件足した 3 件の教材を compile し、それぞれ `ir/main.json` に置いた配信物の写しを作る。どちらも `inspectDeliveryRefs` が 0 件、IR のファイルが `ir/main.json` の 1 つだけ、`starts` の数が 1 と 3（空振り防止）、`starts` を除いた IR が一致、3 件の IR の大きさが 1 件の 2 倍未満（かつ増える）。指定なしと各 `?start=` を新しい文脈で開き、`pageRequestProblems` が 0 件、要求の種類が全ページ・両配信物で同じ（開始点ごとの資源が無い）
+  - (P1 対照) 3 件の配信物に旧方式の写し `ir/start-<id>.json`（`starts` の先頭を入れ替えたもの）を足すと、IR のファイルが 3 件増え、合計が 2 倍以上になり、静的な検査が「構成要素でないファイル」を 3 件出す
+  - (P2) 試験の設定（CSP あり・なしの 2 件）。開始点 3 件の 1 つの IR（`?fixture=multi-start`）を `start=s-1`・`s-4`・`s-7` で、新しい文脈ごとに開く。現在の節点が開始点の節点（空振り防止）で、1 手進めて保存させた履歴の `versions.content_hash` が 3 件とも同じ小文字 16 進 64 文字、`start` の欄・鍵は開始点ごとに違う
+  - (P2 対照) 開始点ごとに別の IR を配る `?fixture=chapter-a`・`?fixture=chapter-b` では `content_hash` が割れる（測り方に感度があることを示す）
+- Rust の試験: `crates/web/src/test_fixture.rs` の単体試験 2 件。同じ IR は指定なしと 3 開始点のどれで開いても `content_hash` が同じで、開いた開始点と節点の組が 3 通りある。旧方式を模した `starts` の先頭の入れ替えの写しは、`content_hash` が互いに違う
+- 出力の規則: 失敗の文・診断に IR の中身・鍵・ハッシュの値・履歴の中身を出さない（件数・真偽・記号名だけ）。一時ディレクトリは必ず消す
 
 限界・申し送り:
 
-- 配信する設定の web は実行時に IR を取得しないため、`start` を受け取っても照合する IR が無く、画面は今までどおり（session なし）である。配信する設定で直接リンクが開始点で開くことは、`./ir/main.json` の実行時の取得と開始（`Control::Begin`・開始点からの初期状態の構築。TASK-217・TASK-294）が入った後でなければ確かめられない。本件では取得を実装していない
-- 試験の設定の開始は、契約の試料の開始状態の節点を `starts` の節点に合わせて作る（`test_fixture::session_at`。`Session::from_state` の例外の 1 か所）。開始点の `effects` は適用しない
-- 開始点を増やしても IR の合計とハッシュが変わらない試験は TASK-109 2/2（#529）、章の開始点の再読み込み・往復（DLV-7・DLV-8）は TASK-110、`?ir=` を読まないことの試験は 5.222（TASK-168）
+- 配信する設定は実行時に IR を取得しないため、ハッシュは試験の設定の保存先でだけ確かめる。配信する設定の `ir/main.json` は `tools/build-web.sh` がそのまま入れる（`scripts/test-build-web.sh` が確かめる）ので、P1 は写しに置いて静的に検査する。配信する設定での開始点つきの取得とハッシュの照合は、TASK-217・TASK-294 の後
+- 開始点の数が違う 2 つの IR のハッシュの一致は確かめない（設計上違う）
 
-### 5.204 変換して開いたときの版の違いの通知（TASK-535 1/2・2/2。SHELL-20）
+### 5.202 承認の差し戻しの再承認を Step を分けて書く（TASK-62 1/2。PACK-32・D-69）
+
+1 Step の `approval` で承認 → 差し戻し → 再承認を表す語は足さないと決まった（D-69、2026-10-21）。この決定の下で、差し戻しの Step と再承認の Step を分けた教材が書けることを、`crates/pack/tests/approval_revise_split.rs` の `pack32_` の 4 件と実パック `crates/pack/tests/data/revise-split-pack` で固定する。
+
+- `validate` が診断 0 件で通ること。`pack.vocab` は `1.0` のままで、`E-VOCAB-MISMATCH` が出ない
+- `compile` した IR の承認の `input` が `{"kind":"approval"}` だけで、差し戻しの Step の `next` が再承認の Step を指すこと
+- IR を core の `Session` で動かし、差し戻しの Step での承認・却下の拒否、差し戻しでの達成と再承認の Step への移動、再承認の Step での差し戻し・却下の拒否、承認での達成と終端への移動、案の `state` が「差し戻し」から「承認済み」へ変わることを確かめる
+- 1 Step で再承認を表すつもりの欄（`reapprove: true`）を承認の `input` に足すと、`validate` と `compile` が `E-PARSE` になること（語を足していないことの対照）
+
+変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである（5.125 と同じ扱い）。`next` の `when` による枝分かれは、core が実行時に評価しないため範囲外とした。
+
+### 5.202b 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
+
+開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
+
+- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
+- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
+- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
+- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
+
+限界・申し送り:
+
+- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
+- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
+
+### 5.203 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
+
+幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
+
+要点:
+
+- 選択は表示の状態で、`ops`・履歴・保存先には書かない。再読み込みで既定（操作）に戻り、Step が変わっても捨てない。切り替えは保存を起こさない
+- `aria-selected`・`tabindex` は束縛では書けない（a11y 版 2）ので、`tablist` を keyed list にした。項目の root を `button[role=tab]` そのものにして、子の作り直しでフォーカスが失われないようにした。tabpanel と `.sh-panes` は静的なまま描き直さない（要素の同一性。FEND-3）
+- キーの action の `data-keys` に Esc を含める。keydown の属性は最も近い 1 つにしか届かず、含めないと tab にフォーカスがある Esc が root の Esc に届かず 0 回になる（FEND-6）。`data-keydown-prevent-default` は Esc にも掛かるが、ボタンの上の Esc に既定の動作は無い。Home・End はこれが無いとページを先頭・末尾へ動かす
+- 境目は 960px 以上の規則と補い合う `not all and (min-width: 960px)` にした（`max-width: 959px` だと小数の幅に穴が空く）。`hidden`・`aria-hidden` は 960px 以上で両方を見せる必要があるため使わない
+- 受け付けない payload は `None`（fail-closed）。`select-pane` は `PaneTab::id` の完全一致だけ、`pane-key` は矢印・Home・End・Escape だけを受ける
+
+試験:
+
+- Rust: `crates/web/tests/shell_frame_host.rs`（16 件。本件で 7 件追加）。keyed list の親・`data-pane`・キーの属性・項目の root、選択と dirty（`pane_tabs` だけ。同じ値では空）、`a11y::tab_key_target` に沿った巡回、`pane_tabs` が `data-bind-list` にあること、`decode_action` の許可と拒否、切り替えが Session に触れないこと、CSS の規則。`dirty_binding_points.rs` は `pane_tabs` を dirty にする列（`run_pane`）を足し、`no_hidden_triggers.rs` は `shell_frame.rs` の `data-payload` の使用を許可の表に足した
+- ブラウザ: `tools/browser/shell-tabs.test.mjs`（9 件）は 959px・360px で、tablist の表示・tab の大きさ（24px 以上）・既定は操作だけが見えること、クリック、矢印・Home・End（`keydown` の `defaultPrevented`）、Alt+ArrowRight で変わらない対照、試験の設定で tab にフォーカスがある Esc が `escCount` でちょうど 1 回であること、959px→960px→959px の境目を確かめる。`tools/browser/shell-widths.test.mjs`（4 件）は 1280px・960px・959px・360px で CH-0 から CH-1 の 6 Step（`main/st-1-1`〜`st-1-6`）を通して `main/st-2-1` に入るまで進める。960px 未満では操作の前に要るタブをクリックし、959px・360px で 6 回切り替えた。台帳は 4 幅とも 30/30。`shell-columns.test.mjs` の 959px の対照は、隠れた側の矩形が 0 になって空振りで通る「縦に積む」の判定をやめ、見える領域がちょうど 1 つであることに直した
+- 変異: SHELL1-4（`find` を新しい行に合わせた）・SHELL1-6（矢印・Home・End が修飾キーつきとして扱われる）・SHELL1-7（Escape を root の Esc に結ばない）・SHELL1-8（操作を選んだときに成果物の領域が隠れない）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
+- `make test-browser`: 807 件のうち 805 件が通った（2026-10-21）。失敗 2 件の内訳は、`tick-dispatch`（`data-payload` を持つ要素を指せる行だけに限っていた検査に `select-pane` を許可して直した。修正後に単独で通過）と、`secret-scan-time` の dense（10MB の保存の p95。単独で再実行すると通過し、p95 は 287ms で、全件を流している間の負荷による揺れと見ている。推測）である。修正後の全件の流し直しは未実施である。`esc-once` の 1 件も 1 回目の全件実行で失敗したが、単独の再実行では 22 件とも通った（再現せず）
+
+限界・申し送り:
+
+- キーで切り替えると、選んだタブへフォーカスも移す（ホストの要求の通知先を glue が受け、描画の後に `focus()` する。`glue_contract` の呼び出しの表に `focus` を `Click` として足した。分類の整理は `docs/known-gaps.md` A11Y-5）。ブラウザ試験が、移ったことと Enter で選択が戻らないことを確かめる
+- 既定のタブと Step をまたぐ保持は仮置きである（SHELL-2 が未決）。変化があった側の印は SHELL-5 の担当である
+- CH-1 から始める直接リンクが無い（TASK-109）ため、CH-1 の 6 Step は CH-0 から通して確かめた
+- 360px の横スクロールと 24px 未満の操作対象は TASK-518・TASK-368 の担当で、assert せず `shell-widths` の diagnostic に件数だけを残す（2026-10-21 の実測は、横スクロール 0px・24px 未満の対象 1 件。4 幅とも同じ）
+- 960px 以上で tabpanel の役割が 2 つ残ることの読み上げは A11Y-21 の担当である。右の領域の `aria-label` とライブの欄（tabpanel の外に置く）は TASK-450 の担当である
+
+### 5.204 直接リンク 10 件と再読み込みの状態（TASK-110 1/2。DLV-7・D-68）
+
+DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開くと章 X の開始点の Step と状態で開き、再読み込みしても同じ章・同じ状態になることを求める。PoC-10 は決定の前の形（`?ir=` と開始点ごとの IR）で 10 件を確かめただけで、D-68 の `?start=` の形では未確認だった。これを試験の設定（`TEST_HOOKS=1`）の画面で確かめる。
+
+- 教材: `?fixture=ch0-3-links`（`crates/web/src/test_fixture.rs` の `ch03_links_ir_bytes`）。20 Step の通しの教材の `starts` を 10 件に書き換え、`pack.id` を `ch0-3-links` にした IR を実行時に作る。`ch0_3/ir.json` は変えない。10 件の ID と節点は `CH03_LINK_POINTS` で、ブラウザ試験のリンクの表（`delivery.mjs` の `DIRECT_LINKS`）と揃える
+- ブラウザの試験: `tools/browser/direct-link-reload.test.mjs`（CSP あり・なしで各 3 件）
+  - (T1) 10 件それぞれを新しい文脈で開く。保存先が空であること、現在の節点が開始点の節点で、その単位が `DIRECT_LINKS` の章と一致すること、状態が入った直後（`entered`・導出の状態なし・状態の語が空・処理中でない・通知なし）であること、再読み込みの後も同じ状態で、操作が無いので保存先が空のままであること、配信元以外への通信・ページ内エラー・CSP 違反・コンソールのエラーが 0 件であること
+  - (T2) リンク 1 を開き、選択肢 `opt-right` を実クリックして「受付済み（確認待ち）」にし、保存を待ってから再読み込みする。履歴が復元され、同じ節点・同じ状態・同じ Step ごとの状態・同じ状態の語で開く
+  - (対照) 10 件の期待の節点が互いに異なり、`start` なしで開いた節点は 10 件のうち 9 件と違う（`start` を無視する誤りなら 9 件が落ちる）。開始点が 1 件の `?fixture=ch0-3` に `start=s-2-1` を付けると `start_unknown` で断られる
+- Rust の試験: `test_fixture.rs` の単体試験。`?fixture=ch0-3-links` の選択（`start` の併用と余分なキー）と、10 件それぞれで開く節点・鍵が 10 通りに分かれること・未知の ID と 1 件の教材の断り
+- 期待の題・章: 実行時に `ch0_3/ir.json` から節点の単位と題を引き、リンク 1 の題（`画面の右側を選ぶ`）を固定の文字列の錨にして読み取りの空振りを防ぐ
+- 出力の規則: 失敗の文にリンクの番号・真偽・件数だけを出し、鍵・履歴の中身を出さない
+
+実行の記録（2026-10-21）: ローカルで Chromium により 6 件が通った。`start` を無視する改変での落ち方の手元の確認は行っていない（各リンクの現在の節点を 1 件ずつ照合するため、無視すれば 9 件が落ちる設計である。確認は未実施）。
+
+限界・申し送り:
+
+- 配信する設定は実行時に IR を取得しないため、DLV-7 は試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
+- Step の題は DOM に出ていない（TASK-525）ため、現在の節点と IR の題の対応で判定した。TASK-525 の後に DOM の題の照合を足す
+- 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
+- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.206 を参照）。本件の `?fixture=ch0-3-links` を使える
+- 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
+
+### 5.204b 変換して開いたときの版の違いの通知（TASK-535 1/2・2/2。SHELL-20）
 
 版の違いを変換して開いたときに、枠の通知欄（`shell-notice`）へ通知を 1 件出す。実装は `crates/web/src/shell_notice.rs`（通知欄の描画。keyed list `shell_notices`）・`crates/web/src/host.rs`（表示の状態 `version_notice`、`dismiss-notice` の action）である。判定は core の `history_open` のままで、web は条件を複製しない。
 
@@ -6459,100 +6553,6 @@ glue の行数: `MAX_GLUE_CODE_LINES` を 491 から 509 に上げた（5.166 �
 - 他の通知の種類の移設と書き出し・読み込みの結線は TASK-516・TASK-531 などの担当である
 - 開く側のエンジンの上書き（`openingOverride`。V-iv-1 など）を使う行は 2/2 の対象外である。保存の `engine` は実物の版になり、上書きした版にはならない（試験の口の限界。配信する設定には上書きが無い）
 - 変異注入の定義は足していない
-
-### 5.203 幅 960px 未満のタブの切り替え（TASK-517 2/2。SHELL-1・A11Y-5）
-
-幅 960px 未満（959px・360px）で、選んだタブの領域だけを表示し、クリックと矢印（左右）・Home・End で切り替える。実装は `crates/web/src/shell_frame.rs`（`tablist` を keyed list `pane_tabs` にし、親の `data-pane` に選択を写す）・`crates/web/src/host.rs`（`select-pane`・`pane-key` の 2 action と、表示の状態 `pane`）・`crates/web/static/app.css`（`@media not all and (min-width: 960px)` で選んでいない tabpanel を `display: none`）である。
-
-要点:
-
-- 選択は表示の状態で、`ops`・履歴・保存先には書かない。再読み込みで既定（操作）に戻り、Step が変わっても捨てない。切り替えは保存を起こさない
-- `aria-selected`・`tabindex` は束縛では書けない（a11y 版 2）ので、`tablist` を keyed list にした。項目の root を `button[role=tab]` そのものにして、子の作り直しでフォーカスが失われないようにした。tabpanel と `.sh-panes` は静的なまま描き直さない（要素の同一性。FEND-3）
-- キーの action の `data-keys` に Esc を含める。keydown の属性は最も近い 1 つにしか届かず、含めないと tab にフォーカスがある Esc が root の Esc に届かず 0 回になる（FEND-6）。`data-keydown-prevent-default` は Esc にも掛かるが、ボタンの上の Esc に既定の動作は無い。Home・End はこれが無いとページを先頭・末尾へ動かす
-- 境目は 960px 以上の規則と補い合う `not all and (min-width: 960px)` にした（`max-width: 959px` だと小数の幅に穴が空く）。`hidden`・`aria-hidden` は 960px 以上で両方を見せる必要があるため使わない
-- 受け付けない payload は `None`（fail-closed）。`select-pane` は `PaneTab::id` の完全一致だけ、`pane-key` は矢印・Home・End・Escape だけを受ける
-
-試験:
-
-- Rust: `crates/web/tests/shell_frame_host.rs`（16 件。本件で 7 件追加）。keyed list の親・`data-pane`・キーの属性・項目の root、選択と dirty（`pane_tabs` だけ。同じ値では空）、`a11y::tab_key_target` に沿った巡回、`pane_tabs` が `data-bind-list` にあること、`decode_action` の許可と拒否、切り替えが Session に触れないこと、CSS の規則。`dirty_binding_points.rs` は `pane_tabs` を dirty にする列（`run_pane`）を足し、`no_hidden_triggers.rs` は `shell_frame.rs` の `data-payload` の使用を許可の表に足した
-- ブラウザ: `tools/browser/shell-tabs.test.mjs`（9 件）は 959px・360px で、tablist の表示・tab の大きさ（24px 以上）・既定は操作だけが見えること、クリック、矢印・Home・End（`keydown` の `defaultPrevented`）、Alt+ArrowRight で変わらない対照、試験の設定で tab にフォーカスがある Esc が `escCount` でちょうど 1 回であること、959px→960px→959px の境目を確かめる。`tools/browser/shell-widths.test.mjs`（4 件）は 1280px・960px・959px・360px で CH-0 から CH-1 の 6 Step（`main/st-1-1`〜`st-1-6`）を通して `main/st-2-1` に入るまで進める。960px 未満では操作の前に要るタブをクリックし、959px・360px で 6 回切り替えた。台帳は 4 幅とも 30/30。`shell-columns.test.mjs` の 959px の対照は、隠れた側の矩形が 0 になって空振りで通る「縦に積む」の判定をやめ、見える領域がちょうど 1 つであることに直した
-- 変異: SHELL1-4（`find` を新しい行に合わせた）・SHELL1-6（矢印・Home・End が修飾キーつきとして扱われる）・SHELL1-7（Escape を root の Esc に結ばない）・SHELL1-8（操作を選んだときに成果物の領域が隠れない）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、4 件とも DETECTED だった（`scripts/check-mutations.sh` に 4 件を指定）
-- `make test-browser`: 807 件のうち 805 件が通った（2026-10-21）。失敗 2 件の内訳は、`tick-dispatch`（`data-payload` を持つ要素を指せる行だけに限っていた検査に `select-pane` を許可して直した。修正後に単独で通過）と、`secret-scan-time` の dense（10MB の保存の p95。単独で再実行すると通過し、p95 は 287ms で、全件を流している間の負荷による揺れと見ている。推測）である。修正後の全件の流し直しは未実施である。`esc-once` の 1 件も 1 回目の全件実行で失敗したが、単独の再実行では 22 件とも通った（再現せず）
-
-限界・申し送り:
-
-- キーで切り替えると、選んだタブへフォーカスも移す（ホストの要求の通知先を glue が受け、描画の後に `focus()` する。`glue_contract` の呼び出しの表に `focus` を `Click` として足した。分類の整理は `docs/known-gaps.md` A11Y-5）。ブラウザ試験が、移ったことと Enter で選択が戻らないことを確かめる
-- 既定のタブと Step をまたぐ保持は仮置きである（SHELL-2 が未決）。変化があった側の印は SHELL-5 の担当である
-- CH-1 から始める直接リンクが無い（TASK-109）ため、CH-1 の 6 Step は CH-0 から通して確かめた
-- 360px の横スクロールと 24px 未満の操作対象は TASK-518・TASK-368 の担当で、assert せず `shell-widths` の diagnostic に件数だけを残す（2026-10-21 の実測は、横スクロール 0px・24px 未満の対象 1 件。4 幅とも同じ）
-- 960px 以上で tabpanel の役割が 2 つ残ることの読み上げは A11Y-21 の担当である。右の領域の `aria-label` とライブの欄（tabpanel の外に置く）は TASK-450 の担当である
-
-### 5.202 開始条件の評価と片方だけの構造の誤り（TASK-51。PACK-18・EP-9）
-
-開始点の `requires`（開始条件）と `unmet`（満たさないときの文面の ID）について、片方だけの記述を `E-STRUCTURE` にし（pack）、状態に触れる前の評価を関門 `start_gate::check_start` として core に置いた。評価を core に置くのは、呼び出し元（`Control::Begin`・`Refused` の記録。TASK-217・TASK-240）が core にあるためである。
-
-- core の試験: `crates/core/tests/start_gate.rs`（8 件）。条件なしと満たす条件で開始してよいこと、満たさない条件で `StartUnmet`・文面の ID・空でない次の行動が返り、呼ぶ前後の `SessionState` のバイト列が一致すること、無い開始 ID・無い Step の実体が `UnknownStart` になること、評価できない条件と文面の無い `unmet` でも断ること、モジュールの開始点が実体の根で評価されることを固定する
-- pack の試験: `crates/pack/tests/start_requires.rs`（7 件）。`requires` だけ・`unmet` だけ・`requires: null` と `unmet` の組・モジュールの開始点が、`compile` と `validate` の両方で 1 件の `E-STRUCTURE`（file は定義ファイル、item は `start:<ID>`、値を写さない）になること、両方ある・両方無いが通ること、`testdata/condition-vocab-pack` と `testdata/module-reuse-rounds/test-data/pack` の変換した IR で関門が断ってから開始してよくなること
-- 既存の試験の修正: 片方だけの開始点を使っていた `validate_refs`・`text_slots`・`condition_vocabulary`・`vocab_command` の入力を両方そろえた。`vocab_command` の `author17_unmet_only_counts_as_ep9` は、`compile` の関門で到達しなくなったため `author17_one_sided_ep9_is_refused_by_compile_gate` に置き換えた
-- 変異: PACK18-1（`requires` だけの開始点を見逃す）・PACK18-2（開始条件が偽でも開始してよいとする）。実行日 2026-10-21、元にしたコミット 1f8b74e に本件の変更を載せた状態で、2 件とも DETECTED だった（`scripts/check-mutations.sh` に 2 件を指定）
-
-限界・申し送り:
-
-- `requires: null` は読み込みの型で省略と区別できないため、省略と同じ扱いにした
-- `Control::Begin` への結線・`Refused` の記録・web の画面は後続のタスクである（PACK-18 は web への結線を未検証としている）
-
-### 5.201 開始点の数を増やしても IR の合計と内容のハッシュが変わらない（TASK-109 2/2。DLV-9・D-68）
-
-5.199 の直接リンクは IR を 1 つ（`ir/main.json`）に保つ。旧方式（PoC-10 の `make-start-irs.mjs`）は開始点ごとに `starts` の順を変えた写しを `ir/start-<id>.json` として配り、開始点の数だけ IR が複製され（20 開始点で約 1.8MB）、写しごとに内容のハッシュが別になった（F-1。別の章のリンクで「変換して開きました」が出た）。新方式のこの利点が崩れないことを回帰から守る。
-
-定義: `content_hash`（`crates/contract/src/content_hash.rs`。版 1）は本文の木だけを除いた IR の SHA-256 で、`starts` を含む。開始点を足した教材（別の IR）のハッシュは変わるのが正しい。確かめるのは「同じ IR を別の開始点から開いたとき同じ」であり、「バイト数がまったく増えない」ではない（`starts` の項目の分は増える）。
-
-- ブラウザの試験: `tools/browser/start-count-invariance.test.mjs`（5 件）
-  - (P1) 配信する設定。`min-3step-pack` の開始点 1 件と、`chapter.toml` に固定の文字列で 2 件足した 3 件の教材を compile し、それぞれ `ir/main.json` に置いた配信物の写しを作る。どちらも `inspectDeliveryRefs` が 0 件、IR のファイルが `ir/main.json` の 1 つだけ、`starts` の数が 1 と 3（空振り防止）、`starts` を除いた IR が一致、3 件の IR の大きさが 1 件の 2 倍未満（かつ増える）。指定なしと各 `?start=` を新しい文脈で開き、`pageRequestProblems` が 0 件、要求の種類が全ページ・両配信物で同じ（開始点ごとの資源が無い）
-  - (P1 対照) 3 件の配信物に旧方式の写し `ir/start-<id>.json`（`starts` の先頭を入れ替えたもの）を足すと、IR のファイルが 3 件増え、合計が 2 倍以上になり、静的な検査が「構成要素でないファイル」を 3 件出す
-  - (P2) 試験の設定（CSP あり・なしの 2 件）。開始点 3 件の 1 つの IR（`?fixture=multi-start`）を `start=s-1`・`s-4`・`s-7` で、新しい文脈ごとに開く。現在の節点が開始点の節点（空振り防止）で、1 手進めて保存させた履歴の `versions.content_hash` が 3 件とも同じ小文字 16 進 64 文字、`start` の欄・鍵は開始点ごとに違う
-  - (P2 対照) 開始点ごとに別の IR を配る `?fixture=chapter-a`・`?fixture=chapter-b` では `content_hash` が割れる（測り方に感度があることを示す）
-- Rust の試験: `crates/web/src/test_fixture.rs` の単体試験 2 件。同じ IR は指定なしと 3 開始点のどれで開いても `content_hash` が同じで、開いた開始点と節点の組が 3 通りある。旧方式を模した `starts` の先頭の入れ替えの写しは、`content_hash` が互いに違う
-- 出力の規則: 失敗の文・診断に IR の中身・鍵・ハッシュの値・履歴の中身を出さない（件数・真偽・記号名だけ）。一時ディレクトリは必ず消す
-
-限界・申し送り:
-
-- 配信する設定は実行時に IR を取得しないため、ハッシュは試験の設定の保存先でだけ確かめる。配信する設定の `ir/main.json` は `tools/build-web.sh` がそのまま入れる（`scripts/test-build-web.sh` が確かめる）ので、P1 は写しに置いて静的に検査する。配信する設定での開始点つきの取得とハッシュの照合は、TASK-217・TASK-294 の後
-- 開始点の数が違う 2 つの IR のハッシュの一致は確かめない（設計上違う）
-
-### 5.202 承認の差し戻しの再承認を Step を分けて書く（TASK-62 1/2。PACK-32・D-69）
-
-1 Step の `approval` で承認 → 差し戻し → 再承認を表す語は足さないと決まった（D-69、2026-10-21）。この決定の下で、差し戻しの Step と再承認の Step を分けた教材が書けることを、`crates/pack/tests/approval_revise_split.rs` の `pack32_` の 4 件と実パック `crates/pack/tests/data/revise-split-pack` で固定する。
-
-- `validate` が診断 0 件で通ること。`pack.vocab` は `1.0` のままで、`E-VOCAB-MISMATCH` が出ない
-- `compile` した IR の承認の `input` が `{"kind":"approval"}` だけで、差し戻しの Step の `next` が再承認の Step を指すこと
-- IR を core の `Session` で動かし、差し戻しの Step での承認・却下の拒否、差し戻しでの達成と再承認の Step への移動、再承認の Step での差し戻し・却下の拒否、承認での達成と終端への移動、案の `state` が「差し戻し」から「承認済み」へ変わることを確かめる
-- 1 Step で再承認を表すつもりの欄（`reapprove: true`）を承認の `input` に足すと、`validate` と `compile` が `E-PARSE` になること（語を足していないことの対照）
-
-変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである（5.125 と同じ扱い）。`next` の `when` による枝分かれは、core が実行時に評価しないため範囲外とした。
-
-### 5.204 直接リンク 10 件と再読み込みの状態（TASK-110 1/2。DLV-7・D-68）
-
-DLV-7 は、新しいブラウザの文脈で章 X の直接リンクを開くと章 X の開始点の Step と状態で開き、再読み込みしても同じ章・同じ状態になることを求める。PoC-10 は決定の前の形（`?ir=` と開始点ごとの IR）で 10 件を確かめただけで、D-68 の `?start=` の形では未確認だった。これを試験の設定（`TEST_HOOKS=1`）の画面で確かめる。
-
-- 教材: `?fixture=ch0-3-links`（`crates/web/src/test_fixture.rs` の `ch03_links_ir_bytes`）。20 Step の通しの教材の `starts` を 10 件に書き換え、`pack.id` を `ch0-3-links` にした IR を実行時に作る。`ch0_3/ir.json` は変えない。10 件の ID と節点は `CH03_LINK_POINTS` で、ブラウザ試験のリンクの表（`delivery.mjs` の `DIRECT_LINKS`）と揃える
-- ブラウザの試験: `tools/browser/direct-link-reload.test.mjs`（CSP あり・なしで各 3 件）
-  - (T1) 10 件それぞれを新しい文脈で開く。保存先が空であること、現在の節点が開始点の節点で、その単位が `DIRECT_LINKS` の章と一致すること、状態が入った直後（`entered`・導出の状態なし・状態の語が空・処理中でない・通知なし）であること、再読み込みの後も同じ状態で、操作が無いので保存先が空のままであること、配信元以外への通信・ページ内エラー・CSP 違反・コンソールのエラーが 0 件であること
-  - (T2) リンク 1 を開き、選択肢 `opt-right` を実クリックして「受付済み（確認待ち）」にし、保存を待ってから再読み込みする。履歴が復元され、同じ節点・同じ状態・同じ Step ごとの状態・同じ状態の語で開く
-  - (対照) 10 件の期待の節点が互いに異なり、`start` なしで開いた節点は 10 件のうち 9 件と違う（`start` を無視する誤りなら 9 件が落ちる）。開始点が 1 件の `?fixture=ch0-3` に `start=s-2-1` を付けると `start_unknown` で断られる
-- Rust の試験: `test_fixture.rs` の単体試験。`?fixture=ch0-3-links` の選択（`start` の併用と余分なキー）と、10 件それぞれで開く節点・鍵が 10 通りに分かれること・未知の ID と 1 件の教材の断り
-- 期待の題・章: 実行時に `ch0_3/ir.json` から節点の単位と題を引き、リンク 1 の題（`画面の右側を選ぶ`）を固定の文字列の錨にして読み取りの空振りを防ぐ
-- 出力の規則: 失敗の文にリンクの番号・真偽・件数だけを出し、鍵・履歴の中身を出さない
-
-実行の記録（2026-10-21）: ローカルで Chromium により 6 件が通った。`start` を無視する改変での落ち方の手元の確認は行っていない（各リンクの現在の節点を 1 件ずつ照合するため、無視すれば 9 件が落ちる設計である。確認は未実施）。
-
-限界・申し送り:
-
-- 配信する設定は実行時に IR を取得しないため、DLV-7 は試験の設定でだけ確かめた。配信する設定での確認は TASK-217・TASK-294 の後
-- Step の題は DOM に出ていない（TASK-525）ため、現在の節点と IR の題の対応で判定した。TASK-525 の後に DOM の題の照合を足す
-- 開始点の `effects` は適用しない（5.199 と同じ）。1 操作の後の再読み込みはリンク 1 だけ（PoC-10 の固定の手順と同じ）
-- 章 A の履歴が保存済みのときの章 B のリンク（DLV-8）と修正前の症状（F-1）の対照は TASK-110 2/2（5.206 を参照）。本件の `?fixture=ch0-3-links` を使える
-- 節番号は並行する PR とマージ順で衝突しうる（5.204 は作業時点で未使用の番号）
 
 ### 5.205 承認の「直す」の誤った対象の候補と表示名（TASK-62 2/2。PACK-42・D-69）
 
@@ -7242,15 +7242,6 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.238 で最小限を入れて解消した）。
 - 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
-### 5.236 影響する Step の洗い出し道具（TASK-182 1/2。VER-15・UMAP-5）
-
-- 目的: 対応表（CSV 版 1）と変わった参照名・ファイルから、影響する Step を機械的に列挙する道具 `tools/upstream-impact.mjs` が、期待どおりの Step を決定的に出し、不正な入力を fail-closed で止めることを確かめる。
-- 試験（`tools/upstream-impact.test.mjs`。`make test-upstream-impact`。`node:test`、試験用の対応表を内蔵）: 1 参照名の全体の変更と同名の Step の scope 区別・2 和集合と整列・3 `--changes` のファイル単位と `path` 空の行・4 併用・5 該当なし・6 入力の行順によらずバイト一致・7 `--vocab`（教材に無い Step・誤った scope で 1、全行が一覧にあれば 0、`use` 行と集計行の読み取り）・8 表に無い参照名・9 不正な入力 21 形が 2 で標準出力が空・10 自由記述の列と不正なセルの値を写さない・11 `--help`。ほかに純粋な関数の試験 1 件。
-- 変異注入: 置かない。`crates/` の変更が無く、`scripts/check-mutations.sh` の対象外の Node の道具であり、負の対照は試験 7・9 が担う。
-- 限界: 行番号では照合しない（版を上げると行がずれるため。`lines` 列は人が読む欄）。引用符つきの CSV は読めない。表の形は参照版の置き場（TASK-717）の決定で版 2 になりうる。
-- 範囲外: 手順書（TASK-182 2/2。5.236 で追加）・CI への組み込み（人間の承認点）・教材 repo の実際の対応表と教材テスト・出典の検査。
-- 実行結果（2026-10-22）: 12 件が通った。`scripts/expected-test-counts.txt` は更新しない。
-
 ### 5.236 参照元の版を上げる手順書の形（TASK-182 2/2。VER-15・UMAP-13・BUILD-26）
 
 - 目的: 手順書 `docs/upstream-bump-procedure.md` が、教材テストを通すこと・公開前に人が対応表を確かめて記録を残すこと・生成物を無検証で公開しないことを固定し、引用したパスが実在することを確かめる。
@@ -7259,6 +7250,15 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: 字面の検査で、手順の意味の正しさは人が読んで確かめる。
 - 範囲外: 実際の記録と最終の承認（人間の承認点）・道具の CI への組み込み・教材 repo の試験。
 - 実行結果（2026-10-22）: 5 件が通った。`scripts/expected-test-counts.txt` は更新しない。
+
+### 5.236b 影響する Step の洗い出し道具（TASK-182 1/2。VER-15・UMAP-5）
+
+- 目的: 対応表（CSV 版 1）と変わった参照名・ファイルから、影響する Step を機械的に列挙する道具 `tools/upstream-impact.mjs` が、期待どおりの Step を決定的に出し、不正な入力を fail-closed で止めることを確かめる。
+- 試験（`tools/upstream-impact.test.mjs`。`make test-upstream-impact`。`node:test`、試験用の対応表を内蔵）: 1 参照名の全体の変更と同名の Step の scope 区別・2 和集合と整列・3 `--changes` のファイル単位と `path` 空の行・4 併用・5 該当なし・6 入力の行順によらずバイト一致・7 `--vocab`（教材に無い Step・誤った scope で 1、全行が一覧にあれば 0、`use` 行と集計行の読み取り）・8 表に無い参照名・9 不正な入力 21 形が 2 で標準出力が空・10 自由記述の列と不正なセルの値を写さない・11 `--help`。ほかに純粋な関数の試験 1 件。
+- 変異注入: 置かない。`crates/` の変更が無く、`scripts/check-mutations.sh` の対象外の Node の道具であり、負の対照は試験 7・9 が担う。
+- 限界: 行番号では照合しない（版を上げると行がずれるため。`lines` 列は人が読む欄）。引用符つきの CSV は読めない。表の形は参照版の置き場（TASK-717）の決定で版 2 になりうる。
+- 範囲外: 手順書（TASK-182 2/2。5.236 で追加）・CI への組み込み（人間の承認点）・教材 repo の実際の対応表と教材テスト・出典の検査。
+- 実行結果（2026-10-22）: 12 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
 ### 5.237 枠の契約の版 2 の区画と識別子（TASK-516 1/2。SHELL-6・SHELL-8・SHELL-24・SHELL-30）
 
@@ -7311,16 +7311,15 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界・申し送り: 次の行動の押せる結線は TASK-538、削除の操作と確認の画面と文言は TASK-539、書き出しの案内の画面と下書きの有無の口は該当の画面のタスク、再読み込みの二重の通知の確認は TASK-536、文面は TASK-549。D-57 の次の行動の割り当ては決定が出ていない案のまま。ブラウザ試験は描画の構造を変えず属性が 1 つ増えるだけなので流していない。
 - 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check` が通った。`make check-generic-words` は本件と無関係の既存の失敗（`crates/pack/src/guidance.rs:606`）があり、新しい失敗は増えていない（範囲外）。`scripts/expected-test-counts.txt` は更新しない（版上げ PR だけが照合する）。
 
-### 5.241 L2 の待ち受けアドレスと起動の時間（TASK-113。DLV-14）
+### 5.239 Rust のない模擬環境での L2 の完走試験（TASK-112 2/2。DLV-13・D-58・D-71）
 
-- 目的: L2 の `start.sh` が待ち受けるアドレスが `127.0.0.1` だけで、同じネットワークの他のホストから届かないことを試験で固定する。仕様（DLV-14）は「他のホストからの接続の可否は確かめていない」としていた。あわせて、起動（`spawn` から最初の 200 まで）とマウント（`goto` から `html[data-mounted="true"]` まで）の時間を記録に残す（機械の時間。人の時間ではない）。
-- 試験の構成: `tools/browser/l2-run.test.mjs`（`make test-l2-run`。5.239 の 3 回の完走の中と後）に足した。`start.sh` の動作は変えていない（引数・終了コード・表示の文言は `make test-build-l2` が固定している）。
-  - 各回: (1) `start.sh` の出力に `http://127.0.0.1:<port>/` があり、出力中の URL の host が `127.0.0.1` だけ。(2) 当のポートの LISTEN のソケットの集合が `127.0.0.1` だけ（Linux は `/proc/net/tcp`・`tcp6` の状態 `0A`、macOS は `/usr/sbin/lsof -nP -iTCP:<port> -sTCP:LISTEN`。ほかの OS は skip にせず失敗）。(3) 自分の非 loopback の IPv4（1 件以上を必須）と Linux の `127.0.0.2` への `net.connect` が `ECONNREFUSED` になる（時間切れ・到達不能は拒否と区別して失敗）。(4) `127.0.0.1` へは接続できる。(5) 起動とマウントの時間が有限の正の数。値は閾値で判定せず、各回の行と 3 回の中央値の行を出す。
-  - 対照: 復号の対照（合成の行で `0.0.0.0`・`::`・`::1` を復号し、LISTEN 以外・別のポートを除く）。対照 A は `0.0.0.0` で待ち受ける別のサーバを同じ判定が検出し、非 loopback の IPv4 から接続できること。対照 B は展開先の写しの `start.sh` から `-i 127.0.0.1` をちょうど 1 か所外すと、`127.0.0.1` 以外で待ち受け、非 loopback の IPv4 から接続できること（`-i` が効いていることの確認。zip・repo のファイルは変えない）。
-- 限界: 物理的に別のホストからの接続ではなく、同じ機械から自分の非 loopback のアドレスへ接続する模擬である。カーネルは `127.0.0.1` に bind したソケットへ非 loopback のアドレス宛ての接続を渡さないため、他のホストからの拒否と同じ判定になる（対照 A・B が「届くなら接続できる」ことを示す）。起動の時間の分解能は待ち間隔の 10 ms 程度。PoC-10 の中央値（起動 110〜152 ms・マウント 91〜110 ms）とは機械・ビルド・miniserve の版が違うため比べない（`docs/measurement.md` の規則）。2 つの時間は `make measure` の束には入れていない。macOS（`lsof`）の経路は Linux では流れず未検証（実機は TASK-118・119）。
-- 04 の差分の案（spec repo 側の作業。ここでは編集しない）: DLV-14 の「証拠の種類」を、「待ち受けが `127.0.0.1` だけであること・同じ機械から自分の非 loopback のアドレスへの接続が拒否されることを自動試験で確かめた。物理的に別のホストからの確認は行っていない」に更新する。
-- 範囲外: 物理的に別のホストからの接続、実機（Apple シリコン）での起動・時間（TASK-118・119）、案内文（TASK-117）、L1 と L2 の一致（TASK-114・115）、ライセンス文（TASK-137）。5.236・5.240 の番号の重複（既存）は直さない。
-- 実行結果（2026-10-22。Linux x86_64・Chromium・miniserve 0.35.0 musl。sha256 は固定値と一致）: `make test-l2-run` で 9 件が通った（各回 41 項目。非 loopback の IPv4 は 1 件・他のアドレスへの接続 2 件がすべて拒否）。起動の中央値 265 ms（364/152/265）・マウントの中央値 284 ms（284/253/337）。`scripts/expected-test-counts.txt` は更新しない（`make test-browser` の系統に入らない）。
+- 目的: L2 の配布物（zip）を `PATH=/usr/bin:/bin`（cargo・rustc・rustup・node が見えない）の模擬環境に展開し、`./start.sh` を起動して、自動ブラウザ（Chromium）で URL を開き、CH-0〜CH-1（`main/st-2-1` に入るまで）を最後まで進めることを 3 回確かめる。人の操作は「展開・`./start.sh`・URL を開く」の 3 つだけで、各回でページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外の応答・配信元以外への要求が 0 件、同梱の IR が 200 で 1 回取得されることを求める。
+- 前提の変更（自動運転のため人の承認は得ていない。Issue ツリーに担当が無い）: 配信する設定の web は実行時に IR を取得せず、教材が 1 つも開かなかった（`EngineHost::for_mount` が `new()` だけ。5.223・5.235 に既出）。本タスクで最小限を入れた。(1) `tools/build-web.sh` は配信する設定で `IR_FILE` があるときだけ、`index.html` の印 `<!--fandhe:ir-->` を `<meta name="fandhe-ir" content="1">` にする（ほかは印の行を消す）。(2) `static/app.js` はこの meta があるときだけ固定の `./ir/main.json` を取得してバイト列を `mount_app` の第 4 引数に渡す（失敗は空のバイト列で断りに倒す。URL の値から場所は作らない。SAFE-33）。(3) `start_select::open_bundled_ir` が `load_ir`（大きさ・深さ・版・参照の上限）を通し、`start` を `starts` と完全一致で照合し、開始点の節点に入った直後の状態を core の `Session::entered_at` で組み立てる（表示層は状態を組み立てない規則 `no_progress` のため core に置いた。`Control::Begin`（TASK-217・TASK-294）が未実装の間の暫定。試験の設定の `test_fixture::session_at` と同じ状態）。読めない・選べないときは `refused`・`refused_start` の断りの画面に倒す。meta が無い配信物は取得せず従来どおり（既存の配信系のブラウザ試験の結果を変えない）。`tick_interval.rs` の `ir` の字句の検査は、`app.js` の固定の `fetch("./ir/main.json")` がちょうど 1 件のときだけ許す。
+- 試験の構成: (a) `scripts/test-l2-run.sh`（`make test-l2-run`。`L2_SERVER` 必須。遅く、`make test-browser` には入れず CI の `browser-test` が流す）が web を専用の target・`CARGO_PROFILE_RELEASE_STRIP=symbols`・`SKIP_WASM_OPT=1`・`IR_FILE=crates/web/tests/data/ch0_3/ir.json` でビルドし、`tools/build-l2.mjs`（`L2_PLATFORM` は `uname` から）で zip を作り、`tools/browser/l2-run.test.mjs` を流す。専用の target と strip は、`check-delivery.sh` が WASM のバイト列に `debug_` が無いことを求めるのに、wasm-opt を使わない CI のビルドには名前情報が残るため。(b) `l2-run.test.mjs`: 前提の検査（模擬環境の PATH に 4 つのコマンドが見えない。見えるコマンドを検出する対照つき。`command -v` は dash が先頭の 1 件しか見ないため 1 件ずつ呼ぶ）・3 回の完走（毎回新しい展開先・起動・browser context。環境は PATH・HOME・PORT・`FANDHE_NO_OPEN` だけ）。(c) `l2-journey.mjs`: `ch0-3-journey.mjs` の `journey` の操作の列を共有し（`mouseDriver` の実クリック・fill・Enter だけ。隠し要素は使わない）、状態の観察だけを DOM に差し替える（`journey` の `observe`）。確認待ちは「`step-status` が受付済み・idle・ログの最後の行の `data-step` が当の Step」、入力待ちは「`step-status` が達成・idle・最後の行が直前の Step（先頭はログ 0 行）」、拒否後は「最後の行が rejected か clarified で当の Step」。(d) `l2-journey-calibrate.test.mjs`（`make test-browser` に入る。2 件）: 試験の設定の `?fixture=ch0-3` に同じ誘導を DOM の観察で流し、各観察（22 回）で `stateJson` の現在の Step・状態と一致することを確かめる。1 Step 先の期待を DOM が示さない対照つき。
+- 限界: 教材は本物の CH-0〜CH-1 の 50 操作でなく `ch0_3` の試験データ（20 Step のうち 11 Step 目まで）。Linux の musl 版の miniserve で模擬し、Apple シリコンでの起動は TASK-118・119。Chromium だけで流した。現在の Step の ID は DOM に出ないため、DOM の観察は IR の node の並びから直前の Step を引く（較正の試験が守る）。終点（`main/st-2-1`）の入力待ちは、直前の Step の達成の語とログに加えて入力の口（下書き・送信が各 1 個で選択肢が 0 個）も見て、遷移が欠落して直前の選択肢の Step で止まった状態を断る（`l2-journey-calibrate` の対照が守る。2026-10-22）。meta の無い配信物は IR を取得しない（SHELL-32・BUILD-11 の観察は TASK-545・546 で見直す）。開始時の効果・案内の水準は反映しない（TASK-217・294）。CI の `check-workflow-secrets`・`check-fork-ci` はこの環境に ruby が無く未実行。
+- 受信量の上限（レビュー指摘の対応）: `app.js` は同梱の IR を `r.body` の reader で `ir_read_limit()`（`MAX_IR_BYTES + 1`。`start_select.rs`。定数を JS に二重に持たない）バイトまでだけ読み、超えたら `reader.cancel()` で中止して 1 つの `Uint8Array` にまとめる（Content-Length は使わず実際の受信量で数える）。大きさの断りは `load_ir` の `TooLarge` が出す。`tools/browser/ir-recv-limit.test.mjs`（`make test-browser` に入る。2 件）が、1 GiB の本体を流す配信側が最後まで送れず（送出量が上限 + 64 MiB 未満）断りの通知に倒れること、上限未満の本体は最後まで送られること（対照）を確かめる。2026-10-22 に Chromium で 2 件が通った。
+- 範囲外: TASK-113（待ち受けと起動時間）、TASK-114・115（L1 と L2 の一致とオリジンの分離）、TASK-117（案内文）、TASK-118・119（人の起動）、TASK-137（ライセンス文）、本物の教材での通し。5.236 の番号が既存で重複している（直さない）。（#1740 で解消。5.268）
+- 実行結果（2026-10-22。Linux x86_64・Chromium）: `L2_SERVER=<miniserve 0.35.0 の linux musl 版。sha256 は固定値と一致> make test-l2-run` で前提の 2 件と 3 回の完走が 3/3 通った（各回 34 項目・要求 6 件・約 2.4 秒）。`l2-journey-calibrate` の 2 件（54 項目）が通った。`scripts/expected-test-counts.txt` は更新しない。
 
 ### 5.240 章の飛ばし・選択を出さないことの観察（TASK-528。SHELL-11・D-73）
 
@@ -7348,16 +7347,6 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 範囲外: spec の SHELL-11 の「証拠の種類」の書き戻し、開始点を選ぶ操作（SHELL-34）・講師の追いつき（SHELL-33。どちらも TASK-515）、`Control::Begin`（TASK-217）。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない。
 
-### 5.239 Rust のない模擬環境での L2 の完走試験（TASK-112 2/2。DLV-13・D-58・D-71）
-
-- 目的: L2 の配布物（zip）を `PATH=/usr/bin:/bin`（cargo・rustc・rustup・node が見えない）の模擬環境に展開し、`./start.sh` を起動して、自動ブラウザ（Chromium）で URL を開き、CH-0〜CH-1（`main/st-2-1` に入るまで）を最後まで進めることを 3 回確かめる。人の操作は「展開・`./start.sh`・URL を開く」の 3 つだけで、各回でページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外の応答・配信元以外への要求が 0 件、同梱の IR が 200 で 1 回取得されることを求める。
-- 前提の変更（自動運転のため人の承認は得ていない。Issue ツリーに担当が無い）: 配信する設定の web は実行時に IR を取得せず、教材が 1 つも開かなかった（`EngineHost::for_mount` が `new()` だけ。5.223・5.235 に既出）。本タスクで最小限を入れた。(1) `tools/build-web.sh` は配信する設定で `IR_FILE` があるときだけ、`index.html` の印 `<!--fandhe:ir-->` を `<meta name="fandhe-ir" content="1">` にする（ほかは印の行を消す）。(2) `static/app.js` はこの meta があるときだけ固定の `./ir/main.json` を取得してバイト列を `mount_app` の第 4 引数に渡す（失敗は空のバイト列で断りに倒す。URL の値から場所は作らない。SAFE-33）。(3) `start_select::open_bundled_ir` が `load_ir`（大きさ・深さ・版・参照の上限）を通し、`start` を `starts` と完全一致で照合し、開始点の節点に入った直後の状態を core の `Session::entered_at` で組み立てる（表示層は状態を組み立てない規則 `no_progress` のため core に置いた。`Control::Begin`（TASK-217・TASK-294）が未実装の間の暫定。試験の設定の `test_fixture::session_at` と同じ状態）。読めない・選べないときは `refused`・`refused_start` の断りの画面に倒す。meta が無い配信物は取得せず従来どおり（既存の配信系のブラウザ試験の結果を変えない）。`tick_interval.rs` の `ir` の字句の検査は、`app.js` の固定の `fetch("./ir/main.json")` がちょうど 1 件のときだけ許す。
-- 試験の構成: (a) `scripts/test-l2-run.sh`（`make test-l2-run`。`L2_SERVER` 必須。遅く、`make test-browser` には入れず CI の `browser-test` が流す）が web を専用の target・`CARGO_PROFILE_RELEASE_STRIP=symbols`・`SKIP_WASM_OPT=1`・`IR_FILE=crates/web/tests/data/ch0_3/ir.json` でビルドし、`tools/build-l2.mjs`（`L2_PLATFORM` は `uname` から）で zip を作り、`tools/browser/l2-run.test.mjs` を流す。専用の target と strip は、`check-delivery.sh` が WASM のバイト列に `debug_` が無いことを求めるのに、wasm-opt を使わない CI のビルドには名前情報が残るため。(b) `l2-run.test.mjs`: 前提の検査（模擬環境の PATH に 4 つのコマンドが見えない。見えるコマンドを検出する対照つき。`command -v` は dash が先頭の 1 件しか見ないため 1 件ずつ呼ぶ）・3 回の完走（毎回新しい展開先・起動・browser context。環境は PATH・HOME・PORT・`FANDHE_NO_OPEN` だけ）。(c) `l2-journey.mjs`: `ch0-3-journey.mjs` の `journey` の操作の列を共有し（`mouseDriver` の実クリック・fill・Enter だけ。隠し要素は使わない）、状態の観察だけを DOM に差し替える（`journey` の `observe`）。確認待ちは「`step-status` が受付済み・idle・ログの最後の行の `data-step` が当の Step」、入力待ちは「`step-status` が達成・idle・最後の行が直前の Step（先頭はログ 0 行）」、拒否後は「最後の行が rejected か clarified で当の Step」。(d) `l2-journey-calibrate.test.mjs`（`make test-browser` に入る。2 件）: 試験の設定の `?fixture=ch0-3` に同じ誘導を DOM の観察で流し、各観察（22 回）で `stateJson` の現在の Step・状態と一致することを確かめる。1 Step 先の期待を DOM が示さない対照つき。
-- 限界: 教材は本物の CH-0〜CH-1 の 50 操作でなく `ch0_3` の試験データ（20 Step のうち 11 Step 目まで）。Linux の musl 版の miniserve で模擬し、Apple シリコンでの起動は TASK-118・119。Chromium だけで流した。現在の Step の ID は DOM に出ないため、DOM の観察は IR の node の並びから直前の Step を引く（較正の試験が守る）。終点（`main/st-2-1`）の入力待ちは、直前の Step の達成の語とログに加えて入力の口（下書き・送信が各 1 個で選択肢が 0 個）も見て、遷移が欠落して直前の選択肢の Step で止まった状態を断る（`l2-journey-calibrate` の対照が守る。2026-10-22）。meta の無い配信物は IR を取得しない（SHELL-32・BUILD-11 の観察は TASK-545・546 で見直す）。開始時の効果・案内の水準は反映しない（TASK-217・294）。CI の `check-workflow-secrets`・`check-fork-ci` はこの環境に ruby が無く未実行。
-- 受信量の上限（レビュー指摘の対応）: `app.js` は同梱の IR を `r.body` の reader で `ir_read_limit()`（`MAX_IR_BYTES + 1`。`start_select.rs`。定数を JS に二重に持たない）バイトまでだけ読み、超えたら `reader.cancel()` で中止して 1 つの `Uint8Array` にまとめる（Content-Length は使わず実際の受信量で数える）。大きさの断りは `load_ir` の `TooLarge` が出す。`tools/browser/ir-recv-limit.test.mjs`（`make test-browser` に入る。2 件）が、1 GiB の本体を流す配信側が最後まで送れず（送出量が上限 + 64 MiB 未満）断りの通知に倒れること、上限未満の本体は最後まで送られること（対照）を確かめる。2026-10-22 に Chromium で 2 件が通った。
-- 範囲外: TASK-113（待ち受けと起動時間）、TASK-114・115（L1 と L2 の一致とオリジンの分離）、TASK-117（案内文）、TASK-118・119（人の起動）、TASK-137（ライセンス文）、本物の教材での通し。5.236 の番号が既存で重複している（直さない）。
-- 実行結果（2026-10-22。Linux x86_64・Chromium）: `L2_SERVER=<miniserve 0.35.0 の linux musl 版。sha256 は固定値と一致> make test-l2-run` で前提の 2 件と 3 回の完走が 3/3 通った（各回 34 項目・要求 6 件・約 2.4 秒）。`l2-journey-calibrate` の 2 件（54 項目）が通った。`scripts/expected-test-counts.txt` は更新しない。
-
 ### 5.241 「模擬」の常時表示（TASK-523。SHELL-6・D-72）
 
 - 目的: 画面の枠の上部（`shell-top`）に「模擬」（`shell-mock`）を常に置き、どの Step・幅・通知の有無でも消えず、アクセシビリティツリーにも出ることを確かめる。`SHELL_CONTRACT_VERSION` は 2 のまま変えない（契約の追加ではなく、画面への結線）。
@@ -7378,6 +7367,17 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 教材を読めない画面（`ir-notice` だけの画面）には置かない。教材も枠も描かない画面で、`ir-refusal` の試験がこの構造を固定している。
   - `.sh-mock` は `display: inline-block` を持つため、`hidden` 属性では隠れない（対照は `display: none` で行う）。
 - 実行結果（2026-10-22）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make test-browser`（899 件）が通った。
+
+### 5.241b L2 の待ち受けアドレスと起動の時間（TASK-113。DLV-14）
+
+- 目的: L2 の `start.sh` が待ち受けるアドレスが `127.0.0.1` だけで、同じネットワークの他のホストから届かないことを試験で固定する。仕様（DLV-14）は「他のホストからの接続の可否は確かめていない」としていた。あわせて、起動（`spawn` から最初の 200 まで）とマウント（`goto` から `html[data-mounted="true"]` まで）の時間を記録に残す（機械の時間。人の時間ではない）。
+- 試験の構成: `tools/browser/l2-run.test.mjs`（`make test-l2-run`。5.239 の 3 回の完走の中と後）に足した。`start.sh` の動作は変えていない（引数・終了コード・表示の文言は `make test-build-l2` が固定している）。
+  - 各回: (1) `start.sh` の出力に `http://127.0.0.1:<port>/` があり、出力中の URL の host が `127.0.0.1` だけ。(2) 当のポートの LISTEN のソケットの集合が `127.0.0.1` だけ（Linux は `/proc/net/tcp`・`tcp6` の状態 `0A`、macOS は `/usr/sbin/lsof -nP -iTCP:<port> -sTCP:LISTEN`。ほかの OS は skip にせず失敗）。(3) 自分の非 loopback の IPv4（1 件以上を必須）と Linux の `127.0.0.2` への `net.connect` が `ECONNREFUSED` になる（時間切れ・到達不能は拒否と区別して失敗）。(4) `127.0.0.1` へは接続できる。(5) 起動とマウントの時間が有限の正の数。値は閾値で判定せず、各回の行と 3 回の中央値の行を出す。
+  - 対照: 復号の対照（合成の行で `0.0.0.0`・`::`・`::1` を復号し、LISTEN 以外・別のポートを除く）。対照 A は `0.0.0.0` で待ち受ける別のサーバを同じ判定が検出し、非 loopback の IPv4 から接続できること。対照 B は展開先の写しの `start.sh` から `-i 127.0.0.1` をちょうど 1 か所外すと、`127.0.0.1` 以外で待ち受け、非 loopback の IPv4 から接続できること（`-i` が効いていることの確認。zip・repo のファイルは変えない）。
+- 限界: 物理的に別のホストからの接続ではなく、同じ機械から自分の非 loopback のアドレスへ接続する模擬である。カーネルは `127.0.0.1` に bind したソケットへ非 loopback のアドレス宛ての接続を渡さないため、他のホストからの拒否と同じ判定になる（対照 A・B が「届くなら接続できる」ことを示す）。起動の時間の分解能は待ち間隔の 10 ms 程度。PoC-10 の中央値（起動 110〜152 ms・マウント 91〜110 ms）とは機械・ビルド・miniserve の版が違うため比べない（`docs/measurement.md` の規則）。2 つの時間は `make measure` の束には入れていない。macOS（`lsof`）の経路は Linux では流れず未検証（実機は TASK-118・119）。
+- 04 の差分の案（spec repo 側の作業。ここでは編集しない）: DLV-14 の「証拠の種類」を、「待ち受けが `127.0.0.1` だけであること・同じ機械から自分の非 loopback のアドレスへの接続が拒否されることを自動試験で確かめた。物理的に別のホストからの確認は行っていない」に更新する。
+- 範囲外: 物理的に別のホストからの接続、実機（Apple シリコン）での起動・時間（TASK-118・119）、案内文（TASK-117）、L1 と L2 の一致（TASK-114・115）、ライセンス文（TASK-137）。5.236・5.240 の番号の重複（既存）は直さない。（#1740 で解消。5.268）
+- 実行結果（2026-10-22。Linux x86_64・Chromium・miniserve 0.35.0 musl。sha256 は固定値と一致）: `make test-l2-run` で 9 件が通った（各回 41 項目。非 loopback の IPv4 は 1 件・他のアドレスへの接続 2 件がすべて拒否）。起動の中央値 265 ms（364/152/265）・マウントの中央値 284 ms（284/253/337）。`scripts/expected-test-counts.txt` は更新しない（`make test-browser` の系統に入らない）。
 
 ### 5.242 上部の教材名・章の ID・Step の位置の表示（TASK-524。SHELL-8・D-72）
 
@@ -7423,30 +7423,8 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 対照: (1) 照合は、展開した写しの `index.html` に 1 バイト足すと「内容の違い 1 件」、余分なファイルを足すと「片方だけ 1 件」を検出する（zip・配信する木は変えない）。(2) 終点の手前（`main/st-1-4`。`journey` が止まれる Step は他に `main/st-2-1` だけ）で止めた回は、観察・snapshot・history の 3 つとも 9 回のハッシュと違う（直列化が空を返すような壊れ方でも 9 回の一致が通ってしまうのを防ぐ）。(3) 直列化は、書き出し後の画面で blob の `href`・`data-export-url`・`data-key` を替えても変わらず（リンクの要素は snapshot に残る）、ログの 1 行の文字を書き換えると変わる。(4) 自己検査は、オリジン依存の文字列が残った直列化を拒む。
 - 限界: 教材は試験データ `ch0_3`（20 Step のうち CH-1 の終点 `main/st-2-1` まで）で、本物の CH-0〜CH-1 の 50 操作ではない。Step の題は画面に描かれていない（`shell-title` は未結線。TASK-524）ため、題の代わりに IR の並びから導いた Step の ID を使った。拒否・問い返しの直後は観察を積まず、台帳の「進まない」の合否で比べる（`journey` に口を足さなかった）。L2 は Linux の musl 版 miniserve での模擬で、Apple シリコンの実機は TASK-118・119。Chromium だけ。
 - 04 の差分の案（spec repo 側の作業。ここでは編集しない。自動運転のため人の承認は得ていない）: DLV-15 の「L1 と L2 の 2 案で 3 配信先」を「L1（手元のサブパス 2 名）と L2（D-58 の案 (ii)）の 3 配信先」に、「証拠の種類」をエンジン repo の自動ブラウザの試験（`l1-l2-match`）に更新する。
-- 範囲外: 履歴の `ops` に揺れる欄が無いことの検査と、教材が変わっても再生できる固定の入力列とその比較（TASK-114 2/2。5.245 で実施）、実機（TASK-118・119）。5.236・5.240・5.241 の番号の重複（既存）は直さない。
+- 範囲外: 履歴の `ops` に揺れる欄が無いことの検査と、教材が変わっても再生できる固定の入力列とその比較（TASK-114 2/2。5.245b で実施）、実機（TASK-118・119）。5.236・5.240・5.241 の番号の重複（既存）は直さない。（#1740 で解消。5.268）
 - 実行結果（2026-10-22。Linux x86_64・Chromium・miniserve 0.35.0 musl。sha256 は固定値と一致）: `l1-l2-match` の 15 件が 2 回続けて通った（9 回すべてで観察 18 件・要求 6 件。ハッシュの先頭 12 桁は観察 `d5649c055eab`・snapshot `40bdf1b8e53f`・history `3d2e6001baef` の各 1 種類。所要 約 26 秒）。試作の段階で `L1-b` の 3 回目が 1 度だけ「配信元以外への要求または失敗した要求あり」で失敗したが、原因の特定前に診断の出力を足した後は再現していない（未解明。再発すれば出力に件数と、配信元以外・失敗した要求の path（query は除く）と失敗の種類が出る）。`scripts/expected-test-counts.txt` は更新しない（`make test-browser` の系統に入らない）。
-
-### 5.245 固定の入力列での比較と履歴の `ops` の揺れる欄の排除（TASK-114 2/2。DLV-15・D-58）
-
-- 目的: DLV-15 の残り 2 点を自動ブラウザの試験で固定する。(1) 書き出した履歴の `ops` に、時刻など実行のたびに変わる欄が無いこと。(2) 事前に固定した入力列での比較。5.243 の入力列はコード（`ch0-3-journey.mjs` の `journey`）で、教材 `ch0_3` やコードが変わると比べる列も一緒に変わる。PoC-10 では、凍結した 50 操作の列が本番の教材に結びついていたため、教材の修正の束の後に再生できなくなり、「固定の列での比較は未実施」として残った。この穴を埋める。
-- 「教材が変わっても再生できる」の読み（採用）: 固定の列は、凍結した IR の写しと組にし、IR の SHA-256 を列に書いて固定する。比較の実行では、配信する木の `ir/main.json` を凍結した写しへ差し替えて配る。`ch0_3` や本物の教材が後で変わっても同じ IR で再生でき、再生できなくなることが無い。配信される IR が写しと違うときは、途中で時間切れになる前に `ir-mismatch` の理由で最初に断る（fail-closed）。
-  - 採らなかった案: (a) 教材に依らない汎用の列（選択肢の ID・行のパスが教材に依るため成り立たない）、(b) `ch0_3` の IR に SHA-256 だけで結びつける列（`ch0_3` が変わると PoC-10 と同じく再生できなくなる）、(c) 手で書いた JSON の列（`journey` と二重定義になる）。
-  - 列は手で書かず、`journey` を記録用の包み（`recordingDriver`・`recordingObserver`）に通して導き、一度だけ凍結した。`journey` や `ch0_3` が後で変わっても追随させない（追随させないことが「固定」の意味）。
-- 置き場: `crates/web/tests/data/fixed_sequence_ch0_1/`（`ir.json` は凍結時点の `ch0_3/ir.json` のバイト写し・`sequence.json`・`README.md`）。列の項目は 3 種（操作 `op`・確認 `expect`（Step・状態・口の数）・拒否と問い返しの後も進まない `still`）と、凍結時の `ops`（36 件）・`content_hash`・IR の SHA-256。画面の語は列に入れない（文面の変更で固定の列が壊れないため）。語は 9 回の相互の一致でだけ比べる。
-- 試験の構成: `tools/browser/l1-l2-fixed.test.mjs`（`make test-l2-run` の 3 つ目の `node --test`。`make test-browser` には入れない）。部品は `fixed-sequence.mjs`（記録・読み込み・再生・`ops` の検出器）と、5.243 の試験から移した `l1-l2-runner.mjs`（配信先の起動・1 回の実行・木の照合。5.243 の試験は挙動を変えずに import に替えた）。`l2-server.mjs` の `startL2` に、展開した写しのファイルだけを起動の前に差し替える `overlay` を足した（zip・`dist/` は変えない。パスは `..` と絶対パスを断る）。
-  - 前提: IR を差し替えた L1 の木と L2 の木が、同じファイルの集合で同じ SHA-256（7 ファイル）。
-  - 固定の列を 3 配信先 × 3 回（9 回）流し、各回で (a) 各 `expect` の口の数、(b) 書き出した `ops` が凍結した `expected_ops` とバイト単位で一致、(c) `history.versions.content_hash` が凍結した値と一致（凍結した IR が実際に使われた証拠）、5.243 と同じ計数（ページ内エラー・CSP・コンソール・2xx 以外・配信元以外への要求・ダイアログ・ポップアップ・クラッシュ）が 0 件であることを求める。9 回の相互では、観察の列・`snapshot.json`・`history.json` がそれぞれ 1 種類。
-  - 再生器は、`journey` の台帳でしか見ていなかった待ち（問い返しの後に下書きが空になる・拒否の後に下書きが全体の選択状態になる。JUDGE-27・TERM-22）を、教材に依らないエンジンの一般則として持つ。
-- 履歴の `ops` の揺れる欄（R1）:
-  - 構造の検査 `volatileOps`: `ops` を歩き、鍵が許可リスト（core の `Op`・`Input`・`Control`・`TickAddr` の serde の綴りと `testdata/contract/history/*.json` の綴り）にあること、数が 0 以上 2^31 未満の整数であること、文字列が ISO 8601 の日時の形でないことを求める。検出したものはパスだけを返す。凍結した期待・固定の列の 9 回・5.243 の 9 回のすべてに当てる。
-  - 時計と乱数をずらした実行: `L1-a` で 2 回、`page.clock.setFixedTime` で 2001 年と 2088 年に固定し、`Math.random` を回ごとに違う種の決まった列に差し替えて流し、`history.json` が 9 回とバイト単位で一致することを求める。`setFixedTime` はタイマーを止めない方式で、遅延保存などの本来の挙動は崩れなかったため、`Date.now` をずらす方式への切り替えは不要だった。自己確認として、同じ差し替えの page で `Date.now()` が固定した年を返すことを確かめる。
-  - 現れた `ops` の種類は、ログに件数だけを出す（`input`・`draft`・`submit`・`tick`）。
-- 対照（空振りの防止）: (1) 配信する木の IR が別のバイト列でも、凍結した IR を差し替えれば固定の列を再生でき、(a)〜(c) が通る。(2) 差し替えなしで別の IR（末尾に改行を足したもの・JSON として読めない前半だけのもの）に当たると、page を開く前に `ir-mismatch` で断る（開いた browser context が 0 件。照合は `runOnce` の `precheck` で遷移・マウント待ちより前に行い、マウントの失敗・時間切れが先に来ない）。(3) 期待の `submit` を 1 つ変えると、比較は `$.<index>.submit` の形のパスを報告して不一致になる。(4) 検出器は、合成した `ops` の時刻の欄・時刻らしい値・未知の鍵・範囲外の数のそれぞれのパスを返し、正常な `ops` は返さない。(5) IR の取得の計数（`l1-l2-runner.mjs` の `irFetchCheck`。5.243 の試験と共有）は、IR の 200 の応答がちょうど 1 件であることを求め、失敗から除くのはその 1 件の要求自体が応答の後に `net::ERR_ABORTED` と通知される競合（CI の Chromium で完了の通知の代わりに届くことがあった）だけにする。合成の記録で、id の違う 200 の重複の取得とその中断・応答のない別の要求の中断・別のエラー種別・別の URL・200 以外の応答の中断は数えることを確かめる。
-- 凍結の手順（一度だけ。CI では流さない）: `FANDHE_FREEZE_SEQUENCE=<crates/web/tests/data/ の下の既存のディレクトリ> make test-l2-run` を流すと、凍結の試験だけが動き、列と IR の写しを書き出し、書き出した後は必ず失敗で終わる（凍結の実行が合格に数えられないため）。既存の列は書き換えず、作り直すときは版つきの新しいディレクトリを足す。
-- 限界: (1) 実行で現れなかった `ops` の種類（`reload`・`control` など）は、鍵の許可リストで型の上からしか保証できない（鍵の名前を型から列挙する native の試験は別件）。(2) 教材は試験データ `ch0_3`（CH-1 の終点 `main/st-2-1` まで）で、本物の CH-0〜CH-1 の 50 操作ではない（TASK-642）。(3) 再生器は、列が `journey` の止まれる Step までであることに依る。(4) 時計は `Date` だけで、`performance.now` は動かさない。Chromium・Linux の miniserve だけ。
-- 04 の差分の案（spec repo 側の作業。ここでは編集しない。自動運転のため人の承認は得ていない）: DLV-15 の「証拠の種類」の「固定の列での比較は未実施」を「エンジン repo の `l1-l2-fixed` で実施（凍結した IR と組の列）」に更新する。
-- 範囲外: オリジンの分離（TASK-115）、読み込んだ `ops` を適用し直した結果と写しの一致（TASK-174・TASK-310・TASK-315）、本物の教材での CH-0〜CH-1（TASK-642）、実機（TASK-118・119）。5.243 の観察に `shell-position` の文字を足すこと（5.243 のハッシュが変わるため別件）。
-- 実行結果（2026-10-22。Linux x86_64・Chromium・miniserve 0.35.0 musl。sha256 は固定値と一致）: `l1-l2-fixed` の 17 件（PR のレビューで (2) に JSON として読めない IR の対照と (5) を足した後は 19 件）と `l1-l2-match` の 15 件が通った（固定の列は観察 22 件・要求 6 件。ハッシュの先頭 12 桁は観察 `4bc3804f4905`・snapshot `7bc8fe78b1ea`・history `3d2e6001baef` の各 1 種類。時計と乱数をずらした 2 回も history は同じ）。5.243 の 9 回の snapshot は、TASK-524 の画面の変更で 5.243 の記録（`40bdf1b8e53f`）から `7bc8fe78b1ea` に変わっており、history は同じ。`scripts/expected-test-counts.txt` は更新しない（`make test-browser` の系統に入らない）。
 
 ### 5.244 別のオリジンでの読み込みと続きの操作（TASK-531 2/2。SHELL-15）
 
@@ -7473,7 +7451,29 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 設計: `tools/browser/reload-notice.test.mjs` の N-1（1 回）・N-2（2 回）に、完走の前と後の 2 点で上の (1)(2) の計数を足した。native 試験は `terminal_area_contract` の `consistent_with_a11y` に `reloaded` の assert を足した。変異は `SHELL21-1`（`LIVE_EXCLUDED_LINE_KINDS` に `reloaded` を足す）。
 - 実行結果（2026-10-22。Linux・Chromium。試験の設定と配信設定のビルド）: `reload-notice` の 3 件が通った。`SHELL21-1` は DETECTED。`make test-browser` の全件は未実行（CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は更新しない。
 - 限界: 再読み込みはページ内の模擬の合図（5.74 と同じ）で、実際の `page.reload()` で処理中の継続を確かめる場面は未検証（保存の書き出しの段と復元後の進行の再開の確認が要る。TASK-319・TASK-320 の領域）。ライブの欄（`live-response`）は実画面にまだ描かれておらず、実 DOM の更新回数の観察は TASK-370、支援技術での読まれ方は TASK-381。本件の観察は読み上げそのものの証拠ではない。
-- 範囲外: 行の言い回しの確定・通知の文面（TASK-549）。5.236・5.241 の番号の重複（既存）は直さない。
+- 範囲外: 行の言い回しの確定・通知の文面（TASK-549）。5.236・5.241 の番号の重複（既存）は直さない。（#1740 で解消。5.268）
+
+### 5.245b 固定の入力列での比較と履歴の `ops` の揺れる欄の排除（TASK-114 2/2。DLV-15・D-58）
+
+- 目的: DLV-15 の残り 2 点を自動ブラウザの試験で固定する。(1) 書き出した履歴の `ops` に、時刻など実行のたびに変わる欄が無いこと。(2) 事前に固定した入力列での比較。5.243 の入力列はコード（`ch0-3-journey.mjs` の `journey`）で、教材 `ch0_3` やコードが変わると比べる列も一緒に変わる。PoC-10 では、凍結した 50 操作の列が本番の教材に結びついていたため、教材の修正の束の後に再生できなくなり、「固定の列での比較は未実施」として残った。この穴を埋める。
+- 「教材が変わっても再生できる」の読み（採用）: 固定の列は、凍結した IR の写しと組にし、IR の SHA-256 を列に書いて固定する。比較の実行では、配信する木の `ir/main.json` を凍結した写しへ差し替えて配る。`ch0_3` や本物の教材が後で変わっても同じ IR で再生でき、再生できなくなることが無い。配信される IR が写しと違うときは、途中で時間切れになる前に `ir-mismatch` の理由で最初に断る（fail-closed）。
+  - 採らなかった案: (a) 教材に依らない汎用の列（選択肢の ID・行のパスが教材に依るため成り立たない）、(b) `ch0_3` の IR に SHA-256 だけで結びつける列（`ch0_3` が変わると PoC-10 と同じく再生できなくなる）、(c) 手で書いた JSON の列（`journey` と二重定義になる）。
+  - 列は手で書かず、`journey` を記録用の包み（`recordingDriver`・`recordingObserver`）に通して導き、一度だけ凍結した。`journey` や `ch0_3` が後で変わっても追随させない（追随させないことが「固定」の意味）。
+- 置き場: `crates/web/tests/data/fixed_sequence_ch0_1/`（`ir.json` は凍結時点の `ch0_3/ir.json` のバイト写し・`sequence.json`・`README.md`）。列の項目は 3 種（操作 `op`・確認 `expect`（Step・状態・口の数）・拒否と問い返しの後も進まない `still`）と、凍結時の `ops`（36 件）・`content_hash`・IR の SHA-256。画面の語は列に入れない（文面の変更で固定の列が壊れないため）。語は 9 回の相互の一致でだけ比べる。
+- 試験の構成: `tools/browser/l1-l2-fixed.test.mjs`（`make test-l2-run` の 3 つ目の `node --test`。`make test-browser` には入れない）。部品は `fixed-sequence.mjs`（記録・読み込み・再生・`ops` の検出器）と、5.243 の試験から移した `l1-l2-runner.mjs`（配信先の起動・1 回の実行・木の照合。5.243 の試験は挙動を変えずに import に替えた）。`l2-server.mjs` の `startL2` に、展開した写しのファイルだけを起動の前に差し替える `overlay` を足した（zip・`dist/` は変えない。パスは `..` と絶対パスを断る）。
+  - 前提: IR を差し替えた L1 の木と L2 の木が、同じファイルの集合で同じ SHA-256（7 ファイル）。
+  - 固定の列を 3 配信先 × 3 回（9 回）流し、各回で (a) 各 `expect` の口の数、(b) 書き出した `ops` が凍結した `expected_ops` とバイト単位で一致、(c) `history.versions.content_hash` が凍結した値と一致（凍結した IR が実際に使われた証拠）、5.243 と同じ計数（ページ内エラー・CSP・コンソール・2xx 以外・配信元以外への要求・ダイアログ・ポップアップ・クラッシュ）が 0 件であることを求める。9 回の相互では、観察の列・`snapshot.json`・`history.json` がそれぞれ 1 種類。
+  - 再生器は、`journey` の台帳でしか見ていなかった待ち（問い返しの後に下書きが空になる・拒否の後に下書きが全体の選択状態になる。JUDGE-27・TERM-22）を、教材に依らないエンジンの一般則として持つ。
+- 履歴の `ops` の揺れる欄（R1）:
+  - 構造の検査 `volatileOps`: `ops` を歩き、鍵が許可リスト（core の `Op`・`Input`・`Control`・`TickAddr` の serde の綴りと `testdata/contract/history/*.json` の綴り）にあること、数が 0 以上 2^31 未満の整数であること、文字列が ISO 8601 の日時の形でないことを求める。検出したものはパスだけを返す。凍結した期待・固定の列の 9 回・5.243 の 9 回のすべてに当てる。
+  - 時計と乱数をずらした実行: `L1-a` で 2 回、`page.clock.setFixedTime` で 2001 年と 2088 年に固定し、`Math.random` を回ごとに違う種の決まった列に差し替えて流し、`history.json` が 9 回とバイト単位で一致することを求める。`setFixedTime` はタイマーを止めない方式で、遅延保存などの本来の挙動は崩れなかったため、`Date.now` をずらす方式への切り替えは不要だった。自己確認として、同じ差し替えの page で `Date.now()` が固定した年を返すことを確かめる。
+  - 現れた `ops` の種類は、ログに件数だけを出す（`input`・`draft`・`submit`・`tick`）。
+- 対照（空振りの防止）: (1) 配信する木の IR が別のバイト列でも、凍結した IR を差し替えれば固定の列を再生でき、(a)〜(c) が通る。(2) 差し替えなしで別の IR（末尾に改行を足したもの・JSON として読めない前半だけのもの）に当たると、page を開く前に `ir-mismatch` で断る（開いた browser context が 0 件。照合は `runOnce` の `precheck` で遷移・マウント待ちより前に行い、マウントの失敗・時間切れが先に来ない）。(3) 期待の `submit` を 1 つ変えると、比較は `$.<index>.submit` の形のパスを報告して不一致になる。(4) 検出器は、合成した `ops` の時刻の欄・時刻らしい値・未知の鍵・範囲外の数のそれぞれのパスを返し、正常な `ops` は返さない。(5) IR の取得の計数（`l1-l2-runner.mjs` の `irFetchCheck`。5.243 の試験と共有）は、IR の 200 の応答がちょうど 1 件であることを求め、失敗から除くのはその 1 件の要求自体が応答の後に `net::ERR_ABORTED` と通知される競合（CI の Chromium で完了の通知の代わりに届くことがあった）だけにする。合成の記録で、id の違う 200 の重複の取得とその中断・応答のない別の要求の中断・別のエラー種別・別の URL・200 以外の応答の中断は数えることを確かめる。
+- 凍結の手順（一度だけ。CI では流さない）: `FANDHE_FREEZE_SEQUENCE=<crates/web/tests/data/ の下の既存のディレクトリ> make test-l2-run` を流すと、凍結の試験だけが動き、列と IR の写しを書き出し、書き出した後は必ず失敗で終わる（凍結の実行が合格に数えられないため）。既存の列は書き換えず、作り直すときは版つきの新しいディレクトリを足す。
+- 限界: (1) 実行で現れなかった `ops` の種類（`reload`・`control` など）は、鍵の許可リストで型の上からしか保証できない（鍵の名前を型から列挙する native の試験は別件）。(2) 教材は試験データ `ch0_3`（CH-1 の終点 `main/st-2-1` まで）で、本物の CH-0〜CH-1 の 50 操作ではない（TASK-642）。(3) 再生器は、列が `journey` の止まれる Step までであることに依る。(4) 時計は `Date` だけで、`performance.now` は動かさない。Chromium・Linux の miniserve だけ。
+- 04 の差分の案（spec repo 側の作業。ここでは編集しない。自動運転のため人の承認は得ていない）: DLV-15 の「証拠の種類」の「固定の列での比較は未実施」を「エンジン repo の `l1-l2-fixed` で実施（凍結した IR と組の列）」に更新する。
+- 範囲外: オリジンの分離（TASK-115）、読み込んだ `ops` を適用し直した結果と写しの一致（TASK-174・TASK-310・TASK-315）、本物の教材での CH-0〜CH-1（TASK-642）、実機（TASK-118・119）。5.243 の観察に `shell-position` の文字を足すこと（5.243 のハッシュが変わるため別件）。
+- 実行結果（2026-10-22。Linux x86_64・Chromium・miniserve 0.35.0 musl。sha256 は固定値と一致）: `l1-l2-fixed` の 17 件（PR のレビューで (2) に JSON として読めない IR の対照と (5) を足した後は 19 件）と `l1-l2-match` の 15 件が通った（固定の列は観察 22 件・要求 6 件。ハッシュの先頭 12 桁は観察 `4bc3804f4905`・snapshot `7bc8fe78b1ea`・history `3d2e6001baef` の各 1 種類。時計と乱数をずらした 2 回も history は同じ）。5.243 の 9 回の snapshot は、TASK-524 の画面の変更で 5.243 の記録（`40bdf1b8e53f`）から `7bc8fe78b1ea` に変わっており、history は同じ。`scripts/expected-test-counts.txt` は更新しない（`make test-browser` の系統に入らない）。
 
 ### 5.246 Chrome 以外のブラウザへの案内（TASK-544。SHELL-30・D-74）
 
@@ -7795,3 +7795,42 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: 一覧はページ 0（500 件以下）の範囲で比べた。ページ位置は表示の状態で、再読み込みで 0 に戻る。L2 の配布物（TASK-114）と macOS（TASK-342）は扱わない。`history-continue` の保存はなお `raw-trigger` を使う。
 - 実行結果（2026-10-23）: `checkpoint-list` 3 件がブラウザで通過。`make test-browser` 全体は未実施（未検証）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.268 試験の記録の節番号の整理と、href の検査・IR の取得の除外の残課題（#1740）
+
+実行日: 2026-10-23。元にしたコミット: `13ecddd`。並列の PR が同じ節番号を取り合った結果、5.2xx に重複 5 件と順序の乱れが残っていた。第 5 節の冒頭の規則（既存の番号は変えず、後から来た節に枝番を付ける）に従って直した。
+
+#### 節番号の整理
+
+判定の基準は「その番号を見出しに付けたコミットが main にマージされた時刻」で、遅い方に `b` を付けた。例外は無い。
+
+| 番号 | 先の節（番号のまま） | 枝番を付けた節 |
+|---|---|---|
+| 5.202 | TASK-62 1/2 | TASK-51 → 5.202b |
+| 5.204 | TASK-110 1/2 | TASK-535 → 5.204b |
+| 5.236 | TASK-182 2/2 | TASK-182 1/2 → 5.236b |
+| 5.241 | TASK-523 | TASK-113 → 5.241b |
+| 5.245 | TASK-536 | TASK-114 2/2 → 5.245b |
+
+- 並べ替え: 5.190 以降の節を `(番号, 枝番)` の順に並べ直した。節の本文は移動しただけで変えていない。見出し 5 行の番号以外の行の多重集合は、並べ替えの前後で同じである（`sort` の比較で確認。差は見出し 5 行のみ）。
+- 追従した参照: `CLAUDE.md`（`make test-l2-run` の 5.241b・5.245b、history-ops の 5.234）・`README.md`（同 5.241b・5.245b）・`tools/browser/l2-run.test.mjs`（5.241b）・本ファイルの TASK-114 1/2 の範囲外の行（5.245b）。重複を「直さない」と書いた 4 節の範囲外の行には、本件で解消した旨を足した（本文は消していない）。
+- 範囲外として残した乱れ: 5.0xx〜5.1xx の順序（5.34 が 5.64 の後、5.60b・5.60c・5.87b の位置）、第 6 節が 5.171 と 5.172 の間にある構成、重複を自動で防ぐ検査が無いこと。
+
+#### `STATIC_HREF_GUARD` を同じ経路の照合にした
+
+`crates/web/tests/no_hidden_triggers.rs` の検査は、`blob:` の確認が本文のどこかにあることしか見ていなかった。確認の後ろで別の値を `href` へ書く改変を通すため、空白を除いた本文の `if(url.startsWith(blobPrefix))a.href=url;` がちょうど 1 件あり、唯一の `.href=` がその文の中にあることを求める形（`STATIC_HREF_GUARDED_WRITE`）に変えた。
+
+- 対照（`blob_の確認と_href_の代入が離れた写しを検出する`）: 元の行を (a) 確認を空の分岐にする、(b) 確認を別の文にする、(c) 確認を否定する、(d) `|| true` を足す、(e) 別の値を代入する、の 5 変種に置き換えた写しをすべて検出した。従来の判定（確認がどこかにある・代入が 1 件）は 5 変種すべてを通すことを同じ試験の中で assert し、新しい検査だけが見分けていることを示した。実物の `app.js` は違反 0 件。
+- 試験は 1 件増えた（`no_hidden_triggers` 9 → 10）。`scripts/expected-test-counts.txt` は変えていない（件数の照合は期待値のファイルを変えた PR か版上げ PR でだけ働く。更新は別の PR）。
+- 限界: 文字列の隣接の照合であり、JS の構文は解析しない。`url` が `const` の束縛であることは `app.js` の読み取りで確認したが、検査はそれを見ていない。
+
+#### IR の取得の `ERR_ABORTED` の除外
+
+`tools/browser/l1-l2-runner.mjs` の `irFetchCheck` は、応答 200 の後に同じ要求が `net::ERR_ABORTED` と通知される競合を除いている。原因を調べた。
+
+- 5.175 の説明（IR の読み取りが上限で `reader.cancel()` を呼ぶ）は成り立たない。`app.js` の `readBounded` が `cancel()` を呼ぶのは読んだ量が上限（`ir_read_limit()`。20,971,521 バイト）に達したときだけで、試験の IR は数十 KB（`crates/web/tests/data/ch0_3/ir.json` は 35,958 バイト）である。仮説 H1 はコードの読み取りで棄却した。実測（`cancel` の呼び出し回数）は取っていない。
+- CI のログ（`browser-test`。3 回分）に `ERR_ABORTED` の行は無い。除外は黙って通すため、ログから頻度は分からない。
+- CDP の計測（H2: 完了の通知の前に loader が解放される競合、H3: キャッシュ・preload との重複、H4: Playwright の対応付けの順序）は、この環境にビルド済みの配信物（`dist/web`）・`node_modules`・miniserve が無く、未実施（未検証）である。
+- 結論: 原因は未確定。除外は外さない。残してよい理由は、(1) 同じ要求の id、(2) 応答が 200、(3) URL とエラーの種類が一致する 1 形だけを除く、(4) アプリが起動できたので本体は読み切っている、の 4 点で、重複の取得・応答のない中断・別の資源は従来どおり数える。
+- 次の手順: ビルド済みの環境で、IR の要求について `Network.loadingFinished`・`loadingFailed`（`canceled`）と `Content-Length` の有無を、CPU 抑制 × 配信サーバ（`serve.mjs`・miniserve）× 50 回以上で記録する。
+- `tools/browser/pack-body-xss.test.mjs` の除外は、URL とエラーの種類だけを見ていて `irFetchCheck` より緩い。厳しくそろえるのは、ブラウザ試験を流せない環境では確かめられないため、本件では変えていない（範囲外として報告）。
