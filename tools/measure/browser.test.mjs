@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { median, p95, toMicros, planFill, resolveLaunchOptions } from './browser.mjs';
+import { median, p95, toMicros, resolveLaunchOptions } from './browser.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
 
@@ -45,18 +45,6 @@ test('toMicros: rejects values that round to 0 or are not finite', () => {
   assert.throws(() => toMicros(0));
   assert.throws(() => toMicros(-1));
   assert.throws(() => toMicros(Number.NaN));
-});
-
-test('planFill: counts the untimed operations to reach the target', () => {
-  assert.equal(planFill(0, 100, 2), 50);
-  assert.equal(planFill(100, 100, 2), 0);
-});
-
-test('planFill: rejects unreachable targets and bad inputs', () => {
-  assert.throws(() => planFill(0, 101, 2));
-  assert.throws(() => planFill(102, 100, 2));
-  assert.throws(() => planFill(0, 100, 0));
-  assert.throws(() => planFill(0.5, 100, 2));
 });
 
 test('resolveLaunchOptions: chromium by default, chrome by channel, anything else throws', () => {

@@ -71,16 +71,6 @@ export function resolveLaunchOptions(env = process.env) {
   return c === 'chrome' ? { channel: 'chrome' } : {};
 }
 
-// 目標のログの長さまで、時間を測らない操作を何回行うか。割り切れない・戻る向きは失敗（想定外の状態で測らない）。
-export function planFill(current, target, delta) {
-  if (![current, target, delta].every(Number.isInteger) || delta < 1 || current < 0) {
-    throw new Error(`invalid fill plan inputs: ${current}, ${target}, ${delta}`);
-  }
-  const diff = target - current;
-  if (diff < 0 || diff % delta !== 0) throw new Error(`cannot reach log length ${target} from ${current} in steps of ${delta}`);
-  return diff / delta;
-}
-
 function progress(msg) {
   console.error(`[browser.mjs] ${msg}`);
 }
@@ -287,6 +277,7 @@ async function logRedrawInPage({ op, delta, win, start, samples, startStep }) {
   const first = st();
   if (first.current !== startStep) throw new Error(`unexpected start step ${first.current} (not the minimal pack?)`);
   el.setAttribute('data-payload', JSON.stringify(op));
+  // 埋める回数の割り切れ・戻る向きの検査はここ（ページ内）が唯一の実体。
   const fillCount = (start - first.logLen) / delta;
   if (!Number.isInteger(fillCount) || fillCount < 0) throw new Error('cannot fill the log to the start length');
   for (let i = 0; i < fillCount; i++) el.click();
