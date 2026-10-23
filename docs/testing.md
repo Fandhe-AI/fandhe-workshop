@@ -5508,7 +5508,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 #### 注入の口と代え方
 
-配信する設定は IR をまだ読まず（TASK-109・TASK-121）、Step の本文も枠に出していない（TASK-525 1/2）。このため「配信する設定の画面で本文が出るまで操作する」は、試験の設定の `loadIr` と、`checkDoc` → `renderDoc` の文字列を `#app` の外の容器へ入れる経路（`doc-links.test.mjs` と同じ）で代える。この口は `showStepBody` の 1 か所にまとめてある。試験 A・C で、配信する設定の CSP と画面を補う。
+1/2・2/2（#536・#537）の時点では、配信する設定が IR を読まず本文も枠に出していなかったため、試験の設定の `loadIr` と、`checkDoc` → `renderDoc` の文字列を `#app` の外の容器へ入れる経路で代えていた。この口は TASK-525 2/2（#712）で、配信する設定の画面の実際の本文の区画を見る形へ差し替えた（下の「本文の区画への差し替え」）。
 
 #### 観察（通るのが正しい件）
 
@@ -5519,7 +5519,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 
 #### 限界
 
-- 枠の本文の区画は未実装（TASK-525 1/2）で、配信する設定は IR を読まない（TASK-109・TASK-121）。両方が入ったら `showStepBody` を、配信する設定の画面で実際の本文の区画を見る形へ差し替える
+- 旧版の限界（枠の本文の区画が無く配信する設定が IR を読まない）は、下の「本文の区画への差し替え」で解消した
 - 49 件は網羅ではない
 
 #### 件数・確認（2026-10-20）
@@ -5536,6 +5536,24 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 - 手元の変異（描画した HTML の `&lt;` を `<` に戻して容器へ入れる）: B（CSP あり）・B（CSP なし）・C が失敗した（B は XSS-01 で生の HTML が文字として出ていないことを検出）。戻して再び通ることを確認した。実行の計数そのものが CSP なしで数えられることは、試験 D（対照）が担う
 - ブラウザ試験の件数は 1 件増える。`scripts/expected-test-counts.txt` は変えていない（先行の #1648 と同じ扱い。版上げの前に `make update-test-counts` で更新する）
 - `make test-browser` の全体は流していない（未検証）。CI の `browser-test` ジョブで確かめる
+
+#### 本文の区画への差し替え（TASK-525 2/2。#712。2026-10-23）
+
+元にしたコミット: `e973589`。代わりの口 `showStepBody` をやめ、配信する設定の web の一時の写しに `<meta name="fandhe-ir" content="1">` と `ir/main.json`（件ごとに実物の `fandhe-pack compile` で作った IR）を足して開き、`?start=` なしで `starts` の先頭（st-1）が開く画面の本文の区画（`#app [data-testid="step-body"]`）を観察する形にした。試験側は区画へ何も入れない。写しは `mkdtemp` の一時ディレクトリで、前提（`</head>` が 1 個・`fandhe-ir` と `fandhe-test-hooks` の meta が 0 個・CSP の meta が 1 個）が崩れれば失敗にする。件ごとにサーバを起動し直す（`tools/serve.mjs` が gzip の結果をサーバごとに持つため）。
+
+| 試験 | 内容 |
+|---|---|
+| A | 変更なし |
+| B | CSP あり・なしの各 49 件で、試験の口が無いこと・`ir-notice` が 0 件・題が IR の Step の題と一致・区画がちょうど 1 個を確かめ、全区分 0・`hits` 0・通信が配信物の構成要素と `ir/main.json` 1 件（200）だけ（`pageRequestProblems`）、生の HTML が文字（66 箇所）、`img` が 0 件、外部の画像が `data-image-blocked` の代わりの文字になること（件数が IR の画像の節の数と一致し、`alt` が文字として出る）、`data-body-level` が `A` |
+| C | 試験の設定の `loadIr` で入れた画面の区画の HTML が、B（CSP あり）の配信する設定の画面と同じ（U+0000 は除いて比べる）で、全区分 0 |
+| D | 対照。実際の区画へ生の入力（XSS-01・XSS-07）を入れると、数え方が 0 でなく数える |
+
+- 確かめた数（CSP あり・なしとも）: 生の HTML の文字 66 箇所、代わりの文字になった外部の画像 3 件（XSS-20・26 を含む。下限は 2）
+- `ir/main.json` の取得は、IR の読み取りが上限で `reader.cancel()` を呼ぶため、応答 200 のまま `net::ERR_ABORTED` として `failed` に載ることがある。この 1 形（`ir/main.json` の ERR_ABORTED）だけを除いて通信を判定する。本文は描画済みである
+- U+0000（XSS-47）は、試験の設定と配信する設定の経路で区画の `innerHTML` に残る・落ちるの差が出る。B は `textContent` から除いて比べ、C は HTML から除いて比べる
+- 手元の変異（空振りの防止）: 代替の文字の件数の期待を 1 ずらすと B（2 件）・C が失敗した（戻して再び通ることも確認）
+- 限界: 実行時の水準は常に A（`Control::SetGuidance` が未実装。TASK-294）で、B・C の本文の 49 件の確認は行っていない。49 件は網羅ではない。試験の作成者と実装の作成者が同じ AI である
+- 件数: ブラウザ試験の件数は変わらない（5 件）。`scripts/expected-test-counts.txt` は変えていない。`make test-browser` の全体は流していない（未検証）。CI の `browser-test` で確かめる
 
 ### 5.176 CSP の meta の配置と内容の検査（TASK-151 1/2。SAFE-13）
 
@@ -7741,7 +7759,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 試験: native は `crates/web/tests/step_body_host.rs`（8 件。20 Step の題と `do`・章の最初の Step・本文の構造と外部画像・記号の非解釈・A/B/C と倒れ・dirty・履歴を開く・教材なし）と、`ch0_3_run_host`（題が変わった手で dirty）・`history_import`（開いたときの dirty の一覧）。ブラウザは `tools/browser/step-body.test.mjs`（20 Step の DOM と IR の一致・親の同一性・実コンパイルした教材の本文の構造・幅 1280px と 360px・実行と通信が 0 件・hidden の対照）。CSP あり・なしの両方で流す。
 - 変異注入: `SHELL7-1`（本文の水準を A に固定）・`SHELL7-2`（Step の変化で dirty を積まない）・`SHELL7-3`（`do` の項目を作らない）。2026-10-23 に `scripts/check-mutations.sh` で 3 件とも DETECTED。
 - 限界: 実行時の水準は常に A（`Control::SetGuidance` が core で未実装。TASK-294）。B・C は native で状態を注入して確かめた。ブラウザでの B・C は未確認。`direct-link-reload` の DOM の題の照合（5.204）は足していない。
-- 範囲外: 49 件の注入を CSP あり・なしで画面の本文の区画に対して流す確認は #712（TASK-525 2/2）。
+- 範囲外: 49 件の注入を CSP あり・なしで画面の本文の区画に対して流す確認は #712（TASK-525 2/2）で実施した（5.175 の「本文の区画への差し替え」）。
 - 実行の結果（2026-10-23）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make check` が通過。ブラウザは `step-body` の 4 件と、`element-identity`・`shell-widths`・`shell-position`・`shell-tabs`・`inline-free`・`csp-runs`・`next-chapter`・`history-ops`・`direct-link-start` が通過。`view-only` 系は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を用意せず未実行（未検証）。`make test-browser` 全体は未実施。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で既に失敗している。
 
 ### 5.266 チェックポイントの保存と復帰の操作（TASK-529 1/2。SHELL-13）
