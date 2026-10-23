@@ -547,8 +547,16 @@ fn sample_restore_entry_matches_apply() {
         })
         .expect("e14 saves");
     let first = find("e19");
+    // 復帰は保存の後のログの区間で戻す経路を決める。e19 の前のログは e01〜e18 の連鎖が作る列とする。
+    let log: Vec<Event> = s
+        .entries
+        .iter()
+        .take_while(|e| e.id != "e19")
+        .flat_map(|e| e.events.clone())
+        .collect();
     let mut state = SessionState {
         run: first.before.clone(),
+        log,
         ..SessionState::default()
     };
     state.checkpoints.insert(

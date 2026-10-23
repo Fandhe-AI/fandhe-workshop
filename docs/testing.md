@@ -7679,3 +7679,25 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 変異注入: `MOD9-1`（復帰が全ての根の切り身を写しへ戻す）。2026-10-23 に `scripts/check-mutations.sh crates/pack/tests/mutations/MOD9-1.mutation` は DETECTED。X1・X5・X6 の正式な検出の記録は TASK-244 の持ち分。
 - 限界: (ii-b) の `st-7-2` への移動と進行は、`wait` の Step で処理中が始まらない（5.258・5.260）ため行わず、1 周目の Step への `GoTo` に置き換えた。`issue-to-merge@round2` の `st-7-1` へも入力で届かず `GoTo` で飛ぶ。世界状態 `prs/pr-1-a` の表明は TASK-241 2/2。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.262 世界状態・案内レベル・呼び出しの Step の復帰範囲（TASK-241 2/2。MOD-9）
+
+- 目的: 復帰が戻す範囲を、世界状態は「保存の後に持ち主が書いた経路」、案内レベルは写しの値、呼び出しの Step の状態は持ち主と一緒に絞る。`global_flags`・ヒントの使用回数・下書き・他の根の切り身は戻さない（X5・X6 の否定）。
+- 決定:
+  - `crates/core/src/checkpoint.rs` の `on_save`・`on_restore` に `&Ir` を渡し、持ち主を `instance::owner_of` で決める（呼び出しの Step で保存すると呼ばれた実体の根）。IR から読むのは実体の呼び出し元の表だけ。
+  - 世界状態は、写しの `log_len` 以降のログの `Changed` のうち宛先の持ち主が復帰の持ち主と一致するものの経路だけを、写しの値へ戻す（写しに無ければ取り除く）。原因は問わない。
+  - 帰結: (a) 保存の後に持ち主と他の根の両方が書いた経路は戻る。(b) 宛先の無い `Changed` は戻さない。(c) 根が 1 つの教材では全体を戻す従来の結果と一致する。
+  - 写しの `log_len` がログの長さを超えるときは、固定文の `Warning` だけで状態を変えない（core の fail-closed）。`Projection` は同じ状況で写し無しに倒す（fail-soft）ので、扱いが異なる。保存から読んだ履歴は再生で照合されるためこの状態には届かず、届くのは手組みの状態だけ。
+  - `Checkpoint`・`RunState`・`Event` の形は変えず、`checkpoint` モジュールは署名の対象外なので `CONTRACT_VERSION` は上げない。
+- 試験:
+  - `crates/core/tests/restore_owner_slice.rs`（+6 件）: 持ち主の経路だけ戻る・共有の経路は戻る・保存の前と宛先の無い `Changed` は戻さない・`global_flags` は直前のまま案内レベルは写し・`log_len` の範囲外で `Warning` のみ・世界状態の性質テスト（S-5）。
+  - `crates/core/tests/restore_call_step_owner.rs`（2 件）: 呼び出しの Step で保存すると持ち主が呼ばれた実体の根・復帰で呼び出しの Step の状態が戻り `main` の切り身は残る。
+  - `crates/pack/tests/round_slice_init.rs` の `mod9_*`（+3 件）: 2 周目の持ち主の経路は戻り 1 周目の宛先の経路と切り身のハッシュは変わらない・呼び出しの Step の状態が持ち主と一緒に戻る・1 周目の保存への復帰が 2 周目の開始の世界状態を戻さない。
+  - `crates/core/tests/contract_conformance.rs` の `sample_restore_entry_matches_apply`: 復帰が保存の後のログを読むため、e19 の前のログに e01〜e18 のイベント列を入れる形にした（`testdata/contract/event-sequence.json` は変えない）。
+- 変異注入: `MOD9-2`（復帰が世界状態を写し全体へ戻す。X5 相当）・`MOD9-3`（保存の持ち主を scope の根にする。X6 相当）。2026-10-23 に `scripts/check-mutations.sh` で `MOD9-1`・`MOD9-2`・`MOD9-3` はいずれも DETECTED。X1・X5・X6 の正式な検出の記録は TASK-244 の持ち分。
+- 限界:
+  - 1 周目の世界状態の書き込みは、`wait` の処理中が未実装で `prs/pr-1-a` が作られない（5.258・5.260）ため、1 周目の `st-2-1` への `GoTo` と入力による `ideas/bbs-with-login/README.md` の書き換えに置き換えた。
+  - 現在の Step が呼び出しの Step そのものになる場面は、`GoTo` でも入力でも作れない（着地先は呼ばれた実体の最初の Step）。そのため保存の持ち主の規則（X6）は pack では届かず、core の手組みの状態で確かめた。pack の呼び出しの Step の試験は、持ち主の復帰で状態が一緒に戻ることの確認にとどまり、`MOD9-3` は検出しない。
+  - 案内レベルを戻すことは、`Begin` が開始点の `guidance` を反映しない（TASK-294）ため core の試験だけで確かめた。
+- 範囲外: `Projection` が復帰の復習の根を `root_of` で引くため、呼び出しの Step で保存したときに core の持ち主と食い違う（直すには `Restored` へ根を持たせる契約の版上げか、`Projection` へ実体の表を渡す変更が要る）。停止（`stop.rs`）と上限の戻しの世界状態と `entry_derive` の根の決め方は TASK-242。案内レベルの切り替えと開始点の反映は TASK-294。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

@@ -4,14 +4,14 @@
 //! ときだけ世代を 1 つ進める。世代を進めるのは、復帰前に予約された進行を古い宛先として無視させるためである
 //! （無視と処理中の再開の試験は `tests/restore_resume.rs`、TASK-214 3/3）。呼び出し元は [`crate::session::apply`] だけで、公開 API には含めない
 //! （契約の対象外）。世代の規則の表（`Keep`・`IncrementOnSuccess`）の強制は `apply` の関門が行い、
-//! 本モジュールは表を再実装しない。教材（IR）は読まない（教材が保存・復帰の意味を変えられない）。
+//! 本モジュールは表を再実装しない。教材（IR）から読むのは実体の呼び出し元の表（持ち主の根の決定）だけで、保存・復帰の意味を教材が変えることはできない。
 //!
 //! # 保存の規則（上から評価し、最初に当たったものを返す）
 //!
 //! 1. 現在の Step が無いなら、状態を変えず空のイベント列を返す（`Stamp` を作れない。開始前の扱いは TASK-217）。
 //!    これにより保存した `run.current` は必ず `Some` になり、復帰の `Restored.owner` を作れることが保証される
 //! 2. 次の ID があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
-//! 3. 実行状態と入口の写しを写し取り、`CheckpointSaved` を 1 件返す。`log_len` は保存操作の直前のログの長さ
+//! 3. 実行状態と入口の写しを写し取り、`CheckpointSaved` を 1 件返す。持ち主の根は `owner_of`（呼び出しの Step なら呼ばれた実体の根）で決める。`log_len` は保存操作の直前のログの長さ
 //!    （`CheckpointSaved` 自身のログ上の位置）で、`Projection` が復習を控える位置と一致する
 //!
 //! 処理中でも保存できる。世代・ログ・下書き・ヒント・世界状態には触れない（`Changed` は出ない）。
@@ -23,9 +23,15 @@
 //! 3. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない
 //! 4. 写しの `run.current` が無い（読み込んだ写しの不整合）なら、固定文の `Warning` だけで状態を変えない
 //!    （一部だけ戻さない）
-//! 5. 持ち主の根（保存時の `Checkpoint::owner`。無ければ写しの現在の Step の根）の切り身だけを写しへ戻し（写しに無ければ
+//! 5. 写しの `log_len` が現在のログの長さを超えるなら、固定文の `Warning` だけで状態を変えない（fail-closed。
+//!    戻す経路の集合を決められないまま一部だけ戻さない。保存から読んだ履歴は再生で照合されるので、届くのは手で組んだ状態だけ）
+//! 6. 持ち主の根（保存時の `Checkpoint::owner`。無ければ `owner_of` で写しの現在の Step から導く）の切り身だけを写しへ戻し（写しに無ければ
 //!    取り除く）、他の根の切り身は復帰の前のまま残す。`current`・`busy`・`completed` は写しの値、世代は現在の世代 +1
-//!    にする（世代は減らない）。世界状態・`global_flags`・案内レベルは暫定で写しの値を入れる（絞り込みは TASK-241 2/2）。
+//!    にする（世代は減らない）。案内レベルは写しの値に戻す。`global_flags` は戻さない（復帰の直前のまま）。
+//!    世界状態は、保存の後のログ（`log_len` 以降）の `Changed` のうち宛先の持ち主が復帰の持ち主と一致するものの経路
+//!    だけを写しの値へ戻し（写しに無ければ取り除く）、他の経路は復帰の前のまま残す。原因（`Cause`）は問わない。
+//!    保存の後に持ち主と他の根の両方が書いた経路は戻る（世界状態は教材全体で 1 つで、持ち主の書き込みを優先する）。
+//!    宛先の無い（空の Step の）`Changed` は持ち主と一致しないので戻さない。根が 1 つの教材では全体を戻すのと結果が一致する。
 //!    入口の写しも保存時点のものへ戻す（移動で無効化された写しを戻さないと、復帰後の停止が写し無しで倒れる）。
 //!    写しの中の世代は書き換えない（停止が戻すときに世代を上書きするので値は使われない）。
 //!    `Restored` を 1 件返す。`log_len` は写しの値で、現在のログの長さではない（EVT-14）
@@ -38,12 +44,15 @@
 //!
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
-//! - 世界状態・`global_flags`・案内レベルの戻り方、呼び出しの Step の持ち主（`owner_of`）に合わせた根の切り替え（TASK-241 2/2）。
-//!   実体単位の入口の写しは TASK-242
+//! - 実体単位の入口の写しと停止の世界状態（TASK-242）。案内レベルの切り替えと開始点の反映（TASK-294）
 //! - 開始前の保存・復帰（TASK-217）、章の終わりの自動保存、保存の数の上限
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! ID は履歴由来の信頼できない値で、鍵としてだけ使う。`Warning` の文面は固定文で値を埋め込まない。
+
+use std::collections::BTreeSet;
+
+use fandhe_workshop_contract::ir::Ir;
 
 use crate::addr::Stamp;
 use crate::event::{ControlKind, Event, RefuseReason};
@@ -56,9 +65,11 @@ const ID_OVERFLOW: &str = "checkpoint id overflow; save ignored";
 const GENERATION_OVERFLOW: &str = "generation overflow; restore ignored";
 /// 写しに現在の Step が無いときの固定文。
 const MISSING_CURRENT: &str = "checkpoint has no current step; restore ignored";
+/// 写しのログ位置が現在のログの長さを超えるときの固定文。
+const LOG_POSITION_OUT_OF_RANGE: &str = "checkpoint log position is out of range; restore ignored";
 
 /// `Control::Save` の分岐。成功なら写しを控え、出たイベント列を返す。
-pub(crate) fn on_save(state: &mut SessionState) -> Vec<Event> {
+pub(crate) fn on_save(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     let Some(current) = state.run.current.clone() else {
         return Vec::new();
     };
@@ -82,7 +93,7 @@ pub(crate) fn on_save(state: &mut SessionState) -> Vec<Event> {
             run: state.run.clone(),
             entry: state.entry.clone(),
             log_len,
-            owner: Some(crate::instance::root_of(&current)),
+            owner: Some(crate::instance::owner_of(ir, &current)),
         },
     );
     state.next_checkpoint = CheckpointId(next_id);
@@ -90,7 +101,7 @@ pub(crate) fn on_save(state: &mut SessionState) -> Vec<Event> {
 }
 
 /// `Control::Restore` の分岐。成功なら写しへ戻り、出たイベント列を返す。
-pub(crate) fn on_restore(state: &mut SessionState, id: CheckpointId) -> Vec<Event> {
+pub(crate) fn on_restore(ir: &Ir, state: &mut SessionState, id: CheckpointId) -> Vec<Event> {
     let Some(current) = state.run.current.clone() else {
         return Vec::new();
     };
@@ -119,12 +130,31 @@ pub(crate) fn on_restore(state: &mut SessionState, id: CheckpointId) -> Vec<Even
         return warn(MISSING_CURRENT);
     };
     let log_len = cp.log_len;
+    // 位置は履歴由来の信頼できない値。範囲外は一部だけ戻さず、状態を変えない。
+    let Some(since) = usize::try_from(log_len)
+        .ok()
+        .and_then(|n| state.log.get(n..))
+    else {
+        return warn(LOG_POSITION_OUT_OF_RANGE);
+    };
     let entry = cp.entry.clone();
     // 持ち主の根は保存時の記録を使う。旧データ（記録なし）は写しの現在の Step の根に倒す（panic しない）。
     let owner_root = cp
         .owner
         .clone()
-        .unwrap_or_else(|| crate::instance::root_of(&owner));
+        .unwrap_or_else(|| crate::instance::owner_of(ir, &owner));
+    // 保存の後に持ち主が書いた世界状態の経路。宛先の持ち主は実体の表から引く。
+    let touched: BTreeSet<&str> = since
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { at, path, .. }
+                if crate::instance::owner_in(&ir.instances, &at.step) == owner_root =>
+            {
+                Some(path.as_str())
+            }
+            _ => None,
+        })
+        .collect();
     let mut run = state.run.clone();
     // 切り身は持ち主の根の 1 つだけを写しへ戻す。写しに無ければ取り除いたままにする。他の根は触れない。
     run.slices.remove(&owner_root);
@@ -135,9 +165,17 @@ pub(crate) fn on_restore(state: &mut SessionState, id: CheckpointId) -> Vec<Even
     run.current = cp.run.current.clone();
     run.busy = cp.run.busy.clone();
     run.completed = cp.run.completed;
-    // 暫定。世界状態・根をまたぐフラグ・案内レベルの絞り込みは TASK-241 2/2（#575）で行う。それまでは写しの値を入れる。
-    run.world = cp.run.world.clone();
-    run.global_flags = cp.run.global_flags.clone();
+    // 世界状態は持ち主が書いた経路だけを写しの値へ戻す。`global_flags` は戻さない（復帰の直前のまま）。
+    for path in touched {
+        match cp.run.world.get(path) {
+            Some(v) => {
+                run.world.insert(path.to_string(), v.clone());
+            }
+            None => {
+                run.world.remove(path);
+            }
+        }
+    }
     run.guidance_level = cp.run.guidance_level;
     run.generation = next;
     state.run = run;
