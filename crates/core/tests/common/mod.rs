@@ -14,6 +14,7 @@ pub mod op_props;
 pub mod property;
 pub mod record_path;
 pub mod tick;
+pub mod trace;
 
 /// 持ち主の規則（`owner_of`）が `root_of` に落ちるだけの最小の IR（呼び出しの Step を持たない）。
 pub fn min_ir() -> fandhe_workshop_contract::ir::Ir {
