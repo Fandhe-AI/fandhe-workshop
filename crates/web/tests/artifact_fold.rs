@@ -163,3 +163,44 @@ fn plan_fold_older_は_head_を返さず古い側だけを畳む() {
         assert!(shown <= 1_000usize.max(latest + 1), "{lens:?} -> {shown}");
     }
 }
+
+/// 指せる行（宛先を持つ行）は古い Step でも畳まれない（畳むと古い経路を指せず Step を達成できない）。
+#[test]
+fn 指せる行は古い_step_でも畳まれず残る() {
+    use fandhe_frontend_core::{el, text};
+    use fandhe_workshop_core::event::Event;
+    use fandhe_workshop_web::artifact_fold::{fold_rows, ArtifactRow};
+
+    let ev = |step: &str, p: &str| -> Event {
+        serde_json::from_value(serde_json::json!({"changed": {
+            "at": {"generation": 1, "step": step},
+            "path": p,
+            "before": null,
+            "after": {"fixture": null, "attrs": {"kind": "none", "state": "created"}},
+            "cause": "input",
+        }}))
+        .unwrap()
+    };
+    let mut log = Vec::new();
+    let mut rows: Vec<ArtifactRow> = Vec::new();
+    for (step, prefix, n) in [("main/st-1", "a", 600usize), ("main/st-2", "b", 401)] {
+        for i in 0..n {
+            let path = format!("{prefix}/{i:05}");
+            log.push(ev(step, &path));
+            // 古い Step の先頭 1 行だけを指せる行にする。
+            let pinned = prefix == "a" && i == 0;
+            rows.push((
+                path.clone(),
+                format!("p{path}"),
+                el("li", vec![], vec![text(path.as_str())]),
+                pinned,
+            ));
+        }
+    }
+    let out = fold_rows(&log, rows);
+    let keys: Vec<&str> = out.iter().map(|(k, _)| k.as_str()).collect();
+    assert!(keys.contains(&"pa/00000"), "指せる行が畳まれた");
+    assert!(!keys.contains(&"pa/00001"));
+    assert!(keys.contains(&"pb/00400"));
+    assert!(out.len() <= 1_000, "{}", out.len());
+}

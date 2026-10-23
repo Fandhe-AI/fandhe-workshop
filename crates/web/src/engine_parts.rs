@@ -25,7 +25,7 @@
 //! 経路・Step の ID は教材由来の信頼できない文字列である。属性値・文字ノードとして `render` の既定の
 //! エスケープに通し、生 HTML の経路は使わない（SAFE-11）。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use fandhe_frontend_core::{bind_attr_token, bind_text, el, text, Node};
 use fandhe_frontend_wasm_client::BoundValue;
@@ -506,6 +506,29 @@ const LOG_SECRET_CHOICE: usize = 9;
 /// 経路をそのまま行のキーにしてよい長さの上限（バイト）。
 const ARTIFACT_KEY_PATH_MAX: usize = 256;
 
+/// 今の Step の `input`・`confirm` の宣言にある `targets` のうち、ビュー `view` を指す経路を集める。
+/// 宣言の形（`ui_action`・`point_at`）に依らず `targets` の配列だけを読む。読めない宣言は何も足さない。
+fn current_target_paths(session: &Session, view: &str) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    let Some(uid) = session.state().run.current.as_ref() else {
+        return out;
+    };
+    let Some(node) = session.ir().nodes.iter().find(|n| n.uid == uid.0) else {
+        return out;
+    };
+    for decl in [&node.step.input, &node.step.confirm].into_iter().flatten() {
+        let targets = decl.get("targets").and_then(|t| t.as_array());
+        for t in targets.into_iter().flatten() {
+            if t.get("view").and_then(|v| v.as_str()) == Some(view) {
+                if let Some(path) = t.get("path").and_then(|p| p.as_str()) {
+                    out.insert(path.to_owned());
+                }
+            }
+        }
+    }
+    out
+}
+
 /// 左の成果物。世界状態の経路と、変化の印を並べる。
 struct ArtifactPart;
 
@@ -527,6 +550,12 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 .find(|(k, _)| *k == selected)
                 .map(|(_, id)| id.to_owned())
         });
+        // 今の Step が指す対象の経路。畳みの対象から外す（畳むと古い経路を指せず Step を達成できない）。
+        let pinned_paths: BTreeSet<String> = declared_id
+            .as_deref()
+            .zip(model.session())
+            .map(|(id, s)| current_target_paths(s, id))
+            .unwrap_or_default();
         let rows: Vec<ArtifactRow> = artifact_rows(model.world(), model.projection().marks())
             .into_iter()
             .enumerate()
@@ -553,7 +582,8 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 } else {
                     format!("i{i}")
                 };
-                (path, key, node)
+                let pinned = target.is_some() && pinned_paths.contains(path.as_str());
+                (path, key, node, pinned)
             })
             .collect();
         // 目安を超えたときだけ、古い Step の行を要約 1 行へ畳む（TASK-484 1/2。D-46）。

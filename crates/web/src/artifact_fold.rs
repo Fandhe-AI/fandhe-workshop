@@ -20,8 +20,10 @@ use fandhe_workshop_core::event::Event;
 
 use crate::list_policy::{fold_node, plan_fold_older, FoldEntry, FoldKind, LIST_ITEMS_TARGET};
 
-/// 左の 1 行。経路・キー・ノードの組。
-pub type ArtifactRow = (String, String, Node);
+/// 左の 1 行。経路・キー・ノード・指せる行か否かの組。
+///
+/// 指せる行（`PointTarget` を持つ行）は、畳むと受講者が対象を指せず Step を達成できなくなるため、畳みの対象にしない。
+pub type ArtifactRow = (String, String, Node, bool);
 
 /// ランの情報。
 struct Run {
@@ -37,8 +39,11 @@ struct Run {
 /// 行は、最古の仮のグループに入れて畳みの対象にする（安全側）。
 pub fn fold_rows(log: &[Event], rows: Vec<ArtifactRow>) -> Vec<(String, Node)> {
     if rows.len() <= LIST_ITEMS_TARGET {
-        return rows.into_iter().map(|(_, k, n)| (k, n)).collect();
+        return rows.into_iter().map(|(_, k, n, _)| (k, n)).collect();
     }
+    // 指せる行は畳まず残す。畳みの目安は、残す分を引いた数で計画する（計画側が下限を持つ）。
+    let pinned = rows.iter().filter(|r| r.3).count();
+    let target = LIST_ITEMS_TARGET.saturating_sub(pinned);
     // ログを先頭から走査し、(世代, Step) が変わるたびにラン番号を 1 増やす。番号 0 は「見つからない」用。
     let mut runs: Vec<Run> = Vec::new();
     let mut last_run: HashMap<&str, usize> = HashMap::new();
@@ -56,16 +61,19 @@ pub fn fold_rows(log: &[Event], rows: Vec<ArtifactRow>) -> Vec<(String, Node)> {
         }
     }
     let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    for (idx, (path, _, _)) in rows.iter().enumerate() {
+    for (idx, (path, _, _, pin)) in rows.iter().enumerate() {
+        if *pin {
+            continue;
+        }
         let run = last_run.get(path.as_str()).copied().unwrap_or(0);
         groups.entry(run).or_default().push(idx);
     }
     let ordered: Vec<(usize, Vec<usize>)> = groups.into_iter().collect();
     let lens: Vec<usize> = ordered.iter().map(|(_, v)| v.len()).collect();
 
-    let mut keep = vec![false; rows.len()];
+    let mut keep: Vec<bool> = rows.iter().map(|r| r.3).collect();
     let mut summaries: Vec<(String, Node)> = Vec::new();
-    for entry in plan_fold_older(&lens, LIST_ITEMS_TARGET) {
+    for entry in plan_fold_older(&lens, target) {
         match entry {
             FoldEntry::Rows { group, skip } => {
                 if let Some((_, idxs)) = ordered.get(group) {
@@ -100,7 +108,7 @@ pub fn fold_rows(log: &[Event], rows: Vec<ArtifactRow>) -> Vec<(String, Node)> {
         rows.into_iter()
             .zip(keep)
             .filter(|(_, k)| *k)
-            .map(|((_, key, node), _)| (key, node)),
+            .map(|((_, key, node, _), _)| (key, node)),
     );
     out
 }
