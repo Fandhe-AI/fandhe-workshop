@@ -22,6 +22,7 @@
 //! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
 //! 20 Step の通しの ST-2.6 に「直す」の候補と表示名を宣言した変種（`?fixture=ch0-3-revise`）は、誤った候補を含むボタンが表示名で出ることの試験に使う（TERM-28。TASK-448 1/2）。
 //! 差し戻しの後に再承認の Step を置いた変種（`?fixture=ch0-3-reapprove`）と、同じ形の `load-fixture:approval-reapprove` は、差し戻し → 再承認の画面の試験に使う（TERM-29。TASK-448 2/2）。
+//! 問い返しの案内文を「候補が開いているときの Esc は 1 回目で閉じ、2 回目で取り消す」と順序を教える文面に差し替えた変種（`?fixture=ch0-3-esc-guide`）は、その案内が画面に出ることの試験に使う（TERM-9・D-60。TASK-452 1/2）。
 //! 確認 `answer` の選択肢から `label` を外した変種（`?fixture=ch0-3-nolabel`）は、数え方が ID の表示を検出できることの対照に使う（TERM-25。TASK-446）。
 //! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
 //! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
@@ -88,6 +89,8 @@ pub(crate) enum MountFixture {
     Ch03Revise,
     /// [`MountFixture::Ch03Revise`] と同じ候補の ST-2.6 の直後に、再承認の Step を足した教材。開始点 `s-2-6` を足す（TERM-29。TASK-448 2/2）。
     Ch03Reapprove,
+    /// 20 Step の通しの教材の問い返し `cl-new-idea-name` の案内文だけを、Esc の順序を教える文面に差し替えた教材（TERM-9・D-60。TASK-452 1/2）。
+    Ch03EscGuide,
     /// 20 Step の通しの教材の各章の最後を `final` にし、開始点を章の先頭 4 件にした教材（「次の章へ進む」の通しの試験。TASK-526 2/2）。
     Ch03Chapters,
     /// CH-3 を最後に使う絞った IR。範囲外の章 CH-4 のノードを持つが、開始点には CH-4 を含めない（SHELL-12・D-67。TASK-527）。
@@ -292,6 +295,31 @@ pub(crate) fn ch03_revise_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// Esc の案内の試験の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CH03_ESC_GUIDE_PACK_ID: &str = "ch0-3-esc-guide";
+
+/// 順序を教える案内文の試験用の仮の文面。本物の文面は教材 repo の持ち分である。
+/// ブラウザ試験 `esc-guide-st14` が同じ文字列を持つ。変えるときは両方を直す。
+pub(crate) const CH03_ESC_GUIDE_HOW_TO_ANSWER: &str = "名前を付けてもう一度送ります。取り消すときは Esc を押します。候補の一覧が開いているときは、1 回目の Esc で一覧が閉じ、2 回目で取り消します。";
+
+/// 20 Step の通しの教材の問い返し `cl-new-idea-name` の `how_to_answer` だけを差し替えた IR を作る（`pack.id` も別にする）。
+/// 呼び出し元は `?fixture=ch0-3-esc-guide` の mount で、ブラウザ試験 `esc-guide-st14` が使う（TERM-9・D-60。TASK-452 1/2）。
+pub(crate) fn ch03_esc_guide_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CH03_ESC_GUIDE_PACK_ID.into());
+    pack.insert("title".to_owned(), "Esc の案内の試験データ".into());
+    obj.get_mut("clarifications")?
+        .get_mut("cl-new-idea-name")?
+        .as_object_mut()?
+        .insert(
+            "how_to_answer".to_owned(),
+            CH03_ESC_GUIDE_HOW_TO_ANSWER.into(),
+        );
+    serde_json::to_vec(&value).ok()
+}
+
 /// 再承認の試験の教材の `pack.id`。他の試験の鍵と分ける。
 pub(crate) const CH03_REAPPROVE_PACK_ID: &str = "ch0-3-reapprove";
 
@@ -463,6 +491,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=ch0-3-nolabel" => MountFixture::Ch03NoLabel,
         "?fixture=ch0-3-revise" => MountFixture::Ch03Revise,
         "?fixture=ch0-3-reapprove" => MountFixture::Ch03Reapprove,
+        "?fixture=ch0-3-esc-guide" => MountFixture::Ch03EscGuide,
         "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
         "?fixture=ch0-3-trial" => MountFixture::Ch03Trial,
         "?fixture=ch0-4-full" => MountFixture::Ch04Full,
@@ -499,6 +528,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::Ch03NoLabel => ch03_nolabel_ir_bytes()?,
         MountFixture::Ch03Revise => ch03_revise_ir_bytes()?,
         MountFixture::Ch03Reapprove => ch03_reapprove_ir_bytes()?,
+        MountFixture::Ch03EscGuide => ch03_esc_guide_ir_bytes()?,
         MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
         MountFixture::Ch03Trial => ch03_trial_ir_bytes(false)?,
         MountFixture::Ch04Full => ch03_trial_ir_bytes(true)?,
@@ -1900,5 +1930,33 @@ mod tests {
         let re = by(CH03_REAPPROVE_NODE);
         assert_eq!(re["step"]["next"][0]["to"], "main/st-2-7");
         assert!(re["step"]["input"].get("revise").is_none());
+    }
+
+    #[test]
+    fn esc_案内の教材は_案内文だけを差し替え_完全一致でだけ選ばれる() {
+        for (q, want) in [
+            ("?fixture=ch0-3-esc-guide", MountFixture::Ch03EscGuide),
+            ("?fixture=ch0-3-esc-guide&x=1", MountFixture::Default),
+            ("?fixture=CH0-3-esc-guide", MountFixture::Default),
+            ("?fixture=ch0-3-esc-guide2", MountFixture::Default),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+        let base = load_ir(CH03_IR).unwrap();
+        let ir = load_ir(&ch03_esc_guide_ir_bytes().unwrap()).unwrap();
+        assert_eq!(ir.pack.id, CH03_ESC_GUIDE_PACK_ID);
+        assert_ne!(ir.pack.id, base.pack.id);
+        assert_ne!(ir.pack.id, CH03_REVISE_PACK_ID);
+        assert_eq!(ir.nodes.len(), base.nodes.len());
+        let raw: serde_json::Value =
+            serde_json::from_slice(&ch03_esc_guide_ir_bytes().unwrap()).unwrap();
+        let orig: serde_json::Value = serde_json::from_slice(CH03_IR).unwrap();
+        let cl = &raw["clarifications"]["cl-new-idea-name"];
+        assert_eq!(cl["how_to_answer"], CH03_ESC_GUIDE_HOW_TO_ANSWER);
+        assert_eq!(
+            cl["message"],
+            orig["clarifications"]["cl-new-idea-name"]["message"]
+        );
+        assert_eq!(raw["nodes"], orig["nodes"]);
     }
 }

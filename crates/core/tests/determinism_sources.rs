@@ -115,12 +115,18 @@ fn strip_line_comments(src: &str) -> String {
                 }
             }
         } else if ch == '\'' && c.get(i + 1) == Some(&'\\') {
+            // バックスラッシュと次の 1 文字を組で消費し、その後の最初の引用符で閉じる（`'\\'` の閉じ引用符を誤らない）。
             out.push(ch);
-            i += 1;
+            out.push(c[i + 1]);
+            i += 2;
+            if i < c.len() {
+                out.push(c[i]);
+                i += 1;
+            }
             while i < c.len() {
                 out.push(c[i]);
                 i += 1;
-                if c[i - 1] == '\'' && c[i - 2] != '\\' {
+                if c[i - 1] == '\'' {
                     break;
                 }
             }
@@ -222,20 +228,82 @@ fn core_and_contract_sources_have_no_nondeterminism_sources() {
     assert_eq!(used, EXCEPTIONS.len(), "every exception is still needed");
 }
 
+/// 直接の依存の実際の crate 名を返す。`[dependencies]`・`[build-dependencies]`・`[target.*.dependencies]` を見て、
+/// `package = "x"` の改名は x で、`workspace = true` は workspace 側の定義（`package` を含む）で解決する。
+fn dependency_crates(manifest: &toml::Table, workspace: Option<&toml::Table>) -> Vec<String> {
+    let ws_deps = workspace
+        .and_then(|w| w.get("workspace"))
+        .and_then(|w| w.get("dependencies"))
+        .and_then(|d| d.as_table());
+    let mut tables: Vec<&toml::Table> = Vec::new();
+    for key in ["dependencies", "build-dependencies"] {
+        tables.extend(manifest.get(key).and_then(|d| d.as_table()));
+    }
+    if let Some(targets) = manifest.get("target").and_then(|t| t.as_table()) {
+        for t in targets.values().filter_map(|t| t.as_table()) {
+            for key in ["dependencies", "build-dependencies"] {
+                tables.extend(t.get(key).and_then(|d| d.as_table()));
+            }
+        }
+    }
+    let package_of = |v: &toml::Value| -> Option<String> {
+        v.get("package")
+            .and_then(|p| p.as_str())
+            .map(str::to_string)
+    };
+    let mut out = Vec::new();
+    for table in tables {
+        for (key, value) in table {
+            out.push(key.clone());
+            if let Some(p) = package_of(value) {
+                out.push(p);
+            }
+            let inherits = value.get("workspace").and_then(|w| w.as_bool()) == Some(true);
+            if inherits {
+                if let Some(def) = ws_deps.and_then(|d| d.get(key)) {
+                    if let Some(p) = package_of(def) {
+                        out.push(p);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 #[test]
 fn core_and_contract_have_no_time_or_random_dependency() {
+    let root_text =
+        std::fs::read_to_string(crates_dir().parent().expect("repo root").join("Cargo.toml"))
+            .expect("read workspace Cargo.toml");
+    let root: toml::Table = toml::from_str(&root_text).expect("parse workspace Cargo.toml");
     for name in ["core", "contract"] {
         let text = std::fs::read_to_string(crates_dir().join(name).join("Cargo.toml"))
             .expect("read Cargo.toml");
         let value: toml::Table = toml::from_str(&text).expect("parse Cargo.toml");
-        let deps = value
-            .get("dependencies")
-            .and_then(|d| d.as_table())
-            .expect("dependencies table");
+        assert!(
+            value.get("dependencies").is_some_and(|d| d.is_table()),
+            "dependencies table"
+        );
+        let deps = dependency_crates(&value, Some(&root));
         for c in FORBIDDEN_CRATES {
-            assert!(!deps.contains_key(*c), "{name} depends on {c}");
+            assert!(!deps.iter().any(|d| d == c), "{name} depends on {c}");
         }
     }
+}
+
+#[test]
+fn dependency_detector_sees_renames_targets_and_workspace_entries() {
+    let parse = |s: &str| s.parse::<toml::Table>().expect("toml");
+    let renamed = parse("[dependencies]\nclock = { package = \"time\", version = \"0.3\" }");
+    assert!(dependency_crates(&renamed, None).contains(&"time".to_string()));
+    let target = parse("[target.'cfg(unix)'.dependencies]\nrand = \"0.8\"");
+    assert!(dependency_crates(&target, None).contains(&"rand".to_string()));
+    let member = parse("[dependencies]\nclock.workspace = true");
+    let ws = parse("[workspace.dependencies]\nclock = { package = \"chrono\", version = \"0.4\" }");
+    assert!(dependency_crates(&member, Some(&ws)).contains(&"chrono".to_string()));
+    let plain = parse("[dependencies]\nserde = \"1\"");
+    assert!(!dependency_crates(&plain, None).iter().any(|d| d == "time"));
 }
 
 #[test]
@@ -253,6 +321,9 @@ fn detector_flags_synthetic_sources_and_ignores_comments() {
     let ch = "let c = '\"'; let u = \"//\"; let t = SystemTime::now();";
     assert!(!violations("x.rs", ch, none).is_empty());
     // 本物の行コメント・ブロックコメントは従来どおり除く。
+    // `'\\'` の閉じ引用符をエスケープ中と誤らない（後ろの本物のコメントは除かれ、後ろの実コードは残る）。
+    assert!(violations("x.rs", "let c = '\\\\'; // Instant", none).is_empty());
+    assert!(!violations("x.rs", "let c = '\\\\'; let t = Instant::now();", none).is_empty());
     assert!(violations("x.rs", "let s = \"a\"; // Instant\n/* HashMap */", none).is_empty());
     let one = [("x.rs", "HashSet", 2)];
     assert!(violations("x.rs", "let a: HashSet<u8>;", &one).is_empty());
