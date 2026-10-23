@@ -7776,6 +7776,22 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - ブラウザ: `tools/browser/checkpoint-restore.test.mjs`。実際のボタンの click で場面 A（保存 → 4 Step 進む → 復帰。位置は IR から独自に数える）・場面 B（payload の書き換え 6 形）・場面 D（幅 360px・959px・配信する設定で 0 件）。CSP あり・なしで流す。
 - 変異: `SHELL13-1`（提示との照合を外す）・`SHELL13-2`（dirty を積まない）・`SHELL13-3`（先頭 `0` の拒否を外す）。2026-10-23 に `scripts/check-mutations.sh` で DETECTED。`SHELL6-3` の `find:` は base の時点で `host.rs` と一致していなかったので、同じ行を変える本件で直した（DETECTED を確認）。
 - 件数の多い場合（FEND-22・D-46）: 復帰のボタンは新しい側から 500 件ずつのページに分け、`checkpoint-page` のボタン（`checkpoint-older`・`checkpoint-newer`）で全件に届く。1 リストは目安以内で打ち切らない。試験は `checkpoint_ops.rs` の 5,000 件の単体試験。
-- 限界: 文言は最小。一覧としての表示と、再読み込み・書き出し・読み込みをまたぐ一致は TASK-529 2/2。章の終わりの自動保存と数の上限は TASK-339。表示だけのモードでの 0 件はブラウザでなく native の試験で確かめた。
+- 限界: 文言は最小。一覧としての表示と、再読み込み・書き出し・読み込みをまたぐ一致は TASK-529 2/2（5.267 で扱った）。章の終わりの自動保存と数の上限は TASK-339。表示だけのモードでの 0 件はブラウザでなく native の試験で確かめた。
 - 実行結果（2026-10-23）: `make lint`・`make test`・`make check`・`make check-deps`・`make check-dom-reads`・`make test-build-web` は通過。ブラウザは本試験 6 件と、shell-position・shell-mock・shell-widths・shell-columns・shell-tabs・element-identity・next-chapter・csp-runs・inline-free・restore-cancel が通過。`view-only`・`history-continue` の一部は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を単体実行で渡せず未確認。`make check-generic-words` は `crates/pack/src/guidance.rs:606` の既存の違反で失敗する（本件の変更と無関係）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.267 チェックポイントの一覧と再読み込み・書き出しをまたぐ一致（TASK-529 2/2。SHELL-13）
+
+- 目的: 復帰のボタンの一覧が、保存した時点の章と Step の位置を持ち、再読み込みと、書き出し → 別のオリジンでの読み込みの前後で同じになることを確かめる。
+- 期待と定義の対応: SHELL-13 → `crates/web/src/checkpoint_ops.rs`（`CheckpointEntry`・`offer`・`restore_label`）。
+- 決定:
+  - 位置は `state.checkpoints[id].run.current` と IR から `top_position` で導く。今の Step・時刻・乱数・DOM は使わない。履歴の `ops` から作り直した状態でも同じ値になるので、一覧が前後で一致する。
+  - 項目は復帰のボタンのまま（鍵 `restore:{id}`）。文字は `チェックポイント {id}（{章}　Step M / K）に戻る`、属性は `data-checkpoint-chapter`・`data-checkpoint-m`・`data-checkpoint-k`。位置が導けないときは項目を残し、位置だけを出さない（fail-closed）。
+  - 時刻は持たない（読み込みの前後で文字が一致しなくなるため）。
+- 試験:
+  - native: `checkpoint_ops_host.rs` に 4 件（位置の文字と属性が IR から数えた値・先へ進んでも不変・実ボタンの保存が履歴に記録され書き出し → 読み込み → 起動で一致・同じ ID の内容が読み込みで替わる）と、`checkpoint_ops.rs` の単体 1 件。
+  - ブラウザ: `tools/browser/checkpoint-list.test.mjs`。実ボタンだけで章をまたぐ 3 件を作り、再読み込み 2 回・書き出し → 名前の違うサブパスでの読み込み → 読み込んだ側の再読み込みで一覧が一致すること、両側で同じ復帰をした結果の一致、保存で 1 件増えると不一致になる負の対照、幅 360px の横スクロールなしを確かめる。CSP あり・なしで流す。
+- 変異注入: `SHELL13-4`（位置を保存した時点でなく今の Step から導く）。2026-10-23 に `scripts/check-mutations.sh` で DETECTED。
+- 限界: 一覧はページ 0（500 件以下）の範囲で比べた。ページ位置は表示の状態で、再読み込みで 0 に戻る。L2 の配布物（TASK-114）と macOS（TASK-342）は扱わない。`history-continue` の保存はなお `raw-trigger` を使う。
+- 実行結果（2026-10-23）: `checkpoint-list` 3 件がブラウザで通過。`make test-browser` 全体は未実施（未検証）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

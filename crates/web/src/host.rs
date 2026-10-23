@@ -2250,7 +2250,7 @@ impl EngineHost {
             return CheckpointOffer::default();
         }
         match self.model.session() {
-            Some(s) => crate::checkpoint_ops::offer(s.state(), self.checkpoint_page),
+            Some(s) => crate::checkpoint_ops::offer(s.ir(), s.state(), self.checkpoint_page),
             None => CheckpointOffer::default(),
         }
     }

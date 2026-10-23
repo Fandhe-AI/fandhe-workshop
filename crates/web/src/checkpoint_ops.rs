@@ -12,16 +12,23 @@
 //! 押下の payload は DOM 上で書き換えられうるので、復帰先は payload から作らず、今の提示（`state.checkpoints` の鍵）と
 //! 完全一致したときだけ使う（SAFE-33 と同じ方針）。
 //!
-//! 境界: 1/2 は最小の文言のボタンの結線までで、一覧としての表示と再読み込み・書き出しをまたぐ一致は 2/2（TASK-529 2/2）、
-//! 章の終わりの自動保存と数の上限は TASK-339 が扱う。
+//! 一覧（2/2。TASK-529 2/2）: 復帰のボタンは、保存した時点の章の ID と Step の位置を文字と属性
+//! （[`CHECKPOINT_CHAPTER_ATTR`]・[`CHECKPOINT_M_ATTR`]・[`CHECKPOINT_K_ATTR`]）で持つ。値は `state.checkpoints` と IR だけから導き、
+//! 時刻・乱数・DOM を使わない。履歴の `ops` から作り直した状態でも同じ値になるので、再読み込み・書き出し→読み込みの前後で一致する。
+//! 位置が導けないときは項目を残し、位置だけを出さない（fail-closed）。
+//!
+//! 境界: 章の終わりの自動保存と数の上限は TASK-339 が扱う。ページ送りの位置は表示の状態で、再読み込みで 0 に戻る。
 
 use fandhe_frontend_core::{el, text, Node};
+use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::SessionState;
 
 use crate::artifact_view::{ACTION_ATTR, PAYLOAD_ATTR};
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
-use crate::shell::TopSection;
+use crate::shell::{StepPosition, TopSection};
+use crate::shell_frame::position_label;
+use crate::top_position::top_position;
 
 /// 保存の action の名前。payload は空だけを受ける。
 pub const ACTION_SAVE_CHECKPOINT: &str = "save-checkpoint";
@@ -37,6 +44,15 @@ pub const RESTORE_TESTID: &str = "checkpoint-restore";
 
 /// 復帰のボタンに載せる ID の属性名。試験が読むための値で、payload と同じ。
 pub const CHECKPOINT_ATTR: &str = "data-checkpoint";
+
+/// 復帰のボタンに載せる、保存した時点の章の ID の属性名。位置が導けたときだけ付く。
+pub const CHECKPOINT_CHAPTER_ATTR: &str = "data-checkpoint-chapter";
+
+/// 復帰のボタンに載せる、保存した時点の Step の M の属性名。
+pub const CHECKPOINT_M_ATTR: &str = "data-checkpoint-m";
+
+/// 復帰のボタンに載せる、保存した時点の Step の K の属性名。
+pub const CHECKPOINT_K_ATTR: &str = "data-checkpoint-k";
 
 /// 保存のボタンの文言。
 pub const SAVE_LABEL: &str = "チェックポイントを保存";
@@ -63,9 +79,24 @@ pub const OLDER_TESTID: &str = "checkpoint-older";
 /// 「新しい側のページへ」のボタンの `data-testid`（0 か 1 個）。
 pub const NEWER_TESTID: &str = "checkpoint-newer";
 
-/// 復帰のボタンの文言。
-pub fn restore_label(id: u32) -> String {
-    format!("チェックポイント {id} に戻る")
+/// 一覧の 1 項目。保存した位置は `state.checkpoints` と IR から導き、導けないときは `None`。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckpointEntry {
+    /// チェックポイントの ID。
+    pub id: u32,
+    /// 保存した時点の（章の ID, 位置）。
+    pub place: Option<(String, StepPosition)>,
+}
+
+/// 復帰のボタンの文言。位置が導けたときは位置を添える。
+pub fn restore_label(id: u32, place: Option<&(String, StepPosition)>) -> String {
+    match place {
+        Some((chapter, p)) => format!(
+            "チェックポイント {id}（{}）に戻る",
+            position_label(chapter, *p)
+        ),
+        None => format!("チェックポイント {id} に戻る"),
+    }
 }
 
 /// 今提示する操作。前後で比べて dirty を積むための値で、出さないときは空の値。
@@ -73,8 +104,8 @@ pub fn restore_label(id: u32) -> String {
 pub struct CheckpointOffer {
     /// 保存のボタンを出すか。
     pub can_save: bool,
-    /// 今のページで復帰のボタンを出すチェックポイントの ID（昇順）。
-    pub ids: Vec<u32>,
+    /// 今のページで復帰のボタンを出すチェックポイント（ID の昇順）。
+    pub entries: Vec<CheckpointEntry>,
     /// 今のページ（新しい側が 0）。ページ数に収まるよう丸めた値。
     pub page: usize,
     /// ページ数（チェックポイントが無いときは 0）。
@@ -83,12 +114,22 @@ pub struct CheckpointOffer {
 
 /// 状態から提示を導く。現在の Step が無いときは空（core の保存・復帰が no-op になるため）。処理中は止めない（EVT-12）。
 /// `page` は希望のページで、ページ数を超えるときは最も古いページへ丸める。
-pub fn offer(state: &SessionState, page: usize) -> CheckpointOffer {
+pub fn offer(ir: &Ir, state: &SessionState, page: usize) -> CheckpointOffer {
     if state.run.current.is_none() {
         return CheckpointOffer::default();
     }
     let all: Vec<u32> = state.checkpoints.keys().map(|k| k.0).collect();
-    offer_for(&all, page)
+    let mut o = offer_for(&all, page);
+    // 位置は今のページの窓にだけ導く（数千件でも窓の分だけ）。保存した時点の `run.current` から導き、今の Step には依らない。
+    for e in &mut o.entries {
+        e.place = state
+            .checkpoints
+            .iter()
+            .find(|(k, _)| k.0 == e.id)
+            .and_then(|(_, cp)| cp.run.current.as_ref())
+            .and_then(|uid| top_position(ir, &uid.0));
+    }
+    o
 }
 
 /// 昇順の ID の列とページから提示を導く（`offer` の本体。native の試験で多数の ID を直接与えるため分ける）。
@@ -100,7 +141,10 @@ pub fn offer_for(all: &[u32], page: usize) -> CheckpointOffer {
     let start = end.saturating_sub(PAGE_SIZE);
     CheckpointOffer {
         can_save: true,
-        ids: all[start..end].to_vec(),
+        entries: all[start..end]
+            .iter()
+            .map(|&id| CheckpointEntry { id, place: None })
+            .collect(),
         page,
         page_count,
     }
@@ -136,7 +180,7 @@ pub fn parse_restore_payload(payload: &str) -> Option<u32> {
 
 /// 押下が今の提示と一致するときだけ復帰先の ID を返す（SAFE-33）。
 pub fn restore_target(offer: &CheckpointOffer, id: u32) -> Option<u32> {
-    offer.ids.contains(&id).then_some(id)
+    offer.entries.iter().any(|e| e.id == id).then_some(id)
 }
 
 /// ページ送りのボタン。文言は定数だけで、押下の payload は移動先のページ番号。
@@ -184,20 +228,31 @@ pub fn checkpoint_section(offer: &CheckpointOffer) -> Node {
                 page_button(NEWER_TESTID, "新しいチェックポイントを表示", offer.page - 1),
             ));
         }
-        for id in &offer.ids {
+        for e in &offer.entries {
+            let id = e.id;
             let id_s = id.to_string();
+            let mut attrs = vec![
+                ("type", "button"),
+                ("data-testid", RESTORE_TESTID),
+                (ACTION_ATTR, ACTION_RESTORE_CHECKPOINT),
+                (PAYLOAD_ATTR, id_s.as_str()),
+                (CHECKPOINT_ATTR, id_s.as_str()),
+            ];
+            let m_s;
+            let k_s;
+            if let Some((chapter, p)) = &e.place {
+                m_s = p.m().to_string();
+                k_s = p.k().to_string();
+                attrs.push((CHECKPOINT_CHAPTER_ATTR, chapter.as_str()));
+                attrs.push((CHECKPOINT_M_ATTR, m_s.as_str()));
+                attrs.push((CHECKPOINT_K_ATTR, k_s.as_str()));
+            }
             items.push((
                 format!("restore:{id}"),
                 el(
                     "button",
-                    vec![
-                        ("type", "button"),
-                        ("data-testid", RESTORE_TESTID),
-                        (ACTION_ATTR, ACTION_RESTORE_CHECKPOINT),
-                        (PAYLOAD_ATTR, id_s.as_str()),
-                        (CHECKPOINT_ATTR, id_s.as_str()),
-                    ],
-                    vec![text(restore_label(*id))],
+                    attrs,
+                    vec![text(restore_label(id, e.place.as_ref()))],
                 ),
             ));
         }
@@ -242,6 +297,35 @@ mod tests {
     }
 
     #[test]
+    fn 位置ありはラベルと属性に出て位置なしは文言だけに戻る() {
+        let p = StepPosition::new(2, 6).unwrap();
+        let o = CheckpointOffer {
+            can_save: true,
+            entries: vec![
+                CheckpointEntry {
+                    id: 1,
+                    place: Some(("ch-1".to_owned(), p)),
+                },
+                CheckpointEntry { id: 2, place: None },
+            ],
+            page: 0,
+            page_count: 1,
+        };
+        let n = checkpoint_section(&o);
+        let s = format!("{n:?}");
+        assert!(
+            s.contains("チェックポイント 1（ch-1") && s.contains("Step 2 / 6）に戻る"),
+            "{s}"
+        );
+        assert!(s.contains("チェックポイント 2 に戻る"), "{s}");
+        assert_eq!(s.matches(CHECKPOINT_CHAPTER_ATTR).count(), 1, "{s}");
+        assert_eq!(s.matches(CHECKPOINT_M_ATTR).count(), 1, "{s}");
+        assert_eq!(s.matches(CHECKPOINT_K_ATTR).count(), 1, "{s}");
+        assert!(crate::shell::check_no_undefined(&n).is_ok());
+        assert!(crate::a11y::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
     fn 提示なしは入れ物だけで項目を持たない() {
         let s = format!("{:?}", checkpoint_section(&CheckpointOffer::default()));
         assert!(s.contains("shell-checkpoint"), "{s}");
@@ -252,7 +336,10 @@ mod tests {
     fn 提示ありは保存1と復帰の個数で検査器を通る() {
         let o = CheckpointOffer {
             can_save: true,
-            ids: vec![1, 2],
+            entries: vec![
+                CheckpointEntry { id: 1, place: None },
+                CheckpointEntry { id: 2, place: None },
+            ],
             page: 0,
             page_count: 1,
         };
@@ -273,18 +360,18 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         let first = offer_for(&all, 0);
         assert_eq!(first.page_count, 10);
-        assert_eq!(first.ids.last(), Some(&5_000));
+        assert_eq!(first.entries.last().map(|e| e.id), Some(5_000));
         for p in 0..first.page_count {
             let o = offer_for(&all, p);
             let n = checkpoint_section(&o);
             let s = format!("{n:?}");
             // 1 リストは目安以内で、上限超過の通知（打ち切り）は出ない。
-            assert!(o.ids.len() + 3 <= crate::list_policy::LIST_ITEMS_TARGET);
+            assert!(o.entries.len() + 3 <= crate::list_policy::LIST_ITEMS_TARGET);
             assert!(!s.contains("limit"), "{s}");
-            assert_eq!(s.matches(RESTORE_TESTID).count(), o.ids.len(), "{s}");
+            assert_eq!(s.matches(RESTORE_TESTID).count(), o.entries.len(), "{s}");
             assert_eq!(s.matches(OLDER_TESTID).count(), usize::from(p + 1 < 10));
             assert_eq!(s.matches(NEWER_TESTID).count(), usize::from(p > 0));
-            seen.extend(o.ids.iter().copied());
+            seen.extend(o.entries.iter().map(|e| e.id));
         }
         assert_eq!(seen.len(), 5_000);
         // 範囲外のページは最も古いページへ丸める。
