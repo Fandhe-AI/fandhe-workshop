@@ -1,7 +1,7 @@
 //! `fandhe-pack test` の枠と終了コード（TASK-404 1/3、AUTHOR-4）の結合試験。
 //!
 //! 関門に失敗した教材パックでは試験が流れないこと（ライブラリの `run_pack` が `NotRun` を返す）、流れた試験の
-//! 合否が終了コード 0 / 1 になること、標準エラー出力が空であることを確かめる。PASS・FAIL の行は後続のタスクで足す。
+//! 合否が終了コード 0 / 1 になること、標準エラー出力が空であることを確かめる。模範解答の PASS の行（TASK-404 2/3）も見る。FAIL・集計の行は後続のタスクで足す。
 
 mod common;
 
@@ -245,4 +245,89 @@ fn author4_unsupported_sections_fail_closed() {
     assert_exit_0_or_1(&r);
     assert_eq!(r.code, Some(1));
     assert_eq!(ran(&t.0).unsupported, vec![Unsupported::Asserts]);
+}
+
+/// `min_with_ticks` の教材テストの先頭の模範解答（`pt-min`）の YAML を、ID を差し替えて 2 本並べた一時パック。
+fn two_playthroughs(first: &str, second: &str, tag: &str) -> Tmp {
+    let t = copy_min(tag);
+    let one = |id: &str| {
+        [
+            format!("  - id: {id}"),
+            "    end: main/st-2".to_string(),
+            "    segments:".to_string(),
+            "      - start: s-1".to_string(),
+            "        steps:".to_string(),
+            "          - {cmd: \"/make-note first-note\", expect: accepted}".to_string(),
+            "          - {tick: true, expect: progress}".to_string(),
+            "          - {tick: true, expect: progress}".to_string(),
+            "          - {tick: true, expect: progress}".to_string(),
+            "          - {tick: true, expect: progress}".to_string(),
+            "          - {tick: true, expect: progress}".to_string(),
+            "          - {ui: \"v-files notes/draft\", expect: achieved}".to_string(),
+        ]
+        .join("\n")
+    };
+    let text = format!("playthroughs:\n{}\n{}\n", one(first), one(second));
+    t.put("tests/playthrough.yaml", text.as_bytes());
+    t
+}
+
+#[test]
+fn author4_pass_line_per_playthrough() {
+    for dir in [defects("base/format-a"), defects("base/format-b")] {
+        let r = cli("test", &dir);
+        assert_eq!(r.code, Some(0), "{dir:?}: {}", r.out);
+        assert_eq!(r.out, "PASS pt-main（入力 2 件）\n");
+        assert!(r.err.is_empty());
+    }
+}
+
+#[test]
+fn author4_pass_line_counts_ticks() {
+    let t = min_with_ticks();
+    let r = cli("test", &t.0);
+    assert_eq!(r.code, Some(0), "{}", r.out);
+    // cmd 1・tick 5・ui 1。誤入力 e-unknown の行は本版では出ない。
+    assert_eq!(r.out, "PASS pt-min（入力 7 件）\n");
+}
+
+#[test]
+fn author4_failed_playthrough_has_no_pass_line() {
+    for f in ["a", "b"] {
+        let t = overlay(
+            &format!("base/format-{f}"),
+            &format!("v1/{f}/D09"),
+            &format!("t404-nopass-{f}"),
+        );
+        let r = cli("test", &t.0);
+        assert_eq!(r.code, Some(1));
+        assert!(
+            !r.out.lines().any(|l| l.starts_with("PASS pt-main")),
+            "{}",
+            r.out
+        );
+    }
+    let r = cli("test", &min_pack());
+    assert_eq!(r.code, Some(1));
+    assert!(!r.out.contains("PASS"), "{}", r.out);
+}
+
+#[test]
+fn author4_pass_line_order_follows_script() {
+    let t = two_playthroughs("pt-zeta", "pt-alpha", "t404-order");
+    let r = cli("test", &t.0);
+    assert_eq!(r.code, Some(0), "{}", r.out);
+    assert_eq!(
+        r.out,
+        "PASS pt-zeta（入力 7 件）\nPASS pt-alpha（入力 7 件）\n"
+    );
+}
+
+#[test]
+fn author4_pass_line_does_not_echo_unsafe_id() {
+    let t = two_playthroughs("\"SECRET-X OK: y\"", "pt-ok", "t404-unsafe-id");
+    let r = cli("test", &t.0);
+    assert_eq!(r.code, Some(0), "{}", r.out);
+    assert_eq!(r.out, "PASS #1（入力 7 件）\nPASS pt-ok（入力 7 件）\n");
+    assert!(!r.out.contains("SECRET"));
 }

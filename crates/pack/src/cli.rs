@@ -2,9 +2,9 @@
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
 //! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。
-//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は TASK-404 1/3 で枠と終了コードを実装した（出力の行は後続）。
+//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は TASK-404 1/3 で枠と終了コードを、2/3 で模範解答の PASS の行を実装した（FAIL・集計の行は後続）。
 //! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
-//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 7）で、
+//! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 10）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
 //! `main.rs` から呼ばれる。ディレクトリを読むのは `source::load`（`compile`・`compare` 経由）と `metrics` の走査だけで、引数の解釈は
 //! ファイルシステムに触れない。
@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 
 use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{
-    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, FinalLine,
-    PackSummary,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, test_pass_line,
+    FinalLine, PackSummary,
 };
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
@@ -200,7 +200,7 @@ fn parse<I: Iterator<Item = OsString>>(
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
 /// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
 /// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 4 の 9 節）。
-/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は関門の後に教材テストを流し、全件合格で `EXIT_OK`、それ以外は `EXIT_DIAGNOSTICS` を返す（TASK-404 1/3）。
+/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は関門の後に教材テストを流し、全件合格で `EXIT_OK`、それ以外は `EXIT_DIAGNOSTICS` を返す（TASK-404 1/3）。合格した模範解答には PASS の行を書く（2/3）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: IntoIterator<Item = OsString>,
@@ -268,8 +268,9 @@ fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
 
 /// `test` の実行（AUTHOR-4、TASK-404 1/3）。関門（読み込み・`validate`・教材テストの読み取り・`compile`）に診断が
 /// 1 件でもあれば試験を流さず、`validate` と同じ形（診断の行と最終行）を標準出力に書いて `EXIT_DIAGNOSTICS` で終える。
-/// 流したときは全件が合格なら `EXIT_OK`、そうでなければ `EXIT_DIAGNOSTICS`。PASS・FAIL・集計の行は後続の
-/// タスク（TASK-404 2/3・3/3）が足すため、本版は流した後の標準出力に何も書かない。標準エラー出力には書かない。
+/// 流したときは全件が合格なら `EXIT_OK`、そうでなければ `EXIT_DIAGNOSTICS`。合格した模範解答ごとに、教材テストの
+/// 記載の順で PASS の行（`cli_contract::test_pass_line`。TASK-404 2/3）を標準出力に書く。不合格の模範解答・誤入力の
+/// 行・集計は後続のタスク（TASK-404 3/3、TASK-405）が足すため、本版は書かない。標準エラー出力には書かない。
 fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
     match play_run::run_pack(dir) {
         TestOutcome::Unreadable(diags) => {
@@ -289,11 +290,16 @@ fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
             writeln!(out, "{line}")?;
             Ok(EXIT_DIAGNOSTICS)
         }
-        TestOutcome::Ran(report) => Ok(if report.all_passed() {
-            EXIT_OK
-        } else {
-            EXIT_DIAGNOSTICS
-        }),
+        TestOutcome::Ran(report) => {
+            for case in report.playthroughs.iter().filter(|c| c.passed()) {
+                writeln!(out, "{}", test_pass_line(&case.id, case.inputs))?;
+            }
+            Ok(if report.all_passed() {
+                EXIT_OK
+            } else {
+                EXIT_DIAGNOSTICS
+            })
+        }
     }
 }
 
