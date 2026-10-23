@@ -45,11 +45,13 @@
 //! 拒否された入力が状態を変えないことの関門（`reject_guard`、TASK-270、JUDGE-5。公開しない）も持つ。
 //! 途中開始の開始条件（`requires`・`unmet`）を状態に触れる前に評価する関門（[`start_gate`]、TASK-51、PACK-18。呼び出しは TASK-217・TASK-240）も持つ。
 //! 学習モジュールの実体ごとの状態の読み出しと根の決め方の一本化（[`instance`]、TASK-233 1/2、MOD-1）も持つ。
+//! 案内レベル別の本文の木の選択と濃い側への倒れ（[`body_level`]、TASK-292、GUIDE-1）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
 mod accept;
 pub mod addr;
+pub mod body_level;
 pub mod busy_class;
 pub mod changed;
 mod checkpoint;
