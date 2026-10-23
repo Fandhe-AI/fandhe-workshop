@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 8
+CLI の外部仕様の版: 9
 決定日: 2026-10-23
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403、AUTHOR-1〜AUTHOR-3・AUTHOR-8・AUTHOR-9・AUTHOR-17）
-- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 8」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404、AUTHOR-1〜AUTHOR-4・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 9」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -58,7 +58,7 @@ commands:
 | 2 | 使い方の誤り（引数なし・未知のコマンド・引数の数や形の不一致）。結果を書き出せない場合も 2 とする（成功の 0 と取り違えないため） |
 
 - 0・1・2 以外の値は使わない
-- 経過措置（契約外）: 未実装のコマンドは「not implemented」を標準エラー出力に出して 2 で終わる。各実装タスクで消える
+- 経過措置（契約外）: 未実装のコマンドは「not implemented」を標準エラー出力に出して 2 で終わる。版 9 の時点で、未実装のコマンドは無い
 
 ## 6. 診断 1 行の形
 
@@ -210,11 +210,28 @@ m1,s4,step,EP-3
 - 診断があるときは表を出さない（fail-closed）。診断は 6 節の形で 1 件 1 行、最終行はない。`validate` 専用の検査（`E-VOCAB-MISMATCH`・`E-REF-ELEMENT`・到達性）は関門に入れない
 - 集計行は日本語、診断は英語の文言が混ざる。最終行（8 節）と同じ扱いで、機械で読むときは `# ` で始まる行を集計行とみなす
 
+## 12.1. `test` の実行の枠
+
+`test <pack-dir>` は、次の関門を上から順に通し、1 つでも診断があれば試験を流さない（fail-closed。AUTHOR-4）。
+
+1. 読み込み（`source::load`）。失敗したら、読み込みの診断と `NG: 診断 N 件（読み込めません）` を書いて 1 で終える
+2. 静的検査（`validate` と同じ）
+3. 教材テストの読み取り。読めない欄は項目つきの `E-PARSE`（`playthrough:<ID>`・`error_input:<ID>`）、教材テストが無い・`playthroughs` が 0 件のときは `E-STRUCTURE`（項目 `tests`。試験 0 件を「すべて通った」とみなさない）
+4. `compile`。失敗したら、その診断を書く
+
+- 関門で止まったときの標準出力は、診断の行と `NG: 診断 N 件（<要約>）` の最終行で、`validate` と同じ形になる。教材テストの診断が無いとき、`validate` の標準出力とバイト単位で一致する。終了コードは 1
+- 試験を流すと、全件が合格なら 0、そうでなければ 1。標準エラー出力には何も書かない
+- 経過措置（契約外）: 本版は、流した後の標準出力に PASS・FAIL・集計の行を出さない。後続のタスク（TASK-404 2/3・3/3、TASK-405）が足す
+- 流す先は共通エンジン（core の `Session`）で、開始は画面と同じ `ir.starts` の節点から作る。`cmd:`・`text:` は値をそのまま渡す（画面と同じ関数による分けは TASK-406）
+- 経過措置（契約外）: `text_checks`・`guidance_checks`・`asserts` は判定しない。定義があるときは、通ったと見せないため終了コードを 1 にする
+- 経過措置（契約外）: core が章の完了（`completed`）を結線するまでの間、模範解答の `end: complete` は、全入力が期待どおりに通り最後の入力が `achieved` であることでも満たすとする。Step の実体 ID を指定した `end` は現在の Step で判定する
+- 経過措置（契約外）: 開始点の `effects`・`requires`・案内の水準は、開始の作り方（`Session::entered_at`）が適用しない。画面が `Control::Begin` へ移るときは `test` も同じ変更で追従する
+
 ## 13. 本版で扱わない事項
 
 - `use` の Step を指す開始点の EP-9 の数え上げ（`use` 行は拡張点を持たない契約のため数えない）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403。版 8 で実装した）
-- `test` の PASS・FAIL の行・集計・最終行（TASK-404・TASK-405）
+- `test` の PASS・FAIL の行・集計・最終行（TASK-404 2/3・3/3、TASK-405。枠と終了コードは版 9 で実装した）
 - 引数の数の検査と振り分け（TASK-401）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
@@ -282,6 +299,9 @@ m1,s4,step,EP-3
 | `author3_format_version_mismatch_is_unreadable` | `E-FORMAT-VERSION` は読み込みの層が出し `読み込めません` で終わる |
 | `author2_missing_dir_does_not_leak_path` | 存在しないパスの文字列を標準出力に写さない |
 | `i16_validate_is_dispatched_to_validate` | `validate` が未実装の案内ではなく本体に届く（`cli.rs`） |
+| `author4_failed_checks_do_not_run_tests` | 関門に失敗した教材パックでは試験が流れず、`validate` と同じ出力で 1 になる（`test_command.rs`） |
+| `author4_correct_packs_exit_0`・`author4_failing_tests_exit_1` | 全件合格で 0、不合格で 1。標準エラー出力は空（`test_command.rs`） |
+| `author4_unsupported_sections_fail_closed` | 判定しない定義があると 1 になる（`test_command.rs`） |
 
 ## 15. 変更履歴
 
@@ -295,3 +315,4 @@ m1,s4,step,EP-3
 | 6 | 2026-10-20 | `vocab` が EP-9 を数える（`requires` または `unmet` を持つ開始点が指す Step の行。`label` は数えない）。`use` の Step を指す開始点は数えないことを 13 節に足す（TASK-409、AUTHOR-17、D-64） |
 | 7 | 2026-10-22 | `compile` に章の範囲の指定 `--chapters <id>[,<id>...]` を足す（絞った IR・選択の誤りの終了コード 2・全章の指定で同じバイト列。10 節）（TASK-67、PACK-43、D-67） |
 | 8 | 2026-10-23 | `validate` を結線する（診断の行・最終行・終了コード 0／1・読み込み失敗で検査を流さず `読み込めません` で終える。8 節の注を足す）（TASK-403、AUTHOR-2・AUTHOR-3） |
+| 9 | 2026-10-23 | `test` の枠と終了コードを結線する（関門の順・止まったときの出力は `validate` と同じ・全件合格で 0、それ以外は 1。12.1 節を足す。PASS・FAIL の行は後続）（TASK-404 1/3、AUTHOR-4） |

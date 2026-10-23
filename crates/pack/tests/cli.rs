@@ -9,24 +9,19 @@ fn bin() -> Command {
 #[test]
 fn i1_subcommands_start() {
     let o = bin().args(["test", "/nonexistent/path"]).output().unwrap();
-    assert_eq!(o.status.code(), Some(2));
-    assert!(o.stdout.is_empty());
-    let err = String::from_utf8_lossy(&o.stderr);
-    assert!(err.contains("not implemented"), "{err}");
+    assert_eq!(o.status.code(), Some(1));
+    assert!(o.stderr.is_empty());
+    let out = String::from_utf8_lossy(&o.stdout);
+    assert!(out.ends_with("NG: 診断 1 件（読み込めません）\n"), "{out}");
 }
 
-/// 形が正しい呼び出しは、そのコマンドの handler に届く（未実装の行が自分の名前だけを名指しする）。
-/// `validate` は実装済みなので未実装の案内を出さない（`i16`）。残る未実装は `test` だけである。
+/// 形が正しい呼び出しは、そのコマンドの handler に届く。`test` は本体に届き、未実装の案内を出さない（TASK-404 1/3）。
 #[test]
 fn i10_each_command_is_dispatched_to_its_handler() {
     let o = bin().args(["test", "/nonexistent/path"]).output().unwrap();
-    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(o.status.code(), Some(1));
     let err = String::from_utf8_lossy(&o.stderr);
-    assert!(
-        err.contains("fandhe-pack test is not implemented yet"),
-        "{err}"
-    );
-    assert!(!err.contains("fandhe-pack validate is not"), "{err}");
+    assert!(!err.contains("not implemented"), "{err}");
 }
 
 /// `vocab` は自分の handler に届く（標準出力の 1 行目が `VOCAB_HEADER`）。他のコマンドの振り分けとは取り違えない。

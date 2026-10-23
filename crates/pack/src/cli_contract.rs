@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 8;
+pub const CLI_CONTRACT_VERSION: u32 = 9;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
