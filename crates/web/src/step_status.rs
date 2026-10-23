@@ -25,6 +25,7 @@
 
 use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::instance;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::Session;
 
@@ -32,17 +33,12 @@ use fandhe_workshop_core::Session;
 pub fn step_status(session: Option<&Session>) -> Option<StepStatus> {
     let s = session?;
     let state = s.state();
-    let status_of = |uid: &StepUid| {
-        state
-            .run
-            .slices
-            .get(&uid.root())
-            .and_then(|sl| sl.status.get(uid))
-    };
+    // 呼び出しの Step の状態は呼ばれた実体の切り身にある。持ち主の規則は core の `status_of` に寄せる（MOD-3）。
+    let status_of = |uid: &StepUid| instance::status_of(s.ir(), &state.run, uid);
     let current = state.run.current.as_ref()?;
     match status_of(current) {
-        Some(StepStatus::Accepted) => return Some(StepStatus::Accepted),
-        Some(StepStatus::Achieved) => return Some(StepStatus::Achieved),
+        StepStatus::Accepted => return Some(StepStatus::Accepted),
+        StepStatus::Achieved => return Some(StepStatus::Achieved),
         _ => {}
     }
     for ev in s.log().iter().rev() {
@@ -57,7 +53,7 @@ pub fn step_status(session: Option<&Session>) -> Option<StepStatus> {
             | Event::Warning { .. }
             | Event::Ignored { .. } => {}
             Event::Achieved { at, .. } => {
-                return (status_of(&at.step) == Some(&StepStatus::Achieved))
+                return (status_of(&at.step) == StepStatus::Achieved)
                     .then_some(StepStatus::Achieved);
             }
             _ => return None,

@@ -1,0 +1,9 @@
+id: MOD3-1
+package: fandhe-workshop-core
+test: call_step_owner
+target: crates/core/src/instance.rs
+find:         .find(|i| i.caller.as_deref() == Some(uid.0.as_str()))
+replace:         .find(|_| false)
+expect-fail: owner_of_call_step_is_the_called_instance
+expect-fail: call_step_status_lands_in_the_called_instance_slice
+note: 呼び出しの Step の持ち主の規則を無視して scope の根に倒す（周回ごとの呼び出しの Step の状態が章の切り身に入る）

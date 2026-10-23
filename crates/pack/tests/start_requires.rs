@@ -10,8 +10,9 @@ mod common;
 use common::{assert_no_secret, testdata, Tmp, SECRET};
 
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::addr::{Root, StepUid};
+use fandhe_workshop_core::addr::StepUid;
 use fandhe_workshop_core::event::RefuseReason;
+use fandhe_workshop_core::instance::owner_of;
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::session::{RunState, SessionState, Slice};
 use fandhe_workshop_core::start_gate::{check_start, StartRefusal};
@@ -126,11 +127,11 @@ fn gate_round(pack: &str, start: &str, step_root: &str, step: &str, text: &str) 
     assert_eq!(before, serde_json::to_vec(&state).expect("ser"));
 
     let mut run = RunState::default();
+    // 呼び出しの Step の状態は、呼ばれた実体の根の切り身に入る（MOD-3）。実装と同じ持ち主を引く。
+    let uid = StepUid(format!("{step_root}/{step}"));
     let mut slice = Slice::default();
-    slice
-        .status
-        .insert(StepUid(format!("{step_root}/{step}")), StepStatus::Achieved);
-    run.slices.insert(Root(step_root.to_string()), slice);
+    slice.status.insert(uid.clone(), StepStatus::Achieved);
+    run.slices.insert(owner_of(&ir, &uid), slice);
     assert!(check_start(&ir, &run, start).is_ok());
 }
 

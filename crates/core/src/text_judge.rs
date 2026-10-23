@@ -39,7 +39,7 @@
 
 use fandhe_workshop_contract::effect::EffectItem;
 use fandhe_workshop_contract::input_spec::{TextSpec, TextVerdict};
-use fandhe_workshop_contract::ir::Step;
+use fandhe_workshop_contract::ir::{Ir, Step};
 use fandhe_workshop_contract::judgment::{Category, JudgmentKind, RejectCategory};
 use serde_json::Value;
 
@@ -214,28 +214,29 @@ pub(crate) fn accepted_by(text: &str, hit: Option<&Value>) -> Result<AcceptedTex
 /// 変えず、`Achieved`・`Transitioned`・`ChapterCompleted` を出さない。操作 1 件の `Changed` の集約は
 /// `session::apply` が行う前提で、ここは語ごとの `Changed` を返す。
 pub fn accept_text(
+    ir: &Ir,
     run: &mut RunState,
     uid: &StepUid,
     accepted: &AcceptedText,
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
-    apply_acceptance(run, uid, &accepted.effects, at, cond)
+    apply_acceptance(ir, run, uid, &accepted.effects, at, cond)
 }
 
 /// 受付の適用の共通部分（自然文・コマンド入力で共用）。Step を `Accepted` にし、`Event::Accepted` に続けて
 /// `effects` の効果のイベントを `Cause::Input` で返す。修正が片方にだけ入らないよう、一か所に置く。
 pub(crate) fn apply_acceptance(
+    ir: &Ir,
     run: &mut RunState,
     uid: &StepUid,
     effects: &[EffectItem],
     at: &Stamp,
     cond: &dyn ConditionEval,
 ) -> Vec<Event> {
+    // Step の状態は持ち主（`owner_of`）、効果の根（フラグ）は実体 ID の根（`root_of`）に書く（MOD-3）。
     let root = crate::instance::root_of(uid);
-    run.slices
-        .entry(root.clone())
-        .or_default()
+    crate::instance::slice_mut(run, crate::instance::owner_of(ir, uid))
         .status
         .insert(uid.clone(), StepStatus::Accepted);
     let mut events = vec![Event::Accepted { at: at.clone() }];

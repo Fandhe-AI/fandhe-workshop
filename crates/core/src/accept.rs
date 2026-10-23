@@ -113,7 +113,7 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
         }
     };
     let judged = judged_event(at.clone(), outcome.judgment.clone());
-    match phase(&state.run, &current, &input) {
+    match phase(ir, &state.run, &current, &input) {
         Phase::Busy | Phase::Idle => {
             events.push(judged);
             return events;
@@ -171,6 +171,7 @@ pub(crate) fn on_input(ir: &Ir, state: &mut SessionState, input: Input) -> Vec<E
     };
     events.push(judged);
     events.extend(accept(
+        ir,
         &mut state.run,
         &current,
         &step,
@@ -197,17 +198,12 @@ enum Phase {
     Idle,
 }
 
-fn phase(run: &RunState, uid: &StepUid, input: &Input) -> Phase {
+fn phase(ir: &Ir, run: &RunState, uid: &StepUid, input: &Input) -> Phase {
     // 処理中の判定の正は `busy_class` の 1 か所にし、受付・確認の分類より先に評価する（JUDGE-5）。
     if classify_busy(run, input).is_some() {
         return Phase::Busy;
     }
-    let status = run
-        .slices
-        .get(&crate::instance::root_of(uid))
-        .and_then(|s| s.status.get(uid))
-        .copied()
-        .unwrap_or_default();
+    let status = crate::instance::status_of(ir, run, uid);
     match status {
         StepStatus::Entered => Phase::AwaitInput,
         StepStatus::Accepted => Phase::AwaitConfirm,
@@ -294,6 +290,7 @@ fn accepted_effects(
 /// 自然文も同じ経路で適用する（`text_judge::accept_text` と同じ結果になる）。`processing` を持つ Step は
 /// 処理中（`busy`）にする。`total` が `u32` に収まらなければ最大値に倒す。
 fn accept(
+    ir: &Ir,
     run: &mut RunState,
     uid: &StepUid,
     step: &Step,
@@ -302,7 +299,7 @@ fn accept(
     at: &Stamp,
 ) -> Vec<Event> {
     let root = instance::root_of(uid);
-    let slice = instance::slice_mut(run, root.clone());
+    let slice = instance::slice_mut(run, instance::owner_of(ir, uid));
     slice.status.insert(uid.clone(), StepStatus::Accepted);
     if let Some(id) = choice {
         slice.choices.insert(uid.clone(), id);

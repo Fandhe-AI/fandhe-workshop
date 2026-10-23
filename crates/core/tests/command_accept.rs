@@ -122,6 +122,7 @@ fn st_7_3_same_input_is_accepted_and_stops_world() {
     let mut run = start("st-7-3");
     let before = run.clone();
     let ev = accept_command(
+        &common::min_ir(),
         &mut run,
         &uid("st-7-3"),
         &acc,
@@ -168,6 +169,7 @@ fn st_7_1_and_st_7_3_differ() {
     let acc = accepted_command(&s3, &rule_verdict(v3)).unwrap();
     let mut stopped = start("st-7-3");
     accept_command(
+        &common::min_ir(),
         &mut stopped,
         &uid("st-7-3"),
         &acc,
@@ -314,8 +316,14 @@ fn accept_properties() {
             match accepted_command(&s, &verdict) {
                 Ok(acc) => {
                     prop_assert!(accept_rule);
-                    let ev =
-                        accept_command(&mut run, &uid("st"), &acc, &stamp("st"), &NoConditions);
+                    let ev = accept_command(
+                        &common::min_ir(),
+                        &mut run,
+                        &uid("st"),
+                        &acc,
+                        &stamp("st"),
+                        &NoConditions,
+                    );
                     prop_assert_eq!(
                         run.slices[&Root(ROOT.into())].status[&uid("st")],
                         StepStatus::Accepted
