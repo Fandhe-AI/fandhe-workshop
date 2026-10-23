@@ -7901,3 +7901,25 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - macOS のファイル画面・公開サイトでの書き出しと読み込み（TASK-342）、360px での使いやすさの人の評価（TASK-387）は範囲外である。
   - 試験の件数の期待値は更新していない（件数を変えない設計）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.271 選択肢の表示名の全 Step の件数（TASK-446。TERM-25）
+
+- 目的: `st-1-4`・`st-2-7` を含む全 Step で、選択肢のボタンに ID の文字が出る件数が 0 件であることを、画面で数えて確かめる。確認 `answer` の選択肢の `label` は D-67 で必須になった。5.211 の TASK-65 2/2 は `validate` が欠けを止めることを担い、TASK-445 は部品が `label` を見える文字にすることを担う。本件は、その結線が通しの全場面で保たれることを数える。
+- 期待と定義の対応: TERM-25（選択肢は表示名で出る）。PACK-37（`label` の無い教材パックを断る）は `crates/pack/tests/answer_label_required.rs` の `pack37_*` が担い、本件では足していない。
+- 構成:
+  - `tools/browser/choice-labels.test.mjs`（新設。`scripts/test-browser.sh` に登録）: `?fixture=ch0-3` を CSP あり・なしで `journey` により最後まで通す。`onStep` で、IR から数えた場面（入力方式 `choice` の入力待ち 8 場面・確認 `answer` の確認待ち 7 場面。計 15）ごとに、ボタンの見える文字・`aria-label`・`title` と選択肢の一覧の ariaSnapshot に、その Step の選択肢の ID が出る件数を足す。期待値は IR から独自に数える（画面の `data-*` を読み返して合格にしない）。
+  - `crates/web/src/test_fixture.rs`: 対照の教材 `?fixture=ch0-3-nolabel`（`test-hooks` のときだけ。確認 `answer` の選択肢から `label` を外す。入力方式 `choice` の `label` は残す。単体試験 1 件）。
+- 対照: `label` を外した教材では、数え方が `answer` の選択肢の総数以上の ID を検出し、`st-1-4`・`st-2-7` のボタンの文字が ID の並びになる。これは D-67 の前の「ID のまま出る」現状の観察を兼ね、数え方が 0 件を黙って返していないことの確認になる。
+- 解釈: 本物の教材（教材 repo の TASK-615・TASK-617・TASK-627）は本 repo に無い。教材が揃うまでは CH-0〜CH-3 の形の試験用の教材で部品の動作を確かめる。本物の教材の全 Step の確認は、教材が揃った後に、教材 repo の CI で `validate` を流すこと（TASK-84）と、本試験を本物の IR で流し直すことで行う。`testdata/` の spec の写しは D-67 の前の形（`label` 無し）のまま残す（5.211 と同じ方針）。
+- 記録の様式（1 回ごとに 1 行。値・本文は出さない）:
+
+  ```text
+  CHOICE-LABELS fixture=<ch0-3|ch0-3-nolabel> csp=<on|off> scanned=<n>/<期待> buttons=<n> id-hits=<n> st-1-4=<ok|ng> st-2-7=<ok|ng> log-id-hits=<n> ledger=<合格>/<項目>
+  ```
+
+- 実行結果（2026-10-23。元のコミット 88260ef）: 3 件がブラウザ（Chromium）で通過。`ch0-3` は CSP あり・なしの両方で `scanned=15/15 buttons=26 id-hits=0 st-1-4=ok st-2-7=ok ledger=84/84`。対照 `ch0-3-nolabel` は `scanned=15/15 buttons=26 id-hits=28 st-1-4=ng st-2-7=ng ledger=76/76`。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
+- 限界:
+  - 操作のログの受付の行は、選んだ選択肢の ID を本文に出す（`crates/web/src/log_lines.rs`。`log-id-hits` は観察値で、assert していない）。`docs/pack-authoring.md` は「操作のログの『選択: …』に同じ表示名が出ます」と書いており、食い違う。ログの直しは host の挙動とログの契約に波及するため本件では直さず、範囲外として報告した。
+  - `compile` だけを通した IR では、`label` の無い選択肢が ID のまま出る経路が残る（対照がその観察）。
+  - 試験の件数の期待値は更新していない（5.268 の方針）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。

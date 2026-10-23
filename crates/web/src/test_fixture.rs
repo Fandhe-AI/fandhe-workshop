@@ -20,6 +20,7 @@
 //! 章ごとの保存先の鍵で別の章の履歴が混ざらないことの試験が使う（SAVE-14・DLV-8。TASK-326 1/2）。
 //! 章 A の `pack.version`・題名を変えた変種（`?fixture=chapter-a-next`）は、版・内容が変わっても鍵が変わらないことの試験が使う（SAVE-14。TASK-326 2/2）。
 //! 20 Step の通しの教材に章の開始点 10 件を持たせた変種（`?fixture=ch0-3-links`）は、直接リンクと再読み込みの試験が使う（DLV-7。TASK-110 1/2）。
+//! 確認 `answer` の選択肢から `label` を外した変種（`?fixture=ch0-3-nolabel`）は、数え方が ID の表示を検出できることの対照に使う（TERM-25。TASK-446）。
 //! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
 //! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
 //! 対照の `?fixture=ch0-4-full`（同じ IR に CH-4 の開始点を足したもの）は、範囲外の章へ進まないことの試験が使う（SHELL-12・D-67。TASK-527）。
@@ -79,6 +80,8 @@ pub(crate) enum MountFixture {
     MultiStart,
     /// 20 Step の通しの教材に、章の開始点 10 件を持たせた教材（直接リンクと再読み込みの試験。DLV-7。TASK-110 1/2）。
     Ch03Links,
+    /// 20 Step の通しの教材の確認 `answer` の選択肢から `label` を外した対照（選択肢の ID が見える文字に出ることの観察。TERM-25。TASK-446）。
+    Ch03NoLabel,
     /// 20 Step の通しの教材の各章の最後を `final` にし、開始点を章の先頭 4 件にした教材（「次の章へ進む」の通しの試験。TASK-526 2/2）。
     Ch03Chapters,
     /// CH-3 を最後に使う絞った IR。範囲外の章 CH-4 のノードを持つが、開始点には CH-4 を含めない（SHELL-12・D-67。TASK-527）。
@@ -215,6 +218,36 @@ pub(crate) fn ch03_links_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 対照の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const CH03_NOLABEL_PACK_ID: &str = "ch0-3-nolabel";
+
+/// 20 Step の通しの教材から、確認 `answer` の選択肢の `label` をすべて外した IR を作る（`pack.id` だけ別にする）。
+/// 呼び出し元は `?fixture=ch0-3-nolabel` の mount で、ブラウザ試験 `choice-labels` が「ID が見える文字に出る」件数を
+/// 数える方法の検出力を確かめる対照に使う（TERM-25。TASK-446）。入力方式 `choice` の `label` は残す。
+/// `label` の欠けは `validate` が止める（PACK-37）ので、本物の教材ではこの形にならない。`compile` だけを通した IR の形を写す。
+pub(crate) fn ch03_nolabel_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(CH03_IR).ok()?;
+    let obj = value.as_object_mut()?;
+    let pack = obj.get_mut("pack")?.as_object_mut()?;
+    pack.insert("id".to_owned(), CH03_NOLABEL_PACK_ID.into());
+    pack.insert(
+        "title".to_owned(),
+        "選択肢の表示名の対照の試験データ".into(),
+    );
+    for n in obj.get_mut("nodes")?.as_array_mut()? {
+        let Some(confirm) = n.get_mut("step").and_then(|s| s.get_mut("confirm")) else {
+            continue;
+        };
+        if confirm.get("kind").and_then(|k| k.as_str()) != Some("answer") {
+            continue;
+        }
+        for opt in confirm.get_mut("options")?.as_array_mut()? {
+            opt.as_object_mut()?.remove("label");
+        }
+    }
+    serde_json::to_vec(&value).ok()
+}
+
 /// 章の先頭 4 件の開始点の ID と節点（先頭から順）。
 pub(crate) const CH03_CHAPTER_POINTS: [(&str, &str); 4] = [
     ("s-0-1", "main/st-0-1"),
@@ -309,6 +342,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=no-input" => MountFixture::NoInput,
         "?fixture=ch0-3" => MountFixture::Ch03,
         "?fixture=ch0-3-links" => MountFixture::Ch03Links,
+        "?fixture=ch0-3-nolabel" => MountFixture::Ch03NoLabel,
         "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
         "?fixture=ch0-3-trial" => MountFixture::Ch03Trial,
         "?fixture=ch0-4-full" => MountFixture::Ch04Full,
@@ -342,6 +376,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::NoInput => NO_INPUT_IR.to_vec(),
         MountFixture::Ch03 => CH03_IR.to_vec(),
         MountFixture::Ch03Links => ch03_links_ir_bytes()?,
+        MountFixture::Ch03NoLabel => ch03_nolabel_ir_bytes()?,
         MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
         MountFixture::Ch03Trial => ch03_trial_ir_bytes(false)?,
         MountFixture::Ch04Full => ch03_trial_ir_bytes(true)?,
@@ -1453,5 +1488,59 @@ mod tests {
             mount_session_at(MountFixture::Ch03, Some("s-2-1")).err(),
             Some(StartRefusal::Unknown)
         );
+    }
+
+    #[test]
+    fn 表示名の対照の教材は_answer_の_label_だけを外し_完全一致でだけ選ばれる() {
+        for (q, want) in [
+            ("?fixture=ch0-3-nolabel", MountFixture::Ch03NoLabel),
+            (
+                "?fixture=ch0-3-nolabel&start=s-1",
+                MountFixture::Ch03NoLabel,
+            ),
+            ("?fixture=ch0-3-nolabel&x=1", MountFixture::Default),
+            ("?fixture=ch0-3-nolabel2", MountFixture::Default),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+        let base = load_ir(CH03_IR).unwrap();
+        let ir = load_ir(&ch03_nolabel_ir_bytes().unwrap()).unwrap();
+        assert_eq!(ir.pack.id, CH03_NOLABEL_PACK_ID);
+        assert_ne!(ir.pack.id, base.pack.id);
+        assert_eq!(ir.nodes.len(), base.nodes.len());
+        assert!(mount_session(MountFixture::Ch03NoLabel).is_some());
+        let raw: serde_json::Value =
+            serde_json::from_slice(&ch03_nolabel_ir_bytes().unwrap()).unwrap();
+        let orig: serde_json::Value = serde_json::from_slice(CH03_IR).unwrap();
+        let (mut answers, mut input_labels) = (0, 0);
+        for (n, o) in raw["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(orig["nodes"].as_array().unwrap())
+        {
+            let confirm = &n["step"]["confirm"];
+            if confirm["kind"] == "answer" {
+                let ocf = &o["step"]["confirm"];
+                assert_eq!(confirm["on_wrong"], ocf["on_wrong"]);
+                for (a, b) in confirm["options"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .zip(ocf["options"].as_array().unwrap())
+                {
+                    answers += 1;
+                    assert!(a.get("label").is_none());
+                    assert_eq!(a["id"], b["id"]);
+                    assert_eq!(a["correct"], b["correct"]);
+                }
+            }
+            // 入力方式 `choice` の `label` は残る。
+            if n["step"]["input"]["kind"] == "choice" {
+                assert_eq!(n["step"]["input"], o["step"]["input"]);
+                input_labels += 1;
+            }
+        }
+        assert!(answers > 0 && input_labels > 0);
     }
 }
