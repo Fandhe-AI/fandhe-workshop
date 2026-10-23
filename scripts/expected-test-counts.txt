@@ -239,12 +239,13 @@ rust|tests/reload_after_control_store.rs [reload_after_control_store]|passed=4|i
 rust|tests/reload_busy.rs [reload_busy]|passed=14|ignored=0
 rust|tests/reload_points.rs [reload_points]|passed=2|ignored=0
 rust|tests/reload_points_host.rs [reload_points_host]|passed=2|ignored=0
+rust|tests/restore_owner_slice.rs [restore_owner_slice]|passed=5|ignored=0
 rust|tests/restore_resume.rs [restore_resume]|passed=11|ignored=0
 rust|tests/restore_review.rs [restore_review]|passed=7|ignored=0
 rust|tests/review_fold.rs [review_fold]|passed=2|ignored=0
 rust|tests/revise_candidates.rs [revise_candidates]|passed=16|ignored=0
 rust|tests/revise_target.rs [revise_target]|passed=17|ignored=0
-rust|tests/round_slice_init.rs [round_slice_init]|passed=12|ignored=0
+rust|tests/round_slice_init.rs [round_slice_init]|passed=15|ignored=0
 rust|tests/row_keys_wiring.rs [row_keys_wiring]|passed=3|ignored=0
 rust|tests/run_status_contract.rs [run_status_contract]|passed=15|ignored=0
 rust|tests/save_failure.rs [save_failure]|passed=9|ignored=0

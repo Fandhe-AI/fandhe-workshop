@@ -23,7 +23,9 @@
 //! 3. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない
 //! 4. 写しの `run.current` が無い（読み込んだ写しの不整合）なら、固定文の `Warning` だけで状態を変えない
 //!    （一部だけ戻さない）
-//! 5. `run` 全体を写しに戻し、世代だけは現在の世代 +1 にする（世代は減らない）。`busy` は写しのまま残す。
+//! 5. 持ち主の根（保存時の `Checkpoint::owner`。無ければ写しの現在の Step の根）の切り身だけを写しへ戻し（写しに無ければ
+//!    取り除く）、他の根の切り身は復帰の前のまま残す。`current`・`busy`・`completed` は写しの値、世代は現在の世代 +1
+//!    にする（世代は減らない）。世界状態・`global_flags`・案内レベルは暫定で写しの値を入れる（絞り込みは TASK-241 2/2）。
 //!    入口の写しも保存時点のものへ戻す（移動で無効化された写しを戻さないと、復帰後の停止が写し無しで倒れる）。
 //!    写しの中の世代は書き換えない（停止が戻すときに世代を上書きするので値は使われない）。
 //!    `Restored` を 1 件返す。`log_len` は写しの値で、現在のログの長さではない（EVT-14）
@@ -36,7 +38,8 @@
 //!
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
-//! - 実体（根）ごとの戻り方（MOD-9、TASK-241）。ここでは `run` 全体を戻す
+//! - 世界状態・`global_flags`・案内レベルの戻り方、呼び出しの Step の持ち主（`owner_of`）に合わせた根の切り替え（TASK-241 2/2）。
+//!   実体単位の入口の写しは TASK-242
 //! - 開始前の保存・復帰（TASK-217）、章の終わりの自動保存、保存の数の上限
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
@@ -117,7 +120,25 @@ pub(crate) fn on_restore(state: &mut SessionState, id: CheckpointId) -> Vec<Even
     };
     let log_len = cp.log_len;
     let entry = cp.entry.clone();
-    let mut run = cp.run.clone();
+    // 持ち主の根は保存時の記録を使う。旧データ（記録なし）は写しの現在の Step の根に倒す（panic しない）。
+    let owner_root = cp
+        .owner
+        .clone()
+        .unwrap_or_else(|| crate::instance::root_of(&owner));
+    let mut run = state.run.clone();
+    // 切り身は持ち主の根の 1 つだけを写しへ戻す。写しに無ければ取り除いたままにする。他の根は触れない。
+    run.slices.remove(&owner_root);
+    if let Some(slice) = cp.run.slices.get(&owner_root) {
+        run.slices.insert(owner_root, slice.clone());
+    }
+    // 位置は写しのもの。
+    run.current = cp.run.current.clone();
+    run.busy = cp.run.busy.clone();
+    run.completed = cp.run.completed;
+    // 暫定。世界状態・根をまたぐフラグ・案内レベルの絞り込みは TASK-241 2/2（#575）で行う。それまでは写しの値を入れる。
+    run.world = cp.run.world.clone();
+    run.global_flags = cp.run.global_flags.clone();
+    run.guidance_level = cp.run.guidance_level;
     run.generation = next;
     state.run = run;
     state.entry = entry;
