@@ -8323,3 +8323,31 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | AUTHOR1-1・1-2・1-4・1-5・1-6 | 既存 | 既存 | すべて DETECTED（1-4・1-6 は形の誤りが読み込みの前に報告されること） |
 
 集計: 11 件すべて DETECTED（2026-10-23）。
+
+### 5.288 未信頼の値の表示の試験の骨格と負の対照（TASK-482 1/2。ART-6）
+
+世界状態の値に HTML・スクリプト・`javascript:` のリンク・属性の閉じ忘れの形を入れた行（escape の行。`testdata/artifact-view-parts/test-data-addendum/escape-rows.json`）を、部品に直接渡して表示させ、値が文字として出ることを数える検査器の骨格と、差を検出できることの負の対照を作った。部品レベルの試験であり、教材パック・IR からの注入は TASK-145 の担当である。24 通りすべての合格と記録は TASK-482 2/2（#675）に渡す。
+
+- 口: 代役の部品（`crates/web/src/view_fixture.rs`。試験の設定だけ）の `fixture_data` が、文書以外の 6 種の `<種類>:escape`（`filetree`・`diff`・`tasks`・`cards`・`checks`・`appdemo`）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample` を受ける。閉じた集合で、`document:escape`・大文字違い・空白つきは拒否する。配信する WASM には入らない
+- 検査器: `tools/browser/artifact-view-check.mjs` の `runEscapeCase`（前 → 後 → 前）。固定の違反文言は次の 4 つ（値は埋め込まない）
+  - `item count or keys differ from the escape rows`（件数と key の並びが escape の行から独立に数えた期待と違う。前 3・後 4）
+  - `dangerous elements or attributes are present`（root の下の `DANGER_SELECTOR` が 1 件以上）
+  - `an escape payload was executed`（`window.__escape_hit` が代入された。`installEscapeTrap` が `rec.hits` にも `escape:<番号>` で送る）
+  - `a value is not shown as literal text`（行の欄の文字が、項目の `textContent` か中の `input`・`textarea` の値に含まれない。実体参照の形が復号されずに出ることもこれで確かめる）
+  - 外部通信・CSP 違反・ダイアログは呼び出し側が `collectSafety`・`nonZero` で主張する。文字として確かめる欄は `literalFields`（既定はラベル、カードはラベル・補足・タグ）
+- ネイティブの単体試験（`view_fixture` の 3 件）: payload の復号、行数（前 3・後 4）と sample へ戻せること、6 種 × 2 変種 × 前後の 24 通りで `<img`・`<script`・`<iframe`・`<svg` が HTML に出ず `&lt;img` が出ること
+- ブラウザ試験（`tools/browser/view-escape.test.mjs`。11 件）
+
+| ID | 内容 | 期待 |
+|---|---|---|
+| E1 | CSP あり・なし × カード (a)・(b)（4 件） | 違反 0・件数 `[3, 4, 3]`・全計数 0・CSP のコンソール警告 0・`__escape_hit` 未定義 |
+| E2 | 行を切り替えずに流す／不正な payload | 件数と文字の違反が出る／拒否される |
+| N1 | PoC-8 の対照の文字列を不活性の文書の `innerHTML` に入れる | `innerHTML` はちょうど 3、`textContent` は 0、実行 0、外部通信 0 |
+| N2 | CSP あり・なしで、後の状態の e1 のラベルを表示された文字で `innerHTML` に入れ直す | 両方で危険な要素と文字の違反。CSP なしは `rec.hits` に `escape:3`・`rec.csp` 0、CSP ありは `rec.csp` 1 件以上・`rec.hits` 0 |
+| N3 | CSP あり・なしで `alert` と外部への `fetch` | ダイアログ 1。CSP なしは外部通信 1、CSP ありは CSP 違反 1 件以上 |
+
+- N2 で CSP の有無により `hits` と `csp` が入れ替わることが、CSP の有無が実際に効いていることの証拠である
+- 実行結果（2026-10-23。Chromium headless、`TEST_HOOKS=1`・`SKIP_WASM_OPT=1` のビルド）: `view-escape.test.mjs` 11 件・`artifact-view-controls`・`artifact-view-check`・`card-view` の 46 件が全通過。ネイティブの `view_fixture` の 37 件が全通過
+- `scripts/expected-test-counts.txt` は本変更では更新しない
+- #675 に渡す事項: 6 ビューごとの「文字として出る欄」の調整、24 通りすべての流し込みと記録（`ESCAPE_CASES` に 12 組を用意した）。ネイティブの 24 通りの試験は全通過で、どのビューも escape の行を落とす・解釈する欠陥は見つかっていない
+- 限界: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
