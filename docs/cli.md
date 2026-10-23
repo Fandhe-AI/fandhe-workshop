@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 10
+CLI の外部仕様の版: 11
 決定日: 2026-10-23
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の模範解答の PASS の行）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404、AUTHOR-1〜AUTHOR-4・AUTHOR-8・AUTHOR-9・AUTHOR-17）
-- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 10」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の PASS・FAIL の行・集計）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404、AUTHOR-1〜AUTHOR-4・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 11」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -221,9 +221,9 @@ m1,s4,step,EP-3
 
 - 関門で止まったときの標準出力は、診断の行と `NG: 診断 N 件（<要約>）` の最終行で、`validate` と同じ形になる。教材テストの診断が無いとき、`validate` の標準出力とバイト単位で一致する。終了コードは 1
 - 試験を流すと、全件が合格なら 0、そうでなければ 1。標準エラー出力には何も書かない
-- 版 10 で出すのは、合格した模範解答の PASS の行だけである（12.2 節）。経過措置（契約外）: 不合格の模範解答の行・誤入力の行・集計・最終行は、後続のタスク（TASK-404 3/3、TASK-405）が足すまで出さない。不合格の模範解答には PASS の行を出さない
+- 版 11 の出力の順は、模範解答の行（PASS または FAIL。12.2 節・12.3 節）、誤入力の行（12.3 節）、集計の 3 行（12.4 節）、試験の診断の行（12.3 節）である。経過措置（契約外）: 最終行（`OK:`・`NG:`）と、R-22・R-21・入った実体の集計は、後続のタスク（TASK-405）が足すまで出さない
 - 流す先は共通エンジン（core の `Session`）で、開始は画面と同じ `ir.starts` の節点から作る。`cmd:`・`text:` は値をそのまま渡す（画面と同じ関数による分けは TASK-406）
-- 経過措置（契約外）: `text_checks`・`guidance_checks`・`asserts` は判定しない。定義があるときは、通ったと見せないため終了コードを 1 にする
+- 経過措置（契約外）: `text_checks`・`guidance_checks`・`asserts` は判定しない。定義があるときは、通ったと見せないため終了コードを 1 にし、文面の確認・案内レベルの確認の集計の行は判定するまで出さない（`0/N` と書くと事実と違うため）
 - 経過措置（契約外）: core が章の完了（`completed`）を結線するまでの間、模範解答の `end: complete` は、全入力が期待どおりに通り最後の入力が `achieved` であることでも満たすとする。Step の実体 ID を指定した `end` は現在の Step で判定する
 - 経過措置（契約外）: 開始点の `effects`・`requires`・案内の水準は、開始の作り方（`Session::entered_at`）が適用しない。画面が `Control::Begin` へ移るときは `test` も同じ変更で追従する
 
@@ -237,16 +237,46 @@ PASS pt-main（入力 2 件）
 
 - 形は `PASS <ID>（入力 N 件）`。`PASS` と ID の間は半角空白 1 つ、ID と全角の `（` の間に空白は置かない。`N` は 10 進の整数で、`入力` と `N`、`N` と `件` の間は半角空白 1 つ
 - `N` は、その模範解答の全 segment で流した入力の数である。`tick` の進行も 1 件に数え、開始点の切り替え（segment の `start`）は数えない
-- 並びは、教材テストに記載された模範解答の順。誤入力の行・集計は、この行の後ろに後続のタスクが足す
+- 並びは、教材テストに記載された模範解答の順。不合格の模範解答は、同じ並びの位置に FAIL の行（12.3 節）を書く。誤入力の行・集計はその後ろに続く
 - 写すのは ID と件数だけである。ID は教材テストの読み取りが `safe_ident` を通したものに限り、通らない ID は 1 始まりの位置 `#n` に置き換わる。入力の値・期待の語・本文は写さない
 - 04 の書き方を正とする。PoC の資料にある `PASS pt-ch1 （入力 4 件）` の空白は採らない
-- 不合格の模範解答には本版では行を出さない（FAIL の行は TASK-404 3/3）。判定していない定義（12.1 節）があっても、合格した模範解答の行は事実どおり出し、終了コードは 1 のままである
+- 不合格の模範解答には PASS の行を出さず、12.3 節の FAIL の行を出す。判定していない定義（12.1 節）があっても、合格した模範解答の行は事実どおり出し、終了コードは 1 のままである
+
+## 12.3. `test` の誤入力の行と FAIL の行
+
+誤入力 1 件ごとに、模範解答の行の後ろへ記載の順で 1 行を書く。不合格の 1 件（模範解答または誤入力）は FAIL の行になり、実際の結果を含む（AUTHOR-4）。
+
+```text
+PASS e01 → rejected:bad_arg_shape
+FAIL e03: 期待 rejected:bad_arg_shape に対して結果は rejected:missing_arg
+FAIL pt-main: 期待 achieved に対して結果は progress（区間 1 の入力 2）
+```
+
+- 誤入力の合格は `PASS <ID> → <観測の語>`。矢印は U+2192 で、前後は半角空白 1 つ。観測の語は `rejected:<分類>`・`accepted`・`accepted:free_text_unjudged`・`clarified` などの固定語
+- 不合格は `FAIL <ID>: 期待 <期待の語> に対して結果は <実際の語>` で、位置の注記があれば末尾に全角括弧で足す。注記は `区間 N の入力 M`（模範解答）、`事前の入力 M`（誤入力の `pre`）、`区間 N の開始`（開始点が無い）、`終わりの条件`（全入力は通ったが終わりの条件を満たさない）の 4 種で、誤入力の本番の入力には付けない
+- 終わりの条件の不成立は固定語だけで書く。`end: complete` は `期待 complete に対して結果は incomplete`、Step の指定は `期待 end_step に対して結果は other_step`。実体 ID は写さない
+- 写すのは、ID（`safe_ident` を通ったもの。通らなければ `#n`）、期待と観測の固定語、整数の位置だけである。入力の値・本文・実体 ID は写さない
+- 試験の診断として、不合格 1 件ごとに 6 節の形の 1 行を集計の後ろに書く。模範解答は `E-PLAY-INCOMPLETE`（項目 `playthrough:<ID>`）、誤入力は `E-PLAY-CATEGORY-MISMATCH`（項目 `error_input:<ID>`）で、ファイルは教材テストのパック根からの相対パス、メッセージは英語の固定文と固定語彙だけである
+
+## 12.4. `test` の集計
+
+行の後ろに、次の 3 行を書く（AUTHOR-4）。
+
+```text
+模範解答: 1/1 完走
+誤入力: 3/3 が期待どおりの結果
+入力の総数: 5
+```
+
+- `模範解答: N/M 完走` は合格した模範解答の数と全数、`誤入力: N/M が期待どおりの結果` は期待どおりだった誤入力の数と全数である
+- `入力の総数` は、全模範解答と全誤入力で流した入力の数の和で、`tick` と誤入力の `pre` を含み、開始点の切り替えは数えない
+- R-22・R-21・入った実体の集計は、この 3 行の後ろ（試験の診断の前）に TASK-405 が足す
 
 ## 13. 本版で扱わない事項
 
 - `use` の Step を指す開始点の EP-9 の数え上げ（`use` 行は拡張点を持たない契約のため数えない）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403。版 8 で実装した）
-- `test` の FAIL の行・誤入力の行・集計・最終行（TASK-404 3/3、TASK-405。枠と終了コードは版 9、模範解答の PASS の行は版 10 で実装した）
+- `test` の最終行・R-22／R-21・入った実体の集計・文面と案内レベルの確認の判定（TASK-405 ほか。枠と終了コードは版 9、模範解答の PASS の行は版 10、誤入力の行・FAIL の行・集計の 3 行は版 11 で実装した）
 - 引数の数の検査と振り分け（TASK-401）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
@@ -320,7 +350,14 @@ PASS pt-main（入力 2 件）
 | `cli_doc_test_pass_line_example_matches` | 12.2 節の例のブロックが `test_pass_line` の出力と完全一致する |
 | `author4_pass_line_per_playthrough` | 全件合格の教材で標準出力が PASS の行だけで、標準エラー出力が空（`test_command.rs`） |
 | `author4_pass_line_counts_ticks` | `N` が `tick` を含む入力の数である（`test_command.rs`） |
-| `author4_failed_playthrough_has_no_pass_line` | 不合格の模範解答に PASS の行が出ない（`test_command.rs`） |
+| `author4_failed_playthrough_has_no_pass_line` | 不合格の模範解答に PASS の行が出ず FAIL の行が出る（`test_command.rs`） |
+| `cli_doc_test_error_lines_example_matches` | 12.3 節の例のブロックが `test_error_pass_line`・`test_fail_line` の出力と完全一致する |
+| `cli_doc_test_summary_example_matches` | 12.4 節の例のブロックが `test_summary_lines` の出力と完全一致する |
+| `author4_error_input_fail_line_has_actual_result` | 誤入力の FAIL の行に実際の結果が書かれる（`test_command.rs`） |
+| `author4_playthrough_fail_line_has_actual_result` | 模範解答の FAIL の行に実際の結果が書かれる（`test_command.rs`） |
+| `author4_test_diagnostics_after_summary` | 試験の診断が集計の後ろに 1 件ずつ出る（`test_command.rs`） |
+| `author4_fail_line_for_end_not_reached_has_fixed_words` | 終わりの条件の不成立が固定語で出て実体 ID を写さない（`test_command.rs`） |
+| `author4_fail_line_does_not_echo_unsafe_values` | 安全でない ID・入力の値が標準出力に写らない（`test_command.rs`） |
 | `author4_pass_line_order_follows_script` | 行の並びが教材テストの記載の順である（`test_command.rs`） |
 | `author4_pass_line_does_not_echo_unsafe_id` | 安全でない ID が標準出力に写らず `#n` になる（`test_command.rs`） |
 
@@ -338,3 +375,4 @@ PASS pt-main（入力 2 件）
 | 8 | 2026-10-23 | `validate` を結線する（診断の行・最終行・終了コード 0／1・読み込み失敗で検査を流さず `読み込めません` で終える。8 節の注を足す）（TASK-403、AUTHOR-2・AUTHOR-3） |
 | 9 | 2026-10-23 | `test` の枠と終了コードを結線する（関門の順・止まったときの出力は `validate` と同じ・全件合格で 0、それ以外は 1。12.1 節を足す。PASS・FAIL の行は後続）（TASK-404 1/3、AUTHOR-4） |
 | 10 | 2026-10-23 | `test` の模範解答の PASS の行 `PASS <ID>（入力 N 件）` を固定する（12.2 節。`N` は `tick` を含む。不合格・誤入力・集計は後続）（TASK-404 2/3、AUTHOR-4） |
+| 11 | 2026-10-23 | `test` の誤入力の行 `PASS <ID> → <語>`・FAIL の行（実際の結果つき）・集計の 3 行・試験の診断（`E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH`）を固定する（12.3 節・12.4 節。最終行は後続）（TASK-404 3/3、AUTHOR-4） |

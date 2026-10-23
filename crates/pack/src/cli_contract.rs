@@ -2,7 +2,7 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 10）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 11）で、本モジュールは同じ内容のコード側の写しである。
 //! `vocab` の出力の形（ヘッダ・行・集計行・教材パック全体の行）は版 5 で足した（TASK-408）。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
@@ -13,7 +13,7 @@
 //!
 //! 診断 1 行の欄の分け方は `diag::Diagnostic` の Display が持ち、出し先（診断と最終行は標準出力、使い方と
 //! 使い方の誤りは標準エラー出力）は `cli` が守る。`validate` への最終行の結線は `cli::run_validate`（TASK-403）が行い、`test` の模範解答の PASS の行は
-//! 版 10 で足した（TASK-404 2/3）。`test` の FAIL の行・集計・最終行は TASK-404 3/3・TASK-405 の担当である。
+//! 版 10 で、誤入力の PASS の行・FAIL の行・集計の 3 行は版 11 で足した（TASK-404 2/3・3/3）。`test` の最終行は TASK-405 の担当である。
 
 use std::fmt;
 
@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 10;
+pub const CLI_CONTRACT_VERSION: u32 = 11;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -231,6 +231,40 @@ pub fn test_pass_line(id: &str, inputs: usize) -> String {
     format!("PASS {id}（入力 {inputs} 件）")
 }
 
+/// `test` の誤入力 1 件が期待どおりだったことを示す PASS の行（AUTHOR-4、TASK-404 3/3）。
+///
+/// `observed_word` は観測の固定語（`rejected:bad_arg_shape` など。`play_run::Observed::word`）だけを渡す前提で、
+/// 矢印は U+2192、前後は半角空白 1 つ。形の組み立てを本モジュールだけが持つ。
+pub fn test_error_pass_line(id: &str, observed_word: &str) -> String {
+    format!("PASS {id} → {observed_word}")
+}
+
+/// `test` の不合格の 1 件（模範解答または誤入力）の FAIL の行（AUTHOR-4、TASK-404 3/3）。
+///
+/// `expected`・`observed` は固定語彙だけを渡す前提（教材データの値は写さない）。`note` があれば末尾に全角括弧で
+/// 位置の注記（区間と入力の番号など）を足す。呼び出し元は `cli::run_test`。
+pub fn test_fail_line(id: &str, expected: &str, observed: &str, note: Option<&str>) -> String {
+    match note {
+        Some(n) => format!("FAIL {id}: 期待 {expected} に対して結果は {observed}（{n}）"),
+        None => format!("FAIL {id}: 期待 {expected} に対して結果は {observed}"),
+    }
+}
+
+/// `test` の集計の 3 行（模範解答の完走・誤入力の期待どおり・入力の総数。AUTHOR-4、TASK-404 3/3）。
+pub fn test_summary_lines(
+    pt_passed: usize,
+    pt_total: usize,
+    ei_passed: usize,
+    ei_total: usize,
+    inputs: usize,
+) -> Vec<String> {
+    vec![
+        format!("模範解答: {pt_passed}/{pt_total} 完走"),
+        format!("誤入力: {ei_passed}/{ei_total} が期待どおりの結果"),
+        format!("入力の総数: {inputs}"),
+    ]
+}
+
 /// `compare` の一致の行。
 pub fn compare_same_line(len: usize) -> String {
     format!("OK: IR が一致しました（{len} バイト）")
@@ -348,6 +382,39 @@ mod test_line_tests {
     fn pass_line_shape() {
         assert_eq!(test_pass_line("pt-main", 2), "PASS pt-main（入力 2 件）");
         assert_eq!(test_pass_line("#1", 0), "PASS #1（入力 0 件）");
+    }
+
+    #[test]
+    fn error_pass_and_fail_line_shape() {
+        assert_eq!(
+            test_error_pass_line("e01", "rejected:bad_arg_shape"),
+            "PASS e01 \u{2192} rejected:bad_arg_shape"
+        );
+        assert_eq!(
+            test_fail_line(
+                "e03",
+                "rejected:missing_arg",
+                "rejected:bad_arg_shape",
+                None
+            ),
+            "FAIL e03: 期待 rejected:missing_arg に対して結果は rejected:bad_arg_shape"
+        );
+        assert_eq!(
+            test_fail_line("pt-main", "achieved", "progress", Some("区間 1 の入力 2")),
+            "FAIL pt-main: 期待 achieved に対して結果は progress（区間 1 の入力 2）"
+        );
+    }
+
+    #[test]
+    fn summary_lines_shape() {
+        assert_eq!(
+            test_summary_lines(1, 2, 3, 3, 9),
+            [
+                "模範解答: 1/2 完走",
+                "誤入力: 3/3 が期待どおりの結果",
+                "入力の総数: 9"
+            ]
+        );
     }
 }
 

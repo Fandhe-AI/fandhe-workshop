@@ -2,7 +2,7 @@
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
 //! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。
-//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は TASK-404 1/3 で枠と終了コードを、2/3 で模範解答の PASS の行を実装した（FAIL・集計の行は後続）。
+//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は TASK-404 1/3 で枠と終了コードを、2/3 で模範解答の PASS の行を実装した（3/3 で誤入力・FAIL の行と集計を足した。最終行は TASK-405）。
 //! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
 //! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 10）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
@@ -17,8 +17,9 @@ use std::path::{Path, PathBuf};
 
 use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{
-    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, test_pass_line,
-    FinalLine, PackSummary,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line,
+    test_error_pass_line, test_fail_line, test_pass_line, test_summary_lines, FinalLine,
+    PackSummary,
 };
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
@@ -269,8 +270,8 @@ fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
 /// `test` の実行（AUTHOR-4、TASK-404 1/3）。関門（読み込み・`validate`・教材テストの読み取り・`compile`）に診断が
 /// 1 件でもあれば試験を流さず、`validate` と同じ形（診断の行と最終行）を標準出力に書いて `EXIT_DIAGNOSTICS` で終える。
 /// 流したときは全件が合格なら `EXIT_OK`、そうでなければ `EXIT_DIAGNOSTICS`。合格した模範解答ごとに、教材テストの
-/// 記載の順で PASS の行（`cli_contract::test_pass_line`。TASK-404 2/3）を標準出力に書く。不合格の模範解答・誤入力の
-/// 行・集計は後続のタスク（TASK-404 3/3、TASK-405）が足すため、本版は書かない。標準エラー出力には書かない。
+/// 記載の順で PASS の行（`cli_contract::test_pass_line`。TASK-404 2/3）を標準出力に書く。不合格の模範解答・誤入力の FAIL の行、誤入力の PASS の行、集計の 3 行、試験の診断（TASK-404 3/3）を続けて書く。最終行は
+/// TASK-405 が足すため、本版は書かない。標準エラー出力には書かない。
 fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
     match play_run::run_pack(dir) {
         TestOutcome::Unreadable(diags) => {
@@ -291,9 +292,32 @@ fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
             Ok(EXIT_DIAGNOSTICS)
         }
         TestOutcome::Ran(report) => {
-            for case in report.playthroughs.iter().filter(|c| c.passed()) {
-                writeln!(out, "{}", test_pass_line(&case.id, case.inputs))?;
+            for case in &report.playthroughs {
+                let line = match case.fail_parts() {
+                    None => test_pass_line(&case.id, case.inputs),
+                    Some((e, o, n)) => test_fail_line(&case.id, &e, &o, n.as_deref()),
+                };
+                writeln!(out, "{line}")?;
             }
+            for case in &report.error_inputs {
+                let line = match (case.fail_parts(), case.observed) {
+                    (Some((e, o, n)), _) => test_fail_line(&case.id, &e, &o, n.as_deref()),
+                    (None, Some(o)) => test_error_pass_line(&case.id, &o.word()),
+                    // 合格した誤入力は必ず観測値を持つ。持たない場合も PASS の語を欠かさない。
+                    (None, None) => test_error_pass_line(&case.id, "none"),
+                };
+                writeln!(out, "{line}")?;
+            }
+            for line in test_summary_lines(
+                report.passed_playthroughs(),
+                report.playthroughs.len(),
+                report.passed_error_inputs(),
+                report.error_inputs.len(),
+                report.total_inputs(),
+            ) {
+                writeln!(out, "{line}")?;
+            }
+            write_diagnostics(out, &report.diagnostics())?;
             Ok(if report.all_passed() {
                 EXIT_OK
             } else {

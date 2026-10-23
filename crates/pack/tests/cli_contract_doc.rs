@@ -8,9 +8,10 @@ use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
     compare_differ_line, compare_same_line, compare_unreadable_line, final_line, metrics_row,
-    test_pass_line, usage, vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine, PackSummary,
-    Subcommand, VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK,
-    EXIT_USAGE, ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL, VOCAB_HEADER,
+    test_error_pass_line, test_fail_line, test_pass_line, test_summary_lines, usage,
+    vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine, PackSummary, Subcommand,
+    VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE,
+    ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL, VOCAB_HEADER,
 };
 use fandhe_workshop_pack::source::Format;
 
@@ -157,6 +158,47 @@ fn cli_doc_test_pass_line_example_matches() {
         }
     }
     assert_eq!(block, [test_pass_line("pt-main", 2)]);
+}
+
+fn text_block(heading: &str) -> Vec<String> {
+    let body = section(&doc(), heading);
+    let mut in_block = false;
+    let mut block = Vec::new();
+    for l in body.lines() {
+        if l == "```text" {
+            in_block = true;
+        } else if l == "```" {
+            break;
+        } else if in_block {
+            block.push(l.to_string());
+        }
+    }
+    block
+}
+
+#[test]
+fn cli_doc_test_error_lines_example_matches() {
+    assert_eq!(
+        text_block("## 12.3. `test` の誤入力の行と FAIL の行"),
+        [
+            test_error_pass_line("e01", "rejected:bad_arg_shape"),
+            test_fail_line(
+                "e03",
+                "rejected:bad_arg_shape",
+                "rejected:missing_arg",
+                None
+            ),
+            test_fail_line("pt-main", "achieved", "progress", Some("区間 1 の入力 2")),
+        ]
+    );
+}
+
+#[test]
+fn cli_doc_test_summary_example_matches() {
+    assert_eq!(
+        text_block("## 12.4. `test` の集計"),
+        test_summary_lines(1, 1, 3, 3, 5)
+    );
 }
 
 #[test]
