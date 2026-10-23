@@ -1,0 +1,23 @@
+# G01: 土台の章 13 から、Step の `do` に skill 種のコマンド名を書いた。本文は土台のまま（漏れない）。
+id: ch-13
+title: 水準ごとの本文
+
+starts:
+  - { id: s-13-1, node: st-13-2, guidance: B }
+
+steps:
+  - id: st-13-2
+    title: 変わった箇所を探す
+    do: /make-item で作ってから、左の画面で変わった箇所を探す
+    body: st-13-2.md
+    body_levels: { B: st-13-2.b.md }
+    hints: [h-13-2-1]
+    next: [{ to: st-13-3 }]
+    input: { kind: choice, options: [{ id: opt-st-13-2, label: 読みました }] }
+    rules:
+      - { id: r-st-13-2, on: { option: opt-st-13-2 }, outcome: { kind: accept } }
+    confirm: { kind: none, reason: 読むだけの Step のため、選んだこと自体を達成とする。 }
+
+  - id: st-13-3
+    title: 章の終わり
+    final: true
