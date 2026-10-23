@@ -83,7 +83,7 @@ export function reqLabel(u) {
  * IR（`irUrl`）の取得の計数と、合否に数える失敗した要求の一覧を返す（`runOnce` の `ir-fetch`・`failed` の判定）。
  * 要求は Request の同一性（`rec` の id）で response・requestfailed を対応付ける。IR の応答（`irCount`）はちょうど 1 件で 200 であること。
  * 除くのは、その 1 件の要求自体が応答の後に `net::ERR_ABORTED` と通知される競合（CI の Chromium で、完了の通知の代わりに届く
- * ことがある。アプリは本文を読み切って起動している）だけで、同じ Request に限る。id の違う IR の要求（応答のある重複の取得・
+ * ことがある。アプリは本文を読み切って起動している）だけで、同じ Request に限る。原因は未確定で、除外を残す理由と観察は docs/testing.md 5.268 に記録した。id の違う IR の要求（応答のある重複の取得・
  * 応答のない中断）、応答が 2 件以上・200 以外のときの中断、別の資源・別のエラー種別は従来どおり数える（重複の取得を見逃さない）。
  */
 export function irFetchCheck(rec, irUrl) {

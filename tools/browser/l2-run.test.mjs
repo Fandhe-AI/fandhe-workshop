@@ -9,7 +9,7 @@
 // 同梱の IR（./ir/main.json）が 200 で 1 回取得され、CH-1 の 6 Step を通って `main/st-2-1` に入る。
 // 教材は試験データ（crates/web/tests/data/ch0_3/ir.json）で、本物の CH-0〜CH-1 の 50 操作ではない（docs/testing.md 5.239）。
 //
-// TASK-113（DLV-14。docs/testing.md 5.241）で足した検査:
+// TASK-113（DLV-14。docs/testing.md 5.241b）で足した検査:
 //   - 待ち受けが 127.0.0.1 だけであること。LISTEN のソケットの一覧（Linux は /proc/net/tcp*、macOS は /usr/sbin/lsof）と、
 //     自分の非 loopback の IPv4 などへの接続が ECONNREFUSED で断られることの 2 方向で確かめる
 //     （時間切れ・到達不能は「拒否」と区別して失敗にする。届かないことを拒否と取り違えないため）。

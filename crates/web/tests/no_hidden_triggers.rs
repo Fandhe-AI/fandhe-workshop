@@ -10,7 +10,7 @@
 //! 指せる行（`data-action="ui"`。`artifact_view`）が正当に出力する属性名であり、同じ文字列リテラルは 1 つに
 //! まとめられるため、件数では新しい経路を検出できないからである。そこで「経路」を、進行の宛先
 //! （`tick`・`complete`・`esc`）を `data-action` に書く形、許可の外の `data-payload`、DOM への属性の書き込み、
-//! 送信ボタンと左の行（`row_key_effect` の結果）以外への `.click()`、`static/app.js` の `blob:` の検査つきの 1 件（`STATIC_HREF_WRITE`）以外の `href` への代入と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
+//! 送信ボタンと左の行（`row_key_effect` の結果）以外への `.click()`、`static/app.js` の `blob:` の確認と隣り合った 1 件（`STATIC_HREF_GUARDED_WRITE`）以外の `href` への代入と定義し、許可した箇所の件数を固定する（増えても減っても失敗する）。
 //! `static/test-hooks.js` は試験の設定でだけ配信されるため対象外である。
 //! 解析は、コメントを除き、空白と `r#` を除いた文字列で照合する（`common::glue_code` と同じ）。
 
@@ -69,8 +69,10 @@ const STATIC_FORBIDDEN: [&str; 3] = ["data-payload", ".click(", "setAttribute("]
 /// リンクは履歴が変わるたびに view が作り直すので、写した値は次の描画で消える。件数は 1 件に固定する（増減で失敗する）。
 const STATIC_HREF_WRITE: &str = ".href=";
 const STATIC_HREF_WRITE_COUNT: usize = 1;
-/// 上の書き込みが必ず通る前置きの検査（空白を除いた本文で照合する）。
-const STATIC_HREF_GUARD: &str = "url.startsWith(blobPrefix)";
+/// `blob:` の確認と `href` の代入が隣り合った 1 文であること（空白を除いた本文で照合する。#1740）。
+/// 確認が本文のどこかにあるだけでは、確認の後ろで別の値を `href` へ書く改変を通してしまうため、代入そのものを
+/// 確認の直後に置いた形で固定する。`url` は `const` の束縛なので、確認と代入の間で値は変わらない。
+const STATIC_HREF_GUARDED_WRITE: &str = "if(url.startsWith(blobPrefix))a.href=url;";
 
 /// 違反を 1 件ずつ文にして返す。`src` は（src からの相対パス, 本文）、`statics` は（static からの相対パス, 本文）。
 fn violations(src: &[(String, String)], statics: &[(String, String)]) -> Vec<String> {
@@ -166,10 +168,18 @@ fn violations(src: &[(String, String)], statics: &[(String, String)]) -> Vec<Str
         let squeezed: String = body.split_whitespace().collect();
         let writes = squeezed.matches(STATIC_HREF_WRITE).count();
         if rel.ends_with(".js") {
-            let guarded = squeezed.contains(STATIC_HREF_GUARD.replace(' ', "").as_str());
-            if writes != STATIC_HREF_WRITE_COUNT || !guarded {
+            // 守りつきの 1 文がちょうど 1 件あり、唯一の `.href=` がその文の中にあること。
+            let guarded = squeezed.matches(STATIC_HREF_GUARDED_WRITE).count();
+            let offset = STATIC_HREF_GUARDED_WRITE
+                .find(STATIC_HREF_WRITE)
+                .expect("守りつきの文は書き込みを含む");
+            let same_path = squeezed
+                .find(STATIC_HREF_GUARDED_WRITE)
+                .zip(squeezed.find(STATIC_HREF_WRITE))
+                .is_some_and(|(g, w)| g + offset == w);
+            if writes != STATIC_HREF_WRITE_COUNT || guarded != 1 || !same_path {
                 out.push(format!(
-                    "static/{rel}: href への書き込みは blob: の検査つきの {STATIC_HREF_WRITE_COUNT} 件だけのはず（{writes} 件・検査 {guarded}）"
+                    "static/{rel}: href への書き込みは blob: の確認と隣り合った {STATIC_HREF_WRITE_COUNT} 件だけのはず（書き込み {writes} 件・守りつき {guarded} 件・同じ経路 {same_path}）"
                 ));
             }
         } else if writes != 0 {
@@ -350,5 +360,54 @@ fn 配信する静的ファイルの違反を検出する() {
     ] {
         let v = violations(&good_src(), &s(bad));
         assert!(any(&v, "static/app.js"), "{bad} を検出できない: {v:?}");
+    }
+}
+
+/// 対照（#1740）。`blob:` の確認と `href` の代入を離した写しを、隣接の照合だけが検出する。
+/// 従来の判定（確認が本文のどこかにある・代入が 1 件）が (a)(b)(d)(e) を通してしまうことも示し、空振りを防ぐ。
+#[test]
+fn blob_の確認と_href_の代入が離れた写しを検出する() {
+    let real = real_statics();
+    let app = real
+        .iter()
+        .find(|(f, _)| f == "app.js")
+        .map(|(_, b)| b.clone())
+        .expect("app.js");
+    let original = "if (url.startsWith(blobPrefix)) a.href = url;";
+    assert_eq!(app.matches(original).count(), 1, "元の行が 1 回だけある");
+    assert!(violations(&web_src_sources(), &real).is_empty());
+    let legacy_pass = |body: &str| {
+        let sq: String = body.split_whitespace().collect();
+        sq.matches(".href=").count() == 1 && sq.contains("url.startsWith(blobPrefix)")
+    };
+    for (name, bad, legacy_misses) in [
+        (
+            "a",
+            "if (url.startsWith(blobPrefix)) {} a.href = url;",
+            true,
+        ),
+        (
+            "b",
+            "const ok = url.startsWith(blobPrefix); a.href = url;",
+            true,
+        ),
+        ("c", "if (!url.startsWith(blobPrefix)) a.href = url;", true),
+        (
+            "d",
+            "if (url.startsWith(blobPrefix) || true) a.href = url;",
+            true,
+        ),
+        ("e", "if (url.startsWith(blobPrefix)) a.href = other;", true),
+    ] {
+        let body = app.replace(original, bad);
+        if legacy_misses {
+            assert!(legacy_pass(&body), "{name}: 従来の判定は通すはず");
+        }
+        let statics = vec![
+            ("app.js".to_owned(), body),
+            ("index.html".to_owned(), String::new()),
+        ];
+        let v = violations(&web_src_sources(), &statics);
+        assert!(any(&v, "static/app.js"), "{name} を検出できない: {v:?}");
     }
 }
