@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-23・元にしたコミット: d03701b
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-23・元にしたコミット: aba0d8f
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -40,6 +40,7 @@ rust|tests/browser_notice_host.rs [browser_notice_host]|passed=7|ignored=0
 rust|tests/browser_notice_pin.rs [browser_notice_pin]|passed=1|ignored=0
 rust|tests/busy_resend.rs [busy_resend]|passed=8|ignored=0
 rust|tests/button_burst.rs [button_burst]|passed=3|ignored=0
+rust|tests/call_step_owner.rs [call_step_owner]|passed=7|ignored=0
 rust|tests/cancel_input.rs [cancel_input]|passed=8|ignored=0
 rust|tests/candidates_contract.rs [candidates_contract]|passed=11|ignored=0
 rust|tests/card_view_a_contract.rs [card_view_a_contract]|passed=13|ignored=0
@@ -67,7 +68,7 @@ rust|tests/compile.rs [compile]|passed=27|ignored=0
 rust|tests/compile_chapters.rs [compile_chapters]|passed=13|ignored=0
 rust|tests/compile_output.rs [compile_output]|passed=8|ignored=0
 rust|tests/condition_contract.rs [condition_contract]|passed=9|ignored=0
-rust|tests/condition_eval.rs [condition_eval]|passed=12|ignored=0
+rust|tests/condition_eval.rs [condition_eval]|passed=13|ignored=0
 rust|tests/condition_vocab_pack.rs [condition_vocab_pack]|passed=6|ignored=0
 rust|tests/condition_vocabulary.rs [condition_vocabulary]|passed=6|ignored=0
 rust|tests/confirm_achieve.rs [confirm_achieve]|passed=13|ignored=0
@@ -242,6 +243,7 @@ rust|tests/restore_review.rs [restore_review]|passed=7|ignored=0
 rust|tests/review_fold.rs [review_fold]|passed=2|ignored=0
 rust|tests/revise_candidates.rs [revise_candidates]|passed=16|ignored=0
 rust|tests/revise_target.rs [revise_target]|passed=17|ignored=0
+rust|tests/round_slice_init.rs [round_slice_init]|passed=3|ignored=0
 rust|tests/row_keys_wiring.rs [row_keys_wiring]|passed=3|ignored=0
 rust|tests/run_status_contract.rs [run_status_contract]|passed=15|ignored=0
 rust|tests/save_failure.rs [save_failure]|passed=9|ignored=0
@@ -308,7 +310,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=312|passed=3347|ignored=3
+rust|total|binaries=314|passed=3358|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0
