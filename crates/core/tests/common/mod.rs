@@ -13,6 +13,7 @@ pub mod op_gen;
 pub mod op_props;
 pub mod property;
 pub mod record_path;
+pub mod text_table;
 pub mod tick;
 pub mod trace;
 
