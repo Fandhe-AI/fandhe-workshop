@@ -312,7 +312,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 回避: ヒントの文面に隠す語を書く場合は、ヒントの `levels` で B・C に出さないようにします。水準 B・C で使う章は、開始点の `guidance` か `body_levels` を宣言します。
 
-根拠の試験: `crates/pack/tests/guidance_leak_scope.rs` の `pack52_b_`・`pack52_c_`（検出しないことの観察）。記録は `docs/testing.md` の 5.219。
+根拠の試験: `crates/pack/tests/guidance_leak_scope.rs` の `pack52_b_`・`pack52_c_`（検出しないことの観察）。欠陥パックでの観察は `crates/pack/tests/guide5_limits.rs`（G04〜G06）。記録は `docs/testing.md` の 5.219・5.253。
 
 ## VER-8: 表示だけの履歴は中身を描かず、直前の未保存の下書きを保存しない
 
