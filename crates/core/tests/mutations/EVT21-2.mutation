@@ -1,0 +1,9 @@
+id: EVT21-2
+package: fandhe-workshop-core
+test: begin_skip
+target: crates/core/src/begin.rs
+find:             .insert(uid.clone(), StepStatus::Skipped);
+replace:             .insert(uid.clone(), StepStatus::Achieved);
+expect-fail: midstart_skips_earlier_steps_in_ir_order
+expect-fail: midstart_leaves_other_units_and_scopes_alone
+note: 飛ばした Step を省略ではなく達成として記録する

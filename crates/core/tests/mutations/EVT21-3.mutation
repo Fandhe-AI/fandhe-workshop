@@ -1,0 +1,8 @@
+id: EVT21-3
+package: fandhe-workshop-core
+test: begin_skip
+target: crates/core/src/begin.rs
+find:         .filter(|uid| instance::status_of(ir, &state.run, uid) == StepStatus::NotStarted)
+replace:         .filter(|uid| instance::status_of(ir, &state.run, uid) != StepStatus::Skipped)
+expect-fail: midstart_keeps_achieved_steps
+note: 未着手の条件を外す

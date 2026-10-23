@@ -1,0 +1,9 @@
+id: EVT21-1
+package: fandhe-workshop-core
+test: begin_skip
+target: crates/core/src/begin.rs
+find:         .take(target_idx)
+replace:         .take(0)
+expect-fail: midstart_skips_earlier_steps_in_ir_order
+expect-fail: midstart_keeps_achieved_steps
+note: 開始の節点より前の節点を 1 件も省略にしない
