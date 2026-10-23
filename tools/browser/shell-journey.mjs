@@ -160,9 +160,23 @@ export async function runShellJourney(page, { width, scene, L, hooks = {} }) {
     lastStep = uid;
   };
 
+  // フック（再読み込み・復帰）はログに行を足し、左のマークを消す。次の Step の変化の検査が古い基準で通らないよう、フックの後に基準を取り直す。
+  // ログ件数は全ての状態で取り直す。左の指紋と状態の成果物は、effects が効く前の entered の時点だけ取り直す。
+  const rebaseline = async (uid, status) => {
+    if (!prev || prev.uid !== uid) return;
+    prev.logs = await logCount(page);
+    if (status === 'entered') {
+      prev.print = await leftPrint(page);
+      prevArtifacts = JSON.stringify((await engine(page)).artifacts);
+    }
+  };
+
   const onStep = async (uid, status) => {
     if (status === 'entered') await observeEntered(uid);
-    if (hooks.afterStep) await hooks.afterStep(uid, status, { page, width, counter });
+    if (hooks.afterStep) {
+      await hooks.afterStep(uid, status, { page, width, counter });
+      await rebaseline(uid, status);
+    }
   };
   const d = paneAware(page, mouseDriver(page), counter);
   await journey(page, d, scene, L, null, { chaptered: true, onStep });
