@@ -8,8 +8,9 @@
 //!
 //! - `Event` から `CheckObservation` への写像は TASK-304 1/3 の担当で未実装のため、本試験の `choose` が代用する。
 //!   TASK-304 の結線後は、その写像へ置き換える。
-//! - ヒントの段と前後の比較は、`Op::Control(OpenHint)` が未結線・比較の表示に対応するイベントが無いため、
-//!   観測を列へ直接差し込む。
+//! - ヒントを開く `Control::OpenHint` は結線済み（TASK-295。`Event::HintOpened` を出す）。ただし `Event::HintOpened` から
+//!   `CheckObservation::HintOpened` への写像は上と同じ TASK-304 1/3（#876）の担当で未実装であり、比較の表示に対応する
+//!   イベントも無い。そのためヒントの段と前後の比較の観測は列へ直接差し込む。TASK-304 の結線後は、その写像へ置き換える。
 //! - 断定しないこと: ヒントの段による自力の規則（GUIDE-18 で未決）、`confirm: none`（`confirm_none_achieve`、TASK-208）、章の完了。
 //!
 //! 呼び出し元は CI の `make test` のみである。
