@@ -7483,7 +7483,20 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 確かめないこと: 水準 B・C の本文が教育上適切か（教材側の INTRO-40・ROUND2-7）。
 - 限界・範囲外: 画面への結線は SHELL-7 のタスク。compile が成功する教材では水準の木は欠けない（本文ファイルが無ければ `E-REF-BODY`、埋め込みの予算超えは `E-LIMIT`）ため、欠けの倒れは手で作った IR で確かめた。版 1 の IR は本文を出さない。ヒントの出し分けは TASK-293、開始点の水準と切り替えは TASK-294。
 
-### 5.248 隠す語の検査の 4 種類の欠陥（TASK-300 1/2。GUIDE-4）
+### 5.248 案内レベル別のヒントの出し分け（TASK-293。GUIDE-2）
+
+- 目的: 現在の Step と案内レベルで出せるヒントの一覧（core の `hint_select`）が水準ごとに `levels` の宣言どおりに変わり、pack の `E-HINT-HIDDEN` が報告する (定義ファイル, Step, 水準) の集合と、実行時に一覧が空になる組の集合が、モジュールの実体を含めて一致することを固定する。規則の正は契約の `visible_hints` の 1 か所で、検査と実行時は違う入力（展開の前の Step と定義元の表 / 展開の後の node と IR の表）から引く。
+- 試験: `crates/core/tests/hint_select.rs`（水準で一覧が変わる・Session の水準に従う・開始前と未知の Step は空・契約の規則と一致・性質テスト）、`crates/pack/tests/hint_hidden_runtime.rs`（base・D22・モジュールの実体・模擬の教材 8 組で一致）。base のヒントは `levels` なしで全水準に出し、D22 は `[B, C]` で水準 A だけが空になる。
+- 実行結果（2026-10-23。元にしたコミット a8c2215）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE2-1.mutation crates/pack/tests/mutations/GUIDE2-2.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| GUIDE2-1 | `crates/core/src/hint_select.rs`: 現在の案内レベルを無視して常に水準 A を返す | the_list_changes_with_the_level | the_list_changes_with_the_level, property_list_matches_independent_expectation | DETECTED | cases=256、固定の既定の種、最小の入力 `[Some([1])]` |
+| GUIDE2-2 | `crates/pack/src/guidance.rs`: 検査が水準 C を見落とす | agrees_on_synthetic_packs | agrees_on_synthetic_packs | DETECTED | - |
+
+- 範囲外: `Control::OpenHint`・`SetGuidance` の結線（TASK-295・TASK-294）、本文の表示（TASK-530）。
+
+### 5.249 隠す語の検査の 4 種類の欠陥（TASK-300 1/2。GUIDE-4）
 
 - 目的: 隠す語の検査（`E-GUIDANCE-LEAK`）とその周辺の検査が、PoC-3 の欠陥 D20〜D23 に相当する 4 種類を期待のコード・ファイル・項目で検出することを固定する。
 - 試験: `crates/pack/tests/guide4_defects.rs`。D20〜D23 は `testdata/pack-defects/v1_1/b/` を写さずに読み、4/4 を確かめる（D22 は GUIDE-2 の `E-HINT-HIDDEN`。GUIDE-4 の証拠ではない）。補助の欠陥 G01〜G03（`testdata/pack-defects/guide4/b/`）が、`do`・開始点の水準だけ・`body_levels` だけの 3 経路を単独で確かめる（4 種類の外）。漏れの検査は `validate` だけで、`compile` は通ること、診断に隠す語を写さないことも確かめる。
@@ -7496,4 +7509,3 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE4-3 | `guidance.rs`: `body_levels` の経路を使わない | DETECTED（`guide4_leak_via_body_levels_only_detected`） |
 
 - 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
-- 番号: 並行する PR が 5.247 を足すため 5.248 とした。マージの順で付け直す場合がある。
