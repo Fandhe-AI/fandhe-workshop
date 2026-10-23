@@ -7,8 +7,8 @@
 //!
 //! - D12 は `pack.ir_format` を 3 にして埋める。本 repo は版 1 と 2 の両方を読む（D-52）ため、2 では欠陥にならない
 //! - D09・D10 は `fandhe-pack test` でしか見つからない。`test` は TASK-404（#648）、`E-PLAY-*` の扱いは
-//!   TASK-398（#468）の持ち分で未実装のため、検出の試験は `#[ignore]` で置く。静的な 10 種 × 2 = 20 パックの
-//!   検出を必須にし、24/24 は TASK-404・TASK-398 の完了後に `#[ignore]` を外して確かめる
+//!   TASK-398（#468）で固定し、TASK-404 3/3（#651）で `test` が出す。静的な 10 種 × 2 = 20 パックの
+//!   検出と、D09・D10 の 4 パックの検出（計 24/24）を必須にする
 //!
 //! 語彙 v1.1 の欠陥 11 種（D13〜D23、形式 B だけ。TASK-56 2/3・#416）は、末尾の `pack29_v1_1_*` が確かめる。
 //! 土台は `base/format-b-v1_1`、差し替えは `v1_1/b/<ID>`。必須の検出は `validate` の 11/11 である。D21・D22 は
@@ -294,7 +294,6 @@ fn pack29_play_defects_pass_static_checks() {
 }
 
 #[test]
-#[ignore = "E-PLAY-* の行を出すのは TASK-404 3/3 以降（#651）。コードは TASK-398 (#468) で固定済み"]
 fn pack29_play_defects_reported_by_test() {
     for f in FORMATS {
         for d in DEFECTS.iter().filter(|d| d.phase == Phase::Test) {

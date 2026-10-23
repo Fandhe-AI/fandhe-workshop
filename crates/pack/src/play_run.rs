@@ -11,7 +11,7 @@
 //! 画面側が変わるときは本モジュールも同じ変更で追従する。
 //!
 //! 扱わないこと
-//! - FAIL・集計の行の出力（TASK-404 3/3、TASK-405）。PASS の行は `cli::run_test` が `cli_contract::test_pass_line` で書く（2/3）。報告 [`Report`] に材料だけを持つ
+//! - R-22・R-21・入った実体の集計と最終行（TASK-405）。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
 //! - `cmd:`・`text:` を画面と同じ関数で分けること（TASK-406。ここでは値をそのまま渡す）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!
@@ -28,7 +28,7 @@ use fandhe_workshop_core::Session;
 
 use crate::cli_contract::PackSummary;
 use crate::compile::compile;
-use crate::diag::Diagnostic;
+use crate::diag::{DiagCode, Diagnostic};
 use crate::play_expect::ResultExpect;
 use crate::play_script::{
     self, ApprovalWord, End, ErrorInput, Expect, PlayOp, Playthrough, Script, ScriptStep,
@@ -113,15 +113,18 @@ pub enum Failure {
     Mismatch {
         /// 何番目の segment か（1 始まり。誤入力は 0）。
         segment: usize,
-        /// 何番目の入力か（1 始まり。誤入力の本番の入力は `pre` の後ろ）。
+        /// 何番目の入力か（1 始まり。誤入力の本番の入力と開始できない場合は 0）。
         step: usize,
         /// 期待の語。
         expected: String,
         /// 観測した結果。
         observed: Observed,
     },
-    /// 終わりの条件を満たさなかった。
-    EndNotReached,
+    /// 終わりの条件を満たさなかった。実体 ID は持たず、条件の種類だけを持つ。
+    EndNotReached {
+        /// `end: complete` だったか（偽なら Step の指定）。
+        complete: bool,
+    },
 }
 
 /// 1 件（模範解答または誤入力）の結果。
@@ -153,9 +156,95 @@ pub struct Report {
     pub error_inputs: Vec<CaseResult>,
     /// 判定していない定義。あれば不合格に倒す。
     pub unsupported: Vec<Unsupported>,
+    /// 教材テストのファイル（パック根からの相対パス）。試験の診断の `file` 欄に使う。
+    pub tests_file: String,
+}
+
+impl CaseResult {
+    /// FAIL の行の材料（期待の語・実際の語・位置の注記）。合格なら `None`。
+    ///
+    /// 語は固定語彙だけで、教材データの値と実体 ID は含めない。
+    pub fn fail_parts(&self) -> Option<(String, String, Option<String>)> {
+        match self.failure.as_ref()? {
+            Failure::Mismatch {
+                segment,
+                step,
+                expected,
+                observed,
+            } => {
+                let note = match (*segment, *step) {
+                    (0, 0) => None,
+                    (0, n) => Some(format!("事前の入力 {n}")),
+                    (s, 0) => Some(format!("区間 {s} の開始")),
+                    (s, n) => Some(format!("区間 {s} の入力 {n}")),
+                };
+                Some((expected.clone(), observed.word(), note))
+            }
+            Failure::EndNotReached { complete } => {
+                let (e, o) = if *complete {
+                    ("complete", "incomplete")
+                } else {
+                    ("end_step", "other_step")
+                };
+                Some((
+                    e.to_string(),
+                    o.to_string(),
+                    Some("終わりの条件".to_string()),
+                ))
+            }
+        }
+    }
 }
 
 impl Report {
+    /// 合格した模範解答の数。
+    pub fn passed_playthroughs(&self) -> usize {
+        self.playthroughs.iter().filter(|c| c.passed()).count()
+    }
+
+    /// 期待どおりだった誤入力の数。
+    pub fn passed_error_inputs(&self) -> usize {
+        self.error_inputs.iter().filter(|c| c.passed()).count()
+    }
+
+    /// 不合格 1 件ごとの試験の診断を、模範解答、誤入力の記載の順で返す（TASK-404 3/3）。
+    ///
+    /// メッセージは英語の固定文と固定語彙だけで、教材データの値は写さない。
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        let file = if self.tests_file.trim().is_empty() {
+            "."
+        } else {
+            self.tests_file.as_str()
+        };
+        let one = |c: &CaseResult, kind: &str, code: DiagCode, what: &str| {
+            let (expected, observed, _) = c.fail_parts()?;
+            Diagnostic::new(
+                file,
+                format!("{kind}:{}", c.id),
+                code,
+                format!("{what}: expected {expected}, got {observed}"),
+            )
+            .ok()
+        };
+        let pts = self.playthroughs.iter().filter_map(|c| {
+            one(
+                c,
+                "playthrough",
+                DiagCode::PlayIncomplete,
+                "playthrough did not complete as scripted",
+            )
+        });
+        let eis = self.error_inputs.iter().filter_map(|c| {
+            one(
+                c,
+                "error_input",
+                DiagCode::PlayCategoryMismatch,
+                "error input result differs from expected",
+            )
+        });
+        pts.chain(eis).collect()
+    }
+
     /// 全件が合格で、判定していない定義が無く、1 件以上流したとき真。
     pub fn all_passed(&self) -> bool {
         !self.playthroughs.is_empty()
@@ -213,7 +302,11 @@ pub fn run_loaded(pack: &LoadedPack) -> TestOutcome {
         return TestOutcome::NotRun { diags, summary };
     };
     match compile(pack) {
-        Ok(ir) => TestOutcome::Ran(run(&ir, &script)),
+        Ok(ir) => {
+            let mut report = run(&ir, &script);
+            report.tests_file = pack.tests_file.clone().unwrap_or_default();
+            TestOutcome::Ran(report)
+        }
         Err(d) => TestOutcome::NotRun { diags: d, summary },
     }
 }
@@ -232,6 +325,7 @@ pub fn run(ir: &Ir, script: &Script) -> Report {
             .map(|e| run_error_input(ir, e))
             .collect(),
         unsupported: script.unsupported.clone(),
+        tests_file: String::new(),
     }
 }
 
@@ -408,7 +502,12 @@ fn run_playthrough(ir: &Ir, p: &Playthrough) -> CaseResult {
         }
     }
     let ok = session.as_ref().is_some_and(|s| end_reached(s, p));
-    result(inputs, (!ok).then_some(Failure::EndNotReached))
+    result(
+        inputs,
+        (!ok).then_some(Failure::EndNotReached {
+            complete: matches!(p.end, End::Complete),
+        }),
+    )
 }
 
 fn run_error_input(ir: &Ir, e: &ErrorInput) -> CaseResult {
@@ -448,7 +547,7 @@ fn run_error_input(ir: &Ir, e: &ErrorInput) -> CaseResult {
             inputs,
             Failure::Mismatch {
                 segment: 0,
-                step: e.pre.len() + 1,
+                step: 0,
                 expected: expect_word(&e.expect),
                 observed,
             },
