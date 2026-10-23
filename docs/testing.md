@@ -7518,6 +7518,22 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
 
+### 5.251 ヒントを開く操作と上限での拒否（TASK-295。GUIDE-17）
+
+- 目的: `Control::OpenHint` が、現在の Step で現在の案内レベルに出せる数 n まで 1 段ずつ開け、n を超える操作と現在の Step が無い操作を `Refused`（`NoHint`）で拒否し、成功・拒否のどちらでも世代と `run` を変えないことを固定する。段数は教材が決め、3 段に固定しない（D-55。固定するかは TASK-296）。
+- 設計: core の `hint_open::on_open_hint`（非公開）。Step が無いときは空の uid の印で拒否を記録する。案内レベルを下げて n が開いた段数を下回っても拒否し、段数は減らさない。処理中でも開ける。
+- 試験: `crates/core/tests/hint_open.rs`（水準ごとに n 段まで・超過の拒否で世代と状態が不変・Step 無し・ヒントの無い Step と IR に無い Step・水準を下げた後・水準ごとの上限）と性質テスト 2 本（各 1,000 件。宣言の組 × 水準 × 回数、Step の移動・水準の変更・操作の混在列）。
+- 実行結果（2026-10-23。元にしたコミット 05f8102）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE17-2.mutation crates/core/tests/mutations/GUIDE17-3.mutation crates/core/tests/mutations/GUIDE17-4.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| GUIDE17-2 | `hint_open.rs`: 上限の比較を緩め n+1 段目が開ける | refuses_beyond_n_without_changing_anything_but_the_log, property_open_up_to_visible_count | 左に加え the_limit_follows_the_current_level など 5 件 | DETECTED | cases=1000、固定の既定の種、最小の入力 `([], 0, 1)` |
+| GUIDE17-3 | `hint_open.rs`: Step 無しの拒否を空の列にする | refuses_without_current_step | refuses_without_current_step, property_mixed_sequences_keep_the_rules | DETECTED | cases=1000、最小の入力 `(false, [Open])` |
+| GUIDE17-4 | `hint_open.rs`: 開いた段数を記録しない | opens_one_by_one_up_to_n, property_open_up_to_visible_count | 6 件 | DETECTED | cases=1000、最小の入力 `([None], 0, 1)` |
+
+- 確かめないこと: 画面での表示と開く操作（TASK-530）。
+- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296）。
+
 ### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
 
 - 目的: 教材全体が、モジュールの実体を静的に並べた有向非巡回グラフとして IR に載ることと、実体数・Step の実体数・開始数が教材の定義と一致することを固定する。
