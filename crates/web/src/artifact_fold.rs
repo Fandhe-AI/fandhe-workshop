@@ -68,6 +68,16 @@ pub fn fold_rows(log: &[Event], rows: Vec<ArtifactRow>) -> Vec<(String, Node)> {
         let run = last_run.get(path.as_str()).copied().unwrap_or(0);
         groups.entry(run).or_default().push(idx);
     }
+    // 最新のラン（指せる行を含む全行で判定）が指せる行だけでも、空のグループとして末尾に置く。置かないと
+    // 一つ前のランが「最新」と誤認され、畳まれずに目安を超えたままになる。
+    let newest = rows
+        .iter()
+        .map(|r| last_run.get(r.0.as_str()).copied().unwrap_or(0))
+        .max()
+        .unwrap_or(0);
+    if newest > 0 {
+        groups.entry(newest).or_default();
+    }
     let ordered: Vec<(usize, Vec<usize>)> = groups.into_iter().collect();
     let lens: Vec<usize> = ordered.iter().map(|(_, v)| v.len()).collect();
 

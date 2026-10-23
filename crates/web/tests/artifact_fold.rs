@@ -204,3 +204,49 @@ fn 指せる行は古い_step_でも畳まれず残る() {
     assert!(keys.contains(&"pb/00400"));
     assert!(out.len() <= 1_000, "{}", out.len());
 }
+
+/// 最新のランが指せる行だけでも「最新」として数え、一つ前のランを畳む（大きな Step の後に指す行だけが変わる場合）。
+#[test]
+fn 最新のランが指せる行だけでも前のランを畳む() {
+    use fandhe_frontend_core::{el, text};
+    use fandhe_workshop_core::event::Event;
+    use fandhe_workshop_web::artifact_fold::{fold_rows, ArtifactRow};
+
+    let ev = |step: &str, p: &str| -> Event {
+        serde_json::from_value(serde_json::json!({"changed": {
+            "at": {"generation": 1, "step": step},
+            "path": p,
+            "before": null,
+            "after": {"fixture": null, "attrs": {"kind": "none", "state": "created"}},
+            "cause": "input",
+        }}))
+        .unwrap()
+    };
+    let mut log = Vec::new();
+    let mut rows: Vec<ArtifactRow> = Vec::new();
+    for (step, prefix, n, pinned) in [
+        ("main/st-1", "a", 1100usize, false),
+        ("main/st-2", "b", 3, true),
+    ] {
+        for i in 0..n {
+            let path = format!("{prefix}/{i:05}");
+            log.push(ev(step, &path));
+            rows.push((
+                path.clone(),
+                format!("p{path}"),
+                el("li", vec![], vec![text(path.as_str())]),
+                pinned,
+            ));
+        }
+    }
+    let out = fold_rows(&log, rows);
+    let keys: Vec<&str> = out.iter().map(|(k, _)| k.as_str()).collect();
+    assert!(out.len() <= 1_000, "{}", out.len());
+    for i in 0..3 {
+        assert!(
+            keys.contains(&format!("pb/{i:05}").as_str()),
+            "指せる行が消えた"
+        );
+    }
+    assert!(!keys.contains(&"pa/00000"));
+}
