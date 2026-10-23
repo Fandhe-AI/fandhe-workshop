@@ -1,0 +1,8 @@
+id: SHELL7-3
+package: fandhe-workshop-web
+test: step_body_host
+target: crates/web/src/step_body.rs
+find:         if let Some(d) = t.do_text {
+replace:         if let Some(d) = t.do_text.filter(|_| false) {
+expect-fail: 全_step_で題と_do_が_ir_のとおり出る
+note: do の項目を作らない（SHELL-7・TASK-525）

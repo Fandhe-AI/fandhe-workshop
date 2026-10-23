@@ -96,6 +96,7 @@ pub mod shell;
 pub mod shell_frame;
 pub mod shell_notice;
 pub mod start_select;
+pub mod step_body;
 pub mod step_status;
 pub mod storage_select;
 pub mod task_tree;

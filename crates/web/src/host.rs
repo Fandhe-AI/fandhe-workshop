@@ -105,6 +105,7 @@ use crate::shell_frame::TOP_PLACE_FIELD;
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
 use crate::shell_notice::SHELL_NOTICES_FIELD;
 use crate::stale_notice::STALE_NOTICE_FIELD;
+use crate::step_body::STEP_BODY_FIELD;
 use crate::storage_select::SyncKv;
 use crate::tick_schedule::next_tick;
 use crate::view_only_notice::VIEW_ONLY_NOTICE_FIELD;
@@ -860,6 +861,7 @@ impl EngineHost {
                 || f.name == SHELL_NOTICES_FIELD.name
                 || f.name == NEXT_CHAPTER_FIELD.name
                 || f.name == TOP_PLACE_FIELD.name
+                || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
         }) {
             return Err(HostError::FieldCollision(f.name));
@@ -1923,6 +1925,10 @@ impl EngineHost {
         if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
+        // Step の題・do・本文も registry の外にある。前の Step の文字を DOM から消すため明示して積む（TASK-525）。
+        if !self.dirty.contains(&STEP_BODY_FIELD.name) {
+            self.dirty.push(STEP_BODY_FIELD.name);
+        }
         // 差し替え前のタイマーは宛先が違えば `Ignored` を新しいログへ足し、一致すれば読み込み後の処理を進めてしまう。先に無効にする。
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2192,6 +2198,22 @@ impl EngineHost {
         }
     }
 
+    /// 題・`do`・本文を描く keyed list。session が無いときは項目 0 件。表示だけのモードでも復元した Step を出す。
+    fn step_text_node(&self) -> Node {
+        let t = self
+            .model
+            .session()
+            .and_then(|s| crate::step_body::step_text(s.ir(), s.state()));
+        crate::step_body::step_text_list(t.as_ref())
+    }
+
+    /// 本文の表示を決める値（現在の uid と案内レベル）。
+    fn step_text_key(&self) -> Option<(String, fandhe_workshop_contract::guidance::GuidanceLevel)> {
+        self.model
+            .session()
+            .and_then(|s| crate::step_body::step_text_key(s.state()))
+    }
+
     /// 今提示する「次の章へ進む」。表示だけの間と session が無いときは出さない（fail-closed。update が押下を捨てるため）。
     fn next_chapter_offer(&self) -> Option<NextChapter> {
         if self.model.view_only.is_some() {
@@ -2386,6 +2408,8 @@ impl Component for EngineHost {
         let offer_before = self.next_chapter_offer();
         // 上部の教材名・位置も同じく前後で比べる（TASK-524）。
         let place_before = self.top_place();
+        // Step の題・do・本文も前後で比べる（TASK-525）。
+        let step_before = self.step_text_key();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
         // モードから出る経路（試験の設定の読み込み・差し替え）に限る。新しい action は既定で捨てられる。
         // 下書きの変更を捨てたときは、DOM の値を戻させる。
@@ -2619,6 +2643,9 @@ impl Component for EngineHost {
         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
+        if self.step_text_key() != step_before && !self.dirty.contains(&STEP_BODY_FIELD.name) {
+            self.dirty.push(STEP_BODY_FIELD.name);
+        }
     }
 
     fn view(&self) -> Node {
@@ -2639,7 +2666,8 @@ impl Component for EngineHost {
         // 部品は種類ごとに左（成果物）・右（操作）へ振り分け、枠（`shell_frame`）の取り付け点に載せる（TASK-517 1/2）。
         // 左は `workshop-parts` に包んで置く。右は入力欄の `main` の後ろに、部品を登録順に直接並べる。
         let mut left: Vec<Node> = Vec::new();
-        let mut right: Vec<Node> = vec![self.input.view()];
+        // Step の題・do・本文は右のエリアの先頭に置く（仮置き。最終の配置は TASK-534・TASK-548）。
+        let mut right: Vec<Node> = vec![self.step_text_node(), self.input.view()];
         for (kind, node) in self.registry.views(&self.model) {
             match crate::shell_frame::pane_of(kind) {
                 crate::shell::PaneMount::Left => left.push(node),

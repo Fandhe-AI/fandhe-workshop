@@ -1,0 +1,8 @@
+id: SHELL7-1
+package: fandhe-workshop-web
+test: step_body_host
+target: crates/web/src/step_body.rs
+find:         body: select_body(node, level).map(|b| (b.level, b.doc)),
+replace:         body: select_body(node, GuidanceLevel::A).map(|b| (b.level, b.doc)),
+expect-fail: 案内レベルに応じた本文と_do_が出て欠けた水準は濃い側へ倒れる
+note: 本文の選択に常に A を渡す（案内レベル別の本文。SHELL-7・TASK-525）

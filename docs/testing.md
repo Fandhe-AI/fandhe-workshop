@@ -7729,3 +7729,18 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 限界: pack の実教材では、`wait` の処理中が未実装（5.258）で処理中の Step に入れないため、停止の確認を行っていない。上限の戻しの複数の根の場面は専用の試験を作っていない（既存の `transition_limit` が通ることで確かめた）。
 - 範囲外: 操作列全体の M-1（混ざり 0）の縦断は TASK-243、X2 の正式な検出記録は TASK-244。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.265 Step の題・do・本文の表示（TASK-525 1/2。SHELL-7）
+
+- 目的: Step の題・「いまやること」（`do`）・本文が、章の最初の Step を含めて画面に出ること、本文が見出し・一覧・表の構造を保つこと、案内レベルに応じた版が出ることを確かめる。
+- 期待と定義の対応: SHELL-7 → `step_body`（`crates/web/src/step_body.rs`）。題は `h2[step-title]`、`do` は `p[step-do]`（固定の見出し「いまやること」つき）、本文は `div[step-body][data-body-level]`。親は `section[step-text]` で常に描く（FEND-3）。`shell-` の識別子は使わない（shell 契約は管轄外）。
+- 決定:
+  - 案内レベルは `RunState.guidance_level` を使い、本文は `select_body`、`do` は `step_do_at` が選ぶ（C → B → A の倒れは core が持つ）。
+  - 本文は `doc_view::render_doc` だけを通す。題・`do` は文字ノードにだけ入れ、`RawHtml` を使わない。
+  - 置き場は右の領域の先頭（仮置き。TASK-534・TASK-548）。Step か水準が変わったときだけ `step_body` を dirty に積む。
+- 試験: native は `crates/web/tests/step_body_host.rs`（8 件。20 Step の題と `do`・章の最初の Step・本文の構造と外部画像・記号の非解釈・A/B/C と倒れ・dirty・履歴を開く・教材なし）と、`ch0_3_run_host`（題が変わった手で dirty）・`history_import`（開いたときの dirty の一覧）。ブラウザは `tools/browser/step-body.test.mjs`（20 Step の DOM と IR の一致・親の同一性・実コンパイルした教材の本文の構造・幅 1280px と 360px・実行と通信が 0 件・hidden の対照）。CSP あり・なしの両方で流す。
+- 変異注入: `SHELL7-1`（本文の水準を A に固定）・`SHELL7-2`（Step の変化で dirty を積まない）・`SHELL7-3`（`do` の項目を作らない）。2026-10-23 に `scripts/check-mutations.sh` で 3 件とも DETECTED。
+- 限界: 実行時の水準は常に A（`Control::SetGuidance` が core で未実装。TASK-294）。B・C は native で状態を注入して確かめた。ブラウザでの B・C は未確認。`direct-link-reload` の DOM の題の照合（5.204）は足していない。
+- 範囲外: 49 件の注入を CSP あり・なしで画面の本文の区画に対して流す確認は #712（TASK-525 2/2）。
+- 実行の結果（2026-10-23）: `make lint`・`make test`・`make check-deps`・`make check-dom-reads`・`make check` が通過。ブラウザは `step-body` の 4 件と、`element-identity`・`shell-widths`・`shell-position`・`shell-tabs`・`inline-free`・`csp-runs`・`next-chapter`・`history-ops`・`direct-link-start` が通過。`view-only` 系は環境変数 `FANDHE_VERSION_HISTORIES_DIR` を用意せず未実行（未検証）。`make test-browser` 全体は未実施。`make check-generic-words` は本件と無関係の `crates/pack/src/guidance.rs:606` で既に失敗している。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
