@@ -7516,7 +7516,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE4-2 | `guidance.rs`: 開始点の水準の経路を空にする | DETECTED（`guide4_leak_via_start_guidance_only_detected`） |
 | GUIDE4-3 | `guidance.rs`: `body_levels` の経路を使わない | DETECTED（`guide4_leak_via_body_levels_only_detected`） |
 
-- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
+- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は 5.253 が担当。人の確認は得ていない。
 
 ### 5.251 ヒントを開く操作と上限での拒否（TASK-295。GUIDE-17）
 
@@ -7533,6 +7533,20 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 確かめないこと: 画面での表示と開く操作（TASK-530）。
 - 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296。D-55 で固定しないと決まった。5.254 で確かめる）。
+
+### 5.253 検査の範囲の限界 3 項目（TASK-300 2/2。GUIDE-5）
+
+- 目的: 決定 D-43 の限界 3 項目を、欠陥パックで固定する。(a) 実体の引数で渡す `do` は展開後の文字列まで検査して検出する。(b) skill 名を含むヒントの段 2・3 は水準 B でも検査しない。(c) 開始点の `guidance` も `body_levels` も持たない章の本文は検査の対象外とする。(b)(c) は「検出しない」現状の観察である。
+- 試験: `crates/pack/tests/guide5_limits.rs`。差し替えは `testdata/pack-defects/guide5/b/G04〜G06`（土台は `base/format-b-v1_1`）。G04 は展開後の段の診断がちょうど 1 件で、引数を安全な値にすると 0 件になる対照つき。G05 は診断 0 件に加え、IR で水準 B に段 2・3 が見えること、同じ語を `do` に置くと検出される対照つき。G06 は診断 0 件で、正の対照は `guide4/b/G02`。`guidance_leak_scope.rs` の `pack52_` は範囲そのものの確認で、本試験は欠陥パックでの受け入れ試験である。
+- 変異（2026-10-23。元にしたコミット 3f5bbaf。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE5-{1,2}.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE5-1 | `expand.rs`: 置換後の `do` の漏れの検査を行わない | DETECTED（`guide5_a_argument_do_leak_detected`） |
+| GUIDE5-2 | `guidance.rs`: 宣言の無い章も水準 B で検査する | DETECTED（`guide5_c_undeclared_chapter_body_is_not_checked`） |
+
+- (b) に変異は置いていない。ヒントの文面を検査する経路がそもそも無く、1 行の置換で「検査する」状態を作れないためである。
+- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。人の確認は得ていない。
 
 ### 5.254 ヒントの上限の規則（TASK-296。GUIDE-6・D-55）
 

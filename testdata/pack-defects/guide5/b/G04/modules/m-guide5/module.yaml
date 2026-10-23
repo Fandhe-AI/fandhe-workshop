@@ -1,0 +1,10 @@
+# G04 の差し替え: 引数 `d` を `do` に差し込む Step を持つモジュール。既定値は安全な文字列で、字面には隠す語が無い。
+id: m-guide5
+title: 引数を差し込むモジュール
+params:
+  d: 安全な既定の文
+steps:
+  - id: g5-a
+    title: 引数の Step
+    do: '${d}'
+    final: true
