@@ -7578,12 +7578,26 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 確かめないこと: 画面（TASK-530）。試作の 33/33 のうち開始点の案内レベルの確認 14 件（`starts[].guidance` の反映が前提。TASK-294）。`fandhe-pack test` の計数（TASK-404・TASK-84）。実教材の 3 段の記述（TASK-634）。試作の教材は private で写していないため、ヒントの確認 19 件は同じ形の合成の教材で流した。33/33 を達成したとは言えない。
 - 範囲外: 3 段の構造の確認（TASK-298）、鍵を実体ごとにすること（TASK-297）。
 
-### 5.255 呼び出しの Step の持ち主と次の周回の初期状態（TASK-235 1/2。MOD-3）
+### 5.255 本文・ヒントへの引数の値の差し込みの限界（TASK-302。GUIDE-15）
+
+- 目的: 本文の木（IR 版 2）とヒントの文面に引数の値が入らない現状を、観察として固定する。D-50（H-3 の差し込みを足さない）と D-55（実体ごとの案内レベルを足さない）の範囲に GUIDE-15 は含まれず、差し込み語を足す決定が無いため、実装の分岐は「限界の固定」を採った。差し込み語の採否は spec 側の決定待ちである。
+- 試験: `crates/pack/tests/body_arg_gap.rs`（`guide15_` 7 件）。(1) 本文の `${名前}` が木に字面で残る。(2) 実体どうしで水準 A・B・C の `select_body` が等しい。(3) 本文の未定義の名前は compile が通り、同じ字面を `do` に書くと `E-STRUCTURE`。本文の `{{step_do}}` は充填されない。(4) ヒントの ID と文面が実体で共有される（`pack45_` の観察を `hints_at` まで通す）。(5) 対照として、`do` は実体ごとに置換され、拒否の文面の `{{step_do}}` が実体ごとの値で埋まる。(6) 差し込みらしい未知の欄は `compile`・`validate` とも `E-PARSE` で、値を写さない。(7) PoC-4 の `round1`・`round2` は、同じ Step の本文が全水準で等しく、題材の名前を含まず、`do` は実体で異なる。
+- 変異（2026-10-23。元にしたコミット ecc1557。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE15-1.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE15-1 | `expand.rs`: `do` を引数の置換の対象から外す | DETECTED（`guide15_do_and_rejection_text_receive_argument_values` ほか 2 件） |
+
+- 本文側の変異（本文を置換するようにする）は置いていない。`bodies` が置換前の参照からファイルを読んで木を作るため、1 行の置換では作れない。
+- 確かめないこと: 画面での本文・ヒントの表示（TASK-530・SHELL-7）、差し込み語の採否。
+- 限界: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.256 呼び出しの Step の持ち主と次の周回の初期状態（TASK-235 1/2。MOD-3）
 
 - 目的: 次の周回の根の Step がすべて `NotStarted` でフラグが空であり、開始の直後は現在の Step と呼び出しの Step だけが `Entered` になることを固定する。
 - 決定: Step の状態・選択の持ち主を `instance::owner_of`（`Instance::caller` が当の Step の実体の根。無ければ `root_of`）に一本化し、フラグ・効果の根は `root_of`（実体 ID の根）のままにした。`transit`・`Session::entered_at`・`accept`・`confirm`・`env_input` の書き読みと、web の `step_status`・`next_chapter`・`offers` の読み取りを `owner_of` 経由にした。これで周回ごとの根に呼び出しの Step が含まれ（2 周目で 18 件）、章の最後が `use` の Step でも「次の章へ進む」が出る。`CONTRACT_VERSION` は据え置いた（`docs/engine-api.md` の改訂履歴）。
 - 試験: `crates/core/tests/call_step_owner.rs`（手で組んだ IR での持ち主・フォールバック・`caller` 重複・切り身の鍵の不変条件）、`crates/pack/tests/round_slice_init.rs`（`module-reuse-rounds` で 18 件・呼び出しの Step 2 件、開始の前の `NotStarted`・フラグ空、開始の直後に `Entered` が 2 件だけ）。`module_instances_session.rs` は呼び出しの Step を名前の比較から除いた。`Control::Begin` は未実装のため、開始の直後は `GoTo` で代用した。
 - 変異注入: `MOD3-1`（`owner_of` が `caller` を無視する）。2026-10-23 に `scripts/check-mutations.sh crates/core/tests/mutations/MOD3-1.mutation` は DETECTED（期待した 2 件を含む 4 件が失敗）。
 - 持ち主の読み書きの追加（レビュー対応）: `apply_acceptance`（`accept_text`・`accept_command` が共用。引数に `ir` を足した）、`judge` の状態の読み、`tick` の受付済みの判定も `owner_of`（`status_of`）を通した。効果の根（フラグ）は `root_of` のまま。`call_step_owner.rs` に、コマンド入力・自然文の受付が呼び出しの Step の `Accepted` を呼ばれた実体の切り身に書くことの試験を足した。
-- 範囲外（追加）: 条件の `step`・`chose`（`condition::eval_condition`）は IR を受け取らず、実体 ID の根の切り身から読む。呼び出しの Step を指す条件は `NotStarted`・選択なしになる。
+- 条件の持ち主（レビュー対応）: `condition::eval_condition` に実体の一覧（`instances`）を渡し、`step`・`chose` の参照先を `instance::owner_in`（`owner_of` の実体）に揃えた。`call_step_owner.rs` ではなく `condition_eval.rs` の `step_and_chose_read_the_callee_slice_for_a_call_step` が、呼び出しの Step の `entered`・`achieved`・`not_started`・選択を呼ばれた実体の切り身から読むことと、実体の一覧が空の対照を確かめる。
 - 範囲外: 2 周目の終了後に 1 周目の切り身が不変なこと（TASK-235 2/2）、`Control::Begin`（TASK-237 1/2）、`Checkpoint.owner` と `projection` の復帰の範囲（TASK-241）、根の定義（#1413）。
