@@ -5,6 +5,8 @@
 // 操作は 2 種のドライバ（mouseDriver: page.click・fill・press、keyboardDriver: page.keyboard だけ）と journey が行い、
 // 合否は台帳 ledger に積む。journey の opts.onStep は、各 Step に入った（または確認待ちになった）直後に呼ぶ口で、
 // csp-runs が Step ごとに画面を走査するのに使う（ch0-3-run は渡さず、従来どおり）。入力した値は台帳に載せない。
+// paneAware は、960px 未満で tablist が見えているときだけ、操作の前に要るタブを選ぶドライバの包みで、shell-widths と
+// shell-journey（TASK-548 1/2）が共有する。「次の章へ進む」は操作の領域の末尾にあるので、操作のタブを選んでから押す。
 import assert from 'node:assert/strict';
 
 export const DRAFT = '[data-testid="draft-input"]';
@@ -153,6 +155,40 @@ export function keyboardDriver(page) {
       await keyTo(page, NEXT);
       await page.keyboard.press('Enter');
     },
+  };
+}
+
+// 操作の前に、要るタブを選ぶドライバ。tablist が見えていないとき（2 列）は何もしない。見えているかは幅でなく計算された display で判定する。
+// 選んだ回数を counter.clicks に積む。
+export function paneAware(page, d, counter) {
+  const ensure = async (id) => {
+    const visible = await page.evaluate(() => {
+      const e = document.querySelector('[data-testid="pane-tabs"]');
+      return !!e && getComputedStyle(e).display !== 'none';
+    });
+    if (!visible) return;
+    const selected = await page.getAttribute(`#${id}`, 'aria-selected');
+    if (selected === 'true') return;
+    await page.click(`#${id}`);
+    counter.clicks += 1;
+  };
+  const ops = (name) => async (...args) => {
+    await ensure('pane-tab-ops');
+    return d[name](...args);
+  };
+  return {
+    point: async (...args) => {
+      await ensure('pane-tab-artifacts');
+      return d.point(...args);
+    },
+    choose: ops('choose'),
+    decide: ops('decide'),
+    revise: ops('revise'),
+    send: ops('send'),
+    sendMultiline: ops('sendMultiline'),
+    completeAndSend: ops('completeAndSend'),
+    esc: ops('esc'),
+    nextChapter: ops('nextChapter'),
   };
 }
 
