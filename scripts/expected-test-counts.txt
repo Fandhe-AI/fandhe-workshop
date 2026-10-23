@@ -109,6 +109,7 @@ rust|tests/guidance_api.rs [guidance_api]|passed=8|ignored=0
 rust|tests/guidance_contract.rs [guidance_contract]|passed=10|ignored=0
 rust|tests/guidance_leak_scope.rs [guidance_leak_scope]|passed=11|ignored=0
 rust|tests/guidance_levels.rs [guidance_levels]|passed=19|ignored=0
+rust|tests/hint_stages.rs [hint_stages]|passed=10|ignored=0
 rust|tests/history_append_only.rs [history_append_only]|passed=8|ignored=0
 rust|tests/history_boot.rs [history_boot]|passed=6|ignored=0
 rust|tests/history_envelope_binding.rs [history_envelope_binding]|passed=4|ignored=0
@@ -282,7 +283,7 @@ rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
 rust|total|binaries=283|passed=3070|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=29|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=46|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=100|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=125|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
 browser|total|tests=843|pass=843|skipped=0|todo=0|cancelled=0

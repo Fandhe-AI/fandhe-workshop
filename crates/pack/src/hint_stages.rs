@@ -49,6 +49,8 @@ pub enum HintStageRuleError {
     AnswerStageOutOfRange,
     /// 文面の欄の名前が空。
     EmptyField,
+    /// 答えの照合を宣言したが答えの段が無い（照合が黙って行われないのを防ぐ）。
+    AnswerTextWithoutStage,
 }
 
 impl fmt::Display for HintStageRuleError {
@@ -57,6 +59,9 @@ impl fmt::Display for HintStageRuleError {
             Self::ZeroStages => "hint stage rule: stages must be at least 1",
             Self::AnswerStageOutOfRange => "hint stage rule: answer stage is out of range",
             Self::EmptyField => "hint stage rule: answer text field name is empty",
+            Self::AnswerTextWithoutStage => {
+                "hint stage rule: answer text is declared without an answer stage"
+            }
         })
     }
 }
@@ -165,6 +170,9 @@ fn validate_rule(rule: &HintStageRule) -> Result<(), HintStageRuleError> {
         }
     }
     if let Some(a) = &rule.answer_text {
+        if rule.answer_stage.is_none() {
+            return Err(HintStageRuleError::AnswerTextWithoutStage);
+        }
         if a.field.is_empty() {
             return Err(HintStageRuleError::EmptyField);
         }
@@ -181,11 +189,14 @@ pub fn check_hint_stages(
 ) -> Result<Vec<HintStageFinding>, HintStageRuleError> {
     validate_rule(rule)?;
     let mut out = Vec::new();
-    for uid in rule
+    let mut declared_uids: Vec<&String> = rule
         .per_step
         .keys()
         .chain(rule.answer_text.iter().flat_map(|a| a.answers.keys()))
-    {
+        .collect();
+    declared_uids.sort();
+    declared_uids.dedup();
+    for uid in declared_uids {
         if !ir.nodes.iter().any(|n| &n.uid == uid) {
             out.push(HintStageFinding::UnknownStep { uid: uid.clone() });
         }
@@ -278,6 +289,16 @@ mod tests {
             answers: BTreeMap::new(),
         });
         assert_eq!(validate_rule(&r), Err(HintStageRuleError::EmptyField));
+        let mut r = rule();
+        r.answer_stage = None;
+        r.answer_text = Some(AnswerText {
+            field: "text".into(),
+            answers: BTreeMap::new(),
+        });
+        assert_eq!(
+            validate_rule(&r),
+            Err(HintStageRuleError::AnswerTextWithoutStage)
+        );
         assert_eq!(validate_rule(&rule()), Ok(()));
     }
 
