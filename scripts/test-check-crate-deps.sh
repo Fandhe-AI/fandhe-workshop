@@ -105,6 +105,40 @@ mutate_case "pack -> web (normal) is rejected" 1 crates/pack/Cargo.toml normal \
 mutate_case "web -> pack (normal) is rejected" 1 crates/web/Cargo.toml normal \
   'fandhe-workshop-pack.workspace = true'
 
+# 2b. EVT-23・TASK-206 の受け入れ条件: core・contract の依存の閉包に表示基盤の crate を足すと失敗し、
+#     戻すと通る。禁止の 4 系統（web-sys・js-sys・wasm-bindgen・fandhe-frontend）を実物の Cargo.toml への改変で確かめる。
+mutate_case "core -> web-sys (normal) is rejected" 1 crates/core/Cargo.toml normal \
+  'web-sys.workspace = true'
+mutate_case "core -> js-sys (normal) is rejected" 1 crates/core/Cargo.toml normal \
+  'js-sys.workspace = true'
+mutate_case "core -> wasm-bindgen (normal) is rejected" 1 crates/core/Cargo.toml normal \
+  'wasm-bindgen.workspace = true'
+mutate_case "core -> fandhe-frontend-core (normal) is rejected" 1 crates/core/Cargo.toml normal \
+  'fandhe-frontend-core.workspace = true'
+mutate_case "contract -> wasm-bindgen (normal) is rejected" 1 crates/contract/Cargo.toml normal \
+  'wasm-bindgen.workspace = true'
+# 境界の固定: 禁じるのは normal 依存の閉包だけで、試験だけの dev 依存は通る（architecture.md 第 4 節）
+mutate_case "core -> web-sys (dev) is allowed" 0 crates/core/Cargo.toml dev \
+  'web-sys.workspace = true'
+
+# mutate_and_revert_case: 同じ一時コピーで、禁止の依存を足すと失敗し、元の Cargo.toml・Cargo.lock を戻すと通る。
+mutate_and_revert_case() {
+  local dir
+  dir="$(fresh_copy mutate-revert)"
+  add_after_dependencies "${dir}/crates/core/Cargo.toml" 'web-sys.workspace = true'
+  if ! refresh_lock "${dir}"; then
+    expect "mutate-and-revert (lock refresh)" 0 1
+    return 0
+  fi
+  run_check "${dir}"
+  expect "mutate-and-revert: mutated copy is rejected" 1 "${RC}"
+  cp "${ROOT_DIR}/crates/core/Cargo.toml" "${dir}/crates/core/Cargo.toml"
+  cp "${ROOT_DIR}/Cargo.lock" "${dir}/Cargo.lock"
+  run_check "${dir}"
+  expect "mutate-and-revert: restored copy passes" 0 "${RC}"
+}
+mutate_and_revert_case
+
 # 3. default-members に web を足すと失敗する
 dir="$(fresh_copy default-members)"
 awk '/^default-members = \[$/ { print; print "    \"crates/web\","; next } { print }' "${dir}/Cargo.toml" >"${dir}/Cargo.toml.new"

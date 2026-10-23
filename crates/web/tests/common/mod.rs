@@ -10,13 +10,71 @@
 
 use std::path::PathBuf;
 
+/// `cs[i]` から始まる文字列・生文字列・バイト列・文字リテラルの直後の位置を返す。リテラルでなければ None。
+///
+/// 生文字列は開始時の `#` の数に一致する終端（`"` と同数の `#`）まで読む。ライフタイム（`'a`）と
+/// 生識別子（`r#name`）はリテラルとしない。
+pub fn literal_end(cs: &[char], i: usize) -> Option<usize> {
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let c = *cs.get(i)?;
+    if i > 0 && is_id(cs[i - 1]) {
+        return None;
+    }
+    // `b"..."`・`br#"..."#`・`b'x'` の `b` を飛ばす。
+    let j = if c == 'b' { i + 1 } else { i };
+    match cs.get(j)? {
+        '"' => {
+            let mut k = j + 1;
+            while k < cs.len() && cs[k] != '"' {
+                k += if cs[k] == '\\' { 2 } else { 1 };
+            }
+            Some((k + 1).min(cs.len()))
+        }
+        'r' => {
+            let mut n = 0;
+            while cs.get(j + 1 + n) == Some(&'#') {
+                n += 1;
+            }
+            if cs.get(j + 1 + n) != Some(&'"') {
+                return None;
+            }
+            let mut k = j + 2 + n;
+            while k < cs.len() {
+                if cs[k] == '"' && (1..=n).all(|m| cs.get(k + m) == Some(&'#')) {
+                    return Some(k + 1 + n);
+                }
+                k += 1;
+            }
+            Some(cs.len())
+        }
+        '\'' => {
+            if cs.get(j + 1) == Some(&'\\') {
+                let mut k = j + 3;
+                while k < cs.len() && cs[k] != '\'' {
+                    k += 1;
+                }
+                Some((k + 1).min(cs.len()))
+            } else if cs.get(j + 2) == Some(&'\'') {
+                Some(j + 3)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 /// コメント（`//` は行末まで、`/* */` は入れ子を数えて）を空白に置き換える。改行は残す。
+/// 文字列・生文字列・文字リテラルの中の `//` や `/*` はコメントとして削らず、そのまま残す。
 pub fn strip_comments(src: &str) -> String {
     let b: Vec<char> = src.chars().collect();
     let mut out = String::new();
     let mut i = 0;
     while i < b.len() {
-        if b[i] == '/' && b.get(i + 1) == Some(&'/') {
+        if let Some(e) = literal_end(&b, i) {
+            out.extend(&b[i..e]);
+            i = e;
+        } else if b[i] == '/' && b.get(i + 1) == Some(&'/') {
             while i < b.len() && b[i] != '\n' {
                 i += 1;
             }
@@ -164,4 +222,135 @@ pub fn wasm_layer_sources() -> Vec<(String, String)> {
             (n, body)
         })
         .collect()
+}
+
+/// コメントを除いたコードから生識別子の `r#` を除き、空白を「識別子どうしの間の 1 個」だけ残して詰める（TASK-206）。
+///
+/// `normalize` は空白を全部除くため `&mut World` が `&mutWorld` になり、識別子の境界を判定できない。
+/// こちらは `&mut World` を保ち、`. world (` のような記号まわりの空白だけを詰める。
+pub fn spaced(code: &str) -> String {
+    let src = strip_comments(code);
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let chars: Vec<char> = src.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if let Some(e) = literal_end(&chars, i) {
+            // リテラルは中身をそのまま残す（生文字列の `r#` を壊さない）。
+            out.extend(&chars[i..e]);
+            i = e;
+        } else if chars[i] == 'r'
+            && chars.get(i + 1) == Some(&'#')
+            && !(i > 0 && is_id(chars[i - 1]))
+        {
+            // 生識別子（`r#update`）の `r#` を除く。
+            i += 2;
+        } else if chars[i].is_whitespace() {
+            let prev = out.chars().next_back();
+            while i < chars.len() && chars[i].is_whitespace() {
+                i += 1;
+            }
+            if prev.is_some_and(is_id) && chars.get(i).copied().is_some_and(is_id) {
+                out.push(' ');
+            }
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `needle` の出現位置のうち、両端が識別子の文字のとき、その外側も識別子の文字でないもの。
+pub fn ident_positions(hay: &str, needle: &str) -> Vec<usize> {
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let first_id = needle.chars().next().is_some_and(is_id);
+    let last_id = needle.chars().next_back().is_some_and(is_id);
+    hay.match_indices(needle)
+        .filter(|(i, _)| {
+            let before_ok = !first_id || !hay[..*i].chars().next_back().is_some_and(is_id);
+            let after_ok = !last_id || !hay[i + needle.len()..].chars().next().is_some_and(is_id);
+            before_ok && after_ok
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+pub fn count_ident(hay: &str, needle: &str) -> usize {
+    ident_positions(hay, needle).len()
+}
+
+/// `start` 以降の最初の `{` から対応する `}` までを返す。対応が取れなければ None。
+///
+/// 文字列（`"..."`・`r#"..."#`）と文字リテラル（`'{'`・`'\''`）の中の波括弧は深さに数えない（`literal_end`）。
+/// 数えると `let s = "}";` で範囲が早く閉じ、その後ろの禁止参照を見逃す。ライフタイム（`'a`）は文字リテラルとしない。
+pub fn block_from(code: &str, start: usize) -> Option<&str> {
+    let open = start + code[start..].find('{')?;
+    let cs: Vec<(usize, char)> = code[open..].char_indices().collect();
+    let chars: Vec<char> = cs.iter().map(|(_, c)| *c).collect();
+    let mut depth = 0usize;
+    let mut k = 0;
+    while k < cs.len() {
+        if let Some(e) = literal_end(&chars, k) {
+            k = e;
+            continue;
+        }
+        let (i, c) = cs[k];
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(&code[open..open + i + 1]);
+                }
+            }
+            _ => {}
+        }
+        k += 1;
+    }
+    None
+}
+
+/// `spaced` 済みのコードから `<ty>` の impl の本体をすべて切り出して連結する。
+/// trait impl（`impl ... for <ty> {`）と inherent impl（`impl <ty> {`）の全ブロックが対象で、
+/// 後続の impl に置いた読み取りも見逃さない。1 つも無ければ None。
+pub fn impl_body(code: &str, ty: &str) -> Option<String> {
+    // `impl A<B> for T {` は空白の詰めで `impl A<B>for T{` になるため、`for` の前の境界は見ない。
+    // ヘッダは `impl` から最初の `{` までで、型名の直後が終端か `where`（`impl T where Self: Sized {`）の形を対象にする。
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let heads = [format!("for {ty}"), format!("impl {ty}")];
+    let mut out = String::new();
+    for (pos, _) in code.match_indices("impl") {
+        if code[..pos].chars().next_back().is_some_and(is_id) {
+            continue;
+        }
+        let Some(open) = code[pos..].find('{').map(|k| pos + k) else {
+            continue;
+        };
+        let header = &code[pos..open];
+        let hit = heads.iter().any(|h| {
+            header.match_indices(h.as_str()).any(|(i, _)| {
+                let rest = header[i + h.len()..].trim_start();
+                rest.is_empty() || rest.starts_with("where ") || rest.starts_with("where<")
+            })
+        });
+        if !hit {
+            continue;
+        }
+        if let Some(b) = block_from(code, pos) {
+            out.push_str(b);
+            out.push('\n');
+        }
+    }
+    (!out.is_empty()).then_some(out)
+}
+
+/// `spaced` 済みのコードから `fn <name>` の本体を切り出す（名前の直後が `(` か `<`）。
+pub fn fn_body_spaced<'a>(code: &'a str, name: &str) -> Option<&'a str> {
+    for head in [format!("fn {name}("), format!("fn {name}<")] {
+        if let Some(pos) = code.find(&head) {
+            return block_from(code, pos);
+        }
+    }
+    None
 }

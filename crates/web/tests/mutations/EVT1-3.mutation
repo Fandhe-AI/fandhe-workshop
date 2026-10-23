@@ -1,0 +1,8 @@
+id: EVT1-3
+package: fandhe-workshop-web
+test: pane_isolation
+target: crates/web/src/run_status.rs
+find: use crate::terminal_area::RunStatus;
+replace: use crate::terminal_area::RunStatus; #[allow(unused_imports)] use crate::artifact_view::ViewKind;
+expect-fail: 実ソースの右は左の状態を読まず_左は右の文字列を読まない
+note: 右のモジュールが左のモジュールの状態の型を取り込む（EVT-1・TASK-206）

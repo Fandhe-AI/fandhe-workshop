@@ -1,0 +1,8 @@
+id: EVT1-1
+package: fandhe-workshop-web
+test: pane_isolation
+target: crates/web/src/engine_parts.rs
+find:         let events = model.session().map(|s| s.log()).unwrap_or(&[]);
+replace:         let _left = model.world(); let events = model.session().map(|s| s.log()).unwrap_or(&[]);
+expect-fail: 実ソースの右は左の状態を読まず_左は右の文字列を読まない
+note: ログ（右）の描画が左の世界状態を読む（描画の結果が左の状態を左右する経路になる。EVT-1・TASK-206）

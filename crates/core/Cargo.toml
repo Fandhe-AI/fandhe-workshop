@@ -7,6 +7,8 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+# EVT-23: core は DOM・表示基盤を知らない。normal 依存の推移的閉包に web-sys・js-sys・wasm-bindgen*・
+# fandhe-frontend* を入れない（`make check-deps` が検査し、回帰は scripts/test-check-crate-deps.sh が持つ）。
 [dependencies]
 fandhe-workshop-contract.workspace = true
 serde.workspace = true

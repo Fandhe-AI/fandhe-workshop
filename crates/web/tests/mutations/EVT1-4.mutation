@@ -1,0 +1,8 @@
+id: EVT1-4
+package: fandhe-workshop-web
+test: pane_isolation
+target: crates/web/src/host.rs
+find:         self.model.projection.extend(log);
+replace:         self.model.projection.extend(log); self.model.world_consumed = 0;
+expect-fail: 実ソースの右は左の状態を読まず_左は右の文字列を読まない
+note: host に左の状態を書く新しい形を足す（左の状態がイベント列の導出以外から変わる。EVT-1・TASK-206）

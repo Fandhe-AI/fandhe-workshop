@@ -7940,6 +7940,30 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 試験の件数の期待値は更新していない（5.268 の方針）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
+### 5.273 core の依存境界と、右の描画から左の状態への参照 0 の検査（TASK-206。EVT-1・EVT-23）
+
+- 目的: 表示層が描画の結果を読んで状態を作る経路を持たないこと（EVT-1）と、core が DOM・表示基盤を知らないこと（EVT-23）を、機械検査で固定する。CI の配線（ジョブ・make ターゲット）は変えない。CI のガードの変更にあたるため、人のレビューが必要である（承認は得ていない）。
+- 置き場の判断: spec の TASK-206 は変更対象を `tools/check-deps.sh` とするが、右と左の分離は `engine_parts.rs` の impl 単位の切り出しが要り、awk では脆い。そのため `make test`（CI の rust-test）で流れる Rust の静的試験 `crates/web/tests/pane_isolation.rs` に置いた。`tools/check-deps.sh` は冒頭の対応表だけを足し、論理は変えていない。
+- 規則と検査の対応:
+
+  | 規則 | 検査 |
+  |---|---|
+  | core・contract の normal 依存の閉包に `web-sys`・`js-sys`・`wasm-bindgen*`・`fandhe-frontend*` が無い（EVT-23） | `scripts/check-crate-deps.sh`（`make check-deps`）。回帰は `make test-check-deps` で、実物の `Cargo.toml` に 4 系統を足すと失敗し、戻すと通ることを確かめる。dev 依存は禁じない |
+  | 状態を変える経路は `Session` の操作だけ | `crates/web/tests/no_progress.rs`（TASK-347）。「web は `Session` の操作と `Projection` を呼ぶ」の検査可能な読み方はこれである。web が使う core の経路の allowlist は、タスクのたびに一覧を直す負担が利点より大きいため作らない |
+  | DOM の文字列の読み取りが 0 件 | `tools/check-deps.sh`（`make check-dom-reads`）と `state_paths.rs` |
+  | R1: 右の描画が左の状態を読まない | `pane_isolation.rs`。右 8 ファイルの `World`・`Mark`・`.world(`・`selected_view`・`view_choice` などと左のモジュールへの経路が 0 件（共有の定数 `ACTION_ATTR`・`PAYLOAD_ATTR` だけ可） |
+  | R2: 左が右に出した文字列を読まない | 同上。左 13 ファイルの `line_from_event`・`judged_text`・右のモジュールへの経路が 0 件 |
+  | R3: 両側を組む `engine_parts.rs` | 同上。`LogPart` と右の補助関数に R1、`ArtifactPart`・`ReviewPart` と左の補助関数に R2 を impl・関数の単位で適用する。切り出せなければ失敗する |
+  | R4: `host.rs` が左の状態を書く形 | 同上。書き込みの形と件数を固定し、複合代入（`+=` など）と `&mut` の借用は許可した 1 件を除いて 0 件とし、新しい形が増えると失敗する |
+
+- DOM の読み取りの例外は 1 件で、`glue.rs` の `sync_draft` の `field.value()` である。上流の束縛が textarea の現在値を同期しないため、下書きと比べて違うときだけ書き戻す。読んだ値は状態に入れない。件数は `tools/check-deps.sh`（`EXC_N=1`）と `state_paths.rs` が固定している。規則の範囲外として、入力イベントの欄（`KeyboardEvent::key`・`InputEvent::data`・`selection_start` など）と保存先の `Storage::get_item` は表示の文字列ではないため禁止の一覧に入れない。
+- 実行結果（2026-10-23。元のコミット 88260ef）: `cargo test -p fandhe-workshop-web --test pane_isolation` は 16 件通過（2026-10-23 の指摘対応で 14 件から増やし、後続の impl と inherent impl の対照を足して 16 件）。`scripts/check-mutations.sh` で `EVT1-1`〜`EVT1-4` がすべて DETECTED（右が `model.world()` を読む・左が `judged_text` を読む・右が `ViewKind` を取り込む・`host.rs` に書き込みの形を足す）。`make test-check-deps` は 19 件通過。
+- 限界:
+  - 識別子の境界で照合し、マクロ・文字列の中は見分けない。モジュール名は `crate::`・`super::` の経路の形だけを数え、同名の変数は数えない。
+  - `hello.rs` は入力欄を持つ右の部品のため右に入れた。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・`doc_view`・`shell*` は両側の共有または枠のため対象外にした。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（版上げ PR ではない）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
 ### 5.272 問い返し・拒否の後の下書きが連結されないことの画面の結果（TASK-444。TERM-22・JUDGE-27・D-67）
 
 - 目的: PoC-13 の AI 代理の準備で起きた連結（問い返しの後に `/advance-phase` と打つと `/new-idea/advance-phase` になり、順序違いでなく未知のコマンドで拒否される）が、画面で起きないことを確かめる。エンジンの対処は TASK-284（5.198・5.200）で、本件は結果を画面で見る側を受け持つ。
