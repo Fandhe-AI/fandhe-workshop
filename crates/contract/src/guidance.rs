@@ -70,7 +70,7 @@ impl GuidanceLevel {
     }
 
     /// 本文が無いときに濃い側へ倒れる順（GUIDE-1）。C は B、A の順に、B は A に倒れる。
-    /// 自分自身を先頭に含む。本文の選択の実装は TASK-292 が持つ。
+    /// 自分自身を先頭に含む。core の `body_level::select_body`（TASK-292）が木の選択に使う。
     pub fn fallback_chain(self) -> &'static [GuidanceLevel] {
         match self {
             GuidanceLevel::A => &[GuidanceLevel::A],

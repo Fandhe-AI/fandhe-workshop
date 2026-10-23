@@ -1,0 +1,8 @@
+id: GUIDE1-1
+package: fandhe-workshop-core
+test: body_level_select
+target: crates/core/src/body_level.rs
+find:     for l in level.fallback_chain() {
+replace:     for l in &[level][..] {
+expect-fail: twelve_combinations_pick_the_expected_body_and_fall_toward_the_dense_side
+note: 水準の版が無いときに濃い側へ倒れない（自分の水準だけを探す）
