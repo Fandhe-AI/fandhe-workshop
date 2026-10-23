@@ -138,7 +138,7 @@ pub(crate) fn derive(
                     }
                 }
                 base.slices
-                    .get_mut(&current.root())?
+                    .get_mut(&crate::instance::root_of(current))?
                     .status
                     .insert(current.clone(), StepStatus::Entered);
                 base.busy = None;

@@ -140,7 +140,7 @@ pub(crate) fn achieve_with(
     items: &[EffectItem],
 ) -> Vec<Event> {
     let uid = at.step.clone();
-    let root = uid.root();
+    let root = crate::instance::root_of(&uid);
     state
         .run
         .slices

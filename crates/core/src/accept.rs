@@ -204,7 +204,7 @@ fn phase(run: &RunState, uid: &StepUid, input: &Input) -> Phase {
     }
     let status = run
         .slices
-        .get(&uid.root())
+        .get(&crate::instance::root_of(uid))
         .and_then(|s| s.status.get(uid))
         .copied()
         .unwrap_or_default();

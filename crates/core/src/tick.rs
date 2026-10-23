@@ -112,7 +112,7 @@ pub(crate) fn on_tick(ir: &Ir, state: &mut SessionState, addr: TickAddr) -> Vec<
     } else {
         None
     };
-    let root = current.root();
+    let root = crate::instance::root_of(&current);
     let mut events = apply_tick(
         &mut state.run,
         &root,

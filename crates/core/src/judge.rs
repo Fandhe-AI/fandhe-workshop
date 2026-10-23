@@ -200,7 +200,7 @@ pub fn judge_input(
     };
     let normalized_step = crate::accept::normalized(&node.step);
     let step = &normalized_step;
-    let root = uid.root();
+    let root = crate::instance::root_of(uid);
     let ctx = Ctx {
         ir,
         step,

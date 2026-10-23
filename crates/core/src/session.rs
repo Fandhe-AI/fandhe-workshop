@@ -384,7 +384,7 @@ impl Session {
             current: Some(uid.clone()),
             ..RunState::default()
         };
-        run.slices.insert(uid.root(), slice);
+        run.slices.insert(crate::instance::root_of(&uid), slice);
         let state = SessionState {
             entry: Some(EntryCopy {
                 run: run.clone(),
