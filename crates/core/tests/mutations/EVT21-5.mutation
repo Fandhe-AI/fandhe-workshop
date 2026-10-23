@@ -1,0 +1,8 @@
+id: EVT21-5
+package: fandhe-workshop-core
+test: begin_skip_keep
+target: crates/core/src/begin.rs
+find:         .filter(|uid| instance::status_of(ir, &state.run, uid) == StepStatus::NotStarted)
+replace:         .filter(|uid| instance::status_of(ir, &state.run, uid) != StepStatus::Achieved)
+expect-fail: begin_at_the_same_start_again_does_not_duplicate
+note: 省略済みの Step も対象にし、同じ開始点への再度の開始で再び省略する
