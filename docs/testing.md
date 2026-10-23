@@ -7483,7 +7483,20 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 確かめないこと: 水準 B・C の本文が教育上適切か（教材側の INTRO-40・ROUND2-7）。
 - 限界・範囲外: 画面への結線は SHELL-7 のタスク。compile が成功する教材では水準の木は欠けない（本文ファイルが無ければ `E-REF-BODY`、埋め込みの予算超えは `E-LIMIT`）ため、欠けの倒れは手で作った IR で確かめた。版 1 の IR は本文を出さない。ヒントの出し分けは TASK-293、開始点の水準と切り替えは TASK-294。
 
-### 5.248 学習モジュールの実体ごとの状態の読み出し（TASK-233 1/2。MOD-1）
+### 5.248 案内レベル別のヒントの出し分け（TASK-293。GUIDE-2）
+
+- 目的: 現在の Step と案内レベルで出せるヒントの一覧（core の `hint_select`）が水準ごとに `levels` の宣言どおりに変わり、pack の `E-HINT-HIDDEN` が報告する (定義ファイル, Step, 水準) の集合と、実行時に一覧が空になる組の集合が、モジュールの実体を含めて一致することを固定する。規則の正は契約の `visible_hints` の 1 か所で、検査と実行時は違う入力（展開の前の Step と定義元の表 / 展開の後の node と IR の表）から引く。
+- 試験: `crates/core/tests/hint_select.rs`（水準で一覧が変わる・Session の水準に従う・開始前と未知の Step は空・契約の規則と一致・性質テスト）、`crates/pack/tests/hint_hidden_runtime.rs`（base・D22・モジュールの実体・模擬の教材 8 組で一致）。base のヒントは `levels` なしで全水準に出し、D22 は `[B, C]` で水準 A だけが空になる。
+- 実行結果（2026-10-23。元にしたコミット a8c2215）。コマンド: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE2-1.mutation crates/pack/tests/mutations/GUIDE2-2.mutation`
+
+| ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
+|---|---|---|---|---|---|
+| GUIDE2-1 | `crates/core/src/hint_select.rs`: 現在の案内レベルを無視して常に水準 A を返す | the_list_changes_with_the_level | the_list_changes_with_the_level, property_list_matches_independent_expectation | DETECTED | cases=256、固定の既定の種、最小の入力 `[Some([1])]` |
+| GUIDE2-2 | `crates/pack/src/guidance.rs`: 検査が水準 C を見落とす | agrees_on_synthetic_packs | agrees_on_synthetic_packs | DETECTED | - |
+
+- 範囲外: `Control::OpenHint`・`SetGuidance` の結線（TASK-295・TASK-294）、本文の表示（TASK-530）。
+
+### 5.249 学習モジュールの実体ごとの状態の読み出し（TASK-233 1/2。MOD-1）
 
 - 目的: 同じ定義の Step が、`Session` の状態の上でも実体ごとに別の Step の実体として扱われ、片方の状態・フラグがもう片方へ漏れないことを固定する。
 - 決定: 状態の型・直列化の形は変えず、読み取り専用の `instance` モジュールと `Session::instances`・`slice`・`step_status`・`steps_of` を足した。根の決め方は `instance::root_of` の 1 か所に寄せ、中身は従来の `StepUid::root` のままにした。呼び出しの Step の持ち主の規則（`Instance.caller`）は書き込みと読み出しが一緒に変わる必要があるため入れず、TASK-235・TASK-241 が `root_of` を差し替える。`CONTRACT_VERSION` は据え置いた。
