@@ -1,0 +1,8 @@
+id: AUTHOR3-2
+package: fandhe-workshop-pack
+test: validate_command
+target: crates/pack/src/cli.rs
+find: Ok(code)
+replace: Ok(code * 0)
+expect-fail: author2_defective_pack_prints_diagnostics_then_ng_line_and_exits_1
+note: 診断があっても終了コードが 0 になる

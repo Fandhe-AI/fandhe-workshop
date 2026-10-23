@@ -2,8 +2,8 @@
 //!
 //! 引数の形の検査とコマンドへの振り分けは本モジュールが担う（TASK-401）。`compile <pack-dir>` と
 //! `compare <pack-dir-a> <pack-dir-b>` は本体まで実装している（TASK-39）。`metrics <pack-dir>` は本体まで実装している（TASK-402）。
-//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate`・`test` は形を受け付けたうえで
-//! 経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク（TASK-403・TASK-404）が各 `run_*` の中身を差し替えて作る。
+//! `compile -o` の書き出しは TASK-407 で実装した。`vocab` は TASK-408 で実装した。`validate` は TASK-403 で実装した。`test` は形を受け付けたうえで
+//! 経過措置の未実装（終了コード 2）に振り分け、本体は後続のタスク（TASK-404）が `run_test` の中身を差し替えて作る。
 //! 診断と最終行は標準出力、使い方と使い方の誤りは標準エラー出力に出す。
 //! 外部仕様（コマンド一覧・引数・usage の文言・終了コード・診断 1 行・最終行・出し先）の正は `docs/cli.md`（版 7）で、
 //! コード側の定義は `cli_contract` にある。ここではそれを再公開して、振り分けと出力を担う。
@@ -17,10 +17,15 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use crate::chapter_range::ChapterSelectError;
-use crate::cli_contract::{compare_differ_line, compare_same_line, compare_unreadable_line};
+use crate::cli_contract::{
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, FinalLine,
+    PackSummary,
+};
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
 use crate::diag::write_diagnostics;
+use crate::source;
+use crate::validate;
 use crate::vocab_report::report_dir;
 
 pub use crate::cli_contract::{usage, Subcommand, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE};
@@ -195,7 +200,7 @@ fn parse<I: Iterator<Item = OsString>>(
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
 /// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
 /// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 4 の 9 節）。
-/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。他のコマンドは未実装で `EXIT_USAGE` を返す（経過措置）。
+/// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は未実装で `EXIT_USAGE` を返す（経過措置）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
 where
     I: IntoIterator<Item = OsString>,
@@ -221,7 +226,7 @@ where
         }
     };
     match inv {
-        Invocation::Validate { pack_dir } => run_validate(&pack_dir, err),
+        Invocation::Validate { pack_dir } => run_validate(&pack_dir, out),
         Invocation::Test { pack_dir } => run_test(&pack_dir, err),
         Invocation::Compile {
             pack_dir,
@@ -244,9 +249,31 @@ fn not_implemented<E: Write>(cmd: Subcommand, err: &mut E) -> io::Result<u8> {
     Ok(EXIT_USAGE)
 }
 
-/// `validate` の振り分け先。本体は TASK-403。
-fn run_validate<E: Write>(_pack_dir: &Path, err: &mut E) -> io::Result<u8> {
-    not_implemented(Subcommand::Validate, err)
+/// `validate` の実行（AUTHOR-2・AUTHOR-3）。診断を 1 件 1 行で標準出力に書き、続けて最終行を 1 行書く。
+/// 終了コードは診断 0 件で `EXIT_OK`、1 件以上で `EXIT_DIAGNOSTICS`。読み込み（`source::load`）に失敗したときは
+/// 参照などの検査を流さず、読み込みの診断だけを書いて `読み込めません` で終える（fail-closed。診断が空でも成功にしない）。
+/// 標準エラー出力には何も書かない。出力の形の正は `docs/cli.md` の 6・8・9 節。
+fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
+    match source::load(dir) {
+        Err(diags) => {
+            write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Unreadable {
+                diagnostics: diags.len(),
+            });
+            writeln!(out, "{line}")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        Ok(pack) => {
+            let diags = validate::validate(&pack);
+            let code = write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Checked {
+                diagnostics: diags.len(),
+                summary: PackSummary::of(&pack),
+            });
+            writeln!(out, "{line}")?;
+            Ok(code)
+        }
+    }
 }
 
 /// `test` の振り分け先。本体は TASK-404。
@@ -411,10 +438,7 @@ mod tests {
     #[test]
     fn c1_accepted_shapes_reach_their_handler() {
         for c in Subcommand::ALL {
-            if matches!(
-                c,
-                Subcommand::Compile | Subcommand::Compare | Subcommand::Vocab | Subcommand::Metrics
-            ) {
+            if !matches!(c, Subcommand::Test) {
                 continue;
             }
             let (code, out, err) = run_args(&[c.name(), "x"]);
@@ -423,6 +447,14 @@ mod tests {
             assert!(err.contains("is not implemented yet"));
             assert!(err.contains(c.name()));
         }
+    }
+
+    #[test]
+    fn c1_validate_missing_dir_is_unreadable() {
+        let (code, out, err) = run_args(&["validate", "/nonexistent/fandhe-validate-unit"]);
+        assert_eq!(code, EXIT_DIAGNOSTICS);
+        assert!(err.is_empty());
+        assert_eq!(out.lines().last(), Some("NG: 診断 1 件（読み込めません）"));
     }
 
     #[test]
