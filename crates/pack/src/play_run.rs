@@ -281,9 +281,6 @@ fn observe(events: &[Event]) -> Observed {
     {
         return Observed::TransitionLimit;
     }
-    if events.iter().any(|e| matches!(e, Event::Warning { .. })) {
-        return Observed::Warning;
-    }
     if events.iter().any(|e| matches!(e, Event::Refused { .. })) {
         return Observed::Refused;
     }
@@ -311,6 +308,10 @@ fn observe(events: &[Event]) -> Observed {
     }
     if events.iter().any(|e| matches!(e, Event::Progress { .. })) {
         return Observed::Progress;
+    }
+    // 警告は判定・受付・進行と同時に出ることがある。それらが無いときだけ警告として見る。
+    if events.iter().any(|e| matches!(e, Event::Warning { .. })) {
+        return Observed::Warning;
     }
     Observed::NoJudgment
 }
@@ -474,6 +475,31 @@ mod tests {
         assert!(Observed::Achieved.matches_expect(&Expect::Achieved));
         assert!(!Observed::Progress.matches_expect(&Expect::Achieved));
         assert!(!Observed::Ignored.matches_expect(&Expect::Result(ResultExpect::Clarified)));
+    }
+
+    fn stamp() -> fandhe_workshop_core::addr::Stamp {
+        fandhe_workshop_core::addr::Stamp {
+            generation: fandhe_workshop_core::addr::Generation::INITIAL,
+            step: StepUid(String::new()),
+        }
+    }
+
+    fn warning() -> Event {
+        Event::Warning {
+            at: stamp(),
+            message: "w".into(),
+        }
+    }
+
+    #[test]
+    fn warning_does_not_hide_accepted() {
+        let events = [warning(), Event::Accepted { at: stamp() }];
+        assert_eq!(observe(&events), Observed::Accepted { free_text: false });
+    }
+
+    #[test]
+    fn warning_alone_is_observed_as_warning() {
+        assert_eq!(observe(&[warning()]), Observed::Warning);
     }
 
     #[test]
