@@ -33,11 +33,12 @@
 | `event` | `Event`（`HintOpened`・`Judged`・`Reloaded`・`TransitionLimitReached` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
 | `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` は宛先が一致する進行を TASK-210 2/3 が結線済みで、食い違いの無視の記録は 3/3） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
 | `text_fill` | `step_do_at`・`slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`filled_texts_of_log`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み（`filled_texts_of_log` はログから拒否・問い返しの文面を作り直す）。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`step_do_at` は案内レベルごとの `do`（`do_levels`。C → B → A）を選ぶ純関数で、`slot_values` の `step_do` と pack の漏れの検査が同じ選択を読む（TASK-70 2/2）。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
+| `instance` | `root_of`・`instance_roots`・`slice_of`・`status_of`・`steps_of` | 学習モジュールの実体（根）ごとの状態の読み出しと、状態を書き読みする根の決め方の一本化（MOD-1、TASK-233 1/2）。`CONTRACT_VERSION` の署名の対象に含まない | `Session`・pack と web の試験 |
 | `body_level` | `select_body`・`body_doc_at`・`SelectedBody` | 案内レベル別の本文の木（`Node::body_doc`・`body_levels_doc`）の選択。契約の `GuidanceLevel::fallback_chain` の順（C → B → A）で探し、水準の版が無ければ濃い側へ倒れる。`body_levels_doc` の鍵 `A` と `A`・`B`・`C` 以外の鍵は読まず、木を持たない版 1 の Node は `None`。`CONTRACT_VERSION` の署名の対象に含まない（TASK-292） | 画面の本文の区画（web。結線は SHELL-7 のタスク）・教材テスト（pack） |
 | `hint_select` | `hints_at`・`current_hints` | 現在の Step と案内レベルで出せるヒントの ID の一覧（規則は契約の `visible_hints`。GUIDE-2、TASK-293）。`CONTRACT_VERSION` の署名の対象に含まない | ヒントを開く判定（TASK-295）・画面（TASK-530）・教材テスト（pack） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
-| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload` | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
+| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload`（`Session::instances`・`slice`・`step_status`・`steps_of` の読み取り用メソッドを含む） | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
 - 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
@@ -194,6 +195,7 @@
 - 2026-10-15: e16 の単独照合を追加した。型・直列化の形は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-208）
 - 2026-10-16: 食い違う進行を `Ignored` 1 件で記録するようにした（`tick` モジュール）。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 3/3）
 - 2026-10-16: 宛先が一致する進行 `Op::Tick` を `apply()` に結線した（`tick` モジュール）。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 2/3）
+- 2026-10-23: 学習モジュールの実体ごとの状態の読み出し（`instance`、`Session::instances`・`slice`・`step_status`・`steps_of`）を足した。型・直列化・世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-233 1/2）
 - 2026-10-16: 世代の表を `session::apply` の関門で強制した。型・表・署名は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた（TASK-210 1/3）
 - 2026-10-16: 停止前の進行の無視と停止後の入力（TASK-211 2/2）の試験を足し、サンプルの連鎖の照合を先頭 13 件（e01〜e13）に広げた。型・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-19: 1 回の操作で起きる内部の遷移を 1,000 回で止める歩行器（`transit` モジュール、TASK-160 1/3、SAFE-23）を `confirm`・`go_to` に結んだ。止めたときは `Warning` を 1 件足し、現在の Step・処理中・入口の写しを空にする。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた

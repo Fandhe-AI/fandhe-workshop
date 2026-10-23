@@ -109,7 +109,7 @@ mod tests {
         state
             .run
             .slices
-            .entry(uid.root())
+            .entry(crate::instance::root_of(&uid))
             .or_default()
             .status
             .insert(uid, status);

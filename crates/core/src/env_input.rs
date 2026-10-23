@@ -49,7 +49,7 @@ pub(crate) fn on_saved(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     let status = state
         .run
         .slices
-        .get(&current.root())
+        .get(&crate::instance::root_of(&current))
         .and_then(|s| s.status.get(&current))
         .copied()
         .unwrap_or_default();
@@ -74,7 +74,7 @@ pub(crate) fn on_saved(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     state
         .run
         .slices
-        .entry(current.root())
+        .entry(crate::instance::root_of(&current))
         .or_default()
         .status
         .insert(current, StepStatus::Accepted);
