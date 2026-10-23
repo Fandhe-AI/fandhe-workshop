@@ -246,7 +246,7 @@ fn violations(files: &[(String, String)]) -> Vec<String> {
             for ty in RIGHT_IMPLS {
                 let who = format!("{ENGINE_PARTS} の impl {ty}");
                 match impl_body(&code, ty) {
-                    Some(b) => right_violations(b, &who, &mut v),
+                    Some(b) => right_violations(&b, &who, &mut v),
                     None => v.push(format!("{who} を切り出せない")),
                 }
             }
@@ -260,7 +260,7 @@ fn violations(files: &[(String, String)]) -> Vec<String> {
             for ty in LEFT_IMPLS {
                 let who = format!("{ENGINE_PARTS} の impl {ty}");
                 match impl_body(&code, ty) {
-                    Some(b) => left_violations(b, &who, &mut v),
+                    Some(b) => left_violations(&b, &who, &mut v),
                     None => v.push(format!("{who} を切り出せない")),
                 }
             }
@@ -499,6 +499,25 @@ fn 負例_engine_parts_の左の_impl_と補助関数に右の語を足すと検
         "fn review_row(i: usize) -> u8 { let _ = line_node;",
     );
     assert!(!violations(&with(base(), ENGINE_PARTS, &b)).is_empty());
+}
+
+#[test]
+fn 負例_後続の_impl_と_inherent_impl_に置いた左の状態の読み取りも検出する() {
+    let right_tail =
+        "\nimpl Other for LogPart { fn extra(model: &HostModel) { let _ = model.world(); } }\n";
+    let right_inherent =
+        "\nimpl LogPart { fn extra(model: &HostModel) { let _ = model.world(); } }\n";
+    let left_tail =
+        "\nimpl Other for ArtifactPart { fn extra(model: &HostModel) { model.judged_text(1); } }\n";
+    let left_inherent =
+        "\nimpl ReviewPart { fn extra(model: &HostModel) { model.judged_text(1); } }\n";
+    for tail in [right_tail, right_inherent, left_tail, left_inherent] {
+        let src = format!("{GOOD_ENGINE}{tail}");
+        assert!(
+            !violations(&with(base(), ENGINE_PARTS, &src)).is_empty(),
+            "{tail}"
+        );
+    }
 }
 
 #[test]

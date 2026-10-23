@@ -231,12 +231,21 @@ pub fn block_from(code: &str, start: usize) -> Option<&str> {
     None
 }
 
-/// `spaced` 済みのコードから `impl ... for <ty> {` の本体を切り出す。
-pub fn impl_body<'a>(code: &'a str, ty: &str) -> Option<&'a str> {
+/// `spaced` 済みのコードから `<ty>` の impl の本体をすべて切り出して連結する。
+/// trait impl（`impl ... for <ty> {`）と inherent impl（`impl <ty> {`）の全ブロックが対象で、
+/// 後続の impl に置いた読み取りも見逃さない。1 つも無ければ None。
+pub fn impl_body(code: &str, ty: &str) -> Option<String> {
     // `impl A<B> for T {` は空白の詰めで `impl A<B>for T{` になるため、`for` の前の境界は見ない。
-    let head = format!("for {ty}{{");
-    let pos = code.find(&head)?;
-    block_from(code, pos)
+    let mut out = String::new();
+    for head in [format!("for {ty}{{"), format!("impl {ty}{{")] {
+        for (pos, _) in code.match_indices(&head) {
+            if let Some(b) = block_from(code, pos) {
+                out.push_str(b);
+                out.push('\n');
+            }
+        }
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// `spaced` 済みのコードから `fn <name>` の本体を切り出す（名前の直後が `(` か `<`）。

@@ -7941,7 +7941,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   | R4: `host.rs` が左の状態を書く形 | 同上。書き込みの形と件数を固定し、複合代入（`+=` など）と `&mut` の借用は許可した 1 件を除いて 0 件とし、新しい形が増えると失敗する |
 
 - DOM の読み取りの例外は 1 件で、`glue.rs` の `sync_draft` の `field.value()` である。上流の束縛が textarea の現在値を同期しないため、下書きと比べて違うときだけ書き戻す。読んだ値は状態に入れない。件数は `tools/check-deps.sh`（`EXC_N=1`）と `state_paths.rs` が固定している。規則の範囲外として、入力イベントの欄（`KeyboardEvent::key`・`InputEvent::data`・`selection_start` など）と保存先の `Storage::get_item` は表示の文字列ではないため禁止の一覧に入れない。
-- 実行結果（2026-10-23。元のコミット 88260ef）: `cargo test -p fandhe-workshop-web --test pane_isolation` は 15 件通過（2026-10-23 の指摘対応で 14 件から増やした）。`scripts/check-mutations.sh` で `EVT1-1`〜`EVT1-4` がすべて DETECTED（右が `model.world()` を読む・左が `judged_text` を読む・右が `ViewKind` を取り込む・`host.rs` に書き込みの形を足す）。`make test-check-deps` は 19 件通過。
+- 実行結果（2026-10-23。元のコミット 88260ef）: `cargo test -p fandhe-workshop-web --test pane_isolation` は 16 件通過（2026-10-23 の指摘対応で 14 件から増やし、後続の impl と inherent impl の対照を足して 16 件）。`scripts/check-mutations.sh` で `EVT1-1`〜`EVT1-4` がすべて DETECTED（右が `model.world()` を読む・左が `judged_text` を読む・右が `ViewKind` を取り込む・`host.rs` に書き込みの形を足す）。`make test-check-deps` は 19 件通過。
 - 限界:
   - 識別子の境界で照合し、マクロ・文字列の中は見分けない。モジュール名は `crate::`・`super::` の経路の形だけを数え、同名の変数は数えない。
   - `hello.rs` は入力欄を持つ右の部品のため右に入れた。`a11y`・`list_policy`・`parts`・`profile`・`learner_text`・`doc_view`・`shell*` は両側の共有または枠のため対象外にした。
