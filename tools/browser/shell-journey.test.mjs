@@ -14,6 +14,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, summarize, waitMounted, collectSafety, nonZero,
 } from './harness.mjs';
@@ -21,11 +23,16 @@ import { ledger } from './ch0-3-journey.mjs';
 import {
   runShellJourney, recordLine, positionFailures, visibleViaTab, LEFT, ARTIFACT, POSITION,
 } from './shell-journey.mjs';
+import {
+  makeTripHooks, newTrips, tripsOk, runTripControls, addHideIdbInitScript,
+} from './shell-journey-trips.mjs';
 
 const BASE = '/fandhe-shell-journey/';
+const BASE_B = '/another-repo-name/';
 const QUERY = '?fixture=ch0-3-chapters';
 const WIDTHS = [1280, 360];
 let browser;
+let tmpDir;
 // 幅をまたぐ比較用。csp ごとに幅の結果を保持する（node:test は同じファイルの試験を順に流す）。
 const results = new Map();
 
@@ -36,25 +43,40 @@ before(async () => {
     'FANDHE_WEB_TEST_DIR must point to a web directory built with TEST_HOOKS=1',
   );
   browser = await launchBrowser({ channel: channelFromEnv() });
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-shell-journey-'));
 });
 
 after(async () => {
   if (browser) await browser.close();
+  if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 for (const csp of [true, false]) {
   const mode = `CSP ${csp ? 'あり' : 'なし'}`;
   for (const width of WIDTHS) {
-    test(`幅 ${width}px で CH-0 から CH-3 の 20 Step を最後まで通せる（${mode}）`, { timeout: 300000 }, async () => {
-      await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+    test(`幅 ${width}px で CH-0 から CH-3 の 20 Step を最後まで通せる（${mode}）`, { timeout: 600000 }, async () => {
+      await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, (srv) => withServer({ dir, base: BASE_B }, async (srvB) => {
+        assert.notEqual(srv.origin, srvB.origin, 'the two servers are different origins');
         const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width, height: 800 } });
         try {
           const L = ledger();
+          await addHideIdbInitScript(context);
           await page.goto(`${srv.url}${QUERY}`);
           await waitMounted(page);
           assert.equal(await page.evaluate(() => typeof window.__fandheTest?.stateJson), 'function', 'test hooks are missing');
           const scene = `${width}px`;
-          const result = await runShellJourney(page, { width, scene, L });
+          const openB = async () => {
+            const o = await openPage(browser, { origin: srvB.origin, viewport: { width, height: 800 } });
+            await o.page.goto(`${srvB.url}${QUERY}`);
+            await waitMounted(o.page);
+            return o;
+          };
+          const trips = newTrips();
+          const trip = makeTripHooks({
+            openB, tmpDir, scene, L, trips,
+          });
+          const result = await runShellJourney(page, { width, scene, L, hooks: { afterStep: trip.afterStep } });
+          await trip.finish(page, 'main/st-3-2');
           const s = summarize(rec);
           L.check(scene, 'ページ内のエラーが 0 件', s.pageErrors === 0);
           L.check(scene, 'CSP 違反が 0 件', s.csp === 0);
@@ -68,7 +90,10 @@ for (const csp of [true, false]) {
           L.check(scene, '右の変化が全対象で合格', st.right[1] === 19 && st.right[0] === st.right[1]);
           L.check(scene, '題と do が全 Step で合格', st.title[1] === 20 && st.title[0] === st.title[1]);
           L.check(scene, '位置が全 Step で合格', st.position[1] === 20 && st.position[0] === st.position[1]);
-          console.log(recordLine({ width, csp, result, L, rec }));
+          L.check(scene, '挟んだ 4 区間がすべて対象 1 以上で全合格', tripsOk(trips));
+          console.log(recordLine({
+            width, csp, result, L, rec, trips,
+          }));
           assert.deepEqual(L.failed(), [], JSON.stringify({ rec }));
           results.set(`${csp}/${width}`, { world: result.world, statuses: result.statuses });
 
@@ -78,10 +103,11 @@ for (const csp of [true, false]) {
           assert.equal(await visibleViaTab(page, { clicks: 0 }, 'pane-tab-artifacts', `${LEFT} ${ARTIFACT}`), false, 'control: hidden artifact view must fail');
           await page.evaluate((sel) => { document.querySelector(sel).textContent = '書き換え'; }, POSITION);
           assert.notDeepEqual(await positionFailures(page, 'main/st-3-2'), [], 'control: rewritten position must fail');
+          await runTripControls(page, trip.controls);
         } finally {
           await context.close();
         }
-      }));
+      })));
     });
   }
 

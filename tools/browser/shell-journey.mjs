@@ -186,11 +186,12 @@ export async function runShellJourney(page, { width, scene, L, hooks = {} }) {
   };
 }
 
-// 記録の 1 行。入力した値や下書きの中身は出さない。様式は docs/testing.md 5.269。
-export function recordLine({ width, csp, result, L, rec }) {
+// 記録の 1 行。入力した値や下書きの中身は出さない。様式は docs/testing.md 5.269・5.270（挟んだ 4 区間の列は 5.270）。
+export function recordLine({ width, csp, result, L, rec, trips }) {
   const s = result.stat;
   const f = (p) => `${p[0]}/${p[1]}`;
   return `SHELL-JOURNEY width=${width} csp=${csp ? 'on' : 'off'} steps=${result.achieved}/${STEPS} crossings=${s.crossings}`
     + ` left-changes=${f(s.left)} right-changes=${f(s.right)} title=${f(s.title)} position=${f(s.position)}`
+    + ` checkpoint=${f(trips.checkpoint)} reload=${f(trips.reload)} export-import=${f(trips['export-import'])} save-failure=${f(trips['save-failure'])}`
     + ` tab-clicks=${result.counter.clicks} external=${rec.external.length} page-errors=${rec.pageErrors.length} ledger=${L.summary()}`;
 }
