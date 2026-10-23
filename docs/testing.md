@@ -8079,3 +8079,27 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
   - 節番号は、open PR が 5.277 を使う見込みのため 5.278 とした。重なれば push の前に空き番号へ移す。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.279 修飾キー付き Enter と貼り付けの切り捨ての ST-1.4 の画面の結果（TASK-452 2/2。TERM-14・TERM-16・JUDGE-22・JUDGE-24・D-60・D-65）
+
+- 目的: D-60 は、Ctrl・Cmd（Meta）・Alt 付きの Enter を送信にも改行にもしないと決め、上限を超える貼り付けは貼った分だけを `beforeinput` で切るとした。D-65 は、切った後のキャレットを残した貼り付けの直後に置くとした。実装は TASK-282・TASK-283 が持ち、現行のまま採るため製品コードは変えていない。教材の Step の画面での結果（ログ・世代・Step・行・候補の一覧が変わらないこと、キャレットの位置が次の Backspace・打鍵の効く場所として決定どおりであること）を固定する。
+- 既存の試験との差分: `enter-submit` と `input-limit`（JUDGE-24 の J-1〜J-5）は最小の画面で、欄の値・案内・`selectionStart` を見る。本件は `?fixture=ch0-3` の ST-1.4 で、ログ・世代・Step・問い返しや拒否の行の件数と候補の一覧を見る。
+- 構成: `tools/browser/modifier-enter-paste-st14.test.mjs`（新設。`scripts/test-browser.sh` に登録）。場面 A（修飾キー付き Enter）と場面 B（貼り付けの切り捨て）を、CSP あり・なしで流す（4 件）。操作は `page.keyboard` だけで、10,000 文字目へのキャレットの配置だけ `setSelectionRange` を使う。
+- 確かめる項目:
+  - 場面 A: `/new-idea`（修飾なしなら問い返しになる下書き）で、Control・Alt・Meta・Shift との組・Control+Alt の 7 通りの Enter が欄の値・ログ・世代・Step・行を変えず、候補も開かない。対照として Shift+Enter は改行を入れ、修飾なしの Enter は問い返しになる。`/ne` で候補が開いているときも、補完も改行も送信もせず、ログ・世代・Step・行が変わらない。
+  - 場面 B: 19,990 文字の下書きの 10,000 文字目へ 20 文字を貼ると、貼った分の 10 文字だけが入り、後ろの 9,990 文字が残る。TERM-15 の案内が出て、キャレットが 10,010 にあり、自動送信が無い。次の Backspace は貼った文字を消し（案内が消えキャレットが 10,009）、次の打鍵はその位置に入る。
+  - 共通: `collectSafety` が 0 件、`raw-trigger` の click が 0 回、エンジンの警告・無視が 0 件。
+- 観察で固定した値（2026-10-23。Chromium）: 修飾キー付き Enter の後も候補の一覧は開いたまま（D-60 は一覧の開閉を決めていない）。
+- 対照（2026-10-23）:
+  - `crates/contract/src/key_decide.rs` の Enter の修飾キーの分岐を無効にすると、場面 A の 2 件が失敗し、場面 B は通った。
+  - `crates/web/src/input_limit.rs` の JUDGE24-1 の置換（`if after.is_empty()` を反転）を当てると、場面 B の 2 件が失敗し、場面 A は通った。
+  - JUDGE22-3 の変異の定義（`crates/web/tests/mutations/JUDGE22-3.mutation`）の置換は、`KeydownEffect` に欄 `deliver_complete` が増えたため現在はコンパイルできない（本件では直していない）。
+  - JUDGE24-2（キャレットを +1）の対照は行っていない（未検証）。
+- 実行結果（2026-10-23。Chromium、試験の設定と配信する設定の web を直接ビルド）: 4 件が通り、3 回続けて通った。`enter-submit`・`input-limit`・`paste-notice`・`paste`・`esc-outcomes`・`esc-guide-st14` の 67 件も通った。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
+- 限界:
+  - 上限ちょうどの途中での通常の打鍵は、観察では全体の末尾が切られてキャレットが末尾へ移る（貼り付けと違い、貼った分だけを切る経路ではない）。D-60 の対象外のため固定していない。
+  - Playwright の `keyboard.press` は、Shift 以外の修飾キーが押されている間は文字を送らない。OS ごとの実キーボードの差は D-48 の別タスクである。
+  - 実 IME・Safari・Firefox・他アプリからの貼り付け（TERM-20）は確かめていない。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
+  - 節番号は、open PR #1774 が 5.277 を使うため 5.279 とした。重なれば push の前に空き番号へ移す。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
