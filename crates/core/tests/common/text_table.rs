@@ -1,7 +1,8 @@
 //! 教材の表示文字列を差し替え用の表（A・B）に置き換える部品（TASK-218 2/3。EVT-2・性質 P-7）。
 //!
-//! 呼び出し元は `text_independence.rs`。3/3（ID の変更の負の対照）も、同じ読み込み口 [`load_variant`] と
-//! 写し [`mask_display`] を再利用できるよう共通部品に置く。
+//! 呼び出し元は `text_independence.rs`。3/3（ID の変更の負の対照。`id_change_control.rs`）も、同じ読み込み口
+//! [`load_variant`] と写し [`mask_display`] を再利用できるよう共通部品に置く。3/3 で足した
+//! [`rename_rejection_id`] は、拒否の文面の ID だけを付け替える（表示文字列は変えない）。
 //!
 //! # 差し替える場所
 //!
@@ -215,8 +216,80 @@ pub fn variant_strings(v: Variant) -> Strings {
 
 /// 差し替えた IR と初期状態を読む。初期状態は契約のサンプルのものである。
 pub fn load_variant(v: Variant) -> (Ir, SessionState) {
-    let bytes = serde_json::to_vec(&variant_value(v)).expect("serialize ir");
+    load_value(&variant_value(v))
+}
+
+/// JSON の IR を読み、契約のサンプルの初期状態と組にして返す。
+pub fn load_value(ir: &Value) -> (Ir, SessionState) {
+    let bytes = serde_json::to_vec(ir).expect("serialize ir");
     (load_ir(&bytes).expect("load ir"), load().initial)
+}
+
+fn count_refs(v: &Value, id: &str) -> usize {
+    match v {
+        Value::String(s) => usize::from(s == id),
+        Value::Array(a) => a.iter().map(|x| count_refs(x, id)).sum(),
+        Value::Object(o) => o.values().map(|x| count_refs(x, id)).sum(),
+        _ => 0,
+    }
+}
+
+/// `rejections` の外から拒否の ID `id` を参照している箇所（`defaults`・`on_miss`・`rejection` など）の数。
+pub fn rejection_refs(ir: &Value, id: &str) -> usize {
+    let mut copy = ir.clone();
+    copy.as_object_mut()
+        .expect("ir is an object")
+        .remove("rejections");
+    count_refs(&copy, id)
+}
+
+fn replace_refs(v: &mut Value, old: &str, new: &str) {
+    match v {
+        Value::String(s) if s == old => *s = new.to_string(),
+        Value::Array(a) => a.iter_mut().for_each(|x| replace_refs(x, old, new)),
+        Value::Object(o) => o.values_mut().for_each(|x| replace_refs(x, old, new)),
+        _ => {}
+    }
+}
+
+/// 拒否の文面の ID を `old` から `new` へ付け替えた IR。中身（分類・文面・次の行動）と表示文字列は変えない。
+///
+/// `load_ir` は拒否の参照の解決を検査しないので、付け替えが不完全でも読めてしまう。そのため本関数が
+/// 「`old` が参照されている」「`new` が元に現れない」「付け替え後に `old` が残らない」を `assert` で確かめる。
+pub fn rename_rejection_id(ir: &Value, old: &str, new: &str) -> Value {
+    assert!(
+        ir["rejections"].get(old).is_some(),
+        "rejection {old} does not exist"
+    );
+    let refs = rejection_refs(ir, old);
+    assert!(refs > 0, "rejection {old} is never referenced");
+    let before = serde_json::to_string(ir).expect("serialize ir");
+    assert!(
+        !before.contains(&format!("\"{new}\"")),
+        "new id {new} already appears in the ir"
+    );
+    let mut out = ir.clone();
+    let body = out["rejections"]
+        .as_object_mut()
+        .expect("rejections")
+        .remove(old)
+        .expect("rejection body");
+    out["rejections"]
+        .as_object_mut()
+        .expect("rejections")
+        .insert(new.to_string(), body);
+    replace_refs(&mut out, old, new);
+    let after = serde_json::to_string(&out).expect("serialize ir");
+    assert!(
+        !after.contains(&format!("\"{old}\"")),
+        "old id {old} remains after the rename"
+    );
+    assert!(
+        out["rejections"].get(new).is_some(),
+        "rejection {new} missing"
+    );
+    assert_eq!(rejection_refs(&out, new), refs, "reference count changed");
+    out
 }
 
 const MASK_PREFIX: &str = "<next_action:";
