@@ -1,0 +1,8 @@
+id: SHELL13-1
+package: fandhe-workshop-web
+test: checkpoint_ops_host
+target: crates/web/src/host.rs
+find:                     crate::checkpoint_ops::restore_target(&self.checkpoint_offer(), id)
+replace:                     Some(id)
+expect-fail: 存在しない_id_の復帰は状態とログを変えない
+note: 復帰の押下を今の提示と照合せず core へ送る（SHELL-13・SAFE-33・TASK-529）

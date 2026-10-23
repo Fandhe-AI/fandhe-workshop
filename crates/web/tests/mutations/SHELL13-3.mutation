@@ -1,0 +1,8 @@
+id: SHELL13-3
+package: fandhe-workshop-web
+test: checkpoint_ops_host
+target: crates/web/src/checkpoint_ops.rs
+find:     if b.is_empty() || b.len() > 10 || b[0] == b'0' || !b.iter().all(u8::is_ascii_digit) {
+replace:     if b.is_empty() || b.len() > 10 || !b.iter().all(u8::is_ascii_digit) {
+expect-fail: 改ざんした_payload_は復号で断る
+note: 復帰の payload の先頭の 0 を断らない（SHELL-13・SAFE-33・TASK-529）

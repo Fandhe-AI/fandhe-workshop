@@ -1,0 +1,8 @@
+id: SHELL13-2
+package: fandhe-workshop-web
+test: checkpoint_ops_host
+target: crates/web/src/host.rs
+find:         if self.checkpoint_offer() != ops_before && !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name)
+replace:         if false && self.checkpoint_offer() != ops_before && !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name)
+expect-fail: 保存で復帰のボタンが増え_dirty_が積まれ世代は変わらない
+note: 提示が変わっても checkpoint_ops を dirty に積まない（SHELL-13・FEND-3・TASK-529）

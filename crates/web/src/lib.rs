@@ -61,6 +61,7 @@ pub mod browser_notice;
 pub mod candidates;
 pub mod card_view;
 pub mod check_view;
+pub mod checkpoint_ops;
 pub mod diff_view;
 pub mod doc_view;
 pub mod document_view;

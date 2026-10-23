@@ -165,6 +165,14 @@
   display: inline;
 }
 
+.sh-checkpoint,
+.sh-checkpoint > div {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: 0.75rem;
+}
+
 .sh-title,
 .sh-position {
   margin-left: 0.75rem;
