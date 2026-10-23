@@ -47,7 +47,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 同じ入力列の 2 回適用の決定性（TASK-218 1/3、EVT-22・EVT-16、P-5）は `crates/core/tests/determinism.rs`、時刻・乱数・大域状態の源が
   core・contract に無いことの静的検査は `determinism_sources.rs`、記録と比較器は `common/trace.rs` にある。実測は 5.277
 - 表示文字列の差し替えからの独立（TASK-218 2/3、EVT-2・P-7）は `crates/core/tests/text_independence.rs`、差し替えの部品は
-  `common/text_table.rs` にある。元・表 A・表 B の 3 つの IR に同じ入力列を流し、`Judged` の次の行動を文面の ID に写して比べる。実測は 5.280
+  `common/text_table.rs` にある。元・表 A・表 B の 3 つの IR に同じ入力列を流し、`Judged` の次の行動を文面の ID に写して比べる。実測は 5.281
 - 適用し直しによる復元の一致（TASK-316 1/3、SAVE-1）は `crates/core/tests/history_replay.rs` にある。下書きを挟んだ記録の経路で得た写しと、
   その `ops` を初期状態に適用し直した状態が一致することを、固定・誘導つきの生成で各 1,000 通り確かめる。2 本あわせた実測は
   dev プロファイルで約 3 秒（2026-10-16、`cargo test` の試験の所要時間）
@@ -8124,7 +8124,32 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 節番号は、open PR #1774 が 5.277 を使うため 5.279 とした。重なれば push の前に空き番号へ移す。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
-### 5.280 表示文字列の差し替えからの独立（TASK-218 2/3。EVT-2・EVT-22・P-7）
+### 5.280 案内の修飾キーの表示の右のエリアでの結線と OS によらない 4 操作（TASK-456。TERM-38・JUDGE-28・D-48）
+
+- 目的: 修飾キー（Cmd／Ctrl）の出し分けの機構は TASK-285 が実装済みである。本件は、その表示が枠（TASK-517 の 2 列とタブ）の右のエリア `shell-right` の中で働くことと、Enter 送信・Shift+Enter 改行・Tab 補完・Esc 停止の結果が OS によらず同じことを自動ブラウザ試験で固定する。製品コードは変えていない。
+- 既存の試験との差分: `modifier-key-hint` は幅 1024px で文言・欄の値・同一ノードを見るが、右のエリアの中にあること、幅 360px のタブとの関係、4 操作の OS 間の一致は見ていない。
+- 構成: `tools/browser/modifier-key-right-pane.test.mjs`（新設。`scripts/test-browser.sh` に登録）。CSP あり・なしで 6 件ずつ（12 件）。User-Agent は `openPage` の `userAgent` で差し替える。
+- 確かめる項目:
+
+| 場面 | 内容 |
+|---|---|
+| (A) 幅 1280px × Windows・macOS・Linux の UA | `key-hint`・`os-select` が各 1 件で `shell-right` の中にあり、`shell-left`・`shell-top` の中に無い。文言と欄の値が UA に合う。選ぶ欄で切り替えると文言が変わり、`shell-right`・案内・選ぶ欄が同じノードのまま、Step の本文が変わらない |
+| (B) 幅 360px × macOS・Windows の UA | 既定の「操作」で案内が見え、「成果物」で隠れ（件数は 1 のまま）、戻すと見える。選び直した値と文言がタブの往復で保たれる |
+| (C) 幅 1280px × macOS・Windows・Linux の UA と「macOS から windows へ選び直した後」 | 同じ列（Enter 送信・Shift+Enter・Tab 補完・Esc 停止）の観察が 4 条件で `deepEqual` し、条件ごとの期待（行が増える・下書きが `a\nb`・`/help`・停止で世代 +1 と停止の行 1 件）にも合う |
+
+- 共通: `collectSafety` の 4 計数（CSP 違反・pageerror・console error・ダイアログ）が 0 件。失敗の文面に UA の全文を出さない。
+- 観察で固定した値（2026-10-23。Chromium）: 試験の教材の最初の自由入力（`hello`）は拒否になり、行は増えるが下書きは選択状態で残る。そのため (C) は「下書きが空になる」ではなく「行が増える」で送信を確かめる。
+- 対照（2026-10-23）: 右のエリアの選択子を `shell-left` に向けると (A) の 6 件が失敗した（(B) と (C) の 6 件は通った）。
+- 実行結果（2026-10-23。Chromium、試験の設定と配信する設定の web を直接ビルド）: 12 件が通り、3 回続けて通った。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
+- 限界・未実施:
+  - **未実施（Windows 実機）**: Windows の実機・人の目での表示の確認は行っていない。User-Agent の差し替えによる模擬である（TASK-20・TASK-286・TASK-395）。
+  - **未実施（人の確認）**: 推定が外れたときに受講者が選ぶ欄で表示を直せるかの人の確認は行っていない（TASK-393・TASK-460）。自動試験の合格は人の評価に数えない（D-34）。
+  - 確かめた対象は `key-hint` と `os-select` だけである。ヒントの画面（SHELL-14 の `shell-hint`）は未描画で、結線の確認は実装するタスクで同じ試験に足す。Step の本文に作成者が書いた Cmd／Ctrl は切り替わらない（差し込みの仕組みは機構の側の判断）。
+  - 範囲外の記録: 右のエリアの識別子の契約の一覧（`crates/web/src/terminal_area.rs`）に `key-hint`・`os-select` が無い。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.281 表示文字列の差し替えからの独立（TASK-218 2/3。EVT-2・EVT-22・P-7）
 
 - 目的: 教材の表示文字列 31 個（教材の題 1・Step の題 3・選択肢の表示名 2・ヒント 5・拒否の文面と次の行動 10×2）を差し替え用の表 A・B に置き換えても、状態・イベント列・導出が変わらず、右の文字列だけが変わることを確かめる。製品コードは変えていない。
 - 1/3（5.277）との差分: 1/3 は同じ IR への 2 回適用。本件は元・A・B の 3 つの IR に同じ入力列を流す。ID の変更の負の対照は 3/3。
