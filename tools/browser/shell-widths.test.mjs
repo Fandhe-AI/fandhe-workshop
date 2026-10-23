@@ -20,7 +20,7 @@ import {
   launchBrowser, channelFromEnv, withServer, openPage, summarize, waitMounted,
 } from './harness.mjs';
 import {
-  ledger, mouseDriver, journey, engine,
+  ledger, mouseDriver, journey, engine, paneAware,
 } from './ch0-3-journey.mjs';
 
 const BASE = '/fandhe-shell-widths/';
@@ -40,38 +40,6 @@ before(async () => {
 after(async () => {
   if (browser) await browser.close();
 });
-
-// 操作の前に、要るタブを選ぶドライバ。tablist が見えていないとき（2 列）は何もしない。
-function paneAware(page, d, counter) {
-  const ensure = async (id) => {
-    const visible = await page.evaluate(() => {
-      const e = document.querySelector('[data-testid="pane-tabs"]');
-      return !!e && getComputedStyle(e).display !== 'none';
-    });
-    if (!visible) return;
-    const selected = await page.getAttribute(`#${id}`, 'aria-selected');
-    if (selected === 'true') return;
-    await page.click(`#${id}`);
-    counter.clicks += 1;
-  };
-  const ops = (name) => async (...args) => {
-    await ensure('pane-tab-ops');
-    return d[name](...args);
-  };
-  return {
-    point: async (...args) => {
-      await ensure('pane-tab-artifacts');
-      return d.point(...args);
-    },
-    choose: ops('choose'),
-    decide: ops('decide'),
-    revise: ops('revise'),
-    send: ops('send'),
-    sendMultiline: ops('sendMultiline'),
-    completeAndSend: ops('completeAndSend'),
-    esc: ops('esc'),
-  };
-}
 
 for (const width of WIDTHS) {
   test(`幅 ${width}px で CH-1 の 6 Step を通せる`, async () => {

@@ -13,7 +13,7 @@
 # （safety-observe。BUILD-4。TASK-79 2/2。観察値は assert せず diagnostic に残し、完走して終了コード 0 になることを関門にする）を含む。
 # サブパス配信の構成要素と相対パスの参照の検査（delivery-subpath。DLV-1・DLV-2。TASK-106 1/3。取得資源が構成要素だけで、壊した写しの対照で不合格になる）と、
 # 章への直接リンク 10 件のサブパス配信の検査（delivery-direct-links。DLV-1。TASK-106 2/3。query の 1 形で取得資源・警告 0 件・要求の集合の一致）と、名前の違うサブパス 2 か所とルート配信の検査（delivery-bases。DLV-2。TASK-106 3/3）を含む。
-# 画面の枠の試験（shell-columns・shell-tabs・shell-widths・shell-mock・shell-position。SHELL-1・A11Y-5。TASK-517 1/2・2/2。幅 960px 以上の 2 列・960px 未満のタブの切り替え・4 つの幅での CH-1 の通し）を含む。
+# 画面の枠の試験（shell-columns・shell-tabs・shell-widths・shell-mock・shell-position。SHELL-1・A11Y-5。TASK-517 1/2・2/2。幅 960px 以上の 2 列・960px 未満のタブの切り替え・4 つの幅での CH-1 の通し）と、枠の通しの試験の骨格（shell-journey。CH-0〜CH-3 の 20 Step を 1280px と 360px で最後まで通し、左右の取り付け点・Step の題・位置・章の移動を確かめる。SHELL-1・SHELL-7・SHELL-8・SHELL-10。TASK-548 1/2）を含む。
 # 開始点を指す直接リンク `?start=` の試験（direct-link-start。試験の設定で、開始点 3 件の教材を指定なし・各開始点・一致しない値 10 形で開く。一致で節点が変わり開始点ごとに履歴の鍵が分かれ、不一致は値を出さず保存先を変えず断る。DLV-9・SAFE-33。TASK-109 1/2。記録は docs/testing.md 5.199）と、開始点を増やしても配信物の IR が写しで増えず、同じ IR のどの開始点から開いても履歴の内容のハッシュが同じことの試験（start-count-invariance。旧方式の写しと開始点ごとの別 IR の対照つき。DLV-9。TASK-109 2/2。記録は docs/testing.md 5.201）と、直接リンク 10 件が新しい文脈でその章の開始点で開き、再読み込みの後・1 操作して受付済みにした後の再読み込みでも同じ状態になる試験（direct-link-reload。開始点 10 件の教材 `?fixture=ch0-3-links`。DLV-7。TASK-110 1/2。記録は docs/testing.md 5.204）と、章 A を進めて保存した後に章 B のリンクを開いても A の履歴が消えず通知が出ず、A に戻ると続きが出る試験（direct-link-roundtrip。同じ保存領域での往復と、鍵が章で分かれない症状の写しによる対照つき。DLV-8。TASK-110 2/2。記録は docs/testing.md 5.206）を含む。
 # 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
@@ -103,6 +103,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" node --test ${
   "${ROOT_DIR}/tools/browser/shell-widths.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-mock.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-position.test.mjs" \
+  "${ROOT_DIR}/tools/browser/shell-journey.test.mjs" \
   "${ROOT_DIR}/tools/browser/step-body.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \

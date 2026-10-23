@@ -7834,3 +7834,33 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 結論: 原因は未確定。除外は外さない。残してよい理由は、(1) 同じ要求の id、(2) 応答が 200、(3) URL とエラーの種類が一致する 1 形だけを除く、(4) アプリが起動できたので本体は読み切っている、の 4 点で、重複の取得・応答のない中断・別の資源は従来どおり数える。
 - 次の手順: ビルド済みの環境で、IR の要求について `Network.loadingFinished`・`loadingFailed`（`canceled`）と `Content-Length` の有無を、CPU 抑制 × 配信サーバ（`serve.mjs`・miniserve）× 50 回以上で記録する。
 - `tools/browser/pack-body-xss.test.mjs` の除外は、URL とエラーの種類だけを見ていて `irFetchCheck` より緩い。厳しくそろえるのは、ブラウザ試験を流せない環境では確かめられないため、本件では変えていない（範囲外として報告）。
+
+### 5.269 枠の通しの試験の骨格（TASK-548 1/2。SHELL-1・SHELL-7・SHELL-8・SHELL-10）
+
+- 目的: 枠の外側の部品（ART の成果物のビュー・TERM のログと Step の題と do・上部の位置・「次の章へ進む」）を組み合わせた通しで、結線の破れを見つける。部品ごとの試験が通っていても、組み合わせで壊れる場面があるため。本件は骨格で、CH-0〜CH-3 の 20 Step を幅 1280px と 360px の両方で最後まで通す。チェックポイント・再読み込み・書き出し→読み込み・保存の失敗の表示は TASK-548 2/2（#740）の担当。
+- 期待と定義の対応: SHELL-1（左右の取り付け点に ART と TERM の部品が載る・2 列とタブ）・SHELL-7（Step の題と「いまやること」）・SHELL-8（上部の位置）・SHELL-10（「次の章へ進む」での章の移動）。
+- 構成:
+  - `tools/browser/shell-journey.mjs`: 誘導（`ch0-3-journey.mjs` の `journey` を `chaptered: true` で使う）と Step ごとの観察。2/2 は `hooks.afterStep(uid, status, ctx)` から差し込む（差し込み口はここ 1 か所）。
+  - `tools/browser/shell-journey.test.mjs`: 幅 2 × CSP あり・なしの 4 件、幅をまたぐ一致 2 件。
+  - `paneAware`（960px 未満で操作の前に要るタブを選ぶ）は `ch0-3-journey.mjs` へ移して `shell-widths` と共有した。「次の章へ進む」は操作の領域の末尾にあるので、操作のタブを選んでから押す。
+- 解釈:
+  - 「模範解答で通す」は、既存の `journey` の誘導を CH-0〜CH-3 の形の通しとして使うことと読んだ。誘導は途中に拒否・問い返しの入力を含むが、最後は正しい入力で進める。本物の教材（`pt-ch0-3`）の模範解答での完走は教材 repo の TASK-642 の担当で、本 repo の範囲外とした。
+  - 左の変化は、IR で規則の effects に `put` または `set_attr` を持つ Step（規則の外の processing 側の effects は除く。実測の対象は 13 件）に限って要求した。effects の無い Step には要求しない。あわせて、`engine.artifacts` が変わったのに左の指紋が変わらない場面が 0 件であることを各 Step で確かめた。左の指紋は `shell-left` の中の `[data-row]` の path と文字の列で、差分の印（mark）は表示の状態で揺れるので含めない。
+  - 期待値（位置・題・do・effects の有無）は IR から数え、画面の `data-*` を読み返して合格にしない。
+- 確かめること:
+  - 各 Step で: 取り付け点（左に成果物のビュー 1・右にログ 1 と題 1・逆側に 0）、題と do が IR のとおり、ログの項目が増える、左の変化、位置の文字が `<章 ID>　Step M / K` で shell-top の中・tabpanel の外にある、世界状態の一致（`worldMatchesState`・`incrementalMatches`）。
+  - 360px では操作のタブで題が、成果物のタブでビューが見える（見えているかは幅でなく計算された display で判定）。1280px ではタブの切り替えが 0 回。
+  - 最後に: 20 Step が達成で終点が `main/st-3-2`、章の移動が 3 回、エンジンの警告・無視が 0 件、ページ内のエラー・CSP 違反・配信元の外への通信・安全性の計数が 0 件、幅をまたいで最終の世界状態と各 Step の状態が一致する。
+  - 対照: 成果物のビューを hidden にすると見え方の判定が、位置の文字を書き換えると位置の判定が不合格になる。
+- 結果の記録の様式: 試験は 1 回ごとに標準出力へ次の 1 行を出す。入力した値や本文は出さず、名前・件数・合否だけを出す。
+
+  ```text
+  SHELL-JOURNEY width=<px> csp=<on|off> steps=<達成数>/20 crossings=<章の移動> left-changes=<合格>/<対象> right-changes=<合格>/<対象> title=<合格>/<対象> position=<合格>/<対象> tab-clicks=<回数> external=<件数> page-errors=<件数> ledger=<合格>/<項目>
+  ```
+
+  記録の表の列は「実行日・コミット・幅・CSP・上の各欄・合否」。2/2 が足す列は `checkpoint`・`reload`・`export-import`・`save-failure`（予約。2/2 で追加）。
+- 実行結果（2026-10-23）: 4 件と一致の 2 件がブラウザ（Chromium）で通過。各行は `steps=20/20 crossings=3 left-changes=13/13 right-changes=19/19 title=20/20 position=20/20 external=0 page-errors=0 ledger=167/167`、`tab-clicks` は 1280px で 0、360px で 70。`shell-widths`・`next-chapter`・`ch0-3-run`・`shell-position` は通過。`csp-runs`・`step-body` は配信する設定の成果物（`FANDHE_WEB_DIR`）が無い環境のため一部が失敗し、未検証。`make test-browser` 全体は未実施（未検証）。
+- 限界:
+  - 「次の章へ進む」・Step の本文・書き出しの操作の置き場は、いまも仮置きである（`crates/web/src/host.rs` のコメントは最終の配置を TASK-534・TASK-548 としている）。本件は配置を決めず、仮置きのままでも 2 幅で通ることだけを確かめた。
+  - 試験の件数の期待値（`scripts/expected-test-counts.txt`）は更新していない（5.268 の方針。別の PR で行う）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
