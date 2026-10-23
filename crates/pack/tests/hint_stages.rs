@@ -261,9 +261,36 @@ fn guide8_module_instances_are_checked_per_uid() {
         } => {
             assert!(uid.contains("i2"), "{uid}");
             assert_eq!((*found, *declared), (2, 3));
+            // 実体の `uid`（`<モジュール>@<実体>` を含む）は表示でも伏せずに写す。
+            assert!(got[0].to_string().contains(uid.as_str()), "{}", got[0]);
         }
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn guide8_step_with_only_undefined_hints_is_checked() {
+    // 参照を持つが 1 つも解決できない Step は対象外にせず、段数 0 として報告する（`hints` が空の Step は対象外のまま）。
+    let t = pack(
+        &[("a", &["gone"]), ("n", &[]), ("b", &["h1", "h2", "h3"])],
+        H,
+    );
+    let mut r = rule(3);
+    r.answer_stage = Some(3);
+    assert_eq!(
+        check_hint_stages(&ir(&t), &r).unwrap(),
+        [
+            F::StageCount {
+                uid: u("a"),
+                found: 0,
+                declared: 3
+            },
+            F::AnswerStageUnresolved {
+                uid: u("a"),
+                stage: 3
+            }
+        ]
+    );
 }
 
 #[test]

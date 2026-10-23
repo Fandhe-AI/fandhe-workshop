@@ -123,7 +123,7 @@ rust|tests/hint_limit_39.rs [hint_limit_39]|passed=2|ignored=0
 rust|tests/hint_limit_rule.rs [hint_limit_rule]|passed=5|ignored=0
 rust|tests/hint_open.rs [hint_open]|passed=8|ignored=0
 rust|tests/hint_select.rs [hint_select]|passed=5|ignored=0
-rust|tests/hint_stages.rs [hint_stages]|passed=10|ignored=0
+rust|tests/hint_stages.rs [hint_stages]|passed=11|ignored=0
 rust|tests/history_append_only.rs [history_append_only]|passed=8|ignored=0
 rust|tests/history_boot.rs [history_boot]|passed=6|ignored=0
 rust|tests/history_envelope_binding.rs [history_envelope_binding]|passed=4|ignored=0
@@ -308,7 +308,7 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=312|passed=3346|ignored=3
+rust|total|binaries=312|passed=3347|ignored=3
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0

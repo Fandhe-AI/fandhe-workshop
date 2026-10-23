@@ -7,7 +7,8 @@
 //! - 段は Step の `hints` の並び順で数える。ヒントの定義の `level`・`text` などの欄は語彙の語ではないので読まない
 //!   （読むには拡張点の手続きが要る）。答えの照合に使う欄の名前も宣言から受け取り、エンジンは固定しない
 //! - 定義に解決できない ID は段に数えない（`visible_hints` と同じ fail-closed）。未定義の ID の報告は `E-REF-HINT` の担当
-//! - ヒントを持たない Step は対象外。ただし宣言が名指しした Step は段数 0 として確かめる
+//! - `hints` が空の Step は対象外。ただし宣言が名指しした Step は段数 0 として確かめる。未定義の ID だけを持つ Step は
+//!   参照を持つので対象にし、解決できた段数 0 として報告する（未定義の参照そのものの診断と段数の不足の報告は両立する）
 //! - 報告は `uid`・数・種類だけを持ち、ヒントの文面・答え・欄の値を写さない
 //!
 //! 確かめないこと: 段の中身（場所・道具の名前・完全なコマンド）の意味と教育上の適切さ。答えの照合は部分文字列の包含の近似である。
@@ -109,9 +110,17 @@ pub enum HintStageFinding {
     },
 }
 
+/// `uid` の区切り 1 つが写してよい形か。モジュールの実体は `<モジュール>@<実体>`（`expand`）なので、`@` で 2 つに
+/// 分けた両方が短い識別子のときも認める。
+fn printable_segment(seg: &str) -> bool {
+    use crate::source::safe_ident;
+    seg.split_once('@')
+        .map_or_else(|| safe_ident(seg), |(m, i)| safe_ident(m) && safe_ident(i))
+}
+
 /// `uid`（`<実体 ID>/<Step ID>`）を報告へ写してよいか。区切りごとに短い識別子のときだけ写す。
 fn printable(uid: &str) -> &str {
-    if !uid.is_empty() && uid.split('/').all(crate::source::safe_ident) {
+    if !uid.is_empty() && uid.split('/').all(printable_segment) {
         uid
     } else {
         "(unprintable)"
@@ -213,7 +222,7 @@ pub fn check_hint_stages(
                 .answer_text
                 .as_ref()
                 .is_some_and(|a| a.answers.contains_key(&node.uid));
-        if defs.is_empty() && !named {
+        if node.step.hints.is_empty() && !named {
             continue;
         }
         let uid = node.uid.clone();
@@ -307,5 +316,10 @@ mod tests {
         assert_eq!(printable("main/st-1"), "main/st-1");
         assert_eq!(printable("a b"), "(unprintable)");
         assert_eq!(printable(""), "(unprintable)");
+        assert_eq!(printable("m@i2/a"), "m@i2/a");
+        assert_eq!(printable("p/m@i1/a"), "p/m@i1/a");
+        assert_eq!(printable("m@@i/a"), "(unprintable)");
+        assert_eq!(printable("m@/a"), "(unprintable)");
+        assert_eq!(printable("@i/a"), "(unprintable)");
     }
 }
