@@ -92,8 +92,20 @@ fn instances_include_main_and_every_module_instance() {
 fn same_definition_is_a_separate_step_instance_per_round() {
     let s = Session::new(ir());
     let (r1, r2) = two_roots(&s);
-    let a = s.steps_of(&r1);
-    let b = s.steps_of(&r2);
+    let all_a = s.steps_of(&r1);
+    let all_b = s.steps_of(&r2);
+    // 呼び出しの Step（`enter` を持つ節点）は呼ばれた実体の根が持ち主なので、各根に 1 件ずつ含まれる（MOD-3）。
+    // 定義の Step の比較からは除く（周回ごとに呼び出す先が違い、名前も違う）。
+    let is_call = |u: &StepUid| {
+        s.ir()
+            .nodes
+            .iter()
+            .any(|n| n.uid == u.0 && n.enter.is_some())
+    };
+    assert_eq!(all_a.iter().filter(|u| is_call(u)).count(), 1);
+    assert_eq!(all_b.iter().filter(|u| is_call(u)).count(), 1);
+    let a: Vec<StepUid> = all_a.iter().filter(|u| !is_call(u)).cloned().collect();
+    let b: Vec<StepUid> = all_b.iter().filter(|u| !is_call(u)).cloned().collect();
     assert!(!a.is_empty());
     assert_eq!(a.len(), b.len());
     let names_a: Vec<&str> = a.iter().map(step_name).collect();

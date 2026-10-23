@@ -144,7 +144,7 @@ pub(crate) fn achieve_with(
     state
         .run
         .slices
-        .entry(root.clone())
+        .entry(crate::instance::owner_of(ir, &uid))
         .or_default()
         .status
         .insert(uid, StepStatus::Achieved);

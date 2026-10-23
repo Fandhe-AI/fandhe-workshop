@@ -28,7 +28,7 @@
 //!
 //! # 扱わないこと
 //!
-//! 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）・切り身とフラグの分離の周回の動き・遷移先の `on_enter` の効果・`busy` を立てること・
+//! 復帰の範囲への持ち主の規則（TASK-241）・遷移先の `on_enter` の効果・`busy` を立てること・
 //! `ChapterCompleted`・`completed`・開始（`Begin`）での連鎖（TASK-217）は、後続（TASK-235〜241）が扱う。
 //! それらは本モジュールの歩行器を通して拡張する前提で、巡回の検出に要る最小のたどりだけを置く。
 //! 遷移の条件（`when`）は評価できないので、`next` は無条件の最初の辺だけを採る（[`crate::confirm`] と同じ）。
@@ -85,9 +85,9 @@ fn warning(at: Stamp, message: &str) -> Event {
     }
 }
 
-fn set_status(state: &mut SessionState, uid: &str, status: StepStatus) {
+fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) {
     let uid = StepUid(uid.to_string());
-    instance::slice_mut(&mut state.run, instance::root_of(&uid))
+    instance::slice_mut(&mut state.run, instance::owner_of(ir, &uid))
         .status
         .insert(uid, status);
 }
@@ -255,7 +255,7 @@ pub(crate) fn after_achieved(
             halt(state, at, &budget, events);
             return;
         }
-        set_status(state, &back.uid, StepStatus::Achieved);
+        set_status(ir, state, &back.uid, StepStatus::Achieved);
         // 戻り先の先へ進めない場合に備え、現在位置も呼び出し元へ移す（ModuleExited の復帰先と一致させる）。
         state.run.current = Some(StepUid(back.uid.clone()));
         let back_at = stamp(generation, &back.uid);
@@ -282,7 +282,7 @@ fn land(
         let Some(enter) = node.enter.as_deref() else {
             let uid = StepUid(node.uid.clone());
             state.run.current = Some(uid.clone());
-            set_status(state, &node.uid, StepStatus::Entered);
+            set_status(ir, state, &node.uid, StepStatus::Entered);
             events.push(Event::Entered {
                 at: Stamp {
                     generation,
@@ -301,7 +301,7 @@ fn land(
             state.entry = None;
             return;
         };
-        set_status(state, &node.uid, StepStatus::Entered);
+        set_status(ir, state, &node.uid, StepStatus::Entered);
         events.push(Event::ModuleEntered {
             at: here.clone(),
             instance: callee.scope.clone(),

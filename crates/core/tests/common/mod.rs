@@ -14,3 +14,10 @@ pub mod op_props;
 pub mod property;
 pub mod record_path;
 pub mod tick;
+
+/// 持ち主の規則（`owner_of`）が `root_of` に落ちるだけの最小の IR（呼び出しの Step を持たない）。
+pub fn min_ir() -> fandhe_workshop_contract::ir::Ir {
+    let path =
+        contract_sample::testdata_dir().join("engine-event-consistency/test-data/min-3step.json");
+    fandhe_workshop_core::load_ir(&std::fs::read(path).expect("read min-3step")).expect("load_ir")
+}

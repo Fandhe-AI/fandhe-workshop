@@ -46,13 +46,7 @@ pub(crate) fn on_saved(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     if declared_action(node.step.input.as_ref()) != Some(EnvAction::Save) {
         return Vec::new();
     }
-    let status = state
-        .run
-        .slices
-        .get(&crate::instance::root_of(&current))
-        .and_then(|s| s.status.get(&current))
-        .copied()
-        .unwrap_or_default();
+    let status = crate::instance::status_of(ir, &state.run, &current);
     if status != StepStatus::Entered || state.run.busy.is_some() {
         return Vec::new();
     }
@@ -74,7 +68,7 @@ pub(crate) fn on_saved(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
     state
         .run
         .slices
-        .entry(crate::instance::root_of(&current))
+        .entry(crate::instance::owner_of(ir, &current))
         .or_default()
         .status
         .insert(current, StepStatus::Accepted);

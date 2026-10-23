@@ -137,6 +137,7 @@ pub(crate) fn derive(
                         }
                     }
                 }
+                // 処理中（`busy`）の Step は呼び出しの Step にならないので、`owner_of` でなく `root_of` で足りる。
                 base.slices
                     .get_mut(&crate::instance::root_of(current))?
                     .status
