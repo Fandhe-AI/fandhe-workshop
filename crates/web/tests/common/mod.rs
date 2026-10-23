@@ -316,13 +316,30 @@ pub fn block_from(code: &str, start: usize) -> Option<&str> {
 /// 後続の impl に置いた読み取りも見逃さない。1 つも無ければ None。
 pub fn impl_body(code: &str, ty: &str) -> Option<String> {
     // `impl A<B> for T {` は空白の詰めで `impl A<B>for T{` になるため、`for` の前の境界は見ない。
+    // ヘッダは `impl` から最初の `{` までで、型名の直後が終端か `where`（`impl T where Self: Sized {`）の形を対象にする。
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let heads = [format!("for {ty}"), format!("impl {ty}")];
     let mut out = String::new();
-    for head in [format!("for {ty}{{"), format!("impl {ty}{{")] {
-        for (pos, _) in code.match_indices(&head) {
-            if let Some(b) = block_from(code, pos) {
-                out.push_str(b);
-                out.push('\n');
-            }
+    for (pos, _) in code.match_indices("impl") {
+        if code[..pos].chars().next_back().is_some_and(is_id) {
+            continue;
+        }
+        let Some(open) = code[pos..].find('{').map(|k| pos + k) else {
+            continue;
+        };
+        let header = &code[pos..open];
+        let hit = heads.iter().any(|h| {
+            header.match_indices(h.as_str()).any(|(i, _)| {
+                let rest = header[i + h.len()..].trim_start();
+                rest.is_empty() || rest.starts_with("where ") || rest.starts_with("where<")
+            })
+        });
+        if !hit {
+            continue;
+        }
+        if let Some(b) = block_from(code, pos) {
+            out.push_str(b);
+            out.push('\n');
         }
     }
     (!out.is_empty()).then_some(out)

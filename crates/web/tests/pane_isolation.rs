@@ -511,7 +511,16 @@ fn 負例_後続の_impl_と_inherent_impl_に置いた左の状態の読み取�
         "\nimpl Other for ArtifactPart { fn extra(model: &HostModel) { model.judged_text(1); } }\n";
     let left_inherent =
         "\nimpl ReviewPart { fn extra(model: &HostModel) { model.judged_text(1); } }\n";
-    for tail in [right_tail, right_inherent, left_tail, left_inherent] {
+    let right_where = "\nimpl LogPart where Self: Sized { fn extra(model: &HostModel) { let _ = model.world(); } }\n";
+    let left_where = "\nimpl Other for ArtifactPart where Self: Sized { fn extra(model: &HostModel) { model.judged_text(1); } }\n";
+    for tail in [
+        right_tail,
+        right_inherent,
+        left_tail,
+        left_inherent,
+        right_where,
+        left_where,
+    ] {
         let src = format!("{GOOD_ENGINE}{tail}");
         assert!(
             !violations(&with(base(), ENGINE_PARTS, &src)).is_empty(),
