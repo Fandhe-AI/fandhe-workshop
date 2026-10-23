@@ -8211,6 +8211,28 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - `make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
 
+### 5.284 再描画 1 回の速さ（ログ 100〜119 項目。TASK-223 1/2。EVT-24）
+
+- 目的: 最小教材でログが 100〜119 項目の状態にして、再描画 1 回（隠し要素の click 1 回の同期的な処理）の 95 パーセンタイルが 16ms 以内かを、CPU の減速なしで測る。Rust は変えていない。
+- 方式（`tools/measure/log-redraw.sh`、`tools/measure/browser.mjs --kind log-redraw`。条件の詳細は `docs/measurement.md` §4）: 20 試行 × 10 操作の計 200 値。操作は拒否される入力（`/make-note Bad_Name`）で、1 回でログが 2 件増える。`{control:'save'}` はログが 1 件ずつ増えるが画面の行に出ないため使わなかった（事前の確認で、click の後に `li` が増えないことを見た）。
+- 同期性の確認: 全操作で、ログの長さが窓の中で 2 件増え、`li` が click から戻った時点で 2 件増え、上限の通知が無いことを確かめた。
+- 結果（2026-10-23。開発機。Chromium 153.0.8010.12・Playwright。`SKIP_WASM_OPT=1`。試験の設定。実装の作業ツリー上の測定で `dirty: true`、基点の commit は 2dbb601）:
+
+| 測定 | 値 | 判定 |
+|---|---|---|
+| `log_redraw_median` | 2,100 us | |
+| `log_redraw_p95` | 2,400 us | 16,000 us 以内 |
+| `log_redraw_max` | 3,800 us | |
+
+- 基点: commit 2dbb601（作業ツリーに本件の変更あり）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`）・圧縮は `tools/serve.mjs` の gzip レベル 9。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cce...6961`）。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。
+- 最小教材の値で、教材全体を代表しない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる。
+- 限界・未確認:
+  - **未実施（基準端末 A）**: 上の端末は自動運転の開発機で、基準端末 A（Apple シリコンの macOS）ではない。受け入れ条件の「基準端末 A」は未達である。追記は人が行う。手順: macOS（Apple シリコン）で `npm ci && npx playwright install chromium` の後、`FANDHE_BROWSER_CHANNEL=chrome tools/measure/log-redraw.sh | jq .`（`baseline.device.apple_silicon_macos` が `true` になる）。
+  - Chromium の headless だけで測った。Chrome の原本・Windows（TASK-224）は未測定。
+  - 「入力から描画まで」は #563（TASK-223 2/2）で扱う。ログの長さによる傾き（TASK-232）は対象外。
+  - `make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
 ### 5.285 CH-4〜CH-9 の通しでの配信元以外への通信の計数（TASK-674 2/2。ROUND1-1・SAFE-13）
 
 - 目的: CH-4〜CH-9 の run で配信元以外への通信が 0 件であることを、TASK-151 の道具（`harness.mjs` の `openPage`・`collectSafety`・`cspConsoleMessages`・`requestKinds`、`csp-runs.test.mjs` の `runScene`・`assertClean`）で本タスク自身が数える。TASK-152 の結果には頼らない。
