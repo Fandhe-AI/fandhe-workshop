@@ -7503,3 +7503,17 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 試験: `crates/core/tests/module_instances.rs`（手元で組んだ 2 実体の IR。列挙・Step の実体の分離・移動後の非干渉・フラグの非漏洩・不正な根と uid への全域性）、`crates/pack/tests/module_instances_session.rs`（`module-reuse-rounds` の IR。実体の列挙、round1 と round2 の Step の実体が同数で uid が全部違うこと、片方へ入っても他方が `NotStarted` のままで切り身の鍵が混ざらないこと）。
 - 実行結果（2026-10-23。Linux）: 上の native 試験 8 件が通った。既存の試験は無改変で通る（最終の確認は PR の CI）。
 - 範囲外: 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、web の残りの `StepUid::root` の直呼び（`next_chapter.rs`・`start_select.rs`・`step_status.rs`・`glue.rs` と試験の部品。core と web の `offers.rs` は `root_of` に寄せ済み）の置き換え、実体数・Step の実体数・開始数の照合（TASK-233 2/2）。
+
+### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
+
+- 目的: 教材全体が、モジュールの実体を静的に並べた有向非巡回グラフとして IR に載ることと、実体数・Step の実体数・開始数が教材の定義と一致することを固定する。
+- 決定: IR の形式は変えない。core の `instance` に読み取り専用の `instance_graph`（`InstanceGraph`・`InstanceGraphError`）を足し、呼び出しの実体の水準で有向非巡回（Kahn 法）と配線（`caller`・`scope`・`enter`・`exit_to`）を確かめ、根ごとの Step の実体・開始の数を返す。Step の `next` の後戻りはこのグラフに含めない。`load_ir` には結線しない（手で組んだ IR と 1/2 の試験の IR が読めなくなり、`IrLoadError` の契約に波及するため）。`CONTRACT_VERSION` は据え置いた。
+- 試験: `crates/core/tests/instance_graph.rs`（入れ子を含む受理と数、巡回 3 形・未解決の呼び出し元・未知の `scope`・`scope` の食い違い・`main` の欠落と重複・`enter`/`exit_to` の誤りの拒否、決定性）、`crates/pack/tests/module_instance_graph.rs`（`module-reuse-rounds` の定義ファイルから導いた期待値と、compile した IR・`instance_graph` の数が一致すること。基点 36・5・19、辺、同じモジュールの 2 実体の Step 数、`--chapters` で絞った IR の不変条件）。
+- 変異注入: `MOD1-1`（巡回の判定を常に通す）。
+- 実行結果（2026-10-23。Linux。元にしたコミット 169a154）: 上の native 試験 17 件が通った。`scripts/check-mutations.sh crates/core/tests/mutations/MOD1-1.mutation` は DETECTED（期待した 3 件が失敗）。
+
+    | ID | 結果 |
+    |---|---|
+    | MOD1-1 | DETECTED |
+
+- 範囲外: `load_ir` への結線（拒否にするかの判断と理由コード）、web の `top_position.rs` の caller の追跡の置き換え、呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、3 周目の追加で実体が 7 になること（MOD-12、TASK-245）。

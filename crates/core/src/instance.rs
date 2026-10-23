@@ -13,13 +13,22 @@
 //! - 呼び出しの Step（`Instance::caller`）の持ち主の規則（TASK-235・TASK-241）。規則を入れるときは、書き込みと読み出しが
 //!   一緒に変わるよう [`root_of`] の中身だけを差し替える。片方だけ変えると食い違うので、根の決め方はここに寄せる
 //! - 根の定義（最後の `/` か最初の `/` か。#1413）。変えると `CONTRACT_VERSION` の版上げになる
-//! - IR の整合（実体数・Step の実体数・開始数の照合。TASK-233 2/2）
+//!
+//! # 静的な有向非巡回グラフの確認（TASK-233 2/2）
+//!
+//! [`instance_graph`] は IR から実体の呼び出しのグラフ（呼び出し元の実体 → 呼ばれた実体。辺は `Instance::caller` の
+//! 節点の `scope` から引く）を組み、有向非巡回で配線が整っていることと、根ごとの Step の実体・開始の数を返す。
+//! 有向非巡回なのは実体の水準であり、Step の `next` の後戻り（`st-2-3` から `st-2-2` へ戻る辺など）は含まない。
+//! 呼び出し元は pack・core の試験（教材の定義から導いた数との照合）である。`load_ir` には結線しない。手で組んだ IR や
+//! 呼び出し元の節点を持たない小さな IR が読めなくなり、`IrLoadError` の契約に波及するため、拒否にするかは別の判断とする。
 //!
 //! 本モジュールの関数は `CONTRACT_VERSION` の署名の対象に含まない（`judge`・`text_fill` と同じ扱い）。
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! 存在しない根・uid・不正な形の uid でも `None`・`NotStarted`・空の列に倒す。
 
-use fandhe_workshop_contract::ir::Ir;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
+use fandhe_workshop_contract::ir::{Ir, Node};
 
 use crate::addr::{Root, StepUid};
 use crate::session::{RunState, Slice};
@@ -70,4 +79,236 @@ pub fn steps_of(ir: &Ir, root: &Root) -> Vec<StepUid> {
 /// 根の切り身を書き込み用に引く（無ければ空で作る）。`transit`・`accept` の書き込みの入口。
 pub(crate) fn slice_mut(run: &mut RunState, root: Root) -> &mut Slice {
     run.slices.entry(root).or_default()
+}
+
+/// 章の実体の ID。`caller` を持たない実体はこれだけである（`StepUid` の検査と同じ特別扱い）。
+const MAIN_ROOT: &str = "main";
+
+/// 実体の呼び出しの有向非巡回グラフと、根ごとの数（MOD-1、TASK-233 2/2）。
+///
+/// 数の照合の呼び出し元（pack・core の試験）が、教材の定義から導いた期待値と突き合わせるために読む。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstanceGraph {
+    /// 実体の根のトポロジカル順（呼び出し元が先。同順位は IR の順）。先頭は `main`。
+    pub order: Vec<Root>,
+    /// 呼び出しの辺（呼び出し元の実体, 呼ばれた実体）。IR の `instances` の順。
+    pub edges: Vec<(Root, Root)>,
+    /// 根ごとの Step の実体の数（`Node::scope` で数える）。Step の無い根も 0 で持つ。
+    pub steps: BTreeMap<Root, usize>,
+    /// 根ごとの開始の数（`Start::node` の節点の `scope` で数える）。開始の無い根も 0 で持つ。
+    pub starts: BTreeMap<Root, usize>,
+}
+
+impl InstanceGraph {
+    /// 実体の数（`main` を含む）。
+    pub fn instance_count(&self) -> usize {
+        self.order.len()
+    }
+
+    /// Step の実体の総数。
+    pub fn step_count(&self) -> usize {
+        self.steps.values().sum()
+    }
+
+    /// 開始の総数。
+    pub fn start_count(&self) -> usize {
+        self.starts.values().sum()
+    }
+}
+
+/// [`instance_graph`] が見つけた IR の不整合。ID だけを持ち、本文・引数の値は持たない。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstanceGraphError {
+    /// 同じ ID の実体が 2 つ以上ある。
+    DuplicateInstance(String),
+    /// `caller` を持たない実体がちょうど 1 つでない（持つ数）。
+    RootCount(usize),
+    /// `caller` を持たない実体が `main` でない。
+    RootNotMain(String),
+    /// `caller` が存在する節点の `uid` でない、またはその節点の `scope` が実体でない。
+    UnresolvedCaller {
+        /// 呼ばれた実体。
+        instance: String,
+        /// 解決できなかった `caller`。
+        caller: String,
+    },
+    /// 節点の `scope` が実体でない。
+    UnknownScope {
+        /// 節点の `uid`。
+        uid: String,
+        /// 実体でない `scope`。
+        scope: String,
+    },
+    /// 節点の `scope` が `uid` の根と違う。
+    ScopeMismatch {
+        /// 節点の `uid`。
+        uid: String,
+        /// 節点の `scope`。
+        scope: String,
+    },
+    /// `enter` の宛先が、この節点が呼んだ実体の節点でない。
+    BadEnter {
+        /// `enter` を持つ節点の `uid`。
+        uid: String,
+        /// `enter` の宛先。
+        to: String,
+    },
+    /// `exit_to` の宛先が、この節点の実体の呼び出し元の節点でない。
+    BadExit {
+        /// `exit_to` を持つ節点の `uid`。
+        uid: String,
+        /// `exit_to` の宛先。
+        to: String,
+    },
+    /// 実体の呼び出しが巡回している（自分を呼ぶ場合を含む）。IR の順で最初の巡回に載る実体。
+    Cycle {
+        /// 巡回に載る実体。
+        instance: String,
+    },
+}
+
+/// IR から実体の呼び出しのグラフを組み、有向非巡回と配線の整合を確かめる。最初に見つけた違反を 1 件返す。
+///
+/// 確かめること: 実体 ID が重複しない・`caller` 無しは `main` だけ・`caller` が節点に解決できる・節点の `scope` が
+/// 実体で `uid` の根と一致する・`enter` と `exit_to` が呼び出しの対で結ばれている・呼び出しが巡回しない。
+/// 巡回は辺の上のトポロジカル順（Kahn 法）が全実体を並べ切れるかで判定するので、巡回する IR でも有限で止まる。
+pub fn instance_graph(ir: &Ir) -> Result<InstanceGraph, InstanceGraphError> {
+    let mut ids: BTreeSet<&str> = BTreeSet::new();
+    for instance in &ir.instances {
+        if !ids.insert(instance.id.as_str()) {
+            return Err(InstanceGraphError::DuplicateInstance(instance.id.clone()));
+        }
+    }
+    let callerless: Vec<&str> = ir
+        .instances
+        .iter()
+        .filter(|i| i.caller.is_none())
+        .map(|i| i.id.as_str())
+        .collect();
+    match callerless.as_slice() {
+        [only] if *only == MAIN_ROOT => {}
+        [only] => return Err(InstanceGraphError::RootNotMain((*only).to_string())),
+        other => return Err(InstanceGraphError::RootCount(other.len())),
+    }
+
+    let nodes: BTreeMap<&str, &Node> = ir.nodes.iter().map(|n| (n.uid.as_str(), n)).collect();
+    let callers: BTreeMap<&str, Option<&str>> = ir
+        .instances
+        .iter()
+        .map(|i| (i.id.as_str(), i.caller.as_deref()))
+        .collect();
+
+    // 辺: 呼び出し元の節点の `scope` の実体 → 呼ばれた実体。
+    let mut edges: Vec<(Root, Root)> = Vec::new();
+    for instance in &ir.instances {
+        let Some(caller) = instance.caller.as_deref() else {
+            continue;
+        };
+        let parent = nodes
+            .get(caller)
+            .map(|n| n.scope.as_str())
+            .filter(|scope| ids.contains(scope));
+        let Some(parent) = parent else {
+            return Err(InstanceGraphError::UnresolvedCaller {
+                instance: instance.id.clone(),
+                caller: caller.to_string(),
+            });
+        };
+        edges.push((Root(parent.to_string()), Root(instance.id.clone())));
+    }
+
+    for node in &ir.nodes {
+        if !ids.contains(node.scope.as_str()) {
+            return Err(InstanceGraphError::UnknownScope {
+                uid: node.uid.clone(),
+                scope: node.scope.clone(),
+            });
+        }
+        if root_of(&StepUid(node.uid.clone())).0 != node.scope {
+            return Err(InstanceGraphError::ScopeMismatch {
+                uid: node.uid.clone(),
+                scope: node.scope.clone(),
+            });
+        }
+        if let Some(to) = node.enter.as_deref() {
+            let called = nodes
+                .get(to)
+                .and_then(|dest| callers.get(dest.scope.as_str()).copied().flatten());
+            if called != Some(node.uid.as_str()) {
+                return Err(InstanceGraphError::BadEnter {
+                    uid: node.uid.clone(),
+                    to: to.to_string(),
+                });
+            }
+        }
+        if let Some(to) = node.exit_to.as_deref() {
+            let back = callers.get(node.scope.as_str()).copied().flatten();
+            if !nodes.contains_key(to) || back != Some(to) {
+                return Err(InstanceGraphError::BadExit {
+                    uid: node.uid.clone(),
+                    to: to.to_string(),
+                });
+            }
+        }
+    }
+
+    let order = topological_order(ir, &edges)?;
+
+    let mut steps: BTreeMap<Root, usize> = order.iter().map(|r| (r.clone(), 0)).collect();
+    let mut starts = steps.clone();
+    for node in &ir.nodes {
+        if let Some(n) = steps.get_mut(&Root(node.scope.clone())) {
+            *n += 1;
+        }
+    }
+    for start in &ir.starts {
+        // 宛先の節点が無い開始は `load_ir` が拒否する。ここでは数えずに飛ばす（全域）。
+        let scope = nodes.get(start.node.as_str()).map(|n| n.scope.clone());
+        if let Some(n) = scope.and_then(|s| starts.get_mut(&Root(s))) {
+            *n += 1;
+        }
+    }
+    Ok(InstanceGraph {
+        order,
+        edges,
+        steps,
+        starts,
+    })
+}
+
+/// 辺の上のトポロジカル順（Kahn 法。同順位は IR の順）。並べ切れなければ、IR の順で最初の残りを巡回とする。
+fn topological_order(ir: &Ir, edges: &[(Root, Root)]) -> Result<Vec<Root>, InstanceGraphError> {
+    let roots = instance_roots(ir);
+    let mut indegree: BTreeMap<&Root, usize> = roots.iter().map(|r| (r, 0)).collect();
+    for (_, child) in edges {
+        if let Some(n) = indegree.get_mut(child) {
+            *n += 1;
+        }
+    }
+    let mut queue: VecDeque<&Root> = roots
+        .iter()
+        .filter(|r| indegree.get(r).copied() == Some(0))
+        .collect();
+    let mut order: Vec<Root> = Vec::new();
+    while let Some(root) = queue.pop_front() {
+        order.push(root.clone());
+        for (parent, child) in edges {
+            if parent != root {
+                continue;
+            }
+            if let Some(n) = indegree.get_mut(child) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    queue.push_back(child);
+                }
+            }
+        }
+    }
+    if order.len() == roots.len() {
+        return Ok(order);
+    }
+    let left = roots.iter().find(|r| !order.contains(r));
+    Err(InstanceGraphError::Cycle {
+        instance: left.map(|r| r.0.clone()).unwrap_or_default(),
+    })
 }

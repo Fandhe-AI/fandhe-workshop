@@ -1,0 +1,10 @@
+id: MOD1-1
+package: fandhe-workshop-core
+test: instance_graph
+target: crates/core/src/instance.rs
+find:     if order.len() == roots.len() {
+replace:     if true {
+expect-fail: mutual_call_is_a_cycle
+expect-fail: self_call_is_a_cycle
+expect-fail: three_instance_ring_is_a_cycle
+note: 並べ切れたかの比較を常に通す（巡回する実体の呼び出しを受理する）
