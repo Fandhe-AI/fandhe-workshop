@@ -27,6 +27,7 @@
 //! 各章の最後の Step を `final` にして開始点を章の先頭 4 件にした変種（`?fixture=ch0-3-chapters`）は、「次の章へ進む」で CH-0 から CH-3 を通す試験が使う（SHELL-10。TASK-526 2/2）。
 //! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
 //! 対照の `?fixture=ch0-4-full`（同じ IR に CH-4 の開始点を足したもの）は、範囲外の章へ進まないことの試験が使う（SHELL-12・D-67。TASK-527）。
+//! CH-4〜CH-9 の形を写した 17 Step・6 章の教材（`?fixture=ch4-9`。各章の最後が `final`、開始点は章の先頭 6 件）は、「次の章へ進む」で CH-4 から CH-9 を通す試験が使う（TASK-674 1/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -61,6 +62,13 @@ const CH03_IR: &[u8] = include_bytes!(concat!(
     "/tests/data/ch0_3/ir.json"
 ));
 
+/// CH-4〜CH-9 の形を写した 17 Step・6 章の教材（`crates/web/tests/data/ch4_9/ir.json`。`pack.id` は mount の既定と別。TASK-674 1/2）。
+/// 各章の最後が `final`、開始点が章の先頭 6 件で、CH-10 の開始点は無い。本物の CH-4〜CH-9 ではない（`tests/data/ch4_9/README.md`）。
+const CH49_IR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/ch4_9/ir.json"
+));
+
 /// mount の教材の選択。既定は `min-3step`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum MountFixture {
@@ -73,6 +81,8 @@ pub(crate) enum MountFixture {
     NoInput,
     /// 章をまたいで 20 Step を通す教材（TASK-450 3/3）。
     Ch03,
+    /// CH-4〜CH-9 の形を写した 17 Step・6 章の教材。「次の章へ進む」で章をまたぐ（TASK-674 1/2）。
+    Ch49,
     /// 同じ教材の章 A（開始点は `starts` の先頭のまま。SAVE-14。TASK-326 1/2）。
     ChapterA,
     /// 同じ教材の章 B（章 A と `pack.id` が同じで、開始点だけが違う。SAVE-14。TASK-326 1/2）。
@@ -495,6 +505,7 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=ch0-3-chapters" => MountFixture::Ch03Chapters,
         "?fixture=ch0-3-trial" => MountFixture::Ch03Trial,
         "?fixture=ch0-4-full" => MountFixture::Ch04Full,
+        "?fixture=ch4-9" => MountFixture::Ch49,
         "?fixture=multi-start" => MountFixture::MultiStart,
         "?fixture=chapter-a" => MountFixture::ChapterA,
         "?fixture=chapter-b" => MountFixture::ChapterB,
@@ -532,6 +543,7 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         MountFixture::Ch03Chapters => ch03_chapters_ir_bytes()?,
         MountFixture::Ch03Trial => ch03_trial_ir_bytes(false)?,
         MountFixture::Ch04Full => ch03_trial_ir_bytes(true)?,
+        MountFixture::Ch49 => CH49_IR.to_vec(),
         MountFixture::MultiStart => multi_start_ir_bytes()?,
         MountFixture::ChapterA => chapter_ir_bytes(Chapter::A)?,
         MountFixture::ChapterB => chapter_ir_bytes(Chapter::B)?,
@@ -1375,6 +1387,33 @@ mod tests {
         assert!(full.starts.iter().any(|s| s.id == OUT_OF_RANGE_START_ID));
         assert_ne!(trial.pack.id, full.pack.id);
         assert_ne!(trial.pack.id, "ch0-3-chapters");
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが_ch4_9_の教材を選び_先頭は_ch_4_の先頭() {
+        assert_eq!(
+            mount_fixture_from_search("?fixture=ch4-9"),
+            MountFixture::Ch49
+        );
+        for other in [
+            "?fixture=ch4-9&x=1",
+            "?x=1&fixture=ch4-9",
+            "?fixture=ch4-9x",
+            "?fixture=Ch4-9",
+            "?fixture=ch4_9",
+            "fixture=ch4-9",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+        let s = mount_session(MountFixture::Ch49).unwrap();
+        assert_eq!(s.state().run.current.as_ref().unwrap().0, "main/st-4-1a");
+        let ir = load_ir(CH49_IR).unwrap();
+        assert_eq!(ir.starts.len(), 6);
+        assert!(!ir.starts.iter().any(|st| st.id == "s-10-1"));
     }
 
     #[test]
