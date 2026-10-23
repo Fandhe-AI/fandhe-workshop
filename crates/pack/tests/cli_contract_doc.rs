@@ -8,9 +8,9 @@ use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
     compare_differ_line, compare_same_line, compare_unreadable_line, final_line, metrics_row,
-    usage, vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine, PackSummary, Subcommand,
-    VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE,
-    ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL, VOCAB_HEADER,
+    test_pass_line, usage, vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine, PackSummary,
+    Subcommand, VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION, EXIT_DIAGNOSTICS, EXIT_OK,
+    EXIT_USAGE, ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL, VOCAB_HEADER,
 };
 use fandhe_workshop_pack::source::Format;
 
@@ -140,6 +140,23 @@ fn cli_doc_final_line_examples_match() {
         compare_unreadable_line(0, 4),
     ];
     assert_eq!(block, expected);
+}
+
+#[test]
+fn cli_doc_test_pass_line_example_matches() {
+    let body = section(&doc(), "## 12.2. `test` の模範解答の行");
+    let mut in_block = false;
+    let mut block = Vec::new();
+    for l in body.lines() {
+        if l == "```text" {
+            in_block = true;
+        } else if l == "```" {
+            break;
+        } else if in_block {
+            block.push(l.to_string());
+        }
+    }
+    assert_eq!(block, [test_pass_line("pt-main", 2)]);
 }
 
 #[test]

@@ -11,7 +11,7 @@
 //! 画面側が変わるときは本モジュールも同じ変更で追従する。
 //!
 //! 扱わないこと
-//! - PASS・FAIL・集計の行の出力（TASK-404 2/3・3/3、TASK-405）。報告 [`Report`] に材料だけを持つ
+//! - FAIL・集計の行の出力（TASK-404 3/3、TASK-405）。PASS の行は `cli::run_test` が `cli_contract::test_pass_line` で書く（2/3）。報告 [`Report`] に材料だけを持つ
 //! - `cmd:`・`text:` を画面と同じ関数で分けること（TASK-406。ここでは値をそのまま渡す）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!

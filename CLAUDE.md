@@ -10,7 +10,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 操作に応じて成果物が変わる教材として動くことを目指す。エンジンは特定の教材の知識を持たない。
 
 - 開発基盤は `Fandhe-AI/template-dev` から作成した。現時点の中身は Make・シェルスクリプト・lefthook・GitHub Actions
-- Cargo ワークスペース（4 crate）を導入済み。pack crate は読み込み層と `fandhe-pack validate <pack-dir>`・`compile <pack-dir> [--chapters <id>,...]`・`compare <pack-dir-a> <pack-dir-b>`・`metrics <pack-dir>`・`vocab <pack-dir>`・`test <pack-dir>`（枠と終了コード。PASS/FAIL の行は後続）を実装済みで、他は骨格中心（2026-10-15 時点）。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
+- Cargo ワークスペース（4 crate）を導入済み。pack crate は読み込み層と `fandhe-pack validate <pack-dir>`・`compile <pack-dir> [--chapters <id>,...]`・`compare <pack-dir-a> <pack-dir-b>`・`metrics <pack-dir>`・`vocab <pack-dir>`・`test <pack-dir>`（枠と終了コード・模範解答の PASS の行。FAIL・集計は後続）を実装済みで、他は骨格中心（2026-10-15 時点）。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
 - 仕様は private の submodule `docs/spec`（`Fandhe-AI/fandhe-workshop-spec`）。取得手順は README の「仕様」
 
 ## Repository Structure
@@ -68,7 +68,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 15。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71）
-├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力。版 9。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404）
+├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力。版 10。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404）
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）
 ├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3・H-6〜H-8・AUTHOR-13 など）

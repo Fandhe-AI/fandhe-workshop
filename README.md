@@ -88,7 +88,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/extension-point-procedure.md` | 拡張点の追加の手続きの文書（版 1）。汎用であることの説明・語彙の文書の固定・診断コードの追加・公開の一覧への追記・既存の教材パックが同じ IR になることの確認を固定する。実行時の登録の仕組みは作らない（D-53）。形の検査は `crates/pack/tests/extension_point_procedure_doc.rs` |
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
 | `docs/diagnostics.md` | 診断コードの一覧（版 15。一覧の正）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH` の 34 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致は `crates/pack/tests/diagnostics_doc.rs` が CI で検査する（TASK-400） |
-| `docs/cli.md` | CLI の外部仕様（版 9）。`fandhe-pack` のバイナリ名・コマンド 6 つと引数の形・使い方・終了コード 0/1/2・診断 1 行・項目の書式・最終行（`OK:`・`NG:`）・診断の出し先・`compile` の出力（`-o`・末尾・バイト単位の決定性）・`metrics` の出力・`vocab` の出力（表・集計行。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）。文書との一致は `crates/pack/tests/cli_contract_doc.rs`、実行ファイルの挙動は `crates/pack/tests/cli_contract.rs` が検査する |
+| `docs/cli.md` | CLI の外部仕様（版 10）。`fandhe-pack` のバイナリ名・コマンド 6 つと引数の形・使い方・終了コード 0/1/2・診断 1 行・項目の書式・最終行（`OK:`・`NG:`）・診断の出し先・`compile` の出力（`-o`・末尾・バイト単位の決定性）・`metrics` の出力・`vocab` の出力（表・集計行。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）。文書との一致は `crates/pack/tests/cli_contract_doc.rs`、実行ファイルの挙動は `crates/pack/tests/cli_contract.rs` が検査する |
 | `docs/history-format.md` | 履歴の形式の文書（版 1）。包みの 7 欄・4 軸の版・追記だけで増える列（EXT-5・D-53）。冒頭の版と欄の並びは `crates/contract/tests/history_format_doc.rs` が型と照合する |
 | `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の書き方の規約（検査は採らず作成者の規約。D-52）。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |
 | `docs/known-gaps.md` | 既知の不足（忠実さの限界）。受講者が選んだ値を差し込めないこと（H-3）と属性を書き換える回避に加え、PoC の記録の H-6・H-7・H-8・AUTHOR-13 の今の状態を記録する。確かめていない ID は明記する。根拠の試験は `crates/pack/tests/chosen_value_gap.rs` ほか |
@@ -169,7 +169,7 @@ worktree はそれぞれ別の `target/` を持つため、不要になった wo
 
 流す順は、native のビルド、native のテスト、wasm32 のビルド、ブラウザテストです。ただし `make test-browser` は前提のバイナリ（`fandhe-pack`）と web を自分でビルドするため、先に `make test` を流す必要はありません。現在できる検査は `make check`・`make test-hooks`・`make lint`・`make test`・`make check-deps`・`make test-check-deps`・`make check-dom-reads`・`make test-check-dom-reads` です。内容は次の「コマンド」の表を参照してください。
 
-Cargo ワークスペースは導入済みです。pack crate は `compile <pack-dir>`・`compare`・`metrics`・`vocab`・`validate` を実装済みで、現在の制約は、`use` によるモジュール展開をしない・`test` が PASS・FAIL の行をまだ出さない（枠と終了コードは実装済み）ことです。それ以外の crate は骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
+Cargo ワークスペースは導入済みです。pack crate は `compile <pack-dir>`・`compare`・`metrics`・`vocab`・`validate` を実装済みで、現在の制約は、`use` によるモジュール展開をしない・`test` が FAIL の行と集計をまだ出さない（枠と終了コード・模範解答の PASS の行は実装済み）ことです。それ以外の crate は骨格です。wasm32 のビルドとブラウザテストの手順は、後続のタスクで書きます。
 
 ### ビルド
 
