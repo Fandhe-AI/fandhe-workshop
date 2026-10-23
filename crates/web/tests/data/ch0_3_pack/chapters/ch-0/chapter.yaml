@@ -1,0 +1,105 @@
+# ch-0 の Step。
+id: ch-0
+title: "画面を見る"
+
+starts:
+  - { id: s-0-1, node: st-0-1 }
+
+steps:
+  - id: "st-0-1"
+    title: "画面の右側を選ぶ"
+    do: "右を選びます"
+    body: "st-0-1.md"
+    lo: ["LO-1"]
+    views: ["v-cards"]
+    hints: ["h-0-1"]
+    next: [{"to": "st-0-2a"}]
+    input:
+      kind: "choice"
+      options:
+        - {"id": "opt-left", "label": "左"}
+        - {"id": "opt-right", "label": "右"}
+        - {"id": "opt-top", "label": "上部"}
+    rules:
+      - id: "r-right"
+        on: {"option": "opt-right"}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "cards/notice", "attrs": {"state": "shown"}}}]
+      - id: "r-left"
+        on: {"option": "opt-left"}
+        outcome: {"kind": "reject", "rejection": "rj-wrong-place"}
+      - id: "r-top"
+        on: {"option": "opt-top"}
+        outcome: {"kind": "reject", "rejection": "rj-wrong-place"}
+    confirm:
+      kind: "point_at"
+      targets: [{"view": "v-cards", "path": "cards/notice"}]
+      on_miss: "rj-miss-point"
+
+  - id: "st-0-2a"
+    title: "1 つ目の確認"
+    do: "「読みました」を選びます"
+    body: "st-0-2a.md"
+    lo: ["LO-1"]
+    views: ["v-cards"]
+    next: [{"to": "st-0-2b"}]
+    input:
+      kind: "choice"
+      options: [{"id": "opt-read-a", "label": "読みました"}]
+    rules:
+      - id: "r-read-a"
+        on: {"option": "opt-read-a"}
+        outcome:
+          kind: "accept"
+          effects:
+            - {"put": {"path": "cards/repo-a", "attrs": {"state": "shown"}}}
+            - {"put": {"path": "cards/repo-b", "attrs": {"state": "shown"}}}
+    confirm:
+      kind: "answer"
+      options:
+        - {"id": "ans-a-ok", "correct": true, "label": "カードは 2 枚"}
+        - {"id": "ans-a-ng", "correct": false, "label": "カードは 5 枚"}
+      on_wrong: "rj-wrong-answer"
+
+  - id: "st-0-2b"
+    title: "2 つ目の確認"
+    do: "「読みました」を選びます"
+    body: "st-0-2b.md"
+    lo: ["LO-1"]
+    views: ["v-cards"]
+    next: [{"to": "st-0-2c"}]
+    input:
+      kind: "choice"
+      options: [{"id": "opt-read-b", "label": "読みました"}]
+    rules:
+      - id: "r-read-b"
+        on: {"option": "opt-read-b"}
+        outcome: {"kind": "accept"}
+    confirm:
+      kind: "answer"
+      options:
+        - {"id": "ans-b-ok", "correct": true, "label": "どちらも同じ場所"}
+        - {"id": "ans-b-ng", "correct": false, "label": "別々の場所"}
+      on_wrong: "rj-wrong-answer"
+
+  - id: "st-0-2c"
+    title: "3 つ目の確認"
+    do: "「読みました」を選びます"
+    body: "st-0-2c.md"
+    lo: ["LO-1"]
+    final: true
+    views: ["v-cards"]
+    input:
+      kind: "choice"
+      options: [{"id": "opt-read-c", "label": "読みました"}]
+    rules:
+      - id: "r-read-c"
+        on: {"option": "opt-read-c"}
+        outcome: {"kind": "accept"}
+    confirm:
+      kind: "answer"
+      options:
+        - {"id": "ans-c-ok", "correct": true, "label": "次へ進める"}
+        - {"id": "ans-c-ng", "correct": false, "label": "まだ進めない"}
+      on_wrong: "rj-wrong-answer"

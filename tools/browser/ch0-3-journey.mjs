@@ -234,11 +234,16 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null,
     }), NEXT);
     L.check(scene, `${last} の完了後に次の章へ進むが 1 個`, info.texts.length === 1 && info.texts[0].startsWith('次の章へ進む: '));
     L.check(scene, `${last} の完了後に移動ボタンが 0 件`, info.moves === 0);
-    const before = (await engine(page)).stateWithoutLog.run.generation;
+    // 世代は試験の設定の `__fandheTest` からだけ読める。配信する設定（DOM だけの観察。`observe.hasState` が偽）では世代の確認を置かず、
+    // 次の章の先頭へ入ったこと（`at`）と、呼び出し側が onStep で見る位置・題の変化で境目を確かめる（author-preview。TASK-427 1/2）。
+    const hasState = observe.hasState !== false;
+    const before = hasState ? (await engine(page)).stateWithoutLog.run.generation : 0;
     await d.nextChapter();
     await at(page, next, 'entered');
-    const after = (await engine(page)).stateWithoutLog.run.generation;
-    L.check(scene, `${next} へ移って世代が進む`, after > before);
+    if (hasState) {
+      const after = (await engine(page)).stateWithoutLog.run.generation;
+      L.check(scene, `${next} へ移って世代が進む`, after > before);
+    }
     await waitCount(page, NEXT, 0);
   };
 

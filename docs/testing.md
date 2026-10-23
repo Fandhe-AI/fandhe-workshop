@@ -8399,3 +8399,66 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行: `cargo test -p fandhe-workshop-pack --locked`
 - 経過措置: 最終行・R-22／R-21・入った実体の集計は TASK-405、文面・案内レベルの確認の判定は後続。判定していない定義があるときは終了コード 1 のまま
 
+
+### 5.292 compile した IR の手元の配信と CH-0〜CH-3 の完走（TASK-427 1/2。AUTHOR-21）
+
+作成者の手順そのものを自動ブラウザで通した。形式 B の教材パックを `fandhe-pack compile` で IR にし、その出力を `IR_FILE` に渡して配信する設定（試験用の口なし）でビルドし、`tools/serve.mjs` でサブパスの下に gzip つきで配り、実クリックで CH-0〜CH-3 の 20 Step を最後まで通す。試験は `tools/browser/author-preview.test.mjs`（補助は同名の `.mjs`）。
+
+#### 解釈
+
+- 教材 repo の本物の CH-0〜CH-3（TASK-643・TASK-642）はまだ無い（2026-10-23 時点）。そのため教材は、手書きの `crates/web/tests/data/ch0_3/ir.json` と同じ形を形式 B で書いた試験用の教材 `crates/web/tests/data/ch0_3_pack` である（5.117 の `ch0-3-run`・5.283 の `ch4-9-run` と同じ扱い）
+- 手順（compile → `IR_FILE` を指定したビルド → サブパス配信 → 完走）は端から端まで実物で流す。本物の教材での流し直しは**未実施**である
+- 試作の 73 項目は再現しない。台帳の件数は「N/N 項目」と書く
+- AI による代理の確認であり、人の評価には数えない（D-34）
+
+#### 手順
+
+1. `scripts/test-browser.sh` が教材を compile し、`IR_FILE=<IR> tools/build-web.sh`（`TEST_HOOKS` なし）で `web-author` を作る。ビルドは試験の外で行う（計時の試験に負荷を与えない）
+2. 試験が `FANDHE_WEB_AUTHOR_DIR`（配信物）と `FANDHE_AUTHOR_IR`（compile した IR）を受け、`/fandhe-author-preview/` の下で配る
+3. DOM だけの観察（`__fandheTest` は無い）で 20 Step を通す。操作の列は `ch0-3-journey.mjs` の `journey` を使う
+
+#### 確かめること
+
+| 試験 | 確かめること |
+|---|---|
+| P1 | `validate` が終了コード 0 |
+| P2 | もう一度 compile した出力が、配信物の `ir/main.json` と受け取った IR のどちらともバイト単位で一致する（決定性と、作成者が見る IR が受講者に配る IR と同じこと） |
+| P3 | 配信物の `index.html` に `fandhe-ir` の meta がちょうど 1 個で、試験用の口（meta・`test-hooks.js`）が無い |
+| P4 | compile した IR の構造が、手書きの IR の変種（各章の最後を `final` にし、開始点を章の先頭 4 件にしたもの）と一致する。`journey` の前提が崩れたときに Step を名指しして落とす |
+| P5 | `STEPS` の題が IR の題と一致し、20 件とも違う |
+| B（CSP あり・なし） | 20 Step を最後の達成まで通す。各章の最初の Step 4 件に「いまやること」と do、本文の区画（見える・空でない・先頭の見出しに題）が出る。章の境目で「次の章へ進む」がちょうど 1 個。復習の行で 20 Step がすべて達成。配信元以外への通信・ページ内エラー・コンソールの error と CSP 警告・安全の計数がすべて 0。`ir/main.json` の取得は 200 で 1 回 |
+| C | DOM の観察が各時点で試験の設定の `stateJson` と一致し、1 Step 先・同じ Step の別の状態を示さない（B の空振りの防止） |
+| D | 本文を隠す・do を書き換えると、先頭の Step の確認が不合格になる（負の対照） |
+
+`ch0-3-journey.mjs` は、`cross` の世代の確認を `observe.hasState !== false` のときだけ行うよう変えた。既定の観察は `hasState` を持たず、既存の利用者の振る舞いは変わらない。
+
+#### 確かめないこと
+
+- 章の開始点への直接リンクと、作成者向けの文書（TASK-427 2/2）
+- 本物の CH-0〜CH-3（TASK-643・TASK-642）
+- キーボードだけの完走（`ch0-3-run` が持つ）。処理中の Esc による停止（5.117 の限界）
+- 人が作成者として画面を確かめた記録（仕様が「含まない」と定める）
+
+#### 結果の 1 行の様式
+
+```text
+AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=<合格>/4 external=<件数> page-errors=<件数> ledger=<合格>/<項目>
+```
+
+名前・件数・合否だけを出し、入力した値と本文は出さない。
+
+#### 実行結果
+
+- 実行日: 2026-10-23。Chromium（同梱）。`SKIP_WASM_OPT=1`
+- P1〜P5・B（2 件）・C・D の 9 件が通った
+- `AUTHOR-PREVIEW csp=on steps=20/20 crossings=3 first-steps=4/4 external=0 page-errors=0 ledger=88/88`
+- `AUTHOR-PREVIEW csp=off steps=20/20 crossings=3 first-steps=4/4 external=0 page-errors=0 ledger=88/88`
+- C: 235/235 項目
+- `ch0-3-journey.mjs` の変更後も、`ch0-3-run`・`next-chapter`・`shell-journey`・`step-body`・`shell-widths`・`csp-runs`・`l2-journey-calibrate`・`chapter-select-absent`・`checkpoint-restore` の 47 件が通った。`make test-browser` の全体は未検証
+
+#### 限界
+
+- `SKIP_WASM_OPT=1` のビルドである。wasm-opt は大きさを縮めるだけで振る舞いは変えない
+- CI は Chromium で流す。Chrome の原本で流すには `FANDHE_BROWSER_CHANNEL=chrome` を付ける（5.128）
+- DOM だけの観察の確かさは、較正 C に依る
+- 本物の教材での流し直しは未実施である

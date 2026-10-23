@@ -1,0 +1,49 @@
+# ch-3 の Step。
+id: ch-3
+title: "まとめ"
+
+starts:
+  - { id: s-3-1, node: st-3-1 }
+
+steps:
+  - id: "st-3-1"
+    title: "置き場所を選ぶ"
+    do: "正しい置き場所を選びます"
+    body: "st-3-1.md"
+    lo: ["LO-1"]
+    views: ["v-files"]
+    next: [{"to": "st-3-2"}]
+    input:
+      kind: "choice"
+      options:
+        - {"id": "opt-place-ok", "label": "共有の場所"}
+        - {"id": "opt-place-ng", "label": "個人の場所"}
+    rules:
+      - id: "r-place-ok"
+        on: {"option": "opt-place-ok"}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "work/place", "attrs": {"state": "created"}}}]
+      - id: "r-place-ng"
+        on: {"option": "opt-place-ng"}
+        outcome: {"kind": "reject", "rejection": "rj-wrong-place"}
+    confirm:
+      kind: "point_at"
+      targets: [{"view": "v-files", "path": "work/place"}]
+      on_miss: "rj-miss-point"
+
+  - id: "st-3-2"
+    title: "引き継ぎを承認する"
+    do: "「はい」を選びます"
+    body: "st-3-2.md"
+    lo: ["LO-1"]
+    final: true
+    views: ["v-files"]
+    input: {"kind": "approval"}
+    rules:
+      - id: "r-handoff"
+        on: {"approval": "approve"}
+        outcome:
+          kind: "accept"
+          effects: [{"put": {"path": "docs/handoff", "attrs": {"state": "created"}}}]
+    confirm: {"kind": "approve"}
