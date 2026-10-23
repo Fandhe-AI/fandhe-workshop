@@ -8,6 +8,13 @@
 # 注意: これは DOM 読み取りの検査である。crate 間の依存の向き（core が web-sys 等に届かないこと）は
 # scripts/check-crate-deps.sh（`make check-deps`）が持つ。同じ不変条件を二重に定義しない。
 #
+# EVT-1・EVT-23 の各規則の検査の所在（TASK-206。この対応表以外に同じ規則を定義しない）:
+#   - DOM の文字列の読み取りが 0 件で例外が 1 件: 本スクリプトと crates/web/tests/state_paths.rs
+#   - 状態を変える経路は Session の操作だけ: crates/web/tests/no_progress.rs
+#   - 右の描画が左の状態を読まない・左が右の文字列を読まない: crates/web/tests/pane_isolation.rs
+#   - core の依存の閉包に表示基盤が無い: scripts/check-crate-deps.sh
+# 入力イベントの欄（KeyboardEvent::key・InputEvent::data など）と保存先の get_item は表示の文字列ではないため対象外である。
+#
 # 例外は 1 種類だけ（下の EXC_*）。glue.rs 直下の `field.value()` で、ファイル・パターン・件数の 3 つで限定する。
 # 件数は増えても減っても失敗する。固定値 1 は glue.rs の sync_draft にある textarea の現在値の読み取り（TASK-158）。
 # 件数を変えるときは、例外の理由の説明も実装に合わせて更新する。

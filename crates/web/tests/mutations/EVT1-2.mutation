@@ -1,0 +1,8 @@
+id: EVT1-2
+package: fandhe-workshop-web
+test: pane_isolation
+target: crates/web/src/engine_parts.rs
+find:         let selected = model.selected_view();
+replace:         let _right = model.judged_text(0); let selected = model.selected_view();
+expect-fail: 実ソースの右は左の状態を読まず_左は右の文字列を読まない
+note: 成果物（左）の描画が右に出した拒否の文面の控えを読む（EVT-1・TASK-206）

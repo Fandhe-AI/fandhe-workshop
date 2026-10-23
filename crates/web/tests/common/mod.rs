@@ -165,3 +165,86 @@ pub fn wasm_layer_sources() -> Vec<(String, String)> {
         })
         .collect()
 }
+
+/// コメントを除いたコードから `r#` を除き、空白を「識別子どうしの間の 1 個」だけ残して詰める（TASK-206）。
+///
+/// `normalize` は空白を全部除くため `&mut World` が `&mutWorld` になり、識別子の境界を判定できない。
+/// こちらは `&mut World` を保ち、`. world (` のような記号まわりの空白だけを詰める。
+pub fn spaced(code: &str) -> String {
+    let src = strip_comments(code).replace("r#", "");
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let chars: Vec<char> = src.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_whitespace() {
+            let prev = out.chars().next_back();
+            while i < chars.len() && chars[i].is_whitespace() {
+                i += 1;
+            }
+            if prev.is_some_and(is_id) && chars.get(i).copied().is_some_and(is_id) {
+                out.push(' ');
+            }
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out
+}
+
+/// `needle` の出現位置のうち、両端が識別子の文字のとき、その外側も識別子の文字でないもの。
+pub fn ident_positions(hay: &str, needle: &str) -> Vec<usize> {
+    let is_id = |c: char| c.is_alphanumeric() || c == '_';
+    let first_id = needle.chars().next().is_some_and(is_id);
+    let last_id = needle.chars().next_back().is_some_and(is_id);
+    hay.match_indices(needle)
+        .filter(|(i, _)| {
+            let before_ok = !first_id || !hay[..*i].chars().next_back().is_some_and(is_id);
+            let after_ok = !last_id || !hay[i + needle.len()..].chars().next().is_some_and(is_id);
+            before_ok && after_ok
+        })
+        .map(|(i, _)| i)
+        .collect()
+}
+
+pub fn count_ident(hay: &str, needle: &str) -> usize {
+    ident_positions(hay, needle).len()
+}
+
+/// `start` 以降の最初の `{` から対応する `}` までを返す。対応が取れなければ None。
+pub fn block_from(code: &str, start: usize) -> Option<&str> {
+    let open = start + code[start..].find('{')?;
+    let mut depth = 0usize;
+    for (i, c) in code[open..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(&code[open..open + i + 1]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `spaced` 済みのコードから `impl ... for <ty> {` の本体を切り出す。
+pub fn impl_body<'a>(code: &'a str, ty: &str) -> Option<&'a str> {
+    // `impl A<B> for T {` は空白の詰めで `impl A<B>for T{` になるため、`for` の前の境界は見ない。
+    let head = format!("for {ty}{{");
+    let pos = code.find(&head)?;
+    block_from(code, pos)
+}
+
+/// `spaced` 済みのコードから `fn <name>` の本体を切り出す（名前の直後が `(` か `<`）。
+pub fn fn_body_spaced<'a>(code: &'a str, name: &str) -> Option<&'a str> {
+    for head in [format!("fn {name}("), format!("fn {name}<")] {
+        if let Some(pos) = code.find(&head) {
+            return block_from(code, pos);
+        }
+    }
+    None
+}
