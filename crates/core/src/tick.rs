@@ -112,6 +112,7 @@ pub(crate) fn on_tick(ir: &Ir, state: &mut SessionState, addr: TickAddr) -> Vec<
     } else {
         None
     };
+    // 効果の根（フラグ）なので `root_of`。処理中の Step は呼び出しの Step にならない。
     let root = crate::instance::root_of(&current);
     let mut events = apply_tick(
         &mut state.run,

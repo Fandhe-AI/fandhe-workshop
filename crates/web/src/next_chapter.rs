@@ -27,6 +27,7 @@
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_core::instance;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::SessionState;
 
@@ -77,8 +78,8 @@ pub fn next_chapter(ir: &Ir, state: &SessionState) -> Option<NextChapter> {
     if !is_main_final(ir, uid.0.as_str()) {
         return None;
     }
-    let status = state.run.slices.get(&uid.root())?.status.get(uid)?;
-    if *status != StepStatus::Achieved {
+    // 章の最後が `use` の Step のとき、その状態は呼ばれた実体の切り身にある（MOD-3）。
+    if instance::status_of(ir, &state.run, uid) != StepStatus::Achieved {
         return None;
     }
     let current = ir.nodes.iter().find(|n| n.uid == uid.0)?;

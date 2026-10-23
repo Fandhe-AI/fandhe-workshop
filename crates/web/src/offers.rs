@@ -82,12 +82,7 @@ pub fn answer_offers(session: &Session) -> Vec<Offer> {
     if state.run.busy.is_some() {
         return Vec::new();
     }
-    let awaiting = state
-        .run
-        .slices
-        .get(&fandhe_workshop_core::instance::root_of(uid))
-        .and_then(|s| s.status.get(uid))
-        .is_some_and(|st| *st == StepStatus::Accepted);
+    let awaiting = session.step_status(uid) == StepStatus::Accepted;
     if !awaiting {
         return Vec::new();
     }
@@ -118,12 +113,7 @@ pub fn input_choice_offers(session: &Session) -> Vec<Offer> {
     if state.run.busy.is_some() {
         return Vec::new();
     }
-    let entered = state
-        .run
-        .slices
-        .get(&fandhe_workshop_core::instance::root_of(uid))
-        .and_then(|s| s.status.get(uid))
-        .is_some_and(|st| *st == StepStatus::Entered);
+    let entered = session.step_status(uid) == StepStatus::Entered;
     if !entered {
         return Vec::new();
     }
@@ -166,14 +156,7 @@ pub fn approval_offers(session: &Session) -> Vec<ApprovalOffer> {
     if state.run.busy.is_some() {
         return Vec::new();
     }
-    let Some(status) = state
-        .run
-        .slices
-        .get(&fandhe_workshop_core::instance::root_of(uid))
-        .and_then(|s| s.status.get(uid))
-    else {
-        return Vec::new();
-    };
+    let status = session.step_status(uid);
     let Some(node) = session.ir().nodes.iter().find(|n| n.uid == uid.0) else {
         return Vec::new();
     };

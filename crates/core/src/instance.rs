@@ -1,4 +1,4 @@
-//! 学習モジュールの実体（根）ごとの状態の読み出しと、状態を書き読みする根の決め方の一本化（MOD-1、TASK-233 1/2）。
+//! 学習モジュールの実体（根）ごとの状態の読み出しと、状態を書き読みする根の決め方の一本化（MOD-1・MOD-3、TASK-233・TASK-235 1/2）。
 //!
 //! 同じ定義の Step も、実体ごとに別の Step の実体（`<実体 ID>/<Step ID>`）になる。状態は実体の根（[`Root`]）ごとの
 //! 切り身（[`Slice`]）に持つので、片方の実体の Step の状態・フラグはもう片方に漏れない。IR は展開済みの節点
@@ -10,9 +10,16 @@
 //!
 //! # 扱わないこと
 //!
-//! - 呼び出しの Step（`Instance::caller`）の持ち主の規則（TASK-235・TASK-241）。規則を入れるときは、書き込みと読み出しが
-//!   一緒に変わるよう [`root_of`] の中身だけを差し替える。片方だけ変えると食い違うので、根の決め方はここに寄せる
+//! - 復帰の範囲（`Checkpoint::owner`・`projection` の復習）への持ち主の規則の適用（TASK-241）。`Projection` は IR を持たない
 //! - 根の定義（最後の `/` か最初の `/` か。#1413）。変えると `CONTRACT_VERSION` の版上げになる
+//!
+//! # 根の 2 つの概念（MOD-3、TASK-235 1/2）
+//!
+//! - [`root_of`]: 実体 ID（scope）の根。フラグ・効果の範囲・条件の評価はこの根の切り身に持つ。
+//! - [`owner_of`]: Step の状態（`status`）と選択（`choices`）の持ち主の根。呼び出しの Step（ある実体の `caller`）は、
+//!   呼ばれた実体の根が持ち主になる。つまり周回ごとの呼び出しの Step の状態は、その周回の切り身に入る。
+//!
+//! 状態・選択を書く箇所と読む箇所は、すべて同じ [`owner_of`] を通す。片方だけ変えると食い違う。
 //!
 //! # 静的な有向非巡回グラフの確認（TASK-233 2/2）
 //!
@@ -34,12 +41,24 @@ use crate::addr::{Root, StepUid};
 use crate::session::{RunState, Slice};
 use crate::step_status::StepStatus;
 
-/// Step の状態を書き読みする根を決める唯一の関数。
+/// 実体 ID（scope）の根。フラグ・効果・条件の評価の切り身を決める。
 ///
-/// 現在は Step の実体 ID の最後の `/` より前（[`StepUid::root`]）を返す。TASK-235・TASK-241 で呼び出しの Step の
-/// 持ち主の規則（`Instance::caller`）を入れるときは、ここだけを差し替える。
+/// Step の実体 ID の最後の `/` より前（[`StepUid::root`]）を返す。Step の状態・選択の持ち主は [`owner_of`] で決める。
 pub fn root_of(uid: &StepUid) -> Root {
     uid.root()
+}
+
+/// Step の状態（`status`）と選択（`choices`）の持ち主の根（MOD-3）。
+///
+/// `Instance::caller` がこの Step の `uid` である実体があれば、IR の順で最初のその実体の根を返す。無ければ [`root_of`] と同じ。
+/// 1 回の線形探索でたどらないので、巡回・重複を含む IR でも止まり決定的である（全域）。
+/// 呼び出し元は `transit`・`accept`・`confirm`・`env_input`・`Session` の書き読みで、web の読み取りもこれを通す。
+pub fn owner_of(ir: &Ir, uid: &StepUid) -> Root {
+    ir.instances
+        .iter()
+        .find(|i| i.caller.as_deref() == Some(uid.0.as_str()))
+        .map(|i| Root(i.id.clone()))
+        .unwrap_or_else(|| root_of(uid))
 }
 
 /// IR の実体の根を IR の順に並べて返す（重複は除く。章の実体 `main` を含む）。
@@ -60,19 +79,19 @@ pub fn slice_of<'a>(run: &'a RunState, root: &Root) -> Option<&'a Slice> {
 }
 
 /// Step の実体の状態。未登録は `NotStarted`。
-pub fn status_of(run: &RunState, uid: &StepUid) -> StepStatus {
-    slice_of(run, &root_of(uid))
+pub fn status_of(ir: &Ir, run: &RunState, uid: &StepUid) -> StepStatus {
+    slice_of(run, &owner_of(ir, uid))
         .and_then(|slice| slice.status.get(uid))
         .copied()
         .unwrap_or_default()
 }
 
-/// 根に属する Step の実体を IR の順に返す。
+/// 根が状態を持つ Step の実体（呼び出しの Step を含む）を IR の順に返す。
 pub fn steps_of(ir: &Ir, root: &Root) -> Vec<StepUid> {
     ir.nodes
         .iter()
         .map(|node| StepUid(node.uid.clone()))
-        .filter(|uid| &root_of(uid) == root)
+        .filter(|uid| &owner_of(ir, uid) == root)
         .collect()
 }
 

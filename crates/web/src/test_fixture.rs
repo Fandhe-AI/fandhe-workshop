@@ -669,6 +669,7 @@ fn start_state_at(node: &str) -> Option<SessionState> {
     let to = serde_json::to_string(node).ok()?;
     let text = serde_json::to_string(initial).ok()?.replace(&from, &to);
     let mut state: SessionState = serde_json::from_str(&text).ok()?;
+    // 開始の節点は `use` の Step にしない前提で、切り身の鍵は `uid.root()` で足りる（呼び出しの Step の持ち主は `owner_of`。MOD-3）。
     // 切り身の鍵は Step の実体の根（`main` か、入れ子の実体の ID）。節点が `main` の外にあるときは鍵も合わせる
     // （合わせないと、開始の Step の状態を引けず、入力が受け付けられない）。
     let uid = StepUid(node.to_owned());

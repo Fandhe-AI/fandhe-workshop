@@ -179,8 +179,7 @@ mod tests {
         let cur = session.state().run.current.clone().unwrap();
         assert_eq!(cur.0, "main/st-0-1");
         assert_eq!(session.state().run.generation.0, 1);
-        let slice = session.state().run.slices.get(&cur.root()).unwrap();
-        assert_eq!(slice.status.get(&cur), Some(&StepStatus::Entered));
+        assert_eq!(session.step_status(&cur), StepStatus::Entered);
         assert_eq!(
             session.state().entry.as_ref().unwrap().run,
             session.state().run

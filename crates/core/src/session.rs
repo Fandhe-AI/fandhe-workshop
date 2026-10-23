@@ -388,7 +388,8 @@ impl Session {
             current: Some(uid.clone()),
             ..RunState::default()
         };
-        run.slices.insert(crate::instance::root_of(&uid), slice);
+        run.slices
+            .insert(crate::instance::owner_of(&ir, &uid), slice);
         let state = SessionState {
             entry: Some(EntryCopy {
                 run: run.clone(),
@@ -455,7 +456,7 @@ impl Session {
 
     /// Step の実体の状態。未登録は `NotStarted`。
     pub fn step_status(&self, uid: &StepUid) -> StepStatus {
-        instance::status_of(&self.state.run, uid)
+        instance::status_of(&self.ir, &self.state.run, uid)
     }
 
     /// 実体の根に属する Step の実体を IR の順に返す。
