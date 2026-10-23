@@ -1,0 +1,8 @@
+id: GUIDE4-2
+package: fandhe-workshop-pack
+test: guide4_defects
+target: crates/pack/src/guidance.rs
+find:         .filter(|l| *l != GuidanceLevel::A)
+replace:         .filter(|_| false)
+expect-fail: guide4_leak_via_start_guidance_only_detected
+note: 開始点の水準の経路が空になる

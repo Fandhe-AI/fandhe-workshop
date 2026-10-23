@@ -1,0 +1,8 @@
+id: GUIDE4-3
+package: fandhe-workshop-pack
+test: guide4_defects
+target: crates/pack/src/guidance.rs
+find:             if !st.body_levels.is_empty() {
+replace:             if false {
+expect-fail: guide4_leak_via_body_levels_only_detected
+note: body_levels の経路が使われなくなる
