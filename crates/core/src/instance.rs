@@ -307,8 +307,34 @@ fn topological_order(ir: &Ir, edges: &[(Root, Root)]) -> Result<Vec<Root>, Insta
     if order.len() == roots.len() {
         return Ok(order);
     }
-    let left = roots.iter().find(|r| !order.contains(r));
+    // 残りには巡回の下流の実体も含まれる。残りの辺の上で自分へ戻れる実体だけを巡回の構成員とする。
+    let left: BTreeSet<&Root> = roots.iter().filter(|r| !order.contains(r)).collect();
+    let on_cycle = roots
+        .iter()
+        .find(|r| left.contains(r) && returns_to_self(r, edges, &left));
+    // 並べ切れなかった残りは必ず巡回を含むので `on_cycle` は見つかる。見つからない場合も全域に保つ。
+    let picked = on_cycle.or_else(|| left.iter().next().copied());
     Err(InstanceGraphError::Cycle {
-        instance: left.map(|r| r.0.clone()).unwrap_or_default(),
+        instance: picked.map(|r| r.0.clone()).unwrap_or_default(),
     })
+}
+
+/// `start` から `within` の中の辺をたどって `start` に戻れるか（深さ優先。訪問済みを持つので有限で止まる）。
+fn returns_to_self(start: &Root, edges: &[(Root, Root)], within: &BTreeSet<&Root>) -> bool {
+    let mut seen: BTreeSet<&Root> = BTreeSet::new();
+    let mut stack: Vec<&Root> = vec![start];
+    while let Some(cur) = stack.pop() {
+        for (parent, child) in edges {
+            if parent != cur || !within.contains(child) {
+                continue;
+            }
+            if child == start {
+                return true;
+            }
+            if seen.insert(child) {
+                stack.push(child);
+            }
+        }
+    }
+    false
 }

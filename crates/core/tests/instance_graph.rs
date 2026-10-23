@@ -196,6 +196,32 @@ fn self_call_is_a_cycle() {
 }
 
 #[test]
+fn cycle_reports_a_member_not_a_downstream_instance() {
+    // IR の順は main, c, a, b。辺は a→b・b→a・a→c。c は巡回の下流で構成員ではない。
+    let ir = ir(
+        &[
+            ("main", None, None),
+            ("c@x", Some("c"), Some("a@x/a1")),
+            ("a@x", Some("a"), Some("b@x/b1")),
+            ("b@x", Some("b"), Some("a@x/a1")),
+        ],
+        &[
+            N("main/u1", "main", None, None),
+            N("c@x/c1", "c@x", None, None),
+            N("a@x/a1", "a@x", None, None),
+            N("b@x/b1", "b@x", None, None),
+        ],
+        &[],
+    );
+    assert_eq!(
+        instance_graph(&ir),
+        Err(E::Cycle {
+            instance: "a@x".into()
+        })
+    );
+}
+
+#[test]
 fn three_instance_ring_is_a_cycle() {
     let ir = ir(
         &[
