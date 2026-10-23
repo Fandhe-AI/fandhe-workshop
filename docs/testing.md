@@ -7617,3 +7617,16 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 限界: 段の中身（場所・道具の名前・完全なコマンド）の意味と教育上の適切さは確かめない（GUIDE-8 は検討中）。答えの照合は部分文字列の包含の近似である。`fandhe-pack test` は未実装（TASK-404）で、呼び出し元は試験だけである。プロトタイプの教材は private の submodule にあるため、一時ディレクトリの教材で確かめた。
 - spec 側の差分の案（spec repo の作業。自動運転のため人の承認は得ていない）: GUIDE-8 の証拠の種類「自動テスト（native。構造のみ）」を本節に結びつける。INTRO-39 の「3 段が揃わない Step を教材テストが検出するかは記録に無い」を、宣言どおりの段数でない Step を報告できる、に更新する。
+
+### 5.258 前の周回の切り身とフラグの分離（TASK-235 2/2。MOD-3）
+
+- 目的: 2 周目を終えた後も、1 周目の切り身が 2 周目の開始の前と同じで、1 周目のフラグが 2 周目の実体の切り身で立たないことを固定する。
+- 決定: エンジンのコードは変えず、試験だけで固定した。事前の調査で、現行の実装は 1 周目の切り身を変えないことを確かめている。
+- 試験: `crates/pack/tests/round_slice_init.rs`。`finish_round2` が `pt-rounds` の `s-r2` の区間と同じ入力列で 2 周目を終える。
+  - `first_round_slices_are_unchanged_after_the_second_round_ends`: 1 周目の各根の切り身が `==` で同じで、1 周目の全 Step が `Achieved` のまま、呼び出しの Step の状態が `main` に入らない。
+  - `first_round_flags_are_not_set_in_second_round_instances`: 2 周目の `issue-to-merge` のフラグは `precheck_ok` だけ（`stopped` なし）、`idea-cycle` は `revised` だけ。1 周目の `stopped`・`precheck_ok`・`variant_miss` は立ったまま。2 周目の操作が出した `Event::Flag` の範囲がすべて 2 周目の根。1 周目の `variant_miss` と `precheck_ok` は、2 周目の受付が同じ名前を扱うため、根の取り違えを検出できる。
+  - `second_round_end_matches_the_playthrough_asserts`: `pt-rounds` の `asserts` の写し。
+- 限界: 後続の部品が未実装のため、`GoTo` を 3 か所で使う。(1) 開始（`Control::Begin` は TASK-237 1/2）、(2) `idea-cycle@round2` の `st-2-5` の手前から `st-2-6` へ（遷移先の `on_enter` の効果を適用しないため）、(3) `issue-to-merge@round2` の `st-7-2` から `st-7-4` へ（`wait` の Step で処理中が始まらないため）。2 周目の終了は、最後の Step と呼び出し元の達成で判定する（`ChapterCompleted` は未実装）。`st-7-4` の受付で `Warning` が出るが、表明しない。
+- 変異注入: `MOD3-2`（`root_of` が周回の接尾を落として根を混ぜる）。2026-10-23 に `scripts/check-mutations.sh crates/pack/tests/mutations/MOD3-2.mutation` は DETECTED（期待した試験を含む 6 件が失敗）。
+- 範囲外: `when` つきの `next` の評価・着地の `on_enter`・`wait` の自動開始、`Control::Begin`、3 つのハッシュの一致（TASK-237）、`Checkpoint.owner` の範囲（TASK-241）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。

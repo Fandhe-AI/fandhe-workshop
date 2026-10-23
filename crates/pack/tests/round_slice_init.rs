@@ -4,15 +4,22 @@
 //! 2 周目の開始点へ入ったとき、2 周目の根の Step が現在の Step と呼び出しの Step を除きすべて `NotStarted` で、
 //! フラグが空であることを確かめる。2 周目の根は IR の開始点と実体の呼び出し元から導き、実体 ID を直書きしない
 //! （1 周目のフラグを立てる実体だけ、spec の例の名前 `issue-to-merge@round1` を使う）。
-//! 2 周目の終了後に 1 周目の切り身が不変であることは TASK-235 2/2 が持つ。
+//!
+//! TASK-235 2/2 として、2 周目を入力で終えた後も 1 周目の切り身が 2 周目の開始の前と同じで、1 周目のフラグが
+//! 2 周目の実体の切り身で立たないことも確かめる。2 周目の入力列は `pt-rounds` の `s-r2` の区間と同じである。
+//! 次の 2 か所は後続の部品が未実装のため、入力で進めず `GoTo` で飛ばす（`docs/testing.md` の 5.258）。
+//! (1) 遷移先の `on_enter` の効果を適用しない（`idea-cycle@round2` の結果の文書が世界状態に無い）ので、
+//! `st-2-5` の手前から `st-2-6` へ飛ぶ。(2) `wait` の Step で処理中が始まらないので、`st-7-2` から `st-7-4` へ飛ぶ。
+//! 2 周目の終了は、最後の Step の達成と呼び出し元の達成で判定する（`ChapterCompleted` は未実装）。
 
 mod common;
 
 use common::testdata;
 use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::addr::{Root, StepUid};
-use fandhe_workshop_core::input::{Control, Op};
-use fandhe_workshop_core::instance::owner_of;
+use fandhe_workshop_core::addr::{Root, StepUid, TickAddr};
+use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::input::{Control, Decision, Input, Op};
+use fandhe_workshop_core::instance::{owner_of, root_of};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{Session, SessionState};
@@ -82,6 +89,11 @@ fn finished_round1(ir: &Ir, r1: &[Root]) -> Session {
     let slice = state.run.slices.entry(stopper.clone()).or_default();
     slice.flags.insert("stopped".into());
     slice.flags.insert("precheck_ok".into());
+    // 2 周目の受付が同じ名前を消す・立てるので、根の取り違えを検出できるよう 1 周目の側にも置く。
+    // 根は実体 ID の文字列ではなく、当の Step の uid から `root_of` で引く。
+    let cycle_step = step_in(ir, r1, "st-2-4");
+    let cycle = state.run.slices.entry(root_of(&cycle_step)).or_default();
+    cycle.flags.insert("variant_miss".into());
     // 移動の元になる現在の Step は、1 周目の最後の呼び出しの Step に置く。
     state.run.current = steps(ir, r1)
         .into_iter()
@@ -155,4 +167,174 @@ fn second_round_starts_with_only_the_current_and_call_steps_entered() {
         .find(|r| r.0.starts_with("issue-to-merge"))
         .unwrap();
     assert!(s.slice(stopper).unwrap().flags.contains("stopped"));
+}
+
+/// 周回の根の集まりから、末尾が `/<id>` の Step を引く。
+fn step_in(ir: &Ir, roots: &[Root], id: &str) -> StepUid {
+    let suffix = format!("/{id}");
+    steps(ir, roots)
+        .into_iter()
+        .find(|u| u.0.ends_with(&suffix))
+        .unwrap_or_else(|| panic!("step {id}"))
+}
+
+fn go(s: &mut Session, ev: &mut Vec<Event>, ir: &Ir, roots: &[Root], id: &str) {
+    let to = step_in(ir, roots, id);
+    ev.extend_from_slice(s.apply(Op::Control(Control::GoTo(to))));
+}
+
+fn input(s: &mut Session, ev: &mut Vec<Event>, i: Input) {
+    ev.extend_from_slice(s.apply(Op::Input(i)));
+}
+
+fn tick(s: &mut Session, ev: &mut Vec<Event>) {
+    let run = &s.state().run;
+    let addr = TickAddr {
+        generation: run.generation,
+        step: run.current.clone().expect("current"),
+        index: run.busy.as_ref().expect("busy").done,
+    };
+    ev.extend_from_slice(s.apply(Op::Tick(addr)));
+}
+
+fn current(s: &Session) -> String {
+    s.state().run.current.clone().expect("current").0
+}
+
+/// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `GoTo`（`Control::Begin` は TASK-237 1/2）。
+/// 入力列は `pt-rounds` の `s-r2` の区間。飛ばす 2 か所の理由は冒頭の `//!` に書いた。
+fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root], call_node: &str) -> Vec<Event> {
+    let mut events = Vec::new();
+    let ev = &mut events;
+    let cmd = |c: &str| Input::Command(c.into());
+    let ui = |v: &str, p: &str| Input::Ui {
+        view: v.into(),
+        path: p.into(),
+    };
+    let ch = |c: &str| Input::Choice(c.into());
+    let ap = |d: Decision, t: Option<&str>| Input::Approval {
+        decision: d,
+        target: t.map(Into::into),
+    };
+    ev.extend_from_slice(s.apply(Op::Control(Control::GoTo(StepUid(call_node.into())))));
+    input(s, ev, cmd("/new-idea bbs-search"));
+    input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
+    input(
+        s,
+        ev,
+        Input::Text(
+            "ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい".into(),
+        ),
+    );
+    for _ in 0..3 {
+        tick(s, ev);
+    }
+    input(s, ev, ch("ans-login-first"));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-doc", "ideas/bbs-search/README.md#status"));
+    input(s, ev, ch("cand-session"));
+    go(s, ev, ir, r2, "st-2-6");
+    input(s, ev, ap(Decision::Revise, Some("expect")));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-tasks", "TASK-1"));
+    input(s, ev, ch("ans-login-1"));
+    input(s, ev, ap(Decision::Approve, None));
+    input(s, ev, ui("v-doc", "ideas/bbs-search/README.md#status"));
+    assert!(
+        current(s).ends_with("/st-3-2"),
+        "after idea-cycle: {}",
+        current(s)
+    );
+    input(s, ev, ch("diff-only"));
+    input(s, ev, ui("v-files", "impl/docs/behavior-bbs-search.md"));
+    input(s, ev, cmd("/create-issue-tree behavior-bbs-search.md"));
+    input(s, ev, ui("v-issue-tree", "issues/child-9"));
+    input(s, ev, cmd("/implement-issue-tree 43 --external-checks []"));
+    input(s, ev, ch("ans-none-explicit"));
+    go(s, ev, ir, r2, "st-7-4");
+    input(s, ev, ui("v-pr-cards", "prs/pr-2-a"));
+    input(s, ev, ui("v-pr-cards", "prs/pr-2-a#merge"));
+    input(s, ev, ui("v-issue-tree", "issues/child-9"));
+    events
+}
+
+/// 1 周目の根ごとの切り身（すべて存在する）。
+fn slices_of(s: &Session, roots: &[Root]) -> Vec<(Root, fandhe_workshop_core::session::Slice)> {
+    roots
+        .iter()
+        .map(|r| (r.clone(), s.slice(r).cloned().expect("round 1 slice")))
+        .collect()
+}
+
+fn flags_of(s: &Session, ir: &Ir, roots: &[Root], id: &str) -> Vec<String> {
+    let root = root_of(&step_in(ir, roots, id));
+    s.slice(&root)
+        .map(|sl| sl.flags.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn first_round_slices_are_unchanged_after_the_second_round_ends() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, call) = round_roots(&ir, "s-r2");
+    let mut s = finished_round1(&ir, &r1);
+    let before = slices_of(&s, &r1);
+    finish_round2(&mut s, &ir, &r2, &call);
+    assert_eq!(current(&s), "main/r2-impl");
+    assert_eq!(slices_of(&s, &r1), before);
+    for u in steps(&ir, &r1) {
+        assert_eq!(s.step_status(&u), StepStatus::Achieved, "{}", u.0);
+    }
+    // 呼び出しの Step の状態は終了の時点でも `main` の切り身に無い。
+    let main = s.slice(&Root("main".into()));
+    for c in ["main/r2-idea", "main/r2-impl"] {
+        assert_eq!(s.step_status(&StepUid(c.into())), StepStatus::Achieved);
+        assert!(main.is_none_or(|sl| !sl.status.contains_key(&StepUid(c.into()))));
+    }
+}
+
+#[test]
+fn first_round_flags_are_not_set_in_second_round_instances() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, call) = round_roots(&ir, "s-r2");
+    let mut s = finished_round1(&ir, &r1);
+    let ev = finish_round2(&mut s, &ir, &r2, &call);
+    // 2 周目の切り身には、2 周目の受付が立てたものだけがある（`stopped` は無い）。
+    assert_eq!(flags_of(&s, &ir, &r2, "st-7-1"), vec!["precheck_ok"]);
+    assert_eq!(flags_of(&s, &ir, &r2, "st-2-4"), vec!["revised"]);
+    // 1 周目のフラグは立ったまま。
+    assert_eq!(
+        flags_of(&s, &ir, &r1, "st-7-3"),
+        vec!["precheck_ok", "stopped"]
+    );
+    assert_eq!(flags_of(&s, &ir, &r1, "st-2-4"), vec!["variant_miss"]);
+    // 2 周目の操作が出したフラグの変化は、すべて 2 周目の根に付く。
+    let r2_scopes: Vec<String> = r2.iter().map(|r| r.0.clone()).collect();
+    let mut seen = 0;
+    for e in &ev {
+        if let Event::Flag { scope, .. } = e {
+            seen += 1;
+            assert!(r2_scopes.contains(scope), "flag event in {scope}");
+        }
+    }
+    assert!(seen > 0, "round 2 raised no flag events");
+}
+
+#[test]
+fn second_round_end_matches_the_playthrough_asserts() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, call) = round_roots(&ir, "s-r2");
+    let mut s = finished_round1(&ir, &r1);
+    finish_round2(&mut s, &ir, &r2, &call);
+    let st = |ro: &[Root], id: &str| s.step_status(&step_in(&ir, ro, id));
+    assert_eq!(st(&r1, "st-7-3"), StepStatus::Achieved);
+    assert_ne!(st(&r2, "st-7-3"), StepStatus::Achieved);
+    assert_eq!(st(&r1, "st-4-1"), StepStatus::Achieved);
+    assert_eq!(st(&r2, "st-4-1"), StepStatus::NotStarted);
+    assert_eq!(st(&r2, "st-5-1"), StepStatus::NotStarted);
+    assert_eq!(st(&r2, "st-7-4"), StepStatus::Achieved);
+    assert_eq!(st(&r2, "st-2-8"), StepStatus::Achieved);
 }
