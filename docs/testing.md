@@ -7504,6 +7504,20 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 実行結果（2026-10-23。Linux）: 上の native 試験 8 件が通った。既存の試験は無改変で通る（最終の確認は PR の CI）。
 - 範囲外: 呼び出しの Step の持ち主の規則（TASK-235・TASK-241）、web の残りの `StepUid::root` の直呼び（`next_chapter.rs`・`start_select.rs`・`step_status.rs`・`glue.rs` と試験の部品。core と web の `offers.rs` は `root_of` に寄せ済み）の置き換え、実体数・Step の実体数・開始数の照合（TASK-233 2/2）。
 
+### 5.250 隠す語の検査の 4 種類の欠陥（TASK-300 1/2。GUIDE-4）
+
+- 目的: 隠す語の検査（`E-GUIDANCE-LEAK`）とその周辺の検査が、PoC-3 の欠陥 D20〜D23 に相当する 4 種類を期待のコード・ファイル・項目で検出することを固定する。
+- 試験: `crates/pack/tests/guide4_defects.rs`。D20〜D23 は `testdata/pack-defects/v1_1/b/` を写さずに読み、4/4 を確かめる（D22 は GUIDE-2 の `E-HINT-HIDDEN`。GUIDE-4 の証拠ではない）。補助の欠陥 G01〜G03（`testdata/pack-defects/guide4/b/`）が、`do`・開始点の水準だけ・`body_levels` だけの 3 経路を単独で確かめる（4 種類の外）。漏れの検査は `validate` だけで、`compile` は通ること、診断に隠す語を写さないことも確かめる。
+- 変異（2026-10-23。元にしたコミット 8532507。`scripts/check-mutations.sh crates/pack/tests/mutations/GUIDE4-{1,2,3}.mutation`）:
+
+| ID | 内容 | 結果 |
+|---|---|---|
+| GUIDE4-1 | `guidance.rs`: `do` の漏れの判定を常に偽にする | DETECTED（`guide4_leak_in_do_detected`） |
+| GUIDE4-2 | `guidance.rs`: 開始点の水準の経路を空にする | DETECTED（`guide4_leak_via_start_guidance_only_detected`） |
+| GUIDE4-3 | `guidance.rs`: `body_levels` の経路を使わない | DETECTED（`guide4_leak_via_body_levels_only_detected`） |
+
+- 限界: 教材の作成者と検査器の作成者が同じ AI である。語の一致は部分文字列の近似である。モジュールの経路は欠陥パックにせず `guidance_levels.rs` が担当する。CLI の `validate` / `test` は未実装（TASK-404）のため、ライブラリの `validate_dir` で確かめた。GUIDE-5 の限界 3 項目は #596 の担当。人の確認は得ていない。
+
 ### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
 
 - 目的: 教材全体が、モジュールの実体を静的に並べた有向非巡回グラフとして IR に載ることと、実体数・Step の実体数・開始数が教材の定義と一致することを固定する。
