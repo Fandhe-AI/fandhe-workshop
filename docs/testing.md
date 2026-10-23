@@ -409,7 +409,7 @@ TERM28-2 は表示名つきの候補をボタンにしない変異で、どち�
 ```text
 実行日: 2026-10-23
 元にしたコミット: fc777b1-dirty（本変更を含む作業ツリー）
-コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM27-2.mutation crates/web/tests/mutations/TERM28-1.mutation crates/web/tests/mutations/TERM28-2.mutation
+コマンド: scripts/check-mutations.sh crates/web/tests/mutations/TERM27-2.mutation crates/web/tests/mutations/TERM28-1.mutation crates/web/tests/mutations/TERM28-2.mutation crates/web/tests/mutations/TERM29-1.mutation
 ```
 
 | ID | 対象 | 期待した失敗 | 実際に失敗した試験 | 結果 | 性質テストの種・ケース数・最小の反例 |
@@ -417,6 +417,7 @@ TERM28-2 は表示名つきの候補をボタンにしない変異で、どち�
 | TERM27-2 | crates/web/src/offers.rs: 対象つきのボタンを出さない（find を更新） | 入力の段は三つと対象の数だけのボタンが出る | 左の 1 件に加え、重複・太い形・拒否・エスケープの複数件 | DETECTED | - |
 | TERM28-1 | crates/web/src/offers.rs: 対象つきの直すの文字を ID にする | 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る | 左の 1 件に加え、表示名の逃がしの 1 件 | DETECTED | - |
 | TERM28-2 | crates/web/src/offers.rs: 表示名つきの候補をボタンにしない | 候補の数だけ対象つきのボタンが出て_文字は表示名で_id_は属性だけに出る | 左の 1 件に加え、逃がし・誤った候補の押下の 2 件 | DETECTED | - |
+| TERM29-1 | crates/web/src/offers.rs: 候補が 0 件の承認の Step（再承認の Step）でボタンを出さない | 差し戻しの後は再承認の_step_で三つが出て_はいで進み_直すといいえは拒否になる | 同左（1 件） | DETECTED | - |
 
 ### 5.3.1g 承認の操作のログ文言と CH-2 相当の完走（TASK-447 2/2）
 
@@ -8034,4 +8035,29 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
   - 操作のログの行 `承認の操作: 直す（対象: <ID>）` は選んだ候補の ID を出したままである（`crates/web/src/log_lines.rs`。`log-id-hits` は観察値で assert していない）。ログの契約・L1/L2 の一致に波及するため本件では直さず、範囲外として報告した（5.271 と同じ種類）。
   - ST-2.6 は本物の教材（教材 repo の持ち分）ではなく、CH-0〜CH-3 の形の試験用の教材の変種で確かめた。開始点からの直接の起動は前の Step の効果を持たない（5.199 と同じ限界）。
   - 差し戻し → 再承認の画面の流れは TASK-448 2/2 が担う。試験の件数の期待値は更新していない（5.268 の方針）。
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
+
+### 5.276 差し戻しの後の再承認の画面（TASK-448 2/2。TERM-28・TERM-29・JUDGE-11・PACK-32）
+
+- 目的: D-69（2026-10-21）の形、すなわち差し戻しの Step と再承認の Step を分けて `next` でつなぐ教材で、差し戻し → 再承認が承認の部品と ST-2.6 の画面で進むことを確かめる。判定は core（TASK-265 の `judge11_reapproval_is_judged_in_a_separate_step`）、教材の形は pack（TASK-62 の `approval_revise_split`）で済んでいる。本件は画面の結果を確かめる。製品コードは変えていない。
+- 期待と定義の対応: TERM-29（再承認の Step で「はい」が進み、「直す」「いいえ」は拒否になる）・TERM-28（誤った候補は拒否）・JUDGE-11・PACK-32。
+- 構成:
+  - `crates/web/src/test_fixture.rs`・`host.rs`: `load-fixture:approval-reapprove`（min-3step の st-1 が候補 3 件の差し戻し、st-2 が候補なしの再承認）と `?fixture=ch0-3-reapprove`（ST-2.6 に候補 3 件と開始点 `s-2-6` を足し、直後に再承認の Step `main/st-2-6b` を挿入した変種）。いずれも `test-hooks` のときだけ。配信する設定の wasm に名前が無いことを確認した。単体試験で、完全一致でだけ選ばれることと IR の形を固定した。
+  - `crates/web/tests/approval_buttons.rs`: 差し戻しの後は再承認の Step へ移り、3 件（対象つき 0 件）が出て、「直す」「いいえ」は拒否でボタンが残り、「はい」で次へ進む試験（feature なし）と、`load-fixture` 版の 1 件。
+  - `tools/browser/approval-reapprove.test.mjs`（新設。`scripts/test-browser.sh` に登録）: 承認の部品と ST-2.6 を CSP あり・なしで流す（4 件）。段の判別は `stateJson().engine.current` で行う。ST-2.6 は確認の段（`confirm: approve`）を経て再承認の Step へ進み、そこで再読み込みしても同じ Step・同じボタンに戻ることも確かめる。最後の Step は承認のボタンが 0 件。`collectSafety` が 0 件。
+  - 変異: TERM29-1（5.3.1f の表）。
+- 対照: 再承認の Step で「直す」「いいえ」が拒否になることが、「はい」で進む Step との対照になる。変異 TERM29-1 は候補 0 件の承認の Step でボタンを出さなくし、native の試験が失敗する。
+- 記録の様式（値・本文は出さない）:
+
+  ```text
+  REAPPROVE step=<節点> log-id-hits=<n>
+  ```
+
+- 実行結果（2026-10-23。元のコミット ecac279 に本変更を載せた作業ツリー）: 新しい試験 4 件がブラウザ（Chromium）で通過し、`approval-revise-labels`・`approval-buttons`・`approval-flow`・`ch0-3-run` の 14 件も通過した。native は `make test`・`cargo test -p fandhe-workshop-web --features test-hooks` が通過し、TERM29-1 は DETECTED。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。`make check-generic-words` の失敗 1 件（`crates/pack/src/guidance.rs:606`）は本件の前からある。
+- 限界:
+  - 本物の CH-2 ではなく、CH-0〜CH-3 の形の試験用の教材の変種で確かめた。開始点からの直接の起動は前の Step の効果を持たない（5.199 と同じ）。
+  - ST-4.1・ST-6.1 の再承認は TASK-672 で確かめる。
+  - 操作のログの行 `承認の操作: 直す（対象: <ID>）` は ID を出したままである（5.275 と同じ。`log-id-hits` は観察値で assert していない）。
+  - 試験の件数の期待値は更新していない（5.268 の方針）。
+  - 節番号は、open PR（#1769・#1772）が 5.273〜5.275 を使う見込みのため 5.276 とした。重なれば push の前に空き番号へ移す。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
