@@ -2,7 +2,7 @@ id: TERM27-2
 package: fandhe-workshop-web
 test: approval_buttons
 target: crates/web/src/offers.rs
-find: .filter(|t| !t.trim().is_empty())
-replace: .filter(|t| t.is_empty())
+find: .filter(|c| !c.id.trim().is_empty())
+replace: .filter(|c| c.id.is_empty())
 expect-fail: 入力の段は三つと対象の数だけのボタンが出る
 note: 対象つきの直すのボタンを出さない（規則に書かれた対象の数だけ出る受入を壊す。TERM-27）
