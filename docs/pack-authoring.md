@@ -620,10 +620,43 @@ views:
 - 同じ内容の教材パックは、何度 compile しても、別のディレクトリへ写しても、同じバイト列の IR になります。IR にパス・時刻・乱数は入りません
 - 診断が 1 件でもあるときは、ファイルを作りません。同じ名前のファイルが既にあっても書き換えません
 - 書き出せないとき（親のディレクトリが無い・既存のディレクトリを指すなど）は、`error:` の 1 行を標準エラー出力に出して終了コード 2 で終わります。一時ファイルへ書いてから置き換えるので、途中まで書いた IR は残りません
-- 配信物には `IR_FILE=<file> tools/build-web.sh` で入ります（`ir/main.json`）。配信の実装は TASK-109・TASK-121 の側です
+- 配信物には `IR_FILE=<file> tools/build-web.sh` で入ります（`ir/main.json`）。手元の画面で確かめる手順は、次の「compile した IR を手元の画面で確かめる」にあります。公開先への配信は TASK-121 の側です
 - 一部の章だけを配る試行用の IR は、`fandhe-pack compile <pack-dir> --chapters <章の id>[,<章の id>...] -o <file>` で作ります。選んだ章と、そこから呼ぶモジュールの実体だけが残り、範囲外の章の開始点は IR に入りません（PACK-43・D-67）。該当する章が無い・同じ id の章が 2 つ以上あるときは終了コード 2 です。教材パック全体の検査は絞らずに行います
 - 章の `next` は同じ章の中の Step だけを指せます。他の章の Step を指すと `validate` も `compile` も `E-REF-STEP` です。章をまたぐ移動は `next` ではなく、章ごとの開始点で表します
 - 外部仕様は `docs/cli.md` の 10 節（AUTHOR-8）です
+
+## compile した IR を手元の画面で確かめる（AUTHOR-21）
+
+compile した IR は、受講者に配る配信物の教材そのものです。手元でその配信物を開けば、受講者が見るのと同じ成果物の画面を、公開の前に確かめられます。
+
+前提: Rust・wasm のツールチェーンと Node が要ります。版と導入は `README.md` の「前提」と `docs/toolchain.md` を見てください。Rust を入れない端末で、1 回の操作の結果だけを手元で見る形（プレビュー）は未決です（AUTHOR-22・TASK-428）。この節の手順は、その形とは別です。
+
+手順:
+
+1. `target/debug/fandhe-pack validate <pack-dir>` が `OK:` になるまで直します
+2. `target/debug/fandhe-pack compile <pack-dir> -o <file>` で IR を作ります
+3. `IR_FILE=<file> tools/build-web.sh release` で配信物を作ります。出力は既定で `dist/web` です（`OUT_DIR` で変えられます）。`TEST_HOOKS` は空のままにします。`TEST_HOOKS=1` の配信物は試験用の口を持つので、確かめにも配布にも使いません
+4. `node tools/serve.mjs --dir <出力> --base /<任意の名前>/` で配ります。待ち受けは 127.0.0.1 だけで、ポートの既定は 8765、gzip は有効です。`make serve` は既定の `dist/web` と `/subpath/` で同じことをします
+5. Chrome で `http://127.0.0.1:8765/<任意の名前>/` を開きます。`?ir` は付けません。誘導に従って最後まで進めます。各章の最初の Step で、「いまやること」と本文が出ます
+6. 章の開始点を直接開くときは、`/<任意の名前>/?start=<開始点 ID>` とします。ID は IR の `starts` の `id` です。開くと、その章の最初の Step の題と、入ったばかり（確認待ちでも達成でもない）の状態、上部の位置（`<章の ID>　Step 1 / K`）が出ます
+7. ID が `starts` と完全一致しないときは、開かずにコードだけを示します（`start_unknown`）。入れた値は画面に出ません。節の ID でも、開始点でなければ開きません（DLV-7・DLV-9・D-68）
+
+同じ成果物であることの根拠:
+
+- 配信物の `ir/main.json` は、compile の出力とバイト単位で同じです
+- 配信物は試験用の口を持たない配信する設定です
+- 受講者に配る配信物も、同じ作り方で作ります。違うのは配信元（手元の 127.0.0.1 か、公開先か）だけです。公開先への配信（`deploy.yml`）は未実装（TASK-121）です
+
+注意:
+
+- 保存済みの履歴はオリジンごとに分かれます。手元の確認の履歴は公開先に持ち越されません
+- 同じ教材を開き直すと、続きから始まることがあります。最初から確かめるときは、新しいブラウザの文脈（シークレットウィンドウなど）で開きます
+
+限界:
+
+- 本文の確認は自動ブラウザによる AI の代理であり、人の作成者が画面を確かめた記録は含みません
+- 試験は試験用の教材（`crates/web/tests/data/ch0_3_pack`）で行いました。本物の CH-0〜CH-3 での流し直しは未実施です
+- 根拠の試験は `tools/browser/author-preview.test.mjs`（`docs/testing.md` 5.292・5.297）です
 
 ## 案内レベル（`guidance`・`body_levels`・`do_levels`・ヒントの `levels`）
 
@@ -720,3 +753,4 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` | 入力も `use` も確認も無い終端でない Step が章・モジュールの定義ごとに 1 件の `E-STRUCTURE` になること（`validate`・`compile`・CLI）。終端・入力ありの Step は拒否されず、確認だけの Step は診断が重ならないこと（PACK-19、#1709） |
 | `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
 | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` | 誤答の拒否文で前後の切り替えを案内する教材が新しい語彙の版の宣言なしで `validate` を通ること、誤答が案内つきの拒否になり Step が受付のまま達成にならないこと、`answer` に比較のビューを結ぶ欄を足すと `E-PARSE` になること（PACK-36・D-69） |
+| `tools/browser/author-preview.test.mjs` | compile した IR の配信物での完走（P1〜P5・B・C・D）と、章の開始点への直接リンク（E）。開始点 4 件が章の最初の Step の題・状態・位置で開き、開始点でない値は開かないこと（AUTHOR-21。`docs/testing.md` 5.292・5.297） |

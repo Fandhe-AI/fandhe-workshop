@@ -18,9 +18,14 @@
 //      「いまやること」と本文が出る。章の境目で「次の章へ進む」がちょうど 1 個。配信元以外への通信・ページ内エラー 0 件。
 //   C  DOM の観察の較正。試験の設定へ同じ IR を入れ、各時点で DOM が stateJson と一致し、1 Step 先・別の状態を示さない。
 //   D  負の対照。本文を隠す・do を書き換えると、先頭の Step の確認が不合格になる。
+//   E  章の開始点への直接リンク（CSP あり・なし。TASK-427 2/2）。配信物（meta のある配信する設定）を `?start=<開始点 ID>` で新しい文脈に開くと、
+//      開始点 4 件それぞれで、その章の最初の Step の題・入ったばかりの状態（確認待ちでも達成でもない）・上部の位置・いまやることと本文が出る。
+//      `s-0-1` は既定の開始点と同じ節点なので `?start=` が効いている証拠にならない。効きを区別できるのは `s-1-1`・`s-2-1`・`s-3-1`。
+//      負の対照: 固定の文字列と、節点ではあるが開始点でない ID（`s-1-2`）は開かず、コードだけの通知が出て値は画面に出ない。
 //
 // 確かめないこと:
-//   - 章の開始点への直接リンクと作成者向けの文書（TASK-427 2/2）
+//   - 直接リンクを開いた後の再読み込み（direct-link-reload が持つ。5.204）。章 A の履歴があるときの章 B のリンク（direct-link-roundtrip。5.206）
+//   - 断りの網羅（大文字・`../`・重複など。direct-link-start が持つ。5.199）
 //   - 本物の CH-0〜CH-3（TASK-643・TASK-642）
 //   - キーボードだけの完走（ch0-3-run が持つ）。処理中の Esc による停止（5.117 の限界）
 //   - 人が作成者として画面を確かめた記録（仕様が「含まない」と定める）
@@ -39,7 +44,7 @@ import {
 } from './harness.mjs';
 import { ledger, mouseDriver, journey, install, engine } from './ch0-3-journey.mjs';
 import {
-  STEPS, ORDER, FIRST_STEPS, CHAPTER_ENDS, LAST, domObserver03, inspect, inspectFirstStep, summarizeIr, variantOf,
+  STEPS, ORDER, FIRST_STEPS, CHAPTER_ENDS, LAST, domObserver03, inspect, inspectFirstStep, summarizeIr, variantOf, startLinksOf, positionOf,
 } from './author-preview.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -177,6 +182,91 @@ for (const csp of [true, false]) {
     }));
     console.log(line);
     assert.deepEqual(failed, []);
+  });
+}
+
+const NOTICE = '[data-testid="ir-notice"]';
+const REFUSED_TEXT = '指定された開始点を開けませんでした。（start_unknown）';
+const SENTINEL = 'AUTHOR-START-SENTINEL';
+
+for (const csp of [true, false]) {
+  const mode = `CSP ${csp ? 'あり' : 'なし'}`;
+
+  test(`E: 章の開始点への直接リンクが、その章の最初の Step の題と状態で開く（${mode}）`, { timeout: 180000 }, async () => {
+    const ir = JSON.parse(irText);
+    const links = startLinksOf(ir);
+    assert.equal(links.length, FIRST_STEPS.length, 'start count');
+    assert.deepEqual(links.map((l) => l.node), FIRST_STEPS, 'starts follow FIRST_STEPS');
+    assert.equal(new Set(links.map((l) => l.id)).size, links.length, 'start ids are distinct');
+    const L = ledger();
+    const failedCount = () => L.items.filter((x) => !x.ok).length;
+    let linksOk = 0;
+    let refusedOk = 0;
+    let external = 0;
+    let pageErrors = 0;
+    await withCspMode({ dir: webDir, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      const open = async (query) => {
+        const o = await openPage(browser, { origin: srv.origin });
+        await o.page.goto(srv.url + query);
+        await waitMounted(o.page);
+        return o;
+      };
+      for (let i = 0; i < links.length; i += 1) {
+        const { id, node: uid } = links[i];
+        const scene = `リンク ${i + 1} ${id}`;
+        const { page, context, rec } = await open(`?start=${encodeURIComponent(id)}`);
+        try {
+          const before = failedCount();
+          L.check(scene, '配信物に試験用の口が無い', (await page.evaluate(() => typeof window.__fandheTest)) === 'undefined');
+          L.check(scene, '開始点の節点が入ったばかりで示される', (await inspect(page, uid, 'entered')).ok === true);
+          const next = ORDER[ORDER.indexOf(uid) + 1];
+          L.check(scene, '次の Step を示さない', (await inspect(page, next, 'entered')).ok === false);
+          for (const o of FIRST_STEPS.filter((u) => u !== uid)) {
+            L.check(scene, `ほかの章の開始点 ${o} を示さない`, (await inspect(page, o, 'entered')).ok === false);
+          }
+          for (const s of ['accepted', 'achieved']) L.check(scene, `${s} を示さない`, (await inspect(page, uid, s)).ok === false);
+          L.check(scene, '位置の文字', (await page.textContent(POSITION)) === positionOf(ir, uid));
+          const checks = await inspectFirstStep(page, stepDo(uid), STEPS.find(([u]) => u === uid)[1]);
+          for (const [name, ok] of checks) L.check(scene, name, ok);
+          L.check(scene, '通知が 0 件', (await page.locator(NOTICE).count()) === 0);
+          const got = rec.requests.filter((r) => new URL(r.url).pathname.endsWith('/ir/main.json'));
+          L.check(scene, 'ir/main.json が 200 で 1 回取得', got.length === 1 && got[0].status === 200);
+          const counts = await collectSafety(page, rec);
+          L.check(scene, '安全の計数がすべて 0', nonZero(counts).length === 0);
+          L.check(scene, '配信元以外への通信が 0 件', rec.external.length === 0);
+          L.check(scene, 'ページ内エラーが 0 件', rec.pageErrors.length === 0 && !rec.crashed);
+          L.check(scene, 'コンソールの error が 0 件', rec.consoleErrors.length === 0);
+          L.check(scene, 'コンソールの CSP 警告が 0 件', cspConsoleMessages(rec).length === 0);
+          external += rec.external.length;
+          pageErrors += rec.pageErrors.length;
+          if (failedCount() === before) linksOk += 1;
+        } finally {
+          await context.close();
+        }
+      }
+      // 負の対照: 固定の文字列と、節点だが開始点でない ID は開かず、コードだけの通知が出て値は出ない。
+      for (const [value, name] of [[SENTINEL, '固定の文字列'], ['s-1-2', '節点だが開始点でない ID']]) {
+        const scene = `断り ${name}`;
+        const { page, context, rec } = await open(`?start=${encodeURIComponent(value)}`);
+        try {
+          const before = failedCount();
+          L.check(scene, '通知が固定の文言とコードだけ', (await page.locator(NOTICE).innerText()) === REFUSED_TEXT);
+          L.check(scene, 'Step の題が 0 件', (await page.locator('[data-testid="step-title"]').count()) === 0);
+          const shown = await page.evaluate((v) => (document.body.textContent ?? '').includes(v) || document.title.includes(v), value);
+          L.check(scene, '値が画面とタイトルに出ない', shown === false);
+          if (value === 's-1-2') L.check(scene, 'main/st-1-2 の画面にならない', (await inspect(page, 'main/st-1-2', 'entered')).ok === false);
+          L.check(scene, 'ページ内エラーが 0 件', rec.pageErrors.length === 0 && !rec.crashed);
+          external += rec.external.length;
+          pageErrors += rec.pageErrors.length;
+          if (failedCount() === before) refusedOk += 1;
+        } finally {
+          await context.close();
+        }
+      }
+    }));
+    console.log(`AUTHOR-DIRECT-LINKS csp=${csp ? 'on' : 'off'} links=${linksOk}/${links.length} refused=${refusedOk}/2 external=${external} `
+      + `page-errors=${pageErrors} ledger=${L.items.filter((i) => i.ok).length}/${L.items.length}`);
+    assert.deepEqual(L.failed(), []);
   });
 }
 
