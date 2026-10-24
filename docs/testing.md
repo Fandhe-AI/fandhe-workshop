@@ -8406,7 +8406,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 最新のグループを畳まない理由: D-46 は「古い Step」を畳むとしていること、最新の変化を隠さないこと、最新の Step だけで 4,096 件を超える場合に安全弁（#678 の範囲）へ届くこと
 - 試験: `crates/web/tests/artifact_fold.rs` の 7 件（1,000 ちょうどで畳まない・1,001 で古い Step が要約になる・要約行に `data-path` などが無い・最新の Step だけなら畳まない・決定性・古い経路を新しい Step で変えた場合・`plan_fold_older` に `Head` が出ない）。`list_fold`・`view_select`・`list_limit` は変更なしで通過
 - 要確認（main に戻す）: 差分の hunk 単位の畳みは、決定 D-46 が触れていないため実装していない。最新の Step だけで 1,001〜4,096 行ある場合は目安を超えたまま出る（実装で決めた細目で、承認は得ていない）
-- 未実施: ブラウザ試験（`app-root` の非置換。`?fixture` の教材が要る）・変異注入の定義・要約行を開く操作・7 種のビューの本体を製品へ結線した後の見直し
+- 未実施: 要約行を開く操作・7 種のビューの本体を製品へ結線した後の見直し（ブラウザ試験と変異注入の定義は 5.294 で実施した）
 
 ### 5.292 compile した IR の手元の配信と CH-0〜CH-3 の完走（TASK-427 1/2。AUTHOR-21）
 
@@ -8470,3 +8470,17 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - CI は Chromium で流す。Chrome の原本で流すには `FANDHE_BROWSER_CHANNEL=chrome` を付ける（5.128）
 - DOM だけの観察の確かさは、較正 C に依る
 - 本物の教材での流し直しは未実施である
+
+### 5.294 左の成果物の 4,096 項目の安全弁のブラウザ試験（TASK-484 2/2。ART-14・FEND-22・D-46）
+
+- 実行日 2026-10-24。元にしたコミット `9e176db` の後の `origin/main`。Chromium（`SKIP_WASM_OPT` なし、`TEST_HOOKS=1` のビルド）
+- 細目: 製品のコード（`list_policy.rs`・`artifact_fold.rs`・`engine_parts.rs`）は変えていない。試験の設定だけの開始状態 4 種を足した（`test_fixture.rs`）。`?fixture=artifact-limit-4095`・`-4096`・`-4097` は世界状態の経路を今の Step の印で 1 本のランとして開始状態のログへ積み（畳まれず安全弁まで届く）、`?fixture=artifact-fold` は古い Step の 1,100 件と今の Step の 40 件を積む。`pack.id` は `artifact-limit` で既定と分け、件数は固定の 3 値だけで任意の数は受けない。`Session::from_state` の呼び出しは 1 か所のまま（`session_with_log`）
+- 試験: `tools/browser/artifact-limit.test.mjs` の 5 件（約 5.5 秒）
+  - A: 4,095・4,096 件は状態の行なし。4,097 件は `li` 4,096 件（データ行 4,095 件と、最後の `li[data-list-limit="4097"]` 1 件）で、文言は「上限超過: 先頭 4,095 件だけ表示（全 4,097 件）」、`data-event` なし、親に `data-list-limit` と `data-bind-list`、`data-list-error`・`data-fold` は 0 件、先頭と末尾のデータ行が辞書順の先頭 4,095 件の両端
+  - B: 4,095 から 4,096、4,096 から 4,097 へ入力で境目をまたいでも、`#app` の子の取り除きが 0 回で、根・部品の枠・選ばれたビューの親が同じ要素のまま
+  - C: 古い Step の行が 1,100 件ある教材は `li` が 1,000 件以下に畳まれ、要約行は `data-path` を持たず、入力の前後でも root が置き換わらない
+  - 全件で CSP 違反・ページ内エラー・コンソールのエラー・安全性の観察が 0 件
+- native: `test_fixture.rs` の単体の試験 4 件（選択の完全一致・件数と鍵・境目の描画と入力後の同じラン・畳み）
+- 変異注入: `ART14-1`（`engine_parts.rs` の選ばれたビューの行を黙って 4,096 行に切る）が `view_select` の上限超過の試験で DETECTED
+- 要確認（main に戻す）: ART-14 の文は「先頭の 4,096 件だけを表示」だが、実装は 5.165 の決定どおり「データ行 4,095 件と状態の行 1 件の 4,096 項目」である。データ行を 4,096 件にして状態の文字を list の外に出すには、spec の修正と `PARTS_CONTRACT_VERSION` の判断が要る。差分を hunk 単位で畳む方式が D-46 に無い点（5.291）も同じく未決
+- 未実施: `make test-browser` の全体・`make check-mutations` の全体・4,097 件から件数を減らす更新のブラウザ試験（native の `list_limit.rs` が守る）・`scripts/expected-test-counts.txt` の更新
