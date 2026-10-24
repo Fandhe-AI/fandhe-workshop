@@ -115,6 +115,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/shell-position.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-journey.test.mjs" \
   "${ROOT_DIR}/tools/browser/step-body.test.mjs" \
+  "${ROOT_DIR}/tools/browser/doc-body.test.mjs" \
   "${ROOT_DIR}/tools/browser/author-preview.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \

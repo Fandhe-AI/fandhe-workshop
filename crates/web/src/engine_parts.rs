@@ -34,6 +34,9 @@ use fandhe_workshop_core::projection::{Mark, MarkKind, ReviewItem};
 use fandhe_workshop_core::world::World;
 use fandhe_workshop_core::Session;
 
+use fandhe_workshop_contract::doc::Doc;
+use fandhe_workshop_contract::view_body::body_doc;
+
 use crate::a11y::{ChangeMark, TESTID_ATTR};
 use crate::artifact_fold::{fold_rows, ArtifactRow};
 use crate::artifact_mark::{point_all, pointed_item};
@@ -529,7 +532,30 @@ fn current_target_paths(session: &Session, view: &str) -> BTreeSet<String> {
     out
 }
 
-/// 左の成果物。世界状態の経路と、変化の印を並べる。
+/// 本文の区画の `data-testid`（ART-18。`shell-` で始めず、`role`・`aria-*`・`style` を付けない）。
+const DOC_BODY_TESTID: &str = "artifact-doc-body";
+
+/// 成果物の行の子。経路の `span` に、本文の木があれば区画を続ける。
+///
+/// `ArtifactPart::view` から呼ばれる。木の描画は `doc_view`（リンクのスキーム・外部画像・深さの検査を持つ）に任せ、
+/// 生 HTML は使わない。
+fn row_children(path: &str, body: Option<&Doc>) -> Vec<Node> {
+    let mut kids = vec![el("span", vec![], vec![text(path)])];
+    if let Some(doc) = body {
+        kids.push(el(
+            "div",
+            vec![
+                (TESTID_ATTR, DOC_BODY_TESTID),
+                ("class", "artifact-doc-body"),
+            ],
+            crate::doc_view::render_doc(doc),
+        ));
+    }
+    kids
+}
+
+/// 左の成果物。世界状態の経路と、変化の印を並べる。文書ビューでは、行の要素の練習データの本文も出す
+/// （ART-18・EP-13。`body_doc` が `Some` のときだけ）。
 struct ArtifactPart;
 
 impl DisplayPart<HostModel> for ArtifactPart {
@@ -566,6 +592,17 @@ impl DisplayPart<HostModel> for ArtifactPart {
                 let target = declared_id
                     .as_deref()
                     .and_then(|id| point_all(id)(&RowId::new(path.as_str()).ok()?));
+                // 文書ビューの本文（ART-18・EP-13）。`body: shown` の宣言と要素の `fixture` と木がそろうときだけ `Some`。
+                // 上限の判断（2026-10-24）: 木の大きさ・深さは IR の読み込みの関門と `doc_view` の深さの上限が、行数は
+                // 畳み（`fold_rows`）と 4,096 の安全弁が抑えるので、ここでは追加の上限を置かない。
+                let body = (selected == ViewKind::Document)
+                    .then_some(declared_id.as_deref())
+                    .flatten()
+                    .zip(model.session())
+                    .zip(model.world().get(&path))
+                    .and_then(|((id, s), element)| {
+                        body_doc(s.ir(), id, element.fixture.as_deref())
+                    });
                 let node = pointed_item(
                     "li",
                     Variant::B,
@@ -573,7 +610,7 @@ impl DisplayPart<HostModel> for ArtifactPart {
                     None,
                     vec![("data-path", path.as_str())],
                     target.as_ref(),
-                    vec![el("span", vec![], vec![text(path.as_str())])],
+                    row_children(path.as_str(), body),
                 );
                 // 経路は一意（BTreeMap のキー）なので、挿入で後続の行の同一性がずれないよう経路をキーにする。
                 // 教材由来の長い文字列はキーに使わず、位置のキーへ退く（接頭辞が違うので衝突しない）。

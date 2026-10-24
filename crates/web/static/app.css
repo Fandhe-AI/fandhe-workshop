@@ -244,3 +244,7 @@
 .sh-step table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .sh-step th, .sh-step td { border: 1px solid currentColor; padding: 0.25rem 0.5rem; }
 .sh-step pre { overflow-x: auto; }
+
+/* 文書ビューの練習データの本文（ART-18）。クラスだけで装飾し、style 属性は使わない。 */
+.artifact-doc-body { margin: 0.25rem 0 0.25rem 1rem; overflow-wrap: anywhere; }
+.artifact-doc-body table { display: block; max-width: 100%; overflow-x: auto; }
