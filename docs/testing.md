@@ -8488,3 +8488,25 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - 実行: `cargo test -p fandhe-workshop-pack --locked --test play_input_split`
 - 変異（2026-10-24。元にしたコミット 95d1c0c）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation crates/pack/tests/mutations/AUTHOR7-2.mutation` で 2 件とも DETECTED（常にコマンド、常に自然文）
 - 限界: 空白だけの `cmd:`・`text:` は、画面は送らないがここでは適用する。`E-PLAY-INPUT-CLASS` の結線は TASK-406 2/2。画面の表示と Esc は確かめない。AI による代理の確認であり、人の評価には数えない
+
+### 5.294 test の鍵と分けの食い違いの報告（TASK-406 2/2。AUTHOR-7）
+
+`fandhe-pack test` が `E-PLAY-INPUT-CLASS` を報告することを確かめた。入力は止めず画面と同じ判定で流し、診断があれば終了コード 1 にする。5.293 の限界のうち、この診断の結線は本節で解消した。
+
+| 試験 | 確かめること |
+|---|---|
+| `author7_input_class_dollar_cmd_without_prefix_is_reported` | 接頭辞 `$` で接頭辞なしの `cmd:` が 1 行出る。集計の後ろ・終了コード 1・標準エラー出力は空 |
+| `author7_input_class_dollar_text_with_prefix_is_reported` | 接頭辞つきの `text:` が出る |
+| `author7_input_class_empty_prefix_text_is_reported` | 接頭辞が空では `text:` が出る |
+| `author7_input_class_playthrough_position` | 模範解答の位置（`segment 1, input 2`） |
+| `author7_input_class_default_prefix_is_not_checked` | 接頭辞 `/`（明示・省略）では 0 件 |
+| `author7_input_class_matched_keys_exit_0` | 鍵と分けが合えば 0 件・終了コード 0 |
+| `author7_input_class_runs_inputs_anyway` | 診断が出ても試験は流れる |
+| `author7_input_class_diagnostics_before_failure_diagnostics` | 入力の分けの行が不合格の診断より先 |
+| `author7_input_class_does_not_echo_values` | 入力の値が写らない |
+| `author7_input_class_cli_matches_library` | CLI の行が `check_play_inputs` と一致 |
+| `input_class_diagnostic_is_not_a_pass`（`play_run.rs` の単体） | 診断があると `all_passed` が偽 |
+
+- 実行: `cargo test -p fandhe-workshop-pack --locked --test play_input_class`
+- 変異（2026-10-24。元にしたコミット f7f279d）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation` から `AUTHOR7-4.mutation` までの 4 件とも DETECTED（AUTHOR7-3 は結線を外す、AUTHOR7-4 は合否の条件を外す）
+- 限界: 画面の表示と Esc は確かめない。空白だけの入力の既知の差は 5.293 のまま。AI による代理の確認であり、人の評価には数えない

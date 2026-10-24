@@ -13,7 +13,7 @@
 //!
 //! 診断 1 行の欄の分け方は `diag::Diagnostic` の Display が持ち、出し先（診断と最終行は標準出力、使い方と
 //! 使い方の誤りは標準エラー出力）は `cli` が守る。`validate` への最終行の結線は `cli::run_validate`（TASK-403）が行い、`test` の模範解答の PASS の行は
-//! 版 10 で、誤入力の PASS の行・FAIL の行・集計の 3 行は版 11 で足した（TASK-404 2/3・3/3）。`test` の最終行は TASK-405 の担当である。
+//! 版 10 で、誤入力の PASS の行・FAIL の行・集計の 3 行は版 11 で足した（TASK-404 2/3・3/3）。版 13 で `test` の入力の分けの診断（`E-PLAY-INPUT-CLASS`）と使い方の文面を足した（TASK-406 2/2）。`test` の最終行は TASK-405 の担当である。
 
 use std::fmt;
 
@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 12;
+pub const CLI_CONTRACT_VERSION: u32 = 13;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
