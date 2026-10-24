@@ -2,6 +2,7 @@
 //
 // 役割: 試験本体が使う Step の表・DOM だけの観察・章の先頭の確認・IR の構造の要約を置く。`.test.mjs` を import すると
 // 試験が二重に登録されるため、試験でない本モジュールに分ける。
+// 試験 E（章の開始点への直接リンク。TASK-427 2/2）が使う開始点の表と位置の期待値も置く。
 // 呼び出し元: author-preview.test.mjs だけ。操作の列（journey）・ドライバ・台帳は ch0-3-journey.mjs のものを使う。
 // DOM の判定は ch4-9-journey.mjs の inspectDom49 を題の表だけ差し替えて使う（判定を二重に書かない）。
 // inspectDom49 の判定を変えるときは、CH-0〜CH-3 側（本試験と csp-runs・ch4-9-run）も流して確かめること。
@@ -86,6 +87,19 @@ export async function inspectFirstStep(page, doText, title) {
     ['本文が空でない', r.bodyText.length > 0],
     ['本文の見出しに題が出る', r.headings.includes(title)],
   ];
+}
+
+/** IR の開始点を { id, node } の列で返す。試験 E が `?start=<id>` を作る元で、FIRST_STEPS と順に突き合わせる。 */
+export const startLinksOf = (ir) => ir.starts.map((s) => ({ id: s.id, node: s.node }));
+
+/**
+ * 節点の位置の表示の期待値「<章の ID>　Step M / K」を IR から求める（区切りは全角スペース。shell-position と同じ形）。
+ * K は同じ章（unit）の節点の数、M は章の中での順番（1 始まり）。章ごとの数は決め打ちしない。
+ */
+export function positionOf(ir, uid) {
+  const node = ir.nodes.find((n) => n.uid === uid);
+  const inUnit = ir.nodes.filter((n) => n.unit === node.unit);
+  return `${node.unit}　Step ${inUnit.findIndex((n) => n.uid === uid) + 1} / ${inUnit.length}`;
 }
 
 // 構造の要約。compile した IR と、手書きの ch0_3/ir.json の変種を同じ形に要約して突き合わせる。
