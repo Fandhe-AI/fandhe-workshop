@@ -8559,3 +8559,17 @@ TASK-466 の決定（D-49。行単位の印のまま）に従い、欄単位の�
 - 実行（2026-10-24。元にしたコミット f41382a）: `TEST_HOOKS=1 tools/build-web.sh` の出力に対し `node --test tools/browser/card-row-mark.test.mjs` が 10 件とも合格
 - 変異注入: 既存の ART17-1〜6 は足さない。ブラウザ試験は `check-mutations` の対象外のため、負の対照は RM4 が担う
 - 範囲外: `scripts/expected-test-counts.txt` の更新・`make test-browser` の全体の実行（未検証）・欄単位の表示の実装・製品の `view()` への結線。AI による代理の確認であり、人の評価には数えない
+
+### 5.299 文書ビューで練習データの本文を表示する試験と決定の照合（TASK-489 1/2。ART-18・D-50・D-51）
+
+TASK-6 の決定（D-50）に従い「載せる案」を実装した。製品の左エリア（`engine_parts::ArtifactPart::view`）が、文書ビューの行の要素の `fixture` から `contract::view_body::body_doc` で木を引き、`doc_view` の描画で行の中に本文の区画（`data-testid="artifact-doc-body"`）を出す。
+
+| 試験 | 確かめること |
+|---|---|
+| `crates/web/tests/doc_body_host.rs`（native） | 試験用の教材 `crates/web/tests/data/doc_body_pack` を compile して開く。承認の前は区画が 0 件。承認の後に `notes/draft` の行へ `doc-a` の見出しが `h1` で出る。次の承認の `replace` で同じ行の本文が `doc-b` に替わり `doc-a` の文字が消える。区画に `role`・`aria-*`・`style` が無い。対照: `body` の省略・`hidden` では区画が 0 件で経路の行は出る。期待値は IR の `fixture_docs` から独自に引く |
+| `tools/browser/doc-body.test.mjs`（CSP あり・なし） | 上と同じ流れを画面で確かめる。見出しが見える。替わった後も `li` の要素が同じ。実行・通信・CSP 違反・ページ内エラーが全区分 0。対照: `body` を外した教材では区画が 0 件。区画を hidden にすると見える判定が不合格になる |
+
+- 教材の要素は受付の規則の効果（`put`・`replace`）で置く。開始点の `on_enter` は、製品の起動（`Session::entered_at`）では適用されないため使わない（TASK-217・TASK-294 の系統。本 Issue の範囲外）
+- 上限の判断: 木の大きさ・深さは IR の読み込みの関門と `doc_view` の深さの上限、行数は畳みと 4,096 の安全弁が抑えるため、本文のための追加の上限は置かない
+- 机上の照合（2026-10-24）: 実装は D-51 の IR 版 2（`fixture_docs`）と D-50 の `views.<ID>.body`（EP-13）だけを使い、IR の欄も語彙も足していない。D-50 の見直しの条件（IR 版 2 が重いと判断したとき）は満たされていない。よって TASK-6 の決定は TASK-8 の決定と矛盾しない
+- 範囲外: 限界の観察の固定（TASK-489 2/2）・IR の大きさの測定・ブロック単位の前後表示・教材 repo 側の練習データ（TASK-628）・`scripts/expected-test-counts.txt` の更新。AI による代理の確認であり、人の評価には数えない

@@ -1,7 +1,7 @@
 //! 文書のビューが練習データの本文を出す宣言（`views.<ID>.body`）の閉じた集合と読み取り（TASK-66 1/2）。
 //!
 //! 出所は語彙の文書の EP-13（`view.document_body`）と spec の PACK-38・D-50・D-51 である。呼び出し元は、
-//! pack の `view_body`（宣言の検査と `E-PARSE` への写し）と、将来の web の文書ビュー（ART-18）である。
+//! pack の `view_body`（宣言の検査と `E-PARSE` への写し）と、web の文書ビュー（`engine_parts::ArtifactPart`。ART-18）である。
 //!
 //! contract に置く理由: 画面と教材の検査は同じ閉じた集合・同じ解決の規則を使うが、web から pack への
 //! normal 依存は禁じられている（`docs/architecture.md` 第 4 節。前例は `left_pane`・`appearance`）。
