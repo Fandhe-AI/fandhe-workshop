@@ -10,7 +10,7 @@
 //       部品の枠と選ばれたビューの親の `ul` が同じ要素のまま
 //   (C) 古い Step の行が 1,100 件ある教材では、`li` が 1,000 件以下に畳まれ、入力の前後でも root が置き換わらない
 //   (D) CSP 違反・ページ内エラー・コンソールのエラー・安全性の観察が 0 件
-// 表示件数は「データ行 4,095 件 + 状態の行 1 件 = 4,096 項目」である（上流の keyed list の上限。`docs/testing.md` 5.165・5.294）。
+// 表示件数は「データ行 4,095 件 + 状態の行 1 件 = 4,096 項目」である（上流の keyed list の上限。`docs/testing.md` 5.165・5.295）。
 // 呼び出し元は make test-browser（scripts/test-browser.sh）。1 件ごとに新しい context を使う。
 //
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。未設定・不在は失敗にする。

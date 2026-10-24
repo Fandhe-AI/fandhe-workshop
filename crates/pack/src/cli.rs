@@ -270,7 +270,7 @@ fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
 /// `test` の実行（AUTHOR-4、TASK-404 1/3）。関門（読み込み・`validate`・教材テストの読み取り・`compile`）に診断が
 /// 1 件でもあれば試験を流さず、`validate` と同じ形（診断の行と最終行）を標準出力に書いて `EXIT_DIAGNOSTICS` で終える。
 /// 流したときは全件が合格なら `EXIT_OK`、そうでなければ `EXIT_DIAGNOSTICS`。合格した模範解答ごとに、教材テストの
-/// 記載の順で PASS の行（`cli_contract::test_pass_line`。TASK-404 2/3）を標準出力に書く。不合格の模範解答・誤入力の FAIL の行、誤入力の PASS の行、集計の 3 行、試験の診断（TASK-404 3/3）を続けて書く。最終行は
+/// 記載の順で PASS の行（`cli_contract::test_pass_line`。TASK-404 2/3）を標準出力に書く。不合格の模範解答・誤入力の FAIL の行、誤入力の PASS の行、集計の 3 行、試験の診断（TASK-404 3/3。入力の分けの `E-PLAY-INPUT-CLASS` が先頭。あれば全件合格でも `EXIT_DIAGNOSTICS`。TASK-406 2/2）を続けて書く。最終行は
 /// TASK-405 が足すため、本版は書かない。標準エラー出力には書かない。
 fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
     match play_run::run_pack(dir) {

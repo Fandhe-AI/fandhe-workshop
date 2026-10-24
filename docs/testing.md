@@ -8406,7 +8406,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 最新のグループを畳まない理由: D-46 は「古い Step」を畳むとしていること、最新の変化を隠さないこと、最新の Step だけで 4,096 件を超える場合に安全弁（#678 の範囲）へ届くこと
 - 試験: `crates/web/tests/artifact_fold.rs` の 7 件（1,000 ちょうどで畳まない・1,001 で古い Step が要約になる・要約行に `data-path` などが無い・最新の Step だけなら畳まない・決定性・古い経路を新しい Step で変えた場合・`plan_fold_older` に `Head` が出ない）。`list_fold`・`view_select`・`list_limit` は変更なしで通過
 - 要確認（main に戻す）: 差分の hunk 単位の畳みは、決定 D-46 が触れていないため実装していない。最新の Step だけで 1,001〜4,096 行ある場合は目安を超えたまま出る（実装で決めた細目で、承認は得ていない）
-- 未実施: 要約行を開く操作・7 種のビューの本体を製品へ結線した後の見直し（ブラウザ試験と変異注入の定義は 5.294 で実施した）
+- 未実施: 要約行を開く操作・7 種のビューの本体を製品へ結線した後の見直し（ブラウザ試験と変異注入の定義は 5.295 で実施した）
 
 ### 5.292 compile した IR の手元の配信と CH-0〜CH-3 の完走（TASK-427 1/2。AUTHOR-21）
 
@@ -8489,7 +8489,7 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - 変異（2026-10-24。元にしたコミット 95d1c0c）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation crates/pack/tests/mutations/AUTHOR7-2.mutation` で 2 件とも DETECTED（常にコマンド、常に自然文）
 - 限界: 空白だけの `cmd:`・`text:` は、画面は送らないがここでは適用する。`E-PLAY-INPUT-CLASS` の結線は TASK-406 2/2。画面の表示と Esc は確かめない。AI による代理の確認であり、人の評価には数えない
 
-### 5.294 左の成果物の 4,096 項目の安全弁のブラウザ試験（TASK-484 2/2。ART-14・FEND-22・D-46）
+### 5.295 左の成果物の 4,096 項目の安全弁のブラウザ試験（TASK-484 2/2。ART-14・FEND-22・D-46）
 
 - 実行日 2026-10-24。元にしたコミット `9e176db` の後の `origin/main`。Chromium（`SKIP_WASM_OPT` なし、`TEST_HOOKS=1` のビルド）
 - 細目: 製品のコード（`list_policy.rs`・`artifact_fold.rs`・`engine_parts.rs`）は変えていない。試験の設定だけの開始状態 4 種を足した（`test_fixture.rs`）。`?fixture=artifact-limit-4095`・`-4096`・`-4097` は世界状態の経路を今の Step の印で 1 本のランとして開始状態のログへ積み（畳まれず安全弁まで届く）、`?fixture=artifact-fold` は古い Step の 1,100 件と今の Step の 40 件を積む。`pack.id` は `artifact-limit` で既定と分け、件数は固定の 3 値だけで任意の数は受けない。`Session::from_state` の呼び出しは 1 か所のまま（`session_with_log`）
@@ -8502,3 +8502,25 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - 変異注入: `ART14-1`（`engine_parts.rs` の選ばれたビューの行を黙って 4,096 行に切る）が `view_select` の上限超過の試験で DETECTED
 - 要確認（main に戻す）: ART-14 の文は「先頭の 4,096 件だけを表示」だが、実装は 5.165 の決定どおり「データ行 4,095 件と状態の行 1 件の 4,096 項目」である。データ行を 4,096 件にして状態の文字を list の外に出すには、spec の修正と `PARTS_CONTRACT_VERSION` の判断が要る。差分を hunk 単位で畳む方式が D-46 に無い点（5.291）も同じく未決
 - 未実施: `make test-browser` の全体・`make check-mutations` の全体・4,097 件から件数を減らす更新のブラウザ試験（native の `list_limit.rs` が守る）・`scripts/expected-test-counts.txt` の更新
+
+### 5.294 test の鍵と分けの食い違いの報告（TASK-406 2/2。AUTHOR-7）
+
+`fandhe-pack test` が `E-PLAY-INPUT-CLASS` を報告することを確かめた。入力は止めず画面と同じ判定で流し、診断があれば終了コード 1 にする。5.293 の限界のうち、この診断の結線は本節で解消した。
+
+| 試験 | 確かめること |
+|---|---|
+| `author7_input_class_dollar_cmd_without_prefix_is_reported` | 接頭辞 `$` で接頭辞なしの `cmd:` が 1 行出る。集計の後ろ・終了コード 1・標準エラー出力は空 |
+| `author7_input_class_dollar_text_with_prefix_is_reported` | 接頭辞つきの `text:` が出る |
+| `author7_input_class_empty_prefix_text_is_reported` | 接頭辞が空では `text:` が出る |
+| `author7_input_class_playthrough_position` | 模範解答の位置（`segment 1, input 2`） |
+| `author7_input_class_default_prefix_is_not_checked` | 接頭辞 `/`（明示・省略）では 0 件 |
+| `author7_input_class_matched_keys_exit_0` | 鍵と分けが合えば 0 件・終了コード 0 |
+| `author7_input_class_runs_inputs_anyway` | 診断が出ても試験は流れる |
+| `author7_input_class_diagnostics_before_failure_diagnostics` | 入力の分けの行が不合格の診断より先 |
+| `author7_input_class_does_not_echo_values` | 入力の値が写らない |
+| `author7_input_class_cli_matches_library` | CLI の行が `check_play_inputs` と一致 |
+| `input_class_diagnostic_is_not_a_pass`（`play_run.rs` の単体） | 診断があると `all_passed` が偽 |
+
+- 実行: `cargo test -p fandhe-workshop-pack --locked --test play_input_class`
+- 変異（2026-10-24。元にしたコミット f7f279d）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation` から `AUTHOR7-4.mutation` までの 4 件とも DETECTED（AUTHOR7-3 は結線を外す、AUTHOR7-4 は合否の条件を外す）
+- 限界: 画面の表示と Esc は確かめない。空白だけの入力の既知の差は 5.293 のまま。AI による代理の確認であり、人の評価には数えない

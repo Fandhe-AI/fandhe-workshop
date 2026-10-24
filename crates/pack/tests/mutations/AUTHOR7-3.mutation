@@ -1,0 +1,8 @@
+id: AUTHOR7-3
+package: fandhe-workshop-pack
+test: play_input_class
+target: crates/pack/src/play_run.rs
+find:             report.input_class = crate::profile::check_play_inputs(pack);
+replace:             report.input_class = Vec::new();
+expect-fail: author7_input_class_dollar_cmd_without_prefix_is_reported
+note: test に E-PLAY-INPUT-CLASS の検査を結線しない

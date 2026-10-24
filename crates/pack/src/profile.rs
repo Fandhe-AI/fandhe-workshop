@@ -11,7 +11,7 @@
 //!
 //! 接頭辞と `input_field` に基づく Step の検査（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`。TASK-52 2/2）は
 //! [`check_profile_steps`] が `compile` から呼ばれて行う。教材テストの入力の分けの検査（`E-PLAY-INPUT-CLASS`）は
-//! `test` の診断なので `compile` には結線せず、[`check_play_input_class`] を後続の `test` 実行器（TASK-404）が呼ぶ。
+//! `test` の診断なので `compile` には結線せず、[`check_play_input_class`] を `play_run::run_loaded` が呼ぶ（TASK-406 2/2）。
 //! どちらも、読めない `pack.profile` は既定値に倒れて新しい診断を出さない（`check_profile` が 1 回だけ報告する）。
 
 use fandhe_workshop_contract::input_spec::InputKind;
@@ -203,7 +203,7 @@ pub fn check_play_inputs(pack: &LoadedPack) -> Vec<Diagnostic> {
 ///
 /// 既定の接頭辞 `/` では何も検査しない（`cmd: hello` も通す）。分けは必ず [`classify_play_input`]
 /// （画面と同じ関数）で行う。形が想定と違う要素は読み飛ばす（型の検査は TASK-404 の担当）。
-/// `test` コマンドへの結線は TASK-404・TASK-401 が行う。
+/// `test` コマンドへの結線は `play_run::run_loaded` が行う（TASK-406 2/2）。
 pub fn check_play_input_class(
     setting: &ProfileSetting,
     tests_file: &str,
