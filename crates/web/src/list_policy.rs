@@ -29,7 +29,10 @@
 //! 集約行へまとめる、(3) それでも超えるなら最新のグループの先頭を 1 行に畳む（最新の行は残る）。計画はグループの
 //! 長さの列と目安だけで決まる純粋関数で、更新の履歴を持たない（増分と一括の導出が一致する。EVT-1）。
 //! 章の単位のグループは作らず、集約行で代える。要約行は表示だけで、開く操作は未実装である
-//! （`docs/known-gaps.md`）。左の成果物の 7 本の list への適用は TASK-484 が持つ。
+//! （`docs/known-gaps.md`）。
+//!
+//! 左の成果物への適用（TASK-484 1/2）: 経路を「最後に変えた Step の連続範囲」でグループにし、[`plan_fold_older`]
+//! （段 (1)・(2) だけ）で畳む。段 (3) は使わない（理由は [`plan_fold_older`] の doc）。実体は `artifact_fold`。
 //!
 //! [`keyed_view`] は上限を超えると `Err` をそのまま返す。呼び出し側の復帰は [`keyed_view_or_notice`] に
 //! 一本化し、上限を超えた場合は先頭を残して打ち切り、状態の行（「上限超過: 先頭 … 件だけ表示（全 … 件）」。
@@ -231,6 +234,22 @@ pub enum FoldEntry {
 /// （`Rows` の残りと要約・集約・先頭の各 1 行の合計）は、常に `target` 以下になる。
 /// 計算は飽和演算で、panic しない。
 pub fn plan_fold(group_lens: &[usize], target: usize) -> Vec<FoldEntry> {
+    plan(group_lens, target, true)
+}
+
+/// 古い側だけを畳む計画を立てる（左の成果物。TASK-484 1/2）。[`plan_fold`] の段 (1)・(2) だけを使い、最新の
+/// グループの先頭は畳まない（`Head` を返さない）。D-46・ART-14 の文言は「古い Step を要約に畳む」であり、
+/// 今の Step で変わった行を隠すと受講者が今の変化を見失うためである。また、最新のグループだけで
+/// 4,096 件を超える場合に、安全弁（[`keyed_view_or_notice`]）まで届かなくなることも避ける。
+///
+/// 出す行の数は、`max(target, 最新のグループの長さ + 1)` 以下になる（最新のグループだけで目安を超える場合は
+/// 目安を超えたまま出る。限界は `docs/known-gaps.md`）。計算は飽和演算で、panic しない。
+pub fn plan_fold_older(group_lens: &[usize], target: usize) -> Vec<FoldEntry> {
+    plan(group_lens, target, false)
+}
+
+/// [`plan_fold`]・[`plan_fold_older`] の本体。`fold_newest_head` が真のときだけ段 (3) を使う。
+fn plan(group_lens: &[usize], target: usize, fold_newest_head: bool) -> Vec<FoldEntry> {
     let target = target.max(3);
     let n = group_lens.len();
     let mut total: usize = group_lens.iter().fold(0, |a, l| a.saturating_add(*l));
@@ -260,7 +279,7 @@ pub fn plan_fold(group_lens: &[usize], target: usize) -> Vec<FoldEntry> {
     }
     // (3) それでも超えるなら、最新のグループの先頭 h 行を 1 行へ畳む。h 行で h - 1 行減る。
     let latest_len = group_lens[latest];
-    let head = if total > target && latest_len >= 2 {
+    let head = if fold_newest_head && total > target && latest_len >= 2 {
         (total - target + 1).min(latest_len - 1)
     } else {
         0
