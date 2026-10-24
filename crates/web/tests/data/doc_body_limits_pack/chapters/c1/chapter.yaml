@@ -1,0 +1,39 @@
+id: c1
+title: 本文の限界の章
+starts: [{id: s1, node: a}]
+steps:
+  - id: a
+    title: A
+    body: a.md
+    views: [v-doc, v-tree]
+    next: [{to: b}]
+    input:
+      kind: approval
+    rules:
+      - id: r-approve
+        on: {approval: approve}
+        outcome:
+          kind: accept
+          effects:
+            - put: {path: notes/md, fixture: doc-md}
+            - put: {path: notes/txt, fixture: doc-txt}
+            - put: {path: notes/bare}
+      - id: r-decline
+        on: {approval: reject}
+        outcome: {kind: reject, rejection: rj-decline}
+    confirm: {kind: none, reason: 承認そのものが意思表示のため、別の確認を置かない。}
+  - id: b
+    title: B
+    body: b.md
+    views: [v-doc, v-tree]
+    final: true
+    input:
+      kind: approval
+    rules:
+      - id: r-approve
+        on: {approval: approve}
+        outcome:
+          kind: accept
+          effects:
+            - replace: {path: notes/md, fixture: doc-md2}
+    confirm: {kind: none, reason: 承認そのものが意思表示のため、別の確認を置かない。}
