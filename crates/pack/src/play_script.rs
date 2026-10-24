@@ -12,7 +12,7 @@
 //!
 //! 扱わないこと
 //! - 流して判定すること（[`crate::play_run`]）
-//! - `cmd:`・`text:` を画面と同じ関数で分けること（TASK-406）
+//! - `cmd:`・`text:` を分けること（[`crate::play_run`] が画面と同じ関数で行う。TASK-406）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（後続。ここでは定義があることだけを [`Unsupported`] に積む）
 
 use serde_json::{Map, Value};
@@ -24,9 +24,9 @@ use crate::source::{safe_ident, LoadedPack};
 /// 1 操作で受講者がする入力。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayOp {
-    /// `cmd:`。
+    /// `cmd:`。入力欄に打つ文字列そのまま。実行時は `text:` と同じく画面と同じ関数で分ける。
     Command(String),
-    /// `text:`。
+    /// `text:`。入力欄に打つ文字列そのまま。実行時は `cmd:` と同じく画面と同じ関数で分ける。
     Text(String),
     /// `choice:`。
     Choice(String),

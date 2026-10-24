@@ -1,15 +1,15 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 11
-決定日: 2026-10-23
+CLI の外部仕様の版: 12
+決定日: 2026-10-24
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の PASS・FAIL の行・集計）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404、AUTHOR-1〜AUTHOR-4・AUTHOR-8・AUTHOR-9・AUTHOR-17）
-- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 11」の形で書ける
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の PASS・FAIL の行・集計）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404・TASK-406 1/2、AUTHOR-1〜AUTHOR-4・AUTHOR-7・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 12」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
 - 版の規則: 固定した行は書き換えない。足すときは版を上げ、変更履歴に記録する。`contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する
@@ -222,7 +222,7 @@ m1,s4,step,EP-3
 - 関門で止まったときの標準出力は、診断の行と `NG: 診断 N 件（<要約>）` の最終行で、`validate` と同じ形になる。教材テストの診断が無いとき、`validate` の標準出力とバイト単位で一致する。終了コードは 1
 - 試験を流すと、全件が合格なら 0、そうでなければ 1。標準エラー出力には何も書かない
 - 版 11 の出力の順は、模範解答の行（PASS または FAIL。12.2 節・12.3 節）、誤入力の行（12.3 節）、集計の 3 行（12.4 節）、試験の診断の行（12.3 節）である。経過措置（契約外）: 最終行（`OK:`・`NG:`）と、R-22・R-21・入った実体の集計は、後続のタスク（TASK-405）が足すまで出さない
-- 流す先は共通エンジン（core の `Session`）で、開始は画面と同じ `ir.starts` の節点から作る。`cmd:`・`text:` は値をそのまま渡す（画面と同じ関数による分けは TASK-406）
+- 流す先は共通エンジン（core の `Session`）で、開始は画面と同じ `ir.starts` の節点から作る。`cmd:`・`text:` は、どちらも入力欄に打つ文字列として画面の送信と同じ関数（core の `submit_input`）で分ける。`cmd:` は接頭辞を含めて書く。接頭辞が `$` の教材の `cmd: ls` は自然文として判定される。鍵と分けの食い違いの診断（`E-PLAY-INPUT-CLASS`）は TASK-406 2/2。接頭辞を読めないときは入力を送らず `no_judgment` になる
 - 経過措置（契約外）: `text_checks`・`guidance_checks`・`asserts` は判定しない。定義があるときは、通ったと見せないため終了コードを 1 にし、文面の確認・案内レベルの確認の集計の行は判定するまで出さない（`0/N` と書くと事実と違うため）
 - 経過措置（契約外）: core が章の完了（`completed`）を結線するまでの間、模範解答の `end: complete` は、全入力が期待どおりに通り最後の入力が `achieved` であることでも満たすとする。Step の実体 ID を指定した `end` は現在の Step で判定する
 - 経過措置（契約外）: 開始点の `effects`・`requires`・案内の水準は、開始の作り方（`Session::entered_at`）が適用しない。画面が `Control::Begin` へ移るときは `test` も同じ変更で追従する
@@ -376,3 +376,4 @@ FAIL pt-main: 期待 achieved に対して結果は progress（区間 1 の入�
 | 9 | 2026-10-23 | `test` の枠と終了コードを結線する（関門の順・止まったときの出力は `validate` と同じ・全件合格で 0、それ以外は 1。12.1 節を足す。PASS・FAIL の行は後続）（TASK-404 1/3、AUTHOR-4） |
 | 10 | 2026-10-23 | `test` の模範解答の PASS の行 `PASS <ID>（入力 N 件）` を固定する（12.2 節。`N` は `tick` を含む。不合格・誤入力・集計は後続）（TASK-404 2/3、AUTHOR-4） |
 | 11 | 2026-10-23 | `test` の誤入力の行 `PASS <ID> → <語>`・FAIL の行（実際の結果つき）・集計の 3 行・試験の診断（`E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH`）を固定する（12.3 節・12.4 節。最終行は後続）（TASK-404 3/3、AUTHOR-4） |
+| 12 | 2026-10-24 | `test` の `cmd:`・`text:` を画面と同じ関数で分ける（12.1 節）（TASK-406 1/2、AUTHOR-7） |

@@ -1,0 +1,8 @@
+id: AUTHOR7-1
+package: fandhe-workshop-pack
+test: play_input_split
+target: crates/pack/src/play_run.rs
+find:     prefix.map(|p| Op::Input(submit_input(p, raw.to_string())))
+replace:     prefix.map(|_| Op::Input(Input::Command(raw.to_string())))
+expect-fail: author7_dollar_prefix_cmd_without_prefix_is_free_text_on_text_step
+note: 教材テストの cmd:/text: を画面と同じ関数で分けず、常にコマンドとして渡す
