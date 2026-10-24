@@ -8462,3 +8462,21 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - CI は Chromium で流す。Chrome の原本で流すには `FANDHE_BROWSER_CHANNEL=chrome` を付ける（5.128）
 - DOM だけの観察の確かさは、較正 C に依る
 - 本物の教材での流し直しは未実施である
+
+### 5.293 test の入力の分け（TASK-406 1/2。AUTHOR-7）
+
+`fandhe-pack test` が `cmd:`・`text:` を、画面の送信と同じ関数（core の `submit_input`）で分けることを確かめた。接頭辞は IR の `pack.profile` から読み、読めなければ送らない。
+
+| 試験 | 確かめること |
+|---|---|
+| `cmd_and_text_are_split_by_submit_input`（`play_run.rs` の単体） | 接頭辞 4 種 × 値 7 種で `submit_input` と一致し、値を trim しない。接頭辞が無ければ送らない |
+| `author7_dollar_prefix_cmd_without_prefix_runs_as_text_like_screen`・`..._is_free_text_on_text_step` | 接頭辞 `$` の教材で `cmd: hello` が自然文として流れ、画面の送信口と同じ判定になる |
+| `author7_dollar_prefix_text_with_prefix_runs_as_command_like_screen` | `text: "$nothing"` がコマンドとして流れ、画面と一致する |
+| `author7_dollar_prefix_cmd_with_prefix_is_command` | 模範解答が通り終了コード 0 |
+| `author7_empty_prefix_text_runs_as_command_like_screen` | 接頭辞が空では `text:` もコマンドになる |
+| `author7_default_prefix_cmd_without_slash_matches_screen` | 既定の `/` で `/` なしの `cmd:` が画面と一致する |
+| `author7_output_does_not_echo_input_values` | 出力に入力の値が写らない |
+
+- 実行: `cargo test -p fandhe-workshop-pack --locked --test play_input_split`
+- 変異（2026-10-24。元にしたコミット 95d1c0c）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation crates/pack/tests/mutations/AUTHOR7-2.mutation` で 2 件とも DETECTED（常にコマンド、常に自然文）
+- 限界: 空白だけの `cmd:`・`text:` は、画面は送らないがここでは適用する。`E-PLAY-INPUT-CLASS` の結線は TASK-406 2/2。画面の表示と Esc は確かめない。AI による代理の確認であり、人の評価には数えない
