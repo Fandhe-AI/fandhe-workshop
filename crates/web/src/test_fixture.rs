@@ -28,6 +28,8 @@
 //! CH-3 を最後に使う絞った IR（`?fixture=ch0-3-trial`。範囲外の章 CH-4 のノードは IR に残り、開始点は CH-0〜CH-3 の先頭 4 件だけ）と、
 //! 対照の `?fixture=ch0-4-full`（同じ IR に CH-4 の開始点を足したもの）は、範囲外の章へ進まないことの試験が使う（SHELL-12・D-67。TASK-527）。
 //! CH-4〜CH-9 の形を写した 17 Step・6 章の教材（`?fixture=ch4-9`。各章の最後が `final`、開始点は章の先頭 6 件）は、「次の章へ進む」で CH-4 から CH-9 を通す試験が使う（TASK-674 1/2）。
+//! 左の成果物の安全弁・畳みの試験の開始状態（`?fixture=artifact-limit-4095`・`-4096`・`-4097`・`artifact-fold`）は、既定の教材の `pack.id` だけを変え、
+//! 世界状態の経路を開始状態のログへ積む（`mount_seed_log`。件数は固定の 3 値だけで、任意の数は受けない。TASK-484 2/2）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -111,6 +113,14 @@ pub(crate) enum MountFixture {
     FutureFormat,
     /// 既定の教材と同じ `pack.id` で、版は 1 のまま未知の欄を足した IR（版を上げずに欄だけが足された混在の場面。VER-13）。
     FutureField,
+    /// 世界状態の経路が 4,095 件ある開始状態（左の成果物の安全弁の直前。全件が今の Step の印で、畳まれない。TASK-484 2/2）。
+    ArtifactLimit4095,
+    /// 経路が 4,096 件ある開始状態（上限ちょうど。通知は出ない。TASK-484 2/2）。
+    ArtifactLimit4096,
+    /// 経路が 4,097 件ある開始状態（上限超過。先頭 4,095 件と状態の行になる。TASK-484 2/2）。
+    ArtifactLimit4097,
+    /// 古い Step の経路 1,100 件と今の Step の経路 40 件がある開始状態（古い側が要約へ畳まれる。TASK-484 2/2）。
+    ArtifactFold,
 }
 
 /// 未来の IR に足す未知の欄の値。画面・ログ・写しに出ないことを、ブラウザ試験がこの文字列の不在で確かめる（SAFE-11）。
@@ -512,6 +522,10 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=chapter-a-next" => MountFixture::ChapterANext,
         "?fixture=future-ir-format" => MountFixture::FutureFormat,
         "?fixture=future-ir-field" => MountFixture::FutureField,
+        "?fixture=artifact-limit-4095" => MountFixture::ArtifactLimit4095,
+        "?fixture=artifact-limit-4096" => MountFixture::ArtifactLimit4096,
+        "?fixture=artifact-limit-4097" => MountFixture::ArtifactLimit4097,
+        "?fixture=artifact-fold" => MountFixture::ArtifactFold,
         _ => MountFixture::Default,
     }
 }
@@ -551,13 +565,18 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         // 読めない想定の IR。万一読めたら session になり、通知が出ないのでブラウザ試験が失敗する（fail-closed）。
         MountFixture::FutureFormat => future_ir_bytes(FutureIr::Format)?,
         MountFixture::FutureField => future_ir_bytes(FutureIr::Field)?,
+        MountFixture::ArtifactLimit4095
+        | MountFixture::ArtifactLimit4096
+        | MountFixture::ArtifactLimit4097
+        | MountFixture::ArtifactFold => artifact_limit_ir_bytes()?,
     })
 }
 
 /// 選んだ教材と開始直後の状態から実行環境を作る。読めなければ `None`（単体試験が使う。ホストは `mount_session_at` を使う）。
 #[cfg(test)]
 pub(crate) fn mount_session(fixture: MountFixture) -> Option<Session> {
-    session_of(&mount_ir_bytes(fixture)?)
+    let (session, _) = mount_session_at(fixture, None).ok()??;
+    Some(session)
 }
 
 /// [`mount_session`] を、直接リンクの `start`（`None` は指定なし）で開始点を選べるようにしたもの（TASK-109 1/2）。
@@ -576,7 +595,60 @@ pub(crate) fn mount_session_at(
         return Ok(None);
     };
     let id = select_start(&ir, start)?.id.clone();
-    Ok(session_at(&bytes, Some(&id)).map(|session| (session, id)))
+    let Some(seed) = mount_seed_log(fixture) else {
+        return Ok(None);
+    };
+    Ok(session_with_log(&bytes, Some(&id), seed).map(|session| (session, id)))
+}
+
+/// 左の成果物の安全弁・畳みの試験（TASK-484 2/2）の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const ARTIFACT_LIMIT_PACK_ID: &str = "artifact-limit";
+
+/// 既定の教材（`min-3step`）の `pack.id` だけを変えた IR。保存先の鍵を既定の教材と分ける。
+/// 新しい試験データのファイルは作らず、埋め込みの IR を書き換える。
+fn artifact_limit_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    value
+        .get_mut("pack")?
+        .as_object_mut()?
+        .insert("id".to_owned(), ARTIFACT_LIMIT_PACK_ID.into());
+    serde_json::to_vec(&value).ok()
+}
+
+/// 開始状態のログに積む `changed` を `n` 件作る。経路は `{prefix}/{i:04}` の固定の書式で、
+/// 印は `(generation, step)`。値は汎用のダミーで、教材固有の語を使わない。
+fn seed_changed(prefix: &str, n: usize, step: &str) -> Vec<serde_json::Value> {
+    (0..n)
+        .map(|i| {
+            serde_json::json!({"changed": {
+                "at": {"generation": 1, "step": step},
+                "path": format!("{prefix}/{i:04}"),
+                "before": null,
+                "after": {"fixture": null, "attrs": {"kind": "none", "state": "created"}},
+                "cause": "input",
+            }})
+        })
+        .collect()
+}
+
+/// 選んだ教材が開始状態のログに積むイベント。経路が無い教材は空。
+///
+/// 経路は今の Step（`main/st-1`・世代 1）の印で積むので、1 本のランになり畳まれず、安全弁まで届く。
+/// `ArtifactFold` だけは古い Step の印の 1,100 件を足し、目安（1,000 件）を超えた古い側が畳まれる。
+/// 読めなければ `None`（呼び出し側は session なしに倒す）。
+fn mount_seed_log(fixture: MountFixture) -> Option<Vec<fandhe_workshop_core::event::Event>> {
+    let values = match fixture {
+        MountFixture::ArtifactLimit4095 => seed_changed("p", 4_095, "main/st-1"),
+        MountFixture::ArtifactLimit4096 => seed_changed("p", 4_096, "main/st-1"),
+        MountFixture::ArtifactLimit4097 => seed_changed("p", 4_097, "main/st-1"),
+        MountFixture::ArtifactFold => {
+            let mut v = seed_changed("o", 1_100, "main/st-0");
+            v.extend(seed_changed("p", 40, "main/st-1"));
+            v
+        }
+        _ => Vec::new(),
+    };
+    serde_json::from_value(serde_json::Value::Array(values)).ok()
 }
 
 /// 教材のバイト列と開始直後の状態から実行環境を作る。`Session::from_state` の唯一の呼び出し（`tests/no_progress.rs`）。
@@ -591,6 +663,16 @@ fn session_of(ir_bytes: &[u8]) -> Option<Session> {
 ///
 /// ID は教材の `starts` から引き、Rust のコードに教材の節点の名前を書かない。ID が無いときは `None`。
 fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
+    session_with_log(ir_bytes, start_id, Vec::new())
+}
+
+/// [`session_at`] に、開始状態のログへ積むイベントを足せるようにしたもの（`Session::from_state` の唯一の呼び出し）。
+/// `log` が空なら [`session_at`] と同じ。世界状態はログから導出されるので、積んだ `changed` が左の成果物の行になる。
+fn session_with_log(
+    ir_bytes: &[u8],
+    start_id: Option<&str>,
+    log: Vec<fandhe_workshop_core::event::Event>,
+) -> Option<Session> {
     let ir = load_ir(ir_bytes).ok()?;
     let value: serde_json::Value = serde_json::from_slice(ir_bytes).ok()?;
     let starts = value.get("starts")?.as_array()?;
@@ -602,7 +684,9 @@ fn session_at(ir_bytes: &[u8], start_id: Option<&str>) -> Option<Session> {
     };
     let node = start.get("node")?.as_str()?;
     ir.nodes.iter().any(|n| n.uid == node).then_some(())?;
-    Some(Session::from_state(ir, start_state_at(node)?))
+    let mut state = start_state_at(node)?;
+    state.log.extend(log);
+    Some(Session::from_state(ir, state))
 }
 
 /// 任意の教材（IR の JSON のバイト列）から実行環境を作る（TASK-175 2/2。`load-ir:` が差し替える）。
@@ -1997,5 +2081,148 @@ mod tests {
             orig["clarifications"]["cl-new-idea-name"]["message"]
         );
         assert_eq!(raw["nodes"], orig["nodes"]);
+    }
+
+    /// 開始状態を載せたホスト。左の成果物の描画を native で確かめる。
+    fn artifact_host(fixture: MountFixture) -> crate::host::EngineHost {
+        let session = mount_session(fixture).unwrap();
+        crate::host::EngineHost::with_session(session, crate::engine_parts::standard_registry())
+            .unwrap()
+    }
+
+    /// 選ばれたビューの `<ul>` の開始タグと本体。`hidden` でない list が 1 本だけである前提。
+    fn selected_list(html: &str) -> (String, String) {
+        let mut found = Vec::new();
+        let mut rest = html;
+        while let Some(at) = rest.find("data-bind-list=\"view_") {
+            let start = rest[..at].rfind('<').unwrap();
+            let end = at + rest[at..].find('>').unwrap();
+            let tag = rest[start..=end].to_owned();
+            let close = end + rest[end..].find("</ul>").unwrap();
+            if !tag.contains(" hidden") && !tag.contains("view_select") {
+                found.push((tag, rest[end + 1..close].to_owned()));
+            }
+            rest = &rest[close..];
+        }
+        assert_eq!(found.len(), 1, "選ばれたビューの list が 1 本でない");
+        found.remove(0)
+    }
+
+    #[test]
+    fn 完全一致のクエリだけが成果物の安全弁の教材を選ぶ() {
+        for (q, want) in [
+            (
+                "?fixture=artifact-limit-4095",
+                MountFixture::ArtifactLimit4095,
+            ),
+            (
+                "?fixture=artifact-limit-4096",
+                MountFixture::ArtifactLimit4096,
+            ),
+            (
+                "?fixture=artifact-limit-4097",
+                MountFixture::ArtifactLimit4097,
+            ),
+            ("?fixture=artifact-fold", MountFixture::ArtifactFold),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+        for other in [
+            "?fixture=artifact-limit",
+            "?fixture=artifact-limit-4098",
+            "?fixture=artifact-limit-4097&x=1",
+            "?fixture=Artifact-Fold",
+            "?fixture=artifact-fold2",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 成果物の安全弁の教材は鍵が既定と別で件数どおりの経路を持つ() {
+        let default_id = mount_session(MountFixture::Default)
+            .unwrap()
+            .ir()
+            .pack
+            .id
+            .clone();
+        for (fx, n) in [
+            (MountFixture::ArtifactLimit4095, 4_095),
+            (MountFixture::ArtifactLimit4096, 4_096),
+            (MountFixture::ArtifactLimit4097, 4_097),
+        ] {
+            let s = mount_session(fx).unwrap();
+            assert_ne!(s.ir().pack.id, default_id);
+            assert_eq!(s.ir().pack.id, ARTIFACT_LIMIT_PACK_ID);
+            let host =
+                crate::host::EngineHost::with_session(s, crate::engine_parts::standard_registry())
+                    .unwrap();
+            assert_eq!(host.model().world().len(), n, "{fx:?}");
+        }
+    }
+
+    #[test]
+    fn 成果物の上限の境目は行の数と状態の行で変わる() {
+        use fandhe_frontend_wasm_full::render_component_html;
+        for (fx, items, limited) in [
+            (MountFixture::ArtifactLimit4095, 4_095, false),
+            (MountFixture::ArtifactLimit4096, 4_096, false),
+            (MountFixture::ArtifactLimit4097, 4_096, true),
+        ] {
+            let host = artifact_host(fx);
+            let html = render_component_html(&host);
+            let (tag, body) = selected_list(&html);
+            assert_eq!(body.matches("<li").count(), items, "{fx:?}");
+            assert_eq!(tag.contains("data-list-limit=\"4097\""), limited, "{fx:?}");
+            assert!(!tag.contains("data-list-error"), "{tag}");
+            assert!(!body.contains("data-fold"), "{fx:?} が畳まれた");
+            assert_eq!(
+                body.contains("上限超過: 先頭 4,095 件だけ表示（全 4,097 件）"),
+                limited
+            );
+        }
+    }
+
+    #[test]
+    fn 成果物の教材に入力を足しても同じランに入り畳まれない() {
+        use crate::host::HostAction;
+        use fandhe_frontend_interactive::Component;
+        use fandhe_frontend_wasm_full::render_component_html;
+        let mut host = artifact_host(MountFixture::ArtifactLimit4095);
+        let op: fandhe_workshop_core::input::Op =
+            serde_json::from_value(serde_json::json!({"input": {"command": "/make-note my-note"}}))
+                .unwrap();
+        host.update(HostAction::Engine(op));
+        assert_eq!(host.model().world().len(), 4_096);
+        let (tag, body) = selected_list(&render_component_html(&host));
+        assert_eq!(body.matches("<li").count(), 4_096);
+        assert!(!tag.contains("data-list-limit") && !body.contains("data-fold"));
+        // 上限ちょうど（4,096 件）からもう 1 件足すと、状態の行が現れる。
+        let mut host = artifact_host(MountFixture::ArtifactLimit4096);
+        let op: fandhe_workshop_core::input::Op =
+            serde_json::from_value(serde_json::json!({"input": {"command": "/make-note my-note"}}))
+                .unwrap();
+        host.update(HostAction::Engine(op));
+        let (tag, body) = selected_list(&render_component_html(&host));
+        assert!(tag.contains("data-list-limit=\"4097\""), "{tag}");
+        assert_eq!(body.matches("<li").count(), 4_096);
+        assert!(!body.contains("data-fold"));
+    }
+
+    #[test]
+    fn 古い_step_の経路は要約へ畳まれ最新の経路は残る() {
+        use fandhe_frontend_wasm_full::render_component_html;
+        let host = artifact_host(MountFixture::ArtifactFold);
+        assert_eq!(host.model().world().len(), 1_140);
+        let (tag, body) = selected_list(&render_component_html(&host));
+        let items = body.matches("<li").count();
+        assert!(items <= 1_000, "{items}");
+        assert!(body.contains("data-fold"));
+        assert!(!tag.contains("data-list-limit") && !tag.contains("data-list-error"));
+        assert_eq!(body.matches("data-path=\"p/").count(), 40);
     }
 }

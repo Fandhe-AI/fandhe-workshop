@@ -1,0 +1,8 @@
+id: ART14-1
+package: fandhe-workshop-web
+test: view_select
+target: crates/web/src/engine_parts.rs
+find: rows.take().unwrap_or_default()
+replace: rows.take().unwrap_or_default().into_iter().take(4096).collect()
+expect-fail: 行が上限を超えると選ばれたビューの_list_は先頭だけを出し状態の行で知らせる
+note: 左の成果物の安全弁が状態の行を出さず、黙って 4,096 行に切る（TASK-484 2/2）
