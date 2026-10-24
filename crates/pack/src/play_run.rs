@@ -10,9 +10,13 @@
 //! 進行の宛先も `web::tick_schedule::next_tick` と同じ式で組む。pack から web へは依存しないので式を写し、
 //! 画面側が変わるときは本モジュールも同じ変更で追従する。
 //!
+//! `cmd:`・`text:` は、どちらも入力欄に打つ文字列として画面の送信と同じ `submit_input` で分ける（TASK-406 1/2、AUTHOR-7）。
+//! 接頭辞は IR の `pack.profile` から 1 回だけ読み、読めなければ送らず `no_judgment` にする（画面も送らない）。
+//!
 //! 扱わないこと
 //! - R-22・R-21・入った実体の集計と最終行（TASK-405）。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
-//! - `cmd:`・`text:` を画面と同じ関数で分けること（TASK-406。ここでは値をそのまま渡す）
+//! - `E-PLAY-INPUT-CLASS` の `test` への結線と使い方の文面（TASK-406 2/2）
+//! - 空白だけの `cmd:`・`text:` を送らないこと（画面は送らないが、ここは分けた結果をそのまま適用する。既知の差）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!
 //! 全域かつ決定的である。I/O は [`run_pack`] の `source::load` だけで、時刻・乱数を持たない。
@@ -21,8 +25,10 @@ use std::path::Path;
 
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
+use fandhe_workshop_contract::profile::read_profile;
 use fandhe_workshop_core::addr::{StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
+use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::Session;
 
@@ -313,16 +319,21 @@ pub fn run_loaded(pack: &LoadedPack) -> TestOutcome {
 
 /// 教材テスト全件を流す。
 pub fn run(ir: &Ir, script: &Script) -> Report {
+    // 画面の適用し直し（`history_replay::replay`）と同じ読み方。読めなければ None で、入力は送らない。
+    let prefix = read_profile(ir.pack.profile.as_ref())
+        .ok()
+        .map(|p| p.command_prefix);
+    let prefix = prefix.as_deref();
     Report {
         playthroughs: script
             .playthroughs
             .iter()
-            .map(|p| run_playthrough(ir, p))
+            .map(|p| run_playthrough(ir, prefix, p))
             .collect(),
         error_inputs: script
             .error_inputs
             .iter()
-            .map(|e| run_error_input(ir, e))
+            .map(|e| run_error_input(ir, prefix, e))
             .collect(),
         unsupported: script.unsupported.clone(),
         tests_file: String::new(),
@@ -335,10 +346,17 @@ fn open(ir: &Ir, start: &str) -> Option<Session> {
     Some(Session::entered_at(ir.clone(), &s.node))
 }
 
-fn to_op(session: &Session, op: &PlayOp) -> Op {
-    match op {
-        PlayOp::Command(s) => Op::Input(Input::Command(s.clone())),
-        PlayOp::Text(s) => Op::Input(Input::Text(s.clone())),
+/// 入力欄に打つ文字列を画面と同じ関数で分けて `Op` にする。接頭辞が無い（読めない）ときは送らない。
+fn typed(prefix: Option<&str>, raw: &str) -> Option<Op> {
+    prefix.map(|p| Op::Input(submit_input(p, raw.to_string())))
+}
+
+fn to_op(session: &Session, prefix: Option<&str>, op: &PlayOp) -> Option<Op> {
+    if let PlayOp::Command(s) | PlayOp::Text(s) = op {
+        return typed(prefix, s);
+    }
+    Some(match op {
+        PlayOp::Command(_) | PlayOp::Text(_) => return None,
         PlayOp::Choice(s) => Op::Input(Input::Choice(s.clone())),
         PlayOp::Ui { view, path } => Op::Input(Input::Ui {
             view: view.clone(),
@@ -365,7 +383,7 @@ fn to_op(session: &Session, op: &PlayOp) -> Op {
                 index: run.busy.as_ref().map_or(0, |b| b.done),
             })
         }
-    }
+    })
 }
 
 fn observe(events: &[Event]) -> Observed {
@@ -410,21 +428,24 @@ fn observe(events: &[Event]) -> Observed {
     Observed::NoJudgment
 }
 
-fn step_once(session: &mut Session, op: &PlayOp) -> Observed {
-    let op = to_op(session, op);
+fn step_once(session: &mut Session, prefix: Option<&str>, op: &PlayOp) -> Observed {
+    let Some(op) = to_op(session, prefix, op) else {
+        return Observed::NoJudgment;
+    };
     observe(session.apply(op))
 }
 
 /// 入力列を流し、最初に外れた位置を返す。`segment` は 1 始まり（0 は誤入力の `pre`）。
 fn run_steps(
     session: &mut Session,
+    prefix: Option<&str>,
     steps: &[ScriptStep],
     segment: usize,
     count: &mut usize,
 ) -> Option<Failure> {
     for (n, s) in steps.iter().enumerate() {
         *count += 1;
-        let observed = step_once(session, &s.op);
+        let observed = step_once(session, prefix, &s.op);
         if !observed.matches_expect(&s.expect) {
             return Some(Failure::Mismatch {
                 segment,
@@ -467,7 +488,7 @@ fn end_reached(session: &Session, p: &Playthrough) -> bool {
     }
 }
 
-fn run_playthrough(ir: &Ir, p: &Playthrough) -> CaseResult {
+fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult {
     let mut inputs = 0;
     let mut session: Option<Session> = None;
     let result = |inputs, failure| CaseResult {
@@ -497,7 +518,7 @@ fn run_playthrough(ir: &Ir, p: &Playthrough) -> CaseResult {
                 None => return result(inputs, Some(begin_failed)),
             },
         };
-        if let Some(f) = run_steps(current, &seg.steps, n + 1, &mut inputs) {
+        if let Some(f) = run_steps(current, prefix, &seg.steps, n + 1, &mut inputs) {
             return result(inputs, Some(f));
         }
     }
@@ -510,7 +531,7 @@ fn run_playthrough(ir: &Ir, p: &Playthrough) -> CaseResult {
     )
 }
 
-fn run_error_input(ir: &Ir, e: &ErrorInput) -> CaseResult {
+fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult {
     let fail = |inputs, failure, observed| CaseResult {
         id: e.id.clone(),
         inputs,
@@ -530,11 +551,11 @@ fn run_error_input(ir: &Ir, e: &ErrorInput) -> CaseResult {
         );
     };
     let mut inputs = 0;
-    if let Some(f) = run_steps(&mut session, &e.pre, 0, &mut inputs) {
+    if let Some(f) = run_steps(&mut session, prefix, &e.pre, 0, &mut inputs) {
         return fail(inputs, f, None);
     }
     inputs += 1;
-    let observed = step_once(&mut session, &e.input);
+    let observed = step_once(&mut session, prefix, &e.input);
     if observed.matches_result(&e.expect) {
         CaseResult {
             id: e.id.clone(),
@@ -559,6 +580,25 @@ fn run_error_input(ir: &Ir, e: &ErrorInput) -> CaseResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cmd_and_text_are_split_by_submit_input() {
+        for p in ["/", "$", "::", ""] {
+            for raw in [
+                "/ls",
+                "ls",
+                "  $ls ",
+                "\u{3000}$ls",
+                "一行目\n二行目",
+                "::x",
+                ":x",
+            ] {
+                let want = Some(Op::Input(submit_input(p, raw.to_string())));
+                assert_eq!(typed(Some(p), raw), want);
+                assert_eq!(typed(None, raw), None);
+            }
+        }
+    }
 
     #[test]
     fn observed_words_match_expect_notation() {
