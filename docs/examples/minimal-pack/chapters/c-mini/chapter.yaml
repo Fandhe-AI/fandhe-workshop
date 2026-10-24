@@ -1,0 +1,47 @@
+id: c-mini
+title: 最小の章
+starts:
+  - id: s1
+    node: st-hello
+    effects:
+      - put: { path: shelf/a.dat, fixture: fx-item }
+steps:
+  - id: st-hello
+    title: あいさつ
+    body: st-hello.md          # 章のディレクトリからの相対
+    input:
+      kind: command
+      name: hello
+      args:
+        - { name: who, positional: true, required: false, shape: any }
+    rules:
+      - id: r-hello
+        on: { command: hello }
+        outcome: { kind: accept }
+    confirm: { kind: none, reason: この Step は受付だけで足りるため }
+    next: [{ to: st-swap }]
+  - id: st-swap
+    title: 入れ替え
+    body: st-hello.md
+    final: true
+    views: [v-files]
+    input:
+      kind: command
+      name: swap
+      args:
+        - { name: src, positional: true, required: true, shape: any }
+        - { name: dst, positional: true, required: true, shape: any }
+    rules:
+      - id: r-swap
+        on: { command: swap, args: { src: shelf/a.dat, dst: shelf/b.dat } }
+        outcome:
+          kind: accept
+          effects:
+            - remove: shelf/a.dat                          # 移動は remove と put を並べて書く
+            - put: { path: shelf/b.dat, fixture: fx-item }
+    # fandhe-pack test は、章の完了を「最後の入力が achieved であること」で判定する。
+    # 最後の Step を confirm: none にすると完走にならないため、画面操作（point_at）で確認する。
+    confirm:
+      kind: point_at
+      targets:
+        - { view: v-files, path: shelf/b.dat }

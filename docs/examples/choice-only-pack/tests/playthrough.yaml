@@ -1,0 +1,12 @@
+playthroughs:
+  - id: pt-main
+    end: complete
+    segments:
+      - start: s1
+        steps:
+          - { choice: opt-a, expect: accepted }
+          - { choice: ans-yes, expect: achieved }
+          - { ui: "v-doc memo/draft.md", expect: accepted }
+          - { ui: "v-doc memo/draft.md", expect: achieved }
+error_inputs:
+  - { id: e-wrong-pick, start: s1, input: { choice: opt-b, expect: "rejected:not_in_this_step" } }

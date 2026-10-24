@@ -8510,3 +8510,19 @@ AUTHOR-PREVIEW csp=<on|off> steps=<達成数>/20 crossings=<回数> first-steps=
 - 実行: `cargo test -p fandhe-workshop-pack --locked --test play_input_class`
 - 変異（2026-10-24。元にしたコミット f7f279d）: `scripts/check-mutations.sh crates/pack/tests/mutations/AUTHOR7-1.mutation` から `AUTHOR7-4.mutation` までの 4 件とも DETECTED（AUTHOR7-3 は結線を外す、AUTHOR7-4 は合否の条件を外す）
 - 限界: 画面の表示と Esc は確かめない。空白だけの入力の既知の差は 5.293 のまま。AI による代理の確認であり、人の評価には数えない
+
+### 5.296 公開の資料の例の validate・test と手引きの転記（TASK-412。AUTHOR-12）
+
+`docs/examples/` の教材パック 2 つ（`minimal-pack`・`choice-only-pack`）が `validate` で診断 0 件、`test` で全件合格（終了コード 0）になること、`MANIFEST.sha256` が全ファイルと一致すること、`docs/cli-guide.md` に写した出力が実行ファイルの出力と一致することを確かめた。
+
+| 試験 | 確かめること |
+|---|---|
+| `author12_examples_validate_with_zero_diagnostics` | 終了コード 0・標準エラー出力が空・標準出力が `OK: 診断 0 件（` で始まる 1 行 |
+| `author12_examples_pass_test` | 終了コード 0・`FAIL ` の行と `E-` の診断の行が 0 件・模範解答が 1 本以上で全件完走・誤入力が全件期待どおり |
+| `author12_examples_compile` | `compile` が終了コード 0 で JSON を出す |
+| `author12_examples_are_the_two_named_packs` | `docs/examples/` 直下のディレクトリがちょうど 2 つ。`choice-only-pack` が `command`・`text` の入力方式を持たない |
+| `author12_examples_manifest_matches` | `MANIFEST.sha256` の行の集合が全ファイルと一致し、SHA-256 が合う。パスは相対で `..` を含まない |
+| `author12_cli_guide_transcripts_match` | `cli-guide-run` の印つきの出力が実行結果と完全一致する。転記 0 件・許可リスト外のコマンドやパックは失敗 |
+
+- 実行: `cargo test -p fandhe-workshop-pack --locked --test examples_pack`
+- 限界: `asserts` は今の `test` が判定しないため、`minimal-pack` は教材テストに書かない。画面の表示は確かめない。TASK-405 が `test` に最終行と集計を足すと、手引きの転記は変わるので、その変更で直す。AI による代理の確認であり、人の評価には数えない
