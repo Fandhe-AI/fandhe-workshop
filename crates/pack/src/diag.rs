@@ -385,9 +385,10 @@ mod tests {
         assert!(s.contains("一行目"));
     }
 
+    /// コードの形式（`E-` の接頭辞・区切りの文字種・重複なし・表示の一致）だけを見る。
+    /// 件数は `tests/diagnostics_doc.rs` が `docs/diagnostics.md` の記述と照合する。
     #[test]
     fn d5_codes_are_well_formed() {
-        assert_eq!(DiagCode::ALL.len(), 41);
         let mut seen = std::collections::HashSet::new();
         for c in DiagCode::ALL {
             let s = c.as_str();
