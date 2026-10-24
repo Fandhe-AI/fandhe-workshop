@@ -656,7 +656,7 @@ compile した IR は、受講者に配る配信物の教材そのものです�
 
 - 本文の確認は自動ブラウザによる AI の代理であり、人の作成者が画面を確かめた記録は含みません
 - 試験は試験用の教材（`crates/web/tests/data/ch0_3_pack`）で行いました。本物の CH-0〜CH-3 での流し直しは未実施です
-- 根拠の試験は `tools/browser/author-preview.test.mjs`（`docs/testing.md` 5.292・5.297）です
+- 根拠の試験は `tools/browser/author-preview.test.mjs`（`docs/testing.md` 5.292・5.298）です
 
 ## 案内レベル（`guidance`・`body_levels`・`do_levels`・ヒントの `levels`）
 
@@ -753,4 +753,4 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` | 入力も `use` も確認も無い終端でない Step が章・モジュールの定義ごとに 1 件の `E-STRUCTURE` になること（`validate`・`compile`・CLI）。終端・入力ありの Step は拒否されず、確認だけの Step は診断が重ならないこと（PACK-19、#1709） |
 | `crates/pack/tests/split_answer.rs` の `pack33_` | 3 枚のカードを Step に分けた教材が新しい語彙の版の宣言なしで `validate` を通ること、1 枚ごとの正誤が Step ごとの確認の結果として別々に取れること、まとめた 1 Step では記録が 1 件しかできないこと（PACK-33・D-69） |
 | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` | 誤答の拒否文で前後の切り替えを案内する教材が新しい語彙の版の宣言なしで `validate` を通ること、誤答が案内つきの拒否になり Step が受付のまま達成にならないこと、`answer` に比較のビューを結ぶ欄を足すと `E-PARSE` になること（PACK-36・D-69） |
-| `tools/browser/author-preview.test.mjs` | compile した IR の配信物での完走（P1〜P5・B・C・D）と、章の開始点への直接リンク（E）。開始点 4 件が章の最初の Step の題・状態・位置で開き、開始点でない値は開かないこと（AUTHOR-21。`docs/testing.md` 5.292・5.297） |
+| `tools/browser/author-preview.test.mjs` | compile した IR の配信物での完走（P1〜P5・B・C・D）と、章の開始点への直接リンク（E）。開始点 4 件が章の最初の Step の題・状態・位置で開き、開始点でない値は開かないこと（AUTHOR-21。`docs/testing.md` 5.292・5.298） |

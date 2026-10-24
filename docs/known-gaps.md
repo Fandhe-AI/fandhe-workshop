@@ -28,6 +28,7 @@
 | SAFE-30 | 秘密情報の検出は固定の 15 形に限り、一般の検出率を保証しない（見逃しも過剰な検出もある）。履歴ファイルの読み込みの内容は調べない | 形を少数追加すると決定（D-45。TASK-165 1/2）。追加の 5 形の選定は 2026-10-21 にユーザーが確定（D-66）。見逃し・誤検出を減らす規則の調整は未実施 | 検出されない形の値は入力しない。誤検出は「このまま保存する」で保存できる | `crates/core/tests/secret_scan.rs`・`crates/web/tests/secret_notice.rs`・`tools/browser/secret-warning.test.mjs`・`crates/web/tests/history_import.rs`（記録は `docs/testing.md` 5.184・5.185） |
 | JUDGE-24 | 上限を超える貼り付けを切った後、Ctrl+Z で貼り付けの前に戻らない。取り消しの履歴もまるごと消える | 取り消しは対象外と決定（2026-10-21。#1667） | 貼り付けを取り消したいときは、手で消すか、貼り付ける前に文字列を短くする | `tools/browser/input-limit.test.mjs` の J-1〜J-5（取り消しは試験しない。試作の記録は `docs/testing.md` 5.189） |
 | PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
+| ART-17（G-8） | 左の成果物の変化の印は行単位で、どの欄が変わったかを示さない。カードの状態が下書きからオープンに変わっても、行に【変更】と出るだけ | 足さないと決定（D-49（2026-10-12）、ART-17）。見直しの条件は、人の試行で「どの欄が変わったか分からない」という観察が出たとき。人の評価は 0 件 | 教材の本文・`do` で、変わる欄を言葉で書く。前後の切り替えで比べるよう案内する | `tools/browser/card-row-mark.test.mjs`・`crates/web/tests/card_view_a_contract.rs`・`card_view_b_contract.rs`（記録は `docs/testing.md` の 5.297） |
 | PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。画面での見え方は未確認（ART-19） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
@@ -402,3 +403,13 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 扱い: 経過措置（AUTHOR-4）。回避: `asserts` などを書かない。最後の Step に `point_at` などの確認を置き、最後の入力を `achieved` にする。`docs/examples/minimal-pack/` がその形である。
 
 根拠の試験: `crates/pack/tests/examples_pack.rs`（`author12_examples_pass_test`）。記録は `docs/testing.md` の 5.296。
+
+## ART-17: 変化の印は行単位で、どの欄が変わったかを示さない
+
+限界: 左の成果物の変化の印（`data-mark`・記号 `~`・文字【変更】）は行に 1 か所だけ付く。行データは差のある欄の一覧を持たないため、カードの状態が下書きからオープンに変わっても、行に【変更】と出るだけで、状態の欄が変わったことは示さない。試験の観察は代役の部品（試験の設定の `view_fixture`）に対するもので、製品の画面へは未結線である（`docs/views.md` の 1 節）。
+
+理由: D-49（2026-10-12）で足さないと決めた。理由はユーザーの回答に記録されていない。見直すのは、人の試行で「どの欄が変わったか分からない」という観察が出たときに限る。この観察はまだ無い（人の評価は 0 件）。
+
+回避: 教材の本文・`do` で、変わる欄を言葉で書く。前後の切り替えで比べるよう案内する。
+
+根拠の試験: `tools/browser/card-row-mark.test.mjs`、`crates/web/tests/card_view_a_contract.rs`、`crates/web/tests/card_view_b_contract.rs`。記録は `docs/testing.md` の 5.297。
