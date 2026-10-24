@@ -391,3 +391,14 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 扱い: 確かめない（AUTHOR-7）。回避: 画面での確認は自動ブラウザの試験（BUILD-4・BUILD-10）で行う。
 
 根拠の試験: `crates/pack/tests/play_input_class.rs`、`crates/pack/tests/play_input_split.rs`。記録は `docs/testing.md` の 5.294。
+
+## AUTHOR-4: `test` の経過措置（`asserts` の未判定と最後の Step の確認）
+
+`fandhe-pack test` は、core が章の完了（`completed`）を結線し、TASK-405 が判定を足すまで、次の経過措置で動く（`docs/cli.md` の 12.1 節）。
+
+- `asserts`・`text_checks`・`guidance_checks` は判定しない。定義があるだけで、通ったと見せないために終了コードが 1 になる
+- `end: complete` は、最後の入力が `achieved` であることで満たす。最後の Step を `confirm: none` にすると `accepted` で終わり、完走にならない
+
+扱い: 経過措置（AUTHOR-4）。回避: `asserts` などを書かない。最後の Step に `point_at` などの確認を置き、最後の入力を `achieved` にする。`docs/examples/minimal-pack/` がその形である。
+
+根拠の試験: `crates/pack/tests/examples_pack.rs`（`author12_examples_pass_test`）。記録は `docs/testing.md` の 5.296。

@@ -16,7 +16,9 @@
 | 入力方式・確認・拒否の文面・モジュール・左エリアなどの書き方 | `docs/pack-authoring.md` |
 | 操作プロファイル（接頭辞・入力欄）と外観で選べるもの | `docs/operation-profile.md` |
 | 左エリアのビューと、`views` の書き方 | `docs/views.md` |
-| 診断コード（`E-*`）の意味 | `docs/diagnostics.md` |
+| 診断コード（`E-*`）の意味と早見表 | `docs/diagnostics.md` |
+| 動く最小の教材パックの例 | `docs/examples/` |
+| コマンドの使い方と出力の読み方 | `docs/cli-guide.md` |
 | `fandhe-pack` の使い方 | `docs/cli.md` |
 | 書けないこと（忠実さの限界）と回避 | `docs/known-gaps.md` |
 

@@ -1,0 +1,52 @@
+id: c-pick
+title: 選ぶ章
+starts:
+  - id: s1
+    node: st-pick
+    effects:
+      - put: { path: memo/draft.md, fixture: fx-note, attrs: { title: 下書き, detail: まだ何も選んでいません } }
+steps:
+  - id: st-pick
+    title: 選ぶ
+    body: st-pick.md
+    do: 選択肢から 1 つ選ぶ
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-a, label: 選択肢 A }
+        - { id: opt-b, label: 選択肢 B }
+    rules:
+      - id: r-a
+        on: { option: opt-a }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: memo/draft.md, attr: detail, value: A を選びました }
+      - id: r-b
+        on: { option: opt-b }
+        outcome: { kind: reject, rejection: rj-wrong-pick }
+    confirm:
+      kind: answer                # 確認の選択肢にも label を書ける（画面に出る表示名。履歴に残るのは id）
+      on_wrong: rj-wrong-pick
+      options:
+        - { id: ans-yes, label: 選びました, correct: true }
+        - { id: ans-no, label: まだです, correct: false }
+    next: [{ to: st-point }]
+  - id: st-point
+    title: 指す
+    body: st-pick.md
+    final: true
+    views: [v-doc]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-doc, path: memo/draft.md }
+    rules:
+      - id: r-ui
+        on: { ui: { view: v-doc, path: memo/draft.md } }
+        outcome: { kind: accept }
+    confirm:
+      kind: point_at
+      targets:
+        - { view: v-doc, path: memo/draft.md }

@@ -1,8 +1,8 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 16
-決定日: 2026-10-22
+診断コードの一覧の版: 17
+決定日: 2026-10-24
 状態: 固定（契約）
 ```
 
@@ -164,3 +164,52 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 14 | 2026-10-22 | `E-STRUCTURE` の対象に、入力も `use` も確認も無い終端でない Step を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | PACK-19・D-69（#1709） |
 | 15 | 2026-10-22 | `E-REF-STEP` の対象に、章の `next` が他の章の Step を指す場合を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | PACK-43・D-67（TASK-67） |
 | 16 | 2026-10-23 | `E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH` を `fandhe-pack test` が出すようになったことを、5 節の注で補った。行は書き換えず、本表外のまま、件数は 34 件のまま | TASK-404 3/3（#651）・AUTHOR-4 |
+| 17 | 2026-10-24 | 作成者向けの早見表（8 節）を足した。2 節・4 節・5 節の行は書き換えず、件数は 34 件のまま | TASK-412・AUTHOR-12 |
+
+## 8. 作成者向けの早見表
+
+作成者が診断を直すときの手引きである（TASK-412・AUTHOR-12）。条件の要旨の正は 2 節・4 節・5 節であり、ここでは言い換えない。「出すコマンド」は、既存の注（2 節）と `docs/cli.md` の 12 節、および `crates/pack/src/` を読んだ結果による。コードを読んでも決められなかったものは「未確認」と書く。この表の行は 2 節の件数に数えない。
+
+| コード | 出すコマンド | 直すときに見る資料 |
+|---|---|---|
+| `E-PARSE` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md`・`docs/vocabulary/README.md` |
+| `E-FORMAT-VERSION` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-STRUCTURE` | validate・compile（`test` の関門でも出る）。`answer` の選択肢の `label` の欠けは validate だけ | `docs/schema-format-b.md`・`docs/views.md` |
+| `E-REF-STEP` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-VIEW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
+| `E-REF-FIXTURE` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-HINT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-REJECTION` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-MODULE` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-COMMAND` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-REF-ELEMENT` | validate だけ（`test` の関門でも出る） | `docs/schema-format-b.md`（`put`・`replace` の経路） |
+| `E-VOCAB-MISMATCH` | validate だけ（`test` の関門でも出る） | `docs/vocabulary/README.md`（`pack.vocab` の宣言）・`docs/pack-authoring.md` |
+| `E-REF-BODY` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-DUP-ID` | validate・compile（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-UNREACHABLE` | validate だけ（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-DEAD-END` | validate だけ（`test` の関門でも出る） | `docs/schema-format-b.md` |
+| `E-MODULE-CYCLE` | validate・compile（`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-EMPTY-NEXT-ACTION` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-NO-CONFIRM` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SLOT-SYNTAX` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SLOT-UNKNOWN` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SLOT-CONTEXT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SLOT-NO-FALLBACK` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SLOT-NEEDS-DO` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-GUIDANCE-LEAK` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-HINT-HIDDEN` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-PROFILE-PREFIX` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
+| `E-PROFILE-COMMAND-NAME` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
+| `E-PROFILE-TEXT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
+| `E-PROFILE-NO-INPUT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
+| `E-PLAY-INPUT-CLASS` | test だけ | `docs/cli-guide.md` の 4.3 節・`docs/operation-profile.md` |
+| `E-LEFT-MULTI-VIEW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
+| `E-LEFT-TARGET-VIEW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
+| `E-LEFT-TARGET-ROW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
+| `E-PLAY-INCOMPLETE` | test だけ | `docs/cli-guide.md` の 4.3 節 |
+| `E-PLAY-CATEGORY-MISMATCH` | test だけ | `docs/cli-guide.md` の 4.3 節 |
+| `E-LIMIT` | 読み込み（すべてのコマンド） | `docs/cli.md` の 8 節 |
+| `E-LIMIT-PACK-SIZE` | 読み込み（すべてのコマンド） | `docs/cli.md` の 8 節 |
+| `E-LIMIT-MD-SIZE` | 読み込み（すべてのコマンド） | `docs/cli.md` の 8 節 |
+| `E-LIMIT-DEPTH` | 読み込み（`metrics` も出す） | `docs/cli.md` の 8 節 |
+| `E-LIMIT-SYMLINK` | 読み込み（`metrics` も出す） | `docs/cli.md` の 8 節 |

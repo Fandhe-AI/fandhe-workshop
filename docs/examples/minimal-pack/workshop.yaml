@@ -1,0 +1,27 @@
+# 構造の書き方を示す最小の例（題材は教材の題材とは無関係の仮のもの）。コマンドで進む例。最後の確認だけが画面操作（point_at）である。
+pack: { id: mini-example, title: 最小の例, version: 0.0.1, ir_format: 1, guidance: A }
+commands:
+  hello: builtin
+  swap: skill
+views:
+  v-files: { kind: file_tree }
+fixtures:
+  fx-item: { path: fixtures/item.txt, kind: file }
+rejections:
+  rj-unknown: { category: unknown_command, message: 一覧にないコマンドです。, next_action: 使えるコマンドを入力し直します。 }
+  rj-wrong: { category: wrong_order, message: まだ先のコマンドです。, next_action: 今の Step のコマンドを入力します。 }
+  rj-missing: { category: missing_arg, message: 引数が足りません。, next_action: 引数を足して送り直します。 }
+  rj-bad: { category: bad_arg_shape, message: 引数の形が違います。, next_action: 形を直して送り直します。 }
+  rj-busy: { category: busy, message: 処理中です。, next_action: 終わるまで待ちます。 }
+  rj-nis: { category: not_in_this_step, message: この Step では使いません。, next_action: 今の Step の説明を読み直します。 }
+  rj-ns: { category: not_supported, message: この教材では扱いません。, next_action: 教材の操作に戻ります。 }
+  rj-ft: { category: free_text_unjudged, message: 内容は判定しません。, next_action: 自分で確かめます。 }
+defaults:
+  unknown_command: rj-unknown
+  wrong_order: rj-wrong
+  missing_arg: rj-missing
+  bad_arg_shape: rj-bad
+  busy: rj-busy
+  not_in_this_step: rj-nis
+  not_supported: rj-ns
+  free_text_unjudged: rj-ft

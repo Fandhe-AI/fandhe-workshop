@@ -1,0 +1,13 @@
+playthroughs:
+  - id: pt-main
+    end: complete
+    segments:
+      - start: s1
+        steps:
+          - { cmd: /hello, expect: accepted }
+          - { cmd: /swap shelf/a.dat shelf/b.dat, expect: accepted }
+          - { ui: "v-files shelf/b.dat", expect: achieved }
+error_inputs:
+  - { id: e-unknown, start: s1, input: { cmd: /cat, expect: "rejected:unknown_command" } }
+  - { id: e-wrong-step, start: s1, input: { cmd: /swap a b, expect: "rejected:not_in_this_step" } }
+  - { id: e-text, start: s1, input: { text: hello, expect: "rejected:not_in_this_step" } }

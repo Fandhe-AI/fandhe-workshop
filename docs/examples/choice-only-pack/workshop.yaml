@@ -1,0 +1,39 @@
+# 選択肢と画面操作だけで進む最小の例（題材は教材の題材とは無関係の仮のもの）。語彙 v1.3 の pack.profile・pack.appearance・pack.left_pane の書き方を示す。
+pack:
+  id: choice-example
+  title: 選択肢だけの例
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+  vocab: "1.3"                  # 宣言した版より新しい拡張点を使うと validate が E-VOCAB-MISMATCH を出す
+  profile:
+    input_field: hidden         # 入力欄・送信ボタン・補完の候補・キーの案内・OS の選択を出さない（command_prefix は書かなくてよい）
+  appearance:
+    theme: reading              # standard | mono | high_contrast | reading
+  left_pane:
+    world_list: hidden          # 世界状態の一覧を出さない
+    view_tabs: hidden           # ビューの切り替えのボタンを出さない（Step が宣言した先頭のビューだけを出す）
+commands: {}                    # コマンドを使わない教材では空でも書ける
+views:
+  v-doc: { kind: document }
+fixtures:
+  fx-note: { path: fixtures/note.md, kind: document }
+rejections:
+  rj-unknown: { category: unknown_command, message: 一覧にないコマンドです。, next_action: 画面の選択肢から選び直します。 }
+  rj-wrong: { category: wrong_order, message: まだ先の操作です。, next_action: 今の Step の選択肢から選びます。 }
+  rj-missing: { category: missing_arg, message: 引数が足りません。, next_action: 画面の選択肢から選び直します。 }
+  rj-bad: { category: bad_arg_shape, message: 形が違います。, next_action: 画面の選択肢から選び直します。 }
+  rj-busy: { category: busy, message: 処理中です。, next_action: 終わるまで待ちます。 }
+  rj-nis: { category: not_in_this_step, message: この Step では選べません。, next_action: 画面の選択肢から選びます。 }
+  rj-ns: { category: not_supported, message: この教材では扱いません。, next_action: 画面の選択肢に戻ります。 }
+  rj-ft: { category: free_text_unjudged, message: 内容は判定しません。, next_action: 自分で確かめます。 }
+  rj-wrong-pick: { category: not_in_this_step, message: その選択肢は、この例では当たりではありません。, next_action: ほかの選択肢を選び直します。 }
+defaults:
+  unknown_command: rj-unknown
+  wrong_order: rj-wrong
+  missing_arg: rj-missing
+  bad_arg_shape: rj-bad
+  busy: rj-busy
+  not_in_this_step: rj-nis
+  not_supported: rj-ns
+  free_text_unjudged: rj-ft

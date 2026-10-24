@@ -4,7 +4,7 @@
 
 版と保存済みの履歴の節（TASK-180）に続けて、主版を上げる条件と `pack.vocab` の書き方の規約（TASK-179）を書いています。
 
-公開の資料は、この文書のほかに 4 種類あります（TASK-411、AUTHOR-12）。欄の名前と型は `docs/schema-format-b.md`、語の一覧は `docs/vocabulary/README.md`（正は `docs/vocabulary/vocabulary.md`）、操作プロファイルと外観は `docs/operation-profile.md`、ビューは `docs/views.md`、書けないことと回避は `docs/known-gaps.md` です。
+公開の資料は、この文書のほかに 8 種類あります（TASK-411・TASK-412、AUTHOR-12）。欄の名前と型は `docs/schema-format-b.md`、語の一覧は `docs/vocabulary/README.md`（正は `docs/vocabulary/vocabulary.md`）、操作プロファイルと外観は `docs/operation-profile.md`、ビューは `docs/views.md`、書けないことと回避は `docs/known-gaps.md` です。あわせて、コマンドの使い方は `docs/cli-guide.md`、最小の教材パックの例は `docs/examples/`、診断コードの意味と早見表は `docs/diagnostics.md` にあります。
 
 ## 教材の版と保存済みの履歴
 
