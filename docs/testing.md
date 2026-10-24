@@ -8442,7 +8442,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 #### 確かめないこと
 
-- 章の開始点への直接リンクと、作成者向けの文書（TASK-427 2/2）
+- 章の開始点への直接リンクは 5.298（TASK-427 2/2）が持つ
 - 本物の CH-0〜CH-3（TASK-643・TASK-642）
 - キーボードだけの完走（`ch0-3-run` が持つ）。処理中の Esc による停止（5.117 の限界）
 - 人が作成者として画面を確かめた記録（仕様が「含まない」と定める）
@@ -8559,6 +8559,52 @@ TASK-466 の決定（D-49。行単位の印のまま）に従い、欄単位の�
 - 実行（2026-10-24。元にしたコミット f41382a）: `TEST_HOOKS=1 tools/build-web.sh` の出力に対し `node --test tools/browser/card-row-mark.test.mjs` が 10 件とも合格
 - 変異注入: 既存の ART17-1〜6 は足さない。ブラウザ試験は `check-mutations` の対象外のため、負の対照は RM4 が担う
 - 範囲外: `scripts/expected-test-counts.txt` の更新・`make test-browser` の全体の実行（未検証）・欄単位の表示の実装・製品の `view()` への結線。AI による代理の確認であり、人の評価には数えない
+
+### 5.298 章の開始点への直接リンクと作成者向けの手順（TASK-427 2/2。AUTHOR-21）
+
+5.292 の続きである。作成者が compile した IR の配信物を、章の開始点への直接リンク（`?start=<開始点 ID>`。DLV-9・D-68）で開いても、その章の最初の Step の題と状態で開くことを確かめる。作成者向けの手順は `docs/pack-authoring.md` の「compile した IR を手元の画面で確かめる」に書いた。試験は `tools/browser/author-preview.test.mjs` の E（補助は `author-preview.mjs` の `startLinksOf`・`positionOf`）。Rust は変えていない。
+
+#### 解釈
+
+- 配信物は `fandhe-ir` の meta がある配信する設定で、`ir/main.json` を取得して開始点を照合する（TASK-112 2/2）。試験の設定には逃がさない
+- 教材は 5.292 と同じ試験用の教材（`ch0_3_pack`）である。開始点は 4 件（`s-0-1`・`s-1-1`・`s-2-1`・`s-3-1`）
+- `s-0-1` は既定の開始点と同じ節点であり、`?start=` が効いている証拠にならない。効きを区別できるのは残りの 3 件である
+- 位置の期待値（`<章の ID>　Step M / K`）は IR から求め、画面の値を読み返して合格にしない
+- AI による代理の確認であり、人の評価には数えない（D-34）
+
+#### 確かめること
+
+| 試験 | 確かめること |
+|---|---|
+| E（CSP あり・なし） | 開始点 4 件を新しい文脈で `?start=` で開くと、その節点が入ったばかり（DOM だけの観察）で示され、次の Step・ほかの章の開始点・同じ Step の受付済み・達成を示さない。上部の位置が IR から求めた値と一致し、「いまやること」と本文（先頭の見出しに題）が出る。通知は 0 件。`ir/main.json` は 200 で 1 回。安全の計数・配信元以外への通信・ページ内エラー・コンソールの error と CSP 警告は 0 件。配信物に試験用の口が無い |
+| E の負の対照 | 固定の文字列と、節点だが開始点でない `s-1-2` は開かず、コードだけの通知（`start_unknown`）が出る。Step の題が 0 件で、値が画面とタイトルに出ない |
+
+#### 確かめないこと
+
+- 直接リンクを開いた後の再読み込み（`direct-link-reload`。5.204）と、章 A の履歴があるときの章 B のリンク（`direct-link-roundtrip`。5.206）
+- 断りの網羅（大文字・`../`・重複など。`direct-link-start`。5.199）
+- 本物の CH-0〜CH-3（TASK-643・TASK-642）。人が作成者として画面を確かめた記録
+
+#### 結果の 1 行の様式
+
+```text
+AUTHOR-DIRECT-LINKS csp=<on|off> links=<合格>/4 refused=<合格>/2 external=<件数> page-errors=<件数> ledger=<合格>/<項目>
+```
+
+#### 実行結果
+
+- 実行日: 2026-10-24。Chromium（同梱）。`SKIP_WASM_OPT=1`
+- P1〜P5・B（2 件）・C・D・E（2 件）の 11 件が通った
+- `AUTHOR-DIRECT-LINKS csp=on links=4/4 refused=2/2 external=0 page-errors=0 ledger=93/93`
+- `AUTHOR-DIRECT-LINKS csp=off links=4/4 refused=2/2 external=0 page-errors=0 ledger=93/93`
+- 空振りの確認: `positionOf` の M を 1 ずらすと、E が 4 件のリンクすべての「位置の文字」で落ちた（確認後に戻した）
+- `make test-browser` の全体は未検証
+
+#### 限界
+
+- `SKIP_WASM_OPT=1` のビルドである。CI は Chromium で流す
+- 本物の教材での流し直しは未実施である
+- 既存の直接リンクの試験（`direct-link-start`・`direct-link-reload`・`delivery-direct-links`）の頭書きにある「配信する設定は実行時に IR を取得しない」は、meta のある配信物については古い記述である。本件では直していない
 
 ### 5.299 文書ビューで練習データの本文を表示する試験と決定の照合（TASK-489 1/2。ART-18・D-50・D-51）
 
