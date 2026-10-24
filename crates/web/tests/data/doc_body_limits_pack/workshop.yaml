@@ -1,0 +1,11 @@
+# doc_body_limits_pack（形式 B）。文書ビューの本文の表示の限界の観察（ART-18。TASK-489 2/2）の試験用で、架空の内容だけを持つ。
+pack: {id: doc-body-limits-pack, title: 本文の限界, version: '0.0.1', ir_format: 1, guidance: A, vocab: '1.4'}
+views:
+  v-doc: {kind: document, body: shown}
+  v-tree: {kind: file_tree}
+fixtures:
+  doc-md: {path: fixtures/doc-md.md, kind: document}
+  doc-md2: {path: fixtures/doc-md2.md, kind: document}
+  doc-txt: {path: fixtures/doc-txt.txt, kind: document}
+rejections:
+  rj-decline: {category: not_in_this_step, message: まだ公開しません。, next_action: もう一度決めます。}
