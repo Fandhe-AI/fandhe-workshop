@@ -381,3 +381,13 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 限界（a11y）: 右の領域に `aria-label` を TERM の担当が付けたときは、`terminal_area::check_view` の閉じた一覧と本文の区画の関係を確かめ直す必要があります。
 
 根拠の試験: `crates/web/tests/step_body_host.rs`、`tools/browser/step-body.test.mjs`。記録は `docs/testing.md` の 5.265。
+
+## AUTHOR-7: `test` は画面の表示と停止（Esc）を確かめない
+
+`fandhe-pack test` は入力を画面と同じ判定の関数で流し、鍵と分けの食い違いを `E-PLAY-INPUT-CLASS` で報告する。画面の実際の表示（ビューの行・本文の表示・外観・入力欄が隠れること・見た目）と停止（Esc）は確かめない。
+
+限界: 上記の表示と停止は `test` の判定に入らない。空白だけの `cmd:`・`text:` を画面は送らないが `test` は適用する。
+
+扱い: 確かめない（AUTHOR-7）。回避: 画面での確認は自動ブラウザの試験（BUILD-4・BUILD-10）で行う。
+
+根拠の試験: `crates/pack/tests/play_input_class.rs`、`crates/pack/tests/play_input_split.rs`。記録は `docs/testing.md` の 5.294。

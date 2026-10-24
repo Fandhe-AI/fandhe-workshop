@@ -1,0 +1,8 @@
+id: AUTHOR7-4
+package: fandhe-workshop-pack
+test: play_input_class
+target: crates/pack/src/play_run.rs
+find:             && self.input_class.is_empty()
+replace:             && true
+expect-fail: author7_input_class_dollar_text_with_prefix_is_reported
+note: 入力の分けの診断があっても合格として終了コード 0 にする

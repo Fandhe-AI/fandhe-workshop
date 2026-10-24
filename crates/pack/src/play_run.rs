@@ -12,10 +12,12 @@
 //!
 //! `cmd:`・`text:` は、どちらも入力欄に打つ文字列として画面の送信と同じ `submit_input` で分ける（TASK-406 1/2、AUTHOR-7）。
 //! 接頭辞は IR の `pack.profile` から 1 回だけ読み、読めなければ送らず `no_judgment` にする（画面も送らない）。
+//! 鍵と分けの食い違い（`E-PLAY-INPUT-CLASS`）は [`run_loaded`] が `profile::check_play_inputs` で集め、入力は止めず画面と
+//! 同じ判定で流した上で [`Report::input_class`] に持つ。1 件でもあれば [`Report::all_passed`] は偽になる（TASK-406 2/2）。
+//! 画面の表示（ビューの行・本文・外観・入力欄が隠れること・見た目）と停止（Esc）は確かめない（`docs/cli.md` 12.1）。
 //!
 //! 扱わないこと
 //! - R-22・R-21・入った実体の集計と最終行（TASK-405）。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
-//! - `E-PLAY-INPUT-CLASS` の `test` への結線と使い方の文面（TASK-406 2/2）
 //! - 空白だけの `cmd:`・`text:` を送らないこと（画面は送らないが、ここは分けた結果をそのまま適用する。既知の差）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!
@@ -164,6 +166,9 @@ pub struct Report {
     pub unsupported: Vec<Unsupported>,
     /// 教材テストのファイル（パック根からの相対パス）。試験の診断の `file` 欄に使う。
     pub tests_file: String,
+    /// 入力の分けの診断（`E-PLAY-INPUT-CLASS`。接頭辞が `/` 以外のときだけ）。流した結果とは別に持ち、
+    /// 1 件でもあれば不合格に倒す（食い違いを通ったと見せない）。
+    pub input_class: Vec<Diagnostic>,
 }
 
 impl CaseResult {
@@ -213,7 +218,7 @@ impl Report {
         self.error_inputs.iter().filter(|c| c.passed()).count()
     }
 
-    /// 不合格 1 件ごとの試験の診断を、模範解答、誤入力の記載の順で返す（TASK-404 3/3）。
+    /// 試験の診断を、入力の分け（流す前に静的に決まる）、模範解答、誤入力の記載の順で返す（TASK-404 3/3・TASK-406 2/2）。
     ///
     /// メッセージは英語の固定文と固定語彙だけで、教材データの値は写さない。
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -248,13 +253,19 @@ impl Report {
                 "error input result differs from expected",
             )
         });
-        pts.chain(eis).collect()
+        self.input_class
+            .iter()
+            .cloned()
+            .chain(pts)
+            .chain(eis)
+            .collect()
     }
 
-    /// 全件が合格で、判定していない定義が無く、1 件以上流したとき真。
+    /// 全件が合格で、判定していない定義と入力の分けの診断が無く、1 件以上流したとき真。
     pub fn all_passed(&self) -> bool {
         !self.playthroughs.is_empty()
             && self.unsupported.is_empty()
+            && self.input_class.is_empty()
             && self.playthroughs.iter().all(CaseResult::passed)
             && self.error_inputs.iter().all(CaseResult::passed)
     }
@@ -311,6 +322,7 @@ pub fn run_loaded(pack: &LoadedPack) -> TestOutcome {
         Ok(ir) => {
             let mut report = run(&ir, &script);
             report.tests_file = pack.tests_file.clone().unwrap_or_default();
+            report.input_class = crate::profile::check_play_inputs(pack);
             TestOutcome::Ran(report)
         }
         Err(d) => TestOutcome::NotRun { diags: d, summary },
@@ -337,6 +349,7 @@ pub fn run(ir: &Ir, script: &Script) -> Report {
             .collect(),
         unsupported: script.unsupported.clone(),
         tests_file: String::new(),
+        input_class: Vec::new(),
     }
 }
 
@@ -654,5 +667,23 @@ mod tests {
         assert!(r.all_passed());
         r.unsupported.push(Unsupported::Asserts);
         assert!(!r.all_passed());
+    }
+
+    #[test]
+    fn input_class_diagnostic_is_not_a_pass() {
+        let mut r = Report::default();
+        r.playthroughs.push(CaseResult {
+            id: "p".into(),
+            inputs: 1,
+            failure: None,
+            observed: None,
+        });
+        assert!(r.all_passed());
+        r.input_class.push(
+            Diagnostic::new("t.yaml", "playthrough:p", DiagCode::PlayInputClass, "m")
+                .expect("diag"),
+        );
+        assert!(!r.all_passed());
+        assert_eq!(r.diagnostics().len(), 1);
     }
 }
