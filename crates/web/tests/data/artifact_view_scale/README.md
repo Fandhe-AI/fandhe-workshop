@@ -38,3 +38,13 @@
 - 内訳: 3 行で、前後は同じ中身です（印は付きません）。指せる行は `screen/top` だけで、`screen/left`・`screen/right` は表示だけの負の対照です（`view_fixture.rs` の宛先の規則 `Only`）
 - `testdata` に置かない理由: 上と同じです。spec の写しではなく、実装側が足すデータです
 - 使われ方: `crates/web/src/view_fixture.rs` が `include_bytes!` で読み（`test-hooks` の下だけ）、`fixture_data` の payload `appdemo:nameplate` で差し替えます。`tools/browser/point-click.test.mjs` の PC3 が使います
+
+## アプリのデモの模擬ログイン（TASK-492）
+
+`appdemo-login.json` と `appdemo-login-contrast.json` は、アプリのデモのビューに模擬ログインの画面を渡し、パスワード欄とパスワードを求める文言が 0 件であることを検査するためのデータです（ART-24・ROUND1-25）。
+
+- 出所: 教材 repo の掲示板のデモの定義（TASK-664）がまだ無いため、ART-24 と ROUND1-25 の期待（名前を選ぶだけで入れる）から作った実装側の代役です。本物のデモの写しではありません
+- 内訳: `appdemo-login.json` は 7 行（前 6・後 7）です。名前の行 2 件（`login/name-1`・`login/name-2`。kind `item`）、見出し・説明・名前の欄・入るボタン、後だけに出る一覧の行です。`appdemo-login-contrast.json` は、これに label が「パスワード」の欄 `login/secret` を 1 件足した負の対照（前 7・後 8）で、検出器が空振りしていないことを示します
+- 指せる行: 名前の行の `login/name-1`・`login/name-2` だけです。それ以外は表示だけの負の対照です（`view_fixture.rs` の宛先の規則 `Only`）
+- `testdata` に置かない理由: 上と同じです。spec の写しではなく、実装側が足すデータです
+- 使われ方: `crates/web/src/view_fixture.rs` が `include_bytes!` で読み（`test-hooks` の下だけ）、`fixture_data` の payload `appdemo:login`・`appdemo:login-contrast` で差し替えます。`crates/web/tests/app_demo_login_contract.rs` と `tools/browser/app-demo-login.test.mjs` が使います

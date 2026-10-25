@@ -1,0 +1,10 @@
+{"view":"appdemo","title":"アプリのデモの模擬ログインの負の対照（欄を 1 件足したもの）","rows":[
+{"id":"login/title","depth":0,"kind":"heading","before":{"label":"ログイン（模擬）","detail":"","state":"","tags":[]},"after":{"label":"ログイン中（模擬）","detail":"","state":"","tags":[]}},
+{"id":"login/guide","depth":0,"kind":"text","before":{"label":"名前を選ぶと入れます。本物のログインではありません","detail":"","state":"","tags":[]},"after":{"label":"さくら として入りました","detail":"","state":"","tags":[]}},
+{"id":"login/name-1","depth":0,"kind":"item","before":{"label":"さくら","detail":"名前を選ぶ","state":"","tags":[]},"after":{"label":"さくら","detail":"名前を選ぶ","state":"","tags":[]}},
+{"id":"login/name-2","depth":0,"kind":"item","before":{"label":"たろう","detail":"名前を選ぶ","state":"","tags":[]},"after":{"label":"たろう","detail":"名前を選ぶ","state":"","tags":[]}},
+{"id":"login/who","depth":0,"kind":"field","before":{"label":"名前","detail":"","state":"","tags":[]},"after":{"label":"名前","detail":"さくら","state":"","tags":[]}},
+{"id":"login/secret","depth":0,"kind":"field","before":{"label":"パスワード","detail":"","state":"","tags":[]},"after":{"label":"パスワード","detail":"","state":"","tags":[]}},
+{"id":"login/enter","depth":0,"kind":"button","before":{"label":"入る","detail":"","state":"disabled","tags":[]},"after":{"label":"入る","detail":"","state":"","tags":[]}},
+{"id":"login/list","depth":0,"kind":"item","before":null,"after":{"label":"一覧（デモ）","detail":"投稿 1 件","state":"","tags":[]}}
+]}
