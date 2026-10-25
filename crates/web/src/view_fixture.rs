@@ -13,7 +13,7 @@
 //! - 切り替える: `fixture_control` で、7 本の list の外に束縛の無い要素を 1 つ足す（負の対照 N2。TASK-471 3/3）。
 //!   上流は dirty field を束縛点に解決できないと root の子をまとめて差し替えるため、行の要素が置き換わる状態を作れる
 //! - 本体を通す: タスクツリーの (a)・(b) は `task_tree`（(b) は木の属性・親の `role=tree`、(a) はチェックボックスと深さのクラス。どちらも状態のバッジ。TASK-474）で、ファイルツリーの (a)・(b) は `file_tree_view`（TASK-473）で、カードの (a)・(b) は `card_view`（TASK-477）で、チェックの一覧の (a)・(b) は `check_view`（TASK-478）で、アプリのデモの (a)・(b) は `app_demo_view`（TASK-479）で、差分の (b) は `diff_view`（TASK-475 1/2）で、差分の (a) は対照の口からだけ `diff_view` の対照専用の項目で描く（TASK-475 2/2）、文書の (b) は `document_view`（TASK-476 1/2。前後の突き合わせは `align_blocks`）で、文書の (a) は対照の口からだけ `document_view` の対照専用の項目で描く（TASK-476 2/2）
-//! - 再現する（指せる行。TASK-480）: 宛先のある行の 4 属性（データの先頭の行だけ表示だけ）・クリックの `ui` の受け付け（`PointTarget::decode` を通り、今の画面で指せる行だけを `last_point` に記録する）・アプリのデモの名札のデータ（`appdemo:nameplate`。指せる行は `screen/top` だけ）
+//! - 再現する（指せる行。TASK-480）: 宛先のある行の 4 属性（データの先頭の行だけ表示だけ）・クリックの `ui` の受け付け（`PointTarget::decode` を通り、今の画面で指せる行だけを `last_point` に記録する）・アプリのデモの名札のデータ（`appdemo:nameplate`。指せる行は `screen/top` だけ）・アプリのデモの模擬ログインのデータ（`appdemo:login`・`appdemo:login-contrast`。TASK-492。指せる行は名前の行 2 件）
 //! - 再現しない: `wireframe-ui`・`headless-ui` の部品（ファイルツリーの `item_text`・`rich_text` を除く）・他のビューの `role`。合格は検査器の枠が動く
 //!   ことの証拠であり、タスクツリー・ファイルツリー・差分 (b) を除く各ビューの合格ではない
 //!
@@ -60,7 +60,7 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
-/// 行のデータを切り替える action の名前。payload は 文書以外の 6 種の `<種類>:escape`（未信頼の値の表示の試験用の 4 行。TASK-482 1/2。ART-6）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample`、`cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）。
+/// 行のデータを切り替える action の名前。payload は 文書以外の 6 種の `<種類>:escape`（未信頼の値の表示の試験用の 4 行。TASK-482 1/2。ART-6）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample`、`cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）・`appdemo:login`・`appdemo:login-contrast`（TASK-492。模擬ログインと、パスワード欄を足した負の対照）。
 pub(crate) const ACTION_DATA: &str = "fixture_data";
 
 /// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
@@ -125,6 +125,19 @@ const APPDEMO: &[u8] = include_bytes!(concat!(
 const APPDEMO_NAMEPLATE: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/data/artifact_view_scale/appdemo-nameplate.json"
+));
+
+/// アプリのデモの模擬ログイン（名前を選ぶだけで入れる画面。ART-24・ROUND1-25。TASK-492）。教材 repo のデモの定義（TASK-664）が
+/// 無いための実装側の代役で、パスワード欄が 0 件であることの検査に使う。出所は同じ場所の `README.md`。
+const APPDEMO_LOGIN: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/appdemo-login.json"
+));
+
+/// 上に、label が「パスワード」の欄を 1 件足した負の対照。検出器が空振りしていないことを示す。
+const APPDEMO_LOGIN_CONTRAST: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/appdemo-login-contrast.json"
 ));
 
 /// `doc-before.md` を `markdown::parse` で木にした JSON（`Doc`）。実行時に Markdown を解釈しないため、ビルド時の出力を
@@ -243,6 +256,9 @@ enum PointRule {
 /// 名札のデータで指せる行（世界状態の経路 `screen/top`）。
 const NAMEPLATE_POINTABLE: &[&str] = &["screen/top"];
 
+/// 模擬ログインのデータで指せる行（名前の行だけ。見出し・欄・ボタン・一覧は表示だけの負の対照）。
+const LOGIN_POINTABLE: &[&str] = &["login/name-1", "login/name-2"];
+
 /// 代役の部品の宛先の規則を `rule` で適用する。`PointTarget::new` が拒否する行も表示だけに落とす。
 /// `view()` の属性と `update` の受理の判定が同じ関数を通るため、見えている指せる行と受け付ける宛先は食い違わない。
 fn fixture_point(
@@ -325,6 +341,10 @@ pub(crate) enum DataSet {
     Scale20,
     /// 名札の 3 行（アプリのデモだけ。指せる行は `screen/top` だけ）。
     Nameplate,
+    /// 模擬ログインの 7 行（アプリのデモだけ。指せる行は名前の行 2 件。TASK-492）。
+    Login,
+    /// 上に「パスワード」の欄を足した負の対照（検出器の空振りの確認用。指せる行は同じ）。
+    LoginContrast,
     /// 未信頼の値の表示の試験用の 4 行（文書以外の 6 種。TASK-482 1/2）。
     Escape,
 }
@@ -505,6 +525,8 @@ impl Component for ViewFixture {
                     (ViewKind::CheckList, DataSet::Scale20) => CHECKS_20,
                     (ViewKind::AppDemo, DataSet::Sample) => APPDEMO,
                     (ViewKind::AppDemo, DataSet::Nameplate) => APPDEMO_NAMEPLATE,
+                    (ViewKind::AppDemo, DataSet::Login) => APPDEMO_LOGIN,
+                    (ViewKind::AppDemo, DataSet::LoginContrast) => APPDEMO_LOGIN_CONTRAST,
                     // 復号の段で拒否済み。来た場合は何も変えない。
                     _ => return,
                 };
@@ -520,6 +542,9 @@ impl Component for ViewFixture {
                     if let Some(idx) = self.views.iter().position(|(k, _)| *k == kind) {
                         let new_rule = match data {
                             DataSet::Nameplate => PointRule::Only(NAMEPLATE_POINTABLE),
+                            DataSet::Login | DataSet::LoginContrast => {
+                                PointRule::Only(LOGIN_POINTABLE)
+                            }
                             DataSet::Sample | DataSet::Scale20 | DataSet::Escape => {
                                 PointRule::AllButFirst
                             }
@@ -652,6 +677,11 @@ impl Component for ViewFixture {
                 "appdemo:nameplate" => {
                     Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Nameplate))
                 }
+                "appdemo:login" => Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Login)),
+                "appdemo:login-contrast" => Some(FixtureAction::Data(
+                    ViewKind::AppDemo,
+                    DataSet::LoginContrast,
+                )),
                 _ => None,
             },
             // 指せる行のクリック。復号は `PointTarget::decode` だけを通す（host と同じ復号器）。
@@ -1137,6 +1167,58 @@ mod tests {
             assert_eq!(html.matches("data-row=").count(), 7, "{html}");
             f.update(point(&f, "screen/top"));
             assert_eq!(f.point_count(), 1);
+        }
+    }
+
+    #[test]
+    fn 模擬ログインのデータでは名前の行だけが指せる行になる() {
+        for (data, counts) in [(DataSet::Login, (6, 7)), (DataSet::LoginContrast, (7, 8))] {
+            for variant in [Variant::A, Variant::B] {
+                let mut f = ViewFixture::load().unwrap();
+                f.update(FixtureAction::Select(ViewKind::AppDemo, variant));
+                f.update(FixtureAction::Data(ViewKind::AppDemo, data));
+                assert_eq!(row_counts(&f, ViewKind::AppDemo), counts);
+                let html = render(&f.view());
+                assert_eq!(html.matches("data-row=").count(), 2, "{html}");
+                assert_eq!(html.matches("data-action=\"ui\"").count(), 2, "{html}");
+                for other in ["login/title", "login/enter", "login/who", "login/list"] {
+                    f.update(point(&f, other));
+                }
+                assert_eq!(f.point_count(), 0);
+                f.update(point(&f, "login/name-1"));
+                assert_eq!(f.point_count(), 1);
+                assert_eq!(
+                    f.last_point().map(|t| t.row().as_str()),
+                    Some("login/name-1")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn 模擬ログインのデータは閉じた_payload_だけを受ける() {
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "appdemo:login"),
+            Some(FixtureAction::Data(ViewKind::AppDemo, DataSet::Login))
+        );
+        assert_eq!(
+            ViewFixture::decode_action(ACTION_DATA, "appdemo:login-contrast"),
+            Some(FixtureAction::Data(
+                ViewKind::AppDemo,
+                DataSet::LoginContrast
+            ))
+        );
+        for bad in [
+            "cards:login",
+            "appdemo:Login",
+            "appdemo:login ",
+            "appdemo:login-",
+            "app_demo:login",
+        ] {
+            assert!(
+                ViewFixture::decode_action(ACTION_DATA, bad).is_none(),
+                "{bad:?}"
+            );
         }
     }
 
