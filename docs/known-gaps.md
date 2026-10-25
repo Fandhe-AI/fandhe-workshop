@@ -30,7 +30,8 @@
 | PACK-33 | 1 つの確認で複数の対象を分類させ、対象ごとの正誤を取ることはできない | 足さないと決定（D-69、PACK-33） | 対象ごとに Step を分ける（`docs/pack-authoring.md` の「複数の対象を 1 つずつ分類する確認」） | `crates/pack/tests/split_answer.rs` の `pack33_` |
 | ART-17（G-8） | 左の成果物の変化の印は行単位で、どの欄が変わったかを示さない。カードの状態が下書きからオープンに変わっても、行に【変更】と出るだけ | 足さないと決定（D-49（2026-10-12）、ART-17）。見直しの条件は、人の試行で「どの欄が変わったか分からない」という観察が出たとき。人の評価は 0 件 | 教材の本文・`do` で、変わる欄を言葉で書く。前後の切り替えで比べるよう案内する | `tools/browser/card-row-mark.test.mjs`・`crates/web/tests/card_view_a_contract.rs`・`card_view_b_contract.rs`（記録は `docs/testing.md` の 5.297） |
 | ART-18 | 文書ビューの本文は、`body: shown`・文書ビュー・`fixture` つきの要素・IR の木がそろうときだけ出る。そろわないとき（`body` 省略・`hidden`、`fixture` なし、文書以外のビュー）は区画を出さず、理由の文も出さない。`.md` 以外は解釈されず `pre > code` の 1 ブロック。`replace` の前後はブロック単位で示さない | 載せる案を実装済み（D-50・D-51。TASK-489 1/2）。残る限界は現状の観察として固定（TASK-489 2/2）。IR の大きさは未測定（PACK-26）。人の評価は 0 件 | `body: shown` を宣言し、要素は `fixture` つきで規則の効果で置く。本文は `.md` で書く。前後の比較は本文・`do` で言葉で案内する | `tools/browser/doc-body-limits.test.mjs`・`doc-body.test.mjs`（記録は `docs/testing.md` の 5.300） |
-| PACK-22 | `world_list: hidden` は世界状態の行を作らず、7 本の一覧がどれも項目 0 件になる。種類ごとの描画部品が結線されていないため、指せる行と文書ビューの本文も消える | 結線済み（TASK-481 1/2）。種類ごとの描画部品の結線で見直す。SECOND-8（第 2 教材の文書ビューの 5 行）とは両立しない | 指す操作や文書の本文を使う教材では `world_list: hidden` を使わない | `crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs`（記録は `docs/testing.md` の 5.301） |
+| PACK-22 | `world_list: hidden` は世界状態の行を作らず、7 本の一覧がどれも項目 0 件になる。種類ごとの描画部品が結線されていないため、指せる行と文書ビューの本文も消える | 結線済み（TASK-481 1/2）。種類ごとの描画部品の結線で見直す。SECOND-8（第 2 教材の文書ビューの 5 行）とは両立しない | 指す操作や文書の本文を使う教材では `world_list: hidden` を使わない | `crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs`（記録は `docs/testing.md` の 5.302） |
+| ART-24 | 模擬ログインの画面にパスワード欄が無いことの確認は、代役のデータと未結線のワイヤーの上で行った。本物の掲示板のデモ（TASK-664）での確認と人の試行は無い | 検討中のまま（解除の判断は人の承認点。本タスクは材料の記録まで。TASK-492） | 教材は名前を選ぶ行だけを置き、パスワードに当たる行・属性を書かない | `crates/web/tests/app_demo_login_contract.rs`・`tools/browser/app-demo-login.test.mjs`（記録は `docs/testing.md` の 5.301） |
 | PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。画面での見え方は未確認（ART-19） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_` |
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
@@ -434,3 +435,13 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 回避: `body: shown` を宣言し、要素は `fixture` つきで規則の効果（`put`・`replace`）で置く。本文は `.md` で書く。前後の比較は本文・`do` で言葉で案内する。
 
 根拠の試験: `tools/browser/doc-body-limits.test.mjs`（観察 L1〜L5 と負の対照）、`doc-body.test.mjs`。記録は `docs/testing.md` の 5.300。
+
+## ART-24: 模擬ログインの画面の確認は代役のデータと未結線のワイヤーの上で行った
+
+限界: ワイヤーのビュー (a)・(b) に代役の模擬ログインのデータを渡し、パスワード欄とパスワードを求める文言が 0 件であること、名前の行を指すだけで進めることを確かめた。データは教材 repo の掲示板のデモの定義（TASK-664）が無いための実装側の代役である。ワイヤーのビューは製品の `view()` へ未結線で、(b) の欄は `type=text` の直書きのため、0 件は構造上ほぼ自明である。(a) の欄は本物の `input` ではなく、検出は文言の計数に頼る。
+
+状態: ART-24 は検討中のまま。解除の判断は人の承認点で、本記録は材料である。本節の範囲で期待に反する観察は 0 件。
+
+回避: 教材は名前を選ぶ行だけを置き、パスワードに当たる行・属性を書かない。
+
+根拠の試験: `crates/web/tests/app_demo_login_contract.rs`、`tools/browser/app-demo-login.test.mjs`（ML1〜ML5 と負の対照）。製品の画面では `docs/testing.md` の 5.283 が全 Step で 0 件を確かめている。記録は 5.301。

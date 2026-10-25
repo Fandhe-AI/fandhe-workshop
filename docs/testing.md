@@ -8640,7 +8640,44 @@ TASK-6 の決定（D-50）に従い「載せる案」を実装した。製品の
 - 試験用の口は足していないため、`make check-delivery` と `make test-build-web` は流していない
 - 範囲外: ブロック単位の前後表示・IR の大きさの測定（PACK-26）・`scripts/expected-test-counts.txt` の更新（版上げ PR ではない）・開始点の `on_enter`（TASK-217・TASK-294）。AI による代理の確認であり、人の評価には数えない
 
-### 5.301 `world_list` と `view_tabs` の設定を左のビューに反映する（TASK-481 1/2。PACK-22）
+### 5.301 模擬ログインの画面にパスワード欄がないことの確認（TASK-492。ART-24・ROUND1-25）
+
+ART-24（検討中）は、掲示板教材の模擬ログインが名前を選ぶだけで入れること、パスワード欄がないことを求める。根拠の R-27・N-9・W-31 は提案の段階で、画面で確かめた PoC が無かった。本節は、アプリのデモのワイヤー (a)・(b) に模擬ログインのデータを渡して確かめた記録で、ART-24 の検討中の解除の判断（人の承認点）の材料である。解除するかどうかは本節では決めない。
+
+構成:
+
+- データ: `crates/web/tests/data/artifact_view_scale/appdemo-login.json`（前 6 行・後 7 行）と、パスワードの欄を 1 件足した負の対照 `appdemo-login-contrast.json`（前 7・後 8）。教材 repo の掲示板のデモの定義（TASK-664）が無いための実装側の代役で、本物の写しではない
+- 代役の部品: `view_fixture.rs` の payload `appdemo:login`・`appdemo:login-contrast`。指せる行は名前の行 `login/name-1`・`login/name-2` だけ
+- 試験: `crates/web/tests/app_demo_login_contract.rs`（native）と `tools/browser/app-demo-login.test.mjs`（ML1〜ML5。ML6 は各試験の安全の計数）
+
+| 試験 | 確かめること |
+|---|---|
+| native 契約 | (a)・(b) × 前後で、`type="password"`・`autocomplete=`・パスワードを求める語（パスワード・password・暗証・パスコード）が 0 件。(b) の入力欄は 1 件で `type="text"`・読み取り専用。対照では語が 1 件以上 |
+| ML1 | (a)・(b) × 前 → 後 → 前で、ページ全体の `passwordFields()`、一覧の文言、一覧の `type=password` がどれも 0 件。項目数は前 6・後 7 |
+| ML2 | 名前の行を実クリックすると「指した行」になり件数が 1 増える。その後に画面を後へ切り替えても 0 件で、入った後の文言（ログイン中・さくら として入りました）が出る。入力欄への入力・送信はしない |
+| ML3 | 表示だけの行（`login/title`・`login/enter`・`login/who`）は 4 属性を持たず、クリックしても件数が増えない |
+| ML4 | 負の対照（データ）。対照のデータでは (a)・(b) とも文言が 1 件以上。(b) は `passwordFields()` も 1、(a) は欄が本物の `input` でないため 0 のまま（観察）。通常のデータに戻すと 0 件に戻る |
+| ML5 | 負の対照（DOM）。(b) の一覧に `type=password` を足すと 1 件になり、外すと 0 に戻る |
+| ML6 | 各試験で外部への通信・ページ内エラー・ダイアログが 0 件 |
+
+判断の材料:
+
+| 層 | 確かめたこと | 証拠 |
+|---|---|---|
+| ワイヤーのビュー（本節） | (a)・(b) × 前後（名前を選んだ後を含む）で、パスワード欄が 0 件、パスワードを求める文言が 0 件。(b) の欄は構造上 `type=text` だけ | ML1〜ML3・ML6、native 契約 |
+| 検出器の妥当性 | データの対照では (a) は文言で、(b) は欄と文言で検出した。DOM の注入でも検出した | ML4・ML5 |
+| 製品の画面（既存） | 名前の行を指すだけで st-8-1 が受付になり、全 Step でパスワード欄が 0 件 | 5.283 |
+
+本節の範囲では、ART-24 の期待に反する観察は 0 件だった。未確認の点は、本物の教材（TASK-664・教材 repo の CH-8）での流し直し、製品の `view()` へのワイヤーの結線（TASK-470・TASK-347 の後続）、人の試行である。
+
+限界: 代役の部品では、クリックは指した行の記録までで、phase は試験が切り替える（製品での受付は 5.283 に頼る）。(a) の欄は本物の `input` ではないため、(a) の検出は文言の計数だけに頼る。(b) の `type` は直書きなので、0 件は構造上ほぼ自明である。
+
+- 実行の記録: 2026-10-25。Chromium（同梱）。`SKIP_WASM_OPT=1`。元にしたコミットは 2504b6d。ML 7 件が通った。`app-demo-view`・`point-click`・`view-escape` の回帰 65 件も通った。`make test-browser` の全体は未検証
+- 変異注入は行っていない。負の対照（ML4・ML5、native の対照）で空振りを防いだ
+- 試験用の口は足していない（既存の `fixture_data` の閉じた payload に足しただけ）ため、`make check-delivery` と `make test-build-web` は流していない
+- 範囲外: ART-24・ROUND1-25 の解除と spec の更新・「模擬」の常時表示（SHELL-6）・`scripts/expected-test-counts.txt` の更新（版上げ PR ではない）。AI による代理の確認であり、人の評価には数えない（D-34）
+
+### 5.302 `world_list` と `view_tabs` の設定を左のビューに反映する（TASK-481 1/2。PACK-22）
 
 `pack.left_pane` を、ホストが読んで左のビューに効かせた。`view_tabs: all`（既定）は 7 種のボタンを出すので、既定の教材の DOM が変わった。限界は `docs/known-gaps.md` の PACK-22 に置く。
 
