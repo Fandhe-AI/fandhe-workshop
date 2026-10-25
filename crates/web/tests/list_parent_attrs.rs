@@ -111,12 +111,12 @@ fn 登録簿の_keyed_list_field_はどれも親要素がちょうど_1_つ描�
 
 #[test]
 fn 親の属性列は_view_に書かれ_操作の前後で変わらない() {
-    // 既定の教材はビューを宣言しないため、ファイルツリーが選ばれ、残り 6 本は hidden。選択のボタンは 0 件で hidden。
+    // 既定の教材（`view_tabs: all`）はビューを宣言しないため、ファイルツリーが選ばれ、残り 6 本は hidden。選択のボタンは 7 種が出るので親は hidden にならない。
     let mut expected: Vec<(&str, Vec<String>)> = [
         ("engine_log_rows", vec!["data-testid=part-log-list"]),
         ("review_items", vec!["data-testid=part-review-list"]),
         ("learner_log", vec!["data-testid=log-list"]),
-        ("view_select", vec!["data-testid=view-select", "hidden="]),
+        ("view_select", vec!["data-testid=view-select"]),
     ]
     .into_iter()
     .map(|(f, a)| (f, a.into_iter().map(str::to_owned).collect()))

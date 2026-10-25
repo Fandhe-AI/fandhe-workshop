@@ -7,8 +7,9 @@
 //! 規則:
 //! - 今の Step が宣言したビュー（`step.views` を `ir.views` の `kind` で引き、一覧外の種類・未定義の ID は
 //!   黙って飛ばす。fail-closed）を宣言の順・種類ごとに最初の 1 つで並べる（`artifact_view::declared_kinds`）。
-//! - 選べるのは宣言した種類だけである。`view_tabs: all` で 7 種すべてを選べるようにするのは TASK-481 の担当で、
-//!   `pack.left_pane` の読み取り（TASK-53 2/2）の後に広げる。狭める側の仮置きなので安全側である。
+//! - 選べる種類は `pack.left_pane.view_tabs` が決める（PACK-22・TASK-481 1/2）。`all`（既定）は 7 種すべて、
+//!   `declared` は宣言した種類だけ、`hidden` は宣言の先頭の 1 つだけである（ボタンも出さない）。宣言に無い種類の
+//!   選択は `declared`・`hidden` で無視する。読めない設定は既定の `all` に倒す（`host` が読む）。
 //! - 選択は Step ごとに持つ（[`ViewChoice`]）。今の Step が変わると `host::EngineHost` が選択を捨て、
 //!   宣言の先頭のビューに戻る（ART-12。元の Step へ戻っても以前の選択は戻らない）。[`effective_view`] は
 //!   選んだ Step と今の Step の照合も残す（捨て忘れに対する二重の守り）。
@@ -91,16 +92,29 @@ pub fn declared_views(session: &Session) -> Vec<DeclaredView> {
         .collect()
 }
 
-/// 選べる種類（宣言の順）。
-pub fn selectable(declared: &[(ViewKind, &str)]) -> Vec<ViewKind> {
-    declared.iter().map(|(k, _)| *k).collect()
+/// 選べる種類。`All` は 7 種すべて、`Declared` は宣言の順、`Hidden` は宣言の先頭の 1 つ（宣言が無ければ空）。
+pub fn selectable(tabs: ViewTabs, declared: &[(ViewKind, &str)]) -> Vec<ViewKind> {
+    match tabs {
+        ViewTabs::All => ViewKind::ALL.to_vec(),
+        ViewTabs::Declared => declared.iter().map(|(k, _)| *k).collect(),
+        ViewTabs::Hidden => declared.iter().take(1).map(|(k, _)| *k).collect(),
+    }
+}
+
+/// 切り替えのボタンに出す種類。`All` は 7 種、`Declared` は宣言が 2 種以上のときだけ宣言の順、`Hidden` は出さない。
+pub fn tab_kinds(tabs: ViewTabs, declared: &[(ViewKind, &str)]) -> Vec<ViewKind> {
+    match tabs {
+        ViewTabs::All => ViewKind::ALL.to_vec(),
+        ViewTabs::Declared if declared.len() >= 2 => declared.iter().map(|(k, _)| *k).collect(),
+        ViewTabs::Declared | ViewTabs::Hidden => Vec::new(),
+    }
 }
 
 /// 選ばれていないときのビュー。
 ///
 /// 宣言があれば先頭の種類。宣言が無いとき、`tabs` が `All` ならファイルツリー、`Declared`・`Hidden` なら
 /// `ir.views` を ID の辞書順に見た最初の種類（解決できなければファイルツリー）。後者は試作の仮置きで、
-/// 決まった規則は TASK-496 が持つ。ホストは `pack.left_pane` の読み取り（TASK-53 2/2）がまだ無いため `All` を渡す。
+/// 決まった規則は TASK-496 が持つ。ホストは教材の `pack.left_pane.view_tabs` を渡す。
 pub fn default_view(tabs: ViewTabs, declared: &[(ViewKind, &str)], ir: &Ir) -> ViewKind {
     if let Some((k, _)) = declared.first() {
         return *k;
@@ -120,18 +134,22 @@ pub fn default_view(tabs: ViewTabs, declared: &[(ViewKind, &str)], ir: &Ir) -> V
 
 /// 今見せるビュー。保持した選択が今の Step のもので、かつ今の宣言に含まれるときだけそれを返す。
 /// それ以外は [`default_view`]。session が無ければファイルツリー。
-pub fn effective_view(session: Option<&Session>, choice: Option<&ViewChoice>) -> ViewKind {
+pub fn effective_view(
+    session: Option<&Session>,
+    choice: Option<&ViewChoice>,
+    tabs: ViewTabs,
+) -> ViewKind {
     let Some(session) = session else {
         return ViewKind::FileTree;
     };
     let views = declared_views(session);
     let declared = declared_kinds(&views);
     if let (Some(c), Some(cur)) = (choice, session.state().run.current.as_ref()) {
-        if &c.step == cur && selectable(&declared).contains(&c.kind) {
+        if &c.step == cur && selectable(tabs, &declared).contains(&c.kind) {
             return c.kind;
         }
     }
-    default_view(ViewTabs::default(), &declared, session.ir())
+    default_view(tabs, &declared, session.ir())
 }
 
 #[cfg(test)]
@@ -150,6 +168,21 @@ mod tests {
     #[test]
     fn selectable_keeps_declared_order() {
         let d = [(ViewKind::Diff, "a"), (ViewKind::FileTree, "b")];
-        assert_eq!(selectable(&d), vec![ViewKind::Diff, ViewKind::FileTree]);
+        assert_eq!(
+            selectable(ViewTabs::Declared, &d),
+            vec![ViewKind::Diff, ViewKind::FileTree]
+        );
+        assert_eq!(selectable(ViewTabs::Hidden, &d), vec![ViewKind::Diff]);
+        assert_eq!(selectable(ViewTabs::All, &d).len(), 7);
+    }
+
+    #[test]
+    fn tab_kinds_follow_setting() {
+        let one = [(ViewKind::Diff, "a")];
+        let two = [(ViewKind::Diff, "a"), (ViewKind::FileTree, "b")];
+        assert_eq!(tab_kinds(ViewTabs::All, &[]).len(), 7);
+        assert!(tab_kinds(ViewTabs::Declared, &one).is_empty());
+        assert_eq!(tab_kinds(ViewTabs::Declared, &two).len(), 2);
+        assert!(tab_kinds(ViewTabs::Hidden, &two).is_empty());
     }
 }

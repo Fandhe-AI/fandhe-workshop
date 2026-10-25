@@ -2,8 +2,8 @@
 
 画面の左エリアは、教材の世界状態（ファイル・文書・カードなど）が操作に応じて変わる様子を見せます。この文書は、教材の作成者が、ビューを宣言し、左エリアの見え方を絞り、画面上の要素を「指す」入力の宛先を書くために知っておくことをまとめます（AUTHOR-12）。
 
-- 文書の版: 2
-- 確認した日: 2026-10-24
+- 文書の版: 3
+- 確認した日: 2026-10-25
 - 仕様は private のため、本文を転記せず ID（ART-2・ART-3・ART-5・ART-11・ART-12・PACK-22・PACK-38・PACK-48・D-49・D-50・D-51・D-64）で参照します
 - 書き方の詳細は `docs/pack-authoring.md`（「左エリア」「文書のビューの本文」）が正です。この文書は、ビューの種類と、画面の実装の進み具合を加えて整理します
 
@@ -16,8 +16,8 @@
 | 7 種の綴りと、Step が宣言したビューから種類を決める規則 | 実装済み | `crates/web/src/artifact_view.rs`・`view_select.rs` |
 | 7 種ごとの描画部品（ファイルツリー・文書・差分・タスクツリー・カード・チェック・アプリのデモ） | 部品は実装済み。製品の画面へは未結線 | `crates/web/src/*_view.rs` の冒頭の説明、`engine_parts.rs` の `ArtifactPart` |
 | 製品の画面が見せる左エリア | 世界状態の経路の一覧と、変化の印。文書のビューで `body: shown` のときは練習データの本文も | `engine_parts.rs` の `ArtifactPart::view` |
-| 選択のボタン（ビューの切り替え） | 宣言が 2 種以上のときだけ出る。選べるのは宣言した種類だけ | `view_select.rs`（`view_tabs: all` で 7 種すべてを選べるようにするのは TASK-481 の担当） |
-| `pack.left_pane` の画面への結線 | 未結線。ホストは設定を読まず、`all` の扱いで動く | `view_select.rs` の説明（TASK-53 2/2 の読み取りが後続） |
+| 選択のボタン（ビューの切り替え） | `view_tabs` に従う（5 節）。既定の `all` は 7 種すべてを出して選べる | `view_select.rs`・`engine_parts.rs`（2026-10-25。TASK-481 1/2） |
+| `pack.left_pane` の画面への結線 | 結線済み（2026-10-25）。ホストが設定を読み、読めない設定は既定（`shown`・`all`）で動く | `host.rs`・`crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs` |
 | 人が画面で見て確かめた件数 | 0 件 | 未確認 |
 
 この文書の 2 節以降の「画面での見え方」は、契約と部品の実装に基づく説明です。製品の画面が部品へ結線された時点で、見え方は変わります。結線までの間は、教材の書き方（宣言・検査）は変わらないので、教材はそのまま書けます。
@@ -68,14 +68,16 @@ views:
 
 `pack.left_pane` の 2 項目（`world_list`・`view_tabs`）と値の意味は `docs/pack-authoring.md` の「左エリア」の表が正です。画面への効き方は次のとおり整理できます。
 
-| 設定 | 契約が決めること | 2026-10-20 時点の画面 |
+| 設定 | 契約が決めること | 2026-10-25 時点の画面 |
 |---|---|---|
-| `world_list: hidden` | 世界の一覧を出さない | 未結線（1 節） |
-| `view_tabs: declared` | Step が宣言したビューだけに絞る | 宣言した種類だけを選べる動きが、既定でこの扱い |
-| `view_tabs: hidden` | 切り替えを出さず、Step ごとに 1 つのビューだけを見せる | 未結線 |
-| `view_tabs: all` | すべてのビューの切り替えを出す | 7 種すべてを選べる動きは未実装（TASK-481） |
+| `world_list: hidden` | 世界の一覧を出さない | 結線済み。世界状態の行を作らず、7 本の一覧はどれも項目 0 件になる（下の限界を参照） |
+| `view_tabs: declared` | Step が宣言したビューだけに絞る | 宣言が 2 種以上の Step でだけ宣言した種類のボタンを出し、宣言外の選択は無視する |
+| `view_tabs: hidden` | 切り替えを出さず、Step ごとに 1 つのビューだけを見せる | 結線済み。ボタンを出さず（親に `hidden`）、宣言の先頭のビューだけを見せる。それ以外の選択は無視する |
+| `view_tabs: all` | すべてのビューの切り替えを出す | 結線済み。7 種のボタンを出し、すべて選べる。宣言に無い種類の一覧は、世界状態の行を出すだけで指せる行にならない |
 
 設定と矛盾する Step の検査は、`validate` が `E-LEFT-*` で行います。
+
+限界: 種類ごとの描画部品が製品の画面へ結線されるまでは、`world_list: hidden` にすると、指せる行と文書ビューの本文も消えます。これらを使う教材では `world_list: hidden` を使わないでください（`docs/known-gaps.md` の PACK-22）。
 
 | コード | 知らせること |
 |---|---|
@@ -114,6 +116,7 @@ input:
 | 試験 | 確かめること |
 |---|---|
 | `crates/pack/tests/left_pane.rs` | 左エリアの設定の読み込みと `E-PARSE`、`E-LEFT-*` の条件と報告先 |
+| `crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs` | 6 通りの設定でのボタン・選択の親・行の件数、宣言外の選択の無視、Step の移動での先頭への復帰、読めない設定の既定への倒し |
 | `crates/pack/tests/view_body.rs` | `body: shown` の宣言・不正な値・語彙の版の不一致 |
 | `crates/web/tests/artifact_view_contract.rs` | 7 種の綴り・束縛点・指せる行の属性の契約 |
 | `crates/web/tests/artifact_view_sample.rs` | 7 本のリストを 1 部品に置く形 |

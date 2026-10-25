@@ -2,7 +2,7 @@ id: ART12-1
 package: fandhe-workshop-web
 test: view_select
 target: crates/web/src/host.rs
-find: if !view_select::selectable(&declared).contains(&kind) {
+find: if !view_select::selectable(self.model.left_pane.view_tabs, &declared).contains(&kind) {
 replace: if false {
 expect-fail: 宣言に無い種類の選択は無視され_dirty_を積まない
 note: 今の Step が宣言していない種類の選択を受け付け、宣言に無いビューが表示される（ART-12）

@@ -15,6 +15,8 @@
 //!
 //! 契約の版は `parts::PARTS_CONTRACT_VERSION`（版 3）である。
 //!
+//! `pack.left_pane` はホスト（`host::HostModel::left_pane`）が読み、`world_list`・`view_tabs` を左のビューに効かせる（TASK-481 1/2）。
+//!
 //! 既定値: `command_prefix` は `"/"`、`theme` は `standard`、`view_tabs` は `all`（PACK-48）、`world_list` は
 //! `shown`（語彙 v1.3 の 5 節）。`input_field` の既定は spec の本文に明記が無く、prototype の試験の観察から
 //! `shown` と置く（未確認の仮定）。
