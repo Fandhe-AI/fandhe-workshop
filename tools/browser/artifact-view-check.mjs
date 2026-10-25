@@ -57,7 +57,7 @@ export const CASES = KINDS.flatMap(({ kind }) =>
 );
 
 // 印の 3 手段の対応（A11Y-22・ART-3）。data-mark の値 -> [記号, 文字]。印なしは空。
-const MARK_TABLE = { add: ['+', '【追加】'], remove: ['-', '【削除】'], change: ['~', '【変更】'], '': ['', ''] };
+export const MARK_TABLE = { add: ['+', '【追加】'], remove: ['-', '【削除】'], change: ['~', '【変更】'], '': ['', ''] };
 
 // 文書の期待値（手で数えた固定値）。before は前のブロック数、after は後に出す行数（削除を残す）。
 export const DOC_EXPECTED = { before: 10, after: 13, unchanged: 7, add: 3, remove: 3, change: 0 };

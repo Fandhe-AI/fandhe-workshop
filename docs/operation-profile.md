@@ -82,6 +82,7 @@ pack:
 | 表示層へ渡す型と、`main` に付ける `data-theme` 属性の組（`DisplaySettings::root_attrs`） | 型は実装済み | `crates/web/src/profile.rs` |
 | 画面の `main` への `data-theme` の付与 | 未結線。`root_attrs` を呼ぶ箇所が web の他のモジュールに無いことを確かめました | `crates/web/src` を `root_attrs`・`data-theme` で検索（2026-10-20） |
 | 外観ごとの CSS（色・文字の大きさ・行間） | 未実装。`crates/web/static/app.css` と `index.html` に、外観ごとのスタイルがありません | 同上（`theme`・`data-theme` の検索で 0 件） |
+| どの外観でも変化の印が残ること | 代役の部品を `data-theme` つきの `main` に置いた検査で、4 値とも記号・文字が残り見えていることを確かめました（2026-10-25）。製品の画面への `data-theme` の付与は未結線のままです | `tools/browser/theme-marks.test.mjs`、`docs/testing.md` の 5.303 |
 | 人が画面を見て外観を確かめた件数 | 0 件 | 未確認 |
 
 つまり、`reading` を選んでも、文字が大きくなる・行間が広がるという見た目の反映は、2026-10-20 時点の画面にはまだ現れません。外観ごとの見た目の実装は、画面のタスク（TASK-431〜TASK-603）が担当します。教材は、`theme` を書いておけば、画面が対応した時点で外観が効きます。対応後の見た目を、この文書の 2.1 の約束と照らして確かめてください。
