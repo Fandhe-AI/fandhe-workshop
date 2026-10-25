@@ -8639,3 +8639,18 @@ TASK-6 の決定（D-50）に従い「載せる案」を実装した。製品の
 - 変異注入は行っていない。各観察の負の対照で空振りを防いだ
 - 試験用の口は足していないため、`make check-delivery` と `make test-build-web` は流していない
 - 範囲外: ブロック単位の前後表示・IR の大きさの測定（PACK-26）・`scripts/expected-test-counts.txt` の更新（版上げ PR ではない）・開始点の `on_enter`（TASK-217・TASK-294）。AI による代理の確認であり、人の評価には数えない
+
+### 5.301 `world_list` と `view_tabs` の設定を左のビューに反映する（TASK-481 1/2。PACK-22）
+
+`pack.left_pane` を、ホストが読んで左のビューに効かせた。`view_tabs: all`（既定）は 7 種のボタンを出すので、既定の教材の DOM が変わった。限界は `docs/known-gaps.md` の PACK-22 に置く。
+
+| 試験 | 確かめること |
+|---|---|
+| `crates/web/tests/left_pane_view.rs`（native） | R-1 の 6 通りでボタンの種類と選択の親の `hidden`。R-2 `world_list: hidden` で 7 本の一覧が項目 0 件（`shown` では行の件数が `artifact_rows` と一致）。R-3 `declared`・`hidden` で宣言外の選択が dirty 0 件で描画が変わらない。R-4 `all` で宣言外も選べるが指せる行にならない。R-5 `hidden` で宣言の 2 番目も選べない。R-6 Step の移動で先頭に戻る。R-7 読めない設定は既定 |
+| `tools/browser/left-pane.test.mjs`（CSP あり・なし） | B1 6 通りでボタン・親の `hidden`・項目数。B2 `declared`・`hidden` で宣言外の選択が無視され、`all` では選べる対照。B3 `all` で 7 種を押すと押した一覧だけが見える。B4 Step の移動で先頭に戻る。通信・CSP 違反・ページ内エラーが 0 件 |
+
+- 既存の試験の調整: 宣言の絞り込みを確かめる `views_session`・`multi_view_ir`・`doc-body-limits` の教材に `view_tabs: declared` を足した。既定の DOM を確かめる `list_parent_attrs.rs` は 7 ボタンの表示に直した。`three-views.test.mjs` は経路を持つ行だけを数えるようにした
+- `view_tabs: hidden` の試験用教材は、Step の宣言を 1 つにする（`E-LEFT-MULTI-VIEW`）
+- 変異: `ART12-1.mutation` の `find` を新しい行に合わせた。web の ART12-*・ART14-1・ART5-2・ART5-3・FEND22-1・EVT1-2・FEND3-2 は DETECTED。`FEND15-2`（`engine_parts.rs` の `find` が既に一致しない）と core の `EVT12-11`（`projection.rs` の `find` が一致しない）は、本件の前から一致しない（未対応）
+- 実行の記録: 2026-10-25。Chromium（同梱）。`make test-browser` の全体（1085 件）が通った。`scripts/expected-test-counts.txt` は更新していない
+- 範囲外: 4 つの外観で変化の印が残ること（#707）・種類ごとの描画部品の結線と `world_list: hidden` の意味の見直し・宣言の無い Step の既定のビューの規則（TASK-496）。AI による代理の確認であり、人の評価には数えない

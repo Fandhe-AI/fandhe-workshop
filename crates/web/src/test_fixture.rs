@@ -832,6 +832,11 @@ pub(crate) fn answer_session() -> Option<Session> {
 #[cfg(feature = "test-hooks")]
 pub(crate) fn views_session() -> Option<Session> {
     let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    // 宣言の絞り込みを確かめる教材なので `view_tabs: declared` を書く（既定の `all` は 7 種を選べる）。
+    value.get_mut("pack")?.as_object_mut()?.insert(
+        "left_pane".to_owned(),
+        serde_json::json!({"view_tabs": "declared"}),
+    );
     let views = value.get_mut("views")?.as_object_mut()?;
     views.insert(
         "v-cards".to_owned(),

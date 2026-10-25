@@ -54,6 +54,7 @@ use crate::list_policy::{
 use crate::log_lines::{line_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
+use crate::profile::ViewTabs;
 use crate::run_status::run_status;
 use crate::secret_notice::{
     secret_notice_text, ACTION_SECRET_DISCARD, ACTION_SECRET_KEEP, SECRET_CHOICE_FIELD,
@@ -65,8 +66,8 @@ use crate::step_status::step_status;
 use crate::terminal_area::{step_status_word, RUN_STATUS_TESTID, STATE_ATTR, STEP_STATUS_TESTID};
 use crate::view_only_notice::{view_only_notice_text, VIEW_ONLY_NOTICE_FIELD};
 use crate::view_select::{
-    declared_views, view_label, ACTION_SELECT_VIEW, SELECTED_ATTR, VIEW_SELECT_BUTTON_TESTID,
-    VIEW_SELECT_FIELD, VIEW_SELECT_TESTID,
+    declared_views, tab_kinds, view_label, ACTION_SELECT_VIEW, SELECTED_ATTR,
+    VIEW_SELECT_BUTTON_TESTID, VIEW_SELECT_FIELD, VIEW_SELECT_TESTID,
 };
 
 /// 親の一覧の属性（FEND-15）。`keyed_view` へ渡す `view()` の属性列で、固定値だけにする。
@@ -582,7 +583,13 @@ impl DisplayPart<HostModel> for ArtifactPart {
             .zip(model.session())
             .map(|(id, s)| current_target_paths(s, id))
             .unwrap_or_default();
-        let rows: Vec<ArtifactRow> = artifact_rows(model.world(), model.projection().marks())
+        // `world_list: hidden` では世界状態の行を作らない（PACK-22・TASK-481 1/2）。7 本の list は項目 0 件になる。
+        let world_rows = if model.left_pane().world_list.is_shown() {
+            artifact_rows(model.world(), model.projection().marks())
+        } else {
+            Vec::new()
+        };
+        let rows: Vec<ArtifactRow> = world_rows
             .into_iter()
             .enumerate()
             .map(|(i, (path, mark))| {
@@ -629,11 +636,11 @@ impl DisplayPart<HostModel> for ArtifactPart {
             l.get(..model.world_consumed()).unwrap_or(l)
         });
         let items: Vec<(String, Node)> = fold_rows(log, rows);
-        // 選択のボタン。宣言が 2 種以上のときだけ出す（ART-12）。静的な子にせず keyed list に置くのは、
+        // 選択のボタン。出す種類は `view_tabs` が決める（ART-12・PACK-22）。静的な子にせず keyed list に置くのは、
         // 選択だけの更新で dirty な field を束縛点に解決するため（上流は解決できないと全再描画にする）。
-        let buttons = model
-            .session()
-            .map_or_else(Vec::new, |s| select_buttons(s, selected));
+        let buttons = model.session().map_or_else(Vec::new, |s| {
+            select_buttons(s, selected, model.left_pane().view_tabs)
+        });
         let select_attrs = if buttons.is_empty() {
             vec![(TESTID_ATTR, VIEW_SELECT_TESTID), ("hidden", "")]
         } else {
@@ -679,16 +686,13 @@ impl DisplayPart<HostModel> for ArtifactPart {
     }
 }
 
-/// 選択のボタンの項目。宣言が 2 種以上のときだけ返す。文字・属性値は閉じた集合の固定値だけ（SAFE-11）。
-fn select_buttons(session: &Session, selected: ViewKind) -> Vec<(String, Node)> {
+/// 選択のボタンの項目。出す種類は `view_tabs` が決める（`view_select::tab_kinds`）。文字・属性値は閉じた集合の固定値だけ（SAFE-11）。
+fn select_buttons(session: &Session, selected: ViewKind, tabs: ViewTabs) -> Vec<(String, Node)> {
     let views = declared_views(session);
     let declared = declared_kinds(&views);
-    if declared.len() < 2 {
-        return Vec::new();
-    }
-    declared
+    tab_kinds(tabs, &declared)
         .iter()
-        .map(|(kind, _)| {
+        .map(|kind| {
             let flag = if *kind == selected { "true" } else { "false" };
             let button = el(
                 "button",

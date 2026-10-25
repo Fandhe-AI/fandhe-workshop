@@ -44,11 +44,15 @@ function compile(bin, mutate) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-doc-body-limits-'));
   try {
     fs.cpSync(PACK, work, { recursive: true });
+    // 選択のボタンを宣言した 2 種に絞る観察なので、`view_tabs: declared` を足す（既定の `all` は 7 種を出す。PACK-22・TASK-481 1/2）。
+    const y = path.join(work, 'workshop.yaml');
+    const base = fs.readFileSync(y, 'utf8');
+    const declared = base.replace("vocab: '1.4'}", "vocab: '1.4', left_pane: {view_tabs: declared}}");
+    assert.notEqual(declared, base, 'left_pane applied');
+    fs.writeFileSync(y, declared, 'utf8');
     if (mutate) {
-      const y = path.join(work, 'workshop.yaml');
-      const before = fs.readFileSync(y, 'utf8');
-      const after = mutate(before);
-      assert.notEqual(after, before, 'mutation applied');
+      const after = mutate(declared);
+      assert.notEqual(after, declared, 'mutation applied');
       fs.writeFileSync(y, after, 'utf8');
     }
     const r = spawnSync(bin, ['compile', work], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

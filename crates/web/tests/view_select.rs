@@ -33,6 +33,8 @@ fn base_json() -> serde_json::Value {
 /// 3 種のビューと一覧外の種類 1 件を足し、各 Step の宣言を差し替えた IR。
 fn multi_view_ir() -> Ir {
     let mut v = base_json();
+    // 宣言の絞り込みを確かめる教材なので `view_tabs: declared` を書く（既定の `all` は 7 種を選べる）。
+    v["pack"]["left_pane"] = serde_json::json!({"view_tabs": "declared"});
     v["views"] = serde_json::json!({
         "v-a": {"kind": "file_tree"},
         "v-b": {"kind": "diff"},

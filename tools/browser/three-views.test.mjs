@@ -70,7 +70,8 @@ async function readBoth(page) {
         step: li.dataset.step,
         kind: li.dataset.kind,
       })),
-      artifacts: rows('part-artifact-view').map((li) => ({ path: li.dataset.path, mark: li.getAttribute('data-mark') })),
+      // 選択のボタン（view_tabs: all の 7 個）の li は行ではないので、経路を持つ行だけを数える。
+      artifacts: rows('part-artifact-view').filter((li) => li.hasAttribute('data-path')).map((li) => ({ path: li.dataset.path, mark: li.getAttribute('data-mark') })),
       review: rows('part-review').map((li) => ({
         step: li.dataset.step,
         achieved: li.dataset.achieved === 'true',

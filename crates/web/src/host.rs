@@ -100,7 +100,7 @@ use crate::history_export::ExportGate;
 use crate::history_ops::{history_ops, ExportResult, EXPORT_RESULT_FIELD};
 use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
 use crate::parts::{FieldKind, PartRegistry};
-use crate::profile::InputField;
+use crate::profile::{InputField, LeftPane};
 use crate::secret_notice::{unacknowledged, SECRET_CHOICE_FIELD, SECRET_NOTICE_FIELD};
 use crate::shell_frame::TOP_PLACE_FIELD;
 use crate::shell_frame::{pane_from_payload, ACTION_PANE_KEY, ACTION_SELECT_PANE, PANE_TABS_FIELD};
@@ -127,6 +127,8 @@ pub struct HostModel {
     world: World,
     /// `world` が読み終えたログの長さ。
     world_consumed: usize,
+    /// 左エリアの設定（`world_list`・`view_tabs`。PACK-22）。教材から導く値で、履歴の差し替えで読み直す。
+    left_pane: LeftPane,
     /// 拒否の `Judged` ごとの、充填済みの理由の文面（キーはイベントの位置）。
     ///
     /// 文面は IR の文面の ID の解決と実行時の値の差し込みが要り、拒否を適用した直後の状態でしか作れない
@@ -181,7 +183,16 @@ impl HostModel {
     /// 左の成果物で今見せるビュー。保持した選択が今の Step のもので、今の宣言に含まれるときだけそれを返し、
     /// それ以外は既定のビュー（宣言の先頭。`view_select::effective_view`）を返す。
     pub fn selected_view(&self) -> ViewKind {
-        view_select::effective_view(self.session(), self.view_choice.as_ref())
+        view_select::effective_view(
+            self.session(),
+            self.view_choice.as_ref(),
+            self.left_pane.view_tabs,
+        )
+    }
+
+    /// 左エリアの設定（`pack.left_pane`）。読めない設定は既定である。
+    pub fn left_pane(&self) -> LeftPane {
+        self.left_pane
     }
 
     /// 直近の保存の失敗の種類。失敗していなければ `None`（`shell-notice` の `save-failed` 項目が消える）。
@@ -481,6 +492,14 @@ struct Derived {
     command_prefix: Option<String>,
     /// 入力欄の表示（PACK-20）。読めない設定は既定の `Shown` に倒す。
     input_field: InputField,
+    /// 左エリアの設定（PACK-22・TASK-481 1/2）。読めない設定は既定（`shown`・`all`）に倒す。
+    left_pane: LeftPane,
+}
+
+/// 教材の `pack.left_pane` を読む。読めない設定（未知の値・型違い）は既定に倒す（fail-closed）。
+fn read_left_pane_setting(session: &Session) -> LeftPane {
+    fandhe_workshop_contract::left_pane::read_left_pane(session.ir().pack.left_pane.as_ref())
+        .unwrap_or_default()
 }
 
 /// 教材の `pack.profile.input_field` を表示層の型で返す。契約の `Hidden` のときだけ `Hidden` で、
@@ -510,6 +529,7 @@ fn derive(session: &Session) -> Derived {
         judged_texts,
         command_prefix,
         input_field: read_input_field(session),
+        left_pane: read_left_pane_setting(session),
     }
 }
 
@@ -760,6 +780,7 @@ impl EngineHost {
                 projection: Projection::new(),
                 world: World::new(),
                 world_consumed: 0,
+                left_pane: LeftPane::default(),
                 judged_texts: BTreeMap::new(),
                 view_choice: None,
                 save_failure: None,
@@ -892,6 +913,7 @@ impl EngineHost {
                 projection: d.projection,
                 world: d.world,
                 world_consumed: d.world_consumed,
+                left_pane: d.left_pane,
                 judged_texts: d.judged_texts,
                 view_choice: None,
                 save_failure: None,
@@ -1908,6 +1930,7 @@ impl EngineHost {
         self.model.projection = d.projection;
         self.model.world = d.world;
         self.model.world_consumed = d.world_consumed;
+        self.model.left_pane = d.left_pane;
         // 拒否の文面の控えはイベントの位置がキーのため、差し替え前の控えを残さず新しいログから作り直す。
         self.model.judged_texts = d.judged_texts;
         self.model.view_choice = None;
@@ -2150,7 +2173,7 @@ impl EngineHost {
         };
         let views = view_select::declared_views(session);
         let declared = declared_kinds(&views);
-        if !view_select::selectable(&declared).contains(&kind) {
+        if !view_select::selectable(self.model.left_pane.view_tabs, &declared).contains(&kind) {
             return;
         }
         let prev = self.model.selected_view();
