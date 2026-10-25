@@ -8691,3 +8691,18 @@ ART-24（検討中）は、掲示板教材の模擬ログインが名前を選�
 - 変異: `ART12-1.mutation` の `find` を新しい行に合わせた。web の ART12-*・ART14-1・ART5-2・ART5-3・FEND22-1・EVT1-2・FEND3-2 は DETECTED。`FEND15-2`（`engine_parts.rs` の `find` が既に一致しない）と core の `EVT12-11`（`projection.rs` の `find` が一致しない）は、本件の前から一致しない（未対応）
 - 実行の記録: 2026-10-25。Chromium（同梱）。`make test-browser` の全体（1085 件）が通った。`scripts/expected-test-counts.txt` は更新していない
 - 範囲外: 4 つの外観で変化の印が残ること（#707）・種類ごとの描画部品の結線と `world_list: hidden` の意味の見直し・宣言の無い Step の既定のビューの規則（TASK-496）。AI による代理の確認であり、人の評価には数えない
+
+### 5.303 4 つの外観で変化の印が残ることを確かめる（TASK-481 2/2。PACK-21）
+
+`pack.appearance.theme` の 4 値（`standard`・`mono`・`high_contrast`・`reading`）のどれでも、左のビューの変化の印（記号 `+`・`-`・`~` と文字 `【追加】`・`【削除】`・`【変更】`）が残り、見えていることを `tools/browser/theme-marks.test.mjs` で固定した。製品の画面は `data-theme` を付けず外観ごとの CSS も持たない（`docs/operation-profile.md` の 2.2）ため、主の検査は代役の検査である。
+
+| 試験（CSP あり・なし） | 確かめること |
+|---|---|
+| A1・A2 | 試験が作った `main[data-theme]` の中へ代役の部品を置き、許される 12 通り × 前後 × 4 値で、印の宿主の記号・文字が表（`artifact-view-check.mjs` の `MARK_TABLE`）のとおりで、`checkVisibility`・`display`・`visibility`・`opacity`・`font-size`・色の alpha・寸法の条件で見えている。後の状態で 3 種の印が出る。4 値で `innerHTML` が同じで、属性が切り替えの後も残る |
+| C1 | 負の対照。`[data-theme="mono"]` の子孫に印を隠す規則 5 種（`display: none`・`visibility: hidden`・透明な色・`font-size: 0`・`opacity: 0`）を足すと、mono だけで対応する違反が出る。`standard` と空の規則では 0 件 |
+| P1・P2 | 製品の画面。外観つきの教材（`doc_body_limits_pack` に `appearance` を足し、実物の `fandhe-pack compile` で IR にした）を読み込み、承認の後の左の成果物の印が表のとおりで見え、並びが 4 値で同じ。`#app` の `data-theme` の有無は diagnostic に残すだけで assert しない（枠が結線しても落ちない。あれば値は教材と一致する）。通信・CSP 違反・ページ内エラーが 0 件 |
+
+- 方式: 対照の規則は構成した stylesheet（`adoptedStyleSheets`）で足す。CSP（`default-src 'self'`）の下でも効くことを、CSP ありの C1 が通ることで確かめた。配信物・CSP は変えない
+- 限界: 製品の画面に `data-theme` が付かない間、A・C は試験が作った要素への属性での検査である。外観の CSS を足すときは `[data-theme="x"]` の子孫の選択子で書く前提でこの試験が効く。製品の枠の根は `div[data-testid="workshop-root"]` で `main` ではなく、付ける要素は枠の担当が決める。`reading` の文字の大きさ・行間は確かめない
+- 実行の記録: 2026-10-25。Chromium（同梱）。`SKIP_WASM_OPT=1`。元にしたコミットは a99c0b6。6 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない（版上げ PR ではない）。期待を反転した写しでの確認は行っておらず、C1 の主張（mono だけで違反が出る）で代えた
+- 範囲外: 製品の画面への `data-theme` の付与と外観ごとの CSS・仕様の「`main` の `data-theme`」と製品の根の食い違い。AI による代理の確認であり、人の評価には数えない
