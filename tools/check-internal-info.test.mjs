@@ -129,15 +129,26 @@ test('試験データの expect の ID は core の形の ID に含まれる（J
   }
 });
 
-test('固定した例外の件数が減っても増えても 1', () => {
-  // 例外の表は実 repo のものなので、ここでは applyExceptions を直接呼ぶ。
+test('固定した例外は内容のハッシュが一致するときだけ適用する', () => {
   const mod = import(TOOL_URL);
   return mod.then(({ applyExceptions }) => {
-    const ex = new Map([['a.md\tjwt', 2]]);
+    const ex = new Map([['a.md', 'aaa']]);
     const h = (n) => Array.from({ length: n }, (_, i) => ({ file: 'a.md', line: i + 1, id: 'secret:jwt' }));
-    assert.equal(applyExceptions(h(2), ex).drift.length, 0);
-    assert.equal(applyExceptions(h(1), ex).drift.length, 1);
-    assert.equal(applyExceptions(h(3), ex).drift.length, 1);
-    assert.equal(applyExceptions(h(2), new Map()).rest.length, 2);
+    assert.equal(applyExceptions(h(2), ex, () => 'aaa').rest.length, 0);
+    assert.equal(applyExceptions(h(5), ex, () => 'aaa').drift.length, 0);
+    // 件数が同じでも内容が変われば通さない。
+    const r = applyExceptions(h(2), ex, () => 'bbb');
+    assert.equal(r.rest.length, 2);
+    assert.equal(r.drift.length, 1);
+    assert.equal(applyExceptions(h(2), new Map(), () => 'aaa').rest.length, 2);
   });
+});
+
+test('FANDHE_TERM_LIST で一覧を渡せ、シェルの構文を含むパスでも展開されない', () => {
+  const root = makeRepo({ 'testdata/a.md': 'x\n' });
+  const list = path.join(root, 'terms`touch pwned`.txt');
+  fs.writeFileSync(list, `${WORD}\n`);
+  const r = spawnSync('node', [TOOL, '--root', root], { encoding: 'utf8', env: { ...process.env, FANDHE_TERM_LIST: list } });
+  assert.equal(r.status, 0);
+  assert.equal(fs.existsSync(path.join(process.cwd(), 'pwned')), false);
 });

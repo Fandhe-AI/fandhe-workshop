@@ -15,5 +15,5 @@ reject_args "$(basename "$0")" "$@"
 require_cmd node
 require_cmd cargo
 
-cargo build --locked --quiet -p fandhe-workshop-pack --example secret_scan_files
+cargo build --locked --quiet --manifest-path "${ROOT_DIR}/Cargo.toml" -p fandhe-workshop-pack --example secret_scan_files
 node --test "${ROOT_DIR}/tools/check-internal-info.test.mjs"

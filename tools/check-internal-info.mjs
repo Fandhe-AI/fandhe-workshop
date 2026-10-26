@@ -14,7 +14,7 @@
 //      外で、TASK-794 で照合する。`--all` で追跡中の全ファイルを対象にする（対象外の箇所の洗い出し用）。
 //   2. 認証情報の形: `--secrets-only` で、追跡中の全ファイル（外部取得のスキルを含む）を照合する。判定の正は
 //      crates/core/src/secret_scan.rs で、JS へ写さず crates/pack/examples/secret_scan_files.rs を呼ぶ。
-//      意図した試験用の偽の値は SECRET_EXCEPTIONS に件数を固定して持つ（増減のどちらでも失敗する）。
+//      意図した試験用の偽の値は SECRET_EXCEPTIONS に、確かめたファイル内容の SHA-256 で固定して持つ（内容が変われば失敗する）。
 //
 // `--list` も `--secrets-only` も無ければ 2 で止める（語の照合を黙って飛ばさない）。`--secrets-only` では出力に
 // 「words: not checked」を出す。
@@ -25,6 +25,7 @@
 // 終了コード: 0 = 違反なし / 1 = 違反あり / 2 = 誤用、または検査を完了できない（合格にしない）。
 // 使い方: node tools/check-internal-info.mjs (--list <file> | --secrets-only) [--root <dir>] [--all]
 //   --root は回帰テスト用（この repo 以外を指すときは固定した例外を使わない）（既定はこのファイルの親の親）。
+//   環境変数 FANDHE_TERM_LIST に一覧のパスを渡せる（`--list` が無いときだけ使う。make はこちらで渡し、パスをシェルの構文にしない）。
 //   環境変数 FANDHE_SECRET_SCAN_BIN にビルド済みの example を渡すと cargo run を省く。
 // 回帰テスト: tools/check-internal-info.test.mjs（scripts/test-check-internal-info.sh）。
 // CI・make check・lefthook には組み込まない（継続の照合は TASK-420 以降。失敗で止めるガードは人間の承認点）。
@@ -39,16 +40,17 @@ const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 // 語の照合の既定の対象（相対パスの接頭辞）。
 export const WORD_SCOPE = ['docs/examples/', 'testdata/', 'crates/web/static/', '.github/workflows/'];
 
-// 認証情報の形の固定した例外。キーは「相対パス\t形の ID」、値は件数。意図した試験用の偽の値だけを入れ、理由を書く。
+// 認証情報の形の固定した例外。キーは相対パス、値は目で確かめたときのファイル内容の SHA-256。意図した試験用の偽の値だけを入れる。
+// 内容が 1 バイトでも変わったら例外を適用せず、そのファイルの当たりを違反として出す（同じ件数の別の値や、同じ行への
+// 同型の資格情報の追加を通さないため。件数は使わない）。再確認したら新しいハッシュに書き直す。
 export const SECRET_EXCEPTIONS = new Map([
   // 外部取得のスキル（.agents/skills。skills-lock.json 管理で、この repo では編集しない）の例示・試験の値。
   // 2026-10-26 に目で確かめた。いずれも `u:p@h`・`${TOKEN}`・RFC 7519 の例の JWT のようなダミーか変数の展開で、
-  // 実在の資格情報ではない。件数は実測で、増減したら新しい当たりを同じ手順で確かめ直す。
-  ['.agents/skills/create-commit/SKILL.md\tconnection_string', 2],
-  ['.agents/skills/create-commit/SKILL.md\tjwt', 1],
-  ['.agents/skills/implement-issue-tree/tests/base-merge-unit.test.mjs\tconnection_string', 5],
-  ['.agents/skills/implement-issue-tree/tests/lib/base-merge-suite.mjs\tconnection_string', 4],
-  ['.agents/skills/implement-issue-tree/tests/lib/pr-push-suite.mjs\tconnection_string', 1],
+  // 実在の資格情報ではない。スキルの日次更新で内容が変わったら、新しい当たりを同じ手順で確かめ直す。
+  ['.agents/skills/create-commit/SKILL.md', '8fbc57f725711d87768e8c782b32dcd99f1de4bab2482a90ca289b1d31d3ba03'],
+  ['.agents/skills/implement-issue-tree/tests/base-merge-unit.test.mjs', '3c69a58c4445231a93051608a94de187c65800fd2a038bb75707da9c2989cfa4'],
+  ['.agents/skills/implement-issue-tree/tests/lib/base-merge-suite.mjs', 'c839fa3bae8f9df121ed68d4ef6d5e727060b7f94dc31027d121adc0c4e9195e'],
+  ['.agents/skills/implement-issue-tree/tests/lib/pr-push-suite.mjs', '1436147017db731bdfafe6ac11a3e4e7e537155238b1b6c7ef674f07f32b9406'],
 ]);
 
 class CheckError extends Error {}
@@ -146,21 +148,18 @@ export function scanSecrets(root, files) {
   return hits;
 }
 
-// 固定した例外を引き、残りの違反と、件数の不一致の報告を返す。
-export function applyExceptions(hits, exceptions) {
-  const counts = new Map();
+// 固定した例外を引き、残りの違反と、内容の不一致の報告を返す。hashOf(相対パス) はファイル内容の SHA-256。
+// 内容のハッシュが承認したものと一致するファイルの当たりだけを引く。
+export function applyExceptions(hits, exceptions, hashOf) {
   const rest = [];
+  const drift = new Set();
   for (const h of hits) {
-    const key = `${h.file}\t${h.id.replace(/^secret:/, '')}`;
-    if (exceptions.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
-    else rest.push(h);
+    const want = exceptions.get(h.file);
+    if (want !== undefined && hashOf(h.file) === want) continue;
+    if (want !== undefined) drift.add(`exception content changed: ${h.file} (re-verify and update the hash)`);
+    rest.push(h);
   }
-  const drift = [];
-  for (const [key, want] of exceptions) {
-    const got = counts.get(key) ?? 0;
-    if (got !== want) drift.push(`exception count mismatch: ${key.replace('\t', ' ')} expected=${want} actual=${got}`);
-  }
-  return { rest, drift };
+  return { rest, drift: [...drift] };
 }
 
 function parseArgs(argv) {
@@ -175,6 +174,7 @@ function parseArgs(argv) {
       else o.root = argv[i];
     } else throw new CheckError(`unknown argument: ${a}`);
   }
+  if (o.list === null && !o.secretsOnly && process.env.FANDHE_TERM_LIST) o.list = process.env.FANDHE_TERM_LIST;
   if (o.list === null && !o.secretsOnly) throw new CheckError('either --list <file> or --secrets-only is required');
   return o;
 }
@@ -192,7 +192,9 @@ function main() {
   } else {
     process.stdout.write('words: not checked (--secrets-only)\n');
   }
-  const { rest, drift } = applyExceptions(scanSecrets(o.root, files), path.resolve(o.root) === TOOL_ROOT ? SECRET_EXCEPTIONS : new Map());
+  const { rest, drift } = applyExceptions(scanSecrets(o.root, files), path.resolve(o.root) === TOOL_ROOT ? SECRET_EXCEPTIONS : new Map(),
+    (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(o.root, rel))).digest('hex'),
+  );
   hits.push(...rest);
   process.stdout.write(`secrets: checked ${files.length} files\n`);
   for (const h of hits) process.stdout.write(`${h.file}:${h.line}: ${h.id}\n`);

@@ -17,9 +17,9 @@
 | 日付 | 2026-10-26 |
 | 照合のスクリプト | `tools/check-internal-info.mjs`（回帰テストは `make test-check-internal-info`。9 件が通った）。実行したコマンドは `make check-internal-info-secrets` |
 | 対象 | 認証情報の形: 追跡中の全ファイル 3,779 件（外部取得のスキル `.agents/skills/**` を含む。gitlink の `docs/spec` は対象外）。社内固有の語（実施する場合）: `docs/examples/**`・`testdata/**`・`crates/web/static/**`・`.github/workflows/**`。教材 repo（TASK-36）と講師資料は本 repo の外にあり、本記録では照合していない（TASK-794 で照合する） |
-| 認証情報の形 | 終了コード 0（違反 0 件）。コアの 15 形で照合した。固定した例外は `.agents/skills/` 配下の 5 ファイル・13 件（接続文字列 12・JWT 1）で、いずれも `u:p@h`・`${TOKEN}`・仕様書の例の JWT のようなダミーか変数の展開であることを目で確かめた。例外の一覧と理由は `tools/check-internal-info.mjs` の `SECRET_EXCEPTIONS` |
+| 認証情報の形 | 終了コード 0（違反 0 件）。コアの 15 形で照合した。固定した例外は `.agents/skills/` 配下の 4 ファイル（確かめた内容の SHA-256 で固定。内容が変われば例外を適用せず再確認を求める）で、いずれも `u:p@h`・`${TOKEN}`・仕様書の例の JWT のようなダミーか変数の展開であることを目で確かめた。例外の一覧と理由は `tools/check-internal-info.mjs` の `SECRET_EXCEPTIONS` |
 | 確かめた人（認証情報） | AI（Claude Code）による機械の照合と、例外の目視。人の確認は未実施 |
-| 社内固有の語 | 未実施。語の一覧が private の spec repo に未作成（D-77・D-81）。一覧ができたら、ユーザーが `make check-internal-info WORDS=<一覧のパス>` を実行し、件数と一覧の sha256（標準エラーの `list:` 行）をここへ追記する |
+| 社内固有の語 | 未実施。語の一覧が private の spec repo に未作成（D-77・D-81）。一覧ができたら、ユーザーが `WORDS=<一覧のパス> make check-internal-info` を実行し、件数と一覧の sha256（標準エラーの `list:` 行）をここへ追記する |
 | 紛らわしい名前の人の判断 | 未実施。判断の対象の下見: `testdata/` の教材の `workshop.yaml` などに `Fandhe-AI/template-ideas`（組織名つきの repo 名）が現れる。`testdata/README.md`・`testdata/version-histories/README.md` は private の仕様 repo の名前を参照している。実在の private repo と紛らわしいかは人が判断する |
 | 承認 | 未承認（承認者: ユーザー（リポジトリの管理者）） |
 | 次回 | TASK-794 で、公開する版について照合をやり直す。その版が本記録より後であることを記録に書く |

@@ -123,9 +123,9 @@ check-generic-words: ## エンジンの crate のコードに教材固有の語�
 test-check-generic-words: ## 教材固有の語の検査自体の回帰テスト（node:test）。直接: scripts/test-check-generic-words.sh
 	@scripts/test-check-generic-words.sh
 
-# WORDS は private の spec repo の語の一覧のパス。空なら語の照合を黙って飛ばさず、tools 側が 2 で止める。
+# WORDS は環境変数 FANDHE_TERM_LIST としてシェルの値で渡す（Make の展開でコマンド文字列へ入れない）。private の spec repo の語の一覧のパス。空なら語の照合を黙って飛ばさず、tools 側が 2 で止める。
 check-internal-info: ## 社内固有の語（WORDS=<一覧のパス>）と認証情報の形を照合する（CI 未組み込み）。直接: node tools/check-internal-info.mjs --list <file>
-	@node tools/check-internal-info.mjs $(if $(WORDS),--list "$(WORDS)")
+	@FANDHE_TERM_LIST="$$WORDS" node tools/check-internal-info.mjs
 
 check-internal-info-secrets: ## 認証情報の形だけを照合する（語の照合は行わない。CI 未組み込み）。直接: node tools/check-internal-info.mjs --secrets-only
 	@node tools/check-internal-info.mjs --secrets-only

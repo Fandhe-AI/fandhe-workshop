@@ -8774,7 +8774,7 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 
 - 道具: `tools/check-internal-info.mjs`（`make check-internal-info`・`make check-internal-info-secrets`）。回帰テストは `make test-check-internal-info`（`tools/check-internal-info.test.mjs`）
 - 語の照合: `--list <file>` の一覧（private の spec repo に置く。本 repo へ写さない）で、`docs/examples/**`・`testdata/**`・`crates/web/static/**`・`.github/workflows/**` を照合する。`--all` で追跡中の全ファイルを対象にする。一覧が無い・0 語・UTF-8 でない・本 repo で追跡されている場合と、`--list` も `--secrets-only` も無い場合は終了コード 2（合格にしない）。出力は `パス:行番号: term#<番号>` で、語は出さない
-- 認証情報の照合: 追跡中の全ファイル（外部取得のスキルを含む）を、core の `secret_scan` と同じ判定（`crates/pack/examples/secret_scan_files.rs` 経由。形を JS へ写さない）で照合する。当たりは `パス:行番号: secret:<形の ID>` で、値は出さない。固定した例外は `.agents/skills/**` の例示・試験のダミーの値 13 件で、件数が増減すると失敗する
-- 回帰テスト 9 件: 語の当たりと非当たり・出力に語が出ないこと・対象外のパスと `--all`・形の当たり・一覧の不備と追跡済みの一覧で 2・実 repo で 0・試験データの `expect` の ID が core の ID に含まれること・例外の件数の増減
+- 認証情報の照合: 追跡中の全ファイル（外部取得のスキルを含む）を、core の `secret_scan` と同じ判定（`crates/pack/examples/secret_scan_files.rs` 経由。形を JS へ写さない）で照合する。当たりは `パス:行番号: secret:<形の ID>` で、値は出さない。固定した例外は `.agents/skills/**` の 4 ファイルの例示・試験のダミーの値で、確かめたファイル内容の SHA-256 が一致するときだけ適用し、内容が変われば失敗する（件数では固定しない）。`WORDS` はシェルの環境変数 `FANDHE_TERM_LIST` で渡す
+- 回帰テスト 9 件: 語の当たりと非当たり・出力に語が出ないこと・対象外のパスと `--all`・形の当たり・一覧の不備と追跡済みの一覧で 2・実 repo で 0・試験データの `expect` の ID が core の ID に含まれること・例外の内容のハッシュの不一致・`FANDHE_TERM_LIST` のパスにシェルの構文があっても展開されないこと
 - CI・`make check`・lefthook には組み込まない。継続の照合は TASK-420 以降で決める。失敗したら止めるガードを足すことは人間の承認点である
 - 実行の記録（2026-10-26）: `make check-internal-info-secrets` は終了コード 0、引数なしの `make check-internal-info` は終了コード 2、`make test-check-internal-info` は 9 件が通った。語の一覧での照合は、一覧が未作成のため未実施。結果の記録は `docs/publish-checks.md`
