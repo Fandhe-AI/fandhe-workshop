@@ -104,6 +104,26 @@ test('repo で追跡されている一覧は 2', () => {
   assert.match(r.stderr, /tracked/);
 });
 
+test('追跡済みの一覧を指すシンボリックリンクは 2', () => {
+  const root = makeRepo({ 'testdata/a.md': 'x\n', 'terms.txt': `${WORD}\n` });
+  const link = path.join(tmp(), 'link.txt');
+  fs.symlinkSync(path.join(root, 'terms.txt'), link);
+  const r = run(['--list', link, '--root', root]);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /tracked/);
+});
+
+test('スキャナーが終了コード 1 で当たり行を出さないときは 2（違反なしにしない）', () => {
+  const root = makeRepo({ 'docs/x.md': 'plain\n' });
+  const stub = path.join(tmp(), 'stub.sh');
+  fs.writeFileSync(stub, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  const r = spawnSync('node', [TOOL, '--secrets-only', '--root', root], {
+    encoding: 'utf8',
+    env: { ...process.env, FANDHE_SECRET_SCAN_BIN: stub },
+  });
+  assert.equal(r.status, 2);
+});
+
 test('実 repo の認証情報の照合は固定した例外の件数と一致して 0', () => {
   assert.equal(run(['--secrets-only']).status, 0);
 });

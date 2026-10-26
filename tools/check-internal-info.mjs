@@ -77,6 +77,17 @@ export function trackedFiles(root) {
 
 const norm = (s) => s.normalize('NFKC').toLowerCase();
 
+// f がこの repo（root）で追跡されているファイルなら true。f の親ディレクトリが属する repo が root と同じときだけ見る。
+function isTrackedHere(f, root) {
+  const dir = path.dirname(f);
+  const a = spawnSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+  const mine = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+  if (a.status !== 0 || mine.status !== 0) return false;
+  if (fs.realpathSync(a.stdout.trim()) !== fs.realpathSync(mine.stdout.trim())) return false;
+  const t = spawnSync('git', ['-C', dir, 'ls-files', '--error-unmatch', path.basename(f)], { encoding: 'utf8' });
+  return t.status === 0;
+}
+
 // 語の一覧を読む。読めない・UTF-8 でない・0 語・repo で追跡されている場合は CheckError。
 export function loadList(file, root) {
   let buf;
@@ -97,14 +108,9 @@ export function loadList(file, root) {
     .filter((l) => l !== '' && !l.startsWith('#'))
     .map(norm);
   if (terms.length === 0) throw new CheckError('term list has no terms');
-  const dir = path.dirname(path.resolve(file));
-  const a = spawnSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-  if (a.status === 0) {
-    const mine = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-    if (mine.status === 0 && fs.realpathSync(a.stdout.trim()) === fs.realpathSync(mine.stdout.trim())) {
-      const t = spawnSync('git', ['-C', dir, 'ls-files', '--error-unmatch', path.basename(file)], { encoding: 'utf8' });
-      if (t.status === 0) throw new CheckError('term list is tracked by this repository');
-    }
+  // 指定のパスと、シンボリックリンクをたどった実体のパスの両方で追跡状態を見る（リンクで一覧の拒否を回避させない）。
+  for (const f of new Set([path.resolve(file), fs.realpathSync(file)])) {
+    if (isTrackedHere(f, root)) throw new CheckError('term list is tracked by this repository');
   }
   return { terms, sha256: crypto.createHash('sha256').update(buf).digest('hex') };
 }
@@ -145,6 +151,9 @@ export function scanSecrets(root, files) {
     if (!m || !m[1].startsWith(prefix)) throw new CheckError('unexpected scanner output');
     hits.push({ file: m[1].slice(prefix.length), line: Number(m[2]), id: `secret:${m[3]}` });
   }
+  // 終了コード 1 は「当たりあり」の意味。当たり行が 1 件も無いのは、起動前段の失敗（rustup の解決失敗など）で、
+  // 空の結果を「違反なし」にしない。
+  if (r.status === 1 && hits.length === 0) throw new CheckError('secret scan could not complete');
   return hits;
 }
 
