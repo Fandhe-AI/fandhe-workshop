@@ -1,0 +1,8 @@
+id: A11Y11-1
+package: fandhe-workshop-web
+test: reduced_motion_contract
+target: crates/web/src/motion.rs
+find: !(reduced_motion && matches!(line, LogLine::Progress { .. }))
+replace: !(!reduced_motion && matches!(line, LogLine::Progress { .. }))
+expect-fail: reduce_では段階の行が_0_件で_結果の行は出る
+note: 判定を反転する（reduce で段階の行が出て、通常では出なくなる。A11Y-11）

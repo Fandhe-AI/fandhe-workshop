@@ -153,6 +153,8 @@ pub struct HostModel {
     /// このタブが他のタブに追い越された（古いタブ）ことの表示（SAVE-13・D-56。`stale-notice` の元）。
     /// 表示の状態で、履歴（`ops`）にも保存先にも書かない。一度立てたら戻さない（`BootGuard` の stale も戻らない）。
     stale_tab: bool,
+    /// `prefers-reduced-motion: reduce` のとき真（TASK-372 1/2）。表示だけの値で、`ops`・履歴・保存先の鍵には入れない。
+    reduced_motion: bool,
     /// 表示だけで開いた履歴の理由（VER-8・TASK-176 1/2。`view-only-notice` の元）。`Some` の間は、操作の関門（`update`）が
     /// 状態・ログを変える action を捨て、保存と進行も止める。表示の状態で、履歴（`ops`）にも保存先にも書かない。
     /// 開ける履歴の読み込み（`install_recorded`）で `None` に戻る。
@@ -168,6 +170,11 @@ impl HostModel {
     /// 警告に出す形。無ければ空（`secret-notice` が空になる）。
     pub fn secret_warning(&self) -> &[SecretShape] {
         &self.secret_warning
+    }
+
+    /// 動きの抑制のとき真（TASK-372 1/2）。真なら段階の行を出さない。
+    pub fn reduced_motion(&self) -> bool {
+        self.reduced_motion
     }
 
     /// 古いタブか。真なら `stale-notice` に文が出る。
@@ -787,6 +794,7 @@ impl EngineHost {
                 export_hint: None,
                 secret_warning: Vec::new(),
                 stale_tab: false,
+                reduced_motion: false,
                 view_only: None,
             },
             registry: standard_registry(),
@@ -920,6 +928,7 @@ impl EngineHost {
                 export_hint: None,
                 secret_warning: Vec::new(),
                 stale_tab: false,
+                reduced_motion: false,
                 view_only: None,
             },
             registry,
@@ -1035,6 +1044,14 @@ impl EngineHost {
     /// `persist::mount_with_history` が mount の前に 1 度だけ呼ぶ。表示だけの値で、履歴・実行環境には入れない。
     pub fn set_learner_os(&mut self, os: LearnerOs) {
         self.input.set_learner_os(os);
+    }
+
+    /// 動きの抑制の設定（`prefers-reduced-motion: reduce`）を渡す（TASK-372 1/2。A11Y-11）。
+    ///
+    /// `persist::mount_with_history` が mount の前に 1 度だけ呼ぶ。真のとき、右のログの段階の行を出さない。表示だけの値で、
+    /// `ops`・履歴・保存先の鍵には入れない。進行のイベント列は変わらない（EVT-19）。
+    pub fn set_reduced_motion(&mut self, on: bool) {
+        self.model.reduced_motion = on;
     }
 
     /// 起動時に保存済みの履歴（あれば）を渡し、新しく始めるか復元するかを決めて実行環境を差し替える（TASK-319 1/3。SAVE-3・SAVE-28）。
@@ -1652,6 +1669,7 @@ impl EngineHost {
                         .and_then(|e| {
                             crate::log_lines::line_from_event(e, self.model.judged_text(r.event))
                         })
+                        .filter(|l| crate::motion::shows_line(self.model.reduced_motion, l))
                         .map(|l| l.kind().as_str()),
                 })
             })
@@ -1788,6 +1806,8 @@ impl EngineHost {
             "current": session.state().run.current.as_ref().map(|s| s.0.clone()),
             // DOM の `run-status` の `data-state` と照合する（TASK-436）。
             "runStatus": crate::run_status::run_status(Some(session)).data_state(),
+            // 動きの抑制の設定（TASK-372 1/2。表示だけの値）。
+            "reducedMotion": self.model.reduced_motion,
             // DOM の `step-status` の語と照合する（TASK-435）。
             "stepStatus": match crate::step_status::step_status(Some(session)) {
                 Some(fandhe_workshop_core::step_status::StepStatus::Accepted) => Some("accepted"),

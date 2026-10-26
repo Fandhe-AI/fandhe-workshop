@@ -607,6 +607,8 @@ const MODULE_RULES: &[ModuleRule] = &[
             // 受講者の OS の推定（TASK-285 1/2）。UA の文字列は引数で受けるだけで、DOM・ブラウザの値には触れない。
             "set_learner_os",
             "estimate",
+            // 動きの抑制の設定（TASK-372 1/2）。真偽値を引数で受けるだけで、DOM・ブラウザの値には触れない。
+            "set_reduced_motion",
             // ブラウザの案内（TASK-544）。UA の文字列は判定にだけ使い、閉じた記録は SyncKv（LocalStore）を通す。生の DOM には触れない。
             "set_browser_notice",
             "needs_notice",

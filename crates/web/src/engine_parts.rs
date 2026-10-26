@@ -321,7 +321,8 @@ impl DisplayPart<HostModel> for LogPart {
                     events.get(row.event as usize)?,
                     model.judged_text(row.event),
                 )?;
-                Some((row, line))
+                // 動きの抑制のときは段階の行を出さない（A11Y-11）。畳みと要約の行数も絞った後の列で数える。
+                crate::motion::shows_line(model.reduced_motion(), &line).then_some((row, line))
             })
             .collect();
         let mut starts: Vec<usize> = Vec::new();
