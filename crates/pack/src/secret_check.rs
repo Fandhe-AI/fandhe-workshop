@@ -5,7 +5,7 @@
 //! 形の判定は core の `secret_scan`（受講中の保存の直前の警告と同じ 15 形）を再利用し、規則を二重に持たない。
 //!
 //! 出すのは形の ID（ASCII の固定名）だけで、値・値の一部・指紋・日本語の名前は診断のどこにも写さない。
-//! 項目の ID は `safe_ident` を通ったものだけを写し、通らなければ位置（`#<n>`）にする。
+//! 項目の ID は `safe_ident` を通ったものだけを写し、通らない、または秘密情報の形をしていれば位置（`#<n>`）にする。
 //!
 //! 限界（SAFE-30 と同じ。`docs/known-gaps.md`）:
 //! - 固定の 15 形だけで、一般の秘密情報の検出率は保証しない。
@@ -71,7 +71,8 @@ impl Collector {
 
 /// 項目名。ID が安全に写せるときだけ `<kind>:<id>`、そうでなければ `<kind>:#<n>`。
 fn item_name(kind: &str, id: &str, n: usize) -> String {
-    if safe_ident(id) {
+    // 秘密情報の形をした ID は、診断が値を写さないよう位置にする。
+    if safe_ident(id) && scan_text(id).is_empty() {
         format!("{kind}:{id}")
     } else {
         format!("{kind}:#{n}")

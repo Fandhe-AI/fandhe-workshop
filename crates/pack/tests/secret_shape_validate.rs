@@ -216,7 +216,10 @@ fn author18_diagnostics_never_contain_the_value() {
             String::from_utf8_lossy(&o.stderr)
         );
         // 値の末尾の 8 文字が現れないこと（形の ID は値の部品と重ならない）。
-        let head: String = value.chars().rev().take(8).collect();
+        let head: String = value
+            .chars()
+            .skip(value.chars().count().saturating_sub(8))
+            .collect();
         assert!(!all.contains(&head), "{id}: output leaks value head");
         assert!(all.contains("E-SECRET-SHAPE"), "{id}");
         assert_eq!(o.status.code(), Some(1), "{id}");
@@ -254,7 +257,10 @@ fn author18_test_command_stops_at_the_gate() {
     assert_eq!(o.status.code(), Some(1));
     let out = String::from_utf8_lossy(&o.stdout);
     assert!(out.contains("E-SECRET-SHAPE"));
-    let head: String = value.chars().rev().take(8).collect();
+    let head: String = value
+        .chars()
+        .skip(value.chars().count().saturating_sub(8))
+        .collect();
     assert!(!out.contains(&head));
 }
 
@@ -289,5 +295,41 @@ fn author18_no_false_positive_in_repo_packs() {
     for d in dirs {
         let n = secret_diags(&d).len();
         assert_eq!(n, 0, "false positive in {}", d.display());
+    }
+}
+
+#[test]
+fn author18_secret_shaped_ids_are_not_echoed() {
+    for (id, _, value) in shapes() {
+        let t = base();
+        edit(
+            &t,
+            "chapters/c-mini/chapter.yaml",
+            "id: st-hello",
+            &format!("id: {value}"),
+        );
+        edit(
+            &t,
+            "chapters/c-mini/chapter.yaml",
+            "node: st-hello",
+            &format!("node: {value}"),
+        );
+        let tail: String = value
+            .chars()
+            .skip(value.chars().count().saturating_sub(8))
+            .collect();
+        for cmd in ["validate", "test"] {
+            let o = Command::new(env!("CARGO_BIN_EXE_fandhe-pack"))
+                .arg(cmd)
+                .arg(&t.0)
+                .output()
+                .expect("run");
+            let all = format!(
+                "{}{}",
+                String::from_utf8_lossy(&o.stdout),
+                String::from_utf8_lossy(&o.stderr)
+            );
+            assert!(!all.contains(&tail), "{id}: {cmd} output leaks id value");
+        }
     }
 }
