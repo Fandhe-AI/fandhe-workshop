@@ -4,5 +4,5 @@ test: modifier_key_hint
 target: crates/web/src/hello.rs
 find:                     self.dirty.push(FIELD_KEY_HINT);
 replace:                     let _ = FIELD_KEY_HINT;
-expect-fail: 選ぶと_key_hint_だけが_dirty_になり_値が切り替わる
+expect-fail: 選ぶと_key_hint_と_op_guide_が_dirty_になり_値が切り替わる
 note: 選んだときの key_hint の dirty を外す（値は変わるが画面が更新されない。JUDGE-28）

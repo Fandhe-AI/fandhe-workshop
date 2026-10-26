@@ -325,6 +325,7 @@ fn 描画される_field_はすべて一度は_dirty_になる_他の教材が�
     let r = run_33();
     let os = run_os();
     assert!(os.seen.contains("key_hint"), "{:?}", os.seen);
+    assert!(os.seen.contains("op_guide"), "{:?}", os.seen);
     let pane = run_pane();
     assert!(pane.seen.contains("pane_tabs"), "{:?}", pane.seen);
     let missing: Vec<String> = r

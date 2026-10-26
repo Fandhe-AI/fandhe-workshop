@@ -1,0 +1,8 @@
+id: A11Y25-1
+package: fandhe-workshop-web
+test: operation_guide
+target: crates/web/src/hello.rs
+find:                     self.dirty.push(FIELD_OP_GUIDE);
+replace:                     let _ = FIELD_OP_GUIDE;
+expect-fail: 選ぶと説明が切り替わり_同じ値と不正な値は何も変えない
+note: 選んだときの op_guide の dirty を外す（値は変わるが説明が更新されない。A11Y-25）
