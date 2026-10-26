@@ -40,6 +40,7 @@ fn heading_has_mark(text: &str) -> bool {
 }
 
 fn has_mark(path: &str, text: &str) -> bool {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     if path.to_ascii_lowercase().ends_with(".json") {
         if let Ok(Value::Object(map)) = serde_json::from_str::<Value>(text) {
             return map.values().any(|v| v.as_str().is_some_and(line_has_mark));
@@ -84,6 +85,11 @@ mod tests {
         assert!(!has_mark("a.md", "# 【架空\n"));
         assert!(has_mark("a.JSON", r#"{"_note":"【架空】","a":1}"#));
         assert!(!has_mark("a.json", r#"{"x":{"_note":"【架空】"}}"#));
+        assert!(has_mark(
+            "a.json",
+            "\u{feff}{\n  \"_note\": \"【架空】\"\n}"
+        ));
+        assert!(!has_mark("a.json", "\u{feff}{\n  \"_note\": \"x\"\n}"));
         assert!(has_mark("a.json", "【架空】 not json"));
         assert!(!has_mark("a.json", "not json"));
     }
