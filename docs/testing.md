@@ -8770,7 +8770,26 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 - 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion.test.mjs` の 10 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
 - 範囲外: 方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従
 
-### 5.307 操作プロファイルの説明への修飾キーの表示の適用（TASK-392 1/2。A11Y-25・D-48・D-79）
+### 5.307 `reduce` の ST-1.5 と設定を反映する時期（TASK-378 1/2。A11Y-12・A11Y-13・A11Y-29）
+
+D-82（2026-10-26）は、`reduce` では段階の表示を省いて結果だけを出す現状の方式を採り、設定は読み込み時に 1 回だけ読む（開いたままの切り替えには追随せず、開き直すと反映される。既知の不足 H-12）と決めた。エンジンは `reduce` のために停止を体験させる仕組みを足さない。実装は変えず、この形を試験で固定する。
+
+| 観察 | 文脈 | 期待 |
+|---|---|---|
+| A: ST-1.5（`?fixture=ch0-3-links&start=s-1-5`。4 進行）に `/make-card sample` を送る | `reduce` | 全標本と MutationObserver で段階の行・`progress` 要素が 0 件。進行は 4 件届き、受付の行が出る |
+| B: 同じ操作を両文脈で流して比べる | `reduce` と `no-preference` | 表示だけの差（`reducedMotion`・段階の行）を除いて、現在の Step・世代・成果物・状態・イベントの種類・進行が一致する。`reduce` の所要が `no-preference` より 300ms を超えて長くならない（進行を遅らせる方式を採らない） |
+| C: 処理中に Esc、別の回で停止ボタン | 両文脈 | 停止の行が 1 件・世代 +1・入口の状態へ戻る・成果物が送信前と一致・やり直せる。結果が両文脈で一致する。`reduce` でも処理中の窓は残る（段階の手がかりが無いだけ） |
+| D: 画面の部品（`data-testid` の集合）・ボタンの数 | 両文脈 | `no-preference` から段階の部品（`line-stage`）を除いた集合が `reduce` と一致する。`reduce` だけの部品・案内は 0 件 |
+| E: 開いたままの切り替えと開き直し | `no-preference` ⇄ `reduce` の両方向 | 切り替えの後も `engine.reducedMotion` は変わらず、方式も変わらない。保存先の鍵・値に動きの値が入らない。開き直すと `engine.reducedMotion` が切り替えた値になり、同じ保存先から続く。既定の教材でも同じ |
+| F: 配信する設定 | `reduce` | `__fandheTest`・`raw-trigger` が無く、停止ボタンが 1 件で、違反 0 件 |
+
+- 試験: `tools/browser/reduced-motion-st15.test.mjs`（A・E は CSP あり・なし）。native では `crates/web/tests/reduced_motion_contract.rs` が `app.js` の `matchMedia` の出現が 1 回で `mount_app` の前にあり、同じ行の `change` の購読・`addListener(`・`onchange` が無いことを固定する（近似。変数へ受けて別の行で購読する書き方は検出できず、ブラウザ試験の E が補う）
+- 変異: `A11Y12-1`（`matchMedia` の `change` で再読み込みする 1 行を足す）
+- 観察（実装は変えていない）: `reduce` でも、処理中に左の成果物は段階ごとに変わる（ST-1.5 では 3 段目で `cards/sample` の追加の印が出る。`p2-create` の効果）。これは結果の側の表示で、右のログの段階の行だけを省く現状の方式と D-82 の「現状のまま」に沿うため手を入れていない。A11Y-11 の「処理中のカードの中間の文字」の読み方次第では、左の途中の表示を `reduce` で抑える変更が要るため、仕様の側での確認を範囲外に残す
+- 実行の記録: 2026-10-26。Chromium（同梱 1243）。`reduced-motion-st15`・`reduced-motion`・`stop-redo` の計 22 件が通った。`reduced_motion_contract` は 9 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
+- 範囲外: 教材内の動きの設定が無いことの確認・INTRO-20 の文面による補い・`reduce` での ST-1.5 以外の LO-3 の場面（#644・TASK-607）。SHELL-29（早送り × `reduce`。早送りの切り替えが未実装）。人による確認（実機の OS の設定の切り替え・VoiceOver）は行っていない。自動ブラウザの `prefers-reduced-motion` は模擬である
+
+### 5.308 操作プロファイルの説明への修飾キーの表示の適用（TASK-392 1/2。A11Y-25・D-48・D-79）
 
 入力欄の領域に、操作プロファイルの説明（`data-testid="op-guide"`）を足し、中の修飾キーを TASK-285 の機構（推定・選ぶ欄・語）から出す。機構は作り直さず、文言の関数 `operation_guide`（`modifier_key.rs`）だけを足した。
 

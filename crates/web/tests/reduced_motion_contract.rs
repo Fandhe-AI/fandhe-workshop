@@ -184,3 +184,55 @@ fn 動きの宣言の検出は注入を見つける_自己確認() {
         1
     );
 }
+
+/// `app.js` が動きの設定を読み込み時に 1 回だけ読む形を損なう記述の一覧（A11Y-12・D-82。既知の不足 H-12）。
+/// `matchMedia` の呼び出しが 1 回でなければ、または `matchMedia` と同じ行の `change` の購読・`addListener(`・
+/// `onchange` があれば、開いたままの切り替えに追随しうるため数える。ブラウザ試験
+/// （`reduced-motion-st15.test.mjs` の E）が実際の画面で確かめる内容の、ソース側の固定である。
+fn follow_up_hazards(js: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let calls = js.matches("matchMedia").count();
+    if calls != 1 {
+        found.push(format!("matchMedia の出現が {calls} 回（1 回のはず）"));
+    }
+    for needle in [".addListener(", "onchange", "MediaQueryListEvent"] {
+        if js.contains(needle) {
+            found.push(format!("change の購読: {needle}"));
+        }
+    }
+    // 同じ行で matchMedia と change を扱う購読。ファイル入力の change（document の購読）とは区別する。
+    // 変数へ受けてから別の行で購読する書き方は検出できない（近似。ブラウザ試験の E が実際の挙動で補う）。
+    for line in js.lines() {
+        if line.contains("matchMedia") && line.contains("change") {
+            found.push(format!("matchMedia と change が同じ行: {}", line.trim()));
+        }
+    }
+    found
+}
+
+#[test]
+fn app_js_は動きの設定を読み込み時に_1_回だけ読み変化に追随しない() {
+    let js = include_str!("../static/app.js");
+    assert_eq!(follow_up_hazards(js), Vec::<String>::new());
+    let read = js.find("matchMedia").expect("matchMedia の読み取りがある");
+    let mount = js
+        .find("mount_app(\"app\"")
+        .expect("mount_app の呼び出しがある");
+    assert!(read < mount, "設定の読み取りは mount_app の呼び出しより前");
+}
+
+#[test]
+fn 追随の検出は注入を見つける_自己確認() {
+    assert_eq!(follow_up_hazards("const a = 1;").len(), 1);
+    assert!(follow_up_hazards("const m = window.matchMedia('x');").is_empty());
+    let sub = "const m = window.matchMedia('x'); m.addEventListener(\"change\", f);\ndocument.addEventListener(\"change\", g);";
+    assert_eq!(follow_up_hazards(sub).len(), 1);
+    assert_eq!(
+        follow_up_hazards("matchMedia('x').addListener(f);\nm.onchange = f;").len(),
+        2
+    );
+    assert_eq!(
+        follow_up_hazards("matchMedia('a'); matchMedia('b');").len(),
+        1
+    );
+}
