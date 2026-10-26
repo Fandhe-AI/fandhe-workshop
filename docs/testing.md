@@ -8846,3 +8846,11 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 変異: A11Y25-3（Windows でだけ Esc が停止にならない）・A11Y25-4（OS の選び直しが下書きを消す）。2026-10-26 に `scripts/check-mutations.sh` で実行し、元にしたコミット 5a805268 で 2 件とも DETECTED
 - 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-web --test os_independent_ops` が 5 件通った
 - 限界・未実施: Windows の実機（TASK-395）、推定が外れたときに受講者が直せるかの人の確認（TASK-393・TASK-460）。自動の試験は値と UA の文字列による模擬で、人の評価に数えない（D-34）。実キーイベントの OS ごとの違い（実機の Ctrl／Cmd・IME）は確かめていない。`scripts/expected-test-counts.txt` は更新していない（5.268）。試験の作成者と実装の作成者が同じ AI である
+
+### 5.312 教材パックの `validate` が秘密情報らしい値を報告する（TASK-420 1/2。AUTHOR-18・D-81）
+
+- 目的: 教材パックに秘密情報らしい形の値が混ざったとき、公開の前に `validate`（と `test` の関門）が `E-SECRET-SHAPE` で報告し、混入のないパックでは誤検出が 0 件であることを固定する
+- 値の作り方: `testdata/` の 2 つの部品（10 形と追加の 5 形）を試験のときに展開して連結する。repo に完成した値を置かない。診断・assert のメッセージには形の ID だけを出す
+- 試験: `crates/pack/tests/secret_shape_validate.rs` の 7 件（`author18_baseline_is_clean`・`author18_each_shape_in_body_is_reported_once`（15 形）・`author18_placements_report_file_and_item`（練習データ・Step の題・拒否の文面・教材テスト）・`author18_diagnostics_never_contain_the_value`（CLI の標準出力・終了コード 1・`NG: 診断 1 件`）・`author18_controls_are_not_reported`（対照 10 件）・`author18_test_command_stops_at_the_gate`・`author18_no_false_positive_in_repo_packs`（`docs/examples`・`testdata`・`crates/pack/tests/data`・`crates/web/tests/data` の教材パック全件で 0 件））
+- 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-pack --test secret_shape_validate` が 7 件通った
+- 限界・未実施: 固定の 15 形に限る（SAFE-30 と同じ）。コメント・map の鍵・参照されないファイルは調べない（公開前の確認の `make check-internal-info-secrets` が拾う）。社内固有の語・実在の名前は D-81 により `validate` の対象外、【架空】の印は TASK-420 2/2。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である

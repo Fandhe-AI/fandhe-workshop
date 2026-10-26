@@ -1,8 +1,8 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 17
-決定日: 2026-10-24
+診断コードの一覧の版: 18
+決定日: 2026-10-26
 状態: 固定（契約）
 ```
 
@@ -26,7 +26,7 @@
 
 ## 2. 本表（04 の PACK-2〜PACK-30 に現れるコード、および実装で足したコード）
 
-本表の行数を「一覧の件数」とする（34 件）。他の節には、本表と同じ形の行を置かない。
+本表の行数を「一覧の件数」とする（35 件）。他の節には、本表と同じ形の行を置かない。
 
 | コード | 出る条件（要旨） | 出所の 04 の ID | 区分 |
 |---|---|---|---|
@@ -41,6 +41,7 @@
 | `E-REF-MODULE` | 存在しないモジュールを参照している | PACK-28 | 語彙 v1 |
 | `E-REF-COMMAND` | 存在しないコマンドを参照している | PACK-28 | 実装にだけ |
 | `E-REF-ELEMENT` | `remove`・`set_attr` の経路を、教材のどの `put`・`replace` も置かない（静的な近似で、必要条件だけを調べる。順序に依る不在は検出しない。`validate` だけが検出し、`compile` は検出しない） | PACK-30 | 実装にだけ |
+| `E-SECRET-SHAPE` | 教材パックの本文・練習データ・構造定義（Step・ヒント・拒否の文面など）・教材テストの値が、秘密情報らしい形（受講中の保存の直前の警告と同じ 15 形）に当たる。診断は形の ID だけを出し、値は写さない。社内固有の語・実在の名前・【架空】の印は調べない（公開前の確認の受け持ち）。`validate` だけが検出し、`compile` は検出しない | AUTHOR-18 | 実装にだけ |
 | `E-VOCAB-MISMATCH` | `pack.vocab` を書いた教材が、宣言より新しい語彙の版の拡張点（EP-9 は 1.2、EP-10〜EP-12 は 1.3）を使っている（`pack.vocab` を省略した教材は検査しない。`validate` だけが検出し、`compile` は検出しない） | PACK-31 | 実装にだけ |
 | `E-REF-BODY` | 存在しない本文を参照している | PACK-28 | 語彙 v1 |
 | `E-DUP-ID` | Step の ID が重複している（章をまたいでも） | PACK-28 | 語彙 v1 |
@@ -81,7 +82,7 @@
 
 ## 3. 件数の記録
 
-- 本表は 34 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH` を足した（変更履歴）
+- 本表は 35 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH`、版 18 で `E-SECRET-SHAPE` を足した（変更履歴）
 - 数え方: 当該の行から正規表現 `E-[A-Z][A-Z0-9*]*(-[A-Z0-9*]+)*` で取り出して重複を除く。`GUIDE-14` のような ID の後半が当たった数字だけの形は数えない
 - PACK-2〜PACK-28 の行には、`E-LIMIT-*`・`E-INSTR-*` は現れない
 
@@ -105,6 +106,7 @@
 | PACK-24 | `E-FORMAT-VERSION` | 1 |
 | PACK-30 | `E-REF-ELEMENT` | 1 |
 | PACK-31 | `E-VOCAB-MISMATCH` | 1 |
+| AUTHOR-18 | `E-SECRET-SHAPE` | 1 |
 | PACK-28 | `E-REF-STEP`・`E-REF-VIEW`・`E-REF-FIXTURE`・`E-REF-HINT`・`E-REF-REJECTION`・`E-REF-MODULE`・`E-REF-COMMAND`・`E-REF-BODY`・`E-DUP-ID`・`E-UNREACHABLE`・`E-DEAD-END`・`E-MODULE-CYCLE`・`E-EMPTY-NEXT-ACTION`・`E-NO-CONFIRM`・`E-FORMAT-VERSION`・`E-STRUCTURE` | 16 |
 
 件数は ID ごとの出現数であり、足し合わせても本表の件数にはならない（同じコードが複数の ID に現れるため）。
@@ -116,12 +118,12 @@
 | 語彙の文書（v1） | 15 |
 | 語彙の文書（v1.1） | 7 |
 | 語彙の文書（v1.3） | 8 |
-| 実装にだけある | 4（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`） |
-| 合計 | 34 |
+| 実装にだけある | 5（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`） |
+| 合計 | 35 |
 
 ### 実装の列挙との対応
 
-`DiagCode::ALL` は 41 件である。内訳は、本表 34 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
+`DiagCode::ALL` は 42 件である。内訳は、本表 35 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
 
 ## 4. 上限超過のコード（参照のみ）
 
@@ -165,6 +167,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 15 | 2026-10-22 | `E-REF-STEP` の対象に、章の `next` が他の章の Step を指す場合を加えた。行は書き換えず、表の後の注で補った。件数は 34 件のまま | PACK-43・D-67（TASK-67） |
 | 16 | 2026-10-23 | `E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH` を `fandhe-pack test` が出すようになったことを、5 節の注で補った。行は書き換えず、本表外のまま、件数は 34 件のまま | TASK-404 3/3（#651）・AUTHOR-4 |
 | 17 | 2026-10-24 | 作成者向けの早見表（8 節）を足した。2 節・4 節・5 節の行は書き換えず、件数は 34 件のまま | TASK-412・AUTHOR-12 |
+| 18 | 2026-10-26 | `E-SECRET-SHAPE` を足し、35 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。既存の行は変えていない | TASK-420 1/2・AUTHOR-18・D-81 |
 
 ## 8. 作成者向けの早見表
 
@@ -198,6 +201,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | `E-SLOT-NEEDS-DO` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-GUIDANCE-LEAK` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-HINT-HIDDEN` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-SECRET-SHAPE` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-PROFILE-PREFIX` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
 | `E-PROFILE-COMMAND-NAME` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
 | `E-PROFILE-TEXT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
