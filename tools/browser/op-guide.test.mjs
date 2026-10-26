@@ -28,7 +28,7 @@ const GUIDE = '[data-testid="op-guide"]';
 const HINT = '[data-testid="key-hint"]';
 const SELECT = '[data-testid="os-select"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const OPS = '操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で停止。';
+const OPS = '操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。';
 const TEXT = {
   mac: `${OPS}コピーは Cmd+C、貼り付けは Cmd+V`,
   windows: `${OPS}コピーは Ctrl+C、貼り付けは Ctrl+V`,

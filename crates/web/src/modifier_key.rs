@@ -34,9 +34,9 @@ pub fn paste_key_hint(os: LearnerOs) -> &'static str {
 #[must_use]
 pub fn operation_guide(os: LearnerOs) -> &'static str {
     match os {
-        LearnerOs::Mac => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で停止。コピーは Cmd+C、貼り付けは Cmd+V",
-        LearnerOs::Windows => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で停止。コピーは Ctrl+C、貼り付けは Ctrl+V",
-        LearnerOs::Unknown => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で停止。コピー・貼り付けのキーは、OS を選ぶと表示されます",
+        LearnerOs::Mac => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピーは Cmd+C、貼り付けは Cmd+V",
+        LearnerOs::Windows => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピーは Ctrl+C、貼り付けは Ctrl+V",
+        LearnerOs::Unknown => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピー・貼り付けのキーは、OS を選ぶと表示されます",
     }
 }
 
