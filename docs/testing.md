@@ -5042,7 +5042,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 562`（2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 563`（2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -8726,3 +8726,26 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 - `scripts/expected-test-counts.txt` は更新していない（版上げ PR ではない）。次の版上げの前に別 PR で `make update-test-counts` が要る
 - 限界: 小数の幅は viewport が整数のため確かめない（CSS の補い合う規則は Rust の試験と SHELL1-5 が固定）。360px は TASK-518・TASK-368。キーで切り替えたときのフォーカスの置き方の細部は A11Y-21 が未決
 - 実行の記録: 2026-10-26。Chromium（同梱）。`SKIP_WASM_OPT=1`。元にしたコミットは 62c8ab3。8 件が通り、取り込み先の `shell-tabs`・`shell-widths`・`shell-journey`・`ch0-3-run` も通った。`make test-browser` の全体は未検証。境目の CSS を 961px に変えた写しでの確認は行っていない。AI による代理の確認であり、人の評価には数えない
+
+### 5.305 `prefers-reduced-motion: reduce` で段階の表示を省く（TASK-372 1/2。A11Y-11・EVT-19）
+
+ブラウザが `prefers-reduced-motion: reduce` を報告するとき、右のログの段階の行（`li[data-kind="progress"]`）を出さず、結果だけを出す。
+
+| 画面の要素 | 区分 | `reduce` のとき |
+|---|---|---|
+| 右のログの `li[data-kind="progress"]` | 段階の表示 | 出さない（0 件） |
+| `run-status`・`step-status` | 状態の語（TERM-33） | 変えない |
+| `progress` 要素 | 現在の画面には無い | 0 件のまま |
+| 受付・応答・拒否の行、左の成果物 | 結果 | 変えない |
+
+- 方式: `static/app.js` が読み込み時に 1 回だけ `matchMedia` を読み、`mount_app` の第 5 引数で渡す（変化には追従しない。読めなければ `false`）。ホストは表示だけの値として持ち、`ops`・履歴・保存先の鍵には入れない。判定は `motion::shows_line` の 1 か所で、描画（`LogPart::view`）と試験用の書き出しが呼ぶ。進行（`Tick`）は `reduce` でも 5 回届き、イベント列・状態は変わらない（EVT-19）
+- `glue.rs` のコード行の上限を 562 から 563 に上げた（`mount_app` の引数の追加。5.166 の表も更新）
+
+| 試験 | 確かめること |
+|---|---|
+| `crates/web/tests/reduced_motion_contract.rs`（native） | `shows_line` の表。`reduce` で段階の行が全時点で 0 件・結果の行は出る。通常では 5 件（対照）。`reduce` でもイベント列と状態が通常と一致。状態の語が待機中 → 処理中 → 待機中 |
+| `tools/browser/reduced-motion.test.mjs`（CSP あり・なし） | `reduce` で処理中を観察し、全標本と MutationObserver で段階の行・`progress` 要素が 0 件。`ticks` は 5 件、`runStatus` は `idle`、結果の行が出る。`no-preference` の対照で 5 件。配信する設定でも `reduce` でマウントでき、違反 0 件 |
+
+- 変異: `A11Y11-1`（`shows_line` の条件の反転）
+- 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion`・`run-status`・`three-views` の 11 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
+- 範囲外: `no-preference` の詳細とアニメーション・`transition`・逐次表示の 0 件（#640）。方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従

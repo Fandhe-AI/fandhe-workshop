@@ -85,6 +85,7 @@ pub mod limit_notice;
 pub mod list_policy;
 pub mod log_lines;
 pub mod modifier_key;
+pub mod motion;
 pub mod next_chapter;
 pub mod offers;
 pub mod parts;

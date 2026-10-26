@@ -48,7 +48,14 @@ try {
       ir = new Uint8Array(0);
     }
   }
-  await mount_app("app", navigator.userAgent ?? "", start, ir);
+  // 動きの抑制（A11Y-11）。読み込み時に 1 回だけ読み、変化には追従しない。読めない・例外のときは段階を出す既定（false）に倒す。
+  let reducedMotion = false;
+  try {
+    reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+  } catch {
+    reducedMotion = false;
+  }
+  await mount_app("app", navigator.userAgent ?? "", start, ir, reducedMotion);
   if (document.querySelector('meta[name="fandhe-test-hooks"]')) {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;

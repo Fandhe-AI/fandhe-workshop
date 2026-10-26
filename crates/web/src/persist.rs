@@ -282,8 +282,11 @@ pub fn mount_with_history(
     user_agent: &str,
     start: Option<String>,
     ir: Option<Vec<u8>>,
+    reduced_motion: bool,
 ) -> js_sys::Promise {
     let mut host = mount_host_for_page(start.as_deref(), ir.as_deref());
+    // 動きの抑制の設定。表示だけの値で、履歴・鍵には使わない（A11Y-11）。
+    host.set_reduced_motion(reduced_motion);
     // User-Agent は OS の推定とブラウザの案内の判定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
     host.set_learner_os(estimate(user_agent));
     // 閉じた記録が読めない（保存領域なし）ときは、記録が無いものとして出す（TASK-544。SHELL-30）。
