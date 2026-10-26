@@ -6,7 +6,7 @@
 // 合否は台帳 ledger に積む。journey の opts.onStep は、各 Step に入った（または確認待ちになった）直後に呼ぶ口で、
 // csp-runs が Step ごとに画面を走査するのに使う（ch0-3-run は渡さず、従来どおり）。入力した値は台帳に載せない。
 // paneAware は、960px 未満で tablist が見えているときだけ、操作の前に要るタブを選ぶドライバの包みで、shell-widths と
-// shell-journey（TASK-548 1/2）が共有する。「次の章へ進む」は操作の領域の末尾にあるので、操作のタブを選んでから押す。
+// shell-journey（TASK-548 1/2）が共有する。keyPaneAware はそのキーボード版で shell-boundary（TASK-369）が使う。「次の章へ進む」は操作の領域の末尾にあるので、操作のタブを選んでから押す。
 import assert from 'node:assert/strict';
 
 export const DRAFT = '[data-testid="draft-input"]';
@@ -171,6 +171,44 @@ export function paneAware(page, d, counter) {
     if (selected === 'true') return;
     await page.click(`#${id}`);
     counter.clicks += 1;
+  };
+  const ops = (name) => async (...args) => {
+    await ensure('pane-tab-ops');
+    return d[name](...args);
+  };
+  return {
+    point: async (...args) => {
+      await ensure('pane-tab-artifacts');
+      return d.point(...args);
+    },
+    choose: ops('choose'),
+    decide: ops('decide'),
+    revise: ops('revise'),
+    send: ops('send'),
+    sendMultiline: ops('sendMultiline'),
+    completeAndSend: ops('completeAndSend'),
+    esc: ops('esc'),
+    nextChapter: ops('nextChapter'),
+  };
+}
+
+// paneAware のキーボード版（shell-boundary。TASK-369）。tablist が見えているときだけ、Tab で選択中の tab へ辿り着き、矢印で反対側を選ぶ。
+// 選んだ回数を counter.keys に積む。`page.click`・`page.focus` は使わない。
+export function keyPaneAware(page, d, counter) {
+  const ensure = async (id) => {
+    const visible = await page.evaluate(() => {
+      const e = document.querySelector('[data-testid="pane-tabs"]');
+      return !!e && getComputedStyle(e).display !== 'none';
+    });
+    if (!visible) return;
+    if ((await page.getAttribute(`#${id}`, 'aria-selected')) === 'true') return;
+    await keyTo(page, '[data-testid="pane-tab"][aria-selected="true"]');
+    await page.keyboard.press('ArrowRight');
+    await page.waitForFunction((want) => {
+      const t = document.getElementById(want);
+      return t?.getAttribute('aria-selected') === 'true' && document.activeElement === t;
+    }, id, { timeout: T });
+    counter.keys += 1;
   };
   const ops = (name) => async (...args) => {
     await ensure('pane-tab-ops');

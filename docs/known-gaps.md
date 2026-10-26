@@ -226,6 +226,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 ### 根拠の試験
 
 - `tools/browser/shell-tabs.test.mjs` の「キーで切り替えるとフォーカスが選んだタブへ移り、Enter で選択が戻らない」が確かめます（記録は `docs/testing.md` 5.203）
+- `tools/browser/shell-boundary.test.mjs` が、Tab だけで選択中の tab に着くことと、キーで選んだタブへフォーカスが移ることを 959px で、960px では Tab が tab に着かないことを確かめます（記録は `docs/testing.md` 5.304）
 
 ## PACK-34: 書き出しを入力とする Step は達成にならない
 

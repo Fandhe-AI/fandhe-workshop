@@ -8706,3 +8706,23 @@ ART-24（検討中）は、掲示板教材の模擬ログインが名前を選�
 - 限界: 製品の画面に `data-theme` が付かない間、A・C は試験が作った要素への属性での検査である。外観の CSS を足すときは `[data-theme="x"]` の子孫の選択子で書く前提でこの試験が効く。製品の枠の根は `div[data-testid="workshop-root"]` で `main` ではなく、付ける要素は枠の担当が決める。`reading` の文字の大きさ・行間は確かめない
 - 実行の記録: 2026-10-25。Chromium（同梱）。`SKIP_WASM_OPT=1`。元にしたコミットは a99c0b6。6 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない（版上げ PR ではない）。期待を反転した写しでの確認は行っておらず、C1 の主張（mono だけで違反が出る）で代えた
 - 範囲外: 製品の画面への `data-theme` の付与と外観ごとの CSS・仕様の「`main` の `data-theme`」と製品の根の食い違い。AI による代理の確認であり、人の評価には数えない
+
+### 5.304 959px と 960px の境目とタブのキーボード切り替え（TASK-369。A11Y-5・SHELL-1）
+
+PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-boundary.test.mjs` で確かめた。画面・エンジンのコードは変えていない。5.203 の `shell-columns`・`shell-tabs` に対する差分は、アクセシブルな名前と AX ツリーの形、境目の両方向、Tab での到達、中身のある画面でのキー切り替え、検出器の対照である。
+
+| 試験 | 確かめること |
+|---|---|
+| B1（配信・959px） | `tablist`（「表示する領域」）が見え、tab が「操作」「成果物」の順で既定は操作。`aria-controls`・`aria-labelledby` が対応。見える領域は右だけ。AX ツリーは `tablist` 1・`tabpanel` 1 |
+| B2（配信・960px） | `tablist` が role でも display でも見えない。2 領域が横に並ぶ。AX ツリーは `tablist` 0・`tabpanel` 2 |
+| B3 | 960px で開き 959px へ縮める逆方向の境目。Tab・End で成果物を選び、広げて戻しても選択が保たれる |
+| B4（959px） | 読み込み直後の Tab で最初に着く tab が選択中の「操作」で、`tabindex="0"` はちょうど 1 つ。矢印・Home・End で領域とフォーカスが追従し、Tab で tablist の外へ出て Shift+Tab で戻る |
+| B5（960px） | Tab を 60 回押しても tab に着かず、矢印・Home・End は何も変えない |
+| B6（試験・`?fixture=ch0-3`） | 下書きを打ってからキーで切り替えても、下書き・現在の Step・ログの件数・状態が同じ |
+| B7（試験） | `keyPaneAware`（`ch0-3-journey.mjs`）で、キーボードだけで CH-1 の 6 Step を通す。台帳が合格、警告・無視 0 件、キーでの切り替えが 1 回以上 |
+| B8（対照） | 960px で `pane-tabs` に `display: flex !important` を CSSOM で足すと `tablist-visible-at-960`、959px で `data-pane` を一致しない値にすると `panes-not-one-below-960` が出る。加工しなければ空 |
+
+- どの試験も CSP 違反・ページ内エラー・コンソールのエラーが 0 件。出力に入力した値は出さない
+- `scripts/expected-test-counts.txt` は更新していない（版上げ PR ではない）。次の版上げの前に別 PR で `make update-test-counts` が要る
+- 限界: 小数の幅は viewport が整数のため確かめない（CSS の補い合う規則は Rust の試験と SHELL1-5 が固定）。360px は TASK-518・TASK-368。キーで切り替えたときのフォーカスの置き方の細部は A11Y-21 が未決
+- 実行の記録: 2026-10-26。Chromium（同梱）。`SKIP_WASM_OPT=1`。元にしたコミットは 62c8ab3。8 件が通り、取り込み先の `shell-tabs`・`shell-widths`・`shell-journey`・`ch0-3-run` も通った。`make test-browser` の全体は未検証。境目の CSS を 961px に変えた写しでの確認は行っていない。AI による代理の確認であり、人の評価には数えない
