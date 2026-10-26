@@ -1,0 +1,8 @@
+id: A11Y25-3
+package: fandhe-workshop-web
+test: os_independent_ops
+target: crates/web/src/hello.rs
+find:         let route = esc_route(decide(&esc_input(), &state));
+replace:         let route = if self.learner_os == LearnerOs::Windows { EscRoute::NONE } else { esc_route(decide(&esc_input(), &state)) };
+expect-fail: 四つの操作の結果は_os_の推定値によらず同じ
+note: Windows でだけ Esc が停止にならない（OS の分岐をキーの経路に入れる。A11Y-25）
