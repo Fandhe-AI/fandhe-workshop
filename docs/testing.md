@@ -8807,6 +8807,15 @@ D-82（2026-10-26）は、`reduce` では段階の表示を省いて結果だけ
 - 実行の記録: 2026-10-26。Chromium（同梱）。`op-guide`・`modifier-key-hint`・`modifier-key-right-pane`・`input-field-hidden` の 44 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない
 - 限界・未実施: 推定が外れたときに直せるかの人の確認（TASK-393・TASK-460）、名前の読み上げを人が聞く確認、Windows の実機（TASK-395）。コマンドの接頭辞は説明に含めない。選ぶ欄の値をキーボードで変える操作は assert にしていない。4 つの操作が OS によらず同じ結果になる試験は 2/2（#704）
 
+### 5.309 社内固有の情報・認証情報の公開前の照合（TASK-139。LIC-12・D-40・D-77・D-78・D-81）
+
+- 道具: `tools/check-internal-info.mjs`（`make check-internal-info`・`make check-internal-info-secrets`）。回帰テストは `make test-check-internal-info`（`tools/check-internal-info.test.mjs`）
+- 語の照合: `--list <file>` の一覧（private の spec repo に置く。本 repo へ写さない）で、`docs/examples/**`・`testdata/**`・`crates/web/static/**`・`.github/workflows/**` を照合する。`--all` で追跡中の全ファイルを対象にする。一覧が無い・0 語・UTF-8 でない・本 repo で追跡されている場合と、`--list` も `--secrets-only` も無い場合は終了コード 2（合格にしない）。出力は `パス:行番号: term#<番号>` で、語は出さない
+- 認証情報の照合: 追跡中の全ファイル（外部取得のスキルを含む）を、core の `secret_scan` と同じ判定（`crates/pack/examples/secret_scan_files.rs` 経由。形を JS へ写さない）で照合する。当たりは `パス:行番号: secret:<形の ID>` で、値は出さない。固定した例外は `.agents/skills/**` の 4 ファイルの例示・試験のダミーの値で、確かめたファイル内容の SHA-256 が一致するときだけ適用し、内容が変われば失敗する（件数では固定しない）。`WORDS` はシェルの環境変数 `FANDHE_TERM_LIST` で渡す
+- 回帰テスト 12 件: 語の当たりと非当たり・出力に語が出ないこと・対象外のパスと `--all`・形の当たり・一覧の不備と追跡済みの一覧で 2・実 repo で 0・試験データの `expect` の ID が core の ID に含まれること・例外の内容のハッシュの不一致・`FANDHE_TERM_LIST` のパスにシェルの構文があっても展開されないこと・追跡済みの一覧を指すシンボリックリンクで 2・スキャナーが終了コード 1 で当たり行なしなら 2
+- CI・`make check`・lefthook には組み込まない。継続の照合は TASK-420 以降で決める。失敗したら止めるガードを足すことは人間の承認点である
+- 実行の記録（2026-10-26）: `make check-internal-info-secrets` は終了コード 0、引数なしの `make check-internal-info` は終了コード 2、`make test-check-internal-info` は 12 件が通った。語の一覧での照合は、一覧が未作成のため未実施。結果の記録は `docs/publish-checks.md`
+
 ### 5.310 教材内の動きの設定が無いことと、`reduce` での文面による補いの経路（TASK-378 2/2。A11Y-12・A11Y-13・INTRO-20）
 
 D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停止（LO-3）を体験させる仕組みも、教材内の動きの設定も足さず、LO-3 は ST-1.5 以外の場面と教材の文面で補うと決めた。実装は変えず、その前提を試験で固定する。補いの文面そのものの採否・形（INTRO-20 の案 A／B／C）は TASK-607 の担当で、ここでは決めない。A11Y-13 と INTRO-20 は仕様の側で検討中のままである。
