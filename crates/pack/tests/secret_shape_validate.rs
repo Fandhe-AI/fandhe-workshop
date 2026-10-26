@@ -426,3 +426,29 @@ fn author18_distinct_secret_shaped_paths_are_not_merged() {
         .count();
     assert_eq!(bodies, 2, "each body path must be reported separately");
 }
+
+#[test]
+fn author18_chapter_id_is_scanned() {
+    let all = shapes();
+    assert_eq!(all.len(), 15, "expected 15 shapes");
+    for (_, shape, value) in all {
+        let t = base();
+        edit(
+            &t,
+            "chapters/c-mini/chapter.yaml",
+            "id: c-mini",
+            &format!("id: {}", quoted(&value)),
+        );
+        let d = secret_diags(&t.0);
+        assert_eq!(d.len(), 1, "{shape}: chapter id not reported once");
+        assert!(d[0].message().contains(&shape));
+        assert_eq!(d[0].file(), "chapters/c-mini/chapter.yaml");
+        assert!(!d[0].message().contains(&value), "{shape}: leaks id value");
+    }
+}
+
+#[test]
+fn author18_ordinary_chapter_id_is_not_reported() {
+    let t = base();
+    assert!(secret_diags(&t.0).is_empty());
+}

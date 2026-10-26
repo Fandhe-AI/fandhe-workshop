@@ -113,6 +113,8 @@ pub(crate) fn check_secret_shapes(pack: &LoadedPack) -> Vec<Diagnostic> {
     for scope in &pack.scopes {
         let file = scope.file.as_str();
         let src = &scope.src;
+        // 章・モジュールの ID も読み込み済みの文字列値なので走査する（診断は値を写さない）。
+        c.text(file, "file", &src.id);
         c.text(file, "file", &src.title);
         for v in src.params.values() {
             c.text(file, "file", v);
