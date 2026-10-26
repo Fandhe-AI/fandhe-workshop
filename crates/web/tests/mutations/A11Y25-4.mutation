@@ -1,0 +1,8 @@
+id: A11Y25-4
+package: fandhe-workshop-web
+test: os_independent_ops
+target: crates/web/src/hello.rs
+find:                     self.learner_os = os;
+replace:                     self.learner_os = os; self.draft.clear();
+expect-fail: 切り替えで立つ_dirty_は案内の二つだけで下書きと候補は動かない
+note: OS の選び直しが下書きを消す（表示だけの値が状態に副作用を持つ。A11Y-25）

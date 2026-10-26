@@ -8805,7 +8805,7 @@ D-82（2026-10-26）は、`reduce` では段階の表示を省いて結果だけ
 
 - 変異: `A11Y25-1`（`op_guide` の dirty を外す）・`A11Y25-2`（Mac の説明を Ctrl に取り違える）・`JUDGE28-4`（期待の試験名を改めた）。2026-10-26 に 3 件とも DETECTED
 - 実行の記録: 2026-10-26。Chromium（同梱）。`op-guide`・`modifier-key-hint`・`modifier-key-right-pane`・`input-field-hidden` の 44 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない
-- 限界・未実施: 推定が外れたときに直せるかの人の確認（TASK-393・TASK-460）、名前の読み上げを人が聞く確認、Windows の実機（TASK-395）。コマンドの接頭辞は説明に含めない。選ぶ欄の値をキーボードで変える操作は assert にしていない。4 つの操作が OS によらず同じ結果になる試験は 2/2（#704）
+- 限界・未実施: 推定が外れたときに直せるかの人の確認（TASK-393・TASK-460）、名前の読み上げを人が聞く確認、Windows の実機（TASK-395）。コマンドの接頭辞は説明に含めない。選ぶ欄の値をキーボードで変える操作は assert にしていない。4 つの操作が OS によらず同じ結果になる試験は 2/2（#704。5.311）
 
 ### 5.310 教材内の動きの設定が無いことと、`reduce` での文面による補いの経路（TASK-378 2/2。A11Y-12・A11Y-13・INTRO-20）
 
@@ -8826,3 +8826,14 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 変異: なし。未知の欄の拒否は `deny_unknown_fields` の一般の性質で、PACK-44 の `pack44_` と同じく、欄を足す変異は成立する行を一意に選べないため足さなかった
 - 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion-lo3` の 6 件と、隣接する `reduced-motion-st15`・`step-body` の計 13 件が通った。native の `a11y12_` の 3 件と `reduced_motion_contract` の 10 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
 - 範囲外: 補いの文面の採否と形（INTRO-20・TASK-607）、再実行による再開の場面（ST-7.3・ST-13.2。試験用教材に相当の Step が無い）、SHELL-29（早送り × `reduce`）、`reduce` で左の成果物が処理中に変わる件（5.307 の観察）、人による確認（実機の OS の設定の切り替え・支援技術）。自動ブラウザの `prefers-reduced-motion` は模擬である
+
+### 5.311 4 つの操作が OS によらず同じ結果になる（TASK-392 2/2。A11Y-25・D-48）
+
+- 目的: Enter で送信・Shift+Enter で改行・Tab で補完・Esc で停止が、OS の推定値（macOS・Windows・推定なし）や受講者の選び直しによらず同じ結果になることを、ホストの水準で固定する。OS の値は表示（`key-hint`・`op-guide`・選ぶ欄の `selected`）だけに使い、キーの判定・Session・履歴に入れない設計の回帰である
+- 5.280 の (C) との差分: (C) はブラウザで 1280px の 4 条件を見る。本試験は native で、OS の切り替えを各操作の直前（下書きの途中・候補が開いている間・処理中）に行い、windows から mac の向きと、保存する履歴・dirty・描画の属性まで比べる。ブラウザでの一致は (C) が持つ
+- 条件: `set_learner_os` の mac・windows・unknown と、`learner_os::estimate` に Windows・Linux の UA を渡した値、各操作の前に選ぶ欄（`os` の action）で mac→windows・windows→mac・unknown→mac へ選び直す条件
+- 比べる値: 4 操作ごとに、キーの効果（`decide`・`effect_for`）、ログ全体、世代・処理中、下書き、候補の開閉、保存する履歴、OS の表示の 2 欄を除いた dirty
+- 試験: `crates/web/tests/os_independent_ops.rs` の 5 件（`四つの操作の結果は_os_の推定値によらず同じ`・`os_を途中で切り替えても操作の結果は変わらない`・`切り替えで立つ_dirty_は案内の二つだけで下書きと候補は動かない`・`os_によって描画が変わるのは案内の文字と選ぶ欄の選択だけ`・`比較の検出器は一か所の違いを見つける`）
+- 変異: A11Y25-3（Windows でだけ Esc が停止にならない）・A11Y25-4（OS の選び直しが下書きを消す）。2026-10-26 に `scripts/check-mutations.sh` で実行し、元にしたコミット 5a805268 で 2 件とも DETECTED
+- 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-web --test os_independent_ops` が 5 件通った
+- 限界・未実施: Windows の実機（TASK-395）、推定が外れたときに受講者が直せるかの人の確認（TASK-393・TASK-460）。自動の試験は値と UA の文字列による模擬で、人の評価に数えない（D-34）。実キーイベントの OS ごとの違い（実機の Ctrl／Cmd・IME）は確かめていない。`scripts/expected-test-counts.txt` は更新していない（5.268）。試験の作成者と実装の作成者が同じ AI である
