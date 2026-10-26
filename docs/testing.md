@@ -8748,4 +8748,24 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 
 - 変異: `A11Y11-1`（`shows_line` の条件の反転）
 - 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion`・`run-status`・`three-views` の 11 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
-- 範囲外: `no-preference` の詳細とアニメーション・`transition`・逐次表示の 0 件（#640）。方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従
+- 範囲外: `no-preference` の詳細とアニメーション・`transition`・逐次表示の 0 件（5.306 で実施）。方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従
+
+### 5.306 `no-preference` での段階の表示とアニメーション 0 件（TASK-372 2/2。A11Y-11）
+
+5.305 の残りを確かめる。測り方は仕様の PoC-12 の測定の定義の手順 3 に合わせる。
+
+| 観察 | 対象 | 文脈 | 期待 |
+|---|---|---|---|
+| `matchMedia` の真偽と `engine.reducedMotion` | 文脈の確認 | 両方 | `reduce` で真、`no-preference` で偽 |
+| 段階の行の件数の推移 | `li[data-kind="progress"]` | `no-preference` | 処理中（`run-status` が `busy`）に 0 より多く 5 より少ない標本がある。減らない。最後は 5 件で `data-index` が 0〜4、`data-total` が 5。追加 5 回・削除 0 回 |
+| スタイルシートの `@keyframes`・`animation*`・`transition*` | 入れ子の規則を含む | 両方 | 0 件（読み込み前後の 2 回） |
+| `document.getAnimations()` の最大・`animationstart`・`transitionrun` などのイベント・計算済みスタイル | 処理の間 | 両方 | 0 件 |
+| 文字の逐次表示 | ログの行・本文・カード | 両方 | 0 件（テキストノードの書き換えの回数。最後の状態への更新も数える厳しめの判定） |
+
+- 除外: 状態の語（`run-status`・`step-status`。TERM-33）は段階でも逐次表示でもないため数えない
+- 注記: エンジンに文字を 1 文字ずつ出す演出は無い。逐次表示の 0 件は演出が無いことの記録であり、基準を達成した証拠ではない
+- 負の対照（CSP なし）: 注入した `@keyframes`・`animation`・`transition`・WAAPI の `animate()`・文字の書き換えを、同じ検出器が 1 件以上と数える
+- 試験: `tools/browser/reduced-motion.test.mjs`（CSP あり・なし）。native では `reduced_motion_contract.rs` が `app.css` の動きの宣言 0 件を確かめ、判定を自己確認する
+- 変異: `A11Y11-2`（`app.css` に `transition` を足す）・`A11Y11-3`（`@keyframes` を足す）
+- 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion.test.mjs` の 10 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
+- 範囲外: 方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従

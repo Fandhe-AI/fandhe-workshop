@@ -1,0 +1,8 @@
+id: A11Y11-3
+package: fandhe-workshop-web
+test: reduced_motion_contract
+target: crates/web/static/app.css
+find: .d0 { margin-left: 0; }
+replace: .d0 { margin-left: 0; } @keyframes fw-fade { from { opacity: 0; } to { opacity: 1; } }
+expect-fail: app_css_には動きの宣言が_0_件
+note: "@keyframes の規則を足す（A11Y-11）"

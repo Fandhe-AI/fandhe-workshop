@@ -1,0 +1,8 @@
+id: A11Y11-2
+package: fandhe-workshop-web
+test: reduced_motion_contract
+target: crates/web/static/app.css
+find: .d0 { margin-left: 0; }
+replace: .d0 { margin-left: 0; transition: margin-left 0.2s; }
+expect-fail: app_css_には動きの宣言が_0_件
+note: 段階の表示に transition を足す（動きの宣言が 1 件出る。A11Y-11）
