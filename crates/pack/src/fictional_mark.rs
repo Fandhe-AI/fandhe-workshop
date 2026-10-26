@@ -25,10 +25,15 @@ use crate::secret_check::{file_name, item_name};
 use crate::source::LoadedPack;
 use crate::validate::diag;
 
-/// 1 つの文字列に印があるか。`【架空` の後ろに `】` がある形。
+/// 1 行に印があるか。`【架空` の後ろに `】` がある形。
+fn single_line_has_mark(l: &str) -> bool {
+    l.find("【架空")
+        .is_some_and(|i| l[i + "【架空".len()..].contains('】'))
+}
+
+/// 文字列のどれかの行の中で印がそろうか（JSON の文字列値は改行を含みうるため行に分ける。行をまたぐ印は認めない）。
 fn line_has_mark(s: &str) -> bool {
-    s.find("【架空")
-        .is_some_and(|i| s[i + "【架空".len()..].contains('】'))
+    s.lines().any(single_line_has_mark)
 }
 
 /// 最初の空でない行に印があるか。
@@ -90,6 +95,8 @@ mod tests {
             "\u{feff}{\n  \"_note\": \"【架空】\"\n}"
         ));
         assert!(!has_mark("a.json", "\u{feff}{\n  \"_note\": \"x\"\n}"));
+        assert!(!has_mark("a.json", r#"{"_note":"【架空\n】"}"#));
+        assert!(has_mark("a.json", r#"{"_note":"x\n【架空】"}"#));
         assert!(has_mark("a.json", "【架空】 not json"));
         assert!(!has_mark("a.json", "not json"));
     }
