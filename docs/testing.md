@@ -8787,7 +8787,7 @@ D-82（2026-10-26）は、`reduce` では段階の表示を省いて結果だけ
 - 変異: `A11Y12-1`（`matchMedia` の `change` で再読み込みする 1 行を足す）
 - 観察（実装は変えていない）: `reduce` でも、処理中に左の成果物は段階ごとに変わる（ST-1.5 では 3 段目で `cards/sample` の追加の印が出る。`p2-create` の効果）。これは結果の側の表示で、右のログの段階の行だけを省く現状の方式と D-82 の「現状のまま」に沿うため手を入れていない。A11Y-11 の「処理中のカードの中間の文字」の読み方次第では、左の途中の表示を `reduce` で抑える変更が要るため、仕様の側での確認を範囲外に残す
 - 実行の記録: 2026-10-26。Chromium（同梱 1243）。`reduced-motion-st15`・`reduced-motion`・`stop-redo` の計 22 件が通った。`reduced_motion_contract` は 9 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
-- 範囲外: 教材内の動きの設定が無いことの確認・INTRO-20 の文面による補い・`reduce` での ST-1.5 以外の LO-3 の場面（#644・TASK-607）。SHELL-29（早送り × `reduce`。早送りの切り替えが未実装）。人による確認（実機の OS の設定の切り替え・VoiceOver）は行っていない。自動ブラウザの `prefers-reduced-motion` は模擬である
+- 範囲外: 教材内の動きの設定が無いことの確認と `reduce` での ST-1.5 以外の LO-3 の場面は 5.310（TASK-378 2/2）で確かめた。INTRO-20 の文面による補いの採否は TASK-607。SHELL-29（早送り × `reduce`。早送りの切り替えが未実装）。人による確認（実機の OS の設定の切り替え・VoiceOver）は行っていない。自動ブラウザの `prefers-reduced-motion` は模擬である
 
 ### 5.308 操作プロファイルの説明への修飾キーの表示の適用（TASK-392 1/2。A11Y-25・D-48・D-79）
 
@@ -8806,3 +8806,23 @@ D-82（2026-10-26）は、`reduce` では段階の表示を省いて結果だけ
 - 変異: `A11Y25-1`（`op_guide` の dirty を外す）・`A11Y25-2`（Mac の説明を Ctrl に取り違える）・`JUDGE28-4`（期待の試験名を改めた）。2026-10-26 に 3 件とも DETECTED
 - 実行の記録: 2026-10-26。Chromium（同梱）。`op-guide`・`modifier-key-hint`・`modifier-key-right-pane`・`input-field-hidden` の 44 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない
 - 限界・未実施: 推定が外れたときに直せるかの人の確認（TASK-393・TASK-460）、名前の読み上げを人が聞く確認、Windows の実機（TASK-395）。コマンドの接頭辞は説明に含めない。選ぶ欄の値をキーボードで変える操作は assert にしていない。4 つの操作が OS によらず同じ結果になる試験は 2/2（#704）
+
+### 5.310 教材内の動きの設定が無いことと、`reduce` での文面による補いの経路（TASK-378 2/2。A11Y-12・A11Y-13・INTRO-20）
+
+D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停止（LO-3）を体験させる仕組みも、教材内の動きの設定も足さず、LO-3 は ST-1.5 以外の場面と教材の文面で補うと決めた。実装は変えず、その前提を試験で固定する。補いの文面そのものの採否・形（INTRO-20 の案 A／B／C）は TASK-607 の担当で、ここでは決めない。A11Y-13 と INTRO-20 は仕様の側で検討中のままである。
+
+| 観察 | 文脈 | 期待 |
+|---|---|---|
+| native A12-1: 動きの鍵 5 つ（`motion`・`reduced_motion`・`prefers_reduced_motion`・`animation`・`progress_display`）を最上位・`pack`・`pack.profile`・`pack.appearance`・Step・`processing[]` の要素に 1 つずつ置く | 形式 B | 最上位・Step・`processing[]` は `E-PARSE` で `unknown field` を含み、`pack` の 3 位置は拒否される。診断に値が写らない |
+| native A12-2: `pack.appearance.theme` に `reduced_motion`・`reduce`・`no_motion` | 形式 B | 4 値の閉じた集合の外として拒否される |
+| native A12-3: 同じ鍵を `[pack]` と Step に置く | 形式 A | `E-PARSE`（`unknown field`） |
+| native IR: `pack.reduced_motion`・`pack.motion`・`step.motion` を足した IR | `load_ir` | 3 本とも拒否される（既存の未知の欄の拒否の経路。対照の元の IR は読める） |
+| G: 最小教材の `st-1` の本文に中立の印の段落を足して `compile` し、`loadIr` で入れる | `reduce` と `no-preference` | 題・do・本文の文字が両文脈・全標本（送信前・処理中・処理後）で一致し、印の段落が 1 件。アクセシビリティツリーにも出る。本文の要素が置き換わらない。通信・違反・実行は 0 件 |
+| H: 印を入れない写し。画面の部品の集合・ボタンの数 | 両文脈 | 対照で印が 0 件と数えられる。段階の行を除いた `data-testid` の集合・ボタンの数が両文脈で一致する（`reduce` だけの案内は 0 件）。`no-preference` では段階の行が出る |
+| J1: チェックポイントの保存 → 先へ進む → 復帰（ST-1.6 の場面。`?fixture=ch0-3-chapters`） | 両文脈 | 実際のボタンの click だけで通し、復帰の後の現在の Step・位置・左の成果物の行が保存の時点に戻る。復帰の結果（状態）が両文脈で一致する |
+| J2: 差し戻し → 再承認（ST-2.3 に当たる場面。`?fixture=ch0-3-reapprove&start=s-2-6`） | 両文脈 | 誤った候補の拒否・再承認の Step の 3 ボタン・「はい」で `st-2-7` へ進む。拒否の行の件数・到達した Step・ボタンの文字が両文脈で一致する |
+
+- 試験: `crates/pack/tests/effects.rs` の `a11y12_`、`crates/web/tests/reduced_motion_contract.rs` の `ir_に動きの欄を足すと読み込みが断られる`、`tools/browser/reduced-motion-lo3.test.mjs`（G・H・J1・J2 は CSP あり・なし）。印の段落は試験の中で一時ディレクトリの写しに足すだけで、コミットする教材の文面は変えていない
+- 変異: なし。未知の欄の拒否は `deny_unknown_fields` の一般の性質で、PACK-44 の `pack44_` と同じく、欄を足す変異は成立する行を一意に選べないため足さなかった
+- 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion-lo3` の 6 件と、隣接する `reduced-motion-st15`・`step-body` の計 13 件が通った。native の `a11y12_` の 3 件と `reduced_motion_contract` の 10 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
+- 範囲外: 補いの文面の採否と形（INTRO-20・TASK-607）、再実行による再開の場面（ST-7.3・ST-13.2。試験用教材に相当の Step が無い）、SHELL-29（早送り × `reduce`）、`reduce` で左の成果物が処理中に変わる件（5.307 の観察）、人による確認（実機の OS の設定の切り替え・支援技術）。自動ブラウザの `prefers-reduced-motion` は模擬である

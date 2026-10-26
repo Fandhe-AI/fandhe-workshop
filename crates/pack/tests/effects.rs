@@ -423,3 +423,102 @@ fn pack9_compiled_ir_has_no_code_keys() {
     let v: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
     assert!(!has_code(&v));
 }
+
+// ---- 教材内に動きの設定は置かない（A11Y-12、D-82） ----
+// 動きの抑制は OS の `prefers-reduced-motion` を読み込み時に 1 回だけ読む方式で、教材の側に口は無い。欄を足さない決定を、
+// 未知の欄の拒否として固定する。`reduce` で処理中の停止（LO-3）を体験できない分は、教材の文面で補う（INTRO-20・TASK-607。
+// docs/pack-authoring.md の「処理中の進行」）。
+
+const MOTION_KEYS: [&str; 5] = [
+    "motion",
+    "reduced_motion",
+    "prefers_reduced_motion",
+    "animation",
+    "progress_display",
+];
+
+fn assert_unknown_field(t: &Tmp, key: &str, place: &str) {
+    let d = one(t, DiagCode::Parse);
+    assert!(
+        d.message().contains(&format!("unknown field `{key}`")),
+        "{place}: {d}"
+    );
+}
+
+#[test]
+fn a11y12_motion_keys_are_e_parse_everywhere() {
+    for key in MOTION_KEYS {
+        // workshop.yaml の最上位
+        let t = pack("", "[]");
+        t.put(
+            "workshop.yaml",
+            format!("{WORKSHOP}{WS}{key}: {SECRET}\n").as_bytes(),
+        );
+        assert_unknown_field(&t, key, "top");
+        // Step の直下
+        assert_unknown_field(&pack(&format!(", {key}: {SECRET}"), "[]"), key, "step");
+        // processing[] の要素
+        assert_unknown_field(
+            &pack(
+                &format!(", processing: [{{name: n, {key}: {SECRET}}}]"),
+                "[]",
+            ),
+            key,
+            "processing",
+        );
+        // pack の直下・pack.profile・pack.appearance
+        for place in ["pack", "profile", "appearance"] {
+            let t = pack("", "[]");
+            let head = "id: p, title: t, version: '0', ir_format: 1, guidance: A, vocab: '1.5'";
+            let w = if place == "pack" {
+                format!("pack: {{{head}, {key}: {SECRET}}}\n{WS}")
+            } else {
+                format!("pack: {{{head}, {place}: {{{key}: {SECRET}}}}}\n{WS}")
+            };
+            t.put("workshop.yaml", w.as_bytes());
+            let d = diags(&t);
+            assert!(!d.is_empty(), "{place}/{key}: 拒否されない");
+            assert_no_secret(&d);
+        }
+    }
+}
+
+#[test]
+fn a11y12_theme_value_for_motion_is_refused() {
+    for v in ["reduced_motion", "reduce", "no_motion"] {
+        let t = pack("", "[]");
+        t.put(
+            "workshop.yaml",
+            format!("pack: {{id: p, title: t, version: '0', ir_format: 1, guidance: A, vocab: '1.5', appearance: {{theme: {v}}}}}\n{WS}").as_bytes(),
+        );
+        let d = diags(&t);
+        assert!(!d.is_empty(), "{v}: 拒否されない");
+        assert_no_secret(&d);
+    }
+}
+
+#[test]
+fn a11y12_format_a_motion_is_e_parse() {
+    for key in MOTION_KEYS {
+        let pack_toml = |extra: &str| {
+            let t = Tmp::new("motion-toml");
+            t.put(
+                "workshop.toml",
+                format!("[pack]\nid = \"p\"\ntitle = \"t\"\nversion = \"0\"\nir_format = 1\nguidance = \"A\"\n{extra}\n").as_bytes(),
+            );
+            t
+        };
+        let chapter = |step_extra: &str| {
+            format!("id = \"c1\"\ntitle = \"C\"\n[[starts]]\nid = \"s1\"\nnode = \"a\"\n[[steps]]\nid = \"a\"\ntitle = \"A\"\nfinal = true\n{step_extra}\n")
+        };
+        let t = pack_toml(&format!("{key} = \"{SECRET}\""));
+        t.put("chapters/c1/chapter.toml", chapter("").as_bytes());
+        assert_unknown_field(&t, key, "toml pack");
+        let t = pack_toml("");
+        t.put(
+            "chapters/c1/chapter.toml",
+            chapter(&format!("{key} = \"{SECRET}\"")).as_bytes(),
+        );
+        assert_unknown_field(&t, key, "toml step");
+    }
+}
