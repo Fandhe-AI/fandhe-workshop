@@ -1,0 +1,8 @@
+id: A11Y25-2
+package: fandhe-workshop-web
+test: operation_guide
+target: crates/web/src/modifier_key.rs
+find: 貼り付けは Cmd+V",
+replace: 貼り付けは Ctrl+V",
+expect-fail: 説明の文言は_os_ごとの修飾キーの語と一致し_もう一方の語を含まない
+note: Mac の説明の貼り付けのキーを Ctrl に取り違える（A11Y-25）

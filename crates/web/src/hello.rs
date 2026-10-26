@@ -30,7 +30,7 @@ use crate::key_route::{
 };
 use crate::learner_text::learner_line;
 use crate::list_policy::keyed_view_or_notice;
-use crate::modifier_key::{os_choice_value, parse_os_choice, paste_key_hint};
+use crate::modifier_key::{operation_guide, os_choice_value, parse_os_choice, paste_key_hint};
 use crate::parts::{FieldKind, PartField};
 use crate::profile::InputField;
 use crate::terminal_area::InputPort;
@@ -59,9 +59,17 @@ const CANDIDATES_FIELD: PartField = PartField {
 /// 修飾キーの案内（`key-hint`）が束縛される field 名（TASK-285 1/2。JUDGE-28）。
 const FIELD_KEY_HINT: &str = "key_hint";
 
+/// 操作プロファイルの説明（`op-guide`）が束縛される field 名（TASK-392 1/2。A11Y-25）。
+const FIELD_OP_GUIDE: &str = "op_guide";
+
 /// この入力欄が持つ field 名。ホストが、部品の field との衝突の検査に使う。
-pub(crate) const HELLO_FIELDS: [&str; 4] =
-    [FIELD_NOTICE, FIELD_LOG, FIELD_CANDIDATES, FIELD_KEY_HINT];
+pub(crate) const HELLO_FIELDS: [&str; 5] = [
+    FIELD_NOTICE,
+    FIELD_LOG,
+    FIELD_CANDIDATES,
+    FIELD_KEY_HINT,
+    FIELD_OP_GUIDE,
+];
 
 /// 送信済みの一覧に残す最大の件数。超えたら古い順に捨てる。
 /// `keyed_list` の上限（4,096 件）に届かない値にして、`Err` を通常の経路にしない。
@@ -348,6 +356,7 @@ impl Component for HelloView {
                 if self.learner_os != os {
                     self.learner_os = os;
                     self.dirty.push(FIELD_KEY_HINT);
+                    self.dirty.push(FIELD_OP_GUIDE);
                 }
             }
             HelloAction::Esc => {
@@ -439,6 +448,13 @@ impl Component for HelloView {
                 FIELD_KEY_HINT,
                 paste_key_hint(self.learner_os),
             ));
+            // 操作プロファイルの説明。修飾キーは推定・選択した OS の語（A11Y-25）。role・aria は付けない。
+            children.push(bind_text(
+                "p",
+                vec![("data-testid", "op-guide")],
+                FIELD_OP_GUIDE,
+                operation_guide(self.learner_os),
+            ));
         }
         children.push(bind_text(
             "p",
@@ -520,6 +536,9 @@ impl BindingSource for HelloView {
         match field {
             FIELD_NOTICE => Some(BoundValue::Text(notice_for(self.over_limit).to_owned())),
             FIELD_KEY_HINT => Some(BoundValue::Text(paste_key_hint(self.learner_os).to_owned())),
+            FIELD_OP_GUIDE => Some(BoundValue::Text(
+                operation_guide(self.learner_os).to_owned(),
+            )),
             _ => None,
         }
     }
@@ -920,6 +939,10 @@ mod tests {
         }
         let hidden = hint(LearnerOs::Mac, true);
         assert_eq!(count_of(&hidden, "data-testid=\"key-hint\""), 0, "{hidden}");
+        assert_eq!(count_of(&hidden, "data-testid=\"op-guide\""), 0, "{hidden}");
+        assert_eq!(count_of(&mac, "data-testid=\"op-guide\""), 1, "{mac}");
+        assert!(mac.contains("Cmd+C"), "{mac}");
+        assert!(win.contains("Ctrl+C"), "{win}");
     }
 
     #[test]

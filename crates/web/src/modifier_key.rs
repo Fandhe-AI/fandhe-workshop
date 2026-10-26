@@ -28,6 +28,18 @@ pub fn paste_key_hint(os: LearnerOs) -> &'static str {
     }
 }
 
+/// 操作プロファイルの説明（`op-guide`。A11Y-25）。4 つの操作と、修飾キーを使うコピー・貼り付けのキーを示す。
+/// 修飾キーの語は [`modifier_label`] と一致させ、推定できない OS では Cmd・Ctrl を出さず OS を選ぶよう促す。
+/// 記号は使わず文字だけで示す（D-79）。
+#[must_use]
+pub fn operation_guide(os: LearnerOs) -> &'static str {
+    match os {
+        LearnerOs::Mac => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピーは Cmd+C、貼り付けは Cmd+V",
+        LearnerOs::Windows => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピーは Ctrl+C、貼り付けは Ctrl+V",
+        LearnerOs::Unknown => "操作: Enter で送信、Shift+Enter で改行、Tab で補完、Esc で処理中は停止・候補が開いていれば閉じる・それ以外は取り消し。コピー・貼り付けのキーは、OS を選ぶと表示されます",
+    }
+}
+
 /// 選ぶ欄の option の値。`Unknown` は選択肢ではない（空の option で表す）。
 #[must_use]
 pub fn os_choice_value(os: LearnerOs) -> Option<&'static str> {
