@@ -78,7 +78,7 @@ const detail = (page) => page.evaluate(({ status, li }) => ({
 }), { status: STATUS, li: PROGRESS_LI });
 
 // ページ内の計測。イベント（animation*・transition*）、段階の行の追加・削除、文字の逐次表示を数える。
-// 逐次表示は、対象（ログの行・Step の本文・カード・負の対照の probe）のテキストノードの文字が書き換わった回数。
+// 逐次表示は、対象（ログの行・Step の本文・カード・負の対照の probe）の文字が書き換わった回数（characterData の更新と、textContent 等による文字ノードの置換・追加）。
 // 行の追加（新しいノードの挿入）は数えない。最後の状態への更新も 1 回と数え、PoC-12 の定義より検出側に倒す。
 const MOTION_WATCH = () => {
   const m = { events: 0, progressAdded: 0, progressRemoved: 0, seqText: 0 };
@@ -92,6 +92,15 @@ const MOTION_WATCH = () => {
     for (const r of ms) {
       for (const n of r.addedNodes) if (isProg(n)) m.progressAdded += 1;
       for (const n of r.removedNodes) if (isProg(n)) m.progressRemoved += 1;
+      if (r.type === 'childList' && r.target.closest?.(TARGET)) {
+        // textContent の再代入など、文字ノードの置換・既存の文字ノードへの追加も逐次表示として数える。
+        const txt = (list) => Array.from(list).filter((n) => n.nodeType === 3);
+        const added = txt(r.addedNodes);
+        const removed = txt(r.removedNodes);
+        const joined = (l) => l.map((n) => n.data).join('');
+        if (added.length > 0 && removed.length > 0 && joined(added) !== joined(removed)) m.seqText += 1;
+        else if (added.length > 0 && removed.length === 0 && added.some((n) => n.previousSibling?.nodeType === 3 || n.nextSibling?.nodeType === 3)) m.seqText += 1;
+      }
       if (r.type === 'characterData' && r.oldValue !== r.target.data && r.target.parentElement?.closest(TARGET)) m.seqText += 1;
     }
   }).observe(document.documentElement, { childList: true, subtree: true, characterData: true, characterDataOldValue: true });
@@ -290,6 +299,18 @@ test('負の対照: 注入した @keyframes・transition・WAAPI・文字の書�
       const id = setInterval(() => { node.data += 'b'; n += 1; if (n >= 3) clearInterval(id); }, 10);
     });
     await waitUntil('typed', () => page.evaluate(() => window.__motion.seqText), (n) => n >= 1);
+    // textContent の再代入（文字ノードの置換。childList 経由）も検出できることの負の対照
+    const seqBefore = await page.evaluate(() => window.__motion.seqText);
+    await page.evaluate(() => {
+      const e = document.createElement('div');
+      e.id = 'fw-typed2';
+      e.setAttribute('data-motion-probe', '');
+      e.textContent = 'a';
+      document.body.appendChild(e);
+      let n = 0;
+      const id = setInterval(() => { e.textContent += 'b'; n += 1; if (n >= 3) clearInterval(id); }, 10);
+    });
+    await waitUntil('typed-textContent', () => page.evaluate(() => window.__motion.seqText), (n) => n > seqBefore);
     await context.close();
   }));
 });
