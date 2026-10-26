@@ -47,6 +47,9 @@ cat <<'EOF'
   test-serve                   scripts/test-serve.sh                   配信サーバ（tools/serve.mjs）の試験（node:test）
   check-generic-words          tools/check-generic-words.mjs           エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことを検査する（CI 未組み込み）
   test-check-generic-words     scripts/test-check-generic-words.sh     教材固有の語の検査自体の回帰テスト
+  check-internal-info          tools/check-internal-info.mjs           社内固有の語（WORDS=<一覧のパス>）と認証情報の形を照合する（CI 未組み込み）
+  check-internal-info-secrets  tools/check-internal-info.mjs           認証情報の形だけを照合する（語の照合は行わない。CI 未組み込み）
+  test-check-internal-info     scripts/test-check-internal-info.sh     公開前の照合自体の回帰テスト
   inventory-deps               tools/inventory-deps.mjs                Cargo.lock の依存の取り下げ・所有者の数を調べる（通信が要り数分かかる。CI 未組み込み）
   test-inventory-deps          scripts/test-inventory-deps.sh          依存の棚卸し自体の回帰テスト（通信なし）
   test-upstream-impact         scripts/test-upstream-impact.sh         影響する Step の洗い出し道具の回帰テスト（通信なし。CI 未組み込み）

@@ -73,6 +73,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力・`test` の PASS／FAIL の行と集計。版 11。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404）
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）
+├── docs/publish-checks.md    # 公開前の確認の記録（LIC-12。確かめた版・日付・確かめた人。TASK-139）
 ├── docs/known-gaps.md        # 既知の不足（忠実さの限界）の記録（H-3・H-6〜H-8・AUTHOR-13 など）
 ├── docs/schema-format-b.md   # 構造定義（形式 B）の欄・型・必須と YAML の注意書き（版 1。TASK-411）
 ├── docs/operation-profile.md # 操作プロファイルと外観で選べるもの・外観 4 値の定義（版 1。TASK-411）
@@ -129,6 +130,9 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI 未組み込み） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
+| `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
+| `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
+| `make test-check-internal-info` | 上の照合自体の回帰テスト |
 | `make inventory-deps` | `Cargo.lock` の依存の取り下げ・所有者の数を crates.io で調べる（`tools/inventory-deps.mjs`。通信が要り数分かかる。CI 未組み込み。手順と記録は `docs/dependency-inventory.md`） |
 | `make test-inventory-deps` | 依存の棚卸し自体の回帰テスト（通信なし） |
 | `make test-upstream-impact` | 影響する Step の洗い出し道具（`tools/upstream-impact.mjs`。TASK-182）の回帰テスト（通信なし。CI 未組み込み） |

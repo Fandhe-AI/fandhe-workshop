@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure test-measure check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -122,6 +122,16 @@ check-generic-words: ## エンジンの crate のコードに教材固有の語�
 
 test-check-generic-words: ## 教材固有の語の検査自体の回帰テスト（node:test）。直接: scripts/test-check-generic-words.sh
 	@scripts/test-check-generic-words.sh
+
+# WORDS は private の spec repo の語の一覧のパス。空なら語の照合を黙って飛ばさず、tools 側が 2 で止める。
+check-internal-info: ## 社内固有の語（WORDS=<一覧のパス>）と認証情報の形を照合する（CI 未組み込み）。直接: node tools/check-internal-info.mjs --list <file>
+	@node tools/check-internal-info.mjs $(if $(WORDS),--list "$(WORDS)")
+
+check-internal-info-secrets: ## 認証情報の形だけを照合する（語の照合は行わない。CI 未組み込み）。直接: node tools/check-internal-info.mjs --secrets-only
+	@node tools/check-internal-info.mjs --secrets-only
+
+test-check-internal-info: ## 公開前の照合自体の回帰テスト（node:test）。直接: scripts/test-check-internal-info.sh
+	@scripts/test-check-internal-info.sh
 
 test-browser: ## 共通ヘルパで最小の画面をサブパス配信し、対照の自己確認も行うブラウザ試験（Playwright）。直接: scripts/test-browser.sh
 	@scripts/test-browser.sh
