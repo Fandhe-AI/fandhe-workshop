@@ -377,3 +377,52 @@ fn author18_secret_shaped_paths_are_not_echoed() {
     }
     assert!(checked > 0, "no shape was usable as a file name");
 }
+
+#[test]
+fn author18_enum_candidates_are_scanned() {
+    let (_, shape, value) = shapes().remove(0);
+    let t = base();
+    let ch = t.0.join("chapters/c-mini/chapter.yaml");
+    let text = fs::read_to_string(&ch).expect("read");
+    fs::write(
+        &ch,
+        text.replacen(
+            "starts:",
+            &format!(
+                "params: {{ k: dummy }}\nparam_types:\n  k: {{ type: enum, values: [dummy, {}] }}\nstarts:",
+                quoted(&value)
+            ),
+            1,
+        ),
+    )
+    .expect("write");
+    let d = secret_diags(&t.0);
+    assert_eq!(d.len(), 1, "enum candidate not reported once");
+    assert!(d[0].message().contains(&shape));
+    assert_eq!(d[0].file(), "chapters/c-mini/chapter.yaml");
+}
+
+#[test]
+fn author18_distinct_secret_shaped_paths_are_not_merged() {
+    let (_, _, value) = shapes()
+        .into_iter()
+        .find(|(_, _, v)| !v.contains(['/', '\n', '\\', ' ']))
+        .expect("usable shape");
+    let t = base();
+    let dir = t.0.join("chapters/c-mini");
+    let (a, b) = (format!("{value}.md"), format!("{value}-2.md"));
+    for n in [&a, &b] {
+        fs::write(dir.join(n), format!("# a\n{value}\n")).expect("write");
+    }
+    let ch = dir.join("chapter.yaml");
+    let text = fs::read_to_string(&ch).expect("read");
+    let text = text.replacen("body: st-hello.md", &format!("body: {a}"), 1);
+    let text = text.replacen("body: st-hello.md", &format!("body: {b}"), 1);
+    fs::write(&ch, text).expect("write");
+    let d = secret_diags(&t.0);
+    let bodies = d
+        .iter()
+        .filter(|x| x.file() == "<path-redacted>" && x.item() == "file")
+        .count();
+    assert_eq!(bodies, 2, "each body path must be reported separately");
+}

@@ -32,13 +32,13 @@ struct Collector {
 
 impl Collector {
     fn add(&mut self, file: &str, item: &str, findings: &[Finding]) {
-        let file = file_name(file);
-        let file = file.as_str();
+        // 重複排除の鍵は書き換え前のパス。伏せた名前で畳むと、別々のパスの診断が 1 件になる。
+        let shown = file_name(file);
         for shape in shapes_of(findings) {
             let id = shape.id();
             if self.seen.insert((file.to_string(), item.to_string(), id)) {
                 self.out.push(diag(
-                    file,
+                    &shown,
                     item,
                     DiagCode::SecretShape,
                     format!(
@@ -116,6 +116,12 @@ pub(crate) fn check_secret_shapes(pack: &LoadedPack) -> Vec<Diagnostic> {
         c.text(file, "file", &src.title);
         for v in src.params.values() {
             c.text(file, "file", v);
+        }
+        // enum の候補も作成者が書いた字面なので、既定値と別に走査する。
+        for decl in src.param_types.values() {
+            for v in decl.values.iter().flatten() {
+                c.text(file, "file", v);
+            }
         }
         for (n, st) in src.starts.iter().enumerate() {
             c.serialized(file, &item_name("start", &st.id, n), st);
