@@ -293,24 +293,35 @@ test('負の対照: 注入した @keyframes・transition・WAAPI・文字の書�
     const before = (await dynamicMotion(page)).animations;
     await page.evaluate(() => document.getElementById('fw-tr').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 5000 }));
     assert.ok((await dynamicMotion(page)).animations > before, 'WAAPI を検出できない');
-    await page.evaluate(() => {
+    // 文字の追記（characterData 経由）。3 回の更新がすべて終わるまで待ち、後続の採取に混ざらないようにする。
+    await page.evaluate(() => new Promise((resolve) => {
       const node = document.getElementById('fw-typed').firstChild;
       let n = 0;
-      const id = setInterval(() => { node.data += 'b'; n += 1; if (n >= 3) clearInterval(id); }, 10);
-    });
-    await waitUntil('typed', () => page.evaluate(() => window.__motion.seqText), (n) => n >= 1);
-    // textContent の再代入（文字ノードの置換。childList 経由）も検出できることの負の対照
-    const seqBefore = await page.evaluate(() => window.__motion.seqText);
+      const id = setInterval(() => { node.data += 'b'; n += 1; if (n >= 3) { clearInterval(id); resolve(); } }, 10);
+    }));
+    const seqTyped = await page.evaluate(() => window.__motion.seqText);
+    assert.ok(seqTyped >= 1, `characterData の書き換えを検出できない: ${seqTyped}`);
+    // 文字ノードの置換（childList 経由）も検出できることの負の対照。
+    // textContent の再代入は Chromium が既存の文字ノードを characterData で更新しうるため使わず、
+    // replaceChildren で新しい文字ノードに差し替えて childList だけを起こす。
+    const seqBefore = seqTyped;
     await page.evaluate(() => {
       const e = document.createElement('div');
       e.id = 'fw-typed2';
       e.setAttribute('data-motion-probe', '');
-      e.textContent = 'a';
+      e.appendChild(document.createTextNode('a'));
       document.body.appendChild(e);
+      window.__fwReplaceDone = false;
       let n = 0;
-      const id = setInterval(() => { e.textContent += 'b'; n += 1; if (n >= 3) clearInterval(id); }, 10);
+      const id = setInterval(() => {
+        e.replaceChildren(document.createTextNode(`a${'b'.repeat(n + 1)}`));
+        n += 1;
+        if (n >= 3) { clearInterval(id); window.__fwReplaceDone = true; }
+      }, 10);
     });
-    await waitUntil('typed-textContent', () => page.evaluate(() => window.__motion.seqText), (n) => n > seqBefore);
+    await waitUntil('replace-done', () => page.evaluate(() => window.__fwReplaceDone), (v) => v === true);
+    const seqAfter = await page.evaluate(() => window.__motion.seqText);
+    assert.ok(seqAfter - seqBefore >= 3, `childList の置換を検出できない: ${seqBefore} -> ${seqAfter}`);
     await context.close();
   }));
 });
