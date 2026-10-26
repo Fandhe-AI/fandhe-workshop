@@ -83,7 +83,10 @@ fn base() -> Tmp {
     t.put(CHAPTER_FILE, CHAPTER.as_bytes());
     t.put(MODULE_FILE, MODULE.as_bytes());
     t.put("chapters/c1/a.md", format!("# a\n{SECRET}\n").as_bytes());
-    t.put("fixtures/a.md", format!("# f\n{SECRET}\n").as_bytes());
+    t.put(
+        "fixtures/a.md",
+        format!("# 【架空】f\n{SECRET}\n").as_bytes(),
+    );
     t
 }
 

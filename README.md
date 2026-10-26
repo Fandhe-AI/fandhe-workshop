@@ -89,7 +89,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
 | `docs/cli-guide.md` | 作成者向けのコマンドの使い方と出力の読み方（版 1）。出力の転記は `crates/pack/tests/examples_pack.rs` が実行結果と照合する（TASK-412） |
 | `docs/examples/` | 最小の教材パックの例 2 つ（コマンドで進む例・選択肢と画面操作だけで進む例）と `MANIFEST.sha256`。`validate` 0 件・`test` 全件合格を `examples_pack.rs` が CI で検査する（TASK-412。AUTHOR-12） |
-| `docs/diagnostics.md` | 診断コードの一覧（版 18。作成者向けの早見表は 8 節。一覧の正）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE` の 35 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致は `crates/pack/tests/diagnostics_doc.rs` が CI で検査する（TASK-400） |
+| `docs/diagnostics.md` | 診断コードの一覧（版 19。作成者向けの早見表は 8 節。一覧の正）。04 の PACK-2〜PACK-31 に現れるコードと実装で足した `E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`・`E-FICTIONAL-MARK` の 36 件の名前・出る条件・出所・区分を固定する契約。`E-LIMIT-*` は参照のみ。実装との一致は `crates/pack/tests/diagnostics_doc.rs` が CI で検査する（TASK-400） |
 | `docs/cli.md` | CLI の外部仕様（版 11）。`fandhe-pack` のバイナリ名・コマンド 6 つと引数の形・使い方・終了コード 0/1/2・診断 1 行・項目の書式・最終行（`OK:`・`NG:`）・診断の出し先・`compile` の出力（`-o`・末尾・バイト単位の決定性）・`metrics` の出力・`vocab` の出力（表・集計行。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409）。文書との一致は `crates/pack/tests/cli_contract_doc.rs`、実行ファイルの挙動は `crates/pack/tests/cli_contract.rs` が検査する |
 | `docs/history-format.md` | 履歴の形式の文書（版 1）。包みの 7 欄・4 軸の版・追記だけで増える列（EXT-5・D-53）。冒頭の版と欄の並びは `crates/contract/tests/history_format_doc.rs` が型と照合する |
 | `docs/pack-authoring.md` | 教材の作成者向けの文書。版と保存済みの履歴（本文だけの修正は `content_hash` を変えず、主版の上げ忘れは履歴の版の判定に現れない）。主版を上げる条件と `pack.vocab` の書き方の規約（検査は採らず作成者の規約。D-52）。根拠の試験は `crates/core/tests/version_record.rs`・`crates/contract/tests/fixed_histories.rs` |

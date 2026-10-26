@@ -8853,4 +8853,13 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 値の作り方: `testdata/` の 2 つの部品（10 形と追加の 5 形）を試験のときに展開して連結する。repo に完成した値を置かない。診断・assert のメッセージには形の ID だけを出す
 - 試験: `crates/pack/tests/secret_shape_validate.rs` の 7 件（`author18_baseline_is_clean`・`author18_each_shape_in_body_is_reported_once`（15 形）・`author18_placements_report_file_and_item`（練習データ・Step の題・拒否の文面・教材テスト）・`author18_diagnostics_never_contain_the_value`（CLI の標準出力・終了コード 1・`NG: 診断 1 件`）・`author18_controls_are_not_reported`（対照 10 件）・`author18_test_command_stops_at_the_gate`・`author18_no_false_positive_in_repo_packs`（`docs/examples`・`testdata`・`crates/pack/tests/data`・`crates/web/tests/data` の教材パック全件で 0 件））
 - 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-pack --test secret_shape_validate` が 7 件通った
-- 限界・未実施: 固定の 15 形に限る（SAFE-30 と同じ）。コメント・map の鍵・参照されないファイルは調べない（公開前の確認の `make check-internal-info-secrets` が拾う）。社内固有の語・実在の名前は D-81 により `validate` の対象外、【架空】の印は TASK-420 2/2。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である
+- 限界・未実施: 固定の 15 形に限る（SAFE-30 と同じ）。コメント・map の鍵・参照されないファイルは調べない（公開前の確認の `make check-internal-info-secrets` が拾う）。社内固有の語・実在の名前は D-81 により `validate` の対象外、【架空】の印は 5.313（TASK-420 2/2）。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である
+
+### 5.313 教材パックの `validate` が練習データの【架空】の印の欠けを報告する（TASK-420 2/2。AUTHOR-18・D-81）
+
+- 目的: 練習データの見出しに【架空】の印が無いとき、公開の前に `validate`（と `test` の関門）が `E-FICTIONAL-MARK` で報告し、印のある教材パックでは誤検出が 0 件であることを固定する。`compile` は報告しない
+- 規則: 対象は `workshop.fixtures` が指す読み込めた練習データ。印は `【架空` と後ろの `】`。場所は最初の空でない行（BOM は除く）。`.json` の object はルート直下の文字列値。診断はパスごとに 1 件
+- 試験: `crates/pack/tests/fictional_mark_validate.rs` の 10 件（`author18_mark_baseline_is_clean`・`..._missing_is_reported_once`・`..._variants_pass`・`..._json_note_passes`（入れ子・JSON として読めない場合の負の対照を含む）・`..._not_in_heading_is_reported`・`..._shared_path_reported_once`・`..._output_has_no_fixture_text`・`..._test_command_stops_at_the_gate`・`..._compile_does_not_report`・`..._no_false_positive_in_repo_packs`）と、`crates/pack/src/fictional_mark.rs` の単体試験 1 件
+- 真陽性の解消: 印の無かった練習データ 13 件（`docs/examples`・`crates/pack/tests/data`・`crates/web/tests/data`・`testdata/pack-defects` の本 repo で書いたもの）の見出しに `【架空】` を足した。行は足していない。これに伴い `MANIFEST.sha256`・凍結した IR 2 本の練習データの文字・`content_hash.rs` の `FIXTURE_PACK_HASH` を直した（IR の差分は練習データの文字だけ。凍結の IR は旧いエンジンの出力の文字を書き換えたもので、作り直してはいない）
+- 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-pack` が全件通った（結果は本節の更新時点。ほかの検証はコミットの記録を参照）
+- 限界・未実施: 印の有無だけを見る。宣言のない練習データ・章の本文は調べない。実在の名前は D-81 により対象外で、`docs/publish-checks.md` の公開前の確認が受け持つ。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である

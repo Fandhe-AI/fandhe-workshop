@@ -72,7 +72,7 @@ impl Collector {
 }
 
 /// 診断のファイル欄。パス自体が秘密情報の形をしていれば、値を写さない固定の語にする。
-fn file_name(file: &str) -> String {
+pub(crate) fn file_name(file: &str) -> String {
     if scan_text(file).is_empty() {
         file.to_string()
     } else {
@@ -81,7 +81,7 @@ fn file_name(file: &str) -> String {
 }
 
 /// 項目名。ID が安全に写せるときだけ `<kind>:<id>`、そうでなければ `<kind>:#<n>`。
-fn item_name(kind: &str, id: &str, n: usize) -> String {
+pub(crate) fn item_name(kind: &str, id: &str, n: usize) -> String {
     // 秘密情報の形をした ID は、診断が値を写さないよう位置にする。
     if safe_ident(id) && scan_text(id).is_empty() {
         format!("{kind}:{id}")

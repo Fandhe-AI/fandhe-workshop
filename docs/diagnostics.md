@@ -1,7 +1,7 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 18
+診断コードの一覧の版: 19
 決定日: 2026-10-26
 状態: 固定（契約）
 ```
@@ -26,13 +26,14 @@
 
 ## 2. 本表（04 の PACK-2〜PACK-30 に現れるコード、および実装で足したコード）
 
-本表の行数を「一覧の件数」とする（35 件）。他の節には、本表と同じ形の行を置かない。
+本表の行数を「一覧の件数」とする（36 件）。他の節には、本表と同じ形の行を置かない。
 
 | コード | 出る条件（要旨） | 出所の 04 の ID | 区分 |
 |---|---|---|---|
 | `E-PARSE` | 構文として読めない。未知の欄（`script` など語彙にない欄）がある。`workshop.yaml` と `workshop.toml` が両方ある、またはどちらも無い。外観に名前にない値や未知の項目がある | PACK-2・PACK-3・PACK-7・PACK-21 | 語彙 v1 |
 | `E-FORMAT-VERSION` | `pack.ir_format` が、エンジンの読める版（1 と 2）のどちらでもない | PACK-24・PACK-28 | 語彙 v1 |
 | `E-STRUCTURE` | 構造の誤り。正答の選択肢に `on_wrong` がある。`body_levels` に `A` がある。`requires`・`unmet` の片方だけがある。`use` と `input` の同時指定、またはどちらも無い。`use` と `confirm` の同時指定。`params` にない `args`。正答の無い `answer` | PACK-15・PACK-17・PACK-18・PACK-19・PACK-28 | 実装にだけ |
+| `E-FICTIONAL-MARK` | 教材パックの練習データ（`workshop.fixtures` が指す読み込めたファイル）の見出し（最初の空でない行。`.json` で object のときはルート直下の文字列値）に【架空】の印（`【架空` の後ろに `】` がある形）が無い。診断は固定の英文で、練習データの内容を写さない。内容が本物かどうか・実在の名前との紛らわしさは調べない（公開前の確認の受け持ち）。`validate` だけが検出し、`compile` は検出しない | AUTHOR-18 | 実装にだけ |
 | `E-REF-STEP` | 存在しない Step を参照している | PACK-28 | 語彙 v1 |
 | `E-REF-VIEW` | 存在しないビューを参照している | PACK-28 | 語彙 v1 |
 | `E-REF-FIXTURE` | 存在しない練習データを参照している | PACK-28 | 語彙 v1 |
@@ -82,7 +83,7 @@
 
 ## 3. 件数の記録
 
-- 本表は 35 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH`、版 18 で `E-SECRET-SHAPE` を足した（変更履歴）
+- 本表は 36 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH`、版 18 で `E-SECRET-SHAPE`、版 19 で `E-FICTIONAL-MARK` を足した（変更履歴）
 - 数え方: 当該の行から正規表現 `E-[A-Z][A-Z0-9*]*(-[A-Z0-9*]+)*` で取り出して重複を除く。`GUIDE-14` のような ID の後半が当たった数字だけの形は数えない
 - PACK-2〜PACK-28 の行には、`E-LIMIT-*`・`E-INSTR-*` は現れない
 
@@ -106,7 +107,7 @@
 | PACK-24 | `E-FORMAT-VERSION` | 1 |
 | PACK-30 | `E-REF-ELEMENT` | 1 |
 | PACK-31 | `E-VOCAB-MISMATCH` | 1 |
-| AUTHOR-18 | `E-SECRET-SHAPE` | 1 |
+| AUTHOR-18 | `E-SECRET-SHAPE`・`E-FICTIONAL-MARK` | 2 |
 | PACK-28 | `E-REF-STEP`・`E-REF-VIEW`・`E-REF-FIXTURE`・`E-REF-HINT`・`E-REF-REJECTION`・`E-REF-MODULE`・`E-REF-COMMAND`・`E-REF-BODY`・`E-DUP-ID`・`E-UNREACHABLE`・`E-DEAD-END`・`E-MODULE-CYCLE`・`E-EMPTY-NEXT-ACTION`・`E-NO-CONFIRM`・`E-FORMAT-VERSION`・`E-STRUCTURE` | 16 |
 
 件数は ID ごとの出現数であり、足し合わせても本表の件数にはならない（同じコードが複数の ID に現れるため）。
@@ -118,12 +119,12 @@
 | 語彙の文書（v1） | 15 |
 | 語彙の文書（v1.1） | 7 |
 | 語彙の文書（v1.3） | 8 |
-| 実装にだけある | 5（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`） |
-| 合計 | 35 |
+| 実装にだけある | 6（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`・`E-FICTIONAL-MARK`） |
+| 合計 | 36 |
 
 ### 実装の列挙との対応
 
-`DiagCode::ALL` は 42 件である。内訳は、本表 35 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
+`DiagCode::ALL` は 43 件である。内訳は、本表 36 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
 
 ## 4. 上限超過のコード（参照のみ）
 
@@ -168,6 +169,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 16 | 2026-10-23 | `E-PLAY-INCOMPLETE`・`E-PLAY-CATEGORY-MISMATCH` を `fandhe-pack test` が出すようになったことを、5 節の注で補った。行は書き換えず、本表外のまま、件数は 34 件のまま | TASK-404 3/3（#651）・AUTHOR-4 |
 | 17 | 2026-10-24 | 作成者向けの早見表（8 節）を足した。2 節・4 節・5 節の行は書き換えず、件数は 34 件のまま | TASK-412・AUTHOR-12 |
 | 18 | 2026-10-26 | `E-SECRET-SHAPE` を足し、35 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。既存の行は変えていない | TASK-420 1/2・AUTHOR-18・D-81 |
+| 19 | 2026-10-26 | `E-FICTIONAL-MARK` を足し、36 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。固定した `E-SECRET-SHAPE` の行は書き換えていない（その行の「【架空】の印は調べない」は、そのコードについては今も正しい） | TASK-420 2/2・AUTHOR-18・D-81 |
 
 ## 8. 作成者向けの早見表
 
@@ -202,6 +204,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | `E-GUIDANCE-LEAK` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-HINT-HIDDEN` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-SECRET-SHAPE` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
+| `E-FICTIONAL-MARK` | validate だけ（`test` の関門でも出る） | `docs/pack-authoring.md` |
 | `E-PROFILE-PREFIX` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
 | `E-PROFILE-COMMAND-NAME` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
 | `E-PROFILE-TEXT` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/operation-profile.md` |
