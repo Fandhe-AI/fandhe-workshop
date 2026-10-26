@@ -78,15 +78,15 @@ const detail = (page) => page.evaluate(({ status, li }) => ({
 }), { status: STATUS, li: PROGRESS_LI });
 
 // ページ内の計測。イベント（animation*・transition*）、段階の行の追加・削除、文字の逐次表示を数える。
-// 逐次表示は、対象（ログの行・Step の本文・カード・負の対照の probe）の文字が書き換わった回数（characterData の更新と、textContent 等による文字ノードの置換・追加）。
+// 逐次表示は、対象（ログの行・Step の本文・カード（変種 (a) は行の data-kind="card" だけを持つため両方）・負の対照の probe）の文字が書き換わった回数（characterData の更新と、textContent 等による文字ノードの置換・追加）。
 // 行の追加（新しいノードの挿入）は数えない。最後の状態への更新も 1 回と数え、PoC-12 の定義より検出側に倒す。
 const MOTION_WATCH = () => {
-  const m = { events: 0, progressAdded: 0, progressRemoved: 0, seqText: 0 };
+  const m = { events: 0, byType: {}, progressAdded: 0, progressRemoved: 0, seqText: 0 };
   window.__motion = m;
   for (const t of ['animationstart', 'animationiteration', 'transitionrun', 'transitionstart']) {
-    window.addEventListener(t, () => { m.events += 1; }, true);
+    window.addEventListener(t, () => { m.events += 1; m.byType[t] = (m.byType[t] ?? 0) + 1; }, true);
   }
-  const TARGET = '[data-testid="part-log-list"] li, [data-testid="step-body"], [data-testid^="card"], [data-motion-probe]';
+  const TARGET = '[data-testid="part-log-list"] li, [data-testid="step-body"], [data-testid^="card"], [data-kind="card"], [data-motion-probe]';
   const isProg = (n) => n.nodeType === 1 && n.matches('li[data-kind="progress"]');
   new MutationObserver((ms) => {
     for (const r of ms) {
@@ -289,7 +289,8 @@ test('負の対照: 注入した @keyframes・transition・WAAPI・文字の書�
     const dyn = await dynamicMotion(page);
     assert.ok(dyn.animations >= 1 && dyn.animated >= 1 && dyn.transitioned >= 1, JSON.stringify(dyn));
     await page.evaluate(() => { document.getElementById('fw-tr').style.opacity = '0.5'; });
-    await waitUntil('transitionrun', () => page.evaluate(() => window.__motion.events), (n) => n >= 1);
+    // 先に挿入した fw-anim の animationstart と区別するため、transitionrun の種別を数える。
+    await waitUntil('transitionrun', () => page.evaluate(() => window.__motion.byType.transitionrun ?? 0), (n) => n >= 1);
     const before = (await dynamicMotion(page)).animations;
     await page.evaluate(() => document.getElementById('fw-tr').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 5000 }));
     assert.ok((await dynamicMotion(page)).animations > before, 'WAAPI を検出できない');
@@ -322,6 +323,24 @@ test('負の対照: 注入した @keyframes・transition・WAAPI・文字の書�
     await waitUntil('replace-done', () => page.evaluate(() => window.__fwReplaceDone), (v) => v === true);
     const seqAfter = await page.evaluate(() => window.__motion.seqText);
     assert.ok(seqAfter - seqBefore >= 3, `childList の置換を検出できない: ${seqBefore} -> ${seqAfter}`);
+    // カード行（data-kind="card"。data-testid なし）の文字の書き換えも検出できることの負の対照。
+    await page.evaluate(() => {
+      const e = document.createElement('div');
+      e.id = 'fw-card';
+      e.setAttribute('data-kind', 'card');
+      e.appendChild(document.createTextNode('a'));
+      document.body.appendChild(e);
+      window.__fwCardDone = false;
+      let n = 0;
+      const id = setInterval(() => {
+        e.replaceChildren(document.createTextNode(`a${'b'.repeat(n + 1)}`));
+        n += 1;
+        if (n >= 3) { clearInterval(id); window.__fwCardDone = true; }
+      }, 10);
+    });
+    await waitUntil('card-done', () => page.evaluate(() => window.__fwCardDone), (v) => v === true);
+    const seqCard = await page.evaluate(() => window.__motion.seqText);
+    assert.ok(seqCard - seqAfter >= 3, `カード行の書き換えを検出できない: ${seqAfter} -> ${seqCard}`);
     await context.close();
   }));
 });
