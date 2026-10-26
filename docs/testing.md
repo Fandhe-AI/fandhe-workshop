@@ -8720,7 +8720,7 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 | B5（960px） | Tab を 60 回押しても tab に着かず、矢印・Home・End は何も変えない |
 | B6（試験・`?fixture=ch0-3`） | 下書きを打ってからキーで切り替えても、下書き・現在の Step・ログの件数・状態が同じ |
 | B7（試験） | `keyPaneAware`（`ch0-3-journey.mjs`）で、キーボードだけで CH-1 の 6 Step を通す。台帳が合格、警告・無視 0 件、キーでの切り替えが 1 回以上 |
-| B8（対照） | 960px で `pane-tabs` に `display: flex !important` を CSSOM で足すと `tablist-visible-at-960`、959px で `data-pane` を一致しない値にすると `panes-not-one-below-960` が出る。加工しなければ空 |
+| B8（対照） | 960px で `pane-tabs` のインライン style に `display: flex !important` を `style.setProperty` で足すと `tablist-visible-at-960`、959px で `data-pane` を一致しない値にすると `panes-not-one-below-960` が出る。加工しなければ空 |
 
 - どの試験も CSP 違反・ページ内エラー・コンソールのエラーが 0 件。出力に入力した値は出さない
 - `scripts/expected-test-counts.txt` は更新していない（版上げ PR ではない）。次の版上げの前に別 PR で `make update-test-counts` が要る
