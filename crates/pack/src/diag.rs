@@ -91,6 +91,8 @@ pub enum DiagCode {
     LeftTargetView,
     /// 教材パックの値が秘密情報らしい形をしている（AUTHOR-18・D-81。`validate` だけ）。
     SecretShape,
+    /// 練習データの見出しに【架空】の印が無い（AUTHOR-18・D-81。`validate` だけ）。
+    FictionalMark,
     /// 上限を超えている。正は contract の `PackLimitCode` と engine-safety で、一覧は参照のみ。
     Limit,
     /// 深さの上限を超えている（SAFE-43）。正は contract の `PackLimitCode`。
@@ -143,6 +145,7 @@ impl DiagCode {
         DiagCode::LeftTargetRow,
         DiagCode::LeftTargetView,
         DiagCode::SecretShape,
+        DiagCode::FictionalMark,
         DiagCode::Limit,
         DiagCode::LimitDepth,
         DiagCode::LimitMdSize,
@@ -190,6 +193,7 @@ impl DiagCode {
             DiagCode::LeftTargetRow => "E-LEFT-TARGET-ROW",
             DiagCode::LeftTargetView => "E-LEFT-TARGET-VIEW",
             DiagCode::SecretShape => "E-SECRET-SHAPE",
+            DiagCode::FictionalMark => "E-FICTIONAL-MARK",
             DiagCode::Limit => "E-LIMIT",
             DiagCode::LimitDepth => "E-LIMIT-DEPTH",
             DiagCode::LimitMdSize => "E-LIMIT-MD-SIZE",
@@ -453,18 +457,19 @@ mod tests {
                 DiagCode::LeftTargetRow => 34,
                 DiagCode::LeftTargetView => 35,
                 DiagCode::SecretShape => 36,
-                DiagCode::Limit => 37,
-                DiagCode::LimitDepth => 38,
-                DiagCode::LimitMdSize => 39,
-                DiagCode::LimitPackSize => 40,
-                DiagCode::LimitSymlink => 41,
+                DiagCode::FictionalMark => 37,
+                DiagCode::Limit => 38,
+                DiagCode::LimitDepth => 39,
+                DiagCode::LimitMdSize => 40,
+                DiagCode::LimitPackSize => 41,
+                DiagCode::LimitSymlink => 42,
             }
         }
         let mut got: Vec<usize> = DiagCode::ALL.iter().map(|c| index(*c)).collect();
         got.sort_unstable();
         // 期待する変種数は `ALL` から作らない（`ALL` の入れ忘れが want 側にも現れず見逃されるため）。
         // 上の `index` の最大値 + 1 と同じ値を、変種を足すたびに手で更新する。
-        const VARIANTS: usize = 42;
+        const VARIANTS: usize = 43;
         let want: Vec<usize> = (0..VARIANTS).collect();
         assert_eq!(got, want);
     }

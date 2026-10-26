@@ -69,7 +69,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/cli-guide.md         # 作成者向けのコマンドの使い方と出力の読み方（版 1。TASK-412）
 ├── docs/examples/            # 最小の教材パックの例 2 つ（validate 0 件・test 全件合格。MANIFEST.sha256 つき。TASK-412）
-├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 18。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
+├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 19。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
 ├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力・`test` の PASS／FAIL の行と集計。版 11。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404）
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）

@@ -14,7 +14,7 @@ use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_pack::compile::compile_dir;
 
 /// 凍結物を本文の木を除いて compact の JSON にし、Python で求めた SHA-256。
-const FIXTURE_PACK_HASH: &str = "6cad339caadef18fe3747fefdd6432bbfa8bd646dcf94fbfd83d5b5ebc87116b";
+const FIXTURE_PACK_HASH: &str = "06a13c377e7e8d6af319b59f0b2a4099c44478af9c5bcba0fb844d9c6cf8dcca";
 
 fn fixture_pack() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/fixture-pack")
