@@ -3,7 +3,7 @@
 教材の作成者が、入力の作法（コマンドの接頭辞・入力欄の有無）と画面の外観を、どこまで選べるかをまとめた文書です。選べるもの、選べないもの、外観の 4 値の意味を書きます（AUTHOR-12・AUTHOR-13）。
 
 - 文書の版: 1
-- 確認した日: 2026-10-20
+- 確認した日: 2026-10-26
 - 仕様は private のため、本文を転記せず ID（PACK-20・PACK-21・PACK-22・W-13・C-8・W-22・SECOND-10・D-64）で参照します
 - 語彙の文書（`docs/vocabulary/vocabulary.md`）の本文は固定の契約で、この文書では書き換えません。外観の定義はこの文書と `docs/pack-authoring.md` の外観の節に置きます（TASK-398 の決定）
 
@@ -106,6 +106,7 @@ pack:
 | 画面の領域の構成（左に成果物、右に操作） | 固定です（W-13）。`pack.left_pane` で絞れるのは、左エリアの一覧と切り替えの表示だけです |
 | 色・書体・文字の大きさ・CSS・HTML | 指定する欄がありません。外観の 4 値の中から選びます |
 | 進行の間隔 | 300ms でエンジンの定数です。`pack` にも Step にも欄がありません（`E-PARSE`。PACK-44） |
+| 動きの抑制（処理中の段階の表示の有無） | OS の `prefers-reduced-motion` を読み込み時に 1 回だけ読みます。`pack` にも Step にも欄がありません（`E-PARSE`。A11Y-12・D-82） |
 | 入力欄の仕様（Enter で送信、Shift+Enter で改行など） | 画面の仕様で、教材からは変えられません |
 | 外観ごとの具体的な色の値 | 教材から指定できません。画面側で決まります |
 | 接頭辞の長さ・文字種 | 1.1 の規則に限ります |
@@ -131,6 +132,7 @@ pack:
 |---|---|
 | `crates/pack/tests/profile.rs` | 接頭辞の検査・空の接頭辞でのコマンド名の検査・IR に残ること・教材テストの入力の分け |
 | `crates/pack/tests/profile_input.rs` | 接頭辞と入力欄に基づく Step の検査（`E-PROFILE-TEXT`・`E-PROFILE-NO-INPUT`） |
+| `crates/pack/tests/effects.rs` の `a11y12_` | 動きの設定の鍵が最上位・`pack`・`profile`・`appearance`・Step・`processing[]`・形式 A のどこでも拒否されること（A11Y-12。TASK-378 2/2） |
 | `crates/pack/tests/appearance.rs` | 外観 4 値の読み込み、名前にない値と未知の欄の `E-PARSE`、スタイル欄が 0 件であること |
 | `crates/contract/tests/profile_contract.rs`・`appearance_contract.rs` | 閉じた集合・既定値・読み取りの規則 |
 | `tools/browser/input-field-hidden.test.mjs`（PACK-20） | `input_field: hidden` の教材で入力欄が出ないこと |

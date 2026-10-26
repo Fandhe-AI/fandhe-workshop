@@ -346,6 +346,15 @@ processing:
 処理中の Esc は、間隔や件数によらず常にエンジンの停止です（D-22）。人が実際に押せる長さかどうかの画面での確認は
 TERM-34 の担当で、2026-10-15 時点では済んでいません。
 
+**動きの抑制（`reduce`）の受講者には、段階の表示が出ず結果だけが出ます。** 受講者の OS が `prefers-reduced-motion: reduce` のとき、
+処理中の段階の行は出ないため、処理中に段階を見て Esc で止める体験（ST-1.5。LO-3）は、その受講者にはできません。動きの設定の欄は
+教材の側にありません（`pack` にも Step にも書けず、書くと `E-PARSE`。A11Y-12・D-82）。エンジンも `reduce` 専用の案内は出しません。
+
+- 処理中に止める体験を前提にした Step だけで、LO-3 の確認を済ませないでください。
+- 補う場面は、チェックポイントへの復帰・承認画面での差し戻し・再実行です。補いは Step の題・`do`・本文に、教材の文面として書きます。
+- 補いの文面の形（INTRO-20 の案）は、仕様の TASK-607 で決まります。ここには文面の例を載せません。
+- `reduce` でも、Step の題・`do`・本文と、復帰・差し戻し→再承認の結果は、動きを抑えない場合と同じに出ます（`docs/testing.md` 5.310）。
+
 ## 拒否の分類（`category`・`defaults`・`on_reject`）
 
 拒否の分類は 8 語（`unknown_command`・`wrong_order`・`missing_arg`・`bad_arg_shape`・`busy`・`not_in_this_step`・`not_supported`・`free_text_unjudged`）で、
@@ -740,6 +749,7 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 | `crates/pack/tests/confirm_vocabulary.rs` の `pack23_` | `label` が IR に残ること、IR から読んだ表示名とログの文面、履歴に ID だけが残ること、空白だけの `label` の `E-STRUCTURE`（PACK-23） |
 | `crates/pack/tests/confirm_on_wrong.rs` の `pack15_` | 正答の選択肢の `on_wrong` が `E-STRUCTURE`（モジュールの置換後も）、存在しない文面が `E-REF-REJECTION`、誤答の文面が選択肢、無ければ Step の順で決まること（PACK-15） |
 | `crates/pack/tests/effects.rs` の `pack44_` | 進行の間隔の欄がどの位置でも `E-PARSE` で拒否され値を出さないこと、件数を増やす回避が検証を通ること（PACK-44） |
+| `crates/pack/tests/effects.rs` の `a11y12_`・`tools/browser/reduced-motion-lo3.test.mjs` | 動きの設定の欄がどの位置でも拒否されること、`reduce` でも Step の文面と補う場面（復帰・差し戻し→再承認）が同じに出ること（A11Y-12・A11Y-13。TASK-378 2/2。`docs/testing.md` 5.310） |
 | `crates/pack/tests/judgment_vocabulary.rs` の `pack11_` | 語彙の `result`・`rejection` の語が contract の型と一致すること、`category`・`defaults`・`on_reject` の語彙にない語が `E-PARSE` になり値を出さないこと（PACK-11） |
 | `crates/pack/tests/error_input_expect.rs` の `pack11_` | 誤入力の期待の 3 形の読み取りと不正な書き方の拒否、架空の教材の誤入力 20 件の分類、3 場面の区別、拒否の文面と次の行動が空でないこと（PACK-11） |
 | `crates/pack/tests/text_slots.rs` の `pack16_`・`pack12_` | 5 つの `E-SLOT-*` が期待のファイル・項目で出ること、次の行動の空が静的・動的の両方で 0 件になること、公開の試験データで診断が 0 件であること（PACK-12、PACK-16） |

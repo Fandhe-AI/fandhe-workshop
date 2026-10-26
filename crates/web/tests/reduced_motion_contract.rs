@@ -236,3 +236,28 @@ fn 追随の検出は注入を見つける_自己確認() {
         1
     );
 }
+
+/// 教材内に動きの設定は置かない（A11Y-12・D-82）。IR に動きの欄を足すと、旧いエンジンが読めない未来の IR（`?fixture=future-ir-field`）
+/// と同じ未知の欄の拒否に乗って読み込みが断られる。新しい拒否の経路は足していない。対照は元の IR が読めること。
+#[test]
+fn ir_に動きの欄を足すと読み込みが断られる() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../testdata/engine-event-consistency/test-data/min-3step.json");
+    let base: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    let encode = |v: &serde_json::Value| serde_json::to_vec(v).unwrap();
+    assert!(load_ir(&encode(&base)).is_ok(), "対照の IR は読める");
+
+    let mut on_pack = base.clone();
+    on_pack["pack"]["reduced_motion"] = serde_json::json!(true);
+    let mut on_pack_str = base.clone();
+    on_pack_str["pack"]["motion"] = serde_json::json!("reduce");
+    let mut on_step = base.clone();
+    on_step["nodes"][0]["step"]["motion"] = serde_json::json!("reduce");
+    for (place, v) in [
+        ("pack.reduced_motion", on_pack),
+        ("pack.motion", on_pack_str),
+        ("step.motion", on_step),
+    ] {
+        assert!(load_ir(&encode(&v)).is_err(), "{place} が拒否されない");
+    }
+}
