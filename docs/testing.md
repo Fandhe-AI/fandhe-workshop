@@ -8769,3 +8769,21 @@ PoC-12 の再試験の手順 2 の R-23 (a)〜(d) を、`tools/browser/shell-bou
 - 変異: `A11Y11-2`（`app.css` に `transition` を足す）・`A11Y11-3`（`@keyframes` を足す）
 - 実行の記録: 2026-10-26。Chromium（同梱）。`reduced-motion.test.mjs` の 10 件が通った。`make test-browser` の全体と `make check-mutations` は未検証。`scripts/expected-test-counts.txt` は更新していない
 - 範囲外: 方式の採否・LO-3 への影響・`reduce` での処理中の時間（TASK-377・TASK-378）。読み込み後の設定の切り替えへの追従
+
+### 5.307 操作プロファイルの説明への修飾キーの表示の適用（TASK-392 1/2。A11Y-25・D-48・D-79）
+
+入力欄の領域に、操作プロファイルの説明（`data-testid="op-guide"`）を足し、中の修飾キーを TASK-285 の機構（推定・選ぶ欄・語）から出す。機構は作り直さず、文言の関数 `operation_guide`（`modifier_key.rs`）だけを足した。
+
+- 方式: `key-hint` の直後に `<p>` を置き、field `op_guide` を `bind_text` で束縛する。選ぶ欄で OS が変わると `key_hint` に続けて `op_guide` も dirty になる。同じ値の選び直し・不正な値では dirty にならない。`role`・`aria` は付けない（読み上げが割り込まないため）。入力欄なしの教材では出さない（PACK-20）
+- 表示: 修飾キーは文字の `Cmd`／`Ctrl` だけで示し、記号は足さない（D-79）。推定できない OS では Cmd・Ctrl を出さず OS を選ぶよう促す（Ctrl に倒さない）
+- 選ぶ欄の名前（D-79）: `label` の中にあり、`getByRole('combobox', { name: /お使いの OS/ })` が同じノードを返す。送信ボタンから Tab 1 回で届く
+
+| 試験 | 内容 |
+|---|---|
+| `crates/web/tests/operation_guide.rs` | 文言が `modifier_label` の語と一致し他方の語・記号を含まない。束縛値・描画・dirty。選ぶと切り替わる。`role`・`aria` なし・`label` の中 |
+| `crates/web/tests/modifier_key_hint.rs`・`dirty_binding_points.rs`・`input_field_hidden.rs` | `op_guide` の dirty と、入力欄なしでの 0 件を追加 |
+| `tools/browser/op-guide.test.mjs` | UA 3 種の文言、選ぶ欄での切り替え（同じノード・本文不変）、名前と Tab、入力欄なしで 0 件。CSP あり・なし、安全性の計数 0 |
+
+- 変異: `A11Y25-1`（`op_guide` の dirty を外す）・`A11Y25-2`（Mac の説明を Ctrl に取り違える）・`JUDGE28-4`（期待の試験名を改めた）。2026-10-26 に 3 件とも DETECTED
+- 実行の記録: 2026-10-26。Chromium（同梱）。`op-guide`・`modifier-key-hint`・`modifier-key-right-pane`・`input-field-hidden` の 44 件が通った。`make test-browser` の全体は未検証。`scripts/expected-test-counts.txt` は更新していない
+- 限界・未実施: 推定が外れたときに直せるかの人の確認（TASK-393・TASK-460）、名前の読み上げを人が聞く確認、Windows の実機（TASK-395）。コマンドの接頭辞は説明に含めない。選ぶ欄の値をキーボードで変える操作は assert にしていない。4 つの操作が OS によらず同じ結果になる試験は 2/2（#704）

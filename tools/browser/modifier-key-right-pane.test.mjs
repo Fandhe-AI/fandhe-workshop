@@ -14,7 +14,7 @@
 // 確かめないこと:
 //   - 推定が外れたときに受講者が選ぶ欄で直せるかの人の確認（TASK-393・TASK-460）と、Windows の実機・人の目での
 //     確認（TASK-20・TASK-286・TASK-395）。ここは User-Agent の差し替えによる模擬で、どちらも未実施
-//   - ヒントの画面（SHELL-14。未描画）・UA-CH による推定・操作プロファイルの説明（TASK-392）
+//   - ヒントの画面（SHELL-14。未描画）・UA-CH による推定（操作プロファイルの説明は op-guide.test.mjs。TASK-392 1/2）
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';

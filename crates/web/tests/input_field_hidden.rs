@@ -112,6 +112,7 @@ fn assert_no_input_area(h: &EngineHost, at: &str) {
     assert!(!out.contains("<textarea"), "{at}\n{out}");
     assert!(!out.contains("<select"), "{at}\n{out}");
     assert_eq!(count(h, "key-hint"), 0, "{at}\n{out}");
+    assert_eq!(count(h, "op-guide"), 0, "{at}\n{out}");
     assert_eq!(count(h, "os-select"), 0, "{at}\n{out}");
     assert!(!out.contains("data-action-input"), "{at}\n{out}");
     // 停止と Esc の経路は、入力欄がなくても出る。

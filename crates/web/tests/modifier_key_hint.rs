@@ -104,14 +104,14 @@ fn choose(host: &mut EngineHost, value: &str) {
 }
 
 #[test]
-fn 選ぶと_key_hint_だけが_dirty_になり_値が切り替わる() {
+fn 選ぶと_key_hint_と_op_guide_が_dirty_になり_値が切り替わる() {
     let mut host = EngineHost::new();
     host.set_learner_os(LearnerOs::Unknown);
     choose(&mut host, "windows");
-    assert_eq!(host.dirty_fields(), ["key_hint"]);
+    assert_eq!(host.dirty_fields(), ["key_hint", "op_guide"]);
     assert_eq!(hint_of(&host), "貼り付け: Ctrl+V");
     choose(&mut host, "mac");
-    assert_eq!(host.dirty_fields(), ["key_hint"]);
+    assert_eq!(host.dirty_fields(), ["key_hint", "op_guide"]);
     assert_eq!(hint_of(&host), "貼り付け: Cmd+V");
 }
 
