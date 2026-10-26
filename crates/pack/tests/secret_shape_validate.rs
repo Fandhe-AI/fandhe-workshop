@@ -333,3 +333,47 @@ fn author18_secret_shaped_ids_are_not_echoed() {
         }
     }
 }
+
+#[test]
+fn author18_secret_shaped_paths_are_not_echoed() {
+    let mut checked = 0;
+    for (id, _, value) in shapes() {
+        // ファイル名に使えない値（区切り・改行・空白）は対象にしない。
+        if value.contains(['/', '\n', '\\', ' ']) {
+            continue;
+        }
+        let t = base();
+        let name = format!("{value}.md");
+        fs::rename(t.0.join(BODY), t.0.join("chapters/c-mini").join(&name)).expect("rename");
+        fs::write(
+            t.0.join("chapters/c-mini").join(&name),
+            format!("# a\n{value}\n"),
+        )
+        .expect("write");
+        let ch = t.0.join("chapters/c-mini/chapter.yaml");
+        let text = fs::read_to_string(&ch).expect("read");
+        fs::write(
+            &ch,
+            text.replace("body: st-hello.md", &format!("body: {name}")),
+        )
+        .expect("write");
+        let o = Command::new(env!("CARGO_BIN_EXE_fandhe-pack"))
+            .arg("validate")
+            .arg(&t.0)
+            .output()
+            .expect("run");
+        let all = format!(
+            "{}{}",
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        );
+        let tail: String = value
+            .chars()
+            .skip(value.chars().count().saturating_sub(8))
+            .collect();
+        assert!(all.contains("E-SECRET-SHAPE"), "{id}: not reported");
+        assert!(!all.contains(&tail), "{id}: output leaks path value");
+        checked += 1;
+    }
+    assert!(checked > 0, "no shape was usable as a file name");
+}

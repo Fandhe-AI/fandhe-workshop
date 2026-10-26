@@ -32,6 +32,8 @@ struct Collector {
 
 impl Collector {
     fn add(&mut self, file: &str, item: &str, findings: &[Finding]) {
+        let file = file_name(file);
+        let file = file.as_str();
         for shape in shapes_of(findings) {
             let id = shape.id();
             if self.seen.insert((file.to_string(), item.to_string(), id)) {
@@ -60,12 +62,21 @@ impl Collector {
         match serde_json::to_value(v) {
             Ok(v) => self.json(file, item, &v),
             Err(_) => self.out.push(diag(
-                file,
+                &file_name(file),
                 item,
                 DiagCode::SecretShape,
                 "could not scan for secret-like values",
             )),
         }
+    }
+}
+
+/// 診断のファイル欄。パス自体が秘密情報の形をしていれば、値を写さない固定の語にする。
+fn file_name(file: &str) -> String {
+    if scan_text(file).is_empty() {
+        file.to_string()
+    } else {
+        "<path-redacted>".to_string()
     }
 }
 
