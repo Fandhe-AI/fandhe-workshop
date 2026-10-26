@@ -1,0 +1,8 @@
+id: A11Y12-1
+package: fandhe-workshop-web
+test: reduced_motion_contract
+target: crates/web/static/app.js
+find: await mount_app("app", navigator.userAgent ?? "", start, ir, reducedMotion);
+replace: await mount_app("app", navigator.userAgent ?? "", start, ir, reducedMotion); window.matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", () => location.reload());
+expect-fail: app_js_は動きの設定を読み込み時に_1_回だけ読み変化に追随しない
+note: "動きの設定の変化で再読み込みする（開いたままの切り替えへの追随。A11Y-12・D-82）"
