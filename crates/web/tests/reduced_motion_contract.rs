@@ -132,3 +132,55 @@ fn reduce_でも状態の語は待機中_処理中_待機中と遷移する() {
     }
     assert_eq!(run_status(host.model().session()), RunStatus::Idle);
 }
+
+// 静的な CSS の検査。ブラウザ試験（tools/browser/reduced-motion.test.mjs）と同じ判定を native でも持つのは、
+// 変異注入（A11Y11-2・A11Y11-3）がブラウザなしで検出できるようにするため（A11Y-11。TASK-372 2/2）。
+// コメントを除き小文字にしてから、`keyframes`（前置き付きを含む）と `animation`・`transition` 系のプロパティ名を数える。
+fn motion_declarations(css: &str) -> usize {
+    let mut plain = String::new();
+    let mut rest = css;
+    while let Some(start) = rest.find("/*") {
+        plain.push_str(&rest[..start]);
+        rest = match rest[start..].find("*/") {
+            Some(end) => &rest[start + end + 2..],
+            None => "",
+        };
+    }
+    plain.push_str(rest);
+    let lower = plain.to_lowercase();
+    let keyframes = lower.matches("keyframes").count();
+    let props = lower
+        .split(['{', '}', ';'])
+        .map(|d| {
+            d.trim()
+                .trim_start_matches("-webkit-")
+                .trim_start_matches("-moz-")
+        })
+        .filter(|d| {
+            let name = d.split(':').next().unwrap_or("").trim();
+            d.contains(':') && (name.starts_with("animation") || name.starts_with("transition"))
+        })
+        .count();
+    keyframes + props
+}
+
+#[test]
+fn app_css_には動きの宣言が_0_件() {
+    let css = include_str!("../static/app.css");
+    assert_eq!(motion_declarations(css), 0);
+}
+
+#[test]
+fn 動きの宣言の検出は注入を見つける_自己確認() {
+    assert_eq!(
+        motion_declarations("/* transition: x 1s; */ .a { color: red; }"),
+        0
+    );
+    assert_eq!(motion_declarations(".a { transition: opacity 0.2s; }"), 1);
+    assert_eq!(motion_declarations(".a { -webkit-animation-name: x; }"), 1);
+    assert_eq!(motion_declarations("@keyframes k { from { top: 0; } }"), 1);
+    assert_eq!(
+        motion_declarations("@media (x) { .a { animation: k 1s; } }"),
+        1
+    );
+}
