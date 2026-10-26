@@ -7,7 +7,7 @@
 //   (3) 古い世代の進行が Ignored として届いても「停止」が保たれる
 //   (4) 同じ本文を再び送信でき、「処理中」→ 新しい世代の進行 → 「待機中」になる
 //   (5) 配信設定には試験の口が無く、停止ボタンが 1 件あり、待機中に押しても何も起きない
-// 文脈: prefers-reduced-motion は no-preference で流す。reduce の側は TASK-372・TASK-378 の持ち分。
+// 文脈: prefers-reduced-motion は no-preference で流す。reduce の側は reduced-motion-st15.test.mjs（TASK-378 1/2）が確かめる。
 // 待ちは固定の sleep ではなく、上限つきのポーリングで書く。
 //
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）と FANDHE_WEB_DIR（配信設定）。未設定・不在は skip にせず失敗にする。
