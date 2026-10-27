@@ -113,6 +113,16 @@ fn guided_goto_sequence_matches_rounds_plans() {
         let mut h = Harness::new(setup);
         for i in 0..120 {
             h.step(i, &OpSpec::Guided).unwrap_or_else(|m| panic!("{m}"));
+            // T0 は 1 周目の完了で誘導が 2 周目の `Begin` を出す。以降の `GoTo` は 2 周目の分なので、
+            // 1 周目の計画と比べる列にはそこまでを使う。
+            if setup == Setup::T0
+                && matches!(
+                    h.ops.last(),
+                    Some(ROp::Engine(Op::Control(Control::Begin(_))))
+                )
+            {
+                break;
+            }
         }
         let actual: Vec<Op> = h
             .ops
