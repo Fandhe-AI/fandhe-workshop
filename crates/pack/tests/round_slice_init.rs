@@ -24,6 +24,8 @@
 //! core の試験（`restore_owner_slice`）が受け持つ。
 
 mod common;
+#[path = "common/rounds.rs"]
+mod rounds;
 #[path = "common/sha256.rs"]
 mod sha256;
 
@@ -37,48 +39,11 @@ use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::{Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
+use rounds::{begin_round2_plan, round1_plan, round2_plan, round_roots, run_plan, step_in, steps};
 
 fn ir() -> Ir {
     let bytes = compile_dir(&testdata("module-reuse-rounds/test-data/pack")).expect("compile");
     load_ir(&bytes).expect("load_ir")
-}
-
-/// 開始点 `start_id` の節点と同じ `unit` の `main` の節点を呼び出し元とする実体の根（IR の順）と、開始の節点。
-fn round_roots(ir: &Ir, start_id: &str) -> (Vec<Root>, String) {
-    let node_id = ir
-        .starts
-        .iter()
-        .find(|s| s.id == start_id)
-        .expect("start")
-        .node
-        .clone();
-    let unit = ir
-        .nodes
-        .iter()
-        .find(|n| n.uid == node_id)
-        .expect("start node")
-        .unit
-        .clone();
-    let callers: Vec<&str> = ir
-        .nodes
-        .iter()
-        .filter(|n| n.scope == "main" && n.unit == unit && n.enter.is_some())
-        .map(|n| n.uid.as_str())
-        .collect();
-    let roots = ir
-        .instances
-        .iter()
-        .filter(|i| i.caller.as_deref().is_some_and(|c| callers.contains(&c)))
-        .map(|i| Root(i.id.clone()))
-        .collect();
-    (roots, node_id)
-}
-
-fn steps(ir: &Ir, roots: &[Root]) -> Vec<StepUid> {
-    roots
-        .iter()
-        .flat_map(|r| fandhe_workshop_core::instance::steps_of(ir, r))
-        .collect()
 }
 
 /// 1 周目の終了状態。1 周目の全 Step を達成にし、`issue-to-merge@round1` のフラグを立てる。
@@ -192,15 +157,6 @@ fn second_round_starts_with_only_the_current_and_call_steps_entered() {
     assert!(s.slice(stopper).unwrap().flags.contains("stopped"));
 }
 
-/// 周回の根の集まりから、末尾が `/<id>` の Step を引く。
-fn step_in(ir: &Ir, roots: &[Root], id: &str) -> StepUid {
-    let suffix = format!("/{id}");
-    steps(ir, roots)
-        .into_iter()
-        .find(|u| u.0.ends_with(&suffix))
-        .unwrap_or_else(|| panic!("step {id}"))
-}
-
 fn go(s: &mut Session, ev: &mut Vec<Event>, ir: &Ir, roots: &[Root], id: &str) {
     let to = step_in(ir, roots, id);
     ev.extend_from_slice(s.apply(Op::Control(Control::GoTo(to))));
@@ -226,70 +182,20 @@ fn current(s: &Session) -> String {
 
 /// 2 周目の開始（`Control::Begin`）だけを行い、出たイベントを返す（TASK-237 1/2）。
 fn begin_round2(s: &mut Session) -> Vec<Event> {
-    s.apply(Op::Control(Control::Begin("s-r2".into()))).to_vec()
+    run_plan(s, &begin_round2_plan())
 }
 
 /// 2 周目を終わりまで進め、操作で出たイベントを返す。開始は `Control::Begin`（TASK-237 1/2）。
 /// 入力列は `pt-rounds` の `s-r2` の区間。飛ばす 2 か所の理由は冒頭の `//!` に書いた。
-fn finish_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
+fn finish_round2(s: &mut Session, ir: &Ir) -> Vec<Event> {
     let mut events = begin_round2(s);
-    events.extend(play_round2(s, ir, r2));
+    events.extend(play_round2(s, ir));
     events
 }
 
-/// 2 周目の開始の後の入力列。
-fn play_round2(s: &mut Session, ir: &Ir, r2: &[Root]) -> Vec<Event> {
-    let mut events = Vec::new();
-    let ev = &mut events;
-    let cmd = |c: &str| Input::Command(c.into());
-    let ui = |v: &str, p: &str| Input::Ui {
-        view: v.into(),
-        path: p.into(),
-    };
-    let ch = |c: &str| Input::Choice(c.into());
-    let ap = |d: Decision, t: Option<&str>| Input::Approval {
-        decision: d,
-        target: t.map(Into::into),
-    };
-    input(s, ev, cmd("/new-idea bbs-search"));
-    input(s, ev, ui("v-files", "ideas/bbs-search/README.md"));
-    input(
-        s,
-        ev,
-        Input::Text(
-            "ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい".into(),
-        ),
-    );
-    for _ in 0..3 {
-        tick(s, ev);
-    }
-    input(s, ev, ch("ans-login-first"));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-doc", "ideas/bbs-search/README.md#status"));
-    input(s, ev, ch("cand-session"));
-    go(s, ev, ir, r2, "st-2-6");
-    input(s, ev, ap(Decision::Revise, Some("expect")));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-tasks", "TASK-1"));
-    input(s, ev, ch("ans-login-1"));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-doc", "ideas/bbs-search/README.md#status"));
-    assert!(
-        current(s).ends_with("/st-3-2"),
-        "after idea-cycle: {}",
-        current(s)
-    );
-    input(s, ev, ch("diff-only"));
-    input(s, ev, ui("v-files", "impl/docs/behavior-bbs-search.md"));
-    input(s, ev, cmd("/create-issue-tree behavior-bbs-search.md"));
-    input(s, ev, ui("v-issue-tree", "issues/child-9"));
-    input(s, ev, cmd("/implement-issue-tree 43 --external-checks []"));
-    input(s, ev, ch("ans-none-explicit"));
-    go(s, ev, ir, r2, "st-7-4");
-    input(s, ev, ui("v-pr-cards", "prs/pr-2-a"));
-    input(s, ev, ui("v-pr-cards", "prs/pr-2-a#merge"));
-    input(s, ev, ui("v-issue-tree", "issues/child-9"));
-    events
+/// 2 周目の開始の後の入力列（計画は `common/rounds.rs`）。
+fn play_round2(s: &mut Session, ir: &Ir) -> Vec<Event> {
+    run_plan(s, &round2_plan(ir))
 }
 
 /// 1 周目の根ごとの切り身（すべて存在する）。
@@ -311,10 +217,9 @@ fn flags_of(s: &Session, ir: &Ir, roots: &[Root], id: &str) -> Vec<String> {
 fn first_round_slices_are_unchanged_after_the_second_round_ends() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
     let before = slices_of(&s, &r1);
-    finish_round2(&mut s, &ir, &r2);
+    finish_round2(&mut s, &ir);
     assert_eq!(current(&s), "main/r2-impl");
     assert_eq!(slices_of(&s, &r1), before);
     for u in steps(&ir, &r1) {
@@ -334,7 +239,7 @@ fn first_round_flags_are_not_set_in_second_round_instances() {
     let (r1, _) = round_roots(&ir, "s-r1");
     let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
-    let ev = finish_round2(&mut s, &ir, &r2);
+    let ev = finish_round2(&mut s, &ir);
     // 2 周目の切り身には、2 周目の受付が立てたものだけがある（`stopped` は無い）。
     assert_eq!(flags_of(&s, &ir, &r2, "st-7-1"), vec!["precheck_ok"]);
     assert_eq!(flags_of(&s, &ir, &r2, "st-2-4"), vec!["revised"]);
@@ -362,7 +267,7 @@ fn second_round_end_matches_the_playthrough_asserts() {
     let (r1, _) = round_roots(&ir, "s-r1");
     let (r2, _) = round_roots(&ir, "s-r2");
     let mut s = finished_round1(&ir, &r1);
-    finish_round2(&mut s, &ir, &r2);
+    finish_round2(&mut s, &ir);
     let st = |ro: &[Root], id: &str| s.step_status(&step_in(&ir, ro, id));
     assert_eq!(st(&r1, "st-7-3"), StepStatus::Achieved);
     assert_ne!(st(&r2, "st-7-3"), StepStatus::Achieved);
@@ -449,63 +354,9 @@ fn begin_with_unmet_condition_is_refused_without_change() {
 /// 1 周目を `pt-r1` の入力列で最後まで流す（世界状態を持つ。`finished_round1` は状態を手で組むので世界状態が空）。
 /// 飛ばす 3 か所 (a)(b)(c) の理由は冒頭の `//!` に書いた。
 fn play_round1(ir: &Ir) -> Session {
-    let (r1, _) = round_roots(ir, "s-r1");
     let mut session = Session::new(ir.clone());
-    let mut events = Vec::new();
-    let ev = &mut events;
-    let cmd = |c: &str| Input::Command(c.into());
-    let ui = |v: &str, p: &str| Input::Ui {
-        view: v.into(),
-        path: p.into(),
-    };
-    let ch = |c: &str| Input::Choice(c.into());
-    let ap = |d: Decision, t: Option<&str>| Input::Approval {
-        decision: d,
-        target: t.map(Into::into),
-    };
-    let s = &mut session;
-    ev.extend_from_slice(s.apply(Op::Control(Control::Begin("s-r1".into()))));
-    input(s, ev, cmd("/new-idea bbs-with-login"));
-    input(s, ev, ui("v-files", "ideas/bbs-with-login/README.md"));
-    input(
-        s,
-        ev,
-        Input::Text(
-            "ログインした人だけが書き込める掲示板で、投稿が増えると目的の投稿を探しにくい".into(),
-        ),
-    );
-    for _ in 0..3 {
-        tick(s, ev);
-    }
-    input(s, ev, ch("ans-login-first"));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-doc", "ideas/bbs-with-login/README.md#status"));
-    input(s, ev, ch("cand-session"));
-    // (a) 着地の `on_enter` が未実装で結果の文書が無いので、`go` と verdict の操作を飛ばす。
-    go(s, ev, ir, &r1, "st-2-6");
-    input(s, ev, ap(Decision::Revise, Some("expect")));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-tasks", "TASK-1"));
-    input(s, ev, ch("ans-login-1"));
-    input(s, ev, ap(Decision::Approve, None));
-    input(s, ev, ui("v-doc", "ideas/bbs-with-login/README.md#status"));
-    input(s, ev, ch("diff-only"));
-    input(s, ev, ui("v-files", "impl/docs/behavior-bbs-with-login.md"));
-    // (b) `when` つき `next` が評価されず `setup=true` の枝に入らないので、`st-4-1` へ飛んで 2 つの受付を送る。
-    go(s, ev, ir, &r1, "st-4-1");
-    input(s, ev, cmd("/init-claude"));
-    input(s, ev, cmd("/setup-repo-guards"));
-    input(s, ev, cmd("/create-issue-tree behavior-bbs-with-login.md"));
-    input(s, ev, ui("v-issue-tree", "issues/child-1"));
-    input(s, ev, cmd("/implement-issue-tree 42 --external-checks []"));
-    input(s, ev, ch("ans-none-explicit"));
-    // (c) `wait` の Step で処理中が始まらないので、tick 2 回を送らず次の Step へ飛ぶ。
-    go(s, ev, ir, &r1, "st-7-3");
-    input(s, ev, ui("v-pr-cards", "prs/pr-1-a"));
-    input(s, ev, cmd("/implement-issue-tree 42"));
-    input(s, ev, ch("ans-add-arg"));
-    input(s, ev, ui("v-pr-cards", "prs/pr-1-a#merge"));
-    input(s, ev, ui("v-issue-tree", "issues/child-1"));
+    let events = run_plan(&mut session, &round1_plan(ir));
+    let s = &session;
     // 2 周目の開始条件（`r1-impl` が達成）を満たす終了の状態であること。
     assert_eq!(current(s), "main/r1-impl", "{events:?}");
     for c in ["main/r1-idea", "main/r1-impl"] {
@@ -616,11 +467,10 @@ fn mod5_fresh_start_world_differs_from_round1_end_only_by_unreachable_paths() {
 fn mod5_round1_slice_hashes_match_between_round1_end_and_round2_end() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let (r2, _) = round_roots(&ir, "s-r2");
     assert_eq!(r1.len(), 2);
     let mut s = play_round1(&ir);
     let at_end: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
-    finish_round2(&mut s, &ir, &r2);
+    finish_round2(&mut s, &ir);
     assert_eq!(current(&s), "main/r2-impl");
     let at_r2: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
     for ((r, a), b) in r1.iter().zip(&at_end).zip(&at_r2) {
