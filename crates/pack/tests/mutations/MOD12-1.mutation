@@ -1,0 +1,8 @@
+id: MOD12-1
+package: fandhe-workshop-pack
+test: round_three
+target: crates/pack/src/expand.rs
+find:             format!("{}@{}", u.module, u.instance)
+replace:             format!("{}@round1", u.module)
+expect-fail: mod12_instances_grow_from_five_to_seven_without_touching_existing
+note: 実体名を捨てて 3 周目が既存の実体 ID と衝突する

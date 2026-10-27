@@ -1,0 +1,8 @@
+id: MOD12-2
+package: fandhe-workshop-pack
+test: round_three
+target: crates/core/src/start_gate.rs
+find:     if met == Some(true) {
+replace:     if met == Some(true) || true {
+expect-fail: mod12_round3_start_is_refused_until_round2_ends
+note: 開始条件を満たさなくても開始を許す

@@ -6,7 +6,7 @@
 //! `RecordedSession`）の差は [`Drive`] が吸収する。
 //!
 //! 未実装の部品（着地の `on_enter`、`when` つき `next`、`wait` の自動開始）を避けるため、1 周目は 3 か所、2 周目は 2 か所を
-//! `GoTo` で飛ばす（`docs/testing.md` の 5.258・5.260）。飛ばした分、`Changed` の件数は真の通しと違いうる。
+//! `GoTo` で飛ばす（`docs/testing.md` の 5.258・5.260）。3 周目（TASK-245）も 2 周目と同じ 2 か所を飛ばす。飛ばした分、`Changed` の件数は真の通しと違いうる。
 
 #![allow(dead_code, reason = "試験ファイルごとに使う部品が異なるため")]
 
@@ -214,39 +214,71 @@ pub fn begin_round2_plan() -> Vec<PlanStep> {
     vec![begin("s-r2")]
 }
 
-/// 2 周目の開始の後の計画。入力列は `pt-rounds` の `s-r2` の区間。飛ばすのは `st-2-6`・`st-7-4` の 2 か所。
-pub fn round2_plan(ir: &Ir) -> Vec<PlanStep> {
-    let (r2, _) = round_roots(ir, "s-r2");
+/// 2 周目以降の周回の、開始の後の計画の本体（TASK-245）。2 周目と 3 周目は同じ構成（`setup: "false"`・`branch_demo: "false"`）で、
+/// 違うのは開始点・題材・根・子・PR の引数だけなので、列を 1 つにして引数で変える（二重定義をしない）。
+/// 飛ばすのは `st-2-6`・`st-7-4` の 2 か所。
+fn later_round_plan(
+    ir: &Ir,
+    start_id: &str,
+    idea: &str,
+    root: &str,
+    child: &str,
+    pr: &str,
+) -> Vec<PlanStep> {
+    let (rs, _) = round_roots(ir, start_id);
+    let readme = format!("ideas/{idea}/README.md");
+    let status = format!("{readme}#status");
+    let behavior = format!("behavior-{idea}.md");
+    let child_path = format!("issues/child-{child}");
+    let pr_path = format!("prs/{pr}-a");
+    let pr_merge = format!("{pr_path}#merge");
     vec![
-        cmd("/new-idea bbs-search"),
-        ui("v-files", "ideas/bbs-search/README.md"),
+        cmd(&format!("/new-idea {idea}")),
+        ui("v-files", &readme),
         text(IDEA_TEXT),
         PlanStep::Tick,
         PlanStep::Tick,
         PlanStep::Tick,
         ch("ans-login-first"),
         ap(Decision::Approve, None),
-        ui("v-doc", "ideas/bbs-search/README.md#status"),
+        ui("v-doc", &status),
         ch("cand-session"),
-        go(ir, &r2, "st-2-6"),
+        go(ir, &rs, "st-2-6"),
         ap(Decision::Revise, Some("expect")),
         ap(Decision::Approve, None),
         ui("v-tasks", "TASK-1"),
         ch("ans-login-1"),
         ap(Decision::Approve, None),
-        ui("v-doc", "ideas/bbs-search/README.md#status"),
+        ui("v-doc", &status),
         PlanStep::ExpectCurrentSuffix("/st-3-2"),
         ch("diff-only"),
-        ui("v-files", "impl/docs/behavior-bbs-search.md"),
-        cmd("/create-issue-tree behavior-bbs-search.md"),
-        ui("v-issue-tree", "issues/child-9"),
-        cmd("/implement-issue-tree 43 --external-checks []"),
+        ui("v-files", &format!("impl/docs/{behavior}")),
+        cmd(&format!("/create-issue-tree {behavior}")),
+        ui("v-issue-tree", &child_path),
+        cmd(&format!(
+            "/implement-issue-tree {root} --external-checks []"
+        )),
         ch("ans-none-explicit"),
-        go(ir, &r2, "st-7-4"),
-        ui("v-pr-cards", "prs/pr-2-a"),
-        ui("v-pr-cards", "prs/pr-2-a#merge"),
-        ui("v-issue-tree", "issues/child-9"),
+        go(ir, &rs, "st-7-4"),
+        ui("v-pr-cards", &pr_path),
+        ui("v-pr-cards", &pr_merge),
+        ui("v-issue-tree", &child_path),
     ]
+}
+
+/// 2 周目の開始の後の計画。入力列は `pt-rounds` の `s-r2` の区間。飛ばすのは `st-2-6`・`st-7-4` の 2 か所。
+pub fn round2_plan(ir: &Ir) -> Vec<PlanStep> {
+    later_round_plan(ir, "s-r2", "bbs-search", "43", "9", "pr-2")
+}
+
+/// 3 周目の開始（`Control::Begin`）だけの計画（TASK-245。MOD-12）。
+pub fn begin_round3_plan() -> Vec<PlanStep> {
+    vec![begin("s-r3")]
+}
+
+/// 3 周目の開始の後の計画（TASK-245）。2 周目と同じ入力列で、引数だけが `ch-round3` のもの。飛ばすのは同じ 2 か所。
+pub fn round3_plan(ir: &Ir) -> Vec<PlanStep> {
+    later_round_plan(ir, "s-r3", "bbs-notify", "44", "12", "pr-3")
 }
 
 /// 2 周目の計画を、`prefix` で始まる最初のコマンドの直前で切った前半（TASK-238。MOD-8）。
