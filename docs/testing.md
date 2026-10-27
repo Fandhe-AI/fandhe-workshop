@@ -9183,3 +9183,20 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - web の入力欄の入れ替えは未対応
   - S-7 の 1,000 通り × 2 の誘導つきの生成は TASK-243 の担当
   - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.326 新しい周回を新しいルートで始める（TASK-238 1/2。MOD-8）
+
+- 目的: 2 周目が、教材の実体の引数で分けた新しい成果物の経路で始まり、2 周目の入力が前の周回の根に継ぎ足されないことを固定する
+- 方式: `crates/pack/tests/round_slice_init.rs` の `mod8_*` 4 件。経路は `ir.instances` の引数（`root`・`child`・`pr`）から導き、直書きしない。2 周目を `st-6-1` まで進める部分は `common/rounds.rs` の `round2_plan_until_create_tree`（`round2_plan` から切り出し、入力列を重複させない）
+  - `mod8_round1_end_has_closed_root_and_no_new_root`: 1 周目の終了で前の根が `closed`、2 周目の経路がまだ無い（前提の確認。引数が 2 周で異なることも表明する）
+  - `mod8_round2_creates_the_new_root_from_its_arguments`: `st-6-1` の `/create-issue-tree` が、2 周目の引数の 2 経路だけを新しく作る（変更前なし・変更後 `state: open`・2 周目の根）
+  - `mod8_round2_changes_never_touch_round1_artifact_paths`: 2 周目の全操作の `Changed` の経路が 1 周目の経路と交わらず、新しい根を含む
+  - `mod8_round2_rejects_root_option_without_change`: `--root` つきの入力が `not_in_this_step`・`rj-6-1-no-root-option` で拒否され、受付・変化が 0 件で実行状態が変わらない。拒否の後の正しい入力は新しい根を作る
+- 決定: エンジンのコードは変えない（仕組みは `expand.rs` の実体の引数の展開と、教材パックの規則 `r-new-root`・`r-with-root` で既にある。5.258・5.260 と同じ方針）。`testdata/` も変えない
+- 結果（2026-10-27）: `round_slice_init` 22 件が合格
+- 変異注入（2026-10-27）: `MOD8-1`（実体の引数を捨てる）・`MOD8-2`（`on.missing` を見ない）ともに DETECTED
+- 限界:
+  - `--root` の拒否は教材パックの規則（ROUND2-3・ROUND2-18）がエンジンを通して届くことの観察で、エンジン独自の振る舞いではない
+  - 1 周目の流しは 5.260 の `GoTo` の回避 3 か所を引き継ぐ
+  - 前の根の属性が閉じたまま保たれることと、成果物・完了済みタスク・環境の引き継ぎは TASK-238 2/2 が持つ
+  - 作成者と実装者が同じ AI で、人の確認は得ていない

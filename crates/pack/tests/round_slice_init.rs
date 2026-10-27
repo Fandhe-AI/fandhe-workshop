@@ -22,6 +22,12 @@
 //! `wait` の処理中が未実装で `prs/pr-1-a` が作られないため、1 周目の `st-2-1` への `GoTo` と入力（`ideas/bbs-with-login/README.md`
 //! の `status` の書き換え）で代替する。案内レベルを戻すことの確認は、`Begin` が開始点の `guidance` を反映しない（TASK-294）ため
 //! core の試験（`restore_owner_slice`）が受け持つ。
+//!
+//! TASK-238 1/2 として、次の周回が新しいルートで始まることを確かめる（`mod8_*`。MOD-8）。経路は IR の `instances` の引数
+//! （`root`・`child`・`pr`）から導き、直書きしない。2 周目の `/create-issue-tree` が 2 周目の引数の経路だけを新しく作り、
+//! 2 周目の全操作の `Changed` が 1 周目の経路と交わらず、`--root` つきの入力が拒否される。`--root` の拒否は教材パックの規則
+//! （`r-with-root`。ROUND2-3・ROUND2-18）の観察で、エンジン独自の振る舞いではない。閉じた根の保持と引き継ぎは TASK-238 2/2 が持つ。
+//! 記録は `docs/testing.md` の 5.326。
 
 mod common;
 #[path = "common/rounds.rs"]
@@ -31,15 +37,20 @@ mod sha256;
 
 use common::testdata;
 use fandhe_workshop_contract::ir::Ir;
+use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_core::addr::{Root, StepUid, TickAddr};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::instance::{owner_of, root_of};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::step_status::StepStatus;
+use fandhe_workshop_core::world::Element;
 use fandhe_workshop_core::{Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
-use rounds::{begin_round2_plan, round1_plan, round2_plan, round_roots, run_plan, step_in, steps};
+use rounds::{
+    begin_round2_plan, round1_plan, round2_plan, round2_plan_until_create_tree, round_roots,
+    run_plan, step_in, steps,
+};
 
 fn ir() -> Ir {
     let bytes = compile_dir(&testdata("module-reuse-rounds/test-data/pack")).expect("compile");
@@ -764,4 +775,152 @@ fn mod9_round1_checkpoint_restore_does_not_revert_round2_start_world() {
             "round 2 path {path}"
         );
     }
+}
+
+/// 実体の引数から導いた成果物の経路（`issues/root-N`・`issues/child-M`・`prs/<pr>-a`）。
+fn artifact_paths(ir: &Ir, instance: &str) -> [String; 3] {
+    let i = ir
+        .instances
+        .iter()
+        .find(|i| i.id == instance)
+        .unwrap_or_else(|| panic!("instance {instance}"));
+    let arg = |k: &str| i.args.get(k).unwrap_or_else(|| panic!("arg {k}")).clone();
+    [
+        format!("issues/root-{}", arg("root")),
+        format!("issues/child-{}", arg("child")),
+        format!("prs/{}-a", arg("pr")),
+    ]
+}
+
+fn state_of(s: &Session, path: &str) -> Option<String> {
+    s.state()
+        .run
+        .world
+        .get(path)
+        .and_then(|e| e.attrs.get("state").cloned())
+}
+
+/// 1 周目の終了後に 2 周目を開始し、`st-6-1` まで進める。
+fn round2_at_st61(ir: &Ir) -> Session {
+    let mut s = play_round1(ir);
+    begin_round2(&mut s);
+    run_plan(&mut s, &round2_plan_until_create_tree(ir));
+    s
+}
+
+#[test]
+fn mod8_round1_end_has_closed_root_and_no_new_root() {
+    let ir = ir();
+    let r1 = artifact_paths(&ir, "issue-to-merge@round1");
+    let r2 = artifact_paths(&ir, "issue-to-merge@round2");
+    assert_ne!(r1[0], r2[0]);
+    assert_ne!(r1[1], r2[1]);
+    let s = play_round1(&ir);
+    assert_eq!(state_of(&s, &r1[0]).as_deref(), Some("closed"));
+    assert_eq!(state_of(&s, &r1[1]).as_deref(), Some("closed"));
+    for p in &r2 {
+        assert!(!s.state().run.world.contains_key(p), "{p} exists early");
+    }
+}
+
+#[test]
+fn mod8_round2_creates_the_new_root_from_its_arguments() {
+    let ir = ir();
+    let r2 = artifact_paths(&ir, "issue-to-merge@round2");
+    let mut s = round2_at_st61(&ir);
+    let call = s.state().run.current.clone().expect("current");
+    assert_eq!(root_of(&call).0, "issue-to-merge@round2");
+    let events = s
+        .apply(Op::Input(Input::Command(
+            "/create-issue-tree behavior-bbs-search.md".into(),
+        )))
+        .to_vec();
+    let mut changed: Vec<(String, Option<Element>, Option<Element>, Root)> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed {
+                at,
+                path,
+                before,
+                after,
+                ..
+            } => Some((
+                path.clone(),
+                before.clone(),
+                after.clone(),
+                root_of(&at.step),
+            )),
+            _ => None,
+        })
+        .collect();
+    changed.sort_by(|a, b| a.0.cmp(&b.0));
+    let paths: Vec<&str> = changed.iter().map(|c| c.0.as_str()).collect();
+    let mut expect = vec![r2[0].as_str(), r2[1].as_str()];
+    expect.sort_unstable();
+    assert_eq!(paths, expect, "{events:?}");
+    for (path, before, after, root) in &changed {
+        assert!(before.is_none(), "{path} existed");
+        assert_eq!(
+            after
+                .as_ref()
+                .and_then(|e| e.attrs.get("state"))
+                .map(String::as_str),
+            Some("open"),
+            "{path}"
+        );
+        assert_eq!(root.0, "issue-to-merge@round2");
+        assert!(s.state().run.world.contains_key(path));
+    }
+}
+
+#[test]
+fn mod8_round2_changes_never_touch_round1_artifact_paths() {
+    let ir = ir();
+    let r1 = artifact_paths(&ir, "issue-to-merge@round1");
+    let r2 = artifact_paths(&ir, "issue-to-merge@round2");
+    let mut s = play_round1(&ir);
+    let events = finish_round2(&mut s, &ir);
+    let paths: Vec<&str> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { path, .. } => Some(path.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(paths.contains(&r2[0].as_str()), "{paths:?}");
+    for p in &paths {
+        assert!(!r1.iter().any(|q| q == p), "round 2 touched {p}");
+    }
+}
+
+#[test]
+fn mod8_round2_rejects_root_option_without_change() {
+    let ir = ir();
+    let r2 = artifact_paths(&ir, "issue-to-merge@round2");
+    let mut s = round2_at_st61(&ir);
+    let (run, world) = (s.state().run.clone(), s.state().run.world.clone());
+    let events = s
+        .apply(Op::Input(Input::Command(
+            "/create-issue-tree behavior-bbs-search.md --root 42".into(),
+        )))
+        .to_vec();
+    let rejected = events.iter().any(|e| {
+        matches!(e, Event::Judged { judgment: Judgment::Rejected(r), .. }
+            if r.category == RejectCategory::NotInThisStep && r.text == "rj-6-1-no-root-option")
+    });
+    assert!(rejected, "{events:?}");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::Accepted { .. } | Event::Changed { .. })),
+        "{events:?}"
+    );
+    assert_eq!(s.state().run.world, world);
+    assert_eq!(s.state().run, run);
+    assert!(!s.state().run.world.contains_key(&r2[0]));
+    // 拒否の後も、正しい入力は新しい根を作る。
+    s.apply(Op::Input(Input::Command(
+        "/create-issue-tree behavior-bbs-search.md".into(),
+    )));
+    assert_eq!(state_of(&s, &r2[0]).as_deref(), Some("open"));
 }
