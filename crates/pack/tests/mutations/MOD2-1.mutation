@@ -1,0 +1,8 @@
+id: MOD2-1
+package: fandhe-workshop-pack
+test: module_cycle_packs
+target: crates/pack/src/expand.rs
+find:         if let Some(pos) = self.module_stack.iter().position(|(m, _)| *m == u.module) {
+replace:         if let Some(pos) = self.module_stack.iter().position(|(m, _)| *m == u.module && false) {
+expect-fail: mod2_three_cycles_detected_by_validate
+note: 巡回の検出が外れ、深さの上限の診断（nesting exceeds）に落ちる。経路つきの巡回の文面を確かめる試験が失敗する
