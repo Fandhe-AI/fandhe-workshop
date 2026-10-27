@@ -1,0 +1,8 @@
+id: MOD8-1
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/pack/src/expand.rs
+find:         args.extend(u.args);
+replace:         let _ = &u.args;
+expect-fail: mod8_round2_creates_the_new_root_from_its_arguments
+note: 実体の引数を無視して既定値に倒すため、2 周目が前の根の経路を作り直す

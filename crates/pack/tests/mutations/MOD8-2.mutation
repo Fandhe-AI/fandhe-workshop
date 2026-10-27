@@ -1,0 +1,8 @@
+id: MOD8-2
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/command_rule.rs
+find:         if !missing_holds(on, matched)? || !args_hold(on, matched)? {
+replace:         if !args_hold(on, matched)? {
+expect-fail: mod8_round2_rejects_root_option_without_change
+note: on.missing を見ず、--root つきの入力を新しい根の規則で受け付けてしまう

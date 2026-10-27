@@ -248,3 +248,19 @@ pub fn round2_plan(ir: &Ir) -> Vec<PlanStep> {
         ui("v-issue-tree", "issues/child-9"),
     ]
 }
+
+/// 2 周目の計画を、`st-6-1` の `/create-issue-tree` の直前で切った前半（TASK-238 1/2。MOD-8）。
+/// 末尾の `ExpectCurrentSuffix` で `st-6-1` に居ることを確かめる。入力列を `round2_plan` と重複させないため、
+/// 元の計画から切り出す。
+pub fn round2_plan_until_create_tree(ir: &Ir) -> Vec<PlanStep> {
+    let plan = round2_plan(ir);
+    let at = plan
+        .iter()
+        .position(|s| {
+            matches!(s, PlanStep::Op(Op::Input(Input::Command(c))) if c.starts_with("/create-issue-tree"))
+        })
+        .expect("/create-issue-tree in round 2 plan");
+    let mut head = plan[..at].to_vec();
+    head.push(PlanStep::ExpectCurrentSuffix("/st-6-1"));
+    head
+}
