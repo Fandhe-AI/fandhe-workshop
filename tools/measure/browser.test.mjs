@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { median, p95, toMicros, resolveLaunchOptions } from './browser.mjs';
+import { median, p95, toMicros, resolveLaunchOptions, planRoundsStage } from './browser.mjs';
 import { cases, judge, expectedCounts, VR_THRESHOLD_US } from './view-redraw.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
@@ -156,4 +156,34 @@ test('cli: log-slope without --dir exits 2 with empty stdout', () => {
   const r = run(['--kind', 'log-slope']);
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
+});
+
+test('cli: log-rounds without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'log-rounds']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
+
+test('planRoundsStage: 6 groups at 500 rows split 244 inputs, the remainder going to the older groups', () => {
+  const p = planRoundsStage({ groups: 6, rows: 500 });
+  assert.equal(p.fillTotal, 244);
+  assert.deepEqual(p.perGroup, [41, 41, 41, 41, 40, 40]);
+  assert.deepEqual(p.window, [500, 578]);
+  assert.equal(p.folded, false);
+});
+
+test('planRoundsStage: every stage keeps li on one side of 1,000 over the window and sums to the rows', () => {
+  for (const groups of [6, 48]) {
+    for (const rows of [500, 1200, 2000]) {
+      const p = planRoundsStage({ groups, rows });
+      assert.equal(2 * p.perGroup.reduce((a, b) => a + b, 0) + 2 * groups, rows);
+      assert.equal(p.folded, rows >= 1200);
+    }
+  }
+});
+
+test('planRoundsStage: a stage crossing the fold target or with too few rows is refused', () => {
+  assert.throws(() => planRoundsStage({ groups: 6, rows: 960 }), /crosses/);
+  assert.throws(() => planRoundsStage({ groups: 48, rows: 100 }), /too few/);
+  assert.throws(() => planRoundsStage({ groups: 6, rows: 501 }), /multiple/);
 });
