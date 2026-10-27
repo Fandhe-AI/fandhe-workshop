@@ -1,0 +1,8 @@
+id: MOD11-4
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/instance.rs
+find:         .find(|i| i.caller.as_deref() == Some(uid.0.as_str()))
+replace:         .find(|_| false)
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X6 相当。呼び出しの Step の持ち主を呼ばれた実体でなく scope の根にする

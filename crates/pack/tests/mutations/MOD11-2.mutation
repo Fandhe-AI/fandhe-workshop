@@ -1,0 +1,8 @@
+id: MOD11-2
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/stop.rs
+find:     let mut run = crate::entry_derive::revert_owner(&state.run, &entry.run, &owner, &touched);
+replace:     let mut run = entry.run.clone(); let _ = (&owner, &touched);
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X2 相当。停止で入口の写し全体をそのまま戻す（持ち主で絞らない）

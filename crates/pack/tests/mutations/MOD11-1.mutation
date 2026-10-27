@@ -1,0 +1,8 @@
+id: MOD11-1
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/checkpoint.rs
+find:     let mut run = crate::entry_derive::revert_owner(&state.run, &cp.run, &owner_root, &touched);
+replace:     let mut run = crate::entry_derive::revert_owner(&state.run, &cp.run, &owner_root, &touched); run.slices = cp.run.slices.clone();
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X1 相当。復帰で全ての根の切り身を写しへ戻す（持ち主で絞らない）
