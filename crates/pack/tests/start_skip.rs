@@ -262,6 +262,27 @@ fn mod6_start_after_round2_begin_keeps_sibling_instance() {
     let events = session
         .apply(Op::Control(Control::Begin(START.to_string())))
         .to_vec();
+    // 途中開始が成功した（拒否されていない）ことを、開始の 1 件・現在の Step・省略の 3 件で固定する。
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, Event::Begun { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        session.state().run.current.as_ref(),
+        Some(&StepUid("issue-to-merge@round2/st-6-1".to_string()))
+    );
+    let skipped: Vec<StepUid> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Skipped { at } => Some(at.step.clone()),
+            _ => None,
+        })
+        .collect();
+    let uid = |id: &str| StepUid(format!("issue-to-merge@round2/{id}"));
+    assert_eq!(skipped, vec![uid("st-3-2"), uid("st-4-1"), uid("st-5-1")]);
     for e in &events {
         if let Event::Skipped { at } = e {
             assert!(at.step.0.starts_with("issue-to-merge@round2/"), "{at:?}");
