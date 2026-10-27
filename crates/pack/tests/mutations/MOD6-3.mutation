@@ -1,0 +1,8 @@
+id: MOD6-3
+package: fandhe-workshop-pack
+test: start_instance
+target: crates/core/src/begin.rs
+find:     transit::move_to(ir, state, next, &start.node, &mut events);
+replace:     let _ = (&ir, &next);
+expect-fail: mod6_round2_start_enters_the_start_step
+note: 開始の節点へ着地しない

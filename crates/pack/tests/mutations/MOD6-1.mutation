@@ -1,0 +1,8 @@
+id: MOD6-1
+package: fandhe-workshop-pack
+test: start_instance
+target: crates/pack/src/expand.rs
+find:                     .try_for_each(|v| subst_value(v, &p.args, &mut left));
+replace:                     .try_for_each(|v| { let _ = (&v, &left); Ok::<(), SubstError>(()) });
+expect-fail: mod6_module_start_effects_are_substituted_per_instance_in_ir
+note: 開始の effects の置換をしない
