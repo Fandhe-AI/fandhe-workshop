@@ -2581,15 +2581,15 @@ impl Component for EngineHost {
                 self.apply_engine(op);
             }
             HostAction::SelectView(kind) => self.select_view(kind),
-            // 今の提示と完全一致したときだけ、一致した開始点の節点へ移る。提示なし・処理中・不一致は core を呼ばない（fail-closed）。
+            // 今の提示と完全一致したときだけ、一致した開始点を `Control::Begin` で始める。提示なし・処理中・不一致は core を呼ばない（fail-closed）。
             // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
             HostAction::NextChapter(id) => {
                 let target = self
                     .model
                     .session()
                     .and_then(|s| crate::next_chapter::press_target(s.ir(), s.state(), &id));
-                if let Some(node) = target {
-                    self.apply_engine(Op::Control(Control::GoTo(StepUid(node))));
+                if let Some(start_id) = target {
+                    self.apply_engine(Op::Control(Control::Begin(start_id)));
                 }
             }
             // 保存は今の提示に保存のボタンがあるときだけ、復帰は今の提示の ID と完全一致したときだけ core へ送る（fail-closed）。
