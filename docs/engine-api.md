@@ -38,7 +38,7 @@
 | `hint_select` | `hints_at`・`current_hints` | 現在の Step と案内レベルで出せるヒントの ID の一覧（規則は契約の `visible_hints`。GUIDE-2、TASK-293）。`CONTRACT_VERSION` の署名の対象に含まない | ヒントを開く判定（TASK-295）・画面（TASK-530）・教材テスト（pack） |
 | `step_status` | `StepStatus` | Step の状態の 5 値 | 表示・保存 |
 | `world` | `World`・`Element` | 世界状態（経路から要素への写像） | 表示・保存 |
-| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload`（`Session::instances`・`slice`・`step_status`・`steps_of` の読み取り用メソッドを含む） | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
+| `session` | `Session`・`SessionState`（`hints_opened` を含む）・`RunState`（`guidance_level` を含む）・`Busy`・`Slice`（`clarifying` を含む）・`EntryCopy`・`Checkpoint`・`Engine`・`apply`・`reload`（`Session::instances`・`slice`・`step_status`・`steps_of`・`current_draft`、`SessionState::draft_root`・`current_draft` の読み取り用メソッドを含む。`RecordedSession::current_draft` も同じ） | 実行環境と遷移関数。再読み込み（`session::reload`・`Session::reload`、SAVE-4）は `apply()` の外にある | web・保存 |
 | `projection` | `Projection`・`LogRow`・`Mark`・`MarkKind`・`ReviewItem`・`ReviewChange` | イベント列から導く表示用の見え方 | 表示 |
 
 - 案内レベルとヒントの値の型（`GuidanceLevel`・`visible_hints`）は `fandhe_workshop_contract::guidance` にあり、`GUIDANCE_CONTRACT_VERSION` で別に管理する。本文書の対象外である
@@ -206,3 +206,4 @@
 - 2026-10-23: 呼び出しの Step の状態・選択の持ち主を呼ばれた実体の根にした（`instance::owner_of` を足し、`status_of` に `ir` を渡す。フラグ・効果の根は `root_of` のまま。TASK-235 1/2）。状態の型・欄・直列化は変わらず、切り身の鍵が変わるのは `use` の Step の状態だけである。配信が未実装で外に出た保存データが無いこと、spec の session-design §1 の規則に合わせる修正であることから、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-23: Step に入るたびに状態の入口の写しを無効化し、写しを 1 つだけにした（`transit` の着地・呼び出し元への戻り。MOD-10、TASK-242 1/2）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-23: 処理中の停止を、持ち主の根の切り身・位置と持ち主が写しの後に書いた世界状態の経路だけ戻す形にした（`stop`・`entry_derive::revert_owner`。MOD-10、TASK-242 2/2）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
+- 2026-10-27: 現在の根の下書きを読む `Session::current_draft`・`RecordedSession::current_draft`・`SessionState::draft_root`・`current_draft` を足した（読み取り専用。`drafts` から導くだけで欄は足さない。MOD-4、TASK-236 1/2）。型・直列化・世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた

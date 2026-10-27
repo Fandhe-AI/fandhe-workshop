@@ -167,6 +167,26 @@ pub struct SessionState {
     pub hints_opened: BTreeMap<StepUid, u32>,
 }
 
+impl SessionState {
+    /// 下書きの鍵になる現在の根（MOD-4）。現在の Step が無い（開始前）ときは `None`。
+    ///
+    /// 鍵は `StepUid::root`（入れ子の実体では `Instance.id`）であり、`instance::owner_of` ではない。
+    /// 呼び出しの Step でも、Step の uid の根を使う。下書きの記録（`history_envelope::record_draft`・`record_submit`）と
+    /// 読み取り（[`SessionState::current_draft`]）が同じ根を引くよう、計算をここ 1 か所に置く。
+    pub fn draft_root(&self) -> Option<Root> {
+        self.run.current.as_ref().map(StepUid::root)
+    }
+
+    /// 現在の根の下書き（MOD-4）。根の切り替え（開始・移動）で表に出る下書きが入れ替わる読み取り口である。
+    ///
+    /// 開始前・その根の欄が無いときは `None`、空文字列の下書きは `Some("")`。欄を足さず `drafts` から導くだけなので、
+    /// 履歴の写し（`snapshot`）は変わらない。開始・移動・停止・復帰は `drafts` に触れないため、値は根ごとに保たれる。
+    pub fn current_draft(&self) -> Option<&str> {
+        let root = self.draft_root()?;
+        self.drafts.get(&root).map(String::as_str)
+    }
+}
+
 impl Default for SessionState {
     fn default() -> Self {
         SessionState {
@@ -419,6 +439,11 @@ impl Session {
     /// 現在の状態。
     pub fn state(&self) -> &SessionState {
         &self.state
+    }
+
+    /// 現在の根の下書き（MOD-4）。[`SessionState::current_draft`] と同じ。
+    pub fn current_draft(&self) -> Option<&str> {
+        self.state.current_draft()
     }
 
     /// 現在の世代。

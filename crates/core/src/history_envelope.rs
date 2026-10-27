@@ -37,7 +37,6 @@ use fandhe_workshop_contract::history::HistoryEnvelope;
 use fandhe_workshop_contract::history_version::HistoryVersions;
 use fandhe_workshop_contract::ir::Ir;
 
-use crate::addr::StepUid;
 use crate::input::Op;
 use crate::ops_record::{OpsRecorder, SessionOp};
 use crate::session::SessionState;
@@ -113,7 +112,7 @@ pub fn build_envelope_with(
 /// 下書きを `ops` に記録し、写しの現在の根の下書きも同じ値にする（MOD-4・SAVE-18）。
 /// 現在の Step が無いときは `ops` にだけ記録する。
 pub fn record_draft(state: &mut SessionState, rec: &mut OpsRecorder, text: String) {
-    if let Some(root) = state.run.current.as_ref().map(StepUid::root) {
+    if let Some(root) = state.draft_root() {
         state.drafts.insert(root, text.clone());
     }
     rec.draft(text);
@@ -124,7 +123,7 @@ pub fn record_draft(state: &mut SessionState, rec: &mut OpsRecorder, text: Strin
 pub fn record_submit(state: &mut SessionState, rec: &mut OpsRecorder, text: String) -> bool {
     let recorded = rec.submit(text);
     if recorded {
-        if let Some(root) = state.run.current.as_ref().map(StepUid::root) {
+        if let Some(root) = state.draft_root() {
             state.drafts.remove(&root);
         }
     }

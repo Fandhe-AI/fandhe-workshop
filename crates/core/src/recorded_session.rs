@@ -90,6 +90,11 @@ impl RecordedSession {
         record_draft(self.session.state_mut(), &mut self.recorder, text);
     }
 
+    /// 現在の根の下書き（MOD-4）。[`Session::current_draft`] と同じ。
+    pub fn current_draft(&self) -> Option<&str> {
+        self.session.current_draft()
+    }
+
     /// 再読み込みを記録してから行い、今回足されたイベントを返す（SAVE-4）。
     pub fn reload(&mut self) -> &[Event] {
         self.recorder.reload();
