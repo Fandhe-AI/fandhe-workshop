@@ -77,6 +77,8 @@ impl RecordedSession {
 
     /// 送信を記録してから適用し、今回足されたイベントを返す。空白だけの送信は記録も適用もしない。
     ///
+    /// 下書きを除くのは `apply` の前（送った時点の根）で、着地した根ではない。順序を変えない（S-7）。
+    ///
     /// `prefix` は操作プロファイルのコマンド接頭辞。分類は適用し直し（`replay`）と同じ [`submit_input`] を使う。
     pub fn submit(&mut self, prefix: &str, text: String) -> &[Event] {
         if !record_submit(self.session.state_mut(), &mut self.recorder, text.clone()) {

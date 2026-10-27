@@ -120,6 +120,9 @@ pub fn record_draft(state: &mut SessionState, rec: &mut OpsRecorder, text: Strin
 
 /// 送信を `ops` に記録し、記録した場合は現在の根の下書きだけを写しから除く。
 /// 戻り値は [`OpsRecorder::submit`] と同じ（空白だけなら `false` で、何も変えない）。
+///
+/// 呼び出し元（`RecordedSession::submit`・`history_replay::replay`）は、必ず `apply` の前に呼ぶ。
+/// 除くのは送った時点の根であり、送信で別の根へ着地しても着地した根の下書きは保たれる（S-7。`submit_drafts.rs`）。
 pub fn record_submit(state: &mut SessionState, rec: &mut OpsRecorder, text: String) -> bool {
     let recorded = rec.submit(text);
     if recorded {
