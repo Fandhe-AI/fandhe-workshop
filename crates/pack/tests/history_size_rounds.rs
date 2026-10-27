@@ -135,5 +135,6 @@ fn two_rounds_history_size_and_changed_share() {
             "checkpoint_bytes": size.checkpoint_bytes,
         },
     });
-    println!("HISTORY-SIZE {line}");
+    // 先頭の改行は、`--test-threads=1` で試験名の表示（`test x ... `）と同じ行に出て行頭の照合が外れるのを防ぐ。
+    println!("\nHISTORY-SIZE {line}");
 }
