@@ -87,3 +87,9 @@ test('cli: input-paint without --dir exits 2 with empty stdout', () => {
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
 });
+
+test('cli: log-slope without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'log-slope']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});

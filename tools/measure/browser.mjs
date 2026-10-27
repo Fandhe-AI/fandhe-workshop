@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・input-paint.sh から呼ばれる）。
+// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・log-slope.sh・input-paint.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|input-paint --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -9,6 +9,8 @@
 // log-redraw（TASK-223 1/2。EVT-24）は redraw とは別の量で、ログが 100〜119 項目の状態での「隠し要素の click 1 回の同期的な処理」
 // （イベントの委譲・状態の更新・DOM への反映）を測る。出典は docs/spec/03-poc/engine-event-consistency/env.md。値は既定の最小教材
 // （min-3step）のもので、教材全体を代表しない。閾値（16ms）を超えても失敗にせず値を出す（合否は記録の文書に書く）。
+// log-slope（TASK-232 1/3。EVT-26）は log-redraw と同じ量を、ログの長さ 100〜4,000 項目の 12 段階で測り、項目数ごとの傾きを見る。
+// 段階は同じ context で昇順に進める。傾きは様式 v1 の value が正の整数のため measurements[] に入れず、記録の文書で値から計算する。
 // input-paint（TASK-223 2/2。EVT-24）は、ログが 120〜158 項目の状態での「送信ボタンの信頼された click（CDP）から、次の
 // requestAnimationFrame の中の setTimeout(0) まで」を測る。起点は click のキャプチャ段階の受け取りと event.timeStamp の 2 通りで、
 // 判定には値が大きくなる timeStamp 起点を使う（出典は同じ env.md の「計測の条件」）。PoC の停止ボタンは現行の実装では処理中でなければ
@@ -23,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|input-paint --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -379,6 +381,142 @@ async function measureLogRedraw(browser, dir) {
   }
 }
 
+// log-slope（TASK-232 1/3。EVT-26）の条件。段階は約 1,000 項目の畳み（TASK-360）の前後にまたがる。偶数なのは初期の logLen と偶奇を揃えるため。
+// 窓 [n, n + 2*(20-1)] が 1,000 をまたがない（900 段は 900〜938、1100 段は 1100〜1138）。
+const SLOPE_STEPS = [100, 200, 400, 600, 800, 900, 1100, 1200, 1600, 2000, 3000, 4000];
+const SLOPE_TRIALS = 10;
+const SLOPE_SAMPLES = 20;
+const SLOPE_FOLD_TARGET = 1000;
+
+// ページ内の 1 試行。段階を昇順に同じ context で進める。各段階でログを n まで時間を測らずに埋め、samples 回の click を 1 回ずつ測る。
+// 各操作の直後に、ログの長さ・li の数・畳みの有無・最後のデータ行の変化を確かめ、外れたら throw する（何もしない再描画を速いと誤読しない）。
+async function logSlopeInPage({ op, delta, steps, samples, startStep, target }) {
+  const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
+  const el = document.querySelector('[data-testid="raw-trigger"]');
+  const list = document.querySelector('[data-testid="part-log-list"]');
+  if (!el || !list) throw new Error('raw-trigger or part-log-list is missing');
+  const rows = () => list.querySelectorAll(':scope > li').length;
+  const folds = () => list.querySelectorAll(':scope > li[data-fold]').length;
+  const lastEvent = () => {
+    const data = list.querySelectorAll(':scope > li:not([data-fold])');
+    return data.length ? data[data.length - 1].getAttribute('data-event') : null;
+  };
+  if (st().current !== startStep) throw new Error(`unexpected start step ${st().current} (not the minimal pack?)`);
+  el.setAttribute('data-payload', JSON.stringify(op));
+  const out = [];
+  for (const n of steps) {
+    const fillCount = (n - st().logLen) / delta;
+    if (!Number.isInteger(fillCount) || fillCount < 0) throw new Error(`cannot fill the log to ${n}`);
+    for (let i = 0; i < fillCount; i++) el.click();
+    if (st().logLen !== n) throw new Error(`log length is ${st().logLen} after filling (expected ${n})`);
+    const hi = n + delta * (samples - 1);
+    const values = [];
+    let rowsMin = Infinity;
+    let rowsMax = 0;
+    let foldedOps = 0;
+    for (let s = 0; s < samples; s++) {
+      const before = st().logLen;
+      const rowsBefore = rows();
+      const evBefore = lastEvent();
+      if (before < n || before > hi) throw new Error(`log length ${before} is outside the window [${n}, ${hi}]`);
+      const t0 = performance.now();
+      el.click();
+      const t1 = performance.now();
+      const after = st().logLen;
+      if (after !== before + delta) throw new Error(`log grew by ${after - before} (expected ${delta})`);
+      if (document.querySelector('[data-list-error]')) throw new Error('a list limit notice appeared');
+      const rowsAfter = rows();
+      if (rowsAfter > target) throw new Error(`log rows ${rowsAfter} exceed ${target}`);
+      if (folds() === 0) {
+        if (rowsAfter !== rowsBefore + delta) throw new Error(`log rows grew by ${rowsAfter - rowsBefore} before folding (expected ${delta})`);
+      } else {
+        foldedOps++;
+      }
+      if (lastEvent() === evBefore) throw new Error('the last data row did not change (no real redraw?)');
+      if (st().current !== startStep) throw new Error(`step moved to ${st().current}`);
+      rowsMin = Math.min(rowsMin, rowsAfter);
+      rowsMax = Math.max(rowsMax, rowsAfter);
+      values.push(t1 - t0);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    out.push({ n, values, window: [n, hi], rowsMin, rowsMax, foldedOps });
+  }
+  return out;
+}
+
+async function measureLogSlope(browser, dir) {
+  // 回線制限は掛けない。ブラウザ内の同期的な処理を測る。
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const perStep = SLOPE_STEPS.map(() => ({ values: [], rowsMin: Infinity, rowsMax: 0, foldedOps: 0 }));
+    for (let i = 0; i < SLOPE_TRIALS; i++) {
+      const { context, page } = await newPage(browser, false);
+      try {
+        await page.addInitScript(installMountObserver);
+        await page.goto(srv.url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+        await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+        const state = await page.evaluate(() => ({
+          mounted: window.__mountedValue,
+          hooks: typeof window.__fandheTest?.stateJson === 'function',
+        }));
+        if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+        if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+        const res = await page.evaluate(logSlopeInPage, {
+          op: LOG_OP, delta: LOG_DELTA, steps: SLOPE_STEPS, samples: SLOPE_SAMPLES, startStep: LOG_START_STEP, target: SLOPE_FOLD_TARGET,
+        });
+        if (!Array.isArray(res) || res.length !== SLOPE_STEPS.length) throw new Error('unexpected step count');
+        res.forEach((r, k) => {
+          if (r.n !== SLOPE_STEPS[k] || r.values.length !== SLOPE_SAMPLES) throw new Error('unexpected sample count');
+          perStep[k].values.push(...r.values);
+          perStep[k].rowsMin = Math.min(perStep[k].rowsMin, r.rowsMin);
+          perStep[k].rowsMax = Math.max(perStep[k].rowsMax, r.rowsMax);
+          perStep[k].foldedOps += r.foldedOps;
+        });
+        progress(`log-slope trial ${i + 1}/${SLOPE_TRIALS} done`);
+      } finally {
+        await context.close();
+      }
+    }
+    const measurements = [];
+    SLOPE_STEPS.forEach((n, k) => {
+      const v = perStep[k].values;
+      const tag = String(n).padStart(4, '0');
+      const p95us = toMicros(p95(v), `log slope ${n} p95`);
+      measurements.push(
+        { name: `log_slope_${tag}_median`, unit: 'us', value: toMicros(median(v), `log slope ${n} median`) },
+        { name: `log_slope_${tag}_p95`, unit: 'us', value: p95us },
+        { name: `log_slope_${tag}_max`, unit: 'us', value: toMicros(Math.max(...v), `log slope ${n} max`) },
+      );
+      progress(`log-slope ${n}: p95 ${p95us} us (threshold ${LOG_THRESHOLD_US} us): ${p95us <= LOG_THRESHOLD_US ? 'within' : 'over'}`);
+    });
+    return {
+      measurements,
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 1,
+        trials: SLOPE_TRIALS,
+        samples_per_trial: SLOPE_SAMPLES,
+        op: 'input /make-note Bad_Name (rejected; hidden raw-trigger click)',
+        log_delta: LOG_DELTA,
+        log_steps: SLOPE_STEPS,
+        log_windows: SLOPE_STEPS.map((n) => [n, n + LOG_DELTA * (SLOPE_SAMPLES - 1)]),
+        rows_observed: SLOPE_STEPS.map((n, k) => ({ n, rows_min: perStep[k].rowsMin, rows_max: perStep[k].rowsMax, folded_ops: perStep[k].foldedOps })),
+        fold_target: SLOPE_FOLD_TARGET,
+        threshold_p95_us: LOG_THRESHOLD_US,
+        base: BASE,
+        scope_note: 'minimal pack (min-3step); single Step, so only the head fold applies above 1,000; not representative of a full pack',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
 // ページ内: 時間を測らずにログを start まで埋める（隠し raw-trigger の click）。割り切れ・戻る向きの検査はここが唯一の実体。
 async function fillLogInPage({ op, delta, start, startStep }) {
   const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
@@ -534,8 +672,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw', 'input-paint'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw|input-paint) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'input-paint'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|input-paint) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -568,7 +706,7 @@ async function main() {
       console.error('fix: npm ci && npx playwright install chromium');
       process.exit(1);
     }
-    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'input-paint': measureInputPaint };
+    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'log-slope': measureLogSlope, 'input-paint': measureInputPaint };
     const result = await runs[values.kind](browser, values.dir);
     result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;
     result.playwright = playwrightVersion;

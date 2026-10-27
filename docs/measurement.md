@@ -28,6 +28,7 @@ make measure | jq .
 | 初回表示 | `tools/measure/first-paint.sh` | 配信する設定 |
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 項目数ごとの再描画の傾き（ログ 100〜4,000 項目の 12 段階。TASK-232 1/3） | `tools/measure/log-slope.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
@@ -48,7 +49,7 @@ make measure | jq .
 | 機能の範囲 | `baseline.features` | `config`（`delivery` / `test`）・`cargo_features`・`profile`（`release`） |
 | 圧縮の設定 | `baseline.compression` | `command` と `implementation`（下表） |
 
-次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw`・`input-paint` の結果では必須で、欠けたら結果を出さない。
+次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw`・`log-slope`・`input-paint` の結果では必須で、欠けたら結果を出さない。
 
 | 項目 | JSON のパス | 内容 |
 |---|---|---|
@@ -82,6 +83,7 @@ make measure | jq .
 | 初回表示 | `first_paint_wasm_transfer` | `bytes` | `.wasm` の転送量（`encodedBodySize`） |
 | 再描画 | `redraw_median`・`redraw_p95`・`redraw_max` | `us` | `Runtime::rerender` による root 配下の再構築 1 回あたりの時間 |
 | 再描画 1 回（ログ 100〜119 項目） | `log_redraw_median`・`log_redraw_p95`・`log_redraw_max` | `us` | 隠し要素の click 1 回の同期的な処理（イベントの委譲・状態の更新・DOM への反映）の時間 |
+| 項目数ごとの再描画の傾き | `log_slope_<4 桁の項目数>_median`・`_p95`・`_max`（12 段階 × 3 = 36 件） | `us` | `log_redraw_*` と同じ量を、ログの長さ 100・200・400・600・800・900・1100・1200・1600・2000・3000・4000 の各段階で測った値。傾きは `value` が正の整数という様式の制約のため含めず、記録の文書で値から計算する |
 
 検証は `measure_validate`（`tools/measure/lib.sh`）が行い、`schema` の一致・基点の各項目の存在と型・`measurements` の値を確かめる。
 
@@ -108,6 +110,12 @@ make measure | jq .
   - 各操作の直後に、操作前のログが窓（100〜119）の中、操作後が前より 2 件多い、ログの `li` が click から戻った時点で 2 件増えている、`[data-list-error]` が無いことを確かめる。外れたら失敗にする
   - 統計と丸めは再描画と同じ。16ms（`conditions.threshold_p95_us`）を超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
   - 値は最小教材のもので、教材全体を代表しない（`conditions.scope_note`）
+
+- 項目数ごとの再描画の傾き（ログ 100〜4,000 項目。TASK-232 1/3。EVT-26・D-47）
+  - `log-redraw` と同じ量・同じ教材・同じ操作を、ログの長さの 12 段階で測る。1 試行（新しい context）の中で段階を昇順に進め、各段階まで時間を測らずに埋めてから 20 操作を 1 つずつ測る（窓は `[n, n + 38]`。900 段は 900〜938、1100 段は 1100〜1138 で、約 1,000 項目の畳みをまたがない）。10 試行で段階ごとに計 200 値。操作の間に 20ms 待つ
+  - 各操作の直後に、窓の中・操作後が 2 件多い・`[data-list-error]` が無い・ログの `li` が 1,000 以下・畳みの前（`li[data-fold]` が 0 件）は `li` が 2 件増える・最後のデータ行の `data-event` が変わる・Step が動かない、を確かめる。外れたら失敗にする。畳みの前後の `li` の数は `conditions.rows_observed` に残す
+  - 統計と丸めは再描画と同じ。16ms を超えても失敗にせず、段階ごとに within / over を標準エラーに出す。傾き（最小二乗）は `measurements[]` に入れず、`docs/testing.md` の記録で値から計算する
+  - 最小教材は Step が 1 つのため、畳みは先頭側だけが働く。複数 Step にまたがるログの畳み方の費用は表さない（`conditions.scope_note`）
 
 - 入力から描画まで（ログ 120〜158 項目。出典: 同じ `env.md` の「計測の条件」、EVT-24）
   - 既定の最小教材（`min-3step`）の試験の設定を、回線・CPU の制限なしで配信する。操作は送信ボタン（`submit-input`）の CDP の信頼された click（`page.click`）。入力欄に拒否される `/make-note Bad_Name` を 1 回入れておくと、拒否された下書きは欄に残るため、同じ本文が毎回送られ、1 回でログが 2 件増える
@@ -140,7 +148,7 @@ make measure | jq .
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
-- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`input-paint` の値は最小教材の値で、教材全体を代表しない
+- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
@@ -152,5 +160,5 @@ make measure | jq .
 - 大きさと初回表示は配信する設定を 2 回ビルドする（cargo のキャッシュが効くため差は数秒）。1 回のビルドの使い回しは後続の改善とする
 - CPU 4 倍の減速・制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
-- `log-redraw`・`input-paint` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
+- `log-redraw`・`log-slope`・`input-paint` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
 - 操作の入る画面での操作可能まで（TTI）は、後続の画面のタスクで扱う
