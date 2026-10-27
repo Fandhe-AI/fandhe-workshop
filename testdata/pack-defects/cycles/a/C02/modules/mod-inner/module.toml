@@ -1,0 +1,22 @@
+# 欠陥 C02: 内側のモジュールが自分自身を呼ぶ。
+id = "mod-inner"
+title = "内側のモジュール"
+
+[[steps]]
+id = "u-a"
+title = "内側の入口"
+next = [{ to = "u-self" }]
+input = { kind = "choice", options = [{ id = "opt-u-a", label = "読みました" }] }
+rules = [{ id = "r-u-a", on = { option = "opt-u-a" }, outcome = { kind = "accept" } }]
+confirm = { kind = "none", reason = "読むだけの Step のため、選んだこと自体を達成とする。" }
+
+[[steps]]
+id = "u-self"
+title = "自分を呼ぶ"
+use = { module = "mod-inner", instance = "in-self", args = {} }
+next = [{ to = "u-b" }]
+
+[[steps]]
+id = "u-b"
+title = "内側の出口"
+final = true

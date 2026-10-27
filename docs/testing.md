@@ -9145,6 +9145,19 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
 - 引き継ぎ: TASK-336 は `common/rounds.rs` の計画に操作を差し込み、`common/history_size.rs` の `measure` で大きさを求め、`measure-native/v1` の様式に足せる
 
+### 5.323 モジュールの巡回 3 種の欠陥パック（TASK-234。MOD-2）
+
+- 目的: 2 つのモジュールが互いを呼ぶ・自分を呼ぶ・3 つを経由する、の 3 種の巡回が `validate`・`compile`・CLI で `E-MODULE-CYCLE` として期待のファイル・項目で出ることを、実ファイルの欠陥パック（`testdata/pack-defects/cycles/`。C01 は `v1/<x>/D07`）で確かめる。検査の実装は変えていない。
+- 試験（`crates/pack/tests/module_cycle_packs.rs`。接頭辞 `mod2_`、5 件）: 土台に巡回なし・ディレクトリの表の一致・`validate` の検出・`compile` が止まらず診断を返し `validate` と一致・CLI の診断の行と終了コード 1・標準エラー出力が空・IR なし・絶対パスなし。形式 A・B の 6 パックで、ちょうど 1 件・経路つき・`nesting exceeds` でないことも確かめる。
+- 変異（`mutations/MOD2-1.mutation`）: 巡回の検出の比較を常に偽にする。
+
+| ID | 結果 | 日付・元のコミット |
+|---|---|---|
+| MOD2-1 | DETECTED（3 試験が失敗） | 2026-10-27・`37034399` |
+
+- 実行結果（2026-10-27。Linux）: `cargo test -p fandhe-workshop-pack --test module_cycle_packs` は 5 件合格。
+- 限界: 作成者と実装者が同じ AI である。人の確認は得ていない。`scripts/expected-test-counts.txt` は更新していない（版上げ PR でだけ照合される）。節番号は #1831 の 5.321 との重なりを避けて 5.323 にした。
+
 ### 5.324 根ごとの下書きと周回の切り替え（TASK-236 1/2。MOD-4）
 
 - 目的: 入力の下書きを根（実体）ごとに持ち、現在の根が切り替わると表に出る下書きもその根のものに替わることを固定する

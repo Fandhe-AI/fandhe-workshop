@@ -1,0 +1,9 @@
+# 欠陥 C03: 中継のモジュールが外側のモジュールを呼び、3 つを経由する巡回を作る。
+id = "mod-relay"
+title = "中継のモジュール"
+
+[[steps]]
+id = "r-back"
+title = "外側へ戻る"
+use = { module = "mod-outer", instance = "in-back", args = {} }
+final = true
