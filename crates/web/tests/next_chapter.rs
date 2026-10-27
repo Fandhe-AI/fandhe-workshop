@@ -2,8 +2,8 @@
 //!
 //! 試験用の教材 `tests/data/ch0_3/ir.json` は章の境目を無条件の `next` でつなぐため、試験の中で変種を作る。
 //! 各章の最後の Step を `final` にし、開始点を並べ替えて `#` つきの開始点を混ぜる。
-//! 2/2 では押下の結線（今の提示と完全一致したときだけ次の章の入口へ `Control::GoTo` で移る）と、CH-0 から CH-3 の通し、
-//! 記録（`ops`）からの復元を固定する。`Control::Begin` でないこと・開始点の `effects` を適用しないことは `next_chapter` のモジュールの doc に書いた限界である。
+//! 2/2 では押下の結線（今の提示と完全一致したときだけ次の章の入口を `Control::Begin` で始める。TASK-254 1/2 で `GoTo` から替えた）と、
+//! CH-0 から CH-3 の通し、記録（`ops`）からの復元を固定する。`effects` つき・開始条件が成り立たない開始点は提示しない（末尾の節）。
 //! 変種の作り方はブラウザ用の教材（`test_fixture::ch03_chapters_ir_bytes`）と同じで、2 か所を揃えて保つ。
 //! 範囲外の章へ進まないこと（SHELL-12・D-67。TASK-527）は末尾の節で固定する。CH-4 のノードを IR に残し、開始点だけを CH-0〜CH-3 の先頭 4 件にした絞った IR
 //! （`test_fixture::ch03_trial_ir_bytes` と同じ作り方で、2 か所を揃えて保つ）を使う。
@@ -466,9 +466,9 @@ fn 越えた移動は_ops_に残り_同じ履歴から復元できる() {
     let ops = find_ops(&v).expect("ops");
     let n = ops
         .iter()
-        .filter(|o| o.to_string().contains("go_to") && o.to_string().contains("main/st-1-1"))
+        .filter(|o| o.to_string().contains("begin") && o.to_string().contains("s-1-1"))
         .count();
-    assert_eq!(n, 1, "移動先が main/st-1-1 の go_to が 1 件");
+    assert_eq!(n, 1, "開始点が s-1-1 の begin が 1 件");
     // 同じ履歴を新しいホストで開くと、移動の後の位置が再現する。
     let mut fresh = host_of(ir, "main/st-0-1");
     let outcome = fresh.open_history(text.as_bytes());
@@ -766,5 +766,26 @@ fn 検出器の対照_選ぶ部品と開始点の_id_を含む文字列では数
     assert_eq!(
         start_ids_in("value: \"s-2-1\" value: \"s-1-10\" \"m#x\"", &ir),
         vec!["m#x".to_owned(), "s-2-1".to_owned()]
+    );
+}
+
+/// 開始点を差し替えた変種で、提示される開始点の ID（TASK-254 1/2）。
+fn offer_with_starts(starts: Value) -> Option<String> {
+    let ir = ir_of(&variant_json(starts));
+    offer(&ir, "main/st-0-2c", StepStatus::Achieved).map(|o| o.0)
+}
+
+#[test]
+fn effects_つきの開始点は選ばず_続けて始める開始点を選ぶ() {
+    let fresh = json!({"id": "s-1-fresh", "node": "main/st-1-1", "effects": [{"put": {}}]});
+    let plain = json!({"id": "s-1-1", "node": "main/st-1-1", "effects": []});
+    assert_eq!(
+        offer_with_starts(json!([fresh.clone()])),
+        None,
+        "effects つきだけなら出さない"
+    );
+    assert_eq!(
+        offer_with_starts(json!([fresh, plain])).as_deref(),
+        Some("s-1-1")
     );
 }

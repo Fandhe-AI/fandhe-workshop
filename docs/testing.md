@@ -3608,7 +3608,7 @@ CH-0〜CH-3 の形の 20 Step を 1 つのページで最後まで自動操作�
 | 区分 | 内容 | 理由 |
 |---|---|---|
 | 形を変えて再現した | 4 + 6 + 8 + 2 = 20 Step の通し、5 方式・4 種の確認、拒否・問い返し・補完・複数行・Esc の取り消し・処理中の完了待ち、CH-1 のキーボードだけの完走 | 教材は試作の文面ではなく、形を写した試験用の教材 |
-| 再現していない | 章の完了イベント（`ChapterCompleted`・`completed`） | core がまだ扱わない（`confirm.rs` の「扱わないこと」。TASK-233 以降）。「次の章へ進む」の表示と移動は状態から導いて画面に出し `Control::GoTo` で移る（5.224・5.227） |
+| 再現していない | 章の完了イベント（`ChapterCompleted`・`completed`） | core がまだ扱わない（`confirm.rs` の「扱わないこと」。TASK-233 以降）。「次の章へ進む」の表示と移動は状態から導いて画面に出し `Control::Begin` で始める（5.330）（5.224・5.227） |
 | 再現していない | 遷移先の `on_enter` の名札の行、入口の写しの作り直し | core が遷移で入口の写しを作り直さない（`go_to.rs`・`checkpoint.rs` だけが代入する） |
 | 再現していない | 規則の `when`（`clarifying` など）、条件つきの辺 | core が評価しない（`accept.rs` の `NoConditions`） |
 | 再現していない | チェックポイントの復帰、本文と do の表示 | 製品の画面にボタンも表示も無い |
@@ -7139,7 +7139,7 @@ testdata の実測（2026-10-22）: 実装の前は `module-reuse-rounds` の `E
   - どれも安全の計数・配信元の外への通信・エンジンの警告と無視が 0 件。`journey` の既定の経路は変えず、共有する `ch0-3-run`・`clarify-draft`・`shell-widths`・`direct-link-reload` は変わらず通る
 - 変異: `SHELL10-4`（payload を今の提示と照らさない）を `crates/web/tests/mutations/` に足した。手で当てて「不一致の押下は状態を変えない」試験が失敗することを確かめた（2026-10-22）。`make check-mutations` の全件は未実行
 - 実行結果（2026-10-22）: `cargo test -p fandhe-workshop-web` の該当試験・`test_fixture` の単体試験は通った。ブラウザは `next-chapter` 6 件と上の共有する 4 ファイル（18 件）が `SKIP_WASM_OPT=1` の試験の設定のビルドで通った。全件の `make test-browser` は CI の `browser-test` に任せる
-- 限界: core に `Control::Begin`（TASK-217）が無いので `Control::GoTo` で移る。開始点の `effects` は適用せず、章をまたぐ継続では前の章の世界状態を引き継ぐ（試験用の教材の開始点は `effects` が空）。周回の開始ではない。章の完了は引き続き状態から導き、`ChapterCompleted` 等のイベントでは表さない
+- 更新（TASK-254 1/2。5.330）: 移動は `Control::Begin` に替えた。章の完了は引き続き状態から導き、`ChapterCompleted` 等のイベントでは表さない
 - 範囲外: `Begin` への置き換えと開始点の `effects` の適用（TASK-217）、2 周目の開始（TASK-254）、試験の設定への「移動」ボタンの追加（#910・#1127）、範囲外の章の画面での確認（5.228 で済んだ。TASK-527）、最終の配置（TASK-534・TASK-548）
 
 ### 5.228 範囲外の章へ進まないことの観察（TASK-527。SHELL-12・D-67）
@@ -9268,4 +9268,19 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - `round1_plan` は `GoTo` を 3 か所で使うため、真の通しと状態が異なりうる。未着手の 1 周目の Step は状態を直接組んで作っている
   - 世界状態は開始の効果で変わることまでを確かめ、増えた経路が 1 件であることの確認は 5.328 が持つ
   - web の起動は `Session::entered_at` で開始の効果・省略を適用しない（TASK-254）
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.330 画面の「次の章へ進む」を周回の開始に結線する（TASK-254 1/2。MOD-19 の一部）
+
+- 目的: 押下を `Control::GoTo` から `Control::Begin(<開始点の ID>)` に替え、1 周目を終えた後の同じボタンで 2 周目が新しい実体の根で始まることを固定する
+- 方式: `crates/web/tests/round_begin_host.rs` の 4 件（`module-reuse-rounds` を `compile_dir` で IR にし、pack の共有部品 `rounds.rs` を `#[path]` で借りて 1 周目を流す）。押下は `decode_action` → `update` の画面の手だけで行う
+  - 1 周目の終わりに提示がちょうど 1 個で、開始点は `s-r2`（effects つきの `s-r2-fresh` ではない）
+  - 押下で先頭が `Begun`（世代 +1）、`Moved` 0 件、現在の Step が 2 周目の根の Step で `Entered`、1 周目の切り身と世界状態が押下の前と等しく、提示が消える
+  - 履歴に `begin` が 1 件残り、新しいホストで開くと現在の Step・切り身が一致する
+  - 負の対照: 1 周目の途中の押下と、提示と違う `s-r2-fresh` の押下は状態を変えない
+  - `crates/web/tests/next_chapter.rs`: `ops` の照合を `begin` に替え、effects つきの開始点だけなら出さず、続けて始める開始点があればそれを選ぶ
+- 決定: 提示する開始点は、`effects` が空で、`check_start` が通るものに絞る。effects つきは前の周回から引き継いだ世界状態を上書きし、条件が成り立たない開始点は `Begin` が断るため。2 周目専用の案内文・確認は ROUND2-2（検討中）の決定まで足さず、SHELL-10 の「ボタン 1 つ・確認なし」のまま（仮置き）
+- 限界:
+  - 開始点の案内レベル（`guidance`）は `Begin` が反映しない（TASK-294）
+  - 世界状態のハッシュの一致（MOD-5）、CH-9 から CH-10 のブラウザの通し、全量版 R-29 は TASK-254 2/2
   - 作成者と実装者が同じ AI で、人の確認は得ていない

@@ -16,18 +16,24 @@
 //! 受講者の画面には全 Step 分の「移動: …」ボタンを出さない。本モジュールの出すボタンは 0 か 1 個である。
 //!
 //! 押下（TASK-526 2/2）は `host::decode_action` が payload を包み、`update` が [`press_target`] で今の提示と完全一致するときだけ
-//! 次の章の入口へ `Control::GoTo` で移る（SAFE-33。`start_select` と同じ方針）。payload は DOM 上で書き換えられうるので、
+//! 次の章の入口を開始点として `Control::Begin` で始める（SAFE-33。`start_select` と同じ方針）。payload は DOM 上で書き換えられうるので、
 //! 移動先の節点は payload から作らず、一致した開始点を IR の `starts` から引く。提示していない章・途中の Step・前の章へは跳べない。
 //!
-//! `Control::Begin`（TASK-217）は core に未実装なので `GoTo` で移る。`GoTo` は世代を +1 し、処理中を解き、移動先へ入り、
-//! 記録（`ops`）に残るので履歴の復元でも再現する。限界は、開始点の `effects` を適用しないこと（章をまたぐ継続では前の章の
-//! 世界状態を引き継ぐ）と、周回の開始ではないことで、`Begin` への置き換えと 2 周目は TASK-217・TASK-254 が扱う。
+//! `Control::Begin`（TASK-254 1/2）は世代を +1 し、処理中・完了を解き、開始点より前の未着手を省略として記録して入口へ入り、
+//! 記録（`ops`）に `begin` として残るので履歴の復元でも再現する。世界状態・前の周回の切り身は消さない（MOD-8）ので、
+//! 1 周目を終えた後の同じボタンが 2 周目を新しい実体の根で始める。2 周目専用の案内文・確認は ROUND2-2（検討中）の決定まで
+//! 足さず、SHELL-10 の「ボタン 1 つ・確認なし」のままにする（仮置き）。開始点の案内レベル（`guidance`）は `Begin` が反映しない（TASK-294）。
+//!
+//! 出す開始点は、`effects` が空で、開始条件（`requires`）が今の状態で成り立つものだけに絞る。`effects` を持つ開始点は
+//! 開始用の状態を置き直す入口で、前の周回から引き継いだ世界状態を上書きするので続けて始める入口として選ばない。
+//! 条件が成り立たない開始点は `Begin` が断るので、断られるボタンを最初から出さない（fail-closed）。
 //!
 //! 教材由来の文字列（題・開始点の ID）は文字ノードと属性値にだけ入れ、既定のエスケープを通す（SAFE-11）。
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::instance;
+use fandhe_workshop_core::start_gate::check_start;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::SessionState;
 
@@ -40,9 +46,9 @@ use crate::shell::{next_chapter_label, NEXT_CHAPTER_TESTID};
 /// 「次の章へ進む」の action の名前。`host::decode_action` が payload（開始点の ID）を包み、`update` が [`press_target`] で照合する。
 pub const ACTION_NEXT_CHAPTER: &str = "next-chapter";
 
-/// 押下の payload が今の提示と完全一致するときだけ、移動先の節点の uid を返す（SAFE-33）。
+/// 押下の payload が今の提示と完全一致するときだけ、始める開始点の ID を返す（SAFE-33）。
 ///
-/// 提示なし・処理中・不一致は `None`（fail-closed）。移動先は一致した開始点を `ir.starts` から引き、payload から作らない。
+/// 提示なし・処理中・不一致は `None`（fail-closed）。ID は一致した開始点を `ir.starts` から引いた値で、payload そのものは使わない。
 pub fn press_target(ir: &Ir, state: &SessionState, payload: &str) -> Option<String> {
     let offer = next_chapter(ir, state)?;
     if offer.start_id != payload {
@@ -51,7 +57,7 @@ pub fn press_target(ir: &Ir, state: &SessionState, payload: &str) -> Option<Stri
     ir.starts
         .iter()
         .find(|s| s.id == offer.start_id)
-        .map(|s| s.node.clone())
+        .map(|s| s.id.clone())
 }
 
 /// 「次の章へ進む」の keyed list の field。提示が変わると `host::EngineHost` がこの名前を dirty に積む。
@@ -97,10 +103,13 @@ pub fn next_chapter(ir: &Ir, state: &SessionState) -> Option<NextChapter> {
         .iter()
         .find(|n| n.scope == "main" && n.unit == next_unit)?;
     // 先頭の Step を指す開始点だけを選ぶ。途中の Step を指す開始点は章の冒頭を飛ばす入口なので、代わりに使わない。
+    // `effects` つき（前の周回の世界状態を上書きする入口）と、開始条件が成り立たない開始点（`Begin` が断る）も選ばない。
     let start = ir
         .starts
         .iter()
         .filter(|s| !s.id.contains('#'))
+        .filter(|s| s.effects.is_empty())
+        .filter(|s| check_start(ir, &state.run, &s.id).is_ok())
         .find(|s| s.node == first.uid)?;
     let node = ir.nodes.iter().find(|n| n.uid == start.node)?;
     Some(NextChapter {
