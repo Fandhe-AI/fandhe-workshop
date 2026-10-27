@@ -8900,3 +8900,11 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 真陽性の解消: 印の無かった練習データ 13 件（`docs/examples`・`crates/pack/tests/data`・`crates/web/tests/data`・`testdata/pack-defects` の本 repo で書いたもの）の見出しに `【架空】` を足した。行は足していない。これに伴い `MANIFEST.sha256`・凍結した IR 2 本の練習データの文字・`content_hash.rs` の `FIXTURE_PACK_HASH` を直した（IR の差分は練習データの文字だけ。凍結の IR は旧いエンジンの出力の文字を書き換えたもので、作り直してはいない）
 - 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-pack` が全件通った（結果は本節の更新時点。ほかの検証はコミットの記録を参照）
 - 限界・未実施: 印の有無だけを見る。宣言のない練習データ・章の本文は調べない。実在の名前は D-81 により対象外で、`docs/publish-checks.md` の公開前の確認が受け持つ。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である
+
+### 5.314 測定の結果の組み立てが jq 1.7 の文法で通る（#1822）
+
+- 目的: macOS 同梱の jq 1.7 で、`tools/measure/lib.sh` の `{...} + $extra`（オブジェクトの値の位置の二項演算）がコンパイルエラーになり、4 種の測定が止まった（5.284・5.286 の記録の理由）。値を括弧で囲み、組み立てを `measure_result_json` に切り出して、ビルドなしで試験できるようにした
+- 試験: `scripts/test-measure-result.sh`（`make test-measure-result`）。extra なし・ありの組み立てが `measure_validate` を通ること、`measure_pack_json` の値、使っている jq が 1.7 の文法かどうかの負の対照（1.8 以上では「1.7 の文法の検査ではない」と標準エラーに出す）
+- CI: `check` ジョブの step で流す。ubuntu-latest の jq は 2026-10-27 時点で jq-1.7。runner の jq が 1.8 以上になったら、版と SHA256 を固定した jq 1.7.1 の導入 step に切り替える
+- 実行の記録: 2026-10-27。ローカルは jq-1.8.1 で合格（負の対照は 1.7 の文法ではないと判定）。jq 1.7 の実機での確認は未実施（CI の `check` ジョブのログで確かめる）
+- 限界・未実施: `wasm-size.sh`・`all.sh` の jq は対象外。`make test-measure` は未実施
