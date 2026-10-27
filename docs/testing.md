@@ -8327,7 +8327,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 基点（基準端末 A）: commit ddef345（`dirty: false`）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`、profile release）・圧縮は `tools/serve.mjs` の gzip レベル 9（node v24.21.0 zlib 1.3.2.1-motley-8002e91）。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cceb58644717b2f1e398249289d51ada59daf7366eaca3f6c22dd446961`）。道具は rustc 1.98.1・wasm-bindgen 0.2.128。条件は CPU の減速なし（`cpu_throttle: 1`）・回線の絞りなし・10 試行 × 20 操作・ログの窓 120〜158・起点 `event.timeStamp`・終点 `rAF + setTimeout(0)`。
 - 検査（`isTrusted` が真・ログと `li` が 2 件増える・Step が動かない・下書きが変わらない・上限の通知が無い）は、外れれば `browser.mjs` が測定を失敗にする。終了コード 0 で、全 200 操作が通った。
-- 中央値は約 16ms だが、p95・max は開発機（16,600・16,800 us）より大きい。原因は確かめていない。
+- 開発機の値とは commit・端末・ブラウザの基点が違うため、比べない（`docs/measurement.md` §6）。それぞれ独立した記録として残す。
 - 最小教材の値で、教材全体を代表しない。
 - 測定の前の負荷: `uptime` の load averages（1・5・15 分）は 3.34・2.67・2.06（2026-10-27T02:23:23Z。直前まで動いていた log-redraw の測定を含む）。他のビルドや重い処理は動いていなかった（CPU 使用率の上位は OS の常駐の処理だけ）。
 - 5.284 と同じく、macOS 同梱の `jq`（jq-1.7.1-apple）では結果の JSON が出ずに終了コード 1 で止まったため、Homebrew の jq 1.8.2 で流し直した値を記録した。止まった 1 回目の値は記録に使っていない（標準エラーに出た p95 は 23,300 us で、閾値以内だった）。
