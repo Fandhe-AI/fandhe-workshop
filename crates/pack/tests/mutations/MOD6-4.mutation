@@ -1,0 +1,8 @@
+id: MOD6-4
+package: fandhe-workshop-pack
+test: start_skip
+target: crates/core/src/begin.rs
+find:         .filter(|n| n.unit == node.unit && n.scope == node.scope && n.step.use_module.is_none())
+replace: .filter(|n| n.unit == node.unit && n.step.use_module.is_none())
+expect-fail: mod6_start_after_round1_skips_only_round2_instance_steps
+note: 同じ実体の条件を外し、前の周回の未着手の Step も省略にする

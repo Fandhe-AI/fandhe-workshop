@@ -1,0 +1,8 @@
+id: MOD6-5
+package: fandhe-workshop-pack
+test: start_skip
+target: crates/core/src/begin.rs
+find:         .take(target_idx)
+replace:         .take(0)
+expect-fail: mod6_start_after_round1_skips_only_round2_instance_steps
+note: 飛ばした Step を 1 件も省略にしない
