@@ -151,3 +151,9 @@ test('view-redraw expectedCounts: hand-counted sizes of the scale data', () => {
   assert.deepEqual(c.card_list, { before: 20, after: 20 });
   assert.deepEqual(c.check_list, { before: 20, after: 20 });
 });
+
+test('cli: log-slope without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'log-slope']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});

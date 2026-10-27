@@ -165,6 +165,23 @@ else
   cat "${LOGR}.err" >&2
 fi
 
+# --- (g) log-slope（ログ 100〜4,000 項目の再描画の傾き。TASK-232 1/3。束には入れない単体の測定） ---
+check "log-slope.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/log-slope.sh" --unknown
+check_fails "log-slope: missing pack/device baseline is refused" measure_browser_result log-slope "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "log-slope: missing device baseline is refused" measure_browser_result log-slope "$(measure_commit_json)" "${TMP}" '{"pack":{"id":"x","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}'
+LOGS="${TMP}/log-slope.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/log-slope.sh" >"${LOGS}" 2>"${LOGS}.err"; then
+  check "log-slope: passes the v1 validation" measure_validate "${LOGS}"
+  check "log-slope: pack baseline is min-3step with a sha256" jq -e '.baseline.pack.id == "min-3step" and (.baseline.pack.sha256 | test("^[0-9a-f]{64}$"))' "${LOGS}"
+  check "log-slope: device baseline has typed fields" jq -e '.baseline.device | (.os | type == "string") and (.cpu | type == "string") and (.logical_cores | type == "number") and (.memory_bytes | type == "number") and (.apple_silicon_macos | type == "boolean")' "${LOGS}"
+  check "log-slope: median, p95 and max for each of 12 steps" jq -e '(.measurements | length) == 36 and ([.measurements[].name] == [.conditions.log_steps[] | tostring | ("0000" + .)[-4:] | ("log_slope_" + . + "_median", "log_slope_" + . + "_p95", "log_slope_" + . + "_max")])' "${LOGS}"
+  check "log-slope: conditions record the steps, folding and the scope" jq -e '(.conditions.log_steps | length) == 12 and .conditions.trials * .conditions.samples_per_trial == 200 and .conditions.fold_target == 1000 and (.conditions.rows_observed | map(.rows_max <= 1000) | all) and (.conditions.scope_note | contains("not representative"))' "${LOGS}"
+  check "log-slope: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${LOGS}"
+else
+  fail "log-slope: log-slope.sh failed (see ${LOGS}.err)"
+  cat "${LOGS}.err" >&2
+fi
+
 # --- (f) input-paint（ログ 120〜158 項目の入力から描画まで。TASK-223 2/2。束には入れない単体の測定） ---
 check "input-paint.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/input-paint.sh" --unknown
 check_fails "input-paint: missing pack/device baseline is refused" measure_browser_result input-paint "$(measure_commit_json)" "${TMP}" '{}'
