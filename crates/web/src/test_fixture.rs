@@ -30,6 +30,8 @@
 //! CH-4〜CH-9 の形を写した 17 Step・6 章の教材（`?fixture=ch4-9`。各章の最後が `final`、開始点は章の先頭 6 件）は、「次の章へ進む」で CH-4 から CH-9 を通す試験が使う（TASK-674 1/2）。
 //! 左の成果物の安全弁・畳みの試験の開始状態（`?fixture=artifact-limit-4095`・`-4096`・`-4097`・`artifact-fold`）は、既定の教材の `pack.id` だけを変え、
 //! 世界状態の経路を開始状態のログへ積む（`mount_seed_log`。件数は固定の 3 値だけで、任意の数は受けない。TASK-484 2/2）。
+//! 本体の画面の再描画の測定（`?fixture=artifact-redraw-9`・`-20`・`-50`・`-200`・`-500`。TASK-485 2/3）は、`pack.id` を分け、7 種のビューを
+//! 今の Step で宣言し、世界状態の経路を件数ぶん積む（`artifact_redraw_ir_bytes`。件数は固定の 5 値だけ）。
 //! 選択は URL のクエリの完全一致だけで決める（`mount_fixture_from_search`）。教材の差し替え（`load-fixture:`）は
 //! 起動の後に働き、保存先の鍵（`pack.id`）が mount の教材のままになるため、復元の試験には使えない。
 
@@ -121,6 +123,16 @@ pub(crate) enum MountFixture {
     ArtifactLimit4097,
     /// 古い Step の経路 1,100 件と今の Step の経路 40 件がある開始状態（古い側が要約へ畳まれる。TASK-484 2/2）。
     ArtifactFold,
+    /// 経路 9 件と 7 種のビューの宣言がある開始状態（本体の画面の再描画の測定。TASK-485 2/3）。
+    ArtifactRedraw9,
+    /// 経路 20 件（[`MountFixture::ArtifactRedraw9`] と同じ形）。
+    ArtifactRedraw20,
+    /// 経路 50 件（同上）。
+    ArtifactRedraw50,
+    /// 経路 200 件（同上）。
+    ArtifactRedraw200,
+    /// 経路 500 件（同上）。
+    ArtifactRedraw500,
 }
 
 /// 未来の IR に足す未知の欄の値。画面・ログ・写しに出ないことを、ブラウザ試験がこの文字列の不在で確かめる（SAFE-11）。
@@ -526,6 +538,11 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
         "?fixture=artifact-limit-4096" => MountFixture::ArtifactLimit4096,
         "?fixture=artifact-limit-4097" => MountFixture::ArtifactLimit4097,
         "?fixture=artifact-fold" => MountFixture::ArtifactFold,
+        "?fixture=artifact-redraw-9" => MountFixture::ArtifactRedraw9,
+        "?fixture=artifact-redraw-20" => MountFixture::ArtifactRedraw20,
+        "?fixture=artifact-redraw-50" => MountFixture::ArtifactRedraw50,
+        "?fixture=artifact-redraw-200" => MountFixture::ArtifactRedraw200,
+        "?fixture=artifact-redraw-500" => MountFixture::ArtifactRedraw500,
         _ => MountFixture::Default,
     }
 }
@@ -569,6 +586,11 @@ fn mount_ir_bytes(fixture: MountFixture) -> Option<Vec<u8>> {
         | MountFixture::ArtifactLimit4096
         | MountFixture::ArtifactLimit4097
         | MountFixture::ArtifactFold => artifact_limit_ir_bytes()?,
+        MountFixture::ArtifactRedraw9
+        | MountFixture::ArtifactRedraw20
+        | MountFixture::ArtifactRedraw50
+        | MountFixture::ArtifactRedraw200
+        | MountFixture::ArtifactRedraw500 => artifact_redraw_ir_bytes()?,
     })
 }
 
@@ -615,6 +637,43 @@ fn artifact_limit_ir_bytes() -> Option<Vec<u8>> {
     serde_json::to_vec(&value).ok()
 }
 
+/// 本体の画面の再描画の測定（TASK-485 2/3）の教材の `pack.id`。他の試験の鍵と分ける。
+pub(crate) const ARTIFACT_REDRAW_PACK_ID: &str = "artifact-redraw";
+
+/// 既定の教材から、`pack.id` を変え、7 種のビューを宣言して今の Step（`main/st-1`）に結んだ IR。
+/// `view_tabs` は書かず既定（`all`）のままにし、どの種類にも切り替えられる。宣言があるので全行が指せる行になる。
+fn artifact_redraw_ir_bytes() -> Option<Vec<u8>> {
+    let mut value: serde_json::Value = serde_json::from_slice(IR).ok()?;
+    value
+        .get_mut("pack")?
+        .as_object_mut()?
+        .insert("id".to_owned(), ARTIFACT_REDRAW_PACK_ID.into());
+    let kinds = [
+        "file_tree",
+        "document",
+        "diff",
+        "task_tree",
+        "card_list",
+        "check_list",
+        "app_demo",
+    ];
+    let mut views = serde_json::Map::new();
+    let mut ids = Vec::new();
+    for kind in kinds {
+        let id = format!("v-{kind}");
+        views.insert(id.clone(), serde_json::json!({ "kind": kind }));
+        ids.push(serde_json::Value::String(id));
+    }
+    *value.get_mut("views")? = serde_json::Value::Object(views);
+    let node = value
+        .get_mut("nodes")?
+        .as_array_mut()?
+        .iter_mut()
+        .find(|n| n.get("uid").and_then(|u| u.as_str()) == Some("main/st-1"))?;
+    *node.get_mut("step")?.get_mut("views")? = serde_json::Value::Array(ids);
+    serde_json::to_vec(&value).ok()
+}
+
 /// 開始状態のログに積む `changed` を `n` 件作る。経路は `{prefix}/{i:04}` の固定の書式で、
 /// 印は `(generation, step)`。値は汎用のダミーで、教材固有の語を使わない。
 fn seed_changed(prefix: &str, n: usize, step: &str) -> Vec<serde_json::Value> {
@@ -641,6 +700,11 @@ fn mount_seed_log(fixture: MountFixture) -> Option<Vec<fandhe_workshop_core::eve
         MountFixture::ArtifactLimit4095 => seed_changed("p", 4_095, "main/st-1"),
         MountFixture::ArtifactLimit4096 => seed_changed("p", 4_096, "main/st-1"),
         MountFixture::ArtifactLimit4097 => seed_changed("p", 4_097, "main/st-1"),
+        MountFixture::ArtifactRedraw9 => seed_changed("p", 9, "main/st-1"),
+        MountFixture::ArtifactRedraw20 => seed_changed("p", 20, "main/st-1"),
+        MountFixture::ArtifactRedraw50 => seed_changed("p", 50, "main/st-1"),
+        MountFixture::ArtifactRedraw200 => seed_changed("p", 200, "main/st-1"),
+        MountFixture::ArtifactRedraw500 => seed_changed("p", 500, "main/st-1"),
         MountFixture::ArtifactFold => {
             let mut v = seed_changed("o", 1_100, "main/st-0");
             v.extend(seed_changed("p", 40, "main/st-1"));
@@ -2168,6 +2232,80 @@ mod tests {
                     .unwrap();
             assert_eq!(host.model().world().len(), n, "{fx:?}");
         }
+    }
+
+    #[test]
+    fn 再描画の測定の教材は完全一致のクエリだけが選ぶ() {
+        for (q, want) in [
+            ("?fixture=artifact-redraw-9", MountFixture::ArtifactRedraw9),
+            (
+                "?fixture=artifact-redraw-20",
+                MountFixture::ArtifactRedraw20,
+            ),
+            (
+                "?fixture=artifact-redraw-50",
+                MountFixture::ArtifactRedraw50,
+            ),
+            (
+                "?fixture=artifact-redraw-200",
+                MountFixture::ArtifactRedraw200,
+            ),
+            (
+                "?fixture=artifact-redraw-500",
+                MountFixture::ArtifactRedraw500,
+            ),
+        ] {
+            assert_eq!(mount_fixture_from_search(q), want, "{q}");
+        }
+        for other in [
+            "?fixture=artifact-redraw-100",
+            "?fixture=artifact-redraw-",
+            "?fixture=artifact-redraw-50&x=1",
+            "?fixture=Artifact-Redraw-50",
+            "?fixture=artifact-redraw-050",
+        ] {
+            assert_eq!(
+                mount_fixture_from_search(other),
+                MountFixture::Default,
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn 再描画の測定の教材は鍵が別で件数どおりの経路と7種の宣言を持つ() {
+        let default_id = mount_session(MountFixture::Default)
+            .unwrap()
+            .ir()
+            .pack
+            .id
+            .clone();
+        for (fx, n) in [
+            (MountFixture::ArtifactRedraw9, 9),
+            (MountFixture::ArtifactRedraw20, 20),
+            (MountFixture::ArtifactRedraw50, 50),
+            (MountFixture::ArtifactRedraw200, 200),
+            (MountFixture::ArtifactRedraw500, 500),
+        ] {
+            let s = mount_session(fx).unwrap();
+            assert_ne!(s.ir().pack.id, default_id);
+            assert_ne!(s.ir().pack.id, ARTIFACT_LIMIT_PACK_ID);
+            assert_eq!(s.ir().pack.id, ARTIFACT_REDRAW_PACK_ID);
+            let host =
+                crate::host::EngineHost::with_session(s, crate::engine_parts::standard_registry())
+                    .unwrap();
+            assert_eq!(host.model().world().len(), n, "{fx:?}");
+        }
+        let value: serde_json::Value =
+            serde_json::from_slice(&artifact_redraw_ir_bytes().unwrap()).unwrap();
+        assert_eq!(value["views"].as_object().unwrap().len(), 7);
+        let node = value["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|n| n["uid"] == "main/st-1")
+            .unwrap();
+        assert_eq!(node["step"]["views"].as_array().unwrap().len(), 7);
     }
 
     #[test]
