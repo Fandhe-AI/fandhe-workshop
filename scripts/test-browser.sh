@@ -206,6 +206,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/point-keys.test.mjs" \
   "${ROOT_DIR}/tools/browser/keyboard-confirm.test.mjs" \
   "${ROOT_DIR}/tools/browser/view-switch.test.mjs" \
+  "${ROOT_DIR}/tools/browser/product-redraw.test.mjs" \
   "${ROOT_DIR}/tools/browser/element-identity.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-leave.test.mjs" \
   "${ROOT_DIR}/tools/browser/save-latency.test.mjs" \

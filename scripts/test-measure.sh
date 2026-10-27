@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/measure/all.sh（初回表示・再描画を含む一括測定）と lib.sh の束の検証の受入基準を確かめる（make test-measure から呼ばれる）。
 #
-# 確かめること: input-paint（TASK-223 2/2）と view-redraw（TASK-485 1/3）の単体の結果、束（fandhe-workshop/measure-run/v1）の検証、誤用の拒否、基点を集められないとき・ブラウザの測定が失敗したときの
+# 確かめること: input-paint（TASK-223 2/2）・view-redraw（TASK-485 1/3）・product-redraw（TASK-485 2/3）の単体の結果、束（fandhe-workshop/measure-run/v1）の検証、誤用の拒否、基点を集められないとき・ブラウザの測定が失敗したときの
 # fail-closed（標準出力が空）、実行の結果が基点つきで正しい構成であること、統計関数の試験（node:test）。
 # 実ビルドと Chromium を使うため遅い。make check・フック・CI には入れない（CI の大きさの関門は scripts/check-wasm-size.sh）。
 # Playwright や Chromium が無い場合はスキップせず失敗にする（未検査の成功を作らない）。
@@ -220,7 +220,25 @@ else
   cat "${VRD}.err" >&2
 fi
 
-# --- (h) 統計関数と引数の試験 ---
+# --- (h) product-redraw（本体の画面の再描画。TASK-485 2/3。束には入れない単体の測定） ---
+check "product-redraw.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/product-redraw.sh" --unknown
+check_fails "product-redraw: missing pack/device baseline is refused" measure_browser_result product-redraw "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "product-redraw: missing device baseline is refused" measure_browser_result product-redraw "$(measure_commit_json)" "${TMP}" "{\"pack\":{\"id\":\"x\",\"sha256\":\"${ZERO64}\"}}"
+PRD="${TMP}/product-redraw.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw.sh" >"${PRD}" 2>"${PRD}.err"; then
+  check "product-redraw: passes the v1 validation" measure_validate "${PRD}"
+  check "product-redraw: pack baseline is min-3step with a sha256" jq -e '.baseline.pack.id == "min-3step" and (.baseline.pack.sha256 | test("^[0-9a-f]{64}$"))' "${PRD}"
+  check "product-redraw: 21 measurements named by kind, rows and op" jq -e '(.measurements | length == 21) and (.measurements | all(.name | test("^product_redraw_[a-z_]+_[0-9]+_switch_(median|p95|max)$")))' "${PRD}"
+  check "product-redraw: 200 values per case and the scope is the product view()" jq -e '.conditions.trials * .conditions.samples_per_trial == 200 and (.conditions.scope_note | startswith("product view()"))' "${PRD}"
+  check "product-redraw: sizes, judged kinds and the toggle gap are recorded" jq -e '.conditions.sizes.document.rows == 200 and .conditions.sizes.diff.rows == 500 and .conditions.sizes.task_tree.rows == 50 and .conditions.judged == ["task_tree", "document", "diff"] and (.conditions.ops.toggle | startswith("not_applicable")) and .conditions.judgement.diff.partial == true' "${PRD}"
+  check "product-redraw: the sample diff size is recorded" jq -e '.conditions.sample_diff_rows.total > 0 and .conditions.sample_diff_rows.hunk >= 1' "${PRD}"
+  check "product-redraw: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${PRD}"
+else
+  fail "product-redraw: product-redraw.sh failed (see ${PRD}.err)"
+  cat "${PRD}.err" >&2
+fi
+
+# --- (i) 統計関数と引数の試験 ---
 check "node:test for browser.mjs passes" node --test "${ROOT_DIR}/tools/measure/browser.test.mjs"
 
 if [ "${FAILURES}" -ne 0 ]; then
