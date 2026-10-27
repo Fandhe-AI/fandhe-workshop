@@ -29,6 +29,7 @@ make measure | jq .
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 項目数ごとの再描画の傾き（ログ 100〜4,000 項目の 12 段階。TASK-232 1/3） | `tools/measure/log-slope.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 2 周分の通しの再描画（世代と Step をまたぐ 6・48 グループ × 行の数 500・1,200・2,000。TASK-232 3/3） | `tools/measure/log-rounds.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 左のビューの部品単位の再描画（固定データの画面。TASK-485 1/3。ART-4） | `tools/measure/view-redraw.sh` | 試験の設定（代役の部品 `view_fixture` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 本体の画面の左のビューの再描画（TASK-485 2/3。ART-26） | `tools/measure/product-redraw.sh` | 試験の設定（`?fixture=artifact-redraw-<n>` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
@@ -87,6 +88,7 @@ make measure | jq .
 | 再描画 | `redraw_median`・`redraw_p95`・`redraw_max` | `us` | `Runtime::rerender` による root 配下の再構築 1 回あたりの時間 |
 | 再描画 1 回（ログ 100〜119 項目） | `log_redraw_median`・`log_redraw_p95`・`log_redraw_max` | `us` | 隠し要素の click 1 回の同期的な処理（イベントの委譲・状態の更新・DOM への反映）の時間 |
 | 項目数ごとの再描画の傾き | `log_slope_<4 桁の項目数>_median`・`_p95`・`_max`（12 段階 × 3 = 36 件） | `us` | `log_redraw_*` と同じ量を、ログの長さ 100・200・400・600・800・900・1100・1200・1600・2000・3000・4000 の各段階で測った値。傾きは `value` が正の整数という様式の制約のため含めず、記録の文書で値から計算する |
+| 2 周分の通しの再描画 | `log_rounds_g<2 桁のグループ数>_<4 桁の行の数>_median`・`_p95`・`_max`（グループ数 6・48 × 行の数 500・1200・2000 × 3 = 18 件） | `us` | `log_slope_*` と同じ量を、`go_to` で (世代, Step) の別のグループを作った 2 周分の通しで測った値 |
 
 検証は `measure_validate`（`tools/measure/lib.sh`）が行い、`schema` の一致・基点の各項目の存在と型・`measurements` の値を確かめる。
 
@@ -105,6 +107,12 @@ make measure | jq .
   - 各サンプルで、旧 root が DOM から外れ、新しい root が `Hello` を持つことを確かめる。何もしない再描画を「速い」と誤読しないため。戻り値が `false`（未マウントなど）なら失敗にする
   - 中央値は中央 2 値の平均、95 パーセンタイルは nearest-rank（`s[ceil(0.95n)-1]`）。PoC の `measure-poc1.mjs` と同じ定義である
   - 値は整数のマイクロ秒に丸める。0 に丸まる値は失敗にする（1 へ繰り上げない）
+
+- 2 周分の通しの再描画（TASK-232 3/3。EVT-26。出典の目安: `docs/spec/03-poc/save-restore-versions/measurements/history-size.csv`）
+  - `min-3step` の試験の設定を、回線・CPU の制限なしで配信する。ログは `go_to`（logLen が 2 増え、`li` は増えない）で st-1→st-2→st-3 を巡回して、6 または 48 のグループ（世代 × Step）にし、拒否される入力（`text: x`。1 回でログと `li` が 2 件増える）を各グループへ割り当てる（端数は古い側へ）。行の総数 R は測る前の logLen
+  - 段階（G × R）ごとに新しい context で 5 試行 × 40 操作 = 200 値。測るのは最新のグループ（st-3）での `el.click()` の同期区間で、サンプルの間に 20ms 待つ。判定は代表値 R = 500 の p95（16,000 us）
+  - 各操作の直後に、logLen の増え方、畳みの前は `li` の増え方、最後のデータ行の変化、Step の位置、`[data-list-error]`・`[data-list-limit]` が無いこと、`li` が 1,000 以下であることを確かめる。外れたら失敗にする。窓の中で `li` が 1,000 をまたがないことは計画の純関数 `planRoundsStage` が検査する
+  - 16ms を超えても失敗にせず、標準エラーに within / over を出す。値は合成の 2 周分のもので、本物の教材の行の構成を表さない（`conditions.scope_note`）
 
 - 再描画 1 回（ログ 100〜119 項目。出典: `docs/spec/03-poc/engine-event-consistency/env.md`、EVT-24）
   - 既定の最小教材（`min-3step`）の試験の設定を、回線・CPU の制限なしで配信する。操作は見えない `raw-trigger` に拒否される入力（`/make-note Bad_Name`）を載せた click で、1 回でログが 2 件増える
@@ -165,7 +173,7 @@ make measure | jq .
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
-- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`input-paint` の値は最小教材の値で、教材全体を代表しない
+- 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`log-rounds`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
 - `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。種類ごとの描画部品が製品に結線されるまでは経路の行の値である（`docs/testing.md` 5.318）

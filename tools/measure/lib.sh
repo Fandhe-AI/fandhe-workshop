@@ -44,7 +44,7 @@ _measure_sha256() {
   printf '%s\n' "${out}"
 }
 
-# measure_pack_json <ir-file>: 測った教材の基点 {"id","version","nodes","sha256"} を返す。log-redraw・log-slope・input-paint の基点の「教材」。
+# measure_pack_json <ir-file>: 測った教材の基点 {"id","version","nodes","sha256"} を返す。log-redraw・log-slope・log-rounds・input-paint の基点の「教材」。
 # id・version は IR の pack 欄、nodes は IR の nodes の数（Step の数）。読めない・欠けていれば失敗する。
 measure_pack_json() {
   local file="$1" sha
@@ -292,7 +292,7 @@ measure_result_json() {
 
 # measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# <kind> は first-paint / redraw / log-redraw / log-slope / input-paint / view-redraw / product-redraw / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# <kind> は first-paint / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
 # 結果の baseline へ足す。この 4 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw と view-redraw-cpu4x は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
@@ -300,7 +300,7 @@ measure_browser_result() {
   local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" rc=0 features need_extra
   if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
-    log-redraw | log-slope | input-paint | product-redraw | product-redraw-cpu4x) need_extra=1 ;;
+    log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-cpu4x) need_extra=1 ;;
     view-redraw | view-redraw-cpu4x) need_extra=2 ;;
     *) need_extra=0 ;;
   esac
