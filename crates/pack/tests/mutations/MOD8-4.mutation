@@ -1,0 +1,8 @@
+id: MOD8-4
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/begin.rs
+find:     state.run.completed = false;
+replace:     state.run.completed = false; state.run.world.retain(|k, _| !k.starts_with("impl/"));
+expect-fail: mod8_round1_world_is_carried_over_element_by_element
+note: 開始が環境を捨てる（部分的な欠落）

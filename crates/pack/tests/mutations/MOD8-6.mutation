@@ -1,0 +1,8 @@
+id: MOD8-6
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/command_rule.rs
+find:         if !missing_holds(on, matched)? || !args_hold(on, matched)? {
+replace:         if !missing_holds(on, matched)? {
+expect-fail: mod8_round2_launch_with_old_root_is_rejected_and_root_stays_closed
+note: 引数の値を見ないと、旧い根の番号での起動を受け付けてしまう
