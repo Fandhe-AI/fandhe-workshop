@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・log-slope.sh・input-paint.sh・view-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|input-paint|view-redraw|product-redraw --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -11,6 +11,7 @@
 // （min-3step）のもので、教材全体を代表しない。閾値（16ms）を超えても失敗にせず値を出す（合否は記録の文書に書く）。
 // log-slope（TASK-232 1/3。EVT-26）は log-redraw と同じ量を、ログの長さ 100〜4,000 項目の 12 段階で測り、項目数ごとの傾きを見る。
 // 段階は同じ context で昇順に進める。傾きは様式 v1 の value が正の整数のため measurements[] に入れず、記録の文書で値から計算する。
+// log-rounds（TASK-232 3/3。EVT-26）は同じ量を、go_to で世代と Step をまたいだ 6・48 グループのログ（2 周分の通し）で測る。判定は 500 項目の段。
 // input-paint（TASK-223 2/2。EVT-24）は、ログが 120〜158 項目の状態での「送信ボタンの信頼された click（CDP）から、次の
 // requestAnimationFrame の中の setTimeout(0) まで」を測る。起点は click のキャプチャ段階の受け取りと event.timeStamp の 2 通りで、
 // 判定には値が大きくなる timeStamp 起点を使う（出典は同じ env.md の「計測の条件」）。PoC の停止ボタンは現行の実装では処理中でなければ
@@ -30,7 +31,7 @@ import { startServer } from '../serve.mjs';
 import { measureViewRedraw } from './view-redraw.mjs';
 import { measureProductRedraw } from './product-redraw.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|input-paint|view-redraw|product-redraw --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -522,6 +523,177 @@ async function measureLogSlope(browser, dir) {
   }
 }
 
+// log-rounds（TASK-232 3/3。EVT-26）の条件。min-3step の st-1→st-2→st-3 を go_to で巡回し、(世代, Step) の別のグループを作って 2 周分の通しの形にする。
+// 試作（2026-10-27）で、go_to は logLen を 2 増やすが li は増やさず、拒否される入力（text 'x'・/make-note Bad_Name のどちらも）は 3 Step のどこでも
+// logLen と li を 2 ずつ増やすことを確かめた。ロード直後の logLen・li は 0。
+const ROUNDS_OP = { input: { text: 'x' } };
+const ROUNDS_STEPS = ['main/st-1', 'main/st-2', 'main/st-3'];
+const ROUNDS_GROUPS = [6, 48]; // 2 周 × 3 Step、PoC-4 の 1 周約 24 Step × 2 周
+const ROUNDS_STAGES = [500, 1200, 2000]; // 500 は PoC-6 の 2 周分の最大 506 件の代表値。判定はこの段
+const ROUNDS_REPRESENTATIVE = 500;
+const ROUNDS_TRIALS = 5;
+const ROUNDS_SAMPLES = 40;
+const ROUNDS_GO_TO_DELTA = 2;
+
+// 段階 R・グループ数 G の割り当ての計画（純関数）。各グループは go_to の 1 回（logLen +2）と、拒否される入力 n_g 回（各 +2 件）からなる。
+// 埋める入力の総数は (R - 2G)/2 で、端数は古い側から 1 回ずつ足す。窓 [R, R + 2*(samples-1)] の間、li の数が 1,000 をまたがないことを検査する。
+export function planRoundsStage({ groups, rows, samples = ROUNDS_SAMPLES, delta = LOG_DELTA, target = SLOPE_FOLD_TARGET }) {
+  if (!Number.isInteger(groups) || groups < 1) throw new Error('groups must be a positive integer');
+  if (!Number.isInteger(rows) || rows % delta !== 0) throw new Error('rows must be a multiple of the delta');
+  const fillTotal = (rows - ROUNDS_GO_TO_DELTA * groups) / delta;
+  if (!Number.isInteger(fillTotal) || fillTotal < groups) throw new Error('rows are too few for one input per group');
+  const base = Math.floor(fillTotal / groups);
+  const rest = fillTotal % groups;
+  const perGroup = Array.from({ length: groups }, (_, g) => base + (g < rest ? 1 : 0));
+  const liStart = fillTotal * delta;
+  const liEnd = liStart + delta * samples;
+  if (liStart < target && liEnd > target) throw new Error(`stage ${rows} x ${groups} crosses the fold target`);
+  return { perGroup, fillTotal, liStart, window: [rows, rows + delta * (samples - 1)], folded: liStart >= target };
+}
+
+// ページ内の 1 試行。plan.perGroup に従って groups 個のグループを時間を測らずに作り、最新のグループで samples 回の click を 1 回ずつ測る。
+async function logRoundsInPage({ op, delta, steps, plan, samples, target }) {
+  const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
+  const el = document.querySelector('[data-testid="raw-trigger"]');
+  const list = document.querySelector('[data-testid="part-log-list"]');
+  if (!el || !list) throw new Error('raw-trigger or part-log-list is missing');
+  const send = (p) => { el.setAttribute('data-payload', JSON.stringify(p)); el.click(); };
+  const rows = () => list.querySelectorAll(':scope > li').length;
+  const folds = () => list.querySelectorAll(':scope > li[data-fold]').length;
+  const lastEvent = () => {
+    const data = list.querySelectorAll(':scope > li:not([data-fold])');
+    return data.length ? data[data.length - 1].getAttribute('data-event') : null;
+  };
+  const check = (c, msg) => { if (!c) throw new Error(msg); };
+  check(st().current === steps[0] && st().logLen === 0 && rows() === 0, 'unexpected initial state (not the minimal pack?)');
+  const gen0 = st().generation;
+  let uid = steps[0];
+  for (let g = 0; g < plan.perGroup.length; g++) {
+    uid = steps[g % steps.length];
+    const before = st().logLen;
+    send({ control: { go_to: uid } });
+    check(st().current === uid, `go_to ${uid} did not move`);
+    check(st().logLen === before + 2, 'go_to did not add 2 log entries');
+    for (let i = 0; i < plan.perGroup[g]; i++) send(op);
+  }
+  const start = plan.window[0];
+  check(st().logLen === start, `log length is ${st().logLen} after building (expected ${start})`);
+  check(st().generation > gen0, 'generation did not advance');
+  const out = { values: [], rowsMin: Infinity, rowsMax: 0, foldedOps: 0, foldKinds: {}, generationEnd: st().generation };
+  for (let s = 0; s < samples; s++) {
+    const before = st().logLen;
+    const rowsBefore = rows();
+    const evBefore = lastEvent();
+    check(before === start + delta * s, `log length ${before} is outside the window`);
+    const t0 = performance.now();
+    el.click();
+    const t1 = performance.now();
+    check(st().logLen === before + delta, `log grew by ${st().logLen - before} (expected ${delta})`);
+    check(!document.querySelector('[data-list-error]') && !document.querySelector('[data-list-limit]'), 'a list limit notice appeared');
+    const rowsAfter = rows();
+    check(rowsAfter <= target, `log rows ${rowsAfter} exceed ${target}`);
+    if (folds() === 0) check(rowsAfter === rowsBefore + delta, `log rows grew by ${rowsAfter - rowsBefore} before folding (expected ${delta})`);
+    else out.foldedOps++;
+    check(lastEvent() !== evBefore, 'the last data row did not change (no real redraw?)');
+    check(st().current === uid, `step moved to ${st().current}`);
+    out.rowsMin = Math.min(out.rowsMin, rowsAfter);
+    out.rowsMax = Math.max(out.rowsMax, rowsAfter);
+    out.values.push(t1 - t0);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  list.querySelectorAll(':scope > li[data-fold]').forEach((li) => {
+    const k = li.getAttribute('data-fold');
+    out.foldKinds[k] = (out.foldKinds[k] ?? 0) + 1;
+  });
+  return out;
+}
+
+async function measureLogRounds(browser, dir) {
+  // 回線制限は掛けない。ブラウザ内の同期的な処理を測る。
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const cells = [];
+    for (const groups of ROUNDS_GROUPS) {
+      for (const rows of ROUNDS_STAGES) {
+        const plan = planRoundsStage({ groups, rows });
+        const cell = { groups, rows, plan, values: [], rowsMin: Infinity, rowsMax: 0, foldedOps: 0, foldKinds: {}, generationEnd: 0 };
+        for (let i = 0; i < ROUNDS_TRIALS; i++) {
+          const { context, page } = await newPage(browser, false);
+          try {
+            await page.addInitScript(installMountObserver);
+            await page.goto(srv.url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+            await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+            const state = await page.evaluate(() => ({
+              mounted: window.__mountedValue,
+              hooks: typeof window.__fandheTest?.stateJson === 'function',
+            }));
+            if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+            if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+            const res = await page.evaluate(logRoundsInPage, {
+              op: ROUNDS_OP, delta: LOG_DELTA, steps: ROUNDS_STEPS, plan, samples: ROUNDS_SAMPLES, target: SLOPE_FOLD_TARGET,
+            });
+            if (!Array.isArray(res.values) || res.values.length !== ROUNDS_SAMPLES) throw new Error('unexpected sample count');
+            cell.values.push(...res.values);
+            cell.rowsMin = Math.min(cell.rowsMin, res.rowsMin);
+            cell.rowsMax = Math.max(cell.rowsMax, res.rowsMax);
+            cell.foldedOps += res.foldedOps;
+            cell.foldKinds = res.foldKinds;
+            cell.generationEnd = res.generationEnd;
+          } finally {
+            await context.close();
+          }
+        }
+        progress(`log-rounds G=${groups} R=${rows}: trials done`);
+        cells.push(cell);
+      }
+    }
+    const measurements = [];
+    for (const c of cells) {
+      const tag = `g${String(c.groups).padStart(2, '0')}_${String(c.rows).padStart(4, '0')}`;
+      const label = `log rounds ${tag}`;
+      const p95us = toMicros(p95(c.values), `${label} p95`);
+      measurements.push(
+        { name: `log_rounds_${tag}_median`, unit: 'us', value: toMicros(median(c.values), `${label} median`) },
+        { name: `log_rounds_${tag}_p95`, unit: 'us', value: p95us },
+        { name: `log_rounds_${tag}_max`, unit: 'us', value: toMicros(Math.max(...c.values), `${label} max`) },
+      );
+      progress(`log-rounds G=${c.groups} R=${c.rows}: p95 ${p95us} us (threshold ${LOG_THRESHOLD_US} us): ${p95us <= LOG_THRESHOLD_US ? 'within' : 'over'}`);
+    }
+    return {
+      measurements,
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 1,
+        trials: ROUNDS_TRIALS,
+        samples_per_trial: ROUNDS_SAMPLES,
+        op: 'input text x (rejected; hidden raw-trigger click); groups made by control go_to cycling st-1, st-2, st-3',
+        log_delta: LOG_DELTA,
+        laps: 2,
+        group_counts: ROUNDS_GROUPS,
+        row_stages: ROUNDS_STAGES,
+        log_windows: cells.map((c) => ({ groups: c.groups, rows: c.rows, window: c.plan.window })),
+        rows_observed: cells.map((c) => ({
+          groups: c.groups, rows: c.rows, rows_min: c.rowsMin, rows_max: c.rowsMax, folded_ops: c.foldedOps,
+          fold_kinds: c.foldKinds, generation_end: c.generationEnd,
+        })),
+        fold_target: SLOPE_FOLD_TARGET,
+        threshold_p95_us: LOG_THRESHOLD_US,
+        representative_stage: ROUNDS_REPRESENTATIVE,
+        representative_source: 'docs/spec/03-poc/save-restore-versions/measurements/history-size.csv (2 laps: log_entries up to 506)',
+        base: BASE,
+        scope_note: 'minimal pack (min-3step) walked by go_to to form 6 or 48 (generation, Step) groups; log line mix (progress, choices) of a real pack is not modeled; not representative of a full pack',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
 // ページ内: 時間を測らずにログを start まで埋める（隠し raw-trigger の click）。割り切れ・戻る向きの検査はここが唯一の実体。
 async function fillLogInPage({ op, delta, start, startStep }) {
   const st = () => JSON.parse(window.__fandheTest.stateJson()).engine;
@@ -677,8 +849,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'input-paint', 'view-redraw', 'product-redraw'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|input-paint|view-redraw|product-redraw) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -712,7 +884,8 @@ async function main() {
       process.exit(1);
     }
     const runs = {
-      'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'log-slope': measureLogSlope, 'input-paint': measureInputPaint,
+      'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'log-slope': measureLogSlope,
+      'log-rounds': measureLogRounds, 'input-paint': measureInputPaint,
       'view-redraw': (b, d) => measureViewRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
       'product-redraw': (b, d) => measureProductRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
     };

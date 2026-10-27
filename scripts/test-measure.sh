@@ -182,6 +182,24 @@ else
   cat "${LOGS}.err" >&2
 fi
 
+# --- (i) log-rounds（世代と Step をまたぐ 2 周分の通しの再描画。TASK-232 3/3。束には入れない単体の測定） ---
+check "log-rounds.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/log-rounds.sh" --unknown
+check_fails "log-rounds: missing pack/device baseline is refused" measure_browser_result log-rounds "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "log-rounds: missing device baseline is refused" measure_browser_result log-rounds "$(measure_commit_json)" "${TMP}" '{"pack":{"id":"x","sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}'
+LOGG="${TMP}/log-rounds.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/log-rounds.sh" >"${LOGG}" 2>"${LOGG}.err"; then
+  check "log-rounds: passes the v1 validation" measure_validate "${LOGG}"
+  check "log-rounds: pack baseline is min-3step with a sha256" jq -e '.baseline.pack.id == "min-3step" and (.baseline.pack.sha256 | test("^[0-9a-f]{64}$"))' "${LOGG}"
+  check "log-rounds: device baseline has typed fields" jq -e '.baseline.device | (.os | type == "string") and (.cpu | type == "string") and (.logical_cores | type == "number") and (.memory_bytes | type == "number") and (.apple_silicon_macos | type == "boolean")' "${LOGG}"
+  # shellcheck disable=SC2016 # $g・$r は jq の変数であり、シェルで展開しない
+  check "log-rounds: median, p95 and max for each of 2 group counts x 3 stages" jq -e '(.measurements | length) == 18 and ([.measurements[].name] == [.conditions.group_counts[] as $g | .conditions.row_stages[] as $r | ("g" + ("0" + ($g | tostring))[-2:] + "_" + ("000" + ($r | tostring))[-4:]) | ("log_rounds_" + . + "_median", "log_rounds_" + . + "_p95", "log_rounds_" + . + "_max")])' "${LOGG}"
+  check "log-rounds: conditions record the groups, folding and the scope" jq -e '.conditions.group_counts == [6, 48] and .conditions.trials * .conditions.samples_per_trial == 200 and .conditions.fold_target == 1000 and (.conditions.rows_observed | length == 6 and (map(.rows_max <= 1000) | all)) and (.conditions.scope_note | contains("not representative"))' "${LOGG}"
+  check "log-rounds: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${LOGG}"
+else
+  fail "log-rounds: log-rounds.sh failed (see ${LOGG}.err)"
+  cat "${LOGG}.err" >&2
+fi
+
 # --- (f) input-paint（ログ 120〜158 項目の入力から描画まで。TASK-223 2/2。束には入れない単体の測定） ---
 check "input-paint.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/input-paint.sh" --unknown
 check_fails "input-paint: missing pack/device baseline is refused" measure_browser_result input-paint "$(measure_commit_json)" "${TMP}" '{}'
