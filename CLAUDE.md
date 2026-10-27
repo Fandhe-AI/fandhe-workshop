@@ -127,6 +127,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make check-mutations` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
 | `make test-check-mutations` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | WASM の `gzip -9` の大きさを基点つきで測り JSON を出す（様式は `docs/measurement.md`） |
+| `make measure-history-size` | 2 周分の履歴（書き出しの包み）の大きさと `Changed` の割合を基点つきで測り JSON を出す（様式は `docs/measurement.md` §4a。`make measure` の束には入れない。TASK-216） |
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI 未組み込み） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |

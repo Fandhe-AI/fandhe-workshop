@@ -9116,6 +9116,35 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - AI の代理の確認であり、人の評価には数えない（D-34）。作成者と実装者が同じ AI である。
   - `scripts/expected-test-counts.txt` は更新していない（`csp-runs` が 8 件から 10 件になる。後で `make update-test-counts`）。`make test-browser` 全体は未検証（CI の `browser-test` で確かめる）。
 
+### 5.322 2 周分の履歴の大きさと `Changed` の割合（TASK-216。EVT-13）
+
+- 目的: 世界状態の変化ごとに変更前の値つきの `Changed` を記録する方式（D-22）で、履歴が大きくなりすぎないかを実装したエンジンで測る。PoC-6 では `Changed` が 46 件・11,067 バイト（条件 A の全体の 14%）だった
+- 方式（`crates/pack/tests/history_size_rounds.rs`、実体の呼び出しは `tools/measure/history-size.sh`。様式は `docs/measurement.md` §4a）: `module-reuse-rounds` を `compile_dir` した IR で、模範解答の 2 周分（`common/rounds.rs` の計画）を `RecordedSession` で流し、各周の終わりに `Control::Save` を送る（チェックポイント 2 件）。書き出し（`export_bytes`）の大きさと、`snapshot.log` の `Changed` の件数・バイト数・割合を求める
+- 試験の確認: 2 周目の最後の Step に着く・チェックポイントが 2 件・`0 < changed_bytes < snapshot_bytes < total_bytes`・`changed_entries` が操作ごとのイベントの `Changed` の数と一致・同じ計画を 2 回流すと書き出しが一致・書き出しが読み込みの段 1〜5 を通って元の包みに戻る。5MB の閾値は assert しない（TASK-336 の担当）
+- 共通化: 2 周分の入力列を `common/rounds.rs` の `PlanStep` の列に切り出し、`round_slice_init.rs`（5.258・5.260・5.262）も同じ計画を使う。切り出しの前後で試験は 18 件のまま通り、`STATE-HASH` の値は 5.260 の表と一致した
+- 結果（2026-10-27。開発機。基点の commit は 83da127、`dirty: false`。`ir_sha256` ca404a5f7235f28481f457de33973996a87178e66daa609fd3e16d4ca4abcb81、`content_hash` 5ae52b3a652264013a66bb08dac3bb0d8340cd43abd55975dccf93355563af3b、`ops_sha256` b9084d786453506aa7093377cef2e8da8178b8dbe148a25f95936befa63a4436。教材 `bbs-tutorial` 0.0.1・36 ノード。rustc 1.98.1。profile test）:
+
+| 列（PoC の CSV と同じ） | 値 |
+|---|---|
+| ops | 63 |
+| log_entries | 265 |
+| total_bytes | 45,173 |
+| changed_entries | 34 |
+| changed_bytes | 7,637 |
+| ops_bytes | 3,670 |
+| snapshot_bytes | 41,100 |
+| checkpoints | 2 |
+| checkpoint_bytes | 5,611 |
+| changed_ratio_ppm | 169,061（約 16.9%） |
+
+- 読み方: 2 周分の全体は約 44KB で、PoC-6 の条件 A（`Changed` 14%）と同じ桁で、`Changed` の割合は約 17% だった。5MB（`MAX_HISTORY_BYTES`）に対しては約 0.9% で、この道筋の限りでは余裕が大きい。ただし判定ではない
+- 限界:
+  - `GoTo` で飛ばす場所が 5 か所（1 周目 3・2 周目 2。理由は 5.258・5.260）あり、`Changed` の件数は真の通しと違いうる
+  - 誤入力・条件 B／C・誤入力 3 割の合成・5MB の判定・04 の見直しの提案は TASK-336（SAVE-26）の担当で、本件では扱っていない。条件 A の形の 1 本の操作列だけである
+  - PoC-6 の値とは履歴の形が違い（誤入力なし）、直接は比べない。`make measure` の束と `scripts/expected-test-counts.txt` には入れていない
+  - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
+- 引き継ぎ: TASK-336 は `common/rounds.rs` の計画に操作を差し込み、`common/history_size.rs` の `measure` で大きさを求め、`measure-native/v1` の様式に足せる
+
 ### 5.323 モジュールの巡回 3 種の欠陥パック（TASK-234。MOD-2）
 
 - 目的: 2 つのモジュールが互いを呼ぶ・自分を呼ぶ・3 つを経由する、の 3 種の巡回が `validate`・`compile`・CLI で `E-MODULE-CYCLE` として期待のファイル・項目で出ることを、実ファイルの欠陥パック（`testdata/pack-defects/cycles/`。C01 は `v1/<x>/D07`）で確かめる。検査の実装は変えていない。

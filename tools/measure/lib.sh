@@ -349,3 +349,88 @@ measure_browser_result() {
 
   measure_emit "${tmp}/result.json"
 }
+
+# ---- 大きさの測定（native。fandhe-workshop/measure-native/v1。history-size.sh。TASK-216）----
+# 端末・wasm-opt・圧縮を持たない測定のため、v1 とは別の様式にする（偽の値で v1 の必須欄を埋めない。docs/measurement.md）。
+
+# jq の述語。様式 measure-native/v1 の 1 件の検査。
+MEASURE_JQ_VALID_NATIVE_V1='
+  def nes: type == "string" and length > 0;
+  def valid_native_v1:
+    .schema == "fandhe-workshop/measure-native/v1"
+    and (.measured_at | nes)
+    and (.baseline.commit.sha | type == "string" and test("^[0-9a-f]{40}$"))
+    and (.baseline.commit.dirty | type == "boolean")
+    and (.baseline.cargo_profile | nes)
+    and (.baseline.pack.id | nes) and (.baseline.pack.version | nes)
+    and (.baseline.pack.ir_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.baseline.pack.content_hash | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.baseline.ops_sequence.id | nes)
+    and (.baseline.ops_sequence.ops_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.baseline.ops_sequence.goto_substitutions | type == "number")
+    and (.toolchain.rustc | nes)
+    and (.conditions | type == "object")
+    and (.measurements | type == "array" and length >= 1)
+    and (.measurements | all(
+      (.name | nes) and (.unit | nes)
+      and (.value | type == "number" and . > 0 and . == floor)));
+'
+
+# measure_validate_native <json-file>: 様式 measure-native/v1 を満たすか検査する。ちょうど 1 件の JSON でなければ非 0。
+measure_validate_native() {
+  local file="$1"
+  [ -r "${file}" ] || return 1
+  jq -e -s "${MEASURE_JQ_VALID_NATIVE_V1}"'
+    length == 1 and (.[0] | valid_native_v1)
+  ' "${file}" >/dev/null 2>&1
+}
+
+# measure_emit_native <json-file>: 検証に通ったときだけ標準出力へ出す。通らなければ何も出さず 1 を返す。
+measure_emit_native() {
+  local file="$1"
+  if ! measure_validate_native "${file}"; then
+    echo "error: native result is malformed or missing baseline fields" >&2
+    return 1
+  fi
+  jq . "${file}"
+}
+
+# measure_native_result_json <commit-json> <line-json-file>: 試験の出力（HISTORY-SIZE の行の JSON）と基点から、
+# 様式 measure-native/v1 の結果を組み立てて標準出力へ返す。history-size.sh と scripts/test-measure-result.sh から呼ばれる。
+# JSON は --arg / --argjson / --slurpfile だけで組み立てる（オブジェクトの値の位置に二項演算を置かない。jq 1.7 の注意は #1822）。
+measure_native_result_json() {
+  local commit_json="$1" line_file="$2"
+  jq -n \
+    --arg measured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson commit "${commit_json}" \
+    --arg rustc "$(rustc -V 2>/dev/null || true)" \
+    --slurpfile l "${line_file}" \
+    '$l[0] as $l | {
+      schema: "fandhe-workshop/measure-native/v1",
+      measured_at: $measured_at,
+      baseline: {
+        commit: $commit,
+        cargo_profile: "test",
+        pack: $l.pack,
+        ops_sequence: $l.ops_sequence
+      },
+      toolchain: {rustc: $rustc},
+      conditions: {
+        condition: "A",
+        checkpoints_at: ["round1_end", "round2_end"],
+        scope_note: "no wrong inputs; some steps skipped with GoTo; conditions B/C and the 5 MB judgment belong to TASK-336"
+      },
+      measurements: [
+        {name: "history_total_bytes", unit: "bytes", value: $l.size.total_bytes},
+        {name: "history_ops_bytes", unit: "bytes", value: $l.size.ops_bytes},
+        {name: "history_snapshot_bytes", unit: "bytes", value: $l.size.snapshot_bytes},
+        {name: "history_ops", unit: "count", value: $l.size.ops},
+        {name: "history_log_entries", unit: "count", value: $l.size.log_entries},
+        {name: "history_changed_entries", unit: "count", value: $l.size.changed_entries},
+        {name: "history_changed_bytes", unit: "bytes", value: $l.size.changed_bytes},
+        {name: "history_changed_ratio_ppm", unit: "ppm", value: $l.size.changed_ratio_ppm},
+        {name: "history_checkpoints", unit: "count", value: $l.size.checkpoints},
+        {name: "history_checkpoint_bytes", unit: "bytes", value: $l.size.checkpoint_bytes}
+      ]
+    }'
+}
