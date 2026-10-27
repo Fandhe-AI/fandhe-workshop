@@ -1,4 +1,4 @@
-# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-23・元にしたコミット: aba0d8f
+# 試験の件数の期待値（FEND-17 の受け入れ確認 (2)・D-63・TASK-101）。更新日: 2026-10-27・元にしたコミット: 631353c
 # 更新は `make update-test-counts`（遅い。ブラウザ試験も流す）。版上げ PR の中では変えない（CI が失敗する）。版を上げる前に別の PR で更新する。
 # 書式: rust|<試験の束>|passed=<n>|ignored=<n>。同じ束の記述が crate をまたいで重複する場合は合算する（限界）。
 rust|doc-tests fandhe_workshop_contract|passed=0|ignored=0
@@ -12,15 +12,17 @@ rust|tests/accept_input.rs [accept_input]|passed=21|ignored=0
 rust|tests/action_profile_contract.rs [action_profile_contract]|passed=11|ignored=0
 rust|tests/answer_label_required.rs [answer_label_required]|passed=10|ignored=0
 rust|tests/api_types.rs [api_types]|passed=6|ignored=0
+rust|tests/app_demo_login_contract.rs [app_demo_login_contract]|passed=5|ignored=0
 rust|tests/app_demo_view_a_contract.rs [app_demo_view_a_contract]|passed=15|ignored=0
 rust|tests/app_demo_view_b_contract.rs [app_demo_view_b_contract]|passed=17|ignored=0
 rust|tests/appearance.rs [appearance]|passed=7|ignored=0
 rust|tests/appearance_contract.rs [appearance_contract]|passed=7|ignored=0
-rust|tests/approval_buttons.rs [approval_buttons]|passed=13|ignored=0
+rust|tests/approval_buttons.rs [approval_buttons]|passed=18|ignored=0
 rust|tests/approval_flow.rs [approval_flow]|passed=1|ignored=0
 rust|tests/approval_revise_candidates.rs [approval_revise_candidates]|passed=10|ignored=0
 rust|tests/approval_revise_split.rs [approval_revise_split]|passed=4|ignored=0
 rust|tests/artifact_doc_rows.rs [artifact_doc_rows]|passed=6|ignored=0
+rust|tests/artifact_fold.rs [artifact_fold]|passed=9|ignored=0
 rust|tests/artifact_mark_contract.rs [artifact_mark_contract]|passed=12|ignored=0
 rust|tests/artifact_rows_contract.rs [artifact_rows_contract]|passed=10|ignored=0
 rust|tests/artifact_rows_incremental.rs [artifact_rows_incremental]|passed=3|ignored=0
@@ -30,6 +32,8 @@ rust|tests/artifact_view_contract.rs [artifact_view_contract]|passed=16|ignored=
 rust|tests/artifact_view_generic_names.rs [artifact_view_generic_names]|passed=4|ignored=0
 rust|tests/artifact_view_sample.rs [artifact_view_sample]|passed=7|ignored=0
 rust|tests/begin.rs [begin]|passed=4|ignored=0
+rust|tests/begin_skip.rs [begin_skip]|passed=8|ignored=0
+rust|tests/begin_skip_keep.rs [begin_skip_keep]|passed=6|ignored=0
 rust|tests/body_arg_gap.rs [body_arg_gap]|passed=7|ignored=0
 rust|tests/body_docs.rs [body_docs]|passed=5|ignored=0
 rust|tests/body_level_runtime.rs [body_level_runtime]|passed=1|ignored=0
@@ -47,18 +51,20 @@ rust|tests/candidates_contract.rs [candidates_contract]|passed=11|ignored=0
 rust|tests/card_view_a_contract.rs [card_view_a_contract]|passed=13|ignored=0
 rust|tests/card_view_b_contract.rs [card_view_b_contract]|passed=13|ignored=0
 rust|tests/ch0_3_run_host.rs [ch0_3_run_host]|passed=3|ignored=0
+rust|tests/ch4_9_run_host.rs [ch4_9_run_host]|passed=4|ignored=0
 rust|tests/changed_record.rs [changed_record]|passed=8|ignored=0
 rust|tests/chapter_keys_host.rs [chapter_keys_host]|passed=2|ignored=0
 rust|tests/check_view_a_contract.rs [check_view_a_contract]|passed=13|ignored=0
 rust|tests/check_view_b_contract.rs [check_view_b_contract]|passed=13|ignored=0
+rust|tests/checkpoint_ops_host.rs [checkpoint_ops_host]|passed=14|ignored=0
 rust|tests/checkpoint_restore.rs [checkpoint_restore]|passed=14|ignored=0
 rust|tests/choice_answer.rs [choice_answer]|passed=6|ignored=0
 rust|tests/chosen_value_gap.rs [chosen_value_gap]|passed=10|ignored=0
 rust|tests/clarify_draft.rs [clarify_draft]|passed=3|ignored=0
 rust|tests/clarify_lines.rs [clarify_lines]|passed=4|ignored=0
-rust|tests/cli.rs [cli]|passed=21|ignored=0
+rust|tests/cli.rs [cli]|passed=22|ignored=0
 rust|tests/cli_contract.rs [cli_contract]|passed=19|ignored=0
-rust|tests/cli_contract_doc.rs [cli_contract_doc]|passed=9|ignored=0
+rust|tests/cli_contract_doc.rs [cli_contract_doc]|passed=12|ignored=0
 rust|tests/command_accept.rs [command_accept]|passed=9|ignored=0
 rust|tests/command_class.rs [command_class]|passed=18|ignored=0
 rust|tests/command_judge.rs [command_judge]|passed=10|ignored=0
@@ -85,12 +91,15 @@ rust|tests/content_hash.rs [content_hash]|passed=2|ignored=0
 rust|tests/content_hash_contract.rs [content_hash_contract]|passed=9|ignored=0
 rust|tests/contract_conformance.rs [contract_conformance]|passed=19|ignored=0
 rust|tests/contract_sample.rs [contract_sample]|passed=6|ignored=0
-rust|tests/defect_packs.rs [defect_packs]|passed=9|ignored=2
+rust|tests/defect_packs.rs [defect_packs]|passed=11|ignored=0
+rust|tests/determinism.rs [determinism]|passed=7|ignored=0
+rust|tests/determinism_sources.rs [determinism_sources]|passed=4|ignored=0
 rust|tests/diagnostics_doc.rs [diagnostics_doc]|passed=7|ignored=0
 rust|tests/diff_view_a_contract.rs [diff_view_a_contract]|passed=10|ignored=0
 rust|tests/diff_view_contract.rs [diff_view_contract]|passed=14|ignored=0
 rust|tests/dirty_binding_points.rs [dirty_binding_points]|passed=4|ignored=0
 rust|tests/do_levels.rs [do_levels]|passed=19|ignored=0
+rust|tests/doc_body_host.rs [doc_body_host]|passed=2|ignored=0
 rust|tests/doc_depth.rs [doc_depth]|passed=17|ignored=0
 rust|tests/doc_links.rs [doc_links]|passed=12|ignored=0
 rust|tests/doc_load.rs [doc_load]|passed=7|ignored=0
@@ -98,15 +107,17 @@ rust|tests/document_view_a_contract.rs [document_view_a_contract]|passed=12|igno
 rust|tests/document_view_contract.rs [document_view_contract]|passed=16|ignored=0
 rust|tests/effect_apply.rs [effect_apply]|passed=13|ignored=0
 rust|tests/effect_contract.rs [effect_contract]|passed=15|ignored=0
-rust|tests/effects.rs [effects]|passed=17|ignored=0
+rust|tests/effects.rs [effects]|passed=20|ignored=0
 rust|tests/engine_api_doc.rs [engine_api_doc]|passed=2|ignored=0
 rust|tests/entry_copy_checkpoint.rs [entry_copy_checkpoint]|passed=9|ignored=0
 rust|tests/env_action_input.rs [env_action_input]|passed=9|ignored=0
 rust|tests/env_action_save.rs [env_action_save]|passed=12|ignored=0
 rust|tests/error_input_expect.rs [error_input_expect]|passed=10|ignored=0
+rust|tests/examples_pack.rs [examples_pack]|passed=6|ignored=0
 rust|tests/export_notice.rs [export_notice]|passed=7|ignored=0
 rust|tests/ext9_ir_identity.rs [ext9_ir_identity]|passed=6|ignored=0
 rust|tests/extension_point_procedure_doc.rs [extension_point_procedure_doc]|passed=5|ignored=0
+rust|tests/fictional_mark_validate.rs [fictional_mark_validate]|passed=10|ignored=0
 rust|tests/file_tree_view_a_contract.rs [file_tree_view_a_contract]|passed=10|ignored=0
 rust|tests/file_tree_view_contract.rs [file_tree_view_contract]|passed=10|ignored=0
 rust|tests/fixed_histories.rs [fixed_histories]|passed=3|ignored=0
@@ -150,6 +161,7 @@ rust|tests/history_size.rs [history_size]|passed=10|ignored=0
 rust|tests/history_verify.rs [history_verify]|passed=14|ignored=0
 rust|tests/history_version_contract.rs [history_version_contract]|passed=17|ignored=0
 rust|tests/host_contract.rs [host_contract]|passed=21|ignored=0
+rust|tests/id_change_control.rs [id_change_control]|passed=6|ignored=0
 rust|tests/input_class_shared.rs [input_class_shared]|passed=2|ignored=0
 rust|tests/input_field_hidden.rs [input_field_hidden]|passed=7|ignored=0
 rust|tests/input_limit.rs [input_limit]|passed=25|ignored=0
@@ -179,6 +191,7 @@ rust|tests/learner_text.rs [learner_text]|passed=3|ignored=0
 rust|tests/left_pane.rs [left_pane]|passed=20|ignored=0
 rust|tests/left_pane_contract.rs [left_pane_contract]|passed=8|ignored=0
 rust|tests/left_pane_shared.rs [left_pane_shared]|passed=2|ignored=0
+rust|tests/left_pane_view.rs [left_pane_view]|passed=7|ignored=0
 rust|tests/limit_notice.rs [limit_notice]|passed=4|ignored=0
 rust|tests/limits_commands.rs [limits_commands]|passed=10|ignored=0
 rust|tests/limits_contract.rs [limits_contract]|passed=8|ignored=0
@@ -191,6 +204,8 @@ rust|tests/lo_check_vocabulary.rs [lo_check_vocabulary]|passed=1|ignored=0
 rust|tests/lo_first_answer.rs [lo_first_answer]|passed=11|ignored=0
 rust|tests/load_order.rs [load_order]|passed=15|ignored=0
 rust|tests/load_reason_contract.rs [load_reason_contract]|passed=13|ignored=0
+rust|tests/log_fold_generations.rs [log_fold_generations]|passed=3|ignored=0
+rust|tests/log_kind_match.rs [log_kind_match]|passed=1|ignored=0
 rust|tests/log_lines_contract.rs [log_lines_contract]|passed=13|ignored=0
 rust|tests/metrics.rs [metrics]|passed=10|ignored=0
 rust|tests/missing_elements.rs [missing_elements]|passed=10|ignored=0
@@ -203,7 +218,7 @@ rust|tests/module_instances_session.rs [module_instances_session]|passed=3|ignor
 rust|tests/modules.rs [modules]|passed=39|ignored=0
 rust|tests/move_step.rs [move_step]|passed=17|ignored=0
 rust|tests/next_chapter.rs [next_chapter]|passed=20|ignored=0
-rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=9|ignored=0
+rust|tests/no_hidden_triggers.rs [no_hidden_triggers]|passed=10|ignored=0
 rust|tests/no_progress.rs [no_progress]|passed=11|ignored=0
 rust|tests/no_runtime_markdown.rs [no_runtime_markdown]|passed=3|ignored=0
 rust|tests/no_starts.rs [no_starts]|passed=6|ignored=0
@@ -211,12 +226,17 @@ rust|tests/offers_contract.rs [offers_contract]|passed=8|ignored=0
 rust|tests/old_pack_history_open.rs [old_pack_history_open]|passed=9|ignored=0
 rust|tests/op_sequence_properties.rs [op_sequence_properties]|passed=13|ignored=0
 rust|tests/op_sequence_replay.rs [op_sequence_replay]|passed=7|ignored=0
+rust|tests/operation_guide.rs [operation_guide]|passed=4|ignored=0
 rust|tests/ops_record.rs [ops_record]|passed=10|ignored=0
+rust|tests/os_independent_ops.rs [os_independent_ops]|passed=5|ignored=0
 rust|tests/pack19_bare_step.rs [pack19_bare_step]|passed=5|ignored=0
 rust|tests/pack_dir_limits.rs [pack_dir_limits]|passed=10|ignored=0
 rust|tests/pack_size_limits.rs [pack_size_limits]|passed=7|ignored=0
+rust|tests/pane_isolation.rs [pane_isolation]|passed=19|ignored=0
 rust|tests/parts_contract.rs [parts_contract]|passed=8|ignored=0
 rust|tests/per_instance_guidance_gap.rs [per_instance_guidance_gap]|passed=4|ignored=0
+rust|tests/play_input_class.rs [play_input_class]|passed=10|ignored=0
+rust|tests/play_input_split.rs [play_input_split]|passed=7|ignored=0
 rust|tests/point_click_contract.rs [point_click_contract]|passed=7|ignored=0
 rust|tests/point_rows_contract.rs [point_rows_contract]|passed=7|ignored=0
 rust|tests/profile.rs [profile]|passed=5|ignored=0
@@ -229,6 +249,7 @@ rust|tests/provider_swap.rs [provider_swap]|passed=7|ignored=0
 rust|tests/radix_literals.rs [radix_literals]|passed=7|ignored=0
 rust|tests/read_only_step.rs [read_only_step]|passed=7|ignored=0
 rust|tests/recorded_session.rs [recorded_session]|passed=5|ignored=0
+rust|tests/reduced_motion_contract.rs [reduced_motion_contract]|passed=10|ignored=0
 rust|tests/refused_history.rs [refused_history]|passed=13|ignored=0
 rust|tests/reject_draft_select.rs [reject_draft_select]|passed=5|ignored=0
 rust|tests/reject_four_scenes.rs [reject_four_scenes]|passed=4|ignored=0
@@ -258,6 +279,7 @@ rust|tests/secret_choice.rs [secret_choice]|passed=19|ignored=0
 rust|tests/secret_hold_export.rs [secret_hold_export]|passed=6|ignored=0
 rust|tests/secret_notice.rs [secret_notice]|passed=8|ignored=0
 rust|tests/secret_scan.rs [secret_scan]|passed=17|ignored=0
+rust|tests/secret_shape_validate.rs [secret_shape_validate]|passed=13|ignored=0
 rust|tests/select_judge.rs [select_judge]|passed=23|ignored=0
 rust|tests/session_contract.rs [session_contract]|passed=14|ignored=0
 rust|tests/shell_contract.rs [shell_contract]|passed=26|ignored=0
@@ -271,8 +293,10 @@ rust|tests/stale_notice.rs [stale_notice]|passed=5|ignored=0
 rust|tests/start_gate.rs [start_gate]|passed=8|ignored=0
 rust|tests/start_link_host.rs [start_link_host]|passed=3|ignored=0
 rust|tests/start_requires.rs [start_requires]|passed=7|ignored=0
+rust|tests/start_skip.rs [start_skip]|passed=2|ignored=0
 rust|tests/state_paths.rs [state_paths]|passed=30|ignored=0
 rust|tests/static_limits.rs [static_limits]|passed=4|ignored=0
+rust|tests/step_body_host.rs [step_body_host]|passed=8|ignored=0
 rust|tests/step_status_contract.rs [step_status_contract]|passed=10|ignored=0
 rust|tests/stop_owner_slice.rs [stop_owner_slice]|passed=9|ignored=0
 rust|tests/stop_restore.rs [stop_restore]|passed=15|ignored=0
@@ -283,8 +307,10 @@ rust|tests/storage_store_contract.rs [storage_store_contract]|passed=3|ignored=0
 rust|tests/submit_wiring.rs [submit_wiring]|passed=7|ignored=0
 rust|tests/task_tree_contract.rs [task_tree_contract]|passed=17|ignored=0
 rust|tests/terminal_area_contract.rs [terminal_area_contract]|passed=21|ignored=0
+rust|tests/test_command.rs [test_command]|passed=19|ignored=0
 rust|tests/testdata_min_3step.rs [testdata_min_3step]|passed=3|ignored=0
 rust|tests/text_fill.rs [text_fill]|passed=12|ignored=0
+rust|tests/text_independence.rs [text_independence]|passed=7|ignored=0
 rust|tests/text_judge.rs [text_judge]|passed=12|ignored=0
 rust|tests/text_rule_content.rs [text_rule_content]|passed=11|ignored=0
 rust|tests/text_slots.rs [text_slots]|passed=22|ignored=0
@@ -296,6 +322,7 @@ rust|tests/transition_limit.rs [transition_limit]|passed=19|ignored=0
 rust|tests/tree_attrs_contract.rs [tree_attrs_contract]|passed=12|ignored=0
 rust|tests/upstream_bump_procedure_doc.rs [upstream_bump_procedure_doc]|passed=5|ignored=0
 rust|tests/upstream_map_gap.rs [upstream_map_gap]|passed=6|ignored=0
+rust|tests/validate_command.rs [validate_command]|passed=8|ignored=0
 rust|tests/validate_cycle_confirm.rs [validate_cycle_confirm]|passed=14|ignored=0
 rust|tests/validate_reach.rs [validate_reach]|passed=8|ignored=0
 rust|tests/validate_refs.rs [validate_refs]|passed=8|ignored=0
@@ -315,10 +342,10 @@ rust|tests/vocabulary_terms.rs [vocabulary_terms]|passed=14|ignored=0
 rust|tests/wrong_answer_compare.rs [wrong_answer_compare]|passed=5|ignored=0
 rust|tests/yaml_dependency.rs [yaml_dependency]|passed=3|ignored=0
 rust|tests/yaml_features.rs [yaml_features]|passed=9|ignored=0
-rust|total|binaries=319|passed=3409|ignored=3
+rust|total|binaries=346|passed=3660|ignored=1
 rust|unittests src/lib.rs [fandhe_workshop_contract]|passed=34|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=102|ignored=0
-rust|unittests src/lib.rs [fandhe_workshop_web]|passed=155|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=118|ignored=0
+rust|unittests src/lib.rs [fandhe_workshop_web]|passed=171|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=934|pass=934|skipped=0|todo=0|cancelled=0
+browser|total|tests=1149|pass=1149|skipped=0|todo=0|cancelled=0

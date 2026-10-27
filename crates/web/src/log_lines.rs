@@ -232,6 +232,41 @@ pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
     }
 }
 
+/// `line_from_event(event, text)` が返す行の種類だけを、文字列を複製せずに返す。
+///
+/// 右のログが、畳まれて捨てる行の `LogLine` を作らずに行を数えるための判定である（TASK-232 2/3）。
+/// 不変条件は `line_kind_from_event(e, t) == line_from_event(e, t).map(|l| l.kind())`。
+/// `line_from_event` と同じ分岐を保つこと。片方を変えたら両方を変える（一致は `tests/log_kind_match.rs` が固定する）。
+pub fn line_kind_from_event(event: &Event, text: Option<&str>) -> Option<LineKind> {
+    let non_blank = || text.is_some_and(|t| !t.trim().is_empty());
+    match event {
+        Event::Judged {
+            judgment: Judgment::Rejected(_),
+            ..
+        } => non_blank().then_some(LineKind::Rejected),
+        Event::Judged {
+            judgment: Judgment::Clarified(_),
+            ..
+        } => non_blank().then_some(LineKind::Clarified),
+        Event::InputReceived { input, .. } => {
+            InputMethod::from_input(input)?;
+            match input {
+                Input::Approval { .. }
+                | Input::Command(_)
+                | Input::Text(_)
+                | Input::Choice(_)
+                | Input::Ui { .. } => Some(LineKind::Received),
+                _ => None,
+            }
+        }
+        Event::Progress { index, total, .. } if index < total => Some(LineKind::Progress),
+        Event::Stopped { .. } => Some(LineKind::Stopped),
+        Event::Reloaded { .. } => Some(LineKind::Reloaded),
+        Event::TransitionLimitReached { .. } => Some(LineKind::Limit),
+        _ => None,
+    }
+}
+
 /// 行 1 件を `li` に描く。契約に違反する行（`index >= total` の進行）は `None`。
 pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
     let gen = generation.to_string();

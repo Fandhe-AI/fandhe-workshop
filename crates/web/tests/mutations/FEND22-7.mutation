@@ -1,0 +1,8 @@
+id: FEND22-7
+package: fandhe-workshop-web
+test: log_fold_generations
+target: crates/web/src/engine_parts.rs
+find: .is_some_and(|prev| prev.at == row.at);
+replace: .is_some_and(|prev| prev.at.step == row.at.step);
+expect-fail: folded_same_step_summaries_are_split_by_generation
+note: 世代の違いを無視して連続する同じ Step を 1 グループにする（世代をまたぐ畳みの違反）
