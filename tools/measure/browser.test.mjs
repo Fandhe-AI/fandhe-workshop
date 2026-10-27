@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median, p95, toMicros, resolveLaunchOptions } from './browser.mjs';
+import { cases, judge, expectedCounts, VR_THRESHOLD_US } from './view-redraw.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
 
@@ -86,4 +87,67 @@ test('cli: input-paint without --dir exits 2 with empty stdout', () => {
   const r = run(['--kind', 'input-paint']);
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
+});
+
+test('cli: view-redraw without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'view-redraw']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
+
+// view-redraw の判定（純関数）。表の鍵は `${kind}:${variant}:${op}`。
+function allWithin(us = 1000) {
+  const t = {};
+  for (const c of cases()) t[`${c.kind}:${c.variant}:${c.op}`] = us;
+  return t;
+}
+
+test('view-redraw cases: 12 combinations x 2 ops, no rejected variant, switch source differs and allows the variant', () => {
+  const list = cases();
+  assert.equal(list.length, 24);
+  assert.ok(!list.some((c) => (c.kind === 'document' || c.kind === 'diff') && c.variant === 'a'));
+  for (const c of list) {
+    assert.notEqual(c.from, c.kind);
+    assert.ok(!((c.from === 'document' || c.from === 'diff') && c.variant === 'a'), `${c.kind}:${c.variant} from ${c.from}`);
+  }
+});
+
+test('view-redraw judge: all within -> every kind within, judged flags set', () => {
+  const j = judge(allWithin());
+  assert.ok(Object.values(j).every((v) => v.within));
+  assert.deepEqual(Object.keys(j).filter((k) => j[k].judged).sort(), ['diff', 'document', 'task_tree']);
+});
+
+test('view-redraw judge: diff has only variant b, so one slow op makes diff over', () => {
+  const t = allWithin();
+  t['diff:b:switch'] = VR_THRESHOLD_US + 1;
+  const j = judge(t);
+  assert.equal(j.diff.within, false);
+  assert.equal(j.document.within, true);
+});
+
+test('view-redraw judge: the threshold itself is within; one variant within on both ops is enough', () => {
+  const t = allWithin();
+  t['diff:b:toggle'] = VR_THRESHOLD_US;
+  assert.equal(judge(t).diff.within, true);
+  t['task_tree:a:toggle'] = VR_THRESHOLD_US + 1;
+  assert.equal(judge(t).task_tree.within, true);
+  t['task_tree:b:switch'] = VR_THRESHOLD_US + 1;
+  assert.equal(judge(t).task_tree.within, false);
+});
+
+test('view-redraw judge: a missing p95 throws', () => {
+  const t = allWithin();
+  delete t['document:b:switch'];
+  assert.throws(() => judge(t));
+});
+
+test('view-redraw expectedCounts: hand-counted sizes of the scale data', () => {
+  const c = expectedCounts();
+  assert.deepEqual(c.document, { before: 80, after: 97 });
+  assert.deepEqual(c.diff, { before: 479, after: 500 });
+  assert.deepEqual(c.task_tree, { before: 46, after: 50 });
+  assert.deepEqual(c.file_tree, { before: 191, after: 200 });
+  assert.deepEqual(c.card_list, { before: 20, after: 20 });
+  assert.deepEqual(c.check_list, { before: 20, after: 20 });
 });

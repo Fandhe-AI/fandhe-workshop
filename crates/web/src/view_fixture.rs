@@ -25,6 +25,10 @@
 //! ビルド時に木にした JSON の写しで持つ（実行時に Markdown は解釈しない）。
 //! 文書の前後の数（前 10・後 13 ブロック）の出所は `testdata/artifact-view-parts/test-data/sample/` の
 //! `doc-before.md`・`doc-after.md` の最上位のブロックで、変更されたブロックは削除と追加の 2 行になる。
+//!
+//! 再描画の速さの測定（TASK-485 1/3。ART-4）では、`fixture_data` で文書 200 行・差分 500 行・タスク 50 件・ファイルツリー 200 件の
+//! 規模のデータ（`tests/data/artifact_view_scale/`。出所は同じ場所の `README.md`）に差し替える。文書は木の写しで持ち、
+//! 差し替えは `align_blocks` を通る。
 
 // native では `Runtime` に載せる口（`test_hooks`）が無いため、口からだけ使う項目は未使用になる。
 #![cfg_attr(
@@ -60,7 +64,7 @@ pub(crate) const FIXTURE_ERROR_TESTID: &str = "view-fixture-error";
 pub(crate) const ACTION_SELECT: &str = "fixture_select";
 /// 前後を切り替える action の名前。payload は `before` か `after`。
 pub(crate) const ACTION_PHASE: &str = "fixture_phase";
-/// 行のデータを切り替える action の名前。payload は 文書以外の 6 種の `<種類>:escape`（未信頼の値の表示の試験用の 4 行。TASK-482 1/2。ART-6）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample`、`cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）・`appdemo:login`・`appdemo:login-contrast`（TASK-492。模擬ログインと、パスワード欄を足した負の対照）。
+/// 行のデータを切り替える action の名前。payload は 文書以外の 6 種の `<種類>:escape`（未信頼の値の表示の試験用の 4 行。TASK-482 1/2。ART-6）と、戻すための `filetree:sample`・`diff:sample`・`tasks:sample`、`cards:sample`・`cards:20`（TASK-477）・`checks:sample`・`checks:20`（TASK-478。規模の検査用）・`appdemo:sample`・`appdemo:nameplate`（TASK-480 2/2。名札の行）・`appdemo:login`・`appdemo:login-contrast`（TASK-492。模擬ログインと、パスワード欄を足した負の対照）・測定用の規模 `filetree:200`・`diff:500`・`tasks:50`・`document:200` と文書を戻す `document:sample`（TASK-485 1/3）。
 pub(crate) const ACTION_DATA: &str = "fixture_data";
 
 /// 対照の口の action の名前。payload は `diff:a`・`document:a` だけを受ける（製品の契約が拒否する組を、試験の設定の中でだけ描く）。
@@ -111,6 +115,29 @@ const CARDS_20: &[u8] = include_bytes!(concat!(
 const CHECKS_20: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/tests/data/artifact_view_scale/checks-20.json"
+));
+/// 再描画の速さの測定用の規模のデータ（`generate.mjs` の出力の写し。TASK-485 1/3。出所と内訳は同じ場所の `README.md`）。
+/// ファイルツリー 200 件・差分 500 行・タスク 50 件。
+const FILETREE_200: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/filetree-200.json"
+));
+const DIFF_500: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/diff-500.json"
+));
+const TASKS_50: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/tasks-50.json"
+));
+/// 文書 200 行（Markdown で 200 行）の前後の木。実行時に Markdown は解釈しないため、`markdown::parse` の出力の JSON の写しで持つ。
+const DOC_LARGE_BEFORE_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/doc-large-before.json"
+));
+const DOC_LARGE_AFTER_JSON: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/data/artifact_view_scale/doc-large-after.json"
 ));
 const CHECKS: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -230,13 +257,9 @@ fn doc_blocks(json: &str) -> Result<Vec<Block>, FixtureError> {
 }
 
 /// 前後の木のブロックを突き合わせ、`-` と `+` の行にする。突き合わせに失敗したら `Err`（fail-closed）。
-fn doc_rows() -> Result<Vec<DocRow<Block>>, FixtureError> {
-    align_blocks(
-        "document",
-        &doc_blocks(DOC_BEFORE_JSON)?,
-        &doc_blocks(DOC_AFTER_JSON)?,
-    )
-    .map_err(|_| FixtureError::Data)
+fn doc_rows(before: &str, after: &str) -> Result<Vec<DocRow<Block>>, FixtureError> {
+    align_blocks("document", &doc_blocks(before)?, &doc_blocks(after)?)
+        .map_err(|_| FixtureError::Data)
 }
 
 /// 代役の部品のビューの識別子。教材の `views` 表の識別子の代わりで、試験の設定の中に閉じる。
@@ -339,6 +362,8 @@ pub(crate) enum DataSet {
     Sample,
     /// 規模の検査用の 20 行。
     Scale20,
+    /// 再描画の速さの測定用の規模（文書 200 行・差分 500 行・タスク 50 件・ファイルツリー 200 件。TASK-485 1/3）。
+    Measure,
     /// 名札の 3 行（アプリのデモだけ。指せる行は `screen/top` だけ）。
     Nameplate,
     /// 模擬ログインの 7 行（アプリのデモだけ。指せる行は名前の行 2 件。TASK-492）。
@@ -359,7 +384,7 @@ impl ViewFixture {
         let mut views = Vec::new();
         for kind in ViewKind::ALL {
             let rows = match kind {
-                ViewKind::Document => ViewRows::Doc(doc_rows()?),
+                ViewKind::Document => ViewRows::Doc(doc_rows(DOC_BEFORE_JSON, DOC_AFTER_JSON)?),
                 ViewKind::FileTree => ViewRows::Items(load_items(FILETREE)?),
                 ViewKind::Diff => ViewRows::Items(load_items(DIFF)?),
                 ViewKind::TaskTree => ViewRows::Items(load_items(TASKS)?),
@@ -505,8 +530,41 @@ impl Component for ViewFixture {
                 self.phase = phase;
                 self.dirty = dirty_list_fields(Some(self.selected), Some(self.selected), changed);
             }
+            FixtureAction::Data(ViewKind::Document, data) => {
+                // 文書は木の写しから作る。行のデータ（`load_items`）は通らない。
+                let loaded = match data {
+                    DataSet::Measure => doc_rows(DOC_LARGE_BEFORE_JSON, DOC_LARGE_AFTER_JSON),
+                    _ => doc_rows(DOC_BEFORE_JSON, DOC_AFTER_JSON),
+                };
+                let failed = loaded.is_err();
+                if failed != self.load_failed {
+                    self.load_failed = failed;
+                    self.dirty.push(OUTSIDE_FIELD);
+                }
+                if let Ok(rows) = loaded {
+                    if let Some(idx) = self
+                        .views
+                        .iter()
+                        .position(|(k, _)| *k == ViewKind::Document)
+                    {
+                        let slot = &mut self.views[idx].1;
+                        let same = matches!(slot, ViewRows::Doc(cur) if *cur == rows);
+                        *slot = ViewRows::Doc(rows);
+                        if !same && self.selected == ViewKind::Document {
+                            self.dirty = dirty_list_fields(
+                                Some(ViewKind::Document),
+                                Some(ViewKind::Document),
+                                true,
+                            );
+                        }
+                    }
+                }
+            }
             FixtureAction::Data(kind, data) => {
                 let bytes = match (kind, data) {
+                    (ViewKind::FileTree, DataSet::Measure) => FILETREE_200,
+                    (ViewKind::Diff, DataSet::Measure) => DIFF_500,
+                    (ViewKind::TaskTree, DataSet::Measure) => TASKS_50,
                     (ViewKind::FileTree, DataSet::Sample) => FILETREE,
                     (ViewKind::Diff, DataSet::Sample) => DIFF,
                     (ViewKind::TaskTree, DataSet::Sample) => TASKS,
@@ -545,9 +603,10 @@ impl Component for ViewFixture {
                             DataSet::Login | DataSet::LoginContrast => {
                                 PointRule::Only(LOGIN_POINTABLE)
                             }
-                            DataSet::Sample | DataSet::Scale20 | DataSet::Escape => {
-                                PointRule::AllButFirst
-                            }
+                            DataSet::Sample
+                            | DataSet::Scale20
+                            | DataSet::Measure
+                            | DataSet::Escape => PointRule::AllButFirst,
                         };
                         let slot = &mut self.views[idx].1;
                         let same = matches!(slot, ViewRows::Items(cur) if *cur == rows)
@@ -660,6 +719,11 @@ impl Component for ViewFixture {
                 _ => None,
             },
             ACTION_DATA => match payload {
+                "filetree:200" => Some(FixtureAction::Data(ViewKind::FileTree, DataSet::Measure)),
+                "diff:500" => Some(FixtureAction::Data(ViewKind::Diff, DataSet::Measure)),
+                "tasks:50" => Some(FixtureAction::Data(ViewKind::TaskTree, DataSet::Measure)),
+                "document:200" => Some(FixtureAction::Data(ViewKind::Document, DataSet::Measure)),
+                "document:sample" => Some(FixtureAction::Data(ViewKind::Document, DataSet::Sample)),
                 "filetree:sample" => Some(FixtureAction::Data(ViewKind::FileTree, DataSet::Sample)),
                 "diff:sample" => Some(FixtureAction::Data(ViewKind::Diff, DataSet::Sample)),
                 "tasks:sample" => Some(FixtureAction::Data(ViewKind::TaskTree, DataSet::Sample)),
@@ -820,6 +884,60 @@ mod tests {
             let parsed = fandhe_workshop_pack::markdown::parse(&md);
             let copy: Doc = serde_json::from_str(json).unwrap();
             assert_eq!(copy, parsed, "{file}");
+        }
+    }
+
+    #[test]
+    fn 大きな文書の木の写しは_markdown_の解釈結果と一致する() {
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/data/artifact_view_scale/"
+        );
+        for (file, json) in [
+            ("doc-large-before.md", DOC_LARGE_BEFORE_JSON),
+            ("doc-large-after.md", DOC_LARGE_AFTER_JSON),
+        ] {
+            let md = std::fs::read_to_string(format!("{dir}{file}")).unwrap();
+            let parsed = fandhe_workshop_pack::markdown::parse(&md);
+            let copy: Doc = serde_json::from_str(json).unwrap();
+            assert_eq!(copy, parsed, "{file}");
+        }
+    }
+
+    #[test]
+    fn 測定用の規模に差し替えると行の数が手で数えた値になり_sample_で戻る() {
+        let mut f = ViewFixture::load().unwrap();
+        // （前に出る行の数, 全行の数）。文書は最上位のブロック 80 個（前）と、突き合わせの後の 97 行。
+        for (kind, payload, want) in [
+            (ViewKind::Document, "document:200", (80, 97)),
+            (ViewKind::Diff, "diff:500", (479, 500)),
+            (ViewKind::TaskTree, "tasks:50", (46, 50)),
+            (ViewKind::FileTree, "filetree:200", (191, 200)),
+        ] {
+            let action = ViewFixture::decode_action(ACTION_DATA, payload).unwrap();
+            f.update(action);
+            assert!(!f.load_failed, "{payload}");
+            assert_eq!(row_counts(&f, kind), want, "{payload}");
+        }
+        let back = ViewFixture::decode_action(ACTION_DATA, "document:sample").unwrap();
+        f.update(back);
+        assert_eq!(row_counts(&f, ViewKind::Document), (10, 13));
+    }
+
+    #[test]
+    fn 測定用の規模の未知の_payload_は拒否される() {
+        for payload in [
+            "diff:501",
+            "document:a",
+            "document:",
+            "tasks:500",
+            "cards:200",
+        ] {
+            assert_eq!(
+                ViewFixture::decode_action(ACTION_DATA, payload),
+                None,
+                "{payload}"
+            );
         }
     }
 
@@ -1382,7 +1500,6 @@ mod tests {
         }
         for p in [
             "document:escape",
-            "document:sample",
             "cards:Escape",
             "cards:escape ",
             " cards:escape",

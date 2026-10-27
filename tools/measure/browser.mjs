@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・input-paint.sh から呼ばれる）。
+// 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・input-paint.sh・view-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint|view-redraw --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -13,6 +13,8 @@
 // requestAnimationFrame の中の setTimeout(0) まで」を測る。起点は click のキャプチャ段階の受け取りと event.timeStamp の 2 通りで、
 // 判定には値が大きくなる timeStamp 起点を使う（出典は同じ env.md の「計測の条件」）。PoC の停止ボタンは現行の実装では処理中でなければ
 // 状態を変えないため、拒否される入力の送信（1 回でログが 2 件増える）に置き換えた。閾値（100ms）を超えても失敗にせず値を出す。
+// view-redraw（TASK-485 1/3。ART-4）は、左の成果物ビューの部品単位の再描画を、代役の部品の画面（固定データ）で測る。実体は
+// view-redraw.mjs で、ここは統計と起動の共通部を渡すだけ。本体の view() での測定（ART-26）や CPU 4 倍（ART-15）は別のイシュー。
 // ブラウザは FANDHE_BROWSER_CHANNEL=chrome で Chrome の原本にできる（基準端末 A での人の測定用）。
 // 条件の出典は docs/spec/02-poc-plan.md §7（CPU 減速なし、下り・上り 10Mbps、遅延 40ms、キャッシュ無効、1 条件 10 回）。
 //
@@ -22,8 +24,9 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
+import { measureViewRedraw } from './view-redraw.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|input-paint|view-redraw --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -534,8 +537,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw', 'input-paint'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw|input-paint) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw', 'input-paint', 'view-redraw'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw|input-paint|view-redraw) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -568,7 +571,10 @@ async function main() {
       console.error('fix: npm ci && npx playwright install chromium');
       process.exit(1);
     }
-    const runs = { 'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'input-paint': measureInputPaint };
+    const runs = {
+      'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'input-paint': measureInputPaint,
+      'view-redraw': (b, d) => measureViewRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
+    };
     const result = await runs[values.kind](browser, values.dir);
     result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;
     result.playwright = playwrightVersion;
