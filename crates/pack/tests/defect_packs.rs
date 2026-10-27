@@ -19,6 +19,8 @@
 //! `validate` と、`test` の段の静的な検査（`E-PLAY-INPUT-CLASS`・誤入力の `expect` の読み取り）は必須で、
 //! CLI `test` の誤検出 0 件は TASK-404 1/3（#649）の実行器で確かめる。
 //! 試験の限界は `testdata/pack-defects/README.md` の「試験の限界」に記録する。
+//!
+//! D07 は `module_cycle_packs.rs`（TASK-234）からも C01 として読まれる。直すときは連動して直す。
 
 mod common;
 

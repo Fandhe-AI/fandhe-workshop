@@ -17,6 +17,7 @@ pack-defects/
 ├── guide4/b/G01〜G03/   GUIDE-4 の補助の欠陥の差し替えファイル（同じ作り。下の「GUIDE-4 の受け入れ」）
 ├── guide5/b/G04〜G06/   GUIDE-5 の限界 3 項目の差し替えファイル（同じ作り。下の「GUIDE-5 の限界の観察」）
 ├── elements/{a,b}/M01〜M03/  存在しない要素への remove・set_attr の欠陥パックの差し替えファイル（同じ作り。下の「存在しない要素への操作」）
+├── cycles/{a,b}/C02〜C03/  モジュールの巡回 3 種のうち C02・C03 の差し替えファイル（C01 は v1 の D07 を読む。下の「モジュールの巡回 3 種」）
 └── limits/{a,b}/L01〜L03/  静的検査の限界を示すパックの差し替えファイル（同じ作り。下の「静的検査の限界」）
 ```
 
@@ -192,3 +193,18 @@ G01〜G03 は、対象と経路を 1 つずつ単独で効かせる補助で、4
 - (c) の正の対照は G02 です。G06 に開始点の `guidance: B` だけを足した形で、同じ本文が検出されます。
 - (b) の対照は、同じ語を `do` に置くと検出されることです。0 件は語の表の漏れではなく、範囲の外にあることによります。
 - 2026-10-23 時点で、(a) は検出し、(b)(c) は検出しません（観察）。人の確認は得ていません。
+
+## モジュールの巡回 3 種（MOD-2・TASK-234・#755）
+
+`crates/pack/tests/module_cycle_packs.rs` が、`validate_dir`・`compile_dir`・CLI の 3 経路で確かめます。
+土台は `base/format-<x>` で、C01 は既存の `v1/<x>/D07` をそのまま読みます（写すと直す場所が 2 か所になるため）。
+
+| ID | 埋め方 | 期待のコード | 期待の場所 | 期待の経路 | 重ねるファイル |
+|---|---|---|---|---|---|
+| C01 | 2 つのモジュールが互いを呼ぶ（D07） | `E-MODULE-CYCLE` | `modules/mod-inner/module`・`step:u-loop` | `mod-outer → mod-inner → mod-outer` | `v1/<x>/D07` |
+| C02 | 内側のモジュールが自分を呼ぶ | `E-MODULE-CYCLE` | `modules/mod-inner/module`・`step:u-self` | `mod-inner → mod-inner` | `cycles/<x>/C02` |
+| C03 | 3 つ目のモジュール `mod-relay` を経由して外側へ戻る | `E-MODULE-CYCLE` | `modules/mod-relay/module`・`step:r-back` | `mod-outer → mod-inner → mod-relay → mod-outer` | `cycles/<x>/C03` |
+
+- 判定は、場所に加えて「ちょうど 1 件」「経路を含む」「`nesting exceeds` を含まない」を要求します。深さの上限も同じコードを出すため、場所だけでは巡回の検出が外れても気づけないからです
+- 2026-10-27 時点で、形式 A・B の 6 パックすべてで 3 経路とも検出しました（実測）
+- 限界: 作成者と検査器の作成者が同じ AI で、人の確認は得ていません
