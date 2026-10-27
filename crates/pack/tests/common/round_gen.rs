@@ -5,7 +5,9 @@
 //! 状態を見ない抽象の [`OpSpec`] だけを作り、[`Harness`] が操作の直前の状態から具体の [`ROp`] に解決する。
 //! 2 周の IR は pack の `compile_dir` でしか作れず core から pack へは依存できないため、置き場は pack の試験である。
 //!
-//! 検査は性質ごとの関数（[`check_m1`]）に分け、2/2（M-2・移動の出発側・S-1）が同じハーネスへ足せる形にする。
+//! 検査は性質ごとの関数に分け、[`Harness::step`] が毎操作の後に流す。1/2 は M-1（[`check_m1`]）、2/2（TASK-243。#770）は
+//! 1 周目の不変（M-2。[`check_m2`]。[`Mode::Round2Closed`] のときだけ）・移動の出発側の不変（[`check_move_source`]）・
+//! 古い進行の無視（S-1。[`Harness::check_stale_tick`]）・同じモジュールの完了状態の非混在（[`check_completion_separation`]）を足した。
 //! 下書き・送信の本文は利用者の入力に当たるため、[`OpSpec`] と [`ROp`] の `Debug` は値を出さず、表の添字と種類だけを出す。
 //!
 //! 未実装の部品（着地の `on_enter`、`when` つき `next`、`wait` の処理中の開始。`docs/testing.md` 5.258・5.260）で入力だけでは
@@ -27,6 +29,7 @@ use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
 use fandhe_workshop_core::instance::{instance_roots, owner_of, root_of, steps_of};
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::step_status::StepStatus;
+use fandhe_workshop_core::world::Element;
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
 use proptest::prelude::*;
@@ -185,6 +188,22 @@ pub fn guided_cases() -> impl Strategy<Value = Case> {
         .prop_map(|(setup, specs)| Case { setup, specs })
 }
 
+/// M-2 の固定の生成（開始は T1 だけ。`Guided` の重みは固定の生成と同じ 6/30）。
+pub fn m2_fixed_cases() -> impl Strategy<Value = Case> {
+    op_sequence(spec_strategy(6)).prop_map(|specs| Case {
+        setup: Setup::T1,
+        specs,
+    })
+}
+
+/// M-2 の誘導つきの生成（開始は T1 だけ。`Guided` の重みは 60。2 周目の完了まで届く列を増やす）。
+pub fn m2_guided_cases() -> impl Strategy<Value = Case> {
+    op_sequence(spec_strategy(60)).prop_map(|specs| Case {
+        setup: Setup::T1,
+        specs,
+    })
+}
+
 /// 試験で共有する IR・周回の根・開始の型ごとの開始状態（1 回だけ作る）。
 pub struct Fixture {
     pub ir: Ir,
@@ -192,6 +211,17 @@ pub struct Fixture {
     pub r2: BTreeSet<Root>,
     starts: [RecordedSession; 4],
     inputs: Vec<Input>,
+    /// 持ち主の周回が 2 の節点（M-2 の `GoTo` の候補）。
+    r2_steps: Vec<StepUid>,
+    /// M-2 の `Begin` の候補の開始 ID（2 周目に閉じ、1 周目の世界状態の経路へ書かないもの）。
+    m2_starts: Vec<String>,
+    /// 同じモジュールの同じ局所 ID を持つ、ほかの実体の Step（完了状態の非混在の検査用）。
+    siblings: BTreeMap<StepUid, Vec<StepUid>>,
+    /// 1 周目の章の節点の `unit`（M-2 の閉じていることの表明用）。
+    r1_unit: String,
+    /// T1 の開始状態の 1 周目の切り身と 1 周目の世界状態の 13 経路（M-2 の基点）。
+    m2_base_views: Vec<(Root, View)>,
+    m2_base_world: Vec<(String, Option<Element>)>,
 }
 
 const IDEA_TEXT: &str =
@@ -266,7 +296,7 @@ pub fn fixture() -> &'static Fixture {
     F.get_or_init(|| {
         let bytes = compile_dir(&testdata("module-reuse-rounds/test-data/pack")).expect("compile");
         let ir = load_ir(&bytes).expect("load_ir");
-        let (r1v, _) = round_roots(&ir, "s-r1");
+        let (r1v, r1_start_node) = round_roots(&ir, "s-r1");
         let (r2v, _) = round_roots(&ir, "s-r2");
         let fresh =
             || RecordedSession::new(Session::new(ir.clone()), RecordedSession::first_start(&ir));
@@ -292,11 +322,112 @@ pub fn fixture() -> &'static Fixture {
         for t in [&t0, &t1, &t2, &t3] {
             assert!(t.session().state().run.current.is_some(), "setup began");
         }
+        let r1set: BTreeSet<Root> = r1v.iter().cloned().collect();
+        let r2set: BTreeSet<Root> = r2v.iter().cloned().collect();
+        let round_of = |u: &str| {
+            let o = owner_of(&ir, &StepUid(u.to_string()));
+            if r1set.contains(&o) {
+                1
+            } else if r2set.contains(&o) {
+                2
+            } else {
+                0
+            }
+        };
+        let put_paths = |effects: &[serde_json::Value]| -> Vec<String> {
+            effects
+                .iter()
+                .filter_map(|v| v.get("put").and_then(|p| p.get("path")))
+                .filter_map(|p| p.as_str().map(str::to_owned))
+                .collect()
+        };
+        let fresh_start = ir
+            .starts
+            .iter()
+            .find(|s| s.id == "s-r2-fresh")
+            .expect("s-r2-fresh");
+        let mut r1_world_paths = put_paths(&fresh_start.effects);
+        r1_world_paths.sort();
+        assert_eq!(r1_world_paths.len(), 13, "{r1_world_paths:?}");
+        let r1_unit = ir
+            .nodes
+            .iter()
+            .find(|n| n.uid == r1_start_node)
+            .map(|n| n.unit.clone())
+            .expect("round 1 unit");
+        let r1_callers: BTreeSet<&str> = ir
+            .instances
+            .iter()
+            .filter(|i| r1set.contains(&Root(i.id.clone())))
+            .filter_map(|i| i.caller.as_deref())
+            .collect();
+        let m2_starts: Vec<String> = ir
+            .starts
+            .iter()
+            .filter(|s| {
+                round_of(&s.node) != 1
+                    && !r1_callers.contains(s.node.as_str())
+                    && put_paths(&s.effects)
+                        .iter()
+                        .all(|p| !r1_world_paths.contains(p))
+            })
+            .map(|s| s.id.clone())
+            .collect();
+        assert!(m2_starts.contains(&"s-r2".to_string()), "{m2_starts:?}");
+        assert!(!m2_starts.contains(&"s-r2-fresh".to_string()));
+        let r2_steps: Vec<StepUid> = ir
+            .nodes
+            .iter()
+            .filter(|n| round_of(&n.uid) == 2)
+            .map(|n| StepUid(n.uid.clone()))
+            .collect();
+        let mut siblings: BTreeMap<StepUid, Vec<StepUid>> = BTreeMap::new();
+        for a in &ir.nodes {
+            for b in &ir.nodes {
+                let (oa, ob) = (
+                    owner_of(&ir, &StepUid(a.uid.clone())),
+                    owner_of(&ir, &StepUid(b.uid.clone())),
+                );
+                let module = |o: &Root| {
+                    ir.instances
+                        .iter()
+                        .find(|i| i.id == o.0)
+                        .and_then(|i| i.module.clone())
+                };
+                let local = |u: &str| u.rsplit('/').next().unwrap_or("").to_string();
+                if a.uid != b.uid
+                    && oa != ob
+                    && module(&oa).is_some()
+                    && module(&oa) == module(&ob)
+                    && local(&a.uid) == local(&b.uid)
+                {
+                    siblings
+                        .entry(StepUid(a.uid.clone()))
+                        .or_default()
+                        .push(StepUid(b.uid.clone()));
+                }
+            }
+        }
+        let base = t1.session().state();
+        let m2_base_views = r1v
+            .iter()
+            .map(|r| (r.clone(), view(&ir, base, r)))
+            .collect();
+        let m2_base_world = r1_world_paths
+            .iter()
+            .map(|p| (p.clone(), base.run.world.get(p).cloned()))
+            .collect();
         Fixture {
-            r1: r1v.into_iter().collect(),
-            r2: r2v.into_iter().collect(),
+            r1: r1set,
+            r2: r2set,
             starts: [t0, t1, t2, t3],
             inputs: input_table(),
+            r2_steps,
+            m2_starts,
+            siblings,
+            r1_unit,
+            m2_base_views,
+            m2_base_world,
             ir,
         }
     })
@@ -496,6 +627,129 @@ pub fn check_m1(
     Ok(())
 }
 
+/// M-2: 毎操作の後に、1 周目の 2 実体の切り身と 1 周目の世界状態の 13 経路が、T1 の開始状態（基点）と一致する。
+/// 操作の前ではなく基点と比べるので、毎操作の後で変わらないことを強く表す。違反は全件を返す（空なら合格）。
+pub fn check_m2(f: &Fixture, after: &SessionState) -> Vec<String> {
+    let mut v = Vec::new();
+    for (root, base) in &f.m2_base_views {
+        if let Some(part) = diff_part(base, &view(&f.ir, after, root)) {
+            v.push(format!("root {root:?} part {part}"));
+        }
+    }
+    for (path, base) in &f.m2_base_world {
+        if after.run.world.get(path) != base.as_ref() {
+            v.push(format!("world path {path}"));
+        }
+    }
+    v
+}
+
+/// 移動の出発側の不変: `Moved` を伴う操作で、着地側の根に入らない出発側の根の切り身が操作の前後で変わらない。
+/// 同じ根の中の移動は着地が出発側の根に `Entered` を置き、切り身が正当に変わるので対象外である（`docs/testing.md` 5.334）。
+/// 検査したら `Some(周回をまたいだか)`、対象外なら `None`。違反は（根, 違った部分）。
+pub fn check_move_source(
+    f: &Fixture,
+    before: &SessionState,
+    after: &SessionState,
+    events: &[Event],
+) -> Result<Option<bool>, (Root, &'static str)> {
+    let Some(cur) = &before.run.current else {
+        return Ok(None);
+    };
+    if !events.iter().any(|e| matches!(e, Event::Moved { .. })) {
+        return Ok(None);
+    }
+    let ir = &f.ir;
+    let mut land = BTreeSet::new();
+    if let Some(c) = &after.run.current {
+        add_uid(&mut land, ir, c);
+    }
+    for e in events {
+        match e {
+            Event::Moved { to, .. } => add_uid(&mut land, ir, to),
+            Event::Entered { at } => add_uid(&mut land, ir, &at.step),
+            Event::ModuleEntered { instance, .. } => {
+                land.insert(Root(instance.clone()));
+            }
+            _ => {}
+        }
+    }
+    let mut src = BTreeSet::new();
+    add_uid(&mut src, ir, cur);
+    for r in src.iter().filter(|r| !land.contains(*r)) {
+        if let Some(part) = diff_part(&view(ir, before, r), &view(ir, after, r)) {
+            return Err((r.clone(), part));
+        }
+    }
+    let (a, b) = (
+        f.round_of_step(cur),
+        after.run.current.as_ref().map_or(0, |u| f.round_of_step(u)),
+    );
+    Ok(Some(a != 0 && b != 0 && a != b))
+}
+
+/// 完了状態の非混在: 操作が `Achieved`・`Skipped`・`Accepted`・`Entered` を起こした Step について、同じモジュールの
+/// ほかの実体の同じ局所 ID の Step の状態が、操作の前後で変わらない。その操作の宛先に入る相手と、`Restored` の持ち主の
+/// 相手は除く。返すのは（検査した件数, 相手が達成済みだった件数）。違反は理由。
+pub fn check_completion_separation(
+    f: &Fixture,
+    before: &SessionState,
+    after: &SessionState,
+    events: &[Event],
+) -> Result<(u64, u64), String> {
+    let ir = &f.ir;
+    let mut targets: BTreeSet<&StepUid> = BTreeSet::new();
+    let mut restored: BTreeSet<Root> = BTreeSet::new();
+    for e in events {
+        if let Some(at) = stamp_of(e) {
+            targets.insert(&at.step);
+        }
+        match e {
+            Event::Transitioned { to, .. } | Event::Moved { to, .. } => {
+                targets.insert(to);
+            }
+            Event::Restored { owner, .. } => {
+                restored.insert(owner_of(ir, owner));
+            }
+            _ => {}
+        }
+    }
+    let status = |st: &SessionState, u: &StepUid| {
+        st.run
+            .slices
+            .get(&owner_of(ir, u))
+            .and_then(|s| s.status.get(u))
+            .cloned()
+    };
+    let (mut checked, mut achieved) = (0, 0);
+    for e in events {
+        let (Event::Achieved { at, .. }
+        | Event::Skipped { at }
+        | Event::Accepted { at }
+        | Event::Entered { at }) = e
+        else {
+            continue;
+        };
+        for sib in f.siblings.get(&at.step).into_iter().flatten() {
+            if targets.contains(sib) || restored.contains(&owner_of(ir, sib)) {
+                continue;
+            }
+            checked += 1;
+            let was = status(before, sib);
+            if was == Some(StepStatus::Achieved) {
+                achieved += 1;
+            }
+            if was != status(after, sib) {
+                return Err(format!(
+                    "sibling of {:?} changed: {sib:?}",
+                    at.step.0.rsplit('/').next().unwrap_or("")
+                ));
+            }
+        }
+    }
+    Ok((checked, achieved))
+}
+
 fn kind_name(op: &ROp) -> String {
     match op {
         ROp::Engine(Op::Input(_)) => "input".into(),
@@ -507,24 +761,46 @@ fn kind_name(op: &ROp) -> String {
     }
 }
 
+/// ハーネスの動き。`Round2Closed` は M-2 用で、操作を「2 周目に閉じたもの」に絞る。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    All,
+    Round2Closed,
+}
+
 /// 操作を解決して流し、各操作の後に M-1 を検査するハーネス。
 pub struct Harness {
     f: &'static Fixture,
     setup: Setup,
+    mode: Mode,
     pub rs: RecordedSession,
     seen: Vec<TickAddr>,
     last_tick: Option<TickAddr>,
     pub ops: Vec<ROp>,
     pub stats: Stats,
     saw: [bool; 3],
+    m2_reached: bool,
+    m2_completed: bool,
 }
 
 impl Harness {
     pub fn new(setup: Setup) -> Self {
+        Self::with_mode(setup, Mode::All)
+    }
+
+    /// M-2 用（T1 固定。操作を 2 周目に閉じる）。
+    pub fn new_m2() -> Self {
+        Self::with_mode(Setup::T1, Mode::Round2Closed)
+    }
+
+    fn with_mode(setup: Setup, mode: Mode) -> Self {
         let f = fixture();
         let mut h = Harness {
             f,
             setup,
+            mode,
+            m2_reached: false,
+            m2_completed: false,
             rs: f.starts[setup.index()].clone(),
             seen: Vec::new(),
             last_tick: None,
@@ -541,9 +817,22 @@ impl Harness {
     }
 
     fn note_position(&mut self) {
-        if let Some(cur) = &self.state().run.current {
-            let r = self.f.round_of_step(cur);
+        let f = self.f;
+        if let Some(cur) = self.rs.session().state().run.current.clone() {
+            let r = f.round_of_step(&cur);
             self.saw[r as usize] = true;
+            if r == 2 && owner_of(&f.ir, &cur).0.starts_with("issue-to-merge") {
+                self.m2_reached = true;
+            }
+            // `ChapterCompleted` は未実装（5.258）なので、2 周目の完了は最後のモジュール `issue-to-merge@round2` を
+            // 終えて呼び出し元の Step（`main/r2-impl`）へ戻った地点で見る。
+            if f.ir.instances.iter().any(|i| {
+                i.module.as_deref() == Some("issue-to-merge")
+                    && f.r2.contains(&Root(i.id.clone()))
+                    && i.caller.as_deref() == Some(cur.0.as_str())
+            }) {
+                self.m2_completed = true;
+            }
         }
     }
 
@@ -707,12 +996,23 @@ impl Harness {
     fn resolve(&mut self, spec: &OpSpec) -> ROp {
         let st = self.state().clone();
         match *spec {
-            OpSpec::Guided => self.guided(),
+            OpSpec::Guided => match self.guided() {
+                ROp::Engine(Op::Control(Control::Begin(id)))
+                    if self.mode == Mode::Round2Closed && !self.f.m2_starts.contains(&id) =>
+                {
+                    ROp::Engine(Op::Input(Input::Cancel))
+                }
+                op => op,
+            },
             OpSpec::Input(i) => {
                 ROp::Engine(Op::Input(self.f.inputs[i % self.f.inputs.len()].clone()))
             }
             OpSpec::Tick(k, n) => ROp::Engine(Op::Tick(self.tick_addr(k, n))),
             OpSpec::Stop => ROp::Engine(Op::Control(Control::Stop)),
+            OpSpec::GoTo(i) if self.mode == Mode::Round2Closed => {
+                let c = &self.f.r2_steps;
+                ROp::Engine(Op::Control(Control::GoTo(c[i % c.len()].clone())))
+            }
             OpSpec::GoTo(i) => {
                 let nodes = &self.f.ir.nodes;
                 ROp::Engine(Op::Control(Control::GoTo(StepUid(
@@ -721,7 +1021,17 @@ impl Harness {
             }
             OpSpec::Save => ROp::Engine(Op::Control(Control::Save)),
             OpSpec::Restore(i) => {
-                let mut ids: Vec<CheckpointId> = st.checkpoints.keys().copied().collect();
+                let mut ids: Vec<CheckpointId> = st
+                    .checkpoints
+                    .iter()
+                    .filter(|(_, c)| {
+                        self.mode == Mode::All
+                            || c.owner
+                                .as_ref()
+                                .is_some_and(|o| self.f.round_of_root(o) == 2)
+                    })
+                    .map(|(id, _)| *id)
+                    .collect();
                 ids.push(CheckpointId(u32::MAX));
                 ROp::Engine(Op::Control(Control::Restore(ids[i % ids.len()])))
             }
@@ -732,6 +1042,14 @@ impl Harness {
                     .current_draft()
                     .map_or_else(|| DRAFTS[1].to_string(), str::to_string),
             ),
+            OpSpec::Begin(i) if self.mode == Mode::Round2Closed => {
+                let c = &self.f.m2_starts;
+                let id = c
+                    .get(i % (c.len() + 1))
+                    .cloned()
+                    .unwrap_or_else(|| "no-such-start".to_string());
+                ROp::Engine(Op::Control(Control::Begin(id)))
+            }
             OpSpec::Begin(i) => {
                 let starts = &self.f.ir.starts;
                 let n = starts.len() + 1;
@@ -766,12 +1084,136 @@ impl Harness {
         let targets = target_roots(&self.f.ir, &before, &after, &op, &events);
         self.count(&before, &after, &op, &events, &targets);
         self.note_position();
+        let label = |what: &str| format!("{what} at op {index} ({spec:?} -> {})", kind_name(&op));
         check_m1(&self.f.ir, &before, &after, &targets).map_err(|(root, part)| {
             format!(
-                "M-1 violated at op {index} ({spec:?} -> {}): root {root:?} part {part}; targets {targets:?}",
-                kind_name(&op)
+                "{}: root {root:?} part {part}; targets {targets:?}",
+                label("M-1 violated")
             )
-        })
+        })?;
+        match check_move_source(self.f, &before, &after, &events) {
+            Ok(Some(cross)) => {
+                self.stats.add("moves_source_checked", 1);
+                if cross {
+                    self.stats.add("moves_cross_round", 1);
+                }
+            }
+            Ok(None) => {}
+            Err((root, part)) => {
+                return Err(format!(
+                    "{}: root {root:?} part {part}",
+                    label("move source changed")
+                ));
+            }
+        }
+        let (checked, achieved) = check_completion_separation(self.f, &before, &after, &events)
+            .map_err(|m| format!("{}: {m}", label("completion mixed")))?;
+        self.stats.add("completion_sibling_checks", checked);
+        self.stats
+            .add("completion_sibling_checks_sibling_achieved", achieved);
+        self.check_stale_tick(spec, &op, &before, &after, &events)
+            .map_err(|m| format!("{}: {m}", label("S-1 violated")))?;
+        if self.mode == Mode::Round2Closed {
+            if let Some(cur) = &after.run.current {
+                let in_r1 = self.f.round_of_step(cur) == 1
+                    || self
+                        .f
+                        .ir
+                        .nodes
+                        .iter()
+                        .any(|n| n.uid == cur.0 && n.unit == self.f.r1_unit);
+                if in_r1 {
+                    return Err(format!(
+                        "{}: M-2 sequence left round 2",
+                        label("generation error")
+                    ));
+                }
+            }
+            let v = check_m2(self.f, &after);
+            if let Some(first) = v.first() {
+                return Err(format!(
+                    "{}: {first} ({} total)",
+                    label("M-2 violated"),
+                    v.len()
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// S-1: 宛先が現在の次の進行と違う進行は、状態を 1 ビットも変えず `Ignored` を 1 件だけ記録する。
+    /// 古いかどうかは観察（`Progress` の有無）と宛先の照合の 2 通りで突き合わせ、食い違いを失敗にする。
+    fn check_stale_tick(
+        &mut self,
+        spec: &OpSpec,
+        op: &ROp,
+        before: &SessionState,
+        after: &SessionState,
+        events: &[Event],
+    ) -> Result<(), String> {
+        let ROp::Engine(Op::Tick(addr)) = op else {
+            return Ok(());
+        };
+        let f = self.f;
+        let matches_next = before.run.current.as_ref() == Some(&addr.step)
+            && before.run.generation == addr.generation
+            && before
+                .run
+                .busy
+                .as_ref()
+                .is_some_and(|b| b.done == addr.index);
+        let progressed = events.iter().any(|e| matches!(e, Event::Progress { .. }));
+        if matches_next {
+            if !progressed {
+                return Err("matching tick did not progress".to_string());
+            }
+            self.stats.add("ticks_progressed", 1);
+            return Ok(());
+        }
+        if progressed {
+            return Err("stale tick progressed".to_string());
+        }
+        self.stats.add("stale_ticks", 1);
+        let Some(cur) = &before.run.current else {
+            self.stats.add("stale_ticks_no_current", 1);
+            if after != before || !events.is_empty() {
+                return Err("tick without current step changed state".to_string());
+            }
+            return Ok(());
+        };
+        match spec {
+            OpSpec::Tick(0, _) => self.stats.add("stale_ticks_current", 1),
+            OpSpec::Tick(1, _) => self.stats.add("stale_ticks_dup", 1),
+            OpSpec::Tick(2, _) => self.stats.add("stale_ticks_past", 1),
+            OpSpec::Tick(_, _) => self.stats.add("stale_ticks_other_step", 1),
+            _ => {}
+        }
+        if before.run.busy.is_none() {
+            self.stats.add("stale_ticks_not_busy", 1);
+        }
+        if owner_of(&f.ir, &addr.step) != owner_of(&f.ir, cur) {
+            self.stats.add("stale_ticks_other_root", 1);
+        }
+        if f.round_of_step(&addr.step) != f.round_of_step(cur) {
+            self.stats.add("stale_ticks_cross_round", 1);
+        }
+        let mut trimmed = after.clone();
+        trimmed.log.truncate(before.log.len());
+        if &trimmed != before {
+            return Err("state changed".to_string());
+        }
+        let [Event::Ignored { at, reason }] = events else {
+            return Err(format!("expected one Ignored, got {} events", events.len()));
+        };
+        let expected = Stamp {
+            generation: before.run.generation,
+            step: cur.clone(),
+        };
+        let logged = &after.log[before.log.len()..];
+        if at != &expected || logged != events || logged.len() != 1 {
+            return Err(format!("Ignored position or log mismatch ({reason:?})"));
+        }
+        Ok(())
     }
 
     fn count(
@@ -853,6 +1295,16 @@ impl Harness {
         if self.saw[1] && self.saw[2] {
             s.add("cases_both_rounds", 1);
         }
+        if self.mode == Mode::Round2Closed {
+            s.add("m2_cases", 1);
+            s.add("m2_ops", self.ops.len() as u64);
+            if self.m2_reached {
+                s.add("m2_reached_issue_to_merge_r2", 1);
+            }
+            if self.m2_completed {
+                s.add("m2_round2_completed", 1);
+            }
+        }
         s
     }
 
@@ -876,7 +1328,16 @@ impl Harness {
 
 /// 1 ケースを流して M-1 と流し直しの一致を検査し、統計を返す。
 pub fn run_case(case: &Case) -> Result<Stats, String> {
-    let mut h = Harness::new(case.setup);
+    run_case_in(case, Mode::All)
+}
+
+/// M-2 用に 1 ケースを流す（[`Mode::Round2Closed`]。開始は T1）。
+pub fn run_m2_case(case: &Case) -> Result<Stats, String> {
+    run_case_in(case, Mode::Round2Closed)
+}
+
+fn run_case_in(case: &Case, mode: Mode) -> Result<Stats, String> {
+    let mut h = Harness::with_mode(case.setup, mode);
     for (i, spec) in case.specs.iter().enumerate() {
         h.step(i, spec)?;
     }
