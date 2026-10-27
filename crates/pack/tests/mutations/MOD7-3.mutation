@@ -1,0 +1,8 @@
+id: MOD7-3
+package: fandhe-workshop-pack
+test: start_unmet
+target: crates/core/src/begin.rs
+find:     let start = match check_start(ir, &state.run, start_id) {
+replace:     state.checkpoints.clear(); state.hints_opened.clear();    let start = match check_start(ir, &state.run, start_id) {
+expect-fail: mod7_begin_round2_mid_round1_refuses_without_change
+note: 評価の前にチェックポイントとヒントを変える

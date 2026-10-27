@@ -8,7 +8,8 @@
 //! # 規則（上から評価し、最初に当たったものを返す）
 //!
 //! 1. 開始条件を [`crate::start_gate::check_start`] で状態に触れる前に評価する。開始 ID が無い・条件を満たさない
-//!    なら `Refused`（`UnknownStart`・`StartUnmet`）を 1 件だけ返し、状態を変えない（fail-closed。完全な保証の試験は TASK-240）
+//!    なら `Refused`（`UnknownStart`・`StartUnmet`）を 1 件だけ返し、状態を変えない（fail-closed）。
+//!    `StartUnmet` では解決できた `unmet` の文面 ID を `rejection` に入れる（TASK-240。固定は pack の `start_unmet` の `mod7_*`）
 //! 2. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない
 //! 3. 開始点の `effects` が 1 件でも読めないなら、固定文の `Warning` だけを出して状態を変えない（全件か無し）
 //! 4. 世代を +1、`busy` と完了を解く。入口の写しは無効化する（作り直しは `transit` の着地の無効化と導出。TASK-242 1/2。`go_to` の前例に合わせる）
@@ -50,7 +51,7 @@ use crate::effect::apply_effects;
 use crate::event::{Cause, ControlKind, Event, RefuseReason};
 use crate::instance;
 use crate::session::SessionState;
-use crate::start_gate::check_start;
+use crate::start_gate::{check_start, StartRefusal};
 use crate::step_status::StepStatus;
 use crate::transit;
 
@@ -72,11 +73,16 @@ pub(crate) fn on_begin(ir: &Ir, state: &mut SessionState, start_id: &str) -> Vec
     let start = match check_start(ir, &state.run, start_id) {
         Ok(start) => start,
         Err(refusal) => {
+            // 解決できた `unmet` の文面 ID だけを記録する。解決できない・開始 ID が無いときは `None` で断る
+            let rejection = match &refusal {
+                StartRefusal::Unmet { text: Ok(r), .. } => Some(r.text.clone()),
+                _ => None,
+            };
             return vec![Event::Refused {
                 at,
                 op: ControlKind::Begin,
                 reason: refusal.reason(),
-                rejection: None,
+                rejection,
             }];
         }
     };

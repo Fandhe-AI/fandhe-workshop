@@ -262,7 +262,8 @@ pub enum Event {
         op: ControlKind,
         /// 拒否の理由。
         reason: RefuseReason,
-        /// 拒否の分類（TASK-256 の型ができるまでの識別子。無ければ `None`）。
+        /// 拒否の文面の識別子。`Begin` の開始条件の拒否では、解決できた `unmet` の文面 ID を入れる（TASK-240）。
+        /// 無い・解決できないときは `None`（TASK-256 の型ができるまでの識別子）。
         rejection: Option<String>,
     },
     /// 入力・進行を無視した。状態は変えず 1 件だけ記録する。

@@ -9284,3 +9284,27 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 開始点の案内レベル（`guidance`）は `Begin` が反映しない（TASK-294）
   - 世界状態のハッシュの一致（MOD-5）、CH-9 から CH-10 のブラウザの通し、全量版 R-29 は TASK-254 2/2
   - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.331 条件を満たさない開始を拒否として記録する（TASK-240 1/2。MOD-7 (a)）
+
+- 目的: 開始条件（`starts[].requires`）を満たさない `Begin` が、状態・下書き・チェックポイント・ヒント・世代を変えず、`Refused` を 1 件だけ記録し、文面の ID（`rejection`）を示すことを固定する
+- 方式: `crates/pack/tests/start_unmet.rs` の `mod7_*` 3 件と、`crates/core/tests/begin_unmet.rs` の 2 件
+  - `mod7_begin_round2_mid_round1_refuses_without_change`: 1 周目の `/init-claude` の直前で、`Save`・`OpenHint`・下書きを足した状態に `Begin("s-r2")`。`Refused { op: Begin, reason: StartUnmet, rejection: Some("rj-start-needs-previous-round") }` が 1 件、`log` を除いた状態の SHA-256・世代・下書き・`run` が不変。前提として下書き・チェックポイント・ヒント・切り身が空でないこと、`check_start` が `Unmet` を返すことを表明する
+  - `mod7_fresh_boot_at_round2_start_fails_with_start_unmet`: 新しい状態への `Begin("s-r2")` は同じ 1 件で、現在の Step が無いまま（`Begun`・`Entered`・`Skipped` が 0 件）。`check_start` も同じ文面 ID を返す
+  - `mod7_unmet_text_is_wrong_order_with_next_action`: 文面の分類が `wrong_order` で、次の行動が空でない
+  - core の 2 件: 解決できる `unmet` は ID を記録し、解決できない `unmet` は `rejection: None` で断る
+- 決定: 型は変えず値だけを入れるため `CONTRACT_VERSION` は据え置く。文面を解決できないときは `None` のまま断る（fail-closed）。分類は教材の `rejections` の値で、エンジンは書き換えない。5.202b の「`Refused` の記録は後続」にあたる部分である
+- 結果（2026-10-27）: 上記 5 件が合格
+- 変異注入（2026-10-27）: 元のコミット `345a8884`
+
+| ID | 結果 |
+|---|---|
+| MOD7-1（文面 ID を記録しない） | DETECTED |
+| MOD7-2（評価の前に下書きを変える） | DETECTED |
+| MOD7-3（評価の前にチェックポイント・ヒントを変える） | DETECTED |
+
+- 限界:
+  - 世代を先に上げる変異は、`apply` の世代の整理が打ち消すため置いていない
+  - web の起動（`open_bundled_ir` → `Session::entered_at`）は `requires` を評価しない。`?start=s-r2` は 1 周目なしでも開く（PACK-18 の web への結線は未検証）
+  - 画面に拒否の文面を出す処理は含めない。存在しない開始 ID と 1 周目を終えた後の開始の成功は TASK-240 2/2
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
