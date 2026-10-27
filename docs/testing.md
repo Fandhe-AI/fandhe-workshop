@@ -8901,7 +8901,15 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 実行の記録: 2026-10-26。`cargo test -p fandhe-workshop-pack` が全件通った（結果は本節の更新時点。ほかの検証はコミットの記録を参照）
 - 限界・未実施: 印の有無だけを見る。宣言のない練習データ・章の本文は調べない。実在の名前は D-81 により対象外で、`docs/publish-checks.md` の公開前の確認が受け持つ。変異注入は未実施。`scripts/expected-test-counts.txt` は更新していない。試験の作成者と実装の作成者が同じ AI である
 
-### 5.314 左のビューの部品単位の再描画の速さ（固定データの画面。TASK-485 1/3。ART-4）
+### 5.314 測定の結果の組み立てが jq 1.7 の文法で通る（#1822）
+
+- 目的: macOS 同梱の jq 1.7 で、`tools/measure/lib.sh` の `{...} + $extra`（オブジェクトの値の位置の二項演算）がコンパイルエラーになり、4 種の測定が止まった（5.284・5.286 の記録の理由）。値を括弧で囲み、組み立てを `measure_result_json` に切り出して、ビルドなしで試験できるようにした
+- 試験: `scripts/test-measure-result.sh`（`make test-measure-result`）。extra なし・ありの組み立てが `measure_validate` を通ること、`measure_pack_json` の値、使っている jq が 1.7 の文法かどうかの負の対照（1.8 以上では「1.7 の文法の検査ではない」と標準エラーに出す）
+- CI: `check` ジョブの step で流す。ubuntu-latest の jq は 2026-10-27 時点で jq-1.7。runner の jq が 1.8 以上になったら、版と SHA256 を固定した jq 1.7.1 の導入 step に切り替える
+- 実行の記録: 2026-10-27。ローカルは jq-1.8.1 で合格（負の対照は 1.7 の文法ではないと判定）。jq 1.7 の実機での確認は未実施（CI の `check` ジョブのログで確かめる）
+- 限界・未実施: `wasm-size.sh`・`all.sh` の jq は対象外。`make test-measure` は未実施
+
+### 5.315 左のビューの部品単位の再描画の速さ（固定データの画面。TASK-485 1/3。ART-4）
 
 - 目的: 左の成果物ビューの部品を、固定データ（文書 200 行・差分 500 行・タスク 50 件。参考にファイルツリー 200 件・カード 20 件・チェック 20 件・アプリのデモ 9 行）の代役の部品の画面で測り、95 パーセンタイルが 16ms 以内かを、CPU の減速なしで記録する。判定の規則は「ビューごとに、`toggle` と `switch` の両方で p95 が 16ms 以内の変種が 1 つ以上あれば閾値内」
 - 方式（`tools/measure/view-redraw.sh`、`tools/measure/view-redraw.mjs`。条件の詳細は `docs/measurement.md` §4）: 10 試行 × 20 操作 = 組・操作ごとに 200 値。測るのは `viewFixtureDispatch` の同期処理の前後の `performance.now()` の差。データの写しの出所は `crates/web/tests/data/artifact_view_scale/README.md`
