@@ -884,6 +884,32 @@ pub fn check_s5(
     Ok(total)
 }
 
+/// 停止の入口の境界（受付の位置）を、停止の前のログから独立に求める（製品の `entry_derive` は呼ばない）。
+/// 状態に現在の Step の写しがあればその `log_len` を使う。無ければログを末尾からたどり、`Restored` は保存の時点へ
+/// 跳び、現在の Step の `Accepted` の位置を返す。製品の境界は受付の操作の先頭（`InputReceived`）だが、
+/// `Accepted` との間は `Judged` だけなので、`Changed` の集め方は同じになる。求まらなければ `None`。
+fn entry_boundary(before: &SessionState, cur: &StepUid) -> Option<usize> {
+    if let Some(e) = before
+        .entry
+        .as_ref()
+        .filter(|e| e.run.current.as_ref() == Some(cur))
+    {
+        return usize::try_from(e.log_len).ok();
+    }
+    let mut at = before.log.len();
+    while at > 0 {
+        at -= 1;
+        match before.log.get(at)? {
+            Event::Restored { log_len, .. } => {
+                at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
+            }
+            Event::Accepted { at: s } if &s.step == cur => return Some(at),
+            _ => {}
+        }
+    }
+    None
+}
+
 /// S-6: `Stopped` を伴う操作で、現在の Step の持ち主の分だけが入口の写しへ戻る。
 /// 入口の写しは製品が非公開で導くので、持ち主以外の根・経路が停止の前のままであることだけを確かめる。
 pub fn check_s6(
@@ -911,9 +937,13 @@ pub fn check_s6(
     if a.global_flags != b.global_flags {
         return Err("global flags".to_string());
     }
-    // 持ち主が書いていない経路は、停止の前のままである。持ち主が書いた経路は入口の値へ戻りうるので対象外。
+    // 持ち主が入口の後に書いていない経路は、停止の前のままである。入口の後に書いた経路は入口の値へ戻りうるので対象外。
+    // 入口より前の書き込みで除くと、入口の後に別の根が更新した経路の巻き戻しを見逃すため、境界の後に限る。
+    let boundary = entry_boundary(before, cur).ok_or_else(|| "entry boundary".to_string())?;
     let written: BTreeSet<&str> = before
         .log
+        .get(boundary..)
+        .ok_or_else(|| "entry boundary".to_string())?
         .iter()
         .filter_map(|e| match e {
             Event::Changed { at, path, .. } if indep_owner(ir, &at.step) == owner => {
