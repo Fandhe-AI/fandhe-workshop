@@ -1,0 +1,8 @@
+id: MOD7-4
+package: fandhe-workshop-pack
+test: start_unmet
+target: crates/core/src/start_gate.rs
+find:             Self::UnknownStart => RefuseReason::UnknownStart,
+replace:             Self::UnknownStart => RefuseReason::StartUnmet,
+expect-fail: mod7_unknown_start_id_is_refused_without_change
+note: 存在しない開始 ID を条件の不成立と取り違える
