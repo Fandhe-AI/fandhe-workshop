@@ -8940,3 +8940,17 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - **未実施**: 基準端末 A（Apple シリコンの macOS）の Chrome の原本での測定は人の依頼が要る。Windows（TASK-224）も未測定。開発機 1 台・1 回の値で、再現の幅は見ていない
   - 最小教材の値で教材全体を代表しない。`make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`
   - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
+
+### 5.317 世代をまたぐログの畳みと、畳まれる行の複製の省略（TASK-232 2/3。FEND-22・EVT-26・D-46・D-47）
+
+- 目的: 決定した案（1 リストは約 1,000 項目で分割し、古い Step を 1 行の要約に畳む。4,096 件の打ち切りを安全弁にする）が実装済みであることを、2 周分（世代をまたぐ）のログで固定する。あわせて、畳まれる行の `LogLine`（文字列の複製）を作らないようにする
+- 実装済みの根拠: `crates/web/src/list_policy.rs`（目安 1,000・安全弁 4,096・`plan_fold`）、`crates/web/src/engine_parts.rs` の `LogPart::view`、既存の `list_fold`・`list_limit`・`tools/browser/list-fold.test.mjs`。目安の値は変えていない（正は spec の FEND-22。基準端末 A の測定が先に要る）
+- 変更: `log_lines::line_kind_from_event`（複製をしない種類の判定）と `motion::shows_kind` を足し、`LogPart::view` の 1 回目の走査を参照だけにした。`LogLine` と `li` は残る行にだけ作る。出す DOM とキーは変えていない
+- native 試験:
+  - `crates/web/tests/log_fold_generations.rs`: 同じ Step が別の世代に出るログで、畳まれない場合に世代が分かれること、畳んだ場合に要約が世代ごとの別の行になること、5,000 行を超えても目安以下・通知なし（`data-list-error`・`data-list-limit` が 0 件）・最新の行が残ること
+  - `crates/web/tests/log_kind_match.rs`: `line_kind_from_event` と `line_from_event` の種類が全種のイベント・文面の有無・進行の境界で一致すること
+  - 変異: `FEND22-7`（世代を無視してグループを作る）・`FEND22-8`（空白だけの文面の拒否を行に数える）。2026-10-27 に `scripts/check-mutations.sh` で 2 件とも DETECTED
+- 未実施・未確認:
+  - **再測定は未実施**。5.315 の傾き（畳みの後の median 約 5.8 ms/1,000 項目）が下がったかは未検証である。今回の変更で `LogLine` の複製と文字列の確保は畳まれる行で無くなるが、1 回目の走査（イベントの種類の判定）は全ログに対して残るため、費用は項目数に比例して伸びる（未解消）。完全に一定の費用にするには `HostModel` の増分のキャッシュが要り、増分と一括の一致（EVT-1）の試験と合わせて #632 の測定の後に判断する
+  - ブラウザ試験（`make test-browser`）は未実行。基準端末 A・Windows での測定も未実施
+  - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない

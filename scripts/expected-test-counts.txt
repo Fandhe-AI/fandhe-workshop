@@ -191,6 +191,8 @@ rust|tests/lo_check_vocabulary.rs [lo_check_vocabulary]|passed=1|ignored=0
 rust|tests/lo_first_answer.rs [lo_first_answer]|passed=11|ignored=0
 rust|tests/load_order.rs [load_order]|passed=15|ignored=0
 rust|tests/load_reason_contract.rs [load_reason_contract]|passed=13|ignored=0
+rust|tests/log_fold_generations.rs [log_fold_generations]|passed=3|ignored=0
+rust|tests/log_kind_match.rs [log_kind_match]|passed=1|ignored=0
 rust|tests/log_lines_contract.rs [log_lines_contract]|passed=13|ignored=0
 rust|tests/metrics.rs [metrics]|passed=10|ignored=0
 rust|tests/missing_elements.rs [missing_elements]|passed=10|ignored=0

@@ -1,0 +1,8 @@
+id: FEND22-8
+package: fandhe-workshop-web
+test: log_kind_match
+target: crates/web/src/log_lines.rs
+find: } => non_blank().then_some(LineKind::Rejected),
+replace: } => Some(LineKind::Rejected),
+expect-fail: kind_matches_line_for_every_event_and_text
+note: 空白だけの文面の拒否を行として数える（判定が line_from_event とずれて畳みの計画が食い違う）
