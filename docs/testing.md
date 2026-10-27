@@ -9144,3 +9144,15 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - PoC-6 の値とは履歴の形が違い（誤入力なし）、直接は比べない。`make measure` の束と `scripts/expected-test-counts.txt` には入れていない
   - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
 - 引き継ぎ: TASK-336 は `common/rounds.rs` の計画に操作を差し込み、`common/history_size.rs` の `measure` で大きさを求め、`measure-native/v1` の様式に足せる
+
+### 5.324 根ごとの下書きと周回の切り替え（TASK-236 1/2。MOD-4）
+
+- 目的: 入力の下書きを根（実体）ごとに持ち、現在の根が切り替わると表に出る下書きもその根のものに替わることを固定する
+- 方式: `crates/core/tests/root_drafts.rs`（`min-3step.json` を 2 実体 × 2 Step に複製した IR。単体 4 件と、`Draft`・`GoTo` を混ぜた操作列を模型 `BTreeMap<Root, String>` と照らす性質テスト 1 件）と、`crates/pack/tests/round_drafts.rs`（`module-reuse-rounds` の 2 周。`proc3_iii_*` の 4 件）
+- 決定: 状態に欄を足さず、`drafts[現在の根]` から導く読み取り口（`SessionState::current_draft`）だけを足した。履歴の写し・`CONTRACT_VERSION` は変わらない。根は `StepUid::root` のままで、`record_draft`・`record_submit` の根の計算を `SessionState::draft_root` にまとめた
+- 結果（2026-10-27）: core 5 件・pack 4 件が合格。2 周目の開始の直後は下書きが無く、2 周目の下書きは 1 周目の欄を変えず、`GoTo` の往復で値が保たれ、履歴の適用し直しの後も現在の下書きが一致した
+- 限界:
+  - 1 周目の下書きは `st-3-2` に移して置く。計画の最後が `main` の Step で、`st-6-1` を通る保証が計画に無いための代用である
+  - 送信で送った根だけが空になることと S-7 本体は TASK-236 2/2・TASK-243 の担当
+  - web の入力欄の入れ替えは未対応（`crates/web/src/host.rs` は起動時にだけ下書きを戻す）
+  - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
