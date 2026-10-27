@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・log-slope.sh・input-paint.sh・view-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -28,10 +28,10 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
-import { measureViewRedraw } from './view-redraw.mjs';
-import { measureProductRedraw } from './product-redraw.mjs';
+import { measureViewRedraw, measureViewRedrawCpu4x } from './view-redraw.mjs';
+import { measureProductRedraw, measureProductRedrawCpu4x } from './product-redraw.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -102,7 +102,7 @@ function progress(msg) {
   console.error(`[browser.mjs] ${msg}`);
 }
 
-// 全試行共通: 新しい context を作り、必要なら回線を絞る。CPU の減速は行わない。
+// 全試行共通: 新しい context を作り、必要なら回線を絞る。CPU の減速は行わない（cpu4x の種別だけが、mount の後に calibrateAndThrottle で掛ける）。
 async function newPage(browser, throttle) {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -118,6 +118,69 @@ async function newPage(browser, throttle) {
     });
   }
   return { context, page };
+}
+
+// ---- CPU 4 倍の記録（ART-15。TASK-485 3/3）の減速と較正 ----
+// 減速は記録だけの種別（view-redraw-cpu4x・product-redraw-cpu4x）が、mount の後・測る操作の前に掛ける。読み込み・mount の時間と検査を巻き込まない。
+// CDP へ渡す率は CPU4X_RATE の完全一致だけ。減速が効いていないまま走ると速い値が「4 倍の値」として残るため、固定の仕事量の時間の比を測って
+// CPU_CALIBRATION_MIN_RATIO 以上でなければ失敗にする（first-paint の転送の下限の検査と同じ fail-closed の考え方）。
+// 呼び出し元: view-redraw.mjs・product-redraw.mjs（deps で受け取る。循環 import を避ける）。
+export const CPU4X_RATE = 4;
+export const CPU_CALIBRATION_MIN_RATIO = 2;
+export const CPU_CALIBRATION_ITERATIONS = 2000000;
+
+export async function applyCpuThrottle(context, page, rate) {
+  if (rate !== CPU4X_RATE) throw new Error(`cpu throttle rate must be ${CPU4X_RATE}`);
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate });
+  return cdp; // detach すると減速が戻る。呼び出し側は context を閉じるまで参照を持つ
+}
+
+// ページ内の固定の関数。決まった回数の整数演算を 3 回流し、各回の時間（ms）の中央値を返す（時間で止めず、仕事の量を固定する）。
+function cpuCalibrationInPage({ iterations }) {
+  const times = [];
+  let acc = 0;
+  for (let r = 0; r < 3; r++) {
+    const t0 = performance.now();
+    for (let i = 0; i < iterations; i++) acc = (acc + (i ^ (acc << 1))) | 0;
+    times.push(performance.now() - t0);
+  }
+  times.sort((a, b) => a - b);
+  if (acc === 0.5) throw new Error('unreachable'); // 結果を使い、ループを消されない
+  return times[1];
+}
+
+// 純関数。減速なし・ありの時間（ms）の比が下限以上なら記録の値を返し、外れたら例外にする。
+export function checkCalibration(unthrottledMs, throttledMs, minRatio = CPU_CALIBRATION_MIN_RATIO) {
+  if (!Number.isFinite(unthrottledMs) || !Number.isFinite(throttledMs) || unthrottledMs <= 0 || throttledMs <= 0) {
+    throw new Error('CPU throttling is not in effect (calibration times are not positive numbers)');
+  }
+  const ratio = throttledMs / unthrottledMs;
+  if (!(ratio >= minRatio)) {
+    throw new Error(`CPU throttling is not in effect (calibration ratio ${ratio.toFixed(2)} < ${minRatio})`);
+  }
+  return { unthrottled_ms: unthrottledMs, throttled_ms: throttledMs, ratio };
+}
+
+export async function calibrateAndThrottle(context, page) {
+  const arg = { iterations: CPU_CALIBRATION_ITERATIONS };
+  const unthrottled = await page.evaluate(cpuCalibrationInPage, arg);
+  const session = await applyCpuThrottle(context, page, CPU4X_RATE);
+  const throttled = await page.evaluate(cpuCalibrationInPage, arg);
+  return { session, calibration: checkCalibration(unthrottled, throttled) };
+}
+
+// 試行ごとの較正の比を、結果の conditions に残す形にまとめる。
+export function calibrationInfo(list) {
+  const ratios = list.map((c) => c.ratio);
+  if (ratios.length === 0 || !ratios.every(Number.isFinite)) throw new Error('no calibration was recorded');
+  return {
+    iterations: CPU_CALIBRATION_ITERATIONS,
+    min_ratio_required: CPU_CALIBRATION_MIN_RATIO,
+    checks: ratios.length,
+    ratio_min: Math.min(...ratios),
+    ratio_max: Math.max(...ratios),
+  };
 }
 
 // ページ内で data-mounted の変化を MutationObserver で捉え、その時点の performance.now() を残す（ポーリングで測らない）。
@@ -849,8 +912,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw) and --dir are required');
+  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw', 'view-redraw-cpu4x', 'product-redraw-cpu4x'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -888,6 +951,8 @@ async function main() {
       'log-rounds': measureLogRounds, 'input-paint': measureInputPaint,
       'view-redraw': (b, d) => measureViewRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
       'product-redraw': (b, d) => measureProductRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
+      'view-redraw-cpu4x': (b, d) => measureViewRedrawCpu4x(b, d, { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo }),
+      'product-redraw-cpu4x': (b, d) => measureProductRedrawCpu4x(b, d, { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo }),
     };
     const result = await runs[values.kind](browser, values.dir);
     result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;

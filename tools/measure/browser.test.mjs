@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { median, p95, toMicros, resolveLaunchOptions, planRoundsStage } from './browser.mjs';
+import { median, p95, toMicros, resolveLaunchOptions, checkCalibration, applyCpuThrottle, calibrationInfo, planRoundsStage } from './browser.mjs';
 import { cases, judge, expectedCounts, VR_THRESHOLD_US } from './view-redraw.mjs';
 import * as pr from './product-redraw.mjs';
+import * as vr from './view-redraw.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
 
@@ -227,4 +228,106 @@ test('cli: product-redraw without --dir exits 2 with empty stdout', () => {
   const r = run(['--kind', 'product-redraw']);
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
+});
+
+// CPU 4 倍の記録（ART-15。TASK-485 3/3）の純関数と誤用。ブラウザは起動しない。
+test('checkCalibration: a ratio of exactly 2 passes, below 2 throws', () => {
+  const ok = checkCalibration(10, 20, 2);
+  assert.equal(ok.ratio, 2);
+  assert.equal(ok.unthrottled_ms, 10);
+  assert.equal(ok.throttled_ms, 20);
+  assert.throws(() => checkCalibration(10, 19.99, 2), /not in effect/);
+});
+
+test('checkCalibration: zero, negative, NaN and Infinity throw', () => {
+  for (const [a, b] of [[0, 10], [10, 0], [-1, 10], [10, -1], [NaN, 10], [10, NaN], [Infinity, 10], [10, Infinity]]) {
+    assert.throws(() => checkCalibration(a, b, 2), /not in effect/, `${a},${b}`);
+  }
+});
+
+test('calibrationInfo: min and max of the ratios, empty or non-finite throws', () => {
+  const i = calibrationInfo([{ ratio: 3.5 }, { ratio: 4.2 }, { ratio: 3.9 }]);
+  assert.equal(i.ratio_min, 3.5);
+  assert.equal(i.ratio_max, 4.2);
+  assert.equal(i.checks, 3);
+  assert.throws(() => calibrationInfo([]));
+  assert.throws(() => calibrationInfo([{ ratio: NaN }]));
+});
+
+test('applyCpuThrottle: only the rate 4 reaches CDP; other rates throw before any call', async () => {
+  let calls = 0;
+  const sent = [];
+  const context = { newCDPSession: async () => { calls++; return { send: async (m, p) => { sent.push([m, p]); } }; } };
+  for (const rate of [1, 2, 6, 0, -4, NaN, '4', undefined]) {
+    await assert.rejects(() => applyCpuThrottle(context, {}, rate), /rate must be 4/);
+  }
+  assert.equal(calls, 0);
+  await applyCpuThrottle(context, {}, 4);
+  assert.deepEqual(sent, [['Emulation.setCPUThrottlingRate', { rate: 4 }]]);
+});
+
+test('view-redraw-cpu4x cases: 3 kinds, 8 cases, no rejected (a) variants, from differs', () => {
+  const list = vr.cpu4xCases();
+  assert.equal(list.length, 8);
+  assert.deepEqual([...new Set(list.map((c) => c.kind))].sort(), ['diff', 'document', 'task_tree']);
+  assert.ok(!list.some((c) => (c.kind === 'document' || c.kind === 'diff') && c.variant === 'a'));
+  assert.ok(list.some((c) => c.kind === 'task_tree' && c.variant === 'a'));
+  for (const c of list) assert.notEqual(c.from, c.kind);
+});
+
+test('view-redraw-cpu4x measurementName: cpu4x prefix, kind, variant, op and stat', () => {
+  assert.equal(vr.cpu4xMeasurementName({ kind: 'diff', variant: 'b', op: 'switch' }, 'p95'), 'view_redraw_cpu4x_diff_b_switch_p95');
+});
+
+function allP95(v) {
+  return Object.fromEntries(vr.cpu4xCases().map((c) => [`${c.kind}:${c.variant}:${c.op}`, v]));
+}
+
+test('view-redraw-cpu4x record: over_threshold only, no judgement fields, boundary is not over', () => {
+  const t = allP95(1000);
+  t['diff:b:switch'] = vr.VR_THRESHOLD_US;
+  let r = vr.cpu4xRecord(t);
+  assert.equal(r.diff.b.over_threshold, false);
+  t['diff:b:switch'] = vr.VR_THRESHOLD_US + 1;
+  r = vr.cpu4xRecord(t);
+  assert.equal(r.diff.b.over_threshold, true);
+  assert.equal(r.document.b.over_threshold, false);
+  assert.deepEqual(Object.keys(r).sort(), ['diff', 'document', 'task_tree']);
+  const json = JSON.stringify(r);
+  assert.ok(!json.includes('within') && !json.includes('judged'));
+  assert.ok('toggle_p95_us' in r.diff.b && 'switch_p95_us' in r.diff.b);
+});
+
+test('view-redraw-cpu4x record: a missing p95 throws', () => {
+  const t = allP95(1000);
+  delete t['task_tree:a:toggle'];
+  assert.throws(() => vr.cpu4xRecord(t), /missing p95/);
+});
+
+test('product-redraw-cpu4x cases: 3 judged kinds with their sizes', () => {
+  const list = pr.cpu4xCases();
+  assert.deepEqual(list.map((c) => `${c.kind}:${c.rows}`), ['task_tree:50', 'document:200', 'diff:500']);
+});
+
+test('product-redraw-cpu4x measurementName and record', () => {
+  assert.equal(pr.cpu4xMeasurementName({ kind: 'diff', rows: 500 }, 'p95'), 'product_redraw_cpu4x_diff_500_switch_p95');
+  const p95 = Object.fromEntries(pr.cpu4xCases().map((c) => [`${c.kind}:${c.rows}`, 1000]));
+  p95['diff:500'] = pr.PR_THRESHOLD_US;
+  let r = pr.cpu4xRecord(p95);
+  assert.equal(r.diff.over_threshold, false);
+  p95['diff:500'] = pr.PR_THRESHOLD_US + 1;
+  r = pr.cpu4xRecord(p95);
+  assert.equal(r.diff.over_threshold, true);
+  assert.equal(r.diff.rows, 500);
+  const json = JSON.stringify(r);
+  assert.ok(!json.includes('within') && !json.includes('judged') && !json.includes('partial'));
+  assert.throws(() => pr.cpu4xRecord({}), /missing p95/);
+});
+
+test('cli: the cpu4x kinds without --dir exit 2 with empty stdout', () => {
+  for (const kind of ['view-redraw-cpu4x', 'product-redraw-cpu4x']) {
+    const r = run(['--kind', kind]);
+    assert.equal(r.status, 2, kind);
+    assert.equal(r.stdout, '');
+  }
 });

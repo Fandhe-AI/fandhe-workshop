@@ -163,13 +163,19 @@ make measure | jq .
   - 1 試行は新しい context で、規模のデータへ差し替えてから、12 組 × 2 操作 × 20 回を流す。10 試行で組ごとに 200 値。試行 i は組の開始位置を i だけずらす。操作の間に 20ms 待つ
   - 各操作の直後に、dispatch が受理された、選んだ一覧の項目数が期待値（前・後。Node 側で JSON の行から数える。文書は手で数えた 80 / 97）と一致する、ほかの一覧が空で `hidden`、通知が出ていないことを確かめる。外れたら失敗にする
   - 統計と丸めは再描画と同じ。判定の規則は「ビューごとに、`toggle` と `switch` の両方で 95 パーセンタイルが 16ms 以内の変種が 1 つ以上あれば閾値内」（`conditions.judgement`。判定の対象 3 種と参考 4 種を分けて持つ）。超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
-  - 値は代役の部品の画面のもので、本体の `view()` の値ではない（ART-26 は別のイシュー）。CPU 4 倍（ART-15）も別のイシュー（`conditions.scope_note`）
+  - 値は代役の部品の画面のもので、本体の `view()` の値ではない（ART-26 は別のイシュー）。CPU 4 倍（ART-15）は記録だけの別の種別（下の「CPU 4 倍の記録」）
+- CPU 4 倍の記録（ART-15。TASK-485 3/3）。記録だけで、判定に使わない
+  - 種別は `view-redraw-cpu4x`（代役の部品の画面。文書 200 行・差分 500 行・タスク 50 件の `toggle` と `switch`。8 系列）と `product-redraw-cpu4x`（本体の画面。`switch` だけ。3 件）。入口は `tools/measure/view-redraw-cpu4x.sh`・`product-redraw-cpu4x.sh`。測る量・10 試行 × 20 操作・統計は減速なしの種別と同じ
+  - 減速は CDP の `Emulation.setCPUThrottlingRate`（率は 4 の完全一致だけ）で、ページの読み込みと画面の mount が済んだ後、測る操作の前に掛ける。固定の仕事量の整数演算の時間を減速の前後で測り、比が 2 未満なら失敗にする（減速が効かないまま速い値を 4 倍の値として残さないため）。試行ごとの比の最小・最大は `conditions.cpu_calibration` に残す
+  - 結果は判定の欄（`conditions.judgement`・`judged`・`within`）を持たない。`conditions.record_only: true` と、`conditions.record_only_cpu4x`（種類ごとの p95 と、参考の 16ms 超過の印 `over_threshold`）に記録する。16ms は参考で、合否に使わない。`conditions.sample_diff_rows` に教材の sample の差分の大きさを添える
+  - 測定名は `view_redraw_cpu4x_…`・`product_redraw_cpu4x_…`。`make measure` の束には入れない
 
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
 - 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`log-rounds`・`input-paint` の値は最小教材の値で、教材全体を代表しない
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
+- `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。種類ごとの描画部品が製品に結線されるまでは経路の行の値である（`docs/testing.md` 5.318）
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
@@ -180,7 +186,7 @@ make measure | jq .
 - ビルド情報はビルドログの行（`config` / `wasm-opt` / `wasm size`）から読む。解析は `tools/measure/lib.sh` の `measure_build` に集約してある。
   機械可読の出力を `build-web.sh` に足す案は、ログの形式が変わって解析が壊れるようになった時点で検討する
 - 大きさと初回表示は配信する設定を 2 回ビルドする（cargo のキャッシュが効くため差は数秒）。1 回のビルドの使い回しは後続の改善とする
-- CPU 4 倍の減速・制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
+- 左のビューの CPU 4 倍は TASK-485 3/3 で扱った（§4）。制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
 - `log-redraw`・`log-slope`・`input-paint`・`view-redraw`・`product-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
 - 操作の入る画面での操作可能まで（TTI）は、後続の画面のタスクで扱う

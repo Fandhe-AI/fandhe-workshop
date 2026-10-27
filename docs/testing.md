@@ -8962,7 +8962,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 最大値（us。`toggle` / `switch`）: 文書 (b) 3,300 / 5,500、差分 (b) 9,700 / 20,400、タスク (a) 3,800 / 4,700、タスク (b) 2,700 / 6,800。差分の `switch` は最大値だけが 16,000 を超えるが、判定は p95 による
 - 基点: 固定データは `artifact-view-parts`（`test-data.sha256` の SHA-256 は `984abda52932fbe1a6765bd5fcd5cbdbaa9c2b08afb9cce48c0759f104a5614e`）・`wasm-opt` 未適用・機能の範囲 test（`test-hooks`、profile release）・圧縮は `tools/serve.mjs` の gzip レベル 9。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。道具は rustc 1.98.1・wasm-bindgen 0.2.128
 - 限界・未実施:
-  - 測ったのは代役の部品の画面で、本体の `view()` ではない。本体の画面での測定（ART-26）は TASK-485 2/3、CPU 4 倍の記録（ART-15）は 3/3 で扱う
+  - 測ったのは代役の部品の画面で、本体の `view()` ではない。本体の画面での測定（ART-26）は TASK-485 2/3、CPU 4 倍の記録（ART-15）は 5.320
   - 実際のウィンドウのレイアウト・ペイントと、click の委譲の属性の読み取りは含まない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる
   - 文書 (a)・差分 (a) は契約が拒否する組のため測らない（`fixture_contrast` は使っていない）
   - 基準端末 A（Apple シリコンの macOS の Chrome の原本）での測定は未実施で、人の作業である。手順は `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/view-redraw.sh`。5.284 の注意と同じく、macOS 同梱の jq 1.7.1 は `lib.sh` の `+ $extra` で止まるため Homebrew の jq を使う。結果はこの節へ追記する
@@ -9012,7 +9012,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 限界・未実施:
   - 基準端末 A（Apple シリコンの macOS の Chrome の原本）での測定は未実施で、人の作業である。手順は `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/product-redraw.sh`。5.284 の注意と同じく、macOS 同梱の jq 1.7.1 は `lib.sh` の `+ $extra` で止まるため Homebrew の jq を使う。結果はこの節へ追記する
   - 開発機の値は作業ツリーの測定で、判定の最終の根拠にはならない。`performance.now()` の分解能は約 0.1ms
-  - CPU 4 倍（ART-15）は TASK-485 3/3 で扱う。実際のウィンドウのレイアウト・ペイントは含まない
+  - CPU 4 倍（ART-15）は 5.320 に記録した。実際のウィンドウのレイアウト・ペイントは含まない
   - `make measure` の束と `scripts/expected-test-counts.txt` には入れていない。試験の作成者と実装の作成者が同じ AI である
 
 ### 5.319 2 周分の通しで再描画の閾値を確かめる（TASK-232 3/3。EVT-26・EVT-24・FEND-22・D-46・D-47）
@@ -9062,3 +9062,30 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - spec の EVT-26 の「証拠の種類」の更新は spec repo 側の作業
   - 最小教材の値で教材全体を代表しない。`make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`（節 (i)）。ただし 1/3 の記録のとおり `make test-measure` は 600 秒の内に終わらない場合があり、本件では節 (i) の確認を `tools/measure/log-rounds.sh` の実行と同じ検査の `jq` で行った
   - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
+
+### 5.320 CPU 4 倍の条件の記録（TASK-485 3/3。ART-15）
+
+- 目的: CPU を 4 倍遅くした条件で、文書 200 行・差分 500 行・タスク 50 件の左のビューの再描画を測り、記録だけとして残す。判定（16ms・p95）には使わず、5.316・5.318 の判定の表とは別の表に置く
+- 方式（`tools/measure/view-redraw-cpu4x.sh`・`product-redraw-cpu4x.sh`、実体は `view-redraw.mjs`・`product-redraw.mjs`、共通の減速と較正は `browser.mjs`。条件は `docs/measurement.md` §4）: 測る量・10 試行 × 20 操作・統計は 5.316（代役の部品の画面）と 5.318（本体の画面）と同じ。CDP で CPU を 4 倍にするのは mount の後・測る操作の前で、固定の仕事量の時間の比が 2 以上でなければ測定が失敗する
+- 試験: `tools/measure/browser.test.mjs`（較正の純関数・減速の率の検査・組と名前と記録の純関数・誤用）、`scripts/test-measure.sh` の (j)・(k)（遅く CI に入れない）。CI のブラウザ試験には入れていない（共有端末で時間の比が揺れるため）
+- 結果（2026-10-27。開発機。Chromium・Playwright 1.63.0。`SKIP_WASM_OPT=1`。試験の設定。作業ツリー上の測定で `dirty: true`、基点の commit は a5d69d8）。p95 を us で示す。判定ではない。
+
+| 画面 | ビュー | 変種 | toggle / switch の p95（記録のみ） | 16ms を超えたか（参考） |
+|---|---|---|---|---|
+| 代役の部品 | 文書 200 行 | (b) | 12,200 / 25,700 | switch が超過 |
+| 代役の部品 | 差分 500 行 | (b) | 47,300 / 102,600 | 超過 |
+| 代役の部品 | タスク 50 件 | (a) | 12,200 / 22,200 | switch が超過 |
+| 代役の部品 | タスク 50 件 | (b) | 13,400 / 31,800 | switch が超過 |
+| 本体の画面 | タスク 50 件 | - | - / 13,700 | 超過なし |
+| 本体の画面 | 文書 200 行 | - | - / 41,900 | 超過 |
+| 本体の画面 | 差分 500 行 | - | - / 61,800 | 超過 |
+
+- 較正の比（減速あり / なし）: 代役の部品の画面は 10 回で 2.69〜4.14、本体の画面は 30 回で 2.59〜4.37。4 に届かない回があるのは、短い仕事量では時間の揺れが大きいためで、下限 2 は「減速が効いていること」の確認であり、4 倍の精度の確認ではない
+- 参考（比べない）: 仕様の PoC-8（`record_only_cpu4x`。基準端末 A）は、文書 6.3〜7.9ms・タスク 6.9〜9.2ms は閾値内、差分は toggle 19.0〜21.0ms・switch 30.5〜34.3ms で閾値を超えた。端末・減速の方式が違うため、この表の値とは比べない
+- 教材の架空の差分は小さい。sample の差分は 9 行（hunk 1 行と本文 8 行。`conditions.sample_diff_rows`）で、500 行の差分は実際の教材の大きさを代表しない
+- 基点: 固定データ `artifact-view-parts`・教材 `min-3step.json`（`pack.id` を差し替え）・`wasm-opt` 未適用・機能の範囲 test（`test-hooks`、profile release）・圧縮は gzip レベル 9。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）
+- 限界・未実施:
+  - 基準端末 A（Apple シリコンの macOS の Chrome の原本）での測定は未実施で、人の作業である。手順は `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/view-redraw-cpu4x.sh`（本体の画面は `product-redraw-cpu4x.sh`）。5.316 と同じく、macOS 同梱の jq 1.7.1 は `lib.sh` の `+ $extra` で止まるため Homebrew の jq を使う
+  - CDP の減速は実機の低速端末と同じではない。開発機の値は `dirty: true` の作業ツリーの測定で、そもそも判定に使わない。実際のウィンドウの描画は含まない
+  - 本体の画面は種類ごとの描画部品が未結線で、経路の行の値である
+  - `make measure` の束と `scripts/expected-test-counts.txt` には入れていない。`test-measure.sh` の節の印 (g) の重複は整理していない。試験と実装の作成者が同じ AI である

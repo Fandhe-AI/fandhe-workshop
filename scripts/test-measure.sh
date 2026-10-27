@@ -256,6 +256,42 @@ else
   cat "${PRD}.err" >&2
 fi
 
+# --- (j) view-redraw-cpu4x（左のビューの CPU 4 倍の記録。TASK-485 3/3。記録だけで判定に使わない。束には入れない単体の測定） ---
+check "view-redraw-cpu4x.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/view-redraw-cpu4x.sh" --unknown
+check_fails "view-redraw-cpu4x: missing data/device baseline is refused" measure_browser_result view-redraw-cpu4x "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "view-redraw-cpu4x: a pack baseline alone is refused" measure_browser_result view-redraw-cpu4x "$(measure_commit_json)" "${TMP}" "{\"pack\":{\"id\":\"x\",\"sha256\":\"${ZERO64}\"},\"device\":${DEV_OK}}"
+VRC="${TMP}/view-redraw-cpu4x.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/view-redraw-cpu4x.sh" >"${VRC}" 2>"${VRC}.err"; then
+  check "view-redraw-cpu4x: passes the v1 validation" measure_validate "${VRC}"
+  check "view-redraw-cpu4x: 24 measurements named with the cpu4x prefix" jq -e '(.measurements | length == 24) and (.measurements | all(.name | test("^view_redraw_cpu4x_(document|diff|task_tree)_[ab]_(toggle|switch)_(median|p95|max)$")))' "${VRC}"
+  check "view-redraw-cpu4x: record only, 4x throttle, and no judgement field" jq -e '.conditions.cpu_throttle == 4 and .conditions.record_only == true and (.conditions | has("judgement") | not) and (.conditions | has("judged") | not)' "${VRC}"
+  check "view-redraw-cpu4x: the record has the 3 kinds and no verdict" jq -e '(.conditions.record_only_cpu4x | keys == ["diff", "document", "task_tree"]) and (.conditions.record_only_cpu4x | [.. | objects | select(has("within") or has("judged"))] | length == 0)' "${VRC}"
+  check "view-redraw-cpu4x: the calibration ratio reached the minimum" jq -e '.conditions.cpu_calibration.ratio_min >= 2 and .conditions.cpu_calibration.checks == 10' "${VRC}"
+  check "view-redraw-cpu4x: the sample diff size and 200 values are recorded" jq -e '.conditions.sample_diff_rows.total > 0 and .conditions.trials * .conditions.samples_per_trial == 200' "${VRC}"
+  check "view-redraw-cpu4x: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${VRC}"
+else
+  fail "view-redraw-cpu4x: view-redraw-cpu4x.sh failed (see ${VRC}.err)"
+  cat "${VRC}.err" >&2
+fi
+
+# --- (k) product-redraw-cpu4x（本体の画面の CPU 4 倍の記録。TASK-485 3/3。記録だけで判定に使わない。束には入れない単体の測定） ---
+check "product-redraw-cpu4x.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/product-redraw-cpu4x.sh" --unknown
+check_fails "product-redraw-cpu4x: missing pack/device baseline is refused" measure_browser_result product-redraw-cpu4x "$(measure_commit_json)" "${TMP}" '{}'
+check_fails "product-redraw-cpu4x: a data baseline alone is refused" measure_browser_result product-redraw-cpu4x "$(measure_commit_json)" "${TMP}" "{\"data\":{\"id\":\"x\",\"manifest_sha256\":\"${ZERO64}\",\"files\":{\"a\":\"b\"}},\"device\":${DEV_OK}}"
+PRC="${TMP}/product-redraw-cpu4x.json"
+if SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/product-redraw-cpu4x.sh" >"${PRC}" 2>"${PRC}.err"; then
+  check "product-redraw-cpu4x: passes the v1 validation" measure_validate "${PRC}"
+  check "product-redraw-cpu4x: 9 measurements named with the cpu4x prefix" jq -e '(.measurements | length == 9) and (.measurements | all(.name | test("^product_redraw_cpu4x_(task_tree_50|document_200|diff_500)_switch_(median|p95|max)$")))' "${PRC}"
+  check "product-redraw-cpu4x: record only, 4x throttle, and no judgement field" jq -e '.conditions.cpu_throttle == 4 and .conditions.record_only == true and (.conditions | has("judgement") | not) and (.conditions | has("judged") | not)' "${PRC}"
+  check "product-redraw-cpu4x: the record has the 3 kinds and no verdict" jq -e '(.conditions.record_only_cpu4x | keys == ["diff", "document", "task_tree"]) and (.conditions.record_only_cpu4x | [.. | objects | select(has("within") or has("judged") or has("partial"))] | length == 0)' "${PRC}"
+  check "product-redraw-cpu4x: the calibration ratio reached the minimum" jq -e '.conditions.cpu_calibration.ratio_min >= 2 and .conditions.cpu_calibration.checks == 30' "${PRC}"
+  check "product-redraw-cpu4x: the sample diff size is recorded" jq -e '.conditions.sample_diff_rows.total > 0 and .conditions.sample_diff_rows.hunk >= 1' "${PRC}"
+  check "product-redraw-cpu4x: uses the test-hooks feature" jq -e '.baseline.features.cargo_features == ["test-hooks"]' "${PRC}"
+else
+  fail "product-redraw-cpu4x: product-redraw-cpu4x.sh failed (see ${PRC}.err)"
+  cat "${PRC}.err" >&2
+fi
+
 # --- (i) 統計関数と引数の試験 ---
 check "node:test for browser.mjs passes" node --test "${ROOT_DIR}/tools/measure/browser.test.mjs"
 
