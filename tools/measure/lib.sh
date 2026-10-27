@@ -5,7 +5,7 @@
 #
 # 存在理由: 基点（commit・wasm-opt・機能の範囲・圧縮の設定）の付かない値は、基点の違う値どうしの誤った比較を招く
 # （docs/measurement.md）。結果を出す経路を measure_emit / measure_emit_run だけにして、基点が欠けた結果を構造的に出さない。
-# 呼び出し元: tools/measure/wasm-size.sh・first-paint.sh・redraw.sh・all.sh。ビルドとログ解析・commit の前後比較も
+# 呼び出し元: tools/measure/wasm-size.sh・first-paint.sh・redraw.sh・all.sh（log-redraw.sh・input-paint.sh・view-redraw.sh も measure_browser_result を使う）。ビルドとログ解析・commit の前後比較も
 # 3 つの測定で同じ手順にするため、ここへ集約する。
 # 結果の様式の定義は docs/measurement.md。JSON は jq の --arg / --argjson だけで組み立て、文字列連結で作らない。
 
@@ -86,6 +86,22 @@ measure_device_json() {
   jq -n --arg os "${os}" --arg release "${release}" --arg arch "${arch}" --arg cpu "${cpu}" \
     --argjson cores "${cores}" --argjson mem "${mem}" --argjson apple "${apple}" \
     '{os: $os, os_release: $release, arch: $arch, cpu: $cpu, logical_cores: $cores, memory_bytes: $mem, apple_silicon_macos: $apple}'
+}
+
+# measure_data_json: 固定データの測定（view-redraw）の基点 {"id","manifest_sha256","files"} を返す。教材の代わりに、測った固定データの
+# 出所（testdata/artifact-view-parts/test-data.sha256 の SHA-256）と、埋め込んだ規模のデータの写しのファイルごとの SHA-256 を残す。
+# 1 つでも読めない・SHA-256 が取れなければ失敗する（fail-closed）。JSON は --arg だけで組み立てる。
+measure_data_json() {
+  local manifest dir name sha out
+  manifest="$(_measure_sha256 "${ROOT_DIR}/testdata/artifact-view-parts/test-data.sha256")" || return 1
+  dir="${ROOT_DIR}/crates/web/tests/data/artifact_view_scale"
+  out='{}'
+  for name in diff-500.json tasks-50.json filetree-200.json doc-large-before.json doc-large-after.json doc-large-before.md doc-large-after.md; do
+    sha="$(_measure_sha256 "${dir}/${name}")" || return 1
+    out="$(jq -c --arg n "${name}" --arg s "${sha}" '. + {($n): $s}' <<<"${out}")" || return 1
+  done
+  jq -n --arg id "artifact-view-parts" --arg m "${manifest}" --argjson files "${out}" \
+    '{id: $id, manifest_sha256: $m, files: $files}'
 }
 
 # jq の述語。様式 v1 の 1 件の検査（valid_v1）を、単体（measure_validate）と束（measure_validate_run）で共有する。
@@ -276,8 +292,8 @@ measure_result_json() {
 
 # measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# <kind> は first-paint / redraw / log-redraw / log-slope / input-paint。log-redraw・log-slope・input-paint は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
-# 結果の baseline へ足す。この 3 つでこれが欠ける・pack か device が無いときは失敗にする。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
+# <kind> は first-paint / redraw / log-redraw / log-slope / input-paint / view-redraw。log-redraw・log-slope・input-paint は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# 結果の baseline へ足す。この 3 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
 measure_browser_result() {
@@ -285,8 +301,18 @@ measure_browser_result() {
   if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
     log-redraw | log-slope | input-paint) need_extra=1 ;;
+    view-redraw) need_extra=2 ;;
     *) need_extra=0 ;;
   esac
+  if [ "${need_extra}" -eq 2 ] && ! jq -e '
+    (.data.id | type == "string" and length > 0) and (.data.manifest_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.data.files | type == "object" and length > 0)
+    and (.device.os | type == "string" and length > 0) and (.device.cpu | type == "string" and length > 0)
+    and (.device.logical_cores | type == "number") and (.device.memory_bytes | type == "number")
+    and (.device.apple_silicon_macos | type == "boolean")' <<<"${extra}" >/dev/null 2>&1; then
+    echo "error: ${kind} needs the data and device baseline" >&2
+    return 1
+  fi
   if [ "${need_extra}" -eq 1 ] && ! jq -e '
     (.pack.id | type == "string" and length > 0) and (.pack.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
     and (.device.os | type == "string" and length > 0) and (.device.cpu | type == "string" and length > 0)

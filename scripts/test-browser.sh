@@ -200,6 +200,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/check-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/app-demo-view.test.mjs" \
   "${ROOT_DIR}/tools/browser/app-demo-login.test.mjs" \
+  "${ROOT_DIR}/tools/browser/view-scale.test.mjs" \
   "${ROOT_DIR}/tools/browser/point-rows.test.mjs" \
   "${ROOT_DIR}/tools/browser/point-click.test.mjs" \
   "${ROOT_DIR}/tools/browser/point-keys.test.mjs" \

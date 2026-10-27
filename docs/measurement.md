@@ -30,6 +30,7 @@ make measure | jq .
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 項目数ごとの再描画の傾き（ログ 100〜4,000 項目の 12 段階。TASK-232 1/3） | `tools/measure/log-slope.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 入力から描画まで（ログ 120〜158 項目。TASK-223 2/2） | `tools/measure/input-paint.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
+| 左のビューの部品単位の再描画（固定データの画面。TASK-485 1/3。ART-4） | `tools/measure/view-redraw.sh` | 試験の設定（代役の部品 `view_fixture` が要る）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 
 - release の設定で `tools/build-web.sh` を一時ディレクトリにビルドする（`dist/` は上書きしない）。結果の JSON を標準出力に 1 つだけ出し、
   進行状況とビルドログは標準エラーへ出す
@@ -49,11 +50,12 @@ make measure | jq .
 | 機能の範囲 | `baseline.features` | `config`（`delivery` / `test`）・`cargo_features`・`profile`（`release`） |
 | 圧縮の設定 | `baseline.compression` | `command` と `implementation`（下表） |
 
-次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw`・`log-slope`・`input-paint` の結果では必須で、欠けたら結果を出さない。
+次の 2 項目は任意で、様式の版は上げない（v1 の検証は必須の 4 項目だけを見る）。`log-redraw`・`log-slope`・`input-paint` の結果では `pack` と `device` が、`view-redraw` の結果では `data` と `device` が必須で、欠けたら結果を出さない。
 
 | 項目 | JSON のパス | 内容 |
 |---|---|---|
 | 教材 | `baseline.pack` | `id`・`version`・`nodes`（Step の数）・`sha256`（IR ファイルの SHA-256） |
+| 固定データ | `baseline.data` | `view-redraw` が教材の代わりに持つ。`id`・`manifest_sha256`（`testdata/artifact-view-parts/test-data.sha256` の SHA-256）・`files`（埋め込んだ規模のデータの写し 7 ファイルの名前ごとの SHA-256） |
 | 端末 | `baseline.device` | `os`・`os_release`・`arch`・`cpu`・`logical_cores`・`memory_bytes`・`apple_silicon_macos`（基準端末 A の目印）。ホスト名・ユーザー名・パスは入れない |
 
 | 測定 | `compression.command` | `compression.implementation` |
@@ -145,10 +147,20 @@ make measure | jq .
 - 基点が 1 項目でも違う値どうしで、増減を論じない
 - `baseline.commit.dirty` が `true` の値は、基点として比較に使わない（どの commit の値か特定できない）
 - `wasm-opt` が無い環境でもビルドは成功し、`applied: false` として記録される。未適用の値を適用済みの値と比べない
+- 左のビューの部品単位の再描画（固定データの画面。出典: `docs/spec/03-poc/artifact-view-parts/README.md` と `testdata/artifact-view-parts/test-data/README.md` の「計測の定義」、ART-4。TASK-485 1/3）
+  - 試験の設定の代役の部品（`view_fixture`）を、回線・CPU の制限なしで配信する。測るのは `window.__fandheTest.viewFixtureDispatch` の直前と直後の `performance.now()` の差（同期処理。click の委譲と同じ `dispatch_and_apply` を通り、update・`view()`・keyed list の差分・DOM への反映を含む。click の委譲の属性の読み取り、レイアウトと描画は含まない）
+  - データ: 文書 200 行・差分 500 行・タスク 50 件（判定の対象）と、ファイルツリー 200 件・カード 20 件・チェック 20 件・アプリのデモ 9 行（参考）。写しの出所は `crates/web/tests/data/artifact_view_scale/README.md`
+  - 組: (b) は 7 種すべて、(a) は契約が許す 5 種の計 12 組。文書 (a)・差分 (a) は契約が拒否するため測らない（`conditions.excluded`）。操作は `toggle`（同じビューの前後を交互に切り替える）と `switch`（別のビューから対象のビューへ切り替える。前後は後に固定。相手は種類の並びで 1 つ前の、同じ変種を許す種類で、`conditions.switch_from` に残す）の 2 種で、どちらも判定に使う
+  - 1 試行は新しい context で、規模のデータへ差し替えてから、12 組 × 2 操作 × 20 回を流す。10 試行で組ごとに 200 値。試行 i は組の開始位置を i だけずらす。操作の間に 20ms 待つ
+  - 各操作の直後に、dispatch が受理された、選んだ一覧の項目数が期待値（前・後。Node 側で JSON の行から数える。文書は手で数えた 80 / 97）と一致する、ほかの一覧が空で `hidden`、通知が出ていないことを確かめる。外れたら失敗にする
+  - 統計と丸めは再描画と同じ。判定の規則は「ビューごとに、`toggle` と `switch` の両方で 95 パーセンタイルが 16ms 以内の変種が 1 つ以上あれば閾値内」（`conditions.judgement`。判定の対象 3 種と参考 4 種を分けて持つ）。超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
+  - 値は代役の部品の画面のもので、本体の `view()` の値ではない（ART-26 は別のイシュー）。CPU 4 倍（ART-15）も別のイシュー（`conditions.scope_note`）
+
 - 配信する設定（`delivery`）の値と試験の設定（`test`）の値を比べない。再描画の値は試験の設定の値であり、配信する設定の値と比べない
 - 回線条件・ブラウザの版・圧縮の実装が違う値を比べない。大きさ（GNU `gzip -9`）と初回表示・再描画（Node の zlib のレベル 9）は
   圧縮の実装が違うため、圧縮の設定が違う値どうしは比べない
 - 教材（`baseline.pack`）・端末（`baseline.device`）が違う値どうしを比べない。`log-redraw`・`log-slope`・`input-paint` の値は最小教材の値で、教材全体を代表しない
+- `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
@@ -160,5 +172,5 @@ make measure | jq .
 - 大きさと初回表示は配信する設定を 2 回ビルドする（cargo のキャッシュが効くため差は数秒）。1 回のビルドの使い回しは後続の改善とする
 - CPU 4 倍の減速・制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
-- `log-redraw`・`log-slope`・`input-paint` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
+- `log-redraw`・`log-slope`・`input-paint`・`view-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
 - 操作の入る画面での操作可能まで（TTI）は、後続の画面のタスクで扱う

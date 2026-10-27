@@ -8941,6 +8941,34 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 最小教材の値で教材全体を代表しない。`make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`
   - 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない
 
+### 5.316 左のビューの部品単位の再描画の速さ（固定データの画面。TASK-485 1/3。ART-4）
+
+- 目的: 左の成果物ビューの部品を、固定データ（文書 200 行・差分 500 行・タスク 50 件。参考にファイルツリー 200 件・カード 20 件・チェック 20 件・アプリのデモ 9 行）の代役の部品の画面で測り、95 パーセンタイルが 16ms 以内かを、CPU の減速なしで記録する。判定の規則は「ビューごとに、`toggle` と `switch` の両方で p95 が 16ms 以内の変種が 1 つ以上あれば閾値内」
+- 方式（`tools/measure/view-redraw.sh`、`tools/measure/view-redraw.mjs`。条件の詳細は `docs/measurement.md` §4）: 10 試行 × 20 操作 = 組・操作ごとに 200 値。測るのは `viewFixtureDispatch` の同期処理の前後の `performance.now()` の差。データの写しの出所は `crates/web/tests/data/artifact_view_scale/README.md`
+- 同期性の検査: 全操作で、dispatch が受理され、選んだ一覧の項目数が期待値（文書 80 / 97、差分 479 / 500、タスク 46 / 50、ファイルツリー 191 / 200、カード・チェック 20、アプリのデモ 8 / 9）と一致し、ほかの一覧が空で `hidden` なことを確かめた。外れれば測定が失敗する。終了コード 0 で全操作が通った
+- 試験: `crates/web/src/view_fixture.rs` の単体試験 3 件（大きな文書の木の写しと `markdown::parse` の一致・規模へ差し替えた後の行の数と `document:sample` で戻ること・未知の payload の拒否）、`tools/browser/view-scale.test.mjs` の VS1〜VS4（写しと `generate.mjs` の一致・12 組の項目数・測定のページ内の関数の通し・未知の payload の拒否と通信 0 件。CI の `browser-test` が流す）、`tools/measure/browser.test.mjs`（判定の純関数・組の一覧・期待値）、`scripts/test-measure.sh` の (g)（遅く CI に入れない）
+- 結果（2026-10-27。開発機。Chromium 153.0.8010.12・Playwright 1.63.0。`SKIP_WASM_OPT=1`。試験の設定。作業ツリー上の測定で `dirty: true`、基点の commit は 76f40f4）。p95 を us で示す（`toggle` / `switch`）。
+
+| ビュー（判定） | 変種 (a) | 変種 (b) | 判定 |
+|---|---|---|---|
+| 文書 200 行（対象） | 契約が拒否（測らない） | 2,400 / 4,400 | 閾値内 |
+| 差分 500 行（対象） | 契約が拒否（測らない） | 8,300 / 14,100 | 閾値内（`switch` が 16,000 に近い） |
+| タスク 50 件（対象） | 2,400 / 4,100 | 2,400 / 5,900 | 閾値内 |
+| ファイルツリー 200 件（参考） | 3,200 / 7,500 | 4,700 / 6,600 | 閾値内 |
+| カード 20 件（参考） | 1,300 / 1,800 | 1,200 / 1,700 | 閾値内 |
+| チェック 20 件（参考） | 1,800 / 1,500 | 1,600 / 1,400 | 閾値内 |
+| アプリのデモ 9 行（参考） | 600 / 900 | 500 / 800 | 閾値内 |
+
+- 最大値（us。`toggle` / `switch`）: 文書 (b) 3,300 / 5,500、差分 (b) 9,700 / 20,400、タスク (a) 3,800 / 4,700、タスク (b) 2,700 / 6,800。差分の `switch` は最大値だけが 16,000 を超えるが、判定は p95 による
+- 基点: 固定データは `artifact-view-parts`（`test-data.sha256` の SHA-256 は `984abda52932fbe1a6765bd5fcd5cbdbaa9c2b08afb9cce48c0759f104a5614e`）・`wasm-opt` 未適用・機能の範囲 test（`test-hooks`、profile release）・圧縮は `tools/serve.mjs` の gzip レベル 9。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。道具は rustc 1.98.1・wasm-bindgen 0.2.128
+- 限界・未実施:
+  - 測ったのは代役の部品の画面で、本体の `view()` ではない。本体の画面での測定（ART-26）は TASK-485 2/3、CPU 4 倍の記録（ART-15）は 3/3 で扱う
+  - 実際のウィンドウのレイアウト・ペイントと、click の委譲の属性の読み取りは含まない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる
+  - 文書 (a)・差分 (a) は契約が拒否する組のため測らない（`fixture_contrast` は使っていない）
+  - 基準端末 A（Apple シリコンの macOS の Chrome の原本）での測定は未実施で、人の作業である。手順は `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/view-redraw.sh`。5.284 の注意と同じく、macOS 同梱の jq 1.7.1 は `lib.sh` の `+ $extra` で止まるため Homebrew の jq を使う。結果はこの節へ追記する
+  - 上の開発機の値は作業ツリーの測定（`dirty: true`）で、判定の最終の根拠にはならない
+  - `make measure` の束と `scripts/expected-test-counts.txt` には入れていない。試験の作成者と実装の作成者が同じ AI である
+
 ### 5.317 世代をまたぐログの畳みと、畳まれる行の複製の省略（TASK-232 2/3。FEND-22・EVT-26・D-46・D-47）
 
 - 目的: 決定した案（1 リストは約 1,000 項目で分割し、古い Step を 1 行の要約に畳む。4,096 件の打ち切りを安全弁にする）が実装済みであることを、2 周分（世代をまたぐ）のログで固定する。あわせて、畳まれる行の `LogLine`（文字列の複製）を作らないようにする
