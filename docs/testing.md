@@ -9306,5 +9306,26 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 限界:
   - 世代を先に上げる変異は、`apply` の世代の整理が打ち消すため置いていない
   - web の起動（`open_bundled_ir` → `Session::entered_at`）は `requires` を評価しない。`?start=s-r2` は 1 周目なしでも開く（PACK-18 の web への結線は未検証）
-  - 画面に拒否の文面を出す処理は含めない。存在しない開始 ID と 1 周目を終えた後の開始の成功は TASK-240 2/2
+  - 画面に拒否の文面を出す処理は含めない。存在しない開始 ID と 1 周目を終えた後の開始の成功は 5.332 で固定
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.332 存在しない開始 ID と 1 周目終了後の開始を固定する（TASK-240 2/2。MOD-7 (b)(c)）
+
+- 目的: 存在しない開始 ID の `Begin` が `UnknownStart` の `Refused` 1 件だけで状態を変えないこと、1 周目を実際に流し終えた後の `Begin("s-r2")` が成功すること、拒否を挟んでも後の進行が変わらないことを固定する
+- 方式: `crates/pack/tests/start_unmet.rs` の `mod7_*` 3 件の追加（5.331 の 3 件と合わせて 6 件）
+  - `mod7_unknown_start_id_is_refused_without_change`: 8 通りの存在しない ID（大小違い・前後の空白・空・全角・節点の uid を含む）を、新しい状態と 1 周目の途中の状態に送る。`check_start` が `UnknownStart`、`Refused { reason: UnknownStart, rejection: None }` が 1 件、`log` を除いた状態の SHA-256・`run`・下書き・チェックポイント・ヒントが不変、`Begun`・`Entered`・`Skipped`・`Warning` が 0 件。対照として存在する `s-r2` は `StartUnmet` になる
+  - `mod7_begin_round2_after_round1_succeeds`: `round1_plan` を流し終えた後（現在の Step が `main/r1-impl`、`r1-idea`・`r1-impl` が達成）の `Begin("s-r2")` が `Begun`（世代 +1）で始まり、`Refused` が 0 件、現在の Step が 2 周目の根の Step で `Entered`、1 周目の切り身が不変
+  - `mod7_refused_begin_then_round1_completes_and_begin_succeeds`: 1 周目の途中の拒否の後に残りを流した状態が、拒否を挟まない流れと `log` を除いて一致し、その後の `Begin` が成功する
+- 決定: 本番コードは変えない（既存の `check_start`・`on_begin` が (b)(c) を満たしていた）。`CONTRACT_VERSION` は据え置く
+- 結果（2026-10-27）: `start_unmet` の 6 件が合格
+- 変異注入（2026-10-27）: 元のコミット `635951f7`
+
+| ID | 結果 |
+|---|---|
+| MOD7-4（存在しない開始 ID を条件の不成立と取り違える） | DETECTED |
+| MOD7-5（条件を満たす開始を断る） | DETECTED |
+
+- 限界:
+  - `begin.rs` の `check_start` の後にある `UnknownStart` の 2 か所は、関門を通った後には届かないため変異の対象にしていない
+  - web の起動（`open_bundled_ir` → `Session::entered_at`）は `requires` を評価しない（TASK-254 の領域）。画面に拒否を出す処理は含めない
   - 作成者と実装者が同じ AI で、人の確認は得ていない

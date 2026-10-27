@@ -1,0 +1,8 @@
+id: MOD7-5
+package: fandhe-workshop-pack
+test: start_unmet
+target: crates/core/src/start_gate.rs
+find:     if met == Some(true) {
+replace:     if met == Some(false) {
+expect-fail: mod7_begin_round2_after_round1_succeeds
+note: 条件を満たす開始を断る

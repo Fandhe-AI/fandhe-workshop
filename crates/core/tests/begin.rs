@@ -2,7 +2,7 @@
 //!
 //! 3 Step の教材（`min-3step.json`）で、成功した開始が世代を +1 して `Begun` に続けて開始の節点へ入り、
 //! 不明な開始 ID は `Refused` 1 件だけで状態を変えず、処理中・入口の写しを解き、下書きとヒントを引き継ぐことを確かめる。
-//! 開始条件の拒否の文面 ID の記録（TASK-240）もここで確かめ、周回の教材での固定は `crates/pack/tests/start_unmet.rs`、
+//! 開始条件の拒否の文面 ID の記録（TASK-240）もここで確かめ、周回の教材での固定（存在しない開始 ID・1 周目終了後の開始の成功を含む。5.332）は `crates/pack/tests/start_unmet.rs`、
 //! 周回の初期状態は `crates/pack/tests/round_slice_init.rs` で確かめる。
 
 mod common;
