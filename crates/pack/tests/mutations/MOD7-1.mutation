@@ -1,0 +1,8 @@
+id: MOD7-1
+package: fandhe-workshop-pack
+test: start_unmet
+target: crates/core/src/begin.rs
+find:                 StartRefusal::Unmet { text: Ok(r), .. } => Some(r.text.clone()),
+replace:                 StartRefusal::Unmet { text: Ok(_), .. } => None,
+expect-fail: mod7_begin_round2_mid_round1_refuses_without_change
+note: 文面 ID を記録しない

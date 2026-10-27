@@ -333,7 +333,7 @@ fn begin_fresh_start_writes_exactly_the_start_effects() {
     assert!(s.state().run.current.is_some());
 }
 
-/// 開始条件を満たさない Begin は `Refused` 1 件で状態を変えない（最小の確認。詳細は TASK-240）。
+/// 開始条件を満たさない Begin は `Refused` 1 件で状態を変えない（最小の確認。詳細は `start_unmet.rs`、TASK-240）。
 #[test]
 fn begin_with_unmet_condition_is_refused_without_change() {
     let ir = ir();
