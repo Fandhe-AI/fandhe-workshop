@@ -1,4 +1,4 @@
-//! 2 周分の履歴の大きさと `Changed` の割合の測定（TASK-216。EVT-13。記録は `docs/testing.md` の 5.321）。
+//! 2 周分の履歴の大きさと `Changed` の割合の測定（TASK-216。EVT-13。記録は `docs/testing.md` の 5.322）。
 //!
 //! `module-reuse-rounds` の 2 周分（条件 A の形。誤入力なし）を `RecordedSession` で流し、各周の終わりに
 //! `Control::Save` を送り、書き出しの包み（`ops` と `snapshot`）の大きさと、`snapshot.log` の `Changed` の
