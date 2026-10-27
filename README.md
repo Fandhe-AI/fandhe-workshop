@@ -135,7 +135,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | [editorconfig-checker](https://github.com/editorconfig-checker/editorconfig-checker) | `.editorconfig` 準拠チェック | ✓ |
 | [ShellCheck](https://www.shellcheck.net/) | シェルスクリプトの lint | ✓ |
 | [rustup](https://rustup.rs/) 経由の [Rust](https://www.rust-lang.org/)（cargo・rustfmt・clippy・`wasm32` ターゲット） | `make lint`・`make test`・`make fmt`。`rust-toolchain.toml` を自動で読む | ✓ |
-| [jq](https://jqlang.github.io/jq/) | `make check-deps`（crate 間の依存の向きの検査） | ✓ |
+| [jq](https://jqlang.github.io/jq/) | `make check-deps`（crate 間の依存の向きの検査）・`tools/measure/*.sh`（`make measure`）。1.7 以上（macOS 同梱で可） | ✓ |
 | [direnv](https://direnv.net/) | `.env` の自動読み込み | 任意 |
 | wasm-bindgen CLI（`Cargo.lock` と同じ版） | `make build-web`・`make test-browser`。native のビルド・試験だけなら不要 | 任意（wasm のビルドには必須） |
 | [Node.js](https://nodejs.org/) 24 系（`npm`・`npx`） | ブラウザテスト（Playwright）と Playwright MCP の起動（後述の「MCP サーバー」） | 任意 |
@@ -294,6 +294,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
+| `make test-measure-result` | `scripts/test-measure-result.sh` | 測定の結果の組み立てと基点の収集の回帰テスト（jq 1.7 の文法でも通ることを含む。速く、ビルドなし。CI の `check` ジョブが流す） |
 
 ## Git hooks
 

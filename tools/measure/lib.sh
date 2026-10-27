@@ -241,6 +241,39 @@ measure_assert_commit_unchanged() {
   fi
 }
 
+# measure_result_json <commit-json> <features-json> <extra-json> <browser-json-file>: ブラウザの測定の出力（browser.mjs の JSON）と基点から、
+# 様式 v1 の結果を組み立てて標準出力へ返す。measure_browser_result と scripts/test-measure-result.sh（ビルドなしの回帰試験）から呼ばれる。
+# MEASURE_WASM_OPT_APPLIED・MEASURE_WASM_OPT_DETAIL・MEASURE_CONFIG は measure_build が設定した値を読む。
+# jq 1.7 系（macOS 同梱・Ubuntu 24.04）の文法では、オブジェクトの値の位置に置く二項演算（`{...} + $extra`）を括弧で囲む必要がある
+# （囲まないとコンパイルが失敗し、4 種の測定がすべて止まる。#1822）。JSON は --arg / --argjson / --slurpfile だけで組み立てる。
+measure_result_json() {
+  local commit_json="$1" features="$2" extra="$3" browser_file="$4"
+  jq -n \
+    --arg measured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson commit "${commit_json}" \
+    --argjson applied "${MEASURE_WASM_OPT_APPLIED}" \
+    --arg detail "${MEASURE_WASM_OPT_DETAIL}" \
+    --arg config "${MEASURE_CONFIG}" \
+    --argjson features "${features}" \
+    --arg rustc "$(rustc -V 2>/dev/null || true)" \
+    --arg wbg "$(wasm-bindgen --version 2>/dev/null || true)" \
+    --argjson extra "${extra}" \
+    --slurpfile b "${browser_file}" \
+    '$b[0] as $b | {
+      schema: "fandhe-workshop/measure/v1",
+      measured_at: $measured_at,
+      baseline: ({
+        commit: $commit,
+        wasm_opt: {applied: $applied, detail: $detail},
+        features: {config: $config, cargo_features: $features, profile: "release"},
+        compression: $b.compression
+      } + $extra),
+      toolchain: {rustc: $rustc, wasm_bindgen: $wbg, browser: $b.browser, playwright: $b.playwright},
+      conditions: $b.conditions,
+      measurements: [$b.measurements[] | {name: .name, file: "index.html", unit: .unit, value: .value}]
+    }'
+}
+
 # measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
 # <kind> は first-paint / redraw / log-redraw / log-slope / input-paint。log-redraw・log-slope・input-paint は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
@@ -286,30 +319,7 @@ measure_browser_result() {
 
   measure_assert_commit_unchanged "${commit_json}" || return 1
 
-  jq -n \
-    --arg measured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --argjson commit "${commit_json}" \
-    --argjson applied "${MEASURE_WASM_OPT_APPLIED}" \
-    --arg detail "${MEASURE_WASM_OPT_DETAIL}" \
-    --arg config "${MEASURE_CONFIG}" \
-    --argjson features "${features}" \
-    --arg rustc "$(rustc -V 2>/dev/null || true)" \
-    --arg wbg "$(wasm-bindgen --version 2>/dev/null || true)" \
-    --argjson extra "${extra}" \
-    --slurpfile b "${tmp}/browser.json" \
-    '$b[0] as $b | {
-      schema: "fandhe-workshop/measure/v1",
-      measured_at: $measured_at,
-      baseline: {
-        commit: $commit,
-        wasm_opt: {applied: $applied, detail: $detail},
-        features: {config: $config, cargo_features: $features, profile: "release"},
-        compression: $b.compression
-      } + $extra,
-      toolchain: {rustc: $rustc, wasm_bindgen: $wbg, browser: $b.browser, playwright: $b.playwright},
-      conditions: $b.conditions,
-      measurements: [$b.measurements[] | {name: .name, file: "index.html", unit: .unit, value: .value}]
-    }' >"${tmp}/result.json"
+  measure_result_json "${commit_json}" "${features}" "${extra}" "${tmp}/browser.json" >"${tmp}/result.json" || return 1
 
   measure_emit "${tmp}/result.json"
 }
