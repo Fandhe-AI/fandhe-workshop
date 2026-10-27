@@ -348,4 +348,4 @@ rust|unittests src/lib.rs [fandhe_workshop_core]|passed=49|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_pack]|passed=118|ignored=0
 rust|unittests src/lib.rs [fandhe_workshop_web]|passed=171|ignored=0
 rust|unittests src/main.rs [fandhe_pack]|passed=0|ignored=0
-browser|total|tests=934|pass=934|skipped=0|todo=0|cancelled=0
+browser|total|tests=1149|pass=1149|skipped=0|todo=0|cancelled=0
