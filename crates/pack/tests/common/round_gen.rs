@@ -26,7 +26,7 @@ use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::{Root, Stamp, StepUid, TickAddr};
 use fandhe_workshop_core::event::{Event, RefuseReason};
 use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
-use fandhe_workshop_core::instance::{instance_roots, owner_of, root_of, steps_of};
+use fandhe_workshop_core::instance::{instance_roots, owner_of, root_of, status_of, steps_of};
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::world::Element;
@@ -750,6 +750,219 @@ pub fn check_completion_separation(
     Ok((checked, achieved))
 }
 
+/// 持ち主の根を実体の表から独立に引く（`owner_of`・`owner_in` は呼ばない）。
+/// 製品の持ち主の決め方を壊した変異（X6）で、正解の側が一緒に変わらないようにするため（`docs/testing.md` 5.336）。
+fn indep_owner(ir: &Ir, uid: &StepUid) -> Root {
+    ir.instances
+        .iter()
+        .find(|i| i.caller.as_deref() == Some(uid.0.as_str()))
+        .map(|i| Root(i.id.clone()))
+        .unwrap_or_else(|| root_of(uid))
+}
+
+/// S-5・S-6 の検査で数えた件数。
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RevertCounts {
+    pub checked: u64,
+    /// 持ち主以外が書いた世界状態の経路が、写しと復帰の前で違っていた件数。
+    pub foreign_world_diff: u64,
+    /// 持ち主以外の根の切り身が、写しと復帰の前で違っていた件数。
+    pub foreign_slice_diff: u64,
+    /// 持ち主が呼び出しの Step の実体である Step の状態が、写しと復帰の前で違っていた件数。
+    pub call_step_diff: u64,
+}
+
+/// 戻しの共通の期待: 持ち主 `owner` の分だけが写し `copy` の値へ戻り、ほかは `before` のままである。
+/// `since` は写しの後に追記されたログ。違反は（部分の名前）。下書き・入力の本文は出さない。
+fn check_owner_revert(
+    ir: &Ir,
+    before: &SessionState,
+    after: &SessionState,
+    copy: &fandhe_workshop_core::session::RunState,
+    since: &[Event],
+    owner: &Root,
+) -> Result<RevertCounts, String> {
+    let mut c = RevertCounts {
+        checked: 1,
+        ..Default::default()
+    };
+    let (b, a) = (&before.run, &after.run);
+    let mut roots: BTreeSet<&Root> = BTreeSet::new();
+    roots.extend(b.slices.keys());
+    roots.extend(a.slices.keys());
+    roots.extend(copy.slices.keys());
+    roots.insert(owner);
+    for r in roots {
+        let want = if r == owner { copy } else { b };
+        let want = want.slices.get(r).cloned().unwrap_or_default();
+        let got = a.slices.get(r).cloned().unwrap_or_default();
+        if want != got {
+            return Err(format!("slice of root {r:?}"));
+        }
+        if r != owner && copy.slices.get(r).cloned().unwrap_or_default() != want {
+            c.foreign_slice_diff = 1;
+        }
+    }
+    if a.current != copy.current
+        || a.busy != copy.busy
+        || a.completed != copy.completed
+        || a.guidance_level != copy.guidance_level
+    {
+        return Err("position".to_string());
+    }
+    if a.global_flags != b.global_flags {
+        return Err("global flags".to_string());
+    }
+    let touched: BTreeSet<&str> = since
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { at, path, .. } if &indep_owner(ir, &at.step) == owner => {
+                Some(path.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    let mut paths: BTreeSet<&str> = BTreeSet::new();
+    paths.extend(b.world.keys().map(String::as_str));
+    paths.extend(a.world.keys().map(String::as_str));
+    paths.extend(copy.world.keys().map(String::as_str));
+    for p in paths {
+        let want = if touched.contains(p) { copy } else { b };
+        if a.world.get(p) != want.world.get(p) {
+            return Err(format!("world path {p}"));
+        }
+        if !touched.contains(p) && copy.world.get(p) != b.world.get(p) {
+            c.foreign_world_diff = 1;
+        }
+    }
+    // 呼び出しの Step は持ち主の根が置き場なので、実体を通した読みでも写しの値へ戻る。
+    for i in &ir.instances {
+        let (Some(caller), true) = (&i.caller, &Root(i.id.clone()) == owner) else {
+            continue;
+        };
+        let uid = StepUid(caller.clone());
+        if status_of(ir, a, &uid) != status_of(ir, copy, &uid) {
+            return Err(format!("call step {caller}"));
+        }
+        if status_of(ir, b, &uid) != status_of(ir, copy, &uid) {
+            c.call_step_diff = 1;
+        }
+    }
+    Ok(c)
+}
+
+/// S-5: `Restored` を伴う操作で、保存した写しの持ち主の分だけが写しへ戻り、ほかは復帰の前のままである。
+/// 持ち主は写しの現在の Step から独立に引く。
+pub fn check_s5(
+    ir: &Ir,
+    before: &SessionState,
+    after: &SessionState,
+    events: &[Event],
+) -> Result<RevertCounts, String> {
+    let mut total = RevertCounts::default();
+    for e in events {
+        let Event::Restored { id, .. } = e else {
+            continue;
+        };
+        let Some(cp) = before.checkpoints.get(id) else {
+            continue;
+        };
+        let Some(cur) = &cp.run.current else {
+            continue;
+        };
+        let owner = indep_owner(ir, cur);
+        let since = usize::try_from(cp.log_len)
+            .ok()
+            .and_then(|n| before.log.get(n..))
+            .unwrap_or(&[]);
+        let c = check_owner_revert(ir, before, after, &cp.run, since, &owner)?;
+        total.checked += c.checked;
+        total.foreign_world_diff += c.foreign_world_diff;
+        total.foreign_slice_diff += c.foreign_slice_diff;
+        total.call_step_diff += c.call_step_diff;
+    }
+    Ok(total)
+}
+
+/// 停止の入口の境界（受付の位置）を、停止の前のログから独立に求める（製品の `entry_derive` は呼ばない）。
+/// 状態に現在の Step の写しがあればその `log_len` を使う。無ければログを末尾からたどり、`Restored` は保存の時点へ
+/// 跳び、現在の Step の `Accepted` の位置を返す。製品の境界は受付の操作の先頭（`InputReceived`）だが、
+/// `Accepted` との間は `Judged` だけなので、`Changed` の集め方は同じになる。求まらなければ `None`。
+fn entry_boundary(before: &SessionState, cur: &StepUid) -> Option<usize> {
+    if let Some(e) = before
+        .entry
+        .as_ref()
+        .filter(|e| e.run.current.as_ref() == Some(cur))
+    {
+        return usize::try_from(e.log_len).ok();
+    }
+    let mut at = before.log.len();
+    while at > 0 {
+        at -= 1;
+        match before.log.get(at)? {
+            Event::Restored { log_len, .. } => {
+                at = usize::try_from(*log_len).ok().filter(|p| *p < at)?;
+            }
+            Event::Accepted { at: s } if &s.step == cur => return Some(at),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// S-6: `Stopped` を伴う操作で、現在の Step の持ち主の分だけが入口の写しへ戻る。
+/// 入口の写しは製品が非公開で導くので、持ち主以外の根・経路が停止の前のままであることだけを確かめる。
+pub fn check_s6(
+    ir: &Ir,
+    before: &SessionState,
+    after: &SessionState,
+    events: &[Event],
+) -> Result<u64, String> {
+    if !events.iter().any(|e| matches!(e, Event::Stopped { .. })) {
+        return Ok(0);
+    }
+    let Some(cur) = &before.run.current else {
+        return Ok(0);
+    };
+    let owner = indep_owner(ir, cur);
+    let (b, a) = (&before.run, &after.run);
+    let mut roots: BTreeSet<&Root> = BTreeSet::new();
+    roots.extend(b.slices.keys());
+    roots.extend(a.slices.keys());
+    for r in roots.into_iter().filter(|r| *r != &owner) {
+        if b.slices.get(r) != a.slices.get(r) {
+            return Err(format!("slice of root {r:?}"));
+        }
+    }
+    if a.global_flags != b.global_flags {
+        return Err("global flags".to_string());
+    }
+    // 持ち主が入口の後に書いていない経路は、停止の前のままである。入口の後に書いた経路は入口の値へ戻りうるので対象外。
+    // 入口より前の書き込みで除くと、入口の後に別の根が更新した経路の巻き戻しを見逃すため、境界の後に限る。
+    let boundary = entry_boundary(before, cur).ok_or_else(|| "entry boundary".to_string())?;
+    let written: BTreeSet<&str> = before
+        .log
+        .get(boundary..)
+        .ok_or_else(|| "entry boundary".to_string())?
+        .iter()
+        .filter_map(|e| match e {
+            Event::Changed { at, path, .. } if indep_owner(ir, &at.step) == owner => {
+                Some(path.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    let mut paths: BTreeSet<&str> = BTreeSet::new();
+    paths.extend(b.world.keys().map(String::as_str));
+    paths.extend(a.world.keys().map(String::as_str));
+    for p in paths.into_iter().filter(|p| !written.contains(p)) {
+        if b.world.get(p) != a.world.get(p) {
+            return Err(format!("world path {p}"));
+        }
+    }
+    Ok(1)
+}
+
 fn kind_name(op: &ROp) -> String {
     match op {
         ROp::Engine(Op::Input(_)) => "input".into(),
@@ -1113,6 +1326,17 @@ impl Harness {
             .add("completion_sibling_checks_sibling_achieved", achieved);
         self.check_stale_tick(spec, &op, &before, &after, &events)
             .map_err(|m| format!("{}: {m}", label("S-1 violated")))?;
+        let c = check_s5(&self.f.ir, &before, &after, &events)
+            .map_err(|m| format!("{}: {m}", label("S-5 violated")))?;
+        self.stats.add("s5_restores_checked", c.checked);
+        self.stats
+            .add("s5_restores_with_foreign_world_diff", c.foreign_world_diff);
+        self.stats
+            .add("s5_restores_with_foreign_slice_diff", c.foreign_slice_diff);
+        self.stats.add("s5_call_step_restores", c.call_step_diff);
+        let n = check_s6(&self.f.ir, &before, &after, &events)
+            .map_err(|m| format!("{}: {m}", label("S-6 violated")))?;
+        self.stats.add("s6_stops_checked", n);
         if self.mode == Mode::Round2Closed {
             if let Some(cur) = &after.run.current {
                 let in_r1 = self.f.round_of_step(cur) == 1

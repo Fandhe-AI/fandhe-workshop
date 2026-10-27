@@ -1,0 +1,8 @@
+id: MOD11-3
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/checkpoint.rs
+find:     let mut run = crate::entry_derive::revert_owner(&state.run, &cp.run, &owner_root, &touched);
+replace:     let mut run = crate::entry_derive::revert_owner(&state.run, &cp.run, &owner_root, &touched); run.world = cp.run.world.clone();
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X5 相当。復帰で世界状態を写し全体へ戻す（経路で絞らない）

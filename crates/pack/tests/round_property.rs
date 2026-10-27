@@ -115,6 +115,11 @@ fn round_generation_reaches_both_rounds() {
         "moves_cross_round",
         "completion_sibling_checks",
         "completion_sibling_checks_sibling_achieved",
+        "s5_restores_checked",
+        "s5_restores_with_foreign_world_diff",
+        "s5_restores_with_foreign_slice_diff",
+        "s5_call_step_restores",
+        "s6_stops_checked",
     ] {
         assert!(all.get(k) > 0, "{k} is 0: not covered");
     }
