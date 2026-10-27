@@ -18,9 +18,15 @@
 //   T5（試験の設定）    CH-4〜CH-9 の形の 17 Step（`?fixture=ch4-9`）を実クリックと実キーで通す（TASK-674 2/2）。Step ごとに走査し、
 //                        章ごとの配信元以外への通信の件数を表にして 0 を主張する。WebSocket の接続も数える
 //   D2（配信する設定）  同じ 17 Step を、配信する設定の一時の写し（`ir/main.json` と fandhe-ir の meta を足したもの）で DOM だけの観察で通す
+//   T6（試験の設定）    CH-0〜CH-3 の形の 20 Step（`?fixture=ch0-3-chapters`）を実クリックと実キーで通す（TASK-152）。T5 と同じ道具で、
+//                        Step ごとに走査し、章ごとの外部通信・CSP の違反・WebSocket を表にして 0 を主張する
+//   D3（配信する設定）  同じ 20 Step を、D2 と同じ写しに手書きの IR の変種（author-preview の variantOf。compile した IR と同じ構造は
+//                        author-preview の P4 が確かめる）を置いて DOM だけの観察で通す。author-preview の B との違いは、Step ごとの
+//                        scanDom を含む全計数・章ごとの表・CSP の有無での要求の種類の一致・WebSocket の計数
 //
 // 確かめないこと:
-//   - 本物の CH-4〜CH-9（TASK-672）での流し直し。T5・D2 は形だけを写した試験用の教材で数える。TASK-152 の完走の結果には頼らない
+//   - 本物の CH-0〜CH-15（教材 repo の TASK-643・TASK-652〜TASK-667・TASK-713）での流し直し。T5・T6・D2・D3 は形だけを写した試験用の教材で
+//     数える。2 周目（CH-10〜CH-15）の形の試験用の教材は本 repo に無く、未実施である。本物が揃えば IR と Step の表を差し替えた場面を足して流す
 //   - 本物の掲示板教材での移動（D-11。教材 repo の公開後）と配信する設定での教材の誘導の完走（実行時の教材の読み込みが未実装）。
 //     限界は docs/testing.md 5.180 と docs/known-gaps.md に記録する
 //   - favicon の取得。ヘッドレスでは揺れるため要求の種類の比較から外し、inline-free.test.mjs が直接の取得と静的検査で確かめる
@@ -46,9 +52,13 @@ import {
   withDeliveryCopy,
 } from './ch4-9-journey.mjs';
 import { irFetchCheck } from './l1-l2-runner.mjs';
+import { ORDER as ORDER_03, domObserver03, variantOf } from './author-preview.mjs';
 
 const BASE = '/fandhe-csp-runs/';
 const IR_49 = fileURLToPath(new URL('../../crates/web/tests/data/ch4_9/ir.json', import.meta.url));
+const IR_03 = fileURLToPath(new URL('../../crates/web/tests/data/ch0_3/ir.json', import.meta.url));
+const CHAPTERS_03 = ['0', '1', '2', '3'];
+const CHAPTERS_49 = ['4', '5', '6', '7', '8', '9'];
 let browser;
 
 before(async () => {
@@ -241,7 +251,7 @@ test('T4: 表示部品 7 種 x 変種 (a)・(b) の全ケースを mount して�
 
 // T5・D2 共通。章ごとの配信元以外への通信・CSP の違反・配信元への要求の件数を、Step の観察ごとに積む。
 // 章は uid（`main/st-<章>-...`）から取る。章の件数は「その章の最初の観察から次の章の最初の観察の前まで」に増えた分。
-function chapterTally(page, rec, wsCount, label, opts = {}) {
+function chapterTally(page, rec, wsCount, label, { chapters, ...opts }) {
   const rows = new Map();
   let scans = 0;
   let prev = { external: 0, csp: 0, req: 0, ws: 0 };
@@ -265,7 +275,7 @@ function chapterTally(page, rec, wsCount, label, opts = {}) {
       return `${tag}: ${cells}、配信元への要求 ${req} 件、走査 ${scans} 回`;
     },
     assertZero() {
-      assert.equal(rows.size, 6, `章が 6 つ（CH-4〜CH-9）観察されない: ${[...rows.keys()].join(',')}`);
+      assert.deepEqual([...rows.keys()].sort(), [...chapters].sort(), `期待する章（${chapters.join(',')}）がすべて観察されない`);
       for (const [ch, r] of rows) {
         assert.deepEqual({ ch, external: r.external, csp: r.csp, ws: r.ws }, { ch, external: 0, csp: 0, ws: 0 }, `CH-${ch} の外部通信・CSP の違反・WebSocket が 0 件ではない`);
       }
@@ -294,7 +304,7 @@ test('T5: CH-4〜CH-9 の形の 17 Step を実クリックと実キーで通し�
       await hooksOk(page);
       await install(page);
       const L = ledger49();
-      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'T5');
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'T5', { chapters: CHAPTERS_49 });
       const { presses } = await journey49(page, mouseDriver(page), 'csp-runs ch4-9', L, { observe: hookObserver49, onStep: (u, p) => tally.onStep(u, p) });
       assert.deepEqual(L.failed(), []);
       assert.equal(presses, 5);
@@ -320,7 +330,7 @@ test('D2: 配信する設定の写しで同じ 17 Step を DOM だけの観察�
       assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口がある');
       await install(page);
       const L = ledger49();
-      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'D2', { failedFilter: irRaceFilter(srv) });
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'D2', { chapters: CHAPTERS_49, failedFilter: irRaceFilter(srv) });
       const { presses } = await journey49(page, mouseDriver(page), 'csp-runs ch4-9 配信', L, { observe: domObserver49(), onStep: (u, p) => tally.onStep(u, p) });
       assert.deepEqual(L.failed(), []);
       assert.equal(presses, 5);
@@ -333,6 +343,55 @@ test('D2: 配信する設定の写しで同じ 17 Step を DOM だけの観察�
       assert.ok(ir.irCount === 1 && ir.irOk, 'ir/main.json が 200 で 1 回');
       tally.assertZero();
       console.log(tally.line(`D2 (CSP ${csp ? 'あり' : 'なし'})`));
+    },
+  }));
+});
+
+test('T6: CH-0〜CH-3 の形の 20 Step を実クリックと実キーで通しても、章ごとの配信元以外への通信が 0 件で、Step ごとの走査も 0 件', { timeout: 300000 }, async () => {
+  await runScene({
+    envName: 'FANDHE_WEB_TEST_DIR',
+    query: '?fixture=ch0-3-chapters',
+    setup: async (page, rec) => { rec.ws = wsCounter(); await rec.ws.setup(page); },
+    fn: async (page, rec, srv, csp) => {
+      await hooksOk(page);
+      await install(page);
+      const L = ledger();
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'T6', { chapters: CHAPTERS_03 });
+      await journey(page, mouseDriver(page), 'csp-runs ch0-3', L, null, { chaptered: true, onStep: (u, p) => tally.onStep(u, p) });
+      assert.deepEqual(L.failed(), []);
+      const status = (await engine(page)).stateWithoutLog.run.slices.main.status;
+      assert.ok(ORDER_03.every((uid) => status[uid] === 'achieved'), `${ORDER_03.length} Step がすべて達成`);
+      tally.assertZero();
+      console.log(tally.line(`T6 (CSP ${csp ? 'あり' : 'なし'})`));
+    },
+  });
+});
+
+test('D3: 配信する設定の写しで CH-0〜CH-3 の形の 20 Step を DOM だけの観察で通しても、章ごとの配信元以外への通信が 0 件で、Step ごとの走査も 0 件', { timeout: 300000 }, async () => {
+  await withDeliveryCopy((copy) => runScene({
+    dir: copy,
+    prepareDir: (dir) => {
+      fs.mkdirSync(`${dir}/ir`, { recursive: true });
+      fs.writeFileSync(`${dir}/ir/main.json`, JSON.stringify(variantOf(JSON.parse(fs.readFileSync(IR_03, 'utf8')))));
+    },
+    setup: async (page, rec) => { rec.ws = wsCounter(); await rec.ws.setup(page); },
+    failedFilter: irRaceFilter,
+    fn: async (page, rec, srv, csp) => {
+      assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口がある');
+      await install(page);
+      const L = ledger();
+      const observe = domObserver03();
+      const tally = chapterTally(page, rec, () => rec.ws.c.n, 'D3', { chapters: CHAPTERS_03, failedFilter: irRaceFilter(srv) });
+      await journey(page, mouseDriver(page), 'csp-runs ch0-3 配信', L, null, { chaptered: true, observe, onStep: (u, p) => tally.onStep(u, p) });
+      assert.deepEqual(L.failed(), []);
+      const review = await page.evaluate(() => [...document.querySelectorAll('[data-testid="part-review-list"] > li')]
+        .map((li) => ({ step: li.dataset.step, achieved: li.dataset.achieved, skipped: li.dataset.skipped })));
+      assert.ok(review.length === ORDER_03.length && ORDER_03.every((u) => review.some((r) => r.step === u && r.achieved === 'true')), '復習の行で全 Step が達成');
+      assert.ok(review.every((r) => r.skipped === 'false'), '復習の行で省略が 0 件');
+      const ir = irFetchCheck(rec, `${srv.url}ir/main.json`);
+      assert.ok(ir.irCount === 1 && ir.irOk, 'ir/main.json が 200 で 1 回');
+      tally.assertZero();
+      console.log(tally.line(`D3 (CSP ${csp ? 'あり' : 'なし'})`));
     },
   }));
 });
