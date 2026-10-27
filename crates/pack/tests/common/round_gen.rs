@@ -667,6 +667,10 @@ impl Harness {
             ("st-2-8", false) => ap(Decision::Approve, None),
             ("st-2-8", true) => ui("v-doc", format!("ideas/{idea}/README.md#status")),
             ("st-3-2", false) => ch("diff-only"),
+            // 1 周目だけ、`when` つき `next` が評価されないので `round1_plan` と同じ `st-4-1` へ飛ぶ。
+            ("st-3-2", true) if self.f.round_of_root(&owner) == 1 => {
+                return self.goto_first(&root, &["st-4-1"]).unwrap_or(cancel);
+            }
             ("st-3-2", true) => ui("v-files", format!("impl/docs/behavior-{idea}.md")),
             ("st-4-1", false) => cmd("/init-claude".into()),
             ("st-5-1", false) => cmd("/setup-repo-guards".into()),
@@ -677,9 +681,13 @@ impl Harness {
             )),
             ("st-7-1", true) => ch("ans-none-explicit"),
             ("st-7-2", _) => {
-                return self
-                    .goto_first(&root, &["st-7-3", "st-7-4"])
-                    .unwrap_or(cancel);
+                // `branch_demo` が真なら `st-7-3`（1 周目）、偽なら `st-7-4`（2 周目）。計画と同じ飛び先。
+                let dest = if self.args_of(&root, "branch_demo", "true") == "true" {
+                    "st-7-3"
+                } else {
+                    "st-7-4"
+                };
+                return self.goto_first(&root, &[dest]).unwrap_or(cancel);
             }
             ("st-7-3", false) => cmd(format!("/implement-issue-tree {rootarg}")),
             ("st-7-3", true) => ch("ans-add-arg"),

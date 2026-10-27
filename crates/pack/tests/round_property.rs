@@ -24,7 +24,9 @@ use std::sync::Mutex;
 
 use common::testdata;
 use proptest::test_runner::TestCaseError;
-use round_gen::{fixed_cases, guided_cases, run_case, Case, Stats};
+use round_gen::{
+    fixed_cases, fixture, guided_cases, run_case, Case, Harness, OpSpec, ROp, Setup, Stats,
+};
 
 fn run_property(name: &str, cases: u32, guided: bool) -> Stats {
     let total = Mutex::new(Stats::default());
@@ -85,5 +87,57 @@ fn round_generation_reaches_both_rounds() {
         "begin_refused_unknown",
     ] {
         assert!(all.get(k) > 0, "{k} is 0: not covered");
+    }
+}
+
+/// 誘導だけで通したときの `GoTo` の列が、`rounds.rs` の計画の `GoTo` の列と一致する
+/// （1 周目は `T0`、2 周目は 2 周目の開始の後の `T2`）。
+#[test]
+fn guided_goto_sequence_matches_rounds_plans() {
+    use fandhe_workshop_core::input::{Control, Op};
+    use rounds::PlanStep;
+
+    let ir = &fixture().ir;
+    let gotos = |plan: Vec<PlanStep>| -> Vec<Op> {
+        plan.into_iter()
+            .filter_map(|p| match p {
+                PlanStep::Op(o @ Op::Control(Control::GoTo(_))) => Some(o),
+                _ => None,
+            })
+            .collect()
+    };
+    for (setup, expected) in [
+        (Setup::T0, gotos(rounds::round1_plan(ir))),
+        (Setup::T2, gotos(rounds::round2_plan(ir))),
+    ] {
+        let mut h = Harness::new(setup);
+        for i in 0..120 {
+            h.step(i, &OpSpec::Guided).unwrap_or_else(|m| panic!("{m}"));
+        }
+        let actual: Vec<Op> = h
+            .ops
+            .iter()
+            .filter_map(|o| match o {
+                ROp::Engine(o @ Op::Control(Control::GoTo(_))) => Some(o.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(actual.len(), expected.len(), "{setup:?}: {actual:?}");
+        if setup == Setup::T0 {
+            assert_eq!(actual, expected, "{setup:?}");
+        } else {
+            // T2 は `s-r2-fresh` なので根の名前が計画（`s-r2`）と違いうる。飛び先の Step の ID だけ比べる。
+            let ids = |v: &[Op]| -> Vec<String> {
+                v.iter()
+                    .map(|o| match o {
+                        Op::Control(Control::GoTo(u)) => {
+                            u.0.rsplit('/').next().unwrap().to_string()
+                        }
+                        _ => unreachable!(),
+                    })
+                    .collect()
+            };
+            assert_eq!(ids(&actual), ids(&expected), "{setup:?}");
+        }
     }
 }

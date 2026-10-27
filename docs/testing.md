@@ -9333,7 +9333,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 ### 5.333 周回をまたぐ操作列の生成と混ざり 0（TASK-243 1/2。MOD-11）
 
 - 目的: 2 周の教材で、1 周目と 2 周目の両方に触れる任意の操作列について、各操作の後に「操作の宛先でない根の切り身が操作の前と一致する」こと（M-1。混ざり 0 件）を確かめる
-- 方式: `crates/pack/tests/round_property.rs` の 3 件と、部品 `crates/pack/tests/common/round_gen.rs`。定義の出所は `testdata/module-reuse-rounds/test-data/property-test.md`
+- 方式: `crates/pack/tests/round_property.rs` の 4 件（誘導の `GoTo` の列が計画と一致する試験を含む）と、部品 `crates/pack/tests/common/round_gen.rs`。定義の出所は `testdata/module-reuse-rounds/test-data/property-test.md`
   - `m1_holds_across_rounds_fixed_generation`・`m1_holds_across_rounds_guided_generation`: 固定の生成と誘導つきの生成（`Guided` が半分以上）を各 1,000 通り。各操作の後の M-1 と、ケースの最後の流し直しの一致（S-8 相当）を確かめ、統計を `PROPERTY-TEST stats` の 1 行で出す
   - `round_generation_reaches_both_rounds`: 既定の種・1,000 通りで 2 つの生成を流し、両方の周回に触れた列・両方の根に触れた操作・周回をまたぐ移動と復帰・周回別のヒントと下書き・開始の成功と存在しない ID の拒否が 0 件でないことを表明する
   - 開始の型は T0〜T3、操作は入力・進行（古い宛先を含む）・停止・移動・保存・復帰・ヒント・下書き（置く・送る）・開始。切り身は `status`・`choices`・`flags`・`clarifying`・ヒント・下書きで比べる
