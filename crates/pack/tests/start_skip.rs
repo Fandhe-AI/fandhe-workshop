@@ -3,7 +3,7 @@
 //! `module-reuse-rounds` の 2 周目の実体 `issue-to-merge@round2` の `s-6-1` から始めると、同じ実体の `st-3-2`・`st-4-1`・
 //! `st-5-1` が `Skipped` になり、ほかの実体の切り身は開始の前と変わらないことを確かめる。
 //! 書き出し→読み込み・適用し直しでの件数の保持（TASK-217 2/2）もここで確かめる（一般の件数の試験は
-//! `crates/core/tests/begin_skip_keep.rs`）。開始点の効果の `${名前}` は TASK-239 が担う。
+//! `crates/core/tests/begin_skip_keep.rs`）。開始点の効果の `${名前}` の置換は `start_instance.rs`（TASK-239）。
 
 mod common;
 

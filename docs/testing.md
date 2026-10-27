@@ -9224,3 +9224,27 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 1 周目の流しは 5.260 の `GoTo` の回避 3 か所を引き継ぐ。旧い根を指す起動の拒否は教材の規則（`r-launch` の `args`）の観察である
   - 続きの周回と `s-r2-fresh` 起点の比較は行っていない
   - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.328 途中開始用の状態から周回の途中の Step で開始する（TASK-239 1/2。MOD-6）
+
+- 目的: 実体 `issue-to-merge@round2` の途中開始が、開始する Step を `Entered` にし、開始用の効果の `${名前}` がその実体の引数で置換されることを固定する。飛ばした Step の `Skipped` 3 件と前の周回の切り身の不変は 2/2 が持つ（一部は `start_skip.rs`）
+- 方式: `crates/pack/tests/start_instance.rs` の `mod6_*` 5 件。期待値は IR の `instances[].args` から組み、2 周目の引数が 1 周目と異なることを前提に確かめる。開始は `Control::Begin` で行う
+  - `mod6_module_start_effects_are_substituted_per_instance_in_ir`: `ir.starts` の `put.path` が実体の引数で置換され、`${` が全開始で 0 件
+  - `mod6_round2_start_enters_the_start_step`: `Begun` が 1 件、現在の Step が `issue-to-merge@round2/st-6-1`、状態が `Entered`、根と持ち主が 2 周目の実体
+  - `mod6_round2_start_writes_instance_arg_paths_into_world`: 世界状態に 2 周目の経路だけが `fx-kakuu-handoff-diff` で入り、`Changed` の原因が `Start`
+  - `mod6_round2_s7_start_writes_root_and_child_with_round2_args`: `st-7-1` が `Entered`、根・子が 2 周目の引数の経路で `state: open`
+  - `mod6_round1_and_round2_starts_differ_only_by_instance_args`（対照）: 1 周目・2 周目の開始の世界状態が引数の差の経路だけ異なる
+- 決定: エンジンの振る舞いは変えない。置換は pack の compile（`module_starts`）が行い、core は置換済みの値を適用する。`begin.rs` と `start_skip.rs` の古い記述（置換は TASK-239）だけ直した。`testdata/` と `scripts/expected-test-counts.txt` は変えない
+- 結果（2026-10-27）: `start_instance` 5 件が合格
+- 変異注入（2026-10-27）: 元のコミット `e6c7f289`
+
+| ID | 結果 |
+|---|---|
+| MOD6-1（開始の置換をしない） | DETECTED |
+| MOD6-2（実体の引数でなく既定値で置換する） | DETECTED |
+| MOD6-3（開始の節点へ着地しない） | DETECTED |
+
+- 限界:
+  - 手書きの IR で開始の効果に字面の `${` が残っても、core はそのまま鍵にする（置換は compile の責務で、core は検査しない）
+  - web の起動は `Session::entered_at` で開始の効果を適用しない。`Control::Begin` への置き換えは TASK-254
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
