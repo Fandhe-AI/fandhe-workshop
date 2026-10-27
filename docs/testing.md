@@ -8241,9 +8241,26 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 
 - 基点: commit 2dbb601（作業ツリーに本件の変更あり）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`）・圧縮は `tools/serve.mjs` の gzip レベル 9。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cce...6961`）。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。
 - 最小教材の値で、教材全体を代表しない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる。
+- 基準端末 A での結果（2026-10-27。`measured_at` は 2026-10-27T02:23:23Z）:
+  - 端末: Apple Mac mini（Mac16,10。Apple M4、論理コア 10、メモリ 16GB）・macOS 27.0.1（Darwin 27.0.0）。機種と macOS の版は `system_profiler SPHardwareDataType`・`sw_vers` で確かめた。JSON の `baseline.device.apple_silicon_macos` は `true`。
+  - ブラウザ: Chrome の原本 155.0.8059.80（`FANDHE_BROWSER_CHANNEL=chrome`、Playwright 1.63.0）。`browser.mjs` の launch に headless の指定が無く、Playwright の既定の headless で動いた。
+  - commit: ddef3456026875caab9481a7bab5df75fd8cad7d（`dirty: false`。main の clean な clone で測った）。
+  - 実行: `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/log-redraw.sh`。終了コード 0。
+
+| 測定 | 値 | 判定 |
+|---|---|---|
+| `log_redraw_median` | 2,300 us | |
+| `log_redraw_p95` | 3,500 us | 16,000 us 以内 |
+| `log_redraw_max` | 4,200 us | |
+
+- 基点（基準端末 A）: commit ddef345（`dirty: false`）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`、profile release）・圧縮は `tools/serve.mjs` の gzip レベル 9（node v24.21.0 zlib 1.3.2.1-motley-8002e91）。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cceb58644717b2f1e398249289d51ada59daf7366eaca3f6c22dd446961`）。道具は rustc 1.98.1・wasm-bindgen 0.2.128。条件は CPU の減速なし（`cpu_throttle: 1`）・回線の絞りなし・20 試行 × 10 操作・ログの窓 100〜119。
+- 同期性の検査（ログが窓の中で 2 件増える・`li` が click から戻った時点で 2 件増える・上限の通知が無い）は、外れれば `browser.mjs` が測定を失敗にする。終了コード 0 で、全 200 操作が通った。
+- 最小教材の値で、教材全体を代表しない。
+- 測定の前の負荷: `uptime` の load averages（1・5・15 分）は 1.96・2.37・1.95（2026-10-27T02:23:11Z）。CPU 使用率の上位は OS の常駐の処理と測定を流している接続だけで、他のビルドや重い処理が動いていないことを確かめてから流した。
+- macOS 同梱の `jq`（jq-1.7.1-apple）では、`tools/measure/lib.sh` の結果の組み立て（`baseline: {...} + $extra`）が構文エラーになり、JSON が出ずに終了コード 1 で止まった。そのため Homebrew の jq 1.8.2 を入れて流し直し、その値を上に記録した。止まった 1 回目の値は記録に使っていない（標準エラーに出た p95 は 3,500 us で、閾値以内だった）。
 - 限界・未確認:
-  - **未実施（基準端末 A）**: 上の端末は自動運転の開発機で、基準端末 A（Apple シリコンの macOS）ではない。受け入れ条件の「基準端末 A」は未達である。追記は人が行う。手順: macOS（Apple シリコン）で `npm ci && npx playwright install chromium` の後、`FANDHE_BROWSER_CHANNEL=chrome tools/measure/log-redraw.sh | jq .`（`baseline.device.apple_silicon_macos` が `true` になる）。
-  - Chromium の headless だけで測った。Chrome の原本・Windows（TASK-224）は未測定。
+  - **実施済み（基準端末 A）**: 2026-10-27 に基準端末 A（Apple シリコンの macOS）の Chrome の原本で測った（上の「基準端末 A での結果」）。受け入れ条件の「基準端末 A」は満たした。測定は人の依頼を受けて AI（Claude Code）が流した。
+  - 開発機の値は Chromium の headless、基準端末 A の値は Chrome の原本の headless で測った。headless でない Chrome・Windows（TASK-224）は未測定。
   - 「入力から描画まで」は #563（TASK-223 2/2）で扱う。ログの長さによる傾き（TASK-232）は対象外。
   - `make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
@@ -8295,9 +8312,29 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 値が約 16ms に揃うのは、終点が次のフレームの描画に結び付くためで、60Hz の 1 フレームの長さに当たる。
 - 基点: commit 586754b（作業ツリーに本件の変更あり）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`）・圧縮は `tools/serve.mjs` の gzip レベル 9。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cce...6961`）。端末は Linux x86_64（13th Gen Intel Core i7-13700K、論理コア 10、メモリ約 29GB）。
 - 最小教材の値で、教材全体を代表しない。`performance.now()` の分解能は約 0.1ms で、値はこの粒度に丸まる。
+- 基準端末 A での結果（2026-10-27。`measured_at` は 2026-10-27T02:23:49Z）:
+  - 端末: Apple Mac mini（Mac16,10。Apple M4、論理コア 10、メモリ 16GB）・macOS 27.0.1（Darwin 27.0.0）。機種と macOS の版は `system_profiler SPHardwareDataType`・`sw_vers` で確かめた。JSON の `baseline.device.apple_silicon_macos` は `true`。
+  - ブラウザ: Chrome の原本 155.0.8059.80（`FANDHE_BROWSER_CHANNEL=chrome`、Playwright 1.63.0）。`browser.mjs` の launch に headless の指定が無く、Playwright の既定の headless で動いた。
+  - commit: ddef3456026875caab9481a7bab5df75fd8cad7d（`dirty: false`。main の clean な clone で測った）。
+  - 実行: `SKIP_WASM_OPT=1 FANDHE_BROWSER_CHANNEL=chrome tools/measure/input-paint.sh`。終了コード 0。5.284 の log-redraw の直後に、同じ clone で続けて流した。
+
+| 測定 | 値 | 判定 |
+|---|---|---|
+| `input_paint_median` | 15,750 us | |
+| `input_paint_p95` | 23,800 us | 100,000 us 以内 |
+| `input_paint_max` | 31,800 us | |
+| `input_paint_capture_p95`（参考。キャプチャ起点） | 23,100 us | |
+
+- 基点（基準端末 A）: commit ddef345（`dirty: false`）・`wasm-opt` 未適用（`SKIP_WASM_OPT=1`）・機能の範囲 test（`test-hooks`、profile release）・圧縮は `tools/serve.mjs` の gzip レベル 9（node v24.21.0 zlib 1.3.2.1-motley-8002e91）。教材は `min-3step` 0.0.1（Step 3 件、IR の SHA-256 は `5b653cceb58644717b2f1e398249289d51ada59daf7366eaca3f6c22dd446961`）。道具は rustc 1.98.1・wasm-bindgen 0.2.128。条件は CPU の減速なし（`cpu_throttle: 1`）・回線の絞りなし・10 試行 × 20 操作・ログの窓 120〜158・起点 `event.timeStamp`・終点 `rAF + setTimeout(0)`。
+- 検査（`isTrusted` が真・ログと `li` が 2 件増える・Step が動かない・下書きが変わらない・上限の通知が無い）は、外れれば `browser.mjs` が測定を失敗にする。終了コード 0 で、全 200 操作が通った。
+- 中央値は約 16ms だが、p95・max は開発機（16,600・16,800 us）より大きい。原因は確かめていない。
+- 最小教材の値で、教材全体を代表しない。
+- 測定の前の負荷: `uptime` の load averages（1・5・15 分）は 3.34・2.67・2.06（2026-10-27T02:23:23Z。直前まで動いていた log-redraw の測定を含む）。他のビルドや重い処理は動いていなかった（CPU 使用率の上位は OS の常駐の処理だけ）。
+- 5.284 と同じく、macOS 同梱の `jq`（jq-1.7.1-apple）では結果の JSON が出ずに終了コード 1 で止まったため、Homebrew の jq 1.8.2 で流し直した値を記録した。止まった 1 回目の値は記録に使っていない（標準エラーに出た p95 は 23,300 us で、閾値以内だった）。
 - 限界・未確認:
-  - **未実施（基準端末 A）**: 上の端末は自動運転の開発機で、基準端末 A（Apple シリコンの macOS）ではない。受け入れ条件の「基準端末 A」は未達である。追記は人が行う。手順: macOS（Apple シリコン）で `npm ci && npx playwright install chromium` の後、`FANDHE_BROWSER_CHANNEL=chrome tools/measure/input-paint.sh | jq .`（`baseline.device.apple_silicon_macos` が `true` になる）。
-  - Chromium の headless だけで測った。Chrome の原本・Windows（TASK-224）は未測定。コミット後の `dirty: false` での再測定、`wasm-opt` 適用ありの測定も未実施。
+  - **実施済み（基準端末 A）**: 2026-10-27 に基準端末 A（Apple シリコンの macOS）の Chrome の原本で測った（上の「基準端末 A での結果」）。受け入れ条件の「基準端末 A」は満たした。測定は人の依頼を受けて AI（Claude Code）が流した。
+  - 開発機の値は Chromium の headless、基準端末 A の値は Chrome の原本の headless で測った。headless でない Chrome・Windows（TASK-224）は未測定。
+  - コミット後の `dirty: false` での測定は、基準端末 A で行った（上記）。`wasm-opt` 適用ありの測定は未実施。
   - ログの長さによる傾き（TASK-232）は対象外。
   - `make measure` の束・`scripts/expected-test-counts.txt` には入れていない。回帰は `make test-measure`。
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない。
