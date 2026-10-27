@@ -33,7 +33,7 @@
 //! - `start.guidance` による案内の水準（TASK-294）
 //!
 //! 開始用の効果の `${名前}` は、pack の compile（`module_starts`）が実体の引数で置換済みである。本モジュールは実行時に
-//! 置換せず、IR の値をそのまま適用する（TASK-239。固定は pack の `start_instance`）。
+//! 置換せず、IR の値をそのまま適用する（TASK-239。固定は pack の `start_instance`、前の周回を流し終えた状態からの省略は `start_skip`）。
 //!
 //! 閉じた根の引き継ぎ（MOD-8。TASK-238）は、本モジュールが `world`・`slices` を消さない規則と、教材の実体の引数による
 //! 経路の分離で成り立つ。専用の分岐は持たない。固定は pack の `round_slice_init` の `mod8_*`。

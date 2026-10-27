@@ -9227,7 +9227,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 
 ### 5.328 途中開始用の状態から周回の途中の Step で開始する（TASK-239 1/2。MOD-6）
 
-- 目的: 実体 `issue-to-merge@round2` の途中開始が、開始する Step を `Entered` にし、開始用の効果の `${名前}` がその実体の引数で置換されることを固定する。飛ばした Step の `Skipped` 3 件と前の周回の切り身の不変は 2/2 が持つ（一部は `start_skip.rs`）
+- 目的: 実体 `issue-to-merge@round2` の途中開始が、開始する Step を `Entered` にし、開始用の効果の `${名前}` がその実体の引数で置換されることを固定する。飛ばした Step の `Skipped` 3 件と前の周回の切り身の不変は 2/2（5.329）が持つ
 - 方式: `crates/pack/tests/start_instance.rs` の `mod6_*` 5 件。期待値は IR の `instances[].args` から組み、2 周目の引数が 1 周目と異なることを前提に確かめる。開始は `Control::Begin` で行う
   - `mod6_module_start_effects_are_substituted_per_instance_in_ir`: `ir.starts` の `put.path` が実体の引数で置換され、`${` が全開始で 0 件
   - `mod6_round2_start_enters_the_start_step`: `Begun` が 1 件、現在の Step が `issue-to-merge@round2/st-6-1`、状態が `Entered`、根と持ち主が 2 周目の実体
@@ -9247,4 +9247,25 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 限界:
   - 手書きの IR で開始の効果に字面の `${` が残っても、core はそのまま鍵にする（置換は compile の責務で、core は検査しない）
   - web の起動は `Session::entered_at` で開始の効果を適用しない。`Control::Begin` への置き換えは TASK-254
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.329 飛ばした Step を省略として記録し前の周回を保つ（TASK-239 2/2。MOD-6）
+
+- 目的: 1 周目を流し終えた状態から 2 周目の `issue-to-merge@round2#s-6-1` で開始しても、省略は開始する周回の実体の `st-3-2`・`st-4-1`・`st-5-1` の 3 件だけで、1 周目の切り身が変わらないことを固定する
+- 方式: `crates/pack/tests/start_skip.rs` の `mod6_*` 2 件。開始前の状態は `round1_plan` を流した状態（`start_skip.rs` の既存の試験は空の状態からで、他の切り身の不変の表明が空振りしうる）
+  - `mod6_start_after_round1_skips_only_round2_instance_steps`: `Begun` 1 件、`Skipped` のイベントが 3 件（IR の順）、全切り身を数えた `Skipped` が 3 件ですべて 2 周目の根、ログの `Skipped` も 3 件、`st-6-1` が `Entered` で現在の Step、1 周目の各根と 2 周目以外の全切り身が開始の前後で等しい、世界状態が開始の効果で変わる。前提として、1 周目の切り身が空でなく、2 周目の開始の節点より前に 1 周目の未着手の Step がある
+  - `mod6_start_after_round2_begin_keeps_sibling_instance`: 2 周目の開始（`Begin("s-r2")`）の後の途中開始で、`Skipped` が 2 周目の `issue-to-merge@round2` の未着手の Step だけで、別の実体 `idea-cycle@round2` と 1 周目の切り身が不変
+- 決定: エンジンの振る舞いは変えない（`begin.rs` の省略は `unit`・`scope` 一致・`NotStarted` の 4 条件で既に足りる）。`finished_round1`（全 Step を達成にする）は `NotStarted` の条件だけで 1 周目の Step が省略から外れ、`scope` の誤りを検出できないため使わない。`round1_plan` は `GoTo` で飛ばした Step も `Entered` にして 1 周目に未着手の Step を残さないため、試験は 1 周目の `st-4-1`・`st-5-1` の状態を切り身から取り除いて未着手に戻す。`testdata/` と `scripts/expected-test-counts.txt` は変えない
+- 結果（2026-10-27）: `start_skip` 4 件が合格
+- 変異注入（2026-10-27）: 元のコミット `629bbda7`
+
+| ID | 結果 |
+|---|---|
+| MOD6-4（同じ実体の `scope` の条件を外す） | DETECTED |
+| MOD6-5（飛ばした Step を 1 件も省略にしない） | DETECTED |
+
+- 限界:
+  - `round1_plan` は `GoTo` を 3 か所で使うため、真の通しと状態が異なりうる。未着手の 1 周目の Step は状態を直接組んで作っている
+  - 世界状態は開始の効果で変わることまでを確かめ、増えた経路が 1 件であることの確認は 5.328 が持つ
+  - web の起動は `Session::entered_at` で開始の効果・省略を適用しない（TASK-254）
   - 作成者と実装者が同じ AI で、人の確認は得ていない
