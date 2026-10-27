@@ -129,6 +129,12 @@ jobs:
       - name: make check
         run: make check
 
+      # 測定の結果の組み立てが jq 1.7 の文法で通ることの回帰検査（#1822）。ビルドとブラウザなしで数秒。
+      # ubuntu-latest 同梱の jq（2026-10-27 時点で jq-1.7）で流す。runner の jq が 1.8 以上になると、試験が
+      # 「1.7 の文法の検査ではない」と標準エラーに出す。その時点で版と SHA256 を固定した jq 1.7.1 の導入 step に切り替える。
+      - name: make test-measure-result
+        run: make test-measure-result
+
       - name: make check-toolchain
         run: |
           set -euo pipefail
