@@ -26,8 +26,11 @@
 //! TASK-238 1/2 として、次の周回が新しいルートで始まることを確かめる（`mod8_*`。MOD-8）。経路は IR の `instances` の引数
 //! （`root`・`child`・`pr`）から導き、直書きしない。2 周目の `/create-issue-tree` が 2 周目の引数の経路だけを新しく作り、
 //! 2 周目の全操作の `Changed` が 1 周目の経路と交わらず、`--root` つきの入力が拒否される。`--root` の拒否は教材パックの規則
-//! （`r-with-root`。ROUND2-3・ROUND2-18）の観察で、エンジン独自の振る舞いではない。閉じた根の保持と引き継ぎは TASK-238 2/2 が持つ。
-//! 記録は `docs/testing.md` の 5.326。
+//! （`r-with-root`。ROUND2-3・ROUND2-18）の観察で、エンジン独自の振る舞いではない。記録は `docs/testing.md` の 5.326。
+//!
+//! TASK-238 2/2 として、前の周回の成果物が閉じたまま引き継がれることを確かめる（`mod8_*`）。1 周目の終了時の世界状態の全要素が
+//! 2 周目の 3 時点（開始の直後・`st-6-1` の受付の後・終了）で同一のままで、閉じた根・子が `closed` のまま開き直されず、
+//! 環境と完了済みタスクが作り直されない。記録は 5.327。
 
 mod common;
 #[path = "common/rounds.rs"]
@@ -44,12 +47,12 @@ use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::instance::{owner_of, root_of};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::step_status::StepStatus;
-use fandhe_workshop_core::world::Element;
+use fandhe_workshop_core::world::{Element, World};
 use fandhe_workshop_core::{Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
 use rounds::{
-    begin_round2_plan, round1_plan, round2_plan, round2_plan_until_create_tree, round_roots,
-    run_plan, step_in, steps,
+    begin_round2_plan, round1_plan, round2_plan, round2_plan_until_command,
+    round2_plan_until_create_tree, round_roots, run_plan, step_in, steps,
 };
 
 fn ir() -> Ir {
@@ -923,4 +926,154 @@ fn mod8_round2_rejects_root_option_without_change() {
         "/create-issue-tree behavior-bbs-search.md".into(),
     )));
     assert_eq!(state_of(&s, &r2[0]).as_deref(), Some("open"));
+}
+
+// ---- TASK-238 2/2: 閉じた根の引き継ぎ（MOD-8。記録は docs/testing.md の 5.327）----
+
+/// 環境の経路。教材 `module-reuse-rounds` の `st-4-1`・`st-5-1` が書く練習データで、2 周目に作り直されないことの見張り。
+const ENV_PATHS: [&str; 2] = ["impl/CLAUDE.md", "impl/.guards.md"];
+
+/// 1 周目の終了時に在るはずの成果物の経路（根・子以外）。前提の確認に使う。
+const ROUND1_FILES: [&str; 3] = [
+    "ideas/bbs-with-login/README.md",
+    "ideas/bbs-with-login/05-tasks.md",
+    "impl/docs/behavior-bbs-with-login.md",
+];
+
+/// `base` の全要素が `s` の世界状態に同一（`fixture`・`attrs` とも）で残っていること。
+fn assert_carried(s: &Session, base: &World, point: &str) {
+    let now = &s.state().run.world;
+    for (k, v) in base {
+        assert_eq!(now.get(k), Some(v), "{point}: {k} changed or vanished");
+    }
+}
+
+fn assert_closed(s: &Session, ir: &Ir, point: &str) {
+    let r1 = artifact_paths(ir, "issue-to-merge@round1");
+    for p in &r1[..2] {
+        assert_eq!(state_of(s, p).as_deref(), Some("closed"), "{point}: {p}");
+    }
+}
+
+/// 1 周目の後の 3 時点（(a) 開始の直後 (b) `st-6-1` の受付の後 (c) 終了）で `check` を呼ぶ。
+fn at_round2_points(ir: &Ir, mut check: impl FnMut(&Session, &str)) {
+    let mut s = play_round1(ir);
+    begin_round2(&mut s);
+    check(&s, "(a) after begin");
+    run_plan(&mut s, &round2_plan_until_create_tree(ir));
+    s.apply(Op::Input(Input::Command(
+        "/create-issue-tree behavior-bbs-search.md".into(),
+    )));
+    check(&s, "(b) after create-issue-tree");
+    let plan = round2_plan(ir);
+    let at = plan
+        .iter()
+        .position(|p| {
+            matches!(p, rounds::PlanStep::Op(Op::Input(Input::Command(c))) if c.starts_with("/create-issue-tree"))
+        })
+        .expect("create-issue-tree");
+    run_plan(&mut s, &plan[at + 1..]);
+    check(&s, "(c) round 2 end");
+}
+
+#[test]
+fn mod8_round1_world_is_carried_over_element_by_element() {
+    let ir = ir();
+    let r1 = artifact_paths(&ir, "issue-to-merge@round1");
+    let base = play_round1(&ir).state().run.world.clone();
+    for p in ENV_PATHS
+        .iter()
+        .chain(&ROUND1_FILES)
+        .copied()
+        .chain([r1[0].as_str(), r1[1].as_str()])
+    {
+        assert!(base.contains_key(p), "round 1 end lacks {p}");
+    }
+    at_round2_points(&ir, |s, point| assert_carried(s, &base, point));
+}
+
+#[test]
+fn mod8_closed_root_stays_closed_at_every_round2_point() {
+    let ir = ir();
+    at_round2_points(&ir, |s, point| assert_closed(s, &ir, point));
+    let r1 = artifact_paths(&ir, "issue-to-merge@round1");
+    let mut s = play_round1(&ir);
+    let events = finish_round2(&mut s, &ir);
+    for e in &events {
+        if let Event::Changed { path, .. } = e {
+            assert!(!r1.contains(path), "round 2 changed {path}");
+        }
+    }
+}
+
+#[test]
+fn mod8_round2_launch_with_old_root_is_rejected_and_root_stays_closed() {
+    let ir = ir();
+    let r1 = artifact_paths(&ir, "issue-to-merge@round1");
+    let r2 = artifact_paths(&ir, "issue-to-merge@round2");
+    let mut s = play_round1(&ir);
+    begin_round2(&mut s);
+    run_plan(
+        &mut s,
+        &round2_plan_until_command(&ir, "/implement-issue-tree", "/st-7-1"),
+    );
+    let run = s.state().run.clone();
+    let events = s
+        .apply(Op::Input(Input::Command(
+            "/implement-issue-tree 42 --external-checks []".into(),
+        )))
+        .to_vec();
+    let rejected = events.iter().any(|e| {
+        matches!(e, Event::Judged { judgment: Judgment::Rejected(r), .. }
+            if r.category == RejectCategory::NotInThisStep)
+    });
+    assert!(rejected, "{events:?}");
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::Accepted { .. } | Event::Changed { .. })),
+        "{events:?}"
+    );
+    assert_eq!(s.state().run, run);
+    assert_eq!(state_of(&s, &r1[0]).as_deref(), Some("closed"));
+    s.apply(Op::Input(Input::Command(
+        "/implement-issue-tree 43 --external-checks []".into(),
+    )));
+    assert_eq!(state_of(&s, &r1[0]).as_deref(), Some("closed"));
+    assert_eq!(state_of(&s, &r2[0]).as_deref(), Some("running"));
+}
+
+#[test]
+fn mod8_round2_does_not_redo_environment_and_keeps_completed_tasks() {
+    let ir = ir();
+    let (r1, _) = round_roots(&ir, "s-r1");
+    let (r2, _) = round_roots(&ir, "s-r2");
+    let mut s = play_round1(&ir);
+    let before: Vec<_> = steps(&ir, &r1).iter().map(|u| s.step_status(u)).collect();
+    let events = finish_round2(&mut s, &ir);
+    for e in &events {
+        if let Event::Changed { path, .. } = e {
+            assert!(
+                !ENV_PATHS.contains(&path.as_str()),
+                "environment rewritten: {path}"
+            );
+        }
+    }
+    for id in ["st-4-1", "st-5-1"] {
+        assert_eq!(
+            s.step_status(&step_in(&ir, &r2, id)),
+            StepStatus::NotStarted,
+            "{id}"
+        );
+    }
+    let after: Vec<_> = steps(&ir, &r1).iter().map(|u| s.step_status(u)).collect();
+    assert_eq!(before, after);
+    for id in ["r1-idea", "r1-impl"] {
+        let u = StepUid(format!("main/{id}"));
+        assert_eq!(s.step_status(&u), StepStatus::Achieved, "{id}");
+    }
+    assert_eq!(
+        s.step_status(&step_in(&ir, &r1, "st-6-1")),
+        StepStatus::Achieved
+    );
 }

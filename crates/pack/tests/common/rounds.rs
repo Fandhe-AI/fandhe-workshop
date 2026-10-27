@@ -249,18 +249,27 @@ pub fn round2_plan(ir: &Ir) -> Vec<PlanStep> {
     ]
 }
 
-/// 2 周目の計画を、`st-6-1` の `/create-issue-tree` の直前で切った前半（TASK-238 1/2。MOD-8）。
-/// 末尾の `ExpectCurrentSuffix` で `st-6-1` に居ることを確かめる。入力列を `round2_plan` と重複させないため、
+/// 2 周目の計画を、`prefix` で始まる最初のコマンドの直前で切った前半（TASK-238。MOD-8）。
+/// 末尾の `ExpectCurrentSuffix` で `expect_suffix` の Step に居ることを確かめる。入力列を `round2_plan` と重複させないため、
 /// 元の計画から切り出す。
-pub fn round2_plan_until_create_tree(ir: &Ir) -> Vec<PlanStep> {
+pub fn round2_plan_until_command(
+    ir: &Ir,
+    prefix: &str,
+    expect_suffix: &'static str,
+) -> Vec<PlanStep> {
     let plan = round2_plan(ir);
     let at = plan
         .iter()
-        .position(|s| {
-            matches!(s, PlanStep::Op(Op::Input(Input::Command(c))) if c.starts_with("/create-issue-tree"))
-        })
-        .expect("/create-issue-tree in round 2 plan");
+        .position(
+            |s| matches!(s, PlanStep::Op(Op::Input(Input::Command(c))) if c.starts_with(prefix)),
+        )
+        .unwrap_or_else(|| panic!("{prefix} in round 2 plan"));
     let mut head = plan[..at].to_vec();
-    head.push(PlanStep::ExpectCurrentSuffix("/st-6-1"));
+    head.push(PlanStep::ExpectCurrentSuffix(expect_suffix));
     head
+}
+
+/// 2 周目の計画を、`st-6-1` の `/create-issue-tree` の直前で切った前半（TASK-238 1/2。MOD-8）。
+pub fn round2_plan_until_create_tree(ir: &Ir) -> Vec<PlanStep> {
+    round2_plan_until_command(ir, "/create-issue-tree", "/st-6-1")
 }

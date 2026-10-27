@@ -9200,3 +9200,27 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 1 周目の流しは 5.260 の `GoTo` の回避 3 か所を引き継ぐ
   - 前の根の属性が閉じたまま保たれることと、成果物・完了済みタスク・環境の引き継ぎは TASK-238 2/2 が持つ
   - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.327 閉じた根を閉じたまま引き継ぐ（TASK-238 2/2。MOD-8）
+
+- 目的: 1 周目の成果物が閉じたまま 2 周目へ引き継がれ、閉じた根が開き直されず、環境と完了済みタスクが作り直されないことを固定する（5.326 の続き）
+- 方式: `crates/pack/tests/round_slice_init.rs` の `mod8_*` に 4 件を足した。3 時点は (a) `Begin("s-r2")` の直後、(b) `st-6-1` で `/create-issue-tree` を受け付けた直後、(c) 2 周目の終了。経路は `ir.instances` の引数から導く（環境の 2 経路だけ教材の練習データの名前を定数にした）。計画の切り出しは `common/rounds.rs` の `round2_plan_until_command`（5.326 の関数はこれを呼ぶ）
+  - `mod8_round1_world_is_carried_over_element_by_element`: 1 周目の終了時の世界状態の全要素が 3 時点で `fixture`・`attrs` とも同一
+  - `mod8_closed_root_stays_closed_at_every_round2_point`: 根・子が 3 時点とも `closed`。2 周目の `Changed` に前の根の経路が無い
+  - `mod8_round2_launch_with_old_root_is_rejected_and_root_stays_closed`: `st-7-1` で旧い根（42）を指す起動が `not_in_this_step` で拒否され状態が変わらず、新しい根（43）の起動は `running` になり旧い根は `closed` のまま
+  - `mod8_round2_does_not_redo_environment_and_keeps_completed_tasks`: 環境 2 経路が書き直されず、2 周目の `st-4-1`・`st-5-1` が `NotStarted` のまま、1 周目の全 Step の状態が 2 周目の終了時も同じ
+- 決定: エンジンの振る舞いは変えない（`begin.rs` のコメントだけ直した）。教材固有の語はエンジンに持ち込まない。`testdata/` と `scripts/expected-test-counts.txt` は変えない
+- 結果（2026-10-27）: `round_slice_init` 26 件が合格
+- 変異注入（2026-10-27）: 元のコミット `739440e9`
+
+| ID | 結果 |
+|---|---|
+| MOD8-3（開始が閉じた根を開き直す） | DETECTED |
+| MOD8-4（開始が環境を捨てる） | DETECTED |
+| MOD8-5（実体の引数を捨てる） | DETECTED |
+| MOD8-6（引数の値を見ない） | DETECTED |
+
+- 限界:
+  - 1 周目の流しは 5.260 の `GoTo` の回避 3 か所を引き継ぐ。旧い根を指す起動の拒否は教材の規則（`r-launch` の `args`）の観察である
+  - 続きの周回と `s-r2-fresh` 起点の比較は行っていない
+  - 作成者と実装者が同じ AI で、人の確認は得ていない

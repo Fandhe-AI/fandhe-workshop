@@ -1,0 +1,8 @@
+id: MOD8-3
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/core/src/begin.rs
+find:     state.run.completed = false;
+replace:     state.run.completed = false; for e in state.run.world.values_mut() { if e.attrs.get("state").map(String::as_str) == Some("closed") { e.attrs.insert("state".into(), "open".into()); } }
+expect-fail: mod8_closed_root_stays_closed_at_every_round2_point
+note: 開始が閉じた根を開き直す

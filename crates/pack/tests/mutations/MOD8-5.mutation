@@ -1,0 +1,8 @@
+id: MOD8-5
+package: fandhe-workshop-pack
+test: round_slice_init
+target: crates/pack/src/expand.rs
+find:         args.extend(u.args);
+replace:         let _ = &u.args;
+expect-fail: mod8_closed_root_stays_closed_at_every_round2_point
+note: 実体の引数を捨てると 2 周目の /create-issue-tree が前の根を開き直す
