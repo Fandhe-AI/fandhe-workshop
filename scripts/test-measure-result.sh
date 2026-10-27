@@ -87,6 +87,29 @@ else
   fail "measure_pack_json succeeds on the minimal pack"
 fi
 
+# --- (d) native の様式（measure-native/v1。history-size.sh） ---
+LINE="${TMP}/line.json"
+jq -n '{
+  pack: {id: "p", version: "1", nodes: 3, ir_sha256: ("a" * 64), content_hash: ("b" * 64), source: "s"},
+  ops_sequence: {id: "o", ops: 2, ops_sha256: ("c" * 64), goto_substitutions: 1},
+  size: {total_bytes: 100, ops: 2, ops_bytes: 10, snapshot_bytes: 80, log_entries: 5, changed_entries: 2, changed_bytes: 20, changed_ratio_ppm: 200000, checkpoints: 1, checkpoint_bytes: 7}
+}' >"${LINE}"
+RN="${TMP}/rn.json"
+if measure_native_result_json "${COMMIT}" "${LINE}" >"${RN}"; then
+  pass "assemble a native result"
+  check "native result passes measure_validate_native" measure_validate_native "${RN}"
+  check "native result has 10 measurements" jq -e '.measurements | length == 10' "${RN}"
+  jq 'del(.baseline.commit.sha)' "${RN}" >"${TMP}/rn-nosha.json"
+  if measure_validate_native "${TMP}/rn-nosha.json"; then fail "native result without commit.sha is rejected"; else pass "native result without commit.sha is rejected"; fi
+  jq '.measurements[0].value = 0.5' "${RN}" >"${TMP}/rn-frac.json"
+  if measure_validate_native "${TMP}/rn-frac.json"; then fail "native result with a non-integer value is rejected"; else pass "native result with a non-integer value is rejected"; fi
+  jq -c . "${RN}" >"${TMP}/rn-two.json"
+  jq -c 'del(.baseline.commit.sha)' "${RN}" >>"${TMP}/rn-two.json"
+  if measure_validate_native "${TMP}/rn-two.json"; then fail "two concatenated native results are rejected"; else pass "two concatenated native results are rejected"; fi
+else
+  fail "assemble a native result"
+fi
+
 # --- (c) 負の対照: 使っている jq が 1.7 の文法かどうか ---
 if jq -n '{a: {} + {}}' >/dev/null 2>&1; then
   echo "note: this jq accepts a binary operator in an object value (jq 1.8 or later); (a) is not a check of the jq 1.7 grammar here" >&2

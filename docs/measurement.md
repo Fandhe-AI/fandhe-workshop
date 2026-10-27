@@ -43,6 +43,17 @@ make measure | jq .
 - 遅く、ブラウザを要する。`make check`・フック・CI には入れない（`make measure` 全体について。WASM の大きさの関門 `make check-wasm-size` だけは CI で動く）
 - 回帰テストは `make test-measure-wasm-size`（単体の様式）と `make test-measure`（束・fail-closed・一括実行）
 
+2 周分の履歴の大きさ（TASK-216。EVT-13）は native の試験の出力を包む別の様式（§4a。`fandhe-workshop/measure-native/v1`）で、
+`make measure` の束には入れない。
+
+```bash
+make measure-history-size | jq .            # 直接: tools/measure/history-size.sh
+```
+
+- 実体は `crates/pack/tests/history_size_rounds.rs`（`HISTORY-SIZE ` の行を 1 行出す）。`tools/measure/history-size.sh` がそれを基点つきの結果に包む
+- 終了コード: 0 = 成功 / 1 = 試験・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用。出力は `lib.sh` の `measure_emit_native` だけが行う
+- 回帰テストは `make test-measure-result` の (d)（組み立てと、基点の欠け・整数でない値・値の連結を断る負の対照）
+
 ## 3. 基点の 4 項目
 
 | 項目 | JSON のパス | 内容 |
@@ -137,6 +148,31 @@ make measure | jq .
   - 統計と丸めは再描画と同じ。100ms（`conditions.threshold_p95_us`）を超えても失敗にせず、標準エラーに within / over を出す。合否は `docs/testing.md` の記録に書く
   - 値は最小教材のもので、教材全体を代表しない（`conditions.scope_note`）
 
+## 4a. native の大きさの様式（`schema`: `fandhe-workshop/measure-native/v1`）
+
+大きさは端末・wasm-opt・圧縮に依らないため、v1 の必須欄（`wasm_opt`・`features`・`compression`）を偽の値で埋めず、別の様式にした。端末（`device`）も入れない。
+
+| パス | 型 | 内容 |
+|---|---|---|
+| `schema` | 文字列 | `fandhe-workshop/measure-native/v1` |
+| `measured_at` | 文字列 | 測定の時刻（UTC） |
+| `baseline.commit` | `{sha, dirty}` | v1 と同じ。`dirty: true` の値は記録に使わない |
+| `baseline.cargo_profile` | 文字列 | `test` |
+| `baseline.pack` | 欄の組 | `id`・`version`・`nodes`・`ir_sha256`（compile の出力のバイト列）・`content_hash`・`source` |
+| `baseline.ops_sequence` | 欄の組 | `id`（`rounds-plan-a-v1`）・`ops`（件数）・`ops_sha256`（`ops` の JSON）・`goto_substitutions`（`GoTo` で飛ばした数。1 周目 3・2 周目 2 の 5） |
+| `toolchain.rustc` | 文字列 | `rustc -V` |
+| `conditions` | 欄の組 | `condition: "A"`・`checkpoints_at`・`scope_note` |
+| `measurements[]` | `{name, unit, value}` | 値は正の整数 |
+
+測定名: `history_total_bytes`・`history_ops_bytes`・`history_snapshot_bytes`・`history_changed_bytes`・`history_checkpoint_bytes`（`bytes`）、`history_ops`・`history_log_entries`・`history_changed_entries`・`history_checkpoints`（`count`）、`history_changed_ratio_ppm`（`ppm`。`changed_bytes * 1,000,000 / total_bytes` の切り捨て）。
+
+測り方の定義:
+
+- 対象は書き出しの包み（`export_bytes` の compact JSON。`ops` と `snapshot`）。`total_bytes` はそのバイト数
+- `Changed` のバイト数は `snapshot.log` の `Changed` を 1 件ずつ JSON にした長さの合計（`synth-inputs.md` §3 と同じ定義）
+- 道筋は `module-reuse-rounds` の模範解答の 2 周分に、各周の終わりのチェックポイントを足した条件 A の形。誤入力は入れない
+- 未実装の部品のため `GoTo` で飛ばす場所がある（`docs/testing.md` 5.258・5.260）。飛ばした分、`Changed` の件数は真の通しと違いうる
+
 ## 5. 一括実行の束（`schema`: `fandhe-workshop/measure-run/v1`）
 
 `make measure` の出力。大きさと初回表示は配信する設定、再描画は試験の設定で測るため、基点の機能の範囲は結果ごとに違う。
@@ -177,10 +213,13 @@ make measure | jq .
 - `view-redraw` の値は固定データ（`baseline.data`）の代役の部品の画面の値で、教材の値・本体の画面の値と比べない
 - `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。種類ごとの描画部品が製品に結線されるまでは経路の行の値である（`docs/testing.md` 5.318）
+- `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
 ## 7. 将来の拡張
+
+- TASK-336（SAVE-26）は、`crates/pack/tests/common/rounds.rs` の計画（`PlanStep` の列）に誤入力・`Control::Save`・下書きを差し込み、`common/history_size.rs` の `measure` で条件 B／C の大きさを求められる。5MB の判定はそちらが持つ
 
 - JS glue・`index.html` など他の配信物の大きさは、`measurements[]` に足すだけでよい（様式の変更は不要）
 - ビルド情報はビルドログの行（`config` / `wasm-opt` / `wasm size`）から読む。解析は `tools/measure/lib.sh` の `measure_build` に集約してある。
