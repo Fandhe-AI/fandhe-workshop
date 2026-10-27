@@ -9,8 +9,14 @@
 //! `tools/browser/reduced-motion-st15.test.mjs`（TASK-378 1/2）が確かめる。
 
 use crate::log_lines::LogLine;
+use crate::terminal_area::LineKind;
 
 /// ログの 1 行を表示するなら真。`reduced_motion` のとき、段階の行（`Progress`）だけを省く。
 pub fn shows_line(reduced_motion: bool, line: &LogLine) -> bool {
-    !(reduced_motion && matches!(line, LogLine::Progress { .. }))
+    shows_kind(reduced_motion, line.kind())
+}
+
+/// 行の種類だけで決まる表示の判定。畳まれる行の文字列を複製せずに、行を数えるために使う（TASK-232 2/3）。
+pub fn shows_kind(reduced_motion: bool, kind: LineKind) -> bool {
+    !(reduced_motion && kind == LineKind::Progress)
 }

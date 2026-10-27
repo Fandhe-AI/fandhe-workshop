@@ -51,7 +51,7 @@ pub use crate::list_policy::LIST_ERROR_ATTR;
 use crate::list_policy::{
     fold_node, keyed_view_or_notice, plan_fold, FoldEntry, FoldKind, LIST_ITEMS_TARGET,
 };
-use crate::log_lines::{line_from_event, line_node};
+use crate::log_lines::{line_from_event, line_kind_from_event, line_node};
 use crate::offers::OffersPart;
 use crate::parts::{DisplayPart, FieldKind, PartField, PartKind, PartRegistry};
 use crate::profile::ViewTabs;
@@ -311,26 +311,26 @@ impl DisplayPart<HostModel> for LogPart {
     }
     fn view(&self, model: &HostModel) -> Node {
         let events = model.session().map(|s| s.log()).unwrap_or(&[]);
-        // 表示される行を先に集め、(世代, Step) が同じ連続の範囲をグループにする。畳まれる行のノードは作らない。
+        // 表示される行の参照だけを先に集め、(世代, Step) が同じ連続の範囲をグループにする。
+        // 畳まれる行は `LogLine`（文字列の複製）もノードも作らない。種類の判定は `line_kind_from_event` が行う。
         let shown: Vec<_> = model
             .projection()
             .log()
             .iter()
-            .filter_map(|row| {
-                let line = line_from_event(
-                    events.get(row.event as usize)?,
-                    model.judged_text(row.event),
-                )?;
-                // 動きの抑制のときは段階の行を出さない（A11Y-11）。畳みと要約の行数も絞った後の列で数える。
-                crate::motion::shows_line(model.reduced_motion(), &line).then_some((row, line))
+            .filter(|row| {
+                events.get(row.event as usize).is_some_and(|e| {
+                    // 動きの抑制のときは段階の行を出さない（A11Y-11）。畳みと要約の行数も絞った後の列で数える。
+                    line_kind_from_event(e, model.judged_text(row.event))
+                        .is_some_and(|k| crate::motion::shows_kind(model.reduced_motion(), k))
+                })
             })
             .collect();
         let mut starts: Vec<usize> = Vec::new();
-        for (i, (row, _)) in shown.iter().enumerate() {
+        for (i, row) in shown.iter().enumerate() {
             let same = i
                 .checked_sub(1)
                 .and_then(|p| shown.get(p))
-                .is_some_and(|(prev, _)| prev.at == row.at);
+                .is_some_and(|prev| prev.at == row.at);
             if !same {
                 starts.push(i);
             }
@@ -347,8 +347,12 @@ impl DisplayPart<HostModel> for LogPart {
             })
             .collect();
         let data_row = |i: usize| {
-            let (row, line) = shown.get(i)?;
-            let node = line_node(row.at.generation.0, line)?;
+            let row = shown.get(i)?;
+            let line = line_from_event(
+                events.get(row.event as usize)?,
+                model.judged_text(row.event),
+            )?;
+            let node = line_node(row.at.generation.0, &line)?;
             Some((
                 format!("r{}", row.event),
                 with_trace(node, row.event, row.at.step.0.as_str()),
@@ -362,7 +366,7 @@ impl DisplayPart<HostModel> for LogPart {
                     items.extend((from.saturating_add(skip)..to).filter_map(data_row));
                 }
                 FoldEntry::Summary { group, rows } => {
-                    if let Some((row, _)) = shown.get(bounds(group).0) {
+                    if let Some(row) = shown.get(bounds(group).0) {
                         items.push((
                             format!("s{}", row.event),
                             fold_node(FoldKind::Step, 1, rows, Some(row.at.step.0.as_str()), false),
