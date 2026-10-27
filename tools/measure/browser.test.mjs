@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { median, p95, toMicros, resolveLaunchOptions, planRoundsStage } from './browser.mjs';
 import { cases, judge, expectedCounts, VR_THRESHOLD_US } from './view-redraw.mjs';
+import * as pr from './product-redraw.mjs';
 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'browser.mjs');
 
@@ -186,4 +187,44 @@ test('planRoundsStage: a stage crossing the fold target or with too few rows is 
   assert.throws(() => planRoundsStage({ groups: 6, rows: 960 }), /crosses/);
   assert.throws(() => planRoundsStage({ groups: 48, rows: 100 }), /too few/);
   assert.throws(() => planRoundsStage({ groups: 6, rows: 501 }), /multiple/);
+});
+
+// product-redraw の組・名前・判定（純関数）。
+test('product-redraw cases: 7 kinds, 3 judged, from is the previous kind and differs', () => {
+  const list = pr.cases();
+  assert.equal(list.length, 7);
+  assert.deepEqual(list.filter((c) => c.judged).map((c) => `${c.kind}:${c.rows}`), ['task_tree:50', 'document:200', 'diff:500']);
+  for (const c of list) assert.notEqual(c.from, c.kind);
+});
+
+test('product-redraw measurementName: kind, rows, switch and stat', () => {
+  assert.equal(pr.measurementName({ kind: 'diff', rows: 500 }, 'p95'), 'product_redraw_diff_500_switch_p95');
+});
+
+test('product-redraw judge: switch only, partial, threshold boundary is within', () => {
+  const p95 = Object.fromEntries(pr.cases().map((c) => [`${c.kind}:${c.rows}`, 1000]));
+  p95['diff:500'] = pr.PR_THRESHOLD_US;
+  let v = pr.judge(p95);
+  assert.equal(v.diff.within, true);
+  assert.ok(Object.values(v).every((j) => j.partial === true));
+  p95['diff:500'] = pr.PR_THRESHOLD_US + 1;
+  v = pr.judge(p95);
+  assert.equal(v.diff.within, false);
+  assert.equal(v.task_tree.within, true);
+});
+
+test('product-redraw judge: a missing p95 throws', () => {
+  assert.throws(() => pr.judge({}), /missing p95/);
+});
+
+test('product-redraw sampleDiffRows: counts hunk and line rows of the sample', () => {
+  const r = pr.sampleDiffRows();
+  assert.equal(r.total, r.hunk + r.line);
+  assert.ok(r.hunk >= 1 && r.line >= 1);
+});
+
+test('cli: product-redraw without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'product-redraw']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
 });
