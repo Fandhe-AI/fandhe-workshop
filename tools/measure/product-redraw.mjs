@@ -7,7 +7,7 @@
 // 測る量が違うため直接は比べない。操作は switch（別の種類から対象へ。行がすべて入れ替わる）だけ。製品には前後の切り替え（toggle）が無く、
 // 代わりの操作は作らない（該当なしとして記録する）。
 // 限界: 種類ごとの描画部品（diff_view など）は製品の view() に結線されていない。測る行は世界状態の経路の行で、文書のブロックでも
-// 差分の hunk でもない。結線した後に測り直しが要る（docs/views.md の 1 節）。CPU 4 倍（ART-15）は別のイシュー。
+// 差分の hunk でもない。結線した後に測り直しが要る（docs/views.md の 1 節）。CPU 4 倍の記録（ART-15。TASK-485 3/3）は measureProductRedrawCpu4x で、判定に使わない。
 //
 // 安全: ページへ渡すのは固定の関数で、データは引数で渡す。ボタンは getAttribute の完全一致で選び、文字列から選択子を組み立てない。
 // 配信は tools/serve.mjs の 127.0.0.1 だけ。外部へは通信しない。
@@ -208,6 +208,111 @@ export async function measureProductRedraw(browser, dir, deps) {
         trial_rotation: 'case order rotated by the trial index; a new context per case',
         base: BASE,
         scope_note: 'product view(); per-kind renderers are not wired, rows are world-state paths; not comparable with view-redraw',
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
+// ---- CPU 4 倍の記録（ART-15。TASK-485 3/3）。判定に使わない ----
+
+// 記録の組。cases() から ART-15 に大きさが書かれた 3 種（タスク 50 件・文書 200 行・差分 500 行）だけを残す。
+export function cpu4xCases() {
+  return cases().filter((c) => c.judged);
+}
+
+export function cpu4xMeasurementName(c, stat) {
+  return `product_redraw_cpu4x_${c.kind}_${c.rows}_switch_${stat}`;
+}
+
+// 記録（純関数）。p95Us: `${kind}:${rows}` -> p95（us）。判定の欄（within・judged・partial）は持たず、参考の超過の印だけを返す。
+export function cpu4xRecord(p95Us, thresholdUs = PR_THRESHOLD_US) {
+  const out = {};
+  for (const c of cpu4xCases()) {
+    const p = p95Us[`${c.kind}:${c.rows}`];
+    if (!Number.isFinite(p)) throw new Error(`missing p95 for ${c.kind}:${c.rows}`);
+    out[c.kind] = { rows: c.rows, switch_p95_us: p, over_threshold: p > thresholdUs };
+  }
+  return out;
+}
+
+// 記録だけの測定。流れは measureProductRedraw と同じで、mount の確認の後に CPU を 4 倍遅くし、較正で効いていることを確かめてから測る。
+export async function measureProductRedrawCpu4x(browser, dir, deps) {
+  const { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo } = deps;
+  const list = cpu4xCases();
+  const diffRows = sampleDiffRows();
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const all = {};
+    const calibrations = [];
+    for (let t = 0; t < PR_TRIALS; t++) {
+      for (let k = 0; k < list.length; k++) {
+        const c = list[(k + trialRotation(t, list.length)) % list.length];
+        const { context, page } = await newPage(browser, false);
+        try {
+          await page.addInitScript(installMountObserver);
+          await page.goto(`${srv.url}?fixture=artifact-redraw-${c.rows}`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+          await page.waitForFunction(() => window.__mountedValue !== undefined, null, { timeout: NAV_TIMEOUT_MS });
+          const state = await page.evaluate(() => ({
+            mounted: window.__mountedValue,
+            hooks: typeof window.__fandheTest?.stateJson === 'function',
+          }));
+          if (state.mounted !== 'true') throw new Error(`data-mounted is "${state.mounted}" (mount failed)`);
+          if (!state.hooks) throw new Error('window.__fandheTest.stateJson is missing (not a test-hooks build?)');
+          // 減速は mount の確認の後に掛ける。context を閉じるまで session を保持する（detach すると減速が戻る）。
+          const throttled = await calibrateAndThrottle(context, page);
+          calibrations.push(throttled.calibration);
+          const v = await page.evaluate(productRedrawInPage, {
+            kind: c.kind, from: c.from, rows: c.rows, samples: PR_SAMPLES, gapMs: PR_GAP_MS,
+          });
+          if (!Array.isArray(v) || v.length !== PR_SAMPLES) throw new Error(`unexpected sample count: ${c.kind}`);
+          (all[`${c.kind}:${c.rows}`] ??= []).push(...v);
+        } finally {
+          await context.close();
+        }
+      }
+      progress(`product-redraw-cpu4x trial ${t + 1}/${PR_TRIALS} done`);
+    }
+    const measurements = [];
+    const p95Us = {};
+    for (const c of list) {
+      const key = `${c.kind}:${c.rows}`;
+      const v = all[key];
+      if (!v || v.length !== PR_TRIALS * PR_SAMPLES) throw new Error(`unexpected value count: ${key}`);
+      const p = toMicros(p95(v), `${key} p95`);
+      p95Us[key] = p;
+      measurements.push({ name: cpu4xMeasurementName(c, 'median'), unit: 'us', value: toMicros(median(v), `${key} median`) });
+      measurements.push({ name: cpu4xMeasurementName(c, 'p95'), unit: 'us', value: p });
+      measurements.push({ name: cpu4xMeasurementName(c, 'max'), unit: 'us', value: toMicros(Math.max(...v), `${key} max`) });
+      progress(`product-redraw-cpu4x ${key}: p95 ${p} us (record only)`);
+    }
+    return {
+      measurements,
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: 'unthrottled',
+        cache: 'default',
+        cpu_throttle: 4,
+        record_only: true,
+        cpu_calibration: calibrationInfo(calibrations),
+        trials: PR_TRIALS,
+        samples_per_trial: PR_SAMPLES,
+        threshold_p95_us: PR_THRESHOLD_US,
+        threshold_use: 'reference only (not judged; ART-15)',
+        op_trigger: 'click on the view-select-button (includes click delegation, attribute reads, update, view() build, keyed list diff and DOM apply; synchronous)',
+        ops: { switch: 'measured', toggle: 'not_applicable (no before/after toggle in the product view())' },
+        switch_from: Object.fromEntries(list.map((c) => [c.kind, c.from])),
+        sizes: Object.fromEntries(list.map((c) => [c.kind, { fixture: `artifact-redraw-${c.rows}`, rows: c.rows }])),
+        record_only_cpu4x: cpu4xRecord(p95Us),
+        seed: { pack_id: 'artifact-redraw', path_shape: 'p/{i:04}', step: 'main/st-1' },
+        sample_diff_rows: diffRows,
+        trial_rotation: 'case order rotated by the trial index; a new context per case',
+        base: BASE,
+        scope_note: 'product view() with the CPU slowed 4x via CDP; record only, not used for the judgement (ART-15); not comparable with product-redraw',
       },
     };
   } finally {
