@@ -8,6 +8,7 @@
 //! （`make check-deps`）ためである。定義の出所は `testdata/module-reuse-rounds/test-data/property-test.md`。
 //! 移動の出発側・S-1・完了状態の非混在は `Harness::step` が全試験で流し、M-2 は T1 から 2 周目に閉じた操作だけを流す
 //! 専用の 2 件（固定・誘導）が確かめる（`docs/testing.md` 5.334）。
+//! C-1（復帰が他の根の復習を変えない）と X3・X4・X7・X8 の検出は 5.338（TASK-244 2/2）。
 //! 未実装の部品で入力だけでは進めない箇所は、誘導が `GoTo` で飛ばす（`docs/testing.md` 5.333）。
 
 mod common;
@@ -120,6 +121,9 @@ fn round_generation_reaches_both_rounds() {
         "s5_restores_with_foreign_slice_diff",
         "s5_call_step_restores",
         "s6_stops_checked",
+        "c1_restores_checked",
+        "c1_restores_with_foreign_review_diff",
+        "moves_source_with_flags",
     ] {
         assert!(all.get(k) > 0, "{k} is 0: not covered");
     }

@@ -1,0 +1,8 @@
+id: MOD11-6
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/hint_open.rs
+find:     state.hints_opened.insert(current.clone(), next);
+replace:     state.hints_opened.insert(StepUid(current.0.rsplit('/').next().unwrap_or_default().to_owned()), next);
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X4 相当。ヒントの使用回数の鍵から実体の ID を除く（書き込み側のみ。読み取りは完全な ID のままの非対称がある）

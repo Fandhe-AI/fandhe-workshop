@@ -1,0 +1,8 @@
+id: MOD11-7
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/projection.rs
+find:         let restored = rebuild(saved.map(|s| s.review.as_slice()));
+replace:         let restored = saved.map(|s| s.review.clone()).unwrap_or_default(); let _ = &rebuild;
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X7 相当。復帰で復習を全体作り直す（根で絞らない）

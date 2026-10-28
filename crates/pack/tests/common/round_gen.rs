@@ -8,6 +8,7 @@
 //! 検査は性質ごとの関数に分け、[`Harness::step`] が毎操作の後に流す。1/2 は M-1（[`check_m1`]）、2/2（TASK-243。#770）は
 //! 1 周目の不変（M-2。[`check_m2`]。[`Mode::Round2Closed`] のときだけ）・移動の出発側の不変（[`check_move_source`]）・
 //! 古い進行の無視（S-1。[`Harness::check_stale_tick`]）・同じモジュールの完了状態の非混在（[`check_completion_separation`]）を足した。
+//! TASK-244 2/2 は C-1（[`check_c1`]。復帰が持ち主以外の根の復習を変えない）を足した。
 //! 下書き・送信の本文は利用者の入力に当たるため、[`OpSpec`] と [`ROp`] の `Debug` は値を出さず、表の添字と種類だけを出す。
 //!
 //! 未実装の部品（着地の `on_enter`、`when` つき `next`、`wait` の処理中の開始。`docs/testing.md` 5.258・5.260）で入力だけでは
@@ -27,10 +28,11 @@ use fandhe_workshop_core::addr::{Root, Stamp, StepUid, TickAddr};
 use fandhe_workshop_core::event::{Event, RefuseReason};
 use fandhe_workshop_core::input::{CheckpointId, Control, Decision, Input, Op};
 use fandhe_workshop_core::instance::{instance_roots, owner_of, root_of, status_of, steps_of};
+use fandhe_workshop_core::projection::ReviewItem;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::world::Element;
-use fandhe_workshop_core::{load_ir, Session, SessionState};
+use fandhe_workshop_core::{load_ir, Projection, Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
 use proptest::prelude::*;
 
@@ -652,7 +654,7 @@ pub fn check_move_source(
     before: &SessionState,
     after: &SessionState,
     events: &[Event],
-) -> Result<Option<bool>, (Root, &'static str)> {
+) -> Result<Option<(bool, bool)>, (Root, &'static str)> {
     let Some(cur) = &before.run.current else {
         return Ok(None);
     };
@@ -676,16 +678,67 @@ pub fn check_move_source(
     }
     let mut src = BTreeSet::new();
     add_uid(&mut src, ir, cur);
+    let mut with_flags = false;
     for r in src.iter().filter(|r| !land.contains(*r)) {
         if let Some(part) = diff_part(&view(ir, before, r), &view(ir, after, r)) {
             return Err((r.clone(), part));
+        }
+        if before
+            .run
+            .slices
+            .get(r)
+            .is_some_and(|s| !s.flags.is_empty())
+        {
+            with_flags = true;
         }
     }
     let (a, b) = (
         f.round_of_step(cur),
         after.run.current.as_ref().map_or(0, |u| f.round_of_step(u)),
     );
-    Ok(Some(a != 0 && b != 0 && a != b))
+    Ok(Some((a != 0 && b != 0 && a != b, with_flags)))
+}
+
+/// C-1: 復帰の後の復習は、持ち主の根以外の項目を復帰の前のまま残す（EVT-14。根は `Projection` と同じ `root_of`）。
+/// 復帰の持ち主は `Restored.owner` で、`owner_of` ではなく `root_of` で根を決める。さらに増分で導いた復習が
+/// ログ全体からの一括の導出と一致することも確かめる。返すのは（検査した復帰の数, 保存の時点の復習の他の根の項目が
+/// 復帰の前と違っていた復帰の数）。持ち主の根の項目の一致は、処理中の控えや上限の戻しで正当にずれうるため比べない
+/// （限界。`docs/testing.md` 5.338）。理由には根・件数だけを出し、本文は出さない。
+pub fn check_c1(
+    before: &Projection,
+    after: &Projection,
+    state: &SessionState,
+    events: &[Event],
+) -> Result<(u64, u64), String> {
+    let Some(Event::Restored { log_len, owner, .. }) =
+        events.iter().find(|e| matches!(e, Event::Restored { .. }))
+    else {
+        return Ok((0, 0));
+    };
+    let own = root_of(owner);
+    let foreign = |items: &[ReviewItem]| -> Vec<ReviewItem> {
+        items
+            .iter()
+            .filter(|r| root_of(&r.step) != own)
+            .cloned()
+            .collect()
+    };
+    let (b, a) = (foreign(before.review()), foreign(after.review()));
+    if a != b {
+        return Err(format!(
+            "restore changed review of roots other than {own:?} ({} items before, {} after)",
+            b.len(),
+            a.len()
+        ));
+    }
+    if after.review() != Projection::from_events(&state.log).review() {
+        return Err("incremental review differs from the full derivation".to_owned());
+    }
+    let saved_end = usize::try_from(*log_len)
+        .unwrap_or(usize::MAX)
+        .min(state.log.len());
+    let saved = Projection::from_events(&state.log[..saved_end]);
+    Ok((1, u64::from(foreign(saved.review()) != b)))
 }
 
 /// 完了状態の非混在: 操作が `Achieved`・`Skipped`・`Accepted`・`Entered` を起こした Step について、同じモジュールの
@@ -994,6 +1047,7 @@ pub struct Harness {
     saw: [bool; 3],
     m2_reached: bool,
     m2_completed: bool,
+    proj: Projection,
 }
 
 impl Harness {
@@ -1020,7 +1074,9 @@ impl Harness {
             ops: Vec::new(),
             stats: Stats::default(),
             saw: [false; 3],
+            proj: Projection::new(),
         };
+        h.proj.extend(&h.rs.session().state().log);
         h.note_position();
         h
     }
@@ -1284,6 +1340,7 @@ impl Harness {
             self.last_tick = Some(a.clone());
         }
         let before = self.state().clone();
+        let proj_before = self.proj.clone();
         let events: Vec<Event> = match &op {
             ROp::Engine(o) => self.rs.apply(o.clone()).to_vec(),
             ROp::Draft(t) => {
@@ -1293,6 +1350,7 @@ impl Harness {
             ROp::Submit(t) => self.rs.submit(PREFIX, t.clone()).to_vec(),
         };
         let after = self.state().clone();
+        self.proj.extend(&after.log);
         self.ops.push(op.clone());
         let targets = target_roots(&self.f.ir, &before, &after, &op, &events);
         self.count(&before, &after, &op, &events, &targets);
@@ -1305,8 +1363,11 @@ impl Harness {
             )
         })?;
         match check_move_source(self.f, &before, &after, &events) {
-            Ok(Some(cross)) => {
+            Ok(Some((cross, with_flags))) => {
                 self.stats.add("moves_source_checked", 1);
+                if with_flags {
+                    self.stats.add("moves_source_with_flags", 1);
+                }
                 if cross {
                     self.stats.add("moves_cross_round", 1);
                 }
@@ -1334,6 +1395,11 @@ impl Harness {
         self.stats
             .add("s5_restores_with_foreign_slice_diff", c.foreign_slice_diff);
         self.stats.add("s5_call_step_restores", c.call_step_diff);
+        let (c1_checked, c1_foreign) = check_c1(&proj_before, &self.proj, &after, &events)
+            .map_err(|m| format!("{}: {m}", label("C-1 violated")))?;
+        self.stats.add("c1_restores_checked", c1_checked);
+        self.stats
+            .add("c1_restores_with_foreign_review_diff", c1_foreign);
         let n = check_s6(&self.f.ir, &before, &after, &events)
             .map_err(|m| format!("{}: {m}", label("S-6 violated")))?;
         self.stats.add("s6_stops_checked", n);
