@@ -9989,3 +9989,19 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - `unmerge_change` の側: `Stopped` を含まないイベント列の試験 `evt13_stop_cause_change_unmerges_merged_change` を足し、定義 EVT12-16 で固定した
 - 結果（2026-10-28、元は origin/main 367bd68c に本変更を足した作業ツリー）: `scripts/check-mutations.sh` で EVT11-8・EVT12-15・EVT12-16・MOD10-1・MOD11-8 の 5 件がすべて DETECTED（終了コード 0）。各定義の失敗した試験は期待の試験を含む
 - 範囲外: `Cause::Stop => self.unmerge_change(...)` が `apply` のログの上で冗長かどうかの判断（消すと保存から読んだログの導出が変わる）。`begin.rs` の `state.entry = None;` も `move_to` の前にあり、同じ二重の可能性がある（未検証）
+
+### 5.356 WASM の gzip の大きさの DLV-4 の記録（TASK-107 2/2。DLV-4）
+
+- 目的: DLV-4（配信する設定・`wasm-opt` 適用で `gzip -9` した WASM が 1,048,576 bytes 以下）を、基点（commit・ビルド設定）つきの記録で残す。CI の関門（`scripts/check-wasm-size.sh`。TASK-78 2/2）は変えず、CI にガードを足していない
+- 変更: `scripts/check-wasm-size.sh` に `--require-wasm-opt` を足した。`baseline.wasm_opt.applied` が真偽値の `true` でない結果は判定不能（終了コード 2）で断る。判定を厳しくする側にしか働かず、環境変数では有効にできず、上限の定数も変えない。CI は従来どおり `SKIP_WASM_OPT=1`（未適用）で判定する。`make test-check-wasm-size` に 6 件足し、30 件が合格した（適用済みで 0・未適用で 2・`wasm_opt` の欠落で 2・文字列 `"true"` で 2・フラグなしで 0・フラグつきでも 1 byte 超過で 1）
+- 元にしたコミット: 6bb0f490（作業ツリーは clean。`dirty: false`）。この記録の文書の変更は別のコミット
+- 記録（2026-10-28。配信する設定・release・機能の追加なし。rustc 1.98.1・wasm-bindgen 0.2.128・`wasm-opt version 116`・gzip 1.14）:
+
+| 測定 | コマンド | `wasm-opt` | raw | `gzip -9` | 判定 |
+|---|---|---|---|---|---|
+| 1（DLV-4 本体） | `scripts/check-wasm-size.sh --require-wasm-opt` | 適用 | 1,112,966 | 410,546 | pass（上限 1,048,576） |
+| 2（CI と同じ基点） | `SKIP_WASM_OPT=1 make check-wasm-size` | 未適用 | 2,324,912 | 483,265 | pass |
+
+- 手での負の対照: `SKIP_WASM_OPT=1 scripts/check-wasm-size.sh --require-wasm-opt` は終了コード 2 で断られた
+- 限界: CI は未適用の値で判定する（binaryen を CI に入れない判断は TASK-101 2/2・TASK-78 2/2 のまま）。`wasm-opt` 適用の判定は手元での実行で、CI には入れていない。5.157 の記録（`dirty: true` の作業ツリーでの値）は書き換えていない
+- 範囲外: CI への binaryen の導入と適用後の値での CI の判定、初回公開の前の測り直し（DLV-27・TASK-126）。spec の人間の承認点（CI のガードの採否）は本変更では承認を得ていない

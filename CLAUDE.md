@@ -105,7 +105,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル。(2) の件数の照合は CI の rust-test・browser-test が、(3) の WASM の gzip +10% の判定は browser-test の wasm-gzip が行う） |
 | `make test-check-frontend-bump` | 上の関門自体の回帰テスト（模擬の版上げ） |
-| `make check-wasm-size` | 配信する設定の WASM の `gzip -9` が 1 MB（1,048,576 bytes）以下であることの関門（TASK-78 2/2。CI の `browser-test` が `SKIP_WASM_OPT=1` で流す。基点つきの値をログに残す。遅い） |
+| `make check-wasm-size` | 配信する設定の WASM の `gzip -9` が 1 MB（1,048,576 bytes）以下であることの関門（TASK-78 2/2。CI の `browser-test` が `SKIP_WASM_OPT=1` で流す。基点つきの値をログに残す。DLV-4 の `wasm-opt` 適用後の判定は `scripts/check-wasm-size.sh --require-wasm-opt` を手元で直接実行。TASK-107 2/2。遅い） |
 | `make test-check-wasm-size` | 上の関門自体の回帰テスト（ビルドなし） |
 | `make update-test-counts` | 試験の件数の期待値（`scripts/expected-test-counts.txt`）を実測で書き直す（遅い。ブラウザ試験も流す） |
 | `make build-l2` | L2 の配布物（zip）を作る（`tools/build-l2.mjs`。`L2_SERVER` に miniserve が要る。固定値は `tools/l2/miniserve.sha256`） |
