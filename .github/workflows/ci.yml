@@ -260,6 +260,14 @@ jobs:
           make check-deps
           make test-check-deps
 
+      # ライセンス表記の機械検査（LIC-1・TASK-129）。既存ジョブへの step 追加のため、ジョブの集合・名前・
+      # ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-license
+        run: |
+          set -euo pipefail
+          make check-license
+          make test-check-license
+
       # CI の関門（DOM 読み取りの例外件数の固定。仕様上の人間の承認点）。既存ジョブへの step 追加のため、
       # ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
       - name: make check-dom-reads

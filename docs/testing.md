@@ -10053,3 +10053,12 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 限界: 教材は試験データ（`ch0_3`）で本物の CH-0〜CH-1 ではない。保存先は localStorage の範囲で、IndexedDB の分離は確かめない。Chromium・Linux の miniserve だけで、`localhost` の名前解決はブラウザの内部の解決に依る
 - spec への差分の案（本変更では spec を編集しない。承認は得ていない）: DLV-16 の「L2 の 2 案」を repo の L2 の形の 2 か所への読み替えとすること、証拠の種類をエンジン repo の試験とすること
 - 範囲外: 実機（macOS・Apple シリコン。TASK-118・119）、GitHub Pages の `github.io` のオリジン共有、案内文の「`localhost` と `127.0.0.1` を混ぜない」（DLV-17。TASK-117）。5.354 の番号の重複（既存）は直さない
+
+### 5.363 エンジン repo のライセンス表記の機械検査（TASK-129。LIC-1・D-6）
+
+全 crate の `license` が `MIT OR Apache-2.0` に完全一致し、`license-file` を使わず、直下に `LICENSE-MIT`・`LICENSE-APACHE` が通常のファイルとして在って空でなく取り違えていないことを、`scripts/check-license.sh`（`make check-license`）が `cargo metadata --no-deps --offline` と固定文字列の目印で検査する。CI は `rust-lint` ジョブの step として流す（ジョブは増やしていない）。
+
+- 回帰テスト `scripts/test-check-license.sh`（`make test-check-license`）は 16 件。実物と改変なしの写しが通ること、workspace の `license` の変更・大文字小文字の変更・crate での上書き・`license` の削除・`license-file` の使用、本文の欠落・空・取り違え、戻すと通ること、偽の `cargo` の失敗と member 0 件が 2（合格にしない）、未知の引数が 2。置換が効かなかったケースは not ok にする
+- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 16 件が合格
+- 限界: 本文の完全一致は保証しない（目印だけ）。`package.json` の `license` は crate ではないため範囲外。Apache-2.0 の付録の `[yyyy]` の欄は標準の文面のままで、本変更では直さない
+- 範囲外: 雛形のライセンス表記（TASK-130）、`THIRD-PARTY-LICENSES`（TASK-136）、依存のライセンスの同梱、画面からライセンスへの到達（LIC-11）
