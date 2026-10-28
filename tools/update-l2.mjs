@@ -66,6 +66,13 @@ function listEntries(zip) {
   for (const need of [`${TOP}/start.sh`, `${TOP}/miniserve`, `${TOP}/site/`]) {
     if (!seen.has(need)) throw new L2Error(`zip lacks the required entry: ${need}`);
   }
+  // 名前の存在だけでなく種類と権限も確かめる（0644 の旧 zip は受講者の ./start.sh や miniserve 起動が Permission denied になる）。
+  for (const exe of [`${TOP}/start.sh`, `${TOP}/miniserve`]) {
+    const e = entries.find((x) => x.name === exe);
+    if (!e || e.dir || e.mode !== 0o755) throw new L2Error(`required entry must be an executable regular file (mode 755): ${exe}`);
+  }
+  const site = entries.find((x) => x.name === `${TOP}/site/`);
+  if (!site || !site.dir) throw new L2Error(`required entry must be a directory: ${TOP}/site/`);
   return entries;
 }
 

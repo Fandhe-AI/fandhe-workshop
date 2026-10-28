@@ -233,6 +233,17 @@ describe('fail-closed', () => {
     });
   }
 
+  const swap = (name, over) => GOOD().map((e) => (e.name === `${TOP}/${name}` ? { ...e, ...over } : e));
+  test('旧 zip が不正: start.sh が 0644', () => {
+    expectFail(synth(swap('start.sh', { mode: 0o644 })), makeSite(), /executable regular file/);
+  });
+  test('旧 zip が不正: miniserve が 0644', () => {
+    expectFail(synth(swap('miniserve', { mode: 0o644 })), makeSite(), /executable regular file/);
+  });
+  test('旧 zip が不正: start.sh がディレクトリ', () => {
+    expectFail(synth(swap('start.sh', { dir: true, data: undefined })), makeSite(), /executable regular file|required entry/);
+  });
+
   test('旧 zip が不正: 壊れた zip（途中で切ったもの）', () => {
     const a = build(makeSite()).zip;
     const cut = path.join(mk('cut'), 'cut.zip');
