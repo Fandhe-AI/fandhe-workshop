@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 13;
+pub const CLI_CONTRACT_VERSION: u32 = 14;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -263,6 +263,16 @@ pub fn test_summary_lines(
         format!("誤入力: {ei_passed}/{ei_total} が期待どおりの結果"),
         format!("入力の総数: {inputs}"),
     ]
+}
+
+/// `test` の R-22 の行（受付と達成の分離。TASK-405 1/2、AUTHOR-5）。整数だけを埋め込む。
+pub fn test_r22_line(confirmed: usize, explicit_skip: usize, unconfirmed: usize) -> String {
+    format!("R-22 受付と達成の分離: 確認の操作で達成になった {confirmed} 件、確認を省くと明示した Step の達成 {explicit_skip} 件、確認なしで達成になった {unconfirmed} 件")
+}
+
+/// `test` の R-21 の行（返した文面の「次の行動」。TASK-405 1/2、AUTHOR-5）。整数だけを埋め込む。
+pub fn test_r21_line(texts: usize, empty: usize) -> String {
+    format!("R-21 返した文面 {texts} 件のうち「次の行動」が空 {empty} 件")
 }
 
 /// `compare` の一致の行。

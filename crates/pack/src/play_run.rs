@@ -16,8 +16,14 @@
 //! 同じ判定で流した上で [`Report::input_class`] に持つ。1 件でもあれば [`Report::all_passed`] は偽になる（TASK-406 2/2）。
 //! 画面の表示（ビューの行・本文・外観・入力欄が隠れること・見た目）と停止（Esc）は確かめない（`docs/cli.md` 12.1）。
 //!
+//! R-22・R-21 の数（TASK-405 1/2、AUTHOR-5）は [`Tally`] に操作ごとに足す。達成はイベントの `Achieved` から区分し
+//! （確認の操作・省くと明示した Step・確認なし）、返した文面は `Judged` から数える。差し込みの後に「次の行動」が空になる
+//! 入力は core が `Judged` を置かず `Warning` に倒すため、イベントだけでは数えられない。そこで `Op::Input` の前に
+//! `judge::judge_input` を同じ評価器（`accept::on_input` と同じ `NoConditions`）で 1 回呼んで検出する。core が評価器を
+//! 変えるときは本モジュールも同じ変更で追従する。
+//!
 //! 扱わないこと
-//! - R-22・R-21・入った実体の集計と最終行（TASK-405）。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
+//! - 入った実体の集計と最終行（TASK-405 2/2 以降）。開始点の切り替え（`Control::Begin`）の拒否は文面を持たず、R-21 の数に入れない。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
 //! - 空白だけの `cmd:`・`text:` を送らないこと（画面は送らないが、ここは分けた結果をそのまま適用する。既知の差）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!
@@ -25,13 +31,16 @@
 
 use std::path::Path;
 
+use fandhe_workshop_contract::confirm_spec::{achievement, Achievement, ConfirmKind};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::judgment::{Judgment, RejectCategory};
 use fandhe_workshop_contract::profile::read_profile;
 use fandhe_workshop_core::addr::{StepUid, TickAddr};
+use fandhe_workshop_core::effect::NoConditions;
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_replay::submit_input;
 use fandhe_workshop_core::input::{Control, Decision, Input, Op};
+use fandhe_workshop_core::judge::{judge_input, JudgeError};
 use fandhe_workshop_core::Session;
 
 use crate::cli_contract::PackSummary;
@@ -135,6 +144,33 @@ pub enum Failure {
     },
 }
 
+/// R-22（受付と達成の分離）・R-21（返した文面の「次の行動」）の数（TASK-405 1/2、AUTHOR-5）。
+///
+/// 数えるのは差し込みの後の値である。`unconfirmed`・`empty_next` は 0 であるべき数で、0 でなければ試験の診断になる。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Tally {
+    /// 確認の操作で達成になった件数。
+    pub confirmed: usize,
+    /// 確認を省くと明示した Step（`confirm: none`）の達成の件数。
+    pub explicit_skip: usize,
+    /// 確認なしで達成になった件数（0 であるべき）。
+    pub unconfirmed: usize,
+    /// 返した文面（拒否・問い返し・自然文の受付の注記）の件数。次の行動が空の件数を含む。
+    pub texts: usize,
+    /// そのうち「次の行動」が空の件数（0 であるべき）。
+    pub empty_next: usize,
+}
+
+impl Tally {
+    fn add(&mut self, o: Tally) {
+        self.confirmed += o.confirmed;
+        self.explicit_skip += o.explicit_skip;
+        self.unconfirmed += o.unconfirmed;
+        self.texts += o.texts;
+        self.empty_next += o.empty_next;
+    }
+}
+
 /// 1 件（模範解答または誤入力）の結果。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaseResult {
@@ -146,6 +182,8 @@ pub struct CaseResult {
     pub failure: Option<Failure>,
     /// 誤入力の本番の入力の観測値（模範解答は `None`）。
     pub observed: Option<Observed>,
+    /// 流した操作の R-22・R-21 の数。途中で外れた件も、外れるまでの分を持つ。
+    pub tally: Tally,
 }
 
 impl CaseResult {
@@ -218,7 +256,16 @@ impl Report {
         self.error_inputs.iter().filter(|c| c.passed()).count()
     }
 
-    /// 試験の診断を、入力の分け（流す前に静的に決まる）、模範解答、誤入力の記載の順で返す（TASK-404 3/3・TASK-406 2/2）。
+    /// 全件の R-22・R-21 の数の和。
+    pub fn tally(&self) -> Tally {
+        let mut t = Tally::default();
+        for c in self.playthroughs.iter().chain(&self.error_inputs) {
+            t.add(c.tally);
+        }
+        t
+    }
+
+    /// 試験の診断を、入力の分け（流す前に静的に決まる）、模範解答、誤入力、R-22、R-21 の記載の順で返す（TASK-404 3/3・TASK-406 2/2・TASK-405 1/2）。
     ///
     /// メッセージは英語の固定文と固定語彙だけで、教材データの値は写さない。
     pub fn diagnostics(&self) -> Vec<Diagnostic> {
@@ -253,12 +300,42 @@ impl Report {
                 "error input result differs from expected",
             )
         });
+        let cases = || {
+            self.playthroughs
+                .iter()
+                .map(|c| ("playthrough", c))
+                .chain(self.error_inputs.iter().map(|c| ("error_input", c)))
+        };
+        let r22 = cases()
+            .filter(|(_, c)| c.tally.unconfirmed > 0)
+            .filter_map(|(k, c)| {
+                Diagnostic::new(
+                    file,
+                    format!("{k}:{}", c.id),
+                    DiagCode::NoConfirm,
+                    "step was achieved without a confirm operation (R-22)",
+                )
+                .ok()
+            });
+        let r21 = cases()
+            .filter(|(_, c)| c.tally.empty_next > 0)
+            .filter_map(|(k, c)| {
+                Diagnostic::new(
+                    file,
+                    format!("{k}:{}", c.id),
+                    DiagCode::EmptyNextAction,
+                    "next action was empty after filling (R-21)",
+                )
+                .ok()
+            });
         self.input_class
             .iter()
             .cloned()
             .chain(pts)
             .chain(eis)
-            .collect()
+            .chain(r22)
+            .chain(r21)
+            .collect::<Vec<_>>()
     }
 
     /// 全件が合格で、判定していない定義と入力の分けの診断が無く、1 件以上流したとき真。
@@ -268,6 +345,8 @@ impl Report {
             && self.input_class.is_empty()
             && self.playthroughs.iter().all(CaseResult::passed)
             && self.error_inputs.iter().all(CaseResult::passed)
+            && self.tally().unconfirmed == 0
+            && self.tally().empty_next == 0
     }
 
     /// 流した入力の総数。
@@ -441,15 +520,94 @@ fn observe(events: &[Event]) -> Observed {
     Observed::NoJudgment
 }
 
-fn step_once(session: &mut Session, prefix: Option<&str>, op: &PlayOp) -> Observed {
+/// 達成のイベントを R-22 の 3 区分に分ける（確認の操作・省くと明示した Step・確認なし）。
+///
+/// 返す順は (confirmed, explicit_skip, unconfirmed)。Step の節点が見つからない・`confirm.kind` が読めない達成は
+/// 確認なしに数える（fail-closed）。core の `Achieved.explicit_skip` は常に偽で使えないため、`confirm` の宣言から決める。
+fn tally_achievements(ir: &Ir, events: &[Event]) -> (usize, usize, usize) {
+    let (mut c, mut e, mut u) = (0, 0, 0);
+    for ev in events {
+        let Event::Achieved { at, .. } = ev else {
+            continue;
+        };
+        let confirmed = events.iter().any(|j| {
+            matches!(j, Event::Judged { judgment: Judgment::Confirmed, at: a } if a.step == at.step)
+        });
+        if confirmed {
+            c += 1;
+            continue;
+        }
+        let skip = ir
+            .nodes
+            .iter()
+            .find(|n| n.uid == at.step.0)
+            .and_then(|n| n.step.confirm.as_ref())
+            .and_then(|d| d.get("kind"))
+            .and_then(|k| k.as_str())
+            .and_then(ConfirmKind::from_str_opt)
+            .is_some_and(|k| achievement(Some(k)) == Achievement::OnAccept);
+        if skip {
+            e += 1;
+        } else {
+            u += 1;
+        }
+    }
+    (c, e, u)
+}
+
+/// 返した文面の件数（拒否・問い返し・自然文の受付の注記）。次の行動は差し込み済みで型が空でないことを保つ。
+fn count_texts(events: &[Event]) -> usize {
+    events
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                Event::Judged {
+                    judgment: Judgment::Rejected(_)
+                        | Judgment::Clarified(_)
+                        | Judgment::Accepted(Some(_)),
+                    ..
+                }
+            )
+        })
+        .count()
+}
+
+fn step_once(
+    ir: &Ir,
+    session: &mut Session,
+    prefix: Option<&str>,
+    op: &PlayOp,
+    tally: &mut Tally,
+) -> Observed {
     let Some(op) = to_op(session, prefix, op) else {
         return Observed::NoJudgment;
     };
-    observe(session.apply(op))
+    // 次の行動が空になる入力は core が `Judged` を置かず `Warning` に倒す。事前に同じ判定で検出する。
+    let empty_next = match &op {
+        Op::Input(input) => matches!(
+            judge_input(ir, &session.state().run, input, &NoConditions),
+            Err(JudgeError::EmptyNextAction)
+        ),
+        _ => false,
+    };
+    let events = session.apply(op);
+    let (c, e, u) = tally_achievements(ir, events);
+    tally.confirmed += c;
+    tally.explicit_skip += e;
+    tally.unconfirmed += u;
+    tally.texts += count_texts(events);
+    if empty_next && !events.iter().any(|e| matches!(e, Event::Judged { .. })) {
+        tally.texts += 1;
+        tally.empty_next += 1;
+    }
+    observe(events)
 }
 
 /// 入力列を流し、最初に外れた位置を返す。`segment` は 1 始まり（0 は誤入力の `pre`）。
 fn run_steps(
+    ir: &Ir,
+    tally: &mut Tally,
     session: &mut Session,
     prefix: Option<&str>,
     steps: &[ScriptStep],
@@ -458,7 +616,7 @@ fn run_steps(
 ) -> Option<Failure> {
     for (n, s) in steps.iter().enumerate() {
         *count += 1;
-        let observed = step_once(session, prefix, &s.op);
+        let observed = step_once(ir, session, prefix, &s.op, tally);
         if !observed.matches_expect(&s.expect) {
             return Some(Failure::Mismatch {
                 segment,
@@ -503,12 +661,14 @@ fn end_reached(session: &Session, p: &Playthrough) -> bool {
 
 fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult {
     let mut inputs = 0;
+    let mut tally = Tally::default();
     let mut session: Option<Session> = None;
-    let result = |inputs, failure| CaseResult {
+    let result = |inputs, failure, tally| CaseResult {
         id: p.id.clone(),
         inputs,
         failure,
         observed: None,
+        tally,
     };
     for (n, seg) in p.segments.iter().enumerate() {
         let begin_failed = Failure::Mismatch {
@@ -522,17 +682,25 @@ fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult
                 // 2 つ目以降の開始点は、状態を引き継いだまま重ねる。
                 let events = s.apply(Op::Control(Control::Begin(seg.start.clone())));
                 if events.iter().any(|e| matches!(e, Event::Refused { .. })) {
-                    return result(inputs, Some(begin_failed));
+                    return result(inputs, Some(begin_failed), tally);
                 }
                 s
             }
             None => match open(ir, &seg.start) {
                 Some(s) => session.insert(s),
-                None => return result(inputs, Some(begin_failed)),
+                None => return result(inputs, Some(begin_failed), tally),
             },
         };
-        if let Some(f) = run_steps(current, prefix, &seg.steps, n + 1, &mut inputs) {
-            return result(inputs, Some(f));
+        if let Some(f) = run_steps(
+            ir,
+            &mut tally,
+            current,
+            prefix,
+            &seg.steps,
+            n + 1,
+            &mut inputs,
+        ) {
+            return result(inputs, Some(f), tally);
         }
     }
     let ok = session.as_ref().is_some_and(|s| end_reached(s, p));
@@ -541,15 +709,17 @@ fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult
         (!ok).then_some(Failure::EndNotReached {
             complete: matches!(p.end, End::Complete),
         }),
+        tally,
     )
 }
 
 fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult {
-    let fail = |inputs, failure, observed| CaseResult {
+    let fail = |inputs, failure, observed, tally| CaseResult {
         id: e.id.clone(),
         inputs,
         failure: Some(failure),
         observed,
+        tally,
     };
     let Some(mut session) = open(ir, &e.start) else {
         return fail(
@@ -561,20 +731,23 @@ fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult 
                 observed: Observed::UnknownStart,
             },
             Some(Observed::UnknownStart),
+            Tally::default(),
         );
     };
     let mut inputs = 0;
-    if let Some(f) = run_steps(&mut session, prefix, &e.pre, 0, &mut inputs) {
-        return fail(inputs, f, None);
+    let mut tally = Tally::default();
+    if let Some(f) = run_steps(ir, &mut tally, &mut session, prefix, &e.pre, 0, &mut inputs) {
+        return fail(inputs, f, None, tally);
     }
     inputs += 1;
-    let observed = step_once(&mut session, prefix, &e.input);
+    let observed = step_once(ir, &mut session, prefix, &e.input, &mut tally);
     if observed.matches_result(&e.expect) {
         CaseResult {
             id: e.id.clone(),
             inputs,
             failure: None,
             observed: Some(observed),
+            tally,
         }
     } else {
         fail(
@@ -586,6 +759,7 @@ fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult 
                 observed,
             },
             Some(observed),
+            tally,
         )
     }
 }
@@ -663,6 +837,7 @@ mod tests {
             inputs: 1,
             failure: None,
             observed: None,
+            tally: Tally::default(),
         });
         assert!(r.all_passed());
         r.unsupported.push(Unsupported::Asserts);
@@ -677,6 +852,7 @@ mod tests {
             inputs: 1,
             failure: None,
             observed: None,
+            tally: Tally::default(),
         });
         assert!(r.all_passed());
         r.input_class.push(
@@ -685,5 +861,71 @@ mod tests {
         );
         assert!(!r.all_passed());
         assert_eq!(r.diagnostics().len(), 1);
+    }
+
+    fn at(uid: &str) -> fandhe_workshop_core::addr::Stamp {
+        fandhe_workshop_core::addr::Stamp {
+            generation: fandhe_workshop_core::addr::Generation::INITIAL,
+            step: StepUid(uid.into()),
+        }
+    }
+
+    fn achieved(uid: &str) -> Event {
+        Event::Achieved {
+            at: at(uid),
+            explicit_skip: false,
+        }
+    }
+
+    #[test]
+    fn achievements_are_split_into_three_classes() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/min-3step-pack-b");
+        let bytes = crate::compile::compile_dir(&path).expect("compile");
+        let mut ir = fandhe_workshop_core::load_ir(&bytes).expect("load_ir");
+        let uid = ir.nodes[0].uid.clone();
+        let confirmed = Event::Judged {
+            at: at(&uid),
+            judgment: Judgment::Confirmed,
+        };
+        // 確認の操作の判定つき。
+        assert_eq!(
+            tally_achievements(&ir, &[confirmed, achieved(&uid)]),
+            (1, 0, 0)
+        );
+        // 判定なし: 宣言が none なら省くと明示した Step、それ以外と節点なしは確認なし（fail-closed）。
+        ir.nodes[0].step.confirm = Some(serde_json::json!({"kind": "none"}));
+        assert_eq!(tally_achievements(&ir, &[achieved(&uid)]), (0, 1, 0));
+        ir.nodes[0].step.confirm = Some(serde_json::json!({"kind": "point_at"}));
+        assert_eq!(tally_achievements(&ir, &[achieved(&uid)]), (0, 0, 1));
+        ir.nodes[0].step.confirm = Some(serde_json::json!({"kind": 1}));
+        assert_eq!(tally_achievements(&ir, &[achieved(&uid)]), (0, 0, 1));
+        assert_eq!(tally_achievements(&ir, &[achieved("no-such")]), (0, 0, 1));
+    }
+
+    #[test]
+    fn tally_failures_are_not_a_pass() {
+        let case = |tally| CaseResult {
+            id: "p".into(),
+            inputs: 1,
+            failure: None,
+            observed: None,
+            tally,
+        };
+        for t in [
+            Tally {
+                unconfirmed: 1,
+                ..Tally::default()
+            },
+            Tally {
+                empty_next: 1,
+                ..Tally::default()
+            },
+        ] {
+            let mut r = Report::default();
+            r.playthroughs.push(case(t));
+            assert!(!r.all_passed());
+            assert_eq!(r.diagnostics().len(), 1);
+        }
     }
 }

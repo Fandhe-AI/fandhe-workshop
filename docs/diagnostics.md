@@ -1,8 +1,8 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 19
-決定日: 2026-10-26
+診断コードの一覧の版: 20
+決定日: 2026-10-28
 状態: 固定（契約）
 ```
 
@@ -66,6 +66,8 @@
 | `E-LEFT-MULTI-VIEW` | `view_tabs: hidden` で 2 つ以上のビューを宣言した Step がある | PACK-22 | 語彙 v1.3 |
 | `E-LEFT-TARGET-VIEW` | 宛先のビューが、その Step の画面に出ない | PACK-22 | 語彙 v1.3 |
 | `E-LEFT-TARGET-ROW` | 宛先の経路が行にならない（静的な近似で、必要条件だけを調べる） | PACK-22 | 語彙 v1.3 |
+
+`E-NO-CONFIRM` と `E-EMPTY-NEXT-ACTION` は `fandhe-pack test` でも出る（TASK-405 1/2、AUTHOR-5）。`E-NO-CONFIRM` は、確認の操作なしで達成になった件（R-22）で、項目は `playthrough:<ID>`・`error_input:<ID>`。`E-EMPTY-NEXT-ACTION` は、差し込みの後の「次の行動」が空になった件（R-21）で、項目は同じ。行は書き換えず、件数は 36 件のまま。
 
 - `E-PROFILE-*`・`E-LEFT-*` は、`pack.profile`・`pack.left_pane` を既定から変えたときだけ検査される
 - `E-VOCAB-MISMATCH` の対象には、上の行の拡張点に加えて、番号を持たない `confirm.options[].label`（語彙 1.3。`answer` の選択肢の表示名）も含まれる（版 4。固定した行は書き換えず、本注で補う）。入力方式 `choice` の `options[].label`（語彙 v1）は別の欄で、対象ではない
@@ -170,6 +172,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 17 | 2026-10-24 | 作成者向けの早見表（8 節）を足した。2 節・4 節・5 節の行は書き換えず、件数は 34 件のまま | TASK-412・AUTHOR-12 |
 | 18 | 2026-10-26 | `E-SECRET-SHAPE` を足し、35 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。既存の行は変えていない | TASK-420 1/2・AUTHOR-18・D-81 |
 | 19 | 2026-10-26 | `E-FICTIONAL-MARK` を足し、36 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。固定した `E-SECRET-SHAPE` の行は書き換えていない（その行の「【架空】の印は調べない」は、そのコードについては今も正しい） | TASK-420 2/2・AUTHOR-18・D-81 |
+| 20 | 2026-10-28 | `E-NO-CONFIRM` が `test` でも、確認の操作なしで達成になった件（R-22）に出ることを、2 節の表の後の注で補った。`E-EMPTY-NEXT-ACTION` は固定の行のとおり。行は書き換えず、件数は 36 件のまま。新しいコードは足さず、流用は実装の側で決めた細目である | TASK-405 1/2・AUTHOR-5 |
 
 ## 8. 作成者向けの早見表
 

@@ -279,7 +279,7 @@ fn author4_pass_line_per_playthrough() {
         assert_eq!(r.code, Some(0), "{dir:?}: {}", r.out);
         assert_eq!(
             r.out,
-            "PASS pt-main（入力 2 件）\nPASS e01 \u{2192} rejected:bad_arg_shape\nPASS e02 \u{2192} rejected:bad_arg_shape\nPASS e03 \u{2192} rejected:missing_arg\n模範解答: 1/1 完走\n誤入力: 3/3 が期待どおりの結果\n入力の総数: 5\n"
+            "PASS pt-main（入力 2 件）\nPASS e01 \u{2192} rejected:bad_arg_shape\nPASS e02 \u{2192} rejected:bad_arg_shape\nPASS e03 \u{2192} rejected:missing_arg\n模範解答: 1/1 完走\n誤入力: 3/3 が期待どおりの結果\n入力の総数: 5\nR-22 受付と達成の分離: 確認の操作で達成になった 1 件、確認を省くと明示した Step の達成 0 件、確認なしで達成になった 0 件\nR-21 返した文面 3 件のうち「次の行動」が空 0 件\n"
         );
         assert!(r.err.is_empty());
     }
@@ -293,7 +293,7 @@ fn author4_pass_line_counts_ticks() {
     // cmd 1・tick 5・ui 1。誤入力 e-unknown は 1 件。
     assert_eq!(
         r.out,
-        "PASS pt-min（入力 7 件）\nPASS e-unknown \u{2192} rejected:unknown_command\n模範解答: 1/1 完走\n誤入力: 1/1 が期待どおりの結果\n入力の総数: 8\n"
+        "PASS pt-min（入力 7 件）\nPASS e-unknown \u{2192} rejected:unknown_command\n模範解答: 1/1 完走\n誤入力: 1/1 が期待どおりの結果\n入力の総数: 8\nR-22 受付と達成の分離: 確認の操作で達成になった 1 件、確認を省くと明示した Step の達成 0 件、確認なしで達成になった 0 件\nR-21 返した文面 1 件のうち「次の行動」が空 0 件\n"
     );
 }
 
@@ -326,7 +326,7 @@ fn author4_pass_line_order_follows_script() {
     assert_eq!(r.code, Some(0), "{}", r.out);
     assert_eq!(
         r.out,
-        "PASS pt-zeta（入力 7 件）\nPASS pt-alpha（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\n"
+        "PASS pt-zeta（入力 7 件）\nPASS pt-alpha（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\nR-22 受付と達成の分離: 確認の操作で達成になった 2 件、確認を省くと明示した Step の達成 0 件、確認なしで達成になった 0 件\nR-21 返した文面 0 件のうち「次の行動」が空 0 件\n"
     );
 }
 
@@ -337,7 +337,7 @@ fn author4_pass_line_does_not_echo_unsafe_id() {
     assert_eq!(r.code, Some(0), "{}", r.out);
     assert_eq!(
         r.out,
-        "PASS #1（入力 7 件）\nPASS pt-ok（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\n"
+        "PASS #1（入力 7 件）\nPASS pt-ok（入力 7 件）\n模範解答: 2/2 完走\n誤入力: 0/0 が期待どおりの結果\n入力の総数: 14\nR-22 受付と達成の分離: 確認の操作で達成になった 2 件、確認を省くと明示した Step の達成 0 件、確認なしで達成になった 0 件\nR-21 返した文面 0 件のうち「次の行動」が空 0 件\n"
     );
     assert!(!r.out.contains("SECRET"));
 }
@@ -405,7 +405,8 @@ fn author4_test_diagnostics_after_summary() {
             .iter()
             .position(|l| l.starts_with("入力の総数: "))
             .expect("summary");
-        let diags: Vec<&&str> = lines[sum + 1..].iter().collect();
+        // 集計の 3 行の後ろに R-22・R-21 の 2 行が続く（TASK-405 1/2）。
+        let diags: Vec<&&str> = lines[sum + 3..].iter().collect();
         assert_eq!(diags.len(), 1, "{}", r.out);
         assert!(diags[0].starts_with("tests/"), "{}", diags[0]);
         assert!(
