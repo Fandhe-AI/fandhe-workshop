@@ -5,7 +5,7 @@
 #
 # crates/pack/tests/history_size_rounds.rs を `--nocapture` で流し、`HISTORY-SIZE ` の行（ちょうど 1 行）を
 # lib.sh の measure_native_result_json で様式 fandhe-workshop/measure-native/v1 に包む。基点は commit・教材・操作列。
-# 大きさは端末に依らないため端末は入れない。5MB の判定・条件 B／C は TASK-336 の担当で、`make measure` の束には入れない。
+# 大きさは端末に依らないため端末は入れない。5MB の判定・条件 B／C は TASK-336 の `crates/pack/tests/history_size_conditions.rs`（別の試験バイナリ・別の接頭辞）が持ち、`make measure` の束には入れない。
 # 結果の JSON は標準出力に 1 つだけ、進行は標準エラーへ出す。出力は lib.sh の measure_emit_native だけが行う。
 #
 # 終了コード: 0 = 成功 / 1 = 試験・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用。

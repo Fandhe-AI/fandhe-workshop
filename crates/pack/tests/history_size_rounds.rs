@@ -5,7 +5,7 @@
 //! 件数・バイト数・割合を求める。`--nocapture` のとき `HISTORY-SIZE ` に続く 1 行の JSON を出し、
 //! `tools/measure/history-size.sh` がそれを基点つきの結果に包む。
 //!
-//! TASK-336（SAVE-26）との分担。5MB 以下の判定、条件 B／C、誤入力 3 割の合成はそちらが持つ。本試験は 5MB の
+//! TASK-336（SAVE-26）との分担。5MB 以下の判定、条件 B／C、誤入力 3 割の合成は `history_size_conditions.rs` が持つ。本試験は 5MB の
 //! 閾値を assert しない。計画（`common/rounds.rs` の `PlanStep` の列）に操作を差し込めば、本試験を変えずに条件を足せる。
 //! 未実装の部品のため `GoTo` で飛ばす場所があり（1 周目 3・2 周目 2）、`Changed` の件数は真の通しと違いうる。
 
