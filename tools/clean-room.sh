@@ -45,7 +45,7 @@ source "${DIR}/../scripts/lib.sh"
 readonly IMAGE_VERSION="1.98.1"
 readonly IMAGE_DIGEST="sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546"
 readonly IMAGE="docker.io/library/rust:${IMAGE_VERSION}@${IMAGE_DIGEST}"
-readonly ALLOWED_IGNORED="emit_histories_for_browser emit_round_handoff_for_browser"
+readonly ALLOWED_IGNORED=(emit_histories_for_browser emit_round_handoff_for_browser)
 readonly M="### clean-room:"
 
 usage() {
@@ -154,7 +154,7 @@ judge_run() {
     [ -n "${n}" ] || continue
     ok=0
     local a
-    for a in ${ALLOWED_IGNORED}; do
+    for a in "${ALLOWED_IGNORED[@]}"; do
       if [ "${n}" = "${a}" ]; then ok=1; fi
     done
     if [ "${ok}" = "0" ]; then
@@ -231,11 +231,11 @@ do_run() {
   require_cmd "${rt}" || exit 2
   require_cmd awk || exit 2
   require_cmd grep || exit 2
-  local sha_cmd
+  local -a sha_cmd
   if command -v sha256sum >/dev/null 2>&1; then
-    sha_cmd="sha256sum"
+    sha_cmd=(sha256sum)
   elif command -v shasum >/dev/null 2>&1; then
-    sha_cmd="shasum -a 256"
+    sha_cmd=(shasum -a 256)
   else
     echo "error: sha256sum or shasum is required" >&2
     exit 2
@@ -276,7 +276,7 @@ do_run() {
     exit 2
   }
   local tar_sha
-  tar_sha="$(${sha_cmd} "${out_dir}/source.tar" | awk '{ print $1 }')"
+  tar_sha="$("${sha_cmd[@]}" "${out_dir}/source.tar" | awk '{ print $1 }')"
   {
     echo "commit=${commit}"
     echo "tar_sha256=${tar_sha}"

@@ -9,6 +9,9 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "${DIR}/lib.sh"
+reject_args "$(basename "$0")" "$@"
+require_cmd mktemp
+require_cmd rm
 TOOL="${ROOT_DIR}/tools/clean-room.sh"
 M="### clean-room:"
 
