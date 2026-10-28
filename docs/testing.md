@@ -5507,6 +5507,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 `make test-chapter-key-control`（`scripts/test-chapter-key-control.sh`。遅く、CI・フック・`make check` には入れない）。`mktemp -d` の写しで `host.rs` の `history_key` の式を固定の鍵（`SAVE14-5` と同じ）に置き換え、`TEST_HOOKS=1` でビルドして上の試験を流す。作業ツリーは書き換えない。
 
 - 結果（2026-10-20）: 終了コード 0（対照が成立）。写しでは試験が `CHAPTER-HISTORY-MIXED` の印で失敗した。置き換えた鍵では章 A の履歴が章 B の起動で開かれ、章 B は新しい状態で始まらない（章 B の `bootKind`・現在の Step の観測値は記録していない）
+- 置換の元の文字列を現在のコードに合わせた後の再確認は 5.352 にある（#1863）
 - 試験の口が求める鍵（`storageKey`）は本番の `history_key` を通らないため、対照では画面が実際に書いた鍵を見て章 B の判定へ進めるようにしてある
 
 #### 件数・確認（2026-10-20）
@@ -9946,7 +9947,14 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
 - 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡
 
-### 5.352 変異の定義の静的検査を `make check` に入れる（#1864）
+### 5.352 鍵の対照の検査の置換元を現在のコードに合わせる（#1863）
+
+- 古くなった理由: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(scope, self.model.session()?.ir())`）が、鍵の組み立てを `history_key` の中の `HistoryKey::for_pack(scope, &ir.pack.id, recorded.start())` に変えた後の `crates/web/src/host.rs` に 0 回しか現れず、スクリプトが終了コード 2 で止まる状態だった（変異 SAVE14-5 が古くなったのと同じ理由。5.351 で SAVE14-5 は直した）
+- 直した内容: `FIND` を `Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))` にした。`host.rs` にちょうど 1 回現れ、SAVE14-5 の `find` と同じ文字列である。`REPLACE` は変えていない。冒頭コメントに、鍵の式を変えたら SAVE14-5 とこの `FIND` を合わせて直す旨を足した
+- 結果（2026-10-28）: `make test-chapter-key-control` は終了コード 0（所要およそ 24 秒。依存のビルドが `/tmp` の写しで済んだ後の値）。写しでは試験が `CHAPTER-HISTORY-MIXED` の理由で失敗し、`control established` が出た。`make check` も通った
+- 範囲外（既存の申し送りのまま）: 置換元の一意性を `make check` で常時検査する仕組みは無く、再発は防げない
+
+### 5.353 変異の定義の静的検査を `make check` に入れる（#1864）
 
 - 追加: `scripts/check-mutation-defs.sh`（`make check-mutation-defs`。`make check` から呼ばれる）と、その回帰テスト `scripts/test-check-mutation-defs.sh`（`make test-check-mutation-defs`。CI の `check` ジョブも流す）。定義の読み方・数え方は `scripts/lib-mutations.sh` に切り出し、`check-mutations.sh` と共有する
 - 2026-10-28、HEAD 03aba58a の上で、698 件・950 名前がすべて通る（所要およそ 5 秒、cargo なし）。回帰テストは 21 件が pass
