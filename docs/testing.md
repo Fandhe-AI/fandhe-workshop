@@ -9944,3 +9944,22 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 3 回を通じて、全定義が DETECTED を 1 回以上出した（SURVIVED は EVT11-6・AUTHOR8-3 の 2 件で、上のとおり直した後に AUTHOR8-3 は単独で DETECTED、EVT11-6 は削除）。直した後の定義の集合を 1 つの実行で通した記録ではない（分けた実行の後に、EVT11-6 の削除と AUTHOR8-3 の変更だけを足した）。そのため `make check-mutations` を 1 回で通した記録は無く、受け入れ条件の「全件で終了コード 0」は、分割の実行の合算で確かめたものである
   - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
 - 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡
+
+### 5.353 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
+
+`tools/clean-room.sh`（`make clean-room`）で、公開イメージの中に `git archive` の tar だけを渡し、`cargo test --locked`（既定の contract・core・pack）と `cargo test --locked --workspace`（web を含む）を流した。判定の回帰テストは `scripts/test-clean-room.sh`（`make test-clean-room`。docker なし。CI の `check` が流す）。期待は不変条件（どちらも cargo の終了コード 0・failed 0 件、無視は許容リストのみ）で、件数は下の記録に置く。
+
+- 実行日: 2026-10-28。対象: `03aba58a`（origin/main。tar の SHA-256 は `c807a6c2a5d5bf85688116ae999bba005d3cb659e5b21fff3402b367ad795bf9`）
+- イメージ: `rust:1.98.1`（manifest list の digest `sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`）。rustc は `1.98.1 (48a229cea 2026-09-01)`
+- ホスト: x86_64・CPU 10・メモリ 27 GiB・docker 29.8.1。全体の所要 592 秒
+- まっさらさの検査（`$HOME` に `.cargo`・`.ssh`・`.config` が無い・秘密らしい名前の環境変数が 0 件・`.git` と `docs/spec` の中身が無い）はすべて合格
+
+| 実行 | cargo の終了コード | `test result:` の行 | passed | failed | ignored | 秒 |
+|---|---|---|---|---|---|---|
+| `cargo test --locked` | 0 | 242 | 2416 | 0 | 1 | 264 |
+| `cargo test --locked --workspace` | 0 | 370 | 3777 | 0 | 2 | 311 |
+
+- 無視された試験は `emit_histories_for_browser`（既定・`--workspace`）と `emit_round_handoff_for_browser`（`--workspace` のみ）で、許容リストのとおり。どちらもブラウザ試験の入力を書き出す試験で、`scripts/test-browser.sh` だけが `--ignored` で呼ぶ
+- spec（PoC-11・BUILD-1・TASK-77）の許容 `measure_*`・`generate_histories` は試作の時点の名前で、本 repo に存在しない。`generate_histories` に当たるのが `emit_histories_for_browser` である。存在しない名前を許すと検査が空回りするため、許容リストは現物の 2 件の完全一致にした。spec 側の文言の更新は spec repo の課題である
+- PoC-11 は `rust:1.98` で既定 606 秒・`--workspace` 604 秒だった。本 repo は `rust-toolchain.toml` があるため、コンテナの中で rustup が components と target の取得を行う（公開の取得先だけ）
+- 確かめていないこと: arm64 での実行・CI の runner での実行・podman での実行・VM のメモリを 2 GiB 以下にした場合（BUILD-21）。`Cargo.lock` と workflow の棚卸し検査は #827（TASK-77 2/2）。`make clean-room` を CI の関門にするかは TASK-96 の承認点

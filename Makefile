@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -177,6 +177,12 @@ test-measure: ## 一括測定の様式検証と実行の回帰テスト（遅い
 
 test-measure-result: ## 測定の結果の組み立てが jq 1.7 の文法でも通ることを確かめる（速い・ビルドなし）。直接: scripts/test-measure-result.sh
 	@scripts/test-measure-result.sh
+
+clean-room: ## まっさらなコンテナ（公開イメージ・認証情報なし）で cargo test を既定と --workspace で流して判定する（遅い・docker と通信が要る。CI 未組み込み）。直接: tools/clean-room.sh
+	@tools/clean-room.sh
+
+test-clean-room: ## まっさらなコンテナの試験の判定自体の回帰テスト（docker なし。CI の check）。直接: scripts/test-clean-room.sh
+	@scripts/test-clean-room.sh
 
 inventory-deps: ## Cargo.lock の依存の取り下げ・所有者の数を crates.io で調べる（通信が要り数分かかる。CI 未組み込み）。直接: node tools/inventory-deps.mjs
 	@node tools/inventory-deps.mjs
