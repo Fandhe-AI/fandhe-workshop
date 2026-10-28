@@ -9944,3 +9944,14 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 3 回を通じて、全定義が DETECTED を 1 回以上出した（SURVIVED は EVT11-6・AUTHOR8-3 の 2 件で、上のとおり直した後に AUTHOR8-3 は単独で DETECTED、EVT11-6 は削除）。直した後の定義の集合を 1 つの実行で通した記録ではない（分けた実行の後に、EVT11-6 の削除と AUTHOR8-3 の変更だけを足した）。そのため `make check-mutations` を 1 回で通した記録は無く、受け入れ条件の「全件で終了コード 0」は、分割の実行の合算で確かめたものである
   - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
 - 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡
+
+### 5.352 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
+
+- 目的: 配信する設定の `.wasm` が `application/wasm`・gzip で届き、MIME に関するコンソールの警告が 0 件で、`WebAssembly.instantiateStreaming` が実際に使われて成功し、アプリがマウントされることを自動ブラウザで固定する。製品のコード・`tools/serve.mjs` は変えない。大きさ（DLV-4）は TASK-107 2/2
+- 試験: `tools/browser/wasm-mime.test.mjs`（`make test-browser` に登録。2 件）。`harness.mjs` に `installWasmProbe`・`readWasmProbe`・`mimeConsoleMessages` を追加し、`harness.test.mjs` に `mimeConsoleMessages` の単体の確認を足した
+- 動機: wasm-bindgen の glue は MIME 不一致で `instantiateStreaming` が失敗すると `console.warn` を出してバイト列の `instantiate` へ黙って倒れる。警告は error でなく画面も動くため、従来の `consoleErrors` の 0 件では退行を見逃す。探針（`WebAssembly.*` を包んで呼び出し・解決・拒否を数える）で使用を直接観察する
+- 確かめたこと: (1) `.wasm` の応答が 1 件・200・`application/wasm`・`gzip`、(2) MIME の警告 0 件、(3) `instantiateStreaming` が 1 回呼ばれ 1 回解決・拒否 0・バイト列へのフォールバック 0、(4) csp・ページ内エラー・consoleErrors・外部通信・失敗・HTTP エラーが 0 件、マウント
+- 対照: `.wasm` を `.bin`（`application/octet-stream`）に改名した配信物の写しでは、MIME の警告が 1 件以上・`instantiateStreaming` の拒否が 1 以上・バイト列の `instantiate` が 1 以上で、それでもマウントされる。glue の参照の置換が 1 件でなければ失敗する
+- 実行: 2026-10-28、origin/main 03aba58a を元に、配信する設定（`SKIP_WASM_OPT=1`）を Chromium 153 で `wasm-mime.test.mjs` 2 件と `harness.test.mjs` 15 件が合格
+- 限界: `make test-browser` の全体は流していない（未実施）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。`wasm-opt` を適用したビルドは未確認。配信先の実物の MIME は対象外
+- 範囲外: DLV-4（`gzip -9` の大きさ・基点つきの記録）は TASK-107 2/2、配信先（GitHub Pages）での MIME は DLV-24・DLV-25
