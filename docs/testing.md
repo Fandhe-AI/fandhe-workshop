@@ -224,12 +224,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 既存の例外は改名しない。足場の時期の `<英大文字 1 字><連番>`（`S1`・`M1` など）と、`JUDGE1-C1` のような英字つき枝番である
 - ID はファイル名なので、同じ crate の中では重ならない。crate をまたぐ重複は避ける。既存の `VER7-1`（contract と core）は、第 5 節の記録が参照するため改名しない
 - ファイル名と `id` の一致は、今は検査していない（2026-10-19 に全 425 件の一致を確かめた）
+- `find` の一意性（`check-mutations.sh` と同じ数え方）と `expect-fail` の名前の実在は、`make check` が静的に検査する（`scripts/check-mutation-defs.sh`。cargo 不要で約 5 秒。2026-10-28 時点で 698 件・950 名前が通る）。名前の照合は `fn <名前>(`・`mod <名前> {` の字句の照合で、`#[test]` の有無・mod の入れ子の位置は見ない近似である。元の状態で `ok` が出ることと SURVIVED は従来どおり動的な検査の担当
 
 ### 3.3 新しい変異を足す手順
 
 1. 壊したい 1 か所を決め、`find`（ちょうど 1 回現れる文字列）と `replace` を書く。ID は 3.2 節の規則で付け、ファイル名を ID と同じにする
 2. 失敗すべき試験の関数名を `expect-fail` に書く。名前を推測で書かず、元の状態で `ok` と出る名前を使う
-3. `make check-mutations` を流し、DETECTED になることを確かめる
+3. `make check` で静的検査（`find` の一意性・名前の実在）を通し、`make check-mutations` で DETECTED になることを確かめる
 4. 出力された記録の表を、第 5 節の該当の見出しへ貼る（手で作らない）
 
 ### 3.4 終了コードと対処
@@ -247,7 +248,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 - 所要時間: サンプル 2 件で約 6 秒（2026-10-12、依存を含む冷えた状態のビルド込み）。変異が増えるほど、変異ごとの再ビルドと試験の時間が足される
 - 依存のビルドの出力先（`CARGO_TARGET_DIR`）は一時ディレクトリに置き、同じ実行の全変異で共有する
-- git hooks と `make check` には入れない。重く、静的な検査だけという `make check` の契約に合わない
+- 動的な実行（`make check-mutations`）は git hooks と `make check` には入れない。重く、`make check` の契約に合わない。静的な検査（`make check-mutation-defs`）は `make check` に入る（3.2 節）
 - CI への組み込みは TASK-33 が扱う。TASK-83 3/3 は手元の手順と記録だけで、CI の関門にはしない（人の承認点が無い範囲）。スクリプト自体の回帰テストは `make test-check-mutations`
 
 ## 4. 記録の様式
@@ -9936,7 +9937,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 | AUTHOR8-3 | 書き出しの失敗の経路（`write_output` の末尾）が、ディレクトリの事前の拒否のために試験の入力で通らなくなり、置換しても SURVIVED になった | 呼び出し側 `run_compile` の `match write_output(...)` へ錨を移し、`Err` を `Ok` へ倒す形に |
 | SHELL10-3・SHELL10-4 | `expect-fail` の名前が試験の名前でなく、表明の文言だった | 実在する試験の名前へ |
 
-- 削除（2 件）: EVT11-6・EVT12-12。EVT11-6（移動で入口の写し `state.entry` を無効化しない）は、`go_to.rs` の `state.entry = None;` と、歩行器の `transit.rs` の `state.entry = None;`（I-1）が二重に無効化するため、`go_to.rs` の側を外しても `move_invalidates_entry_copy` は失敗しない（SURVIVED）。1 行の置換で両方は外せず、検出できる等価な定義が作れないため削除した。EVT12-12（停止で Step の項目の `changes.clear()` を外す）は、現在のコードでは、停止の項目の初期化（`reset_item`）と、停止の差分の打ち消し（`Cause::Stop` の `unmerge_change`）が同じ結果を二重に作るので、どちらか一方を外しても `evt14_restore_after_stop_brings_back_review` は失敗しない（2026-10-28 に作業ツリーの写しで、`reset_item` を空にした場合・`unmerge_change` の呼び出しを外した場合は成功し、両方外した場合だけ失敗することを確かめた）。1 行の置換では両方を同時に外せないため、検出できる等価な定義が作れず削除した。両方を要する性質は、試験の側で一方ずつを固定する別の作業に回す
+- 削除（2 件）: EVT11-6・EVT12-12。EVT11-6（移動で入口の写し `state.entry` を無効化しない）は、`go_to.rs` の `state.entry = None;` と、歩行器の `transit.rs` の `state.entry = None;`（I-1）が二重に無効化するため、`go_to.rs` の側を外しても `move_invalidates_entry_copy` は失敗しない（SURVIVED）。1 行の置換で両方は外せず、検出できる等価な定義が作れないため削除した。EVT12-12（停止で Step の項目の `changes.clear()` を外す）は、現在のコードでは、停止の項目の初期化（`reset_item`）と、停止の差分の打ち消し（`Cause::Stop` の `unmerge_change`）が同じ結果を二重に作るので、どちらか一方を外しても `evt14_restore_after_stop_brings_back_review` は失敗しない（2026-10-28 に作業ツリーの写しで、`reset_item` を空にした場合・`unmerge_change` の呼び出しを外した場合は成功し、両方外した場合だけ失敗することを確かめた）。1 行の置換では両方を同時に外せないため、検出できる等価な定義が作れず削除した。両方を要する性質は、試験の側で一方ずつを固定する別の作業に回す（後継は 5.354）
 
 - 全件の実行（2026-10-28、元は origin/main 4ec8a6de に本変更を足した作業ツリー。`nice` つきで切り離して実行した）: 定義 698 件。1 つの実行の途中で、コンパイルできない変異（JUDGE22-3）と rustc の異常終了（SAVE3-5。再実行で DETECTED）により止まったため、止まった定義から続ける形で 3 回に分けた。
   - `scripts/check-mutations.sh`（全件。contract・core・pack と web の先頭 120 件余り。JUDGE22-3 で停止）
@@ -9953,7 +9954,13 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 結果（2026-10-28）: `make test-chapter-key-control` は終了コード 0（所要およそ 24 秒。依存のビルドが `/tmp` の写しで済んだ後の値）。写しでは試験が `CHAPTER-HISTORY-MIXED` の理由で失敗し、`control established` が出た。`make check` も通った
 - 範囲外（既存の申し送りのまま）: 置換元の一意性を `make check` で常時検査する仕組みは無く、再発は防げない
 
-### 5.353 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
+### 5.353 変異の定義の静的検査を `make check` に入れる（#1864）
+
+- 追加: `scripts/check-mutation-defs.sh`（`make check-mutation-defs`。`make check` から呼ばれる）と、その回帰テスト `scripts/test-check-mutation-defs.sh`（`make test-check-mutation-defs`。CI の `check` ジョブも流す）。定義の読み方・数え方は `scripts/lib-mutations.sh` に切り出し、`check-mutations.sh` と共有する
+- 2026-10-28、HEAD 03aba58a の上で、698 件・950 名前がすべて通る（所要およそ 5 秒、cargo なし）。回帰テストは 21 件が pass
+- 切り出しの退行の確認: `scripts/check-mutations.sh crates/contract/tests/mutations/H1.mutation` を本物の cargo で 1 件流し、DETECTED・終了コード 0。全件の実行（`make check-mutations`・`make test-check-mutations` の末尾の全件）は未検証
+
+### 5.354 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
 
 - 目的: 配信する設定の `.wasm` が `application/wasm`・gzip で届き、MIME に関するコンソールの警告が 0 件で、`WebAssembly.instantiateStreaming` が実際に使われて成功し、アプリがマウントされることを自動ブラウザで固定する。製品のコード・`tools/serve.mjs` は変えない。大きさ（DLV-4）は TASK-107 2/2
 - 試験: `tools/browser/wasm-mime.test.mjs`（`make test-browser` に登録。2 件）。`harness.mjs` に `installWasmProbe`・`readWasmProbe`・`mimeConsoleMessages` を追加し、`harness.test.mjs` に `mimeConsoleMessages` の単体の確認を足した
@@ -9964,7 +9971,26 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 限界: `make test-browser` の全体は流していない（未実施）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。`wasm-opt` を適用したビルドは未確認。配信先の実物の MIME は対象外
 - 範囲外: DLV-4（`gzip -9` の大きさ・基点つきの記録）は TASK-107 2/2、配信先（GitHub Pages）での MIME は DLV-24・DLV-25
 
-### 5.354 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
+### 5.354 二重の処理を片方ずつ固定する（EVT11-6・EVT12-12 の後継。#1865）
+
+- 目的: 5.351 で削除した 2 件の定義が検出していた誤りを、1 行の置換で検出できる形に戻す
+- EVT11-6（移動で入口の写しを無効化する処理）: `move_to` を通る経路は、通常の着地（`replace_entry_on_enter`）・呼び出し先が無いときの確定・予算の超過（`halt`）のどれも `state.entry = None` で終わる。`go_to` の移動の前の `None` は、試験から観察できる状態（`move_to` を通った後）を変えないので、その側だけを外して失敗する試験は書けない。そこで二重を 1 か所にまとめた
+  - `go_to.rs` の `state.entry = None;` を削除し、無効化は `transit` の着地に一本化した（モジュールの文書も直した）
+  - MOD11-8 の錨を `state.run.busy = None;` へ付け替えた（誤りの意味は変えない）
+  - EVT11-8 を新設した（着地の無効化を外すと `move_invalidates_entry_copy` が失敗する）
+- EVT12-12（停止で Step の項目を初期化する処理）: 2026-10-28 に origin/main 03aba58a の写しで測った。`Stopped` の処理（`reset_item`）と `Cause::Stop` の `unmerge_change` は、`apply` が出すログの上では結果が重なり冗長に見える。ただし `Projection` は保存から読んだログも受けるので、両方を別の規則として固定した
+
+| 置換 | 失敗した振る舞いの試験（新しい試験の追加前） |
+|---|---|
+| `Cause::Stop => {}` | なし |
+| `reset_item` の `take` を `clone` へ | `evt13_stop_resets_the_stopped_step_review` だけ |
+
+  - `reset_item` の側: 既存の試験が単独で検出するので、定義 EVT12-15 だけを足した
+  - `unmerge_change` の側: `Stopped` を含まないイベント列の試験 `evt13_stop_cause_change_unmerges_merged_change` を足し、定義 EVT12-16 で固定した
+- 結果（2026-10-28、元は origin/main 367bd68c に本変更を足した作業ツリー）: `scripts/check-mutations.sh` で EVT11-8・EVT12-15・EVT12-16・MOD10-1・MOD11-8 の 5 件がすべて DETECTED（終了コード 0）。各定義の失敗した試験は期待の試験を含む
+- 範囲外: `Cause::Stop => self.unmerge_change(...)` が `apply` のログの上で冗長かどうかの判断（消すと保存から読んだログの導出が変わる）。`begin.rs` の `state.entry = None;` も `move_to` の前にあり、同じ二重の可能性がある（未検証）
+
+### 5.355 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
 
 `tools/clean-room.sh`（`make clean-room`）で、公開イメージの中に `git archive` の tar だけを渡し、`cargo test --locked`（既定の contract・core・pack）と `cargo test --locked --workspace`（web を含む）を流した。判定の回帰テストは `scripts/test-clean-room.sh`（`make test-clean-room`。docker なし。CI の `check` が流す）。期待は不変条件（どちらも cargo の終了コード 0・failed 0 件、無視は許容リストのみ）で、件数は下の記録に置く。
 

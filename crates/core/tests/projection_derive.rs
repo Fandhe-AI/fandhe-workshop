@@ -618,6 +618,34 @@ fn evt13_stop_resets_the_stopped_step_review() {
     assert!(q.review().is_empty());
 }
 
+/// `Stopped` を伴わない原因 `Stop` の差分は、併合済みの変更を打ち消す（EVT-13。保存から読んだ信頼できないログでも
+/// 導出が決まる）。`Stopped` の項目の初期化（`evt13_stop_resets_the_stopped_step_review`）とは別の規則で、
+/// ここは `Stopped` を含まない列で固定する。変異 EVT12-16（`Cause::Stop` の打ち消しを外す）が検出する。
+#[test]
+fn evt13_stop_cause_change_unmerges_merged_change() {
+    // 変更前へ戻す差分は、併合済みの変更を取り除く。
+    let p = Projection::from_events(&[
+        changed("main/a", "x", None, Some(1), Cause::Input),
+        changed("main/a", "x", Some(1), None, Cause::Stop),
+    ]);
+    assert!(p.marks().is_empty(), "{:?}", p.marks());
+    assert!(
+        review_of(&p, "main/a").is_none_or(|r| r.changes.is_empty()),
+        "{:?}",
+        p.review()
+    );
+    // 途中の値へ戻す差分は、変更後だけを差し替えて変更を残す。
+    let q = Projection::from_events(&[
+        changed("main/a", "y", None, Some(1), Cause::Input),
+        changed("main/a", "y", Some(1), Some(2), Cause::Input),
+        changed("main/a", "y", Some(2), Some(1), Cause::Stop),
+    ]);
+    let r = review_of(&q, "main/a").expect("a");
+    assert_eq!(r.changes.len(), 1, "{:?}", r.changes);
+    assert_eq!(r.changes[0].after, Some(el(1)));
+    assert_eq!(q.marks().len(), 1, "{:?}", q.marks());
+}
+
 #[test]
 fn evt14_restore_rebuilds_owner_review_and_keeps_other_roots() {
     let events = vec![

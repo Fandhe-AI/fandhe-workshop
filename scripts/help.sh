@@ -25,6 +25,8 @@ cat <<'EOF'
   test-check-deps              scripts/test-check-crate-deps.sh        依存の向きの検査自体の回帰テスト
   check-testdata               scripts/check-testdata-refs.sh          repo の外への相対参照が 0 件であることを検査する
   test-check-testdata          scripts/test-check-testdata-refs.sh     参照の検査自体の回帰テスト
+  check-mutation-defs          scripts/check-mutation-defs.sh          変異の定義の find の一意性と expect-fail の名前の実在を静的に検査する
+  test-check-mutation-defs     scripts/test-check-mutation-defs.sh     変異の定義の静的検査自体の回帰テスト
   check-dom-reads              tools/check-deps.sh                     web crate が DOM の値を読まないこと（例外は件数固定）を検査する
   test-check-dom-reads         scripts/test-check-dom-reads.sh         DOM 読み取りの検査自体の回帰テスト
   check-frontend-bump          scripts/check-frontend-bump.sh          版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示・変えてはいけないファイル）を検査する（(3) は CI の wasm-gzip）

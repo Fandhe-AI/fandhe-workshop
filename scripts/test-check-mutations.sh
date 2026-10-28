@@ -35,7 +35,7 @@ expect() {
 # 疑似リポジトリ: scripts/ に検査本体、crates/c/src/lib.rs に変異の対象を置く。
 FAKE_REPO="${TMP_DIR}/repo"
 mkdir -p "${FAKE_REPO}/scripts" "${FAKE_REPO}/crates/c/src" "${FAKE_REPO}/crates/c/tests/mutations" "${TMP_DIR}/bin"
-cp "${DIR}/check-mutations.sh" "${DIR}/lib.sh" "${FAKE_REPO}/scripts/"
+cp "${DIR}/check-mutations.sh" "${DIR}/lib-mutations.sh" "${DIR}/lib.sh" "${FAKE_REPO}/scripts/"
 : >"${FAKE_REPO}/Cargo.toml"
 : >"${FAKE_REPO}/Cargo.lock"
 : >"${FAKE_REPO}/rust-toolchain.toml"
