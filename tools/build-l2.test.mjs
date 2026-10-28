@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildL2, PLATFORMS, readPins } from './build-l2.mjs';
+import { buildL2, LAYOUTS, PLATFORMS, readPins } from './build-l2.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, 'build-l2.mjs');
@@ -202,7 +202,7 @@ describe('fail-closed', () => {
 
   test('誤用は終了コード 2', () => {
     const base = { L2_SERVER: makeServer(), L2_SITE: makeSite(), L2_OUT: mk('out') };
-    assert.equal(run(null, { ...base, L2_PLATFORM: 'windows' }).status, 2);
+    assert.equal(run(null, { ...base, L2_PLATFORM: 'windows-arm64' }).status, 2);
     assert.equal(run(null, { L2_SITE: base.L2_SITE, L2_OUT: base.L2_OUT }).status, 2);
     const r = spawnSync(process.execPath, [SCRIPT, 'extra'], { env: { PATH: process.env.PATH }, encoding: 'utf8' });
     assert.equal(r.status, 2);
@@ -224,10 +224,144 @@ describe('fail-closed', () => {
 });
 
 describe('固定表の形', () => {
-  test('tools/l2/miniserve.sha256 は 2 行で、期待する資産名と 64 桁の 16 進', () => {
+  test('tools/l2/miniserve.sha256 は 3 行で、期待する資産名と 64 桁の 16 進', () => {
     const pins = readPins(path.join(HERE, 'l2', 'miniserve.sha256'));
     assert.deepEqual(Object.keys(pins).sort(), Object.values(PLATFORMS).sort());
     for (const v of Object.values(pins)) assert.match(v, /^[0-9a-f]{64}$/);
-    assert.equal(fs.readFileSync(path.join(HERE, 'l2', 'miniserve.sha256'), 'utf8').trim().split('\n').length, 2);
+    assert.equal(fs.readFileSync(path.join(HERE, 'l2', 'miniserve.sha256'), 'utf8').trim().split('\n').length, 3);
+  });
+
+  test('.exe の資産名の行を受け付け、不正な拡張子・資産名は終了コード 2', () => {
+    const h = 'a'.repeat(64);
+    const f = path.join(mk('pins'), 'pins.sha256');
+    fs.writeFileSync(f, `${h}  miniserve-0.35.0-x86_64-pc-windows-msvc.exe\n`);
+    assert.deepEqual(readPins(f), { 'miniserve-0.35.0-x86_64-pc-windows-msvc.exe': h });
+    for (const bad of ['miniserve-0.35.0-x.dll', 'miniserve-0.35.0-x.exe.bak','other-0.35.0-x.exe']) {
+      fs.writeFileSync(f, `${h}  ${bad}\n`);
+      assert.throws(() => readPins(f), (e) => e.code === 2, bad);
+    }
+  });
+});
+
+describe('Windows 向け（TASK-198。DLV-22）', () => {
+  const WIN = 'windows-x64';
+  const WPINS = { [PLATFORMS[WIN]]: sha(FAKE_SERVER) };
+  const buildWin = (site, over = {}) =>
+    buildL2({ server: makeServer(), site, out: mk('out'), platform: WIN, pins: WPINS, ...over });
+  const CMD = fs.readFileSync(path.join(HERE, 'l2', 'start.cmd'), 'utf8');
+  const noZip = (out) => assert.deepEqual(fs.readdirSync(out), []);
+
+  test('木・mode・実行ファイルの一致', () => {
+    const { zip } = buildWin(makeSite());
+    const names = listZip(zip);
+    assert.ok(names.includes('fandhe-workshop-l2/start.cmd'));
+    assert.ok(names.includes('fandhe-workshop-l2/miniserve.exe'));
+    assert.ok(!names.includes('fandhe-workshop-l2/start.sh'));
+    assert.ok(!names.includes('fandhe-workshop-l2/miniserve'));
+    const top = unzipTo(zip);
+    const mode = (p) => fs.statSync(path.join(top, p)).mode & 0o777;
+    assert.equal(mode('start.cmd'), 0o755);
+    assert.equal(mode('miniserve.exe'), 0o755);
+    assert.equal(mode('site/index.html'), 0o644);
+    assert.equal(fs.readFileSync(path.join(top, 'miniserve.exe'), 'utf8'), FAKE_SERVER);
+  });
+
+  test('start.cmd は元の LF を CRLF にしたもの（裸の LF 0 件・ASCII のみ）', () => {
+    const top = unzipTo(buildWin(makeSite()).zip);
+    const got = fs.readFileSync(path.join(top, 'start.cmd'));
+    assert.equal(got.toString('latin1'), CMD.replace(/\n/g, '\r\n'));
+    assert.ok(!/(?<!\r)\n/.test(got.toString('latin1')));
+    assert.ok(got.toString('latin1').endsWith('\r\n'));
+    assert.ok(got.every((b) => b < 0x80));
+    assert.ok(!CMD.includes('\r'), 'repo の start.cmd は LF');
+  });
+
+  test('start.cmd の起動の引数は start.sh と同じで、安全な書き方を守る', () => {
+    const sh = fs.readFileSync(path.join(HERE, 'l2', 'start.sh'), 'utf8');
+    const shArgs = /exec \.\/miniserve (.+)$/m.exec(sh)[1].replaceAll('"${PORT}"', '<PORT>');
+    const cmdArgs = /^\.\\miniserve\.exe (.+)$/m.exec(CMD)[1].replaceAll('!PORT!', '<PORT>');
+    assert.equal(cmdArgs, shArgs);
+    assert.match(sh, /PORT="\$\{PORT:-8787\}"/);
+    assert.match(CMD, /set "PORT=8787"/);
+    assert.ok(CMD.includes('cd /d "%~dp0"'));
+    assert.ok(CMD.indexOf('cd /d "%~dp0"') < CMD.indexOf('setlocal EnableDelayedExpansion'));
+    assert.ok(!CMD.includes('%PORT%'));
+    assert.ok(!CMD.includes('set /a'));
+    assert.ok(!CMD.includes('0.0.0.0'));
+    assert.match(CMD, /127\.0\.0\.1:!PORT!/);
+  });
+
+  test('site は linux-x64 の配布物と同じ中身', () => {
+    const site = makeSite();
+    const a = unzipTo(build(site).zip);
+    const b = unzipTo(buildWin(site).zip);
+    const files = (d) => fs.readdirSync(path.join(d, 'site'), { recursive: true }).sort();
+    assert.deepEqual(files(b), files(a));
+    for (const rel of files(a)) {
+      const pa = path.join(a, 'site', rel);
+      if (fs.statSync(pa).isFile()) assert.ok(fs.readFileSync(pa).equals(fs.readFileSync(path.join(b, 'site', rel))), rel);
+    }
+  });
+
+  test('決定性: 同じ入力で同じバイト列', () => {
+    const site = makeSite();
+    assert.equal(buildWin(site).sha256, buildWin(site).sha256);
+  });
+
+  test('他の platform の実行ファイル（固定値の不一致）では zip を作らない', () => {
+    const out = mk('out');
+    assert.throws(() => buildWin(makeSite(), { server: makeServer('MZ-other'), out }), /sha256/);
+    noZip(out);
+    assert.throws(() => buildWin(makeSite(), { pins: { [PLATFORMS['linux-x64']]: sha(FAKE_SERVER) }, out }), /sha256/);
+    noZip(out);
+  });
+
+  test('元の起動スクリプトに CR・非 ASCII があれば拒否', () => {
+    for (const body of ['@echo off\r\n', '@echo off\nrem 日本\n']) {
+      const src = path.join(mk('cmd'), 'start.cmd');
+      fs.writeFileSync(src, body);
+      const layouts = { ...LAYOUTS, [WIN]: { ...LAYOUTS[WIN], launcherSrc: path.relative(path.join(HERE, 'l2'), src) } };
+      const out = mk('out');
+      assert.throws(() => buildWin(makeSite(), { layouts, out }), /LF-only ASCII/);
+      noZip(out);
+    }
+  });
+
+  for (const [label, name] of [
+    ['予約名', 'CON.txt'],
+    ['予約名（コンソール）', 'CONIN$'],
+    ['予約名（コンソール・小文字・拡張子つき）', 'conout$.txt'],
+    ['禁止文字', 'a:b.txt'],
+    ['バックスラッシュ', 'a\\b.js'],
+    ['末尾の点', 'x.'],
+  ]) {
+    test(`Windows で作れない名前（${label}）は windows-x64 で拒否し、linux-x64 は通る`, () => {
+      const site = makeSite();
+      fs.writeFileSync(path.join(site, name), 'x\n');
+      const out = mk('out');
+      assert.throws(() => buildWin(site, { out }), /cannot be extracted on Windows/);
+      noZip(out);
+      assert.ok(fs.existsSync(build(site).zip));
+    });
+  }
+
+  test('大文字小文字だけ違う 2 件は windows-x64 で拒否し、linux-x64 は通る', () => {
+    const site = makeSite();
+    fs.writeFileSync(path.join(site, 'Readme.txt'), 'a\n');
+    fs.writeFileSync(path.join(site, 'README.txt'), 'b\n');
+    assert.throws(() => buildWin(site), /differ only in case/);
+    assert.ok(fs.existsSync(build(site).zip));
+  });
+
+  const REAL = process.env.L2_SERVER_WINDOWS;
+  test('実物の exe の照合（L2_SERVER_WINDOWS があるときだけ）', { skip: REAL ? false : 'L2_SERVER_WINDOWS is not set' }, () => {
+    const pins = readPins(path.join(HERE, 'l2', 'miniserve.sha256'));
+    const site = makeSite();
+    const a = buildL2({ server: REAL, site, out: mk('out'), platform: WIN, pins });
+    const b = buildL2({ server: REAL, site, out: mk('out'), platform: WIN, pins });
+    assert.equal(a.sha256, b.sha256);
+    const exe = fs.readFileSync(path.join(unzipTo(a.zip), 'miniserve.exe'));
+    assert.ok(exe.equals(fs.readFileSync(REAL)));
+    assert.equal(exe.subarray(0, 2).toString('latin1'), 'MZ');
   });
 });

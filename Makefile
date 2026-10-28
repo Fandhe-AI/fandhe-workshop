@@ -102,7 +102,7 @@ build-web: ## web を wasm にビルドして dist/web に配る一式を作る�
 test-build-web: ## build-web の受入基準（配信物に試験用の口が無い等）を実ビルドで検査する。直接: scripts/test-build-web.sh
 	@scripts/test-build-web.sh
 
-build-l2: ## L2 の配布物（zip）を作る。L2_SERVER に miniserve の実行ファイルが要る（先に make build-web）。直接: node tools/build-l2.mjs
+build-l2: ## L2 の配布物（zip）を作る。L2_SERVER に miniserve の実行ファイルが要る（先に make build-web。L2_PLATFORM=windows-x64 で Windows 向け）。直接: node tools/build-l2.mjs
 	@node tools/build-l2.mjs
 
 test-build-l2: ## build-l2 の回帰テスト（合成の配信物。ビルド・通信なし）。直接: scripts/test-build-l2.sh

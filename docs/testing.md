@@ -10053,3 +10053,12 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 限界: 教材は試験データ（`ch0_3`）で本物の CH-0〜CH-1 ではない。保存先は localStorage の範囲で、IndexedDB の分離は確かめない。Chromium・Linux の miniserve だけで、`localhost` の名前解決はブラウザの内部の解決に依る
 - spec への差分の案（本変更では spec を編集しない。承認は得ていない）: DLV-16 の「L2 の 2 案」を repo の L2 の形の 2 か所への読み替えとすること、証拠の種類をエンジン repo の試験とすること
 - 範囲外: 実機（macOS・Apple シリコン。TASK-118・119）、GitHub Pages の `github.io` のオリジン共有、案内文の「`localhost` と `127.0.0.1` を混ぜない」（DLV-17。TASK-117）。5.354 の番号の重複（既存）は直さない
+
+### 5.362 Windows 向けの L2 の配布物の作成（TASK-198。DLV-22）
+
+`tools/build-l2.mjs` に `windows-x64` を足し、`start.cmd`・`miniserve.exe` の配布物が再現できることを `tools/build-l2.test.mjs` で確かめる（`make test-build-l2`。CI の `browser-test` が流す）。手順は `docs/l2-windows.md`。
+
+- 試験の内容: 固定表が 3 行で `.exe` の行を受け付け不正な拡張子を終了コード 2 で拒否する／windows-x64 の木（`start.cmd`・`miniserve.exe` があり `start.sh`・`miniserve` が無い）・mode・実行ファイルの一致／`start.cmd` が元の LF を CRLF にしたもので裸の LF が 0 件・ASCII のみ／`start.cmd` の `miniserve.exe` の引数が `start.sh` と同じで、既定の番号が 8787、`cd /d` が遅延展開より前、`%PORT%`・`set /a`・`0.0.0.0` が無い／同じ site から作った linux-x64 と site の中身が一致／2 回作って同じバイト列／固定値の不一致で zip を作らない／元の起動スクリプトに CR・非 ASCII があれば拒否／Windows で作れない名前と大文字小文字だけ違う重複を windows-x64 で拒否し linux-x64 は通る
+- 実物の照合: `L2_SERVER_WINDOWS` に実物の exe を渡すと、実物で 2 回作ってバイト一致・先頭が `MZ` を確かめる（無いときは skip）。CI は固定版を取得して `sha256sum -c` で照合してから渡す。2026-10-28 に v0.35.0 の資産を取得して再計算した sha256 は `3229e75b40b3870382d23c9a0ecec880b9bd5f6e49160ce602bb15d00f275b6a`（GitHub の digest と一致）で、実物ありの `make test-build-l2` は 35 件合格・skip 0 件
+- 未検証: Windows の実機での `start.cmd` の実行（Linux では動かせない）、OS の警告。TASK-120 で人が確かめる。DLV-22 は検討中のまま
+- 範囲外: `docs/l2-update-procedure.md`・`update-l2`（#1875。マージ後に windows-x64 を表へ追従させる）、案内文（TASK-117）、ライセンス文（TASK-137）。`make test-l2-run`（linux-x64）は未実行
