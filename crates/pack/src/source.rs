@@ -338,6 +338,16 @@ pub(crate) fn safe_ident(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
+/// 教材の `uid`（`<実体 ID>/<Step ID>`。モジュールの実体は `<モジュール>@<実体>`）を出力へ写してよいか。
+/// 区切りごとに短い識別子のときだけ真にする。教材データ由来の名前を行へ写す前の共通の関門（`hint_stages`・`test`）。
+pub(crate) fn printable_uid(uid: &str) -> bool {
+    fn segment(seg: &str) -> bool {
+        seg.split_once('@')
+            .map_or_else(|| safe_ident(seg), |(m, i)| safe_ident(m) && safe_ident(i))
+    }
+    !uid.is_empty() && uid.split('/').all(segment)
+}
+
 /// 重複キーの診断文。名前は呼び出し側が `safe_ident` を通したものだけを渡す。
 fn duplicate_key_message(name: Option<&str>, pos: Option<(usize, usize)>) -> String {
     let mut msg = match name {

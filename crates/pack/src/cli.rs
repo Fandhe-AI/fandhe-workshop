@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{
-    compare_differ_line, compare_same_line, compare_unreadable_line, final_line,
+    compare_differ_line, compare_same_line, compare_unreadable_line, final_line, test_entered_line,
     test_error_pass_line, test_fail_line, test_pass_line, test_r21_line, test_r22_line,
     test_summary_lines, FinalLine, PackSummary,
 };
@@ -324,6 +324,7 @@ fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
                 test_r22_line(t.confirmed, t.explicit_skip, t.unconfirmed)
             )?;
             writeln!(out, "{}", test_r21_line(t.texts, t.empty_next))?;
+            writeln!(out, "{}", entered_line(&report))?;
             write_diagnostics(out, &report.diagnostics())?;
             Ok(if report.all_passed() {
                 EXIT_OK
@@ -332,6 +333,23 @@ fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
             })
         }
     }
+}
+
+/// 入った Step の実体の行。写せない名前（`source::printable_uid` を通らない）は `#n`（分母での 1 始まりの位置）に
+/// 置き換え、改行や `）` による行の偽装を防ぐ（A03）。`#` は識別子に使えないので本物の名前とぶつからない。
+fn entered_line(report: &play_run::Report) -> String {
+    let (n, m, missed) = report.entered_steps();
+    let names: Vec<String> = missed
+        .into_iter()
+        .map(|(pos, uid)| {
+            if source::printable_uid(uid) {
+                uid.to_string()
+            } else {
+                format!("#{pos}")
+            }
+        })
+        .collect();
+    test_entered_line(n, m, &names)
 }
 
 /// `vocab` の実行。表と集計を標準出力に書いて `EXIT_OK`。読み込みか `compile` に診断があれば、表は出さず診断を

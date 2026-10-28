@@ -9851,3 +9851,11 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 限界: 開始点の切り替えの拒否は R-21 の数に入れない。確認なしの達成は core の経路では作れないため、`Report` に直接置いて診断の形だけを確かめた。入った実体の集計と最終行は未実装（後続）
 - 要確認: `E-NO-CONFIRM` を R-22 の動的な違反に流用したのは、実装の側で決めた細目で、承認は得ていない。試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない（D-34）
 
+
+### 5.347 `test` に試験で入った Step の実体の集計を足す（TASK-405 2/2。AUTHOR-6）
+
+- 目的: `fandhe-pack test` が、全模範解答と全誤入力で入った Step の実体の数 N・全数 M・入らなかった実体の名前を、1 行（`試験で入った Step の実体: N/M（入らなかった実体: …）`）で出す。入らなかった実体は失敗ではなく、診断も終了コードも変えない
+- 方式: `play_run::Report` に分母 `steps`（`use` の節点を除く `ir.nodes` の `uid`）と入った集合 `entered` を持たせ、`CaseResult` は変えない。`Session::entered_at` は `Event::Entered` を出さないため、開始の節点は `open` が手で足す。以後は `apply` が返す `Entered`、2 つ目以降の `Control::Begin` の `Entered` を足す。名前は `source::printable_uid`（`hint_stages` と共通の規則）を通ったものだけを写し、通らないものは `#n` にする。行の形は `cli_contract::test_entered_line`（版 15）
+- 試験: `crates/pack/tests/test_entered_steps.rs`（入らなかった実体の表示と終了コード 0・標準エラー出力が空、全件入ると `なし`、開始の節点を数えること、写せない名前を写さないこと）、`play_run` の単体、`cli_contract` の単体、`cli_contract_doc.rs`（12.6 節の例）、`test_command.rs`・`test_r22_r21.rs`・`examples_pack.rs`（出力の末尾に行が増えた）
+- 限界: 掲示板教材の基準値（PoC の値は 34/40。BUILD-8）との一致は、教材が本 repo に無いので未検証である（TASK-84 で確かめる）。最終行（`OK:`・`NG:`）は後続
+- 要確認: 試験の作成者と実装の作成者が同じ AI で、人の確認は得ていない（D-34）

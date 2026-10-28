@@ -8,9 +8,9 @@ use std::path::Path;
 
 use fandhe_workshop_pack::cli_contract::{
     compare_differ_line, compare_same_line, compare_unreadable_line, final_line, metrics_row,
-    test_error_pass_line, test_fail_line, test_pass_line, test_r21_line, test_r22_line,
-    test_summary_lines, usage, vocab_pack_line, vocab_row, vocab_summary_lines, FinalLine,
-    PackSummary, Subcommand, VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION,
+    test_entered_line, test_error_pass_line, test_fail_line, test_pass_line, test_r21_line,
+    test_r22_line, test_summary_lines, usage, vocab_pack_line, vocab_row, vocab_summary_lines,
+    FinalLine, PackSummary, Subcommand, VocabRowKind, AUTHOR2_ITEM_KINDS, CLI_CONTRACT_VERSION,
     EXIT_DIAGNOSTICS, EXIT_OK, EXIT_USAGE, ITEM_KINDS_V2, METRICS_HEADER, METRICS_TOTAL_LABEL,
     VOCAB_HEADER,
 };
@@ -207,6 +207,14 @@ fn cli_doc_test_r22_r21_example_matches() {
     assert_eq!(
         text_block("## 12.5. `test` の R-22・R-21 の集計"),
         vec![test_r22_line(1, 1, 0), test_r21_line(3, 0)]
+    );
+}
+
+#[test]
+fn cli_doc_test_entered_example_matches() {
+    assert_eq!(
+        text_block("## 12.6. `test` の入った Step の実体の行"),
+        vec![test_entered_line(2, 3, &["main/st-3".to_string()])]
     );
 }
 
