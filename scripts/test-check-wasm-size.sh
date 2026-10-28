@@ -30,14 +30,14 @@ not_ok() {
   failed=$((failed + 1))
 }
 
-# make_json <value> <config> <features-json> <profile> <dirty>: 様式 v1 の結果を標準出力へ出す。
+# make_json <value> <config> <features-json> <profile> <dirty> [applied] [detail]: 様式 v1 の結果を標準出力へ出す。
 make_json() {
-  jq -n --argjson v "$1" --arg config "$2" --argjson feats "$3" --arg profile "$4" --argjson dirty "$5" --arg sha "${SHA}" '{
+  jq -n --argjson v "$1" --arg config "$2" --argjson feats "$3" --arg profile "$4" --argjson dirty "$5" --argjson applied "${6:-false}" --arg detail "${7:-skipped}" --arg sha "${SHA}" '{
     schema: "fandhe-workshop/measure/v1",
     measured_at: "2026-10-20T00:00:00Z",
     baseline: {
       commit: {sha: $sha, dirty: $dirty},
-      wasm_opt: {applied: false, detail: "skipped"},
+      wasm_opt: {applied: $applied, detail: $detail},
       features: {config: $config, cargo_features: $feats, profile: $profile},
       compression: {command: "gzip -9 -c", implementation: "gzip"}
     },
@@ -49,10 +49,11 @@ make_json() {
   }'
 }
 
-# run_case <name> <expected-rc> <file> [expected stderr substring]
+# run_case <name> <expected-rc> <file> [expected stderr substring] [extra args...]
 run_case() {
   local name="$1" want="$2" file="$3" needle="${4:-}" rc=0 err="${TMP_DIR}/err" out="${TMP_DIR}/out"
-  "${CHECK}" --result "${file}" >"${out}" 2>"${err}" || rc=$?
+  shift 4 || shift "$#"
+  "${CHECK}" --result "${file}" "$@" >"${out}" 2>"${err}" || rc=$?
   if [ "${rc}" != "${want}" ]; then
     not_ok "${name} (expected exit ${want}, got ${rc})"
     return
@@ -137,6 +138,20 @@ if [ "${rc}" = "2" ]; then ok "unknown argument is refused"; else not_ok "unknow
 rc=0
 "${CHECK}" --result >/dev/null 2>&1 || rc=$?
 if [ "${rc}" = "2" ]; then ok "--result without a value is refused"; else not_ok "--result without a value is refused (got ${rc})"; fi
+
+# DLV-4: --require-wasm-opt
+make_json 353359 delivery '[]' release false true "wasm-opt version 116" >"${F}"
+run_case "require-wasm-opt with applied passes" 0 "${F}" "wasm-opt: applied" --require-wasm-opt
+make_json 353359 delivery '[]' release false false skipped >"${F}"
+run_case "require-wasm-opt without applied is refused" 2 "${F}" "without wasm-opt" --require-wasm-opt
+make_json 353359 delivery '[]' release false | jq 'del(.baseline.wasm_opt)' >"${F}"
+run_case "require-wasm-opt with missing wasm_opt is refused" 2 "${F}" "" --require-wasm-opt
+make_json 353359 delivery '[]' release false | jq '.baseline.wasm_opt.applied = "true"' >"${F}"
+run_case "require-wasm-opt with string applied is refused" 2 "${F}" "" --require-wasm-opt
+make_json 353359 delivery '[]' release false true "wasm-opt version 116" >"${F}"
+run_case "applied without the flag passes" 0 "${F}" "wasm-opt: applied"
+make_json 1048577 delivery '[]' release false true "wasm-opt version 116" >"${F}"
+run_case "require-wasm-opt still fails when over" 1 "${F}" "exceeds the limit by 1 bytes" --require-wasm-opt
 
 echo "pass ${passed} / fail ${failed}"
 [ "${failed}" -eq 0 ]
