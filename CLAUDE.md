@@ -37,6 +37,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
 │   ├── test-keydown-control.sh # action-keydown を外した対照の検査（make test-keydown-control）
 │   ├── test-chapter-key-control.sh # 鍵を修正前の固定の文字列にした対照の検査（make test-chapter-key-control）
+│   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -89,7 +90,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make help` | ターゲット一覧 |
 | `make doctor` | 開発環境の診断（読み取りのみ） |
 | `make setup` | Git hooks の有効化と `.env` の作成（再実行可） |
-| `make check` | editorconfig-checker + shellcheck + testdata の参照検査（ソースは変更しない） |
+| `make check` | editorconfig-checker + shellcheck + testdata の参照検査 + 変異の定義の静的検査（ソースは変更しない） |
 | `make test-hooks` | `scripts/hooks/` の回帰テスト |
 | `make lint` | Rust の fmt check + clippy + web の wasm32 clippy（ソースは変更しない） |
 | `make fmt` | Rust の整形（ソースを変更する） |
@@ -98,6 +99,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
+| `make check-mutation-defs` | 変異の定義の `find` の一意性と `expect-fail` の名前の実在の静的検査（`make check` に含む。cargo 不要） |
+| `make test-check-mutation-defs` | 上の静的検査自体の回帰テスト |
 | `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |
 | `make test-check-dom-reads` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | 版上げ PR の受け入れ確認 (4)(5) の関門（feature の明示と、版上げ PR で変えてはいけないファイル。(2) の件数の照合は CI の rust-test・browser-test が、(3) の WASM の gzip +10% の判定は browser-test の wasm-gzip が行う） |

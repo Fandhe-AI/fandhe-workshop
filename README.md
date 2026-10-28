@@ -68,7 +68,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `testdata/` | 試験データの置き場。spec repo の試験データを出所付きで写したもの（出所・規則は `testdata/README.md`）。整形ツールの対象外 |
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
-| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words` / `test-inventory-deps`）。Make なしでも直接実行できる |
+| `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `check-mutation-defs` / `test-check-mutation-defs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words` / `test-inventory-deps`）。Make なしでも直接実行できる |
 | `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`inventory-deps.mjs`・`upstream-impact.mjs`・`build-l2.mjs`・`l2/`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
@@ -187,6 +187,7 @@ Cargo ワークスペースは導入済みです。pack crate は `compile <pack
 - `make check-mutations`: 変異注入の検査です。作業ツリーは書き換えず、一時コピーに誤りを 1 つ入れて試験が失敗することを確かめます（手順と記録の様式は [docs/testing.md](./docs/testing.md)）。遅いため `make check` やフックには含めません。`make test-check-mutations` は、その検査自体の回帰テストです
 - `make check-dom-reads`: web crate のソースが DOM の値を読む API（`.value()`・`get_attribute`・`text_content` 等）を呼ばないことを `tools/check-deps.sh` で検査します。例外（`glue.rs` の `field.value()`）は件数を固定し、増減すると失敗します。crate 間の依存の向きを見る `make check-deps` とは別の検査です。`make test-check-dom-reads` は、その検査自体の回帰テストです
 - `make check-testdata`: repo の外（兄弟の `03-poc/`・`prototype/` など）への相対参照が 0 件であることを検査します（`make check` にも含まれます）。`make test-check-testdata` は、その検査自体の回帰テストです
+- `make check-mutation-defs`: 変異の定義の `find` が 1 回だけ現れ、`expect-fail` の名前が試験に実在することを静的に検査します（`make check` にも含まれます）。`make test-check-mutation-defs` は、その検査自体の回帰テストです
 
 ### wasm32 のビルド
 
@@ -254,6 +255,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | `scripts/check-testdata-refs.sh` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
+| `make check-mutation-defs` | `scripts/check-mutation-defs.sh` | 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（`make check` に含む） |
+| `make test-check-mutation-defs` | `scripts/test-check-mutation-defs.sh` | 上の静的検査自体の回帰テスト |
 | `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
 | `make test-check-dom-reads` | `scripts/test-check-dom-reads.sh` | DOM 読み取りの検査自体の回帰テスト |
 | `make check-frontend-bump` | `scripts/check-frontend-bump.sh guard` | 版上げ PR の受け入れ確認 (4)(5)（FEND-17・D-63）の関門。`wasm-full` の `default-features = false` と `action-keydown` の明示を `cargo metadata` で確かめ、`CI_EVENT_NAME=pull_request` の版上げ PR では期待値・`tools/check-deps.sh`・`tools/build-web.sh`・関門自体が base と同じことを求める。(3) の WASM の gzip +10% は CI の `browser-test` が `wasm-gzip` で判定する |

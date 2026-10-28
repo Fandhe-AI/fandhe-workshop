@@ -224,12 +224,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 既存の例外は改名しない。足場の時期の `<英大文字 1 字><連番>`（`S1`・`M1` など）と、`JUDGE1-C1` のような英字つき枝番である
 - ID はファイル名なので、同じ crate の中では重ならない。crate をまたぐ重複は避ける。既存の `VER7-1`（contract と core）は、第 5 節の記録が参照するため改名しない
 - ファイル名と `id` の一致は、今は検査していない（2026-10-19 に全 425 件の一致を確かめた）
+- `find` の一意性（`check-mutations.sh` と同じ数え方）と `expect-fail` の名前の実在は、`make check` が静的に検査する（`scripts/check-mutation-defs.sh`。cargo 不要で約 5 秒。2026-10-28 時点で 698 件・950 名前が通る）。名前の照合は `fn <名前>(`・`mod <名前> {` の字句の照合で、`#[test]` の有無・mod の入れ子の位置は見ない近似である。元の状態で `ok` が出ることと SURVIVED は従来どおり動的な検査の担当
 
 ### 3.3 新しい変異を足す手順
 
 1. 壊したい 1 か所を決め、`find`（ちょうど 1 回現れる文字列）と `replace` を書く。ID は 3.2 節の規則で付け、ファイル名を ID と同じにする
 2. 失敗すべき試験の関数名を `expect-fail` に書く。名前を推測で書かず、元の状態で `ok` と出る名前を使う
-3. `make check-mutations` を流し、DETECTED になることを確かめる
+3. `make check` で静的検査（`find` の一意性・名前の実在）を通し、`make check-mutations` で DETECTED になることを確かめる
 4. 出力された記録の表を、第 5 節の該当の見出しへ貼る（手で作らない）
 
 ### 3.4 終了コードと対処
@@ -247,7 +248,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 - 所要時間: サンプル 2 件で約 6 秒（2026-10-12、依存を含む冷えた状態のビルド込み）。変異が増えるほど、変異ごとの再ビルドと試験の時間が足される
 - 依存のビルドの出力先（`CARGO_TARGET_DIR`）は一時ディレクトリに置き、同じ実行の全変異で共有する
-- git hooks と `make check` には入れない。重く、静的な検査だけという `make check` の契約に合わない
+- 動的な実行（`make check-mutations`）は git hooks と `make check` には入れない。重く、`make check` の契約に合わない。静的な検査（`make check-mutation-defs`）は `make check` に入る（3.2 節）
 - CI への組み込みは TASK-33 が扱う。TASK-83 3/3 は手元の手順と記録だけで、CI の関門にはしない（人の承認点が無い範囲）。スクリプト自体の回帰テストは `make test-check-mutations`
 
 ## 4. 記録の様式
@@ -9944,3 +9945,9 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 3 回を通じて、全定義が DETECTED を 1 回以上出した（SURVIVED は EVT11-6・AUTHOR8-3 の 2 件で、上のとおり直した後に AUTHOR8-3 は単独で DETECTED、EVT11-6 は削除）。直した後の定義の集合を 1 つの実行で通した記録ではない（分けた実行の後に、EVT11-6 の削除と AUTHOR8-3 の変更だけを足した）。そのため `make check-mutations` を 1 回で通した記録は無く、受け入れ条件の「全件で終了コード 0」は、分割の実行の合算で確かめたものである
   - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
 - 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡
+
+### 5.352 変異の定義の静的検査を `make check` に入れる（#1864）
+
+- 追加: `scripts/check-mutation-defs.sh`（`make check-mutation-defs`。`make check` から呼ばれる）と、その回帰テスト `scripts/test-check-mutation-defs.sh`（`make test-check-mutation-defs`。CI の `check` ジョブも流す）。定義の読み方・数え方は `scripts/lib-mutations.sh` に切り出し、`check-mutations.sh` と共有する
+- 2026-10-28、HEAD 03aba58a の上で、698 件・950 名前がすべて通る（所要およそ 5 秒、cargo なし）。回帰テストは 21 件が pass
+- 切り出しの退行の確認: `scripts/check-mutations.sh crates/contract/tests/mutations/H1.mutation` を本物の cargo で 1 件流し、DETECTED・終了コード 0。全件の実行（`make check-mutations`・`make test-check-mutations` の末尾の全件）は未検証
