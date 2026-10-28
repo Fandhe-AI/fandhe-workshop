@@ -1,0 +1,9 @@
+id: JUDGE16-1
+package: fandhe-workshop-contract
+test: key_decide_contract
+target: crates/contract/src/key_decide.rs
+find:     if composing && matches!(key, "Enter" | "Tab" | "Escape" | "Process") {
+replace:     if composing && matches!(key, "Enter" | "Tab" | "Process") {
+expect-fail: judge16_composing_esc_never_reaches_engine
+expect-fail: expected_table_matches
+note: 変換中の除外から Escape を外す（PoC-2 の M3 相当。変換の取り消しの Esc がエンジンへ届く）
