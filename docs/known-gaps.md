@@ -448,3 +448,13 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 回避: 教材は名前を選ぶ行だけを置き、パスワードに当たる行・属性を書かない。
 
 根拠の試験: `crates/web/tests/app_demo_login_contract.rs`、`tools/browser/app-demo-login.test.mjs`（ML1〜ML5 と負の対照）。製品の画面では `docs/testing.md` の 5.283 が全 Step で 0 件を確かめている。記録は 5.301。
+
+## SAVE-27: 全章の履歴の大きさは本物の教材で未測定
+
+限界: 全章（CH-0〜CH-15）を通した履歴の大きさは、章の形の試験用 IR（CH-0〜CH-3・CH-4〜CH-9）と `module-reuse-rounds` の 2 周分（CH-10 以降の代役）でだけ測った。結果は条件 C の合算の目安で 5MB の約 31.6% だが、本物の教材の値ではない。CH-11〜CH-15 に当たる写しは無い。章の終わりの自動保存（SAVE-31）も未実装で、`Control::Save` で代用した。
+
+状態: SAVE-27 は検討中のまま。解除と、縮めるかの決定（TASK-314）は人の承認点で、本記録は材料である。
+
+回避: 本物の教材（教材 repo の CH-0〜CH-15）の実装の後に、試験の IR と操作列を差し替えて流し直す。
+
+根拠の試験: `crates/web/tests/history_size_all_chapters.rs`。記録は `docs/testing.md` の 5.345。
