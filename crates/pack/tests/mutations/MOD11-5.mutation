@@ -1,0 +1,8 @@
+id: MOD11-5
+package: fandhe-workshop-pack
+test: round_property
+target: crates/core/src/session.rs
+find:         self.run.current.as_ref().map(StepUid::root)
+replace:         self.run.current.as_ref().map(|_| Root(String::from("shared-draft")))
+expect-fail: m1_holds_across_rounds_fixed_generation
+note: X3 相当。下書きを根ごとに分けず 1 つの鍵にする
