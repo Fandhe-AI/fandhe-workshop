@@ -9953,7 +9953,18 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 結果（2026-10-28）: `make test-chapter-key-control` は終了コード 0（所要およそ 24 秒。依存のビルドが `/tmp` の写しで済んだ後の値）。写しでは試験が `CHAPTER-HISTORY-MIXED` の理由で失敗し、`control established` が出た。`make check` も通った
 - 範囲外（既存の申し送りのまま）: 置換元の一意性を `make check` で常時検査する仕組みは無く、再発は防げない
 
-### 5.353 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
+### 5.353 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
+
+- 目的: 配信する設定の `.wasm` が `application/wasm`・gzip で届き、MIME に関するコンソールの警告が 0 件で、`WebAssembly.instantiateStreaming` が実際に使われて成功し、アプリがマウントされることを自動ブラウザで固定する。製品のコード・`tools/serve.mjs` は変えない。大きさ（DLV-4）は TASK-107 2/2
+- 試験: `tools/browser/wasm-mime.test.mjs`（`make test-browser` に登録。2 件）。`harness.mjs` に `installWasmProbe`・`readWasmProbe`・`mimeConsoleMessages` を追加し、`harness.test.mjs` に `mimeConsoleMessages` の単体の確認を足した
+- 動機: wasm-bindgen の glue は MIME 不一致で `instantiateStreaming` が失敗すると `console.warn` を出してバイト列の `instantiate` へ黙って倒れる。警告は error でなく画面も動くため、従来の `consoleErrors` の 0 件では退行を見逃す。探針（`WebAssembly.*` を包んで呼び出し・解決・拒否を数える）で使用を直接観察する
+- 確かめたこと: (1) `.wasm` の応答が 1 件・200・`application/wasm`・`gzip`、(2) MIME の警告 0 件、(3) `instantiateStreaming` が 1 回呼ばれ 1 回解決・拒否 0・バイト列へのフォールバック 0、(4) csp・ページ内エラー・consoleErrors・外部通信・失敗・HTTP エラーが 0 件、マウント
+- 対照: `.wasm` を `.bin`（`application/octet-stream`）に改名した配信物の写しでは、MIME の警告が 1 件以上・`instantiateStreaming` の拒否が 1 以上・バイト列の `instantiate` が 1 以上で、それでもマウントされる。glue の参照の置換が 1 件でなければ失敗する
+- 実行: 2026-10-28、origin/main 03aba58a を元に、配信する設定（`SKIP_WASM_OPT=1`）を Chromium 153 で `wasm-mime.test.mjs` 2 件と `harness.test.mjs` 15 件が合格
+- 限界: `make test-browser` の全体は流していない（未実施）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。`wasm-opt` を適用したビルドは未確認。配信先の実物の MIME は対象外
+- 範囲外: DLV-4（`gzip -9` の大きさ・基点つきの記録）は TASK-107 2/2、配信先（GitHub Pages）での MIME は DLV-24・DLV-25
+
+### 5.354 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
 
 `tools/clean-room.sh`（`make clean-room`）で、公開イメージの中に `git archive` の tar だけを渡し、`cargo test --locked`（既定の contract・core・pack）と `cargo test --locked --workspace`（web を含む）を流した。判定の回帰テストは `scripts/test-clean-room.sh`（`make test-clean-room`。docker なし。CI の `check` が流す）。期待は不変条件（どちらも cargo の終了コード 0・failed 0 件、無視は許容リストのみ）で、件数は下の記録に置く。
 
