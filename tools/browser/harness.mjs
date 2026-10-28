@@ -276,7 +276,7 @@ export async function withCspMode({ dir, csp }, fn) {
 // page・context を作り、記録器 rec を付ける。配信元（origin）以外への要求はすべて abort し、external に数える。
 // CSP 違反は context.exposeBinding で Node 側へ送る。遷移しても失われず、ページのスクリプトより先に登録される。
 // userAgent を指定すると、その context の User-Agent を差し替える（OS の推定の試験。TASK-285 1/2）。未指定なら既定のまま。
-export async function openPage(browser, { origin, viewport = { width: 1024, height: 768 }, userAgent } = {}) {
+export async function openPage(browser, { origin, extraOrigins = [], viewport = { width: 1024, height: 768 }, userAgent } = {}) {
   const context = await browser.newContext(userAgent === undefined ? { viewport } : { viewport, userAgent });
   const rec = { requests: [], finished: [], finishedIds: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
   await context.exposeBinding('__fandheHitRec', (_src, id) => {
@@ -295,7 +295,8 @@ export async function openPage(browser, { origin, viewport = { width: 1024, heig
   });
   await context.route('**/*', (route) => {
     const url = route.request().url();
-    if (url.startsWith(`${origin}/`) || url.startsWith('data:') || url.startsWith('blob:')) return route.continue();
+    // extraOrigins は、同じ文脈で複数のオリジンを渡り歩く試験（l1-l2-origins。TASK-115）だけが明示する。既定は空で、許すのは origin だけ。
+    if (url.startsWith(`${origin}/`) || extraOrigins.some((o) => url.startsWith(`${o}/`)) || url.startsWith('data:') || url.startsWith('blob:')) return route.continue();
     rec.external.push(url);
     return route.abort();
   });
