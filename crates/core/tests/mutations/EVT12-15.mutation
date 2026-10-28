@@ -1,0 +1,8 @@
+id: EVT12-15
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:         let changes = std::mem::take(&mut r.changes);
+replace:         let changes = r.changes.clone();
+expect-fail: evt13_stop_resets_the_stopped_step_review
+note: 停止（reset_item）で Step の項目の変更を初期化しない（EVT12-12 の後継の片方。#1865）

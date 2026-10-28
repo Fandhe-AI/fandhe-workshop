@@ -2,7 +2,7 @@ id: MOD11-8
 package: fandhe-workshop-pack
 test: round_property
 target: crates/core/src/go_to.rs
-find:     state.entry = None;
-replace:     state.entry = None; if let Some(s) = state.run.slices.get_mut(&at.step.root()) { s.flags.clear(); }
+find:     state.run.busy = None;
+replace:     state.run.busy = None; if let Some(s) = state.run.slices.get_mut(&at.step.root()) { s.flags.clear(); }
 expect-fail: m1_holds_across_rounds_fixed_generation
 note: X8 相当。移動で出発側の根のフラグを消す

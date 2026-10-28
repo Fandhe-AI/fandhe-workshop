@@ -1,0 +1,8 @@
+id: EVT12-16
+package: fandhe-workshop-core
+test: projection_derive
+target: crates/core/src/projection.rs
+find:                     Cause::Stop => self.unmerge_change(&at.step, path, after),
+replace:                     Cause::Stop => {}
+expect-fail: evt13_stop_cause_change_unmerges_merged_change
+note: 原因 Stop の差分で併合済みの変更を打ち消さない（EVT12-12 の後継のもう片方。#1865）
