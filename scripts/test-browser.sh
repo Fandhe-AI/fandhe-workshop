@@ -121,6 +121,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/delivery-subpath.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-direct-links.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-bases.test.mjs" \
+  "${ROOT_DIR}/tools/browser/wasm-mime.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-columns.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-tabs.test.mjs" \
   "${ROOT_DIR}/tools/browser/shell-boundary.test.mjs" \
