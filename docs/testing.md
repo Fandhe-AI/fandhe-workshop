@@ -9528,3 +9528,26 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 全件の `make check-mutations` は `MOD9-1`・`MOD9-2` の find が古いため流していない（5.336 の範囲外の件のまま）
   - 保存の持ち主を呼び出しの Step の実体にする経路（`MOD9-3` の形）が pack では届かない限界は 5.336 のとおり
 - 範囲外: 変異注入の CI への組み込み（TASK-83）。`MOD9-1`・`MOD9-2` の復旧
+
+### 5.339 2 周分の履歴の保存と復元で実体の切り身が等しい（TASK-247。MOD-14・EVT-21）
+
+- 目的: 2 周分（1 周目と 2 周目の各 2 実体、計 4 実体）の履歴で、再読み込みと書き出し → 読み込みの前後に 4 実体の切り身が等しいこと、途中開始の `Skipped` が残ることを確かめる。試作の `reload_keeps_per_instance_state_separate_across_rounds` に当たる
+- 方式: `crates/pack/tests/round_persist.rs` の 4 件
+  - `mod14_two_rounds_history_keeps_four_slices_across_reload`: 保存 → 再読み込みを 3 回重ねても 4 根の切り身が等しく、世代 +1 と `Reloaded` 1 件以外が等しい
+  - `mod14_two_rounds_history_keeps_four_slices_across_export_import`: 書き出し → 読み込みで状態・開始点・`ops` が等しい
+  - `mod14_reload_keeps_per_instance_state_separate_across_rounds`: 2 周目の途中で保存・開き直した後、`hints_opened` と、復帰の後の 4 根の切り身が元と等しい
+  - `evt21_round2_midstart_skips_survive_reload_and_export_import_after_round1`: 1 周目の後の途中開始の `Skipped` 3 件が両経路の後も残り、1 周目の切り身は変わらず、達成にならない
+- 決定: 本番コードは変えない。置き場は pack の試験。失敗の文言に入力の本文を出さない
+- 結果（2026-10-28）: 4 件が合格
+- 変異注入（2026-10-28。元のコミット 9a2f0c67）
+
+| ID | 対象 | 結果 |
+|---|---|---|
+| MOD14-1 | `history_boot.rs`: 復元で 1 周目の根の切り身を落とす | DETECTED |
+| MOD14-2 | `history_load.rs`: 読み込みで 1 周目の根の切り身を落とす | DETECTED |
+
+- 限界:
+  - `GoTo` で飛ばす箇所があり真の通しではない（5.258・5.260）
+  - `OpenHint` が拒否される Step では `hints_opened` の比較が空になりうる（未確認）
+  - ブラウザでの再読み込み・書き出し → 読み込みは範囲外
+  - 作成者と実装者が同じ AI で、人の確認は得ていない
