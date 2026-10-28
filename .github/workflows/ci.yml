@@ -135,6 +135,10 @@ jobs:
       - name: make test-measure-result
         run: make test-measure-result
 
+      # 変異の定義の静的検査（make check に入っている）自体の回帰テスト。cargo 不要で数秒。
+      - name: make test-check-mutation-defs
+        run: make test-check-mutation-defs
+
       - name: make check-toolchain
         run: |
           set -euo pipefail

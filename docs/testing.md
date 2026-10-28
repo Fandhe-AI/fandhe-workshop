@@ -224,12 +224,13 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 - 既存の例外は改名しない。足場の時期の `<英大文字 1 字><連番>`（`S1`・`M1` など）と、`JUDGE1-C1` のような英字つき枝番である
 - ID はファイル名なので、同じ crate の中では重ならない。crate をまたぐ重複は避ける。既存の `VER7-1`（contract と core）は、第 5 節の記録が参照するため改名しない
 - ファイル名と `id` の一致は、今は検査していない（2026-10-19 に全 425 件の一致を確かめた）
+- `find` の一意性（`check-mutations.sh` と同じ数え方）と `expect-fail` の名前の実在は、`make check` が静的に検査する（`scripts/check-mutation-defs.sh`。cargo 不要で約 5 秒。2026-10-28 時点で 698 件・950 名前が通る）。名前の照合は `fn <名前>(`・`mod <名前> {` の字句の照合で、`#[test]` の有無・mod の入れ子の位置は見ない近似である。元の状態で `ok` が出ることと SURVIVED は従来どおり動的な検査の担当
 
 ### 3.3 新しい変異を足す手順
 
 1. 壊したい 1 か所を決め、`find`（ちょうど 1 回現れる文字列）と `replace` を書く。ID は 3.2 節の規則で付け、ファイル名を ID と同じにする
 2. 失敗すべき試験の関数名を `expect-fail` に書く。名前を推測で書かず、元の状態で `ok` と出る名前を使う
-3. `make check-mutations` を流し、DETECTED になることを確かめる
+3. `make check` で静的検査（`find` の一意性・名前の実在）を通し、`make check-mutations` で DETECTED になることを確かめる
 4. 出力された記録の表を、第 5 節の該当の見出しへ貼る（手で作らない）
 
 ### 3.4 終了コードと対処
@@ -247,7 +248,7 @@ FANDHE_PROPTEST_SEED=<種> FANDHE_PROPTEST_CASES=<ケース数> cargo test --loc
 
 - 所要時間: サンプル 2 件で約 6 秒（2026-10-12、依存を含む冷えた状態のビルド込み）。変異が増えるほど、変異ごとの再ビルドと試験の時間が足される
 - 依存のビルドの出力先（`CARGO_TARGET_DIR`）は一時ディレクトリに置き、同じ実行の全変異で共有する
-- git hooks と `make check` には入れない。重く、静的な検査だけという `make check` の契約に合わない
+- 動的な実行（`make check-mutations`）は git hooks と `make check` には入れない。重く、`make check` の契約に合わない。静的な検査（`make check-mutation-defs`）は `make check` に入る（3.2 節）
 - CI への組み込みは TASK-33 が扱う。TASK-83 3/3 は手元の手順と記録だけで、CI の関門にはしない（人の承認点が無い範囲）。スクリプト自体の回帰テストは `make test-check-mutations`
 
 ## 4. 記録の様式
@@ -9953,7 +9954,13 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 結果（2026-10-28）: `make test-chapter-key-control` は終了コード 0（所要およそ 24 秒。依存のビルドが `/tmp` の写しで済んだ後の値）。写しでは試験が `CHAPTER-HISTORY-MIXED` の理由で失敗し、`control established` が出た。`make check` も通った
 - 範囲外（既存の申し送りのまま）: 置換元の一意性を `make check` で常時検査する仕組みは無く、再発は防げない
 
-### 5.353 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
+### 5.353 変異の定義の静的検査を `make check` に入れる（#1864）
+
+- 追加: `scripts/check-mutation-defs.sh`（`make check-mutation-defs`。`make check` から呼ばれる）と、その回帰テスト `scripts/test-check-mutation-defs.sh`（`make test-check-mutation-defs`。CI の `check` ジョブも流す）。定義の読み方・数え方は `scripts/lib-mutations.sh` に切り出し、`check-mutations.sh` と共有する
+- 2026-10-28、HEAD 03aba58a の上で、698 件・950 名前がすべて通る（所要およそ 5 秒、cargo なし）。回帰テストは 21 件が pass
+- 切り出しの退行の確認: `scripts/check-mutations.sh crates/contract/tests/mutations/H1.mutation` を本物の cargo で 1 件流し、DETECTED・終了コード 0。全件の実行（`make check-mutations`・`make test-check-mutations` の末尾の全件）は未検証
+
+### 5.354 WASM の MIME とストリーミング compile の試験（TASK-107 1/2。DLV-3）
 
 - 目的: 配信する設定の `.wasm` が `application/wasm`・gzip で届き、MIME に関するコンソールの警告が 0 件で、`WebAssembly.instantiateStreaming` が実際に使われて成功し、アプリがマウントされることを自動ブラウザで固定する。製品のコード・`tools/serve.mjs` は変えない。大きさ（DLV-4）は TASK-107 2/2
 - 試験: `tools/browser/wasm-mime.test.mjs`（`make test-browser` に登録。2 件）。`harness.mjs` に `installWasmProbe`・`readWasmProbe`・`mimeConsoleMessages` を追加し、`harness.test.mjs` に `mimeConsoleMessages` の単体の確認を足した
