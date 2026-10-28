@@ -10,13 +10,12 @@
 //   L2_SITE  既定 <repo>/dist/web。build-l2.mjs と同じ検査（check-delivery.sh・ir/main.json）を通ること
 //   L2_OUT   既定 <repo>/dist/l2。規則は build-l2.mjs と同じ。書くのは fandhe-workshop-l2-<platform>.zip の 1 ファイルだけ
 //   platform は旧 zip の miniserve の sha256 を tools/l2/miniserve.sha256 の固定値と照合して決める（一致しなければ失敗。A08）。
-// 旧 zip は信頼しない入力として扱う（A01・A04）: 展開の前に名前を検査し、リンク・特殊ファイルを拒否し、展開後の大きさに上限を置く。
+// 旧 zip は信頼しない入力として扱う（A01・A04）: 展開の前に名前を検査し、リンクを拒否し、読み出した実バイト数に上限を置く（申告値は信用しない）。
 // どの段階で失敗しても zip を作らない（fail-closed）。出力は決定的（同じ入力から同じバイト列。build-l2.mjs と同じ writer）。
 // 終了コード: 0 = 作成 / 1 = 検査の失敗 / 2 = 誤用・入力の不備。
 // 回帰テストは tools/update-l2.test.mjs（`make test-update-l2`）。
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkSite, L2Error, platformOfServer, readPins, siteEntries, TOP, writeOutput, writeZip } from './build-l2.mjs';
@@ -40,7 +39,7 @@ function listEntries(zip) {
   const names = unzip(['-Z1', zip]).split('\n').filter(Boolean);
   const seen = new Set();
   for (const n of names) {
-    if (!/^[\x21-\x7e]+$/.test(n) || n.includes('\\')) throw new L2Error(`unsupported entry name in zip: ${JSON.stringify(n)}`);
+    if (!/^[\x21-\x7e]+$/.test(n) || /[\\*?[\]]/.test(n)) throw new L2Error(`unsupported entry name in zip: ${JSON.stringify(n)}`);
     const comps = n.split('/');
     if (!n.startsWith(`${TOP}/`) || comps.some((c, i) => c === '..' || c === '.' || (c === '' && i !== comps.length - 1))) {
       throw new L2Error(`entry outside ${TOP}/ or with an unsafe path: ${n}`);
@@ -70,33 +69,33 @@ function listEntries(zip) {
   return entries;
 }
 
-/** 展開した木が一覧と一致し、通常のファイルとディレクトリだけであることを確かめる。 */
-function verifyTree(root, entries) {
-  const found = new Set();
-  const walk = (abs, rel) => {
-    for (const ent of fs.readdirSync(abs, { withFileTypes: true })) {
-      const r = `${rel}${ent.name}`;
-      if (ent.isSymbolicLink() || !(ent.isFile() || ent.isDirectory())) throw new L2Error(`unexpected file type after unpacking: ${r}`);
-      if (ent.isDirectory()) {
-        found.add(`${r}/`);
-        walk(path.join(abs, ent.name), `${r}/`);
-      } else {
-        found.add(r);
-      }
+/**
+ * site/ 以外のファイルを、1 件ずつ unzip -p でメモリへ読む。申告値は改変できるため、上限は実際に出たバイト数で判定する。
+ * spawnSync の maxBuffer は残りの予算とし、超えた時点で unzip を打ち切る（ディスクへは何も書かない）。
+ */
+function readKept(zip, entries, limit) {
+  let left = limit;
+  const out = new Map();
+  for (const e of entries) {
+    if (e.dir) continue;
+    const r = spawnSync(UNZIP, ['-p', zip, e.name], { maxBuffer: left + 1 });
+    if (r.error) {
+      if (r.error.code === 'ENOBUFS') throw new L2Error(`zip is too large when unpacked (actual bytes exceed the limit ${limit})`);
+      throw new L2Error(`unzip could not run: ${r.error.message}`);
     }
-  };
-  walk(root, '');
-  const expected = new Set(entries.map((e) => e.name));
-  if (found.size !== expected.size || [...found].some((n) => !expected.has(n))) {
-    throw new L2Error('unpacked tree does not match the zip listing');
+    if (r.status !== 0) throw new L2Error(`unzip failed (exit ${r.status ?? r.signal}): ${String(r.stderr ?? '').trim().slice(0, 1000)}`);
+    left -= r.stdout.length;
+    if (left < 0) throw new L2Error(`zip is too large when unpacked (actual bytes exceed the limit ${limit})`);
+    out.set(e.name, r.stdout);
   }
+  return out;
 }
 
 /**
  * 旧 zip の site/ を site の内容に差し替えた新しい zip を out へ書く。pins は { 資産名: sha256 }。
  * 戻り値は { zip, bytes, sha256, platform, kept, files }。
  */
-export function updateL2({ zip, site, out, pins, checkDelivery = true }) {
+export function updateL2({ zip, site, out, pins, checkDelivery = true, maxUnpacked = MAX_UNPACKED }) {
   if (!zip) throw new L2Error('L2_ZIP is required', 2);
   let st;
   try {
@@ -106,24 +105,18 @@ export function updateL2({ zip, site, out, pins, checkDelivery = true }) {
   }
   if (!st.isFile()) throw new L2Error(`L2_ZIP is not a regular file: ${zip}`, 2);
   const entries = listEntries(zip);
-  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'fandhe-update-l2.'));
-  try {
-    unzip(['-q', zip, '-d', work]);
-    verifyTree(work, entries);
-    const bin = fs.readFileSync(path.join(work, TOP, 'miniserve'));
+  {
+    const kept = entries.filter((e) => !e.name.startsWith(`${TOP}/site/`));
+    const data = readKept(zip, kept, maxUnpacked);
+    const bin = data.get(`${TOP}/miniserve`);
     const platform = platformOfServer(bin, pins);
     if (platform === null) throw new L2Error('sha256 of miniserve in L2_ZIP does not match any pinned value');
     checkSite(site, { checkDelivery });
-    const kept = entries.filter((e) => !e.name.startsWith(`${TOP}/site/`));
-    const next = kept.map((e) =>
-      e.dir ? { name: e.name, dir: true } : { name: e.name, data: fs.readFileSync(path.join(work, e.name)), mode: e.mode },
-    );
+    const next = kept.map((e) => (e.dir ? { name: e.name, dir: true } : { name: e.name, data: data.get(e.name), mode: e.mode }));
     const files = siteEntries(site);
     next.push({ name: `${TOP}/site/`, dir: true }, ...files);
     const r = writeOutput(out, platform, writeZip(next));
     return { ...r, platform, kept: kept.length, files: files.filter((f) => !f.dir).length };
-  } finally {
-    fs.rmSync(work, { recursive: true, force: true });
   }
 }
 

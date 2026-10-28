@@ -265,6 +265,19 @@ describe('fail-closed', () => {
     expectFail(z, makeSite(), /too large|unzip failed/);
   });
 
+  test('申告の大きさを小さく偽った旧 zip でも、実際に出たバイト数が上限を超えれば拒否する', () => {
+    const entries = [...GOOD(), { name: `${TOP}/README`, data: Buffer.alloc(3 * 1024 * 1024), mode: 0o644 }];
+    const z = synth(entries);
+    const buf = read(z);
+    const sig = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+    let i = buf.indexOf(sig);
+    while (i >= 0 && buf.subarray(i + 46, i + 46 + buf.readUInt16LE(i + 28)).toString() !== `${TOP}/README`) i = buf.indexOf(sig, i + 4);
+    assert.ok(i >= 0);
+    buf.writeUInt32LE(1, i + 24); // 申告だけを 1 byte に偽る
+    fs.writeFileSync(z, buf);
+    assert.throws(() => update(z, makeSite(), { maxUnpacked: 1024 * 1024 }), /too large when unpacked \(actual/);
+  });
+
   const badSites = {
     'ir/main.json が JSON でない': (s) => fs.writeFileSync(path.join(s, 'ir', 'main.json'), 'not json'),
     'test-hooks.js を含む': (s) => fs.writeFileSync(path.join(s, 'test-hooks.js'), ''),
