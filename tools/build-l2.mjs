@@ -34,7 +34,7 @@ export const LAYOUTS = {
   'linux-x64': { launcher: 'start.sh', launcherSrc: 'start.sh', server: 'miniserve', crlf: false },
   'windows-x64': { launcher: 'start.cmd', launcherSrc: 'start.cmd', server: 'miniserve.exe', crlf: true },
 };
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9]|conin\$|conout\$)(\.|$)/i;
 const MAX = 0xffffffff;
 // DOS 時刻 1980-01-01 00:00:00。決定性のため固定する。
 const DOS_TIME = 0;

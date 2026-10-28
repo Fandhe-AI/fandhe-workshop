@@ -12,6 +12,7 @@ setlocal EnableDelayedExpansion
 
 rem PORT is only referenced as !PORT! and validated first, so "&", "|" or quotes in it cannot build a command.
 if not defined PORT set "PORT=8787"
+if "!PORT!"=="" goto badport
 set "rest=!PORT!"
 for %%D in (0 1 2 3 4 5 6 7 8 9) do set "rest=!rest:%%D=!"
 if defined rest goto badport

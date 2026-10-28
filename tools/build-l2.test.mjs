@@ -329,6 +329,8 @@ describe('Windows 向け（TASK-198。DLV-22）', () => {
 
   for (const [label, name] of [
     ['予約名', 'CON.txt'],
+    ['予約名（コンソール）', 'CONIN$'],
+    ['予約名（コンソール・小文字・拡張子つき）', 'conout$.txt'],
     ['禁止文字', 'a:b.txt'],
     ['バックスラッシュ', 'a\\b.js'],
     ['末尾の点', 'x.'],
