@@ -1,0 +1,8 @@
+id: MOD13-1
+package: fandhe-workshop-pack
+test: module_one_edit
+target: crates/core/src/effect.rs
+find:         attrs: p.attrs.clone(),
+replace:         attrs: Default::default(),
+expect-fail: mod13_edit_reaches_both_rounds_at_runtime
+note: put が属性を捨てて、修正が実行に届かない
