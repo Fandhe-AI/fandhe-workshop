@@ -10,7 +10,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 操作に応じて成果物が変わる教材として動くことを目指す。エンジンは特定の教材の知識を持たない。
 
 - 開発基盤は `Fandhe-AI/template-dev` から作成した。現時点の中身は Make・シェルスクリプト・lefthook・GitHub Actions
-- Cargo ワークスペース（4 crate）を導入済み。pack crate は読み込み層と `fandhe-pack validate <pack-dir>`・`compile <pack-dir> [--chapters <id>,...]`・`compare <pack-dir-a> <pack-dir-b>`・`metrics <pack-dir>`・`vocab <pack-dir>`・`test <pack-dir>`（枠・終了コード・PASS／FAIL の行・集計・R-22／R-21 の行。最終行と入った実体の集計は後続）を実装済みで、他は骨格中心（2026-10-15 時点）。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
+- Cargo ワークスペース（4 crate）を導入済み。pack crate は読み込み層と `fandhe-pack validate <pack-dir>`・`compile <pack-dir> [--chapters <id>,...]`・`compare <pack-dir-a> <pack-dir-b>`・`metrics <pack-dir>`・`vocab <pack-dir>`・`test <pack-dir>`（枠・終了コード・PASS／FAIL の行・集計・R-22／R-21 の行・入った Step の実体の行。最終行は後続）を実装済みで、他は骨格中心（2026-10-15 時点）。Rust のコーディング規約は `coding-rust.md`。エンジンの実装・Rust 向けの builder Agent は、タスクに沿って追加する
 - 仕様は private の submodule `docs/spec`（`Fandhe-AI/fandhe-workshop-spec`）。取得手順は README の「仕様」
 
 ## Repository Structure

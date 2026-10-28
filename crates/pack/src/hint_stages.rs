@@ -110,17 +110,9 @@ pub enum HintStageFinding {
     },
 }
 
-/// `uid` の区切り 1 つが写してよい形か。モジュールの実体は `<モジュール>@<実体>`（`expand`）なので、`@` で 2 つに
-/// 分けた両方が短い識別子のときも認める。
-fn printable_segment(seg: &str) -> bool {
-    use crate::source::safe_ident;
-    seg.split_once('@')
-        .map_or_else(|| safe_ident(seg), |(m, i)| safe_ident(m) && safe_ident(i))
-}
-
-/// `uid`（`<実体 ID>/<Step ID>`）を報告へ写してよいか。区切りごとに短い識別子のときだけ写す。
+/// `uid`（`<実体 ID>/<Step ID>`）を報告へ写してよいか。規則は `source::printable_uid`。
 fn printable(uid: &str) -> &str {
-    if !uid.is_empty() && uid.split('/').all(printable_segment) {
+    if crate::source::printable_uid(uid) {
         uid
     } else {
         "(unprintable)"

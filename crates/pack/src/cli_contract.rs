@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 14;
+pub const CLI_CONTRACT_VERSION: u32 = 15;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -275,6 +275,18 @@ pub fn test_r21_line(texts: usize, empty: usize) -> String {
     format!("R-21 返した文面 {texts} 件のうち「次の行動」が空 {empty} 件")
 }
 
+/// `test` の入った Step の実体の行（AUTHOR-6、TASK-405 2/2）。入らなかった実体は失敗ではなく情報である。
+///
+/// `missed` は呼び出し側が写してよい名前（または `#n`）にしたものだけを渡す。空なら `なし`。区切りは `, `。
+pub fn test_entered_line(entered: usize, total: usize, missed: &[String]) -> String {
+    let names = if missed.is_empty() {
+        "なし".to_string()
+    } else {
+        missed.join(", ")
+    };
+    format!("試験で入った Step の実体: {entered}/{total}（入らなかった実体: {names}）")
+}
+
 /// `compare` の一致の行。
 pub fn compare_same_line(len: usize) -> String {
     format!("OK: IR が一致しました（{len} バイト）")
@@ -387,6 +399,22 @@ pub fn vocab_pack_line(ep_id: &str, field: &str) -> String {
 #[cfg(test)]
 mod test_line_tests {
     use super::*;
+
+    #[test]
+    fn entered_line_shape() {
+        assert_eq!(
+            test_entered_line(0, 0, &[]),
+            "試験で入った Step の実体: 0/0（入らなかった実体: なし）"
+        );
+        assert_eq!(
+            test_entered_line(2, 3, &["a/b".to_string()]),
+            "試験で入った Step の実体: 2/3（入らなかった実体: a/b）"
+        );
+        assert_eq!(
+            test_entered_line(1, 3, &["a/b".to_string(), "c@d/e".to_string()]),
+            "試験で入った Step の実体: 1/3（入らなかった実体: a/b, c@d/e）"
+        );
+    }
 
     #[test]
     fn pass_line_shape() {

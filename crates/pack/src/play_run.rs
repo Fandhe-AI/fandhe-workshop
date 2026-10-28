@@ -22,13 +22,19 @@
 //! `judge::judge_input` を同じ評価器（`accept::on_input` と同じ `NoConditions`）で 1 回呼んで検出する。core が評価器を
 //! 変えるときは本モジュールも同じ変更で追従する。
 //!
+//! 入った Step の実体（TASK-405 2/2、AUTHOR-6）は、全件で入った `uid` の集合を [`Report::entered`] に集める。
+//! `Session::entered_at` は `Event::Entered` を出さず状態を作るだけなので、開始の節点は [`open`] が手で足す
+//! （足さないと全件の最初の Step が「入らなかった」に数えられる）。以後の入場は `apply` が返す `Event::Entered` から、
+//! 2 つ目以降の `Control::Begin` の入場も同じ読み方で足す。`use` の節点は分母（[`Report::steps`]）に入れない。
+//!
 //! 扱わないこと
-//! - 入った実体の集計と最終行（TASK-405 2/2 以降）。開始点の切り替え（`Control::Begin`）の拒否は文面を持たず、R-21 の数に入れない。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
+//! - 最終行（後続）。開始点の切り替え（`Control::Begin`）の拒否は文面を持たず、R-21 の数に入れない。PASS・FAIL・集計の行は `cli::run_test` が `cli_contract` の関数で書く（TASK-404 2/3・3/3）。報告 [`Report`] が材料と試験の診断を持つ
 //! - 空白だけの `cmd:`・`text:` を送らないこと（画面は送らないが、ここは分けた結果をそのまま適用する。既知の差）
 //! - `text_checks`・`guidance_checks`・`asserts` の判定（[`Report::unsupported`] に積み、不合格に倒す）
 //!
 //! 全域かつ決定的である。I/O は [`run_pack`] の `source::load` だけで、時刻・乱数を持たない。
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use fandhe_workshop_contract::confirm_spec::{achievement, Achievement, ConfirmKind};
@@ -207,6 +213,10 @@ pub struct Report {
     /// 入力の分けの診断（`E-PLAY-INPUT-CLASS`。接頭辞が `/` 以外のときだけ）。流した結果とは別に持ち、
     /// 1 件でもあれば不合格に倒す（食い違いを通ったと見せない）。
     pub input_class: Vec<Diagnostic>,
+    /// 入った Step の実体の分母（`use` の節点を除く `ir.nodes` の `uid`。`ir.nodes` の順。AUTHOR-6）。
+    pub steps: Vec<String>,
+    /// 全件の流しで入った実体の `uid`（合否に関わらず、外れるまでの分を含む）。
+    pub entered: BTreeSet<String>,
 }
 
 impl CaseResult {
@@ -246,6 +256,18 @@ impl CaseResult {
 }
 
 impl Report {
+    /// 入った実体の数 N・分母 M・入らなかった実体（1 始まりの位置と `uid`。`steps` の順）。情報であり、合否に影響しない。
+    pub fn entered_steps(&self) -> (usize, usize, Vec<(usize, &str)>) {
+        let missed: Vec<(usize, &str)> = self
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, u)| !self.entered.contains(*u))
+            .map(|(i, u)| (i + 1, u.as_str()))
+            .collect();
+        (self.steps.len() - missed.len(), self.steps.len(), missed)
+    }
+
     /// 合格した模範解答の数。
     pub fn passed_playthroughs(&self) -> usize {
         self.playthroughs.iter().filter(|c| c.passed()).count()
@@ -415,26 +437,38 @@ pub fn run(ir: &Ir, script: &Script) -> Report {
         .ok()
         .map(|p| p.command_prefix);
     let prefix = prefix.as_deref();
+    let mut entered = BTreeSet::new();
+    let playthroughs = script
+        .playthroughs
+        .iter()
+        .map(|p| run_playthrough(ir, prefix, p, &mut entered))
+        .collect();
+    let error_inputs = script
+        .error_inputs
+        .iter()
+        .map(|e| run_error_input(ir, prefix, e, &mut entered))
+        .collect();
     Report {
-        playthroughs: script
-            .playthroughs
-            .iter()
-            .map(|p| run_playthrough(ir, prefix, p))
-            .collect(),
-        error_inputs: script
-            .error_inputs
-            .iter()
-            .map(|e| run_error_input(ir, prefix, e))
-            .collect(),
+        playthroughs,
+        error_inputs,
         unsupported: script.unsupported.clone(),
         tests_file: String::new(),
         input_class: Vec::new(),
+        steps: ir
+            .nodes
+            .iter()
+            .filter(|n| n.step.use_module.is_none())
+            .map(|n| n.uid.clone())
+            .collect(),
+        entered,
     }
 }
 
-fn open(ir: &Ir, start: &str) -> Option<Session> {
+fn open(ir: &Ir, start: &str, entered: &mut BTreeSet<String>) -> Option<Session> {
     let s = ir.starts.iter().find(|s| s.id == start)?;
     ir.nodes.iter().find(|n| n.uid == s.node)?;
+    // `entered_at` は `Event::Entered` を出さないので、開始の節点はここで数える。
+    entered.insert(s.node.clone());
     Some(Session::entered_at(ir.clone(), &s.node))
 }
 
@@ -573,12 +607,22 @@ fn count_texts(events: &[Event]) -> usize {
         .count()
 }
 
+/// イベント列の `Entered` の `uid` を入った集合へ足す（`ModuleEntered`・`Skipped` は数えない）。
+fn note_entered(events: &[Event], entered: &mut BTreeSet<String>) {
+    for e in events {
+        if let Event::Entered { at } = e {
+            entered.insert(at.step.0.clone());
+        }
+    }
+}
+
 fn step_once(
     ir: &Ir,
     session: &mut Session,
     prefix: Option<&str>,
     op: &PlayOp,
     tally: &mut Tally,
+    entered: &mut BTreeSet<String>,
 ) -> Observed {
     let Some(op) = to_op(session, prefix, op) else {
         return Observed::NoJudgment;
@@ -592,6 +636,7 @@ fn step_once(
         _ => false,
     };
     let events = session.apply(op);
+    note_entered(events, entered);
     let (c, e, u) = tally_achievements(ir, events);
     tally.confirmed += c;
     tally.explicit_skip += e;
@@ -604,10 +649,15 @@ fn step_once(
     observe(events)
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "流しの状態（集計・入った集合・件数）を呼び出し元と共有するため。束ねる型は 2 呼び出しだけで増やさない"
+)]
 /// 入力列を流し、最初に外れた位置を返す。`segment` は 1 始まり（0 は誤入力の `pre`）。
 fn run_steps(
     ir: &Ir,
     tally: &mut Tally,
+    entered: &mut BTreeSet<String>,
     session: &mut Session,
     prefix: Option<&str>,
     steps: &[ScriptStep],
@@ -616,7 +666,7 @@ fn run_steps(
 ) -> Option<Failure> {
     for (n, s) in steps.iter().enumerate() {
         *count += 1;
-        let observed = step_once(ir, session, prefix, &s.op, tally);
+        let observed = step_once(ir, session, prefix, &s.op, tally, entered);
         if !observed.matches_expect(&s.expect) {
             return Some(Failure::Mismatch {
                 segment,
@@ -659,7 +709,12 @@ fn end_reached(session: &Session, p: &Playthrough) -> bool {
     }
 }
 
-fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult {
+fn run_playthrough(
+    ir: &Ir,
+    prefix: Option<&str>,
+    p: &Playthrough,
+    entered: &mut BTreeSet<String>,
+) -> CaseResult {
     let mut inputs = 0;
     let mut tally = Tally::default();
     let mut session: Option<Session> = None;
@@ -681,12 +736,13 @@ fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult
             Some(s) => {
                 // 2 つ目以降の開始点は、状態を引き継いだまま重ねる。
                 let events = s.apply(Op::Control(Control::Begin(seg.start.clone())));
+                note_entered(events, entered);
                 if events.iter().any(|e| matches!(e, Event::Refused { .. })) {
                     return result(inputs, Some(begin_failed), tally);
                 }
                 s
             }
-            None => match open(ir, &seg.start) {
+            None => match open(ir, &seg.start, entered) {
                 Some(s) => session.insert(s),
                 None => return result(inputs, Some(begin_failed), tally),
             },
@@ -694,6 +750,7 @@ fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult
         if let Some(f) = run_steps(
             ir,
             &mut tally,
+            entered,
             current,
             prefix,
             &seg.steps,
@@ -713,7 +770,12 @@ fn run_playthrough(ir: &Ir, prefix: Option<&str>, p: &Playthrough) -> CaseResult
     )
 }
 
-fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult {
+fn run_error_input(
+    ir: &Ir,
+    prefix: Option<&str>,
+    e: &ErrorInput,
+    entered: &mut BTreeSet<String>,
+) -> CaseResult {
     let fail = |inputs, failure, observed, tally| CaseResult {
         id: e.id.clone(),
         inputs,
@@ -721,7 +783,7 @@ fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult 
         observed,
         tally,
     };
-    let Some(mut session) = open(ir, &e.start) else {
+    let Some(mut session) = open(ir, &e.start, entered) else {
         return fail(
             0,
             Failure::Mismatch {
@@ -736,11 +798,20 @@ fn run_error_input(ir: &Ir, prefix: Option<&str>, e: &ErrorInput) -> CaseResult 
     };
     let mut inputs = 0;
     let mut tally = Tally::default();
-    if let Some(f) = run_steps(ir, &mut tally, &mut session, prefix, &e.pre, 0, &mut inputs) {
+    if let Some(f) = run_steps(
+        ir,
+        &mut tally,
+        entered,
+        &mut session,
+        prefix,
+        &e.pre,
+        0,
+        &mut inputs,
+    ) {
         return fail(inputs, f, None, tally);
     }
     inputs += 1;
-    let observed = step_once(ir, &mut session, prefix, &e.input, &mut tally);
+    let observed = step_once(ir, &mut session, prefix, &e.input, &mut tally, entered);
     if observed.matches_result(&e.expect) {
         CaseResult {
             id: e.id.clone(),
