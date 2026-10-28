@@ -330,6 +330,7 @@ describe('Windows 向け（TASK-198。DLV-22）', () => {
   for (const [label, name] of [
     ['予約名', 'CON.txt'],
     ['禁止文字', 'a:b.txt'],
+    ['バックスラッシュ', 'a\\b.js'],
     ['末尾の点', 'x.'],
   ]) {
     test(`Windows で作れない名前（${label}）は windows-x64 で拒否し、linux-x64 は通る`, () => {

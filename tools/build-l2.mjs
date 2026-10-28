@@ -92,7 +92,7 @@ export function checkWindowsNames(siteEntries) {
   for (const e of siteEntries) {
     const rel = e.name.replace(/\/$/, '');
     for (const part of rel.split('/')) {
-      if (/[<>:"|?*]/.test(part) || WINDOWS_RESERVED.test(part) || part.endsWith('.')) {
+      if (/[<>:"\\|?*]/.test(part) || WINDOWS_RESERVED.test(part) || part.endsWith('.')) {
         throw new L2Error(`file name cannot be extracted on Windows: ${rel}`);
       }
     }
