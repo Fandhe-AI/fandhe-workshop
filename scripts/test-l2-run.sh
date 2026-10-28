@@ -7,6 +7,8 @@
 # バイト単位で一致することを確かめる（TASK-114 1/2。DLV-15。tools/browser/l1-l2-match.test.mjs）。
 # さらに、凍結した IR と組の固定の入力列（crates/web/tests/data/fixed_sequence_ch0_1/）を同じ 3 配信先 × 3 回で流して凍結した期待と照合し、
 # 履歴の ops に揺れる欄が無いことを確かめる（TASK-114 2/2。tools/browser/l1-l2-fixed.test.mjs）。
+# 最後に、同じ browser context で L1・L2 の 2 か所・別名 localhost のオリジンが互いに分離していること（保存が見えない・L1 の状態が残る）を
+# 3 つのサーバを同時に起動して確かめる（TASK-115。DLV-16。tools/browser/l1-l2-origins.test.mjs）。
 #
 # 流れ: 配信する設定の web（release・同梱の IR あり）をビルド → tools/build-l2.mjs で zip を作る →
 # tools/browser/l2-run.test.mjs が mkdtemp の下へ展開し、PATH=/usr/bin:/bin だけで ./start.sh を起動して 3 回通す。
@@ -22,7 +24,7 @@
 # 呼ぶ）は WASM のバイト列に debug_ が無いことを求めるが、wasm-opt を使わない CI のビルドには名前（debug_struct 等）が残る。
 # CARGO_PROFILE_RELEASE_STRIP は本スクリプトのビルドだけに効かせ、共有の target のキャッシュを壊さない。
 #
-# 終了コード: 0 = 3 つの試験ファイルの通過と 9 回の一致 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
+# 終了コード: 0 = 4 つの試験ファイルの通過と 9 回の一致 / 1 = 失敗・前提の不足 / 2 = 誤用（引数あり・L2_SERVER なし・未対応の OS）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -76,6 +78,11 @@ FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR
 log "running the L1 and L2 match run (3 targets x 3 runs)"
 FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" FANDHE_L2_SITE="${TMP}/site" \
   node --test "${ROOT_DIR}/tools/browser/l1-l2-match.test.mjs"
+
+# 凍結の実行は必ず失敗で終わるため、オリジンの試験はそれより前に置く。
+log "running the L1 and L2 origin separation run (L1, two L2 origins, localhost alias)"
+FANDHE_L2_ZIP="${TMP}/out/fandhe-workshop-l2-${PLATFORM}.zip" FANDHE_L2_IR="${IR}" FANDHE_L2_SITE="${TMP}/site" \
+  node --test "${ROOT_DIR}/tools/browser/l1-l2-origins.test.mjs"
 
 SEQ_DIR="${FANDHE_FIXED_SEQ_DIR:-${ROOT_DIR}/crates/web/tests/data/fixed_sequence_ch0_1}"
 if [ -n "${FANDHE_FREEZE_SEQUENCE:-}" ]; then
