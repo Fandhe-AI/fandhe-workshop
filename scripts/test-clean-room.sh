@@ -107,6 +107,16 @@ mk mismatch "precondition ok" 0 "${OK_BODY}" 0 'test a::emit_histories_for_brows
 test result: ok. 3 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.1s'
 expect "ignored total differs from lines" 2 "$(judge mismatch)"
 
+mk unknownres "precondition ok" 0 "${OK_BODY}" 0 'test result: unknown'
+expect "unparsable test result line" 2 "$(judge unknownres)"
+
+mk nonnumres "precondition ok" 0 "${OK_BODY}" 0 'test result: ok. x passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s'
+expect "non-numeric test result field" 2 "$(judge nonnumres)"
+
+mk partialres "precondition ok" 0 "${OK_BODY}" 0 "${OK_BODY}
+test result: ok. 3 passed; 0 measured; 0 filtered out; finished in 0.1s"
+expect "test result line missing a field" 2 "$(judge partialres)"
+
 code=0
 "${TOOL}" judge >/dev/null 2>&1 || code=$?
 expect "judge without dir" 2 "${code}"

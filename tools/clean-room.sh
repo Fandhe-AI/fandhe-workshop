@@ -115,18 +115,26 @@ judge_run() {
   local sums
   sums="$(section "${log}" "${name}" | awk '
     /^test result: / {
+      hp = 0; hf = 0; hg = 0
       for (i = 2; i <= NF; i++) {
-        if ($i == "passed;") p += $(i - 1)
-        if ($i == "failed;") f += $(i - 1)
-        if ($i == "ignored;") g += $(i - 1)
+        if ($i == "passed;" || $i == "failed;" || $i == "ignored;") {
+          if ($(i - 1) !~ /^[0-9]+$/) { bad++; continue }
+          if ($i == "passed;") { p += $(i - 1); hp++ }
+          if ($i == "failed;") { f += $(i - 1); hf++ }
+          if ($i == "ignored;") { g += $(i - 1); hg++ }
+        }
       }
+      if (hp != 1 || hf != 1 || hg != 1) bad++
     }
-    END { print p + 0, f + 0, g + 0 }')"
+    END { print p + 0, f + 0, g + 0, bad + 0 }')"
   local passed failed ignored
   passed="${sums%% *}"
   failed="${sums#* }"
   failed="${failed%% *}"
-  ignored="${sums##* }"
+  ignored="${sums#* }"
+  ignored="${ignored#* }"
+  ignored="${ignored%% *}"
+  local malformed="${sums##* }"
   local names count
   names="$(section "${log}" "${name}" | grep -E '^test .* \.\.\. ignored' \
     | sed -e 's/^test //' -e 's/ \.\.\. ignored.*$//' -e 's/.*:://' || true)"
@@ -140,6 +148,10 @@ judge_run() {
   fi
   if [ "${results}" = "0" ]; then
     echo "[${name}] error: no 'test result:' line (cannot judge)"
+    return 2
+  fi
+  if [ "${malformed}" != "0" ]; then
+    echo "[${name}] error: ${malformed} unparsable 'test result:' line(s) (cannot judge)"
     return 2
   fi
   if [ "${failed}" != "0" ]; then
