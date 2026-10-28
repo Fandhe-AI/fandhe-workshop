@@ -94,6 +94,35 @@ check_text() {
 check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
+# links_leave_dir <file>: Markdown のリンク先（インライン・参照定義）を相対パスとして正規化し、
+# 置き場の外へ出るもの（./../ の表記、先頭の / を含む）が 1 件でもあれば成功を返す。
+# 外部 URL（スキーム付き）と同一ファイル内の # だけは対象外。
+links_leave_dir() {
+  local verdict
+  verdict="$(links_verdict "$1")"
+  [ "${verdict}" = leave ]
+}
+
+# links_verdict <file>: leave または stay を出力する（grep の不一致が pipefail で結果を壊さないよう、状態は出力で返す）。
+links_verdict() {
+  { { grep -oE '\]\([^)]*\)' "$1" || true; } | sed -e 's/^](//' -e 's/)$//'
+    { grep -E '^[[:space:]]*\[[^]]+\]:' "$1" || true; } | sed -E 's/^[[:space:]]*\[[^]]+\]:[[:space:]]*//'
+  } | awk '
+    {
+      t = $1; gsub(/^</, "", t); gsub(/>$/, "", t)
+      sub(/[#?].*$/, "", t)
+      if (t == "" || t ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) next
+      if (t ~ /^\//) { bad = 1; next }
+      n = split(t, seg, "/"); depth = 0
+      for (i = 1; i <= n; i++) {
+        if (seg[i] == "" || seg[i] == ".") continue
+        if (seg[i] == "..") { depth--; if (depth < 0) { bad = 1; break } }
+        else depth++
+      }
+    }
+    END { print bad ? "leave" : "stay" }'
+}
+
 # check_template_root <dir> <label>: 雛形（またはその写し）の直下の表記を確かめる。本文は出力しない。
 check_template_root() {
   local dir="$1" label="$2" name
@@ -116,7 +145,7 @@ check_template_root() {
       return 0
     fi
   done
-  if grep -qF -- '](../' "${dir}/README.md"; then
+  if links_leave_dir "${dir}/README.md"; then
     echo "error: ${label}/README.md has a link that leaves the directory" >&2
     VIOLATIONS=$((VIOLATIONS + 1))
   fi
