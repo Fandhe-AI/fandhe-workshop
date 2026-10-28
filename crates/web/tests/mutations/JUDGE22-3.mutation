@@ -3,6 +3,6 @@ package: fandhe-workshop-web
 test: key_route_contract
 target: crates/web/src/key_route.rs
 find: | KeyAction::Nothing => KeydownEffect::NONE,
-replace: | KeyAction::Nothing => KeydownEffect { prevent_default: true, click_submit: true },
+replace: | KeyAction::Nothing => KeydownEffect { prevent_default: true, click_submit: true, deliver_complete: false },
 expect-fail: judge22_修飾キー付きの_enter_は送信も_prevent_default_もしない
 note: 修飾キー付きの Enter が送信になる（誤送信）

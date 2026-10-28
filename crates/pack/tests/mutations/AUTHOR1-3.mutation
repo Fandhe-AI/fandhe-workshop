@@ -2,7 +2,7 @@ id: AUTHOR1-3
 package: fandhe-workshop-pack
 test: cli_contract
 target: crates/pack/src/cli_contract.rs
-find: Subcommand::Compile => "<pack-dir> [-o <file>]",
-replace: Subcommand::Compile => "<pack-dir>",
+find:             Subcommand::Compile => "<pack-dir> [--chapters <id>[,<id>...]] [-o <file>]",
+replace:             Subcommand::Compile => "<pack-dir> [--chapters <id>[,<id>...]]",
 expect-fail: usage_declares_compile_output_option
 note: compile の引数の形から -o が落ちる

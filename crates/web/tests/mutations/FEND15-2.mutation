@@ -2,7 +2,7 @@ id: FEND15-2
 package: fandhe-workshop-web
 test: list_parent_attrs
 target: crates/web/src/engine_parts.rs
-find: keyed_view("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items)
-replace: keyed_view("ul", vec![], &F_LOG[0], items)
+find: keyed_view_or_notice("ul", LOG_LIST_ATTRS.to_vec(), &F_LOG[0], items)
+replace: keyed_view_or_notice("ul", vec![], &F_LOG[0], items)
 expect-fail: 親の属性列は_view_に書かれ_操作の前後で変わらない
 note: ログの親 ul の属性を view() から外す（更新のたびに同期されて属性が消える）

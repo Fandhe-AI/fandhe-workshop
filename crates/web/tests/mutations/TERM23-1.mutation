@@ -2,7 +2,7 @@ id: TERM23-1
 package: fandhe-workshop-web
 test: input_ports
 target: crates/web/src/offers.rs
-find: .is_some_and(|st| *st == StepStatus::Entered);
-replace: .is_some_and(|st| *st == StepStatus::Accepted);
+find:     let entered = session.step_status(uid) == StepStatus::Entered;
+replace:     let entered = session.step_status(uid) == StepStatus::Accepted;
 expect-fail: 方式ごとに入った直後の口の数が表のとおりになる
 note: 入力方式 choice の選択肢を、入力待ちでなく確認待ちで出す（入った直後に口が出ず、画面から操作できない。TERM-23）

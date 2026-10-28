@@ -2,8 +2,8 @@ id: SAVE14-6
 package: fandhe-workshop-web
 test: key_stability_host
 target: crates/web/src/host.rs
-find:         HistoryKey::from_ir(scope, self.model.session()?.ir())
-replace:         { let ir = self.model.session()?.ir(); Some(HistoryKey::for_pack(scope, &format!("{}{}", ir.pack.id, ir.pack.version), &ir.starts.first()?.id)) }
+find:         Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))
+replace:         Some(HistoryKey::for_pack(scope, &format!("{}{}", ir.pack.id, ir.pack.version), recorded.start()))
 expect-fail: 版と内容を変えた教材でも同じ鍵で保存済みの履歴が開け鍵は増えない
 expect-fail: 主版を変えた教材でも同じ鍵で読み開けなければ上書きしない
 note: web の鍵に教材の版を混ぜる（版を上げると別の鍵になり、保存済みの履歴が読めなくなる。SAVE-14）

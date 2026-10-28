@@ -2,7 +2,7 @@ id: EVT13-4
 package: fandhe-workshop-core
 test: projection_derive
 target: crates/core/src/projection.rs
-find:             Some(entry) => entry.1 = after.clone(),
-replace:             Some(entry) => *entry = (before.clone(), after.clone()),
+find:             .insert(path.to_string(), (first, after.clone()));
+replace:             .insert(path.to_string(), (before.clone(), after.clone()));
 expect-fail: evt1_marks_merge_first_before_last_after
 note: 印の併合で変更前も上書きする（最初の変更前が残らない）

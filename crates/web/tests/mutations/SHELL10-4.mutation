@@ -4,5 +4,5 @@ test: next_chapter
 target: crates/web/src/next_chapter.rs
 find: if offer.start_id != payload {
 replace: if false {
-expect-fail: 不一致
+expect-fail: 一致しない押下は状態もログも変えない
 note: 押下の payload を今の提示と照らさず、書き換えられた開始点へ移る（SHELL-10・SAFE-33・TASK-526 2/2）
