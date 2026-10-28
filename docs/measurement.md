@@ -11,7 +11,7 @@
 - 基点の違う値どうしで増減を論じると誤った結論を招く。過去の PoC の記録には、commit・`wasm-opt` の有無・圧縮の設定が違う値が
   混在していた。結果の側で基点を必須にして、この事故を構造的に防ぐ
 - 測るものは 3 つ。WASM の `gzip -9` の大きさ、最小の画面（Hello）の初回表示の時間、再描画の時間である
-- CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、`SKIP_WASM_OPT=1` の基点で判定する。ジョブの追加はしていない
+- CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、CI は `SKIP_WASM_OPT=1` の基点で判定する。DLV-4（`wasm-opt` 適用後）の厳格な判定は手元で `scripts/check-wasm-size.sh --require-wasm-opt` を直接実行する（未適用の結果は終了コード 2。TASK-107 2/2。記録は `docs/testing.md` 5.356）。ジョブの追加はしていない
 
 ## 2. 実行
 
