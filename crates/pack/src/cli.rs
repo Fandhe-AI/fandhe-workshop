@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{
     compare_differ_line, compare_same_line, compare_unreadable_line, final_line,
-    test_error_pass_line, test_fail_line, test_pass_line, test_summary_lines, FinalLine,
-    PackSummary,
+    test_error_pass_line, test_fail_line, test_pass_line, test_r21_line, test_r22_line,
+    test_summary_lines, FinalLine, PackSummary,
 };
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
@@ -317,6 +317,13 @@ fn run_test<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
             ) {
                 writeln!(out, "{line}")?;
             }
+            let t = report.tally();
+            writeln!(
+                out,
+                "{}",
+                test_r22_line(t.confirmed, t.explicit_skip, t.unconfirmed)
+            )?;
+            writeln!(out, "{}", test_r21_line(t.texts, t.empty_next))?;
             write_diagnostics(out, &report.diagnostics())?;
             Ok(if report.all_passed() {
                 EXIT_OK
