@@ -68,11 +68,11 @@ fatal() {
 require_cmd git || exit 2
 require_cmd awk || exit 2
 require_cmd mktemp || exit 2
-sha_cmd=""
+sha_cmd=()
 if command -v sha256sum >/dev/null 2>&1; then
-  sha_cmd="sha256sum"
+  sha_cmd=(sha256sum)
 elif command -v shasum >/dev/null 2>&1; then
-  sha_cmd="shasum -a 256"
+  sha_cmd=(shasum -a 256)
 else
   fatal "required command not found on PATH: sha256sum or shasum"
 fi
@@ -250,6 +250,7 @@ awk -v registry="${CRATES_REGISTRY}" -v members="${member_names}" '
     print "FATAL unknown key or line at line " NR
   }
   END {
+    if (indeps) { print "FATAL unterminated dependencies array at end of file" }
     flush()
     if (!seenver) { print "FATAL Cargo.lock lock format is not version 4" }
     print "COUNT " total + 0 " " ncrates + 0 " " nmember + 0 " " ngit + 0 " " nother + 0
@@ -279,6 +280,8 @@ in_scope() {
   return 1
 }
 
+# 一覧の取得は独立した処理にして終了状態を確認する（process substitution では失敗が伝わらない）
+git -C "${root}" ls-files -s -z > "${tmp}/files.bin" || fatal "git ls-files failed"
 : > "${tmp}/hits.txt"
 scanned=0
 while IFS= read -r -d '' rec; do
@@ -317,7 +320,7 @@ while IFS= read -r -d '' rec; do
       }
     }
   ' "${root}/${path}" >> "${tmp}/hits.txt"
-done < <(git -C "${root}" ls-files -s -z)
+done < "${tmp}/files.bin"
 
 awk -F'\t' '
   FILENAME == ALLOW {
@@ -359,7 +362,7 @@ ${b_count}
 EOF
 
 # ---------------------------------------------------------------- 記録
-lock_sha="$(${sha_cmd} "${root}/Cargo.lock" | cut -d' ' -f1)"
+lock_sha="$("${sha_cmd[@]}" "${root}/Cargo.lock" | cut -d' ' -f1)"
 commit="$(git -C "${root}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 uses_count="n/a"
 if [ -f "${root}/.github/workflows/ci.yml" ]; then

@@ -80,6 +80,7 @@ r="$(new_repo)"; add_pkg "${r}" ''; run_repo "sourceless non-member is a violati
 r="$(new_repo)"; sed -i.bak 's/^version = 4$/version = 3/' "${r}/Cargo.lock"; rm -f "${r}/Cargo.lock.bak"; run_repo "lock version 3 is unparsable (2)" 2 "${r}"
 r="$(new_repo)"; printf 'unknown = "1"\n' >> "${r}/Cargo.lock"; run_repo "unknown line in lock (2)" 2 "${r}"
 r="$(new_repo)"; rm "${r}/Cargo.lock"; run_repo "missing Cargo.lock (2)" 2 "${r}"
+r="$(new_repo)"; printf '\n[[package]]\nname = "x"\nversion = "1.0.0"\nsource = "%s"\ndependencies = [\n "dep",\n' "${REG}" >> "${r}/Cargo.lock"; run_repo "truncated dependencies array (2)" 2 "${r}"
 rc=0; "${CHECK}" --root "${TMP_DIR}" >/dev/null 2>&1 || rc=$?; expect "root that is not a git work tree (2)" 2 "${rc}"
 rc=0; "${CHECK}" --bogus >/dev/null 2>&1 || rc=$?; expect "unknown argument (2)" 2 "${rc}"
 rc=0; "${CHECK}" --root >/dev/null 2>&1 || rc=$?; expect "--root without a value (2)" 2 "${rc}"
