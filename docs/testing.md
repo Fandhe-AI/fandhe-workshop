@@ -10063,6 +10063,15 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 未検証: Windows の実機での `start.cmd` の実行（Linux では動かせない）、OS の警告。TASK-120 で人が確かめる。DLV-22 は検討中のまま
 - 範囲外: `docs/l2-update-procedure.md`・`update-l2`（#1875。マージ後に windows-x64 を表へ追従させる）、案内文（TASK-117）、ライセンス文（TASK-137）。`make test-l2-run`（linux-x64）は未実行
 
+### 5.363 エンジン repo のライセンス表記の機械検査（TASK-129。LIC-1・D-6）
+
+全 crate の `license` が `MIT OR Apache-2.0` に完全一致し、`license-file` を使わず、直下に `LICENSE-MIT`・`LICENSE-APACHE` が通常のファイルとして在って空でなく取り違えていないことを、`scripts/check-license.sh`（`make check-license`）が `cargo metadata --no-deps --offline` と固定文字列の目印で検査する。CI は `rust-lint` ジョブの step として流す（ジョブは増やしていない）。
+
+- 回帰テスト `scripts/test-check-license.sh`（`make test-check-license`）は 16 件。実物と改変なしの写しが通ること、workspace の `license` の変更・大文字小文字の変更・crate での上書き・`license` の削除・`license-file` の使用、本文の欠落・空・取り違え、戻すと通ること、偽の `cargo` の失敗と member 0 件が 2（合格にしない）、未知の引数が 2。置換が効かなかったケースは not ok にする
+- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 16 件が合格
+- 限界: 本文の完全一致は保証しない（目印だけ）。`package.json` の `license` は crate ではないため範囲外。Apache-2.0 の付録の `[yyyy]` の欄は標準の文面のままで、本変更では直さない
+- 範囲外: 雛形のライセンス表記（TASK-130）、`THIRD-PARTY-LICENSES`（TASK-136）、依存のライセンスの同梱、画面からライセンスへの到達（LIC-11）
+
 ### 5.364 L2 の配布物のライセンス文（TASK-137。LIC-10・D-58・D-71）
 
 L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT のライセンス文。上流の `LICENSE` の逐語の写し）と `THIRD-PARTY-NOTICES.txt`（同梱物と取り下げ済みの crate の記録）を全 platform で入れる。元は `tools/l2/` に置く。`site/` の外なので配信されず、L1 との木の比較（`site/` だけが対象）にも入らない。

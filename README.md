@@ -51,6 +51,7 @@ git -c submodule.docs/spec.update=checkout submodule update --init docs/spec
 ## ライセンス
 
 MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE-MIT) / [LICENSE-APACHE](./LICENSE-APACHE)）。
+全 crate の `license` が `MIT OR Apache-2.0` であることと、直下に 2 つの本文があることは `make check-license` が機械で確かめます。
 
 ## 構成
 
@@ -253,6 +254,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
+| `make check-license` | `scripts/check-license.sh` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に 2 つのライセンスの本文があることの検査 |
+| `make test-check-license` | `scripts/test-check-license.sh` | ライセンス表記の検査自体の回帰テスト |
 | `make check-testdata` | `scripts/check-testdata-refs.sh` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
 | `make check-mutation-defs` | `scripts/check-mutation-defs.sh` | 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（`make check` に含む） |

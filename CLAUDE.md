@@ -39,6 +39,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── test-chapter-key-control.sh # 鍵を修正前の固定の文字列にした対照の検査（make test-chapter-key-control）
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
+│   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -99,6 +100,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
+| `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があることの検査（`cargo metadata` + jq。LIC-1・TASK-129） |
+| `make test-check-license` | ライセンス表記の検査自体の回帰テスト |
 | `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
 | `make check-mutation-defs` | 変異の定義の `find` の一意性と `expect-fail` の名前の実在の静的検査（`make check` に含む。cargo 不要） |
