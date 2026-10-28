@@ -34,12 +34,12 @@ function unzip(args) {
   return r.stdout;
 }
 
-/** 旧 zip の名前の一覧を展開の前に検査し、[{ name, dir, mode }] を返す。 */
+/** 旧 zip の名前の一覧を展開の前に検査し（許す名前は build-l2 の collectSite と同じ集合。パターン文字は unzip へ渡す前にエスケープする）、[{ name, dir, mode }] を返す。 */
 function listEntries(zip) {
   const names = unzip(['-Z1', zip]).split('\n').filter(Boolean);
   const seen = new Set();
   for (const n of names) {
-    if (!/^[\x21-\x7e]+$/.test(n) || /[\\*?[\]]/.test(n)) throw new L2Error(`unsupported entry name in zip: ${JSON.stringify(n)}`);
+    if (!/^[\x21-\x7e]+$/.test(n) || n.includes('\\')) throw new L2Error(`unsupported entry name in zip: ${JSON.stringify(n)}`);
     const comps = n.split('/');
     if (!n.startsWith(`${TOP}/`) || comps.some((c, i) => c === '..' || c === '.' || (c === '' && i !== comps.length - 1))) {
       throw new L2Error(`entry outside ${TOP}/ or with an unsafe path: ${n}`);
@@ -85,7 +85,7 @@ function readKept(zip, entries, limit) {
   const out = new Map();
   for (const e of entries) {
     if (e.dir) continue;
-    const r = spawnSync(UNZIP, ['-p', zip, e.name], { maxBuffer: left + 1 });
+    const r = spawnSync(UNZIP, ['-p', zip, e.name.replace(/[\\*?[\]]/g, '\\$&')], { maxBuffer: left + 1 });
     if (r.error) {
       if (r.error.code === 'ENOBUFS') throw new L2Error(`zip is too large when unpacked (actual bytes exceed the limit ${limit})`);
       throw new L2Error(`unzip could not run: ${r.error.message}`);

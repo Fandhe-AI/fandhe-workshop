@@ -149,6 +149,16 @@ describe('更新の正常系', () => {
     assert.equal(treeOf(unzipTo(c.zip))['site/ir/main.json'].data, Buffer.from('{"v":"C"}\n').toString('base64'));
   });
 
+  test('パターン文字（[ ] * ?）を含む名前の旧 site でも更新でき、更新した zip をもう一度更新できる', () => {
+    const odd = { 'image[1].png': 'x', 'a*b?.txt': 'y' };
+    const a = build(makeSite('{"v":"A"}\n', odd)).zip;
+    const b = update(a, makeSite('{"v":"B"}\n', odd)).zip;
+    const c = update(b, makeSite('{"v":"C"}\n'));
+    const t = treeOf(unzipTo(c.zip));
+    assert.equal(t['site/ir/main.json'].data, Buffer.from('{"v":"C"}\n').toString('base64'));
+    assert.equal(t['site/image[1].png'], undefined);
+  });
+
   test('将来の同梱物（README・ライセンス文など）が site/ 以外にあっても、そのまま残る', () => {
     const entries = [
       ...GOOD(),

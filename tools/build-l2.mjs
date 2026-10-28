@@ -57,7 +57,7 @@ export function collectSite(siteDir) {
   const walk = (abs, rel) => {
     for (const ent of fs.readdirSync(abs, { withFileTypes: true })) {
       const name = ent.name;
-      if (name === '..' || name === '.' || !/^[\x21-\x7e]+$/.test(name)) {
+      if (name === '..' || name === '.' || !/^[\x21-\x7e]+$/.test(name) || name.includes('\\')) {
         throw new L2Error(`unsupported file name under site: ${rel}${name}`);
       }
       const a = path.join(abs, name);
