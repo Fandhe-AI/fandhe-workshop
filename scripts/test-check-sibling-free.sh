@@ -54,6 +54,16 @@ r="$(fresh spec)"
 mkdir "${r}/docs/spec"
 echo x >"${r}/docs/spec/a.md"
 run_case "docs/spec with a file" 1 "spec-present" --root "${r}"
+r="$(fresh unreadable)"
+mkdir "${r}/docs/spec"
+chmod 000 "${r}/docs/spec"
+if [ -r "${r}/docs/spec" ]; then
+  echo "ok - unreadable docs/spec (skipped: permissions not enforced)"
+  passed=$((passed + 1))
+else
+  run_case "unreadable docs/spec" 1 "spec-unreadable" --root "${r}"
+fi
+chmod 755 "${r}/docs/spec"
 run_case "unknown argument" 2 "usage" --bogus
 run_case "missing root dir" 2 "not a directory" --root "${TMP_DIR}/nope"
 run_case "root without value" 2 "usage" --root

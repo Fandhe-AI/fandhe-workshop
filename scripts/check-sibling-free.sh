@@ -10,7 +10,7 @@
 # 検査: (1) <root> の親ディレクトリに 03-poc と prototype が存在しない（シンボリックリンクを含む）
 #       (2) <root>/docs/spec が存在しないか空
 # 読むだけで、書き込み・削除はしない。
-# 終了コード: 0 = 前提を満たす / 1 = 兄弟か spec の中身がある / 2 = 誤用。回帰テストは scripts/test-check-sibling-free.sh。
+# 終了コード: 0 = 前提を満たす / 1 = 兄弟か spec の中身がある、または spec を列挙できない / 2 = 誤用。回帰テストは scripts/test-check-sibling-free.sh。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
@@ -47,9 +47,20 @@ for name in 03-poc prototype; do
   fi
 done
 if [ -e "${ROOT}/docs/spec" ] || [ -L "${ROOT}/docs/spec" ]; then
-  if [ ! -d "${ROOT}/docs/spec" ] || [ -n "$(ls -A "${ROOT}/docs/spec")" ]; then
+  if [ ! -d "${ROOT}/docs/spec" ]; then
     echo "error: spec-present: docs/spec" >&2
     rc=1
+  else
+    # 列挙の失敗を「空」と取り違えない（fail-closed）。$(...) を条件式に直接置くと終了状態が隠れる
+    spec_list=""
+    if ! spec_list="$(ls -A "${ROOT}/docs/spec")"; then
+      echo "error: spec-unreadable: docs/spec" >&2
+      exit 1
+    fi
+    if [ -n "${spec_list}" ]; then
+      echo "error: spec-present: docs/spec" >&2
+      rc=1
+    fi
   fi
 fi
 if [ "${rc}" -eq 0 ]; then
