@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { buildL2, LAYOUTS, PLATFORMS, readPins } from './build-l2.mjs';
+import { buildL2, L2Error, LAYOUTS, MINISERVE_LICENSE_SHA256, PLATFORMS, readPins } from './build-l2.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, 'build-l2.mjs');
@@ -92,6 +92,8 @@ describe('正常系', () => {
     const { zip } = build(site);
     assert.deepEqual(listZip(zip), [
       'fandhe-workshop-l2/',
+      'fandhe-workshop-l2/LICENSE-miniserve.txt',
+      'fandhe-workshop-l2/THIRD-PARTY-NOTICES.txt',
       'fandhe-workshop-l2/miniserve',
       'fandhe-workshop-l2/site/',
       'fandhe-workshop-l2/site/app.css',
@@ -123,6 +125,65 @@ describe('正常系', () => {
     const b = build(site);
     assert.ok(fs.readFileSync(a.zip).equals(fs.readFileSync(b.zip)));
     assert.equal(a.sha256, b.sha256);
+  });
+});
+
+describe('ライセンス文と告知（TASK-137。LIC-10）', () => {
+  const L2 = path.join(HERE, 'l2');
+  const lic = () => fs.readFileSync(path.join(L2, 'LICENSE-miniserve.txt'));
+  const noZip = (out) => assert.deepEqual(fs.readdirSync(out), []);
+
+  test('repo の元の sha256 が固定値と一致する', () => {
+    assert.equal(sha(lic()), MINISERVE_LICENSE_SHA256);
+  });
+
+  test('3 platform の zip に同じバイト列で入る（mode 0644・LF）', () => {
+    for (const platform of Object.keys(PLATFORMS)) {
+      const pins = { [PLATFORMS[platform]]: sha(FAKE_SERVER) };
+      const { zip } = buildL2({ server: makeServer(), site: makeSite(), out: mk('out'), platform, pins });
+      const top = unzipTo(zip);
+      const license = fs.readFileSync(path.join(top, 'LICENSE-miniserve.txt'));
+      assert.ok(license.equals(lic()), platform);
+      assert.equal(sha(license), MINISERVE_LICENSE_SHA256);
+      assert.match(license.toString('utf8'), /MIT License/);
+      assert.match(license.toString('utf8'), /Sven-Hendrik Haase/);
+      const notices = fs.readFileSync(path.join(top, 'THIRD-PARTY-NOTICES.txt'));
+      assert.ok(notices.equals(fs.readFileSync(path.join(L2, 'THIRD-PARTY-NOTICES.txt'))), platform);
+      assert.ok(!notices.includes(0x0d), 'LF のみ');
+      const text = notices.toString('utf8');
+      for (const w of ['miniserve', '0.35.0', 'MIT', 'LICENSE-miniserve.txt', 'core2', '0.4.0']) assert.ok(text.includes(w), w);
+      for (const f of ['LICENSE-miniserve.txt', 'THIRD-PARTY-NOTICES.txt']) {
+        assert.equal(fs.statSync(path.join(top, f)).mode & 0o777, 0o644, f);
+      }
+    }
+  });
+
+  function l2Copy(mutate) {
+    const d = mk('l2');
+    for (const f of ['start.sh', 'start.cmd', 'LICENSE-miniserve.txt', 'THIRD-PARTY-NOTICES.txt']) fs.copyFileSync(path.join(L2, f), path.join(d, f));
+    mutate(d);
+    return d;
+  }
+
+  test('fail-closed: ライセンス文が 1 バイト違う・無い・リンクなら zip を作らない', () => {
+    const cases = {
+      改変: (d) => fs.appendFileSync(path.join(d, 'LICENSE-miniserve.txt'), ' '),
+      ライセンス無し: (d) => fs.rmSync(path.join(d, 'LICENSE-miniserve.txt')),
+      告知無し: (d) => fs.rmSync(path.join(d, 'THIRD-PARTY-NOTICES.txt')),
+      告知がリンク: (d) => {
+        fs.rmSync(path.join(d, 'THIRD-PARTY-NOTICES.txt'));
+        fs.symlinkSync(path.join(L2, 'THIRD-PARTY-NOTICES.txt'), path.join(d, 'THIRD-PARTY-NOTICES.txt'));
+      },
+    };
+    for (const [label, mutate] of Object.entries(cases)) {
+      const out = mk('out');
+      assert.throws(
+        () => buildL2({ server: makeServer(), site: makeSite(), out, platform: PLATFORM, pins: PINS, l2Dir: l2Copy(mutate) }),
+        (e) => e instanceof L2Error && e.code === 1,
+        label,
+      );
+      noZip(out);
+    }
   });
 });
 
