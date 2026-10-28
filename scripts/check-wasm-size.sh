@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # 配信する設定の WASM の gzip -9 の大きさが 1 MB 以下であることを確かめる CI の関門（make check-wasm-size・CI の browser-test から呼ばれる）。
 #
-# 使い方: scripts/check-wasm-size.sh [--result <json-file>]
+# 使い方: scripts/check-wasm-size.sh [--result <json-file>] [--require-wasm-opt]
 #   引数なし: TEST_HOOKS を空に固定して tools/measure/wasm-size.sh で測り、その結果を判定する。SKIP_WASM_OPT は呼び出し元の値を渡す。
 #   --result: 測定せず、渡された結果 JSON（fandhe-workshop/measure/v1）だけを判定する（回帰テスト scripts/test-check-wasm-size.sh 用。CI は渡さない）。
+#   --require-wasm-opt: DLV-4・TASK-107 2/2。wasm-opt 適用済み（baseline.wasm_opt.applied が真偽値の true）の結果だけを判定し、未適用なら 2 で断る。
+#     判定を厳しくする側にしか働かず、環境変数では有効にできない。CI は従来どおり未適用の値で判定し、この厳格な判定は手元で実行する（docs/measurement.md §1）。
 #
 # 上限の出典: TASK-78 2/2・BUILD-3・DLV-27（1 MB = 1,048,576 bytes。R-33 の提案値）。上限は定数で、環境変数や引数では変えられない
 # （PR が workflow の env だけで関門を緩められないようにするため）。
@@ -26,18 +28,23 @@ require_cmd gzip
 require_cmd git
 
 RESULT_FILE=""
+REQUIRE_WASM_OPT=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --result)
       if [ "$#" -lt 2 ]; then
-        echo "usage: $(basename "$0") [--result <json-file>]" >&2
+        echo "usage: $(basename "$0") [--result <json-file>] [--require-wasm-opt]" >&2
         exit 2
       fi
       RESULT_FILE="$2"
       shift 2
       ;;
+    --require-wasm-opt)
+      REQUIRE_WASM_OPT=1
+      shift
+      ;;
     *)
-      echo "usage: $(basename "$0") [--result <json-file>]" >&2
+      echo "usage: $(basename "$0") [--result <json-file>] [--require-wasm-opt]" >&2
       exit 2
       ;;
   esac
@@ -74,6 +81,12 @@ if ! jq -e -s '.[0].baseline.features
     | .config == "delivery" and .profile == "release" and .cargo_features == []' \
   "${RESULT_FILE}" >/dev/null 2>&1; then
   echo "error: result is not from the delivery configuration (release, no extra features); cannot judge" >&2
+  exit 2
+fi
+
+# DLV-4 の前提（wasm-opt 適用）を満たさない値では合格を出さない。型は真偽値の true だけを受け付ける（文字列の "true" は不可）。
+if [ "${REQUIRE_WASM_OPT}" = "1" ] && ! jq -e -s '.[0].baseline.wasm_opt.applied == true' "${RESULT_FILE}" >/dev/null 2>&1; then
+  echo "error: result was measured without wasm-opt (DLV-4 requires wasm-opt applied); cannot judge" >&2
   exit 2
 fi
 
