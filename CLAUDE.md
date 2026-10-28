@@ -38,6 +38,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── test-keydown-control.sh # action-keydown を外した対照の検査（make test-keydown-control）
 │   ├── test-chapter-key-control.sh # 鍵を修正前の固定の文字列にした対照の検査（make test-chapter-key-control）
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
+│   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -145,6 +146,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure` | 一括測定の束の検証・fail-closed・実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 | `make clean-room` | まっさらなコンテナ（公開イメージ・認証情報なし・tar だけを渡す）で `cargo test --locked` と `--workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（`tools/clean-room.sh`。BUILD-1。TASK-77 1/2。遅く、docker と通信が要る。CI 未組み込み。記録は `docs/testing.md` 5.355） |
 | `make test-clean-room` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
+| `make check-build-inventory` | `Cargo.lock` の private な依存 0 件とビルド・試験の経路の secret らしい語の参照 0 件の棚卸し検査（通信なし。CI 未組み込み。TASK-77 2/2。記録は `docs/testing.md` 5.358） |
+| `make test-check-build-inventory` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 | `make test-measure-result` | 測定の結果の組み立て（`measure_result_json`）が jq 1.7 の文法でも通ることの回帰テスト（速く、ビルドなし。CI の `check` ジョブが流す。#1822） |
 
 変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。版の固定ファイルを変えたら `make check-toolchain` も通す。

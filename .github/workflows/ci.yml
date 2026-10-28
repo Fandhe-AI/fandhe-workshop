@@ -140,6 +140,11 @@ jobs:
       - name: make test-clean-room
         run: make test-clean-room
 
+      # ビルド・試験の経路の棚卸し検査（scripts/check-build-inventory.sh。TASK-77 2/2）自体の回帰テスト。見本の repo で数秒。
+      # 本体の make check-build-inventory は関門化が TASK-96 の承認事項のため CI には入れない。既存ジョブへの step 追加で、必須チェックは変わらない。
+      - name: make test-check-build-inventory
+        run: make test-check-build-inventory
+
       # 変異の定義の静的検査（make check に入っている）自体の回帰テスト。cargo 不要で数秒。
       - name: make test-check-mutation-defs
         run: make test-check-mutation-defs

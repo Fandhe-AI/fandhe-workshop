@@ -302,6 +302,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-measure-result` | `scripts/test-measure-result.sh` | 測定の結果の組み立てと基点の収集の回帰テスト（jq 1.7 の文法でも通ることを含む。速く、ビルドなし。CI の `check` ジョブが流す） |
 | `make clean-room` | `tools/clean-room.sh` | まっさらなコンテナ（公開イメージ・認証情報なし）で `cargo test --locked` と `cargo test --locked --workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（遅く、docker と通信が要り、CI には入れない） |
 | `make test-clean-room` | `scripts/test-clean-room.sh` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
+| `make check-build-inventory` | `scripts/check-build-inventory.sh` | `Cargo.lock` の private な依存 0 件と、ビルド・試験の経路の secret らしい語の参照 0 件を確かめ、件数を記録として出す（通信なし。手で流し、CI には入れない。記録は `docs/testing.md` 5.358） |
+| `make test-check-build-inventory` | `scripts/test-check-build-inventory.sh` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 
 ### まっさらなコンテナでの試験（第三者の再現手順）
 

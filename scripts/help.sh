@@ -72,6 +72,8 @@ cat <<'EOF'
   test-measure-result          scripts/test-measure-result.sh          測定の結果の組み立てが jq 1.7 の文法でも通ることの確認（速い・ビルドなし）
   clean-room                   tools/clean-room.sh                     まっさらなコンテナで cargo test（既定と --workspace）を流して判定する（遅い・docker と通信が要る。CI 未組み込み）
   test-clean-room              scripts/test-clean-room.sh              まっさらなコンテナの試験の判定自体の回帰テスト（docker なし）
+  check-build-inventory        scripts/check-build-inventory.sh        ビルド・試験の経路の棚卸し（private な依存 0 件・secret らしい語 0 件。通信なし。CI 未組み込み）
+  test-check-build-inventory   scripts/test-check-build-inventory.sh   上の棚卸し検査自体の回帰テスト（見本の repo）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 
