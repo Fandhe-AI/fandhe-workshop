@@ -42,7 +42,7 @@ cat <<'EOF'
   test-check-fork-ci           scripts/test-check-fork-ci.sh           fork CI 検査自体の回帰テスト
   build-web                    tools/build-web.sh                      web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
   test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
-  build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web）
+  build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web。L2_PLATFORM=windows-x64 で Windows 向け）
   test-build-l2                scripts/test-build-l2.sh                build-l2 の回帰テスト（合成の配信物。ビルドなし）
   test-l2-run                  scripts/test-l2-run.sh                  L2 の配布物を Rust のない模擬環境で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけであることと起動の時間・L1 と L2 の 9 回の結果の一致（DLV-15）、固定の入力列での比較と履歴の ops に揺れる欄が無いこと（TASK-114 2/2）・L1 と L2 の 2 か所と別名 localhost のオリジンの分離（DLV-16。TASK-115）も確かめる（L2_SERVER 必須。遅い）
   check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する
