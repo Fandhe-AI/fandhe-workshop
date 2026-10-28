@@ -1,8 +1,8 @@
 id: MOD9-1
 package: fandhe-workshop-pack
 test: round_slice_init
-target: crates/core/src/checkpoint.rs
-find:     run.slices.remove(&owner_root);
-replace:     run.slices = cp.run.slices.clone(); run.slices.remove(&owner_root);
+target: crates/core/src/entry_derive.rs
+find:     run.slices.remove(owner);
+replace:     run.slices = copy.slices.clone(); run.slices.remove(owner);
 expect-fail: mod9_restore_does_not_rewind_round1_changed_after_save
 note: 復帰が持ち主以外の根の切り身まで写しへ戻す（X1 相当。他の根の切り身が巻き戻る）

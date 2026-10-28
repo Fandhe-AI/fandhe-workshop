@@ -2,8 +2,8 @@ id: EVT13-6
 package: fandhe-workshop-core
 test: projection_derive
 target: crates/core/src/projection.rs
-find:             .and_then(|at| self.saved_review.get(&at));
-replace:             .and_then(|_| None::<&Arc<Vec<ReviewItem>>>);
+find:             .and_then(|at| self.saved.get(&at));
+replace:             .and_then(|_| None::<&SavedPoint>);
 expect-fail: evt14_restore_rebuilds_owner_review_and_keeps_other_roots
 expect-fail: p1c_p1d_with_save_restore
 note: 復帰で保存の時点の復習を引かない（持ち主の根の項目が保存の時点へ戻らず空になる）

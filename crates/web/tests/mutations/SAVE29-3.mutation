@@ -2,7 +2,7 @@ id: SAVE29-3
 package: fandhe-workshop-web
 test: export_notice
 target: crates/web/src/export_notice.rs
-find:                     .is_some_and(|n| n.step.is_final)
-replace:                     .is_some()
+find:             .is_some_and(|n| n.step.is_final)
+replace:             .is_some()
 expect-fail: 途中の_step_の達成では章の終わりの案内にならない
 note: 最後の Step でない Step の達成でも章の終わりにする（途中の Step で章の終わりの案内が出る。SHELL-10）

@@ -2,7 +2,7 @@ id: SAVE5-1
 package: fandhe-workshop-core
 test: reload_after_control
 target: crates/core/src/stop.rs
-find:     let mut run = entry.run.clone();
-replace:     let _ = entry; let mut run = state.run.clone();
+find:     let mut run = crate::entry_derive::revert_owner(&state.run, &entry.run, &owner, &touched);
+replace:     let _ = (&entry, &owner, &touched); let mut run = state.run.clone();
 expect-fail: reload_right_after_stop_restores_the_stopped_state
 note: 停止で Step の入口の写しへ戻さず、処理の途中の実行状態を残す。停止の直後の状態が入口にならず、再読み込みの後も入口と等しくない

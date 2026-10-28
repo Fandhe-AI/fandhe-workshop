@@ -1,8 +1,0 @@
-id: EVT11-6
-package: fandhe-workshop-core
-test: move_step
-target: crates/core/src/go_to.rs
-find:     state.entry = None;
-replace:     state.entry = state.entry.take();
-expect-fail: move_invalidates_entry_copy
-note: 入口の写しを無効化しない

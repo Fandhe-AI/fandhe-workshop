@@ -2,8 +2,8 @@ id: EVT13-3
 package: fandhe-workshop-core
 test: projection_derive
 target: crates/core/src/projection.rs
-find:                 if *cause == Cause::Input {
-replace:                 if true {
+find:                     Cause::Input => self.merge_change(&at.step, path, before, after),
+replace:                     _ if true => self.merge_change(&at.step, path, before, after),
 expect-fail: evt13_non_input_changes_are_not_marked_or_reviewed
 expect-fail: p1c_p1d_without_restore
 expect-fail: p1c_p1d_with_save_restore

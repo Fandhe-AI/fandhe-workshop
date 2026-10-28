@@ -9906,3 +9906,41 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 実行: 2026-10-28、origin/main a856f665 を元に 1 件合格（単独で約 52 秒。`TEST_HOOKS=1`・`SKIP_WASM_OPT=1` のビルド）
 - 限界: 要約・集約の段（`step`・`older`）はこの試験では出ない（native の `list_fold.rs` と `artifact-limit` が持つ）。`make test-browser` の全体は流していない（未実施）。`scripts/expected-test-counts.txt` は更新していない
 - 範囲外: 要約行を開く操作、再描画の時間の傾き（TASK-232）、`installGuards` 相当の処理の `harness.mjs` への共通化
+
+### 5.351 古くなった変異の定義 28 件を現在のコードに合わせ、全定義を点検する（#1847）
+
+- 目的: TASK-242 2/2 などで処理が移ったり、rustfmt で式が複数行になったりして、変異の定義の `find` が `target` に 1 回だけ現れなくなっていた。`check-mutations.sh` は試験の前に全定義の `find` の出現回数を検査して終了コード 2 で止まるため、全件の実行が通らなくなっていた。定義を現在のコードに合わせ、全件の実行が通らず、実行の中で初めて分かる古さもあったため、全定義を実際に流して直した。製品のコード・試験のコード・`scripts/` は変えない
+- 点検（2026-10-28、origin/main 4ec8a6de を元にした）: `crates/*/tests/mutations/*.mutation` の全 700 件で、`find` の出現回数を `check-mutations.sh` と同じ数え方（行ごとの重ならない出現の合計）で数えた。1 回でないものが 29 件（0 回 26 件・2 回 2 件・3 回 1 件）あった。さらに `expect-fail` の名前が試験として実在するかを調べ、実在しない 3 件（EVT9-4・SHELL10-3・SHELL10-4）を見つけた。直した後は、1 回でない定義が 0 件、`expect-fail` の名前が実在しない定義が 0 件。静的な点検で見つからない古さ（コンパイルできない変異・元の状態での失敗・SURVIVED）は、全件の実行で 3 件見つかった（下の表の JUDGE22-3・AUTHOR8-3・EVT11-6）
+- 直した定義と結果（個別の実行は、直した定義ごとに `scripts/check-mutations.sh <定義>` で行い、全件 DETECTED）:
+
+| ID | 古くなった理由 | 直した内容 |
+|---|---|---|
+| MOD9-1・MOD9-2 | 停止・復帰の戻しが `checkpoint.rs` から `entry_derive.rs` の `revert_owner` へ移った | `target` を `entry_derive.rs` へ。変数名 `copy` に合わせて `find`・`replace` を書き直した |
+| JUDGE8-5 | `step_do` の組み立てが `step_do_at` を通る形になった | `step_do_at(...)` の行へ `find` を移し、題名で代える形に |
+| SAVE5-1 | 入口の写しへ戻す処理が `revert_owner` を呼ぶ形になった | 呼び出しの 1 行へ移し、処理途中の `run` を残す形に |
+| EVT12-11・EVT13-3・EVT13-4・EVT13-6 | `saved_review` が `saved: SavedPoint` へ、`Cause` の判定が `match` へ、併合が `merge_change` へ変わった | 各式の現在の形へ `find` を移した |
+| EVT7-4 | `record_changes(` の呼び出しが複数行になった | 1 行の `let events = changed::record_changes(` へ錨を移し、先頭のイベントを落とす形に |
+| EVT9-4 | `stop.rs` の照合が `entry_derive::stored_or_derived` へ移り、試験の名前が `stop_with_other_step_entry_falls_back_to_log` に変わった | `target`・`find`・`expect-fail` を移した |
+| JUDGE7-2 | `apply_acceptance` に `ir` の引数が増えた | 引数に合わせた |
+| SAVE14-4・SAVE14-5・SAVE14-6 | 鍵の組み立てが `HistoryKey::for_pack(scope, &ir.pack.id, recorded.start())` になった | 現在の式に合わせて 3 つの誤りを書き直した |
+| SAVE10-5 | `find` が 2 か所に一致した | 一意な `HostAction::SaveResult(epoch, failure) => {` の行へ移し、世代の照合を常に真にする形に |
+| SAVE28-5 | `find` が 3 か所に一致した | `NotOpened` の枝の、直後の行へ移し、立てた `save_blocked` を下ろす形に |
+| SAVE16-2 | 出発点の受け渡しが `initial.clone()` の別の形になった | `history_import` が通る `load_session(...)` の呼び出しへ移した |
+| FEND15-2・FEND15-3 | 呼び出しが `keyed_view_or_notice` になった | 現在の呼び出しへ移した（FEND15-3 は戻り値の `Result` を `expect` で受ける） |
+| A11Y11-1・SHELL10-2・TERM23-1・TERM31-1・TERM31-2・SAVE29-3 | 式の形（引数・包み・字下げ）が変わった | 現在の式へ `find` を移した |
+| AUTHOR1-3 | `compile` の usage に `--chapters` が入った | 現在の文字列へ |
+| PACK13-1 | `find` が 2 か所に一致した | 一意な `|| is_inputless_confirm(step)` の行へ移した |
+| PACK16-5 | `worst_do` を通る形になった | 現在の式へ |
+| JUDGE22-3 | `KeydownEffect` に `deliver_complete` の欄が増え、置換後の式がコンパイルできなかった | 欄を足した |
+| AUTHOR8-3 | 書き出しの失敗の経路（`write_output` の末尾）が、ディレクトリの事前の拒否のために試験の入力で通らなくなり、置換しても SURVIVED になった | 呼び出し側 `run_compile` の `match write_output(...)` へ錨を移し、`Err` を `Ok` へ倒す形に |
+| SHELL10-3・SHELL10-4 | `expect-fail` の名前が試験の名前でなく、表明の文言だった | 実在する試験の名前へ |
+
+- 削除（2 件）: EVT11-6・EVT12-12。EVT11-6（移動で入口の写し `state.entry` を無効化しない）は、`go_to.rs` の `state.entry = None;` と、歩行器の `transit.rs` の `state.entry = None;`（I-1）が二重に無効化するため、`go_to.rs` の側を外しても `move_invalidates_entry_copy` は失敗しない（SURVIVED）。1 行の置換で両方は外せず、検出できる等価な定義が作れないため削除した。EVT12-12（停止で Step の項目の `changes.clear()` を外す）。現在のコードでは、停止の項目の初期化（`reset_item`）と、停止の差分の打ち消し（`Cause::Stop` の `unmerge_change`）が同じ結果を二重に作るため、どちらか一方を外しても `evt14_restore_after_stop_brings_back_review` は失敗しない（2026-10-28 に作業ツリーの写しで、`reset_item` を空にした場合・`unmerge_change` の呼び出しを外した場合は成功し、両方外した場合だけ失敗することを確かめた）。1 行の置換では両方を同時に外せないため、検出できる等価な定義が作れず削除した。両方を要する性質は、試験の側で一方ずつを固定する別の作業に回す
+
+- 全件の実行（2026-10-28、元は origin/main 4ec8a6de に本変更を足した作業ツリー。`nice` つきで切り離して実行した）: 定義 698 件。1 つの実行の途中で、コンパイルできない変異（JUDGE22-3）と rustc の異常終了（SAVE3-5。再実行で DETECTED）により止まったため、止まった定義から続ける形で 3 回に分けた。
+  - `scripts/check-mutations.sh`（全件。contract・core・pack と web の先頭 120 件余り。JUDGE22-3 で停止）
+  - `scripts/check-mutations.sh <JUDGE22-3 から SAVE3-5 の直前まで>`（SAVE3-5 で rustc の異常終了により停止）
+  - `scripts/check-mutations.sh <SAVE3-5 から最後まで>`（98 件。終了コード 0）
+  - 3 回を通じて、全定義が DETECTED を 1 回以上出した（SURVIVED は EVT11-6・AUTHOR8-3 の 2 件で、上のとおり直した後に AUTHOR8-3 は単独で DETECTED、EVT11-6 は削除）。直した後の定義の集合を 1 つの実行で通した記録ではない（分けた実行の後に、EVT11-6 の削除と AUTHOR8-3 の変更だけを足した）。そのため `make check-mutations` を 1 回で通した記録は無く、受け入れ条件の「全件で終了コード 0」は、分割の実行の合算で確かめたものである
+  - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
+- 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡

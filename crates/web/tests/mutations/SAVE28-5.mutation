@@ -2,7 +2,7 @@ id: SAVE28-5
 package: fandhe-workshop-web
 test: boot_store
 target: crates/web/src/host.rs
-find:                 self.save_blocked = true;
+find:                 // 表示だけの判定のときだけ、理由と控えを持つ。
 replace:                 self.save_blocked = false;
 expect-fail: 開けない保存済みの値は新しく始め上書きしない
-note: 開けなかった履歴があっても保存を止めない（操作の後に離れると、開けなかった保存済みの値を上書きして失う。fail-closed の逆）
+note: 開けなかった履歴があっても保存を止めない（NotOpened の枝で立てた save_blocked を直後に下ろす。操作の後に離れると、開けなかった保存済みの値を上書きして失う。fail-closed の逆）

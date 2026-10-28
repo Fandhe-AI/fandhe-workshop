@@ -4,5 +4,5 @@ test: next_chapter
 target: crates/web/src/next_chapter.rs
 find: let next_unit = *units.get(at + 1)?;
 replace: let next_unit = *units.get(at)?;
-expect-fail: 先頭の節点に一致する開始点を選ぶ
+expect-fail: 各章の最後の達成で次の章の入口を選び_最後の章では出さない
 note: 次の章でなく同じ章を指す（SHELL-10・TASK-526 1/2）

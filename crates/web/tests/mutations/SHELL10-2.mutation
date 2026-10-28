@@ -2,7 +2,7 @@ id: SHELL10-2
 package: fandhe-workshop-web
 test: next_chapter
 target: crates/web/src/next_chapter.rs
-find: if *status != StepStatus::Achieved {
-replace: if false {
-expect-fail: 達成の前は出さない
+find:     if instance::status_of(ir, &state.run, uid) != StepStatus::Achieved {
+replace:     if false {
+expect-fail: 達成の前と最後でない_step_では出さない
 note: 達成の前から「次の章へ進む」を出す（SHELL-10・TASK-526 1/2）
