@@ -21,6 +21,7 @@
 # 不変条件（件数は固定せず docs/testing.md の記録に置く。試験は変更のたびに増えるため）:
 #   1. どちらの実行も cargo の終了コードが 0 で、failed が 0 件
 #   2. 無視された試験は ALLOWED_IGNORED にあるものだけ
+#   3. コンテナのランタイムの終了コード（meta.txt の container_exit）が 0（非 0 は判定不能として 2）
 #
 # ALLOWED_IGNORED と spec の文言のずれ: spec（PoC-11・BUILD-1・TASK-77）の許容は `measure_*`・`generate_histories` だが、
 #   これは試作の時点の名前で本 repo に存在しない。現物の #[ignore] は、ブラウザ試験の入力を書き出す次の 2 件だけで、
@@ -181,6 +182,20 @@ judge_dir() {
   if [ -n "${pre_fail}" ]; then
     echo "[precondition] error: clean-room precondition failed: ${pre_fail}"
     return 1
+  fi
+  # run が meta.txt に残したランタイムの終了コード。ログが条件を満たしてもコンテナの異常終了・終了処理の失敗は成功にしない。
+  # meta.txt が無い（ログだけの再判定）ときは照合しない。
+  local meta="$1/meta.txt" drc=""
+  if [ -r "${meta}" ]; then
+    drc="$(sed -n 's/^container_exit=//p' "${meta}" | head -n 1)"
+  fi
+  if [ -r "${meta}" ] && ! printf '%s' "${drc}" | grep -q -E '^[0-9]+$'; then
+    echo "[container] error: no valid container_exit in ${meta} (cannot judge)"
+    return 2
+  fi
+  if [ -n "${drc}" ] && [ "${drc}" != "0" ]; then
+    echo "[container] error: container runtime exited with ${drc}"
+    return 2
   fi
   if [ "${pre_ok}" != "1" ]; then
     echo "[precondition] error: no 'precondition ok' line (the container did not start or the log is cut)"

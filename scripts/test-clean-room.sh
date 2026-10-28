@@ -66,6 +66,14 @@ judge() {
 mk good "precondition ok" 0 "${OK_BODY}" 0 "${IGN_BODY}"
 expect "all pass with allowed ignored" 0 "$(judge good)"
 
+mk drc "precondition ok" 0 "${OK_BODY}" 0 "${IGN_BODY}"
+printf 'container_exit=0\n' >"${TMP}/drc/meta.txt"
+expect "container_exit 0 passes" 0 "$(judge drc)"
+printf 'container_exit=137\n' >"${TMP}/drc/meta.txt"
+expect "container_exit nonzero with good log" 2 "$(judge drc)"
+printf 'wall_seconds=1\n' >"${TMP}/drc/meta.txt"
+expect "meta without container_exit" 2 "$(judge drc)"
+
 mk failed "precondition ok" 0 "${OK_BODY}" 101 'test a ... FAILED
 test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s'
 expect "failed test" 1 "$(judge failed)"

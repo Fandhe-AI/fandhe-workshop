@@ -305,7 +305,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 認証情報・ホームの設定・環境変数を持たない公開イメージの中で、公開の依存だけで試験が通ることを確かめます。
 
 - 前提: `docker`（`CONTAINER_RUNTIME=podman` で podman）と通信。VM のメモリは 2 GiB より大きくしてください
-- 実行: `make clean-room`（`--ref <rev>` で対象を変えられ、`--out-dir <dir>` でログの置き場を指定できます）
+- 実行: `make clean-room`（既定の `HEAD` を引数なしで流します。`make` はオプションを転送しないため、対象やログの置き場を変えるときは `tools/clean-room.sh run --ref <rev> --out-dir <dir>` を直接実行します）
 - 対象は `git archive` したコミット済みの内容だけです。未コミットの変更と `docs/spec`（private）の中身は入りません
 - 所要は 2 回の実行で 10 分前後です（2026-10-28 の実測は 592 秒）。結果の記録は `docs/testing.md` の 5.353 にあります
 
