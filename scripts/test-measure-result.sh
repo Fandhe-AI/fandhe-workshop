@@ -110,6 +110,27 @@ else
   fail "assemble a native result"
 fi
 
+# --- (e) native の様式（右のログの項目数。log-items.sh。TASK-454 1/2） ---
+LLINE="${TMP}/log-line.json"
+jq -n '{
+  pack: {id: "p", version: "1", nodes: 3, ir_sha256: ("a" * 64), content_hash: ("b" * 64), source: "s"},
+  ops_sequence: {id: "o", ops: 2, ops_sha256: ("c" * 64), goto_substitutions: 1},
+  log: {items_max: 56, items_round1_end: 0, items_round2_end: 56, events_round2_end: 265, groups_round2_end: 25, folded_steps: 0, limit_marks: 0, steps_observed: 63, target: 1000}
+}' >"${LLINE}"
+LN="${TMP}/ln.json"
+if measure_native_log_rounds_result_json "${COMMIT}" "${LLINE}" >"${LN}"; then
+  pass "assemble a log-rounds native result"
+  check "log-rounds result passes measure_validate_native" measure_validate_native "${LN}"
+  check "log-rounds result has 5 measurements" jq -e '.measurements | length == 5' "${LN}"
+  check "log-rounds result is within target" jq -e '.conditions.within_target == true' "${LN}"
+  jq 'del(.baseline.commit.sha)' "${LN}" >"${TMP}/ln-nosha.json"
+  if measure_validate_native "${TMP}/ln-nosha.json"; then fail "log-rounds result without commit.sha is rejected"; else pass "log-rounds result without commit.sha is rejected"; fi
+  jq '.measurements[0].value = 0.5' "${LN}" >"${TMP}/ln-frac.json"
+  if measure_validate_native "${TMP}/ln-frac.json"; then fail "log-rounds result with a non-integer value is rejected"; else pass "log-rounds result with a non-integer value is rejected"; fi
+else
+  fail "assemble a log-rounds native result"
+fi
+
 # --- (c) 負の対照: 使っている jq が 1.7 の文法かどうか ---
 if jq -n '{a: {} + {}}' >/dev/null 2>&1; then
   echo "note: this jq accepts a binary operator in an object value (jq 1.8 or later); (a) is not a check of the jq 1.7 grammar here" >&2

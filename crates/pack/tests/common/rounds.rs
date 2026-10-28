@@ -1,6 +1,7 @@
 //! `module-reuse-rounds` の 2 周分の操作列を「計画」（`PlanStep` の列）として持つ共有部品（TASK-216。EVT-13、MOD-5）。
 //!
-//! 呼び出し元は `round_slice_init.rs`（切り身・世界状態のハッシュの試験）と `history_size_rounds.rs`（2 周分の履歴の大きさの測定）。
+//! 呼び出し元は `round_slice_init.rs`（切り身・世界状態のハッシュの試験）と `history_size_rounds.rs`（2 周分の履歴の大きさの測定）、
+//! web の `log_rounds_count.rs`（2 周分の右のログの項目数の測定。TASK-454 1/2）。
 //! 同じ入力列を 2 つの試験が共有し、測定の対象と状態の試験の対象が食い違わないようにする。
 //! 計画は値の列なので、TASK-336 が誤入力や `Control::Save` を差し込んで条件 B／C を作れる。動かす側（`Session` か
 //! `RecordedSession`）の差は [`Drive`] が吸収する。
@@ -304,4 +305,16 @@ pub fn round2_plan_until_command(
 /// 2 周目の計画を、`st-6-1` の `/create-issue-tree` の直前で切った前半（TASK-238 1/2。MOD-8）。
 pub fn round2_plan_until_create_tree(ir: &Ir) -> Vec<PlanStep> {
     round2_plan_until_command(ir, "/create-issue-tree", "/st-6-1")
+}
+
+/// 条件 A の計画: 1 周目 → 保存 → 2 周目の開始 → 2 周目 → 保存（ID は `rounds-plan-a-v1`）。
+/// 履歴の大きさの測定（pack）と右のログの項目数の測定（web）が同じ操作列を測るための共有の定義。
+pub fn plan_a(ir: &Ir) -> Vec<PlanStep> {
+    let save = || PlanStep::Op(Op::Control(Control::Save));
+    let mut p = round1_plan(ir);
+    p.push(save());
+    p.extend(begin_round2_plan());
+    p.extend(round2_plan(ir));
+    p.push(save());
+    p
 }

@@ -65,6 +65,7 @@ cat <<'EOF'
   test-measure-wasm-size       scripts/test-measure-wasm-size.sh       wasm-size の様式検証と実ビルドの回帰テスト（遅い）
   measure                      tools/measure/all.sh                    3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し JSON を出す（遅い・要ブラウザ）
   measure-history-size         tools/measure/history-size.sh           2 周分の履歴の大きさと Changed の割合を基点つきで測り JSON を出す
+  measure-log-items            tools/measure/log-items.sh              2 周分の通しでの右のログの項目数（最大）を基点つきで測り JSON を出す
   test-measure                 scripts/test-measure.sh                 一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）
   test-measure-result          scripts/test-measure-result.sh          測定の結果の組み立てが jq 1.7 の文法でも通ることの確認（速い・ビルドなし）
 

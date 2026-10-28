@@ -434,3 +434,42 @@ measure_native_result_json() {
       ]
     }'
 }
+
+# measure_native_log_rounds_result_json <commit-json> <line-json-file>: 試験の出力（LOG-ROUNDS の行の JSON）と基点から、
+# 様式 measure-native/v1 の結果を組み立てて標準出力へ返す（TASK-454 1/2）。log-items.sh と scripts/test-measure-result.sh から呼ばれる。
+# measurements は正の整数だけ（検証の述語の条件）。0 になりうる畳み・印の数は conditions に置く。
+# JSON は --arg / --argjson / --slurpfile だけで組み立てる（jq 1.7 の注意は #1822）。
+measure_native_log_rounds_result_json() {
+  local commit_json="$1" line_file="$2"
+  jq -n \
+    --arg measured_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson commit "${commit_json}" \
+    --arg rustc "$(rustc -V 2>/dev/null || true)" \
+    --slurpfile l "${line_file}" \
+    '$l[0] as $l | ($l.log.items_max <= $l.log.target) as $within | {
+      schema: "fandhe-workshop/measure-native/v1",
+      measured_at: $measured_at,
+      baseline: {
+        commit: $commit,
+        cargo_profile: "test",
+        pack: $l.pack,
+        ops_sequence: $l.ops_sequence
+      },
+      toolchain: {rustc: $rustc},
+      conditions: {
+        condition: "A",
+        target: $l.log.target,
+        within_target: $within,
+        folded_steps: $l.log.folded_steps,
+        limit_marks: $l.log.limit_marks,
+        scope_note: "native render of the right log (li count), not the browser DOM; no wrong inputs; some steps skipped with GoTo; safety valve and over-limit view belong to TASK-454 2/2"
+      },
+      measurements: [
+        {name: "log_rounds_items_max", unit: "count", value: $l.log.items_max},
+        {name: "log_rounds_items_round2_end", unit: "count", value: $l.log.items_round2_end},
+        {name: "log_rounds_events_round2_end", unit: "count", value: $l.log.events_round2_end},
+        {name: "log_rounds_groups_round2_end", unit: "count", value: $l.log.groups_round2_end},
+        {name: "log_rounds_steps_observed", unit: "count", value: $l.log.steps_observed}
+      ]
+    }'
+}

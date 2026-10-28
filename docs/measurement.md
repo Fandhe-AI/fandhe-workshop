@@ -173,6 +173,26 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
 - 道筋は `module-reuse-rounds` の模範解答の 2 周分に、各周の終わりのチェックポイントを足した条件 A の形。誤入力は入れない
 - 未実装の部品のため `GoTo` で飛ばす場所がある（`docs/testing.md` 5.258・5.260）。飛ばした分、`Changed` の件数は真の通しと違いうる
 
+## 4b. 右のログの項目数の様式（TASK-454 1/2。`schema`: `fandhe-workshop/measure-native/v1`）
+
+様式は 4a と同じで、`baseline.ops_sequence` は同じ `rounds-plan-a-v1`（`ops_sha256` が `make measure-history-size` と一致すれば同じ操作列を測っている）。違う欄だけを示す。
+
+| パス | 内容 |
+|---|---|
+| `conditions` | `condition: "A"`・`target`（`LIST_ITEMS_TARGET` = 1,000）・`within_target`（最大が目安以下か）・`folded_steps`（畳みが起きた手の数）・`limit_marks`（安全弁・上流の拒否の印の数）・`scope_note` |
+| `measurements[]` | 値は正の整数。0 になりうる量は `conditions` に置く |
+
+測定名（単位はすべて `count`）: `log_rounds_items_max`（手ごとの描画で数えた `part-log-list` の `<li` の最大）・`log_rounds_items_round2_end`・`log_rounds_events_round2_end`（項目数とは別の量）・`log_rounds_groups_round2_end`（`data-gen` と `data-step` の組の数）・`log_rounds_steps_observed`（観察した手の数）。
+
+```bash
+make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
+```
+
+- 実体は `crates/web/tests/log_rounds_count.rs`（`LOG-ROUNDS ` の行を 1 行出す）。native の描画結果を数えており、ブラウザの DOM の値ではない
+- 終了コード: 0 = 成功 / 1 = 試験・基点の収集・検証の失敗（標準出力は空） / 2 = 誤用。`make measure` の束には入れない
+- 比較の規則: `log_rounds_*` を `log-rounds.sh`（合成のログの再描画の時間）と比べない。`ops_sha256` が違う値どうしを比べない
+- 回帰テストは `make test-measure-result` の (e)。記録は `docs/testing.md` 5.349
+
 ## 5. 一括実行の束（`schema`: `fandhe-workshop/measure-run/v1`）
 
 `make measure` の出力。大きさと初回表示は配信する設定、再描画は試験の設定で測るため、基点の機能の範囲は結果ごとに違う。
