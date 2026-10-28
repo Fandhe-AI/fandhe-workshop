@@ -7368,7 +7368,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: D-58・D-71 の形（miniserve 0.35.0 と静的ファイル）で、人の操作が「展開・`./start.sh`・URL を開く」の 3 つになる zip を作る。`tools/build-l2.mjs` が `fandhe-workshop-l2/{start.sh, miniserve, site/}` を作り、`site/` は配信する設定の配信物そのものにする。
 - 決定（自動運転のため人の承認は得ていない）: zip は Node の `zlib` で自前に書く（`zip` が前提の道具に無いため。時刻・順序・mode を固定して決定的にする）。miniserve は上流の Release のビルド済み実行ファイルを使い、sha256 を `tools/l2/miniserve.sha256` に固定して照合する（固定値を上書きする口は無い。2026-10-22 に Release の digest との一致を確認。実行ファイル自体の取得・実行は未実施）。`L2_PLATFORM=linux-x64` は模擬環境の試験（#532）のための追加で、仕様に明記は無い。
 - 試験（`tools/build-l2.test.mjs`。22 件）: 木の完全一致・mode（`start.sh`・`miniserve` が 0755、他が 0644）・`site/` のバイト一致・決定性・`start.sh` の起動（`PATH=/usr/bin:/bin` の環境で URL を表示し、引数が `--index index.html -i 127.0.0.1 -p <PORT> site` と完全一致。不正な `PORT` は 2）・fail-closed（digest の不一致、試験用の口・`.d.ts`・シンボリックリンク・`ir/main.json` の欠落、誤用、出力先の不正で zip が作られない）・固定表の形。
-- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文・推移的な依存の棚卸し（TASK-137）。
+- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文は 5.364（TASK-137）、推移的な依存の棚卸しは未完了。
 - 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.238 で最小限を入れて解消した）。
 - 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
@@ -10062,3 +10062,15 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 実物の照合: `L2_SERVER_WINDOWS` に実物の exe を渡すと、実物で 2 回作ってバイト一致・先頭が `MZ` を確かめる（無いときは skip）。CI は固定版を取得して `sha256sum -c` で照合してから渡す。2026-10-28 に v0.35.0 の資産を取得して再計算した sha256 は `3229e75b40b3870382d23c9a0ecec880b9bd5f6e49160ce602bb15d00f275b6a`（GitHub の digest と一致）で、実物ありの `make test-build-l2` は 35 件合格・skip 0 件
 - 未検証: Windows の実機での `start.cmd` の実行（Linux では動かせない）、OS の警告。TASK-120 で人が確かめる。DLV-22 は検討中のまま
 - 範囲外: `docs/l2-update-procedure.md`・`update-l2`（#1875。マージ後に windows-x64 を表へ追従させる）、案内文（TASK-117）、ライセンス文（TASK-137）。`make test-l2-run`（linux-x64）は未実行
+
+### 5.364 L2 の配布物のライセンス文（TASK-137。LIC-10・D-58・D-71）
+
+L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT のライセンス文。上流の `LICENSE` の逐語の写し）と `THIRD-PARTY-NOTICES.txt`（同梱物と取り下げ済みの crate の記録）を全 platform で入れる。元は `tools/l2/` に置く。`site/` の外なので配信されず、L1 との木の比較（`site/` だけが対象）にも入らない。
+
+- 決定: 置き場は zip の最上位（D-71 は置き場を決めていないため本タスクで決めた）。`.txt` にして Windows・macOS で開けるようにする。改行は LF のまま（逐語の保持のため。起動スクリプトだけを CRLF にする）。repo 直下の `THIRD-PARTY-LICENSES`（LIC-9。TASK-136）とは別名にし、役割を分ける
+- 逐語の保証: `tools/build-l2.mjs` の `MINISERVE_LICENSE_SHA256`（`bedb87f0…375a`。2026-10-28 に上流のタグ v0.35.0 の `LICENSE` から取得して計算）と作成時に照合し、不一致・欠落・シンボリックリンクなら zip を作らない。固定値を上書きする口は無い（試験が差し替えるのは読む元の置き場 `l2Dir` だけで、CLI は渡さない）
+- 試験（`tools/build-l2.test.mjs`。通信なし）: 元の sha256 が固定値と一致／3 platform の zip に同じバイト列で入り mode 0644・LF・必要な語（`miniserve`・`0.35.0`・`MIT`・`core2`・`0.4.0`）を含む／ライセンス文の 1 バイトの改変・欠落・告知の欠落・リンクで zip が作られない／既存の木の完全一致に 2 件を追加
+- 取り下げ済みの記録: `core2` 0.4.0（`libflate` の依存）。2026-10-28 に crates.io の sparse index で取り下げ済みを確認した。上流の `Cargo.lock`（457 件）の全件の走査（`tools/inventory-deps.mjs --lock`）は 199 件目まで進んだ時点で時間切れとなり未完了。他の取り下げ済みの有無は未確認で、告知にもそう書いた
+- 限界: miniserve に静的にリンクされた依存 crate の個別のライセンス文は同梱していない。脆弱性の有無は調べていない（D-58 の棚卸しの範囲）
+- 未検証: 実物の miniserve での `make build-l2`、`make test-l2-run`（CI の `browser-test` に任せる）
+- 範囲外: 依存 crate 全件のライセンス文の同梱（LIC-9・TASK-136 と合わせて判断する）、仕様の LIC-10 の状態の更新（spec repo 側）
