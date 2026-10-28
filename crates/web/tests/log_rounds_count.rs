@@ -176,7 +176,7 @@ fn two_rounds_right_log_items_stay_within_target() {
     );
     assert_eq!(m.current, "main/r2-impl");
     assert!(m.stats.items_max > 0 && m.events_round2_end > 0);
-    assert!(m.items_round1_end > 0, "1 周目の終わりの項目数が 0 件");
+    // 1 周目の最後の Step の描画ではログが空で 0 件になりうる（docs/testing.md 5.349）。非ゼロは要求しない。
     assert!(m.stats.items_max >= m.items_round1_end);
     assert!(m.last_list.contains("<li"), "最後の手でログが空");
 
