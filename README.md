@@ -29,7 +29,7 @@
 |---|---|---|
 | エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
 | 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
-| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
+| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針。現時点ではライセンス表記だけを置いた（TASK-130。構成は今後）（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
 | crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | `crates/` 配下。pack に読み込み層と `compile`・`compare`・`metrics`・`vocab` を実装済みで、他は骨格中心（2026-10-15 時点）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
 | 作成者向け CLI | `fandhe-pack` | pack crate に置く。`compile <pack-dir> [--chapters <id>,...]`（IR の JSON を標準出力へ書く。`--chapters` で章の範囲を絞る）・`compare <pack-dir-a> <pack-dir-b>`（IR のバイト一致を判定する）・`metrics <pack-dir>`（ファイルごとの行数・実効行数・バイト数・入れ子の深さを CSV で出す）・`vocab <pack-dir>`（拡張点を使った Step の数え上げ）を実装済み。外部仕様は `docs/cli.md` |
 
@@ -51,7 +51,7 @@ git -c submodule.docs/spec.update=checkout submodule update --init docs/spec
 ## ライセンス
 
 MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE-MIT) / [LICENSE-APACHE](./LICENSE-APACHE)）。
-全 crate の `license` が `MIT OR Apache-2.0` であることと、直下に 2 つの本文があることは `make check-license` が機械で確かめます。
+全 crate の `license` が `MIT OR Apache-2.0` であることと、直下に 2 つの本文があることは `make check-license` が機械で確かめます。雛形（`template-workshop/`）も同じライセンスで、本文の写しと README の表記がそろい、雛形から作った repo に引き継がれることも同じ検査で確かめます。
 
 ## 構成
 
@@ -254,7 +254,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
-| `make check-license` | `scripts/check-license.sh` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に 2 つのライセンスの本文があることの検査 |
+| `make check-license` | `scripts/check-license.sh` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に 2 つのライセンスの本文があること、雛形に同じ本文の写しと表記があることの検査 |
 | `make test-check-license` | `scripts/test-check-license.sh` | ライセンス表記の検査自体の回帰テスト |
 | `make check-testdata` | `scripts/check-testdata-refs.sh` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |

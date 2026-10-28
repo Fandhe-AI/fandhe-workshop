@@ -10071,3 +10071,12 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 16 件が合格
 - 限界: 本文の完全一致は保証しない（目印だけ）。`package.json` の `license` は crate ではないため範囲外。Apache-2.0 の付録の `[yyyy]` の欄は標準の文面のままで、本変更では直さない
 - 範囲外: 雛形のライセンス表記（TASK-130）、`THIRD-PARTY-LICENSES`（TASK-136）、依存のライセンスの同梱、画面からライセンスへの到達（LIC-11）
+
+### 5.365 雛形のライセンス表記の機械検査（TASK-130。LIC-2・D-80）
+
+`scripts/check-license.sh`（`make check-license`）を広げ、`template-workshop/` の `LICENSE-MIT`・`LICENSE-APACHE` がルートの同名ファイルとバイト単位で一致する通常のファイル（symlink は拒否）で、`README.md` に `MIT OR Apache-2.0` と 2 ファイルへの言及があり、ディレクトリの外へ出るリンクが無いことを確かめる。あわせて `cp -RP` で雛形から作った repo を模擬した一時ディレクトリにも同じ検査を掛け、表記が引き継がれることを確かめる。CI は既存の `rust-lint` ジョブの step で流れる（ジョブは増やしていない）。`.editorconfig-checker.json` の除外は雛形の写しにも広げた。
+
+- 回帰テスト `scripts/test-check-license.sh` は 24 件（既存 16 件に 8 件を追加）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・ルートだけ変えた同期漏れが、いずれも 1 になる
+- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 24 件が合格
+- 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
+- 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）

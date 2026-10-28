@@ -203,7 +203,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 │   ├── pack/               # fandhe-workshop-pack（仮称）+ bin fandhe-pack
 │   └── web/                # fandhe-workshop-web（仮称）
 ├── testdata/               # 試験データの置き場（TASK-38）
-├── template-workshop/      # 雛形の置き場（仮称。TASK-769。初期は作らない）
+├── template-workshop/      # 雛形の置き場（仮称。初期はライセンス表記だけ。TASK-130。構成は TASK-769）
 ├── docs/
 │   ├── architecture.md     # 本文書
 │   └── spec/               # private の submodule
@@ -216,7 +216,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
   出所を `testdata/README.md` に記録する（TASK-38）。リポジトリの外への相対参照を持たない（BUILD-14 の前提）。
   1 つの crate だけが使う小さな入力は、その crate の `tests/` に置いてよい。契約のサンプルは `testdata/contract/` に置く
   （TASK-205。参照先は `docs/engine-api.md` の 7 節）。golden の置き場の細目は TASK-38 が決める
-- `template-workshop/`: 雛形はエンジン repo 内のディレクトリである（`D-4`）。構成の定義と適合の検査は TASK-769 が
+- `template-workshop/`: 雛形はエンジン repo 内のディレクトリである（`D-4`）。現時点ではライセンスの表記（`LICENSE-MIT`・`LICENSE-APACHE` の写しと README の節。TASK-130）だけを置く。構成の定義と適合の検査は TASK-769 が
   固定する。3 repo への移行の時期は未回答（`Q-24`）で、本文書では決めない
 - シェルの処理は既存規約どおり `scripts/` に置く（`.claude/rules/makefile.md`）
 
@@ -298,3 +298,4 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-21: 第 6 節の置き場の表の pack の行に、案内レベルの語の読み取りと本文の選択（`guidance`。TASK-49 1/2）を含めることを追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-23: 第 6 節の置き場の表に、案内レベル別の本文の木の選択（`body_level`。TASK-292）を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-23: 第 5 節の 1 と 2 に、不変条件ごとの検査の所在（TASK-206。右と左の分離の試験 `pane_isolation.rs` を含む）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-28: 第 8 節の `template-workshop/` に、ライセンス表記だけを置いた旨（TASK-130）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

@@ -6,7 +6,9 @@
 #   - workspace の全 member の `license` が `MIT OR Apache-2.0` に完全一致すること
 #   - `license-file` を使っていないこと（SPDX 式の `license` を正とするため）
 #   - workspace 直下に LICENSE-MIT・LICENSE-APACHE が通常のファイルとして在り、空でなく、取り違えていないこと
-# 本文の完全一致は保証しない（最小の目印の固定文字列だけを照合する）。package.json は crate ではないため範囲外。
+#   - 雛形 template-workshop/ に同じ本文の写し（バイト一致）と README の表記があり、雛形から作った repo の模擬
+#     （cp -RP）にも引き継がれること（LIC-2・TASK-130。symlink は引き継がれないため拒否する）
+# エンジン直下の本文の完全一致は保証しない（最小の目印の固定文字列だけを照合する）。package.json は crate ではないため範囲外。
 #
 # 使い方: scripts/check-license.sh [--manifest-path <Cargo.toml>]
 #   --manifest-path は回帰テストが一時コピーを検査するために使う。
@@ -92,7 +94,50 @@ check_text() {
 check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
+# check_template_root <dir> <label>: 雛形（またはその写し）の直下の表記を確かめる。本文は出力しない。
+check_template_root() {
+  local dir="$1" label="$2" name
+  for name in LICENSE-MIT LICENSE-APACHE; do
+    if [ -L "${dir}/${name}" ] || [ ! -f "${dir}/${name}" ] || ! cmp -s "${dir}/${name}" "${WORKSPACE_ROOT}/${name}"; then
+      echo "error: ${label}/${name} is missing, a symlink, or differs from the engine's ${name}" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+  done
+  if [ -L "${dir}/README.md" ] || [ ! -f "${dir}/README.md" ]; then
+    echo "error: ${label}/README.md is missing or a symlink" >&2
+    VIOLATIONS=$((VIOLATIONS + 1))
+    return 0
+  fi
+  local marker
+  for marker in 'MIT OR Apache-2.0' 'LICENSE-MIT' 'LICENSE-APACHE'; do
+    if ! grep -qF -- "${marker}" "${dir}/README.md"; then
+      echo "error: ${label}/README.md lacks the license notice" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      return 0
+    fi
+  done
+  if grep -qF -- '](../' "${dir}/README.md"; then
+    echo "error: ${label}/README.md has a link that leaves the directory" >&2
+    VIOLATIONS=$((VIOLATIONS + 1))
+  fi
+}
+
+TEMPLATE_DIR="${WORKSPACE_ROOT}/template-workshop"
+if [ -L "${TEMPLATE_DIR}" ] || [ ! -d "${TEMPLATE_DIR}" ]; then
+  echo "error: template-workshop is missing" >&2
+  VIOLATIONS=$((VIOLATIONS + 1))
+else
+  check_template_root "${TEMPLATE_DIR}" template-workshop
+  # 雛形から作った repo の模擬。-P で symlink を symlink のまま写し、検出する。
+  NEW_REPO="${TMP_DIR}/new-repo"
+  if ! mkdir "${NEW_REPO}" || ! cp -RP "${TEMPLATE_DIR}/." "${NEW_REPO}/"; then
+    echo "error: cannot copy template-workshop to simulate a new repo" >&2
+    exit 2
+  fi
+  check_template_root "${NEW_REPO}" "new repo from template-workshop"
+fi
+
 if [ "${VIOLATIONS}" -ne 0 ]; then
   exit 1
 fi
-log "ok: ${MEMBER_COUNT} members, license ${EXPECTED_LICENSE}, 2 license files"
+log "ok: ${MEMBER_COUNT} members, license ${EXPECTED_LICENSE}, 2 license files, template-workshop notice (2 files + README, carried over to a copy)"

@@ -49,3 +49,19 @@
 | 確かめた人 | AI（Claude Code）による機械の照合と目視。人の確認は未実施 |
 | 承認 | 承認点なし（spec の TASK-129。ライセンスは D-6 で決定済み） |
 | 限界 | 本文の照合は最小の目印の固定文字列だけで、完全一致は保証しない。`package.json` の `license` は crate ではないため対象外 |
+
+## LIC-2 雛形のライセンス表記の確認（TASK-130）
+
+雛形はエンジンと同じ `MIT OR Apache-2.0` で配布する（D-80）。初回はエンジン repo 内の `template-workshop/` に置く（D-4）ため、ルートと同じ本文の写しと README の節を置き、`make check-license` が一致と、雛形から作った repo への引き継ぎ（模擬）を確かめる。
+
+### 記録 1（2026-10-28）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: `003b2a25` の `main` に本変更を載せた作業ブランチ |
+| 日付 | 2026-10-28 |
+| 方法 | `make check-license` が終了コード 0。回帰テスト `make test-check-license` は 24 件が通った。`template-workshop/` の 2 ファイルがルートと `cmp` で一致し、README に `## ライセンス` の節があることを確かめた |
+| 04 への反映 | spec の submodule（gitlink `d70ad10`）の `04-behavior/license-notice.md` で、LIC-2 が D-80 により確定し、期待が本変更の内容と合うことを確かめた。spec は編集していない |
+| 確かめた人 | AI（Claude Code）による機械の照合と目視。人の確認は未実施 |
+| 承認 | spec の TASK-130 は承認点なし（雛形のライセンスの方針は TASK-13 で決定済み）。Issue 側の「人間の承認点: あり」とは食い違うが、承認は得ていない |
+| 限界 | 模擬は `cp -RP` でリポジトリの追跡対象かは見ない。GitHub のテンプレート機能そのものでは確かめていない。copyright の行は雛形のまま引き継ぐ。教材 repo 側の表記は TASK-131・TASK-782 |
