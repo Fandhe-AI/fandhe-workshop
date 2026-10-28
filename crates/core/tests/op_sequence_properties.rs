@@ -636,3 +636,43 @@ fn reload_generation_exercises_stale_ticks_after_reload() {
 /// 既定の種での下限。実測は固定が 1593 件・732 件、誘導つきが 1070 件・387 件（2026-10-16。`docs/testing.md` 5.68）。
 const FLOOR_RELOADS: u64 = 500;
 const FLOOR_STALE_AFTER_RELOAD: u64 = 200;
+
+/// 古い進行（P-2）が、再読み込み無しの固定・誘導の生成でも実際に流れることの確認（TASK-83 2/3。`docs/testing.md` 1.2）。
+/// 網羅性の確認なので、種と件数を既定に固定して環境変数の上書きを受けない。
+#[test]
+fn stale_ticks_are_exercised_by_both_generations() {
+    let (ir, initial) = load_min_ir();
+    for (name, fixed) in [("stale-fixed", true), ("stale-guided", false)] {
+        let total = RefCell::new(PropStats::default());
+        let body = |specs: Vec<OpSpec>| {
+            let mut checker = PropChecker::new(&ir, &initial);
+            run_with(&ir, initial.clone(), &specs, |i, a| {
+                checker.check(i, a).map_err(TestCaseError::fail)
+            })?;
+            total.borrow_mut().merge(&checker.stats);
+            Ok(())
+        };
+        if fixed {
+            try_check_with(name, &DEFAULT_SEED, 1_000, &op_specs(), body)
+        } else {
+            try_check_with(name, &DEFAULT_SEED, 1_000, &guided_op_specs(), body)
+        }
+        .expect("properties hold");
+        let t = total.borrow();
+        println!("STALE-COVERAGE {name} counts={:?}", t.counts);
+        assert!(
+            t.get("tick_stale") >= FLOOR_TICK_STALE,
+            "{name}: {:?}",
+            t.counts
+        );
+        assert!(
+            t.get("stale_after_generation_change") >= FLOOR_STALE_AFTER_GENERATION,
+            "{name}: {:?}",
+            t.counts
+        );
+    }
+}
+
+/// 下限は実測（固定 5126・1649 件、誘導つき 2762・923 件。2026-10-28）の約半分。
+const FLOOR_TICK_STALE: u64 = 1_000;
+const FLOOR_STALE_AFTER_GENERATION: u64 = 400;

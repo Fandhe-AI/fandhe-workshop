@@ -17,7 +17,7 @@
 
 層 1 は C-17 の 1 層目で、DOM に依存しない純 Rust の core の試験である。5 区分と試験の対応の正は次の表で、
 `crates/core/tests/layer1_index.rs` が、挙げたファイルと関数の実在を `cargo test` で照合する。
-性質テスト（TASK-83 2/3）と変異注入（TASK-83 3/3）は、後続でこの節に 1.2・1.3 を足す。
+性質テストは次の 1.2、変異注入（TASK-83 3/3）は後続で 1.3 に足す。
 
 | 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
 |---|---|---|---|
@@ -41,6 +41,27 @@
 | 履歴の変換 | `crates/core/tests/history_open.rs` | `ver3_same_versions_open_without_conversion`・`ver4_content_patch_only_is_converted` | 変換して開く（VER-3〜VER-7） |
 | 履歴の変換 | `crates/core/tests/version_histories.rs` | `fifteen_histories_match_the_fixed_expectations` | 15 件の期待（VER-2） |
 | 履歴の変換 | `crates/core/tests/version_record.rs` | `t3_four_axes_present_in_order` | 4 軸の版の記録 |
+
+### 1.2 層 1 の性質テスト（1,000 通り×2。BUILD-7。TASK-83 2/3）
+
+層 1 の 3 つの性質（古い進行による状態変化 0・実体の間の混ざり 0・復元の不一致 0）は、どれも「固定の生成」と
+「誘導つきの生成」の各 1,000 通りで流す（出所は PoC-1・PoC-4・PoC-6 の記録）。対応の正は次の表で、
+`crates/core/tests/layer1_index.rs` が、3 性質 × 2 生成のそろいと、挙げたファイル・関数の実在と、
+ファイルの本文にケース数 `1_000` があることを `cargo test` で照合する。網羅の確認が無い行は「なし」と書く（統計を出力するだけ）。
+実体の間の混ざりと 2 周の復元は、2 周の IR を作る `compile_dir` が pack にあり、core から pack へは依存できないため、pack の試験に置く。
+
+| 性質 | 生成 | 試験ファイル | 試験関数 | 網羅の確認 |
+|---|---|---|---|---|
+| 古い進行による状態変化 0 | 固定 | `crates/core/tests/op_sequence_properties.rs` | `properties_p1_to_p6_hold_after_every_op`・`properties_p1_to_p6_hold_with_reload_sequences` | `stale_ticks_are_exercised_by_both_generations`・`reload_generation_exercises_stale_ticks_after_reload` |
+| 古い進行による状態変化 0 | 誘導 | `crates/core/tests/op_sequence_properties.rs` | `properties_p1_to_p6_hold_with_guided_sequences`・`properties_p1_to_p6_hold_with_guided_reload_sequences` | `stale_ticks_are_exercised_by_both_generations`・`guided_generation_reaches_deeper_states_than_fixed_generation` |
+| 実体の間の混ざり 0 | 固定 | `crates/pack/tests/round_property.rs` | `m1_holds_across_rounds_fixed_generation` | `round_generation_reaches_both_rounds` |
+| 実体の間の混ざり 0 | 誘導 | `crates/pack/tests/round_property.rs` | `m1_holds_across_rounds_guided_generation` | `round_generation_reaches_both_rounds` |
+| 復元の不一致 0 | 固定 | `crates/core/tests/history_replay.rs` | `property_replay_matches_snapshot_fixed` | なし |
+| 復元の不一致 0 | 固定 | `crates/core/tests/history_verify.rs` | `property_export_import_verifies_fixed`・`property_reload_at_any_point_fixed`・`property_tampered_ops_never_open_wrong_state_fixed` | なし |
+| 復元の不一致 0 | 誘導 | `crates/core/tests/history_replay.rs` | `property_replay_matches_snapshot_guided` | なし |
+| 復元の不一致 0 | 誘導 | `crates/core/tests/history_verify.rs` | `property_export_import_verifies_guided`・`property_reload_at_any_point_guided`・`property_tampered_ops_never_open_wrong_state_guided` | なし |
+| 復元の不一致 0 | 固定 | `crates/pack/tests/round_restore_property.rs` | `round_restore_holds_fixed_generation` | `round_restore_generation_covers_both_rounds` |
+| 復元の不一致 0 | 誘導 | `crates/pack/tests/round_restore_property.rs` | `round_restore_holds_guided_generation` | `round_restore_generation_covers_both_rounds` |
 
 ## 2. 性質テストの手順
 
@@ -9591,3 +9612,19 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 発見した現状: `apply` は条件の評価器を結線しておらず（`NoConditions`）、`when` つきの規則・効果は旗の有無によらず採られない。`next[].when` も評価されない。どちらも安全側に倒れる現状を固定した。結線されたら `branch_paths.rs` を直す
 - 3/3 への引き継ぎ: `branch_paths.rs` の関数名は変異の `expect-fail` の候補にできる。`layer1_index` は `docs/` が一時コピーに無いため対象外
 - 範囲外: 1 節の「CI にはまだ cargo のジョブが無い」は現状（`ci.yml` の `rust-test`）と食い違う
+
+### 5.341 層 1 の性質テスト 1,000 通り×2 の索引（TASK-83 2/3。BUILD-7）
+
+- 目的: 層 1 の 3 性質（古い進行による状態変化 0・実体の間の混ざり 0・復元の不一致 0）を、固定・誘導つきの各 1,000 通りで流す試験の対応を 1.2 の表にまとめ、索引の古さとケース数・生成の欠けを `cargo test` で止める。既存の性質テストはどれも各 1,000 通りで揃っていた。不足は、索引と、2 周の IR での復元の性質テストと、再読み込み無しの生成での古い進行の網羅の確認だった
+- 追加:
+  - `crates/core/tests/layer1_index.rs` の 3 件（3 性質 × 2 生成のそろい、ファイル・関数・`1_000` の実在、検査器の自己確認）
+  - `crates/core/tests/op_sequence_properties.rs` の `stale_ticks_are_exercised_by_both_generations`（再読み込み無しの固定・誘導で古い進行が実際に流れる。既定の種・1,000 通り）
+  - `crates/pack/tests/round_restore_property.rs` の 3 件（2 周の IR で、列の途中と最後の履歴を、書き出し → 読み込みと再読み込みで開き直し、状態が元と一致。固定・誘導・網羅）
+- 実測（2026-10-28、元にしたコミット `b545a57b`、dev プロファイル）:
+  - 古い進行の網羅: 固定は `tick_stale` 5126 件・`stale_after_generation_change` 1649 件、誘導つきは 2762 件・923 件。下限は 1,000 件・400 件。所要 約 5 秒
+  - 2 周の復元: 固定・誘導の各 1,000 通りで比較 1918 回ずつ（処理中 123・222、下書きあり 1013・779、チェックポイントあり 1166・868）。所要 3 件で約 42 秒（1 件約 14 秒）
+- 期待値（`scripts/expected-test-counts.txt`）は更新していない
+- 照合の限界: ケース数の照合は「ファイルの本文に `1_000` がある」ことをファイル単位で見るだけで、関数ごとではない。`FANDHE_PROPTEST_CASES` で実行時に上書きできる（CI・Makefile・scripts は設定していない。`scripts/check-mutations.sh` は unset する）
+- 比べていない範囲: 時点 t の履歴を再読み込みした続きに残りの操作を流す比較は行わない。残りの操作の進行は元の世代の宛先を持ち、再読み込み後は古い進行として無視されるため、元の列と同じ結果になる前提が成り立たない
+- 重複: `round_restore_property.rs` は `round_persist.rs` の補助関数（`reload`・`import`・`assert_only_reload_differs`）と同じ比較を持つ。共通化は既存ファイルを変えるため行っていない
+- 3/3 への引き継ぎ: 新しい性質テストの関数名は変異の `expect-fail` の候補にできる。`layer1_index` は一時コピーに `docs/` が無いため変異の対象外
