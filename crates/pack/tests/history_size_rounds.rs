@@ -23,13 +23,12 @@ use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::history_envelope::SessionEnvelope;
 use fandhe_workshop_core::history_export::export_bytes;
 use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
-use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::Session;
 use fandhe_workshop_pack::compile::compile_dir;
 use history_size::{measure, HistorySize};
-use rounds::{begin_round2_plan, goto_count, round1_plan, round2_plan, run_plan, PlanStep};
+use rounds::{goto_count, plan_a, run_plan, PlanStep};
 
 const SOURCE: &str = "testdata/module-reuse-rounds/test-data/pack";
 const PLAN_ID: &str = "rounds-plan-a-v1";
@@ -41,20 +40,6 @@ fn hex(d: &[u8]) -> String {
 fn compiled() -> (Ir, Vec<u8>) {
     let bytes = compile_dir(&testdata("module-reuse-rounds/test-data/pack")).expect("compile");
     (load_ir(&bytes).expect("load_ir"), bytes)
-}
-
-fn save() -> PlanStep {
-    PlanStep::Op(Op::Control(Control::Save))
-}
-
-/// 条件 A の計画: 1 周目 → 保存 → 2 周目の開始 → 2 周目 → 保存。
-fn plan_a(ir: &Ir) -> Vec<PlanStep> {
-    let mut p = round1_plan(ir);
-    p.push(save());
-    p.extend(begin_round2_plan());
-    p.extend(round2_plan(ir));
-    p.push(save());
-    p
 }
 
 struct Run {

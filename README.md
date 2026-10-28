@@ -292,6 +292,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make measure-history-size` | `tools/measure/history-size.sh` | 2 周分の履歴の大きさと `Changed` の割合を基点つきで測り、JSON を標準出力へ出す（様式は `docs/measurement.md` §4a。`make measure` の束には入れない） |
+| `make measure-log-items` | `tools/measure/log-items.sh` | 2 周分の通しでの右のログの項目数（最大）を基点つきで測り、JSON を出します（様式は `docs/measurement.md` 4b。`make measure` の束には入れません） |
 | `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
