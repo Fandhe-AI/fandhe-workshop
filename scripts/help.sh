@@ -70,6 +70,8 @@ cat <<'EOF'
   measure-log-items            tools/measure/log-items.sh              2 周分の通しでの右のログの項目数（最大）を基点つきで測り JSON を出す
   test-measure                 scripts/test-measure.sh                 一括測定の様式検証と実行の回帰テスト（遅い・要ブラウザ）
   test-measure-result          scripts/test-measure-result.sh          測定の結果の組み立てが jq 1.7 の文法でも通ることの確認（速い・ビルドなし）
+  clean-room                   tools/clean-room.sh                     まっさらなコンテナで cargo test（既定と --workspace）を流して判定する（遅い・docker と通信が要る。CI 未組み込み）
+  test-clean-room              scripts/test-clean-room.sh              まっさらなコンテナの試験の判定自体の回帰テスト（docker なし）
 
 Git hooks（lefthook.yml から呼ばれる。直接実行も可）:
 

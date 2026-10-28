@@ -31,7 +31,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・serve.mjs・inventory-deps.mjs・upstream-impact.mjs・build-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・clean-room.sh・serve.mjs・inventory-deps.mjs・upstream-impact.mjs・build-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -143,6 +143,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-upstream-impact` | 影響する Step の洗い出し道具（`tools/upstream-impact.mjs`。TASK-182）の回帰テスト（通信なし。CI 未組み込み） |
 | `make measure` | 3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し、束の JSON を出す（遅く、ブラウザを要する） |
 | `make test-measure` | 一括測定の束の検証・fail-closed・実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
+| `make clean-room` | まっさらなコンテナ（公開イメージ・認証情報なし・tar だけを渡す）で `cargo test --locked` と `--workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（`tools/clean-room.sh`。BUILD-1。TASK-77 1/2。遅く、docker と通信が要る。CI 未組み込み。記録は `docs/testing.md` 5.355） |
+| `make test-clean-room` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
 | `make test-measure-result` | 測定の結果の組み立て（`measure_result_json`）が jq 1.7 の文法でも通ることの回帰テスト（速く、ビルドなし。CI の `check` ジョブが流す。#1822） |
 
 変更後は `make check` を通す。Rust を変えたら `make lint`・`make test`・`make check-deps` も通す。版の固定ファイルを変えたら `make check-toolchain` も通す。

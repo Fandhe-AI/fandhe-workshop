@@ -9990,6 +9990,25 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 結果（2026-10-28、元は origin/main 367bd68c に本変更を足した作業ツリー）: `scripts/check-mutations.sh` で EVT11-8・EVT12-15・EVT12-16・MOD10-1・MOD11-8 の 5 件がすべて DETECTED（終了コード 0）。各定義の失敗した試験は期待の試験を含む
 - 範囲外: `Cause::Stop => self.unmerge_change(...)` が `apply` のログの上で冗長かどうかの判断（消すと保存から読んだログの導出が変わる）。`begin.rs` の `state.entry = None;` も `move_to` の前にあり、同じ二重の可能性がある（未検証）
 
+### 5.355 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
+
+`tools/clean-room.sh`（`make clean-room`）で、公開イメージの中に `git archive` の tar だけを渡し、`cargo test --locked`（既定の contract・core・pack）と `cargo test --locked --workspace`（web を含む）を流した。判定の回帰テストは `scripts/test-clean-room.sh`（`make test-clean-room`。docker なし。CI の `check` が流す）。期待は不変条件（どちらも cargo の終了コード 0・failed 0 件、無視は許容リストのみ）で、件数は下の記録に置く。
+
+- 実行日: 2026-10-28。対象: `03aba58a`（origin/main。tar の SHA-256 は `c807a6c2a5d5bf85688116ae999bba005d3cb659e5b21fff3402b367ad795bf9`）
+- イメージ: `rust:1.98.1`（manifest list の digest `sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`）。rustc は `1.98.1 (48a229cea 2026-09-01)`
+- ホスト: x86_64・CPU 10・メモリ 27 GiB・docker 29.8.1。全体の所要 592 秒
+- まっさらさの検査（`$HOME` に `.cargo`・`.ssh`・`.config` が無い・秘密らしい名前の環境変数が 0 件・`.git` と `docs/spec` の中身が無い）はすべて合格
+
+| 実行 | cargo の終了コード | `test result:` の行 | passed | failed | ignored | 秒 |
+|---|---|---|---|---|---|---|
+| `cargo test --locked` | 0 | 242 | 2416 | 0 | 1 | 264 |
+| `cargo test --locked --workspace` | 0 | 370 | 3777 | 0 | 2 | 311 |
+
+- 無視された試験は `emit_histories_for_browser`（既定・`--workspace`）と `emit_round_handoff_for_browser`（`--workspace` のみ）で、許容リストのとおり。どちらもブラウザ試験の入力を書き出す試験で、`scripts/test-browser.sh` だけが `--ignored` で呼ぶ
+- spec（PoC-11・BUILD-1・TASK-77）の許容 `measure_*`・`generate_histories` は試作の時点の名前で、本 repo に存在しない。`generate_histories` に当たるのが `emit_histories_for_browser` である。存在しない名前を許すと検査が空回りするため、許容リストは現物の 2 件の完全一致にした。spec 側の文言の更新は spec repo の課題である
+- PoC-11 は `rust:1.98` で既定 606 秒・`--workspace` 604 秒だった。本 repo は `rust-toolchain.toml` があるため、コンテナの中で rustup が components と target の取得を行う（公開の取得先だけ）
+- 確かめていないこと: arm64 での実行・CI の runner での実行・podman での実行・VM のメモリを 2 GiB 以下にした場合（BUILD-21）。`Cargo.lock` と workflow の棚卸し検査は #827（TASK-77 2/2）。`make clean-room` を CI の関門にするかは TASK-96 の承認点
+
 ### 5.356 WASM の gzip の大きさの DLV-4 の記録（TASK-107 2/2。DLV-4）
 
 - 目的: DLV-4（配信する設定・`wasm-opt` 適用で `gzip -9` した WASM が 1,048,576 bytes 以下）を、基点（commit・ビルド設定）つきの記録で残す。CI の関門（`scripts/check-wasm-size.sh`。TASK-78 2/2）は変えず、CI にガードを足していない

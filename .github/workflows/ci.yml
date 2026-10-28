@@ -135,6 +135,11 @@ jobs:
       - name: make test-measure-result
         run: make test-measure-result
 
+      # まっさらなコンテナでの試験（tools/clean-room.sh。TASK-77 1/2）の判定の回帰検査。docker を使わず合成のログだけで数秒。
+      # 本体の make clean-room は遅く docker と通信が要るため CI には入れない。既存ジョブへの step 追加で、必須チェックは変わらない。
+      - name: make test-clean-room
+        run: make test-clean-room
+
       # 変異の定義の静的検査（make check に入っている）自体の回帰テスト。cargo 不要で数秒。
       - name: make test-check-mutation-defs
         run: make test-check-mutation-defs

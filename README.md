@@ -300,6 +300,17 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 | `make test-measure-result` | `scripts/test-measure-result.sh` | 測定の結果の組み立てと基点の収集の回帰テスト（jq 1.7 の文法でも通ることを含む。速く、ビルドなし。CI の `check` ジョブが流す） |
+| `make clean-room` | `tools/clean-room.sh` | まっさらなコンテナ（公開イメージ・認証情報なし）で `cargo test --locked` と `cargo test --locked --workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（遅く、docker と通信が要り、CI には入れない） |
+| `make test-clean-room` | `scripts/test-clean-room.sh` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
+
+### まっさらなコンテナでの試験（第三者の再現手順）
+
+認証情報・ホームの設定・環境変数を持たない公開イメージの中で、公開の依存だけで試験が通ることを確かめます。
+
+- 前提: `docker`（`CONTAINER_RUNTIME=podman` で podman）と通信。VM のメモリは 2 GiB より大きくしてください
+- 実行: `make clean-room`（既定の `HEAD` を引数なしで流します。`make` はオプションを転送しないため、対象やログの置き場を変えるときは `tools/clean-room.sh run --ref <rev> --out-dir <dir>` を直接実行します）
+- 対象は `git archive` したコミット済みの内容だけです。未コミットの変更と `docs/spec`（private）の中身は入りません
+- 所要は 2 回の実行で 10 分前後です（2026-10-28 の実測は 592 秒）。結果の記録は `docs/testing.md` の 5.355 にあります
 
 ## Git hooks
 
