@@ -10053,3 +10053,20 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 限界: 教材は試験データ（`ch0_3`）で本物の CH-0〜CH-1 ではない。保存先は localStorage の範囲で、IndexedDB の分離は確かめない。Chromium・Linux の miniserve だけで、`localhost` の名前解決はブラウザの内部の解決に依る
 - spec への差分の案（本変更では spec を編集しない。承認は得ていない）: DLV-16 の「L2 の 2 案」を repo の L2 の形の 2 か所への読み替えとすること、証拠の種類をエンジン repo の試験とすること
 - 範囲外: 実機（macOS・Apple シリコン。TASK-118・119）、GitHub Pages の `github.io` のオリジン共有、案内文の「`localhost` と `127.0.0.1` を混ぜない」（DLV-17。TASK-117）。5.354 の番号の重複（既存）は直さない
+
+### 5.360 実装 repo の自己完結（TASK-89。BUILD-14）
+
+兄弟の `03-poc/`・`prototype/` と private の `docs/spec` が無い環境で、試験が通ることを確かめる経路を整えた。
+
+- 確かめたこと（2026-10-28）:
+  - 外への参照: `make check-testdata` が repo の外（兄弟）への相対参照 0 件を検査する（既存）。`crates/**` の `include_str!`・`include_bytes!` は全件が repo 内（`crates/*/tests/data/` か `testdata/`）を指す。残る `03-poc` の文字列は出所のコメントと教材内の架空のパスだけで、ファイルの読み込みではない
+  - 前提の明示: `make check-sibling-free`（`scripts/check-sibling-free.sh`）が、`../03-poc`・`../prototype` が無く `docs/spec` が空であることを検査する。CI の `rust-test`（`make test` の前）と `browser-test`（`make test-browser` の前）が流す。回帰テストは `make test-check-sibling-free`（9 ケース。CI の `check`）。手元で `docs/spec` を取得済みなら 1 になる（期待どおり）
+  - clean-room: `tools/clean-room.sh` の前提に、コンテナの `/` に `03-poc`・`prototype` が無いことを加えた（`sibling-present-<名>`）。判定の回帰は `make test-clean-room` に 1 件足した
+  - `tools/build-web.sh`: IR を入れたか否かをログの `ir:` の行に必ず出す（`ir/main.json`・`none`・試験の設定の `test fixtures`）。`make test-build-web` が 3 通りを確かめる。IR_FILE が無いときに兄弟の最小教材へ落ちる経路は無い（既定の IR を持たない）
+- `cargo test` の結果（2026-10-28。`make clean-room`。x86_64・docker・`rust:1.98.1@sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`）: 対象はこの変更の 1 つ前の内容の `f862f4a0`（tar の SHA-256 `c360952213c9d9dcb6425e277d574eb3ca76cc4aacf7bf715b4dc87bcef49b2b`。記録を足した amend 後のコミットとは docs/testing.md だけが違う）。兄弟の不在の前提を含めて前提が通り、既定は 2417 passed・failed 0・ignored 1（247 秒）、`--workspace` は 3778 passed・failed 0・ignored 2（256 秒）。無視は許可済みの 2 件だけ。container_exit 0。5.355（`03aba58a`）の記録（既定 2416・`--workspace` 3777）とも整合する
+- BUILD-14 の差分の案（spec repo 向け。本 repo では spec を編集しない。承認は得ていない）:
+  - 前提「`engine/crates/*/tests` が兄弟の 5 つの PoC の 17 path を読む」を「試験データは実装 repo の `testdata/`（spec の `03-poc/<PoC 名>/...` から先頭の `03-poc/` を外した配置。出所は `testdata/README.md`）と各 crate の `tests/data/` に置き、repo の外を参照しない」に改める
+  - 証拠の種類に「`make check-testdata`・CI の `make check-sibling-free`・clean-room の記録（5.355・5.360）」を足す
+  - 検討中の理由の「置き場所は Phase 4 の設計で決める」を「`testdata/` に決まった（TASK-30）」に改める。状態を「確定」にするかは spec 側の判断
+- 確かめていないこと: arm64・podman・メモリ 2 GiB 以下（BUILD-21）。CI の関門として加えること（`check-sibling-free` の step）の人の承認（spec の人間の承認点。既存ジョブへの step 追加にとどめ、ruleset は変えていない）
+- 範囲外: `make clean-room` を CI の関門にするか（TASK-96）、5.354 の番号の重複・5.357 と 5.358 の順序（既存）

@@ -90,7 +90,7 @@ TESTCFG="${TMP}/test"
 echo '{"ir":"sample"}' >"${TMP}/ir.json"
 
 log "building delivery config"
-OUT_DIR="${DELIVERY}" "${BUILD}" >/dev/null
+OUT_DIR="${DELIVERY}" "${BUILD}" >/dev/null 2>"${TMP}/delivery-noir.log" || { cat "${TMP}/delivery-noir.log" >&2; exit 1; }
 log "building delivery config with IR_FILE"
 # 相対パスの IR_FILE が、ビルド中の cd に影響されず呼び出し元の cwd 基準で解決されることも確かめる。
 (cd "${TMP}" && OUT_DIR="${DELIVERY_IR}" IR_FILE="ir.json" "${BUILD}" >/dev/null)
@@ -151,6 +151,9 @@ check_status "test config built as config: test / profile: release" 0 grep -q 'c
 
 echo "-- (e) delivery config (release) with compiled IR" >&2
 check_status "built as config: delivery / profile: release" 0 grep -q 'config: delivery / profile: release' "${TMP}/delivery-pack.log"
+check_status "ir line says ir/main.json (BUILD-14)" 0 grep -q '\] ir: ir/main.json' "${TMP}/delivery-pack.log"
+check_status "ir line says none without IR_FILE (BUILD-14)" 0 grep -q '\] ir: none' "${TMP}/delivery-noir.log"
+check_status "ir line says embedded fixtures in the test config" 0 grep -q '\] ir: test fixtures' "${TMP}/test.log"
 check "ir/main.json is byte-identical to fandhe-pack compile output" cmp -s "${COMPILED}" "${DELIVERY_PACK}/ir/main.json"
 check "ir/main.json has the IR shape" jq -e '(.format_version | type == "number") and (.pack.id | type == "string")' "${DELIVERY_PACK}/ir/main.json"
 check "mount_app is exported (compiled IR)" has_export '^mount_app$' "${DELIVERY_PACK}/${WASM}"

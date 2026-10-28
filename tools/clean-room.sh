@@ -13,6 +13,7 @@
 #     `cargo test --locked --workspace`（web の native 試験を含む）を順に流して判定する。
 #     未コミットの変更・.git・_/・target/・dist/・node_modules・.env・docs/spec（private の submodule）の中身は
 #     コンテナに入らない。つまり「コミットした内容だけで通る」ことを確かめる（spec が無くても通ることも同時に確かめる）。
+#     前提の検査には、兄弟の 03-poc/・prototype/ が無いこと（BUILD-14。TASK-89）も含む。
 #   judge <dir>: run が保存した <dir>/run.log を判定だけする（ログの再判定と回帰テスト用）。
 #   --out-dir: ログの置き場（存在しないか空であること。既定は mktemp -d。パスは標準エラーに出す）。
 #
@@ -69,6 +70,10 @@ n="$(env | awk -F= 'tolower($1) ~ /token|secret|key|pass|cred|auth/ { c++ } END 
 if [ "${n}" != "0" ]; then pre_fail "secret-like-env-${n}"; fi
 if [ -e /w/.git ]; then pre_fail "git-dir-present"; fi
 if [ -n "$(ls -A /w/docs/spec 2>/dev/null)" ]; then pre_fail "spec-present"; fi
+# BUILD-14（TASK-89）: 兄弟の 03-poc/・prototype/ が無いこと（/w の親に何も置かれていない）を前提として明示する。
+for s in 03-poc prototype; do
+  if [ -e "/${s}" ] || [ -L "/${s}" ]; then pre_fail "sibling-present-${s}"; fi
+done
 echo "${M} precondition ok"
 cd /w
 export CARGO_TARGET_DIR=/tmp/target

@@ -40,6 +40,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
+│   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
 │   ├── check-fork-ci.sh      # fork が secret 無しで CI を通せる構成か（A〜C）と教材 repo の ENGINE_REV の正準の形（D。指定時のみ）をパーサ復号で検査（回帰テストは test-check-fork-ci.sh。ruby・jq・cargo が必要）
@@ -100,6 +101,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | 参照の検査自体の回帰テスト |
+| `make check-sibling-free` | 兄弟の `03-poc/`・`prototype/` と `docs/spec` の中身が無いことの検査（BUILD-14。CI の `rust-test`・`browser-test` が試験の前に流す。spec 取得済みの手元では 1 になる） |
+| `make test-check-sibling-free` | 上の検査自体の回帰テスト（CI の `check` ジョブが流す） |
 | `make check-mutation-defs` | 変異の定義の `find` の一意性と `expect-fail` の名前の実在の静的検査（`make check` に含む。cargo 不要） |
 | `make test-check-mutation-defs` | 上の静的検査自体の回帰テスト |
 | `make check-dom-reads` | web crate が DOM の値を読まないことの検査（`tools/check-deps.sh`。例外は件数固定。crate 間の依存は `make check-deps`） |

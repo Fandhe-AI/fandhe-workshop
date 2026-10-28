@@ -9,7 +9,8 @@
 #
 # 環境変数:
 #   TEST_HOOKS     空 = 配信する設定 / 1 = 試験の設定。それ以外は誤用（TEST_HOOKS=0 が試験の設定になる事故を防ぐ）
-#   IR_FILE        指定したときだけ ir/main.json として同梱する。既定の IR は持たない
+#   IR_FILE        指定したときだけ ir/main.json として同梱する。既定の IR は持たない。
+#                  入れたか否かを `ir:` のログ行に必ず出す（BUILD-14。黙って省かない）
 #   OUT_DIR        出力先。既定は dist/web（試験の設定は dist/web-test）。消して作り直すため dist/ 配下か、
 #                  存在しない・空のディレクトリに限る
 #   SKIP_WASM_OPT  1 なら wasm-opt を適用しない
@@ -205,6 +206,13 @@ fi
 RAW_SIZE="$(wc -c <"${WASM_OUT}" | tr -d ' ')"
 GZ_SIZE="$(gzip -9 -c "${WASM_OUT}" | wc -c | tr -d ' ')"
 log "config: ${CONFIG} / profile: ${PROFILE}"
+if [ -n "${IR_ABS}" ]; then
+  log "ir: ir/main.json (from IR_FILE)"
+elif [ "${CONFIG}" = "test" ]; then
+  log "ir: test fixtures embedded in wasm"
+else
+  log "ir: none (IR_FILE not set; the page shows the ir_refused notice)"
+fi
 log "wasm-opt: ${WASM_OPT_STATUS}"
 log "wasm size: raw ${RAW_SIZE} bytes, gzip -9 ${GZ_SIZE} bytes"
 case "${OUT_ABS}" in

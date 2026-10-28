@@ -255,6 +255,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
 | `make check-testdata` | `scripts/check-testdata-refs.sh` | repo の外への相対参照が 0 件であることの検査 |
 | `make test-check-testdata` | `scripts/test-check-testdata-refs.sh` | 参照の検査自体の回帰テスト |
+| `make check-sibling-free` | `scripts/check-sibling-free.sh` | 兄弟の `03-poc/`・`prototype/` と `docs/spec` の中身が無いことの検査（BUILD-14。CI の `rust-test`・`browser-test` が試験の前に流す。`docs/spec` を取得済みの手元では 1 になる） |
+| `make test-check-sibling-free` | `scripts/test-check-sibling-free.sh` | 上の検査自体の回帰テスト（CI の `check` ジョブが流す） |
 | `make check-mutation-defs` | `scripts/check-mutation-defs.sh` | 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（`make check` に含む） |
 | `make test-check-mutation-defs` | `scripts/test-check-mutation-defs.sh` | 上の静的検査自体の回帰テスト |
 | `make check-dom-reads` | `tools/check-deps.sh` | web crate が DOM の値を読まないこと（例外は件数固定）の検査 |
