@@ -65,9 +65,9 @@ fatal() {
   exit 2
 }
 
-require_cmd git || exit 2
-require_cmd awk || exit 2
-require_cmd mktemp || exit 2
+for c in git awk mktemp rm cp grep cut sed tr wc; do
+  require_cmd "${c}" || exit 2
+done
 sha_cmd=()
 if command -v sha256sum >/dev/null 2>&1; then
   sha_cmd=(sha256sum)
@@ -191,6 +191,16 @@ members_list="$(awk '
 ' "${root}/Cargo.toml" 2>/dev/null)" || fatal "cannot read workspace members from Cargo.toml"
 [ -n "${members_list}" ] || fatal "no workspace members found in Cargo.toml"
 
+# [workspace.package] の version（member が version.workspace = true で継ぐ場合に使う）
+ws_version="$(awk '
+  /^\[workspace\.package\][ \t]*$/ { inwp = 1; next }
+  /^\[/ { inwp = 0 }
+  inwp && /^version[ \t]*=[ \t]*"[^"]+"/ {
+    match($0, /"[^"]+"/); print substr($0, RSTART + 1, RLENGTH - 2); exit
+  }
+' "${root}/Cargo.toml")"
+
+# 名前と版の組（name@version）。同名で別版の workspace 外の path 依存を member と見なさないため
 member_names=""
 while IFS= read -r m; do
   case "${m}" in /* | *..*) fatal "unsupported workspace member path" ;; esac
@@ -203,7 +213,17 @@ while IFS= read -r m; do
     }
   ' "${root}/${m}/Cargo.toml")"
   [ -n "${n}" ] || fatal "workspace member has no package name"
-  member_names="${member_names}${n}"$'\n'
+  v="$(awk '
+    /^\[package\][ \t]*$/ { inpkg = 1; next }
+    /^\[/ { inpkg = 0 }
+    inpkg && /^version[ \t]*=[ \t]*"[^"]+"/ {
+      match($0, /"[^"]+"/); print substr($0, RSTART + 1, RLENGTH - 2); exit
+    }
+    inpkg && /^version\.workspace[ \t]*=[ \t]*true[ \t]*$/ { print "@WS"; exit }
+  ' "${root}/${m}/Cargo.toml")"
+  [ "${v}" != "@WS" ] || v="${ws_version}"
+  [ -n "${v}" ] || fatal "workspace member has no package version"
+  member_names="${member_names}${n}@${v}"$'\n'
 done <<EOF
 ${members_list}
 EOF
@@ -214,7 +234,7 @@ awk -v registry="${CRATES_REGISTRY}" -v members="${member_names}" '
     total++
     if (name == "" || version == "") { print "FATAL package without name or version near line " pline; return }
     if (source == "") {
-      if (name in ismember) { nmember++ } else {
+      if ((name "@" version) in ismember) { nmember++ } else {
         print "VIOL Cargo.lock:" pline ":A " name "@" version " no source and not a workspace member"
       }
     } else if (source == registry) { ncrates++ }

@@ -13,8 +13,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
-require_cmd mktemp
-require_cmd git
+for c in mktemp git rm grep sed; do
+  require_cmd "${c}"
+done
 
 CHECK="${DIR}/check-build-inventory.sh"
 TMP_DIR="$(mktemp -d)"
@@ -76,6 +77,12 @@ if grep -q 'example.invalid' "${TMP_DIR}/err"; then expect "source URL is not ec
 r="$(new_repo)"; add_pkg "${r}" 'source = "registry+https://example.invalid/index"'; run_repo "other registry is a violation" 1 "${r}"
 r="$(new_repo)"; add_pkg "${r}" 'source = "sparse+https://example.invalid/"'; run_repo "sparse registry is a violation" 1 "${r}"
 r="$(new_repo)"; add_pkg "${r}" ''; run_repo "sourceless non-member is a violation" 1 "${r}"
+
+# 同名で別版（0.2.0）の workspace 外の path 依存は member と見なさない
+r="$(new_repo)"; printf '\n[[package]]\nname = "a"\nversion = "0.2.0"\n' >> "${r}/Cargo.lock"; run_repo "same name but different version is a violation" 1 "${r}"
+if grep -q 'a@0.2.0' "${TMP_DIR}/err"; then expect "mismatched version is reported" 0 0; else expect "mismatched version is reported" 0 1; fi
+# version.workspace = true の member は [workspace.package] の版で照合する
+r="$(new_repo)"; printf '[workspace]\nmembers = [\n    "crates/a",\n]\n\n[workspace.package]\nversion = "0.1.0"\n' > "${r}/Cargo.toml"; printf '[package]\nname = "a"\nversion.workspace = true\n' > "${r}/crates/a/Cargo.toml"; run_repo "inherited workspace version matches" 0 "${r}"
 
 r="$(new_repo)"; sed -i.bak 's/^version = 4$/version = 3/' "${r}/Cargo.lock"; rm -f "${r}/Cargo.lock.bak"; run_repo "lock version 3 is unparsable (2)" 2 "${r}"
 r="$(new_repo)"; printf 'unknown = "1"\n' >> "${r}/Cargo.lock"; run_repo "unknown line in lock (2)" 2 "${r}"
