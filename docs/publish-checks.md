@@ -34,3 +34,18 @@
 - 教材パックの練習データについて、実在を疑う private repo・社内 runner の名前は `fandhe-pack validate` では調べない。本確認（社内固有の語の一覧の照合と、紛らわしさの人の判断）の対象とする。
 - `validate` が調べるのは、秘密情報らしい形（`E-SECRET-SHAPE`）と、練習データの見出しの【架空】の印の欠け（`E-FICTIONAL-MARK`）だけである。印があっても内容が本物でないことの保証にはならない。
 - 教材 repo の練習データは、TASK-794 の照合の対象に含める。
+
+## LIC-1 エンジン repo のライセンス表記の確認（TASK-129）
+
+ライセンスは D-6 で `MIT OR Apache-2.0` と決まっている。機械が `cargo metadata` で全 crate の `license` を、直下のファイルで 2 つの本文を確かめる（`make check-license`）。公開は TASK-122 で行う。
+
+### 記録 1（2026-10-28）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: `c6d064b3c19dd3af48f129bc8194e6bc62bfd64a`（照合のときの `main`）に本変更を載せた作業ブランチ |
+| 日付 | 2026-10-28 |
+| 方法 | `make check-license` が終了コード 0（4 members、license `MIT OR Apache-2.0`、本文 2 つ）。4 crate が `license.workspace = true` で `[workspace.package]` の値を継承していること、`LICENSE-MIT`・`LICENSE-APACHE` が直下にあることを目で確かめた。回帰テスト `make test-check-license` は 16 件が通った |
+| 確かめた人 | AI（Claude Code）による機械の照合と目視。人の確認は未実施 |
+| 承認 | 承認点なし（spec の TASK-129。ライセンスは D-6 で決定済み） |
+| 限界 | 本文の照合は最小の目印の固定文字列だけで、完全一致は保証しない。`package.json` の `license` は crate ではないため対象外 |
