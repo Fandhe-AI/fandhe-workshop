@@ -102,6 +102,7 @@ fn set_status(ir: &Ir, state: &mut SessionState, uid: &str, status: StepStatus) 
 ///
 /// 状態が持つ写しは「無い」か「現在の Step のもの」の 1 つだけにする。置き換えの実体は、新しい Step の写しを
 /// [`crate::entry_derive`] がログから導くこと（SAFE-35）で、ここでは古い Step の写しを残さない。
+/// `go_to` の移動もこの着地の無効化に依る（移動の側では無効化しない。#1865）。
 /// 呼び出し元は [`land`] の通常の Step への着地と、[`after_achieved`] の呼び出し元への戻りだけである。
 fn replace_entry_on_enter(state: &mut SessionState) {
     state.entry = None; // I-1: 入った Step の写しは導く

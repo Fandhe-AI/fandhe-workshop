@@ -9936,7 +9936,7 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 | AUTHOR8-3 | 書き出しの失敗の経路（`write_output` の末尾）が、ディレクトリの事前の拒否のために試験の入力で通らなくなり、置換しても SURVIVED になった | 呼び出し側 `run_compile` の `match write_output(...)` へ錨を移し、`Err` を `Ok` へ倒す形に |
 | SHELL10-3・SHELL10-4 | `expect-fail` の名前が試験の名前でなく、表明の文言だった | 実在する試験の名前へ |
 
-- 削除（2 件）: EVT11-6・EVT12-12。EVT11-6（移動で入口の写し `state.entry` を無効化しない）は、`go_to.rs` の `state.entry = None;` と、歩行器の `transit.rs` の `state.entry = None;`（I-1）が二重に無効化するため、`go_to.rs` の側を外しても `move_invalidates_entry_copy` は失敗しない（SURVIVED）。1 行の置換で両方は外せず、検出できる等価な定義が作れないため削除した。EVT12-12（停止で Step の項目の `changes.clear()` を外す）は、現在のコードでは、停止の項目の初期化（`reset_item`）と、停止の差分の打ち消し（`Cause::Stop` の `unmerge_change`）が同じ結果を二重に作るので、どちらか一方を外しても `evt14_restore_after_stop_brings_back_review` は失敗しない（2026-10-28 に作業ツリーの写しで、`reset_item` を空にした場合・`unmerge_change` の呼び出しを外した場合は成功し、両方外した場合だけ失敗することを確かめた）。1 行の置換では両方を同時に外せないため、検出できる等価な定義が作れず削除した。両方を要する性質は、試験の側で一方ずつを固定する別の作業に回す
+- 削除（2 件）: EVT11-6・EVT12-12。EVT11-6（移動で入口の写し `state.entry` を無効化しない）は、`go_to.rs` の `state.entry = None;` と、歩行器の `transit.rs` の `state.entry = None;`（I-1）が二重に無効化するため、`go_to.rs` の側を外しても `move_invalidates_entry_copy` は失敗しない（SURVIVED）。1 行の置換で両方は外せず、検出できる等価な定義が作れないため削除した。EVT12-12（停止で Step の項目の `changes.clear()` を外す）は、現在のコードでは、停止の項目の初期化（`reset_item`）と、停止の差分の打ち消し（`Cause::Stop` の `unmerge_change`）が同じ結果を二重に作るので、どちらか一方を外しても `evt14_restore_after_stop_brings_back_review` は失敗しない（2026-10-28 に作業ツリーの写しで、`reset_item` を空にした場合・`unmerge_change` の呼び出しを外した場合は成功し、両方外した場合だけ失敗することを確かめた）。1 行の置換では両方を同時に外せないため、検出できる等価な定義が作れず削除した。両方を要する性質は、試験の側で一方ずつを固定する別の作業に回す（後継は 5.354）
 
 - 全件の実行（2026-10-28、元は origin/main 4ec8a6de に本変更を足した作業ツリー。`nice` つきで切り離して実行した）: 定義 698 件。1 つの実行の途中で、コンパイルできない変異（JUDGE22-3）と rustc の異常終了（SAVE3-5。再実行で DETECTED）により止まったため、止まった定義から続ける形で 3 回に分けた。
   - `scripts/check-mutations.sh`（全件。contract・core・pack と web の先頭 120 件余り。JUDGE22-3 で停止）
@@ -9963,6 +9963,25 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 実行: 2026-10-28、origin/main 03aba58a を元に、配信する設定（`SKIP_WASM_OPT=1`）を Chromium 153 で `wasm-mime.test.mjs` 2 件と `harness.test.mjs` 15 件が合格
 - 限界: `make test-browser` の全体は流していない（未実施）。`scripts/expected-test-counts.txt` は更新していない（件数の照合は版上げ PR でだけ働く）。`wasm-opt` を適用したビルドは未確認。配信先の実物の MIME は対象外
 - 範囲外: DLV-4（`gzip -9` の大きさ・基点つきの記録）は TASK-107 2/2、配信先（GitHub Pages）での MIME は DLV-24・DLV-25
+
+### 5.354 二重の処理を片方ずつ固定する（EVT11-6・EVT12-12 の後継。#1865）
+
+- 目的: 5.351 で削除した 2 件の定義が検出していた誤りを、1 行の置換で検出できる形に戻す
+- EVT11-6（移動で入口の写しを無効化する処理）: `move_to` を通る経路は、通常の着地（`replace_entry_on_enter`）・呼び出し先が無いときの確定・予算の超過（`halt`）のどれも `state.entry = None` で終わる。`go_to` の移動の前の `None` は、試験から観察できる状態（`move_to` を通った後）を変えないので、その側だけを外して失敗する試験は書けない。そこで二重を 1 か所にまとめた
+  - `go_to.rs` の `state.entry = None;` を削除し、無効化は `transit` の着地に一本化した（モジュールの文書も直した）
+  - MOD11-8 の錨を `state.run.busy = None;` へ付け替えた（誤りの意味は変えない）
+  - EVT11-8 を新設した（着地の無効化を外すと `move_invalidates_entry_copy` が失敗する）
+- EVT12-12（停止で Step の項目を初期化する処理）: 2026-10-28 に origin/main 03aba58a の写しで測った。`Stopped` の処理（`reset_item`）と `Cause::Stop` の `unmerge_change` は、`apply` が出すログの上では結果が重なり冗長に見える。ただし `Projection` は保存から読んだログも受けるので、両方を別の規則として固定した
+
+| 置換 | 失敗した振る舞いの試験（新しい試験の追加前） |
+|---|---|
+| `Cause::Stop => {}` | なし |
+| `reset_item` の `take` を `clone` へ | `evt13_stop_resets_the_stopped_step_review` だけ |
+
+  - `reset_item` の側: 既存の試験が単独で検出するので、定義 EVT12-15 だけを足した
+  - `unmerge_change` の側: `Stopped` を含まないイベント列の試験 `evt13_stop_cause_change_unmerges_merged_change` を足し、定義 EVT12-16 で固定した
+- 結果（2026-10-28、元は origin/main 367bd68c に本変更を足した作業ツリー）: `scripts/check-mutations.sh` で EVT11-8・EVT12-15・EVT12-16・MOD10-1・MOD11-8 の 5 件がすべて DETECTED（終了コード 0）。各定義の失敗した試験は期待の試験を含む
+- 範囲外: `Cause::Stop => self.unmerge_change(...)` が `apply` のログの上で冗長かどうかの判断（消すと保存から読んだログの導出が変わる）。`begin.rs` の `state.entry = None;` も `move_to` の前にあり、同じ二重の可能性がある（未検証）
 
 ### 5.356 WASM の gzip の大きさの DLV-4 の記録（TASK-107 2/2。DLV-4）
 
