@@ -5506,6 +5506,7 @@ D-63（2026-10-20）により、(1)〜(5) は版上げ PR の CI の確認であ
 `make test-chapter-key-control`（`scripts/test-chapter-key-control.sh`。遅く、CI・フック・`make check` には入れない）。`mktemp -d` の写しで `host.rs` の `history_key` の式を固定の鍵（`SAVE14-5` と同じ）に置き換え、`TEST_HOOKS=1` でビルドして上の試験を流す。作業ツリーは書き換えない。
 
 - 結果（2026-10-20）: 終了コード 0（対照が成立）。写しでは試験が `CHAPTER-HISTORY-MIXED` の印で失敗した。置き換えた鍵では章 A の履歴が章 B の起動で開かれ、章 B は新しい状態で始まらない（章 B の `bootKind`・現在の Step の観測値は記録していない）
+- 置換の元の文字列を現在のコードに合わせた後の再確認は 5.352 にある（#1863）
 - 試験の口が求める鍵（`storageKey`）は本番の `history_key` を通らないため、対照では画面が実際に書いた鍵を見て章 B の判定へ進めるようにしてある
 
 #### 件数・確認（2026-10-20）
@@ -9944,6 +9945,13 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - 3 回を通じて、全定義が DETECTED を 1 回以上出した（SURVIVED は EVT11-6・AUTHOR8-3 の 2 件で、上のとおり直した後に AUTHOR8-3 は単独で DETECTED、EVT11-6 は削除）。直した後の定義の集合を 1 つの実行で通した記録ではない（分けた実行の後に、EVT11-6 の削除と AUTHOR8-3 の変更だけを足した）。そのため `make check-mutations` を 1 回で通した記録は無く、受け入れ条件の「全件で終了コード 0」は、分割の実行の合算で確かめたものである
   - 所要は 3 回の合計でおよそ 2 時間（`nice` つき。並列の他の作業と CPU を分け合った）
 - 範囲外: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(...)`）は SAVE14-5 と同じ理由で古い見込み（未実行）。定義の `find` の一意性を `make check` で常時検査する仕組みが無い。変異注入の CI への組み込み（TASK-33・TASK-83）は既存の追跡
+
+### 5.352 鍵の対照の検査の置換元を現在のコードに合わせる（#1863）
+
+- 古くなった理由: `scripts/test-chapter-key-control.sh` の `FIND`（`HistoryKey::from_ir(scope, self.model.session()?.ir())`）が、鍵の組み立てを `history_key` の中の `HistoryKey::for_pack(scope, &ir.pack.id, recorded.start())` に変えた後の `crates/web/src/host.rs` に 0 回しか現れず、スクリプトが終了コード 2 で止まる状態だった（変異 SAVE14-5 が古くなったのと同じ理由。5.351 で SAVE14-5 は直した）
+- 直した内容: `FIND` を `Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))` にした。`host.rs` にちょうど 1 回現れ、SAVE14-5 の `find` と同じ文字列である。`REPLACE` は変えていない。冒頭コメントに、鍵の式を変えたら SAVE14-5 とこの `FIND` を合わせて直す旨を足した
+- 結果（2026-10-28）: `make test-chapter-key-control` は終了コード 0（所要およそ 24 秒。依存のビルドが `/tmp` の写しで済んだ後の値）。写しでは試験が `CHAPTER-HISTORY-MIXED` の理由で失敗し、`control established` が出た。`make check` も通った
+- 範囲外（既存の申し送りのまま）: 置換元の一意性を `make check` で常時検査する仕組みは無く、再発は防げない
 
 ### 5.353 まっさらなコンテナでの試験（TASK-77 1/2。BUILD-1・PoC-11 の手順 3）
 
