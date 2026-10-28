@@ -78,7 +78,8 @@ impl CountingDrive {
         }
         s.limit_marks +=
             html.matches(LIST_LIMIT_ATTR).count() + html.matches(LIST_ERROR_ATTR).count();
-        s.nested_lists += list.matches("<ul").count().saturating_sub(1);
+        // `list_html` の返り値は親の `<ul` を含まないので、1 件でもあれば入れ子である。
+        s.nested_lists += list.matches("<ul").count();
     }
 
     fn events(&self) -> usize {
@@ -124,8 +125,9 @@ fn measure(ir: &Ir) -> Measured {
     // 周の境目は 2 周目の開始（`Control::Begin`）の直前。1 周目の終わりの値を控えるため 2 回に分けて流す。
     let split = plan
         .iter()
-        .position(|s| matches!(s, PlanStep::Op(Op::Control(Control::Begin { .. }))))
-        .expect("Begin");
+        .position(|s| matches!(s, PlanStep::Op(Op::Control(Control::Begin(id))) if id == "s-r2"))
+        .expect("Begin(s-r2)");
+    assert!(split > 0, "1 周目の前半が空で、周の境目を取り違えている");
     let mut d = CountingDrive::new(ir);
     run_plan(&mut d, &plan[..split]);
     let items_round1_end = d.stats.items_last;
@@ -174,6 +176,7 @@ fn two_rounds_right_log_items_stay_within_target() {
     );
     assert_eq!(m.current, "main/r2-impl");
     assert!(m.stats.items_max > 0 && m.events_round2_end > 0);
+    assert!(m.items_round1_end > 0, "1 周目の終わりの項目数が 0 件");
     assert!(m.stats.items_max >= m.items_round1_end);
     assert!(m.last_list.contains("<li"), "最後の手でログが空");
 
