@@ -4,7 +4,8 @@
 # `EngineHost::history_key` を、試作の修正前に当たる固定の鍵（教材にも章にも依らない）に置き換えた写しをビルドし、
 # tools/browser/chapter-keys.test.mjs が「先の章の履歴が出た」理由（固定の印 CHAPTER-HISTORY-MIXED）で失敗することを確かめる。
 # これで、試験が空振りでなく、鍵の退行を実際に検出できると言える。置き換えは変異 SAVE14-5 と同じである
-# （変異は host の層、これはブラウザの層の対照）。
+# （変異は host の層、これはブラウザの層の対照）。FIND は SAVE14-5 の find と同じ文字列で、鍵の式を変えたら
+# crates/web/tests/mutations/SAVE14-5.mutation とこの FIND を合わせて直す。
 #
 # 方式は test-keydown-control.sh と同じで、作業ツリーは書き換えない。mktemp -d の中に必要なファイルを写し、
 # 写した crates/web/src/host.rs の 1 か所を文字どおりの一致（awk の index）で置き換える。一致が 1 回でなければ止める。
@@ -34,7 +35,7 @@ die() {
 }
 
 TARGET="crates/web/src/host.rs"
-FIND='HistoryKey::from_ir(scope, self.model.session()?.ir())'
+FIND='Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))'
 REPLACE='Some(HistoryKey::for_pack(scope, "", ""))'
 
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/fandhe-chapter-key-control.XXXXXX")"
