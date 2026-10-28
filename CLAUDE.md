@@ -69,6 +69,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/upstream-bump-procedure.md # 参照元の版を上げる手順書（洗い出し・教材テスト・公開前の人の確認と記録・生成物を無検証で公開しない。版 1。TASK-182 2/2）
 ├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
+├── docs/l2-windows.md        # Windows 向けの L2 の配布物の作成と起動の手順（版 1。TASK-198）
 ├── docs/cli-guide.md         # 作成者向けのコマンドの使い方と出力の読み方（版 1。TASK-412）
 ├── docs/examples/            # 最小の教材パックの例 2 つ（validate 0 件・test 全件合格。MANIFEST.sha256 つき。TASK-412）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 19。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
@@ -109,7 +110,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make check-wasm-size` | 配信する設定の WASM の `gzip -9` が 1 MB（1,048,576 bytes）以下であることの関門（TASK-78 2/2。CI の `browser-test` が `SKIP_WASM_OPT=1` で流す。基点つきの値をログに残す。DLV-4 の `wasm-opt` 適用後の判定は `scripts/check-wasm-size.sh --require-wasm-opt` を手元で直接実行。TASK-107 2/2。遅い） |
 | `make test-check-wasm-size` | 上の関門自体の回帰テスト（ビルドなし） |
 | `make update-test-counts` | 試験の件数の期待値（`scripts/expected-test-counts.txt`）を実測で書き直す（遅い。ブラウザ試験も流す） |
-| `make build-l2` | L2 の配布物（zip）を作る（`tools/build-l2.mjs`。`L2_SERVER` に miniserve が要る。固定値は `tools/l2/miniserve.sha256`） |
+| `make build-l2` | L2 の配布物（zip）を作る（`tools/build-l2.mjs`。`L2_SERVER` に miniserve が要る。固定値は `tools/l2/miniserve.sha256`。`L2_PLATFORM=windows-x64` で Windows 向け（`docs/l2-windows.md`）） |
 | `make test-build-l2` | 上の作成スクリプトの回帰テスト（合成の配信物。ビルドなし。CI の `browser-test` が流す） |
 | `make test-l2-run` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間の記録・L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致することの試験（`l1-l2-match`。DLV-15）と、凍結した IR と組の固定の入力列での比較・履歴の `ops` に揺れる欄が無いことの試験（`l1-l2-fixed`。TASK-114 2/2）と、同じ browser context で L1・L2 の 2 か所・別名 `localhost` の 3 サーバを同時に起動したオリジンの分離（保存が互いに見えず L1 の状態が残る）の試験（`l1-l2-origins`。DLV-16）も行う（`L2_SERVER` 必須。遅く、`make test-browser` には入れない。CI の `browser-test` が miniserve を固定値で照合してから流す。TASK-112 2/2・TASK-113・TASK-114 1/2・2/2・TASK-115。`docs/testing.md` 5.239・5.241b・5.242・5.245b・5.357） |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
