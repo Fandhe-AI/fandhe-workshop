@@ -13,6 +13,35 @@
   にある。見本の `Model` は試験の中で閉じており、エンジンの実装ではない
 - CI にはまだ cargo のジョブが無い（TASK-33）。本文書の手順はローカルで流し、CI での実行は未整備である
 
+### 1.1 層 1 の試験の構成（BUILD-7。TASK-83）
+
+層 1 は C-17 の 1 層目で、DOM に依存しない純 Rust の core の試験である。5 区分と試験の対応の正は次の表で、
+`crates/core/tests/layer1_index.rs` が、挙げたファイルと関数の実在を `cargo test` で照合する。
+性質テスト（TASK-83 2/3）と変異注入（TASK-83 3/3）は、後続でこの節に 1.2・1.3 を足す。
+
+| 区分 | 試験ファイル | 主な試験関数 | ビヘイビア |
+|---|---|---|---|
+| 進行管理 | `crates/core/tests/tick_progress.rs` | `matching_tick_advances_once`・`duplicate_index_advances_once` | 進行の照合と重複の無視 |
+| 進行管理 | `crates/core/tests/generation_keep.rs` | `keep_on_accept`・`keep_on_confirm_achieve` | 世代の維持 |
+| 進行管理 | `crates/core/tests/busy_resend.rs` | `burst_of_20_accepts_once_and_rejects_19_as_busy` | 処理中の再送 |
+| 進行管理 | `crates/core/tests/move_step.rs` | `move_while_busy_increments_generation_and_clears_busy` | Step の移動と世代 |
+| 分岐 | `crates/core/tests/branch_paths.rs` | `rule_when_selects_branch_by_world_state`・`effect_when_branches_applied_changes`・`first_unconditional_edge_is_taken_among_several`・`use_enters_callee_and_exit_to_returns_to_caller` | `apply` を通る分岐の固定列（`when` は現状は結線されず安全側） |
+| 分岐 | `crates/core/tests/command_rule.rs` | `when_true_takes_rule_and_false_or_unknown_skips`・`first_matching_rule_wins` | 規則の選び方 |
+| 分岐 | `crates/core/tests/effect_apply.rs` | `pack9_when_false_skips_without_change_or_event`・`pack9_when_unevaluable_skips_with_one_warning` | 効果の `when` |
+| 分岐 | `crates/core/tests/condition_eval.rs` | `apply_effects_when_param_differs_per_instance` | 条件の評価 |
+| 分岐 | `crates/core/tests/confirm_achieve.rs` | `conditional_or_dangling_edges_do_not_transition` | 辺の選び方。現状（`next[].when` を評価しない）の固定 |
+| 分岐 | `crates/core/tests/transition_limit.rs` | `enter_chain_boundary` | 遷移の上限 |
+| 拒否の分類 | `crates/core/tests/command_class.rs` | `wrong_input_pairs_are_classified_100_percent` | 拒否の分類 |
+| 拒否の分類 | `crates/core/tests/reject_scene.rs` | `rejections_do_not_change_the_step_or_world` | 拒否で状態が変わらない |
+| 拒否の分類 | `crates/core/tests/reject_invariant.rs` | `rejections_keep_state_on_random_sequences` | 拒否の不変条件 |
+| 状態の復元 | `crates/core/tests/checkpoint_restore.rs` | `restore_after_saving_at_three_ticks_returns_saved_run` | 保存と復帰 |
+| 状態の復元 | `crates/core/tests/restore_resume.rs` | `restore_resumes_progress_in_new_generation` | 復帰後の再開 |
+| 状態の復元 | `crates/core/tests/restore_owner_slice.rs` | `restore_replaces_only_owner_slice` | 実体の切り身の復元 |
+| 状態の復元 | `crates/core/tests/history_replay.rs` | `replay_matches_snapshot`・`empty_ops_replay_to_initial` | 履歴の流し直し |
+| 履歴の変換 | `crates/core/tests/history_open.rs` | `ver3_same_versions_open_without_conversion`・`ver4_content_patch_only_is_converted` | 変換して開く（VER-3〜VER-7） |
+| 履歴の変換 | `crates/core/tests/version_histories.rs` | `fifteen_histories_match_the_fixed_expectations` | 15 件の期待（VER-2） |
+| 履歴の変換 | `crates/core/tests/version_record.rs` | `t3_four_axes_present_in_order` | 4 軸の版の記録 |
+
 ## 2. 性質テストの手順
 
 ヘルパの API と決定性の規則は `property.rs` のモジュール文書を正とし、ここには転記しない。手順の要点だけを示す。
@@ -9551,3 +9580,14 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
   - `OpenHint` が拒否される Step では `hints_opened` の比較が空になりうる（未確認）
   - ブラウザでの再読み込み・書き出し → 読み込みは範囲外
   - 作成者と実装者が同じ AI で、人の確認は得ていない
+
+### 5.340 層 1 の進行・分岐・復元の試験の索引（TASK-83 1/3。BUILD-7）
+
+- 目的: 層 1 の 5 区分（進行管理・分岐・拒否の分類・状態の復元・履歴の変換）の試験を、`cargo test` で通る形でそろえる。既存の試験は 5 区分とも揃っていたため、索引と、不足していた分岐の固定列を足した
+- 追加:
+  - `crates/core/tests/branch_paths.rs` の 4 件（`rule_when_selects_branch_by_world_state`・`effect_when_branches_applied_changes`・`first_unconditional_edge_is_taken_among_several`・`use_enters_callee_and_exit_to_returns_to_caller`）
+  - `crates/core/tests/layer1_index.rs` の 3 件。1.1 の表の区分の過不足と、ファイル・関数の実在を照合し、検査器が空振りしないことも確かめる
+- 索引の置き場: 1.1 の表。期待値（`scripts/expected-test-counts.txt`）は更新していない
+- 発見した現状: `apply` は条件の評価器を結線しておらず（`NoConditions`）、`when` つきの規則・効果は旗の有無によらず採られない。`next[].when` も評価されない。どちらも安全側に倒れる現状を固定した。結線されたら `branch_paths.rs` を直す
+- 3/3 への引き継ぎ: `branch_paths.rs` の関数名は変異の `expect-fail` の候補にできる。`layer1_index` は `docs/` が一時コピーに無いため対象外
+- 範囲外: 1 節の「CI にはまだ cargo のジョブが無い」は現状（`ci.yml` の `rust-test`）と食い違う
