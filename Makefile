@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）、ワークフローの secret 参照の検査、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）、ワークフローの secret 参照の検査、ビルド・試験の経路の棚卸し（check-build-inventory。CI 未組み込み）、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventorycheck-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -189,6 +189,12 @@ clean-room: ## まっさらなコンテナ（公開イメージ・認証情報�
 
 test-clean-room: ## まっさらなコンテナの試験の判定自体の回帰テスト（docker なし。CI の check）。直接: scripts/test-clean-room.sh
 	@scripts/test-clean-room.sh
+
+check-build-inventory: ## ビルド・試験の経路の棚卸し（Cargo.lock の private な依存 0 件・secret らしい語の参照 0 件）。通信なし。CI 未組み込み。直接: scripts/check-build-inventory.sh
+	@scripts/check-build-inventory.sh
+
+test-check-build-inventory: ## 上の棚卸し検査自体の回帰テスト（見本の repo。CI の check）。直接: scripts/test-check-build-inventory.sh
+	@scripts/test-check-build-inventory.sh
 
 inventory-deps: ## Cargo.lock の依存の取り下げ・所有者の数を crates.io で調べる（通信が要り数分かかる。CI 未組み込み）。直接: node tools/inventory-deps.mjs
 	@node tools/inventory-deps.mjs

@@ -10024,3 +10024,15 @@ D-82（2026-10-26）は、エンジンが `reduce` のために処理中の停�
 - 手での負の対照: `SKIP_WASM_OPT=1 scripts/check-wasm-size.sh --require-wasm-opt` は終了コード 2 で断られた
 - 限界: CI は未適用の値で判定する（binaryen を CI に入れない判断は TASK-101 2/2・TASK-78 2/2 のまま）。`wasm-opt` 適用の判定は手元での実行で、CI には入れていない。5.157 の記録（`dirty: true` の作業ツリーでの値）は書き換えていない
 - 範囲外: CI への binaryen の導入と適用後の値での CI の判定、初回公開の前の測り直し（DLV-27・TASK-126）。spec の人間の承認点（CI のガードの採否）は本変更では承認を得ていない
+
+### 5.358 ビルド・試験の経路の棚卸し（TASK-77 2/2。BUILD-2・PoC-11 の手順 1）
+
+`scripts/check-build-inventory.sh`（`make check-build-inventory`）で、`Cargo.lock` の private な依存 0 件と、ビルド・試験の経路のファイルからの secret らしい語（`GITHUB_TOKEN`・`CARGO_REGISTR…`・`git-fetch-with-cli`・`secrets.`・識別子の末尾の `_TOKEN`・`_PAT`）の参照 0 件を確かめた。期待は不変条件（0 件）で、件数は下の記録に置く。判定の回帰テストは `scripts/test-check-build-inventory.sh`（`make test-check-build-inventory`。見本の repo。CI の `check` が流す）。
+
+- 実行日: 2026-10-28。対象: `5841e40c`（origin/main）に本変更を加えた作業ツリー。`Cargo.lock` の SHA-256: `ac6465b7e96553b9397af115d5ea422f951b46aa0f5f3e8ac4b3c4ad3d3ee754`
+- 終了コード 0。`Cargo.lock` は package 70 件（crates.io 66・workspace member 4・git 0・その他 0）で、private な依存は 0 件
+- 語の走査は追跡ファイル 1,769 件（範囲は `scripts/check-build-inventory.sh` の冒頭）。参照 0 件。許可リストは 32 組（48 箇所。識別子の末尾の偶然の一致・秘密情報の形の ID の定義・ファイル名の言及）と、検出の見本を大量に持つ 5 ファイルの除外。古い項目は 0 件
+- `ci.yml` の `uses:` は 9 件（記録のみ。SHA 固定の判定は `check-fork-ci` の B3）
+- spec が前提とする `fandhe-frontend` の git 依存は現在の `Cargo.lock` に無く、crates.io 由来である。spec 側の文言の更新は spec repo の課題
+- ローカルで流していないもの: `make check-workflow-secrets`・`make check-fork-ci`（ruby が無い）。CI の `check` ジョブで確かめる
+- 範囲外: 本体を CI・`make check` の関門にするかは TASK-96 の承認点で、本変更では承認を得ていない（CI には回帰テストだけを足した）
