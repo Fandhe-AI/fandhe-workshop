@@ -1,0 +1,8 @@
+id: MOD14-2
+package: fandhe-workshop-pack
+test: round_persist
+target: crates/core/src/history_load.rs
+find:         session: Session::from_state(ir, state),
+replace:         session: Session::from_state(ir, { let mut st = state; st.run.slices.retain(|r, _| !r.0.ends_with("@round1")); st }),
+expect-fail: mod14_two_rounds_history_keeps_four_slices_across_export_import
+note: 書き出し→読み込みで 1 周目の根の切り身を落とす
