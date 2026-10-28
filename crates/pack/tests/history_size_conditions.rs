@@ -20,7 +20,7 @@
 //! （10 MiB。読み込みの上限 SAFE-18）とは別の値で、ここでは使わない。
 //! `synth-inputs.md` は「判定は A だけ。B・C は記録」とするが、SAVE-26 は 3 条件すべてを求めるため、SAVE-26 を正として 15 本すべてを判定する。
 //!
-//! 限界: `GoTo` で飛ばす場所が 5 か所ある（1 周目 3・2 周目 2。`common/rounds.rs`）。全章の履歴は TASK-337 の担当。
+//! 限界: `GoTo` で飛ばす場所が 5 か所ある（1 周目 3・2 周目 2。`common/rounds.rs`）。全章の履歴は TASK-337（`crates/web/tests/history_size_all_chapters.rs`。章の形の写しでの測定）の担当。
 
 mod common;
 #[path = "common/history_size.rs"]

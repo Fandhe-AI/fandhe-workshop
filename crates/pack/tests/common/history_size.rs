@@ -1,6 +1,6 @@
 //! 履歴の包み（書き出しの形）の大きさを測る共有部品（TASK-216。EVT-13、SAVE-26）。
 //!
-//! 呼び出し元は `history_size_rounds.rs` と `history_size_conditions.rs`（TASK-336。SAVE-26。条件 B／C と 5MB の判定）。同じ測定を使えるよう、
+//! 呼び出し元は `history_size_rounds.rs` と `history_size_conditions.rs`（TASK-336。SAVE-26。条件 B／C と 5MB の判定）、web の `history_size_all_chapters.rs`（TASK-337。SAVE-27）。同じ測定を使えるよう、
 //! 測り方の定義を 1 か所に置く。列の名前は PoC-6 の CSV（`testdata/save-restore-versions/test-data/synth-inputs.md`）に揃える。
 //! 履歴の中身（下書き・本文）は返さず、大きさと件数だけを返す。
 
