@@ -219,7 +219,7 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
 
 ## 7. 将来の拡張
 
-- TASK-336（SAVE-26）は、`crates/pack/tests/common/rounds.rs` の計画（`PlanStep` の列）に誤入力・`Control::Save`・下書きを差し込み、`common/history_size.rs` の `measure` で条件 B／C の大きさを求められる。5MB の判定はそちらが持つ
+- TASK-336（SAVE-26）は実施済み。`crates/pack/tests/history_size_conditions.rs` が計画に誤入力・`Control::Save`・下書きを差し込み、3 条件 × 種 5 の 15 本で 5MB 以下を判定する（記録は `docs/testing.md` の 5.344）。`HISTORY-SIZE-CONDITIONS ` の行の値も PoC-6 の CSV と直接は比べない。`make measure` の束には入れていない
 
 - JS glue・`index.html` など他の配信物の大きさは、`measurements[]` に足すだけでよい（様式の変更は不要）
 - ビルド情報はビルドログの行（`config` / `wasm-opt` / `wasm size`）から読む。解析は `tools/measure/lib.sh` の `measure_build` に集約してある。
