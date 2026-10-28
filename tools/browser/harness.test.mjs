@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, requestKinds, makeRequestIdOf,
+  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, mimeConsoleMessages, requestKinds, makeRequestIdOf,
 } from './harness.mjs';
 
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'";
@@ -132,6 +132,16 @@ test('cspConsoleMessages: error と warning のうち CSP の文言だけを拾�
   assert.equal(cspConsoleMessages(rec).length, 2);
   assert.deepEqual(cspConsoleMessages({ consoleErrors: ['boom'], consoleWarnings: [] }), []);
   assert.deepEqual(cspConsoleMessages({ consoleErrors: [] }), [], 'consoleWarnings が無い記録でも落ちない');
+});
+
+test('mimeConsoleMessages: WASM の MIME 不一致の文言だけを拾う（DLV-3）', () => {
+  const rec = {
+    consoleErrors: ["Failed to execute 'compile' on 'WebAssembly': Incorrect response MIME type. Expected 'application/wasm'."],
+    consoleWarnings: ['`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type.', 'The Content-Security-Policy directive x is ignored', 'deprecated api'],
+  };
+  assert.equal(mimeConsoleMessages(rec).length, 2);
+  assert.deepEqual(mimeConsoleMessages({ consoleErrors: ['boom'], consoleWarnings: ['deprecated api'] }), []);
+  assert.deepEqual(mimeConsoleMessages({ consoleErrors: [] }), [], 'consoleWarnings が無い記録でも落ちない');
 });
 
 test('requestKinds: 配信元の要求を相対パス・種類・状態の組にし、クエリを除き、重複と除外を畳む', () => {

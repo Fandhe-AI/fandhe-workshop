@@ -469,6 +469,52 @@ export function cspConsoleMessages(rec) {
   return [...rec.consoleErrors, ...(rec.consoleWarnings ?? [])].filter((m) => CSP_CONSOLE_RE.test(String(m)));
 }
 
+// コンソールの error・warning のうち WASM の MIME 不一致に当たるものを返す純関数（DLV-3。TASK-107 1/2）。
+// wasm-bindgen の glue は instantiateStreaming が MIME 不一致で失敗すると console.warn を出して黙ってバイト列の
+// instantiate へ倒れるため、error だけを数える検査ではこの退行を見逃す。文言は wasm-bindgen 0.2.128 と Chromium のもの。
+// 版上げで文言が変わると対照（wasm-mime.test.mjs の誤った MIME の回）が失敗する（fail-closed）。
+const WASM_MIME_RE = /application\/wasm|instantiateStreaming|MIME type/i;
+export function mimeConsoleMessages(rec) {
+  return [...rec.consoleErrors, ...(rec.consoleWarnings ?? [])].filter((m) => WASM_MIME_RE.test(String(m)));
+}
+
+// WebAssembly のストリーミング compile が実際に使われたかを数える探針（DLV-3）。警告が無いことからの推測でなく、
+// 呼び出し・解決・拒否を直接観察する。元の関数へ委ねて戻り値・例外を変えない。openPage には組み込まず、試験が明示的に呼ぶ。
+// instantiate の fromBytes は、第 1 引数が Module でない呼び出し（ストリーミング失敗後のフォールバック）の回数。
+export async function installWasmProbe(context) {
+  await context.addInitScript(() => {
+    const probe = {
+      streaming: { called: 0, resolved: 0, rejected: 0 },
+      compileStreaming: { called: 0, resolved: 0, rejected: 0 },
+      instantiate: { called: 0, resolved: 0, rejected: 0, fromBytes: 0 },
+    };
+    Object.defineProperty(window, '__fandheWasmProbe', { value: probe });
+    const wrap = (name, slot, onCall) => {
+      const orig = WebAssembly[name];
+      if (typeof orig !== 'function') return;
+      WebAssembly[name] = function (...args) {
+        slot.called += 1;
+        if (onCall) onCall(args);
+        const r = orig.apply(this, args);
+        r.then(() => { slot.resolved += 1; }, () => { slot.rejected += 1; });
+        return r;
+      };
+    };
+    wrap('instantiateStreaming', probe.streaming);
+    wrap('compileStreaming', probe.compileStreaming);
+    wrap('instantiate', probe.instantiate, (args) => {
+      if (!(args[0] instanceof WebAssembly.Module)) probe.instantiate.fromBytes += 1;
+    });
+  });
+}
+
+// 探針の記録の写しを返す。読めないときは例外にする（0 件扱いにしない。fail-closed）。
+export async function readWasmProbe(page) {
+  const probe = await page.evaluate(() => JSON.parse(JSON.stringify(window.__fandheWasmProbe)));
+  if (!probe || typeof probe !== 'object') throw new Error('wasm probe is not installed');
+  return probe;
+}
+
 // 配信元への要求の種類の集合を返す純関数（SAFE-13。TASK-151 2/2）。CSP の有無で同じであることを比べるための正規形で、
 // base からの相対パス（クエリ・ハッシュを除く）・resourceType・status の組を、重複を除いて整列して並べる。
 // CSP が黙って何かを止めると、CSP ありの回だけ要求が減る（またはブロックで失敗が増える）ことで差に現れる。
