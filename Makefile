@@ -12,12 +12,12 @@
 # 一覧は下記の `## ` コメントから生成されるため、`## ` の無いターゲットは表示されない。
 # ターゲットを追加・改名・削除したら scripts/help.sh も同じ変更で更新すること。
 #
-# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）、ワークフローの secret 参照の検査、ビルド・試験の経路の棚卸し（check-build-inventory。CI 未組み込み）、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
+# Rust 向けの lint / fmt / test / check-deps / check-dom-reads / check-mutations と、web の wasm ビルド（build-web）、L2 の配布物の作成（build-l2）・更新（update-l2）、ワークフローの secret 参照の検査、ビルド・試験の経路の棚卸し（check-build-inventory。CI 未組み込み）、教材固有の語の検査（check-generic-words。CI 未組み込み）、公開前の社内固有の情報・認証情報の照合（check-internal-info。CI 未組み込み）、依存の棚卸し（inventory-deps。通信が要る。CI 未組み込み）、影響する Step の洗い出しの回帰テスト（test-upstream-impact。CI 未組み込み）を持つ。
 # 中身の無いターゲット（`@true` 等）は呼び出し元が終了コードを信用してしまうため置かない。
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -108,7 +108,13 @@ build-l2: ## L2 の配布物（zip）を作る。L2_SERVER に miniserve の実�
 test-build-l2: ## build-l2 の回帰テスト（合成の配信物。ビルド・通信なし）。直接: scripts/test-build-l2.sh
 	@scripts/test-build-l2.sh
 
-test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間・L1 と L2 の 3 配信先 × 3 回の 9 回で観察・snapshot・history が一致すること（DLV-15）と、凍結した IR と組の固定の入力列での比較・履歴の ops に揺れる欄が無いこと（TASK-114 2/2）・L1 と L2 の 2 か所と別名 localhost のオリジンの分離（DLV-16。TASK-115）を確かめる（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
+update-l2: ## 既存の L2 の配布物の site/ だけを新しい配信物に差し替えた zip を作る（TASK-116）。L2_ZIP が要る（先に make build-web）。手順: docs/l2-update-procedure.md。直接: node tools/update-l2.mjs
+	@node tools/update-l2.mjs
+
+test-update-l2: ## update-l2 の回帰テスト（合成の配信物。ビルド・通信なし）。直接: scripts/test-update-l2.sh
+	@scripts/test-update-l2.sh
+
+test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間・L1 と L2 の 3 配信先 × 3 回の 9 回で観察・snapshot・history が一致すること（DLV-15）と、凍結した IR と組の固定の入力列での比較・履歴の ops に揺れる欄が無いこと（TASK-114 2/2）・L1 と L2 の 2 か所と別名 localhost のオリジンの分離（DLV-16。TASK-115）・update-l2 で更新した zip の模擬環境での起動（TASK-116）を確かめる（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
 	@scripts/test-l2-run.sh
 
 check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh
