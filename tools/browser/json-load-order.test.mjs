@@ -1,7 +1,7 @@
 // IR・履歴の読み込みの判定の順序（大きさ → 入れ子の深さ → JSON の解釈）が wasm の中で守られることの試験（TASK-157 / SAFE-20）。
 //
 // IR と履歴の両方で、深さの検査が解釈より前・大きさの検査が深さより前に働くことを確かめる。
-// 型・内容の段は native の試験（crates/core/tests/load_order.rs）が持つ。画面の読み込みの経路は対象外（TASK-154・155・545）。
+// 型・内容の段は native の試験（crates/core/tests/load_order.rs）が持つ。画面の読み込みの経路は対象外（TASK-154 は ir-size-limit.test.mjs、TASK-155・545）。
 //
 // 入力: 環境変数 FANDHE_WEB_TEST_DIR（TEST_HOOKS=1 の tools/build-web.sh の出力）。
 // 未設定・不在は skip にせず失敗にする。

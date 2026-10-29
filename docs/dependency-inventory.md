@@ -52,7 +52,7 @@ make test-inventory-deps                     # スクリプト自体の回帰テ
 |---|---|---|
 | (a) `yaml_serde` は exact 指定で 1 版だけである | 一致 | ルートの `Cargo.toml` は `yaml_serde = "=0.10.7"`。`Cargo.lock` に 1 版（0.10.7）。`crates/pack/tests/yaml_dependency.rs` の `pack47_` の 3 件が固定している。本タスクでは同じ検査を重ねて書かない |
 | (b) 別の YAML 系 crate が入っていない | 一致 | YAML の構文を読む crate は `yaml_serde`（とその依存の `libyaml-rs`）だけである。`saphyr-parser` は拒否の前処理のためで、PACK-5・D-43 による |
-| (c) `miniserve` 0.35.0 | 本 repo の依存ではない（対象外） | `docs/spec` 以外では参照されず、`Cargo.lock` にも入っていない。L2 の配布物が未導入のためである。L2 の配布を導入するタスク（DLV-18）の側で、推移的な依存も含めて棚卸しする |
+| (c) `miniserve` 0.35.0 | 本 repo の依存ではない（対象外） | `Cargo.lock` には入っていない（上流のビルド済みを L2 の配布物に同梱する）。取り下げ済みの `core2` 0.4.0（2026-10-28 確認）は zip の `THIRD-PARTY-NOTICES.txt` に記録した（TASK-137。`docs/testing.md` 5.364）。上流の `Cargo.lock` の全件の走査は未完了 |
 | (d) 時期が手順に書かれている | 一致 | 本文書の 1 節と 2 節（初回公開の前と、リリースごと） |
 | (e) 結果に日付がつく | 一致 | ツールが基点に実行日（UTC）を出し、4 節に日付つきで残す |
 

@@ -14,6 +14,7 @@
 //! `debug_autosave_state`・`debug_history_save_len`（TASK-318）は読み取りのみである。
 //! `debug_large_history_text`・`debug_secret_gate_len`（TASK-166・SAFE-31）は読み取りのみである。前者は 10MB に近い合成の履歴の文字列を返し、
 //! 後者は保存の直前の関門（直列化・秘密情報の検査）を本番と同じ関数で 1 回走らせて、大きさと検出した形の数だけを返す。
+//! `debug_ops_history_text`・`debug_boot_kind`（TASK-156・SAFE-19）は読み取りのみである。前者は件数を指定した開ける履歴の文字列を返し、後者は起動の種類だけを返す。
 //! `debug_export_prepare_live`（TASK-335）は、受講中のホストの書き出しを読んで `blob:` URL にするだけで、状態は変えない。
 //! `debug_last_import_state_json`（TASK-175 2/2）は開いた直後の状態を読むだけである。
 //! `debug_export_prepare_loadable`・`debug_loadable_history_text`（TASK-330 2/2）は、開ける履歴の包み（試料の `ops` を適用し直したもの）を書き出す・文字列で返すだけで、
@@ -346,6 +347,26 @@ pub fn debug_large_history_text(kind: &str) -> String {
         .and_then(|env| fandhe_workshop_core::history_export::export_bytes(&env).ok())
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .unwrap_or_default()
+}
+
+/// ちょうど `n` 件の `ops` を持つ開ける履歴の JSON 文字列を返す（読み取りのみ。TASK-156・SAFE-19）。
+///
+/// 本文は短い固定長で、大きさは小さく保つ（大きさの上限は別の試験の範囲）。作れない場合は空文字列を返す。
+/// 受講者のデータではなく、ページの外へ出さず、同じ evaluate の中で保存先・取り込みに渡す。
+#[wasm_bindgen]
+pub fn debug_ops_history_text(n: u32) -> String {
+    crate::test_fixture::ops_count_loadable_envelope(n as usize, 16)
+        .and_then(|env| fandhe_workshop_core::history_export::export_bytes(&env).ok())
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_default()
+}
+
+/// 起動の種類（`fresh`・`restored`・`not_opened`・`no_session`）だけを返す。未定・未マウントは空文字列（読み取りのみ。TASK-156）。
+///
+/// `debug_state_json` は状態の全体を直列化するため、2 万件の履歴の起動の計時を歪める。それを避ける軽い口。
+#[wasm_bindgen]
+pub fn debug_boot_kind() -> String {
+    crate::glue::boot_kind().unwrap_or_default()
 }
 
 /// 保存の直前の関門を本番と同じ関数で 1 回走らせ、固定形の JSON `{"bytes":n,"shapes":k}` を返す（読み取りのみ。TASK-166・SAFE-31）。

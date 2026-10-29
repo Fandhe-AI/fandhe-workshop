@@ -1,0 +1,26 @@
+第三者の著作物に関する告知（fandhe-workshop L2 の配布物）
+
+この zip に同梱する第三者製のソフトウェアと、取り下げ済みの依存の記録を示す。
+
+1. 同梱する実行ファイル
+  - 名前: miniserve（Windows 版は miniserve.exe）
+  - 版: 0.35.0（上流のビルド済み Release をそのまま同梱している）
+  - ライセンス: MIT（Copyright (c) 2018 Sven-Hendrik Haase）
+  - 上流: https://github.com/svenstaro/miniserve
+    タグ v0.35.0（commit 0d5748f579c6c4895d170fe1e5cb752f38479c71）
+  - ライセンス文: 同じ場所の LICENSE-miniserve.txt（上流の LICENSE の逐語の写し）
+
+2. 取り下げ済み（yanked）の依存の記録
+  - miniserve 0.35.0 の依存（上流の Cargo.lock）に、crates.io で取り下げ済みの
+    core2 0.4.0 が含まれる（libflate と libflate_lz77 の依存）。
+  - 確認日: 2026-10-28（crates.io の sparse index で core2 0.4.0 が取り下げ済みであることを確認した）。
+  - 根拠: 本 repo の決定 D-58 と要件 LIC-10。
+  - 限界: 上流の Cargo.lock の 457 件の全件の走査は完了していない。他の取り下げ済みの有無は未確認である。
+
+3. 本配布物のエンジン
+  - site/ の中身（fandhe-workshop のエンジン）のライセンスは MIT OR Apache-2.0 である。
+  - 本文は https://github.com/Fandhe-AI/fandhe-workshop の LICENSE-MIT と LICENSE-APACHE にある。
+
+4. この告知の限界
+  - miniserve の実行ファイルに静的にリンクされた依存 crate の個別のライセンス文は、この zip に同梱していない。
+    依存の一覧は上流の Cargo.lock（タグ v0.35.0）で確認できる。

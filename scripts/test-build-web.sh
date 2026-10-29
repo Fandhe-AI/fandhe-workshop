@@ -129,6 +129,8 @@ check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
 check_status "no fandhe-ir meta without IR_FILE" 1 grep -q 'fandhe-ir' "${DELIVERY}/index.html"
 check_status "no fandhe:ir marker without IR_FILE" 1 grep -q 'fandhe:ir' "${DELIVERY}/index.html"
 check "no .d.ts" test -z "$(find "${DELIVERY}" -name '*.d.ts')"
+# 受講者の入力・履歴を外部へ送る手段が無いこと（SAFE-16・TASK-153）。wasm-opt の有無で skip しない。
+check "no network capability in the delivery config (check-no-egress dist)" "${DIR}/check-no-egress.sh" dist "${DELIVERY}"
 
 echo "-- (b) delivery config with IR_FILE" >&2
 check "ir/main.json matches IR_FILE" cmp -s "${TMP}/ir.json" "${DELIVERY_IR}/ir/main.json"
@@ -155,6 +157,7 @@ check "ir/main.json is byte-identical to fandhe-pack compile output" cmp -s "${C
 check "ir/main.json has the IR shape" jq -e '(.format_version | type == "number") and (.pack.id | type == "string")' "${DELIVERY_PACK}/ir/main.json"
 check "mount_app is exported (compiled IR)" has_export '^mount_app$' "${DELIVERY_PACK}/${WASM}"
 check "no debug_* export (compiled IR)" no_debug_export "${DELIVERY_PACK}/${WASM}"
+check "no network capability with compiled IR (check-no-egress dist)" "${DIR}/check-no-egress.sh" dist "${DELIVERY_PACK}"
 # check-delivery の WASM のバイト列の検査（debug_）は、wasm-opt 適用後の配信物を前提にする。未適用のビルド（CI の
 # SKIP_WASM_OPT=1）の WASM には core の名前（debug_struct 等）が残り誤検出するため、適用したときだけ流す。
 if grep -q 'wasm-opt: applied' "${TMP}/delivery-pack.log"; then

@@ -13,7 +13,7 @@ use common::glue_source;
 ///
 /// spec（FEND-7・FEND-20）の「349 行」は決定時点の PoC の追試の値で、数え方と範囲が今と違う
 /// （`docs/testing.md` 5.92）。今のソースが通らなくなるため目標にしない。今の実測値を上限とし、増えたときだけ理由を求める。
-const MAX_GLUE_CODE_LINES: usize = 563;
+const MAX_GLUE_CODE_LINES: usize = 567;
 
 /// 空行と、前後の空白を除いて `//` で始まる行を除いた行数。`/* */` は glue に 0 件（数え方は 5.92 と同じ）。
 fn code_lines(src: &str) -> usize {
