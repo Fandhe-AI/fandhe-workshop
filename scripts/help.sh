@@ -23,6 +23,11 @@ cat <<'EOF'
   test                         scripts/test.sh                         Rust の native 試験（web を含む全 crate）
   check-deps                   scripts/check-crate-deps.sh             crate 間の依存の向きを cargo metadata で検査する
   test-check-deps              scripts/test-check-crate-deps.sh        依存の向きの検査自体の回帰テスト
+  check-license                scripts/check-license.sh                全 crate の license が MIT OR Apache-2.0 で、直下に 2 つのライセンスの本文があることを検査する
+  test-check-license           scripts/test-check-license.sh           ライセンス表記の検査自体の回帰テスト
+  check-no-egress              scripts/check-no-egress.sh              依存に通信・学習分析の手段（crate・web-sys の feature・npm の依存）が無いことを検査する
+  check-no-egress-dist         scripts/check-no-egress.sh              配信物（先に make build-web）に通信の手段が無いことを検査する
+  test-check-no-egress         scripts/test-check-no-egress.sh         通信の手段の検査自体の回帰テスト（ビルドなし）
   check-testdata               scripts/check-testdata-refs.sh          repo の外への相対参照が 0 件であることを検査する
   test-check-testdata          scripts/test-check-testdata-refs.sh     参照の検査自体の回帰テスト
   check-mutation-defs          scripts/check-mutation-defs.sh          変異の定義の find の一意性と expect-fail の名前の実在を静的に検査する
@@ -40,7 +45,7 @@ cat <<'EOF'
   test-check-fork-ci           scripts/test-check-fork-ci.sh           fork CI 検査自体の回帰テスト
   build-web                    tools/build-web.sh                      web を wasm にビルドして dist/web に配る一式を作る（TEST_HOOKS=1 は試験用）
   test-build-web               scripts/test-build-web.sh               build-web の受入基準を実ビルドで検査する
-  build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web）
+  build-l2                     tools/build-l2.mjs                      L2 の配布物（zip）を作る（L2_SERVER に miniserve が要る。先に make build-web。L2_PLATFORM=windows-x64 で Windows 向け）
   test-build-l2                scripts/test-build-l2.sh                build-l2 の回帰テスト（合成の配信物。ビルドなし）
   update-l2                    tools/update-l2.mjs                     既存の L2 の配布物（L2_ZIP）の site/ だけを新しい配信物に差し替えた zip を作る（先に make build-web。手順は docs/l2-update-procedure.md。TASK-116）
   test-update-l2               scripts/test-update-l2.sh               update-l2 の回帰テスト（合成の配信物。ビルド・通信なし）
