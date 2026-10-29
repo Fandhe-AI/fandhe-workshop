@@ -115,6 +115,8 @@ links_extract() {
           if (c == "(") depth++
           else if (c == ")") { depth--; if (depth == 0) break }
         }
+        # 閉じの無い ]( は後続のリンクを取り込んで隠すため、判定不能として拒否される印（先頭 /）を出す
+        if (depth != 0) { print "/UNCLOSED"; return }
         print substr(rest, 1, i - 1)
         line = substr(rest, i + 1)
       }
@@ -165,7 +167,11 @@ links_verdict() {
           else if (h == "2f" || h == "5c") out = out "/"
           else out = out substr(t, 1, 3)
           t = substr(t, 4)
-        } else if (c == "\\") { out = out "/"; t = substr(t, 2) }
+        } else if (c == "\\") {
+          # バックスラッシュ + 記号は Markdown のエスケープ（\. は . 等）で区切りと区別できないため拒否する
+          if (substr(t, 2, 1) ~ /[^A-Za-z0-9]/) return "BAD"
+          out = out "/"; t = substr(t, 2)
+        }
         else { out = out c; t = substr(t, 2) }
       }
       return out
@@ -180,8 +186,11 @@ links_verdict() {
       } else {
         t = $1
       }
+      orig = t
       sub(/[#?].*$/, "", t)
       if (t == "" || t ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) next
+      # Markdown の文字参照（&#46; &#x2e; &period; 等）は復号せず、判定不能として拒否する（# 以降の切り落としをすり抜けるため）
+      if (orig ~ /&[#A-Za-z0-9]+;/) { bad = 1; next }
       t = decode(t)
       if (t == "BAD" || t ~ /^\//) { bad = 1; next }
       n = split(t, seg, "/"); depth = 0
