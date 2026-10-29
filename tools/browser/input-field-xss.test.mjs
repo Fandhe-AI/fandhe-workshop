@@ -187,7 +187,10 @@ function judge(obs, sent, mode, title0) {
   if (l.text !== sent) bad.push('text-mismatch');
   if (l.forbidden !== 0) bad.push('forbidden-elements');
   const n = obs.next;
-  if (n && (n.kind === 'rejected' || n.kind === 'clarified')) {
+  // 続く行（拒否・問い返し）の欠落は不合格にする。欠落を許すと、拒否理由への差し込み経路を通ったことを保証できない。
+  if (!n || (n.kind !== 'rejected' && n.kind !== 'clarified')) {
+    bad.push(`next-missing:${n?.kind ?? 'none'}`);
+  } else {
     if (n.forbidden !== 0) bad.push('next-forbidden');
     if (n.childKinds.some((k) => k.some((t) => t !== 3))) bad.push('next-not-text');
   }
