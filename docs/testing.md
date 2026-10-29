@@ -10502,7 +10502,7 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 
 `scripts/check-license.sh`（`make check-license`）を広げ、`template-workshop/` の `LICENSE-MIT`・`LICENSE-APACHE` がルートの同名ファイルとバイト単位で一致する通常のファイル（symlink は拒否）で、`README.md` に `MIT OR Apache-2.0` と 2 ファイルへの言及があり、ディレクトリの外へ出るリンクが無いことを確かめる。あわせて `cp -RP` で雛形から作った repo を模擬した一時ディレクトリにも同じ検査を掛け、表記が引き継がれることを確かめる。CI は既存の `rust-lint` ジョブの step で流れる（ジョブは増やしていない）。`.editorconfig-checker.json` の除外は雛形の写しにも広げた。
 
-- 回帰テスト `scripts/test-check-license.sh` は 43 件（既存 16 件に 27 件を追加。符号化したドットセグメント 11 形の拒否・内側に留まる符号化の合格・grep・sed・awk の実行失敗が終了コード 2 になる対照を含む）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・ルートだけ変えた同期漏れが、いずれも 1 になる
-- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 43 件が合格
+- 回帰テスト `scripts/test-check-license.sh` は 65 件（既存 16 件に 49 件を追加。符号化したドットセグメント 11 形の拒否・内側に留まる符号化の合格・HTML のリンクの属性 4 形の拒否と無ければ合格の対照・grep・sed・awk の実行失敗が終了コード 2 になる対照を含む）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・HTML のリンクの属性（`href=`・`src=` 等。宛先は解析せず未対応の記法として拒否する。属性の無い `<a b/c.md>` は Markdown の山括弧の宛先と区別できないため対象外）・ルートだけ変えた同期漏れが、いずれも 1 になる
+- 実行結果（2026-10-29。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 65 件が合格
 - 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
 - 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）

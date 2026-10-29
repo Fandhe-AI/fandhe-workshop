@@ -221,6 +221,18 @@ dir="$(fresh_copy)"
 printf '[x](unclosed\n\n[y](%s/LICENSE-MIT)\n' "${UP}" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README unclosed link across lines rejected" 1 "${RC}"
+for html in '<a href="../LICENSE-MIT">LICENSE-MIT</a>' '<A HREF="../LICENSE-MIT">x</A>' '<img src="../x.png">' "<a
+href='../LICENSE-MIT'>x</a>"; do
+  dir="$(fresh_copy)"
+  printf '%s\n' "${html}" >>"${dir}/template-workshop/README.md"
+  run_check "${dir}"
+  expect "template README HTML link rejected: ${html%%$'\n'*}" 1 "${RC}"
+  grep -q 'unsupported link notation' "${TMP_DIR}/stderr.txt" || { echo "FAIL: unsupported-notation message missing"; failed=$((failed + 1)); }
+done
+dir="$(fresh_copy)"
+printf 'Use a < b and the word data or a tag-free text.\n' >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README without HTML links is accepted" 0 "${RC}"
 dir="$(fresh_copy)"
 echo "extra" >>"${dir}/LICENSE-MIT"
 run_check "${dir}"
@@ -234,6 +246,21 @@ chmod 755 "${BAD_BIN}/awk"
 RC=0
 PATH="${BAD_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
 expect "link check fails closed when awk fails" 2 "${RC}"
+
+# 4d. HTML リンクの検査の grep が実行に失敗したら 2 にする
+GREP_BIN="${TMP_DIR}/bad-grep"
+mkdir -p "${GREP_BIN}"
+cat >"${GREP_BIN}/grep" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *href*) exit 2 ;;
+esac
+exec /usr/bin/grep "$@"
+EOF
+chmod 755 "${GREP_BIN}/grep"
+RC=0
+PATH="${GREP_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
+expect "HTML link check fails closed when grep fails" 2 "${RC}"
 
 # 5. 偽の cargo（検査を完了できない場合は合格にしない）
 FAKE_BIN="${TMP_DIR}/bin"
