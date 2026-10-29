@@ -95,7 +95,7 @@ check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
 # links_extract <file>: Markdown のリンク先を 1 行 1 件で出力する。
-# インラインは括弧の対応を数えて全体を取る（閉じが無ければ行末まで取り、厳しい側に倒す）。
+# インラインは括弧の対応を数えて全体を取る。改行をまたぐ記法も取る（閉じが無ければ末尾まで取り、厳しい側に倒す）。
 # 参照定義は `[label]:` の次の空でない行にリンク先が続く記法も扱う。
 links_extract() {
   awk '
@@ -120,17 +120,17 @@ links_extract() {
       }
     }
     {
-      if (pending) {
-        if ($0 ~ /^[[:space:]]*$/) next
-        print $0; pending = 0; next
-      }
+      # 宛先を消費した行も、続けて参照定義として解析する（宛先なしの定義の直後の定義を見逃さない）
+      if (pending && $0 !~ /^[[:space:]]*$/) { print $0; pending = 0 }
       if ($0 ~ /^[[:space:]]*\[[^]]+\]:/) {
         t = $0
         sub(/^[[:space:]]*\[[^]]+\]:[[:space:]]*/, "", t)
         if (t == "") pending = 1; else print t
       }
-      inline($0)
-    }' "$1"
+      # インラインは改行をまたぐため、全行を空白でつないでから END で解析する
+      buf = buf " " $0
+    }
+    END { inline(buf) }' "$1"
 }
 
 # links_leave_dir <file>: Markdown のリンク先（インライン・参照定義）を相対パスとして正規化し、
