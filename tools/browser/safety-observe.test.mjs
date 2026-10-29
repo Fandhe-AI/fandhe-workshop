@@ -116,7 +116,7 @@ test('xss: 入り口別の件数と、E5 を入力欄から送ったときの安
   }
   assert.ok(all.length > 0, 'no cases were read');
   log(t, 'xss', `cases=${all.length} byEntry=${JSON.stringify(byEntry)}`);
-  log(t, 'xss', 'E1: pack-body-xss.test.mjs（TASK-144）が確かめる。E2/E3/E4/E6: 件数のみ。画面の経路の観察は TASK-145 / TASK-146 / TASK-147 で育てる（未実装）');
+  log(t, 'xss', 'E1: pack-body-xss.test.mjs（TASK-144）、E2: structure-xss.test.mjs（TASK-145 1/2）、E3: practice-data-xss.test.mjs（TASK-145 2/2）が確かめる。E4/E6: 件数のみ。画面の経路の観察は TASK-146 / TASK-147 で育てる（未実装）');
 
   const payloads = e5Payloads();
   let sent = 0;

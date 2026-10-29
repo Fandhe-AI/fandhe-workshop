@@ -80,3 +80,12 @@ export function e2Payloads(file = DEFAULT_FILE) {
   if (out.length !== EXPECTED_E2) throw new Error(`expected ${EXPECTED_E2} E2 cases, got ${out.length}`);
   return out;
 }
+
+export const EXPECTED_E3 = 50;
+
+// 入り口に E3（練習データの欄。put のパス・put の属性の値・set_attr の値）を含むケースだけ（TASK-145 2/2。SAFE-3）。件数が違えば例外（fail-closed）。
+export function e3Payloads(file = DEFAULT_FILE) {
+  const out = loadXssCases(file).filter((c) => c.entries.includes('E3'));
+  if (out.length !== EXPECTED_E3) throw new Error(`expected ${EXPECTED_E3} E3 cases, got ${out.length}`);
+  return out;
+}
