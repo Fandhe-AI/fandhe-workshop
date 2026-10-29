@@ -20,6 +20,7 @@
 # 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # compile した IR の手元の配信と章の完走の試験（author-preview。形式 B の試験用教材を compile → IR_FILE を指定したビルド → サブパス配信 → CH-0〜CH-3 の完走。
 # 配信元以外への通信 0 件・ページ内エラー 0 件。AUTHOR-21。TASK-427 1/2。記録は docs/testing.md 5.292）を含む。
+# 操作要素の `data-payload` の書き換えの試験（data-payload-tamper。実行 0・外部通信 0・形の合わない値は状態を変えない・タブが落ちない。値の読み込みは data-payload-cases。SAFE-6。TASK-148 1/2。記録は docs/testing.md 5.369）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
 # CARGO_TARGET_DIR に追従する）、FANDHE_PACK_BIN で node:test へ渡す（pack-bin。BUILD-16。TASK-91）。
@@ -165,6 +166,8 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/structure-xss.test.mjs" \
   "${ROOT_DIR}/tools/browser/e3-ir.test.mjs" \
   "${ROOT_DIR}/tools/browser/practice-data-xss.test.mjs" \
+  "${ROOT_DIR}/tools/browser/data-payload-cases.test.mjs" \
+  "${ROOT_DIR}/tools/browser/data-payload-tamper.test.mjs" \
   "${ROOT_DIR}/tools/browser/error-inputs.test.mjs" \
   "${ROOT_DIR}/tools/browser/reject-lines.test.mjs" \
   "${ROOT_DIR}/tools/browser/reject-keeps-draft.test.mjs" \
