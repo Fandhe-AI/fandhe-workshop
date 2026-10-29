@@ -129,7 +129,7 @@ for (const csp of [true, false]) {
         const eg = await attachEgress(context, { origin: srv.origin, base: BASE });
         await page.goto(srv.url);
         await waitMounted(page);
-        assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口がある');
+        assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口が無い');
         await install(page);
         const L = ledger();
         await journey(page, mouseDriver(page), 'free-text 配信', L, STOP, { chaptered: true, observe: domObserver03() });
