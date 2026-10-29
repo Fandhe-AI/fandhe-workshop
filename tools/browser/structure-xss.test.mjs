@@ -95,7 +95,7 @@ async function withDeliveryCopy(fn) {
 }
 
 // 全区分の計数が 0、記録用の関数の呼び出しが 0、通信が配信物の構成要素と ir/main.json 1 件だけであることを確かめる。
-async function assertQuiet(page, rec, srv, label, { settleMs } = {}) {
+async function assertQuiet(page, rec, label, { settleMs } = {}) {
   const counts = await collectSafety(page, rec, settleMs === undefined ? {} : { settleMs });
   const detail = `${label}: ${JSON.stringify({ counts, hits: rec.hits.length })}`;
   assert.deepEqual(nonZero(counts), [], detail);
@@ -171,10 +171,10 @@ async function runDrive(srv, start, label) {
     const snap = async (name, expect, position) => {
       const obs = await page.evaluate(observeFields);
       snaps.push({ name, obs, expect, position });
-      await assertQuiet(page, rec, srv, `${label} ${name}`, { settleMs: 50 });
+      await assertQuiet(page, rec, `${label} ${name}`, { settleMs: 50 });
     };
     await DRIVERS[start](page, snap);
-    await assertQuiet(page, rec, srv, `${label} final`);
+    await assertQuiet(page, rec, `${label} final`);
     assertNetwork(rec, srv, label);
     return snaps;
   } finally {
@@ -250,24 +250,24 @@ async function runIdVariant(srv, start, P, label) {
     await page.waitForSelector(`${TITLE}, ${NOTICE}`, { timeout: T });
     const notice = await page.evaluate((sel) => document.querySelector(sel)?.textContent ?? null, NOTICE);
     if (notice !== null) assert.ok(!textHas(notice, P), `${label}: notice repeats the input`);
-    await assertQuiet(page, rec, srv, `${label} open`, { settleMs: 50 });
+    await assertQuiet(page, rec, `${label} open`, { settleMs: 50 });
     if (notice === null) {
       // コマンド名が候補に出る経路。
       if (await page.locator(DRAFT).count() === 1) {
         await page.fill(DRAFT, '/');
         await page.waitForTimeout(150);
-        await assertQuiet(page, rec, srv, `${label} candidates`, { settleMs: 50 });
+        await assertQuiet(page, rec, `${label} candidates`, { settleMs: 50 });
       }
       // 選択肢の ID は属性値にだけ載る。CSS のセレクタに P を入れず、属性値の一致で押す要素を決める。
       const index = await page.evaluate(([sel, p]) => [...document.querySelectorAll(sel)].findIndex((b) => b.getAttribute('data-choice') === p), [CHOICE, P]);
       if (index >= 0) {
         await page.locator(CHOICE).nth(index).click({ timeout: T });
         await page.waitForTimeout(150);
-        await assertQuiet(page, rec, srv, `${label} choice`, { settleMs: 50 });
+        await assertQuiet(page, rec, `${label} choice`, { settleMs: 50 });
       }
     }
     const shown = await page.evaluate(() => document.body.textContent ?? '');
-    await assertQuiet(page, rec, srv, `${label} final`);
+    await assertQuiet(page, rec, `${label} final`);
     assertNetwork(rec, srv, label);
     return { shown: textHas(shown, P), noticed: notice !== null };
   } finally {
@@ -330,7 +330,7 @@ test('F: ヒントと refs の変種で IR が読まれ、計数が 0 で、そ�
           assert.equal(await page.locator(TITLE).count(), 1, `${label}: step-title count`);
           const text = await page.evaluate(() => document.body.textContent ?? '');
           assert.ok(!textHas(text, c.payload), `${label}: the hint/refs input appeared on screen (a display path now exists: add it to the field judgement)`);
-          await assertQuiet(page, rec, srv, label);
+          await assertQuiet(page, rec, label);
           assertNetwork(rec, srv, label);
         } finally {
           await context.close();
