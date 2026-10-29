@@ -8,7 +8,7 @@
 #   - workspace 直下に LICENSE-MIT・LICENSE-APACHE が通常のファイルとして在り、空でなく、取り違えていないこと
 #   - 雛形 template-workshop/ に同じ本文の写し（バイト一致）と README の表記があり、雛形から作った repo の模擬
 #     （cp -RP）にも引き継がれること（LIC-2・TASK-130。symlink は引き継がれないため拒否する）
-#   - 雛形 README に HTML のリンク・参照（href=・src= 等の属性。<a>・<img> 等のタグ）が無いこと（宛先を解析しないため未対応として拒否）
+#   - 雛形 README に HTML のリンク・参照（href=・src= 等の属性）と、符号化を戻した後の .. が無いこと（全文の fail-closed の検査。記法ごとの解析の前に拒否する）
 # エンジン直下の本文の完全一致は保証しない（最小の目印の固定文字列だけを照合する）。package.json は crate ではないため範囲外。
 #
 # 使い方: scripts/check-license.sh [--manifest-path <Cargo.toml>]
@@ -204,18 +204,38 @@ links_verdict() {
     END { print bad ? "leave" : "stay" }' "$1"
 }
 
-# html_links_present <file>: HTML のリンク・参照の属性（href=・src=・srcset=・poster=・action=・data=・xlink:href=）があれば 0 を返す。
-# 宛先を持つタグ（<a>・<img> 等）は属性で必ず検出できる。属性の無い `<a b/c.md>` は Markdown の山括弧の宛先と区別できないため対象にしない。
-# HTML は解析しないため、未対応の記法として拒否する（fail-closed）。大文字小文字は区別しない。
-# 戻り値: 0 = あり / 1 = なし / 2 = 検査を完了できない（grep の実行失敗。1 以外の失敗を握りつぶさない）。
-html_links_present() {
-  local grc=0
-  grep -Eiq -- '(href|src|srcset|poster|action|data|xlink:href)[[:space:]]*=' "$1" || grc=$?
-  case "${grc}" in
-    0) return 0 ;;
-    1) return 1 ;;
-    *) return 2 ;;
-  esac
+# readme_scan <file>: README の全文を 1 つの文字列として見て、記法ごとの解析をすり抜ける書き方を fail-closed で拒否する。
+# 出力（0 行以上）: dotdot = 符号化を戻した後に親ディレクトリへの参照になりうる .. がある / html = HTML のリンク・参照の属性がある。
+#   - 符号化（%2e・%2E）、文字参照（&#46;・&#x2e;・&period;・&amp; の入れ子）、バックスラッシュのエスケープ（\.）を . に戻す。
+#     二重の符号化も収束するまで繰り返して戻す。行・引用（>）・リスト・参照定義の位置を問わず、全文を対象にする。
+#   - ちょうど 2 個の . の並びで、直後が / \ ) > 引用符 # ? 空白 末尾のものを親ディレクトリへの参照とみなす。省略記号（...）と ..x は対象外。
+#   - HTML の属性（href・src・srcset・poster・action・data・xlink:href）は、属性名と = の間の空白・改行を許して検出する。
+#     宛先を持つタグ（<a>・<img> 等）は属性で必ず検出できる。属性の無い `<a b/c.md>` は Markdown の山括弧の宛先と区別できず対象にしない。
+# 戻り値: 0 = 実行できた（出力で判定する）/ 非 0 = awk の実行失敗。呼び出し側は失敗を握りつぶさない。
+readme_scan() {
+  awk '
+    function norm(s,   prev, i) {
+      for (i = 0; i < 8; i++) {
+        prev = s
+        gsub(/%2[eE]/, ".", s)
+        gsub(/&#0*46;?/, ".", s)
+        gsub(/&#[xX]0*2[eE];?/, ".", s)
+        gsub(/&[pP][eE][rR][iI][oO][dD];?/, ".", s)
+        gsub(/&[aA][mM][pP];?/, "\\&", s)
+        gsub(/%2[fF]|%5[cC]/, "/", s)
+        gsub(/&#0*(47|92);?|&#[xX]0*(2[fF]|5[cC]);?|&[sS][oO][lL];?|&[bB][sS][oO][lL];?/, "/", s)
+        gsub(/%25/, "%", s)
+        gsub(/\\\./, ".", s)
+        if (s == prev) break
+      }
+      return s
+    }
+    { buf = buf $0 "\n" }
+    END {
+      s = norm(buf)
+      if (s ~ /(^|[^.])\.\.([\/\\)>"'"'"'#?[:space:]]|$)/) print "dotdot"
+      if (tolower(s) ~ /(href|src|srcset|poster|action|data|xlink:href)[[:space:]]*=/) print "html"
+    }' "$1"
 }
 
 # check_template_root <dir> <label>: 雛形（またはその写し）の直下の表記を確かめる。本文は出力しない。
@@ -240,17 +260,21 @@ check_template_root() {
       return 0
     fi
   done
-  local hrc=0
-  html_links_present "${dir}/README.md" || hrc=$?
-  case "${hrc}" in
-    0)
-      echo "error: ${label}/README.md uses an unsupported link notation (HTML link or reference); use Markdown links" >&2
+  local scan
+  scan="$(readme_scan "${dir}/README.md")" || {
+    echo "error: README scan failed to run for ${label}/README.md" >&2
+    exit 2
+  }
+  case "${scan}" in
+    *dotdot*)
+      echo "error: ${label}/README.md contains a parent-directory reference (..), possibly encoded" >&2
       VIOLATIONS=$((VIOLATIONS + 1))
       ;;
-    1) ;;
-    *)
-      echo "error: HTML link check failed to run for ${label}/README.md" >&2
-      exit 2
+  esac
+  case "${scan}" in
+    *html*)
+      echo "error: ${label}/README.md uses an unsupported link notation (HTML link or reference); use Markdown links" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
       ;;
   esac
   local lrc=0

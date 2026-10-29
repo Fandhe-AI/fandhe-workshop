@@ -155,7 +155,7 @@ echo "[x]: ../LICENSE-MIT" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README links outside the directory (reference definition)" 1 "${RC}"
 dir="$(fresh_copy)"
-echo "[x](./sub/../LICENSE-MIT) [y](https://example.com/../a)" >>"${dir}/template-workshop/README.md"
+echo "[x](./sub/LICENSE-MIT) [y](https://example.com/a) [w](sub/..x/y.md) [v](...)" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README links that stay inside are accepted" 0 "${RC}"
 for enc in '%2e%2e/LICENSE-MIT' '%2E%2e/LICENSE-MIT' '%2e./LICENSE-MIT' '.%2E/LICENSE-MIT' '..%2fLICENSE-MIT' '..%5cLICENSE-MIT' '..\LICENSE-MIT' 'a/%2e%2e/%2e%2e/LICENSE-MIT' '%2fetc/passwd' '%zz/x' '%25%32e%25%32e/x'; do
@@ -165,7 +165,7 @@ for enc in '%2e%2e/LICENSE-MIT' '%2E%2e/LICENSE-MIT' '%2e./LICENSE-MIT' '.%2E/LI
   expect "template README encoded link rejected (${enc})" 1 "${RC}"
 done
 dir="$(fresh_copy)"
-echo "[x](sub/%2e/LICENSE-MIT) [y](a%20b.md) [z](a/%2e%2e/b.md)" >>"${dir}/template-workshop/README.md"
+echo "[x](sub/%2e/LICENSE-MIT) [y](a%20b.md) [z](a/%2e/b.md)" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README encoded links that stay inside are accepted" 0 "${RC}"
 UP='..'
@@ -176,7 +176,7 @@ for ang in "<sub dir/${UP}/${UP}/LICENSE-MIT>" "<sub dir/${UP}/${UP}/LICENSE-MIT
   expect "template README angle-bracket link leaving the directory rejected (${ang})" 1 "${RC}"
 done
 dir="$(fresh_copy)"
-echo '[x](<sub dir/../a b.md>) [y](<a b/c.md> "t u") [z]: <d e/f.md> "t"' >>"${dir}/template-workshop/README.md"
+echo '[x](<sub dir/a b.md>) [y](<a b/c.md> "t u") [z]: <d e/f.md> "t"' >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README angle-bracket links that stay inside are accepted" 0 "${RC}"
 dir="$(fresh_copy)"
@@ -247,20 +247,28 @@ RC=0
 PATH="${BAD_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
 expect "link check fails closed when awk fails" 2 "${RC}"
 
-# 4d. HTML リンクの検査の grep が実行に失敗したら 2 にする
-GREP_BIN="${TMP_DIR}/bad-grep"
-mkdir -p "${GREP_BIN}"
-cat >"${GREP_BIN}/grep" <<'EOF'
-#!/usr/bin/env bash
-case "$*" in
-  *href*) exit 2 ;;
-esac
-exec /usr/bin/grep "$@"
-EOF
-chmod 755 "${GREP_BIN}/grep"
-RC=0
-PATH="${GREP_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
-expect "HTML link check fails closed when grep fails" 2 "${RC}"
+# 4d. 全文の検査（記法ごとの解析の前に拒否する）。引用内の参照定義・行をまたぐ HTML の属性・エスケープした括弧の後ろの ..・符号化した ..
+for body in '> [license]: ../LICENSE-MIT' "> [text][license]
+> [license]: ../LICENSE-MIT" '- [license]: ../LICENSE-MIT' '[x](a\)../LICENSE-MIT)' '[x](a\)%2e%2e/LICENSE-MIT)' '[x](&#46;&#46;/LICENSE-MIT)' '[x](&#x2E;&#X2e;/LICENSE-MIT)' '[x](&period;&period;/LICENSE-MIT)' '[x](%252e%252e/LICENSE-MIT)' '[x](\.\./LICENSE-MIT)' '[x](&amp;#46;&amp;#46;/LICENSE-MIT)' '[x](..)' 'see ..'; do
+  dir="$(fresh_copy)"
+  printf '%s\n' "${body}" >>"${dir}/template-workshop/README.md"
+  run_check "${dir}"
+  expect "template README whole-text dotdot rejected: ${body%%$'\n'*}" 1 "${RC}"
+  grep -q 'parent-directory reference' "${TMP_DIR}/stderr.txt" || { echo "not ok - dotdot message missing"; failed=$((failed + 1)); }
+done
+for body in '<a href
+="../LICENSE-MIT">x</a>' '<a href  =
+  "x.md">x</a>' '<IMG SRC
+=x.png>'; do
+  dir="$(fresh_copy)"
+  printf '%s\n' "${body}" >>"${dir}/template-workshop/README.md"
+  run_check "${dir}"
+  expect "template README multi-line HTML attribute rejected: ${body%%$'\n'*}" 1 "${RC}"
+done
+dir="$(fresh_copy)"
+printf 'An ellipsis ... and a path .../x and a sentence end. Next.\n> [ok]: sub/LICENSE-MIT\n' >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README ellipsis and quoted in-directory definition accepted" 0 "${RC}"
 
 # 5. 偽の cargo（検査を完了できない場合は合格にしない）
 FAKE_BIN="${TMP_DIR}/bin"
