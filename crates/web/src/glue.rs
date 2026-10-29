@@ -322,6 +322,12 @@ pub(crate) fn esc_count() -> Option<u32> {
     with_app(|app| app.esc_count())
 }
 
+/// 起動の種類だけ（`EngineHost::boot_kind_str`）。未マウント・借用中は `None`。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn boot_kind() -> Option<String> {
+    with_app(|app| app.boot_kind_str().to_owned())
+}
+
 /// 3 つの表示の照合用の状態（JSON 文字列）。未マウント・借用中は `None`。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn engine_snapshot() -> Option<String> {
