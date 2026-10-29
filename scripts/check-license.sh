@@ -104,7 +104,7 @@ links_leave_dir() {
   : >"${raw}"
   # grep の終了コード 1 は不一致（リンク無し）、2 以上は実行エラー。両者を区別する。
   rc=0
-  grep -oE '\]\([^)]*\)' "${file}" >"${TMP_DIR}/links.inline" || rc=$?
+  grep -oE '\]\((<[^>]*>[^)]*|[^)]*)\)' "${file}" >"${TMP_DIR}/links.inline" || rc=$?
   [ "${rc}" -le 1 ] || return 2
   rc=0
   grep -E '^[[:space:]]*\[[^]]+\]:' "${file}" >"${TMP_DIR}/links.ref" || rc=$?
@@ -141,7 +141,15 @@ links_verdict() {
       return out
     }
     {
-      t = $1; gsub(/^</, "", t); gsub(/>$/, "", t)
+      t = $0; sub(/^[[:space:]]+/, "", t)
+      if (substr(t, 1, 1) == "<") {
+        # 山括弧のリンク先は空白を含みうるため、最初の > までの全体を取る（後ろはタイトル）。閉じが無ければ判定不能で拒否
+        e = index(t, ">")
+        if (e == 0) { bad = 1; next }
+        t = substr(t, 2, e - 2)
+      } else {
+        t = $1
+      }
       sub(/[#?].*$/, "", t)
       if (t == "" || t ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) next
       t = decode(t)

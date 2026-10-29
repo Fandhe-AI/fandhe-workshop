@@ -168,6 +168,17 @@ dir="$(fresh_copy)"
 echo "[x](sub/%2e/LICENSE-MIT) [y](a%20b.md) [z](a/%2e%2e/b.md)" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README encoded links that stay inside are accepted" 0 "${RC}"
+UP='..'
+for ang in "<sub dir/${UP}/${UP}/LICENSE-MIT>" "<sub dir/${UP}/${UP}/LICENSE-MIT> \"title\"" "<a)/${UP}/${UP}/LICENSE-MIT>" "<sub dir/${UP}/${UP}/LICENSE-MIT"; do
+  dir="$(fresh_copy)"
+  echo "[x](${ang})" >>"${dir}/template-workshop/README.md"
+  run_check "${dir}"
+  expect "template README angle-bracket link leaving the directory rejected (${ang})" 1 "${RC}"
+done
+dir="$(fresh_copy)"
+echo '[x](<sub dir/../a b.md>) [y](<a b/c.md> "t u") [z]: <d e/f.md> "t"' >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README angle-bracket links that stay inside are accepted" 0 "${RC}"
 dir="$(fresh_copy)"
 echo "extra" >>"${dir}/LICENSE-MIT"
 run_check "${dir}"
