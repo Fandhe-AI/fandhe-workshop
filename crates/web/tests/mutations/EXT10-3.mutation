@@ -1,0 +1,8 @@
+id: EXT10-3
+package: fandhe-workshop-web
+test: receptor_enabled_safety
+target: crates/web/src/host.rs
+find:         self.consent.revoke(id);
+replace:         self.consent.revoke(id); let _ = self.receptor_activation(id) == Activation::Enabled;
+expect-fail: ext10_web_has_no_gate_consumer_beyond_the_fixed_sites
+note: 有効を読む処理を受け口の外（同意の取り消し）へ足す（有効を読んで振る舞いを変える消費者が増えることを検出する。EXT-10）

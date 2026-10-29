@@ -31,7 +31,7 @@
 //! ```
 //!
 //! 意図して作らないもの: 受け口そのもの・同意を求める画面・配信物で有効にする手段。
-//! 有効にしても任意のコードが実行できず外部通信が増えないことの確認は、2/2（#871）が行う。
+//! 有効にしても任意のコードが実行できず外部通信が増えないことの確認は、`crates/web/tests/receptor_enabled_safety.rs` と `tools/browser/receptor-safety.test.mjs` が行う（TASK-191 2/2）。
 //!
 //! 形を変える場合は、[`RECEPTOR_GATE_CONTRACT_VERSION`] を上げる。
 

@@ -156,6 +156,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "is_scheduled",
     "is_ok_and",
     "engine_snapshot_json",
+    // 受け口の有効・無効の読み取り（試験の設定だけ。TASK-191 2/2）。DOM には触れない。
+    "receptor_activation",
     // 起動の種類の読み取り（試験の設定だけ。TASK-156）。DOM には触れない。
     "boot_kind_str",
     // 開いた直後の状態の読み取り（試験の設定だけ。TASK-175 2/2）。DOM には触れない。
@@ -624,6 +626,8 @@ const MODULE_RULES: &[ModuleRule] = &[
             "kind",
             "for_mount_with",
             "mount_fixture_from_url",
+            // 試験の設定の代役の受け口の有効化（TASK-191 2/2）。ホストへ設定と同意を与えるだけで DOM には触れない。
+            "apply_receptor_probe",
             "boot",
             "block_saving",
             // 変更のたびの保存の口（SAVE-10）。ホストへ結ぶだけで DOM には触れない。
@@ -663,6 +667,13 @@ const MODULE_RULES: &[ModuleRule] = &[
             "autosave_count",
             "secret_hold_count",
             "mount_fixture_from_search",
+            // 代役の受け口の有効化と読み取り（TASK-191 2/2）。ホストの設定・同意と `Activation` の列挙子で、DOM には触れない。
+            "receptor_probe_requested",
+            "with_receptor_settings",
+            "allow",
+            "with_receptor_consent",
+            "receptor_activation_probe",
+            "Disabled",
             // 古いタブかの真偽だけを返す口（SAVE-12。TASK-324 1/2）。
             "stale_tab",
             "last_import_state",

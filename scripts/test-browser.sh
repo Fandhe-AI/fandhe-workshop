@@ -12,6 +12,7 @@
 # （csp-runs。SAFE-13。TASK-151 2/2。CH-4〜CH-9 の形の 17 Step の通しで章ごとの配信元以外への通信 0 件を数える T5・D2 を含む。
 # TASK-674 2/2。docs/testing.md 5.285）を含む。
 # 受講者の入力・履歴を外部へ送らないことの通信の計数（egress-count と記録器の単体試験 egress。SAFE-16。TASK-153。docs/testing.md 5.371）を含む。
+# 受け口を有効にしても安全性が変わらないことの差分試験（receptor-safety。試験の設定の ?receptor=probe の無効・有効で SAFE-5・SAFE-7 の入力と外部通信の計数が一致。EXT-10・D-53。TASK-191 2/2。docs/testing.md 5.383）を含む。
 # 自然文を送っても通信が 0 件で、自己確認の観点（free_text_unjudged の注記）が応答の行に出る試験（free-text-egress。EXT-3・SAFE-16。TASK-185 2/2。docs/testing.md 5.382）を含む。
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）と、信頼できない入力への安全性の観察の記録
 # （safety-observe。BUILD-4。TASK-79 2/2。観察値は assert せず diagnostic に残し、完走して終了コード 0 になることを関門にする）を含む。
@@ -125,6 +126,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/csp-runs.test.mjs" \
   "${ROOT_DIR}/tools/browser/egress.test.mjs" \
   "${ROOT_DIR}/tools/browser/egress-count.test.mjs" \
+  "${ROOT_DIR}/tools/browser/receptor-safety.test.mjs" \
   "${ROOT_DIR}/tools/browser/free-text-egress.test.mjs" \
   "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-subpath.test.mjs" \

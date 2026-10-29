@@ -343,6 +343,17 @@ pub(crate) fn export_live() -> Option<crate::history_export::ExportGate> {
     with_app(EngineHost::export_live)
 }
 
+/// 受け口の有効・無効（読み取りのみ。TASK-191 2/2）。未マウント・借用中は `None`。
+///
+/// `test_hooks::debug_receptor_activation` だけが呼ぶ。有効を読んで振る舞いを変える消費者ではなく、試験が有効になっていることを
+/// 確かめる錨である（`tests/receptor_enabled_safety.rs` が読み取りの識別子の出現を固定の件数に限る）。
+#[cfg(feature = "test-hooks")]
+pub(crate) fn receptor_activation_probe(
+    id: fandhe_workshop_core::receptor_gate::ReceptorId,
+) -> Option<fandhe_workshop_core::receptor_gate::Activation> {
+    with_app(|app| app.receptor_activation(id))
+}
+
 /// 直近に開いた履歴の、開いた直後の状態の JSON。開いていない・未マウント・借用中は `None`。
 #[cfg(feature = "test-hooks")]
 pub(crate) fn last_import_state() -> Option<String> {

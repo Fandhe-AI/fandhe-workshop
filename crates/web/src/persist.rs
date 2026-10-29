@@ -299,6 +299,9 @@ pub fn mount_with_history(
         Some(Box::new(LocalStore::new())),
     );
     let Some(key) = host.history_key(delivery_scope()) else {
+        // 復元の経路が無いため、`boot` の後という順序の制約は無い（試験の設定の代役の受け口。TASK-191 2/2）。
+        #[cfg(feature = "test-hooks")]
+        let host = crate::test_hooks::apply_receptor_probe(host);
         return match crate::glue::mount_host(root_id, host) {
             Ok(()) => js_sys::Promise::resolve(&JsValue::UNDEFINED),
             Err(e) => js_sys::Promise::reject(&e),
@@ -378,6 +381,9 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
     }));
     host.set_save_failure_probe(Box::new(async_save_failure));
     host.set_stale_probe(Box::new(stale_tab));
+    // 同意は保存しない（D-53）ため、履歴の復元（`boot`）の後に与える。試験の設定の代役の受け口だけ（TASK-191 2/2）。
+    #[cfg(feature = "test-hooks")]
+    let host = crate::test_hooks::apply_receptor_probe(host);
     crate::glue::mount_host(root_id, host)?;
     SAVE_KEY.with(|k| {
         if let Ok(mut slot) = k.try_borrow_mut() {

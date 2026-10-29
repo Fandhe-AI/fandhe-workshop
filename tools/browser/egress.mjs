@@ -30,7 +30,7 @@ export function relPath(pathname, base) {
 }
 
 // 試験が開くページの固定クエリの鍵。値は短い識別子の形に限る（履歴などの長い値を載せた文書要求を通さない）。
-const PAGE_QUERY_KEYS = new Set(['fixture', 'start', 'ir', 'tick']);
+const PAGE_QUERY_KEYS = new Set(['fixture', 'start', 'ir', 'tick', 'receptor']);
 const PAGE_QUERY_VALUE = /^[A-Za-z0-9._\/-]{0,64}$/;
 
 // クエリつきの要求を許すのは、メインフレームの文書要求で、試験のページ（'' か index.html）への固定の鍵・短い値だけ。

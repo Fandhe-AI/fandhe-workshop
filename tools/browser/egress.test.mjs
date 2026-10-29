@@ -38,6 +38,7 @@ test('負の対照: iframe（サブフレーム）の文書要求・他のパス
   assert.equal(req(`${O}${B}?fixture=${hist}`, 'GET', 'document', true), 'offAllowlist');
   // 正の対照
   assert.equal(req(`${O}${B}?fixture=ch0-3-chapters&start=st-1`, 'GET', 'document', true), 'ok');
+  assert.equal(req(`${O}${B}?fixture=ch0-3-chapters&receptor=probe`, 'GET', 'document', true), 'ok');
 });
 
 test('構成要素以外のパスと base の外は offAllowlist', () => {
