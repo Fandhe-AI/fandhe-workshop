@@ -161,7 +161,7 @@ test('oversize: IR・履歴の上限の前後の文字列を関門に渡した�
         log(t, 'oversize', `${entry} ${label} bytes=${size} ok=${r.out.ok} stage=${r.out.stage ?? '-'} reason=${r.out.reason ?? '-'} ms=${r.ms}`);
       }
     }
-    log(t, 'oversize', '10 倍の水準は入れない（CI のメモリと時間）。TASK-154（#855）・TASK-155 で育てる');
+    log(t, 'oversize', '10 倍の水準は入れない（CI のメモリと時間）。IR は ir-size-limit.test.mjs（TASK-154）、履歴は TASK-155 で扱う');
 
     // 入力 1 回: 20,000・20,001 文字。
     for (const n of [20000, 20001]) {
