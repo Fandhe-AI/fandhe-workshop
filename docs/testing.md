@@ -10462,7 +10462,7 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 |---|---|---|
 | native | `crates/core/tests/shape_mismatch.rs` | 100 万・500 万要素の配列（A1・A5）、全体が上限ちょうどの文字列（S）、巨大な連想配列（M）が、IR は `malformed`、履歴は `missing_version` で 1 秒未満に断られる。形の合う対照（`step.lo` が 100,000 要素）は `load_ir` が通る |
 | ブラウザ | `tools/browser/shape-mismatch.test.mjs` | IR の経路は ir-size-limit と同じ自前サーバで `/ir/main.json` を差し替える。履歴の経路は ops-limit と同じ試験の口（`importInstall`・`history-file`）。通知が 1 件で理由のコードが出る・入力の値は画面に出ない・通知までと長いタスクの最大が 1 秒未満・断った後に状態・入力欄・保存先が変わらず操作が効く・外部通信と CSP 違反とページ内エラーが 0 件 |
-| 変異 | `SAFE24-1` | 型の不一致を構文の誤りとして返す誤り（理由が `malformed` でなくなる）。native の `ir_shapes_are_malformed_within_a_second` が捉える（DETECTED） |
+| 変異 | `SAFE24-1` | 型の不一致を構文の誤りとして返す誤り（理由が `malformed` でなくなる）。native の `ir_shapes_are_malformed_within_budget` が捉える（DETECTED） |
 
 #### 入力
 

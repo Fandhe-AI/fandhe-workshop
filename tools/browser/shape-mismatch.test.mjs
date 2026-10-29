@@ -209,8 +209,9 @@ function withTitle(n) {
   return Buffer.from(JSON.stringify(ir));
 }
 
-for (const [id, body] of [['IR-lo', withLo(100_000)], ['IR-title', withTitle(100_000)]]) {
+for (const [id, make] of [['IR-lo', () => withLo(100_000)], ['IR-title', () => withTitle(100_000)]]) {
   test(`IR ${id}: 形の合う 100,000 要素・文字の入力は開く`, async (t) => {
+    const body = make();
     const r = await runIr(body, { expectNotice: false });
     t.diagnostic(`shape=${id} entry=ir bytes=${body.length} longtask_max_ms=${Math.round(r.long.max)}`);
     assert.equal(r.notices, 0);
