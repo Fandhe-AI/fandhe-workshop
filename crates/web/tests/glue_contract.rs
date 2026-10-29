@@ -156,6 +156,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "is_scheduled",
     "is_ok_and",
     "engine_snapshot_json",
+    // 起動の種類の読み取り（試験の設定だけ。TASK-156）。DOM には触れない。
+    "boot_kind_str",
     // 開いた直後の状態の読み取り（試験の設定だけ。TASK-175 2/2）。DOM には触れない。
     "last_import_state_json",
     "for_mount",
@@ -667,6 +669,9 @@ const MODULE_RULES: &[ModuleRule] = &[
             "keydown_probe_count",
             "draft_snapshot",
             "engine_snapshot",
+            // 起動の種類・件数指定の履歴の読み取り（TASK-156）。DOM には触れない。
+            "boot_kind",
+            "ops_count_loadable_envelope",
             "is_mounted",
             "check_json_depth",
             "parse_json_value",

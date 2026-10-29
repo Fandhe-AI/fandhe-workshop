@@ -1425,9 +1425,49 @@ pub(crate) fn large_loadable_envelope(
     build_envelope(&ir, &env.start, ops, state).ok()
 }
 
+/// ちょうど `n` 件の `ops` を持つ、開ける履歴の包み（TASK-156・SAFE-19）。
+///
+/// 試料の `ops` の後ろに、本文が `text_len` 文字の誤った入力の送信を `n` 件になるまで足し、適用し直して包み直す
+/// （写しが一致するので段 8 で `replay_mismatch` にならない）。試料の件数より少ない `n` は `None` を返し、
+/// 黙って別の件数にしない。受講者のデータではない。
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) fn ops_count_loadable_envelope(
+    n: usize,
+    text_len: usize,
+) -> Option<fandhe_workshop_core::history_envelope::SessionEnvelope> {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_replay::replay;
+    use fandhe_workshop_core::ops_record::SessionOp;
+
+    let ir = load_ir(IR).ok()?;
+    let env = two_rounds_envelope()?;
+    let mut ops = env.ops;
+    if n < ops.len() {
+        return None;
+    }
+    let text = format!("/{}", "z".repeat(text_len));
+    while ops.len() < n {
+        ops.push(SessionOp::Submit(text.clone()));
+    }
+    let state = replay(&ir, start_state_at(SAMPLE_START)?, &ops).ok()?;
+    build_envelope(&ir, &env.start, ops, state).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn 件数指定の履歴はちょうどその件数で開ける形になる() {
+        use fandhe_workshop_core::history_limit::check_save;
+        for n in [19_990, 20_000] {
+            let env = ops_count_loadable_envelope(n, 16).expect("envelope");
+            assert_eq!(env.ops.len(), n);
+            let bytes = fandhe_workshop_core::history_export::export_bytes(&env).unwrap();
+            assert!(check_save(bytes.len(), env.ops.len()).is_ok(), "{n}");
+        }
+        assert!(ops_count_loadable_envelope(0, 16).is_none());
+    }
 
     #[test]
     fn 完全一致のクエリだけが_8_step_の教材を選ぶ() {

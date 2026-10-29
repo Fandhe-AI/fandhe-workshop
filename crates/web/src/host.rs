@@ -1628,6 +1628,14 @@ impl EngineHost {
         self.input.over_limit()
     }
 
+    /// 起動の種類（`bootKind`）だけを返す。未定なら空文字列（読み取りのみ。TASK-156）。
+    ///
+    /// 状態の全体の直列化を避けて、2 万件の履歴を開く時間の計測を歪めないための口。
+    #[cfg(feature = "test-hooks")]
+    pub fn boot_kind_str(&self) -> &'static str {
+        self.boot_kind.map(BootKind::as_str).unwrap_or("")
+    }
+
     /// 3 つの表示の照合用の状態を JSON 文字列で返す（読み取りのみ。試験の設定だけ）。
     ///
     /// 表示の導出（増分）とは別に、ログの全体から一括で導いた値を出す。ブラウザ試験が、DOM がこの値と
