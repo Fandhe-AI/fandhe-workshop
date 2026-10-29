@@ -99,6 +99,7 @@ TASK-24 が置く `cargo metadata` の検査は、上表の禁止を機械的に
 |---|---|---|
 | `Session`、`apply(状態, 入力) → (新しい状態, イベント列)`、`Input`・`Control`・イベント（`Changed`・`Refused`・`Judged`・`HintOpened` など）、Step の状態、`Projection`、宛先、世代、`RunState` | core | TASK-204 |
 | 状態変化の提供元の境界（トレイト） | core | TASK-187 |
+| 受け口の有効化の関門（`receptor_gate::activation`。実行環境の設定 `ReceptorSettings` と受講者の同意 `LearnerConsent` の両方があるときだけ有効で、既定は無効。IR・教材を入力に取らず、serde を実装しない。web の `EngineHost` が既定値を持ち、同意は保存しない。EXT-10・D-53。版は `RECEPTOR_GATE_CONTRACT_VERSION` で別に持つ） | core・web | TASK-191 |
 | 受講者の OS の推定（`learner_os::estimate`・`LearnerOs`。User-Agent の部分一致の純関数で、履歴・`Session` には入れない）。修飾キーの語と案内文（`modifier_key`）と `key-hint` の束縛は web が持つ。受講者が選ぶ欄（`os-select`・`data-action-change="os"`・`HelloAction::SetOs`）で表示を切り替えられ、選んだ値は保存しない。JUDGE-28 | core（推定）・web（表示） | TASK-285 |
 | 秘密情報らしい文字列の検出（`secret_scan`。固定の 15 形（SAFE-27 の 10 形と SAFE-30 の 5 形）・値を持たない `Finding`。純関数で、保存の直前の警告は web の `secret_notice`・`host`・`persist` が、書き出しの関門（`EngineHost::export_live`）と、警告の選択（「このまま保存する」の確認済みの除外・「この入力を残さない」の読み直し。確認済みは形と指紋だけを持つ）は web の `host` が持ち、教材を取り込むときの検査は pack が再利用する）。SAFE-27 | core | TASK-164 |
 | 履歴の読み込みの段 1〜8 の入口（`history_load::load_history`。段 1〜3 は `parse_history_json`、段 4 の 3 条件・型・件数は `parse_history_envelope`、段 5 の後半〜段 8 は `open_history` を呼ぶ） | core | TASK-331 |
@@ -299,3 +300,4 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-23: 第 6 節の置き場の表に、案内レベル別の本文の木の選択（`body_level`。TASK-292）を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-23: 第 5 節の 1 と 2 に、不変条件ごとの検査の所在（TASK-206。右と左の分離の試験 `pane_isolation.rs` を含む）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-28: 第 8 節の `template-workshop/` に、ライセンス表記だけを置いた旨（TASK-130）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+- 2026-10-29: 第 6 節の置き場の表に、受け口の有効化の関門（`receptor_gate`。TASK-191 1/2）を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く

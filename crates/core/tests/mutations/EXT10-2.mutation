@@ -1,0 +1,8 @@
+id: EXT10-2
+package: fandhe-workshop-core
+test: receptor_gate
+target: crates/core/src/receptor_gate.rs
+find:     if !settings.allows(id) {
+replace:     if !consent.has(id) && !settings.allows(id) {
+expect-fail: ext10_consent_without_settings_is_disabled
+note: 同意だけで有効にする（実行環境の許可が要るという規則と既定の無効を見分ける）

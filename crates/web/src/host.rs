@@ -79,6 +79,9 @@ use fandhe_workshop_core::input::{Control, Decision, Input, Op};
 use fandhe_workshop_core::ir_load::IrLoadError;
 use fandhe_workshop_core::learner_os::LearnerOs;
 use fandhe_workshop_core::ops_record::OpsRecorder;
+use fandhe_workshop_core::receptor_gate::{
+    self, Activation, LearnerConsent, ReceptorId, ReceptorSettings,
+};
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log_at};
 use fandhe_workshop_core::version_record::record_versions;
@@ -666,6 +669,11 @@ pub struct EngineHost {
     /// 変換して開いた通知（`shell-notice`。TASK-535 1/2。SHELL-20）を出すか。表示の状態で、`ops`・履歴・保存先には書かない。
     /// 実行環境の差し替え（`install_recorded`）で一度消し、変換して開いたときだけ立て直す。
     version_notice: bool,
+    /// 受け口を許す実行環境の設定（TASK-191 1/2。EXT-10・D-53）。合成の根だけが組み立てる。既定は空（無効）で、
+    /// action・URL・IR・履歴のどこからも変えられず、`ops`・履歴・保存先には書かない。
+    receptors: ReceptorSettings,
+    /// 受け口への受講者の同意。表示の状態と同じく保存せず、実行環境の差し替え（`install_recorded`）で未同意に戻す。
+    consent: LearnerConsent,
     /// Chrome 以外のブラウザへの案内（SHELL-30・D-74。TASK-544）を出すか。表示の状態で、履歴・保存先（履歴の鍵）には書かない。
     /// 実行環境の差し替えでは消さない（ブラウザは変わらないため）。閉じた記録は `browser_store` に書く。
     browser_notice: bool,
@@ -801,6 +809,8 @@ impl EngineHost {
             input: HelloView::new(),
             pane: PaneTab::Ops,
             version_notice: false,
+            receptors: ReceptorSettings::default(),
+            consent: LearnerConsent::default(),
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
@@ -935,6 +945,8 @@ impl EngineHost {
             input,
             pane: PaneTab::Ops,
             version_notice: false,
+            receptors: ReceptorSettings::default(),
+            consent: LearnerConsent::default(),
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
@@ -1944,6 +1956,29 @@ impl EngineHost {
         Some((versions, caps))
     }
 
+    /// 受け口の設定を差し替える。合成の根からだけ使う（action・`raw`・URL・`mount_app` の引数には結線しない。
+    /// 配信する設定で有効にする経路は無い。EXT-10・D-53）。
+    #[must_use]
+    pub fn with_receptor_settings(mut self, settings: ReceptorSettings) -> Self {
+        self.receptors = settings;
+        self
+    }
+
+    /// 受け口への受講者の同意を記録する（同意を求める画面は未実装）。世界状態・`ops` を変えない。
+    pub fn grant_receptor_consent(&mut self, id: ReceptorId) {
+        self.consent.grant(id);
+    }
+
+    /// 受け口への同意を取り消す。
+    pub fn revoke_receptor_consent(&mut self, id: ReceptorId) {
+        self.consent.revoke(id);
+    }
+
+    /// 受け口の有効・無効（既定は無効）。
+    pub fn receptor_activation(&self, id: ReceptorId) -> Activation {
+        receptor_gate::activation(&self.receptors, &self.consent, id)
+    }
+
     /// 開いた履歴の実行環境に差し替え、導出した値・dirty・進行の宛先を作り直す。
     ///
     /// 下書きの記録の基準は空に戻す。入力欄に文字が残っていれば、次の操作で新しい記録の先頭に下書きとして記録される。
@@ -1962,6 +1997,8 @@ impl EngineHost {
         // 拒否の文面の控えはイベントの位置がキーのため、差し替え前の控えを残さず新しいログから作り直す。
         self.model.judged_texts = d.judged_texts;
         self.model.view_choice = None;
+        // 同意は保存しない。読み込んだ履歴・新しい始まりは常に未同意から始める（無効が既定。D-53）。
+        self.consent = LearnerConsent::default();
         // 差し替えた履歴では、前の案内も初回の印も持ち越さない。
         self.model.export_hint = None;
         self.model.secret_warning = Vec::new();

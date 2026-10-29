@@ -48,6 +48,7 @@
 //! 案内レベル別の本文の木の選択と濃い側への倒れ（[`body_level`]、TASK-292、GUIDE-1）も持つ。
 //! 現在の Step と案内レベルで出せるヒントの一覧（[`hint_select`]、TASK-293、GUIDE-2）も持つ。
 //! ヒントを 1 段開く操作と上限・Step 無しでの拒否（`hint_open`、TASK-295、GUIDE-17。公開しない）も持つ。
+//! 将来の受け口の有効化の規則（[`receptor_gate`]、TASK-191 1/2、EXT-10・D-53。実行環境の設定と受講者の同意の両方を要し、既定は無効）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
 
@@ -91,6 +92,7 @@ pub mod load_gate;
 pub mod ops_record;
 pub mod projection;
 pub mod provider;
+pub mod receptor_gate;
 pub mod recorded_session;
 mod reject_guard;
 pub mod rejection_text;
@@ -141,4 +143,5 @@ pub use value_limits::check_value_limits;
 /// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
+/// 受け口の有効化の関門の版は [`receptor_gate::RECEPTOR_GATE_CONTRACT_VERSION`] で別に持つ。
 pub const CONTRACT_VERSION: u32 = 6;
