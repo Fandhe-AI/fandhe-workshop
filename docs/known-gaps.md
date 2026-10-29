@@ -462,3 +462,15 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 回避: 本物の教材（教材 repo の CH-0〜CH-15）の実装の後に、試験の IR と操作列を差し替えて流し直す。
 
 根拠の試験: `crates/web/tests/history_size_all_chapters.rs`。記録は `docs/testing.md` の 5.345。
+
+## SAFE-16: 通信の計数の範囲
+
+状態: 受講者の入力・履歴を外部へ送らないことは、試験用の教材の形（CH-0〜CH-3 の 20 Step）と静的な検査で確かめた（TASK-153。`docs/testing.md` 5.371）。次は確かめていない。
+
+- 本物の CH-0〜CH-15 と、2 周目の形の試験用の教材での計数（教材 repo の公開後に IR と操作列を差し替えて流し直す）
+- 履歴の削除の操作（SAVE-32・SHELL-38。TASK-539）での計数（実装後に `egress-count.test.mjs` へ場面を足す）
+- L2（miniserve）の配布物での計数（`l2-run` 側の外部通信の扱いに委ねる）
+- Chrome の原本での計数（CI は Chromium で流す）
+- 静的な検査の限界: `web-sys` の `Navigator` の feature は拒否できず、`sendBeacon` は glue の検査と実行時の計数が受け持つ。`js_sys::Reflect` などによる動的な API の参照は静的には排除できず、実行時の計数が受け持つ。`HtmlImageElement` の `src` による画像の取得は feature では区別できず、`external`（route で abort した要求）と CSP 違反の計数が受け持つ
+
+回避: 上の項目が揃った時点で、同じ試験へ場面を足す。

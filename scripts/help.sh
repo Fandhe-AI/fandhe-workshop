@@ -25,6 +25,9 @@ cat <<'EOF'
   test-check-deps              scripts/test-check-crate-deps.sh        依存の向きの検査自体の回帰テスト
   check-license                scripts/check-license.sh                全 crate の license が MIT OR Apache-2.0 で、直下に 2 つのライセンスの本文があることを検査する
   test-check-license           scripts/test-check-license.sh           ライセンス表記の検査自体の回帰テスト
+  check-no-egress              scripts/check-no-egress.sh              依存に通信・学習分析の手段（crate・web-sys の feature・npm の依存）が無いことを検査する
+  check-no-egress-dist         scripts/check-no-egress.sh              配信物（先に make build-web）に通信の手段が無いことを検査する
+  test-check-no-egress         scripts/test-check-no-egress.sh         通信の手段の検査自体の回帰テスト（ビルドなし）
   check-testdata               scripts/check-testdata-refs.sh          repo の外への相対参照が 0 件であることを検査する
   test-check-testdata          scripts/test-check-testdata-refs.sh     参照の検査自体の回帰テスト
   check-mutation-defs          scripts/check-mutation-defs.sh          変異の定義の find の一意性と expect-fail の名前の実在を静的に検査する
