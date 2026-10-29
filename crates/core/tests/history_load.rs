@@ -1057,6 +1057,22 @@ fn max_ops_history_opens_within_a_loose_bound() {
     assert!(d < Duration::from_secs(10), "{d:?}");
 }
 
+/// 上限未満（19,990 件）の、誤った入力の送信を実際に記録した履歴が、全段を通って開く（TASK-156）。
+/// 1 秒の表明はブラウザの試験 `ops-limit` が持ち、ここでは緩い上限と実測の記録だけを持つ。
+#[test]
+fn real_ops_19990_history_opens() {
+    let b = wrong_input_history(MAX_OPS - 10, 16);
+    let d = timed_open(&b);
+    eprintln!(
+        "replay: ops={} bytes={} elapsed={d:?}",
+        MAX_OPS - 10,
+        b.len()
+    );
+    let v: Value = serde_json::from_slice(&b).expect("parse");
+    assert_eq!(v["ops"].as_array().map(Vec::len), Some(MAX_OPS - 10));
+    assert!(d < Duration::from_secs(10), "{d:?}");
+}
+
 /// 適用し直しの費用が件数に比例する（二乗にならない）。計時の揺れを避けるため、各件数で 3 回測った最小値を比べる。
 #[test]
 fn replay_cost_grows_linearly_with_op_count() {

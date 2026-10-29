@@ -268,6 +268,15 @@ jobs:
           make check-license
           make test-check-license
 
+      # 受講者の入力・履歴を外部へ送る手段が依存に無いことの機械検査（SAFE-16・TASK-153。仕様上の人間の承認点）。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      # 配信物の検査（dist）は browser-test の make test-build-web が実ビルドに対して流す。
+      - name: make check-no-egress
+        run: |
+          set -euo pipefail
+          make check-no-egress
+          make test-check-no-egress
+
       # CI の関門（DOM 読み取りの例外件数の固定。仕様上の人間の承認点）。既存ジョブへの step 追加のため、
       # ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
       - name: make check-dom-reads

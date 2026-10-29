@@ -1,0 +1,11 @@
+id: SAFE17-1
+package: fandhe-workshop-core
+test: ir_size
+target: crates/core/src/load_gate.rs
+find: if len > max_bytes(entry) {
+replace: if len >= max_bytes(entry) {
+expect-fail: exact_limit_is_not_rejected_by_size
+expect-fail: valid_ir_padded_to_exact_limit_loads
+expect-fail: limit_neighborhood_is_judged_exactly
+expect-fail: size_rule_holds_for_any_length
+note: ちょうど 20MB の IR を断る誤り
