@@ -161,6 +161,8 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/xss-cases.test.mjs" \
   "${ROOT_DIR}/tools/browser/log-lines-xss.test.mjs" \
   "${ROOT_DIR}/tools/browser/pack-body-xss.test.mjs" \
+  "${ROOT_DIR}/tools/browser/e2-ir.test.mjs" \
+  "${ROOT_DIR}/tools/browser/structure-xss.test.mjs" \
   "${ROOT_DIR}/tools/browser/error-inputs.test.mjs" \
   "${ROOT_DIR}/tools/browser/reject-lines.test.mjs" \
   "${ROOT_DIR}/tools/browser/reject-keeps-draft.test.mjs" \
