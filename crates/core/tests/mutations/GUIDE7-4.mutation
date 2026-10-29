@@ -1,0 +1,9 @@
+id: GUIDE7-4
+package: fandhe-workshop-core
+test: hint_count_monotone
+target: crates/core/src/checkpoint.rs
+find:     state.entry = entry;
+replace:     state.entry = entry; state.hints_opened.clear();
+expect-fail: restore_to_checkpoint_saved_before_hints_keeps_counts
+expect-fail: property_hint_counts_never_decrease
+note: 復帰がヒントの使用回数を消す

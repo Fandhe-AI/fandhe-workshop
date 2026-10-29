@@ -10727,5 +10727,15 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 決定: 鍵は 5.251 の時点から完全な uid で、分離は既存の実装で成り立っていた。本節が足したのは読み取り口（`SessionState::hints_opened_at`・`hints_opened_in`。`Session`・`RecordedSession` は委ねるだけ）と固定の試験である。欄の型・直列化・`CONTRACT_VERSION` は変えない。「接頭辞」は `StepUid::root` との完全一致で判定し、前方一致にしない（`m@r1` が `m@r10/..` に混ざらないため）。和は飽和加算。入れ子の根の文言の食い違いは #1413（本件の範囲外）。
 - 試験: core `crates/core/tests/hint_instance_key.rs`（根をまたいで混ざらない・`m@r10` の境界・同じ根の Step の合計・欄なしは 0・飽和・イベントの印の根・性質テスト 1,000 件）、pack `crates/pack/tests/round_hints.rs`（`module-reuse-rounds` で 2 周目の開始の直後に 2 周目の根の合計が 0・項目 0 件、2 周目で開いても 1 周目の合計が変わらず、戻ると元の値）。
 - 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE7-1.mutation crates/core/tests/mutations/GUIDE7-2.mutation`。結果は下の「実行結果」）: GUIDE7-1 は鍵から根を落とす、GUIDE7-2 は根の比較を前方一致にする。
-- 限界: pack の試験は共通の計画（`GoTo` で飛ばす）に依り、真の通しとは経路が違いうる。停止・復帰・移動で減らないことの網羅と送信 0 件の計数は TASK-297 2/2（#874）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+- 限界: pack の試験は共通の計画（`GoTo` で飛ばす）に依り、真の通しとは経路が違いうる。停止・復帰・移動で減らないことの網羅と送信 0 件の計数は 5.385。試験と実装の作成者は同じ AI で、人の確認は得ていない。
 - 実行結果（2026-10-29。元にした実装は base 45ada777 の上の本変更）: GUIDE7-1・GUIDE7-2・GUIDE17-4（鍵の整理で `find` を直した）はいずれも DETECTED（性質テストは cases=1000、GUIDE7-1 の最小の入力は `[Open]`、GUIDE7-2 は `[Go(4), Open]`）。core `hint_instance_key` は 7 件、pack `round_hints` は 2 件が合格。
+
+### 5.385 ヒントの使用回数が減らず外部へ送られないことを固定する（TASK-297 2/2。GUIDE-7・SAFE-16）
+
+- 目的: 開いたヒントの段数が、停止（処理中・取り消し）・復帰・移動・周回の開始・再読み込み・拒否で減らず鍵も消えないこと、使用回数を持った状態の操作で通信の試みが全区分 0 件であること、手元の履歴（`snapshot.hints_opened`・`ops` の `open_hint`）に残ることを固定する。
+- 決定: 本番のコードは変えない。`hints_opened` は `run` の外にあり、停止・復帰・移動は `run` と入口の写しだけを戻すため、構造上減らない。`apply` に「減ったら戻す」関門は足さない（今の経路で減るものが無い・関門があると分岐側の誤りを入れる変異が隠れる・操作ごとに複製の費用が増える）。
+- 既存の表明の棚卸し: `checkpoint_restore`・`begin`・`stop_restore`・`move_step`・`reload_after_control`・`reload_points`・`reject_invariant` が一部の分岐で表明していた。本節で分岐ごとに 1 ファイルへそろえた。書き出し → 読み込みの往復は `round_restore_property`（5.341）が状態の全体で確かめるので重複させない。
+- 試験: core `crates/core/tests/hint_count_monotone.rs`（処理中の停止・取り消し・保存前への復帰・別の Step への移動と戻り・開始 ID の拒否・再読み込み・拒否された入力の各 1 件と、`OpenHint`・`Stop`・`Save`・`Restore`・`GoTo`・`reload` を混ぜた性質テスト 1,000 件。操作の前に使用回数が空でないことを表明する）、pack `crates/pack/tests/round_hint_counts.rs`（2 周の教材での S-4: 固定・誘導の各 1,000 件で毎操作の前後と再読み込みで減らない。ヒントが開いた状態で停止・復帰・移動・周回の開始が各 1 件以上流れることも表明）、ブラウザ `tools/browser/egress-count.test.mjs` の G3（試験の設定。`raw-trigger` で開く・保存・移動・復帰・戻りを送り、再読み込み・書き出し・別のオリジンでの読み込みを挟む。区間ごとに非減少、書き出しの `snapshot.hints_opened` の一致と `ops` の `open_hint` が 2 件、A・B の全区分 0、CSP あり・なしの両方）。
+- 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE7-3.mutation crates/core/tests/mutations/GUIDE7-4.mutation crates/core/tests/mutations/GUIDE7-5.mutation crates/pack/tests/mutations/GUIDE7-6.mutation`）: GUIDE7-3 は処理中の停止で使用回数を消す、GUIDE7-4 は復帰で消す、GUIDE7-5 は移動で移動先以外を落とす、GUIDE7-6 は周回の開始で消す。
+- 限界: 処理中の停止は core の決定的な試験だけが持つ（性質テストの IR は処理中にならない）。ブラウザは試験の設定の `raw-trigger` の経路で、配信する設定の画面でヒントを開く操作は TASK-530 の後に足す。書き出しのダウンロード（blob への遷移）は `nonHttp` に数えられるため、G3 は安全性の計数を書き出しの前に取る。`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが対象。5.383 の前例）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+- 実行結果（2026-10-29。base 755eefbb の上の本変更）: GUIDE7-3〜GUIDE7-6 はいずれも DETECTED（最小の入力は GUIDE7-4 が `[Save, Open, Restore(1)]`、GUIDE7-5 が `[Open, Go(1)]`、GUIDE7-6 が `Case { setup: T0, specs: [Hint, Begin(2)] }`。GUIDE7-3 は性質テストでは検出できず、決定的な試験が検出）。core `hint_count_monotone` は 8 件、pack `round_hint_counts` は 3 件が合格。G3 は CSP あり・なしで合格。

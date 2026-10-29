@@ -1,0 +1,9 @@
+id: GUIDE7-6
+package: fandhe-workshop-pack
+test: round_hint_counts
+target: crates/core/src/begin.rs
+find:     state.run.completed = false;
+replace:     state.run.completed = false; state.hints_opened.clear();
+expect-fail: s4_hint_counts_never_decrease_fixed_generation
+expect-fail: s4_hint_counts_never_decrease_guided_generation
+note: 周回の開始が前の周回のヒントの使用回数を消す

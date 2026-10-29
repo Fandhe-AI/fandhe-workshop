@@ -1,0 +1,8 @@
+id: GUIDE7-3
+package: fandhe-workshop-core
+test: hint_count_monotone
+target: crates/core/src/stop.rs
+find:     state.run = run;
+replace:     state.run = run; state.hints_opened.clear();
+expect-fail: stop_while_busy_keeps_hint_counts
+note: 処理中の停止がヒントの使用回数を消す（run の外に置く構造が崩れた場合）
