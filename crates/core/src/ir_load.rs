@@ -11,15 +11,19 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use fandhe_workshop_contract::ir::{is_supported_ir_format, Ir, SUPPORTED_IR_FORMATS};
-use fandhe_workshop_contract::limits::{LimitReason, LoadEntry};
+use fandhe_workshop_contract::limits::{IrValueLimitReason, LimitReason, LoadEntry};
+use serde::Deserialize;
 
 use crate::load_gate::{check_limits, parse_json_value, LoadError};
+use crate::value_limits::check_value_limits;
 
 /// IR を読めない理由。メッセージには ID だけを含め、IR の本文は含めない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IrLoadError {
     /// 大きさまたは入れ子の上限を超えた（解析前に判定する）。
     Limit(LimitReason),
+    /// 型は合うが、配列・連想配列の要素数か文字列の長さが上限を超えた（SAFE-25。TASK-162）。
+    ValueLimit(IrValueLimitReason),
     /// JSON として解釈できない、または欄が合わない（分類だけで、入力値・位置は含まない）。
     Json(String),
     /// `format_version` が未対応。
@@ -49,6 +53,7 @@ impl fmt::Display for IrLoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             IrLoadError::Limit(r) => write!(f, "IR rejected: {r}"),
+            IrLoadError::ValueLimit(r) => write!(f, "IR rejected: {r}"),
             IrLoadError::Json(m) => write!(f, "invalid IR JSON: {m}"),
             IrLoadError::FormatVersion(v) => write!(f, "unsupported format_version: {v}"),
             IrLoadError::PackIrFormat(v) => write!(f, "unsupported pack.ir_format: {v}"),
@@ -88,6 +93,7 @@ impl IrLoadError {
         };
         match self {
             IrLoadError::Limit(r) => r.as_str(),
+            IrLoadError::ValueLimit(r) => r.as_str(),
             IrLoadError::Json(m) if m == SYNTAX_ERROR => "not_json",
             IrLoadError::Json(_)
             | IrLoadError::DuplicateUid(_)
@@ -151,13 +157,22 @@ fn probe_version(value: &serde_json::Value) -> Option<IrLoadError> {
 ///
 /// 判定は契約の順（大きさ、入れ子の深さ、JSON の解釈、型・内容）に行う。最初の 3 段は共有の関門に任せ、
 /// 解釈と `Ir` への変換を分ける（`from_slice::<Ir>` の 1 回だと、構文の誤りより先に型の誤りが返りうる）。
-/// 型・内容の段の中では、版の先読み、型付きの変換、版の整合、参照の整合の順に確かめる（先読みの理由は
+/// 型・内容の段の中では、版の先読み、値の上限（要素数・文字列長。型が合うときだけ。合わなければ `malformed`）、型付きの変換、版の整合、参照の整合の順に確かめる（先読みの理由は
 /// [`probe_version`]）。拒否する側に倒す。確かめるのは、JSON の形（未知の欄を含む）・`format_version`・`pack.ir_format`（1 と 2 を読む。
 /// 2 つは同じ値で、版 2 の欄を使うなら 2）・`uid` の重複・開始と遷移の宛先の解決である。
 pub fn load_ir(bytes: &[u8]) -> Result<Ir, IrLoadError> {
     let value = parse_json_value(LoadEntry::Ir, bytes).map_err(from_gate)?;
     if let Some(e) = probe_version(&value) {
         return Err(e);
+    }
+    // 値の上限（SAFE-25）は型の段の後に数える。型が合わない巨大な入力は `malformed` を優先する（SAFE-24）ため、
+    // 超過があるときだけ借用の変換で型を確かめる。収まる普通の経路は走査が 1 回増えるだけで、`Value` と `Ir` を
+    // 同時に持つ期間は増えない。版・uid・参照の検査より先に断る。
+    if let Err(reason) = check_value_limits(&value) {
+        // 型が合わないときは下の変換が `malformed` で断るので、ここでは返さず流す。
+        if Ir::deserialize(&value).is_ok() {
+            return Err(IrLoadError::ValueLimit(reason));
+        }
     }
     let ir: Ir =
         serde_json::from_value(value).map_err(|_| IrLoadError::Json(TYPE_MISMATCH.to_owned()))?;
@@ -224,7 +239,15 @@ mod tests {
 
     #[test]
     fn reason_code_is_fixed_and_carries_no_input() {
-        let cases: [(IrLoadError, &str); 9] = [
+        let cases: [(IrLoadError, &str); 11] = [
+            (
+                IrLoadError::ValueLimit(IrValueLimitReason::TooManyElements),
+                "too_many_elements",
+            ),
+            (
+                IrLoadError::ValueLimit(IrValueLimitReason::StringTooLong),
+                "string_too_long",
+            ),
             (IrLoadError::Limit(LimitReason::TooLarge), "too_large"),
             (IrLoadError::Limit(LimitReason::TooDeep), "too_deep"),
             (IrLoadError::Json(SYNTAX_ERROR.to_owned()), "not_json"),

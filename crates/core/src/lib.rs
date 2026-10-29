@@ -105,12 +105,14 @@ pub mod text_fill;
 pub mod text_judge;
 mod tick;
 mod transit;
+pub mod value_limits;
 pub mod version_record;
 pub mod world;
 
 pub use ir_load::{check_ir_limits, load_ir, IrLoadError};
 pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
+pub use value_limits::check_value_limits;
 
 /// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、版 6）。
 ///

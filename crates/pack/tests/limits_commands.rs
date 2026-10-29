@@ -180,14 +180,18 @@ fn author10_non_md_body_over_is_e_limit() {
 }
 
 #[test]
-fn author10_non_md_body_exactly_at_limit_loads() {
+fn author10_non_md_body_at_load_limit_loads_but_compile_hits_ir_limit() {
     let t = pack_with_body("b.txt", false);
     t.put(
         "chapters/c1/b.txt",
         &vec![b'a'; MAX_MARKDOWN_BYTES as usize],
     );
+    assert!(load(&t.0).is_ok());
     assert!(validate_dir(&t.0).is_empty());
-    assert!(compile_dir(&t.0).is_ok());
+    // 本文は IR の文字列になるため、compile は IR 側の文字列の上限（MAX_STRING_CHARS）で断る。
+    // 読み込みの上限（バイト数）と IR の値の上限（文字数）は単位が別である。
+    let c = compile_dir(&t.0).expect_err("IR string limit");
+    assert_eq!(codes(&c), [DiagCode::Limit]);
 }
 
 #[test]

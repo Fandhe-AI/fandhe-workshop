@@ -19,7 +19,7 @@ fn group(n: u64) -> String {
 
 #[test]
 fn constants_match_decisions() {
-    assert_eq!(LIMITS_CONTRACT_VERSION, 1);
+    assert_eq!(LIMITS_CONTRACT_VERSION, 2);
     assert_eq!(MAX_IR_BYTES, 20 * 1024 * 1024);
     assert_eq!(MAX_HISTORY_BYTES, 10 * 1024 * 1024);
     assert_eq!(MAX_HISTORY_OPS, 20_000);
@@ -200,4 +200,36 @@ fn boundary_samples_cover_all_limits() {
     assert_eq!(by(LimitId::HistoryBytes).tenfold, 104_857_600);
     assert_eq!(by(LimitId::HistoryOps).tenfold, 200_000);
     assert_eq!(by(LimitId::MarkdownBytes).tenfold, 5_242_880);
+}
+
+#[test]
+fn ir_value_limit_reasons_are_fixed() {
+    let codes: Vec<&str> = IrValueLimitReason::ALL.iter().map(|r| r.as_str()).collect();
+    assert_eq!(codes, ["too_many_elements", "string_too_long"]);
+    for r in IrValueLimitReason::ALL {
+        assert_eq!(r.to_string(), r.as_str());
+        assert_eq!(r.stage(), LoadStage::TypeAndContent);
+        let m = ir_value_rejection_message(r);
+        assert!(m.contains("100,000"), "{m}");
+    }
+    assert_eq!(
+        IrValueLimitReason::TooManyElements.limit(),
+        LimitId::CollectionElements
+    );
+    assert_eq!(
+        IrValueLimitReason::StringTooLong.limit(),
+        LimitId::StringChars
+    );
+    // 履歴の経路の理由には足していない。
+    assert_eq!(LimitReason::ALL.len(), 3);
+}
+
+#[test]
+fn value_limit_boundaries_fit_in_ir_budget() {
+    for id in [LimitId::CollectionElements, LimitId::StringChars] {
+        let s = BOUNDARY_SAMPLES.iter().find(|s| s.limit == id).unwrap();
+        assert_eq!(s.exact, 100_000);
+        assert_eq!(s.tenfold, 1_000_000);
+        assert!(s.tenfold < MAX_IR_BYTES);
+    }
 }

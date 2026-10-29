@@ -6,7 +6,9 @@
 //! 上限（`too_large`・`too_deep`）だけは、契約の `rejection_message` の文面を引いて画面に出す（SAFE-17。TASK-154）。
 //! 文言はエンジン側の仮置きである。受講者向けの画面の枠は TASK-545（SHELL-31）、通知の口の契約は TASK-511 が決める。
 
-use fandhe_workshop_contract::limits::{rejection_message, LimitReason, LoadEntry};
+use fandhe_workshop_contract::limits::{
+    ir_value_rejection_message, rejection_message, IrValueLimitReason, LimitReason, LoadEntry,
+};
 
 /// 通知文で、コードの前に置く固定の文言。
 pub const IR_NOTICE_BEFORE: &str = "教材を読み込めませんでした。（";
@@ -29,6 +31,13 @@ pub fn ir_notice_text(code: &'static str) -> String {
         .and_then(|r| rejection_message(LoadEntry::Ir, *r));
     if let Some(message) = limit_message {
         return format!("教材を読み込めませんでした。{message}（{code}）");
+    }
+    // 要素数・文字列長の上限（SAFE-25。TASK-162）も、契約の固定の文面を挟む。
+    if let Some(r) = IrValueLimitReason::ALL.iter().find(|r| r.as_str() == code) {
+        return format!(
+            "教材を読み込めませんでした。{}（{code}）",
+            ir_value_rejection_message(*r)
+        );
     }
     let before = if code.starts_with(crate::start_select::START_CODE_PREFIX) {
         START_NOTICE_BEFORE
@@ -62,6 +71,15 @@ mod tests {
             assert!(text.ends_with(&format!("（{code}）")), "{text}");
         }
         assert!(ir_notice_text("too_large").contains("ファイルが上限の大きさを超えています"));
+    }
+
+    #[test]
+    fn value_limit_codes_carry_the_contract_message() {
+        for r in IrValueLimitReason::ALL {
+            let text = ir_notice_text(r.as_str());
+            assert!(text.contains(ir_value_rejection_message(r)), "{text}");
+            assert!(text.ends_with(&format!("（{}）", r.as_str())), "{text}");
+        }
     }
 
     #[test]

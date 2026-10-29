@@ -31,7 +31,7 @@ use std::path::Path;
 use fandhe_workshop_contract::doc::Doc;
 use fandhe_workshop_contract::ir::{is_supported_ir_format, Instance, Ir, Start};
 use fandhe_workshop_contract::limits::MAX_IR_BYTES;
-use fandhe_workshop_core::check_ir_limits;
+use fandhe_workshop_core::{check_ir_limits, check_value_limits};
 
 use crate::chapter_range::{narrow_chapters, resolve_selection, ChapterSelectError};
 use crate::condition_check::check_optional;
@@ -324,14 +324,21 @@ pub fn to_json(ir: &Ir) -> Result<Vec<u8>, serde_json::Error> {
 /// パック入力が上限以下でも、JSON のエスケープで出力が膨らむ・未型付けの値が深く入れ子になるなどで
 /// `load_ir` が拒否する IR ができうる。成功を返す前に、core の共有の判定で拒否する。
 fn check_output(bytes: &[u8], file: &str) -> Result<(), Vec<Diagnostic>> {
-    check_ir_limits(bytes).map_err(|reason| {
+    let limit = |reason: &dyn std::fmt::Display| {
         vec![diag(
             file,
             "pack",
             DiagCode::Limit,
             format!("generated IR exceeds the engine limit: {reason}"),
         )]
-    })
+    };
+    check_ir_limits(bytes).map_err(|r| limit(&r))?;
+    // 要素数・文字列長の上限（SAFE-25）。大きさ・深さを通ったバイト列だけを値に読む。
+    // 読めない場合は型の誤りで、`load_ir` が `malformed` で断るため、ここでは数えない。
+    if let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) {
+        check_value_limits(&value).map_err(|r| limit(&r))?;
+    }
+    Ok(())
 }
 
 /// `compile_dir_with` の指定。
@@ -352,7 +359,7 @@ pub enum CompileError {
 
 /// ディレクトリのパックを読み、IR のバイト列にする。`load`・`compile`・`to_json` をまとめた入口。
 ///
-/// 返すバイト列は `check_ir_limits` を通っており、`load_ir` が大きさ・深さで拒否することはない。
+/// 返すバイト列は `check_ir_limits`・`check_value_limits` を通っており、`load_ir` が大きさ・深さ・要素数・文字列長で拒否することはない。
 pub fn compile_dir(dir: &Path) -> Result<Vec<u8>, Vec<Diagnostic>> {
     match compile_dir_with(dir, &CompileOptions::default()) {
         Ok(b) => Ok(b),
@@ -408,6 +415,20 @@ mod tests {
         let d = check_output(&v, "workshop.yaml").unwrap_err();
         assert_eq!(d[0].code(), DiagCode::Limit);
         assert!(check_output(&vec![b' '; MAX_IR_BYTES as usize], "workshop.yaml").is_ok());
+    }
+
+    #[test]
+    fn check_output_rejects_long_string_and_many_elements() {
+        use fandhe_workshop_contract::limits::{MAX_COLLECTION_ELEMENTS, MAX_STRING_CHARS};
+        let s = |n: usize| format!("{{\"title\":\"{}\"}}", "a".repeat(n));
+        let a = |n: usize| format!("[{}]", vec!["0"; n].join(","));
+        let d = check_output(s(MAX_STRING_CHARS + 1).as_bytes(), "workshop.yaml").unwrap_err();
+        assert_eq!(d[0].code(), DiagCode::Limit);
+        assert!(check_output(s(MAX_STRING_CHARS).as_bytes(), "workshop.yaml").is_ok());
+        let d =
+            check_output(a(MAX_COLLECTION_ELEMENTS + 1).as_bytes(), "workshop.yaml").unwrap_err();
+        assert_eq!(d[0].code(), DiagCode::Limit);
+        assert!(check_output(a(MAX_COLLECTION_ELEMENTS).as_bytes(), "workshop.yaml").is_ok());
     }
 
     #[test]
