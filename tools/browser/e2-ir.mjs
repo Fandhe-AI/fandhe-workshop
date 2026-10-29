@@ -94,7 +94,7 @@ export function fieldVariant(base, P) {
 
 // 深い写しの中で、鍵・文字列の値のうち from と等しいものを to に置き換える。置き換えた数を返す。
 // 鍵は Object.fromEntries で作り直す（`__proto__` の鍵でも自分の欄になり、プロトタイプを書き換えない）。
-function replaceExact(value, from, to, tally) {
+export function replaceExact(value, from, to, tally) {
   if (typeof value === 'string') {
     if (value === from) {
       tally.n += 1;
