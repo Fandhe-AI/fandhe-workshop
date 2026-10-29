@@ -5,7 +5,7 @@
 //! 履歴は現行のエンジンで試験の中で決定的に作り、実際の入口 `load_history`（段 1〜8）で開く。
 //! 失敗の文には ID・真偽・固定のコードだけを出し、履歴の中身を出さない（SAFE-40）。
 //! `version_histories.rs`（VER-2）は版の違い、`history_load.rs` は段ごとの境界を扱う。本ファイルは 7 種を 1 つの表で揃えて見る。
-//! 画面・保存領域の不変は web の `broken_histories_host.rs` と自動ブラウザの `broken-histories.test.mjs` が担う。
+//! `load_history` は保存領域に触れない純関数のため、本ファイルは保存領域の不変を主張しない。画面・保存領域の不変は web の `broken_histories_host.rs` と自動ブラウザの `broken-histories.test.mjs` が担う。
 //! ブラウザ試験の入力は `emit_broken_histories_for_browser`（`#[ignore]`）が書き出す（`scripts/test-browser.sh` だけが呼ぶ）。
 
 mod common;
@@ -13,7 +13,6 @@ mod common;
 use std::collections::BTreeSet;
 
 use common::contract_sample::{load, testdata_dir};
-use common::mem_store::MemStore;
 use common::op_gen::OpSpec;
 use common::record_path::RecordPath;
 use fandhe_workshop_contract::content_hash::content_hash;
@@ -21,7 +20,6 @@ use fandhe_workshop_contract::history_version::HistoryVersions;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::limits::MAX_HISTORY_BYTES;
 use fandhe_workshop_contract::load_reason::LoadReason;
-use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, HistoryStore};
 use fandhe_workshop_core::history_envelope::build_envelope;
 use fandhe_workshop_core::history_load::load_history;
 use fandhe_workshop_core::history_open::{Opened, OpeningCaps};
@@ -283,22 +281,6 @@ fn refusal_is_deterministic() {
         assert!(code(&a).is_some(), "{id}");
         assert_eq!(code(&a), code(&b), "{id}");
     }
-}
-
-#[test]
-fn refusal_leaves_the_store_unchanged() {
-    let store = MemStore::default();
-    let key = HistoryKey::for_pack(DeliveryScope::root(), "min-3step", "start");
-    let valid = String::from_utf8(make("B-0").0).expect("utf8");
-    store.write(&key, &valid).expect("write");
-    store.reset_counts();
-    let before = store.snapshot();
-    for (id, _) in REFUSED {
-        assert!(matches!(open(id), Opened::Refused { .. }), "{id}");
-    }
-    assert_eq!(store.snapshot(), before);
-    assert_eq!(store.writes(), 0);
-    assert_eq!(store.removes(), 0);
 }
 
 #[test]

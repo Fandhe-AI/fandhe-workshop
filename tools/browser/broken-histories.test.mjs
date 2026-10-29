@@ -121,6 +121,8 @@ for (const csp of [true, false]) {
         await page.locator(INPUT).fill(OPERATION);
         await page.locator(INPUT).press('Enter');
         await settle(page);
+        // 遅延保存（debounce）が済むまで待つ。待たないと、読み込みの後に操作の保存が着地して「保存先が変わった」ように見える。
+        await page.waitForFunction(() => JSON.parse(window.__fandheTest.autosaveState()).scheduled === false, null, { timeout: 15000 });
         await page.waitForFunction(([p, s]) => window.__fandheTest.storageRead(p, s) != null, [PACK, START], { timeout: 10000 });
         const storedBefore = await call(page, 'storageRead', PACK, START);
         assert.equal(typeof storedBefore, 'string', `${id}: a stored value exists`);
