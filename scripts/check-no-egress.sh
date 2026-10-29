@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# 受講者の入力・履歴を外部へ送る手段（通信の機能・学習分析・提出・進捗の同期）が、依存と配信物に無いことを機械検査する
-# （SAFE-16・TASK-153）。ブラウザでの通信の計数は tools/browser/egress-count.test.mjs が受け持ち、こちらは静的な層。
+# 受講者の入力・履歴を外部へ送る手段（通信の機能・学習分析・提出・進捗の同期）と、初回の配布物が持たない機能
+# （EXT-1 実 CLI への橋渡し・EXT-2 backend／提出／学習分析・EXT-3 LLM の必須化）が、依存と配信物に無いことを機械検査する
+# （SAFE-16・TASK-153、EXT-1〜EXT-3・TASK-185 1/2）。違反の行には区分（[SAFE-16]・[EXT-1 cli-bridge] など）を前置する。
+# ブラウザでの通信の計数は tools/browser/egress-count.test.mjs が受け持ち、こちらは静的な層。
+# L2 の起動の引数（miniserve の追加機能を有効にしないこと）は tools/build-l2.test.mjs が完全一致で固定しており、ここでは重複して検査しない。
+# pack（作成者向け CLI）が拒否の crate を正当に要する場合は、この一覧の見直しとして別の変更で扱う。
 #
 # 呼び出し元: `make check-no-egress`（deps）・`make check-no-egress-dist`（dist）・CI の rust-lint ジョブ（deps と回帰テスト）・
 # scripts/test-build-web.sh（配信する設定の実ビルドへの dist）。回帰テストは scripts/test-check-no-egress.sh。
@@ -28,6 +32,27 @@ usage() {
 # 拒否する crate（完全一致と前方一致）。HTTP クライアント・ソケット・学習分析・計測の送信の crate。2026-10-29。
 readonly DENY_CRATES_EXACT='reqwest gloo-net gloo-net-macros ureq hyper surf isahc attohttpc ehttp tungstenite tokio-tungstenite ws_stream_wasm web-socket segment mixpanel amplitude rudderstack curl curl-sys'
 readonly DENY_CRATES_PREFIX='sentry opentelemetry posthog'
+# 初回の配布物が持たない機能の crate（EXT-1〜EXT-3）。行の形は「区分|完全一致（空白区切り）|前方一致（空白区切り）」。名前の列挙で網羅ではない（known-gaps.md）。2026-10-29。
+readonly EXT_CRATES='EXT-1 cli-bridge|portable-pty pty-process duct subprocess ssh2 russh openssh interprocess native-messaging tokio-process|wasmer-wasi
+EXT-2 backend|axum actix-web actix-http warp rocket tide poem salvo tower-http sqlx diesel rusqlite redis mongodb postgres tokio-postgres oauth2 openidconnect jsonwebtoken|aws-sdk- google-cloud- firebase supabase
+EXT-2 analytics|plausible matomo countly|datadog
+EXT-3 llm|async-openai openai openai-api-rs anthropic anthropic-sdk ollama-rs llm llm-chain genai langchain-rust ort tch tokenizers rust-bert kalosm mistralrs|candle- llama whisper-'
+# 初回の配布物が持たない機能の web-sys feature（完全一致|前方一致）。
+readonly EXT_WEBSYS='EXT-1 cli-bridge|Usb UsbDevice Serial SerialPort Hid HidDevice Bluetooth BluetoothDevice FileSystemDirectoryHandle FileSystemFileHandle FileSystemWritableFileStream|
+EXT-2 backend|CredentialsContainer Credential PublicKeyCredential PasswordCredential HtmlFormElement HtmlDocument|
+EXT-3 llm||Gpu Ml'
+# 初回の配布物が持たない機能の WASM import の名前（__wbg_ と末尾のハッシュを除いた完全一致）。
+readonly EXT_WASM_IMPORTS='EXT-1 cli-bridge|requestDevice requestPort usb serial hid bluetooth showDirectoryPicker showOpenFilePicker showSaveFilePicker registerProtocolHandler connectNative
+EXT-2 backend|credentials cookie set_cookie submit requestSubmit
+EXT-3 llm|gpu ml LanguageModel'
+# glue JS と app.js の拒否トークン（区分|ERE）。
+readonly EXT_JS_PATTERNS='EXT-1 cli-bridge|\bconnectNative\b|chrome\.runtime|navigator\.(usb|serial|hid|bluetooth)\b|show(Directory|OpenFile|SaveFile)Picker|registerProtocolHandler
+EXT-2 backend|navigator\.credentials|PublicKeyCredential|document\.cookie|\.submit\(|requestSubmit|mailto:
+EXT-2 analytics|\bgtag\b|\bdataLayer\b|\b_paq\b|\bplausible\b|\bmixpanel\b|\bposthog\b|\bSentry\b
+EXT-3 llm|\bLanguageModel\b|navigator\.gpu|navigator\.ml\b|(window|self)\.ai\b|\bopenai\b|\banthropic\b|\bollama\b|chat/completions'
+# index.html の提出の形（EXT-2 submission）。
+# 大文字小文字を区別せず（grep -i を足せないため括弧式で書く）、タグ名の直後は空白類・/・>・行末を許す。
+readonly EXT_HTML_PATTERN='<[Ff][Oo][Rr][Mm]([[:space:]/>]|$)|[Mm][Aa][Ii][Ll][Tt][Oo]:'
 # 拒否する web-sys の feature（通信の手段になる型）。Navigator の sendBeacon は feature で区別できないため dist の検査と実行時の計数が受け持つ。
 readonly DENY_WEBSYS_FEATURES='Request RequestInit Response Headers FormData XmlHttpRequest XmlHttpRequestUpload WebSocket EventSource RtcPeerConnection RtcDataChannel ServiceWorkerContainer ServiceWorkerRegistration Worker SharedWorker WebTransport PushManager'
 # web-sys の解決結果が空振りしていないことの錨（保存先の型）。
@@ -129,7 +154,15 @@ check_deps() {
     ($exact | split(" ")) as $e | ($prefix | split(" ")) as $p
     | .packages[].name as $n
     | select(($e | index($n)) or ($p | any(. as $x | $n | startswith($x))))
-    | "denied crate in dependency graph: \($n)"' "${native}" >"${tmp}/v1.txt" || exit 2
+    | "[SAFE-16] denied crate in dependency graph: \($n)"' "${native}" >"${tmp}/v1.txt" || exit 2
+  while IFS='|' read -r tag ex pre; do
+    [ -n "${tag}" ] || continue
+    jq -r --arg tag "${tag}" --arg exact "${ex}" --arg prefix "${pre}" '
+      ($exact | split(" ")) as $e | ($prefix | split(" ") | map(select(length > 0))) as $p
+      | .packages[].name as $n
+      | select(($e | index($n)) or ($p | any(. as $x | $n | startswith($x))))
+      | "[\($tag)] denied crate in dependency graph: \($n)"' "${native}" >>"${tmp}/v1.txt" || exit 2
+  done <<<"${EXT_CRATES}"
   # web-sys の feature。ノードがちょうど 1 つで、錨の feature を含むこと。
   jq -r '[.resolve.nodes[] | select(.id | test("web-sys[@ ]|#web-sys$"))] | length' "${wasm}" >"${tmp}/n.txt" || exit 2
   if [ "$(cat "${tmp}/n.txt")" != "1" ]; then
@@ -141,12 +174,24 @@ check_deps() {
     | (($anchor | split(" ")) | map(select(. as $a | ($f | index($a)) | not))) as $missing
     | if ($missing | length) > 0 then "ANCHOR-MISSING"
       else ($deny | split(" "))[] | select(. as $d | $f | index($d)) | "denied web-sys feature: \(.)" end' "${wasm}" >"${tmp}/v2.txt" || exit 2
+  if ! grep -qx 'ANCHOR-MISSING' "${tmp}/v2.txt"; then
+    sed -i.bak 's/^denied web-sys feature/[SAFE-16] denied web-sys feature/' "${tmp}/v2.txt" || exit 2
+    while IFS='|' read -r tag ex pre; do
+      [ -n "${tag}" ] || continue
+      jq -r --arg tag "${tag}" --arg exact "${ex}" --arg prefix "${pre}" '
+        [.resolve.nodes[] | select(.id | test("web-sys[@ ]|#web-sys$")) | .features[]] as $f
+        | ($exact | split(" ") | map(select(length > 0))) as $e | ($prefix | split(" ") | map(select(length > 0))) as $p
+        | $f[] | . as $n
+        | select(($e | index($n)) or ($p | any(. as $x | $n | startswith($x))))
+        | "[\($tag)] denied web-sys feature: \($n)"' "${wasm}" >>"${tmp}/v2.txt" || exit 2
+    done <<<"${EXT_WEBSYS}"
+  fi
   if grep -qx 'ANCHOR-MISSING' "${tmp}/v2.txt"; then
     echo "error: web-sys anchor features (${ANCHOR_WEBSYS_FEATURES}) are missing; the check would be vacuous" >&2
     exit 2
   fi
   # package.json: 配信へ入りうる dependencies の欄が無いこと。
-  jq -r 'if has("dependencies") then "package.json must not have dependencies (devDependencies only)" else empty end' "${pkg}" >"${tmp}/v3.txt" || exit 2
+  jq -r 'if has("dependencies") then "[SAFE-16] package.json must not have dependencies (devDependencies only)" else empty end' "${pkg}" >"${tmp}/v3.txt" || exit 2
   for f in v1 v2 v3; do
     while IFS= read -r line; do
       [ -n "${line}" ] || continue
@@ -154,7 +199,7 @@ check_deps() {
     done <"${tmp}/${f}.txt"
   done
   finish
-  log "ok: no network/analytics crate, no denied web-sys feature, no npm dependencies"
+  log "ok: deps: SAFE-16, EXT-1, EXT-2, EXT-3 checked - no denied crate, no denied web-sys feature, no npm dependencies"
 }
 
 check_dist() {
@@ -174,11 +219,11 @@ check_dist() {
     f="${f#./}"
     case "${want}" in
       *" ${f} "*) ;;
-      *) violation "unexpected file in dist: ${f}" ;;
+      *) violation "[SAFE-16] unexpected file in dist: ${f}" ;;
     esac
   done < <(cd "${d}" && find . -mindepth 1 \( -type f -o -type l \) -print0)
   if [ -n "$(cd "${d}" && find . -type l -print -quit)" ]; then
-    violation "symbolic link in dist"
+    violation "[SAFE-16] symbolic link in dist"
   fi
   # 2. WASM の import。
   imports="$(node -e '
@@ -192,17 +237,30 @@ for(const i of WebAssembly.Module.imports(m)) console.log(i.name.replace(/^__wbg
   done
   for tok in ${DENY_WASM_IMPORTS}; do
     if printf '%s\n' "${imports}" | grep -qxF -- "${tok}"; then
-      violation "denied WASM import: ${tok}"
+      violation "[SAFE-16] denied WASM import: ${tok}"
     fi
   done
+  while IFS='|' read -r tag names; do
+    [ -n "${tag}" ] || continue
+    for tok in ${names}; do
+      if printf '%s\n' "${imports}" | grep -qxF -- "${tok}"; then
+        violation "[${tag}] denied WASM import: ${tok}"
+      fi
+    done
+  done <<<"${EXT_WASM_IMPORTS}"
   # 3. glue JS と app.js の通信のトークン。
   for f in wasm/fandhe_workshop_web.js app.js; do
     for tok in ${DENY_JS_TOKENS}; do
       n="$(count_matches "\\b${tok}\\b" "${d}/${f}")"
-      [ "${n}" -eq 0 ] || violation "${f} mentions ${tok} (${n} lines)"
+      [ "${n}" -eq 0 ] || violation "[SAFE-16] ${f} mentions ${tok} (${n} lines)"
     done
     n="$(count_matches '\bnew +Worker\b' "${d}/${f}")"
-    [ "${n}" -eq 0 ] || violation "${f} creates a Worker (${n} lines)"
+    [ "${n}" -eq 0 ] || violation "[SAFE-16] ${f} creates a Worker (${n} lines)"
+    while IFS='|' read -r tag pat; do
+      [ -n "${tag}" ] || continue
+      n="$(count_matches "${pat}" "${d}/${f}")"
+      [ "${n}" -eq 0 ] || violation "[${tag}] ${f} matches a denied pattern (${n} lines)"
+    done <<<"${EXT_JS_PATTERNS}"
   done
   n="$(count_occurrences '\bfetch\(' "${d}/wasm/fandhe_workshop_web.js")"
   [ "${n}" -eq "${GLUE_FETCH_COUNT}" ] || violation "glue js has ${n} fetch( calls (expected ${GLUE_FETCH_COUNT})"
@@ -210,13 +268,15 @@ for(const i of WebAssembly.Module.imports(m)) console.log(i.name.replace(/^__wbg
   [ "${n}" -eq "${APP_FETCH_COUNT}" ] || violation "app.js has ${n} fetch( calls (expected ${APP_FETCH_COUNT})"
   n="$(count_occurrences 'fetch\("\./ir/main\.json"\)' "${d}/app.js")"
   [ "${n}" -eq "${APP_FETCH_COUNT}" ] || violation "app.js fetch argument is not the fixed ./ir/main.json"
+  n="$(count_matches "${EXT_HTML_PATTERN}" "${d}/index.html")"
+  [ "${n}" -eq 0 ] || violation "[EXT-2 submission] index.html has ${n} lines with a form or mailto"
   # 4. 外部の参照（http(s):// と // 始まり）。
   for f in index.html app.js app.css; do
     n="$(count_matches 'https?://|[("'"'"'= ]//[A-Za-z0-9-]+\.[A-Za-z]' "${d}/${f}")"
-    [ "${n}" -eq 0 ] || violation "${f} has ${n} lines with an external reference"
+    [ "${n}" -eq 0 ] || violation "[SAFE-16] ${f} has ${n} lines with an external reference"
   done
   finish
-  log "ok: dist has only the expected files and no network capability"
+  log "ok: dist: SAFE-16, EXT-1, EXT-2, EXT-3 checked - only the expected files and no network capability"
 }
 
 [ "$#" -ge 1 ] || usage

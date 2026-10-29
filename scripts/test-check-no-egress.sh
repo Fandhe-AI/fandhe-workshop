@@ -33,6 +33,19 @@ expect() {
   fi
 }
 
+# expect_tag <説明> <標準エラーに出るべき固定文字列> <コマンド...>: 失敗の出力に区分のタグが入ること。
+expect_tag() {
+  local desc="$1" tag="$2" out
+  shift 2
+  out="$("$@" 2>&1 >/dev/null || true)"
+  if printf '%s' "${out}" | grep -qF -- "${tag}"; then
+    echo "ok: ${desc}" >&2
+  else
+    echo "FAIL: ${desc}" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 # --- deps ---
 printf '%s' '{"packages":[{"name":"serde"},{"name":"web-sys"}]}' >"${TMP}/native-ok.json"
 printf '%s' '{"packages":[{"name":"serde"},{"name":"reqwest"}]}' >"${TMP}/native-reqwest.json"
@@ -52,6 +65,17 @@ deps() { "${CHECK}" deps --metadata "$1" --metadata-wasm "$2" --package-json "$3
 expect "deps: clean input passes" 0 deps "${TMP}/native-ok.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-ok.json"
 expect "deps: reqwest is denied" 1 deps "${TMP}/native-reqwest.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-ok.json"
 expect "deps: sentry prefix is denied" 1 deps "${TMP}/native-sentry.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-ok.json"
+for c in portable-pty:"EXT-1 cli-bridge" axum:"EXT-2 backend" plausible:"EXT-2 analytics" async-openai:"EXT-3 llm" candle-core:"EXT-3 llm" aws-sdk-s3:"EXT-2 backend"; do
+  name="${c%%:*}"
+  printf '{"packages":[{"name":"serde"},{"name":"%s"}]}' "${name}" >"${TMP}/native-${name}.json"
+  expect "deps: ${name} is denied" 1 deps "${TMP}/native-${name}.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-ok.json"
+  expect_tag "deps: ${name} is tagged [${c#*:}]" "[${c#*:}]" deps "${TMP}/native-${name}.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-ok.json"
+done
+for c in Serial:"EXT-1 cli-bridge" CredentialsContainer:"EXT-2 backend" GpuDevice:"EXT-3 llm"; do
+  mkwasm "${TMP}/wasm-${c%%:*}.json" "[\"Storage\",\"IdbFactory\",\"${c%%:*}\"]"
+  expect "deps: web-sys ${c%%:*} is denied" 1 deps "${TMP}/native-ok.json" "${TMP}/wasm-${c%%:*}.json" "${TMP}/pkg-ok.json"
+  expect_tag "deps: web-sys ${c%%:*} is tagged [${c#*:}]" "[${c#*:}]" deps "${TMP}/native-ok.json" "${TMP}/wasm-${c%%:*}.json" "${TMP}/pkg-ok.json"
+done
 expect "deps: web-sys WebSocket feature is denied" 1 deps "${TMP}/native-ok.json" "${TMP}/wasm-bad.json" "${TMP}/pkg-ok.json"
 expect "deps: npm dependencies is denied" 1 deps "${TMP}/native-ok.json" "${TMP}/wasm-ok.json" "${TMP}/pkg-bad.json"
 expect "deps: missing anchor features is undecidable" 2 deps "${TMP}/native-ok.json" "${TMP}/wasm-noanchor.json" "${TMP}/pkg-ok.json"
@@ -133,6 +157,38 @@ expect "dist: external URL is denied" 1 "${CHECK}" dist "${TMP}/d-url"
 mkdist "${TMP}/d-imp"
 mkwasm_file "${TMP}/d-imp/wasm/fandhe_workshop_web_bg.wasm" __wbg_setItem_0123456789abcdef __wbg_indexedDB_0123456789abcdef __wbg_sendBeacon_0123456789abcdef
 expect "dist: sendBeacon WASM import is denied" 1 "${CHECK}" dist "${TMP}/d-imp"
+
+# EXT-1〜EXT-3: WASM の import・JS のトークン・index.html の提出の形。
+for c in requestDevice:"EXT-1 cli-bridge" credentials:"EXT-2 backend" LanguageModel:"EXT-3 llm"; do
+  n="${c%%:*}"
+  mkdist "${TMP}/d-w-${n}"
+  mkwasm_file "${TMP}/d-w-${n}/wasm/fandhe_workshop_web_bg.wasm" __wbg_setItem_0123456789abcdef __wbg_indexedDB_0123456789abcdef "__wbg_${n}_0123456789abcdef"
+  expect "dist: WASM import ${n} is denied" 1 "${CHECK}" dist "${TMP}/d-w-${n}"
+  expect_tag "dist: WASM import ${n} is tagged [${c#*:}]" "[${c#*:}]" "${CHECK}" dist "${TMP}/d-w-${n}"
+done
+jsfile() { # jsfile <名前> <追記先 app.js|wasm/fandhe_workshop_web.js> <追記する行> <タグ>
+  cp -R "${TMP}/d-ok" "${TMP}/d-j-$1"
+  echo "$3" >>"${TMP}/d-j-$1/$2"
+  expect "dist: $1 is denied" 1 "${CHECK}" dist "${TMP}/d-j-$1"
+  expect_tag "dist: $1 is tagged [$4]" "[$4]" "${CHECK}" dist "${TMP}/d-j-$1"
+}
+jsfile connectNative wasm/fandhe_workshop_web.js 'chrome.runtime.connectNative("x");' "EXT-1 cli-bridge"
+jsfile cookie app.js 'document.cookie = "a=b";' "EXT-2 backend"
+jsfile gtag app.js 'gtag("event", "x");' "EXT-2 analytics"
+jsfile languagemodel app.js 'LanguageModel.create();' "EXT-3 llm"
+cp -R "${TMP}/d-ok" "${TMP}/d-form"
+echo '<form action="./x" method="post"></form>' >>"${TMP}/d-form/index.html"
+expect "dist: form in index.html is denied" 1 "${CHECK}" dist "${TMP}/d-form"
+expect_tag "dist: form is tagged [EXT-2 submission]" "[EXT-2 submission]" "${CHECK}" dist "${TMP}/d-form"
+formcase() {
+  cp -R "${TMP}/d-ok" "${TMP}/d-form-$1"
+  printf '%b\n' "$2" >>"${TMP}/d-form-$1/index.html"
+  expect "dist: form variant $1 is denied" 1 "${CHECK}" dist "${TMP}/d-form-$1"
+  expect_tag "dist: form variant $1 is tagged [EXT-2 submission]" "[EXT-2 submission]" "${CHECK}" dist "${TMP}/d-form-$1"
+}
+formcase upper '<FORM action="./submit" method="post">'
+formcase newline '<form\naction="./submit">'
+formcase tab '<Form\taction="./submit">'
 
 mkdist "${TMP}/d-noanchor"
 mkwasm_file "${TMP}/d-noanchor/wasm/fandhe_workshop_web_bg.wasm" __wbg_getItem_0123456789abcdef
