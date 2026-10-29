@@ -11,7 +11,7 @@
 - 基点の違う値どうしで増減を論じると誤った結論を招く。過去の PoC の記録には、commit・`wasm-opt` の有無・圧縮の設定が違う値が
   混在していた。結果の側で基点を必須にして、この事故を構造的に防ぐ
 - 測るものは 3 つ。WASM の `gzip -9` の大きさ、最小の画面（Hello）の初回表示の時間、再描画の時間である
-- CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、CI は `SKIP_WASM_OPT=1` の基点で判定する。DLV-4（`wasm-opt` 適用後）の厳格な判定は手元で `scripts/check-wasm-size.sh --require-wasm-opt` を直接実行する（未適用の結果は終了コード 2。TASK-107 2/2。記録は `docs/testing.md` 5.356）。ジョブの追加はしていない
+- CI の関門（WASM 1 MB）は `scripts/check-wasm-size.sh`（`make check-wasm-size`。CI の `browser-test`）にあり、`tools/measure/wasm-size.sh` の結果を判定する。上限は 1,048,576 bytes（DLV-27）で、CI は `SKIP_WASM_OPT=1` の基点で判定する。DLV-4（`wasm-opt` 適用後）の厳格な判定は手元で `scripts/check-wasm-size.sh --require-wasm-opt` を直接実行する（未適用の結果は終了コード 2。TASK-107 2/2。記録は `docs/testing.md` 5.356）。ジョブの追加はしていない。DLV-4 の関門が参照する値（そろえた基点の値）と旧い値の一覧は `docs/testing.md` 5.361（TASK-126）
 
 ## 2. 実行
 
@@ -212,6 +212,7 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - 基点が 1 項目でも違う値どうしで、増減を論じない
 - `baseline.commit.dirty` が `true` の値は、基点として比較に使わない（どの commit の値か特定できない）
 - `wasm-opt` が無い環境でもビルドは成功し、`applied: false` として記録される。未適用の値を適用済みの値と比べない
+- spec に残る旧い WASM の大きさの値（PoC の基点）と、`docs/testing.md` 5.361 のそろえた基点の値を比べない（基点つきの一覧は 5.361）
 - 左のビューの部品単位の再描画（固定データの画面。出典: `docs/spec/03-poc/artifact-view-parts/README.md` と `testdata/artifact-view-parts/test-data/README.md` の「計測の定義」、ART-4。TASK-485 1/3）
   - 試験の設定の代役の部品（`view_fixture`）を、回線・CPU の制限なしで配信する。測るのは `window.__fandheTest.viewFixtureDispatch` の直前と直後の `performance.now()` の差（同期処理。click の委譲と同じ `dispatch_and_apply` を通り、update・`view()`・keyed list の差分・DOM への反映を含む。click の委譲の属性の読み取り、レイアウトと描画は含まない）
   - データ: 文書 200 行・差分 500 行・タスク 50 件（判定の対象）と、ファイルツリー 200 件・カード 20 件・チェック 20 件・アプリのデモ 9 行（参考）。写しの出所は `crates/web/tests/data/artifact_view_scale/README.md`
