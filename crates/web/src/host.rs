@@ -80,7 +80,7 @@ use fandhe_workshop_core::ir_load::IrLoadError;
 use fandhe_workshop_core::learner_os::LearnerOs;
 use fandhe_workshop_core::ops_record::OpsRecorder;
 use fandhe_workshop_core::recorded_session::RecordedSession;
-use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
+use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log_at};
 use fandhe_workshop_core::version_record::record_versions;
 #[cfg(feature = "test-hooks")]
 use fandhe_workshop_core::version_record::record_versions_with;
@@ -2442,10 +2442,12 @@ impl EngineHost {
 
 /// 復元で、ログ全体の拒否・問い返しの文面を core に作り直させて控える。
 ///
-/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否・問い返しは控えず、
+/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log_at`] が持つ。作れなかった拒否・問い返しは控えず、
 /// 行を出さない（fail-closed）。
 fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
-    for (i, f) in filled_texts_of_log(session.ir(), session.log()) {
+    // 案内レベルはログに残らないため、復元後の現在のレベルで充填する（記録時と同じ値）。
+    let level = session.state().run.guidance_level;
+    for (i, f) in filled_texts_of_log_at(session.ir(), session.log(), level) {
         if let Ok(key) = u32::try_from(i) {
             texts.insert(key, f.message);
         }
@@ -2478,7 +2480,9 @@ fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, fro
         if matches!(judgment, Judgment::Accepted(_)) {
             if let Some((_, f)) = log
                 .get(i - 1..=i)
-                .map(|pair| filled_texts_of_log(session.ir(), pair))
+                .map(|pair| {
+                    filled_texts_of_log_at(session.ir(), pair, session.state().run.guidance_level)
+                })
                 .and_then(|v| v.into_iter().next())
             {
                 texts.insert(key, f.message);

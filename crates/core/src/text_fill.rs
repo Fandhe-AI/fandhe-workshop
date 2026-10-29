@@ -300,6 +300,20 @@ pub fn filled_text(
 /// 処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否・問い返し・受付の注記、
 /// 組み直せない（教材に無い Step・充填の失敗）ものは戻さない（fail-closed）。
 pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
+    filled_texts_of_log_at(ir, log, GuidanceLevel::A)
+}
+
+/// [`filled_texts_of_log`] に、`step_do` の選択に使う案内レベルを渡す版。
+///
+/// 案内レベルの切り替えはイベントにならずログから組み直せない（GUIDE-16・TASK-307・TASK-308）ため、呼び出し元が
+/// 判定の時点のレベル（記録時は実行状態の現在値、復元時は復元後の現在値）を渡す。`step_do` は現在の案内レベルの
+/// `do`（`slot_values` の契約）なので、`{{step_do|…}}` を含む受付注記が、次の行動（判定時のレベルで充填済み）と
+/// 食い違わないようにする。
+pub fn filled_texts_of_log_at(
+    ir: &Ir,
+    log: &[Event],
+    level: GuidanceLevel,
+) -> Vec<(usize, FilledText)> {
     let mut out = Vec::new();
     // 直近の進行の（次の番号、総数）。状態を進める・変えるイベントで捨てる。
     let mut progress: Option<(u32, u32)> = None;
@@ -354,6 +368,7 @@ pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
                 let run = RunState {
                     current: Some(at.step.clone()),
                     busy,
+                    guidance_level: level,
                     ..RunState::default()
                 };
                 if let Ok(Some(f)) = filled_text(ir, &run, input, judgment) {
@@ -690,5 +705,44 @@ mod tests {
         assert_eq!(filled[0].1.message, "自分で確かめてください");
         assert!(filled_texts_of_log(&ir, &[judged(Some(note()))]).is_empty());
         assert!(filled_texts_of_log(&ir, &[received, judged(None)]).is_empty());
+    }
+
+    #[test]
+    fn free_text_note_uses_the_given_guidance_level_for_step_do() {
+        use crate::addr::{Generation, StepUid};
+        use crate::input::Input;
+        use fandhe_workshop_contract::judgment::AcceptNote;
+
+        let mut ir = ir_with(&[]);
+        ir.rejections
+            .insert("note".into(), serde_json::json!({"message": "{{step_do}}"}));
+        ir.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "uid": "s/a", "scope": "s", "unit": "u",
+                "step": {"id": "a", "title": "題", "do": "基本", "do_levels": {"B": "中", "C": "手厚い"}}
+            }))
+            .expect("node"),
+        );
+        let at = || crate::addr::Stamp {
+            generation: Generation::INITIAL,
+            step: StepUid("s/a".into()),
+        };
+        let log = [
+            Event::InputReceived {
+                at: at(),
+                input: Input::Text("文".into()),
+            },
+            Event::Judged {
+                at: at(),
+                judgment: Judgment::Accepted(Some(AcceptNote {
+                    text: "note".into(),
+                    next_action: NextAction::new("確かめる").expect("next"),
+                })),
+            },
+        ];
+        let msg = |l| filled_texts_of_log_at(&ir, &log, l)[0].1.message.clone();
+        assert_eq!(msg(GuidanceLevel::A), "基本");
+        assert_eq!(msg(GuidanceLevel::B), "中");
+        assert_eq!(msg(GuidanceLevel::C), "手厚い");
     }
 }
