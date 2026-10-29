@@ -10352,3 +10352,23 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 #### 限界
 
 `docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」に記録する。
+
+### 5.373 IR の大きさの上限（TASK-154。SAFE-17・SAFE-45）
+
+元にしたコミット: `ecb1a1c6` の上（実行日 2026-10-29）。IR の上限（20,971,520 バイト。決定 D-44）の境界を、native とブラウザの両方で固定した。
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| native（core） | `crates/core/tests/ir_size.rs` | 上限の値（20,971,520・+1・10 倍）を数字で固定し契約と照合。有効な IR を空白で上限ちょうどに埋めると `load_ir` が通り、+1 バイトで `too_large`。近傍 ±2・任意の長さ・速さ（1 秒未満）・文面に測った値を含まないこと |
+| native（web） | `crates/web/tests/ir_size_host.rs`、`ir_notice.rs` の単体 | 断られたホストの描画に `ir-notice`・`role="status"`・契約の文面・`too_large` が出て、入力欄が出ない |
+| ブラウザ | `tools/browser/ir-size-limit.test.mjs` | 配信する設定の画面（`FANDHE_WEB_AUTHOR_DIR`）で、`/ir/main.json` を自前のサーバが指定の大きさで流す。(E) ちょうど: 通知 0 件で教材が出る。(O) +1: 文面とコードが出る。(T) 10 倍: 同じ通知で、配信側は最後まで送らず受信を中止する。(O)(T) は取得の終わりから通知まで 1 秒未満。全ケースでタブが落ちず、ページ内エラー・外部通信・CSP 違反が 0 件 |
+
+変異: `SAFE17-1`（`>` を `>=` にしてちょうどを断る。core）、`SAFE17-2`（上限の通知に契約の文面を挟まない。web）。
+
+判断と注記:
+
+- spec の SAFE-17 は `?ir=` と書くが、D-68 で入り口が固定の `./ir/main.json` になったため、同梱の IR の経路で試した（SAFE-33 の注記と同じ扱い）。
+- 画面の文面は、`ir_notice_text` が上限の理由（`too_large`・`too_deep`）に限り契約の `rejection_message` を引いて「教材を読み込めませんでした。<契約の文面>（<コード>）」にする。他の理由の文は変えない。`too_deep` も同じ分岐で契約の文面になる。
+- 既知の限界: 契約の文面の末尾「別のファイルを選んでください」は、同梱の IR を受講者が選び直せない場面には合わない。直すには spec の変更と `LIMITS_CONTRACT_VERSION` の版上げが要るため範囲外とし、TASK-545（SHELL-31）へ申し送る。
+- 2026-10-29 の実測（同梱 Chromium、`SKIP_WASM_OPT=1` のビルド）: 取得の終わりから通知まで、+1 バイトで 46 ms、10 倍で 3 ms。待ちと CDP の往復を含む保守的な値。
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（別 PR で `make update-test-counts`）。
