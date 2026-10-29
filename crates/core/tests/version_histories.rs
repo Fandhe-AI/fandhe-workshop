@@ -400,6 +400,55 @@ fn compare(row: &Row, o: &Opened) -> Option<(Mismatch, String)> {
     Some((kind, msg))
 }
 
+/// 表示だけの 5 行は、履歴を書いた側の版（教材・エンジン・IR の構造・語彙）で開く側を作ると変換なしで開く（TASK-178 1/2。VER-9）。
+///
+/// 版つき URL は、履歴を書いた時点の配信物の凍結した写しである。その写しは履歴自身の 4 軸を持つので、最新版の画面で
+/// 表示だけになる履歴も、写しの側では「同一の版」として開き、続きの操作ができる。本試験は開く側の版を履歴自身の
+/// 記録から組み、`Opened::Open` になることを固定する。`fabricated` の 2 行（V-iv-4・V-v-3）の履歴は版の欄を書き換えた
+/// 作り物のため、「そのとおりの版を持つ旧い写しが在った」という仮定の上の確認である（実在する旧版の写しでの確認ではない）。
+/// V-iv-4 だけは構造の版 0 の IR を組めず再現できない（本文の分岐を参照）。
+/// 15 件の数え（5 件が表示だけ）は #865 の範囲で、ここでは表の `view_only` の行が 5 件であることだけを前提にする。
+#[test]
+fn view_only_rows_open_with_their_own_versions() {
+    let t = read_table();
+    let rows: Vec<&Row> = t
+        .rows
+        .iter()
+        .filter(|r| r.expect.result == Outcome::ViewOnly)
+        .collect();
+    assert_eq!(rows.len(), 5, "表示だけの行の数");
+    for row in rows {
+        let h = make_history(&row.history);
+        let ir = pack_ir(row.history.pack);
+        let vocab_max = VocabVersion::parse(&h.versions.vocab.to_string()).expect("vocab");
+        let caps = OpeningCaps::with_vocab_max(vocab_max);
+        let bytes = serde_json::to_vec(&h).expect("serialize");
+        let opened = load_history(&bytes, &ir, &h.versions, &caps, initial());
+        // V-iv-4 は IR の構造の版 0 の履歴で、現行のエンジンは版 0 の IR を組めない（旧い写しは旧い構造のエンジンごと残るため
+        // 実在すれば開けるが、本試験では再現できない）。そのため表示だけのまま残ることを確かめ、再現の限界として記録する。
+        if row.id == "V-iv-4" {
+            assert_eq!(
+                code_of(&opened),
+                Some(LoadReason::FormatOlder),
+                "{}",
+                row.id
+            );
+            continue;
+        }
+        assert_eq!(
+            result_of(&opened),
+            Outcome::Open,
+            "{}: 履歴自身の版で開く側は変換なしで開く（得た結果 {:?}）",
+            row.id,
+            code_of(&opened)
+        );
+        assert_eq!(opened.state(), Some(&h.snapshot), "{}", row.id);
+        // 対照: 表の開く側（最新版）では表示だけのまま。表の期待が動いていないこと。
+        let (latest, _) = open_row(row);
+        assert_eq!(result_of(&latest), Outcome::ViewOnly, "{}", row.id);
+    }
+}
+
 #[test]
 fn table_shape_matches_ver2() {
     let t = read_table();
