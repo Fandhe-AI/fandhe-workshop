@@ -22,6 +22,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
 ├── crates/                   # contract / core / pack / web の 4 crate（pack は compile・compare・metrics・vocab・validate まで実装済み）
+├── template-workshop/        # 雛形の置き場（現時点はライセンス表記だけ。LIC-2・TASK-130。構成は TASK-769）
 ├── testdata/                 # 試験データ（spec repo の写し。出所は testdata/README.md。整形ツールの対象外）
 ├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
 ├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
@@ -40,7 +41,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
 │   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
-│   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文の検査（回帰テストは test-check-license.sh）
+│   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -102,7 +103,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
-| `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があることの検査（`cargo metadata` + jq。LIC-1・TASK-129） |
+| `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があり、`template-workshop/` に同じ本文の写しと表記があることの検査（`cargo metadata` + jq。LIC-1・TASK-129、LIC-2・TASK-130） |
 | `make test-check-license` | ライセンス表記の検査自体の回帰テスト |
 | `make check-no-egress` | 依存（crate・wasm32 の web-sys の feature・npm）に通信・学習分析の手段が無いことの検査（SAFE-16。TASK-153。CI の rust-lint が流す） |
 | `make check-no-egress-dist` | 配信物（`dist/web`。先に `make build-web`）に通信の手段が無いことの検査（`make test-build-web` が実ビルドにも流す） |
