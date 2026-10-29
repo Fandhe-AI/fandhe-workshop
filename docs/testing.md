@@ -3879,7 +3879,7 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 | 節 | 今のビルドでの観察 | 育てる先（未実装の部分） |
 |---|---|---|
 | data | 5 つの `.sha256` を `node:crypto` で照合（16 件、不一致 0。追補 3 を 5 行に作り直したため試作の 17 件ではない） | なし |
-| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1 は 5.175（TASK-144。CSP あり・なし）、E2 は 5.366（TASK-145 1/2）、E3 は 5.367（TASK-145 2/2）、E5 の入力欄の経路は 5.368（TASK-147 1/2）で済み。E4・E6 の画面の経路は TASK-146・147 2/2 |
+| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1 は 5.175（TASK-144。CSP あり・なし）、E2 は 5.366（TASK-145 1/2）、E3 は 5.367（TASK-145 2/2）、E5 の入力欄の経路は 5.368（TASK-147 1/2）、E6 の URL の経路は 5.370（TASK-147 2/2）で済み。E4 の画面の経路は TASK-146 |
 | oversize | IR 20MB・履歴 10MB のちょうど・1 バイト超を `checkJsonLoad` へ。入力 20,000・20,001 文字 | 10 倍の水準は TASK-154（#855）・TASK-155 |
 | nest | 10,000 段の入れ子と 1,000,000 要素の配列（IR・履歴の両方） | 同上 |
 | cycle | 巡回する IR 4 本を関門へ | 画面での起動口は無い（D-68。実行時の教材の取得が入った後の課題）。遷移の上限は TASK-160（#444） |
@@ -10203,3 +10203,36 @@ L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT �
 - `input-field-xss` の 6 件が、`TEST_HOOKS` ありなしの 2 つの web を作って単独で流し、すべて通った。E5 は CSP あり・なしで各 147/147、各約 25 秒（ローカル）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
 - 範囲外: URL の入り口（SAFE-7）は #850（TASK-147 2/2）
+
+### 5.370 URL のクエリとハッシュからの注入 61 回（TASK-147 2/2。SAFE-7）
+
+元にしたコミット: `46ec8f4f`（実行日 2026-10-29）。URL のクエリとハッシュに入れた注入用の文字列が、配信する設定の画面で何も実行されず、画面のどこにも出ず、通信も増やさないことを確かめる試験 `tools/browser/url-xss.test.mjs` と、入力の読み込み `tools/browser/url-cases.mjs`（単体試験は `url-cases.test.mjs`）を足した（TASK-147 の 2/2。1/2 は 5.368）。
+
+#### 何を確かめるか
+
+データの正は `testdata/untrusted-input-safety/test-data-addendum-4/extra-cases.json`（`e6_positions` 7 件・`e6_payloads` 8 件・`ir_param_fixed` 5 件）と `xss-cases.md`。`url-cases.mjs` が sha256 の一覧（`test-data-addendum-4.sha256`）と照合してから読み、件数・位置の名前・ID が合わなければ例外にする。ペイロードの ID は `e6_payloads` の一覧を正にする（`xss-cases.md` の入り口の印に E6 があるのは 5 件だけで、XSS-01・02・07 には無いため）。
+
+61 回 = 7 位置（query の `ir`・`os`・`osmode`・`store`・`tick`・本体が読まない `x`、と hash）× ペイロード 8 件（56 回）＋ `?ir=` の固定の値 5 件。各回は新しい context で開き、保存先を持ち越さない。
+
+| 試験 | 内容 |
+|---|---|
+| E6（CSP あり・なし） | 61 回のそれぞれで、マウントする・`__fandheTest` が無い・値が `location` に届いている（到達の確認。空振りの防止）・画面の走査（HTML 全体・全属性の値・文字・title・入力欄の値・コンソール）で印が 0 件・実行 0・計数の全区分 0・`ir/main.json` の取得がちょうど 1 件・配信元以外への通信 0・囮の JSON の取得 0・要求の種類がクエリなしの基準と同じ・Step の題と画面の文字が基準と同じ |
+| C | 合格が CSP あり・なしのそれぞれで 61 回中 61 回で、値が 7 位置すべてに届いた |
+| D1 | 対照。印を属性と文字に入れた切り離した要素を走査すると 0 より大きく数え、実ページの印なしの走査は 0 |
+| D3 | 対照。ページ内から `./ir/min-3step.json` を取得すると、囮の検出が 1 件になる |
+
+URL の組み立て。query は `encodeURIComponent` した値を付け（`#` を含む値がハッシュに切られず、`URLSearchParams.get` が元の値に戻る）、hash も同じにする。`?ir=` の固定の値は再符号化せずそのまま付ける（IR-5 の `%23` は意図した符号化済みの値）。`start` は付けない（direct-link-start と ir-location が担う）。囮は `ir/min-3step.json`・`ir/something.json`・`ir/XSS-IR3.json`・`XSS-IR3.json`・`min-3step.json`・`something.json`・`main.json` に置く。
+
+`?ir=` の文言の読み替え。SAFE-7 の「`?ir=` の値が `./ir/<値>.json` の相対パスとして扱われる」は D-68（2026-10-21）より前の観察（PoC-7）で、仕様側も `engine-safety.md` に「決定前の観察で変えていない」と明記している。D-68 と SAFE-33 で IR の場所は固定の `./ir/main.json` になり、本体は `?ir=` を読まない。本試験は文言より強い現在の性質（値がどうであっても取得する資源の集合がクエリなしと同じで、囮の取得が 0 件）を確かめる。PoC では 61 回のうち 13 回が `?ir=` を読んで起動しなかったが、今は 61 回すべてがマウントするので、マウントを必須の条件にした。
+
+#### 限界
+
+- 配信する設定だけが対象。試験の設定は `?fixture=` 等を読むため、「本体が読まない名前」の前提が成り立たない。`start` の注入は 5.223（ir-location）と 5.199（direct-link-start）が担う
+- 画面の文字の一致は `document.body.innerText` の完全一致で見る。今回の実行では揺れなかった
+
+#### 件数・確認（2026-10-29）
+
+- `url-cases.test.mjs` の 4 件と `url-xss.test.mjs` の 5 件が、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。E6 は CSP あり・なしで各 61/61（位置別は `ir` が 13、他の 6 位置が各 8）、各約 52 秒（ローカル）
+- 手元の変異（記録のみ。コミットしない）: 配信する web の写しの `app.js` に `?os=` の値を `textContent` で DOM へ書く 4 行を足すと、`os` の 8 回が CSP あり・なしの両方で「印が画面に出た」で失敗し、C も失敗した。`?ir=` の値から取得する変異は流していない（未検証）
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+- 範囲外: 履歴（E4）は TASK-146
