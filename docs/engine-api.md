@@ -93,7 +93,7 @@
 - 早送りの入・切（EVT-27）
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
 - 案内レベルの切り替えのイベント化と履歴での扱い（GUIDE-16）。TASK-307・TASK-308 が決める。版 2 の `Control::SetGuidance` はイベントを出さない
-- ヒントの使用回数を増やす処理と、周回をまたぐ合計（GUIDE-7）。型の置き場（`SessionState.hints_opened`）だけを版 2 で固定した。振る舞いは TASK-295・TASK-297 が持つ
+- ヒントの使用回数が停止・復帰・移動で減らないことの保証と、送信 0 件の計数（GUIDE-7。TASK-297 2/2）。型の置き場（`SessionState.hints_opened`）は版 2 で固定し、鍵（Step の実体 ID）と合計の読み取り口（`hints_opened_at`・`hints_opened_in`）は TASK-297 1/2 で足した
 - `Op::Tick` での `Judged`（進行・無視）の発行位置。宛先が一致する進行は `Judged` を出さず `Progress` だけを出すと決めた（TASK-210 2/3、版 3 のサンプルの形に一致し、`CONTRACT_VERSION` を上げずに済む）。宛先の食い違いは `Judged{ignored}` を出さず `Event::Ignored` を 1 件だけ出すと決めた（TASK-210 3/3、サンプル e07 の形のまま、版は据え置き）。`judge::judge_tick` は純関数だけを置く
 - `Event::Refused.rejection`（`Option<String>`）の型の置き換え。足すときは版上げにする
 - 問い返しの待ちの状態（EP-4 `clarifying`）は、欄 `Slice.clarifying` を版 5 で固定した（TASK-42 2/2）。立てる・消す処理と評価器の結線は TASK-207・TASK-267 が持ち、それまで本番の値は常に `None` である
@@ -134,7 +134,7 @@
 | EVT-8 の判定順（宛先の照合を先に） | `TickAddr` と `IgnoreReason` の rustdoc | 実装済み（`judge_tick` が先に照合、TASK-210 3/3） | |
 | EVT-9 処理中の停止は世代を +1 し、処理中を解き、入口の写しへ戻す（持ち主の根の切り身と、持ち主が写しの後に書いた経路だけ） | `Event::Stopped { at, new_generation }`・`SessionState.entry`（`EntryCopy`） | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の `stop_after_two_ticks_removes_draft` ほか。写しは、状態に現在の Step の写しがあればそれを、無ければログから導いた受付の時点の `run`（`entry_derive`。状態には書かない。フラグ・選んだ選択肢は戻さない）を使う。受付の時点を一意に決められない・世代があふれる場合は `Warning` だけで状態を変えない（`stop_without_stored_entry_derives_the_same_entry_from_log`・`stop_without_entry_or_accept_in_log_warns_only`） | 停止前の世代の進行は停止の後に届いても `Ignored(Stale)` だけで状態を変えず、停止の後は入力を受け付け直せる（`stale_tick_after_stop_is_ignored`・`stale_tick_after_reinput_is_ignored`・`input_after_stop_is_accepted_and_completes`・`p2_pre_stop_ticks_never_change_run`、TASK-211 2/2） | 実体ごとの戻り方は実装済み（`stop_owner_slice`、TASK-242 2/2。入口の写しは Step に入るたびに置き換わり 1 つだけ。TASK-242 1/2） |
 | GUIDE-6 ヒントの上限は現在の案内レベルで出せる数まで。3 段に固定しない（D-55） | `guidance::visible_hints` の `len()`、`hint_open` の上限 | 実装済み（`hint_open`、TASK-295・TASK-296。試験 `hint_limit_rule`・`hint_limit_39`） | |
-| GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 実装済み（`hint_open`、TASK-295。試験 `hint_open`）。鍵の実体ごとの扱いは TASK-297 | TASK-297 |
+| GUIDE-17 現在の案内レベルで出せる n 段まで 1 段ずつ開ける | `Control::OpenHint`、`Event::HintOpened { opened, total }`、`SessionState.hints_opened`、`guidance::visible_hints` の `len()` | 実装済み（`hint_open`、TASK-295。試験 `hint_open`）。鍵は Step の実体 ID（根を含む完全な uid）で周回・実体ごとに分かれ、根ごとの合計は `SessionState::hints_opened_in` で読む（TASK-297 1/2。試験 `hint_instance_key`・pack の `round_hints`）。減らないことと送信 0 件は TASK-297 2/2 | TASK-297 |
 | GUIDE-17 n 段を超える操作と現在の Step が無い操作は `NoHint` で拒否 | `RefuseReason::NoHint`、`ControlKind::OpenHint` | 実装済み（`hint_open`、TASK-295。試験 `hint_open`） | |
 | GUIDE-17 ヒントを開いても世代は変わらない | `OpenHint` が `Keep`、`HintOpened` が `new_generation` を持たない | 読み取れる | |
 | JUDGE-3 入力 1 件の判定結果は 6 種のどれか 1 つで、`Judged` として出る | `Event::Judged { at, judgment }`・contract の `Judgment::kind()`（全域）・`judge::judge_input` | 読み取れる（型と純関数）。`Op::Input` は `apply()` に結線済み | 発行位置は `InputReceived` の直後（`Op::Input`）。`apply()` は判定を 1 回だけ行い、その結果に従って状態を変える（拒否・問い返しは状態を変えない）。判定できない宣言と、受付・確認の判定の後に遷移が続かない場合は `Judged` を置かず `Warning` を出す。取り消しの受付の規則（`on.cancel`）は `Entered` の Step で他の入力と同じ受付になり（TASK-212）、`Accepted` の Step では意味が仕様に無いため `Judged` を置かず `Warning` だけにする。進行の位置は TASK-210 |
@@ -208,3 +208,4 @@
 - 2026-10-23: Step に入るたびに状態の入口の写しを無効化し、写しを 1 つだけにした（`transit` の着地・呼び出し元への戻り。MOD-10、TASK-242 1/2）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-23: 処理中の停止を、持ち主の根の切り身・位置と持ち主が写しの後に書いた世界状態の経路だけ戻す形にした（`stop`・`entry_derive::revert_owner`。MOD-10、TASK-242 2/2）。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-27: 現在の根の下書きを読む `Session::current_draft`・`RecordedSession::current_draft`・`SessionState::draft_root`・`current_draft` を足した（読み取り専用。`drafts` から導くだけで欄は足さない。MOD-4、TASK-236 1/2）。型・直列化・世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた
+- 2026-10-29: ヒントの使用回数を読む `SessionState::hints_opened_at`・`hints_opened_in` と、`Session`・`RecordedSession` の同名の読み取り口を足した（読み取り専用。`hints_opened` から導くだけで欄は足さない。GUIDE-7、TASK-297 1/2）。型・直列化・世代の表は変わらないため、文書の版・`CONTRACT_VERSION` は据え置いた

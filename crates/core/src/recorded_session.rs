@@ -15,6 +15,7 @@
 
 use fandhe_workshop_contract::ir::Ir;
 
+use crate::addr::{Root, StepUid};
 use crate::event::Event;
 use crate::history_envelope::{build_envelope, record_draft, record_submit, SessionEnvelope};
 use crate::history_replay::submit_input;
@@ -95,6 +96,16 @@ impl RecordedSession {
     /// 現在の根の下書き（MOD-4）。[`Session::current_draft`] と同じ。
     pub fn current_draft(&self) -> Option<&str> {
         self.session.current_draft()
+    }
+
+    /// その Step の実体で開いたヒントの段数（GUIDE-7）。[`Session::hints_opened_at`] と同じ。
+    pub fn hints_opened_at(&self, uid: &StepUid) -> u32 {
+        self.session.hints_opened_at(uid)
+    }
+
+    /// 根（実体）ごとのヒントの段数の合計（GUIDE-7）。[`Session::hints_opened_in`] と同じ。
+    pub fn hints_opened_in(&self, root: &Root) -> u32 {
+        self.session.hints_opened_in(root)
     }
 
     /// 再読み込みを記録してから行い、今回足されたイベントを返す（SAVE-4）。

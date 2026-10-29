@@ -7680,7 +7680,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 | GUIDE17-4 | `hint_open.rs`: 開いた段数を記録しない | opens_one_by_one_up_to_n, property_open_up_to_visible_count | 6 件 | DETECTED | cases=1000、最小の入力 `([None], 0, 1)` |
 
 - 確かめないこと: 画面での表示と開く操作（TASK-530）。
-- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296。D-55 で固定しないと決まった。5.254 で確かめる）。
+- 範囲外: 鍵を実体ごとにすることと周回をまたぐ合計（TASK-297 1/2。5.383 で固定した）、`SetGuidance` の結線（TASK-294）、3 段への固定（TASK-296。D-55 で固定しないと決まった。5.254 で確かめる）。
 
 ### 5.252 実体の呼び出しの有向非巡回グラフと数の照合（TASK-233 2/2。MOD-1）
 
@@ -10720,3 +10720,12 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
   - E: 対照。禁止の要素を数えられること、錨が無効と有効で違う値を返すこと
 - 配信物に代役の名・`receptor_activation` が無いことを `scripts/test-build-web.sh`・`tools/check-delivery.sh` が固定の文字列で確かめる
 - 限界: `docs/known-gaps.md` の「EXT-10」。`scripts/expected-test-counts.txt` は更新していない
+
+### 5.384 ヒントの使用回数を Step の実体ごとに分ける（TASK-297 1/2。GUIDE-7）
+
+- 目的: 開いたヒントの段数が Step の実体 ID（根を含む完全な uid）ごとに分かれ、2 周目の開始の直後は 2 周目の根の使用回数が 0 であり、2 周目で開いても 1 周目に出ないことを固定する。実体（根）ごとの合計を読めるようにする。
+- 決定: 鍵は 5.251 の時点から完全な uid で、分離は既存の実装で成り立っていた。本節が足したのは読み取り口（`SessionState::hints_opened_at`・`hints_opened_in`。`Session`・`RecordedSession` は委ねるだけ）と固定の試験である。欄の型・直列化・`CONTRACT_VERSION` は変えない。「接頭辞」は `StepUid::root` との完全一致で判定し、前方一致にしない（`m@r1` が `m@r10/..` に混ざらないため）。和は飽和加算。入れ子の根の文言の食い違いは #1413（本件の範囲外）。
+- 試験: core `crates/core/tests/hint_instance_key.rs`（根をまたいで混ざらない・`m@r10` の境界・同じ根の Step の合計・欄なしは 0・飽和・イベントの印の根・性質テスト 1,000 件）、pack `crates/pack/tests/round_hints.rs`（`module-reuse-rounds` で 2 周目の開始の直後に 2 周目の根の合計が 0・項目 0 件、2 周目で開いても 1 周目の合計が変わらず、戻ると元の値）。
+- 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE7-1.mutation crates/core/tests/mutations/GUIDE7-2.mutation`。結果は下の「実行結果」）: GUIDE7-1 は鍵から根を落とす、GUIDE7-2 は根の比較を前方一致にする。
+- 限界: pack の試験は共通の計画（`GoTo` で飛ばす）に依り、真の通しとは経路が違いうる。停止・復帰・移動で減らないことの網羅と送信 0 件の計数は TASK-297 2/2（#874）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+- 実行結果（2026-10-29。元にした実装は base 45ada777 の上の本変更）: GUIDE7-1・GUIDE7-2・GUIDE17-4（鍵の整理で `find` を直した）はいずれも DETECTED（性質テストは cases=1000、GUIDE7-1 の最小の入力は `[Open]`、GUIDE7-2 は `[Go(4), Open]`）。core `hint_instance_key` は 7 件、pack `round_hints` は 2 件が合格。

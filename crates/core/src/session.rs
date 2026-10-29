@@ -163,11 +163,32 @@ pub struct SessionState {
     /// 根ごとの下書き。鍵は `StepUid::root`（入れ子の実体では `Instance.id`）。停止・復帰で戻さない（MOD-4・MOD-9）。下書きを変える操作は版 1 では固定しない。
     pub drafts: BTreeMap<Root, String>,
     /// Step の実体ごとに開いたヒントの段数。停止・復帰で戻さない（GUIDE-7）ため、`run` の外に置く。
-    /// 1 段ずつ増やす処理は `hint_open`（TASK-295）。実体ごとの鍵と周回をまたぐ合計は TASK-297 が実装する。
+    /// 1 段ずつ増やす処理は `hint_open`（TASK-295）。鍵は Step の実体 ID（根を含む完全な uid）なので、周回・実体ごとに
+    /// 分かれる（TASK-297 1/2）。実体（根）ごとの合計は [`SessionState::hints_opened_in`]、1 Step の段数は
+    /// [`SessionState::hints_opened_at`] で読む。
     pub hints_opened: BTreeMap<StepUid, u32>,
 }
 
 impl SessionState {
+    /// その Step の実体で開いたヒントの段数（GUIDE-7、TASK-297 1/2）。欄が無ければ 0。
+    ///
+    /// 鍵は完全な uid なので、別の周回（別の根）の同じ Step の段数は混ざらない。欄から導くだけで履歴は変わらない。
+    pub fn hints_opened_at(&self, uid: &StepUid) -> u32 {
+        self.hints_opened.get(uid).copied().unwrap_or(0)
+    }
+
+    /// 根（実体）ごとに開いたヒントの段数の合計（GUIDE-7、TASK-297 1/2）。その根の項目が無ければ 0。
+    ///
+    /// 「接頭辞」は [`StepUid::root`] との完全一致で判定する。文字列の前方一致にしないのは、`m@r1` が `m@r10/..` に
+    /// 一致する誤りを避け、切り身・下書きの持ち主と同じ根の定義でまとめるため。入れ子の実体の根の文言の食い違いは
+    /// [`Root`] の文書（#1413）を参照する。和は飽和加算で、あふれても落ちない。欄から導くだけで履歴は変わらない。
+    pub fn hints_opened_in(&self, root: &Root) -> u32 {
+        self.hints_opened
+            .iter()
+            .filter(|(uid, _)| uid.root() == *root)
+            .fold(0u32, |acc, (_, n)| acc.saturating_add(*n))
+    }
+
     /// 下書きの鍵になる現在の根（MOD-4）。現在の Step が無い（開始前）ときは `None`。
     ///
     /// 鍵は `StepUid::root`（入れ子の実体では `Instance.id`）であり、`instance::owner_of` ではない。
@@ -444,6 +465,16 @@ impl Session {
     /// 現在の根の下書き（MOD-4）。[`SessionState::current_draft`] と同じ。
     pub fn current_draft(&self) -> Option<&str> {
         self.state.current_draft()
+    }
+
+    /// その Step の実体で開いたヒントの段数（GUIDE-7）。[`SessionState::hints_opened_at`] と同じ。
+    pub fn hints_opened_at(&self, uid: &StepUid) -> u32 {
+        self.state.hints_opened_at(uid)
+    }
+
+    /// 根（実体）ごとのヒントの段数の合計（GUIDE-7）。[`SessionState::hints_opened_in`] と同じ。
+    pub fn hints_opened_in(&self, root: &Root) -> u32 {
+        self.state.hints_opened_in(root)
     }
 
     /// 現在の世代。

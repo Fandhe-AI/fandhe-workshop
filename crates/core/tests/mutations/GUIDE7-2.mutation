@@ -1,0 +1,8 @@
+id: GUIDE7-2
+package: fandhe-workshop-core
+test: hint_instance_key
+target: crates/core/src/session.rs
+find:             .filter(|(uid, _)| uid.root() == *root)
+replace:             .filter(|(uid, _)| uid.0.starts_with(root.0.as_str()))
+expect-fail: a_root_total_does_not_include_a_longer_root_name
+note: 根の比較を文字列の前方一致に替え、m@r10 の段数が m@r1 の合計に混ざる
