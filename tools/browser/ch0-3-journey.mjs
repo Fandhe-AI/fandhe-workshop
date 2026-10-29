@@ -321,6 +321,7 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null,
   await enter('main/st-1-2', plain);
   await d.completeAndSend('/he', '/help');
   await enter('main/st-1-3', plain);
+  if (stopAt === 'main/st-1-3') return;
   await d.sendMultiline('memo line 1', 'memo line 2');
   await enter('main/st-1-4', plain);
   if (stopAt === 'main/st-1-4') return;

@@ -17,8 +17,9 @@
 //! 済ませた文面（`host::HostModel::judged_text`）を呼び出し側が渡す。ここでは文面を作らず、渡されなければ
 //! 行にしない（fail-closed）。
 //! 承認の操作の行の文言は `承認の操作: {語}（対象: {対象}）`（対象なしは括弧なし。TASK-447 2/2）。
-//! 拡張点: 応答の行は TASK-435・TASK-438 が `line_from_event` に足す。
-//! 型 [`LogLine`] は、結線済みの種類と拡張点で足す種類（応答）をすべて表せる。
+//! 応答の行（`response`）は、自然文の受付の注記（`free_text_unjudged`。EXT-3・TASK-185 2/2）だけを結線する。
+//! 内容の良し悪しは判定せず、自己確認の観点の文面と次の行動を出す。文面は拒否と同じく呼び出し側が渡し、渡されなければ
+//! 行にしない（fail-closed）。受付の注記が無い受付（`Accepted(None)`）は行にしない。
 //!
 //! 親の識別子 `log-list` は引き継がない。`hello.rs` の送信済みの一覧が使っており、ブラウザ試験が数えているため、
 //! `LogPart` の親は仮の `part-log-list` のままにする。引き継ぎ（hello の一覧の退役と `part-log*` の仮の識別子の
@@ -198,6 +199,16 @@ pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
                 next_action: c.next_action.clone(),
             })
         }
+        Event::Judged {
+            judgment: Judgment::Accepted(Some(n)),
+            ..
+        } => {
+            let body = text.filter(|t| !t.trim().is_empty())?;
+            Some(LogLine::Response {
+                body: body.to_owned(),
+                next_action: Some(n.next_action.clone()),
+            })
+        }
         Event::InputReceived { input, .. } => {
             let method = InputMethod::from_input(input)?;
             Some(match input {
@@ -248,6 +259,10 @@ pub fn line_kind_from_event(event: &Event, text: Option<&str>) -> Option<LineKin
             judgment: Judgment::Clarified(_),
             ..
         } => non_blank().then_some(LineKind::Clarified),
+        Event::Judged {
+            judgment: Judgment::Accepted(Some(_)),
+            ..
+        } => non_blank().then_some(LineKind::Response),
         Event::InputReceived { input, .. } => {
             InputMethod::from_input(input)?;
             match input {

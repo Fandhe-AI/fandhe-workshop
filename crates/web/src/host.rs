@@ -80,7 +80,7 @@ use fandhe_workshop_core::ir_load::IrLoadError;
 use fandhe_workshop_core::learner_os::LearnerOs;
 use fandhe_workshop_core::ops_record::OpsRecorder;
 use fandhe_workshop_core::recorded_session::RecordedSession;
-use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log};
+use fandhe_workshop_core::text_fill::{filled_text, filled_texts_of_log_at};
 use fandhe_workshop_core::version_record::record_versions;
 #[cfg(feature = "test-hooks")]
 use fandhe_workshop_core::version_record::record_versions_with;
@@ -2442,10 +2442,12 @@ impl EngineHost {
 
 /// 復元で、ログ全体の拒否・問い返しの文面を core に作り直させて控える。
 ///
-/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log`] が持つ。作れなかった拒否・問い返しは控えず、
+/// 各判定の時点の状態の組み直しは core の [`filled_texts_of_log_at`] が持つ。作れなかった拒否・問い返しは控えず、
 /// 行を出さない（fail-closed）。
 fn restore_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session) {
-    for (i, f) in filled_texts_of_log(session.ir(), session.log()) {
+    // 案内レベルはログに残らないため、復元後の現在のレベルで充填する（記録時と同じ値）。
+    let level = session.state().run.guidance_level;
+    for (i, f) in filled_texts_of_log_at(session.ir(), session.log(), level) {
         if let Ok(key) = u32::try_from(i) {
             texts.insert(key, f.message);
         }
@@ -2472,15 +2474,32 @@ fn record_judged_texts(texts: &mut BTreeMap<u32, String>, session: &Session, fro
         let Ok(key) = u32::try_from(i) else {
             continue;
         };
-        if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment) {
+        // 受付は適用で現在の Step が進みうるので、適用後の状態では充填しない。core が `at.step`（判定の時点の Step）から
+        // 組み直す `filled_texts_of_log` に、入力と判定の 2 件だけを渡す（実行状態の組み立ては web に持ち込まない）。
+        // 拒否・問い返しは状態を変えないため、適用後の状態のままでよい。
+        if matches!(judgment, Judgment::Accepted(_)) {
+            if let Some((_, f)) = log
+                .get(i - 1..=i)
+                .map(|pair| {
+                    filled_texts_of_log_at(session.ir(), pair, session.state().run.guidance_level)
+                })
+                .and_then(|v| v.into_iter().next())
+            {
+                texts.insert(key, f.message);
+            }
+        } else if let Ok(Some(f)) = filled_text(session.ir(), &session.state().run, input, judgment)
+        {
             texts.insert(key, f.message);
         }
     }
 }
 
-/// 文面を控える判定か。拒否と問い返しだけで、受付や変化は応答の行の担当（TASK-435・TASK-438）。
+/// 文面を控える判定か。拒否・問い返しと、自然文の受付の注記（応答の行。EXT-3）だけである。
 fn keeps_text(j: &Judgment) -> bool {
-    matches!(j, Judgment::Rejected(_) | Judgment::Clarified(_))
+    matches!(
+        j,
+        Judgment::Rejected(_) | Judgment::Clarified(_) | Judgment::Accepted(Some(_))
+    )
 }
 
 /// 上部の教材名・教材の ID・位置。前後で比べて dirty を積むための値。

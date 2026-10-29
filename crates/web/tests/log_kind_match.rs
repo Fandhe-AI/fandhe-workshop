@@ -5,7 +5,7 @@
 //! 試験では `unwrap` を使ってよい。
 
 use fandhe_workshop_contract::judgment::{
-    Clarification, Judgment, NextAction, RejectCategory, Rejection,
+    AcceptNote, Clarification, Judgment, NextAction, RejectCategory, Rejection,
 };
 use fandhe_workshop_core::addr::{Generation, Stamp, StepUid};
 use fandhe_workshop_core::event::Event;
@@ -40,6 +40,17 @@ fn events() -> Vec<Event> {
                 text: "c-1".into(),
                 next_action: na(),
             }),
+        },
+        Event::Judged {
+            at: at(),
+            judgment: Judgment::Accepted(Some(AcceptNote {
+                text: "n-1".into(),
+                next_action: na(),
+            })),
+        },
+        Event::Judged {
+            at: at(),
+            judgment: Judgment::Accepted(None),
         },
         Event::Stopped {
             at: at(),
@@ -99,4 +110,30 @@ fn kind_matches_line_for_every_event_and_text() {
         }
     }
     assert!(some > 20, "行になる組が少なすぎる: {some}");
+}
+
+#[test]
+fn accepted_note_becomes_a_response_line_only_with_a_text() {
+    use fandhe_workshop_web::log_lines::LogLine;
+    let note = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Accepted(Some(AcceptNote {
+            text: "n-1".into(),
+            next_action: na(),
+        })),
+    };
+    assert_eq!(
+        line_from_event(&note, Some("自分で確かめる")),
+        Some(LogLine::Response {
+            body: "自分で確かめる".to_owned(),
+            next_action: Some(na()),
+        })
+    );
+    assert_eq!(line_from_event(&note, None), None);
+    assert_eq!(line_from_event(&note, Some(" ")), None);
+    let none = Event::Judged {
+        at: stamp(),
+        judgment: Judgment::Accepted(None),
+    };
+    assert_eq!(line_from_event(&none, Some("文面")), None);
 }

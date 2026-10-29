@@ -10686,3 +10686,19 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
   - V-iv-4・V-v-3 は版の欄を書き換えた作り物である
 - 04 への反映案（spec は spec repo 側で直す）: VER-9 の「5 件は表示だけ」の証拠に上記の試験名を足す。VER-10 の「表示だけの経路」に起動時と読み込みの両方の試験を足す
 - 実行結果（2026-10-29。Linux x86_64）: core の `version_histories` は 8 件合格（1 件は書き出し用で無視）、web の `view_only_fallback` は 3 件合格、ブラウザの `view-only-fallback` は 5 件（表の形 1・CSP あり・なし各 2）が合格。`scripts/expected-test-counts.txt` は変えていない
+
+### 5.382 自然文の送信で外部通信 0 件と自己確認の観点が出ること（TASK-185 2/2。EXT-3・SAFE-16）
+
+結論: 自然文の Step（`input.kind: text`）に文を送っても、通信の試みは全区分 0 件で、自己確認の観点（`free_text_unjudged` の注記）が右のログの応答の行（`data-kind="response"`）に出る。内容の良し悪しは判定せず、受付のまま進む。
+
+- 試験を足す前は、core が受付の注記（`Accepted(Some(AcceptNote))`）を返していても web が行にしておらず、画面に出なかった。同じ変更で最小の結線を足した: `log_lines.rs` が `Accepted(Some)` を `Response`（本文と次の行動）に写し、`host.rs` が文面を控え、core の `filled_texts_of_log` が復元でも同じ文面を返す。新しい型・`data-testid`・通知は足していない。注記が無い受付（`Accepted(None)`）と文面を解決できない場合は行にしない（fail-closed）
+- 受付は適用で現在の Step が進みうるため、文面の差し込みは適用後の状態ではなく、判定の時点の Step（`Judged.at.step`）から組み直す（`filled_texts_of_log` を入力と判定の 2 件に対して呼ぶ）。実行状態の組み立てを web に持ち込まない（`no_progress` が固定）
+- 自動ブラウザ `tools/browser/free-text-egress.test.mjs`（通信の計数は 5.371 の `egress.mjs`）
+  - F1（試験の設定。CSP あり・なし）: ch0-3 の st-1-3 で、短い文・複数行・上限 20000 文字・問いの形・URL を含む指示風・意味の無い文字列の 6 通りを 1 件ずつ新しい context で送る。増えた行が `received` と `response` の 2 件だけ（拒否・問い返しは増えない）、応答の本文と次の行動が IR の注記と一致、全区分 0 件、fetch は許可した宛先だけ。最初の 1 件は再読み込みの後も応答の行が残る
+  - F2（配信する設定。CSP あり・なし）: 試験用の口が無い画面の本物の入力欄から送り、応答の行・全区分 0 件・fetch が wasm と IR の 2 件だけ
+  - F3（負の対照）: `defaults.free_text_unjudged` を外した IR では応答の行が 0 件で、受付は妨げられない
+  - C（対照）: 外部への fetch を 1 回試みると `offOriginCalls` がちょうど 1 増える（計数が空の 0 でないことの確認。宛先は予約ドメイン `example.invalid` で、実際の外部へは出ない）
+- 出力は区分の件数の 1 行だけで、入力の本文・URL の値は出さない
+- native: `crates/core/src/text_fill.rs`（受付の注記の充填と、入力の直後でない・`Accepted(None)` は戻さないこと）、`crates/web/tests/log_kind_match.rs`（受付の注記を足した種類の一致と、文面なしで行にならないこと）
+- 限界: 「次の一歩」の案内が案内だけであること（ROUND2-24・ROUND2-25）は教材の内容の確認で、本 repo に CH-15 は無い。L2 での同じ計数は行わない（L1 と L2 の一致は `l1-l2-match` が見る）。応答の行が増えたため、`make measure-log-items`（`docs/measurement.md` 4b）の最大項目数は自然文の入力ごとに 1 増えうる。基点の取り直しは行っていない。`scripts/expected-test-counts.txt` は変えていない
+
