@@ -16,6 +16,7 @@
 - 変更が要るときは、仕様（`docs/spec` の 04）を先に直し、版上げの契約タスクを立てる
 - 仕様は private のため、本文を転記せず ID（EVT-6、EVT-8 など）で参照する
 - 状態変化の提供元の境界の版（`provider::PROVIDER_CONTRACT_VERSION`）は別に管理する。本文書の対象外である
+- 受け口の有効化の関門の版（`receptor_gate::RECEPTOR_GATE_CONTRACT_VERSION`）も別に管理する。本文書の対象外である
 - 冒頭の版と世代の表（3 節）は、`crates/core/tests/engine_api_doc.rs` が型と照合する
 
 ## 2. 型の一覧

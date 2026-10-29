@@ -1,0 +1,9 @@
+id: EXT10-1
+package: fandhe-workshop-core
+test: receptor_gate
+target: crates/core/src/receptor_gate.rs
+find:     } else if !consent.has(id) {
+replace:     } else if false {
+expect-fail: ext10_settings_without_consent_is_disabled
+expect-fail: ext10_each_receptor_is_independent
+note: 環境が許せば同意が無くても有効にする（受講者の明示の同意が要るという規則を見分ける）

@@ -19,7 +19,7 @@
 
 - **教材パックから任意のコードは書けない**。拡張点が足すのは、閉じた値の集合を持つ宣言の欄だけである。スクリプト・式・コードを書く欄を、拡張点として足してはならない
 - 未知の欄は `E-PARSE` で拒否される。根拠の試験は、`script`・`code`・`eval`・`exec`・`expr`・`js` の拒否を見る `crates/pack/tests/effects.rs`・`crates/pack/tests/condition_vocabulary.rs`・`crates/pack/tests/format_b.rs`・`crates/pack/tests/confirm_vocabulary.rs` である
-- 教材パックからは、名前の欄を書いて参照するだけである。受け口の有効化も教材パックからはできない（EXT-10、D-53）
+- 教材パックからは、名前の欄を書いて参照するだけである。受け口の有効化も教材パックからはできない（EXT-10、D-53）。根拠の試験は `crates/pack/tests/receptor_activation.rs`・`crates/core/tests/receptor_gate.rs`
 - 教材パックは信頼できない入力として扱う。新しい欄の読み取りは、不正な値を安全側（拒否）に倒す
 - 手順 0 として、先に仕様の 04（PACK-n の行）と決定（D-n）を用意する。EP-13 では仕様の記録が実装の後になった（9 節）ため、同じことを繰り返さない。名前を変えるときは、語彙の文書の 1 節のとおり仕様を先に直す
 - 通常の教材の追加では、エンジンの差分は 0 行である（SECOND-20）。拡張点の追加は、既存の語の組み合わせで書けないと確かめた後に限る
