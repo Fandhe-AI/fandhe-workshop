@@ -214,9 +214,16 @@ test('書き換えたファイルと空のファイルは開かず、状態を�
     fs.writeFileSync(badUtf8, Buffer.concat([raw.subarray(0, at), Buffer.from([0x22, 0x78, 0xff, 0x22, 0x3a, 0x30, 0x2c]), raw.subarray(at)]));
 
     for (const [label, f] of [['empty', empty], ['broken', broken], ['tampered', tampered], ['bad-utf8', badUtf8]]) {
+      const prevImport = JSON.stringify((await engine(P.page)).lastImport ?? null);
       await P.page.setInputFiles(FILE_INPUT, f);
       await P.page.locator(NOTICE_ITEM).first().waitFor({ state: 'visible', timeout: 10000 });
-      const e = await engine(P.page);
+      // 通知は前の拒否のものが残っていて即座に見えるため、今回の読み込みの結果（lastImport）が替わるまで待つ。
+      const deadline = Date.now() + 10000;
+      let e = await engine(P.page);
+      while (JSON.stringify(e.lastImport ?? null) === prevImport && Date.now() < deadline) {
+        await P.page.waitForTimeout(50);
+        e = await engine(P.page);
+      }
       assert.ok(e.lastImport && e.lastImport.verdict !== 'open', `${label}: not opened`);
       if (label === 'bad-utf8') assert.equal(e.lastImport.reason, 'not_json', 'invalid UTF-8 is refused as not_json');
       assert.equal(JSON.stringify(e.stateWithoutLog), stateBefore, `${label}: state unchanged`);
