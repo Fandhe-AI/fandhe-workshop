@@ -57,10 +57,10 @@ check-license: ## 全 crate の license が MIT OR Apache-2.0 であることと
 test-check-license: ## ライセンス表記の検査自体の回帰テスト。直接: scripts/test-check-license.sh
 	@scripts/test-check-license.sh
 
-check-no-egress: ## 依存（crate・web-sys の feature・npm）に通信・学習分析の手段が無いことを検査する（SAFE-16）。直接: scripts/check-no-egress.sh deps
+check-no-egress: ## 依存（crate・web-sys の feature・npm）に通信・学習分析の手段が無いことと、初回に持たない機能（CLI の橋渡し・backend・提出・LLM）の crate が無いことを検査する（SAFE-16・EXT-1〜EXT-3）。直接: scripts/check-no-egress.sh deps
 	@scripts/check-no-egress.sh deps
 
-check-no-egress-dist: ## 配信物（dist/web。先に make build-web）に通信の手段が無いことを検査する（SAFE-16）。直接: scripts/check-no-egress.sh dist dist/web
+check-no-egress-dist: ## 配信物（dist/web。先に make build-web）に通信の手段と初回に持たない機能が無いことを検査する（SAFE-16・EXT-1〜EXT-3）。直接: scripts/check-no-egress.sh dist dist/web
 	@scripts/check-no-egress.sh dist dist/web
 
 test-check-no-egress: ## 通信の手段の検査自体の回帰テスト（ビルドなし）。直接: scripts/test-check-no-egress.sh

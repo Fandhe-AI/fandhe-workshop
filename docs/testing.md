@@ -10639,3 +10639,18 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - (b) の復帰後の画面は試験の口が無いため、題とログの行の存在・件数で確かめる（DOM の全体一致ではない）。
 - 起動時の理由の案内は TASK-533、受講者向けの最終の文面は TASK-545・TASK-549・TASK-534 の範囲。理由はコードで確かめる。
 - Chromium のみ。`scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）。
+
+### 5.380 依存と配信物に持たない機能の検査（TASK-185 1/2。EXT-1・EXT-2・EXT-3）
+
+実行日 2026-10-29。初回の配布物（L1・L2）が、実 CLI への橋渡し（EXT-1 cli-bridge）・backend／提出／学習分析（EXT-2 backend・submission・analytics）・LLM の必須化（EXT-3 llm）を持たないことを、`scripts/check-no-egress.sh`（5.371 と同じスクリプト）に区分を足して固定した。違反の行には `[EXT-1 cli-bridge]` などの区分を前置する。CI の `rust-lint`（deps）と `browser-test` の `make test-build-web`（dist）が既存の step で流すため、ジョブ・必須チェックは変わらない。
+
+| 層 | 検査 | 受け持ち |
+|---|---|---|
+| crate | 区分ごとの拒否一覧（完全一致・前方一致） | `check-no-egress.sh deps` |
+| `web-sys` の feature | USB・Serial・認証情報・Gpu／Ml など | 同上 |
+| WASM の import・glue JS・`app.js` | 名前・トークン（`connectNative`・`document.cookie`・`gtag`・`LanguageModel` など） | `check-no-egress.sh dist` |
+| `index.html` | `<form`・`mailto:` が無い（EXT-2 submission） | 同上 |
+| L2 の起動の引数 | miniserve の追加機能を有効にしない完全一致 | `tools/build-l2.test.mjs`（`make test-build-l2`） |
+| L2 の miniserve 本体 | sha256 の固定値 | `tools/l2/miniserve.sha256` |
+
+実測（2026-10-29）: 実 repo の `deps` と、`SKIP_WASM_OPT=1` の配信する設定の実ビルドへの `dist` はいずれも終了コード 0（拒否 0 件）。回帰テスト `make test-check-no-egress` は区分ごとの負の対照（crate・feature・WASM import・JS・`index.html`）とタグの出力を固定する。限界は `docs/known-gaps.md` の「EXT-1〜EXT-3: 持たない機能の静的な検査の範囲」。自然文送信時の通信 0 件の自動試験は TASK-185 2/2 が受け持つ。

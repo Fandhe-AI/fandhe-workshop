@@ -275,6 +275,7 @@ jobs:
       # 受講者の入力・履歴を外部へ送る手段が依存に無いことの機械検査（SAFE-16・TASK-153。仕様上の人間の承認点）。
       # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
       # 配信物の検査（dist）は browser-test の make test-build-web が実ビルドに対して流す。
+      # TASK-185 1/2: 同じ検査が EXT-1〜EXT-3（CLI の橋渡し・backend・提出・学習分析・LLM）の区分も流す（step の追加なし）。
       - name: make check-no-egress
         run: |
           set -euo pipefail
