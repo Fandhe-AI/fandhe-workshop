@@ -10654,3 +10654,20 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 限界: `docs/known-gaps.md` の「VER-9: 版つき URL の限界」。旧版が残っていないときの表示のみへの落とし方と 15 件のうち 5 件の扱いは TASK-178 2/2、最新版の画面から旧版の URL への案内は REVIEW-8。本物の配信構成は教材 repo の TASK-125（合成の写しで確かめた）
 - 04 への反映案（spec は spec repo 側で直す）: VER-9 に版つき URL の形と「先頭区間の下に置く」条件を、VER-10 に「どの版まで残すか・担当」を未決のまま案として、DLV-26 に根への配信では続けられない限界を書く
 - 実行結果（2026-10-29。Linux x86_64）: `versioned-url` は CSP あり・なしの 2 件が合格、core の試験 5 件・web の試験 3 件が合格。`scripts/expected-test-counts.txt` は変えていない
+
+### 5.381 旧版が残っていないときに表示のみへ落ちること（TASK-178 2/2。VER-9・VER-10・D-52）
+
+結論: エンジンは別の版を探さない（SAFE-33・D-68）。旧版の配信物（版つき URL）が残っていなければ、表示だけに落ちるのが既定の経路であり、そのための新しい分岐は無い。最新版だけの配信では、15 件のうち表示だけになるのはちょうど 5 件（V-ii-1・V-iii-1・V-iii-2・V-iv-4・V-v-3）で、その履歴は操作が何も変えない。
+
+- D-52 との対応: 旧版の成果物を残すのは主版を上げたときだけである。5 件のうち旧版が残りうるのは `content_major` の 2 件（V-iii-1・V-iii-2）だけである。V-ii-1 は副版で Step を足した（`replay_diverged`。VER-5）、V-iv-4 は `ir_format`（`format_older`）、V-v-3 はエンジンの主版（`engine_major`）で、教材内容の主版の軸ではなく旧版が残らないため、表示だけが最終の形になる
+- 件数の 5 自体は 5.137 以来の `RESULT_COUNTS` が持つ。本節が足したのは、ID の集合・起動時と読み込みの両方の入口で `Session` を作らないこと・全理由コードでの操作なし・別の版を探す要求 0 件・D-52 との対応の固定である
+- 確かめたこと
+  - core `crates/core/tests/version_histories.rs`: `without_a_versioned_url_exactly_five_of_fifteen_are_view_only`（15 件を開き表示だけの ID の集合が固定の 5 件に一致し `state()` が無い）、`boot_without_a_versioned_url_matches_the_import_judgment`（起動時の復元 `boot_session` が 15 件のすべてで読み込みと同じ判定になり、表示だけ・開かないは初期状態のまま `ops` を引き継がない）、`only_content_major_rows_have_a_d52_old_copy`（D-52 の分類）
+  - web `crates/web/tests/view_only_fallback.rs`: `format_older`・`replay_diverged` の 2 つの理由コードで、読み込みと起動時の復元の両方が通知に理由を出し、操作が状態・ログ・下書き・保存の値を変えず、書き出しが読み込んだバイト列と一致する。同じ版で書いた履歴では同じ操作が状態を変える対照つき
+  - 自動ブラウザ `tools/browser/view-only-fallback.test.mjs`（試験の設定。CSP あり・なし）: 表示だけの 5 件のそれぞれで、通知欄に理由のコード・実行環境の差し替え 0 回・6 種の操作が状態・ログ・世代・入力欄・保存領域・URL を変えない・読み込みの後にほかの版を探す要求（`.json`・`ir/` の下・`/v<数字>/`）が 0 件。V-0 の対照で同じ操作が状態を変える。外部通信・CSP 違反・ページのエラー・dialog・popup は 0 件
+- 限界
+  - 起動時の復元のブラウザでの確認は `view-only.test.mjs` の `content_major` だけである。再読み込みで教材の上書き（`loadIr`）が消えるため、ほかの理由コードの起動時の経路は core と web が担う
+  - web の試験に `engine_major` は無い。開く側のエンジンの版の上書きは test-hooks の試験でしか作れず、`make test` では流れない（core とブラウザが覆う）
+  - V-iv-4・V-v-3 は版の欄を書き換えた作り物である
+- 04 への反映案（spec は spec repo 側で直す）: VER-9 の「5 件は表示だけ」の証拠に上記の試験名を足す。VER-10 の「表示だけの経路」に起動時と読み込みの両方の試験を足す
+- 実行結果（2026-10-29。Linux x86_64）: core の `version_histories` は 8 件合格（1 件は書き出し用で無視）、web の `view_only_fallback` は 3 件合格、ブラウザの `view-only-fallback` は 5 件（表の形 1・CSP あり・なし各 2）が合格。`scripts/expected-test-counts.txt` は変えていない

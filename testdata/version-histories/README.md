@@ -15,7 +15,7 @@ spec は private のため、本文は写さず ID（VER-2・V-0 など）で参
 | `opening` | 開く側。`pack` は教材、`engine` が `null` なら履歴を作ったときと同じ版、`vocab_max` が `null` なら現行の上限 |
 | `expect` | 期待。`result`（`open`・`converted`・`view_only`・`refused`）、`code`（理由コード。開く 2 種は `null`）、`axes`（違いの軸。`converted` だけが 1 件以上） |
 
-結果の合計は、変換なし 1・変換して開く 6・表示だけ 5・開かない 3 です。
+結果の合計は、変換なし 1・変換して開く 6・表示だけ 5・開かない 3 です。表示だけの 5 件は、版つき URL が無いときの表示のみの試験（VER-9。TASK-178 2/2）にも使います。
 
 ## 教材の変種と経路
 
