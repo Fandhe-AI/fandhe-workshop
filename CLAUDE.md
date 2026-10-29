@@ -22,6 +22,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
 ├── crates/                   # contract / core / pack / web の 4 crate（pack は compile・compare・metrics・vocab・validate まで実装済み）
+├── template-workshop/        # 雛形の置き場（現時点はライセンス表記だけ。LIC-2・TASK-130。構成は TASK-769）
 ├── testdata/                 # 試験データ（spec repo の写し。出所は testdata/README.md。整形ツールの対象外）
 ├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
 ├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
@@ -31,7 +32,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/testing.md           # 性質テストと変異注入の手順・記録の様式（変異の定義は crates/*/tests/mutations/）
 ├── Makefile                  # scripts/ を呼ぶだけの薄い入口（make help で一覧）
 ├── lefthook.yml              # Git hooks 定義（pre-commit / commit-msg）
-├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・clean-room.sh・serve.mjs・inventory-deps.mjs・upstream-impact.mjs・build-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
+├── tools/                    # spec が置き場を指定したスクリプト（build-web.sh・check-deps.sh・check-delivery.sh・clean-room.sh・serve.mjs・inventory-deps.mjs・upstream-impact.mjs・build-l2.mjs・update-l2.mjs・l2/・browser/・measure/。規約・shellcheck は scripts/ と同じ）
 ├── scripts/
 │   ├── lib.sh                # 共有ヘルパー（require_cmd / reject_args / log）
 │   ├── help.sh / doctor.sh / setup.sh / check.sh
@@ -40,7 +41,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
 │   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
-│   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文の検査（回帰テストは test-check-license.sh）
+│   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
@@ -69,6 +70,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/glossary.md          # 用語集（章・Step・IR・語彙など）
 ├── docs/architecture.md      # 実装 repo の構成設計（crate の境界・依存の向き・型の置き場。版つきの契約）
 ├── docs/vocabulary/          # 語彙の文書（vocabulary.md が固定の契約、README.md が作成者向けの索引）
+├── docs/l2-update-procedure.md # L2 の配布物の更新手順（site/ の差し替え 1 操作・引き継ぐもの・検査・限界。版 1。TASK-116）
 ├── docs/upstream-bump-procedure.md # 参照元の版を上げる手順書（洗い出し・教材テスト・公開前の人の確認と記録・生成物を無検証で公開しない。版 1。TASK-182 2/2）
 ├── docs/extension-point-procedure.md # 拡張点の追加の手続き（固定→実装→公開・診断コード・IR の同一の確認。版 1。TASK-189）
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
@@ -102,7 +104,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | crate 間の依存の向きの検査（`cargo metadata` + jq） |
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
-| `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があることの検査（`cargo metadata` + jq。LIC-1・TASK-129） |
+| `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があり、`template-workshop/` に同じ本文の写しと表記があることの検査（`cargo metadata` + jq。LIC-1・TASK-129、LIC-2・TASK-130） |
 | `make test-check-license` | ライセンス表記の検査自体の回帰テスト |
 | `make check-no-egress` | 依存（crate・wasm32 の web-sys の feature・npm）に通信・学習分析の手段が無いことの検査（SAFE-16。TASK-153。CI の rust-lint が流す） |
 | `make check-no-egress-dist` | 配信物（`dist/web`。先に `make build-web`）に通信の手段が無いことの検査（`make test-build-web` が実ビルドにも流す） |
@@ -122,6 +124,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make update-test-counts` | 試験の件数の期待値（`scripts/expected-test-counts.txt`）を実測で書き直す（遅い。ブラウザ試験も流す） |
 | `make build-l2` | L2 の配布物（zip）を作る（`tools/build-l2.mjs`。`L2_SERVER` に miniserve が要る。zip の最上位に miniserve のライセンス文と告知を同梱する（TASK-137）。固定値は `tools/l2/miniserve.sha256`。`L2_PLATFORM=windows-x64` で Windows 向け（`docs/l2-windows.md`）） |
 | `make test-build-l2` | 上の作成スクリプトの回帰テスト（合成の配信物。ビルドなし。CI の `browser-test` が流す） |
+| `make update-l2` | 既存の L2 の配布物（`L2_ZIP`）の `site/` だけを新しい配信物に差し替えた zip を作る（`tools/update-l2.mjs`。`site/` 以外は引き継ぐ。TASK-116。手順は `docs/l2-update-procedure.md`） |
+| `make test-update-l2` | 上の更新スクリプトの回帰テスト（合成の配信物。ビルドなし。CI の `browser-test` が流す） |
 | `make test-l2-run` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間の記録・L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致することの試験（`l1-l2-match`。DLV-15）と、凍結した IR と組の固定の入力列での比較・履歴の `ops` に揺れる欄が無いことの試験（`l1-l2-fixed`。TASK-114 2/2）と、同じ browser context で L1・L2 の 2 か所・別名 `localhost` の 3 サーバを同時に起動したオリジンの分離（保存が互いに見えず L1 の状態が残る）の試験（`l1-l2-origins`。DLV-16）も行う（`L2_SERVER` 必須。遅く、`make test-browser` には入れない。CI の `browser-test` が miniserve を固定値で照合してから流す。TASK-112 2/2・TASK-113・TASK-114 1/2・2/2・TASK-115。`docs/testing.md` 5.239・5.241b・5.242・5.245b・5.357） |
 | `make serve` | `dist/web` をサブパスの下で gzip つきで配る（`tools/serve.mjs`） |
 | `make test-serve` | 配信サーバの試験（`node:test`） |

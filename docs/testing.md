@@ -10054,6 +10054,18 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - spec への差分の案（本変更では spec を編集しない。承認は得ていない）: DLV-16 の「L2 の 2 案」を repo の L2 の形の 2 か所への読み替えとすること、証拠の種類をエンジン repo の試験とすること
 - 範囲外: 実機（macOS・Apple シリコン。TASK-118・119）、GitHub Pages の `github.io` のオリジン共有、案内文の「`localhost` と `127.0.0.1` を混ぜない」（DLV-17。TASK-117）。5.354 の番号の重複（既存）は直さない
 
+### 5.359 L2 の配布物の更新（TASK-116。DLV-18・D-58・D-71）
+
+案 (ii)（miniserve ＋静的ファイル）を採った利点である「更新は `site/` の差し替え 1 操作」を、道具（`tools/update-l2.mjs`。`make update-l2`）と手順書（`docs/l2-update-procedure.md`）にし、更新した配布物でも Rust のない環境の模擬で「展開と 1 コマンドの起動」ができることを試験で固定する。案 (i)（単一ファイルの作り直し 1 回）は D-58 で採らなかったため、更新の道具は作らない（受け入れ条件の両論併記は、採らなかったと記録して閉じた）。
+
+- 道具の入力は `L2_ZIP`（必須）・`L2_SITE`・`L2_OUT`。`L2_SERVER` は要らず、platform は旧 zip の `miniserve` の sha256 を固定表と照合して決める（一致しなければ失敗）。`site/` 以外のエントリは旧 zip のバイト列と mode を引き継ぎ、`site/` は新しい配信物に入れ替える。`build-l2.mjs` から検査・エントリ作成・出力の書き込みを共通の関数として切り出して共有した（`build-l2` の挙動とバイト列は変えない）
+- 速い層（`tools/update-l2.test.mjs`。`make test-update-l2`。CI の `browser-test` が `make test-build-l2` の直後に流す。合成の配信物・実行ファイルで 29 件）: `site/` 以外の同一性と、旧にだけあるファイルが残らないこと／`update(build(A), B)` が `build(B)` と、`update(build(A), A)` が `build(A)` とバイト単位で一致／同じ入力で 2 回更新して同じバイト列／更新を重ねられる／将来の同梱物（README・ライセンス文）の保持／出力先が入力と同じ場所／更新した zip を `PATH=/usr/bin:/bin` で展開した `./start.sh` が `-i 127.0.0.1` と `site` で miniserve を起動／fail-closed（digest の不一致、`..`・絶対パス・外側・バックスラッシュ・重複・許さない mode・必須エントリの欠落・リンク・壊れた zip・展開後の大きさの上限、新しい配信物の不正、失敗しても既存の出力が変わらない、出力先の対象名がディレクトリ・リンク、誤用は 2）
+- 遅い層（`tools/browser/l2-update.test.mjs`。`scripts/test-l2-run.sh` の更新の段。実物の miniserve が要る。CI の `browser-test` の `make test-l2-run` が流す）: `crates/web/tests/data/ch4_9/ir.json` の配信物で旧 zip の `site/` を差し替え、更新後の zip を模擬環境で展開・`./start.sh` で起動して `/ir/main.json` が新しい IR とバイト単位で一致すること、対照として旧 zip では旧い IR と一致して新しい IR と一致しないこと、`start.sh`・`miniserve` が旧 zip と一致すること、画面がマウントされページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外・配信元以外への要求が 0 件であること。完走は流さない（旧 zip での完走は 5.239 が確かめている）
+- spec との照合（2026-10-28。submodule `docs/spec` の `d70ad107`）: `04-behavior/delivery.md` の DLV-18 は (ii) を採り (i) を採らないこと、更新が `site/` の差し替え 1 操作であることを既に書き、`04-behavior/README.md` も D-58・D-71 の反映を記録している。受け入れ条件の「TASK-12 の決定を DLV-18 に反映」は満たされていた。この変更では spec を編集しない
+- spec への差分の案（spec repo 側の作業。承認は得ていない）: DLV-18 の期待にある更新の「（観察）」を、エンジン repo の試験（`update-l2`・`l2-update`）を根拠にした記述に直すこと（5.243 と同じ流儀）。あわせて、生成物 `docs/spec/spec.md` の DLV-18 の期待に、形を決める前の文（案 (i) の作り直し 1 回を含む）が残っているように見えるため、04 から生成し直すこと
+- 実行結果（2026-10-28。Linux x86_64）: `make test-update-l2` は 29 件が合格。`make test-build-l2` は無修正の既存 22 件が合格（`build-l2` の挙動を変えていないことの確認）。遅い層は、手元に miniserve と Playwright が無いため未検証。CI の `browser-test` で確かめる
+- 限界: 教材は試験データ（`ch0_3`・`ch4_9`）。Chromium・Linux の miniserve だけで、macOS の実機は TASK-118・119。受講者がすでに展開した木で `site/` だけを差し替える運用と、その後の履歴の扱いは確かめていない。`start.sh`・`miniserve` 自体の更新は `build-l2` のやり直しになる
+
 ### 5.360 実装 repo の自己完結（TASK-89。BUILD-14）
 
 兄弟の `03-poc/`・`prototype/` と private の `docs/spec` が無い環境で、試験が通ることを確かめる経路を整えた。
@@ -10566,3 +10578,12 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 - 起動時の保存先からの復元の経路で形の合わない値を読んだときの通知は TASK-533 の範囲。本試験はファイル選択の経路だけ
 - 連想配列の IR の開く側（100,000 キー）は、足せる安全な連想配列が教材の欄に無いため入れていない（連想配列は断る側の M のみ）
 - `make test-browser` の全体は流していない（本試験の単独実行のみ。CI に任せる）。`scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）
+
+### 5.376 雛形のライセンス表記の機械検査（TASK-130。LIC-2・D-80）
+
+`scripts/check-license.sh`（`make check-license`）を広げ、`template-workshop/` の `LICENSE-MIT`・`LICENSE-APACHE` がルートの同名ファイルとバイト単位で一致する通常のファイル（symlink は拒否）で、`README.md` に `MIT OR Apache-2.0` と 2 ファイルへの言及があり、ディレクトリの外へ出るリンクが無いことを確かめる。あわせて `cp -RP` で雛形から作った repo を模擬した一時ディレクトリにも同じ検査を掛け、表記が引き継がれることを確かめる。CI は既存の `rust-lint` ジョブの step で流れる（ジョブは増やしていない）。`.editorconfig-checker.json` の除外は雛形の写しにも広げた。
+
+- 回帰テスト `scripts/test-check-license.sh` は 81 件（既存 16 件に 65 件を追加。符号化したドットセグメント 11 形の拒否・内側に留まる符号化の合格・全文の検査の拒否（引用・リスト内の参照定義、エスケープした括弧の後ろの `..`、符号化・文字参照・エスケープ・二重の符号化の `..`、行をまたぐ HTML の属性）と省略記号・`..x`・引用内の宛先が内側の定義の合格の対照・sed・awk の実行失敗が終了コード 2 になる対照を含む）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・README の全文への fail-closed の検査（記法ごとの解析の前に、符号化・文字参照・エスケープを `.` に戻した後に `..` の直後が `/`・`\`・`)`・`>`・引用符・`#`・`?`・空白・末尾となるものと、行をまたいでもよい HTML の属性 `href=`・`src=` 等を未対応の記法として拒否する。省略記号 `...` と `..x` は対象外。属性の無い `<a b/c.md>` は Markdown の山括弧の宛先と区別できないため対象外。`./sub/../x` のような内側に留まる `..` も拒否する。雛形の README に正当な `..` は無い）・ルートだけ変えた同期漏れが、いずれも 1 になる
+- 実行結果（2026-10-29。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 81 件が合格
+- 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
+- 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）

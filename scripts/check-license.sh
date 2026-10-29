@@ -6,7 +6,10 @@
 #   - workspace の全 member の `license` が `MIT OR Apache-2.0` に完全一致すること
 #   - `license-file` を使っていないこと（SPDX 式の `license` を正とするため）
 #   - workspace 直下に LICENSE-MIT・LICENSE-APACHE が通常のファイルとして在り、空でなく、取り違えていないこと
-# 本文の完全一致は保証しない（最小の目印の固定文字列だけを照合する）。package.json は crate ではないため範囲外。
+#   - 雛形 template-workshop/ に同じ本文の写し（バイト一致）と README の表記があり、雛形から作った repo の模擬
+#     （cp -RP）にも引き継がれること（LIC-2・TASK-130。symlink は引き継がれないため拒否する）
+#   - 雛形 README に HTML のリンク・参照（href=・src= 等の属性）と、符号化を戻した後の .. が無いこと（全文の fail-closed の検査。記法ごとの解析の前に拒否する）
+# エンジン直下の本文の完全一致は保証しない（最小の目印の固定文字列だけを照合する）。package.json は crate ではないため範囲外。
 #
 # 使い方: scripts/check-license.sh [--manifest-path <Cargo.toml>]
 #   --manifest-path は回帰テストが一時コピーを検査するために使う。
@@ -92,7 +95,219 @@ check_text() {
 check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
+# links_extract <file>: Markdown のリンク先を 1 行 1 件で出力する。
+# インラインは括弧の対応を数えて全体を取る。改行をまたぐ記法も取る（閉じが無ければ末尾まで取り、厳しい側に倒す）。
+# 参照定義は `[label]:` の次の空でない行にリンク先が続く記法も扱う。
+links_extract() {
+  awk '
+    function inline(line,   p, rest, depth, i, c, e) {
+      while ((p = index(line, "](")) > 0) {
+        rest = substr(line, p + 2)
+        if (substr(rest, 1, 1) == "<") {
+          e = index(rest, ">")
+          if (e == 0) { print rest; return }
+          print substr(rest, 1, e)
+          line = substr(rest, e + 1)
+          continue
+        }
+        depth = 1
+        for (i = 1; i <= length(rest); i++) {
+          c = substr(rest, i, 1)
+          if (c == "(") depth++
+          else if (c == ")") { depth--; if (depth == 0) break }
+        }
+        # 閉じの無い ]( は後続のリンクを取り込んで隠すため、判定不能として拒否される印（先頭 /）を出す
+        if (depth != 0) { print "/UNCLOSED"; return }
+        print substr(rest, 1, i - 1)
+        line = substr(rest, i + 1)
+      }
+    }
+    {
+      # 宛先を消費した行も、続けて参照定義として解析する（宛先なしの定義の直後の定義を見逃さない）
+      if (pending && $0 !~ /^[[:space:]]*$/) { print $0; pending = 0 }
+      if ($0 ~ /^[[:space:]]*\[[^]]+\]:/) {
+        t = $0
+        sub(/^[[:space:]]*\[[^]]+\]:[[:space:]]*/, "", t)
+        if (t == "") pending = 1; else print t
+      }
+      # インラインは改行をまたぐため、全行を空白でつないでから END で解析する
+      buf = buf " " $0
+    }
+    END { inline(buf) }' "$1"
+}
+
+# links_leave_dir <file>: Markdown のリンク先（インライン・参照定義）を相対パスとして正規化し、
+# 置き場の外へ出るもの（./../ の表記、先頭の / を含む）が 1 件でもあれば 0 を返す。
+# 外部 URL（スキーム付き）と同一ファイル内の # だけは対象外。
+# 戻り値: 0 = 外へ出るリンクあり / 1 = なし / 2 = 検査を完了できない（awk の実行失敗）。
+# if の条件で呼ぶと関数内の set -e が効かないため、呼び出し側は `rc=0; links_leave_dir f || rc=$?` で確かめる。
+links_leave_dir() {
+  local file="$1" raw="${TMP_DIR}/links.raw" verdict
+  links_extract "${file}" >"${raw}" || return 2
+  verdict="$(links_verdict "${raw}")" || return 2
+  case "${verdict}" in
+    leave) return 0 ;;
+    stay) return 1 ;;
+    *) return 2 ;;
+  esac
+}
+
+# links_verdict <targets-file>: リンク先を 1 行ずつ読み、leave または stay を出力する。
+# URL の符号化を先に復号する（%2e は . に、%2f・%5c・\ は / に）。% の後が 16 進 2 桁でないもの、
+# 二重の符号化になりうる %25 は判定できないため leave（拒否）とする。
+links_verdict() {
+  awk '
+    function decode(t,   out, h, c) {
+      out = ""
+      while (length(t) > 0) {
+        c = substr(t, 1, 1)
+        if (c == "%") {
+          h = tolower(substr(t, 2, 2))
+          if (h !~ /^[0-9a-f][0-9a-f]$/ || h == "25") return "BAD"
+          if (h == "2e") out = out "."
+          else if (h == "2f" || h == "5c") out = out "/"
+          else out = out substr(t, 1, 3)
+          t = substr(t, 4)
+        } else if (c == "\\") {
+          # バックスラッシュ + 記号は Markdown のエスケープ（\. は . 等）で区切りと区別できないため拒否する
+          if (substr(t, 2, 1) ~ /[^A-Za-z0-9]/) return "BAD"
+          out = out "/"; t = substr(t, 2)
+        }
+        else { out = out c; t = substr(t, 2) }
+      }
+      return out
+    }
+    {
+      t = $0; sub(/^[[:space:]]+/, "", t)
+      if (substr(t, 1, 1) == "<") {
+        # 山括弧のリンク先は空白を含みうるため、最初の > までの全体を取る（後ろはタイトル）。閉じが無ければ判定不能で拒否
+        e = index(t, ">")
+        if (e == 0) { bad = 1; next }
+        t = substr(t, 2, e - 2)
+      } else {
+        t = $1
+      }
+      orig = t
+      sub(/[#?].*$/, "", t)
+      if (t == "" || t ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) next
+      # Markdown の文字参照（&#46; &#x2e; &period; 等）は復号せず、判定不能として拒否する（# 以降の切り落としをすり抜けるため）
+      if (orig ~ /&[#A-Za-z0-9]+;/) { bad = 1; next }
+      t = decode(t)
+      if (t == "BAD" || t ~ /^\//) { bad = 1; next }
+      n = split(t, seg, "/"); depth = 0
+      for (i = 1; i <= n; i++) {
+        if (seg[i] == "" || seg[i] == ".") continue
+        if (seg[i] == "..") { depth--; if (depth < 0) { bad = 1; break } }
+        else depth++
+      }
+    }
+    END { print bad ? "leave" : "stay" }' "$1"
+}
+
+# readme_scan <file>: README の全文を 1 つの文字列として見て、記法ごとの解析をすり抜ける書き方を fail-closed で拒否する。
+# 出力（0 行以上）: dotdot = 符号化を戻した後に親ディレクトリへの参照になりうる .. がある / html = HTML のリンク・参照の属性がある。
+#   - 符号化（%2e・%2E）、文字参照（&#46;・&#x2e;・&period;・&amp; の入れ子）、バックスラッシュのエスケープ（\.）を . に戻す。
+#     二重の符号化も収束するまで繰り返して戻す。行・引用（>）・リスト・参照定義の位置を問わず、全文を対象にする。
+#   - ちょうど 2 個の . の並びで、直後が / \ ) > 引用符 # ? 空白 末尾のものを親ディレクトリへの参照とみなす。省略記号（...）と ..x は対象外。
+#   - HTML の属性（href・src・srcset・poster・action・data・xlink:href）は、属性名と = の間の空白・改行を許して検出する。
+#     宛先を持つタグ（<a>・<img> 等）は属性で必ず検出できる。属性の無い `<a b/c.md>` は Markdown の山括弧の宛先と区別できず対象にしない。
+# 戻り値: 0 = 実行できた（出力で判定する）/ 非 0 = awk の実行失敗。呼び出し側は失敗を握りつぶさない。
+readme_scan() {
+  awk '
+    function norm(s,   prev, i) {
+      for (i = 0; i < 8; i++) {
+        prev = s
+        gsub(/%2[eE]/, ".", s)
+        gsub(/&#0*46;?/, ".", s)
+        gsub(/&#[xX]0*2[eE];?/, ".", s)
+        gsub(/&[pP][eE][rR][iI][oO][dD];?/, ".", s)
+        gsub(/&[aA][mM][pP];?/, "\\&", s)
+        gsub(/%2[fF]|%5[cC]/, "/", s)
+        gsub(/&#0*(47|92);?|&#[xX]0*(2[fF]|5[cC]);?|&[sS][oO][lL];?|&[bB][sS][oO][lL];?/, "/", s)
+        gsub(/%25/, "%", s)
+        gsub(/\\\./, ".", s)
+        if (s == prev) break
+      }
+      return s
+    }
+    { buf = buf $0 "\n" }
+    END {
+      s = norm(buf)
+      if (s ~ /(^|[^.])\.\.([\/\\)>"'"'"'#?[:space:]]|$)/) print "dotdot"
+      if (tolower(s) ~ /(href|src|srcset|poster|action|data|xlink:href)[[:space:]]*=/) print "html"
+    }' "$1"
+}
+
+# check_template_root <dir> <label>: 雛形（またはその写し）の直下の表記を確かめる。本文は出力しない。
+check_template_root() {
+  local dir="$1" label="$2" name
+  for name in LICENSE-MIT LICENSE-APACHE; do
+    if [ -L "${dir}/${name}" ] || [ ! -f "${dir}/${name}" ] || ! cmp -s "${dir}/${name}" "${WORKSPACE_ROOT}/${name}"; then
+      echo "error: ${label}/${name} is missing, a symlink, or differs from the engine's ${name}" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+    fi
+  done
+  if [ -L "${dir}/README.md" ] || [ ! -f "${dir}/README.md" ]; then
+    echo "error: ${label}/README.md is missing or a symlink" >&2
+    VIOLATIONS=$((VIOLATIONS + 1))
+    return 0
+  fi
+  local marker
+  for marker in 'MIT OR Apache-2.0' 'LICENSE-MIT' 'LICENSE-APACHE'; do
+    if ! grep -qF -- "${marker}" "${dir}/README.md"; then
+      echo "error: ${label}/README.md lacks the license notice" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      return 0
+    fi
+  done
+  local scan
+  scan="$(readme_scan "${dir}/README.md")" || {
+    echo "error: README scan failed to run for ${label}/README.md" >&2
+    exit 2
+  }
+  case "${scan}" in
+    *dotdot*)
+      echo "error: ${label}/README.md contains a parent-directory reference (..), possibly encoded" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      ;;
+  esac
+  case "${scan}" in
+    *html*)
+      echo "error: ${label}/README.md uses an unsupported link notation (HTML link or reference); use Markdown links" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      ;;
+  esac
+  local lrc=0
+  links_leave_dir "${dir}/README.md" || lrc=$?
+  case "${lrc}" in
+    0)
+      echo "error: ${label}/README.md has a link that leaves the directory" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      ;;
+    1) ;;
+    *)
+      echo "error: link check failed to run for ${label}/README.md" >&2
+      exit 2
+      ;;
+  esac
+}
+
+TEMPLATE_DIR="${WORKSPACE_ROOT}/template-workshop"
+if [ -L "${TEMPLATE_DIR}" ] || [ ! -d "${TEMPLATE_DIR}" ]; then
+  echo "error: template-workshop is missing" >&2
+  VIOLATIONS=$((VIOLATIONS + 1))
+else
+  check_template_root "${TEMPLATE_DIR}" template-workshop
+  # 雛形から作った repo の模擬。-P で symlink を symlink のまま写し、検出する。
+  NEW_REPO="${TMP_DIR}/new-repo"
+  if ! mkdir "${NEW_REPO}" || ! cp -RP "${TEMPLATE_DIR}/." "${NEW_REPO}/"; then
+    echo "error: cannot copy template-workshop to simulate a new repo" >&2
+    exit 2
+  fi
+  check_template_root "${NEW_REPO}" "new repo from template-workshop"
+fi
+
 if [ "${VIOLATIONS}" -ne 0 ]; then
   exit 1
 fi
-log "ok: ${MEMBER_COUNT} members, license ${EXPECTED_LICENSE}, 2 license files"
+log "ok: ${MEMBER_COUNT} members, license ${EXPECTED_LICENSE}, 2 license files, template-workshop notice (2 files + README, carried over to a copy)"

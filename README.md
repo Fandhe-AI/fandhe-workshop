@@ -29,7 +29,7 @@
 |---|---|---|
 | エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
 | 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
-| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
+| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針。現時点ではライセンス表記だけを置いた（TASK-130。構成は今後）（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
 | crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | `crates/` 配下。pack に読み込み層と `compile`・`compare`・`metrics`・`vocab` を実装済みで、他は骨格中心（2026-10-15 時点）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
 | 作成者向け CLI | `fandhe-pack` | pack crate に置く。`compile <pack-dir> [--chapters <id>,...]`（IR の JSON を標準出力へ書く。`--chapters` で章の範囲を絞る）・`compare <pack-dir-a> <pack-dir-b>`（IR のバイト一致を判定する）・`metrics <pack-dir>`（ファイルごとの行数・実効行数・バイト数・入れ子の深さを CSV で出す）・`vocab <pack-dir>`（拡張点を使った Step の数え上げ）を実装済み。外部仕様は `docs/cli.md` |
 
@@ -51,7 +51,7 @@ git -c submodule.docs/spec.update=checkout submodule update --init docs/spec
 ## ライセンス
 
 MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE-MIT) / [LICENSE-APACHE](./LICENSE-APACHE)）。
-全 crate の `license` が `MIT OR Apache-2.0` であることと、直下に 2 つの本文があることは `make check-license` が機械で確かめます。
+全 crate の `license` が `MIT OR Apache-2.0` であることと、直下に 2 つの本文があることは `make check-license` が機械で確かめます。雛形（`template-workshop/`）も同じライセンスで、本文の写しと README の表記がそろい、雛形から作った repo に引き継がれることも同じ検査で確かめます。
 
 ## 構成
 
@@ -70,7 +70,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `rust-toolchain.toml`・`package.json`・`package-lock.json`・`.npmrc` | ツールチェーンの版の固定（Rust・Node・Playwright。値の正は `docs/toolchain.md`） |
 | `Makefile` | `scripts/` を呼ぶだけの薄い入口（`make help` で一覧） |
 | `scripts/` | 処理の実体（`help` / `doctor` / `setup` / `check` / `lint` / `test` / `check-crate-deps` / `test-check-crate-deps` / `check-testdata-refs` / `test-check-testdata-refs` / `check-mutation-defs` / `test-check-mutation-defs` / `test-check-dom-reads` / `test-check-delivery` / `check-toolchain` / `test-check-toolchain` / `check-workflow-secrets` / `test-check-workflow-secrets` / `check-fork-ci` / `test-check-fork-ci` / `ci-rust-toolchain` / `check-mutations` / `test-check-mutations` / `test-check-generic-words` / `test-inventory-deps`）。Make なしでも直接実行できる |
-| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`inventory-deps.mjs`・`upstream-impact.mjs`・`build-l2.mjs`・`l2/`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
+| `tools/` | spec が置き場を指定したスクリプト（`build-web.sh`・`check-deps.sh`・`serve.mjs`・`inventory-deps.mjs`・`upstream-impact.mjs`・`build-l2.mjs`・`update-l2.mjs`・`l2/`・`measure/`）。規約と shellcheck は `scripts/` と同じ |
 | `scripts/hooks/` | lefthook から呼ばれる Git hooks の実体 |
 | `lefthook.yml` | Git hooks 定義（pre-commit / commit-msg） |
 | `.editorconfig`・`.editorconfig-checker.json` | 文字コード・改行・インデントの宣言と、その検査の除外設定（ライセンス本文は除外） |
@@ -85,6 +85,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/vocabulary/vocabulary.md` | 語彙の文書（版 7）。語彙 v1〜v1.7 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
+| `docs/l2-update-procedure.md` | L2 の配布物の更新手順（版 1）。`site/` の差し替え 1 操作・引き継ぐもの・検査・限界 |
 | `docs/upstream-bump-procedure.md` | 参照元の版を上げる手順書（版 1）。洗い出し・教材テスト・公開前の人の確認と記録・AI の生成物を無検証で公開しないことを固定する（TASK-182 2/2） |
 | `docs/extension-point-procedure.md` | 拡張点の追加の手続きの文書（版 1）。汎用であることの説明・語彙の文書の固定・診断コードの追加・公開の一覧への追記・既存の教材パックが同じ IR になることの確認を固定する。実行時の登録の仕組みは作らない（D-53）。形の検査は `crates/pack/tests/extension_point_procedure_doc.rs` |
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
@@ -254,7 +255,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test` | `scripts/test.sh` | Rust の native 試験（web を含む全 crate） |
 | `make check-deps` | `scripts/check-crate-deps.sh` | crate 間の依存の向きを `cargo metadata` で検査する |
 | `make test-check-deps` | `scripts/test-check-crate-deps.sh` | 依存の向きの検査自体の回帰テスト |
-| `make check-license` | `scripts/check-license.sh` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に 2 つのライセンスの本文があることの検査 |
+| `make check-license` | `scripts/check-license.sh` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に 2 つのライセンスの本文があること、雛形に同じ本文の写しと表記があることの検査 |
 | `make test-check-license` | `scripts/test-check-license.sh` | ライセンス表記の検査自体の回帰テスト |
 | `make check-no-egress` | `scripts/check-no-egress.sh deps` | 依存に通信・学習分析の手段が無いことの検査（SAFE-16） |
 | `make check-no-egress-dist` | `scripts/check-no-egress.sh dist dist/web` | 配信物（先に `make build-web`）に通信の手段が無いことの検査 |
@@ -296,7 +297,9 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準（compile した IR が配信する設定に入ることを含む）を実ビルドで検査する |
 | `make build-l2` | `tools/build-l2.mjs` | L2 の配布物（`fandhe-workshop-l2/{start.sh, miniserve, site/, LICENSE-miniserve.txt, THIRD-PARTY-NOTICES.txt}` の zip）を `dist/l2` に作る。`L2_SERVER` に miniserve 0.35.0 の実行ファイルが要り、`tools/l2/miniserve.sha256` の固定値と照合する。`L2_SITE`（既定 `dist/web`）・`L2_OUT`・`L2_PLATFORM`（`macos-arm64` 既定・`linux-x64`・`windows-x64`。Windows 向けは `start.cmd`・`miniserve.exe`。手順は `docs/l2-windows.md`） |
 | `make test-build-l2` | `scripts/test-build-l2.sh` | `build-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
-| `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）、L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致すること、凍結した IR と組の固定の入力列（`crates/web/tests/data/fixed_sequence_ch0_1/`）での比較と履歴の `ops` に揺れる欄が無いことと、同じブラウザの文脈で L1・L2 の 2 か所・別名 `localhost` のオリジンが分離していて保存が互いに見えないこと（DLV-16）も確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241b・5.243・5.245b・5.357） |
+| `make update-l2` | `tools/update-l2.mjs` | 既存の L2 の配布物（`L2_ZIP`）の `site/` だけを新しい配信物に差し替えた zip を `dist/l2` に作る（`site/` 以外は旧 zip から引き継ぐ。`L2_SERVER` は要らない）。手順は [`docs/l2-update-procedure.md`](docs/l2-update-procedure.md) |
+| `make test-update-l2` | `scripts/test-update-l2.sh` | `update-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
+| `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）、L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致すること、凍結した IR と組の固定の入力列（`crates/web/tests/data/fixed_sequence_ch0_1/`）での比較と履歴の `ops` に揺れる欄が無いことと、同じブラウザの文脈で L1・L2 の 2 か所・別名 `localhost` のオリジンが分離していて保存が互いに見えないこと（DLV-16）と、`update-l2` で別の IR に更新した zip の模擬環境での起動（TASK-116）も確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241b・5.243・5.245b・5.357） |
 | `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。CI には未組み込み |
 | `make test-check-delivery` | `scripts/test-check-delivery.sh` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
