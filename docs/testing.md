@@ -10066,6 +10066,23 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 実行結果（2026-10-28。Linux x86_64）: `make test-update-l2` は 29 件が合格。`make test-build-l2` は無修正の既存 22 件が合格（`build-l2` の挙動を変えていないことの確認）。遅い層は、手元に miniserve と Playwright が無いため未検証。CI の `browser-test` で確かめる
 - 限界: 教材は試験データ（`ch0_3`・`ch4_9`）。Chromium・Linux の miniserve だけで、macOS の実機は TASK-118・119。受講者がすでに展開した木で `site/` だけを差し替える運用と、その後の履歴の扱いは確かめていない。`start.sh`・`miniserve` 自体の更新は `build-l2` のやり直しになる
 
+### 5.360 実装 repo の自己完結（TASK-89。BUILD-14）
+
+兄弟の `03-poc/`・`prototype/` と private の `docs/spec` が無い環境で、試験が通ることを確かめる経路を整えた。
+
+- 確かめたこと（2026-10-28）:
+  - 外への参照: `make check-testdata` が repo の外（兄弟）への相対参照 0 件を検査する（既存）。`crates/**` の `include_str!`・`include_bytes!` は全件が repo 内（`crates/*/tests/data/` か `testdata/`）を指す。残る `03-poc` の文字列は出所のコメントと教材内の架空のパスだけで、ファイルの読み込みではない
+  - 前提の明示: `make check-sibling-free`（`scripts/check-sibling-free.sh`）が、`../03-poc`・`../prototype` が無く `docs/spec` が空であることを検査する。CI の `rust-test`（`make test` の前）と `browser-test`（`make test-browser` の前）が流す。回帰テストは `make test-check-sibling-free`（9 ケース。CI の `check`）。手元で `docs/spec` を取得済みなら 1 になる（期待どおり）
+  - clean-room: `tools/clean-room.sh` の前提に、コンテナの `/` に `03-poc`・`prototype` が無いことを加えた（`sibling-present-<名>`）。判定の回帰は `make test-clean-room` に 1 件足した
+  - `tools/build-web.sh`: IR を入れたか否かをログの `ir:` の行に必ず出す（`ir/main.json`・`none`・試験の設定の `test fixtures`）。`make test-build-web` が 3 通りを確かめる。IR_FILE が無いときに兄弟の最小教材へ落ちる経路は無い（既定の IR を持たない）
+- `cargo test` の結果（2026-10-28。`make clean-room`。x86_64・docker・`rust:1.98.1@sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`）: 対象はこの変更の 1 つ前の内容の `f862f4a0`（tar の SHA-256 `c360952213c9d9dcb6425e277d574eb3ca76cc4aacf7bf715b4dc87bcef49b2b`。記録を足した amend 後のコミットとは docs/testing.md だけが違う）。兄弟の不在の前提を含めて前提が通り、既定は 2417 passed・failed 0・ignored 1（247 秒）、`--workspace` は 3778 passed・failed 0・ignored 2（256 秒）。無視は許可済みの 2 件だけ。container_exit 0。5.355（`03aba58a`）の記録（既定 2416・`--workspace` 3777）とも整合する
+- BUILD-14 の差分の案（spec repo 向け。本 repo では spec を編集しない。承認は得ていない）:
+  - 前提「`engine/crates/*/tests` が兄弟の 5 つの PoC の 17 path を読む」を「試験データは実装 repo の `testdata/`（spec の `03-poc/<PoC 名>/...` から先頭の `03-poc/` を外した配置。出所は `testdata/README.md`）と各 crate の `tests/data/` に置き、repo の外を参照しない」に改める
+  - 証拠の種類に「`make check-testdata`・CI の `make check-sibling-free`・clean-room の記録（5.355・5.360）」を足す
+  - 検討中の理由の「置き場所は Phase 4 の設計で決める」を「`testdata/` に決まった（TASK-30）」に改める。状態を「確定」にするかは spec 側の判断
+- 確かめていないこと: arm64・podman・メモリ 2 GiB 以下（BUILD-21）。CI の関門として加えること（`check-sibling-free` の step）の人の承認（spec の人間の承認点。既存ジョブへの step 追加にとどめ、ruleset は変えていない）
+- 範囲外: `make clean-room` を CI の関門にするか（TASK-96）、5.354 の番号の重複・5.357 と 5.358 の順序（既存）
+
 ### 5.361 WASM の大きさの基点そろえ（TASK-126。DLV-27・DLV-4）
 
 spec に残る WASM の `gzip` の大きさは、commit・`wasm-opt` の有無・機能の範囲・圧縮の設定が違う値が混ざっていて増減を論じられない。同じ commit・同じビルド設定で測り直し、旧い値と並べた基点つきの一覧にそろえる。以後、DLV-4 の関門が参照する値は下の「そろえた基点の値」とする。

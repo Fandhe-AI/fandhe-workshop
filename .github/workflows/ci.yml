@@ -140,6 +140,10 @@ jobs:
       - name: make test-clean-room
         run: make test-clean-room
 
+      # 兄弟なしの前提の検査（scripts/check-sibling-free.sh。TASK-89・BUILD-14）自体の回帰検査。数秒。
+      - name: make test-check-sibling-free
+        run: make test-check-sibling-free
+
       # ビルド・試験の経路の棚卸し検査（scripts/check-build-inventory.sh。TASK-77 2/2）自体の回帰テスト。見本の repo で数秒。
       # 本体の make check-build-inventory は関門化が TASK-96 の承認事項のため CI には入れない。既存ジョブへの step 追加で、必須チェックは変わらない。
       - name: make test-check-build-inventory
@@ -325,6 +329,12 @@ jobs:
       - name: Verify installed toolchain
         run: bash scripts/ci-rust-toolchain.sh
 
+      # 兄弟の 03-poc/・prototype/ と docs/spec の中身が無いことを前提として確かめてから試験を流す（TASK-89・BUILD-14）。
+      # 既存ジョブへの step 追加で、必須チェックと ruleset は変わらない。CI の関門として加えることは spec の人間の承認点で、
+      # PR のレビューで判断する。
+      - name: Check sibling-free checkout (BUILD-14)
+        run: make check-sibling-free
+
       - name: make test
         # 件数の照合（(2)）のため出力を残す。pipefail により make test の失敗はそのまま step の失敗になる。
         run: |
@@ -403,6 +413,10 @@ jobs:
 
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
+
+      # 試験の設定の wasm の include_bytes! は clean-room では確かめられないため、ここでも兄弟なしを前提として確かめる（TASK-89）。
+      - name: Check sibling-free checkout (BUILD-14)
+        run: make check-sibling-free
 
       - name: make test-browser
         # BUILD-16（TASK-91）: 既定でない target でも前提（fandhe-pack・web）が揃うことを毎回確かめる

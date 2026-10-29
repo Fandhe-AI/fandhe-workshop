@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -71,6 +71,12 @@ check-testdata: ## repo の外への相対参照が 0 件であることを検�
 
 test-check-testdata: ## 参照の検査自体の回帰テスト。直接: scripts/test-check-testdata-refs.sh
 	@scripts/test-check-testdata-refs.sh
+
+check-sibling-free: ## 兄弟の 03-poc/prototype と docs/spec の中身が無いことを検査する（BUILD-14。spec 取得済みの手元では 1 になる）。直接: scripts/check-sibling-free.sh
+	@scripts/check-sibling-free.sh
+
+test-check-sibling-free: ## 兄弟なしの前提の検査自体の回帰テスト。直接: scripts/test-check-sibling-free.sh
+	@scripts/test-check-sibling-free.sh
 
 check-mutation-defs: ## 変異の定義の find の一意性と expect-fail の名前の実在を静的に検査する（cargo 不要）。直接: scripts/check-mutation-defs.sh
 	@scripts/check-mutation-defs.sh

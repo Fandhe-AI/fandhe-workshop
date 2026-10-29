@@ -30,6 +30,8 @@ cat <<'EOF'
   test-check-no-egress         scripts/test-check-no-egress.sh         通信の手段の検査自体の回帰テスト（ビルドなし）
   check-testdata               scripts/check-testdata-refs.sh          repo の外への相対参照が 0 件であることを検査する
   test-check-testdata          scripts/test-check-testdata-refs.sh     参照の検査自体の回帰テスト
+  check-sibling-free           scripts/check-sibling-free.sh           兄弟の 03-poc/prototype と docs/spec の中身が無いことを検査する（BUILD-14。CI 用）
+  test-check-sibling-free      scripts/test-check-sibling-free.sh      兄弟なしの前提の検査自体の回帰テスト
   check-mutation-defs          scripts/check-mutation-defs.sh          変異の定義の find の一意性と expect-fail の名前の実在を静的に検査する
   test-check-mutation-defs     scripts/test-check-mutation-defs.sh     変異の定義の静的検査自体の回帰テスト
   check-dom-reads              tools/check-deps.sh                     web crate が DOM の値を読まないこと（例外は件数固定）を検査する

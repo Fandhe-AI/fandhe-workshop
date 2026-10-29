@@ -100,6 +100,9 @@ expect "log cut before end line" 2 "$(judge cut)"
 mk impure "precondition fail secret-like-env-1" 0 "${OK_BODY}" 0 "${OK_BODY}"
 expect "precondition failure" 1 "$(judge impure)"
 
+mk sibling "precondition fail sibling-present-03-poc" 0 "${OK_BODY}" 0 "${OK_BODY}"
+expect "sibling present precondition failure" 1 "$(judge sibling)"
+
 mk nopre "x" 0 "${OK_BODY}" 0 "${OK_BODY}"
 expect "no precondition line" 2 "$(judge nopre)"
 
