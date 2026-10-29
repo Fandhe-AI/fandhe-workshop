@@ -292,11 +292,12 @@ pub fn filled_text(
     }))
 }
 
-/// ログの拒否・問い返しの `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
+/// ログの拒否・問い返し・自然文の受付の注記の `Judged` ごとに、判定の時点の状態で文面を充填し直す。戻りは（ログの位置、充填結果）の列。
 ///
 /// 復元では現在の状態しか無いため、各 `Judged` の `at.step` と直前までの `Progress` から、充填に要る欄
 /// （現在の Step・処理中の進み具合）だけを組み直す。拒否・問い返しは状態を変えないので、組み直した値は判定の直前と
-/// 同じになる。処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否・問い返し、
+/// 同じになる。受付は適用で現在の Step が進みうるが、`at.step` は判定の時点の Step なので、同じ組み直しで揃う。
+/// 処理中の欄を持つのは分類が `Busy` の拒否だけである。`InputReceived` の直後でない拒否・問い返し・受付の注記、
 /// 組み直せない（教材に無い Step・充填の失敗）ものは戻さない（fail-closed）。
 pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
     let mut out = Vec::new();
@@ -325,7 +326,10 @@ pub fn filled_texts_of_log(ir: &Ir, log: &[Event]) -> Vec<(usize, FilledText)> {
             | Event::Skipped { .. } => progress = None,
             Event::Judged {
                 at,
-                judgment: judgment @ (Judgment::Rejected(_) | Judgment::Clarified(_)),
+                judgment:
+                    judgment @ (Judgment::Rejected(_)
+                    | Judgment::Clarified(_)
+                    | Judgment::Accepted(Some(_))),
             } => {
                 let Some(Event::InputReceived { input, .. }) =
                     i.checked_sub(1).and_then(|p| log.get(p))
@@ -644,5 +648,47 @@ mod tests {
         assert_eq!(filled[0].1.message, "名前を教えてください");
         // 入力の直後でない問い返しは戻さない（fail-closed）。
         assert!(filled_texts_of_log(&ir, &[judged()]).is_empty());
+    }
+
+    #[test]
+    fn free_text_note_is_refilled_only_right_after_input() {
+        use crate::addr::{Generation, StepUid};
+        use crate::input::Input;
+        use fandhe_workshop_contract::judgment::AcceptNote;
+
+        let mut ir = ir_with(&[]);
+        ir.rejections.insert(
+            "note".into(),
+            serde_json::json!({"message": "自分で確かめてください"}),
+        );
+        ir.nodes.push(
+            serde_json::from_value(serde_json::json!({
+                "uid": "s/a", "scope": "s", "unit": "u",
+                "step": {"id": "a", "title": "題"}
+            }))
+            .expect("node"),
+        );
+        let at = || crate::addr::Stamp {
+            generation: Generation::INITIAL,
+            step: StepUid("s/a".into()),
+        };
+        let judged = |note: Option<AcceptNote>| Event::Judged {
+            at: at(),
+            judgment: Judgment::Accepted(note),
+        };
+        let note = || AcceptNote {
+            text: "note".into(),
+            next_action: NextAction::new("確かめる").expect("next"),
+        };
+        let received = Event::InputReceived {
+            at: at(),
+            input: Input::Text("文".into()),
+        };
+        let filled = filled_texts_of_log(&ir, &[received.clone(), judged(Some(note()))]);
+        assert_eq!(filled.len(), 1);
+        assert_eq!(filled[0].0, 1);
+        assert_eq!(filled[0].1.message, "自分で確かめてください");
+        assert!(filled_texts_of_log(&ir, &[judged(Some(note()))]).is_empty());
+        assert!(filled_texts_of_log(&ir, &[received, judged(None)]).is_empty());
     }
 }
