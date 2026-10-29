@@ -10603,3 +10603,39 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 100,000 要素での起動 0.3 秒・WASM のメモリ 152MB・1 回の操作 0.1 秒の測定は未実施（ブラウザの試験 `ir-value-limits` は未作成）。SAFE-25 は検討中のまま
 - 低メモリ端末での測定は未実施
 - `scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）
+
+### 5.378 断った後に保存済みの履歴と画面が書き換わらないこと（TASK-169。SAFE-40）
+
+保存済みの履歴がある状態で、上限超過・入れ子が深すぎる・形の合わない履歴と IR を読み込んで断られた後に、保存先の全体と画面の状態が前と同じで、入力に入れた番兵が通知・DOM・コンソールのどこにも出ないことを固定した。論理は足していない（試験のみ）。
+
+#### 試験
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| native | `crates/web/tests/refusal_keeps_saved.rs` | 何手か進めた後、履歴 7 通り（`too_large`・`too_deep`・`not_json`・`missing_version`・`malformed`・`other_pack`・`too_many_ops`）を `open_history` に渡す。状態・導出した値・`history_to_save` が前と同じで保存の口が 0 回、描いた木に番兵が無く、通知の文が `import_refused_message` の固定の文と一致する。入力の中身だけ違う 2 本で文が一致し、全 19 コードの文の前半が同じ |
+| ブラウザ | `tools/browser/refusal-keeps-saved.test.mjs` | 4 経路（下記）。保存先は localStorage の全件と IndexedDB の全ストアの全件を、長さと hash の一致だけで比べる |
+| 変異 | `SAFE40-1` | 断る分岐に関係のない通知を足す誤り。native の `refusals_keep_state_saved_value_and_screen_free_of_input_values` が捉える（DETECTED） |
+
+#### ブラウザ試験の経路
+
+| 経路 | 設定 | 場合 | 確かめること |
+|---|---|---|---|
+| (a) 履歴ファイル | 試験の設定、CSP あり・なし | H-large（10,485,761 バイト）・H-deep（65 段）・H-notjson・H-shape・H-malformed・H-ops（20,001 件）・H-otherpack | 通知が 1 件で理由が一致。同じ理由で番兵だけ違う 2 本の文が一致。保存先・エンジンの指紋・環境の差し替え回数・下書きが前と同じ。通知を閉じた後の画面の html と下書きが前と同じ。番兵が無い。再読み込みで `restored` |
+| (b) 起動時の IR | 配信する設定（試験の口なし） | I-large（20,971,521 バイト）・I-deep・I-shape・I-dupuid | 同じ待ち受けで `/ir/main.json` の本体だけ差し替える。`ir-notice` が 1 件、教材の部品が 0 件、番兵なし、断っている間と再読み込みの後も保存先が基準と一致。本体を戻すと保存済みのログが開く |
+| (c) 起動後の `loadIr` | 試験の設定、CSP あり・なし | L-deep・L-shape・L-dupuid | `irRefusal` が一致し、状態・ログ・差し替えの回数・URL・保存先・画面の html が前と同じ。番兵なし |
+| (d) 保存先から起動 | 試験の設定 | S-deep・S-malformed・S-large（10,485,761 バイト） | `not_opened` で、操作の後も保存先の値がバイト単位で同じ。番兵なし |
+
+自己確認として、受け付けられる 1 手で保存先の比較・画面の比較が変化を検出し、番兵の検出器が画面に出た値を検出することを確かめる。
+
+#### 判断と注記
+
+- 基準の取り方: (b) は正常な画面が起動のたびに Reload を 1 件追記し、その画面を離れる pagehide で書くため、断る前には基準を確定できない。基準は断る画面がマウントして通知が出た後に取り（ir-refusal と同じ）、断っている間・再読み込みの後・本体を戻した後に（起動の印 `meta/boot` を除く履歴の項目が）一致することを確かめる。断る画面への切り替え自体での書き換えは、この経路では検出しない。
+- I-dupuid の uid 重複は理由が `malformed` になり、`IrLoadError` の `Display` が uid を含んでも、画面は理由のコードだけを使うことを番兵で固定する。
+- 実測（2026-10-29、ローカル、Chromium）: S-large は 10,485,761 バイトの値の書き込みが成功し、断られた。起動時の理由の通知は 0 件（TASK-533 の範囲）。
+
+#### 限界・未検証
+
+- (c) は `too_large` を扱わない（20MB の文字列を CDP で渡す負荷が大きく、(b) の I-large が同じ判定を覆う）。
+- (b) の復帰後の画面は試験の口が無いため、題とログの行の存在・件数で確かめる（DOM の全体一致ではない）。
+- 起動時の理由の案内は TASK-533、受講者向けの最終の文面は TASK-545・TASK-549・TASK-534 の範囲。理由はコードで確かめる。
+- Chromium のみ。`scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）。
