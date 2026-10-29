@@ -301,3 +301,26 @@ fn 開けなかった履歴からの削除の成功で保存の停止が解け�
     step(&mut p.host);
     assert!(p.host.history_to_save().is_some(), "停止が解けた");
 }
+
+#[test]
+fn remove_pack_は起動後に別のタブが書いた_indexeddb_の鍵も消す() {
+    let local = Rc::new(FakeLocal::default());
+    let idb = Rc::new(FakeIdb::default());
+    let storage = HistoryStorage::new(Rc::clone(&local), Some(Rc::clone(&idb)), BTreeMap::new());
+    let late = k(scope(), PACK, "s-9").render();
+    let other = k(scope(), "other-pack", "s-1").render();
+    idb.store.borrow_mut().insert(late.clone(), "x".into());
+    idb.store.borrow_mut().insert(other.clone(), "o".into());
+    storage.remove_pack(&scope(), PACK).unwrap();
+    assert!(!idb.store.borrow().contains_key(&late));
+    assert!(idb.store.borrow().contains_key(&other));
+}
+
+#[test]
+fn remove_pack_は_localstorage_の鍵の一覧を引けなければ失敗する() {
+    let local = Rc::new(FakeLocal::default());
+    let idb = Rc::new(FakeIdb::default());
+    local.fail_keys.set(true);
+    let storage = HistoryStorage::new(Rc::clone(&local), Some(Rc::clone(&idb)), BTreeMap::new());
+    assert!(storage.remove_pack(&scope(), PACK).is_err());
+}

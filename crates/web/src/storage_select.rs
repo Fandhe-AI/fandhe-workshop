@@ -78,6 +78,9 @@ pub type Done = Box<dyn FnOnce(Result<(), StorageError>)>;
 /// 値の取得の完了の通知。無い鍵は `Ok(None)`。1 回だけ届く。
 pub type Fetched = Box<dyn FnOnce(Result<Option<String>, StorageError>)>;
 
+/// 鍵の一覧の取得の完了の通知。1 回だけ届く。
+pub type Listed = Box<dyn FnOnce(Result<Vec<String>, StorageError>)>;
+
 /// 完了を通知で返す key-value（IndexedDB）の backend。手元の写しへの反映は呼び出し側が同期で行う。
 pub trait IdbBackend {
     /// 値を DB から取り直す。確定済みの書き込みだけが見え、手元の写しは使わない。完了で `done` が呼ばれる。
@@ -86,6 +89,8 @@ pub trait IdbBackend {
     fn put(&self, key: &str, value: &str, done: Done);
     /// 値を消す。トランザクションの完了で `done` が呼ばれる。
     fn delete(&self, key: &str, done: Done);
+    /// DB の実際の鍵の一覧を取り直す（手元の写しは使わない。別のタブが起動後に書いた鍵も含む）。完了で `done` が呼ばれる。
+    fn keys(&self, done: Listed);
 }
 
 impl<T: SyncKv + ?Sized> SyncKv for Rc<T> {
@@ -115,6 +120,9 @@ impl<T: IdbBackend + ?Sized> IdbBackend for Rc<T> {
     }
     fn delete(&self, key: &str, done: Done) {
         (**self).delete(key, done)
+    }
+    fn keys(&self, done: Listed) {
+        (**self).keys(done)
     }
 }
 
@@ -169,7 +177,7 @@ impl<L: SyncKv> Shared<L> {
 /// 合成の保存先。localStorage を既定とし、閾値を超える見込みの書き込みから IndexedDB へ一方向に切り替える。
 pub struct HistoryStorage<L, I> {
     shared: Rc<Shared<L>>,
-    idb: Option<I>,
+    idb: Option<Rc<I>>,
     /// IndexedDB の手元の写し。読みは同期で、書き込みの確定は後から届く（口が同期のため）。
     mirror: Rc<RefCell<BTreeMap<String, String>>>,
     active: Cell<StorageKind>,
@@ -178,7 +186,7 @@ pub struct HistoryStorage<L, I> {
     idb_unreadable: bool,
 }
 
-impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
+impl<L: SyncKv + 'static, I: IdbBackend + 'static> HistoryStorage<L, I> {
     /// 作る。`idb` が `None` なら IndexedDB は使えず、localStorage だけで動く。
     /// `idb_initial` は開いた時点の IndexedDB の全件（[`HistoryKey::parse`] できる鍵だけを渡す）。
     pub fn new(local: L, idb: Option<I>, idb_initial: BTreeMap<String, String>) -> Self {
@@ -193,7 +201,7 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
                 usage: Cell::new(None),
                 last_async_error: Cell::new(None),
             }),
-            idb,
+            idb: idb.map(Rc::new),
             mirror: Rc::new(RefCell::new(mirror)),
             active: Cell::new(DEFAULT_STORAGE_KIND),
             idb_unreadable: false,
@@ -284,8 +292,9 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
         if self.idb_unreadable {
             return Err(StorageError::Unavailable);
         }
+        // 削除用の列挙は localStorage の取得失敗も握りつぶさない（対象を確認できないまま成功にしない）。
         let targets: Vec<HistoryKey> = self
-            .keys()?
+            .keys_strict()?
             .into_iter()
             .filter(|k| k.belongs_to(scope, pack_id))
             .collect();
@@ -295,11 +304,57 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
                 first_error.get_or_insert(e);
             }
         }
-        let remaining = self.keys()?.iter().any(|k| k.belongs_to(scope, pack_id));
+        let remaining = self
+            .keys_strict()?
+            .iter()
+            .any(|k| k.belongs_to(scope, pack_id));
         if remaining {
             return Err(first_error.unwrap_or(StorageError::Failed));
         }
+        self.sweep_idb(scope, pack_id);
         Ok(targets.len())
+    }
+
+    /// localStorage の列挙失敗を `Err` にする鍵の一覧（削除用）。IndexedDB は手元の写しの鍵。
+    fn keys_strict(&self) -> Result<Vec<HistoryKey>, StorageError> {
+        let mut all: BTreeSet<String> = self.mirror.borrow().keys().cloned().collect();
+        all.extend(self.shared.local.keys()?);
+        Ok(all.iter().filter_map(|k| HistoryKey::parse(k)).collect())
+    }
+
+    /// IndexedDB の実際の鍵を非同期で取り直し、対象の鍵（別のタブが起動後に書いたものを含む）を消す。
+    ///
+    /// 同期の削除（口が同期のため）は写しの鍵しか見えない。取り直しの失敗・個々の delete の失敗は `last_async_error`
+    /// に残す（SAVE-11 の経路）。完了を待たないため、この呼び出しの `Ok` は IndexedDB の実鍵の削除の確定を意味しない。
+    fn sweep_idb(&self, scope: &DeliveryScope, pack_id: &str) {
+        let Some(idb) = &self.idb else {
+            return;
+        };
+        let (shared, mirror, idb2) = (
+            Rc::clone(&self.shared),
+            Rc::clone(&self.mirror),
+            Rc::clone(idb),
+        );
+        let (scope, pack_id) = (scope.clone(), pack_id.to_string());
+        idb.keys(Box::new(move |r| match r {
+            Err(e) => shared.last_async_error.set(Some(e)),
+            Ok(ks) => {
+                for k in ks {
+                    if HistoryKey::parse(&k).is_some_and(|h| h.belongs_to(&scope, &pack_id)) {
+                        mirror.borrow_mut().remove(&k);
+                        let sh = Rc::clone(&shared);
+                        idb2.delete(
+                            &k,
+                            Box::new(move |r| {
+                                if let Err(e) = r {
+                                    sh.last_async_error.set(Some(e));
+                                }
+                            }),
+                        );
+                    }
+                }
+            }
+        }));
     }
 
     /// IndexedDB へ書く。put の確定を待たずに手元の写しを更新して `Ok` を返す（口の [`HistoryStore::write`] が同期のため）。
@@ -333,7 +388,7 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
     }
 }
 
-impl<L: SyncKv + 'static, I: IdbBackend> HistoryStore for HistoryStorage<L, I> {
+impl<L: SyncKv + 'static, I: IdbBackend + 'static> HistoryStore for HistoryStorage<L, I> {
     /// このセッションの保存先。状態は変えない。
     ///
     /// IndexedDB にある鍵があっても、その鍵で [`HistoryStorage::kind_for`] か `write` を呼ぶまでは

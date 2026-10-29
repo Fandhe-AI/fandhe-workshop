@@ -7,8 +7,8 @@ use fandhe_workshop_contract::storage::{
     DeliveryScope, HistoryKey, HistoryStore, StorageError, StorageKind,
 };
 use fandhe_workshop_web::storage_select::{
-    initial_kind, should_switch, utf16_len, Done, Fetched, HistoryStorage, IdbBackend, SyncKv,
-    LOCAL_STORAGE_MAX_UTF16, SWITCH_THRESHOLD_UTF16,
+    initial_kind, should_switch, utf16_len, Done, Fetched, HistoryStorage, IdbBackend, Listed,
+    SyncKv, LOCAL_STORAGE_MAX_UTF16, SWITCH_THRESHOLD_UTF16,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -118,6 +118,10 @@ impl IdbBackend for FakeIdb {
         self.pending
             .borrow_mut()
             .push((Some((key.to_string(), value.to_string())), done));
+    }
+    fn keys(&self, done: Listed) {
+        let ks: Vec<String> = self.store.borrow().keys().cloned().collect();
+        done(Ok(ks));
     }
     fn delete(&self, key: &str, done: Done) {
         self.store.borrow_mut().remove(key);
