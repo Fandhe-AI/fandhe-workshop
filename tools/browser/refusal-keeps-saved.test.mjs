@@ -341,15 +341,24 @@ for (const c of IR_CASES) {
       await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
       const logBefore = await page.locator(LOG_ITEMS).count();
       assert.ok(logBefore > 0, 'a saved history is shown');
+      // 基準は断る前の正常な画面で確定させる。再読み込み（pagehide）をもう 1 回挟んでも内容全体が変わらないことを確かめてから採る。
+      await page.waitForTimeout(1500);
+      const settled = await storageDigest(page);
+      assert.equal(hasHistory(settled), true, 'the saved history is present before refusing');
+      await page.reload();
+      await waitMounted(page);
+      await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
+      await page.waitForTimeout(1500);
+      const baseline = await storageDigest(page);
+      assert.equal(baseline, settled, 'the saved history is stable under pagehide before refusing');
 
       const sentinel = `SAFE40-SENTINEL-${c.id}`;
       body = c.make(sentinel);
       await page.goto(`${origin}/`);
       await waitMounted(page);
-      // 土台の画面を離れる pagehide で書かれる分があるため、基準は断る画面がマウントした後に取る（ir-refusal と同じ）。
+      // 基準は断る前に確定させた内容。断る画面のマウント後に採り直さず、初回の拒否での書き換えも検出する。
       await page.waitForSelector(IR_NOTICE, { timeout: 60000 });
-      const baseline = await storageDigest(page);
-      assert.equal(hasHistory(baseline), true, 'the saved history is present while refusing');
+      assert.equal(await storageDigest(page), baseline, 'storage unchanged at the first refusal (content, not only count)');
       assert.equal(await page.locator(IR_NOTICE).count(), 1);
       assert.equal(await page.locator(IR_NOTICE).getAttribute('role'), 'status');
       const noticeText = await page.locator(IR_NOTICE).innerText();
@@ -372,6 +381,8 @@ for (const c of IR_CASES) {
       await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
       assert.equal(await page.locator(IR_NOTICE).count(), 0);
       assert.ok((await page.locator(LOG_ITEMS).count()) >= logBefore, 'the saved log is not lost');
+      await page.waitForTimeout(1500);
+      assert.equal(await storageDigest(page), baseline, 'storage content is identical to the baseline after recovery');
       t.diagnostic(`case=${c.id} reason=${c.reason} notice_chars=${noticeText.length}`);
       assertQuiet(opened.rec, c.id);
       await opened.context.close();
