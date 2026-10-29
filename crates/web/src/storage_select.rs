@@ -81,6 +81,28 @@ pub type Fetched = Box<dyn FnOnce(Result<Option<String>, StorageError>)>;
 /// 鍵の一覧の取得の完了の通知。1 回だけ届く。
 pub type Listed = Box<dyn FnOnce(Result<Vec<String>, StorageError>)>;
 
+/// 保存済みの履歴の削除の完了の通知。消した件数か失敗の種類が 1 回だけ届く。
+pub type Removed = Box<dyn FnOnce(Result<usize, StorageError>)>;
+
+/// 削除の途中経過。全 delete の完了通知で共有し、最後の 1 件で `done` を 1 回だけ呼ぶ。
+struct RemoveState {
+    waiting: Cell<usize>,
+    error: Cell<Option<StorageError>>,
+    done: RefCell<Option<Removed>>,
+    total: usize,
+}
+
+impl RemoveState {
+    fn finish(&self) {
+        if let Some(done) = self.done.borrow_mut().take() {
+            done(match self.error.get() {
+                Some(e) => Err(e),
+                None => Ok(self.total),
+            });
+        }
+    }
+}
+
 /// 完了を通知で返す key-value（IndexedDB）の backend。手元の写しへの反映は呼び出し側が同期で行う。
 pub trait IdbBackend {
     /// 値を DB から取り直す。確定済みの書き込みだけが見え、手元の写しは使わない。完了で `done` が呼ばれる。
@@ -278,81 +300,115 @@ impl<L: SyncKv + 'static, I: IdbBackend + 'static> HistoryStorage<L, I> {
         );
     }
 
-    /// 指定した配信先・教材の履歴の鍵をすべて消す（SAVE-32。保存済みの履歴の削除の中核）。消した件数を返す。
+    /// 指定した配信先・教材の履歴の鍵をすべて消し、全 delete の確定の後に `done` へ消した件数を渡す（SAVE-32。保存済みの履歴の削除の中核）。
     ///
     /// 対象は [`HistoryKey::belongs_to`] に当たる鍵だけで、別の教材・別の配信先・`unreadable` の鍵・履歴でない鍵（起動番号など）は
     /// 消さない。IndexedDB を全件読めなかった保存先は中身が分からないため、何も消さずに `Unavailable` を返す（fail-closed）。
-    /// 失敗した鍵があっても残りの鍵は試し、最後に `keys` を引き直して対象が残っていれば `Failed` を返す（一部だけ消えうる）。
-    /// IndexedDB の delete は確定を待たず、後からの失敗は `last_async_error` に残る（SAVE-11 の経路で出る）。
-    ///
-    /// # Errors
-    ///
-    /// 読めない保存先・鍵の一覧を引けない・対象が残った場合。
-    pub fn remove_pack(&self, scope: &DeliveryScope, pack_id: &str) -> Result<usize, StorageError> {
+    /// localStorage は同期で消して、残りを確かめる。IndexedDB は実鍵（別のタブが起動後に書いた鍵を含む）を非同期で列挙し直し、
+    /// 手元の写しの鍵と合わせて重複を除いた対象のすべてについて delete の確定を待つ。手元の写しは確定した鍵だけ外す。
+    /// 件数は重複を除いた対象の数で、`done` は 1 回だけ呼ばれる。失敗した鍵があっても残りは試し、最初の失敗の種類を返す
+    /// （一部だけ消えうる。`docs/known-gaps.md`）。`done` の中から保存先（`STORAGE`）を借りてはならない。
+    pub fn remove_pack(&self, scope: &DeliveryScope, pack_id: &str, done: Removed) {
         if self.idb_unreadable {
-            return Err(StorageError::Unavailable);
+            done(Err(StorageError::Unavailable));
+            return;
         }
-        // 削除用の列挙は localStorage の取得失敗も握りつぶさない（対象を確認できないまま成功にしない）。
-        let targets: Vec<HistoryKey> = self
-            .keys_strict()?
-            .into_iter()
-            .filter(|k| k.belongs_to(scope, pack_id))
-            .collect();
+        // localStorage の列挙失敗は握りつぶさない（対象を確認できないまま成功にしない）。
+        let local_keys = match self.shared.local.keys() {
+            Ok(ks) => ks,
+            Err(e) => {
+                done(Err(e));
+                return;
+            }
+        };
+        let is_target =
+            |k: &String| HistoryKey::parse(k).is_some_and(|h| h.belongs_to(scope, pack_id));
+        let mut targets: BTreeSet<String> = local_keys.into_iter().filter(is_target).collect();
         let mut first_error = None;
-        for key in &targets {
-            if let Err(e) = self.remove(key) {
+        for k in &targets {
+            let old = self.shared.local.get(k).ok().flatten();
+            match self.shared.local.remove(k) {
+                Ok(()) => {
+                    if let Some(old) = old {
+                        self.shared.release(k, &old);
+                    }
+                }
+                Err(e) => {
+                    first_error.get_or_insert(e);
+                }
+            }
+        }
+        match self.shared.local.keys() {
+            Ok(ks) => {
+                if ks.iter().any(is_target) {
+                    first_error.get_or_insert(StorageError::Failed);
+                }
+            }
+            Err(e) => {
                 first_error.get_or_insert(e);
             }
         }
-        let remaining = self
-            .keys_strict()?
-            .iter()
-            .any(|k| k.belongs_to(scope, pack_id));
-        if remaining {
-            return Err(first_error.unwrap_or(StorageError::Failed));
-        }
-        self.sweep_idb(scope, pack_id);
-        Ok(targets.len())
-    }
-
-    /// localStorage の列挙失敗を `Err` にする鍵の一覧（削除用）。IndexedDB は手元の写しの鍵。
-    fn keys_strict(&self) -> Result<Vec<HistoryKey>, StorageError> {
-        let mut all: BTreeSet<String> = self.mirror.borrow().keys().cloned().collect();
-        all.extend(self.shared.local.keys()?);
-        Ok(all.iter().filter_map(|k| HistoryKey::parse(k)).collect())
-    }
-
-    /// IndexedDB の実際の鍵を非同期で取り直し、対象の鍵（別のタブが起動後に書いたものを含む）を消す。
-    ///
-    /// 同期の削除（口が同期のため）は写しの鍵しか見えない。取り直しの失敗・個々の delete の失敗は `last_async_error`
-    /// に残す（SAVE-11 の経路）。完了を待たないため、この呼び出しの `Ok` は IndexedDB の実鍵の削除の確定を意味しない。
-    fn sweep_idb(&self, scope: &DeliveryScope, pack_id: &str) {
         let Some(idb) = &self.idb else {
+            done(match first_error {
+                Some(e) => Err(e),
+                None => Ok(targets.len()),
+            });
             return;
         };
-        let (shared, mirror, idb2) = (
-            Rc::clone(&self.shared),
-            Rc::clone(&self.mirror),
-            Rc::clone(idb),
+        targets.extend(
+            self.mirror
+                .borrow()
+                .keys()
+                .filter(|k| is_target(k))
+                .cloned(),
         );
         let (scope, pack_id) = (scope.clone(), pack_id.to_string());
-        idb.keys(Box::new(move |r| match r {
-            Err(e) => shared.last_async_error.set(Some(e)),
-            Ok(ks) => {
-                for k in ks {
-                    if HistoryKey::parse(&k).is_some_and(|h| h.belongs_to(&scope, &pack_id)) {
-                        mirror.borrow_mut().remove(&k);
-                        let sh = Rc::clone(&shared);
-                        idb2.delete(
-                            &k,
-                            Box::new(move |r| {
-                                if let Err(e) = r {
-                                    sh.last_async_error.set(Some(e));
-                                }
-                            }),
-                        );
-                    }
+        let (mirror, idb2) = (Rc::clone(&self.mirror), Rc::clone(idb));
+        idb.keys(Box::new(move |r| {
+            let actual = match r {
+                Ok(ks) => ks,
+                Err(e) => {
+                    done(Err(first_error.unwrap_or(e)));
+                    return;
                 }
+            };
+            targets.extend(
+                actual.into_iter().filter(|k| {
+                    HistoryKey::parse(k).is_some_and(|h| h.belongs_to(&scope, &pack_id))
+                }),
+            );
+            let total = targets.len();
+            let state = Rc::new(RemoveState {
+                waiting: Cell::new(total),
+                error: Cell::new(first_error),
+                done: RefCell::new(Some(done)),
+                total,
+            });
+            if total == 0 {
+                state.finish();
+                return;
+            }
+            for k in targets {
+                let (st, mirror, kk) = (Rc::clone(&state), Rc::clone(&mirror), k.clone());
+                idb2.delete(
+                    &k,
+                    Box::new(move |r| {
+                        match r {
+                            Ok(()) => {
+                                mirror.borrow_mut().remove(&kk);
+                            }
+                            Err(e) => {
+                                if st.error.get().is_none() {
+                                    st.error.set(Some(e));
+                                }
+                            }
+                        }
+                        st.waiting.set(st.waiting.get() - 1);
+                        if st.waiting.get() == 0 {
+                            st.finish();
+                        }
+                    }),
+                );
             }
         }));
     }

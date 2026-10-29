@@ -152,6 +152,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "refetch",
     "is_ok",
     "SecretDiscardRead",
+    // 保存済みの履歴の削除の完了の配送（SAVE-32）。世代と結果だけを運び、DOM には触れない。
+    "DeleteResult",
     "save_epoch",
     "is_scheduled",
     "is_ok_and",

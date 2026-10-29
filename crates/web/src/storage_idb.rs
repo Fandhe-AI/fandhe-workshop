@@ -222,15 +222,16 @@ impl IdbBackend for IdbStore {
             &tx,
             Box::new(move |r| {
                 done(r.map(|()| {
-                    req.result()
-                        .ok()
-                        .map(|v| {
-                            let a: Array = v.unchecked_into();
-                            (0..a.length())
-                                .filter_map(|i| a.get(i).as_string())
-                                .collect()
-                        })
-                        .unwrap_or_default()
+                    let mut out = Vec::new();
+                    if let Ok(v) = req.result() {
+                        let a: Array = v.unchecked_into();
+                        for i in 0..a.length() {
+                            if let Some(k) = a.get(i).as_string() {
+                                out.push(k);
+                            }
+                        }
+                    }
+                    out
                 }));
             }),
         );

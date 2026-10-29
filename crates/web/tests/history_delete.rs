@@ -8,7 +8,7 @@
 #[path = "common/storage_fakes.rs"]
 mod storage_fakes;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -21,7 +21,7 @@ use fandhe_workshop_web::host::{BootKind, EngineHost, HostAction};
 use fandhe_workshop_web::parts::Component;
 use fandhe_workshop_web::save_pending::PendingSave;
 use fandhe_workshop_web::storage_select::HistoryStorage;
-use storage_fakes::{fixture, FakeIdb, FakeLocal};
+use storage_fakes::{fixture, FakeIdb, FakeLocal, Storage};
 
 const PACK: &str = "chapter-links";
 
@@ -67,17 +67,36 @@ fn snapshot(local: &FakeLocal, keep: &[String]) -> Vec<(String, String)> {
     out
 }
 
+type Outcome = Rc<RefCell<Option<Result<usize, StorageError>>>>;
+
+/// `remove_pack` を呼び、完了の通知の結果を受ける箱を返す（通知前は `None`）。
+fn remove(storage: &Storage, scope: &DeliveryScope, pack: &str) -> Outcome {
+    let out: Outcome = Rc::new(RefCell::new(None));
+    let o = Rc::clone(&out);
+    storage.remove_pack(
+        scope,
+        pack,
+        Box::new(move |r| {
+            assert!(o.borrow_mut().replace(r).is_none(), "完了は 1 回だけ");
+        }),
+    );
+    out
+}
+
 #[test]
 fn remove_pack_は対象の鍵だけを消し件数を返す() {
     let f = fixture(false);
     let keep = seed(&f.local);
     let before = snapshot(&f.local, &keep);
-    let n = f.storage.remove_pack(&scope(), PACK).unwrap();
+    let n = remove(&f.storage, &scope(), PACK)
+        .borrow()
+        .unwrap()
+        .unwrap();
     assert_eq!(n, 2);
     let left = f.storage.keys().unwrap();
     assert!(!left.iter().any(|x| x.belongs_to(&scope(), PACK)));
     assert_eq!(snapshot(&f.local, &keep), before, "対象外は件数も値も不変");
-    assert_eq!(f.storage.remove_pack(&scope(), PACK).unwrap(), 0);
+    assert_eq!(remove(&f.storage, &scope(), PACK).borrow().unwrap(), Ok(0));
 }
 
 #[test]
@@ -90,8 +109,10 @@ fn remove_pack_は_indexeddb_の写しと保存先の両方から消す() {
     idb.store.borrow_mut().extend(initial.clone());
     let storage = HistoryStorage::new(Rc::clone(&local), Some(Rc::clone(&idb)), initial);
     let keep = seed(&local);
-    assert_eq!(storage.remove_pack(&scope(), PACK).unwrap(), 2);
+    let out = remove(&storage, &scope(), PACK);
+    assert!(out.borrow().is_none(), "delete の確定までは完了を返さない");
     idb.settle(Ok(()));
+    assert_eq!(*out.borrow(), Some(Ok(2)));
     assert!(!idb
         .store
         .borrow()
@@ -117,8 +138,8 @@ fn 読めない保存先では何も消さず_unavailable() {
     let keep = seed(&local);
     let storage = HistoryStorage::<_, Rc<FakeIdb>>::unreadable(Rc::clone(&local));
     assert_eq!(
-        storage.remove_pack(&scope(), PACK),
-        Err(StorageError::Unavailable)
+        *remove(&storage, &scope(), PACK).borrow(),
+        Some(Err(StorageError::Unavailable))
     );
     assert!(local.raw(&k(scope(), PACK, "s-1").render()).is_some());
     assert!(local.raw(&keep[0]).is_some());
@@ -187,19 +208,24 @@ fn step(h: &mut EngineHost) {
 struct Probe {
     host: EngineHost,
     deleted: Rc<Cell<u32>>,
+    /// 直近に頼まれた削除の世代。
+    gen: Rc<Cell<u64>>,
     saved: Rc<Cell<u32>>,
     cancelled: Rc<Cell<u32>>,
 }
 
-fn probe(result: Result<usize, StorageError>) -> Probe {
+/// 口は頼まれた世代を控えるだけで、完了は試験が `DeleteResult` で届ける。
+fn probe() -> Probe {
     let mut host = page();
     let deleted = Rc::new(Cell::new(0));
     let saved = Rc::new(Cell::new(0));
     let cancelled = Rc::new(Cell::new(0));
     let d = Rc::clone(&deleted);
-    host.set_history_deleter(Box::new(move || {
+    let gen = Rc::new(Cell::new(0));
+    let g = Rc::clone(&gen);
+    host.set_history_deleter(Box::new(move |generation| {
+        g.set(generation);
         d.set(d.get() + 1);
-        result
     }));
     let s = Rc::clone(&saved);
     host.set_history_saver(Box::new(move |_| {
@@ -211,9 +237,15 @@ fn probe(result: Result<usize, StorageError>) -> Probe {
     Probe {
         host,
         deleted,
+        gen,
         saved,
         cancelled,
     }
+}
+
+/// 削除の完了を届ける（頼まれた世代で）。
+fn complete(p: &mut Probe, result: Result<usize, StorageError>) {
+    p.host.update(HostAction::DeleteResult(p.gen.get(), result));
 }
 
 fn send(h: &mut EngineHost, which: &str) {
@@ -226,7 +258,7 @@ fn send(h: &mut EngineHost, which: &str) {
 
 #[test]
 fn 確認待ちなしの確定は何も消さず状態も変えない() {
-    let mut p = probe(Ok(2));
+    let mut p = probe();
     step(&mut p.host);
     let moved = current(&p.host);
     send(&mut p.host, "confirm");
@@ -236,7 +268,7 @@ fn 確認待ちなしの確定は何も消さず状態も変えない() {
 
 #[test]
 fn やめるの後の確定も消さない() {
-    let mut p = probe(Ok(2));
+    let mut p = probe();
     step(&mut p.host);
     send(&mut p.host, "request");
     send(&mut p.host, "cancel");
@@ -246,18 +278,23 @@ fn やめるの後の確定も消さない() {
 
 #[test]
 fn 確定すると最初の_step_から新しく始まり保存しない() {
-    let mut p = probe(Ok(2));
+    let mut p = probe();
     let first = current(&p.host);
     step(&mut p.host);
     assert!(
         p.host.history_to_save().is_some(),
         "操作の後は保存する値がある"
     );
+    let moved = current(&p.host);
     let saved_before = p.saved.get();
     send(&mut p.host, "request");
     assert_eq!(p.deleted.get(), 0, "要求だけでは消さない");
     send(&mut p.host, "confirm");
     assert_eq!(p.deleted.get(), 1);
+    assert_eq!(current(&p.host), moved, "完了までは画面を変えない");
+    send(&mut p.host, "confirm");
+    assert_eq!(p.deleted.get(), 1, "頼んでいる間は重ねない");
+    complete(&mut p, Ok(2));
     assert_eq!(current(&p.host), first);
     assert!(p.host.history_to_save().is_none());
     assert_eq!(p.saved.get(), saved_before, "削除の更新で保存しない");
@@ -269,13 +306,14 @@ fn 確定すると最初の_step_から新しく始まり保存しない() {
 
 #[test]
 fn 削除に失敗したら状態を変えない() {
-    let mut p = probe(Err(StorageError::Failed));
+    let mut p = probe();
     step(&mut p.host);
     let moved = current(&p.host);
     let to_save = p.host.history_to_save();
     send(&mut p.host, "request");
     send(&mut p.host, "confirm");
     assert_eq!(p.deleted.get(), 1);
+    complete(&mut p, Err(StorageError::Failed));
     assert_eq!(current(&p.host), moved);
     assert_eq!(p.host.history_to_save(), to_save);
 }
@@ -292,12 +330,13 @@ fn 口が未設定の確定は何も起きない() {
 
 #[test]
 fn 開けなかった履歴からの削除の成功で保存の停止が解ける() {
-    let mut p = probe(Ok(1));
+    let mut p = probe();
     assert_ne!(p.host.boot(Some(b"not a history")), BootKind::Restored);
     step(&mut p.host);
     assert!(p.host.history_to_save().is_none(), "停止中は保存しない");
     send(&mut p.host, "request");
     send(&mut p.host, "confirm");
+    complete(&mut p, Ok(1));
     step(&mut p.host);
     assert!(p.host.history_to_save().is_some(), "停止が解けた");
 }
@@ -311,9 +350,12 @@ fn remove_pack_は起動後に別のタブが書いた_indexeddb_の鍵も消す
     let other = k(scope(), "other-pack", "s-1").render();
     idb.store.borrow_mut().insert(late.clone(), "x".into());
     idb.store.borrow_mut().insert(other.clone(), "o".into());
-    storage.remove_pack(&scope(), PACK).unwrap();
+    let out = remove(&storage, &scope(), PACK);
+    idb.settle(Ok(()));
     assert!(!idb.store.borrow().contains_key(&late));
     assert!(idb.store.borrow().contains_key(&other));
+    // 起動後に別のタブが足した鍵だけでも件数に入る。
+    assert_eq!(*out.borrow(), Some(Ok(1)));
 }
 
 #[test]
@@ -322,5 +364,47 @@ fn remove_pack_は_localstorage_の鍵の一覧を引けなければ失敗する
     let idb = Rc::new(FakeIdb::default());
     local.fail_keys.set(true);
     let storage = HistoryStorage::new(Rc::clone(&local), Some(Rc::clone(&idb)), BTreeMap::new());
-    assert!(storage.remove_pack(&scope(), PACK).is_err());
+    assert!(matches!(
+        *remove(&storage, &scope(), PACK).borrow(),
+        Some(Err(_))
+    ));
+}
+
+#[test]
+fn remove_pack_は_indexeddb_の_delete_が失敗したら失敗を返し写しを残す() {
+    let local = Rc::new(FakeLocal::default());
+    let idb = Rc::new(FakeIdb::default());
+    let key = k(scope(), PACK, "s-4").render();
+    let initial = BTreeMap::from([(key.clone(), "v".to_string())]);
+    idb.store.borrow_mut().extend(initial.clone());
+    let storage = HistoryStorage::new(Rc::clone(&local), Some(Rc::clone(&idb)), initial);
+    let out = remove(&storage, &scope(), PACK);
+    assert!(out.borrow().is_none());
+    idb.settle(Err(StorageError::Failed));
+    assert_eq!(*out.borrow(), Some(Err(StorageError::Failed)));
+    assert!(
+        storage
+            .keys()
+            .unwrap()
+            .iter()
+            .any(|x| x.belongs_to(&scope(), PACK)),
+        "確定していない鍵は写しに残る"
+    );
+}
+
+#[test]
+fn 世代の違う完了と頼んでいない完了は捨てる() {
+    let mut p = probe();
+    let first = current(&p.host);
+    step(&mut p.host);
+    let moved = current(&p.host);
+    complete(&mut p, Ok(1));
+    assert_eq!(current(&p.host), moved, "頼んでいない完了は捨てる");
+    send(&mut p.host, "request");
+    send(&mut p.host, "confirm");
+    p.host
+        .update(HostAction::DeleteResult(p.gen.get() + 9, Ok(1)));
+    assert_eq!(current(&p.host), moved, "世代の違う完了は捨てる");
+    complete(&mut p, Ok(1));
+    assert_eq!(current(&p.host), first);
 }

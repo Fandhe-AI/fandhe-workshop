@@ -77,6 +77,7 @@ pub mod host;
 pub mod stale_notice;
 pub mod view_only_notice;
 
+pub mod delete_notice;
 pub mod input_limit;
 pub mod ir_notice;
 pub mod key_route;

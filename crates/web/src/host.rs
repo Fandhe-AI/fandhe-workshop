@@ -293,6 +293,8 @@ pub enum HostAction {
     ConfirmDelete,
     /// 削除をやめる（`cancel-delete-history`）。確認待ちの印を下ろすだけ。
     CancelDelete,
+    /// 削除の完了（頼んだときの世代と結果）。今の要求の世代と違う完了は捨てる。成功のときだけ始め直す。
+    DeleteResult(u64, Result<usize, StorageError>),
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -586,9 +588,10 @@ pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
 
 /// 保存済みの履歴の削除の口（SAVE-32。TASK-341）。`persist::boot_and_mount` が結ぶ。
 ///
-/// 対象の教材と配信の区間は結ぶ側が閉じ込めており、ホストは対象を指定できない。消した件数を返し、失敗は種類だけを返す。
+/// 対象の教材と配信の区間は結ぶ側が閉じ込めており、ホストは対象を指定できない。引数は頼んだときの世代で、全 delete の確定の後に
+/// 結ぶ側が `HostAction::DeleteResult(世代, 件数か失敗の種類)` を配送のタイマーで届ける（コールバックからホストへは触れない）。
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
-pub type HistoryDeleter = Box<dyn Fn() -> Result<usize, StorageError>>;
+pub type HistoryDeleter = Box<dyn Fn(u64)>;
 
 /// 保存先の実データの取り直しを頼む口（「この入力を残さない」。SAFE-28）。`persist::boot_and_mount` が結ぶ。
 ///
@@ -737,6 +740,10 @@ pub struct EngineHost {
     history_deleter: Option<HistoryDeleter>,
     /// 削除の確認待ちの印（SHELL-38）。表示の状態だけで、履歴・保存先には書かない。確定はこの印があるときだけ行う。
     delete_pending: bool,
+    /// 削除を頼んで完了を待っている印。連打で削除を重ねない。完了（`DeleteResult`）でだけ解く。
+    delete_inflight: bool,
+    /// 削除の要求の世代。履歴の差し替えで進め、古い完了を捨てる。
+    delete_gen: u64,
     /// 直近の削除の結果（試験の設定の観察用。鍵・値は持たない）。
     #[cfg(feature = "test-hooks")]
     last_delete: Option<Result<usize, StorageError>>,
@@ -860,6 +867,8 @@ impl EngineHost {
             saved_reader: None,
             history_deleter: None,
             delete_pending: false,
+            delete_inflight: false,
+            delete_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
             saved_refresh: None,
@@ -1000,6 +1009,8 @@ impl EngineHost {
             saved_reader: None,
             history_deleter: None,
             delete_pending: false,
+            delete_inflight: false,
+            delete_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
             saved_refresh: None,
@@ -1578,6 +1589,12 @@ impl EngineHost {
         self.set_secret_warning(held);
     }
 
+    /// 削除の完了待ちを取り下げる。履歴の差し替えの後に届く古い完了で、新しい状態を始め直さないため。
+    fn invalidate_delete(&mut self) {
+        self.delete_inflight = false;
+        self.delete_gen = self.delete_gen.wrapping_add(1);
+    }
+
     /// 取り直しの要求を取り下げる。世代を進めるので、届く前の完了は捨てられる。
     fn invalidate_discard(&mut self) {
         self.discard_pending = false;
@@ -1668,17 +1685,33 @@ impl EngineHost {
 
     /// 削除の確定。確認待ちの印があるときだけ口を呼ぶ（`data-action` の書き換えでも確認を飛ばせない）。
     ///
-    /// 成功したら、保存済みの値が無いときと同じく最初から始め直す（SAVE-3）。開けなかった履歴も消えたので保存の停止は解く。
-    /// 失敗は画面の状態を変えない（一部の鍵だけ消えうる限界は `docs/known-gaps.md`）。
+    /// 口は完了を後から `DeleteResult` で返す。それまで画面の状態は変えない（確定前に始め直さない）。頼んでいる間の確定は重ねない。
     fn delete_confirm(&mut self) {
-        if !self.delete_pending {
+        if !self.delete_pending || self.delete_inflight {
             return;
         }
         self.delete_pending = false;
-        let result = match self.history_deleter.as_ref() {
-            Some(f) => f(),
-            None => Err(StorageError::Unavailable),
-        };
+        match self.history_deleter.as_ref() {
+            Some(f) => {
+                self.delete_inflight = true;
+                f(self.delete_gen);
+            }
+            None => self.finish_delete(Err(StorageError::Unavailable)),
+        }
+    }
+
+    /// 削除の完了を受ける。頼んでいない完了・世代の違う完了は捨てる。
+    fn delete_result(&mut self, generation: u64, result: Result<usize, StorageError>) {
+        if !self.delete_inflight || generation != self.delete_gen {
+            return;
+        }
+        self.delete_inflight = false;
+        self.finish_delete(result);
+    }
+
+    /// 成功したら、保存済みの値が無いときと同じく最初から始め直す（SAVE-3）。開けなかった履歴も消えたので保存の停止は解く。
+    /// 失敗は画面の状態を変えない（一部の鍵だけ消えうる限界は `docs/known-gaps.md`）。
+    fn finish_delete(&mut self, result: Result<usize, StorageError>) {
         let ok = result.is_ok();
         #[cfg(feature = "test-hooks")]
         {
@@ -2106,6 +2139,7 @@ impl EngineHost {
         self.model.secret_warning = Vec::new();
         self.secret_acknowledged.clear();
         self.invalidate_discard();
+        self.invalidate_delete();
         // 差し替え前に予約された検出・保存結果が、差し替え後の警告・失敗を書き換えないよう世代を進める。
         self.save_epoch = self.save_epoch.wrapping_add(1);
         self.fresh_start = false;
@@ -2367,6 +2401,7 @@ impl EngineHost {
         // 保持中の警告・破棄要求・予約済みの検出と保存は、表示だけの間に状態・ログを差し替えさせない（`install_recorded` と同じ世代の進め方）。
         self.set_secret_warning(Vec::new());
         self.invalidate_discard();
+        self.invalidate_delete();
         self.save_epoch = self.save_epoch.wrapping_add(1);
         if !self.dirty.contains(&VIEW_ONLY_NOTICE_FIELD) {
             self.dirty.push(VIEW_ONLY_NOTICE_FIELD);
@@ -2715,6 +2750,7 @@ impl Component for EngineHost {
             HostAction::DeleteHistory => self.delete_request(),
             HostAction::ConfirmDelete => self.delete_confirm(),
             HostAction::CancelDelete => self.delete_pending = false,
+            HostAction::DeleteResult(generation, result) => self.delete_result(generation, result),
             HostAction::SecretKeep => self.secret_keep(),
             HostAction::SecretDiscard => self.secret_discard(),
             HostAction::SecretDiscardRead(ok, generation) => {
@@ -3180,6 +3216,10 @@ impl Component for EngineHost {
                 "fail" => Some(HostAction::SecretDiscardRead(false, generation)),
                 _ => None,
             };
+        }
+        if name == crate::delete_notice::ACTION_DELETE_RESULT {
+            return crate::delete_notice::decode_delete_result(payload)
+                .map(|(generation, result)| HostAction::DeleteResult(generation, result));
         }
         if name == crate::secret_notice::ACTION_SECRET_HOLD {
             return crate::secret_notice::decode_secret_hold(payload)
