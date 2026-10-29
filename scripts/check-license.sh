@@ -95,24 +95,57 @@ check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
 # links_leave_dir <file>: Markdown のリンク先（インライン・参照定義）を相対パスとして正規化し、
-# 置き場の外へ出るもの（./../ の表記、先頭の / を含む）が 1 件でもあれば成功を返す。
+# 置き場の外へ出るもの（./../ の表記、先頭の / を含む）が 1 件でもあれば 0 を返す。
 # 外部 URL（スキーム付き）と同一ファイル内の # だけは対象外。
+# 戻り値: 0 = 外へ出るリンクあり / 1 = なし / 2 = 検査を完了できない（grep・sed・awk の実行失敗）。
+# if の条件で呼ぶと関数内の set -e が効かないため、呼び出し側は `rc=0; links_leave_dir f || rc=$?` で確かめる。
 links_leave_dir() {
-  local verdict
-  verdict="$(links_verdict "$1")"
-  [ "${verdict}" = leave ]
+  local file="$1" raw="${TMP_DIR}/links.raw" rc verdict
+  : >"${raw}"
+  # grep の終了コード 1 は不一致（リンク無し）、2 以上は実行エラー。両者を区別する。
+  rc=0
+  grep -oE '\]\([^)]*\)' "${file}" >"${TMP_DIR}/links.inline" || rc=$?
+  [ "${rc}" -le 1 ] || return 2
+  rc=0
+  grep -E '^[[:space:]]*\[[^]]+\]:' "${file}" >"${TMP_DIR}/links.ref" || rc=$?
+  [ "${rc}" -le 1 ] || return 2
+  sed -e 's/^](//' -e 's/)$//' "${TMP_DIR}/links.inline" >>"${raw}" || return 2
+  sed -E 's/^[[:space:]]*\[[^]]+\]:[[:space:]]*//' "${TMP_DIR}/links.ref" >>"${raw}" || return 2
+  verdict="$(links_verdict "${raw}")" || return 2
+  case "${verdict}" in
+    leave) return 0 ;;
+    stay) return 1 ;;
+    *) return 2 ;;
+  esac
 }
 
-# links_verdict <file>: leave または stay を出力する（grep の不一致が pipefail で結果を壊さないよう、状態は出力で返す）。
+# links_verdict <targets-file>: リンク先を 1 行ずつ読み、leave または stay を出力する。
+# URL の符号化を先に復号する（%2e は . に、%2f・%5c・\ は / に）。% の後が 16 進 2 桁でないもの、
+# 二重の符号化になりうる %25 は判定できないため leave（拒否）とする。
 links_verdict() {
-  { { grep -oE '\]\([^)]*\)' "$1" || true; } | sed -e 's/^](//' -e 's/)$//'
-    { grep -E '^[[:space:]]*\[[^]]+\]:' "$1" || true; } | sed -E 's/^[[:space:]]*\[[^]]+\]:[[:space:]]*//'
-  } | awk '
+  awk '
+    function decode(t,   out, h, c) {
+      out = ""
+      while (length(t) > 0) {
+        c = substr(t, 1, 1)
+        if (c == "%") {
+          h = tolower(substr(t, 2, 2))
+          if (h !~ /^[0-9a-f][0-9a-f]$/ || h == "25") return "BAD"
+          if (h == "2e") out = out "."
+          else if (h == "2f" || h == "5c") out = out "/"
+          else out = out substr(t, 1, 3)
+          t = substr(t, 4)
+        } else if (c == "\\") { out = out "/"; t = substr(t, 2) }
+        else { out = out c; t = substr(t, 2) }
+      }
+      return out
+    }
     {
       t = $1; gsub(/^</, "", t); gsub(/>$/, "", t)
       sub(/[#?].*$/, "", t)
       if (t == "" || t ~ /^[A-Za-z][A-Za-z0-9+.-]*:/) next
-      if (t ~ /^\//) { bad = 1; next }
+      t = decode(t)
+      if (t == "BAD" || t ~ /^\//) { bad = 1; next }
       n = split(t, seg, "/"); depth = 0
       for (i = 1; i <= n; i++) {
         if (seg[i] == "" || seg[i] == ".") continue
@@ -120,7 +153,7 @@ links_verdict() {
         else depth++
       }
     }
-    END { print bad ? "leave" : "stay" }'
+    END { print bad ? "leave" : "stay" }' "$1"
 }
 
 # check_template_root <dir> <label>: 雛形（またはその写し）の直下の表記を確かめる。本文は出力しない。
@@ -145,10 +178,19 @@ check_template_root() {
       return 0
     fi
   done
-  if links_leave_dir "${dir}/README.md"; then
-    echo "error: ${label}/README.md has a link that leaves the directory" >&2
-    VIOLATIONS=$((VIOLATIONS + 1))
-  fi
+  local lrc=0
+  links_leave_dir "${dir}/README.md" || lrc=$?
+  case "${lrc}" in
+    0)
+      echo "error: ${label}/README.md has a link that leaves the directory" >&2
+      VIOLATIONS=$((VIOLATIONS + 1))
+      ;;
+    1) ;;
+    *)
+      echo "error: link check failed to run for ${label}/README.md" >&2
+      exit 2
+      ;;
+  esac
 }
 
 TEMPLATE_DIR="${WORKSPACE_ROOT}/template-workshop"

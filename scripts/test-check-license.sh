@@ -158,10 +158,38 @@ dir="$(fresh_copy)"
 echo "[x](./sub/../LICENSE-MIT) [y](https://example.com/../a)" >>"${dir}/template-workshop/README.md"
 run_check "${dir}"
 expect "template README links that stay inside are accepted" 0 "${RC}"
+for enc in '%2e%2e/LICENSE-MIT' '%2E%2e/LICENSE-MIT' '%2e./LICENSE-MIT' '.%2E/LICENSE-MIT' '..%2fLICENSE-MIT' '..%5cLICENSE-MIT' '..\LICENSE-MIT' 'a/%2e%2e/%2e%2e/LICENSE-MIT' '%2fetc/passwd' '%zz/x' '%25%32e%25%32e/x'; do
+  dir="$(fresh_copy)"
+  echo "[x](${enc})" >>"${dir}/template-workshop/README.md"
+  run_check "${dir}"
+  expect "template README encoded link rejected (${enc})" 1 "${RC}"
+done
+dir="$(fresh_copy)"
+echo "[x](sub/%2e/LICENSE-MIT) [y](a%20b.md) [z](a/%2e%2e/b.md)" >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README encoded links that stay inside are accepted" 0 "${RC}"
 dir="$(fresh_copy)"
 echo "extra" >>"${dir}/LICENSE-MIT"
 run_check "${dir}"
 expect "engine LICENSE-MIT changed without the template" 1 "${RC}"
+
+# 4c. リンク検査の実行失敗（grep・sed・awk）は合格にも違反にもせず 2 にする
+for tool in sed awk grep; do
+  BAD_BIN="${TMP_DIR}/bad-${tool}"
+  mkdir -p "${BAD_BIN}"
+  if [ "${tool}" = grep ]; then
+    # 本文の目印検査の grep は通し、リンク抽出（-o 付き）だけ実行エラー（2）にする
+    real_grep="$(command -v grep)"
+    # shellcheck disable=SC2016 # $1 は生成する偽 grep の中で展開させる
+    printf '#!/usr/bin/env bash\ncase "$1" in -oE) exit 2 ;; esac\nexec %q "$@"\n' "${real_grep}" >"${BAD_BIN}/grep"
+  else
+    printf '#!/usr/bin/env bash\nexit 1\n' >"${BAD_BIN}/${tool}"
+  fi
+  chmod 755 "${BAD_BIN}/${tool}"
+  RC=0
+  PATH="${BAD_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
+  expect "link check fails closed when ${tool} fails" 2 "${RC}"
+done
 
 # 5. 偽の cargo（検査を完了できない場合は合格にしない）
 FAKE_BIN="${TMP_DIR}/bin"
