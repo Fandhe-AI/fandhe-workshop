@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -56,6 +56,15 @@ check-license: ## 全 crate の license が MIT OR Apache-2.0 であることと
 
 test-check-license: ## ライセンス表記の検査自体の回帰テスト。直接: scripts/test-check-license.sh
 	@scripts/test-check-license.sh
+
+check-no-egress: ## 依存（crate・web-sys の feature・npm）に通信・学習分析の手段が無いことを検査する（SAFE-16）。直接: scripts/check-no-egress.sh deps
+	@scripts/check-no-egress.sh deps
+
+check-no-egress-dist: ## 配信物（dist/web。先に make build-web）に通信の手段が無いことを検査する（SAFE-16）。直接: scripts/check-no-egress.sh dist dist/web
+	@scripts/check-no-egress.sh dist dist/web
+
+test-check-no-egress: ## 通信の手段の検査自体の回帰テスト（ビルドなし）。直接: scripts/test-check-no-egress.sh
+	@scripts/test-check-no-egress.sh
 
 check-testdata: ## repo の外への相対参照が 0 件であることを検査する。直接: scripts/check-testdata-refs.sh
 	@scripts/check-testdata-refs.sh
