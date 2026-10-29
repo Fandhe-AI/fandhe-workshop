@@ -31,7 +31,7 @@ export function relPath(pathname, base) {
 
 // 配信元への要求（Playwright の Request 由来の値）を分類する純関数。
 // 戻り値: 'ok' | 'nonGet'（GET・HEAD 以外）| 'offAllowlist'（構成要素以外のパス、またはサブリソースのクエリ）| 'offOrigin'。
-// data:・blob: は同一文書内の資源で通信ではないため 'ok'。favicon.ico は取得が揺れるため 'ok'（harness と同じ扱い）。
+// data:・blob: は同一文書内の資源で通信ではないため 'ok'。favicon.ico はクエリなしの GET・HEAD に限り 'ok'（取得が揺れるため。クエリつきは通常の分類に進む）。
 export function classifyRequest({ url, method, resourceType }, { origin, base }) {
   if (url.startsWith('data:') || url.startsWith('blob:')) return 'ok';
   let u;
@@ -41,8 +41,8 @@ export function classifyRequest({ url, method, resourceType }, { origin, base })
     return 'offAllowlist';
   }
   if (u.origin !== origin) return 'offOrigin';
-  if (u.pathname === '/favicon.ico') return 'ok';
   if (method !== 'GET' && method !== 'HEAD') return 'nonGet';
+  if (u.pathname === '/favicon.ico' && u.search === '' && u.hash === '') return 'ok';
   const rel = relPath(u.pathname, base);
   if (rel === null || !ALLOWED_PATHS.has(rel)) return 'offAllowlist';
   if (u.search !== '' && resourceType !== 'document') return 'offAllowlist';

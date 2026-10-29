@@ -11,6 +11,8 @@ source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
 require_cmd node
+require_cmd mktemp
+require_cmd rm
 require_cmd jq
 
 CHECK="${DIR}/check-no-egress.sh"
@@ -119,6 +121,10 @@ expect "dist: second fetch in app.js is denied" 1 "${CHECK}" dist "${TMP}/d-fetc
 cp -R "${TMP}/d-ok" "${TMP}/d-fetcharg"
 printf 'const r = await fetch("./other.json");\n' >"${TMP}/d-fetcharg/app.js"
 expect "dist: fetch with another argument is denied" 1 "${CHECK}" dist "${TMP}/d-fetcharg"
+
+cp -R "${TMP}/d-ok" "${TMP}/d-fetchsame"
+printf 'fetch("./ir/main.json"); fetch(otherUrl);\n' >"${TMP}/d-fetchsame/app.js"
+expect "dist: two fetch calls on one line are denied" 1 "${CHECK}" dist "${TMP}/d-fetchsame"
 
 cp -R "${TMP}/d-ok" "${TMP}/d-url"
 echo '<img src="https://example.invalid/a.png">' >>"${TMP}/d-url/index.html"

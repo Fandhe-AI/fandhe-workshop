@@ -46,6 +46,12 @@ test('別オリジンは offOrigin、data: と blob: と favicon は ok', () => 
   assert.equal(req('not a url'), 'offAllowlist');
 });
 
+test('favicon はクエリなしの GET・HEAD だけ ok（クエリつき・POST は負の対照）', () => {
+  assert.equal(req(`${O}/favicon.ico`, 'HEAD'), 'ok');
+  assert.equal(req(`${O}/favicon.ico?history=abc`), 'offAllowlist');
+  assert.equal(req(`${O}/favicon.ico`, 'POST'), 'nonGet');
+});
+
 const call = (o) => classifyCall({ api: 'fetch', off: false, special: false, unparsed: false, pathname: '', hasQuery: false, method: 'GET', ...o }, { base: B });
 
 test('呼び出しの分類は wasm と IR の GET の fetch だけを許す', () => {

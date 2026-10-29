@@ -71,6 +71,21 @@ count_matches() {
   echo "${n}"
 }
 
+# count_occurrences <ERE> <file>: 一致の出現数（同じ行に複数あっても数える）を標準出力へ。失敗の扱いは count_matches と同じ。
+count_occurrences() {
+  local n rc=0
+  n="$(grep -oE -- "$1" "$2")" || rc=$?
+  if [ "${rc}" -eq 1 ]; then
+    echo 0
+    return 0
+  elif [ "${rc}" -ne 0 ]; then
+    echo "error: grep failed on $2" >&2
+    exit 2
+  fi
+  printf '%s\n' "${n}" | wc -l | tr -d '[:space:]'
+  echo
+}
+
 check_deps() {
   local native="" wasm="" pkg="${ROOT_DIR}/package.json"
   while [ "$#" -gt 0 ]; do
@@ -189,11 +204,11 @@ for(const i of WebAssembly.Module.imports(m)) console.log(i.name.replace(/^__wbg
     n="$(count_matches '\bnew +Worker\b' "${d}/${f}")"
     [ "${n}" -eq 0 ] || violation "${f} creates a Worker (${n} lines)"
   done
-  n="$(count_matches '\bfetch\(' "${d}/wasm/fandhe_workshop_web.js")"
+  n="$(count_occurrences '\bfetch\(' "${d}/wasm/fandhe_workshop_web.js")"
   [ "${n}" -eq "${GLUE_FETCH_COUNT}" ] || violation "glue js has ${n} fetch( calls (expected ${GLUE_FETCH_COUNT})"
-  n="$(count_matches '\bfetch\(' "${d}/app.js")"
+  n="$(count_occurrences '\bfetch\(' "${d}/app.js")"
   [ "${n}" -eq "${APP_FETCH_COUNT}" ] || violation "app.js has ${n} fetch( calls (expected ${APP_FETCH_COUNT})"
-  n="$(count_matches 'fetch\("\./ir/main\.json"\)' "${d}/app.js")"
+  n="$(count_occurrences 'fetch\("\./ir/main\.json"\)' "${d}/app.js")"
   [ "${n}" -eq "${APP_FETCH_COUNT}" ] || violation "app.js fetch argument is not the fixed ./ir/main.json"
   # 4. 外部の参照（http(s):// と // 始まり）。
   for f in index.html app.js app.css; do
