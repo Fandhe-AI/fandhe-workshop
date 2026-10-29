@@ -1,0 +1,10 @@
+id: SAFE17-2
+package: fandhe-workshop-web
+test: ir_size_host
+features: test-hooks
+target: crates/web/src/ir_notice.rs
+find:     if let Some(message) = limit_message {
+replace:     if let (Some(message), true) = (limit_message, false) {
+expect-fail: over_by_one_ir_shows_the_size_message_and_code
+expect-fail: notice_text_names_no_measured_value
+note: 上限の通知に契約の文面を挟まず、コードだけの文にする誤り（SAFE-17 の理由が画面に出ない）

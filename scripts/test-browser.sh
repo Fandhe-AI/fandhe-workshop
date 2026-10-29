@@ -22,6 +22,7 @@
 # compile した IR の手元の配信と章の完走の試験（author-preview。形式 B の試験用教材を compile → IR_FILE を指定したビルド → サブパス配信 → CH-0〜CH-3 の完走。
 # 配信元以外への通信 0 件・ページ内エラー 0 件。AUTHOR-21。TASK-427 1/2。記録は docs/testing.md 5.292）を含む。
 # 操作要素の `data-payload` の書き換えの試験（data-payload-tamper。実行 0・外部通信 0・形の合わない値は状態を変えない・タブが落ちない。値の読み込みは data-payload-cases。SAFE-6。TASK-148 1/2。記録は docs/testing.md 5.369）を含む。
+# IR の大きさの上限の境界の試験（ir-size-limit。配信する設定の画面で、上限ちょうどは読め、+1 バイトと 10 倍は理由つきで断り、取得の終わりから 1 秒未満・タブが落ちない。SAFE-17・SAFE-45。TASK-154。docs/testing.md 5.373）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
 # CARGO_TARGET_DIR に追従する）、FANDHE_PACK_BIN で node:test へ渡す（pack-bin。BUILD-16。TASK-91）。
@@ -198,6 +199,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/ch0-3-run.test.mjs" \
   "${ROOT_DIR}/tools/browser/l2-journey-calibrate.test.mjs" \
   "${ROOT_DIR}/tools/browser/ir-recv-limit.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ir-size-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/next-chapter.test.mjs" \
   "${ROOT_DIR}/tools/browser/ch4-9-run.test.mjs" \
   "${ROOT_DIR}/tools/browser/round-handoff.test.mjs" \
