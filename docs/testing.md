@@ -7368,7 +7368,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: D-58・D-71 の形（miniserve 0.35.0 と静的ファイル）で、人の操作が「展開・`./start.sh`・URL を開く」の 3 つになる zip を作る。`tools/build-l2.mjs` が `fandhe-workshop-l2/{start.sh, miniserve, site/}` を作り、`site/` は配信する設定の配信物そのものにする。
 - 決定（自動運転のため人の承認は得ていない）: zip は Node の `zlib` で自前に書く（`zip` が前提の道具に無いため。時刻・順序・mode を固定して決定的にする）。miniserve は上流の Release のビルド済み実行ファイルを使い、sha256 を `tools/l2/miniserve.sha256` に固定して照合する（固定値を上書きする口は無い。2026-10-22 に Release の digest との一致を確認。実行ファイル自体の取得・実行は未実施）。`L2_PLATFORM=linux-x64` は模擬環境の試験（#532）のための追加で、仕様に明記は無い。
 - 試験（`tools/build-l2.test.mjs`。22 件）: 木の完全一致・mode（`start.sh`・`miniserve` が 0755、他が 0644）・`site/` のバイト一致・決定性・`start.sh` の起動（`PATH=/usr/bin:/bin` の環境で URL を表示し、引数が `--index index.html -i 127.0.0.1 -p <PORT> site` と完全一致。不正な `PORT` は 2）・fail-closed（digest の不一致、試験用の口・`.d.ts`・シンボリックリンク・`ir/main.json` の欠落、誤用、出力先の不正で zip が作られない）・固定表の形。
-- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文・推移的な依存の棚卸し（TASK-137）。
+- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文は 5.364（TASK-137）、推移的な依存の棚卸しは未完了。
 - 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.238 で最小限を入れて解消した）。
 - 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
@@ -10072,11 +10072,23 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - 限界: 本文の完全一致は保証しない（目印だけ）。`package.json` の `license` は crate ではないため範囲外。Apache-2.0 の付録の `[yyyy]` の欄は標準の文面のままで、本変更では直さない
 - 範囲外: 雛形のライセンス表記（TASK-130）、`THIRD-PARTY-LICENSES`（TASK-136）、依存のライセンスの同梱、画面からライセンスへの到達（LIC-11）
 
+### 5.364 L2 の配布物のライセンス文（TASK-137。LIC-10・D-58・D-71）
+
+L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT のライセンス文。上流の `LICENSE` の逐語の写し）と `THIRD-PARTY-NOTICES.txt`（同梱物と取り下げ済みの crate の記録）を全 platform で入れる。元は `tools/l2/` に置く。`site/` の外なので配信されず、L1 との木の比較（`site/` だけが対象）にも入らない。
+
+- 決定: 置き場は zip の最上位（D-71 は置き場を決めていないため本タスクで決めた）。`.txt` にして Windows・macOS で開けるようにする。改行は LF のまま（逐語の保持のため。起動スクリプトだけを CRLF にする）。repo 直下の `THIRD-PARTY-LICENSES`（LIC-9。TASK-136）とは別名にし、役割を分ける
+- 逐語の保証: `tools/build-l2.mjs` の `MINISERVE_LICENSE_SHA256`（`bedb87f0…375a`。2026-10-28 に上流のタグ v0.35.0 の `LICENSE` から取得して計算）と作成時に照合し、不一致・欠落・シンボリックリンクなら zip を作らない。固定値を上書きする口は無い（試験が差し替えるのは読む元の置き場 `l2Dir` だけで、CLI は渡さない）
+- 試験（`tools/build-l2.test.mjs`。通信なし）: 元の sha256 が固定値と一致／3 platform の zip に同じバイト列で入り mode 0644・LF・必要な語（`miniserve`・`0.35.0`・`MIT`・`core2`・`0.4.0`）を含む／ライセンス文の 1 バイトの改変・欠落・告知の欠落・リンクで zip が作られない／既存の木の完全一致に 2 件を追加
+- 取り下げ済みの記録: `core2` 0.4.0（`libflate` の依存）。2026-10-28 に crates.io の sparse index で取り下げ済みを確認した。上流の `Cargo.lock`（457 件）の全件の走査（`tools/inventory-deps.mjs --lock`）は 199 件目まで進んだ時点で時間切れとなり未完了。他の取り下げ済みの有無は未確認で、告知にもそう書いた
+- 限界: miniserve に静的にリンクされた依存 crate の個別のライセンス文は同梱していない。脆弱性の有無は調べていない（D-58 の棚卸しの範囲）
+- 未検証: 実物の miniserve での `make build-l2`、`make test-l2-run`（CI の `browser-test` に任せる）
+- 範囲外: 依存 crate 全件のライセンス文の同梱（LIC-9・TASK-136 と合わせて判断する）、仕様の LIC-10 の状態の更新（spec repo 側）
+
 ### 5.365 雛形のライセンス表記の機械検査（TASK-130。LIC-2・D-80）
 
 `scripts/check-license.sh`（`make check-license`）を広げ、`template-workshop/` の `LICENSE-MIT`・`LICENSE-APACHE` がルートの同名ファイルとバイト単位で一致する通常のファイル（symlink は拒否）で、`README.md` に `MIT OR Apache-2.0` と 2 ファイルへの言及があり、ディレクトリの外へ出るリンクが無いことを確かめる。あわせて `cp -RP` で雛形から作った repo を模擬した一時ディレクトリにも同じ検査を掛け、表記が引き継がれることを確かめる。CI は既存の `rust-lint` ジョブの step で流れる（ジョブは増やしていない）。`.editorconfig-checker.json` の除外は雛形の写しにも広げた。
 
-- 回帰テスト `scripts/test-check-license.sh` は 24 件（既存 16 件に 8 件を追加）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・ルートだけ変えた同期漏れが、いずれも 1 になる
-- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 24 件が合格
+- 回帰テスト `scripts/test-check-license.sh` は 43 件（既存 16 件に 27 件を追加。符号化したドットセグメント 11 形の拒否・内側に留まる符号化の合格・grep・sed・awk の実行失敗が終了コード 2 になる対照を含む）。雛形の欠落・片方の欠落・内容のずれ・取り違え・symlink・README の表記の欠落・外へ出るリンク・ルートだけ変えた同期漏れが、いずれも 1 になる
+- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 43 件が合格
 - 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
 - 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）
