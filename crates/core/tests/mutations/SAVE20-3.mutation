@@ -1,0 +1,8 @@
+id: SAVE20-3
+package: fandhe-workshop-core
+test: broken_histories
+target: crates/core/src/history_open.rs
+find:         refuse(LoadReason::ReplayMismatch)
+replace:         view_only(LoadReason::ReplayDiverged)
+expect-fail: all_seven_broken_histories_are_refused_with_the_fixed_code
+note: 入力の列の書き換え（B-1）を「開かない」ではなく表示だけに倒す
