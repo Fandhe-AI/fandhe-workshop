@@ -1,0 +1,14 @@
+{
+  "table_version": 1,
+  "rows": [
+    { "id": "B-0", "kind": "control", "recipe": "基準の履歴（壊さない）", "expect": { "result": "open", "code": null } },
+    { "id": "B-1", "kind": "ops_rewritten", "recipe": "ops の最初の submit の値を別の入力に替える", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "id": "B-2", "kind": "truncated", "recipe": "先頭から 55% のバイトで切る", "expect": { "result": "refused", "code": "truncated" } },
+    { "id": "B-3", "kind": "not_json", "recipe": "\"ops\":[ の直後に } を差し込む", "expect": { "result": "refused", "code": "not_json" } },
+    { "id": "B-4", "kind": "too_large", "recipe": "padding の欄で 10 MiB + 1 バイトにする", "expect": { "result": "refused", "code": "too_large" } },
+    { "id": "B-4b", "kind": "size_boundary", "recipe": "padding の欄でちょうど 10 MiB にする（大きさでは断らない。未知の欄のため後段の malformed で断る）", "expect": { "result": "refused", "code": "malformed" } },
+    { "id": "B-5", "kind": "no_versions", "recipe": "versions の欄を消す", "expect": { "result": "refused", "code": "missing_version" } },
+    { "id": "B-6", "kind": "other_pack", "recipe": "pack.id だけが違う教材で記録した履歴を基準の教材で開く", "expect": { "result": "refused", "code": "other_pack" } },
+    { "id": "B-7", "kind": "wrong_type", "recipe": "snapshot.run.generation を文字列にする", "expect": { "result": "refused", "code": "malformed" } }
+  ]
+}

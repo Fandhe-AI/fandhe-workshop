@@ -10739,3 +10739,26 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE7-3.mutation crates/core/tests/mutations/GUIDE7-4.mutation crates/core/tests/mutations/GUIDE7-5.mutation crates/pack/tests/mutations/GUIDE7-6.mutation`）: GUIDE7-3 は処理中の停止で使用回数を消す、GUIDE7-4 は復帰で消す、GUIDE7-5 は移動で移動先以外を落とす、GUIDE7-6 は周回の開始で消す。
 - 限界: 処理中の停止は core の決定的な試験だけが持つ（性質テストの IR は処理中にならない）。ブラウザは試験の設定の `raw-trigger` の経路で、配信する設定の画面でヒントを開く操作は TASK-530 の後に足す。書き出しのダウンロード（blob への遷移）は `nonHttp` に数えられるため、G3 は安全性の計数を書き出しの前に取る。`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが対象。5.383 の前例）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
 - 実行結果（2026-10-29。base 755eefbb の上の本変更）: GUIDE7-3〜GUIDE7-6 はいずれも DETECTED（最小の入力は GUIDE7-4 が `[Save, Open, Restore(1)]`、GUIDE7-5 が `[Open, Go(1)]`、GUIDE7-6 が `Case { setup: T0, specs: [Hint, Begin(2)] }`。GUIDE7-3 は性質テストでは検出できず、決定的な試験が検出）。core `hint_count_monotone` は 8 件、pack `round_hint_counts` は 3 件が合格。G3 は CSP あり・なしで合格。
+
+### 5.386 壊れた履歴 7 種の拒否を固定する（TASK-332 1/2。SAVE-20・SHELL-16）
+
+- 目的: SAVE-20 の B-1〜B-7 を読み込んだとき、どれも開かず、固定の理由コードで断られ、保存領域と画面が変わらないことを、1 つの表で揃えて固定する。判定の経路は TASK-331（`history_load.rs`・`history_open.rs`）、通知の口は `shell_notice.rs` で実装済みのため、本番のコードは変えない。
+- 期待の表: `testdata/broken-histories/expectations.json`（B-1〜B-7 と対照の B-0・B-4b。説明は同じ場所の `README.md`）。試験は結果から表を導かず、ID・件数・コードを定数と照合する。履歴ファイルはコミットしない（版を上げるたびに古くなる・10 MiB 超を置かない）。
+- 作り方（現行のエンジンで試験の中で決定的に作る）:
+
+| ID | 作り方 | 理由コード |
+|---|---|---|
+| B-1 | `ops` の最初の `submit` の値を別の入力に替える（選択肢の無い min-3step のため、SAVE-20 の「最初の choice の値」をこう読み替えた） | `replay_mismatch` |
+| B-2 | 先頭から 55% のバイトで切る（多バイト文字の途中で切る変種も core にある） | `truncated` |
+| B-3 | `"ops":[` の直後に `}` を差し込む | `not_json` |
+| B-4 | `padding` の欄で 10 MiB + 1 バイトにする | `too_large` |
+| B-5 | `versions` の欄を消す | `missing_version` |
+| B-6 | `pack.id` だけが違う教材で記録した履歴を基準の教材で開く | `other_pack` |
+| B-7 | `snapshot.run.generation` を文字列にする | `malformed` |
+
+- 対照: B-0（基準の履歴は開く。検出器が「開く」を観測できること）。B-4b（ちょうど 10 MiB の `padding` つき履歴は `too_large` では断られない。`padding` は未知の欄なので後段の `malformed` で断られる。当初案の「開く」は誤りで、包みが `deny_unknown_fields` のため直した）。
+- 試験: core `crates/core/tests/broken_histories.rs`（7 種が `Opened::Refused` で表のコードと一致・コードが空でなく入力の内容を含まない・2 回流して同じ・`MemStore` が変わらない・表と定数の照合・B-4b・B-0）、web `crates/web/tests/broken_histories_host.rs`（`ImportOutcome::Refused`・通知 1 件で本文が空でない・状態/射影/世界/保存の値が不変・表示だけにならない・積む field は `shell_notices` だけ）、ブラウザ `tools/browser/broken-histories.test.mjs`（CSP あり・なし × 9 件を 1 件ずつ新しい context で。理由が表と一致、状態・入力欄・保存先の値と通知欄の外の DOM が不変、通知 1 件、外部通信・CSP 違反・ページのエラー 0 件。入力は core の `emit_broken_histories_for_browser`（`#[ignore]`）が書き出す）。
+- `history-versions.test.mjs` の P-4 との違い: P-4 は独自の番号で、`replay_mismatch`・`not_json` と画面の通知・画面の不変を見ていなかった。本試験がこれらを補う。P-4 の番号は振り直さない。
+- 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/SAVE20-3.mutation crates/core/tests/mutations/SAVE20-4.mutation`）: SAVE20-3 は入力の列の書き換え（B-1）を表示だけに倒す、SAVE20-4 は版の欄の検査を外す。いずれも DETECTED（2026-10-29）。
+- 範囲外: `ops` の 22 か所の書き換えは TASK-332 2/2、起動時に壊れた履歴を見つけたときの扱いは TASK-333・TASK-533、理由の文面は SHELL-36・TASK-532・TASK-534。
+- 限界: `scripts/expected-test-counts.txt` は更新していない（5.383・5.385 の前例）。`make test-browser` の全体は 10 分を超えたため全体の通しは未実施で、新しい試験は単体（`node --test`、19 件合格）で確かめた。試験と実装の作成者は同じ AI で、人の確認は得ていない。
