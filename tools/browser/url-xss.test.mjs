@@ -21,7 +21,7 @@
 //
 // 入力: FANDHE_WEB_DIR（配信設定）と FANDHE_WEB_TEST_DIR（TEST_HOOKS=1。配信側の確認用）。未設定・不在は skip にせず失敗にする。
 // 書き込み先は mkdtemp の一時ディレクトリの固定のパスだけで、ペイロードからパス・セレクタ・コードを作らない。
-// 失敗の文には回の ID・位置・CSP だけを出し、ペイロードの全文は出さない。URL は example.invalid だけを使う（ペイロード側）。
+// 失敗の文には回の ID・位置・CSP と真偽だけを出し、画面の文字・要求・ペイロードの全文は比較結果に載せない（例外の文は short() で 300 文字に切る）。URL は example.invalid だけを使う（ペイロード側）。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -113,7 +113,7 @@ const readShown = (page) => page.evaluate((title) => ({
   text: document.body.innerText,
 }), TITLE);
 
-async function openOne(page, srv, url, consoleAll) {
+async function openOne(page, url, consoleAll) {
   page.on('console', (m) => consoleAll.push(m.text()));
   await page.goto(url);
   await waitMounted(page);
@@ -134,7 +134,7 @@ async function baseline(srv, kindOpts) {
   const { page, context, rec } = await openPage(browser, { origin: srv.origin });
   try {
     const consoleAll = [];
-    await openOne(page, srv, srv.url, consoleAll);
+    await openOne(page, srv.url, consoleAll);
     const shown = await readShown(page);
     const found = await scanPage(page, allNeedles());
     assert.equal(found, 0, 'baseline page must not contain any needle');
@@ -159,33 +159,33 @@ for (const csp of [true, false]) {
         const { page, context, rec } = await openPage(browser, { origin: srv.origin });
         try {
           const consoleAll = [];
-          await openOne(page, srv, `${srv.url}${run.query}${run.hash}`, consoleAll);
+          await openOne(page, `${srv.url}${run.query}${run.hash}`, consoleAll);
           assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', 'no test hooks');
           // 到達の確認: 値が実際に location に届いている。届いていなければ空振りなので不合格にする。
           const got = await page.evaluate(([where, name]) => (where === 'query'
             ? new URLSearchParams(location.search).get(name)
             : decodeURIComponent(location.hash.slice(1))), [run.where, run.name]);
           const want = run.where === 'query' ? new URLSearchParams(run.query).get(run.name) : run.expected;
-          assert.equal(got, want, `${label}: value did not reach location`);
+          assert.ok(got === want, `${label}: value did not reach location`);
           seen.add(run.positionId);
           // 画面の走査: URL の値が画面のどこにも出ない。
           assert.equal(await scanPage(page, run.needles), 0, `${label}: needle shown on screen`);
           assert.equal(consoleAll.filter((m) => run.needles.some((n) => m.includes(n))).length, 0, `${label}: needle in console`);
           const counts = await collectSafety(page, rec);
           assert.deepEqual(nonZero(counts), [], `${label}: ${JSON.stringify(counts)}`);
-          assert.deepEqual(rec.hits, [], `${label}: executed`);
+          assert.equal(rec.hits.length, 0, `${label}: executed`);
           // 通信: ir/main.json がちょうど 1 件・外部 0・囮 0・要求の種類が基準と同じ。
           const chk = irFetchCheck(rec, `${srv.url}ir/main.json`);
           assert.equal(chk.irCount, 1, `${label}: ir/main.json request count`);
           assert.ok(chk.irOk, `${label}: ir/main.json status`);
-          assert.deepEqual(pageRequestProblems({ ...rec, failed: chk.failed }, { origin: srv.origin, base: BASE }), [], `${label}: request problems`);
-          assert.deepEqual(rec.external, [], `${label}: external`);
+          assert.equal(pageRequestProblems({ ...rec, failed: chk.failed }, { origin: srv.origin, base: BASE }).length, 0, `${label}: request problems`);
+          assert.equal(rec.external.length, 0, `${label}: external`);
           assert.equal(decoyHits(rec, srv), 0, `${label}: decoy fetched`);
-          assert.deepEqual(requestKinds(rec, kindOpts), base.kinds, `${label}: request kinds differ from baseline`);
+          assert.ok(JSON.stringify(requestKinds(rec, kindOpts)) === JSON.stringify(base.kinds), `${label}: request kinds differ from baseline`);
           // 画面が URL の値で変わらない。
           const shown = await readShown(page);
-          assert.equal(shown.title, base.title, `${label}: step title differs`);
-          assert.equal(shown.text, base.text, `${label}: screen text differs`);
+          assert.ok(shown.title === base.title, `${label}: step title differs`);
+          assert.ok(shown.text === base.text, `${label}: screen text differs`);
           ok += 1;
           perPosition[run.positionId] = (perPosition[run.positionId] ?? 0) + 1;
         } catch (e) {
@@ -214,7 +214,7 @@ test('D1: 対照。画面の走査は、印が属性と文字にあれば 0 よ�
   await withDeliveryCopy((copy) => withServer({ dir: copy, base: BASE }, async (srv) => {
     const { page, context } = await openPage(browser, { origin: srv.origin });
     try {
-      await openOne(page, srv, srv.url, []);
+      await openOne(page, srv.url, []);
       assert.ok((await scanPage(page, ['MARK-D1'], true)) >= 3, 'attribute (outerHTML, attr value) and text are counted');
       assert.equal(await scanPage(page, ['MARK-D1'], false), 0);
     } finally {
@@ -227,7 +227,7 @@ test('D3: 対照。値から作ったパスの取得（囮）が起きれば、�
   await withDeliveryCopy((copy) => withServer({ dir: copy, base: BASE }, async (srv) => {
     const { page, context, rec } = await openPage(browser, { origin: srv.origin });
     try {
-      await openOne(page, srv, srv.url, []);
+      await openOne(page, srv.url, []);
       assert.equal(decoyHits(rec, srv), 0);
       await page.evaluate(() => fetch('./ir/min-3step.json').then((r) => r.text()));
       assert.equal(decoyHits(rec, srv), 1);
