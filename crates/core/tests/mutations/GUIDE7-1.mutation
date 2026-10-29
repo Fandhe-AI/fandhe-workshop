@@ -1,0 +1,9 @@
+id: GUIDE7-1
+package: fandhe-workshop-core
+test: hint_instance_key
+target: crates/core/src/hint_open.rs
+find:     let key = current.clone();
+replace:     let key = StepUid(format!("main/{}", current.0.rsplit('/').next().unwrap_or_default()));
+expect-fail: opening_in_one_root_does_not_touch_another
+expect-fail: property_counts_follow_the_step_instance
+note: 鍵から根を落とし、周回（実体）の間でヒントの使用回数が混ざる

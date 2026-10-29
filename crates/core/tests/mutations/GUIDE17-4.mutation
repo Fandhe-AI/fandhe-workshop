@@ -2,8 +2,8 @@ id: GUIDE17-4
 package: fandhe-workshop-core
 test: hint_open
 target: crates/core/src/hint_open.rs
-find:     state.hints_opened.insert(current.clone(), next);
-replace:     let _ = &current;
+find:     state.hints_opened.insert(key, next);
+replace:     let _ = &key;
 expect-fail: opens_one_by_one_up_to_n
 expect-fail: property_open_up_to_visible_count
 note: 開いた段数を記録しない（上限が効かない）

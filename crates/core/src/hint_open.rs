@@ -15,12 +15,15 @@
 //!    下回った場合もここで拒否し、開いた段数は減らさない
 //! 3. 段数を 1 増やして `HintOpened` を 1 件返す
 //!
+//! 鍵は Step の実体 ID（根を含む完全な uid）で、周回・実体ごとに分かれる（GUIDE-7、TASK-297 1/2）。
+//! 実体（根）ごとの合計は [`crate::session::SessionState::hints_opened_in`] で読む。
+//!
 //! 処理中でも開ける（処理中の扱いの規定が無いため制限を足さない）。`run` には触れず、世界状態も変えないので
 //! `Changed` は出ない。
 //!
 //! # 扱わないこと
 //!
-//! - 開いた回数の鍵を実体ごとにすることと周回をまたぐ合計（TASK-297。鍵は現在の Step の uid のまま）
+//! - 開いた段数が停止・復帰・移動で減らないことの保証と、使用回数を外部へ送らないことの計数（TASK-297 2/2）
 //! - 案内レベルの切り替え（TASK-294）、ヒントの表示と開くボタン（TASK-530）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
@@ -48,14 +51,15 @@ pub(crate) fn on_open_hint(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
         return refuse(StepUid(String::new()));
     };
     let total = u32::try_from(hint_select::current_hints(ir, &state.run).len()).unwrap_or(u32::MAX);
-    let opened = state.hints_opened.get(&current).copied().unwrap_or(0);
+    let key = current.clone();
+    let opened = state.hints_opened.get(&key).copied().unwrap_or(0);
     if opened >= total {
         return refuse(current);
     }
     let Some(next) = opened.checked_add(1) else {
         return refuse(current);
     };
-    state.hints_opened.insert(current.clone(), next);
+    state.hints_opened.insert(key, next);
     vec![Event::HintOpened {
         at: Stamp {
             generation,
