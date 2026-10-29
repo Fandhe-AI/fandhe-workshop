@@ -1,0 +1,8 @@
+id: SAFE24-1
+package: fandhe-workshop-core
+test: shape_mismatch
+target: crates/core/src/ir_load.rs
+find:         serde_json::from_value(value).map_err(|_| IrLoadError::Json(TYPE_MISMATCH.to_owned()))?;
+replace:         serde_json::from_value(value).map_err(|_| IrLoadError::Json(SYNTAX_ERROR.to_owned()))?;
+expect-fail: ir_shapes_are_malformed_within_a_second
+note: 形の合わない IR を型の不一致でなく構文の誤りとして返し、理由が malformed でなくなる
