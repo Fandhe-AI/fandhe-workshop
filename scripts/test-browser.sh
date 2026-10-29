@@ -27,7 +27,7 @@
 # IR の大きさの上限の境界の試験（ir-size-limit。配信する設定の画面で、上限ちょうどは読め、+1 バイトと 10 倍は理由つきで断り、取得の終わりから 1 秒未満・タブが落ちない。SAFE-17・SAFE-45。TASK-154。docs/testing.md 5.373）を含む。
 # 構造の合わない巨大な入力の拒否の試験（shape-mismatch。100 万・500 万要素の配列・巨大な文字列・連想配列を含む IR と履歴が malformed・missing_version で断られタブが落ちず、100,000 要素・文字の形の合うものは開く。SAFE-24。TASK-161。docs/testing.md 5.375）を含む。
 # 断った後に保存済みの履歴と画面が書き換わらないことの試験（refusal-keeps-saved。履歴・起動時の IR・起動後の IR・保存先からの起動の 4 経路で、保存先の全体・状態・画面が変わらず入力の番兵が出ない。SAFE-40。TASK-169。docs/testing.md 5.378）。
-# 壊れた履歴 7 種の拒否の試験（broken-histories。履歴は core の broken_histories.rs が書き出し FANDHE_BROKEN_HISTORIES_DIR で受ける。SAVE-20・SHELL-16。TASK-332 1/2。docs/testing.md 5.386）を含む。
+# 壊れた履歴 7 種の拒否の試験（broken-histories。履歴は core の broken_histories.rs が書き出し FANDHE_BROKEN_HISTORIES_DIR で受ける。SAVE-20・SHELL-16。TASK-332 1/2。docs/testing.md 5.386）と、`ops` の 22 か所の書き換えの試験（ops-rewrites。履歴は core の ops_rewrites.rs が書き出し FANDHE_OPS_REWRITES_DIR で受ける。SAVE-20。TASK-332 2/2。docs/testing.md 5.387）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
 # CARGO_TARGET_DIR に追従する）、FANDHE_PACK_BIN で node:test へ渡す（pack-bin。BUILD-16。TASK-91）。
@@ -109,6 +109,19 @@ if [[ "${emitted}" != "9" ]]; then
   exit 1
 fi
 export FANDHE_BROKEN_HISTORIES_DIR="${TMP}/broken-histories"
+
+# `ops` の 22 か所の書き換え（W-00 の対照と W-01〜W-22）・基準の教材を書き出す（ops-rewrites。SAVE-20。TASK-332 2/2）。
+# 23 件がそろわなければ失敗にする（fail-closed）。
+log "emitting ops rewrites for browser tests"
+mkdir -p "${TMP}/ops-rewrites"
+(cd "${ROOT_DIR}" && FANDHE_OPS_REWRITES_OUT="${TMP}/ops-rewrites" cargo test --locked -p fandhe-workshop-core \
+  --test ops_rewrites -- --ignored --exact emit_ops_rewrites_for_browser >/dev/null)
+emitted="$(find "${TMP}/ops-rewrites" -maxdepth 1 -name '*.history.json' | wc -l | tr -d ' ')"
+if [[ "${emitted}" != "23" ]]; then
+  echo "error: expected 23 emitted ops rewrites, got ${emitted}" >&2
+  exit 1
+fi
+export FANDHE_OPS_REWRITES_DIR="${TMP}/ops-rewrites"
 
 log "emitting the round hand-off inputs (IR, histories, round 2 plan) for browser tests"
 mkdir -p "${TMP}/round-handoff"
@@ -300,6 +313,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/view-only-fallback.test.mjs" \
   "${ROOT_DIR}/tools/browser/refused-history.test.mjs" \
   "${ROOT_DIR}/tools/browser/broken-histories.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ops-rewrites.test.mjs" \
   "${ROOT_DIR}/tools/browser/ops-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/reload-fresh.test.mjs" \
   "${ROOT_DIR}/tools/browser/reload-points.test.mjs" \
