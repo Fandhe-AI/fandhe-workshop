@@ -172,7 +172,13 @@ fn neg_body_not_utf8_and_too_large() {
     assert_eq!(codes(&d), [DiagCode::LimitMdSize]);
 
     let t = minimal();
+    // md の上限ちょうどは md の検査を通るが、IR に入ると 1 文字列が文字列長の上限（100,000 文字）を超える。
     t.put("chapters/c1/a.md", &vec![b'a'; 512 * 1024]);
+    assert_eq!(codes(&diags(&t)), [DiagCode::Limit]);
+
+    // 文字列長の上限ちょうどの本文は通る。
+    let t = minimal();
+    t.put("chapters/c1/a.md", &vec![b'a'; 100_000]);
     assert!(compile_dir(&t.0).is_ok());
 }
 
