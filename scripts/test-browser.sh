@@ -142,6 +142,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/left-pane.test.mjs" \
   "${ROOT_DIR}/tools/browser/theme-marks.test.mjs" \
   "${ROOT_DIR}/tools/browser/author-preview.test.mjs" \
+  "${ROOT_DIR}/tools/browser/versioned-url.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-once.test.mjs" \
