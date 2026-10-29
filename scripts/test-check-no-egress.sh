@@ -180,6 +180,15 @@ cp -R "${TMP}/d-ok" "${TMP}/d-form"
 echo '<form action="./x" method="post"></form>' >>"${TMP}/d-form/index.html"
 expect "dist: form in index.html is denied" 1 "${CHECK}" dist "${TMP}/d-form"
 expect_tag "dist: form is tagged [EXT-2 submission]" "[EXT-2 submission]" "${CHECK}" dist "${TMP}/d-form"
+formcase() {
+  cp -R "${TMP}/d-ok" "${TMP}/d-form-$1"
+  printf '%b\n' "$2" >>"${TMP}/d-form-$1/index.html"
+  expect "dist: form variant $1 is denied" 1 "${CHECK}" dist "${TMP}/d-form-$1"
+  expect_tag "dist: form variant $1 is tagged [EXT-2 submission]" "[EXT-2 submission]" "${CHECK}" dist "${TMP}/d-form-$1"
+}
+formcase upper '<FORM action="./submit" method="post">'
+formcase newline '<form\naction="./submit">'
+formcase tab '<Form\taction="./submit">'
 
 mkdist "${TMP}/d-noanchor"
 mkwasm_file "${TMP}/d-noanchor/wasm/fandhe_workshop_web_bg.wasm" __wbg_getItem_0123456789abcdef

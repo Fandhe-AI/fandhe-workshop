@@ -51,7 +51,8 @@ EXT-2 backend|navigator\.credentials|PublicKeyCredential|document\.cookie|\.subm
 EXT-2 analytics|\bgtag\b|\bdataLayer\b|\b_paq\b|\bplausible\b|\bmixpanel\b|\bposthog\b|\bSentry\b
 EXT-3 llm|\bLanguageModel\b|navigator\.gpu|navigator\.ml\b|(window|self)\.ai\b|\bopenai\b|\banthropic\b|\bollama\b|chat/completions'
 # index.html の提出の形（EXT-2 submission）。
-readonly EXT_HTML_PATTERN='<form[ >]|mailto:'
+# 大文字小文字を区別せず（grep -i を足せないため括弧式で書く）、タグ名の直後は空白類・/・>・行末を許す。
+readonly EXT_HTML_PATTERN='<[Ff][Oo][Rr][Mm]([[:space:]/>]|$)|[Mm][Aa][Ii][Ll][Tt][Oo]:'
 # 拒否する web-sys の feature（通信の手段になる型）。Navigator の sendBeacon は feature で区別できないため dist の検査と実行時の計数が受け持つ。
 readonly DENY_WEBSYS_FEATURES='Request RequestInit Response Headers FormData XmlHttpRequest XmlHttpRequestUpload WebSocket EventSource RtcPeerConnection RtcDataChannel ServiceWorkerContainer ServiceWorkerRegistration Worker SharedWorker WebTransport PushManager'
 # web-sys の解決結果が空振りしていないことの錨（保存先の型）。
