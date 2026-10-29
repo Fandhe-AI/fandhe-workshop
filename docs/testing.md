@@ -10587,3 +10587,19 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 - 実行結果（2026-10-29。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 81 件が合格
 - 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
 - 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）
+
+### 5.377 配列・連想配列の要素数と文字列の長さの上限（TASK-162。SAFE-25・D-45）
+
+IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,000 要素まで、1 つの文字列（連想配列のキーを含む）は 100,000 文字（コードポイント）までとし、超えたものは全体を読まずに理由つきで断る。理由コード `too_many_elements`・`string_too_long` と文面は【推論】による仮置きで、契約 `contract::limits` の版を 2 に上げて固定した。spec への反映は spec repo 側で行う。
+
+- 判定の位置: 大きさ・深さ・JSON の解釈の後、型の検査の位置。上限の超過があるときだけ借用の変換 `Ir::deserialize(&value)` で型を確かめ、型が合えば上限の理由、合わなければ従来どおり `malformed` を返す（SAFE-24・TASK-161 の試験は無変更で通る）。版・uid・参照の整合より先に断る
+- 履歴の理由（`LimitReason`・`LoadReason`）には足していない。履歴の経路の判定は範囲外（`docs/known-gaps.md`）
+- pack の `compile` は出力に同じ判定（`check_value_limits`）を掛け、超えたら `E-LIMIT` にする
+- 試験: `crates/contract/tests/limits_contract.rs`、`crates/core/src/value_limits.rs`（単体）、`crates/core/tests/ir_value_limits.rs`（V-A 配列・V-M 連想配列・V-S 文字列・V-U コードポイント・V-K キー・V-O1〜O3 判定の順・V-C 値を含まない・V-T 速さ）、`crates/web/tests/ir_value_limit_host.rs`（通知）、`crates/pack/src/compile.rs`（出力検査）
+- 変異: `SAFE25-1`（比較を `>=`）・`SAFE25-2`（文字列をバイトで数える）・`SAFE24-1` が DETECTED（2026-10-29）
+
+#### 限界・未検証
+
+- 100,000 要素での起動 0.3 秒・WASM のメモリ 152MB・1 回の操作 0.1 秒の測定は未実施（ブラウザの試験 `ir-value-limits` は未作成）。SAFE-25 は検討中のまま
+- 低メモリ端末での測定は未実施
+- `scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）

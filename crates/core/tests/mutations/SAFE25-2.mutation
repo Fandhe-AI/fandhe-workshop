@@ -1,0 +1,8 @@
+id: SAFE25-2
+package: fandhe-workshop-core
+test: ir_value_limits
+target: crates/core/src/value_limits.rs
+find:     s.len() > MAX_STRING_CHARS && s.chars().count() > MAX_STRING_CHARS
+replace:     s.len() > MAX_STRING_CHARS
+expect-fail: v_u_counts_code_points_not_bytes
+note: 文字列の長さをコードポイントでなくバイトで数え、100,000 文字ちょうどの日本語の文字列を断ってしまう

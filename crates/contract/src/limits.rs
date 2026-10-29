@@ -11,11 +11,16 @@
 //! 整数の型の規約: バイト数は `u64`（pack がメタデータの `u64` で数え、wasm32 の `usize` は 32 bit のため）、
 //! 件数・段数・文字数・回数・要素数は `usize`。呼ぶ側は `bytes.len() as u64`（拡大で値を失わない）で比べる。
 //!
+//! 版 2（TASK-162）で、IR の配列・連想配列の要素数と文字列の長さの上限（SAFE-25）の理由 [`IrValueLimitReason`] と
+//! 文面 [`ir_value_rejection_message`] を足した。履歴の経路には到達しない理由なので、[`LimitReason`] と
+//! [`crate::load_reason::LoadReason`] には足さない（履歴の契約と保存先の契約を動かさないため）。
+//! 理由コード（`too_many_elements`・`string_too_long`）と文面は【推論】による仮置きで、spec への反映は spec repo 側で行う。
+//!
 //! 履歴の拒否理由コード全体の一覧は TASK-310 の範囲で、本契約は上限に関わる 3 種（[`LimitReason`]）だけを
 //! 定義する。TASK-310 は自分の列挙（[`crate::load_reason::LoadReason`]）へ `From` で変換し、`too_large`・`too_deep` を再定義しない。
 //!
 //! 意図して固定しないもの（決める前に固定しない）:
-//! - SAFE-25（要素数・文字列長の超過）の理由コードと文面（TASK-162 で決めて版上げする）
+//! - SAFE-25 の履歴の経路での判定（IR の入口だけが対象。履歴は `docs/known-gaps.md` に記録）
 //! - SAFE-34（遷移の上限）の見出し（TASK-160 で扱う）
 //! - IR の経路の UTF-8 の検査の位置（履歴の経路は確認済みで、正は core の `history_load`。TASK-331 1/3）
 //! - 素の `E-LIMIT`（`.md` 以外の本文ファイルの超過。AUTHOR-11 が未解決で、診断コードの一覧は TASK-195 の契約）
@@ -25,7 +30,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 /// この契約の版。値・理由コード・順序・文面を変えたら上げる。
-pub const LIMITS_CONTRACT_VERSION: u32 = 1;
+pub const LIMITS_CONTRACT_VERSION: u32 = 2;
 
 /// IR 1 ファイルの上限（バイト）。ちょうどは通し、1 超過で拒否する（SAFE-17・SAFE-45、D-44）。
 pub const MAX_IR_BYTES: u64 = 20_971_520;
@@ -223,6 +228,67 @@ impl LimitReason {
 impl fmt::Display for LimitReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+/// IR の値の上限（SAFE-25。配列・連想配列の要素数と文字列の長さ）を超えたときの拒否理由（TASK-162）。
+///
+/// 呼び出し元は core の `load_ir` と pack の `compile` の出力検査。型の検査の後（[`LoadStage::TypeAndContent`]）に
+/// 判定する。型が合わない巨大な入力は `malformed` を優先する（SAFE-24）。直列化した値は理由コードの文字列になる。
+/// 名前は【推論】による仮置き。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IrValueLimitReason {
+    /// 配列か連想配列の要素数が [`MAX_COLLECTION_ELEMENTS`] を超えた。
+    TooManyElements,
+    /// 文字列の長さが [`MAX_STRING_CHARS`] を超えた。
+    StringTooLong,
+}
+
+impl IrValueLimitReason {
+    /// すべての理由。
+    pub const ALL: [IrValueLimitReason; 2] = [
+        IrValueLimitReason::TooManyElements,
+        IrValueLimitReason::StringTooLong,
+    ];
+
+    /// 理由コードの文字列。
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            IrValueLimitReason::TooManyElements => "too_many_elements",
+            IrValueLimitReason::StringTooLong => "string_too_long",
+        }
+    }
+
+    /// この理由を判定する段。
+    pub const fn stage(self) -> LoadStage {
+        LoadStage::TypeAndContent
+    }
+
+    /// 対応する上限。
+    pub const fn limit(self) -> LimitId {
+        match self {
+            IrValueLimitReason::TooManyElements => LimitId::CollectionElements,
+            IrValueLimitReason::StringTooLong => LimitId::StringChars,
+        }
+    }
+}
+
+impl fmt::Display for IrValueLimitReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// IR の値の上限を超えたときの受講者向けの固定の文面。測った値・教材の値は含まない。
+pub const fn ir_value_rejection_message(reason: IrValueLimitReason) -> &'static str {
+    match reason {
+        IrValueLimitReason::TooManyElements => {
+            "ファイルの中の配列か連想配列の要素が上限（100,000 個）を超えています。別のファイルを選んでください。"
+        }
+        IrValueLimitReason::StringTooLong => {
+            "ファイルの中の文字列が上限（100,000 文字）を超えています。別のファイルを選んでください。"
+        }
     }
 }
 
