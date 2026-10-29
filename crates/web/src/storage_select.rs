@@ -27,7 +27,7 @@
 //! 限界: [`LOCAL_STORAGE_MAX_UTF16`] は Chrome での実測で、Firefox・Safari は未確認である。
 
 use fandhe_workshop_contract::storage::{
-    HistoryKey, HistoryStore, StorageError, StorageKind, DEFAULT_STORAGE_KIND,
+    DeliveryScope, HistoryKey, HistoryStore, StorageError, StorageKind, DEFAULT_STORAGE_KIND,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
@@ -268,6 +268,38 @@ impl<L: SyncKv + 'static, I: IdbBackend> HistoryStorage<L, I> {
                 Err(e) => done(Err(e)),
             }),
         );
+    }
+
+    /// 指定した配信先・教材の履歴の鍵をすべて消す（SAVE-32。保存済みの履歴の削除の中核）。消した件数を返す。
+    ///
+    /// 対象は [`HistoryKey::belongs_to`] に当たる鍵だけで、別の教材・別の配信先・`unreadable` の鍵・履歴でない鍵（起動番号など）は
+    /// 消さない。IndexedDB を全件読めなかった保存先は中身が分からないため、何も消さずに `Unavailable` を返す（fail-closed）。
+    /// 失敗した鍵があっても残りの鍵は試し、最後に `keys` を引き直して対象が残っていれば `Failed` を返す（一部だけ消えうる）。
+    /// IndexedDB の delete は確定を待たず、後からの失敗は `last_async_error` に残る（SAVE-11 の経路で出る）。
+    ///
+    /// # Errors
+    ///
+    /// 読めない保存先・鍵の一覧を引けない・対象が残った場合。
+    pub fn remove_pack(&self, scope: &DeliveryScope, pack_id: &str) -> Result<usize, StorageError> {
+        if self.idb_unreadable {
+            return Err(StorageError::Unavailable);
+        }
+        let targets: Vec<HistoryKey> = self
+            .keys()?
+            .into_iter()
+            .filter(|k| k.belongs_to(scope, pack_id))
+            .collect();
+        let mut first_error = None;
+        for key in &targets {
+            if let Err(e) = self.remove(key) {
+                first_error.get_or_insert(e);
+            }
+        }
+        let remaining = self.keys()?.iter().any(|k| k.belongs_to(scope, pack_id));
+        if remaining {
+            return Err(first_error.unwrap_or(StorageError::Failed));
+        }
+        Ok(targets.len())
     }
 
     /// IndexedDB へ書く。put の確定を待たずに手元の写しを更新して `Ok` を返す（口の [`HistoryStore::write`] が同期のため）。

@@ -10773,3 +10773,13 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/SAVE20-5.mutation`）: SAVE20-5 は写しとの照合を `state.run` だけに弱める。DETECTED（2026-10-29）。
 - 範囲外: 起動時に壊れた履歴を見つけたときの扱いは TASK-333・TASK-533、理由の文面は SHELL-36・TASK-532・TASK-534。
 - 限界: `scripts/expected-test-counts.txt` は更新していない（5.386 の前例）。ブラウザ試験は単体（`node --test`、47 件合格）で確かめ、`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.388 保存済みの履歴の削除の中核を固定する（TASK-341 1/2。SAVE-32・SHELL-38）
+
+- 目的: 受講者が自分の保存済みの履歴を削除する機能のうち、保存先の鍵を消すことと、ホストの状態を新しく始め直すことを実装して固定する。契約（`crates/contract`）は変えない（`HistoryKey::belongs_to` が対象の判定の正）。
+- 実装: `HistoryStorage::remove_pack`（対象の鍵だけを消し、最後に `keys` を引き直して残りを確かめる。IndexedDB を読めない保存先は何も消さず `Unavailable`）、`PendingSave::discard_pack`（消した鍵を離れる直前・遅延保存が作り直さないよう、先に保留を捨てる）、`persist::delete_pack`、ホストの `set_history_deleter`・`HostAction::DeleteHistory`／`ConfirmDelete`／`CancelDelete`。確定は確認待ちの印があるときだけ行い、成功すると `finish_discard` と共通の `restart_from(None)` で最初から始め直す（保存はしない。開けなかった履歴の保存の停止も解く）。失敗は状態を変えない。対象は payload ではなく、ホストが読んだ IR の `pack.id` と URL の区間で決める。
+- 試験の設定だけ: `raw` の完全一致の合図 3 つと、`test-hooks.js` の `deleteHistory`・`confirmDelete`・`cancelDelete`。観察は `engine.deletePending`・`engine.lastDelete`（件数と種類だけ。鍵・値は含めない）。配信する設定は `delete-history` 系の action を復号しない。
+- 試験: native `crates/web/tests/history_delete.rs`（10 件。対象外の鍵が件数も値も不変・IndexedDB の確定後の消去・読めない保存先・保留の破棄・確認待ちの関門・やめる・失敗時の不変・停止の解除）。ブラウザ `tools/browser/delete-history.test.mjs`（CSP あり・なし × 3 件。章をまたぐ localStorage の教材単位の削除と再読み込み、IndexedDB、関門）。変異 SAVE32-3〜SAVE32-5（`crates/web/tests/mutations/`。定義の静的検査のみ実施し、動的な検査は未実施）。
+- 自動運転での判断（人の承認は無い）: 起動番号の照合は削除に通さない（受講者の意思による削除は古いタブでも行う）。配信する設定に隠れた削除の口を出さない。
+- 範囲外: 可視の操作・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は TASK-341 2/2。
+- 限界: `docs/known-gaps.md` の SAVE-32。`scripts/expected-test-counts.txt` は更新していない。試験と実装の作成者は同じ AI で、人の確認は得ていない。

@@ -16,7 +16,7 @@
 //!
 //! 値と鍵の文字列は、結果にも記録にも含めない（履歴は下書きを含む受講者のデータである）。
 
-use fandhe_workshop_contract::storage::{HistoryKey, HistoryStore, StorageError};
+use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, HistoryStore, StorageError};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -56,6 +56,17 @@ impl PendingSave {
     /// 保留の件数（値は返さない）。
     pub fn pending_len(&self) -> usize {
         self.pending.borrow().len()
+    }
+
+    /// 指定した配信先・教材の履歴の保留を捨てる（SAVE-32。保存済みの履歴の削除）。捨てた件数だけを返し、値・鍵は返さない。
+    ///
+    /// 削除の確定の直前に `persist::delete_pack` が呼ぶ。捨てずに保存先だけを消すと、離れる直前・遅延保存の書き出しが
+    /// 消した鍵を作り直してしまう。別の教材・別の配信先の保留は残す。
+    pub fn discard_pack(&self, scope: &DeliveryScope, pack_id: &str) -> usize {
+        let mut pending = self.pending.borrow_mut();
+        let before = pending.len();
+        pending.retain(|key, _| !key.belongs_to(scope, pack_id));
+        before - pending.len()
     }
 
     /// 保留を鍵の順に保存先へ書く。書けた鍵は保留から外し、書けなかった鍵は残す。

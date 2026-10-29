@@ -1,0 +1,8 @@
+id: SAVE32-4
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/save_pending.rs
+find:         pending.retain(|key, _| !key.belongs_to(scope, pack_id));
+replace:         pending.retain(|_, _| true);
+expect-fail: discard_pack_は対象の保留だけを外し作り直させない
+note: 削除のときに未保存の保留を捨てない（離れる直前の書き出しが消した鍵を作り直す。SAVE-32）

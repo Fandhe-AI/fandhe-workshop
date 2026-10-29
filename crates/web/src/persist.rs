@@ -114,6 +114,26 @@ fn stage_and_flush(key: &HistoryKey, value: String) -> Result<(), StorageError> 
     })
 }
 
+/// 保存済みの履歴の削除（SAVE-32。TASK-341）。指定した配信先・教材の鍵を保存先から消し、消した件数を返す。
+///
+/// 先に未保存の保留を捨て（離れる直前・遅延保存の書き出しが消した鍵を作り直さないため）、その後で保存先を消す。
+/// 受講者の意思による削除なので、書き込みの関所の起動番号の照合（[`flush_guarded`]）は通さない。
+/// 保存先が開いていない・借用中は `Unavailable`（成功扱いにしない）。試験用の別の保存先には触れない。
+/// 呼び出し元は `boot_and_mount` が結ぶ `set_history_deleter` の閉包だけで、対象は payload ではなくホストが読んだ IR の `pack.id` で決める。
+///
+/// # Errors
+///
+/// 保存先を読めない・対象の鍵が消えなかった場合の種類。
+pub fn delete_pack(scope: &DeliveryScope, pack_id: &str) -> Result<usize, StorageError> {
+    PENDING.with(|p| p.discard_pack(scope, pack_id));
+    STORAGE.with(|s| {
+        let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
+        slot.as_ref()
+            .ok_or(StorageError::Unavailable)?
+            .remove_pack(scope, pack_id)
+    })
+}
+
 /// 変更の後の遅延保存の書き出し（`glue` のタイマーが呼ぶ。TASK-318。SAVE-7）。
 ///
 /// 保存しない場合（未操作・上限超え・開けなかった履歴がある・未マウント）は何も書かない（`history_to_save` が `None`）。
@@ -379,6 +399,11 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
             }),
         );
     }));
+    // 保存済みの履歴の削除（SAVE-32）。対象はホストが読んだ IR の教材と、この配信の区間で決める。
+    if let Some(pack_id) = host.pack_id() {
+        let scope = delivery_scope();
+        host.set_history_deleter(Box::new(move || delete_pack(&scope, &pack_id)));
+    }
     host.set_save_failure_probe(Box::new(async_save_failure));
     host.set_stale_probe(Box::new(stale_tab));
     // 同意は保存しない（D-53）ため、履歴の復元（`boot`）の後に与える。試験の設定の代役の受け口だけ（TASK-191 2/2）。

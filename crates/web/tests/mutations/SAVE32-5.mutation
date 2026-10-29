@@ -1,0 +1,8 @@
+id: SAVE32-5
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:         if !self.delete_pending {
+replace:         if false {
+expect-fail: 確認待ちなしの確定は何も消さず状態も変えない
+note: 削除の確定が確認待ちの印を見ない（確認の前に削除される。SHELL-38）

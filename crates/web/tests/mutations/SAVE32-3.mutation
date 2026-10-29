@@ -1,0 +1,8 @@
+id: SAVE32-3
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/storage_select.rs
+find:             .filter(|k| k.belongs_to(scope, pack_id))
+replace:             .filter(|_| true)
+expect-fail: remove_pack_は対象の鍵だけを消し件数を返す
+note: 削除の対象を教材で絞らない（別の教材・別の配信先の履歴まで消える。SAVE-32）

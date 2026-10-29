@@ -287,6 +287,12 @@ pub enum HostAction {
     SecretDiscard,
     /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた）と、頼んだときの世代。今の要求の世代と違う完了は捨てる。
     SecretDiscardRead(bool, u64),
+    /// 保存済みの履歴の削除の要求（`delete-history`。SAVE-32）。確認待ちの印を立てるだけ。
+    DeleteHistory,
+    /// 削除の確定（`confirm-delete-history`）。確認待ちのときだけ削除を行う。
+    ConfirmDelete,
+    /// 削除をやめる（`cancel-delete-history`）。確認待ちの印を下ろすだけ。
+    CancelDelete,
     /// 補完（FEND-4）。配送の時点で一覧が開いていて文字があるときだけ、下書きを先頭の候補に置き換える（TERM-11）。
     Complete,
     /// 再読み込みの模擬（試験の設定だけ）。メモリ上の `Session` の世代を上げ、予約済みのタイマーは取り消さない。
@@ -405,6 +411,18 @@ pub const RAW_LOAD_FIXTURE: &str = "load-fixture:";
 /// `Op` との衝突は無い（`tests/host_contract.rs` が固定する）。新しい隠し要素は足さず、`raw-trigger` を使う。
 #[cfg(feature = "test-hooks")]
 pub const RAW_RELOAD: &str = "{\"reload\":{}}";
+
+/// `raw` の action で保存済みの履歴の削除の要求・確定・やめるを指す固定の合図（試験の設定だけ。SAVE-32。TASK-341）。
+///
+/// 完全一致のときだけ受ける。配信する設定は、確認の表示（TASK-539）が無いまま削除の action を復号しない。
+#[cfg(feature = "test-hooks")]
+pub const RAW_DELETE_HISTORY: &str = "{\"delete-history\":{}}";
+/// 削除の確定の合図（試験の設定だけ）。
+#[cfg(feature = "test-hooks")]
+pub const RAW_CONFIRM_DELETE: &str = "{\"confirm-delete-history\":{}}";
+/// 削除をやめる合図（試験の設定だけ）。
+#[cfg(feature = "test-hooks")]
+pub const RAW_CANCEL_DELETE: &str = "{\"cancel-delete-history\":{}}";
 
 /// `raw` の action で履歴ファイルの読み込みを指す固定の接頭辞（試験の設定だけ）。
 ///
@@ -566,6 +584,12 @@ pub type HistorySaver = Box<dyn Fn(&str) -> Result<(), StorageError>>;
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
 
+/// 保存済みの履歴の削除の口（SAVE-32。TASK-341）。`persist::boot_and_mount` が結ぶ。
+///
+/// 対象の教材と配信の区間は結ぶ側が閉じ込めており、ホストは対象を指定できない。消した件数を返し、失敗は種類だけを返す。
+/// `Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type HistoryDeleter = Box<dyn Fn() -> Result<usize, StorageError>>;
+
 /// 保存先の実データの取り直しを頼む口（「この入力を残さない」。SAFE-28）。`persist::boot_and_mount` が結ぶ。
 ///
 /// IndexedDB は取得の完了が非同期で、保存先の写しは他のタブの保存や自タブの書き込みの失敗を反映していない。呼ぶと取り直しを始め、
@@ -709,6 +733,13 @@ pub struct EngineHost {
     history_saver: Option<HistorySaver>,
     /// 保存済みの履歴を読む口（「この入力を残さない」の読み直し。SAFE-28）。未設定なら保存済みの履歴が無いものとして読み直す。
     saved_reader: Option<SavedReader>,
+    /// 保存済みの履歴の削除の口（SAVE-32）。未設定なら削除は失敗として扱う（fail-closed）。
+    history_deleter: Option<HistoryDeleter>,
+    /// 削除の確認待ちの印（SHELL-38）。表示の状態だけで、履歴・保存先には書かない。確定はこの印があるときだけ行う。
+    delete_pending: bool,
+    /// 直近の削除の結果（試験の設定の観察用。鍵・値は持たない）。
+    #[cfg(feature = "test-hooks")]
+    last_delete: Option<Result<usize, StorageError>>,
     /// 保存先の取り直しを頼む口。未設定ならその場で読み直す。
     saved_refresh: Option<SavedRefresh>,
     /// 取り直しを頼んで、完了を待っている印。完了（`SecretDiscardRead`）でだけ読み直しを行う。
@@ -827,6 +858,10 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             saved_reader: None,
+            history_deleter: None,
+            delete_pending: false,
+            #[cfg(feature = "test-hooks")]
+            last_delete: None,
             saved_refresh: None,
             discard_pending: false,
             discard_gen: 0,
@@ -963,6 +998,10 @@ impl EngineHost {
             history_changed: false,
             history_saver: None,
             saved_reader: None,
+            history_deleter: None,
+            delete_pending: false,
+            #[cfg(feature = "test-hooks")]
+            last_delete: None,
             saved_refresh: None,
             discard_pending: false,
             discard_gen: 0,
@@ -1255,6 +1294,12 @@ impl EngineHost {
         Some(HistoryKey::for_pack(scope, &ir.pack.id, recorded.start()))
     }
 
+    /// 教材の `pack.id`。保存済みの履歴の削除の対象を結ぶ側（`persist`）が使う。IR が無いときは `None`。
+    pub(crate) fn pack_id(&self) -> Option<String> {
+        let recorded = self.model.recorded.as_ref()?;
+        Some(recorded.session().ir().pack.id.clone())
+    }
+
     /// 起動の前に、保存先の読み込みに失敗したことを伝える。保存済みの値を読めなかったまま保存すると失うため、保存を止める。
     pub(crate) fn block_saving(&mut self) {
         self.save_blocked = true;
@@ -1475,6 +1520,11 @@ impl EngineHost {
         self.saved_reader = Some(f);
     }
 
+    /// 保存済みの履歴の削除の口を結ぶ（SAVE-32。mount の前に 1 回だけ）。
+    pub fn set_history_deleter(&mut self, f: HistoryDeleter) {
+        self.history_deleter = Some(f);
+    }
+
     /// 保存先の取り直しを頼む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
     pub fn set_saved_refresh(&mut self, f: SavedRefresh) {
         self.saved_refresh = Some(f);
@@ -1583,6 +1633,12 @@ impl EngineHost {
                 }
             },
         };
+        self.restart_from(saved);
+    }
+
+    /// 保存済みの値（なければ新しく）から始め直し、入力欄・保存の予約・DOM の下書きを揃える。
+    /// 「この入力を残さない」の読み直しと、保存済みの履歴の削除（SAVE-32）が共有する。保存はしない。
+    fn restart_from(&mut self, saved: Option<String>) {
         self.input.reset_for_reload();
         self.secret_acknowledged.clear();
         self.restore_from_saved(saved.as_deref().map(str::as_bytes));
@@ -1600,6 +1656,37 @@ impl EngineHost {
         }
         if let Some(f) = self.draft_sync_request.as_ref() {
             f();
+        }
+    }
+
+    /// 削除の要求。確認待ちの印を立てるだけで、何も消さない（SHELL-38）。session が無いときは立てない。
+    fn delete_request(&mut self) {
+        if self.model.recorded.is_some() {
+            self.delete_pending = true;
+        }
+    }
+
+    /// 削除の確定。確認待ちの印があるときだけ口を呼ぶ（`data-action` の書き換えでも確認を飛ばせない）。
+    ///
+    /// 成功したら、保存済みの値が無いときと同じく最初から始め直す（SAVE-3）。開けなかった履歴も消えたので保存の停止は解く。
+    /// 失敗は画面の状態を変えない（一部の鍵だけ消えうる限界は `docs/known-gaps.md`）。
+    fn delete_confirm(&mut self) {
+        if !self.delete_pending {
+            return;
+        }
+        self.delete_pending = false;
+        let result = match self.history_deleter.as_ref() {
+            Some(f) => f(),
+            None => Err(StorageError::Unavailable),
+        };
+        let ok = result.is_ok();
+        #[cfg(feature = "test-hooks")]
+        {
+            self.last_delete = Some(result);
+        }
+        if ok {
+            self.restart_from(None);
+            self.save_blocked = false;
         }
     }
 
@@ -1813,6 +1900,13 @@ impl EngineHost {
             "bootKind": self.boot_kind.map(BootKind::as_str),
             "lastImport": self.last_import_json(),
             "viewOnly": self.model.view_only.map(LoadReason::as_str),
+            // 保存済みの履歴の削除（SAVE-32）。鍵・値は含めない。
+            "deletePending": self.delete_pending,
+            "lastDelete": match &self.last_delete {
+                None => serde_json::Value::Null,
+                Some(Ok(n)) => serde_json::json!({"outcome": "deleted", "removed": n}),
+                Some(Err(e)) => serde_json::json!({"outcome": "failed", "error": format!("{e:?}")}),
+            },
             "installCount": self.probe.install_count,
             "logLen": log.len(),
             "judgedCategories": judged_categories,
@@ -2617,6 +2711,10 @@ impl Component for EngineHost {
                     self.set_secret_warning(shapes);
                 }
             }
+            // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
+            HostAction::DeleteHistory => self.delete_request(),
+            HostAction::ConfirmDelete => self.delete_confirm(),
+            HostAction::CancelDelete => self.delete_pending = false,
             HostAction::SecretKeep => self.secret_keep(),
             HostAction::SecretDiscard => self.secret_discard(),
             HostAction::SecretDiscardRead(ok, generation) => {
@@ -2923,6 +3021,15 @@ impl Component for EngineHost {
             // 再読み込みの模擬の合図は完全一致だけ。これ以外は `Op` として復号する。
             if payload == RAW_RELOAD {
                 return Some(HostAction::Reload);
+            }
+            if payload == RAW_DELETE_HISTORY {
+                return Some(HostAction::DeleteHistory);
+            }
+            if payload == RAW_CONFIRM_DELETE {
+                return Some(HostAction::ConfirmDelete);
+            }
+            if payload == RAW_CANCEL_DELETE {
+                return Some(HostAction::CancelDelete);
             }
             // 履歴ファイルの読み込みは接頭辞が一致したときだけ。本文の大きさ・深さ・JSON は `open_history` の段 1〜3 が断る。
             if let Some(body) = payload.strip_prefix(RAW_OPEN_HISTORY) {

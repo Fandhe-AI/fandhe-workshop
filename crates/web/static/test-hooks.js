@@ -157,6 +157,17 @@ function sendRaw(payload) {
   return true;
 }
 
+// 保存済みの履歴の削除（SAVE-32。TASK-341）。いずれも固定の合図を送るだけで、DOM の値は読まない。結果は stateJson().engine.lastDelete で読む。
+export function deleteHistory() {
+  return sendRaw('{"delete-history":{}}');
+}
+export function confirmDelete() {
+  return sendRaw('{"confirm-delete-history":{}}');
+}
+export function cancelDelete() {
+  return sendRaw('{"cancel-delete-history":{}}');
+}
+
 export function importInstall() {
   if (document.querySelector('[data-testid="history-file"]')) return;
   const input = document.createElement('input');
