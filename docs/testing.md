@@ -10236,3 +10236,49 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 - 手元の変異（記録のみ。コミットしない）: 配信する web の写しの `app.js` に `?os=` の値を `textContent` で DOM へ書く 4 行を足すと、`os` の 8 回が CSP あり・なしの両方で「印が画面に出た」で失敗し、C も失敗した。`?ir=` の値から取得する変異は流していない（未検証）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
 - 範囲外: 履歴（E4）は TASK-146
+
+### 5.371 受講者の入力・履歴を外部へ送らないことの通信の計数（TASK-153。SAFE-16）
+
+元にしたコミット: `b5c3af4b`（実行日 2026-10-29）。受講者が教材を開き、全 Step を操作し、履歴を保存する間に、配信元以外への通信の試みが 0 件であることを、ブラウザの計数（`tools/browser/egress-count.test.mjs`）と依存・配信物の静的な検査（`scripts/check-no-egress.sh`）で固定した。人間の承認点（CI のガードとして依存と配信物の検査を足すこと）は未承認で、レビューで判断を求める。
+
+#### 計数の区分（`tools/browser/egress.mjs`）
+
+「送らない」は完了した要求ではなく、送ろうとした呼び出しの件数で確かめる。CSP ありの回は止められた試みが route に届かないため、CSP なしの回と呼び出しの計数が本命になる。
+
+| 区分 | 数えるもの |
+|---|---|
+| `external`・`popups`・`csp` | harness の記録器（route で abort した配信元以外への要求・ポップアップ・CSP 違反） |
+| `offOriginCalls` | init script で包んだ通信の API（fetch・XMLHttpRequest・WebSocket・EventSource・sendBeacon・RTCPeerConnection・ServiceWorker の登録・Worker・SharedWorker）の呼び出しのうち、宛先が配信元以外のもの |
+| `otherCalls` | 上の呼び出しのうち、許可外のもの（許可は、配信元への GET の fetch で、宛先が wasm の取得か `ir/main.json` のとき） |
+| `offOriginRequests` | `context.on('request')` で見た配信元以外への要求 |
+| `ws`・`workers`・`serviceWorkers` | `page.on('websocket')`・`page.on('worker')`・`context.serviceWorkers()` |
+| `nonGet` | 配信元への GET・HEAD 以外の要求（静的配信への送信＝提出の形） |
+| `offAllowlist` | 配信元への要求のうち、パスが構成要素以外のもの、またはサブリソースのクエリ付きのもの（入力・履歴を URL に載せて送る形） |
+
+記録するのは API 名・宛先の分類・件数だけで、要求の本文・URL の値・履歴・下書きは Node 側へ送らず、出力もしない。分類の純関数の表は `egress.test.mjs`。
+
+#### 場面
+
+| 場面 | 内容 |
+|---|---|
+| G1（試験の設定。CSP あり・なし） | shell-journey と同じ誘導で CH-0〜CH-3 の形の 20 Step を通し、チェックポイントの保存→復帰・再読み込み・書き出し→別オリジンでの読み込み・保存の失敗（localStorage 側）を挟む。IndexedDB と localStorage の両方の保存先を通る。別オリジンの context にも記録器を付け、A・B の全区分 0 |
+| G2（配信する設定。CSP あり・なし） | D3 と同じ準備（IR を足した写し）で 20 Step を DOM だけで通し、続けて画面の操作だけで保存→復帰・書き出し・再読み込み・別オリジンでの読み込みを行う。操作が空振りしていない錨として、チェックポイントの一覧の項目・ダウンロードの発生・再読み込みと読み込みの後の位置表示の一致を確かめる |
+| C（対照。CSP なし） | 外部への fetch・sendBeacon・XHR・WebSocket・EventSource・外部の画像・配信元への POST・許可外のパス・クエリ付き GET・Worker の 10 種を 1 つずつ試み、対応する区分がちょうど 1 増えることを確かめる。宛先は予約ドメイン `example.invalid` と閉じたローカルのポートに限り、route で abort する |
+
+結果の 1 行の様式: `egress <場面> (CSP あり|なし): <区分>=<件数> ... fetch=<許可した fetch>/<呼び出しの総数> <挟んだ操作>`。fetch の件数は読み込みの回数に比例する（1 回の読み込みで wasm の取得 1 件、配信する設定＋IR ではさらに IR の取得 1 件）。
+
+#### 静的な検査（`scripts/check-no-egress.sh`。回帰テストは `scripts/test-check-no-egress.sh`）
+
+- `deps`: `Cargo.lock` の全パッケージに HTTP クライアント・ソケット・学習分析の crate（`reqwest`・`gloo-net`・`ureq`・`hyper`・`tungstenite` 系・`sentry*`・`opentelemetry*`・`posthog*` など）が無いこと。wasm32 で解決した `web-sys` の feature に通信の型（`Request`・`Response`・`Headers`・`FormData`・`XmlHttpRequest`・`WebSocket`・`EventSource`・`Rtc*`・`ServiceWorker*`・`Worker`・`SharedWorker`・`WebTransport`・`PushManager`）が無いこと（錨: ノードがちょうど 1 つで `Storage`・`IdbFactory` を含む）。`package.json` に `dependencies` が無いこと
+- `dist`: 配信物のファイルの集合が構成要素と一致しシンボリックリンクが無いこと、WASM の import に通信の名前が無いこと（錨: `setItem`・`indexedDB` が有る）、glue JS と `app.js` に通信のトークンが無いこと、`fetch(` が glue で 1 件・`app.js` で 1 件（引数は固定の `./ir/main.json`）であること、`index.html`・`app.js`・`app.css` に外部の参照が無いこと。wasm-opt の有無で変わらないため `SKIP_WASM_OPT=1` でも流せる。CI では `make test-build-web` の (a)・(e) が実ビルドに対して流す
+- 2026-10-29 の実測: 拒否の対象は 0 件。wasm32 の `web-sys` の feature に `Navigator` は含まれる（`sendBeacon` は feature で区別できないため、`dist` の検査と実行時の計数が受け持つ）。WASM の import は 163 件で、通信に関わる名前は無い（保存先は `setItem`・`indexedDB`・`open`・`put` など）
+
+#### 件数・確認（2026-10-29）
+
+- `egress.test.mjs` の 8 件が通った。`egress-count.test.mjs` の 5 件（G1・G2 の CSP あり・なしと C）を、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。G1 の挟んだ区間は checkpoint 9・reload 6・export-import 5・save-failure 7 の全合格。G2 の A は fetch が 4 件（再読み込みを含む 2 回の読み込み）、B は 2 件
+- C は 10 種の試みのそれぞれで対応する区分がちょうど 1 増えた
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、別 PR で `make update-test-counts`）
+
+#### 限界
+
+`docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」に記録する。

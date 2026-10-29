@@ -11,6 +11,7 @@
 # （inline-free。SAFE-15。TASK-151 2/2）、画面を開いて操作したときの CSP あり・なしの通信・違反・警告・エラーの計数と要求の種類の一致
 # （csp-runs。SAFE-13。TASK-151 2/2。CH-4〜CH-9 の形の 17 Step の通しで章ごとの配信元以外への通信 0 件を数える T5・D2 を含む。
 # TASK-674 2/2。docs/testing.md 5.285）を含む。
+# 受講者の入力・履歴を外部へ送らないことの通信の計数（egress-count と記録器の単体試験 egress。SAFE-16。TASK-153。docs/testing.md 5.371）を含む。
 # 実際の画面への対照の自己確認（safety-control。SAFE-8。CSP あり・なし）と、信頼できない入力への安全性の観察の記録
 # （safety-observe。BUILD-4。TASK-79 2/2。観察値は assert せず diagnostic に残し、完走して終了コード 0 になることを関門にする）を含む。
 # サブパス配信の構成要素と相対パスの参照の検査（delivery-subpath。DLV-1・DLV-2。TASK-106 1/3。取得資源が構成要素だけで、壊した写しの対照で不合格になる）と、
@@ -117,6 +118,8 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/csp-placement.test.mjs" \
   "${ROOT_DIR}/tools/browser/inline-free.test.mjs" \
   "${ROOT_DIR}/tools/browser/csp-runs.test.mjs" \
+  "${ROOT_DIR}/tools/browser/egress.test.mjs" \
+  "${ROOT_DIR}/tools/browser/egress-count.test.mjs" \
   "${ROOT_DIR}/tools/browser/smoke-hello.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-subpath.test.mjs" \
   "${ROOT_DIR}/tools/browser/delivery-direct-links.test.mjs" \

@@ -49,3 +49,16 @@
 | 確かめた人 | AI（Claude Code）による機械の照合と目視。人の確認は未実施 |
 | 承認 | 承認点なし（spec の TASK-129。ライセンスは D-6 で決定済み） |
 | 限界 | 本文の照合は最小の目印の固定文字列だけで、完全一致は保証しない。`package.json` の `license` は crate ではないため対象外 |
+
+## SAFE-16 学習分析・進捗の同期・提出の機能を持たないことの机上の照合（TASK-153）
+
+### 記録 1（2026-10-29）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: `b5c3af4b`（照合のときの `main`）に本変更を載せた作業ブランチ |
+| 日付 | 2026-10-29 |
+| 方法 | `make check-no-egress` が終了コード 0（通信・学習分析の crate 0 件、wasm32 の `web-sys` の feature に通信の型 0 件、npm の `dependencies` 無し）。配信する設定の実ビルドへの `scripts/check-no-egress.sh dist` が終了コード 0。ブラウザの計数 `egress-count.test.mjs` が G1・G2・C すべて通過（`docs/testing.md` 5.371） |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 人間の承認点（CI のガードとして依存と配信物の検査を足すこと）は未承認。レビューで判断を求める |
+| 限界 | `docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」 |
