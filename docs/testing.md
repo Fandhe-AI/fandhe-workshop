@@ -10054,6 +10054,18 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
 - spec への差分の案（本変更では spec を編集しない。承認は得ていない）: DLV-16 の「L2 の 2 案」を repo の L2 の形の 2 か所への読み替えとすること、証拠の種類をエンジン repo の試験とすること
 - 範囲外: 実機（macOS・Apple シリコン。TASK-118・119）、GitHub Pages の `github.io` のオリジン共有、案内文の「`localhost` と `127.0.0.1` を混ぜない」（DLV-17。TASK-117）。5.354 の番号の重複（既存）は直さない
 
+### 5.359 L2 の配布物の更新（TASK-116。DLV-18・D-58・D-71）
+
+案 (ii)（miniserve ＋静的ファイル）を採った利点である「更新は `site/` の差し替え 1 操作」を、道具（`tools/update-l2.mjs`。`make update-l2`）と手順書（`docs/l2-update-procedure.md`）にし、更新した配布物でも Rust のない環境の模擬で「展開と 1 コマンドの起動」ができることを試験で固定する。案 (i)（単一ファイルの作り直し 1 回）は D-58 で採らなかったため、更新の道具は作らない（受け入れ条件の両論併記は、採らなかったと記録して閉じた）。
+
+- 道具の入力は `L2_ZIP`（必須）・`L2_SITE`・`L2_OUT`。`L2_SERVER` は要らず、platform は旧 zip の `miniserve` の sha256 を固定表と照合して決める（一致しなければ失敗）。`site/` 以外のエントリは旧 zip のバイト列と mode を引き継ぎ、`site/` は新しい配信物に入れ替える。`build-l2.mjs` から検査・エントリ作成・出力の書き込みを共通の関数として切り出して共有した（`build-l2` の挙動とバイト列は変えない）
+- 速い層（`tools/update-l2.test.mjs`。`make test-update-l2`。CI の `browser-test` が `make test-build-l2` の直後に流す。合成の配信物・実行ファイルで 29 件）: `site/` 以外の同一性と、旧にだけあるファイルが残らないこと／`update(build(A), B)` が `build(B)` と、`update(build(A), A)` が `build(A)` とバイト単位で一致／同じ入力で 2 回更新して同じバイト列／更新を重ねられる／将来の同梱物（README・ライセンス文）の保持／出力先が入力と同じ場所／更新した zip を `PATH=/usr/bin:/bin` で展開した `./start.sh` が `-i 127.0.0.1` と `site` で miniserve を起動／fail-closed（digest の不一致、`..`・絶対パス・外側・バックスラッシュ・重複・許さない mode・必須エントリの欠落・リンク・壊れた zip・展開後の大きさの上限、新しい配信物の不正、失敗しても既存の出力が変わらない、出力先の対象名がディレクトリ・リンク、誤用は 2）
+- 遅い層（`tools/browser/l2-update.test.mjs`。`scripts/test-l2-run.sh` の更新の段。実物の miniserve が要る。CI の `browser-test` の `make test-l2-run` が流す）: `crates/web/tests/data/ch4_9/ir.json` の配信物で旧 zip の `site/` を差し替え、更新後の zip を模擬環境で展開・`./start.sh` で起動して `/ir/main.json` が新しい IR とバイト単位で一致すること、対照として旧 zip では旧い IR と一致して新しい IR と一致しないこと、`start.sh`・`miniserve` が旧 zip と一致すること、画面がマウントされページ内エラー・CSP の違反・コンソールの error と warning・2xx 以外・配信元以外への要求が 0 件であること。完走は流さない（旧 zip での完走は 5.239 が確かめている）
+- spec との照合（2026-10-28。submodule `docs/spec` の `d70ad107`）: `04-behavior/delivery.md` の DLV-18 は (ii) を採り (i) を採らないこと、更新が `site/` の差し替え 1 操作であることを既に書き、`04-behavior/README.md` も D-58・D-71 の反映を記録している。受け入れ条件の「TASK-12 の決定を DLV-18 に反映」は満たされていた。この変更では spec を編集しない
+- spec への差分の案（spec repo 側の作業。承認は得ていない）: DLV-18 の期待にある更新の「（観察）」を、エンジン repo の試験（`update-l2`・`l2-update`）を根拠にした記述に直すこと（5.243 と同じ流儀）。あわせて、生成物 `docs/spec/spec.md` の DLV-18 の期待に、形を決める前の文（案 (i) の作り直し 1 回を含む）が残っているように見えるため、04 から生成し直すこと
+- 実行結果（2026-10-28。Linux x86_64）: `make test-update-l2` は 29 件が合格。`make test-build-l2` は無修正の既存 22 件が合格（`build-l2` の挙動を変えていないことの確認）。遅い層は、手元に miniserve と Playwright が無いため未検証。CI の `browser-test` で確かめる
+- 限界: 教材は試験データ（`ch0_3`・`ch4_9`）。Chromium・Linux の miniserve だけで、macOS の実機は TASK-118・119。受講者がすでに展開した木で `site/` だけを差し替える運用と、その後の履歴の扱いは確かめていない。`start.sh`・`miniserve` 自体の更新は `build-l2` のやり直しになる
+
 ### 5.361 WASM の大きさの基点そろえ（TASK-126。DLV-27・DLV-4）
 
 spec に残る WASM の `gzip` の大きさは、commit・`wasm-opt` の有無・機能の範囲・圧縮の設定が違う値が混ざっていて増減を論じられない。同じ commit・同じビルド設定で測り直し、旧い値と並べた基点つきの一覧にそろえる。以後、DLV-4 の関門が参照する値は下の「そろえた基点の値」とする。

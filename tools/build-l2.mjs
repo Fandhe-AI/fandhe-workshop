@@ -173,28 +173,19 @@ function sha256(buf) {
   return createHash('sha256').update(buf).digest('hex');
 }
 
-/**
- * 配布物を作って出力先へ書く。pins は { 資産名: sha256 }（試験は注入し、CLI は固定表を読む）。
- * 戻り値は { zip, bytes, sha256 }。
- */
-export function buildL2({ server, site, out, platform, pins, checkDelivery = true, layouts = LAYOUTS, l2Dir = path.join(HERE, 'l2') }) {
-  const asset = PLATFORMS[platform];
-  if (!asset) throw new L2Error(`unknown L2_PLATFORM: ${platform}`, 2);
-  if (!server) throw new L2Error('L2_SERVER is required', 2);
-  let st;
-  try {
-    st = fs.statSync(server);
-  } catch {
-    throw new L2Error(`L2_SERVER not found: ${server}`, 2);
-  }
-  if (!st.isFile()) throw new L2Error(`L2_SERVER is not a regular file: ${server}`, 2);
+/** 配信物がディレクトリであることを確かめる。 */
+function checkSiteDir(site) {
   if (!fs.existsSync(site) || !fs.statSync(site).isDirectory()) {
     throw new L2Error(`L2_SITE is not a directory: ${site}`, 2);
   }
-  const bin = fs.readFileSync(server);
-  if (pins[asset] === undefined || sha256(bin) !== pins[asset]) {
-    throw new L2Error(`sha256 of L2_SERVER does not match the pinned value for ${asset}`);
-  }
+}
+
+/**
+ * 配信物の検査（build-l2.mjs と update-l2.mjs が共有する。D-58）。check-delivery.sh と ir/main.json の JSON を確かめる。
+ * checkDelivery: false は関数の試験だけが使う（CLI からは指定できない）。
+ */
+export function checkSite(site, { checkDelivery = true } = {}) {
+  checkSiteDir(site);
   if (checkDelivery) {
     const r = spawnSync('bash', [path.join(HERE, 'check-delivery.sh'), site], { encoding: 'utf8' });
     if (r.error) {
@@ -205,50 +196,33 @@ export function buildL2({ server, site, out, platform, pins, checkDelivery = tru
       throw new L2Error(`check-delivery failed (exit ${r.status ?? r.signal}) for ${site}${detail ? `:\n${detail}` : ''}`);
     }
   }
-  // 固定値の sha256 は引数で差し替えられない。差し替えられるのは読む元の置き場だけ（試験用。CLI は渡さない）。
-  const readRegular = (name) => {
-    const f = path.join(l2Dir, name);
-    let ls;
-    try {
-      ls = fs.lstatSync(f);
-    } catch {
-      throw new L2Error(`${name} not found under ${l2Dir}`);
-    }
-    if (!ls.isFile()) throw new L2Error(`${name} must be a regular file`);
-    return fs.readFileSync(f);
-  };
-  const license = readRegular('LICENSE-miniserve.txt');
-  if (sha256(license) !== MINISERVE_LICENSE_SHA256) {
-    throw new L2Error('sha256 of LICENSE-miniserve.txt does not match the pinned value');
-  }
-  const notices = readRegular('THIRD-PARTY-NOTICES.txt');
   const ir = path.join(site, 'ir', 'main.json');
-  let irStat;
   try {
-    irStat = fs.lstatSync(ir);
-    if (!irStat.isFile()) throw new Error('not a file');
+    if (!fs.lstatSync(ir).isFile()) throw new Error('not a file');
     JSON.parse(fs.readFileSync(ir, 'utf8'));
   } catch {
     throw new L2Error('site/ir/main.json must be a regular file holding JSON');
   }
-  const layout = layouts[platform];
-  let launcher = fs.readFileSync(path.join(HERE, 'l2', layout.launcherSrc));
-  if (layout.crlf) launcher = toCrlf(launcher, layout.launcherSrc);
-  const siteEntries = collectSite(site);
-  if (platform === 'windows-x64') checkWindowsNames(siteEntries);
-  const entries = [
-    { name: `${TOP}/`, dir: true },
-    { name: `${TOP}/${layout.launcher}`, data: launcher, mode: 0o755 },
-    { name: `${TOP}/${layout.server}`, data: bin, mode: 0o755 },
-    { name: `${TOP}/LICENSE-miniserve.txt`, data: license, mode: 0o644 },
-    { name: `${TOP}/THIRD-PARTY-NOTICES.txt`, data: notices, mode: 0o644 },
-    { name: `${TOP}/site/`, dir: true },
-  ];
-  for (const e of siteEntries) {
-    entries.push(e.dir ? { name: `${TOP}/site/${e.name}`, dir: true } : { name: `${TOP}/site/${e.name}`, data: fs.readFileSync(e.file), mode: e.mode });
-  }
-  const zip = writeZip(entries);
+}
 
+/** 配信物から zip の site/ 以下のエントリを作る。 */
+export function siteEntries(site) {
+  return collectSite(site).map((e) =>
+    e.dir ? { name: `${TOP}/site/${e.name}`, dir: true } : { name: `${TOP}/site/${e.name}`, data: fs.readFileSync(e.file), mode: e.mode },
+  );
+}
+
+/** miniserve の sha256 が固定表のどの資産に一致するかで platform を返す。一致しなければ null（update 用）。 */
+export function platformOfServer(bin, pins) {
+  const h = sha256(bin);
+  for (const [platform, asset] of Object.entries(PLATFORMS)) {
+    if (pins[asset] !== undefined && pins[asset] === h) return platform;
+  }
+  return null;
+}
+
+/** zip を出力先へ書く（tmp に書いてから rename）。L2_OUT の規則は build-l2 と update-l2 で共通。 */
+export function writeOutput(out, platform, zip) {
   const outDir = path.resolve(out);
   if (!fs.existsSync(outDir)) {
     const distDir = path.join(ROOT, 'dist');
@@ -275,6 +249,60 @@ export function buildL2({ server, site, out, platform, pins, checkDelivery = tru
     throw e;
   }
   return { zip: target, bytes: zip.length, sha256: sha256(zip) };
+}
+
+/**
+ * 配布物を作って出力先へ書く。pins は { 資産名: sha256 }（試験は注入し、CLI は固定表を読む）。
+ * 戻り値は { zip, bytes, sha256 }。
+ */
+export function buildL2({ server, site, out, platform, pins, checkDelivery = true, layouts = LAYOUTS, l2Dir = path.join(HERE, 'l2') }) {
+  const asset = PLATFORMS[platform];
+  if (!asset) throw new L2Error(`unknown L2_PLATFORM: ${platform}`, 2);
+  if (!server) throw new L2Error('L2_SERVER is required', 2);
+  let st;
+  try {
+    st = fs.statSync(server);
+  } catch {
+    throw new L2Error(`L2_SERVER not found: ${server}`, 2);
+  }
+  if (!st.isFile()) throw new L2Error(`L2_SERVER is not a regular file: ${server}`, 2);
+  checkSiteDir(site);
+  const bin = fs.readFileSync(server);
+  if (pins[asset] === undefined || sha256(bin) !== pins[asset]) {
+    throw new L2Error(`sha256 of L2_SERVER does not match the pinned value for ${asset}`);
+  }
+  checkSite(site, { checkDelivery });
+  // 固定値の sha256 は引数で差し替えられない。差し替えられるのは読む元の置き場だけ（試験用。CLI は渡さない）。
+  const readRegular = (name) => {
+    const f = path.join(l2Dir, name);
+    let ls;
+    try {
+      ls = fs.lstatSync(f);
+    } catch {
+      throw new L2Error(`${name} not found under ${l2Dir}`);
+    }
+    if (!ls.isFile()) throw new L2Error(`${name} must be a regular file`);
+    return fs.readFileSync(f);
+  };
+  const license = readRegular('LICENSE-miniserve.txt');
+  if (sha256(license) !== MINISERVE_LICENSE_SHA256) {
+    throw new L2Error('sha256 of LICENSE-miniserve.txt does not match the pinned value');
+  }
+  const notices = readRegular('THIRD-PARTY-NOTICES.txt');
+  const layout = layouts[platform];
+  let launcher = fs.readFileSync(path.join(HERE, 'l2', layout.launcherSrc));
+  if (layout.crlf) launcher = toCrlf(launcher, layout.launcherSrc);
+  if (platform === 'windows-x64') checkWindowsNames(collectSite(site));
+  const entries = [
+    { name: `${TOP}/`, dir: true },
+    { name: `${TOP}/${layout.launcher}`, data: launcher, mode: 0o755 },
+    { name: `${TOP}/${layout.server}`, data: bin, mode: 0o755 },
+    { name: `${TOP}/LICENSE-miniserve.txt`, data: license, mode: 0o644 },
+    { name: `${TOP}/THIRD-PARTY-NOTICES.txt`, data: notices, mode: 0o644 },
+    { name: `${TOP}/site/`, dir: true },
+    ...siteEntries(site),
+  ];
+  return writeOutput(out, platform, writeZip(entries));
 }
 
 function main() {
