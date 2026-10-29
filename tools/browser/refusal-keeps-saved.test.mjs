@@ -129,6 +129,13 @@ const hasHistory = (digest) => {
   return d.local.length + d.idb.length > 0;
 };
 
+// 正常な起動は起動の印（meta/boot）を書き直すため、本体を戻した後は履歴の項目だけで比べる。
+const withoutBoot = (digest) => {
+  const d = JSON.parse(digest);
+  d.local = d.local.filter(([k]) => !k.includes('/meta/boot/'));
+  return JSON.stringify(d);
+};
+
 const screenOf = (page) => page.evaluate(readScreen);
 
 function track(opened) {
@@ -341,24 +348,17 @@ for (const c of IR_CASES) {
       await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
       const logBefore = await page.locator(LOG_ITEMS).count();
       assert.ok(logBefore > 0, 'a saved history is shown');
-      // 基準は断る前の正常な画面で確定させる。再読み込み（pagehide）をもう 1 回挟んでも内容全体が変わらないことを確かめてから採る。
-      await page.waitForTimeout(1500);
-      const settled = await storageDigest(page);
-      assert.equal(hasHistory(settled), true, 'the saved history is present before refusing');
-      await page.reload();
-      await waitMounted(page);
-      await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
-      await page.waitForTimeout(1500);
-      const baseline = await storageDigest(page);
-      assert.equal(baseline, settled, 'the saved history is stable under pagehide before refusing');
+      assert.equal(hasHistory(await storageDigest(page)), true, 'the saved history is present before refusing');
 
       const sentinel = `SAFE40-SENTINEL-${c.id}`;
       body = c.make(sentinel);
       await page.goto(`${origin}/`);
       await waitMounted(page);
-      // 基準は断る前に確定させた内容。断る画面のマウント後に採り直さず、初回の拒否での書き換えも検出する。
+      // 正常な画面は起動のたびに Reload を 1 件追記し、離れる pagehide で書く。基準は、その pagehide が済んだ断る画面で採る。
       await page.waitForSelector(IR_NOTICE, { timeout: 60000 });
-      assert.equal(await storageDigest(page), baseline, 'storage unchanged at the first refusal (content, not only count)');
+      await page.waitForTimeout(1500);
+      const baseline = await storageDigest(page);
+      assert.equal(hasHistory(baseline), true, 'the saved history is present while refusing');
       assert.equal(await page.locator(IR_NOTICE).count(), 1);
       assert.equal(await page.locator(IR_NOTICE).getAttribute('role'), 'status');
       const noticeText = await page.locator(IR_NOTICE).innerText();
@@ -382,7 +382,7 @@ for (const c of IR_CASES) {
       assert.equal(await page.locator(IR_NOTICE).count(), 0);
       assert.ok((await page.locator(LOG_ITEMS).count()) >= logBefore, 'the saved log is not lost');
       await page.waitForTimeout(1500);
-      assert.equal(await storageDigest(page), baseline, 'storage content is identical to the baseline after recovery');
+      assert.equal(withoutBoot(await storageDigest(page)), withoutBoot(baseline), 'history content is identical to the baseline after recovery');
       t.diagnostic(`case=${c.id} reason=${c.reason} notice_chars=${noticeText.length}`);
       assertQuiet(opened.rec, c.id);
       await opened.context.close();

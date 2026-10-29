@@ -1,0 +1,8 @@
+id: SAFE25-1
+package: fandhe-workshop-core
+test: ir_value_limits
+target: crates/core/src/value_limits.rs
+find:                 if a.len() > MAX_COLLECTION_ELEMENTS {
+replace:                 if a.len() >= MAX_COLLECTION_ELEMENTS {
+expect-fail: v_a_array_elements
+note: 配列の要素数の比較を >= にし、ちょうど 100,000 要素の IR を断ってしまう

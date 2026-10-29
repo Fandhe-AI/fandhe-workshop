@@ -10588,7 +10588,23 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 - 限界: 模擬は `cp -RP` で、リポジトリの追跡対象か（`.gitignore` で外れていないか）は見ない。GitHub のテンプレート機能そのものでは確かめていない。写しの copyright の行は雛形のまま引き継ぐ
 - 範囲外: 雛形の構成（TASK-769）、教材のライセンスの案内（TASK-782）、教材 repo の表記（TASK-131）、`THIRD-PARTY-LICENSES`（TASK-136）
 
-### 5.377 断った後に保存済みの履歴と画面が書き換わらないこと（TASK-169。SAFE-40）
+### 5.377 配列・連想配列の要素数と文字列の長さの上限（TASK-162。SAFE-25・D-45）
+
+IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,000 要素まで、1 つの文字列（連想配列のキーを含む）は 100,000 文字（コードポイント）までとし、超えたものは全体を読まずに理由つきで断る。理由コード `too_many_elements`・`string_too_long` と文面は【推論】による仮置きで、契約 `contract::limits` の版を 2 に上げて固定した。spec への反映は spec repo 側で行う。
+
+- 判定の位置: 大きさ・深さ・JSON の解釈の後、型の検査の位置。上限の超過があるときだけ借用の変換 `Ir::deserialize(&value)` で型を確かめ、型が合えば上限の理由、合わなければ従来どおり `malformed` を返す（SAFE-24・TASK-161 の試験は無変更で通る）。版・uid・参照の整合より先に断る
+- 履歴の理由（`LimitReason`・`LoadReason`）には足していない。履歴の経路の判定は範囲外（`docs/known-gaps.md`）
+- pack の `compile` は出力に同じ判定（`check_value_limits`）を掛け、超えたら `E-LIMIT` にする
+- 試験: `crates/contract/tests/limits_contract.rs`、`crates/core/src/value_limits.rs`（単体）、`crates/core/tests/ir_value_limits.rs`（V-A 配列・V-M 連想配列・V-S 文字列・V-U コードポイント・V-K キー・V-O1〜O3 判定の順・V-C 値を含まない・V-T 速さ）、`crates/web/tests/ir_value_limit_host.rs`（通知）、`crates/pack/src/compile.rs`（出力検査）
+- 変異: `SAFE25-1`（比較を `>=`）・`SAFE25-2`（文字列をバイトで数える）・`SAFE24-1` が DETECTED（2026-10-29）
+
+#### 限界・未検証
+
+- 100,000 要素での起動 0.3 秒・WASM のメモリ 152MB・1 回の操作 0.1 秒の測定は未実施（ブラウザの試験 `ir-value-limits` は未作成）。SAFE-25 は検討中のまま
+- 低メモリ端末での測定は未実施
+- `scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）
+
+### 5.378 断った後に保存済みの履歴と画面が書き換わらないこと（TASK-169。SAFE-40）
 
 保存済みの履歴がある状態で、上限超過・入れ子が深すぎる・形の合わない履歴と IR を読み込んで断られた後に、保存先の全体と画面の状態が前と同じで、入力に入れた番兵が通知・DOM・コンソールのどこにも出ないことを固定した。論理は足していない（試験のみ）。
 
@@ -10613,7 +10629,7 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 
 #### 判断と注記
 
-- 基準の取り方: (b) は土台の画面を離れる pagehide で書かれる分があるため、基準を断る画面がマウントした後に取る（ir-refusal と同じ）。
+- 基準の取り方: (b) は正常な画面が起動のたびに Reload を 1 件追記し、その画面を離れる pagehide で書くため、断る前には基準を確定できない。基準は断る画面がマウントして通知が出た後に取り（ir-refusal と同じ）、断っている間・再読み込みの後・本体を戻した後に（起動の印 `meta/boot` を除く履歴の項目が）一致することを確かめる。断る画面への切り替え自体での書き換えは、この経路では検出しない。
 - I-dupuid の uid 重複は理由が `malformed` になり、`IrLoadError` の `Display` が uid を含んでも、画面は理由のコードだけを使うことを番兵で固定する。
 - 実測（2026-10-29、ローカル、Chromium）: S-large は 10,485,761 バイトの値の書き込みが成功し、断られた。起動時の理由の通知は 0 件（TASK-533 の範囲）。
 
