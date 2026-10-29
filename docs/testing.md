@@ -10206,7 +10206,7 @@ L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT �
 
 ### 5.369 data-payload の書き換え（TASK-148 1/2。SAFE-6）
 
-画面の操作要素の `data-payload` は開発者ツールで書き換えられる前提で、書き換えて click しても「実行 0・外部通信 0・形が合わない値は受け付けられず世界状態が変わらない・タブが落ちない」ことを `tools/browser/data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）で確かめる。`submit` の `data-action` の書き換えと 377 回の総数の照合は TASK-148 2/2（#853）の担当で、ここでは目標にしない。
+画面の操作要素の `data-payload` は開発者ツールで書き換えられる前提で、書き換えて click しても「実行 0・外部通信 0・形が合わない値は受け付けられず世界状態が変わらない・タブが落ちない」ことを `tools/browser/data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）で確かめる。`submit` の `data-action` の書き換えと 377 回の総数の照合は TASK-148 2/2（5.372）。
 
 #### 値の出所
 
@@ -10266,7 +10266,7 @@ spec の名前は試作の名前で、現行の DOM とは一致しない。現�
 - `stop-btn` は処理中だけ出るため扱っていない。`hint-btn`・`tick-trigger`・`esc-trigger` は現行の画面に無い（0 件を確かめるだけ）
 - 保存先の比較は localStorage だけで、IndexedDB は比べていない
 - 配信する設定は IR なしの枠だけ。IR を同梱した配信物での SAFE-1〜7 の流し直しは TASK-170 の担当
-- 377 回の総数の照合と `submit` の `data-action` の書き換えは TASK-148 2/2
+- 377 回の総数の照合と `submit` の `data-action` の書き換えは TASK-148 2/2（5.372）
 
 #### 件数・確認（2026-10-29）
 
@@ -10352,6 +10352,41 @@ URL の組み立て。query は `encodeURIComponent` した値を付け（`#` �
 #### 限界
 
 `docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」に記録する。
+
+### 5.372 submit の data-action の書き換え（TASK-148 2/2。SAFE-6）
+
+`data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）に、`submit-input` の `data-action` を書き換えて押す試験と、click の総数の照合を足した。spec の `submit-btn` は現行の `submit-input`（`data-action="submit"`。`data-payload` は持たない）に当たる。
+
+#### 値と期待
+
+値は spec の SAFE-6 と PoC-7 README の E5 の行が挙げる `raw`・`debug`・`unknown`・`__proto__` の 4 つ（testdata に構造化された写しが無いため `ACTION_TAMPER_NAMES` に固定した）。`decode_action`（`crates/web/src/host.rs`）では、`raw` は試験の設定だけに分岐があり（payload が空なら `Op` の復号に失敗して何も起きない）、配信する設定にはコンパイルされない。他の 3 つはどの分岐にも当たらず `None` になる。よって期待は、画面・世界状態・ログ・localStorage・入力欄の value がすべて同一（5.369 の分類 D）。押し方は click と、入力欄での Enter（glue が `submit-input` を click する経路）の 2 通り。
+
+#### 場面と対照
+
+| 場面 | 内容 |
+|---|---|
+| AS | 試験の設定（`?fixture=ch0-3-chapters`）。下書き `/x` を置き、4 名 × 2 経路 |
+| AP | 配信する設定（IR あり。`FANDHE_WEB_AUTHOR_DIR`）。`__fandheTest` と `raw-trigger` が無いことを確かめ、AS と同じ 8 回に加え、`raw` と正しい `Op` の JSON の組を押しても同一であることを確かめる（SHELL-35 の振る舞いの面の証拠） |
+| AN | 配信する設定（IR なし）。`submit-input` は 1 件あり、AS と同じ 8 回 |
+| EA1 | 書き換えない送信は入力欄・ログの変化として検出される（D の判定の素通りの防止） |
+| EA2 | 試験の設定では `raw` と正しい `Op` の組が状態を変える（AP で何も起きないのは口が無いため） |
+
+各場面で、禁止の要素が増えないこと、書き換えた `data-action` が残っていないこと、`collectSafety` の計数・CSP 違反・ページ内エラーが 0 件であることを確かめる。CSP あり・なしの両方で流す。
+
+#### 総数の照合
+
+`総数` の試験が、6 場面がすべて完了したこと、`data-payload` の click が PoC-7 の 377 回（29 要素 × 13 値）以上であることを確かめる。377 は現行の画面に合わせる目標ではなく下限で、実測は `data-payload` 2,458 回 + `data-action` 50 回 = 2,508 回。各場面が実行 0・外部通信 0 を個別に assert するため、全場面が通れば全体で成り立つ。`--test-name-pattern` で絞ると失敗する（fail-closed）。
+
+#### 限界
+
+- `submit-input` 以外の口の `data-action` の書き換えは扱わない。`stop` など実在する別の名前への書き換えは別の action になり、「何も起きない」に当たらない
+- localStorage だけを比べ、IndexedDB は比べていない。IR を同梱した配信物での SAFE-1〜7 の流し直しは TASK-170
+
+#### 件数・確認（2026-10-29）
+
+- `data-payload-tamper.test.mjs` の 21 件がすべて通った（約 6 分 33 秒、ローカル）
+- 手元の変異: `HelloView::decode_action` が `unknown` でも `Submit` を返すように変えると、AS の `unknown`（click・Enter）が失敗した。戻して通ることも確認した
+- `make test-browser` の全体は流していない（未検証。CI に任せる）。`scripts/expected-test-counts.txt` は変えていない（版上げの前に別に直す）
 
 ### 5.373 IR の大きさの上限（TASK-154。SAFE-17・SAFE-45）
 

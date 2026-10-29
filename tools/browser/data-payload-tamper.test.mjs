@@ -2,14 +2,14 @@
 //
 // 受講者が開発者ツールで属性を書き換えても、実行 0・外部通信 0・形が合わない値は受け付けられず状態が変わらず、タブが落ちないことを確かめる。
 // 値は spec の PoC-7 の追補 4 の写し（`e5_data_payload`。XSS 6 件 + 壊れた値 7 件の 13 値）を data-payload-cases.mjs が読む。
-// `submit` の `data-action` の書き換えと 377 回の総数の照合は TASK-148 2/2 の担当で、ここでは目標にしない。
+// `submit-input` の `data-action` の書き換え（試験の設定・配信する設定。TASK-148 2/2。docs/testing.md 5.372）と、全体の click が PoC の 377 回以上の照合もここで行う。
 //
 // 対象は spec の 10 種ではなく現行の画面の口（対応は docs/testing.md 5.369）。場面ごとに root 内の `[data-payload]` の `data-action` の集合が
 // 閉じた一覧とちょうど一致することを確かめ（新しい口が試験されずに紛れ込まない）、各種類の全インスタンスを 13 値で書き換える。
 // 期待は decode_action の実装から分類した D（復号で断る・全て同一）・J（core が断る・状態は同一でログは rejected だけ）・I（payload を読まない・対照と同じ）。
 // 試験の設定だけの `raw-trigger` は正当に状態を変えるため対象から名前つきで除く。配信する設定には 0 件で、E4 は除く理由の記録。
 // 場面への到達は実際の click だけで行い、`raw-trigger` は使わない。試験の出力に入力した値は出さない（label だけ）。
-// 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_WEB_DIR。どちらも未設定・不在は skip にせず失敗にする。
+// 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_WEB_DIR・FANDHE_WEB_AUTHOR_DIR（IR を同梱した配信する設定）。どちらも未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -22,6 +22,7 @@ import {
 import { loadDataPayloadCases } from './data-payload-cases.mjs';
 import {
   ROOT, RAW_TESTID, CLASS_OF, diffInventory, inventory, absentCounts, observe, dangerCount, sameState, tamperClick, tamperGroup,
+  ACTION_TAMPER_NAMES, sameStateWithDraft, tamperActionClick,
 } from './data-payload-tamper.mjs';
 
 const BASE = '/fandhe-data-payload/';
@@ -35,7 +36,14 @@ const FIREFOX = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100
 const BASE_ACTIONS = ['save-checkpoint', 'select-pane', 'select-view'];
 let browser;
 let cases;
-const tally = { clicks: 0, skipped: 0 };
+const tally = { clicks: 0, skipped: 0, actionClicks: 0, actionScenes: 0 };
+// PoC-7 の 29 要素 × 13 値。現行の画面に合わせた目標ではなく `data-payload` の書き換えの下限（実測は 2,458 回）。
+const POC_CLICKS = 377;
+const ACTION_SCENES = 6;
+// 受け付けられない文字の下書き。書き換えない送信の対照では入力欄・ログが変わる。
+const DRAFT_TEXT = '/x';
+// 試験の設定で受け付けられる正しい `Op`（st-0-1 の正答）。`raw` と組むと試験の設定だけ状態が変わる。
+const VALID_OP = '{"input":{"choice":"opt-right"}}';
 
 function assertDir(name, hint) {
   const dir = process.env[name];
@@ -45,13 +53,14 @@ function assertDir(name, hint) {
 before(async () => {
   assertDir('FANDHE_WEB_DIR', 'a web directory built without TEST_HOOKS');
   assertDir('FANDHE_WEB_TEST_DIR', 'a web directory built with TEST_HOOKS=1');
+  assertDir('FANDHE_WEB_AUTHOR_DIR', 'a web directory built with IR_FILE and without TEST_HOOKS');
   cases = loadDataPayloadCases();
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
 
 after(async () => {
   if (browser) await browser.close();
-  console.log(`data-payload の書き換え: click ${tally.clicks} 回（値が元と一致して除いた組 ${tally.skipped}）`);
+  console.log(`data-payload の書き換え: click ${tally.clicks} 回（値が元と一致して除いた組 ${tally.skipped}）。data-action の書き換え: click ${tally.actionClicks} 回`);
 });
 
 const groupSelector = (action) => `${ROOT} [data-payload][data-action="${action}"]:not([data-testid="${RAW_TESTID}"])`;
@@ -99,6 +108,31 @@ async function openScene(csp, { dir = process.env.FANDHE_WEB_TEST_DIR, query = Q
     assert.deepEqual(L.failed(), [], JSON.stringify({ rec: s }));
     await context.close();
   }));
+}
+
+const SUBMIT_ALL = `${ROOT} [data-testid="submit-input"]`;
+
+// `submit-input` の `data-action` を 4 つの名前に書き換え、click と Enter の 2 経路で押す。期待は D（画面・状態・ログ・保存先・入力欄が同一）。
+// 戻り値は押した回数。hooks が無い配信する設定では状態とログは読まず、画面・保存先・入力欄を比べる。
+async function actionScene(page, L, scene, hooks) {
+  L.check(scene, 'submit-input がちょうど 1 件で data-action が submit', await page.evaluate((sel) => {
+    const e = document.querySelectorAll(sel);
+    return e.length === 1 && e[0].getAttribute('data-action') === 'submit';
+  }, SUBMIT_ALL));
+  await page.fill(DRAFT, DRAFT_TEXT);
+  let n = 0;
+  for (const action of ACTION_TAMPER_NAMES) {
+    for (const via of ['click', 'enter']) {
+      const r = await tamperActionClick(page, hooks, SUBMIT, { action, via });
+      assert.ok(!r.gone, `${scene}/${action}/${via}: 要素が消えた`);
+      n += 1;
+      L.check(scene, `data-action=${action}（${via}）: 画面・状態・ログ・保存先・入力欄が同一`, sameStateWithDraft(r.before, r.after));
+      L.check(scene, `data-action=${action}（${via}）: 禁止の要素が増えない`, r.danger.before === r.danger.after);
+    }
+  }
+  tally.actionClicks += n;
+  L.check(scene, '書き換えた data-action が残っていない', await page.evaluate((sel) => [...document.querySelectorAll(sel)].every((e) => e.getAttribute('data-action') === 'submit'), SUBMIT_ALL));
+  return n;
 }
 
 for (const csp of [true, false]) {
@@ -157,6 +191,39 @@ for (const csp of [true, false]) {
     await openScene(csp, { userAgent: FIREFOX }, async (page, L) => {
       L.check('S4', '通知が 1 件出ている', (await page.locator('[data-testid="shell-notice-item"]').count()) === 1);
       await sweep(page, L, true, 'S4', [...BASE_ACTIONS, 'choose', 'dismiss-notice']);
+    });
+  });
+
+  test(`submit-input の data-action の書き換え（試験の設定。${mode}）`, { timeout: 600000 }, async () => {
+    await openScene(csp, {}, async (page, L) => {
+      L.check('AS', '開いた直後は main/st-0-1', (await engine(page)).current === 'main/st-0-1');
+      L.check('AS', '試験の設定には raw-trigger がある', (await page.locator(`[data-testid="${RAW_TESTID}"]`).count()) === 1);
+      L.check('AS', '4 つの名前をそれぞれ click と Enter で押した', (await actionScene(page, L, 'AS', true)) === ACTION_TAMPER_NAMES.length * 2);
+      tally.actionScenes += 1;
+    });
+  });
+
+  test(`submit-input の data-action の書き換え（配信する設定・IR あり。${mode}）`, { timeout: 600000 }, async () => {
+    await openScene(csp, { dir: process.env.FANDHE_WEB_AUTHOR_DIR, query: '', hooks: false }, async (page, L) => {
+      L.check('AP', '__fandheTest が無い', (await page.evaluate(() => typeof window.__fandheTest)) === 'undefined');
+      L.check('AP', 'raw-trigger が 0 件', (await page.locator(`[data-testid="${RAW_TESTID}"]`).count()) === 0);
+      L.check('AP', '4 つの名前をそれぞれ click と Enter で押した', (await actionScene(page, L, 'AP', false)) === ACTION_TAMPER_NAMES.length * 2);
+      // 配信する設定には raw の分岐が無い。正しい Op を payload に置いても何も起きない（SHELL-35 の振る舞いの面の証拠）。
+      const r = await tamperActionClick(page, false, SUBMIT, { action: 'raw', payload: VALID_OP, via: 'click' });
+      tally.actionClicks += 1;
+      L.check('AP', 'raw と正しい Op の組でも画面・保存先・入力欄が同一', !r.gone && sameStateWithDraft(r.before, r.after));
+      tally.actionScenes += 1;
+    });
+  });
+
+  test(`submit-input の data-action の書き換え（配信する設定・IR なし。${mode}）`, { timeout: 600000 }, async () => {
+    await openScene(csp, { dir: process.env.FANDHE_WEB_DIR, query: '', hooks: false }, async (page, L) => {
+      const n = await page.locator(SUBMIT_ALL).count();
+      console.log(`IR なしの配信する設定の submit-input: ${n} 件`);
+      L.check('AN', 'submit-input の件数が実測（1 件）と一致', n === 1);
+      L.check('AN', '__fandheTest が無い', (await page.evaluate(() => typeof window.__fandheTest)) === 'undefined');
+      if (n === 1) await actionScene(page, L, 'AN', false);
+      tally.actionScenes += 1;
     });
   });
 
@@ -219,4 +286,29 @@ test('対照: 変化の検出・文字だけの判定・閉じた一覧・raw-tr
     const o1 = await observe(page, true);
     console.log(`E4 診断: raw-trigger の書き換えの click で状態が${sameState(o0, o1) ? '変わらなかった' : '変わった'}（ログ ${e0.log.length} -> ${o1.eng.kinds.length}）`);
   });
+});
+
+test('対照: 書き換えない送信は変化として検出され、試験の設定の raw と正しい Op は状態を変える', { timeout: 600000 }, async () => {
+  await openScene(true, {}, async (page, L) => {
+    // EA1: 同じ下書きで書き換えない送信を押すと、同じ観察の関数が変わったと検出する（D の判定の素通りの防止）。
+    await page.fill(DRAFT, DRAFT_TEXT);
+    const base = await observe(page, true);
+    await page.evaluate((sel) => document.querySelector(sel).click(), SUBMIT);
+    await page.waitForTimeout(500);
+    const sent = await observe(page, true);
+    L.check('EA1', '書き換えない送信で入力欄・ログが変わると検出する', !sameStateWithDraft(base, sent));
+    // EA2: 試験の設定では raw と正しい Op の組が状態を変える。AP で何も起きないのは配信する設定に口が無いため、と示す。
+    const r = await tamperActionClick(page, true, SUBMIT, { action: 'raw', payload: VALID_OP, via: 'click' });
+    L.check('EA2', '試験の設定の raw と正しい Op で状態またはログが変わる', !r.gone && !sameState(r.before, r.after));
+  });
+});
+
+// 全体の照合: 場面がすべて完了し、data-payload の click が PoC の 377 回以上、data-action の click が加わる。
+// 各場面は collectSafety・CSP・ページ内エラーの 0 件を個別に assert しているため、場面がすべて通れば全体で実行 0・外部通信 0。
+// --test-name-pattern で絞った実行ではこの照合が失敗する（fail-closed）。
+test('総数: click の全体が 377 回以上で、すべての場面が完了した', () => {
+  console.log(`click 合計: data-payload ${tally.clicks} 回 + data-action ${tally.actionClicks} 回 = ${tally.clicks + tally.actionClicks} 回`);
+  assert.equal(tally.actionScenes, ACTION_SCENES);
+  assert.ok(tally.clicks >= POC_CLICKS, 'data-payload の click が PoC の 377 回に届かない');
+  assert.ok(tally.clicks + tally.actionClicks >= POC_CLICKS);
 });

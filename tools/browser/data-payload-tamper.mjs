@@ -1,6 +1,6 @@
 // `data-payload` の書き換え試験（TASK-148。SAFE-6）の補助。書き換え → click → 安定待ち → 観察 → 元の値へ戻す、と期待の分類を持つ。
 //
-// 呼び出し元は data-payload-tamper.test.mjs と、`submit` の `data-action` の書き換えを足す TASK-148 2/2。試験でないモジュールにして、
+// 呼び出し元は data-payload-tamper.test.mjs（`data-payload` の書き換え = TASK-148 1/2 と、`submit` の `data-action` の書き換え = 2/2）。試験でないモジュールにして、
 // `.test.mjs` を import したときの二重登録を避ける。入力した値は戻り値・失敗の文に載せず、ケースは label（XSS の ID・`raw[n]`）だけで示す。
 // 観察は試験の設定の `window.__fandheTest`（hooks）があれば状態とログも比べ、無ければ（配信する設定）画面と保存先だけを比べる。
 import { DANGER_TAGS } from './harness.mjs';
@@ -216,4 +216,55 @@ export async function tamperGroup(page, hooks, { name, selector, cls, values, dr
     }
   }
   return out;
+}
+
+// `submit-input` の `data-action` の書き換え（TASK-148 2/2。SAFE-6）。値は spec の SAFE-6 と PoC-7 README の E5 の行が挙げる 4 つの名前
+// （testdata に構造化された写しは無いため、ここで固定する）。`raw` は試験の設定だけに口がある action で、配信する設定にはコンパイルされない。
+export const ACTION_TAMPER_NAMES = ['raw', 'debug', 'unknown', '__proto__'];
+
+// 入力欄の value まで含めて同一か（`sameState` は画面・保存先・状態・ログだけを比べる）。
+export function sameStateWithDraft(a, b) {
+  return sameState(a, b) && a.draft === b.draft;
+}
+
+// 1 回の書き換え。`selector` の唯一の要素の `data-action` を `action` に置き（`payload` が null でなければ `data-payload` も置く）、
+// `via` が click なら要素を click、enter なら入力欄で Enter を押す（glue が submit-input を click する経路）。安定を待ち、書き換えた値が
+// 残っている要素だけ元へ戻す。戻り値は { gone, before, after, danger: { before, after } }。値は戻り値に載せない。
+export async function tamperActionClick(page, hooks, selector, { action, payload = null, via = 'click', draftSelector = '[data-testid="draft-input"]' }) {
+  // Enter は入力欄にフォーカスがあって初めて送信になる。フォーカス（候補の整えなど）の変化を書き換えの結果に混ぜないよう、観察の前に済ませる。
+  if (via === 'enter') {
+    await page.focus(draftSelector);
+    await settle(page, hooks);
+  }
+  const before = await observe(page, hooks);
+  const dangerBefore = await dangerCount(page);
+  const orig = await page.evaluate(([sel, a, p]) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const o = { action: el.getAttribute('data-action'), payload: el.getAttribute('data-payload') };
+    el.setAttribute('data-action', a);
+    if (p !== null) el.setAttribute('data-payload', p);
+    return o;
+  }, [selector, action, payload]);
+  if (!orig) return { gone: true };
+  if (via === 'enter') {
+    await page.keyboard.press('Enter');
+  } else {
+    await page.evaluate((sel) => document.querySelector(sel)?.click(), selector);
+  }
+  await settle(page, hooks);
+  await page.evaluate(([sel, a, p, o]) => {
+    const el = document.querySelector(sel);
+    if (!el) return;
+    if (el.getAttribute('data-action') === a) {
+      if (o.action === null) el.removeAttribute('data-action');
+      else el.setAttribute('data-action', o.action);
+    }
+    if (p !== null && el.getAttribute('data-payload') === p) {
+      if (o.payload === null) el.removeAttribute('data-payload');
+      else el.setAttribute('data-payload', o.payload);
+    }
+  }, [selector, action, payload, orig]);
+  const after = await observe(page, hooks);
+  return { gone: false, before, after, danger: { before: dangerBefore, after: await dangerCount(page) } };
 }
