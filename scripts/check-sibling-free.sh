@@ -16,6 +16,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "${DIR}/lib.sh"
 
+require_cmd dirname
+require_cmd ls
+
 ROOT="${ROOT_DIR}"
 case "$#" in
   0) ;;

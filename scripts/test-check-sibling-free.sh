@@ -9,6 +9,9 @@ source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
 require_cmd mktemp
+require_cmd rm
+require_cmd mkdir
+require_cmd ln
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 CHECK="${DIR}/check-sibling-free.sh"
