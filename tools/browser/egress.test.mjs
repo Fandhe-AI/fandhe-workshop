@@ -7,7 +7,7 @@ import { classifyRequest, classifyCall, egressFailures, relPath } from './egress
 const O = 'http://127.0.0.1:4000';
 const B = '/fandhe-egress/';
 const ctx = { origin: O, base: B };
-const req = (url, method = 'GET', resourceType = 'fetch') => classifyRequest({ url, method, resourceType }, ctx);
+const req = (url, method = 'GET', resourceType = 'fetch', isMainFrame = resourceType === 'document') => classifyRequest({ url, method, resourceType, isMainFrame }, ctx);
 
 test('relPath は base の外を null にする', () => {
   assert.equal(relPath('/fandhe-egress/app.js', B), 'app.js');
@@ -25,6 +25,19 @@ test('配信物の構成要素への GET は ok', () => {
 test('文書のクエリは ok、サブリソースのクエリは offAllowlist', () => {
   assert.equal(req(`${O}${B}?fixture=ch0-3-chapters`, 'GET', 'document'), 'ok');
   assert.equal(req(`${O}${B}ir/main.json?x=1`), 'offAllowlist');
+});
+
+test('負の対照: iframe（サブフレーム）の文書要求・他のパス・鍵や値が外れたクエリは offAllowlist', () => {
+  const hist = 'a'.repeat(200);
+  // iframe の src で履歴を配信元へ送る抜け道
+  assert.equal(req(`${O}${B}ir/main.json?history=${hist}`, 'GET', 'document', false), 'offAllowlist');
+  assert.equal(req(`${O}${B}?fixture=ch0-3-chapters`, 'GET', 'document', false), 'offAllowlist');
+  // メインフレームでも、試験のページ以外・知らない鍵・長い値は通さない
+  assert.equal(req(`${O}${B}ir/main.json?history=x`, 'GET', 'document', true), 'offAllowlist');
+  assert.equal(req(`${O}${B}?history=x`, 'GET', 'document', true), 'offAllowlist');
+  assert.equal(req(`${O}${B}?fixture=${hist}`, 'GET', 'document', true), 'offAllowlist');
+  // 正の対照
+  assert.equal(req(`${O}${B}?fixture=ch0-3-chapters&start=st-1`, 'GET', 'document', true), 'ok');
 });
 
 test('構成要素以外のパスと base の外は offAllowlist', () => {

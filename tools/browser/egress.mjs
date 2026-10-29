@@ -29,10 +29,25 @@ export function relPath(pathname, base) {
   return pathname.slice(base.length);
 }
 
+// 試験が開くページの固定クエリの鍵。値は短い識別子の形に限る（履歴などの長い値を載せた文書要求を通さない）。
+const PAGE_QUERY_KEYS = new Set(['fixture', 'start', 'ir', 'tick']);
+const PAGE_QUERY_VALUE = /^[A-Za-z0-9._\/-]{0,64}$/;
+
+// クエリつきの要求を許すのは、メインフレームの文書要求で、試験のページ（'' か index.html）への固定の鍵・短い値だけ。
+// サブフレーム（iframe の src）や他のパスへの文書要求は許さない。
+function isTestPageQuery(u, resourceType, isMainFrame, rel) {
+  if (resourceType !== 'document' || !isMainFrame) return false;
+  if (rel !== '' && rel !== 'index.html') return false;
+  for (const [k, v] of u.searchParams) {
+    if (!PAGE_QUERY_KEYS.has(k) || !PAGE_QUERY_VALUE.test(v)) return false;
+  }
+  return true;
+}
+
 // 配信元への要求（Playwright の Request 由来の値）を分類する純関数。
 // 戻り値: 'ok' | 'nonGet'（GET・HEAD 以外）| 'offAllowlist'（構成要素以外のパス、またはサブリソースのクエリ）| 'offOrigin'。
 // data:・blob: は同一文書内の資源で通信ではないため 'ok'。favicon.ico はクエリなしの GET・HEAD に限り 'ok'（取得が揺れるため。クエリつきは通常の分類に進む）。
-export function classifyRequest({ url, method, resourceType }, { origin, base }) {
+export function classifyRequest({ url, method, resourceType, isMainFrame = false }, { origin, base }) {
   if (url.startsWith('data:') || url.startsWith('blob:')) return 'ok';
   let u;
   try {
@@ -45,7 +60,7 @@ export function classifyRequest({ url, method, resourceType }, { origin, base })
   if (u.pathname === '/favicon.ico' && u.search === '' && u.hash === '') return 'ok';
   const rel = relPath(u.pathname, base);
   if (rel === null || !ALLOWED_PATHS.has(rel)) return 'offAllowlist';
-  if (u.search !== '' && resourceType !== 'document') return 'offAllowlist';
+  if (u.search !== '' && !isTestPageQuery(u, resourceType, isMainFrame, rel)) return 'offAllowlist';
   return 'ok';
 }
 
@@ -141,7 +156,7 @@ export async function attachEgress(context, { origin, base }) {
   for (const p of context.pages()) watch(p);
   context.on('page', watch);
   context.on('request', (req) => {
-    const kind = classifyRequest({ url: req.url(), method: req.method(), resourceType: req.resourceType() }, { origin, base });
+    const kind = classifyRequest({ url: req.url(), method: req.method(), resourceType: req.resourceType(), isMainFrame: req.frame()?.parentFrame() === null }, { origin, base });
     if (kind === 'nonGet') eg.nonGet += 1;
     else if (kind === 'offAllowlist') eg.offAllowlist += 1;
     else if (kind === 'offOrigin') eg.offOriginRequests += 1;
