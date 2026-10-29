@@ -10204,6 +10204,76 @@ L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT �
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
 - 範囲外: URL の入り口（SAFE-7）は #850（TASK-147 2/2）
 
+### 5.369 data-payload の書き換え（TASK-148 1/2。SAFE-6）
+
+画面の操作要素の `data-payload` は開発者ツールで書き換えられる前提で、書き換えて click しても「実行 0・外部通信 0・形が合わない値は受け付けられず世界状態が変わらない・タブが落ちない」ことを `tools/browser/data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）で確かめる。`submit` の `data-action` の書き換えと 377 回の総数の照合は TASK-148 2/2（#853）の担当で、ここでは目標にしない。
+
+#### 値の出所
+
+spec の PoC-7 の追補 4 の写し `testdata/untrusted-input-safety/test-data-addendum-4/extra-cases.json` の `e5_data_payload`（対象 10 件・XSS の ID 6 件・壊れた値 7 件の 13 値）を `data-payload-cases.mjs` が読む。`test-data-addendum-4.sha256` と照合し、件数が違う・XSS の ID が引けない場合は例外にする（fail-closed。`data-payload-cases.test.mjs` が対照を持つ）。XSS の本文は `xss-cases.mjs` で ID から引き、tools 側へ書き写さない。試験の出力にはペイロードを出さず、`XSS-nn` と `raw[n]` の番号だけを使う。
+
+#### spec の 10 種と現行の画面の対応
+
+spec の名前は試作の名前で、現行の DOM とは一致しない。現行の画面で次のように読み替えた。
+
+| spec の名前 | 現行の要素（`data-action`） | 扱い |
+|---|---|---|
+| `submit-btn`・`stop-btn` | `submit-input`（`submit`。`data-payload` を持たない）・`stop-btn`（`stop`） | `submit-input` は属性を足して click（分類 I）。`stop-btn` は処理中だけ出るため扱っていない（限界） |
+| `hint-btn` | 無い（ヒントの画面は未実装） | 全場面で 0 件を確かめる |
+| `offer-btn` | `choice-btn`（`choose`）・`approval-btn`（`decide`・`revise-target`） | 書き換えの対象 |
+| `goto-btn` | `shell-next-chapter`（`next-chapter`）。現行だけの移動系 `pane-tab`（`select-pane`）・`view-select-button`（`select-view`）・指せる行（`ui`） | 書き換えの対象 |
+| `restore-btn` | `checkpoint-restore`（`restore-checkpoint`） | 書き換えの対象 |
+| `candidate-btn` | `candidate-btn`（`data-action`・`data-payload` を持たない） | 属性を足して click（分類 I） |
+| `tick-trigger`・`esc-trigger` | 置かない（FEND-4） | 全場面で 0 件を確かめる |
+| `save-btn` | `checkpoint-save`（`save-checkpoint`。正規の payload は空） | 書き換えの対象。値が空文字の組は正規の click になるため押さない |
+| （現行だけ） | `dismiss-notice`（`shell-dismiss`） | 書き換えの対象（枠の通知を Chrome 以外の UA で出す） |
+| （試験の設定だけ） | `raw-trigger`（`raw`） | 対象から名前つきで除く（下記 E4） |
+
+#### 確かめること
+
+`decode_action`（`crates/web/src/host.rs`）の実装から期待を分類した。場面ごとに root 内の `[data-payload]` の `data-action` の集合が閉じた一覧とちょうど一致することを先に確かめ（新しい口が試験されずに紛れ込まない）、各種類の全インスタンスを 13 値で書き換えて click する。1 回の手順は、観察 → 書き換え → click → 安定待ち（処理中でなく、画面・ログ・保存先が連続 3 回の読みで変わらない）→ 元の値へ戻す → 観察。
+
+| 分類 | 対象 | 期待 |
+|---|---|---|
+| D（復号で断る） | `save-checkpoint`・`restore-checkpoint`・`select-pane`・`select-view`・`decide`・`dismiss-notice`・`ui` | root の中身・世界状態・ログ・localStorage がすべて同一 |
+| J（復号は通り core が断る） | `choose`・`revise-target`・`next-chapter` | 世界状態と現在の Step が同一。ログの増分は受信（`input_received`）と `rejected` の判定（`judged`）だけで、受付・達成・進入・復帰の行は増えない。受信は履歴の `ops` に残るため localStorage は変わりうる（入力として記録する設計） |
+| I（payload を読まない） | `submit-input`・`candidate-btn` | 書き換えない click の直前の対照と同じ変化（状態・保存先・ログの増分・入力欄の value で比べる。候補は対照と書き換えを同じ下書き `/` から実行する） |
+
+全組に共通して、禁止の要素（`DANGER_TAGS`）の数が click の前後で増えないこと、場面の終わりに `collectSafety` の計数（記録用の関数の呼び出し・ダイアログ・ポップアップ・タブの異常終了・CSP の違反・ページ内エラー・配信元以外への通信）がすべて 0 であること、書き換えた値が属性に残っていないことを確かめる。CSP あり・なしの両方で流す。
+
+場面（到達は実際の click だけで、`raw-trigger` は使わない）:
+
+| 場面 | 内容 |
+|---|---|
+| S1・S1w | 開いた直後（`?fixture=ch0-3-chapters`）。幅 1280px と、tablist が見える 959px |
+| N・A2 | CH-0 の終わり（「次の章へ進む」が出た時点）と、CH-1 の `st-1-4`（チェックポイントを 1 件保存済み。指せる行・復帰・送信・候補） |
+| S3 | `?fixture=ch0-3-revise&start=s-2-6`（承認と「直す」の対象 3 件） |
+| S4 | Chrome 以外の UA で開いた枠の通知欄（`dismiss-notice`） |
+| P | 配信する設定（IR なし）。`raw-trigger`・`__fandheTest` が無く、あるだけの口の書き換えで画面と保存先が変わらない |
+
+#### 対照
+
+| 対照 | 内容 |
+|---|---|
+| E1 | 正規の payload の click（保存・選択肢）は、同じ観察の関数が「変わった」と検出する |
+| E2 | 切り離した要素に解釈される入力を入れると禁止の要素を 3 件数え、文字だけの入力は 0 件 |
+| E3 | 未知の `data-action` を持つ口を足すと、閉じた一覧との不一致として検出される |
+| E4 | `raw-trigger` に壊れた値を書いて click すると状態が変わった（診断に記録。`raw` は教材の操作を送る試験の設定だけの口で、正当に状態を変えるため書き換えの対象から除く。挙動自体は固定しない） |
+
+#### 限界
+
+- `checkpoint-page`（`checkpoint-older`・`checkpoint-newer`）は 501 件以上の保存で初めて出るため、ブラウザでは書き換えていない
+- `stop-btn` は処理中だけ出るため扱っていない。`hint-btn`・`tick-trigger`・`esc-trigger` は現行の画面に無い（0 件を確かめるだけ）
+- 保存先の比較は localStorage だけで、IndexedDB は比べていない
+- 配信する設定は IR なしの枠だけ。IR を同梱した配信物での SAFE-1〜7 の流し直しは TASK-170 の担当
+- 377 回の総数の照合と `submit` の `data-action` の書き換えは TASK-148 2/2
+
+#### 件数・確認（2026-10-29）
+
+- `data-payload-tamper.test.mjs` の 13 件がすべて通った。書き換えの click は全体で 2,458 回（値が元の payload と一致して押さなかった組が 12）。実行時間は約 6 分 36 秒（ローカル）。`data-payload-cases.test.mjs` の 3 件も通った
+- 手元の変異: `decode_action` の `save-checkpoint` の復号を、空でない payload も受けるように変えると、S1 の D（`save-checkpoint`）が失敗した（画面・状態・ログが変わり、復帰の口が 12 件増えた）。戻して再び通ることも確認した
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+
 ### 5.370 URL のクエリとハッシュからの注入 61 回（TASK-147 2/2。SAFE-7）
 
 元にしたコミット: `46ec8f4f`（実行日 2026-10-29）。URL のクエリとハッシュに入れた注入用の文字列が、配信する設定の画面で何も実行されず、画面のどこにも出ず、通信も増やさないことを確かめる試験 `tools/browser/url-xss.test.mjs` と、入力の読み込み `tools/browser/url-cases.mjs`（単体試験は `url-cases.test.mjs`）を足した（TASK-147 の 2/2。1/2 は 5.368）。
