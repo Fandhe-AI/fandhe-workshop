@@ -190,7 +190,13 @@ export async function tamperGroup(page, hooks, { name, selector, cls, values }) 
         if (!sameCore(r.before, r.after)) fail('世界状態または現在の Step が変わった');
         else if (!jLogOk(r.before, r.after)) fail('受信と rejected の判定以外のログが増えた');
       } else if (cls === 'I') {
-        const sig = (x) => JSON.stringify({ changed: !sameCore(x.before, x.after) || x.before.ls !== x.after.ls, kinds: addedKinds(x.before, x.after) });
+        // 世界状態・現在の Step の変化と保存内容の変化は別々の真偽値で比べ、増えたログの種類と行も照合する。
+        const sig = (x) => JSON.stringify({
+          core: !sameCore(x.before, x.after),
+          ls: x.before.ls !== x.after.ls,
+          kinds: addedKinds(x.before, x.after),
+          lines: x.before.eng ? x.after.eng.lines.slice(x.before.eng.lines.length) : [],
+        });
         if (sig(r) !== sig(control)) fail(`書き換えない click と結果が違う（${sig(r)} / 対照 ${sig(control)}）`);
       } else {
         fail(`未知の分類 ${cls}`);
