@@ -2,7 +2,7 @@
 //!
 //! `module-reuse-rounds` を `compile_dir` した IR で、1 周目の Step でヒントを開いてから 2 周目を開始し、
 //! 2 周目の根の使用回数が 0 から始まること、2 周目で開いても 1 周目の合計が変わらないことを確かめる。
-//! 停止・復帰・移動で減らないことの網羅は TASK-297 2/2（#874）が持つ。
+//! 停止・復帰・移動で減らないことの網羅は core の `hint_count_monotone` と pack の `round_hint_counts`（TASK-297 2/2）が持つ。
 
 mod common;
 #[path = "common/rounds.rs"]

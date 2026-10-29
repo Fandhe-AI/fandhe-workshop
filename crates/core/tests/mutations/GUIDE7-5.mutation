@@ -1,0 +1,9 @@
+id: GUIDE7-5
+package: fandhe-workshop-core
+test: hint_count_monotone
+target: crates/core/src/go_to.rs
+find:     state.run.busy = None;
+replace:     state.run.busy = None; state.hints_opened.retain(|k, _| k.0 == to.0);
+expect-fail: goto_other_root_and_back_keeps_counts
+expect-fail: property_hint_counts_never_decrease
+note: 移動が移動先以外のヒントの使用回数を落とす

@@ -165,7 +165,7 @@ pub struct SessionState {
     /// Step の実体ごとに開いたヒントの段数。停止・復帰で戻さない（GUIDE-7）ため、`run` の外に置く。
     /// 1 段ずつ増やす処理は `hint_open`（TASK-295）。鍵は Step の実体 ID（根を含む完全な uid）なので、周回・実体ごとに
     /// 分かれる（TASK-297 1/2）。実体（根）ごとの合計は [`SessionState::hints_opened_in`]、1 Step の段数は
-    /// [`SessionState::hints_opened_at`] で読む。
+    /// [`SessionState::hints_opened_at`] で読む。減らないことは `tests/hint_count_monotone.rs`（TASK-297 2/2）が固定する。
     pub hints_opened: BTreeMap<StepUid, u32>,
 }
 
