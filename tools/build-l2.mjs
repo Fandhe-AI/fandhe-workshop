@@ -2,13 +2,15 @@
 // L2 の配布物（zip）の作成スクリプト（TASK-112 1/2。D-58・D-71・DLV-13・DLV-18。`make build-l2` から呼ばれる）。
 //
 // 目的: 受講者が Rust なしに教材を開くための zip を作る。形は miniserve（上流のビルド済み実行ファイル）と静的ファイル:
-//   fandhe-workshop-l2/{start.sh, miniserve, site/}。site/ は配信する設定の配信物（tools/build-web.sh の出力）そのもの。
-//   受講者の操作は「展開・./start.sh・URL を開く」の 3 つ。
+//   fandhe-workshop-l2/{start.sh, miniserve, site/, LICENSE-miniserve.txt, THIRD-PARTY-NOTICES.txt}。site/ は配信する設定の配信物（tools/build-web.sh の出力）そのもの。
+//   受講者の操作は「展開・./start.sh・URL を開く」の 3 つ。Windows（windows-x64）だけ start.cmd・miniserve.exe になる（TASK-198。DLV-22）。
+//   LICENSE-miniserve.txt（miniserve の MIT のライセンス文。上流の逐語の写しで固定値と照合する）と THIRD-PARTY-NOTICES.txt
+//   （同梱物と取り下げ済みの crate の記録）は、再配布の条件と LIC-10 のため全 platform の最上位に入れる（TASK-137。D-58・D-71）。
 // 入力（環境変数。位置引数は誤用）:
 //   L2_SERVER   必須。miniserve の実行ファイル。sha256 を tools/l2/miniserve.sha256 の固定値と照合する（A08）
 //   L2_SITE     既定 <repo>/dist/web。tools/check-delivery.sh を通ること（試験用の口・.d.ts・シンボリックリンクが無い）
 //   L2_OUT      既定 <repo>/dist/l2。書くのは fandhe-workshop-l2-<platform>.zip の 1 ファイルだけ
-//   L2_PLATFORM macos-arm64（既定）または linux-x64（模擬環境の試験 #532 用）
+//   L2_PLATFORM macos-arm64（既定）・linux-x64（模擬環境の試験 #532 用）・windows-x64（Windows 向け。TASK-198）
 // 固定値を上書きする口は作らない。どの段階で失敗しても zip を作らない（fail-closed）。出力は決定的（同じ入力から同じバイト列）。
 // 終了コード: 0 = 作成 / 1 = 検査の失敗 / 2 = 誤用・入力の不備。
 // 回帰テストは tools/build-l2.test.mjs（`make test-build-l2`）。
@@ -25,7 +27,18 @@ export const TOP = 'fandhe-workshop-l2';
 export const PLATFORMS = {
   'macos-arm64': 'miniserve-0.35.0-aarch64-apple-darwin',
   'linux-x64': 'miniserve-0.35.0-x86_64-unknown-linux-musl',
+  'windows-x64': 'miniserve-0.35.0-x86_64-pc-windows-msvc.exe',
 };
+// platform ごとの配置。起動スクリプトの名前・repo 内の元・実行ファイルの名前・zip へ入れるときに CRLF にするか。
+// start.cmd は repo では LF（.editorconfig 準拠）で持ち、cmd が確実に読める CRLF への変換をここ 1 か所で行う。
+export const LAYOUTS = {
+  'macos-arm64': { launcher: 'start.sh', launcherSrc: 'start.sh', server: 'miniserve', crlf: false },
+  'linux-x64': { launcher: 'start.sh', launcherSrc: 'start.sh', server: 'miniserve', crlf: false },
+  'windows-x64': { launcher: 'start.cmd', launcherSrc: 'start.cmd', server: 'miniserve.exe', crlf: true },
+};
+// 上流 svenstaro/miniserve v0.35.0 の LICENSE の sha256。tools/l2/LICENSE-miniserve.txt が逐語であることの保証（A08）。
+export const MINISERVE_LICENSE_SHA256 = 'bedb87f0760796c7be677651eb10ad949410e90c55bc7f607d848e8e9d65375a';
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9]|conin\$|conout\$)(\.|$)/i;
 const MAX = 0xffffffff;
 // DOS 時刻 1980-01-01 00:00:00。決定性のため固定する。
 const DOS_TIME = 0;
@@ -44,7 +57,7 @@ export function readPins(file) {
   const pins = {};
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (line === '') continue;
-    const m = /^([0-9a-f]{64}) {2}(miniserve-[0-9.]+-[a-z0-9_-]+)$/.exec(line);
+    const m = /^([0-9a-f]{64}) {2}(miniserve-[0-9.]+-[a-z0-9_-]+(?:\.exe)?)$/.exec(line);
     if (!m) throw new L2Error(`malformed pin line in ${file}`, 2);
     pins[m[2]] = m[1];
   }
@@ -75,6 +88,30 @@ export function collectSite(siteDir) {
   };
   walk(siteDir, '');
   return out;
+}
+
+/** Windows で展開できない名前（禁止文字・予約名・末尾の .・大文字小文字だけ違う重複）を拒否する（A01）。 */
+export function checkWindowsNames(siteEntries) {
+  const seen = new Map();
+  for (const e of siteEntries) {
+    const rel = e.name.replace(/\/$/, '');
+    for (const part of rel.split('/')) {
+      if (/[<>:"\\|?*]/.test(part) || WINDOWS_RESERVED.test(part) || part.endsWith('.')) {
+        throw new L2Error(`file name cannot be extracted on Windows: ${rel}`);
+      }
+    }
+    const key = rel.toLowerCase();
+    if (seen.has(key)) throw new L2Error(`file names differ only in case (Windows): ${seen.get(key)} and ${rel}`);
+    seen.set(key, rel);
+  }
+}
+
+/** 元のファイルが LF・ASCII だけであることを確かめて CRLF にする。決定的で、変換前の CR は拒否する。 */
+export function toCrlf(buf, label) {
+  if (buf.includes(0x0d) || !buf.every((b) => b === 0x0a || (b >= 0x20 && b <= 0x7e))) {
+    throw new L2Error(`${label} must be LF-only ASCII text`);
+  }
+  return Buffer.from(buf.toString('latin1').replace(/\n/g, '\r\n'), 'latin1');
 }
 
 /** エントリ [{ name, dir?, data?, mode }] から決定的な zip（zip64 なし）を作る。名前の順に並べる。 */
@@ -140,7 +177,7 @@ function sha256(buf) {
  * 配布物を作って出力先へ書く。pins は { 資産名: sha256 }（試験は注入し、CLI は固定表を読む）。
  * 戻り値は { zip, bytes, sha256 }。
  */
-export function buildL2({ server, site, out, platform, pins, checkDelivery = true }) {
+export function buildL2({ server, site, out, platform, pins, checkDelivery = true, layouts = LAYOUTS, l2Dir = path.join(HERE, 'l2') }) {
   const asset = PLATFORMS[platform];
   if (!asset) throw new L2Error(`unknown L2_PLATFORM: ${platform}`, 2);
   if (!server) throw new L2Error('L2_SERVER is required', 2);
@@ -168,6 +205,23 @@ export function buildL2({ server, site, out, platform, pins, checkDelivery = tru
       throw new L2Error(`check-delivery failed (exit ${r.status ?? r.signal}) for ${site}${detail ? `:\n${detail}` : ''}`);
     }
   }
+  // 固定値の sha256 は引数で差し替えられない。差し替えられるのは読む元の置き場だけ（試験用。CLI は渡さない）。
+  const readRegular = (name) => {
+    const f = path.join(l2Dir, name);
+    let ls;
+    try {
+      ls = fs.lstatSync(f);
+    } catch {
+      throw new L2Error(`${name} not found under ${l2Dir}`);
+    }
+    if (!ls.isFile()) throw new L2Error(`${name} must be a regular file`);
+    return fs.readFileSync(f);
+  };
+  const license = readRegular('LICENSE-miniserve.txt');
+  if (sha256(license) !== MINISERVE_LICENSE_SHA256) {
+    throw new L2Error('sha256 of LICENSE-miniserve.txt does not match the pinned value');
+  }
+  const notices = readRegular('THIRD-PARTY-NOTICES.txt');
   const ir = path.join(site, 'ir', 'main.json');
   let irStat;
   try {
@@ -177,13 +231,20 @@ export function buildL2({ server, site, out, platform, pins, checkDelivery = tru
   } catch {
     throw new L2Error('site/ir/main.json must be a regular file holding JSON');
   }
+  const layout = layouts[platform];
+  let launcher = fs.readFileSync(path.join(HERE, 'l2', layout.launcherSrc));
+  if (layout.crlf) launcher = toCrlf(launcher, layout.launcherSrc);
+  const siteEntries = collectSite(site);
+  if (platform === 'windows-x64') checkWindowsNames(siteEntries);
   const entries = [
     { name: `${TOP}/`, dir: true },
-    { name: `${TOP}/start.sh`, data: fs.readFileSync(path.join(HERE, 'l2', 'start.sh')), mode: 0o755 },
-    { name: `${TOP}/miniserve`, data: bin, mode: 0o755 },
+    { name: `${TOP}/${layout.launcher}`, data: launcher, mode: 0o755 },
+    { name: `${TOP}/${layout.server}`, data: bin, mode: 0o755 },
+    { name: `${TOP}/LICENSE-miniserve.txt`, data: license, mode: 0o644 },
+    { name: `${TOP}/THIRD-PARTY-NOTICES.txt`, data: notices, mode: 0o644 },
     { name: `${TOP}/site/`, dir: true },
   ];
-  for (const e of collectSite(site)) {
+  for (const e of siteEntries) {
     entries.push(e.dir ? { name: `${TOP}/site/${e.name}`, dir: true } : { name: `${TOP}/site/${e.name}`, data: fs.readFileSync(e.file), mode: e.mode });
   }
   const zip = writeZip(entries);

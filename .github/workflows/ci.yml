@@ -264,6 +264,23 @@ jobs:
           make check-deps
           make test-check-deps
 
+      # ライセンス表記の機械検査（LIC-1・TASK-129）。既存ジョブへの step 追加のため、ジョブの集合・名前・
+      # ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-license
+        run: |
+          set -euo pipefail
+          make check-license
+          make test-check-license
+
+      # 受講者の入力・履歴を外部へ送る手段が依存に無いことの機械検査（SAFE-16・TASK-153。仕様上の人間の承認点）。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      # 配信物の検査（dist）は browser-test の make test-build-web が実ビルドに対して流す。
+      - name: make check-no-egress
+        run: |
+          set -euo pipefail
+          make check-no-egress
+          make test-check-no-egress
+
       # CI の関門（DOM 読み取りの例外件数の固定。仕様上の人間の承認点）。既存ジョブへの step 追加のため、
       # ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
       - name: make check-dom-reads
@@ -418,8 +435,18 @@ jobs:
         run: make test-build-web
 
       # L2 の配布物の作成スクリプトの回帰テスト（TASK-112 1/2）。合成の配信物だけを使いビルドは要らない。
-      - name: make test-build-l2 (TASK-112)
-        run: make test-build-l2
+      # Windows 向け（TASK-198）は、miniserve の Windows 版を固定版で取得し、固定値と照合してから実物の照合の試験に渡す。
+      # 実行はしない（Linux の runner では動かせない）。secret は使わない。
+      - name: make test-build-l2 (TASK-112・TASK-198)
+        run: |
+          set -euo pipefail
+          asset="miniserve-0.35.0-x86_64-pc-windows-msvc.exe"
+          work="${RUNNER_TEMP}/miniserve-windows"
+          mkdir -p "${work}"
+          curl -fsSLo "${work}/${asset}" \
+            "https://github.com/svenstaro/miniserve/releases/download/v0.35.0/${asset}"
+          grep -F "  ${asset}" tools/l2/miniserve.sha256 | (cd "${work}" && sha256sum -c -)
+          L2_SERVER_WINDOWS="${work}/${asset}" make test-build-l2
 
       # L2 の配布物の模擬環境での完走試験（TASK-112 2/2。DLV-13）。miniserve の linux musl 版を固定版で取得し、
       # tools/l2/miniserve.sha256 の該当行と照合してから実行する（照合できなければ実行せず失敗。build-l2.mjs も同じ固定値で再照合する）。

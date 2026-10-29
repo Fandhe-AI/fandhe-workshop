@@ -363,7 +363,7 @@ native の適合試験 `log_lines_contract` が検出する。同じ修正で、
 CSP あり・なしで確かめる。作り直し（`rerender`）の後も確かめる。この段に限り、U+0000 を除いた文字列との一致も許す（HTML の
 構文解析が NUL を落としうるためで、表示の安全性とは関係しない）。
 
-- 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったため `sendPayload` を入力欄の操作に差し替えられるが、別の Issue に回している
+- 注入の口は、試験の設定の `raw-trigger`。TASK-438（入力欄からエンジンへの結線）が入ったが、入力欄・配信する設定の経路は `input-field-xss.test.mjs`（5.368）が担い、本試験は試験の設定での状態との突き合わせと作り直しの確認を担う
 - 拒否の行（`{{input_head}}` の差し込み）は TASK-437 1/2 で観察の対象へ足した（受付の行に続く `rejected` の行の子が文字ノードだけであること）。問い返しの行は、試験の設定の mount に問い返しを持つ教材が無いため未対応（5.3.1d）
 - 教材の文面の網羅は E2（TASK-146 系）の担当。全 6 種の行を文字ノードで描くことは `log_lines_contract` が代わる
 
@@ -3879,7 +3879,7 @@ Markdown の本文で、前後がともに CJK（かな・漢字・全角記号�
 | 節 | 今のビルドでの観察 | 育てる先（未実装の部分） |
 |---|---|---|
 | data | 5 つの `.sha256` を `node:crypto` で照合（16 件、不一致 0。追補 3 を 5 行に作り直したため試作の 17 件ではない） | なし |
-| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1 は 5.175（TASK-144。CSP あり・なし）で済み。E2〜E4・E6 の画面の経路は TASK-145・146・147 |
+| xss | 64 件の入り口別の件数。E5 の 49 件を配信設定の入力欄から CSP あり・なしで送った計数 | E1 は 5.175（TASK-144。CSP あり・なし）、E2 は 5.366（TASK-145 1/2）、E3 は 5.367（TASK-145 2/2）、E5 の入力欄の経路は 5.368（TASK-147 1/2）、E6 の URL の経路は 5.370（TASK-147 2/2）で済み。E4 の画面の経路は TASK-146 |
 | oversize | IR 20MB・履歴 10MB のちょうど・1 バイト超を `checkJsonLoad` へ。入力 20,000・20,001 文字 | 10 倍の水準は TASK-154（#855）・TASK-155 |
 | nest | 10,000 段の入れ子と 1,000,000 要素の配列（IR・履歴の両方） | 同上 |
 | cycle | 巡回する IR 4 本を関門へ | 画面での起動口は無い（D-68。実行時の教材の取得が入った後の課題）。遷移の上限は TASK-160（#444） |
@@ -5134,7 +5134,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 563`（2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 567`（2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -7368,7 +7368,7 @@ TASK-330 が書き出しと読み込みの仕組みを、TASK-309 が枠の識�
 - 目的: D-58・D-71 の形（miniserve 0.35.0 と静的ファイル）で、人の操作が「展開・`./start.sh`・URL を開く」の 3 つになる zip を作る。`tools/build-l2.mjs` が `fandhe-workshop-l2/{start.sh, miniserve, site/}` を作り、`site/` は配信する設定の配信物そのものにする。
 - 決定（自動運転のため人の承認は得ていない）: zip は Node の `zlib` で自前に書く（`zip` が前提の道具に無いため。時刻・順序・mode を固定して決定的にする）。miniserve は上流の Release のビルド済み実行ファイルを使い、sha256 を `tools/l2/miniserve.sha256` に固定して照合する（固定値を上書きする口は無い。2026-10-22 に Release の digest との一致を確認。実行ファイル自体の取得・実行は未実施）。`L2_PLATFORM=linux-x64` は模擬環境の試験（#532）のための追加で、仕様に明記は無い。
 - 試験（`tools/build-l2.test.mjs`。22 件）: 木の完全一致・mode（`start.sh`・`miniserve` が 0755、他が 0644）・`site/` のバイト一致・決定性・`start.sh` の起動（`PATH=/usr/bin:/bin` の環境で URL を表示し、引数が `--index index.html -i 127.0.0.1 -p <PORT> site` と完全一致。不正な `PORT` は 2）・fail-closed（digest の不一致、試験用の口・`.d.ts`・シンボリックリンク・`ir/main.json` の欠落、誤用、出力先の不正で zip が作られない）・固定表の形。
-- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文・推移的な依存の棚卸し（TASK-137）。
+- 未確認: Apple シリコンでの実行（上流のビルド済みが ad-hoc 署名だけで起動するか。人による起動は TASK-119）、実ビルドの配信物での通し、miniserve のライセンス文は 5.364（TASK-137）、推移的な依存の棚卸しは未完了。
 - 阻害要因（範囲外）: 配信する設定の web は実行時に `ir/main.json` を取得しないため、この配布物でまだ CH-0〜CH-1 は通せない。#532 と親 #530 の前に、IR を実行時に読む実装が要る（5.238 で最小限を入れて解消した）。
 - 実行結果（2026-10-22）: `make test-build-l2` の 22 件が通った。`scripts/expected-test-counts.txt` は更新しない。
 
@@ -10070,3 +10070,447 @@ L1 で進めた履歴が L2 から見えず、L2 で操作しても L1 の状態
   - 検討中の理由の「置き場所は Phase 4 の設計で決める」を「`testdata/` に決まった（TASK-30）」に改める。状態を「確定」にするかは spec 側の判断
 - 確かめていないこと: arm64・podman・メモリ 2 GiB 以下（BUILD-21）。CI の関門として加えること（`check-sibling-free` の step）の人の承認（spec の人間の承認点。既存ジョブへの step 追加にとどめ、ruleset は変えていない）
 - 範囲外: `make clean-room` を CI の関門にするか（TASK-96）、5.354 の番号の重複・5.357 と 5.358 の順序（既存）
+
+### 5.362 Windows 向けの L2 の配布物の作成（TASK-198。DLV-22）
+
+`tools/build-l2.mjs` に `windows-x64` を足し、`start.cmd`・`miniserve.exe` の配布物が再現できることを `tools/build-l2.test.mjs` で確かめる（`make test-build-l2`。CI の `browser-test` が流す）。手順は `docs/l2-windows.md`。
+
+- 試験の内容: 固定表が 3 行で `.exe` の行を受け付け不正な拡張子を終了コード 2 で拒否する／windows-x64 の木（`start.cmd`・`miniserve.exe` があり `start.sh`・`miniserve` が無い）・mode・実行ファイルの一致／`start.cmd` が元の LF を CRLF にしたもので裸の LF が 0 件・ASCII のみ／`start.cmd` の `miniserve.exe` の引数が `start.sh` と同じで、既定の番号が 8787、`cd /d` が遅延展開より前、`%PORT%`・`set /a`・`0.0.0.0` が無い／同じ site から作った linux-x64 と site の中身が一致／2 回作って同じバイト列／固定値の不一致で zip を作らない／元の起動スクリプトに CR・非 ASCII があれば拒否／Windows で作れない名前と大文字小文字だけ違う重複を windows-x64 で拒否し linux-x64 は通る
+- 実物の照合: `L2_SERVER_WINDOWS` に実物の exe を渡すと、実物で 2 回作ってバイト一致・先頭が `MZ` を確かめる（無いときは skip）。CI は固定版を取得して `sha256sum -c` で照合してから渡す。2026-10-28 に v0.35.0 の資産を取得して再計算した sha256 は `3229e75b40b3870382d23c9a0ecec880b9bd5f6e49160ce602bb15d00f275b6a`（GitHub の digest と一致）で、実物ありの `make test-build-l2` は 35 件合格・skip 0 件
+- 未検証: Windows の実機での `start.cmd` の実行（Linux では動かせない）、OS の警告。TASK-120 で人が確かめる。DLV-22 は検討中のまま
+- 範囲外: `docs/l2-update-procedure.md`・`update-l2`（#1875。マージ後に windows-x64 を表へ追従させる）、案内文（TASK-117）、ライセンス文（TASK-137）。`make test-l2-run`（linux-x64）は未実行
+
+### 5.363 エンジン repo のライセンス表記の機械検査（TASK-129。LIC-1・D-6）
+
+全 crate の `license` が `MIT OR Apache-2.0` に完全一致し、`license-file` を使わず、直下に `LICENSE-MIT`・`LICENSE-APACHE` が通常のファイルとして在って空でなく取り違えていないことを、`scripts/check-license.sh`（`make check-license`）が `cargo metadata --no-deps --offline` と固定文字列の目印で検査する。CI は `rust-lint` ジョブの step として流す（ジョブは増やしていない）。
+
+- 回帰テスト `scripts/test-check-license.sh`（`make test-check-license`）は 16 件。実物と改変なしの写しが通ること、workspace の `license` の変更・大文字小文字の変更・crate での上書き・`license` の削除・`license-file` の使用、本文の欠落・空・取り違え、戻すと通ること、偽の `cargo` の失敗と member 0 件が 2（合格にしない）、未知の引数が 2。置換が効かなかったケースは not ok にする
+- 実行結果（2026-10-28。Linux x86_64）: `make check-license` は終了コード 0、`make test-check-license` は 16 件が合格
+- 限界: 本文の完全一致は保証しない（目印だけ）。`package.json` の `license` は crate ではないため範囲外。Apache-2.0 の付録の `[yyyy]` の欄は標準の文面のままで、本変更では直さない
+- 範囲外: 雛形のライセンス表記（TASK-130）、`THIRD-PARTY-LICENSES`（TASK-136）、依存のライセンスの同梱、画面からライセンスへの到達（LIC-11）
+
+### 5.364 L2 の配布物のライセンス文（TASK-137。LIC-10・D-58・D-71）
+
+L2 の zip の最上位に `LICENSE-miniserve.txt`（miniserve v0.35.0 の MIT のライセンス文。上流の `LICENSE` の逐語の写し）と `THIRD-PARTY-NOTICES.txt`（同梱物と取り下げ済みの crate の記録）を全 platform で入れる。元は `tools/l2/` に置く。`site/` の外なので配信されず、L1 との木の比較（`site/` だけが対象）にも入らない。
+
+- 決定: 置き場は zip の最上位（D-71 は置き場を決めていないため本タスクで決めた）。`.txt` にして Windows・macOS で開けるようにする。改行は LF のまま（逐語の保持のため。起動スクリプトだけを CRLF にする）。repo 直下の `THIRD-PARTY-LICENSES`（LIC-9。TASK-136）とは別名にし、役割を分ける
+- 逐語の保証: `tools/build-l2.mjs` の `MINISERVE_LICENSE_SHA256`（`bedb87f0…375a`。2026-10-28 に上流のタグ v0.35.0 の `LICENSE` から取得して計算）と作成時に照合し、不一致・欠落・シンボリックリンクなら zip を作らない。固定値を上書きする口は無い（試験が差し替えるのは読む元の置き場 `l2Dir` だけで、CLI は渡さない）
+- 試験（`tools/build-l2.test.mjs`。通信なし）: 元の sha256 が固定値と一致／3 platform の zip に同じバイト列で入り mode 0644・LF・必要な語（`miniserve`・`0.35.0`・`MIT`・`core2`・`0.4.0`）を含む／ライセンス文の 1 バイトの改変・欠落・告知の欠落・リンクで zip が作られない／既存の木の完全一致に 2 件を追加
+- 取り下げ済みの記録: `core2` 0.4.0（`libflate` の依存）。2026-10-28 に crates.io の sparse index で取り下げ済みを確認した。上流の `Cargo.lock`（457 件）の全件の走査（`tools/inventory-deps.mjs --lock`）は 199 件目まで進んだ時点で時間切れとなり未完了。他の取り下げ済みの有無は未確認で、告知にもそう書いた
+- 限界: miniserve に静的にリンクされた依存 crate の個別のライセンス文は同梱していない。脆弱性の有無は調べていない（D-58 の棚卸しの範囲）
+- 未検証: 実物の miniserve での `make build-l2`、`make test-l2-run`（CI の `browser-test` に任せる）
+- 範囲外: 依存 crate 全件のライセンス文の同梱（LIC-9・TASK-136 と合わせて判断する）、仕様の LIC-10 の状態の更新（spec repo 側）
+
+### 5.366 構造定義の欄と ID への注入 55 件（TASK-145 1/2。SAFE-2）
+
+元にしたコミット: `c76291f8`（実行日 2026-10-29）。教材の構造定義（IR）の、画面に表示される欄と ID に注入用の試験入力を入れても、画面で何も実行されず、表示される欄が文字として出ることを確かめる試験 `tools/browser/structure-xss.test.mjs` を足した（1/2。練習データ E3 の SAFE-3 は #847）。IR の作成と画面の判定は純粋な Node のモジュール `tools/browser/e2-ir.mjs`（単体試験 `e2-ir.test.mjs`）に置いた。
+
+#### 何を確かめるか
+
+データの正は `xss-cases.md` の「入り口に E2 を含む」55 件（`xss-cases.mjs` の `e2Payloads`。E1 の 49 件を含む。件数が違えば例外）。元にする IR は `crates/web/tests/data/ch0_3/ir.json`（実行時に読むだけ）で、開始点 `s-1-4` を足して `s-0-1` と合わせた 2 つの開始地点にする（`effects` を空にする扱いは 5.199 の `ch0-3-links` と同じで、同じ限界を持つ）。配信する設定の web の一時の写しに `fandhe-ir` の meta と `ir/main.json` を足して件ごとに配り（`pack-body-xss` と同じ。件ごとにサーバを起動し直す）、`?start=<id>` で開く。
+
+| 試験 | 内容 |
+|---|---|
+| A | 前提。E2 が 55 件、元の IR の選択肢・問い返し・ヒント、試験の設定と配信する設定の CSP の meta が同一 |
+| B | 欄の変種。題・`do`・選択肢の名前（入力と答える確認）・拒否と問い返しの文面を P にした IR を、開始地点 2 × CSP あり・なしの 4 つの test で 55 件ずつ流す。画面の欄が P の文字と等しく子の要素が 0 個であること。計数の全区分が 0、記録用の関数の呼び出しが 0、通信は配信物の構成要素と `ir/main.json` 1 件だけ（外部通信は除外しない） |
+| C | B の集計。CSP あり・なしのそれぞれで 110 回（55 件 × 開始地点 2）中 110 回合格 |
+| D1 | 対照。実際の題へ描画を通さない生の入力（XSS-01・XSS-07）を `innerHTML` で入れると、計数が 0 でなく数える |
+| D2 | 対照。変種を作らない IR で同じ操作の列と判定を流すと、判定が全欄で「出ていない」になる（110/110 が何も見ない判定の結果でないことの確認） |
+| E | ID の変種。コマンド名（`help`）・選択肢の ID（`opt-right`）・ヒントの ID（`h-0-1`）の全出現（鍵と文字列の値）を P にした IR を、開始地点 2 × CSP あり・なしで 55 件ずつ流す。IR が読まれて計数が 0。入力欄に `/` を入れて候補を出し、`data-choice` が P と等しいボタンを属性値の一致で押す（セレクタに P を入れない） |
+| F | ヒントの本文と `refs` を P にした IR が読まれ（`ir-notice` が 0 件）、計数が 0 で、その入力が画面の文字に出ない（表示の経路が無いことの固定） |
+
+操作の列（ペイロードは使わず、固定の ID と固定の入力で進む）:
+
+- `s-0-1`: 開く → `opt-left`（拒否）→ `opt-right`（受付）→ 行 `cards/notice` を指す → `st-0-2a` → `opt-read-a` → 誤答 `ans-a-ng`（拒否）。観察する欄は、題・`do`、入力の選択肢 3 件、答えの選択肢 2 件、拒否の `message`・`next_action`（2 回）
+- `s-1-4`: 開く → `/new-idea`（問い返し）→ `/advance-phase`（順序違いの拒否）→ Esc（取り消し）→ 答えの選択肢 → 誤答 `rejected`（拒否）。観察する欄は、題・`do`、問い返しの `message`・`how_to_answer`、拒否の文面（2 回）、答えの選択肢 2 件
+- 開いた直後と `st-0-2a` で、上部の位置の表示が IR から求めた「章の ID　Step M / K」と一致する（題はペイロードなので位置の確認には使えない）
+
+#### 判定の規則
+
+- 題・`do` の本文の span・選択肢のボタン・拒否と問い返しの span は、`textContent` が P と等しく、子の要素が 0 個
+- 拒否・問い返しの文面は差し込みの枠（`{{…}}`）を通る。E2 のうち枠を含むのは XSS-53（`{{input_head}}`）だけで、枠で区切った空でない断片が順に含まれることで判定する（単体試験が、枠が XSS-53 だけであることと枠名が既知の 6 語であることを固定する。未知の枠は行が出なくなり、待ち合わせが別の理由で失敗するため）。ログの行の中の要素は span だけ
+- 正規化は U+0000 を両辺から除くことだけ（XSS-47。5.175 と同じ）。それ以外の不一致は緩めない
+- 1 回（ペイロード × 開始地点）の合格は、その開始地点で画面に出る全欄が上の判定を満たすこと
+
+#### 限界
+
+- ヒントの本文は画面（TASK-530）が未実装、`refs` は受講者の画面に出る経路が無い（版の違いの表示は `test-hooks` の背後にだけある）。この 2 欄は「文字として出た」に数えず、試験 F で IR が読まれることと計数 0、画面に出ないことだけを固定した。ヒントの画面ができたら、B の判定に足す。`refs` は `record_versions` が文字列の `name`・`commit` を求めるため両方を P にした 1 件にした（足りないと画面が始まらず、通知も出ない）
+- ID の変種で P が画面に出たかは記録だけ（試験 E の診断の `shown on screen`。PoC-7 は 55/110）。ID は属性値と、コマンド名は候補の文字に出る。要素が増えないことは計数（危険な要素・実行）が 0 であることで確かめた
+- 55 件は網羅ではない。全 Step・全欄を通る通しは流さない（CI の時間のため。固定の短い列に絞った）
+
+#### 件数・確認（2026-10-29）
+
+- `structure-xss` の 13 件が、`TEST_HOOKS` ありなしの 2 つの web を作って単独で流し、すべて通った。B は 4 つの test で各 55/55（110/110 を CSP あり・なしの両方）、E は 4 つの test で各 55/55。実行時間は B が各 37〜42 秒、E が各 34〜46 秒、全体で約 5 分 24 秒（ローカル）
+- `e2-ir.test.mjs` の 11 件と `xss-cases.test.mjs` の 7 件は通りを確認した
+- 手元の変異: 判定の比較を `<` を `&lt;` に直した形に変えると、B の CSP あり・開始地点 `s-0-1` が 20/55 で失敗した（失敗の欄は題・`do`・選択肢。戻して再び通ることも確認）
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+- 範囲外: 練習データ（E3）への注入は 5.367（TASK-145 2/2）
+
+### 5.367 練習データへの注入 50 件（TASK-145 2/2。SAFE-3）
+
+元にしたコミット: `76ef2100`（実行日 2026-10-29。本変更を含む作業ツリー）。世界状態の欄（練習データ）に注入用の試験入力を入れても、画面で何も実行されず、画面に出る欄が文字として出ることを確かめる試験 `tools/browser/practice-data-xss.test.mjs` を足した（2/2。1/2 は 5.366）。IR の作成と画面の判定は純粋な Node のモジュール `tools/browser/e3-ir.mjs`（単体試験 `e3-ir.test.mjs`）に置いた。`e2-ir.mjs` の `replaceExact` に `export` を付けて使い回した（中身は変えていない）。
+
+#### 何を確かめるか
+
+データの正は `xss-cases.md` の「入り口に E3 を含む」50 件（`xss-cases.mjs` の `e3Payloads`。XSS-01〜49 と XSS-54。件数が違えば例外）。入れる欄は `put` のパス、`put.attrs` の値、`set_attr.value` の 3 つで、PoC-7 の `injectE3` と同じ方法にした。同じパスの全出現（`confirm.targets[].path` の参照を含む）を置き換え、異なるパスの 1 つ目は P、2 つ目以降は `P.i` にして鍵を一意に保つ。属性の値と `set_attr.value` は P にする。元の IR は 5.366 と同じ（開始地点 `s-0-1`・`s-1-4`）。注入の口と配り方も 5.366 と同じ（配信する設定の一時の写しに `fandhe-ir` の meta と `ir/main.json` を足し、件ごとにサーバを起動し直す）。
+
+| 試験 | 内容 |
+|---|---|
+| A | 前提。E3 が 50 件、試験の設定と配信する設定の CSP の meta が同一、元の IR の `put` のパスと `set_attr` が 2 か所、置き換えの後に元のパスが残らない |
+| B | 練習データの変種を、開始地点 2 × CSP あり・なしの 4 つの test で 50 件ずつ流す。左の成果物の行が置き換え後のパスの集合と等しく、行の span が P の文字と等しく子の要素が 0 個（行の中は span だけ）。指した受付がログに P の文字として出る。計数の全区分が 0、記録用の関数の呼び出しが 0、通信は配信物の構成要素と `ir/main.json` 1 件だけ（外部通信は除外しない） |
+| C | B の集計。CSP あり・なしのそれぞれで 100 回（50 件 × 開始地点 2）中 100 回合格 |
+| D1 | 対照。実際の行へ描画を通さない生の入力（XSS-01・XSS-07）を `innerHTML` で入れると、計数が 0 でなく数える |
+| D2 | 対照。変種を作らない IR で同じ操作の列を流すと、行と受付の判定が「出ていない」になる。元のパスでは同じ判定が通る |
+| F | 属性の値と `set_attr` の値だけを P にした IR（パスは元のまま）が読まれ、操作が最後まで通り、計数が 0 で、その入力が画面の文字にも要素の属性にも出ない（表示の経路が無いことの固定） |
+
+操作の列（ペイロードは使わず、固定の ID と固定の入力で進む。行は `data-row` の値の一致で添字を決めて `nth` で押し、P をセレクタに入れない）:
+
+- `s-0-1`: 開く（行 0 件）→ `opt-right`（受付。行 1 件）→ 行 `cards/notice` を指す → `opt-read-a`（行 3 件）→ `ans-a-ok` → `st-0-2b`
+- `s-1-4`: 開く → `/new-idea`（問い返し）→ `/advance-phase`（拒否）→ Esc（取り消し。行 1 件）→ `asked-back` → `/make-card sample`（処理中に作成と `set_attr`。行 2 件）→ 処理の終わりを `run-status` の `data-state` で待つ → 行 `cards/sample` を指す
+
+#### 判定の規則
+
+- 左の成果物の行は `li[data-path]`。行の span は、変化の印の 2 つ（`data-testid` を持つ）を除いた、経路の文字を持つ 1 つ。`data-path`・`data-row` も置き換え後のパスと等しい
+- 指した受付は、ログの `received` の行に P が含まれ、その行の中が span だけ。最後の行ではなく全行を見る
+- 正規化は U+0000 を両辺から除くことだけ（XSS-47。5.175・5.366 と同じ）。それ以外の不一致は緩めない
+- 1 回（ペイロード × 開始地点）の合格は、全観察点が上の判定を満たし、計数が 0 であること
+
+#### 限界
+
+- 属性の値（`put.attrs`・`set_attr.value`）を受講者の画面に出す経路は今の製品に無い（カードの部品は未結線で、カードの状態の文字は固定）。この欄は「文字として出た」に数えず、試験 F で IR が読まれること・計数 0・画面の文字にも要素の属性にも出ないことだけを固定した。出す仕様が決まったら F の判定を B へ移す
+- 属性の値が世界状態へ届いたことの直接の確認は行っていない。試験の設定の web は名前つきの教材（`?fixture=`）しか受け付けず、任意の IR を渡せないため。`put`・`set_attr` が受け付けられ操作が最後まで通ることと、行が出ることで間接に確かめた
+- 50 件は網羅ではない。全 Step・全欄を通る通しは流さない（CI の時間のため。固定の短い列に絞った）
+- 指した経路が履歴の `ops` に入り、秘密情報の検査に掛かる場合の警告は、この試験の判定に含めていない（秘密情報の試験は 5.181〜5.183）
+
+#### 件数・確認（2026-10-29）
+
+- `practice-data-xss` の 9 件が、`TEST_HOOKS` ありなしの 2 つの web を作って単独で流し、すべて通った。B は 4 つの test で各 50/50（100/100 を CSP あり・なしの両方）。実行時間は B が `s-0-1` で各約 37 秒、`s-1-4` で各約 94 秒、全体で約 4 分 28 秒（ローカル）
+- `e3-ir.test.mjs` の 6 件、`e2-ir.test.mjs`、`xss-cases.test.mjs` の 8 件は通りを確認した
+- 手元の変異: 行の span の判定の比較を `<` を `&lt;` に直した形に変えると、B の CSP あり・開始地点 `s-0-1` が 19/50 で失敗した（失敗の項目は行の文字。戻して再び通ることも確認）
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+- 範囲外: 履歴（E4）は TASK-146、URL（E6）は TASK-147
+
+### 5.368 入力欄からの注入 49 件 × 3 通り（TASK-147 1/2。SAFE-5）
+
+元にしたコミット: `76ef2100`（実行日 2026-10-29）。入力欄に入れた HTML 風の文字列が、配信する設定の画面で何も実行されず、右のログに文字として出ることを確かめる試験 `tools/browser/input-field-xss.test.mjs` を足した（1/2。URL のクエリ・ハッシュ・`?ir=` の SAFE-7 は #850）。
+
+#### 何を確かめるか
+
+データの正は `xss-cases.md` の「入り口に E5 を含む」49 件（`xss-cases.mjs` の `e5Payloads`。件数が違えば例外）。1 件を「そのまま」「`/` の後ろ」「コマンドの引数（`/new-idea P`）」の 3 通りで、本物の入力欄（`draft-input` に入れて Enter）から送る（147 回）。5.3.1a の `log-lines-xss` は試験の設定の `raw-trigger` に `Op` を書く口で状態との突き合わせを担う。本試験は入力欄の経路・配信する設定（`__fandheTest` が無い）・通信の厳密な確認を担う。
+
+配信する設定の web の一時の写しに `fandhe-ir` の meta と `ir/main.json`（`ch0_3` の IR に開始点 `s-1-4` を足したもの）を置き、`?start=s-1-4`（`/new-idea [name]` の Step）で開く。E5 の 49 件は `/` で始まらず kebab_case にも合わないので、3 通りのどれも受け付けられない（拒否になる）。試験の前提として `before` が確かめる。
+
+| 試験 | 内容 |
+|---|---|
+| E5（CSP あり・なし） | 147 回のそれぞれで、最後の `received` の行が子 `line-body` だけ・本文が文字ノード 1 つだけで入力欄から読み戻した値と一致・禁止の要素 0 件。続く拒否の行は子が文字ノードだけ。Step の題が変わらず、確認の選択肢が出ず、秘密情報の警告が出ない。記録用の関数の呼び出し 0。最後に計数の全区分 0、通信は構成要素と `ir/main.json` 1 件だけ、`received` の行がちょうど 147 |
+| C | 合格が CSP あり・なしのそれぞれで 147 回中 147 回 |
+| D1 | 対照。切り離した要素に解釈される入力を入れると禁止の要素を 3 件数える |
+| D2 | 対照。固定の無害な入力が 3 通りで `data-input` が `text`・`command`・`command` に分かれ、拒否の行が出る |
+| D3 | 対照。引数なしの `/new-idea`（問い返し）と Esc（取り消し）は受け付けられ、確認の選択肢が出て「受け付けられない」の判定が `accepted` を検出する |
+
+待ち合わせは固定の sleep を使わず、受付の行の増加と、行の総数が連続 3 回の読みで変わらないことで行う。
+
+#### 限界
+
+- 拒否の種類は assert せず診断に記録する（2026-10-29 の実測は、そのまま 49 件が `text/rejected`、他 98 件が `command/rejected`）。拒否の理由の文面の網羅は 5.3.1a と E2 の担当
+- 問い返し・受付の経路は、この 49 件では通らない（Step が受け付ける入力が限られるため）。受付の行そのものは 147 回すべてで観察する
+
+#### 件数・確認（2026-10-29）
+
+- `input-field-xss` の 6 件が、`TEST_HOOKS` ありなしの 2 つの web を作って単独で流し、すべて通った。E5 は CSP あり・なしで各 147/147、各約 25 秒（ローカル）
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+- 範囲外: URL の入り口（SAFE-7）は #850（TASK-147 2/2）
+
+### 5.369 data-payload の書き換え（TASK-148 1/2。SAFE-6）
+
+画面の操作要素の `data-payload` は開発者ツールで書き換えられる前提で、書き換えて click しても「実行 0・外部通信 0・形が合わない値は受け付けられず世界状態が変わらない・タブが落ちない」ことを `tools/browser/data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）で確かめる。`submit` の `data-action` の書き換えと 377 回の総数の照合は TASK-148 2/2（5.372）。
+
+#### 値の出所
+
+spec の PoC-7 の追補 4 の写し `testdata/untrusted-input-safety/test-data-addendum-4/extra-cases.json` の `e5_data_payload`（対象 10 件・XSS の ID 6 件・壊れた値 7 件の 13 値）を `data-payload-cases.mjs` が読む。`test-data-addendum-4.sha256` と照合し、件数が違う・XSS の ID が引けない場合は例外にする（fail-closed。`data-payload-cases.test.mjs` が対照を持つ）。XSS の本文は `xss-cases.mjs` で ID から引き、tools 側へ書き写さない。試験の出力にはペイロードを出さず、`XSS-nn` と `raw[n]` の番号だけを使う。
+
+#### spec の 10 種と現行の画面の対応
+
+spec の名前は試作の名前で、現行の DOM とは一致しない。現行の画面で次のように読み替えた。
+
+| spec の名前 | 現行の要素（`data-action`） | 扱い |
+|---|---|---|
+| `submit-btn`・`stop-btn` | `submit-input`（`submit`。`data-payload` を持たない）・`stop-btn`（`stop`） | `submit-input` は属性を足して click（分類 I）。`stop-btn` は処理中だけ出るため扱っていない（限界） |
+| `hint-btn` | 無い（ヒントの画面は未実装） | 全場面で 0 件を確かめる |
+| `offer-btn` | `choice-btn`（`choose`）・`approval-btn`（`decide`・`revise-target`） | 書き換えの対象 |
+| `goto-btn` | `shell-next-chapter`（`next-chapter`）。現行だけの移動系 `pane-tab`（`select-pane`）・`view-select-button`（`select-view`）・指せる行（`ui`） | 書き換えの対象 |
+| `restore-btn` | `checkpoint-restore`（`restore-checkpoint`） | 書き換えの対象 |
+| `candidate-btn` | `candidate-btn`（`data-action`・`data-payload` を持たない） | 属性を足して click（分類 I） |
+| `tick-trigger`・`esc-trigger` | 置かない（FEND-4） | 全場面で 0 件を確かめる |
+| `save-btn` | `checkpoint-save`（`save-checkpoint`。正規の payload は空） | 書き換えの対象。値が空文字の組は正規の click になるため押さない |
+| （現行だけ） | `dismiss-notice`（`shell-dismiss`） | 書き換えの対象（枠の通知を Chrome 以外の UA で出す） |
+| （試験の設定だけ） | `raw-trigger`（`raw`） | 対象から名前つきで除く（下記 E4） |
+
+#### 確かめること
+
+`decode_action`（`crates/web/src/host.rs`）の実装から期待を分類した。場面ごとに root 内の `[data-payload]` の `data-action` の集合が閉じた一覧とちょうど一致することを先に確かめ（新しい口が試験されずに紛れ込まない）、各種類の全インスタンスを 13 値で書き換えて click する。1 回の手順は、観察 → 書き換え → click → 安定待ち（処理中でなく、画面・ログ・保存先が連続 3 回の読みで変わらない）→ 元の値へ戻す → 観察。
+
+| 分類 | 対象 | 期待 |
+|---|---|---|
+| D（復号で断る） | `save-checkpoint`・`restore-checkpoint`・`select-pane`・`select-view`・`decide`・`dismiss-notice`・`ui` | root の中身・世界状態・ログ・localStorage がすべて同一 |
+| J（復号は通り core が断る） | `choose`・`revise-target`・`next-chapter` | 世界状態と現在の Step が同一。ログの増分は受信（`input_received`）と `rejected` の判定（`judged`）だけで、受付・達成・進入・復帰の行は増えない。受信は履歴の `ops` に残るため localStorage は変わりうる（入力として記録する設計） |
+| I（payload を読まない） | `submit-input`・`candidate-btn` | 書き換えない click の直前の対照と同じ変化（状態・保存先・ログの増分・入力欄の value で比べる。候補は対照と書き換えを同じ下書き `/` から実行する） |
+
+全組に共通して、禁止の要素（`DANGER_TAGS`）の数が click の前後で増えないこと、場面の終わりに `collectSafety` の計数（記録用の関数の呼び出し・ダイアログ・ポップアップ・タブの異常終了・CSP の違反・ページ内エラー・配信元以外への通信）がすべて 0 であること、書き換えた値が属性に残っていないことを確かめる。CSP あり・なしの両方で流す。
+
+場面（到達は実際の click だけで、`raw-trigger` は使わない）:
+
+| 場面 | 内容 |
+|---|---|
+| S1・S1w | 開いた直後（`?fixture=ch0-3-chapters`）。幅 1280px と、tablist が見える 959px |
+| N・A2 | CH-0 の終わり（「次の章へ進む」が出た時点）と、CH-1 の `st-1-4`（チェックポイントを 1 件保存済み。指せる行・復帰・送信・候補） |
+| S3 | `?fixture=ch0-3-revise&start=s-2-6`（承認と「直す」の対象 3 件） |
+| S4 | Chrome 以外の UA で開いた枠の通知欄（`dismiss-notice`） |
+| P | 配信する設定（IR なし）。`raw-trigger`・`__fandheTest` が無く、あるだけの口の書き換えで画面と保存先が変わらない |
+
+#### 対照
+
+| 対照 | 内容 |
+|---|---|
+| E1 | 正規の payload の click（保存・選択肢）は、同じ観察の関数が「変わった」と検出する |
+| E2 | 切り離した要素に解釈される入力を入れると禁止の要素を 3 件数え、文字だけの入力は 0 件 |
+| E3 | 未知の `data-action` を持つ口を足すと、閉じた一覧との不一致として検出される |
+| E4 | `raw-trigger` に壊れた値を書いて click すると状態が変わった（診断に記録。`raw` は教材の操作を送る試験の設定だけの口で、正当に状態を変えるため書き換えの対象から除く。挙動自体は固定しない） |
+
+#### 限界
+
+- `checkpoint-page`（`checkpoint-older`・`checkpoint-newer`）は 501 件以上の保存で初めて出るため、ブラウザでは書き換えていない
+- `stop-btn` は処理中だけ出るため扱っていない。`hint-btn`・`tick-trigger`・`esc-trigger` は現行の画面に無い（0 件を確かめるだけ）
+- 保存先の比較は localStorage だけで、IndexedDB は比べていない
+- 配信する設定は IR なしの枠だけ。IR を同梱した配信物での SAFE-1〜7 の流し直しは TASK-170 の担当
+- 377 回の総数の照合と `submit` の `data-action` の書き換えは TASK-148 2/2（5.372）
+
+#### 件数・確認（2026-10-29）
+
+- `data-payload-tamper.test.mjs` の 13 件がすべて通った。書き換えの click は全体で 2,458 回（値が元の payload と一致して押さなかった組が 12）。実行時間は約 6 分 36 秒（ローカル）。`data-payload-cases.test.mjs` の 3 件も通った
+- 手元の変異: `decode_action` の `save-checkpoint` の復号を、空でない payload も受けるように変えると、S1 の D（`save-checkpoint`）が失敗した（画面・状態・ログが変わり、復帰の口が 12 件増えた）。戻して再び通ることも確認した
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+
+### 5.370 URL のクエリとハッシュからの注入 61 回（TASK-147 2/2。SAFE-7）
+
+元にしたコミット: `46ec8f4f`（実行日 2026-10-29）。URL のクエリとハッシュに入れた注入用の文字列が、配信する設定の画面で何も実行されず、画面のどこにも出ず、通信も増やさないことを確かめる試験 `tools/browser/url-xss.test.mjs` と、入力の読み込み `tools/browser/url-cases.mjs`（単体試験は `url-cases.test.mjs`）を足した（TASK-147 の 2/2。1/2 は 5.368）。
+
+#### 何を確かめるか
+
+データの正は `testdata/untrusted-input-safety/test-data-addendum-4/extra-cases.json`（`e6_positions` 7 件・`e6_payloads` 8 件・`ir_param_fixed` 5 件）と `xss-cases.md`。`url-cases.mjs` が sha256 の一覧（`test-data-addendum-4.sha256`）と照合してから読み、件数・位置の名前・ID が合わなければ例外にする。ペイロードの ID は `e6_payloads` の一覧を正にする（`xss-cases.md` の入り口の印に E6 があるのは 5 件だけで、XSS-01・02・07 には無いため）。
+
+61 回 = 7 位置（query の `ir`・`os`・`osmode`・`store`・`tick`・本体が読まない `x`、と hash）× ペイロード 8 件（56 回）＋ `?ir=` の固定の値 5 件。各回は新しい context で開き、保存先を持ち越さない。
+
+| 試験 | 内容 |
+|---|---|
+| E6（CSP あり・なし） | 61 回のそれぞれで、マウントする・`__fandheTest` が無い・値が `location` に届いている（到達の確認。空振りの防止）・画面の走査（HTML 全体・全属性の値・文字・title・入力欄の値・コンソール）で印が 0 件・実行 0・計数の全区分 0・`ir/main.json` の取得がちょうど 1 件・配信元以外への通信 0・囮の JSON の取得 0・要求の種類がクエリなしの基準と同じ・Step の題と画面の文字が基準と同じ |
+| C | 合格が CSP あり・なしのそれぞれで 61 回中 61 回で、値が 7 位置すべてに届いた |
+| D1 | 対照。印を属性と文字に入れた切り離した要素を走査すると 0 より大きく数え、実ページの印なしの走査は 0 |
+| D3 | 対照。ページ内から `./ir/min-3step.json` を取得すると、囮の検出が 1 件になる |
+
+URL の組み立て。query は `encodeURIComponent` した値を付け（`#` を含む値がハッシュに切られず、`URLSearchParams.get` が元の値に戻る）、hash も同じにする。`?ir=` の固定の値は再符号化せずそのまま付ける（IR-5 の `%23` は意図した符号化済みの値）。`start` は付けない（direct-link-start と ir-location が担う）。囮は `ir/min-3step.json`・`ir/something.json`・`ir/XSS-IR3.json`・`XSS-IR3.json`・`min-3step.json`・`something.json`・`main.json` に置く。
+
+`?ir=` の文言の読み替え。SAFE-7 の「`?ir=` の値が `./ir/<値>.json` の相対パスとして扱われる」は D-68（2026-10-21）より前の観察（PoC-7）で、仕様側も `engine-safety.md` に「決定前の観察で変えていない」と明記している。D-68 と SAFE-33 で IR の場所は固定の `./ir/main.json` になり、本体は `?ir=` を読まない。本試験は文言より強い現在の性質（値がどうであっても取得する資源の集合がクエリなしと同じで、囮の取得が 0 件）を確かめる。PoC では 61 回のうち 13 回が `?ir=` を読んで起動しなかったが、今は 61 回すべてがマウントするので、マウントを必須の条件にした。
+
+#### 限界
+
+- 配信する設定だけが対象。試験の設定は `?fixture=` 等を読むため、「本体が読まない名前」の前提が成り立たない。`start` の注入は 5.223（ir-location）と 5.199（direct-link-start）が担う
+- 画面の文字の一致は `document.body.innerText` の完全一致で見る。今回の実行では揺れなかった
+
+#### 件数・確認（2026-10-29）
+
+- `url-cases.test.mjs` の 4 件と `url-xss.test.mjs` の 5 件が、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。E6 は CSP あり・なしで各 61/61（位置別は `ir` が 13、他の 6 位置が各 8）、各約 52 秒（ローカル）
+- 手元の変異（記録のみ。コミットしない）: 配信する web の写しの `app.js` に `?os=` の値を `textContent` で DOM へ書く 4 行を足すと、`os` の 8 回が CSP あり・なしの両方で「印が画面に出た」で失敗し、C も失敗した。`?ir=` の値から取得する変異は流していない（未検証）
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+- 範囲外: 履歴（E4）は TASK-146
+
+### 5.371 受講者の入力・履歴を外部へ送らないことの通信の計数（TASK-153。SAFE-16）
+
+元にしたコミット: `b5c3af4b`（実行日 2026-10-29）。受講者が教材を開き、全 Step を操作し、履歴を保存する間に、配信元以外への通信の試みが 0 件であることを、ブラウザの計数（`tools/browser/egress-count.test.mjs`）と依存・配信物の静的な検査（`scripts/check-no-egress.sh`）で固定した。人間の承認点（CI のガードとして依存と配信物の検査を足すこと）は未承認で、レビューで判断を求める。
+
+#### 計数の区分（`tools/browser/egress.mjs`）
+
+「送らない」は完了した要求ではなく、送ろうとした呼び出しの件数で確かめる。CSP ありの回は止められた試みが route に届かないため、CSP なしの回と呼び出しの計数が本命になる。
+
+| 区分 | 数えるもの |
+|---|---|
+| `external`・`popups`・`csp` | harness の記録器（route で abort した配信元以外への要求・ポップアップ・CSP 違反） |
+| `offOriginCalls` | init script で包んだ通信の API（fetch・XMLHttpRequest・WebSocket・EventSource・sendBeacon・RTCPeerConnection・ServiceWorker の登録・Worker・SharedWorker）の呼び出しのうち、宛先が配信元以外のもの |
+| `otherCalls` | 上の呼び出しのうち、許可外のもの（許可は、配信元への GET の fetch で、宛先が wasm の取得か `ir/main.json` のとき） |
+| `offOriginRequests` | `context.on('request')` で見た配信元以外への要求 |
+| `ws`・`workers`・`serviceWorkers` | `page.on('websocket')`・`page.on('worker')`・`context.serviceWorkers()` |
+| `nonGet` | 配信元への GET・HEAD 以外の要求（静的配信への送信＝提出の形） |
+| `offAllowlist` | 配信元への要求のうち、パスが構成要素以外のもの、またはサブリソースのクエリ付きのもの（入力・履歴を URL に載せて送る形） |
+
+記録するのは API 名・宛先の分類・件数だけで、要求の本文・URL の値・履歴・下書きは Node 側へ送らず、出力もしない。分類の純関数の表は `egress.test.mjs`。
+
+#### 場面
+
+| 場面 | 内容 |
+|---|---|
+| G1（試験の設定。CSP あり・なし） | shell-journey と同じ誘導で CH-0〜CH-3 の形の 20 Step を通し、チェックポイントの保存→復帰・再読み込み・書き出し→別オリジンでの読み込み・保存の失敗（localStorage 側）を挟む。IndexedDB と localStorage の両方の保存先を通る。別オリジンの context にも記録器を付け、A・B の全区分 0 |
+| G2（配信する設定。CSP あり・なし） | D3 と同じ準備（IR を足した写し）で 20 Step を DOM だけで通し、続けて画面の操作だけで保存→復帰・書き出し・再読み込み・別オリジンでの読み込みを行う。操作が空振りしていない錨として、チェックポイントの一覧の項目・ダウンロードの発生・再読み込みと読み込みの後の位置表示の一致を確かめる |
+| C（対照。CSP なし） | 外部への fetch・sendBeacon・XHR・WebSocket・EventSource・外部の画像・配信元への POST・許可外のパス・クエリ付き GET・Worker の 10 種を 1 つずつ試み、対応する区分がちょうど 1 増えることを確かめる。宛先は予約ドメイン `example.invalid` と閉じたローカルのポートに限り、route で abort する |
+
+結果の 1 行の様式: `egress <場面> (CSP あり|なし): <区分>=<件数> ... fetch=<許可した fetch>/<呼び出しの総数> <挟んだ操作>`。fetch の件数は読み込みの回数に比例する（1 回の読み込みで wasm の取得 1 件、配信する設定＋IR ではさらに IR の取得 1 件）。
+
+#### 静的な検査（`scripts/check-no-egress.sh`。回帰テストは `scripts/test-check-no-egress.sh`）
+
+- `deps`: `Cargo.lock` の全パッケージに HTTP クライアント・ソケット・学習分析の crate（`reqwest`・`gloo-net`・`ureq`・`hyper`・`tungstenite` 系・`sentry*`・`opentelemetry*`・`posthog*` など）が無いこと。wasm32 で解決した `web-sys` の feature に通信の型（`Request`・`Response`・`Headers`・`FormData`・`XmlHttpRequest`・`WebSocket`・`EventSource`・`Rtc*`・`ServiceWorker*`・`Worker`・`SharedWorker`・`WebTransport`・`PushManager`）が無いこと（錨: ノードがちょうど 1 つで `Storage`・`IdbFactory` を含む）。`package.json` に `dependencies` が無いこと
+- `dist`: 配信物のファイルの集合が構成要素と一致しシンボリックリンクが無いこと、WASM の import に通信の名前が無いこと（錨: `setItem`・`indexedDB` が有る）、glue JS と `app.js` に通信のトークンが無いこと、`fetch(` が glue で 1 件・`app.js` で 1 件（引数は固定の `./ir/main.json`）であること、`index.html`・`app.js`・`app.css` に外部の参照が無いこと。wasm-opt の有無で変わらないため `SKIP_WASM_OPT=1` でも流せる。CI では `make test-build-web` の (a)・(e) が実ビルドに対して流す
+- 2026-10-29 の実測: 拒否の対象は 0 件。wasm32 の `web-sys` の feature に `Navigator` は含まれる（`sendBeacon` は feature で区別できないため、`dist` の検査と実行時の計数が受け持つ）。WASM の import は 163 件で、通信に関わる名前は無い（保存先は `setItem`・`indexedDB`・`open`・`put` など）
+
+#### 件数・確認（2026-10-29）
+
+- `egress.test.mjs` の 8 件が通った。`egress-count.test.mjs` の 5 件（G1・G2 の CSP あり・なしと C）を、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。G1 の挟んだ区間は checkpoint 9・reload 6・export-import 5・save-failure 7 の全合格。G2 の A は fetch が 4 件（再読み込みを含む 2 回の読み込み）、B は 2 件
+- C は 10 種の試みのそれぞれで対応する区分がちょうど 1 増えた
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、別 PR で `make update-test-counts`）
+
+#### 限界
+
+`docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」に記録する。
+
+### 5.372 submit の data-action の書き換え（TASK-148 2/2。SAFE-6）
+
+`data-payload-tamper.test.mjs`（補助は `data-payload-tamper.mjs`）に、`submit-input` の `data-action` を書き換えて押す試験と、click の総数の照合を足した。spec の `submit-btn` は現行の `submit-input`（`data-action="submit"`。`data-payload` は持たない）に当たる。
+
+#### 値と期待
+
+値は spec の SAFE-6 と PoC-7 README の E5 の行が挙げる `raw`・`debug`・`unknown`・`__proto__` の 4 つ（testdata に構造化された写しが無いため `ACTION_TAMPER_NAMES` に固定した）。`decode_action`（`crates/web/src/host.rs`）では、`raw` は試験の設定だけに分岐があり（payload が空なら `Op` の復号に失敗して何も起きない）、配信する設定にはコンパイルされない。他の 3 つはどの分岐にも当たらず `None` になる。よって期待は、画面・世界状態・ログ・localStorage・入力欄の value がすべて同一（5.369 の分類 D）。押し方は click と、入力欄での Enter（glue が `submit-input` を click する経路）の 2 通り。
+
+#### 場面と対照
+
+| 場面 | 内容 |
+|---|---|
+| AS | 試験の設定（`?fixture=ch0-3-chapters`）。下書き `/x` を置き、4 名 × 2 経路 |
+| AP | 配信する設定（IR あり。`FANDHE_WEB_AUTHOR_DIR`）。`__fandheTest` と `raw-trigger` が無いことを確かめ、AS と同じ 8 回に加え、`raw` と正しい `Op` の JSON の組を押しても同一であることを確かめる（SHELL-35 の振る舞いの面の証拠） |
+| AN | 配信する設定（IR なし）。`submit-input` は 1 件あり、AS と同じ 8 回 |
+| EA1 | 書き換えない送信は入力欄・ログの変化として検出される（D の判定の素通りの防止） |
+| EA2 | 試験の設定では `raw` と正しい `Op` の組が状態を変える（AP で何も起きないのは口が無いため） |
+
+各場面で、禁止の要素が増えないこと、書き換えた `data-action` が残っていないこと、`collectSafety` の計数・CSP 違反・ページ内エラーが 0 件であることを確かめる。CSP あり・なしの両方で流す。
+
+#### 総数の照合
+
+`総数` の試験が、6 場面がすべて完了したこと、`data-payload` の click が PoC-7 の 377 回（29 要素 × 13 値）以上であることを確かめる。377 は現行の画面に合わせる目標ではなく下限で、実測は `data-payload` 2,458 回 + `data-action` 50 回 = 2,508 回。各場面が実行 0・外部通信 0 を個別に assert するため、全場面が通れば全体で成り立つ。`--test-name-pattern` で絞ると失敗する（fail-closed）。
+
+#### 限界
+
+- `submit-input` 以外の口の `data-action` の書き換えは扱わない。`stop` など実在する別の名前への書き換えは別の action になり、「何も起きない」に当たらない
+- localStorage だけを比べ、IndexedDB は比べていない。IR を同梱した配信物での SAFE-1〜7 の流し直しは TASK-170
+
+#### 件数・確認（2026-10-29）
+
+- `data-payload-tamper.test.mjs` の 21 件がすべて通った（約 6 分 33 秒、ローカル）
+- 手元の変異: `HelloView::decode_action` が `unknown` でも `Submit` を返すように変えると、AS の `unknown`（click・Enter）が失敗した。戻して通ることも確認した
+- `make test-browser` の全体は流していない（未検証。CI に任せる）。`scripts/expected-test-counts.txt` は変えていない（版上げの前に別に直す）
+
+### 5.373 IR の大きさの上限（TASK-154。SAFE-17・SAFE-45）
+
+元にしたコミット: `ecb1a1c6` の上（実行日 2026-10-29）。IR の上限（20,971,520 バイト。決定 D-44）の境界を、native とブラウザの両方で固定した。
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| native（core） | `crates/core/tests/ir_size.rs` | 上限の値（20,971,520・+1・10 倍）を数字で固定し契約と照合。有効な IR を空白で上限ちょうどに埋めると `load_ir` が通り、+1 バイトで `too_large`。近傍 ±2・任意の長さ・速さ（1 秒未満）・文面に測った値を含まないこと |
+| native（web） | `crates/web/tests/ir_size_host.rs`、`ir_notice.rs` の単体 | 断られたホストの描画に `ir-notice`・`role="status"`・契約の文面・`too_large` が出て、入力欄が出ない |
+| ブラウザ | `tools/browser/ir-size-limit.test.mjs` | 配信する設定の画面（`FANDHE_WEB_AUTHOR_DIR`）で、`/ir/main.json` を自前のサーバが指定の大きさで流す。(E) ちょうど: 通知 0 件で教材が出る。(O) +1: 文面とコードが出る。(T) 10 倍: 同じ通知で、配信側は最後まで送らず受信を中止する。(O)(T) は取得の終わりから通知まで 1 秒未満。全ケースでタブが落ちず、ページ内エラー・外部通信・CSP 違反が 0 件 |
+
+変異: `SAFE17-1`（`>` を `>=` にしてちょうどを断る。core）、`SAFE17-2`（上限の通知に契約の文面を挟まない。web）。
+
+判断と注記:
+
+- spec の SAFE-17 は `?ir=` と書くが、D-68 で入り口が固定の `./ir/main.json` になったため、同梱の IR の経路で試した（SAFE-33 の注記と同じ扱い）。
+- 画面の文面は、`ir_notice_text` が上限の理由（`too_large`・`too_deep`）に限り契約の `rejection_message` を引いて「教材を読み込めませんでした。<契約の文面>（<コード>）」にする。他の理由の文は変えない。`too_deep` も同じ分岐で契約の文面になる。
+- 既知の限界: 契約の文面の末尾「別のファイルを選んでください」は、同梱の IR を受講者が選び直せない場面には合わない。直すには spec の変更と `LIMITS_CONTRACT_VERSION` の版上げが要るため範囲外とし、TASK-545（SHELL-31）へ申し送る。
+- 2026-10-29 の実測（同梱 Chromium、`SKIP_WASM_OPT=1` のビルド）: 取得の終わりから通知まで、+1 バイトで 46 ms、10 倍で 3 ms。待ちと CDP の往復を含む保守的な値。
+- `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（別 PR で `make update-test-counts`）。
+
+### 5.374 `ops` の件数の上限（TASK-156。SAVE-19・SAVE-41）
+
+履歴の `ops` の件数の上限は 20,000 件（D-44。TASK-10 の決定、2026-10-12）。判定の実体は `crates/core/src/history_load.rs` の段 5 で、型の変換の後・適用し直し（段 7・8）の前に置かれる（TASK-199・TASK-331 で実装済み）。本項は論理を足さず、受け入れ条件の証拠（境界・10 倍・時間・実操作の 19,990 件）を足した。
+
+#### 試験
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| native | `crates/core/tests/ops_limit.rs` | 値が 20,000 であること。20,001 件・200,000 件（10 倍。2.8MB で段 1 の大きさに掛からないことを先に表明）が `too_many_ops`。20,000 件は件数では断られず、後ろの段（`replay_mismatch`）で断られる。19,998〜20,002 件で規則が `n > 上限` と一致 |
+| native | `history_load.rs` の `real_ops_19990_history_opens` | 誤った入力の送信を実際に記録した 19,990 件の履歴が全段を通って開く（緩い上限 10 秒） |
+| 変異 | `SAFE19-1` | 上限のすぐ上だけを断つ誤り（桁違いの件数を素通り）。10 倍の試験だけが捉える（DETECTED） |
+| ブラウザ | `tools/browser/ops-limit.test.mjs`（CSP あり・なし 10 件） | 下記 |
+
+ブラウザの場面は次のとおり。
+
+- ファイル選択: 上限ちょうど（実操作）は開く。同じ件数の合成の履歴は `replay_mismatch` で断られ、件数の通知は 0 件（段 7 以降へ進んだ観察）。20,001 件と 200,000 件は `too_many_ops` で、ファイル入力の `change` から通知の出現までをページの中の `performance.now()` で計り 1 秒未満。断った後は状態・入力欄・保存先が変わらず、環境の差し替えが 0 回で、操作が効く
+- 保存先からの起動: 19,990 件（実操作）を IndexedDB に置いて再読み込みし、ナビゲーションの起点から `bootKind` が `restored` になるまでが 1 秒未満。20,001 件は 1 秒未満で `not_opened` になり、操作の後も保存先の値が変わらない
+- 全場面で外部通信・CSP 違反・ページ内エラー・dialog・popup が 0 件
+
+試験の口は `debug_ops_history_text(n)`（件数を指定した開ける履歴）と `debug_boot_kind()`（`bootKind` だけを返す。状態の全体を直列化して計時を歪めないため）で、試験の設定だけに入る。
+
+#### 実測（2026-10-29、ローカル。native は debug、ブラウザは `SKIP_WASM_OPT=1` の wasm）
+
+| 項目 | 値 |
+|---|---|
+| native: 10 倍（200,000 件・2.8MB）の拒否 | 約 167ms |
+| native: 19,990 件（4.0MB）が開くまで | 約 295ms |
+| ブラウザ: 20,001 件・200,000 件の通知（8.7MB）が出るまで | 約 130〜210ms |
+| ブラウザ: 19,990 件（6.5MB）の再読み込みから `restored` まで | 約 360ms |
+| ブラウザ: 20,001 件の再読み込みから `not_opened` まで | 約 180〜340ms |
+
+#### 判断
+
+- 履歴の読み込みの通知の文面は変えない。最終の文面は TASK-549・TASK-534 の範囲。試験は `data-notice-reason="too_many_ops"` と、文にコードが入ることだけを確かめる
+- 10 倍の試料は最小の形の op（`{"draft":"x"}`）で作る。10MB 超にすると段 1 の `too_large` が先に返り、件数を見なくなるため
+- 19,990 件は適用し直しで作る（記録の経路の証拠は native の `RecordPath`）。合成の 20,000 件は写しと合わないので、「開く」ではなく「段 5 を越えた」ことの観察にした
+- 大きい値の保存先への書き込みは IndexedDB の非同期になるため、書いた後に確定を待ってから再読み込みする
+- 保存済みの 20,001 件を起動で断った場合、枠の通知は出ない（起動時の理由は版の判定の段だけ。他の段の案内は TASK-533 の範囲）。本試験は通知の有無を固定しない
+
+#### 限界・未検証
+
+- 10MB に近く、かつ 19,990 件の最悪の組み合わせの起動は測っていない（大きさは TASK-155 の範囲）
+- `make test-browser` の全体は流していない（未検証。CI に任せる）。`scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）
+
+### 5.375 構造の合わない巨大な入力の拒否（TASK-161。SAFE-24）
+
+大きさ・深さの段（段 1・2）を通る大きさの、構造の合わない巨大な JSON を IR と履歴の入口に渡し、理由つきで断られ、タブが落ちないことを固定した。論理は足していない（試験のみ）。
+
+#### 試験
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| native | `crates/core/tests/shape_mismatch.rs` | 100 万・500 万要素の配列（A1・A5）、全体が上限ちょうどの文字列（S）、巨大な連想配列（M）が、IR は `malformed`、履歴は `missing_version` で 1 秒未満に断られる。形の合う対照（`step.lo` が 100,000 要素）は `load_ir` が通る |
+| ブラウザ | `tools/browser/shape-mismatch.test.mjs` | IR の経路は ir-size-limit と同じ自前サーバで `/ir/main.json` を差し替える。履歴の経路は ops-limit と同じ試験の口（`importInstall`・`history-file`）。通知が 1 件で理由のコードが出る・入力の値は画面に出ない・通知までと長いタスクの最大が 1 秒未満・断った後に状態・入力欄・保存先が変わらず操作が効く・外部通信と CSP 違反とページ内エラーが 0 件 |
+| 変異 | `SAFE24-1` | 型の不一致を構文の誤りとして返す誤り（理由が `malformed` でなくなる）。native の `ir_shapes_are_malformed_within_budget` が捉える（DETECTED） |
+
+#### 入力
+
+| ID | 形 | IR | 履歴 |
+|---|---|---|---|
+| A1 | `[0,0,...]` 100 万要素 | 約 2.0MB | 約 2.0MB |
+| A5 | 同 500 万要素 | 約 10.0MB | 約 10.0MB（上限 10,485,760 バイトの手前。`too_large` へすり替わらないよう試験が大きさを表明） |
+| S | 文字列 1 つ | ちょうど 20,971,520 バイト | ちょうど 10,485,760 バイト |
+| M | 連想配列（`format_version`・`versions` なし） | 100 万キー（約 13MB） | 80 万キー（約 10.4MB） |
+
+開く側の対照は、IR の `step.lo` を 100,000 要素にしたもの（IR-lo）、`pack.title` を 100,000 文字にしたもの（IR-title）、実操作の履歴（H-ok）。100,000 は将来の要素数・文字数の上限（SAFE-25。TASK-162）と同じ値で、上限が入っても開き続ける最大の値である。
+
+#### 判断と注記
+
+- spec の SAFE-24 は `?ir=` を入口と書くが、D-68 で IR の入口が固定の `./ir/main.json` になったため、同梱の IR の経路で試した（5.373 と同じ扱い）。
+- 受講者向けの文面（試作の「中身の形が合いません」「版の欄がありません」）は契約に無く、本件では足さない。試作の文言とコードの対応は、「中身の形が合いません」が `malformed`、「版の欄がありません」が `missing_version`。最終の文面は TASK-545（IR）・TASK-549・TASK-534（履歴）の範囲。理由はコードで確かめる。
+- TASK-162 への申し送り: 断る側の期待は、要素数の数え上げが型の段の後（型付きの欄）で行われることに依る。生の値で先に数える設計を採る場合は、本試験の期待コードを見直す。
+- 閾値は 1 秒未満。試作の拒否の最長のタスクは 281ms（200MB の IR の経路）、5M 要素の配列で IR 136ms・履歴 141ms だった。CI の端末が違い「大きく超えない」が数値の契約でないため、硬い判定は 1 秒にし、実測を diagnostic に残す。
+- 観測器の自己確認として、ページ自身のタイマーで 300ms 止めて `longtask` が記録されることを先に確かめる。
+
+#### 実測（2026-10-29、ローカル。同梱 Chromium、`SKIP_WASM_OPT=1` の wasm）
+
+| 項目 | 通知まで | 長いタスクの最大 |
+|---|---|---|
+| IR A1 / A5 / S / M | 95 / 248 / 182 / 364 ms | 0 / 196 / 113 / 308 ms |
+| 履歴 A1 / A5 / S / M | 45 / 222 / 55 / 266 ms | 0 / 217 / 0 / 258 ms |
+
+どれも試作の 281ms の 2 倍（562ms）以内である。
+
+#### 限界・未検証
+
+- 起動時の保存先からの復元の経路で形の合わない値を読んだときの通知は TASK-533 の範囲。本試験はファイル選択の経路だけ
+- 連想配列の IR の開く側（100,000 キー）は、足せる安全な連想配列が教材の欄に無いため入れていない（連想配列は断る側の M のみ）
+- `make test-browser` の全体は流していない（本試験の単独実行のみ。CI に任せる）。`scripts/expected-test-counts.txt` は変えていない（別に `make update-test-counts`）

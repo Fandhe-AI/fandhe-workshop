@@ -1,0 +1,8 @@
+id: SAFE19-1
+package: fandhe-workshop-core
+test: ops_limit
+target: crates/core/src/history_load.rs
+find:     if env.ops.len() > MAX_HISTORY_OPS {
+replace:     if env.ops.len() > MAX_HISTORY_OPS && env.ops.len() <= MAX_HISTORY_OPS * 2 {
+expect-fail: tenfold_is_too_many_ops_within_a_second
+note: 上限のすぐ上だけを断ち、桁違いに多い件数を素通りさせる
