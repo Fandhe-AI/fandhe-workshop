@@ -142,7 +142,7 @@ for (const csp of [true, false]) {
       await page.waitForTimeout(1500);
       await page.fill(DRAFT, '/');
       await page.waitForSelector(CAND);
-      const r = await tamperGroup(page, true, { name: 'candidate-btn', selector: CAND, cls: 'I', values: cases.values });
+      const r = await tamperGroup(page, true, { name: 'candidate-btn', selector: CAND, cls: 'I', values: cases.values, draft: { selector: DRAFT, text: '/' } });
       tally.clicks += r.clicks;
       if (r.failures.length) console.log(`A2/candidate-btn: ${r.failures.slice(0, 8).join(' | ')}`);
       L.check('A2', `candidate-btn（I）: ${r.instances} 要素 × 値で期待どおり`, r.failures.length === 0 && r.instances > 0);

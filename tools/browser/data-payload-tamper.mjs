@@ -72,7 +72,9 @@ export function observe(page, hooks) {
         tick: window.__fandheTest.nextTick(),
       };
     }
-    return { dom: r ? r.innerHTML : null, ls: JSON.stringify(ls), eng };
+    // 入力欄の value（innerHTML には出ない）。候補の click の主な結果は入力欄への補完のため、比較に含める。
+    const d = document.querySelector('[data-testid="draft-input"]');
+    return { dom: r ? r.innerHTML : null, ls: JSON.stringify(ls), eng, draft: d ? d.value : null };
   }, [ROOT, hooks]);
 }
 
@@ -163,21 +165,30 @@ export async function tamperClick(page, hooks, selector, index, value) {
 // 1 つの口の種類（selector）の全インスタンス × 全値の書き換え。期待の分類（cls）で判定し、失敗は label だけで返す。
 //   D: 同一。J: 状態は同一でログの増分は rejected だけ。I: 直前の対照の click と同じ変化。
 // 戻り値: { clicks, skipped, failures }。skipped は値が元の payload と一致する組（書き換えではないため除く）。
-export async function tamperGroup(page, hooks, { name, selector, cls, values }) {
+//   draft: { selector, text } を渡すと、I の対照と書き換えの click の直前に入力欄をその下書きへ戻して同じ条件から始める（候補の補完の比較用）。
+export async function tamperGroup(page, hooks, { name, selector, cls, values, draft = null }) {
   const n = await page.evaluate((sel) => document.querySelectorAll(sel).length, selector);
   const out = { clicks: 0, skipped: 0, failures: [], instances: n };
+  const resetDraft = async () => {
+    if (!draft) return;
+    await page.fill(draft.selector, draft.text);
+    await page.waitForFunction(([sel, c]) => document.querySelectorAll(sel).length >= c, [selector, n]);
+  };
   for (let i = 0; i < n; i += 1) {
     // I は最初の click が初回だけの変化（フォーカス・一覧の整え）を起こしうるため、記録しない対照の click を先に 1 回行う。
     if (cls === 'I') {
+      await resetDraft();
       await tamperClick(page, hooks, selector, i, null);
       await page.waitForTimeout(800);
     }
     for (const v of values) {
       let control = null;
       if (cls === 'I') {
+        await resetDraft();
         control = await tamperClick(page, hooks, selector, i, null);
         if (control.gone) { out.failures.push(`${name}[${i}] ${v.label}: 対照の click の要素が消えた`); continue; }
       }
+      if (cls === 'I') await resetDraft();
       const r = await tamperClick(page, hooks, selector, i, v.value);
       if (r.gone) { out.failures.push(`${name}[${i}] ${v.label}: 要素が消えた`); continue; }
       if (r.same) { out.skipped += 1; continue; }
@@ -195,6 +206,7 @@ export async function tamperGroup(page, hooks, { name, selector, cls, values }) 
           core: !sameCore(x.before, x.after),
           ls: x.before.ls !== x.after.ls,
           kinds: addedKinds(x.before, x.after),
+          draft: x.after.draft,
           lines: x.before.eng ? x.after.eng.lines.slice(x.before.eng.lines.length) : [],
         });
         if (sig(r) !== sig(control)) fail(`書き換えない click と結果が違う（${sig(r)} / 対照 ${sig(control)}）`);

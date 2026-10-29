@@ -10237,7 +10237,7 @@ spec の名前は試作の名前で、現行の DOM とは一致しない。現�
 |---|---|---|
 | D（復号で断る） | `save-checkpoint`・`restore-checkpoint`・`select-pane`・`select-view`・`decide`・`dismiss-notice`・`ui` | root の中身・世界状態・ログ・localStorage がすべて同一 |
 | J（復号は通り core が断る） | `choose`・`revise-target`・`next-chapter` | 世界状態と現在の Step が同一。ログの増分は受信（`input_received`）と `rejected` の判定（`judged`）だけで、受付・達成・進入・復帰の行は増えない。受信は履歴の `ops` に残るため localStorage は変わりうる（入力として記録する設計） |
-| I（payload を読まない） | `submit-input`・`candidate-btn` | 書き換えない click の直前の対照と同じ変化（状態・保存先・ログの増分で比べる） |
+| I（payload を読まない） | `submit-input`・`candidate-btn` | 書き換えない click の直前の対照と同じ変化（状態・保存先・ログの増分・入力欄の value で比べる。候補は対照と書き換えを同じ下書き `/` から実行する） |
 
 全組に共通して、禁止の要素（`DANGER_TAGS`）の数が click の前後で増えないこと、場面の終わりに `collectSafety` の計数（記録用の関数の呼び出し・ダイアログ・ポップアップ・タブの異常終了・CSP の違反・ページ内エラー・配信元以外への通信）がすべて 0 であること、書き換えた値が属性に残っていないことを確かめる。CSP あり・なしの両方で流す。
 
