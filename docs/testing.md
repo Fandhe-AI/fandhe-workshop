@@ -5134,7 +5134,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 567`（2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 573`（2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -10702,7 +10702,26 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - native: `crates/core/src/text_fill.rs`（受付の注記の充填と、入力の直後でない・`Accepted(None)` は戻さないこと）、`crates/web/tests/log_kind_match.rs`（受付の注記を足した種類の一致と、文面なしで行にならないこと）
 - 限界: 「次の一歩」の案内が案内だけであること（ROUND2-24・ROUND2-25）は教材の内容の確認で、本 repo に CH-15 は無い。L2 での同じ計数は行わない（L1 と L2 の一致は `l1-l2-match` が見る）。応答の行が増えたため、`make measure-log-items`（`docs/measurement.md` 4b）の最大項目数は自然文の入力ごとに 1 増えうる。基点の取り直しは行っていない。`scripts/expected-test-counts.txt` は変えていない
 
-### 5.383 ヒントの使用回数を Step の実体ごとに分ける（TASK-297 1/2。GUIDE-7）
+
+### 5.383 受け口を有効にしても安全性が変わらないこと（TASK-191 2/2。EXT-10・D-53。SAFE-5・SAFE-7・SAFE-16）
+
+結論: 受け口を有効（環境の許可 + 受講者の同意）にしても、判定・ログ・状態・書き出しの結果、実行・配信元以外への通信・CSP 違反の件数は、無効（既定）と変わらない。ただし受け口の実体（有効を読んで振る舞いを変える処理）はまだ無く、配信する設定には有効にする経路が無い。したがって比較は「試験の設定で関門を切り替えた差分」であり、配信する設定での有効化を試したものではない。
+
+- 経路: 試験の設定だけ、クエリの `receptor=probe` の完全一致の 1 件で代役の受け口（`fandhe-test-receptor-probe`）を許可し、同意を与える（値の違い・空値・大文字違い・2 件以上は無効のまま）。同意は保存しない規則（D-53）のため、履歴の復元（`boot`）の後でマウントの直前に与える。読み取りの錨は `debug_receptor_activation`（`enabled`・`not_configured`・`no_consent`）。新しい feature は足していない
+- native（元にしたコミットは `45ada777` の次。2026-10-29）: `crates/web/tests/receptor_enabled_safety.rs`
+  - 静的: 関門の結果を読む識別子（`receptor_activation`・`is_enabled`・`Activation::Enabled`・`receptor_gate::activation`）の出現を、定義と試験の口の固定の件数に限る。core は `receptor_gate` を自身と `lib.rs` の `mod` だけが参照する。新しい消費者を足すと失敗する
+  - 挙動: E5 の 49 件を、そのまま・`/` の後ろ・`/new-idea` の引数の 3 通りで、有効・無効の 2 つのホストへ送り、ログ・状態・書き出しが一致する
+  - 変異 `EXT10-3`（受け口の外に有効を読む処理を足す）。定義の静的検査は `make check-mutation-defs`。手で差し込んで静的試験が失敗することを確認した（2026-10-29）。`make check-mutations` の全体の実行は遅いため未実施
+- 自動ブラウザ `tools/browser/receptor-safety.test.mjs`（試験の設定。CSP なしだけ。止められない側で実行・通信を検出しやすいため。CSP ありは時間のため省いた。実測は全体で約 2.5 分）
+  - A: 有効は `receptor=probe` の完全一致の 1 件だけ。配信する設定では `?receptor=probe` を付けても試験の口が無い
+  - B: E5 の 49 件 x 3 通りを本物の入力欄から送り、各回の観察（受付の行・続く行・Step の題・状態の JSON）が無効と有効で一致。実行・計数・通信が全区分 0
+  - C: URL の注入 61 回（SAFE-7 と同じ入力）の観察が無効と有効で一致。文書の要求の URL は注入の値を含むため `offAllowlist` は比較に含め（無効と有効で同じ）、他の区分は 0
+  - D: 有効のまま 20 Step を通して再読み込みしても、通信の試みが全区分 0 件。再読み込みの後は代役が同意を与え直すだけで、保存はしない
+  - E: 対照。禁止の要素を数えられること、錨が無効と有効で違う値を返すこと
+- 配信物に代役の名・`receptor_activation` が無いことを `scripts/test-build-web.sh`・`tools/check-delivery.sh` が固定の文字列で確かめる
+- 限界: `docs/known-gaps.md` の「EXT-10」。`scripts/expected-test-counts.txt` は更新していない
+
+### 5.384 ヒントの使用回数を Step の実体ごとに分ける（TASK-297 1/2。GUIDE-7）
 
 - 目的: 開いたヒントの段数が Step の実体 ID（根を含む完全な uid）ごとに分かれ、2 周目の開始の直後は 2 周目の根の使用回数が 0 であり、2 周目で開いても 1 周目に出ないことを固定する。実体（根）ごとの合計を読めるようにする。
 - 決定: 鍵は 5.251 の時点から完全な uid で、分離は既存の実装で成り立っていた。本節が足したのは読み取り口（`SessionState::hints_opened_at`・`hints_opened_in`。`Session`・`RecordedSession` は委ねるだけ）と固定の試験である。欄の型・直列化・`CONTRACT_VERSION` は変えない。「接頭辞」は `StepUid::root` との完全一致で判定し、前方一致にしない（`m@r1` が `m@r10/..` に混ざらないため）。和は飽和加算。入れ子の根の文言の食い違いは #1413（本件の範囲外）。

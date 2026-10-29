@@ -15,6 +15,7 @@
 #   7. WASM のバイト列に debug_ と raw-trigger が無い
 #   8. 配信物の中にシンボリックリンクが無い（find -type f はリンクを列挙せず、名前の検査（5・6）をすり抜けるため。
 #      tools/serve.mjs は配信ルート内のリンク先を配信するので、リンクは到達可能な経路になる）
+#   9a. WASM のバイト列に代役の受け口の名 fandhe-test-receptor-probe が無い（TASK-191 2/2）
 #   9. WASM のバイト列に隠し要素の名前 tick-trigger・esc-trigger・complete-trigger が無い（TASK-349 2/2）
 #  10. 配信する JS・HTML（glue の JS・app.js・index.html）に、上の 3 名と data-payload が無い（TASK-349 2/2）
 #  11. index.html と app.js に <style 要素と style= 属性が無い（TASK-469 1/2。SAFE-15 の静的な層）。
@@ -138,6 +139,7 @@ no_match "no debug_ bytes in wasm" -aq 'debug_' "${WASM}"
 no_match "no raw-trigger bytes in wasm" -aq 'raw-trigger' "${WASM}"
 no_match "no tick-trigger bytes in wasm" -aq 'tick-trigger' "${WASM}"
 no_match "no esc-trigger bytes in wasm" -aq 'esc-trigger' "${WASM}"
+no_match "no receptor probe name bytes in wasm" -aq 'fandhe-test-receptor-probe' "${WASM}"
 no_match "no complete-trigger bytes in wasm" -aq 'complete-trigger' "${WASM}"
 
 # 配信する JS・HTML には、隠し要素の名前も data-payload も正当な利用が無い（WASM との違いは冒頭のコメント）。

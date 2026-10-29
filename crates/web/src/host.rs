@@ -1964,6 +1964,14 @@ impl EngineHost {
         self
     }
 
+    /// 受け口への受講者の同意を記録した状態で返す（`self` を消費する builder。`with_receptor_settings` と同じく合成の根からだけ使う。
+    /// 試験の設定の代役の受け口の有効化が、マウントの前に 1 回だけ使う。TASK-191 2/2）。
+    #[must_use]
+    pub fn with_receptor_consent(mut self, id: ReceptorId) -> Self {
+        self.consent.grant(id);
+        self
+    }
+
     /// 受け口への受講者の同意を記録する（同意を求める画面は未実装）。世界状態・`ops` を変えない。
     pub fn grant_receptor_consent(&mut self, id: ReceptorId) {
         self.consent.grant(id);

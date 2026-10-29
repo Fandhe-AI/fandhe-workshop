@@ -124,6 +124,8 @@ check_status "no fandhe-test-hooks meta" 1 grep -q 'fandhe-test-hooks' "${DELIVE
 check_status "no test-hooks marker" 1 grep -q 'fandhe:test-hooks' "${DELIVERY}/index.html"
 check_status "no keydown-probe in wasm" 1 grep -aq 'keydown-probe' "${DELIVERY}/${WASM}"
 check_status "no keydown-probe in glue js" 1 grep -q 'keydown-probe' "${DELIVERY}/wasm/fandhe_workshop_web.js"
+check_status "no receptor probe name in wasm" 1 grep -aq 'fandhe-test-receptor-probe' "${DELIVERY}/${WASM}"
+check_status "no receptor probe in glue js" 1 grep -q 'receptor_activation' "${DELIVERY}/wasm/fandhe_workshop_web.js"
 check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
 # 同梱の IR の印（TASK-112 2/2）。IR_FILE が無い配信物は meta も印も持たず、app.js は ./ir/main.json を取得しない。
 check_status "no fandhe-ir meta without IR_FILE" 1 grep -q 'fandhe-ir' "${DELIVERY}/index.html"

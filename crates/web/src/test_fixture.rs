@@ -511,7 +511,8 @@ pub(crate) fn mount_refusal(fixture: MountFixture) -> Option<IrLoadError> {
 /// URL のクエリ（`location.search`）から mount の教材を選ぶ。`?fixture=reload-points` の完全一致だけが
 /// 8 Step の教材、`?fixture=no-input` の完全一致だけが入力欄なしの教材、`?fixture=ch0-3` の完全一致だけが 20 Step の通しの教材を選び、
 /// 空・未知の名前・余分な文字・他のキーとの併用は、すべて既定に倒す。
-/// 例外は直接リンクの `start`（TASK-109 1/2）で、`start=...` の対だけを取り除いた残りで同じ完全一致を行う。
+/// 例外は直接リンクの `start`（TASK-109 1/2）と、代役の受け口の有効化の `receptor`（TASK-191 2/2）で、
+/// `start=...`・`receptor=...` の対だけを取り除いた残りで同じ完全一致を行う。
 /// `start` の値はここでは解釈しない（開始点の照合は `start_select` が行い、値の出所は `static/app.js` が渡す引数に一本化する）。
 pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
     let stripped = strip_start_pairs(search);
@@ -547,14 +548,27 @@ pub(crate) fn mount_fixture_from_search(search: &str) -> MountFixture {
     }
 }
 
-/// クエリ（`?` 付き）から `start=` で始まる対をすべて取り除く。残りが `?` だけなら `?` を返す。
+/// 試験の設定で代役の受け口を有効にするかの判定（TASK-191 2/2。EXT-10・D-53）。
+///
+/// クエリの中の `receptor=` で始まる対が、ちょうど 1 つで、その全体が `receptor=probe` のときだけ `true`。
+/// 値の違い・空値・大文字違い・2 件以上は無効のまま（fail-closed）。値は照合にだけ使い、画面・ログ・経路には出さない。
+/// 呼び出し元は `test_hooks::receptor_probe_from_url` だけで、配信する設定には入らない。
+pub(crate) fn receptor_probe_requested(search: &str) -> bool {
+    let Some(rest) = search.strip_prefix('?') else {
+        return false;
+    };
+    let mut pairs = rest.split('&').filter(|p| p.starts_with("receptor="));
+    pairs.next() == Some("receptor=probe") && pairs.next().is_none()
+}
+
+/// クエリ（`?` 付き）から `start=`・`receptor=` で始まる対をすべて取り除く。残りが `?` だけなら `?` を返す。
 fn strip_start_pairs(search: &str) -> String {
     let Some(rest) = search.strip_prefix('?') else {
         return search.to_owned();
     };
     let kept: Vec<&str> = rest
         .split('&')
-        .filter(|pair| !pair.starts_with("start="))
+        .filter(|pair| !pair.starts_with("start=") && !pair.starts_with("receptor="))
         .collect();
     format!("?{}", kept.join("&"))
 }
@@ -1848,6 +1862,33 @@ mod tests {
     }
 
     #[test]
+    fn 代役の受け口は_receptor_probe_の完全一致の_1_件だけで有効になる() {
+        for q in [
+            "?receptor=probe",
+            "?fixture=ch0-3-links&receptor=probe",
+            "?receptor=probe&fixture=ch0-3-links&start=s-1-4",
+        ] {
+            assert!(receptor_probe_requested(q), "{q:?}");
+        }
+        for q in [
+            "",
+            "?",
+            "receptor=probe",
+            "?receptor=",
+            "?receptor=PROBE",
+            "?receptor=probe ",
+            "?receptor=on",
+            "?receptor=probe&receptor=probe",
+            "?receptor=probe&receptor=x",
+            "?xreceptor=probe",
+            "?Receptor=probe",
+            "?fixture=ch0-3-links",
+        ] {
+            assert!(!receptor_probe_requested(q), "{q:?}");
+        }
+    }
+
+    #[test]
     fn start_の対だけは取り除いて完全一致で教材を選ぶ() {
         for (q, want) in [
             ("?fixture=multi-start", MountFixture::MultiStart),
@@ -1867,6 +1908,16 @@ mod tests {
             ),
             ("?start=s-4", MountFixture::Default),
             ("?start=", MountFixture::Default),
+            // 代役の受け口の有効化の対（TASK-191 2/2）は教材の選択を妨げない。
+            (
+                "?fixture=ch0-3-links&receptor=probe",
+                MountFixture::Ch03Links,
+            ),
+            (
+                "?receptor=probe&fixture=ch0-3-links&start=s-1-4",
+                MountFixture::Ch03Links,
+            ),
+            ("?receptor=probe", MountFixture::Default),
             // start 以外の余分なキー・大文字違いは既定に倒す（既存の否定と同じ）。
             ("?fixture=multi-start&start=s-4&x=1", MountFixture::Default),
             ("?x=1&fixture=multi-start&start=s-4", MountFixture::Default),

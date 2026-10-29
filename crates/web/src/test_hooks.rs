@@ -35,6 +35,52 @@ pub(crate) fn mount_fixture_from_url() -> crate::test_fixture::MountFixture {
     crate::test_fixture::mount_fixture_from_search(&search)
 }
 
+/// 試験用の代役の受け口の名（TASK-191 2/2。EXT-10・D-53）。受け口の実体は無く、有効の状態を読む消費者も無い。
+/// 配信する設定には入らない（`scripts/test-build-web.sh`・`tools/check-delivery.sh` がこの名の不在を検査する）。
+const PROBE: fandhe_workshop_core::receptor_gate::ReceptorId =
+    fandhe_workshop_core::receptor_gate::ReceptorId::new("fandhe-test-receptor-probe");
+
+/// URL のクエリが `?receptor=probe` の完全一致の 1 件を持つか（読み取りのみ。TASK-191 2/2）。
+///
+/// `persist` の 2 つのマウントの経路が `apply_receptor_probe` を通すかの判定に使う。読めないときは `false`（無効に倒す）。
+pub(crate) fn receptor_probe_from_url() -> bool {
+    let search = web_sys::window()
+        .and_then(|w| w.location().search().ok())
+        .unwrap_or_default();
+    crate::test_fixture::receptor_probe_requested(&search)
+}
+
+/// 試験の設定で `?receptor=probe` があるとき、代役の受け口を許す設定と受講者の同意をホストへ与える（TASK-191 2/2）。
+///
+/// 同意は保存しない規則（D-53）のため、`boot`（履歴の復元）の後でマウントの直前に呼ぶ。同意を求める画面は未実装で、
+/// この関数は「受講者が同意した後」の代役である。ない場合は何も変えずにホストを返す。
+/// 呼び出し元は `persist` のマウントの 2 経路だけ。
+pub(crate) fn apply_receptor_probe(host: crate::host::EngineHost) -> crate::host::EngineHost {
+    if !receptor_probe_from_url() {
+        return host;
+    }
+    host.with_receptor_settings(
+        fandhe_workshop_core::receptor_gate::ReceptorSettings::default().allow(PROBE),
+    )
+    .with_receptor_consent(PROBE)
+}
+
+/// 代役の受け口の有効・無効を返す（読み取りのみ。TASK-191 2/2）。
+///
+/// `"enabled"`・`"not_configured"`・`"no_consent"`。未マウントは `"null"`。「有効にした回」が空振りでないことの錨で、
+/// 状態は変えない。
+#[wasm_bindgen]
+pub fn debug_receptor_activation() -> String {
+    use fandhe_workshop_core::receptor_gate::{Activation, DisabledReason};
+    match crate::glue::receptor_activation_probe(PROBE) {
+        Some(Activation::Enabled) => "enabled",
+        Some(Activation::Disabled(DisabledReason::NotConfigured)) => "not_configured",
+        Some(Activation::Disabled(DisabledReason::NoConsent)) => "no_consent",
+        None => "null",
+    }
+    .to_string()
+}
+
 /// 直近に開いた履歴の、開いた直後（進行の前）の状態の JSON を返す（読み取りのみ。TASK-175 2/2）。
 ///
 /// 開いていなければ `"null"`。写しの一致の確認用で、進行のタイマーが開いた後に状態を進めても揺れない。

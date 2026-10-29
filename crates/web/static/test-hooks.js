@@ -1,5 +1,5 @@
 // 試験の設定でだけ配る橋渡し。wasm の debug_* を JS から呼べる名前で出す。
-import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_export_prepare_live, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len, debug_ops_history_text, debug_boot_kind } from "./wasm/fandhe_workshop_web.js";
+import { debug_state_json, debug_rerender, debug_draft, debug_check_json_depth, debug_check_json_load, debug_check_doc, debug_render_doc, debug_render_quote_nest, debug_tick_interval_ms, debug_render_tree, debug_next_tick, debug_request_complete, debug_storage_open, debug_storage_key, debug_storage_write, debug_storage_read, debug_storage_state, debug_view_fixture_mount, debug_view_fixture_dispatch, debug_view_fixture_state, debug_save_stage, debug_save_install_pagehide, debug_save_flush, debug_save_stale, debug_export_prepare, debug_export_prepare_loadable, debug_export_prepare_live, debug_loadable_history_text, debug_export_revoke, debug_last_import_state_json, debug_autosave_state, debug_history_save_len, debug_large_history_text, debug_secret_gate_len, debug_ops_history_text, debug_boot_kind, debug_receptor_activation } from "./wasm/fandhe_workshop_web.js";
 
 export function stateJson() {
   return debug_state_json();
@@ -224,4 +224,9 @@ export function bootKind() {
 // 保存の直前の関門（直列化と秘密情報の検査）を 1 回走らせる（TASK-166）。固定形の JSON 文字列 {"bytes":n,"shapes":k}。値は含まない。
 export function secretGateLen() {
   return debug_secret_gate_len();
+}
+
+// 代役の受け口の有効・無効（TASK-191 2/2）。"enabled" / "not_configured" / "no_consent"、未マウントは "null"。読み取りのみ。
+export function receptorActivation() {
+  return debug_receptor_activation();
 }
