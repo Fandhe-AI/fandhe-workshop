@@ -180,27 +180,30 @@ echo '[x](<sub dir/../a b.md>) [y](<a b/c.md> "t u") [z]: <d e/f.md> "t"' >>"${d
 run_check "${dir}"
 expect "template README angle-bracket links that stay inside are accepted" 0 "${RC}"
 dir="$(fresh_copy)"
+echo "[x](sub(a)/${UP}/${UP}/LICENSE-MIT)" >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README link with parentheses leaving the directory rejected" 1 "${RC}"
+dir="$(fresh_copy)"
+printf '[x]:\n  %s/LICENSE-MIT\n' "${UP}" >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README multi-line reference definition leaving the directory rejected" 1 "${RC}"
+dir="$(fresh_copy)"
+printf '[x](sub(a)/b.md) [y]:\n  c/d.md\n' >>"${dir}/template-workshop/README.md"
+run_check "${dir}"
+expect "template README parenthesised and multi-line links that stay inside are accepted" 0 "${RC}"
+dir="$(fresh_copy)"
 echo "extra" >>"${dir}/LICENSE-MIT"
 run_check "${dir}"
 expect "engine LICENSE-MIT changed without the template" 1 "${RC}"
 
-# 4c. リンク検査の実行失敗（grep・sed・awk）は合格にも違反にもせず 2 にする
-for tool in sed awk grep; do
-  BAD_BIN="${TMP_DIR}/bad-${tool}"
-  mkdir -p "${BAD_BIN}"
-  if [ "${tool}" = grep ]; then
-    # 本文の目印検査の grep は通し、リンク抽出（-o 付き）だけ実行エラー（2）にする
-    real_grep="$(command -v grep)"
-    # shellcheck disable=SC2016 # $1 は生成する偽 grep の中で展開させる
-    printf '#!/usr/bin/env bash\ncase "$1" in -oE) exit 2 ;; esac\nexec %q "$@"\n' "${real_grep}" >"${BAD_BIN}/grep"
-  else
-    printf '#!/usr/bin/env bash\nexit 1\n' >"${BAD_BIN}/${tool}"
-  fi
-  chmod 755 "${BAD_BIN}/${tool}"
-  RC=0
-  PATH="${BAD_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
-  expect "link check fails closed when ${tool} fails" 2 "${RC}"
-done
+# 4c. リンク検査の実行失敗（awk）は合格にも違反にもせず 2 にする
+BAD_BIN="${TMP_DIR}/bad-awk"
+mkdir -p "${BAD_BIN}"
+printf '#!/usr/bin/env bash\nexit 1\n' >"${BAD_BIN}/awk"
+chmod 755 "${BAD_BIN}/awk"
+RC=0
+PATH="${BAD_BIN}:${PATH}" "${CHECK}" >/dev/null 2>"${TMP_DIR}/stderr.txt" || RC=$?
+expect "link check fails closed when awk fails" 2 "${RC}"
 
 # 5. 偽の cargo（検査を完了できない場合は合格にしない）
 FAKE_BIN="${TMP_DIR}/bin"

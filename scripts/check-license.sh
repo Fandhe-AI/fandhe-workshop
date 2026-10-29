@@ -94,23 +94,53 @@ check_text() {
 check_text LICENSE-MIT 'Permission is hereby granted, free of charge'
 check_text LICENSE-APACHE 'Apache License' 'Version 2.0, January 2004'
 
+# links_extract <file>: Markdown のリンク先を 1 行 1 件で出力する。
+# インラインは括弧の対応を数えて全体を取る（閉じが無ければ行末まで取り、厳しい側に倒す）。
+# 参照定義は `[label]:` の次の空でない行にリンク先が続く記法も扱う。
+links_extract() {
+  awk '
+    function inline(line,   p, rest, depth, i, c, e) {
+      while ((p = index(line, "](")) > 0) {
+        rest = substr(line, p + 2)
+        if (substr(rest, 1, 1) == "<") {
+          e = index(rest, ">")
+          if (e == 0) { print rest; return }
+          print substr(rest, 1, e)
+          line = substr(rest, e + 1)
+          continue
+        }
+        depth = 1
+        for (i = 1; i <= length(rest); i++) {
+          c = substr(rest, i, 1)
+          if (c == "(") depth++
+          else if (c == ")") { depth--; if (depth == 0) break }
+        }
+        print substr(rest, 1, i - 1)
+        line = substr(rest, i + 1)
+      }
+    }
+    {
+      if (pending) {
+        if ($0 ~ /^[[:space:]]*$/) next
+        print $0; pending = 0; next
+      }
+      if ($0 ~ /^[[:space:]]*\[[^]]+\]:/) {
+        t = $0
+        sub(/^[[:space:]]*\[[^]]+\]:[[:space:]]*/, "", t)
+        if (t == "") pending = 1; else print t
+      }
+      inline($0)
+    }' "$1"
+}
+
 # links_leave_dir <file>: Markdown のリンク先（インライン・参照定義）を相対パスとして正規化し、
 # 置き場の外へ出るもの（./../ の表記、先頭の / を含む）が 1 件でもあれば 0 を返す。
 # 外部 URL（スキーム付き）と同一ファイル内の # だけは対象外。
-# 戻り値: 0 = 外へ出るリンクあり / 1 = なし / 2 = 検査を完了できない（grep・sed・awk の実行失敗）。
+# 戻り値: 0 = 外へ出るリンクあり / 1 = なし / 2 = 検査を完了できない（awk の実行失敗）。
 # if の条件で呼ぶと関数内の set -e が効かないため、呼び出し側は `rc=0; links_leave_dir f || rc=$?` で確かめる。
 links_leave_dir() {
-  local file="$1" raw="${TMP_DIR}/links.raw" rc verdict
-  : >"${raw}"
-  # grep の終了コード 1 は不一致（リンク無し）、2 以上は実行エラー。両者を区別する。
-  rc=0
-  grep -oE '\]\((<[^>]*>[^)]*|[^)]*)\)' "${file}" >"${TMP_DIR}/links.inline" || rc=$?
-  [ "${rc}" -le 1 ] || return 2
-  rc=0
-  grep -E '^[[:space:]]*\[[^]]+\]:' "${file}" >"${TMP_DIR}/links.ref" || rc=$?
-  [ "${rc}" -le 1 ] || return 2
-  sed -e 's/^](//' -e 's/)$//' "${TMP_DIR}/links.inline" >>"${raw}" || return 2
-  sed -E 's/^[[:space:]]*\[[^]]+\]:[[:space:]]*//' "${TMP_DIR}/links.ref" >>"${raw}" || return 2
+  local file="$1" raw="${TMP_DIR}/links.raw" verdict
+  links_extract "${file}" >"${raw}" || return 2
   verdict="$(links_verdict "${raw}")" || return 2
   case "${verdict}" in
     leave) return 0 ;;
