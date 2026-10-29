@@ -1,0 +1,8 @@
+id: SAFE40-1
+package: fandhe-workshop-web
+test: refusal_keeps_saved
+target: crates/web/src/host.rs
+find:                 self.closed(ImportOutcome::Refused(code))
+replace:                 { self.set_version_notice(true); self.closed(ImportOutcome::Refused(code)) }
+expect-fail: refusals_keep_state_saved_value_and_screen_free_of_input_values
+note: 断った履歴の読み込みで、断る理由と無関係な「変換して開いた」通知を足す（通知の文が固定の 1 件でなくなる）
