@@ -6,6 +6,7 @@
 //! 食い違いは「期待より慎重な側」と「それ以外」に分けて数え、どちらも 0 件を求める（PoC-6 の 4 節の 3）。
 //! 15 件の期待は 2026-10-19 に VER-18（D-52・D-59）と 1 行ずつ照合し、変更は無かった（照合は `docs/testing.md` の 5.137）。
 //! 決定で採らなかった読みで期待を書くと食い違うことは、`rejected_readings_of_the_decision_mismatch_the_fifteen` が確かめる。
+//! TASK-178 2/2: 版つき URL が無いと表示だけになる 5 件の ID・起動時の経路・D-52 との対応を `without_a_versioned_url_*`・`boot_without_*`・`only_content_major_*` が固定する。
 //! 写しの一致と `Session` を作らないことの確認は、自動ブラウザの試験（`tools/browser/version-histories.test.mjs`、#449）が担う。
 //! `open_history` は写しが一致したときだけ開くため、本試験の `state()` の検査は構造上ほぼ自明である。
 //! ブラウザ試験が開く 15 件の履歴と教材は、同じ作り方を `emit_histories_for_browser`（`#[ignore]`）が書き出す
@@ -20,9 +21,12 @@ use common::contract_sample::{load, testdata_dir};
 use common::op_gen::{OpSpec, Which, CMDS};
 use common::record_path::RecordPath;
 use fandhe_workshop_contract::content_hash::content_hash;
-use fandhe_workshop_contract::history_version::{Version3, VersionAxis, VocabVersion};
+use fandhe_workshop_contract::history_version::{
+    HistoryVersions, Verdict, Version3, VersionAxis, VocabVersion,
+};
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_contract::load_reason::LoadReason;
+use fandhe_workshop_core::history_boot::{boot_session, BootOutcome};
 use fandhe_workshop_core::history_envelope::{build_envelope, SessionEnvelope};
 use fandhe_workshop_core::history_load::load_history;
 use fandhe_workshop_core::history_open::{Opened, OpeningCaps};
@@ -40,6 +44,13 @@ const IDS: [&str; 15] = [
     "V-0", "V-i-1", "V-i-2", "V-ii-1", "V-ii-2", "V-iii-1", "V-iii-2", "V-iv-1", "V-iv-2",
     "V-iv-3", "V-iv-4", "V-v-1", "V-v-2", "V-v-3", "V-ref",
 ];
+/// 版つき URL が無い（最新版だけの配信の）とき表示だけになる 5 件（表の順。VER-9。TASK-178 2/2）。
+const VIEW_ONLY_WITHOUT_VERSIONED_URL: [&str; 5] =
+    ["V-ii-1", "V-iii-1", "V-iii-2", "V-iv-4", "V-v-3"];
+/// 上の 5 件のうち、D-52（旧版の成果物を残すのは主版を上げたときだけ）の下で旧版の写しが残りうる 2 件。
+/// 残りの 3 件は、V-ii-1 が副版での Step の追加（VER-5）、V-iv-4 が `ir_format`、V-v-3 がエンジンの主版で、
+/// いずれも教材内容の主版の軸ではないため旧版が残らず、表示だけが最終の形になる。
+const OLD_COPY_UNDER_D52: [&str; 2] = ["V-iii-1", "V-iii-2"];
 /// VER-2 の種ごとの件数。
 const CATEGORY_COUNTS: [(Category, usize); 7] = [
     (Category::Same, 1),
@@ -309,9 +320,8 @@ fn make_history(spec: &HistorySpec) -> SessionEnvelope {
     h
 }
 
-/// 開く。履歴は直列化して `load_history` に渡す（段 1〜8 の実際の経路）。
-fn open_row(row: &Row) -> (Opened, SessionEnvelope) {
-    let h = make_history(&row.history);
+/// 表の開く側（教材・エンジン・語彙の上限）を組む。`open_row` と起動の経路の試験が同じ作り方を使う。
+fn opening_side(row: &Row) -> (Ir, HistoryVersions, OpeningCaps) {
     let ir = pack_ir(row.opening.pack);
     let hash = content_hash(&ir).expect("hash");
     let opening = match &row.opening.engine {
@@ -323,6 +333,13 @@ fn open_row(row: &Row) -> (Opened, SessionEnvelope) {
         None => OpeningCaps::current(),
         Some(v) => OpeningCaps::with_vocab_max(VocabVersion::parse(v).expect("vocab max")),
     };
+    (ir, opening, caps)
+}
+
+/// 開く。履歴は直列化して `load_history` に渡す（段 1〜8 の実際の経路）。
+fn open_row(row: &Row) -> (Opened, SessionEnvelope) {
+    let h = make_history(&row.history);
+    let (ir, opening, caps) = opening_side(row);
     let bytes = serde_json::to_vec(&h).expect("serialize");
     (load_history(&bytes, &ir, &opening, &caps, initial()), h)
 }
@@ -447,6 +464,93 @@ fn view_only_rows_open_with_their_own_versions() {
         let (latest, _) = open_row(row);
         assert_eq!(result_of(&latest), Outcome::ViewOnly, "{}", row.id);
     }
+}
+
+/// 最新版だけの配信（版つき URL 無し）では、15 件のうち表示だけになるのはちょうど 5 件で、`Session` を作らない（VER-9。TASK-178 2/2）。
+///
+/// エンジンは別の版を探さない（SAFE-33・D-68）ため、旧版が残っていなければ表示だけに落ちるのが既定の経路である。
+/// 件数だけでなく ID の集合を固定し、表の書き換えで入れ替わっても検出する。
+#[test]
+fn without_a_versioned_url_exactly_five_of_fifteen_are_view_only() {
+    let t = read_table();
+    let mut view_only = Vec::new();
+    for row in &t.rows {
+        let (o, _) = open_row(row);
+        if result_of(&o) == Outcome::ViewOnly {
+            assert!(o.state().is_none(), "{}: a session was made", row.id);
+            assert!(
+                !code_of(&o).expect("code").as_str().is_empty(),
+                "{}",
+                row.id
+            );
+            view_only.push(row.id.as_str());
+        } else {
+            assert!(
+                matches!(
+                    result_of(&o),
+                    Outcome::Open | Outcome::Converted | Outcome::Refused
+                ),
+                "{}",
+                row.id
+            );
+        }
+    }
+    assert_eq!(view_only, VIEW_ONLY_WITHOUT_VERSIONED_URL);
+    let refused = t
+        .rows
+        .iter()
+        .filter(|r| open_row(r).0.state().is_none())
+        .count();
+    assert_eq!(
+        refused,
+        5 + 3,
+        "state-less results are view-only and refused only"
+    );
+}
+
+/// 起動時の復元の経路でも、読み込みと同じ判定になり、表示だけ・開かないは初期状態のまま履歴を適用しない（VER-10。TASK-178 2/2）。
+#[test]
+fn boot_without_a_versioned_url_matches_the_import_judgment() {
+    let t = read_table();
+    for row in &t.rows {
+        let (loaded, h) = open_row(row);
+        let (ir, opening, caps) = opening_side(row);
+        let bytes = serde_json::to_vec(&h).expect("serialize");
+        let outcome = boot_session(Some(&bytes), ir, &opening, &caps, initial(), START);
+        match (result_of(&loaded), outcome) {
+            (Outcome::Open | Outcome::Converted, BootOutcome::Restored { .. }) => {}
+            (Outcome::ViewOnly, BootOutcome::NotOpened { session, verdict }) => {
+                let code = code_of(&loaded).expect("code");
+                assert_eq!(verdict, Verdict::ViewOnly { code }, "{}", row.id);
+                assert_eq!(session.session().state(), &initial(), "{}", row.id);
+                assert!(session.ops().is_empty(), "{}: ops were taken over", row.id);
+            }
+            (Outcome::Refused, BootOutcome::NotOpened { session, verdict }) => {
+                let code = code_of(&loaded).expect("code");
+                assert_eq!(verdict, Verdict::Refused { code }, "{}", row.id);
+                assert_eq!(session.session().state(), &initial(), "{}", row.id);
+                assert!(session.ops().is_empty(), "{}", row.id);
+            }
+            (want, _) => panic!("{}: boot disagrees with import ({want:?})", row.id),
+        }
+    }
+}
+
+/// D-52 との対応。旧版が残りうるのは `content_major` の 2 件だけで、残りの 3 件は常に表示だけが最終の形（TASK-178 2/2）。
+#[test]
+fn only_content_major_rows_have_a_d52_old_copy() {
+    let t = read_table();
+    for id in VIEW_ONLY_WITHOUT_VERSIONED_URL {
+        let row = t.rows.iter().find(|r| r.id == id).expect("row");
+        let content_major = row.expect.code.as_deref() == Some("content_major");
+        assert_eq!(content_major, OLD_COPY_UNDER_D52.contains(&id), "{id}");
+        if content_major {
+            assert_eq!(row.category, Category::StepRemoved, "{id}");
+        }
+    }
+    assert!(OLD_COPY_UNDER_D52
+        .iter()
+        .all(|i| VIEW_ONLY_WITHOUT_VERSIONED_URL.contains(i)));
 }
 
 #[test]
