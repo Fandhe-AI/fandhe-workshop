@@ -1,0 +1,28 @@
+{
+  "table_version": 1,
+  "base_ops": 22,
+  "rows": [
+    { "index": 0, "kind": "draft", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 1, "kind": "submit", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 2, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 3, "kind": "control.stop", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 4, "kind": "draft", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 5, "kind": "submit", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 6, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 7, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 8, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 9, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 10, "kind": "tick", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 11, "kind": "control.save", "rewrite": "save_to_open_hint", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 12, "kind": "draft", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 13, "kind": "submit", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 14, "kind": "control.open_hint", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 15, "kind": "input.choice", "rewrite": "choice_no_such_option", "expect": { "result": "same_value", "code": null } },
+    { "index": 16, "kind": "reload", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 17, "kind": "input.choice", "rewrite": "choice_no_such_option", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 18, "kind": "control.save", "rewrite": "save_to_open_hint", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 19, "kind": "control.set_guidance", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 20, "kind": "input.ui", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } },
+    { "index": 21, "kind": "draft", "rewrite": "command_no_such_command", "expect": { "result": "refused", "code": "replay_mismatch" } }
+  ]
+}

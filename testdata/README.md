@@ -164,7 +164,7 @@
 |---|---|---|---|
 | `pack-defects/` | 2026-10-18 | TASK-56・#415・#416・#417・TASK-234・#755 | 欠陥パック（PACK-29 の 12 種 × 形式 A・B と、語彙 v1.1 の 11 種 × 形式 B）と、その土台の正しいパック。`crates/pack/tests/defect_packs.rs` が使い、土台は誤検出 0 件の試験にも使う。題材は架空 |
 | `version-histories/` | 2026-10-19 | TASK-175・#448 | 版の違う履歴 15 件の期待の表（VER-2）。`crates/core/tests/version_histories.rs` が読む。履歴は試験の中で作り、表だけを置く。後続のブラウザ試験（#449）が Node 側からも読むため `testdata/` に置く |
-| `broken-histories/` | 2026-10-29 | TASK-332 1/2・#880 | 壊れた履歴 7 種と対照 2 件の期待の表（SAVE-20）。`crates/core/tests/broken_histories.rs` が読む。履歴は試験の中で作り、表と説明だけを置く |
+| `broken-histories/` | 2026-10-29 | TASK-332 1/2・#880 | 壊れた履歴 7 種と対照 2 件の期待の表（SAVE-20）。`crates/core/tests/broken_histories.rs` が読む。履歴は試験の中で作り、表と説明だけを置く。`ops-rewrites.json`（TASK-332 2/2・#881）は `ops` の 22 か所の書き換えの期待の表で、`crates/core/tests/ops_rewrites.rs` が読む |
 
 ## 公開の扱い
 

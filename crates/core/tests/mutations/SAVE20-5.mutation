@@ -1,0 +1,8 @@
+id: SAVE20-5
+package: fandhe-workshop-core
+test: ops_rewrites
+target: crates/core/src/history_open.rs
+find:         if state == history.snapshot {
+replace:         if state.run == history.snapshot.run {
+expect-fail: every_rewrite_is_refused_or_same_value
+note: 写しとの照合を実行の位置と世界の状態だけに弱め、ログだけが変わる ops の書き換えが誤った状態で開くことを検出させる

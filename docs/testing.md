@@ -10760,5 +10760,16 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 試験: core `crates/core/tests/broken_histories.rs`（`load_history` は保存領域に触れない純関数のため保存領域の不変は主張せず、web とブラウザが担う。7 種が `Opened::Refused` で表のコードと一致・コードが空でなく入力の内容を含まない・2 回流して同じ・表と定数の照合・B-4b・B-0）、web `crates/web/tests/broken_histories_host.rs`（`ImportOutcome::Refused`・通知 1 件で本文が空でない・状態/射影/世界/保存の値が不変・表示だけにならない・積む field は `shell_notices` だけ）、ブラウザ `tools/browser/broken-histories.test.mjs`（CSP あり・なし × 9 件を 1 件ずつ新しい context で。理由が表と一致、状態・入力欄・保存先の値と通知欄の外の DOM が不変、通知 1 件、外部通信・CSP 違反・ページのエラー 0 件。入力は core の `emit_broken_histories_for_browser`（`#[ignore]`）が書き出す）。
 - `history-versions.test.mjs` の P-4 との違い: P-4 は独自の番号で、`replay_mismatch`・`not_json` と画面の通知・画面の不変を見ていなかった。本試験がこれらを補う。P-4 の番号は振り直さない。
 - 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/SAVE20-3.mutation crates/core/tests/mutations/SAVE20-4.mutation`）: SAVE20-3 は入力の列の書き換え（B-1）を表示だけに倒す、SAVE20-4 は版の欄の検査を外す。いずれも DETECTED（2026-10-29）。
-- 範囲外: `ops` の 22 か所の書き換えは TASK-332 2/2、起動時に壊れた履歴を見つけたときの扱いは TASK-333・TASK-533、理由の文面は SHELL-36・TASK-532・TASK-534。
+- 範囲外: `ops` の 22 か所の書き換えは TASK-332 2/2（→ 5.387）、起動時に壊れた履歴を見つけたときの扱いは TASK-333・TASK-533、理由の文面は SHELL-36・TASK-532・TASK-534。
 - 限界: `scripts/expected-test-counts.txt` は更新していない（5.383・5.385 の前例）。`make test-browser` の全体は 10 分を超えたため全体の通しは未実施で、新しい試験は単体（`node --test`、19 件合格）で確かめた。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.387 `ops` の 22 か所の書き換えを固定する（TASK-332 2/2。SAVE-20・SHELL-16）
+
+- 目的: 基準の履歴（`ops` が 22 件）の各位置を 1 か所ずつ書き換えて読み込むと、拒否（`replay_mismatch`）か、書き換えた値が元と同一で開いても写しと一致するもの（同一値）のどちらかになり、誤った状態で開くものが 0 件であることを固定する。PoC-6 は native だけだったため、ブラウザ（CSP あり・なし）にも広げた。本番のコードは変えない。
+- 期待の表: `testdata/broken-histories/ops-rewrites.json`（22 行。説明は同じ場所の `README.md`）。1/2 の `expectations.json` には行を足さない。試験は結果から表を導かず、件数 22・拒否 21・同一値の添字 15 を定数と照合し、基準の履歴の位置ごとの種類も表の `kind` と照合する。
+- 作り方: 基準の履歴は `RecordPath` で作る（draft/submit・tick・停止・保存・ヒント・選択・再読み込み・案内レベル・画面操作・末尾の下書きで 6 種のタグがそろう）。書き換えは型の値で行う。choice は `Choice("no-such-option")`、`Control::Save` は `Control::OpenHint`、それ以外は `Input::Command("/no-such-command")` にする。
+- 対照: W-00（書き換えなしの基準は開く）。同一値は添字 15 の 1 件だけ（`Choice("no-such-option")` を同じ値に置き換えたもの）で、開いた状態が写しと一致し、バイト列も基準と同一であることまで要求する。
+- 試験: core `crates/core/tests/ops_rewrites.rs`（7 件と `#[ignore]` の書き出し 1 件。拒否 21・同一値 1・誤り 0 の数え上げ、自己写像がちょうど 1 か所、2 回流して同じ、コードが入力の内容を含まない）。ブラウザ `tools/browser/ops-rewrites.test.mjs`（CSP あり・なし × 23 件に表の照合 1 件で 47 件。拒否は状態・入力欄・保存先・通知欄の外の画面が不変で通知 1 件、開く側は開いた状態が履歴の `snapshot` と完全一致）。
+- 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/SAVE20-5.mutation`）: SAVE20-5 は写しとの照合を `state.run` だけに弱める。DETECTED（2026-10-29）。
+- 範囲外: 起動時に壊れた履歴を見つけたときの扱いは TASK-333・TASK-533、理由の文面は SHELL-36・TASK-532・TASK-534。
+- 限界: `scripts/expected-test-counts.txt` は更新していない（5.386 の前例）。ブラウザ試験は単体（`node --test`、47 件合格）で確かめ、`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
