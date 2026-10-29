@@ -94,3 +94,16 @@
 | 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
 | 承認 | 人間の承認点（CI のガードとして依存と配信物の検査を足すこと）は未承認。レビューで判断を求める |
 | 限界 | `docs/known-gaps.md` の「SAFE-16: 通信の計数の範囲」 |
+
+## EXT-1・EXT-2・EXT-3 CLI の橋渡し・backend・提出・LLM を持たないことの机上の照合（TASK-185 1/2）
+
+### 記録 1（2026-10-29）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: 本変更を載せた作業ブランチ（`main` の `d8af4bf2` が基点） |
+| 日付 | 2026-10-29 |
+| 方法 | `make check-no-egress` と `make test-check-no-egress` が終了コード 0。`SKIP_WASM_OPT=1 make build-web` の出力への `scripts/check-no-egress.sh dist dist/web` が終了コード 0（区分 SAFE-16・EXT-1〜EXT-3 とも拒否 0 件）。L2 の起動の引数は `tools/build-l2.test.mjs` の完全一致の固定に委ねる（`docs/testing.md` 5.380） |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 人間の承認点（拡張を持たないことの検査を CI の失敗で止まる関門として足すこと）は未承認。レビューで判断を求める |
+| 限界 | `docs/known-gaps.md` の「EXT-1〜EXT-3: 持たない機能の静的な検査の範囲」 |

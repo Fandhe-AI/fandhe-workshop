@@ -40,7 +40,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── test-chapter-key-control.sh # 鍵を修正前の固定の文字列にした対照の検査（make test-chapter-key-control）
 │   ├── check-mutation-defs.sh # 変異の定義の find の一意性と expect-fail の名前の実在の静的検査（make check に含む。回帰テストは test-check-mutation-defs.sh。共有は lib-mutations.sh）
 │   ├── check-build-inventory.sh # Cargo.lock の private な依存 0 件と経路の secret らしい語 0 件の棚卸し検査（回帰テストは test-check-build-inventory.sh）
-│   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
+│   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段と初回に持たない機能（EXT-1〜EXT-3）が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
@@ -106,7 +106,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-deps` | 依存の向きの検査自体の回帰テスト |
 | `make check-license` | 全 crate の `license` が `MIT OR Apache-2.0` で、直下に `LICENSE-MIT`・`LICENSE-APACHE` があり、`template-workshop/` に同じ本文の写しと表記があることの検査（`cargo metadata` + jq。LIC-1・TASK-129、LIC-2・TASK-130） |
 | `make test-check-license` | ライセンス表記の検査自体の回帰テスト |
-| `make check-no-egress` | 依存（crate・wasm32 の web-sys の feature・npm）に通信・学習分析の手段が無いことの検査（SAFE-16。TASK-153。CI の rust-lint が流す） |
+| `make check-no-egress` | 依存（crate・wasm32 の web-sys の feature・npm）に通信・学習分析の手段が無いことの検査（SAFE-16・EXT-1〜EXT-3。TASK-153。CI の rust-lint が流す） |
 | `make check-no-egress-dist` | 配信物（`dist/web`。先に `make build-web`）に通信の手段が無いことの検査（`make test-build-web` が実ビルドにも流す） |
 | `make test-check-no-egress` | 上の検査自体の回帰テスト（ビルドなし） |
 | `make check-testdata` | repo の外への相対参照が 0 件であることの検査 |
