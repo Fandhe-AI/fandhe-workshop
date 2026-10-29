@@ -343,7 +343,9 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 限界（`?ir=` の許可）: 配信する設定は実行時に `./ir/main.json` を取得しないため、「許可した開始点で開く」は試験の設定でだけ確かめています。`?ir=` の値は読まれず、理由も出ません（SAFE-33 は読み込み先が変わらないことだけを求めます）。
 
-根拠の試験: `crates/web/tests/tick_interval.rs`、`tools/browser/ir-location.test.mjs`。記録は `docs/testing.md` の 5.223。
+SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 より前の観察で、`tools/browser/url-xss.test.mjs`（5.370）は読み込み先が固定で値から作ったパスを取得しないことを確かめます。
+
+根拠の試験: `crates/web/tests/tick_interval.rs`、`tools/browser/ir-location.test.mjs`、`tools/browser/url-xss.test.mjs`。記録は `docs/testing.md` の 5.223・5.370。
 
 限界（履歴の書き出し・読み込みの操作。TASK-531 1/2）: 操作の置き場所（root の直下の通知欄の後ろ）と、書き出せないときの 2 つの文は仮置きです。最終の配置は TASK-534・TASK-548、文面は TASK-537 などが決めます。書き出しはボタンを押した後にリンクを押す 2 段で、プログラムからの自動のダウンロードはしません。
 
