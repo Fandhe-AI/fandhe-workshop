@@ -1790,6 +1790,10 @@ impl EngineHost {
             // 失敗を知らせる。確認を立て直し（再試行は同じ「削除する」）、確認の項目に失敗の文を足す。
             self.set_delete_pending(true);
             self.delete_failed = true;
+            // 削除中に再度押されて確認が既に立っていると上の呼び出しは何もしない。失敗の表示は必ず通知欄を再描画する。
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
         }
     }
 

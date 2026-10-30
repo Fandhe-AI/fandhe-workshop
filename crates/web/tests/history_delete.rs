@@ -667,3 +667,18 @@ fn 削除に失敗すると失敗の文と再試行の確認が出て状態は�
     send(&mut p.host, "request");
     assert!(!view_dump(&p.host).contains(DELETE_FAILED_NOTICE));
 }
+
+#[test]
+fn 削除中に再度要求しても失敗の文が出る() {
+    use fandhe_workshop_web::shell_notice::DELETE_FAILED_NOTICE;
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    send(&mut p.host, "confirm");
+    // 完了待ちの間に常設の削除ボタンをもう一度押す。
+    send(&mut p.host, "request");
+    complete(&mut p, Err(StorageError::Failed));
+    let v = view_dump(&p.host);
+    assert!(v.contains(DELETE_FAILED_NOTICE), "{v}");
+    assert_eq!(confirm_items(&p.host), 1);
+}
