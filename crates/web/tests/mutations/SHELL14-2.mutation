@@ -1,0 +1,8 @@
+id: SHELL14-2
+package: fandhe-workshop-web
+test: hint_ops_host
+target: crates/web/src/host.rs
+find:             return payload.is_empty().then_some(HostAction::OpenHint);
+replace:             return Some(HostAction::OpenHint);
+expect-fail: 空でない_payload_は復号で断る
+note: payload の検査を外す（書き換えた値でも開く。SAFE-6）

@@ -254,6 +254,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/restore-cancel.test.mjs" \
   "${ROOT_DIR}/tools/browser/checkpoint-restore.test.mjs" \
   "${ROOT_DIR}/tools/browser/checkpoint-list.test.mjs" \
+  "${ROOT_DIR}/tools/browser/hint-open.test.mjs" \
   "${ROOT_DIR}/tools/browser/candidates.test.mjs" \
   "${ROOT_DIR}/tools/browser/storage-select.test.mjs" \
   "${ROOT_DIR}/tools/browser/artifact-view-check.test.mjs" \

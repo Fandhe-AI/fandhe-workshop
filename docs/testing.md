@@ -10300,7 +10300,7 @@ spec の名前は試作の名前で、現行の DOM とは一致しない。現�
 | spec の名前 | 現行の要素（`data-action`） | 扱い |
 |---|---|---|
 | `submit-btn`・`stop-btn` | `submit-input`（`submit`。`data-payload` を持たない）・`stop-btn`（`stop`） | `submit-input` は属性を足して click（分類 I）。`stop-btn` は処理中だけ出るため扱っていない（限界） |
-| `hint-btn` | 無い（ヒントの画面は未実装） | 全場面で 0 件を確かめる |
+| `hint-btn` | 試作の名前で製品の画面には無い（製品の「ヒントを開く」は `hint-open`。5.392） | 全場面で 0 件を確かめる |
 | `offer-btn` | `choice-btn`（`choose`）・`approval-btn`（`decide`・`revise-target`） | 書き換えの対象 |
 | `goto-btn` | `shell-next-chapter`（`next-chapter`）。現行だけの移動系 `pane-tab`（`select-pane`）・`view-select-button`（`select-view`）・指せる行（`ui`） | 書き換えの対象 |
 | `restore-btn` | `checkpoint-restore`（`restore-checkpoint`） | 書き換えの対象 |
@@ -10814,3 +10814,12 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 自動運転での判断（人の承認は無い）: 「復習中」は、復習の画面（REVIEW-10）が未実装のため、20 Step を全て達成し、復習の一覧に項目があり「次の章へ進む」が 0 件の状態を代役とした。表示だけで開いた履歴は、削除の action が捨てられるため代役にしない。計数は `egress-count.test.mjs` に足さず、新しい試験の中で `egress.mjs` を使う。
 - 範囲外: 配信する設定での削除の操作（可視のボタン・確認の文面）と、その画面での計数は TASK-539。
 - 限界: 試験の設定の口だけで行った。REVIEW-10 の実画面ができたら「復習中」を確かめ直す（`docs/known-gaps.md`）。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。単体の `node --test` で 6 件合格（2026-10-30）。
+
+### 5.392 ヒントを 1 段ずつ開く操作と表示（TASK-530 1/2。SHELL-14・GUIDE-17）
+
+- 目的: 上部の区画 `shell-hint` に「ヒントを開く」ボタンと、開いた段（1 段目から順に）を出し、受け入れ条件「開いた段が表示される」を固定する。段数の上限（D-55）と鍵（Step の実体 ID）の規則は core の `hint_open` が持ち、web は上限を先に判定しない。
+- 実装: `crates/web/src/hint_ops.rs`（導出・描画。`hint_ops` の field は keyed list）と `host.rs` の結線（`HostAction::OpenHint`。押下は今の提示にボタンがあるときだけ `Control::OpenHint` を送る。表示だけのモードではボタンを出さず、開いた段は残す）。文面は `ir.hints.<ID>.text` が文字列のときだけ読み、文字ノードにだけ入れる。読めないときは固定の文を出す。ヒントの ID は DOM に出さない。
+- 試験: native `crates/web/tests/hint_ops_host.rs`（7 件）と `hint_ops` の単体 3 件。ブラウザ `tools/browser/hint-open.test.mjs`（A 開く・文面の一致・ボタンの要素の同一性・区画の位置、B キーボード、C Step の移動で段が消える、D 幅 360px・959px、F 配信する設定で 0 件。8 件、CSP あり・なし）。`data-payload-tamper` の閉じた一覧に `open-hint`（分類 D）を足した。
+- 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SHELL14-1.mutation` ほか 2 件）: SHELL14-1 は未開の段まで出す、SHELL14-2 は payload の検査を外す、SHELL14-3 は提示にボタンが無くても core へ送る。いずれも DETECTED（2026-10-30）。
+- 範囲外: 開いた回数が手元の履歴にだけ残ること・通信 0 件・上限を超える操作で新しい段が出ないことは TASK-530 2/2（#891）。案内レベルの切り替えの部品、開いたときの読み上げ、修飾キーの差し込みは扱わない。
+- 限界: `text` は語彙の語ではなく、画面が寛容に読む欄である（語彙として定めるかは spec 側の判断）。マークアップの形の文面の文字ノード化は native の単体試験で固定し、ブラウザでの注入は未実施。`data-payload-tamper` の配信する設定・IR ありの 2 件は author 用のビルドが無く未検証。`make test-browser` の全体と `scripts/expected-test-counts.txt` の更新は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

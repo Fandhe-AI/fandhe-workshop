@@ -1,0 +1,8 @@
+id: SHELL14-3
+package: fandhe-workshop-web
+test: hint_ops_host
+target: crates/web/src/host.rs
+find:                 if self.hint_offer().can_open {
+replace:                 if true {
+expect-fail: ヒントの無い_step_での押下は状態を変えない
+note: 提示にボタンが無くても core へ送る（fail-closed の関門を外す。SHELL-14）
