@@ -1,0 +1,9 @@
+id: SHELL32-2
+package: fandhe-workshop-web
+test: ir_unloadable_screen
+features: test-hooks
+target: crates/web/src/ir_notice.rs
+find:     let before = if code == crate::start_select::IR_NOT_FOUND_CODE {
+replace:     let before = if false {
+expect-fail: not_found_is_judged_before_body_and_shown
+note: not_found の文面を外して読み込めませんの文面に戻す誤りを入れる（SHELL-32・TASK-546）

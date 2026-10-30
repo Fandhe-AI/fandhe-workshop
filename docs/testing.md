@@ -5134,7 +5134,7 @@ FEND-20 は、glue（web-sys）が DOM に対して行う操作を 7 種に限�
 
 | ファイル | `wc -l` | コード行 | 関門 |
 |---|---|---|---|
-| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 573`（2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
+| `glue.rs` | 680 | 452 | `glue_scale.rs` の `MAX_GLUE_CODE_LINES = 574`（2026-10-30 に TASK-546 の `mount_app` の引数 `ir_not_found`（取得の 404 の旗。SHELL-32）で 573 から上げた。その前は 2026-10-29 に TASK-191 2/2 の試験用の口 `receptor_activation_probe`（受け口の有効・無効の読み取り。`test-hooks` のときだけ）で 567 から上げた。その前は 2026-10-29 に TASK-156 の試験用の口 `boot_kind`（起動の種類だけの読み取り。`test-hooks` のときだけ）で 563 から上げた。その前は 2026-10-26 に TASK-372 1/2 の `mount_app` の引数 `reduced_motion` で 562 から上げた。その前は 2026-10-22 に TASK-112 2/2 の受信上限の公開 `ir_read_limit` で 557 から上げた。その前は  TASK-112 2/2 の `mount_app` の引数 `ir`（同梱の IR のバイト列。署名が複数行になる分）と TASK-531 1/2 の履歴の読み込みの配送 `import_history`・読み取りの上限 `history_read_limit`・書き出しの URL の口の結線で 531 から上げた。その前は 2026-10-22 に TASK-335 の試験用の口 `export_live`（読み取りだけ。`test-hooks` のときだけ）で 527 から上げた。その前は 2026-10-21 に TASK-517 2/2 のキーで選んだタブへのフォーカス移動（`on_pane_focus_request`）で 509 から上げた。5.203。その前は TASK-284 2/2 の拒否の後の下書きの全選択の予約（`on_draft_select_request`・`sync_draft` の `select`）で 491 から上げた。5.200。その前は TASK-283 の `wire_paste_clip` で 452 から 491 へ上げた。この表の `wc -l`・コード行は 2026-10-20 の実測のまま。5.189。上げた経緯は以下のとおり。`<=` で照合。増えたら失敗。2026-10-20 に TASK-318 の遅延保存のタイマーで 401 から上げ、2026-10-21 に TASK-164 3/3 の `secret_gate` で 449 から上げた。5.170・5.183） |
 | `key_route.rs` | 553 | 394 | なし |
 | `test_hooks.rs` | 524 | 376 | なし |
 | `storage_idb.rs` | 319 | 236 | なし |
@@ -10978,7 +10978,7 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 #### 読み替え
 
-- 「IR が無い」は、印つきの配信物で `./ir/main.json` が取れない場面（404・空の本文）と読む。今は `not_json` で断る。404 の理由の見直しは TASK-546（SHELL-32）で、そのとき期待を直す
+- 「IR が無い」は、印つきの配信物で `./ir/main.json` が取れない場面（404・空の本文）と読む。404 の理由は TASK-546（SHELL-32）で `not_found` に変わった（5.403）。200 で空の本文は `not_json` のまま
 - 「巡回」は読み込みの時点では断らない（`instance_graph` を `load_ir` に結線しない。`crates/core/src/instance.rs`）。止めるのは実行時の遷移の上限（`transition-limit`。SAFE-23・34・35）で、本試験は断らずに開くことを固定する
 - 印の無いビルド（IR 未同梱）は対象外で、従来の枠のまま
 
@@ -10989,3 +10989,25 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 #### 件数・確認（2026-10-30）
 
 - native 6 件と `ir-unloadable` 16 件が通った（ブラウザは単独実行）。`make test-browser` の全体は 590 秒で打ち切られ完走していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない
+
+### 5.403 教材が見つからないときの理由の試験（TASK-546。SHELL-32）
+
+印つきの配信物で `./ir/main.json` の取得が 404 のとき、本文を読む前に判定し、理由を「教材が見つかりません」（`not_found`）にすることを確かめる。`not_json` は本文が取得できて JSON として不正なときだけに使う。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| native `start_select`（3 件）・`ir_notice`（1 件） | `FetchedIr::NotFound` は読める本文が付いていても `BundledIrRefusal::NotFound`。`Body` の `{`・空は `not_json`。`not_found` の文面は「教材が見つかりません。（not_found）」で「教材を読み込めませんでした」を含まない |
+| native `ir_unloadable_screen` | `not_found_is_judged_before_body_and_shown`（`EngineHost::refused_not_found` が通知 1 件・文面・操作 0 件）・`not_found_screen_saves_nothing`・`empty_body_stays_not_json` |
+| ブラウザ `ir-unloadable` | 404（空・読める本文・不正な本文）と `ir/main.json` の無い配信物（U4）が `not_found`、200 の `{`・空の本文は `not_json`。いずれも CSP あり・なしで通知 1 件・文面・ページ内エラー／外部通信／CSP 違反 0 件。5xx は観察だけ（U5） |
+| 変異 `SHELL32-1`・`SHELL32-2` | 404 を本文として読む誤り・`not_found` の文面を外す誤りを native の試験が検出する |
+
+#### 限界
+
+- 404 以外の失敗（5xx・通信の例外）は決定に記述が無く、期待に固定しない（`docs/known-gaps.md` SHELL-32）。文面は仮置き（TASK-549・TASK-534）。Chromium のみ
+- `scripts/expected-test-counts.txt` は変えていない。`glue.rs` のコード行の上限は 573 から 574 に上げた（5.166 の表）
+
+#### 件数・確認（2026-10-30）
+
+- 確認結果は PR の記録に従う。`make test-browser` の全体は CI の `browser-test` に任せる

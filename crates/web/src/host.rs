@@ -949,6 +949,15 @@ impl EngineHost {
         host
     }
 
+    /// 教材が見つからないホストを作る（`./ir/main.json` の取得が 404。SHELL-32・D-74）。
+    ///
+    /// [`EngineHost::refused_start`] と同じく session なしで、固定の理由コードだけを入れる。保存先を開かず何も書かない。
+    pub fn refused_not_found() -> Self {
+        let mut host = Self::new();
+        host.ir_refusal = Some(crate::start_select::IR_NOT_FOUND_CODE);
+        host
+    }
+
     /// 教材を読めなかった理由コード。読めた・断っていないときは `None`。
     pub fn ir_refusal(&self) -> Option<&'static str> {
         self.ir_refusal
@@ -1095,16 +1104,23 @@ impl EngineHost {
     /// `min-3step.json`）と開始直後の状態を埋め込んで読み込み、3 つの表示が動く状態から始める。
     /// 読み込みに失敗したら session なしに倒す（ブラウザ試験が `irLoaded: true` を必須にするため、失敗は試験で検出される）。
     #[cfg(not(feature = "test-hooks"))]
-    pub(crate) fn for_mount(ir: Option<&[u8]>, start: Option<&str>) -> Self {
-        use crate::start_select::{open_bundled_ir, BundledIrRefusal};
+    pub(crate) fn for_mount(ir: Option<&[u8]>, ir_not_found: bool, start: Option<&str>) -> Self {
+        use crate::start_select::{open_fetched_ir, BundledIrRefusal, FetchedIr};
         let Some(bytes) = ir else {
             return Self::new();
         };
-        match open_bundled_ir(bytes, start) {
+        // 404 は本文より先に判定する（SHELL-32・D-74）。
+        let fetched = if ir_not_found {
+            FetchedIr::NotFound
+        } else {
+            FetchedIr::Body(bytes)
+        };
+        match open_fetched_ir(fetched, start) {
             Ok((session, start_id)) => {
                 Self::with_session_at(session, standard_registry(), start_id)
                     .unwrap_or_else(|_| Self::new())
             }
+            Err(BundledIrRefusal::NotFound) => Self::refused_not_found(),
             Err(BundledIrRefusal::Load(err)) => Self::refused(&err),
             Err(BundledIrRefusal::Start(refusal)) => Self::refused_start(refusal),
         }

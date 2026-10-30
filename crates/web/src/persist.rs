@@ -324,9 +324,10 @@ pub fn mount_with_history(
     user_agent: &str,
     start: Option<String>,
     ir: Option<Vec<u8>>,
+    ir_not_found: bool,
     reduced_motion: bool,
 ) -> js_sys::Promise {
-    let mut host = mount_host_for_page(start.as_deref(), ir.as_deref());
+    let mut host = mount_host_for_page(start.as_deref(), ir.as_deref(), ir_not_found);
     // 動きの抑制の設定。表示だけの値で、履歴・鍵には使わない（A11Y-11）。
     host.set_reduced_motion(reduced_motion);
     // User-Agent は OS の推定とブラウザの案内の判定にだけ使い、保持・記録しない（鍵・保存先・履歴には使わない。D-48・JUDGE-28）。
@@ -378,16 +379,16 @@ pub fn mount_with_history(
 ///
 /// 開始点の指定（`start`）は、試験の設定では選んだ教材の、配信する設定では同梱の IR（`ir`。`static/app.js` が固定の `./ir/main.json` を
 /// 取得して渡す。印の meta が無い配信物では `None` で、挙動は変わらない）の `starts` と照合して開始点を選ぶ（TASK-112 2/2。`docs/testing.md` 5.239）。
-fn mount_host_for_page(start: Option<&str>, ir: Option<&[u8]>) -> EngineHost {
+fn mount_host_for_page(start: Option<&str>, ir: Option<&[u8]>, ir_not_found: bool) -> EngineHost {
     #[cfg(feature = "test-hooks")]
     {
         // 試験の設定は試験データの教材を埋め込んで使う。同梱の IR は無視する。
-        let _ = ir;
+        let _ = (ir, ir_not_found);
         EngineHost::for_mount_with(crate::test_hooks::mount_fixture_from_url(), start)
     }
     #[cfg(not(feature = "test-hooks"))]
     {
-        EngineHost::for_mount(ir, start)
+        EngineHost::for_mount(ir, ir_not_found, start)
     }
 }
 

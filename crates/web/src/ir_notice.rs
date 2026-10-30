@@ -19,6 +19,9 @@ pub const IR_NOTICE_AFTER: &str = "）";
 /// 開始点の指定（`?start=`）を断るときの、コードの前に置く固定の文言（TASK-109 1/2。DLV-9）。値は文に入れない。
 pub const START_NOTICE_BEFORE: &str = "指定された開始点を開けませんでした。（";
 
+/// 教材が見つからない（取得が 404）ときの、コードの前に置く固定の文言（TASK-546。SHELL-32・D-74）。文面は仮置きで、確定は TASK-549・TASK-534。
+pub const IR_NOT_FOUND_BEFORE: &str = "教材が見つかりません。（";
+
 /// 通知文を作る。文言は決定に記録が無く、エンジンの側の仮置き。
 ///
 /// コードが開始点の断り（`start_select::START_CODE_PREFIX`）なら開始点の文言、それ以外は教材の読み込みの文言にする。
@@ -39,7 +42,9 @@ pub fn ir_notice_text(code: &'static str) -> String {
             ir_value_rejection_message(*r)
         );
     }
-    let before = if code.starts_with(crate::start_select::START_CODE_PREFIX) {
+    let before = if code == crate::start_select::IR_NOT_FOUND_CODE {
+        IR_NOT_FOUND_BEFORE
+    } else if code.starts_with(crate::start_select::START_CODE_PREFIX) {
         START_NOTICE_BEFORE
     } else {
         IR_NOTICE_BEFORE
@@ -80,6 +85,13 @@ mod tests {
             assert!(text.contains(ir_value_rejection_message(r)), "{text}");
             assert!(text.ends_with(&format!("（{}）", r.as_str())), "{text}");
         }
+    }
+
+    #[test]
+    fn not_found_code_uses_not_found_wording() {
+        let text = ir_notice_text("not_found");
+        assert_eq!(text, "教材が見つかりません。（not_found）");
+        assert!(!text.contains("教材を読み込めませんでした"));
     }
 
     #[test]
