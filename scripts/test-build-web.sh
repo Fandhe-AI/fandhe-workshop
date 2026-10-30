@@ -147,6 +147,10 @@ check "debug_rerender is exported" has_export '^debug_rerender$' "${TESTCFG}/${W
 check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
 # 配信設定の「keydown-probe が無い」検査が空振りしていないことの対照（試験の設定には有る）。
 check "keydown-probe is in the test config wasm" grep -aq 'keydown-probe' "${TESTCFG}/${WASM}"
+# 配信設定の raw-trigger・debug_ の書き出しが無い検査の対照（試験の設定には有る。TASK-547 1/3）。
+check "raw-trigger is in the test config wasm" grep -aq 'raw-trigger' "${TESTCFG}/${WASM}"
+check "debug_next_tick is exported" has_export '^debug_next_tick$' "${TESTCFG}/${WASM}"
+check "debug_draft is exported" has_export '^debug_draft$' "${TESTCFG}/${WASM}"
 check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
 # 試験の設定は試験データの教材を埋め込むため、同梱の IR の印は meta にも印のままにも残さない。
 check_status "no fandhe-ir meta in the test config" 1 grep -q 'fandhe-ir' "${TESTCFG}/index.html"

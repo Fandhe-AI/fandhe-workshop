@@ -1,0 +1,8 @@
+id: SHELL35-2
+package: fandhe-workshop-web
+test: delivery_ports
+target: crates/web/src/lib.rs
+find: #[cfg(all(target_arch = "wasm32", feature = "test-hooks"))]
+replace: #[cfg(target_arch = "wasm32")]
+expect-fail: 実ソースは違反なし
+note: mod test_hooks の feature の gate を外し、debug_ の書き出しを配信する設定の WASM に入れる
