@@ -1,7 +1,7 @@
 // 保存済みの履歴の削除の試験（TASK-341 1/2。SAVE-32・SHELL-38）。
 //
 // 試験の設定（TEST_HOOKS=1）の画面で、試験の口 `deleteHistory`・`confirmDelete`・`cancelDelete`（固定の合図を raw-trigger へ送るだけ）を使い、
-// 削除の中核（保存先の鍵を消す・ホストの状態を新しくする）を確かめる。可視のボタン・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は 2/2。
+// 削除の中核（保存先の鍵を消す・ホストの状態を新しくする）を確かめる。可視のボタン・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は 2/2（delete-history-scenes.test.mjs。補助関数は delete-history.mjs）。
 //
 // A. localStorage・章をまたぐ: 既定の教材と、同じ `pack.id`（chapter-links）の章 A・章 B を保存し、別の配信先・unreadable・履歴でない鍵を置く。
 //    章 B で削除を確定すると、chapter-links の鍵が 0 件（章 A の鍵も消える = 教材単位）、対象以外の鍵と値は不変、章 B は最初の Step に戻る。
@@ -18,6 +18,9 @@ import fs from 'node:fs';
 import {
   launchBrowser, channelFromEnv, withServer, withCspMode, openPage, waitMounted, summarize,
 } from './harness.mjs';
+import {
+  localEntries, press, waitDeleteResult, idbDump, idbPut, sameScopeKey,
+} from './delete-history.mjs';
 
 const BASE = '/fandhe-delete-history/';
 const PACK = 'chapter-links';
@@ -45,14 +48,6 @@ after(async () => {
 
 const engine = async (page) => JSON.parse(await page.evaluate(() => window.__fandheTest.stateJson())).engine;
 const keyOf = (page, pack, start) => page.evaluate(([p, s]) => window.__fandheTest.storageKey(p, s), [pack, start]);
-const localEntries = (page) => page.evaluate(() => {
-  const out = {};
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const k = localStorage.key(i);
-    out[k] = localStorage.getItem(k);
-  }
-  return out;
-});
 const historyKeys = async (page) => Object.keys(await localEntries(page)).filter((k) => k.startsWith(HISTORY_PREFIX)).sort();
 const packKeys = async (page) => (await historyKeys(page)).filter((k) => k.includes(`/${PACK}/`) && !k.includes('/zz-other-scope/'));
 
@@ -83,13 +78,6 @@ async function moveB(page) {
   }, before, { timeout: T });
 }
 
-const press = (page, name) => page.evaluate((n) => window.__fandheTest[n](), name);
-const waitDeleteResult = (page) => page.waitForFunction(
-  () => JSON.parse(window.__fandheTest.stateJson()).engine.lastDelete !== null,
-  undefined,
-  { timeout: T },
-);
-
 function clean(rec) {
   const s = summarize(rec);
   const detail = JSON.stringify({ csp: s.csp, pageErrors: s.pageErrors, consoleErrors: s.consoleErrors });
@@ -97,46 +85,6 @@ function clean(rec) {
   assert.equal(s.pageErrors, 0, detail);
   assert.equal(s.consoleErrors, 0, detail);
 }
-
-const idbDump = (page) => page.evaluate(() => new Promise((resolve, reject) => {
-  const req = indexedDB.open('fandhe-workshop', 1);
-  req.onerror = () => reject(new Error('idb open failed'));
-  req.onupgradeneeded = () => { req.result.createObjectStore('history'); };
-  req.onsuccess = () => {
-    const db = req.result;
-    const tx = db.transaction('history', 'readonly');
-    const store = tx.objectStore('history');
-    const keys = store.getAllKeys();
-    const vals = store.getAll();
-    tx.oncomplete = () => {
-      const out = {};
-      keys.result.forEach((k, i) => { out[k] = vals.result[i]; });
-      db.close();
-      resolve(out);
-    };
-    tx.onerror = () => reject(new Error('idb read failed'));
-  };
-}));
-
-const idbPut = (page, entries) => page.evaluate((es) => new Promise((resolve, reject) => {
-  const req = indexedDB.open('fandhe-workshop', 1);
-  req.onerror = () => reject(new Error('idb open failed'));
-  req.onupgradeneeded = () => { req.result.createObjectStore('history'); };
-  req.onsuccess = () => {
-    const db = req.result;
-    const tx = db.transaction('history', 'readwrite');
-    const store = tx.objectStore('history');
-    for (const [k, v] of Object.entries(es)) store.put(v, k);
-    tx.oncomplete = () => { db.close(); resolve(true); };
-    tx.onerror = () => reject(new Error('idb write failed'));
-  };
-}), entries);
-
-const sameScopeKey = (key, mutate) => {
-  const parts = key.split('/');
-  mutate(parts);
-  return parts.join('/');
-};
 
 for (const csp of [true, false]) {
   const label = csp ? 'あり' : 'なし';

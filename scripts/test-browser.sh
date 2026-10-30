@@ -289,6 +289,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/storage-lost.test.mjs" \
   "${ROOT_DIR}/tools/browser/chapter-keys.test.mjs" \
   "${ROOT_DIR}/tools/browser/delete-history.test.mjs" \
+  "${ROOT_DIR}/tools/browser/delete-history-scenes.test.mjs" \
   "${ROOT_DIR}/tools/browser/direct-link-start.test.mjs" \
   "${ROOT_DIR}/tools/browser/ir-location.test.mjs" \
   "${ROOT_DIR}/tools/browser/start-count-invariance.test.mjs" \
