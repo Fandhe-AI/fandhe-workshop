@@ -28,7 +28,7 @@ import {
 const MAX_IR = 20_971_520;
 const MAX_HISTORY = 10_485_760;
 const BUDGET_MS = 1000;
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const STEP_TITLE = '[data-testid="step-title"]';
 const DRAFT = '[data-testid="draft-input"]';
 const FILE_INPUT = '[data-testid="history-file"]';
@@ -136,7 +136,7 @@ async function runIr(body, { expectNotice }) {
     if (!expectNotice) await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
     const out = {
       notices: await page.locator(NOTICE).count(),
-      role: expectNotice ? await page.locator(NOTICE).getAttribute('role') : null,
+      role: expectNotice ? await page.locator('[data-testid="shell-notice"]').getAttribute('role') : null,
       text: expectNotice ? await page.locator(NOTICE).innerText() : '',
       titles: await page.locator(STEP_TITLE).count(),
       drafts: await page.locator(DRAFT).count(),

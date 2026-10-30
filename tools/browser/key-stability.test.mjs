@@ -31,7 +31,7 @@ const HISTORY_PREFIX = 'fandhe-workshop/history/';
 const CHANGED = 'KEY-CHANGED-BY-VERSION';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const T = 30000;
 
 let browser;

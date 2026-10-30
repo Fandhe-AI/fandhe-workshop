@@ -1,0 +1,9 @@
+id: SHELL31-3
+package: fandhe-workshop-web
+test: ir_unloadable_screen
+features: test-hooks
+target: crates/web/src/shell_notice.rs
+find:     if let Some(code) = pack_unloadable {
+replace:     if let Some(code) = pack_unloadable.filter(|_| false) {
+expect-fail: every_start_refusal_shows_one_pack_unloadable_item
+note: 通知欄が教材を読めない項目を積まない（断った画面に通知が出ない。SHELL-31・TASK-545）

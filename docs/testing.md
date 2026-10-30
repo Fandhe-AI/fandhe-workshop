@@ -10974,3 +10974,29 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異: SHELL38-3（文から「書き出し済みのファイルは消えません」が落ちる）・SHELL38-4（印の変更が反映されない）が DETECTED。SAVE32-5 も DETECTED のまま。
 - 試験（ブラウザ）: `tools/browser/delete-confirm.test.mjs`（配信する設定。CSP あり・なし。click と Enter。確認が 1 件・文・両ボタン・Tab で到達・押した直後と待った後に保存先の鍵と値のハッシュが不変・360px・再読み込みで確認が復元されない・通信 / 違反 / ダイアログ 0 件）。
 - 限界（判断）: 表示だけで開いた履歴でも `shell-delete` は描かれる（常に 1 個。出し入れによる root の全置換を避けた）。押しても allowlist が捨てるため何も起きない。確認の通知への焦点の自動移動は行わない（Tab で届く）。
+
+### 5.402 教材 IR を読めないときの画面の試験（TASK-545。SHELL-31）
+
+教材（IR）を読めないとき、教材を表示せず、枠の通知欄の `pack-unloadable` 項目に「教材を読み込めない」旨を出すことを確かめる。旧 `ir-notice`（枠の外の 1 要素）は廃止し、既存の試験の参照を新しい項目へ移した。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| native `ir_unloadable_screen`（6 件） | `too_large`・`too_deep`・`not_json`（空・`{`）・`malformed`・`format_newer`・開始点の断り 2 種で、項目がちょうど 1 件・理由コード・文面 ID `msg-pack-unloadable`・操作 0 件、教材の部品 0 件、保存しない、番兵が出ない。巡回する IR が `load_ir`・`open_bundled_ir` を通ること。負の対照（読める IR では項目 0 件） |
+| ブラウザ `ir-unloadable`（16 件） | 配信する設定の画面で、上限超え（`too_large`・`too_deep`）・不正（`malformed`・`not_json`）・IR なし（404・空の本文）の 6 場面 × CSP あり・なし。通知欄 1 件・role=status・「模擬」1 件・Step の題と入力欄と左右のエリア 0 件・タブが落ちない・ページ内エラー／外部通信／CSP 違反 0 件。巡回する IR（読み替え）と土台の IR（負の対照）も CSP あり・なしで確かめる |
+| 変異 `SHELL31-2`・`SHELL31-3` | 項目を出さない誤り・通知欄が積まない誤りを native の試験が検出する |
+
+#### 読み替え
+
+- 「IR が無い」は、印つきの配信物で `./ir/main.json` が取れない場面（404・空の本文）と読む。今は `not_json` で断る。404 の理由の見直しは TASK-546（SHELL-32）で、そのとき期待を直す
+- 「巡回」は読み込みの時点では断らない（`instance_graph` を `load_ir` に結線しない。`crates/core/src/instance.rs`）。止めるのは実行時の遷移の上限（`transition-limit`。SAFE-23・34・35）で、本試験は断らずに開くことを固定する
+- 印の無いビルド（IR 未同梱）は対象外で、従来の枠のまま
+
+#### 限界
+
+- 文面は仮置き（TASK-549・TASK-534）。Chromium のみ
+
+#### 件数・確認（2026-10-30）
+
+- native 6 件と `ir-unloadable` 16 件が通った（ブラウザは単独実行）。`make test-browser` の全体は 590 秒で打ち切られ完走していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない

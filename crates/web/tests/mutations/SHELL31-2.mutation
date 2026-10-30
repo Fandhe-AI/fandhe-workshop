@@ -1,0 +1,9 @@
+id: SHELL31-2
+package: fandhe-workshop-web
+test: ir_unloadable_screen
+features: test-hooks
+target: crates/web/src/shell_notice.rs
+find:     Some(item_of(&notice, &crate::ir_notice::ir_notice_text(code)))
+replace:     None::<(String, Node)>
+expect-fail: every_load_failure_shows_one_pack_unloadable_item
+note: 教材を読めない通知の項目を黙って出さない（断った画面に何も出ない。SHELL-31・TASK-545）

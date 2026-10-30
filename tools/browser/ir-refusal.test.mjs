@@ -6,7 +6,7 @@
 //   (a) `?fixture=future-ir-format`: 版が 3 で未知の欄を持つ。理由コードは `format_newer`。
 //   (b) `?fixture=future-ir-field`: 版は 1 のまま未知の欄を持つ（混在の危険な場面）。理由コードは `malformed`。
 // 実際の画面で次を確かめる。
-//   (T1・T2) 先に既定の画面で 1 手を送って保存させる。断られる画面へ移ると、通知（`ir-notice`・`role=status`）が固定の文言と
+//   (T1・T2) 先に既定の画面で 1 手を送って保存させる。断られる画面へ移ると、通知（`pack-unloadable` 項目・通知欄の `role=status`）が固定の文言と
 //       コードだけで出て、教材（入力欄・ログ）は出ない。断った画面の間も、再読み込み（pagehide）を挟んでも、保存先
 //       （localStorage）の全体が 1 文字も変わらない。既定の画面へ戻ると保存済みの履歴が開ける。
 //   (T3) 対照: 既定の画面には通知が無く、`irRefusal` は null。
@@ -26,7 +26,7 @@ import {
 const BASE = '/fandhe-ir-refusal/';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const LOG_ITEMS = '[data-testid="part-log-list"] li';
 const ACCEPTED = '/make-note first-note';
 const SENTINEL = 'FUTURE-SENTINEL-V3-X';
@@ -116,7 +116,7 @@ for (const csp of [true, false]) {
 
         assert.equal(await page.locator(NOTICE).count(), 1);
         assert.equal(await page.locator(NOTICE).innerText(), `教材を読み込めませんでした。（${code}）`);
-        assert.equal(await page.locator(NOTICE).getAttribute('role'), 'status');
+        assert.equal(await page.locator('[data-testid="shell-notice"]').getAttribute('role'), 'status');
         assert.equal(await page.locator(INPUT).count(), 0, 'no input field');
         assert.equal(await page.locator(LOG_ITEMS).count(), 0, 'no log rows');
         const eng = await engine(page);

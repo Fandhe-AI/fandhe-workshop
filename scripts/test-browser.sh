@@ -240,6 +240,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/l2-journey-calibrate.test.mjs" \
   "${ROOT_DIR}/tools/browser/ir-recv-limit.test.mjs" \
   "${ROOT_DIR}/tools/browser/ir-size-limit.test.mjs" \
+  "${ROOT_DIR}/tools/browser/ir-unloadable.test.mjs" \
   "${ROOT_DIR}/tools/browser/shape-mismatch.test.mjs" \
   "${ROOT_DIR}/tools/browser/refusal-keeps-saved.test.mjs" \
   "${ROOT_DIR}/tools/browser/next-chapter.test.mjs" \

@@ -2,7 +2,7 @@
 //
 // 配信する設定の web（FANDHE_WEB_DIR。同梱の IR の印の meta は無い）の写しに、印の meta を足し、`./ir/main.json` として
 // 上限（20 MiB）を大きく超える本体を流す。本体は 1 GiB の空白を 64 KiB ずつ書き続け、受け手が読むのをやめて接続を閉じたら止まる。
-// 確かめること: (1) 画面が断りの通知（`ir-notice`）に倒れ、ページ内エラーがない。(2) 配信側が書いた量が上限 + 数十 MiB に収まり、
+// 確かめること: (1) 画面が断りの通知（`pack-unloadable` 項目）に倒れ、ページ内エラーがない。(2) 配信側が書いた量が上限 + 数十 MiB に収まり、
 // 1 GiB を最後まで送っていない（受信を中止した）。対照: 上限未満の本体（空白だけで JSON として不正）でも画面は断りに倒れるが、
 // こちらは最後まで送られる（読み取りを途中で止めていない）。
 import { test, before, after } from 'node:test';
@@ -16,7 +16,7 @@ import { launchBrowser, channelFromEnv, openPage, waitMounted } from './harness.
 const MIB = 1024 * 1024;
 const LIMIT = 20 * MIB;
 const HUGE = 1024 * MIB;
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
 let browser;

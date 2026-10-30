@@ -167,7 +167,7 @@ for (const csp of [true, false]) {
             assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', `${b.id}: no test hooks`);
             await page.waitForSelector(BODY, { timeout: 15000 })
               .catch((e) => { throw new Error(`${b.id}: step body not shown: ${e.message}`); });
-            assert.equal(await page.locator('[data-testid="ir-notice"]').count(), 0, `${b.id}: ir-notice shown`);
+            assert.equal(await page.locator('[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]').count(), 0, `${b.id}: ir-notice shown`);
             assert.equal(await page.locator(TITLE).count(), 1, `${b.id}: step-title count`);
             assert.equal(await page.locator(TITLE).textContent(), b.title, `${b.id}: step-title`);
             assert.equal(await page.locator(BODY).count(), 1, `${b.id}: step-body count`);

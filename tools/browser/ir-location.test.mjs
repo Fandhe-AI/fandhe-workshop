@@ -30,7 +30,7 @@ import { pageRequestProblems } from './delivery.mjs';
 const BASE = '/fandhe-ir-location/';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PACK_DIR = path.join(ROOT, 'testdata', 'engine-event-consistency', 'test-data', 'min-3step-pack');
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const SENTINEL = 'IR-SENTINEL-X';
 const REFUSED_TEXT = '指定された開始点を開けませんでした。（start_unknown）';
 const DECOYS = ['/something.json', '/ir/something.json', '/main.json'];

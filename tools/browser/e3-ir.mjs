@@ -112,7 +112,7 @@ export function observeRows() {
     text: li.textContent ?? '',
     tags: tagsOf(li),
   }));
-  return { rows, logs, notice: document.querySelectorAll('[data-testid="ir-notice"]').length };
+  return { rows, logs, notice: document.querySelectorAll('[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]').length };
 }
 
 /**
