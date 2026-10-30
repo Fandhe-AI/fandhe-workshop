@@ -484,3 +484,69 @@ fn 削除の完了待ちに履歴を差し替えても実処理の完了まで�
     );
     assert!(p.host.history_to_save().is_some(), "完了の後は保存へ戻る");
 }
+
+/// `min-3step` を指定の版にした IR（`view_only.rs` と同じ作り方）。
+fn min3_ir(version: &str) -> fandhe_workshop_contract::ir::Ir {
+    let mut v: serde_json::Value = serde_json::from_slice(&data(
+        "../../testdata/engine-event-consistency/test-data/min-3step.json",
+    ))
+    .unwrap();
+    v["pack"]["version"] = serde_json::json!(version);
+    v["pack"]["vocab"] = serde_json::json!("1.2");
+    load_ir(&serde_json::to_vec(&v).unwrap()).unwrap()
+}
+
+fn min3_initial() -> SessionState {
+    let v: serde_json::Value =
+        serde_json::from_slice(&data("../../testdata/contract/event-sequence.json")).unwrap();
+    serde_json::from_value(v["initial"].clone()).unwrap()
+}
+
+/// `version` の教材で書いた履歴のバイト列。
+fn min3_history(version: &str) -> Vec<u8> {
+    use fandhe_workshop_core::history_envelope::build_envelope;
+    use fandhe_workshop_core::history_export::export_bytes;
+    use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
+    use fandhe_workshop_core::history_replay::replay;
+    let ir = min3_ir(version);
+    let sample = data("../../testdata/contract/history/two-rounds.json");
+    let env = parse_history_envelope(parse_history_json(&sample).unwrap()).unwrap();
+    let state = replay(&ir, min3_initial(), &env.ops).unwrap();
+    let built = build_envelope(&ir, &env.start, env.ops, state).unwrap();
+    export_bytes(&built).unwrap()
+}
+
+#[test]
+fn 削除の完了待ちに表示だけへ入っても完了で保存の停止が解ける() {
+    use fandhe_workshop_web::host::ImportOutcome;
+    let ir = min3_ir("1.0.0");
+    let mut host =
+        EngineHost::with_session(Session::from_state(ir, min3_initial()), standard_registry())
+            .unwrap();
+    let gen = Rc::new(Cell::new(0));
+    let g = Rc::clone(&gen);
+    host.set_history_deleter(Box::new(move |generation| g.set(generation)));
+    host.set_history_saver(Box::new(|_| Ok(())));
+    host.set_save_cancel(Box::new(|| {}));
+
+    step(&mut host);
+    send(&mut host, "request");
+    send(&mut host, "confirm");
+
+    assert!(matches!(
+        host.open_history(&min3_history("2.0.0")),
+        ImportOutcome::ViewOnly(_)
+    ));
+    host.update(HostAction::DeleteResult(
+        gen.get(),
+        Err(StorageError::Failed),
+    ));
+    assert_eq!(
+        host.open_history(&min3_history("1.0.0")),
+        ImportOutcome::Open
+    );
+    assert!(
+        host.history_to_save().is_some(),
+        "表示だけの間に届いた完了で、保存の停止が解けている"
+    );
+}
