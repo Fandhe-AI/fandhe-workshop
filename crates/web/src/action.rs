@@ -143,6 +143,8 @@ pub(crate) enum Scheduled {
     SecretHold(u64, Vec<fandhe_workshop_core::secret_scan::SecretShape>),
     /// 「この入力を残さない」の保存先の取り直しの完了（`true` は取り直せた。SAFE-28）。
     SecretDiscardRead(bool, u64),
+    /// 保存済みの履歴の削除の完了（頼んだときの世代つき。成功は消した件数。SAVE-32）。
+    DeleteResult(u64, Result<usize, StorageError>),
     /// 枠の操作（読み込み。TASK-531 1/2）。符号化の正は `ShellAction::encode`。
     Shell(crate::shell::ShellAction),
 }
@@ -167,6 +169,10 @@ impl Scheduled {
             Scheduled::SecretDiscardRead(ok, generation) => (
                 crate::secret_notice::ACTION_SECRET_DISCARD_READ,
                 format!("{} {generation}", if *ok { "ok" } else { "fail" }),
+            ),
+            Scheduled::DeleteResult(generation, r) => (
+                crate::delete_notice::ACTION_DELETE_RESULT,
+                crate::delete_notice::encode_delete_result(*generation, *r),
             ),
             Scheduled::SaveResult(e, r) => (
                 crate::save_notice::ACTION_SAVE_RESULT,

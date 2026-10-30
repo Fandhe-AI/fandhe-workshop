@@ -1,0 +1,8 @@
+id: SAVE32-6
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:         if self.save_blocked || self.delete_inflight || self.model.view_only.is_some() {
+replace:         if self.save_blocked || self.model.view_only.is_some() {
+expect-fail: 削除の完了待ちの間は保存せず失敗すると保存へ戻る
+note: 削除の完了待ちの間も保存の値を返す（遅延保存・離脱時の保存が削除済みの鍵を復活させる。SAVE-32）

@@ -13,7 +13,7 @@
 //! 例外の文は読まない・記録しない。DOM の値は読まない（`DomException::name` と要求の結果だけを使う）。
 
 use crate::storage_local::LocalStore;
-use crate::storage_select::{Done, Fetched, HistoryStorage, IdbBackend};
+use crate::storage_select::{Done, Fetched, HistoryStorage, IdbBackend, Listed};
 use fandhe_workshop_contract::storage::{HistoryKey, StorageError};
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -203,6 +203,38 @@ impl IdbBackend for IdbStore {
             Ok(_) => watch(&tx, done),
             Err(_) => done(Err(StorageError::Failed)),
         }
+    }
+
+    fn keys(&self, done: Listed) {
+        if self.closed.get() {
+            done(Err(StorageError::Unavailable));
+            return;
+        }
+        let Ok(tx) = self.db.transaction_with_str(STORE) else {
+            done(Err(StorageError::Failed));
+            return;
+        };
+        let Ok(req) = tx.object_store(STORE).and_then(|s| s.get_all_keys()) else {
+            done(Err(StorageError::Failed));
+            return;
+        };
+        watch(
+            &tx,
+            Box::new(move |r| {
+                done(r.map(|()| {
+                    let mut out = Vec::new();
+                    if let Ok(v) = req.result() {
+                        let a: Array = v.unchecked_into();
+                        for i in 0..a.length() {
+                            if let Some(k) = a.get(i).as_string() {
+                                out.push(k);
+                            }
+                        }
+                    }
+                    out
+                }));
+            }),
+        );
     }
 
     fn delete(&self, key: &str, done: Done) {

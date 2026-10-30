@@ -10,7 +10,7 @@
 
 use fandhe_workshop_contract::storage::{DeliveryScope, HistoryKey, StorageError};
 use fandhe_workshop_web::storage_select::{
-    utf16_len, Done, Fetched, HistoryStorage, IdbBackend, SyncKv,
+    utf16_len, Done, Fetched, HistoryStorage, IdbBackend, Listed, SyncKv,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -21,6 +21,8 @@ pub struct FakeLocal {
     pub map: RefCell<BTreeMap<String, String>>,
     /// 全体の上限（鍵と値の UTF-16 の合計）。`None` なら無制限。
     pub limit: Cell<Option<u64>>,
+    /// `keys` を失敗させる（列挙できない localStorage の模擬）。
+    pub fail_keys: Cell<bool>,
 }
 
 impl FakeLocal {
@@ -63,6 +65,9 @@ impl SyncKv for FakeLocal {
         Ok(())
     }
     fn keys(&self) -> Result<Vec<String>, StorageError> {
+        if self.fail_keys.get() {
+            return Err(StorageError::Failed);
+        }
         Ok(self.map.borrow().keys().cloned().collect())
     }
     fn total_utf16(&self) -> Result<u64, StorageError> {
@@ -111,6 +116,10 @@ impl IdbBackend for FakeIdb {
         self.pending
             .borrow_mut()
             .push((Some((key.to_string(), value.to_string())), done));
+    }
+    fn keys(&self, done: Listed) {
+        let ks: Vec<String> = self.store.borrow().keys().cloned().collect();
+        done(Ok(ks));
     }
     fn delete(&self, key: &str, done: Done) {
         self.store.borrow_mut().remove(key);

@@ -152,6 +152,8 @@ const NON_DOM_CALLS: &[&str] = &[
     "refetch",
     "is_ok",
     "SecretDiscardRead",
+    // 保存済みの履歴の削除の完了の配送（SAVE-32）。世代と結果だけを運び、DOM には触れない。
+    "DeleteResult",
     "save_epoch",
     "is_scheduled",
     "is_ok_and",
@@ -636,6 +638,11 @@ const MODULE_RULES: &[ModuleRule] = &[
             "set_save_failure_probe",
             // 古いタブかを読む口（SAVE-13）。読み取りの口をホストへ結ぶだけで DOM には触れない。
             "set_stale_probe",
+            // 保存済みの履歴の削除（SAVE-32）。保留の破棄・保存先の鍵の削除・口の結線だけで、DOM には触れない。
+            "discard_pack",
+            "remove_pack",
+            "pack_id",
+            "set_history_deleter",
             // 起動番号の取得（SAVE-12）。`Math::random` は一意化の `tag` だけに使い、DOM には触れない。
             "claim",
             "random",
