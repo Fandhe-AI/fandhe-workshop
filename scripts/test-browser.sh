@@ -27,7 +27,7 @@
 # IR の大きさの上限の境界の試験（ir-size-limit。配信する設定の画面で、上限ちょうどは読め、+1 バイトと 10 倍は理由つきで断り、取得の終わりから 1 秒未満・タブが落ちない。SAFE-17・SAFE-45。TASK-154。docs/testing.md 5.373）を含む。
 # 構造の合わない巨大な入力の拒否の試験（shape-mismatch。100 万・500 万要素の配列・巨大な文字列・連想配列を含む IR と履歴が malformed・missing_version で断られタブが落ちず、100,000 要素・文字の形の合うものは開く。SAFE-24。TASK-161。docs/testing.md 5.375）を含む。
 # 起動時に壊れた履歴を検出し保存を止める試験（boot-corrupt-history。壊れた履歴 7 通りを保存先に置いて再読み込みで起動し、corrupt-history の通知が理由つきで 1 件出て新しい状態で始まり、操作でも保存先が変わらない。「捨てて始める」の押下で今の鍵だけが消えて新しく始まり保存が再開する。CSP あり・なし。SAVE-21・SHELL-17。TASK-333 1/2・2/2。docs/testing.md 5.389・5.390）。
-# 起動時に壊れた履歴の案内を配信する設定の画面で確かめる試験（boot-corrupt-notice。試験用の口なしで壊れた履歴 5 通りを localStorage に置いて開き、理由の文と案内の文と「捨てて始める」のボタンが見え、操作・再読み込みで保存先が変わらない。押した後は範囲外。SHELL-17。TASK-533 1/2。docs/testing.md 5.396）。
+# 起動時に壊れた履歴の案内を配信する設定の画面で確かめる試験（boot-corrupt-notice。試験用の口なしで壊れた履歴 5 通りを localStorage に置いて開き、理由の文と案内の文と「捨てて始める」のボタンが見え、操作・再読み込みで保存先が変わらない。1/2 は押さず、2/2 は押した後に今の鍵だけが消え次の操作から保存が再開し再読み込みで復元される。SHELL-17。TASK-533 1/2・2/2。docs/testing.md 5.396・5.397）。
 # 断った後に保存済みの履歴と画面が書き換わらないことの試験（refusal-keeps-saved。履歴・起動時の IR・起動後の IR・保存先からの起動の 4 経路で、保存先の全体・状態・画面が変わらず入力の番兵が出ない。SAFE-40。TASK-169。docs/testing.md 5.378）。
 # 壊れた履歴 7 種の拒否の試験（broken-histories。履歴は core の broken_histories.rs が書き出し FANDHE_BROKEN_HISTORIES_DIR で受ける。SAVE-20・SHELL-16。TASK-332 1/2。docs/testing.md 5.386）と、`ops` の 22 か所の書き換えの試験（ops-rewrites。履歴は core の ops_rewrites.rs が書き出し FANDHE_OPS_REWRITES_DIR で受ける。SAVE-20。TASK-332 2/2。docs/testing.md 5.387）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
