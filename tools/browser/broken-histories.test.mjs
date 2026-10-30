@@ -30,12 +30,16 @@ const START = 's-1';
 const TABLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'testdata', 'broken-histories', 'expectations.json');
 
 const REAL_INPUT = '[data-testid="shell-import"] input[type="file"]';
-// 理由ごとの固定の文の断片（仮置き。TASK-532 1/2）。受講者が 4 種の違いを読めることの確認に使う。
+// 理由ごとの固定の文の断片（仮置き。TASK-532 1/2・2/2）。受講者が 7 種（B-4b を含む）の違いを読めることの確認に使う。
 const FRAGMENT = {
   'B-1': '書き換えられている',
   'B-2': '途中で切れて',
   'B-3': 'JSON として読めません',
   'B-4': '10MB の上限',
+  'B-4b': '決められた形と合いません',
+  'B-5': '版の欄がありません',
+  'B-6': '別の教材で記録された',
+  'B-7': '決められた形と合いません',
 };
 
 const IDS = ['B-0', 'B-1', 'B-2', 'B-3', 'B-4', 'B-4b', 'B-5', 'B-6', 'B-7'];
@@ -168,7 +172,7 @@ for (const csp of [true, false]) {
           if (FRAGMENT[id]) {
             const body = (await page.locator(ITEM).textContent());
             assert.equal(body.includes(FRAGMENT[id]), true, `${id}: notice carries the reason text`);
-            assert.equal(/min-3step|"ops"|\{/.test(body), false, `${id}: notice carries no history value`);
+            assert.equal(/min-3step|other-tutorial|"ops"|\{/.test(body), false, `${id}: notice carries no history value`);
           }
           assert.equal((await call(page, 'storageRead', PACK, START)) === storedBefore, true, `${id}: stored value untouched`);
           assert.equal((await screenOutsideNotice(page)) === screenBefore, true, `${id}: screen outside the notice unchanged`);
