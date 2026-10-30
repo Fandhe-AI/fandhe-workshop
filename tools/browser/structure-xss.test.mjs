@@ -40,7 +40,7 @@ import {
 const BASE = '/fandhe-structure-xss/';
 const CSP_META_RE = /<meta\b[^>]*\bhttp-equiv\s*=\s*["']?content-security-policy["']?[^>]*>/gi;
 const TITLE = '[data-testid="step-title"]';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const T = 30000;
 const STEP_0_2A = 'main/st-0-2a';
 

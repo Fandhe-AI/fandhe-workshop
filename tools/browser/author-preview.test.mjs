@@ -185,7 +185,7 @@ for (const csp of [true, false]) {
   });
 }
 
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const REFUSED_TEXT = '指定された開始点を開けませんでした。（start_unknown）';
 const SENTINEL = 'AUTHOR-START-SENTINEL';
 

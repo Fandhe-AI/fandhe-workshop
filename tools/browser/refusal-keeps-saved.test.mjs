@@ -34,7 +34,7 @@ const MAX_HISTORY = 10_485_760;
 const BASE = '/fandhe-refusal-keeps-saved/';
 const DRAFT = '[data-testid="draft-input"]';
 const STEP_TITLE = '[data-testid="step-title"]';
-const IR_NOTICE = '[data-testid="ir-notice"]';
+const IR_NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const LOG_ITEMS = '[data-testid="part-log-list"] li';
 const FILE_INPUT = '[data-testid="history-file"]';
 const ITEM = '[data-testid="shell-notice-item"][data-notice-kind="import-refused"]';
@@ -360,7 +360,7 @@ for (const c of IR_CASES) {
       const baseline = await storageDigest(page);
       assert.equal(hasHistory(baseline), true, 'the saved history is present while refusing');
       assert.equal(await page.locator(IR_NOTICE).count(), 1);
-      assert.equal(await page.locator(IR_NOTICE).getAttribute('role'), 'status');
+      assert.equal(await page.locator('[data-testid="shell-notice"]').getAttribute('role'), 'status');
       const noticeText = await page.locator(IR_NOTICE).innerText();
       assert.ok(noticeText.includes(c.reason), 'notice carries the code');
       assert.equal(await page.locator(STEP_TITLE).count(), 0, 'no step');

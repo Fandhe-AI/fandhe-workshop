@@ -34,7 +34,10 @@ fn shows_notice(bytes: &[u8], code: &'static str, wording: &str) {
     let err = load_ir(bytes).unwrap_err();
     let h = EngineHost::refused(&err);
     let html = render_component_html(&h);
-    assert!(html.contains("data-testid=\"ir-notice\""), "{html}");
+    assert!(
+        html.contains("data-notice-kind=\"pack-unloadable\""),
+        "{html}"
+    );
     assert!(html.contains("role=\"status\""), "{html}");
     assert!(html.contains(wording), "{html}");
     assert!(html.contains(&ir_notice_text(code)), "{html}");

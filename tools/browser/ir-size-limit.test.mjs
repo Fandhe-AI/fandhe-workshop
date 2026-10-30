@@ -22,7 +22,7 @@ import { launchBrowser, channelFromEnv, openPage, waitMounted, summarize } from 
 const MIB = 1024 * 1024;
 // contract の MAX_IR_BYTES（決定 D-44）。値は native の crates/core/tests/ir_size.rs が契約と照合する。
 const LIMIT = 20_971_520;
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const STEP_TITLE = '[data-testid="step-title"]';
 const MESSAGE = 'ファイルが上限の大きさを超えています';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -112,7 +112,7 @@ async function run(irSize, { expectNotice }) {
     await new Promise((r) => setTimeout(r, 500));
     const out = {
       notices: await page.locator(NOTICE).count(),
-      role: expectNotice ? await page.locator(NOTICE).getAttribute('role') : null,
+      role: expectNotice ? await page.locator('[data-testid="shell-notice"]').getAttribute('role') : null,
       text: expectNotice ? await page.locator(NOTICE).innerText() : '',
       titles: await page.locator(STEP_TITLE).count(),
       drafts: await page.locator('[data-testid="draft-input"]').count(),

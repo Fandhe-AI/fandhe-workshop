@@ -83,7 +83,10 @@ fn refused_host_shows_the_notice_with_the_code_only() {
     let h = EngineHost::refused(&refusal(&future_ir(true, false)));
     assert_eq!(h.ir_refusal(), Some("format_newer"));
     let html = render_component_html(&h);
-    assert!(html.contains("data-testid=\"ir-notice\""), "{html}");
+    assert!(
+        html.contains("data-notice-kind=\"pack-unloadable\""),
+        "{html}"
+    );
     assert!(html.contains("role=\"status\""), "{html}");
     assert!(html.contains(&ir_notice_text("format_newer")), "{html}");
     assert_eq!(
@@ -134,7 +137,7 @@ fn readable_ir_has_no_notice() {
     let h = default_host();
     assert_eq!(h.ir_refusal(), None);
     let html = render_component_html(&h);
-    assert!(!html.contains("ir-notice"));
+    assert!(!html.contains("pack-unloadable"));
     assert!(html.contains("draft-input"));
     assert_eq!(snapshot(&h)["irRefusal"], serde_json::Value::Null);
 }

@@ -16,7 +16,7 @@ import { launchBrowser, channelFromEnv, openPage, waitMounted } from './harness.
 const MIB = 1024 * 1024;
 const LIMIT = 20 * MIB;
 const HUGE = 1024 * MIB;
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
 let browser;

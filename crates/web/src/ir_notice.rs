@@ -1,10 +1,10 @@
 //! 旧いエンジンが新しい教材を断るときの通知文（VER-13・TASK-181 2/2）。
 //!
-//! 呼び出し元は `host::EngineHost::view` で、教材（IR）を読めなかったホストが、画面に `ir-notice` の 1 要素だけを
-//! 描くときに [`ir_notice_text`] を引く。コードは core の `IrLoadError::reason_code` が返す固定の ASCII で、
+//! 呼び出し元は `host::EngineHost::view` で、教材（IR）を読めなかったホストが、画面の枠の通知欄（`pack-unloadable` 項目。
+//! `shell_notice::pack_unloadable_item`。旧 `ir-notice` は廃止）に出すときに [`ir_notice_text`] を引く。コードは core の `IrLoadError::reason_code` が返す固定の ASCII で、
 //! 文は固定の文言とそのコードだけで作り、教材・受講者の値を含めない（SAFE-11・SAFE-40）。
 //! 上限（`too_large`・`too_deep`）だけは、契約の `rejection_message` の文面を引いて画面に出す（SAFE-17。TASK-154）。
-//! 文言はエンジン側の仮置きである。受講者向けの画面の枠は TASK-545（SHELL-31）、通知の口の契約は TASK-511 が決める。
+//! 文言はエンジン側の仮置きである。通知の口の契約は TASK-511、断った画面の枠への載せ替えは TASK-545（SHELL-31）である。
 
 use fandhe_workshop_contract::limits::{
     ir_value_rejection_message, rejection_message, IrValueLimitReason, LimitReason, LoadEntry,

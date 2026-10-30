@@ -33,7 +33,7 @@ const POINTS = [
 const HISTORY_PREFIX = 'fandhe-workshop/history/';
 const INPUT = '[data-testid="draft-input"]';
 const SUBMIT = '[data-testid="submit-input"]';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const LOG_ITEMS = '[data-testid="part-log-list"] li';
 const SENTINEL = 'START-SENTINEL-X';
 const REFUSED_TEXT = (code) => `指定された開始点を開けませんでした。（${code}）`;
@@ -183,7 +183,7 @@ for (const csp of [true, false]) {
 
         assert.equal(await page.locator(NOTICE).count(), 1, `${name}: one notice`);
         assert.equal(await page.locator(NOTICE).innerText(), REFUSED_TEXT('start_unknown'), `${name}: fixed wording and code only`);
-        assert.equal(await page.locator(NOTICE).getAttribute('role'), 'status', `${name}: role`);
+        assert.equal(await page.locator('[data-testid="shell-notice"]').getAttribute('role'), 'status', `${name}: role`);
         assert.equal(await page.locator(INPUT).count(), 0, `${name}: no input field`);
         assert.equal(await page.locator(LOG_ITEMS).count(), 0, `${name}: no log rows`);
         const eng = await engine(page);

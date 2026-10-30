@@ -39,7 +39,7 @@ const FIXTURE = '&fixture=ch0-3-links';
 const HISTORY_PREFIX = 'fandhe-workshop/history/';
 const MIXED = 'DIRECT-LINK-HISTORY-MIXED';
 const NOTICE_KIND = '[data-notice-kind="version-converted"]';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const CONVERTED_TEXT = '変換して開きました';
 const A = DIRECT_LINKS[0];
 const B = DIRECT_LINKS[6];
