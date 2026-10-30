@@ -4,7 +4,8 @@
 //   画面に出ていないことを判定するための断片と、画面を読む関数を返す。
 //   変種は 3 つ。`ops`（submit・draft の文字列）・`snapshot`（snapshot.log の中の全文字列。PoC-7 の E4 と同じく log に限る）・
 //   `meta`（start・pack_id・versions の文字列の欄）。
-// 呼び出し元はブラウザ試験 history-xss.test.mjs と単体試験 e4-history.test.mjs だけ。後続の TASK-146 2/2 も基準の履歴の作り方を再利用する。
+// 呼び出し元はブラウザ試験 history-xss.test.mjs・history-regular.test.mjs（TASK-146 2/2。末尾の savedPayloadOps・judgeRegularLine・
+// observeRegular と payloadProbes・observeLeak・leakedPlaces を使う）と単体試験 e4-history.test.mjs だけ。
 // 入力は書き換えず、深い写しを返す。ペイロードは文字列として扱うだけで、パス・セレクタ・コードに組み立てない（eval・Function は使わない）。
 
 // 他の試験の保存先の鍵と分けるための固定の教材 ID と、開く開始点。
@@ -135,4 +136,76 @@ export function leakedPlaces(obs, probes) {
   if (obs.attrs.some(has)) places.push('attrs');
   if (obs.values.some(has)) places.push('values');
   return places;
+}
+
+/**
+ * 保存先・書き出しの履歴の文字列を解釈し、`ops` に P が submit・draft の値としてそのまま入っている数を返す（正規の経路の確認。TASK-146 2/2）。
+ * 解釈できない・`ops` が配列でない場合は例外にする（空振りの防止）。値の比較だけを行い、P から鍵やセレクタを作らない。
+ */
+export function savedPayloadOps(historyText, P) {
+  const h = JSON.parse(historyText);
+  if (!Array.isArray(h.ops)) throw new Error('savedPayloadOps: ops is not an array');
+  let submit = 0;
+  let draft = 0;
+  for (const op of h.ops) {
+    if (op && op.submit === P) submit += 1;
+    if (op && op.draft === P) draft += 1;
+  }
+  return { submit, draft };
+}
+
+// 正規の経路で送った入力の行が、文字として出ているかの判定（input-field-xss.test.mjs の judge と同じ基準）。
+// obs は observeRegular の返す値。expected は入力欄から読み戻した値。不合格の理由コードの配列を返す（中身は返さない）。
+export function judgeRegularLine(obs, expected) {
+  const l = obs.line;
+  if (!l) return ['no-received-line'];
+  const bad = [];
+  if (l.kind !== 'received') bad.push('kind');
+  if (l.input !== 'text') bad.push(`input=${l.input}`);
+  if (JSON.stringify(l.children) !== '["line-body"]') bad.push('children');
+  if (JSON.stringify(l.bodyKinds) !== '[3]') bad.push('body-not-single-text-node');
+  if (l.text !== expected) bad.push('text-mismatch');
+  if (l.forbidden !== 0) bad.push('forbidden-elements');
+  const n = obs.next;
+  if (!n || (n.kind !== 'rejected' && n.kind !== 'clarified')) {
+    bad.push(`next-missing:${n?.kind ?? 'none'}`);
+  } else {
+    if (n.forbidden !== 0) bad.push('next-forbidden');
+    if (n.childKinds.some((k) => k.some((t) => t !== 3))) bad.push('next-not-text');
+  }
+  if (obs.choices !== 0) bad.push('accepted');
+  if (obs.secret !== 0) bad.push('secret-warning');
+  return bad;
+}
+
+// 画面を読む（ページ内で動く自己完結の関数。外の名前を参照しない）。args は
+// { items, received, body, forbidden, title, secret, choice, draft } のセレクタ。
+export function observeRegular(args) {
+  const describe = (li) => {
+    if (!li) return null;
+    const b = li.querySelector(args.body);
+    return {
+      kind: li.dataset.kind,
+      input: li.dataset.input ?? null,
+      children: [...li.children].map((c) => c.dataset.testid),
+      childKinds: [...li.children].map((c) => [...c.childNodes].map((n) => n.nodeType)),
+      bodyKinds: b ? [...b.childNodes].map((n) => n.nodeType) : [],
+      text: b ? b.textContent : null,
+      forbidden: li.querySelectorAll(args.forbidden).length,
+    };
+  };
+  const recs = [...document.querySelectorAll(args.received)];
+  const li = recs[recs.length - 1];
+  const items = [...document.querySelectorAll(args.items)];
+  return {
+    received: recs.length,
+    total: items.length,
+    lastKind: items.length > 0 ? items[items.length - 1].dataset.kind ?? null : null,
+    line: describe(li),
+    next: describe(li ? li.nextElementSibling : null),
+    draft: document.querySelector(args.draft)?.value ?? null,
+    title: document.querySelector(args.title)?.textContent ?? null,
+    secret: (document.querySelector(args.secret)?.textContent ?? '').length,
+    choices: document.querySelectorAll(args.choice).length,
+  };
 }
