@@ -1,6 +1,7 @@
 //! 枠の通知欄（`shell-notice`）の描画。「保存できなかった」通知（SHELL-18・SAVE-10。TASK-534 1/2）と、
 //! 「版の違いを変換して開いた」通知（SHELL-20。TASK-535 1/2）と、
-//! 「開かない履歴」の理由の通知（SHELL-16・VER-8。TASK-176 2/2）を出す。
+//! 「開かない履歴」の理由の通知（SHELL-16・VER-8。TASK-176 2/2）と、
+//! 「教材（IR）を読み込めない」通知（SHELL-31。TASK-545。旧 `ir-notice` の置き場）を出す。
 //!
 //! 呼び出し元は `host::EngineHost::view` だけで、変換して開いたか（真偽）と開かない通知（理由のコードと閉じられるか）を
 //! 履歴ファイルの読み込みと起動時の復元の判定結果から、保存の失敗の種類を `HostModel::save_failure` から受け取る。判定そのものは core（`history_open`）が持ち、本モジュールは条件を複製しない。
@@ -187,8 +188,15 @@ pub fn notice_area(
     corrupt_history: Option<LoadReason>,
     save_failure: Option<StorageError>,
     browser_notice: bool,
+    pack_unloadable: Option<&'static str>,
 ) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
+    // 教材を読めないときは、この通知だけが画面の主役になるので先頭に置く（SHELL-31。TASK-545）。
+    if let Some(code) = pack_unloadable {
+        if let Some(item) = pack_unloadable_item(code) {
+            items.push(item);
+        }
+    }
     if let Some(failure) = save_failure {
         if let Some(item) = save_failed_item(failure) {
             items.push(item);
@@ -220,6 +228,20 @@ pub fn notice_area(
         &SHELL_NOTICES_FIELD,
         items,
     )
+}
+
+/// 「教材を読み込めない」通知の項目（SHELL-31。TASK-545）。理由は core の `IrLoadError::reason_code` が返す固定の ASCII で、
+/// 契約の形（`ReasonCode::parse`）を通ったものだけを属性に載せる。押せる操作は置かない。
+/// 文は `ir_notice_text` が持つ（固定の文言とコードだけ。教材・受講者の値は含まない。SAFE-11・SAFE-40）。
+pub fn pack_unloadable_item(code: &'static str) -> Option<(String, Node)> {
+    let notice = Notice::new(
+        NoticeKind::PackUnloadable,
+        Some(code),
+        MessageId::PackUnloadable,
+        &[],
+    )
+    .ok()?;
+    Some(item_of(&notice, &crate::ir_notice::ir_notice_text(code)))
 }
 
 /// 「保存できなかった」通知の項目。理由は閉じた列挙から写した固定の ASCII で、押せる操作は置かない。
@@ -328,7 +350,7 @@ mod tests {
 
     #[test]
     fn browser_notice_area_has_one_item_and_dismiss() {
-        let n = notice_area(false, None, None, None, true);
+        let n = notice_area(false, None, None, None, true, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("browser-notice"), "{s}");
@@ -340,13 +362,13 @@ mod tests {
 
     #[test]
     fn empty_area_has_no_items() {
-        let s = format!("{:?}", notice_area(false, None, None, None, false));
+        let s = format!("{:?}", notice_area(false, None, None, None, false, None));
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None, None, None, false);
+        let n = notice_area(true, None, None, None, false, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -357,7 +379,7 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true), None, None, false);
+        let n = notice_area(false, refused(true), None, None, false, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -371,7 +393,7 @@ mod tests {
     fn refused_without_dismiss_has_no_button() {
         let s = format!(
             "{:?}",
-            notice_area(false, refused(false), None, None, false)
+            notice_area(false, refused(false), None, None, false, None)
         );
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
@@ -379,7 +401,7 @@ mod tests {
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true), None, None, false);
+        let n = notice_area(true, refused(true), None, None, false, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -474,7 +496,7 @@ mod tests {
             StorageError::Unavailable,
             StorageError::Failed,
         ] {
-            let n = notice_area(false, None, None, Some(f), false);
+            let n = notice_area(false, None, None, Some(f), false, None);
             let s = format!("{n:?}");
             assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
             assert!(s.contains("save-failed"), "{s}");
@@ -494,6 +516,7 @@ mod tests {
             None,
             Some(StorageError::QuotaExceeded),
             false,
+            None,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
@@ -503,7 +526,7 @@ mod tests {
 
     #[test]
     fn corrupt_area_has_one_item_with_reason_and_discard_button_only() {
-        let n = notice_area(false, None, Some(LoadReason::Malformed), None, false);
+        let n = notice_area(false, None, Some(LoadReason::Malformed), None, false, None);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("corrupt-history"), "{s}");
@@ -524,11 +547,28 @@ mod tests {
             Some(LoadReason::Truncated),
             Some(StorageError::Failed),
             false,
+            None,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 4, "{s}");
         assert!(s.find("save-failed") < s.find("corrupt-history"), "{s}");
         assert!(s.find("corrupt-history") < s.find("import-refused"), "{s}");
+    }
+
+    #[test]
+    fn pack_unloadable_area_has_one_item_without_actions() {
+        let n = notice_area(false, None, None, None, false, Some("too_large"));
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
+        assert!(s.contains("pack-unloadable"), "{s}");
+        assert!(s.contains("msg-pack-unloadable"), "{s}");
+        assert!(s.contains("too_large"), "{s}");
+        assert!(
+            !s.contains("<button") && !s.contains("shell-dismiss"),
+            "{s}"
+        );
+        assert!(crate::shell::check_no_undefined(&n).is_ok());
+        assert!(crate::a11y::check_no_undefined(&n).is_ok());
     }
 
     #[test]

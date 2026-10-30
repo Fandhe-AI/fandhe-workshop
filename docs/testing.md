@@ -10963,3 +10963,29 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 - `e4-history.test.mjs` 7 件・`history-regular.test.mjs` 6 件が、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。CSP あり・なしとも restore 14/14・file 14/14、約 53 秒（ローカル）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない
+
+### 5.402 教材 IR を読めないときの画面の試験（TASK-545。SHELL-31）
+
+教材（IR）を読めないとき、教材を表示せず、枠の通知欄の `pack-unloadable` 項目に「教材を読み込めない」旨を出すことを確かめる。旧 `ir-notice`（枠の外の 1 要素）は廃止し、既存の試験の参照を新しい項目へ移した。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| native `ir_unloadable_screen`（6 件） | `too_large`・`too_deep`・`not_json`（空・`{`）・`malformed`・`format_newer`・開始点の断り 2 種で、項目がちょうど 1 件・理由コード・文面 ID `msg-pack-unloadable`・操作 0 件、教材の部品 0 件、保存しない、番兵が出ない。巡回する IR が `load_ir`・`open_bundled_ir` を通ること。負の対照（読める IR では項目 0 件） |
+| ブラウザ `ir-unloadable`（16 件） | 配信する設定の画面で、上限超え（`too_large`・`too_deep`）・不正（`malformed`・`not_json`）・IR なし（404・空の本文）の 6 場面 × CSP あり・なし。通知欄 1 件・role=status・「模擬」1 件・Step の題と入力欄と左右のエリア 0 件・タブが落ちない・ページ内エラー／外部通信／CSP 違反 0 件。巡回する IR（読み替え）と土台の IR（負の対照）も CSP あり・なしで確かめる |
+| 変異 `SHELL31-2`・`SHELL31-3` | 項目を出さない誤り・通知欄が積まない誤りを native の試験が検出する |
+
+#### 読み替え
+
+- 「IR が無い」は、印つきの配信物で `./ir/main.json` が取れない場面（404・空の本文）と読む。今は `not_json` で断る。404 の理由の見直しは TASK-546（SHELL-32）で、そのとき期待を直す
+- 「巡回」は読み込みの時点では断らない（`instance_graph` を `load_ir` に結線しない。`crates/core/src/instance.rs`）。止めるのは実行時の遷移の上限（`transition-limit`。SAFE-23・34・35）で、本試験は断らずに開くことを固定する
+- 印の無いビルド（IR 未同梱）は対象外で、従来の枠のまま
+
+#### 限界
+
+- 文面は仮置き（TASK-549・TASK-534）。Chromium のみ
+
+#### 件数・確認（2026-10-30）
+
+- native 6 件と `ir-unloadable` 16 件が通った（ブラウザは単独実行）。`make test-browser` の全体は 590 秒で打ち切られ完走していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない

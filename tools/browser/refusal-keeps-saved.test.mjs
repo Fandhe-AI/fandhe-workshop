@@ -9,7 +9,7 @@
 //       通知が 1 件で固定の文（同じ理由で入力の中身だけ違う 2 本の文が一致）、保存先・エンジンの指紋・環境の差し替え回数・下書きが前と同じ、
 //       通知を閉じた後の画面（html・下書き）が前と同じ、入力に入れた番兵が DOM・通知・コンソールに無い、保存済みの履歴は再読み込みで開ける。
 //   (b) 起動時の IR（配信する設定）: 上限超過・入れ子・形・uid 重複の 4 通り。同じ待ち受けで /ir/main.json の本体だけ差し替える。
-//       ir-notice が 1 件で教材の部品が 0 件、番兵が無く、断っている間と再読み込みの後も保存先が基準と一致し、本体を戻すと保存済みの履歴が開く。
+//       pack-unloadable 項目が 1 件で教材の部品が 0 件、番兵が無く、断っている間と再読み込みの後も保存先が基準と一致し、本体を戻すと保存済みの履歴が開く。
 //   (c) 起動後の loadIr: 入れ子・形・uid 重複。状態・ログ・差し替えの回数・URL・保存先・画面が変わらず、番兵が無い。
 //   (d) 保存先からの起動: 保存済みの値そのものが断られる入れ子・欄の型の誤り・10MB 超。not_opened で、操作の後も保存先の値がバイト単位で同じ。
 //   自己確認（負の対照）: 保存先の比較・画面の比較・番兵の検出器が、受け付けられる 1 手で実際に反応する。
@@ -34,7 +34,7 @@ const MAX_HISTORY = 10_485_760;
 const BASE = '/fandhe-refusal-keeps-saved/';
 const DRAFT = '[data-testid="draft-input"]';
 const STEP_TITLE = '[data-testid="step-title"]';
-const IR_NOTICE = '[data-testid="ir-notice"]';
+const IR_NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const LOG_ITEMS = '[data-testid="part-log-list"] li';
 const FILE_INPUT = '[data-testid="history-file"]';
 const ITEM = '[data-testid="shell-notice-item"][data-notice-kind="import-refused"]';
@@ -360,7 +360,7 @@ for (const c of IR_CASES) {
       const baseline = await storageDigest(page);
       assert.equal(hasHistory(baseline), true, 'the saved history is present while refusing');
       assert.equal(await page.locator(IR_NOTICE).count(), 1);
-      assert.equal(await page.locator(IR_NOTICE).getAttribute('role'), 'status');
+      assert.equal(await page.locator('[data-testid="shell-notice"]').getAttribute('role'), 'status');
       const noticeText = await page.locator(IR_NOTICE).innerText();
       assert.ok(noticeText.includes(c.reason), 'notice carries the code');
       assert.equal(await page.locator(STEP_TITLE).count(), 0, 'no step');

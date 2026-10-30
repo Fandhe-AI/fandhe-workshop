@@ -29,7 +29,7 @@ const BASE = '/fandhe-direct-link-reload/';
 const PACK = 'ch0-3-links';
 const FIXTURE = '&fixture=ch0-3-links';
 const HISTORY_PREFIX = 'fandhe-workshop/history/';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const STATUS = '[data-testid="step-status"]';
 const ACCEPTED_TEXT = '受付済み（確認待ち）';
 const ANCHOR_TITLE = '画面の右側を選ぶ';

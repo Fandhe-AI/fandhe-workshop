@@ -57,7 +57,10 @@ fn refused_start_shows_the_notice_with_the_code_only() {
     let h = EngineHost::refused_start(refusal);
     assert_eq!(h.ir_refusal(), Some("start_unknown"));
     let html = render_component_html(&h);
-    assert!(html.contains("data-testid=\"ir-notice\""), "{html}");
+    assert!(
+        html.contains("data-notice-kind=\"pack-unloadable\""),
+        "{html}"
+    );
     assert!(html.contains(&ir_notice_text("start_unknown")), "{html}");
     assert!(!html.contains(SENTINEL));
     assert!(!html.contains("draft-input"));

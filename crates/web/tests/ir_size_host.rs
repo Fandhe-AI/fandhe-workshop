@@ -30,7 +30,10 @@ fn over_by_one_ir_shows_the_size_message_and_code() {
     let err = load_ir(&padded(MAX_IR_BYTES + 1)).unwrap_err();
     let h = EngineHost::refused(&err);
     let html = render_component_html(&h);
-    assert!(html.contains("data-testid=\"ir-notice\""), "{html}");
+    assert!(
+        html.contains("data-notice-kind=\"pack-unloadable\""),
+        "{html}"
+    );
     assert!(html.contains("role=\"status\""), "{html}");
     assert!(
         html.contains("ファイルが上限の大きさを超えています"),

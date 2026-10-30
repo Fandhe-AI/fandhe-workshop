@@ -31,7 +31,7 @@ const FULL = '?fixture=ch0-4-full';
 const OUT_ID = 's-4-1';
 const OUT_NODE = 'main/st-4-1';
 const OUT_TITLE = '範囲外の章の最初の Step';
-const NOTICE = '[data-testid="ir-notice"]';
+const NOTICE = '[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]';
 const REFUSED_TEXT = '指定された開始点を開けませんでした。（start_unknown）';
 const HISTORY_PREFIX = 'fandhe-workshop/history/';
 let browser;

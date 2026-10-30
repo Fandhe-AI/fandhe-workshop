@@ -166,7 +166,7 @@ export function observeFields() {
       tags: [...tags].sort(),
     } : null,
     position: one('[data-testid="shell-position"]')?.textContent ?? '',
-    notice: document.querySelectorAll('[data-testid="ir-notice"]').length,
+    notice: document.querySelectorAll('[data-testid="shell-notice-item"][data-notice-kind="pack-unloadable"]').length,
   };
 }
 

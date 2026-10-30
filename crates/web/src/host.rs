@@ -932,7 +932,7 @@ impl EngineHost {
     ///
     /// [`EngineHost::new`] と同じ空の状態に、理由コード（`IrLoadError::reason_code`）だけを入れる。
     /// session が無いので `history_key` は `None` になり、保存先を開かず、何も書かない（fail-closed）。
-    /// `view` は教材を描かず、通知（`ir-notice`）だけを描く。
+    /// `view` は教材を描かず、通知欄の `pack-unloadable` 項目だけを描く。
     pub fn refused(err: &IrLoadError) -> Self {
         let mut host = Self::new();
         host.ir_refusal = Some(err.reason_code());
@@ -3115,16 +3115,21 @@ impl Component for EngineHost {
     fn view(&self) -> Node {
         // 教材を読めずに起動したホストは、教材を描かず通知だけを出す（入力欄・部品・raw-trigger は描かない）。
         if let (None, Some(code)) = (self.model.session(), self.ir_refusal) {
+            // 上部の区画は「模擬」だけを置く。通知欄の `pack-unloadable` 項目が文を持つ（SHELL-31。TASK-545）。
             return el(
                 "div",
                 vec![("data-testid", "workshop-root")],
-                vec![el(
-                    "p",
-                    vec![("data-testid", "ir-notice"), ("role", "status")],
-                    vec![fandhe_frontend_core::text(
-                        crate::ir_notice::ir_notice_text(code),
-                    )],
-                )],
+                vec![
+                    crate::shell_frame::top_bar(vec![]),
+                    crate::shell_notice::notice_area(
+                        false,
+                        None,
+                        None,
+                        None,
+                        self.browser_notice,
+                        Some(code),
+                    ),
+                ],
             );
         }
         // 部品は種類ごとに左（成果物）・右（操作）へ振り分け、枠（`shell_frame`）の取り付け点に載せる（TASK-517 1/2）。
@@ -3167,6 +3172,7 @@ impl Component for EngineHost {
                 self.boot_corrupt,
                 self.model.save_failure,
                 self.browser_notice,
+                None,
             ),
             history_ops(shown.as_ref()),
             tablist,
