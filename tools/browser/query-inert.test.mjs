@@ -13,7 +13,7 @@
 //   対照 配信する設定が実際に読む唯一のクエリ `?start=` では Q1 の比較が不一致になる（比べ方が空振りでないことの証拠）。
 //
 // 確かめないこと:
-//   - CH-0〜CH-3 の全量の通しと部品・配信物の検査（TASK-547 3/3）。章の境目の件数は author-preview の B が持つ。
+//   - CH-0〜CH-3 の全量の通しと部品・配信物の検査（delivery-ports.test.mjs。TASK-547 3/3）。章の境目の件数は author-preview の B が持つ。
 //   - 試験の設定の挙動（tick-interval が持つ）、配信物の試験用の口の検査（check-delivery.sh。TASK-82）
 //   - URL を読まない構造の静的な証明（native の tick_interval.rs・delivery_ports.rs が持つ）
 //

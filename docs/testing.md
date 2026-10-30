@@ -11074,3 +11074,31 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - native: `next_chapter` に 2 件、`delivery_ports` に 4 件を追加し、両設定の `delivery_ports` が通った。変異 `SHELL35-4`・`SHELL35-5` は DETECTED
 - ブラウザ: `query-inert` の 5 件が通った（手元。`make test-browser` の全体は CI の `browser-test` に任せる）
 - `scripts/expected-test-counts.txt` は変えていない（版上げ PR だけが照合する）
+
+### 5.407 配信物の部品を CH-0〜CH-3 で調べるブラウザ試験（TASK-547 3/3。SHELL-35）
+
+配信する設定の画面と配信物に試験用の口が 0 件であることを、実ブラウザで CH-0〜CH-3 の 20 Step を通しながら調べる。native の `delivery_ports.rs`（5.404・5.405）と対になる。製品のコードと `tools/check-delivery.sh` は変えていない。試験は `tools/browser/delivery-ports.test.mjs`（補助は `delivery-ports.mjs`）。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| A | 配信する設定（IR 同梱。CSP あり・なし）の 20 Step を実クリックで通し、全 Step の入った直後（20 時点）と確認待ち（16 時点）で、「移動:」で始まる操作・隠し要素 4 種（`tick-trigger`・`esc-trigger`・`complete-trigger`・`raw-trigger`）・「次の章へ進む」（境目以外）・`window.__fandheTest`・`fandhe-test-hooks` の meta が 0 件。時点の数が 0 なら失敗。安全の計数・配信元以外への通信・ページ内エラー・CSP 警告が 0 件 |
+| B | 試験用クエリ 7 種をすべて付けた通しが、クエリなしの通しと、各時点の探針・入った Step の列・最後の画面・保存先のキー・取得した資源で一致する（query-inert は 1 回の操作までで、全量の通しは本試験） |
+| C | 試験の設定（`?fixture=ch0-3-chapters`）の対照。全時点で `raw-trigger` が 1 件、`window.__fandheTest` と meta がある |
+| D | 3 つの配信物（IR なし・IR 同梱・試験の設定）で、配信元から取得した WASM の書き出しとバイト列・`test-hooks.js` と `.d.ts` の HTTP の状態・meta・DOM の `raw-trigger` を観察し、`check-delivery.sh` の 10 項目の合否と項目ごとに一致させる。出力に必須の項目名が欠けたら例外（fail-closed）。試験の設定は終了コード 1 で口がある |
+| E | 探針の自己確認。口の代役（`移動: x`・`raw-trigger`・`tick-trigger`）を足すと 1 件に増え、取り除くと戻る。出力の読み取りは必須項目の欠落で例外になる |
+
+#### 注意
+
+- 確かめないこと: 9 通りのクエリのマウント・1 操作（`query-inert`）、章の境目の件数（`author-preview` の B）、「本文の参照:」の行（TERM-41 は検討中。件数を記録するだけで合否に使わない）、`check-delivery.sh` の拡張（TASK-82）
+- 限界 1: `make test-browser` は wasm-opt を適用しない（`SKIP_WASM_OPT=1`）。そのため WASM に `debug_` を含む文字列が残り、`check-delivery.sh` の「no debug_ bytes in wasm」が FAIL になり終了コードは 1 になる。許す失敗の行はこの 1 件だけで、他の失敗の行があれば試験は失敗する。wasm-opt 適用済みなら失敗の行 0 件と終了コード 0 を確かめる。この項目はブラウザ側の観察と判定が一致することだけを確かめ、値は断定しない。`BUILD-27` の `debug_` 5 件と現在の実装の名前の整合は TASK-82
+- 限界 2: 各時点の画面の sha256 は、処理中の Step の時間で 36 時点中 2 時点が揺れたため、B は最後の画面だけを比べる
+- 限界 3: 仕様の証拠の種類（F5 の 16/16・`ch-run` の 73/73）は再現しない。台帳は項目数だけを記録する。教材は本物の CH-0〜CH-3（TASK-643・TASK-642）ではなく、試験用の教材である。AI の代理の確認であり、人の評価には数えない（D-34）
+
+#### 件数・確認（2026-10-30）
+
+- 事前の観察（`SKIP_WASM_OPT=1`）: 配信する設定の `check-delivery.sh` は失敗の行が「no debug_ bytes in wasm」の 1 件だけ（終了コード 1）。試験の設定は 8 件が FAIL（終了コード 1）
+- 手元: `delivery-ports` の 8 件が通った。A は 36 時点・55/55 項目、B は 36 時点の探針が一致、D は 3 配信物とも 10/10 項目が一致。画面の比較を最後だけにした後、12 回連続で通った
+- wasm-opt 適用済みの配信物での流し直しは未実施（未検証）
+- `scripts/expected-test-counts.txt` は変えていない
