@@ -1,0 +1,8 @@
+id: SHELL35-4
+package: fandhe-workshop-web
+test: next_chapter
+target: crates/web/src/host.rs
+find: if name == crate::next_chapter::ACTION_NEXT_CHAPTER {
+replace: if name == crate::next_chapter::ACTION_NEXT_CHAPTER || !payload.is_empty() {
+expect-fail: 章をまたぐ操作は_次の章へ進む_の一つだけ_ch0_から_ch3_の全時点
+note: 「次の章へ進む」以外の action 名でも payload があれば章の移動に復号する（章を選ぶ・飛ばす入口の混入）

@@ -11047,3 +11047,30 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 #### 件数・確認（2026-10-30）
 
 - native 7 件が両設定で通った。`scripts/expected-test-counts.txt` は変えていない
+
+### 5.405 章をまたぐ操作の一本化と試験用クエリの無効化の試験（TASK-547 2/3。SHELL-35）
+
+配信する設定の画面で、受講者に出る章をまたぐ操作が「次の章へ進む」（SHELL-10）の 1 つだけであること、PoC 期の試験用クエリ 7 種（`persist`・`store`・`manual`・`tick`・`os`・`osmode`・`flood`）を付けても挙動が変わらないことを固定する。製品のコードは変えていない（調査の結果、どちらも既に満たしていた）。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| `next_chapter`（動的） | CH-0〜CH-3 の通しの各手の後の画面から `data-action`・`data-payload` の組をすべて取り出し `decode_action` に通す。`HostAction::NextChapter` になるのは名前が `next-chapter` の要素だけで、各章の完了の直後の 3 回だけちょうど 1 個、それ以外は 0 個。`Control::Begin`・`Control::GoTo` に直接復号される要素は 0 件 |
+| `delivery_ports`（静的） | `Control::Begin(` の組み立てが web の `src`（`test_hooks.rs`・`test_fixture.rs`・`view_fixture.rs` を除く）で `host.rs` の `HostAction::NextChapter(` の腕の 1 件だけ。`static/app.js` が試験用クエリ 7 種を引用符つき・`名前=` の形で読まない（`start` を読む行の存在で空振りを防ぐ）。合成ソースの負の対照つき |
+| `tools/browser/query-inert.test.mjs` | 配信する設定（IR なし・IR 同梱）を、7 種の代表値・値なしの併用・全部の併用の 9 通りのクエリで開き、マウント直後の画面（DOM だけの観察）・取得した資源・保存先のキー・タイマーの遅延が、クエリなしと一致する。IR 同梱では選択肢を 1 回押した後と再読み込みの後の画面・保存先のキーも一致する。`window.__fandheTest` が無い。CSP あり・なし。安全の計数・配信元以外への通信・ページ内エラーが 0 件。対照として `?start=s-1-1` では画面が一致しない |
+| 変異 `SHELL35-4` | 「次の章へ進む」以外の action 名も章の移動に復号する誤りを `next_chapter` が検出する |
+| 変異 `SHELL35-5` | `app.js` が `tick` を読む誤りを `delivery_ports` が検出する |
+
+#### 注意
+
+- 解釈: チェックポイントの復帰・履歴の読み込み・捨てて始める・削除は「保存した時点へ戻す・始め直す」操作で、章を選ぶ・飛ばす操作ではないので数えない（TASK-528 と同じ）
+- URL を読まない構造の証明は既存の `tick_interval.rs`（`配信する経路は_url_を読まない`）が土台である。名前の文字列だけを探す検査は、正当な action 名（`os`・`tick`）で偽陽性になるため採らない
+- ブラウザ試験の限界: 章の境目を通しては確かめない（`author-preview` の B が持つ）。CH-0〜CH-3 の全量の通しと部品・配信物の検査は 3/3、`check-delivery.sh` は TASK-82
+- `--features test-hooks` の native 試験は CI で流れない（5.404 と同じ）
+
+#### 件数・確認（2026-10-30）
+
+- native: `next_chapter` に 2 件、`delivery_ports` に 4 件を追加し、両設定の `delivery_ports` が通った。変異 `SHELL35-4`・`SHELL35-5` は DETECTED
+- ブラウザ: `query-inert` の 5 件が通った（手元。`make test-browser` の全体は CI の `browser-test` に任せる）
+- `scripts/expected-test-counts.txt` は変えていない（版上げ PR だけが照合する）

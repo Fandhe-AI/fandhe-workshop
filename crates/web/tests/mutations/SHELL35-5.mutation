@@ -1,0 +1,8 @@
+id: SHELL35-5
+package: fandhe-workshop-web
+test: delivery_ports
+target: crates/web/static/app.js
+find: const starts = new URLSearchParams(location.search).getAll("start");
+replace: const starts = new URLSearchParams(location.search).getAll("start"); const tick = new URLSearchParams(location.search).get("tick");
+expect-fail: 配信する画面の_app_js_は試験用クエリ_7_種を読まない
+note: 配信する画面の app.js が PoC 期の試験用クエリ tick を読む（試験用クエリの復活）
