@@ -1,0 +1,8 @@
+id: SAVE32-9
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:         HostAction::CancelDelete => self.delete_pending = false,
+replace:         HostAction::CancelDelete => {}
+expect-fail: やめるの後の確定も消さない
+note: 「やめる」が確認待ちの印を下ろさない（やめた後の確定で消える。SHELL-38）

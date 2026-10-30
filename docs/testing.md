@@ -10781,7 +10781,7 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 試験の設定だけ: `raw` の完全一致の合図 3 つと、`test-hooks.js` の `deleteHistory`・`confirmDelete`・`cancelDelete`。観察は `engine.deletePending`・`engine.lastDelete`（件数と種類だけ。鍵・値は含めない）。配信する設定は `delete-history` 系の action を復号しない。
 - 試験: native `crates/web/tests/history_delete.rs`（10 件。対象外の鍵が件数も値も不変・IndexedDB の確定後の消去・読めない保存先・保留の破棄・確認待ちの関門・やめる・失敗時の不変・停止の解除）。ブラウザ `tools/browser/delete-history.test.mjs`（CSP あり・なし × 3 件。章をまたぐ localStorage の教材単位の削除と再読み込み、IndexedDB、関門）。変異 SAVE32-3〜SAVE32-5（`crates/web/tests/mutations/`。定義の静的検査のみ実施し、動的な検査は未実施）。
 - 自動運転での判断（人の承認は無い）: 起動番号の照合は削除に通さない（受講者の意思による削除は古いタブでも行う）。配信する設定に隠れた削除の口を出さない。
-- 範囲外: 可視の操作・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は TASK-341 2/2。
+- 範囲外: 可視の操作・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は TASK-341 2/2（→ 5.391）。
 - 限界: `docs/known-gaps.md` の SAVE-32。`scripts/expected-test-counts.txt` は更新していない。試験と実装の作成者は同じ AI で、人の確認は得ていない。
 
 ### 5.389 起動時に壊れた履歴を検出し保存を止める（TASK-333 1/2。SAVE-21・SHELL-17）
@@ -10801,3 +10801,16 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE21-3.mutation crates/web/tests/mutations/SAVE21-4.mutation`）: SAVE21-3 は押下の後に保存の停止を解かない、SAVE21-4 は案内の無い場面でも動く。いずれも DETECTED（2026-10-30）。
 - 範囲外: 文面の確定と SHELL-17 の画面の試験は TASK-533・TASK-549。
 - 限界: IndexedDB の delete は確定を待たないため、押してすぐ再読み込みすると壊れた値が残っていて案内が再び出うる（安全側）。押す前に行った操作は捨てられる。起動時の版の判定の段の拒否と表示だけのモードにはボタンを出さない。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.391 「やめる」の不変と削除の通信 0 件を固定する（TASK-341 2/2。SAVE-32・SHELL-38・SAFE-16）
+
+- 目的: 削除の確認で「やめる」を選んだとき、保存先の鍵と値が変わらないことと、削除の操作の間に配信元以外への通信が 0 件であることを、3 つの時点（受講の途中・章の終わり・復習中）で固定する。D-75 は削除の機能を持つと決めており 5.388 で実装済みのため、「削除機能を持たない案を採った場合の記録」は要らない。
+- 試験: `tools/browser/delete-history-scenes.test.mjs`（CSP あり・なし × 3 場面 = 6 件）。教材は `?fixture=ch0-3-chapters`。各場面の最初に、別の教材（既定の `min-3step` の実鍵・IndexedDB の `other-pack`）・別の配信先・読めない鍵・履歴でない鍵を同じオリジンに置く。
+  - 「やめる」: 確認待ちの間もやめた後も、localStorage と IndexedDB の鍵と値・エンジンの状態・ログの件数・「次の章へ進む」・復習の一覧が不変。やめた後の確定は何も消さない。
+  - 「削除する」: この教材の履歴の鍵だけが両方の保存先から消え、対象外の鍵は件数も値も不変で、最初の Step から新しく始まり、再読み込みでも `fresh`。
+  - 通信: 上の 2 つの区間で通信の API の呼び出しが 0 件。場面の全体で `egress.mjs` の全区分が 0 件、安全性の計数が全区分 0、記録器が付いていること（`allowedFetch > 0`）。
+  - 補助関数は `tools/browser/delete-history.mjs` へ切り出した（`delete-history.test.mjs` と共有。振る舞いは不変）。
+- 変異注入: SAVE32-9（`CancelDelete` が確認待ちの印を下ろさない）。native の `やめるの後の確定も消さない` が DETECTED（2026-10-30）。
+- 自動運転での判断（人の承認は無い）: 「復習中」は、復習の画面（REVIEW-10）が未実装のため、20 Step を全て達成し、復習の一覧に項目があり「次の章へ進む」が 0 件の状態を代役とした。表示だけで開いた履歴は、削除の action が捨てられるため代役にしない。計数は `egress-count.test.mjs` に足さず、新しい試験の中で `egress.mjs` を使う。
+- 範囲外: 配信する設定での削除の操作（可視のボタン・確認の文面）と、その画面での計数は TASK-539。
+- 限界: 試験の設定の口だけで行った。REVIEW-10 の実画面ができたら「復習中」を確かめ直す（`docs/known-gaps.md`）。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。単体の `node --test` で 6 件合格（2026-10-30）。
