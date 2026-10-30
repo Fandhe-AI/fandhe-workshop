@@ -61,6 +61,9 @@ const CORRUPT_HISTORY_TAIL: &str = "）";
 /// 「壊れた履歴」の通知の案内の文。ボタン名（[`DISCARD_AND_START_LABEL`]）と同じ語を鉤括弧で挟む。
 const CORRUPT_HISTORY_GUIDE: &str = "「保存された履歴を捨てて始める」を押すと、保存された履歴を捨てて最初から始め、保存を再開します。";
 
+/// 削除に失敗したときに確認の文の前へ足す文。履歴は残っている。再試行は同じ「削除する」で、やめるなら「やめる」。固定の文だけで作る。
+pub const DELETE_FAILED_NOTICE: &str = "削除できませんでした。保存済みの履歴は残っています。もう一度「削除する」を押すと再試行します。";
+
 /// 「保存した履歴を削除する」の確認の文（SHELL-38・D-75。仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
 /// 削除の対象（この教材の保存済みの履歴）と、書き出し済みのファイルは消えないことを示す。書き出しの促しは足さない（D-57）。
 /// 固定の文言だけで、教材の ID・名前など履歴・IR 由来の値を含めない（SAFE-40）。
@@ -200,6 +203,7 @@ pub fn notice_area(
     save_failure: Option<StorageError>,
     browser_notice: bool,
     delete_confirm: bool,
+    delete_failed: bool,
 ) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
     if let Some(failure) = save_failure {
@@ -228,7 +232,7 @@ pub fn notice_area(
         }
     }
     if delete_confirm {
-        if let Some(item) = delete_confirm_item() {
+        if let Some(item) = delete_confirm_item(delete_failed) {
             items.push(item);
         }
     }
@@ -290,7 +294,7 @@ fn browser_notice_item() -> Option<(String, Node)> {
 
 /// 「削除の確認」の項目（SHELL-38・D-75。TASK-539 1/2）。理由のコードは持たず、「削除する」「やめる」の 2 操作を置く。
 /// 確認の前には何も消さない。確定はホストの確認待ちの印があるときだけ口を呼ぶ（`EngineHost::delete_confirm`）。
-fn delete_confirm_item() -> Option<(String, Node)> {
+fn delete_confirm_item(failed: bool) -> Option<(String, Node)> {
     let notice = Notice::new(
         NoticeKind::DeleteConfirm,
         None,
@@ -298,6 +302,10 @@ fn delete_confirm_item() -> Option<(String, Node)> {
         &[ShellOp::ConfirmDelete, ShellOp::CancelDelete],
     )
     .ok()?;
+    if failed {
+        let text = format!("{DELETE_FAILED_NOTICE}{DELETE_CONFIRM_NOTICE}");
+        return Some(item_of(&notice, &text));
+    }
     Some(item_of(&notice, DELETE_CONFIRM_NOTICE))
 }
 
@@ -359,7 +367,7 @@ mod tests {
 
     #[test]
     fn browser_notice_area_has_one_item_and_dismiss() {
-        let n = notice_area(false, None, None, None, true, false);
+        let n = notice_area(false, None, None, None, true, false, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("browser-notice"), "{s}");
@@ -371,13 +379,16 @@ mod tests {
 
     #[test]
     fn empty_area_has_no_items() {
-        let s = format!("{:?}", notice_area(false, None, None, None, false, false));
+        let s = format!(
+            "{:?}",
+            notice_area(false, None, None, None, false, false, false)
+        );
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None, None, None, false, false);
+        let n = notice_area(true, None, None, None, false, false, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -388,7 +399,7 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true), None, None, false, false);
+        let n = notice_area(false, refused(true), None, None, false, false, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -402,7 +413,7 @@ mod tests {
     fn refused_without_dismiss_has_no_button() {
         let s = format!(
             "{:?}",
-            notice_area(false, refused(false), None, None, false, false)
+            notice_area(false, refused(false), None, None, false, false, false)
         );
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
@@ -410,7 +421,7 @@ mod tests {
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true), None, None, false, false);
+        let n = notice_area(true, refused(true), None, None, false, false, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -505,7 +516,7 @@ mod tests {
             StorageError::Unavailable,
             StorageError::Failed,
         ] {
-            let n = notice_area(false, None, None, Some(f), false, false);
+            let n = notice_area(false, None, None, Some(f), false, false, false);
             let s = format!("{n:?}");
             assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
             assert!(s.contains("save-failed"), "{s}");
@@ -526,6 +537,7 @@ mod tests {
             Some(StorageError::QuotaExceeded),
             false,
             false,
+            false,
         );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
@@ -535,7 +547,15 @@ mod tests {
 
     #[test]
     fn corrupt_area_has_one_item_with_reason_and_discard_button_only() {
-        let n = notice_area(false, None, Some(LoadReason::Malformed), None, false, false);
+        let n = notice_area(
+            false,
+            None,
+            Some(LoadReason::Malformed),
+            None,
+            false,
+            false,
+            false,
+        );
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("corrupt-history"), "{s}");
@@ -555,6 +575,7 @@ mod tests {
             refused(false),
             Some(LoadReason::Truncated),
             Some(StorageError::Failed),
+            false,
             false,
             false,
         );
@@ -605,7 +626,7 @@ mod tests {
 
     #[test]
     fn delete_confirm_area_has_one_item_with_two_buttons() {
-        let n = notice_area(false, None, None, None, false, true);
+        let n = notice_area(false, None, None, None, false, true, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("delete-confirm"), "{s}");
@@ -615,8 +636,26 @@ mod tests {
         assert!(s.contains(DELETE_CONFIRM_NOTICE), "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
         assert!(crate::a11y::check_no_undefined(&n).is_ok());
-        let off = format!("{:?}", notice_area(false, None, None, None, false, false));
+        let off = format!(
+            "{:?}",
+            notice_area(false, None, None, None, false, false, false)
+        );
         assert!(!off.contains("delete-confirm"), "{off}");
+    }
+
+    #[test]
+    fn delete_failed_adds_failure_text_and_keeps_both_buttons() {
+        let n = notice_area(false, None, None, None, false, true, true);
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
+        assert!(s.contains(DELETE_FAILED_NOTICE), "{s}");
+        assert_eq!(s.matches("shell-delete-confirm").count(), 1, "{s}");
+        assert_eq!(s.matches("shell-delete-cancel").count(), 1, "{s}");
+        let ok = format!(
+            "{:?}",
+            notice_area(false, None, None, None, false, true, false)
+        );
+        assert!(!ok.contains(DELETE_FAILED_NOTICE), "{ok}");
     }
 
     #[test]

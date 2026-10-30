@@ -758,6 +758,8 @@ pub struct EngineHost {
     history_discarder: Option<HistoryDiscarder>,
     /// 削除の確認待ちの印（SHELL-38）。表示の状態だけで、履歴・保存先には書かない。確定はこの印があるときだけ行う。
     delete_pending: bool,
+    /// 直近の削除の確定が失敗したことの表示（SHELL-38。確認の項目に失敗の文を足し、再試行を促す）。表示の状態で、履歴・保存先には書かない。
+    delete_failed: bool,
     /// 削除を頼んで完了を待っている印。連打で削除を重ねない。完了（`DeleteResult`）でだけ解く。
     delete_inflight: bool,
     /// 削除の要求の世代。履歴の差し替えで進め、差し替え前に頼んだ削除の完了で画面を作り直さないために使う。
@@ -892,6 +894,7 @@ impl EngineHost {
             history_deleter: None,
             history_discarder: None,
             delete_pending: false,
+            delete_failed: false,
             delete_inflight: false,
             delete_gen: 0,
             delete_issued_gen: 0,
@@ -1040,6 +1043,7 @@ impl EngineHost {
             history_deleter: None,
             history_discarder: None,
             delete_pending: false,
+            delete_failed: false,
             delete_inflight: false,
             delete_gen: 0,
             delete_issued_gen: 0,
@@ -1783,6 +1787,9 @@ impl EngineHost {
         } else {
             // 失敗は画面の状態を変えない。止めていた間の変更を、秘密情報の検査を通る既存の保存で書き戻す（SAVE-7）。
             self.save_after_change();
+            // 失敗を知らせる。確認を立て直し（再試行は同じ「削除する」）、確認の項目に失敗の文を足す。
+            self.set_delete_pending(true);
+            self.delete_failed = true;
         }
     }
 
@@ -2670,6 +2677,8 @@ impl EngineHost {
     fn set_delete_pending(&mut self, pending: bool) {
         if self.delete_pending != pending {
             self.delete_pending = pending;
+            // 新しい確認（または取り下げ）では前の失敗の表示を残さない。失敗の再提示は `finish_delete` が確認を立てた後に足す。
+            self.delete_failed = false;
             if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
                 self.dirty.push(SHELL_NOTICES_FIELD.name);
             }
@@ -3180,6 +3189,7 @@ impl Component for EngineHost {
                 self.model.save_failure,
                 self.browser_notice,
                 self.delete_pending,
+                self.delete_failed,
             ),
             history_ops(shown.as_ref()),
             tablist,

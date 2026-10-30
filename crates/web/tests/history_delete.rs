@@ -646,3 +646,24 @@ fn 削除のボタンは書き出しの入れ物の中にあり1個だけある(
     let ops = v.find("history-ops").expect("history-ops");
     assert!(ops < v.find("\"shell-delete\"").unwrap(), "{v}");
 }
+
+#[test]
+fn 削除に失敗すると失敗の文と再試行の確認が出て状態は保たれる() {
+    use fandhe_workshop_web::shell_notice::DELETE_FAILED_NOTICE;
+    let mut p = probe();
+    step(&mut p.host);
+    let moved = current(&p.host);
+    send(&mut p.host, "request");
+    assert!(!view_dump(&p.host).contains(DELETE_FAILED_NOTICE));
+    send(&mut p.host, "confirm");
+    complete(&mut p, Err(StorageError::Failed));
+    let v = view_dump(&p.host);
+    assert!(v.contains(DELETE_FAILED_NOTICE), "失敗を知らせる");
+    assert_eq!(confirm_items(&p.host), 1, "再試行の確認が残る");
+    assert_eq!(current(&p.host), moved, "状態は保たれる");
+    send(&mut p.host, "cancel");
+    assert!(!view_dump(&p.host).contains(DELETE_FAILED_NOTICE));
+    assert_eq!(confirm_items(&p.host), 0);
+    send(&mut p.host, "request");
+    assert!(!view_dump(&p.host).contains(DELETE_FAILED_NOTICE));
+}
