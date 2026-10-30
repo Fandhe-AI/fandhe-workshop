@@ -58,7 +58,7 @@
 
 - 旧 zip の `miniserve` の sha256 が固定表のどの資産とも一致しない
 - 旧 zip が不正: `fandhe-workshop-l2/` の外・`..`・絶対パス・バックスラッシュ・非 ASCII・重複した名前、リンク、許さない mode、必須エントリ（`start.sh`・`miniserve`・`site/`）の欠落、申告の合計または実際に読み出した合計が 512 MiB を超える（申告値は信用せず、実バイト数で打ち切る）、壊れている
-- 新しい配信物が `tools/check-delivery.sh`（試験用の口・`.d.ts`・リンクが無いこと）か、`ir/main.json` が JSON であることの検査に落ちる
+- 新しい配信物が `tools/check-delivery.sh`（試験用の口・Raw の接頭辞・試験用 IR・試験用クエリの印・`.d.ts`・リンクが無いこと）か、`ir/main.json` が JSON であることの検査に落ちる
 
 誤用（`L2_ZIP` の未設定・不在・通常のファイルでない、位置引数あり、存在せず `dist/` の外の `L2_OUT`）は終了コード 2 である。
 

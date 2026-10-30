@@ -5,6 +5,8 @@
 // (3) tools/check-delivery.sh の出力を項目名 → 合否の表に読む関数と、ブラウザ側の観察との対応表。
 // 返す値は名前・件数・合否だけで、DOM の文字は返さない。
 
+import { scanWasm } from '../wasm-scan.mjs';
+
 export const HIDDEN_NAMES = ['tick-trigger', 'esc-trigger', 'complete-trigger', 'raw-trigger'];
 export const NEXT_CHAPTER = '[data-testid="shell-next-chapter"]';
 
@@ -40,17 +42,24 @@ export function isPortFree(p) {
 const WASM_PATH = 'wasm/fandhe_workshop_web_bg.wasm';
 const BYTE_NAMES = ['debug_', 'raw-trigger', 'tick-trigger', 'esc-trigger', 'complete-trigger'];
 
-/** ページ内で WASM を同一オリジンから取得し、書き出しの名前の列とバイト列の中の名前の有無を返す。 */
-export function inspectWasm(page) {
-  return page.evaluate(async ([rel, names]) => {
+/**
+ * ページ内で WASM を同一オリジンから取得し、書き出しの名前の列を得て、バイト列の中の名前の有無を Node 側で数える。
+ * 数え方は tools/wasm-scan.mjs（`name` セクションを除く）で、check-delivery.sh と同じ。
+ */
+export async function inspectWasm(page) {
+  const got = await page.evaluate(async (rel) => {
     const res = await fetch(new URL(rel, document.baseURI).href);
     if (!res.ok) throw new Error(`wasm fetch ${res.status}`);
     const buf = await res.arrayBuffer();
     const mod = await WebAssembly.compile(buf);
     const exports = WebAssembly.Module.exports(mod).map((e) => e.name);
-    const text = new TextDecoder('latin1').decode(new Uint8Array(buf));
-    return { exports, bytes: Object.fromEntries(names.map((n) => [n, text.includes(n)])), size: buf.byteLength };
-  }, [WASM_PATH, BYTE_NAMES]);
+    let bin = '';
+    const u8 = new Uint8Array(buf);
+    for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+    return { exports, b64: btoa(bin), size: buf.byteLength };
+  }, WASM_PATH);
+  const counts = scanWasm(Buffer.from(got.b64, 'base64'), BYTE_NAMES);
+  return { exports: got.exports, bytes: Object.fromEntries(BYTE_NAMES.map((n) => [n, counts[n] > 0])), size: got.size };
 }
 
 /** 配信元の 1 パスの HTTP の状態（Node 側の GET。ページの通信の計数には入らない）。 */

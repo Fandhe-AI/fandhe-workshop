@@ -5,8 +5,9 @@
 # 試験の設定には口が入ること（検査が空振りしていないことの対照）、誤用が非 0 で止まること。
 # 生成物は mktemp -d の一時ディレクトリ（dist/ 配下のケースは dist/ に作る専用の一時ディレクトリ）にだけ書き、終了時に消す。
 #
-# (a) の配信物の検査は tools/check-delivery.sh（make check-delivery）と同種の項目を持つ。こちらは build-web 固有の
-# 受入基準（keydown-probe・ir/ の有無・誤用）も確かめる。検査の一本化は TASK-82 の拡張時に行う。
+# 配信物に試験用の口が無いことの検査は tools/check-delivery.sh に一本化した（TASK-82。debug_ の書き出し・glue・
+# test-hooks.js・meta・印・keydown-probe・受け口・.d.ts と、試験の設定との対照）。3 つの配信する設定のすべてに、wasm-opt の
+# 有無に依らず流す。こちらは build-web 固有の受入基準（ir/ の有無・fandhe-ir の meta と印・ログの行・誤用）を確かめる。
 #
 # (e) は BUILD-3（TASK-78 1/2）の受入基準で、fandhe-pack compile の出力（本物の IR）を IR_FILE に渡した配信する設定が
 # ビルドでき、ir/main.json が compile の出力とバイト一致で入ること（docs/cli.md 10 節）。WASM の大きさの関門は TASK-78 2/2。
@@ -117,20 +118,12 @@ WASM="wasm/fandhe_workshop_web_bg.wasm"
 
 echo "-- (a) delivery config" >&2
 check "mount_app is exported" has_export '^mount_app$' "${DELIVERY}/${WASM}"
-check "no debug_* export in wasm" no_debug_export "${DELIVERY}/${WASM}"
-check_status "no debug_ in glue js" 1 grep -q 'debug_' "${DELIVERY}/wasm/fandhe_workshop_web.js"
-check "no test-hooks.js" test ! -e "${DELIVERY}/test-hooks.js"
-check_status "no fandhe-test-hooks meta" 1 grep -q 'fandhe-test-hooks' "${DELIVERY}/index.html"
-check_status "no test-hooks marker" 1 grep -q 'fandhe:test-hooks' "${DELIVERY}/index.html"
-check_status "no keydown-probe in wasm" 1 grep -aq 'keydown-probe' "${DELIVERY}/${WASM}"
-check_status "no keydown-probe in glue js" 1 grep -q 'keydown-probe' "${DELIVERY}/wasm/fandhe_workshop_web.js"
-check_status "no receptor probe name in wasm" 1 grep -aq 'fandhe-test-receptor-probe' "${DELIVERY}/${WASM}"
-check_status "no receptor probe in glue js" 1 grep -q 'receptor_activation' "${DELIVERY}/wasm/fandhe_workshop_web.js"
+# 試験用の口が 0 件であること（SHELL-35・BUILD-27）と、試験の設定との対照（TASK-82）。
+check "tools/check-delivery.sh passes with the test config as control" "${ROOT_DIR}/tools/check-delivery.sh" --control "${TESTCFG}" "${DELIVERY}"
 check "no ir/ without IR_FILE" test ! -e "${DELIVERY}/ir"
 # 同梱の IR の印（TASK-112 2/2）。IR_FILE が無い配信物は meta も印も持たず、app.js は ./ir/main.json を取得しない。
 check_status "no fandhe-ir meta without IR_FILE" 1 grep -q 'fandhe-ir' "${DELIVERY}/index.html"
 check_status "no fandhe:ir marker without IR_FILE" 1 grep -q 'fandhe:ir' "${DELIVERY}/index.html"
-check "no .d.ts" test -z "$(find "${DELIVERY}" -name '*.d.ts')"
 # 受講者の入力・履歴を外部へ送る手段が無いこと（SAFE-16・TASK-153）。wasm-opt の有無で skip しない。
 check "no network capability in the delivery config (check-no-egress dist)" "${DIR}/check-no-egress.sh" dist "${DELIVERY}"
 
@@ -139,19 +132,10 @@ check "ir/main.json matches IR_FILE" cmp -s "${TMP}/ir.json" "${DELIVERY_IR}/ir/
 check "fandhe-ir meta exists with IR_FILE" grep -q '<meta name="fandhe-ir" content="1">' "${DELIVERY_IR}/index.html"
 check_status "no fandhe:ir marker with IR_FILE" 1 grep -q 'fandhe:ir' "${DELIVERY_IR}/index.html"
 check "mount_app is exported with IR_FILE" has_export '^mount_app$' "${DELIVERY_IR}/${WASM}"
-check "no debug_* export with IR_FILE" no_debug_export "${DELIVERY_IR}/${WASM}"
+check "tools/check-delivery.sh passes with IR_FILE" "${ROOT_DIR}/tools/check-delivery.sh" "${DELIVERY_IR}"
 
 echo "-- (c) test config" >&2
-check "debug_state_json is exported" has_export '^debug_state_json$' "${TESTCFG}/${WASM}"
-check "debug_rerender is exported" has_export '^debug_rerender$' "${TESTCFG}/${WASM}"
-check "test-hooks.js exists" test -f "${TESTCFG}/test-hooks.js"
-# 配信設定の「keydown-probe が無い」検査が空振りしていないことの対照（試験の設定には有る）。
-check "keydown-probe is in the test config wasm" grep -aq 'keydown-probe' "${TESTCFG}/${WASM}"
-# 配信設定の raw-trigger・debug_ の書き出しが無い検査の対照（試験の設定には有る。TASK-547 1/3）。
-check "raw-trigger is in the test config wasm" grep -aq 'raw-trigger' "${TESTCFG}/${WASM}"
-check "debug_next_tick is exported" has_export '^debug_next_tick$' "${TESTCFG}/${WASM}"
-check "debug_draft is exported" has_export '^debug_draft$' "${TESTCFG}/${WASM}"
-check "fandhe-test-hooks meta exists" grep -q 'name="fandhe-test-hooks"' "${TESTCFG}/index.html"
+# 試験の設定に口が有ること（対照）は check-delivery.sh の --control が確かめる（上の (a)）。
 # 試験の設定は試験データの教材を埋め込むため、同梱の IR の印は meta にも印のままにも残さない。
 check_status "no fandhe-ir meta in the test config" 1 grep -q 'fandhe-ir' "${TESTCFG}/index.html"
 check_status "no fandhe:ir marker in the test config" 1 grep -q 'fandhe:ir' "${TESTCFG}/index.html"
@@ -165,15 +149,9 @@ check_status "ir line says embedded fixtures in the test config" 0 grep -q '\] i
 check "ir/main.json is byte-identical to fandhe-pack compile output" cmp -s "${COMPILED}" "${DELIVERY_PACK}/ir/main.json"
 check "ir/main.json has the IR shape" jq -e '(.format_version | type == "number") and (.pack.id | type == "string")' "${DELIVERY_PACK}/ir/main.json"
 check "mount_app is exported (compiled IR)" has_export '^mount_app$' "${DELIVERY_PACK}/${WASM}"
-check "no debug_* export (compiled IR)" no_debug_export "${DELIVERY_PACK}/${WASM}"
 check "no network capability with compiled IR (check-no-egress dist)" "${DIR}/check-no-egress.sh" dist "${DELIVERY_PACK}"
-# check-delivery の WASM のバイト列の検査（debug_）は、wasm-opt 適用後の配信物を前提にする。未適用のビルド（CI の
-# SKIP_WASM_OPT=1）の WASM には core の名前（debug_struct 等）が残り誤検出するため、適用したときだけ流す。
-if grep -q 'wasm-opt: applied' "${TMP}/delivery-pack.log"; then
-  check "tools/check-delivery.sh passes" "${ROOT_DIR}/tools/check-delivery.sh" "${DELIVERY_PACK}"
-else
-  log "skip: tools/check-delivery.sh (wasm-opt not applied)"
-fi
+# wasm-opt の有無に依らず流す（`name` セクションを除いて数えるため。tools/wasm-scan.mjs）。CI の SKIP_WASM_OPT=1 でも通る。
+check "tools/check-delivery.sh passes (compiled IR)" "${ROOT_DIR}/tools/check-delivery.sh" "${DELIVERY_PACK}"
 # 記録のみ（判定に使わない）。基点の様式は TASK-78 2/2。
 echo "info: $(grep -m1 'wasm-opt' "${TMP}/delivery-pack.log" || echo 'wasm-opt: (no line)')" >&2
 

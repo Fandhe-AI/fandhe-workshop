@@ -17,11 +17,10 @@
 // 確かめないこと:
 //   - 9 通りのクエリごとのマウント・1 操作（query-inert）。章の境目の件数（author-preview の B）。章を選ぶ部品（chapter-select-absent）
 //   - 「本文の参照:」の行（TERM-41 は検討中。件数を記録するだけで合否に使わない）
-//   - check-delivery.sh 自体の拡張（TASK-82）。本物の CH-0〜CH-3（TASK-643・TASK-642）
+//   - 本物の CH-0〜CH-3（TASK-643・TASK-642）
 //
-// 限界: make test-browser は wasm-opt を適用しない（SKIP_WASM_OPT=1）ため、WASM に core の名前（debug_ を含む文字列）が残り、
-// check-delivery.sh の「no debug_ bytes in wasm」は FAIL になり終了コードは 1 になる。そのため終了コード 0 は断定せず、
-// 項目ごとの一致を確かめる。許す失敗の行はこの 1 件だけで、他の失敗の行が 1 件でもあれば失敗にする（wasm-opt 適用済みなら終了コード 0 を確かめる）。
+// 注意: WASM のバイト列の数え方は tools/wasm-scan.mjs（`name` セクションを除く）で check-delivery.sh と同じにしてある。そのため
+// wasm-opt を適用しない make test-browser（SKIP_WASM_OPT=1）の配信する設定でも終了コード 0 を確かめる（TASK-82）。
 // 記録は docs/testing.md 5.407。出力は名前・件数・合否だけで、DOM の文字と入力値は出さない。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +42,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CHECK_DELIVERY = path.resolve(HERE, '../check-delivery.sh');
 const BASE = '/fandhe-delivery-ports/';
 const ALL_QUERIES = '?persist=0&store=memory&manual=1&tick=5&os=windows&osmode=windows&flood=1000';
-const KNOWN_FAIL = 'no debug_ bytes in wasm';
 let browser;
 const dirs = {};
 
@@ -224,10 +222,8 @@ for (const [label, key, expectMount, delivery] of [
       assert.ok(obs.dtsStatuses.every((s) => s === 404));
       assert.ok(!obs.exports.some((n) => n.startsWith('debug_')));
       assert.ok(obs.exports.includes('mount_app'));
-      const unexpected = failed.filter((n) => n !== KNOWN_FAIL);
-      assert.deepEqual(unexpected, [], '許す 1 件以外の失敗の行');
-      if (failed.length === 0) assert.equal(cd.status, 0);
-      else assert.equal(cd.status, 1);
+      assert.deepEqual(failed, [], '失敗の行');
+      assert.equal(cd.status, 0);
     } else {
       assert.equal(cd.status, 1);
       assert.equal(obs.hooks, 'object');

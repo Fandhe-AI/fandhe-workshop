@@ -56,8 +56,20 @@ OUT_DIR="${DELIVERY}" "${BUILD}" >/dev/null
 log "building test config"
 OUT_DIR="${TESTCFG}" TEST_HOOKS=1 "${BUILD}" >/dev/null
 
+# CI と同じ条件（wasm-opt なし）。`name` セクションに debug_ が残っても、配信する設定が通ることを確かめる。
+DELIVERY_SKIP="${TMP_DIR}/delivery-skip"
+TESTCFG_SKIP="${TMP_DIR}/test-skip"
+log "building delivery config (SKIP_WASM_OPT=1)"
+SKIP_WASM_OPT=1 OUT_DIR="${DELIVERY_SKIP}" "${BUILD}" >/dev/null
+log "building test config (SKIP_WASM_OPT=1)"
+SKIP_WASM_OPT=1 OUT_DIR="${TESTCFG_SKIP}" TEST_HOOKS=1 "${BUILD}" >/dev/null
+
 expect "delivery config passes" 0 "${CHECK}" "${DELIVERY}"
+expect "delivery config passes with control" 0 "${CHECK}" --control "${TESTCFG}" "${DELIVERY}"
+expect "delivery config without wasm-opt passes" 0 "${CHECK}" "${DELIVERY_SKIP}"
+expect "delivery config without wasm-opt passes with control" 0 "${CHECK}" --control "${TESTCFG_SKIP}" "${DELIVERY_SKIP}"
 expect "test config is rejected" 1 "${CHECK}" "${TESTCFG}"
+expect "test config without wasm-opt is rejected" 1 "${CHECK}" "${TESTCFG_SKIP}"
 
 T="$(copy_tree with-hooks-js)"
 echo '// hooks' >"${T}/test-hooks.js"
@@ -94,18 +106,19 @@ T="$(copy_tree with-debug-js)"
 echo '// debug_state_json' >>"${T}/wasm/fandhe_workshop_web.js"
 expect "added debug_ in glue js is detected" 1 "${CHECK}" "${T}"
 
-# inject_wasm <wasm> <文字列>: 末尾にカスタムセクション（id 0）を足す。単なる追記だと解析に失敗して exit 2 になり、
-# 文字列の検出（exit 1）を確かめられないため、正しいセクションにする。パスと文字列は process.argv で渡す。
+# inject_wasm <wasm> <文字列> [<セクション名>]: 末尾にカスタムセクション（id 0）を足す。単なる追記だと解析に失敗して
+# exit 2 になり、文字列の検出（exit 1）を確かめられないため、正しいセクションにする。名前の既定は probe。
+# パスと文字列は process.argv で渡す。
 inject_wasm() {
   node -e '
     const fs = require("fs");
     const leb = (n) => { const o = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; o.push(b); } while (n); return o; };
-    const name = Buffer.from("probe");
+    const name = Buffer.from(process.argv[3]);
     const body = Buffer.from(process.argv[2]);
     const payload = Buffer.concat([Buffer.from(leb(name.length)), name, body]);
     const sec = Buffer.concat([Buffer.from([0]), Buffer.from(leb(payload.length)), payload]);
     fs.appendFileSync(process.argv[1], sec);
-  ' "$1" "$2"
+  ' "$1" "$2" "${3:-probe}"
 }
 
 T="$(copy_tree wasm-control)"
@@ -116,6 +129,68 @@ for name in raw-trigger tick-trigger esc-trigger complete-trigger; do
   inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "${name}"
   expect "added ${name} in wasm is detected" 1 "${CHECK}" "${T}"
 done
+
+# --- TASK-82: 試験用の口の印（Raw の接頭辞・試験用 IR・試験用クエリ）と対照 ---
+for mark in load-fixture: open-history: load-ir: opening-override: min-3step ch0-3-run ch4-9-run reload-points receptor= keydown-probe \
+  debug_state_json debug_draft debug_next_tick debug_rerender; do
+  T="$(copy_tree "wasm-mark-${mark}")"
+  inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "${mark}"
+  expect "added ${mark} in wasm is detected" 1 "${CHECK}" "${T}"
+done
+
+# name セクション（関数名のデバッグ情報）の debug_ は除外される。名前が違うセクションは除外されない。
+T="$(copy_tree name-section-debug)"
+inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "debug_struct" name
+expect "debug_ inside the name section is ignored" 0 "${CHECK}" "${T}"
+T="$(copy_tree name-section-rep)"
+inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "debug_state_json" name
+expect "representative name inside the name section is detected" 1 "${CHECK}" "${T}"
+for secname in namex "name "; do
+  T="$(copy_tree "secname-${secname// /_}")"
+  inject_wasm "${T}/wasm/fandhe_workshop_web_bg.wasm" "debug_struct" "${secname}"
+  expect "debug_ inside a section named '${secname}' is detected" 1 "${CHECK}" "${T}"
+done
+T="$(copy_tree broken-section-length)"
+printf '\x00\xff\xff\xff\xff\x0f' >>"${T}/wasm/fandhe_workshop_web_bg.wasm"
+expect "wasm with an out-of-range section length is exit 2" 2 "${CHECK}" "${T}"
+
+T="$(copy_tree fixture-js)"
+echo '// fixture=' >>"${T}/app.js"
+expect "added fixture= in app.js is detected" 1 "${CHECK}" "${T}"
+T="$(copy_tree receptor-glue)"
+echo '// receptor=' >>"${T}/wasm/fandhe_workshop_web.js"
+expect "added receptor= in glue js is detected" 1 "${CHECK}" "${T}"
+T="$(copy_tree ir-min3)"
+mkdir -p "${T}/ir"
+echo '{}' >"${T}/ir/min-3step.json"
+expect "added ir/min-3step.json is detected" 1 "${CHECK}" "${T}"
+T="$(copy_tree ir-extra)"
+mkdir -p "${T}/ir"
+echo '{}' >"${T}/ir/extra.json"
+expect "added ir/extra.json is detected" 1 "${CHECK}" "${T}"
+T="$(copy_tree ir-main-ok)"
+mkdir -p "${T}/ir"
+echo '{}' >"${T}/ir/main.json"
+expect "ir/main.json alone passes" 0 "${CHECK}" "${T}"
+T="$(copy_tree fixtures-json)"
+mkdir -p "${T}/fixtures"
+echo '{}' >"${T}/fixtures/x.json"
+expect "added fixtures/x.json is detected" 1 "${CHECK}" "${T}"
+
+# --- 対照（--control） ---
+expect "control with the test config passes" 0 "${CHECK}" --control "${TESTCFG}" "${DELIVERY}"
+expect "control with the delivery config is exit 2" 2 "${CHECK}" --control "${DELIVERY}" "${DELIVERY}"
+T="$(copy_tree control-delivery-copy)"
+expect "control with a copy of the delivery config is exit 2" 2 "${CHECK}" --control "${T}" "${DELIVERY}"
+T="${TMP_DIR}/control-no-hooks"
+mkdir -p "${T}"
+cp -R "${TESTCFG}/." "${T}/"
+rm -f "${T}/test-hooks.js"
+expect "control without test-hooks.js is exit 2" 2 "${CHECK}" --control "${T}" "${DELIVERY}"
+expect "control without a value is exit 2" 2 "${CHECK}" --control
+expect "control directory missing is exit 2" 2 "${CHECK}" --control "${TMP_DIR}/missing" "${DELIVERY}"
+expect "control given twice is exit 2" 2 "${CHECK}" --control "${TESTCFG}" --control "${TESTCFG}" "${DELIVERY}"
+expect "unknown option is exit 2" 2 "${CHECK}" --bogus "${DELIVERY}"
 
 T="$(copy_tree with-payload-glue)"
 echo '// data-payload' >>"${T}/wasm/fandhe_workshop_web.js"

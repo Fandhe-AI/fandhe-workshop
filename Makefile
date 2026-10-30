@@ -138,7 +138,7 @@ test-update-l2: ## update-l2 の回帰テスト（合成の配信物。ビルド
 test-l2-run: ## L2 の配布物を Rust のない模擬環境（PATH=/usr/bin:/bin）で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間・L1 と L2 の 3 配信先 × 3 回の 9 回で観察・snapshot・history が一致すること（DLV-15）と、凍結した IR と組の固定の入力列での比較・履歴の ops に揺れる欄が無いこと（TASK-114 2/2）・L1 と L2 の 2 か所と別名 localhost のオリジンの分離（DLV-16。TASK-115）・update-l2 で更新した zip の模擬環境での起動（TASK-116）を確かめる（L2_SERVER 必須。遅く、CI の browser-test のみ）。直接: scripts/test-l2-run.sh
 	@scripts/test-l2-run.sh
 
-check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh
+check-delivery: ## 配信物（dist/web。先に make build-web）に試験用の口が無いことを検査する。直接: tools/check-delivery.sh [--control <試験の設定の dist>] [<dist>]
 	@tools/check-delivery.sh
 
 test-check-delivery: ## 配信検査自体の回帰テスト（実ビルドを行うため遅い）。直接: scripts/test-check-delivery.sh
