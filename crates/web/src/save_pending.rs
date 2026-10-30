@@ -69,6 +69,13 @@ impl PendingSave {
         before - pending.len()
     }
 
+    /// 指定した鍵 1 つの保留だけを捨てる（SAVE-21。壊れた履歴を捨てて始める）。捨てた件数だけを返し、値・鍵は返さない。
+    ///
+    /// 別の開始点・別の教材・別の配信先の保留は残す（`discard_pack` との違い）。
+    pub fn discard_key(&self, key: &HistoryKey) -> usize {
+        usize::from(self.pending.borrow_mut().remove(key).is_some())
+    }
+
     /// 保留を鍵の順に保存先へ書く。書けた鍵は保留から外し、書けなかった鍵は残す。
     ///
     /// `write` の呼び出しの間は内部の借用を持たない（`write` が同じ保留へ積み直しても二重借用にならない）。

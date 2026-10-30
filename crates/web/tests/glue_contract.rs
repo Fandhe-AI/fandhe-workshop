@@ -643,6 +643,10 @@ const MODULE_RULES: &[ModuleRule] = &[
             "remove_pack",
             "pack_id",
             "set_history_deleter",
+            // 壊れた履歴の鍵 1 つを捨てる（SAVE-21）。保留の破棄・保存先の鍵の削除（`HistoryStore::remove`）・口の結線だけで、DOM には触れない。
+            "discard_key",
+            "remove",
+            "set_history_discarder",
             // 起動番号の取得（SAVE-12）。`Math::random` は一意化の `tag` だけに使い、DOM には触れない。
             "claim",
             "random",

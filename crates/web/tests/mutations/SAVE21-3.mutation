@@ -1,0 +1,8 @@
+id: SAVE21-3
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/host.rs
+find: self.save_blocked = false; // 捨てた後は保存を再開する（SAVE-21）
+replace: let _ = (); // 捨てた後は保存を再開する（SAVE-21）
+expect-fail: 捨てて始めると口が_1_回呼ばれ_案内が消えて最初から始まり保存が再開する
+note: 捨てて始めても保存が再開しない（受講者の以後の操作が保存されない）

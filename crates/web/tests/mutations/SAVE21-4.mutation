@@ -1,0 +1,8 @@
+id: SAVE21-4
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/host.rs
+find:         if self.boot_corrupt.is_none() || self.delete_inflight {
+replace:         if self.delete_inflight {
+expect-fail: 壊れていない起動で押しても口は呼ばれず何も変わらない
+note: 案内の無い場面の押下（data-action の書き換え）で、正常な履歴を持つ受講者の状態と保存先を消せる

@@ -164,6 +164,17 @@ fn discard_pack_は対象の保留だけを外し作り直させない() {
         .is_some());
 }
 
+#[test]
+fn discard_key_は指定した鍵の保留だけを外す() {
+    let pending = PendingSave::new();
+    pending.stage(k(scope(), PACK, "s-1"), "a".into());
+    pending.stage(k(scope(), PACK, "s-4"), "b".into());
+    pending.stage(k(scope(), "other-pack", "s-1"), "c".into());
+    assert_eq!(pending.discard_key(&k(scope(), PACK, "s-1")), 1);
+    assert_eq!(pending.discard_key(&k(scope(), PACK, "s-1")), 0);
+    assert_eq!(pending.pending_len(), 2);
+}
+
 // ---- ホストの層 ----
 
 fn data(rel: &str) -> Vec<u8> {

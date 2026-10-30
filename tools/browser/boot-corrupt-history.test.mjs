@@ -1,15 +1,17 @@
-// 起動時に壊れた履歴を検出し保存を止めることのブラウザ試験（SAVE-21・SHELL-17。TASK-333 1/2）。
+// 起動時に壊れた履歴を検出し保存を止めることのブラウザ試験（SAVE-21・SHELL-17。TASK-333 1/2・2/2）。
 //
 // 呼び出し元は `make test-browser`（scripts/test-browser.sh）である。
 // 入力: FANDHE_WEB_TEST_DIR（試験の設定）。未設定は skip にせず失敗にする。
 // 確かめること（CSP あり・なしの両方。壊れた値は保存先へ直接置いて再読み込みで起動する）:
 //   壊れた履歴 7 通り（B-1〜B-7。作り方は testdata/broken-histories の表と同じ規則で、ページの中の `opsHistoryText` を基準に作る）:
 //     not_opened で始まり、`corrupt-history` の通知がちょうど 1 件で理由が表のコードと一致し、文が空でなく、`import-refused` は 0 件、
-//     「捨てて始める」のボタンが 1 個、最初の Step で始まる。1 手送っても、「捨てて始める」を押しても、保存先がバイト単位で変わらず、
-//     再読み込みでも同じ通知が出る。入力に入れた番兵が DOM・通知・コンソールに無い。外部通信・CSP 違反・ページのエラー・ダイアログが 0 件。
+//     「捨てて始める」のボタンが 1 個、最初の Step で始まる。1 手送っても保存先がバイト単位で変わらず、再読み込みでも同じ通知が出る。
+//     押すと（TASK-333 2/2）通知とボタンが 0 件になり、今の鍵だけが保存先から消えて（別の開始点・別の教材の鍵はバイト単位で不変）、
+//     ログが空・`lastDiscard` が ok になる。次の 1 手は保存され（壊れた値とは異なる）、再読み込みでは restored で通知 0 件。
+//     入力に入れた番兵が DOM・通知・コンソールに無い。外部通信・CSP 違反・ページのエラー・ダイアログが 0 件。
 //   対照: 開ける値は restored で通知 0 件、版の判定の段で断られる値は `import-refused` だけで `corrupt-history` は 0 件。
 // 限界: B-4（10MB 超）が保存先に置けない場合は diagnostic に残して置けた範囲で確かめる。作り方がページの中の IR で表と違う理由になった
-//   場合は失敗にする（表を黙って直さない）。「捨てて始める」の処理は 2/2（TASK-333 2/2）。Chromium のみ。
+//   場合は失敗にする（表を黙って直さない）。押した直後に再読み込みすると IndexedDB の削除が未確定で案内が再び出うる（安全側。docs/known-gaps.md）。Chromium のみ。
 // 失敗の文・diagnostic には、バイト数・件数・固定のコード・真偽だけを出す（入力の中身と番兵の値は出さない）。
 
 import { test, before, after } from 'node:test';
@@ -230,11 +232,6 @@ for (const csp of [true, false]) {
         await settle(page);
         await page.waitForTimeout(1500);
         assert.equal(await storageDigest(page), stored, 'storage unchanged after an operation');
-        await page.locator(DISCARD).click();
-        await page.waitForTimeout(500);
-        assert.equal(await storageDigest(page), stored, 'storage unchanged after pressing discard (not handled until 2/2)');
-        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 1, 'notice stays');
-
         await openStorage(page);
         assert.equal((await call(page, 'storageRead', PACK, START)) === text, true, 'the stored value is byte-identical');
         await page.reload();
@@ -244,6 +241,48 @@ for (const csp of [true, false]) {
         await openStorage(page);
         assert.equal((await call(page, 'storageRead', PACK, START)) === text, true, 'byte-identical after reload');
         assert.equal(await sentinelAbsent(opened, sentinel), true, 'no sentinel after reload');
+
+        // 捨てて始める: 別の開始点・別の教材の鍵に正常な値を置き、押した後も不変であることを対照にする。
+        const otherStart = await call(page, 'opsHistoryText', 5);
+        for (const [p, st] of [[PACK, 'other-start'], ['other-pack', START]]) {
+          assert.equal(JSON.parse(await call(page, 'storageWrite', p, st, otherStart)).ok, true, 'control key stored');
+        }
+        await page.waitForTimeout(500);
+        const control = await Promise.all([[PACK, 'other-start'], ['other-pack', START]].map((k) => call(page, 'storageRead', ...k)));
+        await page.locator(DISCARD).click();
+        await page.waitForFunction(([p, s]) => (JSON.parse(window.__fandheTest.storageState(p, s)).lastAsyncError ?? null) === null, [PACK, START], { timeout: 10000 });
+        // 試験用の保存先の写しは起動時の取得で、本体の削除を見ない（localStorage に載らない大きな値）。開き直して実データで確かめる。
+        let gone = false;
+        for (let i = 0; i < 20 && !gone; i += 1) {
+          await openStorage(page);
+          gone = (await call(page, 'storageRead', PACK, START)) == null;
+          if (!gone) await page.waitForTimeout(300);
+        }
+        assert.equal(gone, true, 'the broken value is removed from storage');
+        await settle(page);
+        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 0, 'notice gone after discard');
+        assert.equal(await page.locator(DISCARD).count(), 0, 'discard button gone');
+        const after = await engine(page);
+        assert.equal(after.log.length, 0, 'fresh log after discard');
+        assert.equal(JSON.parse(await call(page, 'stateJson')).engine.lastDiscard, 'ok', 'discard hook returned ok');
+        const controlAfter = await Promise.all([[PACK, 'other-start'], ['other-pack', START]].map((k) => call(page, 'storageRead', ...k)));
+        assert.deepEqual(controlAfter, control, 'other keys are byte-identical');
+        assert.equal(await sentinelAbsent(opened, sentinel), true, 'no sentinel after discard');
+
+        // 保存が再開する: 1 手で保存され、壊れた値とは異なる。
+        await page.locator(DRAFT).fill(OPERATION);
+        await page.locator(DRAFT).press('Enter');
+        await settle(page);
+        await page.waitForFunction(([p, s]) => window.__fandheTest.storageRead(p, s) != null, [PACK, START], { timeout: 10000 });
+        const resumed = await call(page, 'storageRead', PACK, START);
+        assert.notEqual(resumed, text, 'a new value is saved after discard');
+        assert.equal(resumed.includes(sentinel), false, 'saved value has no sentinel');
+        await page.waitForTimeout(1500);
+        await page.reload();
+        await waitMounted(page);
+        await settle(page);
+        assert.equal((await engine(page)).bootKind, 'restored', 'restored after reload');
+        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 0, 'no notice after reload');
         assertQuiet(opened.rec, c.id);
         await opened.context.close();
       }));

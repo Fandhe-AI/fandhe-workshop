@@ -290,6 +290,10 @@ fn 開いた履歴では前のリンクが外れる() {
 #[test]
 fn 枠の操作の復号は書き出しと読み込みだけを受ける() {
     assert!(EngineHost::decode_action("export-history", "x").is_none());
-    assert!(EngineHost::decode_action("discard-and-start", "").is_none());
+    assert!(matches!(
+        EngineHost::decode_action("discard-and-start", ""),
+        Some(HostAction::DiscardAndStart)
+    ));
+    assert!(EngineHost::decode_action("discard-and-start", "x").is_none());
     assert!(EngineHost::decode_action("import-history", "").is_some());
 }
