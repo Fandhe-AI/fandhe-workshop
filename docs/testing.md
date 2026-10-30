@@ -11011,3 +11011,28 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 #### 件数・確認（2026-10-30）
 
 - 確認結果は PR の記録に従う。`make test-browser` の全体は CI の `browser-test` に任せる
+
+### 5.404 配信する設定に試験用の口が無いことの native の試験（TASK-547 1/3。SHELL-35・BUILD-27）
+
+配信する設定（`test-hooks` なし）の画面と書き出しに、移動ボタン・隠し要素 4 種・`debug_` の書き出しが 0 件であることを、native の層で固定する。本番コードは変えていない。切り分けそのものは既存（TASK-27・TASK-81・TASK-349・TASK-526）で、ここは検証の追加である。
+
+#### 確かめること
+
+| 試験 | 内容 |
+|---|---|
+| `delivery_ports`（静的） | `fn debug_` の定義が `test_hooks.rs` の外に 0 件（`test_hooks.rs` に 1 件以上。空振り防止）。`lib.rs` の `mod test_hooks;` が feature の gate つきの 1 件だけ。`js_name = "debug_` の書き出しが `test_hooks.rs` の外に 0 件。「移動:」の文言と `Control::GoTo` の組み立てが web の `src` に 0 件。違反を組み立てた合成のソースで各規則が違反を返す負の対照つき |
+| `delivery_ports`（動的。配信する設定） | CH-0〜CH-3 の 20 Step の開始直後と各手の後の画面に、「移動」・`tick-trigger`・`esc-trigger`・`complete-trigger`・`raw-trigger`・`data-action="raw"` が 0 件。`decode_action("raw", ...)` が `None` |
+| `delivery_ports`（動的。対照） | `--features test-hooks` では各画面に `raw-trigger` がちょうど 1 件（`hidden`）で、`decode_action("raw", ...)` が `Some`。「移動」と 3 種の trigger は 0 件のまま |
+| `scripts/test-build-web.sh` (c) | 試験の設定の WASM に `raw-trigger` の文字列があり、`debug_next_tick`・`debug_draft` が書き出されている（配信する設定の 0 件の検査が空振りしていないことの対照） |
+| 変異 `SHELL35-1`〜`SHELL35-3` | 配信する設定の書き出しを `debug_` で始める誤り・`mod test_hooks` の gate を外す誤り・ボタンの文言を「移動: …」にする誤りを `delivery_ports` が検出する（`scripts/check-mutations.sh` で DETECTED を確認） |
+
+#### 注意
+
+- 移動ボタンと 3 種の trigger は、試験の設定でも置かない（FEND-4・TASK-526）。そのため「試験の設定では口がある」の対照は、実在する口（`raw-trigger`・`debug_*`・`test-hooks.js`・meta）で取り、廃止済みの 4 種は「注入・変異で検出される」ことで検出力を示す
+- BUILD-27 の「試験の設定に `debug_` が 5 件」は PoC 期の数で、現実装は `test_hooks.rs` に多数ある。件数の対照は TASK-82 で扱い、ここでは合わせない
+- `--features test-hooks` の native 試験は CI で流れない（手元で `cargo test --locked -p fandhe-workshop-web --features test-hooks --test delivery_ports`）
+- 範囲外: 章をまたぐ操作と試験用クエリの無効化（TASK-547 2/3）、ブラウザでの通し（3/3）、`tools/check-delivery.sh` の拡張（TASK-82）
+
+#### 件数・確認（2026-10-30）
+
+- native 7 件が両設定で通った。`scripts/expected-test-counts.txt` は変えていない

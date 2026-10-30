@@ -1,0 +1,8 @@
+id: SHELL35-1
+package: fandhe-workshop-web
+test: delivery_ports
+target: crates/web/src/glue.rs
+find: pub fn mount_app(
+replace: pub fn debug_mount_app(
+expect-fail: 実ソースは違反なし
+note: 配信する設定にも入る glue.rs の書き出しを debug_ で始まる名前にする（debug_ の書き出しは test_hooks.rs の背後にしか置かない）
