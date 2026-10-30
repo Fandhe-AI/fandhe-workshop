@@ -14,7 +14,8 @@
 //! 保存の失敗は閉じる操作を置かない（成功すると消える）。文は `save_notice` が持つ。
 //! 「壊れた履歴」の通知（SAVE-21・SHELL-17。TASK-333 1/2）は、起動時に保存済みの履歴が壊れていたときに出す。閉じる操作は無く、
 //! 置くのは「保存された履歴を捨てて始める」だけである（押すと今の鍵の履歴を捨てて最初から始め、保存を再開する。処理は `EngineHost::discard_and_start`。TASK-333 2/2）。
-//! 管轄外: 文面の確定・見た目（TASK-516・TASK-533・TASK-549）と、他の種類の通知。
+//! 壊れた履歴の通知の文面（理由の文と案内の文）は TASK-533 1/2 で確定した。
+//! 管轄外: 見た目（TASK-516・TASK-549）と、他の種類の通知。
 //! 開かない通知には理由ごとの次の行動の文を添える（TASK-334。割り当ては案で contract の `load_next_action`）。
 //! 文面（[`VERSION_CONVERTED_NOTICE`]）と root の先頭という置き場は仮置きである。
 //!
@@ -53,10 +54,12 @@ const IMPORT_REFUSED_HEAD: &str =
     "この履歴は開けません。保存された履歴と画面の状態は変えていません。（";
 const IMPORT_REFUSED_TAIL: &str = "）";
 
-/// 「壊れた履歴」の通知の文の前半と後半（仮置き。最終の文面は TASK-533・TASK-549 が持つ）。
+/// 「壊れた履歴」の通知の文の前半と後半（TASK-533 1/2 で確定）。理由のコードの後ろに理由の文（あれば）と案内の文を付ける。
 /// 履歴由来の文字列は入れず、閉じた列挙の理由のコード（ASCII）だけを挟む（SAFE-40）。
 const CORRUPT_HISTORY_HEAD: &str = "保存された履歴が壊れているため開けませんでした。新しい状態で始めています。保存された履歴を上書きしないよう、保存を止めています。（";
 const CORRUPT_HISTORY_TAIL: &str = "）";
+/// 「壊れた履歴」の通知の案内の文。ボタン名（[`DISCARD_AND_START_LABEL`]）と同じ語を鉤括弧で挟む。
+const CORRUPT_HISTORY_GUIDE: &str = "「保存された履歴を捨てて始める」を押すと、保存された履歴を捨てて最初から始め、保存を再開します。";
 
 /// 次の行動の文（仮置き。固定の文言だけで、履歴由来の値を含めない）。
 pub fn next_action_text(a: LoadNextAction) -> &'static str {
@@ -113,10 +116,40 @@ pub fn import_refused_message(code: LoadReason) -> String {
     )
 }
 
-/// 「壊れた履歴」の通知の文を作る。
+/// 起動時に壊れていた履歴の理由の文（SHELL-17。TASK-533 1/2）。`corrupt_history_message` から呼ばれる。
+/// 6 種は読み込みの拒否と同じ文（[`reason_text`]）に委ねて二重に定義しない。
+/// 大きすぎる場合だけは、contract の文が「別のファイルを選んでください」と案内するため、保存領域の文脈では誤りになる。固定の文を持つ。
+/// 残りの理由は起動時の壊れの主な経路ではなく、文を作り込まず `None`（コードだけ）にする。網羅の match で漏れをコンパイラが知らせる。
+/// 文は固定の文言だけで、履歴由来の値を含めない（SAFE-40）。
+pub fn corrupt_reason_text(code: LoadReason) -> Option<&'static str> {
+    match code {
+        LoadReason::ReplayMismatch
+        | LoadReason::Truncated
+        | LoadReason::NotJson
+        | LoadReason::MissingVersion
+        | LoadReason::OtherPack
+        | LoadReason::Malformed => reason_text(code),
+        LoadReason::TooLarge => Some("保存された履歴が 10MB の上限を超えています。"),
+        LoadReason::TooDeep
+        | LoadReason::TooManyOps
+        | LoadReason::HistoryFormatNewer
+        | LoadReason::BadVersion
+        | LoadReason::FormatNewer
+        | LoadReason::VocabNewer
+        | LoadReason::EngineNewer
+        | LoadReason::FormatOlder
+        | LoadReason::EngineMajor
+        | LoadReason::ContentMajor
+        | LoadReason::StartMissing
+        | LoadReason::ReplayDiverged => None,
+    }
+}
+
+/// 「壊れた履歴」の通知の文を作る。コード・理由の文（あれば）・案内の文の順に並べる。
 pub fn corrupt_history_message(code: LoadReason) -> String {
+    let reason = corrupt_reason_text(code).unwrap_or("");
     format!(
-        "{CORRUPT_HISTORY_HEAD}{}{CORRUPT_HISTORY_TAIL}",
+        "{CORRUPT_HISTORY_HEAD}{}{CORRUPT_HISTORY_TAIL}{reason}{CORRUPT_HISTORY_GUIDE}",
         code.as_str()
     )
 }
@@ -504,8 +537,37 @@ mod tests {
             let m = corrupt_history_message(code);
             assert!(m.contains(code.as_str()), "{}", code.as_str());
             assert!(m.starts_with(CORRUPT_HISTORY_HEAD));
+            assert!(m.ends_with(CORRUPT_HISTORY_GUIDE), "{}", code.as_str());
             assert!(corrupt_history_item(code).is_some(), "{}", code.as_str());
         }
+    }
+
+    #[test]
+    fn corrupt_guide_names_the_discard_button() {
+        assert!(CORRUPT_HISTORY_GUIDE.contains(DISCARD_AND_START_LABEL));
+    }
+
+    #[test]
+    fn corrupt_seven_reasons_have_distinct_texts_in_the_message() {
+        let mut seen: Vec<&str> = Vec::new();
+        for code in SEVEN {
+            let r = corrupt_reason_text(code).unwrap();
+            assert!(
+                corrupt_history_message(code).contains(r),
+                "{}",
+                code.as_str()
+            );
+            assert!(!seen.contains(&r), "{}", code.as_str());
+            seen.push(r);
+        }
+    }
+
+    #[test]
+    fn corrupt_too_large_text_does_not_ask_for_another_file() {
+        let t = corrupt_reason_text(LoadReason::TooLarge).unwrap();
+        assert!(!t.contains("別のファイル"), "{t}");
+        let c = rejection_message(LoadEntry::History, LimitReason::TooLarge).unwrap();
+        assert!(c.contains("10MB") && t.contains("10MB"));
     }
 
     #[test]

@@ -1,0 +1,8 @@
+id: SHELL17-4
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/shell_notice.rs
+find:         "{CORRUPT_HISTORY_HEAD}{}{CORRUPT_HISTORY_TAIL}{reason}{CORRUPT_HISTORY_GUIDE}",
+replace:         "{CORRUPT_HISTORY_HEAD}{}{CORRUPT_HISTORY_TAIL}{reason}",
+expect-fail: 壊れた履歴_7_種は起動時に開かず_corrupt_history_が理由つきで出て_新しい状態で始まる
+note: 壊れた履歴の通知から押す操作の案内の文が消える（SHELL-17・TASK-533）

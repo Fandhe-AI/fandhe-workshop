@@ -10856,3 +10856,12 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入: SHELL16-3（`other_pack` の文を `None` にする）が DETECTED。SHELL16-2 も DETECTED のまま（2026-10-30）。
 - 範囲外: 文面の確定（TASK-549・TASK-534）、次の行動を押せる操作にすること（TASK-538）、起動時の SHELL-17（TASK-533）、版の判定の段の理由の文。
 - 限界: 配信する設定（DOM だけの観察）では未実施。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.396 起動時に壊れた履歴の案内の文面と画面の試験（TASK-533 1/2。SHELL-17）
+
+- 目的: 起動時に保存領域の履歴が壊れていたとき、受講者が壊れ方と次の行動を読める文を出し、配信する設定の画面で「理由が出る・新しい状態で始まる・案内を押すまで保存先が変わらない」を DOM だけの観察で固定する。
+- 本番の変更: `crates/web/src/shell_notice.rs` に `corrupt_reason_text` と案内の文（`CORRUPT_HISTORY_GUIDE`）を足し、`corrupt_history_message` を「前置き・コード・理由の文・案内の文」の並びにした。6 種（`replay_mismatch`・`truncated`・`not_json`・`missing_version`・`other_pack`・`malformed`）の理由の文は読み込みの拒否の `reason_text` に委ねて二重に定義しない。`too_large` だけは contract の文が「別のファイルを選んでください」と案内して起動時の文脈では誤りになるため、固定の文（10MB の上限）を持つ。判定・属性・`discard_and_start`・`import-refused` の文は変えない。
+- 試験: `shell_notice` の単体（全理由で案内の文が末尾にある・案内がボタン名を含む・7 種の文が互いに異なる・`too_large` が別のファイルを促さず 10MB が contract と一致）、`crates/web/tests/boot_corrupt_history.rs`（7 種で理由の文と案内の文が通知に入る）。ブラウザ `tools/browser/boot-corrupt-notice.test.mjs` は配信する設定（IR_FILE つき・TEST_HOOKS なし）で、実操作で保存した履歴を壊して localStorage に置き、B-2・B-3・B-5・B-6・B-7 を CSP あり・なしで確かめる（通知 1 件・理由コード・理由の文・案内の文・ボタンが見える・閉じる操作なし・最初の Step・操作と再読み込みで鍵と値のハッシュが不変・幅 360px で見える・番兵が出ない・通信と CSP 違反とページエラー 0 件）。壊していない値の対照も置く。既存の `boot-corrupt-history.test.mjs` は理由の断片と案内の文の確認を足した。12 件と 16 件が合格（2026-10-30）。
+- 変異注入: SHELL17-3（理由の文を外す）・SHELL17-4（案内の文を外す）が DETECTED。SHELL17-1・SHELL17-2・SAVE21-1 も DETECTED のまま（2026-10-30）。
+- 範囲外: 「捨てて始める」を押した後に保存が再開することの画面の試験（TASK-533 2/2。#902）。本試験はボタンを押さない。
+- 限界: B-1 は作者の教材の最初の操作が選択肢で submit を持たないため、B-4 は localStorage に置けないため、配信の試験から除いた（試験の設定の `boot-corrupt-history` が確かめる）。`too_deep`・`too_many_ops`・`history_format_newer`・`start_missing`・`replay_diverged` などは理由の文を持たず、コードと案内の文だけである。保存先は localStorage の範囲で Chromium のみ。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

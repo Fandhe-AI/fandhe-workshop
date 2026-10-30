@@ -1,4 +1,4 @@
-// 起動時に壊れた履歴を検出し保存を止めることのブラウザ試験（SAVE-21・SHELL-17。TASK-333 1/2・2/2）。
+// 起動時に壊れた履歴を検出し保存を止めることのブラウザ試験（SAVE-21・SHELL-17。TASK-333 1/2・2/2。通知の文に理由の文と案内の文が入る: TASK-533 1/2）。
 //
 // 呼び出し元は `make test-browser`（scripts/test-browser.sh）である。
 // 入力: FANDHE_WEB_TEST_DIR（試験の設定）。未設定は skip にせず失敗にする。
@@ -183,6 +183,17 @@ const CASES = [
   { id: 'B-7', make: (s, b) => edit(b, (v) => { v.snapshot.run.generation = s; }) },
 ];
 
+// 通知の文に入る理由の文の断片（crates/web/src/shell_notice.rs の corrupt_reason_text。TASK-533 1/2）。
+const FRAGMENT = {
+  'B-1': '書き換えられている',
+  'B-2': '途中で切れて',
+  'B-3': 'JSON として読めません',
+  'B-4': '10MB の上限',
+  'B-5': '版の欄がありません',
+  'B-6': '別の教材で記録された',
+  'B-7': '決められた形と合いません',
+};
+
 const NOTICE = (kind) => `[data-testid="shell-notice-item"][data-notice-kind="${kind}"]`;
 const DISCARD = '[data-testid="shell-discard-start"]';
 
@@ -219,7 +230,10 @@ for (const csp of [true, false]) {
         const code = expectCode(c.id);
         assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 1, 'one corrupt-history notice');
         assert.equal(await page.locator(NOTICE('corrupt-history')).getAttribute('data-notice-reason'), code);
-        assert.ok((await page.locator(NOTICE('corrupt-history')).textContent()).trim().length > 0, 'notice has text');
+        const noticeText = await page.locator(NOTICE('corrupt-history')).textContent();
+        assert.ok(noticeText.trim().length > 0, 'notice has text');
+        assert.ok(noticeText.includes(FRAGMENT[c.id]), 'notice has the reason text (TASK-533)');
+        assert.ok(noticeText.includes('保存を再開します'), 'notice has the guide text (TASK-533)');
         assert.equal(await page.locator(NOTICE('import-refused')).count(), 0, 'no import-refused');
         assert.equal(await page.locator(DISCARD).count(), 1, 'one discard button');
         assert.equal(await page.locator(`${NOTICE('corrupt-history')} [data-testid="shell-dismiss"]`).count(), 0, 'not dismissable');

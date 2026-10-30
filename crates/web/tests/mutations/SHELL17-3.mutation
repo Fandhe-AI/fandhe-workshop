@@ -1,0 +1,8 @@
+id: SHELL17-3
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/shell_notice.rs
+find:     let reason = corrupt_reason_text(code).unwrap_or("");
+replace:     let reason = "";
+expect-fail: 壊れた履歴_7_種は起動時に開かず_corrupt_history_が理由つきで出て_新しい状態で始まる
+note: 壊れた履歴の通知から理由の文が消える（受講者が壊れ方を読めなくなる。SHELL-17・TASK-533）
