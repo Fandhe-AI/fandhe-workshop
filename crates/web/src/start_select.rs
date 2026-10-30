@@ -62,9 +62,23 @@ pub fn select_start<'a>(ir: &'a Ir, requested: Option<&str>) -> Result<&'a Start
     }
 }
 
-/// 同梱の IR（`./ir/main.json` のバイト列）を開けなかった理由。どちらも固定の ASCII のコードだけを持つ。
+/// 教材が見つからないときの理由コード（固定の ASCII。SHELL-32・D-74）。`ReasonCode::parse` の形（英数字・`_`）を通る。
+pub const IR_NOT_FOUND_CODE: &str = "not_found";
+
+/// `static/app.js` が固定の `./ir/main.json` を取得した結果。404 かどうかは JS だけが知り、本文を読む前に判定して渡す（SHELL-32・D-74）。
+#[derive(Debug, Clone, Copy)]
+pub enum FetchedIr<'a> {
+    /// 応答が 404 だった（本文は読まない）。
+    NotFound,
+    /// 本文を取得できた（空・不正な JSON を含む。検査は `load_ir` が行う）。
+    Body(&'a [u8]),
+}
+
+/// 同梱の IR（`./ir/main.json` のバイト列）を開けなかった理由。いずれも固定の ASCII のコードだけを持つ。
 #[derive(Debug)]
 pub enum BundledIrRefusal {
+    /// 教材が見つからない（取得が 404。本文は見ない。SHELL-32）。
+    NotFound,
     /// IR を読めない（空・不正な JSON・上限超え・版の違いを含む）。
     Load(IrLoadError),
     /// 開始点を選べない。
@@ -95,9 +109,55 @@ pub fn open_bundled_ir(
     Ok((Session::entered_at(ir, &node), id))
 }
 
+/// 取得の結果から教材を開く。404 は本文を見ずに先に断り、`not_json`（本文が JSON として不正）と区別する（SHELL-32・D-74）。
+///
+/// 呼び出し元は `host::EngineHost::for_mount`。`Body` は [`open_bundled_ir`] に任せる。
+///
+/// # Errors
+///
+/// 404 のとき [`BundledIrRefusal::NotFound`]。それ以外は [`open_bundled_ir`] の断り。
+pub fn open_fetched_ir(
+    fetched: FetchedIr<'_>,
+    requested: Option<&str>,
+) -> Result<(Session, String), BundledIrRefusal> {
+    match fetched {
+        FetchedIr::NotFound => Err(BundledIrRefusal::NotFound),
+        FetchedIr::Body(bytes) => open_bundled_ir(bytes, requested),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn 取得の404は本文を見ずに断る() {
+        // 読める IR が本文に付いていても、404 なら開かない。
+        assert!(matches!(
+            open_fetched_ir(FetchedIr::NotFound, None),
+            Err(BundledIrRefusal::NotFound)
+        ));
+        assert!(matches!(
+            open_fetched_ir(FetchedIr::NotFound, Some("s-1")),
+            Err(BundledIrRefusal::NotFound)
+        ));
+    }
+
+    #[test]
+    fn 本文の不正は_not_json_のまま() {
+        for body in [&b"{"[..], &b""[..]] {
+            match open_fetched_ir(FetchedIr::Body(body), None) {
+                Err(BundledIrRefusal::Load(e)) => assert_eq!(e.reason_code(), "not_json"),
+                other => panic!("{other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn 読める本文は開く() {
+        assert!(open_fetched_ir(FetchedIr::Body(BASE), None).is_ok());
+    }
+
     use fandhe_workshop_core::step_status::StepStatus;
 
     const BASE: &[u8] = include_bytes!(concat!(

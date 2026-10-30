@@ -1,16 +1,18 @@
-// 教材 IR を読めないときの画面の試験（SHELL-31。TASK-545）。
+// 教材 IR を読めないときの画面の試験（SHELL-31。TASK-545。404 の理由は SHELL-32・TASK-546）。
 //
 // 入力: FANDHE_WEB_AUTHOR_DIR（IR_FILE つき・TEST_HOOKS なしのビルド。IR の印の meta と compile 済みの `ir/main.json` を持つ）。
 // 未設定・不在は skip にせず失敗にする。配信は自前の http サーバで、`/ir/main.json` の本体（と状態）だけを差し替える。
 // 確かめること（CSP あり・なしの両方）:
 //   (U1) 上限超え（20,971,521 バイト = too_large・65 段の入れ子 = too_deep）、(U2) 不正（uid の重複 = malformed・`{` = not_json）、
-//   (U3) IR が無い（404・200 で本文が空。どちらも今は not_json）のとき、枠の通知欄の `pack-unloadable` 項目がちょうど 1 件で、
+//   (U3) IR が無い（404 は not_found。本文が読める・不正でも本文を見ずに 404 で判定する。200 で本文が空は not_json のまま）のとき、枠の通知欄の `pack-unloadable` 項目がちょうど 1 件で、
 //   理由のコードが期待どおり、文にコードが出る。教材（Step の題・入力欄・左右のエリア・タブ）は 0 件、「模擬」は 1 件、
 //   通知欄は 1 件で role=status。タブが落ちず（data-mounted）、ページ内エラー・配信元以外への通信・CSP 違反は 0 件。
 //   (C) 巡回する IR（読み替え）は読み込みの時点では断られず、断りの通知が 0 件で、タブが落ちない。
 //       巡回を止めるのは実行時の遷移の上限（SAFE-23・34・35。transition-limit）である。
+//   (U4) 配信物に `ir/main.json` が無い（静的配信の 404 そのもの）とき not_found で、「教材が見つかりません」が出て
+//        「教材を読み込めませんでした」は出ない。not_found 以外では逆になる。
 //   (N) 負の対照: 土台の IR では通知が 0 件で Step の題が出る（セレクタの空振りを防ぐ）。
-// 読み替え・限界: 404 の理由は TASK-546（SHELL-32）で「教材が見つかりません」に変わるので、そのとき U3 の期待を直す。
+// 読み替え・限界: 404 以外の失敗（5xx・通信の例外）は決定（D-74）に記述が無く、期待として固定せず観察だけを残す（U5）。
 // 印の無いビルド（IR 未同梱の枠）は対象外。文面は仮置き（TASK-549・TASK-534）。出力はコード・件数・真偽だけで、IR の本文は出さない。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -57,11 +59,15 @@ function duplicatedUid() {
   return Buffer.from(JSON.stringify(v));
 }
 
-// ir/main.json を { status, body } で差し替えて静的ファイルを配る。
+// ir/main.json を { status, body } で差し替えて静的ファイルを配る。ir が null のときは `ir/main.json` が無い配信物として 404 だけを返す。
 function serve(dir, ir) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/ir/main.json') {
+      if (ir === null) {
+        res.writeHead(404).end();
+        return;
+      }
       res.writeHead(ir.status, { 'content-type': 'application/json' });
       res.end(ir.body);
       return;
@@ -124,6 +130,8 @@ function assertUnloadable(r, code) {
   assert.equal(r.notices, 1, `notices for ${code}`);
   assert.equal(r.reason, code);
   assert.ok(r.text.includes(`（${code}）`), `text for ${code}`);
+  assert.equal(r.text.includes('教材が見つかりません'), code === 'not_found', `not-found wording for ${code}`);
+  assert.equal(r.text.includes('教材を読み込めませんでした'), code !== 'not_found' && !code.startsWith('start_'), `load wording for ${code}`);
   assert.equal(r.area, 1);
   assert.equal(r.role, 'status');
   assert.equal(r.mock, 1);
@@ -136,7 +144,10 @@ const CASES = [
   ['U1 too_deep', 'too_deep', () => ({ status: 200, body: nested(65) })],
   ['U2 malformed', 'malformed', () => ({ status: 200, body: duplicatedUid() })],
   ['U2 not_json', 'not_json', () => ({ status: 200, body: Buffer.from('{') })],
-  ['U3 404', 'not_json', () => ({ status: 404, body: Buffer.alloc(0) })],
+  ['U3 404', 'not_found', () => ({ status: 404, body: Buffer.alloc(0) })],
+  ['U3 404 with body', 'not_found', () => ({ status: 404, body: base })],
+  ['U3 404 with broken body', 'not_found', () => ({ status: 404, body: Buffer.from('{') })],
+  ['U4 missing file', 'not_found', () => null],
   ['U3 empty body', 'not_json', () => ({ status: 200, body: Buffer.alloc(0) })],
 ];
 
@@ -148,6 +159,12 @@ for (const csp of [true, false]) {
       t.diagnostic(`ir-unloadable ${name} csp=${csp} code=${r.reason} notices=${r.notices}`);
     });
   }
+
+  test(`U5: 404 以外の失敗は観察だけ（期待は固定しない。D-74 の範囲外）（CSP ${csp ? 'あり' : 'なし'}）`, async (t) => {
+    const r = await observe(csp, { status: 500, body: Buffer.alloc(0) });
+    t.diagnostic(`ir-unloadable U5 500 csp=${csp} code=${r.reason} notices=${r.notices}`);
+    assertSafe(r);
+  });
 
   test(`C: 巡回する IR は読み込みの時点では断られない（CSP ${csp ? 'あり' : 'なし'}）`, async () => {
     for (const [file, start] of [['cycle-enter-self', ''], ['cycle-enter-self', '?start=s-enter-self'], ['cycle-exit-2', '?start=s-exit-2']]) {

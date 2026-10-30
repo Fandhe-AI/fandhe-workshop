@@ -37,13 +37,20 @@ try {
   // OS の推定（修飾キーの表示。D-48）のため、ブラウザの User-Agent も渡す。Rust 側はブラウザの値を読まない。
   // 同梱の IR（TASK-112 2/2）。印の meta がある配信物でだけ、固定の ./ir/main.json を取得して渡す（URL の値から場所は作らない。SAFE-33）。
   // 取得に失敗したら空のバイト列を渡し、Rust 側が断りの画面に倒す（fail-closed）。印が無ければ取得せず、IR を持たないまま起動する。
+  // 応答が 404 のときは本文を読む前に判定し、その旗を渡す（理由「教材が見つかりません」。不正な JSON の not_json と分ける。SHELL-32・D-74）。
   let ir;
+  let irNotFound = false;
   if (document.querySelector('meta[name="fandhe-ir"]')) {
     try {
       // 受信量は上限 + 1 バイトまでに制限する（Content-Length は信用せず、実際に受けた量で数える）。超えたら読み取りを中止し、
       // 上限 + 1 バイトを渡して Rust 側（load_ir）に大きさで断らせる。全体を一度に確保しない。
       const r = await fetch("./ir/main.json");
-      ir = r.ok && r.body ? await readBounded(r.body.getReader(), ir_read_limit()) : new Uint8Array(0);
+      if (r.status === 404) {
+        irNotFound = true;
+        ir = new Uint8Array(0);
+      } else {
+        ir = r.ok && r.body ? await readBounded(r.body.getReader(), ir_read_limit()) : new Uint8Array(0);
+      }
     } catch {
       ir = new Uint8Array(0);
     }
@@ -55,7 +62,7 @@ try {
   } catch {
     reducedMotion = false;
   }
-  await mount_app("app", navigator.userAgent ?? "", start, ir, reducedMotion);
+  await mount_app("app", navigator.userAgent ?? "", start, ir, irNotFound, reducedMotion);
   if (document.querySelector('meta[name="fandhe-test-hooks"]')) {
     const hooks = await import("./test-hooks.js");
     window.__fandheTest = hooks;

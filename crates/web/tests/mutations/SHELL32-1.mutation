@@ -1,0 +1,9 @@
+id: SHELL32-1
+package: fandhe-workshop-web
+test: ir_unloadable_screen
+features: test-hooks
+target: crates/web/src/start_select.rs
+find:         FetchedIr::NotFound => Err(BundledIrRefusal::NotFound),
+replace:         FetchedIr::NotFound => open_bundled_ir(&[], requested),
+expect-fail: not_found_is_judged_before_body_and_shown
+note: 404 を本文として読んで not_json に戻す誤りを入れる（SHELL-32・TASK-546）
