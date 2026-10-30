@@ -15,10 +15,13 @@
 //   G3（試験の設定）   ヒントを開いた状態（使用回数が空でない）で、保存・先へ進めてさらに開く・復帰・別の Step への移動と戻り・
 //                      再読み込み・書き出し→別のオリジンでの読み込みを行い、通信の試みが全区分 0 件で、使用回数が毎区間で前以上（鍵も残る）で、
 //                      書き出した履歴の snapshot と ops に開いた回数が残ることを確かめる（GUIDE-7。TASK-297 2/2）。操作は raw-trigger で送る。
+//   G4（配信する設定）  3 段（と水準 C の隠す 1 段）の IR の写しで、画面のボタンの押下だけでヒントを 3 段開き、上限を超えて 2 回押し、
+//                      保存→復帰・再読み込み・書き出し→別のオリジンでの読み込みを行う。開いた段が減らず、書き出しの使用回数は開いた段数（3）、
+//                      ops の open_hint は押した回数（5。拒否を含む）で、A・B の通信の試みが全区分 0 件（SAFE-16。TASK-530 2/2。5.393）。
 //   C（対照）          記録器が検出できることの確認。1 種類ずつ通信を試み、対応する区分がちょうど 1 増える。宛先は予約ドメイン
 //                      example.invalid と閉じたローカルのポートに限り、route で abort するため実際の外部へは出ない。
 //
-// G3 で確かめないこと: 配信する設定でヒントを開く画面の操作（TASK-530 の後で足す）、処理中の停止をブラウザで挟むこと（native の
+// G3 で確かめないこと: 配信する設定でヒントを開く画面の操作（G4 が持つ）、処理中の停止をブラウザで挟むこと（native の
 // hint_count_monotone が持つ）。
 // 確かめないこと（docs/known-gaps.md「SAFE-16」）: 本物の CH-0〜CH-15・2 周目の形・履歴の削除の操作（TASK-539）・L2（miniserve）。
 // 入力: FANDHE_WEB_DIR（配信する設定）・FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）。未設定・不在は失敗にする。
@@ -42,6 +45,7 @@ import {
 } from './shell-journey-trips.mjs';
 import { withDeliveryCopy } from './ch4-9-journey.mjs';
 import { ORDER, domObserver03, variantOf } from './author-preview.mjs';
+import { hintLimitIr } from './hint-limit-ir.mjs';
 
 const BASE = '/fandhe-egress/';
 const BASE_B = '/another-egress/';
@@ -284,6 +288,78 @@ for (const csp of [true, false]) {
         await context.close();
       }
     })));
+  });
+
+  test(`G4: 配信する設定の画面の押下でヒントを 3 段開き、上限を超えて押し、保存・復帰・再読み込み・書き出し・別オリジンでの読み込みをしても、通信の試みが全区分 0 件（${mode}）`, { timeout: 600000 }, async () => {
+    await withDeliveryCopy(async (copy) => {
+      fs.writeFileSync(path.join(copy, 'ir', 'main.json'), JSON.stringify(hintLimitIr()));
+      await withCspMode({ dir: copy, csp }, (dir) => withServer({ dir, base: BASE }, (srv) => withServer({ dir, base: BASE_B }, async (srvB) => {
+        const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
+        let b = null;
+        try {
+          const eg = await attachEgress(context, { origin: srv.origin, base: BASE });
+          await page.goto(srv.url);
+          await waitMounted(page);
+          assert.equal(await page.evaluate(() => typeof window.__fandheTest), 'undefined', '配信する設定に試験用の口がある');
+          const stages = (p) => p.locator('[data-testid="hint-stage"]').count();
+          const press = async (p) => {
+            await p.click('[data-testid="hint-open"]');
+            await p.waitForTimeout(150);
+          };
+          const waitStages = (p, n) => p.waitForFunction((k) => document.querySelectorAll('[data-testid="hint-stage"]').length === k, n, { timeout: 30000 });
+          await press(page);
+          await waitStages(page, 1);
+          // チェックポイントの保存（画面のボタン）。
+          await page.click(SAVE);
+          await page.locator(RESTORE).first().waitFor({ state: 'attached', timeout: 30000 });
+          await press(page);
+          await press(page);
+          await waitStages(page, 3);
+          // 上限を超える 2 回の押下。段が増えない。
+          await press(page);
+          await press(page);
+          assert.equal(await stages(page), 3, '上限を超える押下で段が増えない');
+          // 復帰。使用回数は戻らない。
+          await page.locator(RESTORE).first().click();
+          await page.waitForTimeout(300);
+          assert.equal(await stages(page), 3, '復帰で開いた段が減らない');
+          await page.reload();
+          await waitMounted(page);
+          await waitStages(page, 3);
+          // 書き出しのダウンロードは nonHttp に数えられるため、安全性の計数は書き出しの前に取る必要がある。配信する設定では口が無く取らない（G2 と同じ）。
+          const file = await exportByUi(page, tmpDir);
+          const history = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const opened = Object.values(history.snapshot.hints_opened ?? {}).reduce((a, n) => a + n, 0);
+          const presses = history.ops.filter((o) => JSON.stringify(o).includes('open_hint')).length;
+          assert.equal(opened, 3, '書き出しの使用回数は開いた段数の 3');
+          assert.equal(presses, 5, 'ops の open_hint は押した回数の 5（拒否を含む）');
+
+          const o = await openPage(browser, { origin: srvB.origin, viewport: { width: 1280, height: 800 } });
+          b = o;
+          const egB = await attachEgress(o.context, { origin: srvB.origin, base: BASE_B });
+          await o.page.goto(srvB.url);
+          await waitMounted(o.page);
+          await o.page.locator(FILE_INPUT).setInputFiles(file);
+          await waitStages(o.page, 3);
+          assert.equal(await o.page.locator('[data-testid="hint-status"]').getAttribute('data-hint-total'), '3', '別のオリジンでも出せる数は 3');
+
+          const counts = countsOf(eg, rec);
+          const countsB = countsOf(egB, o.rec);
+          console.log(egressLine('G4 A', csp, counts, eg, `opened=${opened} presses=${presses}`));
+          console.log(egressLine('G4 B', csp, countsB, egB));
+          assert.deepEqual(egressFailures(counts), [], 'A の通信の区分');
+          assert.deepEqual(egressFailures(countsB), [], 'B の通信の区分');
+          assert.equal(summarize(rec).pageErrors, 0);
+          assert.equal(summarize(o.rec).pageErrors, 0);
+          assert.ok(eg.allowedFetch >= 2 && eg.allowedFetch % 2 === 0, `fetch は wasm と IR の組（${eg.allowedFetch}）`);
+          assert.equal(egB.allowedFetch, 2, 'B の fetch は wasm と IR の 2 件');
+          fs.rmSync(file, { force: true });
+        } finally {
+          if (b) await b.context.close();
+          await context.close();
+        }
+      })));
+    });
   });
 }
 

@@ -10737,7 +10737,7 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 既存の表明の棚卸し: `checkpoint_restore`・`begin`・`stop_restore`・`move_step`・`reload_after_control`・`reload_points`・`reject_invariant` が一部の分岐で表明していた。本節で分岐ごとに 1 ファイルへそろえた。書き出し → 読み込みの往復は `round_restore_property`（5.341）が状態の全体で確かめるので重複させない。
 - 試験: core `crates/core/tests/hint_count_monotone.rs`（処理中の停止・取り消し・保存前への復帰・別の Step への移動と戻り・開始 ID の拒否・再読み込み・拒否された入力の各 1 件と、`OpenHint`・`Stop`・`Save`・`Restore`・`GoTo`・`reload` を混ぜた性質テスト 1,000 件。操作の前に使用回数が空でないことを表明する）、pack `crates/pack/tests/round_hint_counts.rs`（2 周の教材での S-4: 固定・誘導の各 1,000 件で毎操作の前後と再読み込みで減らない。ヒントが開いた状態で停止・復帰・移動・周回の開始が各 1 件以上流れることも表明）、ブラウザ `tools/browser/egress-count.test.mjs` の G3（試験の設定。`raw-trigger` で開く・保存・移動・復帰・戻りを送り、再読み込み・書き出し・別のオリジンでの読み込みを挟む。区間ごとに非減少、書き出しの `snapshot.hints_opened` の一致と `ops` の `open_hint` が 2 件、A・B の全区分 0、CSP あり・なしの両方）。
 - 変異注入（`scripts/check-mutations.sh crates/core/tests/mutations/GUIDE7-3.mutation crates/core/tests/mutations/GUIDE7-4.mutation crates/core/tests/mutations/GUIDE7-5.mutation crates/pack/tests/mutations/GUIDE7-6.mutation`）: GUIDE7-3 は処理中の停止で使用回数を消す、GUIDE7-4 は復帰で消す、GUIDE7-5 は移動で移動先以外を落とす、GUIDE7-6 は周回の開始で消す。
-- 限界: 処理中の停止は core の決定的な試験だけが持つ（性質テストの IR は処理中にならない）。ブラウザは試験の設定の `raw-trigger` の経路で、配信する設定の画面でヒントを開く操作は TASK-530 の後に足す。書き出しのダウンロード（blob への遷移）は `nonHttp` に数えられるため、G3 は安全性の計数を書き出しの前に取る。`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが対象。5.383 の前例）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+- 限界: 処理中の停止は core の決定的な試験だけが持つ（性質テストの IR は処理中にならない）。ブラウザは試験の設定の `raw-trigger` の経路で、配信する設定の画面でヒントを開く操作は egress-count の G4（5.393）が持つ。書き出しのダウンロード（blob への遷移）は `nonHttp` に数えられるため、G3 は安全性の計数を書き出しの前に取る。`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが対象。5.383 の前例）。試験と実装の作成者は同じ AI で、人の確認は得ていない。
 - 実行結果（2026-10-29。base 755eefbb の上の本変更）: GUIDE7-3〜GUIDE7-6 はいずれも DETECTED（最小の入力は GUIDE7-4 が `[Save, Open, Restore(1)]`、GUIDE7-5 が `[Open, Go(1)]`、GUIDE7-6 が `Case { setup: T0, specs: [Hint, Begin(2)] }`。GUIDE7-3 は性質テストでは検出できず、決定的な試験が検出）。core `hint_count_monotone` は 8 件、pack `round_hint_counts` は 3 件が合格。G3 は CSP あり・なしで合格。
 
 ### 5.386 壊れた履歴 7 種の拒否を固定する（TASK-332 1/2。SAVE-20・SHELL-16）
@@ -10821,5 +10821,18 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 実装: `crates/web/src/hint_ops.rs`（導出・描画。`hint_ops` の field は keyed list）と `host.rs` の結線（`HostAction::OpenHint`。押下は今の提示にボタンがあるときだけ `Control::OpenHint` を送る。表示だけのモードではボタンを出さず、開いた段は残す）。文面は `ir.hints.<ID>.text` が文字列のときだけ読み、文字ノードにだけ入れる。読めないときは固定の文を出す。ヒントの ID は DOM に出さない。
 - 試験: native `crates/web/tests/hint_ops_host.rs`（7 件）と `hint_ops` の単体 3 件。ブラウザ `tools/browser/hint-open.test.mjs`（A 開く・文面の一致・ボタンの要素の同一性・区画の位置、B キーボード、C Step の移動で段が消える、D 幅 360px・959px、F 配信する設定で 0 件。8 件、CSP あり・なし）。`data-payload-tamper` の閉じた一覧に `open-hint`（分類 D）を足した。
 - 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SHELL14-1.mutation` ほか 2 件）: SHELL14-1 は未開の段まで出す、SHELL14-2 は payload の検査を外す、SHELL14-3 は提示にボタンが無くても core へ送る。いずれも DETECTED（2026-10-30）。
-- 範囲外: 開いた回数が手元の履歴にだけ残ること・通信 0 件・上限を超える操作で新しい段が出ないことは TASK-530 2/2（#891）。案内レベルの切り替えの部品、開いたときの読み上げ、修飾キーの差し込みは扱わない。
+- 範囲外: 開いた回数が手元の履歴にだけ残ること・通信 0 件・上限を超える操作で新しい段が出ないことは 5.393（TASK-530 2/2）。案内レベルの切り替えの部品、開いたときの読み上げ、修飾キーの差し込みは扱わない。
 - 限界: `text` は語彙の語ではなく、画面が寛容に読む欄である（語彙として定めるかは spec 側の判断）。マークアップの形の文面の文字ノード化は native の単体試験で固定し、ブラウザでの注入は未実施。`data-payload-tamper` の配信する設定・IR ありの 2 件は author 用のビルドが無く未検証。`make test-browser` の全体と `scripts/expected-test-counts.txt` の更新は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.393 開いた回数の記録と上限超過の断りを確かめる（TASK-530 2/2。SHELL-14・GUIDE-17・SAFE-16）
+
+- 目的: 5.392 が送った 3 点（上限を超える押下で新しい段が出ない、開いた回数が手元の履歴にだけ残る、通信 0 件）を、native・ブラウザ（試験の設定・配信する設定）・変異注入で固定する。
+- 決定: 本番のコードは変えない（5.385 と同じ扱い）。`ops` の `open_hint` は押した回数（拒否を含む）、`snapshot.hints_opened` は開いた段数で、両者は一致しない。画面の段数は web が `min(total)` で丸めるため、DOM の段数だけでは core の上限が壊れても検出できない。上限の判定は状態（native は `hints_opened_at`、ブラウザは `stateJson` と書き出しの `snapshot`）で行う。
+- 試験:
+  - native `crates/web/tests/hint_ops_host.rs` に `上限を超える押下は段を増やさず_nohint_で断る` を足した（8 件）。3 段＋水準 C だけの 4 つ目の IR で、3 回開いた後に 4 回押し、`hints_opened_at` が 3 のまま、log を除いた状態が不変、log が `Refused(OpenHint, NoHint)` で 4 件増え、段の DOM が 3 件でボタンが 1 個、4 つ目の文面が画面に出ないことを確かめる。
+  - ブラウザ `tools/browser/hint-open.test.mjs` に場面 G（試験の設定。1 段をすべて開いた後の押下で使用回数 1 のまま、操作の記録が増え、書き出しの `snapshot` が 1・`ops` の `open_hint` が 4 件、再読み込みの後も増えない）と場面 H（配信する設定。3 段＋水準 C の IR の写しで 1・2・3 段、上限を超えて 3 回押しても 3 段、4 つ目の文面が本文にも属性にも出ない、`snapshot` が 3・`ops` が 6 件、再読み込みの後も 3 段、cookie が空で URL 不変）を足した（CSP あり・なし。8 件から 12 件）。IR の変種は `tools/browser/hint-limit-ir.mjs`。
+  - ブラウザ `tools/browser/egress-count.test.mjs` に G4（配信する設定の画面の押下で 3 段を開き、保存・上限超過 2 回・復帰・再読み込み・書き出し・別オリジンでの読み込み。A・B の全区分 0、`opened=3 presses=5`）を足した。
+- 変異注入: SHELL14-4（core の `hint_open` の上限の関門を外す）が DETECTED（2026-10-30。`scripts/check-mutations.sh crates/web/tests/mutations/SHELL14-4.mutation`）。
+- 実行結果（2026-10-30。base は `f0b9477a`）: native の `hint_ops_host` 8 件合格。`hint-open.test.mjs` の G・H 4 件と `egress-count.test.mjs` の 9 件（G4 を含む）が Chromium で合格。
+- 範囲外: ヒントの文面へのマークアップ注入のブラウザ試験（場面 H は `<b>` の形が要素にならないことだけ見る）、案内レベルの切り替えの部品（TASK-294）、「自力」の数え方、`SHELL14-5`（案内レベルの絞り込みを外す変異。代わりに 4 つ目の文面が出ないことを native と場面 H の表明で固定した）。
+- 限界: 案内レベルを切り替える部品が無く、水準を下げて n が開いた段数を下回る場合は core の試験だけが持つ。本物の教材・L2・Chrome の原本では未実施。`make test-browser` の全体は未実施で、`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが照合する）。書き出しのダウンロードは `nonHttp` に数えられるため、場面 G は安全性の計数を取らない。試験と実装の作成者は同じ AI で、人の確認は得ていない。

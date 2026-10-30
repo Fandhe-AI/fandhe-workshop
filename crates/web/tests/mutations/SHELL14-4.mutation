@@ -1,0 +1,8 @@
+id: SHELL14-4
+package: fandhe-workshop-web
+test: hint_ops_host
+target: crates/core/src/hint_open.rs
+find:     if opened >= total {
+replace:     if false {
+expect-fail: 上限を超える押下は段を増やさず_nohint_で断る
+note: 上限を超えても段数を増やす（core の上限を外す。web の丸めが隠すので状態で検出する。SHELL-14・GUIDE-17）

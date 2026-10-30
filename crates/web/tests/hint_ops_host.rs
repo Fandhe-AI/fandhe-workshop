@@ -1,7 +1,9 @@
 //! 上部のヒントを 1 段ずつ開く操作と表示（TASK-530 1/2。SHELL-14・GUIDE-17）の host の層の試験。
 //!
-//! 出す条件・押下の復号・段の増え方・Step ごとの鍵・dirty・検査器を固定する。上限を超える操作と履歴・通信の確認は
-//! TASK-530 2/2、ブラウザでの実際の押下は `tools/browser/hint-open.test.mjs` の担当である。試験では `unwrap` を使ってよい。
+//! 出す条件・押下の復号・段の増え方・Step ごとの鍵・dirty・検査器と、上限を超える押下の断り（TASK-530 2/2）を固定する。
+//! 画面の段数は web が `min(total)` で丸めるため、上限の判定は DOM ではなく core の状態（`hints_opened_at`）で行う。
+//! ブラウザでの実際の押下は `tools/browser/hint-open.test.mjs`、通信の計数は `egress-count.test.mjs` の担当である。
+//! 試験では `unwrap` を使ってよい。
 
 use std::path::PathBuf;
 
@@ -9,6 +11,7 @@ use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::DirtyTracked;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::StepUid;
+use fandhe_workshop_core::event::{ControlKind, Event, RefuseReason};
 use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::session::SessionState;
 use fandhe_workshop_core::{load_ir, Session};
@@ -44,6 +47,26 @@ fn ir3() -> Ir {
     for n in v["nodes"].as_array_mut().unwrap() {
         if n["uid"] == "main/st-0-1" {
             n["step"]["hints"] = json!(["h-a", "h-b", "h-c"]);
+        }
+    }
+    load_ir(&serde_json::to_vec(&v).unwrap()).unwrap()
+}
+
+/// `ir3` に加え、水準 C だけで出す 4 つ目のヒントを持つ IR。既定の案内レベルでは 3 段が上限になる。
+fn ir4_hidden() -> Ir {
+    let mut v = ir_value();
+    for (id, t) in [
+        ("h-a", "一段目"),
+        ("h-b", "<b>二段目</b>"),
+        ("h-c", "三段目"),
+        ("h-d", "伏せる四段目"),
+    ] {
+        v["hints"][id] = json!({"level": 1, "text": t});
+    }
+    v["hints"]["h-d"]["levels"] = json!(["C"]);
+    for n in v["nodes"].as_array_mut().unwrap() {
+        if n["uid"] == "main/st-0-1" {
+            n["step"]["hints"] = json!(["h-a", "h-b", "h-c", "h-d"]);
         }
     }
     load_ir(&serde_json::to_vec(&v).unwrap()).unwrap()
@@ -201,4 +224,47 @@ fn 完成した画面は検査器を通り区画は上部の中に1個() {
     assert!(shell::check_complete_v2(&v).is_ok());
     assert!(a11y::check_no_undefined(&v).is_ok());
     assert_eq!(count(&v, TopSection::Hint.testid()), 1);
+}
+
+#[test]
+fn 上限を超える押下は段を増やさず_nohint_で断る() {
+    let mut h = host_with(ir4_hidden(), "main/st-0-1");
+    for _ in 0..3 {
+        open(&mut h);
+    }
+    assert_eq!(opened(&h, "main/st-0-1"), 3);
+    // 拒否は log に追記されるため、log を除いた状態（run・hints_opened ほか）の同一で比べる。
+    let without_log = |h: &EngineHost| {
+        let mut v = serde_json::to_value(h.model().session().unwrap().state()).unwrap();
+        v.as_object_mut().unwrap().remove("log");
+        v
+    };
+    let state_before = without_log(&h);
+    let logs_before = h.model().session().unwrap().log().len();
+    for _ in 0..4 {
+        open(&mut h);
+    }
+    // 状態（開いた段数）で判定する。画面の段数は web が丸めるため、core の上限が壊れても DOM は変わらない。
+    assert_eq!(opened(&h, "main/st-0-1"), 3);
+    assert_eq!(state_before, without_log(&h));
+    let log = h.model().session().unwrap().log();
+    assert_eq!(log.len(), logs_before + 4);
+    for e in &log[logs_before..] {
+        assert!(matches!(
+            e,
+            Event::Refused {
+                op: ControlKind::OpenHint,
+                reason: RefuseReason::NoHint,
+                ..
+            }
+        ));
+    }
+    let want = ["一段目", "<b>二段目</b>", "三段目"];
+    assert_eq!(stage_texts(&h), want.to_vec());
+    let v = h.view();
+    assert_eq!(count(&v, STAGE_TESTID), 3);
+    assert_eq!(count(&v, OPEN_TESTID), 1);
+    let mut all = Vec::new();
+    all_text(&v, &mut all);
+    assert!(!all.concat().contains("伏せる四段目"));
 }
