@@ -24,8 +24,8 @@
 //! # 扱わないこと
 //!
 //! - 開いた段数が減らないことは、欄を `run` の外に置く構造で成り立つ。分岐ごとの試験は `tests/hint_count_monotone.rs`（変異 `GUIDE7-3`〜`GUIDE7-5`）、
-//!   周回をまたぐ性質は pack の `round_hint_counts`、送信 0 件の計数は `tools/browser/egress-count.test.mjs` の G3 が持つ（TASK-297 2/2）
-//! - 案内レベルの切り替え（TASK-294）、ヒントの表示と開くボタン（TASK-530。画面は web の `hint_ops`）
+//!   周回をまたぐ性質は pack の `round_hint_counts`、送信 0 件の計数は `tools/browser/egress-count.test.mjs` の G3（試験の設定）と G4（配信する設定の画面の押下。TASK-530 2/2）が持つ（TASK-297 2/2）
+//! - 案内レベルの切り替え（TASK-294）、ヒントの表示と開くボタン（TASK-530。画面は web の `hint_ops`。上限を超える押下の断りは web の `tests/hint_ops_host.rs` と変異 `SHELL14-4` が状態で確かめる）
 //!
 //! 不変条件: 全域（`unwrap`・`expect`・`panic!`・添字の直接参照を使わない）で決定的。I/O・時刻・乱数を持たない。
 //! 印は操作前の状態からだけ作り、イベントに教材の本文・利用者の入力を埋め込まない。
