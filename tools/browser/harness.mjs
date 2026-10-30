@@ -278,7 +278,7 @@ export async function withCspMode({ dir, csp }, fn) {
 // userAgent を指定すると、その context の User-Agent を差し替える（OS の推定の試験。TASK-285 1/2）。未指定なら既定のまま。
 export async function openPage(browser, { origin, extraOrigins = [], viewport = { width: 1024, height: 768 }, userAgent } = {}) {
   const context = await browser.newContext(userAgent === undefined ? { viewport } : { viewport, userAgent });
-  const rec = { requests: [], finished: [], finishedIds: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], hits: [], dialogs: [], popups: [], crashed: false };
+  const rec = { requests: [], finished: [], finishedIds: [], external: [], failed: [], csp: [], pageErrors: [], consoleErrors: [], consoleWarnings: [], consoleAll: [], hits: [], dialogs: [], popups: [], crashed: false };
   await context.exposeBinding('__fandheHitRec', (_src, id) => {
     rec.hits.push(String(id));
   });
@@ -333,6 +333,7 @@ export async function openPage(browser, { origin, extraOrigins = [], viewport = 
   page.on('requestfailed', (req) => rec.failed.push({ id: idOf(req), url: req.url(), error: req.failure()?.errorText ?? '' }));
   page.on('pageerror', (err) => rec.pageErrors.push(String(err && err.message ? err.message : err)));
   page.on('console', (msg) => {
+    rec.consoleAll.push(msg.text());
     if (msg.type() === 'error') rec.consoleErrors.push(msg.text());
     if (msg.type() === 'warning') rec.consoleWarnings.push(msg.text());
   });
