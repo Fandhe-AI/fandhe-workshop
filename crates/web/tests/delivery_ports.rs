@@ -8,7 +8,7 @@
 //! TASK-547 2/3 の静的な部分も本ファイルが持つ。(3) 章の開始 `Control::Begin` の組み立てが `host.rs` の「次の章へ進む」の腕の 1 件だけであること、
 //! (4) PoC 期の試験用クエリ 7 種を `static/app.js` がキーとして読まないこと。動的な部分（画面の要素の復号）は `next_chapter.rs`、
 //! ブラウザでの確認は `tools/browser/query-inert.test.mjs`、URL を読まない構造の証明は `tick_interval.rs` が持つ。
-//! 範囲外: ブラウザでの CH-0〜CH-3 の通しと部品・配信物の検査（3/3）、配信物の検査（TASK-82）。
+//! 範囲外: ブラウザでの CH-0〜CH-3 の通しと部品・配信物の検査（tools/browser/delivery-ports.test.mjs。3/3）、配信物の検査（TASK-82）。
 //! 試験の設定の対照は `cargo test -p fandhe-workshop-web --features test-hooks --test delivery_ports` で手元で流す。
 //! 試験では `unwrap` を使ってよい。
 
