@@ -382,6 +382,25 @@ fn 壊れた起動の後に開ける履歴を読み込んでから押すと新�
 }
 
 #[test]
+fn 壊れた起動の後に表示だけの履歴を読み込んでも押すと新しい状態に戻り保存が再開する() {
+    let mut h = host();
+    let fresh = snapshot(&h);
+    h.boot(Some(&make("B-2")));
+    assert!(matches!(
+        h.open_history(&history("2.0.0")),
+        ImportOutcome::ViewOnly(_)
+    ));
+    assert_eq!(items_of(&h, "corrupt-history"), 1);
+    let calls = bind_discarder(&mut h, Ok(()));
+    press_discard(&mut h);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(items_of(&h, "corrupt-history"), 0);
+    assert_eq!(snapshot(&h), fresh);
+    operate(&mut h);
+    assert!(h.history_to_save().is_some());
+}
+
+#[test]
 fn 壊れた起動の後に開ける履歴を読み込んでも通知と保存の停止は残る() {
     let mut h = host();
     h.boot(Some(&make("B-2")));

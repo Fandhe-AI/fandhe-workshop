@@ -2804,6 +2804,9 @@ impl Component for EngineHost {
                 | HostAction::ImportHistory(_)
                 // 削除の完了通知は、保存の停止（`delete_inflight`）を解くために通す。要求・確定は捨てたまま。世代の照合で表示の巻き戻しは防ぐ。
                 | HostAction::DeleteResult(_, _)
+                // 壊れた起動の後に表示だけの履歴を開いても案内と「捨てて始める」は残る。押せるようにして、保存の停止から出られなくなるのを防ぐ
+                // （処理は案内があるときだけ動く。`discard_and_start`）。
+                | HostAction::DiscardAndStart
                 | HostAction::Input(HelloAction::SetOs(_)) => true,
                 #[cfg(feature = "test-hooks")]
                 HostAction::Input(HelloAction::KeydownProbe)
