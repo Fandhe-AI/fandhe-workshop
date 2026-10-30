@@ -1,0 +1,8 @@
+id: SHELL38-3
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/shell_notice.rs
+find: 削除すると最初の Step から始まります。書き出し済みのファイルは消えません。";
+replace: 削除すると最初の Step から始まります。";
+expect-fail: 要求で確認の通知が出て口は呼ばれず通知欄が_dirty_になる
+note: 削除の確認の文から「書き出し済みのファイルは消えません」が落ちる（SHELL-38・D-75。TASK-539 1/2）
