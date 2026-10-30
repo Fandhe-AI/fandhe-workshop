@@ -19,7 +19,7 @@ use fandhe_workshop_core::history_replay::replay;
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{BootKind, EngineHost, HostAction, ImportOutcome};
-use fandhe_workshop_web::{a11y, shell};
+use fandhe_workshop_web::{a11y, shell, shell_notice};
 
 const IDS: [&str; 7] = ["B-1", "B-2", "B-3", "B-4", "B-5", "B-6", "B-7"];
 const LIMIT: usize = 10 * 1024 * 1024;
@@ -228,6 +228,11 @@ fn 壊れた履歴_7_種は起動時に開かず_corrupt_history_が理由つき
         assert_eq!(items_of(&h, "import-refused"), 0, "{id}");
         assert_eq!(all(&view, "shell-discard-start").len(), 1, "{id}");
         assert!(text.contains("保存された履歴を捨てて始める"), "{id}");
+        assert!(text.contains("保存を再開します"), "{id}: 案内の文");
+        let reason =
+            fandhe_workshop_contract::load_reason::LoadReason::parse(&code).expect("理由のコード");
+        let want = shell_notice::corrupt_reason_text(reason).expect("7 種は理由の文を持つ");
+        assert!(text.contains(want), "{id}: 理由の文");
         assert_eq!(all(&view, "shell-dismiss").len(), 0, "{id}");
         assert!(shell::check_complete_v2(&view).is_ok(), "{id}");
         assert!(a11y::check_no_undefined(&view).is_ok(), "{id}");
