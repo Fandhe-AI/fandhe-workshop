@@ -421,7 +421,8 @@ pub const RAW_RELOAD: &str = "{\"reload\":{}}";
 
 /// `raw` の action で保存済みの履歴の削除の要求・確定・やめるを指す固定の合図（試験の設定だけ。SAVE-32。TASK-341）。
 ///
-/// 完全一致のときだけ受ける。配信する設定は、確認の表示（TASK-539）が無いまま削除の action を復号しない。
+/// 完全一致のときだけ受ける。配信する設定は、枠の契約の 3 つの名前（`delete-history`・`confirm-delete-history`・`cancel-delete-history`）を
+/// 空の payload のときだけ復号する（確認の通知の表示は TASK-539 1/2）。この合図は試験の設定の `raw` 経由の別口である。
 #[cfg(feature = "test-hooks")]
 pub const RAW_DELETE_HISTORY: &str = "{\"delete-history\":{}}";
 /// 削除の確定の合図（試験の設定だけ）。
@@ -1640,7 +1641,7 @@ impl EngineHost {
     /// 頼んだ削除の実処理は取り消せないので、`delete_inflight` は解かない。完了が届くまで保存を止め、
     /// 差し替えた新しい履歴が、続行する古い delete に消されない順序にする（SAVE-32）。
     fn invalidate_delete(&mut self) {
-        self.delete_pending = false;
+        self.set_delete_pending(false);
         self.delete_gen = self.delete_gen.wrapping_add(1);
     }
 
@@ -1728,7 +1729,7 @@ impl EngineHost {
     /// 削除の要求。確認待ちの印を立てるだけで、何も消さない（SHELL-38）。session が無いときは立てない。
     fn delete_request(&mut self) {
         if self.model.recorded.is_some() {
-            self.delete_pending = true;
+            self.set_delete_pending(true);
         }
     }
 
@@ -1739,7 +1740,7 @@ impl EngineHost {
         if !self.delete_pending || self.delete_inflight {
             return;
         }
-        self.delete_pending = false;
+        self.set_delete_pending(false);
         match self.history_deleter.as_ref() {
             Some(f) => {
                 self.delete_inflight = true;
@@ -2664,6 +2665,17 @@ impl EngineHost {
         }
     }
 
+    /// 削除の確認待ちの印を替える。変わったときだけ通知欄を dirty に積む（確認の通知の出し入れ。TASK-539 1/2）。
+    /// 表示の状態だけで、保存・履歴は起こさない。
+    fn set_delete_pending(&mut self, pending: bool) {
+        if self.delete_pending != pending {
+            self.delete_pending = pending;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
     /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     fn select_pane(&mut self, tab: PaneTab) {
         if self.pane != tab {
@@ -2882,7 +2894,7 @@ impl Component for EngineHost {
             // 表示だけの間は上の allowlist が捨てる（allowlist には足さない）。
             HostAction::DeleteHistory => self.delete_request(),
             HostAction::ConfirmDelete => self.delete_confirm(),
-            HostAction::CancelDelete => self.delete_pending = false,
+            HostAction::CancelDelete => self.set_delete_pending(false),
             HostAction::DeleteResult(generation, result) => self.delete_result(generation, result),
             HostAction::SecretKeep => self.secret_keep(),
             HostAction::SecretDiscard => self.secret_discard(),
@@ -3167,6 +3179,7 @@ impl Component for EngineHost {
                 self.boot_corrupt,
                 self.model.save_failure,
                 self.browser_notice,
+                self.delete_pending,
             ),
             history_ops(shown.as_ref()),
             tablist,
@@ -3293,6 +3306,19 @@ impl Component for EngineHost {
                 Some(crate::shell::ShellAction::DiscardAndStart) => {
                     Some(HostAction::DiscardAndStart)
                 }
+                _ => None,
+            };
+        }
+        // 削除の要求・確定・やめる（TASK-539 1/2）。復号は枠の契約の 1 か所で、空の payload だけを受ける。
+        // 確定は確認待ちの印があるときだけ効く（`delete_confirm`）。
+        if name == crate::shell::ACTION_DELETE_HISTORY
+            || name == crate::shell::ACTION_CONFIRM_DELETE
+            || name == crate::shell::ACTION_CANCEL_DELETE
+        {
+            return match crate::shell::ShellAction::decode(name, payload) {
+                Some(crate::shell::ShellAction::DeleteHistory) => Some(HostAction::DeleteHistory),
+                Some(crate::shell::ShellAction::ConfirmDelete) => Some(HostAction::ConfirmDelete),
+                Some(crate::shell::ShellAction::CancelDelete) => Some(HostAction::CancelDelete),
                 _ => None,
             };
         }

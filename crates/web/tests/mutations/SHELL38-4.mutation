@@ -1,0 +1,8 @@
+id: SHELL38-4
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:         if self.delete_pending != pending {
+replace:         if false {
+expect-fail: 要求で確認の通知が出て口は呼ばれず通知欄が_dirty_になる
+note: 確認待ちの印を替えられない（確認の通知が画面に出ない。SHELL-38。TASK-539 1/2）

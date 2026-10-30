@@ -12,6 +12,8 @@
 //! 出せないとき（秘密情報の警告の間・履歴が無い）は、リンクの代わりに固定の短い文（`export-status`）を出す。
 //! リンクと文は同じ keyed list（[`EXPORT_RESULT_FIELD`]。項目は 0 か 1 件）に置き、履歴が変わるとホストが外す。
 //!
+//! 削除のボタン（`shell-delete`。TASK-539 1/2）は読み込みの後ろに置く。押すと確認の通知（`shell_notice`）が出るだけで、何も消さない。
+//!
 //! 読み込みは、`shell-import` の入れ物（`data-action="import-history"`。契約の要求）の中に `label` と `input[type=file]` を置く。
 //! 入れ物は `display: contents`（`static/app.css`）で箱を持たず、クリックの起点にならない。label・input は上流の
 //! 「対話要素の境界」で止まるため、ファイル画面を開くクリックでは `import-history` が届かない（空の本文と区別できないため。
@@ -23,7 +25,7 @@ use fandhe_frontend_core::{el, text, Node};
 use crate::artifact_view::ACTION_ATTR;
 use crate::list_policy::keyed_view_or_notice;
 use crate::parts::{FieldKind, PartField};
-use crate::shell::{ShellOp, ACTION_EXPORT_HISTORY, ACTION_IMPORT_HISTORY};
+use crate::shell::{ShellOp, ACTION_DELETE_HISTORY, ACTION_EXPORT_HISTORY, ACTION_IMPORT_HISTORY};
 
 /// 書き出しの結果（リンクか文。0 か 1 件）の keyed list の field。変わると `host::EngineHost` がこの名前を dirty に積む。
 pub const EXPORT_RESULT_FIELD: PartField = PartField {
@@ -40,6 +42,8 @@ pub const EXPORT_STATUS_TESTID: &str = "export-status";
 
 /// 書き出しのボタンの文字。
 pub const EXPORT_LABEL: &str = "履歴を書き出す";
+/// 削除のボタンの文字（SHELL-38・D-75。TASK-539 1/2。仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
+pub const DELETE_LABEL: &str = "保存した履歴を削除する";
 /// 読み込みの label の文字。
 pub const IMPORT_LABEL: &str = "履歴を読み込む";
 /// 読み込みで選べるファイルの種類（`input` の `accept`）。
@@ -100,6 +104,17 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
         ],
         vec![text(EXPORT_LABEL)],
     );
+    // 削除の要求。押しても確認の通知を出すだけで何も消さない（確定は通知の「削除する」。`EngineHost::delete_confirm`）。
+    // 書き出し・読み込みの近くに置き、上部には置かない（SHELL-38）。`data-payload` は持たない。
+    let delete = el(
+        "button",
+        vec![
+            ("type", "button"),
+            ("data-testid", ShellOp::DeleteHistory.testid()),
+            (ACTION_ATTR, ACTION_DELETE_HISTORY),
+        ],
+        vec![text(DELETE_LABEL)],
+    );
     let result_list = keyed_view_or_notice(
         "div",
         vec![("class", "sh-history-result")],
@@ -129,7 +144,7 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
     el(
         "div",
         vec![("data-testid", HISTORY_OPS_TESTID), ("class", "sh-history")],
-        vec![export, result_list, import],
+        vec![export, result_list, import, delete],
     )
 }
 
@@ -205,6 +220,15 @@ mod tests {
         assert_eq!(s.matches(EXPORT_DOWNLOAD_TESTID).count(), 1, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
         assert!(crate::a11y::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
+    fn 削除のボタンは_payload_を持たず1つだけ() {
+        let s = dump(&history_ops(None));
+        assert_eq!(s.matches("shell-delete").count(), 1, "{s}");
+        assert_eq!(s.matches("\"delete-history\"").count(), 1, "{s}");
+        assert!(s.contains(DELETE_LABEL), "{s}");
+        assert_eq!(s.matches(&format!("data-{}", "payload")).count(), 0, "{s}");
     }
 
     #[test]

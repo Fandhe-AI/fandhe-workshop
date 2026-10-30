@@ -561,3 +561,88 @@ fn 削除の完了待ちに表示だけへ入っても完了で保存の停止�
         "表示だけの間に届いた完了で、保存の停止が解けている"
     );
 }
+
+// ---- 削除の確認の表示（TASK-539 1/2。SHELL-38・D-75） ----
+
+fn view_dump(h: &EngineHost) -> String {
+    format!("{:?}", h.view())
+}
+
+fn confirm_items(h: &EngineHost) -> usize {
+    view_dump(h).matches("shell-delete-confirm").count()
+}
+
+#[test]
+fn 削除の3つの名前は空の_payload_だけ復号する() {
+    use fandhe_workshop_web::shell::{
+        ACTION_CANCEL_DELETE, ACTION_CONFIRM_DELETE, ACTION_DELETE_HISTORY,
+    };
+    for name in [
+        ACTION_DELETE_HISTORY,
+        ACTION_CONFIRM_DELETE,
+        ACTION_CANCEL_DELETE,
+    ] {
+        assert!(EngineHost::decode_action(name, "").is_some(), "{name}");
+        assert!(EngineHost::decode_action(name, "x").is_none(), "{name}");
+    }
+}
+
+#[test]
+fn 要求で確認の通知が出て口は呼ばれず通知欄が_dirty_になる() {
+    use fandhe_frontend_interactive::DirtyTracked;
+    let mut p = probe();
+    step(&mut p.host);
+    assert_eq!(confirm_items(&p.host), 0);
+    send(&mut p.host, "request");
+    assert_eq!(confirm_items(&p.host), 1);
+    assert!(p.host.dirty_fields().contains(&"shell_notices"));
+    let v = view_dump(&p.host);
+    assert_eq!(v.matches("shell-delete-confirm").count(), 1, "{v}");
+    assert_eq!(v.matches("shell-delete-cancel").count(), 1, "{v}");
+    assert!(v.contains(fandhe_workshop_web::shell_notice::DELETE_CONFIRM_NOTICE));
+    assert!(v.contains("この教材の保存済みの履歴"), "対象を示す");
+    assert!(
+        v.contains("書き出し済みのファイルは消えません"),
+        "書き出し済みは消えない"
+    );
+    assert_eq!(p.deleted.get(), 0, "確認の前には消さない");
+    // 同じ要求の繰り返しは通知欄を dirty にしない。
+    send(&mut p.host, "request");
+    assert!(!p.host.dirty_fields().contains(&"shell_notices"));
+}
+
+#[test]
+fn やめるで確認の通知が消え口は呼ばれない() {
+    use fandhe_frontend_interactive::DirtyTracked;
+    let mut p = probe();
+    send(&mut p.host, "request");
+    send(&mut p.host, "cancel");
+    assert_eq!(
+        view_dump(&p.host).matches("shell-delete-confirm").count(),
+        0
+    );
+    assert!(p.host.dirty_fields().contains(&"shell_notices"));
+    assert_eq!(p.deleted.get(), 0);
+}
+
+#[test]
+fn 履歴の差し替えで確認の通知も消える() {
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    let text = p.host.history_to_save().expect("書き出せる履歴がある");
+    p.host.update(HostAction::ImportHistory(text));
+    assert_eq!(
+        view_dump(&p.host).matches("shell-delete-confirm").count(),
+        0
+    );
+}
+
+#[test]
+fn 削除のボタンは書き出しの入れ物の中にあり1個だけある() {
+    let p = probe();
+    let v = view_dump(&p.host);
+    assert_eq!(v.matches("\"shell-delete\"").count(), 1, "{v}");
+    let ops = v.find("history-ops").expect("history-ops");
+    assert!(ops < v.find("\"shell-delete\"").unwrap(), "{v}");
+}
