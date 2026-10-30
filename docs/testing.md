@@ -10922,6 +10922,14 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 手元の変異（配信物の写しの `app.js` に読み込んだ履歴の値を DOM へ書く変更）は流していない（未検証。D2 が判定の側の検出を確かめている）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
 
+### 5.399 開かない履歴の次の行動の導線（TASK-538。SHELL-36・D-57）
+
+- 判断: 押せる導線（読み込み欄の file input を指す label）は、キーボードのフォーカスを受けずマウス専用になる（WCAG 2.1.1）。静的な `tabindex` は a11y 適合検査が禁止しており、フォーカスを移す結線は `ShellOp` か JS の追加を要する。そのため導線は文だけにし、押せる部品を置かない。読み込み欄の file input は Tab で届く。
+- 実装: 開かない通知の次の行動は、TASK-334 の文（`next_action_text`）と属性 `data-notice-next-action` で示す。label・追加の属性・CSS は置かない。
+- 試験（native）: なし（未実施）。通知に label が 0 個であることを確かめる試験は置いていない。閉じるボタンの個数を数える既存の試験も `LoadReason::ALL` を回していない。
+- 未実施: ブラウザ試験（ファイル選択の起動・保存領域の不変・外部通信 0 件）は、押せる部品を置いていないため対象外。押せる結線は、フォーカスを移す操作の契約が決まってから行う。
+- 限界: 割り当て（TASK-334）と文面は案で、ユーザーの決定は未了。
+
 ### 5.400 正規の経路の文字列の保存と復元の試験（TASK-146 2/2。SAFE-4）
 
 元にしたコミット: 本変更（実行日 2026-10-30）。入力欄から送った E4 の 14 件が、製品の自動保存で保存先に書かれ、復元・読み込みの後も画面に文字として出ることを確かめる試験 `tools/browser/history-regular.test.mjs` を足した。判定・画面を読む関数・保存先の値の確認は `tools/browser/e4-history.mjs` の `savedPayloadOps`・`judgeRegularLine`・`observeRegular`（単体試験は `e4-history.test.mjs`）。教材 ID は `safe4-regular` で、5.398 の鍵と分ける。
