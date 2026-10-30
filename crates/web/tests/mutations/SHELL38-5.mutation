@@ -1,0 +1,8 @@
+id: SHELL38-5
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:         let ok = result.is_ok();
+replace:         let ok = false;
+expect-fail: 確定すると最初の_step_から新しく始まり保存しない
+note: 削除の成功を失敗として扱う（最初の Step から始め直さない。SHELL-38・SAVE-32・TASK-539 2/2）
