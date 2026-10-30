@@ -10964,6 +10964,17 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - `e4-history.test.mjs` 7 件・`history-regular.test.mjs` 6 件が、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。CSP あり・なしとも restore 14/14・file 14/14、約 53 秒（ローカル）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない
 
+### 5.401 削除の確認の表示（TASK-539 1/2。SHELL-38・D-75）
+
+元にしたコミット: 本変更（実行日 2026-10-30）。受講者が「保存した履歴を削除する」を押すと、枠の通知欄に削除の確認（`NoticeKind::DeleteConfirm`）が出る。確認の前には何も消さない。「削除する」「やめる」を押した後の画面と保存先の確認は TASK-539 2/2 の持ち分である。
+
+- 実装: `history_ops.rs` に `shell-delete` のボタン（`data-payload` なし。書き出し・読み込みの近くで上部には置かない）、`shell_notice.rs` に確認の項目（文は `DELETE_CONFIRM_NOTICE`。ボタンは「削除する」「やめる」）、`host.rs` に 3 つの action の復号（空の payload のみ。配信する設定でも結ぶ）と `set_delete_pending`（印が変わったときだけ通知欄を dirty にする）。
+- 文面（仮置き）: 「この教材の保存済みの履歴」を対象に示し、「書き出し済みのファイルは消えません」と述べる。書き出しの促しは足さない（D-57）。教材の ID・名前など履歴・IR 由来の値は差し込まない（SAFE-40）。最終の文面は TASK-549・TASK-534 が持つ。
+- 試験（native）: `shell_notice` の単体、`crates/web/tests/history_delete.rs`（復号・確認の通知が 1 件出て口が 0 回・dirty・やめるで消える・差し替えで消える・ボタンの位置）。
+- 変異: SHELL38-3（文から「書き出し済みのファイルは消えません」が落ちる）・SHELL38-4（印の変更が反映されない）が DETECTED。SAVE32-5 も DETECTED のまま。
+- 試験（ブラウザ）: `tools/browser/delete-confirm.test.mjs`（配信する設定。CSP あり・なし。click と Enter。確認が 1 件・文・両ボタン・Tab で到達・押した直後と待った後に保存先の鍵と値のハッシュが不変・360px・再読み込みで確認が復元されない・通信 / 違反 / ダイアログ 0 件）。
+- 限界（判断）: 表示だけで開いた履歴でも `shell-delete` は描かれる（常に 1 個。出し入れによる root の全置換を避けた）。押しても allowlist が捨てるため何も起きない。確認の通知への焦点の自動移動は行わない（Tab で届く）。
+
 ### 5.402 教材 IR を読めないときの画面の試験（TASK-545。SHELL-31）
 
 教材（IR）を読めないとき、教材を表示せず、枠の通知欄の `pack-unloadable` 項目に「教材を読み込めない」旨を出すことを確かめる。旧 `ir-notice`（枠の外の 1 要素）は廃止し、既存の試験の参照を新しい項目へ移した。
