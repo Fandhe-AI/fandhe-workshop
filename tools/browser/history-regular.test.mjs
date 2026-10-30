@@ -291,6 +291,14 @@ test('D1: 対照。復元した後の行に生の HTML を入れると、判定�
       try {
         await openStart(page, srv);
         const sent = await sendOnce(page, SENTINEL, 0);
+        // 自動保存が着地するまで待つ（上限 15 秒）。保存前の再読み込みは新しい開始になる。
+        let saved = { submit: 0, draft: 0 };
+        for (let i = 0; i < 60 && saved.submit < 1; i += 1) {
+          const entries = await historyEntries(page);
+          if (entries.length === 1) saved = savedPayloadOps(entries[0].value, SENTINEL);
+          if (saved.submit < 1) await page.waitForTimeout(250);
+        }
+        assert.ok(saved.submit >= 1, `${id}: stored submit op before reload`);
         await page.reload();
         await waitMounted(page);
         await page.waitForSelector(RECEIVED, { timeout: T });
