@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { e4Payloads } from './xss-cases.mjs';
-import { historyVariant, payloadProbes, leakedPlaces, KINDS, ALLOWED_REASONS } from './e4-history.mjs';
+import {
+  historyVariant, payloadProbes, leakedPlaces, savedPayloadOps, judgeRegularLine, KINDS, ALLOWED_REASONS,
+} from './e4-history.mjs';
 
 const BASE = fs.readFileSync(new URL('../../testdata/contract/history/draft-rejected.json', import.meta.url), 'utf8');
 const cases = e4Payloads();
@@ -60,4 +62,33 @@ test('判定は出ている場所の名前だけを返す', () => {
   assert.deepEqual(leakedPlaces(empty, probes), []);
   assert.deepEqual(leakedPlaces({ ...empty, attrs: ['onerror=__poc7_hit(1)>'] }, probes), ['attrs']);
   assert.deepEqual(leakedPlaces({ ...empty, values: ['\u0000onerror=__poc7_hit(1)>'] }, probes), ['values']);
+});
+
+test('savedPayloadOps: 基準の履歴では 0 件、ops を置き換えた履歴では 1 件以上', () => {
+  const P = cases[0].payload;
+  assert.deepEqual(savedPayloadOps(BASE, P), { submit: 0, draft: 0 });
+  const { text } = historyVariant(BASE, P, 'ops');
+  const r = savedPayloadOps(text, P);
+  assert.ok(r.submit >= 1 && r.draft >= 1);
+  assert.throws(() => savedPayloadOps('{"ops":1}', P));
+});
+
+const goodLine = {
+  kind: 'received', input: 'text', children: ['line-body'], childKinds: [[3]], bodyKinds: [3], text: 'abc', forbidden: 0,
+};
+const goodNext = { kind: 'rejected', input: null, children: ['line-body'], childKinds: [[3]], bodyKinds: [3], text: 'x', forbidden: 0 };
+const goodObs = () => ({ line: { ...goodLine }, next: { ...goodNext }, choices: 0, secret: 0 });
+
+test('judgeRegularLine: 合格の観察は空、崩れた観察は対応する理由を返す', () => {
+  assert.deepEqual(judgeRegularLine(goodObs(), 'abc'), []);
+  assert.deepEqual(judgeRegularLine({ ...goodObs(), line: null }, 'abc'), ['no-received-line']);
+  assert.ok(judgeRegularLine(goodObs(), 'abd').includes('text-mismatch'));
+  const el = goodObs();
+  el.line.bodyKinds = [1];
+  assert.ok(judgeRegularLine(el, 'abc').includes('body-not-single-text-node'));
+  const fb = goodObs();
+  fb.line.forbidden = 1;
+  assert.ok(judgeRegularLine(fb, 'abc').includes('forbidden-elements'));
+  assert.ok(judgeRegularLine({ ...goodObs(), next: null }, 'abc').some((s) => s.startsWith('next-missing')));
+  assert.ok(judgeRegularLine({ ...goodObs(), choices: 1 }, 'abc').includes('accepted'));
 });
