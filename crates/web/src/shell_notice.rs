@@ -22,6 +22,7 @@
 //! 関わらず知らせる。黙って変換するより知らせる側に倒す。版の違いの中身は履歴由来の文字列を含むので、画面には出さない（SAFE-40）。
 
 use fandhe_frontend_core::{el, text, Node};
+use fandhe_workshop_contract::limits::{rejection_message, LimitReason, LoadEntry};
 use fandhe_workshop_contract::load_next_action::{next_action, LoadNextAction};
 use fandhe_workshop_contract::load_reason::LoadReason;
 use fandhe_workshop_contract::storage::StorageError;
@@ -68,11 +69,44 @@ pub fn next_action_text(a: LoadNextAction) -> &'static str {
     }
 }
 
-/// 「開かない履歴」の通知の文を作る。理由のコードの後ろに、理由に対応する次の行動の文を付ける。
+/// 内容の壊れた履歴 4 種の理由の文（SHELL-16。TASK-532 1/2。仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
+/// 受講者が 4 種の違いを読めるよう、理由のコード（ASCII）とは別に固定の文を返す。
+/// 残りの 3 種（`missing_version`・`other_pack`・`malformed`。TASK-532 2/2）と版の判定の段（TASK-538・TASK-549）は `None` のまま残す。
+/// 網羅の match にして `_` を使わないのは、理由が増えたときにコンパイラが漏れを知らせるためである。
+/// 文は固定の文言だけで、履歴由来の値を含めない（SAFE-40）。
+pub fn reason_text(code: LoadReason) -> Option<&'static str> {
+    match code {
+        LoadReason::ReplayMismatch => {
+            Some("履歴の入力の列が書き換えられているため、記録された状態と一致しません。")
+        }
+        LoadReason::Truncated => Some("履歴のファイルが途中で切れています。"),
+        LoadReason::NotJson => Some("履歴のファイルが JSON として読めません。"),
+        // 大きさの文は contract が持つ（二重定義をしない）。
+        LoadReason::TooLarge => rejection_message(LoadEntry::History, LimitReason::TooLarge),
+        LoadReason::TooDeep
+        | LoadReason::TooManyOps
+        | LoadReason::MissingVersion
+        | LoadReason::Malformed
+        | LoadReason::HistoryFormatNewer
+        | LoadReason::OtherPack
+        | LoadReason::BadVersion
+        | LoadReason::FormatNewer
+        | LoadReason::VocabNewer
+        | LoadReason::EngineNewer
+        | LoadReason::FormatOlder
+        | LoadReason::EngineMajor
+        | LoadReason::ContentMajor
+        | LoadReason::StartMissing
+        | LoadReason::ReplayDiverged => None,
+    }
+}
+
+/// 「開かない履歴」の通知の文を作る。理由のコードの後ろに、理由の文（あれば）と、理由に対応する次の行動の文を付ける。
 pub fn import_refused_message(code: LoadReason) -> String {
     format!(
-        "{IMPORT_REFUSED_HEAD}{}{IMPORT_REFUSED_TAIL}{}",
+        "{IMPORT_REFUSED_HEAD}{}{IMPORT_REFUSED_TAIL}{}{}",
         code.as_str(),
+        reason_text(code).unwrap_or(""),
         next_action_text(next_action(code))
     )
 }
@@ -326,6 +360,62 @@ mod tests {
                 "{}",
                 code.as_str()
             );
+        }
+    }
+
+    const FOUR: [LoadReason; 4] = [
+        LoadReason::ReplayMismatch,
+        LoadReason::Truncated,
+        LoadReason::NotJson,
+        LoadReason::TooLarge,
+    ];
+
+    #[test]
+    fn four_broken_reasons_have_distinct_fixed_texts() {
+        let t: Vec<&str> = FOUR.iter().map(|c| reason_text(*c).unwrap()).collect();
+        for (i, x) in t.iter().enumerate() {
+            assert!(!x.trim().is_empty());
+            assert!(!x.contains(['{', '"', '<']), "{x}");
+            for y in &t[i + 1..] {
+                assert_ne!(x, y);
+            }
+        }
+        assert_eq!(
+            reason_text(LoadReason::TooLarge),
+            rejection_message(LoadEntry::History, LimitReason::TooLarge)
+        );
+    }
+
+    #[test]
+    fn four_broken_messages_put_reason_between_code_and_next_action() {
+        for code in FOUR {
+            let m = import_refused_message(code);
+            let reason = reason_text(code).unwrap();
+            let next = next_action_text(next_action(code));
+            let close = m.find(IMPORT_REFUSED_TAIL).unwrap();
+            let at = m.find(reason).unwrap();
+            assert!(at > close, "{}", code.as_str());
+            assert!(m.ends_with(next), "{}", code.as_str());
+            assert!(
+                m.rfind(next).unwrap() >= at + reason.len(),
+                "{}",
+                code.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn reasons_without_text_keep_the_code_and_next_action_form() {
+        for code in LoadReason::ALL {
+            if reason_text(code).is_some() {
+                continue;
+            }
+            let want = format!(
+                "{IMPORT_REFUSED_HEAD}{}{IMPORT_REFUSED_TAIL}{}",
+                code.as_str(),
+                next_action_text(next_action(code))
+            );
+            assert_eq!(import_refused_message(code), want, "{}", code.as_str());
         }
     }
 

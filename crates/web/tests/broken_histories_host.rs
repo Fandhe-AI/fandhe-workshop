@@ -18,6 +18,7 @@ use fandhe_workshop_web::a11y;
 use fandhe_workshop_web::engine_parts::standard_registry;
 use fandhe_workshop_web::host::{EngineHost, HostAction, ImportOutcome};
 use fandhe_workshop_web::shell;
+use fandhe_workshop_web::shell_notice::{import_refused_message, reason_text};
 
 fn testdata() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
@@ -219,6 +220,15 @@ fn 壊れた履歴_7_種はどれも開かず_通知が出て_状態も保存も
             "{id}"
         );
         assert!(!text_of(item[0]).trim().is_empty(), "{id}");
+        if let Some(reason) = reason_text(got) {
+            let body = all(&view, shell::NOTICE_TEXT_TESTID);
+            assert_eq!(body.len(), 1, "{id}");
+            assert_eq!(text_of(body[0]), import_refused_message(got), "{id}");
+            assert!(text_of(body[0]).contains(reason), "{id}");
+        } else {
+            // 残りの 3 種は TASK-532 2/2 が埋める。
+            assert!(["B-5", "B-6", "B-7"].contains(&id.as_str()), "{id}");
+        }
         assert!(shell::check_complete_v2(&view).is_ok(), "{id}");
         assert!(a11y::check_no_undefined(&view).is_ok(), "{id}");
     }
@@ -238,6 +248,46 @@ fn 対照の基準の履歴は開く() {
     let mut h = host("1.0.0");
     assert_eq!(h.open_history(&history("1.0.0")), ImportOutcome::Open);
     assert_eq!(items_of_refused(&h), 0);
+}
+
+#[test]
+fn 先の_4_種は理由の文が出て_互いに違い_履歴の値を含まない() {
+    let mut seen: Vec<String> = Vec::new();
+    for id in ["B-1", "B-2", "B-3", "B-4"] {
+        let mut h = host("1.0.0");
+        let ImportOutcome::Refused(code) = h.open_history(&make(id)) else {
+            panic!("{id}: not refused");
+        };
+        assert!(reason_text(code).is_some(), "{id}");
+        let view = h.view();
+        let body = all(&view, shell::NOTICE_TEXT_TESTID);
+        let t = text_of(body[0]);
+        assert!(!t.contains("min-3step") && !t.contains("\"ops\""), "{id}");
+        assert!(!seen.contains(&t), "{id}");
+        seen.push(t);
+    }
+}
+
+#[test]
+fn バイト列の経路でも_途切れと_上限超過は状態と保存を変えない() {
+    // 切り詰めた変種と、app.js と同じく上限 + 1 バイトに切り詰めた変種。
+    let mut cut = history("1.0.0");
+    let at = cut.len() * 55 / 100;
+    cut.truncate(at);
+    let mut over = make("B-4");
+    over.truncate(LIMIT + 1);
+    for (name, bytes, want) in [("truncated", cut, "truncated"), ("over", over, "too_large")] {
+        let mut h = host("1.0.0");
+        operate(&mut h);
+        let before = snapshot(&h);
+        let saved = h.history_to_save();
+        let ImportOutcome::Refused(got) = h.open_history(&bytes) else {
+            panic!("{name}: not refused");
+        };
+        assert_eq!(got.as_str(), want, "{name}");
+        assert_eq!(snapshot(&h), before, "{name}");
+        assert_eq!(h.history_to_save(), saved, "{name}");
+    }
 }
 
 fn items_of_refused(h: &EngineHost) -> usize {
