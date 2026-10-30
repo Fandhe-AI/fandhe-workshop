@@ -6,7 +6,7 @@
 //! 履歴ファイルの読み込みと起動時の復元の判定結果から、保存の失敗の種類を `HostModel::save_failure` から受け取る。判定そのものは core（`history_open`）が持ち、本モジュールは条件を複製しない。
 //! 従う契約は `shell`（版 2。通知の種類・文面の識別子・操作の表・属性）と `a11y`（通知欄は 0 か 1 個で role は status）である。
 //!
-//! 開かない通知の項目には、理由から導いた次の行動の属性（`data-notice-next-action`。SHELL-36）が付く。押せる操作にするのは TASK-538 である。
+//! 開かない通知の項目には、理由から導いた次の行動の属性（`data-notice-next-action`。SHELL-36）が付く。押せる操作は、通知の中の label（[`next_action_control`]。TASK-538）で結線する。
 //!
 //! 通知欄の親は常に 1 個描き、通知が無いときは項目 0 件の空の keyed list にする。
 //! 親の属性を切り替えず項目の出し入れだけで表すので、root は全置換にならない（FEND-3）。
@@ -48,7 +48,7 @@ pub const VERSION_CONVERTED_NOTICE: &str =
 
 /// 「開かない履歴」の通知の文の前半と後半（仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
 /// 末尾に、理由ごとの次の行動の文（[`next_action_text`]）を付ける。割り当ては contract の `load_next_action`（TASK-334。案）、
-/// 押せる操作にするのは TASK-538 である。
+/// 押せる操作は [`next_action_control`] が持つ（TASK-538）。
 /// 履歴由来の文字列は入れず、閉じた列挙の理由のコード（ASCII）だけを挟む（SAFE-40）。
 const IMPORT_REFUSED_HEAD: &str =
     "この履歴は開けません。保存された履歴と画面の状態は変えていません。（";
@@ -69,6 +69,37 @@ pub fn next_action_text(a: LoadNextAction) -> &'static str {
             "この履歴を書き出したときの版の教材で開いてください。"
         }
         LoadNextAction::StartFresh => "この履歴は使わずに、新しく始めてください。",
+    }
+}
+
+/// 次の行動の label の testid・属性名・文字（TASK-538。仮置き。割り当ては案）。
+/// label の testid。
+pub const NEXT_ACTION_TESTID: &str = "notice-next-action";
+/// label が持つ次の行動の属性名。
+pub const NEXT_ACTION_ATTR: &str = "data-next-action";
+/// label の文字（仮置き）。
+pub const CHOOSE_ANOTHER_FILE_LABEL: &str = "別の履歴ファイルを選ぶ";
+
+/// 次の行動を押せる部品にする（SHELL-36。TASK-538）。呼び出し元は `import_refused_item` だけ。
+///
+/// 押せるのは、アプリの中に操作先がある `ChooseAnotherFile` だけで、読み込み欄の `input[type=file]`
+/// （`history_ops::IMPORT_FILE_ID`）を指す label にする。label の活性化はブラウザ標準でファイル選択を開くだけで、
+/// 状態を変えず、JS の click・`data-payload` も増やさない（選んだファイルは既存の読み込みの経路に乗る）。
+/// `OpenWithSourceVersion` は別の版の教材というアプリの外の行動で、操作先が無いので文だけにする（存在しない操作を装わない）。
+/// `StartFresh` はどの理由にも割り当てておらず結線しない。網羅の match にして `_` を使わないのは、増えたときに漏れを知らせるためである。
+pub fn next_action_control(a: LoadNextAction) -> Option<Node> {
+    match a {
+        LoadNextAction::ChooseAnotherFile => Some(el(
+            "label",
+            vec![
+                ("for", crate::history_ops::IMPORT_FILE_ID),
+                ("data-testid", NEXT_ACTION_TESTID),
+                (NEXT_ACTION_ATTR, a.as_str()),
+                ("class", "sh-notice-next"),
+            ],
+            vec![text(CHOOSE_ANOTHER_FILE_LABEL)],
+        )),
+        LoadNextAction::OpenWithSourceVersion | LoadNextAction::StartFresh => None,
     }
 }
 
@@ -284,11 +315,20 @@ fn import_refused_item(refused: RefusedNotice) -> Option<(String, Node)> {
         ops,
     )
     .ok()?;
-    Some(item_of(&notice, &import_refused_message(refused.code)))
+    Some(item_of_with(
+        &notice,
+        &import_refused_message(refused.code),
+        next_action_control(next_action(refused.code)),
+    ))
 }
 
 /// 通知 1 件の DOM。文は固定の文言（と閉じた列挙のコード）だけで、`text()` で描く。
 fn item_of(notice: &Notice, message: &str) -> (String, Node) {
+    item_of_with(notice, message, None)
+}
+
+/// `item_of` に、文と操作ボタンの間に置く部品（次の行動）を足せる形。
+fn item_of_with(notice: &Notice, message: &str, extra: Option<Node>) -> (String, Node) {
     let owned = notice.attrs();
     let attrs: Vec<(&str, &str)> = owned.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let mut children = vec![el(
@@ -296,6 +336,7 @@ fn item_of(notice: &Notice, message: &str) -> (String, Node) {
         vec![("data-testid", NOTICE_TEXT_TESTID)],
         vec![text(message)],
     )];
+    children.extend(extra);
     for (op, action) in notice.ops().iter().zip(notice.actions()) {
         let (name, payload) = action.encode();
         children.push(el(
@@ -568,6 +609,44 @@ mod tests {
         assert!(!t.contains("別のファイル"), "{t}");
         let c = rejection_message(LoadEntry::History, LimitReason::TooLarge).unwrap();
         assert!(c.contains("10MB") && t.contains("10MB"));
+    }
+
+    #[test]
+    fn next_action_label_only_for_choose_another_file() {
+        for code in LoadReason::ALL {
+            let n = notice_area(
+                false,
+                Some(RefusedNotice {
+                    code,
+                    dismissable: true,
+                }),
+                None,
+                None,
+                false,
+            );
+            let s = format!("{n:?}");
+            let want = usize::from(next_action(code) == LoadNextAction::ChooseAnotherFile);
+            assert_eq!(
+                s.matches(&format!("\"{NEXT_ACTION_TESTID}\"")).count(),
+                want,
+                "{}",
+                code.as_str()
+            );
+            assert_eq!(s.matches("shell-dismiss").count(), 1, "{}", code.as_str());
+            if want == 1 {
+                assert!(s.contains(crate::history_ops::IMPORT_FILE_ID), "{s}");
+                assert!(s.contains(CHOOSE_ANOTHER_FILE_LABEL), "{s}");
+            }
+            assert!(crate::shell::check_no_undefined(&n).is_ok(), "{s}");
+            assert!(crate::a11y::check_no_undefined(&n).is_ok(), "{s}");
+        }
+    }
+
+    #[test]
+    fn next_action_control_is_none_without_an_in_app_target() {
+        assert!(next_action_control(LoadNextAction::StartFresh).is_none());
+        assert!(next_action_control(LoadNextAction::OpenWithSourceVersion).is_none());
+        assert!(!CHOOSE_ANOTHER_FILE_LABEL.contains(['{', '"', '<']));
     }
 
     #[test]

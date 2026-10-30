@@ -10879,3 +10879,10 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入: 本番を変えていないため新しい変異は足さない。SAVE21-3・SAVE21-4 は native の試験が検出する（5.390）。配信のビルドに変異を当てて本試験が落ちることは未確認。
 - 範囲外: 受講者が任意に行う履歴の削除（SHELL-38・TASK-539）。B-1・B-4 の押下（試験の設定の `boot-corrupt-history` が持つ）。
 - 限界: Chromium のみ。保存先は localStorage の範囲（IndexedDB に入った場合は失敗にする）。IndexedDB の削除が確定を待たないことは既知（`docs/known-gaps.md`）。押す前の操作は捨てられる。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.399 開かない履歴の次の行動の導線（TASK-538。SHELL-36・D-57）
+
+- 実装: 開かない通知（`import-refused`）の次の行動が `choose_another_file` の理由だけ、文と閉じるボタンの間に label（`notice-next-action`、`for` は読み込み欄の `input[type=file]` の id `history-import-file`）を置く。label の活性化はブラウザ標準でファイル選択を開くだけで、状態を変えず、JS の click・`data-payload`・契約の操作（`ShellOp`）を増やさない。
+- 試験（native）: `shell_notice` の単体で、`LoadReason::ALL` の全件について label が `choose_another_file` の理由に 1 個・他に 0 個、閉じるボタンが 1 個、契約の未定義 testid 検査を通ることを確かめる。`cargo test --locked -p fandhe-workshop-web`（`--features test-hooks` を含む）が合格（2026-10-30）。
+- 未実施: 種類ごとの自動ブラウザ試験（ファイル選択の起動・保存領域と画面の不変・外部通信 0 件）は未実施。後続で `tools/browser/` に足す。
+- 限界: `open_with_source_version` は操作先がアプリの外にあり文のみ。割り当て（TASK-334）と文面は案で、ユーザーの決定は未了。label はキーボードのフォーカスを受けない。

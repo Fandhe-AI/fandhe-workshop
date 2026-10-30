@@ -262,3 +262,13 @@
 /* 文書ビューの練習データの本文（ART-18）。クラスだけで装飾し、style 属性は使わない。 */
 .artifact-doc-body { margin: 0.25rem 0 0.25rem 1rem; overflow-wrap: anywhere; }
 .artifact-doc-body table { display: block; max-width: 100%; overflow-x: auto; }
+
+/* 開かない通知の「別の履歴ファイルを選ぶ」label（TASK-538）。押せることが分かる最小の見た目。 */
+.sh-notice-next {
+  display: inline-block;
+  min-width: 24px;
+  min-height: 24px;
+  margin-right: 0.5rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
