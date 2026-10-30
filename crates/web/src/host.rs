@@ -742,8 +742,10 @@ pub struct EngineHost {
     delete_pending: bool,
     /// 削除を頼んで完了を待っている印。連打で削除を重ねない。完了（`DeleteResult`）でだけ解く。
     delete_inflight: bool,
-    /// 削除の要求の世代。履歴の差し替えで進め、古い完了を捨てる。
+    /// 削除の要求の世代。履歴の差し替えで進め、差し替え前に頼んだ削除の完了で画面を作り直さないために使う。
     delete_gen: u64,
+    /// 実際に口へ頼んだ削除の世代。完了の突き合わせに使う。差し替えで進めないので、実処理の完了まで保存の停止を保てる（SAVE-32）。
+    delete_issued_gen: u64,
     /// 直近の削除の結果（試験の設定の観察用。鍵・値は持たない）。
     #[cfg(feature = "test-hooks")]
     last_delete: Option<Result<usize, StorageError>>,
@@ -869,6 +871,7 @@ impl EngineHost {
             delete_pending: false,
             delete_inflight: false,
             delete_gen: 0,
+            delete_issued_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
             saved_refresh: None,
@@ -1011,6 +1014,7 @@ impl EngineHost {
             delete_pending: false,
             delete_inflight: false,
             delete_gen: 0,
+            delete_issued_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
             saved_refresh: None,
@@ -1592,9 +1596,11 @@ impl EngineHost {
 
     /// 削除の完了待ちを取り下げる。履歴の差し替えの後に届く古い完了で、新しい状態を始め直さないため。
     /// 確認待ちの印も外す。差し替えた新しい履歴は、改めて削除の要求を経ないと消せない（SHELL-38）。
+    ///
+    /// 頼んだ削除の実処理は取り消せないので、`delete_inflight` は解かない。完了が届くまで保存を止め、
+    /// 差し替えた新しい履歴が、続行する古い delete に消されない順序にする（SAVE-32）。
     fn invalidate_delete(&mut self) {
         self.delete_pending = false;
-        self.delete_inflight = false;
         self.delete_gen = self.delete_gen.wrapping_add(1);
     }
 
@@ -1701,6 +1707,7 @@ impl EngineHost {
                 if let Some(c) = self.save_cancel.as_ref() {
                     c();
                 }
+                self.delete_issued_gen = self.delete_gen;
                 f(self.delete_gen);
             }
             None => self.finish_delete(Err(StorageError::Unavailable)),
@@ -1709,10 +1716,14 @@ impl EngineHost {
 
     /// 削除の完了を受ける。頼んでいない完了・世代の違う完了は捨てる。
     fn delete_result(&mut self, generation: u64, result: Result<usize, StorageError>) {
-        if !self.delete_inflight || generation != self.delete_gen {
+        if !self.delete_inflight || generation != self.delete_issued_gen {
             return;
         }
         self.delete_inflight = false;
+        // 頼んだ後に履歴を差し替えていたら、新しい状態を始め直さない。保存の停止だけを解く。
+        if generation != self.delete_gen {
+            return;
+        }
         self.finish_delete(result);
     }
 

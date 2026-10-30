@@ -1,0 +1,8 @@
+id: SAVE32-8
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:     fn invalidate_delete(&mut self) {
+replace:     fn invalidate_delete(&mut self) { self.delete_inflight = false;
+expect-fail: 削除の完了待ちに履歴を差し替えても実処理の完了まで保存を止める
+note: 履歴の差し替えが削除の保存停止を解く（続行する古い delete が新しく保存した履歴を消す。SAVE-32）

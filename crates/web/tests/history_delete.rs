@@ -438,3 +438,27 @@ fn 履歴を差し替えると削除の確認待ちも取り消される() {
     send(&mut p.host, "confirm");
     assert_eq!(p.deleted.get(), 0, "差し替えの後は改めて要求が要る");
 }
+
+#[test]
+fn 削除の完了待ちに履歴を差し替えても実処理の完了まで保存を止める() {
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    let text = p.host.history_to_save().expect("書き出せる履歴がある");
+    send(&mut p.host, "confirm");
+    p.host.update(HostAction::ImportHistory(text));
+    let moved = current(&p.host);
+    p.host.update(act("draft", "/make-note note-2"));
+    p.host.update(act("submit", ""));
+    assert!(
+        p.host.history_to_save().is_none(),
+        "差し替えの後も、実処理の完了までは保存しない（古い delete が新しい保存を消すため）"
+    );
+    complete(&mut p, Ok(1));
+    assert_eq!(
+        current(&p.host),
+        moved,
+        "差し替え後の状態を完了で巻き戻さない"
+    );
+    assert!(p.host.history_to_save().is_some(), "完了の後は保存へ戻る");
+}
