@@ -9,7 +9,7 @@
 //
 // 節の担当（育てる先。別ファイルを増やさず、この 1 ファイルの該当の節を育てる）。観察できない部分は「未実装」と記録する。
 //   data   : 試験データの SHA-256 の照合（不一致は前提の崩れとして失敗）
-//   xss    : E1 は pack-body-xss.test.mjs（TASK-144）が pass／fail で確かめる。E2・E3 は TASK-145、E4 は TASK-146、E5 は input-field-xss.test.mjs（TASK-147 1/2）、E6 は url-xss.test.mjs（TASK-147 2/2）が確かめ、本試験は配信設定の入力欄から送って記録する
+//   xss    : E1 は pack-body-xss.test.mjs（TASK-144）が pass／fail で確かめる。E2・E3 は TASK-145、E4 の置き換えた履歴は history-xss.test.mjs（TASK-146 1/2）、E4 の正規の経路は TASK-146 2/2、E5 は input-field-xss.test.mjs（TASK-147 1/2）、E6 は url-xss.test.mjs（TASK-147 2/2）が確かめ、本試験は配信設定の入力欄から送って記録する
 //   oversize: 10 倍の水準は TASK-154（#855）・TASK-155
 //   nest   : 深い入れ子・巨大な配列
 //   cycle  : 巡回する IR の画面での起動口は無い（D-68 で `?ir=` の入り口は無くなった。実行時の教材の取得が入った後の課題）。遷移の上限は TASK-160（#444）
@@ -116,7 +116,7 @@ test('xss: 入り口別の件数と、E5 を入力欄から送ったときの安
   }
   assert.ok(all.length > 0, 'no cases were read');
   log(t, 'xss', `cases=${all.length} byEntry=${JSON.stringify(byEntry)}`);
-  log(t, 'xss', 'E1: pack-body-xss.test.mjs（TASK-144）、E2: structure-xss.test.mjs（TASK-145 1/2）、E3: practice-data-xss.test.mjs（TASK-145 2/2）が確かめる。E6: url-xss.test.mjs（TASK-147 2/2）が確かめる。E4: 件数のみ。画面の経路の観察は TASK-146 で育てる（未実装）');
+  log(t, 'xss', 'E1: pack-body-xss.test.mjs（TASK-144）、E2: structure-xss.test.mjs（TASK-145 1/2）、E3: practice-data-xss.test.mjs（TASK-145 2/2）が確かめる。E6: url-xss.test.mjs（TASK-147 2/2）が確かめる。E4: history-xss.test.mjs（TASK-146 1/2）が置き換えた履歴の断りを確かめる。正規の経路（入力→保存→復元）は TASK-146 2/2（未実装）');
 
   const payloads = e5Payloads();
   let sent = 0;
