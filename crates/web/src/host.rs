@@ -1722,6 +1722,7 @@ impl EngineHost {
         self.delete_inflight = false;
         // 頼んだ後に履歴を差し替えていたら、新しい状態を始め直さない。保存の停止だけを解く。
         if generation != self.delete_gen {
+            self.save_after_change();
             return;
         }
         self.finish_delete(result);
@@ -1738,6 +1739,9 @@ impl EngineHost {
         if ok {
             self.restart_from(None);
             self.save_blocked = false;
+        } else {
+            // 失敗は画面の状態を変えない。止めていた間の変更を、秘密情報の検査を通る既存の保存で書き戻す（SAVE-7）。
+            self.save_after_change();
         }
     }
 
@@ -2722,6 +2726,8 @@ impl Component for EngineHost {
                 // 書き出しは読み込んだバイト列そのものを返す（状態を変えない）。読み込みは表示だけから出る経路（TASK-531 1/2）。
                 | HostAction::ExportHistory
                 | HostAction::ImportHistory(_)
+                // 削除の完了通知は、保存の停止（`delete_inflight`）を解くために通す。要求・確定は捨てたまま。世代の照合で表示の巻き戻しは防ぐ。
+                | HostAction::DeleteResult(_, _)
                 | HostAction::Input(HelloAction::SetOs(_)) => true,
                 #[cfg(feature = "test-hooks")]
                 HostAction::Input(HelloAction::KeydownProbe)

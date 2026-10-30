@@ -429,6 +429,28 @@ fn 削除の完了待ちの間は保存せず失敗すると保存へ戻る() {
 }
 
 #[test]
+fn 削除の失敗と世代不一致の完了で自動保存を再び走らせる() {
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    send(&mut p.host, "confirm");
+    let before = p.saved.get();
+    complete(&mut p, Err(StorageError::Failed));
+    assert!(p.saved.get() > before, "失敗で止めていた分を保存し直す");
+
+    send(&mut p.host, "request");
+    let text = p.host.history_to_save().expect("書き出せる履歴がある");
+    send(&mut p.host, "confirm");
+    p.host.update(HostAction::ImportHistory(text));
+    let before = p.saved.get();
+    complete(&mut p, Ok(1));
+    assert!(
+        p.saved.get() > before,
+        "差し替え後の完了でも現在の履歴を保存し直す"
+    );
+}
+
+#[test]
 fn 履歴を差し替えると削除の確認待ちも取り消される() {
     let mut p = probe();
     step(&mut p.host);
