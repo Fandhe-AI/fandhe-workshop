@@ -201,7 +201,7 @@ async function runOnce(srv, base, text, way, label, { payload, expectOpen = fals
       const probes = payloadProbes(payload);
       const obs = await page.evaluate(observeLeak);
       assert.deepEqual(leakedPlaces(obs, probes), [], `${label}: payload fragment appeared`);
-      const consoleText = { html: '', text: '', textContent: '', attrs: [...rec.consoleErrors, ...rec.consoleWarnings], values: [] };
+      const consoleText = { html: '', text: '', textContent: '', attrs: rec.consoleAll, values: [] };
       assert.deepEqual(leakedPlaces(consoleText, probes), [], `${label}: payload fragment in console`);
     }
     assert.ok(!n.text.includes(DRAFT_SENTINEL), `${label}: baseline draft appeared in the notice`);
