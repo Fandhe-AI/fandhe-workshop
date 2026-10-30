@@ -10836,3 +10836,13 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 実行結果（2026-10-30。base は `f0b9477a`）: native の `hint_ops_host` 8 件合格。`hint-open.test.mjs` の G・H 4 件と `egress-count.test.mjs` の 9 件（G4 を含む）が Chromium で合格。
 - 範囲外: ヒントの文面へのマークアップ注入のブラウザ試験（場面 H は `<b>` の形が要素にならないことだけ見る）、案内レベルの切り替えの部品（TASK-294）、「自力」の数え方、`SHELL14-5`（案内レベルの絞り込みを外す変異。代わりに 4 つ目の文面が出ないことを native と場面 H の表明で固定した）。
 - 限界: 案内レベルを切り替える部品が無く、水準を下げて n が開いた段数を下回る場合は core の試験だけが持つ。本物の教材・L2・Chrome の原本では未実施。`make test-browser` の全体は未実施で、`scripts/expected-test-counts.txt` は更新していない（版上げ PR の関門だけが照合する）。書き出しのダウンロードは `nonHttp` に数えられるため、場面 G は安全性の計数を取らない。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.394 内容の壊れた履歴 4 種の理由を表示する（TASK-532 1/2。SHELL-16）
+
+- 目的: `replay_mismatch`・`truncated`・`not_json`・`too_large` の 4 種を読み込んだとき、通知欄に ASCII のコードだけでなく受講者が読める固定の理由の文を出し、開かず保存領域と画面の状態を変えないことを、本物の読み込み欄（`shell-import` の `input[type=file]`）の経路で固定する。
+- 本番の変更: `crates/web/src/shell_notice.rs` の `reason_text`（網羅の match。`_` は使わない）と、`import_refused_message` への差し込みだけ。文は「（コード）」の後・次の行動の前に入る。判定・通知の種類・属性・契約の版は変えない。`too_large` は contract の `rejection_message(History, TooLarge)` をそのまま使う。
+- 文（仮置き。最終の文面は TASK-549・TASK-534）: `replay_mismatch` は「履歴の入力の列が書き換えられているため、記録された状態と一致しません。」、`truncated` は「履歴のファイルが途中で切れています。」、`not_json` は「履歴のファイルが JSON として読めません。」。他の理由は `None`（`missing_version`・`other_pack`・`malformed` は TASK-532 2/2）。
+- 試験: `shell_notice` の単体 3 件（4 種の文が空でなく互いに異なる・位置・`None` の理由は従来の形）。`crates/web/tests/broken_histories_host.rs` に 2 件と既存の拡張（通知の本文が `import_refused_message` と一致、上限 +1 バイトの経路、履歴の値が文に出ない）。ブラウザ `tools/browser/broken-histories.test.mjs` に本物の読み込み欄の経路（B-0〜B-4 × CSP あり・なし）と、理由の断片・履歴の値が出ないことの検査を足した（29 件合格、2026-10-30）。
+- 変異注入: SHELL16-2（`truncated` の文を `None` にする）が DETECTED（2026-10-30）。
+- 範囲外: 残り 3 種（TASK-532 2/2）、文面の確定（TASK-549・TASK-534）、次の行動を押せる操作にすること（TASK-538）、起動時の SHELL-17（TASK-533）。
+- 限界: 本物の読み込み欄の試験は試験の設定（状態の観察に試験用の口を使う）だけで、配信する設定（DOM だけの観察）では未実施。`too_large` の文は末尾の「別のファイルを選んでください。」と次の行動の文が重複する（文面の確定で直す）。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。

@@ -29,6 +29,15 @@ const PACK = 'min-3step';
 const START = 's-1';
 const TABLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'testdata', 'broken-histories', 'expectations.json');
 
+const REAL_INPUT = '[data-testid="shell-import"] input[type="file"]';
+// 理由ごとの固定の文の断片（仮置き。TASK-532 1/2）。受講者が 4 種の違いを読めることの確認に使う。
+const FRAGMENT = {
+  'B-1': '書き換えられている',
+  'B-2': '途中で切れて',
+  'B-3': 'JSON として読めません',
+  'B-4': '10MB の上限',
+};
+
 const IDS = ['B-0', 'B-1', 'B-2', 'B-3', 'B-4', 'B-4b', 'B-5', 'B-6', 'B-7'];
 const REFUSED = {
   'B-1': 'replay_mismatch',
@@ -100,8 +109,9 @@ test('表の ID・理由コードが定数と一致する', () => {
 for (const csp of [true, false]) {
   const label = csp ? 'あり' : 'なし';
 
-  for (const id of IDS) {
-    test(`壊れた履歴 ${id} の読み込み（CSP ${label}）`, async () => {
+  for (const real of [false, true]) for (const id of IDS) {
+    if (real && !FRAGMENT[id] && id !== 'B-0') continue;
+    test(`壊れた履歴 ${id} の読み込み（${real ? '本物の読み込み欄' : '試験の口'}・CSP ${label}）`, async () => {
       await withCspMode({ dir: process.env.FANDHE_WEB_TEST_DIR, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
         const row = table.rows.find((r) => r.id === id);
         const opened = await openPage(browser, { origin: srv.origin });
@@ -131,10 +141,10 @@ for (const csp of [true, false]) {
         const fpBefore = fingerprint(await engine(page));
         const installBefore = (await engine(page)).installCount;
 
-        await call(page, 'importInstall');
+        if (!real) await call(page, 'importInstall');
         // 読み込みの口（importInstall）が足す部品を含めた後の画面を、読み込みの前の基準にする。
         const screenBefore = await screenOutsideNotice(page);
-        await page.setInputFiles(FILE_INPUT, path.join(historiesDir, `${id}.history.json`));
+        await page.setInputFiles(real ? REAL_INPUT : FILE_INPUT, path.join(historiesDir, `${id}.history.json`));
         await page.waitForFunction(() => {
           const e = JSON.parse(window.__fandheTest.stateJson()).engine;
           return e && e.lastImport != null;
@@ -155,6 +165,11 @@ for (const csp of [true, false]) {
           assert.equal(await page.locator(ITEM).count(), 1, `${id}: one refused notice`);
           assert.equal(await page.locator(ITEM).getAttribute('data-notice-reason'), e.lastImport.reason, `${id}: notice reason`);
           assert.equal((await page.locator(ITEM).textContent()).trim().length > 0, true, `${id}: notice text is not empty`);
+          if (FRAGMENT[id]) {
+            const body = (await page.locator(ITEM).textContent());
+            assert.equal(body.includes(FRAGMENT[id]), true, `${id}: notice carries the reason text`);
+            assert.equal(/min-3step|"ops"|\{/.test(body), false, `${id}: notice carries no history value`);
+          }
           assert.equal((await call(page, 'storageRead', PACK, START)) === storedBefore, true, `${id}: stored value untouched`);
           assert.equal((await screenOutsideNotice(page)) === screenBefore, true, `${id}: screen outside the notice unchanged`);
         }

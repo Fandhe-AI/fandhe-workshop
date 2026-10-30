@@ -1,0 +1,8 @@
+id: SHELL16-2
+package: fandhe-workshop-web
+test: broken_histories_host
+target: crates/web/src/shell_notice.rs
+find:         LoadReason::Truncated => Some("履歴のファイルが途中で切れています。"),
+replace:         LoadReason::Truncated => None,
+expect-fail: 先の_4_種は理由の文が出て_互いに違い_履歴の値を含まない
+note: 履歴が途中で切れている理由の文を落とす（SHELL-16・TASK-532 1/2）
