@@ -70,7 +70,7 @@ pub struct HintStage {
 /// 今提示するヒントの操作。前後で比べて dirty を積むための値で、出さないときは空の値。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HintOffer {
-    /// ボタンを出すか（現在の Step に出せるヒントが 1 つ以上ある）。
+    /// ボタンを出すか（出せるヒントが 1 つ以上あり、表示だけの間ではない）。段と状態文字は `total > 0` で出す。
     pub can_open: bool,
     /// 表示する段数（開いた段数を出せる数に丸めた値）。
     pub opened: u32,
@@ -117,7 +117,8 @@ pub fn offer(ir: &Ir, state: &SessionState) -> HintOffer {
 /// ボタンの項目は鍵を固定し、押下のたびに要素を作り直さずフォーカスを保つ。
 pub fn hint_section(offer: &HintOffer) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
-    if offer.can_open {
+    // 出せるヒントがあれば状態文字と開いた段を出す。ボタンは `can_open` のときだけ（表示だけの間は閲覧のみ）。
+    if offer.total > 0 {
         let opened = offer.opened.to_string();
         let total = offer.total.to_string();
         items.push((
@@ -132,19 +133,21 @@ pub fn hint_section(offer: &HintOffer) -> Node {
                 vec![text(format!("開いたヒント {opened} / {total}"))],
             ),
         ));
-        items.push((
-            "open".to_owned(),
-            el(
-                "button",
-                vec![
-                    ("type", "button"),
-                    ("data-testid", OPEN_TESTID),
-                    (ACTION_ATTR, ACTION_OPEN_HINT),
-                    (PAYLOAD_ATTR, ""),
-                ],
-                vec![text(OPEN_LABEL)],
-            ),
-        ));
+        if offer.can_open {
+            items.push((
+                "open".to_owned(),
+                el(
+                    "button",
+                    vec![
+                        ("type", "button"),
+                        ("data-testid", OPEN_TESTID),
+                        (ACTION_ATTR, ACTION_OPEN_HINT),
+                        (PAYLOAD_ATTR, ""),
+                    ],
+                    vec![text(OPEN_LABEL)],
+                ),
+            ));
+        }
         for s in &offer.stages {
             let idx = s.index.to_string();
             let body = s.text.clone().unwrap_or_else(|| NO_TEXT_LABEL.to_owned());
@@ -187,6 +190,22 @@ mod tests {
             total,
             stages,
         }
+    }
+
+    #[test]
+    fn 閲覧のみはボタンなしで状態文字と開いた段を残す() {
+        let mut o = offer_with(
+            vec![HintStage {
+                index: 1,
+                text: Some("x".to_owned()),
+            }],
+            2,
+        );
+        o.can_open = false;
+        let s = format!("{:?}", hint_section(&o));
+        assert!(!s.contains(&format!("\"{OPEN_TESTID}\"")), "{s}");
+        assert!(s.contains(STATUS_TESTID), "{s}");
+        assert!(s.contains(STAGE_TESTID), "{s}");
     }
 
     #[test]
