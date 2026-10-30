@@ -142,6 +142,20 @@ pub fn delete_pack(
     }
 }
 
+/// 壊れた履歴の鍵 1 つを捨てる（SAVE-21・TASK-333 2/2）。保留からこの鍵だけを外してから、保存先の同じ鍵を消す。
+///
+/// 教材の全開始点を消す [`delete_pack`] とは別で、他の開始点・教材・配信先の履歴には触れない。受講者の明示の意思による操作なので、
+/// 起動番号の照合（[`flush_guarded`]）は通さない。保存先が開いていない・借用中は `Err(Unavailable)`。
+/// 呼び出し元は `boot_and_mount` が結ぶ `set_history_discarder` の閉包だけで、対象の鍵は結ぶ側が閉じ込める。
+pub fn discard_key(key: &HistoryKey) -> Result<(), StorageError> {
+    PENDING.with(|p| p.discard_key(key));
+    STORAGE.with(|s| {
+        let slot = s.try_borrow().map_err(|_| StorageError::Unavailable)?;
+        // 関連関数の形で呼ぶ。glue の契約の検査は `.remove(` を DOM の構造操作として数えるため、保存先の削除と区別する。
+        HistoryStore::remove(slot.as_ref().ok_or(StorageError::Unavailable)?, key)
+    })
+}
+
 /// 変更の後の遅延保存の書き出し（`glue` のタイマーが呼ぶ。TASK-318。SAVE-7）。
 ///
 /// 保存しない場合（未操作・上限超え・開けなかった履歴がある・未マウント）は何も書かない（`history_to_save` が `None`）。
@@ -407,6 +421,9 @@ fn boot_and_mount(root_id: &str, mut host: EngineHost, key: HistoryKey) -> Resul
             }),
         );
     }));
+    // 壊れた履歴を捨てる口（SAVE-21）。消すのは今の鍵 1 つだけ。
+    let discard_key_ = key.clone();
+    host.set_history_discarder(Box::new(move || discard_key(&discard_key_)));
     // 保存済みの履歴の削除（SAVE-32）。対象はホストが読んだ IR の教材と、この配信の区間で決める。
     if let Some(pack_id) = host.pack_id() {
         let scope = delivery_scope();

@@ -2,13 +2,16 @@
 //!
 //! 壊れた履歴 7 種（B-1〜B-7）を保存済みの値として `boot` に渡すと、(1) 開かず新しい状態で始まり、(2) 通知欄に
 //! `corrupt-history` が 1 件だけ理由つきで出て、(3) 閉じる操作は無く、(4) 操作しても保存の値が出ない（上書きしない）。
-//! 「捨てて始める」の処理は 2/2（TASK-333 2/2）なので、ここでは復号されないことまでを固定する。
+//! 「捨てて始める」（TASK-333 2/2）は、押すと口で今の鍵を捨て、新しく始めて保存を再開する。壊れた起動の後でだけ動く。
 //! 作り方は `broken_histories_host.rs` と同じ。失敗の文には ID・件数・真偽・固定のコードだけを出す。試験では `unwrap` を使ってよい。
 
+use std::cell::Cell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, DirtyTracked};
+use fandhe_workshop_contract::storage::StorageError;
 use fandhe_workshop_core::history_envelope::build_envelope;
 use fandhe_workshop_core::history_export::export_bytes;
 use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
@@ -243,14 +246,158 @@ fn 壊れた履歴の起動の後は操作しても保存の値が出ない() {
 }
 
 #[test]
-fn 閉じる操作と_捨てて始める_の_action_は何も変えない() {
+fn 閉じる操作は何も変えない() {
     let mut h = host();
     h.boot(Some(&make("B-7")));
     let _ = h.dirty_fields();
     h.update(act("dismiss-notice", "corrupt-history"));
     assert_eq!(items_of(&h, "corrupt-history"), 1);
     assert!(!h.dirty_fields().contains(&"shell_notices"));
-    assert!(EngineHost::decode_action("discard-and-start", "").is_none());
+}
+
+#[test]
+fn discard_and_start_は空の_payload_だけ復号される() {
+    assert!(matches!(
+        EngineHost::decode_action("discard-and-start", ""),
+        Some(HostAction::DiscardAndStart)
+    ));
+    for bad in ["x", " ", "corrupt-history"] {
+        assert!(EngineHost::decode_action("discard-and-start", bad).is_none());
+    }
+}
+
+/// 口を結び、呼ばれた回数を返す。`result` を返す。
+fn bind_discarder(h: &mut EngineHost, result: Result<(), StorageError>) -> Rc<Cell<u32>> {
+    let calls = Rc::new(Cell::new(0));
+    let c = Rc::clone(&calls);
+    h.set_history_discarder(Box::new(move || {
+        c.set(c.get() + 1);
+        result
+    }));
+    calls
+}
+
+fn press_discard(h: &mut EngineHost) {
+    h.update(act("discard-and-start", ""));
+}
+
+#[test]
+fn 捨てて始めると口が_1_回呼ばれ_案内が消えて最初から始まり保存が再開する() {
+    for (id, _) in table_codes() {
+        let mut h = host();
+        let fresh = snapshot(&h);
+        h.boot(Some(&make(&id)));
+        let calls = bind_discarder(&mut h, Ok(()));
+        operate(&mut h);
+        assert!(h.history_to_save().is_none(), "{id}: 押す前は保存しない");
+        press_discard(&mut h);
+        assert_eq!(calls.get(), 1, "{id}");
+        assert_eq!(items_of(&h, "corrupt-history"), 0, "{id}");
+        assert_eq!(all(&h.view(), "shell-discard-start").len(), 0, "{id}");
+        assert_eq!(snapshot(&h), fresh, "{id}: 最初の Step から始まる");
+        assert_eq!(h.model().session().unwrap().log().len(), 0, "{id}");
+        assert!(h.history_to_save().is_none(), "{id}: 未操作は保存しない");
+        operate(&mut h);
+        let saved = h.history_to_save().expect("保存が再開する");
+        assert!(!String::from_utf8_lossy(saved.as_bytes()).contains(SENTINEL));
+    }
+}
+
+#[test]
+fn 口が失敗しても_口が無くても保存は再開する() {
+    for result in [Err(StorageError::Failed), Err(StorageError::Unavailable)] {
+        let mut h = host();
+        h.boot(Some(&make("B-3")));
+        let calls = bind_discarder(&mut h, result);
+        press_discard(&mut h);
+        assert_eq!(calls.get(), 1);
+        assert_eq!(items_of(&h, "corrupt-history"), 0);
+        operate(&mut h);
+        assert!(h.history_to_save().is_some());
+    }
+    let mut h = host();
+    h.boot(Some(&make("B-3")));
+    press_discard(&mut h);
+    assert_eq!(items_of(&h, "corrupt-history"), 0);
+    operate(&mut h);
+    assert!(h.history_to_save().is_some());
+}
+
+#[test]
+fn 壊れていない起動で押しても口は呼ばれず何も変わらない() {
+    // 新しく始めた（保存済みなし）・開けた・表示だけで開いた・版の判定の段の拒否。
+    let mut v: serde_json::Value = serde_json::from_slice(&history("1.0.0")).unwrap();
+    let n = v["versions"]["ir_format"].as_u64().unwrap();
+    v["versions"]["ir_format"] = serde_json::json!(n + 1);
+    let refused = serde_json::to_vec(&v).unwrap();
+    let cases: Vec<Option<Vec<u8>>> = vec![
+        None,
+        Some(history("1.0.0")),
+        Some(history("2.0.0")),
+        Some(refused),
+    ];
+    for (i, saved) in cases.iter().enumerate() {
+        let mut h = host();
+        h.boot(saved.as_deref());
+        let calls = bind_discarder(&mut h, Ok(()));
+        let _ = h.dirty_fields();
+        let before = (snapshot(&h), h.history_to_save().is_some());
+        press_discard(&mut h);
+        assert_eq!(calls.get(), 0, "case {i}");
+        assert!(!h.dirty_fields().contains(&"shell_notices"), "case {i}");
+        assert_eq!(
+            (snapshot(&h), h.history_to_save().is_some()),
+            before,
+            "case {i}"
+        );
+    }
+}
+
+#[test]
+fn 二回目の押下は何もしない() {
+    let mut h = host();
+    h.boot(Some(&make("B-1")));
+    let calls = bind_discarder(&mut h, Ok(()));
+    press_discard(&mut h);
+    operate(&mut h);
+    let saved = h.history_to_save();
+    press_discard(&mut h);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(h.history_to_save(), saved);
+}
+
+#[test]
+fn 壊れた起動の後に開ける履歴を読み込んでから押すと新しい状態に戻り保存が再開する() {
+    let mut h = host();
+    let fresh = snapshot(&h);
+    h.boot(Some(&make("B-2")));
+    assert_eq!(h.open_history(&history("1.0.0")), ImportOutcome::Open);
+    let calls = bind_discarder(&mut h, Ok(()));
+    press_discard(&mut h);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(items_of(&h, "corrupt-history"), 0);
+    assert_eq!(snapshot(&h), fresh);
+    operate(&mut h);
+    assert!(h.history_to_save().is_some());
+}
+
+#[test]
+fn 壊れた起動の後に表示だけの履歴を読み込んでも押すと新しい状態に戻り保存が再開する() {
+    let mut h = host();
+    let fresh = snapshot(&h);
+    h.boot(Some(&make("B-2")));
+    assert!(matches!(
+        h.open_history(&history("2.0.0")),
+        ImportOutcome::ViewOnly(_)
+    ));
+    assert_eq!(items_of(&h, "corrupt-history"), 1);
+    let calls = bind_discarder(&mut h, Ok(()));
+    press_discard(&mut h);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(items_of(&h, "corrupt-history"), 0);
+    assert_eq!(snapshot(&h), fresh);
+    operate(&mut h);
+    assert!(h.history_to_save().is_some());
 }
 
 #[test]

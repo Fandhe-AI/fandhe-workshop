@@ -245,8 +245,12 @@ fn dismiss_decodes_strictly_and_changes_only_the_display() {
             bad.len()
         );
     }
-    // 書き出し・読み込みは TASK-531 1/2 で受ける（`tests/history_ops.rs`）。捨てて始めるはまだ受けない。
-    assert!(EngineHost::decode_action("discard-and-start", "").is_none());
+    // 書き出し・読み込みは TASK-531 1/2 で受ける（`tests/history_ops.rs`）。捨てて始めるは空の payload だけ受ける（TASK-333 2/2）。
+    assert!(matches!(
+        EngineHost::decode_action("discard-and-start", ""),
+        Some(HostAction::DiscardAndStart)
+    ));
+    assert!(EngineHost::decode_action("discard-and-start", "x").is_none());
 
     let mut h = host("1.1.0");
     h.open_history(&history("1.0.0"));

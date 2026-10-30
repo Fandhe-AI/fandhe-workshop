@@ -289,6 +289,8 @@ pub enum HostAction {
     SecretDiscardRead(bool, u64),
     /// 保存済みの履歴の削除の要求（`delete-history`。SAVE-32）。確認待ちの印を立てるだけ。
     DeleteHistory,
+    /// 「保存された履歴を捨てて始める」（`discard-and-start`。SAVE-21・TASK-333 2/2）。payload は空だけ。起動時に壊れた履歴の案内があるときだけ動く。
+    DiscardAndStart,
     /// 削除の確定（`confirm-delete-history`）。確認待ちのときだけ削除を行う。
     ConfirmDelete,
     /// 削除をやめる（`cancel-delete-history`）。確認待ちの印を下ろすだけ。
@@ -593,6 +595,12 @@ pub type SavedReader = Box<dyn Fn() -> Result<Option<String>, StorageError>>;
 /// `Runtime` にも `App` にも触れてはならない（再入になる）。
 pub type HistoryDeleter = Box<dyn Fn(u64)>;
 
+/// 壊れた履歴を捨てる口（「保存された履歴を捨てて始める」。SAVE-21・TASK-333 2/2）。`persist::boot_and_mount` が結ぶ。
+///
+/// 消すのは結ぶ側が閉じ込めた今の鍵 1 つだけ（配信先・教材・開始点）で、ホストは対象を指定できない。教材の全開始点を消す
+/// `HistoryDeleter`（SAVE-32）とは別の口である。同期に結果を返す。`Runtime` にも `App` にも触れてはならない（再入になる）。
+pub type HistoryDiscarder = Box<dyn Fn() -> Result<(), StorageError>>;
+
 /// 保存先の実データの取り直しを頼む口（「この入力を残さない」。SAFE-28）。`persist::boot_and_mount` が結ぶ。
 ///
 /// IndexedDB は取得の完了が非同期で、保存先の写しは他のタブの保存や自タブの書き込みの失敗を反映していない。呼ぶと取り直しを始め、
@@ -711,7 +719,7 @@ pub struct EngineHost {
     refused_notice: Option<RefusedNotice>,
     /// 起動時に保存済みの履歴が壊れていた理由（SAVE-21・SHELL-17。TASK-333 1/2）。表示の状態で、`ops`・履歴・保存先には書かない。値は閉じた列挙だけで、履歴由来の文字列は持たない。
     /// `restore_from_saved` が毎回決め直し、`install_recorded` では消さない（読み込みで開ける履歴に替えても保存は止まったままなので、手がかりを隠さない）。
-    /// 閉じる操作は無い。消えるのは、保存済みの履歴を消したとき（`restart_from(None)`）と、2/2（TASK-333 2/2）の「捨てて始める」である。
+    /// 閉じる操作は無い。消えるのは、保存済みの履歴を消したとき（`restart_from(None)`）と、「捨てて始める」（`discard_and_start`。TASK-333 2/2）である。
     boot_corrupt: Option<LoadReason>,
     /// チェックポイントの復帰ボタンのページ（新しい側が 0。FEND-22）。表示の状態で、履歴・保存先には書かない。ページ数を超える値は提示の導出で丸める。
     checkpoint_page: usize,
@@ -742,6 +750,8 @@ pub struct EngineHost {
     saved_reader: Option<SavedReader>,
     /// 保存済みの履歴の削除の口（SAVE-32）。未設定なら削除は失敗として扱う（fail-closed）。
     history_deleter: Option<HistoryDeleter>,
+    /// 壊れた履歴を捨てる口（SAVE-21）。未設定でも、押下は新しく始めて保存を再開する。
+    history_discarder: Option<HistoryDiscarder>,
     /// 削除の確認待ちの印（SHELL-38）。表示の状態だけで、履歴・保存先には書かない。確定はこの印があるときだけ行う。
     delete_pending: bool,
     /// 削除を頼んで完了を待っている印。連打で削除を重ねない。完了（`DeleteResult`）でだけ解く。
@@ -753,6 +763,9 @@ pub struct EngineHost {
     /// 直近の削除の結果（試験の設定の観察用。鍵・値は持たない）。
     #[cfg(feature = "test-hooks")]
     last_delete: Option<Result<usize, StorageError>>,
+    /// 直近の「捨てて始める」で口が返した結果（試験の設定の観察用。鍵・値は持たない）。
+    #[cfg(feature = "test-hooks")]
+    last_discard: Option<Result<(), StorageError>>,
     /// 保存先の取り直しを頼む口。未設定ならその場で読み直す。
     saved_refresh: Option<SavedRefresh>,
     /// 取り直しを頼んで、完了を待っている印。完了（`SecretDiscardRead`）でだけ読み直しを行う。
@@ -873,12 +886,15 @@ impl EngineHost {
             history_saver: None,
             saved_reader: None,
             history_deleter: None,
+            history_discarder: None,
             delete_pending: false,
             delete_inflight: false,
             delete_gen: 0,
             delete_issued_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
+            #[cfg(feature = "test-hooks")]
+            last_discard: None,
             saved_refresh: None,
             discard_pending: false,
             discard_gen: 0,
@@ -1017,12 +1033,15 @@ impl EngineHost {
             history_saver: None,
             saved_reader: None,
             history_deleter: None,
+            history_discarder: None,
             delete_pending: false,
             delete_inflight: false,
             delete_gen: 0,
             delete_issued_gen: 0,
             #[cfg(feature = "test-hooks")]
             last_delete: None,
+            #[cfg(feature = "test-hooks")]
+            last_discard: None,
             saved_refresh: None,
             discard_pending: false,
             discard_gen: 0,
@@ -1222,7 +1241,7 @@ impl EngineHost {
             code,
             dismissable: false,
         }));
-        // 壊れた履歴の案内も閉じられない。押せるのは「捨てて始める」だけで、それは 2/2 で受ける。
+        // 壊れた履歴の案内も閉じられない。押せるのは「捨てて始める」だけである（`discard_and_start`。TASK-333 2/2）。
         self.set_boot_corrupt(corrupt);
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
@@ -1553,6 +1572,11 @@ impl EngineHost {
         self.history_deleter = Some(f);
     }
 
+    /// 壊れた履歴を捨てる口を結ぶ（SAVE-21。mount の前に 1 回だけ）。
+    pub fn set_history_discarder(&mut self, f: HistoryDiscarder) {
+        self.history_discarder = Some(f);
+    }
+
     /// 保存先の取り直しを頼む口を結ぶ。`persist::boot_and_mount` が mount の前に 1 回だけ呼ぶ。
     pub fn set_saved_refresh(&mut self, f: SavedRefresh) {
         self.saved_refresh = Some(f);
@@ -1755,6 +1779,31 @@ impl EngineHost {
             // 失敗は画面の状態を変えない。止めていた間の変更を、秘密情報の検査を通る既存の保存で書き戻す（SAVE-7）。
             self.save_after_change();
         }
+    }
+
+    /// 「保存された履歴を捨てて始める」（SAVE-21・SHELL-17。TASK-333 2/2）。起動時に壊れた履歴を見つけた案内があるときだけ動く。
+    ///
+    /// 今の鍵 1 つを口で消し、最初から始め直して保存を再開する。`data-action` の書き換えや案内の無い場面の押下では、
+    /// 正常な履歴を持つ受講者の状態を消せない（SAFE-6）。削除（SAVE-32）の完了待ちの間は動かない。
+    /// 消すのに失敗しても再開する。受講者は捨てることに同意しており、次の保存が同じ鍵を上書きすれば結果は同じになる
+    /// （保存先そのものが使えないときは、保存の失敗の通知が出る。SAVE-10・SAVE-11）。
+    fn discard_and_start(&mut self) {
+        if self.boot_corrupt.is_none() || self.delete_inflight {
+            return;
+        }
+        let result = match self.history_discarder.as_ref() {
+            Some(f) => f(),
+            None => Ok(()),
+        };
+        #[cfg(feature = "test-hooks")]
+        {
+            self.last_discard = Some(result);
+        }
+        #[cfg(not(feature = "test-hooks"))]
+        let _ = result;
+        // `restore_from_saved(None)` は Fresh になり、案内（`boot_corrupt`）を下ろす。保存の停止はここで解く。
+        self.restart_from(None);
+        self.save_blocked = false; // 捨てた後は保存を再開する（SAVE-21）
     }
 
     /// 保存の結果（即時・遅延の同期の書き込み）を `sync_save_failure` に入れ、表示する失敗を求め直す。
@@ -1969,6 +2018,11 @@ impl EngineHost {
             "viewOnly": self.model.view_only.map(LoadReason::as_str),
             // 保存済みの履歴の削除（SAVE-32）。鍵・値は含めない。
             "deletePending": self.delete_pending,
+            "lastDiscard": match &self.last_discard {
+                None => serde_json::Value::Null,
+                Some(Ok(())) => serde_json::json!("ok"),
+                Some(Err(e)) => serde_json::json!(format!("{e:?}")),
+            },
             "lastDelete": match &self.last_delete {
                 None => serde_json::Value::Null,
                 Some(Ok(n)) => serde_json::json!({"outcome": "deleted", "removed": n}),
@@ -2750,6 +2804,9 @@ impl Component for EngineHost {
                 | HostAction::ImportHistory(_)
                 // 削除の完了通知は、保存の停止（`delete_inflight`）を解くために通す。要求・確定は捨てたまま。世代の照合で表示の巻き戻しは防ぐ。
                 | HostAction::DeleteResult(_, _)
+                // 壊れた起動の後に表示だけの履歴を開いても案内と「捨てて始める」は残る。押せるようにして、保存の停止から出られなくなるのを防ぐ
+                // （処理は案内があるときだけ動く。`discard_and_start`）。
+                | HostAction::DiscardAndStart
                 | HostAction::Input(HelloAction::SetOs(_)) => true,
                 #[cfg(feature = "test-hooks")]
                 HostAction::Input(HelloAction::KeydownProbe)
@@ -2874,7 +2931,7 @@ impl Component for EngineHost {
                     crate::shell::NoticeKind::VersionConverted => self.set_version_notice(false),
                     crate::shell::NoticeKind::BrowserNotice => self.dismiss_browser_notice(),
                     // 起動時の通知は閉じない（`dismissable` が偽。保存が止まっていることを隠さない）。
-                    // `CorruptHistory` も閉じない（下の `_`。消えるのは保存済みの履歴を消したときと 2/2 の「捨てて始める」だけ）。
+                    // `CorruptHistory` も閉じない（下の `_`。消えるのは保存済みの履歴を消したときと「捨てて始める」だけ）。
                     crate::shell::NoticeKind::ImportRefused
                         if self.refused_notice.is_some_and(|n| n.dismissable) =>
                     {
@@ -2901,6 +2958,7 @@ impl Component for EngineHost {
             #[cfg(feature = "test-hooks")]
             HostAction::Reload => self.reload_engine(),
             HostAction::ExportHistory => self.export_press(),
+            HostAction::DiscardAndStart => self.discard_and_start(),
             HostAction::ImportHistory(text) => {
                 let outcome = self.open_history(text.as_bytes());
                 #[cfg(feature = "test-hooks")]
@@ -3186,7 +3244,15 @@ impl Component for EngineHost {
             return TabKey::from_key(payload).map(HostAction::PaneKey);
         }
         // 通知を閉じる（TASK-535 1/2）。枠の復号（正規形・32 バイト以下）と種類の既知の照合の両方を通ったものだけを受ける。
-        // 捨てて始めるは 2/2（TASK-333 2/2）で受ける。ここでは復号しない（押しても何もしない。書き出し・読み込みは下で別に受ける）。
+        // 「保存された履歴を捨てて始める」（TASK-333 2/2）。空の payload だけを受け、処理は案内があるときだけ行う（`discard_and_start`）。
+        if name == crate::shell::ACTION_DISCARD_AND_START {
+            return match crate::shell::ShellAction::decode(name, payload) {
+                Some(crate::shell::ShellAction::DiscardAndStart) => {
+                    Some(HostAction::DiscardAndStart)
+                }
+                _ => None,
+            };
+        }
         if name == crate::shell::ACTION_DISMISS_NOTICE {
             return match crate::shell::ShellAction::decode(name, payload) {
                 Some(crate::shell::ShellAction::DismissNotice(kind)) => {

@@ -10790,5 +10790,14 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 実装: ホストに表示の状態 `boot_corrupt`（理由の閉じた列挙だけ。`ops`・履歴・保存先には書かない）を足した。`restore_from_saved` が拒否の段で振り分ける（版の判定の段は従来どおり `import-refused`、それ以外の壊れた履歴は `corrupt-history`）。保存の停止は既存の `save_blocked` を使う。通知は閉じられず、置く操作は「保存された履歴を捨てて始める」（`shell-discard-start`）だけ。この操作の復号と処理は 2/2 なので、本 Issue では押しても何も起きない（fail-closed）。`install_recorded` では消さないため、開ける履歴を読み込んでも通知と停止は残る。
 - 試験: native `crates/web/tests/boot_corrupt_history.rs`（7 件。B-1〜B-7 の理由が表と一致・通知 1 件・ボタン 1 個・番兵が出ない・保存の値が出ない・閉じる／捨てるの action が何も変えない・読み込み後も残る・拒否との並び・版の判定の段と表示だけと正常の対照）、`shell_notice.rs` のモジュール内の試験、`refused_history.rs`・`view_only.rs` の更新。ブラウザ `tools/browser/boot-corrupt-history.test.mjs`（CSP あり・なし × 8 件。壊れた値を保存先へ直接置いて再読み込みで起動し、通知・理由・最初の Step・操作と押下の後の保存先のバイト単位の一致・再読み込み後の再表示・番兵 0 件・通信などの計数 0 件。対照は開ける値と版の判定の段の拒否）。単体の `node --test` で 16 件合格（2026-10-30）。
 - 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE21-1.mutation crates/web/tests/mutations/SAVE21-2.mutation`）: SAVE21-1 は壊れた側の理由を持たない、SAVE21-2 は通知欄が項目を積まない。いずれも DETECTED（2026-10-30）。
-- 範囲外: 「捨てて始める」の処理と保存の再開は TASK-333 2/2、文面の確定と SHELL-17 の画面の試験は TASK-533・TASK-549。
+- 範囲外: 「捨てて始める」の処理と保存の再開は TASK-333 2/2（→ 5.390）、文面の確定と SHELL-17 の画面の試験は TASK-533・TASK-549。
 - 限界: 文面は仮置き。B-4（10MB 超）は保存先に置けない場合に確かめない。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施で、近傍のブラウザ試験（`refused-history` など）は単体で流せる環境変数がそろわず未検証。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.390 「保存された履歴を捨てて始める」で保存を再開する（TASK-333 2/2。SAVE-21・SHELL-17）
+
+- 目的: 起動時に壊れた履歴を見つけた案内の「保存された履歴を捨てて始める」を押すと、今の鍵の壊れた履歴を保存先から捨て、最初から新しく始め、保存を再開することを固定する。受け入れ条件は「押した後は保存が再開される」。SAVE-32（受講者が任意に行う削除）とは別の操作で、教材の全開始点を消す `HistoryDeleter` は使わない。
+- 実装: `discard-and-start` を空の payload だけ復号する（`HostAction::DiscardAndStart`）。処理 `discard_and_start` は `boot_corrupt` が有るときだけ動き（`data-action` の書き換えや案内の無い場面の押下では動かない。SAFE-6）、削除の完了待ちの間も動かない。結んだ口 `HistoryDiscarder`（`persist::discard_key`）で今の鍵 1 つだけを消す。保留からもこの鍵だけを外す（`PendingSave::discard_key`）。対象の鍵は結ぶ側の閉包に閉じ込め、payload からは決めない。口が失敗しても新しく始めて保存を再開する（受講者は捨てることに同意しており、次の保存が同じ鍵を上書きする）。試験の設定だけ `stateJson` に `lastDiscard` を出す。
+- 試験: native `crates/web/tests/boot_corrupt_history.rs`（B-1〜B-7 の全てで口が 1 回・案内とボタンが 0 件・最初の Step・未操作は保存しない・1 手で保存が再開、口の失敗と口なしでも再開、壊れていない起動・表示だけ・版の判定の段の拒否の押下は何も変えない、2 回目の押下は何もしない、読み込みの後の押下、空の payload だけ復号）と `history_delete.rs` の `discard_key`。ブラウザ `tools/browser/boot-corrupt-history.test.mjs`（押下の後に通知・ボタンが 0 件、今の鍵だけが保存先から消え、別の開始点・別の教材の鍵がバイト単位で不変、ログが空、`lastDiscard` が ok、1 手で壊れた値と異なる値が保存され、再読み込みで restored・通知 0 件）。単体の `node --test` で 16 件合格（CSP あり・なし。2026-10-30）。`glue_contract` の許可表に口の結線を足した。
+- 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE21-3.mutation crates/web/tests/mutations/SAVE21-4.mutation`）: SAVE21-3 は押下の後に保存の停止を解かない、SAVE21-4 は案内の無い場面でも動く。いずれも DETECTED（2026-10-30）。
+- 範囲外: 文面の確定と SHELL-17 の画面の試験は TASK-533・TASK-549。
+- 限界: IndexedDB の delete は確定を待たないため、押してすぐ再読み込みすると壊れた値が残っていて案内が再び出うる（安全側）。押す前に行った操作は捨てられる。起動時の版の判定の段の拒否と表示だけのモードにはボタンを出さない。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
