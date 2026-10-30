@@ -1,0 +1,8 @@
+id: SAVE32-7
+package: fandhe-workshop-web
+test: history_delete
+target: crates/web/src/host.rs
+find:     fn invalidate_delete(&mut self) {
+replace:     fn invalidate_delete(&mut self) { if true { self.delete_inflight = false; return; }
+expect-fail: 履歴を差し替えると削除の確認待ちも取り消される
+note: 履歴の差し替えが削除の確認待ちを残す（新しい履歴が確認の再要求なしで消える。SHELL-38）

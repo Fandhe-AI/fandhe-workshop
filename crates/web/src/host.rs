@@ -1239,7 +1239,8 @@ impl EngineHost {
     /// ログにも結果にも出さない（履歴は下書きを含む受講者のデータである）。
     pub fn history_to_save(&self) -> Option<String> {
         // 表示だけの間は保存しない。`save_blocked` は消えない印なので、読み込みで入ったモードには使わない。
-        if self.save_blocked || self.model.view_only.is_some() {
+        // 削除の完了待ちの間も保存しない。遅延保存・離脱時の保存が削除済みの鍵を作り直すのを防ぐ（SAVE-32）。失敗で完了待ちが解ければ保存へ戻る。
+        if self.save_blocked || self.delete_inflight || self.model.view_only.is_some() {
             return None;
         }
         let envelope = self.model.recorded.as_ref()?.envelope_for_save()?;
@@ -1590,7 +1591,9 @@ impl EngineHost {
     }
 
     /// 削除の完了待ちを取り下げる。履歴の差し替えの後に届く古い完了で、新しい状態を始め直さないため。
+    /// 確認待ちの印も外す。差し替えた新しい履歴は、改めて削除の要求を経ないと消せない（SHELL-38）。
     fn invalidate_delete(&mut self) {
+        self.delete_pending = false;
         self.delete_inflight = false;
         self.delete_gen = self.delete_gen.wrapping_add(1);
     }
@@ -1694,6 +1697,10 @@ impl EngineHost {
         match self.history_deleter.as_ref() {
             Some(f) => {
                 self.delete_inflight = true;
+                // 予約済みの遅延保存を取り下げる。完了待ちの間は `history_to_save` も `None` を返す。
+                if let Some(c) = self.save_cancel.as_ref() {
+                    c();
+                }
                 f(self.delete_gen);
             }
             None => self.finish_delete(Err(StorageError::Unavailable)),

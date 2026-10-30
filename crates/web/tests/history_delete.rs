@@ -408,3 +408,33 @@ fn 世代の違う完了と頼んでいない完了は捨てる() {
     complete(&mut p, Ok(1));
     assert_eq!(current(&p.host), first);
 }
+
+#[test]
+fn 削除の完了待ちの間は保存せず失敗すると保存へ戻る() {
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    let cancelled = p.cancelled.get();
+    send(&mut p.host, "confirm");
+    assert!(
+        p.cancelled.get() > cancelled,
+        "開始時に保存の予約を取り下げる"
+    );
+    assert!(
+        p.host.history_to_save().is_none(),
+        "完了待ちの間は保存しない"
+    );
+    complete(&mut p, Err(StorageError::Failed));
+    assert!(p.host.history_to_save().is_some(), "失敗したら保存へ戻る");
+}
+
+#[test]
+fn 履歴を差し替えると削除の確認待ちも取り消される() {
+    let mut p = probe();
+    step(&mut p.host);
+    send(&mut p.host, "request");
+    let text = p.host.history_to_save().expect("書き出せる履歴がある");
+    p.host.update(HostAction::ImportHistory(text));
+    send(&mut p.host, "confirm");
+    assert_eq!(p.deleted.get(), 0, "差し替えの後は改めて要求が要る");
+}
