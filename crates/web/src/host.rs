@@ -709,6 +709,10 @@ pub struct EngineHost {
     /// 開かない履歴の理由の通知（`shell-notice`。TASK-176 2/2。VER-8・SHELL-16）。表示の状態で、`ops`・履歴・保存先には書かず、控えのバイト列も持たない。
     /// 読み込みで開かなかったとき、または起動時の復元が版の判定の段で開かなかったときに立つ。開ける履歴に替えると消える。
     refused_notice: Option<RefusedNotice>,
+    /// 起動時に保存済みの履歴が壊れていた理由（SAVE-21・SHELL-17。TASK-333 1/2）。表示の状態で、`ops`・履歴・保存先には書かない。値は閉じた列挙だけで、履歴由来の文字列は持たない。
+    /// `restore_from_saved` が毎回決め直し、`install_recorded` では消さない（読み込みで開ける履歴に替えても保存は止まったままなので、手がかりを隠さない）。
+    /// 閉じる操作は無い。消えるのは、保存済みの履歴を消したとき（`restart_from(None)`）と、2/2（TASK-333 2/2）の「捨てて始める」である。
+    boot_corrupt: Option<LoadReason>,
     /// チェックポイントの復帰ボタンのページ（新しい側が 0。FEND-22）。表示の状態で、履歴・保存先には書かない。ページ数を超える値は提示の導出で丸める。
     checkpoint_page: usize,
     /// 直近の `update` で変わった field。
@@ -854,6 +858,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            boot_corrupt: None,
             checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
@@ -997,6 +1002,7 @@ impl EngineHost {
             browser_notice: false,
             browser_store: None,
             refused_notice: None,
+            boot_corrupt: None,
             checkpoint_page: 0,
             dirty: Vec::new(),
             tick_request: None,
@@ -1168,6 +1174,7 @@ impl EngineHost {
         let mut converted = false;
         let mut view_only: Option<(LoadReason, Vec<u8>)> = None;
         let mut refused: Option<LoadReason> = None;
+        let mut corrupt: Option<LoadReason> = None;
         let (recorded, kind) = match outcome {
             BootOutcome::Fresh(r) => (r, BootKind::Fresh),
             BootOutcome::Restored { session, notes } => {
@@ -1181,11 +1188,14 @@ impl EngineHost {
                     (Verdict::ViewOnly { code }, Some(bytes)) => {
                         view_only = Some((code, bytes.to_vec()));
                     }
-                    // 開かないは版の判定の段のものだけ理由を出す。壊れた履歴（他の段）の案内は TASK-533 の範囲。
-                    (Verdict::Refused { code }, _)
-                        if code.stage() == HistoryLoadStage::VersionJudgment =>
-                    {
-                        refused = Some(code);
+                    // 版の判定の段の拒否は `import-refused`、壊れた履歴（他の段）は `corrupt-history` で出す（SAVE-21）。
+                    // どちらも条件は core の判定のままで、ここでは段で振り分けるだけにする。文面の確定は TASK-533。
+                    (Verdict::Refused { code }, _) => {
+                        if code.stage() == HistoryLoadStage::VersionJudgment {
+                            refused = Some(code);
+                        } else {
+                            corrupt = Some(code);
+                        }
                     }
                     _ => {}
                 }
@@ -1212,6 +1222,8 @@ impl EngineHost {
             code,
             dismissable: false,
         }));
+        // 壊れた履歴の案内も閉じられない。押せるのは「捨てて始める」だけで、それは 2/2 で受ける。
+        self.set_boot_corrupt(corrupt);
         // `install_recorded` が落とした印を、起動の種類で立て直す（案内は Fresh の最初の操作だけ。SAVE-29）。
         self.fresh_start = kind == BootKind::Fresh;
         // 入力欄なしの教材は、復元した下書きを戻す先が無い。
@@ -2560,6 +2572,16 @@ impl EngineHost {
         }
     }
 
+    /// 起動時に壊れていた履歴の理由を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
+    fn set_boot_corrupt(&mut self, reason: Option<LoadReason>) {
+        if self.boot_corrupt != reason {
+            self.boot_corrupt = reason;
+            if !self.dirty.contains(&SHELL_NOTICES_FIELD.name) {
+                self.dirty.push(SHELL_NOTICES_FIELD.name);
+            }
+        }
+    }
+
     /// 960px 未満で見せる領域を替える。同じ値なら何もしない。表示の状態だけで、保存・履歴は起こさない。
     fn select_pane(&mut self, tab: PaneTab) {
         if self.pane != tab {
@@ -2852,6 +2874,7 @@ impl Component for EngineHost {
                     crate::shell::NoticeKind::VersionConverted => self.set_version_notice(false),
                     crate::shell::NoticeKind::BrowserNotice => self.dismiss_browser_notice(),
                     // 起動時の通知は閉じない（`dismissable` が偽。保存が止まっていることを隠さない）。
+                    // `CorruptHistory` も閉じない（下の `_`。消えるのは保存済みの履歴を消したときと 2/2 の「捨てて始める」だけ）。
                     crate::shell::NoticeKind::ImportRefused
                         if self.refused_notice.is_some_and(|n| n.dismissable) =>
                     {
@@ -3043,6 +3066,7 @@ impl Component for EngineHost {
             crate::shell_notice::notice_area(
                 self.version_notice,
                 self.refused_notice,
+                self.boot_corrupt,
                 self.model.save_failure,
                 self.browser_notice,
             ),
@@ -3162,7 +3186,7 @@ impl Component for EngineHost {
             return TabKey::from_key(payload).map(HostAction::PaneKey);
         }
         // 通知を閉じる（TASK-535 1/2）。枠の復号（正規形・32 バイト以下）と種類の既知の照合の両方を通ったものだけを受ける。
-        // 捨てて始めるはここでは受けない（書き出し・読み込みは下で別に受ける）。
+        // 捨てて始めるは 2/2（TASK-333 2/2）で受ける。ここでは復号しない（押しても何もしない。書き出し・読み込みは下で別に受ける）。
         if name == crate::shell::ACTION_DISMISS_NOTICE {
             return match crate::shell::ShellAction::decode(name, payload) {
                 Some(crate::shell::ShellAction::DismissNotice(kind)) => {

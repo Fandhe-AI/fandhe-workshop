@@ -337,7 +337,7 @@ PoC の記録には、B・G・H の系統で、上の表にない ID があり�
 
 根拠の試験: `crates/web/tests/view_only.rs`、`tools/browser/view-only.test.mjs`、`tools/browser/view-only-storage.test.mjs`（保存先の不変と書き出しの一致）。記録は `docs/testing.md` の 5.220・5.231。
 
-限界（開かない履歴）: 開かない履歴の理由は枠の通知欄に出しますが、文面は仮置きで、理由ごとの次の行動（SHELL-36）は出しません。起動時の復元は版の判定の段の拒否にだけ通知を出し、壊れた履歴（他の段）は TASK-533 まで通知が出ません。起動時に開けなかった場合は、その回の保存が止まったままで、通知は閉じられません。
+限界（開かない履歴）: 開かない履歴の理由は枠の通知欄に出しますが、文面は仮置きで、理由ごとの次の行動（SHELL-36）は出しません。起動時の復元は、版の判定の段の拒否を `import-refused` で、壊れた履歴（他の段）を `corrupt-history` で出します（TASK-333 1/2）。壊れた履歴の通知の文面は仮置きで、「保存された履歴を捨てて始める」は TASK-333 2/2 まで押しても何も起きません。起動時に開けなかった場合は、その回の保存が止まったままで、通知は閉じられません。
 
 根拠の試験: `crates/web/tests/refused_history.rs`、`tools/browser/refused-history.test.mjs`。記録は `docs/testing.md` の 5.221。
 

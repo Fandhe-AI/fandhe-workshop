@@ -162,7 +162,7 @@ fn 起動時の復元でも表示だけになり_保存の値は出ない() {
 
 #[test]
 fn 壊れた履歴は起動時に表示だけにならず_従来どおり操作できる() {
-    // 壊れた履歴（版の判定の段の外）の案内は TASK-533 の範囲。ここでは表示だけのモードに入らないことだけを固定する。
+    // 壊れた履歴（版の判定の段の外）は `corrupt-history` で案内する（TASK-333 1/2。`boot_corrupt_history.rs`）。ここでは表示だけのモードに入らないことだけを固定する。
     let mut h = host("1.0.0");
     assert_eq!(h.boot(Some(b"{broken")), BootKind::NotOpened);
     assert_eq!(h.model().view_only_reason(), None);

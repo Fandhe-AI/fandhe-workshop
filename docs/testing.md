@@ -10783,3 +10783,12 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 自動運転での判断（人の承認は無い）: 起動番号の照合は削除に通さない（受講者の意思による削除は古いタブでも行う）。配信する設定に隠れた削除の口を出さない。
 - 範囲外: 可視の操作・確認の表示は TASK-539、「やめる」の不変と通信 0 件の計数は TASK-341 2/2。
 - 限界: `docs/known-gaps.md` の SAVE-32。`scripts/expected-test-counts.txt` は更新していない。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.389 起動時に壊れた履歴を検出し保存を止める（TASK-333 1/2。SAVE-21・SHELL-17）
+
+- 目的: 起動したとき保存済みの履歴が壊れていたら、理由を枠の通知欄に出し、新しい状態で始め、保存を止めたまま保存済みの値を上書きしないことを固定する。受け入れ条件のうち「押した後の保存の再開」は TASK-333 2/2 の範囲。
+- 実装: ホストに表示の状態 `boot_corrupt`（理由の閉じた列挙だけ。`ops`・履歴・保存先には書かない）を足した。`restore_from_saved` が拒否の段で振り分ける（版の判定の段は従来どおり `import-refused`、それ以外の壊れた履歴は `corrupt-history`）。保存の停止は既存の `save_blocked` を使う。通知は閉じられず、置く操作は「保存された履歴を捨てて始める」（`shell-discard-start`）だけ。この操作の復号と処理は 2/2 なので、本 Issue では押しても何も起きない（fail-closed）。`install_recorded` では消さないため、開ける履歴を読み込んでも通知と停止は残る。
+- 試験: native `crates/web/tests/boot_corrupt_history.rs`（7 件。B-1〜B-7 の理由が表と一致・通知 1 件・ボタン 1 個・番兵が出ない・保存の値が出ない・閉じる／捨てるの action が何も変えない・読み込み後も残る・拒否との並び・版の判定の段と表示だけと正常の対照）、`shell_notice.rs` のモジュール内の試験、`refused_history.rs`・`view_only.rs` の更新。ブラウザ `tools/browser/boot-corrupt-history.test.mjs`（CSP あり・なし × 8 件。壊れた値を保存先へ直接置いて再読み込みで起動し、通知・理由・最初の Step・操作と押下の後の保存先のバイト単位の一致・再読み込み後の再表示・番兵 0 件・通信などの計数 0 件。対照は開ける値と版の判定の段の拒否）。単体の `node --test` で 16 件合格（2026-10-30）。
+- 変異注入（`scripts/check-mutations.sh crates/web/tests/mutations/SAVE21-1.mutation crates/web/tests/mutations/SAVE21-2.mutation`）: SAVE21-1 は壊れた側の理由を持たない、SAVE21-2 は通知欄が項目を積まない。いずれも DETECTED（2026-10-30）。
+- 範囲外: 「捨てて始める」の処理と保存の再開は TASK-333 2/2、文面の確定と SHELL-17 の画面の試験は TASK-533・TASK-549。
+- 限界: 文面は仮置き。B-4（10MB 超）は保存先に置けない場合に確かめない。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施で、近傍のブラウザ試験（`refused-history` など）は単体で流せる環境変数がそろわず未検証。試験と実装の作成者は同じ AI で、人の確認は得ていない。

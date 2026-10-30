@@ -15,7 +15,7 @@
 //   自己確認（負の対照）: 保存先の比較・画面の比較・番兵の検出器が、受け付けられる 1 手で実際に反応する。
 // 限界: (b) の復帰後の画面は試験の口が無いため DOM の題とログの行だけで確かめる。(c) は too_large を扱わない（20MB の文字列を CDP で
 //   渡す負荷が大きく、(b) が同じ判定を覆う）。(d) の 10MB 超が IndexedDB に置けない場合は diagnostic に残して置けた範囲で確かめる。Chromium のみ。
-// 対象外: 受講者向けの最終の文面（TASK-545・TASK-549・TASK-534）、起動時の理由の案内（TASK-533）。
+// 対象外: 受講者向けの最終の文面（TASK-545・TASK-549・TASK-534）、起動時の理由の案内の文面（TASK-533。出すこと自体は boot-corrupt-history。TASK-333 1/2）。
 // 失敗の文・diagnostic には、バイト数・件数・固定のコード・真偽だけを出す（入力の中身と番兵の値は出さない）。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
