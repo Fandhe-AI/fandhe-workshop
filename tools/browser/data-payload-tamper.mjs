@@ -8,7 +8,7 @@ import { DANGER_TAGS } from './harness.mjs';
 export const ROOT = '[data-testid="workshop-root"]';
 // 試験の設定だけの口。payload の JSON を `Op` として送るため正当に状態を変える。書き換えの対象から名前つきで除く（E4 で除く理由を示す）。
 export const RAW_TESTID = 'raw-trigger';
-// 現行の画面に置かない口（FEND-4・ヒントの画面は未実装）。全場面で 0 件を確かめる。
+// 現行の画面に置かない口（FEND-4。ヒントの試作の名前 hint-btn は製品の画面の hint-open と別）。全場面で 0 件を確かめる。
 export const ABSENT_TESTIDS = ['tick-trigger', 'esc-trigger', 'hint-btn'];
 
 // `crates/web/src/host.rs` の `decode_action` から分類した期待。
@@ -18,6 +18,7 @@ export const ABSENT_TESTIDS = ['tick-trigger', 'esc-trigger', 'hint-btn'];
 //   I  payload を読まない。書き換えない click の対照と同じ結果（状態・保存先・ログの増分で比べる。画面の細部は候補の整えなどで揺れるため比べない）
 export const CLASS_OF = {
   'save-checkpoint': 'D',
+  'open-hint': 'D',
   'restore-checkpoint': 'D',
   'select-pane': 'D',
   'select-view': 'D',

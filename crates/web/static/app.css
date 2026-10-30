@@ -173,6 +173,20 @@
   margin-left: 0.75rem;
 }
 
+.sh-hint,
+.sh-hint > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin-left: 0.75rem;
+  max-width: 100%;
+}
+
+.sh-hint [data-testid="hint-stage"] {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
 .sh-title,
 .sh-position {
   margin-left: 0.75rem;

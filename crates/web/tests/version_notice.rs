@@ -181,10 +181,10 @@ fn a_closed_open_does_not_touch_the_notice() {
         ImportOutcome::ViewOnly(_)
     ));
     assert_eq!(items(&h), 0);
-    // 表示だけの理由の欄（VER-8）と、出ていた保存のボタンの取り下げ（TASK-529）だけが動く。枠の通知・ログ・状態は変えない（SAVE-19）。
+    // 表示だけの理由の欄（VER-8）と、出ていた保存・ヒントのボタンの取り下げ（TASK-529・TASK-530）だけが動く。枠の通知・ログ・状態は変えない（SAVE-19）。
     assert_eq!(
         h.dirty_fields(),
-        vec!["view_only_notice", "checkpoint_ops"],
+        vec!["view_only_notice", "checkpoint_ops", "hint_ops"],
         "SAVE-19"
     );
     assert_eq!(log_len(&h), before);

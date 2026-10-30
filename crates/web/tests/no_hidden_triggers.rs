@@ -36,7 +36,7 @@ const ROUTED_ACTIONS: [&str; 6] = [
 const RAW_TRIGGER: (&str, &str) = ("raw-trigger", "host.rs");
 
 /// `data-payload` の出現の許可（相対パス, `"data-payload"` の件数, `PAYLOAD_ATTR` の件数）。表に無いファイルは 0 件。
-const PAYLOAD_ALLOWED: [(&str, usize, usize); 9] = [
+const PAYLOAD_ALLOWED: [(&str, usize, usize); 10] = [
     // 枠の適合の検査器（TASK-511 2/2）が `data-payload` を読んで照合する。use の行 1 と読み取り 3。要素には書かない。
     ("shell.rs", 0, 4),
     // 属性名の定義 1 と、指せる行（`data-action="ui"`）での使用 1。
@@ -57,6 +57,8 @@ const PAYLOAD_ALLOWED: [(&str, usize, usize); 9] = [
     // 受講者が押す見える保存・復帰のボタン（TASK-529 1/2）。use の行 1 と使用 2。payload は ID で、進行の宛先ではない。
     // ページ送りのボタン（FEND-22）は共通の関数 1 か所で使用が 1 増える。payload はページ番号で、進行の宛先ではない。
     ("checkpoint_ops.rs", 0, 4),
+    // 受講者が押す見える「ヒントを開く」のボタン（TASK-530 1/2）。use の行 1 と使用 1。payload は空で、進行の宛先ではない。
+    ("hint_ops.rs", 0, 2),
 ];
 
 /// 配信する静的ファイルで禁止する文字列（コメントも含めて生の本文で照合する）。

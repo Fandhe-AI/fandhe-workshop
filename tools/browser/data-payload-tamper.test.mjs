@@ -139,7 +139,7 @@ for (const csp of [true, false]) {
   const mode = `CSP ${csp ? 'あり' : 'なし'}`;
 
   test(`開いた直後（選択肢・保存・タブ・ビューの切り替え）の書き換え（${mode}）`, { timeout: 600000 }, async () => {
-    await openScene(csp, {}, (page, L) => sweep(page, L, true, 'S1', [...BASE_ACTIONS, 'choose']));
+    await openScene(csp, {}, (page, L) => sweep(page, L, true, 'S1', [...BASE_ACTIONS, 'open-hint', 'choose']));
   });
 
   test(`幅 959px の tablist の書き換え（${mode}）`, { timeout: 600000 }, async () => {
@@ -149,7 +149,7 @@ for (const csp of [true, false]) {
         return !!e && getComputedStyle(e).display !== 'none';
       });
       L.check('S1w', 'tablist が見えている', visible);
-      await sweep(page, L, true, 'S1w', [...BASE_ACTIONS, 'choose']);
+      await sweep(page, L, true, 'S1w', [...BASE_ACTIONS, 'open-hint', 'choose']);
     });
   });
 
@@ -190,7 +190,7 @@ for (const csp of [true, false]) {
   test(`枠の通知を閉じる口の書き換え（${mode}）`, { timeout: 600000 }, async () => {
     await openScene(csp, { userAgent: FIREFOX }, async (page, L) => {
       L.check('S4', '通知が 1 件出ている', (await page.locator('[data-testid="shell-notice-item"]').count()) === 1);
-      await sweep(page, L, true, 'S4', [...BASE_ACTIONS, 'choose', 'dismiss-notice']);
+      await sweep(page, L, true, 'S4', [...BASE_ACTIONS, 'open-hint', 'choose', 'dismiss-notice']);
     });
   });
 

@@ -1,0 +1,8 @@
+id: SHELL14-1
+package: fandhe-workshop-web
+test: hint_ops_host
+target: crates/web/src/hint_ops.rs
+find:         .take(opened as usize)
+replace:         .take(total as usize)
+expect-fail: 三段は定義の順に1つずつ増え_ボタンの要素は残る
+note: 未開の段まで出す（開いた段数での切り詰めを外す。SHELL-14）

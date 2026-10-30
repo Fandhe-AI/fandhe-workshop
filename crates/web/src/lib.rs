@@ -71,6 +71,7 @@ pub mod export_notice;
 pub mod file_tree_view;
 pub mod glue_ops;
 mod hello;
+pub mod hint_ops;
 pub mod history_export;
 pub mod history_ops;
 pub mod host;

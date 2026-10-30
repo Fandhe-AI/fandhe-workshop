@@ -99,6 +99,7 @@ use crate::checkpoint_ops::{checkpoint_section, CheckpointOffer, CHECKPOINT_OPS_
 use crate::engine_parts::standard_registry;
 use crate::export_notice::{chapter_end_in, ExportHint, EXPORT_NOTICE_FIELD};
 use crate::hello::{HelloAction, HelloView, HELLO_FIELDS};
+use crate::hint_ops::{hint_section, HintOffer, HINT_OPS_FIELD};
 use crate::history_export::ExportGate;
 use crate::history_ops::{history_ops, ExportResult, EXPORT_RESULT_FIELD};
 use crate::next_chapter::{next_chapter, next_chapter_list, NextChapter, NEXT_CHAPTER_FIELD};
@@ -268,6 +269,8 @@ pub enum HostAction {
     SaveCheckpoint,
     /// チェックポイントへの復帰（`restore-checkpoint`。TASK-529 1/2）。payload は正規形の ID で、今の提示との照合は `update` が行う。
     RestoreCheckpoint(u32),
+    /// ヒントを 1 段開く（`open-hint`。TASK-530 1/2）。今の提示にボタンがあるときだけ `Control::OpenHint` を送り、上限は core が判定する。
+    OpenHint,
     /// チェックポイントの一覧のページ送り（`checkpoint-page`。FEND-22）。payload は正規形のページ番号で、ページ数との照合は `update` が行う。
     CheckpointPage(usize),
     /// 960px 未満のタブのクリック（`select-pane`。TASK-517 2/2）。表示の状態だけを変える。
@@ -982,6 +985,7 @@ impl EngineHost {
                 || f.name == SHELL_NOTICES_FIELD.name
                 || f.name == NEXT_CHAPTER_FIELD.name
                 || f.name == CHECKPOINT_OPS_FIELD.name
+                || f.name == HINT_OPS_FIELD.name
                 || f.name == TOP_PLACE_FIELD.name
                 || f.name == STEP_BODY_FIELD.name
                 || f.name == EXPORT_RESULT_FIELD.name
@@ -2253,6 +2257,10 @@ impl EngineHost {
         if !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name) {
             self.dirty.push(CHECKPOINT_OPS_FIELD.name);
         }
+        // 上部のヒントの操作も registry の外にある。前の教材の項目を DOM から消すため明示して積む（TASK-530）。
+        if !self.dirty.contains(&HINT_OPS_FIELD.name) {
+            self.dirty.push(HINT_OPS_FIELD.name);
+        }
         // 上部の教材名・位置も registry の外にある。教材・復元した Step が変わるので明示して積む（TASK-524）。
         if !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
@@ -2483,6 +2491,7 @@ impl EngineHost {
         // 「次の章へ進む」が出ていたかは、表示だけに入る前に調べる。
         let offered = self.next_chapter_offer().is_some();
         let ops_shown = self.checkpoint_offer() != CheckpointOffer::default();
+        let hint_before = self.hint_offer();
         self.model.view_only = Some(code);
         self.view_only_bytes = Some(bytes);
         self.clear_export_result();
@@ -2501,6 +2510,10 @@ impl EngineHost {
         // チェックポイントの操作も表示だけの間は出さない。出ていたときだけ削除を通知する。
         if ops_shown && !self.dirty.contains(&CHECKPOINT_OPS_FIELD.name) {
             self.dirty.push(CHECKPOINT_OPS_FIELD.name);
+        }
+        // ヒントのボタンも同じ。表示だけの間はボタンを消し、開いた段は残す。
+        if self.hint_offer() != hint_before && !self.dirty.contains(&HINT_OPS_FIELD.name) {
+            self.dirty.push(HINT_OPS_FIELD.name);
         }
         if let Some(reset) = self.tick_reset.as_ref() {
             reset();
@@ -2569,6 +2582,21 @@ impl EngineHost {
         match self.model.session() {
             Some(s) => crate::checkpoint_ops::offer(s.ir(), s.state(), self.checkpoint_page),
             None => CheckpointOffer::default(),
+        }
+    }
+
+    /// 今提示するヒントの操作。session が無いときは空。表示だけの間はボタンを出さず（押下は allowlist が捨てる）、
+    /// 復元した状態で開いた段の閲覧だけを残す（TASK-530）。
+    fn hint_offer(&self) -> HintOffer {
+        match self.model.session() {
+            Some(s) => {
+                let mut o = crate::hint_ops::offer(s.ir(), s.state());
+                if self.model.view_only.is_some() {
+                    o.can_open = false;
+                }
+                o
+            }
+            None => HintOffer::default(),
         }
     }
 
@@ -2788,6 +2816,8 @@ impl Component for EngineHost {
         let place_before = self.top_place();
         // チェックポイントの操作の提示も前後で比べる（TASK-529）。
         let ops_before = self.checkpoint_offer();
+        // ヒントの操作と開いた段も前後で比べる（TASK-530）。
+        let hint_before = self.hint_offer();
         // Step の題・do・本文も前後で比べる（TASK-525）。
         let step_before = self.step_text_key();
         // 表示だけの間は、閲覧に必要な action（allowlist）以外を全部捨てる（fail-closed。VER-8）。通すのは表示だけを変える action と、
@@ -2915,6 +2945,12 @@ impl Component for EngineHost {
                     self.apply_engine(Op::Control(Control::Restore(
                         fandhe_workshop_core::input::CheckpointId(id),
                     )));
+                }
+            }
+            // ヒントを開くのは今の提示にボタンがあるときだけ core へ送る。上限の判定は core の `hint_open` に任せる（TASK-530）。
+            HostAction::OpenHint => {
+                if self.hint_offer().can_open {
+                    self.apply_engine(Op::Control(Control::OpenHint));
                 }
             }
             HostAction::CheckpointPage(page) => {
@@ -3065,6 +3101,9 @@ impl Component for EngineHost {
         {
             self.dirty.push(CHECKPOINT_OPS_FIELD.name);
         }
+        if self.hint_offer() != hint_before && !self.dirty.contains(&HINT_OPS_FIELD.name) {
+            self.dirty.push(HINT_OPS_FIELD.name);
+        }
         if self.top_place() != place_before && !self.dirty.contains(&TOP_PLACE_FIELD.name) {
             self.dirty.push(TOP_PLACE_FIELD.name);
         }
@@ -3115,6 +3154,7 @@ impl Component for EngineHost {
         let top_children = vec![
             self.top_place_node(),
             checkpoint_section(&self.checkpoint_offer()),
+            hint_section(&self.hint_offer()),
         ];
         #[allow(unused_mut, reason = "試験の設定でだけ raw-trigger を足す")]
         // 通知欄は root の先頭に置く（仮置き。配置の最終の決定は TASK-534）。tabpanel の外なので、幅 960px 未満でも見える。
@@ -3228,6 +3268,9 @@ impl Component for EngineHost {
         if name == crate::checkpoint_ops::ACTION_RESTORE_CHECKPOINT {
             return crate::checkpoint_ops::parse_restore_payload(payload)
                 .map(HostAction::RestoreCheckpoint);
+        }
+        if name == crate::hint_ops::ACTION_OPEN_HINT {
+            return payload.is_empty().then_some(HostAction::OpenHint);
         }
         if name == crate::checkpoint_ops::ACTION_CHECKPOINT_PAGE {
             return crate::checkpoint_ops::parse_page_payload(payload)
