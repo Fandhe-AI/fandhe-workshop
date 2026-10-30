@@ -141,14 +141,11 @@ fn every_start_refusal_shows_one_pack_unloadable_item() {
 
 #[test]
 fn not_found_is_judged_before_body_and_shown() {
-    // 404 は本文を見ずに断る（SHELL-32・D-74）。読める IR が付いていても、不正な本文でも結果は同じ。
-    for body in [min3(), b"{".to_vec(), Vec::new()] {
-        let _ = body;
-        assert!(matches!(
-            open_fetched_ir(FetchedIr::NotFound, None),
-            Err(BundledIrRefusal::NotFound)
-        ));
-    }
+    // 404 は本文を見ずに断る（SHELL-32・D-74）。FetchedIr::NotFound は本文を持たないので、型の上で本文に依存しない。
+    assert!(matches!(
+        open_fetched_ir(FetchedIr::NotFound, None),
+        Err(BundledIrRefusal::NotFound)
+    ));
     let h = EngineHost::refused_not_found();
     assert_eq!(h.ir_refusal(), Some("not_found"));
     assert_unloadable_screen(&h, "not_found");
