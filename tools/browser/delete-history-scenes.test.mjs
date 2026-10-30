@@ -81,6 +81,7 @@ function sameBoth(a, b, what) {
 // 「やめる」を選ぶ。
 async function cancelCheck(page, eg) {
   const a = await observe(page, eg);
+  assert.ok(Object.keys(a.idb).some(isPackKey), '前提: この教材の鍵が IndexedDB にある');
   assert.equal(await press(page, 'deleteHistory'), true, '削除の要求が受け付けられる');
   assert.equal((await engine(page)).deletePending, true);
   sameBoth(a, await observe(page, eg), '確認待ちの間');
@@ -107,6 +108,7 @@ async function cancelCheck(page, eg) {
 async function deleteCheck(page, eg) {
   const a = await observe(page, eg);
   assert.ok(Object.keys(a.local).some(isPackKey), '前提: この教材の鍵が localStorage にある');
+  assert.ok(Object.keys(a.idb).some(isPackKey), '前提: この教材の鍵が IndexedDB にある');
   await press(page, 'deleteHistory');
   await press(page, 'confirmDelete');
   await waitDeleteResult(page);
@@ -169,9 +171,13 @@ async function prepare(page, srv) {
     localStorage.setItem(b, 'unreadable-value');
     localStorage.setItem('unrelated-key', 'u');
   }, [foreign, unreadable]);
-  await idbPut(page, { [otherPack]: 'idb-other-value' });
+  // 対象の教材の別の開始点の鍵を IndexedDB に置く（削除が IndexedDB の対象鍵にも作用することを見るため）。
+  const idbTarget = sameScopeKey(keyP, (p) => { p[p.length - 1] = 'idb-other-start'; });
+  assert.ok(isPackKey(idbTarget), '前提: IndexedDB の対象鍵はこの教材の鍵');
+  await idbPut(page, { [otherPack]: 'idb-other-value', [idbTarget]: 'idb-target-value' });
   await page.reload();
   await waitMounted(page);
+  assert.ok(Object.keys(await idbDump(page)).some(isPackKey), '前提: この教材の鍵が IndexedDB にある');
   await install(page);
   return keyP;
 }
