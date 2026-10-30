@@ -1,0 +1,8 @@
+id: SHELL16-3
+package: fandhe-workshop-web
+test: broken_histories_host
+target: crates/web/src/shell_notice.rs
+find:         LoadReason::OtherPack => Some("この履歴は別の教材で記録されたものです。"),
+replace:         LoadReason::OtherPack => None,
+expect-fail: 残りの_3_種も理由の文が出て_7_種で互いに違い_履歴の値を含まない
+note: 別の教材の履歴の理由の文を落とす（SHELL-16・TASK-532 2/2）

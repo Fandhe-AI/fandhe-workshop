@@ -69,9 +69,9 @@ pub fn next_action_text(a: LoadNextAction) -> &'static str {
     }
 }
 
-/// 内容の壊れた履歴 4 種の理由の文（SHELL-16。TASK-532 1/2。仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
-/// 受講者が 4 種の違いを読めるよう、理由のコード（ASCII）とは別に固定の文を返す。
-/// 残りの 3 種（`missing_version`・`other_pack`・`malformed`。TASK-532 2/2）と版の判定の段（TASK-538・TASK-549）は `None` のまま残す。
+/// 読み込めない履歴 7 種の理由の文（SHELL-16。TASK-532 1/2・2/2。仮置き。最終の文面は TASK-549・TASK-534 が持つ）。
+/// 受講者が 7 種の違いを読めるよう、理由のコード（ASCII）とは別に固定の文を返す。
+/// 版の判定の段（TASK-538・TASK-549）などは `None` のまま残す。
 /// 網羅の match にして `_` を使わないのは、理由が増えたときにコンパイラが漏れを知らせるためである。
 /// 文は固定の文言だけで、履歴由来の値を含めない（SAFE-40）。
 pub fn reason_text(code: LoadReason) -> Option<&'static str> {
@@ -81,14 +81,16 @@ pub fn reason_text(code: LoadReason) -> Option<&'static str> {
         }
         LoadReason::Truncated => Some("履歴のファイルが途中で切れています。"),
         LoadReason::NotJson => Some("履歴のファイルが JSON として読めません。"),
+        LoadReason::MissingVersion => Some("履歴のファイルに版の欄がありません。"),
+        // どの教材かは履歴由来の値なので、文に入れない（SAFE-40）。
+        LoadReason::OtherPack => Some("この履歴は別の教材で記録されたものです。"),
+        // 型の違い（B-7）と未知の欄（B-4b）の両方に出るため、型に限る言い方をしない。
+        LoadReason::Malformed => Some("履歴のファイルの欄が、決められた形と合いません。"),
         // 大きさの文は contract が持つ（二重定義をしない）。
         LoadReason::TooLarge => rejection_message(LoadEntry::History, LimitReason::TooLarge),
         LoadReason::TooDeep
         | LoadReason::TooManyOps
-        | LoadReason::MissingVersion
-        | LoadReason::Malformed
         | LoadReason::HistoryFormatNewer
-        | LoadReason::OtherPack
         | LoadReason::BadVersion
         | LoadReason::FormatNewer
         | LoadReason::VocabNewer
@@ -363,16 +365,19 @@ mod tests {
         }
     }
 
-    const FOUR: [LoadReason; 4] = [
+    const SEVEN: [LoadReason; 7] = [
         LoadReason::ReplayMismatch,
         LoadReason::Truncated,
         LoadReason::NotJson,
         LoadReason::TooLarge,
+        LoadReason::MissingVersion,
+        LoadReason::OtherPack,
+        LoadReason::Malformed,
     ];
 
     #[test]
-    fn four_broken_reasons_have_distinct_fixed_texts() {
-        let t: Vec<&str> = FOUR.iter().map(|c| reason_text(*c).unwrap()).collect();
+    fn seven_broken_reasons_have_distinct_fixed_texts() {
+        let t: Vec<&str> = SEVEN.iter().map(|c| reason_text(*c).unwrap()).collect();
         for (i, x) in t.iter().enumerate() {
             assert!(!x.trim().is_empty());
             assert!(!x.contains(['{', '"', '<']), "{x}");
@@ -387,8 +392,8 @@ mod tests {
     }
 
     #[test]
-    fn four_broken_messages_put_reason_between_code_and_next_action() {
-        for code in FOUR {
+    fn seven_broken_messages_put_reason_between_code_and_next_action() {
+        for code in SEVEN {
             let m = import_refused_message(code);
             let reason = reason_text(code).unwrap();
             let next = next_action_text(next_action(code));

@@ -10846,3 +10846,13 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 変異注入: SHELL16-2（`truncated` の文を `None` にする）が DETECTED（2026-10-30）。
 - 範囲外: 残り 3 種（TASK-532 2/2）、文面の確定（TASK-549・TASK-534）、次の行動を押せる操作にすること（TASK-538）、起動時の SHELL-17（TASK-533）。
 - 限界: 本物の読み込み欄の試験は試験の設定（状態の観察に試験用の口を使う）だけで、配信する設定（DOM だけの観察）では未実施。`too_large` の文は末尾の「別のファイルを選んでください。」と次の行動の文が重複する（文面の確定で直す）。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.395 形・識別の合わない履歴 3 種の理由を表示する（TASK-532 2/2。SHELL-16）
+
+- 目的: `missing_version`（B-5）・`other_pack`（B-6）・`malformed`（B-7・B-4b）を読み込んだとき、通知欄に固定の理由の文を出し、開かず保存領域と画面の状態を変えないことを固定する。これで読み込めない履歴 7 種が揃う。
+- 本番の変更: `crates/web/src/shell_notice.rs` の `reason_text` の 3 つの腕を `None` から固定の文へ移しただけ。判定・通知の種類・属性・契約の版は変えない。
+- 文（仮置き。最終の文面は TASK-549・TASK-534）: `missing_version` は「履歴のファイルに版の欄がありません。」、`other_pack` は「この履歴は別の教材で記録されたものです。」（教材の ID・名前は入れない。SAFE-40）、`malformed` は「履歴のファイルの欄が、決められた形と合いません。」。
+- 試験: `shell_notice` の単体（7 種の文が空でなく互いに異なる・位置）。`crates/web/tests/broken_histories_host.rs` は 7 種すべてで理由の文を必須にし、新しい 1 件で 7 種の本文が互いに違い履歴の値（`min-3step`・`other-tutorial`・`"ops"`・`"versions"`）を含まないことを確かめる。ブラウザ `tools/browser/broken-histories.test.mjs` は本物の読み込み欄の経路を B-0〜B-7（B-4b を含む）の 9 件に広げた（37 件合格、2026-10-30）。`make lint`・`make test`・`make check-deps`・`make check` も通った（2026-10-30）。
+- 変異注入: SHELL16-3（`other_pack` の文を `None` にする）が DETECTED。SHELL16-2 も DETECTED のまま（2026-10-30）。
+- 範囲外: 文面の確定（TASK-549・TASK-534）、次の行動を押せる操作にすること（TASK-538）、起動時の SHELL-17（TASK-533）、版の判定の段の理由の文。
+- 限界: 配信する設定（DOM だけの観察）では未実施。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
