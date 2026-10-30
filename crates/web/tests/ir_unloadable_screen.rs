@@ -17,7 +17,9 @@ use fandhe_workshop_contract::storage::DeliveryScope;
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_web::host::{BootKind, EngineHost};
 use fandhe_workshop_web::ir_notice::ir_notice_text;
-use fandhe_workshop_web::start_select::{open_bundled_ir, BundledIrRefusal, StartRefusal};
+use fandhe_workshop_web::start_select::{
+    open_bundled_ir, open_fetched_ir, BundledIrRefusal, FetchedIr, StartRefusal,
+};
 
 const SENTINEL: &str = "UNLOADABLE-SENTINEL-X";
 
@@ -138,14 +140,40 @@ fn every_start_refusal_shows_one_pack_unloadable_item() {
 }
 
 #[test]
-fn missing_ir_is_refused_as_not_json_and_shown() {
-    // 印つきの配信物で `./ir/main.json` が取れないとき、`app.js` は空のバイト列を渡す。404 の理由は TASK-546 で変わる。
-    match open_bundled_ir(&[], None) {
+fn not_found_is_judged_before_body_and_shown() {
+    // 404 は本文を見ずに断る（SHELL-32・D-74）。FetchedIr::NotFound は本文を持たないので、型の上で本文に依存しない。
+    assert!(matches!(
+        open_fetched_ir(FetchedIr::NotFound, None),
+        Err(BundledIrRefusal::NotFound)
+    ));
+    let h = EngineHost::refused_not_found();
+    assert_eq!(h.ir_refusal(), Some("not_found"));
+    assert_unloadable_screen(&h, "not_found");
+    let html = render_component_html(&h);
+    assert!(html.contains("教材が見つかりません"), "{html}");
+    assert!(!html.contains("教材を読み込めませんでした"), "{html}");
+}
+
+#[test]
+fn not_found_screen_saves_nothing() {
+    let mut h = EngineHost::refused_not_found();
+    assert!(h.history_key(DeliveryScope::named("repo")).is_none());
+    assert!(h.history_to_save().is_none());
+    assert_eq!(h.boot(Some(b"{}")), BootKind::NoSession);
+    assert!(h.history_to_save().is_none());
+}
+
+#[test]
+fn empty_body_stays_not_json() {
+    // 200 で空の本文は 404 ではない。not_json のまま（SHELL-32）。
+    match open_fetched_ir(FetchedIr::Body(&[]), None) {
         Err(BundledIrRefusal::Load(e)) => {
             assert_eq!(e.reason_code(), "not_json");
             assert_unloadable_screen(&EngineHost::refused(&e), "not_json");
+            let html = render_component_html(&EngineHost::refused(&e));
+            assert!(!html.contains("教材が見つかりません"), "{html}");
         }
-        _ => panic!("empty ir must be refused as a load failure"),
+        _ => panic!("empty body must be refused as a load failure"),
     }
 }
 
