@@ -23,7 +23,6 @@ export const waitDeleteResult = (page) => page.waitForFunction(
   { timeout: T },
 );
 
-
 export const idbDump = (page) => page.evaluate(() => new Promise((resolve, reject) => {
   const req = indexedDB.open('fandhe-workshop', 1);
   req.onerror = () => reject(new Error('idb open failed'));
