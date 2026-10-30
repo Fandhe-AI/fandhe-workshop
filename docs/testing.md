@@ -10863,5 +10863,19 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 本番の変更: `crates/web/src/shell_notice.rs` に `corrupt_reason_text` と案内の文（`CORRUPT_HISTORY_GUIDE`）を足し、`corrupt_history_message` を「前置き・コード・理由の文・案内の文」の並びにした。6 種（`replay_mismatch`・`truncated`・`not_json`・`missing_version`・`other_pack`・`malformed`）の理由の文は読み込みの拒否の `reason_text` に委ねて二重に定義しない。`too_large` だけは contract の文が「別のファイルを選んでください」と案内して起動時の文脈では誤りになるため、固定の文（10MB の上限）を持つ。判定・属性・`discard_and_start`・`import-refused` の文は変えない。
 - 試験: `shell_notice` の単体（全理由で案内の文が末尾にある・案内がボタン名を含む・7 種の文が互いに異なる・`too_large` が別のファイルを促さず 10MB が contract と一致）、`crates/web/tests/boot_corrupt_history.rs`（7 種で理由の文と案内の文が通知に入る）。ブラウザ `tools/browser/boot-corrupt-notice.test.mjs` は配信する設定（IR_FILE つき・TEST_HOOKS なし）で、実操作で保存した履歴を壊して localStorage に置き、B-2・B-3・B-5・B-6・B-7 を CSP あり・なしで確かめる（通知 1 件・理由コード・理由の文・案内の文・ボタンが見える・閉じる操作なし・最初の Step・操作と再読み込みで鍵と値のハッシュが不変・幅 360px で見える・番兵が出ない・通信と CSP 違反とページエラー 0 件）。壊していない値の対照も置く。既存の `boot-corrupt-history.test.mjs` は理由の断片と案内の文の確認を足した。12 件と 16 件が合格（2026-10-30）。
 - 変異注入: SHELL17-3（理由の文を外す）・SHELL17-4（案内の文を外す）が DETECTED。SHELL17-1・SHELL17-2・SAVE21-1 も DETECTED のまま（2026-10-30）。
-- 範囲外: 「捨てて始める」を押した後に保存が再開することの画面の試験（TASK-533 2/2。#902）。本試験はボタンを押さない。
+- 範囲外: 「捨てて始める」を押した後に保存が再開することの画面の試験は 5.397（TASK-533 2/2）で足した。本試験（1/2）はボタンを押さない。
 - 限界: B-1 は作者の教材の最初の操作が選択肢で submit を持たないため、B-4 は localStorage に置けないため、配信の試験から除いた（試験の設定の `boot-corrupt-history` が確かめる）。`too_deep`・`too_many_ops`・`history_format_newer`・`start_missing`・`replay_diverged` などは理由の文を持たず、コードと案内の文だけである。保存先は localStorage の範囲で Chromium のみ。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験と実装の作成者は同じ AI で、人の確認は得ていない。
+
+### 5.397 「捨てて始める」を押した後に保存が再開することの画面の試験（TASK-533 2/2。SHELL-17・SAVE-21）
+
+- 目的: 起動時に壊れた履歴の案内の「保存された履歴を捨てて始める」を押すと、今の鍵の壊れた履歴だけが保存先から消え、最初の Step で新しく始まり、次の操作から保存が再開することを、試験用の口の無い配信する設定の画面で、実際の click と localStorage の観察だけで固定する。
+- 本番の変更: なし。仕組みは 5.390（TASK-333 2/2。`host.rs` の `discard_and_start` と `persist.rs` の結線）で実装済みで、結線は `cfg(test-hooks)` の外にあり配信する設定でも結ばれる。
+- 試験: `tools/browser/boot-corrupt-notice.test.mjs` に、壊れた履歴 5 通り（B-2・B-3・B-5・B-6・B-7）× CSP あり・なしの 10 件を足した。手順は次のとおり。
+  - 実操作の履歴を 1 本作り、値を壊して置く。あわせて別の開始点の鍵と別の教材の鍵（壊していない値）を 2 本置く。
+  - 起動して「捨てて始める」を押す（B-2 だけ focus して Enter、他は click）。通知とボタンが 0 件になり最初の Step で始まり、壊れた今の鍵だけが消えて対照の 2 本が鍵・長さ・ハッシュとも不変であることを確かめる。
+  - 未操作で開き直しても通知が出ず鍵が作られない。続けて実操作を 1 回行うと今の鍵が書かれ、壊れた値と異なる JSON で入力の番兵を含まず、対照の 2 本は不変。再読み込みで通知なしに復元される。
+  - 外部通信・CSP 違反・ページのエラー・ダイアログ・ポップアップが 0 件。出力は件数・コード・ハッシュの先頭だけで、履歴の値と番兵は出さない。
+  - 単体実行の結果（2026-10-30）: 既存の 12 件と合わせて 22 件が合格、失敗 0 件。
+- 変異注入: 本番を変えていないため新しい変異は足さない。SAVE21-3・SAVE21-4 は native の試験が検出する（5.390）。配信のビルドに変異を当てて本試験が落ちることは未確認。
+- 範囲外: 受講者が任意に行う履歴の削除（SHELL-38・TASK-539）。B-1・B-4 の押下（試験の設定の `boot-corrupt-history` が持つ）。
+- 限界: Chromium のみ。保存先は localStorage の範囲（IndexedDB に入った場合は失敗にする）。IndexedDB の削除が確定を待たないことは既知（`docs/known-gaps.md`）。押す前の操作は捨てられる。`scripts/expected-test-counts.txt` は更新していない。`make test-browser` の全体は未実施。試験の作成者は同じ AI で、人の確認は得ていない。

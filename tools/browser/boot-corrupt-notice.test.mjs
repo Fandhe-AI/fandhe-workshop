@@ -11,7 +11,11 @@
 //     幅 360px で成果物のタブを選んでも通知とボタンが見えている。入力に入れた番兵が DOM・コンソールに無い。
 //     外部通信・CSP 違反・ページのエラー・ダイアログが 0 件。
 //   対照: 壊していない値で開き直すと通知は 0 件で、最初の Step の状態にならない（復元される）。
-// 範囲外: 「捨てて始める」を押した後に保存が再開すること（TASK-533 2/2。#902）。本試験はボタンを押さない。
+//   「捨てて始める」を押した後（TASK-533 2/2。#902。上の 5 通り × CSP 2 通り）:
+//     通知とボタンが 0 件になり最初の Step で始まり、壊れた今の鍵だけが消えて別の開始点・別の教材の鍵 2 本が不変で、
+//     未操作の開き直しでは鍵が作られず、実操作 1 回で壊れた値と異なる JSON の値が今の鍵へ書かれ（番兵なし）、再読み込みで復元される。
+//     B-2 はキーボード（Enter）で押す。
+// 範囲外: 受講者が任意に行う履歴の削除（SHELL-38・TASK-539）。
 // 限界: B-1（submit の書き換え）は作者の教材の最初の操作が選択肢で submit を持たないため、B-4（10MB 超）は localStorage に置けないため除く。
 //   その 2 通りは boot-corrupt-history が試験の設定で確かめる。保存先は localStorage の範囲（IndexedDB に入った場合は失敗にする）。Chromium のみ。
 //   作り方が表と違う理由になった場合は失敗にする（表を黙って直さない）。
@@ -188,7 +192,7 @@ for (const csp of [true, false]) {
         assert.ok(await isInitial(page), 'starts fresh at the first step');
         assert.equal(await sentinelAbsent(opened, sentinel), true, 'input value is not shown or logged');
 
-        // 操作しても保存先は変わらない（壊れた値を上書きしない）。ボタンは押さない（押した後は TASK-533 2/2）。
+        // 操作しても保存先は変わらない（壊れた値を上書きしない）。本試験ではボタンを押さない（押した後は下の「捨てて始める」の試験）。
         await mouseDriver(page).choose('opt-right');
         await page.waitForTimeout(1500);
         await offApp(page, srv);
@@ -210,6 +214,103 @@ for (const csp of [true, false]) {
         assert.equal(await page.locator(DISCARD).isVisible(), true, 'button visible at 360px');
         assert.equal(await sentinelAbsent(opened, sentinel), true, 'no sentinel at the end');
         assertQuiet(opened.rec, c.id);
+        await opened.context.close();
+      }));
+    });
+  }
+
+  for (const c of CASES) {
+    test(`壊れた履歴 ${c.id}: 配信する設定で「捨てて始める」を押すと今の鍵だけが消え、次の操作から保存が再開する（CSP ${label}）`, async (t) => {
+      await withCspMode({ dir: webDir, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+        const opened = await openPage(browser, { origin: srv.origin });
+        opened.consoleTexts = [];
+        opened.page.on('console', (m) => opened.consoleTexts.push(m.text()));
+        const { page } = opened;
+        await saveHistory(opened, srv);
+        await offApp(page, srv);
+        const saved = await historyEntries(page);
+        assert.equal(saved.length, 1, 'exactly one history key in localStorage');
+        const [{ key }] = saved;
+        const base = await page.evaluate((k) => localStorage.getItem(k), key);
+        const sentinel = `SHELL17-SENTINEL-${c.id}`;
+        const broken = c.make(sentinel, base);
+        assert.notEqual(broken, base, 'the value is actually broken');
+        // 対照の鍵 2 本（別の開始点・別の教材）。消してはいけない（A01）。
+        const parts = key.split('/');
+        assert.equal(parts.length, 5, 'key has five segments');
+        const otherStart = [...parts.slice(0, 4), 'other-start'].join('/');
+        const otherPack = [...parts.slice(0, 3), 'other-pack', parts[4]].join('/');
+        await page.evaluate(([k, v, a, b, w]) => {
+          localStorage.setItem(k, v);
+          localStorage.setItem(a, w);
+          localStorage.setItem(b, w);
+        }, [key, broken, otherStart, otherPack, base]);
+        const placed = await historyEntries(page);
+        assert.equal(placed.length, 3, 'three history keys placed');
+        const controls = placed.filter((e) => e.key !== key);
+        assert.equal(controls.length, 2, 'two control keys');
+        const brokenHash = placed.find((e) => e.key === key).hash;
+        t.diagnostic(`case=${c.id} keys=${placed.length} broken=${brokenHash.slice(0, 12)}`);
+
+        await boot(page, srv);
+        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 1, 'one corrupt-history notice');
+        assert.equal(await page.locator(DISCARD).count(), 1, 'one discard button');
+        // B-2 だけキーボード（focus して Enter）で押す。他はマウス。
+        if (c.id === 'B-2') {
+          await page.locator(DISCARD).focus();
+          await page.keyboard.press('Enter');
+        } else {
+          await page.locator(DISCARD).click();
+        }
+        await page.locator(NOTICE('corrupt-history')).waitFor({ state: 'detached', timeout: T });
+        assert.equal(await page.locator(DISCARD).count(), 0, 'discard button gone');
+        assert.ok(await isInitial(page), 'starts fresh at the first step after discard');
+        await waitHistoryKeys(page, 2);
+        await offApp(page, srv);
+        assert.deepEqual(await historyEntries(page), controls, 'only the current key is removed; control keys unchanged');
+
+        // 未操作の起動では鍵を作らず、通知も出ない。
+        await boot(page, srv);
+        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 0, 'no notice after discard');
+        assert.ok(await isInitial(page), 'fresh after reopen');
+        await offApp(page, srv);
+        assert.deepEqual(await historyEntries(page), controls, 'no key created without an operation');
+
+        // 保存の再開: 実操作 1 回で今の鍵が書き直される。
+        await boot(page, srv);
+        await mouseDriver(page).choose('opt-right');
+        await domObserver(order).at(page, first, 'accepted');
+        await waitHistoryKeys(page, 3);
+        let prev = '';
+        for (let n = 0; n < 50; n += 1) {
+          const cur = JSON.stringify(await historyEntries(page));
+          if (cur === prev) break;
+          prev = cur;
+          await page.waitForTimeout(100);
+        }
+        await page.waitForTimeout(1500);
+        await offApp(page, srv);
+        const after = await historyEntries(page);
+        const mine = after.find((e) => e.key === key);
+        assert.ok(mine, 'current key written again');
+        assert.notEqual(mine.hash, brokenHash, 'new value differs from the broken one');
+        assert.deepEqual(after.filter((e) => e.key !== key), controls, 'control keys unchanged after resume');
+        const v = await page.evaluate(([k, s]) => {
+          const raw = localStorage.getItem(k) ?? '';
+          let parses = true;
+          try { JSON.parse(raw); } catch { parses = false; }
+          return { parses, hasSentinel: raw.includes(s) };
+        }, [key, sentinel]);
+        assert.equal(v.parses, true, 'saved value parses as JSON');
+        assert.equal(v.hasSentinel, false, 'saved value does not carry the broken input');
+
+        // 再読み込みで復元される。
+        await boot(page, srv);
+        assert.equal(await page.locator(NOTICE('corrupt-history')).count(), 0, 'no notice after resume');
+        assert.equal(await page.locator(DISCARD).count(), 0, 'no discard button after resume');
+        assert.equal(await isInitial(page), false, 'restored after reload, not fresh');
+        assert.equal(await sentinelAbsent(opened, sentinel), true, 'no sentinel at the end');
+        assertQuiet(opened.rec, `${c.id}-discard`);
         await opened.context.close();
       }));
     });
