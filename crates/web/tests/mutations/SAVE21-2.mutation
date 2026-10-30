@@ -1,0 +1,8 @@
+id: SAVE21-2
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/shell_notice.rs
+find:         if let Some(item) = corrupt_history_item(code) {
+replace:         if let Some(item) = corrupt_history_item(code).filter(|_| false) {
+expect-fail: 壊れた履歴_7_種は起動時に開かず_corrupt_history_が理由つきで出て_新しい状態で始まる
+note: 通知欄が corrupt-history の項目を積まない（理由が画面に出ない）

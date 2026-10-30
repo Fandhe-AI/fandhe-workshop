@@ -1,0 +1,8 @@
+id: SAVE21-1
+package: fandhe-workshop-web
+test: boot_corrupt_history
+target: crates/web/src/host.rs
+find:                             corrupt = Some(code);
+replace:                             corrupt = None;
+expect-fail: 壊れた履歴_7_種は起動時に開かず_corrupt_history_が理由つきで出て_新しい状態で始まる
+note: 壊れた履歴の理由を持たない（案内が出ず、保存が止まっている手がかりが画面に無くなる）

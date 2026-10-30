@@ -2,7 +2,7 @@
 //!
 //! 版の違う履歴の判定が「開かない」になったとき、(1) 理由が枠の通知欄（`shell-notice`）に出る、(2) 状態・ログ・下書き・
 //! 導出した値・保存の値が変わらない、(3) 表示だけのモードにならず操作は効く、ことを固定する。読み込み（`open_history`）と
-//! 起動時の復元（`boot`）の両方を覆う。起動時は版の判定の段の拒否だけに通知を出し、壊れた履歴（他の段）は TASK-533 の範囲で出さない。
+//! 起動時の復元（`boot`）の両方を覆う。起動時は版の判定の段の拒否だけを `import-refused` で出す。壊れた履歴（他の段）は `corrupt-history` で出す（TASK-333 1/2。試験は `boot_corrupt_history.rs`）。
 //! 失敗の文には件数・真偽・固定のコードだけを出す（履歴の中身を出さない）。試験では `unwrap` を使ってよい。
 
 use std::path::PathBuf;
@@ -301,10 +301,11 @@ fn 起動時の拒否の後に読み込みで開かなくても閉じられな�
 }
 
 #[test]
-fn 起動時の壊れた履歴には通知を出さない() {
+fn 起動時の壊れた履歴は_import_refused_ではなく_corrupt_history_で出す() {
     let mut h = host("1.0.0");
     assert_eq!(h.boot(Some(b"{broken")), BootKind::NotOpened);
     assert_eq!(items_of(&h, "import-refused"), 0);
+    assert_eq!(items_of(&h, "corrupt-history"), 1);
 }
 
 #[test]

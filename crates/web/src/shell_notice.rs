@@ -12,7 +12,9 @@
 //! 親の属性を切り替えず項目の出し入れだけで表すので、root は全置換にならない（FEND-3）。
 //!
 //! 保存の失敗は閉じる操作を置かない（成功すると消える）。文は `save_notice` が持つ。
-//! 管轄外: 文面の確定・見た目（TASK-516・TASK-549）と、他の 3 種類の通知。
+//! 「壊れた履歴」の通知（SAVE-21・SHELL-17。TASK-333 1/2）は、起動時に保存済みの履歴が壊れていたときに出す。閉じる操作は無く、
+//! 置くのは「保存された履歴を捨てて始める」だけである（押したときの処理は TASK-333 2/2。復号するまでは押しても何も起きない）。
+//! 管轄外: 文面の確定・見た目（TASK-516・TASK-533・TASK-549）と、他の種類の通知。
 //! 開かない通知には理由ごとの次の行動の文を添える（TASK-334。割り当ては案で contract の `load_next_action`）。
 //! 文面（[`VERSION_CONVERTED_NOTICE`]）と root の先頭という置き場は仮置きである。
 //!
@@ -50,6 +52,11 @@ const IMPORT_REFUSED_HEAD: &str =
     "この履歴は開けません。保存された履歴と画面の状態は変えていません。（";
 const IMPORT_REFUSED_TAIL: &str = "）";
 
+/// 「壊れた履歴」の通知の文の前半と後半（仮置き。最終の文面は TASK-533・TASK-549 が持つ）。
+/// 履歴由来の文字列は入れず、閉じた列挙の理由のコード（ASCII）だけを挟む（SAFE-40）。
+const CORRUPT_HISTORY_HEAD: &str = "保存された履歴が壊れているため開けませんでした。新しい状態で始めています。保存された履歴を上書きしないよう、保存を止めています。（";
+const CORRUPT_HISTORY_TAIL: &str = "）";
+
 /// 次の行動の文（仮置き。固定の文言だけで、履歴由来の値を含めない）。
 pub fn next_action_text(a: LoadNextAction) -> &'static str {
     match a {
@@ -70,6 +77,14 @@ pub fn import_refused_message(code: LoadReason) -> String {
     )
 }
 
+/// 「壊れた履歴」の通知の文を作る。
+pub fn corrupt_history_message(code: LoadReason) -> String {
+    format!(
+        "{CORRUPT_HISTORY_HEAD}{}{CORRUPT_HISTORY_TAIL}",
+        code.as_str()
+    )
+}
+
 /// 開かない通知の内容。`dismissable` が偽のものは閉じる操作を置かない（起動時に開けず保存が止まった印を隠さない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RefusedNotice {
@@ -82,19 +97,36 @@ pub struct RefusedNotice {
 /// 閉じるボタンの表示名（仮置き）。
 const DISMISS_LABEL: &str = "閉じる";
 
+/// 「捨てて始める」ボタンの表示名（仕様の文言）。
+const DISCARD_AND_START_LABEL: &str = "保存された履歴を捨てて始める";
+
+/// 通知欄で描く操作の表示名。
+fn op_label(op: ShellOp) -> &'static str {
+    match op {
+        ShellOp::DiscardAndStart => DISCARD_AND_START_LABEL,
+        _ => DISMISS_LABEL,
+    }
+}
+
 /// 通知欄を作る。`save_failure` があれば保存の失敗の通知を、`version_converted` が真なら「変換して開いた」通知を、
-/// `import_refused` があれば開かない通知を、`browser_notice` が真ならブラウザの案内（`browser_notice` モジュールの判定）を出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
+/// `corrupt_history` があれば壊れた履歴の通知を、`import_refused` があれば開かない通知を、`browser_notice` が真ならブラウザの案内（`browser_notice` モジュールの判定）を出す。並びは `NoticeKind::ALL` の順（保存の失敗が先頭）。
 ///
 /// 通知の値が契約に反して作れなければ（起きない想定）、項目を出さず panic もしない。
 pub fn notice_area(
     version_converted: bool,
     import_refused: Option<RefusedNotice>,
+    corrupt_history: Option<LoadReason>,
     save_failure: Option<StorageError>,
     browser_notice: bool,
 ) -> Node {
     let mut items: Vec<(String, Node)> = Vec::new();
     if let Some(failure) = save_failure {
         if let Some(item) = save_failed_item(failure) {
+            items.push(item);
+        }
+    }
+    if let Some(code) = corrupt_history {
+        if let Some(item) = corrupt_history_item(code) {
             items.push(item);
         }
     }
@@ -131,6 +163,18 @@ fn save_failed_item(failure: StorageError) -> Option<(String, Node)> {
     )
     .ok()?;
     Some(item_of(&notice, save_notice_text(Some(failure))))
+}
+
+/// 「壊れた履歴」の通知の項目。理由のコードは契約の形（`ReasonCode::parse`）を通ったものだけを属性に載せる。
+fn corrupt_history_item(code: LoadReason) -> Option<(String, Node)> {
+    let notice = Notice::new(
+        NoticeKind::CorruptHistory,
+        Some(code.as_str()),
+        MessageId::CorruptHistory,
+        &[ShellOp::DiscardAndStart],
+    )
+    .ok()?;
+    Some(item_of(&notice, &corrupt_history_message(code)))
 }
 
 /// 「変換して開いた」通知の項目（キーは種類の識別子）。
@@ -193,7 +237,7 @@ fn item_of(notice: &Notice, message: &str) -> (String, Node) {
                 (ACTION_ATTR, name),
                 (PAYLOAD_ATTR, payload.as_str()),
             ],
-            vec![text(DISMISS_LABEL)],
+            vec![text(op_label(*op))],
         ));
     }
     (
@@ -215,7 +259,7 @@ mod tests {
 
     #[test]
     fn browser_notice_area_has_one_item_and_dismiss() {
-        let n = notice_area(false, None, None, true);
+        let n = notice_area(false, None, None, None, true);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("browser-notice"), "{s}");
@@ -227,13 +271,13 @@ mod tests {
 
     #[test]
     fn empty_area_has_no_items() {
-        let s = format!("{:?}", notice_area(false, None, None, false));
+        let s = format!("{:?}", notice_area(false, None, None, None, false));
         assert!(!s.contains("shell-notice-item"), "{s}");
     }
 
     #[test]
     fn converted_area_has_one_item_and_dismiss() {
-        let n = notice_area(true, None, None, false);
+        let n = notice_area(true, None, None, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("shell-dismiss"));
@@ -244,7 +288,7 @@ mod tests {
 
     #[test]
     fn refused_area_has_one_item_with_reason_and_dismiss() {
-        let n = notice_area(false, refused(true), None, false);
+        let n = notice_area(false, refused(true), None, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(s.contains("import-refused"), "{s}");
@@ -256,14 +300,17 @@ mod tests {
 
     #[test]
     fn refused_without_dismiss_has_no_button() {
-        let s = format!("{:?}", notice_area(false, refused(false), None, false));
+        let s = format!(
+            "{:?}",
+            notice_area(false, refused(false), None, None, false)
+        );
         assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
         assert!(!s.contains("shell-dismiss"), "{s}");
     }
 
     #[test]
     fn both_notices_show_two_items() {
-        let n = notice_area(true, refused(true), None, false);
+        let n = notice_area(true, refused(true), None, None, false);
         let s = format!("{n:?}");
         assert_eq!(s.matches("shell-notice-item").count(), 2, "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
@@ -299,7 +346,7 @@ mod tests {
             StorageError::Unavailable,
             StorageError::Failed,
         ] {
-            let n = notice_area(false, None, Some(f), false);
+            let n = notice_area(false, None, None, Some(f), false);
             let s = format!("{n:?}");
             assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
             assert!(s.contains("save-failed"), "{s}");
@@ -316,6 +363,7 @@ mod tests {
         let n = notice_area(
             true,
             refused(true),
+            None,
             Some(StorageError::QuotaExceeded),
             false,
         );
@@ -323,6 +371,46 @@ mod tests {
         assert_eq!(s.matches("shell-notice-item").count(), 3, "{s}");
         assert!(s.find("save-failed") < s.find("import-refused"), "{s}");
         assert!(crate::shell::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
+    fn corrupt_area_has_one_item_with_reason_and_discard_button_only() {
+        let n = notice_area(false, None, Some(LoadReason::Malformed), None, false);
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 1, "{s}");
+        assert!(s.contains("corrupt-history"), "{s}");
+        assert!(s.contains("malformed"), "{s}");
+        assert!(s.contains("msg-corrupt-history"), "{s}");
+        assert_eq!(s.matches("shell-discard-start").count(), 1, "{s}");
+        assert!(s.contains(DISCARD_AND_START_LABEL), "{s}");
+        assert!(!s.contains("shell-dismiss"), "{s}");
+        assert!(crate::shell::check_no_undefined(&n).is_ok());
+        assert!(crate::a11y::check_no_undefined(&n).is_ok());
+    }
+
+    #[test]
+    fn corrupt_comes_after_save_failed_and_before_refused() {
+        let n = notice_area(
+            true,
+            refused(false),
+            Some(LoadReason::Truncated),
+            Some(StorageError::Failed),
+            false,
+        );
+        let s = format!("{n:?}");
+        assert_eq!(s.matches("shell-notice-item").count(), 4, "{s}");
+        assert!(s.find("save-failed") < s.find("corrupt-history"), "{s}");
+        assert!(s.find("corrupt-history") < s.find("import-refused"), "{s}");
+    }
+
+    #[test]
+    fn corrupt_message_has_only_fixed_text_and_code() {
+        for code in LoadReason::ALL {
+            let m = corrupt_history_message(code);
+            assert!(m.contains(code.as_str()), "{}", code.as_str());
+            assert!(m.starts_with(CORRUPT_HISTORY_HEAD));
+            assert!(corrupt_history_item(code).is_some(), "{}", code.as_str());
+        }
     }
 
     #[test]
