@@ -769,6 +769,93 @@ fn 検出器の対照_選ぶ部品と開始点の_id_を含む文字列では数
     );
 }
 
+/// 画面の HTML から `data-action="名前" data-payload="値"` の組を取り出す（TASK-547 2/3）。
+/// 属性の値の実体参照は元に戻す。`data-action-keydown` などの別名の属性は対象外（`data-action="` の完全一致だけ）。
+fn action_pairs(html: &str) -> Vec<(String, String)> {
+    let unescape = |s: &str| {
+        s.replace("&quot;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+    };
+    let (a, p) = ("data-action=\"", "data-payload=\"");
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(i) = rest.find(a) {
+        rest = &rest[i + a.len()..];
+        let Some(end) = rest.find('"') else { break };
+        let name = rest[..end].to_owned();
+        let tail = &rest[end + 1..];
+        let tag_end = tail.find('>').unwrap_or(tail.len());
+        let payload = tail[..tag_end]
+            .find(p)
+            .map(|j| {
+                let v = &tail[j + p.len()..];
+                unescape(&v[..v.find('"').unwrap_or(v.len())])
+            })
+            .unwrap_or_default();
+        out.push((name, payload));
+    }
+    out
+}
+
+/// 各手の後の画面で、章をまたぐ操作に復号される要素が「次の章へ進む」だけであることを確かめる。
+/// 章を選ぶ・飛ばす操作（`Begin`・`GoTo` に直接復号される要素）は 0 件でなければならない（SHELL-35）。
+fn assert_one_chapter_move(h: &EngineHost, want_next: usize, at: &str) {
+    let html = fandhe_frontend_wasm_full::render_component_html(h);
+    let mut next = 0;
+    for (name, payload) in action_pairs(&html) {
+        match EngineHost::decode_action(&name, &payload) {
+            Some(HostAction::NextChapter(_)) => {
+                assert_eq!(name, ACTION_NEXT_CHAPTER, "{at}: 別の名前が章の移動になる");
+                next += 1;
+            }
+            Some(HostAction::Engine(Op::Control(Control::Begin(_) | Control::GoTo(_)))) => {
+                panic!("{at}: 章を選ぶ・飛ばす操作に復号される要素");
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(next, want_next, "{at}: 章をまたぐ操作の個数");
+}
+
+#[test]
+fn 章をまたぐ操作は_次の章へ進む_の一つだけ_ch0_から_ch3_の全時点() {
+    let ir = ir_of(&variant_json(all_starts()));
+    let mut h = host_of(ir, "main/st-0-1");
+    let ids = ["s-1-1", "s-2-1", "s-3-1"];
+    assert_one_chapter_move(&h, 0, "初期");
+    let mut seen = 0;
+    for (ci, moves) in chapter_moves().iter().enumerate() {
+        let n = moves.len();
+        for (i, m) in moves.iter().enumerate() {
+            play(&mut h, *m);
+            let last = i + 1 == n && ci < 3;
+            assert_one_chapter_move(&h, usize::from(last), &format!("章 {ci} 手 {i}"));
+            seen += usize::from(last);
+        }
+        if ci < 3 {
+            h.update(act(ACTION_NEXT_CHAPTER, ids[ci]));
+            assert_one_chapter_move(&h, 0, &format!("章 {ci} の後"));
+        }
+    }
+    assert_eq!(seen, 3, "章の境目の 3 回");
+}
+
+#[test]
+fn 検出器の対照_属性の組の取り出しと復号() {
+    let html = "<button data-action=\"next-chapter\" data-payload=\"s-1-1\">x</button><b data-action-keydown=\"esc\"></b>";
+    let pairs = action_pairs(html);
+    assert_eq!(
+        pairs,
+        vec![(ACTION_NEXT_CHAPTER.to_owned(), "s-1-1".to_owned())]
+    );
+    assert!(matches!(
+        EngineHost::decode_action(&pairs[0].0, &pairs[0].1),
+        Some(HostAction::NextChapter(_))
+    ));
+}
+
 /// 開始点を差し替えた変種で、提示される開始点の ID（TASK-254 1/2）。
 fn offer_with_starts(starts: Value) -> Option<String> {
     let ir = ir_of(&variant_json(starts));

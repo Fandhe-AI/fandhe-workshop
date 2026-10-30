@@ -182,6 +182,31 @@ async function cancelCheck(page, eg, keyboard = false) {
   await install(page);
 }
 
+// 削除の前に存在しなかった、削除対象のスコープの履歴の鍵が現れるまで待つ。別スコープ・事前の鍵では成功させない。
+function waitNewPackKey(page, before, timeout) {
+  return page.waitForFunction(([h, b2, p, other, known]) => {
+    const seen = new Set(known);
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i) ?? '';
+      if (k.startsWith(h) && !k.startsWith(b2) && k.includes(`/${p}/`) && !k.includes(`/${other}/`) && !seen.has(k)) return true;
+    }
+    return false;
+  }, [HISTORY, BOOT, packId, 'zz-other-scope', before], { timeout });
+}
+
+// 削除直後の同じページで操作し、保存が再開して新しい履歴の鍵が書かれることを確かめる。
+async function resumeSamePage(page) {
+  const before = Object.keys(await localEntries(page));
+  // 負の対照: 別スコープの履歴の鍵が増えただけでは、待機は成功しない。
+  const decoy = `${HISTORY}zz-other-scope/${packId}/decoy`;
+  await page.evaluate((k) => localStorage.setItem(k, 'decoy'), decoy);
+  await assert.rejects(waitNewPackKey(page, before, 1500), '別スコープの鍵だけでは待機が成功しない');
+  await page.evaluate((k) => localStorage.removeItem(k), decoy);
+  await mouseDriver(page).choose('opt-right');
+  await domObserver03().at(page, FIRST, 'accepted');
+  await waitNewPackKey(page, before, T);
+}
+
 // 「削除する」を選ぶ。通信の差は削除の区間だけで取り、その後の再読み込みは差に入れない。
 async function deleteCheck(page, eg, { keyboard = false, resume = false } = {}) {
   const a = await observe(page, eg);
@@ -211,6 +236,15 @@ async function deleteCheck(page, eg, { keyboard = false, resume = false } = {}) 
   assert.equal(b.dom.del, 1, '削除のボタンが 1 個');
   assert.equal(b.calls, a.calls, '「削除する」の区間で通信の API の呼び出しが 0 件');
   assert.equal(b.allowedFetch, a.allowedFetch);
+  if (resume) {
+    // 削除した画面のままで操作すると保存の抑止が解け、この教材の新しい履歴の鍵が書かれる（再読み込みより前の契約）。
+    await resumeSamePage(page);
+    // 再読み込みの契約（未操作の起動は鍵を増やさない）を確かめるため、もう一度削除して同じ検査を通す。
+    // 再操作で書かれた鍵から、対象外の鍵と IndexedDB の対象鍵を置き直す。
+    await seed(page, packKeys(await localEntries(page))[0]);
+    await deleteCheck(page, eg, { keyboard });
+    return;
+  }
   // 再読み込みしても最初の Step から始まり、未操作の起動は保存しないので鍵は 0 件のまま。
   await page.reload();
   await waitMounted(page);
@@ -220,19 +254,6 @@ async function deleteCheck(page, eg, { keyboard = false, resume = false } = {}) 
   assert.equal(c.dom.position, positionOf(ir, FIRST));
   assert.deepEqual(packKeys(c.local), [], '再読み込みの後も localStorage の鍵が 0 件');
   assert.deepEqual(packKeys(c.idb), [], '再読み込みの後も IndexedDB の鍵が 0 件');
-  if (resume) {
-    // 削除の後も保存が再開する（保存の抑止が解けている）。
-    await install(page);
-    await mouseDriver(page).choose('opt-right');
-    await domObserver03().at(page, FIRST, 'accepted');
-    await page.waitForFunction(([h, b2, p]) => {
-      for (let i = 0; i < localStorage.length; i += 1) {
-        const k = localStorage.key(i) ?? '';
-        if (k.startsWith(h) && !k.startsWith(b2) && k.includes(`/${p}/`)) return true;
-      }
-      return false;
-    }, [HISTORY, BOOT, packId], { timeout: T });
-  }
 }
 
 function finish(label, csp, page, eg, rec) {
