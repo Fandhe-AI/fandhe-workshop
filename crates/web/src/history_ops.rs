@@ -43,10 +43,6 @@ pub const EXPORT_LABEL: &str = "履歴を書き出す";
 /// 読み込みの label の文字。
 pub const IMPORT_LABEL: &str = "履歴を読み込む";
 /// 読み込みで選べるファイルの種類（`input` の `accept`）。
-/// 読み込み欄の `input[type=file]` の id。開かない通知の「別の履歴ファイルを選ぶ」label（`shell_notice`）が `for` で指す（TASK-538）。
-/// 読み込み欄は画面に 0 か 1 個なので一意である。
-pub const IMPORT_FILE_ID: &str = "history-import-file";
-
 const IMPORT_ACCEPT: &str = "application/json,.json";
 
 /// リンクの URL を載せる属性。`href` には直接書けない（上流が `blob:` を落とす）ため、`app.js` が `href` へ写す。
@@ -124,11 +120,7 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
                 text(IMPORT_LABEL),
                 el(
                     "input",
-                    vec![
-                        ("type", "file"),
-                        ("id", IMPORT_FILE_ID),
-                        ("accept", IMPORT_ACCEPT),
-                    ],
+                    vec![("type", "file"), ("accept", IMPORT_ACCEPT)],
                     vec![],
                 ),
             ],

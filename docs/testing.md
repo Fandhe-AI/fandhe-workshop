@@ -10882,7 +10882,8 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 ### 5.399 開かない履歴の次の行動の導線（TASK-538。SHELL-36・D-57）
 
-- 実装: 開かない通知（`import-refused`）の次の行動が `choose_another_file` の理由だけ、文と閉じるボタンの間に label（`notice-next-action`、`for` は読み込み欄の `input[type=file]` の id `history-import-file`）を置く。label の活性化はブラウザ標準でファイル選択を開くだけで、状態を変えず、JS の click・`data-payload`・契約の操作（`ShellOp`）を増やさない。
-- 試験（native）: `shell_notice` の単体で、`LoadReason::ALL` の全件について label が `choose_another_file` の理由に 1 個・他に 0 個、閉じるボタンが 1 個、契約の未定義 testid 検査を通ることを確かめる。`cargo test --locked -p fandhe-workshop-web`（`--features test-hooks` を含む）が合格（2026-10-30）。
-- 未実施: 種類ごとの自動ブラウザ試験（ファイル選択の起動・保存領域と画面の不変・外部通信 0 件）は未実施。後続で `tools/browser/` に足す。
-- 限界: `open_with_source_version` は操作先がアプリの外にあり文のみ。割り当て（TASK-334）と文面は案で、ユーザーの決定は未了。label はキーボードのフォーカスを受けない。
+- 判断: 押せる導線（読み込み欄の file input を指す label）は、キーボードのフォーカスを受けずマウス専用になる（WCAG 2.1.1）。静的な `tabindex` は a11y 適合検査が禁止しており、フォーカスを移す結線は `ShellOp` か JS の追加を要する。そのため導線は文だけにし、押せる部品を置かない。読み込み欄の file input は Tab で届く。
+- 実装: 開かない通知の次の行動は、TASK-334 の文（`next_action_text`）と属性 `data-notice-next-action` で示す。label・追加の属性・CSS は置かない。
+- 試験（native）: `shell_notice` の単体で、`LoadReason::ALL` の全件について通知に label が 0 個、閉じるボタンが 1 個であることを確かめる。
+- 未実施: ブラウザ試験（ファイル選択の起動・保存領域の不変・外部通信 0 件）は、押せる部品を置いていないため対象外。押せる結線は、フォーカスを移す操作の契約が決まってから行う。
+- 限界: 割り当て（TASK-334）と文面は案で、ユーザーの決定は未了。
