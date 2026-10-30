@@ -12,7 +12,7 @@
 //! 出せないとき（秘密情報の警告の間・履歴が無い）は、リンクの代わりに固定の短い文（`export-status`）を出す。
 //! リンクと文は同じ keyed list（[`EXPORT_RESULT_FIELD`]。項目は 0 か 1 件）に置き、履歴が変わるとホストが外す。
 //!
-//! 削除のボタン（`shell-delete`。TASK-539 1/2）は読み込みの後ろに置く。押すと確認の通知（`shell_notice`）が出るだけで、何も消さない。
+//! 削除のボタン（`shell-delete`。TASK-539 1/2）は書き出しの前に置く（入力欄からの Shift+Tab のフォーカス先を読み込みの部品に保つため）。押すと確認の通知（`shell_notice`）が出るだけで、何も消さない。
 //!
 //! 読み込みは、`shell-import` の入れ物（`data-action="import-history"`。契約の要求）の中に `label` と `input[type=file]` を置く。
 //! 入れ物は `display: contents`（`static/app.css`）で箱を持たず、クリックの起点にならない。label・input は上流の
@@ -144,7 +144,7 @@ pub fn history_ops(result: Option<&ExportResult<'_>>) -> Node {
     el(
         "div",
         vec![("data-testid", HISTORY_OPS_TESTID), ("class", "sh-history")],
-        vec![export, result_list, import, delete],
+        vec![delete, export, result_list, import],
     )
 }
 
