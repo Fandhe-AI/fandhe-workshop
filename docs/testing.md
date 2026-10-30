@@ -10921,3 +10921,11 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - `xss-cases.test.mjs` 9 件・`e4-history.test.mjs` 5 件・`history-xss.test.mjs` 10 件が、`TEST_HOOKS` ありなしの 2 つの web（release・`SKIP_WASM_OPT=1`）を作って単独で流し、すべて通った。CSP あり・なしの各 84/84（理由の分布は変種ごとに 1 種類: `replay_mismatch` 28・`malformed` 28・`other_pack` 28）、全体で約 135 秒（ローカル）
 - 手元の変異（配信物の写しの `app.js` に読み込んだ履歴の値を DOM へ書く変更）は流していない（未検証。D2 が判定の側の検出を確かめている）
 - `make test-browser` の全体は流していない（未検証。CI の `browser-test` に任せる）。`scripts/expected-test-counts.txt` は変えていない（先例どおり、版上げの前に `make update-test-counts` で別に直す）
+
+### 5.399 開かない履歴の次の行動の導線（TASK-538。SHELL-36・D-57）
+
+- 判断: 押せる導線（読み込み欄の file input を指す label）は、キーボードのフォーカスを受けずマウス専用になる（WCAG 2.1.1）。静的な `tabindex` は a11y 適合検査が禁止しており、フォーカスを移す結線は `ShellOp` か JS の追加を要する。そのため導線は文だけにし、押せる部品を置かない。読み込み欄の file input は Tab で届く。
+- 実装: 開かない通知の次の行動は、TASK-334 の文（`next_action_text`）と属性 `data-notice-next-action` で示す。label・追加の属性・CSS は置かない。
+- 試験（native）: なし（未実施）。通知に label が 0 個であることを確かめる試験は置いていない。閉じるボタンの個数を数える既存の試験も `LoadReason::ALL` を回していない。
+- 未実施: ブラウザ試験（ファイル選択の起動・保存領域の不変・外部通信 0 件）は、押せる部品を置いていないため対象外。押せる結線は、フォーカスを移す操作の契約が決まってから行う。
+- 限界: 割り当て（TASK-334）と文面は案で、ユーザーの決定は未了。
