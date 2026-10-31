@@ -11273,3 +11273,10 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 - 手元（Chromium）: 12 件（6 区分 × CSP 2 通り）がすべて通過
 - `make test-browser` の通しは未検証（CI の `browser-test` に任せる）
+
+### 5.414 Windows 向けの L2 の配布物の更新（#1932。DLV-22・DLV-18）
+
+- `tools/update-l2.mjs` が旧 zip の実行ファイルの名前（`LAYOUTS`）で配置を決め、固定値の照合を配置に合う platform に絞るようにした。Windows の組（`start.cmd`・`miniserve.exe`）は実行の権限を求めず、`start.cmd` を CRLF のまま引き継ぐ。Windows 向けの zip では新しい配信物の名前を `build-l2` と同じ規則で検査する
+- 追加した試験は `tools/update-l2.test.mjs` の「Windows 向けの zip」12 件（正常系・build との等価性・欠落・混在・名前と固定値の食い違い・Windows の名前・Unix の mode の対照）。既存の試験は無修正で合格した。5.362 の「範囲外」の追従はこれで解いた（5.359・5.362 の記録は書き換えない）
+- 実行（2026-10-31、手元の Linux）: `make test-update-l2` は 46 件すべて合格、`make test-build-l2` は不合格 0 件
+- 未検証: Windows の実機での起動（TASK-120）。`make test-l2-run` は linux-x64 だけで、本件では変えていない

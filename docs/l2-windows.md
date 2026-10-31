@@ -1,12 +1,12 @@
 # Windows 向けの L2 の配布物の作成と起動の手順
 
-版 1（2026-10-28。TASK-198。DLV-22）。
+版 2（2026-10-31。TASK-198。DLV-22。#1932）。
 
 Windows（x64）向けの L2 の配布物（zip）を `tools/build-l2.mjs` から再現可能に作る手順と、受講者の起動の手順を示します。
 Windows の実機での起動確認と OS の警告の記録は未実施で、TASK-120（人の確認）で行います。DLV-22 は「検討中」のままです。
 
-注意: `docs/l2-update-procedure.md`（#1875）がマージされたら、この文書を統合します。マージ後は、`update-l2` が
-`windows-x64` の zip（`start.cmd`・`miniserve.exe`）を必須エントリの欠落で拒否します（fail-closed）。表への追従は後続の課題です。
+教材を更新したときは、`L2_ZIP=dist/l2/fandhe-workshop-l2-windows-x64.zip make update-l2` で `site/` だけを差し替えます
+（作業は Linux・macOS 上で行います）。手順は `docs/l2-update-procedure.md` にあります。
 
 ## 1. 配布物の中身
 

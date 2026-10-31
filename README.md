@@ -85,7 +85,7 @@ MIT OR Apache-2.0 のデュアルライセンスです（[LICENSE-MIT](./LICENSE
 | `docs/measurement.md` | 測定の結果の様式（版 1）。基点の 4 項目と、基点の違う値を比べない規則。実行は `make measure`（大きさのみは `make measure-wasm-size`） |
 | `docs/toolchain.md` | ツールチェーンの固定（版 1）。固定した版と前提の一か所の正。固定ファイルとの一致は `make check-toolchain` が検査する |
 | `docs/vocabulary/vocabulary.md` | 語彙の文書（版 7）。語彙 v1〜v1.7 の語ごとの版・名前つき拡張点 EP-1〜EP-13・版と拡張点の対応表・固有の語の一覧を固定する契約。文書と pack crate の表（`crates/pack/src/vocab.rs`）の一致は `crates/pack/tests/vocabulary_terms.rs`、汎用名の検査は `crates/pack/tests/vocabulary_extension_points.rs` |
-| `docs/l2-update-procedure.md` | L2 の配布物の更新手順（版 1）。`site/` の差し替え 1 操作・引き継ぐもの・検査・限界 |
+| `docs/l2-update-procedure.md` | L2 の配布物の更新手順（版 2）。`site/` の差し替え 1 操作・引き継ぐもの・検査・限界 |
 | `docs/upstream-bump-procedure.md` | 参照元の版を上げる手順書（版 1）。洗い出し・教材テスト・公開前の人の確認と記録・AI の生成物を無検証で公開しないことを固定する（TASK-182 2/2） |
 | `docs/extension-point-procedure.md` | 拡張点の追加の手続きの文書（版 1）。汎用であることの説明・語彙の文書の固定・診断コードの追加・公開の一覧への追記・既存の教材パックが同じ IR になることの確認を固定する。実行時の登録の仕組みは作らない（D-53）。形の検査は `crates/pack/tests/extension_point_procedure_doc.rs` |
 | `docs/engine-api.md` | 公開 API の契約の文書（版 1）。core の型の一覧・世代の変わり方の表（EVT-6）・宛先の形（EVT-8）・机上の照合の記録。冒頭の契約の版と世代の表は `crates/core/tests/engine_api_doc.rs` が型と照合する |
@@ -297,7 +297,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-build-web` | `scripts/test-build-web.sh` | `build-web` の受入基準（compile した IR が配信する設定に入ることを含む）を実ビルドで検査する |
 | `make build-l2` | `tools/build-l2.mjs` | L2 の配布物（`fandhe-workshop-l2/{start.sh, miniserve, site/, LICENSE-miniserve.txt, THIRD-PARTY-NOTICES.txt}` の zip）を `dist/l2` に作る。`L2_SERVER` に miniserve 0.35.0 の実行ファイルが要り、`tools/l2/miniserve.sha256` の固定値と照合する。`L2_SITE`（既定 `dist/web`）・`L2_OUT`・`L2_PLATFORM`（`macos-arm64` 既定・`linux-x64`・`windows-x64`。Windows 向けは `start.cmd`・`miniserve.exe`。手順は `docs/l2-windows.md`） |
 | `make test-build-l2` | `scripts/test-build-l2.sh` | `build-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
-| `make update-l2` | `tools/update-l2.mjs` | 既存の L2 の配布物（`L2_ZIP`）の `site/` だけを新しい配信物に差し替えた zip を `dist/l2` に作る（`site/` 以外は旧 zip から引き継ぐ。`L2_SERVER` は要らない）。手順は [`docs/l2-update-procedure.md`](docs/l2-update-procedure.md) |
+| `make update-l2` | `tools/update-l2.mjs` | 既存の L2 の配布物（`L2_ZIP`）の `site/` だけを新しい配信物に差し替えた zip を `dist/l2` に作る（`site/` 以外は旧 zip から引き継ぐ。Windows 向けの zip（`start.cmd`・`miniserve.exe`）も扱う。`L2_SERVER` は要らない）。手順は [`docs/l2-update-procedure.md`](docs/l2-update-procedure.md) |
 | `make test-update-l2` | `scripts/test-update-l2.sh` | `update-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
 | `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）、L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致すること、凍結した IR と組の固定の入力列（`crates/web/tests/data/fixed_sequence_ch0_1/`）での比較と履歴の `ops` に揺れる欄が無いことと、同じブラウザの文脈で L1・L2 の 2 か所・別名 `localhost` のオリジンが分離していて保存が互いに見えないこと（DLV-16）と、`update-l2` で別の IR に更新した zip の模擬環境での起動（TASK-116）も確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241b・5.243・5.245b・5.357） |
 | `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。試験の設定との対照は直接 `tools/check-delivery.sh --control dist/web-test dist/web`。CI では browser-test の `make test-build-web` が流す |

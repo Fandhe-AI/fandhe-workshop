@@ -212,10 +212,11 @@ export function siteEntries(site) {
   );
 }
 
-/** miniserve の sha256 が固定表のどの資産に一致するかで platform を返す。一致しなければ null（update 用）。 */
-export function platformOfServer(bin, pins) {
+/** miniserve の sha256 が固定表のどの資産に一致するかで platform を返す。一致しなければ null（update 用）。candidates で照合する platform を絞れる（既定は全て）。 */
+export function platformOfServer(bin, pins, candidates = Object.keys(PLATFORMS)) {
   const h = sha256(bin);
-  for (const [platform, asset] of Object.entries(PLATFORMS)) {
+  for (const platform of candidates) {
+    const asset = PLATFORMS[platform];
     if (pins[asset] !== undefined && pins[asset] === h) return platform;
   }
   return null;

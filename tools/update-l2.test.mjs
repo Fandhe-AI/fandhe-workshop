@@ -2,6 +2,7 @@
 // 合成の配信物・実行ファイルと mkdtemp の一時ディレクトリだけを使い、ビルド・通信は行わない。
 // 確かめること: site/ 以外のバイト列と mode の引き継ぎ・site/ の完全な入れ替え・build との等価性と決定性・
 // 1 コマンドの起動・fail-closed（不正な旧 zip・不正な新 site・digest の不一致・誤用）。
+// Windows 向けの zip（start.cmd・miniserve.exe。#1932・DLV-22）の更新も同じ道具で扱う。
 // 実際の miniserve を使う起動の確認は scripts/test-l2-run.sh の遅い層（tools/browser/l2-update.test.mjs）が行う。
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -340,6 +341,118 @@ describe('fail-closed', () => {
     assert.throws(() => updateL2({ zip: path.join(tmp, 'nope.zip'), site: makeSite(), out, pins: PINS }), (e) => e.code === 2);
     assert.throws(() => updateL2({ zip: mk('d'), site: makeSite(), out, pins: PINS }), (e) => e.code === 2);
     noZip(out);
+  });
+});
+
+describe('Windows 向けの zip（#1932。DLV-22）', () => {
+  const FAKE_WIN = 'MZ fake windows server\n';
+  const WPINS = { [PLATFORMS['windows-x64']]: sha(FAKE_WIN) };
+  const BOTH = { ...PINS, ...WPINS };
+  const buildWin = (site) => {
+    const f = path.join(mk('wsrv'), 'miniserve.exe');
+    fs.writeFileSync(f, FAKE_WIN, { mode: 0o755 });
+    return buildL2({ server: f, site, out: mk('out'), platform: 'windows-x64', pins: WPINS });
+  };
+  const updWin = (zip, site, pins = BOTH) => updateL2({ zip, site, out: mk('out'), pins });
+  const GOOD_WIN = () => [
+    { name: `${TOP}/`, dir: true },
+    { name: `${TOP}/start.cmd`, data: Buffer.from('@echo off\r\n'), mode: 0o644 },
+    { name: `${TOP}/miniserve.exe`, data: Buffer.from(FAKE_WIN), mode: 0o644 },
+    { name: `${TOP}/site/`, dir: true },
+  ];
+  const noOut = (zip, site, re, pins = BOTH) => {
+    const out = mk('out');
+    assert.throws(() => updateL2({ zip, site, out, pins }), re);
+    assert.deepEqual(fs.readdirSync(out), []);
+  };
+
+  test('site/ 以外は旧 zip のバイト列と mode のまま、start.cmd は CRLF のまま、site/ は差し替わる', () => {
+    const oldZip = buildWin(makeSite('{"v":"A"}\n', { 'only-in-a.txt': 'old\n' })).zip;
+    const siteB = makeSite('{"v":"B"}\n');
+    const r = updWin(oldZip, siteB);
+    assert.equal(r.platform, 'windows-x64');
+    assert.match(path.basename(r.zip), /-windows-x64\.zip$/);
+    const a = treeOf(unzipTo(oldZip));
+    const b = treeOf(unzipTo(r.zip));
+    for (const k of Object.keys(a).filter((k) => !k.startsWith('site/'))) assert.deepEqual(b[k], a[k], k);
+    for (const k of ['start.cmd', 'miniserve.exe', 'LICENSE-miniserve.txt', 'THIRD-PARTY-NOTICES.txt']) assert.ok(b[k], k);
+    const cmd = Buffer.from(b['start.cmd'].data, 'base64').toString('latin1');
+    assert.ok(cmd.includes('\r\n'));
+    assert.equal(cmd.replace(/\r\n/g, '').includes('\n'), false);
+    assert.equal(b['site/only-in-a.txt'], undefined);
+    assert.equal(b['site/ir/main.json'].data, Buffer.from('{"v":"B"}\n').toString('base64'));
+  });
+
+  test('build との等価性・冪等性・決定性・続けての更新', () => {
+    const a = makeSite('{"v":"A"}\n');
+    const b = makeSite('{"v":"B"}\n');
+    const zipA = buildWin(a).zip;
+    assert.deepEqual(read(updWin(zipA, b).zip), read(buildWin(b).zip));
+    assert.deepEqual(read(updWin(zipA, a).zip), read(zipA));
+    assert.deepEqual(read(updWin(zipA, b).zip), read(updWin(zipA, b).zip));
+    const c = makeSite('{"v":"C"}\n');
+    assert.deepEqual(read(updWin(updWin(zipA, b).zip, c).zip), read(buildWin(c).zip));
+  });
+
+  test('mode 644 の start.cmd・miniserve.exe を受け付け、そのまま引き継ぐ', () => {
+    const r = updWin(synth(GOOD_WIN()), makeSite());
+    const b = treeOf(unzipTo(r.zip));
+    assert.equal(b['start.cmd'].mode, 0o644);
+    assert.equal(b['miniserve.exe'].mode, 0o644);
+  });
+
+  test('固定表に両 platform があっても、zip の配置で platform が決まる', () => {
+    assert.equal(update(build(makeSite()).zip, makeSite(), { pins: BOTH }).platform, 'linux-x64');
+    assert.equal(updWin(buildWin(makeSite()).zip, makeSite()).platform, 'windows-x64');
+  });
+
+  const dropped = { 'start.cmd': 1, 'miniserve.exe': 2, 'site/': 3 };
+  for (const [name, idx] of Object.entries(dropped)) {
+    test(`必須エントリ ${name} が無い zip を拒否する`, () => {
+      const e = GOOD_WIN();
+      e.splice(idx, 1);
+      noOut(synth(e), makeSite(), /required entry/);
+    });
+  }
+
+  test('両方の実行ファイルがある・起動スクリプトが混在する配置を拒否する', () => {
+    noOut(synth([...GOOD_WIN(), { name: `${TOP}/miniserve`, data: Buffer.from(FAKE_SERVER), mode: 0o755 }]), makeSite(), /more than one layout/);
+    noOut(synth([...GOOD_WIN(), { name: `${TOP}/start.sh`, data: Buffer.from('#!/bin/sh\n'), mode: 0o755 }]), makeSite(), /more than one layout/);
+    const e = GOOD();
+    e.push({ name: `${TOP}/start.cmd`, data: Buffer.from('x'), mode: 0o644 });
+    noOut(synth(e), makeSite(), /more than one layout/);
+    const f = GOOD_WIN();
+    f[1] = { name: `${TOP}/start.sh`, data: Buffer.from('#!/bin/sh\n'), mode: 0o755 };
+    noOut(synth(f), makeSite(), /required entry/);
+  });
+
+  test('名前と固定値の食い違いを拒否する', () => {
+    const e = GOOD_WIN();
+    e[2] = { name: `${TOP}/miniserve.exe`, data: Buffer.from(FAKE_SERVER), mode: 0o755 };
+    noOut(synth(e), makeSite(), /sha256/);
+    const f = GOOD();
+    f[2] = { name: `${TOP}/miniserve`, data: Buffer.from(FAKE_WIN), mode: 0o755 };
+    noOut(synth(f), makeSite(), /sha256/);
+  });
+
+  test('start.cmd がディレクトリなら拒否する', () => {
+    const e = GOOD_WIN();
+    e[1] = { name: `${TOP}/start.cmd`, dir: true };
+    noOut(synth(e), makeSite(), /./);
+  });
+
+  test('Windows で展開できない名前の新しい配信物は Windows の zip では拒否し、Linux の zip では通る', () => {
+    noOut(synth(GOOD_WIN()), makeSite('{"nodes":[]}\n', { 'con.txt': 'x' }), /cannot be extracted on Windows/);
+    assert.equal(update(build(makeSite()).zip, makeSite('{"nodes":[]}\n', { 'con.txt': 'x' })).platform, PLATFORM);
+  });
+
+  test('対照: mode 644 の start.sh・miniserve は従来どおり拒否する（Windows の緩和が Unix の組に漏れない）', () => {
+    const e = GOOD();
+    e[1] = { name: `${TOP}/start.sh`, data: Buffer.from('#!/bin/sh\n'), mode: 0o644 };
+    noOut(synth(e), makeSite(), /mode 755/, PINS);
+    const f = GOOD();
+    f[2] = { name: `${TOP}/miniserve`, data: Buffer.from(FAKE_SERVER), mode: 0o644 };
+    noOut(synth(f), makeSite(), /mode 755/, PINS);
   });
 });
 
