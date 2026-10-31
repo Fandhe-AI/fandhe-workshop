@@ -11528,3 +11528,32 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 限界: エンジンは `next[].when` を評価しない（`crates/core/src/transit.rs`）ため、`setup="true"` の側（設定の Step へ入る経路）の実行時は確かめない。条件が偽の側は評価の有無に関わらず無条件の辺に落ちるので、評価が入った後も同じ結果になる。`docs/known-gaps.md` の回避策（`next[].when` の `param` で後ろの Step を飛ばす）は、この制約のため条件が偽の方向しか動かない
 - 範囲外: spec の MOD-17・PACK-51 の「(c) 現状の観察: 引数は文字列で範囲外を検査しない」は `param_types`（v1.7）の後の状態と食い違う。直すのは spec repo の持ち分で、本作業では編集していない。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.423 実体どうしの世界状態の経路の重なり（TASK-253。MOD-18）
+
+- 目的: TASK-251 の決定（2026-10-31）は、経路の重なりを機械的に検査せず作成者の規約にとどめる。エンジンの動き・型・`CONTRACT_VERSION` は変えず、現状の動きを試験で固定し、規約を `docs/pack-authoring.md` に書く
+- 試験: `crates/pack/tests/module_path_overlap.rs`（7 件、`mod18_*`）。core の依存に pack が無く、YAML を `compile` して `Session` を動かす試験は pack crate にしか置けない。実体どうしの移動は、入力で実体の終わりから次の `use` へ抜けられないため `GoTo` で補う
+
+| 確かめること | 試験 |
+|---|---|
+| `validate` が 0 件・`compile` が成功し、重なりが IR の上で実在する（`m@a` と `m@c` が同じ `a/notes.md`、全実体が同じ `shared/README.md`、`m@b` は `b/notes.md`） | `mod18_validate_and_compile_report_no_overlap` |
+| 引数で分けた経路は別の要素として残り、`m@b` の `Changed` は `b/notes.md` と共有の経路だけ | `mod18_args_separate_paths_per_instance` |
+| 同じ経路に書く後の実体が上書きし、`Warning`・`Refused` は出ない。`Changed` の `before` が先の実体の要素 | `mod18_same_path_is_overwritten_by_the_later_instance` |
+| 共有の経路は最後の更新が残り、`Changed` が 4 件（`u0`・`m@a`・`m@b`・`m@c`）で宛先の持ち主が各 1 件 | `mod18_shared_path_keeps_the_last_update` |
+| 持ち主と他の実体の両方が書いた共有の経路は、復帰で保存の時点の値に戻る（他の実体の書き込みも消える）。持ち主だけが書いた経路は取り除かれ、他の実体だけが書いた経路は戻らない | `mod18_restore_reverts_shared_path_the_owner_wrote` |
+| 持ち主が保存の後に書いていない共有の経路は、復帰で戻らない | `mod18_restore_keeps_shared_path_the_owner_did_not_write` |
+| testdata の `module-reuse-rounds` の 2 周分で、1 周目の実体と 2 周目の実体が書いた経路の交わりが空 | `mod18_testdata_rounds_write_disjoint_paths` |
+
+- 既存の試験との違い: `restore_owner_slice`（core）は手組みの状態で共有の経路の復帰を、`round_slice_init` の `mod9_*` と `round_instance_restore` の `mod16_*` は交わらない経路の復帰を固定する。本節が新しく固定するのは、コンパイルした実体での共有の経路の復帰、同じ経路の上書き、重なりを `validate`・`compile` が報告しないこと
+- 観察の行（2026-10-31）: `OBS p1`（1 周目）は `ideas/bbs-with-login/…`・`impl/…`・`issues/child-1`・`issues/root-42` など、`p2`（2 周目）は `ideas/bbs-search/…`・`impl/docs/behavior-bbs-search.md`・`issues/child-9`・`issues/root-43` などで、交わりは空
+- 変異注入（2026-10-31、元にしたコミット ccba12c7 の作業ツリー）: `scripts/check-mutations.sh` に `MOD18-1`〜`MOD18-3` と回帰の `MOD16-1` を渡した
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| MOD18-1 | 復帰が宛先の持ち主を見ず、保存の後に書かれたすべての経路を戻す（`entry_derive.rs`） | `mod18_restore_keeps_shared_path_the_owner_did_not_write` | DETECTED |
+| MOD18-2 | 他の実体も書いた経路を戻す集合から除く（`checkpoint.rs`） | `mod18_restore_reverts_shared_path_the_owner_wrote` | DETECTED |
+| MOD18-3 | `put` が既にある要素を置き換えない（`effect.rs`） | `mod18_same_path_is_overwritten_by_the_later_instance` | DETECTED |
+
+- 限界: 実体どうしの移動を `GoTo` で補う。経路の重なりの誤りは `validate` では見つからず、教材テスト（2 周分の通し）と作成者の規約で補う（`docs/known-gaps.md` MOD-18）
+- 範囲外: 仕様側（04 の MOD-18 を検討中から確定へ直すこと、`04-behavior/README.md` の件数、D-n の記録）は spec repo で行い、本作業では編集していない。`scripts/expected-test-counts.txt` は更新しない
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない

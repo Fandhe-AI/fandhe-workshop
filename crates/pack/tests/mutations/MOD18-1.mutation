@@ -1,0 +1,8 @@
+id: MOD18-1
+package: fandhe-workshop-pack
+test: module_path_overlap
+target: crates/core/src/entry_derive.rs
+find:                 if crate::instance::owner_in(instances, &at.step) == *owner =>
+replace:                 if { let _ = (instances, owner); true } =>
+expect-fail: mod18_restore_keeps_shared_path_the_owner_did_not_write
+note: 復帰が宛先の持ち主を見ず、保存の後に書かれたすべての経路を戻す（持ち主が書いていない共有の経路まで巻き戻る）

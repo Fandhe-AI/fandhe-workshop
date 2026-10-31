@@ -1,0 +1,8 @@
+id: MOD18-3
+package: fandhe-workshop-pack
+test: module_path_overlap
+target: crates/core/src/effect.rs
+find:     let before = run.world.insert(p.path.clone(), new.clone());
+replace:     let before = run.world.get(&p.path).cloned(); if before.is_none() { run.world.insert(p.path.clone(), new.clone()); }
+expect-fail: mod18_same_path_is_overwritten_by_the_later_instance
+note: put が既にある要素を置き換えない（同じ経路は後の実体ではなく先の実体の値が残る）

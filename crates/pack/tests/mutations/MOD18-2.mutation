@@ -1,0 +1,8 @@
+id: MOD18-2
+package: fandhe-workshop-pack
+test: module_path_overlap
+target: crates/core/src/checkpoint.rs
+find:     let touched = crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner_root);
+replace:     let touched = crate::entry_derive::owner_touched_paths(since, &ir.instances, &owner_root); let touched: std::collections::BTreeSet<&str> = touched.into_iter().filter(|p| !since.iter().any(|e| matches!(e, crate::event::Event::Changed { at, path, .. } if path == *p && crate::instance::owner_in(&ir.instances, &at.step) != owner_root))).collect();
+expect-fail: mod18_restore_reverts_shared_path_the_owner_wrote
+note: 他の実体も書いた経路を戻す集合から除く（持ち主が書いた共有の経路が戻らない）
