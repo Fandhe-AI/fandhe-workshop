@@ -31,9 +31,10 @@ async function readBounded(reader, limit) {
 // 埋め込みの拒否（SAFE-32・DLV-12・D-44・TASK-167 1/2）。meta の CSP では frame-ancestors が効かないため、
 // 最上位のウィンドウでなければ wasm・IR・保存先に触れず、操作要素も出さない。判定に失敗したときは埋め込まれている側に倒す。
 // 受け入れた限界: JS が無効だと効かず、HTTP ヘッダほど強くない。同じ起源の親でも隠す（同じ github.io の別 repo からの埋め込みを塞ぐため）。
+// window.self は置き換え可能（同じ起源の親が contentWindow.self に top を代入できる）なので、置き換えられない window と比べる。
 function isTopWindow() {
   try {
-    return window.self === window.top;
+    return window === window.top;
   } catch {
     return false;
   }
