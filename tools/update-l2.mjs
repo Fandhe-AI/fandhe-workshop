@@ -150,8 +150,9 @@ export function updateL2({ zip, site, out, pins, checkDelivery = true, maxUnpack
     const files = siteEntries(site);
     // build-l2 と同じ規則を、引き継ぐ旧 zip のエントリと新しい site/ を合わせた出力全体へ流す。
     // 旧 zip は信頼しないため、末尾のドット・予約名・大文字小文字だけの違いは引き継ぎ側でも拒否する。
-    if (platform === 'windows-x64') checkWindowsNames([...next, ...files]);
+    // 出力する site/ 自体も含める（最上位の通常ファイル SITE と site ディレクトリの衝突を拾うため）。
     next.push({ name: `${TOP}/site/`, dir: true }, ...files);
+    if (platform === 'windows-x64') checkWindowsNames(next);
     const r = writeOutput(out, platform, writeZip(next));
     return { ...r, platform, kept: kept.length, files: files.filter((f) => !f.dir).length };
   }

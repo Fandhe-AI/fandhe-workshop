@@ -435,6 +435,12 @@ describe('Windows 向けの zip（#1932。DLV-22）', () => {
     noOut(synth(f), makeSite(), /sha256/);
   });
 
+  test('最上位の通常ファイル SITE・Site は site/ と衝突するため拒否する', () => {
+    for (const n of ['SITE', 'Site']) {
+      noOut(synth([...GOOD_WIN(), { name: `${TOP}/${n}`, data: Buffer.from('x'), mode: 0o644 }]), makeSite(), /differ only in case/);
+    }
+  });
+
   test('start.cmd がディレクトリなら拒否する', () => {
     const e = GOOD_WIN();
     e[1] = { name: `${TOP}/start.cmd`, dir: true };
