@@ -62,6 +62,20 @@ if [ -n "${PREBUILT}" ] && [ ! -f "${PREBUILT}" ]; then
   echo "error: --bin is not a file: ${PREBUILT}" >&2
   exit 2
 fi
+# 以降の起動は ROOT_DIR へ cd した子シェルで行うため、呼び出し時の cwd 基準の絶対パスに解決する。
+# スラッシュ無しの指定も ./ を付けた経路にして、PATH 検索にならないようにする
+if [ -n "${PREBUILT}" ]; then
+  case "${PREBUILT}" in
+    /*) ;;
+    *) PREBUILT="$(pwd)/${PREBUILT}" ;;
+  esac
+fi
+if [ -n "${OUT_DIR}" ]; then
+  case "${OUT_DIR}" in
+    /*) ;;
+    *) OUT_DIR="$(pwd)/${OUT_DIR}" ;;
+  esac
+fi
 
 # cargo はビルドの有無によらず版の取得（cargo metadata）に使う
 for c in tar file mktemp jq cargo; do
@@ -143,14 +157,24 @@ if [ -z "${VERSION}" ] || [ "${VERSION}" = "null" ]; then
 fi
 NAME="fandhe-pack-${VERSION}-${TARGET}"
 STAGE="${TMP_DIR}/stage/${NAME}"
-mkdir -p "${STAGE}" "${OUT_DIR}"
+mkdir -p "${STAGE}" "${TMP_DIR}/pack"
 cp "${BIN}" "${STAGE}/fandhe-pack"
 chmod 0755 "${STAGE}/fandhe-pack"
 cp "${ROOT_DIR}/LICENSE-MIT" "${ROOT_DIR}/LICENSE-APACHE" "${STAGE}/"
+# アーカイブと .sha256 は一時領域で完成させてから出力先へ置く（途中の失敗で不完全な成果物・既存の成果物の切り詰めを出さない）。
+# COPYFILE_DISABLE は macOS の tar が ._* のメタデータ項目を混ぜるのを防ぐ
+WORK_ARCHIVE="${TMP_DIR}/pack/${NAME}.tar.gz"
+COPYFILE_DISABLE=1 tar -czf "${WORK_ARCHIVE}" -C "${TMP_DIR}/stage" "${NAME}"
+HASH="$(sha256 "${WORK_ARCHIVE}")"
+printf '%s  %s\n' "${HASH}" "${NAME}.tar.gz" >"${WORK_ARCHIVE}.sha256"
+mkdir -p "${OUT_DIR}"
 ARCHIVE="${OUT_DIR}/${NAME}.tar.gz"
-tar -czf "${ARCHIVE}" -C "${TMP_DIR}/stage" "${NAME}"
-HASH="$(sha256 "${ARCHIVE}")"
-printf '%s  %s\n' "${HASH}" "${NAME}.tar.gz" >"${ARCHIVE}.sha256"
+# 先に .sha256 を置き、アーカイブを最後に置く。失敗時は今回置いた分を消す
+trap 'rm -rf "${TMP_DIR}"; rm -f "${ARCHIVE}.sha256.tmp" "${ARCHIVE}.tmp"' EXIT
+cp "${WORK_ARCHIVE}" "${ARCHIVE}.tmp"
+cp "${WORK_ARCHIVE}.sha256" "${ARCHIVE}.sha256.tmp"
+mv "${ARCHIVE}.tmp" "${ARCHIVE}"
+mv "${ARCHIVE}.sha256.tmp" "${ARCHIVE}.sha256"
 
 SIZE="$(wc -c <"${ARCHIVE}" | tr -d ' ')"
 echo "archive: ${ARCHIVE}"

@@ -14,7 +14,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
-for c in mktemp rm tar file jq cargo; do
+for c in mktemp mkdir rm tar file jq cargo; do
   require_cmd "${c}" || exit 1
 done
 
