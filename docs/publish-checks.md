@@ -118,3 +118,34 @@
 | 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
 | 限界 | 「次の一歩」の案内が案内だけであること（ROUND2-24・ROUND2-25）は教材の内容の確認で、本 repo では確かめていない |
 
+## DLV-10 配信物の公開名と読むクエリの記録（TASK-111 1/2）
+
+DLV-10・SHELL-35 の確認の記録。`debug_` の公開名の記録は D-25 の扱いで成功基準にはしない（記録の手順を整えるだけである）。ただし配信する設定で 0 件でなければ、初回公開の前に直す。
+
+読むクエリは `start`（直接リンク）の 1 つだけである。Issue #917 と spec の DLV-10・TASK-111 にある `?ir` の文面は D-68（2026-10-21）より前の書き方で、現在の IR は固定の `./ir/main.json` から読み、URL から場所を受けない（SAFE-33・TASK-168）。このため本記録は「直接リンクの 1 つ＝`start`」として確かめ、`app.js` に `ir` を読む処理は足していない。PoC 期の試験用クエリ 7 種（`persist`・`store`・`manual`・`tick`・`os`・`osmode`・`flood`）は読まない。
+
+### 手順
+
+1. `make build-web` で配信する設定を作る（wasm-opt を適用した既定のビルド）
+2. `tools/check-delivery.sh` の終了コードが 0 であること
+3. 配信物の `wasm/fandhe_workshop_web_bg.wasm` を `new WebAssembly.Module(...)` に渡し、`WebAssembly.Module.exports` の名前のうち `debug_` で始まるものを件数と一覧で記録する（期待は 0 件で、`mount_app` が有る）
+4. `OUT_DIR=<一時の場所> TEST_HOOKS=1 tools/build-web.sh` で試験の設定を作り、手順 3 と同じ数え方で対照の件数を記録する。対照が 0 件なら数え方の空振りとして、この記録を無効にする
+5. 配信物の `app.js` が `crates/web/static/app.js` と一致し、読むキーが `start` だけであることを、`cargo test -p fandhe-workshop-web --test tick_interval --test delivery_ports` の通過で確かめる
+6. ブラウザの `tools/browser/query-inert.test.mjs`（試験用クエリ 7 種で挙動が変わらない）の通過を、手元または CI の `browser-test` の結果で記録する
+
+#1924（TASK-82）の取り込み後は、手順 2 と 4 を `tools/check-delivery.sh --control <試験の設定の配信物>` の 1 回で行える（未マージの間は上の手順を使う）。
+
+### 記録 1（2026-10-30）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: 本変更を載せた作業ブランチ（`main` の `6474a357` が基点） |
+| 日付 | 2026-10-30 |
+| コマンド | `make build-web`、`tools/check-delivery.sh`、`OUT_DIR=<一時の場所> TEST_HOOKS=1 tools/build-web.sh`、手順 3 の書き出しの列挙、`cargo test -p fandhe-workshop-web --test tick_interval --test delivery_ports` |
+| 配信する設定 | wasm-opt 適用済み。書き出しは 17 件、`debug_` で始まる名前は 0 件、`mount_app` あり。`check-delivery.sh` は終了コード 0（`RESULT: ok`、`FAIL` の行 0 件） |
+| 試験の設定（対照） | 書き出しは 55 件、`debug_` で始まる名前は 37 件（`debug_autosave_state`・`debug_boot_kind`・`debug_check_doc` ほか）。0 件ではないため数え方は空振りしていない |
+| 読むクエリ | 配信物の `app.js` と `crates/web/static/app.js` は `cmp` で一致。`new URLSearchParams(location.search).getAll("start")` の 1 か所だけ |
+| 試験 | native: `delivery_ports` 11 件・`tick_interval` 6 件が通過。ブラウザの `query-inert`: この記録では未実施（CI の `browser-test` に任せる） |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 人間の承認点なし（TASK-111）。得ていない承認は書かない |
+| 限界 | BUILD-27 の `debug_` 5 件と実装の 37 件の差は #1924 と spec 側の扱い。wasm-opt を適用しない配信物では byte の検査が `name` セクション由来で FAIL になる（`docs/testing.md` 5.407 の限界 1）。spec の DLV-10 の `?ir` の文面の更新は spec repo で行う |
