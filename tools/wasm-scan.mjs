@@ -51,6 +51,8 @@ export function sectionsWithoutName(bytes) {
 
 /** 文字列ごとの件数（`name` セクションを除く）。 */
 export function scanWasm(bytes, patterns) {
+  // 空の検索文字列は indexOf が長さを返し続けて無限ループになるため、入口で断る。
+  if (patterns.some((p) => p.length === 0)) throw new Error('empty pattern');
   const hay = Buffer.concat(sectionsWithoutName(bytes));
   return Object.fromEntries(patterns.map((p) => {
     let n = 0;

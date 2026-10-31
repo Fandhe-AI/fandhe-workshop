@@ -235,6 +235,10 @@ echo 'not wasm' >"${T}/wasm/fandhe_workshop_web_bg.wasm"
 expect "unreadable wasm exports is exit 2" 2 "${CHECK}" "${T}"
 expect "two arguments is exit 2" 2 "${CHECK}" "${DELIVERY}" "${TESTCFG}"
 
+# 空の検索文字列は無限ループにせず終了コード 2 で断る（timeout 124 は失敗になる）。
+WASM_SCAN="${ROOT}/tools/wasm-scan.mjs"
+expect "wasm-scan with an empty pattern is exit 2" 2 timeout 10 node "${WASM_SCAN}" "${DELIVERY}/wasm/fandhe_workshop_web_bg.wasm" ""
+
 echo "1..$((passed + failed))"
 echo "# passed: ${passed}, failed: ${failed}"
 if [ "${failed}" -ne 0 ]; then
