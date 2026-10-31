@@ -149,3 +149,19 @@ DLV-10・SHELL-35 の確認の記録。`debug_` の公開名の記録は D-25 �
 | 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
 | 承認 | 人間の承認点なし（TASK-111）。得ていない承認は書かない |
 | 限界 | BUILD-27 の `debug_` 5 件と実装の 37 件の差は #1924 と spec 側の扱い。wasm-opt を適用しない配信物では byte の検査が `name` セクション由来で FAIL になる（`docs/testing.md` 5.407 の限界 1）。spec の DLV-10 の `?ir` の文面の更新は spec repo で行う |
+
+## DLV-11 CSP の meta と直接リンク 10 件の記録（TASK-111 2/2）
+
+DLV-11・SAFE-13 の確認の記録。`index.html` の CSP の `<meta>` は TASK-151 1/2 で置き済みで、本件で変えていない。配置と内容は `csp-placement`、実行時の確認は `direct-link-csp`（`docs/testing.md` 5.410）が持つ。
+
+### 記録 1（2026-10-31）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: 本変更を載せた作業ブランチ（`main` の `4666ee32` が基点） |
+| 日付 | 2026-10-31 |
+| コマンド | `make build-web`、`FANDHE_WEB_DIR=<dist/web> node --test tools/browser/direct-link-csp.test.mjs` |
+| 結果 | 直接リンク 10 件（CSP あり）で違反 0・CSP の警告 0・ページ内エラー 0・外部通信 0、開始点の Step まで WASM が動く。CSP なしと要求の種類が 10 件とも一致。`'wasm-unsafe-eval'` を外した対照で mount が error |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 人間の承認点なし（TASK-111）。得ていない承認は書かない |
+| 限界 | `<meta>` では効かない指令（DLV-12）、Pages の実物（DLV-24）、Windows（SAFE-39）は対象外 |
