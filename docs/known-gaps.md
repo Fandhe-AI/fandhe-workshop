@@ -39,6 +39,7 @@
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
 | PACK-19（両方無い） | 解消した（2026-10-22、#1709）。確認も持たない、入力も `use` も無い終端でない Step も `E-STRUCTURE` で拒否する。拒否の前に試験データを直した（#1708）。経緯の実測: 全面の拒否の影響は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台（30c1ff0 での実測） | 解消 | 不要（途中の Step には入力か `use` を書く。読むだけの Step は 1 択の `choice`） | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` |
 | SAFE-32（DLV-12） | 埋め込み（`iframe`）を隠す対策は JS が動くときだけ効き、HTTP ヘッダ（`frame-ancestors`・`X-Frame-Options`）ほど強くない。GitHub Pages は応答のヘッダを設定できないため、ヘッダの案は採れない。meta の CSP では `frame-ancestors`・`report-uri`・`sandbox` が効かず、その代わりは決めていない。同じ起源の親でも隠す | 決めた上で受け入れた限界（D-44、2026-10-12）。最上位のウィンドウでなければ内容を表示せず、操作を受け付けない対策を `static/app.js` に実装した（TASK-167 1/2） | 教材は最上位のウィンドウ（直接のリンク・新しいタブ）で開く | `tools/browser/iframe-embed.test.mjs`（`docs/testing.md` 5.413） |
+| GUIDE-18 | 前後の比較を見せたことの観測（`ComparisonShown`）の出所のイベントが無く、履歴から導いた記録の `after_comparison` は常に `false` になる | 未対応。イベントを足す版上げ（core の `CONTRACT_VERSION`）の後に写像へ足す | 記録の `after_comparison` を履歴から導いた値として読まない。比較の有無が要る集計は別の記録で持つ | `crates/core/tests/lo_observe.rs` の `wrong_then_reselect_is_recorded_without_comparison` |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 

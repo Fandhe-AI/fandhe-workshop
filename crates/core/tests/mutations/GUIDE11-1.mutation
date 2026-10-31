@@ -1,0 +1,8 @@
+id: GUIDE11-1
+package: fandhe-workshop-core
+test: lo_observe
+target: crates/core/src/lo_observe.rs
+find:     if status_of(ir, &before.run, uid) != StepStatus::Accepted {
+replace:     if status_of(ir, &before.run, uid) == StepStatus::NotStarted {
+expect-fail: entering_stage_choice_is_not_an_answer
+note: 確認の段階（Accepted）の検査を外す。受付の段階の選択が回答（誤答）に数えられる

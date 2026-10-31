@@ -1,0 +1,9 @@
+id: GUIDE11-2
+package: fandhe-workshop-core
+test: lo_observe
+target: crates/core/src/lo_observe.rs
+find:     if !fits_method(&node.step, input) {
+replace:     if !fits_method(&node.step, input) && false {
+expect-fail: non_matching_inputs_in_confirm_stage_are_not_answers
+expect-fail: approve_step_counts_approve_but_not_revise
+note: 確認の方式に合う入力の検査を外す。コマンド・自然文・「直す」の拒否が誤答に数えられる
