@@ -1,4 +1,4 @@
-//! 選び直しの手順を持つ選択肢の確認の「自力」の数え方（TASK-304 2/3、GUIDE-11）。
+//! 選び直しの手順を持つ確認と持たない確認の「自力」の数え方（TASK-304 2/3・3/3、GUIDE-11・GUIDE-12）。
 //!
 //! 根拠は TASK-3 の決定（#484、2026-10-31）である。contract の [`LoCheckRecord`] に数え方の規則を当て、
 //! 数えた結果（件数）だけを返す。割合の閾値（合否の線）は持たない。教材の LO の ID・Step の ID はここに持たず、
@@ -17,6 +17,11 @@
 //!   呼び出し側が [`SelfRelianceRule`] で渡す（D-55。エンジンは固定しない）。開いた最大の段は別に残す
 //! - 前後の比較を見た後の選び直しの正答は、この確認には無い形である。自力を多く数えない側に倒し、
 //!   自力に数えない
+//! - 選び直しの手順を持たない確認（GUIDE-12。[`CheckKind::NoReselection`]）は、最初の回答の正答だけを自力に
+//!   数える。誤答の後の正答は自力に数えず（[`SelfRelianceOutcome::CorrectAfterWrong`]）、比較の区分も使わない
+//! - 判定の順は、未回答・誤答のまま、答えの段以上を開いた後の正答、誤答の後の正答（選び直しの手順を持たない確認）、
+//!   自力の順である。答えの段の判定は確認の種類によらず先に勝つ。確認の種類は IR からは決めず、呼び出し側が
+//!   規則で選ぶ
 //! - 参加者単位の束ねは「その LO の確認をすべて自力で正答した参加者」を数える（案 A）。
 //!   未回答（到達しなかった確認）が 1 件でもあれば数えず、対象の確認が 0 件の参加者も数えない
 //! - 分類の前に [`LoCheckRecord::validate`] を通し、不変条件を破る記録は [`LoCheckError`] にする（fail-closed）
@@ -27,17 +32,18 @@
 //! - 進行役の手助けの有無（SESS の担当）。AI の代理の結果を人の評価に数えないことは運用の方針であり、欄にしない
 //! - 割合の閾値（8 割・半数などの合否の線）
 //! - 最初の回答の正答だけを自力に数える確認（[`crate::lo_first_answer`]、GUIDE-18）
-//! - 選び直しの手順を持たない確認（GUIDE-12、TASK-304 3/3 が [`CheckKind`] に足す）
 
 use std::fmt;
 
 use fandhe_workshop_contract::lo_check::{FirstAnswer, LoCheckError, LoCheckRecord, Reselection};
 
-/// 確認の種類ごとの規則。後続（GUIDE-12）が、選び直しを自力に数えない種類をここに足す。
+/// 確認の種類ごとの規則。選び直しの手順の有無で、誤答の後の正答を自力に数えるかが分かれる。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckKind {
     /// 選び直しの手順を持つ選択肢の確認（GUIDE-11）。
     Reselectable,
+    /// 選び直しの手順を持たない確認（GUIDE-12）。最初の回答の正答だけを自力に数える。
+    NoReselection,
 }
 
 /// 規則。答えを含むヒントの段は呼び出し側が渡す（D-55）。
@@ -68,13 +74,21 @@ impl SelfRelianceRule {
     /// 選び直しの手順を持つ確認の規則を作る。`answer_stage` は答えを含むヒントの段（1 始まり）で、
     /// 0 は拒否する（常に「答えの段を開いた」ことになり、自力が 0 件になるため）。
     pub fn reselectable(answer_stage: u32) -> Result<Self, SelfRelianceRuleError> {
+        Self::with_kind(CheckKind::Reselectable, answer_stage)
+    }
+
+    /// 選び直しの手順を持たない確認の規則を作る（GUIDE-12）。`answer_stage` の扱いは
+    /// [`SelfRelianceRule::reselectable`] と同じで、0 は拒否する。
+    pub fn no_reselection(answer_stage: u32) -> Result<Self, SelfRelianceRuleError> {
+        Self::with_kind(CheckKind::NoReselection, answer_stage)
+    }
+
+    /// 種類ごとの作成が共有する検査。0 の拒否を一か所に置く。
+    fn with_kind(kind: CheckKind, answer_stage: u32) -> Result<Self, SelfRelianceRuleError> {
         if answer_stage == 0 {
             return Err(SelfRelianceRuleError::ZeroAnswerStage);
         }
-        Ok(Self {
-            kind: CheckKind::Reselectable,
-            answer_stage,
-        })
+        Ok(Self { kind, answer_stage })
     }
 
     /// 答えを含むヒントの段。
@@ -103,6 +117,9 @@ pub enum SelfRelianceOutcome {
     },
     /// 前後の比較を見た後の選び直しの正答。自力に数えない。
     ReselectedAfterComparison,
+    /// 選び直しの手順を持たない確認で、誤答の後に正答した。自力に数えない。
+    /// 後から正答した事実を `NotCorrect` に潰さず別に残す。
+    CorrectAfterWrong,
     /// 誤答の後、まだ正答していない。
     NotCorrect,
     /// まだ回答していない。
@@ -135,6 +152,9 @@ pub fn classify(
     if record.max_hint >= rule.answer_stage {
         return Ok(SelfRelianceOutcome::AfterAnswerHint { reselected });
     }
+    if reselected && rule.kind == CheckKind::NoReselection {
+        return Ok(SelfRelianceOutcome::CorrectAfterWrong);
+    }
     if reselected && record.after_comparison {
         return Ok(SelfRelianceOutcome::ReselectedAfterComparison);
     }
@@ -152,6 +172,8 @@ pub struct SelfRelianceTally {
     pub after_answer_hint: u32,
     /// 前後の比較を見た後の選び直しの正答の件数。自力に数えない。
     pub reselected_after_comparison: u32,
+    /// 選び直しの手順を持たない確認で、誤答の後に正答した件数。自力に数えない。
+    pub correct_after_wrong: u32,
     /// 誤答の後、まだ正答していない件数。
     pub not_correct: u32,
     /// 未回答の件数。
@@ -167,6 +189,7 @@ impl SelfRelianceTally {
             self.self_reliant(),
             self.after_answer_hint,
             self.reselected_after_comparison,
+            self.correct_after_wrong,
             self.not_correct,
             self.unanswered,
         ]
@@ -206,6 +229,7 @@ pub fn tally(
             SelfRelianceOutcome::SelfReliant { reselected: true } => &mut t.self_reliant_reselected,
             SelfRelianceOutcome::AfterAnswerHint { .. } => &mut t.after_answer_hint,
             SelfRelianceOutcome::ReselectedAfterComparison => &mut t.reselected_after_comparison,
+            SelfRelianceOutcome::CorrectAfterWrong => &mut t.correct_after_wrong,
             SelfRelianceOutcome::NotCorrect => &mut t.not_correct,
             SelfRelianceOutcome::Unanswered => &mut t.unanswered,
         };

@@ -1,4 +1,4 @@
-//! 選び直しの手順を持つ選択肢の確認の自力の数え方 `lo_self_reliant` の試験（TASK-304 2/3、GUIDE-11）。
+//! 選び直しの手順を持つ確認と持たない確認の自力の数え方 `lo_self_reliant` の試験（TASK-304 2/3・3/3、GUIDE-11・GUIDE-12）。
 //!
 //! 期待の出所は TASK-3 の決定（#484、2026-10-31）。04 の GUIDE-11 は submodule の `d70ad10` ではまだ未反映のため、
 //! 決定のコメントを正とする。AI の代理の結果は人の評価に数えない（D-34）。ここでの数え直しは規則の机上の照合である。
@@ -6,6 +6,7 @@
 //!
 //! 履歴からの試験は `min-3step.json` の st-2 を `answer` の確認にして使う（`lo_observe.rs` と同じ補助を写す。
 //! `tests/` のファイル間で非公開の補助は共有できないため）。答えを含むヒントの段は 3 を渡す。
+//! 確認の種類は IR からは決めず、呼び出し側が規則（`reselectable`・`no_reselection`）で選ぶ。
 
 mod common;
 
@@ -21,8 +22,8 @@ use fandhe_workshop_core::addr::{Generation, StepUid};
 use fandhe_workshop_core::input::{Control, Input, Op};
 use fandhe_workshop_core::lo_observe::records_from_history;
 use fandhe_workshop_core::lo_self_reliant::{
-    classify, count_participants, tally, ParticipantCount, SelfRelianceOutcome, SelfRelianceRule,
-    SelfRelianceRuleError,
+    classify, count_participants, tally, CheckKind, ParticipantCount, SelfRelianceOutcome,
+    SelfRelianceRule, SelfRelianceRuleError,
 };
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::ops_record::SessionOp;
@@ -35,6 +36,10 @@ const ST2: &str = "main/st-2";
 
 fn rule(stage: u32) -> SelfRelianceRule {
     SelfRelianceRule::reselectable(stage).expect("non-zero stage")
+}
+
+fn nr(stage: u32) -> SelfRelianceRule {
+    SelfRelianceRule::no_reselection(stage).expect("non-zero stage")
 }
 
 fn base_ir() -> Ir {
@@ -417,6 +422,7 @@ fn prop_all_self_reliant_implies_every_record_self_reliant() {
             + t.self_reliant_reselected
             + t.after_answer_hint
             + t.reselected_after_comparison
+            + t.correct_after_wrong
             + t.not_correct
             + t.unanswered;
         prop_assert_eq!(sum, t.checks());
@@ -428,4 +434,273 @@ fn prop_all_self_reliant_implies_every_record_self_reliant() {
         }
         Ok(())
     });
+}
+
+// --- 選び直しの手順を持たない確認（GUIDE-12） ---
+
+fn wrong_then_correct(cmp: bool, hint: u32) -> LoCheckRecord {
+    rec(
+        "s",
+        &["LO-1"],
+        FirstAnswer::Wrong,
+        Reselection::Correct,
+        cmp,
+        hint,
+    )
+}
+
+#[test]
+fn no_reselection_first_correct_is_self_reliant() {
+    let r = from_history(&[pick("opt-memo"), pick("opt-memo")]);
+    assert_eq!(
+        classify(&r, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::SelfReliant { reselected: false }
+    );
+    let t = tally(&[r], "LO-X", &nr(3)).expect("valid");
+    assert_eq!((t.self_reliant_first, t.self_reliant()), (1, 1));
+}
+
+#[test]
+fn no_reselection_first_and_second_stage_hints_then_correct_are_self_reliant() {
+    for n in 1..=2usize {
+        let mut ops = vec![pick("opt-memo")];
+        ops.extend((0..n).map(|_| hint()));
+        ops.push(pick("opt-memo"));
+        let r = from_history(&ops);
+        assert_eq!(r.max_hint, n as u32);
+        assert_eq!(
+            classify(&r, &nr(3)).expect("valid"),
+            SelfRelianceOutcome::SelfReliant { reselected: false },
+            "n={n}"
+        );
+    }
+}
+
+#[test]
+fn no_reselection_third_stage_hint_then_correct_is_not_self_reliant() {
+    let r = from_history(&[pick("opt-memo"), hint(), hint(), hint(), pick("opt-memo")]);
+    assert_eq!(
+        classify(&r, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::AfterAnswerHint { reselected: false }
+    );
+    let t = tally(&[r], "LO-X", &nr(3)).expect("valid");
+    assert_eq!(
+        (t.self_reliant(), t.after_answer_hint, t.max_hint),
+        (0, 1, 3)
+    );
+}
+
+#[test]
+fn no_reselection_wrong_then_correct_is_not_self_reliant() {
+    let r = from_history(&[pick("opt-memo"), pick("opt-todo"), pick("opt-memo")]);
+    // 同じ記録でも、選び直しの手順を持つ確認では自力、持たない確認では自力でない。
+    assert_eq!(
+        classify(&r, &rule(3)).expect("valid"),
+        SelfRelianceOutcome::SelfReliant { reselected: true }
+    );
+    let o = classify(&r, &nr(3)).expect("valid");
+    assert_eq!(o, SelfRelianceOutcome::CorrectAfterWrong);
+    assert!(!o.is_self_reliant());
+    let t = tally(&[r], "LO-X", &nr(3)).expect("valid");
+    assert_eq!(
+        (
+            t.correct_after_wrong,
+            t.self_reliant_reselected,
+            t.self_reliant()
+        ),
+        (1, 0, 0)
+    );
+    assert_eq!(t.checks(), 1);
+}
+
+#[test]
+fn no_reselection_third_stage_before_correction_is_after_answer_hint() {
+    // 答えの段の判定が、誤答の後の正答の判定より先に勝つ。
+    let r = from_history(&[
+        pick("opt-memo"),
+        pick("opt-todo"),
+        hint(),
+        hint(),
+        hint(),
+        pick("opt-memo"),
+    ]);
+    assert_eq!(
+        classify(&r, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::AfterAnswerHint { reselected: true }
+    );
+}
+
+#[test]
+fn no_reselection_wrong_only_and_unanswered_are_not_self_reliant() {
+    let w = from_history(&[pick("opt-memo"), pick("opt-todo")]);
+    assert_eq!(
+        classify(&w, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::NotCorrect
+    );
+    let u = from_history(&[pick("opt-memo")]);
+    assert_eq!(
+        classify(&u, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::Unanswered
+    );
+    let none = rec(
+        "s",
+        &["LO-1"],
+        FirstAnswer::Unanswered,
+        Reselection::None,
+        false,
+        0,
+    );
+    assert_eq!(
+        classify(&none, &nr(3)).expect("valid"),
+        SelfRelianceOutcome::Unanswered
+    );
+}
+
+#[test]
+fn no_reselection_after_comparison_is_correct_after_wrong() {
+    for cmp in [false, true] {
+        assert_eq!(
+            classify(&wrong_then_correct(cmp, 0), &nr(3)).expect("valid"),
+            SelfRelianceOutcome::CorrectAfterWrong,
+            "cmp={cmp}"
+        );
+    }
+}
+
+#[test]
+fn no_reselection_rule_kind_and_zero_stage() {
+    assert_eq!(
+        SelfRelianceRule::no_reselection(0),
+        Err(SelfRelianceRuleError::ZeroAnswerStage)
+    );
+    assert_eq!(nr(3).kind(), CheckKind::NoReselection);
+    assert_eq!(nr(3).answer_stage(), 3);
+    assert_eq!(rule(3).kind(), CheckKind::Reselectable);
+}
+
+#[test]
+fn no_reselection_invalid_record_is_rejected() {
+    let bad = rec(
+        "s2",
+        &["LO-9"],
+        FirstAnswer::Correct,
+        Reselection::Correct,
+        false,
+        0,
+    );
+    assert_eq!(
+        classify(&bad, &nr(3)),
+        Err(LoCheckError::ReselectionWithoutWrong)
+    );
+    let good = first_correct("s1", 0);
+    assert!(tally(&[good.clone(), bad.clone()], "LO-1", &nr(3)).is_err());
+    assert!(count_participants(&[vec![good], vec![bad]], "LO-1", &nr(3)).is_err());
+}
+
+/// LO-4 の 4 確認の束ね（TASK-3 の決定）。Step の ID は教材の側の約束で、ここでは記録の写しとして置く。
+fn lo4_steps(recs: [LoCheckRecord; 4]) -> Vec<LoCheckRecord> {
+    let ids = [
+        "main/st-8-2a",
+        "main/st-8-2b",
+        "main/st-8-2c",
+        "main/st-14-3",
+    ];
+    recs.into_iter()
+        .zip(ids)
+        .map(|(mut r, id)| {
+            r.step = id.to_string();
+            r.lo = vec!["LO-4".into()];
+            r
+        })
+        .collect()
+}
+
+#[test]
+fn lo4_bundle_counts_only_all_first_correct_participants() {
+    let ok = || first_correct("x", 0);
+    let wrong_then = || wrong_then_correct(false, 0);
+    let third = || first_correct("x", 3);
+    let unanswered = || {
+        rec(
+            "x",
+            &["LO-4"],
+            FirstAnswer::Unanswered,
+            Reselection::None,
+            false,
+            0,
+        )
+    };
+    let people = vec![
+        lo4_steps([ok(), ok(), ok(), ok()]),
+        lo4_steps([ok(), wrong_then(), ok(), ok()]),
+        lo4_steps([ok(), ok(), third(), ok()]),
+        lo4_steps([ok(), ok(), ok(), unanswered()]),
+    ];
+    assert_eq!(
+        count_participants(&people, "LO-4", &nr(3)).expect("valid"),
+        ParticipantCount {
+            participants: 4,
+            all_self_reliant: 1
+        }
+    );
+    // 選び直しの手順を持つ確認として数えると、誤答の後の正答も自力になる。
+    assert_eq!(
+        count_participants(&people, "LO-4", &rule(3))
+            .expect("valid")
+            .all_self_reliant,
+        2
+    );
+}
+
+#[test]
+fn lo3_four_scenes_bundle() {
+    let scenes = |last: LoCheckRecord| {
+        let mut v: Vec<_> = ["main/s-a", "main/s-b", "main/s-c"]
+            .iter()
+            .map(|id| first_correct(id, 0))
+            .collect();
+        v.push(LoCheckRecord {
+            step: "main/s-d".into(),
+            ..last
+        });
+        v
+    };
+    let all = scenes(first_correct("x", 0));
+    assert!(tally(&all, "LO-1", &nr(3))
+        .expect("valid")
+        .all_self_reliant());
+    let one_wrong = scenes(wrong_then_correct(false, 0));
+    assert!(!tally(&one_wrong, "LO-1", &nr(3))
+        .expect("valid")
+        .all_self_reliant());
+}
+
+#[test]
+fn prop_no_reselection_never_counts_reselected_as_self_reliant() {
+    let strat = proptest::collection::vec(any_record(), 0..12);
+    check(
+        "lo-self-reliant-no-reselection",
+        DEFAULT_CASES,
+        strat,
+        |rs| {
+            let r = nr(3);
+            let t = tally(&rs, "LO-1", &r).expect("valid");
+            prop_assert_eq!(t.self_reliant_reselected, 0);
+            let sum = t.self_reliant_first
+                + t.after_answer_hint
+                + t.reselected_after_comparison
+                + t.correct_after_wrong
+                + t.not_correct
+                + t.unanswered;
+            prop_assert_eq!(sum, t.checks());
+            prop_assert_eq!(t.checks() as usize, rs.len());
+            if t.all_self_reliant() {
+                for x in &rs {
+                    prop_assert_eq!(x.first_answer, FirstAnswer::Correct);
+                    prop_assert!(x.max_hint < 3);
+                }
+            }
+            Ok(())
+        },
+    );
 }

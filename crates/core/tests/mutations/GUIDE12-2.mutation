@@ -1,0 +1,9 @@
+id: GUIDE12-2
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:         Self::with_kind(CheckKind::NoReselection, answer_stage)
+replace:         Self::with_kind(CheckKind::Reselectable, answer_stage)
+expect-fail: no_reselection_rule_kind_and_zero_stage
+expect-fail: no_reselection_wrong_then_correct_is_not_self_reliant
+note: 規則の種類の取り違え

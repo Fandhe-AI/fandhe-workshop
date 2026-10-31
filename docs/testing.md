@@ -11418,7 +11418,7 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 | PoC-13 の LO-1 の数え直しが 3/4 | `ai_proxy_recount_lo1_is_three_of_four` |
 | 6 区分の和が件数、束ねが真なら全記録が自力 | `prop_all_self_reliant_implies_every_record_self_reliant` |
 
-- 限界: AI の代理の run は本エンジンの履歴の形ではなく、CI では `docs/spec` を読めないため、数え直しは記録の水準の写しで照合する。AI の代理の結果は人の評価に数えない（D-34）。前後の比較の観測は無く（`docs/known-gaps.md` GUIDE-18）、導いた記録の `after_comparison` は常に `false`。進行役の手助けは扱わない（SESS）。選び直しの手順を持たない確認（GUIDE-12）は TASK-304 3/3
+- 限界: AI の代理の run は本エンジンの履歴の形ではなく、CI では `docs/spec` を読めないため、数え直しは記録の水準の写しで照合する。AI の代理の結果は人の評価に数えない（D-34）。前後の比較の観測は無く（`docs/known-gaps.md` GUIDE-18）、導いた記録の `after_comparison` は常に `false`。進行役の手助けは扱わない（SESS）。選び直しの手順を持たない確認（GUIDE-12）は 5.420
 - 変異注入（2026-10-31、元にしたコミット 2d30d21c の作業ツリー）: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE11-{4,5,6,7,8,9}.mutation`
 
 | ID | 変異 | 期待した失敗 | 結果 |
@@ -11429,3 +11429,33 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 | GUIDE11-7 | LO の絞り込みを外す | `tally_counts_only_the_designated_lo` | DETECTED |
 | GUIDE11-8 | 束ねを「1 件以上自力」にする | `participant_needs_all_checks_self_reliant`・`ai_proxy_recount_lo1_is_three_of_four` | DETECTED |
 | GUIDE11-9 | 0 件の参加者を数える | `participant_without_checks_is_not_counted` | DETECTED |
+
+### 5.420 選び直しの手順を持たない確認の自力の数え方（TASK-304 3/3。GUIDE-12）
+
+- 実装は 5.419 と同じ `crates/core/src/lo_self_reliant.rs`（`SelfRelianceRule::no_reselection`・`CheckKind::NoReselection`・`SelfRelianceOutcome::CorrectAfterWrong`・`SelfRelianceTally::correct_after_wrong`）。期待の出所は TASK-3 の決定（#484、2026-10-31）。04 の GUIDE-12 は submodule `d70ad10` ではまだ「検討中」のため、決定のコメントを正とする。最初の回答の正答だけを自力に数え、誤答の後の正答は自力に数えない。判定の順は、答えの段以上を開いた後の正答（`AfterAnswerHint`）が先に勝ち、次に誤答の後の正答（`CorrectAfterWrong`。比較の区分は使わない）、最後に自力である。確認の種類は IR からは決めず、呼び出し側が規則で選ぶ
+- 試験は `crates/core/tests/lo_self_reliant.rs` に 12 件を追加した（全体で 27 件）。履歴から 6 件、記録から 5 件、proptest による性質 1 件。既存の性質の試験の和にも `correct_after_wrong` を足した
+
+| 確かめること | 試験 |
+|---|---|
+| ヒントなしの最初の回答の正答は自力 | `no_reselection_first_correct_is_self_reliant` |
+| 1・2 段目のヒントの後の正答は自力 | `no_reselection_first_and_second_stage_hints_then_correct_are_self_reliant` |
+| 3 段目のヒントの後の正答は自力でない | `no_reselection_third_stage_hint_then_correct_is_not_self_reliant` |
+| 誤答の後の正答は自力でない。同じ記録が選び直しの手順を持つ確認では自力になる対照 | `no_reselection_wrong_then_correct_is_not_self_reliant` |
+| 誤答の後に 3 段目を開いた正答は答えの段の判定が先に勝つ | `no_reselection_third_stage_before_correction_is_after_answer_hint` |
+| 誤答のまま・未回答 | `no_reselection_wrong_only_and_unanswered_are_not_self_reliant` |
+| 比較の区分によらず誤答の後の正答 | `no_reselection_after_comparison_is_correct_after_wrong` |
+| 種類・答えの段・0 の拒否 | `no_reselection_rule_kind_and_zero_stage` |
+| 不正な記録は指定外の LO でも `Err` | `no_reselection_invalid_record_is_rejected` |
+| LO-4 の 4 確認の束ねは全部が最初の回答の正答の参加者だけ。選び直しの手順を持つ確認との差 | `lo4_bundle_counts_only_all_first_correct_participants` |
+| LO-3 の 4 場面の束ね | `lo3_four_scenes_bundle` |
+| 自力の選び直しが 0、7 区分の和が件数、束ねが真なら全記録が最初の回答の正答で 3 段目未満 | `prop_no_reselection_never_counts_reselected_as_self_reliant` |
+
+- 限界: Step の ID は教材の側の約束で、試験は記録の水準の写しで規則を確かめるだけである。教材の側で `st-8-2` を 3 Step に分けること・`st-14-3` を足すことは教材 repo の担当。導いた記録の `after_comparison` は常に `false`（`docs/known-gaps.md` GUIDE-18）。進行役の手助け（SESS）と AI の代理の結果の除外（運用）は扱わない
+- 変異注入（2026-10-31、元にしたコミット 00d6ad0a の作業ツリー）: `scripts/check-mutations.sh` に `crates/core/tests/mutations/GUIDE11-4`〜`GUIDE11-9` と `GUIDE12-1`〜`GUIDE12-3` の各 `.mutation` を渡した。GUIDE11 の既存の変異の `find` が崩れていないことの確認を兼ねる
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| GUIDE12-1 | 誤答の後の正答の分岐を外す | `no_reselection_wrong_then_correct_is_not_self_reliant`・`lo4_bundle_counts_only_all_first_correct_participants` | DETECTED |
+| GUIDE12-2 | `no_reselection` が選び直しの種類を返す | `no_reselection_rule_kind_and_zero_stage`・`no_reselection_wrong_then_correct_is_not_self_reliant` | DETECTED |
+| GUIDE12-3 | 集計で誤答の後の正答を自力の側に入れる | `no_reselection_wrong_then_correct_is_not_self_reliant`・`lo4_bundle_counts_only_all_first_correct_participants` | DETECTED |
+| GUIDE11-4〜9 | 既存の 6 件 | 5.419 のとおり | DETECTED |
