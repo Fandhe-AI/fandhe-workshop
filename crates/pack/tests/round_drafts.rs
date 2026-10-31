@@ -35,8 +35,8 @@ fn goto(rs: &mut RecordedSession, uid: &StepUid) {
 }
 
 /// 1 周目へ戻る。閉じた周回への `GoTo` は拒否される（MOD-15）ので、`setup` が保存した cp1 へ復帰する。
-fn back_to_round1(rs: &mut RecordedSession, r1_step: &StepUid) {
-    rs.apply(Op::Control(Control::Restore(CheckpointId(1))));
+fn back_to_round1(rs: &mut RecordedSession, r1_step: &StepUid, cp1: CheckpointId) {
+    rs.apply(Op::Control(Control::Restore(cp1)));
     assert_eq!(
         rs.session().state().run.current.as_ref(),
         Some(r1_step),
@@ -50,6 +50,8 @@ struct Setup {
     r1_step: StepUid,
     r1_root: Root,
     r2_roots: Vec<Root>,
+    /// `Begin` の前の手動の保存の ID。章の終わりの自動保存が先に ID を使うため、番号を直書きしない（TASK-339 1/2）。
+    cp1: CheckpointId,
 }
 
 /// 1 周目を流して下書きを置き、2 周目を開始した直後の状態。
@@ -65,6 +67,7 @@ fn setup() -> Setup {
     rs.draft("下書き1".to_string());
     // `Begin` の前に保存する（cp1）。後で 1 周目へ戻る手段になる。
     rs.apply(Op::Control(Control::Save));
+    let cp1 = CheckpointId(rs.session().state().next_checkpoint.0 - 1);
     let before = rs.session().state().drafts.clone();
     run_plan(&mut rs, &begin_round2_plan());
     // 開始は下書きを書き換えない。
@@ -76,6 +79,7 @@ fn setup() -> Setup {
         r1_step,
         r1_root,
         r2_roots,
+        cp1,
     }
 }
 
@@ -106,7 +110,7 @@ fn proc3_iii_go_to_swaps_drafts_between_rounds() {
     goto(&mut s.rs, &r2_step);
     s.rs.draft("下書き2".to_string());
     for _ in 0..2 {
-        back_to_round1(&mut s.rs, &s.r1_step);
+        back_to_round1(&mut s.rs, &s.r1_step, s.cp1);
         assert_eq!(s.rs.current_draft(), Some("下書き1"));
         goto(&mut s.rs, &r2_step);
         assert_eq!(s.rs.current_draft(), Some("下書き2"));
@@ -140,7 +144,7 @@ fn proc3_iii_replay_restores_current_draft() {
     let r2_step = step_in(&s.ir, &s.r2_roots, "st-2-1");
     goto(&mut s.rs, &r2_step);
     s.rs.draft("下書き2".to_string());
-    back_to_round1(&mut s.rs, &s.r1_step);
+    back_to_round1(&mut s.rs, &s.r1_step, s.cp1);
     let env = s.rs.envelope_for_save().expect("envelope");
     let replayed = replay(&s.ir, SessionState::default(), &env.ops).expect("replay");
     assert_eq!(replayed.drafts, s.rs.session().state().drafts);
@@ -181,7 +185,7 @@ fn proc3_iii_round1_draft_survives_round2_submits_and_replay() {
     s.rs.draft("下書き2".to_string());
     let p = prefix(&s.ir);
     s.rs.submit(&p, "/new-idea bbs-search".to_string());
-    back_to_round1(&mut s.rs, &s.r1_step);
+    back_to_round1(&mut s.rs, &s.r1_step, s.cp1);
     assert_eq!(s.rs.current_draft(), Some("下書き1"));
     let env = s.rs.envelope_for_save().expect("envelope");
     let replayed = replay(&s.ir, SessionState::default(), &env.ops).expect("replay");

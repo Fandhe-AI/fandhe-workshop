@@ -329,7 +329,8 @@ fn three_conditions_within_5mb() {
             .count() as u64;
         assert_eq!(size.changed_entries, from_events);
         match o.cond {
-            Cond::A => assert_eq!(size.checkpoints, 2),
+            // 手動の 2 件に章の終わりの自動保存 2 件が加わる（SAVE-31、TASK-339 1/2）。
+            Cond::A => assert_eq!(size.checkpoints, 4),
             Cond::B => assert!(size.checkpoints > 2),
             Cond::C => assert!(size.checkpoints > 2),
         }

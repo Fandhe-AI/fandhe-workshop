@@ -1,0 +1,8 @@
+id: SAVE31-1
+package: fandhe-workshop-core
+test: chapter_end_autosave
+target: crates/core/src/session.rs
+find:     if crate::chapter_end::auto_save_due(ir, &events) {
+replace:     if false && crate::chapter_end::auto_save_due(ir, &events) {
+expect-fail: the_chapter_end_appends_one_checkpoint_at_the_tail
+note: 章の終わりの自動保存を結ばない（章の終わりを含む操作でチェックポイントが増えない）

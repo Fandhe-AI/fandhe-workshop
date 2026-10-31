@@ -60,6 +60,7 @@ mod begin;
 pub mod body_level;
 pub mod busy_class;
 pub mod changed;
+pub mod chapter_end;
 mod checkpoint;
 mod closed_round;
 pub mod command_accept;

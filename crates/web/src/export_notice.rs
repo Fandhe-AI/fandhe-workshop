@@ -9,10 +9,8 @@
 //! 純関数だけを持ち、DOM・保存先・通信に触れない。文は固定の定数だけで作り、教材・受講者の値を含めない（A03）。
 //! 書き出しの操作そのもの（リンク・ボタン）は TASK-531、通知欄の配置は TASK-534 が持つ。
 //! `Event::ChapterCompleted` は core がまだ出さない（TASK-233 以降）ため、章の終わりは
-//! 「章（`main` の根）の最後の Step（`is_final`）の達成、またはモジュールからその Step への復帰（`ModuleExited`）」でも判定する（SHELL-10）。TASK-339 が別に定めたら一本化する。
-
-use fandhe_workshop_contract::ir::Ir;
-use fandhe_workshop_core::event::Event;
+//! 「章（`main` の根）の最後の Step（`is_final`）の達成、またはモジュールからその Step への復帰（`ModuleExited`）」でも判定する（SHELL-10）。
+//! 判定は core の `chapter_end` に一本化し、章の終わりのチェックポイントの自動保存（TASK-339 1/2）と同じ時機で案内する。
 
 /// 案内の通知欄の束縛点の名前。
 pub const EXPORT_NOTICE_FIELD: &str = "export_notice";
@@ -50,39 +48,13 @@ pub fn export_hint_name(hint: Option<ExportHint>) -> Option<&'static str> {
     }
 }
 
-/// `uid` が `main` の根の最後の Step（`is_final`）か。IR に無い Step は偽（fail-closed）。
-pub(crate) fn is_main_final(ir: &Ir, uid: &str) -> bool {
-    uid.starts_with("main/")
-        && ir
-            .nodes
-            .iter()
-            .find(|n| n.uid == uid)
-            .is_some_and(|n| n.step.is_final)
-}
-
-/// 1 件のイベントが章の終わりか。`ChapterCompleted`、`main` の根の最後の Step の `Achieved`、または
-/// 学習モジュールから戻った先がその Step の `ModuleExited`。
-/// モジュールからの復帰では core が呼び出し元の `Achieved` を出さず `ModuleExited` だけを出すため、
-/// 最後の Step がモジュールを呼ぶ章でも章の終わりを検出できるようにする。
-/// IR に無い Step は偽（fail-closed）。学習モジュールの最後の Step は呼び出し元へ戻るため数えない。
-pub fn is_chapter_end(ir: &Ir, ev: &Event) -> bool {
-    match ev {
-        Event::ChapterCompleted { .. } => true,
-        Event::Achieved { at, .. } | Event::ModuleExited { at, .. } => {
-            is_main_final(ir, at.step.0.as_str())
-        }
-        _ => false,
-    }
-}
-
-/// イベントの列のどれかが章の終わりか。
-pub fn chapter_end_in(ir: &Ir, events: &[Event]) -> bool {
-    events.iter().any(|e| is_chapter_end(ir, e))
-}
+pub use fandhe_workshop_core::chapter_end::{chapter_end_in, is_chapter_end, is_main_final};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fandhe_workshop_contract::ir::Ir;
+    use fandhe_workshop_core::event::Event;
 
     #[test]
     fn 文は空でなく種類ごとに違い_なしは空() {

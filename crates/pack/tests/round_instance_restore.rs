@@ -202,7 +202,8 @@ fn mod16_restore_in_round2_keeps_the_other_instance_progress() {
 
     let after = state(&sc.rs);
     let cp = &after.checkpoints[&sc.cp];
-    assert_eq!(after.checkpoints.len(), 1);
+    // 手動の 1 件に、1 周目の終わりの自動保存 1 件が加わる（SAVE-31、TASK-339 1/2）。
+    assert_eq!(after.checkpoints.len(), 2);
     assert_eq!(cp.owner.as_ref(), Some(&sc.owner));
     // 持ち主だけが保存の時点に戻る。
     assert_eq!(after.run.current, sc.saved.run.current);
@@ -295,7 +296,8 @@ fn mod16_checkpoints_in_one_round_restore_each_owner_separately() {
     let (r2, _) = round_roots(&ir, "s-r2");
     {
         let cps = &state(&sc.rs).checkpoints;
-        assert_eq!(cps.len(), 2);
+        // 手動の 2 件に、1 周目の終わりの自動保存 1 件が加わる（SAVE-31、TASK-339 1/2）。
+        assert_eq!(cps.len(), 3);
         // 保存の持ち主は実体の根で、周回でまとまった識別子は無い。
         assert_eq!(cps[&cp1].owner.as_ref(), Some(&sc.owner));
         assert_eq!(cps[&cp2].owner.as_ref(), Some(&sc.other));

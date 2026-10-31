@@ -1,7 +1,7 @@
 id: SAVE29-3
 package: fandhe-workshop-web
 test: export_notice
-target: crates/web/src/export_notice.rs
+target: crates/core/src/chapter_end.rs
 find:             .is_some_and(|n| n.step.is_final)
 replace:             .is_some()
 expect-fail: 途中の_step_の達成では章の終わりの案内にならない

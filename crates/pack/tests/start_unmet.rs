@@ -38,9 +38,13 @@ fn ir() -> Ir {
 }
 
 /// `log` を除いた状態の SHA-256。`log` は拒否の 1 件が足されるので比べる対象から外す。
+/// 章の終わりの自動保存（TASK-339 1/2）の `log_len` も、拒否の 1 件の分だけずれるので 0 にそろえる。
 fn state_hash(state: &SessionState) -> String {
     let mut copy = state.clone();
     copy.log.clear();
+    for cp in copy.checkpoints.values_mut() {
+        cp.log_len = 0;
+    }
     let json = serde_json::to_vec(&copy).expect("serialize");
     sha256::hex(&sha256::sha256(&json))
 }

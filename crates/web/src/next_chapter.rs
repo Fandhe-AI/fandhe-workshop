@@ -7,7 +7,7 @@
 //! 「章の完了」はイベントでなく状態から導く（core は `ChapterCompleted` を出さず `completed` も書かない。TASK-233 以降）。
 //! 状態から導くので、再読み込み・履歴の復元の後でも同じ表示になる。出す条件は次のすべてで、欠けたら出さない（fail-closed）。
 //!
-//! 1. 現在の Step が `main` の根の最後の Step（`export_notice::is_main_final` と同じ判定）である。
+//! 1. 現在の Step が `main` の根の最後の Step（`chapter_end::is_main_final` と同じ判定）である。
 //! 2. その Step が達成（`Achieved`）である。
 //! 3. 処理中でない。
 //! 4. 次の章があり、その最初の Step を指す開始点が IR にある（途中の Step を指す開始点へは代えない）。D-67（SHELL-12）は試行で配る IR から範囲外の開始点を除くので、

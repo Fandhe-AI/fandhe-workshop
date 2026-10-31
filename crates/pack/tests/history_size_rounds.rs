@@ -71,7 +71,11 @@ fn two_rounds_history_size_and_changed_share() {
     let size: HistorySize = measure(&r.env, &r.bytes);
 
     assert_eq!(r.current, "main/r2-impl");
-    assert_eq!(size.checkpoints, 2, "one checkpoint per round");
+    // 周回ごとの手動の保存 1 件に、章の終わり（`main` の最後の Step の達成）の自動保存が加わる（SAVE-31、TASK-339 1/2）。
+    assert_eq!(
+        size.checkpoints, 4,
+        "one manual checkpoint per round plus chapter-end autosaves"
+    );
     assert!(size.changed_entries > 0);
     assert!(size.changed_bytes > 0 && size.changed_bytes < size.snapshot_bytes);
     assert!(size.snapshot_bytes < size.total_bytes);
