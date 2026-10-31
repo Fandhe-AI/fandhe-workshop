@@ -159,7 +159,8 @@ for (const csp of [true, false]) {
       const d = {
         ...real,
         async nextChapter() {
-          await sweep(page, L, true, 'N', [...BASE_ACTIONS, 'next-chapter', 'ui']);
+          // 章の終わりの自動保存（SAVE-31）で復帰の口が出る。
+          await sweep(page, L, true, 'N', [...BASE_ACTIONS, 'next-chapter', 'ui', 'restore-checkpoint']);
           return real.nextChapter();
         },
       };
