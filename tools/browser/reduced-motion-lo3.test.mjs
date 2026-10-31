@@ -211,16 +211,21 @@ for (const csp of [true, false]) {
             position: document.querySelector(pos)?.textContent ?? null,
           }), [ROWS, POSITION]);
           let saved = null;
+          let cpId = null;
           const onStep = async (uid, status) => {
             if (uid !== 'main/st-1-1' || status !== 'entered') return;
+            // 章の終わりの自動保存（SAVE-31）が先に ID を使うため、増えた 1 件の ID を使う。
+            const ids = () => page.evaluate((sel) => [...document.querySelectorAll(sel)].map((b) => b.getAttribute('data-checkpoint')), RESTORE);
+            const before = await ids();
             await page.click(SAVE);
-            await page.waitForSelector(`${RESTORE}[data-checkpoint="1"]`);
+            await page.waitForFunction(([sel, k]) => document.querySelectorAll(sel).length === k + 1, [RESTORE, before.length]);
+            cpId = (await ids()).find((i) => !before.includes(i));
             saved = await observe();
           };
           await journey(page, mouseDriver(page), media, L, 'main/st-1-4', { chaptered: true, onStep });
           assert.ok(saved, '保存の時点の観察が取れていない');
           assert.notEqual((await engine(page)).current, 'main/st-1-1', '対照: 進めた後は保存の時点と違う');
-          await page.click(`${RESTORE}[data-checkpoint="1"]`);
+          await page.click(`${RESTORE}[data-checkpoint="${cpId}"]`);
           await waitUntil('restore', () => engine(page), (e) => e.current === 'main/st-1-1');
           const e = await engine(page);
           const back = await observe();

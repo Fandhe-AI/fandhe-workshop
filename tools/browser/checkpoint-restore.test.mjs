@@ -64,6 +64,18 @@ const observe = (page) => page.evaluate(([rows, pos]) => {
   };
 }, [ROWS, POSITION]);
 
+// 手動の保存を押し、増えた 1 件の ID を返す。章の終わりの自動保存（SAVE-31）が先に ID を使うため、ID は固定の 1 にできない。
+const listedIds = (page) => page.evaluate((sel) => [...document.querySelectorAll(sel)].map((b) => b.getAttribute('data-checkpoint')), RESTORE);
+async function manualSave(page) {
+  const before = await listedIds(page);
+  const n = before.length;
+  await page.click(SAVE);
+  await page.waitForFunction(([sel, k]) => document.querySelectorAll(sel).length === k + 1, [RESTORE, n]);
+  const fresh = (await listedIds(page)).filter((i) => !before.includes(i));
+  assert.equal(fresh.length, 1, '手動の保存で増えた項目が 1 件');
+  return fresh[0];
+}
+
 const checkpointCount = async (page) => Object.keys((await engine(page)).stateWithoutLog.checkpoints).length;
 
 async function openScene(csp, viewport, query, fn, { dir = process.env.FANDHE_WEB_TEST_DIR, hooks = true } = {}) {
@@ -90,21 +102,24 @@ for (const csp of [true, false]) {
     await openScene(csp, { width: 1280, height: 800 }, QUERY, async (page, L) => {
       let saved = null;
       let portsAtSave = null;
+      let cpId = null;
+      let autoN = 0;
       const onStep = async (uid, status) => {
         if (uid !== 'main/st-1-1' || status !== 'entered') return;
-        L.check('A', '保存のボタンが 1 個・復帰のボタンが 0 個',
-          (await page.locator(SAVE).count()) === 1 && (await page.locator(RESTORE).count()) === 0);
+        L.check('A', '保存のボタンが 1 個・復帰のボタンは章の終わりの自動保存の分だけ',
+          (await page.locator(SAVE).count()) === 1);
         const place = await page.evaluate((s) => {
           const b = document.querySelector(s);
           return { inTop: !!b.closest('[data-testid="shell-top"]'), inPanel: !!b.closest('[role="tabpanel"]') };
         }, SAVE);
         L.check('A', '保存のボタンが shell-top の中・tabpanel の外', place.inTop && !place.inPanel);
-        await page.click(SAVE);
-        await page.waitForSelector(`${RESTORE}[data-checkpoint="1"]`);
+        const autoCount = (await engine(page)).stateWithoutLog.checkpoints;
+        autoN = Object.keys(autoCount).length;
+        cpId = await manualSave(page);
         saved = await observe(page);
         portsAtSave = await ports(page);
         L.check('A', '保存の時点の位置が IR から数えた形', saved.position?.[0] === expectedPosition('main/st-1-1'));
-        L.check('A', '保存でチェックポイントが 1 件', (await checkpointCount(page)) === 1);
+        L.check('A', '保存でチェックポイントが 1 件増える', (await checkpointCount(page)) === autoN + 1);
       };
       await journey(page, mouseDriver(page), 'A', L, 'main/st-1-4', { chaptered: true, onStep });
       assert.ok(saved, '保存の時点の観察が取れていない');
@@ -113,7 +128,7 @@ for (const csp of [true, false]) {
         moved.position?.[0] !== saved.position[0] && JSON.stringify(moved.rows) !== JSON.stringify(saved.rows));
       const e0 = await engine(page);
       const restored0 = e0.log.filter((r) => r.kind === 'restored').length;
-      await page.click(`${RESTORE}[data-checkpoint="1"]`);
+      await page.click(`${RESTORE}[data-checkpoint="${cpId}"]`);
       await page.waitForFunction(() => JSON.parse(window.__fandheTest.stateJson()).engine.current === 'main/st-1-1');
       const e = await engine(page);
       const back = await observe(page);
@@ -123,8 +138,8 @@ for (const csp of [true, false]) {
       L.check('A', '左の行の列と文字が保存の時点', JSON.stringify(back.rows) === JSON.stringify(saved.rows));
       L.check('A', '世代が進む', e.stateWithoutLog.run.generation > e0.stateWithoutLog.run.generation);
       L.check('A', '復帰の記録が 1 件増える', e.log.filter((r) => r.kind === 'restored').length === restored0 + 1);
-      L.check('A', '復帰のボタンが残る', (await page.locator(`${RESTORE}[data-checkpoint="1"]`).count()) === 1
-        && (await checkpointCount(page)) === 1);
+      L.check('A', '復帰のボタンが残る', (await page.locator(`${RESTORE}[data-checkpoint="${cpId}"]`).count()) === 1
+        && (await checkpointCount(page)) >= autoN + 1);
       L.check('A', '入力の口の数が保存の時点', JSON.stringify(await ports(page)) === JSON.stringify(portsAtSave));
     });
   });
@@ -132,8 +147,7 @@ for (const csp of [true, false]) {
   test(`改ざんした復帰の payload は状態とログを変えない（${mode}）`, { timeout: 300000 }, async () => {
     await openScene(csp, { width: 1280, height: 800 }, QUERY, async (page, L) => {
       await journey(page, mouseDriver(page), 'B', L, 'main/st-1-1', { chaptered: true });
-      await page.click(SAVE);
-      await page.waitForSelector(`${RESTORE}[data-checkpoint="1"]`);
+      await manualSave(page);
       for (const bad of ['999', '01', '0', '', '1x', '4294967296']) {
         const before = await engine(page);
         await page.evaluate(([sel, v]) => {

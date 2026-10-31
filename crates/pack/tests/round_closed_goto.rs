@@ -67,17 +67,20 @@ fn round1_targets(ir: &Ir) -> Vec<StepUid> {
 }
 
 /// 1 周目を流し、`Begin` の前の 1 周目の `st-2-1` で cp1 を保存し、2 周目を開始して入力列を流し、cp2 を保存する。
-fn two_rounds(ir: &Ir) -> RecordedSession {
+/// 戻り値は手動の保存の ID（cp1・cp2）つき。章の終わりの自動保存が ID を使うため、番号を直書きしない（TASK-339 1/2）。
+fn two_rounds(ir: &Ir) -> (RecordedSession, CheckpointId, CheckpointId) {
     let mut rs = recorded(ir);
     run_plan(&mut rs, &round1_plan(ir));
     let (r1, _) = round_roots(ir, "s-r1");
     rs.apply(Op::Control(Control::GoTo(step_in(ir, &r1, "st-2-1"))));
     rs.apply(Op::Control(Control::Save));
+    let cp1 = CheckpointId(rs.session().state().next_checkpoint.0 - 1);
     let mut plan = begin_round2_plan();
     plan.extend(round2_plan(ir));
     plan.push(control(Control::Save));
     run_plan(&mut rs, &plan);
-    rs
+    let cp2 = CheckpointId(rs.session().state().next_checkpoint.0 - 1);
+    (rs, cp1, cp2)
 }
 
 fn assert_closed_refusal(events: &[Event]) {
@@ -113,7 +116,7 @@ fn assert_unchanged_but_log(before: &SessionState, after: &SessionState) {
 #[test]
 fn mod15_goto_to_closed_round1_step_is_refused_without_change() {
     let ir = ir();
-    let mut rs = two_rounds(&ir);
+    let (mut rs, _, _) = two_rounds(&ir);
     rs.draft("下書き".to_string());
     for to in round1_targets(&ir) {
         let before = rs.session().state().clone();
@@ -155,18 +158,16 @@ fn mod15_goto_within_open_rounds_still_moves() {
 fn mod15_restore_still_works_after_refusal() {
     let ir = ir();
     let (r1, _) = round_roots(&ir, "s-r1");
-    let mut rs = two_rounds(&ir);
+    let (mut rs, cp1, cp2) = two_rounds(&ir);
     let to = step_in(&ir, &r1, "st-3-2");
     let events = rs.apply(Op::Control(Control::GoTo(to))).to_vec();
     assert_closed_refusal(&events);
     let r2_owner = owner_of(&ir, rs.session().state().run.current.as_ref().expect("cur"));
-    for id in [1, 2, 1, 2] {
-        let events = rs
-            .apply(Op::Control(Control::Restore(CheckpointId(id))))
-            .to_vec();
+    for id in [cp1, cp2, cp1, cp2] {
+        let events = rs.apply(Op::Control(Control::Restore(id))).to_vec();
         assert!(
             events.iter().any(|e| matches!(e, Event::Restored { .. })),
-            "restore {id}: {events:?}"
+            "restore {id:?}: {events:?}"
         );
     }
     // 最後は cp2（2 周目）。持ち主の根が 2 周目の側にある。
@@ -201,7 +202,7 @@ fn assert_same_progress(a: &SessionState, b: &SessionState) {
 #[test]
 fn mod15_refusal_reproduces_after_reload() {
     let ir = ir();
-    let mut rs = two_rounds(&ir);
+    let (mut rs, _, _) = two_rounds(&ir);
     let to = step_in(&ir, &round_roots(&ir, "s-r1").0, "st-3-2");
     let ops_before = rs.ops().len();
     let events = rs.apply(Op::Control(Control::GoTo(to.clone()))).to_vec();

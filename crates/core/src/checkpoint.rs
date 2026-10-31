@@ -14,6 +14,12 @@
 //! 3. 実行状態と入口の写しを写し取り、`CheckpointSaved` を 1 件返す。持ち主の根は `owner_of`（呼び出しの Step なら呼ばれた実体の根）で決める。`log_len` は保存操作の直前のログの長さ
 //!    （`CheckpointSaved` 自身のログ上の位置）で、`Projection` が復習を控える位置と一致する
 //!
+//! # 章の終わりの自動保存（SAVE-31、TASK-339 1/2）
+//!
+//! `apply` が、章の終わりを含む操作（[`crate::chapter_end`]。上限で止めた操作を除く）のイベント列の末尾に
+//! 保存を 1 件足す。手動の保存と同じ通し番号を使い、写しは操作の後の状態。`log_len` は `CheckpointSaved` 自身の
+//! ログ上の位置。`ops` には記録されず、`ops` の適用し直しで同じ保存が再現される。
+//!
 //! 処理中でも保存できる。世代・ログ・下書き・ヒント・世界状態には触れない（`Changed` は出ない）。
 //!
 //! # 復帰の規則（上から評価し、最初に当たったものを返す）
@@ -46,7 +52,7 @@
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
 //! - 案内レベルの切り替えと開始点の反映（TASK-294）
-//! - 開始前の保存・復帰（TASK-217）、章の終わりの自動保存、保存の数の上限
+//! - 開始前の保存・復帰（TASK-217）、保存の数の上限（TASK-339 2/2）
 //! - 周回単位の復帰・周回単位のチェックポイント・周回の「完了」の記録（MOD-16。#781 の決定で実体単位だけにした。
 //!   同じ周回の別の実体を戻さないことの試験は `crates/pack/tests/round_instance_restore.rs`）
 //!
@@ -71,6 +77,20 @@ const LOG_POSITION_OUT_OF_RANGE: &str = "checkpoint log position is out of range
 
 /// `Control::Save` の分岐。成功なら写しを控え、出たイベント列を返す。
 pub(crate) fn on_save(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
+    // `projection` と同じく、ログの長さは飽和させる（panic しない）。
+    let log_len = u32::try_from(state.log.len()).unwrap_or(u32::MAX);
+    save_at(ir, state, log_len)
+}
+
+/// 章の終わりの自動保存（SAVE-31、TASK-339 1/2）。`apply` が `Changed` を足した後、ログへ足す直前に呼ぶ。
+/// `log_len` は足す直前のログの長さ + 操作のイベント数（`CheckpointSaved` 自身のログ上の位置）。
+/// 手動の保存と同じ通し番号を使う。ID があふれるときは固定文の `Warning` だけで状態を変えない。
+pub(crate) fn on_chapter_end_save(ir: &Ir, state: &mut SessionState, log_len: usize) -> Vec<Event> {
+    save_at(ir, state, u32::try_from(log_len).unwrap_or(u32::MAX))
+}
+
+/// 保存の実体。`log_len` を自身の位置として写しを控える。
+fn save_at(ir: &Ir, state: &mut SessionState, log_len: u32) -> Vec<Event> {
     let Some(current) = state.run.current.clone() else {
         return Vec::new();
     };
@@ -86,8 +106,6 @@ pub(crate) fn on_save(ir: &Ir, state: &mut SessionState) -> Vec<Event> {
         }];
     };
     let id = state.next_checkpoint;
-    // `projection` と同じく、ログの長さは飽和させる（panic しない）。
-    let log_len = u32::try_from(state.log.len()).unwrap_or(u32::MAX);
     state.checkpoints.insert(
         id,
         Checkpoint {

@@ -82,9 +82,14 @@ const waitCurrent = (page, uid) => page.waitForFunction(
   (u) => JSON.parse(window.__fandheTest.stateJson()).engine.current === u, uid, { timeout: 15000 },
 );
 
-async function clickSave(page, n) {
+// 手動の保存を押し、増えた 1 件の ID を返す。章の終わりの自動保存（SAVE-31）も一覧に入るため、件数は固定にできない。
+async function clickSave(page) {
+  const before = (await listOf(page)).map((e) => e[0]);
   await page.click(SAVE);
-  await waitList(page, n);
+  await waitList(page, before.length + 1);
+  const fresh = (await listOf(page)).map((e) => e[0]).filter((i) => !before.includes(i));
+  if (fresh.length !== 1) throw new Error('手動の保存で増えた項目が 1 件でない');
+  return fresh[0];
 }
 
 async function waitImport(page) {
@@ -108,18 +113,18 @@ async function exportByUi(page) {
 // 章をまたぐ 2 件を実ボタンで保存し、st-1-4 から CH-0 の保存へ復帰して 3 件目を保存する。
 async function makeList(page, L) {
   const saved = new Set();
-  let n = 0;
+  const ids = [];
   const onStep = async (uid, status) => {
     if (status === 'entered' && (uid === 'main/st-0-2b' || uid === 'main/st-1-4') && !saved.has(uid)) {
       saved.add(uid);
-      n += 1;
-      await clickSave(page, n);
+      ids.push(await clickSave(page));
     }
   };
   await journey(page, mouseDriver(page), 'S', L, 'main/st-1-4', { chaptered: true, onStep });
-  await page.click(`${RESTORE}`);
+  await page.click(`${RESTORE}[data-checkpoint="${ids[0]}"]`);
   await waitCurrent(page, 'main/st-0-2b');
-  await clickSave(page, 3);
+  ids.push(await clickSave(page));
+  return ids;
 }
 
 async function scene(csp, fn) {
@@ -151,21 +156,23 @@ for (const csp of [true, false]) {
   test(`一覧が再読み込みと書き出し→別のオリジンでの読み込みの前後で一致し、読み込んだ側で復帰できる（CSP ${csp ? 'あり' : 'なし'}）`, { timeout: 600000 }, async () => {
     await scene(csp, async ({ L, open, srvA, srvB }) => {
       const A = await open(srvA);
-      await makeList(A.page, L);
+      const ids = await makeList(A.page, L);
       const base = await listOf(A.page);
+      const total = base.length;
+      const manual = ids.map((id) => base.find((e) => e[0] === id));
 
-      // 場面 S
-      L.check('S', '一覧が 3 件', base.length === 3);
+      // 場面 S（手動の 3 件に絞る。自動保存の項目は一覧に混ざる）
+      L.check('S', '手動の 3 件が一覧にある', manual.length === 3 && manual.every(Boolean) && total >= 3);
       const uids = ['main/st-0-2b', 'main/st-1-4', 'main/st-0-2b'];
-      L.check('S', '各項目の章・M・K が IR から数えた値', uids.every((u, i) => sameList(base[i].slice(1, 4), expectedPlace(u))));
+      L.check('S', '各項目の章・M・K が IR から数えた値', uids.every((u, i) => sameList(manual[i].slice(1, 4), expectedPlace(u))));
       L.check('S', '各項目の文字に位置が出る', base.every((e) => e[4].includes(`Step ${e[2]} / ${e[3]}`) && e[4].includes(e[1])));
-      L.check('S', '章をまたぐ', new Set(base.map((e) => e[1])).size === 2);
+      L.check('S', '章をまたぐ', new Set(manual.map((e) => e[1])).size === 2);
 
       // 場面 R
       for (let i = 1; i <= 2; i += 1) {
         await A.page.reload();
         await waitMounted(A.page);
-        await waitList(A.page, 3);
+        await waitList(A.page, total);
         L.check('R', `${i} 回目の再読み込みの後に一覧が一致`, sameList(await listOf(A.page), base));
       }
 
@@ -174,31 +181,31 @@ for (const csp of [true, false]) {
       const B = await open(srvB);
       await B.page.setInputFiles(FILE_INPUT, file);
       await waitImport(B.page);
-      await waitList(B.page, 3);
+      await waitList(B.page, total);
       L.check('E', '読み込んだ側の一覧が書き出し前と一致', sameList(await listOf(B.page), base));
       await B.page.reload();
       await waitMounted(B.page);
-      await waitList(B.page, 3);
+      await waitList(B.page, total);
       L.check('E', '読み込んだ側の再読み込みの後も一致', sameList(await listOf(B.page), base));
 
       // 場面 F: 同じ復帰を両側で行い、結果が一致する。先頭の項目は CH-0 の保存
       for (const p of [A.page, B.page]) {
-        await p.click(`${RESTORE}[data-checkpoint="${base[1][0]}"]`);
+        await p.click(`${RESTORE}[data-checkpoint="${manual[1][0]}"]`);
         await waitCurrent(p, 'main/st-1-4');
-        await p.click(`${RESTORE}[data-checkpoint="${base[0][0]}"]`);
+        await p.click(`${RESTORE}[data-checkpoint="${manual[0][0]}"]`);
         await waitCurrent(p, 'main/st-0-2b');
       }
       const oa = await observe(A.page);
       const ob = await observe(B.page);
       L.check('F', '現在の Step が保存の時点', (await engine(B.page)).current === 'main/st-0-2b');
-      L.check('F', '上部の位置が保存の時点', ob.position === `${base[0][1]}　Step ${base[0][2]} / ${base[0][3]}`);
+      L.check('F', '上部の位置が保存の時点', ob.position === `${manual[0][1]}　Step ${manual[0][2]} / ${manual[0][3]}`);
       L.check('F', '左の行と位置が書き出した側と一致', sameList(oa, ob));
       L.check('F', '復帰しても一覧が変わらない', sameList(await listOf(B.page), base));
 
       // 場面 N
-      await clickSave(B.page, 4);
+      await clickSave(B.page);
       const grown = await listOf(B.page);
-      L.check('N', '保存で一覧が 1 件増える', grown.length === 4);
+      L.check('N', '保存で一覧が 1 件増える', grown.length === total + 1);
       L.check('N', '比べる関数が異なる一覧を同じと言わない', !sameList(grown, base) && sameList(grown, grown));
     });
   });
@@ -207,12 +214,12 @@ for (const csp of [true, false]) {
 test('幅 360px で 3 件の一覧を表示しても横スクロールが無い', { timeout: 300000 }, async () => {
   await scene(true, async ({ L, open, srvA }) => {
     const A = await open(srvA);
-    await makeList(A.page, L);
+    const ids = await makeList(A.page, L);
     await A.page.setViewportSize({ width: 360, height: 800 });
     const m = await A.page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     }));
-    L.check('W', '一覧が 3 件', (await listOf(A.page)).length === 3);
+    L.check('W', '手動の 3 件が一覧にある', (await listOf(A.page)).length >= ids.length);
     L.check('W', '横スクロールが無い', m.scroll);
   });
 });

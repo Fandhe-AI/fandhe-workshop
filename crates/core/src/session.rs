@@ -13,6 +13,7 @@
 //! 別の Step への移動は `go_to` モジュールが行い、入口の写しを無効化する（TASK-213 1/2、EVT-11。写しは Step に入るたびに `transit` が無効化し、ログから導く。MOD-10・TASK-242 1/2）。
 //! 処理中でない停止は取り消しの入力 `Input::Cancel` として `accept` へ委ねる（TASK-212、EVT-10）。
 //! チェックポイントの保存と復帰は `checkpoint` モジュールが行う（TASK-214 1/3、EVT-12）。
+//! 章の終わりを含む操作では、`apply` が末尾に自動保存を 1 件足す（[`crate::chapter_end`]、TASK-339 1/2、SAVE-31）。
 //! 再読み込みは `apply` の外にあり、`reload` モジュールが世代を +1 する（[`reload()`]、TASK-320 1/2、SAVE-4）。
 //! ヒントを 1 段開く操作は `hint_open` モジュールが行い、出せる数を上限に拒否する（TASK-295、GUIDE-17）。
 //! 残りの分岐は状態を変えずイベントも返さず、担当タスク
@@ -291,6 +292,13 @@ pub fn apply(ir: &Ir, state: SessionState, op: Op) -> (SessionState, Vec<Event>)
         &default_at,
         cause,
     );
+    // 章の終わりのチェックポイントの自動保存（SAVE-31、TASK-339 1/2）。`Changed` が末尾に足された後に
+    // 足し、`log_len` を `CheckpointSaved` 自身のログ上の位置にする。
+    let mut events = events;
+    if crate::chapter_end::auto_save_due(ir, &events) {
+        let log_len = state.log.len().saturating_add(events.len());
+        events.extend(checkpoint::on_chapter_end_save(ir, &mut state, log_len));
+    }
     state.log.extend(events.iter().cloned());
     (state, events)
 }

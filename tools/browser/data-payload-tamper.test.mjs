@@ -159,14 +159,17 @@ for (const csp of [true, false]) {
       const d = {
         ...real,
         async nextChapter() {
-          await sweep(page, L, true, 'N', [...BASE_ACTIONS, 'next-chapter', 'ui']);
+          // 章の終わりの自動保存（SAVE-31）で復帰の口が出る。
+          await sweep(page, L, true, 'N', [...BASE_ACTIONS, 'next-chapter', 'ui', 'restore-checkpoint']);
           return real.nextChapter();
         },
       };
       const onStep = async (uid, status) => {
         if (uid !== 'main/st-1-1' || status !== 'entered') return;
+        // 章の終わりの自動保存（SAVE-31）も一覧に入るため、保存の前後の件数の増加で待つ。
+        const n0 = await page.locator(RESTORE).count();
         await page.click(SAVE);
-        await page.waitForSelector(`${RESTORE}[data-checkpoint="1"]`);
+        await page.waitForFunction(([sel, k]) => document.querySelectorAll(sel).length === k + 1, [RESTORE, n0]);
       };
       await journey(page, d, 'A', L, 'main/st-1-4', { chaptered: true, onStep });
       await sweep(page, L, true, 'A2', [...BASE_ACTIONS, 'ui', 'restore-checkpoint'], [

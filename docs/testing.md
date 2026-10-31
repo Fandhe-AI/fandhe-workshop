@@ -11557,3 +11557,24 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 限界: 実体どうしの移動を `GoTo` で補う。経路の重なりの誤りは `validate` では見つからず、教材テスト（2 周分の通し）と作成者の規約で補う（`docs/known-gaps.md` MOD-18）
 - 範囲外: 仕様側（04 の MOD-18 を検討中から確定へ直すこと、`04-behavior/README.md` の件数、D-n の記録）は spec repo で行い、本作業では編集していない。`scripts/expected-test-counts.txt` は更新しない
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.424 章の終わりのチェックポイントの自動保存（TASK-339 1/2。SAVE-31）
+
+- 目的: 章の終わり（`main` の最後の Step の達成・そこへの `ModuleExited`）を含む操作の末尾に、チェックポイントを 1 件自動で保存する。手動の保存と同じ通し番号（`next_checkpoint`）を使い、`ops` には記録しない（適用し直しで同じ保存が再現される）。判定は core の `chapter_end` に一本化し、web の書き出しの案内（SAVE-29）も同じ関数を使う
+- 試験: `crates/core/tests/chapter_end_autosave.rs`（6 件）
+
+| 確かめること | 試験 |
+|---|---|
+| 最後の Step だけが章の終わり、IR に無い Step は偽 | `the_final_step_is_the_chapter_end` |
+| 最後でない Step の達成では保存しない | `a_non_final_achievement_does_not_save` |
+| 章の終わりで `CheckpointSaved` が 1 件、イベント列の末尾（`Changed` の後）に出る。`log_len` が自身のログ上の位置と一致し、写しは操作の後の状態、世代は変わらない | `the_chapter_end_appends_one_checkpoint_at_the_tail` |
+| 手動の保存と ID を共有する（手動 1・自動 2） | `the_autosave_shares_the_id_sequence_with_manual_saves` |
+| ID があふれるときは固定文の `Warning` だけで、達成は起きる | `an_id_overflow_warns_and_keeps_the_achievement` |
+| 復帰・再読み込みでは保存しない | `reload_and_restore_do_not_autosave` |
+
+- 期待値を直した既存の試験（自動保存の 1 件が加わるため。理由は各試験のコメントに書いた）: `confirm_achieve`（達成のイベント列の末尾）、pack の `history_size_conditions`・`history_size_rounds`（チェックポイントの件数）、`round_closed_goto`・`round_drafts`・`round_instance_restore`・`round_slice_init`（ID を直書きせず、保存の直後に振られた ID を使う）、`start_unmet`（`log_len` を 0 にそろえてから状態を比べる）
+- 変異注入: `SAVE31-1`（`session.rs` の結線を外す。期待した失敗は `the_chapter_end_appends_one_checkpoint_at_the_tail`）。定義の静的検査（`make check-mutation-defs`）は通した。`make check-mutations` での実行は未検証。`SAVE29-3` は判定の移動に合わせて対象を `chapter_end.rs` に直した
+- 実行（2026-10-31）: `make lint`・`make test`・`make check-deps`・`make check-mutation-defs` を通した
+- 未検証: ブラウザ試験。`make test-browser` は 600 秒で打ち切られ、`checkpoint-restore` など複数が失敗した。自動保存の結線を外した写し（`if false &&`）でも `checkpoint-restore` の同じ失敗が出たため、本件が原因とは確認できていない（原因は未調査）。`tools/browser/` でチェックポイントの件数・ID を固定している試験（`history-continue` の `two checkpoints` など）の期待値の見直しは、CI の `browser-test` で確かめる
+- 範囲外: 上限 200 件・上限の後の扱いは TASK-339 2/2（#801）。`make check-generic-words` は `history_replay.rs`（`post`）と `crates/web/static/app.js`（`github`・`repo`）で 5 件の違反を報告するが、本件の変更箇所ではない
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない

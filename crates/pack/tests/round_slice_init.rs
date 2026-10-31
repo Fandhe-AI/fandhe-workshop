@@ -532,14 +532,14 @@ fn round2_inputs_to_st24(s: &mut Session) {
     assert!(current(s).ends_with("/st-2-4"), "at: {}", current(s));
 }
 
-fn save_op(s: &mut Session) {
+/// 手動で保存し、振られた ID を返す。章の終わりの自動保存（TASK-339 1/2）が ID を先に使うため、番号を直書きしない。
+fn save_op(s: &mut Session) -> fandhe_workshop_core::input::CheckpointId {
     s.apply(Op::Control(Control::Save));
+    fandhe_workshop_core::input::CheckpointId(s.state().next_checkpoint.0 - 1)
 }
 
-fn restore_op(s: &mut Session, id: u32) {
-    s.apply(Op::Control(Control::Restore(
-        fandhe_workshop_core::input::CheckpointId(id),
-    )));
+fn restore_op(s: &mut Session, id: fandhe_workshop_core::input::CheckpointId) {
+    s.apply(Op::Control(Control::Restore(id)));
 }
 
 fn cur_root(s: &Session) -> Root {
@@ -557,14 +557,14 @@ fn mod9_restore_in_round2_keeps_other_instance_and_round1_slices() {
     let owner = cur_root(&s);
     let owner_slice = s.slice(&owner).cloned().expect("owner slice");
     let pos = s.state().run.current.clone();
-    save_op(&mut s);
+    let cp1 = save_op(&mut s);
     let mut ev = Vec::new();
     go(&mut s, &mut ev, &ir, &r2, "st-7-1");
     let other = cur_root(&s);
     assert_ne!(other, owner);
     let other_before = s.slice(&other).cloned().expect("other slice");
     let r1_before: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     assert_eq!(s.slice(&owner), Some(&owner_slice));
     assert_eq!(s.state().run.current, pos);
     assert_eq!(s.slice(&other), Some(&other_before));
@@ -580,12 +580,12 @@ fn mod9_restore_does_not_rewind_round1_changed_after_save() {
     let mut ev0 = Vec::new();
     // `Begin` の前の 1 周目の移動は許される（閉じていない）。ここを cp1 にする。
     go(&mut s, &mut ev0, &ir, &r1, "st-2-1");
-    save_op(&mut s); // cp1（1 周目）
+    let cp1 = save_op(&mut s); // cp1（1 周目）
     begin_round2(&mut s);
     round2_inputs_to_st24(&mut s);
-    save_op(&mut s);
+    let cp2 = save_op(&mut s);
     // 1 周目の cp1 へ復帰し、1 周目の入力で切り身を変える（閉じた周回への移動は拒否される。MOD-15・5.418）。
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     let r1_at_restore: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
     let mut ev = Vec::new();
     input(
@@ -603,7 +603,7 @@ fn mod9_restore_does_not_rewind_round1_changed_after_save() {
     );
     let h1: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
     assert_ne!(h1, r1_at_restore, "the inputs must change a round 1 slice");
-    restore_op(&mut s, 2);
+    restore_op(&mut s, cp2);
     let h2: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
     assert_eq!(h1, h2);
 }
@@ -619,12 +619,12 @@ fn mod9_restore_to_round1_checkpoint_keeps_round2_progress() {
     let owner = cur_root(&s);
     let owner_slice = s.slice(&owner).cloned().expect("owner slice");
     let pos = s.state().run.current.clone();
-    save_op(&mut s);
+    let cp1 = save_op(&mut s);
     let events = begin_round2(&mut s);
     assert!(events.iter().any(|e| matches!(e, Event::Begun { .. })));
     round2_inputs_to_st24(&mut s);
     let r2_before: Vec<_> = r2.iter().map(|r| s.slice(r).cloned()).collect();
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     let r2_after: Vec<_> = r2.iter().map(|r| s.slice(r).cloned()).collect();
     assert_eq!(r2_before, r2_after);
     assert_eq!(s.slice(&owner), Some(&owner_slice));
@@ -655,17 +655,17 @@ fn mod9_restore_reverts_owner_world_paths_and_keeps_round1_world() {
     let mut ev = Vec::new();
     // `Begin` の前の 1 周目の移動は許される（閉じていない）。ここを cp1 にする。
     go(&mut s, &mut ev, &ir, &r1, "st-2-1");
-    save_op(&mut s); // cp1（1 周目）
+    let cp1 = save_op(&mut s); // cp1（1 周目）
     begin_round2(&mut s);
     round2_inputs_to_st24(&mut s);
     let owner = cur_root(&s);
     let world_at_save = s.state().run.world.clone();
-    save_op(&mut s); // cp2（2 周目）
+    let cp2 = save_op(&mut s); // cp2（2 周目）
     let since = s.state().log.len();
     // 持ち主（2 周目の `idea-cycle`）の入力が結果の文書を書く。
     input(&mut s, &mut ev, Input::Choice("cand-session".into()));
     // 1 周目の cp1 へ復帰し、1 周目の宛先の `Changed`（1 周目の README の status の書き換え）を作る。
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     input(
         &mut s,
         &mut ev,
@@ -701,7 +701,7 @@ fn mod9_restore_reverts_owner_world_paths_and_keeps_round1_world() {
     assert!(owner_paths.iter().all(|p| !r1_paths.contains(p)));
     let world_before = s.state().run.world.clone();
     let r1_hashes: Vec<String> = r1.iter().map(|r| slice_hash(&s, r)).collect();
-    restore_op(&mut s, 2);
+    restore_op(&mut s, cp2);
     let world_after = &s.state().run.world;
     for p in &owner_paths {
         assert_eq!(world_after.get(*p), world_at_save.get(*p), "owner path {p}");
@@ -744,7 +744,7 @@ fn mod9_restore_returns_call_step_status_with_owner() {
     assert_eq!(at_save, StepStatus::Entered);
     let (r2, _) = round_roots(&ir, "s-r2");
     let other: Vec<_> = r2.iter().filter(|r| **r != owner).collect();
-    save_op(&mut s);
+    let cp1 = save_op(&mut s);
     // 周回の終わりまで進める。`exit_to` が呼び出しの Step を達成にする。
     let mut ev = Vec::new();
     let ui = |v: &str, p: &str| Input::Ui {
@@ -770,7 +770,7 @@ fn mod9_restore_returns_call_step_status_with_owner() {
     assert!(current(&s).ends_with("/st-3-2"), "at: {}", current(&s));
     assert_eq!(s.step_status(&call), StepStatus::Achieved);
     let other_before: Vec<_> = other.iter().map(|r| s.slice(r).cloned()).collect();
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     assert_eq!(s.step_status(&call), at_save);
     let other_after: Vec<_> = other.iter().map(|r| s.slice(r).cloned()).collect();
     assert_eq!(other_before, other_after);
@@ -783,14 +783,14 @@ fn mod9_round1_checkpoint_restore_does_not_revert_round2_start_world() {
     let mut s = play_round1(&ir);
     let mut ev = Vec::new();
     go(&mut s, &mut ev, &ir, &r1, "st-7-3");
-    save_op(&mut s);
+    let cp1 = save_op(&mut s);
     let since = s.state().log.len();
     begin_round2(&mut s);
     round2_inputs_to_st24(&mut s);
     let written = changed_paths(&s, since);
     assert!(!written.is_empty(), "round 2 must write world paths");
     let world_before = s.state().run.world.clone();
-    restore_op(&mut s, 1);
+    restore_op(&mut s, cp1);
     for (root, path) in &written {
         assert!(!r1.contains(root), "{root:?} {path}");
         assert_eq!(

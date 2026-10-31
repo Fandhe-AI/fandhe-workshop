@@ -214,7 +214,12 @@ fn approve_confirms_only_on_approve_and_stops_without_next() {
     assert_missed(&ir, &s, ui("v-files", "notes/draft"));
     assert_missed(&ir, &s, targeted_approval(Decision::Approve));
     let (next, events) = send(&ir, s, approval(Decision::Approve));
-    assert_eq!(names(&events), ["input_received", "judged", "achieved"]);
+    // `main` の最後の Step の達成は章の終わりで、末尾に自動保存の `CheckpointSaved`（"other"）が 1 件付く（SAVE-31、TASK-339 1/2）。
+    assert_eq!(
+        names(&events),
+        ["input_received", "judged", "achieved", "other"]
+    );
+    assert!(matches!(events.last(), Some(Event::CheckpointSaved { .. })));
     assert_eq!(status(&next, "main/st-3"), StepStatus::Achieved);
     assert_eq!(next.run.current, Some(uid("main/st-3")));
     assert!(!next.run.completed);

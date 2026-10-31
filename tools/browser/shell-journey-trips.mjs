@@ -145,9 +145,11 @@ const waitList = (page, n) => page.waitForFunction(
 );
 const settle = (page) => page.waitForFunction(() => window.__fandheTest.nextTick() === 'null', null, { timeout: T });
 
-export async function saveCheckpoint(page, n) {
+// 章の終わりの自動保存（SAVE-31）も一覧に入るため、件数は保存の直前から 1 件増えることで待つ。
+export async function saveCheckpoint(page) {
+  const before = await page.locator(RESTORE).count();
   await page.click(SAVE);
-  await waitList(page, n);
+  await waitList(page, before + 1);
   await settle(page);
 }
 
@@ -245,13 +247,13 @@ export function makeTripHooks({ openB, tmpDir, scene, L, trips = newTrips() }) {
     return { before, after };
   };
 
-  const saveTrip = async (page, uid, n) => {
+  const saveTrip = async (page, uid) => {
     const prevIds = (await screenOf(page)).list.map((x) => x[0]);
-    await saveCheckpoint(page, n);
+    await saveCheckpoint(page);
     const list = (await screenOf(page)).list;
     const fresh = list.filter((x) => !prevIds.includes(x[0]));
     const pos = expectedPosition(uid);
-    ck('checkpoint', `${uid} を保存して一覧が ${n} 件`, list.length === n && fresh.length === 1);
+    ck('checkpoint', `${uid} を保存して一覧が 1 件増える`, list.length === prevIds.length + 1 && fresh.length === 1);
     const item = fresh[0] ?? [];
     ck('checkpoint', `${uid} の項目の章・M・K が IR の値`,
       item[1] === pos.chapter && item[2] === String(pos.m) && item[3] === String(pos.k));
@@ -274,15 +276,15 @@ export function makeTripHooks({ openB, tmpDir, scene, L, trips = newTrips() }) {
   const afterStep = async (uid, status, { page }) => {
     const key = `${uid}/${status}`;
     if (key === 'main/st-0-2b/entered') {
-      mem.k1 = await saveTrip(page, uid, 1);
+      mem.k1 = await saveTrip(page, uid);
     } else if (key === 'main/st-1-1/entered') {
       await reloadTrip(page, uid, 'entered', '章の境目の直後');
     } else if (key === 'main/st-1-4/entered') {
-      mem.k2 = await saveTrip(page, uid, 2);
+      mem.k2 = await saveTrip(page, uid);
       mem.s2 = await snapshotOf(page);
     } else if (key === 'main/st-2-1/entered') {
       mem.sNow = await snapshotOf(page);
-      mem.k3 = await saveTrip(page, uid, 3);
+      mem.k3 = await saveTrip(page, uid);
       const list = (await screenOf(page)).list;
       const back = await restoreTrip(page, mem.k2, 'main/st-1-4', mem.s2, '前の章の保存');
       const fwd = await restoreTrip(page, mem.k3, uid, mem.sNow, '現在の保存');
@@ -290,8 +292,8 @@ export function makeTripHooks({ openB, tmpDir, scene, L, trips = newTrips() }) {
       controls.sNow = mem.sNow;
       controls.back = back;
       const { after } = await reloadTrip(page, uid, 'entered', '復帰の後');
-      ck('checkpoint', '復帰と再読み込みの後も一覧が 3 件で一致',
-        j((await screenOf(page)).list) === j(list) && j(after.screen.list) === j(list) && fwd.screen.list.length === 3);
+      ck('checkpoint', '復帰と再読み込みの後も一覧が一致',
+        j((await screenOf(page)).list) === j(list) && j(after.screen.list) === j(list) && fwd.screen.list.length === list.length);
     } else if (key === 'main/st-2-2/entered') {
       await setFlag(page, true);
       await reloadTrip(page, uid, 'entered', '保存の失敗の区間の開始');
