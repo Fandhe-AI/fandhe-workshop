@@ -11220,3 +11220,29 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 - `FANDHE_WEB_DIR`・`FANDHE_WEB_AUTHOR_DIR` を `SKIP_WASM_OPT=1` でビルドし、単体で 6 件が通った。A の観察は notices=0・draft-input=1
 - `make test-browser` の通しは未検証（CI の `browser-test` に任せる）
+
+### 5.412 右の操作エリアの試験の目印の評価（TASK-464。TERM-41）
+
+契約の版を上げるかの評価の記録。コードは変えない（`crates/web/src/terminal_area.rs` の doc だけを更新した）。
+
+#### 関門の結果（2026-10-31）
+
+- TASK-788（#888。TERM-41 の消し方）は OPEN。固定した spec（`docs/spec`）でも TERM-41 は「検討中」のままである
+- 決定を先取りしないため、版を上げない。`TERMINAL_AREA_CONTRACT_VERSION` は 3 のまま、目印の識別子は予約しない
+
+#### 判断と根拠
+
+- fail-closed は既存の試験 `hidden_trigger_and_unresolved_marker_fail_closed`（`crates/web/tests/terminal_area_contract.rs`）が持つ。右のエリアに `dev-body-ref` 型の識別子を出すと `undefined-testid` で失敗する
+- 観察: 製品のコードは「本文の参照:」の行を出していない（`crates/web` で該当するのは `terminal_area.rs` の doc コメントだけ）。`tools/browser/delivery-ports.mjs` の `bodyRef` は件数の記録だけで合否に使わない（5.407）
+- 版の数え方: spec の「版 2」は TASK-431 を版 1 とした数え方である。実装の定数は既に 3（`reloaded` が 2、`limit` が 3）なので、別の目印を定義する版上げは 4 になる
+
+#### TASK-462（#923）が入力に書けること
+
+- TASK-464 は版を上げていない。目印の定義は無い
+- 行を受講者の画面で 0 件にする確認は TASK-462 の範囲である
+
+#### 限界
+
+- AI の代理による評価であり、人の評価に数えない（D-34）
+- spec の 05-tasks にある TASK-462 の前提の欄は spec repo 側で直す。#888 が「別の目印を読む」で閉じた場合は、この節を版 4 の定義の記録に置き換える
+- 試験は変えていないため、件数（`scripts/expected-test-counts.txt`）は変わらない
