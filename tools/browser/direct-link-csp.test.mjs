@@ -23,6 +23,7 @@ import {
 } from './harness.mjs';
 import { DIRECT_LINKS, directLinkUrl, pageRequestProblems } from './delivery.mjs';
 import { TITLES, inspect, ORDER } from './author-preview.mjs';
+import { irFetchCheck } from './l1-l2-runner.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HAND_IR = path.resolve(HERE, '../../crates/web/tests/data/ch0_3/ir.json');
@@ -120,7 +121,10 @@ test('A: IR つきの配信する設定で直接リンク 10 件が CSP の違�
     let external = 0;
     for (const l of links) {
       const r = await openLink(srv, l);
-      const problems = pageRequestProblems(r.rec, opts(srv));
+      // IR の取得が応答の後に ERR_ABORTED と通知される既知の競合（l1-l2-runner.mjs の irFetchCheck）だけを除いて数える。
+      const chk = irFetchCheck(r.rec, `${srv.origin}${BASE}ir/main.json`);
+      const problems = pageRequestProblems({ ...r.rec, failed: chk.failed }, opts(srv));
+      if (chk.failed.length > 0) problems.push(`failed requests: ${JSON.stringify(chk.failed.map((f) => [f.url, f.error]))}`);
       if (r.entryStatus !== 200) problems.push(`entry status ${r.entryStatus}`);
       if (r.finalUrl !== r.url) problems.push('redirected or rewritten');
       const irReqs = r.rec.requests.filter((q) => q.url === `${srv.origin}${BASE}ir/main.json`);
