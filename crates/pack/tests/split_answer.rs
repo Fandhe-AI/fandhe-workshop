@@ -30,6 +30,7 @@ use fandhe_workshop_contract::lo_check::{
 use fandhe_workshop_core::addr::{Generation, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Input, Op};
+use fandhe_workshop_core::lo_observe::{answer_phase, observe_op};
 use fandhe_workshop_core::select_judge::{judge_confirm, ConfirmVerdict};
 use fandhe_workshop_core::session::{RunState, SessionState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
@@ -165,13 +166,11 @@ fn achieved_count(events: &[Event]) -> usize {
 ///
 /// 送る前が `Accepted`（確認の段階）のときだけ回答として数える。正誤は戻りに `Achieved` があるかで決める
 /// （`confirm_record_boundary.rs` の `choose` と同じ規則）。
-fn choose(s: &mut Session, uid: &str, choice: &str) -> Option<CheckObservation> {
-    let confirming = status(s, uid) == StepStatus::Accepted;
-    let events = s.apply(Op::Input(Input::Choice(choice.into()))).to_vec();
-    confirming.then(|| CheckObservation::Answered {
-        step: uid.into(),
-        correct: achieved_count(&events) > 0,
-    })
+fn choose(s: &mut Session, _uid: &str, choice: &str) -> Option<CheckObservation> {
+    let op = Op::Input(Input::Choice(choice.into()));
+    let phase = answer_phase(s.ir(), s.state(), &op);
+    let events = s.apply(op).to_vec();
+    observe_op(phase, &events).into_iter().next()
 }
 
 fn targets(ir: &Ir, step_ids: &[&str]) -> Vec<CheckTarget> {

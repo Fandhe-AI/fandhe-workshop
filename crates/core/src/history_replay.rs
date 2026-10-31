@@ -18,6 +18,8 @@
 //! | `Submit(text)` | [`record_submit`] で現在の根の下書きを除いてから、[`submit_input`] で分類した入力を `apply` する |
 //! | `Reload` | [`reload`]（世代 +1・`Reloaded`。記録側の [`crate::ops_record::reload_recorded`] と同じ遷移。TASK-320） |
 //!
+//! 途中を観測したい呼び出し元は [`replay_with`] を使う（同じ規則に前後の hook を足したもの）。
+//!
 //! 下書きの同期は記録側と同じ関数を通す。作業用の [`OpsRecorder`] を 1 つ持つのは、そのためだけである
 //! （規則を二重に定義しない）。
 //!
@@ -44,6 +46,7 @@ use fandhe_workshop_contract::profile::{
     classify_input, read_profile, InputClass, ProfileReadError,
 };
 
+use crate::event::Event;
 use crate::history_envelope::{record_draft, record_submit, SessionEnvelope};
 use crate::input::{Input, Op};
 use crate::ops_record::{OpsRecorder, SessionOp};
@@ -94,20 +97,51 @@ pub fn replay(
     initial: SessionState,
     ops: &[SessionOp],
 ) -> Result<SessionState, ReplayError> {
+    replay_with(ir, initial, ops, |_, _| (), |(), _| ())
+}
+
+/// [`replay`] と同じ規則で適用し直しながら、`apply` を通す操作の前後に hook を呼ぶ。
+///
+/// 規則を二重に定義せず、適用し直しの途中を観測したい呼び出し元（[`crate::lo_observe`]）のための口である。
+/// `pre` は `apply` の直前に操作の前の状態と操作を受け取り、小さな値 `P` を返す。`post` は `apply` の直後に
+/// その `P` と、その操作が出したイベントを受け取る。操作の前の状態を丸ごと複製せずに済ませるため、
+/// 状態の読み取りは `pre` の中で済ませる（全体で `ops` の件数に線形）。
+///
+/// hook を呼ぶのは `apply` を通す操作（`Engine`・`Submit`）だけである。`Draft` は下書きだけを変え、
+/// `Reload` は `Reloaded` だけを出し、どちらも確認の観測を生まないため hook を呼ばない。
+///
+/// # Errors
+///
+/// [`replay`] と同じ。
+pub fn replay_with<P>(
+    ir: &Ir,
+    initial: SessionState,
+    ops: &[SessionOp],
+    mut pre: impl FnMut(&SessionState, &Op) -> P,
+    mut post: impl FnMut(P, &[Event]),
+) -> Result<SessionState, ReplayError> {
     let profile = read_profile(ir.pack.profile.as_ref()).map_err(ReplayError::Profile)?;
     let prefix = profile.command_prefix;
     let mut rec = OpsRecorder::new();
     let mut state = initial;
     for (index, op) in ops.iter().enumerate() {
         match op {
-            HistoryOp::Engine(op) => state = apply(ir, state, op.clone()).0,
+            HistoryOp::Engine(op) => {
+                let p = pre(&state, op);
+                let (next, events) = apply(ir, state, op.clone());
+                state = next;
+                post(p, &events);
+            }
             HistoryOp::Draft(text) => record_draft(&mut state, &mut rec, text.clone()),
             HistoryOp::Submit(text) => {
                 if !record_submit(&mut state, &mut rec, text.clone()) {
                     return Err(ReplayError::BlankSubmit { index });
                 }
-                let input = submit_input(&prefix, text.clone());
-                state = apply(ir, state, Op::Input(input)).0;
+                let op = Op::Input(submit_input(&prefix, text.clone()));
+                let p = pre(&state, &op);
+                let (next, events) = apply(ir, state, op);
+                state = next;
+                post(p, &events);
             }
             HistoryOp::Reload => state = reload(state).0,
         }
