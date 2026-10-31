@@ -11396,6 +11396,28 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 
 - 既存の `SAVE1-2` の `find` を、`replay_with` の分割に合わせて直した（`SAVE1-2` も DETECTED）
 
+### 5.418 閉じた周回の Step への移動の拒否（TASK-249。MOD-15・D-24）
+
+- 目的: 閉じた周回のルートを開き直さない（D-24）。2 周目を開始した後に 1 周目の Step へ `Control::GoTo` で戻ると、入ったときの状態変化が 1 周目の成果物を書き換えるため、理由と次の行動を付けて拒否し、状態を変えない。前提の決定は #781（2026-10-31）。仕様側（04 の MOD-15、MOD-9・MOD-4 の前提、D-n の記録）の直しは spec repo で行う（本作業では編集していない）
+- 決定:
+  - 判定は `crates/core/src/closed_round.rs`（非公開）。移動先が (a) 持ち主が `main` ではない実体の Step（呼び出しの Step を含む）で、(b) 周回の順位が現在の Step の周回と異なり（現在の Step が `main` 所有の通常の Step のときは、同じ章の実体も含め、どの周回の Step への移動も満たす。`main` の Step を経由しても閉じた周回へは戻れない）、(c) ログに移動先より後の周回を開始した `Begun` がある、の 3 つをすべて満たすとき閉じている。周回の順位は、錨（`caller` を `main` までたどった節点。たどる回数は実体の数 + 1 まで）の `unit` が `main` の節点として IR に最初に現れる位置。欄は足さず、IR・状態・ログから導く（履歴の写しの形を変えない）
+  - 決まらないとき（錨が無い・巡回・現在の Step が無い）は閉じていないとみなし、従来の移動に任せる
+  - 拒否は `Event::Refused { op: GoTo, reason: ClosedRound, rejection: None }` の 1 件。`go_to` の規則 3（移動先が無いの後、世代のあふれの前）。次の行動は `RefuseReason::next_action` が `RefuseNextAction::ContinueCurrentRound` を返す【案】（復帰を勧めると閉じた周回へ誘うため、今の周回を続けるよう示す）。受講者向けの文面と画面への結線は持たない
+  - `RefuseReason::ClosedRound`・`RefuseNextAction` の追加で `CONTRACT_VERSION` を 6 から 7 へ上げた（`docs/engine-api.md` 版 7、サンプルの版 7）
+  - 採らなかった案: 位置に関係なく後の周回の `Begun` があれば閉じる（遷移の上限で止まった開始が学習中の周回を閉じる）、`RunState` に欄を足す（履歴の形が変わる）
+- 試験:
+  - `crates/core/tests/go_to_closed_round.rs`（6 件）: 拒否と不変・同じ周回と前へ進む移動・`Begin` を経ない移動・`main` の Step・錨が決まらない 3 形・復帰の後の周回内の移動
+  - `crates/pack/tests/round_closed_goto.rs`（5 件、`mod15_*`）: 1 周目の全 Step の拒否と状態の不変・閉じていない周回の移動・拒否の後の復帰・履歴の適用し直し／再読み込み／書き出し→読み込み／`reload` の後の再現・途中開始 `s-r2-fresh` でも閉じる
+  - 組み直した既存の試験: `round_slice_init`（(ii-b)・5.262 の経路の試験）、`round_drafts`、`round_hints`。1 周目への `GoTo` を、`Begin` の前に保存したチェックポイントへの復帰に替えた（5.261・5.262 の「1 周目の Step への `GoTo` で代替」はこの経路に読み替える）
+  - 性質テスト `round_property` は変更なしで通った（網羅の計数器はすべて 0 より大きい）
+- 変異注入: `MOD15-1`〜`MOD15-3`（core）・`MOD15-4`（pack）・`MOD9-1`・`MOD9-2`。2026-10-31 に `scripts/check-mutations.sh` でいずれも DETECTED
+- 限界:
+  - 遷移の上限で止まった `Begin` の後に、`GoTo` だけで後の周回へ入って前の周回へ戻ると、ログに残った `Begun` により拒否される（欠陥のある IR と試験用の移動が揃ったときだけ）
+  - 周回の順位は章が IR に現れる順に依る
+  - 閉じた周回への `GoTo` を含む過去の履歴は適用し直しで `replay_mismatch` になる。配信物は `GoTo` を組み立てないため、受講者の履歴には含まれない見込み
+  - 受講者向けの次の行動の文面と画面への結線、他の拒否理由への次の行動の割り当ては範囲外
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
 ### 5.419 選び直しの手順を持つ選択肢の確認の自力の数え方（TASK-304 2/3。GUIDE-11）
 
 - 実装は `crates/core/src/lo_self_reliant.rs`（`SelfRelianceRule`・`classify`・`tally`・`count_participants`）。期待の出所は TASK-3 の決定（#484、2026-10-31）。04 の GUIDE-11 は submodule `d70ad10` ではまだ未反映のため、決定のコメントを正とする。答えを含むヒントの段は呼び出し側が渡し（D-55）、0 は規則の作成で拒否する。件数だけを返し、割合の閾値は持たない

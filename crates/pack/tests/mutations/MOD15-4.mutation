@@ -1,0 +1,8 @@
+id: MOD15-4
+package: fandhe-workshop-pack
+test: round_closed_goto
+target: crates/core/src/go_to.rs
+find:     if closed_round::is_closed(ir, state, &to) {
+replace:     if closed_round::is_closed(ir, state, &to) { state.run.generation = state.run.generation.next().unwrap_or(state.run.generation);
+expect-fail: mod15_goto_to_closed_round1_step_is_refused_without_change
+note: 拒否の前に世代を進める（状態を変えて拒否する）

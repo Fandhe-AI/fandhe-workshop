@@ -1,8 +1,8 @@
 # 公開 API の契約の文書
 
 ```text
-公開 API の契約の文書の版: 6
-対象の契約の版（CONTRACT_VERSION）: 6
+公開 API の契約の文書の版: 7
+対象の契約の版（CONTRACT_VERSION）: 7
 決定日: 2026-10-15
 状態: 固定（契約）
 ```
@@ -31,7 +31,7 @@
 |---|---|---|---|
 | `addr` | `Generation`・`Root`・`StepUid`・`StepUidError`・`Stamp`・`TickAddr` | 世代、実体の根、Step の実体 ID、イベントの時点の印、進行の宛先 | web・pack・保存 |
 | `input` | `Op`・`Input`・`Control`（`OpenHint`・`SetGuidance` を含む）・`Decision`・`CheckpointId`・`GenerationRule` | `apply()` が受ける操作と、世代の規則の表 | web（入力の受け口）・保存（履歴の `ops`） |
-| `event` | `Event`（`HintOpened`・`Judged`・`Reloaded`・`TransitionLimitReached` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint` を含む）・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
+| `event` | `Event`（`HintOpened`・`Judged`・`Reloaded`・`TransitionLimitReached` を含む）・`IgnoreReason`・`RefuseReason`（`NoHint`・`ClosedRound` を含む）・`RefuseNextAction`・`ControlKind`・`Cause` | `apply()` が返すイベント列の 1 件 | 表示・保存・案内 |
 | `judge` | `judge_input`・`judge_tick`・`judged_event`・`JudgeOutcome`・`JudgeDetail`・`JudgeError` | 入力・進行の判定結果の統合（6 種のどれか 1 つ）と、`Event::Judged` の材料。型は contract の `judgment` が正で、版は `JUDGMENT_CONTRACT_VERSION` が別に持つ。`judge` の関数は `CONTRACT_VERSION` の署名の対象に含まない（`Op::Input` は `apply()` に結線済み。`Op::Tick` は宛先が一致する進行を TASK-210 2/3 が結線済みで、食い違いの無視の記録は 3/3） | `apply()` の分岐（TASK-207・TASK-210）・教材テスト（pack） |
 | `text_fill` | `step_do_at`・`slot_values`・`fill_next_action`・`fill_message`・`filled_text`・`filled_texts_of_log`・`FilledText`・`nearest_command`・`osa_distance`・`NEAREST_MAX_DISTANCE`・`TextFillError` | 拒否・問い返し・注記の文面への実行時の値の差し込み（`filled_texts_of_log` はログから拒否・問い返しの文面を作り直す）。`Judged` の次の行動は差し込みの後の値で、型と署名は変えない。`step_do_at` は案内レベルごとの `do`（`do_levels`。C → B → A）を選ぶ純関数で、`slot_values` の `step_do` と pack の漏れの検査が同じ選択を読む（TASK-70 2/2）。`CONTRACT_VERSION` の署名の対象に含まない | `judge`・教材テスト（pack）・画面（web） |
 | `instance` | `root_of`・`owner_of`・`instance_roots`・`slice_of`・`status_of(ir, run, uid)`・`steps_of`・`instance_graph`（`InstanceGraph`・`InstanceGraphError`） | 学習モジュールの実体（根）ごとの状態の読み出しと、状態を書き読みする根の決め方の一本化（MOD-1、TASK-233 1/2）、実体の呼び出しの静的な有向非巡回グラフの確認と根ごとの数（TASK-233 2/2。`load_ir` には結線しない）。`CONTRACT_VERSION` の署名の対象に含まない | `Session`・pack と web の試験 |
@@ -88,9 +88,9 @@
 - `TickAddr { generation, step, index }`: 進行（`Op::Tick`）の宛先。EVT-8 の 3 要素（世代・Step の実体 ID・何番目の進行か）に当たる。`index` は 0 始まりである
 - 照合の規則: 3 要素がすべて現在の状態（`RunState.generation`・`RunState.current`・`RunState.busy` の `done`）と一致したときだけ進む。食い違いはコマンドの分類より先に判定し、状態を変えずに `Event::Ignored` を 1 件返す。`at` は操作前の世代と現在の Step（宛先の値ではない）で、現在の Step が無いときは記録しない（実装済み、TASK-210 3/3）
 
-## 5. 版 6 で固定しないもの
+## 5. 版 7 で固定しないもの
 
-次は意図して版 6 に含めない。足すときは版上げの契約タスクとする。
+次は意図して版 7 に含めない。足すときは版上げの契約タスクとする。
 
 - 早送りの入・切（EVT-27）
 - 実体ごとの案内レベル（`use.guidance`）とヒントの上限 3 段の定数。D-55 で語彙・エンジンに入れないと決めた。3 段は教材側の約束である
@@ -124,7 +124,7 @@
 | EVT-6 (2) 進行は世代を変えない | `Op::Tick(_)` が `Keep` | 読み取れる | |
 | EVT-6 (3) 処理中の停止は世代を 1 つ上げる | `Control::Stop` が `IncrementIfProcessing`。処理中は `RunState.busy`。`Event::Stopped.new_generation` | 実装済み（`stop` モジュール、TASK-211 1/2）。`stop_restore` の試験 | 処理中でない停止は `Input::Cancel` 扱い（`Control::Stop` の rustdoc、EVT-10）。`session::step` が `accept` へ渡し、世代は変えない（実装済み、TASK-212。`cancel_input` の試験） |
 | EVT-6 (4) 移動は成功時だけ世代を上げる | `Control::GoTo` が `IncrementOnSuccess`。`Event::Moved.new_generation`。失敗は `Event::Refused` の `op: ControlKind::GoTo` | 実装済み（`go_to` モジュール、TASK-213 1/2） | |
-| EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、状態の入口の写しは `None` に無効化する（移動の後の受付から処理中になって停止すると、移動先の受付の時点へ戻る。入口の写しは移動の前の受付からは導かない。`entry_derive`）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない。移動前の世代の進行は移動の後に届いても `Ignored(Stale)` が 1 件だけで状態を変えない（TASK-213 2/2。`reserved_ticks_after_move_are_ignored`・`stale_tick_after_reenter_and_reinput_is_ignored`・`p2_pre_move_ticks_never_change_run` ほか） | 移動先の `on_enter` の効果は TASK-217（入口の写しは着地で無効化し、ログから導く。TASK-242 1/2） |
+| EVT-11 別の Step への移動は世代を +1 し、処理中を解き、移動先に入る | `Control::GoTo(StepUid)`・`Event::Moved`・`Event::Entered`・`SessionState.entry` | 実装済み（`go_to` モジュール、TASK-213 1/2）。`move_step` の `move_while_busy_increments_generation_and_clears_busy` ほか。移動先を `Entered` にし（達成済みでも戻す）、状態の入口の写しは `None` に無効化する（移動の後の受付から処理中になって停止すると、移動先の受付の時点へ戻る。入口の写しは移動の前の受付からは導かない。`entry_derive`）。無い Step は `Refused(UnknownStep)`、世代のあふれ・現在の Step 無しは状態を変えない。移動前の世代の進行は移動の後に届いても `Ignored(Stale)` が 1 件だけで状態を変えない（TASK-213 2/2。`reserved_ticks_after_move_are_ignored`・`stale_tick_after_reenter_and_reinput_is_ignored`・`p2_pre_move_ticks_never_change_run` ほか） | 閉じた周回の Step への移動は `Refused(ClosedRound)`（MOD-15、TASK-249）。移動先の `on_enter` の効果は TASK-217（入口の写しは着地で無効化し、ログから導く。TASK-242 1/2） |
 | EVT-6 (5) 保存は世代を変えない | `Control::Save` が `Keep`。`Event::CheckpointSaved` は `new_generation` を持たない | 実装済み（`checkpoint` モジュール、TASK-214 1/3） 2026-10-21: 保存が成功し、現在の Step が `env_action`（`action: save`）を宣言していれば、続けて受付（確認を省く宣言なら達成まで）にする（`env_input`、TASK-64 1/2）。世代の表・`Op`・イベントの型・`CONTRACT_VERSION` は変えない |
 | EVT-6 (6) 復帰は成功時だけ世代を上げ、復帰先は写しで世代だけ新しい | `Control::Restore` が `IncrementOnSuccess`。`Checkpoint.run`（保存時の写し）と `Event::Restored.new_generation` | 実装済み（`checkpoint` モジュール、TASK-214 1/3）。`checkpoint_restore` の `restore_after_saving_at_three_ticks_returns_saved_run`・`p4_restore_returns_saved_run`・`p4_failed_restore_keeps_generation` ほか | 実体ごとの戻り方は TASK-241 1/2・2/2 で実装済み（`restore_owner_slice`・`restore_call_step_owner`・`round_slice_init` の `mod9_*`。5.261・5.262） |
 | EVT-12 チェックポイントの保存と復帰 | `Control::Save`・`Control::Restore(CheckpointId)`・`Event::CheckpointSaved`・`Event::Restored`・`SessionState.checkpoints` | 実装済み（`checkpoint` モジュール、TASK-214 1/3）。保存は実行状態と状態の入口の写しの欄を控え（処理中でも可。欄は通常の操作では空で、処理中の保存へ復帰した後の受付の時点は、`Restored` から保存の時点へ起点を移してログから導く）、`log_len` は保存操作の直前のログの長さ。復帰は持ち主の根の切り身と位置（`current`・`busy`・`completed`）を写しへ戻して他の根の切り身は残し、世代は現在の +1 にし（世界状態は保存の後に持ち主が書いた経路だけを写しへ戻し、`global_flags` は戻さず、案内レベルは写しの値。持ち主は呼び出しの Step なら呼ばれた実体の根。写しのログ位置がログの長さを超えるときは `Warning` だけ）、`busy` と入口の写しも保存時点へ戻す。`Restored.log_len` は写しの値（EVT-14）。無い ID は `Refused(UnknownCheckpoint)`、世代・ID のあふれと現在の Step の無い写しは `Warning` だけで状態を変えない | 実体ごとの戻り方は TASK-241 1/2・2/2 で実装済み（`restore_owner_slice`・`restore_call_step_owner`・`round_slice_init` の `mod9_*`。5.261・5.262）。復帰前の進行の無視と処理中の再開は `restore_resume` が確かめる（2026-10-16、TASK-214 3/3。`pre_restore_tick_with_saved_index_is_ignored`・`restore_resumes_progress_in_new_generation`）。`Restored` による復習・変化の印の作り直し（EVT-14）は `apply()` を通して `restore_review` が確かめる（2026-10-16、TASK-214 2/3。`Event::Restored.log_len` までのイベントから作った `Projection::review` との一致） |
@@ -154,7 +154,7 @@
 
 | 物 | 置き場 | 役割 |
 |---|---|---|
-| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 6、対象は `CONTRACT_VERSION` 6） | 21 件の操作の前後の状態と期待のイベント列 |
+| サンプル | `testdata/contract/event-sequence.json`（サンプルの版 7、対象は `CONTRACT_VERSION` 7） | 21 件の操作の前後の状態と期待のイベント列 |
 | サンプルの説明 | `testdata/contract/README.md` | 欄の意味・版の規則 |
 | 形の試験 | `crates/core/tests/contract_sample.rs` | サンプルが core の型で読めること、連なり、網羅 |
 | 適合試験 | `crates/core/tests/contract_conformance.rs` | 下表の 3 層 |
@@ -187,6 +187,7 @@
 | 4 | 2026-10-16 | `Event::Reloaded`・`session::reload`・`Session::reload` を追加（再読み込みは `Op` に含めない）。3 節に注記、5 節の項目を更新、6 節に SAVE-4 の照合を追加。`CONTRACT_VERSION` を 3 から 4 へ | TASK-320 1/2 |
 | 5 | 2026-10-18 | `Slice.clarifying`（問い返しの待ち、EP-4）を追加。旧データは serde の既定で読め、`None` は書き出さない。5 節の項目を更新。`CONTRACT_VERSION` を 4 から 5 へ | TASK-42 2/2 |
 | 6 | 2026-10-19 | `Event::TransitionLimitReached`（遷移の上限で止めたことの専用のイベント、SAFE-34・D-45）を追加。作成者向けの `Warning`（SAFE-23）は残し、その直後に 1 件置く。2 節・6 節を更新。`CONTRACT_VERSION` を 5 から 6 へ | TASK-160 2/3 |
+| 7 | 2026-10-31 | `RefuseReason::ClosedRound`（閉じた周回の Step への `GoTo` の拒否、MOD-15・D-24）と、理由から引く `RefuseNextAction`・`RefuseReason::next_action` を追加。`Event::Refused` の形は変えない。`CONTRACT_VERSION` を 6 から 7 へ | TASK-249 |
 
 - 2026-10-19: 入口の写しを状態（`SessionState.entry`）に書かず、処理中の停止と上限で止めた後の戻り（SAFE-35、TASK-160 3/3）でだけログから受付の時点を導くようにした（`entry_derive`）。通常の操作では `SessionState.entry` は従来どおり空のままで、履歴の写しの形は変わらない。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
 - 2026-10-16: `Restored` による復習・変化の印の作り直しと、ログの並びが書き出し・読み込みで変わらないことの試験（`restore_review`、TASK-214 2/3）を足した。型・表・署名は変えないため、文書の版・`CONTRACT_VERSION` は据え置いた
