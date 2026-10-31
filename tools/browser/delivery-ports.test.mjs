@@ -6,22 +6,22 @@
 //
 // 確かめること:
 //   A 配信する設定の 20 Step の通し（CSP あり・なし）。全 Step の「入った直後」と「確認待ち」の両時点で、移動ボタン・隠し要素 4 種・
-//     章をまたぐ操作（境目以外）・window.__fandheTest・test-hooks の meta が 0 件。時点の数が 0 なら失敗（空振りの防止）。
+//     章をまたぐ操作（境目以外）・window.__fandheTest・test-hooks の meta・開発用の「本文の参照:」の行（TERM-41。TASK-462）が 0 件。時点の数が 0 なら失敗（空振りの防止）。
 //   B 試験用クエリ 7 種を全部付けた 20 Step の通し。クエリなしの通しと、時点ごとの探針・入った Step の列・最後の画面・保存先のキー・
 //     取得した資源が一致する（query-inert が 1 回の操作までを持ち、全量の通しは本試験が受け持つ）。
 //   C 試験の設定の対照。同じ通しで raw-trigger が全時点で 1 件あり、window.__fandheTest と meta がある（口が存在する構成では検出できる）。
 //   D 配信物の観察と tools/check-delivery.sh の突き合わせ。3 つの配信物それぞれで、配信元から取得した WASM の書き出し・バイト列・
 //     test-hooks.js と .d.ts の HTTP の状態・meta・raw-trigger の DOM を観察し、check-delivery.sh の項目ごとの合否と一致させる。
-//   E 探針の自己確認。口の代役を DOM に足すと数が増え、取り除くと戻る。check-delivery.sh の出力の読み取りは必須項目が欠けると例外になる。
+//   E 探針の自己確認。口の代役（「本文の参照:」の行の 2 形を含む）を DOM に足すと数が増え、取り除くと戻る。
+//   「本文の参照:」の行は試験の設定（C）では残してよいため、C は件数の記録だけにする。check-delivery.sh の出力の読み取りは必須項目が欠けると例外になる。
 //
 // 確かめないこと:
 //   - 9 通りのクエリごとのマウント・1 操作（query-inert）。章の境目の件数（author-preview の B）。章を選ぶ部品（chapter-select-absent）
-//   - 「本文の参照:」の行（TERM-41 は検討中。件数を記録するだけで合否に使わない）
 //   - 本物の CH-0〜CH-3（TASK-643・TASK-642）
 //
 // 注意: WASM のバイト列の数え方は tools/wasm-scan.mjs（`name` セクションを除く）で check-delivery.sh と同じにしてある。そのため
 // wasm-opt を適用しない make test-browser（SKIP_WASM_OPT=1）の配信する設定でも終了コード 0 を確かめる（TASK-82）。
-// 記録は docs/testing.md 5.407。出力は名前・件数・合否だけで、DOM の文字と入力値は出さない。
+// 記録は docs/testing.md 5.407・5.414。出力は名前・件数・合否だけで、DOM の文字と入力値は出さない。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -131,7 +131,9 @@ for (const csp of [true, false]) {
       const bad = r.points.filter((p) => !isPortFree(p.probe)).map((p) => `${p.uid} ${p.status}`);
       assert.deepEqual(bad, [], '部品がある時点');
       assert.ok(isPortFree(r.final), '最後の時点');
+      assert.equal(r.final.bodyRef, 0, '最後の時点の本文の参照の行');
       const bodyRef = Math.max(...r.points.map((p) => p.probe.bodyRef));
+      assert.equal(bodyRef, 0, '本文の参照の行');
       console.log(`DELIVERY-PORTS A csp=${csp ? 'on' : 'off'} points=${r.points.length} steps=${r.entered.length}/${STEPS.length} `
         + `ledger=${r.L.summary()} body-ref-max=${bodyRef} external=${r.rec.external.length}`);
     }));
@@ -163,7 +165,7 @@ test('C: 試験の設定の対照では口があり、同じ通しで検出で�
       || p.probe.moves !== 0 || HIDDEN_NAMES.filter((n) => n !== 'raw-trigger').some((n) => p.probe.hidden[n] !== 0)
       || p.probe.nextChapter !== 0).map((p) => `${p.uid} ${p.status}`);
     assert.deepEqual(bad, [], '期待と違う時点');
-    console.log(`DELIVERY-PORTS C points=${r.points.length} raw-trigger=1 in all`);
+    console.log(`DELIVERY-PORTS C points=${r.points.length} raw-trigger=1 in all body-ref-max=${Math.max(...r.points.map((p) => p.probe.bodyRef))}`);
   }));
 });
 
@@ -182,6 +184,7 @@ async function observeDelivery(dir, { expectMount }) {
         bytes: wasm.bytes,
         meta: probe.meta,
         rawDom: probe.hidden['raw-trigger'],
+        bodyRef: probe.bodyRef,
         hooks: probe.hooks,
         hooksJsStatus: await statusOf(srv, 'test-hooks.js'),
         dtsStatuses: [await statusOf(srv, 'wasm/fandhe_workshop_web.d.ts'), await statusOf(srv, 'wasm/fandhe_workshop_web_bg.wasm.d.ts')],
@@ -218,6 +221,7 @@ for (const [label, key, expectMount, delivery] of [
       assert.equal(obs.hooks, 'undefined');
       assert.equal(obs.rawDom, 0, 'DOM の raw-trigger');
       assert.equal(obs.meta, 0);
+      assert.equal(obs.bodyRef, 0, '本文の参照の行');
       assert.equal(obs.hooksJsStatus, 404);
       assert.ok(obs.dtsStatuses.every((s) => s === 404));
       assert.ok(!obs.exports.some((n) => n.startsWith('debug_')));
@@ -258,11 +262,20 @@ test('E: 探針が口の代役の追加と除去を検出し、出力の読み�
         add('button', {}, '移動: x');
         add('button', { 'data-testid': 'raw-trigger' });
         add('button', { 'data-testid': 'tick-trigger' });
+        add('p', {}, '本文の参照: x');
+        const proto = document.createElement('p');
+        proto.setAttribute('data-probe-self-check', '1');
+        proto.append('本文の参照: ');
+        const span = document.createElement('span');
+        span.textContent = 'st-1-1.md';
+        proto.append(span);
+        document.body.append(proto);
       });
       const added = await probeParts(page);
       assert.equal(added.moves, 1);
       assert.equal(added.hidden['raw-trigger'], 1);
       assert.equal(added.hidden['tick-trigger'], 1);
+      assert.equal(added.bodyRef, before0.bodyRef + 2);
       assert.ok(!isPortFree(added));
       await page.evaluate(() => document.querySelectorAll('[data-probe-self-check]').forEach((e) => e.remove()));
       assert.deepEqual(await probeParts(page), before0);
