@@ -146,10 +146,11 @@ export function updateL2({ zip, site, out, pins, checkDelivery = true, maxUnpack
     const platform = platformOfServer(bin, pins, candidates);
     if (platform === null) throw new L2Error(`sha256 of ${layout.server} in L2_ZIP does not match any pinned value for its layout`);
     checkSite(site, { checkDelivery });
-    // build-l2 と同じ規則。流さないと Windows で展開できない名前の zip が更新でだけ作れてしまう。
-    if (platform === 'windows-x64') checkWindowsNames(collectSite(site));
     const next = kept.map((e) => (e.dir ? { name: e.name, dir: true } : { name: e.name, data: data.get(e.name), mode: e.mode }));
     const files = siteEntries(site);
+    // build-l2 と同じ規則を、引き継ぐ旧 zip のエントリと新しい site/ を合わせた出力全体へ流す。
+    // 旧 zip は信頼しないため、末尾のドット・予約名・大文字小文字だけの違いは引き継ぎ側でも拒否する。
+    if (platform === 'windows-x64') checkWindowsNames([...next, ...files]);
     next.push({ name: `${TOP}/site/`, dir: true }, ...files);
     const r = writeOutput(out, platform, writeZip(next));
     return { ...r, platform, kept: kept.length, files: files.filter((f) => !f.dir).length };

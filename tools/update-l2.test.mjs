@@ -446,6 +446,14 @@ describe('Windows 向けの zip（#1932。DLV-22）', () => {
     assert.equal(update(build(makeSite()).zip, makeSite('{"nodes":[]}\n', { 'con.txt': 'x' })).platform, PLATFORM);
   });
 
+  test('旧 zip から引き継ぐエントリの Windows で展開できない名前・衝突を拒否する', () => {
+    const extra = (name) => [...GOOD_WIN(), { name: `${TOP}/${name}`, data: Buffer.from('x'), mode: 0o644 }];
+    noOut(synth(extra('miniserve.exe.')), makeSite(), /cannot be extracted on Windows/);
+    noOut(synth(extra('con.txt')), makeSite(), /cannot be extracted on Windows/);
+    noOut(synth(extra('MiniServe.exe')), makeSite(), /differ only in case/);
+    noOut(synth(extra('START.CMD')), makeSite(), /differ only in case/);
+  });
+
   test('対照: mode 644 の start.sh・miniserve は従来どおり拒否する（Windows の緩和が Unix の組に漏れない）', () => {
     const e = GOOD();
     e[1] = { name: `${TOP}/start.sh`, data: Buffer.from('#!/bin/sh\n'), mode: 0o644 };
