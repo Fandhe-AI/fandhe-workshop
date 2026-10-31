@@ -9,6 +9,9 @@
 //   大きさの上限（IR 20,971,520・履歴 10,485,760 バイト）に収め、理由が too_large にすり替わらないようにする。
 //   IR は malformed、履歴は missing_version で断られる。通知は 1 件で、入力の値は画面に出ない。
 //   通知までと長いタスクの最大は 1 秒未満（試作の実測は 281ms 程度。実測は diagnostic に残し、閾値は CI の揺れを見込む）。
+//   1 秒は SAFE-24 の値ではなく、SAFE-17・SAFE-45 から借りた試験の側の予算である。その定義に合わせ、IR の経路の通知までは
+//   取得の終わり（`ir/main.json` の responseEnd）から通知が出るまでを、ページの時計だけで測る（#1931）。
+//   移動の開始から測った旧い値は比較用に diagnostic の `nav_ms` へ残し、判定には使わない。
 //   履歴は断った後に状態・入力欄・保存先が変わらず、その後の操作が効く。タブが落ちず、外部通信・CSP 違反・ページ内エラーが 0 件。
 // 開く側（形が合う対照）: step.lo の 100,000 要素・pack.title の 100,000 文字の IR は開く。履歴は実操作の履歴が開く。
 //   100,000 は将来の要素数の上限（SAFE-25。TASK-162）と同じ値で、上限が入っても開き続ける最大の値である。
@@ -95,6 +98,17 @@ const OBSERVER = () => {
     }).observe({ type: 'longtask', buffered: true });
   } catch { /* longtask 非対応 */ }
 };
+// 通知が最初に現れた時刻をページの時計で記録する（IR の経路の通知までの終点）。
+const NOTICE_MARK = (selector) => {
+  const mark = () => {
+    if (window.__shapeNoticeAt === undefined && document.querySelector(selector)) {
+      window.__shapeNoticeAt = performance.now();
+      return true;
+    }
+    return false;
+  };
+  new MutationObserver(() => { mark(); }).observe(document, { childList: true, subtree: true, attributes: true });
+};
 const longTask = (page) => page.evaluate(() => window.__shapeLongTask ?? { max: -1, count: 0 });
 
 // ---- IR の経路 ----
@@ -128,11 +142,20 @@ async function runIr(body, { expectNotice }) {
   try {
     const { page, context, rec } = await openPage(browser, { origin });
     await context.addInitScript(OBSERVER);
+    await context.addInitScript(NOTICE_MARK, NOTICE);
     const shown = expectNotice ? page.waitForSelector(NOTICE, { timeout: 60000 }).then(() => performance.now()) : null;
     const t0 = performance.now();
     await page.goto(`${origin}/`);
     await waitMounted(page);
-    const ms = shown ? (await shown) - t0 : null;
+    const navMs = shown ? (await shown) - t0 : null;
+    // 取得の終わりから通知まで。始点も終点もページの時計で取り、欠けたら失敗にする（fail-closed）。
+    const ms = expectNotice ? await page.evaluate(() => {
+      const entry = performance.getEntriesByName(new URL('/ir/main.json', location.origin).href)[0];
+      const end = entry?.responseEnd ?? 0;
+      const at = window.__shapeNoticeAt;
+      return end > 0 && typeof at === 'number' ? at - end : null;
+    }) : null;
+    if (expectNotice) assert.ok(ms !== null, 'page-clock timestamps (responseEnd and notice) are available');
     if (!expectNotice) await page.waitForSelector(STEP_TITLE, { timeout: 30000 });
     const out = {
       notices: await page.locator(NOTICE).count(),
@@ -143,6 +166,7 @@ async function runIr(body, { expectNotice }) {
       alive: await page.evaluate(() => document.documentElement.dataset.mounted),
       long: await longTask(page),
       ms,
+      navMs,
       counts: summarize(rec),
     };
     await context.close();
@@ -184,7 +208,7 @@ test('観測器の自己確認: 同期の長い処理が longtask として記�
 for (const [id, body] of shapes(MAX_IR, 1_000_000)) {
   test(`IR ${id}: 構造の合わない巨大な入力は malformed で断られ、タブが落ちない`, async (t) => {
     const r = await runIr(body, { expectNotice: true });
-    t.diagnostic(`shape=${id} entry=ir bytes=${body.length} notice_ms=${Math.round(r.ms)} longtask_max_ms=${Math.round(r.long.max)}`);
+    t.diagnostic(`shape=${id} entry=ir bytes=${body.length} notice_ms=${Math.round(r.ms)} nav_ms=${Math.round(r.navMs)} longtask_max_ms=${Math.round(r.long.max)}`);
     assert.equal(r.notices, 1);
     assert.equal(r.role, 'status');
     assert.ok(r.text.includes('malformed'), 'notice carries the reason code');
