@@ -6740,7 +6740,7 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 | `pack33_merged_step_yields_a_single_record` | 対照。まとめた 1 つの `answer` の Step も検査を通るが、記録は 1 件しかできないこと（PACK-33 の「決定の前の現状の観察」） |
 
 - CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
-- `Event` から `CheckObservation` への写像は `lo_observe`（TASK-304 1/3、5.416）で、試験の中の `choose` はそれを通す。前後の比較の観測だけは出所のイベントが無く、直接差し込む
+- `Event` から `CheckObservation` への写像は `lo_observe`（TASK-304 1/3、5.417）で、試験の中の `choose` はそれを通す。前後の比較の観測だけは出所のイベントが無く、直接差し込む
 - 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
 
 ### 5.208 入力のない確認だけの Step と 1 択の `choice`（TASK-63 2/2。PACK-35・PACK-19・D-69）
@@ -11360,7 +11360,27 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 実行（2026-10-31、手元の Linux）: `make test-update-l2` は 46 件すべて合格、`make test-build-l2` は不合格 0 件
 - 未検証: Windows の実機での起動（TASK-120）。`make test-l2-run` は linux-x64 だけで、本件では変えていない
 
-### 5.416 履歴から確認ごとの最初の回答と開いたヒントの段を導く写像（TASK-304 1/3。GUIDE-11）
+### 5.416 講師資料の補助ファイルの受け口の試験（TASK-74。PACK-49）
+
+- 目的: `instructor/instructor.yaml` を置いても `validate`・`compile` が診断を増やさず、置かない教材パックの IR が受け口の前とバイト単位で同じことを固定する。製品のコード・語彙は変えていない
+
+| 確かめること | 試験（`crates/pack/tests/instructor_aux_file.rs`） |
+|---|---|
+| 12 本の教材で診断が増えず `compile` が通る | `pack49_aux_file_passes_validate_and_compile` |
+| 12 本で IR と `content_hash` が補助ファイルの有無で同一 | `pack49_ir_is_byte_identical_with_and_without_aux_file` |
+| 本文の木の無い最小パックで同一 | `pack49_pack_without_trees_is_unchanged` |
+| 形式 A（TOML）でも通る | `pack49_format_a_pack_accepts_yaml_aux_file` |
+| 不正な中身（閉じない括弧・重複キー・アンカー・空・バイナリ）を読まない | `pack49_aux_file_contents_are_not_read` |
+| 番兵の値が IR・`validate`・`compile` の出力に出ない | `pack49_aux_values_do_not_reach_ir_or_output` |
+| CLI の終了コードと `compare` の一致 | `pack49_cli_validate_compile_compare_test_exit_ok` |
+| `instructor/` の下のシンボリックリンクが `E-LIMIT-SYMLINK` | `pack49_limits_still_apply_under_instructor_dir` |
+| `metrics` に補助ファイルの行が出る（観察） | `pack49_metrics_lists_aux_file_observation` |
+
+- 禁じたこと: 製品のコード・`docs/vocabulary/`・凍結物の変更
+- 限界: 中身を読まないことの固定は INSTR-18 で置き換わる。件数（`scripts/expected-test-counts.txt`）は版上げ PR の関門だけで照合されるため更新していない
+- 実行（2026-10-31）: 9 件すべて合格
+
+### 5.417 履歴から確認ごとの最初の回答と開いたヒントの段を導く写像（TASK-304 1/3。GUIDE-11）
 
 - 実装は `crates/core/src/lo_observe.rs`（`answer_phase`・`observe_op`・`observe_history`・`records_from_history`）。適用し直しの規則は `history_replay::replay_with`（`replay` の前後に hook を足したもの）を通し、二重に持たない。回答の段階は操作の前の状態（現在の Step が `Accepted` で処理中でない、入力が確認の方式に合う）から読み、正誤は戻りの `Judged`（`Confirmed` か `Rejected`）で決める。`TransitionLimitReached` を含む戻りは回答にしない。`Event::HintOpened` は操作の種類によらず写す
 - 試験は `crates/core/tests/lo_observe.rs` の 12 件（ヒントの段・選び直し・誤答のまま・受付の段階と方式に合わない入力が回答にならないこと・承認の「直す」・保存と復帰・開けないヒント・`Confirmed` と `Achieved` の一致・処理中・`observe_history` と 1 件ずつ流した結果の一致）

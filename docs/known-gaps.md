@@ -542,3 +542,9 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 - 404 の判定は `static/app.js` が本文を読む前に行い、旗（`mount_app` の `ir_not_found`）で Rust へ渡す。`not_json` は 200 で本文が JSON として不正なとき（`{`・空）だけになった（`docs/testing.md` 5.403）
 - 404 以外の失敗（5xx・通信の例外）は今も空のバイト列から `not_json` になる。決定（D-74）に記述が無く、扱いは未決である。ブラウザ試験は観察だけを残し、期待に固定していない
 - 文面は仮置き（TASK-549・TASK-534）。Chromium だけで確かめた
+
+## PACK-49: 講師資料の補助ファイルの受け口（TASK-74）
+
+- `instructor/instructor.yaml` の中身の構文・欄は検査しない。不正な YAML でも `validate`・`compile` は通る。INSTR-18 で中身の検査が入ると、`pack49_aux_file_contents_are_not_read` は置き換わる
+- `E-SECRET-SHAPE` は読み込んだ値だけを調べるため、補助ファイルは対象外。公開前の確認（`make check-internal-info-secrets`）が全ファイルを照合する
+- `metrics` の CSV には補助ファイルの行が出る（`docs/cli.md` の「`toml`・`yaml` の通常ファイル」のとおり）。作成の費用の比較から外すかは未決で、本タスクでは変えていない（`pack49_metrics_lists_aux_file_observation` が現状を固定）
