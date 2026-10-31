@@ -1,0 +1,9 @@
+id: GUIDE11-4
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:     if record.max_hint >= rule.answer_stage {
+replace:     if false && record.max_hint >= rule.answer_stage {
+expect-fail: third_stage_hint_then_correct_is_not_self_reliant
+expect-fail: third_stage_hint_before_reselection_is_not_self_reliant
+note: 答えを含む段の判定を外す。答えの段を開いた後の正答が自力に数えられる

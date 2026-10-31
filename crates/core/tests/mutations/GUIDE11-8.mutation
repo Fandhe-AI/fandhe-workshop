@@ -1,0 +1,9 @@
+id: GUIDE11-8
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:         self.checks() > 0 && self.self_reliant() == self.checks()
+replace:         self.self_reliant() > 0
+expect-fail: participant_needs_all_checks_self_reliant
+expect-fail: ai_proxy_recount_lo1_is_three_of_four
+note: 束ねを「すべて自力」から「1 件以上自力」に変える（案 A でなく緩い束ね）
