@@ -7,7 +7,7 @@
 //!
 //! 教材テスト・講師資料・体験会の集計・通しの試験（TASK-306）が、contract の
 //! [`LoCheckRecord`]（TASK-291）を渡す。履歴から記録への導出は contract の `derive_records` が持ち、
-//! `Event` から観測への写像は TASK-304 が持つ。
+//! `Event` から観測への写像は [`crate::lo_observe`]（TASK-304 1/3）が持つ。
 //!
 //! # 規則
 //!

@@ -6,11 +6,9 @@
 //! 要点は 2 つある。確認の操作で達成になっても、最初の回答が誤答なら自力に数えないこと。自然文を受け付けても、
 //! 文の内容の良し悪しは学習目標の判定に入らないこと。
 //!
-//! - `Event` から `CheckObservation` への写像は TASK-304 1/3 の担当で未実装のため、本試験の `choose` が代用する。
-//!   TASK-304 の結線後は、その写像へ置き換える。
-//! - ヒントを開く `Control::OpenHint` は結線済み（TASK-295。`Event::HintOpened` を出す）。ただし `Event::HintOpened` から
-//!   `CheckObservation::HintOpened` への写像は上と同じ TASK-304 1/3（#876）の担当で未実装であり、比較の表示に対応する
-//!   イベントも無い。そのためヒントの段と前後の比較の観測は列へ直接差し込む。TASK-304 の結線後は、その写像へ置き換える。
+//! - 回答の観測は `lo_observe`（TASK-304 1/3）の写像で作る（`choose`）。
+//! - ヒントの段（`Event::HintOpened` の写像は `lo_observe` の試験が確かめる）と前後の比較の観測は、比較に対応するイベントが
+//!   無いため、列へ直接差し込む。
 //! - 断定しないこと: ヒントの段による自力の規則（GUIDE-18 で未決）、`confirm: none`（`confirm_none_achieve`、TASK-208）、章の完了。
 //!
 //! 呼び出し元は CI の `make test` のみである。
@@ -26,6 +24,7 @@ use fandhe_workshop_core::addr::{Generation, StepUid};
 use fandhe_workshop_core::event::Event;
 use fandhe_workshop_core::input::{Decision, Input, Op};
 use fandhe_workshop_core::lo_first_answer::{tally, FirstAnswerTally};
+use fandhe_workshop_core::lo_observe::{answer_phase, observe_op};
 use fandhe_workshop_core::session::{RunState, SessionState, Slice};
 use fandhe_workshop_core::step_status::StepStatus;
 use fandhe_workshop_core::world::Element;
@@ -59,7 +58,7 @@ fn ir_with_st2(patch: Value) -> Ir {
 fn answer_ir() -> Ir {
     ir_with_st2(json!({ "confirm": {
         "kind": "answer",
-        "on_wrong": "rj-wrong",
+        "on_wrong": "rj-decline",
         "options": [
             { "id": "opt-memo", "correct": true },
             { "id": "opt-todo", "correct": false }
@@ -126,15 +125,12 @@ fn achieved_count(events: &[Event]) -> usize {
 
 /// st-2 向けの選択を送り、記録に使う観測を返す。
 ///
-/// 送る前の st-2 が `Accepted`（確認の段階）のときだけ回答として数える。受付（`Entered` → `Accepted`）は回答に
-/// 数えない。正誤は、その apply の戻りに `Achieved` があるか（外れは `InputReceived` だけ）で決める。
+/// 回答の段階の判定と正誤は `lo_observe`（TASK-304 1/3）が決める。受付（`Entered` → `Accepted`）は回答に数えない。
 fn choose(s: &mut Session, choice: &str) -> Option<CheckObservation> {
-    let confirming = status(s, ST2) == StepStatus::Accepted;
-    let events = s.apply(Op::Input(Input::Choice(choice.into()))).to_vec();
-    confirming.then(|| CheckObservation::Answered {
-        step: ST2.into(),
-        correct: achieved_count(&events) > 0,
-    })
+    let op = Op::Input(Input::Choice(choice.into()));
+    let phase = answer_phase(s.ir(), s.state(), &op);
+    let events = s.apply(op).to_vec();
+    observe_op(phase, &events).into_iter().next()
 }
 
 fn hint(opened: u32) -> CheckObservation {

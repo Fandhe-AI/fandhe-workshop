@@ -1,0 +1,9 @@
+id: GUIDE11-3
+package: fandhe-workshop-core
+test: lo_observe
+target: crates/core/src/lo_observe.rs
+find:             Event::HintOpened { at, opened, .. } => Some(CheckObservation::HintOpened {
+replace:             Event::HintOpened { at, opened, .. } if false => Some(CheckObservation::HintOpened {
+expect-fail: hints_then_correct_first_answer
+expect-fail: max_hint_reaches_three_in_record
+note: Event::HintOpened を観測に写さない。開いたヒントの段が記録に残らない

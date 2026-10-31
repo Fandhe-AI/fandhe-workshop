@@ -6740,7 +6740,7 @@ DLV-8 は、同じオリジンで章 A を進めた後に章 B のリンクを�
 | `pack33_merged_step_yields_a_single_record` | 対照。まとめた 1 つの `answer` の Step も検査を通るが、記録は 1 件しかできないこと（PACK-33 の「決定の前の現状の観察」） |
 
 - CLI の `fandhe-pack validate` は TASK-403（#647）まで未実装（終了コード 2）のため、`validate_dir` と、同じ読み込みを通る `compile`・`vocab` の CLI で代えた。TASK-403 の結線後に置き換えてよい
-- `Event` から `CheckObservation` への写像は TASK-304 の担当で未実装のため、試験の中の `choose` が代用する（`crates/core/tests/confirm_record_boundary.rs` と同じ規則）
+- `Event` から `CheckObservation` への写像は `lo_observe`（TASK-304 1/3、5.417）で、試験の中の `choose` はそれを通す。前後の比較の観測だけは出所のイベントが無く、直接差し込む
 - 変異は置かない。Rust のソースを変えず、新しく守る実装の分岐が無いためである
 
 ### 5.208 入力のない確認だけの Step と 1 択の `choice`（TASK-63 2/2。PACK-35・PACK-19・D-69）
@@ -11379,3 +11379,19 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 禁じたこと: 製品のコード・`docs/vocabulary/`・凍結物の変更
 - 限界: 中身を読まないことの固定は INSTR-18 で置き換わる。件数（`scripts/expected-test-counts.txt`）は版上げ PR の関門だけで照合されるため更新していない
 - 実行（2026-10-31）: 9 件すべて合格
+
+### 5.417 履歴から確認ごとの最初の回答と開いたヒントの段を導く写像（TASK-304 1/3。GUIDE-11）
+
+- 実装は `crates/core/src/lo_observe.rs`（`answer_phase`・`observe_op`・`observe_history`・`records_from_history`）。適用し直しの規則は `history_replay::replay_with`（`replay` の前後に hook を足したもの）を通し、二重に持たない。回答の段階は操作の前の状態（現在の Step が `Accepted` で処理中でない、入力が確認の方式に合う）から読み、正誤は戻りの `Judged`（`Confirmed` か `Rejected`）で決める。`TransitionLimitReached` を含む戻りは回答にしない。`Event::HintOpened` は操作の種類によらず写す
+- 試験は `crates/core/tests/lo_observe.rs` の 12 件（ヒントの段・選び直し・誤答のまま・受付の段階と方式に合わない入力が回答にならないこと・承認の「直す」・保存と復帰・開けないヒント・`Confirmed` と `Achieved` の一致・処理中・`observe_history` と 1 件ずつ流した結果の一致）
+- `confirm_record_boundary.rs`・`split_answer.rs`・`read_only_step.rs` の `choose` を写像に置き換えた。断定は変えていない。ただし `confirm_record_boundary.rs` の教材の `on_wrong` は、解決できない `rj-wrong` から `min-3step.json` にある `rj-decline` に直した（解決できない文面では判定が `Warning` になり `Judged` が出ないため）
+- 限界: 前後の比較の観測（`ComparisonShown`）の出所のイベントが無く、導いた記録の `after_comparison` は常に `false`（`docs/known-gaps.md` GUIDE-18）。proptest による性質の試験は入れていない
+- 変異注入（2026-10-31、元にしたコミット eeb8dc62 の作業ツリー）: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE11-1.mutation crates/core/tests/mutations/GUIDE11-2.mutation crates/core/tests/mutations/GUIDE11-3.mutation`
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| GUIDE11-1 | 確認の段階（`Accepted`）の検査を外す | `entering_stage_choice_is_not_an_answer` | DETECTED |
+| GUIDE11-2 | 方式に合う入力の検査を外す | `non_matching_inputs_in_confirm_stage_are_not_answers`・`approve_step_counts_approve_but_not_revise` | DETECTED |
+| GUIDE11-3 | `Event::HintOpened` を写さない | `hints_then_correct_first_answer`・`max_hint_reaches_three_in_record` | DETECTED |
+
+- 既存の `SAVE1-2` の `find` を、`replay_with` の分割に合わせて直した（`SAVE1-2` も DETECTED）

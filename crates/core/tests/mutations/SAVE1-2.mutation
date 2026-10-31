@@ -2,8 +2,8 @@ id: SAVE1-2
 package: fandhe-workshop-core
 test: history_replay
 target: crates/core/src/history_replay.rs
-find:         HistoryOp::Engine(op) => state = apply(ir, state, op.clone()).0,
-replace:         HistoryOp::Engine(op) => if !matches!(op, Op::Control(_)) { state = apply(ir, state, op.clone()).0 },
+find:                 let (next, events) = apply(ir, state, op.clone());
+replace:                 let (next, events) = if matches!(op, Op::Control(_)) { (state, Vec::new()) } else { apply(ir, state, op.clone()) };
 expect-fail: scripted_history_replays_to_snapshot
 expect-fail: property_replay_matches_snapshot_fixed
 expect-fail: property_replay_matches_snapshot_guided
