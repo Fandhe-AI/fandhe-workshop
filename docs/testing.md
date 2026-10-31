@@ -11220,3 +11220,30 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 - `FANDHE_WEB_DIR`・`FANDHE_WEB_AUTHOR_DIR` を `SKIP_WASM_OPT=1` でビルドし、単体で 6 件が通った。A の観察は notices=0・draft-input=1
 - `make test-browser` の通しは未検証（CI の `browser-test` に任せる）
+
+### 5.413 別の起源のページの iframe に入れたときの埋め込みの拒否の試験（TASK-167 2/2。SAFE-32・DLV-12）
+
+`tools/browser/iframe-embed.test.mjs`。`<meta>` の CSP では `frame-ancestors` が効かず、GitHub Pages は応答ヘッダを設定できない。D-44 で案 A（最上位のウィンドウでなければ内容を出さない JS。`static/app.js` の `isTopWindow`。TASK-167 1/2）に決まったため、その期待を通す。入力は `FANDHE_WEB_AUTHOR_DIR`（配信する設定 + IR 同梱）で、配信は実物の `tools/serve.mjs`。CSP あり・なしの両方で流す。
+
+#### 確かめること
+
+| 区分 | 内容 |
+|---|---|
+| X | 別のポートの親ページの `iframe` に教材を入れる。`data-mounted` が `framed`、入力欄・ボタンなどの操作要素と教材の部品 5 種が 0 件、`#app` の子が 0 件、`wasm`・`ir/main.json`・`test-hooks.js` の要求が 0 件、`__fandheTest` なし、`localStorage`・IndexedDB が空。`iframe` をクリックしてキーを送った後も同じ。配信元以外への通信・ページ内エラー・CSP 違反が 0 件。子の `index.html` の応答に `x-frame-options`・`content-security-policy` のヘッダが無いこと（ヘッダで弾かれたのではないこと）も前提として固定する |
+| XS | 親は `127.0.0.1`、子は `localhost`（別のサイト）。期待は X と同じ |
+| SO | 同じ起源の親（教材の写しに置いた `embed.html`）。期待は X と同じ（同じ起源の親でも隠す） |
+| S | `sandbox=""`（スクリプト不可）の `iframe`。操作要素が 0 件、`data-mounted` は付かない |
+| T | 正の対照。最上位で直接開くと `data-mounted` が `true` で、Step の題・ボタン・入力欄が出る |
+| N | 負の対照。写しの `app.js` の関門（`return window === window.top;`、ちょうど 1 件）を `return true;` にすると、同じ埋め込みで操作要素が 1 件以上出る |
+
+#### 注意
+
+- 案 A を採った。案 B（`frame-ancestors`・`X-Frame-Options` のヘッダ）は、GitHub Pages が応答ヘッダを設定できず、`<meta>` では `frame-ancestors` が効かないため採れない。`DELIVERY_CSP` に `frame-ancestors` が無いことは `t.diagnostic` に残す
+- JS が無効なら関門は効かない。S で操作要素が 0 件なのは、画面を JS が作る構造による（対策の効果ではない）
+- Pages の実物の応答は確かめていない（D-29）。Chromium だけで確かめた
+- 写しは `mkdtemp` に作って必ず消し、`FANDHE_WEB_AUTHOR_DIR` には書き込まない
+
+#### 確認（2026-10-31）
+
+- 手元（Chromium）: 12 件（6 区分 × CSP 2 通り）がすべて通過
+- `make test-browser` の通しは未検証（CI の `browser-test` に任せる）
