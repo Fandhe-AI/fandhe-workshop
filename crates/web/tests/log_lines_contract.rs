@@ -132,6 +132,7 @@ fn synthetic_lines() -> Vec<LogLine> {
     v.push(LogLine::Stopped);
     v.push(LogLine::Reloaded);
     v.push(LogLine::Limit { landings: 1000 });
+    v.push(LogLine::CheckpointLimit);
     v
 }
 
@@ -575,4 +576,45 @@ fn 承認の操作の行は文言になり_観察点の文字は変わらない(
 fn 空の次の行動は型で作れない() {
     assert!(NextAction::new("  ").is_err());
     assert!(NextAction::new("").is_err());
+}
+
+/// 保存の数の上限で断ったイベントは `checkpoint_limit` の行 1 件になり、固定の文言だけが出る（SAVE-31）。
+/// ほかの `Refused` は行にしない。
+#[test]
+fn 保存の上限の拒否は_checkpoint_limit_行になり_ほかの拒否は行にならない() {
+    use fandhe_workshop_core::event::{ControlKind, RefuseReason};
+    use fandhe_workshop_web::log_lines::{
+        checkpoint_limit_heading, line_kind_from_event, CHECKPOINT_LIMIT_BODY,
+    };
+    let refused = |op, reason| Event::Refused {
+        at: stamp(),
+        op,
+        reason,
+        rejection: None,
+    };
+    let limit = refused(ControlKind::Save, RefuseReason::CheckpointLimit);
+    let line = line_from_event(&limit, None).unwrap();
+    assert_eq!(line, LogLine::CheckpointLimit);
+    assert_eq!(line.kind(), LineKind::CheckpointLimit);
+    assert_eq!(
+        line_kind_from_event(&limit, None),
+        Some(LineKind::CheckpointLimit)
+    );
+    let n = line_node(1, &line).unwrap();
+    assert_eq!(attr(&n, "data-kind"), Some("checkpoint_limit"));
+    let heading = find(&n, "line-heading").expect("line-heading");
+    assert!(matches!(children_of(heading), [Node::Text(t)] if t == &checkpoint_limit_heading()));
+    assert!(checkpoint_limit_heading().contains("200"));
+    let body = find(&n, "line-body").expect("line-body");
+    assert!(matches!(children_of(body), [Node::Text(t)] if t == CHECKPOINT_LIMIT_BODY));
+    check_area(&area_of(vec![n])).unwrap();
+    for other in [
+        refused(ControlKind::Restore, RefuseReason::UnknownCheckpoint),
+        refused(ControlKind::GoTo, RefuseReason::ClosedRound),
+        refused(ControlKind::OpenHint, RefuseReason::NoHint),
+        refused(ControlKind::Save, RefuseReason::NoHint),
+    ] {
+        assert_eq!(line_from_event(&other, None), None);
+        assert_eq!(line_kind_from_event(&other, None), None);
+    }
 }

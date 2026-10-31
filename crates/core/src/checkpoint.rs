@@ -10,8 +10,12 @@
 //!
 //! 1. 現在の Step が無いなら、状態を変えず空のイベント列を返す（`Stamp` を作れない。開始前の扱いは TASK-217）。
 //!    これにより保存した `run.current` は必ず `Some` になり、復帰の `Restored.owner` を作れることが保証される
-//! 2. 次の ID があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
-//! 3. 実行状態と入口の写しを写し取り、`CheckpointSaved` を 1 件返す。持ち主の根は `owner_of`（呼び出しの Step なら呼ばれた実体の根）で決める。`log_len` は保存操作の直前のログの長さ
+//! 2. 保存の数が上限（[`MAX_CHECKPOINTS`]。200 件）に達しているなら、状態を変えず `Refused`（`CheckpointLimit`）を 1 件返す
+//!    （SAVE-31。TASK-339 2/2）。数は `checkpoints.len()` で数え（`next_checkpoint` は履歴由来で番号が飛びうるため使わない）、
+//!    `>=` で比べる（手で組んだ上限超えの状態でも保存しない。fail-closed）。古いチェックポイントは消さない。
+//!    手動の保存と章の終わりの自動保存は同じ判定を通る
+//! 3. 次の ID があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
+//! 4. 実行状態と入口の写しを写し取り、`CheckpointSaved` を 1 件返す。持ち主の根は `owner_of`（呼び出しの Step なら呼ばれた実体の根）で決める。`log_len` は保存操作の直前のログの長さ
 //!    （`CheckpointSaved` 自身のログ上の位置）で、`Projection` が復習を控える位置と一致する
 //!
 //! # 章の終わりの自動保存（SAVE-31、TASK-339 1/2）
@@ -19,6 +23,9 @@
 //! `apply` が、章の終わりを含む操作（[`crate::chapter_end`]。上限で止めた操作を除く）のイベント列の末尾に
 //! 保存を 1 件足す。手動の保存と同じ通し番号を使い、写しは操作の後の状態。`log_len` は `CheckpointSaved` 自身の
 //! ログ上の位置。`ops` には記録されず、`ops` の適用し直しで同じ保存が再現される。
+//!
+//! 保存の数が上限に達した後の章の終わりでは自動保存をしない。見送りは手動の拒否と同じ `Refused`（`CheckpointLimit`）を
+//! イベント列の末尾に 1 件足して表し（右のログの 1 行は web の `log_lines` が `Refused` から作る）、状態は変えない。
 //!
 //! 処理中でも保存できる。世代・ログ・下書き・ヒント・世界状態には触れない（`Changed` は出ない）。
 //!
@@ -52,7 +59,7 @@
 //! - 復習・変化の印の導出そのもの（`projection`。`apply()` を通した試験は `tests/restore_review.rs`、TASK-214 2/3）
 //! - 復帰前の進行の無視の判定そのもの（`judge`・`tick`。復帰の側からの試験は `tests/restore_resume.rs`、TASK-214 3/3）
 //! - 案内レベルの切り替えと開始点の反映（TASK-294）
-//! - 開始前の保存・復帰（TASK-217）、保存の数の上限（TASK-339 2/2）
+//! - 開始前の保存・復帰（TASK-217）
 //! - 周回単位の復帰・周回単位のチェックポイント・周回の「完了」の記録（MOD-16。#781 の決定で実体単位だけにした。
 //!   同じ周回の別の実体を戻さないことの試験は `crates/pack/tests/round_instance_restore.rs`）
 //!
@@ -60,6 +67,8 @@
 //! ID は履歴由来の信頼できない値で、鍵としてだけ使う。`Warning` の文面は固定文で値を埋め込まない。
 
 use fandhe_workshop_contract::ir::Ir;
+
+use fandhe_workshop_contract::limits::MAX_CHECKPOINTS;
 
 use crate::addr::Stamp;
 use crate::event::{ControlKind, Event, RefuseReason};
@@ -99,6 +108,15 @@ fn save_at(ir: &Ir, state: &mut SessionState, log_len: u32) -> Vec<Event> {
         generation: state.run.generation,
         step: current.clone(),
     };
+    // 上限は ID のあふれより先に判定する。数は履歴由来の `next_checkpoint` ではなく件数で数える。
+    if state.checkpoints.len() >= MAX_CHECKPOINTS {
+        return vec![Event::Refused {
+            at,
+            op: ControlKind::Save,
+            reason: RefuseReason::CheckpointLimit,
+            rejection: None,
+        }];
+    }
     let Some(next_id) = state.next_checkpoint.0.checked_add(1) else {
         return vec![Event::Warning {
             at,

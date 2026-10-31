@@ -122,7 +122,7 @@ pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
 pub use value_limits::check_value_limits;
 
-/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、TASK-249、版 7）。
+/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、TASK-249、TASK-339 2/2、版 8）。
 ///
 /// 覆う範囲は [`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]・[`session`]・[`projection`] の
 /// 公開の型と署名、および [`input::GenerationRule`] の表である。次のいずれかを変えたら上げる。
@@ -147,10 +147,14 @@ pub use value_limits::check_value_limits;
 /// 版 7 で足したもの: 閉じた周回の Step への移動の拒否理由 `RefuseReason::ClosedRound`（MOD-15・D-24）と、
 /// 理由から引く次の行動 `event::RefuseNextAction`・`RefuseReason::next_action`。`Event::Refused` の形は変えない。
 ///
+/// 版 8 で足したもの: チェックポイントの保存の数の上限に達した拒否理由 `RefuseReason::CheckpointLimit`（SAVE-31）と、
+/// 次の行動 `RefuseNextAction::ContinueWithExistingCheckpoints`。章の終わりの自動保存の見送りも同じ `Event::Refused` で表す。
+/// `Event::Refused` の形は変えない。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）
 /// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
 /// 受け口の有効化の関門の版は [`receptor_gate::RECEPTOR_GATE_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 7;
+pub const CONTRACT_VERSION: u32 = 8;

@@ -19,7 +19,7 @@ fn group(n: u64) -> String {
 
 #[test]
 fn constants_match_decisions() {
-    assert_eq!(LIMITS_CONTRACT_VERSION, 2);
+    assert_eq!(LIMITS_CONTRACT_VERSION, 3);
     assert_eq!(MAX_IR_BYTES, 20 * 1024 * 1024);
     assert_eq!(MAX_HISTORY_BYTES, 10 * 1024 * 1024);
     assert_eq!(MAX_HISTORY_OPS, 20_000);
@@ -31,6 +31,7 @@ fn constants_match_decisions() {
     assert_eq!(MAX_TRANSITIONS_PER_INPUT, 1_000);
     assert_eq!(MAX_COLLECTION_ELEMENTS, 100_000);
     assert_eq!(MAX_STRING_CHARS, 100_000);
+    assert_eq!(MAX_CHECKPOINTS, 200);
     // SAFE-20: serde_json の再帰の上限より前で効く。
     const { assert!(MAX_JSON_DEPTH < 128) };
 }
@@ -38,7 +39,7 @@ fn constants_match_decisions() {
 #[test]
 fn limit_ids_are_complete_and_consistent() {
     let set: HashSet<_> = LimitId::ALL.iter().copied().collect();
-    assert_eq!(set.len(), 11);
+    assert_eq!(set.len(), 12);
     let expected = [
         (LimitId::IrBytes, MAX_IR_BYTES, LimitUnit::Bytes),
         (LimitId::HistoryBytes, MAX_HISTORY_BYTES, LimitUnit::Bytes),
@@ -74,6 +75,11 @@ fn limit_ids_are_complete_and_consistent() {
             LimitId::StringChars,
             MAX_STRING_CHARS as u64,
             LimitUnit::Chars,
+        ),
+        (
+            LimitId::Checkpoints,
+            MAX_CHECKPOINTS as u64,
+            LimitUnit::Checkpoints,
         ),
     ];
     for (id, v, u) in expected {

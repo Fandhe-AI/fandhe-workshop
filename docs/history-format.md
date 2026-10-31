@@ -61,7 +61,7 @@
 | 頭の欄 | `format`・`history_format`・`pack_id`・`start`・4 軸の `versions` が変わらない |
 | `ops` | n を prev の件数として、next は n 件以上で、先頭 n - 1 件が等しい。n 件目は等しいか、両方が `Draft` である |
 | `snapshot.log` | prev のものが next のものの接頭辞である |
-| `snapshot.checkpoints` | prev の各項目が next に同じ値で残り、`next_checkpoint` が減らない |
+| `snapshot.checkpoints` | prev の各項目が next に同じ値で残り、`next_checkpoint` が減らない（保存の数は 200 件で増えなくなり、`next_checkpoint` もそこで止まる。SAVE-31。古いものは消さない） |
 
 - `ops` の末尾の未確定の `Draft` だけは置き換わる。連続する下書きを最後の 1 件に畳む今の記録規則のままである
 - 対象外: `snapshot` の `run`・`entry`・`drafts`・`hints_opened` は現在の状態で、操作のたびに上書きされる。写しの全体が単調なのではなく、単調と主張するのは上の欄だけである

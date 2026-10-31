@@ -1,0 +1,8 @@
+id: SAVE31-4
+package: fandhe-workshop-core
+test: checkpoint_limit
+target: crates/core/src/checkpoint.rs
+find:             reason: RefuseReason::CheckpointLimit,
+replace:             reason: RefuseReason::UnknownCheckpoint,
+expect-fail: the_autosave_after_the_limit_is_skipped_with_one_line
+note: 上限の拒否の理由を取り違える（自動保存の見送りの 1 行が上限の行にならない。SAVE-31）

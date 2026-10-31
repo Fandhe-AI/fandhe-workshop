@@ -31,7 +31,8 @@
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_workshop_contract::judgment::{Judgment, NextAction, RejectCategory};
-use fandhe_workshop_core::event::Event;
+use fandhe_workshop_contract::limits::MAX_CHECKPOINTS;
+use fandhe_workshop_core::event::{ControlKind, Event, RefuseReason};
 use fandhe_workshop_core::input::{Decision, Input};
 
 use crate::learner_text::learner_part;
@@ -61,6 +62,23 @@ pub const LIMIT_BODY_BEFORE: &str = "1 回の操作で起きる内部の遷移�
 
 /// 上限の行の本文で、数の後に置く固定の文言。
 pub const LIMIT_BODY_AFTER: &str = " 回に達したため、実行を止めました。教材の定義の誤りではなく、実行時の上限です。同じ遷移の行は表示せず、この 1 行にまとめています。";
+
+/// チェックポイントの数が上限に達したため保存しなかった行の見出し（SAVE-31。TASK-339 2/2）。手動の保存の拒否と、
+/// 章の終わりの自動保存の見送りの両方に使う（文面は分けない）。文言は仮置きで、変えるときはこの 3 つの定数だけを直す。
+/// 教材・受講者の値は含めない固定の文言で、数はエンジンの定数 [`MAX_CHECKPOINTS`] だけである。
+pub const CHECKPOINT_LIMIT_HEADING_BEFORE: &str = "チェックポイントの数が上限の ";
+
+/// 上限の行の見出しで、数の後に置く固定の文言。
+pub const CHECKPOINT_LIMIT_HEADING_AFTER: &str = " 件に達したため、保存しませんでした";
+
+/// 上限の行の本文。今までのチェックポイントが残ることと、進行の保存が続くことを示す（次の行動）。
+pub const CHECKPOINT_LIMIT_BODY: &str =
+    "今までのチェックポイントは残ります。進行の保存は続きます。";
+
+/// チェックポイントの上限の行の見出し。
+pub fn checkpoint_limit_heading() -> String {
+    format!("{CHECKPOINT_LIMIT_HEADING_BEFORE}{MAX_CHECKPOINTS}{CHECKPOINT_LIMIT_HEADING_AFTER}")
+}
 
 /// 数を 3 桁ごとに `,` で区切った 10 進の文字列にする（`1000` は `1,000`）。
 pub fn group_digits(n: u32) -> String {
@@ -152,6 +170,8 @@ pub enum LogLine {
         /// 止めるまでに数えた着地の回数。
         landings: u32,
     },
+    /// チェックポイントの数の上限で保存しなかった行（SAVE-31）。固定の文言だけで描く。
+    CheckpointLimit,
 }
 
 impl LogLine {
@@ -166,6 +186,7 @@ impl LogLine {
             LogLine::Stopped => LineKind::Stopped,
             LogLine::Reloaded => LineKind::Reloaded,
             LogLine::Limit { .. } => LineKind::Limit,
+            LogLine::CheckpointLimit => LineKind::CheckpointLimit,
         }
     }
 }
@@ -239,8 +260,21 @@ pub fn line_from_event(event: &Event, text: Option<&str>) -> Option<LogLine> {
         Event::TransitionLimitReached { landings, .. } => Some(LogLine::Limit {
             landings: *landings,
         }),
+        e if is_checkpoint_limit(e) => Some(LogLine::CheckpointLimit),
         _ => None,
     }
+}
+
+/// 保存の数の上限で断った（または自動保存を見送った）イベントか。ほかの `Refused` は行にしない。
+fn is_checkpoint_limit(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Refused {
+            op: ControlKind::Save,
+            reason: RefuseReason::CheckpointLimit,
+            ..
+        }
+    )
 }
 
 /// `line_from_event(event, text)` が返す行の種類だけを、文字列を複製せずに返す。
@@ -278,6 +312,7 @@ pub fn line_kind_from_event(event: &Event, text: Option<&str>) -> Option<LineKin
         Event::Stopped { .. } => Some(LineKind::Stopped),
         Event::Reloaded { .. } => Some(LineKind::Reloaded),
         Event::TransitionLimitReached { .. } => Some(LineKind::Limit),
+        e if is_checkpoint_limit(e) => Some(LineKind::CheckpointLimit),
         _ => None,
     }
 }
@@ -355,6 +390,13 @@ pub fn line_node(generation: u64, line: &LogLine) -> Option<Node> {
         LogLine::Limit { landings } => {
             children.push(learner_part(LINE_HEADING_TESTID, LIMIT_HEADING));
             children.push(learner_part(LINE_BODY_TESTID, &limit_body(*landings)));
+        }
+        LogLine::CheckpointLimit => {
+            children.push(learner_part(
+                LINE_HEADING_TESTID,
+                &checkpoint_limit_heading(),
+            ));
+            children.push(learner_part(LINE_BODY_TESTID, CHECKPOINT_LIMIT_BODY));
         }
     }
     Some(el("li", attrs, children))

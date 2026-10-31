@@ -73,7 +73,8 @@ use fandhe_workshop_core::input::{Decision, Input};
 use fandhe_workshop_core::step_status::StepStatus;
 
 /// この契約の版。値・識別子・規則を変えたら上げる（2/2 の追加は上げなかった）。
-pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 3;
+/// 版 4（TASK-339 2/2）で、チェックポイントの数の上限の行 [`LineKind::CheckpointLimit`]（SAVE-31）を足した。
+pub const TERMINAL_AREA_CONTRACT_VERSION: u32 = 4;
 
 /// 行の種類を載せる属性名。
 pub const KIND_ATTR: &str = "data-kind";
@@ -214,11 +215,13 @@ pub enum LineKind {
     Reloaded,
     /// 遷移の上限で止めた理由の見出しの行（版 3。SAFE-34）。
     Limit,
+    /// チェックポイントの保存の数が上限に達したため保存しなかった行（版 4。SAVE-31）。見出しと本文を持つ。
+    CheckpointLimit,
 }
 
 impl LineKind {
     /// すべての種類。
-    pub const ALL: [LineKind; 8] = [
+    pub const ALL: [LineKind; 9] = [
         LineKind::Received,
         LineKind::Response,
         LineKind::Rejected,
@@ -227,6 +230,7 @@ impl LineKind {
         LineKind::Stopped,
         LineKind::Reloaded,
         LineKind::Limit,
+        LineKind::CheckpointLimit,
     ];
 
     /// `data-kind` の値。
@@ -240,6 +244,7 @@ impl LineKind {
             LineKind::Stopped => "stopped",
             LineKind::Reloaded => "reloaded",
             LineKind::Limit => "limit",
+            LineKind::CheckpointLimit => "checkpoint_limit",
         }
     }
 
@@ -505,7 +510,9 @@ fn part_spec(
         LineKind::Clarified => (&[LINE_QUESTION_TESTID, LINE_NEXT_ACTION_TESTID], &[]),
         LineKind::Progress => (&[LINE_STAGE_TESTID], &[]),
         LineKind::Stopped | LineKind::Reloaded => (&[LINE_BODY_TESTID], &[]),
-        LineKind::Limit => (&[LINE_HEADING_TESTID, LINE_BODY_TESTID], &[]),
+        LineKind::Limit | LineKind::CheckpointLimit => {
+            (&[LINE_HEADING_TESTID, LINE_BODY_TESTID], &[])
+        }
     })
 }
 
