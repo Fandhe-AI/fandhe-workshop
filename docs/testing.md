@@ -11106,8 +11106,8 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 #### 注意
 
-- 確かめないこと: 9 通りのクエリのマウント・1 操作（`query-inert`）、章の境目の件数（`author-preview` の B）、「本文の参照:」の行（TERM-41 は検討中。件数を記録するだけで合否に使わない）、`check-delivery.sh` の拡張（TASK-82）
-- 限界 1: `make test-browser` は wasm-opt を適用しない（`SKIP_WASM_OPT=1`）。そのため WASM に `debug_` を含む文字列が残り、`check-delivery.sh` の「no debug_ bytes in wasm」が FAIL になり終了コードは 1 になる。許す失敗の行はこの 1 件だけで、他の失敗の行があれば試験は失敗する。wasm-opt 適用済みなら失敗の行 0 件と終了コード 0 を確かめる。この項目はブラウザ側の観察と判定が一致することだけを確かめ、値は断定しない。`BUILD-27` の `debug_` 5 件と現在の実装の名前の整合は TASK-82
+- 確かめないこと: 9 通りのクエリのマウント・1 操作（`query-inert`）、章の境目の件数（`author-preview` の B）、「本文の参照:」の行（TERM-41 は検討中。件数を記録するだけで合否に使わない）
+- 限界 1（TASK-82 で解消。5.408）: 当初は wasm-opt を適用しない配信物で「no debug_ bytes in wasm」が FAIL になり、許す 1 件としていた。いまは `name` セクションを除いて数えるため、配信する設定の終了コード 0 を常に確かめる。wasm-opt 適用済みなら失敗の行 0 件と終了コード 0 を確かめる。この項目はブラウザ側の観察と判定が一致することだけを確かめ、値は断定しない。`BUILD-27` の `debug_` 5 件と現在の実装の名前の整合は TASK-82
 - 限界 2: 各時点の画面の sha256 は、処理中の Step の時間で 36 時点中 2 時点が揺れたため、B は最後の画面だけを比べる
 - 限界 3: 仕様の証拠の種類（F5 の 16/16・`ch-run` の 73/73）は再現しない。台帳は項目数だけを記録する。教材は本物の CH-0〜CH-3（TASK-643・TASK-642）ではなく、試験用の教材である。AI の代理の確認であり、人の評価には数えない（D-34）
 
@@ -11117,6 +11117,32 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 手元: `delivery-ports` の 8 件が通った。A は 36 時点・55/55 項目、B は 36 時点の探針が一致、D は 3 配信物とも 10/10 項目が一致。画面の比較を最後だけにした後、12 回連続で通った
 - wasm-opt 適用済みの配信物での流し直しは未実施（未検証）
 - `scripts/expected-test-counts.txt` は変えていない
+
+### 5.408 配信物の試験用の口 0 件の検査と試験の設定との対照（TASK-82 1/2。SHELL-35・BUILD-27・BUILD-11）
+
+`tools/check-delivery.sh` を、試験用の口（`debug_*` の書き出し・`Action::Raw` の接頭辞・`raw-trigger`・`test-hooks.js`・`.d.ts`・試験用 IR・試験用クエリ）が 0 件であることの関門に拡張した。CI には新しいジョブを足さず、既存の browser-test の `make test-build-web` が、wasm-opt の有無に依らず 3 つの配信する設定すべてに流す。`?ir` なしの表示のブラウザ試験は TASK-82 2/2（#915）。
+
+#### 確かめること
+
+| 区分 | 内容 |
+|---|---|
+| 0 件 | WASM（`name` セクションを除く）に `debug_`・`raw-trigger`・`load-fixture:`・`open-history:`・`load-ir:`・`opening-override:`・`min-3step`・`ch0-3-run`・`ch4-9-run`・`reload-points`・`receptor=`・`keydown-probe`・受け口の名・隠し要素の名が無い。WASM 全体に試験用の関数の代表名 4 つが無い。glue に `keydown-probe`・`receptor_activation` が無い。glue・`app.js`・`index.html` に `fixture=`・`receptor=` が無い |
+| ファイル | `ir/` の下に `ir/main.json` 以外が無い。`ir/main.json` 以外の `*.json` と名前に `min-3step` を含むファイルが無い（拒否する一覧で判定）。`test-hooks.js`・`.d.ts` が無い |
+| 対照 | `--control <試験の設定の dist>` を付けると、上の印が試験の設定には有ること（`debug_` の書き出し 5 件以上と代表の 4 名・各印・`test-hooks.js`・`.d.ts`・meta）を確かめる。欠けたら `CONTROL-MISSING:` を出して終了コード 2 |
+
+#### 注意
+
+- `name` セクションの除外: 2026-10-30 に `SKIP_WASM_OPT=1` の配信する設定で実測し、`debug_` はカスタムセクション `name`（`debug_struct` 等の core 由来の関数名）の中にだけ 2 件あった。他のセクションは 0 件。除くのは正確な名前 `name` のカスタムセクションだけで、`namex` などは数える。`tools/wasm-scan.mjs` が解析し、壊れた WASM は終了コード 2。これでブラウザ試験の「許す 1 件」（5.407 の限界 1）を外した
+- BUILD-27 の 5 つの名前との対応: `debug_state_json`・`debug_next_tick`・`debug_draft` は同名で有る。`debug_force_rerender` は `debug_rerender` に変わっている。`debug_log_json` は無い。試験の設定の `debug_` の書き出しは 37 件で、件数は固定せず `info: control debug_ exports = <n>` に出す
+- 対照に入れないもの: `tick-trigger`・`esc-trigger`・`complete-trigger`・`fandhe:test-hooks` は試験の設定でも 0 件の廃止済みの口。注入の回帰テストで検出力を示す
+- 残る既知: 配信する設定の `app.js` には meta で守られた `import("./test-hooks.js")` の文字列が残る（仕様の口の一覧に無く、検査に入れない）
+- 人間の承認点: CI の関門の強化（既存の step の中で `check-delivery.sh` が無条件に流れるようになる）。承認を得た記録はない
+
+#### 確認（2026-10-30）
+
+- `scripts/test-check-delivery.sh`: 65 件が通った（`SKIP_WASM_OPT=1` の配信する設定が 0、試験の設定が 1、`--control` の誤用が 2、印の注入が 1、`name` セクション内の `debug_` が 0）
+- `delivery-ports` のブラウザ試験: 8 件が通った。D は 3 配信物とも 10/10 項目が一致し、配信する設定は終了コード 0（`SKIP_WASM_OPT=1`）
+- 以降の実行結果は PR のチェックで確認する。`make test-build-web` の通しは別記（未検証の場合はそのまま書く）
 
 ### 5.409 配信物が読むクエリの最小化と debug_ の公開名の記録（TASK-111 1/2。DLV-10・SHELL-35）
 

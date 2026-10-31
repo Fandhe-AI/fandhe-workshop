@@ -52,7 +52,7 @@ cat <<'EOF'
   update-l2                    tools/update-l2.mjs                     既存の L2 の配布物（L2_ZIP）の site/ だけを新しい配信物に差し替えた zip を作る（先に make build-web。手順は docs/l2-update-procedure.md。TASK-116）
   test-update-l2               scripts/test-update-l2.sh               update-l2 の回帰テスト（合成の配信物。ビルド・通信なし）
   test-l2-run                  scripts/test-l2-run.sh                  L2 の配布物を Rust のない模擬環境で展開・起動し、ブラウザで CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけであることと起動の時間・L1 と L2 の 9 回の結果の一致（DLV-15）、固定の入力列での比較と履歴の ops に揺れる欄が無いこと（TASK-114 2/2）・L1 と L2 の 2 か所と別名 localhost のオリジンの分離（DLV-16。TASK-115）も確かめる（L2_SERVER 必須。遅い）
-  check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する
+  check-delivery               tools/check-delivery.sh                 配信物（先に make build-web）に試験用の口が無いことを検査する（--control は直接実行）
   test-check-delivery          scripts/test-check-delivery.sh          配信検査自体の回帰テスト（実ビルドを行うため遅い）
   serve                        node tools/serve.mjs                    dist/web をサブパスの下で gzip つきで配る（--dir --base --port --no-gzip --gzip-level）
   test-serve                   scripts/test-serve.sh                   配信サーバ（tools/serve.mjs）の試験（node:test）

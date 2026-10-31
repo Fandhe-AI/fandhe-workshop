@@ -300,7 +300,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make update-l2` | `tools/update-l2.mjs` | 既存の L2 の配布物（`L2_ZIP`）の `site/` だけを新しい配信物に差し替えた zip を `dist/l2` に作る（`site/` 以外は旧 zip から引き継ぐ。`L2_SERVER` は要らない）。手順は [`docs/l2-update-procedure.md`](docs/l2-update-procedure.md) |
 | `make test-update-l2` | `scripts/test-update-l2.sh` | `update-l2` の回帰テスト（合成の配信物。`unzip` と node が要る） |
 | `make test-l2-run` | `scripts/test-l2-run.sh` | L2 の配布物を Rust のない模擬環境（`PATH=/usr/bin:/bin`）で展開・起動し、Chromium で CH-0〜CH-1 を 3 回完走し、待ち受けが 127.0.0.1 だけで他のアドレスから拒否されること・起動とマウントの時間（記録のみ）、L1（サブパス 2 名）と L2 の 3 配信先 × 3 回の 9 回で操作ごとの観察・`snapshot.json`・`history.json` がバイト単位で一致すること、凍結した IR と組の固定の入力列（`crates/web/tests/data/fixed_sequence_ch0_1/`）での比較と履歴の `ops` に揺れる欄が無いことと、同じブラウザの文脈で L1・L2 の 2 か所・別名 `localhost` のオリジンが分離していて保存が互いに見えないこと（DLV-16）と、`update-l2` で別の IR に更新した zip の模擬環境での起動（TASK-116）も確かめる。`L2_SERVER`（miniserve 0.35.0 の実行ファイル）が必須で、web の release ビルドを含むため遅い。`npm ci` と `npx playwright install chromium` が前提（`docs/testing.md` 5.239・5.241b・5.243・5.245b・5.357） |
-| `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。CI には未組み込み |
+| `make check-delivery` | `tools/check-delivery.sh` | 配信物（`dist/web`。先に `make build-web`）に試験用の口が無いことの検査。試験の設定との対照は直接 `tools/check-delivery.sh --control dist/web-test dist/web`。CI では browser-test の `make test-build-web` が流す |
 | `make test-check-delivery` | `scripts/test-check-delivery.sh` | 配信検査自体の回帰テスト（実ビルドを行うため遅い） |
 | `make check-mutations` | `scripts/check-mutations.sh` | 変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅く、CI・フックには入れない） |
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
