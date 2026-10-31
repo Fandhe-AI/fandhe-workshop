@@ -11481,3 +11481,24 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 | GUIDE12-2 | `no_reselection` が選び直しの種類を返す | `no_reselection_rule_kind_and_zero_stage`・`no_reselection_wrong_then_correct_is_not_self_reliant` | DETECTED |
 | GUIDE12-3 | 集計で誤答の後の正答を自力の側に入れる | `no_reselection_wrong_then_correct_is_not_self_reliant`・`lo4_bundle_counts_only_all_first_correct_participants` | DETECTED |
 | GUIDE11-4〜9 | 既存の 6 件 | 5.419 のとおり | DETECTED |
+
+### 5.421 同じ周回の別の実体を戻さない実体単位の復帰（TASK-250。MOD-16）
+
+- 目的: #781 の決定（2026-10-31）で、巻き戻しは実体単位だけとし、周回単位の復帰・チェックポイント・周回の「完了」の記録は足さないと決まった。エンジンの動き・型・`CONTRACT_VERSION` は変えず、試験で固定する。実体単位の一般規則（MOD-9）は 5.261 の記述のままで、本節は周回の側から見た帰結を足す
+- 試験: `crates/pack/tests/round_instance_restore.rs`（4 件、`mod16_*`）。入力列は `common/rounds.rs` の 2 周目の計画を `cand-session` の選択で前後に分けて使う
+
+| 確かめること | 試験 |
+|---|---|
+| `OBS ii-a` の場面。2 周目の前の実体の `st-2-4` で保存し、後の実体の `st-7-1` まで進めて復帰すると、前の実体と呼び出しの Step だけが保存の時点に戻り、後の実体の `st-3-2`・`st-6-1` の達成・`st-7-1`・呼び出しの Step・もう一方だけが書いた経路・1 周目の切り身は復帰の直前のまま | `mod16_restore_in_round2_keeps_the_other_instance_progress` |
+| 周回の終わりまで進めた後の復帰でも、もう一方の実体の達成と呼び出しの Step の達成は戻らない（周回の完了を表すひとまとまりの記録は無い） | `mod16_restore_after_round2_ends_has_no_round_completion_to_revert` |
+| 同じ周回の 2 つの実体で別々に保存でき、持ち主は実体の根になり、復帰はそれぞれの持ち主だけを戻す | `mod16_checkpoints_in_one_round_restore_each_owner_separately` |
+| 履歴の適用し直し・起動の分岐・書き出し→読み込みの後でも復帰の結果（位置・切り身・世界状態）が同じ | `mod16_restore_scope_is_the_same_after_reload` |
+
+- 観察の行（2026-10-31）: `OBS ii-a: after restore, issue-to-merge@round2/st-3-2=Achieved owner_call=Entered other_call=Entered current=Some("idea-cycle@round2/st-2-4")`
+- 変異注入（2026-10-31、元にしたコミット 0ab9e81e の作業ツリー）: `MOD16-1`（復帰が同じ周回の別の実体の切り身まで写しへ戻す。`crates/core/src/checkpoint.rs`）は DETECTED（期待した試験を含む 3 件が失敗）。回帰として `MOD9-1`〜`MOD9-3`・`MOD15-4` も DETECTED
+- 限界:
+  - `st-2-5` の着地の代わりの `st-2-6` への `GoTo` など、未実装の部品を `GoTo` で飛ばす（5.258・5.260）
+  - `ChapterCompleted` が未実装のため、周回の終わりは最後の Step と呼び出し元の達成で判定する。分岐で通らない Step があるため全 Step の達成は前提にしない
+  - `Control` は `#[non_exhaustive]` のため、周回単位の操作の種類の不在は型では固定できない。代わりに、同じ周回の 2 件の保存がそれぞれの持ち主だけを戻すことで固定する
+- 範囲外: 仕様側（04 の MOD-16 を検討中から確定へ直すこと、`04-behavior/README.md` の件数、D-n の記録）は spec repo で行い、本作業では編集していない
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
