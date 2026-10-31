@@ -3,13 +3,14 @@
 //
 // 目的: 教材を更新したとき、既存の配布物の site/ だけを新しい配信物に差し替えた新しい zip を作る。
 //   案 (ii)（miniserve ＋静的ファイル）を採った利点である「更新は site/ の差し替え 1 操作」の実体。
-//   site/ 以外（start.sh・miniserve・将来の README・ライセンス文）は旧 zip のバイト列と mode をそのまま引き継ぐ。
+//   site/ 以外（起動スクリプト・実行ファイル・ライセンス文・告知）は旧 zip のバイト列と mode をそのまま引き継ぐ。
 //   サーバの実行ファイルの取得（L2_SERVER）・Rust・通信は要らない。手順は docs/l2-update-procedure.md。
 // 入力（環境変数。位置引数は誤用）:
 //   L2_ZIP   必須。既存の配布物（build-l2.mjs か update-l2.mjs の出力）
 //   L2_SITE  既定 <repo>/dist/web。build-l2.mjs と同じ検査（check-delivery.sh・ir/main.json）を通ること
 //   L2_OUT   既定 <repo>/dist/l2。規則は build-l2.mjs と同じ。書くのは fandhe-workshop-l2-<platform>.zip の 1 ファイルだけ
-//   platform は旧 zip の miniserve の sha256 を tools/l2/miniserve.sha256 の固定値と照合して決める（一致しなければ失敗。A08）。
+//   platform は旧 zip にある実行ファイルの名前（LAYOUTS。start.sh+miniserve か start.cmd+miniserve.exe のちょうど 1 組）で配置を決め、
+//   その sha256 を tools/l2/miniserve.sha256 の固定値と照合して決める（一致しなければ失敗。A08）。Windows の組は実行の権限を求めず mode を引き継ぐ。
 // 旧 zip は信頼しない入力として扱う（A01・A04）: 展開の前に名前を検査し、リンクを拒否し、読み出した実バイト数に上限を置く（申告値は信用しない）。
 // どの段階で失敗しても zip を作らない（fail-closed）。出力は決定的（同じ入力から同じバイト列。build-l2.mjs と同じ writer）。
 // 終了コード: 0 = 作成 / 1 = 検査の失敗 / 2 = 誤用・入力の不備。
@@ -18,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checkSite, L2Error, platformOfServer, readPins, siteEntries, TOP, writeOutput, writeZip } from './build-l2.mjs';
+import { checkSite, checkWindowsNames, collectSite, L2Error, LAYOUTS, platformOfServer, readPins, siteEntries, TOP, writeOutput, writeZip } from './build-l2.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -34,7 +35,39 @@ function unzip(args) {
   return r.stdout;
 }
 
-/** 旧 zip の名前の一覧を展開の前に検査し（許す名前は build-l2 の collectSite と同じ集合。パターン文字は unzip へ渡す前にエスケープする）、[{ name, dir, mode }] を返す。 */
+// 配置ごとの「実行の権限（mode 755）を求めるか」。Unix の組は ./start.sh と miniserve の起動に要り、Windows の組は要らない。
+// LAYOUTS の server 名から引く。表に無い配置が LAYOUTS に増えたら起動時に失敗させる（追加漏れを fail-closed にする）。
+const EXEC_REQUIRED = { miniserve: true, 'miniserve.exe': false };
+const LAYOUT_PAIRS = [...new Map(Object.values(LAYOUTS).map((l) => [`${l.launcher}/${l.server}`, { launcher: l.launcher, server: l.server }])).values()];
+for (const l of LAYOUT_PAIRS) {
+  if (EXEC_REQUIRED[l.server] === undefined) throw new Error(`update-l2: no mode rule for layout server ${l.server}`);
+}
+
+/** 旧 zip の名前から配置（起動スクリプトと実行ファイルの組）をちょうど 1 つに決め、種類と権限を確かめる。曖昧・混在・欠落は拒否する。 */
+function detectLayout(entries, seen) {
+  const has = (n) => seen.has(`${TOP}/${n}`);
+  const servers = LAYOUT_PAIRS.filter((l) => has(l.server));
+  if (servers.length === 0) {
+    throw new L2Error(`zip lacks the required entry: ${LAYOUT_PAIRS.map((l) => `${TOP}/${l.server}`).join(' or ')}`);
+  }
+  if (servers.length > 1) throw new L2Error(`zip has entries of more than one layout: ${servers.map((l) => l.server).join(', ')}`);
+  const layout = servers[0];
+  if (!has(layout.launcher)) throw new L2Error(`zip lacks the required entry: ${TOP}/${layout.launcher}`);
+  const other = LAYOUT_PAIRS.find((l) => l !== layout && has(l.launcher));
+  if (other) throw new L2Error(`zip mixes entries of more than one layout: ${other.launcher} with ${layout.server}`);
+  if (!has('site/')) throw new L2Error(`zip lacks the required entry: ${TOP}/site/`);
+  // 名前の存在だけでなく種類と権限も確かめる（Unix の組は 0644 だと受講者の ./start.sh や miniserve 起動が Permission denied になる）。
+  for (const n of [layout.launcher, layout.server]) {
+    const e = entries.find((x) => x.name === `${TOP}/${n}`);
+    if (!e || e.dir) throw new L2Error(`required entry must be a regular file: ${TOP}/${n}`);
+    if (EXEC_REQUIRED[layout.server] && e.mode !== 0o755) {
+      throw new L2Error(`required entry must be an executable regular file (mode 755): ${TOP}/${n}`);
+    }
+  }
+  return layout;
+}
+
+/** 旧 zip の名前の一覧を展開の前に検査し（許す名前は build-l2 の collectSite と同じ集合。パターン文字は unzip へ渡す前にエスケープする）、{ entries: [{ name, dir, mode }], layout } を返す。 */
 function listEntries(zip) {
   const names = unzip(['-Z1', zip]).split('\n').filter(Boolean);
   const seen = new Set();
@@ -63,17 +96,10 @@ function listEntries(zip) {
     throw new L2Error('zip listing could not be parsed consistently');
   }
   if (total > MAX_UNPACKED) throw new L2Error(`zip is too large when unpacked: ${total} bytes (limit ${MAX_UNPACKED})`);
-  for (const need of [`${TOP}/start.sh`, `${TOP}/miniserve`, `${TOP}/site/`]) {
-    if (!seen.has(need)) throw new L2Error(`zip lacks the required entry: ${need}`);
-  }
-  // 名前の存在だけでなく種類と権限も確かめる（0644 の旧 zip は受講者の ./start.sh や miniserve 起動が Permission denied になる）。
-  for (const exe of [`${TOP}/start.sh`, `${TOP}/miniserve`]) {
-    const e = entries.find((x) => x.name === exe);
-    if (!e || e.dir || e.mode !== 0o755) throw new L2Error(`required entry must be an executable regular file (mode 755): ${exe}`);
-  }
+  const layout = detectLayout(entries, seen);
   const site = entries.find((x) => x.name === `${TOP}/site/`);
   if (!site || !site.dir) throw new L2Error(`required entry must be a directory: ${TOP}/site/`);
-  return entries;
+  return { entries, layout };
 }
 
 /**
@@ -111,17 +137,22 @@ export function updateL2({ zip, site, out, pins, checkDelivery = true, maxUnpack
     throw new L2Error(`L2_ZIP not found: ${zip}`, 2);
   }
   if (!st.isFile()) throw new L2Error(`L2_ZIP is not a regular file: ${zip}`, 2);
-  const entries = listEntries(zip);
+  const { entries, layout } = listEntries(zip);
   {
     const kept = entries.filter((e) => !e.name.startsWith(`${TOP}/site/`));
     const data = readKept(zip, kept, maxUnpacked);
-    const bin = data.get(`${TOP}/miniserve`);
-    const platform = platformOfServer(bin, pins);
-    if (platform === null) throw new L2Error('sha256 of miniserve in L2_ZIP does not match any pinned value');
+    const bin = data.get(`${TOP}/${layout.server}`);
+    const candidates = Object.keys(LAYOUTS).filter((p) => LAYOUTS[p].server === layout.server && LAYOUTS[p].launcher === layout.launcher);
+    const platform = platformOfServer(bin, pins, candidates);
+    if (platform === null) throw new L2Error(`sha256 of ${layout.server} in L2_ZIP does not match any pinned value for its layout`);
     checkSite(site, { checkDelivery });
     const next = kept.map((e) => (e.dir ? { name: e.name, dir: true } : { name: e.name, data: data.get(e.name), mode: e.mode }));
     const files = siteEntries(site);
+    // build-l2 と同じ規則を、引き継ぐ旧 zip のエントリと新しい site/ を合わせた出力全体へ流す。
+    // 旧 zip は信頼しないため、末尾のドット・予約名・大文字小文字だけの違いは引き継ぎ側でも拒否する。
+    // 出力する site/ 自体も含める（最上位の通常ファイル SITE と site ディレクトリの衝突を拾うため）。
     next.push({ name: `${TOP}/site/`, dir: true }, ...files);
+    if (platform === 'windows-x64') checkWindowsNames(next);
     const r = writeOutput(out, platform, writeZip(next));
     return { ...r, platform, kept: kept.length, files: files.filter((f) => !f.dir).length };
   }

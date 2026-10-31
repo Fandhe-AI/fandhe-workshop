@@ -11313,3 +11313,10 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 手元: `cargo test -p fandhe-workshop-web --locked --test delivery_ports`（配信する設定）と `--features test-hooks`（試験の設定の対照）が、どちらも 11 件通過
 - ブラウザ試験（`delivery-ports.test.mjs`）は構文の確認（`node --check`）だけで、実行は未検証（この worktree に `node_modules` が無く、3 配信物のビルドも流していない）。CI の `browser-test` に任せる
 - wasm-opt 適用済みの配信物での流し直しは未実施（未検証）
+
+### 5.415 Windows 向けの L2 の配布物の更新（#1932。DLV-22・DLV-18）
+
+- `tools/update-l2.mjs` が旧 zip の実行ファイルの名前（`LAYOUTS`）で配置を決め、固定値の照合を配置に合う platform に絞るようにした。Windows の組（`start.cmd`・`miniserve.exe`）は実行の権限を求めず、`start.cmd` を CRLF のまま引き継ぐ。Windows 向けの zip では新しい配信物の名前を `build-l2` と同じ規則で検査する
+- 追加した試験は `tools/update-l2.test.mjs` の「Windows 向けの zip」12 件（正常系・build との等価性・欠落・混在・名前と固定値の食い違い・Windows の名前・Unix の mode の対照）。既存の試験は無修正で合格した。5.362 の「範囲外」の追従はこれで解いた（5.359・5.362 の記録は書き換えない）
+- 実行（2026-10-31、手元の Linux）: `make test-update-l2` は 46 件すべて合格、`make test-build-l2` は不合格 0 件
+- 未検証: Windows の実機での起動（TASK-120）。`make test-l2-run` は linux-x64 だけで、本件では変えていない
