@@ -8,7 +8,7 @@
 //! - `use` や Step に省く趣旨の欄を書くと `compile` も `validate` も `E-PARSE` で止める（fail-closed）。値は診断に写らない
 //!
 //! 確かめないこと: 迂回した Step が実行時に未着手のまま残り、途中開始の「省略」と区別されること
-//! （MOD-17 (b) の実行時の側。エンジンの担当）、引数の型と範囲の検査（TASK-71 2/3）。
+//! （MOD-17 (b) の実行時の側は `module_skip_steps.rs`、`docs/testing.md` の 5.422）、引数の型と範囲の検査（TASK-71 2/3）。
 //! 試験では `unwrap` を使ってよい。
 
 mod common;
