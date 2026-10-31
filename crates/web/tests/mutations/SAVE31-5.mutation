@@ -1,0 +1,8 @@
+id: SAVE31-5
+package: fandhe-workshop-web
+test: log_lines_contract
+target: crates/web/src/log_lines.rs
+find:         e if is_checkpoint_limit(e) => Some(LogLine::CheckpointLimit),
+replace:         e if false && is_checkpoint_limit(e) => Some(LogLine::CheckpointLimit),
+expect-fail: 保存の上限の拒否は_checkpoint_limit_行になり_ほかの拒否は行にならない
+note: 上限の行の写しを外す（右のログに上限の 1 行が出ない。SAVE-31）

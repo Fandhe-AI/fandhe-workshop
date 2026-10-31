@@ -241,7 +241,7 @@ fn one_line(l: Node) -> Node {
 
 #[test]
 fn version_and_values_are_fixed() {
-    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 3);
+    assert_eq!(TERMINAL_AREA_CONTRACT_VERSION, 4);
     let kinds: Vec<_> = LineKind::ALL.iter().map(|k| k.as_str()).collect();
     assert_eq!(
         kinds,
@@ -253,7 +253,8 @@ fn version_and_values_are_fixed() {
             "progress",
             "stopped",
             "reloaded",
-            "limit"
+            "limit",
+            "checkpoint_limit"
         ]
     );
     let inputs: Vec<_> = InputMethod::ALL.iter().map(|k| k.as_str()).collect();

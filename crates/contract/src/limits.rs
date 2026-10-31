@@ -16,6 +16,10 @@
 //! [`crate::load_reason::LoadReason`] には足さない（履歴の契約と保存先の契約を動かさないため）。
 //! 理由コード（`too_many_elements`・`string_too_long`）と文面は【推論】による仮置きで、spec への反映は spec repo 側で行う。
 //!
+//! 版 3（TASK-339 2/2）で、チェックポイントの保存の数の上限 [`MAX_CHECKPOINTS`]（SAVE-31）を足した。1 つの履歴あたり、
+//! 章の終わりの自動保存と受講者の任意の保存を合わせた数である。これは実行時の拒否（core の `Control::Save` の判定）で、
+//! 読み込みの段の理由ではないため、[`LimitReason`] には足さない。
+//!
 //! 履歴の拒否理由コード全体の一覧は TASK-310 の範囲で、本契約は上限に関わる 3 種（[`LimitReason`]）だけを
 //! 定義する。TASK-310 は自分の列挙（[`crate::load_reason::LoadReason`]）へ `From` で変換し、`too_large`・`too_deep` を再定義しない。
 //!
@@ -30,7 +34,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 /// この契約の版。値・理由コード・順序・文面を変えたら上げる。
-pub const LIMITS_CONTRACT_VERSION: u32 = 2;
+pub const LIMITS_CONTRACT_VERSION: u32 = 3;
 
 /// IR 1 ファイルの上限（バイト）。ちょうどは通し、1 超過で拒否する（SAFE-17・SAFE-45、D-44）。
 pub const MAX_IR_BYTES: u64 = 20_971_520;
@@ -57,6 +61,12 @@ pub const MAX_COLLECTION_ELEMENTS: usize = 100_000;
 /// 【推論】D-45 は単位を書いていない。spec が単位を定めている SAFE-21 に合わせた。
 pub const MAX_STRING_CHARS: usize = 100_000;
 
+/// チェックポイントの保存の数の上限（1 つの履歴あたり）。200 件目まで保存でき、201 件目の任意の保存は断る（SAVE-31）。
+///
+/// 章の終わりの自動保存と受講者の任意の保存を合わせて数える。エンジンの定数で、教材は宣言しない（SAFE-41 の
+/// [`MAX_HISTORY_OPS`] と同じ扱い）。古いチェックポイントは消さない。
+pub const MAX_CHECKPOINTS: usize = 200;
+
 /// 上限の単位。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LimitUnit {
@@ -76,9 +86,11 @@ pub enum LimitUnit {
     Elements,
     /// 文字列の文字数（コードポイント）。
     Chars,
+    /// チェックポイントの保存の件数。
+    Checkpoints,
 }
 
-/// 上限の種類（11 種）。
+/// 上限の種類（12 種）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LimitId {
     /// [`MAX_IR_BYTES`]。
@@ -103,11 +115,13 @@ pub enum LimitId {
     CollectionElements,
     /// [`MAX_STRING_CHARS`]。
     StringChars,
+    /// [`MAX_CHECKPOINTS`]。
+    Checkpoints,
 }
 
 impl LimitId {
     /// すべての上限。
-    pub const ALL: [LimitId; 11] = [
+    pub const ALL: [LimitId; 12] = [
         LimitId::IrBytes,
         LimitId::HistoryBytes,
         LimitId::HistoryOps,
@@ -119,6 +133,7 @@ impl LimitId {
         LimitId::TransitionsPerInput,
         LimitId::CollectionElements,
         LimitId::StringChars,
+        LimitId::Checkpoints,
     ];
 
     /// 上限の値（単位は [`LimitId::unit`]）。
@@ -135,6 +150,7 @@ impl LimitId {
             LimitId::TransitionsPerInput => MAX_TRANSITIONS_PER_INPUT as u64,
             LimitId::CollectionElements => MAX_COLLECTION_ELEMENTS as u64,
             LimitId::StringChars => MAX_STRING_CHARS as u64,
+            LimitId::Checkpoints => MAX_CHECKPOINTS as u64,
         }
     }
 
@@ -152,6 +168,7 @@ impl LimitId {
             LimitId::TransitionsPerInput => LimitUnit::Transitions,
             LimitId::CollectionElements => LimitUnit::Elements,
             LimitId::StringChars => LimitUnit::Chars,
+            LimitId::Checkpoints => LimitUnit::Checkpoints,
         }
     }
 }
@@ -413,7 +430,7 @@ const fn sample(limit: LimitId) -> BoundarySample {
 }
 
 /// 全上限の境界サンプル（[`LimitId::ALL`] と同じ順）。
-pub const BOUNDARY_SAMPLES: [BoundarySample; 11] = [
+pub const BOUNDARY_SAMPLES: [BoundarySample; 12] = [
     sample(LimitId::IrBytes),
     sample(LimitId::HistoryBytes),
     sample(LimitId::HistoryOps),
@@ -425,4 +442,5 @@ pub const BOUNDARY_SAMPLES: [BoundarySample; 11] = [
     sample(LimitId::TransitionsPerInput),
     sample(LimitId::CollectionElements),
     sample(LimitId::StringChars),
+    sample(LimitId::Checkpoints),
 ];

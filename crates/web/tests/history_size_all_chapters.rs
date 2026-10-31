@@ -8,8 +8,13 @@
 //! 本物の全章での測定は未実施で、教材の実装の後に、この試験の IR と操作列を差し替えて流し直す。数値を本物の全章の値として読まない。
 //!
 //! 条件（乱数は使わない。決定的）:
-//! - A: 章の境目を越えた直後と区間の終わりに `Control::Save` を 1 回（章の終わりの自動保存 SAVE-31 の代用。SAVE-31 は未実装）。
+//! - A: 章の境目を越えた直後と区間の終わりに `Control::Save` を 1 回（手動の境目の保存。章の終わりの自動保存 SAVE-31 も数に入る。
+//!   TASK-339 1/2 以降は自動保存があるため、5.345 の記録と比べるときは件数が増えている）。
 //! - C: A に加えて、送った操作（保存を除く）の直後に毎回 `Control::Save`（チェックポイントの数に比例して増える上限側）。
+//!
+//! - L: C の通しの後に `Control::Save` で保存の数を上限（`MAX_CHECKPOINTS` = 200 件。SAVE-31。TASK-339 2/2）ちょうどまで詰める。
+//!   最後に詰めるので、世界状態が最も大きい時点の写しが入る上限側の見積もりになる。201 件目の保存が断られて状態が変わらないこと、
+//!   書き出しを読み直した結果と、`ops` の適用し直しの結果が写しと一致することも確かめる。
 //!
 //! 各区間に 20,000 コードポイントの自然文を 1 回、画面と同じ経路（下書き → 送信）で差し込む。位置を動かさない手の前で送り、
 //! 進行が動かないことと、ちょうど 20,000 コードポイントの送信が `ops` に残ることを確かめる。
@@ -17,6 +22,8 @@
 //! 閾値は `5 * 1024 * 1024 = 5,242,880` バイト（`MAX_HISTORY_BYTES` の 10 MiB とは別の値）。区間ごとの判定に加え、
 //! 本物の 1 本の履歴では後の章のチェックポイントも前の章の世界状態を持つため、合算の目安
 //! `Σ total_bytes + (Σ checkpoints + 1) × Σ world_bytes` も判定する（上限側の推定であり、厳密な上限ではない）。
+//! 条件 L の合算の目安は、上限が 1 つの履歴あたりなので区間ごとの 200 件を足さず、`Σ(total_bytes − checkpoint_bytes) +
+//! MAX_CHECKPOINTS × (区間の中の 1 件あたりの最大の大きさ + Σ world_bytes)` を使う。
 //! 出力には大きさ・件数・ハッシュだけを出し、本文は出さない。試験では `unwrap` を使ってよい。
 
 #[path = "common/ch0_3_journey.rs"]
@@ -32,10 +39,11 @@ mod sha256;
 
 use std::path::PathBuf;
 
-use fandhe_workshop_contract::limits::MAX_INPUT_CODE_POINTS;
-use fandhe_workshop_core::event::Event;
+use fandhe_workshop_contract::limits::{MAX_CHECKPOINTS, MAX_INPUT_CODE_POINTS};
+use fandhe_workshop_core::event::{ControlKind, Event, RefuseReason};
 use fandhe_workshop_core::history_envelope::SessionEnvelope;
 use fandhe_workshop_core::history_load::{parse_history_envelope, parse_history_json};
+use fandhe_workshop_core::history_replay::replay;
 use fandhe_workshop_core::input::{Control, Op};
 use fandhe_workshop_core::{load_ir, Session, SessionState};
 use fandhe_workshop_pack::compile::compile_dir;
@@ -188,6 +196,15 @@ fn chapter_of(uid: &str) -> &str {
 
 fn host_at(ir_bytes: &[u8], first: &str) -> EngineHost {
     let ir = load_ir(ir_bytes).unwrap();
+    EngineHost::with_session(
+        Session::from_state(ir, initial_at(first)),
+        standard_registry(),
+    )
+    .unwrap()
+}
+
+/// 区間の開始の状態（契約のサンプルの初期状態の先頭の Step を差し替えたもの）。
+fn initial_at(first: &str) -> SessionState {
     let sample: Value = serde_json::from_slice(
         &std::fs::read(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -199,8 +216,7 @@ fn host_at(ir_bytes: &[u8], first: &str) -> EngineHost {
     let text = serde_json::to_string(&sample["initial"])
         .unwrap()
         .replace("\"main/st-1\"", &format!("\"{first}\""));
-    let state: SessionState = serde_json::from_str(&text).unwrap();
-    EngineHost::with_session(Session::from_state(ir, state), standard_registry()).unwrap()
+    serde_json::from_str(&text).unwrap()
 }
 
 fn settle(h: &mut EngineHost) {
@@ -256,6 +272,11 @@ impl Drive for HostDrive<'_> {
 }
 
 fn run_section(section: Section, cond: Cond) -> Outcome {
+    run_section_with(section, cond, false)
+}
+
+/// 条件 L（`fill`）では、通しの後に保存の数を上限ちょうどまで詰めてから書き出す。
+fn run_section_with(section: Section, cond: Cond, fill: bool) -> Outcome {
     match section {
         Section::S1 => {
             let bytes = std::fs::read(
@@ -270,7 +291,8 @@ fn run_section(section: Section, cond: Cond) -> Outcome {
             run_moves(&mut h, cond, ch0_3_journey::FIRST, &moves, |m, h| {
                 m.apply(h)
             });
-            finish(&h, &bytes, "ch0-3-run".into())
+            let initial = initial_at(ch0_3_journey::FIRST);
+            finish_with(&mut h, &bytes, "ch0-3-run".into(), fill.then_some(initial))
         }
         Section::S2 => {
             let bytes = std::fs::read(
@@ -285,7 +307,8 @@ fn run_section(section: Section, cond: Cond) -> Outcome {
             run_moves(&mut h, cond, ch4_9_journey::FIRST, &moves, |m, h| {
                 m.apply(h)
             });
-            finish(&h, &bytes, "ch4-9-run".into())
+            let initial = initial_at(ch4_9_journey::FIRST);
+            finish_with(&mut h, &bytes, "ch4-9-run".into(), fill.then_some(initial))
         }
         Section::S3 => {
             let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -311,9 +334,76 @@ fn run_section(section: Section, cond: Cond) -> Outcome {
                 }
             }
             assert!(sent, "長い入力を差し込めなかった");
-            finish(&h, &bytes, ir.pack.id.clone())
+            let pack_id = ir.pack.id.clone();
+            finish_with(&mut h, &bytes, pack_id, fill.then(SessionState::default))
         }
     }
+}
+
+/// `fill` が `Some(initial)` なら、保存の数を上限ちょうどまで詰め、201 件目の断りと適用し直しを確かめてから書き出す。
+fn finish_with(
+    h: &mut EngineHost,
+    ir_bytes: &[u8],
+    pack_id: String,
+    fill: Option<SessionState>,
+) -> Outcome {
+    if let Some(initial) = fill {
+        fill_to_limit(h, &initial);
+    }
+    finish(h, ir_bytes, pack_id)
+}
+
+/// 書き出しの包みの、保存の数の上限が動かしてはいけない欄。
+fn frozen_fields(h: &EngineHost) -> Value {
+    let ExportGate::Ready(bytes) = h.export_live() else {
+        panic!("書き出しが Ready でない");
+    };
+    let env = parse_history_envelope(parse_history_json(&bytes).unwrap()).unwrap();
+    serde_json::json!({
+        "checkpoints": serde_json::to_value(&env.snapshot.checkpoints).unwrap(),
+        "next_checkpoint": serde_json::to_value(env.snapshot.next_checkpoint).unwrap(),
+        "run": serde_json::to_value(&env.snapshot.run).unwrap(),
+        "entry": serde_json::to_value(&env.snapshot.entry).unwrap(),
+    })
+}
+
+fn fill_to_limit(h: &mut EngineHost, initial: &SessionState) {
+    let count = |h: &EngineHost| h.model().session().unwrap().state().checkpoints.len();
+    assert!(
+        count(h) <= MAX_CHECKPOINTS,
+        "通しの時点で上限を超えている（試験の前提が崩れた）: {}",
+        count(h)
+    );
+    while count(h) < MAX_CHECKPOINTS {
+        save(h);
+    }
+    assert_eq!(count(h), MAX_CHECKPOINTS);
+    let before = frozen_fields(h);
+    let log_before = h.model().session().unwrap().log().len();
+    save(h);
+    let session = h.model().session().unwrap();
+    let added = &session.log()[log_before..];
+    assert!(
+        matches!(
+            added,
+            [Event::Refused {
+                op: ControlKind::Save,
+                reason: RefuseReason::CheckpointLimit,
+                ..
+            }]
+        ),
+        "201 件目の保存が断られていない: {added:?}"
+    );
+    assert_eq!(count(h), MAX_CHECKPOINTS);
+    assert_eq!(frozen_fields(h), before, "断った保存が状態を変えた");
+    // `ops` の適用し直しの結果が写しと一致する（replay_mismatch にならない）。
+    let ExportGate::Ready(bytes) = h.export_live() else {
+        panic!("書き出しが Ready でない");
+    };
+    let env = parse_history_envelope(parse_history_json(&bytes).unwrap()).unwrap();
+    let ir = session.ir().clone();
+    let replayed = replay(&ir, initial.clone(), &env.ops).expect("replay");
+    assert_eq!(replayed, env.snapshot, "適用し直した結果が写しと違う");
 }
 
 fn size_of(o: &Outcome) -> HistorySize {
@@ -417,4 +507,66 @@ fn same_run_same_bytes_and_round_trip() {
             );
         }
     }
+}
+
+/// 条件 L: 上限（200 件）ちょうどの履歴が 5MB 以下で、読み直しが一致し、決定的である（SAVE-27・SAVE-31）。
+#[test]
+fn at_the_checkpoint_limit_within_5mb() {
+    let mut rest_sum = 0u64;
+    let mut worlds = 0u64;
+    let mut max_per_checkpoint = 0u64;
+    for section in Section::ALL {
+        let o = run_section_with(section, Cond::C, true);
+        let size = size_of(&o);
+        assert_eq!(
+            size.checkpoints,
+            MAX_CHECKPOINTS as u64,
+            "{}",
+            section.name()
+        );
+        let line = serde_json::json!({
+            "section": section.name(),
+            "condition": "L",
+            "ir_sha256": o.ir_sha256,
+            "total_bytes": size.total_bytes,
+            "checkpoints": size.checkpoints,
+            "checkpoint_bytes": size.checkpoint_bytes,
+            "world_bytes": o.world_bytes,
+            "threshold_bytes": SAVE27_THRESHOLD_BYTES,
+            "threshold_ratio_ppm": size.total_bytes * 1_000_000 / SAVE27_THRESHOLD_BYTES,
+        });
+        println!("\nHISTORY-SIZE-ALL-CHAPTERS {line}");
+        assert!(
+            size.total_bytes <= SAVE27_THRESHOLD_BYTES,
+            "SAVE-27 exceeded at the limit: {} total_bytes {}",
+            section.name(),
+            size.total_bytes
+        );
+        // 書き出したバイト列を読み直して元と一致する。
+        let value = parse_history_json(&o.bytes).expect("stages 1-3");
+        assert_eq!(parse_history_envelope(value).expect("stages 4-5"), o.env);
+        // 2 回流して同じバイト列になる。
+        assert_eq!(run_section_with(section, Cond::C, true).bytes, o.bytes);
+        rest_sum += size.total_bytes - size.checkpoint_bytes;
+        worlds += o.world_bytes;
+        max_per_checkpoint = max_per_checkpoint.max(size.checkpoint_bytes / size.checkpoints);
+    }
+    // 1 本の履歴が 200 件の最も重い写しを持つ場合の上限側の推定。閾値は緩めない。
+    let estimate = rest_sum + MAX_CHECKPOINTS as u64 * (max_per_checkpoint + worlds);
+    println!(
+        "\nHISTORY-SIZE-ALL-CHAPTERS-ESTIMATE {}",
+        serde_json::json!({
+            "condition": "L",
+            "sum_rest_bytes": rest_sum,
+            "max_bytes_per_checkpoint": max_per_checkpoint,
+            "sum_world_bytes": worlds,
+            "estimate_bytes": estimate,
+            "threshold_bytes": SAVE27_THRESHOLD_BYTES,
+            "threshold_ratio_ppm": estimate * 1_000_000 / SAVE27_THRESHOLD_BYTES,
+        })
+    );
+    assert!(
+        estimate <= SAVE27_THRESHOLD_BYTES,
+        "SAVE-27 estimate exceeded at the limit: {estimate}"
+    );
 }

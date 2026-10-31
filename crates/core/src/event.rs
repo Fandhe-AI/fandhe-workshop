@@ -71,6 +71,9 @@ pub enum RefuseReason {
     NoHint,
     /// 閉じた周回の Step への移動（MOD-15・D-24。TASK-249）。
     ClosedRound,
+    /// チェックポイントの保存の数が上限（`MAX_CHECKPOINTS`）に達している（SAVE-31。TASK-339 2/2）。
+    /// 受講者の任意の保存と、章の終わりの自動保存の見送りの両方に使う。
+    CheckpointLimit,
 }
 
 /// 拒否の後に示す次の行動（TASK-249）。受講者向けの文面は持たず、web が理由から引いて文面に当てる。
@@ -82,16 +85,24 @@ pub enum RefuseReason {
 pub enum RefuseNextAction {
     /// 今の周回を続ける。
     ContinueCurrentRound,
+    /// 今までのチェックポイントを残したまま、進行の保存を続ける（チェックポイントは増やさない。SAVE-31）。
+    ContinueWithExistingCheckpoints,
 }
 
 impl RefuseNextAction {
     /// すべての行動。
-    pub const ALL: [RefuseNextAction; 1] = [RefuseNextAction::ContinueCurrentRound];
+    pub const ALL: [RefuseNextAction; 2] = [
+        RefuseNextAction::ContinueCurrentRound,
+        RefuseNextAction::ContinueWithExistingCheckpoints,
+    ];
 
     /// 行動の識別子（ASCII の snake_case）。
     pub const fn as_str(self) -> &'static str {
         match self {
             RefuseNextAction::ContinueCurrentRound => "continue_current_round",
+            RefuseNextAction::ContinueWithExistingCheckpoints => {
+                "continue_with_existing_checkpoints"
+            }
         }
     }
 }
@@ -101,6 +112,9 @@ impl RefuseReason {
     pub const fn next_action(self) -> Option<RefuseNextAction> {
         match self {
             RefuseReason::ClosedRound => Some(RefuseNextAction::ContinueCurrentRound),
+            RefuseReason::CheckpointLimit => {
+                Some(RefuseNextAction::ContinueWithExistingCheckpoints)
+            }
             RefuseReason::UnknownCheckpoint
             | RefuseReason::UnknownStep
             | RefuseReason::StartUnmet

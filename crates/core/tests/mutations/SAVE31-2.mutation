@@ -1,0 +1,8 @@
+id: SAVE31-2
+package: fandhe-workshop-core
+test: checkpoint_limit
+target: crates/core/src/checkpoint.rs
+find:     if state.checkpoints.len() >= MAX_CHECKPOINTS {
+replace:     if false && state.checkpoints.len() >= MAX_CHECKPOINTS {
+expect-fail: the_201st_manual_save_is_refused_without_change
+note: 保存の数の上限の判定を外す（201 件目の保存が通る。SAVE-31）

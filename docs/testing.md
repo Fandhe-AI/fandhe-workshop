@@ -11578,3 +11578,29 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 未検証: ブラウザ試験。`make test-browser` は 600 秒で打ち切られ、`checkpoint-restore` など複数が失敗した。自動保存の結線を外した写し（`if false &&`）でも `checkpoint-restore` の同じ失敗が出たため、本件が原因とは確認できていない（原因は未調査）。`tools/browser/` でチェックポイントの件数・ID を固定している試験（`history-continue` の `two checkpoints` など）の期待値の見直しは、CI の `browser-test` で確かめる
 - 範囲外: 上限 200 件・上限の後の扱いは TASK-339 2/2（#801）。`make check-generic-words` は `history_replay.rs`（`post`）と `crates/web/static/app.js`（`github`・`repo`）で 5 件の違反を報告するが、本件の変更箇所ではない
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.425 チェックポイントの保存の数の上限（TASK-339 2/2。SAVE-31）
+
+- 目的: 保存の数を 1 つの履歴あたり 200 件（`MAX_CHECKPOINTS`。章の終わりの自動保存と任意の保存の合計）に抑える。古いものは消さない。上限の後の任意の保存は `Refused(CheckpointLimit)` で断り、章の終わりの自動保存は見送って同じ `Refused` を末尾に 1 件足す。右のログには固定文の 1 行（`data-kind="checkpoint_limit"`）が出る。数は `checkpoints.len()` で数え、`>=` で比べる（履歴由来の `next_checkpoint` は使わない）
+- 解釈（自動運転のため安全側に固定した）: 「状態と保存先を変えない」は、`checkpoints`・`next_checkpoint`・`run`・`entry` を変えないことを指す。断った操作も `ops` に記録され、ログに `Refused` が 1 件足される（拒否の既存の扱いと同じ）。保存のボタンは隠さず、押すと理由が出る
+- 試験: `crates/core/tests/checkpoint_limit.rs`（8 件）、`crates/web/tests/log_lines_contract.rs`、`crates/web/tests/history_size_all_chapters.rs`（条件 L）
+
+| 確かめること | 試験 |
+|---|---|
+| 上限が 200 | `the_limit_is_200` |
+| 200 件目の保存は通る | `the_200th_save_succeeds` |
+| 201 件目の任意の保存は断られ、ログの 1 件以外は状態が等しい | `the_201st_manual_save_is_refused_without_change` |
+| 自動保存が 200 件目になれる | `the_autosave_can_be_the_200th` |
+| 上限の後の章の終わりは達成が起き、`CheckpointSaved` は 0 件、末尾に `Refused` が 1 件 | `the_autosave_after_the_limit_is_skipped_with_one_line` |
+| 手で組んだ 200 件超でも断る | `over_the_limit_is_also_refused` |
+| ID のあふれは従来どおり `Warning` | `id_overflow_still_warns` |
+| 任意の保存と自動保存が同じ列・同じ上限を使い、`ops` の適用し直しが一致する | `manual_and_auto_saves_share_the_limit_and_replay` |
+| 上限の拒否だけが行になり、ほかの `Refused` は行にならない | `保存の上限の拒否は_checkpoint_limit_行になり_ほかの拒否は行にならない` |
+| 上限ちょうどの全章の形の写しが 5MB 以下、201 件目の断り、読み直し・適用し直しの一致、決定性 | `at_the_checkpoint_limit_within_5mb` |
+
+- 条件 L の測定（2026-10-31。`total_bytes`）: S1 637,310、S2 592,549、S3 979,163（いずれも 5,242,880 の 19% 以下）。1 本の履歴で 200 件の最も重い写しを持つ場合の目安は 2,263,401 バイト（閾値の 43%）
+- 契約の版: `CONTRACT_VERSION` 7 から 8、`LIMITS_CONTRACT_VERSION` 2 から 3、`TERMINAL_AREA_CONTRACT_VERSION` 3 から 4
+- 変異注入: `SAVE31-2`（判定を外す）・`SAVE31-3`（境目を 1 件ずらす）・`SAVE31-4`（理由の取り違え）・`SAVE31-5`（web の行の写しを外す）。定義の静的検査（`make check-mutation-defs`）は通した。`make check-mutations` での実行は未検証
+- 限界: `env_action: save` の Step は上限の後に受付にならない（`docs/known-gaps.md` SAVE-31）。200 件に届くブラウザ試験は遅いため作っていない。`EngineHost` を通した右のログの件数の試験は作っていない（行の写しは単体で固定した）
+- 範囲外: spec repo（SAVE-31・SAVE-26・limits の値と理由）の反映。上限に達したときに保存のボタンを隠す・無効にするかの UI の判断
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
