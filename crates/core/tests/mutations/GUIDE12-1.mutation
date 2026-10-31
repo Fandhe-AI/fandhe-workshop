@@ -1,0 +1,9 @@
+id: GUIDE12-1
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:     if reselected && rule.kind == CheckKind::NoReselection {
+replace:     if false && reselected && rule.kind == CheckKind::NoReselection {
+expect-fail: no_reselection_wrong_then_correct_is_not_self_reliant
+expect-fail: lo4_bundle_counts_only_all_first_correct_participants
+note: 選び直しの手順を持たない確認で、誤答の後の正答を自力に数えてしまう

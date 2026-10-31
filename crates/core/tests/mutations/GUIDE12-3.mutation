@@ -1,0 +1,9 @@
+id: GUIDE12-3
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:             SelfRelianceOutcome::CorrectAfterWrong => &mut t.correct_after_wrong,
+replace:             SelfRelianceOutcome::CorrectAfterWrong => &mut t.self_reliant_reselected,
+expect-fail: no_reselection_wrong_then_correct_is_not_self_reliant
+expect-fail: lo4_bundle_counts_only_all_first_correct_participants
+note: 集計で誤答の後の正答を自力の側に入れる
