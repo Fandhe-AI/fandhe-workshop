@@ -132,6 +132,23 @@ fn goto_to_closed_round_is_refused_without_change() {
 }
 
 #[test]
+fn goto_via_main_step_cannot_reenter_closed_round() {
+    let ir = ir();
+    let st = begin(&ir, start_state(), "s-a");
+    let st = begin(&ir, st, "s-b");
+    // main の Step は閉鎖対象外なので移れるが、そこから閉じた周回へは戻れない
+    let (st, ev) = go(&ir, st, "main/x");
+    assert!(is_moved(&ev), "{ev:?}");
+    let before = st.clone();
+    let (after, ev) = go(&ir, st, "m@a/s1");
+    assert!(is_closed_refusal(&ev), "{ev:?}");
+    assert_eq!(after.run, before.run);
+    assert_eq!(after.entry, before.entry);
+    let (_, ev) = go(&ir, before, "main/a1");
+    assert!(is_closed_refusal(&ev), "{ev:?}");
+}
+
+#[test]
 fn goto_within_same_round_still_moves() {
     let ir = ir();
     let st = begin(&ir, start_state(), "s-a");

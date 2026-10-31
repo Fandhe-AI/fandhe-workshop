@@ -2,7 +2,7 @@ id: MOD15-2
 package: fandhe-workshop-core
 test: go_to_closed_round
 target: crates/core/src/closed_round.rs
-find:     if to_round >= cur_round {
-replace:     if to_round > cur_round {
+find:     if to_round == cur_round {
+replace:     if false {
 expect-fail: restore_to_closed_round_checkpoint_still_works_and_moves_inside_are_allowed
 note: 今の周回も閉じたものとして扱う（後の周回を開始した後に、復帰で戻った前の周回の中の移動まで拒否する）
