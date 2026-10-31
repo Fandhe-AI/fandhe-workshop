@@ -11359,3 +11359,23 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 追加した試験は `tools/update-l2.test.mjs` の「Windows 向けの zip」12 件（正常系・build との等価性・欠落・混在・名前と固定値の食い違い・Windows の名前・Unix の mode の対照）。既存の試験は無修正で合格した。5.362 の「範囲外」の追従はこれで解いた（5.359・5.362 の記録は書き換えない）
 - 実行（2026-10-31、手元の Linux）: `make test-update-l2` は 46 件すべて合格、`make test-build-l2` は不合格 0 件
 - 未検証: Windows の実機での起動（TASK-120）。`make test-l2-run` は linux-x64 だけで、本件では変えていない
+
+### 5.416 講師資料の補助ファイルの受け口の試験（TASK-74。PACK-49）
+
+- 目的: `instructor/instructor.yaml` を置いても `validate`・`compile` が診断を増やさず、置かない教材パックの IR が受け口の前とバイト単位で同じことを固定する。製品のコード・語彙は変えていない
+
+| 確かめること | 試験（`crates/pack/tests/instructor_aux_file.rs`） |
+|---|---|
+| 12 本の教材で診断が増えず `compile` が通る | `pack49_aux_file_passes_validate_and_compile` |
+| 12 本で IR と `content_hash` が補助ファイルの有無で同一 | `pack49_ir_is_byte_identical_with_and_without_aux_file` |
+| 本文の木の無い最小パックで同一 | `pack49_pack_without_trees_is_unchanged` |
+| 形式 A（TOML）でも通る | `pack49_format_a_pack_accepts_yaml_aux_file` |
+| 不正な中身（閉じない括弧・重複キー・アンカー・空・バイナリ）を読まない | `pack49_aux_file_contents_are_not_read` |
+| 番兵の値が IR・`validate`・`compile` の出力に出ない | `pack49_aux_values_do_not_reach_ir_or_output` |
+| CLI の終了コードと `compare` の一致 | `pack49_cli_validate_compile_compare_test_exit_ok` |
+| `instructor/` の下のシンボリックリンクが `E-LIMIT-SYMLINK` | `pack49_limits_still_apply_under_instructor_dir` |
+| `metrics` に補助ファイルの行が出る（観察） | `pack49_metrics_lists_aux_file_observation` |
+
+- 禁じたこと: 製品のコード・`docs/vocabulary/`・凍結物の変更
+- 限界: 中身を読まないことの固定は INSTR-18 で置き換わる。件数（`scripts/expected-test-counts.txt`）は版上げ PR の関門だけで照合されるため更新していない
+- 実行（2026-10-31）: 9 件すべて合格

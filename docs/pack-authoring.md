@@ -746,10 +746,21 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 
 根拠の試験: `crates/pack/tests/upstream_map_gap.rs` の `pack46_`（`docs/known-gaps.md` の PACK-46）。洗い出しの道具の試験は `tools/upstream-impact.test.mjs`（`make test-upstream-impact`。`docs/testing.md` 5.235）。
 
+## 講師資料の補助ファイル（`instructor/instructor.yaml`）
+
+講師資料（次以降の機能）に要る値（章の所要時間・模範の例・追加の声かけなど）は、教材パックの `instructor/instructor.yaml` に置く受け口を用意しています（PACK-49）。
+
+- 置き場は教材パックの根の `instructor/instructor.yaml` です。形式 A（TOML）の教材パックでも、名前は `.yaml` のままです
+- `validate`・`compile` は読みません。置いても診断は増えず、IR と `content_hash` はバイト単位で変わりません。値は受講者向けの IR にも載りません
+- 中身の欄の検査と不足の診断（`E-INSTR-*`）、講師資料の生成は次以降です。いまは構文が不正でも通ります
+- `E-SECRET-SHAPE` の対象外です。秘密情報や社内固有の語を書かないでください。公開前の `make check-internal-info-secrets` は全ファイルを照合します
+- `metrics` の CSV には `toml`・`yaml` の通常ファイルとして補助ファイルの行が出ます（`docs/known-gaps.md` の PACK-49）
+
 ## 根拠となる試験
 
 | 試験 | 確かめること |
 |---|---|
+| `crates/pack/tests/instructor_aux_file.rs` の `pack49_` | 補助ファイルを足した教材パックの `validate`・`compile` が診断を増やさず、IR と `content_hash` がバイト単位で同じこと、形式 A でも通ること、不正な中身を読まないこと、値が IR・CLI の出力に出ないこと、`instructor/` の下でも上限の検査が効くこと（PACK-49。TASK-74） |
 | `crates/pack/tests/secret_shape_validate.rs` の `author18_` | 15 形の本文・練習データ・Step・拒否の文面・教材テストでの検出とファイル・項目の欄、診断・CLI の出力に値が写らないこと、対照の非検出、`test` の関門、リポジトリ内のパックでの誤検出 0 件（AUTHOR-18・D-81。TASK-420 1/2） |
 | `crates/pack/tests/guidance_levels.rs` | 本文の C → B → A の探し方・ヒントの水準ごとの選択・モジュールの実体での一致・`A`・`B`・`C` 以外の水準の `E-PARSE`（PACK-17。TASK-49 1/2）と、`body_levels` の鍵 `A` の `E-STRUCTURE`・隠す語の漏れの `E-GUIDANCE-LEAK`・ヒントが出ない水準の `E-HINT-HIDDEN`（TASK-49 2/2） |
 | `crates/pack/tests/guidance_leak_scope.rs` | 置換後の `do`・`do_levels` の漏れの検出・既定値と入れ子の引数・重複しない 1 件・ヒントの文面と宣言の無い章の本文を検出しないこと・診断に値が写らないこと（PACK-52。TASK-71 3/3） |

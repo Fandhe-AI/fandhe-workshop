@@ -36,7 +36,8 @@
 ├── modules/<名前>/module.yaml     # 学習モジュール（0 個以上）
 ├── modules/<名前>/*.md            # モジュールの Step の本文
 ├── fixtures/...                   # 練習データ（workshop.yaml の fixtures が指す）
-└── tests/playthrough.yaml         # 教材テスト（省略できる）
+├── tests/playthrough.yaml         # 教材テスト（省略できる）
+└── instructor/instructor.yaml     # 講師資料の補助ファイル（省略できる。エンジンは読まない）
 ```
 
 - `workshop.yaml` と `workshop.toml` の両方がある、またはどちらも無い教材パックは `E-PARSE` で拒否します（PACK-2）
@@ -44,6 +45,7 @@
 - 本文のパスは、章・モジュールのディレクトリの下の安全な相対パスです。`..`・絶対パス・`\` を含むパスは `E-REF-BODY` で拒否します。存在しないファイルも `E-REF-BODY` です
 - 練習データのパスは、教材パックの根から見て `fixtures/` の下の安全な相対パスです。それ以外は `E-REF-FIXTURE` です
 - 読む前に、上限（全体 20 MiB・本文 1 ファイル 512 KiB・ディレクトリの深さ 32・シンボリックリンクの禁止）を確かめます。超えると `E-LIMIT-*` です（値の正は `crates/contract/src/limits.rs`）
+- `instructor/` の下は読み込まず、診断も出しません。置いても IR は変わりません。上限（全体の大きさ・深さ・シンボリックリンク）の検査には数えます。中身の検査は次以降です（INSTR-18。`docs/pack-authoring.md` の「講師資料の補助ファイル」）
 - 教材テストの読み込みでは、`tests/playthrough.yaml` が無いことだけを「省略」と認めます。ディレクトリや特殊ファイルの場合は `E-STRUCTURE` です
 
 ## 3. `workshop.yaml`
