@@ -8,6 +8,7 @@
 //! TASK-547 2/3 の静的な部分も本ファイルが持つ。(3) 章の開始 `Control::Begin` の組み立てが `host.rs` の「次の章へ進む」の腕の 1 件だけであること、
 //! (4) PoC 期の試験用クエリ 7 種を `static/app.js` がキーとして読まないこと。動的な部分（画面の要素の復号）は `next_chapter.rs`、
 //! ブラウザでの確認は `tools/browser/query-inert.test.mjs`、URL を読まない構造の証明は `tick_interval.rs` が持つ。
+//! 開発用の「本文の参照:」の行（TERM-41。TASK-462）が配信する設定で 0 件であることも本ファイルが持つ（静的検査と 20 Step の画面）。
 //! 範囲外: ブラウザでの CH-0〜CH-3 の通しと部品・配信物の検査（tools/browser/delivery-ports.test.mjs。3/3）、配信物の検査（TASK-82）。
 //! 試験の設定の対照は `cargo test -p fandhe-workshop-web --features test-hooks --test delivery_ports` で手元で流す。
 //! 試験では `unwrap` を使ってよい。
@@ -37,6 +38,9 @@ const HIDDEN: [&str; 4] = [
     "complete-trigger",
     "raw-trigger",
 ];
+
+/// 開発用の「本文の参照: …」の行の文言（空白を詰めた形。TERM-41・TASK-462）。
+const BODY_REF_LABEL: &str = "本文の参照:";
 
 /// 受講者向けの Step 移動のボタンの文言（空白を詰めた形）。
 const MOVE_LABEL: &str = "移動:";
@@ -78,6 +82,9 @@ fn violations(src: &[(String, String)]) -> Vec<String> {
         }
         if code.contains(MOVE_LABEL) {
             out.push(format!("{rel}: 移動ボタンの文言"));
+        }
+        if code.contains(BODY_REF_LABEL) {
+            out.push(format!("{rel}: 開発用の本文の参照の行の文言"));
         }
         if code.contains("Control::GoTo") {
             out.push(format!("{rel}: Control::GoTo の組み立て"));
@@ -217,6 +224,11 @@ fn 移動ボタンの文言と_goto_の組み立てを検出する() {
     assert!(any(&v, "移動ボタンの文言"), "{v:?}");
     let v = violations(&with("view.rs", "fn v() { let c = Control::GoTo(x); }"));
     assert!(any(&v, "Control::GoTo"), "{v:?}");
+    let v = violations(&with(
+        "view.rs",
+        "fn v() { let t = \"本文の参照: st-1-1.md\"; }",
+    ));
+    assert!(any(&v, "本文の参照の行"), "{v:?}");
 }
 
 #[test]
@@ -305,6 +317,7 @@ fn 配信する設定では二十_step_の全画面に試験用の口が無い()
     assert!(screens.len() > 20, "通しの画面の数: {}", screens.len());
     assert_retired_absent(&screens);
     for (i, s) in screens.iter().enumerate() {
+        assert!(!s.contains("本文の参照"), "画面 {i}: 本文の参照の行");
         assert!(!s.contains("raw-trigger"), "画面 {i}: raw-trigger");
         assert!(
             !s.contains("data-action=\"raw\""),

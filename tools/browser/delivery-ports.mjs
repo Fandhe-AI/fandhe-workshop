@@ -28,15 +28,18 @@ export function probeParts(page) {
       nextChapter: document.querySelectorAll(next).length,
       hooks: typeof window.__fandheTest,
       meta: document.querySelectorAll('meta[name="fandhe-test-hooks"]').length,
-      // TERM-41 は検討中のため記録だけ（合否に使わない）。
-      bodyRef: [...document.querySelectorAll('li,p,div,span')].filter((e) => e.children.length === 0 && squash(e.textContent).includes('本文の参照:')).length,
+      // 開発用の「本文の参照:」の行の件数（TERM-41。TASK-462）。配信する設定では 0 件を合否にし、試験の設定では記録だけにする。
+      // 最も深い入れ物だけを数える（プロトタイプの形 <p>本文の参照: <span>…</span></p> も 1 件になる）。件数だけを返し、文字は返さない。
+      bodyRef: [...document.body.querySelectorAll('*')].filter((e) => !e.closest('script,style,template')
+        && squash(e.textContent).includes('本文の参照:')
+        && ![...e.children].some((c) => squash(c.textContent).includes('本文の参照:'))).length,
     };
   }, [HIDDEN_NAMES, NEXT_CHAPTER]);
 }
 
 /** 部品の探針の結果が「口なし」か。配信する設定の全時点の期待。 */
 export function isPortFree(p) {
-  return Object.values(p.hidden).every((n) => n === 0) && p.moves === 0 && p.nextChapter === 0 && p.hooks === 'undefined' && p.meta === 0;
+  return Object.values(p.hidden).every((n) => n === 0) && p.bodyRef === 0 && p.moves === 0 && p.nextChapter === 0 && p.hooks === 'undefined' && p.meta === 0;
 }
 
 const WASM_PATH = 'wasm/fandhe_workshop_web_bg.wasm';
