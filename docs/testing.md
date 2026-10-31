@@ -11143,3 +11143,30 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - `scripts/test-check-delivery.sh`: 65 件が通った（`SKIP_WASM_OPT=1` の配信する設定が 0、試験の設定が 1、`--control` の誤用が 2、印の注入が 1、`name` セクション内の `debug_` が 0）
 - `delivery-ports` のブラウザ試験: 8 件が通った。D は 3 配信物とも 10/10 項目が一致し、配信する設定は終了コード 0（`SKIP_WASM_OPT=1`）
 - 以降の実行結果は PR のチェックで確認する。`make test-build-web` の通しは別記（未検証の場合はそのまま書く）
+
+### 5.409 配信物が読むクエリの最小化と debug_ の公開名の記録（TASK-111 1/2。DLV-10・SHELL-35）
+
+配信する設定の `app.js` が読む URL のクエリが直接リンクの `start` の 1 つだけであることと、PoC 期の試験用クエリ 7 種が効かないことの確認である。本件で新しい試験は足さない。既存の試験が受け入れ条件を満たすことを対応づけ、`debug_` の公開名の記録の手順を `docs/publish-checks.md` の「DLV-10」に置いた。
+
+「1 つだけ」は spec・Issue の文面では `?ir` だが、D-68 で IR の場所は URL から受けず固定の `./ir/main.json` になったため、直接リンクは `start` である。`ir` を読む処理は足していない（SAFE-33）。
+
+#### 対応
+
+| DLV-10 の期待 | 試験 |
+|---|---|
+| `app.js` が読むクエリが `start` だけ | `crates/web/tests/tick_interval.rs` の `配信する経路は_url_を読まない`（5.404） |
+| `ir` を読まない | `tick_interval.rs` の `ir_のクエリは読まず場所を組み立てない`、`tools/browser/ir-location.test.mjs`（TASK-168） |
+| 試験用クエリ 7 種をキーとして読まない | `crates/web/tests/delivery_ports.rs` の `配信する画面の_app_js_は試験用クエリ_7_種を読まない`（5.404・5.405） |
+| 7 種を付けても挙動が変わらない | `tools/browser/query-inert.test.mjs`（5.405）、`delivery-ports.test.mjs` の B（5.407） |
+| 配信物に `debug_` の書き出しが 0 件 | `tools/check-delivery.sh`。記録の手順は `docs/publish-checks.md` の DLV-10 |
+
+#### 注意
+
+- 確かめないこと: CSP の `<meta>`（TASK-111 2/2）、`check-delivery.sh` の拡張（TASK-82）
+- 限界: BUILD-27 の `debug_` 5 件と実装の 37 件の差は扱わない
+
+#### 件数・確認（2026-10-30）
+
+- 手元: wasm-opt 適用済みの配信する設定は `check-delivery.sh` が終了コード 0、書き出し 17 件で `debug_` 0 件。試験の設定の対照は 55 件中 37 件が `debug_`
+- native: `delivery_ports` 11 件・`tick_interval` 6 件が通過
+- ブラウザの `query-inert` は未実施（CI の `browser-test` に任せる）
