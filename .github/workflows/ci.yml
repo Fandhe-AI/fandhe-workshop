@@ -181,6 +181,11 @@ jobs:
           make check-fork-ci
           make test-check-fork-ci
 
+      # 配布用の実行ファイルの作成スクリプト（TASK-415）の回帰テスト。偽の実行ファイルを使い、ビルドはしない。
+      # 既存ジョブへの step 追加のため、ジョブ名・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make test-build-pack-release
+        run: make test-build-pack-release
+
   # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
   # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。
   # ubuntu では常に実行する。macOS での検証は test-hooks-macos が担当する。

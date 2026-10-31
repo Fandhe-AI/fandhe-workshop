@@ -16,7 +16,7 @@ description: >
 ## runner 方針
 
 - 本リポジトリは **public**。runner は GitHub-hosted（`ubuntu-latest`）を使う（組織方針: Fandhe-AI/actions の `docs/runner-policy.md`）
-- OS 要件による例外: `ci.yml` の `test-hooks-macos` は macOS（BSD 系コマンド・bash 3.2 の挙動検証が目的）で `macos-latest` を使う
+- OS 要件による例外: `ci.yml` の `test-hooks-macos` は macOS（BSD 系コマンド・bash 3.2 の挙動検証が目的）で `macos-latest` を使う。`release.yml` の `build-pack-macos-arm64` も `macos-latest` を使う（Apple シリコン用の実行ファイルを作るのが目的。`uname -m` が `arm64` でなければ失敗する）
 - 例外: `ai-review.yml` の `codex / review` は reusable workflow 側が使う self-hosted の codex 専用 runner。
   fork PR は reusable workflow 側が fail-closed で拒否する前提で受容している
 - public リポジトリで self-hosted を新規に使わない。fork PR 経由で任意コードが実行されるリスクがある。
@@ -78,6 +78,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 必須チェックは 10 件から 12 件になった。strict は false、bypass は無しのまま、他の rule は変えていない。
 
 - `deploy.yml` の `deploy` は `workflow_dispatch` だけで動き、PR に報告されないため、必須に入れない
+- `release.yml` の `build-pack-macos-arm64`（TASK-415）も同じ理由で必須に入れない。ruleset の変更は要らない
 - 反映は、ジョブを追加した変更のマージ直後に行った。マージ前に追加すると、古い `ci.yml` を持つ他の open PR で
   新しいチェックが「Expected」のまま残りマージできなくなるため。今後ジョブを追加するときも同じ順序で行う
 
@@ -108,7 +109,8 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
-- 配信のジョブ（`deploy.yml`）は fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
+- 例外: `release.yml`（TASK-415。`fandhe-pack` の実行ファイルのビルドと配布）も `workflow_dispatch` だけで動く。PR に報告されず、macOS の runner の費用を PR のたびに払わないため、`ci.yml` に置かない。トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。1/2 の時点では Release を作らず、成果物は workflow artifact として残す（Release の作成は 2/2 と人の承認点）。`uses` は `actions` の所有者の 40 桁 SHA 固定だけにする
+- 配信のジョブ（`deploy.yml`）と `release.yml` の全ジョブは fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（`release.yml` は C4。パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）
 - 必須チェックを含む workflow に workflow 単位の `paths` / `paths-ignore` を付けない

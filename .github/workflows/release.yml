@@ -1,0 +1,67 @@
+# 作成者向けの実行ファイル（fandhe-pack）のビルドと配布のワークフロー（TASK-415 1/2）。
+#
+# 目的: 教材の作成者に Rust の導入を求めない（TASK-414 の決定）。OS・CPU ごとの実行ファイルをここで作り、
+# 成果物として残す。最初に作るのは macOS の Apple シリコン用だけで、他の OS・CPU は TASK-98・D-19 の後に足す。
+#
+# ci.yml に置かず別ワークフローにする理由（deploy.yml と同じ）:
+# - ci.yml に置くと PR にチェックが報告され、ruleset の必須チェックと ci-complete に影響する。
+#   macOS の runner の費用も PR のたびに払うことになる
+# - workflow_dispatch だけにすれば、PR の HEAD にチェックは報告されない
+#
+# 発火の起点は workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
+# （fork や PR の内容が macOS の runner で動く経路になる。.claude/rules/security.md。scripts/check-fork-ci.sh の C4 が強制する）。
+#
+# 本ファイルは Release を作らない（TASK-415 2/2 の範囲。書き込み権限は持たない）。
+# 実行ファイルは署名・公証をしない（TASK-414 の決定。D-71 と同じ方針）。起動のための案内文は 2/2 で付ける。
+#
+# ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.run_id }}
+  # 成果物の作成の途中で止めない
+  cancel-in-progress: false
+
+jobs:
+  build-pack-macos-arm64:
+    # fork では動かさない。fork は macOS の runner の費用を自分で払うことになり、配布元としての意味も無い。
+    # 値はリポジトリ名の固定の比較にする（scripts/check-fork-ci.sh の C4 が完全一致で検査する）
+    if: github.repository == 'Fandhe-AI/fandhe-workshop'
+    name: "fandhe-pack build (aarch64-apple-darwin)"
+    runs-on: macos-latest
+    # LTO と codegen-units 1 のリリースビルドを冷えた状態で行うため、CI の他のジョブより長めにとる
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # runner のラベルが将来 Intel などに移っても、黙って別の CPU 向けを出さない
+      - name: Check runner architecture
+        run: |
+          arch="$(uname -m)"
+          if [ "${arch}" != "arm64" ]; then
+            echo "::error::runner architecture is ${arch}; expected arm64"
+            exit 1
+          fi
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+      - name: Verify toolchain version
+        run: bash scripts/ci-rust-toolchain.sh
+      - name: Build, verify and package
+        run: make build-pack-release
+      # public の repo の artifact はログインした利用者なら取得できる。公開の判断は 2/2 まで行わないため保持を短くする
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fandhe-pack-aarch64-apple-darwin-${{ github.sha }}
+          path: |
+            dist/pack-release/*.tar.gz
+            dist/pack-release/*.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
