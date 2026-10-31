@@ -548,3 +548,13 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 - `instructor/instructor.yaml` の中身の構文・欄は検査しない。不正な YAML でも `validate`・`compile` は通る。INSTR-18 で中身の検査が入ると、`pack49_aux_file_contents_are_not_read` は置き換わる
 - `E-SECRET-SHAPE` は読み込んだ値だけを調べるため、補助ファイルは対象外。公開前の確認（`make check-internal-info-secrets`）が全ファイルを照合する
 - `metrics` の CSV には補助ファイルの行が出る（`docs/cli.md` の「`toml`・`yaml` の通常ファイル」のとおり）。作成の費用の比較から外すかは未決で、本タスクでは変えていない（`pack49_metrics_lists_aux_file_observation` が現状を固定）
+
+## MOD-18: 実体どうしの世界状態の経路の重なりを検査しない（TASK-253）
+
+限界: 世界状態は教材全体で 1 つで、同じ経路に書く実体は上書きし合います。経路の重なりは `validate`・`compile` とも報告しません。
+
+理由: 意図した共有（同じ README を更新する流れ）と誤った重なりを、経路だけでは見分けられないため、検査せず作成者の規約にとどめると決めました（TASK-251、2026-10-31）。
+
+回避: 実体ごとに分けたい経路は引数で分けます。2 周分の通しを教材テストに書き、各周回の成果物の経路を確かめます。共有する経路は、復帰が持ち主と他の実体の両方の書き込みを戻すことを受け入れる場合に限ります。書き方は `docs/pack-authoring.md` の「実体どうしの世界状態の経路」を見てください。
+
+根拠の試験: `crates/pack/tests/module_path_overlap.rs` の `mod18_`。記録は `docs/testing.md` 5.423。
