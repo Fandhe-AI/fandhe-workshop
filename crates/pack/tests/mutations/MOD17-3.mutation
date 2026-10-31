@@ -1,0 +1,8 @@
+id: MOD17-3
+package: fandhe-workshop-pack
+test: module_skip_steps
+target: crates/core/src/begin.rs
+find:             .insert(uid.clone(), StepStatus::Skipped);
+replace:             .insert(uid.clone(), StepStatus::NotStarted);
+expect-fail: mod17_midstart_marks_the_same_steps_skipped
+note: 途中開始で飛ばした Step を Skipped でなく未着手のままにする（迂回との区別が消える）

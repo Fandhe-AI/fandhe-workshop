@@ -1,0 +1,9 @@
+id: MOD17-2
+package: fandhe-workshop-pack
+test: module_skip_steps
+target: crates/core/src/transit.rs
+find:             .find(|t| t.when.as_ref().is_none_or(Value::is_null))
+replace:             .find(|t| t.when.as_ref().is_none_or(Value::is_null) || true)
+expect-fail: mod17_bypassed_steps_stay_not_started
+expect-fail: mod17_round2_call_enters_st_3_2_and_bypassed_steps_stay_not_started
+note: 遷移で条件つきの辺も採る（引数で迂回するはずの Step へ入る）

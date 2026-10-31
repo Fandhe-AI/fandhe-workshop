@@ -11502,3 +11502,29 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
   - `Control` は `#[non_exhaustive]` のため、周回単位の操作の種類の不在は型では固定できない。代わりに、同じ周回の 2 件の保存がそれぞれの持ち主だけを戻すことで固定する
 - 範囲外: 仕様側（04 の MOD-16 を検討中から確定へ直すこと、`04-behavior/README.md` の件数、D-n の記録）は spec repo で行い、本作業では編集していない
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.422 省く Step の現状の制約の実行時の固定（TASK-252 1/2。MOD-17・D-43）
+
+- 目的: TASK-251 の決定（2026-10-31）は D-43 の追認で、先頭の Step を省く語は足さず、IR とエンジンを変えない。語彙の変更（`param_types`）は pack の検査だけに効く。本節は MOD-17 の実行時の側を試験で固定する。製品のコードの変更は無い
+- 試験: `crates/pack/tests/module_skip_steps.rs`（5 件、`mod17_*`）。core の依存に pack が無く、YAML を `compile` して `Session` を動かす試験は pack crate にしか置けないため、pack crate の試験として置く
+
+| 確かめること | 試験 |
+|---|---|
+| 前提。`param_types` を宣言した引数が `validate` の検査を通り、IR に実体の引数と迂回の分かれ目（条件つきの辺と無条件の辺）がある。(c) の拒否は 5.218（`module_arg_types.rs` の `pack51_*`）で固定済みで重ねない | `mod17_args_pass_the_declared_check` |
+| (a) 引数が後ろの Step を迂回させる実体でも、呼び出しは `ModuleEntered` の直後に先頭の `head` へ入り、迂回の 3 Step は `NotStarted` | `mod17_call_enters_the_first_step_at_runtime` |
+| (b) 迂回した `set-a`・`set-b` は最後まで通っても `NotStarted` のままで、実体の `Skipped` のイベントが 0 件 | `mod17_bypassed_steps_stay_not_started` |
+| (b) の対照。途中開始 `m@off#s-w` では `head`・`set-a`・`set-b` が `Skipped`（IR の順の 3 件）になり、迂回の状態と別である | `mod17_midstart_marks_the_same_steps_skipped` |
+| testdata の `module-reuse-rounds` の 2 周目（`setup: "false"`）。呼び出しが `st-3-2` に入り、`st-6-1` まで進んでも `st-4-1`・`st-5-1` は `NotStarted`、実体の `Skipped` が 0 件 | `mod17_round2_call_enters_st_3_2_and_bypassed_steps_stay_not_started` |
+
+- 既存の試験との違い: `round_slice_init.rs`・`round_property.rs` は 2 周目終了時の `NotStarted` を、`start_skip.rs` は途中開始の `Skipped` を見る。本節が新しく固定するのは、実行時の呼び出しが先頭の Step に着くことと、迂回の区間で `Skipped` が出ないこと（途中開始との区別）
+- 変異注入（2026-10-31、元にしたコミット 94432fea の作業ツリー）: `scripts/check-mutations.sh` に `MOD17-1`〜`MOD17-3` を渡した
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| MOD17-1 | `use` の入り口を 2 つ目の Step にする（`expand.rs`） | `mod17_call_enters_the_first_step_at_runtime`・`mod17_round2_*` | DETECTED |
+| MOD17-2 | 遷移で条件つきの辺も採る（`transit.rs`） | `mod17_bypassed_steps_stay_not_started`・`mod17_round2_*` | DETECTED |
+| MOD17-3 | 途中開始で飛ばした Step を `Skipped` にしない（`begin.rs`） | `mod17_midstart_marks_the_same_steps_skipped` | DETECTED |
+
+- 限界: エンジンは `next[].when` を評価しない（`crates/core/src/transit.rs`）ため、`setup="true"` の側（設定の Step へ入る経路）の実行時は確かめない。条件が偽の側は評価の有無に関わらず無条件の辺に落ちるので、評価が入った後も同じ結果になる。`docs/known-gaps.md` の回避策（`next[].when` の `param` で後ろの Step を飛ばす）は、この制約のため条件が偽の方向しか動かない
+- 範囲外: spec の MOD-17・PACK-51 の「(c) 現状の観察: 引数は文字列で範囲外を検査しない」は `param_types`（v1.7）の後の状態と食い違う。直すのは spec repo の持ち分で、本作業では編集していない。`scripts/expected-test-counts.txt` は版上げ PR の関門の期待値で、本変更では更新しない
+- 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない

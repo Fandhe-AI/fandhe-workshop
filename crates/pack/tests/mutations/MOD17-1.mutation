@@ -1,0 +1,9 @@
+id: MOD17-1
+package: fandhe-workshop-pack
+test: module_skip_steps
+target: crates/pack/src/expand.rs
+find:         let Some(first) = module.src.steps.first() else {
+replace:         let Some(first) = module.src.steps.get(1).or(module.src.steps.first()) else {
+expect-fail: mod17_call_enters_the_first_step_at_runtime
+expect-fail: mod17_round2_call_enters_st_3_2_and_bypassed_steps_stay_not_started
+note: use の入り口を先頭の Step でなく 2 つ目の Step にする（先頭を省ける状態）
