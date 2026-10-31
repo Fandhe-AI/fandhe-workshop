@@ -11400,7 +11400,7 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 
 - 目的: 閉じた周回のルートを開き直さない（D-24）。2 周目を開始した後に 1 周目の Step へ `Control::GoTo` で戻ると、入ったときの状態変化が 1 周目の成果物を書き換えるため、理由と次の行動を付けて拒否し、状態を変えない。前提の決定は #781（2026-10-31）。仕様側（04 の MOD-15、MOD-9・MOD-4 の前提、D-n の記録）の直しは spec repo で行う（本作業では編集していない）
 - 決定:
-  - 判定は `crates/core/src/closed_round.rs`（非公開）。移動先が (a) 持ち主が `main` ではない実体の Step（呼び出しの Step を含む）で、(b) 周回の順位が現在の Step より前で、(c) ログに移動先より後の周回を開始した `Begun` がある、の 3 つをすべて満たすとき閉じている。周回の順位は、錨（`caller` を `main` までたどった節点。たどる回数は実体の数 + 1 まで）の `unit` が `main` の節点として IR に最初に現れる位置。欄は足さず、IR・状態・ログから導く（履歴の写しの形を変えない）
+  - 判定は `crates/core/src/closed_round.rs`（非公開）。移動先が (a) 持ち主が `main` ではない実体の Step（呼び出しの Step を含む）で、(b) 周回の順位が現在の Step の周回と異なり（現在の Step が `main` 所有の通常の Step のときは、同じ章の実体も含め、どの周回の Step への移動も満たす。`main` の Step を経由しても閉じた周回へは戻れない）、(c) ログに移動先より後の周回を開始した `Begun` がある、の 3 つをすべて満たすとき閉じている。周回の順位は、錨（`caller` を `main` までたどった節点。たどる回数は実体の数 + 1 まで）の `unit` が `main` の節点として IR に最初に現れる位置。欄は足さず、IR・状態・ログから導く（履歴の写しの形を変えない）
   - 決まらないとき（錨が無い・巡回・現在の Step が無い）は閉じていないとみなし、従来の移動に任せる
   - 拒否は `Event::Refused { op: GoTo, reason: ClosedRound, rejection: None }` の 1 件。`go_to` の規則 3（移動先が無いの後、世代のあふれの前）。次の行動は `RefuseReason::next_action` が `RefuseNextAction::ContinueCurrentRound` を返す【案】（復帰を勧めると閉じた周回へ誘うため、今の周回を続けるよう示す）。受講者向けの文面と画面への結線は持たない
   - `RefuseReason::ClosedRound`・`RefuseNextAction` の追加で `CONTRACT_VERSION` を 6 から 7 へ上げた（`docs/engine-api.md` 版 7、サンプルの版 7）
@@ -11417,3 +11417,37 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
   - 閉じた周回への `GoTo` を含む過去の履歴は適用し直しで `replay_mismatch` になる。配信物は `GoTo` を組み立てないため、受講者の履歴には含まれない見込み
   - 受講者向けの次の行動の文面と画面への結線、他の拒否理由への次の行動の割り当ては範囲外
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.419 選び直しの手順を持つ選択肢の確認の自力の数え方（TASK-304 2/3。GUIDE-11）
+
+- 実装は `crates/core/src/lo_self_reliant.rs`（`SelfRelianceRule`・`classify`・`tally`・`count_participants`）。期待の出所は TASK-3 の決定（#484、2026-10-31）。04 の GUIDE-11 は submodule `d70ad10` ではまだ未反映のため、決定のコメントを正とする。答えを含むヒントの段は呼び出し側が渡し（D-55）、0 は規則の作成で拒否する。件数だけを返し、割合の閾値は持たない
+- 試験は `crates/core/tests/lo_self_reliant.rs` の 15 件。履歴から（`records_from_history` を通す）5 件、記録から 8 件、AI の代理の数え直し 1 件、proptest による性質 1 件
+
+| 確かめること | 試験 |
+|---|---|
+| 1・2 段目のヒントの後の正答は自力 | `first_and_second_stage_hints_then_correct_are_self_reliant` |
+| 3 段目のヒントの後の正答は自力でない。最大の段は別に残る | `third_stage_hint_then_correct_is_not_self_reliant` |
+| 誤答の後の選び直しの正答は自力 | `wrong_then_reselect_counts_as_self_reliant` |
+| 選び直しの前に 3 段目を開いた正答は自力でない | `third_stage_hint_before_reselection_is_not_self_reliant` |
+| 誤答のまま・未回答は自力でない | `wrong_only_and_unanswered_are_not_self_reliant` |
+| 答えの段は呼び出し側が決める（3 を固定しない） | `answer_stage_is_given_by_caller` |
+| 答えの段 0 の拒否 | `zero_answer_stage_is_rejected` |
+| 比較の後の選び直しは自力でない | `reselection_after_comparison_is_not_self_reliant` |
+| 不正な記録は指定外の LO でも `Err` | `invalid_record_is_rejected` |
+| 指定の LO だけを数える | `tally_counts_only_the_designated_lo` |
+| 最大の段が別に残る | `max_hint_is_kept_separately` |
+| 参加者は全確認が自力のときだけ数える。0 件は数えない | `participant_needs_all_checks_self_reliant`・`participant_without_checks_is_not_counted` |
+| PoC-13 の LO-1 の数え直しが 3/4 | `ai_proxy_recount_lo1_is_three_of_four` |
+| 6 区分の和が件数、束ねが真なら全記録が自力 | `prop_all_self_reliant_implies_every_record_self_reliant` |
+
+- 限界: AI の代理の run は本エンジンの履歴の形ではなく、CI では `docs/spec` を読めないため、数え直しは記録の水準の写しで照合する。AI の代理の結果は人の評価に数えない（D-34）。前後の比較の観測は無く（`docs/known-gaps.md` GUIDE-18）、導いた記録の `after_comparison` は常に `false`。進行役の手助けは扱わない（SESS）。選び直しの手順を持たない確認（GUIDE-12）は TASK-304 3/3
+- 変異注入（2026-10-31、元にしたコミット 2d30d21c の作業ツリー）: `scripts/check-mutations.sh crates/core/tests/mutations/GUIDE11-{4,5,6,7,8,9}.mutation`
+
+| ID | 変異 | 期待した失敗 | 結果 |
+|---|---|---|---|
+| GUIDE11-4 | 答えの段の判定を外す | `third_stage_hint_then_correct_is_not_self_reliant`・`third_stage_hint_before_reselection_is_not_self_reliant` | DETECTED |
+| GUIDE11-5 | 判定を `>=` から `>` にずらす | `third_stage_hint_then_correct_is_not_self_reliant`・`answer_stage_is_given_by_caller` | DETECTED |
+| GUIDE11-6 | 選び直しの正答を自力に数えない | `wrong_then_reselect_counts_as_self_reliant` | DETECTED |
+| GUIDE11-7 | LO の絞り込みを外す | `tally_counts_only_the_designated_lo` | DETECTED |
+| GUIDE11-8 | 束ねを「1 件以上自力」にする | `participant_needs_all_checks_self_reliant`・`ai_proxy_recount_lo1_is_three_of_four` | DETECTED |
+| GUIDE11-9 | 0 件の参加者を数える | `participant_without_checks_is_not_counted` | DETECTED |

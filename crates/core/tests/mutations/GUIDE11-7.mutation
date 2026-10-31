@@ -1,0 +1,8 @@
+id: GUIDE11-7
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:         if !rec.lo.iter().any(|l| l == lo) {
+replace:         if false && !rec.lo.iter().any(|l| l == lo) {
+expect-fail: tally_counts_only_the_designated_lo
+note: 集計の LO の絞り込みを外す。指定した LO 以外の記録も数える
