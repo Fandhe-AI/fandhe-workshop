@@ -59,6 +59,7 @@ pub mod body_level;
 pub mod busy_class;
 pub mod changed;
 mod checkpoint;
+mod closed_round;
 pub mod command_accept;
 pub mod command_class;
 pub mod command_judge;
@@ -116,7 +117,7 @@ pub use projection::Projection;
 pub use session::{apply, Session, SessionState};
 pub use value_limits::check_value_limits;
 
-/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、版 6）。
+/// 公開 API の契約の版（TASK-204・TASK-290・TASK-267・TASK-320・TASK-160、TASK-249、版 7）。
 ///
 /// 覆う範囲は [`addr`]・[`input`]・[`event`]・[`step_status`]・[`world`]・[`session`]・[`projection`] の
 /// 公開の型と署名、および [`input::GenerationRule`] の表である。次のいずれかを変えたら上げる。
@@ -138,10 +139,13 @@ pub use value_limits::check_value_limits;
 /// 版 6 で足したもの: 遷移の上限で止めたことの専用のイベント `Event::TransitionLimitReached`（SAFE-34・D-45）。
 /// 作成者向けの `Warning`（SAFE-23）は残し、その直後に 1 件置く。
 ///
+/// 版 7 で足したもの: 閉じた周回の Step への移動の拒否理由 `RefuseReason::ClosedRound`（MOD-15・D-24）と、
+/// 理由から引く次の行動 `event::RefuseNextAction`・`RefuseReason::next_action`。`Event::Refused` の形は変えない。
+///
 /// 意図して含めないもの（版上げで足す）。
 /// - 早送りの入・切（EVT-27）
 /// - 下書きの操作
 ///
 /// 状態変化の提供元の境界の版は [`provider::PROVIDER_CONTRACT_VERSION`] で別に持つ。
 /// 受け口の有効化の関門の版は [`receptor_gate::RECEPTOR_GATE_CONTRACT_VERSION`] で別に持つ。
-pub const CONTRACT_VERSION: u32 = 6;
+pub const CONTRACT_VERSION: u32 = 7;

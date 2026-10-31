@@ -1,0 +1,8 @@
+id: MOD15-3
+package: fandhe-workshop-core
+test: go_to_closed_round
+target: crates/core/src/closed_round.rs
+find:     state.log.iter().any(|e| match e {
+replace:     state.log.iter().any(|_| true) || state.log.iter().any(|e| match e {
+expect-fail: goto_back_before_later_round_begins_still_moves
+note: 後の周回を開始した Begun の条件を外す（開始していない周回の手前への移動まで拒否する）

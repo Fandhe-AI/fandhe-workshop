@@ -1,7 +1,7 @@
 //! 2 周の教材での根ごとの下書きと切り替えでの入れ替え（TASK-236 1/2。MOD-4。`proc3_iii_*`）の試験。
 //!
 //! `module-reuse-rounds` を `compile_dir` した IR で、1 周目を流した後に下書きを置き、2 周目を開始し、
-//! `Control::GoTo` で周回を行き来しても、表に出る下書き（`current_draft`）がその根のものに入れ替わることを確かめる。
+//! 2 周目へは `Control::GoTo`、1 周目へは `Begin` の前に保存したチェックポイントへの復帰で（閉じた周回への移動は MOD-15 で拒否される。5.418）行き来しても、表に出る下書き（`current_draft`）がその根のものに入れ替わることを確かめる。
 //! 1 周目の下書きは `st-3-2` に移して置く（計画の最後は `main` の Step で、途中の `st-6-1` を通る保証も計画に無いための代用）。
 //! 送信で送った根だけが空になることは末尾の 2 件（TASK-236 2/2）が持つ。下書きの値は利用者の入力なので、比較だけを行う。
 
@@ -13,7 +13,7 @@ use common::testdata;
 use fandhe_workshop_contract::ir::Ir;
 use fandhe_workshop_core::addr::{Root, StepUid};
 use fandhe_workshop_core::history_replay::replay;
-use fandhe_workshop_core::input::{Control, Op};
+use fandhe_workshop_core::input::{CheckpointId, Control, Op};
 use fandhe_workshop_core::load_ir;
 use fandhe_workshop_core::recorded_session::RecordedSession;
 use fandhe_workshop_core::{Session, SessionState};
@@ -34,13 +34,22 @@ fn goto(rs: &mut RecordedSession, uid: &StepUid) {
     );
 }
 
+/// 1 周目へ戻る。閉じた周回への `GoTo` は拒否される（MOD-15）ので、`setup` が保存した cp1 へ復帰する。
+fn back_to_round1(rs: &mut RecordedSession, r1_step: &StepUid) {
+    rs.apply(Op::Control(Control::Restore(CheckpointId(1))));
+    assert_eq!(
+        rs.session().state().run.current.as_ref(),
+        Some(r1_step),
+        "restored"
+    );
+}
+
 struct Setup {
     ir: Ir,
     rs: RecordedSession,
     r1_step: StepUid,
     r1_root: Root,
     r2_roots: Vec<Root>,
-    r1_roots: Vec<Root>,
 }
 
 /// 1 周目を流して下書きを置き、2 周目を開始した直後の状態。
@@ -54,6 +63,8 @@ fn setup() -> Setup {
     goto(&mut rs, &r1_step);
     let r1_root = r1_step.root();
     rs.draft("下書き1".to_string());
+    // `Begin` の前に保存する（cp1）。後で 1 周目へ戻る手段になる。
+    rs.apply(Op::Control(Control::Save));
     let before = rs.session().state().drafts.clone();
     run_plan(&mut rs, &begin_round2_plan());
     // 開始は下書きを書き換えない。
@@ -65,7 +76,6 @@ fn setup() -> Setup {
         r1_step,
         r1_root,
         r2_roots,
-        r1_roots,
     }
 }
 
@@ -96,16 +106,21 @@ fn proc3_iii_go_to_swaps_drafts_between_rounds() {
     goto(&mut s.rs, &r2_step);
     s.rs.draft("下書き2".to_string());
     for _ in 0..2 {
-        goto(&mut s.rs, &s.r1_step.clone());
+        back_to_round1(&mut s.rs, &s.r1_step);
         assert_eq!(s.rs.current_draft(), Some("下書き1"));
         goto(&mut s.rs, &r2_step);
         assert_eq!(s.rs.current_draft(), Some("下書き2"));
     }
+    // 閉じた 1 周目の Step への移動は拒否され、下書きの欄は変わらない（MOD-15）。
+    let drafts_before = s.rs.session().state().drafts.clone();
+    s.rs.apply(Op::Control(Control::GoTo(s.r1_step.clone())));
+    assert_eq!(s.rs.session().state().run.current.as_ref(), Some(&r2_step));
+    assert_eq!(s.rs.session().state().drafts, drafts_before);
     // 同じ周回でも別の実体の Step は別の欄になる。
     let other = s
-        .r1_roots
+        .r2_roots
         .iter()
-        .filter(|r| **r != s.r1_root)
+        .filter(|r| **r != r2_step.root())
         .find_map(|r| {
             fandhe_workshop_core::instance::steps_of(&s.ir, r)
                 .into_iter()
@@ -115,7 +130,7 @@ fn proc3_iii_go_to_swaps_drafts_between_rounds() {
     // 先頭は呼び出しの Step で、移動すると呼ばれた実体の Step に着く。
     s.rs.apply(Op::Control(Control::GoTo(other)));
     let landed = s.rs.session().state().run.current.clone().expect("current");
-    assert_ne!(landed.root(), s.r1_root);
+    assert_ne!(landed.root(), r2_step.root());
     assert_eq!(s.rs.current_draft(), None);
 }
 
@@ -125,7 +140,7 @@ fn proc3_iii_replay_restores_current_draft() {
     let r2_step = step_in(&s.ir, &s.r2_roots, "st-2-1");
     goto(&mut s.rs, &r2_step);
     s.rs.draft("下書き2".to_string());
-    goto(&mut s.rs, &s.r1_step.clone());
+    back_to_round1(&mut s.rs, &s.r1_step);
     let env = s.rs.envelope_for_save().expect("envelope");
     let replayed = replay(&s.ir, SessionState::default(), &env.ops).expect("replay");
     assert_eq!(replayed.drafts, s.rs.session().state().drafts);
@@ -166,7 +181,7 @@ fn proc3_iii_round1_draft_survives_round2_submits_and_replay() {
     s.rs.draft("下書き2".to_string());
     let p = prefix(&s.ir);
     s.rs.submit(&p, "/new-idea bbs-search".to_string());
-    goto(&mut s.rs, &s.r1_step.clone());
+    back_to_round1(&mut s.rs, &s.r1_step);
     assert_eq!(s.rs.current_draft(), Some("下書き1"));
     let env = s.rs.envelope_for_save().expect("envelope");
     let replayed = replay(&s.ir, SessionState::default(), &env.ops).expect("replay");

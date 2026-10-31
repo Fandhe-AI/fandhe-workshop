@@ -69,6 +69,45 @@ pub enum RefuseReason {
     UnknownStart,
     /// 開けるヒントの段が無い、または現在の Step が無い（GUIDE-17）。
     NoHint,
+    /// 閉じた周回の Step への移動（MOD-15・D-24。TASK-249）。
+    ClosedRound,
+}
+
+/// 拒否の後に示す次の行動（TASK-249）。受講者向けの文面は持たず、web が理由から引いて文面に当てる。
+///
+/// 【案】`ClosedRound` には今の周回を続けることを示す。チェックポイントへの復帰を勧めると閉じた周回へ戻る操作へ誘うことになり、
+/// D-24 の趣旨に反するため。決定が出たら [`RefuseReason::next_action`] の腕だけを直す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum RefuseNextAction {
+    /// 今の周回を続ける。
+    ContinueCurrentRound,
+}
+
+impl RefuseNextAction {
+    /// すべての行動。
+    pub const ALL: [RefuseNextAction; 1] = [RefuseNextAction::ContinueCurrentRound];
+
+    /// 行動の識別子（ASCII の snake_case）。
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            RefuseNextAction::ContinueCurrentRound => "continue_current_round",
+        }
+    }
+}
+
+impl RefuseReason {
+    /// 理由ごとの次の行動。割り当てていない理由は `None`（TASK-249 の範囲外）。
+    pub const fn next_action(self) -> Option<RefuseNextAction> {
+        match self {
+            RefuseReason::ClosedRound => Some(RefuseNextAction::ContinueCurrentRound),
+            RefuseReason::UnknownCheckpoint
+            | RefuseReason::UnknownStep
+            | RefuseReason::StartUnmet
+            | RefuseReason::UnknownStart
+            | RefuseReason::NoHint => None,
+        }
+    }
 }
 
 /// 入力・進行を無視した理由。宛先の食い違いはコマンドの分類より先に判定する（EVT-8）。

@@ -9,8 +9,10 @@
 //!
 //! 1. 現在の Step が無いなら、状態を変えず空のイベント列を返す（`Stamp` を作れない。開始前の移動は TASK-217）
 //! 2. 移動先が IR に無いなら、状態を変えず `Refused`（`UnknownStep`）を 1 件返す
-//! 3. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
-//! 4. 世代を +1、`busy` を `None` にする。入口の写しの無効化は着地の側が行う（下の「入口の写しの扱い」）。`Moved` を返し、移動先への着地は [`crate::transit`] が行う。
+//! 3. 閉じた周回の Step への移動なら、状態を変えず `Refused`（`ClosedRound`）を 1 件返す（TASK-249、MOD-15・D-24。判定は `closed_round`）。
+//!    次の行動は `RefuseReason::next_action`（今の周回を続ける）。チェックポイントへの復帰は対象外
+//! 4. 世代があふれるなら、固定文の `Warning` だけを出して状態を変えない（fail-closed）
+//! 5. 世代を +1、`busy` を `None` にする。入口の写しの無効化は着地の側が行う（下の「入口の写しの扱い」）。`Moved` を返し、移動先への着地は [`crate::transit`] が行う。
 //!    `use` でない移動先は現在の Step と状態 `Entered` を置き、`Entered` を返す（合計 2 件）。`use` の移動先は
 //!    `ModuleEntered` を挟んで呼び出し先まで進む。巡回して 1,000 回に達したら `Warning` 1 件で止め、`apply` が移動元へ戻す（世代は +1 のまま。SAFE-23・SAFE-35）
 //!
@@ -41,6 +43,7 @@
 use fandhe_workshop_contract::ir::Ir;
 
 use crate::addr::{Stamp, StepUid};
+use crate::closed_round;
 use crate::event::{ControlKind, Event, RefuseReason};
 use crate::session::SessionState;
 use crate::transit;
@@ -63,6 +66,14 @@ pub(crate) fn on_go_to(ir: &Ir, state: &mut SessionState, to: StepUid) -> Vec<Ev
             at,
             op: ControlKind::GoTo,
             reason: RefuseReason::UnknownStep,
+            rejection: None,
+        }];
+    }
+    if closed_round::is_closed(ir, state, &to) {
+        return vec![Event::Refused {
+            at,
+            op: ControlKind::GoTo,
+            reason: RefuseReason::ClosedRound,
             rejection: None,
         }];
     }

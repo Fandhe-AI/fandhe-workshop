@@ -101,7 +101,12 @@ fn guide7_round2_hints_do_not_reach_round1() {
     assert_eq!(s.rs.hints_opened_in(&s.r2_step.root()), opened);
     assert_eq!(s.rs.hints_opened_in(&s.r1_root), r1_total);
 
-    goto(&mut s.rs, &s.r1_step.clone());
+    // 閉じた 1 周目の Step への移動は拒否され（MOD-15。5.418）、使用回数は変わらない。移動せずに読んで確かめる。
+    s.rs.apply(Op::Control(Control::GoTo(s.r1_step.clone())));
+    assert_eq!(
+        s.rs.session().state().run.current.as_ref(),
+        Some(&s.r2_step)
+    );
     assert_eq!(s.rs.hints_opened_at(&s.r1_step), s.r1_before + s.r1_opened);
     assert_eq!(s.rs.hints_opened_in(&s.r2_step.root()), opened);
 }

@@ -237,3 +237,18 @@ fn judged_event_shape_and_roundtrip_for_all_six_kinds() {
     let bad = r#"{"judged":{"at":{"generation":3,"step":"main/s1"},"judgment":"confirmed","x":1}}"#;
     assert!(serde_json::from_str::<Event>(bad).is_err());
 }
+
+#[test]
+fn closed_round_reason_serializes_and_has_a_next_action() {
+    use fandhe_workshop_core::event::RefuseNextAction;
+    let v = serde_json::to_value(RefuseReason::ClosedRound).expect("serialize");
+    assert_eq!(v, serde_json::json!("closed_round"));
+    assert_eq!(
+        RefuseReason::ClosedRound.next_action(),
+        Some(RefuseNextAction::ContinueCurrentRound)
+    );
+    assert_eq!(RefuseReason::NoHint.next_action(), None);
+    for a in RefuseNextAction::ALL {
+        assert!(!a.as_str().is_empty() && a.as_str().is_ascii());
+    }
+}

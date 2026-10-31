@@ -1,0 +1,8 @@
+id: MOD15-1
+package: fandhe-workshop-core
+test: go_to_closed_round
+target: crates/core/src/go_to.rs
+find:     if closed_round::is_closed(ir, state, &to) {
+replace:     if false && closed_round::is_closed(ir, state, &to) {
+expect-fail: goto_to_closed_round_is_refused_without_change
+note: 閉じた周回の判定を外す（閉じた周回の Step への移動が通り、前の周回の成果物を書き換える。MOD-15）
