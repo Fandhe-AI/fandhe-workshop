@@ -11197,3 +11197,26 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 
 - 手元（Chromium）: A は 10/10 件で違反 0・CSP の警告 0・ページ内エラー 0・外部通信 0、B は 10/10 件で一致、C1 は mount が error、C2 は検出、5 件の試験がすべて通過
 - `make test-browser` の全体は未実施（CI の `browser-test` に任せる）
+
+### 5.411 同梱の IR が無い配信物をクエリなしで開いたときの表示の試験（TASK-82 2/2。BUILD-11・SHELL-31・SHELL-32）
+
+`tools/browser/ir-absent-open.test.mjs`。仕様の「`?ir` なし」は D-68 以降「クエリなし（`?start=` も無し）」と読み替える（IR の場所は固定の `./ir/main.json`）。配信は実物の `tools/serve.mjs` のサブパス配信で、CSP あり・なしの両方で流す。
+
+#### 確かめること
+
+| 区分 | 内容 |
+|---|---|
+| A | 印の無いビルド（`IR_FILE` なし）で `ir/main.json` への要求が 0 件、試験用の資源（`test-hooks.js`・`.d.ts`・`min-3step`）の要求が 0 件、`__fandheTest` が無い、Step の題が 0 件、配信元以外への通信・ページ内エラー・CSP 違反が 0 件。通知の件数と入力欄の有無は `t.diagnostic` に残すだけ |
+| B | 印つきの配信物から `ir/main.json` を消して開くと、要求がちょうど 1 件で 404、`pack-unloadable` の通知が 1 件で理由は `not_found`、文に「教材が見つかりません」と `（not_found）`、教材の部品 5 種が 0 件、「模擬」が 1 件、通知欄が `role=status` |
+| N | 負の対照。消さない配信物では要求が 200 で 1 件、通知が 0 件、Step の題が 1 件以上 |
+
+#### 注意
+
+- 限界: 印の無いビルドは従来の IR 未同梱の枠を出し、読み込めない旨は出ない（`docs/known-gaps.md` の SHELL-31）。BUILD-11 の文面どおりにするには `for_mount`・`app.js` の変更と約 80 件の試験の土台の移し替えが要るため、自動運転では変えず、通知の有無は assert しない。人の判断が要る
+- U4（`ir-unloadable`）は自前のサーバで 404 を模す。本件の B は配信物のファイルを実際に消す点が違う
+- Chromium だけで確かめた
+
+#### 確認（2026-10-31）
+
+- `FANDHE_WEB_DIR`・`FANDHE_WEB_AUTHOR_DIR` を `SKIP_WASM_OPT=1` でビルドし、単体で 6 件が通った。A の観察は notices=0・draft-input=1
+- `make test-browser` の通しは未検証（CI の `browser-test` に任せる）
