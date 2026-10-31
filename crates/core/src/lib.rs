@@ -49,6 +49,7 @@
 //! 現在の Step と案内レベルで出せるヒントの一覧（[`hint_select`]、TASK-293、GUIDE-2）も持つ。
 //! ヒントを 1 段開く操作と上限・Step 無しでの拒否（`hint_open`、TASK-295、GUIDE-17。公開しない）も持つ。
 //! 履歴から確認ごとの最初の回答の正誤と開いたヒントの段を観測の列として取り出す写像（[`lo_observe`]、TASK-304 1/3、GUIDE-11）も持つ。
+//! 学習目標の確認の記録に当てる自力の数え方（選び直しの手順を持つ選択肢の確認、[`lo_self_reliant`]、TASK-304 2/3、GUIDE-11）も持つ。
 //! 将来の受け口の有効化の規則（[`receptor_gate`]、TASK-191 1/2、EXT-10・D-53。実行環境の設定と受講者の同意の両方を要し、既定は無効）も持つ。
 //! ほかは後続のタスクで追加する。
 #![forbid(unsafe_code)]
@@ -90,6 +91,7 @@ pub mod judge;
 pub mod learner_os;
 pub mod lo_first_answer;
 pub mod lo_observe;
+pub mod lo_self_reliant;
 pub mod load_gate;
 pub mod ops_record;
 pub mod projection;

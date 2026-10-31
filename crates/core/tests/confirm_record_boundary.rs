@@ -244,7 +244,7 @@ fn wrong_without_reselection_stays_accepted_and_not_correct() {
 
 #[test]
 fn hint_stage_is_recorded_but_does_not_change_current_tally() {
-    // ヒントの段と自力の組み合わせは GUIDE-18 で未決（TASK-304 の決定待ち）。現行の `tally` は `max_hint` を
+    // ヒントの段と自力の組み合わせは GUIDE-18 で未決だった。TASK-3 の決定（#484）で GUIDE-18 の規則は変えず、ヒントの段の規則は `lo_self_reliant`（GUIDE-11）が持つ。現行の `tally` は `max_hint` を
     // 読まないため、段によらず結果が同じことだけを断定し、新しい規則は作らない。
     let mut baseline = None;
     for h in 0..=3u32 {

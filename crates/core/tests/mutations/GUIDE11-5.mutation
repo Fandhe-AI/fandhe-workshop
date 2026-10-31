@@ -1,0 +1,9 @@
+id: GUIDE11-5
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:     if record.max_hint >= rule.answer_stage {
+replace:     if record.max_hint > rule.answer_stage {
+expect-fail: third_stage_hint_then_correct_is_not_self_reliant
+expect-fail: answer_stage_is_given_by_caller
+note: 判定を以上から超えるにずらす。答えの段ちょうどを開いた後の正答が自力に数えられる

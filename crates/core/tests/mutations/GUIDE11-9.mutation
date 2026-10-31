@@ -1,0 +1,8 @@
+id: GUIDE11-9
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:         self.checks() > 0 && self.self_reliant() == self.checks()
+replace:         self.self_reliant() == self.checks()
+expect-fail: participant_without_checks_is_not_counted
+note: 対象の確認が 0 件の参加者を数える（空の真）

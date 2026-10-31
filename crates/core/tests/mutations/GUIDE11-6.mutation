@@ -1,0 +1,8 @@
+id: GUIDE11-6
+package: fandhe-workshop-core
+test: lo_self_reliant
+target: crates/core/src/lo_self_reliant.rs
+find:         (FirstAnswer::Wrong, Reselection::Correct) => true,
+replace:         (FirstAnswer::Wrong, Reselection::Correct) => return Ok(SelfRelianceOutcome::NotCorrect),
+expect-fail: wrong_then_reselect_counts_as_self_reliant
+note: 選び直しの正答を自力に数えない（GUIDE-18 の規則を持ち込む）
