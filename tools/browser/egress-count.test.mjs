@@ -162,10 +162,10 @@ for (const csp of [true, false]) {
         const posEnd = await position();
         // チェックポイントの保存→復帰（画面のボタンだけ）。
         await page.click(SAVE);
-        await page.locator(RESTORE).first().waitFor({ state: 'attached', timeout: 30000 });
+        await page.locator(RESTORE).last().waitFor({ state: 'attached', timeout: 30000 });
         const listed = await page.locator(RESTORE).count();
         assert.ok(listed >= 1, 'チェックポイントの一覧に項目がある');
-        await page.locator(RESTORE).first().click();
+        await page.locator(RESTORE).last().click();
         assert.equal(await position(), posEnd, '復帰の後も位置が同じ');
         // 書き出し（ダウンロードのリンク）。
         const file = await exportByUi(page, tmpDir);
@@ -311,7 +311,7 @@ for (const csp of [true, false]) {
           await waitStages(page, 1);
           // チェックポイントの保存（画面のボタン）。
           await page.click(SAVE);
-          await page.locator(RESTORE).first().waitFor({ state: 'attached', timeout: 30000 });
+          await page.locator(RESTORE).last().waitFor({ state: 'attached', timeout: 30000 });
           await press(page);
           await press(page);
           await waitStages(page, 3);
@@ -320,7 +320,7 @@ for (const csp of [true, false]) {
           await press(page);
           assert.equal(await stages(page), 3, '上限を超える押下で段が増えない');
           // 復帰。使用回数は戻らない。
-          await page.locator(RESTORE).first().click();
+          await page.locator(RESTORE).last().click();
           await page.waitForTimeout(300);
           assert.equal(await stages(page), 3, '復帰で開いた段が減らない');
           await page.reload();
