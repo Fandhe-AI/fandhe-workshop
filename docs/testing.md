@@ -11170,3 +11170,30 @@ IR の読み込み口（`load_ir`）で、1 つの配列・連想配列は 100,0
 - 手元: wasm-opt 適用済みの配信する設定は `check-delivery.sh` が終了コード 0、書き出し 17 件で `debug_` 0 件。試験の設定の対照は 55 件中 37 件が `debug_`
 - native: `delivery_ports` 11 件・`tick_interval` 6 件が通過
 - ブラウザの `query-inert` は未実施（CI の `browser-test` に任せる）
+
+### 5.410 CSP の meta の下での直接リンク 10 件のブラウザ試験（TASK-111 2/2。DLV-11・SAFE-13）
+
+`index.html` の CSP の `<meta>` は TASK-151 1/2 で置き済みで、本件は `index.html` を変えない。受け入れ条件の「直接リンク 10 件で CSP の違反が 0 件で、WASM が動く」を、IR つきの配信する設定で実行時に確かめる試験 `tools/browser/direct-link-csp.test.mjs` を足した。既存の `delivery-direct-links` は IR を持たない配信物で 10 件とも既定の画面で開くため、開始点まで WASM が動くことと、CSP が実行時に効いていることは確かめていなかった。
+
+#### 対応
+
+| DLV-11 の期待 | 試験 |
+|---|---|
+| meta が charset の直後にあり内容が仕様どおり | `csp-placement`（TASK-151 1/2）。本試験も写しを作る前に `inspectCspMeta` で確かめる |
+| IR なしの 10 件で取得資源が構成要素だけ | `delivery-direct-links`（5.194） |
+| IR つきの 10 件で違反・CSP の警告・ページ内エラー・外部通信が 0 件、開始点の Step まで動く | `direct-link-csp` の A |
+| CSP が黙って何かを止めていない | 同 B（CSP なしと配信元への要求の種類が一致） |
+| meta が実際に効き、`'wasm-unsafe-eval'` が要る | 同 C1（外した写しで mount が error、script-src の違反） |
+| 計数が空振りしない | 同 C2（外部の画像で違反が出て検出）と純関数の対照 |
+| 開始点 4 件・作成者の経路 | `author-preview` の E |
+
+#### 注意
+
+- 確かめないこと: `<meta>` では効かない指令（`frame-ancestors` 等。DLV-12）、Pages の実物（DLV-24）、Windows（SAFE-39）、本物の CH-0〜CH-3 の教材
+- 開始点は手書きの 20 Step の IR に 10 件を足したもので、`s-0-1` は既定の開始点と同じ節点のため `?start=` の効きを区別できない（残りの 9 件は区別できる）。開始点の `effects` は空である（5.199 と同じ限界）
+- 写しは `mkdtemp` に作って必ず消し、`FANDHE_WEB_DIR` には書き込まない
+
+#### 件数・確認（2026-10-31）
+
+- 手元（Chromium）: A は 10/10 件で違反 0・CSP の警告 0・ページ内エラー 0・外部通信 0、B は 10/10 件で一致、C1 は mount が error、C2 は検出、5 件の試験がすべて通過
+- `make test-browser` の全体は未実施（CI の `browser-test` に任せる）
