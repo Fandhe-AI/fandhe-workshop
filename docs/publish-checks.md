@@ -165,3 +165,19 @@ DLV-11・SAFE-13 の確認の記録。`index.html` の CSP の `<meta>` は TASK
 | 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
 | 承認 | 人間の承認点なし（TASK-111）。得ていない承認は書かない |
 | 限界 | `<meta>` では効かない指令（DLV-12）、Pages の実物（DLV-24）、Windows（SAFE-39）は対象外 |
+
+## SAFE-32・DLV-12 埋め込みの拒否の確認（TASK-167 2/2）
+
+SAFE-32・DLV-12 の確認の記録。対策（案 A）は TASK-167 1/2 で実装済みで、本件は `iframe` に入れたときの試験と記録である。試験は `iframe-embed`（`docs/testing.md` 5.413）。
+
+### 記録 1（2026-10-31）
+
+| 欄 | 内容 |
+|---|---|
+| 確かめた版 | エンジン repo: 本変更を載せた作業ブランチ（`main` の `fdab5e82` が基点） |
+| 日付 | 2026-10-31 |
+| コマンド | `FANDHE_WEB_AUTHOR_DIR=<IR 同梱の配信物> node --test tools/browser/iframe-embed.test.mjs` |
+| 結果 | 12 件（X・XS・SO・S・T・N × CSP あり・なし）が通過。別の起源・別のサイト・同じ起源の親の `iframe` で `data-mounted` が `framed`、操作要素・wasm・IR の要求・保存先が 0 件。関門を常に真にした対照では教材が動く |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 人間の承認点なし（TASK-167）。得ていない承認は書かない |
+| 限界 | 案 B（ヘッダ）は GitHub Pages で採れず、案 A は JS が無効のとき効かず HTTP ヘッダほど強くない。Pages の実物の応答（D-29）、Windows は対象外。Chromium だけ。`make test-browser` の通しは CI に任せる |
