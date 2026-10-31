@@ -23,8 +23,8 @@
 //!
 //! - (a) `to` の持ち主（[`owner_of`]）が `main` ではない（学習モジュールの実体の Step か、それを呼ぶ呼び出しの Step）。
 //!   `main` の章の Step は周回の実体ではないので対象にしない
-//! - (b) `to` の周回の順位が、現在の Step の周回の順位と異なる（現在の周回の中の移動は閉じていない。現在の Step が `main` の章の Step のときは
-//!   その章の順位になり、どの周回の Step への移動も (b) を満たす。`main` の Step を経由しても閉じた周回へは戻れない）
+//! - (b) `to` の周回の順位が、現在の Step の周回の順位と異なる（現在の周回の中の移動は閉じていない。現在の Step が `main` 所有の通常の Step のときは
+//!   同じ章の実体も含め、どの周回の Step への移動も (b) を満たす。`main` の Step を経由しても閉じた周回へは戻れない）
 //! - (c) ログに、`to` の周回より順位が大きい周回を開始した `Begun` が 1 件以上ある
 //!
 //! どれかが決まらないとき（錨が `None`・現在の Step が無い）は閉じていないとみなし、従来の移動に任せる。
@@ -92,7 +92,8 @@ pub(crate) fn is_closed(ir: &Ir, state: &SessionState, to: &StepUid) -> bool {
     else {
         return false;
     };
-    if to_round == cur_round {
+    // 現在の Step が main 所有の通常 Step のときは、同じ章の順位でも周回の中にいるとはみなさない
+    if to_round == cur_round && owner_of(ir, current).0 != MAIN {
         return false;
     }
     state.log.iter().any(|e| match e {

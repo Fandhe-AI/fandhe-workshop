@@ -34,6 +34,7 @@ fn ir_with(instances: Value) -> Ir {
     let base = v["nodes"][0].clone();
     v["nodes"] = json!([
         node(&base, "main", "ch-x", "x", None),
+        node(&base, "main", "ch-a", "a0", None),
         node(&base, "main", "ch-a", "a1", Some("m@a/s1")),
         node(&base, "main", "ch-b", "b1", Some("m@b/s1")),
         node(&base, "m@a", "m", "s1", None),
@@ -146,6 +147,21 @@ fn goto_via_main_step_cannot_reenter_closed_round() {
     assert_eq!(after.entry, before.entry);
     let (_, ev) = go(&ir, before, "main/a1");
     assert!(is_closed_refusal(&ev), "{ev:?}");
+}
+
+#[test]
+fn goto_via_same_chapter_main_step_cannot_reenter_closed_round() {
+    let ir = ir();
+    let st = begin(&ir, start_state(), "s-a");
+    let st = begin(&ir, st, "s-b");
+    // 閉じた周回 a と同じ章の main の通常 Step へは移れるが、そこから a の実体へは戻れない
+    let (st, ev) = go(&ir, st, "main/a0");
+    assert!(is_moved(&ev), "{ev:?}");
+    let before = st.clone();
+    let (after, ev) = go(&ir, st, "m@a/s1");
+    assert!(is_closed_refusal(&ev), "{ev:?}");
+    assert_eq!(after.run, before.run);
+    assert_eq!(after.entry, before.entry);
 }
 
 #[test]
