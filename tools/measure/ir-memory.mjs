@@ -232,14 +232,20 @@ export async function measureIrMemory(dir, deps) {
       const origin = new URL(srv.url).origin;
       const peaks = [];
       let crashes = 0;
-      let last = null;
+      let noticesMax = 0;
+      let reason = null;
+      let crashedTrials = 0;
       for (let i = 0; i < TRIALS; i += 1) {
         const obs = await runTrial(deps, srv.url, origin);
         const bad = checkExpectation(name, obs);
         if (bad) throw new Error(bad);
         peaks.push(obs.peak);
         crashes += obs.crashes;
-        last = obs;
+        if (obs.crashed) crashedTrials += 1;
+        else {
+          noticesMax = Math.max(noticesMax, obs.notices);
+          if (reason === null && obs.reason) reason = obs.reason;
+        }
         progress(`ir-memory ${name} trial ${i + 1}/${TRIALS}: peak ${obs.peak} KiB, crashes ${obs.crashes}`);
       }
       results.push({ name, peaks });
@@ -250,8 +256,9 @@ export async function measureIrMemory(dir, deps) {
         ir_bytes: built.bytes,
         ir_sha256: crypto.createHash('sha256').update(built.text).digest('hex'),
         crashes,
-        notices: last.notices,
-        reason: last.reason,
+        notices: noticesMax,
+        reason,
+        crashed_trials: crashedTrials,
         trial_peaks_kib: peaks,
       });
     } finally {

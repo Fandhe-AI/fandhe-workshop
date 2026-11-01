@@ -391,6 +391,7 @@ measure_ir_memory_check() {
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ） / 3 = ir-memory で crash を観察（JSON は出す）。
 measure_browser_result() {
   local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" ir_file="${5:-}" rc=0 brc=0 features need_extra
+  if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
     log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-cpu4x | ir-memory) need_extra=1 ;;
     view-redraw | view-redraw-cpu4x) need_extra=2 ;;
