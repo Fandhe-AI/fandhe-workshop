@@ -9,6 +9,10 @@
 // 期待は decode_action の実装から分類した D（復号で断る・全て同一）・J（core が断る・状態は同一でログは rejected だけ）・I（payload を読まない・対照と同じ）。
 // 試験の設定だけの `raw-trigger` は正当に状態を変えるため対象から名前つきで除く。配信する設定には 0 件で、E4 は除く理由の記録。
 // 場面への到達は実際の click だけで行い、`raw-trigger` は使わない。試験の出力に入力した値は出さない（label だけ）。
+// 配信する設定の場面（TASK-148 の追補。docs/testing.md 5.431）: IR を同梱した配信する設定（FANDHE_WEB_AUTHOR_DIR。ch0_3_pack を compile したもの）で、
+// 試験の設定で流していた場面（S1・S1w・N・A2・S3・S4）に対応する PS1・PS1w・PN・PA2・PS3・PS4 を、`?fixture=`・`__fandheTest`・`raw-trigger` を使わず
+// click・キーの操作だけで到達して流す（SAFE-38 の公開直前の流し直しに使う）。hooks が無いため J・I の判定は画面から読める観察（`ui`）で行い、
+// その判定が素通りでないことは対照 EP1・EP2 で示す。場面へ到達できないときは失敗にする（黙って飛ばさない）。
 // 入力: FANDHE_WEB_TEST_DIR（TEST_HOOKS=1）・FANDHE_WEB_DIR・FANDHE_WEB_AUTHOR_DIR（IR を同梱した配信する設定）。どちらも未設定・不在は skip にせず失敗にする。
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,10 +23,11 @@ import {
 import {
   ledger, mouseDriver, journey, engine,
 } from './ch0-3-journey.mjs';
+import { domObserver03 } from './author-preview.mjs';
 import { loadDataPayloadCases } from './data-payload-cases.mjs';
 import {
   ROOT, RAW_TESTID, CLASS_OF, diffInventory, inventory, absentCounts, observe, dangerCount, sameState, tamperClick, tamperGroup,
-  ACTION_TAMPER_NAMES, sameStateWithDraft, tamperActionClick,
+  ACTION_TAMPER_NAMES, sameStateWithDraft, tamperActionClick, domCoreSame, domLogOk,
 } from './data-payload-tamper.mjs';
 
 const BASE = '/fandhe-data-payload/';
@@ -36,10 +41,14 @@ const FIREFOX = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100
 const BASE_ACTIONS = ['save-checkpoint', 'select-pane', 'select-view'];
 let browser;
 let cases;
-const tally = { clicks: 0, skipped: 0, actionClicks: 0, actionScenes: 0 };
+const tally = {
+  clicks: 0, skipped: 0, actionClicks: 0, actionScenes: 0, deliveryScenes: 0, deliveryClicks: { true: 0, false: 0 },
+};
 // PoC-7 の 29 要素 × 13 値。現行の画面に合わせた目標ではなく `data-payload` の書き換えの下限（実測は 2,458 回）。
 const POC_CLICKS = 377;
 const ACTION_SCENES = 6;
+// 配信する設定の data-payload の場面: PS1・PS1w・PN/PA2・PS3・PS4 の 5 試験 × CSP あり・なし。
+const DELIVERY_SCENES = 10;
 // 受け付けられない文字の下書き。書き換えない送信の対照では入力欄・ログが変わる。
 const DRAFT_TEXT = '/x';
 // 試験の設定で受け付けられる正しい `Op`（st-0-1 の正答）。`raw` と組むと試験の設定だけ状態が変わる。
@@ -245,6 +254,79 @@ for (const csp of [true, false]) {
       }
     });
   });
+
+  // 配信する設定（IR あり）の場面。到達は画面の操作だけで、試験用の口が無いことを場面ごとに確かめる。
+  const AUTHOR = () => process.env.FANDHE_WEB_AUTHOR_DIR;
+  const deliveryScene = async (opts, fn) => {
+    const c0 = tally.clicks;
+    await openScene(csp, { dir: AUTHOR(), query: '', hooks: false, ...opts }, async (page, L, rec) => {
+      L.check('配信', '__fandheTest が無い', (await page.evaluate(() => typeof window.__fandheTest)) === 'undefined');
+      L.check('配信', 'raw-trigger が 0 件', (await page.locator(`[data-testid="${RAW_TESTID}"]`).count()) === 0);
+      await fn(page, L, rec);
+    });
+    tally.deliveryClicks[csp] += tally.clicks - c0;
+    tally.deliveryScenes += 1;
+  };
+
+  test(`配信する設定: 開いた直後の書き換え（${mode}）`, { timeout: 600000 }, async () => {
+    await deliveryScene({}, (page, L) => sweep(page, L, false, 'PS1', [...BASE_ACTIONS, 'open-hint', 'choose']));
+  });
+
+  test(`配信する設定: 幅 959px の tablist の書き換え（${mode}）`, { timeout: 600000 }, async () => {
+    await deliveryScene({ viewport: { width: 959, height: 800 } }, async (page, L) => {
+      const visible = await page.evaluate(() => {
+        const e = document.querySelector('[data-testid="pane-tabs"]');
+        return !!e && getComputedStyle(e).display !== 'none';
+      });
+      L.check('PS1w', 'tablist が見えている', visible);
+      await sweep(page, L, false, 'PS1w', [...BASE_ACTIONS, 'open-hint', 'choose']);
+    });
+  });
+
+  test(`配信する設定: 章の終わり・保存後の復帰・送信・候補の書き換え（${mode}）`, { timeout: 600000 }, async () => {
+    await deliveryScene({}, async (page, L) => {
+      const real = mouseDriver(page);
+      const d = {
+        ...real,
+        async nextChapter() {
+          await sweep(page, L, false, 'PN', [...BASE_ACTIONS, 'next-chapter', 'ui', 'restore-checkpoint']);
+          return real.nextChapter();
+        },
+      };
+      const onStep = async (uid, status) => {
+        if (uid !== 'main/st-1-1' || status !== 'entered') return;
+        const n0 = await page.locator(RESTORE).count();
+        await page.click(SAVE);
+        await page.waitForFunction(([sel, k]) => document.querySelectorAll(sel).length === k + 1, [RESTORE, n0]);
+      };
+      await journey(page, d, 'PA', L, 'main/st-1-4', { chaptered: true, observe: domObserver03(), onStep });
+      await sweep(page, L, false, 'PA2', [...BASE_ACTIONS, 'ui', 'restore-checkpoint'], [
+        { name: 'submit-input', selector: SUBMIT, cls: 'I' },
+      ]);
+      await page.waitForTimeout(1500);
+      await page.fill(DRAFT, '/');
+      await page.waitForSelector(CAND);
+      const r = await tamperGroup(page, false, { name: 'candidate-btn', selector: CAND, cls: 'I', values: cases.values, draft: { selector: DRAFT, text: '/' } });
+      tally.clicks += r.clicks;
+      if (r.failures.length) console.log(`PA2/candidate-btn: ${r.failures.slice(0, 8).join(' | ')}`);
+      L.check('PA2', `candidate-btn（I）: ${r.instances} 要素 × 値で期待どおり`, r.failures.length === 0 && r.instances > 0);
+    });
+  });
+
+  test(`配信する設定: 承認と「直す」の対象の書き換え（${mode}）`, { timeout: 600000 }, async () => {
+    await deliveryScene({}, async (page, L) => {
+      // CH-0 から st-2-6 の入力待ちまで、画面の操作だけで進む（?start= は使わない）。
+      await journey(page, mouseDriver(page), 'PS3', L, 'main/st-2-6', { chaptered: true, observe: domObserver03() });
+      await sweep(page, L, false, 'PS3', [...BASE_ACTIONS, 'restore-checkpoint', 'ui', 'decide', 'revise-target']);
+    });
+  });
+
+  test(`配信する設定: 枠の通知を閉じる口の書き換え（${mode}）`, { timeout: 600000 }, async () => {
+    await deliveryScene({ userAgent: FIREFOX }, async (page, L) => {
+      L.check('PS4', '通知が 1 件出ている', (await page.locator('[data-testid="shell-notice-item"]').count()) === 1);
+      await sweep(page, L, false, 'PS4', [...BASE_ACTIONS, 'open-hint', 'choose', 'dismiss-notice']);
+    });
+  });
 }
 
 test('対照: 変化の検出・文字だけの判定・閉じた一覧・raw-trigger の除外の意味', { timeout: 600000 }, async () => {
@@ -306,12 +388,44 @@ test('対照: 書き換えない送信は変化として検出され、試験の
   });
 });
 
+// 対照 EP1: 画面の観察だけの判定（配信する設定が使う）が、試験の設定の eng を含む判定と同じ結論になる（素通りでない証拠）。
+// 正しい選択肢の click（状態が変わる）と、書き換えた choose（拒否だけ）と、保存の click（D の変化）の 3 つを、eng 付き・画面だけで比べる。
+test('対照 EP1: 画面だけの判定が eng を含む判定と一致する（試験の設定）', { timeout: 600000 }, async () => {
+  await openScene(true, {}, async (page, L) => {
+    const dom = (o) => ({ ...o, eng: null });
+    const right = await tamperClick(page, true, `${ROOT} [data-action="choose"][data-payload="opt-right"]`, 0, null);
+    L.check('EP1', '正しい選択肢は eng で状態の変化と判定される', right.before.eng.state !== right.after.eng.state || right.before.eng.current !== right.after.eng.current);
+    L.check('EP1', '正しい選択肢は画面だけでも状態の変化と判定される', !domCoreSame(dom(right.before), dom(right.after)));
+  });
+  await openScene(true, {}, async (page, L) => {
+    const dom = (o) => ({ ...o, eng: null });
+    const bad = await tamperClick(page, true, groupSelector('choose'), 0, cases.values[0].value);
+    L.check('EP1', '書き換えた選択肢は eng で状態が同一', bad.before.eng.state === bad.after.eng.state && bad.before.eng.current === bad.after.eng.current);
+    L.check('EP1', '書き換えた選択肢は画面だけでも状態が同一でログは受信と拒否だけ', domCoreSame(dom(bad.before), dom(bad.after)) && domLogOk(dom(bad.before), dom(bad.after)));
+    L.check('EP1', '画面だけの観察でも拒否の行が増えた', bad.after.ui.logKinds.length > bad.before.ui.logKinds.length);
+  });
+});
+
+// 対照 EP2: 配信する設定（hooks なし）で、正規の click の変化を画面だけの判定が検出する（J・D の判定が常に真ではない）。
+test('対照 EP2: 配信する設定で正規の click の変化を画面だけで検出する', { timeout: 600000 }, async () => {
+  await openScene(true, { dir: process.env.FANDHE_WEB_AUTHOR_DIR, query: '', hooks: false }, async (page, L) => {
+    const right = await tamperClick(page, false, `${ROOT} [data-action="choose"][data-payload="opt-right"]`, 0, null);
+    L.check('EP2', '正しい選択肢で状態の語またはログの増分が J の判定を外れる', !domCoreSame(right.before, right.after) || !domLogOk(right.before, right.after));
+    const save = await tamperClick(page, false, groupSelector('save-checkpoint'), 0, null);
+    L.check('EP2', '保存の click を D の判定が変化として検出する', !sameState(save.before, save.after));
+  });
+});
+
 // 全体の照合: 場面がすべて完了し、data-payload の click が PoC の 377 回以上、data-action の click が加わる。
 // 各場面は collectSafety・CSP・ページ内エラーの 0 件を個別に assert しているため、場面がすべて通れば全体で実行 0・外部通信 0。
 // --test-name-pattern で絞った実行ではこの照合が失敗する（fail-closed）。
 test('総数: click の全体が 377 回以上で、すべての場面が完了した', () => {
   console.log(`click 合計: data-payload ${tally.clicks} 回 + data-action ${tally.actionClicks} 回 = ${tally.clicks + tally.actionClicks} 回`);
   assert.equal(tally.actionScenes, ACTION_SCENES);
+  // 配信する設定の場面（IR あり。試験用の口なし）が CSP あり・なしの両方で完了し、それぞれ PoC の 377 回以上。
+  console.log(`配信する設定の data-payload の click: CSP あり ${tally.deliveryClicks.true} 回・CSP なし ${tally.deliveryClicks.false} 回（場面 ${tally.deliveryScenes}）`);
+  assert.equal(tally.deliveryScenes, DELIVERY_SCENES);
+  assert.ok(tally.deliveryClicks.true >= POC_CLICKS && tally.deliveryClicks.false >= POC_CLICKS, '配信する設定の click が PoC の 377 回に届かない');
   assert.ok(tally.clicks >= POC_CLICKS, 'data-payload の click が PoC の 377 回に届かない');
   assert.ok(tally.clicks + tally.actionClicks >= POC_CLICKS);
 });
