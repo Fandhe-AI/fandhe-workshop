@@ -2,7 +2,9 @@
 //
 // 呼び出し元は data-payload-tamper.test.mjs（`data-payload` の書き換え = TASK-148 1/2 と、`submit` の `data-action` の書き換え = 2/2）。試験でないモジュールにして、
 // `.test.mjs` を import したときの二重登録を避ける。入力した値は戻り値・失敗の文に載せず、ケースは label（XSS の ID・`raw[n]`）だけで示す。
-// 観察は試験の設定の `window.__fandheTest`（hooks）があれば状態とログも比べ、無ければ（配信する設定）画面と保存先だけを比べる。
+// 観察は試験の設定の `window.__fandheTest`（hooks）があれば状態とログも比べる。hooks の有無に関わらず、画面だけから読める `ui`
+// （Step の題・状態の語・位置・処理中の表示・ログの行の種類と Step・左の成果物）も読み、配信する設定（hooks なし）ではこれで J・I を判定する。
+// hooks なしで判定が素通りになる経路（eng が無いと常に真）は置かない。
 import { DANGER_TAGS } from './harness.mjs';
 
 export const ROOT = '[data-testid="workshop-root"]';
@@ -73,9 +75,28 @@ export function observe(page, hooks) {
         tick: window.__fandheTest.nextTick(),
       };
     }
+    // 画面だけから読める観察。hooks が無い配信する設定の J・I の判定の根拠で、hooks があるときは eng の判定に重ねる。
+    const t = (id) => document.querySelector(`[data-testid="${id}"]`);
+    const rows = [...document.querySelectorAll('[data-testid="part-log-list"] li')];
+    const ui = {
+      title: t('step-title')?.textContent ?? '',
+      status: t('step-status')?.textContent ?? '',
+      position: t('shell-position')?.textContent ?? '',
+      run: t('run-status')?.getAttribute('data-state') ?? '',
+      logKinds: rows.map((x) => x.getAttribute('data-kind') ?? ''),
+      logSteps: rows.map((x) => x.getAttribute('data-step') ?? ''),
+      // 左の成果物。受け付けた入力の数を数える欄（part-artifact-consumed）は、受信を記録する J でも増えるため除く。
+      artifact: (() => {
+        const v = t('part-artifact-view');
+        if (!v) return '';
+        const c = v.cloneNode(true);
+        c.querySelectorAll('[data-testid="part-artifact-consumed"]').forEach((e) => e.remove());
+        return c.innerHTML;
+      })(),
+    };
     // 入力欄の value（innerHTML には出ない）。候補の click の主な結果は入力欄への補完のため、比較に含める。
     const d = document.querySelector('[data-testid="draft-input"]');
-    return { dom: r ? r.innerHTML : null, ls: JSON.stringify(ls), eng, draft: d ? d.value : null };
+    return { dom: r ? r.innerHTML : null, ls: JSON.stringify(ls), eng, ui, draft: d ? d.value : null };
   }, [ROOT, hooks]);
 }
 
@@ -98,8 +119,9 @@ export async function settle(page, hooks) {
   let same = 0;
   for (let n = 0; n < 200 && same < 3; n += 1) {
     const o = await observe(page, hooks);
-    const sig = JSON.stringify([o.dom, o.ls, o.eng?.kinds.length ?? 0, o.eng?.state ?? '']);
-    const idle = !hooks || o.eng.tick === 'null';
+    const sig = JSON.stringify([o.dom, o.ls, o.eng?.kinds.length ?? 0, o.eng?.state ?? '', o.ui.logKinds.length]);
+    // 処理中（busy）の Step の途中を安定と見なさない。run-status が無い画面（IR なし）は '' で、処理中ではない。
+    const idle = o.ui.run !== 'busy' && (!hooks || o.eng.tick === 'null');
     same = idle && sig === prev ? same + 1 : 0;
     prev = sig;
     await page.waitForTimeout(30);
@@ -110,22 +132,53 @@ export async function settle(page, hooks) {
 export function sameState(a, b) {
   const engSame = (!a.eng && !b.eng) || (a.eng.state === b.eng.state && a.eng.current === b.eng.current
     && JSON.stringify(a.eng.kinds) === JSON.stringify(b.eng.kinds));
-  return a.dom === b.dom && a.ls === b.ls && engSame;
+  return a.dom === b.dom && a.ls === b.ls && engSame && JSON.stringify(a.ui) === JSON.stringify(b.ui);
 }
 
-// 世界状態・slice・現在の Step が同一（ログ・画面・保存先は問わない）。
-function sameCore(a, b) {
-  return !a.eng || (a.eng.state === b.eng.state && a.eng.current === b.eng.current);
+// 画面から読める範囲で、現在の Step（題・状態の語・位置）と左の成果物が同一（ログ・保存先は問わない）。
+// 状態の語だけは 1 つの例外を許す。前の Step の達成の直後に入った Step では、ログの末尾が前の Step の達成のため「達成」が出ていて、
+// 次の入力の行（拒否を含む）が積まれると語なしに戻る（crates/web/src/step_status.rs の規則 3。世界状態は変わらない）。
+// よって、前が「達成」・後が語なしで、増えた行に拒否があるときに限り同一と見なす。それ以外の語の変化は変化として扱う。
+const ACHIEVED_WORD = '達成';
+function statusSame(a, b) {
+  if (a.ui.status === b.ui.status) return true;
+  return a.ui.status === ACHIEVED_WORD && b.ui.status === '' && b.ui.logKinds.slice(a.ui.logKinds.length).includes('rejected');
+}
+export function domCoreSame(a, b) {
+  return a.ui.title === b.ui.title && statusSame(a, b) && a.ui.position === b.ui.position && a.ui.artifact === b.ui.artifact;
+}
+
+// 世界状態・slice・現在の Step が同一（ログ・画面・保存先は問わない）。hooks があれば eng も比べ、画面の判定は常に重ねる。
+export function sameCore(a, b) {
+  const engSame = !a.eng || (a.eng.state === b.eng.state && a.eng.current === b.eng.current);
+  return engSame && domCoreSame(a, b);
+}
+
+// sameCore が偽のときに違った観察の欄の名前（失敗の文に載せる。値は載せない）。
+function coreDiff(a, b) {
+  const out = [];
+  if (a.eng && a.eng.state !== b.eng.state) out.push('eng.state');
+  if (a.eng && a.eng.current !== b.eng.current) out.push('eng.current');
+  for (const k of ['title', 'status', 'position', 'artifact']) if (a.ui[k] !== b.ui[k]) out.push(`ui.${k}`);
+  return out;
 }
 
 function addedKinds(a, b) {
-  if (!a.eng) return [];
-  return b.eng.kinds.slice(a.eng.kinds.length);
+  return b.ui.logKinds.slice(a.ui.logKinds.length);
 }
 
-// J の許す増分。受け付けた値は「受信（received）」と「判定（judged）が rejected」の 2 行になる。受付・達成・進入・復帰の行は許さない。
+// J の許す増分。受け付けた値は「受信（input_received）」と「判定（judged）が rejected」の 2 行になる。受付・達成・進入・復帰の行は許さない。
 const J_KINDS = new Set(['input_received', 'judged', 'rejected']);
-function jLogOk(a, b) {
+// 画面の行の種類での許す増分。受信（received）と拒否（rejected）だけで、既存の行は変わらない。
+const J_DOM_KINDS = new Set(['received', 'rejected']);
+export function domLogOk(a, b) {
+  const n = a.ui.logKinds.length;
+  const prefix = b.ui.logKinds.length >= n && a.ui.logKinds.every((k, i) => k === b.ui.logKinds[i])
+    && a.ui.logSteps.every((k, i) => k === b.ui.logSteps[i]);
+  return prefix && b.ui.logKinds.slice(n).every((k) => J_DOM_KINDS.has(k));
+}
+export function jLogOk(a, b) {
+  if (!domLogOk(a, b)) return false;
   if (!a.eng) return true;
   const n = a.eng.kinds.length;
   const kinds = b.eng.kinds.slice(n);
@@ -199,16 +252,17 @@ export async function tamperGroup(page, hooks, { name, selector, cls, values, dr
       if (cls === 'D') {
         if (!sameState(r.before, r.after)) fail('画面・状態・ログ・保存先のどれかが変わった');
       } else if (cls === 'J') {
-        if (!sameCore(r.before, r.after)) fail('世界状態または現在の Step が変わった');
+        if (!sameCore(r.before, r.after)) fail(`世界状態または現在の Step が変わった（${coreDiff(r.before, r.after).join('・')}）`);
         else if (!jLogOk(r.before, r.after)) fail('受信と rejected の判定以外のログが増えた');
       } else if (cls === 'I') {
         // 世界状態・現在の Step の変化と保存内容の変化は別々の真偽値で比べ、増えたログの種類と行も照合する。
         const sig = (x) => JSON.stringify({
           core: !sameCore(x.before, x.after),
           ls: x.before.ls !== x.after.ls,
-          kinds: addedKinds(x.before, x.after),
+          kinds: x.before.eng ? x.after.eng.kinds.slice(x.before.eng.kinds.length) : [],
           draft: x.after.draft,
           lines: x.before.eng ? x.after.eng.lines.slice(x.before.eng.lines.length) : [],
+          domLog: addedKinds(x.before, x.after),
         });
         if (sig(r) !== sig(control)) fail(`書き換えない click と結果が違う（${sig(r)} / 対照 ${sig(control)}）`);
       } else {
