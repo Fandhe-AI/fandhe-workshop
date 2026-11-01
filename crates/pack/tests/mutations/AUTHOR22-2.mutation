@@ -1,0 +1,8 @@
+id: AUTHOR22-2
+package: fandhe-workshop-pack
+test: preview_command
+target: crates/pack/src/cli.rs
+find:         Gate::Unreadable(diags) => {
+replace:         Gate::Unreadable(diags) => { if diags.len() < usize::MAX { return Ok(EXIT_OK); }
+expect-fail: author22_unreadable_pack_is_not_previewed
+note: 読み込めない教材パックの終了コードが 0 になる

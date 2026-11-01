@@ -1,0 +1,8 @@
+id: AUTHOR22-1
+package: fandhe-workshop-pack
+test: preview_command
+target: crates/pack/src/preview.rs
+find:     if !diags.is_empty() {
+replace:     if diags.is_empty() && false {
+expect-fail: author22_validate_only_diagnostics_stop_preview
+note: validate の診断を無視して compile へ進む（診断のある教材パックを配ってしまう）

@@ -28,6 +28,7 @@ mod placed;
 pub mod play_expect;
 pub mod play_run;
 pub mod play_script;
+pub mod preview;
 pub mod profile;
 mod reach;
 mod rejection;

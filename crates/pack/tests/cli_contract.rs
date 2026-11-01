@@ -49,11 +49,11 @@ fn exit_codes_are_fixed_values() {
 }
 
 #[test]
-fn commands_are_the_six_in_contract_order() {
+fn commands_are_in_contract_order() {
     let names: Vec<&str> = Subcommand::ALL.iter().map(|c| c.name()).collect();
     assert_eq!(
         names,
-        ["validate", "test", "compile", "vocab", "metrics", "compare"]
+        ["validate", "test", "compile", "vocab", "metrics", "compare", "preview"]
     );
 }
 
@@ -112,7 +112,7 @@ fn argument_shape_errors_are_reported_before_loading() {
     let x = std::ffi::OsStr::new("-x");
     let extra = std::ffi::OsStr::new("extra");
     let mut cases: Vec<Vec<&std::ffi::OsStr>> = Vec::new();
-    for c in ["validate", "test", "vocab", "metrics"] {
+    for c in ["validate", "test", "vocab", "metrics", "preview"] {
         let c = std::ffi::OsStr::new(c);
         cases.push(vec![c]);
         cases.push(vec![c, a.as_os_str(), extra]);

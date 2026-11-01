@@ -25,6 +25,7 @@ use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
 use crate::diag::write_diagnostics;
 use crate::play_run::{self, TestOutcome};
+use crate::preview::{self, Gate};
 use crate::source;
 use crate::validate;
 use crate::vocab_report::report_dir;
@@ -54,6 +55,9 @@ enum Invocation {
     Compare {
         a: PathBuf,
         b: PathBuf,
+    },
+    Preview {
+        pack_dir: PathBuf,
     },
 }
 
@@ -190,6 +194,7 @@ fn parse<I: Iterator<Item = OsString>>(
         Subcommand::Test => Invocation::Test { pack_dir: first },
         Subcommand::Vocab => Invocation::Vocab { pack_dir: first },
         Subcommand::Metrics => Invocation::Metrics { pack_dir: first },
+        Subcommand::Preview => Invocation::Preview { pack_dir: first },
     };
     expect_end(cmd, args)?;
     Ok(inv)
@@ -199,7 +204,7 @@ fn parse<I: Iterator<Item = OsString>>(
 ///
 /// 引数なしは使い方だけを標準エラーに出す。コマンド名が未知（`defects` を含む）または引数の形が誤りなら
 /// `error:` 行と使い方を標準エラーに出す。いずれも `EXIT_USAGE` で、標準出力には何も書かない。
-/// 形が正しければ 6 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
+/// 形が正しければ 7 つのコマンドの `run_*` へ振り分ける。`compile` は IR（JSON）を `out` に書き、診断があれば
 /// `out` に 1 件 1 行で書いて `EXIT_DIAGNOSTICS` を返す（診断は標準出力。`docs/cli.md` 版 4 の 9 節）。
 /// `-o <file>` があれば IR は標準出力ではなくファイルへ書く（10 節）。`validate` は診断の行と最終行を書く（TASK-403）。`test` は関門の後に教材テストを流し、全件合格で `EXIT_OK`、それ以外は `EXIT_DIAGNOSTICS` を返す（TASK-404 1/3）。合格した模範解答には PASS の行を書く（2/3）。
 pub fn run<I, O, E>(args: I, out: &mut O, err: &mut E) -> io::Result<u8>
@@ -237,6 +242,7 @@ where
         Invocation::Vocab { pack_dir } => run_vocab(&pack_dir, out),
         Invocation::Metrics { pack_dir } => run_metrics(&pack_dir, out, err),
         Invocation::Compare { a, b } => run_compare(&a, &b, out),
+        Invocation::Preview { pack_dir } => run_preview(&pack_dir, out, err),
     }
 }
 
@@ -263,6 +269,35 @@ fn run_validate<O: Write>(dir: &Path, out: &mut O) -> io::Result<u8> {
             });
             writeln!(out, "{line}")?;
             Ok(code)
+        }
+    }
+}
+
+/// `preview` の実行（AUTHOR-22・AUTHOR-2、TASK-429 1/3）。関門（`preview::gate`）に診断が 1 件でもあれば何も配らず、
+/// `validate` と同じ形（診断の行と最終行）を標準出力に書いて `EXIT_DIAGNOSTICS` で終える。標準エラー出力には書かない。
+fn run_preview<O: Write, E: Write>(dir: &Path, out: &mut O, err: &mut E) -> io::Result<u8> {
+    match preview::gate(dir) {
+        Gate::Unreadable(diags) => {
+            write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Unreadable {
+                diagnostics: diags.len(),
+            });
+            writeln!(out, "{line}")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        Gate::Diagnosed { diags, summary } => {
+            write_diagnostics(out, &diags)?;
+            let line = final_line(&FinalLine::Checked {
+                diagnostics: diags.len(),
+                summary,
+            });
+            writeln!(out, "{line}")?;
+            Ok(EXIT_DIAGNOSTICS)
+        }
+        // 経過措置: 配信と URL の表示は TASK-429 2/3（#814）で置き換える。配っていないので成功（0）にしない。
+        Gate::Ready { .. } => {
+            writeln!(err, "error: fandhe-pack preview: not implemented")?;
+            Ok(EXIT_USAGE)
         }
     }
 }
@@ -584,6 +619,18 @@ mod tests {
                 b: pd("b")
             })
         );
+        assert_eq!(
+            parse_args(Preview, &["d"]),
+            Ok(Invocation::Preview { pack_dir: pd("d") })
+        );
+        assert!(matches!(
+            parse_args(Preview, &["d", "e"]),
+            Err(UsageError::UnexpectedArg(Preview, _))
+        ));
+        assert!(matches!(
+            parse_args(Preview, &["d", "-o"]),
+            Err(UsageError::UnexpectedArg(Preview, _) | UsageError::UnknownOption(Preview, _))
+        ));
         assert_eq!(parse_args(Test, &[]), Err(UsageError::MissingArgs(Test)));
         assert!(matches!(
             parse_args(Vocab, &["a", "b"]),

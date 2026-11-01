@@ -379,7 +379,15 @@ pub fn compile_dir(dir: &Path) -> Result<Vec<u8>, Vec<Diagnostic>> {
 /// 全章を選ぶと、指定なしとバイト単位で同じ IR になる。
 pub fn compile_dir_with(dir: &Path, opts: &CompileOptions) -> Result<Vec<u8>, CompileError> {
     let pack = source::load(dir).map_err(CompileError::Diagnostics)?;
-    let mut ir = compile(&pack).map_err(CompileError::Diagnostics)?;
+    compile_loaded(&pack, opts)
+}
+
+/// 読み込み済みのパックから出力のバイト列までを作る（`compile_dir_with` の `source::load` より後ろ）。
+///
+/// `preview` の関門（`preview::gate_loaded`）が、読み込みと `validate` を済ませたパックに対して `compile` と
+/// バイト単位で同じ出力を得るために呼ぶ。ファイルシステムには触れない。
+pub fn compile_loaded(pack: &LoadedPack, opts: &CompileOptions) -> Result<Vec<u8>, CompileError> {
+    let mut ir = compile(pack).map_err(CompileError::Diagnostics)?;
     if let Some(ids) = &opts.chapters {
         let selected = resolve_selection(&pack.scopes, ids).map_err(CompileError::Chapter)?;
         // 範囲外の章が定義した開始点は、宛先が選んだ章の Step でも残さない。
