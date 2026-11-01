@@ -1,7 +1,7 @@
 //! `fandhe-pack preview` の関門と診断時の終了の適合試験（AUTHOR-22・AUTHOR-2、TASK-429 1/3）。
 //!
 //! 診断のある教材パックは何も配らず、`validate` と同じ形（診断の行と最終行）を標準出力に出して終了コード 1 で
-//! 終わることを実行ファイルで確かめる。診断 0 件の経路は TASK-429 2/3（#814）が配信に置き換える。
+//! 終わることを実行ファイルで確かめる。診断 0 件の経路は feature `embed-web` の有無で分かれる（配信の試験は `preview_serve.rs`・`preview_embedded.rs`）。
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -148,16 +148,17 @@ fn author22_diagnosed_pack_writes_nothing() {
     assert!(!out.contains("http://") && !out.contains("https://"));
 }
 
+/// 同梱の無いビルド（feature なし）では何も配らず、理由つきの誤りで 2 になる。
+#[cfg(not(feature = "embed-web"))]
 #[test]
-fn author22_clean_pack_is_not_implemented_yet() {
-    // 経過措置。2/3（#814）で配信と URL の表示に置き換え、この試験は書き換える。
+fn author22_clean_pack_without_bundle_is_usage_error() {
     let t = minimal();
     let o = run(&["preview".as_ref(), t.0.as_os_str()]);
     assert_eq!(o.status.code(), Some(2));
     assert!(o.stdout.is_empty());
     assert_eq!(
         String::from_utf8_lossy(&o.stderr),
-        "error: fandhe-pack preview: not implemented\n"
+        "error: fandhe-pack preview: the engine's web files are not bundled in this build\n"
     );
 }
 

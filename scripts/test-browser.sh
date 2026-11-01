@@ -90,6 +90,14 @@ log "compiling the CH-0..CH-3 authoring pack and building the delivery config wi
 "${FANDHE_PACK_BIN}" compile "${ROOT_DIR}/crates/web/tests/data/ch0_3_pack" -o "${TMP}/author-ir.json" >/dev/null
 TEST_HOOKS="" OUT_DIR="${TMP}/web-author" IR_FILE="${TMP}/author-ir.json" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
 
+# 同梱つきの fandhe-pack（preview が URL を出すビルド。TASK-429 2/3）。IR_FILE つきの配信する設定 web-author を同梱の元に使い、
+# 実行ファイルを起動する試験（preview_embedded）を流す。配った 6 ファイルが同梱の元とバイト単位で一致すること、IR が compile と
+# 一致すること、待ち受けが 127.0.0.1 だけであることを確かめる。ビルドは feature なしの target/debug/fandhe-pack を作り直すが、
+# preview 以外の挙動は同じ。
+log "building fandhe-pack with the embedded web files and running preview_embedded"
+"${DIR}/build-pack-preview.sh" --web-dir "${TMP}/web-author" --out "${TMP}/fandhe-pack-preview" >/dev/null
+(cd "${ROOT_DIR}" && cargo test --locked -p fandhe-workshop-pack --features embed-web --test preview_embedded) >&2
+
 # 版の違う履歴 15 件と開く側の教材を、native の試験と同じ作り方で書き出す（version-histories。VER-2）。
 # 書き出しの試験は #[ignore] で、ここだけが --ignored で呼ぶ。15 件がそろわなければ失敗にする（fail-closed）。
 log "emitting version histories for browser tests"

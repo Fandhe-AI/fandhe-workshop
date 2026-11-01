@@ -8,9 +8,12 @@
 # （docs/publish-checks.md）。
 #
 # 処理の順（どの段階の失敗も成果物を出さない。fail-closed）
-#   1. ビルド（--bin を渡したときは省く）
+#   1. ビルド（--bin を渡したときは省く）。エンジンの配信物を同梱する（scripts/build-pack-preview.sh。`preview` が
+#      cargo も Node も無い端末で URL を出せるようにするため。TASK-429 2/3。要 wasm-bindgen CLI・wasm32 ターゲット）
 #   2. アーキテクチャの検査: file の出力が --target の期待と合うこと
-#   3. 煙試験: PATH を絞り cargo・rustc が見えない環境で、例の教材に validate と test を流して 0 で終わること
+#   3. 煙試験: PATH を絞り cargo・rustc が見えない環境で、例の教材に validate と test を流して 0 で終わること。
+#      `preview` を裏で起動し、127.0.0.1 の URL が出て index.html・wasm・ir/main.json が取れ、IR が compile の出力と
+#      バイト単位で一致すること（curl が要る）
 #   4. 梱包: <out>/fandhe-pack-<version>-<target>.tar.gz と同名の .sha256
 #
 # 使い方: scripts/build-pack-release.sh [--target <triple>] [--out <dir>] [--bin <prebuilt>]
@@ -80,7 +83,7 @@ if [ -n "${OUT_DIR}" ]; then
 fi
 
 # cargo はビルドの有無によらず版の取得（cargo metadata）に使う
-for c in tar file mktemp jq cargo; do
+for c in tar file mktemp jq cargo curl; do
   require_cmd "${c}" || exit 2
 done
 if command -v shasum >/dev/null 2>&1; then
@@ -103,15 +106,15 @@ NOTICE_SRC="${ROOT_DIR}/tools/pack-release/README.txt"
 }
 
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+trap 'cleanup_preview 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 
 META="$(cd "${ROOT_DIR}" && cargo metadata --no-deps --format-version 1 --locked)"
 
 # 1. ビルド
 if [ -z "${PREBUILT}" ]; then
   log "building fandhe-pack for ${TARGET}"
-  (cd "${ROOT_DIR}" && cargo build --locked --release -p fandhe-workshop-pack --bin fandhe-pack --target "${TARGET}") >&2
-  BIN="$(printf '%s' "${META}" | jq -r '.target_directory')/${TARGET}/release/fandhe-pack"
+  BIN="${TMP_DIR}/built-fandhe-pack"
+  "${DIR}/build-pack-preview.sh" --release --target "${TARGET}" --out "${BIN}" >/dev/null
 else
   BIN="${PREBUILT}"
 fi
@@ -156,6 +159,46 @@ for sub in validate test; do
   log "smoke ok: ${sub}"
 done
 
+# preview の煙試験。URL の行を待ち、配信物と IR を取る。後片付けは trap の cleanup_preview（プロセスを止める）
+PREVIEW_PID=""
+cleanup_preview() {
+  if [ -n "${PREVIEW_PID}" ]; then
+    kill "${PREVIEW_PID}" 2>/dev/null || true
+    wait "${PREVIEW_PID}" 2>/dev/null || true
+    PREVIEW_PID=""
+  fi
+}
+smoke_fail() {
+  echo "error: smoke test failed: fandhe-pack preview: $1" >&2
+  cleanup_preview
+  exit 1
+}
+(cd "${ROOT_DIR}" && exec env -i PATH="${SMOKE_PATH}" HOME="${SMOKE_HOME}" "${BIN}" preview docs/examples/minimal-pack) >"${TMP_DIR}/preview.out" 2>"${TMP_DIR}/preview.err" &
+PREVIEW_PID=$!
+URL=""
+tries=0
+while [ "${tries}" -lt 40 ]; do
+  URL="$(sed -n 's/^URL: //p' "${TMP_DIR}/preview.out" | head -n 1)"
+  [ -z "${URL}" ] || break
+  kill -0 "${PREVIEW_PID}" 2>/dev/null || smoke_fail "exited before printing a URL"
+  tries=$((tries + 1))
+  sleep 0.5
+done
+[ -n "${URL}" ] || smoke_fail "no URL line within 20 seconds"
+case "${URL}" in
+  http://127.0.0.1:[0-9]*/preview/) ;;
+  *) smoke_fail "URL is not http://127.0.0.1:<port>/preview/" ;;
+esac
+ctype="$(curl -sS --noproxy '*' --max-time 10 -o "${TMP_DIR}/p-index" -w '%{content_type}' "${URL}")" || smoke_fail "cannot fetch index.html"
+case "${ctype}" in text/html*) ;; *) smoke_fail "index.html content-type: ${ctype}" ;; esac
+ctype="$(curl -sS --noproxy '*' --max-time 10 -o "${TMP_DIR}/p-wasm" -w '%{content_type}' "${URL}wasm/fandhe_workshop_web_bg.wasm")" || smoke_fail "cannot fetch wasm"
+[ "${ctype}" = "application/wasm" ] || smoke_fail "wasm content-type: ${ctype}"
+curl -sS --noproxy '*' --max-time 10 -o "${TMP_DIR}/p-ir" "${URL}ir/main.json" || smoke_fail "cannot fetch ir/main.json"
+(cd "${ROOT_DIR}" && env -i PATH="${SMOKE_PATH}" HOME="${SMOKE_HOME}" "${BIN}" compile docs/examples/minimal-pack) >"${TMP_DIR}/c-ir" 2>/dev/null || smoke_fail "compile failed"
+cmp -s "${TMP_DIR}/p-ir" "${TMP_DIR}/c-ir" || smoke_fail "ir/main.json differs from compile output"
+cleanup_preview
+log "smoke ok: preview"
+
 # 4. 梱包
 VERSION="$(printf '%s' "${META}" | jq -r '.packages[] | select(.name == "fandhe-workshop-pack") | .version')"
 if [ -z "${VERSION}" ] || [ "${VERSION}" = "null" ]; then
@@ -189,6 +232,7 @@ if [ -f "${ARCHIVE}" ] && [ -f "${ARCHIVE}.sha256" ]; then
 fi
 COMMITTED=0
 rollback() {
+  cleanup_preview
   if [ "${COMMITTED}" -eq 0 ]; then
     rm -f "${ARCHIVE}" "${ARCHIVE}.sha256"
     if [ "${HAD_PREV}" -eq 1 ]; then

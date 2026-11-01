@@ -1,0 +1,8 @@
+id: AUTHOR22-4
+package: fandhe-workshop-pack
+test: preview_serve
+target: crates/pack/src/preview_serve.rs
+find:         (Some(h), None) if h == want => {}
+replace:         (Some(_h), None) => {}
+expect-fail: author22_wrong_or_missing_host_is_400
+note: Host の完全一致の照合を外す（DNS rebinding で別のサイトから読まれる）

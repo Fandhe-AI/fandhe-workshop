@@ -68,6 +68,8 @@ cat <<'EOF'
   test-build-pack-bin          scripts/test-build-pack-bin.sh          fandhe-pack の前提バイナリの解決が CARGO_TARGET_DIR に追従することの回帰テスト（遅い）
   build-pack-release           scripts/build-pack-release.sh           fandhe-pack の配布用の実行ファイルをビルドし、アーキテクチャの検査・煙試験・梱包・sha256 まで行う（既定 aarch64-apple-darwin）
   test-build-pack-release      scripts/test-build-pack-release.sh      配布用の実行ファイルの作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし）
+  build-pack-preview           scripts/build-pack-preview.sh           エンジンの配信物を同梱した fandhe-pack（preview が動くビルド）を作り、実行ファイルのパスを出す
+  test-build-pack-preview      scripts/test-build-pack-preview.sh      上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし）
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   test-chapter-key-control     scripts/test-chapter-key-control.sh     鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）
   check-mutations              scripts/check-mutations.sh              変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）

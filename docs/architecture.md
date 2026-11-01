@@ -304,3 +304,8 @@ TASK-204 のとおり `core` に置く。
 - 2026-10-28: 第 8 節の `template-workshop/` に、ライセンス表記だけを置いた旨（TASK-130）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-29: 第 6 節の置き場の表に、受け口の有効化の関門（`receptor_gate`。TASK-191 1/2）を追加した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
 - 2026-10-29: 第 5 節の `test-hooks` の行に、受け口の代役の有効化（`?receptor=probe`）と `debug_receptor_activation`（TASK-191 2/2）を追記した。境界・依存の向きは変わらないため、構成設計の版は 1 のまま据え置く
+
+## 付記: pack の配信（TASK-429 2/3）
+
+- pack crate の `preview` は、標準ライブラリだけの最小の HTTP/1.1 サーバ（`preview_serve`）で 127.0.0.1 に待ち受ける。新しい外部依存は足さず、crate 間の依存の向きは変わらない（pack は web に依存しない）
+- エンジンの配信物は cargo の feature `embed-web`（既定では無効）が立つビルドでだけ `include_bytes!` で同梱する。同梱の元は `scripts/build-pack-preview.sh` が `dist/web-embed/` に作る。feature なしのビルドは何も配らず、理由つきの誤りで終わる

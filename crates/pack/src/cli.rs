@@ -14,18 +14,21 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::chapter_range::ChapterSelectError;
 use crate::cli_contract::{
     compare_differ_line, compare_same_line, compare_unreadable_line, final_line, test_entered_line,
     test_error_pass_line, test_fail_line, test_pass_line, test_r21_line, test_r22_line,
-    test_summary_lines, FinalLine, PackSummary,
+    test_summary_lines, FinalLine, PackSummary, PREVIEW_LISTEN_ADDR, PREVIEW_SUBPATH,
+    PREVIEW_URL_PREFIX,
 };
 use crate::compare::{compare_dirs, Outcome};
 use crate::compile::{compile_dir_with, CompileError, CompileOptions};
 use crate::diag::write_diagnostics;
 use crate::play_run::{self, TestOutcome};
 use crate::preview::{self, Gate};
+use crate::preview_serve::{self, Site};
 use crate::source;
 use crate::validate;
 use crate::vocab_report::report_dir;
@@ -294,10 +297,45 @@ fn run_preview<O: Write, E: Write>(dir: &Path, out: &mut O, err: &mut E) -> io::
             writeln!(out, "{line}")?;
             Ok(EXIT_DIAGNOSTICS)
         }
-        // 経過措置: 配信と URL の表示は TASK-429 2/3（#814）で置き換える。配っていないので成功（0）にしない。
-        Gate::Ready { .. } => {
-            writeln!(err, "error: fandhe-pack preview: not implemented")?;
-            Ok(EXIT_USAGE)
+        // 診断 0 件。同梱があるビルドだけが、127.0.0.1 の待ち受けを開いて URL を出し、止められるまで配る。
+        Gate::Ready { ir, summary } => {
+            let Some(assets) = preview::EMBEDDED_WEB else {
+                writeln!(
+                    err,
+                    "error: fandhe-pack preview: the engine's web files are not bundled in this build"
+                )?;
+                return Ok(EXIT_USAGE);
+            };
+            let listener = match preview_serve::bind_loopback() {
+                Ok(l) => l,
+                Err(_) => {
+                    writeln!(
+                        err,
+                        "error: fandhe-pack preview: cannot listen on 127.0.0.1"
+                    )?;
+                    return Ok(EXIT_USAGE);
+                }
+            };
+            let Ok(addr) = listener.local_addr() else {
+                writeln!(
+                    err,
+                    "error: fandhe-pack preview: cannot listen on 127.0.0.1"
+                )?;
+                return Ok(EXIT_USAGE);
+            };
+            let line = final_line(&FinalLine::Checked {
+                diagnostics: 0,
+                summary,
+            });
+            writeln!(out, "{line}")?;
+            writeln!(
+                out,
+                "{PREVIEW_URL_PREFIX}http://{PREVIEW_LISTEN_ADDR}:{}{PREVIEW_SUBPATH}",
+                addr.port()
+            )?;
+            // パイプにつないだ受け手（試験・煙試験）が URL を読めるよう、配信に入る前に必ず流す。
+            out.flush()?;
+            preview_serve::serve(listener, Arc::new(Site::new(assets, ir)))
         }
     }
 }

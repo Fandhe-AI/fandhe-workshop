@@ -1,0 +1,8 @@
+id: AUTHOR22-5
+package: fandhe-workshop-pack
+test: preview_serve
+target: crates/pack/src/preview_serve.rs
+find:             if pos > MAX_HEAD_BYTES {
+replace:             if false {
+expect-fail: author22_oversized_head_is_431_and_garbage_does_not_stop_the_server
+note: 要求のヘッダの上限を外す

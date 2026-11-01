@@ -57,8 +57,24 @@ cargo build -p fandhe-workshop-pack --bin fandhe-pack
 3. `fandhe-pack compile <pack-dir>` で IR（JSON）を作る。画面に配るのはこの IR
 4. `fandhe-pack vocab <pack-dir>` で、使った拡張点を確かめる。`fandhe-pack metrics <pack-dir>` で、ファイルごとの大きさを見る
 5. 2 つの教材パックの IR を比べたいときは `fandhe-pack compare <pack-dir-a> <pack-dir-b>`
+6. 画面で確かめたいときは `fandhe-pack preview <pack-dir>`（下の「画面で確かめる」）
 
 コマンドと引数の形は `docs/cli.md` の 3 節にあります。
+
+### 画面で確かめる（preview）
+
+`fandhe-pack preview <pack-dir>` は、検査（`validate`）と `compile` に診断が 0 件のときだけ、手元で配信を始めて URL を出します。
+
+```text
+OK: ...
+URL: http://127.0.0.1:<port>/preview/
+```
+
+- 出た URL をブラウザで開きます。ブラウザは自動では開きません。Rust も Node も要りません（エンジンの画面は実行ファイルに入っています）
+- 診断があるときは何も配らず、`validate` と同じ形で診断を出して終了コード 1 になります
+- 文章や設定を直したら、`Ctrl+C` で止めて、もう一度 `preview` を実行します。ファイルの監視と自動の再読み込みはありません
+- 実行のたびにポートが変わるため、画面は保存済みの履歴が空の状態で始まります。前の実行で開いていたタブは読み込めなくなるので、新しい URL を開いてください
+- 待ち受けは自分の端末（127.0.0.1）だけです。同じネットワークの他の端末からは見えません
 
 ## 4. 出力の読み方
 
