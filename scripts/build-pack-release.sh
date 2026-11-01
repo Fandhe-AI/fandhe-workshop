@@ -3,7 +3,9 @@
 #
 # 目的: 教材の作成者に Rust の導入を求めない（TASK-414 の決定）。OS・CPU ごとの実行ファイルを 1 つ作り、
 # アーキテクチャの検査・Rust の無い環境での煙試験（AUTHOR-14）・梱包・sha256 まで行う。
-# 呼び出し元は release.yml の build ジョブと人の手元。署名・公証はしない（D-71 と同じ方針。案内文は TASK-415 2/2）。
+# 呼び出し元は release.yml の build ジョブと人の手元。署名・公証はしない（D-71 と同じ方針）。署名の無い実行ファイルの起動の案内文
+# （tools/pack-release/README.txt）を README.txt として同梱する（TASK-415 2/2）。Release は作らず、人の承認の後に手で作る
+# （docs/publish-checks.md）。
 #
 # 処理の順（どの段階の失敗も成果物を出さない。fail-closed）
 #   1. ビルド（--bin を渡したときは省く）
@@ -90,6 +92,11 @@ else
   exit 2
 fi
 
+NOTICE_SRC="${ROOT_DIR}/tools/pack-release/README.txt"
+[ -f "${NOTICE_SRC}" ] || {
+  echo "error: notice file not found: tools/pack-release/README.txt" >&2
+  exit 2
+}
 [ -d "${ROOT_DIR}/docs/examples/minimal-pack" ] || {
   echo "error: smoke-test pack not found: docs/examples/minimal-pack" >&2
   exit 2
@@ -161,6 +168,7 @@ mkdir -p "${STAGE}" "${TMP_DIR}/pack"
 cp "${BIN}" "${STAGE}/fandhe-pack"
 chmod 0755 "${STAGE}/fandhe-pack"
 cp "${ROOT_DIR}/LICENSE-MIT" "${ROOT_DIR}/LICENSE-APACHE" "${STAGE}/"
+cp "${NOTICE_SRC}" "${STAGE}/README.txt"
 # アーカイブと .sha256 は一時領域で完成させてから出力先へ置く（途中の失敗で不完全な成果物・既存の成果物の切り詰めを出さない）。
 # COPYFILE_DISABLE は macOS の tar が ._* のメタデータ項目を混ぜるのを防ぐ
 WORK_ARCHIVE="${TMP_DIR}/pack/${NAME}.tar.gz"

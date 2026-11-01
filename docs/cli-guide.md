@@ -2,8 +2,8 @@
 
 教材の作成者が、エンジンのソースを読まずに `fandhe-pack` を使えるようにするための手引きです（AUTHOR-12）。
 
-- 文書の版: 1
-- 確認した日: 2026-10-24（実装は `main` の `22eb38e` 時点）
+- 文書の版: 2
+- 確認した日: 2026-11-01（版 1 は 2026-10-24。版 2 の変更は 2 節の配布された実行ファイルの案内）
 - 仕様は private のため、本文を転記せず ID で参照します
 
 ## 1. 位置づけ
@@ -24,6 +24,21 @@
 | 8 | `docs/known-gaps.md` | 書けないことと回避 |
 
 ## 2. 実行ファイルの用意
+
+用意の仕方は 2 つあります。Rust を入れたくない場合は 2.1 を使います。
+
+### 2.1 配布された実行ファイルを使う
+
+Apple シリコンの macOS 用だけが対象です。Intel の macOS・Windows・Linux 向けはまだありません。Rust は要りません。配布物（tar.gz）には、実行ファイル・`LICENSE-MIT`・`LICENSE-APACHE`・案内文の `README.txt` が入っています。次の手順は `README.txt` と同じです。食い違って見えたら、配布物の `README.txt` に従ってください。
+
+実行ファイルには署名も公証もありません（TASK-414 の決定。L2 の配布物と同じ方針です）。ブラウザで落とすと macOS が quarantine の属性を付け、そのままでは起動を止められることがあります。
+
+1. 照合します。`.sha256` を tar.gz と同じ場所に置き、`shasum -a 256 -c fandhe-pack-<版>-aarch64-apple-darwin.tar.gz.sha256` を実行して `OK` を確かめます
+2. 展開します。`tar -xzf fandhe-pack-<版>-aarch64-apple-darwin.tar.gz`
+3. 展開してできたディレクトリの中で、実行ファイル 1 つの quarantine を外します。`xattr -d com.apple.quarantine fandhe-pack`。属性が無いときは `No such xattr` と出ますが、無害です
+4. `./fandhe-pack validate <pack-dir>` のように実行します
+
+### 2.2 ソースからビルドする
 
 リポジトリのルートで、次を実行します。実行ファイルは `target/debug/fandhe-pack` にできます。
 

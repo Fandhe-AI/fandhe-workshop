@@ -11,8 +11,9 @@
 # 発火の起点は workflow_dispatch だけにする。pull_request・pull_request_target・push を足さない
 # （fork や PR の内容が macOS の runner で動く経路になる。.claude/rules/security.md。scripts/check-fork-ci.sh の C4 が強制する）。
 #
-# 本ファイルは Release を作らない（TASK-415 2/2 の範囲。書き込み権限は持たない）。
-# 実行ファイルは署名・公証をしない（TASK-414 の決定。D-71 と同じ方針）。起動のための案内文は 2/2 で付ける。
+# 本ファイルは Release を作らない（書き込み権限は持たない）。Release はユーザーが公開前の確認の承認の後に
+# 手で draft として作る（手順は docs/publish-checks.md の TASK-415 の節）。
+# 実行ファイルは署名・公証をしない（TASK-414 の決定。D-71 と同じ方針）。起動のための案内文は tar.gz に README.txt として同梱する。
 #
 # ジョブ追加・変更時は .claude/rules/github-actions.md に従う。
 name: Release
@@ -56,7 +57,7 @@ jobs:
         run: bash scripts/ci-rust-toolchain.sh
       - name: Build, verify and package
         run: make build-pack-release
-      # public の repo の artifact はログインした利用者なら取得できる。公開の判断は 2/2 まで行わないため保持を短くする
+      # public の repo の artifact はログインした利用者なら取得できる。公開の判断は人の承認の後に行うため保持を短くする
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fandhe-pack-aarch64-apple-darwin-${{ github.sha }}
