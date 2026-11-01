@@ -5,7 +5,7 @@
 #
 # 存在理由: 基点（commit・wasm-opt・機能の範囲・圧縮の設定）の付かない値は、基点の違う値どうしの誤った比較を招く
 # （docs/measurement.md）。結果を出す経路を measure_emit / measure_emit_run だけにして、基点が欠けた結果を構造的に出さない。
-# 呼び出し元: tools/measure/wasm-size.sh・first-paint.sh・redraw.sh・all.sh（log-redraw.sh・input-paint.sh・view-redraw.sh も measure_browser_result を使う）。ビルドとログ解析・commit の前後比較も
+# 呼び出し元: tools/measure/wasm-size.sh・first-paint.sh・first-paint-direct.sh・redraw.sh・all.sh（log-redraw.sh・input-paint.sh・view-redraw.sh も measure_browser_result を使う）。ビルドとログ解析・commit の前後比較も
 # 3 つの測定で同じ手順にするため、ここへ集約する。
 # 結果の様式の定義は docs/measurement.md。JSON は jq の --arg / --argjson だけで組み立て、文字列連結で作らない。
 
@@ -86,6 +86,58 @@ measure_device_json() {
   jq -n --arg os "${os}" --arg release "${release}" --arg arch "${arch}" --arg cpu "${cpu}" \
     --argjson cores "${cores}" --argjson mem "${mem}" --argjson apple "${apple}" \
     '{os: $os, os_release: $release, arch: $arch, cpu: $cpu, logical_cores: $cores, memory_bytes: $mem, apple_silicon_macos: $apple}'
+}
+
+# measure_device_class_json: 端末の区分だけを返す（first-paint-direct 用。公開に向かない CPU の型番・メモリの量・ホスト名は入れない）。
+# class は Apple シリコンの macOS なら A、それ以外は other。A は基準端末 A であることの証明ではなく、記録する人が確かめる（docs/measurement.md）。
+measure_device_class_json() {
+  local os arch class=other apple=false
+  os="$(uname -s)" || return 1
+  arch="$(uname -m)" || return 1
+  if [ "${os}" = "Darwin" ] && [ "${arch}" = "arm64" ]; then
+    class=A
+    apple=true
+  fi
+  jq -n --arg os "${os}" --arg arch "${arch}" --arg class "${class}" --argjson apple "${apple}" \
+    '{class: $class, os: $os, arch: $arch, apple_silicon_macos: $apple}'
+}
+
+# measure_first_paint_direct_verdict <result.json>: first-paint-direct の結果を検証し、3 秒の判定を返す。
+# 戻り値: 0 = 3 秒以内 / 3 = 測れたが超過 / 1 = 形の不正（理由は標準エラー）。中央値・最大・判定は values_us から jq で計算し直して照合する。
+measure_first_paint_direct_verdict() {
+  local file="$1" within
+  [ -r "${file}" ] || return 1
+  measure_validate "${file}" || { echo "error: first-paint-direct result is not a valid v1 result" >&2; return 1; }
+  if ! jq -e -s '
+    def med: sort | if length % 2 == 1 then .[length / 2 | floor] else ((.[length / 2 - 1] + .[length / 2]) / 2) end | round;
+    def one(n): [.measurements[] | select(.name == n)] | length == 1;
+    def val(n): .measurements[] | select(.name == n) | .value;
+    .[0] as $r | $r.conditions as $c |
+    length == 1
+    and ($c.values_us | type == "array" and length == 10 and all(type == "number" and . > 0 and . == floor))
+    and ($c.mounted_values_us | type == "array" and length == 10 and all(type == "number" and . > 0 and . == floor))
+    and ($c.threshold_us == 3000000)
+    and ($r | one("first_paint_direct_operable_median") and one("first_paint_direct_operable_max")
+      and one("first_paint_direct_mounted_median") and one("first_paint_direct_wasm_transfer") and one("first_paint_direct_ir_transfer"))
+    and ($r | val("first_paint_direct_operable_median")) == ($c.values_us | med)
+    and ($r | val("first_paint_direct_operable_max")) == ($c.values_us | max)
+    and ($r | val("first_paint_direct_mounted_median")) == ($c.mounted_values_us | med)
+    and ($c.judgement.median_within == (($c.values_us | med) <= 3000000))
+    and ($c.judgement.max_within == (($c.values_us | max) <= 3000000))
+    and ($c.judgement.within == ($c.judgement.median_within and $c.judgement.max_within))
+    and ($r.toolchain.browser | type == "string" and length > 0)
+    and ($c.browser.channel == "chromium" or $c.browser.channel == "chrome")
+    and ($c.browser.headless | type == "boolean")
+    and ($r.baseline.device.class == "A" or $r.baseline.device.class == "other")
+    and ($r.baseline.device | has("cpu") or has("memory_bytes") | not)
+    and ($r.baseline.pack.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+  ' "${file}" >/dev/null 2>&1; then
+    echo "error: first-paint-direct result is malformed or inconsistent" >&2
+    return 1
+  fi
+  within="$(jq -r '.conditions.judgement.within' "${file}")" || return 1
+  if [ "${within}" = "true" ]; then return 0; fi
+  return 3
 }
 
 # measure_data_json: 固定データの測定（view-redraw）の基点 {"id","manifest_sha256","files"} を返す。教材の代わりに、測った固定データの
@@ -185,15 +237,17 @@ _measure_log_line() {
   grep -F -- "[build-web.sh] ${prefix}" "${logfile}" | sed -e "s/^\[build-web.sh\] ${prefix} *//"
 }
 
-# measure_build <tmpdir>: tools/build-web.sh を release で <tmpdir>/web へビルドし（dist/ は上書きしない）、ログを解析する。
-# ビルドログは標準エラーへ流す。TEST_HOOKS・SKIP_WASM_OPT は呼び出し元の環境を build-web.sh へそのまま渡し、IR_FILE は空にする。
+# measure_build <tmpdir> [ir-file]: tools/build-web.sh を release で <tmpdir>/web へビルドし（dist/ は上書きしない）、ログを解析する。
+# ビルドログは標準エラーへ流す。TEST_HOOKS・SKIP_WASM_OPT は呼び出し元の環境を build-web.sh へそのまま渡す。IR_FILE は第 2 引数が無ければ空にする。
+# 第 2 引数の IR を渡すと配信する設定に同梱し（first-paint-direct。IR_FILE は <tmpdir>/web の外に置くこと）、ログの `ir:` 行が
+# ちょうど 1 行で config が delivery であることを確かめる。IR を渡さない従来の呼び出しは動きが変わらない。
 # 成功時に MEASURE_CONFIG（delivery / test）・MEASURE_WASM_OPT_APPLIED（true / false）・MEASURE_WASM_OPT_DETAIL・
 # MEASURE_LOG_RAW・MEASURE_LOG_GZ を設定する（呼び出し元が参照する）。
 # 戻り値: 0 = 成功 / 1 = 失敗 / 2 = build-web.sh の誤用（そのまま返す）。各ログ行が厳密に 1 行でなければ失敗する（fail-closed）。
 measure_build() {
-  local tmp="$1" rc=0 config_line wasm_opt_line size_line
+  local tmp="$1" ir_file="${2:-}" rc=0 config_line wasm_opt_line size_line ir_line
   log "building (release) via tools/build-web.sh"
-  OUT_DIR="${tmp}/web" IR_FILE="" "${ROOT_DIR}/tools/build-web.sh" release >"${tmp}/build.log" 2>&1 || rc=$?
+  OUT_DIR="${tmp}/web" IR_FILE="${ir_file}" "${ROOT_DIR}/tools/build-web.sh" release >"${tmp}/build.log" 2>&1 || rc=$?
   if [ "${rc}" -ne 0 ]; then
     cat "${tmp}/build.log" >&2
     echo "error: build-web.sh failed" >&2
@@ -224,6 +278,14 @@ measure_build() {
       ;;
   esac
   MEASURE_WASM_OPT_DETAIL="${MEASURE_WASM_OPT_DETAIL%)}"
+
+  if [ -n "${ir_file}" ]; then
+    ir_line="$(_measure_log_line "${tmp}/build.log" "ir:")" || return 1
+    if [ "${ir_line}" != "ir/main.json (from IR_FILE)" ] || [ "${MEASURE_CONFIG}" != "delivery" ]; then
+      echo "error: the IR was not bundled into a delivery build" >&2
+      return 1
+    fi
+  fi
 
   MEASURE_LOG_RAW="$(sed -n 's/^raw \([0-9][0-9]*\) bytes, gzip -9 \([0-9][0-9]*\) bytes$/\1/p' <<<"${size_line}")"
   MEASURE_LOG_GZ="$(sed -n 's/^raw \([0-9][0-9]*\) bytes, gzip -9 \([0-9][0-9]*\) bytes$/\2/p' <<<"${size_line}")"
@@ -290,20 +352,37 @@ measure_result_json() {
     }'
 }
 
-# measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
+# measure_browser_result <kind> <commit-json> <tmpdir> [extra-json] [ir-file]: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# <kind> は first-paint / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# first-paint-direct は第 5 引数に IR（配信する設定へ同梱する）を要り、extra は pack と device の区分（measure_device_class_json）。
+# <kind> は first-paint / first-paint-direct / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
 # 結果の baseline へ足す。この 4 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw と view-redraw-cpu4x は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
 # 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
 measure_browser_result() {
-  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" rc=0 features need_extra
+  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" ir_file="${5:-}" rc=0 features need_extra
   if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
     log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-cpu4x) need_extra=1 ;;
     view-redraw | view-redraw-cpu4x) need_extra=2 ;;
+    first-paint-direct) need_extra=3 ;;
     *) need_extra=0 ;;
   esac
+  # IR は first-paint-direct だけが取る（必須）。他の種別で渡されたら断る。ビルドの前に判定する。
+  if [ "${kind}" = "first-paint-direct" ] && [ -z "${ir_file}" ]; then
+    echo "error: first-paint-direct needs an IR file" >&2
+    return 1
+  fi
+  if [ "${kind}" != "first-paint-direct" ] && [ -n "${ir_file}" ]; then
+    echo "error: ${kind} does not take an IR file" >&2
+    return 1
+  fi
+  if [ "${need_extra}" -eq 3 ] && ! jq -e '
+    (.pack.id | type == "string" and length > 0) and (.pack.sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+    and (.device.class == "A" or .device.class == "other") and (.device | has("cpu") or has("memory_bytes") | not)' <<<"${extra}" >/dev/null 2>&1; then
+    echo "error: ${kind} needs the pack and device class baseline" >&2
+    return 1
+  fi
   if [ "${need_extra}" -eq 2 ] && ! jq -e '
     (.data.id | type == "string" and length > 0) and (.data.manifest_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
     and (.data.files | type == "object" and length > 0)
@@ -321,7 +400,7 @@ measure_browser_result() {
     echo "error: ${kind} needs the pack and device baseline" >&2
     return 1
   fi
-  measure_build "${tmp}" || rc=$?
+  measure_build "${tmp}" "${ir_file}" || rc=$?
   if [ "${rc}" -ne 0 ]; then return "${rc}"; fi
   features="$(measure_features_json "${MEASURE_CONFIG}")" || return 1
 
