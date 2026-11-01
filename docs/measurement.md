@@ -28,6 +28,7 @@ make measure | jq .
 | 初回表示 | `tools/measure/first-paint.sh` | 配信する設定 |
 | 初回表示（IR つきの直接リンクで操作できるまで。TASK-108。DLV-5） | `make measure-first-paint-direct`（`tools/measure/first-paint-direct.sh`） | 配信する設定に IR を同梱。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本。3 秒を超えたら終了コード 3（JSON は出す）。手順は §8 |
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
+| 巨大な文字列の IR を開いたときの renderer の RSS（TASK-163 1/2） | `make measure-ir-memory`（`tools/measure/ir-memory.sh`） | 配信する設定（`min-3step.json` を `ir/main.json` に同梱）。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 項目数ごとの再描画の傾き（ログ 100〜4,000 項目の 12 段階。TASK-232 1/3） | `tools/measure/log-slope.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 2 周分の通しの再描画（世代と Step をまたぐ 6・48 グループ × 行の数 500・1,200・2,000。TASK-232 3/3） | `tools/measure/log-rounds.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
@@ -202,6 +203,43 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - 比較の規則: `log_rounds_*` を `log-rounds.sh`（合成のログの再描画の時間）と比べない。`ops_sha256` が違う値どうしを比べない
 - 回帰テストは `make test-measure-result` の (e)。記録は `docs/testing.md` 5.349
 
+## 4c. 巨大な文字列の IR を開いたときのメモリの様式（TASK-163 1/2。`schema`: `fandhe-workshop/measure/v1`）
+
+様式は 4 と同じで、基点に `pack`（`min-3step.json`）と `device` を足す。`toolchain.browser` が `chromium <版>` か `chrome <版>` で、ブラウザの channel の記録になる。
+
+測るもの: 3 通りの IR（`base` = 普通の IR、`pack_title` = 1,990 万文字の `pack.title`、`hint_text` = 1,990 万文字のヒント `h-1-1` の本文）を、配信する設定の画面で開いたときの renderer の RSS の合計の最大値（KiB）。巨大な値は文字列の長さの上限（SAFE-25・D-45）により `string_too_long` で断られるため、測る値は断った後（対策後）の値である。上限を外した値ではない。
+
+- 標本: 100ms ごとに CDP の `SystemInfo.getProcessInfo` で renderer の pid を取り、`ps -o pid=,rss= -p <pids>` で読む（Linux・macOS とも rss は KiB）。mount の後も 2,000ms 取り続ける。試行ごとに新しいブラウザを起動し、1 場合 3 試行
+- 検査: 落ちなかった試行は、`base` が断りの通知 0 件で Step の題あり、他の 2 つが通知ちょうど 1 件で理由が `string_too_long`、でなければ失敗にする。配信元以外への通信が 1 件でもあれば失敗。標本が 0 件でも失敗
+- 測定名（単位 `KiB`）: `ir_memory_<case>_renderer_rss_max`（3 試行の最大）・`ir_memory_<case>_renderer_rss_median`
+- `conditions`: `trials`・`sample_interval_ms`・`settle_ms`・`source`・`aggregate`・`expected_reason`・`max_ir_bytes`・`crashes_total`（0 になりうるため `measurements[]` に置けない）・`cases[]`（`name`・`field`・`chars`・`ir_bytes`・`ir_sha256`・`crashes`・`notices`・`reason`・`trial_peaks_kib`）・`low_memory_device: "unverified"`・`scope_note`
+- 結果に pid・パス・ホスト名・ユーザー名・IR の本文を入れない
+- 限界: 断られた画面にはヒントの操作が無いため、ヒントは開かない。低メモリ端末は未確認
+
+終了コード: 0 = 成功（crash 0 件） / 1 = 失敗（標準出力は空） / 2 = 誤用 / 3 = 測定は完了し検証にも通ったが crash が 1 件以上（JSON は出す）。
+
+### 基準端末 A での前提・手順（#860 で人が行う）
+
+- 前提: Apple シリコンの Mac、`npm ci`、`npx playwright install chromium`、Chrome の原本の導入、作業ツリーがきれい（`baseline.commit.dirty` が `false`）、他のアプリを閉じておく
+- 手順: `FANDHE_BROWSER_CHANNEL=chrome tools/measure/ir-memory.sh > ir-memory.json; echo $?`（`make` 経由にしない。GNU Make は recipe が終了コード 3 で終わっても 2 を返すため、crash の 3 を取れない）
+- 貼ってもらう出力: JSON の全体と終了コード
+
+記録の様式（`docs/testing.md` か #860 に残す）:
+
+| 欄 | 内容 |
+|---|---|
+| 日付・commit・`apple_silicon_macos` | 基点から転記 |
+| ブラウザ | `toolchain.browser`（`chrome <版>`） |
+| 場合ごとの最大・中央値（KiB） | `measurements[]` |
+| crash の件数・断った理由 | `conditions.cases[]` |
+| 低メモリ端末 | 未確認（固定の欄。値を測っていない端末で「問題なし」と書かない） |
+
+```bash
+make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
+```
+
+- 回帰テストは `make test-measure-ir-memory`（ビルドなし）。手元（Linux・Chromium）の実行の記録は `docs/testing.md` 5.433
+
 ## 5. 一括実行の束（`schema`: `fandhe-workshop/measure-run/v1`）
 
 `make measure` の出力。大きさと初回表示は配信する設定、再描画は試験の設定で測るため、基点の機能の範囲は結果ごとに違う。
@@ -245,6 +283,7 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - `conditions.cpu_throttle` が違う値どうしを比べない。CPU 4 倍の値（`view-redraw-cpu4x`・`product-redraw-cpu4x`）は記録だけで、判定に使わず、減速なしの値とも比べない
 - `product-redraw` の値は本体の画面の `switch`（選択のボタンの click の同期区間。委譲を含む）の値で、`view-redraw` の値（委譲を含まない）・教材の値と比べない。種類ごとの描画部品が製品に結線されるまでは経路の行の値である（`docs/testing.md` 5.318）
 - `history_*` の値（native の様式）は、PoC-6 の CSV の値と直接比べない（履歴の形が違い、誤入力が無く、`GoTo` で飛ばしているため）。WASM・ブラウザの側の値とも比べない。`baseline.ops_sequence.ops_sha256` が違う値どうしを比べない
+- `ir_memory_*` の値は、断った後の値であり上限を外した値ではない。chromium と chrome の値、Linux の値と基準端末 A の値を比べない。`conditions.cases[].ir_sha256` が違う値どうしを比べない
 - Hello の値は最小の画面の値で、教材全体の値ではない
 - 記録に値を残すときは、基点の 4 項目を併記する
 
@@ -253,6 +292,7 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - TASK-336（SAVE-26）は実施済み。`crates/pack/tests/history_size_conditions.rs` が計画に誤入力・`Control::Save`・下書きを差し込み、3 条件 × 種 5 の 15 本で 5MB 以下を判定する（記録は `docs/testing.md` の 5.344）。`HISTORY-SIZE-CONDITIONS ` の行の値も PoC-6 の CSV と直接は比べない。`make measure` の束には入れていない
 - TASK-337（SAVE-27）は、本物の CH-0〜CH-15 が無いため章の形の写しと 2 周分の代役で実施した（`crates/web/tests/history_size_all_chapters.rs`。記録は `docs/testing.md` の 5.345）。本物の全章では未実施で、`HISTORY-SIZE-ALL-CHAPTERS ` の行は PoC-6 の CSV・5.344 の値と直接は比べない。`make measure` の束には入れていない
 
+- `make measure` の束（`results` が 3 件で固定）には `ir-memory` を入れていない。束に入れるなら様式の版上げが要る
 - JS glue・`index.html` など他の配信物の大きさは、`measurements[]` に足すだけでよい（様式の変更は不要）
 - ビルド情報はビルドログの行（`config` / `wasm-opt` / `wasm size`）から読む。解析は `tools/measure/lib.sh` の `measure_build` に集約してある。
   機械可読の出力を `build-web.sh` に足す案は、ログの形式が変わって解析が壊れるようになった時点で検討する

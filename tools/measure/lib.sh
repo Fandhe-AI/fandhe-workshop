@@ -238,7 +238,8 @@ _measure_log_line() {
 }
 
 # measure_build <tmpdir> [ir-file]: tools/build-web.sh を release で <tmpdir>/web へビルドし（dist/ は上書きしない）、ログを解析する。
-# ビルドログは標準エラーへ流す。TEST_HOOKS・SKIP_WASM_OPT は呼び出し元の環境を build-web.sh へそのまま渡す。IR_FILE は第 2 引数が無ければ空にする。
+# ビルドログは標準エラーへ流す。TEST_HOOKS・SKIP_WASM_OPT は呼び出し元の環境を build-web.sh へそのまま渡す。
+# IR_FILE は第 2 引数（IR を開く測定 ir-memory 用。ir/main.json として同梱される）で、省略すると空にする。
 # 第 2 引数の IR を渡すと配信する設定に同梱し（first-paint-direct。IR_FILE は <tmpdir>/web の外に置くこと）、ログの `ir:` 行が
 # ちょうど 1 行で config が delivery であることを確かめる。IR を渡さない従来の呼び出しは動きが変わらない。
 # 成功時に MEASURE_CONFIG（delivery / test）・MEASURE_WASM_OPT_APPLIED（true / false）・MEASURE_WASM_OPT_DETAIL・
@@ -352,28 +353,57 @@ measure_result_json() {
     }'
 }
 
-# measure_browser_result <kind> <commit-json> <tmpdir> [extra-json] [ir-file]: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
+# measure_ir_memory_check <browser-json-file> <rc>: ir-memory の browser.mjs の出力が様式どおりか（cases が 3 件で各欄の型が合い、
+# crashes_total が件数の和）、終了コード（0 または 3）が crash の件数と一致するかを確かめる。食い違えば理由を出して 1 を返す。
+# crash があるときの 3 だけを受け入れる（crash なしの 3 や、crash ありの 0 は出力を信用できないため断る）。
+measure_ir_memory_check() {
+  local file="$1" rc="$2"
+  if [ "${rc}" != "0" ] && [ "${rc}" != "3" ]; then
+    echo "error: unexpected exit code from browser.mjs (ir-memory)" >&2
+    return 1
+  fi
+  if ! jq -e -s --argjson rc "${rc}" '
+    def nes: type == "string" and length > 0;
+    def count: type == "number" and . >= 0 and . == floor;
+    length == 1 and (.[0].conditions |
+      (.cases | type == "array" and length == 3
+        and ([.[].name] == ["base", "pack_title", "hint_text"])
+        and all((.field | nes) and (.chars | count) and (.ir_bytes | count) and (.ir_sha256 | type == "string" and test("^[0-9a-f]{64}$"))
+          and (.crashes | count) and (.notices | count) and (.reason == null or (.reason | nes))
+          and (.trial_peaks_kib | type == "array" and length >= 1 and all(type == "number" and . > 0))))
+      and (.crashes_total | count) and (.crashes_total == ([.cases[].crashes] | add))
+      and ((.crashes_total > 0) == ($rc == 3))
+      and (.low_memory_device == "unverified"))
+  ' "${file}" >/dev/null 2>&1; then
+    echo "error: ir-memory output is malformed or its exit code does not match the crash count" >&2
+    return 1
+  fi
+}
+
+# measure_browser_result <kind> <commit-json> <tmpdir>: ビルド（measure_build）→ ブラウザの測定（browser.mjs）→ commit の前後比較 →
 # v1 の結果の組み立て → measure_emit、までを行う。first-paint.sh と redraw.sh の共通の流れ。
-# first-paint-direct は第 5 引数に IR（配信する設定へ同梱する）を要り、extra は pack と device の区分（measure_device_class_json）。
-# <kind> は first-paint / first-paint-direct / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
-# 結果の baseline へ足す。この 4 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw と view-redraw-cpu4x は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
+# 第 5 引数 [ir-file] は ir-memory だけが使う（measure_build の IR_FILE へ渡す。ir-memory で空なら失敗）。ir-memory の browser.mjs は crash を
+# 観察すると終了コード 3 で JSON を出す。このときだけ measure_ir_memory_check を通れば検証・出力まで進み、3 を返す（他の種別の 3 は失敗）。
+# <kind> は first-paint / first-paint-direct / redraw / log-redraw / log-slope / log-rounds / input-paint / view-redraw / product-redraw / ir-memory / view-redraw-cpu4x / product-redraw-cpu4x（後ろ 2 つは記録だけの CPU 4 倍。TASK-485 3/3）。log-redraw・log-slope・log-rounds・input-paint・product-redraw・product-redraw-cpu4x は第 4 引数に追加の基点（{"pack": ..., "device": ...} の JSON）を取り、
+# 結果の baseline へ足す。ir-memory も pack と device を要る。この 4 つでこれが欠ける・pack か device が無いときは失敗にする。view-redraw と view-redraw-cpu4x は pack の代わりに data（measure_data_json）と device を要る。<tmpdir> は呼び出し元が mktemp -d で作った空のディレクトリ（終了時の削除も呼び出し元が行う）。
+# first-paint-direct は第 5 引数に IR を要り、extra は pack と device の区分（measure_device_class_json）。
 # browser.mjs の出力は jq で型を確かめてから使い、JSON は --arg / --slurpfile だけで組み立てる（文字列連結で作らない）。
-# 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ）。
+# 戻り値: 0 = 成功 / 1 = 失敗（標準出力は空） / 2 = 誤用（build-web.sh の 2 を引き継ぐ） / 3 = ir-memory で crash を観察（JSON は出す）。
 measure_browser_result() {
-  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" ir_file="${5:-}" rc=0 features need_extra
+  local kind="$1" commit_json="$2" tmp="$3" extra="${4:-}" ir_file="${5:-}" rc=0 brc=0 features need_extra
   if [ -z "${extra}" ]; then extra='{}'; fi
   case "${kind}" in
-    log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-cpu4x) need_extra=1 ;;
+    log-redraw | log-slope | log-rounds | input-paint | product-redraw | product-redraw-cpu4x | ir-memory) need_extra=1 ;;
     view-redraw | view-redraw-cpu4x) need_extra=2 ;;
     first-paint-direct) need_extra=3 ;;
     *) need_extra=0 ;;
   esac
-  # IR は first-paint-direct だけが取る（必須）。他の種別で渡されたら断る。ビルドの前に判定する。
-  if [ "${kind}" = "first-paint-direct" ] && [ -z "${ir_file}" ]; then
-    echo "error: first-paint-direct needs an IR file" >&2
+  # IR は first-paint-direct と ir-memory だけが取る（必須）。他の種別で渡されたら断る。ビルドの前に判定する。
+  if { [ "${kind}" = "first-paint-direct" ] || [ "${kind}" = "ir-memory" ]; } && [ -z "${ir_file}" ]; then
+    echo "error: ${kind} needs an IR file" >&2
     return 1
   fi
-  if [ "${kind}" != "first-paint-direct" ] && [ -n "${ir_file}" ]; then
+  if [ "${kind}" != "first-paint-direct" ] && [ "${kind}" != "ir-memory" ] && [ -n "${ir_file}" ]; then
     echo "error: ${kind} does not take an IR file" >&2
     return 1
   fi
@@ -405,7 +435,8 @@ measure_browser_result() {
   features="$(measure_features_json "${MEASURE_CONFIG}")" || return 1
 
   log "measuring ${kind} with Playwright (this takes a while)"
-  if ! node "${ROOT_DIR}/tools/measure/browser.mjs" --kind "${kind}" --dir "${tmp}/web" >"${tmp}/browser.json"; then
+  node "${ROOT_DIR}/tools/measure/browser.mjs" --kind "${kind}" --dir "${tmp}/web" >"${tmp}/browser.json" || brc=$?
+  if [ "${brc}" -ne 0 ] && { [ "${kind}" != "ir-memory" ] || [ "${brc}" -ne 3 ]; }; then
     echo "error: browser measurement failed (${kind})" >&2
     return 1
   fi
@@ -422,11 +453,17 @@ measure_browser_result() {
     return 1
   fi
 
+  if [ "${kind}" = "ir-memory" ]; then
+    measure_ir_memory_check "${tmp}/browser.json" "${brc}" || return 1
+  fi
+
   measure_assert_commit_unchanged "${commit_json}" || return 1
 
   measure_result_json "${commit_json}" "${features}" "${extra}" "${tmp}/browser.json" >"${tmp}/result.json" || return 1
 
-  measure_emit "${tmp}/result.json"
+  measure_emit "${tmp}/result.json" || return 1
+  # crash を観察した測定は、検証に通った JSON を出したうえで 3 を返す（呼び出し元はそのまま終了コードにする）。
+  if [ "${brc}" -eq 3 ]; then return 3; fi
 }
 
 # ---- 大きさの測定（native。fandhe-workshop/measure-native/v1。history-size.sh。TASK-216）----

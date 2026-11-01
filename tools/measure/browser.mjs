@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・log-slope.sh・input-paint.sh・view-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -22,10 +22,12 @@
 // view-redraw（TASK-485 1/3。ART-4）は、左の成果物ビューの部品単位の再描画を、代役の部品の画面（固定データ）で測る。実体は
 // view-redraw.mjs で、ここは統計と起動の共通部を渡すだけ。本体の view() での測定（ART-26）や CPU 4 倍（ART-15）は別のイシュー。
 // product-redraw（TASK-485 2/3。ART-26）は、本体の画面（製品の ArtifactPart の view()）の同じ再描画を、選択のボタンの click の同期区間で測る。実体は product-redraw.mjs。
+// ir-memory（TASK-163 1/2。SAFE-25）は、巨大な文字列の IR を開いたときの renderer の RSS の最大値と crash の件数を測る。実体は ir-memory.mjs。
+// 試行ごとに自前でブラウザを起動する。crash が 1 件以上なら JSON を出したうえで終了コード 3 にする。
 // ブラウザは FANDHE_BROWSER_CHANNEL=chrome で Chrome の原本にできる（基準端末 A での人の測定用）。
 // 条件の出典は docs/spec/02-poc-plan.md §7（CPU 減速なし、下り・上り 10Mbps、遅延 40ms、キャッシュ無効、1 条件 10 回）。
 //
-// 終了コード: 0 = 成功 / 1 = 測定の失敗、または前提の欠如（playwright・Chromium が無い） / 2 = 誤用。
+// 終了コード: 0 = 成功 / 3 = ir-memory で crash を観察（JSON は出す） / 1 = 測定の失敗、または前提の欠如（playwright・Chromium が無い） / 2 = 誤用。
 // 値の単位はマイクロ秒の整数（様式 v1 の value が正の整数のため）。0 に丸まる値は失敗にする（fail-closed）。
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,8 +35,9 @@ import { parseArgs } from 'node:util';
 import { startServer } from '../serve.mjs';
 import { measureViewRedraw, measureViewRedrawCpu4x } from './view-redraw.mjs';
 import { measureProductRedraw, measureProductRedrawCpu4x } from './product-redraw.mjs';
+import { measureIrMemory, exitCodeFor } from './ir-memory.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -1093,8 +1096,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'first-paint-direct', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw', 'view-redraw-cpu4x', 'product-redraw-cpu4x'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x) and --dir are required');
+  if (!['first-paint', 'first-paint-direct', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw', 'view-redraw-cpu4x', 'product-redraw-cpu4x', 'ir-memory'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -1134,6 +1137,7 @@ async function main() {
       'log-rounds': measureLogRounds, 'input-paint': measureInputPaint,
       'view-redraw': (b, d) => measureViewRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
       'product-redraw': (b, d) => measureProductRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
+      'ir-memory': (b, d) => measureIrMemory(d, { chromium, launchOptions, progress }),
       'view-redraw-cpu4x': (b, d) => measureViewRedrawCpu4x(b, d, { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo }),
       'product-redraw-cpu4x': (b, d) => measureProductRedrawCpu4x(b, d, { newPage, installMountObserver, median, p95, toMicros, progress, calibrateAndThrottle, calibrationInfo }),
     };
@@ -1141,6 +1145,8 @@ async function main() {
     result.browser = `${launchOptions.channel ?? 'chromium'} ${browser.version()}`;
     result.playwright = playwrightVersion;
     process.stdout.write(`${JSON.stringify(result)}\n`);
+    // ir-memory だけ: タブが落ちた測定は JSON を出したうえで 3 で終える（記録は残し、非 0 で気づかせる）。
+    if (values.kind === 'ir-memory') process.exitCode = exitCodeFor(result.conditions.crashes_total);
   } catch (e) {
     console.error(`error: ${e.message}`);
     process.exitCode = 1;

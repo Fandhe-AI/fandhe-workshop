@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct measure-ir-memory test-measure-ir-memory test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -216,6 +216,12 @@ measure-history-size: ## 2 周分の履歴の大きさと Changed の割合を�
 
 measure-log-items: ## 2 周分の通しでの右のログの項目数（最大）を基点つきで測り JSON を出す（TASK-454）。直接: tools/measure/log-items.sh
 	@tools/measure/log-items.sh
+
+measure-ir-memory: ## 巨大な文字列の IR を開いたときの renderer の RSS の最大値と crash の件数を基点つきで測り JSON を出す（TASK-163）。直接: tools/measure/ir-memory.sh
+	@tools/measure/ir-memory.sh
+
+test-measure-ir-memory: ## 上の測定の様式と fail-closed の回帰テスト（速い・ビルドなし）。直接: scripts/test-measure-ir-memory.sh
+	@scripts/test-measure-ir-memory.sh
 
 measure-first-paint-direct: ## 初回表示（IR つきの直接リンクで操作できるまで）を基点つきで 10 回測り JSON を出す。3 秒超は終了コード 3（遅い・要ブラウザ。TASK-108）。直接: tools/measure/first-paint-direct.sh
 	@tools/measure/first-paint-direct.sh

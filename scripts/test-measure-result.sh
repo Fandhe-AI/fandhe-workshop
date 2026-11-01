@@ -131,6 +131,20 @@ else
   fail "assemble a log-rounds native result"
 fi
 
+# --- (a') 第 4 引数を省略した measure_browser_result は extra を '{}' に補う（first-paint.sh・redraw.sh の呼び出し。退行の回帰） ---
+# 補完が無いと extra が空のまま jq --argjson に渡り、組み立てが必ず失敗する。関数の本体にある補完の行で確かめる。
+if declare -f measure_browser_result | grep -Eq "if \\[ -z .*extra.* \\]; then" \
+  && declare -f measure_browser_result | grep -Eq "extra='?\\{\\}'?"; then
+  pass "measure_browser_result fills an omitted extra with {}"
+else
+  fail "measure_browser_result fills an omitted extra with {}"
+fi
+if measure_result_json "${COMMIT}" "${FEATURES}" "" "${BROWSER}" >/dev/null 2>&1; then
+  fail "empty extra is rejected by measure_result_json itself (the caller must fill {})"
+else
+  pass "empty extra is rejected by measure_result_json itself (the caller must fill {})"
+fi
+
 # --- (f)〜(h) first-paint-direct（TASK-108）の組み立て・判定・fail-closed ---
 DEV_CLASS="$(measure_device_class_json)"
 # shellcheck disable=SC2016 # jq の式であり、シェルで展開しない
