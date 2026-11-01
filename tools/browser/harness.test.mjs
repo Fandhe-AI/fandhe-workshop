@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  resolveLaunchOptions, channelFromEnv, packBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, mimeConsoleMessages, requestKinds, makeRequestIdOf,
+  resolveLaunchOptions, channelFromEnv, packBinFromEnv, previewBinFromEnv, launchBrowser, withServer, openPage, summarize, waitMounted, cspConsoleMessages, mimeConsoleMessages, requestKinds, makeRequestIdOf,
 } from './harness.mjs';
 
 const CSP = "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'";
@@ -120,6 +120,14 @@ test('packBinFromEnv: 未設定・存在しない・通常ファイルでない�
   }
   const file = path.join(tmp, 'csp.html');
   assert.equal(packBinFromEnv({ FANDHE_PACK_BIN: file }), file);
+});
+
+test('previewBinFromEnv: 未設定・存在しない・通常ファイルでないは FANDHE_PACK_PREVIEW_BIN を名指して失敗し、ENOENT を漏らさない', () => {
+  for (const env of [{}, { FANDHE_PACK_PREVIEW_BIN: '' }, { FANDHE_PACK_PREVIEW_BIN: path.join(tmp, 'no-such-bin') }, { FANDHE_PACK_PREVIEW_BIN: tmp }]) {
+    assert.throws(() => previewBinFromEnv(env), (e) => /FANDHE_PACK_PREVIEW_BIN/.test(e.message) && !/ENOENT/.test(e.message));
+  }
+  const file = path.join(tmp, 'csp.html');
+  assert.equal(previewBinFromEnv({ FANDHE_PACK_PREVIEW_BIN: file }), file);
 });
 
 // 純関数の対照（SAFE-13。TASK-151 2/2）。csp-runs.test.mjs の「CSP 関連のコンソール出力 0 件」と「要求の種類が同じ」が
