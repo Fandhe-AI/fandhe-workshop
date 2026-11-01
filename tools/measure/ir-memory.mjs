@@ -176,6 +176,8 @@ async function runTrial(deps, url, origin) {
       await page.goto(url, { waitUntil: 'commit', timeout: MOUNT_TIMEOUT_MS });
       await page.waitForSelector('html[data-mounted="true"]', { state: 'attached', timeout: MOUNT_TIMEOUT_MS });
       await sleep(SETTLE_MS);
+      // 待機中の crash はイベントで数えるだけで例外にならないため、DOM を読む前に観察状態を確かめる。
+      if (crashes > 0) crashed = true;
     } catch (e) {
       await sleep(SAMPLE_INTERVAL_MS * 2);
       if (crashes === 0) throw new Error(`page did not mount: ${String(e.message).split('\n')[0]}`);
@@ -185,10 +187,17 @@ async function runTrial(deps, url, origin) {
     let reason = null;
     let titles = 0;
     if (!crashed) {
-      ({ notices, reason, titles } = await page.evaluate(([n, t]) => {
-        const items = [...document.querySelectorAll(n)];
-        return { notices: items.length, reason: items.length === 1 ? items[0].getAttribute('data-notice-reason') : null, titles: document.querySelectorAll(t).length };
-      }, [NOTICE, STEP_TITLE]));
+      try {
+        ({ notices, reason, titles } = await page.evaluate(([n, t]) => {
+          const items = [...document.querySelectorAll(n)];
+          return { notices: items.length, reason: items.length === 1 ? items[0].getAttribute('data-notice-reason') : null, titles: document.querySelectorAll(t).length };
+        }, [NOTICE, STEP_TITLE]));
+      } catch (e) {
+        // 取得との競合で crash した場合は、イベントが届くのを少し待って crash として記録する。crash でなければ失敗にする。
+        await sleep(SAMPLE_INTERVAL_MS * 2);
+        if (crashes === 0) throw e;
+        crashed = true;
+      }
     }
     stop = true;
     await samplerDone;
