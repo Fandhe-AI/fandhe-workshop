@@ -593,3 +593,4 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `crates/pack/tests/preview_serve.rs`・`preview_embedded.rs`。記録は `docs/testing.md` の 5.427
+- `tools/browser/preview-command.test.mjs`（URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映。TASK-429 3/3）。記録は `docs/testing.md` の 5.428。同梱物は CSP の meta つきの固定の形のため、CSP なしの画面は流していません

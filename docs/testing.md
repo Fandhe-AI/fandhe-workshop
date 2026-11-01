@@ -11625,7 +11625,7 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 
 - 契約の版: `CLI_CONTRACT_VERSION` 15 から 16
 - 変異注入: `AUTHOR22-1`（`validate` の診断を無視する）・`AUTHOR22-2`（読み込めない教材パックで 0 を返す）。定義の静的検査は `make check-mutation-defs` で行う。`AUTHOR22-1`・`AUTHOR22-2`・`AUTHOR1-1` は `scripts/check-mutations.sh` で実行し、いずれも DETECTED（2026-11-01）
-- 限界: `validate` は 0 件で `compile` だけが診断を出す教材パックの試験データは作っていない（その経路は `gate_loaded` の分岐で、結合試験では未確認）。配信と URL の表示・再実行での反映は 2/3・3/3。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない
+- 限界: `validate` は 0 件で `compile` だけが診断を出す教材パックの試験データは作っていない（その経路は `gate_loaded` の分岐で、結合試験では未確認）。配信と URL の表示は 2/3、ブラウザでの再実行の反映は 5.428（3/3）。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない
 
 ### 5.427 プレビューの配信と URL の表示（TASK-429 2/3。AUTHOR-22）
 
@@ -11645,4 +11645,21 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 
 - 変異注入: `AUTHOR22-3`（待ち受けを全アドレスにする）・`AUTHOR22-4`（`Host` の照合を外す）・`AUTHOR22-5`（ヘッダの上限を外す）。定義の静的検査は `make check-mutation-defs`
 - ビルド・リリース: `scripts/build-pack-preview.sh`（同梱の元の検査、`check-delivery.sh`・`check-no-egress.sh dist`、`--features embed-web` のビルド）。`scripts/build-pack-release.sh` は同梱つきでビルドし、Rust の無い PATH で `preview` の煙試験（URL の形・index.html・wasm の型・IR が `compile` と一致）を流す。回帰テストは `scripts/test-build-pack-release.sh`・`scripts/test-build-pack-preview.sh`。2026-11-01 に Linux（x86_64-unknown-linux-gnu）で `build-pack-release.sh` を実際に流し、煙試験まで通った
-- 限界: ブラウザ（Chromium）で URL を開いて AUTHOR-21 と同じ 20 Step を通す試験は未作成。配った 6 ファイルが `IR_FILE` つきの配信する設定とバイト単位で同じであること（`preview_embedded`）を根拠にしている。`release.yml` の macOS のジョブ（wasm-bindgen CLI の導入を含む）は `workflow_dispatch` のため PR では流れず、未実行。再実行で文章の修正が画面に出ることの試験は 3/3。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない
+- 限界: ブラウザ（Chromium）で URL を開いて 20 Step を通す試験は 5.428（3/3）で作成した。配った 6 ファイルが `IR_FILE` つきの配信する設定とバイト単位で同じであること（`preview_embedded`）を根拠にしている。`release.yml` の macOS のジョブ（wasm-bindgen CLI の導入を含む）は `workflow_dispatch` のため PR では流れず、未実行。再実行で文章の修正が画面に出ることの試験は 5.428（3/3）。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない
+
+### 5.428 プレビューの URL を開いた通しと、文章を直した再実行の反映（TASK-429 3/3。AUTHOR-22）
+
+- 目的: `fandhe-pack preview` の URL を自動ブラウザで開き、診断あり・なし・再実行の 3 場面をそろえる。TASK-429 の完了条件の「診断 0 件の URL を開くと AUTHOR-21 と同じ結果になる」と「文章を直して再実行すると画面に反映される」を確かめる
+- 入力: `scripts/test-browser.sh` が `scripts/build-pack-preview.sh` で作る同梱つきの実行ファイル（`FANDHE_PACK_PREVIEW_BIN`）と、`validate`・`compile` の照合に使う通常の実行ファイル（`FANDHE_PACK_BIN`）。未設定・不在は失敗にする（`previewBinFromEnv`。`harness.test.mjs` に単体の試験）
+- 試験: `tools/browser/preview-command.test.mjs`（補助は `preview-command.mjs`）。教材は `crates/web/tests/data/ch0_3_pack` の一時ディレクトリへの写しで、元は変えない。子の環境は `PATH=/usr/bin:/bin` だけ
+
+| 場面 | 確かめること |
+|---|---|
+| A 診断あり | 章の Step を 1 件消した写しで、`validate` が 1、`preview` が時間内に 1 で終わり、`URL:` の行が無く、標準出力が `validate` とバイト単位で同じで、標準エラー出力が空 |
+| B 診断なし | URL が `http://127.0.0.1:<port>/preview/` の形で、配信した `ir/main.json` が `compile` の出力と一致し、DOM だけの観察と実マウスで 20 Step を最後まで通す（AUTHOR-21 の B と同じ台帳。章の境目 3 回・各章の最初の Step・復習の行・安全の計数 0・配信元以外への通信 0・ページ内エラー 0） |
+| C 再実行 | `st-0-1` の本文の 1 文を直して実行し直すと、新しい URL の画面に直した文が出て直す前の文が出ず、`ir/main.json` が直した写しの `compile` と一致して前回と違い、見出しは題のまま。`st-1-1` を `?start=s-1-1` で開いても同じ。負の対照として、直さずに実行し直すと同じ文・同じ IR になる。診断を挟む流れ（壊す、1 で終わる、直す、反映）も通す |
+
+- 解釈: 「文章の修正」は Step の本文（Markdown）の 1 文を直すことと読んだ。直した文は試験が乱数つきで組み立て、出力には出さない（名前・件数・合否だけ）。前の URL が読めなくなることは確かめない（OS が同じポートを割り当て直すと揺れるため）
+- 対照: 直す書き換えを外すと C が不合格になる（「直した文が出る」「ir/main.json が 1 回目と違う」）ことを手で確かめた（2026-11-01）
+- 結果: 2026-11-01、単独の実行（`harness.test.mjs` と本試験）で 19 件合格を 3 回続けて確かめた。B は 20/20 Step・台帳 90/90、C は反映 9/9・台帳 25/25
+- 限界: 同梱物は CSP の meta つきの `web-author` を `include_bytes!` で固めた形のため、CSP なしの写しは流せない（CSP ありだけ）。教材は試験用の形式 B で、本物の CH-0〜CH-3（TASK-643・TASK-642）での流し直しは未実施。AI の代理の確認であり、人の評価には数えない（D-34）。試験の作成者と実装の作成者が同じ AI である

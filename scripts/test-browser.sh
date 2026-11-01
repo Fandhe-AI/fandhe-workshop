@@ -25,6 +25,7 @@
 # 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # compile した IR の手元の配信と章の完走の試験（author-preview。形式 B の試験用教材を compile → IR_FILE を指定したビルド → サブパス配信 → CH-0〜CH-3 の完走。
 # 配信元以外への通信 0 件・ページ内エラー 0 件。AUTHOR-21。TASK-427 1/2。記録は docs/testing.md 5.292）を含む。
+# preview の URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映の試験（preview-command。AUTHOR-22。TASK-429 3/3。記録は docs/testing.md 5.428）を含む。
 # 試験用クエリ 7 種（persist・store・manual・tick・os・osmode・flood）を付けて開いても配信する設定の画面・取得資源・保存先・再読み込みの後が変わらない試験（query-inert。CSP あり・なし。SHELL-35。TASK-547 2/3。記録は docs/testing.md 5.405）と、配信物の部品を CH-0〜CH-3 の 20 Step の全時点で調べ check-delivery.sh と項目ごとに突き合わせる試験（delivery-ports。SHELL-35。TASK-547 3/3。記録は docs/testing.md 5.407）を含む。
 # 操作要素の `data-payload` の書き換えの試験（data-payload-tamper。実行 0・外部通信 0・形の合わない値は状態を変えない・タブが落ちない。値の読み込みは data-payload-cases。SAFE-6。TASK-148 1/2。記録は docs/testing.md 5.369）を含む。
 # IR の大きさの上限の境界の試験（ir-size-limit。配信する設定の画面で、上限ちょうどは読め、+1 バイトと 10 倍は理由つきで断り、取得の終わりから 1 秒未満・タブが落ちない。SAFE-17・SAFE-45。TASK-154。docs/testing.md 5.373）を含む。
@@ -91,7 +92,7 @@ log "compiling the CH-0..CH-3 authoring pack and building the delivery config wi
 TEST_HOOKS="" OUT_DIR="${TMP}/web-author" IR_FILE="${TMP}/author-ir.json" SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/build-web.sh" >/dev/null
 
 # 同梱つきの fandhe-pack（preview が URL を出すビルド。TASK-429 2/3）。IR_FILE つきの配信する設定 web-author を同梱の元に使い、
-# 実行ファイルを起動する試験（preview_embedded）を流す。配った 6 ファイルが同梱の元とバイト単位で一致すること、IR が compile と
+# 実行ファイルを起動する試験（preview_embedded）を流し、実行ファイルは FANDHE_PACK_PREVIEW_BIN でブラウザ試験（preview-command）にも渡す。配った 6 ファイルが同梱の元とバイト単位で一致すること、IR が compile と
 # 一致すること、待ち受けが 127.0.0.1 だけであることを確かめる。ビルドは feature なしの target/debug/fandhe-pack を作り直すが、
 # preview 以外の挙動は同じ。
 log "building fandhe-pack with the embedded web files and running preview_embedded"
@@ -158,7 +159,8 @@ if [[ -n "${FANDHE_TEST_TAP_OUT:-}" ]]; then
 fi
 
 FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
-  FANDHE_WEB_AUTHOR_DIR="${TMP}/web-author" FANDHE_AUTHOR_IR="${TMP}/author-ir.json" node --test ${REPORTER_ARGS[@]+"${REPORTER_ARGS[@]}"} \
+  FANDHE_WEB_AUTHOR_DIR="${TMP}/web-author" FANDHE_AUTHOR_IR="${TMP}/author-ir.json" \
+  FANDHE_PACK_PREVIEW_BIN="${TMP}/fandhe-pack-preview" node --test ${REPORTER_ARGS[@]+"${REPORTER_ARGS[@]}"} \
   "${ROOT_DIR}/tools/browser/harness.test.mjs" \
   "${ROOT_DIR}/tools/browser/pack-bin.test.mjs" \
   "${ROOT_DIR}/tools/browser/safety.test.mjs" \
@@ -189,6 +191,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/left-pane.test.mjs" \
   "${ROOT_DIR}/tools/browser/theme-marks.test.mjs" \
   "${ROOT_DIR}/tools/browser/author-preview.test.mjs" \
+  "${ROOT_DIR}/tools/browser/preview-command.test.mjs" \
   "${ROOT_DIR}/tools/browser/versioned-url.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \
   "${ROOT_DIR}/tools/browser/esc-attr.test.mjs" \

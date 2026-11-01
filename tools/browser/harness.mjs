@@ -32,8 +32,18 @@ export function resolveLaunchOptions({ channel, headless = true } = {}) {
 // CARGO_TARGET_DIR を変えると生の ENOENT で止まるため、未設定・存在しない・通常ファイルでない場合は
 // 原因を名指す例外にする。skip にはしない（fail-closed）。
 export function packBinFromEnv(env = process.env) {
-  const bin = env.FANDHE_PACK_BIN;
-  const hint = 'FANDHE_PACK_BIN must point to the fandhe-pack binary built by scripts/build-pack-bin.sh (run make test-browser)';
+  return binFromEnv('FANDHE_PACK_BIN', 'the fandhe-pack binary built by scripts/build-pack-bin.sh (run make test-browser)', env);
+}
+
+// 同梱つきの fandhe-pack（`preview` が URL を出すビルド。TASK-429 3/3）。scripts/build-pack-preview.sh が作り、
+// scripts/test-browser.sh が FANDHE_PACK_PREVIEW_BIN で渡す。扱いは packBinFromEnv と同じで、skip にはしない（fail-closed）。
+export function previewBinFromEnv(env = process.env) {
+  return binFromEnv('FANDHE_PACK_PREVIEW_BIN', 'the fandhe-pack binary with embedded web files built by scripts/build-pack-preview.sh (run make test-browser)', env);
+}
+
+function binFromEnv(name, what, env) {
+  const bin = env[name];
+  const hint = `${name} must point to ${what}`;
   if (!bin) throw new Error(`${hint}: not set`);
   let st;
   try {
