@@ -231,6 +231,7 @@ export function keyPaneAware(page, d, counter) {
 }
 
 // 通し。`d` の操作で教材の 20 Step を上から進める。`stopAt` の Step に入った時点で返す（指定なしは最後の達成まで）。
+// `stopAt` で止まれるのは main/st-1-3・main/st-1-4・main/st-2-1・main/st-2-6（承認と「直す」の対象が出る入力待ち。data-payload-tamper の配信する設定の場面 PS3）。
 // `chaptered` が真のとき（教材は `?fixture=ch0-3-chapters`）、章の境目は「次の章へ進む」のボタン 1 個を押して越える（TASK-526 2/2）。
 // 偽（既定）のときは、章の境目を無条件の `next` が越えるのを待つだけで、従来の経路から変わらない。
 export async function journey(page, d, scene, L, stopAt = null, { onStep = null, chaptered = false, observe = hookObserver } = {}) {
@@ -375,6 +376,7 @@ export async function journey(page, d, scene, L, stopAt = null, { onStep = null,
   await wait('main/st-2-5', plain);
   await d.point('checks/result');
   await enter('main/st-2-6', [0, 4, 1, 1]);
+  if (stopAt === 'main/st-2-6') return;
   await d.decide('revise');
   await reject('main/st-2-6');
   await d.decide('approve');
