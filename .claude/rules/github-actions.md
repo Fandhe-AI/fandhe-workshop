@@ -109,7 +109,7 @@ gh api repos/Fandhe-AI/fandhe-workshop/rulesets/24879606 --jq '{
 
 - `ci.yml`: `pull_request` と `push`（`main` のみ）。push を全ブランチにしない（PR との二重実行になる）。`ci.yml` は secret を参照しない（`scripts/check-workflow-secrets.sh` が `check` ジョブで強制する）
 - 例外: `deploy.yml` は `workflow_dispatch` だけで動く。配信は secret・書き込み権限・`environment` を要するため、PR の起点を持たない別ワークフローに置く（ジョブ追加チェックリストの「新しいワークフローを作らない」の例外）。`pull_request`・`pull_request_target`・`push` を足さない。トップレベルとジョブの `permissions` は `{}` から始め、必要な権限だけをジョブ単位で付ける
-- 例外: `release.yml`（TASK-415。`fandhe-pack` の実行ファイルのビルドと配布）も `workflow_dispatch` だけで動く。PR に報告されず、macOS の runner の費用を PR のたびに払わないため、`ci.yml` に置かない。トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。1/2 の時点では Release を作らず、成果物は workflow artifact として残す（Release の作成は 2/2 と人の承認点）。`uses` は `actions` の所有者の 40 桁 SHA 固定だけにする
+- 例外: `release.yml`（TASK-415。`fandhe-pack` の実行ファイルのビルドと配布）も `workflow_dispatch` だけで動く。PR に報告されず、macOS の runner の費用を PR のたびに払わないため、`ci.yml` に置かない。トップレベルの `permissions` は `{}`、ジョブは `contents: read` だけ。Release はワークフローで作らず、成果物は workflow artifact として残す。ユーザーが公開前の確認の承認の後に手で draft の Release を作る（`docs/publish-checks.md`）。書き込み権限のジョブは足さない。`uses` は `actions` の所有者の 40 桁 SHA 固定だけにする
 - 配信のジョブ（`deploy.yml`）と `release.yml` の全ジョブは fork では動かさない。全ジョブに `if: github.repository == 'Fandhe-AI/fandhe-workshop'` を付け、`ci.yml` が secret・private な依存・submodule の取得に依存しないことと合わせて、`make check-fork-ci` が `check` ジョブで検査する（`release.yml` は C4。パーサで復号した値で判定する。検査の限界は `scripts/check-fork-ci.sh` の冒頭と README の「fork の CI」）。教材 repo の版の固定（`ENGINE_REV` の正準の形）は、同じスクリプトの D（`--pack-workflow`・`--engine-rev` の指定時のみ）が見る
 - `concurrency` は `group` は PR では workflow + ref、それ以外は `run_id` で分け、`cancel-in-progress` は PR のみ true にする
   （`${{ github.event_name == 'pull_request' }}`。main / release の実行は cancel しない）

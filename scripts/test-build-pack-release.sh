@@ -70,10 +70,18 @@ expect "passes with an arm64 Mach-O fake" 0 "${RC}"
 ARCHIVE="$(find "${OUT}" -name 'fandhe-pack-*-aarch64-apple-darwin.tar.gz' | head -n 1)"
 if [ -n "${ARCHIVE}" ]; then
   members="$(tar -tzf "${ARCHIVE}" | sed 's|^[^/]*/||' | grep -v '^$' | sort | tr '\n' ' ')"
-  expect "archive holds the executable and both licenses" "LICENSE-APACHE LICENSE-MIT fandhe-pack " "${members}"
+  expect "archive holds the executable, both licenses and the notice" "LICENSE-APACHE LICENSE-MIT README.txt fandhe-pack " "${members}"
   X="${TMP_DIR}/x"
   mkdir -p "${X}"
   tar -xzf "${ARCHIVE}" -C "${X}"
+  rc=0
+  cmp -s "${X}"/*/README.txt "${DIR}/../tools/pack-release/README.txt" || rc=$?
+  expect "bundled README.txt equals the notice source" 0 "${rc}"
+  for needle in "xattr -d com.apple.quarantine fandhe-pack" "shasum -a 256 -c"; do
+    rc=0
+    grep -qF -- "${needle}" "${X}"/*/README.txt || rc=$?
+    expect "notice contains: ${needle}" 0 "${rc}"
+  done
   mode="$(find "${X}" -name fandhe-pack -type f -perm 755 | wc -l | tr -d ' ')"
   expect "executable has mode 755" 1 "${mode}"
   rc=0
@@ -121,6 +129,20 @@ run_build --out "${OUT}" --bin "${TMP_DIR}/none"
 expect "missing --bin file exits 2" 2 "${RC}"
 run_build --out
 expect "option without a value exits 2" 2 "${RC}"
+
+# 案内文の元が無いときは成果物を出さない。元は ROOT_DIR 固定のため、写しのツリーで確かめる
+NT="${TMP_DIR}/nt"
+mkdir -p "${NT}/scripts" "${NT}/docs"
+cp "${DIR}/build-pack-release.sh" "${DIR}/lib.sh" "${NT}/scripts/"
+cp -R "${DIR}/../docs/examples" "${NT}/docs/examples"
+cp "${DIR}/../LICENSE-MIT" "${DIR}/../LICENSE-APACHE" "${NT}/"
+rm -rf "${OUT}"
+RC=0
+PATH="${SHIM}:${PATH}" FAKE_FILE_DESC="${MACHO}" "${NT}/scripts/build-pack-release.sh" --out "${OUT}" --bin "${FAKE_BIN}" >/dev/null 2>&1 || RC=$?
+expect "missing notice source exits 2" 2 "${RC}"
+n=0
+[ ! -d "${OUT}" ] || n="$(find "${OUT}" -type f | wc -l | tr -d ' ')"
+expect "missing notice source leaves no artifact" 0 "${n}"
 
 echo "# ${passed} passed, ${failed} failed"
 [ "${failed}" -eq 0 ]
