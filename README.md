@@ -310,6 +310,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-mutations` | `scripts/test-check-mutations.sh` | 変異注入の検査自体の回帰テスト |
 | `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make measure-history-size` | `tools/measure/history-size.sh` | 2 周分の履歴の大きさと `Changed` の割合を基点つきで測り、JSON を標準出力へ出す（様式は `docs/measurement.md` §4a。`make measure` の束には入れない） |
+| `make measure-first-paint-direct` | `tools/measure/first-paint-direct.sh` | IR を同梱した配信する設定で、`?start=` の直接リンクを開いて操作できるまでを 10 回測り、JSON を出します。3 秒を超えると終了コード 3 です（様式と手順は `docs/measurement.md`。`make measure` の束には入れません。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本） |
 | `make measure-log-items` | `tools/measure/log-items.sh` | 2 周分の通しでの右のログの項目数（最大）を基点つきで測り、JSON を出します（様式は `docs/measurement.md` 4b。`make measure` の束には入れません） |
 | `make measure-ir-memory` | `tools/measure/ir-memory.sh` | 巨大な文字列の IR を開いたときの renderer の RSS の最大値と crash の件数を基点つきで測り、JSON を出します（様式は `docs/measurement.md` 4c。crash があれば JSON を出して終了コード 3 です。`make measure` の束には入れていません） |
 | `make test-measure-ir-memory` | `scripts/test-measure-ir-memory.sh` | 上の測定の様式と fail-closed の回帰テストです（ビルドなし） |

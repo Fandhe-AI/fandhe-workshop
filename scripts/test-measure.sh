@@ -292,6 +292,26 @@ else
   cat "${PRC}.err" >&2
 fi
 
+# --- (l) first-paint-direct（IR つきの直接リンクで操作できるまで。TASK-108。束には入れない単体の測定。終了コードは 0 か 3） ---
+check "first-paint-direct.sh: unknown argument exits 2" status_is 2 "${ROOT_DIR}/tools/measure/first-paint-direct.sh" --unknown
+FPD="${TMP}/first-paint-direct.json"
+FPD_RC=0
+SKIP_WASM_OPT=1 "${ROOT_DIR}/tools/measure/first-paint-direct.sh" >"${FPD}" 2>"${FPD}.err" || FPD_RC=$?
+if [ "${FPD_RC}" -eq 0 ] || [ "${FPD_RC}" -eq 3 ]; then
+  pass "first-paint-direct: exits 0 or 3 (got ${FPD_RC})"
+  check "first-paint-direct: passes the v1 validation" measure_validate "${FPD}"
+  FPD_VERDICT=0
+  measure_first_paint_direct_verdict "${FPD}" || FPD_VERDICT=$?
+  if [ "${FPD_VERDICT}" -eq "${FPD_RC}" ]; then pass "first-paint-direct: verdict agrees with the exit code"; else fail "first-paint-direct: verdict ${FPD_VERDICT} differs from exit code ${FPD_RC}"; fi
+  check "first-paint-direct: 5 measurements and 10 values" jq -e '(.measurements | length == 5) and (.conditions.values_us | length == 10)' "${FPD}"
+  check "first-paint-direct: the pack id is separated and the device has no cpu" jq -e '.baseline.pack.id == "measure-first-paint-direct" and (.baseline.device | has("cpu") | not)' "${FPD}"
+  check "first-paint-direct: the IR was transferred" jq -e '[.measurements[] | select(.name == "first_paint_direct_ir_transfer")][0].value > 0' "${FPD}"
+  check "first-paint-direct: delivery build without test hooks" jq -e '.baseline.features.config == "delivery" and .baseline.features.cargo_features == []' "${FPD}"
+else
+  fail "first-paint-direct: first-paint-direct.sh failed with ${FPD_RC} (see ${FPD}.err)"
+  cat "${FPD}.err" >&2
+fi
+
 # --- (i) 統計関数と引数の試験 ---
 check "node:test for browser.mjs passes" node --test "${ROOT_DIR}/tools/measure/browser.test.mjs"
 

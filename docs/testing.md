@@ -11777,16 +11777,41 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
-### 5.432 巨大な文字列の IR を開いたときの renderer の RSS を測る道具の手元の実行（TASK-163 1/2。#1962）
+### 5.433 巨大な文字列の IR を開いたときの renderer の RSS を測る道具の手元の実行（TASK-163 1/2。#1962）
 
-- 日付: 2026-11-01。Linux x86_64、Playwright の Chromium 153.0.8010.12、`SKIP_WASM_OPT=1 make measure-ir-memory`、終了コード 0
+- 日付: 2026-11-01。Linux x86_64、Playwright の Chromium 153.0.8010.12、`SKIP_WASM_OPT=1 tools/measure/ir-memory.sh`、終了コード 0（直接実行。`make` 経由は crash の 3 を 2 に変えるため使わない）
+- 基点（`docs/measurement.md` §6 の 4 項目）: commit `d7953842945ba730feb078a6ad8d8cff8177bf52`、`dirty: true`（base の取り込み途中の作業ツリーで流したため基点として使えない）、wasm-opt 未適用（`SKIP_WASM_OPT=1`）、config `delivery`・profile `release`。pack は `min-3step` 0.0.1（sha256 `5b653cce…446961`）。端末は Linux 7.0.0-34-generic・x86_64・13th Gen Intel(R) Core(TM) i7-13700K・論理コア 10・メモリ 29,350,412,288 bytes。生成した JSON の全体は保存していない
 - 回帰テスト: `make test-measure-ir-memory` と `make test-measure-result` が通る（ビルドなし）
 - 結果（renderer の RSS の最大値の最大／中央値、KiB。3 試行。crash 0 件）。`pack_title` と `hint_text` はどちらも断りの通知 1 件で理由 `string_too_long`、`base` は断り 0 件で Step の題あり
 
 | 場合 | 最大 | 中央値 |
 |---|---|---|
-| base | 129,744 | 129,084 |
-| pack_title | 291,540 | 217,388 |
-| hint_text | 223,880 | 208,232 |
+| base | 130,220 | 128,936 |
+| pack_title | 218,200 | 217,376 |
+| hint_text | 305,088 | 285,296 |
 
 - 限界: 基準端末 A（Apple シリコンの Mac）・Chrome の原本・低メモリ端末は未実施（#860）。crash の経路は実地で再現しておらず、純関数と作り物の入力でだけ確かめた。値は断った後のもので、ヒントは開いていない。試行間の揺れが大きい（`pack_title` の 1 回目が突出）ため、1 回の実行の値を基準にしない
+
+### 5.432 初回表示の測定を IR つきの直接リンクに広げる（#1961。TASK-108・DLV-5）
+
+IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1-1` の直接リンクを開いて「操作できる」状態になるまでを 10 回測る道具 `tools/measure/first-paint-direct.sh`（`make measure-first-paint-direct`）を足した。定義・条件・終了コード・記録の様式は `docs/measurement.md` §4・§8。既存の `first-paint.sh`（Hello。束の必須項目）は変えていない。
+
+#### 試験
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| ビルドなし | `scripts/test-measure-result.sh` の (b')・(f)〜(h') | 端末の区分の形、組み立てと v1 の検証、判定 0（以内・ちょうど 3,000,000）と 3（中央値超過・最大だけ超過）、形の不正 1（9 件・0・小数・中央値や最大の食い違い・判定の嘘・閾値違い・測定名の欠け・許可外の channel・headless の欠け・`cpu` を持つ device・連結した JSON）、誤用と前段の拒否 |
+| 純関数 | `tools/measure/browser.test.mjs` | `operableJudgement`・`directStartOf`・`--kind first-paint-direct` の `--dir` 欠け |
+| 実測 | `scripts/test-measure.sh` (l)（遅い） | 終了コード 0 か 3、v1 の検証、判定と終了コードの一致、測定名 5 件、10 値、`pack.id`、`device` に `cpu` が無いこと、IR の転送量 |
+
+#### 手元の確認（2026-11-01）
+
+- Linux x86_64・Chromium 153（Playwright 同梱）・ヘッドレス・`SKIP_WASM_OPT=1`。作業ツリーは未コミット（`dirty: true`）の状態で流したため、基点として使える値ではない
+- 終了コード 0。10 回の操作できるまでの値は 674〜707 ms、中央値 680.95 ms、最大 706.7 ms（3 秒以内）。`data-mounted` までの中央値は 673.75 ms。転送量は wasm 515,168 bytes、IR 3,846 bytes
+- `FANDHE_BROWSER_CHANNEL=chrome` は、この環境に Chrome が無いため起動の失敗（終了コード 1・標準出力は空）になった。Linux arm64 には Chrome が無い（`docs/toolchain.md`）
+
+#### 限界
+
+- 基準端末 A の値ではない。Chrome の原本での実測と記録は #833
+- `make test-measure` の全体は流していない（未検証）。(l) と同じ内容を単体で流して確かめた
+- 試験と実装の作成者が同じ AI である

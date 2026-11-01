@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 初回表示と再描画の時間を、Playwright の Chromium で測る（tools/measure/first-paint.sh・redraw.sh・log-redraw.sh・log-slope.sh・input-paint.sh・view-redraw.sh から呼ばれる）。
 //
-// 使い方: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <配る一式>
+// 使い方: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <配る一式>
 //
 // 役割の境界: ブラウザの操作と統計だけを担う。結果の様式（基点・schema）はシェル側（lib.sh の measure_emit）が組み立てて検証する。
 // ここは標準出力へ JSON を 1 つだけ出す（measurements[]・compression・conditions・browser・playwright）。進行状況は標準エラーへ出す。
@@ -16,6 +16,9 @@
 // requestAnimationFrame の中の setTimeout(0) まで」を測る。起点は click のキャプチャ段階の受け取りと event.timeStamp の 2 通りで、
 // 判定には値が大きくなる timeStamp 起点を使う（出典は同じ env.md の「計測の条件」）。PoC の停止ボタンは現行の実装では処理中でなければ
 // 状態を変えないため、拒否される入力の送信（1 回でログが 2 件増える）に置き換えた。閾値（100ms）を超えても失敗にせず値を出す。
+// first-paint-direct（TASK-108。DLV-5）は、IR を同梱した配信する設定を同じ条件（10Mbps・40ms・キャッシュ無効・CPU 減速なし）で配り、
+// `?start=s-1-1` の直接リンクを開いてから「操作できる」状態になるまでを 10 回測る。操作できるの定義は installOperableObserver の述語
+// （docs/measurement.md）。3 秒を超えても失敗にせず judgement に入れて JSON を出す（非 0 で終わる判定はシェル側の lib.sh が行う）。
 // view-redraw（TASK-485 1/3。ART-4）は、左の成果物ビューの部品単位の再描画を、代役の部品の画面（固定データ）で測る。実体は
 // view-redraw.mjs で、ここは統計と起動の共通部を渡すだけ。本体の view() での測定（ART-26）や CPU 4 倍（ART-15）は別のイシュー。
 // product-redraw（TASK-485 2/3。ART-26）は、本体の画面（製品の ArtifactPart の view()）の同じ再描画を、選択のボタンの click の同期区間で測る。実体は product-redraw.mjs。
@@ -34,7 +37,7 @@ import { measureViewRedraw, measureViewRedrawCpu4x } from './view-redraw.mjs';
 import { measureProductRedraw, measureProductRedrawCpu4x } from './product-redraw.mjs';
 import { measureIrMemory, exitCodeFor } from './ir-memory.mjs';
 
-const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <path>';
+const USAGE = 'usage: node tools/measure/browser.mjs --kind first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory --dir <path>';
 
 const BASE = '/subpath/';
 const TRIALS = 10;
@@ -44,6 +47,14 @@ const GZIP_LEVEL = 9; // wasm-size.sh の gzip -9 とレベルを揃える
 const REDRAW_SAMPLES = 20;
 const REDRAW_BATCH = 200;
 const NAV_TIMEOUT_MS = 60000;
+
+// first-paint-direct の条件。開始点 ID は tools/measure/first-paint-direct.sh が IR に足す値と同じ（読み込んだ IR で一致を確かめる）。
+export const DIRECT_START = 's-1-1';
+export const FIRST_PAINT_DIRECT_THRESHOLD_US = 3000000;
+const DIRECT_NEXT_NODE = 'main/st-1-2';
+const START_ID_RE = /^s-[0-9]+-[0-9]+[a-z]?$/;
+const OPERABLE_DEFINITION =
+  'data-mounted=true, run-status idle, step title equals the start node title, no log row for that step, and at least one enabled visible input port (choice, approval, or draft with submit)';
 
 // log-redraw の条件。拒否される入力 1 回でログが 2 件増える（受信と拒否）ため、100 から始めて 10 操作で 118 までに収まる。
 // 1 試行 10 操作 × 20 試行 = 計 200 値（EVT-24 の「1 条件 10 試行 × 20 操作」と値の数を揃える）。
@@ -279,6 +290,176 @@ async function measureFirstPaint(browser, dir) {
         cpu_throttle: 1,
         trials: TRIALS,
         base: BASE,
+      },
+    };
+  } finally {
+    await srv.close();
+  }
+}
+
+// 3 秒の判定。values は整数マイクロ秒の 10 件。中央値は丸めた整数、最大とともに閾値以下（ちょうどは以内）を以内とする。
+export function operableJudgement(valuesUs, thresholdUs = FIRST_PAINT_DIRECT_THRESHOLD_US) {
+  if (!Array.isArray(valuesUs) || valuesUs.length !== TRIALS || !valuesUs.every((v) => Number.isInteger(v) && v > 0)) {
+    throw new Error(`operableJudgement needs ${TRIALS} positive integer values`);
+  }
+  const medianUs = Math.round(median(valuesUs));
+  const maxUs = Math.max(...valuesUs);
+  const medianWithin = medianUs <= thresholdUs;
+  const maxWithin = maxUs <= thresholdUs;
+  return { medianUs, maxUs, judgement: { median_within: medianWithin, max_within: maxWithin, within: medianWithin && maxWithin } };
+}
+
+// IR から開始点の節点と題を引く。ID の形・starts の存在・節点の題を確かめ、欠ければ失敗にする（シェル側の jq との二重定義のずれの検出）。
+export function directStartOf(ir, startId) {
+  if (typeof startId !== 'string' || !START_ID_RE.test(startId)) throw new Error(`invalid start id: ${JSON.stringify(startId)}`);
+  const start = (ir?.starts ?? []).find((s) => s?.id === startId);
+  if (!start || typeof start.node !== 'string') throw new Error(`start ${startId} is missing from the IR`);
+  const node = (ir?.nodes ?? []).find((n) => n?.uid === start.node);
+  const title = node?.step?.title;
+  if (typeof title !== 'string' || title === '') throw new Error(`start node ${start.node} has no step title`);
+  return { node: start.node, title };
+}
+
+// ページ内の固定の関数（addInitScript に引数つきで渡す。文字列は評価しない）。MutationObserver の各回と導入の直後に「操作できる」の
+// 述語を評価し、初めて真になった時点の performance.now()（ナビゲーションの開始が起点）を window.__operableAt に残す。
+// data-mounted の最初の値と時刻も window.__mountedValue / __mountedAt に残す（参考値）。ポーリングでは測らない。
+function installOperableObserver({ title, uid }) {
+  const usable = (el) => {
+    if (!el.isConnected || el.disabled) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  };
+  const q = (id) => [...document.querySelectorAll(`[data-testid="${id}"]`)];
+  const check = () => {
+    const html = document.documentElement;
+    if (!html) return;
+    const mounted = html.getAttribute('data-mounted');
+    if (mounted && window.__mountedValue === undefined) {
+      window.__mountedValue = mounted;
+      window.__mountedAt = performance.now();
+    }
+    if (window.__operableAt !== undefined || mounted !== 'true') return;
+    const run = document.querySelector('[data-testid="run-status"]')?.getAttribute('data-state');
+    const heading = document.querySelector('[data-testid="step-title"]')?.textContent ?? '';
+    const word = document.querySelector('[data-testid="step-status"]')?.textContent ?? '';
+    const logged = [...document.querySelectorAll('[data-testid="part-log-list"] li')].some((li) => li.getAttribute('data-step') === uid);
+    const ports =
+      q('choice-btn').some(usable) || q('approval-btn').some(usable) || (q('draft-input').some(usable) && q('submit-input').some(usable));
+    if (run === 'idle' && heading === title && word !== '受付済み（確認待ち）' && !logged && ports) {
+      window.__operableAt = performance.now();
+    }
+  };
+  new MutationObserver(check).observe(document, { attributes: true, childList: true, subtree: true, characterData: true });
+  check();
+}
+
+async function measureFirstPaintDirect(browser, dir, { channel, headless }) {
+  const ir = JSON.parse(fs.readFileSync(`${dir}/ir/main.json`, 'utf8'));
+  const start = directStartOf(ir, DIRECT_START);
+  const nextTitle = (ir.nodes ?? []).find((n) => n?.uid === DIRECT_NEXT_NODE)?.step?.title;
+  if (typeof nextTitle !== 'string' || nextTitle === '' || nextTitle === start.title) throw new Error('the next step title is unusable');
+  const srv = await startServer({ dir, base: BASE, port: 0, gzip: true, gzipLevel: GZIP_LEVEL });
+  try {
+    const origin = new URL(srv.url).origin;
+    const url = `${srv.url}?start=${encodeURIComponent(DIRECT_START)}`;
+    const operable = [];
+    const mounted = [];
+    let wasmTransfer = 0;
+    let irTransfer = 0;
+    for (let i = 0; i < TRIALS; i++) {
+      const { context, page } = await newPage(browser, true);
+      try {
+        await page.addInitScript(installOperableObserver, { title: start.title, uid: start.node });
+        const wasmEnc = [];
+        const irRes = [];
+        const foreign = [];
+        const errors = [];
+        page.on('response', (res) => {
+          const u = new URL(res.url());
+          if (u.pathname.endsWith('.wasm')) wasmEnc.push(res.headers()['content-encoding'] ?? '');
+          if (u.pathname.endsWith('/ir/main.json')) irRes.push(res.status());
+        });
+        page.on('request', (req) => {
+          const u = req.url();
+          if (!u.startsWith('data:') && !u.startsWith('blob:') && new URL(u).origin !== origin) foreign.push(u);
+        });
+        page.on('pageerror', (e) => errors.push(String(e.message).slice(0, 100)));
+        await page.goto(url, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
+        await page.waitForFunction(
+          () => window.__operableAt !== undefined || (window.__mountedValue !== undefined && window.__mountedValue !== 'true'),
+          null,
+          { timeout: NAV_TIMEOUT_MS },
+        );
+        const r = await page.evaluate(() => {
+          const res = performance.getEntriesByType('resource');
+          const wasm = res.filter((e) => new URL(e.name).pathname.endsWith('.wasm'));
+          const irs = res.filter((e) => new URL(e.name).pathname.endsWith('/ir/main.json'));
+          return {
+            mountedValue: window.__mountedValue,
+            mountedAt: window.__mountedAt,
+            operableAt: window.__operableAt,
+            wasmEncoded: wasm.length === 1 ? wasm[0].encodedBodySize : null,
+            irEncoded: irs.length === 1 ? irs[0].encodedBodySize : null,
+            hooks: typeof window.__fandheTest,
+            notices: document.querySelectorAll('[data-testid="shell-notice-item"]').length,
+            title: document.querySelector('[data-testid="step-title"]')?.textContent ?? '',
+          };
+        });
+        if (r.mountedValue !== 'true') throw new Error(`data-mounted is "${r.mountedValue}" (mount failed)`);
+        if (!Number.isFinite(r.operableAt)) throw new Error('the page never became operable');
+        if (!Number.isInteger(r.wasmEncoded) || r.wasmEncoded <= 0) throw new Error('could not read the wasm transfer size');
+        if (!Number.isInteger(r.irEncoded) || r.irEncoded <= 0) throw new Error('could not read the IR transfer size');
+        if (wasmEnc.length !== 1 || wasmEnc[0] !== 'gzip') throw new Error(`wasm was not served with Content-Encoding: gzip (${JSON.stringify(wasmEnc)})`);
+        if (irRes.length !== 1 || irRes[0] !== 200) throw new Error(`ir/main.json was not fetched exactly once with 200 (${JSON.stringify(irRes)})`);
+        if (foreign.length !== 0) throw new Error(`requests to other origins: ${foreign.length}`);
+        if (errors.length !== 0) throw new Error(`page errors: ${errors.length}`);
+        if (r.notices !== 0) throw new Error(`shell notices appeared: ${r.notices}`);
+        if (r.hooks !== 'undefined') throw new Error('test hooks are present (not a delivery build)');
+        if (r.title === nextTitle) throw new Error('the page is at the next step, not the start');
+        // 10Mbps で wasm と IR を受け取る最短時間（ミリ秒）より速ければ、制限が効いていない。
+        const floorMs = (((r.wasmEncoded + r.irEncoded) * 8) / 10e6) * 1000;
+        if (r.operableAt < floorMs) {
+          throw new Error(`operable (${r.operableAt} ms) is faster than the 10 Mbps transfer floor (${floorMs} ms): throttling is not in effect`);
+        }
+        operable.push(toMicros(r.operableAt, 'operable'));
+        mounted.push(toMicros(r.mountedAt, 'mounted'));
+        wasmTransfer = r.wasmEncoded;
+        irTransfer = r.irEncoded;
+        progress(`first-paint-direct trial ${i + 1}/${TRIALS}: operable ${r.operableAt.toFixed(1)} ms (mounted ${r.mountedAt.toFixed(1)} ms)`);
+      } finally {
+        await context.close();
+      }
+    }
+    const j = operableJudgement(operable);
+    return {
+      measurements: [
+        { name: 'first_paint_direct_operable_median', unit: 'us', value: j.medianUs },
+        { name: 'first_paint_direct_operable_max', unit: 'us', value: j.maxUs },
+        { name: 'first_paint_direct_mounted_median', unit: 'us', value: Math.round(median(mounted)) },
+        { name: 'first_paint_direct_wasm_transfer', unit: 'bytes', value: wasmTransfer },
+        { name: 'first_paint_direct_ir_transfer', unit: 'bytes', value: irTransfer },
+      ],
+      compression: {
+        command: `tools/serve.mjs gzip level ${GZIP_LEVEL} (Content-Encoding: gzip)`,
+        implementation: `node ${process.version} zlib ${process.versions.zlib}`,
+      },
+      conditions: {
+        network: { down_mbps: 10, up_mbps: 10, latency_ms: LATENCY_MS },
+        cpu_throttle: 1,
+        cache: 'disabled',
+        trials: TRIALS,
+        base: BASE,
+        viewport: { width: 1280, height: 720 },
+        browser: { channel, headless },
+        start: DIRECT_START,
+        start_node: start.node,
+        operable_definition: OPERABLE_DEFINITION,
+        values_us: operable,
+        mounted_values_us: mounted,
+        threshold_us: FIRST_PAINT_DIRECT_THRESHOLD_US,
+        judgement: j.judgement,
+        scope_note:
+          'Local subpath delivery, not the public site (DLV-6). The pack is a CH-0 to CH-3 shaped copy, not a real course. Compare only values with the same start, pack, browser channel and headless setting.',
       },
     };
   } finally {
@@ -915,8 +1096,8 @@ async function main() {
     console.error(USAGE);
     process.exit(2);
   }
-  if (!['first-paint', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw', 'view-redraw-cpu4x', 'product-redraw-cpu4x', 'ir-memory'].includes(values.kind) || !values.dir) {
-    console.error('error: --kind (first-paint|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory) and --dir are required');
+  if (!['first-paint', 'first-paint-direct', 'redraw', 'log-redraw', 'log-slope', 'log-rounds', 'input-paint', 'view-redraw', 'product-redraw', 'view-redraw-cpu4x', 'product-redraw-cpu4x', 'ir-memory'].includes(values.kind) || !values.dir) {
+    console.error('error: --kind (first-paint|first-paint-direct|redraw|log-redraw|log-slope|log-rounds|input-paint|view-redraw|product-redraw|view-redraw-cpu4x|product-redraw-cpu4x|ir-memory) and --dir are required');
     console.error(USAGE);
     process.exit(2);
   }
@@ -950,7 +1131,9 @@ async function main() {
       process.exit(1);
     }
     const runs = {
-      'first-paint': measureFirstPaint, redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'log-slope': measureLogSlope,
+      'first-paint': measureFirstPaint,
+      'first-paint-direct': (b, d) => measureFirstPaintDirect(b, d, { channel: launchOptions.channel ?? 'chromium', headless: launchOptions.headless ?? true }),
+      redraw: measureRedraw, 'log-redraw': measureLogRedraw, 'log-slope': measureLogSlope,
       'log-rounds': measureLogRounds, 'input-paint': measureInputPaint,
       'view-redraw': (b, d) => measureViewRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
       'product-redraw': (b, d) => measureProductRedraw(b, d, { newPage, installMountObserver, median, p95, toMicros, progress }),
