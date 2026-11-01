@@ -100,6 +100,8 @@ OUT="${TMP_DIR}/out"
 # native: pack -> core(ws) -> f / a / pm(proc-macro) -> viapm / bld(build) / dev(dev) / m / nofile / sub / slash
 # wasm:   web -> a / w
 REG_SRC="registry+https://github.com/rust-lang/crates.io-index"
+# 確認済みの告知の一覧に載る repository（nofile の既定。NOFILE_REPO で差し替える）
+VETTED_REPO="https://github.com/Fandhe-AI/fandhe-frontend"
 mk_meta() {
   local d="$1" mlic="$2" msrc="$3" mfiles="$4" dup="${5:-0}" mlf="" c
   mkdir -p "${d}/reg"
@@ -132,11 +134,11 @@ mk_meta() {
       ;;
     none) ;;
   esac
-  jq -n --arg dup "${dup}" --arg mlf "${mlf}" --arg d "${d}" --arg mlic "${mlic}" --arg msrc "${msrc}" --arg reg "${REG_SRC}" '
+  jq -n --arg nofilerepo "${NOFILE_REPO:-${VETTED_REPO}}" --arg dup "${dup}" --arg mlf "${mlf}" --arg d "${d}" --arg mlic "${mlic}" --arg msrc "${msrc}" --arg reg "${REG_SRC}" '
     def pkg($n; $lic; $src; $kind): {id: $n, name: $n, version: "1.0.0", license: ($lic | if . == "null" then null else . end),
       license_file: (if $n == "m" and $mlf != "" then $mlf else null end), source: ($src | if . == "" then null else . end),
       manifest_path: ($d + "/reg/" + $n + "/Cargo.toml"),
-      repository: ("https://example.invalid/" + $n), targets: [{kind: [$kind]}]};
+      repository: (if $n == "nofile" then $nofilerepo else "https://example.invalid/" + $n end), targets: [{kind: [$kind]}]};
     def ws($n): {id: $n, name: $n, version: "0.0.0", license: "MIT OR Apache-2.0", license_file: null, source: null,
       manifest_path: ($d + "/" + $n + "/Cargo.toml"), repository: null, targets: [{kind: ["lib"]}]};
     def dep($p; $k): {pkg: $p, dep_kinds: [{kind: $k, target: null}]};
@@ -196,7 +198,7 @@ if [ -n "${ARCHIVE}" ]; then
   expect "stdout reports the sha256" 0 "${rc}"
   TPL_FILE="$(find "${X}" -name THIRD-PARTY-LICENSES -type f | head -n 1)"
   for needle in "==== a 1.0.0 ====" "==== f 1.0.0 ====" "==== w 1.0.0 ====" "==== sub 1.0.0 ====" "==== slash 1.0.0 ====" \
-    "==== nofile 1.0.0 ====" "sub X-MIT text" "Apache text of a" "unicode text" "  - nofile 1.0.0 (" "Permission is hereby granted" \
+    "==== nofile 1.0.0 ====" "sub X-MIT text" "Apache text of a" "unicode text" "  - nofile 1.0.0 (" "Permission is hereby granted" "Fandhe-AI / fandhe-frontend contributors" "(vetted notice)" \
     "targets: aarch64-apple-darwin, wasm32-unknown-unknown"; do
     rc=0
     grep -qF -- "${needle}" "${TPL_FILE}" || rc=$?
@@ -264,7 +266,13 @@ license_case "license_file through a symlinked directory outside the crate" "MIT
 license_case "license_file through a symlinked directory inside the crate" "MIT" "${REG_SRC}" reallink
 # 同名・同版で registry が先に並ぶ（license の文字列が小さい）とき、後ろの git の package も検証される
 license_case "same name and version from registry and git" "Apache-2.0 OR MIT" "${REG_SRC}" file 1
-license_case "no file and no standard text" "Unlicense" "${REG_SRC}" none
+license_case "no file and no vetted notice for the identifier" "Unlicense" "${REG_SRC}" none
+
+# ファイルを持たない crate は、repository が確認済みの告知の一覧に無ければ失敗する（ひな形では補わない）
+d="${TMP_DIR}/meta-unvetted"
+NOFILE_REPO="https://example.invalid/nofile" mk_meta "${d}" "MIT" "${REG_SRC}" file
+META_USE="${d}" fail_case "no file and repository not in the vetted list" --out "${OUT}" --bin "${FAKE_BIN}"
+rm -rf "${d}"
 
 # preview の煙試験の失敗（URL が出ない・IR が compile と違う）
 : >"${TMP_DIR}/no-url"
@@ -305,8 +313,8 @@ expect "generator with --native only exits 2" 2 "${RC}"
 NT="${TMP_DIR}/nt"
 mkdir -p "${NT}/scripts" "${NT}/docs"
 cp "${DIR}/build-pack-release.sh" "${DIR}/gen-third-party-licenses.sh" "${DIR}/lib.sh" "${NT}/scripts/"
-mkdir -p "${NT}/tools/pack-release/licenses"
-cp "${DIR}/../tools/pack-release/licenses/MIT.txt" "${NT}/tools/pack-release/licenses/"
+mkdir -p "${NT}/tools/pack-release"
+cp -R "${DIR}/../tools/pack-release/licenses" "${NT}/tools/pack-release/licenses"
 cp -R "${DIR}/../docs/examples" "${NT}/docs/examples"
 cp "${DIR}/../LICENSE-MIT" "${DIR}/../LICENSE-APACHE" "${NT}/"
 rm -rf "${OUT}"

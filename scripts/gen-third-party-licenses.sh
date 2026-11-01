@@ -9,9 +9,9 @@
 #   通常の依存（dep_kinds の kind が null の辺）だけを辿った crate。proc-macro の crate（とその先）・ビルド時と試験の依存・
 #   ワークスペースのメンバーは載せない。
 # 本文: crate の配布物にあるライセンスのファイル（ルート直下の LICENSE*・COPYING*・UNLICENSE*・NOTICE*・COPYRIGHT*、
-#   metadata の license_file、.licenses/・licenses/・LICENSES/ の 1 段下）。1 つも無い crate は、license 式の識別子ごとの
-#   標準の本文（MIT は tools/pack-release/licenses/MIT.txt、出所は https://spdx.org/licenses/MIT.html。Apache-2.0 は
-#   LICENSE-APACHE）で補い、ヘッダの一覧に示す。標準の本文を持たない識別子が出れば失敗する。
+#   metadata の license_file、.licenses/・licenses/・LICENSES/ の 1 段下）。1 つも無い crate は、repository の値が確認済みの告知の
+#   一覧（vetted_dir）に完全一致するときだけ、上流の告知（tools/pack-release/licenses/vetted/。出所は同 README.txt）で補い、
+#   ヘッダの一覧に示す。一致しない・識別子が MIT と Apache-2.0 以外なら失敗する。ひな形の本文では補わない。
 # fail-closed: 許可の集合に無い license 式（OR の一方だけでも）・WITH・license の欠如・registry でない source・
 #   symlink のライセンスのファイルは、出力を作らず終了コード 1。
 # 決定性: 日付・絶対パス・ホスト名を出力に入れない。並びは LC_ALL=C の (名前, 版)。通信しない（cargo metadata は --offline）。
@@ -184,11 +184,22 @@ license_ids() {
   normalize_expr "$1" | grep -vxE 'OR|AND' | grep -v '^$' || true
 }
 
-# standard_text <識別子>: 標準の本文のパス。無ければ 1
-standard_text() {
+# vetted_dir <repository>: 確認済みの告知のディレクトリ。repository は未信頼の値なので、パスには使わず固定の文字列と照合する。
+# 一覧に無ければ 1
+vetted_dir() {
   case "$1" in
-    MIT) echo "${ROOT_DIR}/tools/pack-release/licenses/MIT.txt" ;;
-    Apache-2.0) echo "${ROOT_DIR}/LICENSE-APACHE" ;;
+    https://github.com/Fandhe-AI/fandhe-frontend)
+      echo "${ROOT_DIR}/tools/pack-release/licenses/vetted/github.com/Fandhe-AI/fandhe-frontend"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# vetted_file <識別子>: 確認済みの告知の中のファイル名。無ければ 1
+vetted_file() {
+  case "$1" in
+    MIT) echo "LICENSE-MIT" ;;
+    Apache-2.0) echo "LICENSE-APACHE" ;;
     *) return 1 ;;
   esac
 }
@@ -283,7 +294,7 @@ COUNT=0
 
 emit_crate() {
   local name="$1" ver="$2" lic="$3" lf="$4" src="$5" mpath="$6" repo="$7" triples="$8"
-  local cdir ids id txt rel
+  local cdir ids id vdir vf rel
   # 空の欄は jq が "-" で渡す（read が連続する tab を 1 つに潰すため）
   [ "${lic}" != "-" ] || lic=""
   [ "${lf}" != "-" ] || lf=""
@@ -315,11 +326,15 @@ emit_crate() {
   fi
   ids="$(license_ids "${lic}")"
   if [ ! -s "${TMP_DIR}/files.list" ]; then
-    # 標準の本文を持たない識別子があれば、本文を書き始める前に違反にする
+    # 確認済みの告知が無い・対応しない識別子があれば、本文を書き始める前に違反にする
+    if ! vdir="$(vetted_dir "${repo}")"; then
+      violation "no license file and no vetted notice for the repository: ${name} ${ver}: ${repo:-(none)}"
+      return 0
+    fi
     while IFS= read -r id; do
       [ -n "${id}" ] || continue
-      if ! standard_text "${id}" >/dev/null; then
-        violation "no license file and no standard text for ${id}: ${name} ${ver}"
+      if ! vf="$(vetted_file "${id}")" || [ ! -f "${vdir}/${vf}" ]; then
+        violation "no license file and no vetted notice for ${id}: ${name} ${ver}"
         return 0
       fi
     done <<EOT
@@ -340,8 +355,8 @@ EOT
   else
     while IFS= read -r id; do
       [ -n "${id}" ] || continue
-      txt="$(standard_text "${id}")"
-      emit_file "${txt}" "SPDX ${id} (standard text)" >>"${TMP_DIR}/body"
+      vf="$(vetted_file "${id}")"
+      emit_file "${vdir}/${vf}" "${vf} (vetted notice)" >>"${TMP_DIR}/body"
     done <<EOT
 ${ids}
 EOT
@@ -389,8 +404,8 @@ fi
   echo
   echo "ライセンスのファイルを持たない crate:"
   if [ -s "${TMP_DIR}/fallback" ]; then
-    echo "（crate の配布物にライセンスのファイルが無いため、SPDX の標準の本文を載せています。"
-    echo "  著作権者は各 crate の repository の記載に従ってください。）"
+    echo "（crate の配布物にライセンスのファイルが無いため、repository の上流が公開している告知"
+    echo "  （確認済みの commit のもの）を載せています。）"
     sed 's/^/  - /' "${TMP_DIR}/fallback"
   else
     echo "  なし"

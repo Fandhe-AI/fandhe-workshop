@@ -274,7 +274,7 @@ tag の名前と版は TASK-791 の決定に従う。
 - LIC-9: 2026-11-01 にユーザーが「同梱する」と決めた。#1957 で、依存のライセンス文を tar.gz の `THIRD-PARTY-LICENSES` として同梱した（`scripts/gen-third-party-licenses.sh`。`Cargo.lock` から決定的に作り、通信しない）
     - 対象は、`fandhe-pack`（`--target` の triple）と、埋め込んだ web（`wasm32-unknown-unknown`）の通常の依存。proc-macro の crate・ビルド時と試験だけの依存・ワークスペースのメンバーは除く
     - 許可する license の識別子は `MIT`・`Apache-2.0`・`Unlicense`・`BSL-1.0`・`Unicode-3.0` で、OR の一方でも外れる式・`WITH`・license の欠如・registry でない source・symlink のライセンスのファイルがあれば、配布物を作らずに失敗する
-    - 本文は crate の配布物のライセンスのファイルから取る。ファイルを持たない `fandhe-frontend-*` の 7 件は、SPDX の標準の本文（`tools/pack-release/licenses/MIT.txt` と `LICENSE-APACHE`）で補い、ヘッダの一覧に示す。著作権者は各 crate の repository の記載に従う
+    - 本文は crate の配布物のライセンスのファイルから取る。ファイルを持たない `fandhe-frontend-*` の 7 件は、上流の public repo `Fandhe-AI/fandhe-frontend` の commit `25939f573540394cfcc53c45988374226f5ffb5a` の `LICENSE-MIT`・`LICENSE-APACHE`（著作権者の行は `Copyright (c) 2026 Fandhe-AI / fandhe-frontend contributors`）を、2026-11-01 に取得して `tools/pack-release/licenses/vetted/` に置いた写しで補い、ヘッダの一覧に示す。補うのは `repository` の値が生成器の確認済みの一覧に完全一致するときだけで、一致しなければ配布物を作らずに失敗する。上流の告知が変わったときは、新しい commit から手で取得し直して差し替え、`tools/pack-release/licenses/README.txt` の sha と日付を更新する
 - 成果物の名前の版は `0.0.0` のままとする。公開する版は TASK-791 で決める（未決）
 
 ### 採らなかった案
@@ -289,7 +289,7 @@ tag の名前と版は TASK-791 の決定に従う。
 - `THIRD-PARTY-LICENSES` の 43 件は Linux の手元（2026-11-01）で計算した値である。`release.yml` の run での照合は記録 2 で行う
 - ライセンス文の生成の前提は `cargo fetch --locked` である（`cargo metadata` を offline で流すため）
 - wasm-bindgen の CLI が生成する JS の glue は、wasm-bindgen の crate の区画で扱っている
-- 標準の本文で補った `fandhe-frontend-*` の 7 件の MIT の本文は、著作権者の行がひな形（`<year>`・`<copyright holders>`）のままである。MIT の条件の著作権表示を満たしたとは言い切れない。公開の前に、各 crate の著作権者の表記を確かめて本文に入れるかを決める（未決）
+- 確認済みの告知の写しは取得した時点（2026-11-01）の上流の内容である。上流が告知を変えても自動では追従しない。`fandhe-frontend-*` 以外でライセンスのファイルを持たない依存が増えると、生成器が失敗するので、告知を確かめて一覧に足す
 
 ### D-34 の区別
 
