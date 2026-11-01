@@ -275,10 +275,13 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 ### 手順
 
 ```bash
-FANDHE_BROWSER_CHANNEL=chrome make measure-first-paint-direct > first-paint-direct.json; echo $?
+out="$(mktemp -d)/first-paint-direct.json"
+FANDHE_BROWSER_CHANNEL=chrome tools/measure/first-paint-direct.sh > "$out"; echo $?
 ```
 
-- 終了コード 0 は 3 秒以内、3 は測れたが超過、1 は測定の失敗（標準出力は空）
+- 結果は作業ツリーの外（上の `mktemp -d`）に保存する。リポジトリ直下に未追跡のファイルができると `baseline.commit.dirty` が `true` になるため
+- 終了コードを記録するときは、スクリプトを直接呼ぶ。`make` 経由では、レシピの終了コード 1 と 3 がどちらも 2 に変わり、測定の失敗と 3 秒の超過を区別できない
+- 終了コード 0 は 3 秒以内、3 は測れたが超過、1 は測定の失敗（標準出力は空）。`make measure-first-paint-direct` 経由でも JSON は同じだが、終了コードは失敗と超過のどちらも 2 になる
 - 流している間は、ほかの重い処理を止める。10 回の値が揃わない・ばらつきが大きいときは、条件を変えず流し直す前に値を記録に残す
 - 貼ってもらうのは、標準出力の JSON の全体と終了コードだけである。標準エラー（ビルドログ）にはパスが出るため、失敗の調査で要るときだけ貼る
 
