@@ -37,6 +37,7 @@
 # 断った後に保存済みの履歴と画面が書き換わらないことの試験（refusal-keeps-saved。履歴・起動時の IR・起動後の IR・保存先からの起動の 4 経路で、保存先の全体・状態・画面が変わらず入力の番兵が出ない。SAFE-40。TASK-169。docs/testing.md 5.378）。
 # 壊れた履歴 7 種の拒否の試験（broken-histories。履歴は core の broken_histories.rs が書き出し FANDHE_BROKEN_HISTORIES_DIR で受ける。SAVE-20・SHELL-16。TASK-332 1/2。docs/testing.md 5.386）と、`ops` の 22 か所の書き換えの試験（ops-rewrites。履歴は core の ops_rewrites.rs が書き出し FANDHE_OPS_REWRITES_DIR で受ける。SAVE-20。TASK-332 2/2。docs/testing.md 5.387）を含む。
 # 前提: version-histories は core の試験（crates/core/tests/version_histories.rs）が書き出した履歴を FANDHE_VERSION_HISTORIES_DIR で受ける。
+# wrong-answer-compare（誤答の拒否文が前後の切り替えを案内し、拒否の後に比較のビューが自動では開かず、選び直せることの固定。製品に前後の切り替えの口が無いことの観察を含む。ART-19。TASK-488。docs/testing.md 5.429）も含む。
 # 前提バイナリ: fandhe-pack の debug ビルドはこのスクリプトが行い（scripts/build-pack-bin.sh。位置は cargo の出力から解決するため
 # CARGO_TARGET_DIR に追従する）、FANDHE_PACK_BIN で node:test へ渡す（pack-bin。BUILD-16。TASK-91）。
 # 前提: `npm ci` と `npx playwright install chromium` の済み。導入はここでは試みない。
@@ -244,6 +245,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/choice-answer.test.mjs" \
   "${ROOT_DIR}/tools/browser/choice-labels.test.mjs" \
   "${ROOT_DIR}/tools/browser/read-only-step.test.mjs" \
+  "${ROOT_DIR}/tools/browser/wrong-answer-compare.test.mjs" \
   "${ROOT_DIR}/tools/browser/approval-buttons.test.mjs" \
   "${ROOT_DIR}/tools/browser/approval-revise-labels.test.mjs" \
   "${ROOT_DIR}/tools/browser/approval-reapprove.test.mjs" \

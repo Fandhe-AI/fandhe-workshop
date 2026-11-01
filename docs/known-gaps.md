@@ -35,7 +35,8 @@
 | PACK-21 | 外観（`pack.appearance.theme`）は製品の画面に未結線で、`data-theme` が付かず外観ごとの CSS も無い。左のビューの変化の印がどの外観でも残ることは、代役の部品を `data-theme` つきの要素に置いた検査で確かめた | 未結線（画面全体の枠の担当）。2026-10-25 時点 | 外観に頼らず、印の記号と文字（3 手段）で変化を伝える | `tools/browser/theme-marks.test.mjs`（記録は `docs/testing.md` の 5.303） |
 | PACK-22 | `world_list: hidden` は世界状態の行を作らず、7 本の一覧がどれも項目 0 件になる。種類ごとの描画部品が結線されていないため、指せる行と文書ビューの本文も消える | 結線済み（TASK-481 1/2）。種類ごとの描画部品の結線で見直す。SECOND-8（第 2 教材の文書ビューの 5 行）とは両立しない | 指す操作や文書の本文を使う教材では `world_list: hidden` を使わない | `crates/web/tests/left_pane_view.rs`・`tools/browser/left-pane.test.mjs`（記録は `docs/testing.md` の 5.302） |
 | ART-24 | 模擬ログインの画面にパスワード欄が無いことの確認は、代役のデータと未結線のワイヤーの上で行った。本物の掲示板のデモ（TASK-664）での確認と人の試行は無い | 検討中のまま（解除の判断は人の承認点。本タスクは材料の記録まで。TASK-492） | 教材は名前を選ぶ行だけを置き、パスワードに当たる行・属性を書かない | `crates/web/tests/app_demo_login_contract.rs`・`tools/browser/app-demo-login.test.mjs`（記録は `docs/testing.md` の 5.301） |
-| PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。2026-10-21 時点で、製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。画面での見え方は未確認（ART-19） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_` |
+| PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。2026-11-01 に画面で確かめた（ART-19）: 拒否文は見えるが、拒否の後に比較のビューは自動では開かず、案内が指す切り替えの操作要素は 0 件。選び直しはできる（根拠 `tools/browser/wrong-answer-compare.test.mjs`） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_`、`tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
+| ART-19 | 誤答の後に前後の比較を自動で見せない。拒否文は前後の切り替えを案内するが、製品の画面にその切り替えの操作要素が無く、案内の先を操作できない | 自動で開かないと決定（D-69、TASK-509（2026-10-31））。見直すかどうかは人の承認点。見直しの材料は下の ART-19 の節 | 本文・`do`・拒否文で、変わる箇所と変わらない箇所を言葉で書く | `tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_`・`tools/browser/read-only-step.test.mjs`（画面の操作の回数） |
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
 | PACK-19（両方無い） | 解消した（2026-10-22、#1709）。確認も持たない、入力も `use` も無い終端でない Step も `E-STRUCTURE` で拒否する。拒否の前に試験データを直した（#1708）。経緯の実測: 全面の拒否の影響は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台（30c1ff0 での実測） | 解消 | 不要（途中の Step には入力か `use` を書く。読むだけの Step は 1 択の `choice`） | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` |
@@ -445,6 +446,18 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 回避: `body: shown` を宣言し、要素は `fixture` つきで規則の効果（`put`・`replace`）で置く。本文は `.md` で書く。前後の比較は本文・`do` で言葉で案内する。
 
 根拠の試験: `tools/browser/doc-body-limits.test.mjs`（観察 L1〜L5 と負の対照）、`doc-body.test.mjs`。記録は `docs/testing.md` の 5.300。
+
+## ART-19: 誤答の後に前後の比較を自動で見せない
+
+限界: 製品の画面は、誤答の拒否の後に前後の比較（差分のビューなど）を自動では開かない。拒否文（`message`・`next_action`）が前後の切り替え（ART-2）を案内しても、製品の画面にはその切り替えの操作要素が無い（`Phase` は試験の設定の代役の部品にだけ結線されている）。左で見られるのは、ビューの種類の選択（ART-12。前後の切り替えではない）と、いまの状態の行・変化の印だけである。誤答の前後で行と印は変わらず、変えた箇所と変えていない箇所は同じ印（`add`）で見分けられない。選び直しはできる。
+
+理由: D-69 の追認（TASK-509、2026-10-31）。自動で開く実装も語彙の追加もしない。
+
+見直しの条件（観察として記録済みのもの）: 拒否文の案内だけでは比較にたどり着けないという観察。2026-11-01 の試験で、案内の先が製品に無いことは確認できた。人の評価は 0 件のため、見直すかどうかは人の承認点である。
+
+回避: 本文・`do`・拒否文で、変わる箇所と変わらない箇所を言葉で書く。`diff` のビューを宣言しておく。
+
+根拠の試験: `tools/browser/wrong-answer-compare.test.mjs`。記録は `docs/testing.md` の 5.429。
 
 ## ART-24: 模擬ログインの画面の確認は代役のデータと未結線のワイヤーの上で行った
 
