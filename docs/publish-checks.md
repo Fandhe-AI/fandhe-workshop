@@ -269,10 +269,13 @@ D-28 の代わりの確認は、満たしたと扱ってよい基準を広げる
 
 tag の名前と版は TASK-791 の決定に従う。
 
-### ユーザーが決める事項（未決）
+### ユーザーが決める事項
 
-- LIC-9: 静的リンクした依存（`MIT OR Apache-2.0`・MIT・Apache-2.0・Unlicense など）の告知を tar.gz に同梱するか。対象の一覧は `cargo metadata --filter-platform aarch64-apple-darwin` の通常の依存から取り、proc-macro の crate とビルド時だけの crate は除く
-- 成果物の名前の版が `0.0.0` のままであること（TASK-791）
+- LIC-9: 2026-11-01 にユーザーが「同梱する」と決めた。#1957 で、依存のライセンス文を tar.gz の `THIRD-PARTY-LICENSES` として同梱した（`scripts/gen-third-party-licenses.sh`。`Cargo.lock` から決定的に作り、通信しない）
+    - 対象は、`fandhe-pack`（`--target` の triple）と、埋め込んだ web（`wasm32-unknown-unknown`）の通常の依存。proc-macro の crate・ビルド時と試験だけの依存・ワークスペースのメンバーは除く
+    - 許可する license の識別子は `MIT`・`Apache-2.0`・`Unlicense`・`BSL-1.0`・`Unicode-3.0` で、OR の一方でも外れる式・`WITH`・license の欠如・registry でない source・symlink のライセンスのファイルがあれば、配布物を作らずに失敗する
+    - 本文は crate の配布物のライセンスのファイルから取る。ファイルを持たない `fandhe-frontend-*` の 7 件は、SPDX の標準の本文（`tools/pack-release/licenses/MIT.txt` と `LICENSE-APACHE`）で補い、ヘッダの一覧に示す。著作権者は各 crate の repository の記載に従う
+- 成果物の名前の版は `0.0.0` のままとする。公開する版は TASK-791 で決める（未決）
 
 ### 採らなかった案
 
@@ -283,6 +286,9 @@ tag の名前と版は TASK-791 の決定に従う。
 - 案内文は、人が実機で quarantine を外して起動することをまだ確かめていない。Gatekeeper の画面は誰も観察していない
 - Apple シリコン以外は対象外（TASK-98・D-19 の結果を待つ）
 - 試験の作成者・実装者・記録の作成者が同じ AI である
+- `THIRD-PARTY-LICENSES` の 43 件は Linux の手元（2026-11-01）で計算した値である。`release.yml` の run での照合は記録 2 で行う
+- ライセンス文の生成の前提は `cargo fetch --locked` である（`cargo metadata` を offline で流すため）
+- wasm-bindgen の CLI が生成する JS の glue は、wasm-bindgen の crate の区画で扱っている
 
 ### D-34 の区別
 

@@ -3,7 +3,8 @@
 #
 # ビルドはしない（速く保つ）。--bin に偽の実行ファイル（validate・test に 0 か 1 を返すシェルスクリプト）を渡し、
 # file の偽物を PATH の先頭に置いて Mach-O arm64 などのふりをさせる。実ビルドの確認は release.yml の run と手元で行う。
-# 確かめること: 梱包の中身と mode・sha256 の照合、アーキテクチャ違い・煙試験の失敗・Rust が見える PATH の失敗（1）、
+# 依存のライセンス文（THIRD-PARTY-LICENSES。LIC-9）は、合成の cargo metadata（--metadata-dir）で確かめる。
+# 確かめること: 梱包の中身と mode・sha256 の照合、THIRD-PARTY-LICENSES の中身・決定性・許容外の license などでの失敗（1）、アーキテクチャ違い・煙試験の失敗・Rust が見える PATH の失敗（1）、
 # 誤用（2）、失敗のときに成果物が出ないこと（fail-closed）。
 # 作業ツリーは変えない。ネットワークは使わない。
 #
@@ -94,10 +95,61 @@ chmod +x "${SHIM}/curl"
 MACHO="Mach-O 64-bit executable arm64"
 OUT="${TMP_DIR}/out"
 
+# 合成の cargo metadata。mk_meta <dir> <m の license> <m の source> <m のファイル: file|symlink|none>
+# native: pack -> core(ws) -> f / a / pm(proc-macro) -> viapm / bld(build) / dev(dev) / m / nofile / sub / slash
+# wasm:   web -> a / w
+REG_SRC="registry+https://github.com/rust-lang/crates.io-index"
+mk_meta() {
+  local d="$1" mlic="$2" msrc="$3" mfiles="$4" c
+  mkdir -p "${d}/reg"
+  for c in a pm viapm bld dev f m nofile sub slash w; do
+    mkdir -p "${d}/reg/${c}"
+  done
+  printf 'MIT text of a\n' >"${d}/reg/a/LICENSE-MIT"
+  printf 'Apache text of a\n' >"${d}/reg/a/LICENSE-APACHE"
+  printf 'no trailing newline' >"${d}/reg/f/LICENSE"
+  mkdir -p "${d}/reg/sub/.licenses"
+  printf 'sub X-MIT text\n' >"${d}/reg/sub/.licenses/X-MIT"
+  printf 'sub X-Apache text\n' >"${d}/reg/sub/.licenses/X-Apache"
+  printf 'slash text\n' >"${d}/reg/slash/COPYING"
+  printf 'unicode text\n' >"${d}/reg/w/LICENSE-UNICODE"
+  printf 'pm text\n' >"${d}/reg/pm/LICENSE"
+  case "${mfiles}" in
+    file) printf 'm text\n' >"${d}/reg/m/LICENSE" ;;
+    symlink) ln -s /etc/hostname "${d}/reg/m/LICENSE" ;;
+    none) ;;
+  esac
+  jq -n --arg d "${d}" --arg mlic "${mlic}" --arg msrc "${msrc}" --arg reg "${REG_SRC}" '
+    def pkg($n; $lic; $src; $kind): {id: $n, name: $n, version: "1.0.0", license: ($lic | if . == "null" then null else . end),
+      license_file: null, source: ($src | if . == "" then null else . end), manifest_path: ($d + "/reg/" + $n + "/Cargo.toml"),
+      repository: ("https://example.invalid/" + $n), targets: [{kind: [$kind]}]};
+    def ws($n): {id: $n, name: $n, version: "0.0.0", license: "MIT OR Apache-2.0", license_file: null, source: null,
+      manifest_path: ($d + "/" + $n + "/Cargo.toml"), repository: null, targets: [{kind: ["lib"]}]};
+    def dep($p; $k): {pkg: $p, dep_kinds: [{kind: $k, target: null}]};
+    {packages: [ws("fandhe-workshop-pack"), ws("fandhe-workshop-core"), ws("fandhe-workshop-web"),
+        pkg("a"; "MIT OR Apache-2.0"; $reg; "lib"), pkg("pm"; "MIT"; $reg; "proc-macro"), pkg("viapm"; "GPL-3.0-only"; $reg; "lib"),
+        pkg("bld"; "GPL-3.0-only"; $reg; "lib"), pkg("dev"; "GPL-3.0-only"; $reg; "lib"), pkg("f"; "MIT"; $reg; "lib"),
+        pkg("m"; $mlic; $msrc; "lib"), pkg("nofile"; "MIT OR Apache-2.0"; $reg; "lib"),
+        pkg("sub"; "MIT OR Apache-2.0"; $reg; "lib"), pkg("slash"; "MIT/Apache-2.0"; $reg; "lib"),
+        pkg("w"; "(MIT OR Apache-2.0) AND Unicode-3.0"; $reg; "lib")],
+      workspace_members: ["fandhe-workshop-pack", "fandhe-workshop-core", "fandhe-workshop-web"],
+      resolve: {nodes: [
+        {id: "fandhe-workshop-pack", deps: [dep("fandhe-workshop-core"; null), dep("a"; null), dep("pm"; null), dep("bld"; "build"),
+          dep("dev"; "dev"), dep("m"; null), dep("nofile"; null), dep("sub"; null), dep("slash"; null)]},
+        {id: "fandhe-workshop-core", deps: [dep("f"; null)]},
+        {id: "pm", deps: [dep("viapm"; null)]},
+        {id: "fandhe-workshop-web", deps: [dep("a"; null), dep("w"; null)]},
+        {id: "a", deps: []}, {id: "viapm", deps: []}, {id: "bld", deps: []}, {id: "dev", deps: []}, {id: "f", deps: []},
+        {id: "m", deps: []}, {id: "nofile", deps: []}, {id: "sub", deps: []}, {id: "slash", deps: []}, {id: "w", deps: []}]}}' >"${d}/native.json"
+  cp "${d}/native.json" "${d}/wasm.json"
+}
+META_OK="${TMP_DIR}/meta-ok"
+mk_meta "${META_OK}" "MIT" "${REG_SRC}" file
+
 # run_build <args...>: 終了コードを RC、標準エラーを ERR に残す
 run_build() {
   RC=0
-  PATH="${SHIM}:${PATH}" FAKE_FILE_DESC="${FAKE_FILE_DESC:-${MACHO}}" "${BUILD}" "$@" >"${TMP_DIR}/stdout" 2>"${TMP_DIR}/stderr" || RC=$?
+  PATH="${SHIM}:${PATH}" FAKE_FILE_DESC="${FAKE_FILE_DESC:-${MACHO}}" "${BUILD}" --metadata-dir "${META_USE:-${META_OK}}" "$@" >"${TMP_DIR}/stdout" 2>"${TMP_DIR}/stderr" || RC=$?
 }
 
 # 1. 合格
@@ -107,14 +159,14 @@ expect "passes with an arm64 Mach-O fake" 0 "${RC}"
 ARCHIVE="$(find "${OUT}" -name 'fandhe-pack-*-aarch64-apple-darwin.tar.gz' | head -n 1)"
 if [ -n "${ARCHIVE}" ]; then
   members="$(tar -tzf "${ARCHIVE}" | sed 's|^[^/]*/||' | grep -v '^$' | sort | tr '\n' ' ')"
-  expect "archive holds the executable, both licenses and the notice" "LICENSE-APACHE LICENSE-MIT README.txt fandhe-pack " "${members}"
+  expect "archive holds the executable, both licenses, the notice and the third-party licenses" "LICENSE-APACHE LICENSE-MIT README.txt THIRD-PARTY-LICENSES fandhe-pack " "${members}"
   X="${TMP_DIR}/x"
   mkdir -p "${X}"
   tar -xzf "${ARCHIVE}" -C "${X}"
   rc=0
   cmp -s "${X}"/*/README.txt "${DIR}/../tools/pack-release/README.txt" || rc=$?
   expect "bundled README.txt equals the notice source" 0 "${rc}"
-  for needle in "xattr -d com.apple.quarantine fandhe-pack" "shasum -a 256 -c"; do
+  for needle in "xattr -d com.apple.quarantine fandhe-pack" "shasum -a 256 -c" "THIRD-PARTY-LICENSES"; do
     rc=0
     grep -qF -- "${needle}" "${X}"/*/README.txt || rc=$?
     expect "notice contains: ${needle}" 0 "${rc}"
@@ -126,6 +178,35 @@ if [ -n "${ARCHIVE}" ]; then
   expect "sha256 file verifies" 0 "${rc}"
   grep -q '^sha256: ' "${TMP_DIR}/stdout" && rc=0 || rc=1
   expect "stdout reports the sha256" 0 "${rc}"
+  TPL_FILE="$(find "${X}" -name THIRD-PARTY-LICENSES -type f | head -n 1)"
+  for needle in "==== a 1.0.0 ====" "==== f 1.0.0 ====" "==== w 1.0.0 ====" "==== sub 1.0.0 ====" "==== slash 1.0.0 ====" \
+    "==== nofile 1.0.0 ====" "sub X-MIT text" "Apache text of a" "unicode text" "  - nofile 1.0.0 (" "Permission is hereby granted" \
+    "targets: aarch64-apple-darwin, wasm32-unknown-unknown"; do
+    rc=0
+    grep -qF -- "${needle}" "${TPL_FILE}" || rc=$?
+    expect "third-party licenses contain: ${needle}" 0 "${rc}"
+  done
+  for absent in "==== pm " "==== viapm " "==== bld " "==== dev " "==== fandhe-workshop-" "${TMP_DIR}"; do
+    rc=0
+    grep -qF -- "${absent}" "${TPL_FILE}" || rc=$?
+    expect "third-party licenses omit: ${absent}" 1 "${rc}"
+  done
+  expect "third-party licenses list each crate once" 1 "$(grep -c '^==== a 1.0.0 ====' "${TPL_FILE}")"
+  expect "third-party licenses count the crates" 1 "$(grep -c '^crate の数: 7$' "${TPL_FILE}")"
+  # 決定性: もう一度作って同じバイト列になる
+  rm -rf "${TMP_DIR}/out2"
+  run_build --out "${TMP_DIR}/out2" --bin "${FAKE_BIN}"
+  mkdir -p "${TMP_DIR}/x2"
+  tar -xzf "$(find "${TMP_DIR}/out2" -name '*.tar.gz' | head -n 1)" -C "${TMP_DIR}/x2"
+  rc=0
+  cmp -s "${TPL_FILE}" "${TMP_DIR}"/x2/*/THIRD-PARTY-LICENSES || rc=$?
+  expect "third-party licenses are byte-identical across builds" 0 "${rc}"
+  GEN="${DIR}/gen-third-party-licenses.sh"
+  "${GEN}" --target aarch64-apple-darwin --out "${TMP_DIR}/g1" --native "${META_OK}/native.json" --wasm "${META_OK}/wasm.json" >/dev/null 2>&1
+  "${GEN}" --target aarch64-apple-darwin --out "${TMP_DIR}/g2" --native "${META_OK}/native.json" --wasm "${META_OK}/wasm.json" >/dev/null 2>&1
+  rc=0
+  cmp -s "${TMP_DIR}/g1" "${TMP_DIR}/g2" || rc=$?
+  expect "generator output is byte-identical across runs" 0 "${rc}"
 else
   expect "archive was created" "yes" "no"
 fi
@@ -148,6 +229,22 @@ for sub in validate test preview; do
   fail_case "failing ${sub} smoke test" --out "${OUT}" --bin "${FAKE_BIN}"
   rm -f "${TMP_DIR}/fail-${sub}"
 done
+
+# ライセンスの方針の違反（1）。m の license・source・ファイルだけを差し替える
+license_case() {
+  local name="$1" lic="$2" src="$3" files="$4" d
+  d="${TMP_DIR}/meta-${name// /_}"
+  mk_meta "${d}" "${lic}" "${src}" "${files}"
+  META_USE="${d}" fail_case "license policy: ${name}" --out "${OUT}" --bin "${FAKE_BIN}"
+  rm -rf "${d}"
+}
+license_case "GPL only" "GPL-3.0-only" "${REG_SRC}" file
+license_case "OR with GPL" "MIT OR GPL-3.0-only" "${REG_SRC}" file
+license_case "WITH exception" "Apache-2.0 WITH LLVM-exception" "${REG_SRC}" file
+license_case "null license" "null" "${REG_SRC}" file
+license_case "source not a registry" "MIT" "git+https://example.invalid/m" file
+license_case "symlink license file" "MIT" "${REG_SRC}" symlink
+license_case "no file and no standard text" "Unlicense" "${REG_SRC}" none
 
 # preview の煙試験の失敗（URL が出ない・IR が compile と違う）
 : >"${TMP_DIR}/no-url"
@@ -174,17 +271,31 @@ run_build --out "${OUT}" --bin "${TMP_DIR}/none"
 expect "missing --bin file exits 2" 2 "${RC}"
 run_build --out
 expect "option without a value exits 2" 2 "${RC}"
+META_USE="${TMP_DIR}/no-such-meta" run_build --out "${OUT}" --bin "${FAKE_BIN}"
+expect "missing --metadata-dir exits 2" 2 "${RC}"
+mkdir -p "${TMP_DIR}/meta-half"
+cp "${META_OK}/native.json" "${TMP_DIR}/meta-half/"
+META_USE="${TMP_DIR}/meta-half" run_build --out "${OUT}" --bin "${FAKE_BIN}"
+expect "--metadata-dir with native.json only exits 2" 2 "${RC}"
+RC=0
+"${DIR}/gen-third-party-licenses.sh" --target aarch64-apple-darwin --out "${TMP_DIR}/g3" --native "${META_OK}/native.json" >/dev/null 2>&1 || RC=$?
+expect "generator with --native only exits 2" 2 "${RC}"
 
 # 案内文の元が無いときは成果物を出さない。元は ROOT_DIR 固定のため、写しのツリーで確かめる
 NT="${TMP_DIR}/nt"
 mkdir -p "${NT}/scripts" "${NT}/docs"
-cp "${DIR}/build-pack-release.sh" "${DIR}/lib.sh" "${NT}/scripts/"
+cp "${DIR}/build-pack-release.sh" "${DIR}/gen-third-party-licenses.sh" "${DIR}/lib.sh" "${NT}/scripts/"
+mkdir -p "${NT}/tools/pack-release/licenses"
+cp "${DIR}/../tools/pack-release/licenses/MIT.txt" "${NT}/tools/pack-release/licenses/"
 cp -R "${DIR}/../docs/examples" "${NT}/docs/examples"
 cp "${DIR}/../LICENSE-MIT" "${DIR}/../LICENSE-APACHE" "${NT}/"
 rm -rf "${OUT}"
 RC=0
-PATH="${SHIM}:${PATH}" FAKE_FILE_DESC="${MACHO}" "${NT}/scripts/build-pack-release.sh" --out "${OUT}" --bin "${FAKE_BIN}" >/dev/null 2>&1 || RC=$?
+PATH="${SHIM}:${PATH}" FAKE_FILE_DESC="${MACHO}" "${NT}/scripts/build-pack-release.sh" --metadata-dir "${META_OK}" --out "${OUT}" --bin "${FAKE_BIN}" >/dev/null 2>"${TMP_DIR}/nt.err" || RC=$?
 expect "missing notice source exits 2" 2 "${RC}"
+rc=0
+grep -q 'notice file not found' "${TMP_DIR}/nt.err" || rc=$?
+expect "missing notice source reports the notice file" 0 "${rc}"
 n=0
 [ ! -d "${OUT}" ] || n="$(find "${OUT}" -type f | wc -l | tr -d ' ')"
 expect "missing notice source leaves no artifact" 0 "${n}"
