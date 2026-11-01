@@ -90,6 +90,17 @@ deploy_doc() {
   printf 'name: Deploy\n%s\n%s\njobs:\n%s\n' "${on}" "${perm}" "${jobs}"
 }
 
+# release_doc <on|-> <perm|-> <guard|-> <uses|->: release.yml の見本を標準出力へ出す（C4）
+release_doc() {
+  local on="$1" perm="$2" guard="$3" uses="$4"
+  [ "${on}" != "-" ] || on=$'on:\n  workflow_dispatch:'
+  [ "${perm}" != "-" ] || perm='permissions: {}'
+  [ "${guard}" != "-" ] || guard="${G}"
+  [ "${uses}" != "-" ] || uses="actions/checkout@${SHA}"
+  printf 'name: Release\n%s\n%s\njobs:\n  build:\n    if: %s\n    runs-on: macos-latest\n    permissions:\n      contents: read\n    steps:\n      - uses: %s\n' \
+    "${on}" "${perm}" "${guard}" "${uses}"
+}
+
 # ycase <name> <rc> <tag|-> <ci|deploy> <content>: 内容を一時ファイルに書いて検査する
 ycase() {
   local f
@@ -272,6 +283,14 @@ ycase "deploy on as a one-element sequence passes" 0 - deploy "$(deploy_doc 'on:
 ycase "deploy on as a scalar passes" 0 - deploy "$(deploy_doc 'on: workflow_dispatch' - -)"
 ycase "deploy with non-empty top-level permissions is rejected (C2)" 1 C2 deploy "$(deploy_doc - $'permissions:\n  contents: read' -)"
 ycase "deploy without the on key is rejected (C2)" 1 C2 deploy "$(deploy_doc '' - -)"
+ycase "release sample passes" 0 - release "$(release_doc - - - -)"
+ycase "release with push added is rejected (C4)" 1 C4 release "$(release_doc $'on:\n  workflow_dispatch:\n  push:' - - -)"
+ycase "release with pull_request is rejected (C4)" 1 C4 release "$(release_doc $'on:\n  pull_request:' - - -)"
+ycase "release without a fork guard is rejected (C4)" 1 C4 release "$(release_doc - - "true" -)"
+ycase "release guard of another repository is rejected (C4)" 1 C4 release "$(release_doc - - "github.repository == 'someone/else'" -)"
+ycase "release with top-level contents: write is rejected (C4)" 1 C4 release "$(release_doc - $'permissions:\n  contents: write' - -)"
+ycase "release uses pinned by tag is rejected (C4)" 1 C4 release "$(release_doc - - - 'actions/checkout@v4')"
+ycase "release uses of another owner is rejected (C4)" 1 C4 release "$(release_doc - - - "evil/act@${SHA}")"
 
 # ---- D: ENGINE_REV の正準の形（教材 repo の workflow）----
 # 先行の字句実装（awk）が回避の指摘で収束しなかった形を、ここで拒否されることとして個別に確かめる。

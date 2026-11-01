@@ -66,6 +66,8 @@ cat <<'EOF'
   test-upstream-impact         scripts/test-upstream-impact.sh         影響する Step の洗い出し道具の回帰テスト（通信なし。CI 未組み込み）
   test-browser                 scripts/test-browser.sh                 ブラウザ試験（Playwright の共通ヘルパ + 最小の画面 + keydown + 対照の自己確認。FANDHE_BROWSER_CHANNEL=chrome で原本）
   test-build-pack-bin          scripts/test-build-pack-bin.sh          fandhe-pack の前提バイナリの解決が CARGO_TARGET_DIR に追従することの回帰テスト（遅い）
+  build-pack-release           scripts/build-pack-release.sh           fandhe-pack の配布用の実行ファイルをビルドし、アーキテクチャの検査・煙試験・梱包・sha256 まで行う（既定 aarch64-apple-darwin）
+  test-build-pack-release      scripts/test-build-pack-release.sh      配布用の実行ファイルの作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし）
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   test-chapter-key-control     scripts/test-chapter-key-control.sh     鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）
   check-mutations              scripts/check-mutations.sh              変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）

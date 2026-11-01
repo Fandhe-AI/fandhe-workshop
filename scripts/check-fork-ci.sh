@@ -28,6 +28,8 @@
 #     C1 ci.yml のトップレベルの permissions が読み取り専用で、environment を持たない
 #     C2 deploy.yml は workflow_dispatch だけで動き、全ジョブが fork で skip される
 #     C3 ci.yml に配信のジョブ（名前に deploy を含む）を置かない
+#     C4 release.yml（実行ファイルのビルドと配布。TASK-415）は C2 と同じ規則（workflow_dispatch だけ・permissions が空・
+#        全ジョブが fork で skip）に加え、uses が許可した所有者の 40 桁 SHA 固定だけである
 #   D 教材 repo の workflow が、固定したエンジンの版（`ENGINE_REV`。C-14）でエンジンを取得する
 #     （`--pack-workflow` と `--engine-rev` を渡したときだけ動く。本 repo の CI の既定の実行には入らない）
 #     D1 ENGINE_REV が 40 桁の小文字の 16 進を 1 行だけ持つ（末尾の改行は 1 つまで）
@@ -74,6 +76,7 @@
 #   引数なし: 本 repo の全ファイルを検査する。下のオプションを 1 つでも渡すと、渡したものだけを検査する
 #   --ci <file>                  ci.yml（A5・B・C1・C3 と Y。B1 を含む）
 #   --deploy <file>              deploy.yml（C2 と Y）
+#   --release <file>             release.yml（C4 と Y）
 #   --cargo-manifest <Cargo.toml> A1 を cargo metadata --locked で判定する
 #   --cargo-metadata-json <file> A1 を、cargo metadata の出力 JSON で判定する（回帰テストだけが使う。
 #                                オフラインでは解決できない git・別 registry の source の見本を作るため）
@@ -104,7 +107,7 @@ CRATES_REGISTRY="registry+https://github.com/rust-lang/crates.io-index"
 NPM_REGISTRY_PREFIX="https://registry.npmjs.org/"
 
 usage() {
-  echo "usage: $(basename "$0") [--ci <file>] [--deploy <file>] [--cargo-manifest <Cargo.toml>] [--cargo-metadata-json <file>]" \
+  echo "usage: $(basename "$0") [--ci <file>] [--deploy <file>] [--release <file>] [--cargo-manifest <Cargo.toml>] [--cargo-metadata-json <file>]" \
     "[--package-lock <file>] [--npmrc <file>] [--gitmodules <file>] [--cargo-config-dir <dir>]" \
     "[--pack-workflow <file> --engine-rev <file>] [--secrets-checker <script>]" >&2
   exit 2
@@ -112,6 +115,7 @@ usage() {
 
 CI_FILE=""
 DEPLOY_FILE=""
+RELEASE_FILE=""
 CARGO_MANIFEST=""
 CARGO_META_JSON=""
 PKG_LOCK=""
@@ -127,6 +131,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --ci) CI_FILE="$2" ;;
     --deploy) DEPLOY_FILE="$2" ;;
+    --release) RELEASE_FILE="$2" ;;
     --cargo-manifest) CARGO_MANIFEST="$2" ;;
     --cargo-metadata-json) CARGO_META_JSON="$2" ;;
     --package-lock) PKG_LOCK="$2" ;;
@@ -144,6 +149,7 @@ done
 if [ "${SELECTED}" -eq 0 ]; then
   CI_FILE="${ROOT_DIR}/.github/workflows/ci.yml"
   DEPLOY_FILE="${ROOT_DIR}/.github/workflows/deploy.yml"
+  RELEASE_FILE="${ROOT_DIR}/.github/workflows/release.yml"
   CARGO_MANIFEST="${ROOT_DIR}/Cargo.toml"
   PKG_LOCK="${ROOT_DIR}/package-lock.json"
   NPMRC_FILE="${ROOT_DIR}/.npmrc"
@@ -156,7 +162,7 @@ if [ -n "${PACK_WORKFLOW}" ] && [ -z "${ENGINE_REV_FILE}" ]; then usage; fi
 if [ -z "${PACK_WORKFLOW}" ] && [ -n "${ENGINE_REV_FILE}" ]; then usage; fi
 
 # 検査を流す前に、必要な道具を確かめる（無ければ exit 2。合格にしない）
-if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ] || [ -n "${PACK_WORKFLOW}" ]; then require_cmd ruby || exit 2; fi
+if [ -n "${CI_FILE}" ] || [ -n "${DEPLOY_FILE}" ] || [ -n "${RELEASE_FILE}" ] || [ -n "${PACK_WORKFLOW}" ]; then require_cmd ruby || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] || [ -n "${CARGO_META_JSON}" ] || [ -n "${PKG_LOCK}" ]; then require_cmd jq || exit 2; fi
 if [ -n "${CARGO_MANIFEST}" ] && [ -z "${CARGO_META_JSON}" ]; then require_cmd cargo || exit 2; fi
 if [ -n "${GITMODULES_FILE}" ]; then require_cmd git || exit 2; fi
@@ -364,8 +370,9 @@ def check_ci(root, owners)
   end
 end
 
-# ---- deploy.yml ----
-def check_deploy(root)
+# ---- deploy.yml（C2）・release.yml（C4）----
+# release.yml は C2 の規則に加えて、uses を許可した所有者の 40 桁 SHA 固定に限る（owners を渡したときだけ）
+def check_deploy(root, tag = "C2", owners = nil)
   on = mget(root, "on")
   ok =
     case on
@@ -374,20 +381,31 @@ def check_deploy(root)
     when N::Mapping then pairs(on).size == 1 && str(pairs(on)[0][0]) == "workflow_dispatch"
     else false
     end
-  add(on || root, "C2", "on must be workflow_dispatch only") unless ok
+  add(on || root, tag, "on must be workflow_dispatch only") unless ok
 
   perm = mget(root, "permissions")
-  add(perm || root, "C2", "top-level permissions must be an empty mapping") unless perm.is_a?(N::Mapping) && perm.children.empty?
+  add(perm || root, tag, "top-level permissions must be an empty mapping") unless perm.is_a?(N::Mapping) && perm.children.empty?
 
   jobs = mget(root, "jobs")
   unless jobs.is_a?(N::Mapping)
-    add(root, "C2", "jobs must be a mapping")
+    add(root, tag, "jobs must be a mapping")
     return
   end
   pairs(jobs).each do |jk, jv|
     guard = jv.is_a?(N::Mapping) ? str(mget(jv, "if")) : nil
     g = guard.to_s.strip
-    add(jk, "C2", "every job needs the fork guard: if: #{GUARD}") unless g == GUARD || g == "${{ #{GUARD} }}"
+    add(jk, tag, "every job needs the fork guard: if: #{GUARD}") unless g == GUARD || g == "${{ #{GUARD} }}"
+  end
+
+  return unless owners
+  uses_re = /\A(?:#{owners.map { |o| Regexp.escape(o) }.join("|")})\/[A-Za-z0-9._-]+@[0-9a-f]{40}\z/
+  each_node(root) do |n|
+    next unless n.is_a?(N::Mapping)
+    pairs(n).each do |k, v|
+      next unless k.is_a?(N::Scalar) && k.value.downcase == "uses"
+      u = str(v)
+      add(k, tag, "uses must be #{owners.join("/")}/<name>@<40-hex SHA>") unless u && u =~ uses_re
+    end
   end
 end
 
@@ -559,6 +577,7 @@ case mode
 when "ci" then check_ci(root, owners)
 when "pack" then check_pack(root, engine)
 when "deploy" then check_deploy(root)
+when "release" then check_deploy(root, "C4", owners)
 else
   warn "error: unknown mode"
   exit 2
@@ -755,6 +774,7 @@ if [ -n "${CI_FILE}" ]; then
   run_yaml ci "${CI_FILE}"
 fi
 [ -z "${DEPLOY_FILE}" ] || run_yaml deploy "${DEPLOY_FILE}"
+[ -z "${RELEASE_FILE}" ] || run_yaml release "${RELEASE_FILE}"
 if [ -n "${PACK_WORKFLOW}" ]; then
   check_engine_rev
   run_yaml pack "${PACK_WORKFLOW}"
