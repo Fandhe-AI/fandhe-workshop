@@ -2,7 +2,7 @@
 
 ```text
 決定日: 2026-10-14
-対象: TASK-32（WASM の gzip の大きさ・初回表示・再描画の測定と一括実行。様式と 3 つの測定を扱う）
+対象: TASK-108（IR つきの直接リンクの初回表示。§8）・TASK-32（WASM の gzip の大きさ・初回表示・再描画の測定と一括実行。様式と 3 つの測定を扱う）
 ```
 
 ## 1. 位置づけ
@@ -26,6 +26,7 @@ make measure | jq .
 | 3 つを一括で流す | `make measure`（`tools/measure/all.sh`） | 下の 3 つ |
 | WASM の大きさ | `make measure-wasm-size`（`tools/measure/wasm-size.sh`） | 配信する設定（`TEST_HOOKS=1` で試験の設定も測れる） |
 | 初回表示 | `tools/measure/first-paint.sh` | 配信する設定 |
+| 初回表示（IR つきの直接リンクで操作できるまで。TASK-108。DLV-5） | `make measure-first-paint-direct`（`tools/measure/first-paint-direct.sh`） | 配信する設定に IR を同梱。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本。3 秒を超えたら終了コード 3（JSON は出す）。手順は §8 |
 | 再描画 | `tools/measure/redraw.sh` | 試験の設定（`debug_rerender` が要る） |
 | 再描画 1 回（ログ 100〜119 項目。TASK-223 1/2） | `tools/measure/log-redraw.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
 | 項目数ごとの再描画の傾き（ログ 100〜4,000 項目の 12 段階。TASK-232 1/3） | `tools/measure/log-slope.sh` | 試験の設定。`make measure` の束には入れない。`FANDHE_BROWSER_CHANNEL=chrome` で Chrome の原本 |
@@ -111,7 +112,15 @@ make measure-history-size | jq .            # 直接: tools/measure/history-size
   - ポーリングではなく、ページ内の `MutationObserver` が `data-mounted` の変化の時点の `performance.now()` を記録する。`data-mounted="error"` は失敗にする
   - 制限が効いていることを確かめる。`.wasm` の応答が `Content-Encoding: gzip` であること、各試行のマウント時間が
     `.wasm` の転送量を 10Mbps で受け取る最短時間以上であること。どちらかを満たさなければ失敗にする
-  - Hello には操作が無いため、PoC の TTI（最初の操作への応答）は測らない。操作の入る画面が加わった時点で見直す
+  - Hello には操作が無いため、PoC の TTI（最初の操作への応答）は測らない。操作できるまでは下の `first-paint-direct` で測る
+- 初回表示（IR つきの直接リンク。`first-paint-direct`。TASK-108。DLV-5）。`first-paint` は置き換えず残す（束の必須項目で、Hello の値の系列を保つため）
+  - 教材は `crates/web/tests/data/ch0_3/ir.json`（20 Step の形の写し。本物の教材ではない）に、`pack.id` の付け替え（`measure-first-paint-direct`）と開始点 `s-1-1` の追加だけを jq で加えた写し。`IR_FILE` で配信する設定へ同梱し、サブパスの下で配る
+  - 開くのは `<配信元>/subpath/?start=s-1-1`。条件は `first-paint` と同じ（下り・上り 10Mbps・遅延 40ms・キャッシュ無効・CPU の減速なし・試行ごとに新しい context で 10 回）
+  - 「操作できる」とは、次がすべて真になった最初の時点（ナビゲーション開始からの `performance.now()`）である。`data-mounted="true"`、`run-status` が `idle`、`step-title` が開始点の節点の題と一致、`step-status` が「受付済み（確認待ち）」でなくログにその Step の行が無い、入力の口（`choice-btn`・`approval-btn`・`draft-input` と `submit-input` の組）が接続済み・大きさあり・`disabled` でない状態で 1 つ以上ある。ページ内の `MutationObserver` で捉える
+  - 自己検査（1 つでも外れたら失敗で標準出力は空）。`.wasm` の応答が 1 件で gzip、`ir/main.json` の要求が 1 件で 200 かつ転送量が正、操作できるまでの時間が wasm と IR の転送量を 10Mbps で受け取る最短時間以上、配信元以外への要求・`pageerror`・枠の通知が 0 件、`window.__fandheTest` が無い、次の Step の題が出ていない
+  - 判定は中央値と最大の両方が 3,000,000 us 以下（ちょうどは以内）。超えても JSON は出し、終了コードは 3。形の不正・測定の失敗は 1。判定の正は `lib.sh` の `measure_first_paint_direct_verdict`（`values_us` から計算し直して照合する）
+  - 測定名: `first_paint_direct_operable_median`・`_operable_max`（判定値）、`first_paint_direct_mounted_median`（参考）、`first_paint_direct_wasm_transfer`・`first_paint_direct_ir_transfer`（bytes）。`conditions` に回線・CPU・キャッシュ・viewport・`browser.channel`・`browser.headless`・開始点・10 回の値（`values_us`）・`threshold_us`・`judgement`・`scope_note` を残す
+  - 基点の `device` は区分だけ（`class`: `A` は Apple シリコンの macOS、それ以外は `other`。`os`・`arch`・`apple_silicon_macos`）。CPU の型番・メモリの量・ホスト名は公開に向かないため入れない。`class: A` は基準端末 A であることの証明ではなく、記録する人が確かめる
 - 再描画
   - 試験の設定のビルドを、回線の制限なし・CPU の減速なしで配信する。10 回の試行のそれぞれで 20 サンプルを取る（計 200 値）
   - 1 サンプルは `window.__fandheTest.rerender()` を 200 回連続で呼ぶ時間を 200 で割った 1 回あたりの値。`performance.now()` の分解能より十分大きくするため
@@ -210,6 +219,7 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 ## 6. 比較の規則
 
 - 基点が 1 項目でも違う値どうしで、増減を論じない
+- `first-paint-direct` の値を Hello の `first_paint_mounted_*` と比べない。開始点・教材・`browser.channel`・`headless` が違う値も比べない。`device.class` が `other` の値は DLV-5 の記録に使わない
 - `baseline.commit.dirty` が `true` の値は、基点として比較に使わない（どの commit の値か特定できない）
 - `wasm-opt` が無い環境でもビルドは成功し、`applied: false` として記録される。未適用の値を適用済みの値と比べない
 - spec に残る旧い WASM の大きさの値（PoC の基点）と、`docs/testing.md` 5.361 のそろえた基点の値を比べない（基点つきの一覧は 5.361）
@@ -250,4 +260,46 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - 左のビューの CPU 4 倍は TASK-485 3/3 で扱った（§4）。制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
 - `log-redraw`・`log-slope`・`input-paint`・`view-redraw`・`product-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
-- 操作の入る画面での操作可能まで（TTI）は、後続の画面のタスクで扱う
+- 操作できるまでの初回表示は `first-paint-direct` で扱った（§4・§8）。基準端末 A での実測と記録は #833、CI の関門（目安にとどめるか失敗にするか）は人の承認点、公開サイトでの測定は DLV-6・TASK-123 で扱う。`make measure` の束への統合は様式の版上げが要る
+
+## 8. 基準端末 A での初回表示の測定（DLV-5。#833 の手順。TASK-108 の道具）
+
+`first-paint-direct`（§4）を、基準端末 A（Apple シリコンの Mac）の Chrome の原本で人が流して記録するための手順と様式である。この節を足した時点では実測の記録は無い（手元の Linux・Chromium の確認は `docs/testing.md` 5.432）。
+
+### 前提（導入するもの）
+
+- Rust（`rust-toolchain.toml` の版）・`wasm32-unknown-unknown` ターゲット・wasm-bindgen CLI・`wasm-opt`（DLV-4 の適用後の値を記録するため）・jq・Node（`docs/toolchain.md`）
+- `npm ci`（Playwright は `package-lock.json` で固定）。Chrome の原本を使うため `FANDHE_BROWSER_CHANNEL=chrome` を付ける（Chromium の導入は不要）
+- 作業ツリーを clean にし、測る commit を決めてから流す（`baseline.commit.dirty` が `true` の値は記録に使わない）
+
+### 手順
+
+```bash
+out="$(mktemp -d)/first-paint-direct.json"
+FANDHE_BROWSER_CHANNEL=chrome tools/measure/first-paint-direct.sh > "$out"; echo $?
+```
+
+- 結果は作業ツリーの外（上の `mktemp -d`）に保存する。リポジトリ直下に未追跡のファイルができると `baseline.commit.dirty` が `true` になるため
+- 終了コードを記録するときは、スクリプトを直接呼ぶ。`make` 経由では、レシピの終了コード 1 と 3 がどちらも 2 に変わり、測定の失敗と 3 秒の超過を区別できない
+- 終了コード 0 は 3 秒以内、3 は測れたが超過、1 は測定の失敗（標準出力は空）。`make measure-first-paint-direct` 経由でも JSON は同じだが、終了コードは失敗と超過のどちらも 2 になる
+- 流している間は、ほかの重い処理を止める。10 回の値が揃わない・ばらつきが大きいときは、条件を変えず流し直す前に値を記録に残す
+- 貼ってもらうのは、標準出力の JSON の全体と終了コードだけである。標準エラー（ビルドログ）にはパスが出るため、失敗の調査で要るときだけ貼る
+
+### 記録の様式
+
+置き場所は `docs/testing.md` の 5.x 節（番号は記録するときの空きを使う）。欄は次のとおり。
+
+| 欄 | 内容 |
+|---|---|
+| 測定日 | `YYYY-MM-DD` |
+| 基点 commit | `baseline.commit.sha`。`dirty` が `false` であること |
+| 端末 | `baseline.device.class`（`A`）。基準端末 A であることを記録者が確かめた旨 |
+| wasm-opt | `baseline.wasm_opt.applied` と `detail` |
+| ブラウザ | `toolchain.browser`・`conditions.browser.channel`（`chrome`）・`headless`・`toolchain.playwright` |
+| 条件 | 回線・遅延・CPU の減速・キャッシュ（`conditions` のとおり） |
+| 開始点 | `conditions.start` |
+| 値 | `values_us` の 10 件・中央値・最大・判定（以内／超過）・終了コード |
+| 記録者 | 測った人 |
+| 結果の JSON | 全体（折りたたみまたはコードブロック） |
+
+値は手元のサブパス配信のもので、公開サイトの値ではない（DLV-6）。教材は CH-0〜CH-3 の形の写しで、本物の教材での値ではない。

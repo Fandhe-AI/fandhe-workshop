@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { median, p95, toMicros, resolveLaunchOptions, checkCalibration, applyCpuThrottle, calibrationInfo, planRoundsStage } from './browser.mjs';
+import { operableJudgement, directStartOf, median, p95, toMicros, resolveLaunchOptions, checkCalibration, applyCpuThrottle, calibrationInfo, planRoundsStage } from './browser.mjs';
 import { cases, judge, expectedCounts, VR_THRESHOLD_US } from './view-redraw.mjs';
 import * as pr from './product-redraw.mjs';
 import * as vr from './view-redraw.mjs';
@@ -95,6 +95,44 @@ test('cli: view-redraw without --dir exits 2 with empty stdout', () => {
   const r = run(['--kind', 'view-redraw']);
   assert.equal(r.status, 2);
   assert.equal(r.stdout, '');
+});
+
+// first-paint-direct（TASK-108）。判定と開始点の引き当ては純関数で、ブラウザを起動しない。
+test('cli: first-paint-direct without --dir exits 2 with empty stdout', () => {
+  const r = run(['--kind', 'first-paint-direct']);
+  assert.equal(r.status, 2);
+  assert.equal(r.stdout, '');
+});
+
+test('operableJudgement: within, median over, max over, exactly at the threshold', () => {
+  const base = Array.from({ length: 10 }, () => 1000000);
+  assert.deepEqual(operableJudgement(base).judgement, { median_within: true, max_within: true, within: true });
+  const maxOver = [...base.slice(1), 3000001];
+  assert.deepEqual(operableJudgement(maxOver).judgement, { median_within: true, max_within: false, within: false });
+  const medOver = Array.from({ length: 10 }, () => 3500000);
+  assert.deepEqual(operableJudgement(medOver).judgement, { median_within: false, max_within: false, within: false });
+  const exact = Array.from({ length: 10 }, () => 3000000);
+  assert.equal(operableJudgement(exact).judgement.within, true);
+  assert.equal(operableJudgement(exact).medianUs, 3000000);
+});
+
+test('operableJudgement: rejects a wrong count and non-positive-integer values', () => {
+  assert.throws(() => operableJudgement([]));
+  assert.throws(() => operableJudgement(Array.from({ length: 9 }, () => 1)));
+  assert.throws(() => operableJudgement([...Array.from({ length: 9 }, () => 1), 0]));
+  assert.throws(() => operableJudgement([...Array.from({ length: 9 }, () => 1), 1.5]));
+});
+
+test('directStartOf: resolves the start node and title, rejects bad ids, unknown ids and untitled nodes', () => {
+  const ir = {
+    starts: [{ id: 's-1-1', node: 'main/st-1-1' }, { id: 's-9-9', node: 'main/none' }, { id: 's-2-1', node: 'main/st-2-1' }],
+    nodes: [{ uid: 'main/st-1-1', step: { title: 'T' } }, { uid: 'main/st-2-1', step: {} }],
+  };
+  assert.deepEqual(directStartOf(ir, 's-1-1'), { node: 'main/st-1-1', title: 'T' });
+  assert.throws(() => directStartOf(ir, '../x'));
+  assert.throws(() => directStartOf(ir, 's-3-3'));
+  assert.throws(() => directStartOf(ir, 's-9-9'));
+  assert.throws(() => directStartOf(ir, 's-2-1'));
 });
 
 // view-redraw の判定（純関数）。表の鍵は `${kind}:${variant}:${op}`。

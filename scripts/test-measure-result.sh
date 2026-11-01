@@ -131,6 +131,82 @@ else
   fail "assemble a log-rounds native result"
 fi
 
+# --- (f)〜(h) first-paint-direct（TASK-108）の組み立て・判定・fail-closed ---
+DEV_CLASS="$(measure_device_class_json)"
+# shellcheck disable=SC2016 # jq の式であり、シェルで展開しない
+check "(b') device class has exactly apple_silicon_macos, arch, class, os" \
+  jq -e -n --argjson d "${DEV_CLASS}" '($d | keys) == ["apple_silicon_macos", "arch", "class", "os"] and ($d.class == "A") == $d.apple_silicon_macos'
+EXTRA_DIRECT="$(jq -n --argjson d "${DEV_CLASS}" '{pack: {id: "p", version: "1", nodes: 20, sha256: ("a" * 64)}, device: $d}')"
+# values_us(10 件)から browser.json を作る。中央値・最大・判定は jq で計算する（正しい作り物）。
+make_direct_browser() {
+  jq -n --argjson v "$1" '
+    def med: sort | if length % 2 == 1 then .[length / 2 | floor] else ((.[length / 2 - 1] + .[length / 2]) / 2) end | round;
+    ($v | med) as $m | ($v | max) as $x | ($m <= 3000000) as $mw | ($x <= 3000000) as $xw | {
+      measurements: [
+        {name: "first_paint_direct_operable_median", unit: "us", value: $m},
+        {name: "first_paint_direct_operable_max", unit: "us", value: $x},
+        {name: "first_paint_direct_mounted_median", unit: "us", value: $m},
+        {name: "first_paint_direct_wasm_transfer", unit: "bytes", value: 1000},
+        {name: "first_paint_direct_ir_transfer", unit: "bytes", value: 100}],
+      compression: {command: "gzip -9 -c", implementation: "gzip 1.14"},
+      conditions: {browser: {channel: "chromium", headless: true}, values_us: $v, mounted_values_us: $v, threshold_us: 3000000,
+        judgement: {median_within: $mw, max_within: $xw, within: ($mw and $xw)}},
+      browser: "Chromium 0", playwright: "0.0.0"}'
+}
+# verdict_of <browser-json>: 組み立て→判定の戻り値を返す。
+verdict_of() {
+  local out="${TMP}/direct-$RANDOM.json" rc=0
+  measure_result_json "${COMMIT}" "${FEATURES}" "${EXTRA_DIRECT}" "$1" >"${out}" || return 9
+  measure_first_paint_direct_verdict "${out}" 2>/dev/null || rc=$?
+  return "${rc}"
+}
+expect_verdict() {
+  local desc="$1" want="$2" file="$3" rc=0
+  verdict_of "${file}" || rc=$?
+  if [ "${rc}" -eq "${want}" ]; then pass "${desc}"; else fail "${desc} (got ${rc}, want ${want})"; fi
+}
+V_OK='[1000000,1100000,1200000,1300000,1400000,1500000,1600000,1700000,1800000,1900000]'
+make_direct_browser "${V_OK}" >"${TMP}/d-ok.json"
+expect_verdict "(f) first-paint-direct within 3 s returns 0" 0 "${TMP}/d-ok.json"
+make_direct_browser '[3000000,3000000,3000000,3000000,3000000,3000000,3000000,3000000,3000000,3000000]' >"${TMP}/d-exact.json"
+expect_verdict "(g) exactly 3,000,000 is within" 0 "${TMP}/d-exact.json"
+make_direct_browser '[1,1,1,1,1,1,1,1,1,3000001]' >"${TMP}/d-maxover.json"
+expect_verdict "(g) only the max over returns 3" 3 "${TMP}/d-maxover.json"
+make_direct_browser '[3500000,3500000,3500000,3500000,3500000,3500000,3500000,3500000,3500000,3500000]' >"${TMP}/d-medover.json"
+expect_verdict "(g) median over returns 3" 3 "${TMP}/d-medover.json"
+# (h) fail-closed: 形の不正は 1。
+bad() {
+  local desc="$1" filter="$2"
+  jq "${filter}" "${TMP}/d-ok.json" >"${TMP}/d-bad.json"
+  expect_verdict "(h) ${desc}" 1 "${TMP}/d-bad.json"
+}
+bad "9 values" '.conditions.values_us |= .[1:]'
+bad "zero value" '.conditions.values_us[0] = 0'
+bad "fractional value" '.conditions.values_us[0] = 1.5'
+bad "median disagrees with values" '.measurements[0].value += 1'
+bad "max disagrees with values" '.measurements[1].value += 1'
+bad "judgement.within lies" '.conditions.judgement.within = false'
+bad "threshold differs" '.conditions.threshold_us = 4000000'
+bad "measurement missing" '.measurements |= .[1:]'
+bad "channel not allowed" '.conditions.browser.channel = "firefox"'
+bad "headless missing" 'del(.conditions.browser.headless)'
+# device に cpu がある場合は、組み立て後の結果を直接書き換えて確かめる。
+RES_CPU="${TMP}/res-cpu.json"
+measure_result_json "${COMMIT}" "${FEATURES}" "${EXTRA_DIRECT}" "${TMP}/d-ok.json" | jq '.baseline.device.cpu = "x"' >"${RES_CPU}"
+if measure_first_paint_direct_verdict "${RES_CPU}" 2>/dev/null; then fail "(h) device with cpu is rejected"; else pass "(h) device with cpu is rejected"; fi
+RES_TWO="${TMP}/res-two.json"
+measure_result_json "${COMMIT}" "${FEATURES}" "${EXTRA_DIRECT}" "${TMP}/d-ok.json" | jq -c . >"${RES_TWO}"
+cp "${RES_TWO}" "${TMP}/res-two2.json"
+cat "${RES_TWO}" >>"${TMP}/res-two2.json"
+if measure_first_paint_direct_verdict "${TMP}/res-two2.json" 2>/dev/null; then fail "(h) concatenated results are rejected"; else pass "(h) concatenated results are rejected"; fi
+# (h') 誤用と前段の拒否（measure_build に入る前に返る組み合わせだけ）。
+UNKNOWN_RC=0
+"${ROOT_DIR}/tools/measure/first-paint-direct.sh" --unknown >/dev/null 2>&1 || UNKNOWN_RC=$?
+if [ "${UNKNOWN_RC}" -eq 2 ]; then pass "(h') first-paint-direct.sh --unknown exits 2"; else fail "(h') first-paint-direct.sh --unknown exits 2 (got ${UNKNOWN_RC})"; fi
+if measure_browser_result first-paint-direct "${COMMIT}" "${TMP}" '{}' "${TMP}/ir.json" >/dev/null 2>&1; then fail "(h') missing baseline is rejected"; else pass "(h') missing baseline is rejected"; fi
+if measure_browser_result first-paint-direct "${COMMIT}" "${TMP}" "${EXTRA_DIRECT}" "" >/dev/null 2>&1; then fail "(h') empty IR is rejected"; else pass "(h') empty IR is rejected"; fi
+if measure_browser_result log-redraw "${COMMIT}" "${TMP}" "${EXTRA_FULL}" "${TMP}/ir.json" >/dev/null 2>&1; then fail "(h') IR for another kind is rejected"; else pass "(h') IR for another kind is rejected"; fi
+
 # --- (c) 負の対照: 使っている jq が 1.7 の文法かどうか ---
 if jq -n '{a: {} + {}}' >/dev/null 2>&1; then
   echo "note: this jq accepts a binary operator in an object value (jq 1.8 or later); (a) is not a check of the jq 1.7 grammar here" >&2

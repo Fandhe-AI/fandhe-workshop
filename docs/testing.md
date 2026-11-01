@@ -11776,3 +11776,27 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 3 回とも、配信する設定の `data-payload` の click は CSP あり 1,434 回・CSP なし 1,434 回（場面 10）。`data-payload` の click の全体は 5,450 回（値が元と一致して除いた組 36）、`data-action` の click は 50 回
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
+
+### 5.432 初回表示の測定を IR つきの直接リンクに広げる（#1961。TASK-108・DLV-5）
+
+IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1-1` の直接リンクを開いて「操作できる」状態になるまでを 10 回測る道具 `tools/measure/first-paint-direct.sh`（`make measure-first-paint-direct`）を足した。定義・条件・終了コード・記録の様式は `docs/measurement.md` §4・§8。既存の `first-paint.sh`（Hello。束の必須項目）は変えていない。
+
+#### 試験
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| ビルドなし | `scripts/test-measure-result.sh` の (b')・(f)〜(h') | 端末の区分の形、組み立てと v1 の検証、判定 0（以内・ちょうど 3,000,000）と 3（中央値超過・最大だけ超過）、形の不正 1（9 件・0・小数・中央値や最大の食い違い・判定の嘘・閾値違い・測定名の欠け・許可外の channel・headless の欠け・`cpu` を持つ device・連結した JSON）、誤用と前段の拒否 |
+| 純関数 | `tools/measure/browser.test.mjs` | `operableJudgement`・`directStartOf`・`--kind first-paint-direct` の `--dir` 欠け |
+| 実測 | `scripts/test-measure.sh` (l)（遅い） | 終了コード 0 か 3、v1 の検証、判定と終了コードの一致、測定名 5 件、10 値、`pack.id`、`device` に `cpu` が無いこと、IR の転送量 |
+
+#### 手元の確認（2026-11-01）
+
+- Linux x86_64・Chromium 153（Playwright 同梱）・ヘッドレス・`SKIP_WASM_OPT=1`。作業ツリーは未コミット（`dirty: true`）の状態で流したため、基点として使える値ではない
+- 終了コード 0。10 回の操作できるまでの値は 674〜707 ms、中央値 680.95 ms、最大 706.7 ms（3 秒以内）。`data-mounted` までの中央値は 673.75 ms。転送量は wasm 515,168 bytes、IR 3,846 bytes
+- `FANDHE_BROWSER_CHANNEL=chrome` は、この環境に Chrome が無いため起動の失敗（終了コード 1・標準出力は空）になった。Linux arm64 には Chrome が無い（`docs/toolchain.md`）
+
+#### 限界
+
+- 基準端末 A の値ではない。Chrome の原本での実測と記録は #833
+- `make test-measure` の全体は流していない（未検証）。(l) と同じ内容を単体で流して確かめた
+- 試験と実装の作成者が同じ AI である
