@@ -215,6 +215,8 @@ for (const csp of [true, false]) {
       const before = await snap(page);
       await wrong(page);
       const after = await snap(page);
+      // 印は review（現在の状態と基準の差）から出る。Entered・Moved が消す pending は変更の併合用の保留で、印とは別物。
+      // 実測（CI で CSP あり・なしとも合格）で誤答の前後とも 2 行が add のまま残る。
       assert.deepEqual(before.rows, ['f/alpha:add', 'f/beta:add']);
       assert.deepEqual(after.rows, before.rows, '誤答の前後で行と印が同じ');
       // 対照: 印の判定が空でないこと（行が 0 件なら上の一致は何も見ていない）。
