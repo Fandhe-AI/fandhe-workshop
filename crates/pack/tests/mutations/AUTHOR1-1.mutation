@@ -4,5 +4,5 @@ test: cli_contract
 target: crates/pack/src/cli_contract.rs
 find:         Subcommand::Metrics,
 replace:         Subcommand::Vocab,
-expect-fail: commands_are_the_six_in_contract_order
+expect-fail: commands_are_in_contract_order
 note: コマンドの一覧から metrics が落ちる（AUTHOR-1 の 6 コマンドと順が崩れる）

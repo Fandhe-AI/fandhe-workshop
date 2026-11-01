@@ -11604,3 +11604,25 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 限界: `env_action: save` の Step は上限の後に受付にならない（`docs/known-gaps.md` SAVE-31）。200 件に届くブラウザ試験は遅いため作っていない。`EngineHost` を通した右のログの件数の試験は作っていない（行の写しは単体で固定した）
 - 範囲外: spec repo（SAVE-31・SAVE-26・limits の値と理由）の反映。上限に達したときに保存のボタンを隠す・無効にするかの UI の判断
 - 限界（作成者）: 試験の作成者と実装の作成者が同じ AI である。人の確認は得ていない
+
+### 5.426 プレビューの命令の関門と診断時の終了（TASK-429 1/3。AUTHOR-22・AUTHOR-2）
+
+- 目的: `fandhe-pack preview <pack-dir>` を契約に足し、関門（読み込み、`validate`、`compile`）に診断が 1 件でもあれば何も配らず、`validate` と同じ形で終了コード 1 にする（fail-closed）
+- 解釈（自動運転のため安全側に固定した）: AUTHOR-22 の「診断のある教材パック」は `validate` の診断を含むと読み、関門に `validate` を入れた。教材テストは関門に入れない。診断 0 件の経路は配信が未実装のため、成功（0）にせず `not implemented` で 2 とした経過措置（2/3 で置き換える）
+- 試験: `crates/pack/tests/preview_command.rs`（9 件）、`crates/pack/tests/cli_contract.rs`（`commands_are_in_contract_order` に改名。`argument_shape_errors_are_reported_before_loading` に `preview` を追加）、`crates/pack/src/cli.rs` の `c9_parse_table`
+
+| 確かめること | 試験 |
+|---|---|
+| 読み込めない教材パックは 1・`読み込めません`・標準エラー出力は空 | `author22_unreadable_pack_is_not_previewed` |
+| `validate` の診断で止まり、IR を出さない | `author22_validate_diagnostics_stop_preview` |
+| 診断のある教材パックの出力が `validate` とバイト単位で同じ | `author22_output_matches_validate` |
+| 診断の行が 4 欄で項目の形・`E-` のコードを持つ | `author22_diagnostic_lines_have_four_fields` |
+| 診断のある実行で教材パックと作業ディレクトリに何も作らず、URL を出さない | `author22_diagnosed_pack_writes_nothing` |
+| 診断 0 件は経過措置で 2・標準出力は空 | `author22_clean_pack_is_not_implemented_yet` |
+| 関門の IR が `compile` の出力とバイト単位で同じ | `author22_gate_ready_ir_matches_compile` |
+| `validate` だけが出す診断（compile は通る）でも止まる | `author22_validate_only_diagnostics_stop_preview` |
+| 層ごとの振り分け | `author22_gate_stops_at_validate_layer` |
+
+- 契約の版: `CLI_CONTRACT_VERSION` 15 から 16
+- 変異注入: `AUTHOR22-1`（`validate` の診断を無視する）・`AUTHOR22-2`（読み込めない教材パックで 0 を返す）。定義の静的検査は `make check-mutation-defs` で行う。`AUTHOR22-1`・`AUTHOR22-2`・`AUTHOR1-1` は `scripts/check-mutations.sh` で実行し、いずれも DETECTED（2026-11-01）
+- 限界: `validate` は 0 件で `compile` だけが診断を出す教材パックの試験データは作っていない（その経路は `gate_loaded` の分岐で、結合試験では未確認）。配信と URL の表示・再実行での反映は 2/3・3/3。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない

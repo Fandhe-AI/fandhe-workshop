@@ -2,7 +2,7 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 11）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 16）で、本モジュールは同じ内容のコード側の写しである。
 //! `vocab` の出力の形（ヘッダ・行・集計行・教材パック全体の行）は版 5 で足した（TASK-408）。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
@@ -22,7 +22,7 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 15;
+pub const CLI_CONTRACT_VERSION: u32 = 16;
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";
@@ -49,17 +49,20 @@ pub enum Subcommand {
     Metrics,
     /// 2 つのパックの IR の完全一致を比べる。
     Compare,
+    /// 関門を通した教材パックを手元で配る。診断があれば配らない（AUTHOR-22）。
+    Preview,
 }
 
 impl Subcommand {
-    /// 全サブコマンド（AUTHOR-1 の順）。
-    pub const ALL: [Subcommand; 6] = [
+    /// 全サブコマンド（先頭の 6 つは AUTHOR-1 の順、7 つ目の `preview` は AUTHOR-22・TASK-429）。
+    pub const ALL: [Subcommand; 7] = [
         Subcommand::Validate,
         Subcommand::Test,
         Subcommand::Compile,
         Subcommand::Vocab,
         Subcommand::Metrics,
         Subcommand::Compare,
+        Subcommand::Preview,
     ];
 
     /// コマンド名。
@@ -71,6 +74,7 @@ impl Subcommand {
             Subcommand::Vocab => "vocab",
             Subcommand::Metrics => "metrics",
             Subcommand::Compare => "compare",
+            Subcommand::Preview => "preview",
         }
     }
 
@@ -79,9 +83,11 @@ impl Subcommand {
         match self {
             Subcommand::Compile => "<pack-dir> [--chapters <id>[,<id>...]] [-o <file>]",
             Subcommand::Compare => "<pack-dir-a> <pack-dir-b>",
-            Subcommand::Validate | Subcommand::Test | Subcommand::Vocab | Subcommand::Metrics => {
-                "<pack-dir>"
-            }
+            Subcommand::Validate
+            | Subcommand::Test
+            | Subcommand::Vocab
+            | Subcommand::Metrics
+            | Subcommand::Preview => "<pack-dir>",
         }
     }
 

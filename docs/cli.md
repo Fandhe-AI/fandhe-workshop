@@ -1,14 +1,14 @@
 # CLI の外部仕様
 
 ```text
-CLI の外部仕様の版: 15
-決定日: 2026-10-28
+CLI の外部仕様の版: 16
+決定日: 2026-11-01
 状態: 固定（契約）
 ```
 
 ## 1. 位置づけと版
 
-- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の PASS・FAIL の行・集計）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404・TASK-406 1/2・2/2・TASK-405 1/2・2/2、AUTHOR-1〜AUTHOR-6・AUTHOR-7・AUTHOR-8・AUTHOR-9・AUTHOR-17）
+- 本文書は、作成者向け CLI `fandhe-pack` の外部仕様（バイナリ名・コマンド一覧・引数の形・使い方・終了コード・診断 1 行・項目の書式・最終行・診断の出し先・`compile` の出力・`metrics` の出力・`vocab` の出力・`test` の PASS・FAIL の行・集計）を 1 か所に固定する（TASK-399 1/2・2/2・TASK-407・TASK-402・TASK-408・TASK-409・TASK-403・TASK-404・TASK-406 1/2・2/2・TASK-405 1/2・2/2、AUTHOR-1〜AUTHOR-6・AUTHOR-7・AUTHOR-8・AUTHOR-9・AUTHOR-17）。版 16 で `preview` の関門と診断時の終了を足した（TASK-429 1/3、AUTHOR-22）
 - 後続のタスク（TASK-401〜TASK-410）は、入力に「`docs/cli.md` CLI の外部仕様の版 13」の形で書ける
 - コード側の正は `crates/pack/src/cli_contract.rs` で、本文書との一致は `crates/pack/tests/cli_contract_doc.rs` が機械で照合する
 - 仕様は private のため、本文を転記せず ID（AUTHOR-1〜AUTHOR-3・AUTHOR-9・PACK-2）で参照する
@@ -28,6 +28,7 @@ CLI の外部仕様の版: 15
 | `vocab` | `<pack-dir>` | 拡張点を使った Step の数え上げ（TASK-408） |
 | `metrics` | `<pack-dir>` | ファイルごとの行数・実効行数・バイト数・入れ子の深さ（TASK-402） |
 | `compare` | `<pack-dir-a> <pack-dir-b>` | 2 つの教材パックの IR の完全一致の比較 |
+| `preview` | `<pack-dir>` | 関門（読み込み・静的検査・compile）を通した教材パックを手元で配る。診断があれば配らない（TASK-429） |
 
 - `<pack-dir>` は `workshop.yaml` があるディレクトリである（AUTHOR-1。`workshop.toml` の扱いは PACK-2 に従う）
 - `-o <file>` は `<pack-dir>` の後ろにだけ置ける。それ以外の位置・未知のオプションは使い方の誤りである
@@ -47,6 +48,7 @@ commands:
   vocab <pack-dir>
   metrics <pack-dir>
   compare <pack-dir-a> <pack-dir-b>
+  preview <pack-dir>
 ```
 
 ## 5. 終了コード
@@ -58,7 +60,7 @@ commands:
 | 2 | 使い方の誤り（引数なし・未知のコマンド・引数の数や形の不一致）。結果を書き出せない場合も 2 とする（成功の 0 と取り違えないため） |
 
 - 0・1・2 以外の値は使わない
-- 経過措置（契約外）: 未実装のコマンドは「not implemented」を標準エラー出力に出して 2 で終わる。版 9 の時点で、未実装のコマンドは無い
+- 経過措置（契約外）: 未実装のコマンドは「not implemented」を標準エラー出力に出して 2 で終わる。版 9 の時点で、未実装のコマンドは無い。版 16 の注: `preview` の診断 0 件の経路は経過措置で、`error: fandhe-pack preview: not implemented` を標準エラー出力に 1 行出して 2 で終わる（配信は TASK-429 2/3 で置き換える）
 
 ## 6. 診断 1 行の形
 
@@ -132,7 +134,7 @@ NG: 診断 4 件（比べられません。a 0 件、b 4 件）
 | 使い方・使い方の誤りの `error:` の行 | 標準エラー出力 |
 
 - 診断のある実行では、標準エラー出力は空である。使い方の誤り（終了コード 2）のときは、標準出力は空である
-- 経過措置（契約外）の `not implemented` の行は標準エラー出力に出す（5 節）
+- 経過措置（契約外）の `not implemented` の行は標準エラー出力に出す（5 節）。`preview` の診断の行・最終行は標準出力、診断 0 件の経過措置の行は標準エラー出力である（12.7 節）
 
 ## 10. compile の出力
 
@@ -301,11 +303,28 @@ R-21 の行の次、試験の診断の前に、次の 1 行を書く（AUTHOR-6�
 - 実体の名前は教材データ由来なので、区切りごとに短い識別子（`[A-Za-z0-9_.-]`、64 バイト以内。モジュールの実体は `<モジュール>@<実体>`）のときだけ写す。通らない名前は、分母での 1 始まりの位置を使って `#n` と書く（改行や `）` で行を偽装されないため）
 - 限界: 掲示板教材の基準値（BUILD-8。PoC の値は 34/40）との一致は、教材のあるタスク（TASK-84）で確かめる。本 repo の試験は形と数え方だけを固定する
 
+## 12.7. `preview` の関門と診断時の終了
+
+- `preview <pack-dir>` は、教材パックを配る前に関門を通す（AUTHOR-22、TASK-429 1/3）。関門の順は、読み込み、静的検査（`validate`）、`compile`（IR のバイト列化と上限の検査まで）である。空でない最初の層で止める（`validate` と `compile` は一部の検査が重複するため、両方を流すと二重に報告される）
+- 教材テスト（`tests/playthrough.yaml`）は関門に入れない。`test` の持ち分である
+- 診断が 1 件でもあれば何も配らず、`validate` と同じ形（診断の行と最終行）を標準出力に書いて 1 で終わる。標準エラー出力は空で、IR は出さず、ファイルも書かない
+
+| 場面 | 標準出力 | 標準エラー出力 | 終了コード |
+|---|---|---|---|
+| 読み込めない | 診断の行と `NG: 診断 N 件（読み込めません）` | 空 | 1 |
+| 読み込めて `validate` か `compile` に診断 | 診断の行と要約つきの `NG:` | 空 | 1 |
+| 診断 0 件（経過措置。契約外） | 空 | `error: fandhe-pack preview: not implemented` | 2 |
+| 引数の形の誤り | 空 | `error: …` と使い方 | 2 |
+
+- 診断 0 件の経路は、配っていないので 0 で終えない。配信と URL の表示は TASK-429 2/3 が置き換える
+- 変更を直したあとの確認は再実行で行う（ファイルの監視・自動の再読み込みは持たない。TASK-428）。再実行で文章の修正が画面に出ることの試験は TASK-429 3/3
+
 ## 13. 本版で扱わない事項
 
 - `use` の Step を指す開始点の EP-9 の数え上げ（`use` 行は拡張点を持たない契約のため数えない）
 - `validate` の最終行の結線・読み込み失敗での打ち切り（TASK-403。版 8 で実装した）
 - `test` の最終行・文面と案内レベルの確認の判定（TASK-405 ほか。枠と終了コードは版 9、模範解答の PASS の行は版 10、誤入力の行・FAIL の行・集計の 3 行は版 11、R-22・R-21 の行は版 14、入った実体の行は版 15 で実装した）
+- `preview` の配信と URL の表示・エンジンの配信物の同梱・待ち受けのアドレス（127.0.0.1 だけにする。TASK-429 2/3）、再実行での反映の試験（3/3）、`--chapters` などのオプション
 - 引数の数の検査と振り分け（TASK-401）
 - 診断コードの一覧と実装の一致の検査（TASK-400）
 - エスケープ後の文字列を元に戻す規則（`\u{000A}` という文字列そのものを写した場合と区別できない。本版は 4 欄の分割の保証までを契約とする）
@@ -325,7 +344,8 @@ R-21 の行の次、試験の診断の前に、次の 1 行を書く（AUTHOR-6�
 | `cli_doc_destination_section_present` | 9 節に標準出力と標準エラー出力の両方がある |
 | `usage_declares_compile_output_option` | 使い方に `compile <pack-dir> [--chapters <id>[,<id>...]] [-o <file>]` の行がある（動作は `compile_output.rs`） |
 | `exit_codes_are_fixed_values` | 終了コードの定数が 0・1・2 である |
-| `commands_are_the_six_in_contract_order` | コマンドが 6 つで、AUTHOR-1 の順である |
+| `commands_are_in_contract_order` | コマンドが 7 つで、先頭の 6 つが AUTHOR-1 の順、7 つ目が `preview` である |
+| `author22_*`（`preview_command.rs`） | 読み込めない・診断のある教材パックは 1 で `validate` と同じ出力、何も書かない、診断 0 件は経過措置の 2、関門の IR が `compile` と同じバイト列 |
 | `defects_is_not_an_author_command` | `defects` が未知のコマンドで、使い方に出ない |
 | `author1_no_args_prints_usage_and_exits_2` | 引数なしで 2・標準エラー出力に使い方・標準出力は空 |
 | `unknown_command_exits_2_with_usage` | 未知のコマンドで 2 |
@@ -410,3 +430,4 @@ R-21 の行の次、試験の診断の前に、次の 1 行を書く（AUTHOR-6�
 | 13 | 2026-10-24 | `test` が `E-PLAY-INPUT-CLASS` を報告し（診断の行の先頭。あれば終了コード 1）、画面の表示と停止（Esc）を確かめないことを書く（12.1 節）（TASK-406 2/2、AUTHOR-7） |
 | 14 | 2026-10-28 | `test` が R-22・R-21 の 2 行を集計の後に書き、0 であるべき数が 0 でないとき `E-NO-CONFIRM`・`E-EMPTY-NEXT-ACTION` の診断と終了コード 1 にする（12.5 節）（TASK-405 1/2、AUTHOR-5） |
 | 15 | 2026-10-28 | `test` が入った Step の実体の行 `試験で入った Step の実体: N/M（入らなかった実体: …）` を R-21 の行の次に書く（失敗にしない・写せない名前は `#n`。12.6 節）（TASK-405 2/2、AUTHOR-6） |
+| 16 | 2026-11-01 | `preview <pack-dir>` を足す（関門の順・診断があれば配らず `validate` と同じ形で 1・診断 0 件は経過措置で 2。12.7 節）（TASK-429 1/3、AUTHOR-22） |
