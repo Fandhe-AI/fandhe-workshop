@@ -11776,3 +11776,17 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 3 回とも、配信する設定の `data-payload` の click は CSP あり 1,434 回・CSP なし 1,434 回（場面 10）。`data-payload` の click の全体は 5,450 回（値が元と一致して除いた組 36）、`data-action` の click は 50 回
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
+
+### 5.432 巨大な文字列の IR を開いたときの renderer の RSS を測る道具の手元の実行（TASK-163 1/2。#1962）
+
+- 日付: 2026-11-01。Linux x86_64、Playwright の Chromium 153.0.8010.12、`SKIP_WASM_OPT=1 make measure-ir-memory`、終了コード 0
+- 回帰テスト: `make test-measure-ir-memory` と `make test-measure-result` が通る（ビルドなし）
+- 結果（renderer の RSS の最大値の最大／中央値、KiB。3 試行。crash 0 件）。`pack_title` と `hint_text` はどちらも断りの通知 1 件で理由 `string_too_long`、`base` は断り 0 件で Step の題あり
+
+| 場合 | 最大 | 中央値 |
+|---|---|---|
+| base | 129,744 | 129,084 |
+| pack_title | 291,540 | 217,388 |
+| hint_text | 223,880 | 208,232 |
+
+- 限界: 基準端末 A（Apple シリコンの Mac）・Chrome の原本・低メモリ端末は未実施（#860）。crash の経路は実地で再現しておらず、純関数と作り物の入力でだけ確かめた。値は断った後のもので、ヒントは開いていない。試行間の揺れが大きい（`pack_title` の 1 回目が突出）ため、1 回の実行の値を基準にしない

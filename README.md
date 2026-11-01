@@ -311,6 +311,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make measure-wasm-size` | `tools/measure/wasm-size.sh` | WASM の `gzip -9` の大きさを基点つきで測り、JSON を標準出力へ出す（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make measure-history-size` | `tools/measure/history-size.sh` | 2 周分の履歴の大きさと `Changed` の割合を基点つきで測り、JSON を標準出力へ出す（様式は `docs/measurement.md` §4a。`make measure` の束には入れない） |
 | `make measure-log-items` | `tools/measure/log-items.sh` | 2 周分の通しでの右のログの項目数（最大）を基点つきで測り、JSON を出します（様式は `docs/measurement.md` 4b。`make measure` の束には入れません） |
+| `make measure-ir-memory` | `tools/measure/ir-memory.sh` | 巨大な文字列の IR を開いたときの renderer の RSS の最大値と crash の件数を基点つきで測り、JSON を出します（様式は `docs/measurement.md` 4c。crash があれば JSON を出して終了コード 3 です。`make measure` の束には入れていません） |
+| `make test-measure-ir-memory` | `scripts/test-measure-ir-memory.sh` | 上の測定の様式と fail-closed の回帰テストです（ビルドなし） |
 | `make test-measure-wasm-size` | `scripts/test-measure-wasm-size.sh` | 結果の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
