@@ -169,12 +169,34 @@ HASH="$(sha256 "${WORK_ARCHIVE}")"
 printf '%s  %s\n' "${HASH}" "${NAME}.tar.gz" >"${WORK_ARCHIVE}.sha256"
 mkdir -p "${OUT_DIR}"
 ARCHIVE="${OUT_DIR}/${NAME}.tar.gz"
-# 先に .sha256 を置き、アーカイブを最後に置く。失敗時は今回置いた分を消す
-trap 'rm -rf "${TMP_DIR}"; rm -f "${ARCHIVE}.sha256.tmp" "${ARCHIVE}.tmp"' EXIT
+# 確定は「以前の組を退避 → 2 つを置く」の順で行う。途中（2 つ目の mv 等）で失敗したら、今回置いた分を消して
+# 以前の組（無ければ何も無い状態）へ戻す。新アーカイブと古い .sha256 が食い違って残らないようにする
+PREV_DIR="${TMP_DIR}/prev"
+mkdir -p "${PREV_DIR}"
+HAD_PREV=0
+if [ -f "${ARCHIVE}" ] && [ -f "${ARCHIVE}.sha256" ]; then
+  cp -p "${ARCHIVE}" "${PREV_DIR}/archive"
+  cp -p "${ARCHIVE}.sha256" "${PREV_DIR}/sha256"
+  HAD_PREV=1
+fi
+COMMITTED=0
+rollback() {
+  if [ "${COMMITTED}" -eq 0 ]; then
+    rm -f "${ARCHIVE}" "${ARCHIVE}.sha256"
+    if [ "${HAD_PREV}" -eq 1 ]; then
+      cp -p "${PREV_DIR}/archive" "${ARCHIVE}" || true
+      cp -p "${PREV_DIR}/sha256" "${ARCHIVE}.sha256" || true
+    fi
+  fi
+  rm -f "${ARCHIVE}.sha256.tmp" "${ARCHIVE}.tmp"
+  rm -rf "${TMP_DIR}"
+}
+trap rollback EXIT
 cp "${WORK_ARCHIVE}" "${ARCHIVE}.tmp"
 cp "${WORK_ARCHIVE}.sha256" "${ARCHIVE}.sha256.tmp"
 mv "${ARCHIVE}.tmp" "${ARCHIVE}"
 mv "${ARCHIVE}.sha256.tmp" "${ARCHIVE}.sha256"
+COMMITTED=1
 
 SIZE="$(wc -c <"${ARCHIVE}" | tr -d ' ')"
 echo "archive: ${ARCHIVE}"
