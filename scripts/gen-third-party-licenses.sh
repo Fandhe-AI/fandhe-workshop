@@ -140,7 +140,7 @@ closure "fandhe-workshop-web" "${WASM_TRIPLE}" "${WASM_JSON}" >>"${TMP_DIR}/rows
   exit 2
 }
 tab="$(printf '\t')"
-sort -t "${tab}" -k1,1 -k2,2 -k8,8 "${TMP_DIR}/rows" >"${TMP_DIR}/rows.sorted"
+sort -t "${tab}" -k1,1 -k2,2 -k5,5 -k8,8 "${TMP_DIR}/rows" >"${TMP_DIR}/rows.sorted"
 
 VIOLATIONS=0
 violation() {
@@ -196,12 +196,18 @@ standard_text() {
 # collect_files <crate dir> <license_file>: ライセンスのファイルの相対パスを files.list に書く。
 # symlink・crate の外への参照・実体の欠如は 1
 collect_files() {
-  local cdir="$1" lf="$2" name rel sub p bad=0
+  local cdir="$1" lf="$2" name rel sub p bad=0 real_cdir real_dir want dir
   : >"${TMP_DIR}/files.raw"
   if [ -n "${lf}" ]; then
     case "${lf}" in
       "${cdir}"/*) lf="${lf#"${cdir}"/}" ;;
     esac
+    while :; do
+      case "${lf}" in
+        ./*) lf="${lf#./}" ;;
+        *) break ;;
+      esac
+    done
     case "${lf}" in
       /* | .. | ../* | */../* | */..)
         echo "license_file escapes the crate: ${lf}" >&2
@@ -230,8 +236,27 @@ EOT
     fi
   done
   sort -u "${TMP_DIR}/files.raw" >"${TMP_DIR}/files.list"
+  # 途中のディレクトリが symlink だと crate の外を読めるため、親の実体の位置が crate の実体の配下の同じ相対位置か確かめる
+  real_cdir="$(cd -P "${cdir}" 2>/dev/null && pwd -P)" || {
+    echo "crate directory is not readable" >&2
+    return 1
+  }
   while IFS= read -r rel; do
     [ -n "${rel}" ] || continue
+    want="${real_cdir}"
+    dir="${cdir}"
+    case "${rel}" in
+      */*)
+        want="${real_cdir}/${rel%/*}"
+        dir="${cdir}/${rel%/*}"
+        ;;
+    esac
+    real_dir="$(cd -P "${dir}" 2>/dev/null && pwd -P)" || real_dir=""
+    if [ "${real_dir}" != "${want}" ]; then
+      echo "license file path passes through a symlink or leaves the crate: ${rel}" >&2
+      bad=1
+      continue
+    fi
     if [ -L "${cdir}/${rel}" ]; then
       echo "license file is a symlink: ${rel}" >&2
       bad=1
@@ -326,10 +351,11 @@ EOT
   COUNT=$((COUNT + 1))
 }
 
-# 同じ (名前, 版) の行を 1 つにまとめ、triple を集める
+# 同じ (名前, 版, source) の行を 1 つにまとめ、triple を集める。source が違えば別の package として検証する
+# （名前と版だけで束ねると、registry の後ろにある git の package の検証が飛ぶ）
 pn="" pv="" pl="" plf="" ps="" pm="" pr="" pt=""
 while IFS="${tab}" read -r n v l lf s m r t; do
-  if [ "${n}" = "${pn}" ] && [ "${v}" = "${pv}" ]; then
+  if [ "${n}" = "${pn}" ] && [ "${v}" = "${pv}" ] && [ "${s}" = "${ps}" ]; then
     pt="${pt}, ${t}"
     continue
   fi

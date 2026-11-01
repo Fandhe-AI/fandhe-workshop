@@ -138,7 +138,8 @@ META="$(cd "${ROOT_DIR}" && cargo metadata --no-deps --format-version 1 --locked
 # 0. 依存のライセンス文。ビルドの前に作り、方針の違反（終了コード 1）や道具の欠如（2）はそのまま返す
 if [ -z "${PREBUILT}" ] && [ -z "${META_DIR}" ]; then
   log "fetching locked dependencies (the only network step)"
-  (cd "${ROOT_DIR}" && cargo fetch --locked --target "${TARGET}" --target wasm32-unknown-unknown) >&2 || {
+  # --target は付けない。cargo metadata --offline は dev 依存を含む lockfile 全体を要し、target を絞ると足りなくなる
+  (cd "${ROOT_DIR}" && cargo fetch --locked) >&2 || {
     echo "error: cargo fetch --locked failed" >&2
     exit 2
   }

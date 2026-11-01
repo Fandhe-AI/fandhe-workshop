@@ -15,7 +15,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 reject_args "$(basename "$0")" "$@"
-for c in mktemp mkdir rm tar file jq cargo; do
+for c in mktemp mkdir rm ln tar file jq cargo; do
   require_cmd "${c}" || exit 1
 done
 
@@ -95,12 +95,13 @@ chmod +x "${SHIM}/curl"
 MACHO="Mach-O 64-bit executable arm64"
 OUT="${TMP_DIR}/out"
 
-# 合成の cargo metadata。mk_meta <dir> <m の license> <m の source> <m のファイル: file|symlink|none>
+# 合成の cargo metadata。mk_meta <dir> <m の license> <m の source> <m のファイル: file|symlink|dirlink|reallink|none> [<dup: 1 なら同名・同版の git の package を足す>]
+# dirlink は license_file の途中のディレクトリが crate の外への symlink、reallink は crate の中の実ディレクトリへの symlink
 # native: pack -> core(ws) -> f / a / pm(proc-macro) -> viapm / bld(build) / dev(dev) / m / nofile / sub / slash
 # wasm:   web -> a / w
 REG_SRC="registry+https://github.com/rust-lang/crates.io-index"
 mk_meta() {
-  local d="$1" mlic="$2" msrc="$3" mfiles="$4" c
+  local d="$1" mlic="$2" msrc="$3" mfiles="$4" dup="${5:-0}" mlf="" c
   mkdir -p "${d}/reg"
   for c in a pm viapm bld dev f m nofile sub slash w; do
     mkdir -p "${d}/reg/${c}"
@@ -117,11 +118,24 @@ mk_meta() {
   case "${mfiles}" in
     file) printf 'm text\n' >"${d}/reg/m/LICENSE" ;;
     symlink) ln -s /etc/hostname "${d}/reg/m/LICENSE" ;;
+    dirlink)
+      mkdir -p "${d}/outside"
+      printf 'outside text\n' >"${d}/outside/LICENSE"
+      ln -s "${d}/outside" "${d}/reg/m/lic"
+      mlf="lic/LICENSE"
+      ;;
+    reallink)
+      mkdir -p "${d}/reg/m/real"
+      printf 'inside text\n' >"${d}/reg/m/real/LICENSE"
+      ln -s real "${d}/reg/m/lic"
+      mlf="lic/LICENSE"
+      ;;
     none) ;;
   esac
-  jq -n --arg d "${d}" --arg mlic "${mlic}" --arg msrc "${msrc}" --arg reg "${REG_SRC}" '
+  jq -n --arg dup "${dup}" --arg mlf "${mlf}" --arg d "${d}" --arg mlic "${mlic}" --arg msrc "${msrc}" --arg reg "${REG_SRC}" '
     def pkg($n; $lic; $src; $kind): {id: $n, name: $n, version: "1.0.0", license: ($lic | if . == "null" then null else . end),
-      license_file: null, source: ($src | if . == "" then null else . end), manifest_path: ($d + "/reg/" + $n + "/Cargo.toml"),
+      license_file: (if $n == "m" and $mlf != "" then $mlf else null end), source: ($src | if . == "" then null else . end),
+      manifest_path: ($d + "/reg/" + $n + "/Cargo.toml"),
       repository: ("https://example.invalid/" + $n), targets: [{kind: [$kind]}]};
     def ws($n): {id: $n, name: $n, version: "0.0.0", license: "MIT OR Apache-2.0", license_file: null, source: null,
       manifest_path: ($d + "/" + $n + "/Cargo.toml"), repository: null, targets: [{kind: ["lib"]}]};
@@ -131,16 +145,18 @@ mk_meta() {
         pkg("bld"; "GPL-3.0-only"; $reg; "lib"), pkg("dev"; "GPL-3.0-only"; $reg; "lib"), pkg("f"; "MIT"; $reg; "lib"),
         pkg("m"; $mlic; $msrc; "lib"), pkg("nofile"; "MIT OR Apache-2.0"; $reg; "lib"),
         pkg("sub"; "MIT OR Apache-2.0"; $reg; "lib"), pkg("slash"; "MIT/Apache-2.0"; $reg; "lib"),
-        pkg("w"; "(MIT OR Apache-2.0) AND Unicode-3.0"; $reg; "lib")],
+        pkg("w"; "(MIT OR Apache-2.0) AND Unicode-3.0"; $reg; "lib")]
+        + (if $dup == "1" then [pkg("m"; "MIT"; "git+https://example.invalid/m"; "lib") | .id = "m-git"] else [] end),
       workspace_members: ["fandhe-workshop-pack", "fandhe-workshop-core", "fandhe-workshop-web"],
       resolve: {nodes: [
         {id: "fandhe-workshop-pack", deps: [dep("fandhe-workshop-core"; null), dep("a"; null), dep("pm"; null), dep("bld"; "build"),
-          dep("dev"; "dev"), dep("m"; null), dep("nofile"; null), dep("sub"; null), dep("slash"; null)]},
+          dep("dev"; "dev"), dep("m"; null), dep("nofile"; null), dep("sub"; null), dep("slash"; null)]
+          + (if $dup == "1" then [dep("m-git"; null)] else [] end)},
         {id: "fandhe-workshop-core", deps: [dep("f"; null)]},
         {id: "pm", deps: [dep("viapm"; null)]},
         {id: "fandhe-workshop-web", deps: [dep("a"; null), dep("w"; null)]},
         {id: "a", deps: []}, {id: "viapm", deps: []}, {id: "bld", deps: []}, {id: "dev", deps: []}, {id: "f", deps: []},
-        {id: "m", deps: []}, {id: "nofile", deps: []}, {id: "sub", deps: []}, {id: "slash", deps: []}, {id: "w", deps: []}]}}' >"${d}/native.json"
+        {id: "m", deps: []}, {id: "m-git", deps: []}, {id: "nofile", deps: []}, {id: "sub", deps: []}, {id: "slash", deps: []}, {id: "w", deps: []}]}}' >"${d}/native.json"
   cp "${d}/native.json" "${d}/wasm.json"
 }
 META_OK="${TMP_DIR}/meta-ok"
@@ -232,9 +248,9 @@ done
 
 # ライセンスの方針の違反（1）。m の license・source・ファイルだけを差し替える
 license_case() {
-  local name="$1" lic="$2" src="$3" files="$4" d
+  local name="$1" lic="$2" src="$3" files="$4" dup="${5:-0}" d
   d="${TMP_DIR}/meta-${name// /_}"
-  mk_meta "${d}" "${lic}" "${src}" "${files}"
+  mk_meta "${d}" "${lic}" "${src}" "${files}" "${dup}"
   META_USE="${d}" fail_case "license policy: ${name}" --out "${OUT}" --bin "${FAKE_BIN}"
   rm -rf "${d}"
 }
@@ -244,6 +260,10 @@ license_case "WITH exception" "Apache-2.0 WITH LLVM-exception" "${REG_SRC}" file
 license_case "null license" "null" "${REG_SRC}" file
 license_case "source not a registry" "MIT" "git+https://example.invalid/m" file
 license_case "symlink license file" "MIT" "${REG_SRC}" symlink
+license_case "license_file through a symlinked directory outside the crate" "MIT" "${REG_SRC}" dirlink
+license_case "license_file through a symlinked directory inside the crate" "MIT" "${REG_SRC}" reallink
+# 同名・同版で registry が先に並ぶ（license の文字列が小さい）とき、後ろの git の package も検証される
+license_case "same name and version from registry and git" "Apache-2.0 OR MIT" "${REG_SRC}" file 1
 license_case "no file and no standard text" "Unlicense" "${REG_SRC}" none
 
 # preview の煙試験の失敗（URL が出ない・IR が compile と違う）
