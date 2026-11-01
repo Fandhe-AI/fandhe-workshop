@@ -289,6 +289,7 @@ tag の名前と版は TASK-791 の決定に従う。
 - `THIRD-PARTY-LICENSES` の 43 件は Linux の手元（2026-11-01）で計算した値である。`release.yml` の run での照合は記録 2 で行う
 - ライセンス文の生成の前提は `cargo fetch --locked` である（`cargo metadata` を offline で流すため）
 - wasm-bindgen の CLI が生成する JS の glue は、wasm-bindgen の crate の区画で扱っている
+- 標準の本文で補った `fandhe-frontend-*` の 7 件の MIT の本文は、著作権者の行がひな形（`<year>`・`<copyright holders>`）のままである。MIT の条件の著作権表示を満たしたとは言い切れない。公開の前に、各 crate の著作権者の表記を確かめて本文に入れるかを決める（未決）
 
 ### D-34 の区別
 
