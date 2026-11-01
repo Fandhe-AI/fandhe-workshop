@@ -172,7 +172,7 @@ test-browser: ## 共通ヘルパで最小の画面をサブパス配信し、対
 test-build-pack-bin: ## fandhe-pack の前提バイナリの解決が CARGO_TARGET_DIR に追従することの回帰テスト（遅い）。直接: scripts/test-build-pack-bin.sh
 	@scripts/test-build-pack-bin.sh
 
-build-pack-release: ## fandhe-pack の配布用の実行ファイル（既定 aarch64-apple-darwin）をビルドし、検査・煙試験・梱包・sha256 まで行う。直接: scripts/build-pack-release.sh
+build-pack-release: ## fandhe-pack の配布用の実行ファイル（既定 aarch64-apple-darwin）をビルドし、検査・煙試験・梱包（依存のライセンス文 THIRD-PARTY-LICENSES 同梱）・sha256 まで行う。直接: scripts/build-pack-release.sh
 	@scripts/build-pack-release.sh
 
 test-build-pack-release: ## 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし）。直接: scripts/test-build-pack-release.sh

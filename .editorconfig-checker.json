@@ -3,6 +3,7 @@
     "^\\.agents/skills/",
     "^\\.claude/skills/",
     "^(template-workshop/)?LICENSE-(APACHE|MIT)$",
+    "^tools/pack-release/licenses/vetted/",
     "^testdata/"
   ]
 }

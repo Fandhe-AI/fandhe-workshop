@@ -8,6 +8,9 @@
 # （docs/publish-checks.md）。
 #
 # 処理の順（どの段階の失敗も成果物を出さない。fail-closed）
+#   0. 依存のライセンス文（THIRD-PARTY-LICENSES。LIC-9。#1957）。ビルドの前に scripts/gen-third-party-licenses.sh で作り、
+#      許容外の license などの方針の違反で長いビルドを無駄にしない。ビルドするときは先に `cargo fetch --locked` で依存を取得し
+#      （通信はこの 1 回だけ）、生成は offline で行う
 #   1. ビルド（--bin を渡したときは省く）。エンジンの配信物を同梱する（scripts/build-pack-preview.sh。`preview` が
 #      cargo も Node も無い端末で URL を出せるようにするため。TASK-429 2/3。要 wasm-bindgen CLI・wasm32 ターゲット）
 #   2. アーキテクチャの検査: file の出力が --target の期待と合うこと
@@ -15,14 +18,17 @@
 #      `preview` を裏で起動し、127.0.0.1 の URL が出て index.html・wasm・ir/main.json が取れ、IR が compile の出力と
 #      バイト単位で一致すること（curl が要る）
 #   4. 梱包: <out>/fandhe-pack-<version>-<target>.tar.gz と同名の .sha256
+#      （中身: fandhe-pack・README.txt・LICENSE-MIT・LICENSE-APACHE・THIRD-PARTY-LICENSES）
 #
-# 使い方: scripts/build-pack-release.sh [--target <triple>] [--out <dir>] [--bin <prebuilt>]
+# 使い方: scripts/build-pack-release.sh [--target <triple>] [--out <dir>] [--bin <prebuilt>] [--metadata-dir <dir>]
 #   --target  aarch64-apple-darwin（既定。配布するのはこれだけ）か x86_64-unknown-linux-gnu
 #             （Linux の手元でこのスクリプト自体を通すための確認用。配布しない）
 #   --out     出力先（既定 dist/pack-release。dist/ は git 管理外）
 #   --bin     ビルド済みの実行ファイル。ビルドを省き、検査と梱包だけを行う（回帰テスト用）
+#   --metadata-dir  native.json と wasm.json（cargo metadata の写し）を置いた場所。ライセンス文の生成に差し込む
+#             （回帰テスト用。release.yml からは渡さない）
 # 環境変数 SMOKE_PATH: 煙試験の PATH（既定 /usr/bin:/bin。回帰テストが cargo の見える PATH を渡して失敗を確かめる）
-# 終了コード: 0 = 成功 / 1 = 検査の失敗 / 2 = 誤用・道具が無い
+# 終了コード: 0 = 成功 / 1 = 検査の失敗（ライセンスの方針の違反を含む） / 2 = 誤用・道具が無い
 # 回帰テスト: scripts/test-build-pack-release.sh
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,19 +36,21 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 usage() {
-  echo "usage: $(basename "$0") [--target <triple>] [--out <dir>] [--bin <prebuilt>]" >&2
+  echo "usage: $(basename "$0") [--target <triple>] [--out <dir>] [--bin <prebuilt>] [--metadata-dir <dir>]" >&2
   exit 2
 }
 
 TARGET="aarch64-apple-darwin"
 OUT_DIR="${ROOT_DIR}/dist/pack-release"
 PREBUILT=""
+META_DIR=""
 while [ "$#" -gt 0 ]; do
   [ "$#" -ge 2 ] || usage
   case "$1" in
     --target) TARGET="$2" ;;
     --out) OUT_DIR="$2" ;;
     --bin) PREBUILT="$2" ;;
+    --metadata-dir) META_DIR="$2" ;;
     *) usage ;;
   esac
   shift 2
@@ -66,6 +74,18 @@ esac
 if [ -n "${PREBUILT}" ] && [ ! -f "${PREBUILT}" ]; then
   echo "error: --bin is not a file: ${PREBUILT}" >&2
   exit 2
+fi
+if [ -n "${META_DIR}" ]; then
+  for f in native.json wasm.json; do
+    [ -f "${META_DIR}/${f}" ] || {
+      echo "error: --metadata-dir lacks ${f}: ${META_DIR}" >&2
+      exit 2
+    }
+  done
+  case "${META_DIR}" in
+    /*) ;;
+    *) META_DIR="$(pwd)/${META_DIR}" ;;
+  esac
 fi
 # 以降の起動は ROOT_DIR へ cd した子シェルで行うため、呼び出し時の cwd 基準の絶対パスに解決する。
 # スラッシュ無しの指定も ./ を付けた経路にして、PATH 検索にならないようにする
@@ -100,6 +120,11 @@ NOTICE_SRC="${ROOT_DIR}/tools/pack-release/README.txt"
   echo "error: notice file not found: tools/pack-release/README.txt" >&2
   exit 2
 }
+GEN_SRC="${DIR}/gen-third-party-licenses.sh"
+[ -f "${GEN_SRC}" ] || {
+  echo "error: license generator not found: scripts/gen-third-party-licenses.sh" >&2
+  exit 2
+}
 [ -d "${ROOT_DIR}/docs/examples/minimal-pack" ] || {
   echo "error: smoke-test pack not found: docs/examples/minimal-pack" >&2
   exit 2
@@ -109,6 +134,25 @@ TMP_DIR="$(mktemp -d)"
 trap 'cleanup_preview 2>/dev/null || true; rm -rf "${TMP_DIR}"' EXIT
 
 META="$(cd "${ROOT_DIR}" && cargo metadata --no-deps --format-version 1 --locked)"
+
+# 0. 依存のライセンス文。ビルドの前に作り、方針の違反（終了コード 1）や道具の欠如（2）はそのまま返す
+if [ -z "${PREBUILT}" ] && [ -z "${META_DIR}" ]; then
+  log "fetching locked dependencies (the only network step)"
+  # --target は付けない。cargo metadata --offline は dev 依存を含む lockfile 全体を要し、target を絞ると足りなくなる
+  (cd "${ROOT_DIR}" && cargo fetch --locked) >&2 || {
+    echo "error: cargo fetch --locked failed" >&2
+    exit 2
+  }
+fi
+GEN_ARGS=(--target "${TARGET}" --out "${TMP_DIR}/THIRD-PARTY-LICENSES")
+if [ -n "${META_DIR}" ]; then
+  GEN_ARGS+=(--native "${META_DIR}/native.json" --wasm "${META_DIR}/wasm.json")
+fi
+rc=0
+"${GEN_SRC}" "${GEN_ARGS[@]}" || rc=$?
+if [ "${rc}" -ne 0 ]; then
+  exit "${rc}"
+fi
 
 # 1. ビルド
 if [ -z "${PREBUILT}" ]; then
@@ -212,6 +256,7 @@ cp "${BIN}" "${STAGE}/fandhe-pack"
 chmod 0755 "${STAGE}/fandhe-pack"
 cp "${ROOT_DIR}/LICENSE-MIT" "${ROOT_DIR}/LICENSE-APACHE" "${STAGE}/"
 cp "${NOTICE_SRC}" "${STAGE}/README.txt"
+cp "${TMP_DIR}/THIRD-PARTY-LICENSES" "${STAGE}/THIRD-PARTY-LICENSES"
 # アーカイブと .sha256 は一時領域で完成させてから出力先へ置く（途中の失敗で不完全な成果物・既存の成果物の切り詰めを出さない）。
 # COPYFILE_DISABLE は macOS の tar が ._* のメタデータ項目を混ぜるのを防ぐ
 WORK_ARCHIVE="${TMP_DIR}/pack/${NAME}.tar.gz"

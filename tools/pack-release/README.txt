@@ -34,3 +34,4 @@ Rust の導入は要りません。対応は Apple シリコンの macOS だけ�
 ライセンス
 
 MIT OR Apache-2.0。同梱の LICENSE-MIT と LICENSE-APACHE を参照してください。
+依存の crate のライセンス文は、同梱の THIRD-PARTY-LICENSES にまとめています。
