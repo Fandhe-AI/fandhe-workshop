@@ -11618,7 +11618,7 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 | 診断のある教材パックの出力が `validate` とバイト単位で同じ | `author22_output_matches_validate` |
 | 診断の行が 4 欄で項目の形・`E-` のコードを持つ | `author22_diagnostic_lines_have_four_fields` |
 | 診断のある実行で教材パックと作業ディレクトリに何も作らず、URL を出さない | `author22_diagnosed_pack_writes_nothing` |
-| 診断 0 件は経過措置で 2・標準出力は空 | `author22_clean_pack_is_not_implemented_yet` |
+| 診断 0 件・同梱の無いビルドは 2・標準出力は空・理由の 1 行（2/3 で経過措置から置き換えた。5.427） | `author22_clean_pack_without_bundle_is_usage_error` |
 | 関門の IR が `compile` の出力とバイト単位で同じ | `author22_gate_ready_ir_matches_compile` |
 | `validate` だけが出す診断（compile は通る）でも止まる | `author22_validate_only_diagnostics_stop_preview` |
 | 層ごとの振り分け | `author22_gate_stops_at_validate_layer` |
@@ -11626,3 +11626,23 @@ PoC のプロトタイプは右の画面に開発用の「本文の参照: st-1-
 - 契約の版: `CLI_CONTRACT_VERSION` 15 から 16
 - 変異注入: `AUTHOR22-1`（`validate` の診断を無視する）・`AUTHOR22-2`（読み込めない教材パックで 0 を返す）。定義の静的検査は `make check-mutation-defs` で行う。`AUTHOR22-1`・`AUTHOR22-2`・`AUTHOR1-1` は `scripts/check-mutations.sh` で実行し、いずれも DETECTED（2026-11-01）
 - 限界: `validate` は 0 件で `compile` だけが診断を出す教材パックの試験データは作っていない（その経路は `gate_loaded` の分岐で、結合試験では未確認）。配信と URL の表示・再実行での反映は 2/3・3/3。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない
+
+### 5.427 プレビューの配信と URL の表示（TASK-429 2/3。AUTHOR-22）
+
+- 目的: 診断 0 件の教材パックで `fandhe-pack preview <pack-dir>` が 127.0.0.1 だけで配信を始め、`OK:` の行と `URL: http://127.0.0.1:<port>/preview/` の行を出す。エンジンの配信物は cargo の feature `embed-web` で実行ファイルに同梱し、cargo も Node も無い端末で動く
+- 契約の版: `CLI_CONTRACT_VERSION` 16 から 17（`docs/cli.md` 12.7 節）
+- 試験
+
+| 確かめること | 試験 |
+|---|---|
+| `/preview/`・`index.html`・`?start=` 付きが 200 で、wasm が `application/wasm`、`ir/main.json` が渡した IR とバイト単位で一致し、`no-store`・`nosniff`・`Content-Length` が付く | `preview_serve.rs` の `author22_serves_assets_and_ir_byte_for_byte` |
+| HEAD は本文なし、POST は 405 と `Allow` | `author22_head_has_no_body_and_other_methods_are_405` |
+| 表に無い経路・`..`・`%2e%2e`・`//`・`\\` は 404 で、本文に要求の経路を写さない | `author22_unknown_and_traversal_paths_are_404_without_echo` |
+| `Host` が違う・無い要求は 400 | `author22_wrong_or_missing_host_is_400` |
+| ヘッダの上限超えは 431 で、途中で切れた要求・不正なバイト列の後も配信が続く | `author22_oversized_head_is_431_and_garbage_does_not_stop_the_server` |
+| 解析の純関数の網羅と、待ち受けが 127.0.0.1 であること | `preview_serve.rs`（lib 内の単体試験） |
+| cargo・rustc の見えない PATH で実行ファイルを起動し、パイプ越しに `OK:`・`URL:` が読め、配った 6 ファイルが `dist/web-embed/` と、`ir/main.json` が `compile` とバイト単位で一致し、127.0.0.2 の同じポートは断られる | `preview_embedded.rs`（`--features embed-web`。`scripts/test-browser.sh` が流す） |
+
+- 変異注入: `AUTHOR22-3`（待ち受けを全アドレスにする）・`AUTHOR22-4`（`Host` の照合を外す）・`AUTHOR22-5`（ヘッダの上限を外す）。定義の静的検査は `make check-mutation-defs`
+- ビルド・リリース: `scripts/build-pack-preview.sh`（同梱の元の検査、`check-delivery.sh`・`check-no-egress.sh dist`、`--features embed-web` のビルド）。`scripts/build-pack-release.sh` は同梱つきでビルドし、Rust の無い PATH で `preview` の煙試験（URL の形・index.html・wasm の型・IR が `compile` と一致）を流す。回帰テストは `scripts/test-build-pack-release.sh`・`scripts/test-build-pack-preview.sh`。2026-11-01 に Linux（x86_64-unknown-linux-gnu）で `build-pack-release.sh` を実際に流し、煙試験まで通った
+- 限界: ブラウザ（Chromium）で URL を開いて AUTHOR-21 と同じ 20 Step を通す試験は未作成。配った 6 ファイルが `IR_FILE` つきの配信する設定とバイト単位で同じであること（`preview_embedded`）を根拠にしている。`release.yml` の macOS のジョブ（wasm-bindgen CLI の導入を含む）は `workflow_dispatch` のため PR では流れず、未実行。再実行で文章の修正が画面に出ることの試験は 3/3。試験の作成者と実装の作成者が同じ AI であり、人の確認は得ていない

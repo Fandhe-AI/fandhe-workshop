@@ -11,6 +11,13 @@ publish.workspace = true
 name = "fandhe-pack"
 path = "src/main.rs"
 
+# embed-web: エンジンの配信物（dist/web-embed/ の 6 ファイル）を include_bytes! で実行ファイルへ同梱する。
+# 作成者の端末に Rust も Node も無くても `preview` が URL を出せるようにするため（TASK-429 2/3）。既定では無効で、
+# 立てるのは scripts/build-pack-preview.sh だけ。依存は増やさない。build.rs は使わない（環境変数による切り替えは
+# キャッシュと再現性の扱いが増えるため）。同梱の元が無いと、feature つきのビルドはコンパイルの誤りで止まる。
+[features]
+embed-web = []
+
 [dependencies]
 fandhe-workshop-contract.workspace = true
 fandhe-workshop-core.workspace = true

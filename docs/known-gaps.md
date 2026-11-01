@@ -579,3 +579,17 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 ### 根拠の試験
 
 - `crates/core/tests/checkpoint_limit.rs`。記録は `docs/testing.md` の 5.425
+
+## AUTHOR-22: `preview` の限界（TASK-429 2/3）
+
+### 内容
+
+- 配信は gzip をかけません。手元の 127.0.0.1 の配信であり、正しさには要らないためです
+- ポートは実行のたびに OS が割り当てるため、origin が実行ごとに変わります。保存済みの履歴（localStorage・IndexedDB）は実行をまたいで引き継がれず、再実行の後は新しく始まります。OS が以前のポートを再び割り当てた場合だけ、前の履歴が新しい IR と合わないときにエンジンの既存の通知（開かない履歴の通知と「捨てて始める」）が出ます
+- 前の実行で開いていたタブは、サーバが止まっているため読み込めません。新しい URL を開く必要があります
+- リリースの実行ファイルは macOS の Apple シリコン（aarch64-apple-darwin）だけです。Intel の macOS・Windows・x86_64 の Linux 向けは TASK-98・D-19 の後です
+- 止めるときは `Ctrl+C` で、止めた終了状態は契約の 0・1・2 の外です
+
+### 根拠の試験
+
+- `crates/pack/tests/preview_serve.rs`・`preview_embedded.rs`。記録は `docs/testing.md` の 5.427

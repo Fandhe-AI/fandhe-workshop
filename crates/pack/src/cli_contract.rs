@@ -2,7 +2,7 @@
 //!
 //! バイナリ名・コマンド一覧と引数の形・使い方の文言・終了コードの 3 値に加え、診断 1 行の項目の形・最終行
 //! （`OK:`・`NG:`）・`compare` の結果行を、版つきの定数と型・関数で固定する。
-//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 16）で、本モジュールは同じ内容のコード側の写しである。
+//! 契約の正は `docs/cli.md`（CLI の外部仕様の版 17）で、本モジュールは同じ内容のコード側の写しである。
 //! `vocab` の出力の形（ヘッダ・行・集計行・教材パック全体の行）は版 5 で足した（TASK-408）。
 //! 両者の一致は `tests/cli_contract.rs` が機械で照合する。
 //!
@@ -22,7 +22,14 @@ use crate::source::{Format, LoadedPack, ScopeKind};
 /// CLI の外部仕様の版。`docs/cli.md` の冒頭の版と一致させる。
 ///
 /// `contract_version`・`ir_format`・診断コードの一覧の版とは別に管理する。
-pub const CLI_CONTRACT_VERSION: u32 = 16;
+pub const CLI_CONTRACT_VERSION: u32 = 17;
+
+/// `preview` が診断 0 件のとき 2 行目に出す URL の行の接頭辞（TASK-429 2/3）。
+pub const PREVIEW_URL_PREFIX: &str = "URL: ";
+/// `preview` の待ち受けのアドレス。127.0.0.1 の固定で、変える引数は無い。
+pub const PREVIEW_LISTEN_ADDR: &str = "127.0.0.1";
+/// `preview` の配信のサブパス。
+pub const PREVIEW_SUBPATH: &str = "/preview/";
 
 /// バイナリ名。
 pub const BIN_NAME: &str = "fandhe-pack";

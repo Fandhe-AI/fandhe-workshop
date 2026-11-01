@@ -7,6 +7,10 @@
 //! 層は空でない最初の層で止める。`validate` と `compile` は一部の検査が重複するため、両方を無条件に流すと
 //! 二重に報告される。教材テスト（`tests/playthrough.yaml`）は `test` の持ち分で、関門には入れない。
 //! ファイルシステムに触れるのは `source::load` だけで、何も作らない。
+//!
+//! 配信（TASK-429 2/3）の材料もここに置く。エンジンの配信物は cargo の feature `embed-web` が立っているビルドでだけ
+//! `include_bytes!` で実行ファイルへ同梱し（`EMBEDDED_WEB`）、立っていないビルドは `None` にして配らない。
+//! 作成者の端末に Rust も Node も無くても URL を出せるようにするため、配信物は実行時に探さず、ビルド時に固定する。
 
 use std::path::Path;
 
@@ -15,6 +19,47 @@ use crate::compile::{compile_loaded, diag, CompileError, CompileOptions};
 use crate::diag::{DiagCode, Diagnostic};
 use crate::source::{self, LoadedPack};
 use crate::validate;
+
+/// 同梱するエンジンの配信物 1 ファイル。`path` は配信物の根からの相対パス（`/` 区切り）。
+#[derive(Debug, Clone, Copy)]
+pub struct Asset {
+    /// 配信物の根からの相対パス。
+    pub path: &'static str,
+    /// ファイルの中身。
+    pub body: &'static [u8],
+}
+
+/// 同梱の元（`scripts/build-pack-preview.sh` が作る `dist/web-embed/`）の 1 ファイルを `include_bytes!` で取り込む。
+/// ファイルが無いと feature つきのビルドがコンパイルの誤りで止まる（fail-closed）。
+#[cfg(feature = "embed-web")]
+macro_rules! embed {
+    ($name:literal) => {
+        Asset {
+            path: $name,
+            body: include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../dist/web-embed/",
+                $name
+            )),
+        }
+    };
+}
+
+/// 同梱したエンジンの配信物。`ir/main.json` は含めない（関門の IR を実行時に配る）。
+/// 6 ファイルは `scripts/check-no-egress.sh` の `DIST_FILES` と同じ。
+#[cfg(feature = "embed-web")]
+pub const EMBEDDED_WEB: Option<&[Asset]> = Some(&[
+    embed!("index.html"),
+    embed!("app.js"),
+    embed!("app.css"),
+    embed!("icon.svg"),
+    embed!("wasm/fandhe_workshop_web.js"),
+    embed!("wasm/fandhe_workshop_web_bg.wasm"),
+]);
+
+/// 同梱していないビルド（既定）。`preview` は何も配らず、理由つきの誤りで終わる。
+#[cfg(not(feature = "embed-web"))]
+pub const EMBEDDED_WEB: Option<&[Asset]> = None;
 
 /// 関門の結果。
 #[derive(Debug)]

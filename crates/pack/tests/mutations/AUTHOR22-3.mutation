@@ -1,0 +1,8 @@
+id: AUTHOR22-3
+package: fandhe-workshop-pack
+test: preview_serve
+target: crates/pack/src/preview_serve.rs
+find:     TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+replace:     TcpListener::bind((Ipv4Addr::UNSPECIFIED, 0))
+expect-fail: author22_serves_assets_and_ir_byte_for_byte
+note: 待ち受けを 127.0.0.1 から全アドレスへ広げる（同じ LAN の他の端末に教材が見える）

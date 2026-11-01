@@ -697,7 +697,7 @@ views:
 
 compile した IR は、受講者に配る配信物の教材そのものです。手元でその配信物を開けば、受講者が見るのと同じ成果物の画面を、公開の前に確かめられます。
 
-前提: Rust・wasm のツールチェーンと Node が要ります。版と導入は `README.md` の「前提」と `docs/toolchain.md` を見てください。Rust を入れない端末で、1 回の操作の結果だけを手元で見る形（プレビュー）は未決です（AUTHOR-22・TASK-428）。この節の手順は、その形とは別です。
+前提: Rust・wasm のツールチェーンと Node が要ります。版と導入は `README.md` の「前提」と `docs/toolchain.md` を見てください。Rust を入れない端末で、1 回の操作の結果だけを手元で見るには `fandhe-pack preview <pack-dir>` を使います（AUTHOR-22・TASK-428・TASK-429。使い方は `docs/cli-guide.md`）。この節の手順は、その形とは別です。
 
 手順:
 

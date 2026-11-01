@@ -41,6 +41,16 @@ FAKE_BIN="${TMP_DIR}/fandhe-pack"
 cat >"${FAKE_BIN}" <<'EOF'
 #!/bin/sh
 [ ! -e "$(dirname "$0")/fail-$1" ] || exit 1
+case "$1" in
+  preview)
+    # 偽の配信。URL の行を出して待つ（煙試験が止める）。no-url があるときは URL を出さずに終わる
+    [ ! -e "$(dirname "$0")/no-url" ] || exit 0
+    echo "OK: fake"
+    echo "URL: http://127.0.0.1:1/preview/"
+    exec sleep 30
+    ;;
+  compile) echo '{}' ;;
+esac
 exit 0
 EOF
 chmod 0755 "${FAKE_BIN}"
@@ -53,6 +63,33 @@ cat >"${SHIM}/file" <<'EOF'
 echo "${FAKE_FILE_DESC}"
 EOF
 chmod +x "${SHIM}/file"
+
+# curl の偽物。URL の末尾で本文と content-type を決める。SHIM の ir-differs があるときは IR だけ違う本文を返す
+cat >"${SHIM}/curl" <<'EOF'
+#!/bin/sh
+out=""
+url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift ;;
+    -w | --noproxy | --max-time) shift ;;
+    -*) ;;
+    *) url="$1" ;;
+  esac
+  shift
+done
+case "${url}" in
+  *.wasm) body="w"; ct="application/wasm" ;;
+  *ir/main.json)
+    ct="application/json"
+    if [ -e "$(dirname "$0")/ir-differs" ]; then body="{x}"; else body="{}"; fi
+    ;;
+  *) body="<html>"; ct="text/html; charset=utf-8" ;;
+esac
+printf '%s\n' "${body}" >"${out}"
+printf '%s' "${ct}"
+EOF
+chmod +x "${SHIM}/curl"
 
 MACHO="Mach-O 64-bit executable arm64"
 OUT="${TMP_DIR}/out"
@@ -106,11 +143,19 @@ fail_case() {
 }
 FAKE_FILE_DESC="Mach-O 64-bit executable x86_64" fail_case "wrong architecture" --out "${OUT}" --bin "${FAKE_BIN}"
 FAKE_FILE_DESC="ELF 64-bit LSB executable, ARM aarch64" fail_case "wrong format" --out "${OUT}" --bin "${FAKE_BIN}"
-for sub in validate test; do
+for sub in validate test preview; do
   : >"${TMP_DIR}/fail-${sub}"
   fail_case "failing ${sub} smoke test" --out "${OUT}" --bin "${FAKE_BIN}"
   rm -f "${TMP_DIR}/fail-${sub}"
 done
+
+# preview の煙試験の失敗（URL が出ない・IR が compile と違う）
+: >"${TMP_DIR}/no-url"
+fail_case "preview prints no URL" --out "${OUT}" --bin "${FAKE_BIN}"
+rm -f "${TMP_DIR}/no-url"
+: >"${SHIM}/ir-differs"
+fail_case "preview IR differs from compile" --out "${OUT}" --bin "${FAKE_BIN}"
+rm -f "${SHIM}/ir-differs"
 
 # cargo が見える PATH で煙試験を流すと失敗する（Rust の無い環境、という前提を保つ）
 RUSTY="${TMP_DIR}/rusty"

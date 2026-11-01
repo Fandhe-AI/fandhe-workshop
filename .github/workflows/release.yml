@@ -55,6 +55,27 @@ jobs:
         run: rustup toolchain install
       - name: Verify toolchain version
         run: bash scripts/ci-rust-toolchain.sh
+      # 実行ファイルへ同梱する web の配信物を作るために要る（scripts/build-pack-preview.sh。TASK-429 2/3）。
+      # 版は docs/toolchain.md と Cargo.lock の wasm-bindgen に揃える（ci.yml の WASM_BINDGEN_VERSION と同じ値）。
+      # SHA256 は aarch64-apple-darwin の資産を実際にダウンロードして実測し、リリース API の digest と一致することを確認した値（2026-11-01）
+      - name: Install pinned wasm-bindgen CLI
+        env:
+          WASM_BINDGEN_VERSION: "0.2.128"
+          WASM_BINDGEN_SHA256: "67ba17f260977725c0b541b516dbb5153538140f079a900329fb6077661b47ab"
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/wasm-bindgen/bin"
+          work_dir="${RUNNER_TEMP}/wasm-bindgen/work"
+          mkdir -p "${bin_dir}" "${work_dir}"
+          cd "${work_dir}"
+          wb_dir="wasm-bindgen-${WASM_BINDGEN_VERSION}-aarch64-apple-darwin"
+          wb_archive="${wb_dir}.tar.gz"
+          curl -fsSLo "${wb_archive}" \
+            "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${wb_archive}"
+          echo "${WASM_BINDGEN_SHA256}  ${wb_archive}" | shasum -a 256 -c -
+          tar -xzf "${wb_archive}" "${wb_dir}/wasm-bindgen"
+          install -m 0755 "${wb_dir}/wasm-bindgen" "${bin_dir}/wasm-bindgen"
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
       - name: Build, verify and package
         run: make build-pack-release
       # public の repo の artifact はログインした利用者なら取得できる。公開の判断は人の承認の後に行うため保持を短くする
