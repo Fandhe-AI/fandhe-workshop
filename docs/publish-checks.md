@@ -259,13 +259,27 @@ D-28 の代わりの確認は、満たしたと扱ってよい基準を広げる
 | 承認 | 未承認（承認者: ユーザー（リポジトリの管理者）） |
 | 次回 | 公開する版で `release.yml` を流し、下の関門を満たしたうえで流し直す |
 
+### 記録 2（2026-11-01。`release.yml` の実ビルド）
+
+| 項目 | 内容 |
+|---|---|
+| 確かめた版 | `main` の `dc7a197b`（#1957 の `THIRD-PARTY-LICENSES` の同梱を含む）。成果物の名前の版は `0.0.0` で、公開する版ではない |
+| 方法 | `release.yml` の run 41328464847（`macos-latest`。image は `macos-26-arm64`。2026-11-01T16:51:33Z〜16:53:45Z）の成果物を `gh run download` で取得し、手元（Linux）で照合した |
+| 結果: 照合 | `shasum -a 256 -c` が OK（tar.gz の sha256 は `ff2c27c4054a1c269f6275576aa617e458ce1c70b6ce9b25f98ddee8963a58e5`） |
+| 結果: 中身 | tar.gz の中は `fandhe-pack`・`README.txt`・`LICENSE-MIT`・`LICENSE-APACHE`・`THIRD-PARTY-LICENSES` の 5 つ。`fandhe-pack` は Mach-O 64-bit arm64（4,613,392 バイト）。`README.txt` は `tools/pack-release/README.txt` と、2 つのライセンスの本文は repo 直下のものとバイト単位で一致した |
+| 結果: 依存のライセンス文 | `THIRD-PARTY-LICENSES` は 43 crate で、同じ commit の手元で `scripts/gen-third-party-licenses.sh --target aarch64-apple-darwin` が作ったものとバイト単位で一致した。ライセンスのファイルを持たない `fandhe-frontend-*` の 7 件は、確認済みの告知（著作権者の行 `Fandhe-AI / fandhe-frontend contributors`）で補われていた |
+| 結果: ビルドのログ | 動的にリンクするのは `/usr/lib/libSystem.B.dylib` だけ。Rust の無い `PATH` での煙試験（`validate`・`test`・`preview`）が 3 つとも ok |
+| 確かめていないこと | 人の Mac での quarantine を外した起動と Gatekeeper の画面（下の「限界」）。煙試験は runner の上で流したもので、配布した tar.gz を別の Mac で展開して動かしてはいない |
+| 確かめた人 | AI（Claude Code。自動運転）による機械の照合。人の確認は未実施 |
+| 承認 | 未承認（承認者: ユーザー（リポジトリの管理者）） |
+
 ### 公開の関門
 
 次がすべて揃うまで公開しない。
 
 1. SAFE-38（TASK-170）の記録が、公開する版で流し直され、ユーザーが承認している。「SAFE-38 公開前の安全性の確認」の記録 1 は試験用の教材での予行で、未承認であり、対象は web の配信物だけである。実行ファイルは含まない
 2. LIC-12（TASK-139・TASK-794）の照合を、公開する版で行っている
-3. 本節の記録 1 を、ユーザーが承認している
+3. 本節の記録 1・記録 2 を、ユーザーが承認している
 4. 下の「ユーザーが決める事項」が決まっている
 
 ### 公開の手順（ユーザーが行う）
@@ -295,7 +309,7 @@ tag の名前と版は TASK-791 の決定に従う。
 - 案内文は、人が実機で quarantine を外して起動することをまだ確かめていない。Gatekeeper の画面は誰も観察していない
 - Apple シリコン以外は対象外（TASK-98・D-19 の結果を待つ）
 - 試験の作成者・実装者・記録の作成者が同じ AI である
-- `THIRD-PARTY-LICENSES` の 43 件は Linux の手元（2026-11-01）で計算した値である。`release.yml` の run での照合は記録 2 で行う
+- `THIRD-PARTY-LICENSES` は、記録 2 で `release.yml` の run の成果物と手元の生成がバイト単位で一致することを確かめた。照合は `dc7a197b` の 1 回だけで、`Cargo.lock` が変わったら作り直す
 - ライセンス文の生成の前提は `cargo fetch --locked` である（`cargo metadata` を offline で流すため）
 - wasm-bindgen の CLI が生成する JS の glue は、wasm-bindgen の crate の区画で扱っている
 - 確認済みの告知の写しは取得した時点（2026-11-01）の上流の内容である。上流が告知を変えても自動では追従しない。`fandhe-frontend-*` 以外でライセンスのファイルを持たない依存が増えると、生成器が失敗するので、告知を確かめて一覧に足す
