@@ -82,6 +82,12 @@ mutate "入力欄を出す写し" "${W}" 's/input_field: hidden/input_field: sho
 mutate "command_prefix を消した写し" "${W}" '/command_prefix:/d' profile
 mutate "ビューの切り替えを出す写し" "${W}" 's/view_tabs: hidden/view_tabs: shown/' left_pane
 mutate "コマンドを 1 件持つ写し" "${W}" 's/^commands: {}/commands: { noop: { args: [] } }/' commands
+mutate "接頭辞を ! にした写し（採らなかった読み）" "${W}" 's/command_prefix: ""/command_prefix: "!"/' profile
+mutate "commands の行を消した写し" "${W}" '/^commands: {}/d' ar12-reading
+R="docs/requirements.md"
+mutate "AR-12 の記録を満たしていないにした写し" "${R}" '/^| AR-12 |/s/AR-12 満たした（解釈つき）/AR-12 満たしていない/' ar12-reading
+mutate "AR-12 の決定の日付を変えた写し" "${R}" '/^| AR-12 |/s/D-93（2026-11-02）/D-93（2026-11-03）/' ar12-reading
+mutate "AR-12 の行を消した写し" "${R}" '/^| AR-12 |/d' ar12-reading
 mutate "ビューを 1 件足した写し" "${W}" "${SED_VIEWS}" views
 mutate "文面に禁止語を足した写し" "chapters/ch-request/st-1.md" 's/^# 状況を確認する/# 状況を確認する（掲示板）/' no-board-words
 mutate "開始点を 1 件足した写し" "chapters/ch-request/chapter.yaml" "${SED_STARTS}" starts

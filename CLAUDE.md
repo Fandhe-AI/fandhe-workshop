@@ -165,7 +165,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-measure-wasm-size` | 測定の様式の検証と実ビルドの回帰テスト（遅く、CI・フックには入れない） |
 | `make check-generic-words` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（`tools/check-generic-words.mjs`。CI 未組み込み） |
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
-| `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値と診断の試験（`scripts/check-second-pack.sh`。`E-PROFILE-NO-INPUT` は compile で確かめる。CI 未組み込み。cargo が要る。TASK-743） |
+| `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値と診断の試験（`scripts/check-second-pack.sh`。`E-PROFILE-NO-INPUT` は compile で確かめる。CI 未組み込み。cargo が要る。TASK-743。AR-12 の読みの記録と設定値の一致は TASK-756） |
 | `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |

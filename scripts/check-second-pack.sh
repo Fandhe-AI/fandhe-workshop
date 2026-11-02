@@ -7,8 +7,10 @@
 # Rust・Cargo.toml・Cargo.lock には触れない（エンジンの差分 0 の数え方に入るため。試験は scripts/ の側に置く）。
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
-#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / vocab /
-#   no-board-words / test / no-input-command / no-input-text
+#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / ar12-reading（TASK-756。SECOND-22）/
+#   vocab / no-board-words / test / no-input-command / no-input-text
+# ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
+# 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
 # 捨てる）。そのため変種の確認は compile で行う。
 #
@@ -133,6 +135,40 @@ jq_is left_pane "${IR}" '.pack.left_pane == {"world_list":"hidden","view_tabs":"
 jq_is starts "${IR}" '(.starts | type == "array") and (.starts | length == 1)' "starts is not exactly 1 entry"
 jq_is chapters "${IR}" '([.nodes[] | select(.scope == "main") | .unit] | unique | length) == 1' "chapter count is not 1"
 jq_is views "${IR}" '((.views | keys) == ["v-doc"]) and ([.views[].kind] | unique == ["document"]) and ((.nodes | length) >= 1) and ([.nodes[] | .step.views == ["v-doc"]] | all)' "views are not only v-doc (document) with every step on [v-doc]"
+
+# ar12-reading: AR-12 の読み（D-93）の記録・ソースの設定値・IR の設定値の 3 つがそろうこと（SECOND-22）。
+# 理由は固定の英語の文だけを出し、記録の本文は出さない。記録が読めないときも fail-closed で FAIL にする。
+REQ="${PACK}/docs/requirements.md"
+ar12_ok=1
+if [ ! -f "${REQ}" ]; then
+  ar12_ok=0
+else
+  ar12_rows="$(grep -c '^| AR-12 |' "${REQ}" || true)"
+  if [ "${ar12_rows}" != "1" ]; then
+    ar12_ok=0
+  else
+    ar12_row="$(grep '^| AR-12 |' "${REQ}")"
+    # shellcheck disable=SC2016 # 記録の行のバッククォートは字句どおりの固定文字列（展開しない）
+    for needle in 'コマンドを持たない形' '`command_prefix: ""`' '`commands: {}`' 'D-93（2026-11-02）' 'SECOND-22' 'AR-12 満たした（解釈つき）'; do
+      printf '%s' "${ar12_row}" | grep -qF -- "${needle}" || ar12_ok=0
+    done
+    if printf '%s' "${ar12_row}" | grep -qF -- '満たしていない'; then
+      ar12_ok=0
+    fi
+  fi
+fi
+if [ "$(grep -cE '^[[:space:]]+command_prefix: ""([[:space:]]|$)' "${PACK}/workshop.yaml" || true)" != "1" ] \
+  || [ "$(grep -cE '^commands: \{\}([[:space:]]|$)' "${PACK}/workshop.yaml" || true)" != "1" ]; then
+  ar12_ok=0
+fi
+if ! printf '%s' "${IR}" | jq -e '.pack.profile.command_prefix == "" and .commands == {}' >/dev/null 2>&1; then
+  ar12_ok=0
+fi
+if [ "${ar12_ok}" -eq 1 ]; then
+  pass ar12-reading
+else
+  fail ar12-reading "AR-12 reading record, workshop.yaml and IR settings do not agree (no-command form)"
+fi
 
 # 章のディレクトリ数も確かめる（IR とファイルの両面）
 chapter_dirs=0
