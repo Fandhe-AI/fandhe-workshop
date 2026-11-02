@@ -1,10 +1,16 @@
 # 骨格。Step は st-1 だけで、st-2〜st-8 は TASK-745・TASK-746 が足す。
-# 開始点の effects（練習データの行を作る put）は TASK-744 が足す。
+# 開始点の effects で、練習データ fx-draft の 5 行（状態・宛先・範囲・見てほしい点・期限）を作る（TASK-744）。
 id: ch-request
 title: レビューの頼み方
 starts:
   - id: s-1
     node: st-1
+    effects:
+      - put: { path: review/status, fixture: fx-draft, attrs: { title: 依頼文の下書き, state: 下書き, detail: まだ何も決めていません } }
+      - put: { path: review/to, fixture: fx-draft, attrs: { title: 宛先, state: 未入力, detail: （まだ決めていません） } }
+      - put: { path: review/scope, fixture: fx-draft, attrs: { title: 頼む範囲, state: 未入力, detail: （まだ決めていません） } }
+      - put: { path: review/focus, fixture: fx-draft, attrs: { title: 見てほしい点, state: 未入力, detail: （まだ決めていません） } }
+      - put: { path: review/due, fixture: fx-draft, attrs: { title: 期限, state: 未入力, detail: （まだ決めていません） } }
 steps:
   - id: st-1
     title: 状況を確認する

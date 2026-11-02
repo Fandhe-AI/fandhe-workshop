@@ -10,7 +10,7 @@
 |---|---|
 | 例のディレクトリ（教材パックの根） | `template-workshop/examples/review-request/` |
 | この記録 | `template-workshop/examples/review-request/docs/requirements.md` |
-| 教材パックの本体（後続のタスク） | 同じディレクトリの直下（`workshop.yaml`・`chapters/`・`fixtures/`・`tests/`）。TASK-743 で骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置きました。残りは後続のタスクが足します |
+| 教材パックの本体（後続のタスク） | 同じディレクトリの直下（`workshop.yaml`・`chapters/`・`fixtures/`・`tests/`）。TASK-743 で骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置きました。残りは後続のタスクが足します。TASK-744 で `fixtures/draft.md` と文書のビューの 5 行（`review/status`・`review/to`・`review/scope`・`review/focus`・`review/due`）を足しました |
 
 - 第 2 教材をエンジン repo の雛形の例として置くことは D-91（2026-11-02）で決まり、SECOND-18 が置き場を「雛形のディレクトリの配下の例のディレクトリ」と定めています。名前は着手時に決める扱いだったため、ここで決めます。
 - `review-request` は試作の `pack.id` と同じです。公開の例 `docs/examples/<name>/` と同じく、例のディレクトリがそのまま教材パックの根になります。
@@ -102,6 +102,7 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 - AR-8 の「題の変化」は、14 入力では観察していません。作者の自己申告「部分的（G-4・H-3）」とは、読みの違いとして残します。
 - AR-12 の設定値を固定する試験は TASK-756 が担当します。
 - G-4・H-3 は忠実さの限界です（`docs/known-gaps.md`）。G-4 は語彙 1.4（EP-13）で本文を出せるようになりましたが、第 2 教材を本文を出す形に書き直すか（SECOND-14）は未決で、TASK-755 の担当とします。
+- TASK-744 では G-4・H-3 を 5 行の属性の形で受け入れました（D-31）。初期の属性は `title`・`state`・`detail` の 3 つで、行の中身の書き換えは TASK-745 が担当します。
 
 ## 8. 照合の記録（2026-11-02）
 
