@@ -58,6 +58,8 @@ cat <<'EOF'
   test-serve                   scripts/test-serve.sh                   配信サーバ（tools/serve.mjs）の試験（node:test）
   check-generic-words          tools/check-generic-words.mjs           エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことを検査する（CI 未組み込み）
   test-check-generic-words     scripts/test-check-generic-words.sh     教材固有の語の検査自体の回帰テスト
+  check-second-pack            scripts/check-second-pack.sh            第 2 教材の骨格の設定値と診断の試験（CI 未組み込み。cargo が要る）
+  test-check-second-pack       scripts/test-check-second-pack.sh       上の試験自体の回帰テスト（変異を入れた写し。やや遅い）
   check-internal-info          tools/check-internal-info.mjs           社内固有の語（WORDS=<一覧のパス>）と認証情報の形を照合する（CI 未組み込み）
   check-internal-info-secrets  tools/check-internal-info.mjs           認証情報の形だけを照合する（語の照合は行わない。CI 未組み込み）
   test-check-internal-info     scripts/test-check-internal-info.sh     公開前の照合自体の回帰テスト
