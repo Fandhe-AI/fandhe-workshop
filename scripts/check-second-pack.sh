@@ -7,8 +7,11 @@
 # Rust・Cargo.toml・Cargo.lock には触れない（エンジンの差分 0 の数え方に入るため。試験は scripts/ の側に置く）。
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
-#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/ vocab /
-#   no-board-words / test / steps / row-owner / play-sync / row-asserts / alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746）
+#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
+#   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
+#   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746）
+# ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
+# 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
 # 捨てる）。そのため変種の確認は compile で行う。
 #
@@ -139,6 +142,40 @@ jq_is views "${IR}" '((.views | keys) == ["v-doc"]) and ([.views[].kind] | uniqu
 # すべて練習データ fx-draft（document）を指し、IR 全体に別の経路の put が無いことを固定する。
 # 架空の印の欠けは項目 validate（E-FICTIONAL-MARK）が検出するので、別の項目は作らない。
 jq_is doc-rows "${IR}" '([.starts[0].effects[]? | .put.path] == ["review/status","review/to","review/scope","review/focus","review/due"]) and ([.starts[0].effects[]? | (has("put") and .put.fixture == "fx-draft")] | all) and (([.. | objects | select(has("put")) | .put.path] | unique) == ["review/due","review/focus","review/scope","review/status","review/to"]) and ((.fixtures | keys) == ["fx-draft"]) and (.fixtures["fx-draft"].kind == "document") and ((.fixture_docs | keys) == ["fx-draft"])' "document rows are not exactly the 5 review/* puts on fx-draft (document)"
+
+# ar12-reading: AR-12 の読み（D-93）の記録・ソースの設定値・IR の設定値の 3 つがそろうこと（SECOND-22）。
+# 理由は固定の英語の文だけを出し、記録の本文は出さない。記録が読めないときも fail-closed で FAIL にする。
+REQ="${PACK}/docs/requirements.md"
+ar12_ok=1
+if [ ! -f "${REQ}" ]; then
+  ar12_ok=0
+else
+  ar12_rows="$(grep -c '^| AR-12 |' "${REQ}" || true)"
+  if [ "${ar12_rows}" != "1" ]; then
+    ar12_ok=0
+  else
+    ar12_row="$(grep '^| AR-12 |' "${REQ}")"
+    # shellcheck disable=SC2016 # 記録の行のバッククォートは字句どおりの固定文字列（展開しない）
+    for needle in 'コマンドを持たない形' '`command_prefix: ""`' '`commands: {}`' 'D-93（2026-11-02）' 'SECOND-22' 'AR-12 満たした（解釈つき）'; do
+      printf '%s' "${ar12_row}" | grep -qF -- "${needle}" || ar12_ok=0
+    done
+    if printf '%s' "${ar12_row}" | grep -qF -- '満たしていない'; then
+      ar12_ok=0
+    fi
+  fi
+fi
+if [ "$(grep -cE '^[[:space:]]+command_prefix: ""([[:space:]]|$)' "${PACK}/workshop.yaml" || true)" != "1" ] \
+  || [ "$(grep -cE '^commands: \{\}([[:space:]]|$)' "${PACK}/workshop.yaml" || true)" != "1" ]; then
+  ar12_ok=0
+fi
+if ! printf '%s' "${IR}" | jq -e '.pack.profile.command_prefix == "" and .commands == {}' >/dev/null 2>&1; then
+  ar12_ok=0
+fi
+if [ "${ar12_ok}" -eq 1 ]; then
+  pass ar12-reading
+else
+  fail ar12-reading "AR-12 reading record, workshop.yaml and IR settings do not agree (no-command form)"
+fi
 
 # 章のディレクトリ数も確かめる（IR とファイルの両面）
 chapter_dirs=0

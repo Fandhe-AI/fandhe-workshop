@@ -11778,6 +11778,17 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.441 第 2 教材の AR-12 の読みの記録と設定値の固定（TASK-756。SECOND-22・SECOND-9）
+
+AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは、D-93（2026-11-02。TASK-7）でコマンドを持たない形を含む読み（案 1）に決まった。記録は「AR-12 満たした（解釈つき）」で、教材は変えていない。採らなかった読み（`/` 以外の接頭辞を実際に使う）では `commands` に 1 件以上を要し、SECOND-7・SECOND-9 の期待が成り立たなくなる。採った読みでは SECOND-7・SECOND-9 への影響は無い。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
+
+- 項目 `ar12-reading`（`scripts/check-second-pack.sh`）: (1) `docs/requirements.md` の `| AR-12 |` の行がちょうど 1 つで、読み・設定値・`D-93（2026-11-02）`・`SECOND-22`・`AR-12 満たした（解釈つき）` を含み `満たしていない` を含まない、(2) `workshop.yaml` に `command_prefix: ""` と `commands: {}` の行がそれぞれ 1 行ある（IR の既定値で `{}` になる場合と区別する）、(3) IR の `pack.profile.command_prefix == ""` かつ `commands == {}`。どれかが外れれば FAIL。理由は固定の英語の文で、記録の本文は出さない
+- 回帰テスト: 5 通りの変異を足した（合計 17 通り）。接頭辞を `!` にした写し → `profile`・`commands` の行を消した写し・記録を「満たしていない」にした写し・決定の日付を変えた写し・AR-12 の行を消した写し → `ar12-reading`
+- 実行（2026-11-02）: `make check-second-pack` は 16 項目すべて PASS、`make test-check-second-pack` は全件 ok
+- 限界 1: 読みの是非は人の決定（D-93）に依り、試験が確かめるのは記録と設定値の一致だけである
+- 限界 2: 記録の照合は固定文字列の一致で、表の書式を変えると読めなくなる
+- 限界 3: CI には組み込んでいない（TASK-85）。画面での入力欄・コマンドの不在の観察は SECOND-7 側（TASK-749）に委ねる
+
 ### 5.440 第 2 教材の練習データと文書のビューの 5 行の試験（TASK-744。SECOND-5・SECOND-8）
 
 `template-workshop/examples/review-request/fixtures/draft.md`（見出しに【架空】を置いた練習データ）を足し、`workshop.yaml` に `fixtures`（`fx-draft`・`document`）を宣言した。開始点 `s-1` の `effects` で、`review/status`・`review/to`・`review/scope`・`review/focus`・`review/due` の 5 行を `put` する（属性は `title`・`state`・`detail` の 3 つ）。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
