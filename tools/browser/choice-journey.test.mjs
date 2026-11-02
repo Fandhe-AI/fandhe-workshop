@@ -13,6 +13,9 @@
 //   A  派生版の設定を開始から完走まで進める。judge が空（2 節点が達成・復習で達成・入力の口が無い・ビューの切り替えが見えない・通信とエラー 0 件）
 //   B  そのままの例の設定。最後の Step に入るまでで止まる期待（PACK-22 の停止の位置）を judge が合格にする
 //   C  道具の対照。A の開始の時点のページに入力欄・style 属性・ボタンを足すと、測った値が増える
+//   E  第 2 教材（template-workshop/examples/review-request。TASK-749 1/3）の入力の領域と右の領域。そのままの教材は 2 つ目の Step の確認（指す）で止まる位置を、
+//      派生版（world_list を shown、練習データの 5 行を st-1 の受付へ移す）は完走を、judge が合格にする。入口は選択肢のボタンだけ・案内 4 種と入力の注意書きの文字が無い・
+//      見える input は読み込み用のファイル選択 1 つ・右の領域の操作要素（停止・保存・書き出し・読み込み）が出る。案内レベルのボタンは製品の画面に無く、ヒントを開くは教材がヒントを持たないので出ない
 //   D  別の教材の設定（IR で指定。3 Step・選択肢・指す・承認）を同じ道具で完走させる（設定を差し替えるだけで別の教材にも使える証拠）
 // 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。TASK-749 の担当）、
 // 本物の第 2 教材、人が画面を見た評価。
@@ -46,6 +49,10 @@ let stepInfo;
 let cfgDerived;
 let cfgAsIs;
 let cfgOther;
+let cfgRrAsIs;
+let cfgRrDerived;
+let irRrAsIs;
+let irRrDerived;
 
 const diag = (s) => console.log(`# diagnostic: ${s}`);
 
@@ -59,6 +66,10 @@ before(async () => {
   irAsIs = buildIr({ bin, config: cfgAsIs });
   irShown = buildIr({ bin, config: cfgDerived });
   irOther = buildIr({ bin, config: cfgOther });
+  cfgRrAsIs = loadConfig(cfgPath('review-request'));
+  cfgRrDerived = loadConfig(cfgPath('review-request-derived'));
+  irRrAsIs = buildIr({ bin, config: cfgRrAsIs });
+  irRrDerived = buildIr({ bin, config: cfgRrDerived });
   stepInfo = stepsOf(JSON.parse(irShown));
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
@@ -131,6 +142,21 @@ for (const csp of [true, false]) {
     diag(`PACK-22 / starts effects not applied by the screen: rows=${r.end.rows.count} stoppedAt=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'}`);
   });
 
+  test(`E: 第 2 教材の入力の領域と右の領域。そのままの教材は止まる位置、派生版は完走で judge が合格（${mode}）`, { timeout: 180000 }, async () => {
+    for (const [cfg, ir, completed] of [[cfgRrAsIs, irRrAsIs, false], [cfgRrDerived, irRrDerived, true]]) {
+      const { out: r, why } = await runWith(cfg, ir);
+      assert.deepEqual(why, [], `judge: no failed expectation (${cfg.name})`);
+      assert.equal(r.completed, completed);
+      for (const m of [r.start, r.end]) {
+        assert.equal(m.fileInputs.visible, 1, 'one visible file input');
+        assert.equal(m.fileInputs.inImport, 1, 'the file input is inside the import container');
+        assert.equal(m.notice.textLength, 0, 'input notice has no text');
+      }
+      assert.ok(r.start.parts['choice-btn'].visible > 0, 'choice buttons at start');
+      diag(`second-pack ${cfg.name} csp=${csp} stopped=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'} rows=${r.end.rows.count} hint-open=${r.end.parts['hint-open'].count} hint-box=${r.end.parts['shell-hint'].count} checkpoint-restore=${r.end.parts['checkpoint-restore'].visible} delete=${r.end.parts['shell-delete'].count}`);
+    }
+  });
+
   test(`D: 別の教材の設定（IR で指定）を同じ道具で完走させる（${mode}）`, { timeout: 120000 }, async () => {
     const { out: r, why } = await runWith(cfgOther, irOther);
     assert.deepEqual(why, [], 'judge: no failed expectation');
@@ -141,6 +167,21 @@ for (const csp of [true, false]) {
     diag(`other csp=${csp} steps=${r.stepCount} view-buttons=${r.end.viewSwitch.visibleButtons}`);
   });
 }
+
+// 道具の対照で judge に渡す、画面以外の欄が合格の値の結果（画面の欄だけを差し替えて理由を見る）。
+const baseResult = () => ({
+  completed: true,
+  stoppedAt: null,
+  review: Array.from({ length: 8 }, (_, i) => ({ step: `s${i}`, achieved: 'true' })),
+  nextChapter: 0,
+  safety: [],
+  external: 0,
+  pageErrors: 0,
+  consoleErrors: 0,
+  cspWarnings: 0,
+  run: { raw: 0, mouse: 1 },
+  irFetch: [200],
+});
 
 test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測った値が増える（CSP あり）', { timeout: 120000 }, async () => {
   const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irShown });
@@ -169,6 +210,8 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
           right.appendChild(b);
         });
         const after = await measureScreen(page);
+        assert.equal(after.parts['draft-input'].count, before.parts['draft-input'].count + 1);
+        assert.equal(after.parts['stop-btn'].visible, before.parts['stop-btn'].visible);
         assert.equal(after.inputArea.absent['draft-input'], before.inputArea.absent['draft-input'] + 1);
         assert.equal(after.inputArea.absent.textarea, before.inputArea.absent.textarea + 2);
         assert.equal(after.inputArea.absent.select, before.inputArea.absent.select + 1);
@@ -176,6 +219,33 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
         assert.equal(after.inputArea.visibleInputs.length, before.inputArea.visibleInputs.length + 2);
         assert.equal(after.inlineStyle.attrs, before.inlineStyle.attrs + 1);
         assert.equal(after.rightButtons.length, before.rightButtons.length + 1);
+        // 案内・ファイル選択・注意書きの文字・停止の非表示・承認のボタンも測った値に出て、judge が理由を返す。
+        await page.evaluate(() => {
+          const right = document.querySelector('[data-testid="shell-right"]');
+          const add = (tag, id, attrs = {}) => {
+            const e = document.createElement(tag);
+            if (id) e.setAttribute('data-testid', id);
+            for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+            e.textContent = 'x';
+            right.appendChild(e);
+            return e;
+          };
+          add('p', 'key-hint');
+          add('input', null, { type: 'file' });
+          add('button', 'approval-btn');
+          const n = document.querySelector('[data-testid="input-notice"]');
+          if (n) n.textContent = 'probe';
+          document.querySelector('[data-testid="stop-btn"]')?.setAttribute('hidden', '');
+        });
+        const probed = await measureScreen(page);
+        assert.equal(probed.parts['key-hint'].count, 1);
+        assert.equal(probed.parts['approval-btn'].visible, 1);
+        assert.equal(probed.fileInputs.visible, after.fileInputs.visible + 1);
+        assert.equal(probed.fileInputs.inImport, after.fileInputs.inImport, 'added file input is outside the import container');
+        assert.ok(probed.notice.textLength > 0);
+        assert.equal(probed.parts['stop-btn'].visible, 0);
+        const why = judge(cfgRrDerived, { ...baseResult(), start: probed, end: probed });
+        for (const w of ['entryPorts@end', 'inputGuidesAbsent@end', 'inputNotice@end', 'fileInputs@end', 'controls.stop@end']) assert.ok(why.includes(w), `judge reports ${w}`);
       } finally {
         await context.close();
       }

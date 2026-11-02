@@ -10,11 +10,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compilePack, ABSENT } from './choice-journey.mjs';
+import { compilePack, ABSENT, PORTS, GUIDES, CONTROLS } from './choice-journey.mjs';
 
 /** 設定の形・値が不正なとき。CLI は終了コード 2（誤用）に対応づける。 */
 export class ConfigError extends Error {}
 
+// 見える箱を持たない入れ物（`shell-import` は label と input を包み、`shell-hint` は段が無いと空）。controls は DOM にあることで判定する。
+const CONTAINERS = ['import', 'hintContainer'];
 const STATUSES = ['entered', 'accepted', 'achieved'];
 // crates/web/src/terminal_area.rs の DECISION_VALUES と同じ 3 値。
 const DECISIONS = ['approve', 'reject', 'revise'];
@@ -111,7 +113,10 @@ function parseSequence(v, where) {
 
 function parseExpect(v, where) {
   if (!isObj(v)) fail(where, 'must be an object');
-  onlyKeys(v, ['completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible'], where);
+  onlyKeys(v, [
+    'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
+    'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
+  ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
     if (out.completed) fail(`${where}.stoppedAfter`, 'only with completed false');
@@ -121,7 +126,31 @@ function parseExpect(v, where) {
   }
   for (const k of ['reviewAchieved', 'nextChapter', 'viewSwitchVisible']) if (v[k] !== undefined) out[k] = count(v[k], `${where}.${k}`);
   if (v.inputAreaAbsent !== undefined) out.inputAreaAbsent = bool(v.inputAreaAbsent, `${where}.inputAreaAbsent`);
+  for (const k of ['entryPorts', 'entryAtStart']) if (v[k] !== undefined) out[k] = portList(v[k], `${where}.${k}`);
+  if (out.entryPorts !== undefined && out.entryPorts.length === 0) fail(`${where}.entryPorts`, 'must not be empty');
+  if (v.inputGuidesAbsent !== undefined) out.inputGuidesAbsent = bool(v.inputGuidesAbsent, `${where}.inputGuidesAbsent`);
+  if (v.fileInputs !== undefined) {
+    out.fileInputs = count(v.fileInputs, `${where}.fileInputs`);
+    if (out.fileInputs > 10) fail(`${where}.fileInputs`, 'out of range');
+  }
+  if (v.controls !== undefined) {
+    if (!isObj(v.controls)) fail(`${where}.controls`, 'must be an object');
+    onlyKeys(v.controls, Object.keys(CONTROLS), `${where}.controls`);
+    out.controls = Object.fromEntries(Object.entries(v.controls).map(([k, b]) => [k, bool(b, `${where}.controls.${k}`)]));
+  }
   return out;
+}
+
+/** 入口の部品の名前の列。PORTS の閉じた一覧から選び、重複を許さない。 */
+function portList(v, where) {
+  if (!Array.isArray(v) || v.length > PORTS.length) fail(where, 'must be an array');
+  const seen = new Set();
+  for (const id of v) {
+    if (typeof id !== 'string' || !PORTS.includes(id)) fail(where, 'unknown port');
+    if (seen.has(id)) fail(where, 'duplicate port');
+    seen.add(id);
+  }
+  return [...v];
 }
 
 /** 設定ファイルを読み、検証し、パスを解決して返す。不正は ConfigError。 */
@@ -238,6 +267,22 @@ export function judge(config, r) {
       if (!m.inputArea.visibleInputs.every((x) => x.endsWith('|input|file'))) why.push(`visibleInputs@${label}`);
     }
     if (e.viewSwitchVisible !== undefined && m.viewSwitch.visibleButtons !== e.viewSwitchVisible) why.push(`viewSwitchVisible@${label}`);
+    const seen = (id) => (m.parts?.[id]?.visible ?? 0) > 0;
+    // 見えている入口は、許した部品と停止のボタンだけ（approval-btn・入力欄・候補などは許したときだけ）。
+    if (e.entryPorts !== undefined && PORTS.some((id) => id !== 'stop-btn' && seen(id) && !e.entryPorts.includes(id))) why.push(`entryPorts@${label}`);
+    if (label === 'start' && e.entryAtStart !== undefined && !e.entryAtStart.every(seen)) why.push('entryAtStart');
+    if (e.inputGuidesAbsent === true) {
+      if (GUIDES.some((id) => (m.parts?.[id]?.count ?? 1) !== 0)) why.push(`inputGuidesAbsent@${label}`);
+      // 注意書きは常に 1 個あるが、入力欄がないので文字は空でなければならない。
+      if ((m.notice?.textLength ?? 1) !== 0) why.push(`inputNotice@${label}`);
+    }
+    if (e.fileInputs !== undefined && (m.fileInputs?.visible !== e.fileInputs || m.fileInputs?.inImport !== e.fileInputs)) why.push(`fileInputs@${label}`);
+    for (const [name, want] of Object.entries(e.controls ?? {})) {
+      const part = m.parts?.[CONTROLS[name]] ?? { count: 0, visible: 0 };
+      // 入れ物（中身が空だと箱が 0 になる）は DOM にあること、ボタンは見えることを「ある」とする。「ない」は DOM に 0 件。
+      const present = CONTAINERS.includes(name) ? part.count > 0 : part.visible > 0;
+      if (present !== want || (!want && part.count !== 0)) why.push(`controls.${name}@${label}`);
+    }
   }
   if ((r.safety ?? []).length !== 0) why.push('safety');
   if (r.external !== 0) why.push('external');
