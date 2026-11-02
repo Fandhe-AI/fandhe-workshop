@@ -1,0 +1,8 @@
+id: VER16-1
+package: fandhe-workshop-web
+test: ver16_unconvertible_history
+target: crates/web/src/view_only_notice.rs
+find:             "この履歴は、今の教材より古い教材の形式で記録されています。古い形式の履歴は変換しないため、続きからは進められません。",
+replace:             "",
+expect-fail: ver16_v1_history_on_v2_pack_is_view_only_with_reason
+note: 教材の形式が古い履歴の表示だけの通知から理由の文が消える（VER-16・TASK-184 2/2）
