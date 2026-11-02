@@ -1,6 +1,6 @@
 # 第 2 教材「レビューの頼み方」の要件の記録
 
-版 2（2026-11-02）。TASK-742（#1973）で作りました。TASK-745 で Step 群と模範解答を足しました。
+版 3（2026-11-02）。TASK-742（#1973）で作りました。TASK-745 で Step 群と模範解答を、TASK-746 1/2 で誤答の 8 場面を足しました。
 
 この文書は、第 2 教材の本実装（TASK-743〜TASK-756）が始まる前に、題材・制約・Step 一覧・学習目標を固定するための記録です。後続のタスクはこの記録を引いて作り、足していきます。特に TASK-755 は AR-8 の読みの記録の確認、TASK-756 は AR-12 の読みの記録の確認と設定値の試験との結びつけを担当します。
 
@@ -114,6 +114,22 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 - `fandhe-pack test` は `asserts` を判定しないため（AUTHOR-4）、行の変化の期待は `tests/row-asserts.json` に置き、`scripts/check-second-pack.sh` が IR と照合します。`test` が `asserts` を判定するようになったら `tests/playthrough.yaml` へ移します。
 - 限界: `test` も画面も開始点の `effects` を適用しないため、実行時の世界状態では行の変化を観察できません。画面の確認は TASK-749 です。
 - 件数の基準値は `tests/baseline.txt` に置きます。
+
+## 7b. TASK-746 1/2 の記録（2026-11-02）
+
+- 8 場面の規則と文面を足しました。対応は次のとおりです（`chapter.yaml` の規則・`workshop.yaml` の文面）。
+  - 場面 1: st-1・3・4・5・7・8 の `correct: false` の選択肢 11 個の `on_wrong`（`rj-q1-*`・`rj-q3-*`・`rj-q4-*`・`rj-q5-*`・`rj-q7-*`・`rj-q8-unsent`）
+  - 場面 2: st-2 の `r-all`（`rj-to-all`）
+  - 場面 3: st-2・st-6 の `on_miss`（`rj-miss-to`・`rj-miss-due`。TASK-745 で既に当たっている）
+  - 場面 4: st-5 の `r-ui-to`・`r-ui-scope`・`r-ui-focus`（`rj-row-filled`）
+  - 場面 5: st-6 の `r-tomorrow-large`（`when: chose st-3 opt-diff-tests`。`rj-due-short`。`r-tomorrow` より前）
+  - 場面 6: st-6 の `r-asap`（`rj-due-vague`。`bad_arg_shape`）
+  - 場面 7: st-7 の `r-skip`（`rj-skip`）
+  - 場面 8: st-8 の `r-revise`（`rj-revise`。`wrong_order`）
+- 拒否の規則は `effects` を持たず、拒否のあと左の行は変わりません（データ上の宣言。エンジンの拒否も状態を変えません）。
+- 試作にあって 8 場面に入らない拒否（`opt-boss`・`opt-repo`・`opt-everything`・`opt-taste`・ヒント）は足していません。正は SECOND-12 の 8 場面です。
+- 限界: 場面 5 は、今のエンジンが入力の判定で `when` を評価しないため、宣言だけで動きません（`docs/testing.md` 5.443）。
+- TASK-746 2/2 への申し送り: 試作の誤入力の `expect_rejection` の欄は今の `test` では `E-PARSE` になります（`pre` は読めます）。`tests/playthrough.yaml` の誤入力と `tests/baseline.txt` の更新は 2/2 の担当です。
 
 ## 8. 照合の記録（2026-11-02）
 

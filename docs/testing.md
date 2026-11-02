@@ -11814,6 +11814,20 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 - `test` が `asserts` を判定するようになったら、`row-asserts.json` を `tests/playthrough.yaml` の `asserts` へ移す
 - 誤答・拒否の 8 場面は TASK-746 が担当する。試験と実装の作成者が同じ AI である
 
+### 5.443 第 2 教材の誤答の 8 場面の規則と文面（TASK-746 1/2。SECOND-12）
+
+`template-workshop/examples/review-request/` に、誤った選択への応答の 8 場面（確認の誤答の解説・チーム全員の拒否・`point_at` の外れ・埋まった行を押す・条件つきの拒否・「できるだけ早く」・見直さずに送る・「直す」）の規則と文面を足した。拒否の規則は `outcome` に `kind` と `rejection` だけを持ち、`effects` を書かない（拒否のあと左の行は変わらない）。`scripts/check-second-pack.sh` に 2 項目（`wrong-scenes`・`reject-keeps-rows`）、`scripts/test-check-second-pack.sh` に変異を 6 件足した。Rust・`Cargo.toml`・`Cargo.lock`・`tests/` は変えていない。
+
+- `wrong-scenes`: 固定の表で 8 場面の規則・文面 ID・分類を照合し、文面の `message`・`next_action` が空でないこと、場面 5 の `r-tomorrow-large` の `when` と、`r-tomorrow` より前にある並びを確かめる（畳み込みは `when` のある規則を除くため、並びを見られるのはこの項目だけ）
+- `reject-keeps-rows`: 拒否の規則がすべて `kind`・`rejection` だけで、1 件以上あること。`effects` を足した写しは項目 `reject-keeps-rows` で不合格になる
+- 変異: 条件の削除・分類の差し替え・文面の参照の差し替え・確認の誤答の解説の削除は `wrong-scenes`、拒否への `effects` の追加は `reject-keeps-rows`、`next_action` を空にすると `validate` で不合格
+- 実行（2026-11-02、手元）: `validate` 診断 0 件・Step 8、`test` 模範解答 2/2・誤入力 1/1・R-21 の空 0 件・R-22 の確認なしで達成 0 件、`check-second-pack` 全項目合格、`test-check-second-pack` 全件 ok
+
+#### 限界
+
+- 場面 5（条件つきの拒否）は `validate` を通るが、今のエンジンは入力の判定で規則の `when` を評価しない（`crates/core/src/accept.rs` の `judge_input` が `NoConditions` を渡す）。仮の誤入力で、条件に当たる入力が `accepted` になることを手元で確かめた。データの宣言までを固定し、動作の確認は含まない
+- 誤入力の通しと文面の確認は TASK-746 2/2、画面の確認は TASK-750。試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
+
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 
 `template-workshop/examples/review-request/` に教材パックの骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置き、設定値と診断を `scripts/check-second-pack.sh`（`make check-second-pack`）で固定した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（エンジンの差分 0。TASK-752）。
