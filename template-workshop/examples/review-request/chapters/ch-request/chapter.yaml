@@ -1,0 +1,30 @@
+# 骨格。Step は st-1 だけで、st-2〜st-8 は TASK-745・TASK-746 が足す。
+# 開始点の effects（練習データの行を作る put）は TASK-744 が足す。
+id: ch-request
+title: レビューの頼み方
+starts:
+  - id: s-1
+    node: st-1
+steps:
+  - id: st-1
+    title: 状況を確認する
+    do: 依頼文を作り始める
+    body: st-1.md
+    lo: [LO-1, LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-start, label: 下書きを作り始める }
+    rules:
+      - id: r-start
+        on: { option: opt-start }
+        outcome: { kind: accept }
+    confirm:
+      kind: answer
+      on_wrong: rj-miss-q
+      options:
+        - { id: ans-ready, label: 相手と範囲を決めてから書く, correct: true }
+        - { id: ans-feel, label: 気持ちだけを伝えて頼む, correct: false }
+        - { id: ans-code, label: 直した中身をそのまま貼る, correct: false }
+    final: true                 # 暫定。TASK-745 が最終 Step を st-8 に移す

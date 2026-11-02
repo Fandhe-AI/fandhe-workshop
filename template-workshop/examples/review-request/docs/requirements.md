@@ -10,7 +10,7 @@
 |---|---|
 | 例のディレクトリ（教材パックの根） | `template-workshop/examples/review-request/` |
 | この記録 | `template-workshop/examples/review-request/docs/requirements.md` |
-| 教材パックの本体（後続のタスク） | 同じディレクトリの直下（`workshop.yaml`・`chapters/`・`fixtures/`・`tests/`）。このタスクでは作りません |
+| 教材パックの本体（後続のタスク） | 同じディレクトリの直下（`workshop.yaml`・`chapters/`・`fixtures/`・`tests/`）。TASK-743 で骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置きました。残りは後続のタスクが足します |
 
 - 第 2 教材をエンジン repo の雛形の例として置くことは D-91（2026-11-02）で決まり、SECOND-18 が置き場を「雛形のディレクトリの配下の例のディレクトリ」と定めています。名前は着手時に決める扱いだったため、ここで決めます。
 - `review-request` は試作の `pack.id` と同じです。公開の例 `docs/examples/<name>/` と同じく、例のディレクトリがそのまま教材パックの根になります。

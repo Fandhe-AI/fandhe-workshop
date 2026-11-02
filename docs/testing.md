@@ -11778,6 +11778,16 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
+
+`template-workshop/examples/review-request/` に教材パックの骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置き、設定値と診断を `scripts/check-second-pack.sh`（`make check-second-pack`）で固定した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（エンジンの差分 0。TASK-752）。
+
+- 項目（14 件。1 件 1 行の `PASS` / `FAIL`）: `validate`（診断 0 件・章 1）・`compile`・`profile`（`command_prefix: ""`・`input_field: hidden`）・`commands`（`{}`）・`appearance`（`reading`）・`left_pane`（`hidden` 2 つ）・`starts`（1 件）・`chapters`（1 つ）・`views`（`v-doc` の `document` だけ・全 Step が `views: [v-doc]`）・`vocab`（EP-10〜EP-12 の行）・`no-board-words`（固定の禁止語の一覧が 0 件）・`test`（全件完走）・`no-input-command`・`no-input-text`（変種が `E-PROFILE-NO-INPUT`）
+- 回帰テスト: `make test-check-second-pack`（誤用の拒否・変えていない写しの合格・8 通りの変異の写しが対応する項目で不合格。本物の `fandhe-pack` を使うため cargo が要る）
+- 限界 1: `E-PROFILE-NO-INPUT` を出すのは `compile` だけで、`validate`・`test` は出さない（2026-11-02 の実測。`validate` は `E-UNREACHABLE` などだけ）。変種の確認は `compile` で行った。`docs/diagnostics.md` の「validate（…`test` の関門でも出る）」の記述とは食い違う（別途扱う）
+- 限界 2: 骨格は Step が 1 つ（st-1）。st-2〜st-8・練習データ・文書のビューの行は TASK-744〜TASK-746。画面での値の測定は TASK-749。CI には組み込んでいない（TASK-85）
+- 限界 3: 禁止語の検査は固定の一覧の字句の一致で、CamelCase の中の語は見ない
+
 ### 5.438 公開の資料の例の扱いの反映（TASK-758。SECOND-17・D-92）
 
 2026-11-02 の D-92（`choice-only-pack` を残す）を `docs/examples/README.md` の「`choice-only-pack` の扱い」節に反映した。節には、決定、第 2 教材と似ている点、形式 B と語彙が決める部分と決めない部分、限界（例が第 2 教材の成否に効いた可能性は否定できない）を書いた。`MANIFEST.sha256` は作り直した（`README.md` の行だけが変わる）。

@@ -1,0 +1,10 @@
+playthroughs:
+  - id: pt-main
+    end: complete
+    segments:
+      - start: s-1
+        steps:
+          - { choice: opt-start, expect: accepted }
+          - { choice: ans-ready, expect: achieved }
+error_inputs:
+  - { id: e-wrong-answer, start: s-1, input: { choice: ans-feel, expect: "rejected:not_in_this_step" } }
