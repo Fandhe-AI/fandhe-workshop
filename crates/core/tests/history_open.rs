@@ -7,6 +7,8 @@
 //! 境界・判定の順序を `ver6_*`・`ver7_*` で固定する。`vocab_newer`・`format_newer`・`engine_newer`（開かない 3 種。
 //! TASK-174 3/3）は、向き・境界・順序・理由の分類を `ver7_*`・`refused_*` で固定する。
 //! VER-18（D-52・D-59）の線引きのうち採らなかった案は、変異 `VER18-1`・`VER18-2` でも固定する（TASK-177 1/2）。
+//! VER-16（D-52・D-59）: 版 1 の履歴は変換の規則を持たず、適用し直しが一致する場合でも写しが壊れている場合でも、
+//! 段 6 の `format_older` で表示だけにする（`ver16_*`。TASK-184 1/2）。
 
 mod common;
 
@@ -452,6 +454,45 @@ fn ver7_format_older_is_view_only() {
     assert_eq!(open(&new, &h2).verdict().disposition(), Disposition::Open);
     let new2 = format2(|v| v["pack"]["version"] = json!("0.0.2"));
     assert_eq!(axes(&open(&new2, &h2)), set(&["Content", "ContentHash"]));
+}
+
+/// 変換が自明に可能な履歴（適用し直しが写しと一致する）でも、版 1 の履歴は変換せず表示だけにする。
+/// 変換の規則を持たないことの固定（VER-16、D-52）。
+#[test]
+fn ver16_v1_history_is_not_converted_even_when_replay_would_match() {
+    let old = ir_of(&base_json());
+    let h = envelope(&old, within_st1(&old));
+    let new = format2(|_| {});
+    // 前提: 版 2 の教材で ops を適用し直すと写しに一致する（変換が自明に可能）。
+    let replayed =
+        fandhe_workshop_core::history_replay::replay(&new, initial(), &h.ops).expect("replay");
+    assert_eq!(replayed, h.snapshot);
+    let o = open(&new, &h);
+    assert_closed(&o, Disposition::ViewOnly, LoadReason::FormatOlder);
+    assert!(!matches!(o, Opened::Converted { .. } | Opened::Open { .. }));
+}
+
+/// 版 1 の履歴は適用し直し（段 8）に着く前に段 6 で閉じる。写しが壊れていても `replay_mismatch` にならない。
+#[test]
+fn ver16_v1_history_is_closed_before_replay() {
+    let old = ir_of(&base_json());
+    let mut h = envelope(&old, beyond_st1(&old));
+    h.snapshot
+        .drafts
+        .insert(StepUid("main/st-1".to_owned()).root(), "改ざん".to_owned());
+    // 対照: 同じ版どうしなら適用し直しの不一致で開かない。
+    assert_closed(
+        &open(&old, &h),
+        Disposition::Refused,
+        LoadReason::ReplayMismatch,
+    );
+    // 版 2 の教材で開くと、適用し直しに着かず format_older の表示だけになる。
+    let new = format2(|_| {});
+    assert_closed(
+        &open(&new, &h),
+        Disposition::ViewOnly,
+        LoadReason::FormatOlder,
+    );
 }
 
 #[test]

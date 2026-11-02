@@ -38,6 +38,7 @@
 | PACK-36 | 誤答の拒否に前後比較のビューを結ぶ語は無く、誤答のときに比較を自動で見せない。拒否文で前後の切り替え（ART-2）を案内するだけである。製品の画面には前後の切り替えの口が結線されていない（部品はあるが未結線。`docs/views.md` の 1 節）。2026-11-01 に画面で確かめた（ART-19）: 拒否文は見えるが、拒否の後に比較のビューは自動では開かず、案内が指す切り替えの操作要素は 0 件。選び直しはできる（根拠 `tools/browser/wrong-answer-compare.test.mjs`） | 足さないと決定（D-69、PACK-36）。ART-19 の証拠（拒否文の案内だけでは比較にたどり着けないという観察など）が出たら見直す | 誤答の拒否文（`message`・`next_action`）で前後の切り替えを案内する（`docs/pack-authoring.md` の「誤答の拒否で前後の比較を案内する」） | `crates/pack/tests/wrong_answer_compare.rs` の `pack36_`、`tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
 | ART-19 | 誤答の後に前後の比較を自動で見せない。拒否文は前後の切り替えを案内するが、製品の画面にその切り替えの操作要素が無く、案内の先を操作できない | 自動で開かないと決定（D-69、TASK-509（2026-10-31））。見直すかどうかは人の承認点。見直しの材料は下の ART-19 の節 | 本文・`do`・拒否文で、変わる箇所と変わらない箇所を言葉で書く | `tools/browser/wrong-answer-compare.test.mjs`（`docs/testing.md` 5.429） |
 | PACK-35 | 入力のない確認だけの Step は表せない。読むだけの Step は 1 択の `choice` と `answer` で書き、受講者の操作が 1 回増える | 足さないと決定（D-69、PACK-35） | 1 択の `choice` で書く（`docs/pack-authoring.md` の「読むだけの Step」） | `crates/pack/tests/read_only_step.rs` の `pack35_`・`tools/browser/read-only-step.test.mjs`（画面の操作の回数） |
+| VER-16 | `ir_format` 1 の履歴を `ir_format` 2 の教材で開くと、続きから進められず表示だけになる。エンジンは履歴の変換規則を持たない | 変換しないと決定（D-52、D-59。2026-10-12）。見直しの条件は実在する版 1 の履歴が出てきたとき。TASK-184 1/2 で見送りを記録 | 履歴を書き出して保管する。版 2 の項目を使わない教材パックは `ir_format` 1 のまま出す（PACK-24、D-59） | `crates/core/tests/history_open.rs` の `ver7_format_older_is_view_only`・`ver16_` |
 | PACK-34 | 保存・書き出しを Step の入力にする語 `env_action` のうち、`action: export` は宣言できるが、実行時にどの操作でも達成にならない。書いた教材はその Step で止まる。保存（`action: save`）の Step は、保存の成功で受付・達成になる | 語は足すと決定（D-69。語彙 1.5、TASK-64 1/2）。書き出しの実行時の結線は未実装 | 書き出しを Step の入力にしない。本文で書き出しを案内し、次へ進む Step は別の入力で達成にする（`docs/pack-authoring.md` の「保存・書き出しを入力とする Step」） | `crates/pack/tests/env_action_input.rs`・`crates/core/tests/env_action_save.rs` の `pack34_` |
 | PACK-19（両方無い） | 解消した（2026-10-22、#1709）。確認も持たない、入力も `use` も無い終端でない Step も `E-STRUCTURE` で拒否する。拒否の前に試験データを直した（#1708）。経緯の実測: 全面の拒否の影響は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台（30c1ff0 での実測） | 解消 | 不要（途中の Step には入力か `use` を書く。読むだけの Step は 1 択の `choice`） | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` |
 | SAFE-32（DLV-12） | 埋め込み（`iframe`）を隠す対策は JS が動くときだけ効き、HTTP ヘッダ（`frame-ancestors`・`X-Frame-Options`）ほど強くない。GitHub Pages は応答のヘッダを設定できないため、ヘッダの案は採れない。meta の CSP では `frame-ancestors`・`report-uri`・`sandbox` が効かず、その代わりは決めていない。同じ起源の親でも隠す | 決めた上で受け入れた限界（D-44、2026-10-12）。最上位のウィンドウでなければ内容を表示せず、操作を受け付けない対策を `static/app.js` に実装した（TASK-167 1/2） | 教材は最上位のウィンドウ（直接のリンク・新しいタブ）で開く | `tools/browser/iframe-embed.test.mjs`（`docs/testing.md` 5.413） |
@@ -358,6 +359,16 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 限界（別のオリジンでの読み込みと続きの操作。TASK-531 2/2）: チェックポイントの一覧の画面（TASK-529）がまだ無いため、「同じチェックポイントの一覧」は状態の `checkpoints` の一致で確かめ、チェックポイントの保存だけは試験用の口（`raw-trigger` の `{control:'save'}`）で行います。配信する設定は教材を持たないため、教材を動かす読み込みと続きの操作は試験の設定で確かめます。配布物（L2）での確認は TASK-114、macOS のファイル画面と公開サイトでの読み込みは TASK-342 が持ちます。Chromium だけです。
 
 根拠の試験: `tools/browser/history-continue.test.mjs`。記録は `docs/testing.md` の 5.244。
+
+## VER-16: 教材形式の版が古い履歴は変換しない
+
+限界: 履歴の `ir_format` が開く教材より古い（たとえば 1 の履歴を 2 の教材で開く）と、続きから進められず、理由 `format_older` で表示だけになります。エンジンは履歴の変換規則を持ちません。操作の流し直しが写しと一致する場合でも変換しません。
+
+理由: 変換しないと決定されています（D-52、D-59）。見直しの条件は、実在する版 1 の履歴が出てきたときです。変換の予定が無いため、TASK-184 は見送りを記録し、変換しないことを試験で固定する扱いにしました（2026-11-02）。
+
+回避: 履歴を書き出して保管します。版 2 の項目を使わない教材パックは `ir_format` 1 のまま出します（PACK-24、D-59）。表示だけの履歴を続ける経路が無い点は、VER-8 の節と同じです。
+
+根拠の試験: `crates/core/tests/history_open.rs` の `ver7_format_older_is_view_only`・`ver16_v1_history_is_not_converted_even_when_replay_would_match`・`ver16_v1_history_is_closed_before_replay`。記録は `docs/testing.md` の表（履歴の変換）です。
 
 ## SHELL-8: 上部の章の ID は教材の ID の綴りのまま出し、分岐のある章では M が飛ぶ
 
