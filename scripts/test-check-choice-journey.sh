@@ -3,6 +3,11 @@
 # ビルド・ブラウザは使わない。`make test-check-choice-journey` と CI の check ジョブから呼ばれる。TASK-748 2/2）。
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib.sh
+source "${DIR}/lib.sh"
+reject_args "$(basename "$0")" "$@"
+require_cmd mktemp
+require_cmd grep
 S="${DIR}/check-choice-journey.sh"
 fail=0
 

@@ -183,6 +183,14 @@ export function applyEdits(work, edits) {
     const w = `edits[${i}]`;
     const target = path.resolve(root, e.file);
     if (target !== root && !target.startsWith(root + path.sep)) throw new ConfigError(`${w}: file escapes the pack copy`);
+    // 親ディレクトリのシンボリックリンク経由で写しの外へ出ないよう、実体のパスでも包含を確かめる。
+    let real;
+    try {
+      real = fs.realpathSync(target);
+    } catch {
+      throw new ConfigError(`${w}: file is not a regular file in the pack`);
+    }
+    if (real !== target || !real.startsWith(root + path.sep)) throw new ConfigError(`${w}: file escapes the pack copy`);
     const st = fs.lstatSync(target, { throwIfNoEntry: false });
     if (!st || !st.isFile()) throw new ConfigError(`${w}: file is not a regular file in the pack`);
     const text = fs.readFileSync(target, 'utf8');

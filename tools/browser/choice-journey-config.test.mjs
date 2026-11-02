@@ -132,10 +132,15 @@ test('E: applyEdits は写しの外・存在しないファイル・ディレク
     fs.mkdirSync(path.join(work, 'sub'), { recursive: true });
     fs.writeFileSync(outside, 'secret\n');
     fs.symlinkSync(outside, path.join(work, 'link.txt'));
-    for (const file of ['../outside.txt', 'absent.txt', 'sub', 'link.txt']) {
+    // 親ディレクトリ側のシンボリックリンク（最終要素は通常のファイル）
+    fs.mkdirSync(path.join(dir, 'outdir'));
+    fs.writeFileSync(path.join(dir, 'outdir', 'f.txt'), 'secret\n');
+    fs.symlinkSync(path.join(dir, 'outdir'), path.join(work, 'dirlink'));
+    for (const file of ['../outside.txt', 'absent.txt', 'sub', 'link.txt', 'dirlink/f.txt']) {
       assert.throws(() => applyEdits(work, [{ file, from: 'secret', to: 'x' }]), ConfigError, file);
     }
     assert.equal(fs.readFileSync(outside, 'utf8'), 'secret\n', 'outside file untouched');
+    assert.equal(fs.readFileSync(path.join(dir, 'outdir', 'f.txt'), 'utf8'), 'secret\n', 'outside dir file untouched');
   });
 });
 

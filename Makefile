@@ -185,7 +185,7 @@ test-build-pack-preview: ## 上の作成スクリプトの回帰テスト（誤�
 	@scripts/test-build-pack-preview.sh
 
 check-choice-journey: ## 入力欄のない教材の完走の道具を設定ファイルで流す（既定は tools/browser/choice-journey/*.json 全件。1 本に絞る: CHOICE_JOURNEY_CONFIG=<path>。遅く、ブラウザを要する）。直接: scripts/check-choice-journey.sh [--config <file>]
-	@scripts/check-choice-journey.sh $(if $(CHOICE_JOURNEY_CONFIG),--config $(CHOICE_JOURNEY_CONFIG))
+	@scripts/check-choice-journey.sh $${CHOICE_JOURNEY_CONFIG:+--config "$${CHOICE_JOURNEY_CONFIG}"}
 
 test-check-choice-journey: ## 上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし）。直接: scripts/test-check-choice-journey.sh
 	@scripts/test-check-choice-journey.sh
