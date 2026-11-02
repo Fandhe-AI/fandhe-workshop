@@ -123,6 +123,16 @@ for (const [label, mutate] of BAD) {
   });
 }
 
+test('N: visibleViews は ViewKind の data-view の 7 種だけを通し、実在しない名前を拒否する', () => {
+  const real = ['file_tree', 'document', 'diff', 'task_tree', 'card_list', 'check_list', 'app_demo'];
+  const withViews = (views) => { const c = clone(base()); c.expect.visibleViews = views; return c; };
+  assert.deepEqual(parseConfig(withViews(real), "/tmp").expect.visibleViews, real);
+  for (const k of real) assert.deepEqual(parseConfig(withViews([k]), "/tmp").expect.visibleViews, [k]);
+  for (const k of ['tree', 'table', 'list', 'graph', 'timeline']) {
+    assert.throws(() => parseConfig(withViews([k]), "/tmp"), ConfigError, k);
+  }
+});
+
 test('N: 省略した欄の既定（csp 2 通り・viewport 1280x800）', () => {
   const c = parseConfig(base(), '/tmp');
   assert.deepEqual(c.csp, [true, false]);

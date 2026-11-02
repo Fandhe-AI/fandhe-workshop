@@ -25,8 +25,8 @@ const DECISIONS = ['approve', 'reject', 'revise'];
 const KINDS = ['choice', 'row', 'decide', 'next'];
 const MAX_SEQUENCE = 500;
 const MAX_EDITS = 32;
-// 文書ビューを含む 7 種（crates/web の ViewKind と同じ閉じた一覧）。印の値は MARK_TABLE の add・remove・change（印なしは書かず、marks に載せない行が印なし）。
-const VIEW_KINDS = ['document', 'tree', 'table', 'list', 'diff', 'graph', 'timeline'];
+// 文書ビューを含む 7 種（crates/web/src/artifact_view.rs の ViewKind::as_str と同じ閉じた一覧。data-view の値）。印の値は MARK_TABLE の add・remove・change（印なしは書かず、marks に載せない行が印なし）。
+const VIEW_KINDS = ['file_tree', 'document', 'diff', 'task_tree', 'card_list', 'check_list', 'app_demo'];
 const MARK_VALUES = ['add', 'remove', 'change'];
 const MAX_ROWS = 64;
 
