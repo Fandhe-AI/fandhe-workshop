@@ -11778,6 +11778,15 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.440 第 2 教材の練習データと文書のビューの 5 行の試験（TASK-744。SECOND-5・SECOND-8）
+
+`template-workshop/examples/review-request/fixtures/draft.md`（見出しに【架空】を置いた練習データ）を足し、`workshop.yaml` に `fixtures`（`fx-draft`・`document`）を宣言した。開始点 `s-1` の `effects` で、`review/status`・`review/to`・`review/scope`・`review/focus`・`review/due` の 5 行を `put` する（属性は `title`・`state`・`detail` の 3 つ）。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
+
+- 項目 `doc-rows`（`make check-second-pack` の 15 件目）: 開始点の `effects` が 5 経路と順序まで一致し、すべて `fx-draft` を指し、IR 全体の `put` の経路が 5 つだけで、`fixtures`・`fixture_docs` が `fx-draft`（`document`）だけであること。架空の印の欠けは項目 `validate`（`E-FICTIONAL-MARK`）が検出する
+- 回帰テスト（`make test-check-second-pack`）: 変異を 4 通り足して 12 通りにした（期限の行の削除・経路の改名・練習データの宣言の追加は `doc-rows`、【架空】の除去は `validate` で不合格）
+- 実行（2026-11-02）: `validate` は診断 0 件、`test` は 1/1 完走、`check-second-pack` は 15 項目すべて合格、回帰テストは全件 `ok`
+- 限界: 文書のビューは練習データの本文を出さず（G-4）、選んだ値を文中に差し込めない（H-3）。本文を出す形に直すかは TASK-755、行の中身の書き換えは TASK-745。`world_list: hidden` のとき画面に行が出るかの確認は TASK-749 に委ねる。`tests/playthrough.yaml` の `asserts` は `test` が判定しないため使わない。CI には組み込んでいない（TASK-85）
+
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 
 `template-workshop/examples/review-request/` に教材パックの骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置き、設定値と診断を `scripts/check-second-pack.sh`（`make check-second-pack`）で固定した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（エンジンの差分 0。TASK-752）。

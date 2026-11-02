@@ -85,6 +85,11 @@ mutate "コマンドを 1 件持つ写し" "${W}" 's/^commands: {}/commands: { n
 mutate "ビューを 1 件足した写し" "${W}" "${SED_VIEWS}" views
 mutate "文面に禁止語を足した写し" "chapters/ch-request/st-1.md" 's/^# 状況を確認する/# 状況を確認する（掲示板）/' no-board-words
 mutate "開始点を 1 件足した写し" "chapters/ch-request/chapter.yaml" "${SED_STARTS}" starts
+C="chapters/ch-request/chapter.yaml"
+mutate "期限の行を消した写し" "${C}" '/path: review\/due/d' doc-rows
+mutate "見てほしい点の経路を改名した写し" "${C}" 's/review\/focus/review\/point/' doc-rows
+mutate "練習データの宣言を足した写し" "${W}" "s/^  fx-draft: .*/&${BS}${NL}  fx-extra: { path: fixtures\/draft.md, kind: document }/" doc-rows
+mutate "練習データの架空の印を外した写し" "fixtures/draft.md" 's/【架空】//' validate
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2
