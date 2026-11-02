@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "choice-only-pack-derived",
+  "source": {
+    "pack": "../../../docs/examples/choice-only-pack",
+    "validate": true,
+    "edits": [
+      { "file": "workshop.yaml", "from": "world_list: hidden ", "to": "world_list: shown  " },
+      {
+        "file": "chapters/c-pick/chapter.yaml",
+        "from": "- set_attr: { path: memo/draft.md, attr: detail, value: A を選びました }",
+        "to": "- put: { path: memo/draft.md, fixture: fx-note, attrs: { title: 下書き, detail: A を選びました } }"
+      }
+    ]
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": { "uid": "main/st-pick", "status": "entered" },
+  "sequence": [
+    { "kind": "choice", "id": "opt-a", "expect": { "uid": "main/st-pick", "status": "accepted" } },
+    { "kind": "choice", "id": "ans-yes", "expect": { "uid": "main/st-point", "status": "entered" } },
+    { "kind": "row", "path": "memo/draft.md", "expect": { "uid": "main/st-point", "status": "accepted" } },
+    { "kind": "row", "path": "memo/draft.md", "expect": { "uid": "main/st-point", "status": "achieved" } }
+  ],
+  "expect": {
+    "completed": true,
+    "reviewAchieved": 2,
+    "nextChapter": 0,
+    "inputAreaAbsent": true,
+    "viewSwitchVisible": 0
+  }
+}

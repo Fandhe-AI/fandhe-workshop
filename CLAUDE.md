@@ -43,6 +43,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-no-egress.sh    # 依存と配信物に通信・学習分析の手段と初回に持たない機能（EXT-1〜EXT-3）が無いことの検査（deps・dist。回帰テストは test-check-no-egress.sh）
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
+│   ├── check-choice-journey.sh # 入力欄のない教材の完走の道具を設定ファイルで流す入口（回帰テストは test-check-choice-journey.sh。TASK-748）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -137,6 +138,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make build-pack-release` | `fandhe-pack` の配布用の実行ファイル（既定 `aarch64-apple-darwin`）をビルドし、検査・動的リンク先の検査・煙試験・梱包・展開した配布物での `validate`／`test`（`dist/pack-release` の tar.gz と `.sha256`。起動の案内文 `tools/pack-release/README.txt` と依存のライセンス文 `THIRD-PARTY-LICENSES` を同梱）まで行う（`scripts/build-pack-release.sh`。署名なし。release.yml が macOS の runner で流す。TASK-415） |
 | `make build-pack-preview` | エンジンの配信物を同梱した `fandhe-pack`（`preview` が動くビルド）を作り、実行ファイルのパスを出す（`scripts/build-pack-preview.sh`。TASK-429 2/3） |
 | `make test-build-pack-preview` | 上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし） |
+| `make check-choice-journey` | 入力欄のない教材の完走の道具を設定ファイル（`tools/browser/choice-journey/*.json`。教材固有の値の置き場）で流し、期待と照合する（`CHOICE_JOURNEY_CONFIG=<path>` で 1 本に絞る。`scripts/check-choice-journey.sh`。遅く、ブラウザを要する。CI の `browser-test` が流す。記録は `docs/testing.md` 5.437。TASK-748） |
+| `make test-check-choice-journey` | 上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-release` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` に追従することの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照（遅く、CI・フックには入れない） |

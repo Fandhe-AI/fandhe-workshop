@@ -293,6 +293,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make build-pack-release` | `scripts/build-pack-release.sh` | `fandhe-pack` の配布用の実行ファイル（既定 `aarch64-apple-darwin`）をビルドし、アーキテクチャの検査・動的リンク先の検査（macOS は `libSystem` だけを許し、他は失敗。TASK-416）・Rust の無い PATH での `validate`／`test`／`preview` の煙試験・梱包（`README.txt` の案内文と、依存のライセンス文 `THIRD-PARTY-LICENSES`（`scripts/gen-third-party-licenses.sh` が `Cargo.lock` から作る。LIC-9）つきの tar.gz と `.sha256`）を作る前に、展開した配布物の `validate`／`test` を repo の外の cwd で確かめる（`dist/pack-release`。署名・公証はしない。TASK-415） |
 | `make build-pack-preview` | `scripts/build-pack-preview.sh` | エンジンの配信物を同梱した `fandhe-pack`（`preview` が URL を出すビルド。cargo の feature `embed-web`）を作り、実行ファイルのパスを出す。配信物に試験用の口・通信の手段が無いことを確かめてからビルドする（wasm-bindgen CLI が要る。TASK-429 2/3） |
 | `make test-build-pack-preview` | `scripts/test-build-pack-preview.sh` | 上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし） |
+| `make check-choice-journey` | `scripts/check-choice-journey.sh` | 入力欄のない教材の完走の道具を設定ファイル（`tools/browser/choice-journey/*.json`）で流す。`CHOICE_JOURNEY_CONFIG=<path>` で 1 本に絞る（遅く、ブラウザを要する。CI の `browser-test` が流す。TASK-748） |
+| `make test-check-choice-journey` | `scripts/test-check-choice-journey.sh` | 上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-release` | `scripts/test-build-pack-release.sh` | 上の作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし。CI の `check` ジョブが流す） |
 | `make test-build-pack-bin` | `scripts/test-build-pack-bin.sh` | `fandhe-pack` の前提バイナリの解決が `CARGO_TARGET_DIR` の別置きと既定の両方で動くことの回帰テスト（遅く、CI・フックには入れない） |
 | `make test-chapter-key-control` | `scripts/test-chapter-key-control.sh` | 鍵を修正前の固定の文字列にした写しで、章の試験（`chapter-keys`）が「先の章の履歴が出た」理由で失敗することの対照。依存を冷えた状態からビルドするため遅く、CI・フックには入れません |

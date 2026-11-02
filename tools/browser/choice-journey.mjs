@@ -1,13 +1,14 @@
-// 入力欄のない教材（選択肢と画面操作だけで進む教材）を開始から完走まで自動操作で進め、画面の値を測る道具（TASK-748 1/2。SECOND-4・SECOND-7）。
+// 入力欄のない教材（選択肢と画面操作だけで進む教材）を開始から完走まで自動操作で進め、画面の値を測る道具（TASK-748 1/2・2/2。SECOND-4・SECOND-7）。
 //
 // 役割: 教材の IR を引数で受け、配信する設定の画面（試験用の口なし）を実クリックだけで進め、各時点の画面の値
 // （`data-theme`・文字の大きさ・行間・行の数・ビューの切り替え・入力の領域・右の領域のボタン）と、外部通信・ページ内エラーの件数を返す。
 // 主張（合否）は持たない。測った値を返すだけにし、期待値は呼び出し側が操作の列・期待値のデータとして渡す。
-// 呼び出し元: choice-journey.test.mjs。2/2（#1074）が設定ファイルの読み込みと CI のジョブからの呼び出しを足す予定で、
-// そのとき本モジュールの関数は変えずに済むよう、教材固有の値は一切書かず、すべて引数で受ける。
+// 呼び出し元: choice-journey-config.mjs（設定ファイルの読み込み・期待との照合。2/2・#1074）と、それを使う
+// choice-journey-run.mjs（CLI。CI の browser-test ジョブから scripts/check-choice-journey.sh 経由で呼ばれる）・choice-journey.test.mjs。
+// 教材固有の値は一切書かず、すべて引数で受ける（設定ファイルを差し替えるだけで別の教材にも使える）。
 // 使う部品: harness.mjs（配信・計数）、ch0-3-journey.mjs（台帳でない部分のセレクタと install）、ch4-9-journey.mjs の inspectDom49（DOM だけの判定）。
 // 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。
-// `world_list: hidden` の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
+// 世界状態の一覧を出さない設定（`world_list` の hidden）の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
 // 出力（summaryLine）は名前・件数・合否・数値だけで、教材の文面と入力した値は含めない。
 import fs from 'node:fs';
 import os from 'node:os';
@@ -16,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import {
   openPage, waitMounted, collectSafety, nonZero, cspConsoleMessages,
 } from './harness.mjs';
-import { NEXT, choiceSel, rowSel, install, T } from './ch0-3-journey.mjs';
+import { NEXT, choiceSel, rowSel, decideSel, install, T } from './ch0-3-journey.mjs';
 import { inspectDom49 } from './ch4-9-journey.mjs';
 
 /** 入力の口として「無い」ことを数える 6 種（input-field-hidden.test.mjs の ABSENT と同じ対象）。`textarea`・`select` は tag 名、残りは data-testid で数える。 */
@@ -139,13 +140,15 @@ const readReview = (page) => page.evaluate(() => [...document.querySelectorAll('
 /**
  * 新しいコンテキストで配信物を開き、操作の列を実クリックで送り、画面の値と安全の計数を返す。
  *   srv: withServer が渡す { url, origin }
- *   sequence: [{ kind: 'choice', id } | { kind: 'row', path } | { kind: 'next' }, ...]
+ *   sequence: [{ kind: 'choice', id } | { kind: 'row', path } | { kind: 'decide', decision } | { kind: 'next' }, ...]
  *   expect:   各操作の後に DOM が示すべき [{ uid, status }]（sequence と同じ長さ）。initial は開いた直後の { uid, status }
  * 待てない・押す対象が無いときは例外にせず、止まった位置を stoppedAt に入れて終える。completed は、
  * 最後まで到達し、finals の節点が復習で達成になったときだけ真。
  */
-export async function runJourney({ browser, srv, ir, sequence, expect, initial, titles, finals, clickTimeout = 4000 }) {
-  const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
+export async function runJourney({
+  browser, srv, ir, sequence, expect, initial, titles, finals, clickTimeout = 4000, viewport = { width: 1280, height: 800 },
+}) {
+  const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport });
   const obs = domObserver(titles);
   const result = { reached: [], stoppedAt: null, completed: false };
   try {
@@ -157,7 +160,10 @@ export async function runJourney({ browser, srv, ir, sequence, expect, initial, 
     result.start = await measureScreen(page);
     for (let i = 0; i < sequence.length; i += 1) {
       const op = sequence[i];
-      const sel = op.kind === 'choice' ? choiceSel(op.id) : op.kind === 'row' ? rowSel(op.path) : NEXT;
+      const sel = {
+        choice: () => choiceSel(op.id), row: () => rowSel(op.path), decide: () => decideSel(op.decision), next: () => NEXT,
+      }[op.kind]?.();
+      if (sel === undefined) throw new Error('unknown operation kind');
       try {
         await page.locator(sel).first().click({ timeout: clickTimeout });
       } catch {

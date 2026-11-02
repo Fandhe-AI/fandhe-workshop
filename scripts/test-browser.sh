@@ -25,7 +25,7 @@
 # 10MB に近い履歴で秘密情報の検査を含む保存が変更から 1 秒以内に収まることの測定（secret-scan-time。SAFE-31。TASK-166。値は diagnostic に残し、記録は docs/testing.md 5.186）を含む。
 # compile した IR の手元の配信と章の完走の試験（author-preview。形式 B の試験用教材を compile → IR_FILE を指定したビルド → サブパス配信 → CH-0〜CH-3 の完走。
 # 配信元以外への通信 0 件・ページ内エラー 0 件。AUTHOR-21。TASK-427 1/2。記録は docs/testing.md 5.292）を含む。
-# 入力欄のない教材の完走と画面の値の測定（choice-journey。docs/examples/choice-only-pack とその派生版を web-author の写しで流す。SECOND-4・SECOND-7。TASK-748 1/2。記録は docs/testing.md 5.436）を含む。
+# 入力欄のない教材の完走と画面の値の測定（choice-journey。docs/examples/choice-only-pack とその派生版を web-author の写しで流す。SECOND-4・SECOND-7。TASK-748 1/2。記録は docs/testing.md 5.436）を含む。教材固有の値は tools/browser/choice-journey/*.json の設定ファイルにあり（2/2）、設定の読み込み・検証・照合は choice-journey-config.test.mjs（ブラウザなし）が確かめる。設定ごとの CLI 実行は make check-choice-journey（記録は 5.437）。
 # preview の URL を開いた 20 Step の通し・診断ありで配らない・文章を直した再実行の反映の試験（preview-command。AUTHOR-22。TASK-429 3/3。記録は docs/testing.md 5.428）を含む。
 # 試験用クエリ 7 種（persist・store・manual・tick・os・osmode・flood）を付けて開いても配信する設定の画面・取得資源・保存先・再読み込みの後が変わらない試験（query-inert。CSP あり・なし。SHELL-35。TASK-547 2/3。記録は docs/testing.md 5.405）と、配信物の部品を CH-0〜CH-3 の 20 Step の全時点で調べ check-delivery.sh と項目ごとに突き合わせる試験（delivery-ports。SHELL-35。TASK-547 3/3。記録は docs/testing.md 5.407）を含む。
 # 操作要素の `data-payload` の書き換えの試験（data-payload-tamper。実行 0・外部通信 0・形の合わない値は状態を変えない・タブが落ちない。値の読み込みは data-payload-cases。SAFE-6。TASK-148 1/2。IR を同梱した配信する設定の場面は #1937。記録は docs/testing.md 5.369・5.431）を含む。
@@ -194,6 +194,7 @@ FANDHE_WEB_DIR="${TMP}/web" FANDHE_WEB_TEST_DIR="${TMP}/web-test" \
   "${ROOT_DIR}/tools/browser/theme-marks.test.mjs" \
   "${ROOT_DIR}/tools/browser/author-preview.test.mjs" \
   "${ROOT_DIR}/tools/browser/choice-journey.test.mjs" \
+  "${ROOT_DIR}/tools/browser/choice-journey-config.test.mjs" \
   "${ROOT_DIR}/tools/browser/preview-command.test.mjs" \
   "${ROOT_DIR}/tools/browser/versioned-url.test.mjs" \
   "${ROOT_DIR}/tools/browser/keydown-action.test.mjs" \

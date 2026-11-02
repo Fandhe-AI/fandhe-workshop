@@ -1,5 +1,7 @@
-// 入力欄のない教材を完走させ画面の値を測る道具（choice-journey.mjs）の試験（TASK-748 1/2。SECOND-4・SECOND-7）。CSP あり・なしの両方で流す。
+// 入力欄のない教材を完走させ画面の値を測る道具（choice-journey.mjs）の試験（TASK-748 1/2・2/2。SECOND-4・SECOND-7）。CSP あり・なしの両方で流す。
 //
+// 教材固有の値（操作の列・各操作の後の期待・派生版を作る書き換え・結果の期待）は tools/browser/choice-journey/*.json の設定ファイルにあり、
+// 本試験は設定を choice-journey-config.mjs で読む（設定の形の試験は choice-journey-config.test.mjs。CLI は choice-journey-run.mjs）。
 // 教材は docs/examples/choice-only-pack（読むだけ。書き換えるのは一時ディレクトリの写し）。配信物は FANDHE_WEB_AUTHOR_DIR（IR 同梱の配信する設定）を
 // 一時ディレクトリへ写して ir/main.json を差し替えたもので、wasm は作り直さない。
 //
@@ -8,9 +10,10 @@
 // 画面は開始点の effects を適用しない（docs/cli.md の経過措置。CLI の test は適用するので通る）。そこで完走は、world_list を shown にし
 // put を st-pick の受付の effects へ移した派生版で確かめ、そのままの例は「最後の Step に入るまで」と止まった位置の記録にとどめる。
 //   P  前提。validate が 0。例と派生版が compile できる。IR の差が pack.left_pane.world_list だけ。stepsOf が 2 節点
-//   A  派生版を開始から完走まで進める。2 節点が達成・復習で達成・入力の口が無い・ビューの切り替えが見えない・通信とエラー 0 件
-//   B  そのままの例。最初の Step の達成と最後の Step への進入まで。指せる行が 0 件なら PACK-22 の停止の位置を diagnostic に出す（不合格にしない）
+//   A  派生版の設定を開始から完走まで進める。judge が空（2 節点が達成・復習で達成・入力の口が無い・ビューの切り替えが見えない・通信とエラー 0 件）
+//   B  そのままの例の設定。最後の Step に入るまでで止まる期待（PACK-22 の停止の位置）を judge が合格にする
 //   C  道具の対照。A の開始の時点のページに入力欄・style 属性・ボタンを足すと、測った値が増える
+//   D  別の教材の設定（IR で指定。3 Step・選択肢・指す・承認）を同じ道具で完走させる（設定を差し替えるだけで別の教材にも使える証拠）
 // 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。TASK-749 の担当）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
@@ -24,59 +27,38 @@ import {
   launchBrowser, channelFromEnv, packBinFromEnv, withServer, withCspMode, openPage, waitMounted,
 } from './harness.mjs';
 import {
-  ABSENT, stepsOf, prepareDelivery, compilePack, measureScreen, runJourney, summaryLine,
+  stepsOf, prepareDelivery, measureScreen, runJourney, summaryLine,
 } from './choice-journey.mjs';
+import { loadConfig, buildIr, judge } from './choice-journey-config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PACK = path.resolve(HERE, '../../docs/examples/choice-only-pack');
-const BASE = '/fandhe-choice-journey/';
-const WORLD_LINE = 'world_list: hidden ';
-
-// 例の tests/playthrough.yaml（pt-main）に沿った操作の列と期待値。2/2 で設定ファイルへ移す。
-const SEQUENCE = [
-  { kind: 'choice', id: 'opt-a' },
-  { kind: 'choice', id: 'ans-yes' },
-  { kind: 'row', path: 'memo/draft.md' },
-  { kind: 'row', path: 'memo/draft.md' },
-];
-const EXPECT = [
-  { uid: 'main/st-pick', status: 'accepted' },
-  { uid: 'main/st-point', status: 'entered' },
-  { uid: 'main/st-point', status: 'accepted' },
-  { uid: 'main/st-point', status: 'achieved' },
-];
-const INITIAL = { uid: 'main/st-pick', status: 'entered' };
+const CONFIG_DIR = path.join(HERE, 'choice-journey');
+const cfgPath = (name) => path.join(CONFIG_DIR, `${name}.json`);
 
 let browser;
 let bin;
 let webDir;
 let irShown;
 let irAsIs;
+let irOther;
 let stepInfo;
+let cfgDerived;
+let cfgAsIs;
+let cfgOther;
 
 const diag = (s) => console.log(`# diagnostic: ${s}`);
-
-// 派生版の書き換えは 2 つ。world_list を shown にし、行を作る put を開始点の effects から st-pick の受付の effects へ移す。
-// 後者が要るのは、画面が開始点の effects を適用しないため（docs/cli.md の経過措置）。
-const SET_ATTR = '- set_attr: { path: memo/draft.md, attr: detail, value: A を選びました }';
-const PUT_ON_ACCEPT = '- put: { path: memo/draft.md, fixture: fx-note, attrs: { title: 下書き, detail: A を選びました } }';
-function replaceOnce(file, from, to) {
-  const text = fs.readFileSync(file, 'utf8');
-  const next = text.replace(from, to);
-  assert.notEqual(next, text, `mutation applied: ${path.basename(file)}`);
-  fs.writeFileSync(file, next, 'utf8');
-}
-function mutateWorld(work) {
-  replaceOnce(path.join(work, 'workshop.yaml'), WORLD_LINE, 'world_list: shown  ');
-  replaceOnce(path.join(work, 'chapters/c-pick/chapter.yaml'), SET_ATTR, PUT_ON_ACCEPT);
-}
 
 before(async () => {
   bin = packBinFromEnv();
   webDir = process.env.FANDHE_WEB_AUTHOR_DIR;
   assert.ok(webDir && fs.statSync(webDir, { throwIfNoEntry: false })?.isDirectory(), 'FANDHE_WEB_AUTHOR_DIR must point to a web directory built with IR_FILE and without TEST_HOOKS');
-  irAsIs = compilePack({ bin, packDir: PACK });
-  irShown = compilePack({ bin, packDir: PACK, edit: mutateWorld });
+  cfgAsIs = loadConfig(cfgPath('choice-only-pack'));
+  cfgDerived = loadConfig(cfgPath('choice-only-pack-derived'));
+  cfgOther = loadConfig(cfgPath('input-field-hidden'));
+  irAsIs = buildIr({ bin, config: cfgAsIs });
+  irShown = buildIr({ bin, config: cfgDerived });
+  irOther = buildIr({ bin, config: cfgOther });
   stepInfo = stepsOf(JSON.parse(irShown));
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
@@ -104,50 +86,35 @@ test('P: validate が 0 で、例と派生版の IR の差が world_list と r-a
 for (const csp of [true, false]) {
   const mode = `CSP ${csp ? 'あり' : 'なし'}`;
 
-  async function runWith(irText, label) {
+  // 設定 1 本・IR 1 つを CSP の設定 csp で流し、結果と judge の理由を返す。設定の値はすべて引数から取る。
+  async function runWith(config, irText) {
     const { dir: copy, cleanup } = prepareDelivery({ webDir, irText });
     try {
+      const ir = JSON.parse(irText);
+      const info = stepsOf(ir);
       let out;
-      await withCspMode({ dir: copy, csp }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+      await withCspMode({ dir: copy, csp }, (dir) => withServer({ dir, base: config.base }, async (srv) => {
         out = await runJourney({
-          browser, srv, ir: JSON.parse(irText), sequence: SEQUENCE, expect: EXPECT, initial: INITIAL,
-          titles: stepInfo.titles, finals: stepInfo.finals,
+          browser, srv, ir, sequence: config.sequence, expect: config.sequence.map((s) => s.expect), initial: config.initial,
+          titles: info.titles, finals: info.finals, viewport: config.viewport,
         });
       }));
-      console.log(summaryLine(label, csp, out));
-      return out;
+      console.log(summaryLine(config.name, csp, out));
+      return { out, why: judge(config, out) };
     } finally {
       cleanup();
     }
   }
 
-  function commonClaims(r) {
-    assert.deepEqual(r.safety, [], 'safety counts are zero');
-    assert.equal(r.external, 0, 'no external requests');
-    assert.equal(r.pageErrors, 0, 'no page errors');
-    assert.equal(r.consoleErrors, 0, 'no console errors');
-    assert.equal(r.cspWarnings, 0, 'no CSP warnings');
-    assert.equal(r.run.raw, 0, 'no raw-trigger clicks');
-    assert.ok(r.run.mouse > 0, 'real mouse operations');
-    assert.deepEqual(r.irFetch, [200], 'ir/main.json fetched once with 200');
-    for (const m of [r.start, r.end]) {
-      for (const id of ABSENT) assert.equal(m.inputArea.absent[id], 0, `${id} absent`);
-      assert.equal(m.inputArea.stop.count, 1, 'one stop button');
-      assert.equal(m.viewSwitch.visibleButtons, 0, 'view switch buttons hidden');
-      // 見えている input は履歴の読み込み用のファイル選択だけ（0 か 1 件）。
-      assert.ok(m.inputArea.visibleInputs.every((x) => x.endsWith('|input|file')), `visible inputs: ${m.inputArea.visibleInputs.join(',')}`);
-    }
-  }
-
-  test(`A: 派生版（world_list: shown）を開始から完走まで進め、画面の値を測る（${mode}）`, { timeout: 120000 }, async () => {
-    const r = await runWith(irShown, 'derived');
+  test(`A: 派生版（world_list を shown にした設定）を開始から完走まで進め、画面の値を測る（${mode}）`, { timeout: 120000 }, async () => {
+    const { out: r, why } = await runWith(cfgDerived, irShown);
+    assert.deepEqual(why, [], 'judge: no failed expectation');
     assert.equal(r.stoppedAt, null, `stopped: ${JSON.stringify(r.stoppedAt)}`);
     assert.equal(r.completed, true);
-    assert.equal(r.reached.length, 1 + SEQUENCE.length);
+    assert.equal(r.reached.length, 1 + cfgDerived.sequence.length);
     assert.equal(r.review.length, 2);
     assert.ok(r.review.every((x) => x.achieved === 'true'), 'all review rows achieved');
-    assert.equal(r.nextChapter, 0, 'one chapter: no next-chapter button');
-    commonClaims(r);
+    assert.equal(r.start.inputArea.stop.count, 1, 'one stop button');
     // 値は主張せず diagnostic に出す。data-theme は見つかったときだけ教材の値と一致を主張する。
     const themes = r.end.theme.values;
     if (themes.length > 0) assert.ok(themes.every((t) => t === JSON.parse(irShown).pack.appearance.theme), 'data-theme matches pack.appearance.theme');
@@ -155,25 +122,30 @@ for (const csp of [true, false]) {
     diag(`derived csp=${csp} font=${JSON.stringify(r.end.font)} rows=${r.end.rows.count} right=${JSON.stringify(r.end.rightButtons)} inline=${JSON.stringify(r.end.inlineStyle)}`);
   });
 
-  test(`B: そのままの例は最後の Step に入るまで進み、指せる行の有無で完走を分ける（${mode}）`, { timeout: 120000 }, async () => {
-    const r = await runWith(irAsIs, 'as-is');
-    assert.ok(r.reached.includes('main/st-pick:accepted'), 'st-pick accepted');
-    assert.ok(r.reached.includes('main/st-point:entered'), 'st-point entered');
-    commonClaims(r);
-    if (r.end.rows.count === 0) {
-      diag(`PACK-22 / starts effects not applied by the screen: rows=0 stoppedAt=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'}`);
-      assert.equal(r.completed, false, 'cannot complete without rows');
-    } else {
-      assert.equal(r.stoppedAt, null);
-      assert.equal(r.completed, true);
-    }
+  test(`B: そのままの例の設定は最後の Step に入るまでで止まる期待が合格になる（${mode}）`, { timeout: 120000 }, async () => {
+    const { out: r, why } = await runWith(cfgAsIs, irAsIs);
+    assert.deepEqual(why, [], 'judge: no failed expectation');
+    assert.ok(r.reached.includes('main/st-pick:accepted'), 'first step accepted');
+    assert.ok(r.reached.includes('main/st-point:entered'), 'last step entered');
+    assert.equal(r.completed, false, 'cannot complete without rows');
+    diag(`PACK-22 / starts effects not applied by the screen: rows=${r.end.rows.count} stoppedAt=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'}`);
+  });
+
+  test(`D: 別の教材の設定（IR で指定）を同じ道具で完走させる（${mode}）`, { timeout: 120000 }, async () => {
+    const { out: r, why } = await runWith(cfgOther, irOther);
+    assert.deepEqual(why, [], 'judge: no failed expectation');
+    assert.equal(r.stoppedAt, null, `stopped: ${JSON.stringify(r.stoppedAt)}`);
+    assert.equal(r.completed, true);
+    assert.equal(r.reached.length, 1 + cfgOther.sequence.length);
+    assert.equal(r.review.length, 3);
+    diag(`other csp=${csp} steps=${r.stepCount} view-buttons=${r.end.viewSwitch.visibleButtons}`);
   });
 }
 
 test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測った値が増える（CSP あり）', { timeout: 120000 }, async () => {
   const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irShown });
   try {
-    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: BASE }, async (srv) => {
+    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgDerived.base }, async (srv) => {
       const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
       try {
         await page.goto(srv.url);
