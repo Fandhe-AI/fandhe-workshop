@@ -11777,6 +11777,21 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.434 Rust の無い macOS の環境での validate・test と動的リンク先の判定（TASK-416・AUTHOR-14。#809）
+
+`scripts/build-pack-release.sh` に 2 つの関門を足した。どちらも、通らなければ成果物を出さない。
+
+- 動的リンク先の判定: `aarch64-apple-darwin` で `otool -L` の各行のパスを、`/usr/lib/libSystem.B.dylib` の 1 件との完全一致で照合する。許可外・0 件・`otool` の失敗は 1、`otool` が無ければ 2。従来は記録だけだった。`x86_64-unknown-linux-gnu`（配布しない確認用）は記録だけのまま
+- 展開した配布物での試験: 作った tar.gz を新しい場所へ展開し、実行ファイルがビルドした物とバイト一致であることを確かめたうえで、repo の外の cwd から、cargo・rustc の見えない PATH（`env -i`、`/usr/bin:/bin`）で `docs/examples/` の 2 つの例（複写）に `validate`・`test` を流す。出力先へ置く前に行う
+
+| 層 | 試験 | 内容 |
+|---|---|---|
+| ビルドなし | `scripts/test-build-pack-release.sh` | `otool` の偽物で、libSystem のみは通り、Homebrew・`@rpath`・許可パスの前後に文字を足した形・0 件・`otool` 失敗は 1 で成果物なし。`otool` が無い darwin は 2、linux は通る。cwd が repo の外だと失敗する偽の実行ファイルで、展開後の試験の失敗が煙試験と区別して報告されること |
+| 実ビルド | 手元（Linux x86_64）で `--target x86_64-unknown-linux-gnu` | 2026-11-02、終了コード 0。展開した配布物の `validate`・`test` が 2 例とも ok |
+| 実ビルド | `release.yml`（Apple シリコン） | 未検証（本記録の時点。結果は `docs/publish-checks.md` の記録 3） |
+
+限界: 本記録の時点で、Apple シリコンでの動的リンク先の判定と展開後の試験は流れていない。Rust の無い PATH は、Rust を入れていない端末の代理であり、人の評価ではない（D-34）。試験と実装の作成者が同じ AI である。
+
 ### 5.433 巨大な文字列の IR を開いたときの renderer の RSS を測る道具の手元の実行（TASK-163 1/2。#1962）
 
 - 日付: 2026-11-01。Linux x86_64、Playwright の Chromium 153.0.8010.12、`SKIP_WASM_OPT=1 tools/measure/ir-memory.sh`、終了コード 0（直接実行。`make` 経由は crash の 3 を 2 に変えるため使わない）
