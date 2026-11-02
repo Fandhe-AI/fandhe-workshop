@@ -11865,6 +11865,36 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 - 実行: `cargo test -p fandhe-workshop-pack --locked --test examples_pack`
 - 限界: 机上の照合は AI による代理であり人の評価に数えない。例の構造は変えていない。画面での完走は扱わない（5.436）
 
+### 5.445 第 2 教材の入力の領域と右の領域の画面の確認（TASK-749 1/3。SECOND-7）
+
+第 2 教材（`template-workshop/examples/review-request`）を、5.437 の設定ファイルの道具で画面から確かめる。設定は 2 本。`pt-main`（正しい経路の 16 操作）を実クリックで流し、開始と終了の両時点で入力の領域と右の領域を測る。左の領域の 5 行・【変更】の印は 2/3、外観と幅 800px は 3/3、誤答 8 場面は TASK-750 が受け持つ。
+
+| 設定 | 教材 | 期待 |
+|---|---|---|
+| `review-request` | 本物の pack のまま（`validate` 付き） | 完走しない。`main/st-2:accepted` で止まる（`world_list: hidden` で指せる行が 0 件。開始点の `effects` を画面が適用しない） |
+| `review-request-derived` | `edits` 2 件（`world_list` を shown、`put` 5 行を `st-1` の受付の `effects` の先頭へ） | 完走。復習の達成 8 件。派生版は SECOND-8（左の領域）にわざと反する。pack は書き換えない |
+
+読み方（今のエンジンの事実に合わせ、自動運転の中で安全側に決めた。人の判断に残す）:
+
+- 「完走の前後」は、前を本物の pack、後を派生版で測る。そのままでは完走しない（5.436 と同じ原因）
+- 操作の入口は `choice-btn` だけ。入口の部品 7 種のうち見えるのは、許した部品と `stop-btn` だけ（`entryPorts`）。開始の時点で `choice-btn` が 1 個以上見える（`entryAtStart`）。確認待ちの `point_at` では選択肢が 0 個になりうるため、終了の時点では個数を主張しない
+- 入力欄・送信・候補・`textarea`・`select` は 0 件（`inputAreaAbsent`）。`key-hint`・`op-guide`・`os-field`・`os-select` は 0 件（`inputGuidesAbsent`）。`input-notice` は入力欄がなくても 1 個ある `role=status` なので、件数ではなく文字が空であることを主張する
+- 見える `input` はちょうど 1 個で、`input[type=file]` かつ `shell-import` の内側（`fileInputs`）
+- 右の領域・上部は testid で測る（`controls`）。停止・チェックポイントの保存・書き出しが見え、読み込みと `shell-hint` の入れ物が DOM にある。入れ物は見える箱を持たないので、DOM にあることで判定する
+
+新しい `expect` の欄（省略可。既存の 3 設定は変わらない）: `entryPorts`・`entryAtStart`（入口の部品の名前の配列）、`inputGuidesAbsent`（真偽）、`fileInputs`（0〜10）、`controls`（`stop`・`checkpointSave`・`checkpointRestore`・`export`・`import`・`delete`・`hintContainer`・`hintOpen` の真偽）。名前は道具の閉じた一覧に限り、未知の名前・型の誤りは拒否する。設定の文字列から selector は組み立てない。
+
+試験: `choice-journey-config.test.mjs`（ブラウザなし）に新しい欄の不正な形 11 形と、欄ごとに 1 欄だけ外した結果で理由がちょうど 1 件になる 13 行を足した。`choice-journey.test.mjs` に場面 E（2 設定を CSP あり・なしで流し `judge` が空）を足し、場面 C（道具の対照）で、キーの案内・2 個目のファイル選択・注意書きの文字・承認のボタンを足し停止を隠すと測った値と `judge` の理由が変わることを確かめる。
+
+- 結果（2026-11-02、手元）: `choice-journey-config.test.mjs` 78 件合格。`check-choice-journey` の 2 設定 x CSP 2 通りは 4 件合格（外部通信 0・ページ内エラー 0）。`choice-journey.test.mjs` 10 件合格。CI の `browser-test` での実行は PR の CI で確かめる（手元では未検証）
+- 測った値: 入口は終了の時点で `stop-btn` だけ。ファイル選択 1 個。`hint-open` は 0 件、`shell-hint` の入れ物は 1 個。派生版の行は 5 件
+- 限界（要件との差。人の判断に残す）:
+  - 案内レベルを切り替えるボタンは製品の画面に無い（検討中。core の `SetGuidance` も未実装・TASK-294）。測る対象が無いので主張しない
+  - 「ヒントを開く」は、今の Step に出せるヒントがあるときだけ描かれる。第 2 教材は `hints` を持たないので出ない状態を固定した。ヒントを足すか要件の読みを変えるかは人が決める（足すなら TASK-745・TASK-746 の領分）
+  - 停止のボタンの文字は「停止」で、Esc はキーで届く。testid で照合し文字では照合しない
+  - 書き出しと読み込みは `shell-right` の外（root の直下、通知欄の後ろ・`tablist` の前）にある。置き場は仮置き（TASK-534・TASK-548）なので、testid で文書全体から探す
+  - 試験と実装の作成者が同じ AI であり、人が画面を見た評価ではない。`scripts/expected-test-counts.txt` は変えていない
+
 ### 5.437 第 2 教材固有の値の設定ファイルへの分離と CI からの呼び出し（TASK-748 2/2。SECOND-4・SECOND-7）
 
 教材固有の値を `tools/browser/choice-journey/<name>.json`（版 1）に分け、道具を設定ファイルで呼べるようにした。道具（`choice-journey.mjs`）は教材固有の値と合否を持たない。設定の読み込み・検証・期待との照合は `choice-journey-config.mjs`、node:test の外からの入口は `choice-journey-run.mjs`（CLI）・`scripts/check-choice-journey.sh`（`make check-choice-journey`）。設定ファイルを差し替えるだけで別の教材にも使える。
@@ -11880,12 +11910,12 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `viewport` | 省略時 1280x800 |
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
-| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible` |
+| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445） |
 | `csp` | 省略時 `[true, false]` |
 
 外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。
 
-設定 3 本（同じ道具で 3 つの教材を流す）:
+設定 3 本（同じ道具で 3 つの教材を流す。TASK-749 1/3 で第 2 教材の 2 本を足して 5 本。5.445）:
 
 | 設定 | 教材 | 期待 |
 |---|---|---|
