@@ -1,4 +1,5 @@
-# Step は st-1〜st-8。正しい経路は TASK-745、誤答への応答は TASK-746 が足す。
+# Step は st-1〜st-8。正しい経路は TASK-745、誤答への応答の 8 場面（SECOND-12）は TASK-746 1/2 で足した。
+# 拒否の規則は outcome に kind と rejection だけを持ち、effects を書かない（拒否のあと左の行は変わらない）。
 # 開始点の effects で、練習データ fx-draft の 5 行（状態・宛先・範囲・見てほしい点・期限）を作る（TASK-744）。
 id: ch-request
 title: レビューの頼み方
@@ -34,8 +35,8 @@ steps:
       on_wrong: rj-miss-q
       options:
         - { id: ans-ready, label: 相手と範囲を決めてから書く, correct: true }
-        - { id: ans-feel, label: 気持ちだけを伝えて頼む, correct: false }
-        - { id: ans-code, label: 直した中身をそのまま貼る, correct: false }
+        - { id: ans-feel, label: 気持ちだけを伝えて頼む, correct: false, on_wrong: rj-q1-feel }
+        - { id: ans-code, label: 直した中身をそのまま貼る, correct: false, on_wrong: rj-q1-code }
     on_achieved:
       - set_attr: { path: review/status, attr: state, value: 作成中 }
     next: [{ to: st-2 }]
@@ -50,6 +51,7 @@ steps:
       options:
         - { id: opt-owner, label: この部分を書いた人に頼む }
         - { id: opt-pair, label: 同じチームの 1 人に頼む }
+        - { id: opt-all, label: チーム全員に頼む }
     rules:
       - id: r-owner
         on: { option: opt-owner }
@@ -65,6 +67,9 @@ steps:
           effects:
             - set_attr: { path: review/to, attr: detail, value: 同じチームの 1 人に頼みます }
             - set_attr: { path: review/to, attr: state, value: 入力済み }
+      - id: r-all
+        on: { option: opt-all }
+        outcome: { kind: reject, rejection: rj-to-all }
     confirm:
       kind: point_at
       on_miss: rj-miss-to
@@ -104,8 +109,8 @@ steps:
       on_wrong: rj-confirm-wrong
       options:
         - { id: ans-scope-narrow, label: 範囲を絞ると読む人が迷わない, correct: true }
-        - { id: ans-scope-all, label: 全部頼むほうが安心, correct: false }
-        - { id: ans-scope-none, label: 範囲は書かなくてよい, correct: false }
+        - { id: ans-scope-all, label: 全部頼むほうが安心, correct: false, on_wrong: rj-q3-all }
+        - { id: ans-scope-none, label: 範囲は書かなくてよい, correct: false, on_wrong: rj-q3-none }
     on_achieved:
       - set_attr: { path: review/status, attr: detail, value: 宛先と範囲を決めました }
     next: [{ to: st-4 }]
@@ -140,8 +145,8 @@ steps:
       on_wrong: rj-confirm-wrong
       options:
         - { id: ans-focus-one, label: 見てほしい点は 1 つに決める, correct: true }
-        - { id: ans-focus-any, label: 気になる点を全部書く, correct: false }
-        - { id: ans-focus-skip, label: 相手に任せて書かない, correct: false }
+        - { id: ans-focus-any, label: 気になる点を全部書く, correct: false, on_wrong: rj-q4-any }
+        - { id: ans-focus-skip, label: 相手に任せて書かない, correct: false, on_wrong: rj-q4-skip }
     on_achieved:
       - set_attr: { path: review/status, attr: detail, value: 宛先・範囲・見てほしい点を決めました }
     next: [{ to: st-5 }]
@@ -155,6 +160,9 @@ steps:
       kind: ui_action
       targets:
         - { view: v-doc, path: review/due }
+        - { view: v-doc, path: review/to }
+        - { view: v-doc, path: review/scope }
+        - { view: v-doc, path: review/focus }
     rules:
       - id: r-empty
         on: { ui: { view: v-doc, path: review/due } }
@@ -162,13 +170,22 @@ steps:
           kind: accept
           effects:
             - set_attr: { path: review/due, attr: detail, value: （次の Step で決めます） }
+      - id: r-ui-to
+        on: { ui: { view: v-doc, path: review/to } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+      - id: r-ui-scope
+        on: { ui: { view: v-doc, path: review/scope } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+      - id: r-ui-focus
+        on: { ui: { view: v-doc, path: review/focus } }
+        outcome: { kind: reject, rejection: rj-row-filled }
     confirm:
       kind: answer
       on_wrong: rj-confirm-wrong
       options:
         - { id: ans-due-row, label: 空いている行は期限, correct: true }
-        - { id: ans-to-row, label: 空いている行は宛先, correct: false }
-        - { id: ans-status-row, label: 空いている行は状態, correct: false }
+        - { id: ans-to-row, label: 空いている行は宛先, correct: false, on_wrong: rj-q5-to }
+        - { id: ans-status-row, label: 空いている行は状態, correct: false, on_wrong: rj-q5-status }
     on_achieved:
       - set_attr: { path: review/status, attr: detail, value: 空いている行は期限です }
     next: [{ to: st-6 }]
@@ -183,7 +200,12 @@ steps:
       options:
         - { id: opt-tomorrow, label: 明日の 17 時までにお願いする }
         - { id: opt-friday, label: 今週の金曜までにお願いする }
+        - { id: opt-asap, label: できるだけ早くお願いする }
     rules:
+      - id: r-tomorrow-large
+        on: { option: opt-tomorrow }
+        when: { chose: { step: st-3, option: opt-diff-tests } }
+        outcome: { kind: reject, rejection: rj-due-short }
       - id: r-tomorrow
         on: { option: opt-tomorrow }
         outcome:
@@ -198,6 +220,9 @@ steps:
           effects:
             - set_attr: { path: review/due, attr: detail, value: 今週の金曜までです }
             - set_attr: { path: review/due, attr: state, value: 入力済み }
+      - id: r-asap
+        on: { option: opt-asap }
+        outcome: { kind: reject, rejection: rj-due-vague }
     confirm:
       kind: point_at
       on_miss: rj-miss-due
@@ -217,6 +242,7 @@ steps:
       options:
         - { id: opt-reread, label: 4 つの項目を読み返す }
         - { id: opt-preview, label: 相手の立場で読んでみる }
+        - { id: opt-skip, label: 見直さずにそのまま送る }
     rules:
       - id: r-reread
         on: { option: opt-reread }
@@ -230,13 +256,16 @@ steps:
           kind: accept
           effects:
             - set_attr: { path: review/status, attr: state, value: 見直し済み }
+      - id: r-skip
+        on: { option: opt-skip }
+        outcome: { kind: reject, rejection: rj-skip }
     confirm:
       kind: answer
       on_wrong: rj-confirm-wrong
       options:
         - { id: ans-reread, label: 送る前に見直して揃っているか確かめる, correct: true }
-        - { id: ans-send-now, label: 見直さずにすぐ送る, correct: false }
-        - { id: ans-add, label: 項目を後から足す, correct: false }
+        - { id: ans-send-now, label: 見直さずにすぐ送る, correct: false, on_wrong: rj-q7-now }
+        - { id: ans-add, label: 項目を後から足す, correct: false, on_wrong: rj-q7-add }
     next: [{ to: st-8 }]
   - id: st-8
     title: 送る
@@ -248,6 +277,7 @@ steps:
       kind: choice
       options:
         - { id: opt-send, label: この内容で送る }
+        - { id: opt-revise, label: 直す }
     rules:
       - id: r-send
         on: { option: opt-send }
@@ -256,10 +286,13 @@ steps:
           effects:
             - set_attr: { path: review/status, attr: state, value: 送信可 }
             - set_attr: { path: review/status, attr: detail, value: 宛先・範囲・見てほしい点・期限が揃った依頼文です }
+      - id: r-revise
+        on: { option: opt-revise }
+        outcome: { kind: reject, rejection: rj-revise }
     confirm:
       kind: answer
       on_wrong: rj-confirm-wrong
       options:
         - { id: ans-sent, label: 4 つの項目が揃った依頼文を送れた, correct: true }
-        - { id: ans-unsent, label: まだ項目が足りない, correct: false }
+        - { id: ans-unsent, label: まだ項目が足りない, correct: false, on_wrong: rj-q8-unsent }
     final: true

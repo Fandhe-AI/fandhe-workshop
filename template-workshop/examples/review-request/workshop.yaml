@@ -1,6 +1,6 @@
 # 第 2 教材「レビューの頼み方」の骨格（TASK-743）。選択肢と画面操作だけで進み、左に文書のビューだけを出す。
 # 練習データ（fixtures）と文書のビューの 5 行は TASK-744 で足した。本文を出さない（G-4）・値を文中に差し込めない（H-3）は
-# 限界として受け入れる（D-31）。本文を出す形に直すかは TASK-755 が決める。st-2〜st-8 の正しい経路は TASK-745、誤答への応答は TASK-746 が足す。
+# 限界として受け入れる（D-31）。本文を出す形に直すかは TASK-755 が決める。st-2〜st-8 の正しい経路は TASK-745、誤答への応答の 8 場面（SECOND-12）は TASK-746 1/2 で足した。誤答の通しの試験は 2/2 が足す。
 pack:
   id: review-request
   title: レビューの頼み方
@@ -34,6 +34,23 @@ rejections:
   rj-confirm-wrong: { category: not_in_this_step, message: その答えは、今の場面には合いません。, next_action: 状況に合う答えを選び直します。 }
   rj-miss-to: { category: not_in_this_step, message: そこは宛先の行ではありません。, next_action: 宛先の行を指し直します。 }
   rj-miss-due: { category: not_in_this_step, message: そこは期限の行ではありません。, next_action: 期限の行を指し直します。 }
+  rj-q1-feel: { category: not_in_this_step, message: 気持ちだけでは、読む人は何をすればよいか分かりません。, next_action: 読む人が動ける答えを選び直します。 }
+  rj-q1-code: { category: not_in_this_step, message: 直した中身は、依頼文ではなく差分で見てもらいます。, next_action: 依頼文に書く内容を選び直します。 }
+  rj-q3-all: { category: not_in_this_step, message: 範囲が広いと、読む人は終わりが見えません。, next_action: 範囲を絞る理由を選び直します。 }
+  rj-q3-none: { category: not_in_this_step, message: 範囲が書かれていないと、読む人はどこから読めばよいか分かりません。, next_action: 範囲を絞る理由を選び直します。 }
+  rj-q4-any: { category: not_in_this_step, message: 観点が多いほど、1 つ 1 つの見方が浅くなります。, next_action: 見てほしい点の決め方を選び直します。 }
+  rj-q4-skip: { category: not_in_this_step, message: 見てほしい点がないと、読む人は何を先に見るか決められません。, next_action: 見てほしい点の決め方を選び直します。 }
+  rj-q5-to: { category: not_in_this_step, message: 宛先の行は、もう「入力済み」です。, next_action: 状態が「未入力」の行を選び直します。 }
+  rj-q5-status: { category: not_in_this_step, message: 状態の行は、項目ではなく下書きの進み具合を表します。, next_action: 状態が「未入力」の行を選び直します。 }
+  rj-q7-now: { category: not_in_this_step, message: 見直さずにすぐ送ると、宛先や期限の書き忘れに気付けません。, next_action: 送る前の確かめ方を選び直します。 }
+  rj-q7-add: { category: not_in_this_step, message: 送った後に項目を足すと、読む人は変わった点に気付けません。, next_action: 送る前の確かめ方を選び直します。 }
+  rj-q8-unsent: { category: not_in_this_step, message: 4 つの項目は、もう揃っています。, next_action: 左の行を見て選び直します。 }
+  rj-to-all: { category: not_in_this_step, message: チーム全員に頼むと、誰も自分の担当だと思わず、返事が来ないことがあります。, next_action: この部分に詳しい人を 1 人に絞って選び直します。 }
+  rj-row-filled: { category: not_in_this_step, message: その行はもう埋まっています。, next_action: 状態が「未入力」のまま残っている行を指します。 }
+  rj-due-short: { category: not_in_this_step, message: 差分と関連するテストの両方を頼んだので、明日の 17 時までは読む量に対して短すぎます。, next_action: 余裕のある期限を選び直します。 }
+  rj-due-vague: { category: bad_arg_shape, message: 「できるだけ早く」は、いつまでかが人によって違います。日時が 1 つに決まる形ではありません。, next_action: 日時が 1 つに決まる期限を選び直します。 }
+  rj-skip: { category: not_in_this_step, message: 送る前に見直さないと、宛先や期限の書き忘れに気付けません。, next_action: 送る前に見直す選択肢を選び直します。 }
+  rj-revise: { category: wrong_order, message: 直す行を決めないまま戻っても、下書きは変わりません。, next_action: 左の行を見て、この内容で送るかを選び直します。 }
 defaults:
   unknown_command: rj-unknown
   wrong_order: rj-wrong

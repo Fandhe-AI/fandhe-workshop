@@ -153,7 +153,7 @@ test-serve: ## 配信サーバ（tools/serve.mjs）の試験（node:test）。�
 check-generic-words: ## エンジンの crate のコードに教材固有の語（付録 A）が無いことを検査する（CI 未組み込み）。直接: node tools/check-generic-words.mjs
 	@node tools/check-generic-words.mjs
 
-check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解答・基準値・診断の試験（CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack.sh [--pack <dir>]
+check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・基準値・診断の試験（CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack.sh [--pack <dir>]
 	@scripts/check-second-pack.sh
 
 test-check-second-pack: ## 上の試験自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack.sh

@@ -8,7 +8,7 @@
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/ vocab /
-#   no-board-words / test / steps / row-owner / play-sync / row-asserts / alt-differs / baseline（TASK-745）/ no-input-command / no-input-text
+#   no-board-words / test / steps / row-owner / play-sync / row-asserts / alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746）
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
 # 捨てる）。そのため変種の確認は compile で行う。
 #
@@ -298,6 +298,39 @@ if [ -f "${BASELINE}" ]; then
 else
   fail baseline "tests/baseline.txt is missing"
 fi
+
+# 21 wrong-scenes（TASK-746 1/2。SECOND-12）: 誤答への応答の 8 場面の規則と文面が IR に揃っている。
+# 各場面の (Step, 規則, 文面 ID, 分類) の固定の表で照合する。文面は message・next_action の前後の空白を除いた長さが 1 以上であること。
+# 場面 5 の規則 r-tomorrow-large は r-tomorrow より前にある（規則は上から読むため。畳み込みは when のある規則を除くので、並びはここでしか見ない）。
+# shellcheck disable=SC2016 # jq の変数（$ir など）をシェルに展開させない
+WS_FILTER='
+  . as $ir
+  | def st($id): [$ir.nodes[] | select(.step.id == $id) | .step][0];
+  def rule($s; $r): [st($s).rules[] | select(.id == $r)][0];
+  def rjok($id; $cat): ($ir.rejections[$id] // null) as $j | $j != null and $j.category == $cat
+    and (($j.message | gsub("^\\s+|\\s+$"; "") | length) >= 1) and (($j.next_action | gsub("^\\s+|\\s+$"; "") | length) >= 1);
+  def rej($s; $r; $rj; $cat): (rule($s; $r)) as $x | $x != null and $x.outcome.kind == "reject" and $x.outcome.rejection == $rj and rjok($rj; $cat);
+  def wrongs($s): [st($s).confirm.options[] | select(.correct == false)] as $w | ($w | length) >= 1 and all($w[]; (.on_wrong // "") as $o | $o != "" and rjok($o; "not_in_this_step"));
+  (["st-1","st-3","st-4","st-5","st-7","st-8"] | all(.[]; (st(.).confirm.kind == "answer") and wrongs(.)))
+  and rej("st-2"; "r-all"; "rj-to-all"; "not_in_this_step")
+  and ((st("st-2").confirm.on_miss // "") != "") and ((st("st-6").confirm.on_miss // "") != "")
+  and ((st("st-5").input.targets | length) == 4)
+  and rej("st-5"; "r-ui-to"; "rj-row-filled"; "not_in_this_step")
+  and rej("st-5"; "r-ui-scope"; "rj-row-filled"; "not_in_this_step")
+  and rej("st-5"; "r-ui-focus"; "rj-row-filled"; "not_in_this_step")
+  and rej("st-6"; "r-tomorrow-large"; "rj-due-short"; "not_in_this_step")
+  and (rule("st-6"; "r-tomorrow-large").when == {"chose": {"step": "st-3", "option": "opt-diff-tests"}})
+  and ([st("st-6").rules[].id] | index("r-tomorrow-large")) < ([st("st-6").rules[].id] | index("r-tomorrow"))
+  and rej("st-6"; "r-asap"; "rj-due-vague"; "bad_arg_shape")
+  and rej("st-7"; "r-skip"; "rj-skip"; "not_in_this_step")
+  and rej("st-8"; "r-revise"; "rj-revise"; "wrong_order")
+'
+jq_is wrong-scenes "${IR}" "${WS_FILTER}" "IR does not hold the 8 wrong-answer scenes (rules, rejection texts or categories)"
+
+# 22 reject-keeps-rows: 拒否の規則の outcome は kind と rejection だけを持つ（effects を持たない＝拒否のあと左の行は変わらない）。拒否の規則が 1 件以上ある
+# shellcheck disable=SC2016 # jq の変数をシェルに展開させない
+RK_FILTER='[.nodes[].step.rules[]? | select(.outcome.kind == "reject")] as $r | ($r | length) >= 1 and all($r[]; (.outcome | keys) == ["kind", "rejection"])'
+jq_is reject-keeps-rows "${IR}" "${RK_FILTER}" "a reject rule carries effects, or there is no reject rule"
 
 # 13・14 入力欄のない教材に command / text の Step を足した変種は compile が E-PROFILE-NO-INPUT で止める（SECOND-7）。
 # chapter.yaml は steps: が最後の欄であることを前提に、末尾へ Step を追記する。

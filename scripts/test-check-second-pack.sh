@@ -96,6 +96,12 @@ mutate "最終 Step の印を外した写し" "${C}" '/^    final: true$/d' step
 mutate "基準値を 1 つ変えた写し" "tests/baseline.txt" 's/^row_asserts=32/row_asserts=31/' baseline
 mutate "期待の変わる行を書き換えた写し" "tests/row-asserts.json" 's/今回直した差分だけです/今回直した差分です/' row-asserts
 mutate "別の選び方の入力を替えた写し" "tests/playthrough.yaml" 's/opt-friday/opt-tomorrow/' play-sync
+mutate "場面 5 の条件を外した写し" "${C}" '/when: { chose: { step: st-3/d' wrong-scenes
+mutate "場面 8 の分類を替えた写し" "${W}" 's/rj-revise: { category: wrong_order/rj-revise: { category: not_in_this_step/' wrong-scenes
+mutate "場面 2 の文面の参照を替えた写し" "${C}" 's/rejection: rj-to-all/rejection: rj-nis/' wrong-scenes
+mutate "確認の誤答の解説を外した写し" "${C}" 's/, on_wrong: rj-q8-unsent//' wrong-scenes
+mutate "拒否の規則に効果を足した写し" "${C}" 's/rejection: rj-skip }/rejection: rj-skip, effects: [] }/' reject-keeps-rows
+mutate "拒否の次の行動を空にした写し" "${W}" 's/next_action: 日時が 1 つに決まる期限を選び直します。/next_action: ""/' validate
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2
