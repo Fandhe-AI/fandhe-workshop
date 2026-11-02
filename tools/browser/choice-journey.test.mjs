@@ -13,6 +13,8 @@
 //   A  派生版の設定を開始から完走まで進める。judge が空（2 節点が達成・復習で達成・入力の口が無い・ビューの切り替えが見えない・通信とエラー 0 件）
 //   B  そのままの例の設定。最後の Step に入るまでで止まる期待（PACK-22 の停止の位置）を judge が合格にする
 //   C  道具の対照。A の開始の時点のページに入力欄・style 属性・ボタンを足すと、測った値が増える
+//   F  第 2 教材の誤答の場面（review-request-reject-scenes。TASK-750・SECOND-12 の画面の部分）。7 場面の拒否の行が IR の分類・文面と一致し、
+//      拒否の前後で左の行が変わらず、完走する。負の対照 2 つ（表示する IR の文面だけ変える・受け付けられる操作を拒否と宣言する）で judge が不合格にする
 //   D  別の教材の設定（IR で指定。3 Step・選択肢・指す・承認）を同じ道具で完走させる（設定を差し替えるだけで別の教材にも使える証拠）
 // 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。TASK-749 の担当）、
 // 本物の第 2 教材、人が画面を見た評価。
@@ -46,6 +48,8 @@ let stepInfo;
 let cfgDerived;
 let cfgAsIs;
 let cfgOther;
+let cfgReject;
+let irReject;
 
 const diag = (s) => console.log(`# diagnostic: ${s}`);
 
@@ -57,6 +61,8 @@ before(async () => {
   cfgDerived = loadConfig(cfgPath('choice-only-pack-derived'));
   cfgOther = loadConfig(cfgPath('input-field-hidden'));
   irAsIs = buildIr({ bin, config: cfgAsIs });
+  cfgReject = loadConfig(cfgPath('review-request-reject-scenes'));
+  irReject = buildIr({ bin, config: cfgReject });
   irShown = buildIr({ bin, config: cfgDerived });
   irOther = buildIr({ bin, config: cfgOther });
   stepInfo = stepsOf(JSON.parse(irShown));
@@ -87,15 +93,17 @@ for (const csp of [true, false]) {
   const mode = `CSP ${csp ? 'あり' : 'なし'}`;
 
   // 設定 1 本・IR 1 つを CSP の設定 csp で流し、結果と judge の理由を返す。設定の値はすべて引数から取る。
-  async function runWith(config, irText) {
+  // refIrText は期待の文面の出どころ（既定は表示する IR と同じ）。表示だけ変えた対照で別に渡す。
+  async function runWith(config, irText, refIrText = irText) {
     const { dir: copy, cleanup } = prepareDelivery({ webDir, irText });
     try {
       const ir = JSON.parse(irText);
+      const refIr = JSON.parse(refIrText);
       const info = stepsOf(ir);
       let out;
       await withCspMode({ dir: copy, csp }, (dir) => withServer({ dir, base: config.base }, async (srv) => {
         out = await runJourney({
-          browser, srv, ir, sequence: config.sequence, expect: config.sequence.map((s) => s.expect), initial: config.initial,
+          browser, srv, ir, refIr, sequence: config.sequence, expect: config.sequence.map((s) => s.expect), initial: config.initial,
           titles: info.titles, finals: info.finals, viewport: config.viewport,
         });
       }));
@@ -129,6 +137,34 @@ for (const csp of [true, false]) {
     assert.ok(r.reached.includes('main/st-point:entered'), 'last step entered');
     assert.equal(r.completed, false, 'cannot complete without rows');
     diag(`PACK-22 / starts effects not applied by the screen: rows=${r.end.rows.count} stoppedAt=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'}`);
+  });
+
+  test(`F: 第 2 教材の誤答 7 場面が画面に出て、拒否のあと左の行が変わらず完走する（${mode}）`, { timeout: 120000 }, async () => {
+    const { out: r, why } = await runWith(cfgReject, irReject);
+    assert.deepEqual(why, [], 'judge: no failed expectation');
+    assert.equal(r.completed, true);
+    assert.equal(r.rejections.length, 7);
+    assert.ok(r.rejections.every((x) => x.reasonOk && x.nextOk && x.rowsUnchanged && x.stepUnchanged), 'every rejection matches the IR and leaves the rows');
+    assert.equal(r.external, 0);
+    diag(`reject csp=${csp} categories=${[...new Set(r.rejections.map((x) => x.category))].sort().join('+')} live-response=${r.rejections.map((x) => `${x.liveResponse.count}/${x.liveResponse.hasText}`).join(',')}`);
+  });
+
+  test(`F-1: 負の対照。表示する IR の拒否の文面だけ変えると text で不合格になる（${mode}）`, { timeout: 120000 }, async () => {
+    const shown = JSON.parse(irReject);
+    shown.rejections['rj-skip'].message += '（改）';
+    const { why } = await runWith(cfgReject, JSON.stringify(shown), irReject);
+    const i = cfgReject.sequence.findIndex((o) => o.rejection === 'rj-skip');
+    assert.ok(why.includes(`reject[${i}].text`), `text mismatch is detected: ${why.join(',')}`);
+    assert.ok(why.includes('rejectScenes'), 'the scene is not counted');
+  });
+
+  test(`F-2: 負の対照。受け付けられる操作を拒否と宣言すると missing で不合格になる（${mode}）`, { timeout: 120000 }, async () => {
+    const cfg = structuredClone(cfgReject);
+    const i = cfg.sequence.findIndex((o) => o.kind === 'choice' && o.id === 'opt-pair');
+    Object.assign(cfg.sequence[i], { scene: 2 });
+    cfg.sequence[i].expect.status = 'rejected';
+    const { why } = await runWith(cfg, irReject);
+    assert.ok(why.includes(`reject[${i}].missing`), `missing rejection is detected: ${why.join(',')}`);
   });
 
   test(`D: 別の教材の設定（IR で指定）を同じ道具で完走させる（${mode}）`, { timeout: 120000 }, async () => {

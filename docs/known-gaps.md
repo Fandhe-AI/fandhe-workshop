@@ -43,6 +43,8 @@
 | PACK-19（両方無い） | 解消した（2026-10-22、#1709）。確認も持たない、入力も `use` も無い終端でない Step も `E-STRUCTURE` で拒否する。拒否の前に試験データを直した（#1708）。経緯の実測: 全面の拒否の影響は pack crate の試験 113 件（33 ファイル）と `testdata/pack-defects` の土台（30c1ff0 での実測） | 解消 | 不要（途中の Step には入力か `use` を書く。読むだけの Step は 1 択の `choice`） | `crates/pack/tests/pack19_bare_step.rs` の `pack19_` |
 | SAFE-32（DLV-12） | 埋め込み（`iframe`）を隠す対策は JS が動くときだけ効き、HTTP ヘッダ（`frame-ancestors`・`X-Frame-Options`）ほど強くない。GitHub Pages は応答のヘッダを設定できないため、ヘッダの案は採れない。meta の CSP では `frame-ancestors`・`report-uri`・`sandbox` が効かず、その代わりは決めていない。同じ起源の親でも隠す | 決めた上で受け入れた限界（D-44、2026-10-12）。最上位のウィンドウでなければ内容を表示せず、操作を受け付けない対策を `static/app.js` に実装した（TASK-167 1/2） | 教材は最上位のウィンドウ（直接のリンク・新しいタブ）で開く | `tools/browser/iframe-embed.test.mjs`（`docs/testing.md` 5.413） |
 | GUIDE-18 | 前後の比較を見せたことの観測（`ComparisonShown`）の出所のイベントが無く、履歴から導いた記録の `after_comparison` は常に `false` になる | 未対応。イベントを足す版上げ（core の `CONTRACT_VERSION`）の後に写像へ足す | 記録の `after_comparison` を履歴から導いた値として読まない。比較の有無が要る集計は別の記録で持つ | `crates/core/tests/lo_observe.rs` の `wrong_then_reselect_is_recorded_without_comparison` |
+| SECOND-12（条件つきの拒否） | 規則の `when` を入力の判定で評価しない（`crates/core/src/accept.rs` の `NoConditions`）。第 2 教材の場面 5（差分と関連テストの後の「明日の 17 時」）は画面でも拒否されず、受け付けられて状態が変わる | 未対応。結線するか、宣言だけと読み替えるかは人の判断 | 条件つきの拒否に頼る教材は、画面で出ることを前提にしない。第 2 教材は場面 5 を除外として記録し、合格に数えない | `tools/browser/choice-journey/review-request-reject-scenes.json`（`excluded`）。記録は `docs/testing.md` の 5.444・5.446（2026-11-02） |
+| SECOND-12（上部の応答） | 上部の「応答」の欄（`live-response`）は製品の画面に描かれない。識別子と読み上げの定義はあるが、要素が出ない | 未対応。描かれたら観察を見直す | 拒否の文面は右のログの拒否の行（`line-reason`・`line-next-action`）で確かめる。`live-response` は件数と文面の有無を観察として出すだけで、合否に使わない | `tools/browser/choice-journey.test.mjs` の場面 F。記録は `docs/testing.md` の 5.446（2026-11-02） |
 
 ## H-3: 受講者が選んだ値を文中・経路に差し込めない
 
