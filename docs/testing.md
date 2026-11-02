@@ -11778,6 +11778,22 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.436 入力欄のない教材を完走させ画面の値を測る道具（TASK-748 1/2。SECOND-4・SECOND-7）
+
+`tools/browser/choice-journey.mjs`（道具）と `choice-journey.test.mjs`（試験）を足した。IR を同梱した配信する設定（`web-author`）を一時ディレクトリへ写して `ir/main.json` だけを差し替え、教材を実クリックで開始から終わりまで進める。測るのは `data-theme`・文字の大きさ・行間・行の数・ビューの切り替え・入力の領域・右の領域のボタン・`style` の使用と、外部通信・ページ内エラー・CSP 警告・安全の計数。操作の列と期待値は引数で受ける（設定ファイルへの分離と CI からの呼び出しは #1074）。
+
+| 場面 | 確かめたこと |
+|---|---|
+| P | `validate` が 0。例と派生版の IR の差が `world_list` と `r-a` の受付の effects だけ。節点が 2 つ |
+| A | 派生版を最後まで完走（CSP あり・なし）。復習で 2 Step とも達成・入力の口 6 種が 0 件・ビューの切り替えが 0 件・通信とエラーが 0 件・`ir/main.json` が 200 で 1 回 |
+| B | そのままの例は `st-pick` の達成と `st-point` への進入まで。指せる行が 0 件で止まり、止まった位置を diagnostic に出す |
+| C | 道具の対照。入力欄・`style` 属性・ボタンを足すと測った値が増える |
+
+- 結果（2026-11-02、手元）: 6 件合格。派生版は CSP あり・なしとも reached=5・completed=true
+- 重要な発見（人の判断に残す）: `docs/examples/choice-only-pack` はそのままではブラウザで完走できない。原因は 2 つ。(1) `left_pane.world_list: hidden` が行を作らない（`docs/known-gaps.md` の PACK-22）。(2) 行を作る `put` が開始点の `effects` にあり、画面は開始点の `effects` を適用しない（`docs/cli.md` の経過措置。CLI の `test` は適用するので通る）。(2) のため `world_list: shown` に直すだけでも完走しない。派生版は両方を直した（`world_list: shown` と、`put` を `st-pick` の受付の effects へ移す）。受け入れ条件「例で完走」をどう満たすか（例を直す TASK-758・画面が開始点の effects を適用する・読み方を変える）は人が決める
+- 測った値（派生版）: `data-theme` は 0 件（製品の画面が未結線。TASK-749 の担当）、本文 16px・行間 1.2 倍（`reading` の 18px・1.75 倍にはなっていない）、見えている行 1 件、右の領域のボタンはチェックポイントの保存・復帰と停止。これらは主張せず diagnostic に残す
+- 確かめないこと: 外観の値の主張、本物の第 2 教材、人が画面を見た評価。`scripts/expected-test-counts.txt` は変えていない
+
 ### 5.435 変換できない履歴の理由つきの表示（TASK-184 2/2。VER-16）
 
 `format_older` の表示だけの通知に、固定の理由の文（仮置き）を足し（`crates/web/src/view_only_notice.rs` の `view_only_reason_text`）、版 1 の履歴を `ir_format` 2 の教材で開くホストの経路を `crates/web/tests/ver16_unconvertible_history.rs` で固定した。
