@@ -42,4 +42,284 @@ playthroughs:
           - { choice: opt-send, expect: accepted }
           - { choice: ans-sent, expect: achieved }
 error_inputs:
-  - { id: e-wrong-answer, start: s-1, input: { choice: ans-feel, expect: "rejected:not_in_this_step" } }
+  - id: w-q1-feel
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+    input: { choice: ans-feel, expect: "rejected:not_in_this_step" }
+  - id: w-q1-code
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+    input: { choice: ans-code, expect: "rejected:not_in_this_step" }
+  - id: to-all
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+    input: { choice: opt-all, expect: "rejected:not_in_this_step" }
+  - id: miss-to
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+    input: { ui: "v-doc review/due", expect: "rejected:not_in_this_step" }
+  - id: miss-to-alt
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-pair, expect: accepted }
+    input: { ui: "v-doc review/due", expect: "rejected:not_in_this_step" }
+  - id: w-q3-all
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+    input: { choice: ans-scope-all, expect: "rejected:not_in_this_step" }
+  - id: w-q3-none
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+    input: { choice: ans-scope-none, expect: "rejected:not_in_this_step" }
+  - id: w-q4-any
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+    input: { choice: ans-focus-any, expect: "rejected:not_in_this_step" }
+  - id: w-q4-skip
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+    input: { choice: ans-focus-skip, expect: "rejected:not_in_this_step" }
+  - id: row-to
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+    input: { ui: "v-doc review/to", expect: "rejected:not_in_this_step" }
+  - id: row-scope
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+    input: { ui: "v-doc review/scope", expect: "rejected:not_in_this_step" }
+  - id: row-focus
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+    input: { ui: "v-doc review/focus", expect: "rejected:not_in_this_step" }
+  - id: row-status
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+    input: { ui: "v-doc review/status", expect: "rejected:not_in_this_step" }
+  - id: w-q5-to
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+    input: { choice: ans-to-row, expect: "rejected:not_in_this_step" }
+  - id: w-q5-status
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+    input: { choice: ans-status-row, expect: "rejected:not_in_this_step" }
+  - id: due-vague
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+    input: { choice: opt-asap, expect: "rejected:bad_arg_shape" }
+  - id: miss-due
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+    input: { ui: "v-doc review/to", expect: "rejected:not_in_this_step" }
+  - id: skip
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+      - { ui: "v-doc review/due", expect: achieved }
+    input: { choice: opt-skip, expect: "rejected:not_in_this_step" }
+  - id: w-q7-now
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+      - { ui: "v-doc review/due", expect: achieved }
+      - { choice: opt-reread, expect: accepted }
+    input: { choice: ans-send-now, expect: "rejected:not_in_this_step" }
+  - id: w-q7-add
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+      - { ui: "v-doc review/due", expect: achieved }
+      - { choice: opt-reread, expect: accepted }
+    input: { choice: ans-add, expect: "rejected:not_in_this_step" }
+  - id: revise
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+      - { ui: "v-doc review/due", expect: achieved }
+      - { choice: opt-reread, expect: accepted }
+      - { choice: ans-reread, expect: achieved }
+    input: { choice: opt-revise, expect: "rejected:wrong_order" }
+  - id: w-q8-unsent
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { choice: opt-owner, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: opt-diff, expect: accepted }
+      - { choice: ans-scope-narrow, expect: achieved }
+      - { choice: opt-security, expect: accepted }
+      - { choice: ans-focus-one, expect: achieved }
+      - { ui: "v-doc review/due", expect: accepted }
+      - { choice: ans-due-row, expect: achieved }
+      - { choice: opt-friday, expect: accepted }
+      - { ui: "v-doc review/due", expect: achieved }
+      - { choice: opt-reread, expect: accepted }
+      - { choice: ans-reread, expect: achieved }
+      - { choice: opt-send, expect: accepted }
+    input: { choice: ans-unsent, expect: "rejected:not_in_this_step" }
+  - id: other-step
+    start: s-1
+    input: { choice: opt-send, expect: "rejected:not_in_this_step" }
+  - id: confirm-in-input
+    start: s-1
+    input: { choice: ans-feel, expect: "rejected:not_in_this_step" }
+  - id: cancel-in-choice
+    start: s-1
+    input: { cancel: true, expect: "rejected:not_in_this_step" }
+  - id: reselect-in-confirm
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+    input: { choice: opt-start, expect: "rejected:not_in_this_step" }
+  - id: recover
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-feel, expect: rejected:not_in_this_step }
+      - { choice: ans-ready, expect: achieved }
+    input: { choice: opt-all, expect: "rejected:not_in_this_step" }

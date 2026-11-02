@@ -11826,7 +11826,26 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 #### 限界
 
 - 場面 5（条件つきの拒否）は `validate` を通るが、今のエンジンは入力の判定で規則の `when` を評価しない（`crates/core/src/accept.rs` の `judge_input` が `NoConditions` を渡す）。仮の誤入力で、条件に当たる入力が `accepted` になることを手元で確かめた。データの宣言までを固定し、動作の確認は含まない
-- 誤入力の通しと文面の確認は TASK-746 2/2、画面の確認は TASK-750。試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
+- 誤入力の通しと文面の確認は 5.444（TASK-746 2/2）、画面の確認は TASK-750。試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
+
+### 5.444 第 2 教材の誤入力・文面の確認の通し（TASK-746 2/2。SECOND-12）
+
+`tests/playthrough.yaml` の `error_inputs` に 27 件を block 形式で書き、`fandhe-pack test` で全件合格させた。文面の確認は `tests/text-checks.json`（版 1。27 件と、除外 1 件）に置き、`scripts/check-second-pack.sh` に 3 項目を足した。`scripts/second-pack-judge.jq`（エンジンの文面の選び方の静的な写し）を新設した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
+
+- 誤入力 27 件: 場面 1（確認の誤答 11 件）・2・3（3 件）・4（3 件）・6・7・8 と補助 5 件（場面 0。宣言外の行・他の Step の選択肢・確認の形に合わない入力・取り消し・拒否の後の選び直し）。`pre` で正しい経路の前方を送ってから誤入力を送る
+- `text_checks:` を使わない理由: 書くと `test` が Unsupported 扱いで終了コード 1 になる（`docs/cli.md`）。`row-asserts.json` の前例に従い別のファイルに置く。`test` が判定できるようになったら `playthrough.yaml` へ移して本ファイルを消す
+- `error-inputs-sync`: 誤入力の区画を固定の配置で厳密に読み（読めない形は不合格）、ID の集合を `text-checks.json` と照合する。`play-sync` は誤入力の区画の入力を通しの入力と取り違えないよう直した
+- `text-checks`: 各件で、`test` が観測した分類・静的に解いた文面の ID と分類・IR の `message`・`next_action`（空でない）が一致し、除外を除く 7 場面と IR の確認の誤答の選択肢すべて（11 個）に場面 1 の件があること
+- `zero-counts`: R-22 の「確認なしで達成になった」と R-21 の「次の行動が空」が 0 件で、行が無ければ不合格。`baseline` に `text_checks`・`r22.*`・`r21.*` を足した
+- 変異（8 件）: 文面の確認の書き換え・教材の文面の書き換え・文面 ID の差し替え・誤答の解説の参照の削除・除外の場面の変更は `text-checks`、誤入力の改名は `error-inputs-sync`、期待の書き換えは `test`、基準値の変更は `baseline`
+- 実行（2026-11-02、手元。新しくビルドした `fandhe-pack`）: `test` 終了コード 0・誤入力 27/27・入力の総数 235・R-22 確認の操作 96 件・確認なし 0 件・R-21 28 件のうち空 0 件、`check-second-pack` 全項目合格、`test-check-second-pack` 全件 ok
+
+#### 限界
+
+- 場面 5 は誤入力に入れていない。今のエンジンは入力の判定で規則の `when` を評価せず（`accept.rs` の `NoConditions`）、条件に当たる入力が `accepted` になるため、誤った挙動を正として固定しない。除外の理由は `text-checks.json` の `excluded`（`engine-when-not-evaluated`）に記録し、宣言は `wrong-scenes` が固定する。エンジン側の結線か、宣言だけと読み替えるかは人の判断が要る
+- 文面の照合は IR に載った文面と静的な写しで、実行時にエンジンが返した文面ではない。写しはエンジンの判定順が変わると食い違い、`test` の分類との照合で一部だけ検出される。画面の文面は TASK-750
+- R-22・R-21 の 0 でない数を出す変異は作れない（`validate` が先に止める）。古い実行ファイルでは R-22・R-21 の行が出ず `zero-counts` が不合格になるので、新しくビルドして流す
+- 試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
 
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 

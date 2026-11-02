@@ -109,6 +109,16 @@ mutate "確認の誤答の解説を外した写し" "${C}" 's/, on_wrong: rj-q8-
 mutate "拒否の規則に効果を足した写し" "${C}" 's/rejection: rj-skip }/rejection: rj-skip, effects: [] }/' reject-keeps-rows
 mutate "拒否の次の行動を空にした写し" "${W}" 's/next_action: 日時が 1 つに決まる期限を選び直します。/next_action: ""/' validate
 
+T="tests/text-checks.json"
+mutate "文面の確認の次の行動を替えた写し" "${T}" 's/読む人が動ける答えを選び直します。/読む人が動ける答えを選びます。/' text-checks
+mutate "教材の拒否の文面を替えた写し" "${W}" 's/範囲が広いと、読む人は終わりが見えません。/範囲が広いと、読む人は迷います。/' text-checks
+mutate "文面の確認の文面 ID を替えた写し" "${T}" 's/"rejection": "rj-q1-feel"/"rejection": "rj-miss-q"/' text-checks
+mutate "確認の誤答の解説の参照を外した写し（場面 1）" "${C}" 's/, on_wrong: rj-q1-code//' text-checks
+mutate "誤入力の ID を改名した写し" "tests/playthrough.yaml" 's/id: w-q1-feel/id: w-q1-feel-x/' error-inputs-sync
+mutate "誤入力の期待を替えた写し" "tests/playthrough.yaml" 's/expect: "rejected:wrong_order"/expect: "rejected:not_in_this_step"/' test
+mutate "除外の場面を替えた写し" "${T}" 's/"scene": 5,/"scene": 2,/' text-checks
+mutate "R-21 の基準値を変えた写し" "tests/baseline.txt" 's/^r21.empty=0/r21.empty=1/' baseline
+
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2
   exit 1
