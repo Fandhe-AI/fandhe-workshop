@@ -17,6 +17,9 @@
 //      派生版（world_list を shown、練習データの 5 行を st-1 の受付へ移す）は完走を、judge が合格にする。入口は選択肢のボタンだけ・案内 4 種と入力の注意書きの文字が無い・
 //      見える input は読み込み用のファイル選択 1 つ・右の領域の操作要素（停止・保存・書き出し・読み込み）が出る。案内レベルのボタンは製品の画面に無く、ヒントを開くは教材がヒントを持たないので出ない
 //   D  別の教材の設定（IR で指定。3 Step・選択肢・指す・承認）を同じ道具で完走させる（設定を差し替えるだけで別の教材にも使える証拠）
+//   G  道具の対照（TASK-749 2/3。CSP ありの 1 回）。派生版で opt-start を押した後のページ（行 5 本が【追加】）に 4 つの手を加え、測った値が変わって
+//      judge が欄名の理由を返すこと: 印の文字を消す（markGlyphText）・別のビューを見せる（visibleViews）・切り替えのボタンを足す（leftSwitch）・行を 1 本消す（rowPaths）。手を加えない測定は理由が空
+//      E は、さらに左の領域（SECOND-6・SECOND-8）。見えるビューは文書だけ・切り替えが無い・そのままの教材は行 0 件（PACK-22）、派生版は行 5 本と受付ごとの変化の印
 // 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。TASK-749 の担当）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
@@ -30,9 +33,10 @@ import {
   launchBrowser, channelFromEnv, packBinFromEnv, withServer, withCspMode, openPage, waitMounted,
 } from './harness.mjs';
 import {
-  stepsOf, prepareDelivery, measureScreen, runJourney, summaryLine,
+  stepsOf, prepareDelivery, measureScreen, measureLeft, runJourney, summaryLine,
 } from './choice-journey.mjs';
 import { loadConfig, buildIr, judge } from './choice-journey-config.mjs';
+import { choiceSel } from './ch0-3-journey.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PACK = path.resolve(HERE, '../../docs/examples/choice-only-pack');
@@ -153,6 +157,16 @@ for (const csp of [true, false]) {
         assert.equal(m.notice.textLength, 0, 'input notice has no text');
       }
       assert.ok(r.start.parts['choice-btn'].visible > 0, 'choice buttons at start');
+      // 左の領域（TASK-749 2/3）。見えるビューは文書だけで、切り替えの部品は測った全時点で 0 件。judge が行の集合と印を見る。
+      for (const m of [r.left.start, ...r.left.ops, r.left.end]) {
+        assert.deepEqual(m.views.shown, ['document'], 'only the document view is visible');
+        assert.equal(m.select.visibleButtons, 0);
+        assert.equal(m.settled, true);
+      }
+      assert.equal(r.left.ops.length, r.reached.length - 1, 'left is measured after every reached operation');
+      assert.equal(r.left.end.rows.length, completed ? 5 : 0, 'rows: 5 in the derived pack, 0 in the real pack (PACK-22)');
+      const markedOps = r.left.ops.filter((o) => o.rows.some((x) => x.mark !== '')).length;
+      diag(`second-pack-left ${cfg.name} csp=${csp} views=${r.left.end.views.shown.length}/${r.left.end.views.total} rows-end=${r.left.end.rows.length} ops-measured=${r.left.ops.length} ops-with-marks=${markedOps}`);
       diag(`second-pack ${cfg.name} csp=${csp} stopped=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'} rows=${r.end.rows.count} hint-open=${r.end.parts['hint-open'].count} hint-box=${r.end.parts['shell-hint'].count} checkpoint-restore=${r.end.parts['checkpoint-restore'].visible} delete=${r.end.parts['shell-delete'].count}`);
     }
   });
@@ -248,6 +262,58 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
         for (const w of ['entryPorts@end', 'inputGuidesAbsent@end', 'inputNotice@end', 'fileInputs@end', 'controls.stop@end']) assert.ok(why.includes(w), `judge reports ${w}`);
       } finally {
         await context.close();
+      }
+    }));
+  } finally {
+    cleanup();
+  }
+});
+
+// 道具の対照（TASK-749 2/3）。派生版で opt-start を押した後（行 5 本が【追加】）のページに手を加え、judge が欄名の理由を返すことを確かめる。
+test('G: 道具の対照。印の文字・見えるビュー・切り替えのボタン・行の数を変えると、左の領域の理由が出る（CSP あり）', { timeout: 180000 }, async () => {
+  const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irRrDerived });
+  const leftWhy = (m) => judge(cfgRrDerived, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [], end: m.left } })
+    .filter((w) => /^(visibleViews|leftSwitch|rowPaths|markGlyphText|marks|leftUnsettled|left-missing)/.test(w));
+  try {
+    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgRrDerived.base }, async (srv) => {
+      const probe = async (hand) => {
+        const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
+        try {
+          await page.goto(srv.url);
+          await waitMounted(page);
+          await page.waitForSelector('[data-testid="step-title"]', { timeout: 30000 });
+          await page.locator(choiceSel(cfgRrDerived.sequence[0].id)).first().click({ timeout: 4000 });
+          await page.waitForFunction(() => document.querySelectorAll('[data-testid="view-list"] > li[data-path]').length === 5, null, { timeout: 10000 });
+          if (hand) await page.evaluate(hand);
+          return { left: await measureLeft(page), screen: await measureScreen(page) };
+        } finally {
+          await context.close();
+        }
+      };
+      const base0 = await probe(null);
+      assert.equal(base0.left.rows.length, 5, 'control: 5 rows after the first accepted operation');
+      assert.ok(base0.left.rows.every((x) => x.mark === 'add'), 'control: all rows are marked as added');
+      assert.deepEqual(leftWhy(base0), [], 'control: untouched page has no left-area reason');
+      const hands = [
+        ['markGlyphText', () => { const e = document.querySelector('[data-testid="mark-text"]'); e.textContent = ''; }, (b, a) => assert.notEqual(a.left.rows.filter((x) => x.text === '').length, 0)],
+        ['visibleViews', () => {
+          const other = document.querySelector('[data-testid="view-list"]:not([data-view="document"])');
+          for (let e = other; e && e.getAttribute('data-testid') !== 'shell-left'; e = e.parentElement) e.removeAttribute('hidden');
+        }, (b, a) => assert.equal(a.left.views.shown.length, b.left.views.shown.length + 1)],
+        ['leftSwitch', () => {
+          const btn = document.createElement('button');
+          btn.setAttribute('data-testid', 'view-select-button');
+          btn.textContent = 'x';
+          document.querySelector('[data-testid="shell-left"]').appendChild(btn);
+        }, (b, a) => assert.equal(a.left.select.visibleButtons, b.left.select.visibleButtons + 1)],
+        ['rowPaths', () => { document.querySelector('[data-testid="view-list"] > li[data-path]').remove(); }, (b, a) => assert.equal(a.left.rows.length, b.left.rows.length - 1)],
+      ];
+      for (const [reason, hand, grew] of hands) {
+        const after = await probe(hand);
+        grew(base0, after);
+        const why = leftWhy(after);
+        assert.ok(why.some((w) => w.startsWith(reason)), `judge reports ${reason}: ${why.join(',')}`);
+        diag(`left-control ${reason} reasons=${why.length}`);
       }
     }));
   } finally {

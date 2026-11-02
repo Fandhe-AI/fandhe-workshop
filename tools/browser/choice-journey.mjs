@@ -8,6 +8,7 @@
 // 教材固有の値は一切書かず、すべて引数で受ける（設定ファイルを差し替えるだけで別の教材にも使える）。
 // 使う部品: harness.mjs（配信・計数）、ch0-3-journey.mjs（台帳でない部分のセレクタと install）、ch4-9-journey.mjs の inspectDom49（DOM だけの判定）。
 // 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。
+// 左の領域（見えるビュー・行・変化の印）は measureLeft が測り、結果の left に入れる（TASK-749 2/3）。
 // 世界状態の一覧を出さない設定（`world_list` の hidden）の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
 // 出力（summaryLine）は名前・件数・合否・数値だけで、教材の文面と入力した値は含めない。
 import fs from 'node:fs';
@@ -39,6 +40,17 @@ export const CONTROLS = {
   delete: 'shell-delete',
   hintContainer: 'shell-hint',
   hintOpen: 'hint-open',
+};
+
+/** 仕様（PoC）の左の領域の名前。製品の DOM には無いので、「0 件」であることを data-testid で数える（TASK-749 2/3。SECOND-8）。 */
+export const LEFT_ABSENT = ['world-list', 'view-tabs', 'view-tab'];
+
+/** 変化の印の 3 手段の対応（crates/web/src/a11y.rs の ChangeMark の写し。エンジン共通の値で、教材固有ではない）。キーは data-mark の値。 */
+export const MARK_TABLE = {
+  '': ['', ''],
+  add: ['+', '【追加】'],
+  remove: ['-', '【削除】'],
+  change: ['~', '【変更】'],
 };
 
 /** 入力の注意書き（常に 1 個あるが、普段は空の文字）。 */
@@ -164,6 +176,47 @@ export function measureScreen(page) {
   }, [ABSENT, ids, NOTICE]);
 }
 
+/**
+ * 左の領域（成果物のビュー）を測る。判定はしない（TASK-749 2/3。SECOND-6・SECOND-8）。ページ内の関数は固定で、設定の文字列から組み立てない。
+ * 見えるビューは `hidden` の無い `view-list` の data-view（空の ul は箱が 0 なので箱の大きさでは測らない）。行は `li[data-path]`。
+ * 描画がログと揃うまで待ち、揃わなければ settled を偽にして返す（例外にしない）。
+ */
+export async function measureLeft(page, timeout = 2000) {
+  const settled = await page.waitForFunction(() => {
+    const t = (id) => document.querySelector(`[data-testid="${id}"]`);
+    const a = t('part-artifact-consumed');
+    const l = t('part-log-consumed');
+    return a !== null && l !== null && (a.textContent ?? '').trim() === (l.textContent ?? '').trim();
+  }, null, { timeout }).then(() => true, () => false);
+  const m = await page.evaluate((absent) => {
+    const q = (sel, root = document) => [...root.querySelectorAll(sel)];
+    const tid = (id) => `[data-testid="${id}"]`;
+    const vis = (e) => {
+      const b = e.getBoundingClientRect();
+      const c = getComputedStyle(e);
+      return b.width > 0 && b.height > 0 && c.display !== 'none' && c.visibility !== 'hidden' && !e.closest('[hidden]');
+    };
+    const left = document.querySelector(tid('shell-left'));
+    const lists = left ? q(tid('view-list'), left) : [];
+    const shown = lists.filter((e) => !e.closest('[hidden]')).map((e) => e.getAttribute('data-view'));
+    const rowsOf = lists.filter((e) => !e.closest('[hidden]')).flatMap((e) => q(':scope > li[data-path]', e));
+    const sels = q(tid('view-select'));
+    const btns = q(tid('view-select-button'));
+    return {
+      views: { shown, total: lists.length },
+      select: { count: sels.length, visible: sels.filter(vis).length, buttons: btns.length, visibleButtons: btns.filter(vis).length },
+      absent: Object.fromEntries(absent.map((id) => [id, q(tid(id)).length])),
+      rows: rowsOf.map((li) => ({
+        path: li.getAttribute('data-path'),
+        mark: li.getAttribute('data-mark') ?? '',
+        glyph: (li.querySelector(':scope > ' + tid('mark-glyph'))?.textContent ?? '').trim(),
+        text: (li.querySelector(':scope > ' + tid('mark-text'))?.textContent ?? '').trim(),
+      })),
+    };
+  }, LEFT_ABSENT);
+  return { ...m, settled };
+}
+
 /** 復習の行（Step・達成）を読む。 */
 const readReview = (page) => page.evaluate(() => [...document.querySelectorAll('[data-testid="part-review-list"] > li')]
   .map((li) => ({ step: li.dataset.step, achieved: li.dataset.achieved })));
@@ -189,6 +242,7 @@ export async function runJourney({
     await obs.at(page, initial.uid, initial.status);
     result.reached.push(`${initial.uid}:${initial.status}`);
     result.start = await measureScreen(page);
+    result.left = { start: await measureLeft(page), ops: [], end: null };
     for (let i = 0; i < sequence.length; i += 1) {
       const op = sequence[i];
       const sel = {
@@ -208,7 +262,9 @@ export async function runJourney({
         break;
       }
       result.reached.push(`${expect[i].uid}:${expect[i].status}`);
+      result.left.ops.push({ index: i, ...(await measureLeft(page)) });
     }
+    result.left.end = await measureLeft(page);
     result.end = await measureScreen(page);
     result.review = await readReview(page);
     result.completed = result.stoppedAt === null
@@ -241,6 +297,8 @@ export function summaryLine(label, csp, r) {
     `theme=${JSON.stringify(r.end?.theme?.values ?? [])}`,
     `font=body:${fmt(f.body)},do:${fmt(f.do)},choice:${fmt(f.choice)}`,
     `rows=${r.end?.rows?.count ?? 'n/a'}`,
+    `views=${r.left?.end?.views?.shown?.length ?? 'n/a'}`,
+    `left-ops=${r.left?.ops?.length ?? 'n/a'}`,
     `view-buttons=${r.end?.viewSwitch?.visibleButtons ?? 'n/a'}`,
     `ports=${PORTS.filter((id) => (r.end?.parts?.[id]?.visible ?? 0) > 0).join(',') || 'none'}`,
     `file-inputs=${r.end?.fileInputs?.visible ?? 'n/a'}`,

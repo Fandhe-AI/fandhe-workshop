@@ -5,6 +5,7 @@
 //   N  負の対照。形・値の誤りは ConfigError（未知の欄・format・name・base・source・パスの封じ込め・操作の種類・status・decision・edits）
 //   E  applyEdits。from が 0 回・2 回出る書き換えと、写しの外・シンボリックリンクの対象を拒否し、元は書き換えない
 //   J  judge の表駆動。合う結果は空、期待を 1 つだけ外した結果は理由がちょうど 1 件
+//   (TASK-749 2/3) N に左の領域の欄（visibleViews・leftSwitchAbsent・rowPaths・marks）の不正な形、J に左の領域の照合を足した
 //   S  静的な検査。設定に書かれた教材固有の文字列が、道具の 3 ファイルのソースに 1 件も出ない
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,6 +93,24 @@ const BAD = [
   ['controls が連想配列でない', (c) => { c.expect.controls = ['stop']; }],
   ['controls の未知の名前', (c) => { c.expect.controls = { 'a"]b': true }; }],
   ['controls の値が真偽でない', (c) => { c.expect.controls = { stop: 'yes' }; }],
+  ['visibleViews の未知のビュー', (c) => { c.expect.visibleViews = ['document', 'world']; }],
+  ['visibleViews の重複', (c) => { c.expect.visibleViews = ['document', 'document']; }],
+  ['visibleViews が配列でない', (c) => { c.expect.visibleViews = 'document'; }],
+  ['leftSwitchAbsent が真偽でない', (c) => { c.expect.leftSwitchAbsent = 1; }],
+  ['rowPaths の重複', (c) => { c.expect.rowPaths = ['r/a', 'r/a']; }],
+  ['rowPaths の経路に引用符', (c) => { c.expect.rowPaths = ['r"a']; }],
+  ['rowPaths が 65 件', (c) => { c.expect.rowPaths = Array.from({ length: 65 }, (_, i) => `r/${i}`); }],
+  ['marks の未知の値', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = { 'r/a': 'none' }; }],
+  ['marks の値の大文字', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = { 'r/a': 'CHANGE' }; }],
+  ['marks の経路に引用符', (c) => { c.expect.rowPaths = ['r"a']; c.sequence[0].marks = { 'r"a': 'add' }; }],
+  ['marks が 65 件', (c) => {
+    const paths = Array.from({ length: 65 }, (_, i) => `r/${i}`);
+    c.expect.rowPaths = paths;
+    c.sequence[0].marks = Object.fromEntries(paths.map((x) => [x, 'add']));
+  }],
+  ['marks が連想配列でない', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = ['r/a']; }],
+  ['rowPaths の無い marks', (c) => { c.sequence[0].marks = {}; }],
+  ['rowPaths に無い経路の marks', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = { 'r/b': 'add' }; }],
   ['csp が真偽の列でない', (c) => { c.csp = ['on']; }],
 ];
 for (const [label, mutate] of BAD) {
@@ -251,6 +270,62 @@ for (const [label, mutate, want] of OFF) {
     const why = judge(config(), r);
     // 「completed を外す」だけは、同時に review の件数に影響しないこと
     assert.deepEqual(why, want);
+  });
+}
+
+// 左の領域（TASK-749 2/3）。1 操作の設定で、行 2 本（r/a・r/b）・文書ビューだけ・切り替えなし・r/a が【変更】の主張。
+const leftConfig = () => parseConfig({
+  ...base(),
+  sequence: [{
+    kind: 'choice', id: 'x', expect: { uid: 'a/b', status: 'accepted' }, marks: { 'r/a': 'change' },
+  }],
+  expect: {
+    completed: true, visibleViews: ['document'], leftSwitchAbsent: true, rowPaths: ['r/a', 'r/b'],
+  },
+}, '/tmp');
+const leftAt = (marks = {}) => ({
+  settled: true,
+  views: { shown: ['document'], total: 7 },
+  select: { count: 1, visible: 0, buttons: 0, visibleButtons: 0 },
+  absent: { 'world-list': 0, 'view-tabs': 0, 'view-tab': 0 },
+  rows: ['r/b', 'r/a'].map((p) => {
+    const mark = marks[p] ?? '';
+    return { path: p, mark, glyph: { '': '', change: '~', add: '+' }[mark], text: { '': '', change: '【変更】', add: '【追加】' }[mark] };
+  }),
+});
+const goodLeft = () => ({ ...good(), left: { start: leftAt(), ops: [{ index: 0, ...leftAt({ 'r/a': 'change' }) }], end: leftAt() } });
+
+test('J: judge は左の領域の期待に合う結果で空を返し、行の並びは主張しない', () => {
+  assert.deepEqual(judge(leftConfig(), goodLeft()), []);
+  const r = goodLeft();
+  r.left.end.rows.reverse();
+  assert.deepEqual(judge(leftConfig(), r), []);
+  // 左の主張が無い設定は left が無くても通る（他の設定を壊さない）。
+  assert.deepEqual(judge(config(), good()), []);
+});
+
+const LEFT_OFF = [
+  ['left が無い', (r) => { delete r.left; }, ['left-missing']],
+  ['ビューが 2 本見える（終了時）', (r) => { r.left.end.views.shown = ['document', 'list']; }, ['visibleViews@end']],
+  ['見えるビューが無い（開始時）', (r) => { r.left.start.views.shown = []; }, ['visibleViews@start']],
+  ['切り替えのボタンが 1 個（操作の後）', (r) => { r.left.ops[0].select.buttons = 1; r.left.ops[0].select.visibleButtons = 1; }, ['leftSwitch@op[0]']],
+  ['切り替えの入れ物が見える（開始時）', (r) => { r.left.start.select.visible = 1; }, ['leftSwitch@start']],
+  ['world-list が 1 件（終了時）', (r) => { r.left.end.absent['world-list'] = 1; }, ['leftSwitch@end']],
+  ['行が 1 本足りない（終了時）', (r) => { r.left.end.rows.pop(); }, ['rowPaths@end']],
+  ['行が 1 本余る（操作の後）', (r) => { r.left.ops[0].rows.push({ path: 'r/c', mark: '', glyph: '', text: '' }); }, ['rowPaths@op[0]']],
+  ['行の経路が重複する（終了時）', (r) => { r.left.end.rows[0].path = 'r/a'; }, ['rowPaths@end']],
+  ['印の値が違う（操作の後）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').mark = 'add'; r.left.ops[0].rows.find((x) => x.path === 'r/a').glyph = '+'; r.left.ops[0].rows.find((x) => x.path === 'r/a').text = '【追加】'; }, ['marks@op[0]']],
+  ['印の無いはずの行に印がある（操作の後）', (r) => { Object.assign(r.left.ops[0].rows.find((x) => x.path === 'r/b'), { mark: 'change', glyph: '~', text: '【変更】' }); }, ['marks@op[0]']],
+  ['印の文字が空で data-mark が change（3 手段の不一致）', (r) => { r.left.ops[0].rows.find((x) => x.path === 'r/a').text = ''; }, ['markGlyphText@op[0]']],
+  ['記号が違う（終了時）', (r) => { Object.assign(r.left.end.rows[0], { mark: 'add', glyph: '~', text: '【追加】' }); }, ['markGlyphText@end']],
+  ['未知の data-mark（開始時）', (r) => { r.left.start.rows[0].mark = 'move'; }, ['markGlyphText@start']],
+  ['左の描画が揃わない（操作の後）', (r) => { r.left.ops[0].settled = false; }, ['leftUnsettled@op[0]']],
+];
+for (const [label, mutate, want] of LEFT_OFF) {
+  test(`J: judge は左の領域が 1 欄だけ外れた結果で理由がちょうど 1 件（${label}）`, () => {
+    const r = goodLeft();
+    mutate(r);
+    assert.deepEqual(judge(leftConfig(), r), want);
   });
 }
 

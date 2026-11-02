@@ -29,6 +29,13 @@
       "expect": {
         "uid": "main/st-1",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "add",
+        "review/to": "add",
+        "review/scope": "add",
+        "review/focus": "add",
+        "review/due": "add"
       }
     },
     {
@@ -37,6 +44,9 @@
       "expect": {
         "uid": "main/st-2",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -45,6 +55,10 @@
       "expect": {
         "uid": "main/st-2",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/to": "change"
       }
     },
     {
@@ -53,6 +67,9 @@
       "expect": {
         "uid": "main/st-3",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -61,6 +78,10 @@
       "expect": {
         "uid": "main/st-3",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/scope": "change"
       }
     },
     {
@@ -69,6 +90,9 @@
       "expect": {
         "uid": "main/st-4",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -77,6 +101,10 @@
       "expect": {
         "uid": "main/st-4",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/focus": "change"
       }
     },
     {
@@ -85,6 +113,9 @@
       "expect": {
         "uid": "main/st-5",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -93,6 +124,10 @@
       "expect": {
         "uid": "main/st-5",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/due": "change"
       }
     },
     {
@@ -101,6 +136,9 @@
       "expect": {
         "uid": "main/st-6",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -109,6 +147,10 @@
       "expect": {
         "uid": "main/st-6",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/due": "change"
       }
     },
     {
@@ -117,6 +159,9 @@
       "expect": {
         "uid": "main/st-7",
         "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -125,6 +170,9 @@
       "expect": {
         "uid": "main/st-7",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -133,7 +181,8 @@
       "expect": {
         "uid": "main/st-8",
         "status": "entered"
-      }
+      },
+      "marks": {}
     },
     {
       "kind": "choice",
@@ -141,6 +190,9 @@
       "expect": {
         "uid": "main/st-8",
         "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change"
       }
     },
     {
@@ -149,6 +201,9 @@
       "expect": {
         "uid": "main/st-8",
         "status": "achieved"
+      },
+      "marks": {
+        "review/status": "change"
       }
     }
   ],
@@ -173,6 +228,17 @@
       "hintContainer": true,
       "hintOpen": false
     },
-    "reviewAchieved": 8
+    "reviewAchieved": 8,
+    "visibleViews": [
+      "document"
+    ],
+    "leftSwitchAbsent": true,
+    "rowPaths": [
+      "review/due",
+      "review/focus",
+      "review/scope",
+      "review/status",
+      "review/to"
+    ]
   }
 }
