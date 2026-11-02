@@ -282,7 +282,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make serve` | `node tools/serve.mjs` | `dist/web` をサブパス（既定 `/subpath/`、`--base` で任意の名前）の下で gzip つきで配る。例: `make build-web` の後に `node tools/serve.mjs --base /my-site/` を実行し、`http://127.0.0.1:8765/my-site/` を開く |
 | `make check-generic-words` | `tools/check-generic-words.mjs` | エンジンの crate のコードに教材固有の語（語彙の付録 A）が無いことの検査（CI 未組み込み） |
 | `make test-check-generic-words` | `scripts/test-check-generic-words.sh` | 教材固有の語の検査自体の回帰テスト |
-| `make check-second-pack` | `scripts/check-second-pack.sh` | 第 2 教材の骨格の設定値・文書のビューの 5 行・Step 群と模範解答の照合・診断の試験（CI 未組み込み。cargo が要る） |
+| `make check-second-pack` | `scripts/check-second-pack.sh` | 第 2 教材の骨格の設定値・文書のビューの 5 行・Step 群と模範解答の照合・AR-12 の読みの記録と設定値の一致・診断の試験（CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack` | `scripts/test-check-second-pack.sh` | 上の試験自体の回帰テスト（変異を入れた写し） |
 | `make check-internal-info WORDS=<一覧のパス>` | `tools/check-internal-info.mjs` | 社内固有の語（private の spec repo の一覧）と認証情報の形の公開前の照合（CI 未組み込み。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | `tools/check-internal-info.mjs` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
