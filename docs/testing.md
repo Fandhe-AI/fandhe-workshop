@@ -38,7 +38,7 @@
 | 状態の復元 | `crates/core/tests/restore_resume.rs` | `restore_resumes_progress_in_new_generation` | 復帰後の再開 |
 | 状態の復元 | `crates/core/tests/restore_owner_slice.rs` | `restore_replaces_only_owner_slice` | 実体の切り身の復元 |
 | 状態の復元 | `crates/core/tests/history_replay.rs` | `replay_matches_snapshot`・`empty_ops_replay_to_initial` | 履歴の流し直し |
-| 履歴の変換 | `crates/core/tests/history_open.rs` | `ver3_same_versions_open_without_conversion`・`ver4_content_patch_only_is_converted` | 変換して開く（VER-3〜VER-7） |
+| 履歴の変換 | `crates/core/tests/history_open.rs` | `ver3_same_versions_open_without_conversion`・`ver4_content_patch_only_is_converted`・`ver16_v1_history_is_not_converted_even_when_replay_would_match`・`ver16_v1_history_is_closed_before_replay` | 変換して開く（VER-3〜VER-7）・版 1 の履歴を変換しない（VER-16） |
 | 履歴の変換 | `crates/core/tests/version_histories.rs` | `fifteen_histories_match_the_fixed_expectations` | 15 件の期待（VER-2） |
 | 履歴の変換 | `crates/core/tests/version_record.rs` | `t3_four_axes_present_in_order` | 4 軸の版の記録 |
 
