@@ -11778,6 +11778,14 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.438 公開の資料の例の扱いの反映（TASK-758。SECOND-17・D-92）
+
+2026-11-02 の D-92（`choice-only-pack` を残す）を `docs/examples/README.md` の「`choice-only-pack` の扱い」節に反映した。節には、決定、第 2 教材と似ている点、形式 B と語彙が決める部分と決めない部分、限界（例が第 2 教材の成否に効いた可能性は否定できない）を書いた。`MANIFEST.sha256` は作り直した（`README.md` の行だけが変わる）。
+
+- 追加した試験（`crates/pack/tests/examples_pack.rs`）: `second17_examples_readme_states_similarity_and_limit`（節と必要な語の有無）・`second17_examples_mentions_resolve`（`examples/README.md` と `cli-guide.md` の repo 内の相対パスの言及が実在すること）
+- 実行: `cargo test -p fandhe-workshop-pack --locked --test examples_pack`
+- 限界: 机上の照合は AI による代理であり人の評価に数えない。例の構造は変えていない。画面での完走は扱わない（5.436）
+
 ### 5.437 第 2 教材固有の値の設定ファイルへの分離と CI からの呼び出し（TASK-748 2/2。SECOND-4・SECOND-7）
 
 教材固有の値を `tools/browser/choice-journey/<name>.json`（版 1）に分け、道具を設定ファイルで呼べるようにした。道具（`choice-journey.mjs`）は教材固有の値と合否を持たない。設定の読み込み・検証・期待との照合は `choice-journey-config.mjs`、node:test の外からの入口は `choice-journey-run.mjs`（CLI）・`scripts/check-choice-journey.sh`（`make check-choice-journey`）。設定ファイルを差し替えるだけで別の教材にも使える。
