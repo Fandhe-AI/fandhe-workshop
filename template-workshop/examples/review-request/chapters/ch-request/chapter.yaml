@@ -1,4 +1,4 @@
-# 骨格。Step は st-1 だけで、st-2〜st-8 は TASK-745・TASK-746 が足す。
+# Step は st-1〜st-8。正しい経路は TASK-745、誤答への応答は TASK-746 が足す。
 # 開始点の effects で、練習データ fx-draft の 5 行（状態・宛先・範囲・見てほしい点・期限）を作る（TASK-744）。
 id: ch-request
 title: レビューの頼み方
@@ -25,7 +25,10 @@ steps:
     rules:
       - id: r-start
         on: { option: opt-start }
-        outcome: { kind: accept }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/status, attr: detail, value: これから 4 つの項目を決めます }
     confirm:
       kind: answer
       on_wrong: rj-miss-q
@@ -33,4 +36,230 @@ steps:
         - { id: ans-ready, label: 相手と範囲を決めてから書く, correct: true }
         - { id: ans-feel, label: 気持ちだけを伝えて頼む, correct: false }
         - { id: ans-code, label: 直した中身をそのまま貼る, correct: false }
-    final: true                 # 暫定。TASK-745 が最終 Step を st-8 に移す
+    on_achieved:
+      - set_attr: { path: review/status, attr: state, value: 作成中 }
+    next: [{ to: st-2 }]
+  - id: st-2
+    title: 宛先を選ぶ
+    do: レビューを頼む相手を選ぶ
+    body: st-2.md
+    lo: [LO-1]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-owner, label: この部分を書いた人に頼む }
+        - { id: opt-pair, label: 同じチームの 1 人に頼む }
+    rules:
+      - id: r-owner
+        on: { option: opt-owner }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/to, attr: detail, value: この部分に詳しい 1 人に頼みます }
+            - set_attr: { path: review/to, attr: state, value: 入力済み }
+      - id: r-pair
+        on: { option: opt-pair }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/to, attr: detail, value: 同じチームの 1 人に頼みます }
+            - set_attr: { path: review/to, attr: state, value: 入力済み }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss-to
+      targets:
+        - { view: v-doc, path: review/to }
+    on_achieved:
+      - set_attr: { path: review/status, attr: detail, value: 宛先を決めました }
+    next: [{ to: st-3 }]
+  - id: st-3
+    title: 頼む範囲を選ぶ
+    do: 頼む範囲を選ぶ
+    body: st-3.md
+    lo: [LO-1]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-diff, label: 今回直した差分だけを頼む }
+        - { id: opt-diff-tests, label: 差分と関連するテストを頼む }
+    rules:
+      - id: r-diff
+        on: { option: opt-diff }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/scope, attr: detail, value: 今回直した差分だけです }
+            - set_attr: { path: review/scope, attr: state, value: 入力済み }
+      - id: r-diff-tests
+        on: { option: opt-diff-tests }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/scope, attr: detail, value: 差分と関連するテストです }
+            - set_attr: { path: review/scope, attr: state, value: 入力済み }
+    confirm:
+      kind: answer
+      on_wrong: rj-confirm-wrong
+      options:
+        - { id: ans-scope-narrow, label: 範囲を絞ると読む人が迷わない, correct: true }
+        - { id: ans-scope-all, label: 全部頼むほうが安心, correct: false }
+        - { id: ans-scope-none, label: 範囲は書かなくてよい, correct: false }
+    on_achieved:
+      - set_attr: { path: review/status, attr: detail, value: 宛先と範囲を決めました }
+    next: [{ to: st-4 }]
+  - id: st-4
+    title: 見てほしい点を選ぶ
+    do: 見てほしい点を選ぶ
+    body: st-4.md
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-security, label: 入力チェックの抜けを見てほしい }
+        - { id: opt-message, label: エラーメッセージの文面を見てほしい }
+    rules:
+      - id: r-security
+        on: { option: opt-security }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/focus, attr: detail, value: 入力チェックの抜けがないかを見てください }
+            - set_attr: { path: review/focus, attr: state, value: 入力済み }
+      - id: r-message
+        on: { option: opt-message }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/focus, attr: detail, value: エラーメッセージの文面が分かりやすいかを見てください }
+            - set_attr: { path: review/focus, attr: state, value: 入力済み }
+    confirm:
+      kind: answer
+      on_wrong: rj-confirm-wrong
+      options:
+        - { id: ans-focus-one, label: 見てほしい点は 1 つに決める, correct: true }
+        - { id: ans-focus-any, label: 気になる点を全部書く, correct: false }
+        - { id: ans-focus-skip, label: 相手に任せて書かない, correct: false }
+    on_achieved:
+      - set_attr: { path: review/status, attr: detail, value: 宛先・範囲・見てほしい点を決めました }
+    next: [{ to: st-5 }]
+  - id: st-5
+    title: 空いている行を探す
+    do: まだ決めていない行を指す
+    body: st-5.md
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-doc, path: review/due }
+    rules:
+      - id: r-empty
+        on: { ui: { view: v-doc, path: review/due } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/due, attr: detail, value: （次の Step で決めます） }
+    confirm:
+      kind: answer
+      on_wrong: rj-confirm-wrong
+      options:
+        - { id: ans-due-row, label: 空いている行は期限, correct: true }
+        - { id: ans-to-row, label: 空いている行は宛先, correct: false }
+        - { id: ans-status-row, label: 空いている行は状態, correct: false }
+    on_achieved:
+      - set_attr: { path: review/status, attr: detail, value: 空いている行は期限です }
+    next: [{ to: st-6 }]
+  - id: st-6
+    title: 期限を選ぶ
+    do: 期限を選ぶ
+    body: st-6.md
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-tomorrow, label: 明日の 17 時までにお願いする }
+        - { id: opt-friday, label: 今週の金曜までにお願いする }
+    rules:
+      - id: r-tomorrow
+        on: { option: opt-tomorrow }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/due, attr: detail, value: 明日の 17 時までです }
+            - set_attr: { path: review/due, attr: state, value: 入力済み }
+      - id: r-friday
+        on: { option: opt-friday }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/due, attr: detail, value: 今週の金曜までです }
+            - set_attr: { path: review/due, attr: state, value: 入力済み }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss-due
+      targets:
+        - { view: v-doc, path: review/due }
+    on_achieved:
+      - set_attr: { path: review/status, attr: detail, value: 4 つの項目が揃いました }
+    next: [{ to: st-7 }]
+  - id: st-7
+    title: 送る前に見直す
+    do: 送る前に依頼文を見直す
+    body: st-7.md
+    lo: [LO-1, LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-reread, label: 4 つの項目を読み返す }
+        - { id: opt-preview, label: 相手の立場で読んでみる }
+    rules:
+      - id: r-reread
+        on: { option: opt-reread }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/status, attr: state, value: 見直し済み }
+      - id: r-preview
+        on: { option: opt-preview }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/status, attr: state, value: 見直し済み }
+    confirm:
+      kind: answer
+      on_wrong: rj-confirm-wrong
+      options:
+        - { id: ans-reread, label: 送る前に見直して揃っているか確かめる, correct: true }
+        - { id: ans-send-now, label: 見直さずにすぐ送る, correct: false }
+        - { id: ans-add, label: 項目を後から足す, correct: false }
+    next: [{ to: st-8 }]
+  - id: st-8
+    title: 送る
+    do: 依頼文を送る
+    body: st-8.md
+    lo: [LO-1, LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-send, label: この内容で送る }
+    rules:
+      - id: r-send
+        on: { option: opt-send }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: review/status, attr: state, value: 送信可 }
+            - set_attr: { path: review/status, attr: detail, value: 宛先・範囲・見てほしい点・期限が揃った依頼文です }
+    confirm:
+      kind: answer
+      on_wrong: rj-confirm-wrong
+      options:
+        - { id: ans-sent, label: 4 つの項目が揃った依頼文を送れた, correct: true }
+        - { id: ans-unsent, label: まだ項目が足りない, correct: false }
+    final: true

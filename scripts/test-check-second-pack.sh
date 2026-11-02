@@ -86,10 +86,16 @@ mutate "ビューを 1 件足した写し" "${W}" "${SED_VIEWS}" views
 mutate "文面に禁止語を足した写し" "chapters/ch-request/st-1.md" 's/^# 状況を確認する/# 状況を確認する（掲示板）/' no-board-words
 mutate "開始点を 1 件足した写し" "chapters/ch-request/chapter.yaml" "${SED_STARTS}" starts
 C="chapters/ch-request/chapter.yaml"
-mutate "期限の行を消した写し" "${C}" '/path: review\/due/d' doc-rows
-mutate "見てほしい点の経路を改名した写し" "${C}" 's/review\/focus/review\/point/' doc-rows
+mutate "期限の行を消した写し" "${C}" '/put: { path: review\/due/d' doc-rows
+mutate "見てほしい点の経路を改名した写し" "${C}" 's/put: { path: review\/focus/put: { path: review\/point/' doc-rows
 mutate "練習データの宣言を足した写し" "${W}" "s/^  fx-draft: .*/&${BS}${NL}  fx-extra: { path: fixtures\/draft.md, kind: document }/" doc-rows
 mutate "練習データの架空の印を外した写し" "fixtures/draft.md" 's/【架空】//' validate
+mutate "期限の文面の効果を外した写し" "${C}" '/value: 明日の 17 時までです/d' row-asserts
+mutate "宛先の 2 つの文面を同じにした写し" "${C}" 's/同じチームの 1 人に頼みます/この部分に詳しい 1 人に頼みます/' alt-differs
+mutate "最終 Step の印を外した写し" "${C}" '/^    final: true$/d' steps
+mutate "基準値を 1 つ変えた写し" "tests/baseline.txt" 's/^row_asserts=32/row_asserts=31/' baseline
+mutate "期待の変わる行を書き換えた写し" "tests/row-asserts.json" 's/今回直した差分だけです/今回直した差分です/' row-asserts
+mutate "別の選び方の入力を替えた写し" "tests/playthrough.yaml" 's/opt-friday/opt-tomorrow/' play-sync
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2

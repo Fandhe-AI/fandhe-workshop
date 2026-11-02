@@ -427,6 +427,8 @@ SAFE-7 の「`./ir/<値>.json` の相対パスとして扱われる」は D-68 �
 
 - R-21 の数は、開始点の切り替え（`Control::Begin`）の拒否を数えない（文面の ID だけで次の行動を持たないため）。R-22・R-21 の行は TASK-405 1/2 で足した
 
+第 2 教材は、代わりに `tests/row-asserts.json` と `scripts/check-second-pack.sh` で行の変化を照合している（`docs/testing.md` 5.442）。
+
 扱い: 経過措置（AUTHOR-4）。回避: `asserts` などを書かない。最後の Step に `point_at` などの確認を置き、最後の入力を `achieved` にする。`docs/examples/minimal-pack/` がその形である。
 
 根拠の試験: `crates/pack/tests/examples_pack.rs`（`author12_examples_pass_test`）。記録は `docs/testing.md` の 5.296。

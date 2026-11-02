@@ -11787,6 +11787,22 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 実行（2026-11-02）: `validate` は診断 0 件、`test` は 1/1 完走、`check-second-pack` は 15 項目すべて合格、回帰テストは全件 `ok`
 - 限界: 文書のビューは練習データの本文を出さず（G-4）、選んだ値を文中に差し込めない（H-3）。本文を出す形に直すかは TASK-755、行の中身の書き換えは TASK-745。`world_list: hidden` のとき画面に行が出るかの確認は TASK-749 に委ねる。`tests/playthrough.yaml` の `asserts` は `test` が判定しないため使わない。CI には組み込んでいない（TASK-85）
 
+### 5.442 第 2 教材の選んで整える Step 群と模範解答 2 通りの試験（TASK-745。SECOND-5・SECOND-6）
+
+`template-workshop/examples/review-request/` に st-1〜st-8 の正しい経路（宛先 st-2・範囲 st-3・見てほしい点 st-4・期限 st-6）と、模範解答 `pt-main`・`pt-alt`（各 16 入力）を足し、`scripts/check-second-pack.sh` に 6 項目（`steps`・`row-owner`・`play-sync`・`row-asserts`・`alt-differs`・`baseline`）を足した。`scripts/test-check-second-pack.sh` には変異を 6 件足し、期限・見てほしい点の既存の変異は開始点の `put` の行だけに効く式に絞った。
+
+- 行の変化の照合: `fandhe-pack test` は `asserts` を判定しない（AUTHOR-4）ため、期待を `tests/row-asserts.json` に置き、コンパイル済みの IR の効果を入力の列に沿って畳み込んで（`scripts/second-pack-fold.jq`）、入力ごとの変わる行・終わりの 5 行・最終 Step の到達を照合する
+- 「14 入力」の読み: 各模範解答の 16 入力のうち、5 行の属性を変える入力が 14（st-7・st-8 の確認の回答の 2 入力は変えない）。データ側の数え方であり、画面の観察の数え方ではない（2026-11-02）
+- 件数の基準値は `tests/baseline.txt`（時点の値）
+- 結果（2026-11-02、手元）: `fandhe-pack validate` 診断 0 件・Step 8、`test` 模範解答 2/2・誤入力 1/1、`make check-second-pack` 全項目合格、`make test-check-second-pack` 全件 ok
+
+#### 限界
+
+- `test` も画面も開始点の `effects` を適用しない（`Session::entered_at`）。畳み込みはこの検査の側の写しで、`test` の実行時の世界状態とは一致しない。5.434 の記述（「CLI の `test` は適用する」）はコード（`play_run.rs`）と食い違うので、コードを正とする
+- `world_list: hidden` は行を作らない（PACK-22）。画面での 5 行・変化の印の確認は TASK-749 が行い、今のエンジンでは成り立たない見込みである（未検証）
+- `test` が `asserts` を判定するようになったら、`row-asserts.json` を `tests/playthrough.yaml` の `asserts` へ移す
+- 誤答・拒否の 8 場面は TASK-746 が担当する。試験と実装の作成者が同じ AI である
+
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 
 `template-workshop/examples/review-request/` に教材パックの骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置き、設定値と診断を `scripts/check-second-pack.sh`（`make check-second-pack`）で固定した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（エンジンの差分 0。TASK-752）。
