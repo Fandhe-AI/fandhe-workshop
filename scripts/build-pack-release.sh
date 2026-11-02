@@ -17,8 +17,12 @@
 #   3. 煙試験: PATH を絞り cargo・rustc が見えない環境で、例の教材に validate と test を流して 0 で終わること。
 #      `preview` を裏で起動し、127.0.0.1 の URL が出て index.html・wasm・ir/main.json が取れ、IR が compile の出力と
 #      バイト単位で一致すること（curl が要る）
+#      darwin の target は、先に otool -L で動的リンク先が OS 標準の libSystem だけであることを判定する（TASK-416。otool が
+#      無ければ 2、許可外・0 件・otool の失敗は 1。linux の target は記録だけ）
 #   4. 梱包: <out>/fandhe-pack-<version>-<target>.tar.gz と同名の .sha256
 #      （中身: fandhe-pack・README.txt・LICENSE-MIT・LICENSE-APACHE・THIRD-PARTY-LICENSES）
+#      出力先へ置く前に、作った tar.gz を新しい場所へ展開し、実行ファイルがビルドした物とバイト一致で、repo の外の cwd から
+#      Rust の無い PATH で例の教材 2 つ（minimal-pack・choice-only-pack）の validate と test が 0 で終わることを確かめる（TASK-416）
 #
 # 使い方: scripts/build-pack-release.sh [--target <triple>] [--out <dir>] [--bin <prebuilt>] [--metadata-dir <dir>]
 #   --target  aarch64-apple-darwin（既定。配布するのはこれだけ）か x86_64-unknown-linux-gnu
@@ -177,8 +181,54 @@ case "${desc}" in
     ;;
 esac
 log "file: ${desc}"
-# 依存の記録だけ（判定には使わない）。macOS は libSystem だけになる想定
-if command -v otool >/dev/null 2>&1; then
+# 動的にリンクするライブラリの検査（TASK-416・AUTHOR-14）。配る aarch64-apple-darwin は OS 標準の libSystem だけを許す。
+# 許可は完全一致の 1 件だけで、前方一致（/usr/lib/ 以下は可、等）にしない。@rpath・Homebrew・利用者の領域の混入を見逃さないため。
+# framework などを足すときは、確認と docs/publish-checks.md の記録を伴ってここへ足す（根拠: 記録 2 の 2026-11-01 の観察）。
+# 配布しない x86_64-unknown-linux-gnu は記録だけで、判定しない
+ALLOWED_DYLIBS=("/usr/lib/libSystem.B.dylib")
+# check_dylibs <otool -L の出力ファイル>: 1 行目（実行ファイル自身）を除く各行のパスを許可リストと照合する。
+# 戻り値 0 = 全件が許可 / 1 = 許可外か 0 件。許可外の行は標準エラーへ出す
+check_dylibs() {
+  local line path ok n=0 bad=0 first=1 a
+  while IFS= read -r line || [ -n "${line}" ]; do
+    if [ "${first}" -eq 1 ]; then
+      first=0
+      continue
+    fi
+    path="$(printf '%s' "${line}" | sed -e 's/^[[:space:]]*//' -e 's/ (compatibility version.*$//' -e 's/[[:space:]]*$//')"
+    [ -n "${path}" ] || continue
+    n=$((n + 1))
+    ok=0
+    for a in "${ALLOWED_DYLIBS[@]}"; do
+      [ "${path}" != "${a}" ] || ok=1
+    done
+    if [ "${ok}" -eq 0 ]; then
+      echo "error: dynamic library outside the OS-standard allowlist: ${path}" >&2
+      bad=$((bad + 1))
+    fi
+  done <"$1"
+  if [ "${n}" -eq 0 ]; then
+    echo "error: otool -L listed no dynamic library (unexpected output)" >&2
+    return 1
+  fi
+  [ "${bad}" -eq 0 ]
+}
+if [ "${TARGET}" = "aarch64-apple-darwin" ]; then
+  command -v otool >/dev/null 2>&1 || {
+    echo "error: otool is required to check the dynamic libraries of ${TARGET}" >&2
+    exit 2
+  }
+  rc=0
+  otool -L "${BIN}" >"${TMP_DIR}/otool.out" 2>"${TMP_DIR}/otool.err" || rc=$?
+  if [ "${rc}" -ne 0 ]; then
+    echo "error: otool -L failed (exit ${rc}): ${BIN}" >&2
+    sed 's/^/  | /' "${TMP_DIR}/otool.err" >&2
+    exit 1
+  fi
+  sed 's/^/otool: /' "${TMP_DIR}/otool.out" >&2
+  check_dylibs "${TMP_DIR}/otool.out" || exit 1
+  log "dylibs ok: only OS-standard libraries"
+elif command -v otool >/dev/null 2>&1; then
   otool -L "${BIN}" >&2 || true
 fi
 
@@ -263,6 +313,38 @@ WORK_ARCHIVE="${TMP_DIR}/pack/${NAME}.tar.gz"
 COPYFILE_DISABLE=1 tar -czf "${WORK_ARCHIVE}" -C "${TMP_DIR}/stage" "${NAME}"
 HASH="$(sha256 "${WORK_ARCHIVE}")"
 printf '%s  %s\n' "${HASH}" "${NAME}.tar.gz" >"${WORK_ARCHIVE}.sha256"
+# 展開した配布物での試験（TASK-416）。作ったばかりの tar.gz を新しい場所へ展開し、その実行ファイルを repo の外の cwd から
+# 起動する。配った物がそのまま Rust の無い環境で動くことの代理（人の端末の評価ではない。D-34）。失敗したら成果物を出さない
+EXTRACT="${TMP_DIR}/extract"
+EWORK="${TMP_DIR}/extract-work"
+mkdir -p "${EXTRACT}" "${EWORK}"
+tar -xzf "${WORK_ARCHIVE}" -C "${EXTRACT}"
+XBIN="${EXTRACT}/${NAME}/fandhe-pack"
+[ -x "${XBIN}" ] || {
+  echo "error: extracted fandhe-pack is not executable" >&2
+  exit 1
+}
+cmp -s "${XBIN}" "${BIN}" || {
+  echo "error: extracted fandhe-pack differs from the built executable" >&2
+  exit 1
+}
+for ex in minimal-pack choice-only-pack; do
+  [ -d "${ROOT_DIR}/docs/examples/${ex}" ] || {
+    echo "error: example pack not found: docs/examples/${ex}" >&2
+    exit 1
+  }
+  cp -R "${ROOT_DIR}/docs/examples/${ex}" "${EWORK}/${ex}"
+  for sub in validate test; do
+    rc=0
+    (cd "${EWORK}" && env -i PATH="${SMOKE_PATH}" HOME="${SMOKE_HOME}" "${XBIN}" "${sub}" "${EWORK}/${ex}") >"${TMP_DIR}/xsmoke.out" 2>&1 || rc=$?
+    if [ "${rc}" -ne 0 ]; then
+      echo "error: extracted-archive test failed: fandhe-pack ${sub} ${ex} (exit ${rc})" >&2
+      sed 's/^/  | /' "${TMP_DIR}/xsmoke.out" >&2
+      exit 1
+    fi
+    log "extracted archive ok: ${sub} ${ex}"
+  done
+done
 mkdir -p "${OUT_DIR}"
 ARCHIVE="${OUT_DIR}/${NAME}.tar.gz"
 # 確定は「以前の組を退避 → 2 つを置く」の順で行う。途中（2 つ目の mv 等）で失敗したら、今回置いた分を消して

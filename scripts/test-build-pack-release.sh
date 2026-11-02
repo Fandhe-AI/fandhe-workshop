@@ -65,6 +65,19 @@ echo "${FAKE_FILE_DESC}"
 EOF
 chmod +x "${SHIM}/file"
 
+# otool の偽物。SHIM の otool-out があればその内容を、無ければ libSystem だけを出す。otool-fail があれば 1 で終わる
+cat >"${SHIM}/otool" <<'EOF2'
+#!/bin/sh
+[ ! -e "$(dirname "$0")/otool-fail" ] || exit 1
+echo "$2:"
+if [ -e "$(dirname "$0")/otool-out" ]; then
+  cat "$(dirname "$0")/otool-out"
+else
+  printf '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n'
+fi
+EOF2
+chmod +x "${SHIM}/otool"
+
 # curl の偽物。URL の末尾で本文と content-type を決める。SHIM の ir-differs があるときは IR だけ違う本文を返す
 cat >"${SHIM}/curl" <<'EOF'
 #!/bin/sh
@@ -174,6 +187,11 @@ run_build() {
 rm -rf "${OUT}"
 run_build --out "${OUT}" --bin "${FAKE_BIN}"
 expect "passes with an arm64 Mach-O fake" 0 "${RC}"
+for needle in "dylibs ok" "extracted archive ok: validate minimal-pack" "extracted archive ok: test choice-only-pack"; do
+  rc=0
+  grep -qF -- "${needle}" "${TMP_DIR}/stderr" || rc=$?
+  expect "passing build logs: ${needle}" 0 "${rc}"
+done
 ARCHIVE="$(find "${OUT}" -name 'fandhe-pack-*-aarch64-apple-darwin.tar.gz' | head -n 1)"
 if [ -n "${ARCHIVE}" ]; then
   members="$(tar -tzf "${ARCHIVE}" | sed 's|^[^/]*/||' | grep -v '^$' | sort | tr '\n' ' ')"
@@ -247,6 +265,58 @@ for sub in validate test preview; do
   fail_case "failing ${sub} smoke test" --out "${OUT}" --bin "${FAKE_BIN}"
   rm -f "${TMP_DIR}/fail-${sub}"
 done
+
+# 動的リンク先の関門（TASK-416）。許可は libSystem の完全一致 1 件だけ
+dylib_case() {
+  local name="$1" content="$2"
+  printf '%b' "${content}" >"${SHIM}/otool-out"
+  fail_case "dylib gate: ${name}" --out "${OUT}" --bin "${FAKE_BIN}"
+  rm -f "${SHIM}/otool-out"
+}
+LIBSYS='\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1351.0.0)\n'
+dylib_case "Homebrew path" "${LIBSYS}\t/opt/homebrew/lib/libfoo.dylib (compatibility version 1.0.0)\n"
+dylib_case "rpath" "${LIBSYS}\t@rpath/libbar.dylib (compatibility version 1.0.0)\n"
+dylib_case "suffix of the allowed path" "\t/usr/lib/libSystem.B.dylib.evil (compatibility version 1.0.0)\n"
+dylib_case "prefix of the allowed path" "\t/tmp/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n"
+dylib_case "no library line" ""
+: >"${SHIM}/otool-fail"
+fail_case "otool failing" --out "${OUT}" --bin "${FAKE_BIN}"
+rm -f "${SHIM}/otool-fail"
+# otool が PATH に無い darwin の target は 2。macOS では本物の otool が見えるため、本物が無い環境でだけ確かめる
+if ! command -v otool >/dev/null 2>&1; then
+  mkdir -p "${TMP_DIR}/shim-nootool"
+  cp "${SHIM}/file" "${SHIM}/curl" "${TMP_DIR}/shim-nootool/"
+  rm -rf "${OUT}"
+  RC=0
+  PATH="${TMP_DIR}/shim-nootool:${PATH}" FAKE_FILE_DESC="${MACHO}" "${BUILD}" --metadata-dir "${META_OK}" --out "${OUT}" --bin "${FAKE_BIN}" >/dev/null 2>&1 || RC=$?
+  expect "darwin target without otool exits 2" 2 "${RC}"
+  n=0
+  [ ! -d "${OUT}" ] || n="$(find "${OUT}" -type f | wc -l | tr -d ' ')"
+  expect "darwin target without otool leaves no artifact" 0 "${n}"
+  # linux の target は依存を記録するだけなので、otool が無くても通る
+  rm -rf "${OUT}"
+  RC=0
+  PATH="${TMP_DIR}/shim-nootool:${PATH}" FAKE_FILE_DESC="ELF 64-bit LSB executable, x86-64" "${BUILD}" --target x86_64-unknown-linux-gnu --metadata-dir "${META_OK}" --out "${OUT}" --bin "${FAKE_BIN}" >/dev/null 2>&1 || RC=$?
+  expect "linux target without otool passes (record only)" 0 "${RC}"
+fi
+# 展開した配布物の試験（TASK-416）。偽の実行ファイルの写しで、cwd が repo の外（Makefile が無い）のときだけ validate が失敗する
+FAKE_CWD="${TMP_DIR}/fake-cwd/fandhe-pack"
+mkdir -p "${TMP_DIR}/fake-cwd"
+cat >"${FAKE_CWD}" <<'EOF2'
+#!/bin/sh
+case "$1" in
+  validate) [ -e ./Makefile ] || exit 1 ;;
+  preview) echo "OK: fake"; echo "URL: http://127.0.0.1:1/preview/"; exec sleep 30 ;;
+  compile) echo '{}' ;;
+esac
+exit 0
+EOF2
+chmod 0755 "${FAKE_CWD}"
+fail_case "extracted archive run outside the repo fails" --out "${OUT}" --bin "${FAKE_CWD}"
+grep -q 'extracted-archive test failed' "${TMP_DIR}/stderr" && rc=0 || rc=1
+expect "extracted archive failure is reported distinctly from the smoke test" 0 "${rc}"
+grep -q 'extracted archive ok: test choice-only-pack' "${TMP_DIR}/stderr" && rc=0 || rc=1
+expect "extracted archive runs both examples (passing build)" 1 "${rc}"
 
 # ライセンスの方針の違反（1）。m の license・source・ファイルだけを差し替える
 license_case() {
