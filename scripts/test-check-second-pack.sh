@@ -8,11 +8,14 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=./lib.sh
 source "${DIR}/lib.sh"
+reject_args "$(basename "$0")" "$@"
 
 SCRIPT="${DIR}/check-second-pack.sh"
 SRC="${ROOT_DIR}/template-workshop/examples/review-request"
 
 require_cmd cargo
+require_cmd mktemp
+require_cmd rm
 if [ -z "${FANDHE_PACK_BIN:-}" ]; then
   FANDHE_PACK_BIN="$("${DIR}/build-pack-bin.sh")"
   export FANDHE_PACK_BIN
@@ -39,7 +42,7 @@ expect_rc() {
   local name="$1" want="$2" rc=0
   shift 2
   OUT="$("${SCRIPT}" "$@" 2>&1)" || rc=$?
-  if [ "${rc}" -eq "${want}" ]; then ok "${name}"; else ng "${name}（終了コード ${rc}、期待 ${want}）"; fi
+  if [ "${rc}" -eq "${want}" ]; then ok "${name}"; else ng "${name} (exit ${rc}, expected ${want})"; fi
 }
 
 expect_rc "未知の引数は 2" 2 --bogus
@@ -61,11 +64,11 @@ mutate() {
   mv "${dir}/tmp.out" "${dir}/${rel}"
   after="$(cat "${dir}/${rel}")"
   if [ "${before}" = "${after}" ]; then
-    ng "${name}（置き換えが効かない）"
+    ng "${name} (substitution had no effect)"
     return
   fi
   expect_rc "${name}は 1" 1 --pack "${dir}"
-  if printf '%s\n' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "${name}は ${item} で不合格"; else ng "${name}（FAIL ${item} の行が無い）"; fi
+  if printf '%s\n' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "${name}は ${item} で不合格"; else ng "${name} (no FAIL ${item} line)"; fi
 }
 
 W="workshop.yaml"
@@ -84,7 +87,7 @@ mutate "文面に禁止語を足した写し" "chapters/ch-request/st-1.md" 's/^
 mutate "開始点を 1 件足した写し" "chapters/ch-request/chapter.yaml" "${SED_STARTS}" starts
 
 if [ "${FAILS}" -ne 0 ]; then
-  echo "NG: ${FAILS} 件が期待と違う" >&2
+  echo "NG: ${FAILS} case(s) differ from expectation" >&2
   exit 1
 fi
 echo "OK: test-check-second-pack"

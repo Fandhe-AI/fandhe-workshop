@@ -53,6 +53,8 @@ fi
 
 require_cmd jq || exit 2
 require_cmd grep || exit 2
+require_cmd mktemp || exit 2
+require_cmd rm || exit 2
 
 BIN="${FANDHE_PACK_BIN:-}"
 if [ -z "${BIN}" ]; then
@@ -110,7 +112,7 @@ if [ "${RC}" -eq 0 ] && [ -z "${ERR}" ] && [ "$(printf '%s\n' "${OUT}" | wc -l |
   && printf '%s' "${OUT}" | grep -q '^OK: 診断 0 件（' && printf '%s' "${OUT}" | grep -q '章 1、'; then
   pass validate
 else
-  fail validate "診断 0 件・章 1 で終わらない（終了コード ${RC}）"
+  fail validate "validate did not end with 0 diagnostics and 1 chapter (exit ${RC})"
 fi
 
 # 2 compile（IR を以降の項目の入力にする）
@@ -119,18 +121,18 @@ IR="${OUT}"
 if [ "${RC}" -eq 0 ] && [ -z "${ERR}" ] && printf '%s' "${IR}" | jq -e . >/dev/null 2>&1; then
   pass compile
 else
-  fail compile "終了 0・標準エラー出力なし・JSON の IR にならない（終了コード ${RC}）"
+  fail compile "compile did not exit 0 with empty stderr and a JSON IR (exit ${RC})"
   IR='{}'
 fi
 
 # 3〜9 IR の設定値
-jq_is profile "${IR}" '.pack.profile == {"command_prefix":"","input_field":"hidden"}' "pack.profile が command_prefix \"\"・input_field hidden でない"
-jq_is commands "${IR}" '.commands == {}' "commands が空でない"
-jq_is appearance "${IR}" '.pack.appearance.theme == "reading"' "pack.appearance.theme が reading でない"
-jq_is left_pane "${IR}" '.pack.left_pane == {"world_list":"hidden","view_tabs":"hidden"}' "pack.left_pane が world_list hidden・view_tabs hidden でない"
-jq_is starts "${IR}" '(.starts | type == "array") and (.starts | length == 1)' "starts が 1 件でない"
-jq_is chapters "${IR}" '([.nodes[] | select(.scope == "main") | .unit] | unique | length) == 1' "章が 1 つでない"
-jq_is views "${IR}" '((.views | keys) == ["v-doc"]) and ([.views[].kind] | unique == ["document"]) and ((.nodes | length) >= 1) and ([.nodes[] | .step.views == ["v-doc"]] | all)' "ビューが v-doc の document だけ・全 Step が views [v-doc] でない"
+jq_is profile "${IR}" '.pack.profile == {"command_prefix":"","input_field":"hidden"}' "pack.profile is not command_prefix \"\" and input_field hidden"
+jq_is commands "${IR}" '.commands == {}' "commands is not empty"
+jq_is appearance "${IR}" '.pack.appearance.theme == "reading"' "pack.appearance.theme is not reading"
+jq_is left_pane "${IR}" '.pack.left_pane == {"world_list":"hidden","view_tabs":"hidden"}' "pack.left_pane is not world_list hidden and view_tabs hidden"
+jq_is starts "${IR}" '(.starts | type == "array") and (.starts | length == 1)' "starts is not exactly 1 entry"
+jq_is chapters "${IR}" '([.nodes[] | select(.scope == "main") | .unit] | unique | length) == 1' "chapter count is not 1"
+jq_is views "${IR}" '((.views | keys) == ["v-doc"]) and ([.views[].kind] | unique == ["document"]) and ((.nodes | length) >= 1) and ([.nodes[] | .step.views == ["v-doc"]] | all)' "views are not only v-doc (document) with every step on [v-doc]"
 
 # 章のディレクトリ数も確かめる（IR とファイルの両面）
 chapter_dirs=0
@@ -138,7 +140,7 @@ for d in "${PACK}"/chapters/*/; do
   [ -d "${d}" ] && chapter_dirs=$((chapter_dirs + 1))
 done
 if [ "${chapter_dirs}" -ne 1 ]; then
-  fail chapters "chapters/ の下のディレクトリが 1 つでない"
+  fail chapters "chapters/ does not hold exactly 1 directory"
 fi
 
 # 10 vocab
@@ -149,7 +151,7 @@ if [ "${RC}" -eq 0 ] && printf '%s' "${VOCAB}" | grep -q '^# EP-10 .*: pack.prof
   && printf '%s' "${VOCAB}" | grep -q '^# EP-12 .*: pack.left_pane'; then
   pass vocab
 else
-  fail vocab "vocab が終了 0 で EP-10・EP-11・EP-12 の行を出さない（終了コード ${RC}）"
+  fail vocab "vocab did not exit 0 with EP-10, EP-11 and EP-12 lines (exit ${RC})"
 fi
 
 # 11 掲示板の語彙・シェル・工程の語が無い（SECOND-11）。
@@ -172,7 +174,7 @@ fi
 if [ "${hits}" -eq 0 ]; then
   pass no-board-words
 else
-  fail no-board-words "掲示板・シェル・工程の語が教材の文面か vocab の出力にある"
+  fail no-board-words "forbidden board/shell/process words found in pack text or vocab output"
 fi
 
 # 12 test
@@ -181,7 +183,7 @@ if [ "${RC}" -eq 0 ] && ! printf '%s\n' "${OUT}" | grep -q '^FAIL ' \
   && printf '%s\n' "${OUT}" | grep -qE '^模範解答: ([1-9][0-9]*)/\1 完走'; then
   pass test
 else
-  fail test "test が全件合格・模範解答 1 件以上の完走にならない（終了コード ${RC}）"
+  fail test "test did not pass all cases with at least 1 model answer completed (exit ${RC})"
 fi
 
 # 13・14 入力欄のない教材に command / text の Step を足した変種は compile が E-PROFILE-NO-INPUT で止める（SECOND-7）。
@@ -195,7 +197,7 @@ variant_check() {
   chapter="$(find "${vdir}/chapters" -name chapter.yaml | head -n 1)"
   if [ -z "${chapter}" ] || ! grep -q '^steps:' "${chapter}" \
     || [ "$(grep '^[A-Za-z_]' "${chapter}" | tail -n 1 | cut -d: -f1)" != "steps" ]; then
-    fail "${name}" "変種を作れない（chapter.yaml の最後の欄が steps: でない）"
+    fail "${name}" "cannot build variant (last field of chapter.yaml is not steps:)"
     return
   fi
   printf '%s\n' "${step_yaml}" >>"${chapter}"
@@ -203,7 +205,7 @@ variant_check() {
   if [ "${RC}" -eq 1 ] && printf '%s\n%s\n' "${OUT}" "${ERR}" | grep -q 'step:st-variant: E-PROFILE-NO-INPUT:'; then
     pass "${name}"
   else
-    fail "${name}" "E-PROFILE-NO-INPUT で止まらない（終了コード ${RC}）"
+    fail "${name}" "compile did not stop with E-PROFILE-NO-INPUT (exit ${RC})"
   fi
 }
 
@@ -223,7 +225,7 @@ variant_check no-input-text '  - id: st-variant
     rules: []'
 
 if [ "${FAILS}" -ne 0 ]; then
-  echo "NG: 不合格 ${FAILS} 項目" >&2
+  echo "NG: ${FAILS} item(s) failed" >&2
   exit 1
 fi
-echo "OK: 全項目合格"
+echo "OK: all items passed"
