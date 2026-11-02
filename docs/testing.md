@@ -11783,11 +11783,20 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは、D-93（2026-11-02。TASK-7）でコマンドを持たない形を含む読み（案 1）に決まった。記録は「AR-12 満たした（解釈つき）」で、教材は変えていない。採らなかった読み（`/` 以外の接頭辞を実際に使う）では `commands` に 1 件以上を要し、SECOND-7・SECOND-9 の期待が成り立たなくなる。採った読みでは SECOND-7・SECOND-9 への影響は無い。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
 
 - 項目 `ar12-reading`（`scripts/check-second-pack.sh`）: (1) `docs/requirements.md` の `| AR-12 |` の行がちょうど 1 つで、読み・設定値・`D-93（2026-11-02）`・`SECOND-22`・`AR-12 満たした（解釈つき）` を含み `満たしていない` を含まない、(2) `workshop.yaml` に `command_prefix: ""` と `commands: {}` の行がそれぞれ 1 行ある（IR の既定値で `{}` になる場合と区別する）、(3) IR の `pack.profile.command_prefix == ""` かつ `commands == {}`。どれかが外れれば FAIL。理由は固定の英語の文で、記録の本文は出さない
-- 回帰テスト: 5 通りの変異を足した（合計 13 通り）。接頭辞を `!` にした写し → `profile`・`commands` の行を消した写し・記録を「満たしていない」にした写し・決定の日付を変えた写し・AR-12 の行を消した写し → `ar12-reading`
-- 実行（2026-11-02）: `make check-second-pack` は 15 項目すべて PASS、`make test-check-second-pack` は全件 ok
+- 回帰テスト: 5 通りの変異を足した（合計 17 通り）。接頭辞を `!` にした写し → `profile`・`commands` の行を消した写し・記録を「満たしていない」にした写し・決定の日付を変えた写し・AR-12 の行を消した写し → `ar12-reading`
+- 実行（2026-11-02）: `make check-second-pack` は 16 項目すべて PASS、`make test-check-second-pack` は全件 ok
 - 限界 1: 読みの是非は人の決定（D-93）に依り、試験が確かめるのは記録と設定値の一致だけである
 - 限界 2: 記録の照合は固定文字列の一致で、表の書式を変えると読めなくなる
 - 限界 3: CI には組み込んでいない（TASK-85）。画面での入力欄・コマンドの不在の観察は SECOND-7 側（TASK-749）に委ねる
+
+### 5.440 第 2 教材の練習データと文書のビューの 5 行の試験（TASK-744。SECOND-5・SECOND-8）
+
+`template-workshop/examples/review-request/fixtures/draft.md`（見出しに【架空】を置いた練習データ）を足し、`workshop.yaml` に `fixtures`（`fx-draft`・`document`）を宣言した。開始点 `s-1` の `effects` で、`review/status`・`review/to`・`review/scope`・`review/focus`・`review/due` の 5 行を `put` する（属性は `title`・`state`・`detail` の 3 つ）。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
+
+- 項目 `doc-rows`（`make check-second-pack` の 15 件目）: 開始点の `effects` が 5 経路と順序まで一致し、すべて `fx-draft` を指し、IR 全体の `put` の経路が 5 つだけで、`fixtures`・`fixture_docs` が `fx-draft`（`document`）だけであること。架空の印の欠けは項目 `validate`（`E-FICTIONAL-MARK`）が検出する
+- 回帰テスト（`make test-check-second-pack`）: 変異を 4 通り足して 12 通りにした（期限の行の削除・経路の改名・練習データの宣言の追加は `doc-rows`、【架空】の除去は `validate` で不合格）
+- 実行（2026-11-02）: `validate` は診断 0 件、`test` は 1/1 完走、`check-second-pack` は 15 項目すべて合格、回帰テストは全件 `ok`
+- 限界: 文書のビューは練習データの本文を出さず（G-4）、選んだ値を文中に差し込めない（H-3）。本文を出す形に直すかは TASK-755、行の中身の書き換えは TASK-745。`world_list: hidden` のとき画面に行が出るかの確認は TASK-749 に委ねる。`tests/playthrough.yaml` の `asserts` は `test` が判定しないため使わない。CI には組み込んでいない（TASK-85）
 
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 

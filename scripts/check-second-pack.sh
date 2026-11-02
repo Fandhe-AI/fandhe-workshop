@@ -7,8 +7,8 @@
 # Rust・Cargo.toml・Cargo.lock には触れない（エンジンの差分 0 の数え方に入るため。試験は scripts/ の側に置く）。
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
-#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / ar12-reading（TASK-756。SECOND-22）/
-#   vocab / no-board-words / test / no-input-command / no-input-text
+#   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
+#   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / no-input-command / no-input-text
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
@@ -135,6 +135,11 @@ jq_is left_pane "${IR}" '.pack.left_pane == {"world_list":"hidden","view_tabs":"
 jq_is starts "${IR}" '(.starts | type == "array") and (.starts | length == 1)' "starts is not exactly 1 entry"
 jq_is chapters "${IR}" '([.nodes[] | select(.scope == "main") | .unit] | unique | length) == 1' "chapter count is not 1"
 jq_is views "${IR}" '((.views | keys) == ["v-doc"]) and ([.views[].kind] | unique == ["document"]) and ((.nodes | length) >= 1) and ([.nodes[] | .step.views == ["v-doc"]] | all)' "views are not only v-doc (document) with every step on [v-doc]"
+
+# 練習データと文書のビューの 5 行（SECOND-5。TASK-744）。開始点の effects が review/* の 5 つの put だけで、
+# すべて練習データ fx-draft（document）を指し、IR 全体に別の経路の put が無いことを固定する。
+# 架空の印の欠けは項目 validate（E-FICTIONAL-MARK）が検出するので、別の項目は作らない。
+jq_is doc-rows "${IR}" '([.starts[0].effects[]? | .put.path] == ["review/status","review/to","review/scope","review/focus","review/due"]) and ([.starts[0].effects[]? | (has("put") and .put.fixture == "fx-draft")] | all) and (([.. | objects | select(has("put")) | .put.path] | unique) == ["review/due","review/focus","review/scope","review/status","review/to"]) and ((.fixtures | keys) == ["fx-draft"]) and (.fixtures["fx-draft"].kind == "document") and ((.fixture_docs | keys) == ["fx-draft"])' "document rows are not exactly the 5 review/* puts on fx-draft (document)"
 
 # ar12-reading: AR-12 の読み（D-93）の記録・ソースの設定値・IR の設定値の 3 つがそろうこと（SECOND-22）。
 # 理由は固定の英語の文だけを出し、記録の本文は出さない。記録が読めないときも fail-closed で FAIL にする。

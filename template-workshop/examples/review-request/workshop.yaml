@@ -1,5 +1,6 @@
 # 第 2 教材「レビューの頼み方」の骨格（TASK-743）。選択肢と画面操作だけで進み、左に文書のビューだけを出す。
-# 後続のタスクが足すもの: 練習データ（fixtures）は TASK-744、st-2〜st-8 は TASK-745・TASK-746。
+# 練習データ（fixtures）と文書のビューの 5 行は TASK-744 で足した。本文を出さない（G-4）・値を文中に差し込めない（H-3）は
+# 限界として受け入れる（D-31）。本文を出す形に直すかは TASK-755 が決める。st-2〜st-8 は TASK-745・TASK-746 が足す。
 pack:
   id: review-request
   title: レビューの頼み方
@@ -18,6 +19,8 @@ pack:
 commands: {}                    # コマンドを持たない（SECOND-9）
 views:
   v-doc: { kind: document }
+fixtures:
+  fx-draft: { path: fixtures/draft.md, kind: document }
 rejections:
   rj-unknown: { category: unknown_command, message: この操作は、この教材にはありません。, next_action: 画面の選択肢から選び直します。 }
   rj-wrong: { category: wrong_order, message: まだ先の手順です。, next_action: 今の手順の選択肢から選びます。 }
