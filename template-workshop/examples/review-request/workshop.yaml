@@ -1,6 +1,6 @@
 # 第 2 教材「レビューの頼み方」の骨格（TASK-743）。選択肢と画面操作だけで進み、左に文書のビューだけを出す。
 # 練習データ（fixtures）と文書のビューの 5 行は TASK-744 で足した。本文を出さない（G-4）・値を文中に差し込めない（H-3）は
-# 限界として受け入れる（D-31）。本文を出す形に直すかは TASK-755 が決める。st-2〜st-8 は TASK-745・TASK-746 が足す。
+# 限界として受け入れる（D-31）。本文を出す形に直すかは TASK-755 が決める。st-2〜st-8 の正しい経路は TASK-745、誤答への応答は TASK-746 が足す。
 pack:
   id: review-request
   title: レビューの頼み方
@@ -31,6 +31,9 @@ rejections:
   rj-ns: { category: not_supported, message: この教材では扱いません。, next_action: 画面の選択肢に戻ります。 }
   rj-ft: { category: free_text_unjudged, message: 書いた内容は判定しません。, next_action: 自分で見直します。 }
   rj-miss-q: { category: not_in_this_step, message: 今は、依頼の下書きを作り始める場面です。, next_action: 状況に合う答えを選び直します。 }
+  rj-confirm-wrong: { category: not_in_this_step, message: その答えは、今の場面には合いません。, next_action: 状況に合う答えを選び直します。 }
+  rj-miss-to: { category: not_in_this_step, message: そこは宛先の行ではありません。, next_action: 宛先の行を指し直します。 }
+  rj-miss-due: { category: not_in_this_step, message: そこは期限の行ではありません。, next_action: 期限の行を指し直します。 }
 defaults:
   unknown_command: rj-unknown
   wrong_order: rj-wrong

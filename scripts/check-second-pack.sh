@@ -8,7 +8,8 @@
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
-#   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / no-input-command / no-input-text
+#   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
+#   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
@@ -110,6 +111,7 @@ jq_is() {
 
 # 1 validate
 run_pack validate "${PACK}"
+VALIDATE_OUT="${OUT}"
 if [ "${RC}" -eq 0 ] && [ -z "${ERR}" ] && [ "$(printf '%s\n' "${OUT}" | wc -l | tr -d ' ')" = "1" ] \
   && printf '%s' "${OUT}" | grep -q '^OK: 診断 0 件（' && printf '%s' "${OUT}" | grep -q '章 1、'; then
   pass validate
@@ -220,11 +222,118 @@ fi
 
 # 12 test
 run_pack test "${PACK}"
+TEST_OUT="${OUT}"
 if [ "${RC}" -eq 0 ] && ! printf '%s\n' "${OUT}" | grep -q '^FAIL ' \
   && printf '%s\n' "${OUT}" | grep -qE '^模範解答: ([1-9][0-9]*)/\1 完走'; then
   pass test
 else
   fail test "test did not pass all cases with at least 1 model answer completed (exit ${RC})"
+fi
+
+# 15〜20 選んで整える Step 群と模範解答（TASK-745）。
+# fandhe-pack の test は asserts を判定しない（AUTHOR-4。定義があると終了コード 1）ため、行の変化の期待は
+# tests/row-asserts.json に置き、コンパイル済みの IR の効果を通しの入力の列に沿って畳み込んで照合する（scripts/second-pack-fold.jq）。
+# 限界: 状態変化の語（set_attr・put）の適用をここで写している。test・画面は開始点の effects を適用しないので、
+# 実行時の世界状態とは一致しない（docs/testing.md 5.442）。
+RA="${PACK}/tests/row-asserts.json"
+FOLD="${DIR}/second-pack-fold.jq"
+BASELINE="${PACK}/tests/baseline.txt"
+RA_OK=0
+if [ -f "${RA}" ] && jq -e '.format == 1 and (.playthroughs | type == "object")' "${RA}" >/dev/null 2>&1; then
+  RA_OK=1
+fi
+
+# 15 steps
+# shellcheck disable=SC2016 # $i は jq の変数
+jq_is steps "${IR}" '([.nodes[].uid] == ["main/st-1","main/st-2","main/st-3","main/st-4","main/st-5","main/st-6","main/st-7","main/st-8"]) and ([.nodes[] | select(.step.final == true) | .uid] == ["main/st-8"]) and ([.nodes[0:7][] | ((.step.next | length) == 1) and (.step.next[0].when == null)] | all) and ([range(0; 7) as $i | .nodes[$i].step.next[0].to == .nodes[$i + 1].uid] | all)' "steps are not st-1..st-8 in order with only st-8 final and one next each"
+
+# 16 row-owner: 各 Step の効果が、その Step の担当の行と review/status だけを set_attr で変える（put は開始点だけ）
+# shellcheck disable=SC2016 # $own・$n・$paths は jq の変数
+jq_is row-owner "${IR}" '{"main/st-1":["review/status"],"main/st-2":["review/to","review/status"],"main/st-3":["review/scope","review/status"],"main/st-4":["review/focus","review/status"],"main/st-5":["review/due","review/status"],"main/st-6":["review/due","review/status"],"main/st-7":["review/status"],"main/st-8":["review/status"]} as $own | [.nodes[] | . as $n | ([($n.step.rules[]?.outcome.effects[]?), ($n.step.on_achieved[]?)] | map(if (keys == ["set_attr"]) then .set_attr.path else "<unsupported>" end)) as $paths | (($paths - ($own[$n.uid] // [])) | length) == 0] | all' "a step changes a row outside its own row and review/status, or uses an effect other than set_attr"
+
+# 17 play-sync: tests/playthrough.yaml の入力の列（1 入力 1 行の flow 形式）が row-asserts.json の op・expect と一致する
+SYNC_ACTUAL="${WORK}/sync-actual.tsv"
+: >"${SYNC_ACTUAL}"
+if [ -f "${PACK}/tests/playthrough.yaml" ]; then
+  cur=""
+  while IFS= read -r line; do
+    case "${line}" in
+      "  - id: "*) cur="${line#  - id: }" ;;
+      "error_inputs:"*) cur="" ;;
+      *)
+        if [ -n "${cur}" ]; then
+          parsed="$(printf '%s\n' "${line}" | sed -n -E 's/^ +- \{ (choice|ui): "?([^",]*)"?, expect: ([a-z_:-]+) \}$/\1:\2|\3/p')"
+          if [ -n "${parsed}" ]; then
+            printf '%s\t%s\n' "${cur}" "${parsed}" >>"${SYNC_ACTUAL}"
+          fi
+        fi
+        ;;
+    esac
+  done <"${PACK}/tests/playthrough.yaml"
+fi
+if [ "${RA_OK}" -eq 1 ] \
+  && jq -R -s -e --slurpfile ra "${RA}" '(split("\n") | map(select(length > 0) | split("\t")) | group_by(.[0]) | map({key: .[0][0], value: map(.[1])}) | from_entries) == ($ra[0].playthroughs | map_values([.inputs[] | .op + "|" + .expect]))' <"${SYNC_ACTUAL}" >/dev/null 2>&1; then
+  pass play-sync
+else
+  fail play-sync "playthrough.yaml inputs do not match tests/row-asserts.json (or row-asserts.json is missing or malformed)"
+fi
+
+# 18 row-asserts: IR の効果の畳み込みが、入力ごとの変わる行・終わりの 5 行・最終 Step の到達と一致する
+FOLD_RESULTS="${WORK}/fold-results.json"
+echo '{}' >"${FOLD_RESULTS}"
+ra_pass=1
+ra_checked=0
+if [ "${RA_OK}" -eq 1 ] && [ "$(printf '%s' "${IR}" | jq -r '(.nodes | length)')" != "0" ]; then
+  for id in $(jq -r '.playthroughs | keys[]' "${RA}" | grep -E '^[A-Za-z0-9_-]+$'); do
+    ops="$(jq -c --arg id "${id}" '[.playthroughs[$id].inputs[].op]' "${RA}")"
+    res="$(printf '%s' "${IR}" | jq -c --argjson ops "${ops}" -f "${FOLD}" 2>/dev/null)" || res='{"ok":false}'
+    printf '%s' "${res}" | jq -e --arg id "${id}" --slurpfile ra "${RA}" '.ok == true and .node == "main/st-8" and ([.steps[].changes] == [$ra[0].playthroughs[$id].inputs[].changes]) and (.final == $ra[0].playthroughs[$id].final)' >/dev/null 2>&1 || ra_pass=0
+    ra_checked=$((ra_checked + $(jq --arg id "${id}" '.playthroughs[$id].inputs | length' "${RA}")))
+    jq --arg id "${id}" --argjson r "${res}" '.[$id] = $r' "${FOLD_RESULTS}" >"${FOLD_RESULTS}.new" && mv "${FOLD_RESULTS}.new" "${FOLD_RESULTS}"
+  done
+else
+  ra_pass=0
+fi
+if [ "${ra_pass}" -eq 1 ] && [ "${ra_checked}" -gt 0 ]; then
+  pass row-asserts
+else
+  fail row-asserts "folded IR effects do not match tests/row-asserts.json (changed rows per input, final rows, or final step)"
+fi
+
+# 19 alt-differs: 別の選び方（pt-alt）では、宛先と期限の行が別の文面になり、どちらも初期値のままではない
+ALT_DIFFERS=0
+if [ "${RA_OK}" -eq 1 ]; then
+  ALT_DIFFERS="$(jq -r --slurpfile ra "${RA}" '[$ra[0].differs[]? as $d | select(((.["pt-main"].final[$d[0]][$d[1]]) != null) and ((.["pt-alt"].final[$d[0]][$d[1]]) != null) and ((.["pt-main"].final[$d[0]][$d[1]]) != (.["pt-alt"].final[$d[0]][$d[1]])) and ((.["pt-main"].final[$d[0]][$d[1]]) != "（まだ決めていません）") and ((.["pt-alt"].final[$d[0]][$d[1]]) != "（まだ決めていません）")) | 1] | length' "${FOLD_RESULTS}" 2>/dev/null || echo 0)"
+fi
+if [ "${RA_OK}" -eq 1 ] && [ "${ALT_DIFFERS}" -ge 2 ] && [ "${ALT_DIFFERS}" = "$(jq '.differs | length' "${RA}")" ] \
+  && jq -e '.differs | (map(.[0] + "." + .[1]) | (index("review/to.detail") != null) and (index("review/due.detail") != null))' "${RA}" >/dev/null 2>&1; then
+  pass alt-differs
+else
+  fail alt-differs "pt-main and pt-alt do not end with different review/to and review/due texts"
+fi
+
+# 20 baseline: 件数が tests/baseline.txt（時点の値）と一致する（キーの欠け・余り・不一致は不合格）
+if [ -f "${BASELINE}" ]; then
+  BASE_ACTUAL="${WORK}/baseline-actual.txt"
+  {
+    printf 'validate.chapters=%s\n' "$(printf '%s' "${VALIDATE_OUT}" | sed -n -E 's/.*章 ([0-9]+)、.*/\1/p')"
+    printf 'validate.steps=%s\n' "$(printf '%s' "${VALIDATE_OUT}" | sed -n -E 's/.*Step の定義 ([0-9]+).*/\1/p')"
+    printf 'playthroughs=%s\n' "$(printf '%s\n' "${TEST_OUT}" | sed -n -E 's/^模範解答: ([0-9]+\/[0-9]+) 完走.*/\1/p')"
+    printf '%s\n' "${TEST_OUT}" | sed -n -E 's/^PASS ([A-Za-z0-9_-]+)（入力 ([0-9]+) 件）$/inputs.\1=\2/p'
+    printf 'error_inputs=%s\n' "$(printf '%s\n' "${TEST_OUT}" | sed -n -E 's/^誤入力: ([0-9]+\/[0-9]+) .*/\1/p')"
+    printf 'total_inputs=%s\n' "$(printf '%s\n' "${TEST_OUT}" | sed -n -E 's/^入力の総数: ([0-9]+)$/\1/p')"
+    jq -r 'to_entries[] | "row_changes.\(.key)=\([.value.steps[]? | select(.changes != {})] | length)"' "${FOLD_RESULTS}"
+    printf 'row_asserts=%s\n' "${ra_checked}"
+    printf 'alt_differs=%s\n' "${ALT_DIFFERS}"
+  } | sort >"${BASE_ACTUAL}"
+  grep -v -e '^#' -e '^$' "${BASELINE}" | sort >"${WORK}/baseline-expected.txt" || true
+  if cmp -s "${BASE_ACTUAL}" "${WORK}/baseline-expected.txt"; then
+    pass baseline
+  else
+    fail baseline "counts differ from tests/baseline.txt (missing, extra or changed keys)"
+  fi
+else
+  fail baseline "tests/baseline.txt is missing"
 fi
 
 # 13・14 入力欄のない教材に command / text の Step を足した変種は compile が E-PROFILE-NO-INPUT で止める（SECOND-7）。
