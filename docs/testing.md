@@ -39,6 +39,7 @@
 | 状態の復元 | `crates/core/tests/restore_owner_slice.rs` | `restore_replaces_only_owner_slice` | 実体の切り身の復元 |
 | 状態の復元 | `crates/core/tests/history_replay.rs` | `replay_matches_snapshot`・`empty_ops_replay_to_initial` | 履歴の流し直し |
 | 履歴の変換 | `crates/core/tests/history_open.rs` | `ver3_same_versions_open_without_conversion`・`ver4_content_patch_only_is_converted`・`ver16_v1_history_is_not_converted_even_when_replay_would_match`・`ver16_v1_history_is_closed_before_replay` | 変換して開く（VER-3〜VER-7）・版 1 の履歴を変換しない（VER-16） |
+| 履歴の変換 | `crates/web/tests/ver16_unconvertible_history.rs` | `ver16_v1_history_on_v2_pack_is_view_only_with_reason`・`ver16_contrast_same_format_content_patch_is_converted`・`ver16_contrast_v2_history_on_v1_pack_is_refused` | 版 1 の履歴を版 2 の教材で開くと理由つきで表示だけ／同じ形式の修正版は変換して開く／版 2 の履歴を版 1 の教材では開かない（VER-16） |
 | 履歴の変換 | `crates/core/tests/version_histories.rs` | `fifteen_histories_match_the_fixed_expectations` | 15 件の期待（VER-2） |
 | 履歴の変換 | `crates/core/tests/version_record.rs` | `t3_four_axes_present_in_order` | 4 軸の版の記録 |
 
@@ -11776,6 +11777,15 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 3 回とも、配信する設定の `data-payload` の click は CSP あり 1,434 回・CSP なし 1,434 回（場面 10）。`data-payload` の click の全体は 5,450 回（値が元と一致して除いた組 36）、`data-action` の click は 50 回
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
+
+### 5.435 変換できない履歴の理由つきの表示（TASK-184 2/2。VER-16）
+
+`format_older` の表示だけの通知に、固定の理由の文（仮置き）を足し（`crates/web/src/view_only_notice.rs` の `view_only_reason_text`）、版 1 の履歴を `ir_format` 2 の教材で開くホストの経路を `crates/web/tests/ver16_unconvertible_history.rs` で固定した。
+
+- 入力: `min-3step` の版 1・版 2 の変種（版 2 は `format_version` と `pack.ir_format` の両方を 2 にする）と、`two-rounds` の `ops`
+- 確かめたこと: (1) 読み込みで `ViewOnly(format_older)`・通知にコードと理由の文・操作 7 種が何も変えない・書き出しが一致、(2) 起動時の復元で保存の値が出ない、(3) 流し直しが写しと一致しても変換しない、(4) 対照として同じ形式の修正版は変換して開く（形式 1・2）、(5) 版 2 の履歴を版 1 の教材で開くと `format_newer` で開かず理由の文を出さない、(6) 同じ版は開いて操作が効く
+- 変異 `VER16-1`（理由の文を空にする）: DETECTED（2026-11-02。`scripts/check-mutations.sh` を 1 件に絞って実行。最初の版は理由の文が空でも `contains` が通り SURVIVED したため、文が空でない確認を足した）
+- 限界: pack の凍結物ではなく `min-3step` の変種を使う（web は pack に依存できない）。文面は仮置き。`content_major` など他の表示だけの理由には文が無い。ブラウザでは確かめていない
 
 ### 5.434 Rust の無い macOS の環境での validate・test と動的リンク先の判定（TASK-416・AUTHOR-14。#809）
 
