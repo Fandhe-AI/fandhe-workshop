@@ -185,6 +185,8 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
           const t = document.createElement('textarea');
           t.setAttribute('data-testid', 'draft-input');
           right.appendChild(t);
+          right.appendChild(document.createElement('textarea'));
+          right.appendChild(document.createElement('select'));
           const d = document.createElement('div');
           d.setAttribute('style', 'color: red');
           d.textContent = 'x';
@@ -196,6 +198,8 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
         });
         const after = await measureScreen(page);
         assert.equal(after.inputArea.absent['draft-input'], before.inputArea.absent['draft-input'] + 1);
+        assert.equal(after.inputArea.absent.textarea, before.inputArea.absent.textarea + 2);
+        assert.equal(after.inputArea.absent.select, before.inputArea.absent.select + 1);
         assert.equal(after.inputArea.visibleInputs.length, before.inputArea.visibleInputs.length + 1);
         assert.equal(after.inlineStyle.attrs, before.inlineStyle.attrs + 1);
         assert.equal(after.rightButtons.length, before.rightButtons.length + 1);

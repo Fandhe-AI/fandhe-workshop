@@ -19,7 +19,7 @@ import {
 import { NEXT, choiceSel, rowSel, install, T } from './ch0-3-journey.mjs';
 import { inspectDom49 } from './ch4-9-journey.mjs';
 
-/** 入力の口として「無い」ことを数える 6 種の testid（input-field-hidden.test.mjs の ABSENT と同じ）。 */
+/** 入力の口として「無い」ことを数える 6 種（input-field-hidden.test.mjs の ABSENT と同じ対象）。`textarea`・`select` は tag 名、残りは data-testid で数える。 */
 export const ABSENT = ['textarea', 'draft-input', 'submit-input', 'candidate-list', 'candidate-btn', 'select'];
 
 /** IR の節点から、Step の表と章の区切りを導く。教材ごとの値は書かない。 */
@@ -122,7 +122,7 @@ export function measureScreen(page) {
       rows: { count: rowEls.length, paths: rowEls.map((e) => e.getAttribute('data-row')) },
       viewSwitch: { select: sels.length, buttons: btns.length, visibleButtons: btns.filter(vis).length },
       inputArea: {
-        absent: Object.fromEntries(absent.map((id) => [id, q(tid(id)).length])),
+        absent: Object.fromEntries(absent.map((id) => [id, q(id === 'textarea' || id === 'select' ? id : tid(id)).length])),
         visibleInputs: q('input, textarea').filter(vis).map((e) => `${e.dataset.testid ?? ''}|${e.tagName.toLowerCase()}|${e.getAttribute('type') ?? ''}`),
         stop: { count: q(tid('stop-btn')).length, visible: q(tid('stop-btn')).some(vis) },
       },
