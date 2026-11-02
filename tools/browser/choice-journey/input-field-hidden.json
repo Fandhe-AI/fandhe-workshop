@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "input-field-hidden",
+  "source": { "ir": "../../../crates/web/tests/data/input_field_hidden/ir.json" },
+  "base": "/fandhe-choice-journey/",
+  "initial": { "uid": "main/st-1", "status": "entered" },
+  "sequence": [
+    { "kind": "choice", "id": "opt-a", "expect": { "uid": "main/st-1", "status": "accepted" } },
+    { "kind": "row", "path": "notes/draft", "expect": { "uid": "main/st-2", "status": "entered" } },
+    { "kind": "row", "path": "notes/draft", "expect": { "uid": "main/st-2", "status": "accepted" } },
+    { "kind": "choice", "id": "opt-right", "expect": { "uid": "main/st-3", "status": "entered" } },
+    { "kind": "decide", "decision": "approve", "expect": { "uid": "main/st-3", "status": "accepted" } },
+    { "kind": "decide", "decision": "approve", "expect": { "uid": "main/st-3", "status": "achieved" } }
+  ],
+  "expect": {
+    "completed": true,
+    "reviewAchieved": 3,
+    "nextChapter": 0,
+    "inputAreaAbsent": true
+  }
+}

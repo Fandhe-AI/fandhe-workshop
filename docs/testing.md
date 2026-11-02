@@ -11778,6 +11778,47 @@ hooks があるときも画面の判定を重ねるため、試験の設定の�
 - 例外を置く前の 1 回目は、PS3 の `revise-target[0]` の 1 組（CSP あり・なし）だけが状態の語の違いで失敗した（上の「画面だけの判定」）。原因を確かめてから例外を置き、PS3 だけを流し直して通ることを確かめた
 - 「進めないとき」の対照は、`--test-name-pattern` で配信する設定の 10 件と `総数` に絞って 1 回流した（11 件が失敗・通過 0）
 
+### 5.437 第 2 教材固有の値の設定ファイルへの分離と CI からの呼び出し（TASK-748 2/2。SECOND-4・SECOND-7）
+
+教材固有の値を `tools/browser/choice-journey/<name>.json`（版 1）に分け、道具を設定ファイルで呼べるようにした。道具（`choice-journey.mjs`）は教材固有の値と合否を持たない。設定の読み込み・検証・期待との照合は `choice-journey-config.mjs`、node:test の外からの入口は `choice-journey-run.mjs`（CLI）・`scripts/check-choice-journey.sh`（`make check-choice-journey`）。設定ファイルを差し替えるだけで別の教材にも使える。
+
+設定の形式（JSON。未知の欄・範囲外の値はすべて拒否する。YAML の依存は足さない）:
+
+| 欄 | 内容 |
+|---|---|
+| `format` | `1` 固定 |
+| `name` | `[a-z0-9-]{1,64}`。出力の 1 行に出す名前 |
+| `source` | `{ pack, validate?, edits? }` か `{ ir }` のどちらか一方。パスは設定のディレクトリからの相対（絶対パスは拒否）。`edits[]` は `{ file, from, to }` で、`file` は pack の写しの内側（`..`・絶対パス・シンボリックリンクは拒否）、`from` は写しの中でちょうど 1 回出ること |
+| `base` | 配信のサブパス（`^/[a-z0-9-]+/$`） |
+| `viewport` | 省略時 1280x800 |
+| `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
+| `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
+| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible` |
+| `csp` | 省略時 `[true, false]` |
+
+外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。
+
+設定 3 本（同じ道具で 3 つの教材を流す）:
+
+| 設定 | 教材 | 期待 |
+|---|---|---|
+| `choice-only-pack` | `docs/examples/choice-only-pack` のまま | 完走しない。`main/st-point:entered` で止まる（PACK-22 と開始点の `effects` 未適用。5.436） |
+| `choice-only-pack-derived` | 同じ pack に `edits` 2 件（`world_list` を shown、`put` を `st-pick` の受付の `effects` へ） | 完走。達成 2 件 |
+| `input-field-hidden` | `crates/web/tests/data/input_field_hidden/ir.json`（IR で指定。3 Step。選択肢・指す・承認） | 完走。達成 3 件 |
+
+試験:
+
+| 場面 | 確かめたこと |
+|---|---|
+| `choice-journey-config.test.mjs`（ブラウザなし。54 件） | 設定 3 本が読める。不正な設定 30 形を拒否。`applyEdits` が 0 回・2 回出る `from`・写しの外・シンボリックリンクを拒否し、`$` の置換を解釈しない。`judge` は期待に合う結果で空、1 欄だけ外した結果で理由がちょうど 1 件。設定の教材固有の文字列が道具の 3 ファイルのソースに 1 件も出ない |
+| `choice-journey.test.mjs` の P・A・B・C | 5.436 のまま。値は設定から引き、A・B は `judge` が空であることを主張する |
+| 同 D | 別の教材の設定（IR で指定）を同じ道具で CSP あり・なしとも完走 |
+| `scripts/test-check-choice-journey.sh` | 入口の誤用の拒否と、偽の `node` での引数の受け渡し・終了コードの伝搬 |
+
+- CI: `browser-test` ジョブの `make test-browser` の後に step `make check-choice-journey (TASK-748)` を足し、`check` ジョブに `make test-check-choice-journey` を足した。secret は使わず、ジョブの集合・名前・`ci-complete` の `needs`・ruleset は変えていない。CI での実行は PR の CI で確かめる（手元では未検証）
+- 結果（2026-11-02、手元）: `make check-choice-journey`（配信する設定の自前ビルドを含む）は 3 設定 x CSP 2 通りの 6 件合格。期待を外した設定は終了コード 1、形の誤り・環境変数の欠落は 2。`choice-journey.test.mjs` は 8 件合格
+- 限界: 設定は操作の種類 4 つ（`choice`・`row`・`decide`・`next`）の範囲でしか書けない。外観の値の主張はしない（TASK-749）。本物の第 2 教材は TASK-749・TASK-750。`scripts/expected-test-counts.txt` は変えていない
+
 ### 5.436 入力欄のない教材を完走させ画面の値を測る道具（TASK-748 1/2。SECOND-4・SECOND-7）
 
 `tools/browser/choice-journey.mjs`（道具）と `choice-journey.test.mjs`（試験）を足した。IR を同梱した配信する設定（`web-author`）を一時ディレクトリへ写して `ir/main.json` だけを差し替え、教材を実クリックで開始から終わりまで進める。測るのは `data-theme`・文字の大きさ・行間・行の数・ビューの切り替え・入力の領域・右の領域のボタン・`style` の使用と、外部通信・ページ内エラー・CSP 警告・安全の計数。操作の列と期待値は引数で受ける（設定ファイルへの分離と CI からの呼び出しは #1074）。

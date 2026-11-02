@@ -186,6 +186,11 @@ jobs:
       - name: make test-build-pack-release
         run: make test-build-pack-release
 
+      # 入力欄のない教材の完走の道具の入口（TASK-748 2/2）の回帰テスト。誤用の拒否と偽の node だけを使い、ビルド・ブラウザは使わない。
+      # 既存ジョブへの step 追加のため、ジョブ名・ci-complete の needs・ruleset の必須チェックは変わらない。secret は使わない。
+      - name: make test-check-choice-journey
+        run: make test-check-choice-journey
+
   # フックスクリプト（scripts/hooks/*.sh）自体の回帰テスト（.claude/rules/git-hooks.md）。
   # テストはフックに置かず CI で実行する。外部依存は bash + git のみで、ツールの導入は不要。
   # ubuntu では常に実行する。macOS での検証は test-hooks-macos が担当する。
@@ -431,6 +436,16 @@ jobs:
           CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
           FANDHE_TEST_TAP_OUT: ${{ runner.temp }}/browser-test.tap
         run: make test-browser
+
+      # 入力欄のない教材の完走の道具を、設定ファイル（tools/browser/choice-journey/*.json）の全件で流す（TASK-748 2/2）。
+      # 設定ごと・CSP あり／なしごとに完走させ、設定の期待（完走・止まる位置・達成の数・外部通信 0・ページ内エラー 0 など）と照合する。
+      # CARGO_TARGET_DIR は make test-browser と同じ値にしてビルドを使い回す。wasm-opt は CI に入れない。secret は使わない（fork でも通る）。
+      # 既存ジョブへの step 追加のため、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      - name: make check-choice-journey (TASK-748)
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/cargo-target
+          SKIP_WASM_OPT: "1"
+        run: make check-choice-journey
 
       # 配信用・試験用の 2 設定のビルド検査（BUILD-3・TASK-78 1/2）。compile した IR が配信する設定に入ることも確かめる。
       # 大きさの関門は次の step（TASK-78 2/2）。wasm-opt は CI に入れない（SKIP_WASM_OPT は呼び出し元の値のまま）。

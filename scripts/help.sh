@@ -70,6 +70,8 @@ cat <<'EOF'
   test-build-pack-release      scripts/test-build-pack-release.sh      配布用の実行ファイルの作成スクリプトの回帰テスト（偽の実行ファイル。ビルドなし）
   build-pack-preview           scripts/build-pack-preview.sh           エンジンの配信物を同梱した fandhe-pack（preview が動くビルド）を作り、実行ファイルのパスを出す
   test-build-pack-preview      scripts/test-build-pack-preview.sh      上の作成スクリプトの回帰テスト（誤用の拒否。ビルドなし）
+  check-choice-journey         scripts/check-choice-journey.sh         入力欄のない教材の完走の道具を設定ファイルで流す（CHOICE_JOURNEY_CONFIG=<path> で 1 本に絞る。遅い）
+  test-check-choice-journey    scripts/test-check-choice-journey.sh    上の入口の回帰テスト（誤用の拒否・偽の node。ビルドなし）
   test-keydown-control         scripts/test-keydown-control.sh         action-keydown を外した写しで keydown の試験が正しい理由で失敗することの対照（遅い）
   test-chapter-key-control     scripts/test-chapter-key-control.sh     鍵を修正前の固定の文字列にした写しで章の試験が正しい理由で失敗することの対照（遅い）
   check-mutations              scripts/check-mutations.sh              変異注入の検査（誤りを入れると対応する試験が失敗することの確認。遅い）

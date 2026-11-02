@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "choice-only-pack",
+  "source": { "pack": "../../../docs/examples/choice-only-pack", "validate": true },
+  "base": "/fandhe-choice-journey/",
+  "initial": { "uid": "main/st-pick", "status": "entered" },
+  "sequence": [
+    { "kind": "choice", "id": "opt-a", "expect": { "uid": "main/st-pick", "status": "accepted" } },
+    { "kind": "choice", "id": "ans-yes", "expect": { "uid": "main/st-point", "status": "entered" } },
+    { "kind": "row", "path": "memo/draft.md", "expect": { "uid": "main/st-point", "status": "accepted" } },
+    { "kind": "row", "path": "memo/draft.md", "expect": { "uid": "main/st-point", "status": "achieved" } }
+  ],
+  "expect": {
+    "completed": false,
+    "stoppedAfter": "main/st-point:entered",
+    "nextChapter": 0,
+    "inputAreaAbsent": true,
+    "viewSwitchVisible": 0
+  }
+}
