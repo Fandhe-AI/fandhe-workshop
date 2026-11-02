@@ -9,7 +9,8 @@
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
 #   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
-#   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746）
+#   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746 1/2）/
+#   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
@@ -256,10 +257,14 @@ SYNC_ACTUAL="${WORK}/sync-actual.tsv"
 : >"${SYNC_ACTUAL}"
 if [ -f "${PACK}/tests/playthrough.yaml" ]; then
   cur=""
+  in_err=0
   while IFS= read -r line; do
     case "${line}" in
-      "  - id: "*) cur="${line#  - id: }" ;;
-      "error_inputs:"*) cur="" ;;
+      "  - id: "*) if [ "${in_err}" -eq 0 ]; then cur="${line#  - id: }"; fi ;;
+      "error_inputs:"*)
+        cur=""
+        in_err=1
+        ;;
       *)
         if [ -n "${cur}" ]; then
           parsed="$(printf '%s\n' "${line}" | sed -n -E 's/^ +- \{ (choice|ui): "?([^",]*)"?, expect: ([a-z_:-]+) \}$/\1:\2|\3/p')"
@@ -312,6 +317,155 @@ else
   fail alt-differs "pt-main and pt-alt do not end with different review/to and review/due texts"
 fi
 
+# 20a error-inputs-sync（TASK-746 2/2）: tests/playthrough.yaml の誤入力の区画を固定の配置で厳密に読み、
+# 文面の確認（tests/text-checks.json）の error_input の集合と一致することを確かめる。
+# 配置: `  - id:` → `    start: s-1` → 任意の `    pre:` と `      - { ... }` の列 → `    input: { ... }`。
+# コメント・空行・別の形は読めない形として不合格にする（fail-closed）。baseline がこの結果を使うので baseline の前に置く。
+EI_TSV="${WORK}/ei.tsv"
+ERRS="${WORK}/errs.json"
+: >"${EI_TSV}"
+echo '[]' >"${ERRS}"
+EI_OK=0
+if [ -f "${PACK}/tests/playthrough.yaml" ]; then
+  ei_started=0
+  ei_bad=0
+  ei_stage=0 # 0 = 次は id か終わり、1 = id の後、2 = start の後、4 = pre: の後、5 = pre の項目の後、3 = input の後
+  ei_count=0
+  while IFS= read -r line || [ -n "${line}" ]; do
+    if [ "${ei_started}" -eq 0 ]; then
+      if [ "${line}" = "error_inputs:" ]; then
+        ei_started=1
+      fi
+      continue
+    fi
+    ei_id="$(printf '%s\n' "${line}" | sed -n -E 's/^  - id: ([A-Za-z0-9_-]+)$/\1/p')"
+    ei_pre="$(printf '%s\n' "${line}" | sed -n -E 's/^      - \{ (choice|ui): "?([^",]*)"?, expect: ([a-z_:-]+) \}$/\1:\2|\3/p')"
+    ei_inp="$(printf '%s\n' "${line}" | sed -n -E 's/^    input: \{ (choice|ui): "?([^",]*)"?, expect: "([a-z_:-]+)" \}$/\1:\2|\3/p')"
+    ei_can="$(printf '%s\n' "${line}" | sed -n -E 's/^    input: \{ cancel: true, expect: "([a-z_:-]+)" \}$/cancel|\1/p')"
+    if [ -n "${ei_id}" ] && { [ "${ei_stage}" -eq 0 ] || [ "${ei_stage}" -eq 3 ]; }; then
+      printf '%s\tid\t-\t-\n' "${ei_id}" >>"${EI_TSV}"
+      ei_count=$((ei_count + 1))
+      ei_stage=1
+    elif [ "${line}" = "    start: s-1" ] && [ "${ei_stage}" -eq 1 ]; then
+      ei_stage=2
+    elif [ "${line}" = "    pre:" ] && [ "${ei_stage}" -eq 2 ]; then
+      ei_stage=4
+    elif [ -n "${ei_pre}" ] && { [ "${ei_stage}" -eq 4 ] || [ "${ei_stage}" -eq 5 ]; }; then
+      printf '%s\tpre\t%s\t%s\n' "-" "${ei_pre%%|*}" "${ei_pre##*|}" >>"${EI_TSV}"
+      ei_stage=5
+    elif [ -n "${ei_inp}" ] && { [ "${ei_stage}" -eq 2 ] || [ "${ei_stage}" -eq 5 ]; }; then
+      printf '%s\tinput\t%s\t%s\n' "-" "${ei_inp%%|*}" "${ei_inp##*|}" >>"${EI_TSV}"
+      ei_stage=3
+    elif [ -n "${ei_can}" ] && { [ "${ei_stage}" -eq 2 ] || [ "${ei_stage}" -eq 5 ]; }; then
+      printf '%s\tinput\tcancel\t%s\n' "-" "${ei_can##*|}" >>"${EI_TSV}"
+      ei_stage=3
+    else
+      ei_bad=1
+    fi
+  done <"${PACK}/tests/playthrough.yaml"
+  if [ "${ei_started}" -eq 1 ] && [ "${ei_bad}" -eq 0 ] && [ "${ei_count}" -ge 1 ] && [ "${ei_stage}" -eq 3 ]; then
+    EI_OK=1
+  fi
+fi
+if [ "${EI_OK}" -eq 1 ]; then
+  jq -R -s -c 'reduce (split("\n")[] | select(length > 0) | split("\t")) as $r ([];
+      if $r[1] == "id" then . + [{id: $r[0], pre: [], input: null, expect: null}]
+      elif $r[1] == "pre" then .[-1].pre += [{op: $r[2], expect: $r[3]}]
+      else (.[-1].input = $r[2]) | (.[-1].expect = $r[3]) end)' <"${EI_TSV}" >"${ERRS}" 2>/dev/null || EI_OK=0
+fi
+TC="${PACK}/tests/text-checks.json"
+TC_OK=0
+if [ -f "${TC}" ] && jq -e '.format == 1 and (.checks | type == "array") and (.excluded | type == "array")' "${TC}" >/dev/null 2>&1; then
+  TC_OK=1
+fi
+# shellcheck disable=SC2016 # $tc は jq の変数
+if [ "${EI_OK}" -eq 1 ] && [ "${TC_OK}" -eq 1 ] \
+  && jq -e --slurpfile tc "${TC}" '(length >= 1) and ((map(.id) | unique | length) == length) and (map(.input != null) | all) and (([.[].id] | sort) == ([$tc[0].checks[].error_input] | sort))' "${ERRS}" >/dev/null 2>&1; then
+  pass error-inputs-sync
+else
+  fail error-inputs-sync "playthrough.yaml error_inputs are unreadable, or do not match tests/text-checks.json (ids)"
+fi
+
+# 20b text-checks（TASK-746 2/2。SECOND-12）: 文面の確認。各 check について次をすべて満たすときだけ合格にする。
+#   (a) test の出力に PASS <id> → rejected:<分類> の行がある（分類は test が観測した値）
+#   (b) 静的に解いた（scripts/second-pack-judge.jq）最後の入力が rejected で、文面の ID と分類が check・test と一致し、pre の入力の結果も期待と一致する
+#   (c) 文面の ID の分類が (a) と一致する
+#   (d) message・next_action が IR の値と一致し、空でない
+#   (e) 網羅: 場面 1〜8 のうち除外（場面 5 だけ）を除く 7 場面に check がある。IR の確認の誤答の選択肢すべてに場面 1 の check がある
+# 限界: 照合するのは IR に載った文面と静的に解いた文面の ID で、実行時にエンジンが返した文面ではない。画面の文面は TASK-750 が確かめる。
+JUDGE="${DIR}/second-pack-judge.jq"
+JR="${WORK}/judge-results.json"
+echo '{}' >"${JR}"
+tc_pass=0
+if [ "${EI_OK}" -eq 1 ] && [ "${TC_OK}" -eq 1 ] && [ "$(printf '%s' "${IR}" | jq -r '(.nodes | length)')" != "0" ]; then
+  tc_pass=1
+  for eid in $(jq -r '.[].id' "${ERRS}" | grep -E '^[A-Za-z0-9_-]+$'); do
+    eops="$(jq -c --arg id "${eid}" '[.[] | select(.id == $id)][0] | [(.pre[] | .op), .input]' "${ERRS}")"
+    eres="$(printf '%s' "${IR}" | jq -c --argjson ops "${eops}" -f "${JUDGE}" 2>/dev/null)" || eres='null'
+    jq --arg id "${eid}" --argjson r "${eres}" '.[$id] = $r' "${JR}" >"${JR}.new" && mv "${JR}.new" "${JR}"
+  done
+  TMAP="$(printf '%s\n' "${TEST_OUT}" | sed -n -E 's/^PASS ([A-Za-z0-9_-]+) → rejected:([a-z_]+)$/\1\t\2/p' | jq -R -s -c '[split("\n")[] | select(length > 0) | split("\t") | {key: .[0], value: .[1]}] | from_entries')"
+  # shellcheck disable=SC2016 # jq の変数をシェルに展開させない
+  TC_FILTER='
+    def trim: gsub("^\\s+|\\s+$"; "");
+    . as $ir
+    | ($tc[0]) as $t
+    | (($t.checks | length) >= 1)
+      and (($t.checks | map(.error_input) | unique | length) == ($t.checks | length))
+      and all($t.checks[]; . as $c
+        | ([$errs[0][] | select(.id == $c.error_input)][0]) as $e
+        | $e != null
+        and ($tmap[$c.error_input] != null)
+        and ($ir.rejections[$c.rejection] != null)
+        and ($tmap[$c.error_input] == $ir.rejections[$c.rejection].category)
+        and (($jr[0][$c.error_input] | type) == "array")
+        and (($jr[0][$c.error_input] | length) == (($e.pre | length) + 1))
+        and ($jr[0][$c.error_input] as $r
+          | ($r[-1].kind == "rejected") and ($r[-1].rejection == $c.rejection)
+          and ($r[-1].category == ($e.expect | ltrimstr("rejected:")))
+          and ([range(0; ($e.pre | length)) as $i | ($e.pre[$i].expect) as $x | $r[$i]
+                | if ($x | startswith("rejected:")) then (.kind == "rejected" and .category == ($x | ltrimstr("rejected:"))) else (.kind == $x) end] | all))
+        and ($c.message == $ir.rejections[$c.rejection].message)
+        and ($c.next_action == $ir.rejections[$c.rejection].next_action)
+        and (($c.message | type) == "string") and (($c.message | trim | length) >= 1)
+        and (($c.next_action | type) == "string") and (($c.next_action | trim | length) >= 1)
+        and (($c.scene | type) == "number") and ($c.scene >= 0) and ($c.scene <= 8) and ($c.scene != 5))
+      and (($t.excluded | map(.scene)) == [5])
+      and (([$t.checks[] | select(.scene >= 1) | .scene] | unique) == [1, 2, 3, 4, 6, 7, 8])
+      and ([$ir.nodes[].step.confirm.options[]? | select(.correct == false) | .id] as $w
+            | (($w | length) >= 1) and all($w[]; . as $oid
+            | any($t.checks[]; .scene == 1 and (. as $c | ([$errs[0][] | select(.id == $c.error_input)][0].input) == ("choice:" + $oid)))))
+  '
+  printf '%s' "${IR}" | jq -e --slurpfile tc "${TC}" --slurpfile errs "${ERRS}" --slurpfile jr "${JR}" --argjson tmap "${TMAP}" "${TC_FILTER}" >/dev/null 2>&1 || tc_pass=0
+fi
+if [ "${tc_pass}" -eq 1 ]; then
+  pass text-checks
+else
+  fail text-checks "rejection texts do not match tests/text-checks.json (ids, categories, messages, next actions or scene coverage)"
+fi
+
+# 20c zero-counts（TASK-746 2/2）: test の R-22・R-21 の行の 0 であるべき数が 0 であること。行が無い（古い実行ファイル）ときも不合格にする。
+R22_RE='^R-22 .*確認の操作で達成になった ([0-9]+) 件、確認を省くと明示した Step の達成 ([0-9]+) 件、確認なしで達成になった ([0-9]+) 件$'
+R21_RE='^R-21 返した文面 ([0-9]+) 件のうち「次の行動」が空 ([0-9]+) 件$'
+R22_CONFIRMED="$(printf '%s\n' "${TEST_OUT}" | sed -n -E "s/${R22_RE}/\\1/p")"
+R22_SKIP="$(printf '%s\n' "${TEST_OUT}" | sed -n -E "s/${R22_RE}/\\2/p")"
+R22_NOCONF="$(printf '%s\n' "${TEST_OUT}" | sed -n -E "s/${R22_RE}/\\3/p")"
+R21_TEXTS="$(printf '%s\n' "${TEST_OUT}" | sed -n -E "s/${R21_RE}/\\1/p")"
+R21_EMPTY="$(printf '%s\n' "${TEST_OUT}" | sed -n -E "s/${R21_RE}/\\2/p")"
+if [ "${R22_NOCONF}" = "0" ] && [ "${R21_EMPTY}" = "0" ] && [ -n "${R22_CONFIRMED}" ] && [ -n "${R22_SKIP}" ] && [ -n "${R21_TEXTS}" ]; then
+  pass zero-counts
+else
+  fail zero-counts "test output lacks the R-22 or R-21 line, or its must-be-zero count is not 0"
+fi
+TC_COUNT=0
+TC_SCENES=0
+TC_EXCLUDED=0
+if [ "${TC_OK}" -eq 1 ]; then
+  TC_COUNT="$(jq '.checks | length' "${TC}" 2>/dev/null || echo 0)"
+  TC_SCENES="$(jq '[.checks[] | select(.scene >= 1) | .scene] | unique | length' "${TC}" 2>/dev/null || echo 0)"
+  TC_EXCLUDED="$(jq '.excluded | length' "${TC}" 2>/dev/null || echo 0)"
+fi
+
 # 20 baseline: 件数が tests/baseline.txt（時点の値）と一致する（キーの欠け・余り・不一致は不合格）
 if [ -f "${BASELINE}" ]; then
   BASE_ACTUAL="${WORK}/baseline-actual.txt"
@@ -325,6 +479,8 @@ if [ -f "${BASELINE}" ]; then
     jq -r 'to_entries[] | "row_changes.\(.key)=\([.value.steps[]? | select(.changes != {})] | length)"' "${FOLD_RESULTS}"
     printf 'row_asserts=%s\n' "${ra_checked}"
     printf 'alt_differs=%s\n' "${ALT_DIFFERS}"
+    printf 'text_checks=%s\ntext_checks.scenes=%s\ntext_checks.excluded=%s\n' "${TC_COUNT}" "${TC_SCENES}" "${TC_EXCLUDED}"
+    printf 'r22.confirmed=%s\nr22.skip=%s\nr22.no_confirm=%s\nr21.texts=%s\nr21.empty=%s\n' "${R22_CONFIRMED}" "${R22_SKIP}" "${R22_NOCONF}" "${R21_TEXTS}" "${R21_EMPTY}"
   } | sort >"${BASE_ACTUAL}"
   grep -v -e '^#' -e '^$' "${BASELINE}" | sort >"${WORK}/baseline-expected.txt" || true
   if cmp -s "${BASE_ACTUAL}" "${WORK}/baseline-expected.txt"; then

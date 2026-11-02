@@ -1,14 +1,22 @@
-# 第 2 教材の件数の基準値（時点の値。2026-11-02、TASK-745 時点）。書式は key=value の 1 行 1 件で、# で始まる行は無視する。
+# 第 2 教材の件数の基準値（時点の値。2026-11-02、TASK-746 2/2 時点）。書式は key=value の 1 行 1 件で、# で始まる行は無視する。
 # scripts/check-second-pack.sh の項目 baseline が、fandhe-pack の出力と畳み込みの結果から作った値と照合する。
-# 教材を変えて件数が変わるときは、この値を実測で書き直す。TASK-746・TASK-747 が同じファイルに追記する。
+# 教材を変えて件数が変わるときは、この値を実測で書き直す。TASK-747 が同じファイルに追記する。
 validate.chapters=1
 validate.steps=8
 playthroughs=2/2
 inputs.pt-main=16
 inputs.pt-alt=16
-error_inputs=1/1
-total_inputs=33
+error_inputs=27/27
+total_inputs=235
 row_changes.pt-main=14
 row_changes.pt-alt=14
 row_asserts=32
 alt_differs=2
+text_checks=27
+text_checks.scenes=7
+text_checks.excluded=1
+r22.confirmed=96
+r22.skip=0
+r22.no_confirm=0
+r21.texts=28
+r21.empty=0

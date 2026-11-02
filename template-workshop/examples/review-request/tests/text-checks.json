@@ -1,0 +1,201 @@
+{
+  "format": 1,
+  "checks": [
+    {
+      "error_input": "w-q1-feel",
+      "scene": 1,
+      "rejection": "rj-q1-feel",
+      "message": "気持ちだけでは、読む人は何をすればよいか分かりません。",
+      "next_action": "読む人が動ける答えを選び直します。"
+    },
+    {
+      "error_input": "w-q1-code",
+      "scene": 1,
+      "rejection": "rj-q1-code",
+      "message": "直した中身は、依頼文ではなく差分で見てもらいます。",
+      "next_action": "依頼文に書く内容を選び直します。"
+    },
+    {
+      "error_input": "to-all",
+      "scene": 2,
+      "rejection": "rj-to-all",
+      "message": "チーム全員に頼むと、誰も自分の担当だと思わず、返事が来ないことがあります。",
+      "next_action": "この部分に詳しい人を 1 人に絞って選び直します。"
+    },
+    {
+      "error_input": "miss-to",
+      "scene": 3,
+      "rejection": "rj-miss-to",
+      "message": "そこは宛先の行ではありません。",
+      "next_action": "宛先の行を指し直します。"
+    },
+    {
+      "error_input": "miss-to-alt",
+      "scene": 3,
+      "rejection": "rj-miss-to",
+      "message": "そこは宛先の行ではありません。",
+      "next_action": "宛先の行を指し直します。"
+    },
+    {
+      "error_input": "w-q3-all",
+      "scene": 1,
+      "rejection": "rj-q3-all",
+      "message": "範囲が広いと、読む人は終わりが見えません。",
+      "next_action": "範囲を絞る理由を選び直します。"
+    },
+    {
+      "error_input": "w-q3-none",
+      "scene": 1,
+      "rejection": "rj-q3-none",
+      "message": "範囲が書かれていないと、読む人はどこから読めばよいか分かりません。",
+      "next_action": "範囲を絞る理由を選び直します。"
+    },
+    {
+      "error_input": "w-q4-any",
+      "scene": 1,
+      "rejection": "rj-q4-any",
+      "message": "観点が多いほど、1 つ 1 つの見方が浅くなります。",
+      "next_action": "見てほしい点の決め方を選び直します。"
+    },
+    {
+      "error_input": "w-q4-skip",
+      "scene": 1,
+      "rejection": "rj-q4-skip",
+      "message": "見てほしい点がないと、読む人は何を先に見るか決められません。",
+      "next_action": "見てほしい点の決め方を選び直します。"
+    },
+    {
+      "error_input": "row-to",
+      "scene": 4,
+      "rejection": "rj-row-filled",
+      "message": "その行はもう埋まっています。",
+      "next_action": "状態が「未入力」のまま残っている行を指します。"
+    },
+    {
+      "error_input": "row-scope",
+      "scene": 4,
+      "rejection": "rj-row-filled",
+      "message": "その行はもう埋まっています。",
+      "next_action": "状態が「未入力」のまま残っている行を指します。"
+    },
+    {
+      "error_input": "row-focus",
+      "scene": 4,
+      "rejection": "rj-row-filled",
+      "message": "その行はもう埋まっています。",
+      "next_action": "状態が「未入力」のまま残っている行を指します。"
+    },
+    {
+      "error_input": "row-status",
+      "scene": 0,
+      "rejection": "rj-nis",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    {
+      "error_input": "w-q5-to",
+      "scene": 1,
+      "rejection": "rj-q5-to",
+      "message": "宛先の行は、もう「入力済み」です。",
+      "next_action": "状態が「未入力」の行を選び直します。"
+    },
+    {
+      "error_input": "w-q5-status",
+      "scene": 1,
+      "rejection": "rj-q5-status",
+      "message": "状態の行は、項目ではなく下書きの進み具合を表します。",
+      "next_action": "状態が「未入力」の行を選び直します。"
+    },
+    {
+      "error_input": "due-vague",
+      "scene": 6,
+      "rejection": "rj-due-vague",
+      "message": "「できるだけ早く」は、いつまでかが人によって違います。日時が 1 つに決まる形ではありません。",
+      "next_action": "日時が 1 つに決まる期限を選び直します。"
+    },
+    {
+      "error_input": "miss-due",
+      "scene": 3,
+      "rejection": "rj-miss-due",
+      "message": "そこは期限の行ではありません。",
+      "next_action": "期限の行を指し直します。"
+    },
+    {
+      "error_input": "skip",
+      "scene": 7,
+      "rejection": "rj-skip",
+      "message": "送る前に見直さないと、宛先や期限の書き忘れに気付けません。",
+      "next_action": "送る前に見直す選択肢を選び直します。"
+    },
+    {
+      "error_input": "w-q7-now",
+      "scene": 1,
+      "rejection": "rj-q7-now",
+      "message": "見直さずにすぐ送ると、宛先や期限の書き忘れに気付けません。",
+      "next_action": "送る前の確かめ方を選び直します。"
+    },
+    {
+      "error_input": "w-q7-add",
+      "scene": 1,
+      "rejection": "rj-q7-add",
+      "message": "送った後に項目を足すと、読む人は変わった点に気付けません。",
+      "next_action": "送る前の確かめ方を選び直します。"
+    },
+    {
+      "error_input": "revise",
+      "scene": 8,
+      "rejection": "rj-revise",
+      "message": "直す行を決めないまま戻っても、下書きは変わりません。",
+      "next_action": "左の行を見て、この内容で送るかを選び直します。"
+    },
+    {
+      "error_input": "w-q8-unsent",
+      "scene": 1,
+      "rejection": "rj-q8-unsent",
+      "message": "4 つの項目は、もう揃っています。",
+      "next_action": "左の行を見て選び直します。"
+    },
+    {
+      "error_input": "other-step",
+      "scene": 0,
+      "rejection": "rj-nis",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    {
+      "error_input": "confirm-in-input",
+      "scene": 0,
+      "rejection": "rj-nis",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    {
+      "error_input": "cancel-in-choice",
+      "scene": 0,
+      "rejection": "rj-nis",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    {
+      "error_input": "reselect-in-confirm",
+      "scene": 0,
+      "rejection": "rj-nis",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    {
+      "error_input": "recover",
+      "scene": 0,
+      "rejection": "rj-to-all",
+      "message": "チーム全員に頼むと、誰も自分の担当だと思わず、返事が来ないことがあります。",
+      "next_action": "この部分に詳しい人を 1 人に絞って選び直します。"
+    }
+  ],
+  "excluded": [
+    {
+      "scene": 5,
+      "reason": "engine-when-not-evaluated"
+    }
+  ],
+  "note": "文面の確認（拒否の message・next_action）。fandhe-pack test が text_checks を判定できる版になったら playthrough.yaml の text_checks へ移し、本ファイルを消す。照合は IR 上の文面で、実行時に返った文面ではない。excluded の場面 5 は、エンジンが入力の判定で規則の when を評価しないため誤入力にできない（docs/testing.md 5.444）。"
+}
