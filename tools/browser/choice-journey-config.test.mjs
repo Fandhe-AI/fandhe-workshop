@@ -1,7 +1,7 @@
 // 設定ファイル（tools/browser/choice-journey/*.json）の読み込み・検証・期待との照合（choice-journey-config.mjs）の試験
 // （TASK-748 2/2。SECOND-4・SECOND-7）。ブラウザ・ビルド不要（node:test だけ）。記録は docs/testing.md 5.437。
 //
-//   L  同梱の設定 3 本が loadConfig を通り、名前が一意
+//   L  同梱の設定 5 本が loadConfig を通り、名前が一意
 //   N  負の対照。形・値の誤りは ConfigError（未知の欄・format・name・base・source・パスの封じ込め・操作の種類・status・decision・edits）
 //   E  applyEdits。from が 0 回・2 回出る書き換えと、写しの外・シンボリックリンクの対象を拒否し、元は書き換えない
 //   J  judge の表駆動。合う結果は空、期待を 1 つだけ外した結果は理由がちょうど 1 件
@@ -31,8 +31,8 @@ const base = () => ({
 });
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
-test('L: 同梱の設定が 3 本あり、すべて loadConfig を通り名前が一意', () => {
-  assert.ok(FILES.length >= 3, `config files: ${FILES.length}`);
+test('L: 同梱の設定が 5 本あり、すべて loadConfig を通り名前が一意', () => {
+  assert.ok(FILES.length >= 5, `config files: ${FILES.length}`);
   const names = FILES.map((f) => loadConfig(path.join(CONFIG_DIR, f)).name);
   assert.equal(new Set(names).size, names.length);
   for (const f of FILES) assert.equal(loadConfig(path.join(CONFIG_DIR, f)).name, f.replace(/\.json$/, ''), 'name matches file name');
@@ -81,6 +81,17 @@ const BAD = [
   ['reviewAchieved が負', (c) => { c.expect.reviewAchieved = -1; }],
   ['expect の未知の欄', (c) => { c.expect.externalMax = 5; }],
   ['viewport の範囲', (c) => { c.viewport = { width: 10, height: 800 }; }],
+  ['entryPorts が空', (c) => { c.expect.entryPorts = []; }],
+  ['entryPorts の未知の部品', (c) => { c.expect.entryPorts = ['choice-btn', 'x-btn']; }],
+  ['entryPorts の重複', (c) => { c.expect.entryPorts = ['choice-btn', 'choice-btn']; }],
+  ['entryAtStart が配列でない', (c) => { c.expect.entryAtStart = 'choice-btn'; }],
+  ['entryAtStart の未知の部品', (c) => { c.expect.entryAtStart = ['a"]b']; }],
+  ['inputGuidesAbsent が真偽でない', (c) => { c.expect.inputGuidesAbsent = 1; }],
+  ['fileInputs が負', (c) => { c.expect.fileInputs = -1; }],
+  ['fileInputs が範囲外', (c) => { c.expect.fileInputs = 11; }],
+  ['controls が連想配列でない', (c) => { c.expect.controls = ['stop']; }],
+  ['controls の未知の名前', (c) => { c.expect.controls = { 'a"]b': true }; }],
+  ['controls の値が真偽でない', (c) => { c.expect.controls = { stop: 'yes' }; }],
   ['csp が真偽の列でない', (c) => { c.csp = ['on']; }],
 ];
 for (const [label, mutate] of BAD) {
@@ -148,10 +159,34 @@ test('E: applyEdits は写しの外・存在しないファイル・ディレク
 const config = () => parseConfig({
   ...base(),
   expect: {
-    completed: true, reviewAchieved: 2, nextChapter: 0, inputAreaAbsent: true, viewSwitchVisible: 0,
+    completed: true,
+    reviewAchieved: 2,
+    nextChapter: 0,
+    inputAreaAbsent: true,
+    viewSwitchVisible: 0,
+    entryPorts: ['choice-btn'],
+    entryAtStart: ['choice-btn'],
+    inputGuidesAbsent: true,
+    fileInputs: 1,
+    controls: { stop: true, export: true, import: true, hintContainer: true, hintOpen: false },
   },
 }, '/tmp');
+const part = (count, visible) => ({ count, visible });
 const screen = () => ({
+  parts: {
+    'choice-btn': part(2, 2),
+    'stop-btn': part(1, 1),
+    'key-hint': part(0, 0),
+    'op-guide': part(0, 0),
+    'os-field': part(0, 0),
+    'os-select': part(0, 0),
+    'shell-export': part(1, 1),
+    'shell-import': part(1, 0),
+    'shell-hint': part(1, 0),
+    'hint-open': part(0, 0),
+  },
+  notice: { count: 1, visible: 0, textLength: 0 },
+  fileInputs: { visible: 1, inImport: 1 },
   inputArea: {
     absent: {
       textarea: 0, 'draft-input': 0, 'submit-input': 0, 'candidate-list': 0, 'candidate-btn': 0, select: 0,
@@ -187,6 +222,19 @@ const OFF = [
   ['入力の口（終了時）', (r) => { r.end.inputArea.absent.textarea = 1; }, ['inputAreaAbsent@end']],
   ['見える input（開始時）', (r) => { r.start.inputArea.visibleInputs = ['|input|text']; }, ['visibleInputs@start']],
   ['ビュー切り替え（終了時）', (r) => { r.end.viewSwitch.visibleButtons = 2; }, ['viewSwitchVisible@end']],
+  ['入口に承認のボタン（終了時）', (r) => { r.end.parts['approval-btn'] = part(1, 1); }, ['entryPorts@end']],
+  ['入口に入力欄（開始時）', (r) => { r.start.parts['draft-input'] = part(1, 1); }, ['entryPorts@start']],
+  ['開始時に選択肢のボタンが無い', (r) => { r.start.parts['choice-btn'] = part(0, 0); }, ['entryAtStart']],
+  ['キーの案内（終了時）', (r) => { r.end.parts['key-hint'] = part(1, 1); }, ['inputGuidesAbsent@end']],
+  ['OS の選択（開始時）', (r) => { r.start.parts['os-select'] = part(1, 1); }, ['inputGuidesAbsent@start']],
+  ['入力の注意書きに文字（終了時）', (r) => { r.end.notice.textLength = 5; }, ['inputNotice@end']],
+  ['ファイル選択が 0 個（開始時）', (r) => { r.start.fileInputs = { visible: 0, inImport: 0 }; }, ['fileInputs@start']],
+  ['ファイル選択が 2 個', (r) => { r.end.fileInputs = { visible: 2, inImport: 2 }; }, ['fileInputs@end']],
+  ['ファイル選択が読み込みの外', (r) => { r.end.fileInputs = { visible: 1, inImport: 0 }; }, ['fileInputs@end']],
+  ['停止のボタンが見えない', (r) => { r.end.parts['stop-btn'] = part(1, 0); }, ['controls.stop@end']],
+  ['書き出しが無い', (r) => { r.start.parts['shell-export'] = part(0, 0); }, ['controls.export@start']],
+  ['読み込みの入れ物が無い', (r) => { r.end.parts['shell-import'] = part(0, 0); }, ['controls.import@end']],
+  ['ヒントを開くが出る', (r) => { r.end.parts['hint-open'] = part(1, 1); }, ['controls.hintOpen@end']],
   ['外部通信', (r) => { r.external = 1; }, ['external']],
   ['ページ内エラー', (r) => { r.pageErrors = 1; }, ['pageErrors']],
   ['コンソールエラー', (r) => { r.consoleErrors = 1; }, ['consoleErrors']],

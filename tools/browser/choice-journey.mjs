@@ -1,7 +1,7 @@
 // 入力欄のない教材（選択肢と画面操作だけで進む教材）を開始から完走まで自動操作で進め、画面の値を測る道具（TASK-748 1/2・2/2。SECOND-4・SECOND-7）。
 //
 // 役割: 教材の IR を引数で受け、配信する設定の画面（試験用の口なし）を実クリックだけで進め、各時点の画面の値
-// （`data-theme`・文字の大きさ・行間・行の数・ビューの切り替え・入力の領域・右の領域のボタン）と、外部通信・ページ内エラーの件数を返す。
+// （`data-theme`・文字の大きさ・行間・行の数・ビューの切り替え・入力の領域・入口の部品・案内・ファイル選択・右の領域の操作要素）と、外部通信・ページ内エラーの件数を返す。
 // 主張（合否）は持たない。測った値を返すだけにし、期待値は呼び出し側が操作の列・期待値のデータとして渡す。
 // 呼び出し元: choice-journey-config.mjs（設定ファイルの読み込み・期待との照合。2/2・#1074）と、それを使う
 // choice-journey-run.mjs（CLI。CI の browser-test ジョブから scripts/check-choice-journey.sh 経由で呼ばれる）・choice-journey.test.mjs。
@@ -23,6 +23,27 @@ import { inspectDom49 } from './ch4-9-journey.mjs';
 
 /** 入力の口として「無い」ことを数える 6 種（input-field-hidden.test.mjs の ABSENT と同じ対象）。`textarea`・`select` は tag 名、残りは data-testid で数える。 */
 export const ABSENT = ['textarea', 'draft-input', 'submit-input', 'candidate-list', 'candidate-btn', 'select'];
+
+/** 操作の入口になりうる部品 7 種（crates/web/src/terminal_area.rs の InputPort と同じ対象）。data-testid で数える。 */
+export const PORTS = ['draft-input', 'submit-input', 'stop-btn', 'candidate-list', 'candidate-btn', 'choice-btn', 'approval-btn'];
+
+/** 入力欄がないと描かれない案内 4 種（crates/web/src/hello.rs）。件数と見えるかを測る。 */
+export const GUIDES = ['key-hint', 'op-guide', 'os-field', 'os-select'];
+
+/** 右の領域・上部の操作要素。設定は名前で選び、ページ内で測る testid はここで固定する（設定の文字列から selector を組み立てない）。 */
+export const CONTROLS = {
+  stop: 'stop-btn',
+  checkpointSave: 'checkpoint-save',
+  checkpointRestore: 'checkpoint-restore',
+  export: 'shell-export',
+  import: 'shell-import',
+  delete: 'shell-delete',
+  hintContainer: 'shell-hint',
+  hintOpen: 'hint-open',
+};
+
+/** 入力の注意書き（常に 1 個あるが、普段は空の文字）。 */
+const NOTICE = 'input-notice';
 
 /** IR の節点から、Step の表と章の区切りを導く。教材ごとの値は書かない。 */
 export function stepsOf(ir) {
@@ -93,7 +114,8 @@ export function compilePack({ bin, packDir, edit = null }) {
 
 /** ページ内で画面の値を測る。判定はしない。ページ内の関数は固定で、教材の文字列から組み立てない。 */
 export function measureScreen(page) {
-  return page.evaluate((absent) => {
+  const ids = [...new Set([...PORTS, ...GUIDES, ...Object.values(CONTROLS)])];
+  return page.evaluate(([absent, ids, noticeId]) => {
     const vis = (e) => {
       const b = e.getBoundingClientRect();
       const c = getComputedStyle(e);
@@ -118,7 +140,16 @@ export function measureScreen(page) {
     const btns = q('[data-testid="view-select-button"]');
     const desc = (b) => [b.dataset.testid ?? '', b.dataset.decision ?? '', b.dataset.choice ?? ''].join('|');
     const rightBtns = [...document.querySelectorAll(`${tid('shell-right')} button, ${tid('shell-top')} button`)].filter(vis);
+    const parts = Object.fromEntries(ids.map((id) => {
+      const els = q(tid(id));
+      return [id, { count: els.length, visible: els.filter(vis).length }];
+    }));
+    const notices = q(tid(noticeId));
+    const files = q('input').filter((e) => vis(e) && e.getAttribute('type') === 'file');
     return {
+      parts,
+      notice: { count: notices.length, visible: notices.filter(vis).length, textLength: notices.reduce((n, e) => n + (e.textContent ?? '').trim().length, 0) },
+      fileInputs: { visible: files.length, inImport: files.filter((e) => e.closest(tid('shell-import'))).length },
       theme: { values: withTheme.map((e) => e.getAttribute('data-theme')), main: main?.getAttribute('data-theme') ?? null },
       font: { body: fontOf(tid('step-body')), do: fontOf(tid('step-do')), choice: fontOf(tid('choice-btn')) },
       rows: { count: rowEls.length, paths: rowEls.map((e) => e.getAttribute('data-row')) },
@@ -131,7 +162,7 @@ export function measureScreen(page) {
       rightButtons: rightBtns.map(desc),
       inlineStyle: { attrs: q('[style]').filter((e) => (e.getAttribute('style') ?? '').trim() !== '').length, elements: q('style').length },
     };
-  }, ABSENT);
+  }, [ABSENT, ids, NOTICE]);
 }
 
 /**
@@ -299,6 +330,8 @@ export function summaryLine(label, csp, r) {
     `font=body:${fmt(f.body)},do:${fmt(f.do)},choice:${fmt(f.choice)}`,
     `rows=${r.end?.rows?.count ?? 'n/a'}`,
     `view-buttons=${r.end?.viewSwitch?.visibleButtons ?? 'n/a'}`,
+    `ports=${PORTS.filter((id) => (r.end?.parts?.[id]?.visible ?? 0) > 0).join(',') || 'none'}`,
+    `file-inputs=${r.end?.fileInputs?.visible ?? 'n/a'}`,
     `external=${r.external}`,
     `page-errors=${r.pageErrors}`,
     ...rejectionParts(r),
