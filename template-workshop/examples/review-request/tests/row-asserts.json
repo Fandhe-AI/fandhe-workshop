@@ -1,0 +1,359 @@
+{
+  "format": 1,
+  "playthroughs": {
+    "pt-main": {
+      "inputs": [
+        {
+          "op": "choice:opt-start",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "detail": "これから 4 つの項目を決めます"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-ready",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "state": "作成中"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-owner",
+          "expect": "accepted",
+          "changes": {
+            "review/to": {
+              "detail": "この部分に詳しい 1 人に頼みます",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/to",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先を決めました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-diff",
+          "expect": "accepted",
+          "changes": {
+            "review/scope": {
+              "detail": "今回直した差分だけです",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-scope-narrow",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先と範囲を決めました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-security",
+          "expect": "accepted",
+          "changes": {
+            "review/focus": {
+              "detail": "入力チェックの抜けがないかを見てください",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-focus-one",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先・範囲・見てほしい点を決めました"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/due",
+          "expect": "accepted",
+          "changes": {
+            "review/due": {
+              "detail": "（次の Step で決めます）"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-due-row",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "空いている行は期限です"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-tomorrow",
+          "expect": "accepted",
+          "changes": {
+            "review/due": {
+              "detail": "明日の 17 時までです",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/due",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "4 つの項目が揃いました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-reread",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "state": "見直し済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-reread",
+          "expect": "achieved",
+          "changes": {}
+        },
+        {
+          "op": "choice:opt-send",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "detail": "宛先・範囲・見てほしい点・期限が揃った依頼文です",
+              "state": "送信可"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-sent",
+          "expect": "achieved",
+          "changes": {}
+        }
+      ],
+      "final": {
+        "review/status": {
+          "detail": "宛先・範囲・見てほしい点・期限が揃った依頼文です",
+          "state": "送信可",
+          "title": "依頼文の下書き"
+        },
+        "review/to": {
+          "detail": "この部分に詳しい 1 人に頼みます",
+          "state": "入力済み",
+          "title": "宛先"
+        },
+        "review/scope": {
+          "detail": "今回直した差分だけです",
+          "state": "入力済み",
+          "title": "頼む範囲"
+        },
+        "review/focus": {
+          "detail": "入力チェックの抜けがないかを見てください",
+          "state": "入力済み",
+          "title": "見てほしい点"
+        },
+        "review/due": {
+          "detail": "明日の 17 時までです",
+          "state": "入力済み",
+          "title": "期限"
+        }
+      }
+    },
+    "pt-alt": {
+      "inputs": [
+        {
+          "op": "choice:opt-start",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "detail": "これから 4 つの項目を決めます"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-ready",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "state": "作成中"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-pair",
+          "expect": "accepted",
+          "changes": {
+            "review/to": {
+              "detail": "同じチームの 1 人に頼みます",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/to",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先を決めました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-diff-tests",
+          "expect": "accepted",
+          "changes": {
+            "review/scope": {
+              "detail": "差分と関連するテストです",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-scope-narrow",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先と範囲を決めました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-message",
+          "expect": "accepted",
+          "changes": {
+            "review/focus": {
+              "detail": "エラーメッセージの文面が分かりやすいかを見てください",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-focus-one",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "宛先・範囲・見てほしい点を決めました"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/due",
+          "expect": "accepted",
+          "changes": {
+            "review/due": {
+              "detail": "（次の Step で決めます）"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-due-row",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "空いている行は期限です"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-friday",
+          "expect": "accepted",
+          "changes": {
+            "review/due": {
+              "detail": "今週の金曜までです",
+              "state": "入力済み"
+            }
+          }
+        },
+        {
+          "op": "ui:v-doc review/due",
+          "expect": "achieved",
+          "changes": {
+            "review/status": {
+              "detail": "4 つの項目が揃いました"
+            }
+          }
+        },
+        {
+          "op": "choice:opt-preview",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "state": "見直し済み"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-reread",
+          "expect": "achieved",
+          "changes": {}
+        },
+        {
+          "op": "choice:opt-send",
+          "expect": "accepted",
+          "changes": {
+            "review/status": {
+              "detail": "宛先・範囲・見てほしい点・期限が揃った依頼文です",
+              "state": "送信可"
+            }
+          }
+        },
+        {
+          "op": "choice:ans-sent",
+          "expect": "achieved",
+          "changes": {}
+        }
+      ],
+      "final": {
+        "review/status": {
+          "detail": "宛先・範囲・見てほしい点・期限が揃った依頼文です",
+          "state": "送信可",
+          "title": "依頼文の下書き"
+        },
+        "review/to": {
+          "detail": "同じチームの 1 人に頼みます",
+          "state": "入力済み",
+          "title": "宛先"
+        },
+        "review/scope": {
+          "detail": "差分と関連するテストです",
+          "state": "入力済み",
+          "title": "頼む範囲"
+        },
+        "review/focus": {
+          "detail": "エラーメッセージの文面が分かりやすいかを見てください",
+          "state": "入力済み",
+          "title": "見てほしい点"
+        },
+        "review/due": {
+          "detail": "今週の金曜までです",
+          "state": "入力済み",
+          "title": "期限"
+        }
+      }
+    }
+  },
+  "differs": [
+    [
+      "review/to",
+      "detail"
+    ],
+    [
+      "review/due",
+      "detail"
+    ]
+  ]
+}
