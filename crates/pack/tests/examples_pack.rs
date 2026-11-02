@@ -130,6 +130,63 @@ fn author12_examples_are_the_two_named_packs() {
     assert!(!chapter.contains("kind: command") && !chapter.contains("kind: text"));
 }
 
+/// 例の README の「`choice-only-pack` の扱い」節を返す。SECOND-17（D-92）の決定の反映が
+/// 公開の資料から落ちないように、節と語の有無を下の試験が守る。
+fn choice_section(md: &str) -> &str {
+    let start = md
+        .find("## `choice-only-pack` の扱い")
+        .expect("choice-only-pack section");
+    let rest = &md[start + 3..];
+    let end = rest.find("\n## ").map_or(md.len(), |i| start + 3 + i);
+    &md[start..end]
+}
+
+#[test]
+fn second17_examples_readme_states_similarity_and_limit() {
+    let md = std::fs::read_to_string(examples_dir().join("README.md")).expect("examples README");
+    let sec = choice_section(&md);
+    for w in [
+        "D-92",
+        "SECOND-17",
+        "pack` の欄の並び",
+        "reading",
+        "hidden",
+        "rj-",
+        "defaults",
+        "形式 B と語彙が決める部分",
+        "否定できません",
+    ] {
+        assert!(sec.contains(w), "section must mention {w:?}");
+    }
+}
+
+#[test]
+fn second17_examples_mentions_resolve() {
+    let root = docs_dir().join("..");
+    let readme = std::fs::read_to_string(examples_dir().join("README.md")).expect("README");
+    let guide = std::fs::read_to_string(docs_dir().join("cli-guide.md")).expect("cli-guide");
+    for (md, in_examples) in [(&readme, true), (&guide, false)] {
+        for (n, part) in md.split('`').enumerate() {
+            if n % 2 == 0 || part.contains(['<', '>', '*', ' ']) || part.contains("..") {
+                continue;
+            }
+            let repo = ["docs/", "crates/", "tools/", "scripts/"]
+                .iter()
+                .any(|p| part.starts_with(p));
+            let ex = in_examples
+                && (part.starts_with("minimal-pack/") || part.starts_with("choice-only-pack/"));
+            if repo {
+                assert!(root.join(part).exists(), "dangling mention: {part}");
+            } else if ex {
+                assert!(
+                    examples_dir().join(part).exists(),
+                    "dangling mention: {part}"
+                );
+            }
+        }
+    }
+}
+
 fn collect_files(dir: &Path, base: &Path, out: &mut BTreeSet<String>) {
     for e in std::fs::read_dir(dir).expect("read dir") {
         let e = e.expect("entry");
