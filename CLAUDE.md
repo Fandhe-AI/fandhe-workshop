@@ -22,7 +22,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── README.md                 # 人向けの説明（構成・セットアップ・コマンド・CI・MCP）
 ├── Cargo.toml / Cargo.lock   # Cargo ワークスペース（仮想 manifest）と固定した依存の版
 ├── crates/                   # contract / core / pack / web の 4 crate（pack は compile・compare・metrics・vocab・validate まで実装済み）
-├── template-workshop/        # 雛形の置き場（現時点はライセンス表記だけ。LIC-2・TASK-130。構成は TASK-769）
+├── template-workshop/        # 雛形の置き場（ライセンス表記と、第 2 教材の例 examples/review-request/ の要件の記録。LIC-2・TASK-130・TASK-742。構成は TASK-769）
 ├── testdata/                 # 試験データ（spec repo の写し。出所は testdata/README.md。整形ツールの対象外）
 ├── rust-toolchain.toml       # Rust の版・component・wasm32 ターゲットの固定
 ├── package.json / package-lock.json / .npmrc  # Node・Playwright の版の固定（ブラウザ試験用）
