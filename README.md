@@ -326,7 +326,7 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make measure` | `tools/measure/all.sh` | 3 つの測定（WASM の `gzip -9`・初回表示・再描画）を基点つきで流し、束の JSON を標準出力へ出す。要 `npm ci` と `npx playwright install chromium`（様式は [docs/measurement.md](./docs/measurement.md)） |
 | `make test-measure` | `scripts/test-measure.sh` | 束の検証・fail-closed・一括実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
 | `make test-measure-result` | `scripts/test-measure-result.sh` | 測定の結果の組み立てと基点の収集の回帰テスト（jq 1.7 の文法でも通ることを含む。速く、ビルドなし。CI の `check` ジョブが流す） |
-| `make clean-room` | `tools/clean-room.sh` | まっさらなコンテナ（公開イメージ・認証情報なし）で `cargo test --locked` と `cargo test --locked --workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（遅く、docker と通信が要り、CI には入れない） |
+| `make clean-room` | `tools/clean-room.sh` | まっさらなコンテナ（公開イメージ・認証情報なし）で `cargo test --locked` と `cargo test --locked --workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する。第 2 教材（`template-workshop/examples/review-request/`）の `fandhe-pack` のビルド・`validate`・基準の IR との一致・`test` も流す（`--only pack` なら第 2 教材だけ。遅く、docker と通信が要り、CI には入れない） |
 | `make test-clean-room` | `scripts/test-clean-room.sh` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
 | `make check-build-inventory` | `scripts/check-build-inventory.sh` | `Cargo.lock` の private な依存 0 件と、ビルド・試験の経路の secret らしい語の参照 0 件を確かめ、件数を記録として出す（通信なし。手で流し、CI には入れない。記録は `docs/testing.md` 5.358） |
 | `make test-check-build-inventory` | `scripts/test-check-build-inventory.sh` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
@@ -338,7 +338,10 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 - 前提: `docker`（`CONTAINER_RUNTIME=podman` で podman）と通信。VM のメモリは 2 GiB より大きくしてください
 - 実行: `make clean-room`（既定の `HEAD` を引数なしで流します。`make` はオプションを転送しないため、対象やログの置き場を変えるときは `tools/clean-room.sh run --ref <rev> --out-dir <dir>` を直接実行します）
 - 対象は `git archive` したコミット済みの内容だけです。未コミットの変更と `docs/spec`（private）の中身は入りません
-- 所要は 2 回の実行で 10 分前後です（2026-10-28 の実測は 592 秒）。結果の記録は `docs/testing.md` の 5.355 にあります
+- 所要は `cargo test` の 2 回の実行で 10 分前後です（2026-10-28 の実測は 592 秒）。結果の記録は `docs/testing.md` の 5.355 にあります
+- 既定の実行は、第 2 教材（`template-workshop/examples/review-request/`）の確認も 3 つ目の区間として行います。`fandhe-pack` のビルド、`validate`（診断 0 件）、`compile` の出力と基準の IR（`tests/ir.json`）のバイト一致、`test`（全件合格）の 4 段です。第 2 教材はエンジンの repo の中にあるため、第三者はこの repo を取得するだけで同じ場所でビルドとテストを再現できます（SECOND-18）
+- 第 2 教材だけを流すときは `tools/clean-room.sh run --only pack [--ref <rev>] [--out-dir <dir>]` を直接実行します。所要は数十秒で、記録は `docs/testing.md` の 5.452 にあります
+- 必要なものは `cargo test` の区間と同じです。ホストに `git`・`docker`（または `podman`）・`awk`・`grep`・`sha256sum` か `shasum` と通信が要ります。コンテナの中に `jq`・`node` は不要で、secret や private な依存も要りません。第 2 教材の全項目の検査（`make check-second-pack`）は `jq` を使うため、コンテナではなくホストで流します
 
 ## Git hooks
 
@@ -408,7 +411,7 @@ D の正準の 3 step は、次の 1 つだけです。形が外れたものは�
 - `run` から呼ぶスクリプト（`scripts/*.sh`・`make` のターゲット）の中身は解釈しません
 - runner・利用者の環境の設定（`~/.npmrc`・`$CARGO_HOME/config.toml`・global の git 設定）は対象外です
 - D はエンジンに触れないジョブを検査しません。文字列を組み立てた URL・action の内部の動き・artifact の受け渡しも見抜けません。TMPL-9 で案 B を採る場合の作り直しは TASK-765 の範囲です
-- 実際の fork での実行は行っていません。D は試験の見本でだけ確かめており、実際の教材 repo（TASK-36）への適用もしていません（D-29 の行わない確認。2026-10-19 時点）
+- 実際の fork での実行は行っていません。D は試験の見本でだけ確かめており、実際の教材 repo（TASK-36）への適用もしていません（D-29 の行わない確認。2026-10-19 時点）。第 2 教材の置き場所での確認（TASK-754）も、まっさらなコンテナでの実行と構成の静的な検査までで、fork での実行は行っていません（2026-11-03 時点）
 
 ## MCP サーバー
 

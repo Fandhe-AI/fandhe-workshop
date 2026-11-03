@@ -12234,3 +12234,56 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 1 つの教材で差分 0 でも、すべての教材で 0 とは言えない（SECOND-20）。同じ repo に置くため外から使う実証としては弱い（SECOND-18）
 - いまの第 2 教材は、エンジンのソースを読める環境で書かれた。ソースを見ない作者の条件は 5.449（TASK-413）の記録が入力で、本節では判定しない
 - エンジンが後から変わると、HEAD 既定の実行は落ちる。記録した SHA を `--head` に渡して再測定する
+
+### 5.452 第 2 教材の置き場所での第三者のビルド・テスト（TASK-754。SECOND-18・R-32）
+
+日付: 2026-11-03。まっさらなコンテナの試験（5.355）に第 3 の区間 `pack` を足し、第 2 教材 `template-workshop/examples/review-request/` のビルドと教材テストが、secret も private な依存も無い場所で通ることを確かめた。D-91 により第 2 教材はエンジン repo の側にあるため、ワークスペースの中で通す。`ENGINE_REV` で版を固定する教材 repo の分岐は該当しない。
+
+**区間 `pack` の 4 段**（`tools/clean-room.sh`）
+
+| 段 | 内容 |
+|---|---|
+| `build` | `cargo build --locked -p fandhe-workshop-pack --bin fandhe-pack` |
+| `validate` | 最終行が `OK: 診断 0 件（` で終了コード 0 |
+| `ir-match` | `compile -o` の出力が `tests/ir.json` とバイト一致（`cmp`） |
+| `test` | `FAIL` の行が無く、`模範解答: N/N 完走`・`誤入力: M/M が期待どおり` の分子と分母が一致（N は 1 以上）。正規表現は `check-second-pack.sh` の `test` の項目と同じ |
+
+判定（`judge_pack`）は区間・段の区切りがちょうど 1 回ずつでなければ判定不能（終了コード 2）とし、段の終了コードが 1 つでも非 0 なら 1 にする。`--only pack` で `pack` だけを流せる（3 区間の前景の実行が 10 分を超えうるため）。`meta.txt` に `mode=` を残し、judge はそれに従う。
+
+**条件と結果（`--only pack`）**
+
+| 項目 | 値 |
+|---|---|
+| 対象 commit | `c5a4272705f459db51c850e174d0deb944e084cf`（作業ブランチ。squash 前） |
+| tar の SHA-256 | `a7f1feec57096b5c13ab38f13a8e1adaf32ecf6bd122dd31cf9eb00c117ce8e2` |
+| イメージ | `rust:1.98.1@sha256:a8a5f0a1e5fe7dfe1d352591e4a1c7dd2c08fd70475cae872cf3458ba0df0546`（rustc 1.98.1） |
+| ホスト | Linux x86_64・Intel Core i7-13700K（10 論理 CPU 表示）・メモリ 27 GiB・docker 29.8.1 |
+| 終了コード | 0（`container_exit=0`。`judge --mode pack` の再判定も 0） |
+| `build` / `validate` / `ir-match` / `test` | すべて 0 |
+| `validate` の最終行 | `OK: 診断 0 件（形式 B(YAML)、章 1、モジュール 0、Step の定義 8）` |
+| `test` の集計 | 模範解答 2/2 完走・誤入力 27/27 が期待どおり |
+| 所要 | 区間 9 秒・実行全体 13 秒（イメージ取得済みの状態） |
+
+`make test-clean-room` は 42 件が合格した（pack 区間の合格・build／validate／ir-match／test の各失敗・`FAIL` の行・分子分母の不一致・模範解答 0 件・区切りの重複と欠け・旧い 2 区間だけのログ・meta の mode の欠けと未知の値・`--only` の誤用を含む）。
+
+**分担**: 公開イメージには `jq`・`node` が無く、追加導入は「tar だけを渡す」前提を崩すため行わない。`scripts/check-second-pack.sh`（`jq` 必須。設定値・行の変化・誤答の規則などの全項目）はホスト側で流す（5.448）。コンテナが確かめるのは上の 4 段である。
+
+**構成の静的な検査**
+
+- `make check-build-inventory`: `private-deps: 0`・`secret-refs: 0`・result pass（手元）
+- `make check-workflow-secrets`・`make check-fork-ci`: 手元に `ruby` が無く流していない。CI の `check` ジョブが毎 PR で流す（5.358 と同じ扱い）
+
+**fork での実行は行っていない**（D-29 の行わない確認。2026-11-03 時点）。構成の静的な検査とコンテナでの実行までとした。
+
+**確かめていないこと**
+
+- 3 区間（`default`・`workspace`・`pack`）の一括実行（`cargo test` の 2 区間だけで 592 秒かかり、前景の上限を超えるため未実行。`default`・`workspace` は 5.355 の記録がある）
+- arm64・podman・CI の runner での実行
+- 第 2 教材の画面（ブラウザ）での完走（TASK-748〜750 の範囲）
+
+**限界**
+
+- 同じ repo の中にあるため、エンジンを外から使う実証としては弱い（D-91 で受け入れた弱み）
+- 試験と実装の作成者が同じ AI である
+
+**範囲外**: CI への教材テストのジョブの追加（TASK-102。必須チェックと ruleset の更新を伴う）、`make clean-room` を CI の関門にするか（TASK-96 の承認点。承認は得ていない）。
