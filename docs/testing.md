@@ -12219,6 +12219,22 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 作者の起動は 1 回だけで、再現性（別の起動で同じ結果になるか）は確かめていない
 - 試験と実装の作成者が同じ AI である
 
+### 5.450 エンジンの差分 0 の確認（TASK-752。SECOND-1・W-20）
+
+日付: 2026-11-03。第 2 教材をエンジンの Rust を変えずに足せたことを、`scripts/check-engine-zero-diff.sh`（`make check-engine-zero-diff`）で数えた。記録は `docs/engine-zero-diff/review-request/`（`README.md`・`engine-manifest.sha256`）に置いた。Rust・`Cargo.toml`・`Cargo.lock` は変えていない。
+
+- 固定した commit: `505fef25de073875d814500e76a9e597e4513639`（第 2 教材を最初に足した `e2db6bd0` の親）。測った HEAD: `cddeca51a9b3ef9c9669e01a5b5a54edf6a11fd1`
+- 数える範囲: `crates/` 全体・直下の `Cargo.toml`・`Cargo.lock`。数えない範囲（`template-workshop/`・`docs/`・`scripts/`・`tools/` など）は `INFO uncounted` の行で行数だけ出す
+- 項目: `base-commit`・`base-before-pack`・`manifest-base`・`manifest-head`・`manifest-count`・`diff-lines`・`cargo-toml`・`cargo-lock`・`crate-manifests`・`worktree-clean`。一覧は git の blob から作り、`.gitattributes` の `-text` でバイトを保つ
+- 結果: 10 項目すべて PASS、終了コード 0。差分は 0 行（`Cargo.toml` 0・`Cargo.lock` 0・`crates/*/Cargo.toml` 0）、一覧 1,628 件が base・HEAD とも一致。負の対照（`crates/` の作業ツリーに 1 行）は `worktree-clean` が FAIL で終了コード 1
+- 回帰テスト: `make test-check-engine-zero-diff`（36 件。見本の repo。`.rs`・`Cargo.lock`・`Cargo.toml`・追加・移動・一覧の改ざん・未コミット・窓の誤り・誤用・SHA-256 の道具なし）。CI の `check` ジョブが流す。本体は CI に入れない（浅い checkout では base が無い）
+
+#### 限界
+
+- 1 つの教材で差分 0 でも、すべての教材で 0 とは言えない（SECOND-20）。同じ repo に置くため外から使う実証としては弱い（SECOND-18）
+- いまの第 2 教材は、エンジンのソースを読める環境で書かれた。ソースを見ない作者の条件は 5.449（TASK-413）の記録が入力で、本節では判定しない
+- エンジンが後から変わると、HEAD 既定の実行は落ちる。記録した SHA を `--head` に渡して再測定する
+
 ### 5.452 第 2 教材の置き場所での第三者のビルド・テスト（TASK-754。SECOND-18・R-32）
 
 日付: 2026-11-03。まっさらなコンテナの試験（5.355）に第 3 の区間 `pack` を足し、第 2 教材 `template-workshop/examples/review-request/` のビルドと教材テストが、secret も private な依存も無い場所で通ることを確かめた。D-91 により第 2 教材はエンジン repo の側にあるため、ワークスペースの中で通す。`ENGINE_REV` で版を固定する教材 repo の分岐は該当しない。

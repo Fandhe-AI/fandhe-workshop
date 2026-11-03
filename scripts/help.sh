@@ -62,6 +62,8 @@ cat <<'EOF'
   test-check-second-pack       scripts/test-check-second-pack.sh       上の試験自体の回帰テスト（変異を入れた写し。やや遅い）
   check-second-pack-repro      scripts/check-second-pack-repro.sh      公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る）
   test-check-second-pack-repro scripts/test-check-second-pack-repro.sh 上の検査自体の回帰テスト（変異を入れた写し。やや遅い）
+  check-engine-zero-diff       scripts/check-engine-zero-diff.sh       第 2 教材の追加でエンジンの差分が 0 行かを、固定した commit からの行数と SHA-256 の一覧で確認（TASK-752。CI 未組み込み）
+  test-check-engine-zero-diff  scripts/test-check-engine-zero-diff.sh  上の検査自体の回帰テスト（見本の repo）
   check-internal-info          tools/check-internal-info.mjs           社内固有の語（WORDS=<一覧のパス>）と認証情報の形を照合する（CI 未組み込み）
   check-internal-info-secrets  tools/check-internal-info.mjs           認証情報の形だけを照合する（語の照合は行わない。CI 未組み込み）
   test-check-internal-info     scripts/test-check-internal-info.sh     公開前の照合自体の回帰テスト
