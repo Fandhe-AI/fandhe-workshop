@@ -158,6 +158,39 @@ mutate_fs "基準の IR を消した写し" ir-match rm-ir
 mutate_fs "基準の IR の末尾の改行を落とした写し" ir-match no-eol
 mutate_fs "本文の Markdown を 1 つ消した写し" format-b rm-body
 
+# TASK-753: 拡張点の照合と掲示板教材との比較。誤用の拒否・負の対照。
+expect_rc "--board-pack の値なしは 2" 2 --board-pack
+expect_rc "--board-pack の親ディレクトリの要素は 2" 2 --board-pack "${SRC}/../review-request"
+expect_rc "--board-pack の workshop.yaml が無い値は 2" 2 --board-pack "${WORK}"
+expect_rc "--vocab-doc の値なしは 2" 2 --vocab-doc
+expect_rc "--vocab-doc の無いファイルは 2" 2 --vocab-doc "${WORK}/none.md"
+mutate "掲示板教材の拒否の文面を使った写し" "${W}" 's/範囲が広いと、読む人は終わりが見えません。/全部を引き継ぐ必要はありません。/' board-rejections
+# 改行を含む文面は 1 つの文字列として比べる（行に分けると、全文が違うのに共通の行で不合格になる）
+dir="${WORK}/multiline-board"
+cp -R "${ROOT_DIR}/testdata/module-reuse-rounds/test-data/pack" "${dir}"
+sed 's/message: 全部を引き継ぐ必要はありません。/message: "範囲が広いと、読む人は終わりが見えません。\\n別の説明です。"/' "${dir}/${W}" >"${dir}/tmp.out"
+mv "${dir}/tmp.out" "${dir}/${W}"
+rm -f "${dir}/tmp.out"
+expect_rc "改行を含む掲示板の文面が第 2 教材の文面と 1 行だけ重なる写しは 0" 0 --board-pack "${dir}"
+if printf '%s\n' "${OUT}" | grep -q "^PASS board-rejections"; then ok "全文が違う文面は board-rejections で合格"; else ng "改行を含む文面 (no PASS board-rejections line)"; fi
+mutate "開始点に EP-9 の語を足した写し" "${C}" "s/^    node: st-1\$/&${BS}${NL}    requires: { step: { step: st-2, state: achieved } }${BS}${NL}    unmet: rj-skip/" ep-used
+mutate "記録の EP-12 の行を消した写し" "${R}" '/^| EP-12 |/d' ep-record
+# shellcheck disable=SC2016 # sed の式のバッククォートは表の文字そのもの
+mutate "記録の label の行を消した写し" "${R}" '/^| `confirm.options\[\].label` |/d' ep-record
+mutate "選択肢の label を 1 つ外した写し" "${C}" '1,/label: /{/label: /d;}' label-field
+
+# 比較の相手に第 2 教材自身を渡すと、重なりが EP-6・EP-7 だけにならず文面も一致する
+expect_rc "掲示板教材に自分自身を渡すと 1" 1 --board-pack "${SRC}"
+for item in board-ep-overlap board-rejections; do
+  if printf '%s\n' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "自分自身との比較は ${item} で不合格"; else ng "自分自身との比較 (no FAIL ${item} line)"; fi
+done
+
+# 公開の一覧から EP-12 を消した写しを渡すと ep-public が不合格になる
+VD="${WORK}/vocabulary-mutated.md"
+grep -v '^| EP-12 ' "${ROOT_DIR}/docs/vocabulary/vocabulary.md" >"${VD}"
+expect_rc "公開の一覧から EP-12 を消すと 1" 1 --vocab-doc "${VD}"
+if printf '%s\n' "${OUT}" | grep -q "^FAIL ep-public:"; then ok "公開の一覧の欠けは ep-public で不合格"; else ng "公開の一覧の欠け (no FAIL ep-public line)"; fi
+
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2
   exit 1

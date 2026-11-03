@@ -11847,6 +11847,28 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 - R-22・R-21 の 0 でない数を出す変異は作れない（`validate` が先に止める）。古い実行ファイルでは R-22・R-21 の行が出ず `zero-counts` が不合格になるので、新しくビルドして流す
 - 試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
 
+### 5.453 第 2 教材の使った拡張点の照合と掲示板教材の写しとの比較（TASK-753。SECOND-2・SECOND-11）
+
+`scripts/check-second-pack.sh` に 8 項目を足した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（W-20。D-91 の読み替えで、試験は `scripts/` の側に置く）。
+
+- `ep-used`: `fandhe-pack vocab` の出力（Step の行の 4 列目と「# EP-n を使った」の行）の拡張点が、ちょうど EP-6・EP-7・EP-10・EP-11・EP-12 である。EP-9 は `vocab` が数えるので YAML は検索しない。`vocab` が 0 で終わらないときも不合格
+- `label-field`: 確認の選択肢が 1 件以上あり、すべてが `label` を持ち、`pack.vocab` が `1.3` である。公開の一覧（`docs/vocabulary/vocabulary.md`）に `confirm.options[].label` の行がちょうど 1 行ある。この欄は拡張点の番号を持たず `vocab` は数えない
+- `ep-public`: 使った拡張点がすべて、公開の一覧（同文書の 2 節の表。現在は EP-1〜EP-13）にある。一覧が読めないときも不合格。Issue の「EP-1〜EP-12」は文書の版 3 で EP-13 が増える前の数え方で、第 2 教材は EP-13 を使わない
+- `ep-record`: 作者の記録（`docs/requirements.md` の 7g の表）の EP の集合が `vocab` の集合と一致し、`confirm.options[].label` の行がちょうど 1 行ある
+- `board-ep-overlap`: 掲示板教材の写しに `vocab`・`compile` を流し、重なる拡張点がちょうど EP-6・EP-7 であり、基本の語彙（入力・確認・ビューの種類）は一部が重なり、写しにだけ有る種類もある
+- `board-rejections`: 両方の IR の拒否の文面（`message`・`next_action` の異なり）の一致が 0 件である。どちらかが 0 件のときも不合格（空の比較で合格にしない）。理由には件数だけを出す
+- `no-rounds`: `instances` が `main` の 1 件、`scope` が `main` だけ、`modules/` が無い。`input-kinds`: 入力の種類が `choice`・`ui_action` だけ
+- 章 1・`starts` 1・ビューは `document` だけ・掲示板の語は既存の `chapters`・`starts`・`views`・`no-board-words` が担う
+- 口: `--board-pack <dir>`（既定は `testdata/module-reuse-rounds/test-data/pack`）、`--vocab-doc <path>`（既定は `docs/vocabulary/vocabulary.md`）。`..` の要素と先頭の `-` は終了コード 2 で断る
+- 回帰テスト: 誤用 5 件、掲示板の文面を使った写し（`board-rejections`）、開始点に `requires`・`unmet` を足した写し（`ep-used`）、記録の EP-12 の行・`label` の行を消した写し（`ep-record`）、選択肢の `label` を外した写し（`label-field`）、比較の相手に自分自身を渡す（`board-ep-overlap`・`board-rejections`）、公開の一覧から EP-12 を消した写し（`ep-public`）。`input-kinds` と `no-rounds` の単独の負の対照は作らない（`command`・`text` の Step を足すと `compile` が先に止まり、`no-input-command`・`no-input-text` が担う。`compile` が止まると IR が空になり両項目は不合格になる）
+- 実測（2026-11-03、手元。`FANDHE_PACK_BIN` に debug ビルド）: `scripts/check-second-pack.sh` は全項目 PASS、`scripts/test-check-second-pack.sh` は全件 ok。拒否の文面の異なりは第 2 教材 51 件・写し 66 件で一致 0 件、拡張点の積は EP-6・EP-7
+
+#### 限界
+
+- 比べる相手は公開の写し（PoC-4 の試験用）で、掲示板教材の全文面ではない。private の仕様 repo の掲示板教材との手元の一度きりの照合（2026-11-03・仕様 repo の commit `29bfe1c`）でも一致は 0 件だった。文面はこの repo に写さず、試験にもしない。教材 repo の掲示板教材ができたら `--board-pack` で比べ直す
+- `docs/examples/choice-only-pack` とは 6 件の文面が一致する。SECOND-2・SECOND-17 が認める限界で、不合格にしない
+- 拒否の文面の一致は完全一致で、言い換えは見分けない。CI には組み込んでいない（TASK-102 の範囲）
+
 ### 5.448 第 2 教材の検査・教材テスト・IR の一致（TASK-747。SECOND-4）
 
 `scripts/check-second-pack.sh` に 3 項目を足し、`test` と `baseline` を強めた。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（W-20）。
