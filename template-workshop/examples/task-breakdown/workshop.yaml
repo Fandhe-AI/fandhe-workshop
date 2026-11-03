@@ -1,0 +1,73 @@
+# 第 3 教材「タスクの分解と進行管理」の本体（TASK-763 2/3）。左にタスクの木（task_tree）とカードの一覧（card_list）を出し、行を指す操作で進む。
+# 開始点の effects を画面が適用しない（TASK-217）ため、行は最初の Step の受付で置く。値を文中・経路・属性に差し込めない（H-3）ため、行ごとに規則を並べる。
+# 行の属性（title・state・detail）を画面が読む約束は文書にまだ無い（docs/views.md の 4 節）ため、状態の変化は本文と拒否の文面にも書く。記録は docs/requirements.md。
+pack:
+  id: task-breakdown
+  title: タスクの分解と進行管理
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+  vocab: "1.3"
+  profile:
+    command_prefix: ""          # コマンドを持たない
+    input_field: hidden         # 入力欄・送信ボタンを出さない
+  left_pane:
+    world_list: shown           # 行を指すために行の一覧を出す（hidden では行が 0 件になる。PACK-22）
+    view_tabs: hidden           # Step ごとにビューを 1 つにする
+commands: {}
+views:
+  v-tree: { kind: task_tree }
+  v-cards: { kind: card_list }
+fixtures:
+  fx-tasks: { path: fixtures/tasks.md, kind: document }
+hints:
+  h-1-1: { text: 一つの作業を終えるのに、どれくらいの時間と手順がかかりそうかを考えます。 }
+  h-1-2: { text: 「アプリの公開」には、データ・画面・公開の 3 つの仕事が混ざっています。一度には進められません。 }
+  h-2-1: { text: 作業は、それぞれ別々に終わったと言える大きさに分けます。 }
+  h-2-2: { text: 「データ・画面・公開の 3 つに分ける」を選びます。 }
+  h-3-1: { text: ほかのタスクの結果を待たずに始められるものを探します。 }
+  h-3-2: { text: 画面はデータを使います。左の木の「データを用意する」の行を指します。 }
+  h-4-1: { text: 同時に進めるタスクが多いと、どれも終わりません。 }
+  h-4-2: { text: 左のカードの「データを用意する」を指します。 }
+  h-5-1: { text: 終わったタスクは、そのままにせず状態を動かします。 }
+  h-5-2: { text: 進行中のカード「データを用意する」を指して、完了にします。 }
+  h-6-1: { text: データが終わったので、次に始められるタスクを探します。 }
+  h-6-2: { text: 左のカードの「画面を作る」を指します。 }
+  h-7-1: { text: 親のタスクは、子のタスクの集まりです。 }
+  h-7-2: { text: 進行中の「画面を作る」の行を指して、完了にします。 }
+  h-8-1: { text: 左の木の状態を、上から順に読み返します。 }
+rejections:
+  rj-unknown: { category: unknown_command, message: この操作は、この教材にはありません。, next_action: 画面の選択肢から選び直します。 }
+  rj-wrong: { category: wrong_order, message: まだ先の手順です。, next_action: 今の手順の選択肢から選びます。 }
+  rj-missing: { category: missing_arg, message: 選ぶ内容が足りません。, next_action: 画面の選択肢から選び直します。 }
+  rj-bad: { category: bad_arg_shape, message: 決まった形で書かれていません。, next_action: 画面の選択肢から選び直します。 }
+  rj-busy: { category: busy, message: 処理中です。, next_action: 終わるまで待ちます。 }
+  rj-nis: { category: not_in_this_step, message: この手順では選べません。, next_action: 画面の選択肢から選びます。 }
+  rj-ns: { category: not_supported, message: この教材では扱いません。, next_action: 画面の選択肢に戻ります。 }
+  rj-ft: { category: free_text_unjudged, message: 書いた内容は判定しません。, next_action: 自分で見直します。 }
+  rj-s1-asis: { category: not_in_this_step, message: 「アプリの公開」には 3 つの仕事が混ざっていて、このままでは何から始めるか決められません。, next_action: 作業の大きさを考えて、答えを選び直します。 }
+  rj-s2-nosplit: { category: not_in_this_step, message: 分けないと、どこまで進んだかが見えません。「アプリの公開」の状態は「未分解」のままです。, next_action: 作業を分ける選択肢を選び直します。 }
+  rj-s2-many: { category: not_in_this_step, message: 思いつく作業を全部並べると細かすぎて、並べ替えに追われます。「アプリの公開」の状態は「未分解」のままです。, next_action: 一度に終えられる大きさで分ける選択肢を選び直します。 }
+  rj-s2-wrong: { category: not_in_this_step, message: その答えは、分け方の目安になりません。, next_action: 一度に終えられる大きさを考えて、答えを選び直します。 }
+  rj-s3-screen: { category: not_in_this_step, message: 「画面を作る」は、データを使うので後です。状態は「未着手」のままです。, next_action: ほかに頼らず始められる行を指し直します。 }
+  rj-s3-publish: { category: not_in_this_step, message: 「公開する」は、データと画面が終わってからです。状態は「未着手」のままです。, next_action: ほかに頼らず始められる行を指し直します。 }
+  rj-s3-parent: { category: not_in_this_step, message: 親の「アプリの公開」は、子のタスクが終わってから動かします。, next_action: 子の行を指し直します。 }
+  rj-s4-screen: { category: not_in_this_step, message: 進行中は 1 枚に絞ります。「画面を作る」は、データが終わってからです。状態は「未着手」のままです。, next_action: 「データを用意する」のカードを指し直します。 }
+  rj-s4-wrong: { category: not_in_this_step, message: 全部を進行中にすると、どれも終わらないまま時間が過ぎます。, next_action: 進行中の置き方を考えて、答えを選び直します。 }
+  rj-s5-screen: { category: not_in_this_step, message: 「画面を作る」はまだ未着手です。未着手のカードは、完了にできません。, next_action: 進行中の「データを用意する」のカードを指し直します。 }
+  rj-s6-publish: { category: not_in_this_step, message: 「公開する」は、画面が終わってからです。状態は「未着手」のままです。, next_action: 次に始められるカードを指し直します。 }
+  rj-s6-data: { category: not_in_this_step, message: 「データを用意する」は、もう完了しています。, next_action: 未着手のカードを指し直します。 }
+  rj-s7-publish: { category: not_in_this_step, message: 「公開する」は、まだ始めません。先に進行中の「画面を作る」を終えます。, next_action: 進行中の行を指し直します。 }
+  rj-s7-parent: { category: not_in_this_step, message: 子の「公開する」が未着手のままなので、親はまだ完了にできません。, next_action: 進行中の子の行を指し直します。 }
+  rj-s7-data: { category: not_in_this_step, message: 「データを用意する」は、もう完了しています。, next_action: 進行中の行を指し直します。 }
+  rj-s7-wrong: { category: not_in_this_step, message: 子が残っているのに親を完了にすると、残りの作業が見えなくなります。, next_action: 親の状態の動かし方を考えて、答えを選び直します。 }
+  rj-s8-wrong: { category: not_in_this_step, message: その答えは、この教材で扱った内容と合いません。, next_action: 分け方と状態の動かし方を思い出して、答えを選び直します。 }
+defaults:
+  unknown_command: rj-unknown
+  wrong_order: rj-wrong
+  missing_arg: rj-missing
+  bad_arg_shape: rj-bad
+  busy: rj-busy
+  not_in_this_step: rj-nis
+  not_supported: rj-ns
+  free_text_unjudged: rj-ft

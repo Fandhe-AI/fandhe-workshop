@@ -29,7 +29,7 @@
 |---|---|---|
 | エンジンのリポジトリ | `fandhe-workshop` | 本リポジトリ。public で作成済み。製品名は未確定 |
 | 教材のリポジトリ | `fandhe-tutorials` | 未確認（GitHub から参照できなかった。作成済みかどうかは不明） |
-| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針。現時点ではライセンス表記（TASK-130）と、第 2 教材の例 `examples/review-request/` の要件の記録（TASK-742）と、第 3 教材の例 `examples/task-breakdown/` のビュー確認の記録・確認用パック（TASK-763）だけを置いた（構成は今後）（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
+| 外部向けの雛形 | `template-workshop` | 初回は本リポジトリ内のディレクトリに置く方針。現時点ではライセンス表記（TASK-130）と、第 2 教材の例 `examples/review-request/` の要件の記録（TASK-742）と、第 3 教材の例 `examples/task-breakdown/` のビュー確認の記録・確認用パックと本体の教材パック（8 Step。TASK-763）だけを置いた（構成は今後）（[docs/architecture.md](./docs/architecture.md) の第 8 節）。独立リポジトリにする時期は未定 |
 | crate（4 つ） | `fandhe-workshop-contract`・`fandhe-workshop-core`・`fandhe-workshop-pack`・`fandhe-workshop-web` | `crates/` 配下。pack に読み込み層と `compile`・`compare`・`metrics`・`vocab` を実装済みで、他は骨格中心（2026-10-15 時点）。役割は [docs/architecture.md](./docs/architecture.md) の第 3 節 |
 | 作成者向け CLI | `fandhe-pack` | pack crate に置く。`compile <pack-dir> [--chapters <id>,...]`（IR の JSON を標準出力へ書く。`--chapters` で章の範囲を絞る）・`compare <pack-dir-a> <pack-dir-b>`（IR のバイト一致を判定する）・`preview <pack-dir>`（関門を通す。診断があれば配らず 1 で終わる。配信は後続）・`metrics <pack-dir>`（ファイルごとの行数・実効行数・バイト数・入れ子の深さを CSV で出す）・`vocab <pack-dir>`（拡張点を使った Step の数え上げ）を実装済み。外部仕様は `docs/cli.md` |
 
