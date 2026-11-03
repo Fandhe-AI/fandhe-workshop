@@ -119,6 +119,34 @@ mutate "誤入力の期待を替えた写し" "tests/playthrough.yaml" 's/expect
 mutate "除外の場面を替えた写し" "${T}" 's/"scene": 5,/"scene": 2,/' text-checks
 mutate "R-21 の基準値を変えた写し" "tests/baseline.txt" 's/^r21.empty=0/r21.empty=1/' baseline
 
+# TASK-747: 基準の IR・形式 B・学習目標・基準値。教材の中身を変える変異は ir-match も不合格にする（mutate は指定の項目の行だけを見る）。
+mutate "基準の IR の 1 か所を変えた写し" "tests/ir.json" 's/"id": "review-request"/"id": "review-requestx"/' ir-match
+mutate "学習目標の定義に LO-3 を足した写し" "docs/requirements.md" "s/^| LO-2 | \(.*\)\$/| LO-2 | \1${BS}${NL}| LO-3 | 仮 |/" learning-goals
+mutate "Step の lo を未定義の LO-3 にした写し" "${C}" 's/lo: \[LO-1\]$/lo: [LO-3]/' learning-goals
+mutate "学習目標の基準値を替えた写し" "tests/baseline.txt" 's/^learning_goals=2/learning_goals=3/' baseline
+mutate "IR のバイト数の基準値を替えた写し" "tests/baseline.txt" 's/^ir.bytes=.*/ir.bytes=1/' baseline
+
+# mutate_fs <名前> <期待する FAIL の項目> <操作>: 写しに対してファイル操作（削除・末尾の改行を落とす）を行う。
+mutate_fs() {
+  local name="$1" item="$2" op="$3" dir
+  n=$((n + 1))
+  dir="${WORK}/m${n}"
+  cp -R "${SRC}" "${dir}"
+  case "${op}" in
+    rm-ir) rm "${dir}/tests/ir.json" ;;
+    rm-body) rm "${dir}/chapters/ch-request/st-1.md" ;;
+    no-eol)
+      printf '%s' "$(cat "${dir}/tests/ir.json")" >"${dir}/tests/ir.new"
+      mv "${dir}/tests/ir.new" "${dir}/tests/ir.json"
+      ;;
+  esac
+  expect_rc "${name}は 1" 1 --pack "${dir}"
+  if printf '%s\n' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "${name}は ${item} で不合格"; else ng "${name} (no FAIL ${item} line)"; fi
+}
+mutate_fs "基準の IR を消した写し" ir-match rm-ir
+mutate_fs "基準の IR の末尾の改行を落とした写し" ir-match no-eol
+mutate_fs "本文の Markdown を 1 つ消した写し" format-b rm-body
+
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} case(s) differ from expectation" >&2
   exit 1

@@ -1,3 +1,5 @@
 # 写した試験データは、改行を含めてバイト一致で保つ（testdata/README.md）。
 # core.autocrlf などの利用者設定で、CRLF の見本や .sha256 の manifest が変わるのを防ぐ。
 testdata/** -text
+# 第 2 教材の基準の IR は compile の出力とバイト一致で照合する（scripts/check-second-pack.sh の ir-match）。
+template-workshop/examples/review-request/tests/ir.json -text

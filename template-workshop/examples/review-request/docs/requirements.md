@@ -138,6 +138,12 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 - 場面 5 は誤入力に入れていません。今のエンジンは入力の判定で規則の `when` を評価しないため、`r-tomorrow-large` の入力が拒否にならず、受け付けられます。誤った挙動を正として固定しないよう、`text-checks.json` の `excluded` に理由コード `engine-when-not-evaluated` で記録し、宣言は `wrong-scenes` が固定します。エンジンの結線（Rust の変更）は W-20 に反するため、ここでは直しません。扱いは人の判断です。
 - 文面の確認は IR 上の文面と、エンジンの文面の選び方を写した静的な判定（`scripts/second-pack-judge.jq`）の照合です。実行時にエンジンが返した文面ではありません。
 
+## 7d. TASK-747 の記録（2026-11-03）
+
+- 基準の IR を `tests/ir.json` に置いた。`fandhe-pack compile <pack> -o tests/ir.json` の出力そのもので、手で編集しない。教材を変えたら同じコマンドで書き直し、`tests/baseline.txt` の `ir.bytes` も直す
+- `scripts/check-second-pack.sh` の `ir-match`・`format-b`・`learning-goals` が、IR のバイト一致・形式 B の構成・学習目標 2 つの一致を確かめる。CI の教材テスト（TASK-102）は `FANDHE_PACK_BIN` を渡してこのスクリプトを呼べばよい
+- 仕様の PoC-5 の値（誤入力 28/28・入力の総数 503）と、この教材の値（27/27・235）は違う。場面 5 を `engine-when-not-evaluated` で除外した設計どおりで、基準値は `tests/baseline.txt` である
+
 ## 8. 照合の記録（2026-11-02）
 
 - [x] SECOND-4: Step が 8 つ、学習目標が 2 つ。形式 B で書く
@@ -145,4 +151,5 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 - [x] SECOND-12: 8 場面がすべて Step に割り当たっている（「6. 誤答の 8 場面」）
 - [x] AR-8・AR-12 の読みと決定の日付を書いた（「7. 要件の読みと日付」）
 - [x] TASK-756: AR-12 の行の読み・日付と `workshop.yaml`・IR の設定値が一致する（`ar12-reading`。2026-11-02）
+- [x] TASK-747: `compile` の IR が `tests/ir.json` とバイト一致し、形式 B の構成・学習目標 2 つが一致する（`ir-match`・`format-b`・`learning-goals`。2026-11-03）
 - [x] 試作の `chapter.yaml` の Step の ID・題・`input.kind`・`confirm.kind`・`lo`・最終 Step と突き合わせた

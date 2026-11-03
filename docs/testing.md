@@ -11847,6 +11847,25 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 - R-22・R-21 の 0 でない数を出す変異は作れない（`validate` が先に止める）。古い実行ファイルでは R-22・R-21 の行が出ず `zero-counts` が不合格になるので、新しくビルドして流す
 - 試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
 
+### 5.448 第 2 教材の検査・教材テスト・IR の一致（TASK-747。SECOND-4）
+
+`scripts/check-second-pack.sh` に 3 項目を足し、`test` と `baseline` を強めた。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（W-20）。
+
+- `ir-match`: `fandhe-pack compile` の出力が、教材の `tests/ir.json`（compile の出力そのもの。手で編集しない）とバイト単位で一致する。`-o`・標準出力のリダイレクト・`-o` の 2 回目・別のディレクトリへ写して相対パスで実行の 4 通りを `cmp -s` で比べる。項目 `compile` の IR はコマンド置換で末尾の改行が落ちるため比較に使わない。基準が無い・通常のファイルでない場合は不合格（fail-closed）。教材を変えたら `fandhe-pack compile <pack> -o tests/ir.json` で書き直し、`tests/baseline.txt` の `ir.bytes` も直す
+- `format-b`: 形式 B の構成（`validate` の出力の形式 B、`workshop.yaml`、章のディレクトリが 1 つ、`chapter.yaml` の `body:` が 8 件で名前が `^[A-Za-z0-9_-]+\.md$` かつ実在、`tests/playthrough.yaml`、IR の練習データの参照先が許した文字の形で `..` を含まず実在）
+- `learning-goals`: 全 Step の `lo` の和集合が 2 つで、`docs/requirements.md` の学習目標の表（`LO-*` の行）の ID の集合と一致し、どの Step も 1 つ以上を持つ
+- `test` の強化: `誤入力: N/N が期待どおり` の行（全件合格）を条件に足した。`baseline` に `learning_goals`・`format_b.bodies`・`ir.steps`・`ir.bytes` を足した
+- 回帰テスト: `make test-check-second-pack` に 8 件の変異を足した（基準の IR の書き換え・消去・末尾の改行の欠け、`LO-3` の定義の追加、Step の `lo` を `LO-3` に、本文の Markdown の消去、基準値 2 件）
+- 実行（2026-11-03、手元。`FANDHE_PACK_BIN` に debug ビルドを渡した）: `scripts/check-second-pack.sh` は全項目 PASS、`scripts/test-check-second-pack.sh` は全件 ok。`validate` は診断 0 件、`test` は模範解答 2/2・誤入力 27/27・入力の総数 235
+- CI の教材テスト（TASK-102）は、`FANDHE_PACK_BIN` を渡してこのスクリプトを呼べば足りる（cargo 不要）。ジョブの追加は本節の範囲外
+
+#### 限界
+
+- 基準の IR はエンジンの IR の版に依る。エンジンが IR の出力を変えると `ir-match` が落ちる（意図どおり）。CI 未組み込みの間は手元で `make check-second-pack` を流す必要がある
+- 学習目標の「定義」は IR に無い。`requirements.md` の表と Step の `lo` の一致で代える
+- 仕様の PoC-5 の値（誤入力 28/28・入力の総数 503）と、いまの値（27/27・235）は違う。場面 5 を `engine-when-not-evaluated` で除外した設計どおりであり、受け入れ条件の基準値は `tests/baseline.txt` と読む（5.446）
+- 練習データのパスの実在確認は通常のファイルの判定で、シンボリックリンクは見分けない。ブラウザでの完走は TASK-750 の範囲
+
 ### 5.446 第 2 教材の誤答の場面の画面の確認（TASK-750。SECOND-4・SECOND-12）
 
 配信する設定の画面（試験用の口なし）を実クリックだけで操作し、第 2 教材の誤答の場面で応答の文面が右のログに出ること、拒否のあと左の行が変わらないことを自動ブラウザで固定した。道具は `tools/browser/choice-journey.mjs`（拒否の観察 `observeRejection`）と `choice-journey-config.mjs`（`judgeRejections`）、設定は `tools/browser/choice-journey/review-request-reject-scenes.json`。Rust・`Cargo.toml`・`Cargo.lock`・教材そのものは変えていない（エンジンの差分 0）。
