@@ -1,0 +1,42 @@
+# 第 3 教材（題材「タスクの分解と進行管理」）の準備として、task_tree と card_list のビューが今のエンジンでどこまで動くかを確かめる小さな教材パック（TASK-763 1/3）。
+# 本体の教材ではない。記録は ../../docs/requirements.md。行を指す入力が届くように world_list は shown にし、Step ごとにビューを 1 つにする。
+pack:
+  id: task-breakdown-probe
+  title: ビューの確認用パック
+  version: 0.0.1
+  ir_format: 1
+  guidance: A
+  vocab: "1.3"
+  profile:
+    command_prefix: ""
+    input_field: hidden
+  left_pane:
+    world_list: shown
+    view_tabs: hidden
+commands: {}
+views:
+  v-tree: { kind: task_tree }
+  v-cards: { kind: card_list }
+fixtures:
+  fx-board: { path: fixtures/board.md, kind: document }
+rejections:
+  rj-unknown: { category: unknown_command, message: この操作は、この確認用パックにはありません。, next_action: 画面の選択肢から選び直します。 }
+  rj-wrong: { category: wrong_order, message: まだ先の手順です。, next_action: 今の手順の選択肢から選びます。 }
+  rj-missing: { category: missing_arg, message: 選ぶ内容が足りません。, next_action: 画面の選択肢から選び直します。 }
+  rj-bad: { category: bad_arg_shape, message: 決まった形で書かれていません。, next_action: 画面の選択肢から選び直します。 }
+  rj-busy: { category: busy, message: 処理中です。, next_action: 終わるまで待ちます。 }
+  rj-nis: { category: not_in_this_step, message: この手順では選べません。, next_action: 画面の選択肢から選びます。 }
+  rj-ns: { category: not_supported, message: この確認用パックでは扱いません。, next_action: 画面の選択肢に戻ります。 }
+  rj-ft: { category: free_text_unjudged, message: 書いた内容は判定しません。, next_action: 自分で見直します。 }
+  rj-parent: { category: not_in_this_step, message: 親の行は、子の作業が終わってから動かします。, next_action: 子の行を指し直します。 }
+  rj-card-done: { category: not_in_this_step, message: そのカードはもう完了しています。, next_action: 未着手のカードを指し直します。 }
+  rj-wrong-pick: { category: not_in_this_step, message: その答えは、この場面には合いません。, next_action: 答えを選び直します。 }
+defaults:
+  unknown_command: rj-unknown
+  wrong_order: rj-wrong
+  missing_arg: rj-missing
+  bad_arg_shape: rj-bad
+  busy: rj-busy
+  not_in_this_step: rj-nis
+  not_supported: rj-ns
+  free_text_unjudged: rj-ft

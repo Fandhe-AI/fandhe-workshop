@@ -1,0 +1,29 @@
+playthroughs:
+  - id: pt-main
+    end: complete
+    segments:
+      - start: s-1
+        steps:
+          - { choice: opt-start, expect: accepted }
+          - { choice: ans-ready, expect: achieved }
+          - { ui: "v-tree plan/launch/design", expect: accepted }
+          - { ui: "v-tree plan/launch/design", expect: achieved }
+          - { ui: "v-cards board/design", expect: accepted }
+          - { ui: "v-cards board/design", expect: achieved }
+          - { choice: opt-read, expect: accepted }
+          - { choice: ans-done, expect: achieved }
+error_inputs:
+  - id: tree-parent
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+    input: { ui: "v-tree plan/launch", expect: "rejected:not_in_this_step" }
+  - id: card-done
+    start: s-1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-ready, expect: achieved }
+      - { ui: "v-tree plan/launch/design", expect: accepted }
+      - { ui: "v-tree plan/launch/design", expect: achieved }
+    input: { ui: "v-cards board/build", expect: "rejected:not_in_this_step" }

@@ -12341,6 +12341,23 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 **範囲外**: SECOND-14 の人の決定、製品の文書ビューの行が属性を出さないこと（`docs/known-gaps.md` の SECOND-6（行の文面））の描画部品の結線。
 
+### 5.457 タスクの木とカードの一覧のビューの動作の確認（TASK-763 1/3。#2011）
+
+**目的**: 3 本目の教材が使う `task_tree`・`card_list` のビューが、エンジンを変えずに、書ける・表示される・指せる範囲を確かめる。
+
+**確認用の教材パック**: `template-workshop/examples/task-breakdown/probes/views/`（4 Step。`world_list: shown`・`view_tabs: hidden`・行 5 件）。置き場の決定と結果の全体は `template-workshop/examples/task-breakdown/docs/requirements.md`。
+
+**設定**: `tools/browser/choice-journey/task-breakdown-views.json`（2 つのビューを順に使う混在の教材。`visibleViews` は照合しない）、`task-breakdown-tree.json`（`edits` で `v-cards` を `task_tree` に差し替え、`visibleViews: [task_tree]`）、`task-breakdown-cards.json`（`v-tree` を `card_list` に差し替え、`visibleViews: [card_list]`）。道具のコードは変えていない。設定の追加では試験の件数（`scripts/expected-test-counts.txt`）は変わらない。
+
+**結果（2026-11-03、手元。Linux・Chromium・`fandhe-pack` は debug ビルド）**
+
+- `fandhe-pack validate` は診断 0 件、`fandhe-pack test` は模範解答 1/1・誤入力 2/2・入った Step の実体 4/4 で全件合格
+- `node --test tools/browser/choice-journey-config.test.mjs` は 172 件合格
+- `make check-choice-journey CHOICE_JOURNEY_CONFIG=<各設定>` は 3 設定それぞれが CSP あり・なしの 2 通りとも合格（`completed=true`、行 5 件、外部通信 0、ページ内エラー 0）
+- 否定の確認（`kind` の綴りの誤りは止まらない、`E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW`）は記録に載せた
+
+**限界**: 人は画面を見ていない。行の文字・入れ子・カードの状態の見た目は道具が測らず、preview での観察もしていない（未確認）。開始点の `effects` を画面が適用しないため、行は最初の選択肢の受付で置いた。全設定を通す `make check-choice-journey`（既存の設定を含む）は流していない（未実施）。
+
 ### 5.455 基準端末 A での初回表示（TASK-108 1/2。#833。DLV-5）
 
 日付: 2026-11-03。`docs/measurement.md` §8 の手順に従い、基準端末 A で `first-paint-direct` を流した。記録の様式は同 §8「記録の様式」の欄による。

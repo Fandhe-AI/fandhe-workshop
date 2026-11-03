@@ -1,0 +1,110 @@
+# 開始点の effects を画面が適用しない（TASK-217）ため、行は最初の Step の受付の effects で置く。4 つの Step で、タスクの木の子の行を指す、カードの行を指す、木に戻って読み終える、を確かめる（TASK-763 1/3）。
+id: ch-views
+title: ビューの確認
+starts:
+  - id: s-1
+    node: st-start
+steps:
+  - id: st-start
+    title: 作業の一覧を用意する
+    do: 作業の一覧を用意する
+    body: st-start.md
+    lo: [LO-1]
+    views: [v-tree]
+    input:
+      kind: choice
+      options:
+        - { id: opt-start, label: 一覧を用意する }
+    rules:
+      - id: r-start
+        on: { option: opt-start }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: plan/launch, fixture: fx-board, attrs: { title: 公開の準備, state: 進行中, detail: 親のタスク } }
+            - put: { path: plan/launch/design, fixture: fx-board, attrs: { title: 画面を設計する, state: 未着手, detail: 子のタスク } }
+            - put: { path: plan/launch/build, fixture: fx-board, attrs: { title: 画面を作る, state: 未着手, detail: 子のタスク } }
+            - put: { path: board/design, fixture: fx-board, attrs: { title: 設計のカード, state: 未着手, detail: 設計の作業 } }
+            - put: { path: board/build, fixture: fx-board, attrs: { title: 実装のカード, state: 完了, detail: 実装の作業 } }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-pick
+      options:
+        - { id: ans-ready, label: 木とカードの行を用意できた, correct: true }
+        - { id: ans-not-yet, label: まだ用意できていない, correct: false, on_wrong: rj-wrong-pick }
+    next: [{ to: st-tree }]
+  - id: st-tree
+    title: 木の子の行を指す
+    do: 子のタスクの行を指す
+    body: st-tree.md
+    lo: [LO-1]
+    views: [v-tree]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-tree, path: plan/launch/design }
+        - { view: v-tree, path: plan/launch }
+    rules:
+      - id: r-child
+        on: { ui: { view: v-tree, path: plan/launch/design } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/launch/design, attr: state, value: 進行中 }
+      - id: r-parent
+        on: { ui: { view: v-tree, path: plan/launch } }
+        outcome: { kind: reject, rejection: rj-parent }
+    confirm:
+      kind: point_at
+      on_miss: rj-parent
+      targets:
+        - { view: v-tree, path: plan/launch/design }
+    next: [{ to: st-cards }]
+  - id: st-cards
+    title: カードの行を指す
+    do: 未着手のカードを指す
+    body: st-cards.md
+    lo: [LO-1]
+    views: [v-cards]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-cards, path: board/design }
+        - { view: v-cards, path: board/build }
+    rules:
+      - id: r-card-open
+        on: { ui: { view: v-cards, path: board/design } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: board/design, attr: state, value: 進行中 }
+      - id: r-card-done
+        on: { ui: { view: v-cards, path: board/build } }
+        outcome: { kind: reject, rejection: rj-card-done }
+    confirm:
+      kind: point_at
+      on_miss: rj-card-done
+      targets:
+        - { view: v-cards, path: board/design }
+    next: [{ to: st-wrap }]
+  - id: st-wrap
+    title: 木に戻って読み終える
+    do: 確認を終える
+    body: st-wrap.md
+    lo: [LO-1]
+    views: [v-tree]
+    input:
+      kind: choice
+      options:
+        - { id: opt-read, label: 読んだ }
+    rules:
+      - id: r-read
+        on: { option: opt-read }
+        outcome: { kind: accept }
+    confirm:
+      kind: answer
+      on_wrong: rj-wrong-pick
+      options:
+        - { id: ans-done, label: 2 つのビューの行を指せた, correct: true }
+        - { id: ans-not, label: まだ指せていない, correct: false, on_wrong: rj-wrong-pick }
+    final: true
