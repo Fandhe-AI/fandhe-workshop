@@ -12030,7 +12030,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `viewport` | 省略時 1280x800 |
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
-| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447）。TASK-749 3/3 で `appearance`（`theme`・`bodyPx`・`lineHeightRatio`・`inlineStyleZero`）と `narrowTabs` を足した（5.449） |
+| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447）。TASK-749 3/3 で `appearance`（`theme`・`bodyPx`・`lineHeightRatio`・`inlineStyleZero`）と `narrowTabs` を足した（5.449）。TASK-755 で `docBodyRows`（本文の区画を持つ行の数。0 以上の整数で、`rowPaths` があればその件数以下）を足した（5.454） |
 | `csp` | 省略時 `[true, false]` |
 
 外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。
@@ -12287,3 +12287,34 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 試験と実装の作成者が同じ AI である
 
 **範囲外**: CI への教材テストのジョブの追加（TASK-102。必須チェックと ruleset の更新を伴う）、`make clean-room` を CI の関門にするか（TASK-96 の承認点。承認は得ていない）。
+
+### 5.454 第 2 教材の依頼文の見せ方と AR-8 の読みの記録（TASK-755。SECOND-14・SECOND-21・G-4・H-3）
+
+日付: 2026-11-03。第 2 教材を本文を出す形に書き直すか（SECOND-14）の分岐で、**書き直さず 5 行の属性の形のまま**にする側を採り、その見え方（本文が出ない）を画面で固定した。SECOND-14 は spec 上は検討中で、人の決定は得ていない。自動運転の安全側の選択であり、決定ではない。人が覆せる。理由と覆す手順は `template-workshop/examples/review-request/docs/requirements.md` の 7h。
+
+**測るもの**: `expect.docBodyRows`（本文の区画 `[data-testid="artifact-doc-body"]` を持つ行の数）。道具の `measureLeft` が行ごとの件数（`docBody`）と左の領域全体の件数（`docBodyTotal`）を返す。本文の中身は読まない（件数だけ）。`judge` は、行の件数が主張と一致しないか、区画が行の外にあると `docBodyRows@<時点>` を返す。0 件の主張は測った全時点で、正の件数は終了と `marks` のある操作の時点で見る（開始の時点は行が無い）。
+
+| 設定 | `docBodyRows` | 内容 |
+|---|---|---|
+| `review-request`（そのままの教材） | 0 | 行が 0 件（PACK-22）なので空振りの観察 |
+| `review-request-derived`（行 5 本の派生版） | 0 | 5 本の行はどれも練習データ `fx-draft` を持つが、本文の区画は 0 件。本当の観察はこちら |
+| `review-request-body-shown`（新設。派生版に `vocab: "1.4"` と `v-doc: { kind: document, body: shown }` を足した正の対照） | 5 | 5 本すべてに本文の区画が 1 つずつ出る |
+| `review-request-800`・`review-request-derived-800` | 0 | 1280px 版と同じ主張（対の設定の一致の試験のため） |
+
+**試験**
+
+- `choice-journey-config.test.mjs`（ブラウザなし。172 件合格）: `docBodyRows` の不正な形 4 形（負・小数・文字列・`rowPaths` の件数超え）、本文の区画の照合（一致で空、4 通りの外れで欄名の理由）
+- `choice-journey.test.mjs`（23 件合格）の場面 I（CSP あり・なし）: 派生版は `judge` が空で全行の区画が 0 件・IR が語彙 1.3 で `body` なし。正の対照は `judge` が空で全行に区画が 1 つずつ・IR が語彙 1.4 で `body: shown`。互いの期待を相手の結果に当てると `docBodyRows` が不合格になる（数え方が空振りでない証拠）
+- 同 場面 J（道具の対照。CSP あり）: 派生版の行に偽の区画を足すと、行の中・行の外のどちらでも `docBodyRows` の理由が出る。手を加えない測定は理由が空
+- `scripts/check-second-pack.sh` の項目 `ar8-reading`: AR-8 の行がちょうど 1 行で、`属性の変化`・`D-93（2026-11-02）`・`SECOND-21`・`AR-8 満たした` を含み `部分的`・`満たしていない` を含まないこと、7h の節がちょうど 1 つあること、IR が語彙 1.3 で `v-doc` に `body` が無いこと。記録が読めなければ FAIL（fail-closed）
+- `scripts/test-check-second-pack.sh`: `ar8-reading` の変異 5 件（部分的にする・日付を変える・行を消す・7h の節を消す・語彙 1.4 と `body: shown` を足す）がいずれも `ar8-reading` で不合格になり、全件合格
+
+**結果（2026-11-03、手元。Linux・Chromium・`fandhe-pack` は debug ビルド）**
+
+- `make check-choice-journey` は 9 設定 x CSP 2 通りの 18 件合格（TASK-749 の画面の確認・TASK-750 の誤答の場面の設定を含み、通し直した）
+- `make check-second-pack` は全項目合格。`ir-match`・`baseline` は不変（教材の中身は変えていない）。コメントだけ変えた `workshop.yaml` の IR は同じ
+- 派生版の本文の区画は 0 件、正の対照は 5 行すべてに 1 つずつ
+
+**限界**: AR-8 の読みは「属性の変化を含む読み」（D-93。2026-11-02）で、「題の変化」は観察していない。連結された依頼文は H-3 で作れない。本文の中身は見ていない（区画の件数だけ）。人が画面を見た評価ではない。試験と実装の作成者が同じ AI である。`scripts/expected-test-counts.txt` は変えていない。
+
+**範囲外**: SECOND-14 の人の決定、製品の文書ビューの行が属性を出さないこと（`docs/known-gaps.md` の SECOND-6（行の文面））の描画部品の結線。

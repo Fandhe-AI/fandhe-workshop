@@ -170,7 +170,8 @@
     "appearance": {
       "inlineStyleZero": true
     },
-    "narrowTabs": true
+    "narrowTabs": true,
+    "docBodyRows": 0
   },
   "viewport": {
     "width": 800,

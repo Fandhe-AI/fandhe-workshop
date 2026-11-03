@@ -170,6 +170,7 @@
     "appearance": {
       "inlineStyleZero": true
     },
-    "narrowTabs": false
+    "narrowTabs": false,
+    "docBodyRows": 0
   }
 }
