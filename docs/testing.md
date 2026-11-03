@@ -12375,7 +12375,7 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 **限界**: 人は画面を見ていない。行の文字・カードの状態の見た目は測らない。`test` は `set_attr` の値を照合しない。
 
-### 5.459 3 本目の教材のエンジンの差分 0 の確認（TASK-763 3/3。#2013。SECOND-20）
+### 5.459 3 本目の教材のエンジンの差分 0 の確認（TASK-763 3/3。#2013）
 
 **目的**: 3 本目の教材の追加で、エンジン（`crates/`・直下の `Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、固定した commit と SHA-256 の一覧で確かめ、書けなかった箇所を記録する。
 
@@ -12388,7 +12388,7 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 負の対照（`crates/core/src/lib.rs` に 1 行を足す）で `worktree-clean` が FAIL。戻して clean を確認
 - `fandhe-pack validate` は診断 0 件、`test` は 1/1・18/18・実体 8/8（`probes/views` は 1/1・2/2・4/4）
 
-**書けなかった箇所**: `template-workshop/examples/task-breakdown/docs/requirements.md` の 8 節と `docs/known-gaps.md`（SECOND-20（ビューの綴り）の新設、PACK-22・SECOND-6（行の文面）・AUTHOR-4 の追記）。
+**書けなかった箇所**: `template-workshop/examples/task-breakdown/docs/requirements.md` の 8 節と `docs/known-gaps.md`（ビューの綴りの行の新設、PACK-22・SECOND-6（行の文面）・AUTHOR-4 の追記）。
 
 **限界**: 道具は 1 つの設定で Step ごとの `visibleViews` を照合できない（エンジンの語彙の不足ではなく道具の限界）。人は画面を見ておらず、教材と試験の作者が同じ AI である。CI には入れていない。
 
