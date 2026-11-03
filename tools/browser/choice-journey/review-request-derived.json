@@ -239,6 +239,10 @@
       "review/scope",
       "review/status",
       "review/to"
-    ]
+    ],
+    "appearance": {
+      "inlineStyleZero": true
+    },
+    "narrowTabs": false
   }
 }

@@ -1,0 +1,179 @@
+{
+  "format": 1,
+  "name": "review-request-800",
+  "source": {
+    "pack": "../../../template-workshop/examples/review-request",
+    "validate": true
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": {
+    "uid": "main/st-1",
+    "status": "entered"
+  },
+  "sequence": [
+    {
+      "kind": "choice",
+      "id": "opt-start",
+      "expect": {
+        "uid": "main/st-1",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-ready",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-owner",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/to",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-diff",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-scope-narrow",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-security",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-focus-one",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-due-row",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-tomorrow",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-reread",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-reread",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-send",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-sent",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "achieved"
+      }
+    }
+  ],
+  "expect": {
+    "completed": false,
+    "nextChapter": 0,
+    "inputAreaAbsent": true,
+    "viewSwitchVisible": 0,
+    "entryPorts": [
+      "choice-btn"
+    ],
+    "entryAtStart": [
+      "choice-btn"
+    ],
+    "inputGuidesAbsent": true,
+    "fileInputs": 1,
+    "controls": {
+      "stop": true,
+      "checkpointSave": true,
+      "export": true,
+      "import": true,
+      "hintContainer": true,
+      "hintOpen": false
+    },
+    "stoppedAfter": "main/st-2:accepted",
+    "visibleViews": [
+      "document"
+    ],
+    "leftSwitchAbsent": true,
+    "rowPaths": [],
+    "appearance": {
+      "inlineStyleZero": true
+    },
+    "narrowTabs": true
+  },
+  "viewport": {
+    "width": 800,
+    "height": 800
+  }
+}

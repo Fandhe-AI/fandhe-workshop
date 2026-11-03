@@ -11938,7 +11938,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 
 ### 5.447 第 2 教材の左の領域と文書の変化の画面の確認（TASK-749 2/3。SECOND-6・SECOND-8）
 
-5.445 と同じ設定 2 本（`review-request`・`review-request-derived`）に、左の領域の期待を足した。道具は操作ごとに `measureLeft` で左の領域を測り（結果の `left`: 開始・操作ごと・終了）、`choice-journey-config.mjs` の `judge` が照合する。外観（`data-theme`・文字の大きさ・行間）と幅 800px の「成果物」タブ、件数の時点の記録は 3/3、誤答 8 場面は TASK-750 が受け持つ。
+5.445 と同じ設定 2 本（`review-request`・`review-request-derived`）に、左の領域の期待を足した。道具は操作ごとに `measureLeft` で左の領域を測り（結果の `left`: 開始・操作ごと・終了）、`choice-journey-config.mjs` の `judge` が照合する。外観（`data-theme`・文字の大きさ・行間）と幅 800px の「成果物」タブ、件数の時点の記録は 3/3（5.449）、誤答 8 場面は TASK-750 が受け持つ。
 
 仕様の名前と製品の DOM の対応: 仕様の `world-list`・`view-tabs`・`view-tab` は PoC の名前で、製品の DOM には無い。製品の左は `part-artifact-view` の中に、切り替え（`view-select`・`view-select-button`）と 7 本の `ul[data-testid=view-list][data-view=<種類>]` を置き、選ばれていない 6 本は `hidden` になる。行は `li[data-path]` で、変化の印は `li` の `data-mark` と直接の子の `mark-glyph`・`mark-text` の 3 手段で出る。そこで次のように測る。
 
@@ -11983,6 +11983,38 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
   - 印の色は主張しない（外観は 3/3、色は TASK-760 と theme-marks の範囲）
   - 試験と実装の作成者が同じ AI であり、人が画面を見た評価ではない
 
+### 5.449 第 2 教材の外観と幅 800px の「成果物」タブの画面の確認（TASK-749 3/3。SECOND-9・SECOND-10）
+
+5.445・5.447 の設定 2 本（`review-request`・`review-request-derived`）に外観の確認を足し、同じ内容を幅 800px で流す設定 2 本（`review-request-800`・`review-request-derived-800`）を新設した。TASK-749 はこれで 3/3 である。
+
+**安全側の読み（最大の限界）**: 外観は製品の画面に結線されていない（`DisplaySettings::root_attrs` を呼ぶ箇所が web crate に無く、`app.css` に外観ごとの規則が無い。`docs/operation-profile.md` 2.2 節・`docs/known-gaps.md` の PACK-21）。画面全体の枠の担当で、TASK-749 の変更対象は試験の設定だけなので、本件はエンジンの Rust・CSS を変えない。そのため、第 2 教材の設定は `theme: reading`・本文 18px・行間 1.75 倍を主張しない。主張すると全件が不合格になる。道具には主張の口（`expect.appearance.theme`・`bodyPx`・`lineHeightRatio`）を用意し、結線されたら設定に 3 欄を足すだけで主張できる。測った値は時点の値として下に記録する。**SECOND-10 の `reading`・18px・1.75 倍は未達であり、「外観の確認が通った」とは読まない。** 通ったのは「中身のある `style` 属性・`<style>` 要素が 0 件」だけである。
+
+幅 800px の測り方: 960px 未満では tablist（`pane-tabs`。tab は `pane-tab-ops`・`pane-tab-artifacts`）が出て、選んでいない側の領域は `hidden` 属性ではなく CSS の `display: none` になる。そこで道具（`choice-journey.mjs`）は、tablist が見えるときだけ、操作の種類に合わせてタブを実クリックで切り替える（`row` は「成果物」、`choice`・`decide`・`next` は「操作」）。左の領域は「成果物」タブへ切り替えてから測る。開始と終了は「操作」タブ（既定）と「成果物」タブの両方で測り（結果の `start`・`end` と `artifactsTab.start`・`artifactsTab.end`）、領域の見え方（`panes`: tablist・選択中のタブ・左・右）を全時点に付ける。tablist が見えない幅（960px 以上）では何もしない。切り替えに失敗したときは `stoppedAt.cause` が `no-tab` になる。
+
+| 欄 | 内容 |
+|---|---|
+| `expect.appearance.inlineStyleZero` | 中身のある `style` 属性と、中身（空白を除く文字）のある `<style>` 要素が 0 件（`inlineStyle@<時点>`）。空の属性・空の要素は数えない（総数の `elementsTotal` は観察用） |
+| `expect.appearance.theme` | `main` の `data-theme` が一致（`standard`・`mono`・`high_contrast`・`reading` の閉じた一覧。`theme@<時点>`） |
+| `expect.appearance.bodyPx`・`lineHeightRatio` | 本文の文字の大きさ（整数 8〜64）・行間（1〜3、許容 0.01。`bodyPx@`・`lineHeight@`） |
+| `expect.narrowTabs` | 真なら幅が 960px 未満の設定だけ（矛盾は読み込みで拒否）。「操作」タブでは右だけ・「成果物」タブでは左だけが見え（`tabs@<時点>`・`tabs@artifacts-<時点>`）、「成果物」タブの時点にも入力の領域の期待（`inputAreaAbsent@artifacts-`・`visibleInputs@`・`entryPorts@`・`inputGuidesAbsent@`・`inputNotice@`）を当てる。測定が無ければ `artifactsTab-missing`。偽なら tablist が出ないこと |
+| 左の領域 | 左の期待を持つ設定は、測った全時点で左が実際に見えること（`leftHidden@<時点>`）。幅 800px で「操作」タブのまま測った素通りの合格を塞ぐ |
+
+`entryAtStart` と `fileInputs` は「操作」タブの時点だけに当てる。ファイル選択（`shell-import`）は tabpanel の外にあり、「成果物」タブの時点でも 1 個見える（`visible` 1・`inImport` 1。実測）。
+
+試験:
+
+- `choice-journey-config.test.mjs`（ブラウザなし）: 不正な形 12 形（`appearance` が配列・空・未知の欄・`theme` が 4 値の外・`bodyPx` が小数・範囲外・`lineHeightRatio` が文字列・範囲外・`inlineStyleZero`・`narrowTabs` が真偽でない・`narrowTabs` と幅の矛盾 2 形）、幅 800px のタブの照合（1 欄だけ外して理由が 1 件になる 13 行）、外観の 3 欄の照合、`leftHidden`、800px 版と 1280px 版の対の設定が名前・幅・`narrowTabs` 以外で同じこと（ずれの防止）
+- `choice-journey.test.mjs` の場面 H（800px の 2 設定を CSP あり・なしで流し、`judge` が空・「成果物」タブで左が見える・行は本物 0 件／派生版 5 件）と、H-対照（CSP あり。「操作」タブのまま左を測ると `leftHidden`、中身のある `style` 属性と `<style>` 要素を足すと `inlineStyle` の理由が出る。手を加えない測定は理由が空）
+
+結果（2026-11-03、手元。件数は時点の値）:
+
+- `choice-journey-config.test.mjs` 162 件合格。`choice-journey.test.mjs` 20 件合格。`make check-choice-journey` は 8 設定 x CSP 2 通りの 16 件合格（外部通信 0・ページ内エラー 0）
+- 800px の測定の時点数: 本物の pack は 開始 1 + 「成果物」タブ 開始 1 + 操作後 3 + 終了 2（操作・成果物）、派生版は 開始 1 + 「成果物」タブ 開始 1 + 操作後 16 + 終了 2。止まる位置は 1280px 版と同じ `main/st-2:accepted`（本物の pack。行 0 件で `row review/to` を指せない。PACK-22）
+- 中身のある `style` 属性・`<style>` 要素: 0 件（1280px・800px、CSP あり・なし、全時点）
+- `main` の `data-theme`: なし。本文 16px・行間 1.2 倍（`reading` の 18px・1.75 倍とは異なる）。したがって `theme`・`bodyPx`・`lineHeightRatio` は第 2 教材の設定に書いていない
+- CI の `browser-test` での時間の増分（設定 2 本 x CSP 2 通りの 4 回分）は PR の CI で確かめる（手元では未計測。大きい場合は 800 版を `csp` の一方に絞れる）。`scripts/expected-test-counts.txt` は変えていない
+- 限界: 外観は未結線で SECOND-10 は未達。案内レベルのボタンとヒントは 5.445 のまま。人が画面を見た評価ではない（外観の評価は TASK-760）。試験と実装の作成者が同じ AI である
+
 ### 5.437 第 2 教材固有の値の設定ファイルへの分離と CI からの呼び出し（TASK-748 2/2。SECOND-4・SECOND-7）
 
 教材固有の値を `tools/browser/choice-journey/<name>.json`（版 1）に分け、道具を設定ファイルで呼べるようにした。道具（`choice-journey.mjs`）は教材固有の値と合否を持たない。設定の読み込み・検証・期待との照合は `choice-journey-config.mjs`、node:test の外からの入口は `choice-journey-run.mjs`（CLI）・`scripts/check-choice-journey.sh`（`make check-choice-journey`）。設定ファイルを差し替えるだけで別の教材にも使える。
@@ -11998,12 +12030,12 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `viewport` | 省略時 1280x800 |
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
-| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447） |
+| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447）。TASK-749 3/3 で `appearance`（`theme`・`bodyPx`・`lineHeightRatio`・`inlineStyleZero`）と `narrowTabs` を足した（5.449） |
 | `csp` | 省略時 `[true, false]` |
 
 外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。
 
-設定 3 本（同じ道具で 3 つの教材を流す。TASK-749 1/3 で第 2 教材の 2 本を足して 5 本。5.445）:
+設定 3 本（同じ道具で 3 つの教材を流す。TASK-749 1/3 で第 2 教材の 2 本を足して 5 本。5.445。TASK-749 3/3 で幅 800px 版の 2 本を足して 8 本。5.449。第 2 教材固有の設定と誤答の場面の設定は下表に載せていない）:
 
 | 設定 | 教材 | 期待 |
 |---|---|---|
