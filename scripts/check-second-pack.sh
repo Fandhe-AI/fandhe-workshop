@@ -10,7 +10,9 @@
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
 #   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
 #   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746 1/2）/
-#   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）
+#   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）/ ir-match・format-b・learning-goals（TASK-747）
+# ir-match の基準は tests/ir.json（compile の出力そのもの）。教材を変えたら fandhe-pack compile <pack> -o tests/ir.json で書き直す。
+# CI の教材テスト（TASK-102）は FANDHE_PACK_BIN を渡してこのスクリプトを呼べば足りる（cargo 不要）。
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
@@ -59,6 +61,10 @@ require_cmd jq || exit 2
 require_cmd grep || exit 2
 require_cmd mktemp || exit 2
 require_cmd rm || exit 2
+require_cmd cmp || exit 2
+require_cmd cp || exit 2
+require_cmd wc || exit 2
+require_cmd sed || exit 2
 
 BIN="${FANDHE_PACK_BIN:-}"
 if [ -z "${BIN}" ]; then
@@ -72,6 +78,8 @@ if [ ! -f "${BIN}" ] || [ ! -x "${BIN}" ]; then
   echo "error: fandhe-pack is not an executable file" >&2
   exit 2
 fi
+# 教材ディレクトリへ cd した後でも見つかるよう、相対パスの BIN は絶対パスへ解決する。
+BIN="$(cd "$(dirname "${BIN}")" && pwd)/$(basename "${BIN}")"
 
 WORK=""
 cleanup() {
@@ -225,7 +233,8 @@ fi
 run_pack test "${PACK}"
 TEST_OUT="${OUT}"
 if [ "${RC}" -eq 0 ] && ! printf '%s\n' "${OUT}" | grep -q '^FAIL ' \
-  && printf '%s\n' "${OUT}" | grep -qE '^模範解答: ([1-9][0-9]*)/\1 完走'; then
+  && printf '%s\n' "${OUT}" | grep -qE '^模範解答: ([1-9][0-9]*)/\1 完走' \
+  && printf '%s\n' "${OUT}" | grep -qE '^誤入力: ([0-9]+)/\1 が期待どおり'; then
   pass test
 else
   fail test "test did not pass all cases with at least 1 model answer completed (exit ${RC})"
@@ -466,6 +475,115 @@ if [ "${TC_OK}" -eq 1 ]; then
   TC_EXCLUDED="$(jq '.excluded | length' "${TC}" 2>/dev/null || echo 0)"
 fi
 
+# ir-match（TASK-747。SECOND-4）: compile の出力が tests/ir.json とバイト単位で一致する。
+# 4 通り（-o・標準出力のリダイレクト・-o の 2 回目・別のディレクトリへ写して相対パス）で書き出して cmp -s で比べる。
+# 項目 compile の IR 変数はコマンド置換で末尾の改行が落ちるため、バイト比較には使わず、必ずファイルへ書き出す。
+# 基準が無い・通常のファイルでない場合は不合格（fail-closed）。差分の中身は出さない。
+IR_REF="${PACK}/tests/ir.json"
+ir_ok=1
+IR_BYTES=0
+if [ ! -f "${IR_REF}" ] || [ -L "${IR_REF}" ]; then
+  ir_ok=0
+else
+  mkdir -p "${WORK}/elsewhere"
+  if "${BIN}" compile "${PACK}" -o "${WORK}/ir-o1.json" >"${WORK}/ir-o1.out" 2>"${WORK}/ir-o1.err" \
+    && [ ! -s "${WORK}/ir-o1.out" ] && [ ! -s "${WORK}/ir-o1.err" ] && cmp -s "${IR_REF}" "${WORK}/ir-o1.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if "${BIN}" compile "${PACK}" >"${WORK}/ir-stdout.json" 2>/dev/null && cmp -s "${IR_REF}" "${WORK}/ir-stdout.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if "${BIN}" compile "${PACK}" -o "${WORK}/ir-o2.json" >/dev/null 2>&1 && cmp -s "${IR_REF}" "${WORK}/ir-o2.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if cp -R "${PACK}" "${WORK}/elsewhere/review-request" \
+    && (cd "${WORK}/elsewhere" && "${BIN}" compile review-request -o "${WORK}/ir-copy.json" >/dev/null 2>&1) \
+    && cmp -s "${IR_REF}" "${WORK}/ir-copy.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+fi
+if [ "${ir_ok}" -eq 1 ]; then
+  pass ir-match
+  IR_BYTES="$(wc -c <"${IR_REF}" | tr -d ' ')"
+else
+  fail ir-match "compile output is not byte-identical to tests/ir.json (-o, stdout, repeat, copied dir)"
+fi
+
+# format-b（TASK-747。SECOND-4）: 形式 B の構成（workshop.yaml・章 1 つの chapter.yaml・本文の Markdown 8 つ・playthrough・練習データ）。
+FB_OK=1
+FB_BODIES=0
+printf '%s' "${VALIDATE_OUT}" | grep -q '形式 B(YAML)' || FB_OK=0
+[ -f "${PACK}/workshop.yaml" ] || FB_OK=0
+[ -f "${PACK}/tests/playthrough.yaml" ] || FB_OK=0
+fb_chapters=0
+fb_dir=""
+for f in "${PACK}"/chapters/*/chapter.yaml; do
+  if [ -f "${f}" ]; then
+    fb_chapters=$((fb_chapters + 1))
+    fb_dir="$(dirname "${f}")"
+  fi
+done
+if [ "${fb_chapters}" -ne 1 ]; then
+  FB_OK=0
+else
+  FB_LIST="$(sed -n -E 's/^    body: (.*)$/\1/p' "${fb_dir}/chapter.yaml")"
+  while IFS= read -r b; do
+    [ -n "${b}" ] || continue
+    if printf '%s' "${b}" | grep -qE '^[A-Za-z0-9_-]+\.md$' && [ -f "${fb_dir}/${b}" ]; then
+      FB_BODIES=$((FB_BODIES + 1))
+    else
+      FB_OK=0
+    fi
+  done <<EOF2
+${FB_LIST}
+EOF2
+  [ "${FB_BODIES}" -eq 8 ] || FB_OK=0
+fi
+FB_PATHS="$(printf '%s' "${IR}" | jq -r '.fixtures[]?.path' 2>/dev/null || true)"
+while IFS= read -r p; do
+  [ -n "${p}" ] || continue
+  if printf '%s' "${p}" | grep -qE '^[A-Za-z0-9_/-]+\.[a-z]+$' && ! printf '%s' "${p}" | grep -qF '..' && [ -f "${PACK}/${p}" ]; then
+    :
+  else
+    FB_OK=0
+  fi
+done <<EOF2
+${FB_PATHS}
+EOF2
+if [ "${FB_OK}" -eq 1 ]; then
+  pass format-b
+else
+  fail format-b "pack is not the format B layout (workshop.yaml, one chapter.yaml, 8 body files, playthrough, fixtures)"
+fi
+
+# learning-goals（TASK-747。SECOND-4）: Step の lo の和集合が requirements.md の学習目標の表の ID 集合と一致し、2 つで、全 Step が 1 つ以上を持つ。
+LG_COUNT=0
+LG_OK=1
+if [ -f "${REQ}" ]; then
+  LG_DOC="$(sed -n -E 's/^\| (LO-[0-9]+) \|.*/\1/p' "${REQ}" | sort -u | jq -R . | jq -sc .)"
+else
+  LG_DOC='[]'
+  LG_OK=0
+fi
+if printf '%s' "${IR}" | jq -e --argjson doc "${LG_DOC}" '([.nodes[].step.lo[]?] | unique) as $u | ($u == $doc) and ($u | length == 2) and ([.nodes[] | (.step.lo | length) >= 1] | all)' >/dev/null 2>&1; then
+  LG_COUNT="$(printf '%s' "${LG_DOC}" | jq 'length')"
+else
+  LG_OK=0
+fi
+if [ "${LG_OK}" -eq 1 ]; then
+  pass learning-goals
+else
+  fail learning-goals "learning goals in steps and requirements.md differ, are not 2, or a step has none"
+fi
+
 # 20 baseline: 件数が tests/baseline.txt（時点の値）と一致する（キーの欠け・余り・不一致は不合格）
 if [ -f "${BASELINE}" ]; then
   BASE_ACTUAL="${WORK}/baseline-actual.txt"
@@ -479,6 +597,8 @@ if [ -f "${BASELINE}" ]; then
     jq -r 'to_entries[] | "row_changes.\(.key)=\([.value.steps[]? | select(.changes != {})] | length)"' "${FOLD_RESULTS}"
     printf 'row_asserts=%s\n' "${ra_checked}"
     printf 'alt_differs=%s\n' "${ALT_DIFFERS}"
+    printf 'learning_goals=%s\nformat_b.bodies=%s\nir.bytes=%s\n' "${LG_COUNT}" "${FB_BODIES}" "${IR_BYTES}"
+    printf 'ir.steps=%s\n' "$(printf '%s' "${IR}" | jq '.nodes | length')"
     printf 'text_checks=%s\ntext_checks.scenes=%s\ntext_checks.excluded=%s\n' "${TC_COUNT}" "${TC_SCENES}" "${TC_EXCLUDED}"
     printf 'r22.confirmed=%s\nr22.skip=%s\nr22.no_confirm=%s\nr21.texts=%s\nr21.empty=%s\n' "${R22_CONFIRMED}" "${R22_SKIP}" "${R22_NOCONF}" "${R21_TEXTS}" "${R21_EMPTY}"
   } | sort >"${BASE_ACTUAL}"

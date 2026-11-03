@@ -1,0 +1,1484 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "review-request",
+    "title": "レビューの頼み方",
+    "version": "0.0.1",
+    "ir_format": 2,
+    "guidance": "A",
+    "vocab": "1.3",
+    "profile": {
+      "command_prefix": "",
+      "input_field": "hidden"
+    },
+    "appearance": {
+      "theme": "reading"
+    },
+    "left_pane": {
+      "view_tabs": "hidden",
+      "world_list": "hidden"
+    }
+  },
+  "refs": [],
+  "commands": {},
+  "views": {
+    "v-doc": {
+      "kind": "document"
+    }
+  },
+  "fixtures": {
+    "fx-draft": {
+      "path": "fixtures/draft.md",
+      "kind": "document"
+    }
+  },
+  "hints": {},
+  "rejections": {
+    "rj-bad": {
+      "category": "bad_arg_shape",
+      "message": "決まった形で書かれていません。",
+      "next_action": "画面の選択肢から選び直します。"
+    },
+    "rj-busy": {
+      "category": "busy",
+      "message": "処理中です。",
+      "next_action": "終わるまで待ちます。"
+    },
+    "rj-confirm-wrong": {
+      "category": "not_in_this_step",
+      "message": "その答えは、今の場面には合いません。",
+      "next_action": "状況に合う答えを選び直します。"
+    },
+    "rj-due-short": {
+      "category": "not_in_this_step",
+      "message": "差分と関連するテストの両方を頼んだので、明日の 17 時までは読む量に対して短すぎます。",
+      "next_action": "余裕のある期限を選び直します。"
+    },
+    "rj-due-vague": {
+      "category": "bad_arg_shape",
+      "message": "「できるだけ早く」は、いつまでかが人によって違います。日時が 1 つに決まる形ではありません。",
+      "next_action": "日時が 1 つに決まる期限を選び直します。"
+    },
+    "rj-ft": {
+      "category": "free_text_unjudged",
+      "message": "書いた内容は判定しません。",
+      "next_action": "自分で見直します。"
+    },
+    "rj-miss-due": {
+      "category": "not_in_this_step",
+      "message": "そこは期限の行ではありません。",
+      "next_action": "期限の行を指し直します。"
+    },
+    "rj-miss-q": {
+      "category": "not_in_this_step",
+      "message": "今は、依頼の下書きを作り始める場面です。",
+      "next_action": "状況に合う答えを選び直します。"
+    },
+    "rj-miss-to": {
+      "category": "not_in_this_step",
+      "message": "そこは宛先の行ではありません。",
+      "next_action": "宛先の行を指し直します。"
+    },
+    "rj-missing": {
+      "category": "missing_arg",
+      "message": "選ぶ内容が足りません。",
+      "next_action": "画面の選択肢から選び直します。"
+    },
+    "rj-nis": {
+      "category": "not_in_this_step",
+      "message": "この手順では選べません。",
+      "next_action": "画面の選択肢から選びます。"
+    },
+    "rj-ns": {
+      "category": "not_supported",
+      "message": "この教材では扱いません。",
+      "next_action": "画面の選択肢に戻ります。"
+    },
+    "rj-q1-code": {
+      "category": "not_in_this_step",
+      "message": "直した中身は、依頼文ではなく差分で見てもらいます。",
+      "next_action": "依頼文に書く内容を選び直します。"
+    },
+    "rj-q1-feel": {
+      "category": "not_in_this_step",
+      "message": "気持ちだけでは、読む人は何をすればよいか分かりません。",
+      "next_action": "読む人が動ける答えを選び直します。"
+    },
+    "rj-q3-all": {
+      "category": "not_in_this_step",
+      "message": "範囲が広いと、読む人は終わりが見えません。",
+      "next_action": "範囲を絞る理由を選び直します。"
+    },
+    "rj-q3-none": {
+      "category": "not_in_this_step",
+      "message": "範囲が書かれていないと、読む人はどこから読めばよいか分かりません。",
+      "next_action": "範囲を絞る理由を選び直します。"
+    },
+    "rj-q4-any": {
+      "category": "not_in_this_step",
+      "message": "観点が多いほど、1 つ 1 つの見方が浅くなります。",
+      "next_action": "見てほしい点の決め方を選び直します。"
+    },
+    "rj-q4-skip": {
+      "category": "not_in_this_step",
+      "message": "見てほしい点がないと、読む人は何を先に見るか決められません。",
+      "next_action": "見てほしい点の決め方を選び直します。"
+    },
+    "rj-q5-status": {
+      "category": "not_in_this_step",
+      "message": "状態の行は、項目ではなく下書きの進み具合を表します。",
+      "next_action": "状態が「未入力」の行を選び直します。"
+    },
+    "rj-q5-to": {
+      "category": "not_in_this_step",
+      "message": "宛先の行は、もう「入力済み」です。",
+      "next_action": "状態が「未入力」の行を選び直します。"
+    },
+    "rj-q7-add": {
+      "category": "not_in_this_step",
+      "message": "送った後に項目を足すと、読む人は変わった点に気付けません。",
+      "next_action": "送る前の確かめ方を選び直します。"
+    },
+    "rj-q7-now": {
+      "category": "not_in_this_step",
+      "message": "見直さずにすぐ送ると、宛先や期限の書き忘れに気付けません。",
+      "next_action": "送る前の確かめ方を選び直します。"
+    },
+    "rj-q8-unsent": {
+      "category": "not_in_this_step",
+      "message": "4 つの項目は、もう揃っています。",
+      "next_action": "左の行を見て選び直します。"
+    },
+    "rj-revise": {
+      "category": "wrong_order",
+      "message": "直す行を決めないまま戻っても、下書きは変わりません。",
+      "next_action": "左の行を見て、この内容で送るかを選び直します。"
+    },
+    "rj-row-filled": {
+      "category": "not_in_this_step",
+      "message": "その行はもう埋まっています。",
+      "next_action": "状態が「未入力」のまま残っている行を指します。"
+    },
+    "rj-skip": {
+      "category": "not_in_this_step",
+      "message": "送る前に見直さないと、宛先や期限の書き忘れに気付けません。",
+      "next_action": "送る前に見直す選択肢を選び直します。"
+    },
+    "rj-to-all": {
+      "category": "not_in_this_step",
+      "message": "チーム全員に頼むと、誰も自分の担当だと思わず、返事が来ないことがあります。",
+      "next_action": "この部分に詳しい人を 1 人に絞って選び直します。"
+    },
+    "rj-unknown": {
+      "category": "unknown_command",
+      "message": "この操作は、この教材にはありません。",
+      "next_action": "画面の選択肢から選び直します。"
+    },
+    "rj-wrong": {
+      "category": "wrong_order",
+      "message": "まだ先の手順です。",
+      "next_action": "今の手順の選択肢から選びます。"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "bad_arg_shape": "rj-bad",
+    "busy": "rj-busy",
+    "free_text_unjudged": "rj-ft",
+    "missing_arg": "rj-missing",
+    "not_in_this_step": "rj-nis",
+    "not_supported": "rj-ns",
+    "unknown_command": "rj-unknown",
+    "wrong_order": "rj-wrong"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-1",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-1",
+        "title": "状況を確認する",
+        "body": "st-1.md",
+        "do": "依頼文を作り始める",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-start",
+              "label": "下書きを作り始める"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-start",
+            "on": {
+              "option": "opt-start"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/status",
+                    "value": "これから 4 つの項目を決めます"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-miss-q",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-ready",
+              "label": "相手と範囲を決めてから書く"
+            },
+            {
+              "correct": false,
+              "id": "ans-feel",
+              "label": "気持ちだけを伝えて頼む",
+              "on_wrong": "rj-q1-feel"
+            },
+            {
+              "correct": false,
+              "id": "ans-code",
+              "label": "直した中身をそのまま貼る",
+              "on_wrong": "rj-q1-code"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "state",
+              "path": "review/status",
+              "value": "作成中"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-2"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "状況を確認する"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "ログイン画面の入力チェックを直しました。これから、同じチームの人にレビューを頼みます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "頼む前に、読む人が迷わないように、相手と頼む範囲を決めます。まず下書きを作り始めます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-2",
+        "title": "宛先を選ぶ",
+        "body": "st-2.md",
+        "do": "レビューを頼む相手を選ぶ",
+        "lo": [
+          "LO-1"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-owner",
+              "label": "この部分を書いた人に頼む"
+            },
+            {
+              "id": "opt-pair",
+              "label": "同じチームの 1 人に頼む"
+            },
+            {
+              "id": "opt-all",
+              "label": "チーム全員に頼む"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-owner",
+            "on": {
+              "option": "opt-owner"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/to",
+                    "value": "この部分に詳しい 1 人に頼みます"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/to",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-pair",
+            "on": {
+              "option": "opt-pair"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/to",
+                    "value": "同じチームの 1 人に頼みます"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/to",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-all",
+            "on": {
+              "option": "opt-all"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-to-all"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "on_miss": "rj-miss-to",
+          "targets": [
+            {
+              "path": "review/to",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "detail",
+              "path": "review/status",
+              "value": "宛先を決めました"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-3"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "宛先を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "読む人が迷わないように、まず誰に頼むかを決めます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選択肢から相手を選び、左の文書の宛先の行が変わったら、その行を指します。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-3",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-3",
+        "title": "頼む範囲を選ぶ",
+        "body": "st-3.md",
+        "do": "頼む範囲を選ぶ",
+        "lo": [
+          "LO-1"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-diff",
+              "label": "今回直した差分だけを頼む"
+            },
+            {
+              "id": "opt-diff-tests",
+              "label": "差分と関連するテストを頼む"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-diff",
+            "on": {
+              "option": "opt-diff"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/scope",
+                    "value": "今回直した差分だけです"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/scope",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-diff-tests",
+            "on": {
+              "option": "opt-diff-tests"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/scope",
+                    "value": "差分と関連するテストです"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/scope",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-confirm-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-scope-narrow",
+              "label": "範囲を絞ると読む人が迷わない"
+            },
+            {
+              "correct": false,
+              "id": "ans-scope-all",
+              "label": "全部頼むほうが安心",
+              "on_wrong": "rj-q3-all"
+            },
+            {
+              "correct": false,
+              "id": "ans-scope-none",
+              "label": "範囲は書かなくてよい",
+              "on_wrong": "rj-q3-none"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "detail",
+              "path": "review/status",
+              "value": "宛先と範囲を決めました"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-4"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "頼む範囲を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "次に、どこまでを見てもらうかを決めます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "範囲を選び、確認の質問に答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-4",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-4",
+        "title": "見てほしい点を選ぶ",
+        "body": "st-4.md",
+        "do": "見てほしい点を選ぶ",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-security",
+              "label": "入力チェックの抜けを見てほしい"
+            },
+            {
+              "id": "opt-message",
+              "label": "エラーメッセージの文面を見てほしい"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-security",
+            "on": {
+              "option": "opt-security"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/focus",
+                    "value": "入力チェックの抜けがないかを見てください"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/focus",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-message",
+            "on": {
+              "option": "opt-message"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/focus",
+                    "value": "エラーメッセージの文面が分かりやすいかを見てください"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/focus",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-confirm-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-focus-one",
+              "label": "見てほしい点は 1 つに決める"
+            },
+            {
+              "correct": false,
+              "id": "ans-focus-any",
+              "label": "気になる点を全部書く",
+              "on_wrong": "rj-q4-any"
+            },
+            {
+              "correct": false,
+              "id": "ans-focus-skip",
+              "label": "相手に任せて書かない",
+              "on_wrong": "rj-q4-skip"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "detail",
+              "path": "review/status",
+              "value": "宛先・範囲・見てほしい点を決めました"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-5"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "見てほしい点を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "見てほしい点は、1 つに決まる形で書きます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選択肢から選び、確認の質問に答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-5",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-5",
+        "title": "空いている行を探す",
+        "body": "st-5.md",
+        "do": "まだ決めていない行を指す",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "path": "review/due",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/to",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/scope",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/focus",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-empty",
+            "on": {
+              "ui": {
+                "path": "review/due",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/due",
+                    "value": "（次の Step で決めます）"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-ui-to",
+            "on": {
+              "ui": {
+                "path": "review/to",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          },
+          {
+            "id": "r-ui-scope",
+            "on": {
+              "ui": {
+                "path": "review/scope",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          },
+          {
+            "id": "r-ui-focus",
+            "on": {
+              "ui": {
+                "path": "review/focus",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-confirm-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-due-row",
+              "label": "空いている行は期限"
+            },
+            {
+              "correct": false,
+              "id": "ans-to-row",
+              "label": "空いている行は宛先",
+              "on_wrong": "rj-q5-to"
+            },
+            {
+              "correct": false,
+              "id": "ans-status-row",
+              "label": "空いている行は状態",
+              "on_wrong": "rj-q5-status"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "detail",
+              "path": "review/status",
+              "value": "空いている行は期限です"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-6"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "空いている行を探す"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "左の文書で、まだ決めていない行を探します。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "その行を指し、確認の質問に答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-6",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-6",
+        "title": "期限を選ぶ",
+        "body": "st-6.md",
+        "do": "期限を選ぶ",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-tomorrow",
+              "label": "明日の 17 時までにお願いする"
+            },
+            {
+              "id": "opt-friday",
+              "label": "今週の金曜までにお願いする"
+            },
+            {
+              "id": "opt-asap",
+              "label": "できるだけ早くお願いする"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-tomorrow-large",
+            "on": {
+              "option": "opt-tomorrow"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-due-short"
+            },
+            "when": {
+              "chose": {
+                "option": "opt-diff-tests",
+                "step": "st-3"
+              }
+            }
+          },
+          {
+            "id": "r-tomorrow",
+            "on": {
+              "option": "opt-tomorrow"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/due",
+                    "value": "明日の 17 時までです"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/due",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-friday",
+            "on": {
+              "option": "opt-friday"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/due",
+                    "value": "今週の金曜までです"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/due",
+                    "value": "入力済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-asap",
+            "on": {
+              "option": "opt-asap"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-due-vague"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "on_miss": "rj-miss-due",
+          "targets": [
+            {
+              "path": "review/due",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "on_achieved": [
+          {
+            "set_attr": {
+              "attr": "detail",
+              "path": "review/status",
+              "value": "4 つの項目が揃いました"
+            }
+          }
+        ],
+        "next": [
+          {
+            "to": "main/st-7"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "期限を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "最後の項目として、いつまでに見てほしいかを決めます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "期限を選び、左の文書の期限の行を指します。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-7",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-7",
+        "title": "送る前に見直す",
+        "body": "st-7.md",
+        "do": "送る前に依頼文を見直す",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-reread",
+              "label": "4 つの項目を読み返す"
+            },
+            {
+              "id": "opt-preview",
+              "label": "相手の立場で読んでみる"
+            },
+            {
+              "id": "opt-skip",
+              "label": "見直さずにそのまま送る"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-reread",
+            "on": {
+              "option": "opt-reread"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/status",
+                    "value": "見直し済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-preview",
+            "on": {
+              "option": "opt-preview"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/status",
+                    "value": "見直し済み"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-skip",
+            "on": {
+              "option": "opt-skip"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-skip"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-confirm-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-reread",
+              "label": "送る前に見直して揃っているか確かめる"
+            },
+            {
+              "correct": false,
+              "id": "ans-send-now",
+              "label": "見直さずにすぐ送る",
+              "on_wrong": "rj-q7-now"
+            },
+            {
+              "correct": false,
+              "id": "ans-add",
+              "label": "項目を後から足す",
+              "on_wrong": "rj-q7-add"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-8"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "送る前に見直す"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "送る前に、4 つの項目が揃っているかを見直します。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "見直し方を選び、確認の質問に答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-8",
+      "scope": "main",
+      "unit": "ch-request",
+      "step": {
+        "id": "st-8",
+        "title": "送る",
+        "body": "st-8.md",
+        "do": "依頼文を送る",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "final": true,
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-send",
+              "label": "この内容で送る"
+            },
+            {
+              "id": "opt-revise",
+              "label": "直す"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-send",
+            "on": {
+              "option": "opt-send"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "set_attr": {
+                    "attr": "state",
+                    "path": "review/status",
+                    "value": "送信可"
+                  }
+                },
+                {
+                  "set_attr": {
+                    "attr": "detail",
+                    "path": "review/status",
+                    "value": "宛先・範囲・見てほしい点・期限が揃った依頼文です"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-revise",
+            "on": {
+              "option": "opt-revise"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-revise"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-confirm-wrong",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-sent",
+              "label": "4 つの項目が揃った依頼文を送れた"
+            },
+            {
+              "correct": false,
+              "id": "ans-unsent",
+              "label": "まだ項目が足りない",
+              "on_wrong": "rj-q8-unsent"
+            }
+          ]
+        }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "送る"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "宛先・範囲・見てほしい点・期限が揃いました。この内容で依頼文を送ります。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "送る操作を選び、確認の質問に答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s-1",
+      "node": "main/st-1",
+      "effects": [
+        {
+          "put": {
+            "attrs": {
+              "detail": "まだ何も決めていません",
+              "state": "下書き",
+              "title": "依頼文の下書き"
+            },
+            "fixture": "fx-draft",
+            "path": "review/status"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "（まだ決めていません）",
+              "state": "未入力",
+              "title": "宛先"
+            },
+            "fixture": "fx-draft",
+            "path": "review/to"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "（まだ決めていません）",
+              "state": "未入力",
+              "title": "頼む範囲"
+            },
+            "fixture": "fx-draft",
+            "path": "review/scope"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "（まだ決めていません）",
+              "state": "未入力",
+              "title": "見てほしい点"
+            },
+            "fixture": "fx-draft",
+            "path": "review/focus"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "（まだ決めていません）",
+              "state": "未入力",
+              "title": "期限"
+            },
+            "fixture": "fx-draft",
+            "path": "review/due"
+          }
+        }
+      ]
+    }
+  ],
+  "fixture_docs": {
+    "fx-draft": {
+      "version": 1,
+      "blocks": [
+        {
+          "t": "heading",
+          "level": 1,
+          "children": [
+            {
+              "t": "text",
+              "text": "【架空】レビュー依頼の下書き（練習データ）"
+            }
+          ]
+        },
+        {
+          "t": "paragraph",
+          "children": [
+            {
+              "t": "text",
+              "text": "この文書は練習用の架空のデータです。実在の人・チーム・プロジェクトとは関係がありません。"
+            }
+          ]
+        },
+        {
+          "t": "paragraph",
+          "children": [
+            {
+              "t": "text",
+              "text": "場面は、ログイン画面の入力チェックを直した後に、レビューを頼む依頼文を作ることです。"
+            },
+            {
+              "t": "text",
+              "text": "依頼文の中身は、状態・宛先・範囲・見てほしい点・期限の 5 行の属性で表します。"
+            },
+            {
+              "t": "text",
+              "text": "この本文そのものは画面に出ません（忠実さの限界 G-4・H-3 として受け入れています）。"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
