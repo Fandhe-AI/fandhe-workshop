@@ -12375,6 +12375,23 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 **限界**: 人は画面を見ていない。行の文字・カードの状態の見た目は測らない。`test` は `set_attr` の値を照合しない。
 
+### 5.459 3 本目の教材のエンジンの差分 0 の確認（TASK-763 3/3。#2013。SECOND-20）
+
+**目的**: 3 本目の教材の追加で、エンジン（`crates/`・直下の `Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、固定した commit と SHA-256 の一覧で確かめ、書けなかった箇所を記録する。
+
+**記録**: `docs/engine-zero-diff/task-breakdown/`（`README.md` と `engine-manifest.sha256`）。固定した commit は `7dbc58a161a62faeef6a1aad221f8c947a1521a5`（3 本目を最初に足した `c243e816` の親）。道具（`scripts/check-engine-zero-diff.sh`）は変えず、`--base`・`--pack`・`--manifest` を指定して流した。
+
+**結果（2026-11-03、手元。測った HEAD は `ae3cc2bed398908035120e13fdca27f1202072fa`）**
+
+- 10 項目がすべて PASS、差分は 0 行、一覧は 1,628 件で base・HEAD とも全件一致
+- 一覧は第 2 教材の一覧とバイト単位で一致（`cmp`）
+- 負の対照（`crates/core/src/lib.rs` に 1 行を足す）で `worktree-clean` が FAIL。戻して clean を確認
+- `fandhe-pack validate` は診断 0 件、`test` は 1/1・18/18・実体 8/8（`probes/views` は 1/1・2/2・4/4）
+
+**書けなかった箇所**: `template-workshop/examples/task-breakdown/docs/requirements.md` の 8 節と `docs/known-gaps.md`（SECOND-20（ビューの綴り）の新設、PACK-22・SECOND-6（行の文面）・AUTHOR-4 の追記）。
+
+**限界**: 道具は 1 つの設定で Step ごとの `visibleViews` を照合できない（エンジンの語彙の不足ではなく道具の限界）。人は画面を見ておらず、教材と試験の作者が同じ AI である。CI には入れていない。
+
 ### 5.455 基準端末 A での初回表示（TASK-108 1/2。#833。DLV-5）
 
 日付: 2026-11-03。`docs/measurement.md` §8 の手順に従い、基準端末 A で `first-paint-direct` を流した。記録の様式は同 §8「記録の様式」の欄による。
