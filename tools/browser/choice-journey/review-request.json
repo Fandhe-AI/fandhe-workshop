@@ -166,6 +166,10 @@
       "document"
     ],
     "leftSwitchAbsent": true,
-    "rowPaths": []
+    "rowPaths": [],
+    "appearance": {
+      "inlineStyleZero": true
+    },
+    "narrowTabs": false
   }
 }

@@ -1,7 +1,7 @@
 // 設定ファイル（tools/browser/choice-journey/*.json）の読み込み・検証・期待との照合（choice-journey-config.mjs）の試験
 // （TASK-748 2/2。SECOND-4・SECOND-7）。ブラウザ・ビルド不要（node:test だけ）。記録は docs/testing.md 5.437。
 //
-//   L  同梱の設定 5 本が loadConfig を通り、名前が一意
+//   L  同梱の設定 8 本が loadConfig を通り、名前が一意
 //   N  負の対照。形・値の誤りは ConfigError（未知の欄・format・name・base・source・パスの封じ込め・操作の種類・status・decision・edits）
 //   E  applyEdits。from が 0 回・2 回出る書き換えと、写しの外・シンボリックリンクの対象を拒否し、元は書き換えない
 //   J  judge の表駆動。合う結果は空、期待を 1 つだけ外した結果は理由がちょうど 1 件
@@ -32,8 +32,8 @@ const base = () => ({
 });
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
-test('L: 同梱の設定が 5 本あり、すべて loadConfig を通り名前が一意', () => {
-  assert.ok(FILES.length >= 5, `config files: ${FILES.length}`);
+test('L: 同梱の設定が 8 本あり、すべて loadConfig を通り名前が一意', () => {
+  assert.ok(FILES.length >= 8, `config files: ${FILES.length}`);
   const names = FILES.map((f) => loadConfig(path.join(CONFIG_DIR, f)).name);
   assert.equal(new Set(names).size, names.length);
   for (const f of FILES) assert.equal(loadConfig(path.join(CONFIG_DIR, f)).name, f.replace(/\.json$/, ''), 'name matches file name');
@@ -111,6 +111,18 @@ const BAD = [
   ['marks が連想配列でない', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = ['r/a']; }],
   ['rowPaths の無い marks', (c) => { c.sequence[0].marks = {}; }],
   ['rowPaths に無い経路の marks', (c) => { c.expect.rowPaths = ['r/a']; c.sequence[0].marks = { 'r/b': 'add' }; }],
+  ['appearance が配列', (c) => { c.expect.appearance = []; }],
+  ['appearance が空', (c) => { c.expect.appearance = {}; }],
+  ['appearance の未知の欄', (c) => { c.expect.appearance = { fontSize: 18 }; }],
+  ['appearance.theme が 4 値の外', (c) => { c.expect.appearance = { theme: 'dark' }; }],
+  ['appearance.bodyPx が小数', (c) => { c.expect.appearance = { bodyPx: 17.5 }; }],
+  ['appearance.bodyPx が範囲外', (c) => { c.expect.appearance = { bodyPx: 7 }; }],
+  ['appearance.lineHeightRatio が文字列', (c) => { c.expect.appearance = { lineHeightRatio: '1.75' }; }],
+  ['appearance.lineHeightRatio が範囲外', (c) => { c.expect.appearance = { lineHeightRatio: 3.5 }; }],
+  ['appearance.inlineStyleZero が真偽でない', (c) => { c.expect.appearance = { inlineStyleZero: 1 }; }],
+  ['narrowTabs が真偽でない', (c) => { c.expect.narrowTabs = 'yes'; }],
+  ['narrowTabs が真で幅 1280', (c) => { c.expect.narrowTabs = true; }],
+  ['narrowTabs が偽で幅 800', (c) => { c.viewport = { width: 800, height: 800 }; c.expect.narrowTabs = false; }],
   ['csp が真偽の列でない', (c) => { c.csp = ['on']; }],
 ];
 for (const [label, mutate] of BAD) {
@@ -295,6 +307,7 @@ const leftConfig = () => parseConfig({
 }, '/tmp');
 const leftAt = (marks = {}) => ({
   settled: true,
+  panes: { tablist: false, selected: null, left: true, right: true },
   views: { shown: ['document'], total: 7 },
   select: { count: 1, visible: 0, buttons: 0, visibleButtons: 0 },
   absent: { 'world-list': 0, 'view-tabs': 0, 'view-tab': 0 },
@@ -467,4 +480,90 @@ test('R: 拒否の操作が無い設定の judge は拒否の理由を返さな�
   const cfg = parseConfig(base(), '/tmp');
   const r = { completed: true, stoppedAt: null, safety: [], external: 0, pageErrors: 0, consoleErrors: 0, cspWarnings: 0, run: { raw: 0, mouse: 1 }, irFetch: [200], start: {}, end: {} };
   assert.deepEqual(judge(cfg, r).filter((x) => x.startsWith('reject')), []);
+});
+
+// 外観と幅 960px 未満のタブ（TASK-749 3/3。SECOND-10）。
+const tabConfig = () => parseConfig({
+  ...base(),
+  viewport: { width: 800, height: 800 },
+  expect: {
+    completed: true, inputAreaAbsent: true, entryPorts: ['choice-btn'], inputGuidesAbsent: true, narrowTabs: true, appearance: { inlineStyleZero: true },
+  },
+}, '/tmp');
+const paneScreen = (selected) => ({
+  ...screen(),
+  inlineStyle: { attrs: 0, elements: 0, elementsTotal: 0 },
+  theme: { values: [], main: null },
+  font: { body: { px: 16, lineHeightRatio: 1.2 } },
+  panes: { tablist: true, selected, left: selected === 'artifacts', right: selected === 'ops' },
+});
+const goodTabs = () => ({ ...good(), start: paneScreen('ops'), end: paneScreen('ops'), artifactsTab: { start: paneScreen('artifacts'), end: paneScreen('artifacts') } });
+
+test('T: judge は幅 800px のタブの期待に合う結果で空を返す', () => {
+  assert.deepEqual(judge(tabConfig(), goodTabs()), []);
+});
+
+const TAB_OFF = [
+  ['属性の style（開始時）', (r) => { r.start.inlineStyle.attrs = 1; }, ['inlineStyle@start']],
+  ['中身のある style 要素（終了時）', (r) => { r.end.inlineStyle.elements = 1; }, ['inlineStyle@end']],
+  ['成果物タブの style 属性', (r) => { r.artifactsTab.end.inlineStyle.attrs = 1; }, ['inlineStyle@artifacts-end']],
+  ['tablist が見えない（開始時）', (r) => { r.start.panes.tablist = false; }, ['tabs@start']],
+  ['操作タブで左が見える（終了時）', (r) => { r.end.panes.left = true; }, ['tabs@end']],
+  ['成果物タブで右が見える', (r) => { r.artifactsTab.end.panes.right = true; }, ['tabs@artifacts-end']],
+  ['成果物タブの選択が違う', (r) => { r.artifactsTab.start.panes.selected = 'ops'; }, ['tabs@artifacts-start']],
+  ['成果物タブの測定が無い', (r) => { r.artifactsTab = null; }, ['artifactsTab-missing']],
+  ['成果物タブの終了が無い', (r) => { r.artifactsTab.end = null; }, ['artifactsTab-missing@end']],
+  ['成果物タブに入力欄', (r) => { r.artifactsTab.start.inputArea.absent.textarea = 1; }, ['inputAreaAbsent@artifacts-start']],
+  ['成果物タブに見える入力', (r) => { r.artifactsTab.end.inputArea.visibleInputs = ['|input|text']; }, ['visibleInputs@artifacts-end']],
+  ['成果物タブに案内', (r) => { r.artifactsTab.start.parts['key-hint'] = part(1, 1); }, ['inputGuidesAbsent@artifacts-start']],
+  ['成果物タブに承認のボタン', (r) => { r.artifactsTab.end.parts['approval-btn'] = part(1, 1); }, ['entryPorts@artifacts-end']],
+];
+for (const [label, mutate, want] of TAB_OFF) {
+  test(`T: judge は幅 800px のタブで 1 欄だけ外れた結果で理由が ${want.length} 件（${label}）`, () => {
+    const r = goodTabs();
+    mutate(r);
+    assert.deepEqual(judge(tabConfig(), r), want);
+  });
+}
+
+test('T: 外観の theme・bodyPx・lineHeightRatio は宣言したときだけ照合され、測った値が違えば欄名の理由を返す', () => {
+  const cfg = (a) => parseConfig({ ...base(), expect: { completed: true, appearance: a } }, '/tmp');
+  const r = () => ({ ...good(), start: paneScreen('ops'), end: paneScreen('ops') });
+  assert.deepEqual(judge(cfg({ inlineStyleZero: true }), r()), []);
+  assert.deepEqual(judge(cfg({ theme: 'reading', bodyPx: 18, lineHeightRatio: 1.75 }), r()).sort(),
+    ['bodyPx@end', 'bodyPx@start', 'lineHeight@end', 'lineHeight@start', 'theme@end', 'theme@start']);
+  const ok = r();
+  for (const m of [ok.start, ok.end]) { m.theme.main = 'reading'; m.font.body = { px: 18, lineHeightRatio: 1.75 }; }
+  assert.deepEqual(judge(cfg({ theme: 'reading', bodyPx: 18, lineHeightRatio: 1.75 }), ok), []);
+});
+
+test('T: narrowTabs が偽の設定は tablist が見えると不合格', () => {
+  const c = parseConfig({ ...base(), expect: { completed: true, narrowTabs: false } }, '/tmp');
+  const r = good();
+  r.start = screen();
+  r.end = screen();
+  r.start.panes = { tablist: false };
+  r.end.panes = { tablist: false };
+  assert.deepEqual(judge(c, r), []);
+  r.end.panes = { tablist: true };
+  assert.deepEqual(judge(c, r), ['tabs@end']);
+});
+
+test('T: 左の領域が見えない時点（操作タブのまま測った）は leftHidden で不合格', () => {
+  const r = goodLeft();
+  r.left.ops[0].panes.left = false;
+  assert.deepEqual(judge(leftConfig(), r), ['leftHidden@op[0]']);
+});
+
+test('T: 800px 版と 1280px 版の対の設定は、名前・幅・narrowTabs 以外が同じ', () => {
+  const load = (n) => loadConfig(path.join(CONFIG_DIR, `${n}.json`));
+  for (const n of ['review-request', 'review-request-derived']) {
+    const a = load(n);
+    const b = load(`${n}-800`);
+    assert.equal(a.expect.narrowTabs, false);
+    assert.equal(b.expect.narrowTabs, true);
+    assert.equal(b.viewport.width, 800);
+    const strip = (c) => { const x = clone(c); delete x.name; delete x.viewport; delete x.expect.narrowTabs; return x; };
+    assert.deepEqual(strip(b), strip(a));
+  }
 });

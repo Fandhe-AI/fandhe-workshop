@@ -22,7 +22,9 @@
 //   G  道具の対照（TASK-749 2/3。CSP ありの 1 回）。派生版で opt-start を押した後のページ（行 5 本が【追加】）に 4 つの手を加え、測った値が変わって
 //      judge が欄名の理由を返すこと: 印の文字を消す（markGlyphText）・別のビューを見せる（visibleViews）・切り替えのボタンを足す（leftSwitch）・行を 1 本消す（rowPaths）。手を加えない測定は理由が空
 //      E は、さらに左の領域（SECOND-6・SECOND-8）。見えるビューは文書だけ・切り替えが無い・そのままの教材は行 0 件（PACK-22）、派生版は行 5 本と受付ごとの変化の印
-// 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。TASK-749 の担当）、
+//   H  幅 800px（TASK-749 3/3。5.449）。tablist が出る画面で、操作ごとに実クリックでタブを切り替え、「成果物」タブで入力の領域と左の領域の期待が成り立つ。
+//      H-対照は、操作タブのまま左を測ると leftHidden、中身のある style 属性・<style> 要素を足すと inlineStyle の理由が出ること
+// 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
 import { test, before, after } from 'node:test';
@@ -61,6 +63,8 @@ let cfgRrAsIs;
 let cfgRrDerived;
 let irRrAsIs;
 let irRrDerived;
+let cfgRr800;
+let cfgRrDerived800;
 
 const diag = (s) => console.log(`# diagnostic: ${s}`);
 
@@ -80,6 +84,8 @@ before(async () => {
   cfgRrDerived = loadConfig(cfgPath('review-request-derived'));
   irRrAsIs = buildIr({ bin, config: cfgRrAsIs });
   irRrDerived = buildIr({ bin, config: cfgRrDerived });
+  cfgRr800 = loadConfig(cfgPath('review-request-800'));
+  cfgRrDerived800 = loadConfig(cfgPath('review-request-derived-800'));
   stepInfo = stepsOf(JSON.parse(irShown));
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
@@ -204,6 +210,22 @@ for (const csp of [true, false]) {
       const markedOps = r.left.ops.filter((o) => o.rows.some((x) => x.mark !== '')).length;
       diag(`second-pack-left ${cfg.name} csp=${csp} views=${r.left.end.views.shown.length}/${r.left.end.views.total} rows-end=${r.left.end.rows.length} ops-measured=${r.left.ops.length} ops-with-marks=${markedOps}`);
       diag(`second-pack ${cfg.name} csp=${csp} stopped=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'} rows=${r.end.rows.count} hint-open=${r.end.parts['hint-open'].count} hint-box=${r.end.parts['shell-hint'].count} checkpoint-restore=${r.end.parts['checkpoint-restore'].visible} delete=${r.end.parts['shell-delete'].count}`);
+    }
+  });
+
+  test(`H: 幅 800px の「成果物」タブでも入力の領域と左の領域の期待が成り立つ（${mode}）`, { timeout: 180000 }, async () => {
+    for (const [cfg, ir, completed] of [[cfgRr800, irRrAsIs, false], [cfgRrDerived800, irRrDerived, true]]) {
+      const { out: r, why } = await runWith(cfg, ir);
+      assert.deepEqual(why, [], `judge: no failed expectation (${cfg.name})`);
+      assert.equal(r.completed, completed);
+      assert.equal(r.start.panes.tablist, true, 'tablist is visible at 800px');
+      assert.equal(r.start.panes.selected, 'ops');
+      assert.equal(r.artifactsTab.end.panes.selected, 'artifacts');
+      assert.equal(r.artifactsTab.end.panes.left, true);
+      assert.equal(r.artifactsTab.end.rows.count, completed ? 5 : 0);
+      assert.equal(r.left.ops.length, r.reached.length - 1);
+      assert.ok(r.left.ops.every((m) => m.panes.left === true && m.panes.selected === 'artifacts'), 'left is measured on the artifacts tab');
+      diag(`second-pack-800 ${cfg.name} csp=${csp} measured=${2 + 2 + r.left.ops.length} inline=${JSON.stringify(r.end.inlineStyle)} main-theme=${r.end.theme.main} body=${JSON.stringify(r.end.font.body)} file-inputs-artifacts=${JSON.stringify(r.artifactsTab.end.fileInputs)}`);
     }
   });
 
@@ -352,6 +374,56 @@ test('G: 道具の対照。印の文字・見えるビュー・切り替えの�
         const why = leftWhy(after);
         assert.ok(why.some((w) => w.startsWith(reason)), `judge reports ${reason}: ${why.join(',')}`);
         diag(`left-control ${reason} reasons=${why.length}`);
+      }
+    }));
+  } finally {
+    cleanup();
+  }
+});
+
+// 道具の対照（TASK-749 3/3）。派生版の幅 800px で、左を「操作」タブのまま測ると leftHidden が出ること、中身のある style 属性と <style> 要素を足すと
+// inlineStyle が出ること、手を加えない測定では理由が空であること。
+test('H-対照: 道具の対照。800px で操作タブのまま左を測る・style を足すと理由が出る（CSP あり）', { timeout: 180000 }, async () => {
+  const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irRrDerived });
+  try {
+    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgRrDerived800.base }, async (srv) => {
+      const { page, context } = await openPage(browser, { origin: srv.origin, viewport: cfgRrDerived800.viewport });
+      try {
+        await page.goto(srv.url);
+        await waitMounted(page);
+        await page.waitForSelector('[data-testid="step-title"]', { timeout: 30000 });
+        const screens = { start: await measureScreen(page) };
+        const leftOps = await measureLeft(page);
+        assert.equal(leftOps.panes.left, false, 'left is hidden on the ops tab');
+        await page.locator('#pane-tab-artifacts').click({ timeout: 4000 });
+        await page.waitForFunction(() => document.querySelector('[data-testid="pane-tabs"]')?.getAttribute('data-pane') === 'artifacts', null, { timeout: 4000 });
+        const leftArt = await measureLeft(page);
+        screens.artifacts = await measureScreen(page);
+        const cfg = { ...cfgRrDerived800, sequence: cfgRrDerived800.sequence.map(({ marks, ...op }) => op) };
+        const base1 = () => ({
+          ...baseResult(), start: screens.start, end: screens.start, artifactsTab: { start: screens.artifacts, end: screens.artifacts },
+        });
+        const pick = (why, re) => why.filter((w) => re.test(w));
+        const re = /^(leftHidden|inlineStyle|tabs@|artifactsTab)/;
+        assert.deepEqual(pick(judge(cfg, { ...base1(), left: { start: leftArt, ops: [], end: leftArt } }), re), [], 'control: untouched page');
+        assert.ok(judge(cfg, { ...base1(), left: { start: leftOps, ops: [], end: leftOps } }).includes('leftHidden@start'), 'ops-tab measurement is rejected');
+        await page.evaluate(() => {
+          const d = document.createElement('div');
+          d.setAttribute('style', 'color: red');
+          d.textContent = 'x';
+          document.querySelector('[data-testid="shell-left"]').appendChild(d);
+          const st = document.createElement('style');
+          st.textContent = 'body { color: red }';
+          document.head.appendChild(st);
+        });
+        const probed = await measureScreen(page);
+        assert.equal(probed.inlineStyle.attrs, screens.artifacts.inlineStyle.attrs + 1);
+        assert.equal(probed.inlineStyle.elements, screens.artifacts.inlineStyle.elements + 1);
+        const why = judge(cfg, { ...base1(), artifactsTab: { start: probed, end: probed }, left: { start: leftArt, ops: [], end: leftArt } });
+        assert.ok(why.includes('inlineStyle@artifacts-start'), `judge reports inlineStyle: ${why.join(',')}`);
+        diag(`appearance-control reasons=${pick(why, re).length}`);
+      } finally {
+        await context.close();
       }
     }));
   } finally {

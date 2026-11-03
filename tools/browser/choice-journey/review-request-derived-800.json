@@ -1,0 +1,252 @@
+{
+  "format": 1,
+  "name": "review-request-derived-800",
+  "source": {
+    "pack": "../../../template-workshop/examples/review-request",
+    "validate": true,
+    "edits": [
+      {
+        "file": "workshop.yaml",
+        "from": "world_list: hidden ",
+        "to": "world_list: shown  "
+      },
+      {
+        "file": "chapters/ch-request/chapter.yaml",
+        "from": "- set_attr: { path: review/status, attr: detail, value: これから 4 つの項目を決めます }",
+        "to": "- put: { path: review/status, fixture: fx-draft, attrs: { title: 依頼文の下書き, state: 下書き, detail: まだ何も決めていません } }\n            - put: { path: review/to, fixture: fx-draft, attrs: { title: 宛先, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/scope, fixture: fx-draft, attrs: { title: 頼む範囲, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/focus, fixture: fx-draft, attrs: { title: 見てほしい点, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/due, fixture: fx-draft, attrs: { title: 期限, state: 未入力, detail: （まだ決めていません） } }\n            - set_attr: { path: review/status, attr: detail, value: これから 4 つの項目を決めます }"
+      }
+    ]
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": {
+    "uid": "main/st-1",
+    "status": "entered"
+  },
+  "sequence": [
+    {
+      "kind": "choice",
+      "id": "opt-start",
+      "expect": {
+        "uid": "main/st-1",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "add",
+        "review/to": "add",
+        "review/scope": "add",
+        "review/focus": "add",
+        "review/due": "add"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-ready",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-owner",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/to": "change"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/to",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-diff",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/scope": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-scope-narrow",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-security",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/focus": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-focus-one",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/due": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-due-row",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-tomorrow",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change",
+        "review/due": "change"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "entered"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-reread",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-reread",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "entered"
+      },
+      "marks": {}
+    },
+    {
+      "kind": "choice",
+      "id": "opt-send",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "accepted"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-sent",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "achieved"
+      },
+      "marks": {
+        "review/status": "change"
+      }
+    }
+  ],
+  "expect": {
+    "completed": true,
+    "nextChapter": 0,
+    "inputAreaAbsent": true,
+    "viewSwitchVisible": 0,
+    "entryPorts": [
+      "choice-btn"
+    ],
+    "entryAtStart": [
+      "choice-btn"
+    ],
+    "inputGuidesAbsent": true,
+    "fileInputs": 1,
+    "controls": {
+      "stop": true,
+      "checkpointSave": true,
+      "export": true,
+      "import": true,
+      "hintContainer": true,
+      "hintOpen": false
+    },
+    "reviewAchieved": 8,
+    "visibleViews": [
+      "document"
+    ],
+    "leftSwitchAbsent": true,
+    "rowPaths": [
+      "review/due",
+      "review/focus",
+      "review/scope",
+      "review/status",
+      "review/to"
+    ],
+    "appearance": {
+      "inlineStyleZero": true
+    },
+    "narrowTabs": true
+  },
+  "viewport": {
+    "width": 800,
+    "height": 800
+  }
+}

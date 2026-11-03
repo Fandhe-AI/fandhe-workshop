@@ -7,7 +7,8 @@
 // choice-journey-run.mjs（CLI。CI の browser-test ジョブから scripts/check-choice-journey.sh 経由で呼ばれる）・choice-journey.test.mjs。
 // 教材固有の値は一切書かず、すべて引数で受ける（設定ファイルを差し替えるだけで別の教材にも使える）。
 // 使う部品: harness.mjs（配信・計数）、ch0-3-journey.mjs（台帳でない部分のセレクタと install）、ch4-9-journey.mjs の inspectDom49（DOM だけの判定）。
-// 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。
+// 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。外観（data-theme・本文の px・行間・中身のある style の 0 件）と幅 800px の「成果物」タブは TASK-749 3/3（docs/testing.md 5.449）。
+// 幅 960px 未満は tablist が出るので、操作の種類に合わせて実クリックでタブを切り替え、開始・終了は artifactsTab にも測る。
 // 左の領域（見えるビュー・行・変化の印）は measureLeft が測り、結果の left に入れる（TASK-749 2/3）。
 // 世界状態の一覧を出さない設定（`world_list` の hidden）の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
 // 拒否を期待する操作（status が rejected）は、実クリックのあと右のログの拒否の行（分類・理由・次の行動）を読み、IR の文面（refIr）と比べ、前後で左の行と Step が動かないことの観察を rejections に積む（TASK-750。SECOND-12。合否は config 側の judgeRejections）。
@@ -53,6 +54,46 @@ export const MARK_TABLE = {
   remove: ['-', '【削除】'],
   change: ['~', '【変更】'],
 };
+
+/**
+ * 領域の見え方とタブの testid・id（crates/web/src/a11y.rs・shell.rs の定数の写し。エンジン共通で教材固有ではない）。
+ * 幅 960px 未満では tablist が出て、選んでいない側の領域は `display: none` になる（`hidden` 属性ではない）。設定の文字列から selector は組み立てない。
+ */
+export const PANES = {
+  tablist: 'pane-tabs', ops: 'pane-tab-ops', artifacts: 'pane-tab-artifacts', left: 'shell-left', right: 'shell-right',
+};
+
+/** ページ内で領域の見え方を測る（page.evaluate に渡す固定の関数）。 */
+function panesInPage(P) {
+  const vis = (e) => {
+    if (!e) return false;
+    const b = e.getBoundingClientRect();
+    const c = getComputedStyle(e);
+    return b.width > 0 && b.height > 0 && c.display !== 'none' && c.visibility !== 'hidden';
+  };
+  const byId = (id) => document.querySelector(`[data-testid="${id}"]`);
+  const tl = byId(P.tablist);
+  return { tablist: vis(tl), selected: tl?.getAttribute('data-pane') ?? null, left: vis(byId(P.left)), right: vis(byId(P.right)) };
+}
+
+/** 領域の見え方。判定はしない（TASK-749 3/3。SECOND-9）。 */
+export const measurePanes = (page) => page.evaluate(panesInPage, PANES);
+
+/**
+ * tablist が見えるとき（幅 960px 未満）だけ、該当のタブを実クリックして data-pane が切り替わるのを待つ。見えないとき（960px 以上）は何もせず真。
+ * 失敗しても例外にせず偽を返す（呼び出し側が stoppedAt の no-tab にする）。
+ */
+export async function ensurePane(page, which, timeout = 4000) {
+  const p = await measurePanes(page);
+  if (!p.tablist || p.selected === which) return true;
+  try {
+    await page.locator(`#${PANES[which]}`).click({ timeout });
+    await page.waitForFunction(([t, w]) => document.querySelector(`[data-testid="${t}"]`)?.getAttribute('data-pane') === w, [PANES.tablist, which], { timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** 入力の注意書き（常に 1 個あるが、普段は空の文字）。 */
 const NOTICE = 'input-notice';
@@ -125,9 +166,9 @@ export function compilePack({ bin, packDir, edit = null }) {
 }
 
 /** ページ内で画面の値を測る。判定はしない。ページ内の関数は固定で、教材の文字列から組み立てない。 */
-export function measureScreen(page) {
+export async function measureScreen(page) {
   const ids = [...new Set([...PORTS, ...GUIDES, ...Object.values(CONTROLS)])];
-  return page.evaluate(([absent, ids, noticeId]) => {
+  const m = await page.evaluate(([absent, ids, noticeId]) => {
     const vis = (e) => {
       const b = e.getBoundingClientRect();
       const c = getComputedStyle(e);
@@ -172,9 +213,15 @@ export function measureScreen(page) {
         stop: { count: q(tid('stop-btn')).length, visible: q(tid('stop-btn')).some(vis) },
       },
       rightButtons: rightBtns.map(desc),
-      inlineStyle: { attrs: q('[style]').filter((e) => (e.getAttribute('style') ?? '').trim() !== '').length, elements: q('style').length },
+      // 中身のある style 属性と <style> 要素の数（空の style 属性・空の <style> は数えない）。elementsTotal は観察用。
+      inlineStyle: {
+        attrs: q('[style]').filter((e) => (e.getAttribute('style') ?? '').trim() !== '').length,
+        elements: q('style').filter((e) => (e.textContent ?? '').trim() !== '').length,
+        elementsTotal: q('style').length,
+      },
     };
   }, [ABSENT, ids, NOTICE]);
+  return { ...m, panes: await measurePanes(page) };
 }
 
 /**
@@ -215,7 +262,7 @@ export async function measureLeft(page, timeout = 2000) {
       })),
     };
   }, LEFT_ABSENT);
-  return { ...m, settled };
+  return { ...m, settled, panes: await measurePanes(page) };
 }
 
 /**
@@ -317,45 +364,76 @@ export async function runJourney({
     await obs.at(page, initial.uid, initial.status);
     result.reached.push(`${initial.uid}:${initial.status}`);
     result.start = await measureScreen(page);
-    result.left = { start: await measureLeft(page), ops: [], end: null };
-    for (let i = 0; i < sequence.length; i += 1) {
-      const op = sequence[i];
-      const sel = {
-        choice: () => choiceSel(op.id), row: () => rowSel(op.path), decide: () => decideSel(op.decision), next: () => NEXT,
-      }[op.kind]?.();
-      if (sel === undefined) throw new Error('unknown operation kind');
-      const pre = expect[i].status === 'rejected'
-        ? { rows: await snapshotRows(page), head: await readStepHead(page), count: await countRejected(page) }
-        : null;
-      try {
-        await page.locator(sel).first().click({ timeout: clickTimeout });
-      } catch {
-        result.stoppedAt = { index: i, kind: op.kind, cause: 'no-target', after: result.reached[result.reached.length - 1] };
-        break;
+    // 幅 960px 未満（tablist が見える）では、左の領域は「成果物」タブでしか見えない。開始・終了は両方のタブで測り、
+    // 操作は種類に合わせて実クリックでタブを切り替える（row は成果物、それ以外は操作。TASK-749 3/3。SECOND-9）。
+    const tabbed = result.start.panes.tablist;
+    result.artifactsTab = tabbed ? { start: null, end: null } : null;
+    const toTab = async (which, i, kind) => {
+      if (await ensurePane(page, which, clickTimeout)) return true;
+      result.stoppedAt = { index: i, kind, cause: 'no-tab', after: result.reached[result.reached.length - 1] };
+      return false;
+    };
+    result.left = { start: null, ops: [], end: null };
+    const leftNow = async (i, kind) => ((await toTab('artifacts', i, kind)) ? measureLeft(page) : null);
+    const run = async () => {
+      if (tabbed) {
+        if (!(await toTab('artifacts', -1, 'start'))) return;
+        result.artifactsTab.start = await measureScreen(page);
       }
-      if (expect[i].status === 'rejected') {
-        // 拒否の期待の操作は、クリックの前に取った写しと比べる。refIr は期待の文面の出どころ（表示する IR と別に渡せる）。
-        const rec = await observeRejection(page, { op, uid: expect[i].uid, refIr, before: pre, titles, timeout: clickTimeout });
-        if (!rec) {
-          result.stoppedAt = { index: i, kind: op.kind, cause: 'no-rejection', after: result.reached[result.reached.length - 1] };
-          break;
+      result.left.start = await leftNow(-1, 'start');
+      if (result.stoppedAt) return;
+      for (let i = 0; i < sequence.length; i += 1) {
+        const op = sequence[i];
+        const sel = {
+          choice: () => choiceSel(op.id), row: () => rowSel(op.path), decide: () => decideSel(op.decision), next: () => NEXT,
+        }[op.kind]?.();
+        if (sel === undefined) throw new Error('unknown operation kind');
+        if (!(await toTab(op.kind === 'row' ? 'artifacts' : 'ops', i, op.kind))) return;
+        const pre = expect[i].status === 'rejected'
+          ? { rows: await snapshotRows(page), head: await readStepHead(page), count: await countRejected(page) }
+          : null;
+        try {
+          await page.locator(sel).first().click({ timeout: clickTimeout });
+        } catch {
+          result.stoppedAt = { index: i, kind: op.kind, cause: 'no-target', after: result.reached[result.reached.length - 1] };
+          return;
         }
-        result.rejections.push({ index: i, scene: op.scene, rejection: op.rejection, ...rec });
-        // 拒否の操作にも marks を宣言できるので、拒否の後の左の領域も同じ index で測る（judgeLeft が観察の有無を見る）。
-        result.left.ops.push({ index: i, ...(await measureLeft(page)) });
-        continue;
+        if (expect[i].status === 'rejected') {
+          // 拒否の期待の操作は、クリックの前に取った写しと比べる。refIr は期待の文面の出どころ（表示する IR と別に渡せる）。
+          const rec = await observeRejection(page, { op, uid: expect[i].uid, refIr, before: pre, titles, timeout: clickTimeout });
+          if (!rec) {
+            result.stoppedAt = { index: i, kind: op.kind, cause: 'no-rejection', after: result.reached[result.reached.length - 1] };
+            return;
+          }
+          result.rejections.push({ index: i, scene: op.scene, rejection: op.rejection, ...rec });
+          // 拒否の操作にも marks を宣言できるので、拒否の後の左の領域も同じ index で測る（judgeLeft が観察の有無を見る）。
+          const m = await leftNow(i, op.kind);
+          if (!m) return;
+          result.left.ops.push({ index: i, ...m });
+          continue;
+        }
+        try {
+          await obs.at(page, expect[i].uid, expect[i].status);
+        } catch {
+          result.stoppedAt = { index: i, kind: op.kind, cause: 'no-state', after: result.reached[result.reached.length - 1] };
+          return;
+        }
+        result.reached.push(`${expect[i].uid}:${expect[i].status}`);
+        const m = await leftNow(i, op.kind);
+        if (!m) return;
+        result.left.ops.push({ index: i, ...m });
       }
-      try {
-        await obs.at(page, expect[i].uid, expect[i].status);
-      } catch {
-        result.stoppedAt = { index: i, kind: op.kind, cause: 'no-state', after: result.reached[result.reached.length - 1] };
-        break;
-      }
-      result.reached.push(`${expect[i].uid}:${expect[i].status}`);
-      result.left.ops.push({ index: i, ...(await measureLeft(page)) });
+    };
+    await run();
+    // 終了の測定。tablist があれば操作タブで end、成果物タブで artifactsTab.end と left.end を測る（切り替えの失敗は stoppedAt を上書きしない）。
+    if (tabbed) await ensurePane(page, 'ops', clickTimeout);
+    result.end = await measureScreen(page);
+    if (tabbed) {
+      const ok = await ensurePane(page, 'artifacts', clickTimeout);
+      if (ok) result.artifactsTab.end = await measureScreen(page);
+      else result.stoppedAt ??= { index: sequence.length, kind: 'end', cause: 'no-tab', after: result.reached[result.reached.length - 1] };
     }
     result.left.end = await measureLeft(page);
-    result.end = await measureScreen(page);
     result.review = await readReview(page);
     result.completed = result.stoppedAt === null
       && finals.every((u) => result.review.some((r) => r.step === u && r.achieved === 'true'));
@@ -386,12 +464,15 @@ export function summaryLine(label, csp, r) {
     `stopped=${r.stoppedAt ? `${r.stoppedAt.cause}@${r.stoppedAt.after}` : 'none'}`,
     `theme=${JSON.stringify(r.end?.theme?.values ?? [])}`,
     `font=body:${fmt(f.body)},do:${fmt(f.do)},choice:${fmt(f.choice)}`,
-    `rows=${r.end?.rows?.count ?? 'n/a'}`,
+    `rows=${(r.artifactsTab?.end ?? r.end)?.rows?.count ?? 'n/a'}`,
     `views=${r.left?.end?.views?.shown?.length ?? 'n/a'}`,
     `left-ops=${r.left?.ops?.length ?? 'n/a'}`,
     `view-buttons=${r.end?.viewSwitch?.visibleButtons ?? 'n/a'}`,
     `ports=${PORTS.filter((id) => (r.end?.parts?.[id]?.visible ?? 0) > 0).join(',') || 'none'}`,
     `file-inputs=${r.end?.fileInputs?.visible ?? 'n/a'}`,
+    `inline-style=${r.end?.inlineStyle?.attrs ?? 'n/a'}/${r.end?.inlineStyle?.elements ?? 'n/a'}`,
+    `tabs=${r.start?.panes?.tablist ?? 'n/a'}`,
+    `main-theme=${r.end?.theme?.main ?? 'none'}`,
     `external=${r.external}`,
     `page-errors=${r.pageErrors}`,
     ...rejectionParts(r),

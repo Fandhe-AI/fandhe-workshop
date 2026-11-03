@@ -5,7 +5,7 @@
 // 結果の期待）はこの設定ファイルに書き、差し替えるだけで別の教材にも同じ道具を使えるようにする。本モジュールは
 // 呼び出し元（choice-journey-run.mjs の CLI と choice-journey.test.mjs）から使われ、設定を未信頼の入力として扱って
 // 形を厳しく検証し（fail-closed。未知の欄・範囲外の値はすべて ConfigError）、期待との照合（judge）の理由は欄名だけで返す。
-// 設定の置き場: tools/browser/choice-journey/<name>.json。形式の表は docs/testing.md 5.437。左の領域（visibleViews・leftSwitchAbsent・rowPaths・操作ごとの marks）は TASK-749 2/3（5.447）。
+// 設定の置き場: tools/browser/choice-journey/<name>.json。形式の表は docs/testing.md 5.437。外観（appearance）と幅 960px 未満のタブ（narrowTabs）は TASK-749 3/3（5.449）。左の領域（visibleViews・leftSwitchAbsent・rowPaths・操作ごとの marks）は TASK-749 2/3（5.447）。
 // 拒否の場面の宣言（操作の scene・rejection・category と expect の rejectScenes・rejectCategories・excluded）の形と、観察との照合 judgeRejections もここにある（TASK-750。記録は 5.446）。
 // 出力に教材の文面・入力値・パスの全体を出さない（ログの偽装と情報の流出を避ける）。
 import fs from 'node:fs';
@@ -35,6 +35,10 @@ const MAX_EDITS = 32;
 const VIEW_KINDS = ['file_tree', 'document', 'diff', 'task_tree', 'card_list', 'check_list', 'app_demo'];
 const MARK_VALUES = ['add', 'remove', 'change'];
 const MAX_ROWS = 64;
+// contract::appearance::Theme と同じ 4 値の閉じた一覧（data-theme の値）。
+const THEMES = ['standard', 'mono', 'high_contrast', 'reading'];
+// 幅がこの値未満なら tablist が出る（crates/web/static/app.css の 960px の境目）。
+const TAB_BREAKPOINT = 960;
 
 const fail = (where, msg) => { throw new ConfigError(`${where}: ${msg}`); };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -162,13 +166,38 @@ function intSet(v, where, allowed) {
   return [...v].sort((a, b) => a - b);
 }
 
+/**
+ * 外観の主張（TASK-749 3/3。SECOND-10）。theme は contract::appearance::Theme と同じ 4 値の閉じた一覧、数値は範囲を検査する。
+ * 製品の画面は data-theme をまだ付けない（docs/known-gaps.md の PACK-21）ので、theme・bodyPx・lineHeightRatio は結線後に書く欄。
+ */
+function parseAppearance(v, where) {
+  if (!isObj(v)) fail(where, 'must be an object');
+  onlyKeys(v, ['theme', 'bodyPx', 'lineHeightRatio', 'inlineStyleZero'], where);
+  if (Object.keys(v).length === 0) fail(where, 'must not be empty');
+  const out = {};
+  if (v.theme !== undefined) {
+    if (typeof v.theme !== 'string' || !THEMES.includes(v.theme)) fail(`${where}.theme`, 'must be one of the appearance values');
+    out.theme = v.theme;
+  }
+  if (v.bodyPx !== undefined) {
+    if (!Number.isInteger(v.bodyPx) || v.bodyPx < 8 || v.bodyPx > 64) fail(`${where}.bodyPx`, 'must be an integer from 8 to 64');
+    out.bodyPx = v.bodyPx;
+  }
+  if (v.lineHeightRatio !== undefined) {
+    if (typeof v.lineHeightRatio !== 'number' || !Number.isFinite(v.lineHeightRatio) || v.lineHeightRatio < 1 || v.lineHeightRatio > 3) fail(`${where}.lineHeightRatio`, 'must be a number from 1 to 3');
+    out.lineHeightRatio = v.lineHeightRatio;
+  }
+  if (v.inlineStyleZero !== undefined) out.inlineStyleZero = bool(v.inlineStyleZero, `${where}.inlineStyleZero`);
+  return out;
+}
+
 function parseExpect(v, where) {
   if (!isObj(v)) fail(where, 'must be an object');
   onlyKeys(v, [
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
     'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
-    'visibleViews', 'leftSwitchAbsent', 'rowPaths',
+    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'appearance', 'narrowTabs',
   ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
@@ -210,6 +239,8 @@ function parseExpect(v, where) {
   }
   if (v.leftSwitchAbsent !== undefined) out.leftSwitchAbsent = bool(v.leftSwitchAbsent, `${where}.leftSwitchAbsent`);
   if (v.rowPaths !== undefined) out.rowPaths = pathList(v.rowPaths, `${where}.rowPaths`);
+  if (v.appearance !== undefined) out.appearance = parseAppearance(v.appearance, `${where}.appearance`);
+  if (v.narrowTabs !== undefined) out.narrowTabs = bool(v.narrowTabs, `${where}.narrowTabs`);
   if (v.controls !== undefined) {
     if (!isObj(v.controls)) fail(`${where}.controls`, 'must be an object');
     onlyKeys(v.controls, Object.keys(CONTROLS), `${where}.controls`);
@@ -289,6 +320,7 @@ export function parseConfig(raw, dir) {
     if (Object.keys(op.marks).some((k) => !expect.rowPaths.includes(k))) fail(`sequence[${i}].marks`, 'path is not in expect.rowPaths');
   });
   checkRejectionDeclarations(sequence, expect);
+  if (expect.narrowTabs !== undefined && expect.narrowTabs !== (viewport.width < TAB_BREAKPOINT)) fail('expect.narrowTabs', `must match viewport.width (tabs appear below ${TAB_BREAKPOINT}px)`);
   let csp = [true, false];
   if (raw.csp !== undefined) {
     if (!Array.isArray(raw.csp) || raw.csp.length < 1 || raw.csp.length > 2 || !raw.csp.every((x) => typeof x === 'boolean')) fail('csp', 'must be a list of booleans');
@@ -382,6 +414,8 @@ export function judge(config, r) {
       if (present !== want || (!want && part.count !== 0)) why.push(`controls.${name}@${label}`);
     }
   }
+  why.push(...judgeAppearance(config, r));
+  why.push(...judgeTabs(config, r));
   why.push(...judgeLeft(config, r));
   why.push(...judgeRejections(config, r));
   if ((r.safety ?? []).length !== 0) why.push('safety');
@@ -392,6 +426,61 @@ export function judge(config, r) {
   if (r.run?.raw !== 0) why.push('rawClicks');
   if (!(r.run?.mouse > 0)) why.push('noMouseOps');
   if (JSON.stringify(r.irFetch) !== '[200]') why.push('irFetch');
+  return why;
+}
+
+/**
+ * 外観の照合（TASK-749 3/3。SECOND-10）。測った全時点（start・end と、あれば成果物タブの start・end）で見る。理由は欄名と時点だけ。
+ */
+function judgeAppearance(config, r) {
+  const a = config.expect.appearance;
+  if (a === undefined) return [];
+  const why = [];
+  const points = [['start', r.start], ['end', r.end], ['artifacts-start', r.artifactsTab?.start], ['artifacts-end', r.artifactsTab?.end]];
+  for (const [label, m] of points) {
+    if (!m) { if (label === 'start' || label === 'end') why.push(`appearance-missing@${label}`); continue; }
+    if (a.inlineStyleZero === true && ((m.inlineStyle?.attrs ?? 1) !== 0 || (m.inlineStyle?.elements ?? 1) !== 0)) why.push(`inlineStyle@${label}`);
+    if (a.theme !== undefined && m.theme?.main !== a.theme) why.push(`theme@${label}`);
+    if (a.bodyPx !== undefined && m.font?.body?.px !== a.bodyPx) why.push(`bodyPx@${label}`);
+    if (a.lineHeightRatio !== undefined && !(Math.abs((m.font?.body?.lineHeightRatio ?? -1) - a.lineHeightRatio) <= 0.01)) why.push(`lineHeight@${label}`);
+  }
+  return why;
+}
+
+/**
+ * 幅 960px 未満の「操作」「成果物」タブの照合（TASK-749 3/3）。narrowTabs が真なら、操作タブでは右だけ・成果物タブでは左だけが見え、
+ * 成果物タブの時点にも入力の領域の期待を当てる。偽なら tablist が出ないこと。宣言が無ければ何も見ない。
+ */
+function judgeTabs(config, r) {
+  const e = config.expect;
+  if (e.narrowTabs === undefined) return [];
+  const why = [];
+  if (e.narrowTabs === false) {
+    for (const [label, m] of [['start', r.start], ['end', r.end]]) if (!m || m.panes?.tablist !== false) why.push(`tabs@${label}`);
+    return why;
+  }
+  for (const [label, m] of [['start', r.start], ['end', r.end]]) {
+    const p = m?.panes;
+    if (!p || p.tablist !== true || p.selected !== 'ops' || p.right !== true || p.left !== false) why.push(`tabs@${label}`);
+  }
+  if (!r.artifactsTab) return [...why, 'artifactsTab-missing'];
+  for (const label of ['start', 'end']) {
+    const m = r.artifactsTab[label];
+    const w = `artifacts-${label}`;
+    if (!m) { why.push(`artifactsTab-missing@${label}`); continue; }
+    const p = m.panes;
+    if (!p || p.tablist !== true || p.selected !== 'artifacts' || p.left !== true || p.right !== false) why.push(`tabs@${w}`);
+    if (e.inputAreaAbsent === true) {
+      if (ABSENT.some((id) => m.inputArea.absent[id] !== 0)) why.push(`inputAreaAbsent@${w}`);
+      if (!m.inputArea.visibleInputs.every((x) => x.endsWith('|input|file'))) why.push(`visibleInputs@${w}`);
+    }
+    const seen = (id) => (m.parts?.[id]?.visible ?? 0) > 0;
+    if (e.entryPorts !== undefined && PORTS.some((id) => id !== 'stop-btn' && seen(id) && !e.entryPorts.includes(id))) why.push(`entryPorts@${w}`);
+    if (e.inputGuidesAbsent === true) {
+      if (GUIDES.some((id) => (m.parts?.[id]?.count ?? 1) !== 0)) why.push(`inputGuidesAbsent@${w}`);
+      if ((m.notice?.textLength ?? 1) !== 0) why.push(`inputNotice@${w}`);
+    }
+  }
   return why;
 }
 
@@ -415,6 +504,8 @@ function judgeLeft(config, r) {
   const points = [['start', l.start, null], ...l.ops.map((o) => [`op[${o.index}]`, o, o.index]), ['end', l.end, null]];
   for (const [label, m, index] of points) {
     if (m.settled !== true) why.push(`leftUnsettled@${label}`);
+    // 左の領域が実際に見えていること（幅 960px 未満で操作タブのまま測った素通りの合格を防ぐ。TASK-749 3/3）。
+    if (m.panes?.left !== true) why.push(`leftHidden@${label}`);
     if (e.visibleViews !== undefined && JSON.stringify([...m.views.shown].sort()) !== JSON.stringify([...e.visibleViews].sort())) why.push(`visibleViews@${label}`);
     if (e.leftSwitchAbsent === true) {
       const s = m.select;
