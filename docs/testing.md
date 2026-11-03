@@ -12131,7 +12131,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | pack_title | 218,200 | 217,376 |
 | hint_text | 305,088 | 285,296 |
 
-- 限界: 基準端末 A（Apple シリコンの Mac）・Chrome の原本・低メモリ端末は未実施（#860）。crash の経路は実地で再現しておらず、純関数と作り物の入力でだけ確かめた。値は断った後のもので、ヒントは開いていない。試行間の揺れが大きい（`pack_title` の 1 回目が突出）ため、1 回の実行の値を基準にしない
+- 限界: 基準端末 A（Apple シリコンの Mac）・Chrome の原本は 2026-11-03 に 5.456 で記録した（#860）。低メモリ端末は未実施。crash の経路は実地で再現しておらず、純関数と作り物の入力でだけ確かめた。値は断った後のもので、ヒントは開いていない。試行間の揺れが大きい（`pack_title` の 1 回目が突出）ため、1 回の実行の値を基準にしない
 
 ### 5.432 初回表示の測定を IR つきの直接リンクに広げる（#1961。TASK-108・DLV-5）
 
@@ -12153,7 +12153,7 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 #### 限界
 
-- 基準端末 A の値ではない。Chrome の原本での実測と記録は #833
+- 基準端末 A の値ではない。Chrome の原本での実測と記録は #833（2026-11-03 に 5.455 で記録した）
 - `make test-measure` の全体は流していない（未検証）。(l) と同じ内容を単体で流して確かめた
 - 試験と実装の作成者が同じ AI である
 
@@ -12357,3 +12357,178 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 否定の確認（`kind` の綴りの誤りは止まらない、`E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW`）は記録に載せた
 
 **限界**: 人は画面を見ていない。行の文字・入れ子・カードの状態の見た目は道具が測らず、preview での観察もしていない（未確認）。開始点の `effects` を画面が適用しないため、行は最初の選択肢の受付で置いた。全設定を通す `make check-choice-journey`（既存の設定を含む）は流していない（未実施）。
+
+### 5.455 基準端末 A での初回表示（TASK-108 1/2。#833。DLV-5）
+
+日付: 2026-11-03。`docs/measurement.md` §8 の手順に従い、基準端末 A で `first-paint-direct` を流した。記録の様式は同 §8「記録の様式」の欄による。
+
+| 欄 | 内容 |
+|---|---|
+| 測定日 | 2026-11-03（`measured_at` は 2026-11-03T12:38:59Z） |
+| 基点 commit | `dfaf7bf5af526d819bec8ef7d3d403c6b2fa8ebd`。`dirty` は `false`。測る前・測定の後とも作業ツリーの未コミットの変更は 0 件 |
+| 端末 | `baseline.device.class` は `A`（Darwin・arm64・`apple_silicon_macos` は `true`）。記録者が、Apple シリコンの Mac mini であることを確かめた |
+| wasm-opt | 適用済み（`applied: true`、`wasm-opt version 133`） |
+| ブラウザ | Chrome の原本 155.0.8059.80（`channel` は `chrome`、`headless` は `true`）・Playwright 1.63.0 |
+| 条件 | 回線 10 / 10 Mbps・遅延 40ms、CPU の減速なし（`cpu_throttle: 1`）、キャッシュ無効、10 回、`/subpath/` 配信、ビューポート 1280 x 720 |
+| 開始点 | `s-1-1`（`main/st-1-1`） |
+| 値 | 操作できるまでの 10 件（us）: 689,900・682,300・670,000・689,000・685,200・665,600・675,700・687,400・687,500・683,600。中央値 684,400 us・最大 689,900 us。3,000,000 us 以内（中央値・最大とも以内）。終了コード 0 |
+| 記録者 | 人の依頼を受けて AI（Claude Code）が流した |
+| 結果の JSON | 下記 |
+
+**判定**: 中央値・最大とも 3 秒以内で、DLV-5 の受け入れ条件（基準端末 A の Chrome の原本で、IR つきの直接リンクが 3 秒以内に操作できる）を満たした。
+
+- 参考: `data-mounted` までの中央値は 634,450 us。転送量は wasm 442,065 bytes（gzip -9）・IR 3,846 bytes
+- 前提の版: rustc 1.98.1（48a229cea 2026-09-01）・wasm-bindgen 0.2.128・node v24.21.0・npm 11.19.0・jq 1.8.2・git 2.56.0。`npm ci` は成功。標準エラーに warn・error は 0 件。所要は約 34 秒
+- 実行: `FANDHE_BROWSER_CHANNEL=chrome tools/measure/first-paint-direct.sh`（`make` 経由にしていない）
+- 測った commit `dfaf7bf5` と、記録時点の main `c6b7093b` の差は、`docs/spec`（submodule）の pin の 1 行だけである（`git diff --stat dfaf7bf5 c6b7093b` で確かめた）。エンジンの差は無い
+- ばらつき: 10 回は 665.6〜689.9ms で、幅は約 24ms
+- 限界: 値は手元のサブパス配信のもので、公開サイトの値ではない（DLV-6）。教材は CH-0〜CH-3 の形の写しで、本物の教材の値ではない。比べてよいのは、開始点・教材・ブラウザの channel・headless が同じ値だけ。5.432 の Linux・Chromium の値とは比べない。単一の端末・単一の実行で、端末をまたいだ再現は確かめていない
+
+結果の JSON（全体。道具の出力のまま）:
+
+```json
+{
+  "schema": "fandhe-workshop/measure/v1",
+  "measured_at": "2026-11-03T12:38:59Z",
+  "baseline": {
+    "commit": { "sha": "dfaf7bf5af526d819bec8ef7d3d403c6b2fa8ebd", "dirty": false },
+    "wasm_opt": { "applied": true, "detail": "wasm-opt version 133" },
+    "features": { "config": "delivery", "cargo_features": [], "profile": "release" },
+    "compression": {
+      "command": "tools/serve.mjs gzip level 9 (Content-Encoding: gzip)",
+      "implementation": "node v24.21.0 zlib 1.3.2.1-motley-8002e91"
+    },
+    "pack": {
+      "id": "measure-first-paint-direct", "version": "0.0.1", "nodes": 20,
+      "sha256": "03f084a6fab15210d6f6b5775291fa7f65f85603b41e0d2d002739ea4e92128b"
+    },
+    "device": { "class": "A", "os": "Darwin", "arch": "arm64", "apple_silicon_macos": true }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "wasm_bindgen": "wasm-bindgen 0.2.128",
+    "browser": "chrome 155.0.8059.80",
+    "playwright": "1.63.0"
+  },
+  "conditions": {
+    "network": { "down_mbps": 10, "up_mbps": 10, "latency_ms": 40 },
+    "cpu_throttle": 1,
+    "cache": "disabled",
+    "trials": 10,
+    "base": "/subpath/",
+    "viewport": { "width": 1280, "height": 720 },
+    "browser": { "channel": "chrome", "headless": true },
+    "start": "s-1-1",
+    "start_node": "main/st-1-1",
+    "operable_definition": "data-mounted=true, run-status idle, step title equals the start node title, no log row for that step, and at least one enabled visible input port (choice, approval, or draft with submit)",
+    "values_us": [689900, 682300, 670000, 689000, 685200, 665600, 675700, 687400, 687500, 683600],
+    "mounted_values_us": [631500, 633300, 626000, 641600, 637900, 623500, 629300, 640500, 639900, 635600],
+    "threshold_us": 3000000,
+    "judgement": { "median_within": true, "max_within": true, "within": true },
+    "scope_note": "Local subpath delivery, not the public site (DLV-6). The pack is a CH-0 to CH-3 shaped copy, not a real course. Compare only values with the same start, pack, browser channel and headless setting."
+  },
+  "measurements": [
+    { "name": "first_paint_direct_operable_median", "file": "index.html", "unit": "us", "value": 684400 },
+    { "name": "first_paint_direct_operable_max", "file": "index.html", "unit": "us", "value": 689900 },
+    { "name": "first_paint_direct_mounted_median", "file": "index.html", "unit": "us", "value": 634450 },
+    { "name": "first_paint_direct_wasm_transfer", "file": "index.html", "unit": "bytes", "value": 442065 },
+    { "name": "first_paint_direct_ir_transfer", "file": "index.html", "unit": "bytes", "value": 3846 }
+  ]
+}
+```
+
+### 5.456 基準端末 A での巨大な文字列の IR のメモリ（TASK-163 1/2。#860）
+
+日付: 2026-11-03。`docs/measurement.md` §4c の手順に従い、基準端末 A で `ir-memory` を流した。記録の様式は同 §4c「記録の様式」の欄による。
+
+| 欄 | 内容 |
+|---|---|
+| 日付・commit | 2026-11-03（`measured_at` は 2026-11-03T12:39:25Z）・`dfaf7bf5af526d819bec8ef7d3d403c6b2fa8ebd`（`dirty: false`） |
+| `apple_silicon_macos` | `true`（Apple M4・Darwin 27.0.0・arm64・論理コア 10・メモリ 17,179,869,184 bytes。値の根拠は下記） |
+| ブラウザ | `chrome 155.0.8059.80`（Playwright 1.63.0） |
+| crash の件数 | 3 場合とも 0 件（`crashes_total` は 0。`crashed_trials` も 0） |
+| 断った理由 | `pack_title`・`hint_text` はどちらも通知 1 件で `string_too_long`。`base` は通知 0 件 |
+| 低メモリ端末 | 未確認（固定の欄。この記録は低メモリ端末の問題なしを意味しない） |
+| 記録者 | 人の依頼を受けて AI（Claude Code）が流した |
+
+renderer の RSS の合計の最大値（KiB。3 試行）:
+
+| 場合 | 文字数 | 最大 | 中央値 | 3 試行の値 |
+|---|---|---|---|---|
+| `base`（普通の IR） | 0 | 465,056 | 464,480 | 465,056・463,504・464,480 |
+| `pack_title` | 19,900,000 | 558,272 | 558,240 | 558,240・558,272・557,264 |
+| `hint_text` | 19,900,000 | 560,368 | 560,128 | 558,432・560,368・560,128 |
+
+- 実行: `FANDHE_BROWSER_CHANNEL=chrome tools/measure/ir-memory.sh`。終了コード 0（`make` 経由にしていない）。直前の 5.455 の実行のビルドを再利用した。所要は約 26 秒
+- 値は断った後（`string_too_long`）のもので、文字列の長さの上限（SAFE-25・D-45）を外した値ではない。ヒントは開いていない（断られた画面にヒントの操作が無い）。低メモリ端末は未確認。基準端末 A（Apple M4・16GB）での値で、5.433 の Linux・Chromium の値とは OS・ブラウザ・メモリの測り方が違うため比べない
+- IR の大きさ: `base` 11,385 bytes・`pack_title` 19,906,408 bytes・`hint_text` 19,906,413 bytes（上限 20,971,520 bytes 以内）
+- 気づき: 試行間の差は 3MB 以内で小さい。普通の IR は約 454MiB（464,480 KiB）で、巨大な文字列の 2 つは断った後でも約 545〜547MiB（558,240・560,128 KiB）と、普通の IR より約 92〜94MiB 多い。この差の理由は調べていない
+- 測った commit `dfaf7bf5` と main `c6b7093b` の差は `docs/spec` の pin だけで、エンジンは同じ（5.455 と同じ確認）
+- 補ったもの: 測った人の貼った出力は、端末の表示で一部の値が切れていた。`pack.sha256`・`ir_bytes`・`crashed_trials`・`hint_text` の文字数・中央値は、測った人が JSON を読み直して補った値である。`apple_silicon_macos` は `tools/measure/lib.sh` の `measure_device_json`（78 行）が「Darwin かつ arm64」のとき `true` にする規則で、上の端末（Darwin・arm64）から `true` と確かめた。`scope_note` の文は `tools/measure/ir-memory.mjs`（288 行）の固定の文を転記した
+
+結果の JSON（全体。切れていた値は上の補いのとおり）:
+
+```json
+{
+  "schema": "fandhe-workshop/measure/v1",
+  "measured_at": "2026-11-03T12:39:25Z",
+  "baseline": {
+    "commit": { "sha": "dfaf7bf5af526d819bec8ef7d3d403c6b2fa8ebd", "dirty": false },
+    "wasm_opt": { "applied": true, "detail": "wasm-opt version 133" },
+    "features": { "config": "delivery", "cargo_features": [], "profile": "release" },
+    "compression": {
+      "command": "tools/serve.mjs gzip level 9 (Content-Encoding: gzip)",
+      "implementation": "node v24.21.0 zlib 1.3.2.1-motley-8002e91"
+    },
+    "pack": {
+      "id": "min-3step", "version": "0.0.1", "nodes": 3,
+      "sha256": "5b653cceb58644717b2f1e398249289d51ada59daf7366eaca3f6c22dd446961"
+    },
+    "device": {
+      "os": "Darwin", "os_release": "27.0.0", "arch": "arm64", "cpu": "Apple M4",
+      "logical_cores": 10, "memory_bytes": 17179869184, "apple_silicon_macos": true
+    }
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "wasm_bindgen": "wasm-bindgen 0.2.128",
+    "browser": "chrome 155.0.8059.80",
+    "playwright": "1.63.0"
+  },
+  "conditions": {
+    "trials": 3,
+    "sample_interval_ms": 100,
+    "settle_ms": 2000,
+    "source": "CDP SystemInfo.getProcessInfo (type=renderer) + ps -o pid=,rss=",
+    "aggregate": "sum of renderer processes per sample, peak per trial",
+    "expected_reason": "string_too_long",
+    "max_ir_bytes": 20971520,
+    "crashes_total": 0,
+    "cases": [
+      { "name": "base", "field": "none", "chars": 0, "ir_bytes": 11385,
+        "ir_sha256": "5b653cceb58644717b2f1e398249289d51ada59daf7366eaca3f6c22dd446961",
+        "crashes": 0, "notices": 0, "reason": null, "crashed_trials": 0,
+        "trial_peaks_kib": [465056, 463504, 464480] },
+      { "name": "pack_title", "field": "pack.title", "chars": 19900000, "ir_bytes": 19906408,
+        "ir_sha256": "0893c07b9d35869c1705d989d1ccf7ee19e83fdbc43db1d4c1ddf861eb1b5ad1",
+        "crashes": 0, "notices": 1, "reason": "string_too_long", "crashed_trials": 0,
+        "trial_peaks_kib": [558240, 558272, 557264] },
+      { "name": "hint_text", "field": "hints.h-1-1.text", "chars": 19900000, "ir_bytes": 19906413,
+        "ir_sha256": "dce21a9e598fa1e1164e503e6e246dba7f6c738156c656888c53b219fb4fea20",
+        "crashes": 0, "notices": 1, "reason": "string_too_long", "crashed_trials": 0,
+        "trial_peaks_kib": [558432, 560368, 560128] }
+    ],
+    "low_memory_device": "unverified",
+    "base": "/subpath/",
+    "scope_note": "value after the refusal (string_too_long), not with the limit removed; hints are not opened; low-memory devices not verified"
+  },
+  "measurements": [
+    { "name": "ir_memory_base_renderer_rss_max", "file": "index.html", "unit": "KiB", "value": 465056 },
+    { "name": "ir_memory_base_renderer_rss_median", "file": "index.html", "unit": "KiB", "value": 464480 },
+    { "name": "ir_memory_pack_title_renderer_rss_max", "file": "index.html", "unit": "KiB", "value": 558272 },
+    { "name": "ir_memory_pack_title_renderer_rss_median", "file": "index.html", "unit": "KiB", "value": 558240 },
+    { "name": "ir_memory_hint_text_renderer_rss_max", "file": "index.html", "unit": "KiB", "value": 560368 },
+    { "name": "ir_memory_hint_text_renderer_rss_median", "file": "index.html", "unit": "KiB", "value": 560128 }
+  ]
+}
+```
