@@ -814,7 +814,7 @@ else
 fi
 
 # shellcheck disable=SC2016 # jq の式
-REJ_FILTER='[.rejections[]? | .message, .next_action | select(type == "string" and length > 0)] | unique | .[]'
+REJ_FILTER='[.rejections[]? | .message, .next_action | select(type == "string" and length > 0)] | unique | .[] | tojson'
 OWN_REJ="$(printf '%s' "${IR}" | jq -r "${REJ_FILTER}" 2>/dev/null | LC_ALL=C sort -u || true)"
 BOARD_REJ="$(printf '%s' "${BOARD_IR}" | jq -r "${REJ_FILTER}" 2>/dev/null | LC_ALL=C sort -u || true)"
 REJ_COMMON="$(comm -12 <(printf '%s\n' "${OWN_REJ}") <(printf '%s\n' "${BOARD_REJ}") | grep -c . || true)"

@@ -160,6 +160,14 @@ expect_rc "--board-pack の workshop.yaml が無い値は 2" 2 --board-pack "${W
 expect_rc "--vocab-doc の値なしは 2" 2 --vocab-doc
 expect_rc "--vocab-doc の無いファイルは 2" 2 --vocab-doc "${WORK}/none.md"
 mutate "掲示板教材の拒否の文面を使った写し" "${W}" 's/範囲が広いと、読む人は終わりが見えません。/全部を引き継ぐ必要はありません。/' board-rejections
+# 改行を含む文面は 1 つの文字列として比べる（行に分けると、全文が違うのに共通の行で不合格になる）
+dir="${WORK}/multiline-board"
+cp -R "${ROOT_DIR}/testdata/module-reuse-rounds/test-data/pack" "${dir}"
+sed 's/message: 全部を引き継ぐ必要はありません。/message: "範囲が広いと、読む人は終わりが見えません。\\n別の説明です。"/' "${dir}/${W}" >"${dir}/tmp.out"
+mv "${dir}/tmp.out" "${dir}/${W}"
+rm -f "${dir}/tmp.out"
+expect_rc "改行を含む掲示板の文面が第 2 教材の文面と 1 行だけ重なる写しは 0" 0 --board-pack "${dir}"
+if printf '%s\n' "${OUT}" | grep -q "^PASS board-rejections"; then ok "全文が違う文面は board-rejections で合格"; else ng "改行を含む文面 (no PASS board-rejections line)"; fi
 mutate "開始点に EP-9 の語を足した写し" "${C}" "s/^    node: st-1\$/&${BS}${NL}    requires: { step: { step: st-2, state: achieved } }${BS}${NL}    unmet: rj-skip/" ep-used
 mutate "記録の EP-12 の行を消した写し" "${R}" '/^| EP-12 |/d' ep-record
 # shellcheck disable=SC2016 # sed の式のバッククォートは表の文字そのもの
