@@ -17,7 +17,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check-engine-zero-diff test-check-engine-zero-diff check-second-pack test-check-second-pack check-second-pack-repro test-check-second-pack-repro doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview check-choice-journey test-check-choice-journey test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct measure-ir-memory test-measure-ir-memory test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
+.PHONY: help check-engine-zero-diff test-check-engine-zero-diff check-second-pack test-check-second-pack check-second-pack-repro test-check-second-pack-repro check-third-pack test-check-third-pack doctor setup check test-hooks lint fmt test check-deps test-check-deps check-license test-check-license check-no-egress check-no-egress-dist test-check-no-egress check-testdata test-check-testdata check-sibling-free test-check-sibling-free check-mutation-defs test-check-mutation-defs check-dom-reads test-check-dom-reads check-toolchain test-check-toolchain check-workflow-secrets test-check-workflow-secrets check-fork-ci test-check-fork-ci build-web test-build-web build-l2 test-build-l2 update-l2 test-update-l2 test-l2-run check-delivery test-check-delivery serve test-serve test-browser test-build-pack-bin build-pack-release test-build-pack-release build-pack-preview test-build-pack-preview check-choice-journey test-check-choice-journey test-keydown-control test-chapter-key-control check-mutations test-check-mutations check-wasm-size test-check-wasm-size measure-wasm-size test-measure-wasm-size measure measure-history-size measure-log-items measure-first-paint-direct measure-ir-memory test-measure-ir-memory test-measure test-measure-result clean-room test-clean-room check-build-inventory test-check-build-inventory check-generic-words test-check-generic-words check-internal-info check-internal-info-secrets test-check-internal-info inventory-deps test-inventory-deps test-upstream-impact check-frontend-bump test-check-frontend-bump update-test-counts
 
 # 説明文の開始桁を揃えるため、1 パス目で最長のターゲット名の幅を求め、2 パス目で出力する
 # （同じファイルを 2 回読む）。幅を固定しないので、長い名前を足しても再びずれない。
@@ -170,6 +170,12 @@ check-second-pack-repro: ## 公開の資料だけで作者が書いた第 2 教�
 
 test-check-second-pack-repro: ## 上の検査自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack-repro.sh
 	@scripts/test-check-second-pack-repro.sh
+
+check-third-pack: ## 3 本目の教材（template-workshop/examples/task-breakdown）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（TASK-797。CI の rust-test。cargo が要る）。直接: scripts/check-third-pack.sh [--pack <dir>]
+	@scripts/check-third-pack.sh
+
+test-check-third-pack: ## 上の検査自体の回帰テスト（壊した写し。本物の fandhe-pack を使う。CI の rust-test）。直接: scripts/test-check-third-pack.sh
+	@scripts/test-check-third-pack.sh
 
 test-check-generic-words: ## 教材固有の語の検査自体の回帰テスト（node:test）。直接: scripts/test-check-generic-words.sh
 	@scripts/test-check-generic-words.sh
