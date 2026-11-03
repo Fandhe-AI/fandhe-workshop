@@ -6,6 +6,7 @@
 // 呼び出し元（choice-journey-run.mjs の CLI と choice-journey.test.mjs）から使われ、設定を未信頼の入力として扱って
 // 形を厳しく検証し（fail-closed。未知の欄・範囲外の値はすべて ConfigError）、期待との照合（judge）の理由は欄名だけで返す。
 // 設定の置き場: tools/browser/choice-journey/<name>.json。形式の表は docs/testing.md 5.437。左の領域（visibleViews・leftSwitchAbsent・rowPaths・操作ごとの marks）は TASK-749 2/3（5.447）。
+// 拒否の場面の宣言（操作の scene・rejection・category と expect の rejectScenes・rejectCategories・excluded）の形と、観察との照合 judgeRejections もここにある（TASK-750。記録は 5.446）。
 // 出力に教材の文面・入力値・パスの全体を出さない（ログの偽装と情報の流出を避ける）。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,6 +21,11 @@ export class ConfigError extends Error {}
 // 見える箱を持たない入れ物（`shell-import` は label と input を包み、`shell-hint` は段が無いと空）。controls は DOM にあることで判定する。
 const CONTAINERS = ['import', 'hintContainer'];
 const STATUSES = ['entered', 'accepted', 'achieved'];
+// 操作の期待にだけ許す「拒否された（Step は動かない）」。開いた直後の initial には使えない。
+const OP_STATUSES = [...STATUSES, 'rejected'];
+// docs/spec の拒否の分類 8 値（IR の rejections[].category と同じ閉じた一覧）。
+const CATEGORIES = ['unknown_command', 'missing_arg', 'bad_arg_shape', 'not_in_this_step', 'wrong_order', 'busy', 'not_supported', 'free_text_unjudged'];
+const SCENES = [1, 2, 3, 4, 5, 6, 7, 8];
 // crates/web/src/terminal_area.rs の DECISION_VALUES と同じ 3 値。
 const DECISIONS = ['approve', 'reject', 'revise'];
 const KINDS = ['choice', 'row', 'decide', 'next'];
@@ -58,10 +64,10 @@ const UID_RE = /^[A-Za-z0-9_/-]{1,100}$/;
 const ID_RE = /^[A-Za-z0-9_-]{1,100}$/;
 const PATH_RE = /^[^"'\\\n\r\0]{1,200}$/;
 
-function pair(v, where) {
+function pair(v, where, statuses = STATUSES) {
   if (!isObj(v)) fail(where, 'must be an object');
   onlyKeys(v, ['uid', 'status'], where);
-  return { uid: str(v.uid, `${where}.uid`, UID_RE), status: str(v.status, `${where}.status`, new RegExp(`^(${STATUSES.join('|')})$`)) };
+  return { uid: str(v.uid, `${where}.uid`, UID_RE), status: str(v.status, `${where}.status`, new RegExp(`^(${statuses.join('|')})$`)) };
 }
 
 /** 設定のディレクトリからの相対パス。絶対パスと NUL は拒否する。inside が真なら `..` も拒否する。 */
@@ -108,9 +114,18 @@ function parseSequence(v, where) {
     if (!isObj(op)) fail(w, 'must be an object');
     const kind = str(op.kind, `${w}.kind`, new RegExp(`^(${KINDS.join('|')})$`));
     const extra = { choice: 'id', row: 'path', decide: 'decision', next: null }[kind];
-    onlyKeys(op, ['kind', 'expect', 'marks', ...(extra ? [extra] : [])], w);
-    const out = { kind, expect: pair(op.expect, `${w}.expect`) };
+    onlyKeys(op, ['kind', 'expect', 'marks', 'scene', 'rejection', 'category', ...(extra ? [extra] : [])], w);
+    const out = { kind, expect: pair(op.expect, `${w}.expect`, OP_STATUSES) };
     if (op.marks !== undefined) out.marks = parseMarks(op.marks, `${w}.marks`);
+    // 拒否の期待の操作だけが場面・拒否の ID・分類を持つ（3 欄とも必須）。それ以外の操作に書くと誤りとして拒否する。
+    const rejected = out.expect.status === 'rejected';
+    for (const k of ['scene', 'rejection', 'category']) if ((op[k] !== undefined) !== rejected) fail(`${w}.${k}`, rejected ? 'required with status rejected' : 'only with status rejected');
+    if (rejected) {
+      if (!SCENES.includes(op.scene)) fail(`${w}.scene`, 'must be an integer from 1 to 8');
+      out.scene = op.scene;
+      out.rejection = str(op.rejection, `${w}.rejection`, ID_RE);
+      out.category = str(op.category, `${w}.category`, new RegExp(`^(${CATEGORIES.join('|')})$`));
+    }
     if (kind === 'choice') out.id = str(op.id, `${w}.id`, ID_RE);
     if (kind === 'row') out.path = str(op.path, `${w}.path`, PATH_RE);
     if (kind === 'decide') out.decision = str(op.decision, `${w}.decision`, new RegExp(`^(${DECISIONS.join('|')})$`));
@@ -141,10 +156,17 @@ function pathList(v, where) {
   return [...v];
 }
 
+/** 整数の集合（昇順・重複なし）の配列。 */
+function intSet(v, where, allowed) {
+  if (!Array.isArray(v) || v.length > allowed.length || !v.every((n) => allowed.includes(n)) || new Set(v).size !== v.length) fail(where, 'must be a unique list of allowed values');
+  return [...v].sort((a, b) => a - b);
+}
+
 function parseExpect(v, where) {
   if (!isObj(v)) fail(where, 'must be an object');
   onlyKeys(v, [
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
+    'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
     'visibleViews', 'leftSwitchAbsent', 'rowPaths',
   ], where);
@@ -157,6 +179,22 @@ function parseExpect(v, where) {
   }
   for (const k of ['reviewAchieved', 'nextChapter', 'viewSwitchVisible']) if (v[k] !== undefined) out[k] = count(v[k], `${where}.${k}`);
   if (v.inputAreaAbsent !== undefined) out.inputAreaAbsent = bool(v.inputAreaAbsent, `${where}.inputAreaAbsent`);
+  if (v.rejectScenes !== undefined) out.rejectScenes = intSet(v.rejectScenes, `${where}.rejectScenes`, SCENES);
+  if (v.rejectCategories !== undefined) {
+    if (!Array.isArray(v.rejectCategories) || !v.rejectCategories.every((c) => CATEGORIES.includes(c)) || new Set(v.rejectCategories).size !== v.rejectCategories.length) fail(`${where}.rejectCategories`, 'must be a unique list of categories');
+    out.rejectCategories = [...v.rejectCategories].sort();
+  }
+  if (v.excluded !== undefined) {
+    if (!Array.isArray(v.excluded) || v.excluded.length > SCENES.length) fail(`${where}.excluded`, 'must be an array');
+    out.excluded = v.excluded.map((x, i) => {
+      const w = `${where}.excluded[${i}]`;
+      if (!isObj(x)) fail(w, 'must be an object');
+      onlyKeys(x, ['scene', 'reason'], w);
+      if (!SCENES.includes(x.scene)) fail(`${w}.scene`, 'must be an integer from 1 to 8');
+      return { scene: x.scene, reason: str(x.reason, `${w}.reason`, /^[a-z0-9-]{1,64}$/) };
+    });
+    if (new Set(out.excluded.map((x) => x.scene)).size !== out.excluded.length) fail(`${where}.excluded`, 'scenes must be unique');
+  }
   for (const k of ['entryPorts', 'entryAtStart']) if (v[k] !== undefined) out[k] = portList(v[k], `${where}.${k}`);
   if (out.entryPorts !== undefined && out.entryPorts.length === 0) fail(`${where}.entryPorts`, 'must not be empty');
   if (v.inputGuidesAbsent !== undefined) out.inputGuidesAbsent = bool(v.inputGuidesAbsent, `${where}.inputGuidesAbsent`);
@@ -178,6 +216,20 @@ function parseExpect(v, where) {
     out.controls = Object.fromEntries(Object.entries(v.controls).map(([k, b]) => [k, bool(b, `${where}.controls.${k}`)]));
   }
   return out;
+}
+
+/**
+ * 拒否の宣言の整合。操作の列にある拒否の場面の集合が rejectScenes と一致し、除外した場面が主張と重ならず操作にも無いこと。
+ * 除外は「画面で出せないと分かっている場面」の記録で、合格には数えない。
+ */
+function checkRejectionDeclarations(sequence, expect) {
+  const scenes = sequence.filter((o) => o.scene !== undefined).map((o) => o.scene);
+  if (new Set(scenes).size !== scenes.length) fail('sequence', 'rejection scenes must be unique');
+  if (scenes.length > 0 && expect.rejectScenes === undefined) fail('expect.rejectScenes', 'required when the sequence has rejections');
+  if (expect.rejectScenes !== undefined && JSON.stringify([...scenes].sort((a, b) => a - b)) !== JSON.stringify(expect.rejectScenes)) fail('expect.rejectScenes', 'must equal the scenes in the sequence');
+  for (const x of expect.excluded ?? []) {
+    if (scenes.includes(x.scene)) fail('expect.excluded', 'a scene cannot be both claimed and excluded');
+  }
 }
 
 /** 入口の部品の名前の列。PORTS の閉じた一覧から選び、重複を許さない。 */
@@ -236,6 +288,7 @@ export function parseConfig(raw, dir) {
     if (expect.rowPaths === undefined) fail(`sequence[${i}].marks`, 'needs expect.rowPaths');
     if (Object.keys(op.marks).some((k) => !expect.rowPaths.includes(k))) fail(`sequence[${i}].marks`, 'path is not in expect.rowPaths');
   });
+  checkRejectionDeclarations(sequence, expect);
   let csp = [true, false];
   if (raw.csp !== undefined) {
     if (!Array.isArray(raw.csp) || raw.csp.length < 1 || raw.csp.length > 2 || !raw.csp.every((x) => typeof x === 'boolean')) fail('csp', 'must be a list of booleans');
@@ -330,6 +383,7 @@ export function judge(config, r) {
     }
   }
   why.push(...judgeLeft(config, r));
+  why.push(...judgeRejections(config, r));
   if ((r.safety ?? []).length !== 0) why.push('safety');
   if (r.external !== 0) why.push('external');
   if (r.pageErrors !== 0) why.push('pageErrors');
@@ -372,5 +426,34 @@ function judgeLeft(config, r) {
     if (e.rowPaths !== undefined && (label === 'end' || marks !== undefined) && !setEq(e.rowPaths)) why.push(`rowPaths@${label}`);
     if (marks !== undefined && m.rows.some((row) => row.mark !== (marks[row.path] ?? ''))) why.push(`marks@${label}`);
   }
+  return why;
+}
+
+/**
+ * 拒否の操作ごとの照合（SECOND-12 の画面の部分）。拒否の行が出たこと・分類と文面が IR と一致すること・拒否の前後で左の行と Step が
+ * 変わらないことを見る。理由は欄名（reject[<操作の番号>].<欄>）だけで、教材の文面を含めない。
+ * 拒否の操作が無い設定では何も返さない。
+ */
+export function judgeRejections(config, r) {
+  const ops = config.sequence.map((op, index) => ({ op, index })).filter(({ op }) => op.expect.status === 'rejected');
+  const why = [];
+  if (ops.length === 0) return why;
+  const passScenes = [];
+  const seen = new Set();
+  for (const { op, index } of ops) {
+    const rec = (r.rejections ?? []).find((x) => x.index === index);
+    const w = `reject[${index}]`;
+    if (!rec) { why.push(`${w}.missing`); continue; }
+    const before = why.length;
+    if (rec.category !== op.category || rec.irCategory !== op.category) why.push(`${w}.category`);
+    if (!rec.reasonOk || !rec.nextOk) why.push(`${w}.text`);
+    if (!rec.rowsUnchanged) why.push(`${w}.rows`);
+    if (!rec.stepUnchanged) why.push(`${w}.step`);
+    if (rec.category) seen.add(rec.category);
+    if (why.length === before) passScenes.push(op.scene);
+  }
+  const e = config.expect;
+  if (e.rejectScenes !== undefined && JSON.stringify([...passScenes].sort((a, b) => a - b)) !== JSON.stringify(e.rejectScenes)) why.push('rejectScenes');
+  if (e.rejectCategories !== undefined && JSON.stringify([...seen].sort()) !== JSON.stringify(e.rejectCategories)) why.push('rejectCategories');
   return why;
 }

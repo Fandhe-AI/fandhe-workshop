@@ -367,3 +367,88 @@ test('S: 設定に書かれた教材固有の文字列が、道具の 3 ファ�
     for (const n of needles) assert.ok(!src.includes(n), `${file} must not contain a pack-specific value`);
   }
 });
+
+// 拒否の場面（TASK-750。SECOND-12 の画面の部分）。記録は docs/testing.md 5.446。
+const rejBase = () => {
+  const c = base();
+  c.sequence = [
+    { kind: 'choice', id: 'x', expect: { uid: 'a/b', status: 'rejected' }, scene: 1, rejection: 'rj-a', category: 'not_in_this_step' },
+    { kind: 'choice', id: 'y', expect: { uid: 'a/b', status: 'accepted' } },
+    { kind: 'choice', id: 'z', expect: { uid: 'a/b', status: 'rejected' }, scene: 6, rejection: 'rj-b', category: 'bad_arg_shape' },
+  ];
+  c.expect = {
+    completed: true, rejectScenes: [1, 6], rejectCategories: ['bad_arg_shape', 'not_in_this_step'], excluded: [{ scene: 5, reason: 'engine-when-not-evaluated' }],
+  };
+  return c;
+};
+
+test('R: 拒否の宣言の正の例は通り、集合は昇順に整えられる', () => {
+  const c = rejBase();
+  c.expect.rejectCategories = ['not_in_this_step', 'bad_arg_shape'];
+  const p = parseConfig(c, '/tmp');
+  assert.deepEqual(p.expect.rejectScenes, [1, 6]);
+  assert.deepEqual(p.expect.rejectCategories, ['bad_arg_shape', 'not_in_this_step']);
+});
+
+const BAD_REJ = [
+  ['範囲外の場面', (c) => { c.sequence[0].scene = 9; }],
+  ['場面が数でない', (c) => { c.sequence[0].scene = '1'; }],
+  ['未知の分類', (c) => { c.sequence[0].category = 'other'; }],
+  ['拒否に場面が無い', (c) => { delete c.sequence[0].scene; }],
+  ['拒否に拒否の ID が無い', (c) => { delete c.sequence[0].rejection; }],
+  ['拒否の ID に不正文字', (c) => { c.sequence[0].rejection = 'a b'; }],
+  ['拒否でない操作に場面', (c) => { c.sequence[1].scene = 2; }],
+  ['拒否でない操作に分類', (c) => { c.sequence[1].category = 'wrong_order'; }],
+  ['initial に rejected', (c) => { c.initial.status = 'rejected'; }],
+  ['場面の重複', (c) => { c.sequence[2].scene = 1; }],
+  ['rejectScenes が操作の列と違う', (c) => { c.expect.rejectScenes = [1, 7]; }],
+  ['rejectScenes が無い', (c) => { delete c.expect.rejectScenes; }],
+  ['rejectScenes の重複', (c) => { c.expect.rejectScenes = [1, 1]; }],
+  ['未知の分類（rejectCategories）', (c) => { c.expect.rejectCategories = ['x']; }],
+  ['除外が主張と重なる', (c) => { c.expect.excluded = [{ scene: 1, reason: 'r' }]; }],
+  ['除外の場面が範囲外', (c) => { c.expect.excluded = [{ scene: 0, reason: 'r' }]; }],
+  ['除外の理由が不正文字', (c) => { c.expect.excluded = [{ scene: 5, reason: 'A B' }]; }],
+  ['除外の未知の欄', (c) => { c.expect.excluded = [{ scene: 5, reason: 'r', note: 'x' }]; }],
+  ['除外の重複', (c) => { c.expect.excluded = [{ scene: 5, reason: 'r' }, { scene: 5, reason: 's' }]; }],
+];
+for (const [name, mutate] of BAD_REJ) {
+  test(`R: 負の対照。${name}は ConfigError`, () => {
+    const c = rejBase();
+    mutate(c);
+    assert.throws(() => parseConfig(c, '/tmp'), ConfigError);
+  });
+}
+
+test('R: judge は拒否の記録を 1 か所ずつ外すと欄名つきの理由を返す', () => {
+  const cfg = parseConfig(rejBase(), '/tmp');
+  const rec = (index, scene, category) => ({
+    index, scene, category, irCategory: category, reasonOk: true, nextOk: true, rowsUnchanged: true, stepUnchanged: true, liveResponse: { count: 0, hasText: false },
+  });
+  const good = () => ({
+    completed: true, stoppedAt: null, review: [], safety: [], external: 0, pageErrors: 0, consoleErrors: 0, cspWarnings: 0, run: { raw: 0, mouse: 3 }, irFetch: [200], nextChapter: 0,
+    start: { inputArea: { absent: {}, visibleInputs: [] }, viewSwitch: { visibleButtons: 0 } }, end: { inputArea: { absent: {}, visibleInputs: [] }, viewSwitch: { visibleButtons: 0 } },
+    rejections: [rec(0, 1, 'not_in_this_step'), rec(2, 6, 'bad_arg_shape')],
+  });
+  const strip = (why) => why.filter((x) => x.startsWith('reject'));
+  assert.deepEqual(strip(judge(cfg, good())), []);
+  const cases = [
+    ['missing', (r) => { r.rejections.pop(); }, ['reject[2].missing', 'rejectScenes', 'rejectCategories']],
+    ['category', (r) => { r.rejections[0].category = 'wrong_order'; }, ['reject[0].category', 'rejectScenes', 'rejectCategories']],
+    ['irCategory', (r) => { r.rejections[0].irCategory = 'wrong_order'; }, ['reject[0].category', 'rejectScenes']],
+    ['text(reason)', (r) => { r.rejections[0].reasonOk = false; }, ['reject[0].text', 'rejectScenes']],
+    ['text(next)', (r) => { r.rejections[0].nextOk = false; }, ['reject[0].text', 'rejectScenes']],
+    ['rows', (r) => { r.rejections[1].rowsUnchanged = false; }, ['reject[2].rows', 'rejectScenes']],
+    ['step', (r) => { r.rejections[1].stepUnchanged = false; }, ['reject[2].step', 'rejectScenes']],
+  ];
+  for (const [name, mutate, want] of cases) {
+    const r = good();
+    mutate(r);
+    assert.deepEqual(strip(judge(cfg, r)), want, name);
+  }
+});
+
+test('R: 拒否の操作が無い設定の judge は拒否の理由を返さない', () => {
+  const cfg = parseConfig(base(), '/tmp');
+  const r = { completed: true, stoppedAt: null, safety: [], external: 0, pageErrors: 0, consoleErrors: 0, cspWarnings: 0, run: { raw: 0, mouse: 1 }, irFetch: [200], start: {}, end: {} };
+  assert.deepEqual(judge(cfg, r).filter((x) => x.startsWith('reject')), []);
+});
