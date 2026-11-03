@@ -81,7 +81,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/l2-windows.md        # Windows 向けの L2 の配布物の作成と起動の手順（版 1。TASK-198）
 ├── docs/cli-guide.md         # 作成者向けのコマンドの使い方と出力の読み方（版 2。TASK-412・TASK-415）
-├── docs/engine-zero-diff/    # 第 2 教材の追加でエンジンの差分が 0 行だった記録（固定した commit・測った HEAD・数える範囲・SHA-256 の一覧。TASK-752。SECOND-1）
+├── docs/engine-zero-diff/    # 第 2 教材（`review-request/`）と第 3 教材（`task-breakdown/`。TASK-763 3/3）の追加でエンジンの差分が 0 行だった記録（固定した commit・測った HEAD・数える範囲・SHA-256 の一覧。TASK-752。SECOND-1・SECOND-20）
 ├── docs/second-pack-repro/   # 公開の資料だけで別の作者が書いた第 2 教材の写しと要件・資料の SHA-256・基準値・不足の記録（TASK-413 1/2・2/2。AUTHOR-12）
 ├── docs/examples/            # 最小の教材パックの例 2 つ（validate 0 件・test 全件合格。MANIFEST.sha256 つき。TASK-412）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 19。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
@@ -171,7 +171,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449・5.451。CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
-| `make check-engine-zero-diff` | 第 2 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧（1,628 件）の照合で確かめる（`scripts/check-engine-zero-diff.sh`。`--head <rev>` で再測定。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`、`docs/testing.md` 5.450。TASK-752） |
+| `make check-engine-zero-diff` | 第 2 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧（1,628 件）の照合で確かめる（`scripts/check-engine-zero-diff.sh`。`--head <rev>` で再測定。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`、`docs/testing.md` 5.450。TASK-752）。第 3 教材は `--base 7dbc58a1… --pack template-workshop/examples/task-breakdown --manifest docs/engine-zero-diff/task-breakdown/engine-manifest.sha256` で直接流す（記録は `docs/engine-zero-diff/task-breakdown/`、5.459。TASK-763 3/3） |
 | `make test-check-engine-zero-diff` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
