@@ -12566,3 +12566,11 @@ renderer の RSS の合計の最大値（KiB。3 試行）:
   ]
 }
 ```
+
+### 5.460 ビューの `kind` の綴りの誤りを `validate`・`compile` の診断にする（TASK-796。#2017。D-97）
+
+**目的**: ビューの `kind` を書き誤っても止まらず、画面が黙って描かない問題（`docs/known-gaps.md`）を、`E-VIEW-KIND-UNKNOWN` で止める。画面の fail-closed は変えない。
+
+**試験**: `crates/pack/tests/view_kind.rs`（8 件。綴りの誤り 5 形が 1 件の診断・`compile` が失敗・CLI が終了コード 1・7 種の受理・欠けと型の誤りが `E-PARSE`・安全でない ID を写さない・ID の順・既存の実教材 4 本に新しい診断が無い）、`crates/contract/tests/view_kind_contract.rs`（3 件）、`crates/web/tests/artifact_view_contract.rs` の `view_kind_spellings_match_contract`（画面の `ViewKind::ALL` と contract の綴りの一致）。`diagnostics_doc.rs` は一覧を 37 件（版 21）にして通る。
+
+**IR の同一（2026-11-03）**: 変更の前後で、掲示板教材の写し・第 2 教材・第 3 教材（`probes/views` を含む）・`docs/examples/*`・`docs/second-pack-repro/pack` の `compile` の出力と `validate` の出力・終了コードがバイト一致する。golden（`golden/`・`ir_format_1/`）は書き換えていない。不正な綴り（`kind: files`）だった試験の入力 `input-kinds-pack`（と `validate_refs.rs` の 4 か所）を `file_tree` に正し、凍結物 `ir_before_ep13/input-kinds-pack.ir.json` の同じ 1 か所を直した（`ext9_ir_identity.rs` が通る）。

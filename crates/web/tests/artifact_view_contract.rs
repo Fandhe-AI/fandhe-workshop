@@ -267,3 +267,10 @@ fn item_row_は_cell_を運ぶ() {
         Some(Some(ChangeMark::Change))
     );
 }
+
+/// 画面の `ViewKind::ALL` の綴りが contract の `VIEW_KINDS`（pack の検査の正）と一致する（TASK-796、D-97）。
+#[test]
+fn view_kind_spellings_match_contract() {
+    let got: Vec<&str> = ViewKind::ALL.iter().map(|k| k.as_str()).collect();
+    assert_eq!(got, fandhe_workshop_contract::view_kind::VIEW_KINDS);
+}

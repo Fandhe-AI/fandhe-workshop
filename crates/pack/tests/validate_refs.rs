@@ -28,7 +28,7 @@ const MODULE_FILE: &str = "modules/m1/module.yaml";
 const WORKSHOP: &str = "\
 pack: {id: p, title: t, version: '0', ir_format: 1, guidance: A}
 commands: {help: {description: d}}
-views: {v-step: {kind: files}, v-input: {kind: files}, v-rule: {kind: files}, v-conf: {kind: files}}
+views: {v-step: {kind: file_tree}, v-input: {kind: file_tree}, v-rule: {kind: file_tree}, v-conf: {kind: file_tree}}
 fixtures:
     fx-step: {path: fixtures/a.md, kind: doc}
     fx-start: {path: fixtures/a.md, kind: doc}

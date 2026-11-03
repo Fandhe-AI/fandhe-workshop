@@ -1,8 +1,8 @@
 # 診断コードの一覧
 
 ```text
-診断コードの一覧の版: 20
-決定日: 2026-10-28
+診断コードの一覧の版: 21
+決定日: 2026-11-03
 状態: 固定（契約）
 ```
 
@@ -26,7 +26,7 @@
 
 ## 2. 本表（04 の PACK-2〜PACK-30 に現れるコード、および実装で足したコード）
 
-本表の行数を「一覧の件数」とする（36 件）。他の節には、本表と同じ形の行を置かない。
+本表の行数を「一覧の件数」とする（37 件）。他の節には、本表と同じ形の行を置かない。
 
 | コード | 出る条件（要旨） | 出所の 04 の ID | 区分 |
 |---|---|---|---|
@@ -66,6 +66,7 @@
 | `E-LEFT-MULTI-VIEW` | `view_tabs: hidden` で 2 つ以上のビューを宣言した Step がある | PACK-22 | 語彙 v1.3 |
 | `E-LEFT-TARGET-VIEW` | 宛先のビューが、その Step の画面に出ない | PACK-22 | 語彙 v1.3 |
 | `E-LEFT-TARGET-ROW` | 宛先の経路が行にならない（静的な近似で、必要条件だけを調べる） | PACK-22 | 語彙 v1.3 |
+| `E-VIEW-KIND-UNKNOWN` | `workshop.views.<ID>.kind` が 7 種の綴り（`file_tree`・`document`・`diff`・`task_tree`・`card_list`・`check_list`・`app_demo`）のどれでもない。大文字小文字を区別した完全一致。欠け・文字列でない値は `E-PARSE`。診断はビューの ID だけを示し、値は写さない。`validate` と `compile` の両方が検出する | ART-1・AUTHOR-2・EXT-8 | 実装にだけ |
 
 `E-NO-CONFIRM` と `E-EMPTY-NEXT-ACTION` は `fandhe-pack test` でも出る（TASK-405 1/2、AUTHOR-5）。`E-NO-CONFIRM` は、確認の操作なしで達成になった件（R-22）で、項目は `playthrough:<ID>`・`error_input:<ID>`。`E-EMPTY-NEXT-ACTION` は、差し込みの後の「次の行動」が空になった件（R-21）で、項目は同じ。行は書き換えず、件数は 36 件のまま。
 
@@ -85,7 +86,7 @@
 
 ## 3. 件数の記録
 
-- 本表は 36 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH`、版 18 で `E-SECRET-SHAPE`、版 19 で `E-FICTIONAL-MARK` を足した（変更履歴）
+- 本表は 37 件である。版 1 の 32 件は、2026-10-15 に `pack-format.md` の PACK-2〜PACK-28 の行から数えた。版 2 で `E-REF-ELEMENT`、版 3 で `E-VOCAB-MISMATCH`、版 18 で `E-SECRET-SHAPE`、版 19 で `E-FICTIONAL-MARK`、版 21 で `E-VIEW-KIND-UNKNOWN` を足した（変更履歴）
 - 数え方: 当該の行から正規表現 `E-[A-Z][A-Z0-9*]*(-[A-Z0-9*]+)*` で取り出して重複を除く。`GUIDE-14` のような ID の後半が当たった数字だけの形は数えない
 - PACK-2〜PACK-28 の行には、`E-LIMIT-*`・`E-INSTR-*` は現れない
 
@@ -110,6 +111,7 @@
 | PACK-30 | `E-REF-ELEMENT` | 1 |
 | PACK-31 | `E-VOCAB-MISMATCH` | 1 |
 | AUTHOR-18 | `E-SECRET-SHAPE`・`E-FICTIONAL-MARK` | 2 |
+| ART-1・AUTHOR-2・EXT-8 | `E-VIEW-KIND-UNKNOWN` | 1 |
 | PACK-28 | `E-REF-STEP`・`E-REF-VIEW`・`E-REF-FIXTURE`・`E-REF-HINT`・`E-REF-REJECTION`・`E-REF-MODULE`・`E-REF-COMMAND`・`E-REF-BODY`・`E-DUP-ID`・`E-UNREACHABLE`・`E-DEAD-END`・`E-MODULE-CYCLE`・`E-EMPTY-NEXT-ACTION`・`E-NO-CONFIRM`・`E-FORMAT-VERSION`・`E-STRUCTURE` | 16 |
 
 件数は ID ごとの出現数であり、足し合わせても本表の件数にはならない（同じコードが複数の ID に現れるため）。
@@ -121,12 +123,12 @@
 | 語彙の文書（v1） | 15 |
 | 語彙の文書（v1.1） | 7 |
 | 語彙の文書（v1.3） | 8 |
-| 実装にだけある | 6（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`・`E-FICTIONAL-MARK`） |
-| 合計 | 36 |
+| 実装にだけある | 7（`E-STRUCTURE`・`E-REF-COMMAND`・`E-REF-ELEMENT`・`E-VOCAB-MISMATCH`・`E-SECRET-SHAPE`・`E-FICTIONAL-MARK`・`E-VIEW-KIND-UNKNOWN`） |
+| 合計 | 37 |
 
 ### 実装の列挙との対応
 
-`DiagCode::ALL` は 43 件である。内訳は、本表 36 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
+`DiagCode::ALL` は 44 件である。内訳は、本表 37 件、本表外 2 件（5 節）、上限超過 5 件（4 節）である。
 
 ## 4. 上限超過のコード（参照のみ）
 
@@ -173,6 +175,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | 18 | 2026-10-26 | `E-SECRET-SHAPE` を足し、35 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。既存の行は変えていない | TASK-420 1/2・AUTHOR-18・D-81 |
 | 19 | 2026-10-26 | `E-FICTIONAL-MARK` を足し、36 件にした。04 の AUTHOR-18 はコード名を持たず、名前は実装の側で付けた。`validate` だけが検出する。固定した `E-SECRET-SHAPE` の行は書き換えていない（その行の「【架空】の印は調べない」は、そのコードについては今も正しい） | TASK-420 2/2・AUTHOR-18・D-81 |
 | 20 | 2026-10-28 | `E-NO-CONFIRM` が `test` でも、確認の操作なしで達成になった件（R-22）に出ることを、2 節の表の後の注で補った。`E-EMPTY-NEXT-ACTION` は固定の行のとおり。行は書き換えず、件数は 36 件のまま。新しいコードは足さず、流用は実装の側で決めた細目である | TASK-405 1/2・AUTHOR-5 |
+| 21 | 2026-11-03 | `E-VIEW-KIND-UNKNOWN` を足し、37 件にした。ビューの `kind` の綴りの誤りを `validate`・`compile` が止める。既存のコードで表せるときは流用する既定（`docs/extension-point-procedure.md` の 5 節）から外れて新しいコードにしたのは、D-97 が「表示側の fail-closed は変えず、未知の `kind` を報告する新しい診断コードを足す」と決めたためである。`kind` の欠け・文字列でない値は `E-PARSE`。既存の行は書き換えていない | TASK-796・D-97・ART-1・AUTHOR-2・EXT-8 |
 
 ## 8. 作成者向けの早見表
 
@@ -216,6 +219,7 @@ TASK-40・TASK-42〜TASK-47・TASK-49〜TASK-59（spec の 05 の入力欄に TA
 | `E-LEFT-MULTI-VIEW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
 | `E-LEFT-TARGET-VIEW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
 | `E-LEFT-TARGET-ROW` | validate（`compile` が出すかは未確認。`test` の関門でも出る） | `docs/views.md` |
+| `E-VIEW-KIND-UNKNOWN` | validate・compile（`test` の関門でも出る） | `docs/views.md` |
 | `E-PLAY-INCOMPLETE` | test だけ | `docs/cli-guide.md` の 4.3 節 |
 | `E-PLAY-CATEGORY-MISMATCH` | test だけ | `docs/cli-guide.md` の 4.3 節 |
 | `E-LIMIT` | 読み込み（すべてのコマンド） | `docs/cli.md` の 8 節 |

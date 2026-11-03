@@ -88,6 +88,10 @@ pub fn validate(pack: &LoadedPack) -> Vec<Diagnostic> {
         &pack.workshop_file,
         &pack.workshop,
     ));
+    out.extend(crate::view_kind::check_view_kinds(
+        &pack.workshop_file,
+        &pack.workshop,
+    ));
     let (left_pane, left_parse) =
         crate::left_pane::check_left_pane(&pack.workshop_file, &pack.workshop);
     if left_parse.is_empty() {
