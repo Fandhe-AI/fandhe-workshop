@@ -178,7 +178,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-upstream-impact` | 影響する Step の洗い出し道具（`tools/upstream-impact.mjs`。TASK-182）の回帰テスト（通信なし。CI 未組み込み） |
 | `make measure` | 3 つの測定（WASM の gzip・初回表示・再描画）を基点つきで流し、束の JSON を出す（遅く、ブラウザを要する） |
 | `make test-measure` | 一括測定の束の検証・fail-closed・実行の回帰テスト（遅く、ブラウザを要し、CI・フックには入れない） |
-| `make clean-room` | まっさらなコンテナ（公開イメージ・認証情報なし・tar だけを渡す）で `cargo test --locked` と `--workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する（`tools/clean-room.sh`。BUILD-1。TASK-77 1/2。遅く、docker と通信が要る。CI 未組み込み。記録は `docs/testing.md` 5.355） |
+| `make clean-room` | まっさらなコンテナ（公開イメージ・認証情報なし・tar だけを渡す）で `cargo test --locked` と `--workspace` を流し、失敗 0 件・許容外の無視 0 件を判定する。第 2 教材の `fandhe-pack` のビルド・`validate`・基準の IR との一致・`test` の区間（`pack`）も流す（`tools/clean-room.sh`。`run --only pack` で第 2 教材だけ。BUILD-1。TASK-77 1/2。SECOND-18・TASK-754。遅く、docker と通信が要る。CI 未組み込み。記録は `docs/testing.md` 5.355・5.452） |
 | `make test-clean-room` | 上の判定自体の回帰テスト（docker なし。CI の `check` ジョブが流す） |
 | `make check-build-inventory` | `Cargo.lock` の private な依存 0 件とビルド・試験の経路の secret らしい語の参照 0 件の棚卸し検査（通信なし。CI 未組み込み。TASK-77 2/2。記録は `docs/testing.md` 5.358） |
 | `make test-check-build-inventory` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
