@@ -20,6 +20,7 @@ require_cmd rm
 require_cmd cp
 require_cmd sed
 require_cmd cmp
+require_cmd ln
 if [ -z "${FANDHE_PACK_BIN:-}" ]; then
   FANDHE_PACK_BIN="$("${DIR}/build-pack-bin.sh")"
   export FANDHE_PACK_BIN
@@ -76,6 +77,21 @@ mutate() {
 mutate "入力欄を出す変異" "workshop.yaml" 's/input_field: hidden/input_field: visible/' constraints
 mutate "外観を変える変異" "workshop.yaml" 's/theme: reading/theme: terminal/' constraints
 mutate "壊れた YAML の変異" "workshop.yaml" 's/^pack:/pack: [/' validate
+
+mutate "作者の IR を 1 バイト変える変異" "tests/ir.json" '2s/format_version/format_versioN/' ir-match
+mutate "本文の文面を変える変異" "chapters/c-review/st-1.md" 's/所要は 10 分程度/所要は 十分程度/' ir-match
+
+# 基準の IR が無い・シンボリックリンクの写しは 1（fail-closed）。
+for kind in missing symlink; do
+  icopy="${WORK}/i-${kind}"
+  mkdir -p "${icopy}"
+  cp -R "${SRC}/pack" "${icopy}/pack"
+  cp "${SRC}/baseline.txt" "${icopy}/baseline.txt"
+  rm -f "${icopy}/pack/tests/ir.json"
+  if [ "${kind}" = symlink ]; then ln -s "${SRC}/pack/tests/ir.json" "${icopy}/pack/tests/ir.json"; fi
+  expect_rc "ir.json が ${kind} の写しは 1" 1 --pack "${icopy}/pack"
+  if printf '%s' "${OUT}" | grep -q '^FAIL ir-match'; then ok "ir.json ${kind}: ir-match が FAIL"; else ng "ir.json ${kind}: ir-match が FAIL になっていない"; fi
+done
 
 # 件数のずれ: 基準値のほうを書き換える。
 bcopy="${WORK}/b"
