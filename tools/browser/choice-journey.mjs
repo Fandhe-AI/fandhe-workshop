@@ -259,7 +259,11 @@ export async function measureLeft(page, timeout = 2000) {
         mark: li.getAttribute('data-mark') ?? '',
         glyph: (li.querySelector(':scope > ' + tid('mark-glyph'))?.textContent ?? '').trim(),
         text: (li.querySelector(':scope > ' + tid('mark-text'))?.textContent ?? '').trim(),
+        // 行の中の本文の区画の件数（G-4・ART-18）。中身は読まない（件数だけ。TASK-755）。
+        docBody: q(tid('artifact-doc-body'), li).length,
       })),
+      // 左の領域全体の本文の区画の件数。行の外にある区画も見落とさない。
+      docBodyTotal: left ? q(tid('artifact-doc-body'), left).length : 0,
     };
   }, LEFT_ABSENT);
   return { ...m, settled, panes: await measurePanes(page) };

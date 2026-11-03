@@ -94,6 +94,11 @@ R="docs/requirements.md"
 mutate "AR-12 の記録を満たしていないにした写し" "${R}" '/^| AR-12 |/s/AR-12 満たした（解釈つき）/AR-12 満たしていない/' ar12-reading
 mutate "AR-12 の決定の日付を変えた写し" "${R}" '/^| AR-12 |/s/D-93（2026-11-02）/D-93（2026-11-03）/' ar12-reading
 mutate "AR-12 の行を消した写し" "${R}" '/^| AR-12 |/d' ar12-reading
+mutate "AR-8 の記録を部分的にした写し" "${R}" '/^| AR-8 |/s/AR-8 満たした/AR-8 部分的/' ar8-reading
+mutate "AR-8 の決定の日付を変えた写し" "${R}" '/^| AR-8 |/s/D-93（2026-11-02）/D-93（2026-11-03）/' ar8-reading
+mutate "AR-8 の行を消した写し" "${R}" '/^| AR-8 |/d' ar8-reading
+mutate "TASK-755 の記録の節を消した写し" "${R}" '/^## 7h\. TASK-755 の記録/d' ar8-reading
+mutate "文書のビューに本文を出す写し（vocab 1.4 を足す）" "${W}" 's/vocab: "1.3"/vocab: "1.4"/;s/v-doc: { kind: document }/v-doc: { kind: document, body: shown }/' ar8-reading
 mutate "ビューを 1 件足した写し" "${W}" "${SED_VIEWS}" views
 mutate "文面に禁止語を足した写し" "chapters/ch-request/st-1.md" 's/^# 状況を確認する/# 状況を確認する（掲示板）/' no-board-words
 mutate "開始点を 1 件足した写し" "chapters/ch-request/chapter.yaml" "${SED_STARTS}" starts

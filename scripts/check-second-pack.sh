@@ -8,7 +8,7 @@
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>。教材の本文・IR の中身は出さない）
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
-#   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
+#   ar12-reading（TASK-756。SECOND-22）/ ar8-reading（TASK-755。SECOND-21・SECOND-14）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
 #   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746 1/2）/
 #   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）/ ir-match・format-b・learning-goals（TASK-747）/
 #   ep-used・label-field・ep-public・ep-record・board-ep-overlap・board-rejections・no-rounds・input-kinds（TASK-753。SECOND-2・SECOND-11）
@@ -16,6 +16,9 @@
 # CI の教材テスト（TASK-102）は FANDHE_PACK_BIN を渡してこのスクリプトを呼べば足りる（cargo 不要）。
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
 # 読みの是非は人の決定であり、確かめるのは docs/requirements.md の行・workshop.yaml・IR の設定値が一致することだけである。
+# ar8-reading は AR-8 の読み（属性の変化を含む読み。D-93・2026-11-02）の記録と、5 行の属性の形のまま（本文を出さない側。SECOND-14 は検討中）
+# であることのデータ側の固定を見る。SECOND-14 を人が「本文を出す形」に決めたら、この項目の IR 側の条件と
+# tools/browser/choice-journey/ の docBodyRows を同時に逆にして、教材を書き直す（docs/requirements.md の 7h）。
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
 # 捨てる）。そのため変種の確認は compile で行う。
 #
@@ -210,6 +213,37 @@ if [ "${ar12_ok}" -eq 1 ]; then
   pass ar12-reading
 else
   fail ar12-reading "AR-12 reading record, workshop.yaml and IR settings do not agree (no-command form)"
+fi
+
+# ar8-reading: AR-8 の読み（D-93）の記録と、5 行の属性の形のままであること（TASK-755）。理由は固定の英語の文だけを出す。
+# 記録が読めない・節 7h が無いときも fail-closed で FAIL にする。
+ar8_ok=1
+if [ ! -f "${REQ}" ]; then
+  ar8_ok=0
+else
+  ar8_rows="$(grep -c '^| AR-8 |' "${REQ}" || true)"
+  if [ "${ar8_rows}" != "1" ]; then
+    ar8_ok=0
+  else
+    ar8_row="$(grep '^| AR-8 |' "${REQ}")"
+    for needle in '属性の変化' 'D-93（2026-11-02）' 'SECOND-21' 'AR-8 満たした'; do
+      printf '%s' "${ar8_row}" | grep -qF -- "${needle}" || ar8_ok=0
+    done
+    if printf '%s' "${ar8_row}" | grep -qF -- '部分的' || printf '%s' "${ar8_row}" | grep -qF -- '満たしていない'; then
+      ar8_ok=0
+    fi
+  fi
+  if [ "$(grep -c '^## 7h\. TASK-755 の記録' "${REQ}" || true)" != "1" ]; then
+    ar8_ok=0
+  fi
+fi
+if ! printf '%s' "${IR}" | jq -e '.pack.vocab == "1.3" and ((.views["v-doc"].body // "hidden") == "hidden")' >/dev/null 2>&1; then
+  ar8_ok=0
+fi
+if [ "${ar8_ok}" -eq 1 ]; then
+  pass ar8-reading
+else
+  fail ar8-reading "AR-8 reading record or the attribute-form (no body shown) settings do not agree"
 fi
 
 # 章のディレクトリ数も確かめる（IR とファイルの両面）

@@ -24,7 +24,11 @@
 //      E は、さらに左の領域（SECOND-6・SECOND-8）。見えるビューは文書だけ・切り替えが無い・そのままの教材は行 0 件（PACK-22）、派生版は行 5 本と受付ごとの変化の印
 //   H  幅 800px（TASK-749 3/3。5.449）。tablist が出る画面で、操作ごとに実クリックでタブを切り替え、「成果物」タブで入力の領域と左の領域の期待が成り立つ。
 //      H-対照は、操作タブのまま左を測ると leftHidden、中身のある style 属性・<style> 要素を足すと inlineStyle の理由が出ること
-// 確かめないこと: data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
+//   I  依頼文の見せ方（TASK-755。G-4・H-3・SECOND-14・SECOND-21）。第 2 教材は 5 行の属性の形のままで、本文を出さない側を採った（SECOND-14 は検討中）。
+//      派生版（vocab 1.3・`body` なし）は行 5 本のどの行にも本文の区画が 0 件。正の対照（派生版に vocab 1.4 と `body: shown` を足した review-request-body-shown）は
+//      5 本の行がそれぞれ本文の区画を 1 つ持つ。正の対照の期待を派生版の結果に当てると docBodyRows が不合格になる（数え方が空振りでない証拠）
+//   J  道具の対照（TASK-755。CSP ありの 1 回）。派生版で opt-start を押した後のページの行に偽の本文の区画を足すと、judge が docBodyRows の理由を返す
+// 確かめないこと: 本文の中身・4 つの選択が連結された依頼文（H-3 で作れない）、data-theme の値・文字の大きさ・行間の主張（製品の画面はまだ data-theme を付けない。第 2 教材の設定では主張せず、測った値を記録する。SECOND-10 は未達）、
 // 本物の第 2 教材、人が画面を見た評価。
 // 入力: FANDHE_PACK_BIN・FANDHE_WEB_AUTHOR_DIR。未設定・不在は skip にせず失敗にする。出力は名前・件数・合否・数値だけ。
 import { test, before, after } from 'node:test';
@@ -65,6 +69,8 @@ let irRrAsIs;
 let irRrDerived;
 let cfgRr800;
 let cfgRrDerived800;
+let cfgRrBody;
+let irRrBody;
 
 const diag = (s) => console.log(`# diagnostic: ${s}`);
 
@@ -86,6 +92,8 @@ before(async () => {
   irRrDerived = buildIr({ bin, config: cfgRrDerived });
   cfgRr800 = loadConfig(cfgPath('review-request-800'));
   cfgRrDerived800 = loadConfig(cfgPath('review-request-derived-800'));
+  cfgRrBody = loadConfig(cfgPath('review-request-body-shown'));
+  irRrBody = buildIr({ bin, config: cfgRrBody });
   stepInfo = stepsOf(JSON.parse(irShown));
   browser = await launchBrowser({ channel: channelFromEnv() });
 });
@@ -227,6 +235,27 @@ for (const csp of [true, false]) {
       assert.ok(r.left.ops.every((m) => m.panes.left === true && m.panes.selected === 'artifacts'), 'left is measured on the artifacts tab');
       diag(`second-pack-800 ${cfg.name} csp=${csp} measured=${2 + 2 + r.left.ops.length} inline=${JSON.stringify(r.end.inlineStyle)} main-theme=${r.end.theme.main} body=${JSON.stringify(r.end.font.body)} file-inputs-artifacts=${JSON.stringify(r.artifactsTab.end.fileInputs)}`);
     }
+  });
+
+  test(`I: 依頼文の見せ方。派生版は行に本文が出ず、body: shown の正の対照では 5 行すべてに出る（${mode}）`, { timeout: 180000 }, async () => {
+    const plain = await runWith(cfgRrDerived, irRrDerived);
+    assert.deepEqual(plain.why, [], 'judge: derived pack shows no body');
+    assert.equal(JSON.parse(irRrDerived).pack.vocab, '1.3');
+    assert.notEqual(JSON.parse(irRrDerived).views['v-doc'].body, 'shown');
+    const shown = await runWith(cfgRrBody, irRrBody);
+    assert.deepEqual(shown.why, [], 'judge: body-shown control shows a body in every row');
+    assert.equal(JSON.parse(irRrBody).pack.vocab, '1.4');
+    assert.equal(JSON.parse(irRrBody).views['v-doc'].body, 'shown');
+    assert.equal(plain.out.completed, true);
+    assert.equal(shown.out.completed, true);
+    assert.equal(plain.out.left.end.rows.length, 5);
+    assert.equal(shown.out.left.end.rows.length, 5);
+    assert.ok(plain.out.left.end.rows.every((x) => x.docBody === 0) && plain.out.left.end.docBodyTotal === 0, 'derived: no body section');
+    assert.ok(shown.out.left.end.rows.every((x) => x.docBody === 1) && shown.out.left.end.docBodyTotal === 5, 'body-shown: one body section per row');
+    // 数え方の空振りの確認。互いの期待を当てると docBodyRows が不合格になる。
+    assert.ok(judge(cfgRrBody, plain.out).some((w) => w.startsWith('docBodyRows@')), 'body-shown expectation fails on the derived result');
+    assert.ok(judge(cfgRrDerived, shown.out).some((w) => w.startsWith('docBodyRows@')), 'derived expectation fails on the body-shown result');
+    diag(`doc-body csp=${csp} derived-rows-with-body=0 shown-rows-with-body=${shown.out.left.end.rows.filter((x) => x.docBody > 0).length}`);
   });
 
   test(`D: 別の教材の設定（IR で指定）を同じ道具で完走させる（${mode}）`, { timeout: 120000 }, async () => {
@@ -375,6 +404,50 @@ test('G: 道具の対照。印の文字・見えるビュー・切り替えの�
         assert.ok(why.some((w) => w.startsWith(reason)), `judge reports ${reason}: ${why.join(',')}`);
         diag(`left-control ${reason} reasons=${why.length}`);
       }
+    }));
+  } finally {
+    cleanup();
+  }
+});
+
+test('J: 道具の対照。行に偽の本文の区画を足すと docBodyRows の理由が出る（CSP あり）', { timeout: 120000 }, async () => {
+  const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irRrDerived });
+  const cfgNoMarks = { ...cfgRrDerived, sequence: cfgRrDerived.sequence.map(({ marks, ...op }) => op) };
+  const bodyWhy = (m) => judge(cfgNoMarks, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [], end: m.left } })
+    .filter((w) => w.startsWith('docBodyRows'));
+  try {
+    await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgRrDerived.base }, async (srv) => {
+      const probe = async (hand) => {
+        const { page, context } = await openPage(browser, { origin: srv.origin, viewport: { width: 1280, height: 800 } });
+        try {
+          await page.goto(srv.url);
+          await waitMounted(page);
+          await page.waitForSelector('[data-testid="step-title"]', { timeout: 30000 });
+          await page.locator(choiceSel(cfgRrDerived.sequence[0].id)).first().click({ timeout: 4000 });
+          await page.waitForFunction(() => document.querySelectorAll('[data-testid="view-list"] > li[data-path]').length === 5, null, { timeout: 10000 });
+          if (hand) await page.evaluate(hand);
+          return { left: await measureLeft(page), screen: await measureScreen(page) };
+        } finally {
+          await context.close();
+        }
+      };
+      const base0 = await probe(null);
+      assert.ok(base0.left.rows.every((x) => x.docBody === 0), 'control: no row has a body section');
+      assert.deepEqual(bodyWhy(base0), [], 'control: untouched page has no body reason');
+      const inRow = await probe(() => {
+        const d = document.createElement('div');
+        d.setAttribute('data-testid', 'artifact-doc-body');
+        document.querySelector('[data-testid="view-list"] > li[data-path]').appendChild(d);
+      });
+      assert.equal(inRow.left.rows.filter((x) => x.docBody > 0).length, 1);
+      assert.ok(bodyWhy(inRow).some((w) => w.startsWith('docBodyRows')), 'a body section inside a row is reported');
+      const outside = await probe(() => {
+        const d = document.createElement('div');
+        d.setAttribute('data-testid', 'artifact-doc-body');
+        document.querySelector('[data-testid="shell-left"]').appendChild(d);
+      });
+      assert.equal(outside.left.docBodyTotal, 1);
+      assert.ok(bodyWhy(outside).some((w) => w.startsWith('docBodyRows')), 'a body section outside the rows is reported');
     }));
   } finally {
     cleanup();

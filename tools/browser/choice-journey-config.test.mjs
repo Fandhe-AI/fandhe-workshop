@@ -120,6 +120,10 @@ const BAD = [
   ['appearance.lineHeightRatio が文字列', (c) => { c.expect.appearance = { lineHeightRatio: '1.75' }; }],
   ['appearance.lineHeightRatio が範囲外', (c) => { c.expect.appearance = { lineHeightRatio: 3.5 }; }],
   ['appearance.inlineStyleZero が真偽でない', (c) => { c.expect.appearance = { inlineStyleZero: 1 }; }],
+  ['docBodyRows が負', (c) => { c.expect.docBodyRows = -1; }],
+  ['docBodyRows が小数', (c) => { c.expect.docBodyRows = 1.5; }],
+  ['docBodyRows が文字列', (c) => { c.expect.docBodyRows = '1'; }],
+  ['docBodyRows が rowPaths の件数を超える', (c) => { c.expect.rowPaths = ['r/a']; c.expect.docBodyRows = 2; }],
   ['narrowTabs が真偽でない', (c) => { c.expect.narrowTabs = 'yes'; }],
   ['narrowTabs が真で幅 1280', (c) => { c.expect.narrowTabs = true; }],
   ['narrowTabs が偽で幅 800', (c) => { c.viewport = { width: 800, height: 800 }; c.expect.narrowTabs = false; }],
@@ -351,6 +355,40 @@ for (const [label, mutate, want] of LEFT_OFF) {
     assert.deepEqual(judge(leftConfig(), r), want);
   });
 }
+
+// 本文の区画（TASK-755。G-4・ART-18）。行 2 本のうち docBodyRows 本が本文を持つ主張。
+const bodyConfig = (n) => {
+  const c = leftConfig();
+  c.expect.docBodyRows = n;
+  return c;
+};
+const withBody = (r, n) => {
+  for (const m of [r.left.start, ...r.left.ops, r.left.end]) {
+    m.rows.forEach((row, i) => { row.docBody = i < n ? 1 : 0; });
+    m.docBodyTotal = Math.min(n, m.rows.length);
+  }
+  return r;
+};
+test('J: judge は本文の区画を持つ行の数が主張と一致するときに空を返す', () => {
+  assert.deepEqual(judge(bodyConfig(0), withBody(goodLeft(), 0)), []);
+  assert.deepEqual(judge(bodyConfig(2), withBody(goodLeft(), 2)), []);
+});
+const BODY_OFF = [
+  ['0 件の主張で本文のある行がある（開始時）', bodyConfig(0), (r) => { withBody(r, 0); r.left.start.rows[0].docBody = 1; r.left.start.docBodyTotal = 1; }, ['docBodyRows@start']],
+  ['2 件の主張で 1 件しかない（終了時）', bodyConfig(2), (r) => { withBody(r, 2); r.left.end.rows[0].docBody = 0; r.left.end.docBodyTotal = 1; }, ['docBodyRows@end']],
+  ['2 件の主張で 1 件しかない（marks のある操作の後）', bodyConfig(2), (r) => { withBody(r, 2); r.left.ops[0].rows[0].docBody = 0; r.left.ops[0].docBodyTotal = 1; }, ['docBodyRows@op[0]']],
+  ['行の外に区画がある（終了時）', bodyConfig(2), (r) => { withBody(r, 2); r.left.end.docBodyTotal = 3; }, ['docBodyRows@end']],
+];
+for (const [label, cfg, mutate, want] of BODY_OFF) {
+  test(`J: judge は本文の区画が主張と外れた結果で欄名の理由を返す（${label}）`, () => {
+    const r = goodLeft();
+    mutate(r);
+    assert.deepEqual(judge(cfg, r), want);
+  });
+}
+test('J: docBodyRows の無い設定は本文の区画を主張しない', () => {
+  assert.deepEqual(judge(leftConfig(), withBody(goodLeft(), 2)), []);
+});
 
 // 拒否の操作に marks を宣言した設定（観察が無ければ不合格、あれば照合される）。
 const rejLeftConfig = () => {
