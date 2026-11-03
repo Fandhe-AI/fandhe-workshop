@@ -308,7 +308,9 @@ test('C: 道具の対照。入力欄・style 属性・ボタンを足すと測�
 // 道具の対照（TASK-749 2/3）。派生版で opt-start を押した後（行 5 本が【追加】）のページに手を加え、judge が欄名の理由を返すことを確かめる。
 test('G: 道具の対照。印の文字・見えるビュー・切り替えのボタン・行の数を変えると、左の領域の理由が出る（CSP あり）', { timeout: 180000 }, async () => {
   const { dir: copy, cleanup } = prepareDelivery({ webDir, irText: irRrDerived });
-  const leftWhy = (m) => judge(cfgRrDerived, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [], end: m.left } })
+  // 開始・終了の観察だけを見る場面なので、操作ごとの marks（操作の観察が要る）を除いた設定で照合する。
+  const cfgNoMarks = { ...cfgRrDerived, sequence: cfgRrDerived.sequence.map(({ marks, ...op }) => op) };
+  const leftWhy = (m) => judge(cfgNoMarks, { ...baseResult(), start: m.screen, end: m.screen, left: { start: m.left, ops: [], end: m.left } })
     .filter((w) => /^(visibleViews|leftSwitch|rowPaths|markGlyphText|marks|leftUnsettled|left-missing)/.test(w));
   try {
     await withCspMode({ dir: copy, csp: true }, (dir) => withServer({ dir, base: cfgRrDerived.base }, async (srv) => {
