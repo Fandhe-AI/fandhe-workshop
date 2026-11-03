@@ -11847,6 +11847,28 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 - R-22・R-21 の 0 でない数を出す変異は作れない（`validate` が先に止める）。古い実行ファイルでは R-22・R-21 の行が出ず `zero-counts` が不合格になるので、新しくビルドして流す
 - 試験と実装の作成者が同じ AI である。CI には組み込んでいない（TASK-85）
 
+### 5.446 第 2 教材の誤答の場面の画面の確認（TASK-750。SECOND-4・SECOND-12）
+
+配信する設定の画面（試験用の口なし）を実クリックだけで操作し、第 2 教材の誤答の場面で応答の文面が右のログに出ること、拒否のあと左の行が変わらないことを自動ブラウザで固定した。道具は `tools/browser/choice-journey.mjs`（拒否の観察 `observeRejection`）と `choice-journey-config.mjs`（`judgeRejections`）、設定は `tools/browser/choice-journey/review-request-reject-scenes.json`。Rust・`Cargo.toml`・`Cargo.lock`・教材そのものは変えていない（エンジンの差分 0）。
+
+- 設定: 本物の教材に 2 つの書き換え（`world_list` を `shown` に、開始点の `put` を `r-start` の受付へ移す。`review-request-derived` と同じ理由で、5.436 の限界のとおり画面は `world_list: hidden` で指せる行を作らず開始点の `effects` を適用しない）を当てた写しで流す。元の教材は書き換えない
+- 経路: 模範解答 `pt-main` とは別の `pt-alt` 側の選び方（`opt-pair`・`opt-diff-tests`・`opt-message`・`opt-friday`・`opt-preview`）で、各 Step の状態を変えない位置に誤答を挟んで 8 Step を完走する
+- 操作の期待に `rejected` を足した。拒否の操作は `scene`（1〜8）・`rejection`（IR の拒否の ID）・`category`（分類 8 値）を必ず持ち、拒否でない操作に書くと設定の誤りになる。`expect` に `rejectScenes`（操作の列と一致する場面の集合）・`rejectCategories`・`excluded`（`{ scene, reason }`。主張と重ならない）を足した
+- 照合（欄名だけ。教材の文面は出さない）: `reject[i].missing`（拒否の行が出ない）・`.category`（行の `data-category` が設定と IR に一致）・`.text`（`line-reason`・`line-next-action` が IR の `message`・`next_action` と完全一致）・`.rows`（拒否の前後で左の成果物の行が一致）・`.step`（Step の題と確認待ちかどうかが不変）・`rejectScenes`・`rejectCategories`
+- 場面と分類（7 場面を主張）: 1 確認の誤答（`rj-q1-feel`）・2 規則による拒否（`rj-to-all`）・3 `point_at` の外れ（`rj-miss-to`）・4 `ui_action` で埋まった行（`rj-row-filled`）は `not_in_this_step`、6（`rj-due-vague`）は `bad_arg_shape`、7（`rj-skip`）は `not_in_this_step`、8（`rj-revise`）は `wrong_order`
+- 選択肢と画面操作だけの教材で当たる分類は `not_in_this_step`・`bad_arg_shape`・`wrong_order` の 3 つ。`unknown_command`・`missing_arg`・`busy`・`not_supported`・`free_text_unjudged` は、画面の操作では当たらない（入力欄とコマンドが無く、処理中の拒否と未対応の入力は経路が無い）
+- 試験: `choice-journey-config.test.mjs` に 22 件（設定の正負・`judgeRejections` を 1 か所ずつ外す）、`choice-journey.test.mjs` に場面 F（完走と 7 場面の合格。CSP あり・なし）、負の対照 F-1（表示する IR の文面だけ変えると `text` で不合格）・F-2（受け付けられる操作を拒否と宣言すると `missing` で不合格）
+- 実行（2026-11-02、手元。Chromium。`make check-choice-journey` の単独実行と node:test）: CSP あり・なしとも `rejections=7/7`・`completed=true`・`external=0`・`page-errors=0`・PASS。人は画面を見ていない
+
+#### 限界
+
+- 場面 5（条件つきの拒否）は画面で出せないため主張しない。エンジンが規則の `when` を入力の判定で評価せず（5.444 と同じ）、`opt-diff-tests` の後の `opt-tomorrow` は受け付けられて状態が変わる。誤った挙動を正として固定しないよう、設定の `excluded`（`engine-when-not-evaluated`）に記録し、合格に数えない。受け入れ条件の「8 場面すべて」はこの 1 場面を残す
+- 上部の「応答」（`live-response`）は製品の画面に描かれない。文面の主張は右のログに限り、`live-response` は件数と文面の有無を診断の行に出すだけ（`live-response=0/7`）。`docs/known-gaps.md` に記録した
+- 拒否の規則に `effects` を書いてもエンジンは適用しなかった（IR を書き換えて確認）ため、左の行の不変を破る入力を IR では作れない。`rows` の検出は `judgeRejections` の単体の試験で確かめ、画面での対照は置いていない
+- 左の行の比較から変化の印（`data-mark` と記号・文字）を外している。印は直前の操作からの差を示し、何も変えない操作のあとには消えるため。行のパス・文字・そのほかの属性は比べる
+- Step に入った直後は状態の語に前の Step の「達成」が残り、最初の応答の行で消える表示だった。拒否の前後の比較では、確認待ち（受付済み）かどうかだけを見る
+- 派生版である点（元の教材はそのままでは完走しない。5.436）、試験と実装の作成者が同じ AI である点は他の節と同じ。CI は `make check-choice-journey` が `choice-journey/*.json` を自動で拾う（時間の増分は未計測）
+
 ### 5.439 第 2 教材の骨格と設定値の試験（TASK-743。SECOND-7〜SECOND-11）
 
 `template-workshop/examples/review-request/` に教材パックの骨格（`workshop.yaml`・`chapters/ch-request/`・`tests/playthrough.yaml`）を置き、設定値と診断を `scripts/check-second-pack.sh`（`make check-second-pack`）で固定した。Rust・`Cargo.toml`・`Cargo.lock` は変えていない（エンジンの差分 0。TASK-752）。

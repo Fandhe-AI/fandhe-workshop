@@ -9,6 +9,7 @@
 // 使う部品: harness.mjs（配信・計数）、ch0-3-journey.mjs（台帳でない部分のセレクタと install）、ch4-9-journey.mjs の inspectDom49（DOM だけの判定）。
 // 限界: 製品の画面はまだ `data-theme` を付けない（docs/operation-profile.md）ので、theme は null の値が返りうる。
 // 世界状態の一覧を出さない設定（`world_list` の hidden）の教材は指せる行が 0 件になり、「指す」操作の Step で止まる（docs/known-gaps.md の PACK-22）。止まった位置は結果に入れる。
+// 拒否を期待する操作（status が rejected）は、実クリックのあと右のログの拒否の行（分類・理由・次の行動）を読み、IR の文面（refIr）と比べ、前後で左の行と Step が動かないことの観察を rejections に積む（TASK-750。SECOND-12。合否は config 側の judgeRejections）。
 // 出力（summaryLine）は名前・件数・合否・数値だけで、教材の文面と入力した値は含めない。
 import fs from 'node:fs';
 import os from 'node:os';
@@ -164,6 +165,80 @@ export function measureScreen(page) {
   }, [ABSENT, ids, NOTICE]);
 }
 
+/**
+ * 左の領域の成果物ビューの行の写し（拒否の前後の比較用）。行ごとの HTML を文字列で持つ。
+ * 変化の印（data-mark・mark-glyph・mark-text）は「直前の操作からの差」を示し、何も変えない操作のあとには消えるので、比べる対象から外す。
+ * 行の中身（パス・文字・そのほかの属性）は外さない。
+ */
+const snapshotRows = (page) => page.evaluate(() => {
+  const view = document.querySelector('[data-testid="shell-left"] [data-testid="part-artifact-view"]');
+  if (!view) return null;
+  return [...view.querySelectorAll('[data-row]')].map((e) => {
+    const c = e.cloneNode(true);
+    c.removeAttribute('data-mark');
+    c.querySelectorAll('[data-testid="mark-glyph"], [data-testid="mark-text"]').forEach((m) => m.remove());
+    return c.outerHTML;
+  }).join('\n');
+});
+
+/** Step の題と状態の語（拒否で動かないことの比較用）。 */
+const readStepHead = (page) => page.evaluate(() => ({
+  title: document.querySelector('[data-testid="step-title"]')?.textContent ?? '',
+  word: document.querySelector('[data-testid="step-status"]')?.textContent ?? '',
+}));
+
+const WAITING = '受付済み（確認待ち）';
+const REJECTED_ROWS = '[data-testid="part-log-list"] li[data-kind="rejected"]';
+
+/** 右のログの拒否の行の件数。 */
+const countRejected = (page) => page.locator(REJECTED_ROWS).count();
+
+/**
+ * 拒否の行が before + 1 件になり、処理が idle に戻るのを待ち、最後の拒否の行を読む。待てなければ null。
+ * 上部の「応答」（live-response）は製品の画面にまだ描かれない（docs/known-gaps.md）ので、件数と文面の有無を観察として返すだけにする。
+ */
+async function readRejection(page, before, timeout) {
+  try {
+    await page.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length >= n
+      && document.querySelector('[data-testid="run-status"]')?.getAttribute('data-state') === 'idle', [REJECTED_ROWS, before + 1], { timeout });
+  } catch {
+    return null;
+  }
+  return page.evaluate((sel) => {
+    const rows = [...document.querySelectorAll(sel)];
+    const last = rows[rows.length - 1];
+    const text = (id) => last.querySelector(`[data-testid="${id}"]`)?.textContent ?? null;
+    const live = [...document.querySelectorAll('[data-testid="live-response"]')];
+    return {
+      step: last.getAttribute('data-step'),
+      category: last.getAttribute('data-category'),
+      reason: text('line-reason'),
+      next: text('line-next-action'),
+      live: { count: live.length, text: live.map((e) => e.textContent ?? '').join('\n') },
+    };
+  }, REJECTED_ROWS);
+}
+
+/** 拒否の 1 操作の観察。IR の拒否の分類と文面は refIr から引く。出なければ null。 */
+async function observeRejection(page, { op, uid, refIr, before, titles, timeout }) {
+  const got = await readRejection(page, before.count, Math.max(timeout, T));
+  if (!got || got.step !== uid) return null;
+  const ref = refIr.rejections?.[op.rejection] ?? null;
+  const after = await snapshotRows(page);
+  const head = await readStepHead(page);
+  return {
+    category: got.category,
+    irCategory: ref?.category ?? null,
+    reasonOk: ref !== null && got.reason !== null && got.reason !== '' && got.reason === ref.message,
+    nextOk: ref !== null && got.next !== null && got.next !== '' && got.next === ref.next_action,
+    rowsUnchanged: before.rows !== null && after === before.rows,
+    // 状態の語は、確認待ち（受付済み）かどうかだけを比べる（Step に入った直後は前の Step の語が残り、最初の応答の行で消える表示のため。docs/testing.md 5.446）。
+    stepUnchanged: head.title === before.head.title && head.title === titles[uid] && (head.word === WAITING) === (before.head.word === WAITING),
+    // 観察のみ（合否に使わない）。
+    liveResponse: { count: got.live.count, hasText: ref !== null && ref.message !== '' && got.live.text.includes(ref.message) },
+  };
+}
+
 /** 復習の行（Step・達成）を読む。 */
 const readReview = (page) => page.evaluate(() => [...document.querySelectorAll('[data-testid="part-review-list"] > li')]
   .map((li) => ({ step: li.dataset.step, achieved: li.dataset.achieved })));
@@ -177,11 +252,11 @@ const readReview = (page) => page.evaluate(() => [...document.querySelectorAll('
  * 最後まで到達し、finals の節点が復習で達成になったときだけ真。
  */
 export async function runJourney({
-  browser, srv, ir, sequence, expect, initial, titles, finals, clickTimeout = 4000, viewport = { width: 1280, height: 800 },
+  browser, srv, ir, refIr = ir, sequence, expect, initial, titles, finals, clickTimeout = 4000, viewport = { width: 1280, height: 800 },
 }) {
   const { page, context, rec } = await openPage(browser, { origin: srv.origin, viewport });
   const obs = domObserver(titles);
-  const result = { reached: [], stoppedAt: null, completed: false };
+  const result = { reached: [], stoppedAt: null, completed: false, rejections: [] };
   try {
     await page.goto(srv.url);
     await waitMounted(page);
@@ -195,11 +270,24 @@ export async function runJourney({
         choice: () => choiceSel(op.id), row: () => rowSel(op.path), decide: () => decideSel(op.decision), next: () => NEXT,
       }[op.kind]?.();
       if (sel === undefined) throw new Error('unknown operation kind');
+      const pre = expect[i].status === 'rejected'
+        ? { rows: await snapshotRows(page), head: await readStepHead(page), count: await countRejected(page) }
+        : null;
       try {
         await page.locator(sel).first().click({ timeout: clickTimeout });
       } catch {
         result.stoppedAt = { index: i, kind: op.kind, cause: 'no-target', after: result.reached[result.reached.length - 1] };
         break;
+      }
+      if (expect[i].status === 'rejected') {
+        // 拒否の期待の操作は、クリックの前に取った写しと比べる。refIr は期待の文面の出どころ（表示する IR と別に渡せる）。
+        const rec = await observeRejection(page, { op, uid: expect[i].uid, refIr, before: pre, titles, timeout: clickTimeout });
+        if (!rec) {
+          result.stoppedAt = { index: i, kind: op.kind, cause: 'no-rejection', after: result.reached[result.reached.length - 1] };
+          break;
+        }
+        result.rejections.push({ index: i, scene: op.scene, rejection: op.rejection, ...rec });
+        continue;
       }
       try {
         await obs.at(page, expect[i].uid, expect[i].status);
@@ -246,5 +334,15 @@ export function summaryLine(label, csp, r) {
     `file-inputs=${r.end?.fileInputs?.visible ?? 'n/a'}`,
     `external=${r.external}`,
     `page-errors=${r.pageErrors}`,
+    ...rejectionParts(r),
   ].join(' ');
+}
+
+/** 拒否の観察があるときだけ足す要約の欄。合格した拒否の数 / 拒否の数と、観察した分類（固定の語）。文面は含めない。 */
+function rejectionParts(r) {
+  const rs = r.rejections ?? [];
+  if (rs.length === 0) return [];
+  const ok = rs.filter((x) => x.category === x.irCategory && x.reasonOk && x.nextOk && x.rowsUnchanged && x.stepUnchanged).length;
+  const cats = [...new Set(rs.map((x) => x.category))].sort().join('+');
+  return [`rejections=${ok}/${rs.length}`, `categories=${cats}`, `live-response=${rs.filter((x) => x.liveResponse.count > 0).length}/${rs.length}`];
 }

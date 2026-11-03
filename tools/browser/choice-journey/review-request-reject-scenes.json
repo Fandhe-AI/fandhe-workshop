@@ -1,0 +1,258 @@
+{
+  "format": 1,
+  "name": "review-request-reject-scenes",
+  "source": {
+    "pack": "../../../template-workshop/examples/review-request",
+    "validate": true,
+    "edits": [
+      {
+        "file": "workshop.yaml",
+        "from": "world_list: hidden ",
+        "to": "world_list: shown  "
+      },
+      {
+        "file": "chapters/ch-request/chapter.yaml",
+        "from": "- set_attr: { path: review/status, attr: detail, value: これから 4 つの項目を決めます }",
+        "to": "- put: { path: review/status, fixture: fx-draft, attrs: { title: 依頼文の下書き, state: 下書き, detail: まだ何も決めていません } }\n            - put: { path: review/to, fixture: fx-draft, attrs: { title: 宛先, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/scope, fixture: fx-draft, attrs: { title: 頼む範囲, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/focus, fixture: fx-draft, attrs: { title: 見てほしい点, state: 未入力, detail: （まだ決めていません） } }\n            - put: { path: review/due, fixture: fx-draft, attrs: { title: 期限, state: 未入力, detail: （まだ決めていません） } }\n            - set_attr: { path: review/status, attr: detail, value: これから 4 つの項目を決めます }"
+      }
+    ]
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": {
+    "uid": "main/st-1",
+    "status": "entered"
+  },
+  "sequence": [
+    {
+      "kind": "choice",
+      "id": "opt-start",
+      "expect": {
+        "uid": "main/st-1",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-feel",
+      "expect": {
+        "uid": "main/st-1",
+        "status": "rejected"
+      },
+      "scene": 1,
+      "rejection": "rj-q1-feel",
+      "category": "not_in_this_step"
+    },
+    {
+      "kind": "choice",
+      "id": "ans-ready",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-all",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "rejected"
+      },
+      "scene": 2,
+      "rejection": "rj-to-all",
+      "category": "not_in_this_step"
+    },
+    {
+      "kind": "choice",
+      "id": "opt-pair",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "rejected"
+      },
+      "scene": 3,
+      "rejection": "rj-miss-to",
+      "category": "not_in_this_step"
+    },
+    {
+      "kind": "row",
+      "path": "review/to",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-diff-tests",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-scope-narrow",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-message",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-focus-one",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/to",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "rejected"
+      },
+      "scene": 4,
+      "rejection": "rj-row-filled",
+      "category": "not_in_this_step"
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-due-row",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-asap",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "rejected"
+      },
+      "scene": 6,
+      "rejection": "rj-due-vague",
+      "category": "bad_arg_shape"
+    },
+    {
+      "kind": "choice",
+      "id": "opt-friday",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "review/due",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-skip",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "rejected"
+      },
+      "scene": 7,
+      "rejection": "rj-skip",
+      "category": "not_in_this_step"
+    },
+    {
+      "kind": "choice",
+      "id": "opt-preview",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-reread",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-revise",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "rejected"
+      },
+      "scene": 8,
+      "rejection": "rj-revise",
+      "category": "wrong_order"
+    },
+    {
+      "kind": "choice",
+      "id": "opt-send",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-sent",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "achieved"
+      }
+    }
+  ],
+  "expect": {
+    "completed": true,
+    "reviewAchieved": 8,
+    "nextChapter": 0,
+    "inputAreaAbsent": true,
+    "rejectScenes": [
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8
+    ],
+    "rejectCategories": [
+      "bad_arg_shape",
+      "not_in_this_step",
+      "wrong_order"
+    ],
+    "excluded": [
+      {
+        "scene": 5,
+        "reason": "engine-when-not-evaluated"
+      }
+    ]
+  }
+}
