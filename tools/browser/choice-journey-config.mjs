@@ -5,13 +5,15 @@
 // 結果の期待）はこの設定ファイルに書き、差し替えるだけで別の教材にも同じ道具を使えるようにする。本モジュールは
 // 呼び出し元（choice-journey-run.mjs の CLI と choice-journey.test.mjs）から使われ、設定を未信頼の入力として扱って
 // 形を厳しく検証し（fail-closed。未知の欄・範囲外の値はすべて ConfigError）、期待との照合（judge）の理由は欄名だけで返す。
-// 設定の置き場: tools/browser/choice-journey/<name>.json。形式の表は docs/testing.md 5.437。
+// 設定の置き場: tools/browser/choice-journey/<name>.json。形式の表は docs/testing.md 5.437。左の領域（visibleViews・leftSwitchAbsent・rowPaths・操作ごとの marks）は TASK-749 2/3（5.447）。
 // 拒否の場面の宣言（操作の scene・rejection・category と expect の rejectScenes・rejectCategories・excluded）の形と、観察との照合 judgeRejections もここにある（TASK-750。記録は 5.446）。
 // 出力に教材の文面・入力値・パスの全体を出さない（ログの偽装と情報の流出を避ける）。
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compilePack, ABSENT, PORTS, GUIDES, CONTROLS } from './choice-journey.mjs';
+import {
+  compilePack, ABSENT, PORTS, GUIDES, CONTROLS, LEFT_ABSENT, MARK_TABLE,
+} from './choice-journey.mjs';
 
 /** 設定の形・値が不正なとき。CLI は終了コード 2（誤用）に対応づける。 */
 export class ConfigError extends Error {}
@@ -29,6 +31,10 @@ const DECISIONS = ['approve', 'reject', 'revise'];
 const KINDS = ['choice', 'row', 'decide', 'next'];
 const MAX_SEQUENCE = 500;
 const MAX_EDITS = 32;
+// 文書ビューを含む 7 種（crates/web/src/artifact_view.rs の ViewKind::as_str と同じ閉じた一覧。data-view の値）。印の値は MARK_TABLE の add・remove・change（印なしは書かず、marks に載せない行が印なし）。
+const VIEW_KINDS = ['file_tree', 'document', 'diff', 'task_tree', 'card_list', 'check_list', 'app_demo'];
+const MARK_VALUES = ['add', 'remove', 'change'];
+const MAX_ROWS = 64;
 
 const fail = (where, msg) => { throw new ConfigError(`${where}: ${msg}`); };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -108,8 +114,9 @@ function parseSequence(v, where) {
     if (!isObj(op)) fail(w, 'must be an object');
     const kind = str(op.kind, `${w}.kind`, new RegExp(`^(${KINDS.join('|')})$`));
     const extra = { choice: 'id', row: 'path', decide: 'decision', next: null }[kind];
-    onlyKeys(op, ['kind', 'expect', 'scene', 'rejection', 'category', ...(extra ? [extra] : [])], w);
+    onlyKeys(op, ['kind', 'expect', 'marks', 'scene', 'rejection', 'category', ...(extra ? [extra] : [])], w);
     const out = { kind, expect: pair(op.expect, `${w}.expect`, OP_STATUSES) };
+    if (op.marks !== undefined) out.marks = parseMarks(op.marks, `${w}.marks`);
     // 拒否の期待の操作だけが場面・拒否の ID・分類を持つ（3 欄とも必須）。それ以外の操作に書くと誤りとして拒否する。
     const rejected = out.expect.status === 'rejected';
     for (const k of ['scene', 'rejection', 'category']) if ((op[k] !== undefined) !== rejected) fail(`${w}.${k}`, rejected ? 'required with status rejected' : 'only with status rejected');
@@ -126,6 +133,29 @@ function parseSequence(v, where) {
   });
 }
 
+/** 操作の後に左の行が持つ変化の印（経路 → add | remove | change）。載せない行は印なしの主張になる。`{}` は「印なし」。 */
+function parseMarks(v, where) {
+  if (!isObj(v)) fail(where, 'must be an object');
+  const keys = Object.keys(v);
+  if (keys.length > MAX_ROWS) fail(where, 'too many entries');
+  return Object.fromEntries(keys.map((k) => {
+    str(k, `${where} key`, PATH_RE);
+    return [k, str(v[k], `${where}[${JSON.stringify(k.slice(0, 40))}]`, new RegExp(`^(${MARK_VALUES.join('|')})$`))];
+  }));
+}
+
+/** 経路の集合（重複なし）。 */
+function pathList(v, where) {
+  if (!Array.isArray(v) || v.length > MAX_ROWS) fail(where, 'must be an array');
+  const seen = new Set();
+  for (const p of v) {
+    str(p, where, PATH_RE);
+    if (seen.has(p)) fail(where, 'duplicate path');
+    seen.add(p);
+  }
+  return [...v];
+}
+
 /** 整数の集合（昇順・重複なし）の配列。 */
 function intSet(v, where, allowed) {
   if (!Array.isArray(v) || v.length > allowed.length || !v.every((n) => allowed.includes(n)) || new Set(v).size !== v.length) fail(where, 'must be a unique list of allowed values');
@@ -138,6 +168,7 @@ function parseExpect(v, where) {
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
     'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
+    'visibleViews', 'leftSwitchAbsent', 'rowPaths',
   ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
@@ -171,6 +202,14 @@ function parseExpect(v, where) {
     out.fileInputs = count(v.fileInputs, `${where}.fileInputs`);
     if (out.fileInputs > 10) fail(`${where}.fileInputs`, 'out of range');
   }
+  if (v.visibleViews !== undefined) {
+    if (!Array.isArray(v.visibleViews) || v.visibleViews.length > VIEW_KINDS.length) fail(`${where}.visibleViews`, 'must be an array');
+    if (!v.visibleViews.every((k) => typeof k === 'string' && VIEW_KINDS.includes(k))) fail(`${where}.visibleViews`, 'unknown view kind');
+    if (new Set(v.visibleViews).size !== v.visibleViews.length) fail(`${where}.visibleViews`, 'duplicate view kind');
+    out.visibleViews = [...v.visibleViews];
+  }
+  if (v.leftSwitchAbsent !== undefined) out.leftSwitchAbsent = bool(v.leftSwitchAbsent, `${where}.leftSwitchAbsent`);
+  if (v.rowPaths !== undefined) out.rowPaths = pathList(v.rowPaths, `${where}.rowPaths`);
   if (v.controls !== undefined) {
     if (!isObj(v.controls)) fail(`${where}.controls`, 'must be an object');
     onlyKeys(v.controls, Object.keys(CONTROLS), `${where}.controls`);
@@ -243,6 +282,12 @@ export function parseConfig(raw, dir) {
   const initial = pair(raw.initial, 'initial');
   const sequence = parseSequence(raw.sequence, 'sequence');
   const expect = parseExpect(raw.expect, 'expect');
+  // 印の主張は行の集合の主張が前提（印を載せる行が実在すること）。
+  sequence.forEach((op, i) => {
+    if (op.marks === undefined) return;
+    if (expect.rowPaths === undefined) fail(`sequence[${i}].marks`, 'needs expect.rowPaths');
+    if (Object.keys(op.marks).some((k) => !expect.rowPaths.includes(k))) fail(`sequence[${i}].marks`, 'path is not in expect.rowPaths');
+  });
   checkRejectionDeclarations(sequence, expect);
   let csp = [true, false];
   if (raw.csp !== undefined) {
@@ -337,6 +382,7 @@ export function judge(config, r) {
       if (present !== want || (!want && part.count !== 0)) why.push(`controls.${name}@${label}`);
     }
   }
+  why.push(...judgeLeft(config, r));
   why.push(...judgeRejections(config, r));
   if ((r.safety ?? []).length !== 0) why.push('safety');
   if (r.external !== 0) why.push('external');
@@ -346,6 +392,44 @@ export function judge(config, r) {
   if (r.run?.raw !== 0) why.push('rawClicks');
   if (!(r.run?.mouse > 0)) why.push('noMouseOps');
   if (JSON.stringify(r.irFetch) !== '[200]') why.push('irFetch');
+  return why;
+}
+
+/**
+ * 左の領域（measureLeft の結果）の照合（TASK-749 2/3。SECOND-6・SECOND-8）。理由は欄名と時点（start・end・op[i]）だけ。
+ * 見えるビューと切り替えの不在は測った全時点、行の集合は終了と marks のある操作、変化の印は marks のある操作で見る。
+ * 印の 3 手段（data-mark・記号・文字）の一致は、何も主張しない設定でも測った全時点の全行で見る。
+ */
+function judgeLeft(config, r) {
+  const e = config.expect;
+  const why = [];
+  const marked = config.sequence.some((op) => op.marks !== undefined);
+  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || marked;
+  if (!wants) return why;
+  const l = r.left;
+  if (!l || !l.start || !l.end) return ['left-missing'];
+  // 宣言した marks の操作に観察が無ければ不合格にする（観察の有無で素通りさせない）。
+  config.sequence.forEach((op, i) => {
+    if (op.marks !== undefined && !l.ops.some((o) => o.index === i)) why.push(`marksMissing@op[${i}]`);
+  });
+  const points = [['start', l.start, null], ...l.ops.map((o) => [`op[${o.index}]`, o, o.index]), ['end', l.end, null]];
+  for (const [label, m, index] of points) {
+    if (m.settled !== true) why.push(`leftUnsettled@${label}`);
+    if (e.visibleViews !== undefined && JSON.stringify([...m.views.shown].sort()) !== JSON.stringify([...e.visibleViews].sort())) why.push(`visibleViews@${label}`);
+    if (e.leftSwitchAbsent === true) {
+      const s = m.select;
+      if (s.buttons !== 0 || s.visibleButtons !== 0 || s.visible !== 0 || LEFT_ABSENT.some((id) => m.absent[id] !== 0)) why.push(`leftSwitch@${label}`);
+    }
+    if (m.rows.some((row) => {
+      const want = MARK_TABLE[row.mark];
+      return want === undefined || row.glyph !== want[0] || row.text !== want[1];
+    })) why.push(`markGlyphText@${label}`);
+    const marks = index === null ? undefined : config.sequence[index].marks;
+    const paths = m.rows.map((row) => row.path);
+    const setEq = (want) => paths.length === want.length && new Set(paths).size === paths.length && want.every((p) => paths.includes(p));
+    if (e.rowPaths !== undefined && (label === 'end' || marks !== undefined) && !setEq(e.rowPaths)) why.push(`rowPaths@${label}`);
+    if (marks !== undefined && m.rows.some((row) => row.mark !== (marks[row.path] ?? ''))) why.push(`marks@${label}`);
+  }
   return why;
 }
 

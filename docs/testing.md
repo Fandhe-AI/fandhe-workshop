@@ -11936,6 +11936,53 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
   - 書き出しと読み込みは `shell-right` の外（root の直下、通知欄の後ろ・`tablist` の前）にある。置き場は仮置き（TASK-534・TASK-548）なので、testid で文書全体から探す
   - 試験と実装の作成者が同じ AI であり、人が画面を見た評価ではない。`scripts/expected-test-counts.txt` は変えていない
 
+### 5.447 第 2 教材の左の領域と文書の変化の画面の確認（TASK-749 2/3。SECOND-6・SECOND-8）
+
+5.445 と同じ設定 2 本（`review-request`・`review-request-derived`）に、左の領域の期待を足した。道具は操作ごとに `measureLeft` で左の領域を測り（結果の `left`: 開始・操作ごと・終了）、`choice-journey-config.mjs` の `judge` が照合する。外観（`data-theme`・文字の大きさ・行間）と幅 800px の「成果物」タブ、件数の時点の記録は 3/3、誤答 8 場面は TASK-750 が受け持つ。
+
+仕様の名前と製品の DOM の対応: 仕様の `world-list`・`view-tabs`・`view-tab` は PoC の名前で、製品の DOM には無い。製品の左は `part-artifact-view` の中に、切り替え（`view-select`・`view-select-button`）と 7 本の `ul[data-testid=view-list][data-view=<種類>]` を置き、選ばれていない 6 本は `hidden` になる。行は `li[data-path]` で、変化の印は `li` の `data-mark` と直接の子の `mark-glyph`・`mark-text` の 3 手段で出る。そこで次のように測る。
+
+| 測るもの | 方法 |
+|---|---|
+| 見えるビュー | `hidden` の祖先を持たない `view-list` の `data-view`（空の `ul` は箱が 0 なので、箱の大きさでは測らない） |
+| 切り替えが見えない | `view-select-button` 0 個・`view-select` が見えない・仕様の名前 3 種（`LEFT_ABSENT`）が 0 件 |
+| 行の集合 | 見えている `view-list` の `li[data-path]` の経路。並びは辞書順で主張しない（集合として比べる） |
+| 変化の印 | `data-mark`・記号・文字が `MARK_TABLE`（`a11y.rs` の `ChangeMark` の写し）と一致。操作ごとに、`marks` に載せた行だけが指定の印で、ほかは印なし |
+
+新しい欄（省略可。既存の 3 設定は変わらない）: `expect.visibleViews`（ビュー 7 種の閉じた一覧から。重複なし）・`expect.leftSwitchAbsent`（真偽）・`expect.rowPaths`（経路の配列。重複なし・64 件以下）と、操作ごとの `marks`（経路から `add`・`remove`・`change`。`{}` は印なしの主張）。`marks` は `rowPaths` が前提で、載せる経路は `rowPaths` の中に限る。理由は欄名と時点だけ（`visibleViews@`・`leftSwitch@`・`rowPaths@`・`marks@`・`markGlyphText@`・`leftUnsettled@`、時点は `start`・`end`・`op[i]`）。見えるビューと切り替えと印の 3 手段は測った全時点、行の集合は終了と `marks` のある操作で見る。
+
+期待:
+
+| 設定 | 期待 |
+|---|---|
+| `review-request`（本物の pack） | 見えるビューは `document` だけ。切り替えなし。行は 0 件（`world_list: hidden`。PACK-22）。止まるまでの 3 操作を測る |
+| `review-request-derived` | 同じ見えるビューと切り替え。終了の行は 5 件（`review/status`・`to`・`scope`・`focus`・`due`）。16 操作の後の印を下表に固定 |
+
+受付と確認の操作ごとの印（2026-11-02、手元で実測して固定。派生版）:
+
+| 操作 | 印のある行 |
+|---|---|
+| `opt-start`（開始の受付） | 5 行とも `add`（【追加】。`put` と `set_attr` が同じ操作で併合される） |
+| 確認 `ans-ready` | `review/status` が `change` |
+| `opt-owner` | `status`・`to` が `change` |
+| `opt-diff` | `status`・`scope` |
+| `opt-security` | `status`・`focus` |
+| `row review/due`（st-5 の受付）・`opt-tomorrow` | `status`・`due` |
+| 上記以外の確認（`row review/to`・`ans-scope-narrow`・`ans-focus-one`・`ans-due-row`・`row review/due`（st-6 の確認）・`opt-reread`・`ans-sent`・`opt-send`） | `status` のみ `change` |
+| `ans-reread` | 印なし（`{}`） |
+
+`review/status` には、確認の `on_achieved` の変化の印が次の Step の入場の後も残る（受付より先に消えない）。事前の見込み（確認の後は印が消える）とは違い、実測を正にした。
+
+試験: `choice-journey-config.test.mjs`（ブラウザなし）に不正な形 14 形と、1 欄だけ外した結果で理由がちょうど 1 件になる 15 行を足した（ビューが 2 本・切り替えが 1 個・`world-list` が 1 件・行が足りない／余る・重複・印の値の違い・印の無い行に印・3 手段の不一致・未知の `data-mark`・描画が揃わない）。`choice-journey.test.mjs` は場面 E に左の領域の確認（全時点で文書だけ・切り替え 0・行の数・測った操作の数）を足し、場面 G（CSP あり）で道具の対照を足した。派生版で `opt-start` の後のページに、印の文字を消す・別のビューを見せる・切り替えのボタンを足す・行を 1 本消すの 4 つの手を加えると、測った値が変わって `judge` が欄名の理由を返し、手を加えない測定は理由が空になる。
+
+- 結果（2026-11-02、手元）: `choice-journey-config.test.mjs` 108 件合格。`check-choice-journey` は 5 設定 x CSP 2 通りの 10 件合格（外部通信 0・ページ内エラー 0）。`choice-journey.test.mjs` 11 件合格。CI の `browser-test` での実行は PR の CI で確かめる（手元では未検証）。`scripts/expected-test-counts.txt` は変えていない
+- 限界（要件との差。人の判断に残す）:
+  - 本物の第 2 教材では左の行が 0 件で、「行 5 つ」は今のエンジンでは成り立たない。製品の世界状態の一覧は選ばれたビューの行そのもので、`world_list: hidden` は行を 1 つも作らない（PACK-22。`docs/known-gaps.md`）。5 行と印は派生版（SECOND-8 にわざと反する）で確かめた。エンジンを直すか要件の読みを変えるかは人が決める
+  - 行の中身（`title`・`state`・`detail`）は製品の文書ビューに出ない（行の子は経路と `body: shown` のときの本文だけ）。「選んだ内容の文面に変わる」「別の選び方で別の文面になる」は画面では観察できず、観察できるのは変化の印だけである。別の選び方での違いはデータ側の検査（`check-second-pack`）に委ねる
+  - 確認の側の `on_achieved` による `review/status` の変化は印としては見える（上表）が、文面の変化は見えない。14 入力のうち印として画面に出るのは `review/status` の `change` までである
+  - 印の色は主張しない（外観は 3/3、色は TASK-760 と theme-marks の範囲）
+  - 試験と実装の作成者が同じ AI であり、人が画面を見た評価ではない
+
 ### 5.437 第 2 教材固有の値の設定ファイルへの分離と CI からの呼び出し（TASK-748 2/2。SECOND-4・SECOND-7）
 
 教材固有の値を `tools/browser/choice-journey/<name>.json`（版 1）に分け、道具を設定ファイルで呼べるようにした。道具（`choice-journey.mjs`）は教材固有の値と合否を持たない。設定の読み込み・検証・期待との照合は `choice-journey-config.mjs`、node:test の外からの入口は `choice-journey-run.mjs`（CLI）・`scripts/check-choice-journey.sh`（`make check-choice-journey`）。設定ファイルを差し替えるだけで別の教材にも使える。
@@ -11951,7 +11998,7 @@ AR-12（`/` で始まるコマンドの接頭辞を使わない）の読みは�
 | `viewport` | 省略時 1280x800 |
 | `initial` | `{ uid, status }`（`status` は `entered`・`accepted`・`achieved`） |
 | `sequence[]` | `{ kind: choice(id) / row(path) / decide(decision: approve・reject・revise) / next, expect: { uid, status } }`。`expect` は各操作の後の期待 |
-| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445） |
+| `expect` | `completed`（必須）・`stoppedAfter`・`reviewAchieved`・`nextChapter`・`inputAreaAbsent`・`viewSwitchVisible`。TASK-749 1/3 で `entryPorts`・`entryAtStart`・`inputGuidesAbsent`・`fileInputs`・`controls` を足した（5.445）。TASK-749 2/3 で `visibleViews`・`leftSwitchAbsent`・`rowPaths` と、操作ごとの `marks` を足した（5.447） |
 | `csp` | 省略時 `[true, false]` |
 
 外部通信 0・ページ内エラー 0・コンソールエラー 0・CSP 警告 0・安全の計数 0・`ir/main.json` が 1 回 200・実マウス操作で進めたことは、設定で外せない固定の主張。

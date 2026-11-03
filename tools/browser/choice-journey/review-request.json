@@ -161,6 +161,11 @@
       "hintContainer": true,
       "hintOpen": false
     },
-    "stoppedAfter": "main/st-2:accepted"
+    "stoppedAfter": "main/st-2:accepted",
+    "visibleViews": [
+      "document"
+    ],
+    "leftSwitchAbsent": true,
+    "rowPaths": []
   }
 }
