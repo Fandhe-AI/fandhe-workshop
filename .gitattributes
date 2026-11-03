@@ -3,3 +3,5 @@
 testdata/** -text
 # 第 2 教材の基準の IR は compile の出力とバイト一致で照合する（scripts/check-second-pack.sh の ir-match）。
 template-workshop/examples/review-request/tests/ir.json -text
+# エンジンの差分 0 の確認の SHA-256 の一覧は、compile でなく base の blob とのバイト一致で照合する（scripts/check-engine-zero-diff.sh）。
+docs/engine-zero-diff/**/engine-manifest.sha256 -text
