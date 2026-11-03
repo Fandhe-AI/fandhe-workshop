@@ -4,7 +4,7 @@
 
 ## 第三者によるビルドとテスト
 
-第 2 教材の例は、エンジンと同じ repo の中にあります。公開された repo を取得するだけで、同じ場所でビルドと教材テストを再現できます。secret や private な依存は要りません。まっさらなコンテナで確かめる手順は、ルートの [README](../README.md) の「まっさらなコンテナでの試験（第三者の再現手順）」にあります（`tools/clean-room.sh run --only pack`）。結果の記録は [docs/testing.md](../docs/testing.md) の 5.452 です。
+第 2 教材の例は、エンジンと同じ repo の中にあります。公開された repo を取得するだけで、同じ場所でビルドと教材テストを再現できます。secret や private な依存は要りません。まっさらなコンテナで確かめる手順は、ルートの `README.md` の「まっさらなコンテナでの試験（第三者の再現手順）」にあります（`tools/clean-room.sh run --only pack`）。結果の記録は `docs/testing.md` の 5.452 です。
 
 ## ライセンス
 
