@@ -26,4 +26,8 @@ make check-second-pack-repro
 make test-check-second-pack-repro
 ```
 
-`ir-match`（作者の IR と、写しを `compile` した IR のバイト一致）と、書けなかった箇所の `docs/known-gaps.md` への記録は TASK-413 2/2 の担当です。記録は `docs/testing.md` の 5.449 にあります。
+`ir-match` は、作者が `compile` した `pack/tests/ir.json` と、写しを再 `compile` した IR のバイト一致を見ます。写しは凍結しており、一致が崩れたら書き直さず所見として記録します。`public.sha256` は作者に渡した時点の資料の値で、`docs/known-gaps.md` を足したため今の資料とは合いません。
+
+## 不足の一覧
+
+書けなかった箇所は `docs/known-gaps.md` に記録しています。新しい不足は `AUTHOR-13（3）`（`world_attr` の書き方）と `AUTHOR-13（4）`（確認待ちの間の入力の既定の拒否）です。ほかは既存の SECOND-12（条件つきの拒否）・AUTHOR-4・PACK-22・SECOND-8・SECOND-6・PACK-21・PACK-35・ART-17 に対応します。対応表と記録は `docs/testing.md` の 5.451（1/2 は 5.449）にあります。

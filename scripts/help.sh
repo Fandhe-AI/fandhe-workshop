@@ -60,7 +60,7 @@ cat <<'EOF'
   test-check-generic-words     scripts/test-check-generic-words.sh     教材固有の語の検査自体の回帰テスト
   check-second-pack            scripts/check-second-pack.sh            第 2 教材の骨格の設定値・Step 群と模範解答・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）・基準値・診断の試験（CI 未組み込み。cargo が要る）
   test-check-second-pack       scripts/test-check-second-pack.sh       上の試験自体の回帰テスト（変異を入れた写し。やや遅い）
-  check-second-pack-repro      scripts/check-second-pack-repro.sh      公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数の検査（TASK-413 1/2。CI 未組み込み。cargo が要る）
+  check-second-pack-repro      scripts/check-second-pack-repro.sh      公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る）
   test-check-second-pack-repro scripts/test-check-second-pack-repro.sh 上の検査自体の回帰テスト（変異を入れた写し。やや遅い）
   check-engine-zero-diff       scripts/check-engine-zero-diff.sh       第 2 教材の追加でエンジンの差分が 0 行かを、固定した commit からの行数と SHA-256 の一覧で確認（TASK-752。CI 未組み込み）
   test-check-engine-zero-diff  scripts/test-check-engine-zero-diff.sh  上の検査自体の回帰テスト（見本の repo）
