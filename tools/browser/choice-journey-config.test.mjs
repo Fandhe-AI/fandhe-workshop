@@ -339,6 +339,22 @@ for (const [label, mutate, want] of LEFT_OFF) {
   });
 }
 
+// 拒否の操作に marks を宣言した設定（観察が無ければ不合格、あれば照合される）。
+const rejLeftConfig = () => {
+  const c = leftConfig();
+  c.sequence[0].expect = { uid: 'a/b', status: 'rejected' };
+  return c;
+};
+test('J: 拒否の操作の marks は観察があれば照合され、観察が無ければ不合格', () => {
+  assert.deepEqual(judge(rejLeftConfig(), goodLeft()).filter((x) => x.includes('marks')), []);
+  const none = goodLeft();
+  none.left.ops = [];
+  assert.deepEqual(judge(rejLeftConfig(), none).filter((x) => x.includes('marks')), ['marksMissing@op[0]']);
+  const wrong = goodLeft();
+  wrong.left.ops[0] = { index: 0, ...leftAt() };
+  assert.deepEqual(judge(rejLeftConfig(), wrong).filter((x) => x.includes('marks')), ['marks@op[0]']);
+});
+
 test('J: 完走しない期待（stoppedAfter）は止まった位置が一致するときだけ合格し、完走すると不合格', () => {
   const c = parseConfig({ ...base(), expect: { completed: false, stoppedAfter: 'a/b:entered' } }, '/tmp');
   const r = good();

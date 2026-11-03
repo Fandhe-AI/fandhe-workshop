@@ -341,6 +341,8 @@ export async function runJourney({
           break;
         }
         result.rejections.push({ index: i, scene: op.scene, rejection: op.rejection, ...rec });
+        // 拒否の操作にも marks を宣言できるので、拒否の後の左の領域も同じ index で測る（judgeLeft が観察の有無を見る）。
+        result.left.ops.push({ index: i, ...(await measureLeft(page)) });
         continue;
       }
       try {

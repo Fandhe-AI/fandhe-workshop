@@ -408,6 +408,10 @@ function judgeLeft(config, r) {
   if (!wants) return why;
   const l = r.left;
   if (!l || !l.start || !l.end) return ['left-missing'];
+  // 宣言した marks の操作に観察が無ければ不合格にする（観察の有無で素通りさせない）。
+  config.sequence.forEach((op, i) => {
+    if (op.marks !== undefined && !l.ops.some((o) => o.index === i)) why.push(`marksMissing@op[${i}]`);
+  });
   const points = [['start', l.start, null], ...l.ops.map((o) => [`op[${o.index}]`, o, o.index]), ['end', l.end, null]];
   for (const [label, m, index] of points) {
     if (m.settled !== true) why.push(`leftUnsettled@${label}`);
