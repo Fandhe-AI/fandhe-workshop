@@ -160,11 +160,11 @@ expect_rc "--board-pack の workshop.yaml が無い値は 2" 2 --board-pack "${W
 expect_rc "--vocab-doc の値なしは 2" 2 --vocab-doc
 expect_rc "--vocab-doc の無いファイルは 2" 2 --vocab-doc "${WORK}/none.md"
 mutate "掲示板教材の拒否の文面を使った写し" "${W}" 's/範囲が広いと、読む人は終わりが見えません。/全部を引き継ぐ必要はありません。/' board-rejections
-mutate "開始点に EP-9 の語を足した写し" "${C}" 's/^    node: st-1$/&\n    requires: { step: { step: st-2, state: achieved } }\n    unmet: rj-skip/' ep-used
+mutate "開始点に EP-9 の語を足した写し" "${C}" "s/^    node: st-1\$/&${BS}${NL}    requires: { step: { step: st-2, state: achieved } }${BS}${NL}    unmet: rj-skip/" ep-used
 mutate "記録の EP-12 の行を消した写し" "${R}" '/^| EP-12 |/d' ep-record
 # shellcheck disable=SC2016 # sed の式のバッククォートは表の文字そのもの
 mutate "記録の label の行を消した写し" "${R}" '/^| `confirm.options\[\].label` |/d' ep-record
-mutate "選択肢の label を 1 つ外した写し" "${C}" '0,/label: /{/label: /d}' label-field
+mutate "選択肢の label を 1 つ外した写し" "${C}" '1,/label: /{/label: /d;}' label-field
 
 # 比較の相手に第 2 教材自身を渡すと、重なりが EP-6・EP-7 だけにならず文面も一致する
 expect_rc "掲示板教材に自分自身を渡すと 1" 1 --board-pack "${SRC}"
