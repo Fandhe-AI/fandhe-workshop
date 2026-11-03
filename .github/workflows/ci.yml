@@ -365,6 +365,17 @@ jobs:
           CI_EVENT_NAME: ${{ github.event_name }}
         run: bash scripts/check-frontend-bump.sh counts rust "${RUNNER_TEMP}/rust-test.log"
 
+      # 3 本目の教材（template-workshop/examples/task-breakdown）の教材テスト（TASK-797。BUILD-9・D-98）。validate の診断 0 件と
+      # test の全件合格を確かめ、2 つ目の make で壊した写しが実際に落ちること（負の対照）を毎回確かめる。
+      # 既存ジョブへの step の追加なので、ジョブの集合・名前・ci-complete の needs・ruleset の必須チェックは変わらない。
+      # 失敗で止める関門を加えることは spec の人間の承認点で、PR のレビューで判断する。
+      # secret・通信・submodule を使わないので fork でも通る。make test の直後で fandhe-pack はビルド済み。
+      - name: make check-third-pack (TASK-797)
+        run: |
+          set -euo pipefail
+          make check-third-pack
+          make test-check-third-pack
+
   # ブラウザ試験の関門（TASK-79。BUILD-4）。pass／fail 型の試験（tools/browser/*.test.mjs の全件）と
   # smoke-hello と、信頼できない入力への安全性の観察の記録（safety-observe。観察値は assert せず、完走して終了コード 0 に
   # なることを関門にする。TASK-79 2/2）を、同梱の Chromium（FANDHE_BROWSER_CHANNEL を設定しない = channel "chrome" を外した写し）で流す。

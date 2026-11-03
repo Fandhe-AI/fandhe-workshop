@@ -44,6 +44,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 │   ├── check-license.sh      # 全 crate の license と直下の 2 つのライセンスの本文と雛形の表記の検査（回帰テストは test-check-license.sh）
 │   ├── check-mutations.sh    # 変異注入の検査（回帰テストは test-check-mutations.sh）
 │   ├── check-choice-journey.sh # 入力欄のない教材の完走の道具を設定ファイルで流す入口（回帰テストは test-check-choice-journey.sh。TASK-748）
+│   ├── check-third-pack.sh   # 3 本目の教材の validate・test の検査（CI の rust-test が流す。回帰テストは test-check-third-pack.sh。TASK-797）
 │   ├── check-sibling-free.sh # 兄弟の 03-poc/prototype と docs/spec の中身が無いことの検査（回帰テストは test-check-sibling-free.sh）
 │   ├── check-toolchain.sh    # 固定ファイルと docs/toolchain.md の版の一致の検査（回帰テストは test-check-toolchain.sh）
 │   ├── check-workflow-secrets.sh # ci.yml が secret を参照しないことの検査（回帰テストは test-check-workflow-secrets.sh）
@@ -171,6 +172,8 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449・5.451。CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
+| `make check-third-pack` | 3 本目の教材（`template-workshop/examples/task-breakdown/`）の validate の診断 0 件・test の全件合格・R-22／R-21 の 0 の検査（`scripts/check-third-pack.sh`。TASK-797・D-98。CI の `rust-test` が流す。cargo が要る。記録は `docs/testing.md` 5.460） |
+| `make test-check-third-pack` | 上の検査自体の回帰テスト（壊した写し 6 通り。CI の `rust-test` が流す） |
 | `make check-engine-zero-diff` | 第 2 教材の追加でエンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）の差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧（1,628 件）の照合で確かめる（`scripts/check-engine-zero-diff.sh`。`--head <rev>` で再測定。cargo・通信なし。CI 未組み込み。記録は `docs/engine-zero-diff/review-request/`、`docs/testing.md` 5.450。TASK-752）。第 3 教材は `--base 7dbc58a1… --pack template-workshop/examples/task-breakdown --manifest docs/engine-zero-diff/task-breakdown/engine-manifest.sha256` で直接流す（記録は `docs/engine-zero-diff/task-breakdown/`、5.459。TASK-763 3/3） |
 | `make test-check-engine-zero-diff` | 上の検査自体の回帰テスト（見本の repo。CI の `check` ジョブが流す） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |

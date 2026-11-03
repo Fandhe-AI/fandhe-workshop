@@ -12567,7 +12567,34 @@ renderer の RSS の合計の最大値（KiB。3 試行）:
 }
 ```
 
-### 5.460 ビューの `kind` の綴りの誤りを `validate`・`compile` の診断にする（TASK-796。#2017。D-97）
+### 5.460 3 本目の教材の validate・test の CI（TASK-797。#2018）
+
+目的: 3 本目の教材 `template-workshop/examples/task-breakdown/` を BUILD-9 の教材テストの対象に数える（D-98）。5.458・5.459 は手元の記録だけだったため、
+教材が崩れたら CI が落ちるようにする。
+
+道具: `scripts/check-third-pack.sh`（`make check-third-pack`）と回帰テスト `scripts/test-check-third-pack.sh`（`make test-check-third-pack`）。
+CI は既存ジョブ `rust-test` に step `make check-third-pack (TASK-797)` を足して流す（ジョブを足さないため ruleset の必須チェックは変わらない）。
+Rust・`Cargo.*` は変えない。
+
+項目: `validate`（診断 0 件・章 1）・`test`（終了コード 0・FAIL の行なし・模範解答 n/n・誤入力 m/m）・`zero-counts`（R-22 の確認なしの達成 0・R-21 の次の行動が空 0）。
+
+負の対照（壊した写し。置き換えが起きなければテスト自体が失敗する）:
+
+| 変異 | FAIL になる項目 | 診断 |
+|---|---|---|
+| 存在しない Step を指す | validate・test | `E-REF-STEP` |
+| Step を到達不能にする | validate | `E-UNREACHABLE` |
+| `final` を外して行き止まり | validate | `E-DEAD-END` |
+| 壊れた YAML | validate | `E-PARSE` |
+| 模範解答の期待を変える | test（validate は PASS） | なし |
+| 誤入力の期待を変える | test（validate は PASS） | なし |
+
+結果（2026-11-03、Linux、debug ビルド）: `check-third-pack` は 3 項目 PASS、`test-check-third-pack` は全件 ok。CI 上の所要時間の増分は PR の初回の実行で確かめる（未測定）。
+
+限界: `probes/views/` は対象外。件数（Step 8・誤入力 18）は固定しない。`test` は `set_attr` の値と `asserts` を照合しない（AUTHOR-4）。
+第 2 教材の CI 組み込み（TASK-102）は別。
+
+### 5.461 ビューの `kind` の綴りの誤りを `validate`・`compile` の診断にする（TASK-796。#2017。D-97）
 
 **目的**: ビューの `kind` を書き誤っても止まらず、画面が黙って描かない問題（`docs/known-gaps.md`）を、`E-VIEW-KIND-UNKNOWN` で止める。画面の fail-closed は変えない。
 
