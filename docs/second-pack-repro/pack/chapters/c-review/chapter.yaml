@@ -1,0 +1,280 @@
+id: c-review
+title: レビューの頼み方
+starts:
+  - id: s1
+    node: st-1
+    effects:
+      - put: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: まだ始めていません } }
+      - put: { path: review/to, attrs: { title: 宛先, detail: 未定 } }
+      - put: { path: review/scope, attrs: { title: 範囲, detail: 未定 } }
+      - put: { path: review/focus, attrs: { title: 見てほしい点, detail: 未定 } }
+      - put: { path: review/deadline, attrs: { title: 期限, detail: 未定 } }
+steps:
+  - id: st-1
+    title: 状況を確認する
+    body: st-1.md
+    do: 状況を確かめて、下書きを作り始める
+    lo: [LO-1, LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: opt-start, label: 下書きを作り始める }
+    rules:
+      - id: r-start
+        on: { option: opt-start }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 下書きを作り始めた } }
+            - replace: { path: review/to, attrs: { title: 宛先, detail: 未定 } }
+            - replace: { path: review/scope, attrs: { title: 範囲, detail: 未定 } }
+            - replace: { path: review/focus, attrs: { title: 見てほしい点, detail: 未定 } }
+            - replace: { path: review/deadline, attrs: { title: 期限, detail: 未定 } }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-1
+      options:
+        - { id: ans-1-ok, label: 'ログイン画面の入力チェックを直し終えて、レビューを頼む', correct: true }
+        - { id: ans-1-ng, label: 'まだ直している途中で、とりあえず誰かに見せる', correct: false, on_wrong: rj-ans-1 }
+    next: [{ to: st-2 }]
+  - id: st-2
+    title: 宛先を選ぶ
+    body: st-2.md
+    do: 読む人を 1 人に絞って、宛先を選ぶ
+    lo: [LO-1]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: to-senior, label: ログイン画面に詳しい先輩 }
+        - { id: to-peer, label: 同じ機能を触ったことのある同僚 }
+        - { id: to-all, label: チーム全員 }
+    rules:
+      - id: r-to-senior
+        on: { option: to-senior }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/to, attrs: { title: 宛先, detail: ログイン画面に詳しい先輩 } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 宛先を決めた } }
+      - id: r-to-peer
+        on: { option: to-peer }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/to, attrs: { title: 宛先, detail: 同じ機能を触ったことのある同僚 } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 宛先を決めた } }
+      - id: r-to-all
+        on: { option: to-all }
+        outcome: { kind: reject, rejection: rj-to-all }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss-to
+      targets:
+        - { view: v-doc, path: review/to }
+    next: [{ to: st-3 }]
+  - id: st-3
+    title: 頼む範囲を選ぶ
+    body: st-3.md
+    do: 読む人が迷わない範囲を選ぶ
+    lo: [LO-1]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: sc-diff, label: 変更の差分だけ }
+        - { id: sc-diff-test, label: 差分と関連テスト }
+    rules:
+      - id: r-sc-diff
+        on: { option: sc-diff }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/scope, attrs: { title: 範囲, detail: 変更の差分だけ } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 範囲を決めた } }
+      - id: r-sc-diff-test
+        on: { option: sc-diff-test }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/scope, attrs: { title: 範囲, detail: 差分と関連テスト } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 範囲を決めた } }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-3
+      options:
+        - { id: ans-3-ok, label: 'どこまで読めば足りるかが分かるから', correct: true }
+        - { id: ans-3-ng, label: '多く頼むほど丁寧に見えるから', correct: false, on_wrong: rj-ans-3 }
+    next: [{ to: st-4 }]
+  - id: st-4
+    title: 見てほしい点を選ぶ
+    body: st-4.md
+    do: 見てほしい点を 1 つに決めて選ぶ
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: fc-empty, label: 空欄と長すぎる入力の扱いに抜けがないか }
+        - { id: fc-message, label: エラー文言が使う人に伝わるか }
+    rules:
+      - id: r-fc-empty
+        on: { option: fc-empty }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/focus, attrs: { title: 見てほしい点, detail: 空欄と長すぎる入力の扱いに抜けがないか } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 見てほしい点を決めた } }
+      - id: r-fc-message
+        on: { option: fc-message }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/focus, attrs: { title: 見てほしい点, detail: エラー文言が使う人に伝わるか } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 見てほしい点を決めた } }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-4
+      options:
+        - { id: ans-4-ok, label: '「空欄の扱い」のように、1 つに決まる形で書く', correct: true }
+        - { id: ans-4-ng, label: '「全体的に見てください」と広く書く', correct: false, on_wrong: rj-ans-4 }
+    next: [{ to: st-5 }]
+  - id: st-5
+    title: 空いている行を探す
+    body: st-5.md
+    do: 左の行から、まだ空いている行を押す
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-doc, path: review/status }
+        - { view: v-doc, path: review/to }
+        - { view: v-doc, path: review/scope }
+        - { view: v-doc, path: review/focus }
+        - { view: v-doc, path: review/deadline }
+    rules:
+      - id: r-ui-deadline
+        on: { ui: { view: v-doc, path: review/deadline } }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/deadline, attrs: { title: 期限, detail: これから決める } }
+      - id: r-ui-status
+        on: { ui: { view: v-doc, path: review/status } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+      - id: r-ui-to
+        on: { ui: { view: v-doc, path: review/to } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+      - id: r-ui-scope
+        on: { ui: { view: v-doc, path: review/scope } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+      - id: r-ui-focus
+        on: { ui: { view: v-doc, path: review/focus } }
+        outcome: { kind: reject, rejection: rj-row-filled }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-5
+      options:
+        - { id: ans-5-ok, label: '期限', correct: true }
+        - { id: ans-5-ng, label: '宛先', correct: false, on_wrong: rj-ans-5 }
+    next: [{ to: st-6 }]
+  - id: st-6
+    title: 期限を選ぶ
+    body: st-6.md
+    do: 日時が 1 つに決まる期限を選ぶ
+    lo: [LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: dl-tomorrow, label: 明日の 17 時まで }
+        - { id: dl-friday, label: 今週の金曜 17 時まで }
+        - { id: dl-asap, label: できるだけ早く }
+    rules:
+      - id: r-dl-tomorrow-tight
+        on: { option: dl-tomorrow }
+        when: { world_attr: { path: review/scope, attr: detail, eq: 差分と関連テスト } }
+        outcome: { kind: reject, rejection: rj-deadline-tight }
+      - id: r-dl-tomorrow
+        on: { option: dl-tomorrow }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/deadline, attrs: { title: 期限, detail: 明日の 17 時まで } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 期限を決めた } }
+      - id: r-dl-friday
+        on: { option: dl-friday }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/deadline, attrs: { title: 期限, detail: 今週の金曜 17 時まで } }
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 期限を決めた } }
+      - id: r-dl-asap
+        on: { option: dl-asap }
+        outcome: { kind: reject, rejection: rj-deadline-vague }
+    confirm:
+      kind: point_at
+      on_miss: rj-miss-deadline
+      targets:
+        - { view: v-doc, path: review/deadline }
+    next: [{ to: st-7 }]
+  - id: st-7
+    title: 送る前に見直す
+    body: st-7.md
+    do: 送る前に、4 つの項目を見直す
+    lo: [LO-1, LO-2]
+    views: [v-doc]
+    input:
+      kind: choice
+      options:
+        - { id: rv-check, label: 見直す }
+        - { id: rv-send, label: 見直さずに送る }
+    rules:
+      - id: r-rv-check
+        on: { option: rv-check }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 見直し済み } }
+      - id: r-rv-send
+        on: { option: rv-send }
+        outcome: { kind: reject, rejection: rj-send-early }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-7
+      options:
+        - { id: ans-7-ok, label: '宛先・範囲・見てほしい点・期限が 1 つに決まっているか', correct: true }
+        - { id: ans-7-ng, label: '文章の長さ', correct: false, on_wrong: rj-ans-7 }
+    next: [{ to: st-8 }]
+  - id: st-8
+    title: 送る
+    body: st-8.md
+    do: 見直した依頼文を送る
+    lo: [LO-1, LO-2]
+    final: true
+    views: [v-doc]
+    on_reject:
+      not_in_this_step: rj-fix-after
+    input:
+      kind: choice
+      options:
+        - { id: act-send, label: 送る }
+        - { id: act-fix, label: 直す }
+    rules:
+      - id: r-act-send
+        on: { option: act-send }
+        outcome:
+          kind: accept
+          effects:
+            - replace: { path: review/status, fixture: fx-draft, attrs: { title: 状態, detail: 送信可 } }
+      - id: r-act-fix
+        on: { option: act-fix }
+        outcome: { kind: reject, rejection: rj-fix-after }
+    confirm:
+      kind: answer
+      on_wrong: rj-ans-8
+      options:
+        - { id: ans-8-ok, label: '宛先・範囲・見てほしい点・期限', correct: true }
+        - { id: ans-8-ng, label: '謝罪の言葉', correct: false, on_wrong: rj-ans-8 }

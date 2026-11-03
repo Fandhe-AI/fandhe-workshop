@@ -1,0 +1,1515 @@
+{
+  "format_version": 2,
+  "pack": {
+    "id": "review-request",
+    "title": "レビューの頼み方",
+    "version": "1.0.0",
+    "ir_format": 2,
+    "guidance": "A",
+    "vocab": "1.4",
+    "profile": {
+      "command_prefix": "",
+      "input_field": "hidden"
+    },
+    "appearance": {
+      "theme": "reading"
+    },
+    "left_pane": {
+      "view_tabs": "hidden",
+      "world_list": "hidden"
+    }
+  },
+  "refs": [],
+  "commands": {},
+  "views": {
+    "v-doc": {
+      "body": "shown",
+      "kind": "document"
+    }
+  },
+  "fixtures": {
+    "fx-draft": {
+      "path": "fixtures/draft.md",
+      "kind": "document"
+    }
+  },
+  "hints": {},
+  "rejections": {
+    "rj-ans-1": {
+      "category": "not_in_this_step",
+      "message": "まだ直している途中なら、レビューを頼む段階ではありません。この場面は、入力チェックを直し終えた後です。左の行は変わりません。",
+      "next_action": "状況を読み直して、答えを選び直します。"
+    },
+    "rj-ans-3": {
+      "category": "not_in_this_step",
+      "message": "多く頼むほど、読む人は何をどこまで見るか迷います。範囲を絞るのは、読む人が迷わないためです。左の行は変わりません。",
+      "next_action": "理由を選び直します。"
+    },
+    "rj-ans-4": {
+      "category": "not_in_this_step",
+      "message": "「全体的に」では、見てほしい点が 1 つに決まりません。左の行は変わりません。",
+      "next_action": "1 つに決まる書き方を選び直します。"
+    },
+    "rj-ans-5": {
+      "category": "not_in_this_step",
+      "message": "宛先の行はもう埋まっています。空いているのは、まだ決めていない行です。左の行は変わりません。",
+      "next_action": "空いている行を選び直します。"
+    },
+    "rj-ans-7": {
+      "category": "not_in_this_step",
+      "message": "文章の長さではなく、宛先・範囲・見てほしい点・期限が 1 つに決まっているかを見直します。左の行は変わりません。",
+      "next_action": "見直す項目を選び直します。"
+    },
+    "rj-ans-8": {
+      "category": "not_in_this_step",
+      "message": "謝罪より先に、読む人が動くための 4 つの項目が必要です。左の行は変わりません。",
+      "next_action": "依頼文に必要なものを選び直します。"
+    },
+    "rj-bad": {
+      "category": "bad_arg_shape",
+      "message": "形が違います。左の行は変わりません。",
+      "next_action": "画面の選択肢から選び直します。{{step_do}}"
+    },
+    "rj-busy": {
+      "category": "busy",
+      "message": "処理中です。左の行は変わりません。",
+      "next_action": "終わるまで待ちます。"
+    },
+    "rj-deadline-tight": {
+      "category": "not_supported",
+      "message": "差分と関連テストを頼むなら、明日の 17 時までは短すぎます。左の行は変わりません。",
+      "next_action": "範囲に見合う、もっと先の期限を選び直します。"
+    },
+    "rj-deadline-vague": {
+      "category": "bad_arg_shape",
+      "message": "「できるだけ早く」では、いつまでか 1 つに決まりません。左の行は変わりません。",
+      "next_action": "日時が 1 つに決まる期限を選び直します。"
+    },
+    "rj-fix-after": {
+      "category": "not_in_this_step",
+      "message": "送った後の依頼文は直せません。左の行は変わりません。",
+      "next_action": "直したいときは、送る前の見直しで直します。"
+    },
+    "rj-ft": {
+      "category": "free_text_unjudged",
+      "message": "内容は判定しません。",
+      "next_action": "自分で確かめます。"
+    },
+    "rj-miss-deadline": {
+      "category": "not_in_this_step",
+      "message": "そこは期限の行ではありません。左の行は変わりません。",
+      "next_action": "決まった期限の行を指します。"
+    },
+    "rj-miss-to": {
+      "category": "not_in_this_step",
+      "message": "そこは宛先の行ではありません。左の行は変わりません。",
+      "next_action": "決まった宛先の行を指します。"
+    },
+    "rj-missing": {
+      "category": "missing_arg",
+      "message": "選択が足りません。左の行は変わりません。",
+      "next_action": "画面の選択肢から選び直します。"
+    },
+    "rj-nis": {
+      "category": "not_in_this_step",
+      "message": "この Step では選べません。左の行は変わりません。",
+      "next_action": "画面の選択肢から選びます。{{step_do}}"
+    },
+    "rj-ns": {
+      "category": "not_supported",
+      "message": "この教材では扱いません。左の行は変わりません。",
+      "next_action": "画面の選択肢に戻ります。"
+    },
+    "rj-row-filled": {
+      "category": "not_in_this_step",
+      "message": "その行はもう埋まっています。左の行は変わりません。",
+      "next_action": "空いている行を指します。"
+    },
+    "rj-send-early": {
+      "category": "wrong_order",
+      "message": "まだ見直していません。見直す前には送れません。左の行は変わりません。",
+      "next_action": "まず「見直す」を選びます。"
+    },
+    "rj-to-all": {
+      "category": "not_supported",
+      "message": "チーム全員には頼めません。宛先が広いと、誰が読むのか決まらず、誰も読まなくなります。左の行は変わりません。",
+      "next_action": "1 人に絞った宛先を選び直します。"
+    },
+    "rj-unknown": {
+      "category": "unknown_command",
+      "message": "一覧にない操作です。左の行は変わりません。",
+      "next_action": "画面の選択肢から選び直します。"
+    },
+    "rj-wrong": {
+      "category": "wrong_order",
+      "message": "まだ先の操作です。左の行は変わりません。",
+      "next_action": "今の Step の操作に戻ります。{{step_do}}"
+    }
+  },
+  "clarifications": {},
+  "defaults": {
+    "bad_arg_shape": "rj-bad",
+    "busy": "rj-busy",
+    "free_text_unjudged": "rj-ft",
+    "missing_arg": "rj-missing",
+    "not_in_this_step": "rj-nis",
+    "not_supported": "rj-ns",
+    "unknown_command": "rj-unknown",
+    "wrong_order": "rj-wrong"
+  },
+  "instances": [
+    {
+      "id": "main",
+      "args": {}
+    }
+  ],
+  "nodes": [
+    {
+      "uid": "main/st-1",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-1",
+        "title": "状況を確認する",
+        "body": "st-1.md",
+        "do": "状況を確かめて、下書きを作り始める",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "opt-start",
+              "label": "下書きを作り始める"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-start",
+            "on": {
+              "option": "opt-start"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "下書きを作り始めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "未定",
+                      "title": "宛先"
+                    },
+                    "path": "review/to"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "未定",
+                      "title": "範囲"
+                    },
+                    "path": "review/scope"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "未定",
+                      "title": "見てほしい点"
+                    },
+                    "path": "review/focus"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "未定",
+                      "title": "期限"
+                    },
+                    "path": "review/deadline"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-1",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-1-ok",
+              "label": "ログイン画面の入力チェックを直し終えて、レビューを頼む"
+            },
+            {
+              "correct": false,
+              "id": "ans-1-ng",
+              "label": "まだ直している途中で、とりあえず誰かに見せる",
+              "on_wrong": "rj-ans-1"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-2"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "状況を確認する"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "この教材は、レビューを頼むときの依頼文の下書きを整える練習です。所要は 10 分程度です。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "場面は、ログイン画面の入力チェックを直し終えたところです。これから、読む人にレビューを頼みます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "依頼文は、左の 5 行（状態・宛先・範囲・見てほしい点・期限）で整えます。選ぶたびに、該当の行の内容が変わり、変わった行には変化の印が付きます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "「下書きを作り始める」を選び、続けて状況の問いに答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-2",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-2",
+        "title": "宛先を選ぶ",
+        "body": "st-2.md",
+        "do": "読む人を 1 人に絞って、宛先を選ぶ",
+        "lo": [
+          "LO-1"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "to-senior",
+              "label": "ログイン画面に詳しい先輩"
+            },
+            {
+              "id": "to-peer",
+              "label": "同じ機能を触ったことのある同僚"
+            },
+            {
+              "id": "to-all",
+              "label": "チーム全員"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-to-senior",
+            "on": {
+              "option": "to-senior"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "ログイン画面に詳しい先輩",
+                      "title": "宛先"
+                    },
+                    "path": "review/to"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "宛先を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-to-peer",
+            "on": {
+              "option": "to-peer"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "同じ機能を触ったことのある同僚",
+                      "title": "宛先"
+                    },
+                    "path": "review/to"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "宛先を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-to-all",
+            "on": {
+              "option": "to-all"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-to-all"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "on_miss": "rj-miss-to",
+          "targets": [
+            {
+              "path": "review/to",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-3"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "宛先を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "宛先は、読む人を 1 人に絞ります。誰が読むのかが決まっていれば、読む人は自分の仕事だと分かります。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選ぶと、左の「宛先」の行が変わります。選んだ後は、変わった「宛先」の行を指して確かめます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-3",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-3",
+        "title": "頼む範囲を選ぶ",
+        "body": "st-3.md",
+        "do": "読む人が迷わない範囲を選ぶ",
+        "lo": [
+          "LO-1"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "sc-diff",
+              "label": "変更の差分だけ"
+            },
+            {
+              "id": "sc-diff-test",
+              "label": "差分と関連テスト"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-sc-diff",
+            "on": {
+              "option": "sc-diff"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "変更の差分だけ",
+                      "title": "範囲"
+                    },
+                    "path": "review/scope"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "範囲を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-sc-diff-test",
+            "on": {
+              "option": "sc-diff-test"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "差分と関連テスト",
+                      "title": "範囲"
+                    },
+                    "path": "review/scope"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "範囲を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-3",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-3-ok",
+              "label": "どこまで読めば足りるかが分かるから"
+            },
+            {
+              "correct": false,
+              "id": "ans-3-ng",
+              "label": "多く頼むほど丁寧に見えるから",
+              "on_wrong": "rj-ans-3"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-4"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "頼む範囲を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "頼む範囲は、読む人が迷わない広さに絞ります。"
+              }
+            ]
+          },
+          {
+            "t": "list",
+            "ordered": false,
+            "items": [
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "変更の差分だけ: 直した箇所だけを読んでもらう"
+                    }
+                  ]
+                }
+              ],
+              [
+                {
+                  "t": "paragraph",
+                  "children": [
+                    {
+                      "t": "text",
+                      "text": "差分と関連テスト: 直した箇所と、それを確かめるテストを読んでもらう"
+                    }
+                  ]
+                }
+              ]
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選ぶと、左の「範囲」の行が変わります。続けて、範囲を絞る理由を答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-4",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-4",
+        "title": "見てほしい点を選ぶ",
+        "body": "st-4.md",
+        "do": "見てほしい点を 1 つに決めて選ぶ",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "fc-empty",
+              "label": "空欄と長すぎる入力の扱いに抜けがないか"
+            },
+            {
+              "id": "fc-message",
+              "label": "エラー文言が使う人に伝わるか"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-fc-empty",
+            "on": {
+              "option": "fc-empty"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "空欄と長すぎる入力の扱いに抜けがないか",
+                      "title": "見てほしい点"
+                    },
+                    "path": "review/focus"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "見てほしい点を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-fc-message",
+            "on": {
+              "option": "fc-message"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "エラー文言が使う人に伝わるか",
+                      "title": "見てほしい点"
+                    },
+                    "path": "review/focus"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "見てほしい点を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-4",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-4-ok",
+              "label": "「空欄の扱い」のように、1 つに決まる形で書く"
+            },
+            {
+              "correct": false,
+              "id": "ans-4-ng",
+              "label": "「全体的に見てください」と広く書く",
+              "on_wrong": "rj-ans-4"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-5"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "見てほしい点を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "見てほしい点は、1 つに決まる形で書きます。「全体的に」と広く書くと、読む人は何を見るのか決められません。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選ぶと、左の「見てほしい点」の行が変わります。続けて、1 つに決まる書き方を答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-5",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-5",
+        "title": "空いている行を探す",
+        "body": "st-5.md",
+        "do": "左の行から、まだ空いている行を押す",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "ui_action",
+          "targets": [
+            {
+              "path": "review/status",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/to",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/scope",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/focus",
+              "view": "v-doc"
+            },
+            {
+              "path": "review/deadline",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-ui-deadline",
+            "on": {
+              "ui": {
+                "path": "review/deadline",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "これから決める",
+                      "title": "期限"
+                    },
+                    "path": "review/deadline"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-ui-status",
+            "on": {
+              "ui": {
+                "path": "review/status",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          },
+          {
+            "id": "r-ui-to",
+            "on": {
+              "ui": {
+                "path": "review/to",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          },
+          {
+            "id": "r-ui-scope",
+            "on": {
+              "ui": {
+                "path": "review/scope",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          },
+          {
+            "id": "r-ui-focus",
+            "on": {
+              "ui": {
+                "path": "review/focus",
+                "view": "v-doc"
+              }
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-row-filled"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-5",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-5-ok",
+              "label": "期限"
+            },
+            {
+              "correct": false,
+              "id": "ans-5-ng",
+              "label": "宛先",
+              "on_wrong": "rj-ans-5"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-6"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "空いている行を探す"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "ここまでに、状態・宛先・範囲・見てほしい点の行が埋まりました。左の行の中で、まだ空いている行を押します。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "埋まった行を押しても何も変わりません。押すと、空いている行が「これから決める」に変わります。続けて、押した行の名前を答えます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-6",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-6",
+        "title": "期限を選ぶ",
+        "body": "st-6.md",
+        "do": "日時が 1 つに決まる期限を選ぶ",
+        "lo": [
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "dl-tomorrow",
+              "label": "明日の 17 時まで"
+            },
+            {
+              "id": "dl-friday",
+              "label": "今週の金曜 17 時まで"
+            },
+            {
+              "id": "dl-asap",
+              "label": "できるだけ早く"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-dl-tomorrow-tight",
+            "on": {
+              "option": "dl-tomorrow"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-deadline-tight"
+            },
+            "when": {
+              "world_attr": {
+                "attr": "detail",
+                "eq": "差分と関連テスト",
+                "path": "review/scope"
+              }
+            }
+          },
+          {
+            "id": "r-dl-tomorrow",
+            "on": {
+              "option": "dl-tomorrow"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "明日の 17 時まで",
+                      "title": "期限"
+                    },
+                    "path": "review/deadline"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "期限を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-dl-friday",
+            "on": {
+              "option": "dl-friday"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "今週の金曜 17 時まで",
+                      "title": "期限"
+                    },
+                    "path": "review/deadline"
+                  }
+                },
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "期限を決めた",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-dl-asap",
+            "on": {
+              "option": "dl-asap"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-deadline-vague"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "point_at",
+          "on_miss": "rj-miss-deadline",
+          "targets": [
+            {
+              "path": "review/deadline",
+              "view": "v-doc"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-7"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "期限を選ぶ"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "期限は、日時が 1 つに決まる形で書きます。「できるだけ早く」では、いつまでか人によって読み方が変わります。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "選ぶと、左の「期限」の行が変わります。選んだ後は、変わった「期限」の行を指して確かめます。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-7",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-7",
+        "title": "送る前に見直す",
+        "body": "st-7.md",
+        "do": "送る前に、4 つの項目を見直す",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "rv-check",
+              "label": "見直す"
+            },
+            {
+              "id": "rv-send",
+              "label": "見直さずに送る"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-rv-check",
+            "on": {
+              "option": "rv-check"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "見直し済み",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-rv-send",
+            "on": {
+              "option": "rv-send"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-send-early"
+            }
+          }
+        ],
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-7",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-7-ok",
+              "label": "宛先・範囲・見てほしい点・期限が 1 つに決まっているか"
+            },
+            {
+              "correct": false,
+              "id": "ans-7-ng",
+              "label": "文章の長さ",
+              "on_wrong": "rj-ans-7"
+            }
+          ]
+        },
+        "next": [
+          {
+            "to": "main/st-8"
+          }
+        ]
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "送る前に見直す"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "送る前に、宛先・範囲・見てほしい点・期限が、それぞれ 1 つに決まっているかを見直します。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "「見直す」を選ぶと、左の「状態」の行が見直し済みに変わります。続けて、見直す項目を答えます。見直さずに送ることはできません。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "uid": "main/st-8",
+      "scope": "main",
+      "unit": "c-review",
+      "step": {
+        "id": "st-8",
+        "title": "送る",
+        "body": "st-8.md",
+        "do": "見直した依頼文を送る",
+        "lo": [
+          "LO-1",
+          "LO-2"
+        ],
+        "final": true,
+        "views": [
+          "v-doc"
+        ],
+        "input": {
+          "kind": "choice",
+          "options": [
+            {
+              "id": "act-send",
+              "label": "送る"
+            },
+            {
+              "id": "act-fix",
+              "label": "直す"
+            }
+          ]
+        },
+        "rules": [
+          {
+            "id": "r-act-send",
+            "on": {
+              "option": "act-send"
+            },
+            "outcome": {
+              "effects": [
+                {
+                  "replace": {
+                    "attrs": {
+                      "detail": "送信可",
+                      "title": "状態"
+                    },
+                    "fixture": "fx-draft",
+                    "path": "review/status"
+                  }
+                }
+              ],
+              "kind": "accept"
+            }
+          },
+          {
+            "id": "r-act-fix",
+            "on": {
+              "option": "act-fix"
+            },
+            "outcome": {
+              "kind": "reject",
+              "rejection": "rj-fix-after"
+            }
+          }
+        ],
+        "on_reject": {
+          "not_in_this_step": "rj-fix-after"
+        },
+        "confirm": {
+          "kind": "answer",
+          "on_wrong": "rj-ans-8",
+          "options": [
+            {
+              "correct": true,
+              "id": "ans-8-ok",
+              "label": "宛先・範囲・見てほしい点・期限"
+            },
+            {
+              "correct": false,
+              "id": "ans-8-ng",
+              "label": "謝罪の言葉",
+              "on_wrong": "rj-ans-8"
+            }
+          ]
+        }
+      },
+      "body_doc": {
+        "version": 1,
+        "blocks": [
+          {
+            "t": "heading",
+            "level": 1,
+            "children": [
+              {
+                "t": "text",
+                "text": "送る"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "見直した依頼文を送ります。「送る」を選ぶと、左の「状態」の行が送信可に変わります。続けて、依頼文に必ず入れる項目を答えます。"
+              }
+            ]
+          },
+          {
+            "t": "paragraph",
+            "children": [
+              {
+                "t": "text",
+                "text": "送った後の依頼文は直せません。直したいときは、送る前の見直しで直します。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "starts": [
+    {
+      "id": "s1",
+      "node": "main/st-1",
+      "effects": [
+        {
+          "put": {
+            "attrs": {
+              "detail": "まだ始めていません",
+              "title": "状態"
+            },
+            "fixture": "fx-draft",
+            "path": "review/status"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "未定",
+              "title": "宛先"
+            },
+            "path": "review/to"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "未定",
+              "title": "範囲"
+            },
+            "path": "review/scope"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "未定",
+              "title": "見てほしい点"
+            },
+            "path": "review/focus"
+          }
+        },
+        {
+          "put": {
+            "attrs": {
+              "detail": "未定",
+              "title": "期限"
+            },
+            "path": "review/deadline"
+          }
+        }
+      ]
+    }
+  ],
+  "fixture_docs": {
+    "fx-draft": {
+      "version": 1,
+      "blocks": [
+        {
+          "t": "heading",
+          "level": 1,
+          "children": [
+            {
+              "t": "text",
+              "text": "【架空】レビュー依頼文の下書き"
+            }
+          ]
+        },
+        {
+          "t": "paragraph",
+          "children": [
+            {
+              "t": "text",
+              "text": "ログイン画面の入力チェックを直しました。確認をお願いします。"
+            }
+          ]
+        },
+        {
+          "t": "list",
+          "ordered": false,
+          "items": [
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "宛先: （まだ決めていません）"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "頼む範囲: （まだ決めていません）"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "見てほしい点: （まだ決めていません）"
+                  }
+                ]
+              }
+            ],
+            [
+              {
+                "t": "paragraph",
+                "children": [
+                  {
+                    "t": "text",
+                    "text": "期限: （まだ決めていません）"
+                  }
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}
