@@ -215,6 +215,7 @@ make measure-log-items | jq .               # 直接: tools/measure/log-items.sh
 - `conditions`: `trials`・`sample_interval_ms`・`settle_ms`・`source`・`aggregate`・`expected_reason`・`max_ir_bytes`・`crashes_total`（0 になりうるため `measurements[]` に置けない）・`cases[]`（`name`・`field`・`chars`・`ir_bytes`・`ir_sha256`・`crashes`・`notices`・`reason`・`trial_peaks_kib`）・`low_memory_device: "unverified"`・`scope_note`
 - 結果に pid・パス・ホスト名・ユーザー名・IR の本文を入れない
 - 限界: 断られた画面にはヒントの操作が無いため、ヒントは開かない。低メモリ端末は未確認
+- 基準端末 A の記録（2026-11-03）は `docs/testing.md` 5.456 にある
 
 終了コード: 0 = 成功（crash 0 件） / 1 = 失敗（標準出力は空） / 2 = 誤用 / 3 = 測定は完了し検証にも通ったが crash が 1 件以上（JSON は出す）。
 
@@ -300,11 +301,11 @@ make measure-ir-memory | jq .               # 直接: tools/measure/ir-memory.sh
 - 左のビューの CPU 4 倍は TASK-485 3/3 で扱った（§4）。制限なしの対照・Chrome の原本での測定は、記録だけの条件として後続で扱う
 - 保存の遅延（変更から保存先への書き込みまで。SAVE-7。TASK-318）はブラウザ試験 `save-latency` で測り、記録は `docs/testing.md` 5.168 にある。束（`measure-run/v1`）は `results` を 3 件に固定しているため入れていない。束へ統合するときは様式の版上げが要る。統計の定義（中央値・nearest-rank の 95 パーセンタイル）は `tools/measure/browser.mjs` と共有している
 - `log-redraw`・`log-slope`・`input-paint`・`view-redraw`・`product-redraw` は束（`results` を 3 件に固定）に入れていない。束へ統合するときは様式の版上げが要る
-- 操作できるまでの初回表示は `first-paint-direct` で扱った（§4・§8）。基準端末 A での実測と記録は #833、CI の関門（目安にとどめるか失敗にするか）は人の承認点、公開サイトでの測定は DLV-6・TASK-123 で扱う。`make measure` の束への統合は様式の版上げが要る
+- 操作できるまでの初回表示は `first-paint-direct` で扱った（§4・§8）。基準端末 A での実測は #833 で行い `docs/testing.md` 5.455 に記録した。CI の関門（目安にとどめるか失敗にするか）は人の承認点、公開サイトでの測定は DLV-6・TASK-123 で扱う。`make measure` の束への統合は様式の版上げが要る
 
 ## 8. 基準端末 A での初回表示の測定（DLV-5。#833 の手順。TASK-108 の道具）
 
-`first-paint-direct`（§4）を、基準端末 A（Apple シリコンの Mac）の Chrome の原本で人が流して記録するための手順と様式である。この節を足した時点では実測の記録は無い（手元の Linux・Chromium の確認は `docs/testing.md` 5.432）。
+`first-paint-direct`（§4）を、基準端末 A（Apple シリコンの Mac）の Chrome の原本で人が流して記録するための手順と様式である。この節を足した時点では実測の記録は無い（手元の Linux・Chromium の確認は `docs/testing.md` 5.432）。基準端末 A の記録（2026-11-03）は `docs/testing.md` 5.455 にある。
 
 ### 前提（導入するもの）
 
