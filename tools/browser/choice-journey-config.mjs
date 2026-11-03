@@ -197,7 +197,7 @@ function parseExpect(v, where) {
     'completed', 'stoppedAfter', 'reviewAchieved', 'nextChapter', 'inputAreaAbsent', 'viewSwitchVisible',
     'rejectScenes', 'rejectCategories', 'excluded',
     'entryPorts', 'entryAtStart', 'inputGuidesAbsent', 'fileInputs', 'controls',
-    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'appearance', 'narrowTabs',
+    'visibleViews', 'leftSwitchAbsent', 'rowPaths', 'appearance', 'narrowTabs', 'docBodyRows',
   ], where);
   const out = { completed: bool(v.completed, `${where}.completed`) };
   if (v.stoppedAfter !== undefined) {
@@ -239,6 +239,11 @@ function parseExpect(v, where) {
   }
   if (v.leftSwitchAbsent !== undefined) out.leftSwitchAbsent = bool(v.leftSwitchAbsent, `${where}.leftSwitchAbsent`);
   if (v.rowPaths !== undefined) out.rowPaths = pathList(v.rowPaths, `${where}.rowPaths`);
+  if (v.docBodyRows !== undefined) {
+    out.docBodyRows = count(v.docBodyRows, `${where}.docBodyRows`);
+    if (out.rowPaths !== undefined && out.docBodyRows > out.rowPaths.length) fail(`${where}.docBodyRows`, 'must not exceed expect.rowPaths');
+    if (out.docBodyRows > 100) fail(`${where}.docBodyRows`, 'out of range');
+  }
   if (v.appearance !== undefined) out.appearance = parseAppearance(v.appearance, `${where}.appearance`);
   if (v.narrowTabs !== undefined) out.narrowTabs = bool(v.narrowTabs, `${where}.narrowTabs`);
   if (v.controls !== undefined) {
@@ -493,7 +498,7 @@ function judgeLeft(config, r) {
   const e = config.expect;
   const why = [];
   const marked = config.sequence.some((op) => op.marks !== undefined);
-  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || marked;
+  const wants = e.visibleViews !== undefined || e.leftSwitchAbsent !== undefined || e.rowPaths !== undefined || e.docBodyRows !== undefined || marked;
   if (!wants) return why;
   const l = r.left;
   if (!l || !l.start || !l.end) return ['left-missing'];
@@ -520,6 +525,12 @@ function judgeLeft(config, r) {
     const setEq = (want) => paths.length === want.length && new Set(paths).size === paths.length && want.every((p) => paths.includes(p));
     if (e.rowPaths !== undefined && (label === 'end' || marks !== undefined) && !setEq(e.rowPaths)) why.push(`rowPaths@${label}`);
     if (marks !== undefined && m.rows.some((row) => row.mark !== (marks[row.path] ?? ''))) why.push(`marks@${label}`);
+    // 本文の区画を持つ行の数と、左の領域全体の区画の数（行の外の区画は不一致にする）。TASK-755。
+    // 0 件の主張は測った全時点で見る。正の件数は行が揃う時点（終了と marks のある操作）だけで見る（開始の時点は行が無い）。
+    if (e.docBodyRows !== undefined && (e.docBodyRows === 0 || label === 'end' || marks !== undefined)) {
+      const inRows = m.rows.reduce((n, row) => n + row.docBody, 0);
+      if (m.rows.filter((row) => row.docBody > 0).length !== e.docBodyRows || m.docBodyTotal !== inRows) why.push(`docBodyRows@${label}`);
+    }
   }
   return why;
 }
