@@ -1,0 +1,8 @@
+# 作者の写しの件数の基準値（時点の値。2026-11-03、TASK-413 1/2 時点）。書式は key=value の 1 行 1 件で、# で始まる行は無視する。
+# scripts/check-second-pack-repro.sh の項目 baseline が、fandhe-pack の出力と照合する。
+# 製品の第 2 教材の値（27/27・235）とは別の教材の値である。誤入力が少ないのは、場面 5 を通せず除外したため（SECOND-12 条件つきの拒否）。
+validate.chapters=1
+validate.steps=8
+playthroughs=2/2
+error_inputs=8/8
+total_inputs=107

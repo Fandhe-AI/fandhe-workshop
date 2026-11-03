@@ -1,0 +1,153 @@
+playthroughs:
+  # 模範解答 1: 先輩に、差分だけを、空欄の扱いについて、明日の 17 時まで
+  - id: pt-senior-diff
+    end: complete
+    segments:
+      - start: s1
+        steps:
+          - { choice: opt-start, expect: accepted }
+          - { choice: ans-1-ok, expect: achieved }
+          - { choice: to-senior, expect: accepted }
+          - { ui: "v-doc review/to", expect: achieved }
+          - { choice: sc-diff, expect: accepted }
+          - { choice: ans-3-ok, expect: achieved }
+          - { choice: fc-empty, expect: accepted }
+          - { choice: ans-4-ok, expect: achieved }
+          - { ui: "v-doc review/deadline", expect: accepted }
+          - { choice: ans-5-ok, expect: achieved }
+          - { choice: dl-tomorrow, expect: accepted }
+          - { ui: "v-doc review/deadline", expect: achieved }
+          - { choice: rv-check, expect: accepted }
+          - { choice: ans-7-ok, expect: achieved }
+          - { choice: act-send, expect: accepted }
+          - { choice: ans-8-ok, expect: achieved }
+  # 模範解答 2: 同僚に、差分と関連テストを、エラー文言について、今週の金曜 17 時まで
+  - id: pt-peer-diff-test
+    end: complete
+    segments:
+      - start: s1
+        steps:
+          - { choice: opt-start, expect: accepted }
+          - { choice: ans-1-ok, expect: achieved }
+          - { choice: to-peer, expect: accepted }
+          - { ui: "v-doc review/to", expect: achieved }
+          - { choice: sc-diff-test, expect: accepted }
+          - { choice: ans-3-ok, expect: achieved }
+          - { choice: fc-message, expect: accepted }
+          - { choice: ans-4-ok, expect: achieved }
+          - { ui: "v-doc review/deadline", expect: accepted }
+          - { choice: ans-5-ok, expect: achieved }
+          - { choice: dl-friday, expect: accepted }
+          - { ui: "v-doc review/deadline", expect: achieved }
+          - { choice: rv-check, expect: accepted }
+          - { choice: ans-7-ok, expect: achieved }
+          - { choice: act-send, expect: accepted }
+          - { choice: ans-8-ok, expect: achieved }
+error_inputs:
+  # 場面 1: 確認（answer）の誤答の解説
+  - id: e-answer-wrong
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+    input: { choice: ans-1-ng, expect: "rejected:not_in_this_step" }
+  # 場面 2: 規則による拒否（宛先にチーム全員）
+  - id: e-to-all
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+    input: { choice: to-all, expect: "rejected:not_supported" }
+  # 場面 3: point_at の外れ
+  - id: e-point-miss
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+    input: { ui: "v-doc review/deadline", expect: "rejected:not_in_this_step" }
+  # 場面 4: ui_action で、すでに埋まった行を押す
+  - id: e-row-filled
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: sc-diff, expect: accepted }
+      - { choice: ans-3-ok, expect: achieved }
+      - { choice: fc-empty, expect: accepted }
+      - { choice: ans-4-ok, expect: achieved }
+    input: { ui: "v-doc review/scope", expect: "rejected:not_in_this_step" }
+  # 場面 6: 期限に「できるだけ早く」
+  - id: e-deadline-vague
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: sc-diff, expect: accepted }
+      - { choice: ans-3-ok, expect: achieved }
+      - { choice: fc-empty, expect: accepted }
+      - { choice: ans-4-ok, expect: achieved }
+      - { ui: "v-doc review/deadline", expect: accepted }
+      - { choice: ans-5-ok, expect: achieved }
+    input: { choice: dl-asap, expect: "rejected:bad_arg_shape" }
+  # 場面 7: 見直さずに送る
+  - id: e-send-early
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: sc-diff, expect: accepted }
+      - { choice: ans-3-ok, expect: achieved }
+      - { choice: fc-empty, expect: accepted }
+      - { choice: ans-4-ok, expect: achieved }
+      - { ui: "v-doc review/deadline", expect: accepted }
+      - { choice: ans-5-ok, expect: achieved }
+      - { choice: dl-tomorrow, expect: accepted }
+      - { ui: "v-doc review/deadline", expect: achieved }
+    input: { choice: rv-send, expect: "rejected:wrong_order" }
+  # 場面 8: 送った後に「直す」を選ぶ
+  - id: e-fix-after-send
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: sc-diff, expect: accepted }
+      - { choice: ans-3-ok, expect: achieved }
+      - { choice: fc-empty, expect: accepted }
+      - { choice: ans-4-ok, expect: achieved }
+      - { ui: "v-doc review/deadline", expect: accepted }
+      - { choice: ans-5-ok, expect: achieved }
+      - { choice: dl-tomorrow, expect: accepted }
+      - { ui: "v-doc review/deadline", expect: achieved }
+      - { choice: rv-check, expect: accepted }
+      - { choice: ans-7-ok, expect: achieved }
+      - { choice: act-send, expect: accepted }
+    input: { choice: act-fix, expect: "rejected:not_in_this_step" }
+  # 場面 8（続き）: 送って確認まで終えた後に「直す」を選ぶ
+  - id: e-fix-after-done
+    start: s1
+    pre:
+      - { choice: opt-start, expect: accepted }
+      - { choice: ans-1-ok, expect: achieved }
+      - { choice: to-senior, expect: accepted }
+      - { ui: "v-doc review/to", expect: achieved }
+      - { choice: sc-diff, expect: accepted }
+      - { choice: ans-3-ok, expect: achieved }
+      - { choice: fc-empty, expect: accepted }
+      - { choice: ans-4-ok, expect: achieved }
+      - { ui: "v-doc review/deadline", expect: accepted }
+      - { choice: ans-5-ok, expect: achieved }
+      - { choice: dl-tomorrow, expect: accepted }
+      - { ui: "v-doc review/deadline", expect: achieved }
+      - { choice: rv-check, expect: accepted }
+      - { choice: ans-7-ok, expect: achieved }
+      - { choice: act-send, expect: accepted }
+      - { choice: ans-8-ok, expect: achieved }
+    input: { choice: act-fix, expect: "rejected:not_in_this_step" }

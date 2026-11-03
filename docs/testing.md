@@ -12102,3 +12102,46 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - 基準端末 A の値ではない。Chrome の原本での実測と記録は #833
 - `make test-measure` の全体は流していない（未検証）。(l) と同じ内容を単体で流して確かめた
 - 試験と実装の作成者が同じ AI である
+
+### 5.449 公開の資料だけで書いた第 2 教材の再現（TASK-413 1/2。AUTHOR-12）
+
+日付: 2026-11-03。目的は、エンジンのソースを見ない作者が、公開の資料と `fandhe-pack` だけで第 2 教材を書き、`validate`・`test` を通せることの確認である。写しと要件は `docs/second-pack-repro/`（`README.md`・`brief.md`・`public.sha256`・`pack/`・`baseline.txt`）に置いた。
+
+**手順と条件**
+
+- 実行ファイル: base 7721da31 の `scripts/build-pack-bin.sh` の出力。SHA-256 は `dbad8e88f2d18477fe69213fc34c5fc5792e6217f4211b7f0e64efca7728b88d`
+- 公開の資料: `public.sha256` の 22 ファイル（`docs/pack-authoring.md`・`schema-format-b.md`・`vocabulary/`・`diagnostics.md`・`cli-guide.md`・`cli.md`・`operation-profile.md`・`views.md`・`known-gaps.md`・`examples/`）。`cli.md` は他の資料が参照する外部仕様のため入れた
+- 作者: 実装の担当とは別の `claude -p` のセッション（model sonnet、作業場所を cwd とし、`public/`・`bin/`・`brief.md`・空の `pack/` だけを置いた）。作者の入力は `docs/second-pack-repro/brief.md`
+- 監査: 作者の道具の呼び出しの記録（stream-json）で確かめた。Read は作業場所の中だけ。作業場所の外への書き込みは 1 件（`/tmp/gen.py` の一時スクリプト。作者が自分で削除し、存在しないことを確認した）。読み取りの逸脱は 0 件
+
+**結果**
+
+| 項目 | 値 |
+|---|---|
+| `validate` | 診断 0 件（形式 B(YAML)、章 1、Step の定義 8）。終了コード 0 |
+| `test` | 終了コード 0。模範解答 2/2 完走。誤入力 8/8。入力の総数 107。R-22 の確認なしの達成 0 件。R-21 の空の次の行動 0 件。入った Step の実体 8/8 |
+| `compile` | 終了コード 0。再 `compile` と作者の `tests/ir.json` はバイト一致（41,733 bytes） |
+| `make check-second-pack-repro` | 4 項目（validate・test・constraints・baseline）すべて PASS |
+| `make test-check-second-pack-repro` | 合格（誤用 5・無変更・変異 3・件数のずれ・基準値なし） |
+| Rust の差分 | `crates/`・`Cargo.toml`・`Cargo.lock` の差分 0 行 |
+
+**AUTHOR-12 の目標（誤入力 28/28・文面の確認 27/27）との差**
+
+- 誤入力は 8/8 である。28 は PoC-5 の試作のエンジンでの値で、今のエンジンは入力の判定で規則の `when` を評価しないため、場面 5 を誤入力として通せない（`docs/known-gaps.md` の SECOND-12（条件つきの拒否））。製品の第 2 教材も 27/27 で、同じ理由の差が `requirements.md` の 7c・7d にある。作者の判定は「全件合格（N/N）で、作者の値と写しの値が一致する」とした。件数を合わせるための水増しの誤入力は書いていない
+- 文面の確認は未判定である。`fandhe-pack test` は `text_checks` を判定せず、定義があると終了コードが 1 になる（AUTHOR-4。`docs/cli.md` 12.1 節）。作者は文面の確認を書いていない
+
+**作者が自己申告した書けなかった箇所（転記。`known-gaps.md` への正式な追記は TASK-413 2/2）**
+
+- 場面 5: `when` つきの規則は `validate` を通るが評価されず、仮の誤入力は `accepted` になる。ID は SECOND-12（条件つきの拒否）。`when` の `world_attr` の書式は資料に書き方がなく推測で書いた（資料に無い不足）
+- 場面 8: 「送る」の直後の確認待ちで「直す」を選ぶと、規則ではなく `not_in_this_step` の既定で拒否される。`on_reject` で文面を出した。資料に載っていない振る舞い（資料に無い不足）
+- 画面でしか確かめられない点: PACK-22・SECOND-8（`world_list: hidden` で左の行が出ない）、SECOND-6、開始点の `effects` を `test` が適用しないこと（`cli.md` 12.1）、ART-17、PACK-21、PACK-35。作者は画面（`preview`）を開いていない
+
+**観察（関門にしない）**: 製品向けの `scripts/check-second-pack.sh --pack docs/second-pack-repro/pack` は、validate・compile・profile・commands・appearance・left_pane・starts・chapters・views・vocab・no-board-words・test・steps・zero-counts・ir-match・format-b・reject-keeps-rows・no-input-command・no-input-text が PASS、doc-rows・ar12-reading・row-owner・play-sync・row-asserts・alt-differs・error-inputs-sync・text-checks・learning-goals・baseline・wrong-scenes の 11 項目が FAIL だった。FAIL は、作者の ID・件数・補助ファイル（`row-asserts.json`・`text-checks.json`・`requirements.md`）が製品の教材と違うために起きる想定内の差である。
+
+**限界**
+
+- ブラウザでの完走（`preview`・自動ブラウザ）は流していない（未検証）。CI の `browser-test` には入れていない
+- 作者は AI であり、人の作者の所要時間・読みやすさは測っていない
+- 隔離は、作業場所を cwd にした別セッションと指示による。道具の呼び出しの記録で逸脱を確かめたが、OS の強制ではない
+- 作者の起動は 1 回だけで、再現性（別の起動で同じ結果になるか）は確かめていない
+- 試験と実装の作成者が同じ AI である

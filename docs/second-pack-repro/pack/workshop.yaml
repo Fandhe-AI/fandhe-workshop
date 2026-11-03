@@ -1,0 +1,61 @@
+# 第 2 教材「レビューの頼み方」。選択肢と画面操作だけで進む。
+pack:
+  id: review-request
+  title: レビューの頼み方
+  version: 1.0.0
+  ir_format: 1
+  guidance: A
+  vocab: "1.4"
+  profile:
+    command_prefix: ""
+    input_field: hidden
+  appearance:
+    theme: reading
+  left_pane:
+    world_list: hidden
+    view_tabs: hidden
+commands: {}
+views:
+  v-doc: { kind: document, body: shown }
+fixtures:
+  fx-draft: { path: fixtures/draft.md, kind: document }
+rejections:
+  rj-unknown: { category: unknown_command, message: 一覧にない操作です。左の行は変わりません。, next_action: 画面の選択肢から選び直します。 }
+  rj-wrong: { category: wrong_order, message: まだ先の操作です。左の行は変わりません。, next_action: '今の Step の操作に戻ります。{{step_do}}' }
+  rj-missing: { category: missing_arg, message: 選択が足りません。左の行は変わりません。, next_action: 画面の選択肢から選び直します。 }
+  rj-bad: { category: bad_arg_shape, message: 形が違います。左の行は変わりません。, next_action: '画面の選択肢から選び直します。{{step_do}}' }
+  rj-busy: { category: busy, message: 処理中です。左の行は変わりません。, next_action: 終わるまで待ちます。 }
+  rj-nis: { category: not_in_this_step, message: この Step では選べません。左の行は変わりません。, next_action: '画面の選択肢から選びます。{{step_do}}' }
+  rj-ns: { category: not_supported, message: この教材では扱いません。左の行は変わりません。, next_action: 画面の選択肢に戻ります。 }
+  rj-ft: { category: free_text_unjudged, message: 内容は判定しません。, next_action: 自分で確かめます。 }
+  # 場面 1: 確認（answer）の誤答の解説
+  rj-ans-1: { category: not_in_this_step, message: 'まだ直している途中なら、レビューを頼む段階ではありません。この場面は、入力チェックを直し終えた後です。左の行は変わりません。', next_action: '状況を読み直して、答えを選び直します。' }
+  rj-ans-3: { category: not_in_this_step, message: '多く頼むほど、読む人は何をどこまで見るか迷います。範囲を絞るのは、読む人が迷わないためです。左の行は変わりません。', next_action: '理由を選び直します。' }
+  rj-ans-4: { category: not_in_this_step, message: '「全体的に」では、見てほしい点が 1 つに決まりません。左の行は変わりません。', next_action: '1 つに決まる書き方を選び直します。' }
+  rj-ans-5: { category: not_in_this_step, message: '宛先の行はもう埋まっています。空いているのは、まだ決めていない行です。左の行は変わりません。', next_action: '空いている行を選び直します。' }
+  rj-ans-7: { category: not_in_this_step, message: '文章の長さではなく、宛先・範囲・見てほしい点・期限が 1 つに決まっているかを見直します。左の行は変わりません。', next_action: '見直す項目を選び直します。' }
+  rj-ans-8: { category: not_in_this_step, message: '謝罪より先に、読む人が動くための 4 つの項目が必要です。左の行は変わりません。', next_action: '依頼文に必要なものを選び直します。' }
+  # 場面 2: 規則による拒否（宛先にチーム全員）
+  rj-to-all: { category: not_supported, message: 'チーム全員には頼めません。宛先が広いと、誰が読むのか決まらず、誰も読まなくなります。左の行は変わりません。', next_action: '1 人に絞った宛先を選び直します。' }
+  # 場面 3: point_at の外れ
+  rj-miss-to: { category: not_in_this_step, message: 'そこは宛先の行ではありません。左の行は変わりません。', next_action: '決まった宛先の行を指します。' }
+  rj-miss-deadline: { category: not_in_this_step, message: 'そこは期限の行ではありません。左の行は変わりません。', next_action: '決まった期限の行を指します。' }
+  # 場面 4: ui_action で、すでに埋まった行
+  rj-row-filled: { category: not_in_this_step, message: 'その行はもう埋まっています。左の行は変わりません。', next_action: '空いている行を指します。' }
+  # 場面 5: 条件つきの拒否（差分と関連テストの後の明日 17 時）
+  rj-deadline-tight: { category: not_supported, message: '差分と関連テストを頼むなら、明日の 17 時までは短すぎます。左の行は変わりません。', next_action: '範囲に見合う、もっと先の期限を選び直します。' }
+  # 場面 6: 期限にできるだけ早く
+  rj-deadline-vague: { category: bad_arg_shape, message: '「できるだけ早く」では、いつまでか 1 つに決まりません。左の行は変わりません。', next_action: '日時が 1 つに決まる期限を選び直します。' }
+  # 場面 7: 見直さずに送る
+  rj-send-early: { category: wrong_order, message: 'まだ見直していません。見直す前には送れません。左の行は変わりません。', next_action: 'まず「見直す」を選びます。' }
+  # 場面 8: 送った後に直す
+  rj-fix-after: { category: not_in_this_step, message: '送った後の依頼文は直せません。左の行は変わりません。', next_action: '直したいときは、送る前の見直しで直します。' }
+defaults:
+  unknown_command: rj-unknown
+  wrong_order: rj-wrong
+  missing_arg: rj-missing
+  bad_arg_shape: rj-bad
+  busy: rj-busy
+  not_in_this_step: rj-nis
+  not_supported: rj-ns
+  free_text_unjudged: rj-ft
