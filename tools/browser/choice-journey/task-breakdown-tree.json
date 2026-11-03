@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "name": "task-breakdown-tree",
+  "source": {
+    "pack": "../../../template-workshop/examples/task-breakdown/probes/views",
+    "validate": true,
+    "edits": [{"file": "workshop.yaml", "from": "v-cards: { kind: card_list }", "to": "v-cards: { kind: task_tree }"}]
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": {
+    "uid": "main/st-start",
+    "status": "entered"
+  },
+  "sequence": [
+    {
+      "kind": "choice",
+      "id": "opt-start",
+      "expect": {
+        "uid": "main/st-start",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-ready",
+      "expect": {
+        "uid": "main/st-tree",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/launch/design",
+      "expect": {
+        "uid": "main/st-tree",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/launch/design",
+      "expect": {
+        "uid": "main/st-cards",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "board/design",
+      "expect": {
+        "uid": "main/st-cards",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "board/design",
+      "expect": {
+        "uid": "main/st-wrap",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-read",
+      "expect": {
+        "uid": "main/st-wrap",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-done",
+      "expect": {
+        "uid": "main/st-wrap",
+        "status": "achieved"
+      }
+    }
+  ],
+  "expect": {
+    "completed": true,
+    "inputAreaAbsent": true,
+    "leftSwitchAbsent": true,
+    "visibleViews": ["task_tree"],
+    "rowPaths": [
+      "board/build",
+      "board/design",
+      "plan/launch",
+      "plan/launch/build",
+      "plan/launch/design"
+    ]
+  }
+}
