@@ -85,7 +85,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/engine-zero-diff/    # 第 2 教材（`review-request/`）と第 3 教材（`task-breakdown/`。TASK-763 3/3）の追加でエンジンの差分が 0 行だった記録（固定した commit・測った HEAD・数える範囲・SHA-256 の一覧。TASK-752。SECOND-1・SECOND-20）
 ├── docs/second-pack-repro/   # 公開の資料だけで別の作者が書いた第 2 教材の写しと要件・資料の SHA-256・基準値・不足の記録（TASK-413 1/2・2/2。AUTHOR-12）
 ├── docs/examples/            # 最小の教材パックの例 2 つ（validate 0 件・test 全件合格。MANIFEST.sha256 つき。TASK-412）
-├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 19。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
+├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 21。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420・TASK-796）
 ├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力・`test` の PASS／FAIL の行と集計。版 16（`preview` の関門と診断時の終了を追加）。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404・TASK-405）
 ├── docs/history-format.md    # 履歴の形式の文書（版 1。包みの 7 欄・4 軸の版・追記だけで増える列）
 ├── docs/pack-authoring.md    # 教材の作成者向けの文書（版と履歴・主版を上げる条件・pack.vocab の規約）

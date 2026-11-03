@@ -103,6 +103,8 @@ pub enum DiagCode {
     LimitPackSize,
     /// シンボリックリンクが含まれている（SAFE-43）。正は contract の `PackLimitCode`。
     LimitSymlink,
+    /// ビューの `kind` が 7 種の綴りのどれでもない（TASK-796、D-97）。
+    ViewKindUnknown,
 }
 
 impl DiagCode {
@@ -151,6 +153,7 @@ impl DiagCode {
         DiagCode::LimitMdSize,
         DiagCode::LimitPackSize,
         DiagCode::LimitSymlink,
+        DiagCode::ViewKindUnknown,
     ];
 
     /// `E-...` 形式の文字列を返す。
@@ -199,6 +202,7 @@ impl DiagCode {
             DiagCode::LimitMdSize => "E-LIMIT-MD-SIZE",
             DiagCode::LimitPackSize => "E-LIMIT-PACK-SIZE",
             DiagCode::LimitSymlink => "E-LIMIT-SYMLINK",
+            DiagCode::ViewKindUnknown => "E-VIEW-KIND-UNKNOWN",
         }
     }
 }
@@ -463,13 +467,14 @@ mod tests {
                 DiagCode::LimitMdSize => 40,
                 DiagCode::LimitPackSize => 41,
                 DiagCode::LimitSymlink => 42,
+                DiagCode::ViewKindUnknown => 43,
             }
         }
         let mut got: Vec<usize> = DiagCode::ALL.iter().map(|c| index(*c)).collect();
         got.sort_unstable();
         // 期待する変種数は `ALL` から作らない（`ALL` の入れ忘れが want 側にも現れず見逃されるため）。
         // 上の `index` の最大値 + 1 と同じ値を、変種を足すたびに手で更新する。
-        const VARIANTS: usize = 43;
+        const VARIANTS: usize = 44;
         let want: Vec<usize> = (0..VARIANTS).collect();
         assert_eq!(got, want);
     }

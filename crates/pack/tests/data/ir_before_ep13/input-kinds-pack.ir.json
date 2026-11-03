@@ -15,7 +15,7 @@
   },
   "views": {
     "files": {
-      "kind": "files"
+      "kind": "file_tree"
     }
   },
   "fixtures": {},

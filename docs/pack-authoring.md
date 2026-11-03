@@ -517,7 +517,7 @@ pack:
 | `E-LEFT-TARGET-VIEW` | `view_tabs` が `all` 以外 | 操作の宛先（`input` の `ui_action`・`confirm` の `point_at` の `targets`、`rules[].on.ui`）のビューが、その Step の画面に出ない |
 | `E-LEFT-TARGET-ROW` | 設定が既定でない（`world_list` だけの変更を含む） | 宛先の `path` が、教材のどの `put`・`replace` の `path` にも現れない |
 
-- 画面に出るビューは、`views` で宣言した順に、種類（`kind`）ごとの最初の 1 つです。`hidden` では先頭の 1 つだけです。`views` を宣言しない Step では、ビューの ID の辞書順で最初の 1 つとして扱います（試作の仮置きで、決まった規則は後続のタスクで定めます）
+- ビューの `kind` は 7 種の綴りのどれかで、違えば `E-VIEW-KIND-UNKNOWN`（欠け・文字列でない値は `E-PARSE`）で `validate`・`compile` が止めます（TASK-796、D-97）。画面に出るビューは、`views` で宣言した順に、種類（`kind`）ごとの最初の 1 つです。`hidden` では先頭の 1 つだけです。`views` を宣言しない Step では、ビューの ID の辞書順で最初の 1 つとして扱います（試作の仮置きで、決まった規則は後続のタスクで定めます）
 - `E-LEFT-TARGET-ROW` は必要条件だけを調べる静的な近似です。経路がどこかで世界状態に置かれることしか確かめないため、画面でしか分からない矛盾は報告されません。宛先の経路は、`put`・`replace` で世界状態に置いてください。`put` の `path` に含めた `${...}` は、空文字列を含む任意の文字列として照合します
 - 宛先の `view` や `path` に `${` を含む場合（モジュールの引数）は、展開前に決まらないため判定しません。`workshop.views` に無いビューは `E-REF-VIEW` が報告します
 - 同じ宛先が複数あれば、同じ診断が重ねて出ます
@@ -828,6 +828,7 @@ Step ごとの上流の行を持つ欄は、語彙にありません。足さな
 | `crates/pack/tests/left_pane.rs` | 左エリアの設定の読み込みと `E-PARSE`、`E-LEFT-MULTI-VIEW`・`E-LEFT-TARGET-VIEW`・`E-LEFT-TARGET-ROW` が期待のファイル・項目で出ること、既定では出ないこと、`compile`・`validate`・TOML・CLI の一致（PACK-22） |
 | `crates/contract/tests/left_pane_contract.rs` | 左エリアの 2 項目の閉じた集合、既定値、名前にない値・型違い・未知の欄の拒否（PACK-22） |
 | `crates/pack/tests/view_body.rs` | 文書ビューの本文の宣言（`body: shown`）が IR に載り本文の木が引けること、`replace` で本文が替わること、省略と `hidden` で本文が出ないこと、不正な値が `E-PARSE` で `compile` が IR を出さないこと、語彙 1.3 の宣言で `E-VOCAB-MISMATCH` になること（PACK-38） |
+| `crates/pack/tests/view_kind.rs` | ビューの `kind` の綴りの誤りが 1 件の `E-VIEW-KIND-UNKNOWN` になり `compile` が IR を出さないこと、7 種が通ること、欠けと型の誤りが `E-PARSE` になること、既存の実教材に新しい診断が出ないこと（TASK-796、D-97） |
 | `crates/contract/tests/view_body_contract.rs` | `body` の閉じた集合・既定・型違いと未知の綴りの拒否・`body_doc` が `None` に倒れる場合（PACK-38） |
 | `crates/pack/tests/compile_output.rs` の `author8_` | `compile` の標準出力と `-o` が同じバイト列であること、複数回・別ディレクトリの写しでも同一であること、末尾の形、診断があるとき書かないこと、書き出せないとき 2 になること（AUTHOR-8） |
 | `crates/pack/tests/read_only_step.rs` の `pack35_` | 1 択の `choice` と `answer` の Step が新しい語彙の版の宣言なしで通ること、入力のない確認だけの終端でない Step が `E-STRUCTURE` になること（PACK-35・D-69） |
