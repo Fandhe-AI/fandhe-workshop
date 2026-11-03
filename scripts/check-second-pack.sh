@@ -10,7 +10,8 @@
 #   validate / compile / profile / commands / appearance / left_pane / starts / chapters / views / doc-rows（TASK-744）/
 #   ar12-reading（TASK-756。SECOND-22）/ vocab / no-board-words / test / steps / row-owner / play-sync / row-asserts /
 #   alt-differs / baseline（TASK-745）/ no-input-command / no-input-text / wrong-scenes・reject-keeps-rows（TASK-746 1/2）/
-#   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）/ ir-match・format-b・learning-goals（TASK-747）
+#   error-inputs-sync・text-checks・zero-counts（TASK-746 2/2）/ ir-match・format-b・learning-goals（TASK-747）/
+#   ep-used・label-field・ep-public・ep-record・board-ep-overlap・board-rejections・no-rounds・input-kinds（TASK-753。SECOND-2・SECOND-11）
 # ir-match の基準は tests/ir.json（compile の出力そのもの）。教材を変えたら fandhe-pack compile <pack> -o tests/ir.json で書き直す。
 # CI の教材テスト（TASK-102）は FANDHE_PACK_BIN を渡してこのスクリプトを呼べば足りる（cargo 不要）。
 # ar12-reading は AR-12 の読み（コマンドを持たない形で満たす。D-93・2026-11-02）の記録と設定値の一致を見る。
@@ -18,8 +19,10 @@
 # E-PROFILE-NO-INPUT を出すのは compile だけで validate は出さない（crates/pack/src/validate.rs の check_module_expansion が
 # 捨てる）。そのため変種の確認は compile で行う。
 #
-# 使い方: scripts/check-second-pack.sh [--pack <dir>]
+# 使い方: scripts/check-second-pack.sh [--pack <dir>] [--board-pack <dir>] [--vocab-doc <path>]
 #   --pack  教材パックの根。省略時は template-workshop/examples/review-request。回帰テストが変異を入れた写しを渡すための口
+#   --board-pack  比べる掲示板教材の根。省略時は testdata/module-reuse-rounds/test-data/pack（公開の写し。教材 repo の掲示板教材ができたら差し替える）
+#   --vocab-doc   公開の拡張点の一覧の文書。省略時は docs/vocabulary/vocabulary.md（回帰テストが変異を入れた写しを渡す口）
 # 環境変数: FANDHE_PACK_BIN（無ければ scripts/build-pack-bin.sh で作る）
 # 終了コード: 0 = 全項目合格 / 1 = 不合格 / 2 = 誤用・前提の欠け（fail-closed）
 # 回帰テスト: scripts/test-check-second-pack.sh
@@ -29,11 +32,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 
 usage() {
-  echo "usage: $(basename "$0") [--pack <dir>]" >&2
+  echo "usage: $(basename "$0") [--pack <dir>] [--board-pack <dir>] [--vocab-doc <path>]" >&2
   exit 2
 }
 
 PACK="${ROOT_DIR}/template-workshop/examples/review-request"
+BOARD="${ROOT_DIR}/testdata/module-reuse-rounds/test-data/pack"
+VOCAB_DOC="${ROOT_DIR}/docs/vocabulary/vocabulary.md"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --pack)
@@ -41,19 +46,35 @@ while [ "$#" -gt 0 ]; do
       PACK="$2"
       shift 2
       ;;
+    --board-pack)
+      [ "$#" -ge 2 ] || usage
+      BOARD="$2"
+      shift 2
+      ;;
+    --vocab-doc)
+      [ "$#" -ge 2 ] || usage
+      VOCAB_DOC="$2"
+      shift 2
+      ;;
     *) usage ;;
   esac
 done
 
 # 値は fandhe-pack の引数・cp の対象になる。相対の親（..）の要素と先頭の - は誤用として断る。
-case "${PACK}" in
-  -* | */../* | ../* | */.. | ..)
-    echo "error: unsafe pack path" >&2
-    exit 2
-    ;;
-esac
-if [ ! -f "${PACK}/workshop.yaml" ]; then
+for p in "${PACK}" "${BOARD}" "${VOCAB_DOC}"; do
+  case "${p}" in
+    -* | */../* | ../* | */.. | ..)
+      echo "error: unsafe path" >&2
+      exit 2
+      ;;
+  esac
+done
+if [ ! -f "${PACK}/workshop.yaml" ] || [ ! -f "${BOARD}/workshop.yaml" ]; then
   echo "error: workshop.yaml not found in pack dir" >&2
+  exit 2
+fi
+if [ ! -f "${VOCAB_DOC}" ]; then
+  echo "error: vocabulary document not found" >&2
   exit 2
 fi
 
@@ -65,6 +86,11 @@ require_cmd cmp || exit 2
 require_cmd cp || exit 2
 require_cmd wc || exit 2
 require_cmd sed || exit 2
+require_cmd awk || exit 2
+require_cmd sort || exit 2
+require_cmd comm || exit 2
+require_cmd cut || exit 2
+require_cmd tr || exit 2
 
 BIN="${FANDHE_PACK_BIN:-}"
 if [ -z "${BIN}" ]; then
@@ -682,6 +708,137 @@ variant_check no-input-text '  - id: st-variant
     views: [v-doc]
     input: { kind: text, min: 1, max: 10 }
     rules: []'
+
+# ---- TASK-753（SECOND-2・SECOND-11）: 使った拡張点の照合と、掲示板教材との比較 ----
+# 比べる相手は掲示板教材の公開の写し（既定は testdata/module-reuse-rounds/test-data/pack。--board-pack で差し替え）。
+# private の spec の掲示板教材はここから読まない（public repo に文面を写さないため）。写しが覆わない部分の限界は
+# docs/requirements.md の 7g と docs/testing.md の 5.453 に記録する。FAIL の理由は固定の文と件数だけで、文面は出さない。
+
+# ep_set <vocab の出力>: EP の ID を番号順・重複なしで 1 行 1 件に出す（step の行の 4 列目と「# EP-n を使った」の行）。
+ep_set() {
+  {
+    printf '%s\n' "$1" | grep -v '^#' | cut -d, -f4 | grep -oE 'EP-[0-9]+' || true
+    printf '%s\n' "$1" | grep -E '^# EP-[0-9]+ を使った' | grep -oE 'EP-[0-9]+' || true
+  } | sort -t- -k2,2n -u
+}
+# kind_set <IR の JSON>: 基本の語彙（入力・確認・ビューの種類）を接頭辞つきで出す。
+kind_set() {
+  printf '%s' "$1" | jq -r '[.nodes[]?.step | ((.input.kind? // empty) | "input:" + .), ((.confirm.kind? // empty) | "confirm:" + .)] + [.views[]?.kind | "view:" + .] | .[]' | LC_ALL=C sort -u
+}
+
+# 項目 vocab の結果（VOCAB）を使う前に、vocab 自体が 0 で終わったかを取り直す
+run_pack vocab "${PACK}"
+EP_VOCAB_RC="${RC}"
+EP_USED="$(ep_set "${OUT}")"
+EP_USED_LINE="$(printf '%s\n' "${EP_USED}" | tr '\n' ' ' | sed 's/ $//')"
+
+# ep-used: 使った拡張点がちょうど EP-6・EP-7・EP-10・EP-11・EP-12（EP-9 などが混じれば不合格）。vocab が 0 で終わらないときも不合格
+if [ "${EP_VOCAB_RC}" -eq 0 ] && [ "${EP_USED_LINE}" = "EP-6 EP-7 EP-10 EP-11 EP-12" ]; then
+  pass ep-used
+else
+  fail ep-used "used extension points are not exactly EP-6, EP-7, EP-10, EP-11 and EP-12 (vocab exit ${EP_VOCAB_RC})"
+fi
+
+# label-field: 確認の選択肢が 1 件以上あり、すべてが label を持ち、語彙の版が 1.3。公開の文書に label の行がちょうど 1 行ある
+# shellcheck disable=SC2016 # バッククォートは表の文字そのもの
+LABEL_DOC_ROWS="$(grep -cF '| `field` | `confirm.options[].label` | `v1.3` | — |' "${VOCAB_DOC}" || true)"
+if printf '%s' "${IR}" | jq -e '([.nodes[].step.confirm.options[]?] | length) >= 1 and ([.nodes[].step.confirm.options[]? | has("label")] | all) and (.pack.vocab == "1.3")' >/dev/null 2>&1 \
+  && [ "${LABEL_DOC_ROWS}" = "1" ]; then
+  pass label-field
+else
+  fail label-field "confirm.options[].label is not on every option, pack.vocab is not 1.3, or the public list lacks the label row"
+fi
+
+# ep-public: 使った拡張点がすべて公開の一覧（vocabulary.md の 2 節の表）にある。一覧が読めない（0 件）ときも不合格
+EP_PUBLIC="$(awk '/^## 2\./{f=1;next} /^## /{f=0} f' "${VOCAB_DOC}" | grep -oE '^\| EP-[0-9]+ ' | grep -oE 'EP-[0-9]+' | LC_ALL=C sort -u || true)"
+ep_public_ok=1
+if [ -z "${EP_PUBLIC}" ] || [ -z "${EP_USED}" ]; then
+  ep_public_ok=0
+else
+  for e in ${EP_USED}; do
+    printf '%s\n' "${EP_PUBLIC}" | grep -qxF -- "${e}" || ep_public_ok=0
+  done
+fi
+if [ "${ep_public_ok}" -eq 1 ]; then
+  pass ep-public
+else
+  fail ep-public "a used extension point is not in the public list, or the list could not be read"
+fi
+
+# ep-record: 作者の記録（requirements.md の 7g の表）の EP の集合が vocab の集合と一致し、label の行がちょうど 1 行ある
+ep_record_ok=1
+if [ ! -f "${REQ}" ]; then
+  ep_record_ok=0
+else
+  REC_SET="$({ grep -oE '^\| EP-[0-9]+ ' "${REQ}" || true; } | grep -oE 'EP-[0-9]+' | sort -t- -k2,2n -u | tr '\n' ' ' | sed 's/ $//')"
+  [ "${REC_SET}" = "${EP_USED_LINE}" ] || ep_record_ok=0
+  # shellcheck disable=SC2016 # バッククォートは表の文字そのもの
+  [ "$(grep -cF '| `confirm.options[].label` |' "${REQ}" || true)" = "1" ] || ep_record_ok=0
+fi
+if [ "${ep_record_ok}" -eq 1 ]; then
+  pass ep-record
+else
+  fail ep-record "the author record of used extension points does not match the vocab output"
+fi
+
+# board-ep-overlap / board-rejections: 掲示板教材の写しと比べる（重なる拡張点は EP-6・EP-7 だけ。拒否の文面の一致は 0 件）
+run_pack vocab "${BOARD}"
+BOARD_VOCAB="${OUT}"
+BOARD_VOCAB_RC="${RC}"
+run_pack compile "${BOARD}"
+BOARD_IR="${OUT}"
+BOARD_IR_RC="${RC}"
+if ! printf '%s' "${BOARD_IR}" | jq -e . >/dev/null 2>&1; then
+  BOARD_IR_RC=1
+  BOARD_IR='{"nodes":[],"views":{}}'
+fi
+
+overlap_ok=1
+if [ "${BOARD_VOCAB_RC}" -ne 0 ] || [ "${BOARD_IR_RC}" -ne 0 ]; then
+  overlap_ok=0
+fi
+BOARD_EP="$(ep_set "${BOARD_VOCAB}")"
+EP_COMMON="$(comm -12 <(printf '%s\n' "${EP_USED}" | LC_ALL=C sort) <(printf '%s\n' "${BOARD_EP}" | LC_ALL=C sort) | sort -t- -k2,2n | tr '\n' ' ' | sed 's/ $//')"
+[ "${EP_COMMON}" = "EP-6 EP-7" ] || overlap_ok=0
+OWN_KINDS="$(kind_set "${IR}")"
+BOARD_KINDS="$(kind_set "${BOARD_IR}")"
+COMMON_KINDS="$(comm -12 <(printf '%s\n' "${OWN_KINDS}") <(printf '%s\n' "${BOARD_KINDS}") | grep -c . || true)"
+BOARD_ONLY_KINDS="$(comm -13 <(printf '%s\n' "${OWN_KINDS}") <(printf '%s\n' "${BOARD_KINDS}") | grep -c . || true)"
+if [ "${COMMON_KINDS}" -lt 1 ] || [ "${BOARD_ONLY_KINDS}" -lt 1 ]; then
+  overlap_ok=0
+fi
+if [ "${overlap_ok}" -eq 1 ]; then
+  pass board-ep-overlap
+else
+  fail board-ep-overlap "shared extension points are not exactly EP-6 and EP-7, the basic vocabulary does not overlap partially, or the board pack did not compile (vocab exit ${BOARD_VOCAB_RC}, compile exit ${BOARD_IR_RC})"
+fi
+
+# shellcheck disable=SC2016 # jq の式
+REJ_FILTER='[.rejections[]? | .message, .next_action | select(type == "string" and length > 0)] | unique | .[]'
+OWN_REJ="$(printf '%s' "${IR}" | jq -r "${REJ_FILTER}" 2>/dev/null | LC_ALL=C sort -u || true)"
+BOARD_REJ="$(printf '%s' "${BOARD_IR}" | jq -r "${REJ_FILTER}" 2>/dev/null | LC_ALL=C sort -u || true)"
+REJ_COMMON="$(comm -12 <(printf '%s\n' "${OWN_REJ}") <(printf '%s\n' "${BOARD_REJ}") | grep -c . || true)"
+if [ -n "${OWN_REJ}" ] && [ -n "${BOARD_REJ}" ] && [ "${REJ_COMMON}" = "0" ]; then
+  pass board-rejections
+else
+  fail board-rejections "rejection texts shared with the board pack: ${REJ_COMMON} (or one side has no rejection text)"
+fi
+
+# no-rounds（SECOND-11）: 周が 1 つ（instances は main の 1 件・scope は main だけ）で、モジュールの置き場を持たない
+if printf '%s' "${IR}" | jq -e '(.instances | length == 1) and (.instances[0].id == "main") and ([.nodes[].scope] | unique == ["main"])' >/dev/null 2>&1 \
+  && [ ! -e "${PACK}/modules" ]; then
+  pass no-rounds
+else
+  fail no-rounds "the pack has more than one round, a scope other than main, or a modules directory"
+fi
+
+# input-kinds（SECOND-11）: 入力の種類は choice・ui_action だけ（command・text など、シェル風の入力を持たない）
+# shellcheck disable=SC2016 # jq の変数
+if printf '%s' "${IR}" | jq -e '([.nodes[].step.input.kind] | unique) as $k | ($k | length) >= 1 and (($k - ["choice","ui_action"]) | length == 0)' >/dev/null 2>&1; then
+  pass input-kinds
+else
+  fail input-kinds "an input kind other than choice and ui_action is used"
+fi
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "NG: ${FAILS} item(s) failed" >&2

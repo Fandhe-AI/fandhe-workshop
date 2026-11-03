@@ -1,6 +1,6 @@
 # 第 2 教材「レビューの頼み方」の要件の記録
 
-版 5（2026-11-03）。TASK-742（#1973）で作りました。TASK-745 で Step 群と模範解答を、TASK-746 1/2 で誤答の 8 場面を、TASK-746 2/2 で誤入力の通しと文面の確認を足しました。
+版 6（2026-11-03）。TASK-742（#1973）で作りました。TASK-745 で Step 群と模範解答を、TASK-746 1/2 で誤答の 8 場面を、TASK-746 2/2 で誤入力の通しと文面の確認を足しました。
 
 この文書は、第 2 教材の本実装（TASK-743〜TASK-756）が始まる前に、題材・制約・Step 一覧・学習目標を固定するための記録です。後続のタスクはこの記録を引いて作り、足していきます。特に TASK-755 は AR-8 の読みの記録の確認、TASK-756 は AR-12 の読みの記録の確認と設定値の試験との結びつけを担当します。
 
@@ -152,6 +152,7 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 - [x] AR-8・AR-12 の読みと決定の日付を書いた（「7. 要件の読みと日付」）
 - [x] TASK-756: AR-12 の行の読み・日付と `workshop.yaml`・IR の設定値が一致する（`ar12-reading`。2026-11-02）
 - [x] TASK-747: `compile` の IR が `tests/ir.json` とバイト一致し、形式 B の構成・学習目標 2 つが一致する（`ir-match`・`format-b`・`learning-goals`。2026-11-03）
+- [x] TASK-753: 使った拡張点が公開の一覧にあり、掲示板教材の写しとの重なりが EP-6・EP-7 だけで、拒否の文面の一致が 0 件（`ep-used`・`ep-public`・`ep-record`・`label-field`・`board-ep-overlap`・`board-rejections`・`no-rounds`・`input-kinds`。2026-11-03）
 - [x] 試作の `chapter.yaml` の Step の ID・題・`input.kind`・`confirm.kind`・`lo`・最終 Step と突き合わせた
 
 ## 7e. TASK-413 1/2 の記録（2026-11-03）
@@ -164,3 +165,22 @@ AR-1〜AR-20 の要件の文面は、この記録では転記せず、対応の�
 
 - 作者の写しの IR と再 `compile` の IR のバイト一致を `docs/second-pack-repro/` の検査に足し、書けなかった箇所を `docs/known-gaps.md` に記録した。この教材パックは変えていない
 - 記録は `docs/testing.md` の 5.451
+
+## 7g. TASK-753 の記録（2026-11-03）
+
+使った拡張点は次の 6 つです。`fandhe-pack vocab` の出力と一致させ、`scripts/check-second-pack.sh` の `ep-record` が集合の一致を確かめます。EP-9 は `vocab` が数えるので、YAML の検索はしません。
+
+| ID | 名前 | 語彙の版 | 使った所 |
+|---|---|---|---|
+| EP-6 | `confirm.answer.option_on_wrong` | v1.1 | st-1・st-3・st-4・st-5・st-7・st-8 |
+| EP-7 | `text.slot` | v1.1 | 全 8 Step の `do` |
+| EP-10 | `pack.profile` | v1.3 | 教材パック全体 |
+| EP-11 | `pack.appearance` | v1.3 | 教材パック全体 |
+| EP-12 | `pack.left_pane` | v1.3 | 教材パック全体 |
+| `confirm.options[].label` | 選択肢の表示名 | v1.3 | 確認の選択肢すべて（拡張点の番号を持たず、`vocab` は数えない） |
+
+- 公開の一覧は `docs/vocabulary/vocabulary.md` の 2 節で、現在は EP-1〜EP-13 です。使った 5 つはすべて含まれます。EP-13 は使いません（語彙 1.3）
+- 比べる相手は、掲示板教材の公開の写し `testdata/module-reuse-rounds/test-data/pack` にしました。private の仕様 repo の掲示板教材の文面は、この repo に写しません。教材 repo の掲示板教材ができたら `--board-pack` で比べ直します
+- 実測（2026-11-03）: 拒否の文面の異なりは 51 件（この教材）と 66 件（写し）で、一致は 0 件です。重なる拡張点は EP-6・EP-7 だけです。基本の語彙は入力の種類 `choice`・`ui_action` とビューの種類 `document` などが重なり、写しにだけ `command`・`text` などがあります
+- 限界: 自動の照合が覆うのは写しにある文面だけです。仕様 repo の掲示板教材との手元の一度きりの照合（2026-11-03・仕様 repo の commit `29bfe1c`）でも一致は 0 件でしたが、試験にはしていません。`docs/examples/choice-only-pack` とは 6 件が一致します。これは SECOND-2・SECOND-17 が認める限界なので、不合格にしません
+- 記録は `docs/testing.md` の 5.453
