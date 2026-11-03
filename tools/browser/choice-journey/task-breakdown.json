@@ -1,0 +1,154 @@
+{
+  "format": 1,
+  "name": "task-breakdown",
+  "source": {
+    "pack": "../../../template-workshop/examples/task-breakdown",
+    "validate": true
+  },
+  "base": "/fandhe-choice-journey/",
+  "initial": {
+    "uid": "main/st-1",
+    "status": "entered"
+  },
+  "sequence": [
+    {
+      "kind": "choice",
+      "id": "opt-list",
+      "expect": {
+        "uid": "main/st-1",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-big",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-split3",
+      "expect": {
+        "uid": "main/st-2",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-size",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/data",
+      "expect": {
+        "uid": "main/st-3",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/data",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/data",
+      "expect": {
+        "uid": "main/st-4",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-one",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/data",
+      "expect": {
+        "uid": "main/st-5",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/data",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/screen",
+      "expect": {
+        "uid": "main/st-6",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/screen",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "row",
+      "path": "plan/release/screen",
+      "expect": {
+        "uid": "main/st-7",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-parent",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "entered"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "opt-read",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "accepted"
+      }
+    },
+    {
+      "kind": "choice",
+      "id": "ans-recap",
+      "expect": {
+        "uid": "main/st-8",
+        "status": "achieved"
+      }
+    }
+  ],
+  "expect": {
+    "completed": true,
+    "inputAreaAbsent": true,
+    "leftSwitchAbsent": true,
+    "rowPaths": [
+      "plan/release",
+      "plan/release/data",
+      "plan/release/publish",
+      "plan/release/screen"
+    ]
+  }
+}

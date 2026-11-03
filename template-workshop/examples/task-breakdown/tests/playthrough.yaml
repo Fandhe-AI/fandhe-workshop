@@ -1,0 +1,225 @@
+playthroughs:
+  - id: pt-main
+    end: complete
+    segments:
+      - start: s-1
+        steps:
+          - { choice: opt-list, expect: accepted }
+          - { choice: ans-big, expect: achieved }
+          - { choice: opt-split3, expect: accepted }
+          - { choice: ans-size, expect: achieved }
+          - { ui: "v-tree plan/release/data", expect: accepted }
+          - { ui: "v-tree plan/release/data", expect: achieved }
+          - { ui: "v-cards plan/release/data", expect: accepted }
+          - { choice: ans-one, expect: achieved }
+          - { ui: "v-cards plan/release/data", expect: accepted }
+          - { ui: "v-cards plan/release/data", expect: achieved }
+          - { ui: "v-cards plan/release/screen", expect: accepted }
+          - { ui: "v-cards plan/release/screen", expect: achieved }
+          - { ui: "v-tree plan/release/screen", expect: accepted }
+          - { choice: ans-parent, expect: achieved }
+          - { choice: opt-read, expect: accepted }
+          - { choice: ans-recap, expect: achieved }
+error_inputs:
+  - id: s1-asis
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+    input: { choice: ans-asis, expect: "rejected:not_in_this_step" }
+  - id: s2-nosplit
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+    input: { choice: opt-nosplit, expect: "rejected:not_in_this_step" }
+  - id: s2-many
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+    input: { choice: opt-split-all, expect: "rejected:not_in_this_step" }
+  - id: s2-wrong
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+    input: { choice: ans-name, expect: "rejected:not_in_this_step" }
+  - id: s3-screen
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+    input: { ui: "v-tree plan/release/screen", expect: "rejected:not_in_this_step" }
+  - id: s3-publish
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+    input: { ui: "v-tree plan/release/publish", expect: "rejected:not_in_this_step" }
+  - id: s3-parent
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+    input: { ui: "v-tree plan/release", expect: "rejected:not_in_this_step" }
+  - id: s3-miss
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+    input: { ui: "v-tree plan/release/screen", expect: "rejected:not_in_this_step" }
+  - id: s4-screen
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+    input: { ui: "v-cards plan/release/screen", expect: "rejected:not_in_this_step" }
+  - id: s4-wrong
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+    input: { choice: ans-allwip, expect: "rejected:not_in_this_step" }
+  - id: s5-screen
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+    input: { ui: "v-cards plan/release/screen", expect: "rejected:not_in_this_step" }
+  - id: s6-publish
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+    input: { ui: "v-cards plan/release/publish", expect: "rejected:not_in_this_step" }
+  - id: s6-data
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+    input: { ui: "v-cards plan/release/data", expect: "rejected:not_in_this_step" }
+  - id: s7-publish
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/screen", expect: accepted }
+      - { ui: "v-cards plan/release/screen", expect: achieved }
+    input: { ui: "v-tree plan/release/publish", expect: "rejected:not_in_this_step" }
+  - id: s7-parent
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/screen", expect: accepted }
+      - { ui: "v-cards plan/release/screen", expect: achieved }
+    input: { ui: "v-tree plan/release", expect: "rejected:not_in_this_step" }
+  - id: s7-data
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/screen", expect: accepted }
+      - { ui: "v-cards plan/release/screen", expect: achieved }
+    input: { ui: "v-tree plan/release/data", expect: "rejected:not_in_this_step" }
+  - id: s7-wrong
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/screen", expect: accepted }
+      - { ui: "v-cards plan/release/screen", expect: achieved }
+      - { ui: "v-tree plan/release/screen", expect: accepted }
+    input: { choice: ans-parent-now, expect: "rejected:not_in_this_step" }
+  - id: s8-wrong
+    start: s-1
+    pre:
+      - { choice: opt-list, expect: accepted }
+      - { choice: ans-big, expect: achieved }
+      - { choice: opt-split3, expect: accepted }
+      - { choice: ans-size, expect: achieved }
+      - { ui: "v-tree plan/release/data", expect: accepted }
+      - { ui: "v-tree plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { choice: ans-one, expect: achieved }
+      - { ui: "v-cards plan/release/data", expect: accepted }
+      - { ui: "v-cards plan/release/data", expect: achieved }
+      - { ui: "v-cards plan/release/screen", expect: accepted }
+      - { ui: "v-cards plan/release/screen", expect: achieved }
+      - { ui: "v-tree plan/release/screen", expect: accepted }
+      - { choice: ans-parent, expect: achieved }
+      - { choice: opt-read, expect: accepted }
+    input: { choice: ans-recap-bad, expect: "rejected:not_in_this_step" }

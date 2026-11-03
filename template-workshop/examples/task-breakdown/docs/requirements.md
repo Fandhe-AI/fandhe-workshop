@@ -1,8 +1,8 @@
 # 第 3 教材「タスクの分解と進行管理」の記録
 
-- 文書の版: 1
+- 文書の版: 2
 - 実施日: 2026-11-03
-- 対応するタスク: TASK-763 1/3（#2011）。この記録は、同じタスクの 2/3（#2012。章立てと Step）と 3/3（#2013。エンジンの差分 0 の確認と書けなかった箇所）が追記します
+- 対応するタスク: TASK-763 1/3（#2011）と 2/3（#2012。章立てと Step。7 節）。この記録は、同じタスクの 3/3（#2013。エンジンの差分 0 の確認と書けなかった箇所）が追記します
 - 仕様は private のため、本文を転記せず ID（PACK-22・SECOND-6・ART-17・H-3・AUTHOR-7 など）で参照します
 
 この記録の目的は、3 本目の教材が左エリアに使う `task_tree`（タスクの木）と `card_list`（カードの一覧）のビューが、今のエンジンでどこまで動くかを、エンジンを変えずに確かめた結果を残すことです。3 本目は性質の違う教材（行を指す操作が中心）として、公開の資料と CLI だけで書きます。
@@ -16,7 +16,7 @@
 | 確認用の教材パック | `task-breakdown/probes/views/` | 独立した教材パックの根。根の `task-breakdown/` には #2012 が本体を書く |
 | 画面の確認の設定 | `tools/browser/choice-journey/task-breakdown-views.json`（と `task-breakdown-tree.json`・`task-breakdown-cards.json`） | 既存の道具（`make check-choice-journey`）に設定を足しただけで、道具のコードは変えていない |
 
-- `probes/` を含む根を `validate` しても `probes/` が無視されるかは、確かめていません。#2012 で根を作ったときに確かめます
+- 根に本体を置いて `validate`・`test` を流すと、`probes/` は読まれません（章 1・Step の定義 8 と出て、確認用パックの章を数えない）。2/3 で確かめました（7 節）
 - 置き場は TASK-769 で変わる可能性があります
 
 ## 2. 確かめに使った資料
@@ -101,4 +101,82 @@
 - 使える形: 1 Step に 1 ビュー、`world_list: shown`、`view_tabs: hidden`、宛先は `put` した経路、行は最初の選択肢の受付の `effects` で置く、親の行は拒否・子の行は受付で `set_attr` する、確認は `point_at`
 - 避ける形: 開始点の `effects` に頼る、`world_list: hidden`、1 Step に複数のビューを宣言（`view_tabs: hidden` のとき）、ビューの切り替えを前提にした Step
 - 行の属性（`title`・`state`・`detail`）の名前は、画面が読む約束がまだ文書に無い（`docs/views.md` の 4 節）。行の文面に頼らず、状態は Step の本文と拒否の文面でも伝える
-- 根の `validate` が `probes/` を無視することを確かめる
+- 根の `validate` が `probes/` を無視することは、2/3 で確かめた（7 節）
+
+## 7. 章立てと Step（TASK-763 2/3。#2012）
+
+本体の教材パックを根（`template-workshop/examples/task-breakdown/`）に書きました。エンジン（`crates/`・`Cargo.toml`・`Cargo.lock`）は変えておらず、ソースも開いていません。使った資料は 2 節と同じ範囲です。
+
+### 7.1 題材の場面と学習目標
+
+架空の作業「アプリの公開」を、小さなタスクに分け、状態（未着手・進行中・完了）を 1 つずつ動かす場面です。
+
+| ID | 学習目標 |
+|---|---|
+| LO-1 | 大きな作業を、一度に終えられる大きさのタスクに分け、ほかに頼らない順に並べられる |
+| LO-2 | 進行中のタスクを絞りながら、タスクの状態（未着手・進行中・完了）を順に動かせる |
+
+### 7.2 章立てと設定値
+
+| 項目 | 決定 | 理由 |
+|---|---|---|
+| 章 | 1 つ（`ch-tasks`）。開始点も 1 つ（`s-1`） | 開始点の `effects` を画面が適用しない（5.2 の限界 1）ため、2 つ目の開始点で行を作れない。章をまたぐ世界状態の引き継ぎは未確認の領域のため入れない |
+| Step 数 | 8 | 第 2 教材にそろえる |
+| `pack.id`・題 | `task-breakdown`・「タスクの分解と進行管理」 | 1 節の予定どおり |
+| 設定値 | `guidance: A`・`vocab: "1.3"`・`command_prefix: ""`・`input_field: hidden`・`commands: {}`・`world_list: shown`・`view_tabs: hidden`・外観は省略 | 確認用パックと同じ。行を指すため `world_list` は `shown` |
+| ビュー | `v-tree`（`task_tree`）・`v-cards`（`card_list`）。1 Step に 1 ビュー | `E-LEFT-MULTI-VIEW` を避ける |
+| 行 | `plan/release`（親）と子 3 行 `plan/release/data`・`screen`・`publish`。カードも同じ経路の行を指す | 下の 7.5 |
+| 練習データ | `fixtures/tasks.md`（【架空】の印つき） | `E-FICTIONAL-MARK` |
+
+### 7.3 Step 一覧
+
+「受付」は受付の規則の `effects` による行の変化、「完了条件」は `confirm` です。拒否はすべて分類 `not_in_this_step` で、Step ごとに個別の文面（`message` と `next_action`）を持ちます。ヒントは全 Step に 1〜2 段（段 1 は考え方、段 2 は答えに近い指示）です。
+
+| ID | 題 | ビュー | 入力 | 受付と状態変化 | 拒否 | 完了条件 | LO |
+|---|---|---|---|---|---|---|---|
+| st-1 | 大きな作業を確かめる | `v-tree` | `choice` 1 択 | 4 行を `put`（親は「未分解」、子は「未着手」） | なし | `answer`。誤答 1 | LO-1 |
+| st-2 | 作業を分ける | `v-tree` | `choice` 3 択 | 3 つに分ける: 親を「分解済み」にする | 分けない、全部並べる | `answer`。誤答 1 | LO-1 |
+| st-3 | 最初のタスクを決める | `v-tree` | `ui_action` 4 行 | data を指す: data の説明を「最初に始めます」にする | screen・publish・親 | `point_at` data | LO-1 |
+| st-4 | カードを進行中にする | `v-cards` | `ui_action` 2 行 | data を指す: 「進行中」にする | screen | `answer`。誤答 1 | LO-2 |
+| st-5 | 終わったカードを完了にする | `v-cards` | `ui_action` 2 行 | data を指す: 「完了」にする | screen（未着手） | `point_at` data | LO-2 |
+| st-6 | 次のカードを進行中にする | `v-cards` | `ui_action` 3 行 | screen を指す: 「進行中」にする | publish、data（完了済み） | `point_at` screen | LO-2 |
+| st-7 | 残りを木で確かめる | `v-tree` | `ui_action` 4 行 | screen を指す: 「完了」にし、親の説明を「残りは公開だけです」にする | publish、親、data | `answer`。誤答 1 | LO-1・LO-2 |
+| st-8 | ふりかえる（`final`） | `v-tree` | `choice` 1 択 | なし | なし | `answer`。誤答 1 | LO-1・LO-2 |
+
+行を指す `ui_action` は st-3〜st-7 の 5 つで、行を指す操作が中心です。`choice` は行を置く st-1、分け方を選ぶ st-2、読むだけの st-8 に限りました。誤答の場面は 18 件で、拒否の規則が 12（st-2 に 2、st-3 に 3、st-4・st-5 に各 1、st-6 に 2、st-7 に 3）、確認の誤答が 5（st-1・2・4・7・8）、`point_at` の外れが 1（st-3）です。すべて `error_inputs` に 1 件ずつ書き、`test` が 18/18 で合格しました。
+
+### 7.4 H-3 と文面
+
+選んだ値を文中・経路・属性に差し込めない（H-3）ため、行ごとに規則を列挙しました。行の属性（`title`・`state`・`detail`）を画面が読む約束が文書にまだ無い（`docs/views.md` の 4 節）ため、状態の変化は各 Step の本文と拒否の文面にも書きました。親を完了にする Step は設けていません（子の「公開する」が最後まで未着手のため、親は「分解済み」のままです。st-7 は、子が残るうちは親を完了にしないことを答えさせます）。
+
+### 7.5 確かめた未確認点
+
+| 点 | 結果 |
+|---|---|
+| 根に `probes/` があっても `validate`・`test` が読まないか | 読まない。章 1・Step の定義 8 と出て、確認用パックの章を数えない。`probes/views` を単独で流した結果も 1/3 と同じ（診断 0 件・4/4） |
+| カードの宛先に木と同じ経路を使えるか | 使える。診断 0 件。`test` も全件合格 |
+| 規則の `effects` で置いた行を、後の Step の規則の `set_attr` が見るか | 見る（`validate`・`test` と画面の通しで確認）。ただし `test` は `set_attr` の値を照合しないため、効果の値の正しさは試験で守れていない（7.7） |
+| `on_achieved`・`next[].when` が置いた行を見るか | 使っていない（未確認のまま。#2013 への申し送り） |
+
+### 7.6 実行したコマンドと結果
+
+日付 2026-11-03、手元の Linux、`fandhe-pack` は debug ビルドです。
+
+| コマンド | 結果 |
+|---|---|
+| `fandhe-pack validate template-workshop/examples/task-breakdown` | `OK: 診断 0 件（形式 B(YAML)、章 1、モジュール 0、Step の定義 8）`、終了コード 0 |
+| `fandhe-pack test` 同上 | 模範解答 1/1 完走、誤入力 18/18 が期待どおり、入力の総数 164、R-22 の確認なしで達成 0 件、R-21 の「次の行動」が空 0 件、入った Step の実体 8/8、終了コード 0 |
+| `fandhe-pack validate`・`test` を `probes/views` に | 診断 0 件、4/4（1/3 と同じ） |
+| `make check-choice-journey CHOICE_JOURNEY_CONFIG=tools/browser/choice-journey/task-breakdown.json`（`SKIP_WASM_OPT=1`） | CSP あり・なしとも合格（`completed=true`、行 4 件、外部通信 0、ページ内エラー 0） |
+| `node --test tools/browser/choice-journey-config.test.mjs` | 成功 |
+
+根拠の種類は CLI（`validate`・`test`）と自動ブラウザ（DOM だけの観察）です。人は画面を見ていません。
+
+### 7.7 限界と #2013 への申し送り
+
+- 行の文字（`title`・`state`・`detail`）が画面に出るか、`task_tree` の入れ子、カードの状態の見た目は未確認（5.2 の限界 3）。画面の通しは経路と印しか測らない
+- `fandhe-pack test` は効果の値（`set_attr`）を照合しない。語彙の検査も `rules[].outcome.effects` を通らない（`docs/schema-format-b.md` の 6 節）。このため状態の遷移の正しさは、書いた文面との突き合わせが人手になる
+- `starts[].effects` を画面が適用しない（PACK-22・TASK-217）ことを避けた。章をまたぐ形、`on_achieved`、`next[].when` は使っていない
+- 1 つの設定では Step ごとのビューの種類を照合できない（5.2 の限界 4）。この設定も `visibleViews` を書いていない
+- `kind` の綴りの誤りが止まらない件（5.2 の限界 2）は 3/3 で `docs/known-gaps.md` に足す候補
+- 試験と教材の作成者が同じ AI である。人は画面を見ていない

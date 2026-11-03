@@ -1,0 +1,255 @@
+# 3 本目の教材の章（TASK-763 2/3）。開始点の effects を画面が適用しない（TASK-217）ため、行は st-1 の受付の effects で置く。
+# 木（v-tree）とカード（v-cards）は同じ経路の行を指す。1 Step に 1 ビューにする。拒否の規則は outcome に kind と rejection だけを持つ（拒否のあと行は変わらない）。
+id: ch-tasks
+title: タスクの分解と進行管理
+starts:
+  - id: s-1
+    node: st-1
+steps:
+  - id: st-1
+    title: 大きな作業を確かめる
+    do: 作業の一覧を開く
+    body: st-1.md
+    lo: [LO-1]
+    views: [v-tree]
+    hints: [h-1-1, h-1-2]
+    input:
+      kind: choice
+      options:
+        - { id: opt-list, label: 作業の一覧を開く }
+    rules:
+      - id: r-list
+        on: { option: opt-list }
+        outcome:
+          kind: accept
+          effects:
+            - put: { path: plan/release, fixture: fx-tasks, attrs: { title: アプリの公開, state: 未分解, detail: まだ分けていません } }
+            - put: { path: plan/release/data, fixture: fx-tasks, attrs: { title: データを用意する, state: 未着手, detail: 画面で使うデータ } }
+            - put: { path: plan/release/screen, fixture: fx-tasks, attrs: { title: 画面を作る, state: 未着手, detail: データを使う画面 } }
+            - put: { path: plan/release/publish, fixture: fx-tasks, attrs: { title: 公開する, state: 未着手, detail: 画面ができてから } }
+    confirm:
+      kind: answer
+      on_wrong: rj-s1-asis
+      options:
+        - { id: ans-big, label: 大きすぎて一度には進められない, correct: true }
+        - { id: ans-asis, label: このまま着手する, correct: false, on_wrong: rj-s1-asis }
+    next: [{ to: st-2 }]
+  - id: st-2
+    title: 作業を分ける
+    do: 作業を分ける
+    body: st-2.md
+    lo: [LO-1]
+    views: [v-tree]
+    hints: [h-2-1, h-2-2]
+    input:
+      kind: choice
+      options:
+        - { id: opt-split3, label: データ・画面・公開の 3 つに分ける }
+        - { id: opt-nosplit, label: 分けずに進める }
+        - { id: opt-split-all, label: 思いつく作業を全部並べる }
+    rules:
+      - id: r-split3
+        on: { option: opt-split3 }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release, attr: state, value: 分解済み }
+            - set_attr: { path: plan/release, attr: detail, value: 3 つのタスクに分けました }
+      - id: r-nosplit
+        on: { option: opt-nosplit }
+        outcome: { kind: reject, rejection: rj-s2-nosplit }
+      - id: r-split-all
+        on: { option: opt-split-all }
+        outcome: { kind: reject, rejection: rj-s2-many }
+    confirm:
+      kind: answer
+      on_wrong: rj-s2-wrong
+      options:
+        - { id: ans-size, label: 1 つのタスクは一度に終えられる大きさにする, correct: true }
+        - { id: ans-name, label: 名前だけ決めて、中身は決めない, correct: false, on_wrong: rj-s2-wrong }
+    next: [{ to: st-3 }]
+  - id: st-3
+    title: 最初のタスクを決める
+    do: 最初に始めるタスクの行を指す
+    body: st-3.md
+    lo: [LO-1]
+    views: [v-tree]
+    hints: [h-3-1, h-3-2]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-tree, path: plan/release/data }
+        - { view: v-tree, path: plan/release/screen }
+        - { view: v-tree, path: plan/release/publish }
+        - { view: v-tree, path: plan/release }
+    rules:
+      - id: r-s3-data
+        on: { ui: { view: v-tree, path: plan/release/data } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release/data, attr: detail, value: 最初に始めます }
+      - id: r-s3-screen
+        on: { ui: { view: v-tree, path: plan/release/screen } }
+        outcome: { kind: reject, rejection: rj-s3-screen }
+      - id: r-s3-publish
+        on: { ui: { view: v-tree, path: plan/release/publish } }
+        outcome: { kind: reject, rejection: rj-s3-publish }
+      - id: r-s3-parent
+        on: { ui: { view: v-tree, path: plan/release } }
+        outcome: { kind: reject, rejection: rj-s3-parent }
+    confirm:
+      kind: point_at
+      on_miss: rj-s3-screen
+      targets:
+        - { view: v-tree, path: plan/release/data }
+    next: [{ to: st-4 }]
+  - id: st-4
+    title: カードを進行中にする
+    do: 最初のカードを進行中にする
+    body: st-4.md
+    lo: [LO-2]
+    views: [v-cards]
+    hints: [h-4-1, h-4-2]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-cards, path: plan/release/data }
+        - { view: v-cards, path: plan/release/screen }
+    rules:
+      - id: r-s4-data
+        on: { ui: { view: v-cards, path: plan/release/data } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release/data, attr: state, value: 進行中 }
+      - id: r-s4-screen
+        on: { ui: { view: v-cards, path: plan/release/screen } }
+        outcome: { kind: reject, rejection: rj-s4-screen }
+    confirm:
+      kind: answer
+      on_wrong: rj-s4-wrong
+      options:
+        - { id: ans-one, label: 進行中は 1 枚に絞る, correct: true }
+        - { id: ans-allwip, label: 全部を進行中にする, correct: false, on_wrong: rj-s4-wrong }
+    next: [{ to: st-5 }]
+  - id: st-5
+    title: 終わったカードを完了にする
+    do: 終わったカードを完了にする
+    body: st-5.md
+    lo: [LO-2]
+    views: [v-cards]
+    hints: [h-5-1, h-5-2]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-cards, path: plan/release/data }
+        - { view: v-cards, path: plan/release/screen }
+    rules:
+      - id: r-s5-data
+        on: { ui: { view: v-cards, path: plan/release/data } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release/data, attr: state, value: 完了 }
+      - id: r-s5-screen
+        on: { ui: { view: v-cards, path: plan/release/screen } }
+        outcome: { kind: reject, rejection: rj-s5-screen }
+    confirm:
+      kind: point_at
+      on_miss: rj-s5-screen
+      targets:
+        - { view: v-cards, path: plan/release/data }
+    next: [{ to: st-6 }]
+  - id: st-6
+    title: 次のカードを進行中にする
+    do: 次に始めるカードを進行中にする
+    body: st-6.md
+    lo: [LO-2]
+    views: [v-cards]
+    hints: [h-6-1, h-6-2]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-cards, path: plan/release/screen }
+        - { view: v-cards, path: plan/release/publish }
+        - { view: v-cards, path: plan/release/data }
+    rules:
+      - id: r-s6-screen
+        on: { ui: { view: v-cards, path: plan/release/screen } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release/screen, attr: state, value: 進行中 }
+      - id: r-s6-publish
+        on: { ui: { view: v-cards, path: plan/release/publish } }
+        outcome: { kind: reject, rejection: rj-s6-publish }
+      - id: r-s6-data
+        on: { ui: { view: v-cards, path: plan/release/data } }
+        outcome: { kind: reject, rejection: rj-s6-data }
+    confirm:
+      kind: point_at
+      on_miss: rj-s6-publish
+      targets:
+        - { view: v-cards, path: plan/release/screen }
+    next: [{ to: st-7 }]
+  - id: st-7
+    title: 残りを木で確かめる
+    do: 進行中のタスクを完了にする
+    body: st-7.md
+    lo: [LO-1, LO-2]
+    views: [v-tree]
+    hints: [h-7-1, h-7-2]
+    input:
+      kind: ui_action
+      targets:
+        - { view: v-tree, path: plan/release/screen }
+        - { view: v-tree, path: plan/release/publish }
+        - { view: v-tree, path: plan/release }
+        - { view: v-tree, path: plan/release/data }
+    rules:
+      - id: r-s7-screen
+        on: { ui: { view: v-tree, path: plan/release/screen } }
+        outcome:
+          kind: accept
+          effects:
+            - set_attr: { path: plan/release/screen, attr: state, value: 完了 }
+            - set_attr: { path: plan/release, attr: detail, value: 残りは公開だけです }
+      - id: r-s7-publish
+        on: { ui: { view: v-tree, path: plan/release/publish } }
+        outcome: { kind: reject, rejection: rj-s7-publish }
+      - id: r-s7-parent
+        on: { ui: { view: v-tree, path: plan/release } }
+        outcome: { kind: reject, rejection: rj-s7-parent }
+      - id: r-s7-data
+        on: { ui: { view: v-tree, path: plan/release/data } }
+        outcome: { kind: reject, rejection: rj-s7-data }
+    confirm:
+      kind: answer
+      on_wrong: rj-s7-wrong
+      options:
+        - { id: ans-parent, label: 親は子が全部完了してから完了にする, correct: true }
+        - { id: ans-parent-now, label: 子が残っていても親を完了にする, correct: false, on_wrong: rj-s7-wrong }
+    next: [{ to: st-8 }]
+  - id: st-8
+    title: ふりかえる
+    do: 学んだことを確かめる
+    body: st-8.md
+    lo: [LO-1, LO-2]
+    views: [v-tree]
+    hints: [h-8-1]
+    input:
+      kind: choice
+      options:
+        - { id: opt-read, label: 読んだ }
+    rules:
+      - id: r-read
+        on: { option: opt-read }
+        outcome: { kind: accept }
+    confirm:
+      kind: answer
+      on_wrong: rj-s8-wrong
+      options:
+        - { id: ans-recap, label: 小さく分け、進行中を絞り、1 つずつ完了にする, correct: true }
+        - { id: ans-recap-bad, label: 大きいまま全部を同時に進める, correct: false, on_wrong: rj-s8-wrong }
+    final: true

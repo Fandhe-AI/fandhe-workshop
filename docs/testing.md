@@ -12358,6 +12358,23 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 
 **限界**: 人は画面を見ていない。行の文字・入れ子・カードの状態の見た目は道具が測らず、preview での観察もしていない（未確認）。開始点の `effects` を画面が適用しないため、行は最初の選択肢の受付で置いた。全設定を通す `make check-choice-journey`（既存の設定を含む）は流していない（未実施）。
 
+### 5.458 3 本目の教材の章立て・Step と教材パック（TASK-763 2/3。#2012）
+
+**目的**: 3 本目の教材「タスクの分解と進行管理」を、公開の資料と CLI だけで書き、エンジンを変えずに `validate`・`test` を通す。
+
+**教材パック**: `template-workshop/examples/task-breakdown/`（1 章・8 Step。`task_tree`・`card_list`。行を指す `ui_action` が 5 Step）。章立て・Step の入力・状態変化・完了条件は同 `docs/requirements.md` の 7 節。確認用の `probes/views/` は変えていない。
+
+**設定**: `tools/browser/choice-journey/task-breakdown.json`（本体を 16 入力で完走。`visibleViews` は書かない）。道具のコードと既存の設定 3 本は変えていない。
+
+**結果（2026-11-03、手元。Linux・Chromium・`fandhe-pack` は debug ビルド）**
+
+- `fandhe-pack validate` は診断 0 件（章 1・Step の定義 8）。`probes/` は読まれない
+- `fandhe-pack test` は模範解答 1/1・誤入力 18/18・入った Step の実体 8/8 で全件合格
+- `make check-choice-journey CHOICE_JOURNEY_CONFIG=tools/browser/choice-journey/task-breakdown.json SKIP_WASM_OPT=1` は CSP あり・なしの 2 通りとも合格（`completed=true`、行 4 件、外部通信 0、ページ内エラー 0）
+- `node --test tools/browser/choice-journey-config.test.mjs` は成功
+
+**限界**: 人は画面を見ていない。行の文字・カードの状態の見た目は測らない。`test` は `set_attr` の値を照合しない。
+
 ### 5.455 基準端末 A での初回表示（TASK-108 1/2。#833。DLV-5）
 
 日付: 2026-11-03。`docs/measurement.md` §8 の手順に従い、基準端末 A で `first-paint-direct` を流した。記録の様式は同 §8「記録の様式」の欄による。
