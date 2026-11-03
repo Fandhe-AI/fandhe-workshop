@@ -78,6 +78,8 @@ if [ ! -f "${BIN}" ] || [ ! -x "${BIN}" ]; then
   echo "error: fandhe-pack is not an executable file" >&2
   exit 2
 fi
+# 教材ディレクトリへ cd した後でも見つかるよう、相対パスの BIN は絶対パスへ解決する。
+BIN="$(cd "$(dirname "${BIN}")" && pwd)/$(basename "${BIN}")"
 
 WORK=""
 cleanup() {

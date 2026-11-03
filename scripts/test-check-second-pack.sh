@@ -51,6 +51,12 @@ expect_rc "親ディレクトリの要素を含む値は 2" 2 --pack "${SRC}/../
 expect_rc "- で始まる値は 2" 2 --pack -x
 expect_rc "workshop.yaml の無い値は 2" 2 --pack "${WORK}"
 expect_rc "変えていない写しは 0" 0 --pack "${SRC}"
+# FANDHE_PACK_BIN を相対パスで渡しても（cd の後で）見つかり、合格する。
+REL_BIN_DIR="$(dirname "${FANDHE_PACK_BIN}")"
+REL_BIN_NAME="$(basename "${FANDHE_PACK_BIN}")"
+REL_RC=0
+(cd "${REL_BIN_DIR}" && FANDHE_PACK_BIN="./${REL_BIN_NAME}" "${SCRIPT}" --pack "${SRC}" >/dev/null 2>&1) || REL_RC=$?
+if [ "${REL_RC}" -eq 0 ]; then ok "相対パスの FANDHE_PACK_BIN でも 0"; else ng "相対パスの FANDHE_PACK_BIN (exit ${REL_RC}, expected 0)"; fi
 
 # mutate <名前> <相対パス> <sed の式> <期待する FAIL の項目>: 写しを作り、置き換えがちょうど 1 行に効くことを確かめる。
 n=0
