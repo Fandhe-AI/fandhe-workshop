@@ -63,6 +63,10 @@ expect_rc "変えていない教材は 0" 0 --pack "${SRC}"
 mutate() {
   local name="$1" file="$2" old="$3" new="$4" fail_items="$5" pass_items="$6" code="$7"
   local copy="${WORK}/m" content edited item vout
+  local -a fail_arr=() pass_arr=()
+  # 空白区切りの文字列を配列へ分ける（引用符なしの展開に頼らない）
+  if [ -n "${fail_items}" ]; then read -r -a fail_arr <<<"${fail_items}"; fi
+  if [ -n "${pass_items}" ]; then read -r -a pass_arr <<<"${pass_items}"; fi
   rm -rf "${copy}"
   cp -R "${SRC}" "${copy}"
   content="$(cat "${copy}/${file}")"
@@ -73,10 +77,10 @@ mutate() {
   fi
   printf '%s\n' "${edited}" >"${copy}/${file}"
   expect_rc "${name}" 1 --pack "${copy}"
-  for item in ${fail_items}; do
+  for item in ${fail_arr[@]+"${fail_arr[@]}"}; do
     if printf '%s' "${OUT}" | grep -q "^FAIL ${item}:"; then ok "${name}: ${item} が FAIL"; else ng "${name}: ${item} が FAIL になっていない"; fi
   done
-  for item in ${pass_items}; do
+  for item in ${pass_arr[@]+"${pass_arr[@]}"}; do
     if printf '%s' "${OUT}" | grep -q "^PASS ${item}\$"; then ok "${name}: ${item} は PASS のまま"; else ng "${name}: ${item} が PASS のままでない"; fi
   done
   if [ -n "${code}" ]; then
