@@ -286,6 +286,8 @@ CI（`ci.yml` の `browser-test` ジョブ、チェック名 `browser test (Chro
 | `make test-check-second-pack` | `scripts/test-check-second-pack.sh` | 上の試験自体の回帰テスト（変異を入れた写し） |
 | `make check-second-pack-repro` | `scripts/check-second-pack-repro.sh` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（TASK-413 1/2。CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack-repro` | `scripts/test-check-second-pack-repro.sh` | 上の検査自体の回帰テスト（変異を入れた写し） |
+| `make check-engine-zero-diff` | `scripts/check-engine-zero-diff.sh` | 第 2 教材の追加でエンジンの差分が 0 行であることを、固定した commit からの行数と SHA-256 の一覧で確かめます（記録は `docs/engine-zero-diff/review-request/`。CI 未組み込み） |
+| `make test-check-engine-zero-diff` | `scripts/test-check-engine-zero-diff.sh` | 上の検査自体の回帰テスト（見本の repo） |
 | `make check-internal-info WORDS=<一覧のパス>` | `tools/check-internal-info.mjs` | 社内固有の語（private の spec repo の一覧）と認証情報の形の公開前の照合（CI 未組み込み。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | `tools/check-internal-info.mjs` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
 | `make test-check-internal-info` | `scripts/test-check-internal-info.sh` | 上の照合自体の回帰テスト |
