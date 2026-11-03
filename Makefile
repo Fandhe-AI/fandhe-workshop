@@ -159,7 +159,7 @@ check-second-pack: ## 第 2 教材の骨格の設定値・Step 群と模範解�
 test-check-second-pack: ## 上の試験自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack.sh
 	@scripts/test-check-second-pack.sh
 
-check-second-pack-repro: ## 公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数の検査（TASK-413 1/2。CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack-repro.sh [--pack <dir>]
+check-second-pack-repro: ## 公開の資料だけで作者が書いた第 2 教材の写し（docs/second-pack-repro）の validate・test・設定値・件数・IR のバイト一致の検査（TASK-413 1/2・2/2。CI 未組み込み。cargo が要る）。直接: scripts/check-second-pack-repro.sh [--pack <dir>]
 	@scripts/check-second-pack-repro.sh
 
 test-check-second-pack-repro: ## 上の検査自体の回帰テスト（変異を入れた写し。本物の fandhe-pack を使うためやや遅い）。直接: scripts/test-check-second-pack-repro.sh

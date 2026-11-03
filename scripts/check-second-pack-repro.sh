@@ -5,13 +5,16 @@
 # 目的: エンジンのソースを見ない作者が、公開の資料と fandhe-pack だけで第 2 教材を書き、validate・test を通せたことの
 # 記録（docs/testing.md 5.449）を、写しに対して再実行できるようにする。製品の第 2 教材の検査
 # （scripts/check-second-pack.sh）とは別の教材を見るため、ID・件数は共有しない。Rust・Cargo.* には触れない（W-20）。
-# 分担: IR のバイト一致（ir-match）と不足の記録（known-gaps.md）は TASK-413 2/2 が足す。ここには入れない。
+# 分担: IR のバイト一致（ir-match。TASK-413 2/2）は作者が compile した tests/ir.json を基準にする。作者の写し
+# （pack/** と tests/ir.json）は凍結し、一致が崩れたら compile で書き直さず所見として記録する（製品の検査とは逆）。
+# 不足の記録は docs/known-gaps.md が持つ。
 #
 # 項目（1 項目 1 行。PASS <名前> / FAIL <名前>: <理由>）
 #   validate    診断 0 件・章 1
 #   test        終了コード 0・模範解答と誤入力が全件合格（a/a・b/b）
 #   constraints compile の IR が brief の設定値（profile・appearance・left_pane・commands・文書のビューだけ・開始点 1・章 1）を満たす
 #   baseline    <pack>/../baseline.txt の件数と実測が一致する
+#   ir-match    compile の出力が tests/ir.json（作者の出力）とバイト単位で一致する（-o・標準出力・-o の 2 回目・別の場所へ写した相対パス）
 #
 # 使い方: scripts/check-second-pack-repro.sh [--pack <dir>]
 #   --pack  省略時は docs/second-pack-repro/pack。baseline.txt は <dir> の 1 つ上に置く
@@ -62,6 +65,9 @@ require_cmd grep || exit 2
 require_cmd mktemp || exit 2
 require_cmd rm || exit 2
 require_cmd cat || exit 2
+require_cmd cmp || exit 2
+require_cmd cp || exit 2
+require_cmd mkdir || exit 2
 
 BIN="${FANDHE_PACK_BIN:-}"
 if [ -z "${BIN}" ]; then
@@ -169,6 +175,44 @@ if [ "$(baseline_get validate.chapters)" = "${act_chapters}" ] \
   pass baseline
 else
   fail baseline "counts differ from baseline.txt (chapters, steps, playthroughs, error_inputs or total_inputs)"
+fi
+
+# 5 ir-match（バイト比較。IR 変数はコマンド置換で末尾の改行が落ちるため使わず、必ずファイルへ書き出して cmp -s で比べる）
+# 基準が無い・通常のファイルでない場合は不合格（fail-closed）。差分の中身は出さない。
+IR_REF="${PACK}/tests/ir.json"
+ir_ok=1
+if [ ! -f "${IR_REF}" ] || [ -L "${IR_REF}" ]; then
+  ir_ok=0
+else
+  mkdir -p "${WORK}/elsewhere"
+  if "${BIN}" compile "${PACK}" -o "${WORK}/ir-o1.json" >"${WORK}/ir-o1.out" 2>"${WORK}/ir-o1.err" \
+    && [ ! -s "${WORK}/ir-o1.out" ] && [ ! -s "${WORK}/ir-o1.err" ] && cmp -s "${IR_REF}" "${WORK}/ir-o1.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if "${BIN}" compile "${PACK}" >"${WORK}/ir-stdout.json" 2>/dev/null && cmp -s "${IR_REF}" "${WORK}/ir-stdout.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if "${BIN}" compile "${PACK}" -o "${WORK}/ir-o2.json" >/dev/null 2>&1 && cmp -s "${IR_REF}" "${WORK}/ir-o2.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+  if cp -R "${PACK}" "${WORK}/elsewhere/authored" \
+    && (cd "${WORK}/elsewhere" && "${BIN}" compile authored -o "${WORK}/ir-copy.json" >/dev/null 2>&1) \
+    && cmp -s "${IR_REF}" "${WORK}/ir-copy.json"; then
+    :
+  else
+    ir_ok=0
+  fi
+fi
+if [ "${ir_ok}" -eq 1 ]; then
+  pass ir-match
+else
+  fail ir-match "compile output is not byte-identical to tests/ir.json (-o, stdout, repeat, copied dir)"
 fi
 
 if [ "${FAILS}" -ne 0 ]; then

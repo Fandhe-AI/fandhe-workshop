@@ -12135,6 +12135,47 @@ IR を同梱した配信する設定をサブパスの下で配り、`?start=s-1
 - `make test-measure` の全体は流していない（未検証）。(l) と同じ内容を単体で流して確かめた
 - 試験と実装の作成者が同じ AI である
 
+### 5.451 公開の資料だけで書いた第 2 教材の IR のバイト一致と不足の記録（TASK-413 2/2。AUTHOR-12）
+
+日付: 2026-11-03。5.449（TASK-413 1/2）の続きである。作者が `compile` した IR と、写しを再 `compile` した IR のバイト一致を検査の項目 `ir-match` にし、作者が書けなかった箇所を `docs/known-gaps.md` に ID つきで記録した。
+
+**方針**: 作者の写し（`docs/second-pack-repro/pack/**`・`tests/ir.json`・`brief.md`・`public.sha256`・`baseline.txt`）は凍結する。製品の検査（`check-second-pack.sh`）は教材を変えたら `tests/ir.json` を書き直すが、ここでは基準が作者の出力そのものなので書き直さない。エンジンの変更で一致が崩れたら、写しを作り直さず所見として記録する。`public.sha256` は作者に渡した時点の資料の値で、本件で `known-gaps.md` を変えたため、今の資料とは合わない（想定内）。
+
+**条件**: 実行ファイルは base cddeca51 の `scripts/build-pack-bin.sh` の出力（SHA-256 は `70f33e39bd8498dec6ad12cb6e7090b7792485d4c188f1d8771e1d507f1b4241`）。
+
+**結果**
+
+| 項目 | 値 |
+|---|---|
+| `ir-match` | `-o`（標準出力・標準エラー出力が空）・標準出力のリダイレクト・`-o` の 2 回目・別の場所へ写した相対パスの 4 通りすべてで `tests/ir.json` と一致（41,733 bytes。時点の値） |
+| `make check-second-pack-repro` | 5 項目（validate・test・constraints・baseline・ir-match）すべて PASS |
+| `make test-check-second-pack-repro` | 合格（`ir-match` の負の対照 4 件を追加: `tests/ir.json` の 1 バイト・本文の文面・`tests/ir.json` なし・シンボリックリンク） |
+| Rust の差分 | `crates/`・`Cargo.toml`・`Cargo.lock` の差分 0 行 |
+
+**不足の一覧（書けなかった箇所 → ID → `known-gaps.md` の行）**
+
+| 書けなかった・確かめられなかった箇所 | ID | 記録 |
+|---|---|---|
+| `when` の `world_attr` の書き方が資料に無い（新しい不足） | AUTHOR-13（3） | 新規の行 |
+| 確認待ちの間の入力が `not_in_this_step` で拒否される（新しい不足） | AUTHOR-13（4） | 新規の行 |
+| 場面 5（条件つきの拒否）が誤入力として通せない | SECOND-12（条件つきの拒否） | 既存の行に再現の証拠を追記 |
+| 文面の確認（`text_checks`）を `test` が判定しない | AUTHOR-4 | 既存の節 |
+| `world_list: hidden` で左の行が出ない | PACK-22・SECOND-8 | 既存の行 |
+| 行の文面 | SECOND-6 | 既存の行 |
+| 外観の見た目 | PACK-21 | 既存の行 |
+| 読むだけの Step の操作数 | PACK-35 | 既存の行 |
+| 変化の印が行単位 | ART-17 | 既存の節 |
+| 開始点の `effects` を `test` が適用しない | （`docs/cli.md` 12.1） | 既存の記述 |
+
+**AUTHOR-12 の完了条件との差**: 誤入力は 28/28 ではなく 8/8（SECOND-12）。文面の確認は 27/27 ではなく未判定（AUTHOR-4）。どちらも Rust の変更が要る。水増しの誤入力は書いていない。
+
+**限界**
+
+- 自動ブラウザ・`preview` での完走は流していない（未検証）
+- 作者の起動は 1 回だけで、再現性は確かめていない
+- 試験と実装の作成者が同じ AI である
+- 資料の欠け（AUTHOR-13（3）（4））は記録だけで、`schema-format-b.md`・`pack-authoring.md` は直していない
+
 ### 5.449 公開の資料だけで書いた第 2 教材の再現（TASK-413 1/2。AUTHOR-12）
 
 日付: 2026-11-03。目的は、エンジンのソースを見ない作者が、公開の資料と `fandhe-pack` だけで第 2 教材を書き、`validate`・`test` を通せることの確認である。写しと要件は `docs/second-pack-repro/`（`README.md`・`brief.md`・`public.sha256`・`pack/`・`baseline.txt`）に置いた。

@@ -81,7 +81,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 ├── docs/engine-api.md        # 公開 API の契約の文書（core の型の一覧・世代の表・宛先の形・机上の照合の記録）
 ├── docs/l2-windows.md        # Windows 向けの L2 の配布物の作成と起動の手順（版 1。TASK-198）
 ├── docs/cli-guide.md         # 作成者向けのコマンドの使い方と出力の読み方（版 2。TASK-412・TASK-415）
-├── docs/second-pack-repro/   # 公開の資料だけで別の作者が書いた第 2 教材の写しと要件・資料の SHA-256・基準値（TASK-413 1/2。AUTHOR-12）
+├── docs/second-pack-repro/   # 公開の資料だけで別の作者が書いた第 2 教材の写しと要件・資料の SHA-256・基準値・不足の記録（TASK-413 1/2・2/2。AUTHOR-12）
 ├── docs/examples/            # 最小の教材パックの例 2 つ（validate 0 件・test 全件合格。MANIFEST.sha256 つき。TASK-412）
 ├── docs/diagnostics.md       # 診断コード（E-*）の一覧（版 19。TASK-195・TASK-58・TASK-59・TASK-400・TASK-62・TASK-64・TASK-70・TASK-71・TASK-420）
 ├── docs/cli.md               # CLI の外部仕様（fandhe-pack のコマンド・引数・使い方・終了コード・診断 1 行・最終行・出し先・`compile`・`metrics`・`vocab` の出力・`test` の PASS／FAIL の行と集計。版 16（`preview` の関門と診断時の終了を追加）。TASK-399・TASK-407・TASK-402・TASK-408・TASK-409・TASK-67・TASK-403・TASK-404・TASK-405）
@@ -168,7 +168,7 @@ fandhe-workshop は、体験型教材を作成・実行する汎用 OSS エン�
 | `make test-check-generic-words` | 教材固有の語の検査自体の回帰テスト |
 | `make check-second-pack` | 第 2 教材の骨格（`template-workshop/examples/review-request/`）の設定値・文書のビューの 5 行・Step 8 つと模範解答 2 通りの行の変化・誤答の 8 場面の規則・誤入力と文面の確認（TASK-746 2/2）・IR のバイト一致・形式 B・学習目標（TASK-747）（TASK-746）・基準値・AR-12 の読みの記録と設定値の一致・診断の試験（`scripts/check-second-pack.sh`。TASK-745・TASK-756。`E-PROFILE-NO-INPUT` は compile で確かめる。CI 未組み込み。cargo が要る。TASK-743） |
 | `make test-check-second-pack` | 上の試験自体の回帰テスト（変異を入れた写し。やや遅い） |
-| `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449。CI 未組み込み。cargo が要る） |
+| `make check-second-pack-repro` | 公開の資料だけで別の作者が書いた第 2 教材の写し（`docs/second-pack-repro/`）の validate・test・設定値・件数の検査（`scripts/check-second-pack-repro.sh`。TASK-413 1/2。記録は `docs/testing.md` 5.449・5.451。CI 未組み込み。cargo が要る） |
 | `make test-check-second-pack-repro` | 上の検査自体の回帰テスト（変異を入れた写し。やや遅い） |
 | `make check-internal-info WORDS=<一覧のパス>` | 社内固有の語（private の spec repo の一覧。`tools/check-internal-info.mjs`）と認証情報の形の公開前の照合（CI 未組み込み。語の一覧は本 repo に置かない。記録は `docs/publish-checks.md`） |
 | `make check-internal-info-secrets` | 認証情報の形だけの照合（語の照合は行わない。CI 未組み込み） |
