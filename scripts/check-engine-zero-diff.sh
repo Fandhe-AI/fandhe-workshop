@@ -7,6 +7,16 @@
 # 呼び出し元: `make check-engine-zero-diff`（手で流す。CI は回帰テストだけを流す。本体を CI に入れない理由は
 #   README の「CI について」）。回帰テストは scripts/test-check-engine-zero-diff.sh。
 #
+# 2 つのモード（#2038）
+#   記録モード（既定）: --base・--manifest・--pack・--write-manifest のどれも無いとき。docs/engine-zero-diff/*/record.txt
+#     （key=value の行。base・head・pack）を読み、記録ごとに自身を個別の指定モードで呼び直して再現する。既定の head は
+#     record.txt の「測った HEAD」で、いまの HEAD ではない（記録した後にエンジンが変わっても退行と読まれない）。
+#     いまの rev を測るときは --head <rev> で明示する（全記録の head を上書きし、エンジンが変わっていれば FAIL する）。
+#     既定では head が作業ツリーの HEAD でないため worktree-clean は SKIP になる。
+#     README の表の base・測った HEAD と record.txt の食い違いは record-readme の項目で FAIL にする。
+#   個別の指定モード: 3 つ（--base・--manifest・--pack）を必須にする。head の既定は HEAD のまま（新しい教材の記録を
+#     作った直後の測定用。変えない）。
+#
 # 数える範囲（判定する）: crates/ の全体（src・tests・static・各 crate の Cargo.toml）・直下の Cargo.toml・Cargo.lock。
 # 参考の行（数えないが出す）: rust-toolchain.toml。
 # 数えない範囲（INFO の行に行数だけ出す）: template-workshop/（雛形と教材の例）・docs/・scripts/・tools/・
@@ -29,10 +39,11 @@
 # `<sha256>  <path>` で、git の木の並びのまま書く。出力はパス・SHA・行数だけで、ファイルの中身は出さない。
 #
 # 使い方:
-#   scripts/check-engine-zero-diff.sh [--root <dir>] [--base <rev>] [--head <rev>] [--manifest <file>]
-#                                     [--pack <path>] [--write-manifest]
+#   scripts/check-engine-zero-diff.sh [--root <dir>] [--head <rev>] [--record <dir>]...
+#   scripts/check-engine-zero-diff.sh [--root <dir>] --base <rev> [--head <rev>] --manifest <file> --pack <path>
+#                                     [--write-manifest]
 #   --write-manifest は base から一覧を作って --manifest に書く（判定しない。記録の作り直しに使う）。
-#   エンジンが後から変わった場合は、記録した「測った HEAD」の SHA を --head に渡して再測定する。
+#   --record <dir> は記録モードの対象を 1 つ以上に絞る（--root からの相対パス。繰り返せる）。
 # 終了コード: 0 = 全項目合格 / 1 = 不合格 / 2 = 誤用・前提の欠け（shallow で base が無い・SHA-256 の道具が無い等。
 #   2 も合格にしない）
 # 必要な道具: git・awk・sed・cmp・head・wc・mktemp・sha256sum か shasum（cargo・通信は不要）
@@ -42,14 +53,13 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${DIR}/lib.sh"
 export LC_ALL=C
 
-readonly DEFAULT_BASE="505fef25de073875d814500e76a9e597e4513639"
-readonly DEFAULT_MANIFEST="docs/engine-zero-diff/review-request/engine-manifest.sha256"
-readonly DEFAULT_PACK="template-workshop/examples/review-request"
+readonly RECORDS_DIR="docs/engine-zero-diff"
 # 数える範囲。git のパス指定として使う。
 readonly -a SCOPE=(crates Cargo.toml Cargo.lock)
 
 usage() {
-  echo "usage: check-engine-zero-diff.sh [--root <dir>] [--base <rev>] [--head <rev>] [--manifest <file>] [--pack <path>] [--write-manifest]" >&2
+  echo "usage: check-engine-zero-diff.sh [--root <dir>] [--head <rev>] [--record <dir>]..." >&2
+  echo "       check-engine-zero-diff.sh [--root <dir>] --base <rev> [--head <rev>] --manifest <file> --pack <path> [--write-manifest]" >&2
 }
 
 fatal() {
@@ -77,23 +87,29 @@ check_value() {
 }
 
 root="${ROOT_DIR}"
-base="${DEFAULT_BASE}"
+base=""
 head_rev="HEAD"
+head_given=0
 manifest=""
-pack="${DEFAULT_PACK}"
+pack=""
 write_manifest=0
+records=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --write-manifest)
       write_manifest=1
       shift
       ;;
-    --root | --base | --head | --manifest | --pack)
+    --root | --base | --head | --manifest | --pack | --record)
       [ "$#" -ge 2 ] || { usage; exit 2; }
       case "$1" in
         --root) root="$2" ;;
         --base) base="$2" ;;
-        --head) head_rev="$2" ;;
+        --head)
+          head_rev="$2"
+          head_given=1
+          ;;
+        --record) records+=("$2") ;;
         --manifest) manifest="$2" ;;
         --pack) pack="$2" ;;
       esac
@@ -119,9 +135,7 @@ else
 fi
 
 check_value "--root" "${root}" path
-check_value "--base" "${base}" rev
 check_value "--head" "${head_rev}" rev
-check_value "--pack" "${pack}" path
 [ -d "${root}" ] || fatal "--root is not a directory"
 root="$(cd "${root}" && pwd)"
 [ "$(git -C "${root}" rev-parse --is-inside-work-tree 2>/dev/null || true)" = "true" ] \
@@ -129,15 +143,109 @@ root="$(cd "${root}" && pwd)"
 [ -z "$(git -C "${root}" rev-parse --show-prefix 2>/dev/null)" ] \
   || fatal "--root must be the top of the git work tree"
 
-if [ -z "${manifest}" ]; then
-  manifest="${root}/${DEFAULT_MANIFEST}"
-else
-  check_value "--manifest" "${manifest}" path
-  case "${manifest}" in
-    /*) ;;
-    *) manifest="${root}/${manifest}" ;;
-  esac
+# readme_sha <README> <表の行の見出し>: 表の行の最初の 40 桁の 16 進を出す（無ければ空）。
+readme_sha() {
+  grep -F -- "$2" "$1" | head -n 1 | grep -Eo '[0-9a-f]{40}' | head -n 1 || true
+}
+
+# run_records: 記録モード。記録ごとに record.txt を解析し、README の表と照合し、自身を個別の指定モードで呼び直す。
+# 子の 2 は 2、それ以外で 1 件でも FAIL があれば 1。record.txt は信頼しない入力として、キーの許可リストと値の形で読む。
+run_records() {
+  local dirs=() d name overall=0 count=0 line k v rb rh rp seen_b seen_h seen_p rdm hb hh child_rc eff_head
+  if [ "${#records[@]}" -gt 0 ]; then
+    for d in "${records[@]}"; do
+      check_value "--record" "${d}" path
+      d="${d%/}"
+      dirs+=("${d}")
+    done
+  else
+    [ -d "${root}/${RECORDS_DIR}" ] || fatal "${RECORDS_DIR} not found (no records to reproduce)"
+    for d in "${root}/${RECORDS_DIR}"/*/; do
+      [ -d "${d}" ] || continue
+      name="$(basename "${d}")"
+      dirs+=("${RECORDS_DIR}/${name}")
+    done
+  fi
+  [ "${#dirs[@]}" -gt 0 ] || fatal "no records found under ${RECORDS_DIR}"
+  for d in "${dirs[@]}"; do
+    echo "== record ${d}"
+    [ -f "${root}/${d}/record.txt" ] || fatal "${d}/record.txt not found"
+    rb="" rh="" rp="" seen_b=0 seen_h=0 seen_p=0
+    while IFS= read -r line || [ -n "${line}" ]; do
+      case "${line}" in
+        "" | "#"*) continue ;;
+        *$'\r'*) fatal "${d}/record.txt must not contain a carriage return" ;;
+        *=*) ;;
+        *) fatal "${d}/record.txt has a line without '='" ;;
+      esac
+      k="${line%%=*}"
+      v="${line#*=}"
+      case "${k}" in
+        base) [ "${seen_b}" = 0 ] || fatal "${d}/record.txt has a duplicate key: base"; seen_b=1; rb="${v}" ;;
+        head) [ "${seen_h}" = 0 ] || fatal "${d}/record.txt has a duplicate key: head"; seen_h=1; rh="${v}" ;;
+        pack) [ "${seen_p}" = 0 ] || fatal "${d}/record.txt has a duplicate key: pack"; seen_p=1; rp="${v}" ;;
+        *) fatal "${d}/record.txt has an unknown key" ;;
+      esac
+    done < "${root}/${d}/record.txt"
+    [ "${seen_b}${seen_h}${seen_p}" = "111" ] || fatal "${d}/record.txt must have base, head and pack"
+    printf '%s' "${rb}" | grep -Eq '^[0-9a-f]{40}$' || fatal "${d}/record.txt: base must be a full 40-hex commit"
+    printf '%s' "${rh}" | grep -Eq '^[0-9a-f]{40}$' || fatal "${d}/record.txt: head must be a full 40-hex commit"
+    check_value "pack in ${d}/record.txt" "${rp}" path
+    echo "PASS record-file (base ${rb}, head ${rh}, pack ${rp})"
+    # README の表との照合（記録の値どうしの照合。--head の上書きに依らない）
+    rdm="${root}/${d}/README.md"
+    if [ ! -f "${rdm}" ]; then
+      echo "FAIL record-readme: ${d}/README.md not found"
+      overall=1
+    else
+      hb="$(readme_sha "${rdm}" "| 固定した commit（base） |")"
+      hh="$(readme_sha "${rdm}" "| 測った HEAD |")"
+      if [ "${hb}" = "${rb}" ] && [ "${hh}" = "${rh}" ]; then
+        echo "PASS record-readme (README table matches record.txt)"
+      else
+        echo "FAIL record-readme: README table (base ${hb:-none}, head ${hh:-none}) differs from record.txt"
+        overall=1
+      fi
+    fi
+    eff_head="${rh}"
+    if [ "${head_given}" = "1" ]; then
+      eff_head="${head_rev}"
+      echo "INFO head overridden: measuring ${eff_head}, not the recorded head ${rh}"
+    fi
+    child_rc=0
+    "${DIR}/check-engine-zero-diff.sh" --root "${root}" --base "${rb}" --head "${eff_head}" \
+      --manifest "${d}/engine-manifest.sha256" --pack "${rp}" || child_rc=$?
+    [ "${child_rc}" != "2" ] || exit 2
+    [ "${child_rc}" = "0" ] || overall=1
+    count=$((count + 1))
+  done
+  if [ "${overall}" = "0" ]; then
+    echo "result: ${count} record(s) reproduced"
+    exit 0
+  fi
+  echo "result: FAIL"
+  exit 1
+}
+
+# --- 記録モード ---
+if [ -z "${base}${manifest}${pack}" ] && [ "${write_manifest}" = "0" ]; then
+  run_records
 fi
+
+# --- 個別の指定モード ---
+[ "${#records[@]}" -eq 0 ] || { echo "error: --record cannot be combined with --base, --manifest, --pack or --write-manifest" >&2; exit 2; }
+[ -n "${base}" ] || { usage; fatal "--base is required without a record"; }
+[ -n "${manifest}" ] || { usage; fatal "--manifest is required without a record"; }
+check_value "--base" "${base}" rev
+check_value "--manifest" "${manifest}" path
+if [ "${write_manifest}" = "0" ]; then
+  [ -n "${pack}" ] || { usage; fatal "--pack is required without a record"; }
+  check_value "--pack" "${pack}" path
+fi
+case "${manifest}" in
+  /*) ;;
+  *) manifest="${root}/${manifest}" ;;
+esac
 
 # rev を完全な commit の SHA に解決する。解決できなければ前提の欠け（shallow で無い場合を含む）として 2。
 resolve() {

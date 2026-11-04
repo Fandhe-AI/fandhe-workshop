@@ -5,3 +5,5 @@ testdata/** -text
 template-workshop/examples/review-request/tests/ir.json -text
 # エンジンの差分 0 の確認の SHA-256 の一覧は、compile でなく base の blob とのバイト一致で照合する（scripts/check-engine-zero-diff.sh）。
 docs/engine-zero-diff/**/engine-manifest.sha256 -text
+# 記録の base・head・pack は改行の変換で値が変わらないようバイト一致で保つ（check-engine-zero-diff.sh の記録モード）。
+docs/engine-zero-diff/**/record.txt -text

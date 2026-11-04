@@ -80,9 +80,14 @@
 CI（`check` ジョブ）は回帰テスト `make test-check-engine-zero-diff` だけを流します。本体は、次の理由で CI に入れていません。
 
 - `ci.yml` の checkout は浅く（深さ 2）、固定した commit が取れません
-- 以後に別のタスクがエンジンを変えると、HEAD を既定にした実行は落ちます。その扱いの決定が先に要ります
 
-エンジンが後から変わった場合は、上の「測った HEAD」の SHA を `--head` に渡して再測定します（`scripts/check-engine-zero-diff.sh --head cddeca51a9b3ef9c9669e01a5b5a54edf6a11fd1`）。
+`make check-engine-zero-diff` は、記録の再現です（#2038）。扱いは次のとおりです。
+
+- 既定の head は、このディレクトリの `record.txt`（`base`・`head`・`pack`）に書いた「測った HEAD」です。いまの HEAD ではないので、記録の後にエンジンが変わっても落ちません
+- いまの HEAD を測るときは `--head HEAD`（任意の rev）を明示します。エンジンが変わっていれば FAIL するのが正しい挙動です
+- `record.txt` が機械可読な正で、上の表と食い違うと `record-readme` の項目が FAIL します
+- 既定の実行では head が作業ツリーの HEAD でないため、`worktree-clean` は SKIP になります。退行ではありません
+- 第 3 教材の記録（`../task-breakdown/`）も同じ入口で再現します。1 件に絞るときは `--record docs/engine-zero-diff/review-request` を渡します
 
 ## 限界
 
